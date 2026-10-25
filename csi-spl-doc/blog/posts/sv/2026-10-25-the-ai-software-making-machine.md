@@ -2,46 +2,49 @@
 id: 2026-10-25-the-ai-software-making-machine
 lang: sv
 type: news
-title: "Vet du vad din AI-drivna mjukvaruutveckling faktiskt kostar?!"
-summary: "Spool Hub ändrar sin slogan till ”the AI Software making machine” och följer cykelns hastighet, kvalitet och verkliga AI-utvecklingskostnad."
+title: "Vet du vad din AI-drivna utveckling faktiskt kostar?!"
+summary: "Spool Hub uppdaterar sin slogan till 'the AI Software making machine' och mäter livscykelhastighet, kvalitet och den verkliga kostnaden för AI-utveckling."
 date: 2026-10-25
 published: 2026-10-25T10:38:38Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
 image: 2026-10-25-the-ai-software-making-machine.webp
-image_alt: "En automatiserad mjukvarufabrik där glada tecknade robotar designar, testar och levererar kod dygnet runt."
+image_alt: "En livlig automatiserad mjukvarufabrik där glada tecknade robotar designar, testar och levererar kod dygnet runt."
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 draft: true
 ---
-När Spool Hub startade var dess slogans ”Where people meet AI” och ”where humans and AI meet”. I dag blir vår slogan: **the AI Software making machine**.
+När Spool Hub startade var parollerna „Where people meet AI“ och „where humans and AI meet“. Idag blir vår slogan: **the AI Software making machine**.
 
-Den nya sloganen speglar Spool Hubs verkliga syfte mycket bättre. Det är inte bara ett chattrum där människor samtalar med modeller. Det är en automatiserad mjukvarufabrik: en flotta av AI-agenter som planerar, bygger, testar, granskar och levererar produktionskod dygnet runt.
+Den nya sloganen speglar vad Spool Hub är: en automatiserad mjukvarufabrik. En flotta av AI-agenter planerar, bygger, testar, granskar och levererar produktionsprogramvara dygnet runt.
 
 ## 🚀 Snabbhet och kvalitet genom hela livscykeln
 
-Maskinen förbättrar både hastighet och kvalitet genom hela mjukvaruutvecklingens livscykel:
+Maskinen driver snabbhet och kvalitet genom mjukvarans livscykel:
 
 1. **Konversationer:** Varje initiativ startar som en öppen diskussion i ett ämne.
-2. **Specifikationer:** Diskussioner omvandlas till strikta ärenden, epics och git-styrda specifikationer med granskningspaneler från flera leverantörer.
-3. **Autonoma banor:** Oberoende agentbanor implementerar uppgifter i isolerade arbetsträd.
-4. **Granskning över modellgränser:** Modeller från olika familjer verifierar varje ändring innan den slås ihop.
-5. **Kontinuerlig leverans:** Ändringar sammanfogas med huvudgrenen och driftsätts direkt till produktion.
+2. **Specifikationer:** Diskussioner blir ärenden, epics och git-specs med flerpartsgranskning.
+3. **Autonoma banor:** Oberoende agentbanor utför uppgifter i isolerade arbetsträd.
+4. **Flerpartsgranskning:** Modeller från olika familjer verifierar ändringar före sammanslagning.
+5. **Kontinuerlig leverans:** Ändringar slås samman till trunk och driftsätts direkt i produktion.
 
-Eftersom agentflottan arbetar 24/7 stannar programvaruproduktionen aldrig nattetid eller på helger. Och eftersom webbgränssnittet är helt mobilanpassat kan du styra projekt, granska förslag och starta byggen från mobilen var du än är.
+Eftersom agenterna arbetar 24/7 stannar produktionen aldrig. Med ett mobilt webbgränssnitt styr du projekt och granskar arbete från mobilen var som helst.
 
-## 📊 Liveövervakning och mjukvarans verkliga kostnad
+## 📊 Komplett systemövervakning och mjukvarans verkliga kostnad
 
-En mjukvarufabrik behöver tydlig instrumentering. I de senaste versionerna introducerade Spool Hub en enhetlig sektion för **Monitoring**:
-- **Lanes:** realtidsvy över aktiva agentuppgifter i hela flottan.
-- **Event log:** personlig och delad logg över varje operativ händelse.
-- **Costs:** månatlig uppdelning av infrastrukturkostnader och resursredovisning.
+En mjukvarumaskin behöver heltäckande instrumentering. Spool Hub samlar övervakningen i sektionen **Monitoring** över sex områden:
+- **Agents:** närvaro, agenttyp, tilldelad värdmaskin och direktmeddelanden.
+- **Boxes:** maskinhälsa, systemdata, onlinestatus, användarantal och allokeringsplaner.
+- **Events:** personlig historik och operativa diagnostikhändelser i realtid.
+- **Tokens:** förbrukningstakt för tokens, cache-träffar, prenumerationer och effektivt pris per miljon tokens.
+- **Costs:** månatlig uppdelning av infrastrukturkostnader och molnresursredovisning.
+- **Lanes:** realtidsvy över aktiva uppgifter, omfattningar, länkade ämnen och ärenden.
 
-Nu uppstår den avgörande frågan: **vet du vad din AI-drivna mjukvaruutveckling faktiskt kostar?!**
+Nu kommer den avgörande frågan: **vet du vad din AI-drivna utveckling faktiskt kostar?!**
 
-De flesta organisationer har ingen aning. Vi har ännu inte helt färdigställt spårningen av tokenförbrukning, men det är vår nästa stora milstolpe. Tillsammans med tidsredovisning för mänskliga medarbetare kommer Spool Hub att ge en exakt formel:
+De flesta organisationer har ingen aning. Medan Spool Hub mäter tokenförbrukning, dagliga utgifter och prenumerationspriser för mätta agenter, ansluts resterande körtider fortfarande. Tillsammans med kommande tidrapportering för människor ger Spool Hub total klarhet:
 
-Totalkostnad = Förbrukade tokens + Infrastrukturkostnader + (Mänsklig tid × Timtaxa)
+Total kostnad = Förbrukade tokens + Infrastrukturkostnader + (Mänsklig tid × Timtaxa)
 
 Inga gissningar. Verklig redovisning för mjukvaruutveckling i AI-eran.
 
@@ -49,7 +52,7 @@ Inga gissningar. Verklig redovisning för mjukvaruutveckling i AI-eran.
 
 Ingenting.
 
-Spool Hub har öppen källkod på [github.com/csitea/csi-spl](https://github.com/csitea/csi-spl). Med en skicklig agent kan du driftsätta det på din egen Google Cloud-infrastruktur på ett par timmar och köra gratis (dina vanliga molnkostnader tillkommer).
+Spool Hub är öppen källkod på [github.com/csitea/csi-spl](https://github.com/csitea/csi-spl). Med en bra agent driftsätter du det i din Google Cloud-infrastruktur på ett par timmar och kör det gratis (molnleverantörens avgifter tillkommer).
 
 ---
 

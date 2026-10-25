@@ -3,53 +3,56 @@ id: 2026-10-25-the-ai-software-making-machine
 lang: sk
 type: news
 title: "Viete, koľko stojí váš vývoj riadený umelou inteligenciou?!"
-summary: "Spool Hub mení svoj slogan na „the AI Software making machine“, pričom sleduje rýchlosť, kvalitu a skutočné náklady na vývoj s AI."
+summary: "Spool Hub aktualizuje svoj slogan na 'the AI Software making machine', pričom sleduje rýchlosť životného cyklu, kvalitu a skutočné náklady na vývoj s AI."
 date: 2026-10-25
 published: 2026-10-25T10:38:38Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
 image: 2026-10-25-the-ai-software-making-machine.webp
-image_alt: "Automatizovaná softvérová fabrika, kde veselé kreslené roboty nepretržite navrhujú, testujú a nasadzujú kód."
+image_alt: "Rušná automatizovaná softvérová továreň, kde veselé kreslené roboty nepretržite navrhujú, testujú a nasadzujú kód."
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 draft: true
 ---
-Keď Spool Hub vznikol, jeho sloganmi boli „Where people meet AI“ a „where humans and AI meet“. Dnes sa naším sloganom stáva: **the AI Software making machine**.
+Keď Spool Hub začínal, jeho sloganmi boli „Where people meet AI“ a „where humans and AI meet“. Dnes sa naším sloganom stáva: **the AI Software making machine**.
 
-Nový slogan oveľa lepšie vystihuje skutočný účel Spool Hubu. Nie je to iba četovací priestor, kde sa ľudia rozprávajú s modelmi. Je to automatizovaná softvérová fabrika: flotila AI agentov, ktorá nepretržite plánuje, stavia, testuje, kontroluje a nasadzuje produkčný softvér.
+Nový slogan vystihuje podstatu Spool Hubu: automatizovaná továreň na softvér. Flotila AI agentov nepretržite plánuje, stavia, testuje, kontroluje a dodáva produkčný softvér.
 
 ## 🚀 Rýchlosť a kvalita počas celého životného cyklu
 
-Stroj zvyšuje rýchlosť aj kvalitu v celom životnom cykle vývoja softvéru:
+Stroj zvyšuje rýchlosť a kvalitu v každej fáze vývoja:
 
-1. **Konverzácie:** Každá iniciatíva začína ako otvorená diskusia v téme.
-2. **Špecifikácie:** Konverzácie sa menia na prísne úlohy, epiky a špecifikácie riadené gitom s panelmi viacerých dodávateľov.
-3. **Autonómne pruhy:** Nezávislé pruhy agentov implementujú úlohy v izolovaných pracovných stromoch.
-4. **Krížová kontrola:** Modely z rôznych rodín overujú každú zmenu pred jej zlúčením.
-5. **Priebežné nasadzovanie:** Zmeny sa zlučujú do hlavnej vetvy a putujú priamo do produkcie.
+1. **Konverzácie:** Každá iniciatíva začína otvorenou diskusiou v téme.
+2. **Špecifikácie:** Diskusie sa menia na úlohy, epiky a git-špecifikácie s multi-vendor komisiami.
+3. **Autonómne dráhy:** Nezávislé dráhy agentov vykonávajú úlohy v izolovaných stromoch.
+4. **Viacmodelové hodnotenie:** Modely z rôznych rodín overujú zmeny pred zlúčením.
+5. **Kontinuálne nasadzovanie:** Zmeny sa zlučujú do hlavnej vetvy a nasadzujú priamo do produkcie.
 
-Pretože flotila agentov pracuje 24/7, produkcia softvéru sa nezastaví v noci ani cez víkendy. A keďže webové rozhranie je plne prispôsobené pre mobily, môžete riadiť projekty, hodnotiť návrhy a spúšťať úlohy zo svojho telefónu odkiaľkoľvek.
+Pretože agenti pracujú 24/7, produkcia sa nikdy nezastaví. A vďaka mobilnému webu môžete riadiť projekty a kontrolovať prácu priamo zo svojho telefónu.
 
-## 📊 Živé monitorovanie a skutočné náklady na softvér
+## 📊 Kompletný monitoring systému a skutočné náklady na softvér
 
-Softvérová fabrika potrebuje presné prístroje. V nedávnych vydaniach priniesol Spool Hub zjednotenú sekciu **Monitoring**:
-- **Lanes:** živý prehľad o aktívnych úlohách agentov v celej flotile.
-- **Event log:** osobný a tímový záznam každej prevádzkovej udalosti.
-- **Costs:** mesačný prehľad nákladov na infraštruktúru a účtovanie zdrojov.
+Stroj na tvorbu softvéru potrebuje ucelenú diagnostiku. Spool Hub zjednocuje dohľad v sekcii **Monitoring** v šiestich oblastiach:
+- **Agents:** prítomnosť, typ agenta, hostiteľský server a priama komunikácia.
+- **Boxes:** stav počítačov, systémové údaje, pripojenie, počty používateľov a alokácie.
+- **Events:** osobná história aktivít a prevádzková diagnostika v reálnom čase.
+- **Tokens:** spotreba tokenov, vyrovnávacia pamäť, predplatné a cena za milión tokenov.
+- **Costs:** mesačný rozpis nákladov na infraštruktúru a účtovanie cloudu.
+- **Lanes:** prehľad v reálnom čase o úlohách, rozsahoch, prepojených témach a kľúčoch.
 
 Teraz prichádza zásadná otázka: **viete, koľko stojí váš vývoj riadený umelou inteligenciou?!**
 
-Väčšina organizácií to netuší. Sledovanie výdavkov na tokeny ešte nemáme plne dokončené, no je to náš ďalší kľúčový míľnik. V kombinácii so sledovaním odpracovaných hodín ľudí poskytne Spool Hub presný výpočet:
+Väčšina organizácií to vôbec netuší. Kým Spool Hub už monitoruje spotrebu tokenov, denné výdavky a predplatné pre meraných agentov, nemerané runtime prostredia sa stále pripájajú. V kombinácii so sledovaním pracovného času ľudí prinesie Spool Hub úplnú jasnosť:
 
-Celkové náklady = Minuté tokeny + Náklady na infraštruktúru + (Čas ľudí × Hodinová sadzba)
+Celkové náklady = Spotrebované tokeny + Náklady na infraštruktúru + (Ľudský čas × Hodinová sadzba)
 
-Žiadne dohady. Skutočné účtovníctvo softvérového inžinierstva v ére umelej inteligencie.
+Žiadne dohady. Skutočné účtovníctvo pre softvérové inžinierstvo v ére AI.
 
 ## 💡 Koľko vlastne Spool Hub stojí pre vás?
 
 Nič.
 
-Spool Hub má otvorený zdrojový kód na [github.com/csitea/csi-spl](https://github.com/csitea/csi-spl). So šikovným agentom ho nasadíte do vlastnej infraštruktúry Google Cloud za pár hodín a prevádzkujete zadarmo (štandardné poplatky vášho poskytovateľa cloudu naďalej platia).
+Spool Hub je dostupný s otvoreným kódom na [github.com/csitea/csi-spl](https://github.com/csitea/csi-spl). So šikovným agentom ho nasadíte do vlastného Google Cloud za pár hodín a prevádzkujete zadarmo (platia bežné cloudové poplatky).
 
 ---
 

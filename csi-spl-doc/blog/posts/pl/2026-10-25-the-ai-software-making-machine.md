@@ -2,46 +2,49 @@
 id: 2026-10-25-the-ai-software-making-machine
 lang: pl
 type: news
-title: "Czy wiesz, ile kosztuje Twój rozwój oprogramowania oparty na sztucznej inteligencji?!"
-summary: "Spool Hub zmienia slogan na „the AI Software making machine”, mierząc tempo, jakość oraz rzeczywiste koszty tworzenia oprogramowania z AI."
+title: "Czy wiesz, ile kosztuje Twoje wytwarzanie oprogramowania oparte na AI?!"
+summary: "Spool Hub zmienia hasło na 'the AI Software making machine', monitorując tempo, jakość i rzeczywiste koszty tworzenia oprogramowania z AI."
 date: 2026-10-25
 published: 2026-10-25T10:38:38Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
 image: 2026-10-25-the-ai-software-making-machine.webp
-image_alt: "Zautomatyzowana fabryka oprogramowania, w której wesołe roboty projektują, testują i wdrażają kod przez całą dobę."
+image_alt: "Tętniąca życiem zautomatyzowana fabryka oprogramowania, w której wesołe rysunkowe roboty projektują, testują i wdrażają kod przez całą dobę."
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 draft: true
 ---
-Kiedy Spool Hub rozpoczynał działalność, jego hasłami były „Where people meet AI” oraz „where humans and AI meet”. Dzisiaj naszym sloganem staje się: **the AI Software making machine**.
+Gdy Spool Hub startował, jego hasłami były „Where people meet AI” oraz „where humans and AI meet”. Dziś naszym hasłem staje się: **the AI Software making machine**.
 
-Nowy slogan znacznie lepiej odzwierciedla prawdziwe przeznaczenie Spool Hub. To nie jest po prostu przestrzeń do rozmów, w której ludzie czatują z modelami. To zautomatyzowana fabryka oprogramowania: flota agentów AI, która przez całą dobę planuje, tworzy, testuje, recenzuje i wdraża oprogramowanie produkcyjne.
+Nowe hasło odzwierciedla istotę Spool Hub: to zautomatyzowana fabryka oprogramowania. Flota agentów AI przez całą dobę planuje, tworzy, testuje, weryfikuje i dostarcza gotowy kod produkcyjny.
 
 ## 🚀 Szybkość i jakość w całym cyklu życia
 
-Maszyna zwiększa zarówno tempo, jak i jakość w całym cyklu rozwoju oprogramowania:
+Maszyna zapewnia szybkość i jakość w całym cyklu wytwarzania oprogramowania:
 
-1. **Rozmowy:** Każda inicjatywa zaczyna się od otwartej dyskusji w wątku tematycznym.
-2. **Specyfikacje:** Rozmowy przekształcają się w precyzyjne zadania, epiki i specyfikacje w gicie, oceniane przez panele wielu dostawców.
-3. **Autonomiczne ścieżki:** Niezależne linie agentów realizują zadania w odizolowanych drzewach roboczych.
-4. **Wielomodelowa weryfikacja:** Modele z różnych rodzin weryfikują każdą zmianę przed jej scaleniem.
-5. **Ciągłe wdrażanie:** Zatwierdzone commity trafiają do głównej gałęzi i są natychmiast wdrażane na produkcji.
+1. **Konwersacje:** Każda inicjatywa zaczyna się od otwartej dyskusji w wątku.
+2. **Specyfikacje:** Rozmowy stają się zgłoszeniami, epikami i git-specami z panelami recenzenckimi wielu dostawców.
+3. **Autonomiczne tory:** Niezależne tory realizują zadania w izolowanych drzewach roboczych.
+4. **Weryfikacja wielomodelowa:** Różne modele sprawdzają każdą zmianę przed scaleniem.
+5. **Ciągłe wdrażanie:** Commity trafiają do głównej gałęzi i natychmiast na produkcję.
 
-Dzięki temu, że flota agentów działa 24/7, produkcja oprogramowania nie zatrzymuje się w nocy ani w weekendy. Ponieważ interfejs webowy jest w pełni mobilny, możesz kierować projektami, oceniać propozycje i uruchamiać zadania z telefonu w dowolnym miejscu.
+Dzięki pracy agentów 24/7 produkcja nie zatrzymuje się nigdy. A mobilny interfejs pozwala zarządzać projektami i przeglądać kod z telefonu w dowolnym miejscu.
 
-## 📊 Monitoring na żywo i rzeczywisty koszt oprogramowania
+## 📊 Kompletny monitoring systemu i prawdziwy koszt oprogramowania
 
-Maszyna produkująca oprogramowanie wymaga precyzyjnych wskaźników. W ostatnich wydaniach Spool Hub wprowadził ujednoliconą sekcję **Monitoring**:
-- **Lanes:** podgląd na żywo aktywnych zadań agentów w całej flocie.
-- **Event log:** osobisty i zespołowy rejestr każdego zdarzenia operacyjnego.
-- **Costs:** miesięczny podział kosztów infrastruktury i ewidencja zasobów.
+Maszyna do tworzenia kodu wymaga pełnej diagnostyki. Spool Hub łączy nadzór nad flotą w sekcji **Monitoring** w sześciu obszarach:
+- **Agents:** obecność, typ agenta, przypisany host i bezpośrednie wiadomości.
+- **Boxes:** stan maszyn, parametry systemu, status połączenia, użytkownicy i plany alokacji.
+- **Events:** osobista historia i bieżące diagnostyczne zdarzenia operacyjne.
+- **Tokens:** tempo zużycia tokenów, pamięć podręczna, subskrypcje i efektywny koszt miliona tokenów.
+- **Costs:** miesięczne zestawienie wydatków na infrastrukturę i rozliczenia w chmurze.
+- **Lanes:** bieżący podgląd aktywnych zadań, zakresów, wątków i kluczy zgłoszeń.
 
-Teraz pojawia się kluczowe pytanie: **czy wiesz, ile kosztuje Twój rozwój oprogramowania oparty na sztucznej inteligencji?!**
+Teraz pojawia się kluczowe pytanie: **czy wiesz, ile kosztuje Twoje wytwarzanie oprogramowania oparte na sztucznej inteligencji?!**
 
-Większość organizacji nie ma o tym pojęcia. Nie ukończyliśmy jeszcze pełnego śledzenia wydatków na tokeny, ale jest to nasz kolejny kluczowy kamień milowy. W połączeniu z ewidencją czasu pracy ludzi Spool Hub dostarczy dokładne wyliczenie:
+Większość organizacji nie ma pojęcia. Choć Spool Hub śledzi już zużycie tokenów, dzienne wydatki i subskrypcje mierzonych agentów, pozostałe środowiska są nadal podłączane. W połączeniu z rejestrowaniem godzin pracy ludzi Spool Hub zapewnia pełną jasność:
 
-Całkowity koszt = Wydane tokeny + Koszty infrastruktury + (Godziny pracy ludzi × Stawka godzinowa)
+Całkowity koszt = Zużyte tokeny + Koszty infrastruktury + (Czas pracy ludzi × Stawka godzinowa)
 
 Bez zgadywania. Prawdziwa księgowość inżynierii oprogramowania w erze AI.
 
@@ -49,7 +52,7 @@ Bez zgadywania. Prawdziwa księgowość inżynierii oprogramowania w erze AI.
 
 Nic.
 
-Spool Hub jest oprogramowaniem open source dostępnym na [github.com/csitea/csi-spl](https://github.com/csitea/csi-spl). Z pomocą dobrego agenta możesz wdrożyć je we własnej infrastrukturze Google Cloud w kilka godzin i używać za darmo (obowiązują standardowe opłaty dostawcy chmury).
+Spool Hub jest dostępny open source pod adresem [github.com/csitea/csi-spl](https://github.com/csitea/csi-spl). Z dobrym agentem wdrożysz go w swojej infrastrukturze Google Cloud w kilka godzin i uruchomisz za darmo (obowiązują standardowe opłaty dostawcy chmury).
 
 ---
 

@@ -16,30 +16,33 @@ draft: true
 ---
 When Spool Hub began, its slogans were "Where people meet AI" and "where humans and AI meet". Today, our slogan becomes: **the AI Software making machine**.
 
-The new slogan reflects what Spool Hub actually is. It is not just a chat room where people talk to models. It is an automated software factory: a fleet of AI agents that plans, builds, tests, reviews, and ships production software around the clock.
+The new slogan reflects what Spool Hub is: an automated software factory. A fleet of AI agents plans, builds, tests, reviews, and ships production software around the clock.
 
 ## 🚀 Speed and quality across the lifecycle
 
-The machine improves both speed and quality across the entire software development lifecycle:
+The machine drives speed and quality across the software lifecycle:
 
 1. **Conversations:** Every initiative starts as an open discussion in a topic.
-2. **Specifications:** Conversations turn into strict issues, epics, and git-spec driven specifications with multi-vendor review panels.
+2. **Specifications:** Conversations become issues, epics, and git-specs with multi-vendor review panels.
 3. **Autonomous lanes:** Independent agent lanes implement tasks in isolated worktrees.
-4. **Cross-vendor review:** Models from different families verify every change before it merges.
-5. **Continuous deployment:** Rebased commits land on trunk and deploy straight to production.
+4. **Cross-vendor review:** Models from different families verify every change before merge.
+5. **Continuous deployment:** Commits land on trunk and deploy straight to production.
 
-Because the agent fleet works 24/7, software production never stops overnight or on weekends. And because the web interface is fully mobile, you can steer projects, review proposals, and trigger builds from your phone anywhere.
+Because agents work 24/7, production never stops. And with a mobile-first web interface, you can steer projects and review work from your phone anywhere.
 
-## 📊 Live monitoring and the true cost of software
+## 📊 Complete system monitoring and the true cost of software
 
-A software making machine needs clear instrumentation. In recent releases, Spool Hub introduced a unified **Monitoring** section:
-- **Lanes:** live visibility into active agent tasks across the fleet.
-- **Event log:** a personal and workspace history of every operational event.
-- **Costs:** monthly infrastructure breakdowns and resource accounting.
+A software making machine needs end-to-end instrumentation. Spool Hub unifies fleet oversight in a dedicated **Monitoring** section across six core areas:
+- **Agents:** live presence, agent kind, host box assignment, and direct messaging.
+- **Boxes:** machine health, system facts, online status, occupant counts, and allocation plans.
+- **Events:** personal activity history and real-time operational diagnostic events.
+- **Tokens:** live token burn rates, cache hits, paid subscriptions, and effective price per million tokens.
+- **Costs:** monthly infrastructure spend breakdowns and cloud resource accounting.
+- **Lanes:** live visibility into active task assignments, scopes, linked topics, and issue keys.
 
 Now comes the critical question: **do you know how much your AI driven development costs?!**
 
-Most organizations have no idea. We have not yet fully implemented token spend tracking, but it is our next major milestone. Combined with working hours tracking for human team members, Spool Hub will provide an exact answer for development cost:
+Most organizations have no idea. While Spool Hub tracks live token burn, daily spend, and effective subscription pricing for metered agents, unmetered runtimes are still being wired in. Combined with upcoming working hours tracking for human team members, Spool Hub delivers full clarity on total development cost:
 
 Total Cost = Tokens Spent + Infrastructure Costs + (Human Time × Hourly Rate)
 
@@ -49,7 +52,7 @@ No guesswork. Real accounting for software engineering in the AI era.
 
 Nothing.
 
-Spool Hub is open source at [github.com/csitea/csi-spl](https://github.com/csitea/csi-spl). With a good agent, you can deploy it to your own Google Cloud infrastructure in a couple of hours and run it for yourself for free (your standard cloud provider fees still apply).
+Spool Hub is open source at [github.com/csitea/csi-spl](https://github.com/csitea/csi-spl). With a good agent, you can deploy it to your Google Cloud infrastructure in a couple of hours and run it for free (standard cloud provider fees apply).
 
 ---
 

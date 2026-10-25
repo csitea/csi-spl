@@ -2,46 +2,49 @@
 id: 2026-10-25-the-ai-software-making-machine
 lang: es
 type: news
-title: "¿Sabe cuánto cuesta su desarrollo impulsado por inteligencia artificial?!"
-summary: "Spool Hub cambia su lema a «the AI Software making machine», midiendo velocidad, calidad y el coste real del desarrollo con IA."
+title: "¡¿Sabe cuánto cuesta su desarrollo impulsado por IA?!"
+summary: "Spool Hub actualiza su lema a 'the AI Software making machine', midiendo la velocidad del ciclo de vida, la calidad y el coste real del desarrollo con IA."
 date: 2026-10-25
 published: 2026-10-25T10:38:38Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
 image: 2026-10-25-the-ai-software-making-machine.webp
-image_alt: "Una fábrica de software automatizada donde simpáticos robots de dibujos animados diseñan, prueban y entregan código las 24 horas."
+image_alt: "Una animada fábrica automatizada de software donde robots de dibujos animados diseñan, prueban y envían código las 24 horas del día."
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 draft: true
 ---
 Cuando nació Spool Hub, sus lemas eran «Where people meet AI» y «where humans and AI meet». Hoy, nuestro lema pasa a ser: **the AI Software making machine**.
 
-El nuevo lema refleja mucho mejor el verdadero propósito de Spool Hub. No es solo una sala de chat donde las personas conversan con modelos. Es una fábrica de software automatizada: una flota de agentes de IA que planifica, construye, prueba, revisa y entrega software de producción las 24 horas del día.
+El nuevo lema refleja lo que es Spool Hub: una fábrica de software automatizada. Una flota de agentes de IA planifica, construye, prueba, revisa y entrega software de producción las 24 horas.
 
 ## 🚀 Velocidad y calidad en todo el ciclo de vida
 
-La máquina mejora tanto la velocidad como la calidad a lo largo de todo el ciclo de desarrollo de software:
+La máquina impulsa la velocidad y calidad en todo el ciclo de software:
 
-1. **Conversaciones:** Cada iniciativa comienza como una discusión abierta en un hilo.
-2. **Especificaciones:** Las conversaciones se convierten en incidencias estrictas, épicas y especificaciones en git con paneles de revisión multimodelo.
-3. **Líneas autónomas:** Carriles independientes de agentes implementan tareas en árboles de trabajo aislados.
-4. **Revisión cruzada:** Modelos de distintas familias verifican cada cambio antes de fusionarlo.
-5. **Despliegue continuo:** Los cambios se integran en la rama principal y se despliegan directamente en producción.
+1. **Conversaciones:** Cada iniciativa comienza como debate abierto en un tema.
+2. **Especificaciones:** Los debates pasan a incidencias, épicas y git-specs con paneles multiveedor.
+3. **Carriles autónomos:** Carriles independientes ejecutan tareas en árboles de trabajo aislados.
+4. **Revisión multiproveedor:** Modelos de distintas familias verifican cambios antes de fusionar.
+5. **Despliegue continuo:** Los commits llegan a trunk y se despliegan directamente a producción.
 
-Como la flota de agentes opera 24/7, la producción de software nunca se detiene por la noche ni durante el fin de semana. Y como la interfaz web es totalmente móvil, puede dirigir proyectos, revisar propuestas y lanzar tareas desde el teléfono móvil en cualquier lugar.
+Al operar 24/7, la producción nunca para. Y con una interfaz web móvil, puede dirigir proyectos y revisar tareas desde su teléfono en cualquier lugar.
 
-## 📊 Monitorización en vivo y el coste real del software
+## 📊 Monitorización completa del sistema y el verdadero coste del software
 
-Una máquina de producción de software necesita instrumentación clara. En las últimas versiones, Spool Hub incorporó la sección unificada **Monitoring**:
-- **Lanes:** visibilidad en tiempo real de las tareas activas de los agentes en toda la flota.
-- **Event log:** historial personal y del espacio de trabajo de cada evento operativo.
-- **Costs:** desglose mensual de infraestructura y contabilidad de recursos.
+Una máquina de hacer software requiere instrumentación total. Spool Hub unifica el control de la flota en **Monitoring** a través de seis áreas:
+- **Agents:** presencia, tipo de agente, máquina asignada y mensajería directa.
+- **Boxes:** salud del hardware, datos del sistema, estado en línea, ocupantes y planes.
+- **Events:** historial personal de actividad y diagnósticos operativos en tiempo real.
+- **Tokens:** consumo de tokens en directo, caché, suscripciones y precio efectivo por millón.
+- **Costs:** desglose mensual de infraestructura y contabilidad de recursos en la nube.
+- **Lanes:** visibilidad en vivo de tareas activas, alcances, temas vinculados y claves.
 
-Ahora surge la pregunta fundamental: **¿sabe cuánto cuesta su desarrollo impulsado por inteligencia artificial?!**
+Ahora surge la pregunta crucial: **¿sabe cuánto cuesta su desarrollo impulsado por IA?**
 
-La mayoría de las organizaciones no lo sabe. Todavía no hemos implementado por completo el seguimiento del gasto en tokens, pero es nuestro próximo gran hito. Junto con el registro de horas del equipo humano, Spool Hub ofrecerá una respuesta exacta:
+La mayoría no lo sabe. Aunque Spool Hub ya monitoriza consumo en directo, gasto diario y precios de suscripción en agentes medidos, aún se conectan los entornos no medidos. Con el próximo registro de horas de trabajo humanas, Spool Hub ofrece claridad sobre el coste total:
 
-Coste total = Tokens consumidos + Costes de infraestructura + (Horas humanas × Tarifa horaria)
+Coste Total = Tokens Gastados + Costes de Infraestructura + (Tiempo Humano × Tarifa Horaria)
 
 Sin conjeturas. Contabilidad real para la ingeniería de software en la era de la IA.
 
@@ -49,7 +52,7 @@ Sin conjeturas. Contabilidad real para la ingeniería de software en la era de l
 
 Nada.
 
-Spool Hub es código abierto en [github.com/csitea/csi-spl](https://github.com/csitea/csi-spl). Con un buen agente, puede desplegarlo en su propia infraestructura de Google Cloud en un par de horas y ejecutarlo gratis (los costes habituales del proveedor de nube siguen aplicándose).
+Spool Hub es de código abierto en [github.com/csitea/csi-spl](https://github.com/csitea/csi-spl). Con un buen agente, puede desplegarlo en su Google Cloud en un par de horas y utilizarlo gratis (aplican las tarifas de su proveedor cloud).
 
 ---
 

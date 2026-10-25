@@ -3,53 +3,56 @@ id: 2026-10-25-the-ai-software-making-machine
 lang: ro
 type: news
 title: "Știți cât costă dezvoltarea dumneavoastră bazată pe inteligență artificială?!"
-summary: "Spool Hub își改变ă sloganul în „the AI Software making machine”, monitorizând viteza, calitatea și costul real al dezvoltării cu IA."
+summary: "Spool Hub își actualizează sloganul în 'the AI Software making machine', măsurând viteza ciclului de viață, calitatea și costul real al dezvoltării AI."
 date: 2026-10-25
 published: 2026-10-25T10:38:38Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
 image: 2026-10-25-the-ai-software-making-machine.webp
-image_alt: "O fabrică automatizată de software unde roboți veseli de desene animate proiectează, testează și livrează cod non-stop."
+image_alt: "O fabrică automatizată de software plină de viață, unde roboți animați veseli proiectează, testează și livrează cod non-stop."
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 draft: true
 ---
-Când a început Spool Hub, sloganurile sale erau „Where people meet AI” și „where humans and AI meet”. Astăzi, sloganul nostru devine: **the AI Software making machine**.
+Când Spool Hub a pornit la drum, sloganurile sale erau „Where people meet AI” și „where humans and AI meet”. Astăzi, sloganul nostru devine: **the AI Software making machine**.
 
-Noul slogan reflectă mult mai fidel adevăratul scop al Spool Hub. Nu este doar un spațiu de chat în care oamenii discută cu modele lingvistice. Este o fabrică de software automatizată: o flotă de agenți IA care planifică, construiește, testează, revizuiește și livrează software de producție non-stop.
+Noul slogan reflectă exact ceea ce este Spool Hub: o fabrică automatizată de software. O flotă de agenți AI planifică, construiește, testează, revizuiește și livrează software de producție non-stop.
 
 ## 🚀 Viteză și calitate pe parcursul întregului ciclu de viață
 
-Mașina îmbunătățește atât viteza, cât și calitatea în întregul ciclu de dezvoltare software:
+Mașina sporește viteza și calitatea pe tot parcursul ciclului de dezvoltare:
 
-1. **Conversații:** Fiecare inițiativă începe ca o discuție deschisă într-un subiect dedicat.
-2. **Specificații:** Conversațiile devin tichete stricte, epics și specificații în git, evaluate de comisii multi-furnizor.
-3. **Culoare autonome:** Culoare independente de agenți implementează sarcini în directoare de lucru izolate.
-4. **Revizuire între modele:** Modele din familii diferite verifică fiecare modificare înainte de unificare.
-5. **Implementare continuă:** Modificările ajung în ramura principală și sunt distribuite direct în producție.
+1. **Conversații:** Fiecare inițiativă începe ca o discuție deschisă într-un subiect.
+2. **Specificații:** Discuțiile devin tichete, epics și specificații git-spec cu comisii multi-furnizor.
+3. **Culoare autonome:** Culoare independente de agenți rulează sarcini în arbori izolați.
+4. **Revizuire multi-model:** Modele din familii diferite verifică modificările înainte de unire.
+5. **Livrare continuă:** Modificările ajung pe ramura principală și direct în producție.
 
-Deoarece flota de agenți lucrează 24/7, producția de software nu se oprește niciodată noaptea sau în weekend. Iar interfața web fiind complet adaptată pentru mobil, puteți coordona proiecte, analiza propuneri și lansa sarcini de pe telefon de oriunde.
+Deoarece agenții lucrează 24/7, producția nu se oprește niciodată. Cu o interfață complet mobilă, conduceți proiecte și validați sarcini direct de pe telefon.
 
-## 📊 Monitorizare în timp real și costul real al software-ului
+## 📊 Monitorizarea completă a sistemului și costul real al software-ului
 
-O mașină de produs software are nevoie de instrumente clare de măsură. În versiunile recente, Spool Hub a introdus secțiunea unificată **Monitoring**:
-- **Lanes:** vizibilitate în timp real asupra sarcinilor active ale agenților din flotă.
-- **Event log:** jurnalul personal și al spațiului de lucru pentru fiecare eveniment operațional.
-- **Costs:** defalcarea lunară a costurilor de infrastructură și a resurselor.
+O mașină de software are nevoie de instrumentație completă. Spool Hub unifică monitorizarea flotei în **Monitoring** pe șase direcții:
+- **Agents:** prezență, tipul agentului, mașina gazdă și mesagerie directă.
+- **Boxes:** starea mașinilor, date de sistem, conexiune, număr de utilizatori și alocare.
+- **Events:** istoric personal de activitate și evenimente de diagnostic în timp real.
+- **Tokens:** consum de tokenuri, eficiență cache, abonamente și preț efectiv per milion.
+- **Costs:** defalcarea lunară a costurilor de infrastructură și contabilitate cloud.
+- **Lanes:** vizibilitate în timp real a sarcinilor active, domeniilor, temelor și cheilor.
 
-Acum apare întrebarea esențială: **știți cât costă dezvoltarea dumneavoastră bazată pe inteligență artificială?!**
+Acum apare întrebarea critică: **știți cât costă dezvoltarea dumneavoastră bazată pe inteligență artificială?!**
 
-Majoritatea organizațiilor habar nu au. Nu am finalizat încă monitorizarea completă a consumului de jetoane (tokens), dar acesta este următorul nostru obiectiv major. În combinație cu pontajul orelor pentru membrii umani ai echipei, Spool Hub va oferi o ecuație exactă:
+Majoritatea organizațiilor habar nu au. Deși Spool Hub urmărește consumul live, cheltuielile zilnice și prețurile din abonamente pentru agenții măsurați, mediile nemăsurate sunt încă în curs de conectare. Alături de monitorizarea orelor de lucru umane, Spool Hub oferă o claritate totală:
 
-Cost total = Jetoane consumate + Costuri infrastructură + (Ore umane × Tarif orar)
+Cost Total = Tokenuri Consumate + Costuri de Infrastructură + (Timp Uman × Tarif Orar)
 
-Fără presupuneri. Contabilitate reală pentru ingineria software în era inteligenței artificiale.
+Fără presupuneri. Contabilitate reală pentru ingineria software în era AI.
 
 ## 💡 Cât costă de fapt Spool Hub pentru dumneavoastră?
 
 Nimic.
 
-Spool Hub este open source pe [github.com/csitea/csi-spl](https://github.com/csitea/csi-spl). Cu un agent capabil, îl puteți instala în propria infrastructură Google Cloud în două ore și îl puteți rula gratuit (se aplică facturile obișnuite ale furnizorului de cloud).
+Spool Hub este open source pe [github.com/csitea/csi-spl](https://github.com/csitea/csi-spl). Cu un agent capabil, îl puteți implementa în Google Cloud în câteva ore și îl puteți rula gratuit (se aplică taxele obișnuite de cloud).
 
 ---
 

@@ -3,53 +3,56 @@ id: 2026-10-25-the-ai-software-making-machine
 lang: lv
 type: news
 title: "Vai jūs zināt, cik maksā jūsu mākslīgā intelekta vadītā izstrāde?!"
-summary: "Spool Hub maina savu saukli uz “the AI Software making machine”, sekojot cikla ātrumam, kvalitātei un reālajām MI izstrādes izmaksām."
+summary: "Spool Hub atjaunina saukli uz 'the AI Software making machine', uzskaitot dzīves cikla ātrumu, kvalitāti un reālās AI izstrādes izmaksas."
 date: 2026-10-25
 published: 2026-10-25T10:38:38Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
 image: 2026-10-25-the-ai-software-making-machine.webp
-image_alt: "Dzīvīga automatizēta programmatūras rūpnīca, kurā jautri animācijas roboti visu diennakti projektē, testē un ievieš kodu."
+image_alt: "Darbīga automatizēta programmatūras rūpnīca, kurā jautri animācijas roboti diennakts režīmā projektē, testē un ievieš kodu."
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 draft: true
 ---
-Kad Spool Hub sāka savu darbību, tā saukļi bija “Where people meet AI” un “where humans and AI meet”. Šodien mūsu sauklis kļūst: **the AI Software making machine**.
+Kad Spool Hub uzsāka darbu, tā saukļi bija „Where people meet AI“ un „where humans and AI meet“. Šodien mūsu sauklis kļūst: **the AI Software making machine**.
 
-Jaunais sauklis daudz labāk atspoguļo Spool Hub patieso mērķi. Tā nav tikai tērzētava, kurā cilvēki sarunājas ar modeļiem. Tā ir automatizēta programmatūras rūpnīca: MI aģentu flote, kas visu diennakti plāno, būvē, testē, pārskata un piegādā ražošanas programmatūru.
+Jaunais sauklis atspoguļo Spool Hub būtību: tā ir automatizēta programmatūras rūpnīca. MI aģentu flote diennakts režīmā plāno, veido, testē, pārbauda un ievieš ražošanas kodu.
 
 ## 🚀 Ātrums un kvalitāte visā dzīves ciklā
 
-Iekārta uzlabo gan ātrumu, gan kvalitāti visā programmatūras izstrādes dzīves ciklā:
+Mašīna nodrošina ātrumu un kvalitāti visā programmatūras izstrādes ciklā:
 
-1. **Sarunas:** Katra iniciatīva sākas kā atvērta diskusija tēmā.
-2. **Specifikācijas:** Sarunas pārtop stingros uzdevumos, epikos un git pārvaldītās specifikācijās ar dažādu piegādātāju paneļiem.
-3. **Autonomās joslas:** Neatkarīgas aģentu joslas veic uzdevumus izolētos darba kokos.
-4. **Vairāku modeļu pārskatīšana:** Dažādu saimju modeļi pārbauda katru izmaiņu pirms sapludināšanas.
-5. **Nepārtraukta ieviešana:** Pārveidotie melnraksti tiek integrēti galvenajā zarā un nekavējoties ieviesti ražošanā.
+1. **Sarunas:** Katra iniciatīva sākas kā atklāta diskusija tēmā.
+2. **Specifikācijas:** Diskusijas kļūst par uzdevumiem, epikiem un git-specifikācijām ar vairāku modeļu pārskatīšanu.
+3. **Autonomās joslas:** Neatkarīgas joslas izpilda uzdevumus izolētos darba kokos.
+4. **Vairāku modeļu pārskatīšana:** Dažādu saimju modeļi pārbauda izmaiņas pirms apvienošanas.
+5. **Nepārtraukta ieviešana:** Izmaiņas nonāk galvenajā zarā un tiek ieviestas ražošanā.
 
-Tā kā aģentu flote strādā 24/7, programmatūras ražošana nekad neapstājas ne naktīs, ne brīvdienās. Un tā kā tīmekļa saskarne ir pilnībā pielāgota mobilajām ierīcēm, jūs varat vadīt projektus, izskatīt priekšlikumus un palaist procesus no sava tālruņa jebkurā vietā.
+Tā kā aģenti strādā 24/7, ražošana nekad neapstājas. Un mobilā tīmekļa saskarne ļauj vadīt projektus no tālruņa jebkurā vietā.
 
-## 📊 Tiešraides uzraudzība un programmatūras patiesā cena
+## 📊 Pilnīga sistēmas uzraudzība un programmatūras patiesās izmaksas
 
-Programmatūras mašīnai ir nepieciešama skaidra instrumentācija. Jaunākajos laidienos Spool Hub ieviesa vienotu sadaļu **Monitoring**:
-- **Lanes:** reāllaika pārskats par aktīvajiem aģentu uzdevumiem visā flotē.
-- **Event log:** personīgais un darba vietas darbības notikumu žurnāls.
-- **Costs:** ikmēneša infrastruktūras izmaksu un resursu uzskaite.
+Programmatūras mašīnai nepieciešama pilna instrumentācija. Spool Hub apvieno flotes pārraudzību sadaļā **Monitoring** sešās galvenajās jomās:
+- **Agents:** klātbūtne, aģenta tips, resursdators un tieša saziņa.
+- **Boxes:** iekārtu stāvoklis, sistēmas dati, tiešsaistes statuss, lietotāju skaits un plāni.
+- **Events:** personīgā vēsture un operatīvās diagnostikas notikumi reāllaikā.
+- **Tokens:** žetonu patēriņa temps, kešatmiņa, abonementi un cena par miljonu žetonu.
+- **Costs:** ikmēneša infrastruktūras izdevumu sadalījums un mākoņa resursu uzskaite.
+- **Lanes:** aktīvo uzdevumu, tvērumu, saistīto tēmu un atslēgu reāllaika pārskats.
 
 Tagad rodas izšķirošais jautājums: **vai jūs zināt, cik maksā jūsu mākslīgā intelekta vadītā izstrāde?!**
 
-Lielākajai daļai organizāciju par to nav ne jausmas. Mēs vēl neesam pilnībā pabeiguši iztērēto žetonu (tokens) uzskaiti, taču tas ir mūsu nākamais lielais atskaites punkts. Apvienojumā ar cilvēku darba laika uzskaiti Spool Hub sniegs precīzu izstrādes izmaksu atbildi:
+Lielākajai daļai organizāciju nav ne jausmas. Kamēr Spool Hub uzskaita reāllaika žetonu patēriņu, dienas izdevumus un abonementus mērītajiem aģentiem, pārējās vides tiek pakāpeniski pievienotas. Apvienojumā ar gaidāmo darba laika uzskaiti Spool Hub sniedz pilnīgu skaidrību:
 
-Kopējās izmaksas = Iztērētie žetoni + Infrastruktūras izmaksas + (Cilvēku darba laiks × Stundas likme)
+Kopējās izmaksas = Izlietotie žetoni + Infrastruktūras izmaksas + (Cilvēku darba laiks × Stundas likme)
 
-Nekādu minējumu. Reāla programmatūras inženierijas uzskaite MI laikmetā.
+Nekādu minējumu. Reāla grāmatvedība programmatūras inženierijai MI laikmetā.
 
 ## 💡 Cik patiesībā Spool Hub maksā jums?
 
 Neko.
 
-Spool Hub ir atvērtā koda risinājums vietnē [github.com/csitea/csi-spl](https://github.com/csitea/csi-spl). Ar labu aģentu jūs varat to izvietot savā Google Cloud infrastruktūrā pāris stundu laikā un darbināt bez maksas (tiek piemēroti jūsu standarta mākoņpakalpojumu rēķini).
+Spool Hub ir atvērtā pirmkoda projekts vietnē [github.com/csitea/csi-spl](https://github.com/csitea/csi-spl). Ar labu aģentu varat to ieviest Google Cloud infrastruktūrā pāris stundās un palaist bez maksas (tiek piemērota standarta mākoņa maksa).
 
 ---
 

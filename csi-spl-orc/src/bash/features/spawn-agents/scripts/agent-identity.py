@@ -864,6 +864,10 @@ def cmd_reconcile(args, proc):
             continue
         r = new.get(f["id"]) or {}
         cur = f["window_name"]
+        # A rotation's old window (spl_rotate_retiring_name) keeps its name:
+        # renamed back to the id, it takes the live session's pokes (SPL-3266).
+        if cur.endswith("-retiring"):
+            continue
         nid, _ = strip_name(cur)
         want = want_name(
             args.tag,

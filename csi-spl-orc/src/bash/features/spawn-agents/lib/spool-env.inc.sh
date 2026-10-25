@@ -668,8 +668,11 @@ spool_id_of_window() {  # WINDOW_NAME
 
 # The live pane of an agent: registry rows newest-first whose pane still
 # exists AND whose window still carries the id, else the first live window
-# named for the id. Puts the pane id (%NN), or '', in VAR, and that pane's tty
-# in SPOOL_PANE_TTY and its foreground command in SPOOL_PANE_CMD.
+# named for the id. Never a window named "<ID>-<hhmm>Z-retiring": a rotation's
+# old session, still up while its successor runs (SPL-3266: a pass that read
+# only the old process pointed the map there, and an ACCEPTED went to it).
+# Puts the pane id (%NN), or '', in VAR, and that pane's tty in
+# SPOOL_PANE_TTY and its foreground command in SPOOL_PANE_CMD.
 #
 # One tmux round trip and one id parse per live pane (CLE-3435). It used to
 # re-scan the whole pane list - id-parsing every row again - once per registry
@@ -683,7 +686,7 @@ spool_id_of_window() {  # WINDOW_NAME
 spool_pane_of_var() {  # VAR ID
   local __pv="$1" id="$2" reg="$SPOOL_ROOT/registry.tsv" p tty cmd w rid i
   local -a order=() regrows=()
-  local -A pid=() ptty=() pcmd=()
+  local -A pid=() ptty=() pcmd=() pret=()
   SPOOL_PANE_TTY=""; SPOOL_PANE_CMD=""
   printf -v "$__pv" '%s' ""
   spool_tmux_argv
@@ -694,6 +697,7 @@ spool_pane_of_var() {  # VAR ID
     pid["$p"]="$rid"
     ptty["$p"]="$tty"
     pcmd["$p"]="$cmd"
+    case "$w" in *-retiring) pret["$p"]=1 ;; esac
   done < <("${SPOOL_TM[@]}" list-panes -a -F '#{pane_id}	#{pane_tty}	#{pane_current_command}	#{window_name}' 2>/dev/null || true)
   [ "${#order[@]}" -gt 0 ] || return 0
 
@@ -704,7 +708,8 @@ spool_pane_of_var() {  # VAR ID
   # wrong agent. No record, or not provably alive: the old lookup below.
   if [ -r "$SPOOL_ROOT/agents/$id.json" ]; then
     type ai_pane_of >/dev/null 2>&1 || . "$_SPOOL_ENV_LIB_DIR/agent-identity.inc.sh" 2>/dev/null
-    if p="$(ai_pane_of "$id" "$(printf '%s\n' "${order[@]}")" 2>/dev/null)" && [ -n "$p" ]; then
+    if p="$(ai_pane_of "$id" "$(printf '%s\n' "${order[@]}")" 2>/dev/null)" && [ -n "$p" ] \
+       && [ -z "${pret[$p]:-}" ]; then
       SPOOL_PANE_TTY="${ptty[$p]:-}"; SPOOL_PANE_CMD="${pcmd[$p]:-}"
       printf -v "$__pv" '%s' "$p"; return 0
     fi

@@ -93,7 +93,10 @@
 #      satellite; the ticks in between post nothing; LEASE_ALERT=0 is the control.
 #  26. a bench post that never lands is named on the one back line (the
 #      2026-10-11 16:12Z outage). CONTROL: a delivered bench keeps the short
-#      back line. Still one delivered post per state change.
+#      back line. Still one delivered post per state change. Both boxes silent
+#      from the same minute (SPL-3196) is a hub stall: one "Hub stall" line, no
+#      undelivered back line; so is the watchdog's wd/held marker. CONTROL: no
+#      common start keeps the undelivered back line.
 #  27. a grok seat's own session is its activity (SPL-1696, 2026-10-13 15:52Z:
 #      g-001, a live grok in /opt, read "idle 4105s" from a claude transcript
 #      of the same cwd). The real spl_lease_transcript_tail on a fake /proc
@@ -127,6 +130,10 @@
 #      on 2 ticks in a row moves once, the move back waits 2 ticks too; a dead
 #      master and an S2 HIT move at once; the why is logged once per change.
 #      CONTROL: LEASE_SEAT_HOLD=1 moves on the one-tick blip (the old rule).
+#  33. one hub stall benches no box (SPL-3196, alerts fix round row 05): two
+#      boxes beat every 10 s, both stop for the same 180 s, then resume: 0
+#      bench, 0 "could not be delivered", 0 NO-LOCAL-AGENT posts and ONE "Hub
+#      stall" line. CONTROL: only one box stops: benched and back as before.
 #  Fixtures only in a mktemp root: the test refuses to run where its roots
 #  could reach the live /var/spool-hub.
 #------------------------------------------------------------------------------
@@ -1034,16 +1041,43 @@ got26="$(sed -n 1p "$T/alerts26" 2>/dev/null)"
 ! names_why "hs :: Box hp benched: 61 of 60 heartbeats in 10 min, last 0 s ago (no new lanes, last for the roles)" recovering &&
   pass "26. CONTROL: the old benched line (no verdict, no why) fails the check" ||
   fail "26. control: the old line passes names_why"
-# both boxes benched: nobody is healthy, so no bench post is attempted (the outage)
-rm -rf "$T/hs" "$T/hp"; rm -f "$T/alerts26" "$T/alerts26.tried"
+# both boxes benched by one hub stall (SPL-3196): their beats stopped together, so
+# no bench line and no undelivered back line; ONE "Hub stall" line, then hp,
+# still silent 1000 s later, is benched on its own
+b26() { jq -nc --argjson h "$1" --argjson s "$2" '[range($h - 400; $h + 1; 10) | {box: "hp", e: .}] + [range(5000; $s + 1; 10) | {box: "hs", e: .}]' >"$T/beats26.json"; }
+B26=(LEASE_BEATS_CMD="$T/bin/beats" BEATS="$T/beats26.json")
+rm -rf "$T/hs" "$T/hp"; rm -f "$T/alerts26" "$T/alerts26.tried"; b26 5850 5860
 tick26 hs 5000 "$VOK"
-tick26 hs 6000 "$VBOTH"
-tick26 hs 7000 "$VHS"
+tick26 hs 6000 "$VBOTH" "${B26[@]}"
+tick26 hs 7000 "$VHS" "${B26[@]}"
+[[ ! -s "$T/alerts26.tried" && "$(wc -l <"$T/alerts26" 2>/dev/null)" == 2 &&
+   "$(sed -n 1p "$T/alerts26")" == "hs :: Hub stall $(date -u -d @5860 +%Y-%m-%dT%H:%M:%SZ)..$(date -u -d @6000 +%Y-%m-%dT%H:%M:%SZ): box alerts held" &&
+   "$(sed -n 2p "$T/alerts26")" == "hs :: Box hp benched (degraded; 1 of 60 heartbeats in 10 min, last 80 s ago) (no new lanes, last for the roles)" ]] &&
+  pass "26. both boxes silent from the same minute: one Hub stall line, no undelivered back line; hp still silent after it is benched" ||
+  fail "26. hub stall: $(cat "$T/alerts26" 2>&1) tried $(cat "$T/alerts26.tried" 2>&1)"
+# CONTROL: both benched but hp went silent 1860 s before hs (no common start):
+# nobody is healthy, so no bench post is attempted (the outage), named on the back line
+rm -rf "$T/hs" "$T/hp"; rm -f "$T/alerts26" "$T/alerts26.tried"; b26 4000 5860
+tick26 hs 5000 "$VOK"
+tick26 hs 6000 "$VBOTH" "${B26[@]}"
+tick26 hs 7000 "$VHS" "${B26[@]}"
 since26=$(date -u -d @6000 +%Y-%m-%dT%H:%M:%SZ)
 [[ ! -s "$T/alerts26.tried" && "$(wc -l <"$T/alerts26" 2>/dev/null)" == 1 &&
    "$(sed -n 1p "$T/alerts26")" == "hs :: Box hs back after 30 healthy min (benched since ${since26}; the benched alert could not be delivered)" ]] &&
-  pass "26. no healthy poster: the one back line names the bench time, and the bench line was not sent" ||
+  pass "26. CONTROL: no healthy poster and no common stall: the one back line names the bench time, and the bench line was not sent" ||
   fail "26. no poster: $(cat "$T/alerts26" 2>&1) tried $(cat "$T/alerts26.tried" 2>&1)"
+# the watchdog's wd/held marker (the hub answers, its beat path fails) holds a
+# bench of hp while it exists; once it is gone hp, beating again, is not benched
+VREC2='{"hp":{"state":"recovering","n":40,"age":5,"why":"healthy for 60s < hold 1800s"},"hs":{"state":"healthy","n":60,"age":5}}'
+rm -rf "$T/hs" "$T/hp"; rm -f "$T/alerts26" "$T/alerts26.tried"; mkdir -p "$T/hs/spool/dispatch/wd"
+tick26 hs 1000 "$VOK"
+touch "$T/hs/spool/dispatch/wd/held"; tick26 hs 1060 "$VBAD"; tick26 hs 1120 "$VBAD"
+held26="$(wc -l <"$T/alerts26" 2>/dev/null || echo 0)"
+rm -f "$T/hs/spool/dispatch/wd/held"; tick26 hs 1180 "$VREC2"; tick26 hs 3800 "$VBACK"
+[[ "$held26" == 0 && "$(wc -l <"$T/alerts26" 2>/dev/null)" == 1 &&
+   "$(sed -n 1p "$T/alerts26")" == "hs :: Hub stall $(date -u -d @1060 +%Y-%m-%dT%H:%M:%SZ)..$(date -u -d @1120 +%Y-%m-%dT%H:%M:%SZ): box alerts held" ]] &&
+  pass "26. wd/held: no bench while held, one Hub stall line after, no back line" ||
+  fail "26. held: while held $held26, then $(cat "$T/alerts26" 2>&1)"
 
 # --- 27. a grok seat's own session is its activity (SPL-1696) --------------------
 G="$T/g"; N=1791900000
@@ -1271,6 +1305,47 @@ rm -f "$W32"; t32 50660; t32 50720
 echo "HIT S5 50770" >"$W32"; t32 50780 LEASE_SEAT_HOLD=1
 [[ "$(hubh dispatch)" == CLE-003@pc ]] &&
   pass "32. CONTROL: LEASE_SEAT_HOLD=1 moves on the one-tick blip (the old rule)" || fail "32. control: hub $(hubh dispatch): $(cat "$T/pc/spool/dispatch/lease.log")"
+
+# --- 33. one hub stall benches no box (SPL-3196, alerts fix round row 05) -----
+# Both boxes beat every 10 s, stop for the same 180 s, then resume. Before the
+# gate: both go recovering, no healthy box can post, an undelivered bench per
+# box, then "the benched alert could not be delivered" back lines and the
+# NO-LOCAL alert of the seatless holder. Now ONE "Hub stall" line, nothing else.
+B33=1791900000
+# beats33 <box> <from> <to> <gap-from> <gap-to>: a beat every 10 s, none strictly inside the gap
+beats33() { jq -nc --arg b "$1" --argjson f "$2" --argjson t "$3" --argjson gs "$4" --argjson ge "$5" \
+  '[range($f; $t; 10) | select(. <= $gs or . >= $ge) | {box: $b, e: .}]'; }
+t33() { tick "$1" "$2" LEASE_PRIORITY=sx,ox LEASE_BEATS_CMD="$T/bin/beats" BEATS="$T/beats33.$tag33.json" LEASE_HEALTH_TTL=0 \
+  LEASE_STALE=99999 LEASE_ALERT=1 LEASE_ALERT_CMD="$T/bin/alert30" ALERTS="$T/alerts33.$tag33" "${@:3}"; }
+# r33 <tag> <sx-gap 1|0>: sx holds both roles with no dispatch seat; ox stops at S for 180 s,
+# sx too when <sx-gap> is 1; one tick pair before, two in, every 5 min to 37 min after
+r33() {
+  local S=$((B33 + 2400)) now sg=0; tag33="$1"; [[ "$2" == 1 ]] && sg=$S
+  rm -rf "$T/sx" "$T/ox"; rm -f "$T"/hub/main.* "$T/alerts33.$tag33"
+  jq -s add <(beats33 sx $B33 $((S + 3000)) $sg $((sg + 180))) <(beats33 ox $B33 $((S + 3000)) $S $((S + 180))) >"$T/beats33.$tag33.json"
+  trio sx 60; trio ox 61
+  t33 sx $((S - 120)); t33 ox $((S - 119))
+  kill_agent sx 601; kill_agent sx 602
+  for now in $((S - 60)) $((S + 60)) $((S + 120)) $((S + 240)) $((S + 300)) $(seq $((S + 600)) 300 $((S + 2400))); do
+    t33 sx "$now"; t33 ox $((now + 1))
+  done
+}
+c33() { grep -c -- "$2" "$T/alerts33.$1" 2>/dev/null || true; }
+iso33() { date -u -d "@$1" +%Y-%m-%dT%H:%M:%SZ; }
+r33 stall 1
+want33="sx $((B33 + 2640)) :: Hub stall $(iso33 $((B33 + 2400)))..$(iso33 $((B33 + 2580))): box alerts held"
+[[ "$(c33 stall ' benched (')" == 0 && "$(c33 stall 'could not be delivered')" == 0 && "$(c33 stall 'NO-LOCAL-AGENT')" == 0 &&
+   "$(c33 stall 'Hub stall')" == 1 && "$(wc -l <"$T/alerts33.stall" 2>/dev/null)" == 1 && "$(cat "$T/alerts33.stall")" == "$want33" ]] &&
+  pass "33. one 180 s stall of both boxes: 0 bench, 0 undelivered back, 0 NO-LOCAL-AGENT, ONE '$(cut -d: -f3- "$T/alerts33.stall")'" ||
+  fail "33. stall: alerts $(cat "$T/alerts33.stall" 2>&1)"
+[[ "$(logc sx 'HUB-STALL [0-9]')" == 1 && "$(logc sx 'HUB-STALL over')" == 1 ]] &&
+  pass "33. sx logs the stall once and its end once" || fail "33. log: $(grep HUB-STALL "$T/sx/spool/dispatch/lease.log" 2>&1)"
+# CONTROL: only ox stops: it is benched and back as before, and the seatless holder alerts
+r33 one 0
+[[ "$(c33 one 'Hub stall')" == 0 && "$(c33 one '^sx [0-9]* :: Box ox benched (recovering')" == 1 &&
+   "$(c33 one '^sx [0-9]* :: Box ox back after 30 healthy min$')" == 1 && "$(c33 one 'NO-LOCAL-AGENT dispatch on sx')" == 1 ]] &&
+  pass "33. CONTROL: one box stops alone: benched, back (short line) and the NO-LOCAL alert, as before" ||
+  fail "33. control: alerts $(cat "$T/alerts33.one" 2>&1)"
 
 echo
 (( fails == 0 )) && { echo "PASS: all fleet-lease.tst.sh assertions"; exit 0; }

@@ -1336,12 +1336,14 @@ spl_fleet_outranks() {
 spl_fleet_bench_tick() {
   [[ "${LEASE_ALERT:-1}" == 0 ]] && return 0
   local v f="$LEASE_DIR/fleet.bench" old='{}' out new k="LEASE_PRIORITY_ORCH"
-  local line kind box who
+  local line kind box who raw
   v="$(spl_fleet_health_get)"
   [[ "$v" == '{}' || -z "$v" ]] && return 0
   # the same verdicts as the last tick judged (the cached read): nothing can have changed
   [[ -s "$f.v" && "$(<"$f.v")" == "$v" ]] && return 0
   [[ -n "${BH_BEAT_S:-}" ]] || spl_box_health_cnf
+  # a hub stall: every box alert held (rc 1), the boxes it explains count healthy
+  raw="$v"; v="$(spl_fleet_stall_view "$raw")" || return 0
   [[ -n "${!k:-}" ]] || k=LEASE_PRIORITY
   [[ -s "$f" ]] && old="$(<"$f")"
   out="$(jq -rn --argjson v "$v" --arg old "$old" --arg prio "${!k}" \
@@ -1357,12 +1359,122 @@ spl_fleet_bench_tick() {
       | if $new[$b] == "benched" then
           $v[$b] | "benched\t\($b)\t\($who)\tBox \($b) benched (\(.state // "benched")\(if .why == null then "" else ": \(.why)" end); \(.n) of \($e) heartbeats in \($w) min, last \(if .age == null then "none" else "\(.age) s ago" end)) (no new lanes, last for the roles)"
         else "back\t\($b)\t\($who)\tBox \($b) back after \($h) healthy min" end)')" || return 0
-  printf '%s\n' "$v" > "$f.v"
+  printf '%s\n' "$raw" > "$f.v"
   { IFS= read -r new; printf '%s\n' "$new" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
     while IFS=$'\t' read -r kind box who line; do
       [[ -n "${kind:-}" ]] && spl_fleet_bench_change "$kind" "$box" "$who" "$line"
     done; } <<<"$out"
   return 0
+}
+
+# ---- the common-mode gate (SPL-3196, alerts fix round row 05) ----------------
+# Triage B1 (csi-spl-doc/doc/md/alerts-fix-round-plan.md 2.4): one hub stall
+# stops every box's beats at once. Every box goes recovering, no healthy box is
+# left to post, each bench is recorded as not delivered and comes back as "the
+# benched alert could not be delivered", and a seatless holder raises
+# NO-LOCAL-AGENT: one hub fault read as a failure of every box, posted through
+# the hub that caused it. The GCP policies already page a hub stall. A stall
+# episode starts when
+#  - the watchdog's <dir>/wd/held marker exists (the hub answers, its beat path
+#    fails), or spl_wd_hub_reachable fails (asked only while a box is not
+#    healthy, and only where the watchdog is loaded and has a hub to ask), or
+#  - every judged box (2 or more) is degraded or recovering and their last
+#    beat gaps (> max_gap_s) start within max_gap_s of each other and overlap,
+#    measured on one more beats read per episode.
+# Its record is <dir>/fleet.hub-stall, "<start> <end> <src> <posted>" (epochs;
+# src l = a live signal, b = the beats). A box whose last bad time (degraded:
+# its last beat; recovering: the end of its bad window, from its why) lies in
+# start..end widened by max_gap_s is explained by the stall: while one is still
+# silent every box alert is held; one that beats again counts as healthy. When
+# no box is silent any more the stall posts its one line, "Hub stall
+# <start>..<end>: box alerts held", from one box (the first of the orch order
+# that beats, else the first judged; a live-signal stall from this box). The
+# record goes when no box is explained any more. One box degraded alone is
+# benched as before.
+
+spl_fleet_utc() { date -u -d "@$1" +%Y-%m-%dT%H:%M:%SZ; }
+
+# spl_fleet_hub_stalled: 0 while this box sees the hub stall live.
+spl_fleet_hub_stalled() {
+  [[ -e "$LEASE_DIR/wd/held" ]] && return 0
+  declare -F spl_wd_hub_reachable >/dev/null || return 1
+  [[ -n "${WD_HUB_PROBE_CMD:-}" || ( -n "${SPL_HUB_URL:-}" && -z "${LEASE_HUB_CMD:-}" ) ]] || return 1
+  ! spl_wd_hub_reachable
+}
+
+# spl_fleet_stall_gaps VERDICTS NOW: "<start> <end>", the window that every
+# judged box's last beat gap (an open one ends at NOW) shares; rc != 0 = none.
+spl_fleet_stall_gaps() {
+  local b
+  b="$(spl_fleet_beats --since "$(spl_box_health_since)" 2>/dev/null)" || return 1
+  jq -er --argjson v "$1" --argjson now "$2" --argjson gap "$BH_MAX_GAP_S" '
+    def epoch: sub("\\.[0-9]+"; "") | sub("\\+00:00$"; "Z") | (try fromdateiso8601 catch null);
+    [(.rows // [])[] | select(type == "object" and (.box | type) == "string")
+      | {box, t: (.beat_at | tostring | epoch)} | select(.t != null)]
+    | (group_by(.box) | map({key: .[0].box, value: (map(.t) | sort)}) | from_entries) as $ts
+    | [$v | keys[] | ($ts[.] // []) as $t
+        | if ($t | length) == 0 then null
+          elif $now - $t[-1] > $gap then [$t[-1], $now]
+          else ([range(1; $t | length) | select($t[.] - $t[. - 1] > $gap) | [$t[. - 1], $t[.]]] | last) end] as $g
+    | select(($g | length) >= 2 and all($g[]; . != null))
+    | ([$g[][0]] | max) as $s | ([$g[][1]] | min) as $e
+    | select($s < $e and $s - ([$g[][0]] | min) <= $gap) | "\($s) \($e)"' <<<"$b"
+}
+
+# spl_fleet_stall_marks VERDICTS NOW START END: the verdicts, each box the stall
+# explains marked .stall = "silent" (degraded since it) or "beats" (recovering from it).
+spl_fleet_stall_marks() {
+  jq -c --argjson now "$2" --argjson lo "$(( $3 - BH_MAX_GAP_S ))" --argjson hi "$(( $4 + BH_MAX_GAP_S ))" 'map_values(
+    (if .state == "degraded" then (if .age == null then null else $now - .age end)
+     elif .state == "recovering" then ((.why // "") | (capture("healthy for (?<x>[0-9]+)s").x // null)
+       | if . == null then null else $now - tonumber end)
+     else null end) as $lb
+    | if $lb != null and $lb >= $lo and $lb <= $hi then . + {stall: (if .state == "degraded" then "silent" else "beats" end)} else . end)' <<<"$1"
+}
+
+# spl_fleet_stall_line MARKS START END SRC: the stall's one line, from one box.
+spl_fleet_stall_line() {
+  local k=LEASE_PRIORITY_ORCH who="$LEASE_MACHINE"
+  [[ "${LEASE_ALERT:-1}" == 0 ]] && return 0
+  [[ -n "${!k:-}" ]] || k=LEASE_PRIORITY
+  [[ "$4" == l ]] || who="$(jq -r --arg p "${!k:-}" '. as $v | (($p | split(",") | map(select(. != "" and $v[.] != null))) + keys) as $o
+    | ([$o[] | select($v[.].state == "healthy" or $v[.].stall == "beats")][0]) // $o[0]' <<<"$1")"
+  [[ "$who" == "$LEASE_MACHINE" ]] || return 0
+  spl_fleet_alert_post "Hub stall $(spl_fleet_utc "$2")..$(spl_fleet_utc "$3"): box alerts held" || true
+}
+
+# spl_fleet_stall_write START END SRC POSTED: the episode record.
+spl_fleet_stall_write() {
+  local f="$LEASE_DIR/fleet.hub-stall"
+  printf '%s %s %s %s\n' "$@" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
+}
+
+# spl_fleet_stall_view VERDICTS: the verdicts the box alerts judge, every box
+# the stall explains counted healthy; rc 1 = a stall holds every box alert now.
+spl_fleet_stall_view() {
+  local v="$1" f="$LEASE_DIR/fleet.hub-stall" now s="" e="" src="" posted=0 w m
+  [[ -n "${BH_MAX_GAP_S:-}" ]] || spl_box_health_cnf
+  now="$(spl_lease_now)"
+  [[ -s "$f" ]] && read -r s e src posted < "$f"
+  if jq -e 'any(.[]; .state != "healthy")' >/dev/null 2>&1 <<<"$v" && spl_fleet_hub_stalled; then
+    [[ -n "$s" ]] || { s="$now" src=l posted=0; spl_lease_log "HUB-STALL from $(spl_fleet_utc "$now"), live (wd/held or the hub probe): box alerts held"; }
+    spl_fleet_stall_write "$s" "$now" "$src" "$posted"; return 1
+  fi
+  if [[ -z "$s" ]] && jq -e 'length >= 2 and all(.[]; .state != "healthy")' >/dev/null 2>&1 <<<"$v" &&
+      w="$(spl_fleet_stall_gaps "$v" "$now")"; then
+    read -r s e <<<"$w"; src=b posted=0
+    spl_lease_log "HUB-STALL $(spl_fleet_utc "$s")..$(spl_fleet_utc "$e"): every box's beats stopped together; box alerts held"
+  fi
+  [[ -n "$s" ]] || { echo "$v"; return 0; }
+  m="$(spl_fleet_stall_marks "$v" "$now" "$s" "$e")" || { echo "$v"; return 0; }
+  if jq -e 'any(.[]; .stall == "silent")' >/dev/null <<<"$m"; then spl_fleet_stall_write "$s" "$e" "$src" "$posted"; return 1; fi
+  [[ "$posted" == 1 ]] || { spl_fleet_stall_line "$m" "$s" "$e" "$src"; posted=1; }
+  if ! jq -e 'any(.[]; .stall != null)' >/dev/null <<<"$m"; then
+    rm -f "$f"; spl_lease_log "HUB-STALL over: $(spl_fleet_utc "$s")..$(spl_fleet_utc "$e"), every box judged on its own beats again"
+    echo "$v"; return 0
+  fi
+  spl_fleet_stall_write "$s" "$e" "$src" "$posted"
+  jq -c 'map_values(if .stall != null then .state = "healthy" else . end)' <<<"$m"
 }
 
 # spl_fleet_bench_sent_write BOX SINCE OK: this episode's bench delivery (1 = landed).
@@ -2126,11 +2238,14 @@ spl_fleet_once() {
 
 # spl_fleet_fresh_other <role>: prints the first OTHER box of the role's
 # ranking whose beat verdict is healthy; rc 1 when there is none, rc 2 when
-# the beats judged nobody (no verdicts: unknown).
+# the beats judged nobody (no verdicts: unknown) or a hub stall holds the box
+# alerts (spl_fleet_stall_view: a box it explains counts healthy).
 spl_fleet_fresh_other() {
   local role="$1" v k="LEASE_PRIORITY_${1^^}" m
   v="$(spl_fleet_health_get)"
   [[ -n "$v" && "$v" != '{}' ]] || return 2
+  # a hub stall judges nobody (SPL-3196): no NO-LOCAL alert while it holds
+  v="$(spl_fleet_stall_view "$v")" || return 2
   [[ -n "${!k:-}" ]] || k=LEASE_PRIORITY
   IFS=, read -ra _ranked <<<"${!k}"
   for m in "${_ranked[@]}"; do

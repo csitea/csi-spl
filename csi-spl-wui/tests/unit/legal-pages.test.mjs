@@ -39,7 +39,7 @@ describe('legal pages', () => {
   // spec 149 (SPL-3388): Google's review of the calendar scope reads this page.
   it('the privacy policy names the Google Calendar data and its removal', () => {
     const html = page('privacy.html')
-    for (const s of ['Google Calendar', 'Spool Hub (', 'any other calendar', 'Cloud KMS', 'revoke the access', 'not sold']) {
+    for (const s of ['Google Calendar', 'Spool Hub (', 'any other calendar', 'reads the events of that one calendar', 'which only you see', 'moves them to your\ntrash', 'Cloud KMS', 'revoke the access', 'not sold']) {
       assert.ok(html.includes(s), `privacy.html lacks "${s}"`)
     }
   })

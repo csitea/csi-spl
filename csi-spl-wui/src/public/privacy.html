@@ -52,11 +52,16 @@ stored.</p>
 <p>If you connect your Google Calendar in Settings, spool-hub creates one new calendar in
 your Google account, named <em>Spool Hub (your workspace's name)</em>, and writes to it the
 Spool events you created or are named on, changing or deleting them there when they change
-in Spool. It does not read, change or list any other calendar of yours. We keep the email
+in Spool. It also reads the events of that one calendar back: an event you add or change
+there comes into Spool as your own private event, which only you see; its title,
+description, start, end, time zone and repeat rule are copied, and nobody is invited or
+named on it. It does not read, change or list any other calendar of yours. We keep the email
 address of the Google account you connected, the id of that one calendar, which Spool event
 matches which Google event, and the access tokens Google gives us, encrypted with a key held
 in Google Cloud KMS and used only for this sync. When you disconnect, we revoke the access at
-Google and delete the connection, its tokens and that event list; the Spool Hub calendar
+Google and delete the connection, its tokens and that event list; the events that came from
+Google stay as your private events in Spool unless you tick the box that moves them to your
+trash; the Spool Hub calendar
 stays in your Google account until you delete it there. Calendar data is not sold, shared
 with third parties or used for advertising.</p>
 

@@ -103,24 +103,34 @@ paragraph before the submission. That is a separate fix
 (`csi-spl-wui/src/public/privacy.html`), reported to the dispatcher; this
 lane does not make it.
 
-### 3.3 The callback does not reach the hub
+### 3.3 The callback reaches the hub; it answers 404 until gcal is on
 
 The hub builds its redirect URI as the WUI origin plus
 `GcalCallbackPath = "/v1/me/google-calendar/callback"`
 (`csi-spl-api/src/go/spool-hub-api/internal/hub/gcal_connect.go:60`,
-`cmd/spool/hub_gcal.go`). On the WUI host that path is not the hub:
+`cmd/spool/hub_gcal.go`). On the WUI host that path already reaches the
+hub (Hosting's `/v1/**` rewrite,
+`csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh`). Measured
+2026-10-25 on tree 9add9470b, n=1 per path per host, dev and prd alike:
 
-- `curl -s -o /dev/null -w '%{http_code}' https://dev.<BASE_DOMAIN>/v1/me/google-calendar/callback` -> 404.
-- `csi-spl-wui/firebase.json` sends only `/api/v1/auth/**` and
-  `/api/v1/marketing/linkedin/callback` to the hub; LinkedIn's callback is
-  `LinkedInCallbackPath = "/api/v1/marketing/linkedin/callback"`
-  (`internal/hub/marketing_channels.go:54`) with its rewrite.
+| path | answer |
+|---|---|
+| `/v1/me/google-calendar/callback` | 404 `application/json` `{"error":"not_found","detail":"google calendar is not available in this workspace"}` |
+| `/v1/me/google-calendar` | 401 `application/json` `view_door` (the hub) |
+| `/api/v1/me/google-calendar/callback` | 200 SPA HTML (not routed to the hub) |
 
-So after S5 a connect would send the member to Google and come back to a
-404. The fix (a `/api/v1/me/google-calendar/callback` path, its route and
-its Firebase rewrite, as LinkedIn's) is an api + wui change in another
-lane, reported to the dispatcher. S3 below registers the URI that fix
-chooses.
+- The 404 is the hub's own answer:
+  `grep -rn "not available in this workspace" csi-spl-api/src/go` -> 1 hit,
+  `writeGcalOff` (`internal/hub/gcal_connect.go`). The callback returns it
+  while gcal is off for the workspace, so it answers 404 until the step-030
+  apply of S5 turns it on.
+- The nonce cookie path `/v1/me/google-calendar/` (`gcal_connect.go`)
+  covers this callback; a callback under `/api/` would not get the cookie.
+
+So no path change is needed (SPL-3381): S3 below registers
+`/v1/me/google-calendar/callback` as it is. An earlier version of this
+section read the 404 as the SPA's and asked for an `/api/` path; that was
+wrong.
 
 ## 4. The owner's console steps
 
@@ -152,14 +162,13 @@ as I believe them, unchecked.
 ### 4.3 S3: the redirect URI
 
 1. Credentials, the OAuth client of 4.1, Authorised redirect URIs.
-2. Add `https://dev.<BASE_DOMAIN>` plus the callback path the fix of
-   section 3.3 lands (today the hub sends
-   `/v1/me/google-calendar/callback`, which 404s). Keep the sign-in URIs.
+2. Add `https://dev.<BASE_DOMAIN>/v1/me/google-calendar/callback`, the
+   path the hub sends (section 3.3). Keep the sign-in URIs.
 3. The same on prd with `https://<BASE_DOMAIN>`.
 
 ### 4.4 The submission (O2 = A)
 
-Only after sections 3.2 and 3.3 are fixed and the connect works on dev:
+Only after section 3.2 is fixed, S5 is applied and the connect works on dev:
 
 1. Google Auth Platform, Verification centre (or the consent screen's
    Prepare for verification), project of 4.1, prd first if Google reviews
@@ -174,7 +183,6 @@ Only after sections 3.2 and 3.3 are fixed and the connect works on dev:
 
 | after | lane step |
 |---|---|
-| 3.3 fixed | api + wui lane: the `/api/v1/...` callback, its route and rewrite |
 | 3.2 | wui lane: a calendar paragraph in `privacy.html` |
 | 4.2 | cnf lane: `gcal.scopes` (section 1.2), re-render, 030 apply with the owner's go |
 | S1 / S5 cnf | landed with SPL-3331: `calendar-json.googleapis.com` in the 001 list, `gcal.workspaces: ["all"]`, `SPOOL_HUB_GCAL_*` in the 030 tfvars; the 001 and 030 applies wait on the owner's go |

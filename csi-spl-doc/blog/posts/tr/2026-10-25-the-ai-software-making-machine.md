@@ -5,14 +5,14 @@ type: news
 title: "Yapay zeka odaklı geliştirmenizin ne kadara mal olduğunu biliyor musunuz?!"
 summary: "Spool Hub sloganını 'the AI Software making machine' olarak güncelliyor; yaşam döngüsü hızını, kalitesini ve yapay zeka geliştirme maliyetlerini ölçüyor."
 date: 2026-10-25
-published: 2026-10-25T13:05:00Z
+published: 2026-10-25T18:10:00Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
 image: 2026-10-25-the-ai-software-making-machine.webp
 image_alt: "Neşeli çizgi film robotlarının günün her saati kod tasarladığı, test ettiği ve sevk ettiği hareketli bir otomatik yazılım fabrikası."
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
-draft: true
+draft: false
 ---
 Şimdiye kadar sloganları „Where people meet AI“ ve „where humans and AI meet“ idi. Bugün yeni sloganımız şu oldu: **the AI Software making machine**.
 

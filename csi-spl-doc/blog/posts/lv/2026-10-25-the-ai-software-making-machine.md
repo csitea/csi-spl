@@ -5,14 +5,14 @@ type: news
 title: "Vai jūs zināt, cik maksā jūsu mākslīgā intelekta vadītā izstrāde?!"
 summary: "Spool Hub atjaunina saukli uz 'the AI Software making machine', uzskaitot dzīves cikla ātrumu, kvalitāti un reālās AI izstrādes izmaksas."
 date: 2026-10-25
-published: 2026-10-25T13:05:00Z
+published: 2026-10-25T18:10:00Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
 image: 2026-10-25-the-ai-software-making-machine.webp
 image_alt: "Darbīga automatizēta programmatūras rūpnīca, kurā jautri animācijas roboti diennakts režīmā projektē, testē un ievieš kodu."
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
-draft: true
+draft: false
 ---
 Līdz šim tā saukļi bija „Where people meet AI“ un „where humans and AI meet“. Šodien mūsu sauklis kļūst: **the AI Software making machine**.
 

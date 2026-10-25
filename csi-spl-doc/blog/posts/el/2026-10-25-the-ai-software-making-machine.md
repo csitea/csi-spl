@@ -5,14 +5,14 @@ type: news
 title: "Γνωρίζετε πόσο κοστίζει η ανάπτυξη λογισμικού με τεχνητή νοημοσύνη;"
 summary: "Το Spool Hub ανανεώνει το σύνθημά του σε «the AI Software making machine», καταγράφοντας την ταχύτητα, την ποιότητα και το πραγματικό κόστος του AI."
 date: 2026-10-25
-published: 2026-10-25T13:05:00Z
+published: 2026-10-25T18:10:00Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
 image: 2026-10-25-the-ai-software-making-machine.webp
 image_alt: "Ένα ζωντανό αυτοματοποιημένο εργοστάσιο λογισμικού όπου χαρούμενα ρομπότ σχεδιάζουν, δοκιμάζουν και παραδίδουν κώδικα όλο το εικοσιτετράωρο."
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
-draft: true
+draft: false
 ---
 Μέχρι τώρα, τα συνθήματά του ήταν «Where people meet AI» και «where humans and AI meet». Σήμερα, το σύνθημά μας γίνεται: **the AI Software making machine**.
 

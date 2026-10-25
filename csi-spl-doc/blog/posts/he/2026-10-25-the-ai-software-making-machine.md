@@ -5,14 +5,14 @@ type: news
 title: "האם אתם יודעים כמה עולה הפיתוח מונחה ה-AI שלכם?!"
 summary: "‏Spool Hub מעדכנת את הסלוגן שלה ל-'the AI Software making machine' ועוקבת אחר מהירות מחזור החיים, האיכות והעלות האמיתית של פיתוח תוכנה ב-AI."
 date: 2026-10-25
-published: 2026-10-25T13:05:00Z
+published: 2026-10-25T18:10:00Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
 image: 2026-10-25-the-ai-software-making-machine.webp
 image_alt: "מפעל תוכנה אוטומטי שוקק חיים שבו רובוטים מצוירים עליזים מתכננים, בודקים ומשחררים קוד מסביב לשעון."
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
-draft: true
+draft: false
 ---
 עד כה, סלוגניה היו "Where people meet AI" ו-"where humans and AI meet". כיום, הסלוגן שלנו הופך ל: **the AI Software making machine**.
 

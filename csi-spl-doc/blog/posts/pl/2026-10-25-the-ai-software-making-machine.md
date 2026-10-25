@@ -5,14 +5,14 @@ type: news
 title: "Czy wiesz, ile kosztuje Twoje wytwarzanie oprogramowania oparte na AI?!"
 summary: "Spool Hub zmienia hasło na 'the AI Software making machine', monitorując tempo, jakość i rzeczywiste koszty tworzenia oprogramowania z AI."
 date: 2026-10-25
-published: 2026-10-25T13:05:00Z
+published: 2026-10-25T18:10:00Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
 image: 2026-10-25-the-ai-software-making-machine.webp
 image_alt: "Tętniąca życiem zautomatyzowana fabryka oprogramowania, w której wesołe rysunkowe roboty projektują, testują i wdrażają kod przez całą dobę."
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
-draft: true
+draft: false
 ---
 Do tej pory jego hasłami były „Where people meet AI” oraz „where humans and AI meet”. Dziś naszym hasłem staje się: **the AI Software making machine**.
 

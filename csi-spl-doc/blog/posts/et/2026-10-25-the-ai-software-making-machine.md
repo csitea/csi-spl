@@ -5,14 +5,14 @@ type: news
 title: "Kas te teate, kui palju teie tehisintellektil põhinev arendus maksab?!"
 summary: "Spool Hub uuendab oma motot: 'the AI Software making machine' jälgib elutsükli kiirust, kvaliteeti ja tehisintellektiga arenduse tegelikku hinda."
 date: 2026-10-25
-published: 2026-10-25T13:05:00Z
+published: 2026-10-25T18:10:00Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
 image: 2026-10-25-the-ai-software-making-machine.webp
 image_alt: "Elav automatiseeritud tarkvaratehas, kus rõõmsad robotid kavandavad, testivad ja tarnivad koodi ööpäevaringselt."
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
-draft: true
+draft: false
 ---
 Seni olid selle motodeks „Where people meet AI“ ja „where humans and AI meet“. Täna saab meie motoks: **the AI Software making machine**.
 

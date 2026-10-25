@@ -5,14 +5,14 @@ type: news
 title: "Știți cât costă dezvoltarea dumneavoastră bazată pe inteligență artificială?!"
 summary: "Spool Hub își actualizează sloganul în 'the AI Software making machine', măsurând viteza ciclului de viață, calitatea și costul real al dezvoltării AI."
 date: 2026-10-25
-published: 2026-10-25T13:05:00Z
+published: 2026-10-25T18:10:00Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
 image: 2026-10-25-the-ai-software-making-machine.webp
 image_alt: "O fabrică automatizată de software plină de viață, unde roboți animați veseli proiectează, testează și livrează cod non-stop."
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
-draft: true
+draft: false
 ---
 Până acum, sloganurile sale erau „Where people meet AI” și „where humans and AI meet”. Astăzi, sloganul nostru devine: **the AI Software making machine**.
 

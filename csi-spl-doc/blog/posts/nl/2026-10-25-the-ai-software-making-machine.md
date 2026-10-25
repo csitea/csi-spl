@@ -5,14 +5,14 @@ type: news
 title: "Weet u hoeveel uw door AI aangestuurde ontwikkeling kost?!"
 summary: "Spool Hub kiest 'the AI Software making machine' als slogan en meet de snelheid, kwaliteit en reële kosten van AI-ontwikkeling."
 date: 2026-10-25
-published: 2026-10-25T13:05:00Z
+published: 2026-10-25T18:10:00Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
 image: 2026-10-25-the-ai-software-making-machine.webp
 image_alt: "Een levendige geautomatiseerde softwarefabriek waar vrolijke tekenfilmrobots de klok rond code ontwerpen, testen en leveren."
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
-draft: true
+draft: false
 ---
 Tot nu toe luidden de slogans „Where people meet AI“ en „where humans and AI meet“. Vandaag wordt onze slogan: **the AI Software making machine**.
 

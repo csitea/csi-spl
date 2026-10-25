@@ -5,14 +5,14 @@ type: news
 title: "Знаете ли колко струва вашата разработка, управлявана от изкуствен интелект?!"
 summary: "Spool Hub променя своя слоган на „the AI Software making machine“, проследявайки скоростта, качеството и реалната цена на разработката с AI."
 date: 2026-10-25
-published: 2026-10-25T13:05:00Z
+published: 2026-10-25T18:10:00Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
 image: 2026-10-25-the-ai-software-making-machine.webp
 image_alt: "Оживена автоматизирана софтуерна фабрика, където усмихнати анимационни роботи проектират, тестват и внедряват код денонощно."
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
-draft: true
+draft: false
 ---
 Досега слоганите му бяха „Where people meet AI“ и „where humans and AI meet“. Днес нашият слоган става: **the AI Software making machine**.
 

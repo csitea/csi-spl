@@ -5,14 +5,14 @@ type: news
 title: "Vet du vad din AI-drivna utveckling faktiskt kostar?!"
 summary: "Spool Hub uppdaterar sin slogan till 'the AI Software making machine' och mäter livscykelhastighet, kvalitet och den verkliga kostnaden för AI-utveckling."
 date: 2026-10-25
-published: 2026-10-25T13:05:00Z
+published: 2026-10-25T18:10:00Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
 image: 2026-10-25-the-ai-software-making-machine.webp
 image_alt: "En livlig automatiserad mjukvarufabrik där glada tecknade robotar designar, testar och levererar kod dygnet runt."
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
-draft: true
+draft: false
 ---
 Hittills har parollerna varit „Where people meet AI“ och „where humans and AI meet“. Idag blir vår slogan: **the AI Software making machine**.
 

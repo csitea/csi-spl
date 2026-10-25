@@ -5,14 +5,14 @@ type: news
 title: "Ar žinote, kiek iš tikrųjų kainuoja jūsų dirbtiniu intelektu pagrįstas kūrimas?!"
 summary: "„Spool Hub“ atnaujina savo šūkį į „the AI Software making machine“, fiksuodamas gyvavimo ciklo greitį, kokybę ir tikrąją DI programinės įrangos kainą."
 date: 2026-10-25
-published: 2026-10-25T13:05:00Z
+published: 2026-10-25T18:10:00Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
 image: 2026-10-25-the-ai-software-making-machine.webp
 image_alt: "Gyvybinga automatizuota programinės įrangos gamykla, kurioje linksmi animaciniai robotai visą parą projektuoja, testuoja ir diegia kodą."
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
-draft: true
+draft: false
 ---
 Iki šiol jo šūkiai buvo „Where people meet AI“ ir „where humans and AI meet“. Šiandien mūsų šūkis tampa: **the AI Software making machine**.
 

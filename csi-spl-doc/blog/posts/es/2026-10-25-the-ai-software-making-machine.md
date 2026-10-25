@@ -5,14 +5,14 @@ type: news
 title: "¡¿Sabe cuánto cuesta su desarrollo impulsado por IA?!"
 summary: "Spool Hub actualiza su lema a 'the AI Software making machine', midiendo la velocidad del ciclo de vida, la calidad y el coste real del desarrollo con IA."
 date: 2026-10-25
-published: 2026-10-25T13:05:00Z
+published: 2026-10-25T18:10:00Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
 image: 2026-10-25-the-ai-software-making-machine.webp
 image_alt: "Una animada fábrica automatizada de software donde robots de dibujos animados diseñan, prueban y envían código las 24 horas del día."
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
-draft: true
+draft: false
 ---
 Hasta ahora, sus lemas eran «Where people meet AI» y «where humans and AI meet». Hoy, nuestro lema pasa a ser: **the AI Software making machine**.
 

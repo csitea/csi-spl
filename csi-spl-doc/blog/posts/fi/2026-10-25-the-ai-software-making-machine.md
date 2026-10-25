@@ -5,14 +5,14 @@ type: news
 title: "Tiedätkö, mitä tekoälyvetoinen kehitystyösi todella maksaa?!"
 summary: "Spool Hub uudistaa tunnuslauseensa muotoon 'the AI Software making machine' seuraten elinkaaren nopeutta, laatua ja tekoälykehityksen todellisia kustannuksia."
 date: 2026-10-25
-published: 2026-10-25T13:05:00Z
+published: 2026-10-25T18:10:00Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
 image: 2026-10-25-the-ai-software-making-machine.webp
 image_alt: "Vilkas automatisoitu ohjelmistotehdas, jossa iloiset piirrosrobotit suunnittelevat, testaavat ja toimittavat koodia kellon ympäri."
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
-draft: true
+draft: false
 ---
 Tähän asti sen tunnuslauseina olivat ”Where people meet AI” ja ”where humans and AI meet”. Tänään uudeksi tunnuslauseeksemme tulee: **the AI Software making machine**.
 

@@ -146,19 +146,8 @@ function pushPrefix(map, prefix, rec) {
   else map.set(prefix, [rec])
 }
 
-/**
- * Index the topics and messages the reader can already see.
- * `pathFor` is the locale-aware path (identity when omitted).
- * `labels` is the translated kind words. Omit it and the link text is the id alone.
- * `tenant` is the page's workspace, `siteUrl` / `apexTenant` the env's apex and
- * its tenant: a typed token links on the row's workspace host only with them.
- * @param {{ topics?: unknown[], messages?: unknown[], self?: string, pathFor?: (path: string) => string, labels?: Record<string, string>, tenant?: string, siteUrl?: string, apexTenant?: string }} [input]
- */
-export function indexCatalog(input = {}) {
-  const src = input && typeof input === 'object' ? input : {}
-  const self = String(src.self || '')
-  const pathFor = src.pathFor
-  const host = { tenant: String(src.tenant || ''), siteUrl: String(src.siteUrl || ''), apexTenant: String(src.apexTenant || '') }
+/* Collect the topic and message rows the input names, merged per id. */
+function collectRows(src, self, host) {
   const topicRows = new Map()
   const messageRows = new Map()
 
@@ -200,9 +189,11 @@ export function indexCatalog(input = {}) {
     if (m && m.msg_id) addMessage(m)
     else addTopic(m && m.task_id, m)
   }
+  return { topicRows, messageRows }
+}
 
-  if (topicRows.size === 0 && messageRows.size === 0) return EMPTY
-
+/* Build the id and prefix lookup maps from the collected rows. */
+function buildIndex(topicRows, messageRows, src, self, pathFor) {
   const topicsById = new Map()
   const topicsByPrefix = new Map()
   const messagesById = new Map()
@@ -233,6 +224,24 @@ export function indexCatalog(input = {}) {
     pushPrefix(messagesByPrefix, id.slice(0, 8), rec)
   }
   return { empty: false, topicsById, topicsByPrefix, messagesById, messagesByPrefix, labels }
+}
+
+/**
+ * Index the topics and messages the reader can already see.
+ * `pathFor` is the locale-aware path (identity when omitted).
+ * `labels` is the translated kind words. Omit it and the link text is the id alone.
+ * `tenant` is the page's workspace, `siteUrl` / `apexTenant` the env's apex and
+ * its tenant: a typed token links on the row's workspace host only with them.
+ * @param {{ topics?: unknown[], messages?: unknown[], self?: string, pathFor?: (path: string) => string, labels?: Record<string, string>, tenant?: string, siteUrl?: string, apexTenant?: string }} [input]
+ */
+export function indexCatalog(input = {}) {
+  const src = input && typeof input === 'object' ? input : {}
+  const self = String(src.self || '')
+  const pathFor = src.pathFor
+  const host = { tenant: String(src.tenant || ''), siteUrl: String(src.siteUrl || ''), apexTenant: String(src.apexTenant || '') }
+  const { topicRows, messageRows } = collectRows(src, self, host)
+  if (topicRows.size === 0 && messageRows.size === 0) return EMPTY
+  return buildIndex(topicRows, messageRows, src, self, pathFor)
 }
 
 /**

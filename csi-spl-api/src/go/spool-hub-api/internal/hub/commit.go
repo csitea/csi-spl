@@ -56,9 +56,10 @@ func (s *Server) pushUnacked(ctx context.Context, x *session, sentBefore time.Ti
 	now := s.o.Now()
 	q, err := a.UnackedFor(ctx, x.tenant, x.box, now, sentBefore)
 	if err != nil {
-		s.o.Log.Error().Err(err).Str("tenant", x.tenant).Str("box", x.box).Msg("unacked rows")
+		s.relayDue.loops.fail(&s.o.Log, "unacked rows", x.tenant, x.box, err)
 		return 0
 	}
+	s.relayDue.loops.ok(&s.o.Log, "unacked rows", x.tenant, x.box)
 	n := 0
 	for _, d := range q {
 		if !x.accepts(wire.InnerVersion(d.Env)) {

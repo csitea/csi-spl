@@ -65,9 +65,10 @@ func (s *Server) escalateNacked(ctx context.Context, tenants []string, now time.
 	for _, tenant := range tenants {
 		posts, err := la.NackedPosts(ctx, tenant, now.Add(-relaySweepWindow), now.Add(-nackSettle), relaySweepMax)
 		if err != nil {
-			s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("relay nacked posts")
+			s.relayDue.loops.fail(&s.o.Log, "relay nacked posts", tenant, "", err)
 			continue
 		}
+		s.relayDue.loops.ok(&s.o.Log, "relay nacked posts", tenant, "")
 		for _, p := range posts {
 			env, err := wire.ParseEnvelope(p.Env)
 			if err != nil {

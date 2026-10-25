@@ -1,8 +1,11 @@
 package hub_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
+	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -302,5 +305,160 @@ func TestRelayRepushesUnackedAtAQuarterOfTheLock(t *testing.T) {
 	e.srv.Relay(context.Background())
 	if b := nextBody(); b != "dropped" {
 		t.Fatalf("re-pushed %q at the cadence, want the uncommitted one", b)
+	}
+}
+
+// flakyStore is the memory store with every relay-loop read failing while
+// down is set: a Cloud SQL restart as the relay tick sees it.
+type flakyStore struct {
+	*store.Memory
+	down atomic.Bool
+}
+
+var errDBDown = errors.New("dial tcp 10.0.0.3:5432: connect: connection refused")
+
+func (f *flakyStore) QueuedFor(ctx context.Context, tenant, box string, now time.Time) ([]store.Queued, error) {
+	if f.down.Load() {
+		return nil, errDBDown
+	}
+	return f.Memory.QueuedFor(ctx, tenant, box, now)
+}
+
+func (f *flakyStore) UnheardPosts(ctx context.Context, tenant string, since, until time.Time, limit int) ([]store.Queued, error) {
+	if f.down.Load() {
+		return nil, errDBDown
+	}
+	return f.Memory.UnheardPosts(ctx, tenant, since, until, limit)
+}
+
+func (f *flakyStore) UnansweredPosts(ctx context.Context, tenant string, since, until time.Time, limit int) ([]store.Queued, error) {
+	if f.down.Load() {
+		return nil, errDBDown
+	}
+	return f.Memory.UnansweredPosts(ctx, tenant, since, until, limit)
+}
+
+func (f *flakyStore) ReescalatablePosts(ctx context.Context, tenant string, since, escalatedBefore, until time.Time, maxAttempts, limit int) ([]store.Queued, error) {
+	if f.down.Load() {
+		return nil, errDBDown
+	}
+	return f.Memory.ReescalatablePosts(ctx, tenant, since, escalatedBefore, until, maxAttempts, limit)
+}
+
+func (f *flakyStore) UnackedFor(ctx context.Context, tenant, box string, now, sentBefore time.Time) ([]store.Queued, error) {
+	if f.down.Load() {
+		return nil, errDBDown
+	}
+	return f.Memory.UnackedFor(ctx, tenant, box, now, sentBefore)
+}
+
+func (f *flakyStore) NackedPosts(ctx context.Context, tenant string, since, until time.Time, limit int) ([]store.Queued, error) {
+	if f.down.Load() {
+		return nil, errDBDown
+	}
+	return f.Memory.NackedPosts(ctx, tenant, since, until, limit)
+}
+
+// relayLoopSites is every relay-loop call that logs a failing store read.
+var relayLoopSites = []string{"relay queue", "unacked rows", "relay unheard posts",
+	"relay unanswered posts", "relay reescalatable posts", "relay nacked posts"}
+
+// flakyRelay is one hub on a flakyStore, its log in a buffer, one committing
+// box seated (so every relay sweep has a tenant and a box to read), and a
+// tick that moves the hub clock by step and runs one relay tick.
+type flakyRelay struct {
+	st   *flakyStore
+	log  *syncWriter
+	tick func(n int, step time.Duration)
+}
+
+func newFlakyRelay(t *testing.T) *flakyRelay {
+	t.Helper()
+	_, key, _ := ed25519.GenerateKey(nil)
+	f := &flakyRelay{st: &flakyStore{Memory: store.NewMemory()}, log: &syncWriter{w: &bytes.Buffer{}}}
+	var clock atomic.Int64
+	e := newEnv(t, func(o *hub.Options) {
+		fallbackOpts(o, key, true)
+		o.Store, o.Log = f.st, zerolog.New(f.log)
+		o.UnansweredGrace, o.ReescalateEvery, o.ReescalateMax = 8*time.Second, 8*time.Second, 3
+		o.Now = func() time.Time { return time.Now().Add(time.Duration(clock.Load())) }
+	})
+	e.st = f.st
+	tid, _ := e.tenant()
+	b := e.box(tid, "box-c", "CLE-13")
+	e.pin(tid, b)
+	e.commitBox(tid, b, "CLE-13", true)
+	f.tick = func(n int, step time.Duration) {
+		for range n {
+			clock.Add(int64(step))
+			e.srv.Relay(context.Background())
+		}
+	}
+	return f
+}
+
+// levels counts the log lines of each relay-loop site by level.
+func (f *flakyRelay) levels(t *testing.T) map[string]map[string]int {
+	t.Helper()
+	f.log.mu.Lock()
+	defer f.log.mu.Unlock()
+	out := map[string]map[string]int{}
+	for _, line := range strings.Split(strings.TrimSpace(f.log.w.String()), "\n") {
+		var l struct {
+			Level     string `json:"level"`
+			Message   string `json:"message"`
+			Recovered bool   `json:"recovered"`
+		}
+		if json.Unmarshal([]byte(line), &l) != nil || !slices.Contains(relayLoopSites, l.Message) {
+			continue
+		}
+		if out[l.Message] == nil {
+			out[l.Message] = map[string]int{}
+		}
+		if l.Level == "info" && !l.Recovered {
+			continue
+		}
+		out[l.Message][l.Level]++
+	}
+	return out
+}
+
+// SPL-3194 (alerts fix round row 02): a DB restart of a minute is 12 relay
+// ticks; each failing site logs ERROR once, then WARN. CONTROL: before the
+// fix every site logged ERROR on every tick it ran (12, the unacked sweep 4),
+// so the error_logs policy (> 9 in 5 min) paged a planned apply.
+func TestRelayLoopFailingStoreLogsErrorOnce(t *testing.T) {
+	f := newFlakyRelay(t)
+	f.st.down.Store(true)
+	f.tick(12, 5*time.Second)
+	got := f.levels(t)
+	for _, site := range relayLoopSites {
+		if n := got[site]["error"]; n != 1 {
+			t.Errorf("%q: %d ERROR lines in 12 failing ticks, want 1 (%v)", site, n, got[site])
+		}
+		if got[site]["warn"] == 0 {
+			t.Errorf("%q: no WARN line for the repeats (%v)", site, got[site])
+		}
+	}
+}
+
+// The recovery: a store that fails one tick and then works logs one ERROR and
+// one INFO (recovered) per site, and a second outage is an ERROR again.
+func TestRelayLoopRecoveryLogsInfoOnce(t *testing.T) {
+	f := newFlakyRelay(t)
+	f.st.down.Store(true)
+	f.tick(1, 16*time.Second)
+	f.st.down.Store(false)
+	f.tick(3, 16*time.Second)
+	got := f.levels(t)
+	for _, site := range relayLoopSites {
+		if got[site]["error"] != 1 || got[site]["info"] != 1 || got[site]["warn"] != 0 {
+			t.Errorf("%q: %v, want 1 error and 1 recovered info", site, got[site])
+		}
+	}
+	f.st.down.Store(true)
+	f.tick(1, 16*time.Second)
+	if n := f.levels(t)["relay queue"]["error"]; n != 2 {
+		t.Errorf("a second outage logged %d ERROR lines in all, want 2", n)
 	}
 }

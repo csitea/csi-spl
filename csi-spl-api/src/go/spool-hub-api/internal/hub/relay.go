@@ -51,10 +51,12 @@ const (
 	relayCadenceDiv = 4
 )
 
-// relayCadence is when this process last ran each slow sweep.
+// relayCadence is when this process last ran each slow sweep, and which
+// relay-loop calls are failing (loop_log.go).
 type relayCadence struct {
 	mu                sync.Mutex
 	unacked, escalate time.Time
+	loops             loopLog
 }
 
 // due reports whether the sweep last run at *last is due again at now, once
@@ -127,9 +129,10 @@ func (s *Server) Relay(ctx context.Context) {
 	for _, tenant := range ids {
 		posts, err := fb.UnheardPosts(ctx, tenant, now.Add(-relaySweepWindow), now.Add(-relaySweepGrace), relaySweepMax)
 		if err != nil {
-			s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("relay unheard posts")
+			s.relayDue.loops.fail(&s.o.Log, "relay unheard posts", tenant, "", err)
 			continue
 		}
+		s.relayDue.loops.ok(&s.o.Log, "relay unheard posts", tenant, "")
 		for _, p := range posts {
 			env, err := wire.ParseEnvelope(p.Env)
 			if err != nil {
@@ -176,9 +179,10 @@ func (s *Server) escalateUnanswered(ctx context.Context, fb store.Fallbacks, ten
 	for _, tenant := range tenants {
 		posts, err := fb.UnansweredPosts(ctx, tenant, now.Add(-unansweredWindow), now.Add(-s.o.UnansweredGrace), relaySweepMax)
 		if err != nil {
-			s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("relay unanswered posts")
+			s.relayDue.loops.fail(&s.o.Log, "relay unanswered posts", tenant, "", err)
 			continue
 		}
+		s.relayDue.loops.ok(&s.o.Log, "relay unanswered posts", tenant, "")
 		for _, p := range posts {
 			env, err := wire.ParseEnvelope(p.Env)
 			if err != nil {
@@ -206,9 +210,10 @@ func (s *Server) reescalate(ctx context.Context, fb store.Fallbacks, tenants []s
 	for _, tenant := range tenants {
 		posts, err := fb.ReescalatablePosts(ctx, tenant, now.Add(-unansweredWindow), now.Add(-s.o.ReescalateEvery), now.Add(-s.o.UnansweredGrace), s.o.ReescalateMax, relaySweepMax)
 		if err != nil {
-			s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("relay reescalatable posts")
+			s.relayDue.loops.fail(&s.o.Log, "relay reescalatable posts", tenant, "", err)
 			continue
 		}
+		s.relayDue.loops.ok(&s.o.Log, "relay reescalatable posts", tenant, "")
 		for _, p := range posts {
 			env, err := wire.ParseEnvelope(p.Env)
 			if err != nil {
@@ -228,9 +233,10 @@ func (s *Server) reescalate(ctx context.Context, fb store.Fallbacks, tenants []s
 func (s *Server) pushQueued(ctx context.Context, x *session) int {
 	q, err := s.o.Store.QueuedFor(ctx, x.tenant, x.box, s.o.Now())
 	if err != nil {
-		s.o.Log.Error().Err(err).Str("tenant", x.tenant).Str("box", x.box).Msg("relay queue")
+		s.relayDue.loops.fail(&s.o.Log, "relay queue", x.tenant, x.box, err)
 		return 0
 	}
+	s.relayDue.loops.ok(&s.o.Log, "relay queue", x.tenant, x.box)
 	return s.pushRows(ctx, x, q)
 }
 
@@ -251,9 +257,10 @@ func (s *Server) pushQueuedSet(ctx context.Context, tenant string, xs []*session
 	}
 	rows, err := qs.QueuedForBoxes(ctx, tenant, boxes, s.o.Now())
 	if err != nil {
-		s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("relay queue")
+		s.relayDue.loops.fail(&s.o.Log, "relay queue", tenant, "", err)
 		return sent
 	}
+	s.relayDue.loops.ok(&s.o.Log, "relay queue", tenant, "")
 	for i, x := range xs {
 		sent[i] = s.pushRows(ctx, x, rows[x.box])
 	}

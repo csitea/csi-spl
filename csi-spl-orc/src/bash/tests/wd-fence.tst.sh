@@ -48,6 +48,12 @@
 #      was due before A's ack does not fence the box; two instances
 #      unfencing at once retry a failed wip push once and log one UNFENCED.
 #      RED control: SPL_WD_FENCE_NOLOCK=1 (the code before) shows each race
+#  12. SPL-3197: every beat appends one line to <wd>/beat.log (BEAT <inst>
+#      tick= sent= ack= ms=): a hub that acks after 2 s -> 2 ticks, 2 lines
+#      with ack= a time and ms >= 2000; a silent hub -> ack=none and the
+#      BEAT no ack line in wd.log as before; the file keeps its last
+#      WD_BEAT_LOG_MAX lines; a tick past WD_TICK appends its step times
+#      (TICK ... <step>=<ms>), a tick inside WD_TICK appends none
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -65,6 +71,7 @@ export T
 cat > "$T/bin/hub" <<'STUB'
 #!/usr/bin/env bash
 echo "beat $*" >> "$T/beats"
+[ "$(cat "$T/hub")" != slow ] || { sleep 2; echo ok > "$T/hub"; }
 if [ "$(cat "$T/hub")" = ok ]; then echo '{"ok":true,"box":"box1","beat_at":"2027-01-15T08:00:00Z","box_down_min":2}'; else sleep 5; fi
 STUB
 printf '#!/usr/bin/env bash\necho "wip $ID" >> "$T/acts"\n' > "$T/bin/wip"
@@ -88,7 +95,7 @@ wd() {
     # shellcheck source=../run/spl-watchdog.func.sh
     source "$RUN_DIR/spl-watchdog.func.sh"
     export SPOOL_ROOT="$T/spool" WD_DIR="$T/wd" WD_LOG="$T/wd.log" WD_SEND="$T/bin/send" WD_FROM=c-001 WD_BOX=box1
-    export WD_BEAT_CMD="$T/bin/hub" WD_BEAT_TIMEOUT=1 WD_WIP_CMD="$T/bin/wip" WD_KILL_CMD="$T/bin/kill"
+    export WD_BEAT_CMD="$T/bin/hub" WD_BEAT_TIMEOUT="${WD_BEAT_TIMEOUT:-1}" WD_WIP_CMD="$T/bin/wip" WD_KILL_CMD="$T/bin/kill"
     export WD_FENCE_TERM_WAIT="${WD_FENCE_TERM_WAIT:-0}" WD_HUB_PROBE_CMD="${WD_HUB_PROBE_CMD-$T/bin/probe}"
     export WD_TAKEOVER_CMD="$T/bin/restart" RESTART_MAX_PER_HOUR=3 WD_TICK_SEQ=1
     "$@" )
@@ -370,6 +377,33 @@ r="$(retry_run "")"
 r="$(retry_run 1)"
 [[ "$r" != "2 1 1 0" ]] && pass "11. RED control: no fence lock retries once per instance ($r)" ||
   fail "11. RED control: no fence lock retried once ($r)"
+
+# ---- 12. every beat leaves a line in beat.log (SPL-3197) ------------------------
+# beat_ok12: the BEAT lines with an ack time and ms >= 2000
+beat_ok12() { awk '/^BEAT / {delete v; for (i = 2; i <= NF; i++) {split($i, a, "="); v[a[1]] = a[2]} if (v["ack"] ~ /^20/ && v["ms"] >= 2000) n++} END {print n + 0}' "$T/wd/beat.log" 2>/dev/null || echo 0; }
+reset
+for s in 0 30; do echo slow > "$T/hub"; WD_BEAT_TIMEOUT=5 DRY_RUN=0 wd spl_wd_fence $(( T0 + s )) "$T/tick"; done
+[[ "$(n wd/beat.log '^BEAT ')" == 2 && "$(beat_ok12)" == 2 ]] &&
+  pass "12. a hub that acks after 2 s: 2 ticks, 2 beat.log lines with ack= and ms >= 2000" ||
+  fail "12. beat.log after 2 slow acks: $(cat "$T/wd/beat.log" 2>/dev/null || echo 'no file')"
+grep -q "^BEAT - tick=2027-01-15T08:00:30.000Z sent=20[^ ]*Z ack=20[^ ]*Z ms=[0-9]*\$" "$T/wd/beat.log" 2>/dev/null &&
+  pass "12. the line names the tick, the call start and the ack" || fail "12. line format: $(tail -1 "$T/wd/beat.log" 2>/dev/null)"
+ticks 60 60 silent
+grep -q " ack=none ms=[0-9]*\$" <<<"$(tail -1 "$T/wd/beat.log" 2>/dev/null)" && grep -q "BEAT: no ack" "$T/wd.log" &&
+  pass "12. control: a silent hub writes ack=none and the BEAT no ack line" ||
+  fail "12. control: silent beat: $(tail -1 "$T/wd/beat.log" 2>/dev/null) | $(grep -c 'BEAT: no ack' "$T/wd.log")"
+WD_BEAT_LOG_MAX=3 ticks 90 180 ok
+[[ "$(n wd/beat.log '^BEAT ')" == 3 ]] && grep -q "tick=2027-01-15T08:03:00.000Z" "$T/wd/beat.log" &&
+  pass "12. beat.log keeps its last WD_BEAT_LOG_MAX lines" || fail "12. trim: $(wc -l < "$T/wd/beat.log" 2>/dev/null) lines"
+# slow12 TICK_S SLEEP: one tick of WD_TICK s whose peers step takes SLEEP s
+# shellcheck disable=SC2034 # WD_TICK is read by spl_wd_tick_slow
+slow12() { WD_TICK="$1"; spl_wd_tick_t0; sleep "$2"; spl_wd_step peers; spl_wd_tick_slow "$T0"; }
+reset
+wd slow12 30 0
+[[ "$(n wd/beat.log '^TICK ')" == 0 ]] && pass "12. control: a tick inside WD_TICK writes no TICK line" || fail "12. TICK line for a fast tick"
+wd slow12 1 1.2
+grep -q "^TICK - tick=2027-01-15T08:00:00.000Z ms=1[0-9][0-9][0-9] peers=1[0-9][0-9][0-9]\$" "$T/wd/beat.log" 2>/dev/null &&
+  pass "12. a tick past WD_TICK appends its step times" || fail "12. TICK line: $(grep TICK "$T/wd/beat.log" 2>/dev/null || echo none)"
 
 if (( fails )); then echo "wd-fence: $fails FAILED"; exit 1; fi
 echo "wd-fence: all passed"

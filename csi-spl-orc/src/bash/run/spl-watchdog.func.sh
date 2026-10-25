@@ -168,6 +168,7 @@ spl_wd_init() {
 
 spl_wd_tick() {
   local now last tick="$WD_DIR/tick$WD_SFX" id pid pane
+  spl_wd_tick_t0
   now="$(spl_lease_now)"
   last="$(cat "$WD_DIR/last.tick$WD_SFX" 2>/dev/null || true)"
   # a box back from suspend or power loss: every age looks huge (6.2). The
@@ -185,21 +186,21 @@ spl_wd_tick() {
   spl_wd_heartbeat start
   # peers only from a judge that wrote its heartbeat and did not just resume (10.4.2)
   [[ "$last" =~ ^[0-9]+$ ]] || last="$now"
-  spl_wd_peers "$now" "$(( now - last ))"
+  spl_wd_peers "$now" "$(( now - last ))"; spl_wd_step peers
   # desk-cron moved: the rolling restart of 10.4.4 (may exec into the new code)
-  spl_wd_self_update "$now"
+  spl_wd_self_update "$now"; spl_wd_step update
   rm -rf "$tick" && mkdir -p "$tick"
-  spl_wd_ps > "$tick/ps"
-  spl_wd_tmux_lists "$tick"
+  spl_wd_ps > "$tick/ps"; spl_wd_step ps
+  spl_wd_tmux_lists "$tick"; spl_wd_step tmux
   WD_BOX_BUSY=""
   if [[ -e "$SPOOL_ROOT/peer/restart.lock" ]] && ! flock -n "$SPOOL_ROOT/peer/restart.lock" true; then
     WD_BOX_BUSY="a restart holds peer/restart.lock"
   fi
-  spl_wd_agents "$tick" > "$tick/agents"
-  spl_wd_fence "$now" "$tick"
-  spl_wd_boot "$now" "$tick"
+  spl_wd_agents "$tick" > "$tick/agents"; spl_wd_step agents
+  spl_wd_fence "$now" "$tick"; spl_wd_step fence
+  spl_wd_boot "$now" "$tick"; spl_wd_step boot
   # SPL-1717: the orchestrator role judged by its output (spl-wd-orch-outcome.func.sh)
-  spl_wd_orch_outcome "$now"
+  spl_wd_orch_outcome "$now"; spl_wd_step orch
   spl_wd_heartbeat agents
   # named pids only: a bare `wait` also waits for ./run's tee process substitutions
   local -a jp=()
@@ -210,6 +211,7 @@ spl_wd_tick() {
     spl_wd_heartbeat agents
   done < "$tick/agents"
   if (( ${#jp[@]} )); then wait "${jp[@]}" 2>/dev/null || true; fi
+  spl_wd_step judge
   spl_wd_heartbeat "done"
   while IFS=$'\t' read -r id _; do
     cat "$tick/out.$id" 2>/dev/null || true
@@ -220,8 +222,46 @@ spl_wd_tick() {
   fi
   spl_wd_log_trim
   # the first tick after a self-update exec is its self-check (10.4.4)
-  spl_wd_upd_checked "$tick" "$now"
+  spl_wd_upd_checked "$tick" "$now"; spl_wd_step log
+  spl_wd_tick_slow "$now"
   return 0
+}
+
+# ---- beat.log: the beat and slow-tick record (SPL-3197, diagnostic only) --------
+# <WD_DIR>/beat.log, kept to its last WD_BEAT_LOG_MAX (2000) lines, one line
+# per beat and per tick that ran past WD_TICK; how to read a gap:
+# csi-spl-doc/doc/md/box-beat-gaps.md. A failed write is ignored.
+
+# WD_US: the clock in microseconds (EPOCHREALTIME, a comma in some
+# locales); set, not printed, so a tick's steps cost no fork.
+spl_wd_us() { local t="${EPOCHREALTIME/,/.}"; WD_US="${t/./}"; }
+# spl_wd_iso EPOCH[.FRACTION]: UTC, milliseconds.
+spl_wd_iso() { date -u -d "@${1/,/.}" +%FT%T.%3NZ; }
+
+spl_wd_beat_log() {
+  local f="$WD_DIR/beat.log" max="${WD_BEAT_LOG_MAX:-2000}" n tmp
+  echo "$*" >> "$f" 2>/dev/null || return 0
+  n="$(wc -l < "$f" 2>/dev/null)" || return 0
+  (( n > max )) || return 0
+  # named here: a $BASHPID in tail's redirection expands in tail's own fork
+  tmp="$f.$BASHPID"
+  tail -n "$max" "$f" > "$tmp" 2>/dev/null && mv -f "$tmp" "$f" 2>/dev/null
+  rm -f "$tmp"
+  return 0
+}
+
+# The tick's step times: spl_wd_tick_t0 at its start, spl_wd_step NAME after
+# each step, spl_wd_tick_slow NOW at its end (a line only past WD_TICK).
+spl_wd_tick_t0() { spl_wd_us; WD_TICK_T0="$WD_US"; WD_STEP_T="$WD_US"; WD_STEPS=""; }
+spl_wd_step() {
+  spl_wd_us
+  WD_STEPS+=" $1=$(( (WD_US - ${WD_STEP_T:-$WD_US}) / 1000 ))"; WD_STEP_T="$WD_US"
+}
+spl_wd_tick_slow() {
+  spl_wd_us
+  local ms=$(( (WD_US - ${WD_TICK_T0:-$WD_US}) / 1000 ))
+  (( ms > WD_TICK * 1000 )) || return 0
+  spl_wd_beat_log "TICK ${WD_INST:--} tick=$(spl_wd_iso "$1") ms=$ms${WD_STEPS:-}"
 }
 
 # How many of <pid>... still run.
@@ -1792,11 +1832,16 @@ spl_wd_fence_is_seat() {
 # spl_wd_beat NOW: one beat, bounded by WD_BEAT_TIMEOUT (10 s). An answer
 # with "ok": true is the ack. The first beat of a box with no ack yet starts
 # the clock (a box that never reached the hub is fenced box_down_min later).
+# Every beat appends BEAT <inst> tick= sent= ack=<time|none> ms= to beat.log.
 spl_wd_beat() {
-  local now="$1" out dm
+  local now="$1" out dm t0 t1 ack=none
   spl_wd_beat_on || return 0
+  t0="${EPOCHREALTIME/,/.}"
   out="$(spl_wd_beat_call 2>/dev/null)" || out=""
-  if jq -e '.ok == true' >/dev/null 2>&1 <<<"$out"; then
+  t1="${EPOCHREALTIME/,/.}"
+  if jq -e '.ok == true' >/dev/null 2>&1 <<<"$out"; then ack="$(spl_wd_iso "$t1")"; fi
+  spl_wd_beat_log "BEAT ${WD_INST:--} tick=$(spl_wd_iso "$now") sent=$(spl_wd_iso "$t0") ack=$ack ms=$(( (${t1/./} - ${t0/./}) / 1000 ))"
+  if [[ "$ack" != none ]]; then
     echo "$now" > "$WD_DIR/beat.ack.$$" && mv -f "$WD_DIR/beat.ack.$$" "$WD_DIR/beat.ack"
     dm="$(jq -r '.box_down_min // empty' 2>/dev/null <<<"$out")"
     if [[ "$dm" =~ ^[0-9]+$ ]] && (( dm >= 1 )); then

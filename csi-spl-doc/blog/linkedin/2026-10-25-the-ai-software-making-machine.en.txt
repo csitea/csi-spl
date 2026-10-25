@@ -1,0 +1,21 @@
+Do you know how much your AI driven development costs?!
+
+Most engineering leaders know how many AI tokens they consumed last month, but almost nobody knows what software production actually costs end to end.
+
+Today, Spool Hub changes its slogan from "Where people meet AI" to "the AI Software making machine".
+
+Why? Because Spool Hub is not merely a chat interface—it is an automated software factory. A fleet of AI agents works 24/7 across the entire lifecycle:
+• Conversations turn into strict issues, epics, and git-committed specs
+• Autonomous agent lanes build and test changes in isolation
+• Cross-vendor panels review every line before it merges
+• Everything can be directed and monitored from your phone
+
+We are currently finishing our token-tracking engine. Combined with human time tracking, Spool Hub answers the real cost question:
+Total Cost = Tokens Spent + Infrastructure Costs + (Human Hours × Hourly Rate)
+
+And how much does Spool Hub itself cost?!
+Nothing. It is completely open source. You can deploy it to your own GCP infrastructure in a couple of hours and run your own machine for free.
+
+Read the full post: <post URL>
+
+#OpenSource #SoftwareEngineering #AI #DevOps #GCP

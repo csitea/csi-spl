@@ -136,6 +136,9 @@ try {
   /* 12-13 (spec 100 section 14, SPL-3337): a Qto document's words find its
      section in the Documents group, and a click opens the document there */
   const DOCHIT = '[data-test=search-results] [data-test=search-row][data-type=docs]'
+  /* the phone page opened last: a background tab is throttled and its
+     screenshot never returns, so the desktop page comes back to the front */
+  await p.bringToFront()
   await p.goto(server.base + '/search?q=glossary', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   const docRow = await p.waitForSelector(DOCHIT, { visible: true, timeout: NAV_TIMEOUT }).then(() => true).catch(() => false)
   const docText = docRow ? await p.$eval(DOCHIT, (el) => el.textContent.replace(/\s+/g, ' ').trim()) : ''
@@ -146,8 +149,9 @@ try {
   const docUrl = new URL(p.url())
   const anchor = docUrl.hash.slice(1)
   const section = anchor && await p.waitForFunction((id) => {
-    const el = document.getElementById(id)
-    return Boolean(el && /Glossary/.test(el.textContent || ''))
+    /* the heading is its editable title field: its value, not textContent */
+    const t = document.getElementById(id)?.querySelector('[data-test=ws-doc-title]')
+    return Boolean(t && /Glossary/.test(t.value || ''))
   }, { timeout: 15000 }, anchor).then(() => true).catch(() => false)
   ok('13 a click opens the document at that section', docUrl.searchParams.get('view') === 'doc' && Boolean(docUrl.searchParams.get('doc')) && section,
     { url: p.url(), section })

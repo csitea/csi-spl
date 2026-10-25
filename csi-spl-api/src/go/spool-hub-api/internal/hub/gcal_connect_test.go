@@ -383,6 +383,9 @@ func TestGcalDisconnect(t *testing.T) {
 	e.clock.add(-20 * 365 * 24 * time.Hour)
 	hum := seat(t, e.env, tid, rbac.Developer)
 	ctx := context.Background()
+	// the 400 check below connects the member again: a row left in the past
+	// would be the one due longest on the next run against the same DB
+	t.Cleanup(func() { _, _ = e.st.(store.Gcal).DeleteGcalConnection(context.Background(), tid, hum) })
 	if resp := gcalDo(t, e, tid, http.MethodDelete, "/v1/me/google-calendar", hum); resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("disconnect with no connection: %d, want 404", resp.StatusCode)
 	}

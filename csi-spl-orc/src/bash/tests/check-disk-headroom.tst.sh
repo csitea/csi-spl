@@ -6,7 +6,8 @@
 #      skipped, /tmp is checked although it is tmpfs; the dry run (default)
 #      plans the notes and sends / writes nothing; DRY_RUN=0 sends ONE note
 #      per crossing, a second tick sends none, a mount back under its limit
-#      is CLEAR and warns again on its next crossing; a failed send is
+#      is CLEAR and warns again on its next crossing; hysteresis: 85 -> 84
+#      -> 85% is one note (CONTROL: 79 -> 85% sends again); a failed send is
 #      retried next tick; df failing is a WARN and a note; blocks at the
 #      critical limit (92, <= 8% free) is a second, CRITICAL note, once per
 #      crossing (CONTROL: 91% sends only the 85% note).
@@ -87,6 +88,19 @@ grep -q 'CLEAR blocks:/data is back under its limit' <<<"$out" && [ "$(sends)" =
 rows 91% 85%
 chk DRY_RUN=0 >/dev/null
 [ "$(sends)" = 3 ] && pass "1. ...and its next crossing sends again" || fail "1. re-cross ($(cat "$SENT"))"
+# hysteresis (SPL-3198): a crossing stays armed down to 5 points under its
+# limit, so a mount that wobbles 85 -> 84 -> 85% is ONE note, not two; under
+# 80% it re-arms (CONTROL: 79 -> 85% sends again). Own state dir; the sent
+# log is put back after, so the counts below stay as they were.
+cp "$SENT" "$T/sent.keep"; rm -f "$SENT"
+rck() { chk DRY_RUN=0 DISK_HEADROOM_STATE_DIR="$T/rearm"; }
+rows 85% 20%; rck >/dev/null; rows 84% 20%; out="$(rck)"; rc=$?; rows 85% 20%; rck >/dev/null
+[ "$(sends)" = 1 ] && [ "$rc" = 0 ] && ! grep -q CLEAR <<<"$out" \
+  && pass "1. 85 -> 84 -> 85%: one note, the 84% tick is no CLEAR and exits 0" || fail "1. rearm (rc $rc: $out / $(cat "$SENT"))"
+b="$(sends)"; rows 79% 20%; out="$(rck)"; rows 85% 20%; rck >/dev/null
+grep -q 'CLEAR blocks:/data is back under its limit' <<<"$out" && [ "$(sends)" = $((b + 1)) ] \
+  && pass "1. CONTROL: 79% (under 85 - 5) is CLEAR and 85% then sends again" || fail "1. rearm control ($out / $(cat "$SENT"))"
+mv -f "$T/sent.keep" "$SENT"
 
 rows 50% 20%; chk DRY_RUN=0 >/dev/null; rows 90% 20%
 touch "$T/send.fail"; out="$(chk DRY_RUN=0)"; rm -f "$T/send.fail"
@@ -107,8 +121,11 @@ rows 92% 20%; out="$(chk DRY_RUN=0)"
 rows 99% 20%; chk DRY_RUN=0 >/dev/null
 [ "$(sends)" = 2 ] && pass "1. ...once per crossing: 99% next tick sends nothing new" || fail "1. crit repeat ($(cat "$SENT"))"
 rows 90% 20%; out="$(chk DRY_RUN=0)"
+! grep -q CLEAR <<<"$out" && [ "$(sends)" = 2 ] \
+  && pass "1. back to 90% (not under 92 - 5): the critical crossing stays armed" || fail "1. crit hold ($out)"
+rows 86% 20%; out="$(chk DRY_RUN=0)"
 grep -q 'CLEAR crit:blocks:/data' <<<"$out" && ! grep -q 'CLEAR blocks:/data' <<<"$out" \
-  && pass "1. back to 90%: the critical crossing is CLEAR, the 85% one stays" || fail "1. crit clear ($out)"
+  && pass "1. back to 86%: the critical crossing is CLEAR, the 85% one stays" || fail "1. crit clear ($out)"
 rm -rf "$ST" "$SENT"
 out="$(chk DRY_RUN=7)"; rc=$?
 [ "$rc" = 2 ] && grep -q 'DRY_RUN must be 0 or 1' <<<"$out" && pass "1. DRY_RUN is checked" || fail "1. DRY_RUN=7 ($out)"

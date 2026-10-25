@@ -138,7 +138,12 @@ Every diagnostic and remediation command is a version-controlled named action. A
   ```bash
   cd csi-spl-orc && ./run -a do_check_disk_headroom
   ```
-  Action file: `csi-spl-orc/src/bash/run/check-disk-headroom.func.sh`
+  Action file: `csi-spl-orc/src/bash/run/check-disk-headroom.func.sh`.
+  One note per crossing: WARN at 85% blocks (80% inodes), CRITICAL at 92%.
+  A crossing stays armed until the mount is 5 points under its line
+  (`DISK_HEADROOM_REARM_PCT`, SPL-3198): 85 -> 84 -> 85% is one note, and
+  the WARN re-arms (CLEAR, may warn again) only under 80%, the CRITICAL
+  under 87%.
 - **New lanes already avoid the full box** (SPL-3179): `do_spl_box_pick`
   never places a lane on a box whose agent data mount (`/mnt/data` where the
   box has one, else `/`, from its latest hub box_stats sample) is at or over

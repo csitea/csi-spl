@@ -4,8 +4,9 @@
 # inodes >= DISK_HEADROOM_INODE_PCT (80) is a crossing. A crossing logs a WARN
 # and sends ONE spool note to the orchestrator; it is remembered in a state
 # file, so the next ticks stay quiet while the mount stays high, and a mount
-# that falls back below is logged CLEAR and may warn again on its next
-# crossing. A note that could not be sent is not remembered: it is retried on
+# that falls back DISK_HEADROOM_REARM_PCT (5) points under the limit is logged
+# CLEAR and may warn again on its next crossing; in between it stays armed, so
+# a mount that wobbles 85 -> 84 -> 85% is one note (SPL-3198). A note that could not be sent is not remembered: it is retried on
 # the next tick. Blocks >= DISK_HEADROOM_CRIT_PCT (92) is a SECOND crossing
 # with its own CRITICAL note: on 2026-10-09 /mnt/data warned once at 85% and
 # then sat silent for two days, through 99%, until it was full. In free
@@ -36,6 +37,9 @@
 #                                 <= 8% free; the sweep's
 #                                 crit level, BOX_SWEEP_CRIT_FREE_PCT 7, is
 #                                 under it: the note comes before the crit sweep)
+#   DISK_HEADROOM_REARM_PCT       default 5: a crossing re-arms (CLEAR, may
+#                                 warn again) only under limit - 5 (the WARN
+#                                 under 80%, the CRITICAL under 87%)
 #   DISK_HEADROOM_SKIP_TYPES      space separated fs types not checked
 #   DISK_HEADROOM_STATE_DIR       default $SPL_STATE_DIR/disk-headroom, else
 #                                 ~/.local/share/<org>-<app>/cloud/self/disk-headroom
@@ -69,6 +73,7 @@ dry="${DRY_RUN:-1}"
 bpct="${DISK_HEADROOM_BLOCK_PCT:-$SPL_BOX_DISK_HIGH_PCT}"
 ipct="${DISK_HEADROOM_INODE_PCT:-80}"
 cpct="${DISK_HEADROOM_CRIT_PCT:-$SPL_BOX_DISK_CRIT_PCT}"
+rearm="${DISK_HEADROOM_REARM_PCT:-5}"
 skip_types=" ${DISK_HEADROOM_SKIP_TYPES:-tmpfs devtmpfs ramfs overlay squashfs efivarfs autofs nsfs proc sysfs cgroup cgroup2} "
 state_dir="${DISK_HEADROOM_STATE_DIR:-${SPL_STATE_DIR:-$HOME/.local/share/$app/cloud/self}/disk-headroom}"
 to="${DISK_HEADROOM_TO:-orchestrator}"
@@ -89,9 +94,11 @@ for v in "$bpct" "$ipct" "$cpct"; do
   [[ "$v" =~ ^[0-9]+$ ]] && (( v >= 1 && v <= 100 )) ||
     { say "FATAL DISK_HEADROOM_BLOCK_PCT / _INODE_PCT / _CRIT_PCT must be 1..100, got '$v'"; exit 2; }
 done
+[[ "$rearm" =~ ^[0-9]+$ ]] && (( rearm <= 99 )) ||
+  { say "FATAL DISK_HEADROOM_REARM_PCT must be 0..99, got '$rearm'"; exit 2; }
 
 state="$state_dir/crossings"
-declare -A was=() now=()
+declare -A was=() now=() held=()
 can_state=1
 { mkdir -p "$state_dir" && [[ -w "$state_dir" ]]; } 2>/dev/null || can_state=0
 [[ -r "$state" ]] && while IFS= read -r k; do [[ -n "$k" ]] && was["$k"]=1; done <"$state"
@@ -118,6 +125,13 @@ note() {
   else
     say "WARN could not tell $to about $key: retried next tick"; unset 'now[$key]'
   fi
+}
+# hold <key> <pct> <limit>: a key of the last state, now under its limit but
+# not yet rearm points under it, stays armed: no note, no CLEAR, kept in the
+# state file.
+hold() {
+  [[ -n "${was[$1]:-}" ]] && (( $2 < $3 && $2 >= $3 - rearm )) && held["$1"]=1
+  return 0
 }
 
 if (( can_state )); then
@@ -152,12 +166,14 @@ while read -r src typ pc ipc target; do
   if [[ "$ipc" =~ ^[0-9]+$ ]] && (( ipc >= ipct )); then
     note "inodes:$target" "$target ($typ, $src) inodes ${ipc}% >= ${ipct}%"
   fi
+  [[ "$pc" =~ ^[0-9]+$ ]] && { hold "blocks:$target" "$pc" "$bpct"; hold "crit:blocks:$target" "$pc" "$cpct"; }
+  [[ "$ipc" =~ ^[0-9]+$ ]] && hold "inodes:$target" "$ipc" "$ipct"
 done <<<"$rows"
 (( n > 0 )) || note "mounts:none" "no mount was checked: df listed nothing this check measures"
 
-for k in "${!was[@]}"; do [[ -n "${now[$k]:-}" ]] || say "CLEAR $k is back under its limit"; done
+for k in "${!was[@]}"; do [[ -n "${now[$k]:-}${held[$k]:-}" ]] || say "CLEAR $k is back under its limit"; done
 if [[ "$dry" == 0 ]] && (( can_state )); then
-  { for k in "${!now[@]}"; do printf '%s\n' "$k"; done; } | sort >"$state.tmp" && mv -f "$state.tmp" "$state"
+  { for k in "${!now[@]}" "${!held[@]}"; do printf '%s\n' "$k"; done; } | sort >"$state.tmp" && mv -f "$state.tmp" "$state"
 fi
 say "CHECK box=$box user=$who dry_run=$dry limits=${bpct}%b/${ipct}%i/crit=${cpct}%b mounts=$n skipped=$nskip high=${#now[@]}${line}"
 exit "$rc"

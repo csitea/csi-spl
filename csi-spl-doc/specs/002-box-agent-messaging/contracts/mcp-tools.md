@@ -88,6 +88,23 @@ reads it and posts in it. The box's `spool-<env>` registration
    and retires the id (`agent-id-retire.sh`, desk seats included) when the
    server exits. It never takes a person's identity or another agent's id.
    `SPOOL_MCP_MINT=0` refuses instead (exit 4, as before).
+   **A minted id never holds the shared line after its session (SPL-3263).**
+   On one box, 2026-10-24, 489 of 495 stale c- dirs and 360 of 363 g- dirs held a
+   `minted` file and no window or registry row; the c- line read full. So:
+   - the retire runs on EVERY exit of the box half after the mint (an EXIT
+     trap), a refusal too (5, 6); before, only a served session that ended
+     normally retired its id. No spool binary refuses (7) before the mint.
+   - `minted` records both pids: `(ppid <CLI pid>, pid <box half pid>)`.
+   - A killed box half runs no trap. The minted-id reaper retires its id:
+     `agent-id-reap.sh --minted`, run by hand as
+     `cd csi-spl-orc && REAP_MINTED=1 ./run -a do_spl_agent_id_reap` (a dry
+     run; `DRY_RUN=0` retires). It retires only an id with a `minted` file,
+     no tmux window, no `registry.tsv` row, no identity record that proves a
+     live process, and no recorded pid still running. A file with no pid, or
+     a `/proc` that hides pid 1, decides nothing. It takes no 6 h clock and
+     leaves the dead-agent reaper's stamps alone.
+   - Every mint first starts that reaper (`--apply`) in the background,
+     detached, so the ids of ended sessions are freed on the next start.
 2. **Takes the workspace from the link**: with no tenant named it no longer
    refuses 0 or 2+ seats (exit 5); it serves from the fleet tenant's desk,
    else the first seated, else the first live one, and passes the box's desk

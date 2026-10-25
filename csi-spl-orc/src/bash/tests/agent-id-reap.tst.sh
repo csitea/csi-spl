@@ -3,7 +3,7 @@
 # Purpose: do_spl_agent_id_reap and do_spl_agent_id_reap_install_cron
 # (specs/061 section 3.6) on a throwaway root and a fixture crontab.
 #   1. do_spl_agent_id_reap: DRY_RUN (the default) is the dry run; with no
-#      tmux to ask it decides nothing (exit 1)
+#      tmux to ask it decides nothing (exit 1); REAP_MINTED=1 is --minted
 #   2. the install: the dry run prints the diff and changes nothing; DRY_RUN=0
 #      adds ONE tagged line, DRY_RUN=1 inside it, every other line kept; a
 #      second install is a no-op; remove restores the crontab byte for byte
@@ -20,6 +20,12 @@ out="$(SNIPPET='do_spl_agent_id_reap' in_orc SPOOL_ROOT="$R" SPOOL_TEST=1 SPOOL_
 [ -d "$R/c-004/inbox" ] && pass "1. ...and moves nothing" || fail "1. the reap moved c-004"
 out="$(SNIPPET='do_spl_agent_id_reap' in_orc SPOOL_ROOT="$R" DRY_RUN=2 2>&1)"; rc=$?
 [ "$rc" -ne 0 ] && grep -q 'DRY_RUN must be 0 or 1' <<<"$out" && pass "1. DRY_RUN is checked" || fail "1. DRY_RUN=2 ($out)"
+tmux -S "$T/tm.sock" -f /dev/null new-session -d -s t 'sleep 60'
+out="$(SNIPPET='do_spl_agent_id_reap' in_orc SPOOL_ROOT="$R" SPOOL_TEST=1 SPOOL_TMUX_SOCKET="$T/tm.sock" REAP_MINTED=1 2>&1)"; rc=$?
+tmux -S "$T/tm.sock" kill-server 2>/dev/null
+[ "$rc" -eq 0 ] && grep -q 'START reap minted (dry run)' <<<"$out" && [ -d "$R/c-004/inbox" ] && pass "1. REAP_MINTED=1 runs the --minted mode (SPL-3263)" || fail "1. REAP_MINTED=1 (rc $rc: $out)"
+out="$(SNIPPET='do_spl_agent_id_reap' in_orc SPOOL_ROOT="$R" REAP_MINTED=2 2>&1)"; rc=$?
+[ "$rc" -ne 0 ] && grep -q 'REAP_MINTED must be 0 or 1' <<<"$out" && pass "1. REAP_MINTED is checked" || fail "1. REAP_MINTED=2 ($out)"
 
 CT="$T/crontab"
 printf '%s\n' '*/5 * * * * bash /x/a.sh # csi-spl:desk-reconcile-prd' '* * * * * bash /x/b.sh # csi-spl:agent-id-reap-other' '@reboot /usr/bin/true' >"$CT"

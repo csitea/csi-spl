@@ -83,6 +83,10 @@ cat >"$PROJ/run" <<EOF_R
 { echo "RUN \$*"; env | grep -E '^(ENV|TENANT_ID|DESK_[A-Z_]+|DRY_RUN)=' | sort; } >"$T/seat.log"
 EOF_R
 chmod +x "$PROJ/run"
+cat >"$PROJ/src/bash/features/spawn-agents/scripts/agent-id-reap.sh" <<EOF_P
+#!/usr/bin/env bash
+echo "\$* root=\$SPOOL_ROOT box=\$SPOOL_DESK_BOX" >"$T/reap.argv"
+EOF_P
 cat >"$PROJ/src/bash/features/spawn-agents/scripts/agent-id-retire.sh" <<EOF_X
 #!/usr/bin/env bash
 echo "\$* root=\$SPOOL_ROOT box=\$SPOOL_DESK_BOX lane=\$RETIRE_LANE" >"$T/retired"
@@ -132,6 +136,30 @@ grep -qx -- '--kind claude' "$FLEET/alloc.argv" 2>/dev/null && grep -q 'minted .
 rm -f "$T/served"
 box --mint nope dev; rc=$?
 [[ $rc -eq 2 && ! -e "$T/served" ]] && pass "4. --mint of a non-kind refuses (2)" || fail "4. bad kind: rc $rc $(cat "$T/out")"
+# SPL-3263: a minted id never holds the shared line once its session is gone.
+# Every exit after the mint retires it (a named tenant with no seat: 5), no
+# binary refuses before the mint, and a killed box half (no trap runs) leaves
+# a record with its pids for the reaper (agent-id-reap.sh --minted), which the
+# next mint starts in the background.
+rm -f "$T/retired" "$T/served" "$FLEET/alloc.argv"
+box --mint claude dev t1; rc=$?
+[[ $rc -eq 5 && ! -e "$T/served" ]] && grep -qx -- "--apply c-777 root=$FLEET box=box-desk lane=0" "$T/retired" 2>/dev/null &&
+  pass "4. a mint that exits before serving (5) retires its id" || fail "4. exit-5 leak: rc $rc retired='$(cat "$T/retired" 2>&1)' $(cat "$T/out")"
+rm -f "$T/retired" "$FLEET/alloc.argv"
+SPOOL_MCP_BIN="$T/no-such-spool" box --mint claude dev; rc=$?
+[[ $rc -eq 7 && ! -e "$FLEET/alloc.argv" && ! -e "$T/retired" ]] &&
+  pass "4. no spool binary refuses (7) before any id is minted" || fail "4. exit-7: rc $rc alloc=$(cat "$FLEET/alloc.argv" 2>&1) $(cat "$T/out")"
+mkfifo "$T/hold"
+rm -f "$T/retired" "$T/served" "$T/reap.argv"
+env LEAK=caller "$MCP/spool-mcp.sh" --serve --mint claude dev >"$T/out" 2>&1 <"$T/hold" & KP=$!
+exec 7>"$T/hold"
+for _ in $(seq 50); do [ -s "$T/served" ] && break; sleep 0.1; done
+kill -KILL "$KP"; wait "$KP" 2>/dev/null; exec 7>&-
+grep -qE "\(ppid [0-9]+, pid $KP\)" "$FLEET/c-777/minted" 2>/dev/null && [ ! -e "$T/retired" ] &&
+  pass "4. a killed box half leaves c-777 with its pids recorded (ppid, pid $KP) for the reaper" || fail "4. kill: retired=$(cat "$T/retired" 2>&1) minted='$(cat "$FLEET/c-777/minted" 2>&1)'"
+for _ in $(seq 50); do [ -s "$T/reap.argv" ] && break; sleep 0.1; done
+grep -qx -- "--minted --apply root=$FLEET box=box-desk" "$T/reap.argv" 2>/dev/null &&
+  pass "4. a mint first starts the minted-id reaper of the sidecar's checkout" || fail "4. reap at mint: '$(cat "$T/reap.argv" 2>&1)'"
 agent MCP_BOT_AGENT_ID=c-007 "$SH" dev; rc=$?
 [[ $rc -eq 0 ]] && grep -qx "$(argv c-007)" "$T/served" && pass "4. MCP_BOT_AGENT_ID seats the server" || fail "4. env id: rc $rc $(cat "$T/out")"
 rm -f "$T/served"

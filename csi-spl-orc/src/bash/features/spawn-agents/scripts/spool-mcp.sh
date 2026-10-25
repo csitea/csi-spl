@@ -62,10 +62,13 @@
 #               allocator, next-agent-id.sh of the checkout the desk sidecar
 #               runs from (its PROJ_PATH), in its fleet root. The id is a
 #               spool dir like any agent id, and it is retired
-#               (agent-id-retire.sh, seats included) when the server exits:
-#               the session ended. A killed server leaves it to the
-#               dead-agent reaper (agent-id-reap.sh, SPOOL_ID_REAP_H) where
-#               its cron runs.
+#               (agent-id-retire.sh, seats included) on ANY exit of this box
+#               half, a refusal after the mint too (SPL-3263). The record
+#               <fleet root>/<id>/minted names the CLI's pid (ppid) and this
+#               box half's (pid); a killed box half leaves it, and every mint
+#               first starts, in the background, the minted-id reaper
+#               (agent-id-reap.sh --minted --apply) that retires each minted
+#               id whose recorded pids are gone (no window, no registry row).
 #   --seat <env> <box> <tenant> <agent>   seat <agent> on <tenant>'s desk
 #               with the existing action (do_spl_desk_up, DESK_POKE=0, of the
 #               sidecar's checkout). `spool mcp --seat-cmd` runs it when
@@ -178,6 +181,16 @@ fi
 # ── box side ─────────────────────────────────────────────────────────────────
 HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 STATE="$(state_root "$HERE")/$ENVN"
+BIN="${SPOOL_MCP_BIN:-$HERE/spool}"
+[ -x "$BIN" ] || { say "no spool binary at $BIN: run do_spl_agent_mcp_install"; exit 7; }
+# The minted id is retired on every exit from here on: a refusal after the
+# mint (5, 6) used to leave it holding the shared line for ever (SPL-3263).
+retire_minted() {
+  local out
+  out="$(SPOOL_ROOT="${fleet:-/var/spool-hub}" SPOOL_DESK_BOX="$BOX" RETIRE_LANE=0 \
+    bash "$proj/src/bash/features/spawn-agents/scripts/agent-id-retire.sh" --apply "$AS" 2>&1 </dev/null >/dev/null)" ||
+    say "could not retire $AS (${out##*$'\n'}): agent-id-reap.sh --minted will"
+}
 if [ -n "$MINT" ]; then
   [[ "$MINT" =~ ^(claude|grok|agy|qwen|mistral)$ ]] || { say "--mint: '$MINT' is not an agent kind"; exit 2; }
   # The allocator and the fleet root of the checkout a live desk sidecar runs.
@@ -187,15 +200,19 @@ if [ -n "$MINT" ]; then
   proj="$(sidecar_var "$mpid" PROJ_PATH)" fleet="$(sidecar_var "$mpid" SPOOL_FLEET_ROOT)"
   alloc="$proj/src/bash/features/spawn-agents/scripts/next-agent-id.sh"
   [ -r "$alloc" ] || { say "refusing to start unseated: no id, and no allocator at '$alloc' (the sidecar's PROJ_PATH)"; exit 4; }
+  # The ids earlier sessions minted and a kill left behind: retired in the
+  # background (detached, no stdio), so this start does not wait for it.
+  reap="$proj/src/bash/features/spawn-agents/scripts/agent-id-reap.sh"
+  [ -r "$reap" ] && SPOOL_ROOT="${fleet:-/var/spool-hub}" SPOOL_DESK_BOX="$BOX" \
+    setsid bash "$reap" --minted --apply </dev/null >/dev/null 2>&1 &
   AS="$(SPOOL_ROOT="${fleet:-/var/spool-hub}" bash "$alloc" --kind "$MINT" 2>/dev/null)"
   [[ "$AS" =~ $ID_RE ]] || { say "refusing to start unseated: the allocator minted no $MINT id (got '$AS')"; exit 4; }
-  printf 'minted %s by spool-mcp for a %s session the spool did not start (ppid %s)\n' \
-    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$MINT" "$PPID" >"${fleet:-/var/spool-hub}/$AS/minted" 2>/dev/null || true
+  trap retire_minted EXIT
+  printf 'minted %s by spool-mcp for a %s session the spool did not start (ppid %s, pid %s)\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$MINT" "$PPID" "$$" >"${fleet:-/var/spool-hub}/$AS/minted" 2>/dev/null || true
   say "minted $AS for this $MINT session (retired when it ends)"
 fi
 [[ "$AS" =~ $ID_RE && "${AS%%-*}" != BOX ]] || { say "refusing to start unseated: --as '$AS' is not an agent id"; exit 4; }
-BIN="${SPOOL_MCP_BIN:-$HERE/spool}"
-[ -x "$BIN" ] || { say "no spool binary at $BIN: run do_spl_agent_mcp_install"; exit 7; }
 
 if [ -z "$TENANT" ]; then
   # One seat: its tenant. None or several (SPL-2112): the fleet tenant's
@@ -238,7 +255,7 @@ declare -a serve=(env -i HOME="$HOME" PATH=/usr/bin:/bin USER="$(id -un)" SPOOL_
   --desks "$STATE/desk" --desk-box "$BOX" --seat-cmd "$SELF --seat $ENVN $BOX")
 # Serve as a child, watched: a desk that moves away (renamed, or replaced by a
 # copy at the same path: another dev:inode) stops the server, exit 75. A
-# minted id lives as long as its session: serve, then retire it.
+# minted id lives as long as its session: the EXIT trap above retires it.
 desk_ino() { stat -c '%d:%i' "$1" 2>/dev/null; }
 ino="$(desk_ino "$d")"
 exec 3<&0
@@ -264,8 +281,4 @@ rc=0; wait "$child" || rc=$?
 while kill -0 "$child" 2>/dev/null; do wait "$child" || rc=$?; done
 kill -TERM "$watcher" 2>/dev/null; wrc=0; wait "$watcher" || wrc=$?
 [ "$wrc" = 75 ] && rc=75
-[ -n "$MINT" ] || exit "$rc"
-SPOOL_ROOT="${fleet:-/var/spool-hub}" SPOOL_DESK_BOX="$BOX" RETIRE_LANE=0 \
-  bash "$proj/src/bash/features/spawn-agents/scripts/agent-id-retire.sh" --apply "$AS" >/dev/null 2>&1 ||
-  say "could not retire $AS: the reaper will"
 exit "$rc"

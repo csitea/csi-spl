@@ -31,11 +31,22 @@
 # ($SPOOL_ROOT/.reap/), so a dry-run cron reports the same REAP lines a live
 # one would act on.
 #
+# --minted (SPL-3263): only the ids spool-mcp minted for a session the spool
+# did not start (a <ID>/minted file), retired as soon as that session is gone,
+# no dead-for-hours clock: no tmux window carries the id, no registry.tsv row
+# names it, its identity record proves no live process, and no pid the minted
+# file records (ppid = the CLI, pid = spool-mcp's box half) still runs. A file
+# that records no pid, or a /proc that hides pid 1 (hidepid), decides nothing.
+# No id lock: no lane actor (watchdog, restore) acts on an id with no window
+# and no registry row. The reaper's clock and stamps are not touched. Each
+# mint of spool-mcp starts it (--apply) in the background.
+#
 # Usage:
-#   agent-id-reap.sh [--apply]      # without --apply (and DRY_RUN unset/1): PLAN only
+#   agent-id-reap.sh [--minted] [--apply]   # without --apply (and DRY_RUN unset/1): PLAN only
 #
 # Env: SPOOL_ROOT, SPOOL_TMUX_SOCKET, SPOOL_NOW (the clock), SPOOL_ID_REAP_H,
-# SPOOL_ID_REAP_GAP_MIN, DRY_RUN=0|1 (0 = --apply), RETIRE_LANE (passed on).
+# SPOOL_ID_REAP_GAP_MIN, DRY_RUN=0|1 (0 = --apply), RETIRE_LANE (passed on;
+# --minted defaults it to 0: a minted id has no hub lane row), AI_PROC_ROOT.
 # One line per decision on stdout: PLAN|REAP / KEEP / SKIP, each with its reason.
 # Exit 0 done (a refused retire is a SKIP line, not a failure), 1 tmux could
 # not be asked or another reap holds the lock, 2 usage.
@@ -52,11 +63,12 @@ declare -F spl_agent_id_lock >/dev/null || . "$_here/../../../run/spl-rotate-lib
 # shellcheck source=../../../../../lib/bash/funcs/spl-desk-agents.func.sh
 . "$_here/../../../../../lib/bash/funcs/spl-desk-agents.func.sh"
 
-APPLY=0
+APPLY=0 MINTED=0
 [ "${DRY_RUN:-1}" = 0 ] && APPLY=1
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --apply) APPLY=1; shift ;;
+    --minted) MINTED=1; shift ;;
     -h|--help) sed -n '/^# Usage:/,/^# Exit/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
     *) echo "agent-id-reap: unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -85,6 +97,42 @@ if ! wins="$("${SPOOL_TM[@]}" list-windows -a -F '#{window_name}' 2>/dev/null)";
 fi
 # The allocator's and agent-id-retire.sh's loose token scan.
 has_window() { grep -qE "(^|[^A-Za-z0-9])$1([^0-9]|\$)" <<<"$wins"; }
+
+# ---- --minted: the ids of spool-mcp sessions that have ended ---------------------
+has_reg_row() {  # ID
+  [ -r "$R/registry.tsv" ] && awk -F'\t' -v id="$1" '{ k = $1; sub(/^.*: /, "", k); sub(/@.*/, "", k) } k == id { f = 1 } END { exit !f }' "$R/registry.tsv"
+}
+reap_minted() {
+  local proc="${AI_PROC_ROOT:-/proc}" f id pids p live n=0 out rc args=()
+  [ "$APPLY" = 1 ] && args=(--apply)
+  [ -d "$proc/1" ] || { say "SKIP $proc shows no pid 1 (hidepid?): a live session cannot be told from a dead one, nothing decided"; exit 1; }
+  export RETIRE_LANE="${RETIRE_LANE:-0}"
+  say "START reap minted (${mode}): ids spool-mcp minted whose session is gone"
+  for f in "$R"/*/minted; do
+    [ -f "$f" ] || continue
+    id="${f%/minted}"; id="${id##*/}"; id="${id%%@*}"
+    [[ "$id" =~ ^${SPOOL_AGENT_ID_RX}$ ]] || continue
+    case "${id#*-}" in 1|01|001|2|02|002|3|03|003) continue ;; esac
+    case " $SPL_DESK_AGENT_IDS " in *" $id "*) continue ;; esac
+    if has_window "$id"; then say "KEEP ${id}: minted, but a tmux window carries it"; continue; fi
+    if has_reg_row "$id"; then say "KEEP ${id}: minted, but a registry.tsv row names it"; continue; fi
+    if ai_alive_fast "$id" >/dev/null 2>&1; then say "KEEP ${id}: minted, its record proves a live process"; continue; fi
+    pids="$(grep -oE '(^|[^a-z])p?pid [0-9]+' "$f" | grep -oE '[0-9]+$' | tr '\n' ' ')"
+    [ -n "$pids" ] || { say "KEEP ${id}: its minted file records no pid ($f)"; continue; }
+    live=""; for p in $pids; do [ -d "$proc/$p" ] && live="$p"; done
+    if [ -n "$live" ]; then say "KEEP ${id}: minted, its session's pid ${live} runs"; continue; fi
+    out="$(bash "$_here/agent-id-retire.sh" "${args[@]}" "$id" 2>&1)"; rc=$?
+    if [ "$rc" = 0 ]; then
+      say "${VERB} ${id}: minted, no pid of its session (${pids% }) runs"
+      printf '%s\n' "$out" | sed "s/^/${NOW}   /"
+      n=$((n + 1))
+    else
+      say "SKIP ${id}: minted and ended, but agent-id-retire refused (rc ${rc}): $(printf '%s' "$out" | tail -1)"
+    fi
+  done
+  say "STOP reap minted (${mode}): ${n} $([ "$APPLY" = 1 ] && echo retired || echo 'would be retired')"
+}
+[ "$MINTED" = 1 ] && { reap_minted; exit 0; }
 
 # ---- the reaper's own clock: a gap drops every stamp ----------------------------
 STAMPS="$R/.reap/dead-since.tsv"; TICK="$R/.reap/last-tick"

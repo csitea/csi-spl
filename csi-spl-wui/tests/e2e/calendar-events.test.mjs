@@ -261,6 +261,8 @@ try {
   /* AC-03 + AC-09: New event -> workspace */
   const btn = await p.$('[data-test=calendar-new]')
   ok('AC-03: the bar carries a New event button', Boolean(btn))
+  const plus = btn ? await btn.evaluate((el) => ({ text: el.textContent.trim(), label: el.getAttribute('aria-label') || '', title: el.getAttribute('title') || '', svg: Boolean(el.querySelector('svg')), w: el.getBoundingClientRect().width, h: el.getBoundingClientRect().height, radius: getComputedStyle(el).borderRadius })) : null
+  ok('SPL-3396: the New event button is a plain round +: no visible label, named by aria-label and title', Boolean(plus) && plus.text === '' && plus.svg && plus.label !== '' && plus.title === plus.label && Math.abs(plus.w - plus.h) < 1 && plus.radius === '50%', plus)
   if (btn) await btn.click()
   ok('AC-03: New event opens the dialog', await dialog(p))
   let s = await state(p)

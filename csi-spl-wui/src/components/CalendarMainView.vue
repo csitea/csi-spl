@@ -37,7 +37,10 @@
     :data-state="state"
   >
     <div class="cal-main__bar">
-      <button type="button" class="btn cal-main__new" data-test="calendar-new" @click="openCreate(focus)"><UiIcon name="plus" :size="16" />{{ t('calendar_event.new') }}</button>
+      <!-- SPL-3396 (owner, t1 2fc43707): a plain round +, the Issues (issues-fab) and Docs (wsdocs-fab) pattern -->
+      <button type="button" class="cal-main__new" data-test="calendar-new" :aria-label="t('calendar_event.new')" :title="t('calendar_event.new')" @click="openCreate(focus)">
+        <UiIcon name="plus" :size="22" :stroke-width="2.5" />
+      </button>
       <button type="button" class="btn ghost" data-test="calendar-today" @click="emit('move', today)">{{ t('calendar.today') }}</button>
       <button type="button" class="icon-btn" data-test="calendar-prev" :aria-label="prevLabel" :title="prevLabel" @click="step(-1)">
         <UiIcon name="chevron-left" :size="18" />
@@ -576,7 +579,31 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
 .cal-week__item--edit:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
 .cal-week__item--synced { cursor: pointer; }
 .cal-week__item--synced:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
-.cal-main__new { display: inline-flex; align-items: center; gap: 4px; }
+.cal-main__new {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: box-shadow 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
+}
+.cal-main__new:hover {
+  background: var(--color-accent-pressed);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.22);
+}
+.cal-main__new:active { transform: scale(0.96); }
+@media (prefers-reduced-motion: reduce) {
+  .cal-main__new { transition: none; }
+  .cal-main__new:active { transform: none; }
+}
 .cal-week__time { color: var(--color-muted); }
 .cal-week__badge { font-size: 0.6875rem; padding: 0 4px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
 

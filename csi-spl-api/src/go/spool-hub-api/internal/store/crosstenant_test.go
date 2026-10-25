@@ -336,8 +336,17 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := pg.CreateBoxLock(ctx, newBoxLock(s.tenant, "box-a", testLockKey(t), hum), hum, now); err != nil {
 		t.Fatal(err)
 	}
-	// topic_priorities (rdb 0214, spec 150 row B1): the seeded topic at 2.
+	// topic_priorities (rdb 0215, spec 150 row B1): the seeded topic at 2.
 	if _, err := pg.SetTopicPriority(ctx, s.tenant, s.taskID, 2, hum, now); err != nil {
+		t.Fatal(err)
+	}
+	// dm_agents (rdb 0228, spec 151 T001): one agent the seeded member added
+	// to their DM with another person.
+	dmPair, err := NewDMPair(DMEnd{hum, "box-wui"}, DMEnd{"HUM-dm-peer", "box-wui"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pg.AddDMAgent(ctx, s.tenant, dmPair, DMEnd{"c-9", "box-a"}, hum, now); err != nil {
 		t.Fatal(err)
 	}
 	// repo_doc_edits, repo_doc_authors, repo_doc_author_notices (rdb 0142,

@@ -223,6 +223,14 @@ spl_gc_limit_dialog() {
   printf '%s\n' "$name"
 }
 spl_gc_capture() { spl_gc_tmux capture-pane -p -e -t "$1"; }
+# spl_gc_pane_text PANE START: PANE's text from line START as typed, the
+# escape codes stripped. A dim run (ESC[2m up to ESC[0m / ESC[22m) on the
+# prompt row is dropped first: it is Claude Code's grey prompt suggestion,
+# not input (10-25: the GC read a ghost "/exit-clean" on c-157 as typed).
+spl_gc_pane_text() {
+  spl_gc_tmux capture-pane -p -e -t "$1" -S "$2" 2>/dev/null |
+    perl -pe 's/\e\[2m.*?(?:\e\[(?:0|22)?m|$)//g if /\x{e2}\x{9d}\x{af}/; s/\e\[[0-9;?]*[A-Za-z]//g; s/\e\][^\a]*\a//g'
+}
 spl_gc_pane_gone() { [[ -z "$(spl_gc_live_pane "$1")" ]]; }
 
 # ---- scan --------------------------------------------------------------------
@@ -307,7 +315,7 @@ spl_gc_scan_one() {
   echo "   last commit: $( [[ -n "$cm" ]] && echo "$(( GC_NOW - ${cm%% *} ))s ago ${cm#* }" | cut -c1-140 || echo -)  worktree: ${wt:--}"
   echo "   last post: ${post:--} ($pa ago)  inbox: $(ls "$d/inbox" 2>/dev/null | wc -l) unread"
   echo "   gc: $(spl_gc_poked_line "$id")"
-  spl_gc_tmux capture-pane -p -t "$pane" -S -12 2>/dev/null | grep -v '^[[:space:]]*$' | tail -n 5 | cut -c1-160 | sed 's/^/   | /' || true
+  spl_gc_pane_text "$pane" -12 | grep -v '^[[:space:]]*$' | tail -n 5 | cut -c1-160 | sed 's/^/   | /' || true
 }
 
 spl_gc_poked_line() {
@@ -355,7 +363,7 @@ spl_gc_begin() {
   echo "--- last posts"
   ls -t "$d/outbox" 2>/dev/null | sed -n 1,2p | while read -r f; do jq -r '"\(.ts) \(.kind) to \(.to) task \(.task_id): \(.body)"' "$d/outbox/$f" 2>/dev/null | cut -c1-300; done || true
   echo "--- pane"
-  spl_gc_tmux capture-pane -p -t "$(spl_gc_pane_of "$id")" -S -30 2>/dev/null | grep -v '^[[:space:]]*$' | tail -n 15 | cut -c1-200 || true
+  spl_gc_pane_text "$(spl_gc_pane_of "$id")" -30 | grep -v '^[[:space:]]*$' | tail -n 15 | cut -c1-200 || true
 }
 
 spl_gc_end_cur() {
@@ -432,7 +440,7 @@ spl_gc_progress() { jq -r '.progress_ts // "-"' "$SPOOL_ROOT/$1/heartbeat.json" 
 spl_gc_screen() {
   local pane h
   pane="$(spl_gc_pane_of "$1")"
-  h="$(spl_gc_tmux capture-pane -p -t "$pane" -S -30 2>/dev/null | md5sum | cut -c1-12 || true)"
+  h="$(spl_gc_pane_text "$pane" -30 | md5sum | cut -c1-12 || true)"
   echo "${pane:--}:${h:--}"
 }
 

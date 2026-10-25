@@ -369,6 +369,19 @@ check "15. an 8-hex msg id that is no commit = sent" '[ "$rc" = 0 ] && [ "$(n "$
 close15 "landed, ACCEPTED by c-001 at 20:00Z"
 check "15. a landed claim with no sha = sent" '[ "$rc" = 0 ] && [ "$(n "$T/send.log" "--task gc-c-917")" = 1 ]'
 
+# --- 16. the prompt row's dim suggestion is not typed input (SPL-3371) -------------------
+# capture-pane -e wraps Claude Code's grey suggestion in ESC[2m..ESC[0m; on 10-25 the
+# GC read c-157's ghost "/exit-clean" as typed and asked for a close.
+reset; lane c-918; p16="$(pane_of c-918)"
+printf 'working on it\n\e[39m❯\xc2\xa0\e[2m/exit-clean \e[0m\n' >"$T/tmux/screen.$p16"
+gc begin $(( H0 + 1 )) AGENT_ID=c-918
+check "16. begin: a dim suggestion on the prompt row is dropped, the row and the text above stay" 'grep -q "^❯" "$T/out" && grep -q "working on it" "$T/out" && ! grep -q "exit-clean" "$T/out" && ! grep -q $'"'"'\e'"'"' "$T/out"'
+gc scan $(( H0 + 2 ))
+check "16. scan: the same pane prints no /exit-clean" 'grep -q "^   | ❯" "$T/out" && ! grep -q "exit-clean" "$T/out"'
+printf 'working on it\n\e[39m❯\xc2\xa0\e[38;5;231m/exit-clean \e[39m\n' >"$T/tmux/screen.$p16"
+gc begin $(( H0 + 3 )) AGENT_ID=c-918
+check "16. CONTROL: the same text typed (not dim) is kept, its colour codes stripped" 'grep -q "^❯.*/exit-clean $" "$T/out" && ! grep -q $'"'"'\e'"'"' "$T/out"'
+
 check "14. no ERR trap fired" '! grep -q ERRTRAP "$T/all.out"'
 
 echo "---"

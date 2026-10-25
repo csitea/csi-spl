@@ -49,10 +49,16 @@ Stable tokens: `unpinned_box`, `bad_sig`, `bad_json`, `bad_frame`,
 `not_found`, `door`, `unpaid`, `quota`, and for the viewer API
 (`./view-v1.md`, Planned) `view_door`, `bad_cursor`, `method_not_allowed`.
 
+A box `send` whose inner `task_id` or `msg_id` is not a canonical lower-case
+uuid is `bad_json` 400, refused before any store call (SPL-3195): both are
+uuid columns, and the 500 it used to get made the box retry on every flush.
+The browser `send` refuses the same ids (`wuiIDs`). Local same-box sends keep
+their `dispatch-<8hex>` task ids: `msg.Validate` does not require a uuid.
+
 CLI mapping of hub tokens: `bad_sig`, `unpinned_box`, `bad_nonce`,
 `stale_hello`, `pin_conflict`, `stale_pin_op` → exit `78` (`wire.VerifyTokens`); the rest → exit `1`.
 
 Retired with the per-agent-key model (0.1.0): `unpinned_from`,
 `id_collision` (agent ids now collide across boxes on purpose).
 
-<!-- version: 0.4.2 · updated: 2026-09-19 · last-edit: 2026-09-19T13:30:00Z -->
+<!-- version: 0.4.3 · updated: 2026-10-25 · last-edit: 2026-10-25T02:58:13Z -->

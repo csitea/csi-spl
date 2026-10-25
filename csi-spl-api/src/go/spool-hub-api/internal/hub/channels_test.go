@@ -699,3 +699,61 @@ func TestHubclientChannelRecv(t *testing.T) {
 		t.Fatalf("recv errors: %v", errs)
 	}
 }
+
+// SPL-3195 (alerts-fix-round-plan.md row 04, G3): a box send whose task_id or
+// msg_id is not a uuid is a client error, refused with bad_json 400 before any
+// store call. messages.task_id is uuid NOT NULL, so Postgres used to fail the
+// insert and the hub answered internal 500 with two ERROR lines, and the box
+// retried every 5xx each flush. The Memory store does not type-check, so the
+// send used to succeed here. Controls: a uuid send still stores; the browser
+// path (wuiIDs) refuses the same task id.
+func TestBoxSendNonUUIDTaskIDRefused(t *testing.T) {
+	e := wuiEnv(t)
+	tid, _ := e.tenant()
+	ctx := context.Background()
+	a := e.box(tid, "box-a", "GRK-03")
+	b := e.box(tid, "box-b", "CLE-07")
+	e.pin(tid, a)
+	e.pin(tid, b)
+	cli, err := a.c.Dial(ctx, wire.RoleCLI)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeWait(cli)
+	priv, _ := sign.LoadPrivate(a.cfg.KeysDir, a.id)
+	send := func(m *msg.Message) error {
+		t.Helper()
+		env, err := wire.NewEnvelope(priv, "box-a", "box-b", m)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = cli.Send(ctx, env)
+		return err
+	}
+	badMsg := chanMsg(newTask(), "CLE-07", "note", "x")
+	badMsg.MsgID = "dispatch-832da496"
+	for name, m := range map[string]*msg.Message{
+		"task_id dispatch-832da496": chanMsg("dispatch-832da496", "CLE-07", "note", "x"),
+		"msg_id dispatch-832da496":  badMsg,
+	} {
+		if err := send(m); err == nil || !strings.Contains(err.Error(), "bad_json") {
+			t.Errorf("%s: want bad_json, got %v", name, err)
+		}
+		// A non-uuid msg_id cannot be looked up on Postgres (22P02): nothing to check.
+		if msg.IsUUID(m.MsgID) && has(t, e, tid, m.MsgID) {
+			t.Errorf("%s: a refused send was stored", name)
+		}
+	}
+	ok := chanMsg(newTask(), "CLE-07", "note", "x")
+	if err := send(ok); err != nil {
+		t.Fatalf("uuid send (control): %v", err)
+	}
+	if !has(t, e, tid, ok.MsgID) {
+		t.Fatal("uuid send (control) not stored")
+	}
+	w := dialWUI(t, e, tid, "HUM-1")
+	w.send(map[string]any{"type": "send", "task_id": "dispatch-832da496", "body": "x", "to": "HUM-2"})
+	if f := w.read("error"); f.Error != "bad_json" {
+		t.Fatalf("browser send (control): %+v", f)
+	}
+}

@@ -67,6 +67,11 @@ const LegacySender = "LGC-0"
 // uuidRe matches a canonical lower-case uuid: ref_task_id is a uuid column.
 var uuidRe = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
+// IsUUID reports whether s is a canonical lower-case uuid. The hub requires
+// it of a box send's task_id and msg_id (uuid columns, SPL-3195); Validate
+// does not, because local sends use dispatch-<8hex> task ids.
+func IsUUID(s string) bool { return uuidRe.MatchString(s) }
+
 // boxRe matches a box id ($SPOOL_BOX_ID), e.g. box-a.
 var boxRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
 

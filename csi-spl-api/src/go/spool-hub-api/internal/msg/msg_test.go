@@ -348,3 +348,19 @@ func TestSealedMarshalRoundTrip(t *testing.T) {
 		t.Fatal("an oversized ct must be refused before decoding")
 	}
 }
+
+// SPL-3195: IsUUID is the hub's task_id / msg_id check (Validate keeps local
+// dispatch-<8hex> task ids working).
+func TestIsUUID(t *testing.T) {
+	for id, want := range map[string]bool{
+		sample().TaskID:                        true,
+		sample().MsgID:                         true,
+		"dispatch-832da496":                    false,
+		"":                                     false,
+		"AAAAAAAA-BBBB-4CCC-8DDD-EEEEEEEEEEEE": false,
+	} {
+		if got := IsUUID(id); got != want {
+			t.Errorf("IsUUID(%q) = %v, want %v", id, got, want)
+		}
+	}
+}

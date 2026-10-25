@@ -140,6 +140,9 @@ func (s *Server) boxLevel(ctx context.Context, tenant, taskID string) int {
 	if s.o.LobbyTaskID != "" && taskID == s.o.LobbyTaskID {
 		return 1
 	}
+	if !msg.IsUUID(taskID) { // SPL-3195: no channel, and no ERROR line for a client's bad id
+		return 1
+	}
 	c, err := s.o.Store.TopicChannel(ctx, tenant, taskID)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("task_id", taskID).Msg("topic channel")

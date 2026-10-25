@@ -619,6 +619,10 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 		x.fail(ctx, "", "bad_json", http.StatusBadRequest, err.Error())
 		return
 	}
+	if !msg.IsUUID(m.TaskID) || !msg.IsUUID(m.MsgID) { // SPL-3195: uuid columns; a 500 made the box retry every flush
+		x.fail(ctx, f.MsgID, "bad_json", http.StatusBadRequest, "task_id and msg_id must be UUIDs")
+		return
+	}
 	id := m.MsgID
 	rf := s.sendIDRefusal(ctx, x, m.From, m.To, env.ToBox)
 	if rf == nil {

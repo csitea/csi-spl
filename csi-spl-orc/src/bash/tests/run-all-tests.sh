@@ -247,11 +247,16 @@ else
   }
   trap stopped INT TERM
   running=0
-  # heaviest first; files[] keeps suite order, so the log still reads serial
+  # heaviest first; files[] keeps suite order, so the log still reads serial.
+  # The order is read from a command substitution, not "< <(...)": bash 5.3
+  # (ubuntu-26.04) lets wait -n return when a process substitution exits, so
+  # the pool started a third file while two ran (SPL-3297).
+  order=$(heaviest_first "${pool[@]}")
   while read -r i _; do
+    [[ -n "$i" ]] || continue
     if (( running >= njobs )); then wait -n; running=$((running - 1)); flush; fi
     start "$i"; started=$((started + 1)) running=$((running + 1))
-  done < <(heaviest_first "${pool[@]}")
+  done <<<"$order"
   wait; flush
   for ((i = ${#pool[@]}; i < n; i++)); do start "$i"; started=$((i + 1)); wait; flush; done
 fi

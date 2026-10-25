@@ -92,7 +92,10 @@ ORC_TEST_SHARD=3/2 bash "$T/run-all-tests.sh" >"$T/outb" 2>&1; rcb=$?
 # CONTROL: the old every-2nd-file split gives 1/2 = a c s, so it fails this.
 W=$T/weights; mkdir -p "$W"
 cp "$RUNNER" "$W/run-all-tests.sh"
-for f in a b c d s; do printf '#!/usr/bin/env bash\necho "%s" >>"%s/started"\nsleep 0.3\n' "$f" "$W" >"$W/$f-w.tst.sh"; done
+# W_TWO=1: a file waits (max 5 s) until two files have started, so the
+# first two cannot finish before both are logged; with sleep 0.3 alone a
+# loaded runner logged "d a s" (CI job 121089521604, SPL-3297).
+for f in a b c d s; do printf '#!/usr/bin/env bash\necho "%s" >>"%s/started"\n[ -z "${W_TWO:-}" ] || for _ in $(seq 50); do [ "$(wc -l <"%s/started")" -ge 2 ] && break; sleep 0.1; done\nsleep 0.3\n' "$f" "$W" "$W" >"$W/$f-w.tst.sh"; done
 printf '# test weights\n* 1\na-w.tst.sh 50\nb-w.tst.sh 40\nc-w.tst.sh 30\n' >"$W/orc-shard-weights.txt"
 ORC_TEST_SHARD=1/2 bash "$W/run-all-tests.sh" >"$W/out1" 2>&1
 ORC_TEST_SHARD=2/2 bash "$W/run-all-tests.sh" >"$W/out2" 2>&1
@@ -108,14 +111,14 @@ ORC_TEST_WEIGHTS="$W/bad-weights.txt" bash "$W/run-all-tests.sh" >"$W/outbad" 2>
 # the pool starts the heaviest files first: with 2 jobs, a (50) and b (40)
 # start before c, d and s; the suite-order log is unchanged
 : >"$W/started"
-ORC_TEST_JOBS=2 bash "$W/run-all-tests.sh" >"$W/outj" 2>&1
+W_TWO=1 ORC_TEST_JOBS=2 bash "$W/run-all-tests.sh" >"$W/outj" 2>&1
 [ "$(head -2 "$W/started" | sort | tr '\n' ' ')" = "a b " ] \
   && [ "$(grep '^=== [a-z]-w' "$W/outj" | tr '\n' ' ')" = "=== a-w.tst.sh === b-w.tst.sh === c-w.tst.sh === d-w.tst.sh === s-w.tst.sh " ] \
   && pass "the pool starts the heaviest files first and still prints in suite order" \
   || fail "heaviest first" "started: $(tr '\n' ' ' <"$W/started") $(cat "$W/outj")"
 # reorder the weights so the lightest names are heaviest: d and s start first
 printf '* 1\nd-w.tst.sh 50\ns-w.tst.sh 40\n' >"$W/rev.txt"; : >"$W/started"
-ORC_TEST_WEIGHTS="$W/rev.txt" ORC_TEST_JOBS=2 bash "$W/run-all-tests.sh" >/dev/null 2>&1
+W_TWO=1 ORC_TEST_WEIGHTS="$W/rev.txt" ORC_TEST_JOBS=2 bash "$W/run-all-tests.sh" >/dev/null 2>&1
 [ "$(head -2 "$W/started" | sort | tr '\n' ' ')" = "d s " ] \
   && pass "CONTROL: the start order follows the weights, not the names" \
   || fail "CONTROL start order" "started: $(tr '\n' ' ' <"$W/started")"

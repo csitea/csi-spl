@@ -191,8 +191,11 @@ fence7() {
 }
 reset
 mkdir -p "$T/tick7" "$T/cli"
-cp "$(command -v sleep)" "$T/cli/claude"
-bash -c '"$1" 300; :' _ "$T/cli/claude" 2>/dev/null & wrap=$!
+# The CLI is a copy of bash, not of sleep: on ubuntu-26.04 sleep is a
+# multi-call coreutils that dispatches on argv[0] and exits at once as
+# "claude" (SPL-3297). It blocks on a read of a fifo, so it has no child.
+cp "$(command -v bash)" "$T/cli/claude"; mkfifo "$T/cli/claude.fifo"
+bash -c '"$1" -c "exec 3<>\"\$1\"; read -r -t 300 -u 3 _" _ "$2"; :' _ "$T/cli/claude" "$T/cli/claude.fifo" 2>/dev/null & wrap=$!
 for _ in $(seq 50); do cli="$(ps -o pid= --ppid "$wrap" | tr -d ' ')"; [[ -n "$cli" ]] && break; sleep 0.1; done
 printf 'c-070\t%s\t%%7\n' "$wrap" > "$T/tick7/agents"
 WD_FENCE_TERM_WAIT=3 fence7 "$T/tick7"

@@ -98,8 +98,12 @@ orc_stub 0 gcloud
 export -f in_orc
 export PROJ_ROOT APP_ROOT
 rm -rf "$T/tmpd"; mkdir -p "$T/tmpd"
+# env --default-signal=INT: a shell started with INT ignored cannot trap or
+# reset it, and bash 5.3 (ubuntu-26.04) starts the parallel runner's
+# "( ... ) &" files with INT ignored; Ctrl-C at a terminal never has it
+# ignored, so the case restores the default first (SPL-3297).
 SNIPPET="$STUBS"'
-caller gcp; echo "RC=$?"' setsid --wait bash -c 'in_orc "$@"' _ \
+caller gcp; echo "RC=$?"' env --default-signal=INT setsid --wait bash -c 'in_orc "$@"' _ \
   SPL_PROJECT=csi-spl-dev SPL_ORG_APP=csi-spl TMPDIR="$T/tmpd" SPL_SA_KEY="$T/sa.json" Q_INT=1 >"$T/out" 2>&1
 grep -qx 'CFG-DIR-EXISTS' "$T/out" && pass "CONTROL interrupt: the query ran inside the temp dir" \
   || fail "CONTROL interrupt: query not reached: $(head -c 300 "$T/out")"

@@ -69,11 +69,14 @@ done
 sleep 0.5
 
 # 11-12 the check after a spawn (a CLI name of its own: real agents run here)
-FAKE="$T_TMP/fakebin"; mkdir -p "$FAKE"; cp "$(command -v sleep)" "$FAKE/claude-t77907"
+# The fake is a copy of bash, not of sleep: on ubuntu-26.04 sleep is a
+# multi-call coreutils that dispatches on argv[0] and exits at once as
+# "claude-t77907" (SPL-3292). It blocks on a fifo read, so it has no child.
+FAKE="$T_TMP/fakebin"; mkdir -p "$FAKE"; cp "$(command -v bash)" "$FAKE/claude-t77907"; mkfifo "$T_TMP/fake.fifo"
 rc=0; env SPOOL_AGENT_USER="$OTHER" SPOOL_BOX_USER="$ME" bash "$T_SCRIPTS/agent-user-check.sh" claude-t77907 >/dev/null 2>&1 || rc=$?
 eq "11. agent-user-check: clean box -> 0" 0 "$rc"
-"$FAKE/claude-t77907" 30 & fp=$!
-sleep 0.2
+"$FAKE/claude-t77907" -c 'exec 3<>"$1"; read -r -t 30 -u 3 _' _ "$T_TMP/fake.fifo" & fp=$!
+for _ in $(seq 50); do ps -p "$fp" -o args= 2>/dev/null | grep '^[^ ]*/claude-t77907 ' >/dev/null && break; sleep 0.1; done
 out="$(env SPOOL_AGENT_USER="$OTHER" SPOOL_BOX_USER="$ME" bash "$T_SCRIPTS/agent-user-check.sh" claude-t77907 2>/dev/null)"; rc=$?
 kill "$fp" 2>/dev/null; wait "$fp" 2>/dev/null
 eq "12. agent-user-check: a box-user claude -> 1, named" "1 $fp" "$rc $(printf '%s' "$out" | awk -v p="$fp" '$1==p{print $1}')"

@@ -286,7 +286,7 @@ spl_orch_rotate_vendor() {
   local out pick why
   ROTATE_KIND=claude
   spl_rotate_failover_vendor "$LEASE_ORCH" && return 0
-  spl_rotate_role_vendor && return 0
+  spl_rotate_role_vendor orch && return 0
   if [[ "${ROTATE_ORCH_SPLIT:-0}" != 1 ]]; then
     ROTATE_VENDOR_WHY="ROTATE_ORCH_SPLIT=0: claude"; return 0
   fi

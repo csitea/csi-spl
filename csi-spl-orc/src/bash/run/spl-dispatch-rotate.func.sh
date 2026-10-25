@@ -57,10 +57,11 @@
 # @param ROTATE_SETTLE (optional) - s the fresh master holds the lease before F is refreshed, default 120
 # @param ROTATE_SEQ_WAIT (optional) - s to wait for an orch rotation in flight, default 600
 # @param ROTATE_HOLD_MAX (optional) - s after which the lease loops ignore a hold, default 1800
-# @param ROTATE_ROLE_VENDOR (optional) - claude | grok: the vendor of the fresh
+# @param ROTATE_ROLE_VENDOR (optional) - claude | grok | agy: the vendor of the fresh
 # @param   master AND failover (env or rotate.conf), shared with the orch
-# @param   rotation (spl_rotate_role_vendor); a grok with no CLI or auth, or that
-# @param   the lease would not count, = claude, logged; empty (default) = claude
+# @param   rotation (spl_rotate_role_vendor; agy here only, never the orch,
+# @param   SPL-3395); a grok or agy with no CLI, auth or quota, or that the
+# @param   lease would not count, = claude, logged; empty (default) = claude
 # @param ROTATE_* (optional) - every other knob and switch of spl_rotate_conf (env > rotate.conf > default)
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -534,10 +535,10 @@ spl_disp_release() {
 # spl_disp_vendor [ID] -> ROTATE_KIND, ROTATE_VENDOR_WHY: claude, unless
 # ID (default: this rotation's seat) is a seat an in-place failover moved
 # (spl_rotate_failover_vendor, SPL-2544) or ROTATE_ROLE_VENDOR names the
-# seats' vendor (spl_rotate_role_vendor).
+# seats' vendor (spl_rotate_role_vendor; agy only here, SPL-3395).
 spl_disp_vendor() {
   spl_rotate_failover_vendor "${1:-$(spl_rotate_role_id "$(spl_disp_role)")}" && return 0
-  spl_rotate_role_vendor && return 0
+  spl_rotate_role_vendor dispatch && return 0
   ROTATE_KIND=claude ROTATE_VENDOR_WHY="dispatch seats: claude"
 }
 

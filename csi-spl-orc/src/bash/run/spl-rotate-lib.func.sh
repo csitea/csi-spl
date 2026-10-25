@@ -6,10 +6,11 @@
 # is a file, a run action, /proc or tmux; nothing calls a model.
 #
 #   spl_rotate_conf                         settings: env > rotate.conf > defaults (FR-074, FR-090)
-#   spl_rotate_role_vendor                  ROTATE_ROLE_VENDOR: the role successor's vendor (claude|grok), guarded
+#   spl_rotate_role_vendor [FAMILY]         ROTATE_ROLE_VENDOR: the role successor's vendor (claude|grok; agy for dispatch), guarded
 #   spl_rotate_grok_out                     why grok is out: the newest watchdog verdict of all grok seats is its limit (SPL-1820, SPL-2555)
 #   spl_rotate_claude_out                   why claude cannot act: no CLI, its newest verdict a limit, a silent lease (SPL-1869)
 #   spl_rotate_grok_why                     why grok cannot take a role seat (lane-mix, its limit, the lease); nothing = it can
+#   spl_rotate_agy_why                      why agy cannot take a dispatch seat (lane-mix: CLI, sign-in, limit; the lease) (SPL-3395)
 #   spl_rotate_vendor_id ID                 the seat id the successor's vendor gives it (SPL-1685), when it differs
 #   spl_rotate_seat_switch OLD NEW          role-seat-switch.sh: the seat's spool dir to NEW, the other letters link to it
 #   spl_rotate_failover_vendor ID           a seat do_spl_role_failover moved: claude once claude can act, else it stays (SPL-2544)
@@ -120,12 +121,25 @@ spl_rotate_role_id() {
 # (spl_rotate_claude_out) and grok passes the same guards; else claude, both
 # reasons named. The first rotation after claude is able again is claude.
 # ROTATE_GROK_STANDBY=0 keeps claude whatever its state.
+# agy = the dispatch seats only (FAMILY dispatch; the orch, FAMILY orch or
+# none, stays claude|grok), for the owner's "live with a net" training (HUM-10
+# t1 2144cff4, poll aed5a733 answer C, SPL-3395): agy through
+# spl_rotate_agy_why, else claude with its reason.
 # shellcheck disable=SC2034 # ROTATE_KIND / ROTATE_VENDOR_WHY are read by the caller
 spl_rotate_role_vendor() {
   local v="${ROTATE_ROLE_VENDOR:-}" why cwhy
   [[ -n "$v" ]] || return 1
   ROTATE_KIND=claude
   case "$v" in
+    agy)
+      if [[ "${1:-orch}" != dispatch ]]; then
+        ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=agy is for the dispatch seats only, not the ${1:-orch} seat: claude"; return 0
+      fi
+      why="$(spl_rotate_agy_why)"
+      if [[ -n "$why" ]]; then
+        ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=agy, but $why: claude"; return 0
+      fi
+      ROTATE_KIND=agy ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=agy: agy"; return 0 ;;
     claude)
       ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=claude: claude"
       [[ "${ROTATE_GROK_STANDBY:-1}" == 1 ]] || { ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=claude, ROTATE_GROK_STANDBY=0: claude"; return 0; }
@@ -137,7 +151,7 @@ spl_rotate_role_vendor() {
       fi
       ROTATE_KIND=grok ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR=claude, claude cannot act ($cwhy): the grok standby"; return 0 ;;
     grok) ;;
-    *) ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR='$v' is not claude or grok: claude"; return 0 ;;
+    *) ROTATE_VENDOR_WHY="ROTATE_ROLE_VENDOR='$v' is not claude, grok or agy: claude"; return 0 ;;
   esac
   why="$(spl_rotate_grok_why)"
   if [[ -n "$why" ]]; then
@@ -162,6 +176,24 @@ spl_rotate_grok_why() {
   why="$(spl_rotate_grok_out)"
   [[ -z "$why" ]] || { echo "grok is on its limit ($why)"; return 0; }
   spl_rotate_lease_sees grok || echo "the fleet lease does not count a grok process as the holder"
+  return 0
+}
+
+# spl_rotate_agy_why: why agy cannot take a dispatch seat, nothing when it
+# can (SPL-3395): do_spl_lane_mix with an agy=100 row of a kind agy may take
+# (specs_and_docs: orchestration refuses agy by the data rule), whose skip
+# reason names no agy CLI, no sign-in or a fresh limit verdict; and a fleet
+# lease that counts an agy holder (spl_rotate_lease_sees).
+spl_rotate_agy_why() {
+  local out pick why
+  out="$(env LANE_MIX_KIND=specs_and_docs LANE_MIX_SPLIT_KIND="claude=0 grok=0 agy=100 qwen=0 mistral=0 backup=claude" \
+    timeout "${ROTATE_SRC_TIMEOUT:-120}" "$ROTATE_RUN" -a do_spl_lane_mix 2>&1 7>&- 8>&- 9>&-)" || true
+  pick="$(grep -m1 -oE '^pick=[a-z]+' <<<"$out" | cut -d= -f2 || true)"
+  if [[ "$pick" != agy ]]; then
+    why="$(sed -nE 's/^agy .* skip \((.*)\); share to .*/\1/p' <<<"$out")"; why="${why%%$'\n'*}"
+    echo "${why:-lane-mix gave '${pick:-no pick}'}"; return 0
+  fi
+  spl_rotate_lease_sees agy || echo "the fleet lease does not count an agy process as the holder"
   return 0
 }
 

@@ -877,6 +877,18 @@ it is not restated here.
   can act, never before. `ROTATE_GROK_STANDBY=0` in
   `rotate.conf` keeps claude whatever its state. Tests: `orch-rotate.tst.sh`
   sections 15, 18, 20 and `dispatch-rotate.tst.sh` 19;
+- **agy as the dispatcher** (SPL-3395, owner HUM-10 t1 2144cff4, poll
+  aed5a733 answer C: "replay first, then live with a net"):
+  `ROTATE_ROLE_VENDOR=agy` seats agy in the master AND failover dispatch
+  seats only (`a-002`, `a-003`; the lease counts an `agy` process as the
+  holder). It goes through `spl_rotate_agy_why`: lane-mix with an `agy=100`
+  `specs_and_docs` row (its CLI, sign-in and limit checks) and a fleet lease
+  that counts an agy holder; either fails = claude, the reason in the SPAWN
+  line. The orch seat never takes agy: `ROTATE_ROLE_VENDOR=agy` there =
+  claude, refused by name. A set-hours drill is a hand run with the
+  variable in the environment (it beats `rotate.conf`), so the next cron
+  rotation seats the vendor `rotate.conf` names again (claude by default).
+  Tests: `dispatch-rotate.tst.sh` section 26, `orch-rotate.tst.sh` 15;
 - **a standby box's orch seat follows the vendor too** (SPL-2774): the
   hourly orch rotation skips a box whose orch lease another machine holds,
   and the restore never changes a seat's CLI, so on 2026-10-21 the standby

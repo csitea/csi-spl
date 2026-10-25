@@ -58,6 +58,11 @@
 #      no grok CLI (lane-mix) or a lease that counts only claude = claude, the
 #      reason named; grok M and F ack from their first prompt and hold the
 #      seats; a grok M with no ack: the old claude M keeps the role and lease
+#  26. SPL-3395: ROTATE_ROLE_VENDOR=agy = agy in the SPAWN plan of the master
+#      and the failover (lane-mix asked with an agy=100 specs_and_docs row);
+#      agy on its limit (lane-mix) or a lease that counts only claude = claude,
+#      the reason named; agy M and F ack from their first prompt, M holds the
+#      lease; the same run with no ROTATE_ROLE_VENDOR = claude
 #  18. T-ROLE-ID-FOLLOWS-VENDOR (SPL-1685): knob on, grok seats: c-002 ->
 #      g-002 and c-003 -> g-003 through the real role-seat-switch.sh;
 #      lease.conf names g-002 / g-003, the lease comes back to g-002, the old
@@ -1030,6 +1035,46 @@ act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
   pass "25. (F) CONTROL: no better vendor on the failover: RELEASE FAIL" || fail "25. (F) control-rank rc=$rc $(cat "$T/o")"
 ! grep -q ERRTRAP "$T/o" && pass "25. no stray failing command under the ERR trap" || fail "25. ERRTRAP: $(grep ERRTRAP "$T/o")"
 rm -rf "$S/g-902"
+
+# --- 26. SPL-3395: ROTATE_ROLE_VENDOR=agy seats agy as the dispatcher --------------------------
+# owner HUM-10 (t1 2144cff4, msg 1515a472; poll aed5a733 answer C): train agy
+# for the dispatcher role, "live with a net"; the orch stays claude|grok (orch 15)
+AGY='pick=agy launcher=/agy-spawn kind=specs_and_docs reason=agy is the main'
+world; echo "$AGY" >"$T/mix.out"
+act ROTATE_ROLE_VENDOR=agy ROTATE_LEASE_KINDS="claude agy" >"$T/o" 2>&1
+grep -q " SPAWN PLAN rename %2 .*; $T/bin/spawn agy c-902 .*; vendor: ROTATE_ROLE_VENDOR=agy: agy" "$T/o" &&
+  grep -q " REFRESH PLAN .*c-903 (pid 103, .*) the same way, no hold; $T/bin/spawn agy" "$T/o" &&
+  grep -qx 'LANE_MIX_KIND=specs_and_docs LANE_MIX_SPLIT_KIND=claude=0 grok=0 agy=100 qwen=0 mistral=0 backup=claude' "$T/mix.log" &&
+  pass "26. ROTATE_ROLE_VENDOR=agy: the SPAWN plan names agy for the master and the failover" || fail "26. plan: $(grep -E 'SPAWN PLAN|REFRESH PLAN' "$T/o"; cat "$T/mix.log" 2>&1)"
+world; printf 'agy       100%%        0%%     0%%     0 no   skip (agy limit (a-104 S2 kind=limit 5m ago)); share to claude\npick=claude launcher=/claude-spawn kind=specs_and_docs reason=claude under\n' >"$T/mix.out"
+act ROTATE_ROLE_VENDOR=agy ROTATE_LEASE_KINDS="claude agy" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .*; $T/bin/spawn claude c-902 .*vendor: ROTATE_ROLE_VENDOR=agy, but agy limit (a-104 S2 kind=limit 5m ago): claude" "$T/o" &&
+  pass "26. ROTATE_ROLE_VENDOR=agy with agy on its limit: claude, the reason named" || fail "26. limit: $(grep 'SPAWN PLAN' "$T/o")"
+world; printf 'agy       100%%        0%%     0%%     0 no   skip (no agy cli); share to claude\npick=claude launcher=/claude-spawn kind=specs_and_docs reason=claude under\n' >"$T/mix.out"
+act ROTATE_ROLE_VENDOR=agy ROTATE_LEASE_KINDS="claude agy" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .*; $T/bin/spawn claude c-902 .*vendor: ROTATE_ROLE_VENDOR=agy, but no agy cli: claude" "$T/o" &&
+  pass "26. ROTATE_ROLE_VENDOR=agy with no agy CLI: claude, the reason named" || fail "26. no cli: $(grep 'SPAWN PLAN' "$T/o")"
+world; echo "$AGY" >"$T/mix.out"
+act ROTATE_ROLE_VENDOR=agy ROTATE_LEASE_KINDS="claude" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .*; $T/bin/spawn claude c-902 .*ROTATE_ROLE_VENDOR=agy, but the fleet lease does not count an agy process as the holder: claude" "$T/o" &&
+  pass "26. ROTATE_ROLE_VENDOR=agy, a lease that counts only claude: claude" || fail "26. lease guard: $(grep 'SPAWN PLAN' "$T/o")"
+world; echo "$AGY" >"$T/mix.out"
+act ROTATE_ROLE_VENDOR=agy >"$T/o" 2>&1
+grep -q " SPAWN PLAN .*; $T/bin/spawn agy c-902 .*vendor: ROTATE_ROLE_VENDOR=agy: agy" "$T/o" &&
+  pass "26. the real lease probe counts an agy process as the holder" || fail "26. real probe: $(grep 'SPAWN PLAN' "$T/o")"
+world; echo "$AGY" >"$T/mix.out"
+act DRY_RUN=0 ROTATE_ROLE_VENDOR=agy ROTATE_LEASE_KINDS="claude agy" >"$T/o" 2>&1; rc=$?
+rid="$(awk '$3 == "GATE" && $4 == "OK" {print $2}' "$D/rotate.log" | sed -n 1p)"; frid="${rid%-master}-failover"
+[[ $rc -eq 0 && "$(cat "$T/proc/2902/comm" 2>/dev/null)" == agy && "$(cat "$T/proc/2903/comm" 2>/dev/null)" == agy && ! -d "$T/proc/102" && ! -d "$T/proc/103" ]] &&
+  grep -q "^spawn agy c-902 " "$T/spawn.log" && grep -q "^spawn agy c-903 " "$T/spawn.log" && grep -q " $rid DONE OK fresh c-902" "$T/o" &&
+  grep -q "send c-902 -> c-902 result dispatch-rotate-$rid .*ACK rotation $rid: c-902 pid 2902" "$T/send.log" &&
+  grep -q "send c-903 -> c-903 result dispatch-rotate-$frid .*ACK rotation $frid: c-903 pid 2903" "$T/send.log" && [[ "$(holder)" == c-902 ]] &&
+  pass "26. ROTATE_ROLE_VENDOR=agy: agy M and F ack from their first prompt, M holds the lease ($rid)" || fail "26. happy rc=$rc $(cat "$T/o") $(cat "$T/ack.out" 2>/dev/null)"
+world; echo "$AGY" >"$T/mix.out"
+act ROTATE_ROLE_VENDOR= >"$T/o" 2>&1
+grep -q " SPAWN PLAN rename %2 .*; $T/bin/spawn claude c-902 " "$T/o" && [[ ! -e "$T/mix.log" ]] &&
+  pass "26. no ROTATE_ROLE_VENDOR: claude stays the dispatcher, lane-mix not asked" || fail "26. default: $(grep 'SPAWN PLAN' "$T/o")"
+! grep -q ERRTRAP "$T/o" && pass "26. no stray failing command under the ERR trap" || fail "26. ERRTRAP: $(grep ERRTRAP "$T/o")"
 
 echo
 (( fails == 0 )) && { echo "dispatch-rotate: all passed"; exit 0; }

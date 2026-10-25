@@ -46,7 +46,7 @@
 #      the SPAWN plan, ahead of the split; empty = today's line; no grok CLI
 #      (lane-mix) or a lease that counts only claude = claude, the reason
 #      named; a grok successor acks from its first prompt; no ack = the old
-#      claude keeps the role
+#      claude keeps the role; agy = claude (dispatch seats only, SPL-3395)
 #  16. T-ORCH-SPAWN-DIED: a grok successor whose CLI exits at once: the new
 #      pane is kept (remain-on-exit), FAIL SPAWN names the vendor, the pane's
 #      exit status and its last screen lines, the window is still closed and
@@ -617,8 +617,14 @@ act ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude" >"$T/o" 2>&1
 grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*ROTATE_ROLE_VENDOR=grok, but the fleet lease does not count a grok process as the holder: claude" "$T/o" &&
   pass "15. ROTATE_ROLE_VENDOR=grok, a lease that counts only claude: claude" || fail "15. lease guard: $(grep 'SPAWN PLAN' "$T/o")"
 act ROTATE_ROLE_VENDOR=qwen >"$T/o" 2>&1
-grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*ROTATE_ROLE_VENDOR='qwen' is not claude or grok: claude" "$T/o" &&
+grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*ROTATE_ROLE_VENDOR='qwen' is not claude, grok or agy: claude" "$T/o" &&
   pass "15. ROTATE_ROLE_VENDOR=qwen: claude, refused by name" || fail "15. qwen: $(grep 'SPAWN PLAN' "$T/o")"
+# SPL-3395: agy is for the dispatch seats only; the orch seat stays claude, lane-mix not asked
+world; echo 'pick=agy launcher=/agy-spawn kind=specs_and_docs reason=agy is the main' >"$T/mix.out"
+act ROTATE_ROLE_VENDOR=agy ROTATE_LEASE_KINDS="claude agy" >"$T/o" 2>&1
+grep -q " SPAWN PLAN .* $T/bin/spawn claude c-900 .*vendor: ROTATE_ROLE_VENDOR=agy is for the dispatch seats only, not the orch seat: claude" "$T/o" &&
+  [[ ! -e "$T/mix2.log" ]] &&
+  pass "15. ROTATE_ROLE_VENDOR=agy on the orch seat: claude, refused by name, lane-mix not asked" || fail "15. agy orch: $(grep 'SPAWN PLAN' "$T/o"; cat "$T/mix2.log" 2>&1)"
 world; echo 'pick=grok reason=grok is the main' >"$T/mix.out"
 act DRY_RUN=0 ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" >"$T/o" 2>&1; rc=$?; rid="$(ctx ROTATE_RID)"
 [[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE && "$(cat "$T/proc/2001/comm" 2>/dev/null)" == grok && ! -d "$T/proc/1001" ]] &&

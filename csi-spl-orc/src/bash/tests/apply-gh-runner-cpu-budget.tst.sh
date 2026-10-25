@@ -166,8 +166,16 @@ out="$(hub)"; rc=$?
 : >"$SYSD_LOG"
 
 # 3. placement -------------------------------------------------------------------
-cp "$(command -v sleep)" "$T/Runner.Worker"
-"$T/Runner.Worker" 60 & WPID=$!
+# worker: start a fake job in $WPID, a copy of bash named Runner.Worker. Not a
+# copy of sleep: on ubuntu-26.04 sleep is a multi-call coreutils that
+# dispatches on argv[0] and exits at once as "Runner.Worker" (SPL-3297). It
+# blocks on a fifo read (no child); wait until its comm shows the name.
+cp "$(command -v bash)" "$T/Runner.Worker"; mkfifo "$T/worker.fifo"
+worker() {
+  "$T/Runner.Worker" -c 'exec 3<>"$1"; read -r -t 60 -u 3 _' _ "$T/worker.fifo" & WPID=$!
+  for _ in $(seq 50); do [[ "$(cat "/proc/$WPID/comm" 2>/dev/null)" == Runner.Worker ]] && break; sleep 0.1; done
+}
+worker
 echo "/system.slice/$U1" >"$T/cgof-$U1"; echo "/system.slice/$U2" >"$T/cgof-$U2"
 mkdir -p "$T/cg/system.slice/$U1" "$T/cg/system.slice/$U2"
 echo $$ >"$T/cg/system.slice/$U1/cgroup.procs"
@@ -204,7 +212,7 @@ out="$(cap DRY_RUN=0 OTHER=6)"; rc=$?
 [[ $rc -eq 0 && "$(tail -1 "$SYSD_LOG")" == "systemctl stop ${US[5]}" && "$(grep -c stop "$SYSD_LOG")" == 1 && "$(cat "$T/state/parked")" == "${US[5]}" && "$out" == *"PARKED ${US[5]}"* ]] &&
   pass "apply: ONE idle runner parked per tick (stopped, listed as ours)" || fail "cap park (rc=$rc): $out / $(cat "$SYSD_LOG")"
 : >"$SYSD_LOG"
-"$T/Runner.Worker" 60 & WPID=$!
+worker
 for u in "${US[@]:0:5}"; do echo "$WPID" >"$T/cg/user.slice/user-1500.slice/$u/cgroup.procs"; done
 out="$(cap DRY_RUN=0 OTHER=6)"; rc=$?
 [[ $rc -eq 0 && "$(grep -c stop "$SYSD_LOG")" == 0 && "$out" == *'CAP online=5 of 6'* ]] &&
@@ -279,7 +287,7 @@ out="$(FUNC="$T/red/apply-gh-runner-cpu-budget.func.sh" gate CPU_BUDGET_GATE_FLO
 # every runner online and idle; busy <unit index> puts a Runner.Worker in it
 rm -f "$T/state-"* "$T/state/parked" "$T/weight"
 rm -f "$T/cg/user.slice/user-1500.slice/"*/cgroup.procs
-busy() { "$T/Runner.Worker" 60 & WPID=$!; echo "$WPID" >"$T/cg/user.slice/user-1500.slice/${US[$1]}/cgroup.procs"; }
+busy() { worker; echo "$WPID" >"$T/cg/user.slice/user-1500.slice/${US[$1]}/cgroup.procs"; }
 idle() { [[ -n "$WPID" ]] && { kill "$WPID"; wait "$WPID" 2>/dev/null; }; WPID=""; rm -f "$T/cg/user.slice/user-1500.slice/"*/cgroup.procs; }
 ci() { : >"$SYSD_LOG"; rm -f "$T/gh.calls"; run_budget DRY_RUN=0 OTHER=15 "$@"; }
 R=(CPU_BUDGET_CI_RESERVE_PCT=950 CPU_BUDGET_CI_WEIGHT=400)

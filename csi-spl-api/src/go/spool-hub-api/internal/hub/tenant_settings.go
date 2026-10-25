@@ -491,6 +491,25 @@ func (s *Server) memberRoleAny(ctx context.Context, h store.Humans, tenant, huma
 	return h.MemberRole(ctx, humanID, tenant)
 }
 
+// memberPatchBody is the PATCH /v1/members/{human_id} request.
+type memberPatchBody struct {
+	DisplayName *string `json:"display_name"`
+	Locale      *string `json:"locale"`
+	Disabled    *bool   `json:"disabled"`
+	// AccessUntil: RFC 3339 = the membership ends then; null = no end
+	// (rdb 0113, spec 072 A27). Absent = unchanged.
+	AccessUntil json.RawMessage `json:"access_until"`
+}
+
+// memberPatch is a checked member change: the body plus its valid name,
+// trimmed locale and parsed end time.
+type memberPatch struct {
+	body  memberPatchBody
+	name  string
+	loc   string
+	until *time.Time
+}
+
 // PATCH /v1/members/{human_id} {display_name?, locale?, disabled?, access_until?}
 func (s *Server) handleMemberPatch(w http.ResponseWriter, r *http.Request) {
 	t, a, roles, h, ok := s.membersActor(w, r, rbac.MembersInvite)
@@ -501,14 +520,7 @@ func (s *Server) handleMemberPatch(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var body struct {
-		DisplayName *string `json:"display_name"`
-		Locale      *string `json:"locale"`
-		Disabled    *bool   `json:"disabled"`
-		// AccessUntil: RFC 3339 = the membership ends then; null = no end
-		// (rdb 0113, spec 072 A27). Absent = unchanged.
-		AccessUntil json.RawMessage `json:"access_until"`
-	}
+	var body memberPatchBody
 	if !decodeMembers(w, r, &body) {
 		return
 	}
@@ -520,54 +532,71 @@ func (s *Server) handleMemberPatch(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var name string
-	if body.DisplayName != nil {
-		n, valid := auth.ValidDisplayName(*body.DisplayName)
-		if !valid {
-			writeErr(w, http.StatusBadRequest, "bad_name", "display_name must be 1..200 characters")
-			return
-		}
-		name = n
-	}
-	loc := ""
-	if body.Locale != nil {
-		loc = strings.TrimSpace(*body.Locale)
-	}
-	if body.Disabled != nil && *body.Disabled && !notSelf(w, a, target) {
+	p, ok := s.memberPatchChecks(w, r, a, t.ID, target, body)
+	if !ok || !s.memberPatchApply(w, r, ts, h, t.ID, target, p) {
 		return
-	}
-	until, ok := parseAccessUntil(w, body.AccessUntil)
-	if !ok || (body.AccessUntil != nil && !notSelf(w, a, target)) {
-		return
-	}
-	if (body.DisplayName != nil || body.Locale != nil) && !s.profileEditable(w, r, target, t.ID) {
-		return
-	}
-	if body.Disabled != nil {
-		if err := ts.SetMemberDisabled(r.Context(), t.ID, target, *body.Disabled, s.o.Now()); err != nil {
-			writeMemberErr(w, err)
-			return
-		}
-	}
-	if body.AccessUntil != nil && !s.setAccessUntil(w, r, t.ID, target, until) {
-		return
-	}
-	if body.DisplayName != nil {
-		if err := h.SetDisplayName(r.Context(), target, name); err != nil {
-			writeMemberErr(w, err)
-			return
-		}
-	}
-	if body.Locale != nil {
-		if err := h.SetPreferredLocale(r.Context(), target, loc); err != nil {
-			writeErr(w, http.StatusBadRequest, "bad_locale", "locale must be a supported locale or empty")
-			return
-		}
 	}
 	s.o.Log.Info().Str("tenant", t.ID).Str("by", a.HumanID).Str("member", target).Bool("name", body.DisplayName != nil).
 		Bool("locale", body.Locale != nil).Bool("disabled_set", body.Disabled != nil).
 		Bool("access_until_set", body.AccessUntil != nil).Msg("member.updated")
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// memberPatchChecks validates each requested change before any write: the
+// display name, the locale, the not-self rule for disabled and access_until,
+// and that the profile is editable here. False when it answered an error.
+func (s *Server) memberPatchChecks(w http.ResponseWriter, r *http.Request, a rbac.Access, tenant, target string, body memberPatchBody) (memberPatch, bool) {
+	p := memberPatch{body: body}
+	if body.DisplayName != nil {
+		n, valid := auth.ValidDisplayName(*body.DisplayName)
+		if !valid {
+			writeErr(w, http.StatusBadRequest, "bad_name", "display_name must be 1..200 characters")
+			return p, false
+		}
+		p.name = n
+	}
+	if body.Locale != nil {
+		p.loc = strings.TrimSpace(*body.Locale)
+	}
+	if body.Disabled != nil && *body.Disabled && !notSelf(w, a, target) {
+		return p, false
+	}
+	until, ok := parseAccessUntil(w, body.AccessUntil)
+	if !ok || (body.AccessUntil != nil && !notSelf(w, a, target)) {
+		return p, false
+	}
+	p.until = until
+	if (body.DisplayName != nil || body.Locale != nil) && !s.profileEditable(w, r, target, tenant) {
+		return p, false
+	}
+	return p, true
+}
+
+// memberPatchApply writes a checked change in order: disabled, access_until,
+// display name, locale. False when it answered an error.
+func (s *Server) memberPatchApply(w http.ResponseWriter, r *http.Request, ts store.TenantSettings, h store.Humans, tenant, target string, p memberPatch) bool {
+	if p.body.Disabled != nil {
+		if err := ts.SetMemberDisabled(r.Context(), tenant, target, *p.body.Disabled, s.o.Now()); err != nil {
+			writeMemberErr(w, err)
+			return false
+		}
+	}
+	if p.body.AccessUntil != nil && !s.setAccessUntil(w, r, tenant, target, p.until) {
+		return false
+	}
+	if p.body.DisplayName != nil {
+		if err := h.SetDisplayName(r.Context(), target, p.name); err != nil {
+			writeMemberErr(w, err)
+			return false
+		}
+	}
+	if p.body.Locale != nil {
+		if err := h.SetPreferredLocale(r.Context(), target, p.loc); err != nil {
+			writeErr(w, http.StatusBadRequest, "bad_locale", "locale must be a supported locale or empty")
+			return false
+		}
+	}
+	return true
 }
 
 // profileEditable: the profile (name, locale) is the person's own across

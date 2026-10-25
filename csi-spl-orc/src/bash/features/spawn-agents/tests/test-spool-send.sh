@@ -67,8 +67,14 @@ bash "$SS" --from CLE-90 --to CLE-91 --kind note --body x --no-poke >/dev/null; 
 # A live agent behind the run-as hop: its pane tty shows only "bash sudo"
 # (sudo runs the CLI on its own pty). That is alive, not exited.
 ln -s "$(command -v sleep)" "$T_TMP/sudo"
-t_window CLE-94 "bash -c '$T_TMP/sudo 600; :'" >/dev/null
-sleep 0.3
+P94="$(t_window CLE-94 "bash -c '$T_TMP/sudo 600; :'")"
+# A fixed "sleep 0.3" raced a loaded CI runner (wf 10 run 40233594333: the
+# pane tty showed only bash, exit 7). Wait until the fake sudo is up, <= 5 s.
+tty94="$(tmux -S "$SPOOL_TMUX_SOCKET" display -p -t "$P94" '#{pane_tty}')"
+for _ in $(seq 50); do
+  case " $(ps -t "${tty94#/dev/}" -o comm= 2>/dev/null | tr "\n" " ") " in *" sudo "*) break ;; esac
+  sleep 0.1
+done
 bash "$SS" --from CLE-90 --to CLE-94 --kind note --body x >/dev/null; eq "pane showing bash+sudo is alive: poked, exit 0" 0 "$?"
 # The TUI's dim ghost suggestion after the prompt glyph is not typed text.
 t_window CLE-97 "sh -c 'printf \"❯ \\033[2mfix the thing\\033[0m\\n\"; sleep 600'" >/dev/null

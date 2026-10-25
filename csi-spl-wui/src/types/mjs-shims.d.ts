@@ -1658,6 +1658,8 @@ declare module '~/utils/issues.mjs' {
     label?: string[]
     deadlineBefore?: string
     deadlineAfter?: string
+    /** spec 153 B5a: the issues linked to this topic (uuid) */
+    discussion?: string
   }
   export interface IssueBody {
     title?: string

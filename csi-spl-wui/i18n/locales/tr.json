@@ -988,6 +988,8 @@
     "reply_placeholder": "Yanıt — yeni satır için Enter · göndermek için Ctrl+Enter veya Cmd+Enter · filtrelemek için /search",
     "reply_placeholder_enter": "Yanıt — Enter gönderir · Shift+Enter satır ekler · filtrelemek için /search",
     "replies_label": "Yanıtlar, en yeniler önce",
+    "issue_chips_label": "Bağlı iş kayıtları",
+    "issue_chip_aria": "Bağlı iş kaydı {key}: {status}",
     "load_failed": "konu yüklenemedi",
     "no_replies": "Henüz yanıt yok — ilkini siz yazın.",
     "list_title": "Konu: {text}"

@@ -988,6 +988,8 @@
     "reply_placeholder": "Vastus — Enter lisab rea · Ctrl+Enter või Cmd+Enter saadab · /search filtreerib",
     "reply_placeholder_enter": "Vastus — Enter saadab · Shift+Enter lisab rea · /search filtreerib",
     "replies_label": "Vastused, uusimad eespool",
+    "issue_chips_label": "Seotud ülesanded",
+    "issue_chip_aria": "Seotud ülesanne {key}: {status}",
     "load_failed": "teema laadimine ebaõnnestus",
     "no_replies": "Vastuseid veel ei ole — kirjuta esimene.",
     "list_title": "Teema: {text}"

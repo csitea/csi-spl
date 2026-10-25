@@ -988,6 +988,8 @@
     "reply_placeholder": "Odpowiedz — Enter dodaje wiersz · Ctrl+Enter lub Cmd+Enter wysyła · /search, aby filtrować",
     "reply_placeholder_enter": "Odpowiedz — Enter wysyła · Shift+Enter dodaje wiersz · /search, aby filtrować",
     "replies_label": "Odpowiedzi, od najnowszych",
+    "issue_chips_label": "Powiązane zgłoszenia",
+    "issue_chip_aria": "Powiązane zgłoszenie {key}: {status}",
     "load_failed": "ładowanie tematu nie powiodło się",
     "no_replies": "Brak odpowiedzi — napisz pierwszą.",
     "list_title": "Temat: {text}"

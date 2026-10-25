@@ -234,10 +234,20 @@ describe('the spool-client query copy agrees with issues.mjs (issues-v1 §4)', a
     }
     const c = createSpoolClient({ mock: false, base: 'https://h', fetchFn, token: 'tok' })
     const filter = { kind: 'issue', epic: ['SPL-1'], parent: ['SPL-3'], status: ['todo'], priority: [1], level: [2], assignee: ['me'], label: ['bug'],
-      deadlineBefore: '2026-10-01T00:00:00Z', deadlineAfter: '2026-09-01T00:00:00Z' }
+      deadlineBefore: '2026-10-01T00:00:00Z', deadlineAfter: '2026-09-01T00:00:00Z', discussion: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' }
     await c.listIssues({ filter, sort: 'level' })
     assert.equal(urls.length, 1)
     assert.equal(new URL(urls[0]).search.slice(1), q4(filter, 'level'))
+  })
+  it('listIssues sends ?discussion=<task_id> (spec 153 B5b, SPL-3354)', async () => {
+    const urls = []
+    const fetchFn = async (url) => {
+      urls.push(String(url))
+      return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({ issues: [] }), text: async () => '{}' }
+    }
+    const c = createSpoolClient({ mock: false, base: 'https://h', fetchFn, token: 'tok' })
+    await c.listIssues({ filter: { discussion: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' } })
+    assert.equal(new URL(urls[0]).searchParams.get('discussion'), 'cccccccc-cccc-4ccc-8ccc-cccccccccccc')
   })
 })
 

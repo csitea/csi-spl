@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 import {
   MOCK_GONE_TOPIC, discussionErrorKey, discussionPath, discussionRef, normalizeDiscussions, shortTopic,
 } from '../../src/utils/issue-discussions.mjs'
-import { createMockIssues, normalizeIssue } from '../../src/utils/issues.mjs'
+import { createMockIssues, issueQuery, normalizeIssue } from '../../src/utils/issues.mjs'
 import { aiIssueBody } from '../../src/utils/msg-ai-actions.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -91,5 +91,33 @@ describe('the WUI sends discussions on every create', () => {
   })
   it('no inline :style in the section (CSP)', () => {
     assert.doesNotMatch(src('src/components/IssueDiscussions.vue'), /:style=/)
+  })
+})
+
+/* spec 153 row B5b (C23-C24): a topic shows the issues linked to it as
+   chips, read through B5a's ?discussion=<task_id> filter. CONTROL: on
+   origin/master before B5b issueQuery dropped `discussion` and the mock
+   list did not filter by it, so the first two cases fail. */
+describe('topic issue chips (spec 153 B5b)', () => {
+  const DEFAULT = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  it('issueQuery sends the discussion filter', () => {
+    assert.equal(new URLSearchParams(issueQuery({ discussion: LIVE })).get('discussion'), LIVE)
+    assert.equal(new URLSearchParams(issueQuery({})).has('discussion'), false)
+  })
+  it('the mock hub keeps only the issues linked to that topic', () => {
+    const m = createMockIssues()
+    assert.deepEqual(m.list(issueQuery({ discussion: LIVE })).issues.map((i) => i.key), ['SPL-1'])
+    assert.deepEqual(m.list(issueQuery({ discussion: DEFAULT })).issues, [])
+    assert.ok(m.list('').issues.length >= 1, 'no filter = every issue')
+  })
+  it('the topic page mounts the chips lazily, no :style, and the keys exist', () => {
+    assert.match(src('src/pages/t/[task_id].vue'), /<LazyTopicIssueChips :task-id="taskId" \/>/)
+    const chips = src('src/components/TopicIssueChips.vue')
+    assert.doesNotMatch(chips, /:style=/)
+    assert.match(chips, /filter: \{ discussion: id \}/)
+    assert.match(chips, /t\('topic\.issue_chip_aria', \{ key: c\.key, status: c\.status \}\)/)
+    const en = JSON.parse(src('i18n/locales/en.json'))
+    assert.equal(en.topic.issue_chip_aria, 'Linked issue {key}: {status}')
+    assert.ok(en.topic.issue_chips_label)
   })
 })

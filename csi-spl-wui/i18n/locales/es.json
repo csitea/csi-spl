@@ -988,6 +988,8 @@
     "reply_placeholder": "Responder — Enter para una línea nueva · Ctrl+Enter o Cmd+Enter para enviar · /search para filtrar",
     "reply_placeholder_enter": "Responder — Enter envía · Shift+Enter añade una línea · /search para filtrar",
     "replies_label": "Respuestas, las más recientes primero",
+    "issue_chips_label": "Incidencias vinculadas",
+    "issue_chip_aria": "Incidencia vinculada {key}: {status}",
     "load_failed": "error al cargar el tema",
     "no_replies": "Aún no hay respuestas: escribe la primera.",
     "list_title": "Tema: {text}"

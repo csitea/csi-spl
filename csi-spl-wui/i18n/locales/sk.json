@@ -988,6 +988,8 @@
     "reply_placeholder": "Odpoveď — Enter pridá riadok · Ctrl+Enter alebo Cmd+Enter odošle · /search na filtrovanie",
     "reply_placeholder_enter": "Odpoveď — Enter odošle · Shift+Enter pridá riadok · /search na filtrovanie",
     "replies_label": "Odpovede, najnovšie prvé",
+    "issue_chips_label": "Prepojené úlohy",
+    "issue_chip_aria": "Prepojená úloha {key}: {status}",
     "load_failed": "načítanie témy zlyhalo",
     "no_replies": "Zatiaľ žiadne odpovede — napíšte prvú.",
     "list_title": "Téma: {text}"

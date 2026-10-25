@@ -988,6 +988,8 @@
     "reply_placeholder": "Atsakymas — Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter išsiųsti · /search filtruoti",
     "reply_placeholder_enter": "Atsakymas — Enter siunčia · Shift+Enter prideda eilutę · /search filtruoti",
     "replies_label": "Atsakymai, naujausi viršuje",
+    "issue_chips_label": "Susietos užduotys",
+    "issue_chip_aria": "Susieta užduotis {key}: {status}",
     "load_failed": "temos įkelti nepavyko",
     "no_replies": "Atsakymų kol kas nėra — parašykite pirmąjį.",
     "list_title": "Tema: {text}"

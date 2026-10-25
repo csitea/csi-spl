@@ -12,8 +12,14 @@
 //   4 (desktop) a new issue starts linked to the workspace's default
 //     discussion and is created with it; its panel then lists it
 //   5 no page errors
+//   6 (spec 153 C23, SPL-3354) the topic SPL-1 links shows a chip "SPL-1" to
+//     /issues?issue=SPL-1, with its aria-label
+//   7 (C24) a topic no issue links shows no chip and no empty chip row
 // CONTROL: before SPL-1593 the issue view had no [data-test=issue-discussions]
-// and no "no longer exists" note, so 1-4 fail.
+// and no "no longer exists" note, so 1-4 fail. Before SPL-3354 the topic page
+// had no [data-test=topic-issue-chip], so 6 fails; with the chips but without
+// the `discussion` filter (origin/master's issues.mjs) every topic lists every
+// issue, so 7 fails.
 //
 // Run:
 //   node tests/e2e/issue-discussions.test.mjs
@@ -28,6 +34,10 @@ const WIDTHS = [1440, 390]
 const LIVE = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const SECTION = '[data-test=issue-discussions]'
 const ROW = '[data-test=issue-discussion]'
+/* C24: a mock topic that no seeded issue links */
+const UNLINKED = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+const CHIPS = '[data-test=topic-issue-chips]'
+const CHIP = '[data-test=topic-issue-chip]'
 
 const results = []
 const ok = (name, pass, ev) => {
@@ -135,7 +145,23 @@ try {
         chip === 'Workspace default' && made.length === 1 && made[0][1] === 'live', { chip, key, made })
     }
 
-    const mine = errors.filter((e) => !/Failed to fetch dynamically imported module/.test(e))
+    await p.goto(`${server.base}/t/${LIVE}`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    const chips = await p.waitForFunction((sel) => {
+      const cs = [...document.querySelectorAll(sel)]
+      return cs.length ? cs.map((c) => ({ key: c.dataset.key, href: c.getAttribute('href') || '', aria: c.getAttribute('aria-label') || '' })) : false
+    }, { timeout: 10000 }, CHIP).then((h) => h.jsonValue()).catch(() => [])
+    const spl1 = chips.find((c) => c.key === 'SPL-1')
+    ok(`6 ${W}: the topic SPL-1 links shows the chip SPL-1 to /issues?issue=SPL-1, with its aria-label`,
+      Boolean(spl1) && /\/issues\?issue=SPL-1$/.test(spl1.href) && /^Linked issue SPL-1: \S+/.test(spl1.aria), chips)
+
+    await p.goto(`${server.base}/t/${UNLINKED}`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    const shown = await p.waitForFunction(() => document.querySelector('[data-test=topic-browse]'), { timeout: NAV_TIMEOUT }).then(() => true).catch(() => false)
+    /* the chips read after mount: give that read its time before counting none */
+    await new Promise((r) => setTimeout(r, 1500))
+    const none = await p.evaluate((a, b) => ({ row: document.querySelectorAll(a).length, chip: document.querySelectorAll(b).length }), CHIPS, CHIP)
+    ok(`7 ${W}: a topic no issue links shows no chip and no empty row`, shown && none.row === 0 && none.chip === 0, { shown, ...none })
+
+        const mine = errors.filter((e) => !/Failed to fetch dynamically imported module/.test(e))
     ok(`5 ${W}: no page errors`, mine.length === 0, mine)
     await p.close()
   }

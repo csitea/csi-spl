@@ -988,6 +988,8 @@
     "reply_placeholder": "Răspuns — Enter pentru un rând nou · Ctrl+Enter sau Cmd+Enter pentru a trimite · /search pentru filtrare",
     "reply_placeholder_enter": "Răspuns — Enter trimite · Shift+Enter adaugă un rând · /search pentru filtrare",
     "replies_label": "Răspunsuri, cele mai noi primele",
+    "issue_chips_label": "Sarcini asociate",
+    "issue_chip_aria": "Sarcină asociată {key}: {status}",
     "load_failed": "încărcarea temei a eșuat",
     "no_replies": "Încă nu există răspunsuri — scrie-l pe primul.",
     "list_title": "Temă: {text}"

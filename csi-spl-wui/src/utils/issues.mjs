@@ -186,6 +186,8 @@ export function matchIssue(issue, f = {}, me = '') {
     if (!want.includes(issue.assignee)) return false
   }
   if (has(f.label) && !issue.labels.some((l) => f.label.includes(l))) return false
+  /* spec 153 B5a: ?discussion=<topic uuid> keeps the issues linked to that topic */
+  if (f.discussion && !(issue.discussions || []).some((d) => d && d.task_id === f.discussion)) return false
   const d = ms(issue.deadline)
   if (f.deadlineBefore && (Number.isNaN(d) || !(d < ms(f.deadlineBefore)))) return false
   if (f.deadlineAfter && (Number.isNaN(d) || d < ms(f.deadlineAfter))) return false
@@ -203,6 +205,7 @@ export function issueQuery(filter = {}, sort = '', page = {}) {
     const v = filter[k]
     if (Array.isArray(v) && v.length) q.set(k, v.join(','))
   }
+  if (filter.discussion) q.set('discussion', filter.discussion)
   if (filter.deadlineBefore) q.set('deadline_before', filter.deadlineBefore)
   if (filter.deadlineAfter) q.set('deadline_after', filter.deadlineAfter)
   if (sort && sort !== 'priority') q.set('sort', sort)
@@ -317,7 +320,7 @@ function mockSummaries(issues) {
 function mockFilterOf(q) {
   const csv = (k) => (q.get(k) ? q.get(k).split(',') : [])
   return { kind: q.get('kind') || '', epic: csv('epic'), parent: csv('parent'), status: csv('status'), priority: csv('priority').map(Number), level: csv('level').map(Number),
-    assignee: csv('assignee'), label: csv('label'), deadlineBefore: q.get('deadline_before') || '', deadlineAfter: q.get('deadline_after') || '' }
+    assignee: csv('assignee'), label: csv('label'), deadlineBefore: q.get('deadline_before') || '', deadlineAfter: q.get('deadline_after') || '', discussion: q.get('discussion') || '' }
 }
 
 /* The mock hub's page (hub issues_page.go): the hub's order, the rows after

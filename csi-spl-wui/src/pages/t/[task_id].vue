@@ -14,6 +14,9 @@
            load; a member whose session does not open the door gets it here -->
       <ViewTokenForm v-if="door" :detail="door.detail" @saved="onDoor" />
       <template v-else><TopicPane /></template>
+      <!-- spec 153 B5b: the issues linked to this topic, drawn above the thread (its own order: -1);
+           lazy (initial chunk) and never behind its own v-if (insertBefore) -->
+      <LazyTopicIssueChips :task-id="taskId" />
     </div>
   </div>
 </template>

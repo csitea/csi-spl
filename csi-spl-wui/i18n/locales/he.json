@@ -988,6 +988,8 @@
     "reply_placeholder": "תגובה — Enter לשורה חדשה · Ctrl+Enter או Cmd+Enter לשליחה · /search לסינון",
     "reply_placeholder_enter": "תגובה — Enter שולח · Shift+Enter מוסיף שורה · /search לסינון",
     "replies_label": "תגובות, החדשות ראשונות",
+    "issue_chips_label": "משימות מקושרות",
+    "issue_chip_aria": "משימה מקושרת {key}: {status}",
     "load_failed": "טעינת הנושא נכשלה",
     "no_replies": "אין עדיין תגובות — כתבו את הראשונה.",
     "list_title": "נושא: {text}"

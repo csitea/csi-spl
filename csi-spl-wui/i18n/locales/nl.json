@@ -988,6 +988,8 @@
     "reply_placeholder": "Reageren — Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te versturen · /search om te filteren",
     "reply_placeholder_enter": "Reageren — Enter verstuurt · Shift+Enter voegt een regel toe · /search om te filteren",
     "replies_label": "Reacties, nieuwste eerst",
+    "issue_chips_label": "Gekoppelde issues",
+    "issue_chip_aria": "Gekoppelde issue {key}: {status}",
     "load_failed": "onderwerp laden mislukt",
     "no_replies": "Nog geen antwoorden — schrijf het eerste.",
     "list_title": "Onderwerp: {text}"

@@ -988,6 +988,8 @@
     "reply_placeholder": "Vastaa — Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search suodattaa",
     "reply_placeholder_enter": "Vastaa — Enter lähettää · Shift+Enter lisää rivin · /search suodattaa",
     "replies_label": "Vastaukset, uusimmat ensin",
+    "issue_chips_label": "Linkitetyt tiketit",
+    "issue_chip_aria": "Linkitetty tiketti {key}: {status}",
     "load_failed": "aiheen lataus epäonnistui",
     "no_replies": "Ei vielä vastauksia — kirjoita ensimmäinen.",
     "list_title": "Aihe: {text}"

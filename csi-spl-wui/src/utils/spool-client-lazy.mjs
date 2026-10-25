@@ -35,6 +35,7 @@ function issueQuery(filter = {}, sort = '', page = {}) {
     const v = filter[k]
     if (Array.isArray(v) && v.length) q.set(k, v.join(','))
   }
+  if (filter.discussion) q.set('discussion', filter.discussion)
   if (filter.deadlineBefore) q.set('deadline_before', filter.deadlineBefore)
   if (filter.deadlineAfter) q.set('deadline_after', filter.deadlineAfter)
   if (sort && sort !== 'priority') q.set('sort', sort)

@@ -988,6 +988,8 @@
     "reply_placeholder": "Одговор — Enter за нови ред · Ctrl+Enter или Cmd+Enter за слање · /search за филтрирање",
     "reply_placeholder_enter": "Одговор — Enter шаље · Схифт+Enter додаје ред · /search за филтрирање",
     "replies_label": "Одговори, најновији први",
+    "issue_chips_label": "Повезани задаци",
+    "issue_chip_aria": "Повезани задатак {key}: {status}",
     "load_failed": "учитавање теме није успело",
     "no_replies": "Још нема одговора — напишите први.",
     "list_title": "Тема: {text}"

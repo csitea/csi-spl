@@ -368,9 +368,20 @@ spl_asks_orch_alert() {
   (( age >= 0 && age <= max )) || return 0
   if [[ "$h" != *@* ]] || (( age > ${ASKS_ORCH_STALE:-600} )); then
     active=1
-    text="**ALERT**$(spl_asks_alert_who): no live orchestrator on any box - ${h:-nobody} has held the orch lease silent $(( age / 60 )) min. Blocks: every ask to the orchestrator, spawns and lane placement. Do: restart the orchestrator seat on its box (\`IDENTITY_RESTORE_IDS=${h%@*} DRY_RUN=0 ./run -a do_spl_agent_identity_restore\`)."
+    text="**ALERT**$(spl_asks_alert_who): no live orchestrator on any box - ${h:-nobody} has held the orch lease silent $(( age / 60 )) min. Blocks: every ask to the orchestrator, spawns and lane placement. Do: $(spl_asks_orch_do "$h")"
   fi
   spl_asks_alert orch "$active" "$text" "${dh%@*}"
+}
+
+# The alert's "Do:": the restore runs on the box whose seat holds the orch
+# lease (<id>@<box>), the only map with that id's record (SPL-3378: the owner
+# ran it on another box, which had none, while c-001 was on sat). No box, no restore.
+spl_asks_orch_do() {  # HOLDER
+  if [[ "$1" != ?*@?* ]]; then
+    echo "no box has a seat to restore (the orch lease names no box): start an orchestrator seat on a box."
+    return 0
+  fi
+  echo "on ${1#*@} (the box whose seat ${1%@*} holds the orch lease), restart it there: \`cd csi-spl-orc && IDENTITY_RESTORE_IDS=${1%@*} DRY_RUN=0 ./run -a do_spl_agent_identity_restore\`; no other box has a record of ${1%@*} to restore."
 }
 
 # " @HUM-n" when the owner id is known, so the #alerts line reaches them.

@@ -609,6 +609,11 @@ out="$(pctick)"; pctick >/dev/null
 al="$(jq -r 'select(.op == "post") | .text' "$T/pc/alert.log")"
 [[ "$(alerts pc post)" -eq 1 && "$al" == "**ALERT** @HUM-10: no live orchestrator on any box - c-001@sat has held the orch lease silent 15 min."* && "$al" == *"Blocks: "* && "$al" == *"IDENTITY_RESTORE_IDS=c-001"* && "$out" == *"held on sat"* ]] &&
   pass "R2: the hub's orch holder silent past ASKS_ORCH_STALE: the dispatch holder's machine posts ONE alert over two ticks" || fail "orch alert: $(cat "$T/pc/alert.log") / $out"
+# SPL-3378 (2026-10-25: the owner ran the restore on another box, which had no c-001;
+# the seat was on sat): the alert names the box whose seat holds the lease and
+# gives the restore for THAT box
+[[ "$al" == *"Do: on sat (the box whose seat c-001 holds the orch lease), restart it there: \`cd csi-spl-orc && IDENTITY_RESTORE_IDS=c-001 DRY_RUN=0 ./run -a do_spl_agent_identity_restore\`; no other box has a record of c-001 to restore."* ]] &&
+  pass "R2 (SPL-3378): the alert names the holder's box (sat) and the restore to run there" || fail "orch alert box: $al"
 # SPL-2521: open ASKS_ORCH_PAGE_MIN (30) with nobody taking the role, the owner
 # gets ONE direct message (2026-10-18: the alert sat 19 h 30 min unread)
 [[ "$(alerts pc page)" -eq 0 ]] && pass "R2 (SPL-2521): open under 30 min: the owner is not paged" || fail "early page: $(cat "$T/pc/alert.log")"
@@ -638,6 +643,16 @@ done
 echo "c-001@sat 900 $(date +%s)" >"$T/pc/spool/dispatch/fleet.orch.age"
 pctick >/dev/null
 [[ "$(alerts pc post)" -eq 1 ]] && pass "SPL-2654: CONTROL the real stale case (seen now, age 900) still alerts" || fail "SPL-2654 control: $(cat "$T/pc/alert.log")"
+echo "c-001@sat 5 $(date +%s)" >"$T/pc/spool/dispatch/fleet.orch.age"
+pctick >/dev/null
+# SPL-3378: a lease that names no box has no seat to restore anywhere: the
+# alert says so and gives no restore command
+: >"$T/pc/alert.log"
+echo "nobody 900 $(date +%s)" >"$T/pc/spool/dispatch/fleet.orch.age"
+pctick >/dev/null
+al="$(jq -r 'select(.op == "post") | .text' "$T/pc/alert.log")"
+[[ "$(alerts pc post)" -eq 1 && "$al" == *"Do: no box has a seat to restore (the orch lease names no box): start an orchestrator seat on a box."* && "$al" != *"IDENTITY_RESTORE_IDS"* ]] &&
+  pass "R2 (SPL-3378): a lease with no box: the alert says no box has a seat to restore, no restore command" || fail "orch alert no box: $al"
 echo "c-001@sat 5 $(date +%s)" >"$T/pc/spool/dispatch/fleet.orch.age"
 pctick >/dev/null
 rm -f "$T/pc/spool/dispatch/lease" "$T/pc/spool/dispatch/fleet.orch.age"

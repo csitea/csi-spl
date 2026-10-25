@@ -776,6 +776,9 @@ automatic paths are the R-b race again). 093 6.2's suspend guard stays.
     3. Accelerated self-check tick: Instance 1 executes an accelerated self-check
        tick ($\le 20\text{ s}$) that verifies syntax, environment, and evaluates
        at least 1 agent with zero script errors, writing `status: ok`.
+       Its tick gap is measured from the exec, not from the tick before the
+       pre-flight: a slow pre-flight on a loaded box is no resume, whose grace
+       would skip every agent and leave the check judging none (SPL-3332).
     4. Baton handoff: Instance 1 writes `update.next = 2`. Instances 2 and 3
        sleep in 5 s slices; Instance 2 detects the baton, self-execs into candidate,
        and completes its self-check tick ($\le 20\text{ s}$).

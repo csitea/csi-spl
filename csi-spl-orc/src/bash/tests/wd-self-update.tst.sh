@@ -18,7 +18,9 @@
 #      (control: an ordinary tick skips); a dead instance restarts from code/good while a
 #      candidate is out (never the candidate); the self-check verdict is the
 #      tick's result: a correct tick past WD_UPD_CHECK_MAX (a loaded box)
-#      passes, a tick with a script error fails (control), a tick past the
+#      passes, a tick with a script error fails (control), the first tick
+#      after an exec measures its gap from the exec, so a slow pre-flight is
+#      no resume (control: an ordinary tick from its last), a tick past the
 #      hang bound WD_UPD_STEP_MAX fails, a check is timed from its own tick
 #      start (an older exec's T0 before its pre-flight is ignored), and a check that never ends is
 #      failed by a peer at WD_UPD_STEP_MAX; a boot pass (the pre-flight
@@ -260,6 +262,15 @@ flock "$W/c-901.judge.lock" sleep 2 & JH=$!; sleep 0.3
 out="$(lib 'exec 6>>"$WD_DIR/c-901.judge.lock"; '"$jl")"
 wait "$JH"
 [[ "$out" == *SKIPPED* ]] && pass "1 control: an ordinary tick skips an agent a peer judges" || fail "1 lock control: $out"
+# the first tick after an exec measures its gap from the exec, not from the
+# tick before the pre-flight: a slow pre-flight (a loaded box) read as a
+# resume skipped every agent, and the self-check judged nothing (SPL-3332);
+# control: an ordinary tick keeps its last tick start, a real gap stays a resume
+gap='n=$(spl_lease_now); echo "BASE $(( n - $(spl_wd_upd_last $(( n - 60 ))) ))"'
+out="$(lib 'WD_UPD_EXEC=x WD_UPD_ROLE=forward WD_UPD_T0=$(( $(spl_lease_now) - 1 )); '"$gap" LEASE_NOW=2000000000)"
+[[ "$out" == *"BASE 1"* ]] && pass "1 the first tick after an exec measures its gap from the exec (1 s, not 60 s)" || fail "1 exec gap: $out"
+out="$(lib "$gap" LEASE_NOW=2000000000 WD_UPD_T0=1999999999)"
+[[ "$out" == *"BASE 60"* ]] && pass "1 control: an ordinary tick measures its gap from its last tick (60 s)" || fail "1 gap control: $out"
 # the self-check verdict: by the tick's result, not its wall time (a loaded
 # box ran correct check ticks in 24..26 s against the old 20 s limit).
 # chk: instance 1's first tick on X ended AGO s after its exec; the state

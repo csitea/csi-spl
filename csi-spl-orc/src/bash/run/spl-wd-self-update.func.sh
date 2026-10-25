@@ -487,6 +487,22 @@ spl_wd_upd_checked() {
   return 0
 }
 
+# spl_wd_upd_last LAST: the tick start the gap of this tick is measured
+# from. The first tick after an exec measures it from the exec (WD_UPD_T0),
+# not from the tick before it: that gap is this instance's own pre-flight
+# and exec, not a suspend. Read as a resume (> 3 x WD_TICK) it skipped every
+# agent ("resume grace") and the self-check judged nothing, green on a
+# broken sha (SPL-3332: a loaded box, pre-flight 16+ s at tick 5, rolled a
+# bad commit on to instance 2).
+spl_wd_upd_last() {
+  local last="$1" t0="${WD_UPD_T0:-}"
+  if [[ -n "${WD_UPD_EXEC:-}" && "$t0" =~ ^[0-9]+$ && "$last" =~ ^[0-9]+$ ]] && (( t0 > last )); then
+    echo "$t0"
+  else
+    echo "$last"
+  fi
+}
+
 # spl_wd_upd_verdict TICK SHA TOOK: why the self-check tick is red, or empty.
 # By its result, not its wall time: on a loaded box a correct tick took 24
 # and 26 s (a desk box, 2026-10-08: two harmless commits quarantined at a 20 s

@@ -170,7 +170,7 @@ spl_wd_tick() {
   local now last tick="$WD_DIR/tick$WD_SFX" id pid pane
   spl_wd_tick_t0
   now="$(spl_lease_now)"
-  last="$(cat "$WD_DIR/last.tick$WD_SFX" 2>/dev/null || true)"
+  last="$(spl_wd_upd_last "$(cat "$WD_DIR/last.tick$WD_SFX" 2>/dev/null || true)")"
   # a box back from suspend or power loss: every age looks huge (6.2). The
   # debounces reset per agent, in its skip, under its judge lock (10.4.1).
   if [[ "$last" =~ ^[0-9]+$ ]] && (( now - last > 3 * WD_TICK )); then

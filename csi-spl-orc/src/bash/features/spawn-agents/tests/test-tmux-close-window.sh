@@ -649,15 +649,26 @@ lane16() {  # ID PUSH-FIRST-LINE -> pane; the lane has no ACCEPTED
   printf '%s\tmistral\t%s\t/x\t20261016T010000Z\tc-001\n' "$1" "$p" >>"$SPOOL_ROOT/registry.tsv"
   printf '%s\n' "$p"
 }
+# The push worker holds push-master/lock for its whole life (spl-push-master.func.sh):
+# a live worker is a process holding it, here a sleep that took the lock.
+hold16() {  # ID -> pid of the holder, once it holds the lock
+  local l="$SPOOL_ROOT/$1/lifetime/push-master/lock" pid
+  ( exec 9>"$l"; flock 9; exec sleep 600 ) >/dev/null 2>&1 &
+  pid="$!"
+  for _ in $(seq 1 50); do flock -n "$l" true 2>/dev/null || break; sleep 0.1; done
+  printf '%s\n' "$pid"
+}
 s16() {
   box
   P16="$(lane16 m-595 RUNNING)"
+  H16="$(hold16 m-595)"
   MISTRAL_TMUX_PANE="$P16" bash "$SUT" --agent m-595 --defer --retire --timeout 3 >"$T_TMP/o" 2>&1
   eq "16. self-close with its push RUNNING is refused (5)" 5 "$?"
   has "16. ... the one line names the running push" "REFUSED self-close of m-595: its push is RUNNING since 2026-10-16T01:27:48Z" "$(cat "$T_TMP/o")"
   eq "16. ... it is one line" 1 "$(wc -l <"$T_TMP/o")"
   hasnt "16. ... and schedules no close" "scheduled defer-close" "$(cat "$T_TMP/o")"
   check "16. ... writes no lifetime/done" test ! -e "$SPOOL_ROOT/m-595/lifetime/done"
+  kill "$H16" 2>/dev/null
   printf 'PUSHED abc1234\nfinished=2026-10-16T01:40:00Z\n' >"$SPOOL_ROOT/m-595/lifetime/push-master/status"
   MISTRAL_TMUX_PANE="$P16" bash "$SUT" --agent m-595 --defer --retire --timeout 3 >"$T_TMP/o" 2>&1
   eq "16. self-close with no ACCEPTED is refused (5)" 5 "$?"
@@ -680,6 +691,29 @@ s16() {
   eq "16. self-close after ACCEPTED and the push ended returns 0" 0 "$?"
   has "16. ... and schedules the close" "scheduled defer-close" "$(cat "$T_TMP/o")"
   check "16. ... the window closes" wait_gone "$P16" 30
+}
+# c-158 (msg 28e8f71c, SPL-3372): its push worker died (a reboot, or a stop
+# by pid) and left RUNNING in its status file; PUSH_CMD=status read DIED, but
+# the closer read line 1 only and refused the self-close "since 02:18:53Z"
+# forever. RUNNING counts only while a worker holds push-master/lock.
+s16c() {
+  box
+  P16D="$(lane16 m-598 RUNNING)"
+  t_accepted m-598
+  MISTRAL_TMUX_PANE="$P16D" bash "$SUT" --agent m-598 --defer --retire --timeout 3 >"$T_TMP/o" 2>&1
+  eq "16c. self-close with RUNNING left by a dead push worker (no lock holder) returns 0" 0 "$?"
+  hasnt "16c. ... and is not refused as a running push" "its push is RUNNING" "$(cat "$T_TMP/o")"
+  has "16c. ... it schedules the close" "scheduled defer-close" "$(cat "$T_TMP/o")"
+  check "16c. ... the window closes" wait_gone "$P16D" 30
+  # Control: the same lane with a live worker holding the lock is still refused.
+  P16L="$(lane16 m-599 RUNNING)"
+  t_accepted m-599
+  H16L="$(hold16 m-599)"
+  MISTRAL_TMUX_PANE="$P16L" bash "$SUT" --agent m-599 --defer --retire --timeout 3 >"$T_TMP/o" 2>&1
+  eq "16c. control: RUNNING with the lock held is refused (5)" 5 "$?"
+  has "16c. control: ... as a running push" "REFUSED self-close of m-599: its push is RUNNING since 2026-10-16T01:27:48Z" "$(cat "$T_TMP/o")"
+  check "16c. control: ... the window is still open" alive "$P16L"
+  kill "$H16L" 2>/dev/null
 }
 s16b() {  # Red control: m-595's exact sequence on the script with the gate spliced out closes and retires.
   box
@@ -752,7 +786,7 @@ sub() {
 }
 sub_wait() { local p; for p in "${S_PIDS[@]}"; do wait "$p"; done; }
 J_PIDS=(); J_NAMES=(); S_PIDS=()
-for j in s01 s05 s06 s07 s08 s09 s10 s11 s12 s12b s12c s13 s13b s13c s13d s13e s14 s14b s14c s14d s14e s14f s15 s16 s16b s17 s17b s17c; do
+for j in s01 s05 s06 s07 s08 s09 s10 s11 s12 s12b s12c s13 s13b s13c s13d s13e s14 s14b s14c s14d s14e s14f s15 s16 s16b s16c s17 s17b s17c; do
   job "$j" "$j"
 done
 deadline=$((SECONDS + ${TCW_JOB_MAX:-150}))

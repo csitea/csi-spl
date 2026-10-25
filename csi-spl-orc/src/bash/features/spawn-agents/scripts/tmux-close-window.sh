@@ -636,12 +636,28 @@ tcw_is_self_close() {
 # The push-master status files of the lane (spl-push-master.func.sh
 # _spl_push_master_state_dir): <spool root>/<id>/lifetime/push-master, else
 # <git-dir of its worktree>/spl-push-master.
+# RUNNING counts only while the worker holds the state's lock: a worker that
+# died (a reboot, a stop by pid) leaves RUNNING behind, and c-158 was refused
+# "since 02:18:53Z" forever while PUSH_CMD=status read DIED (SPL-3372). The
+# verdict is the push action's own _spl_push_master_status (exit 3 = RUNNING);
+# without that file, RUNNING still refuses.
+tcw_push_alive() {  # STATE-DIR
+  local fn
+  if ! declare -F _spl_push_master_status >/dev/null; then
+    fn="$(cd "$(dirname "$_sp_lib")" && pwd -P)/../../../run/spl-push-master.func.sh"
+    # shellcheck source=/dev/null
+    [[ -r "$fn" ]] && . "$fn" 2>/dev/null
+    declare -F _spl_push_master_status >/dev/null || return 0
+  fi
+  _spl_push_master_status "$1" >/dev/null 2>&1
+  [[ "$?" -eq 3 ]]
+}
 tcw_push_running() {
   local wt gd f
   wt="$(tcw_lane_worktree)"
   gd="$( [[ -n "$wt" && -d "$wt" ]] && git -C "$wt" rev-parse --absolute-git-dir 2>/dev/null)"
   for f in "${SPOOL_ROOT}/${AGENT_ID}/lifetime/push-master/status" ${gd:+"$gd/spl-push-master/status"}; do
-    if [[ -r "$f" && "$(sed -n 1p "$f")" == RUNNING ]]; then
+    if [[ -r "$f" && "$(sed -n 1p "$f")" == RUNNING ]] && tcw_push_alive "${f%/status}"; then
       printf '%s %s\n' "$f" "$(sed -n 's/^since=//p' "$f")"
       return 0
     fi

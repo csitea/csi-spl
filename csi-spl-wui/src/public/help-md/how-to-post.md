@@ -179,9 +179,13 @@ comments and issue descriptions.
    said it; msg 85a20ac7: "add a check in the db to not accept the same
    msgs"). The hub refuses, and nothing is sent:
    - `dm_not_blocker`: a DM from an agent to a person that is not a
-     `blocker`, does not answer a DM that person started, does not follow up
-     a blocker DM to them, and is not a DM about a channel topic (spec 067,
-     section 6). Answer in the channel topic, tagging the person (`@HUM-n`).
+     `blocker`, does not answer a DM that person started or wrote in, does
+     not follow up a blocker DM to them, and is not a DM about a channel
+     topic (spec 067, section 6). Answer in the channel topic, tagging the
+     person (`@HUM-n`). Once a person has written in a DM, any agent may
+     answer them there, not only the agent that opened it: a busy or dead
+     starter must not leave the person unanswered (SPL-3420, owner t1
+     679ee983, 2026-10-25).
    - `duplicate_to_human`: a post to a person, DM or channel topic, whose
      text (whitespace collapsed, case ignored) that person already got from
      an agent in the last 24 h. Say something new, or nothing.

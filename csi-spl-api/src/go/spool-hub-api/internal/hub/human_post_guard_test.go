@@ -20,7 +20,7 @@ func guardRig(t *testing.T, on bool) (e *env, tid string, b *box) {
 	t.Helper()
 	e = followEnv(t, func(o *hub.Options) { o.HumanPostGuard = on })
 	tid, _ = e.tenant()
-	b = e.box(tid, "box-a", "CLE-07")
+	b = e.box(tid, "box-a", "CLE-07", "CLE-08")
 	e.pin(tid, b)
 	if err := e.st.CreateChannel(context.Background(), store.Channel{TenantID: tid, ChannelID: "ops", Name: "ops",
 		CreatedBy: "wui", CreatedAt: time.Now()}); err != nil {
@@ -33,7 +33,11 @@ func guardRig(t *testing.T, on bool) (e *env, tid string, b *box) {
 }
 
 func guardSend(b *box, task, to, kind, body string) (action.SendResult, error) {
-	return action.SendCtx(context.Background(), b.cfg, action.SendArgs{From: "CLE-07", To: to, ToBox: hub.WUIBox,
+	return guardSendAs(b, "CLE-07", task, to, kind, body)
+}
+
+func guardSendAs(b *box, from, task, to, kind, body string) (action.SendResult, error) {
+	return action.SendCtx(context.Background(), b.cfg, action.SendArgs{From: from, To: to, ToBox: hub.WUIBox,
 		TaskID: task, Kind: kind, Body: body, Hub: b.c})
 }
 
@@ -73,6 +77,37 @@ func TestHumanPostGuardPersonStartedDM(t *testing.T) {
 	if _, err := guardSend(b, task, "HUM-1", "note", "dev is green, prd rolls next"); err != nil {
 		t.Fatalf("answer in a DM the person started: %v", err)
 	}
+}
+
+// SPL-3420 (owner DM t1 679ee983, 2026-10-25): an agent opened a DM to the
+// person (kind task), the person asked a question in it, and the starter was
+// busy; every other agent was refused (dm_not_blocker) and the person waited
+// 35 min. A person who has posted in a DM may be answered there by any agent.
+// The control: the same DM before the person wrote in it refuses both agents.
+func TestHumanPostGuardPersonRepliedInAgentDM(t *testing.T) {
+	e, tid, b := guardRig(t, true)
+	task := uuid4()
+	putRow(t, e, tid, task, "", "CLE-07", "HUM-1", "alert: rotation failed", time.Now().Add(-time.Minute))
+
+	_, err := guardSendAs(b, "CLE-08", task, "HUM-1", "note", "the rotation is retried")
+	wantToken(t, "another agent, before the person wrote", err, hub.TokenDMNotBlocker)
+	_, err = guardSend(b, task, "HUM-1", "note", "and again from the starter")
+	wantToken(t, "the starter, before the person wrote", err, hub.TokenDMNotBlocker)
+
+	c := dialMember(t, e, tid, "HUM-1", "HUM-1")
+	dmSend(c, task, "CLE-07", "is this expected or a bug?")
+	readType(t, c, "ack")
+	if _, err := guardSendAs(b, "CLE-08", task, "HUM-1", "note", "a bug: the dead holder kept the lease"); err != nil {
+		t.Fatalf("another agent answers the person's question: %v", err)
+	}
+	// the person's post opens only that DM to them: another person, or a new DM, stays refused
+	_, err = guardSendAs(b, "CLE-08", task, "HUM-2", "note", "fyi, the lease bug")
+	wantToken(t, "another person in that DM", err, hub.TokenDMNotBlocker)
+	_, err = guardSendAs(b, "CLE-08", uuid4(), "HUM-1", "note", "a new unsolicited DM")
+	wantToken(t, "a new DM to the same person", err, hub.TokenDMNotBlocker)
+	// and duplicate_to_human still applies in it
+	_, err = guardSend(b, task, "HUM-1", "note", "A bug: the dead holder  kept the lease")
+	wantToken(t, "the same answer twice", err, hub.TokenDuplicateToHuman)
 }
 
 func TestHumanPostGuardChannelReplyPasses(t *testing.T) {

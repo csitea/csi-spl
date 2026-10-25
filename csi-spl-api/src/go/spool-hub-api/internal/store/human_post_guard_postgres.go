@@ -10,7 +10,7 @@ import (
 
 // Postgres side of the human post guard (rdb 0211). Both reads stay inside
 // one tenant's index range: messages_task (tenant_id, task_id, ts) for the
-// opener, messages_to_human (tenant_id, to_id, received_at) for the body;
+// opener and the person's post in the topic, messages_to_human (tenant_id, to_id, received_at) for the body;
 // spool_norm_body() filters only the rows that range holds.
 
 // TopicOpener implements HumanPostGuard on the messages_task index.
@@ -23,6 +23,14 @@ func (s *Postgres) TopicOpener(ctx context.Context, tenant, taskID string) (Topi
 		return TopicOpener{}, nil
 	}
 	return o, err
+}
+
+// HumanPostedIn implements HumanPostGuard on the messages_task index.
+func (s *Postgres) HumanPostedIn(ctx context.Context, tenant, taskID, human string) (bool, error) {
+	var posted bool
+	err := s.queryRowTenant(ctx, tenant, `SELECT EXISTS (SELECT 1 FROM messages
+		WHERE tenant_id = $1 AND task_id = $2 AND from_id = $3)`, []any{tenant, taskID, human}, &posted)
+	return posted, err
 }
 
 // HumanGotBody implements HumanPostGuard on the messages_to_human index.

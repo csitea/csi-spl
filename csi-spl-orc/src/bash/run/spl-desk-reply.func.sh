@@ -62,7 +62,8 @@
 # @description csi-spl-doc/doc/help/how-to-post.md rule 9). No secret is read.
 # @description The hub refuses two posts to a person (SPL-2584, how-to-post.md
 # @description rule 18), and nothing is sent: a DM that is not a blocker and
-# @description does not answer a DM that person started (exit 6, dm_not_blocker),
+# @description does not answer a DM that person started or wrote in (exit 6,
+# @description dm_not_blocker; any agent may answer a person's post in a DM),
 # @description and a body that person already got from an agent in the last
 # @description 24 h, in a DM or a channel topic (exit 7, duplicate_to_human).
 # @description The FATAL names the rule and where the post belongs instead.
@@ -222,7 +223,7 @@ _spl_desk_reply_refusal() {
   local ops=""
   [[ -r "${SPL_CNF:-}" ]] && ops="$(yq -r '.env.fleet_notices.channel // ""' "$SPL_CNF" 2>/dev/null)"
   if [[ "$1" == *dm_not_blocker* ]]; then
-    do_log "FATAL nothing was sent: a DM to $ans_to must be a blocker (DESK_KIND=blocker) or answer a DM $ans_to started (how-to-post.md rule 18, owner t1 4b49e47d). Post it in the channel topic it belongs to (DESK_TASK=<that topic>), or as a new topic: do_spl_desk_post DESK_CHANNEL=<channel>${ops:+; a fleet notice: do_spl_fleet_notice (#$ops)}"
+    do_log "FATAL nothing was sent: a DM to $ans_to must be a blocker (DESK_KIND=blocker) or answer a DM $ans_to started or wrote in (how-to-post.md rule 18, owner t1 4b49e47d). Post it in the channel topic it belongs to (DESK_TASK=<that topic>), or as a new topic: do_spl_desk_post DESK_CHANNEL=<channel>${ops:+; a fleet notice: do_spl_fleet_notice (#$ops)}"
     return 6
   elif [[ "$1" == *duplicate_to_human* ]]; then
     do_log "FATAL nothing was sent: $ans_to already got this text from an agent in the last 24 h (how-to-post.md rule 18, owner t1 4b49e47d msg 85a20ac7). Say something new, or nothing"

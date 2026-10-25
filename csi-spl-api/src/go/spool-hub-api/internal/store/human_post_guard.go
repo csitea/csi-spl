@@ -10,8 +10,8 @@ import (
 // 8b351386, 85a20ac7; rdb 0211). Two deterministic rules the hub applies to
 // an agent's post to a person (internal/hub/human_post_guard.go):
 //
-//   - a DM to a person is a blocker, or answers a DM that person started;
-//     everything else belongs in the channel topic;
+//   - a DM to a person is a blocker, or answers a DM that person started or
+//     posted in (SPL-3420); everything else belongs in the channel topic;
 //   - the same person never gets the same text twice in a day: a post whose
 //     normalized body equals one an agent already sent that person in the
 //     last 24 h, in a DM or a channel topic, is refused.
@@ -31,6 +31,8 @@ type HumanPostGuard interface {
 	// TopicOpener is the earliest message of the task (received_at, then
 	// msg_id), at any level.
 	TopicOpener(ctx context.Context, tenant, taskID string) (TopicOpener, error)
+	// HumanPostedIn is whether human sent any message of the task (SPL-3420).
+	HumanPostedIn(ctx context.Context, tenant, taskID, human string) (bool, error)
 	// HumanGotBody is the msg_id of a message an agent (a non-HUM sender)
 	// sent to human since `since`, other than exceptMsgID, whose normalized
 	// body equals body's; "" = none.
@@ -69,6 +71,18 @@ func (s *Memory) TopicOpener(_ context.Context, tenant, taskID string) (TopicOpe
 		return TopicOpener{}, nil
 	}
 	return TopicOpener{FromID: first.FromID, ToID: first.ToID, Kind: first.Kind}, nil
+}
+
+// HumanPostedIn implements HumanPostGuard over the in-memory messages.
+func (s *Memory) HumanPostedIn(_ context.Context, tenant, taskID, human string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for k, m := range s.messages {
+		if k[0] == tenant && m.TaskID == taskID && m.FromID == human {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // HumanGotBody implements HumanPostGuard over the in-memory messages.

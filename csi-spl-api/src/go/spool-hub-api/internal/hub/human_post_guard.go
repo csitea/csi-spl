@@ -17,7 +17,9 @@ import (
 //
 //  1. dm_not_blocker: a DM (the topic has no channel) from an agent to a
 //     person is refused unless it is a blocker, it answers a DM that person
-//     started (the topic's first message is theirs), it follows up a blocker
+//     started (the topic's first message is theirs) or posted in (any
+//     message of the topic is theirs, SPL-3420: a busy or dead starter must
+//     not leave the person unanswered), it follows up a blocker
 //     DM to that person (the topic's first message is one), or it is a DM
 //     about a channel topic the agent may read (spec 067 ref_task_id: the
 //     #lobby welcome answer, the desk's dm-fallback). Owner HUM-10, t1
@@ -84,6 +86,14 @@ func (s *Server) dmRuleRefusal(ctx context.Context, g store.HumanPostGuard, tena
 	if o.FromID == m.To || (o.Kind == "blocker" && o.ToID == m.To) {
 		return nil
 	}
+	posted, err := g.HumanPostedIn(ctx, tenant, m.TaskID, m.To)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("task_id", m.TaskID).Msg("human post guard: posted-in read")
+		return &frameRefusal{"internal", http.StatusInternalServerError, "topic lookup failed"}
+	}
+	if posted {
+		return nil
+	}
 	return &frameRefusal{TokenDMNotBlocker, http.StatusForbidden, "a DM to " + m.To + " must be a blocker (kind blocker) or answer a DM " + m.To +
-		" started: nothing was sent; post it in the channel topic it belongs to (how-to-post.md rule 18)"}
+		" started or wrote in: nothing was sent; post it in the channel topic it belongs to (how-to-post.md rule 18)"}
 }

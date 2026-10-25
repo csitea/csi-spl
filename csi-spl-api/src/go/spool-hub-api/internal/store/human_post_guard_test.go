@@ -39,6 +39,20 @@ func TestHumanPostGuardStore(t *testing.T) {
 			if o, err := g.TopicOpener(ctx, tid, uuid4()); err != nil || o != (TopicOpener{}) {
 				t.Fatalf("opener of an empty topic %+v %v", o, err)
 			}
+			// SPL-3420: the person's post in the topic, not anyone's, and only this topic
+			for _, c := range []struct {
+				what, task, human string
+				want              bool
+			}{
+				{"the person posted in it", dm, "HUM-1", true},
+				{"only an agent wrote to that person", dm, "HUM-2", false},
+				{"any sender: the hub asks only of a person", dm, "CLE-07", true},
+				{"another topic", uuid4(), "HUM-1", false},
+			} {
+				if got, err := g.HumanPostedIn(ctx, tid, c.task, c.human); err != nil || got != c.want {
+					t.Errorf("posted in, %s: got %v %v, want %v", c.what, got, err, c.want)
+				}
+			}
 
 			since := now.Add(-24 * time.Hour)
 			for _, c := range []struct {

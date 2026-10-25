@@ -991,8 +991,11 @@ WD_ORDER="S3 S2 S7 S4 S5 S9 S1 S6"
 spl_wd_need() { case "$1" in S2|S3|S8) echo 2 ;; *) echo 1 ;; esac; }
 
 # Debounce, verdict file, act; prints the rest of the agent's verdict line.
+# A pending S2 holds S9 for its tick: S2 never restarts (093 8.1), but it
+# confirms in 2 ticks and S9 in 1, so the restart came first (c-205
+# 2026-10-24, 15 ticks of "pending S2 1/2: kind=limit", SPL-3278).
 spl_wd_judge() {
-  local id="$1" pid="$2" pane="$3" now="$4" ctx="$5" code ev cnt need main="" mainev="" pend="" extra="" act
+  local id="$1" pid="$2" pane="$3" now="$4" ctx="$5" code ev cnt need main="" mainev="" pend="" extra="" act s2pend=""
   cat "$ctx"/out.s* 2>/dev/null | grep -E '^HIT S[0-9]+( |$)' | sort -u > "$ctx/hits" || true
   : > "$WD_DIR/$id.hits.new.$BASHPID"
   while read -r _ code ev; do
@@ -1000,12 +1003,13 @@ spl_wd_judge() {
     cnt=$(( ${cnt:-0} + 1 ))
     echo "$code $cnt" >> "$WD_DIR/$id.hits.new.$BASHPID"
     need="$(spl_wd_need "$code")"
-    if (( cnt < need )); then pend+=" (pending $code $cnt/$need: $ev)"; continue; fi
+    if (( cnt < need )); then pend+=" (pending $code $cnt/$need: $ev)"; [[ "$code" == S2 ]] && s2pend=1; continue; fi
     printf '%s\t%s\n' "$code" "$ev" >> "$ctx/confirmed"
   done < "$ctx/hits"
   mv -f "$WD_DIR/$id.hits.new.$BASHPID" "$WD_DIR/$id.hits"
   spl_wd_episodes_end "$id" "$ctx/hits"
   for code in $WD_ORDER; do
+    [[ "$code" == S9 && -n "$s2pend" ]] && continue
     ev="$(awk -F'\t' -v c="$code" '$1 == c {print $2; exit}' "$ctx/confirmed" 2>/dev/null || true)"
     if awk -F'\t' -v c="$code" '$1 == c {f = 1} END {exit !f}' "$ctx/confirmed" 2>/dev/null; then
       main="$code"; mainev="$ev"; break

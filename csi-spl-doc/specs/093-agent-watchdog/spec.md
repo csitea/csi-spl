@@ -338,6 +338,7 @@ fixture (owner af3a33cc: "a script with really simple programming handling").
 | rotation or a seat restart in progress | the old session goes quiet, two processes carry the id | skip the id while `<spool root>/peer/restart.lock` is held, `dispatch/rotate.hold` names it (fleet-roles 4.4), or its last `rotate.log` line is not a final `DONE`/`FAIL` and is under 15 min old |
 | a fresh session starting | no progress yet | `WD_START_GRACE` (180 s) after `SessionStart` or the process's start time |
 | a box back from suspend or power loss | every age looks huge | a tick gap over `3 x WD_TICK` resets every debounce and grace (spec 092: power loss is routine) |
+| a usage limit that appears on the tick S9 fires | S9 confirms in 1 tick, S2 needs 2, so the restart came first (c-205 2026-10-24, 15 ticks, SPL-3278) | a pending S2 (1/2) holds S9 for that tick; the next tick S2 confirms and wins: no restart |
 | a stale `Login expired` banner after a /login | the pane footer still shows it | S2 counts the pane only with no moving spinner, and prefers the transcript's LAST entry, which a successful turn replaces |
 
 ### 6.3 Who may kill whom (all six panelists agree)

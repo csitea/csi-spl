@@ -867,6 +867,24 @@ sed 's/Recalibrate the flux wibbler/Recalibrating the flux wibbler/' "$FX/s9-unk
 NOW=$((P + 300)) TICK=400 wd >/dev/null
 out="$(NOW=$((P + 630)) TICK=400 wd)"
 grep -q 'c-953 OK' <<<"$out" && [[ ! -s "$T/takeovers" ]] && pass "8 control 3 (tick): the pane body changed once after the poke: no S9" || fail "8 tick control 3: $out"
+# S9 held while S2 is pending (c-205 2026-10-24, n=15 ticks, SPL-3278): the
+# usage limit hit on the tick S9 confirmed; S9 confirms in 1 tick, S2 in 2,
+# so the seat was restarted on its limit. Its control is c-951 above (same ticks, no S2).
+reset_box; s9agent c-954 4054 "$P"
+s9screen %1 08:00:00
+NOW=$((P + 30)) TICK=400 wd >/dev/null
+s9screen %1 08:05:00 ": 'SPOOL c-954: note from c-002 (task 9b3e7d10)'"
+NOW=$((P + 300)) TICK=400 wd >/dev/null
+s9screen %1 08:10:30
+echo "$(iso $((P + 300))) note" >> "$S/c-954/lifetime/input.log"
+jq '.api_error = "Claude usage limit reached. Your limit will reset at 11pm"' "$S/c-954/heartbeat.json" > "$T/hb.json" && mv "$T/hb.json" "$S/c-954/heartbeat.json"
+out="$(NOW=$((P + 630)) TICK=400 wd)"; settle
+grep -q 'c-954 OK (pending S2 1/2: kind=limit heartbeat' <<<"$out" && [[ ! -s "$T/takeovers" ]] &&
+  pass "8 S9 a pending S2 kind=limit holds S9 on that tick: no takeover" || fail "8 S9 over pending S2: $out / $(cat "$T/takeovers" 2>/dev/null)"
+out="$(NOW=$((P + 660)) TICK=400 wd)"; settle
+grep -q 'c-954 HIT S2 kind=limit .*no restart' <<<"$out" && [[ ! -s "$T/takeovers" ]] &&
+  pass "8 S9 the next tick: S2 confirmed wins, no restart" || fail "8 S9 then S2: $out / $(cat "$T/takeovers" 2>/dev/null)"
+
 # control 5: an unread file nobody poked is poked ONCE, then the window runs
 reset_box; agent c-952 %1 4052
 jq -n --arg p "$(iso $((T0 - 3600)))" --arg u "$(iso $((T0 - 7190)))" '{v: 1, harness: "claude", state: "idle", ts: $p, progress_ts: $p, turn_since: $u, calls: []}' > "$S/c-952/heartbeat.json"

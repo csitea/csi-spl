@@ -12,12 +12,14 @@
 #     3. C4 body: each pattern class drops its message and counts it; the
 #        second scan is clean; whole words only; 1 % dropped passes, 2 % fails
 #     4. C3: an extra column, a never-exported table, a non-COPY line, an
-#        unclassified live column, a constant that is not constant (msg, env)
+#        unclassified live column, a constant that is not constant (msg, env),
+#        an allow-list table with no COPY block
 #     5. C1 / MEMBER / C2: an extra workspace row, a foreign tenant_id, a real
 #        name or an e-mail on a member, a HUM-n not exported, a row the RLS
-#        re-read does not see
+#        re-read does not see, a key twice in a table
 #     6. SIZE: beyond the tolerance fails; no previous file or a new
-#        allow-list version skips it
+#        allow-list version skips it; a table in the previous counts and
+#        gone from the file counts as 0 rows
 #     7. log capture: no planted string appears in any gate output or report
 #   Part 2 (a REAL throwaway Postgres migrated by the repo's migrations, the
 #   action do_spl_public_dataset_gate as the real spool_public_export login):
@@ -49,6 +51,9 @@ else
   chmod +x "$T/bin/gitleaks"; GL="$T/bin/gitleaks"
   echo "INFO: no gitleaks on this runner: a stub stands in, the gitleaks-only plant is not checked"
 fi
+for f in "$FUNC" "$CORE" "$PROJ_ROOT/src/bash/run/spl-public-dataset-names.func.sh"; do
+  [[ -s "$f" ]] && pass "the gate code file $(basename "$f") exists" || fail "the gate code file $f is missing"
+done
 grep -nE 'set -x|SELECT \*|pg_dump' "$FUNC" "$CORE" "$PROJ_ROOT/src/bash/run/spl-public-dataset-names.func.sh" | grep -v '^\S*:[0-9]*:#' >/dev/null \
   && fail "the gate or names code traces (set -x), selects * or dumps" || pass "no set -x, SELECT * or pg_dump in the gate and names code"
 
@@ -78,6 +83,7 @@ PY
 #   col:<table>:<col>:<value> an extra column with that value on every row
 #   row:<table>:<tsv with \t> one more row
 #   line:<text>              one more line at the end
+#   drop:<table>             the table's whole COPY block removed
 # A plant is P(<kind>), built here: email jwt pem aws slack github sa ipv4
 # ipv6 stripe name.
 mk() {
@@ -130,6 +136,8 @@ for op in ops:
         t, v = rest.split(":", 1); _, e = block(t); lines.insert(e, v.replace("\\t", "\t"))
     elif kind == "line":
         lines.insert(len(lines) - 1, rest)
+    elif kind == "drop":
+        h, e = block(rest); del lines[h:e + 1]
 open(out, "w").write("\n".join(lines))
 PY
 }
@@ -138,7 +146,7 @@ PY
 gate() {
   local name="$1"; shift
   [[ -s "$T/$name.reread.json" ]] || reread_of "$T/$name.sql" "$T/$name.reread.json"
-  python3 "$CORE" --file "$T/$name.sql" --allow-list "$T/allow.json" --catalog "${CATALOG:-$T/catalog.json}" \
+  python3 "$CORE" --file "$T/$name.sql" --allow-list "${ALLOW:-$T/allow.json}" --catalog "${CATALOG:-$T/catalog.json}" \
     --reread "$T/$name.reread.json" --names "$FIX/names.tsv" --workspace "$WS" --out "$T/$name.out.sql" \
     --report "$T/$name.report.json" --drop-cap-pct 1 --size-tol-pct 50 --gitleaks "$GL" \
     --gitleaks-config "$APP_ROOT/.gitleaks.toml" "$@" >"$T/$name.log" 2>&1
@@ -220,6 +228,9 @@ fatal "4. a non-empty env is FATAL" envc 'column env does not hold its fixed val
 mk rolec 'set:tenant_memberships:1:role:owner'; gate rolec
 fatal "4. a role not forced to member is FATAL" rolec 'FATAL C3 tenant_memberships human_id=HUM-3: column role does not hold its fixed value'
 
+mk nomsg 'drop:messages'; gate nomsg
+fatal "4. an allow-list table with no COPY block in the file is FATAL" nomsg 'FATAL C3 messages the file has no COPY block for this allow-list table'
+
 # --- 5. C1, MEMBER, C2 -----------------------------------------------------------------------
 mk ws2 'row:tenants:ws-other\tOther\t2026-09-01 10:00:00+00\tinternal\tdefault\t\\x'"$(printf '00%.0s' {1..32})"; gate ws2
 fatal "5. an extra workspace row is FATAL (C1)" ws2 'FATAL C1 tenants the file must hold exactly one workspace row, it holds 2'
@@ -239,6 +250,10 @@ jq '.messages -= ["00000000-0000-4000-8000-000000000042"]' "$T/rls.reread.json" 
 gate rls
 fatal "5. a row the RLS re-read does not see is FATAL (C2)" rls 'FATAL C2 messages msg_id=00000000-0000-4000-8000-000000000042: not found by the re-read'
 
+mk dupk 'row:channels:lobby\tlobby\tforeign private channel text\tHUM-3\t2026-09-01 10:00:00+00'; gate dupk
+fatal "5. a second channels row with a public channel_id is FATAL (C1 and C2 match by key)" dupk 'FATAL C3 channels row 3: a key seen twice in the table'
+grep -q 'foreign private channel text' "$T/dupk.log" && fail "5. the duplicate row's text is printed" || pass "5. ... and the duplicate row's text is not printed"
+
 # --- 6. SIZE -------------------------------------------------------------------------------------
 jq -n '{allow_list_version: 1, row_counts: {tenants: 1, humans: 2, tenant_memberships: 2, channels: 2, messages: 300}}' >"$T/prev-big.json"
 jq -n '{allow_list_version: 1, row_counts: {tenants: 1, humans: 2, tenant_memberships: 2, channels: 2, messages: 120}}' >"$T/prev-ok.json"
@@ -249,6 +264,9 @@ cp "$FIX/clean.sql" "$T/sz2.sql"; gate sz2 --prev-manifest "$T/prev-ok.json"
 [[ "$(rc_of sz2)" == 0 ]] && pass "6. within the tolerance passes" || fail "6. sz2: $(cat "$T/sz2.log")"
 cp "$FIX/clean.sql" "$T/sz3.sql"; gate sz3 --prev-manifest "$T/prev-v0.json"
 [[ "$(rc_of sz3)" == 0 ]] && grep -q 'allow-list version changed' "$T/sz3.log" && pass "6. a new allow-list version skips the size check" || fail "6. sz3: $(cat "$T/sz3.log")"
+jq 'del(.tables.messages)' "$T/allow.json" >"$T/allow-nomsg.json"
+mk sz4 'drop:messages'; ALLOW="$T/allow-nomsg.json" gate sz4 --prev-manifest "$T/prev-ok.json"
+fatal "6. a table in the previous counts and not in the file is compared as 0 rows" sz4 'FATAL SIZE messages 0 rows against 120'
 grep -q 'no previous manifest' "$T/one.log" && pass "6. no previous file (the first) skips the size check" || fail "6. first file"
 
 # --- 7. log capture ---------------------------------------------------------------------------------

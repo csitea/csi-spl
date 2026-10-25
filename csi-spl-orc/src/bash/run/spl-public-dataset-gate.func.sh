@@ -135,18 +135,22 @@ EOF_SQL
 # spl_pd_gate_reread <export dsn> <workspace> <out>: a SECOND connection, the
 # export login, app.tenant_id set and NO filter: the keys RLS lets it see.
 # humans has no RLS; its rows are checked against the memberships re-read.
+# It asserts its own login too, so "RLS alone" holds for this connection.
 spl_pd_gate_reread() {
   local out
   out="$(printf "\\\\set ws '%s'\nBEGIN READ ONLY;\nSET LOCAL app.tenant_id = :'ws';\n%s\nROLLBACK;\n" \
       "$2" "$(spl_pd_gate_reread_sql)" | spl_pg_env "$1" psql -X -q -At -v ON_ERROR_STOP=1 -f - 2>&1)" ||
     { do_log "FATAL the RLS re-read failed as the export login (the database's message is not shown)"; return 1; }
-  printf '%s\n' "$out" >"$3"
+  [[ "$(sed -n 1p <<<"$out")" == "spool_public_export|f|f" ]] ||
+    { do_log "FATAL the RLS re-read must run as spool_public_export (no superuser, no bypassrls), got another login"; return 1; }
+  sed -n '2,$p' <<<"$out" >"$3"
   python3 -c 'import json, sys; json.load(open(sys.argv[1]))' "$3" 2>/dev/null ||
     { do_log "FATAL the RLS re-read is not JSON"; return 1; }
 }
 
 spl_pd_gate_reread_sql() {
   cat <<'EOF_SQL'
+SELECT current_user, r.rolsuper, r.rolbypassrls FROM pg_roles r WHERE r.rolname = current_user;
 SELECT json_build_object(
   'tenants', (SELECT coalesce(json_agg(tenant_id), '[]') FROM tenants),
   'tenant_memberships', (SELECT coalesce(json_agg(human_id), '[]') FROM tenant_memberships),

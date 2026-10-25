@@ -261,7 +261,12 @@ class Gate:
             else:
                 self.c3_columns(t, b, tables[t], catalog)
                 self.c3_constants(t, tables[t])
+                self.c3_keys(t)
         for t, spec in tables.items():
+            if t not in self.blocks:
+                self.fail(
+                    "C3", t, "the file has no COPY block for this allow-list table"
+                )
             live = catalog.get(t)
             if live is None:
                 self.fail("C3", t, "the live catalog has no such table")
@@ -290,6 +295,19 @@ class Gate:
         for c in spec.get("public") or []:
             if c not in b["cols"]:
                 self.fail("C3", t, "public column %s is missing from the file" % c)
+
+    def c3_keys(self, t):
+        """A key twice in one table: C1 and C2 match by key, so a second row
+        with a public row's key would pass both with any other content."""
+        key, seen = KEYS.get(t), set()
+        if key is None:
+            self.fail("C3", t, "the gate knows no key for this table")
+            return
+        for n, _, r in self.rows(t):
+            k = r.get(key)
+            if k in seen:
+                self.fail("C3", t, "row %d: a key seen twice in the table" % n)
+            seen.add(k)
 
     def c3_constants(self, t, spec):
         want = dict(spec.get("constants") or {})
@@ -507,8 +525,9 @@ class Gate:
                 % (prev.get("allow_list_version"), allow_version)
             )
             return
-        for t, now in sorted(counts.items()):
-            was = (prev.get("row_counts") or {}).get(t)
+        was_counts = prev.get("row_counts") or {}
+        for t in sorted(set(counts) | set(was_counts)):
+            now, was = counts.get(t, 0), was_counts.get(t)
             if not isinstance(was, int) or was == 0:
                 print("INFO SIZE %s: no previous count to compare" % t)
             elif abs(now - was) * 100.0 > self.a.size_tol_pct * was:

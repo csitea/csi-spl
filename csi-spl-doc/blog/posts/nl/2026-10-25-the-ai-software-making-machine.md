@@ -45,7 +45,7 @@ Totale kosten = Verbruikte tokens + Infrastructuurkosten + (Menselijke uren × U
 
 Geen giswerk. Echte boekhouding voor software engineering in het AI-tijdperk.
 
-## 💡 Hoeveel kost Spool Hub eigenlijk?!
+## 💡 Hoeveel kost Spool Hub eigenlijk voor u?
 
 Niets.
 

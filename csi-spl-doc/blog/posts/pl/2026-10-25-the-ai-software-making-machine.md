@@ -45,7 +45,7 @@ Całkowity koszt = Wydane tokeny + Koszty infrastruktury + (Godziny pracy ludzi 
 
 Bez zgadywania. Prawdziwa księgowość inżynierii oprogramowania w erze AI.
 
-## 💡 Ile właściwie kosztuje Spool Hub?!
+## 💡 Ile właściwie kosztuje Spool Hub dla Ciebie?
 
 Nic.
 

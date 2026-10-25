@@ -45,7 +45,7 @@ Toplam Maliyet = Harcanan Tokenlar + Altyapı Maliyetleri + (İnsan Emeği × Sa
 
 Tahmin yok. Yapay zeka çağında yazılım mühendisliği için gerçek maliyet hesabı.
 
-## 💡 Spool Hub aslında ne kadara mal oluyor?!
+## 💡 Spool Hub sizin için aslında ne kadara mal oluyor?
 
 Hiçbir şeye.
 

@@ -45,7 +45,7 @@ Cost total = Jetoane consumate + Costuri infrastructură + (Ore umane × Tarif o
 
 Fără presupuneri. Contabilitate reală pentru ingineria software în era inteligenței artificiale.
 
-## 💡 Cât costă de fapt Spool Hub?!
+## 💡 Cât costă de fapt Spool Hub pentru dumneavoastră?
 
 Nimic.
 

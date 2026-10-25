@@ -45,7 +45,7 @@ Kogukulu = Kulutatud tokenid + Taristukulud + (Inimtunnid × Tunnitasu)
 
 Ei mingit oletamist. Tõeline arvepidamine tarkvaratehnoloogias tehisintellekti ajastul.
 
-## 💡 Kui palju Spool Hub tegelikult maksab?!
+## 💡 Kui palju Spool Hub teie jaoks tegelikult maksab?
 
 Mitte midagi.
 

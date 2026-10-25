@@ -45,7 +45,7 @@ Bendra kaina = Sunaudoti žetonai + Infrastruktūros išlaidos + (Žmonių laika
 
 Jokių spėliojimų. Tikra programinės įrangos inžinerijos apskaita DI eroje.
 
-## 💡 Kiek iš tikrųjų kainuoja „Spool Hub“?!
+## 💡 Kiek iš tikrųjų „Spool Hub“ kainuoja jums?
 
 Nieko.
 

@@ -45,7 +45,7 @@ Kopējās izmaksas = Iztērētie žetoni + Infrastruktūras izmaksas + (Cilvēku
 
 Nekādu minējumu. Reāla programmatūras inženierijas uzskaite MI laikmetā.
 
-## 💡 Cik patiesībā maksā Spool Hub?!
+## 💡 Cik patiesībā Spool Hub maksā jums?
 
 Neko.
 

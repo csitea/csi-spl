@@ -45,7 +45,7 @@ Celkové náklady = Minuté tokeny + Náklady na infraštruktúru + (Čas ľudí
 
 Žiadne dohady. Skutočné účtovníctvo softvérového inžinierstva v ére umelej inteligencie.
 
-## 💡 Koľko vlastne Spool Hub stojí?!
+## 💡 Koľko vlastne Spool Hub stojí pre vás?
 
 Nič.
 

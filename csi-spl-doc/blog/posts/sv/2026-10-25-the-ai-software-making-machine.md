@@ -45,7 +45,7 @@ Totalkostnad = Förbrukade tokens + Infrastrukturkostnader + (Mänsklig tid × T
 
 Inga gissningar. Verklig redovisning för mjukvaruutveckling i AI-eran.
 
-## 💡 Vad kostar egentligen Spool Hub?!
+## 💡 Vad kostar egentligen Spool Hub för dig?
 
 Ingenting.
 

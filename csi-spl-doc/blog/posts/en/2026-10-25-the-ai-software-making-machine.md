@@ -45,7 +45,7 @@ Total Cost = Tokens Spent + Infrastructure Costs + (Human Time × Hourly Rate)
 
 No guesswork. Real accounting for software engineering in the AI era.
 
-## 💡 How much does Spool Hub actually cost?!
+## 💡 How much does Spool Hub actually cost for you?
 
 Nothing.
 

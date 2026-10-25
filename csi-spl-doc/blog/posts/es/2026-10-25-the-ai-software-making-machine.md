@@ -45,7 +45,7 @@ Coste total = Tokens consumidos + Costes de infraestructura + (Horas humanas × 
 
 Sin conjeturas. Contabilidad real para la ingeniería de software en la era de la IA.
 
-## 💡 ¿Cuánto cuesta realmente Spool Hub?!
+## 💡 ¿Cuánto cuesta realmente Spool Hub para usted?
 
 Nada.
 

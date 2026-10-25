@@ -57,7 +57,8 @@ hd DRY_RUN=0 SSHD_PASSWD_FILE="$T/passwd-nokey" && fail "applies with no key use
 hd; rc=$?
 [[ $rc -eq 0 && ! -e $DROP && ! -e $T/reloaded ]] && grep -q "OK DRY_RUN nothing was changed" "$T/o" &&
   pass "dry run by default: nothing written, no reload" || fail "dry run: rc=$rc $(cat "$T/o")"
-grep -q "sshd now: kbdinteractiveauthentication=no passwordauthentication=yes permitrootlogin=without-password" "$T/o" &&
+# OpenSSH 10.2 (ubuntu 26.04) prints the canonical prohibit-password for without-password.
+grep -qE "sshd now: kbdinteractiveauthentication=no passwordauthentication=yes permitrootlogin=(without|prohibit)-password" "$T/o" &&
   pass "dry run: the effective settings now (from sshd -T)" || fail "dry run now-line: $(cat "$T/o")"
 grep -qx "key login kept: user=alice keys=2" "$T/o" && grep -qx "no key: user=bob (no ssh after the fix)" "$T/o" &&
   grep -qx "login refused after: root (keys=1)" "$T/o" && ! grep -q daemon "$T/o" &&

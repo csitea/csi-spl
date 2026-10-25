@@ -16,7 +16,6 @@ MAX_LINES=80
 
 # <file> <function> <ceiling>: the ceiling is its length on 2026-10-10 (r5-06).
 LONG="
-  csi-spl-iac/src/bash/run/gcp-001-create-project.func.sh do_gcp_001_create_project 111
   csi-spl-iac/src/bash/run/gcp-002-create-project-service-account.func.sh do_gcp_002_create_project_service_account 149
   csi-spl-iac/src/bash/run/gcp-002-delete-project-service-account.func.sh do_gcp_002_delete_project_service_account 132
   csi-spl-iac/src/bash/run/gcp-import-to-cloudsql.func.sh do_gcp_import_to_cloudsql 174

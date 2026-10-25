@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"strings"
 	"time"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
 // SPL-1815: the upload token is checked on whichever instance the POST
@@ -37,6 +39,13 @@ import (
 // two processes of one revision (box_token_instances_test.go, n = 15 each),
 // every pin sync on dial, probe and put-file there got the false door, and
 // the probe redialled the session onto a dial that failed the same way.
+//
+// SPL-3262: a role=cli session's token is good on every revision. Such a
+// session (`spool doctree`, the one-shot doc verbs) holds no socket for the
+// probe to strand, and its REST goes to either revision while a deploy
+// rolls: on prd 2026-10-24 the old revision 00934 still answered for 12 min
+// after 00937 started (11:00:27Z..11:12:30Z), and a desk's repo-tree edit
+// got 401 on 2 of 2 tries (cli_token_revision_test.go).
 
 // uploadClaims is a signed upload token's payload.
 type uploadClaims struct {
@@ -45,6 +54,7 @@ type uploadClaims struct {
 	Member  string `json:"m,omitempty"`
 	Expires int64  `json:"e"`           // unix nanoseconds
 	Rev     string `json:"r,omitempty"` // a box token's revision; "" on a WUI token
+	AnyRev  bool   `json:"a,omitempty"` // a role=cli session's token: no revision (SPL-3262)
 }
 
 // tokenRev is the revision a token of box is bound to: none for the WUI.
@@ -57,8 +67,12 @@ func tokenRev(box, rev string) string {
 
 // signUploadToken returns the signed token for t, minted on revision rev.
 func signUploadToken(key []byte, rev string, t uploadToken) string {
-	c := uploadClaims{Tenant: t.tenant, Box: t.box, Member: t.member, Expires: t.expires.UnixNano(), Rev: tokenRev(t.box, rev)}
-	raw, _ := json.Marshal(c) //nolint:errchkjson // strings and an int
+	return signClaims(key, uploadClaims{Tenant: t.tenant, Box: t.box, Member: t.member, Expires: t.expires.UnixNano(), Rev: tokenRev(t.box, rev)})
+}
+
+// signClaims is the signed token of c.
+func signClaims(key []byte, c uploadClaims) string {
+	raw, _ := json.Marshal(c) //nolint:errchkjson // strings, a bool and an int
 	payload := base64.RawURLEncoding.EncodeToString(raw)
 	m := hmac.New(sha256.New, key)
 	m.Write([]byte(payload))
@@ -80,7 +94,14 @@ func openUploadToken(key []byte, rev, tok string) (uploadToken, bool) {
 	}
 	raw, err := base64.RawURLEncoding.DecodeString(payload)
 	var c uploadClaims
-	if err != nil || json.Unmarshal(raw, &c) != nil || c.Tenant == "" || c.Box == "" || c.Rev != tokenRev(c.Box, rev) {
+	if err != nil || json.Unmarshal(raw, &c) != nil || c.Tenant == "" || c.Box == "" {
+		return uploadToken{}, false
+	}
+	want := tokenRev(c.Box, rev)
+	if c.AnyRev {
+		want = ""
+	}
+	if c.Rev != want {
 		return uploadToken{}, false
 	}
 	return uploadToken{tenant: c.Tenant, box: c.Box, member: c.Member, expires: time.Unix(0, c.Expires)}, true
@@ -103,4 +124,23 @@ func (s *Server) uploadTokenOf(tok string) (uploadToken, string) {
 		return uploadToken{}, "expired_token"
 	}
 	return t, ""
+}
+
+// sessionToken answers x's upload token. A role=box session's comes from
+// slotToken, bound to this revision (SPL-1826); a role=cli session's is
+// signed for any revision (SPL-3262), from the same slot, minted again in
+// the second half of its life. Without a key both use the per-process map.
+func (s *Server) sessionToken(x *session) (string, time.Time) {
+	if x.role != wire.RoleCLI || len(s.o.UploadTokenKey) == 0 {
+		return s.slotToken(&x.upload, x.tenant, x.box, "")
+	}
+	slot := &x.upload
+	slot.mu.Lock()
+	defer slot.mu.Unlock()
+	if slot.tok != "" && slot.exp.Sub(s.o.Now()) > s.o.UploadTokenTTL/2 {
+		return slot.tok, slot.exp
+	}
+	slot.exp = s.o.Now().Add(s.o.UploadTokenTTL)
+	slot.tok = signClaims(s.o.UploadTokenKey, uploadClaims{Tenant: x.tenant, Box: x.box, Expires: slot.exp.UnixNano(), AnyRev: true})
+	return slot.tok, slot.exp
 }

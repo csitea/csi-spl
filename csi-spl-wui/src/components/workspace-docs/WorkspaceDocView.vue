@@ -20,23 +20,24 @@
      its own: the omnibox is the only search, on a phone too (the owner, t1
      3cf88d1c). The preamble, the text before section 1, is the hidden root's
      body (SPL-1612): shown and edited above section 1 as a paragraph with no
-     heading (the whole document only, not a branch), and the bar's Export to
-     Markdown puts it first, as `spool doctree export` does. Spec 138: a
+     heading (the whole document only, not a branch), and the file menu's Export
+     to Markdown puts it first, as `spool doctree export` does. Spec 138: a
      link opens the document at its section (-doc-anchor.ts: the item id, or a
      readable anchor resolved through its id suffix), the heading just below
      the sticky bar and kept there while the layout above it still grows;
      an unknown anchor opens the top with one status line. "Copy link to
      section" is in the section menu and on a long-press of the '#'. -->
 <template>
-  <div ref="rootEl" class="wsdoc" :class="{ 'wsdoc--toc': tocOpen, 'wsdoc--headbar': inHead }" data-test="ws-doc-view">
-    <!-- SPL-2094 (owner t1 8f704763): on a desktop the bar is in the page's
-         header row, at its right end (WorkspaceDocsPage #wsdocs-head-tools);
-         a phone keeps it here, sticky above the document -->
-    <Teleport to="#wsdocs-head-tools" defer :disabled="!inHead">
-    <div ref="barEl" class="wsdoc__bar" :class="{ 'wsdoc__bar--head': inHead }" data-test="ws-doc-bar">
-      <button type="button" class="wsdoc__tool" data-test="ws-doc-print-doc" :disabled="!items.length" @click="emit('print', null)" :aria-label="t('ws_doctree.print_doc')" :title="t('ws_doctree.print_doc')">
-        <UiIcon name="file-text" :size="16" />
-      </button>
+  <div ref="rootEl" class="wsdoc wsdoc--headbar" :class="{ 'wsdoc--toc': tocOpen }" data-test="ws-doc-view">
+    <!-- SPL-2094 (owner t1 8f704763): the bar is in the page's header row,
+         at its right end (WorkspaceDocsPage #wsdocs-head-tools). SPL-3233
+         (owner t1 a1b42c34, msg 7caac933: "Remove the bar with the export
+         and export to PDF ... as a separate menu somewhere at the top"): a
+         phone too, so the document starts right under the header; Print
+         (the browser's PDF) and Export to Markdown are one menu behind the
+         dots, the contents toggle stays an icon -->
+    <Teleport to="#wsdocs-head-tools" defer>
+    <div ref="barEl" class="wsdoc__bar wsdoc__bar--head" data-test="ws-doc-bar">
       <button
         type="button"
         class="wsdoc__tool"
@@ -49,9 +50,21 @@
       >
         <UiIcon name="menu" :size="16" />
       </button>
-      <!-- after TOC: print and TOC stay one tight pair (owner t1 28155201) -->
-      <button type="button" class="wsdoc__tool" data-test="ws-doc-export-doc" :disabled="!items.length" @click="exportDoc" :aria-label="t('ws_doctree.menu.export_md')" :title="t('ws_doctree.menu.export_md')">
-        <UiIcon name="file-code" :size="16" />
+      <button
+        ref="fileBtn"
+        type="button"
+        class="wsdoc__tool wsdoc__tool--file"
+        data-test="ws-doc-file-btn"
+        aria-haspopup="menu"
+        :aria-expanded="fileMenu ? 'true' : 'false'"
+        :disabled="!items.length"
+        @click="openFileMenu"
+        @keydown.esc="fileKey"
+        @keydown.down="fileKey"
+        :aria-label="t('docs.ws.download')"
+        :title="t('docs.ws.download')"
+      >
+        <UiIcon name="more" :size="16" />
       </button>
       <span class="wsdoc__status" role="status" data-test="ws-doc-status">{{ status }}</span>
     </div>
@@ -321,6 +334,20 @@
       @escape="menu = null"
       @choose="choose"
     />
+    <UiPointMenu
+      :open="Boolean(fileMenu)"
+      :x="fileMenu?.x ?? 0"
+      :y="fileMenu?.y ?? 0"
+      :items="FILE_ITEMS"
+      :label="t('docs.ws.download')"
+      block="wsdoc-file-menu"
+      testid="ws-doc-file-menu"
+      data-test="ws-doc-file-menu"
+      wide
+      @close="closeFileMenu"
+      @escape="fileBtn?.focus()"
+      @choose="chooseFile"
+    />
     <UiConfirm
       :open="Boolean(doomed)"
       :title="t('ws_doctree.delete_title')"
@@ -339,7 +366,7 @@
 <script setup lang="ts">
 import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, triggerRef, watch } from 'vue'
 import MarkdownBlock from '~/components/MarkdownBlock.vue'
-import UiPointMenu from '~/components/UiPointMenu.vue'
+import UiPointMenu, { type PointMenuItem } from '~/components/UiPointMenu.vue'
 import UiConfirm from '~/components/UiConfirm.vue'
 import { useEditModeStore } from '~/stores/editMode'
 import {
@@ -366,7 +393,7 @@ const { t } = useI18n({ useScope: 'global' })
 const NARROW = 760
 
 const rootEl = ref<HTMLElement | null>(null)
-const { barEl, inHead, tocTop, markTocTop } = useDocHeadBar()
+const { barEl, tocTop, markTocTop } = useDocHeadBar()
 const items = shallowRef<DocItem[]>([])
 /* the hidden root: its body is the preamble, the text before section 1 (SPL-1612) */
 const preamble = shallowRef<DocItem | null>(null)
@@ -516,7 +543,49 @@ async function renameDoc() {
   emit('renamed', r.title)
 }
 
-/** the bar's Export to Markdown: the whole document, the preamble first, the file `spool doctree export` writes */
+/* SPL-3233: the header's file menu, opened under its dots button; a key
+   (Escape) or a choice gives the focus back to the button */
+const FILE_ITEMS: PointMenuItem[] = [
+  { id: 'print', icon: 'file-text', labelKey: 'ws_doctree.print_doc' },
+  { id: 'export_md', icon: 'file-code', labelKey: 'ws_doctree.menu.export_md' },
+]
+const fileBtn = ref<HTMLButtonElement | null>(null)
+const fileMenu = ref<{ x: number, y: number } | null>(null)
+/* a click on the open menu's button: its pointerdown already closed the
+   menu (a press outside it, usePointMenu), so that click must not open it
+   again. A window capture listener runs before usePointMenu's document one. */
+let pressOnBtn = false
+function notePress(e: PointerEvent) {
+  pressOnBtn = Boolean(fileBtn.value && e.target instanceof Node && fileBtn.value.contains(e.target))
+}
+watch(fileMenu, (m, was) => {
+  if (m && !was) window.addEventListener('pointerdown', notePress, true)
+  else if (!m) window.removeEventListener('pointerdown', notePress, true)
+})
+function closeFileMenu() {
+  fileMenu.value = null
+}
+function openFileMenu(e: MouseEvent) {
+  const reclick = pressOnBtn && e.detail > 0
+  pressOnBtn = false
+  if (reclick) return
+  const r = fileBtn.value?.getBoundingClientRect()
+  fileMenu.value = { x: r ? r.right : 0, y: r ? r.bottom : 0 }
+}
+/* a phone's sheet leaves the focus on the button: Escape closes it there, ArrowDown steps into it */
+function fileKey(e: KeyboardEvent) {
+  if (!fileMenu.value) return
+  e.preventDefault()
+  if (e.key === 'Escape') closeFileMenu()
+  else document.querySelector<HTMLElement>('[data-test=ws-doc-file-menu] [role=menuitem]')?.focus()
+}
+function chooseFile(id: string) {
+  if (id === 'print') emit('print', null)
+  else void exportDoc()
+  fileBtn.value?.focus()
+}
+
+/** the file menu's Export to Markdown: the whole document, the preamble first, the file `spool doctree export` writes */
 async function exportDoc() {
   const x = await import('./-doctree-export')
   const figure = (n: number) => t('ws_doctree.figure', { n })
@@ -623,6 +692,7 @@ onBeforeUnmount(() => {
   editMode.setEditing(false)
   ro?.disconnect()
   settleStop()
+  window.removeEventListener('pointerdown', notePress, true)
   clearTimeout(statusTimer)
   pressEnd()
 })
@@ -630,17 +700,13 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .wsdoc { container-type: inline-size; position: relative; }
+/* SPL-2094 / SPL-3233: the bar is in the header row, right-aligned, on every width */
 .wsdoc__bar {
-  position: sticky;
-  top: 0;
-  z-index: 3;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
   gap: 4px;
-  padding: 8px 12px;
-  background: var(--color-bg);
-  border-bottom: 1px solid var(--color-border);
+  margin-inline-start: auto;
 }
 /* the page's own icon buttons: no browser chrome (t1 28155201) */
 .wsdoc__tool {
@@ -665,15 +731,27 @@ onBeforeUnmount(() => {
 .wsdoc__tool:disabled { opacity: 0.5; cursor: default; }
 .wsdoc__status { flex: 1 1 auto; min-width: 0; margin-inline-start: 8px; color: var(--color-muted); font-size: 0.875rem; overflow-wrap: anywhere; }
 .wsdoc__status:empty { display: none; }
-/* SPL-2094: in the header row, right-aligned; its status line left of the buttons */
-.wsdoc__bar--head {
-  position: static;
-  margin-inline-start: auto;
-  padding: 0;
-  border-bottom: 0;
-  background: none;
-}
+/* its status line left of the buttons */
 .wsdoc__bar--head .wsdoc__status { order: -1; margin-inline: 0 8px; }
+/* SPL-3233: the buttons are a full 44 px tap; in the phone's one strip the
+   status line drops below the strip instead of squeezing the picker */
+.wsdoc__bar--head .wsdoc__tool { width: var(--tap); height: var(--tap); }
+@media (max-width: 820px) {
+  .wsdoc__bar--head { position: relative; gap: 0; }
+  .wsdoc__bar--head .wsdoc__status {
+    position: absolute;
+    top: 100%;
+    inset-inline-end: 0;
+    z-index: 3;
+    width: max-content;
+    max-width: calc(100vw - 24px);
+    margin: 0;
+    padding: 4px 8px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg);
+  }
+}
 .wsdoc__branch {
   margin: 8px 12px 0;
   padding: 8px 12px;

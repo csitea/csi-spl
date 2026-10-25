@@ -28,7 +28,7 @@ The spool fleet operates continuous autonomous rotations across agent seats (see
 The human owner (`HUM-10`) is **never** alerted for routine operations or self-healing procedures. The owner is consulted **only** when an explicit owner gate is required. The list of GCP owner gates has one home: the repo [CLAUDE.md](../../../../CLAUDE.md) rule "Nothing mutates GCP without the owner" (project create, billing link, IAM change, `terraform apply`, the destructive `gcp-*` actions). Every fleet rule and its home: [fleet rules index](../fleet-rules-index.md). Beyond those, the owner decides:
 
 1. **Emergency order overrides**: applying changes to `prd` ahead of `dev` (`ENV_ORDER_OVERRIDE=<owner msg id>`).
-2. **Force-push approval**: any non-fast-forward push or ref deletion on `master` ([developer-guide.md](../developer-guide.md) section 3).
+2. **Force-push approval**: any non-fast-forward push or ref deletion on `master` ([developer-guide.md](../developer-guide.md) section 4).
 3. **Business decisions**: tenant ownership transfers or workspace tier adjustments.
 
 ## 3. Escalation path and timelines

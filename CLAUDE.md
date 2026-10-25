@@ -48,20 +48,11 @@ org. The billing account stays an **environment variable that fails fast**
 
 ### Nothing ad hoc: every infra step is a named action (owner rule 2026-09-19)
 
-> "Nothing in the infrastructure should be run ad hoc. Whenever it is
-> executable via Terraform or via some Bash script, we create a Bash script
-> and we execute it via Terraform. Nothing should be ad hoc. For anything you
-> provision ad hoc, there should be a shell action wrapper for that with a
-> proper naming convention and the thing should stay in the source code so
-> that next time, when we are using it, we will reuse it."
-
-How to apply:
-- csi-rel naming: `<verb>-<noun>.func.sh` exposing `do_<verb>_<noun>`,
-  invoked as `./run -a do_<verb>_<noun>`. Infra actions live in `csi-spl-iac`
-  (`src/bash/run/`); local orchestration in `csi-spl-orc`.
-- Terraform only via the make / tf-runner path (below), never on the host.
-- A one-off need (a gcloud command you would type once) becomes a named action
-  plus its test in the same commit, then runs through that action.
+Every infra step is a named `./run` action that lands with its test in the
+same commit, then runs through that action; infra actions live in
+`csi-spl-iac`, local orchestration in `csi-spl-orc`. The naming and the
+dispatch: [developer guide, coding
+standards](csi-spl-doc/doc/md/developer-guide.md#ws-doc-5396f07f-c552-4cc4-a2e1-f4d29d060d43) section 2.4. Terraform: below.
 
 ## Rules specific to this repo
 
@@ -138,8 +129,9 @@ How to apply:
   `.version` = cnf `hub.image.tag` is only the FLOOR: raise it (all 9 files,
   still 0-9 digits) only for a deliberate jump such as 2.0.0. What is live:
   `git ls-remote --tags origin 'v*'`.
-- Commits: `Yordan Georgiev <yordan.georgiev@csitea.net>`, no AI trailers,
-  explicit pathspecs.
+- Commits: `Yordan Georgiev <yordan.georgiev@csitea.net>`, as author and
+  committer; the other commit rules: [developer guide, coding
+  standards](csi-spl-doc/doc/md/developer-guide.md#ws-doc-5396f07f-c552-4cc4-a2e1-f4d29d060d43) section 2.9.
 - **Agent ceiling: 40 concurrent agent windows**, the **data rule** (who may
   take secrets) and the **language rule** (agy has the final word on
   multilingual text) are fleet-wide: their one home is the global CLAUDE.md

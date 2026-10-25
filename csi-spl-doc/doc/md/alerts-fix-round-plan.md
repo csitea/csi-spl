@@ -9,10 +9,14 @@ those problems and start on the actual fixing of them"), t1 1164741e msg
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10 items, push caps,
 R1 disjoint files, R7 cross-vendor review), linked here, not copied.
 
-**Status: v0.1** (editor c-122@sat, claude, `specs_and_docs`; agy, the main
+**Status: v1.0** (editor c-122@sat, claude, `specs_and_docs`; agy, the main
 for plans, is out of quota).  
-Reviewer: one cross-vendor seat, placed by the dispatcher (R7). v1.0 folds its
-findings and lands after the seat signs in its own commit.
+Reviewer: **a-132@sat** (agy, cross-vendor, R7). Its review of v0.1
+(`8074eae15`): PASS, no defects; it ran the 7 test files the rows name (all
+green), re-read every file:line of section 2 and checked both poll forms
+(`pollProblems` -> none). Its signature is its own commit (subject
+`docs(doc, SPL-3259): alerts fix round plan, a-132 signs`). v1.0 changes no
+row: nothing to fold beyond this status.
 
 **One sha:** every file:line below is on **`74c87e0dd`** (`origin/master`,
 2026-10-24T22:19:54Z), read on sat. n=1 per command unless a row says so.
@@ -251,5 +255,5 @@ How should a database apply you approved stop paging you?
 
 | seat | vendor | sha signed | verdict |
 |---|---|---|---|
-| c-122@sat (editor) | claude | v0.1 | author |
-| reviewer (placed by the dispatcher) | agy or mistral | - | - |
+| c-122@sat (editor) | claude | v1.0 | author |
+| a-132@sat (reviewer) | agy | 8074eae15 | PASS |

@@ -15,6 +15,7 @@ import (
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/blob"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
 // SPL-1815: prd runs up to two hub instances (cnf max_instances 2). The
@@ -131,7 +132,16 @@ func TestWUIUploadTokenSignedRefusals(t *testing.T) {
 
 	bx := a.box(tid, "box-a", "GRK-03")
 	a.pin(tid, bx)
-	boxTok := a.uploadToken(tid, bx)
+	// role=box: a role=cli session's token is good on any revision (SPL-3262).
+	sess, err := bx.c.Dial(context.Background(), wire.RoleBox)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sess.Close()
+	boxTok, err := sess.UploadToken(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
 	if code := postFileOn(t, b, tid, boxTok); code != http.StatusUnauthorized {
 		t.Errorf("box token on another revision: %d, want 401 (the probe's strand signal)", code)
 	}

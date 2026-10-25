@@ -27,6 +27,14 @@
 #      ~/.config/gcloud untouched; aws and curl never called
 #  11. CONTROL: the checks of 1, 2, 7 and 8 catch planted copies that drop
 #      --dry-run, default ENV, accept any ENV, or drop --account
+#   account order (SPL-3260): ORG and APP NOT set, derived from the project
+#   dir as ./run does, only the per-env keys on disk (no key-<org>-<app>-all)
+#  12. tail ENV=prd: the prd SA from its key, its identity logged before the
+#      logging read; master resolved the account before ORG/APP and refused
+#  13. tail ENV=all: each env resolved and logged as its own SA; with a
+#      one-project pin (GCP_SA_KEY_FILE) refused, no logging call
+#  14. do_gcp_import_to_cloudsql: same order, the dev SA logged before it
+#      refuses a missing SERVICE_KEY_FILE (no storage / secrets call)
 # gcloud, aws and curl are stubs on PATH. No network, no GCP, no S3.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -179,7 +187,7 @@ tail_logs ENV=all; rc=$?
 got=$(calls logging | grep -o 'read --project=[a-z-]*' | cut -d= -f2 | paste -sd' ')
 accts=$(calls logging | grep -o -- '--account=[^ ]*' | cut -d= -f2 | paste -sd' ')
 [[ $rc -eq 0 && "$got" == "csi-spl-dev csi-spl-prd" && "$accts" == "$(SA dev) $(SA prd)" ]] \
-  && grep -q "Key file not found: $T/home/.gcp/.csi/key-csi-spl-tst.json — skipping tst" "$T/out" \
+  && grep -q "no key at $T/home/.gcp/.csi/key-csi-spl-tst.json) — skipping tst" "$T/out" \
   && pass "6. tail: ENV=all reads dev and prd, each as its own SA; tst without a key is skipped" \
   || fail "6. rc=$rc projects='$got' accounts='$accts' $(cat "$T/out")"
 mv "$T/key.json" "$T/home/.gcp/.csi/key-csi-spl-tst.json"
@@ -250,6 +258,38 @@ TAIL_FILE="$T/tail-any-env.func.sh" tail_logs ENV=qa ACCOUNT=ci@example.com; rc=
 SAT_FILE="$T/sat-no-account.func.sh" sat; rc=$?
 [[ -n "$(check_sat debian-13-trixie-v20261001)" ]] \
   && pass "11. CONTROL: an image copy that drops --account fails check 8" || fail "11. CONTROL: check 8 is blind to a dropped --account"
+
+# --- 12..14. account resolved AFTER ORG / APP / ENV (SPL-3260) --------------------------
+# ORG= APP= : do_resolve_oap derives both from PROJ_PATH, as under ./run.
+# idline <project> <sa> <fn> -> the line number of that identity log in $T/out
+idline() { grep -n "INFO gcloud project=$1 account=$2 .*($3)" "$T/out" | sed -n 1p | cut -d: -f1; }
+mv "$T/home/.gcp/.csi/key-csi-spl-all.json" "$T/key-all.json"
+tail_logs ORG= APP= ENV=prd LINES=1; rc=$?
+r=$(calls logging)
+want="logging read --project=csi-spl-prd --limit=1 --freshness=1h --order=desc --format=value(timestamp,severity,textPayload,jsonPayload.message) --account=$(SA prd) --project=csi-spl-prd"
+[[ $rc -eq 0 && "$r" == "$want" ]] \
+  && pass "12. tail: ORG/APP derived, ENV=prd -> one logging read as the prd SA" || fail "12. rc=$rc '$r' $(cat "$T/out")"
+id=$(idline csi-spl-prd "$(SA prd)" do_gcp_tail_logs); ll=$(grep -n '^LOGLINE' "$T/out" | sed -n 1p | cut -d: -f1)
+[[ -n "$id" && -n "$ll" && "$id" -lt "$ll" ]] \
+  && pass "12. tail: the identity line names csi-spl-prd and its SA, before the first log line" \
+  || fail "12. identity line=${id:-none} first log=${ll:-none}: $(grep 'gcloud project=' "$T/out")"
+tail_logs ORG= APP= ENV=all; rc=$?
+got=$(calls logging | grep -o 'read --project=[a-z-]*' | cut -d= -f2 | paste -sd' ')
+accts=$(calls logging | grep -o -- '--account=[^ ]*' | cut -d= -f2 | paste -sd' ')
+ids=0; for e in dev tst prd; do [[ -n "$(idline "csi-spl-$e" "$(SA "$e")" do_gcp_tail_logs)" ]] && ids=$((ids+1)); done
+[[ $rc -eq 0 && "$got" == "csi-spl-dev csi-spl-tst csi-spl-prd" && "$accts" == "$(SA dev) $(SA tst) $(SA prd)" && $ids -eq 3 ]] \
+  && pass "13. tail: ENV=all, no -all key: each env resolved and logged as its own SA" \
+  || fail "13. rc=$rc projects='$got' accounts='$accts' identity lines=$ids $(cat "$T/out")"
+tail_logs ORG= APP= ENV=all GCP_SA_KEY_FILE="$T/home/.gcp/.csi/key-csi-spl-dev.json"; rc=$?
+bad=$(check_refused logging 'name one project: set ENV to one env')
+[[ -z "$bad" ]] && pass "13. tail: ENV=all with GCP_SA_KEY_FILE -> refused, no logging call" || fail "13. pin: $bad"
+act "$RUN/gcp-import-to-cloudsql.func.sh" do_gcp_import_to_cloudsql ORG= APP= ENV=dev \
+  SERVICE_KEY_FILE="$T/no-such-key.json" GS_UTIL_URI=gs://csi-spl-dev-backups/x.sql; rc=$?
+[[ $rc -ne 0 && -n "$(idline csi-spl-dev "$(SA dev)" do_gcp_import_to_cloudsql)" && -z "$(calls storage)$(calls secrets)" ]] \
+  && grep -q 'The service key file does not exist' "$T/out" \
+  && pass "14. import: ORG/APP derived -> the dev SA logged, then refused on SERVICE_KEY_FILE, no storage/secrets call" \
+  || fail "14. rc=$rc $(cat "$T/out")"
+mv "$T/key-all.json" "$T/home/.gcp/.csi/key-csi-spl-all.json"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

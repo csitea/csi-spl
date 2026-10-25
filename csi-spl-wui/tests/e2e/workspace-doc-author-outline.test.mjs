@@ -101,14 +101,15 @@ try {
     await p.screenshot({ path: join(process.env.SHOT_DIR, 'qto-author-outline.png'), fullPage: true })
   }
 
-  /* the bar's Export to Markdown writes the same numbers */
+  /* the file menu's Export to Markdown (SPL-3233) writes the same numbers */
   await p.evaluate(() => {
     window.__exports = []
     const make = URL.createObjectURL
     URL.createObjectURL = (b) => { b.text().then((t) => window.__exports.push(t)); return make.call(URL, b) }
     HTMLAnchorElement.prototype.click = function () { if (this.download) window.__exportNames = [...(window.__exportNames || []), this.download] }
   })
-  await p.click('[data-test=ws-doc-export-doc]').catch(() => null)
+  await p.click('[data-test=ws-doc-file-btn]').catch(() => null)
+  await p.click('[data-test=ws-doc-file-menu-export_md]').catch(() => null)
   await p.waitForFunction(() => window.__exports.length === 1, { timeout: STEP }).catch(() => null)
   const md = await p.evaluate(() => window.__exports[0] || '')
   const heads = md.split('\n').filter((l) => l.startsWith('#'))

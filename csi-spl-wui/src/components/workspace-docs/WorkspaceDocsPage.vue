@@ -52,7 +52,7 @@
           <span class="wsdocs-views__label">{{ t('ws_doctree.view_' + v) }}</span>
         </button>
       </div>
-      <!-- SPL-2094: the doc view's bar (its three buttons) teleports here on a desktop -->
+      <!-- SPL-2094 / SPL-3233: the doc view's bar (contents toggle, file menu) teleports here on every width -->
       <div id="wsdocs-head-tools" class="wsdocs-head__tools" data-test="ws-docs-head-tools" />
     </header>
     <div class="feed-body wsdocs-body">
@@ -396,6 +396,10 @@ defineExpose({ docs, docId, session, newOpen, pick, openAt, refreshDocs, docMove
   .wsdocs-head--doc .wsdocs-pick { flex: 1 1 auto; min-width: 0; }
   .wsdocs-head--doc .wsdocs-pick select { width: 100%; max-width: none; text-overflow: ellipsis; }
   .wsdocs-head--doc .wsdocs-views { flex: 0 0 auto; }
+  /* SPL-3233: the doc view's contents toggle and file menu (two 44 px taps)
+     keep their width; the picker gives the room. A tighter gap leaves it more */
+  .wsdocs-head--doc { gap: 8px; }
+  .wsdocs-head--doc .wsdocs-head__tools { flex: 0 0 auto; }
   .wsdocs-head--doc .wsdocs-views__opt { min-height: 36px; padding: 4px 8px; }
   .wsdocs-head--doc .wsdocs-fab {
     position: static;

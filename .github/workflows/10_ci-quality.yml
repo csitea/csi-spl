@@ -947,6 +947,20 @@ jobs:
       - name: Temp files on the runner's disk, not the shared /tmp tmpfs
         run: echo "TMPDIR=$RUNNER_TEMP" >>"$GITHUB_ENV"
 
+      # public-dataset-gate.tst.sh (spec 091 T005) checks its gitleaks-only
+      # plant only with a real gitleaks; without one a stub stands in and
+      # says so in an INFO line, which "Nothing skipped" below cannot see.
+      # Pinned and checksummed as in the pr-sec-scan job.
+      - name: Install gitleaks 8.30.1
+        run: |
+          set -euo pipefail
+          sha=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 -o "$RUNNER_TEMP/gitleaks.tgz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz"
+          echo "$sha  $RUNNER_TEMP/gitleaks.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/gitleaks.tgz" -C "$RUNNER_TEMP" gitleaks
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
       # Spec 133 round 30 (1): the same orc shard ran 587..915 s on the same
       # files (5 green master runs), every file ~1.6x slower, cpu and wall
       # alike. This line ties each job's wall to the runner's CPUs.

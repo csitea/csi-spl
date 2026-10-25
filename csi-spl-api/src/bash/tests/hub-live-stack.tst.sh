@@ -51,3 +51,32 @@ elif [ -x "$PG_BIN_HERE/initdb" ] \
 else
   echo "skip - b07-02b SPOOL_TEST_PG_DSN: no Postgres server binaries and no cached image"
 fi
+
+# SPL-3350: the poll reads hub.log before the backgrounded serve has opened
+# it. A copy of the stack whose serve shell sleeps before it opens the log
+# makes that race certain: the stack must still come up and run the command
+# (before the fix: exit 2, "sed: can't read .../hub.log"). The copy sits in a
+# symlinked tree so its HERE-relative paths (go module, rdb) resolve.
+if [ "${SPL_API_TEST_TIER:-full}" = fast ]; then
+  echo "skip - b07-03 log race: fast tier (a full stack build + migrate); the full tier runs it"
+elif [ -x "$PG_BIN_HERE/initdb" ] \
+  || { command -v docker >/dev/null && docker image inspect "${SPOOL_TEST_PG_IMAGE:-postgres:16-alpine}" >/dev/null 2>&1; }; then
+  SRC="$(cd "$(dirname "$STACK")" && pwd)"
+  RACE="$WORK/race/a/b/bash"
+  mkdir -p "$RACE"
+  ln -s "$SRC/../go" "$WORK/race/a/b/go"
+  ln -s "$SRC/../../../csi-spl-rdb" "$WORK/race/csi-spl-rdb"
+  ln -s "$SRC/use-go-toolchain.sh" "$RACE/use-go-toolchain.sh"
+  # shellcheck disable=SC2016 # the replacement is shell text for the copy
+  sed 's|^  "\$BIN" serve >>"\$WORK/hub.log" 2>&1 &$|  bash -c '\''sleep 0.5; exec "$0" serve >>"$1" 2>\&1'\'' "$BIN" "$WORK/hub.log" \&|' \
+    "$STACK" >"$RACE/hub-live-stack.sh"
+  grep -q "sleep 0.5; exec" "$RACE/hub-live-stack.sh" \
+    || { echo "FAIL - b07-03 log race: the serve line of $STACK changed; update this case"; exit 1; }
+  rc=0
+  bash "$RACE/hub-live-stack.sh" touch "$WORK/race-ran" >"$WORK/race.out" 2>&1 || rc=$?
+  [ "$rc" -eq 0 ] && [ -e "$WORK/race-ran" ] \
+    || { echo "FAIL - b07-03 log race: rc $rc, want 0 and the command run: $(grep -v '^{' "$WORK/race.out" | tail -5)"; exit 1; }
+  echo "ok   - b07-03 a serve that opens hub.log late still comes up (no exit 2 from the poll)"
+else
+  echo "skip - b07-03 log race: no Postgres server binaries and no cached image"
+fi

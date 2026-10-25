@@ -109,6 +109,10 @@ ROOT_PUB="$("$BIN" root-keygen --out "$WORK/root.key")" || down "root-keygen"
 SPOOL_HUB_DB_DSN="$(dsn "$APP_ROLE")" "$BIN" hub-tenant --tenant "$TENANT" --root-pubkey "$ROOT_PUB" >/dev/null || down "hub-tenant $TENANT"
 
 # 4. serve on a port the kernel picks; the hub logs it once bound.
+# The log exists before serve starts (SPL-3350): the backgrounded shell may
+# not have opened it yet when the poll's sed first reads it, and a missing
+# file ends the script (set -e, pipefail) with exit 2.
+: >"$WORK/hub.log"
 SPOOL_HUB_DB_DSN="$(dsn "$RT_ROLE")" SPOOL_HUB_MIGRATIONS_DIR="$SQL_DIR" SPOOL_HUB_FILES_DIR="$WORK/blobs" \
 SPOOL_HUB_TENANT_HOST_PATTERN="{tenant}.localhost" SPOOL_HUB_LISTEN_ADDR="127.0.0.1:0" \
 SPOOL_HUB_LOG_FORMAT=json SPOOL_HUB_ENV=lde SPOOL_HUB_VIEW_DOOR=off SPOOL_HUB_LOBBY_TASK_ID="$LOBBY" \

@@ -317,7 +317,7 @@
       "session_unavailable": "Istunto ei ole käytettävissä — hub ei vastannut.",
       "signed_in_as": "Kirjautuneena: {who}",
       "sign_out": "Kirjaudu ulos",
-      "slogan": "Missä ihmiset kohtaavat tekoälyn.",
+      "slogan": "Kone, joka tekee ohjelmistoja tekoälyllä.",
       "about": "Spool on työtila, jossa ihmiset ja tekoälyagentit tekevät työtä yhdessä. Kanavat, aiheet ja yksityisviestit kuljettavat työtä, ja jokaisella agentilla on oma nimensä ja läsnäolonsa, kuten kenellä tahansa kollegalla. Sinä liityt selaimesta; agenttisi liittyvät omasta päätteestään.",
       "continue": "Jatka aiheisiin",
       "invited_as": "Sinut kutsuttiin osoitteella {email}.",
@@ -1537,7 +1537,7 @@
   },
   "logo": {
     "open": "Tietoa spool-hubista",
-    "slogan": "missä ihmiset ja tekoäly kohtaavat",
+    "slogan": "kone, joka tekee ohjelmistoja tekoälyllä",
     "about": "Työtila, jossa ihmiset ja tekoälyagentit tekevät työtä yhdessä: kanavat ja ketjut keskusteluun, tiketit seurattavaan työhön ja agentit, jotka suunnittelevat, rakentavat, testaavat ja julkaisevat näkyvästi. Avointa lähdekoodia; ylläpidä sitä itse omassa verkkotunnuksessasi.",
     "version": "Versio",
     "source": "Lähdekoodi",

@@ -317,7 +317,7 @@
       "session_unavailable": "Sessionen är inte tillgänglig — hubben svarade inte.",
       "signed_in_as": "Inloggad som {who}",
       "sign_out": "Logga ut",
-      "slogan": "Där människor möter AI.",
+      "slogan": "Maskinen som bygger mjukvara med AI.",
       "about": "Spool är en arbetsyta där människor och AI-agenter arbetar tillsammans. Arbetet sker i kanaler, ämnen och direktmeddelanden, och varje agent har ett eget namn och en egen närvaro, precis som en kollega. Du ansluter från webbläsaren; dina agenter ansluter från sin terminal.",
       "continue": "Fortsätt till ämnena",
       "invited_as": "Du bjöds in som {email}.",
@@ -1537,7 +1537,7 @@
   },
   "logo": {
     "open": "Om spool-hub",
-    "slogan": "där människor och AI möts",
+    "slogan": "maskinen som bygger mjukvara med AI",
     "about": "En arbetsyta där människor och AI-agenter arbetar tillsammans: kanaler och trådar för diskussion, ärenden för spårat arbete och agenter som planerar, bygger, testar och levererar öppet. Öppen källkod; driv den själv på din egen domän.",
     "version": "Appversion",
     "source": "Källkod",

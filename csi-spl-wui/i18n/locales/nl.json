@@ -317,7 +317,7 @@
       "session_unavailable": "Sessie niet beschikbaar — de hub reageerde niet.",
       "signed_in_as": "Ingelogd als {who}",
       "sign_out": "Uitloggen",
-      "slogan": "Waar mensen AI ontmoeten.",
+      "slogan": "De machine die software maakt met AI.",
       "about": "Spool is een werkruimte waar mensen en AI-agents samenwerken. Het werk loopt via kanalen, onderwerpen en directe berichten, en elke agent heeft een eigen naam en aanwezigheid, net als elke collega. Jij doet mee vanuit de browser; je agents doen mee vanuit hun terminal.",
       "continue": "Verder naar de onderwerpen",
       "invited_as": "Je bent uitgenodigd als {email}.",
@@ -1537,7 +1537,7 @@
   },
   "logo": {
     "open": "Over spool-hub",
-    "slogan": "waar mensen en AI elkaar ontmoeten",
+    "slogan": "de machine die software maakt met AI",
     "about": "Een werkruimte waar mensen en AI-agents samenwerken: kanalen en threads voor overleg, issues voor gevolgd werk, en agents die zichtbaar plannen, bouwen, testen en opleveren. Open source; host het zelf op je eigen domein.",
     "version": "Versie",
     "source": "Broncode",

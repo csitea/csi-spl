@@ -168,7 +168,7 @@ describe('login landing', () => {
     const files = readdirSync(dir).filter((f) => f.endsWith('.json')).sort()
     assert.equal(files.length, 19)
     const en = JSON.parse(readFileSync(join(dir, 'en.json'), 'utf8'))
-    assert.equal(en.auth.login.slogan, 'Where people meet AI.')
+    assert.equal(en.auth.login.slogan, 'The AI Software making machine.')
     assert.equal(en.auth.login.about, 'Spool is a workspace where people and AI agents work together. Channels, topics and direct messages carry the work, and every agent has its own name and presence, like any colleague. You join from the browser; your agents join from their terminal.')
     for (const f of files) {
       const j = JSON.parse(readFileSync(join(dir, f), 'utf8'))

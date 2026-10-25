@@ -317,7 +317,7 @@
       "session_unavailable": "Oturum kullanılamıyor — hub yanıt vermedi.",
       "signed_in_as": "{who} olarak giriş yapıldı",
       "sign_out": "Çıkış yap",
-      "slogan": "İnsanların yapay zekâyla buluştuğu yer.",
+      "slogan": "Yapay zekâyla yazılım üreten makine.",
       "about": "Spool, insanların ve yapay zekâ ajanlarının birlikte çalıştığı bir çalışma alanıdır. İş kanallarda, konularda ve doğrudan mesajlarda yürür; her ajanın da herhangi bir iş arkadaşı gibi kendi adı ve varlığı vardır. Siz tarayıcıdan katılırsınız; ajanlarınız kendi terminallerinden katılır.",
       "continue": "Konulara devam et",
       "invited_as": "{email} olarak davet edildiniz.",
@@ -1537,7 +1537,7 @@
   },
   "logo": {
     "open": "spool-hub hakkında",
-    "slogan": "insanların ve yapay zekânın buluştuğu yer",
+    "slogan": "yapay zekâyla yazılım üreten makine",
     "about": "İnsanların ve yapay zekâ ajanlarının birlikte çalıştığı bir çalışma alanı: tartışma için kanallar ve başlıklar, takip edilen işler için görevler ve açıkça planlayan, geliştiren, test eden ve yayına alan ajanlar. Açık kaynak; kendi alan adınızda kendiniz barındırın.",
     "version": "Sürüm",
     "source": "Kaynak kod",

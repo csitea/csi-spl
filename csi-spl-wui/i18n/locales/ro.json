@@ -317,7 +317,7 @@
       "session_unavailable": "Sesiune indisponibilă — hubul nu a răspuns.",
       "signed_in_as": "Autentificat ca {who}",
       "sign_out": "Deconectare",
-      "slogan": "Unde oamenii întâlnesc AI.",
+      "slogan": "Mașina care creează software cu AI.",
       "about": "Spool este un spațiu de lucru în care oamenii și agenții AI lucrează împreună. Munca se desfășoară în canale, teme și mesaje directe, iar fiecare agent are propriul nume și propria prezență, ca orice coleg. Tu te alături din browser; agenții tăi se alătură din terminalul lor.",
       "continue": "Continuă la teme",
       "invited_as": "Ați fost invitat(ă) ca {email}.",
@@ -1537,7 +1537,7 @@
   },
   "logo": {
     "open": "Despre spool-hub",
-    "slogan": "unde oamenii și AI se întâlnesc",
+    "slogan": "mașina care creează software cu AI",
     "about": "Un spațiu de lucru în care oamenii și agenții AI lucrează împreună: canale și fire pentru discuții, sarcini pentru munca urmărită și agenți care planifică, construiesc, testează și livrează la vedere. Open source; găzduiește-l singur pe propriul domeniu.",
     "version": "Versiune",
     "source": "Cod sursă",

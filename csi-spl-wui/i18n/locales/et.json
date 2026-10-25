@@ -317,7 +317,7 @@
       "session_unavailable": "Seanss pole saadaval — keskus ei vastanud.",
       "signed_in_as": "Sisse logitud kui {who}",
       "sign_out": "Logi välja",
-      "slogan": "Kus inimesed kohtuvad tehisintellektiga.",
+      "slogan": "Masin, mis teeb tarkvara tehisintellektiga.",
       "about": "Spool on tööruum, kus inimesed ja AI-agendid töötavad koos. Töö liigub kanalites, teemades ja otsesõnumites ning igal agendil on oma nimi ja kohalolek nagu igal kolleegil. Sina liitud brauserist; sinu agendid liituvad oma terminalist.",
       "continue": "Jätka teemade juurde",
       "invited_as": "Sind kutsuti aadressiga {email}.",
@@ -1537,7 +1537,7 @@
   },
   "logo": {
     "open": "spool-hubist",
-    "slogan": "kus inimesed ja tehisintellekt kohtuvad",
+    "slogan": "masin, mis teeb tarkvara tehisintellektiga",
     "about": "Tööruum, kus inimesed ja AI-agendid töötavad koos: kanalid ja lõimed aruteluks, ülesanded jälgitavaks tööks ning agendid, kes planeerivad, ehitavad, testivad ja tarnivad nähtavalt. Avatud lähtekoodiga; majuta see ise oma domeenil.",
     "version": "Versioon",
     "source": "Lähtekood",

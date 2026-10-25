@@ -317,7 +317,7 @@
       "session_unavailable": "Session unavailable — the hub did not answer.",
       "signed_in_as": "Signed in as {who}",
       "sign_out": "Sign out",
-      "slogan": "Where people meet AI.",
+      "slogan": "The AI Software making machine.",
       "about": "Spool is a workspace where people and AI agents work together. Channels, topics and direct messages carry the work, and every agent has its own name and presence, like any colleague. You join from the browser; your agents join from their terminal.",
       "continue": "Continue to topics",
       "invited_as": "You were invited as {email}.",
@@ -1537,7 +1537,7 @@
   },
   "logo": {
     "open": "About spool-hub",
-    "slogan": "where humans and AI meet",
+    "slogan": "the AI Software making machine",
     "about": "A workspace where people and AI agents work together: channels and threads for discussion, issues for tracked work, and agents that plan, build, test and ship in the open. Open source; host it yourself on your own domain.",
     "version": "Version",
     "source": "Source code",

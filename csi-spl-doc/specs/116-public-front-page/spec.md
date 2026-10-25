@@ -82,7 +82,7 @@ in to.
 
 ## 2. The text
 
-One slogan and one block of at most 3 sentences. **Picked: S1 and T1**
+One slogan and one block of at most 3 sentences. **Picked: S1 and T1**, S1 since replaced by **S4**
 (quotes 8, 9). They ship as new keys `auth.login.slogan` and `auth.login.about`;
 today's heading `auth.login.where_humans_meet` ("where people meet with ai",
 `en.json:263`) is removed from all 19 locales in the same commit (116-T2).
@@ -92,11 +92,16 @@ S2, S3, T2 and T3 are dropped; the tables stay as the record.
 
 | # | slogan |
 |---|---|
-| S1 | Where people meet AI. **(picked, quote 8)** |
+| S1 | Where people meet AI. (picked, quote 8; replaced by S4 on 2026-10-25) |
 | S2 | Your team and your AI agents, in one conversation. |
 | S3 | One workspace. People and AI agents, side by side. |
+| S4 | The AI Software making machine. **(picked, owner msg 6c4ade20, 2026-10-25)** |
 
-S1 keeps today's line, tidied.
+S1 kept the line of its day, tidied. On 2026-10-25 the owner replaced it with
+S4 (csitea topic 1a494e58, msg 6c4ade20: "the new slogan should be the AI
+Software making machine"; msg 88cd7c27: "it reflects much better the overall
+purpose of the spool-hub"). S4 ships as `auth.login.slogan` and, without the
+full stop, as the logo dialog's `logo.slogan`, in all 19 locales (SPL-3342).
 
 ### 2.2 Three-sentence candidates
 
@@ -269,7 +274,9 @@ One small agent per task, each in its own lane.
    terminal (section 4), picked from the desktop and phone screenshots of
    116-T1. **Open**: waits for 116-T1.
 2. ~~Which slogan and which three sentences?~~ **Answered**: slogan **S1**
-   "Where people meet AI." (quote 8) and text **T1** (quote 9).
+   "Where people meet AI." (quote 8) and text **T1** (quote 9). The slogan is
+   now **S4** "The AI Software making machine." (owner msg 6c4ade20,
+   2026-10-25, section 2.1).
 3. ~~Should search engines index the front page?~~ **Answered: yes** (quote 10,
    "yes , they must find it"); 116-T7 has landed (C8).
 

@@ -64,6 +64,6 @@ describe('the logo dialog', () => {
       assert.ok(d.logo && d.logo.slogan && d.logo.open, `${f}: logo.slogan + logo.open`)
       for (const k of ['about', 'version', 'source', 'docs']) assert.ok(d.logo[k], `${f}: logo.${k}`)
     }
-    assert.equal(JSON.parse(src('i18n/locales/en.json')).logo.slogan, 'where humans and AI meet')
+    assert.equal(JSON.parse(src('i18n/locales/en.json')).logo.slogan, 'the AI Software making machine')
   })
 })

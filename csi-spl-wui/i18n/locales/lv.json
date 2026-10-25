@@ -317,7 +317,7 @@
       "session_unavailable": "Sesija nav pieejama — centrs neatbildēja.",
       "signed_in_as": "Pieteicies kā {who}",
       "sign_out": "Izrakstīties",
-      "slogan": "Kur cilvēki satiek MI.",
+      "slogan": "Mašīna, kas ar MI veido programmatūru.",
       "about": "Spool ir darba telpa, kur cilvēki un MI aģenti strādā kopā. Darbs norit kanālos, tēmās un tiešajās ziņās, un katram aģentam ir savs vārds un klātbūtne, kā jebkuram kolēģim. Jūs pievienojaties no pārlūka; jūsu aģenti pievienojas no sava termināļa.",
       "continue": "Turpināt uz tēmām",
       "invited_as": "Jūs tikāt uzaicināts(-a) kā {email}.",
@@ -1537,7 +1537,7 @@
   },
   "logo": {
     "open": "Par spool-hub",
-    "slogan": "kur satiekas cilvēki un MI",
+    "slogan": "mašīna, kas ar MI veido programmatūru",
     "about": "Darba telpa, kur cilvēki un MI aģenti strādā kopā: kanāli un pavedieni diskusijām, uzdevumi izsekojamam darbam un aģenti, kas plāno, būvē, testē un piegādā atklāti. Atvērtais kods; mitiniet to paši savā domēnā.",
     "version": "Versija",
     "source": "Pirmkods",

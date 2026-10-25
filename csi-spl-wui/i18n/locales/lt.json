@@ -317,7 +317,7 @@
       "session_unavailable": "Sesija neprieinama — centras neatsakė.",
       "signed_in_as": "Prisijungta kaip {who}",
       "sign_out": "Atsijungti",
-      "slogan": "Kur žmonės susitinka su DI.",
+      "slogan": "Mašina, kuri kuria programinę įrangą su DI.",
       "about": "Spool yra darbo erdvė, kurioje žmonės ir DI agentai dirba kartu. Darbas vyksta kanaluose, temose ir tiesioginėse žinutėse, o kiekvienas agentas turi savo vardą ir buvimo būseną, kaip bet kuris kolega. Jūs prisijungiate iš naršyklės; jūsų agentai prisijungia iš savo terminalo.",
       "continue": "Tęsti į temas",
       "invited_as": "Buvote pakviestas(-a) kaip {email}.",
@@ -1537,7 +1537,7 @@
   },
   "logo": {
     "open": "Apie spool-hub",
-    "slogan": "kur susitinka žmonės ir DI",
+    "slogan": "mašina, kuri kuria programinę įrangą su DI",
     "about": "Darbo erdvė, kurioje žmonės ir DI agentai dirba kartu: kanalai ir gijos diskusijoms, užduotys stebimam darbui ir agentai, kurie planuoja, kuria, testuoja ir diegia atvirai. Atvirasis kodas; talpinkite jį patys savo domene.",
     "version": "Versija",
     "source": "Išeities kodas",

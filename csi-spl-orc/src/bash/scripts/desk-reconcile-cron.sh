@@ -220,7 +220,7 @@ tick_lock() {
   local lock="$mark_dir/tick-$ENV_NAME-$TENANT.lock" tok="$$.$RANDOM.$SECONDS" hp rc t0=$SECONDS
   { mkdir -p "$mark_dir" && : >>"$lock"; } 2>/dev/null ||
     { say "WARN cannot open the tick lock $lock: this tick runs without it"; return 0; }
-  flock -n -o -E 75 "$lock" bash -c 'printf "%s\n" "$2" >"$3"; exec tail --pid="$1" -s 0.2 -f /dev/null' \
+  flock -n -o -E 75 "$lock" bash -c 'printf "%s\n" "$2" >"$3.$1" && mv -f "$3.$1" "$3"; exec tail --pid="$1" -s 0.2 -f /dev/null' \
     _ "$$" "$$ since $(date -u +%FT%TZ) [$tok]" "$tick_holder" \
     </dev/null >/dev/null 2>&1 3>&- 4>&- 5>&- 6>&- 7>&- 8>&- 9>&- &
   hp=$!
@@ -236,8 +236,20 @@ tick_lock() {
   done
   say "WARN the tick lock holder did not report in ${DESK_TICK_LOCK_WAIT:-10}s: this tick runs without the lock"
 }
+# The skip line names the working tick: its holder may not have written the
+# holder file yet (CI 2026-10-25 read "from ?"), and the file may still name an
+# ended tick, so read it until it names a live pid, at most DESK_TICK_PID_WAIT s.
+holder_pid() {
+  local p t0=$SECONDS
+  while :; do
+    p="$(sed -n '1s/^\([0-9][0-9]*\) .*/\1/p' "$tick_holder" 2>/dev/null)"
+    [ -n "$p" ] && kill -0 "$p" 2>/dev/null && { echo "$p"; return 0; }
+    [ $((SECONDS - t0)) -ge "${DESK_TICK_PID_WAIT:-3}" ] && { echo "${p:-?}"; return 0; }
+    sleep 0.1
+  done
+}
 if ! tick_lock; then
-  tick_pid="$(sed -n '1s/^\([0-9][0-9]*\) .*/\1/p' "$tick_holder" 2>/dev/null)"
+  tick_pid="$(holder_pid)"
   say "INFO tick skipped: the $ENV_NAME tick from ${tick_pid:-?} still runs"
   exit 0
 fi

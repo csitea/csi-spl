@@ -13,6 +13,9 @@
 #   3. the next dev tick after the first ended runs, although the detached
 #      sidecar the first one started still lives: the lock is not left on an
 #      fd a child inherited
+#   4. a holder slow to write its pid (a flock shim delays it 2 s) and a holder
+#      file left by an ended tick: the skip line still names the working tick,
+#      not "?" nor the ended one (CI 2026-10-25 read "from ?")
 # DESK_TICK_SCRIPT runs the cases on another copy of the script (the red
 # control: origin/master's script fails 1, both ticks work).
 #------------------------------------------------------------------------------
@@ -49,7 +52,7 @@ STUB
 chmod +x "$O/run" "$O/src/bash/scripts/desk-reconcile-cron.sh"
 
 tick() {
-  env -u TENANT_ID SPOOL_ROOT="$T/spool" HOME="$T" DESK_CRON_STATE_DIR="$T/state" DESK_CRON_TOOLS="flock tail" \
+  env -u TENANT_ID ${TICK_PATH:+DESK_CRON_PATH_EXTRA="$TICK_PATH"} SPOOL_ROOT="$T/spool" HOME="$T" DESK_CRON_STATE_DIR="$T/state" DESK_CRON_TOOLS="flock tail" \
     DESK_TRUNK_CHECK=0 DESK_LEASE=0 DESK_SETTINGS_CHECK=0 DESK_ALL_TENANTS=0 DESK_OTHER_BOXES=0 \
     DESK_DISPATCH=0 DESK_WELCOME=0 DESK_RESPONDER=0 \
     bash "$O/src/bash/scripts/desk-reconcile-cron.sh" --env "$1" >"$T/out.$2" 2>&1 &
@@ -89,6 +92,25 @@ tick dev e; reap e
 [[ "$live" -ge 1 && "$(works dev)" == 1 && "$(cat "$T/rc.e")" == 0 ]] && ! grep -q skipped "$T/out.e" &&
   pass "3. the next dev tick works while $live sidecar(s) of the earlier ticks still live" ||
   fail "3. live sidecars=$live dev works=$(works dev) out=$(cat "$T/out.e")"
+mapfile -t sidecars <"$T/sidecars"
+
+# --- 4. the skip line waits for the working tick's pid ---------------------------------
+mkdir -p "$T/shim"
+cat >"$T/shim/flock" <<SHIM
+#!/usr/bin/env bash
+a=(); for x in "\$@"; do [[ "\$x" == bash && \${#a[@]} -ge 1 && -e "\${a[-1]}" ]] && a+=(sh -c ': >"$T/held"; sleep 2; exec "\$@"' sh); a+=("\$x"); done
+exec $(command -v flock) "\${a[@]}"
+SHIM
+chmod +x "$T/shim/flock"
+dead="$(sh -c 'echo $$')"
+echo "$dead since 2026-10-25T00:00:00Z [old]" >"$T/state/tick-dev-t1.holder"
+: >"$T/work"
+TICK_PATH="$T/shim" tick dev f
+for _ in $(seq 1 100); do [ -e "$T/held" ] && break; sleep 0.1; done
+tick dev g; reap f g
+grep -q "INFO tick skipped: the dev tick from $(cat "$T/pid.f") still runs" "$T/out.g" && [[ "$(works dev)" == 1 ]] &&
+  pass "4. a slow holder and a stale holder file: the skip line names the working tick" ||
+  fail "4. working pid $(cat "$T/pid.f") dead $dead dev works=$(works dev) g=$(grep -E 'skipped|WARN' "$T/out.g" | tr '\n' ' ')"
 mapfile -t sidecars <"$T/sidecars"
 
 echo "----"

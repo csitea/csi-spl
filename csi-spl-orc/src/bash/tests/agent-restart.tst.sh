@@ -87,7 +87,11 @@
 #      for a grok lane on grok's weekly limit. Red control (origin/master):
 #      RS-SPAWN, then RS-SPAWN FAIL on the dialog + ALERT. Controls: a newer
 #      clean verdict of another claude seat (claude works again) and a
-#      verdict past ROTATE_CLAUDE_LIMIT_FRESH -> restarted to DONE OK
+#      verdict past ROTATE_CLAUDE_LIMIT_FRESH -> restarted to DONE OK.
+#      SPL-3276 (sat 10-24 18:46Z, n=1, c-158 restarted onto its own weekly
+#      limit): the seat's OWN fresh S2 kind=limit verdict refuses even when
+#      another claude seat wrote a newer 0-byte out.s2. Red control
+#      (origin/master): restarted
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -668,6 +672,13 @@ limit20 c-965 %65; rm -f "$T/tmux/screen.%3965"; verdict c-002 30000 'S2 kind=li
 rc="$(go ID=c-965 CAUSE=rebirth DRY_RUN=0 ROTATE_CLAUDE_BIN="$T/bin/claude")"
 [[ "$rc" == 0 ]] && grep -q '^spawn claude c-965 ' "$T/spawn.log" && ! grep -q 'RS-GATE SKIP' "$D/rotate.log" &&
   pass "20. control: a limit verdict past ROTATE_CLAUDE_LIMIT_FRESH -> restarted to DONE OK" || fail "20. stale control rc=$rc $(tail -3 "$T/o")"
+
+limit20 c-966 %66; verdict c-966 600 'S2 kind=limit usage limit reached'
+mkdir -p "$D/wd/ctx.1/c-003"; : > "$D/wd/ctx.1/c-003/out.s2"
+rc="$(go ID=c-966 CAUSE=rebirth DRY_RUN=0 ROTATE_CLAUDE_BIN="$T/bin/claude")"
+[[ "$rc" == 4 && ! -s "$T/spawn.log" ]] && grep -q 'RS-GATE SKIP vendor limit: claude cannot act (c-966 S2 kind=limit 10m ago: usage limit reached)' "$D/rotate.log" 2>/dev/null &&
+  pass "20. SPL-3276: the seat's own limit verdict refuses, another seat's newer 0-byte out.s2 does not open the gate" ||
+  fail "20. own limit rc=$rc $(tail -3 "$T/o") $(grep -a c-966 "$D/rotate.log" 2>/dev/null | cut -d' ' -f3- | tr '\n' ';')"
 
 echo "agent-restart: $fails failure(s)"
 exit $(( fails > 0 ))

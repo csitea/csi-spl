@@ -234,16 +234,40 @@ spl_ars_gate() {
 # its "no claude cli" and lease-silence answers are not a limit) and
 # spl_rotate_grok_out. Before the counters: nothing spawned, counted or
 # alerted; a refusal (exit 4), so the next watchdog tick asks again. A role
-# seat's vendor out is the role failover's job.
+# seat's vendor out is the role failover's job. A claude seat's OWN newest
+# verdict is read first (spl_ars_own_limit, SPL-3276): the box-wide read lets
+# a newer verdict of any other claude seat say "claude is back", and a 0-byte
+# out.s2 is only "no hit on that screen" (sat 10-24 18:46Z: c-158 restarted
+# onto its own weekly limit).
 spl_ars_vendor_gate() {
   local why=""
   case "$PEER_HARNESS" in
-    claude) why="$(spl_rotate_claude_out)"; [[ "$why" =~ ^[^\ ]+\ S2\ kind=limit\  ]] || why="" ;;
+    claude) why="$(spl_ars_own_limit "$1")"
+      [[ -n "$why" ]] || { why="$(spl_rotate_claude_out)"; [[ "$why" =~ ^[^\ ]+\ S2\ kind=limit\  ]] || why=""; } ;;
     grok) why="$(spl_rotate_grok_out)" ;;
   esac
   [[ -n "$why" ]] || return 0
   spl_peer_rlog "$2" RS-GATE SKIP "vendor limit: $PEER_HARNESS cannot act ($why): not restarted, the role failover's job, no alert"
   spl_ars_refuse "$1" 4 "vendor limit: $PEER_HARNESS cannot act ($why)"
+}
+
+# spl_ars_own_limit ID: "<id> S2 kind=limit <age>m ago: <evidence>" when the
+# newest watchdog verdict of ID itself (ctx*/<ID>/out.s2) is S2 kind=limit
+# within ROTATE_CLAUDE_LIMIT_FRESH s (21600); nothing otherwise. Only a newer
+# verdict of the same seat or the window clears it, never another seat's.
+spl_ars_own_limit() {
+  local wd="${LANE_MIX_WD_DIR:-$SPOOL_ROOT/dispatch/wd}" f t best=-1 bestf="" hit
+  for f in "$wd"/ctx*/"$1"/out.s2; do
+    [[ -f "$f" ]] || continue
+    t="$(stat -c %Y "$f" 2>/dev/null)" || continue
+    (( t > best )) || continue
+    best="$t" bestf="$f"
+  done
+  (( best >= 0 && $(date +%s) - best <= ${ROTATE_CLAUDE_LIMIT_FRESH:-21600} )) || return 0
+  hit="$(grep -m1 -E '^HIT S2 kind=limit( |$)' "$bestf" 2>/dev/null || true)"
+  [[ -n "$hit" ]] || return 0
+  hit="${hit#HIT S2 }"
+  echo "$1 S2 ${hit%% *} $(( ($(date +%s) - best) / 60 ))m ago: ${hit#* }"
 }
 
 # A retired id: a row in registry.retired.tsv and none in registry.tsv

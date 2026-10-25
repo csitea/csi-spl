@@ -1122,7 +1122,8 @@
       "messages": "Viestit",
       "tenants": "Työtilat",
       "events": "Tapahtumaloki",
-      "issues": "Asiat"
+      "issues": "Asiat",
+      "docs": "Dokumentit"
     },
     "placeholder_target": "Viesti: {target} — Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search hakee kaikkialta",
     "phone_hints": "Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search hakee kaikkialta",

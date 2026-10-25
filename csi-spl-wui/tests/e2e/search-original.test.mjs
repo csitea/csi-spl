@@ -133,6 +133,26 @@ try {
   ok('10 phone: Open original goes to the channel with the hit marked', atOriginal(m.url()) && phoneLine, { url: m.url(), phoneLine })
   await m.screenshot({ path: `${SHOTS}/4-original-phone.png` })
 
+  /* 12-13 (spec 100 section 14, SPL-3337): a Qto document's words find its
+     section in the Documents group, and a click opens the document there */
+  const DOCHIT = '[data-test=search-results] [data-test=search-row][data-type=docs]'
+  await p.goto(server.base + '/search?q=glossary', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  const docRow = await p.waitForSelector(DOCHIT, { visible: true, timeout: NAV_TIMEOUT }).then(() => true).catch(() => false)
+  const docText = docRow ? await p.$eval(DOCHIT, (el) => el.textContent.replace(/\s+/g, ' ').trim()) : ''
+  ok('12 a doc word: a Documents row, its section and its document named', docRow && /Glossary/.test(docText) && /Handbook/.test(docText), docText)
+  await p.screenshot({ path: `${SHOTS}/5-doc-hit-desktop.png` })
+  if (docRow) await p.click(DOCHIT)
+  await p.waitForFunction(() => location.pathname.endsWith('/workspace/docs') && /^#ws-doc-/.test(location.hash), { timeout: 10000 }).catch(() => null)
+  const docUrl = new URL(p.url())
+  const anchor = docUrl.hash.slice(1)
+  const section = anchor && await p.waitForFunction((id) => {
+    const el = document.getElementById(id)
+    return Boolean(el && /Glossary/.test(el.textContent || ''))
+  }, { timeout: 15000 }, anchor).then(() => true).catch(() => false)
+  ok('13 a click opens the document at that section', docUrl.searchParams.get('view') === 'doc' && Boolean(docUrl.searchParams.get('doc')) && section,
+    { url: p.url(), section })
+  await p.screenshot({ path: `${SHOTS}/6-doc-open-desktop.png` })
+
   console.log(`  screenshots ${SHOTS}`)
   const mine = errors.filter((e) => !/Failed to fetch dynamically imported module/.test(e))
   ok('11 no page errors', mine.length === 0, mine)

@@ -15,8 +15,9 @@ import { parentSection, parentSectionHref } from './parent-section.mjs'
 
 /** Result sections in render order (spec 022 FR-021; group keys of search-v1 §4).
  *  tenants, events and issues are opt-in: the hub returns them for type:tenant,
- *  type:event and type:issue. */
-export const SEARCH_GROUPS = ['robots', 'users', 'channels', 'boxes', 'tenants', 'topics', 'files', 'messages', 'events', 'issues']
+ *  type:event and type:issue. docs (spec 100 section 14, SPL-3337) are the
+ *  workspace's Qto document sections, in every plain search. */
+export const SEARCH_GROUPS = ['robots', 'users', 'channels', 'boxes', 'tenants', 'topics', 'files', 'messages', 'docs', 'events', 'issues']
 
 /**
  * Canonical type names, then each type's aliases. `type:` completions lead
@@ -114,8 +115,14 @@ function textOf(v) {
   return null
 }
 
-/** The highlighted text of a row: message `snippet`, topic `title`, else `name` (search-v1 §4). */
-function displayOf(r) {
+/** The highlighted text of a row: message `snippet`, topic `title`, else `name` (search-v1 §4).
+ *  A doc section: its snippet when the words matched there, else its heading
+ *  (a document's title for its top). */
+function displayOf(r, type) {
+  if (type === 'docs') {
+    const sn = textOf(r.snippet)
+    return (sn && sn.text && sn.highlights.length ? sn : textOf(r.title)) || { text: '', highlights: [] }
+  }
   return textOf(r.snippet) || textOf(r.title) || textOf(r.name) || textOf(r.display_name)
     || (typeof r.message === 'string' && r.message ? { text: r.message, highlights: [] } : null)
     || { text: String(r.body || r.id || r.key || r.box_id || r.channel || r.task_id || r.error_id || r.tenant_id || ''), highlights: [] }
@@ -127,6 +134,7 @@ function keyOf(type, r, i) {
     const k = String(r.key ?? '').trim()
     return `issues:${k || i}`
   }
+  if (type === 'docs') return `docs:${r.item_id || i}`
   const id = r.msg_id || r.file_id || r.task_id || r.box_id || r.channel || r.tenant_id || r.event_id || r.error_id || r.id || i
   const extra = type === 'files' ? `/${r.msg_id || ''}/${displayOf(r).text}` : ''
   return `${type}:${id}${r.box ? '@' + r.box : ''}${extra}`
@@ -150,7 +158,7 @@ export function normalizeSearchResponse(data) {
       type,
       next,
       items: rows.filter((r) => r && typeof r === 'object').map((r, i) => {
-        const row = { ...r, type, key: keyOf(type, r, i), display: displayOf(r) }
+        const row = { ...r, type, key: keyOf(type, r, i), display: displayOf(r, type) }
         if (type === 'issues') row.issue_key = String(r.key ?? '').trim()
         return row
       }),
@@ -171,7 +179,7 @@ export function normalizeSearchResponse(data) {
  */
 export function rowAt(row) {
   const r = row || {}
-  return String(r.received_at || r.last_at || r.last_ts || r.last_hello_at || r.created_at || r.at || '')
+  return String(r.received_at || r.last_at || r.last_ts || r.last_hello_at || r.created_at || r.updated_at || r.at || '')
 }
 
 /** A cursor answer (one section) folded into the current result. */
@@ -249,6 +257,14 @@ export function searchTarget(row) {
       const key = String(raw ?? '').trim()
       if (!key) return null
       return { path: `/issues?issue=${encodeURIComponent(key)}` }
+    }
+    case 'docs': {
+      /* the Qto document, at its section (WorkspaceDocsPage: ?doc=, #ws-doc-<item>) */
+      const doc = String(r.doc_id || '').trim()
+      if (!/^[0-9a-f-]{36}$/i.test(doc)) return null
+      const item = String(r.item_id || '').trim()
+      const at = !r.top && /^[0-9a-f-]{36}$/i.test(item) ? `#ws-doc-${item}` : ''
+      return { path: `/workspace/docs?doc=${doc}&view=doc${at}` }
     }
     default:
       return null

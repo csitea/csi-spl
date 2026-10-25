@@ -760,7 +760,15 @@ function shellReads(mock, mk, live) {
       const { mockSearch, mockSearchFault, normalizeSearchResponse } = await import('./search-results.mjs')
       if (mock) {
         await mockSearchFault()
-        return normalizeSearchResponse(mockSearch(mk.state.messages, q, mk.state.channels))
+        const res = mockSearch(mk.state.messages, q, mk.state.channels)
+        /* spec 100 section 14: the mock tenant's Qto documents, from the
+           doctree mock (a lazy chunk; none where it cannot load) */
+        try {
+          const { mockSearchDocs } = await import('../components/workspace-docs/-doctree-mock')
+          const docs = mockSearchDocs(q)
+          if (docs.length) res.groups.docs = { results: docs, next: null }
+        } catch { /* no doctree mock here: no docs group */ }
+        return normalizeSearchResponse(res)
       }
       // 027 budget: the search grammar (search.mjs + its mention autocomplete)
       // rides the first search, not the initial chunk.

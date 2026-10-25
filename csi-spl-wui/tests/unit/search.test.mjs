@@ -28,6 +28,9 @@ import {
   moveIndex,
   normalizeOperators,
   normalizeSearchResponse,
+  originalHref,
+  rowAt,
+  searchRowMenuItems,
   searchTarget,
 } from '../../src/utils/search-results.mjs'
 import { readFileSync, readdirSync } from 'node:fs'
@@ -691,5 +694,52 @@ describe('search-results.mjs stays out of the initial bundle', () => {
     for (const f of ['src/utils/spool-client.mjs', 'src/stores/search.ts']) {
       assert.match(readFileSync(join(WUI, f), 'utf8'), /await import\(['"](?:~\/utils\/|\.\/)search-results\.mjs['"]\)/, f)
     }
+  })
+})
+
+describe('doc hits (spec 100 section 14, SPL-3337)', () => {
+  const DOC = '3e4e8e2b-ca74-4a21-b308-257b78817bc8'
+  const ITEM = 'd3126449-bed2-4c27-8451-c1ecc522cbd6'
+  const ROOT = 'cf95bcb4-f763-47f2-95e6-c0ff938cb3e6'
+  const res = () => normalizeSearchResponse({
+    groups: {
+      messages: { results: [{ msg_id: 'm1', task_id: 't1', snippet: { text: 'rotate', highlights: [[0, 6]] } }], next: null },
+      docs: {
+        results: [
+          { doc_id: DOC, item_id: ITEM, top: false, doc_title: { text: 'Runbook', highlights: [] }, title: { text: 'Deploy steps', highlights: [] },
+            snippet: { text: 'rotate the keys', highlights: [[0, 6]] }, updated_at: '2026-10-25T12:00:00Z' },
+          { doc_id: DOC, item_id: ROOT, top: true, doc_title: { text: 'Runbook', highlights: [[0, 7]] }, title: { text: 'Runbook', highlights: [[0, 7]] },
+            snippet: { text: '', highlights: [] }, updated_at: '2026-10-24T12:00:00Z' },
+        ],
+        next: 'cd',
+      },
+    },
+  })
+  it('docs is a group of its own, right after messages', () => {
+    assert.equal(SEARCH_GROUPS[SEARCH_GROUPS.indexOf('messages') + 1], 'docs')
+    const r = res()
+    assert.deepEqual(r.groups.map((g) => g.type), ['messages', 'docs'])
+    assert.equal(r.groups[1].next, 'cd')
+    assert.deepEqual(r.groups[1].items.map((x) => x.key), [`docs:${ITEM}`, `docs:${ROOT}`])
+  })
+  it('a section shows its snippet where the words matched, the top its title', () => {
+    const [sec, top] = res().groups[1].items
+    assert.equal(sec.display.text, 'rotate the keys')
+    assert.equal(top.display.text, 'Runbook')
+    assert.deepEqual(top.display.highlights, [[0, 7]])
+    assert.equal(rowAt(sec), '2026-10-25T12:00:00Z')
+  })
+  it('opens the document at its section; the top opens the document', () => {
+    const [sec, top] = res().groups[1].items
+    assert.deepEqual(searchTarget(sec), { path: `/workspace/docs?doc=${DOC}&view=doc#ws-doc-${ITEM}` })
+    assert.deepEqual(searchTarget(top), { path: `/workspace/docs?doc=${DOC}&view=doc` })
+    assert.equal(originalHref(sec), `/workspace/docs?doc=${DOC}&view=doc#ws-doc-${ITEM}`)
+    assert.deepEqual(searchRowMenuItems(sec).map((m) => m.id), ['original', 'copy'])
+  })
+  it('CONTROL: a doc row without a document id has no target (no link built from junk)', () => {
+    for (const r of [{ type: 'docs' }, { type: 'docs', doc_id: '../x', item_id: ITEM }, { type: 'docs', doc_id: 'not-a-uuid' }]) {
+      assert.equal(searchTarget(r), null)
+    }
+    assert.deepEqual(searchTarget({ type: 'docs', doc_id: DOC, item_id: 'x/../y' }), { path: `/workspace/docs?doc=${DOC}&view=doc` })
   })
 })

@@ -1122,7 +1122,8 @@
       "messages": "Сообщения",
       "tenants": "Рабочие пространства",
       "events": "Журнал событий",
-      "issues": "Заявки"
+      "issues": "Заявки",
+      "docs": "Документы"
     },
     "placeholder_target": "Сообщение для {target} — Enter для новой строки · Ctrl+Enter или Cmd+Enter отправляет · /search ищет везде",
     "phone_hints": "Enter для новой строки · Ctrl+Enter или Cmd+Enter отправляет · /search ищет везде",

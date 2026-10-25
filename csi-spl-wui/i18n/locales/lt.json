@@ -1122,7 +1122,8 @@
       "messages": "Žinutės",
       "tenants": "Darbo sritys",
       "events": "Įvykių žurnalas",
-      "issues": "Problemos"
+      "issues": "Problemos",
+      "docs": "Dokumentai"
     },
     "placeholder_target": "Žinutė: {target} — Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter siunčia · /search ieško visur",
     "phone_hints": "Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter siunčia · /search ieško visur",

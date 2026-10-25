@@ -1122,7 +1122,8 @@
       "messages": "הודעות",
       "tenants": "סביבות עבודה",
       "events": "יומן אירועים",
-      "issues": "סוגיות"
+      "issues": "סוגיות",
+      "docs": "מסמכים"
     },
     "placeholder_target": "הודעה אל {target} — Enter לשורה חדשה · Ctrl+Enter או Cmd+Enter לשליחה · ‎/search לחיפוש בכל מקום",
     "phone_hints": "Enter לשורה חדשה · Ctrl+Enter או Cmd+Enter לשליחה · ‎/search לחיפוש בכל מקום",

@@ -1122,7 +1122,8 @@
       "messages": "Správy",
       "tenants": "Pracovné priestory",
       "events": "Denník udalostí",
-      "issues": "Úlohy"
+      "issues": "Úlohy",
+      "docs": "Dokumenty"
     },
     "placeholder_target": "Správa pre {target} — Enter pridá riadok · Ctrl+Enter alebo Cmd+Enter odošle · /search hľadá všade",
     "phone_hints": "Enter pridá riadok · Ctrl+Enter alebo Cmd+Enter odošle · /search hľadá všade",

@@ -1122,7 +1122,8 @@
       "messages": "Sõnumid",
       "tenants": "Tööruumid",
       "events": "Sündmuste logi",
-      "issues": "Probleemid"
+      "issues": "Probleemid",
+      "docs": "Dokumendid"
     },
     "placeholder_target": "Sõnum: {target} — Enter lisab rea · Ctrl+Enter või Cmd+Enter saadab · /search otsib kõikjalt",
     "phone_hints": "Enter lisab rea · Ctrl+Enter või Cmd+Enter saadab · /search otsib kõikjalt",

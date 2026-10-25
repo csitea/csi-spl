@@ -1122,7 +1122,8 @@
       "messages": "Mesaje",
       "tenants": "Spații de lucru",
       "events": "Jurnal de evenimente",
-      "issues": "Probleme"
+      "issues": "Probleme",
+      "docs": "Documente"
     },
     "placeholder_target": "Mesaj către {target} — Enter pentru un rând nou · Ctrl+Enter sau Cmd+Enter pentru a trimite · /search pentru a căuta peste tot",
     "phone_hints": "Enter pentru un rând nou · Ctrl+Enter sau Cmd+Enter pentru a trimite · /search pentru a căuta peste tot",

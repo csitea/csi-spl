@@ -1122,7 +1122,8 @@
       "messages": "Meddelanden",
       "tenants": "Arbetsytor",
       "events": "Händelselogg",
-      "issues": "Ärenden"
+      "issues": "Ärenden",
+      "docs": "Dokument"
     },
     "placeholder_target": "Meddelande till {target} — Enter för en ny rad · Ctrl+Enter eller Cmd+Enter skickar · /search söker överallt",
     "phone_hints": "Enter för en ny rad · Ctrl+Enter eller Cmd+Enter skickar · /search söker överallt",

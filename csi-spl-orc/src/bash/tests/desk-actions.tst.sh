@@ -292,11 +292,17 @@ for good in blocker msg; do
 done
 
 # SPL-952: a sidecar whose spool binary was rebuilt under it is stale.
-cp "$(command -v sleep)" "$T/fake-spool" && chmod +x "$T/fake-spool"
-"$T/fake-spool" 30 & stale_pid=$!
-cp "$(command -v sleep)" "$T/kept-spool" && chmod +x "$T/kept-spool"
-"$T/kept-spool" 30 & kept_pid=$!
-sleep 0.2
+# The fakes are copies of bash, not of sleep: on ubuntu-26.04 sleep is a
+# multi-call coreutils that dispatches on argv[0] and exits at once as
+# "fake-spool" (SPL-3297). Each blocks on a read of its own fifo (no child),
+# and the test waits until both run their own binary (/proc/<pid>/exe).
+for fk in fake-spool kept-spool; do cp "$(command -v bash)" "$T/$fk" && chmod +x "$T/$fk"; mkfifo "$T/$fk.fifo"; done
+"$T/fake-spool" -c 'exec 3<>"$1"; read -r -t 30 -u 3 _' _ "$T/fake-spool.fifo" & stale_pid=$!
+"$T/kept-spool" -c 'exec 3<>"$1"; read -r -t 30 -u 3 _' _ "$T/kept-spool.fifo" & kept_pid=$!
+for _ in $(seq 50); do
+  [[ "$(readlink "/proc/$stale_pid/exe" 2>/dev/null)" == */fake-spool && "$(readlink "/proc/$kept_pid/exe" 2>/dev/null)" == */kept-spool ]] && break
+  sleep 0.1
+done
 SNIPPET="spl_desk_sidecar_stale $kept_pid" in_orc >/dev/null 2>&1 &&
   fail "CONTROL a sidecar on an unchanged binary read as stale" || pass "CONTROL a sidecar on an unchanged binary is not stale"
 rm -f "$T/fake-spool"
@@ -304,7 +310,7 @@ SNIPPET="spl_desk_sidecar_stale $stale_pid" in_orc >/dev/null 2>&1 &&
   pass "a sidecar whose binary was replaced is stale" || fail "a sidecar whose binary was replaced was not seen as stale"
 SNIPPET="spl_desk_sidecar_stale not-a-pid" in_orc >/dev/null 2>&1 &&
   fail "a non-pid read as stale" || pass "a non-pid is not stale"
-kill "$stale_pid" "$kept_pid" 2>/dev/null || true
+kill "$stale_pid" "$kept_pid" 2>/dev/null; wait "$stale_pid" "$kept_pid" 2>/dev/null || true
 
 # --- 4. which message gets answered ------------------------------------------------
 # spl_desk_pick reads the recv JSON from a FILE by path (never an argv word): a

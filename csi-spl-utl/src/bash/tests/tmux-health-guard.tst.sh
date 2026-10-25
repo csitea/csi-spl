@@ -4,7 +4,7 @@
 # Drives do_fleet_tmux_health_guard against a PRIVATE tmux server
 # (TMUX_TMPDIR=<temp> tmux -L test-probe); the box's own tmux server is never
 # probed. A frozen server is a real one: the private server gets SIGSTOP.
-#   1. responsive server -> OK, sessions=1, exit 0; best of 5 probes < 50 ms
+#   1. responsive server -> OK, sessions=1, exit 0; best of 6 probes < 500 ms
 #   2. frozen server (SIGSTOP), DRY_RUN=1 -> HUNG in < 5 s, exit 1, PLAN only,
 #      nothing sent, no stamp; the server lives on after SIGCONT (not killed)
 #   3. frozen server, DRY_RUN=0 -> one note to orchestrator, --no-poke, stamp HUNG
@@ -119,15 +119,20 @@ if ! start_srv; then
   fail "1. could not start the private tmux server at $SOCK"
   echo "tmux-health-guard: $fails failure(s)"; exit 1
 fi
+# The bound is half the smallest TMUX_HEALTH_TIMEOUT (1 s): an answer, not a
+# speed record. 50 ms failed on a loaded hosted runner (wf 10 40244469102: the
+# first probe 11 ms, the next five >= 53 ms); 24 busy loops on 16 CPUs gave
+# p50 59, p99 120 ms (n=100), idle p99 17 ms.
 out=$(DRY_RUN=1 guard 2>&1); rc=$?
 best=999999
-for _ in 1 2 3 4 5; do
-  o=$(DRY_RUN=1 guard 2>&1)
+o=$out
+for i in 1 2 3 4 5 6; do
+  ((i > 1)) && o=$(DRY_RUN=1 guard 2>&1)
   ms=$(sed -n 's/.* ms=\([0-9]*\).*/\1/p' <<<"$o")
   [[ "$ms" =~ ^[0-9]+$ ]] && ((ms < best)) && best=$ms
 done
-if ((rc == 0)) && [[ "$out" == *"tmux-health OK socket=$SOCK sessions=1 "* ]] && ((best < 50)); then
-  pass "1. responsive server: OK, sessions=1, exit 0, best of 5 probes ${best} ms (< 50)"
+if ((rc == 0)) && [[ "$out" == *"tmux-health OK socket=$SOCK sessions=1 "* ]] && ((best < 500)); then
+  pass "1. responsive server: OK, sessions=1, exit 0, best of 6 probes ${best} ms (< 500)"
 else
   fail "1. responsive server (rc=$rc best=${best}ms out=$out)"
 fi

@@ -252,7 +252,7 @@ async function checkSettings(browser, base, vp) {
     }
     const vw = vp.w
     ok(`${tag} /settings is the list over the lobby, content hidden`, path0.endsWith('/lobby') && q0 === '' && !content0, { path0, q0, content0 })
-    ok(`${tag} 7 rows, each >= 44 px high and near full width`, rows.length === 7 && rows.every((r) => r.h >= 44 && r.w >= vw - 96), rows)
+    ok(`${tag} 8 rows, each >= 44 px high and near full width`, rows.length === 8 && rows.every((r) => r.h >= 44 && r.w >= vw - 96), rows)
     let x = await noXScroll(p)
     ok(`${tag} list: no horizontal page scroll`, x.ok, x)
 

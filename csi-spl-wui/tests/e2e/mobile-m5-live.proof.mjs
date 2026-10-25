@@ -92,7 +92,7 @@ try {
     const tag = `@${w}`
     await nav(p, BASE + '/settings', '[data-test=settings-nav]')
     const rows = await p.$$eval('[data-test=settings-nav] a', (as) => as.map((a) => Math.round(a.getBoundingClientRect().height)))
-    ok(`${tag} /settings is the list, rows >= 44 px, content hidden`, rows.length === 7 && rows.every((x) => x >= 44) && !(await p.evaluate(SHOWN, '[data-test=settings-content]')), { rows })
+    ok(`${tag} /settings is the list, rows >= 44 px, content hidden`, rows.length === 8 && rows.every((x) => x >= 44) && !(await p.evaluate(SHOWN, '[data-test=settings-content]')), { rows })
     await p.screenshot({ path: `${OUT}/${w}-settings-list.png` })
     await p.click('[data-test=settings-nav-behaviour]')
     await sleep(1500)

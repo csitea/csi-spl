@@ -44,6 +44,22 @@ printf -- '- **Report to:** `c-095@box3`, cc c-001\n' >"$L/brief.md"
 eq "a markdown Report to: line, with its box" "c-095@box3" "$(rep | tail -n 1)"
 printf 'Report to the dispatch holder on dispatch-x.\n' >"$L/brief.md"
 eq "prose naming no id falls to the seed's spawner" "reporter: c-001@box1 (from seed)"$'\n'"c-001@box1" "$(rep)"
+# A report line naming the dispatch lease holder resolves to the live holder
+# (SPL-3418: c-236's final went to the spawner); a failed lease read falls
+# through to the seed. KSR_LEASE_CMD stubs the lease read: no live lease.
+printf 'h() { printf "c-002@box9 44\\n"; }; h\n' >"$T_TMP/lease-ok" && printf 'exit 1\n' >"$T_TMP/lease-bad"
+printf '## Report\nreporter: the dispatch lease holder. Kind result to the CURRENT dispatch lease holder (`LEASE_CMD=show`) on task dispatch-orc.\n' >"$L/brief.md"
+eq "reporter: the dispatch lease holder -> the live holder" "reporter: c-002@box9 (from brief-lease)"$'\n'"c-002@box9" "$(KSR_LEASE_CMD="bash $T_TMP/lease-ok" rep)"
+for line in 'Kind result to the CURRENT dispatch lease holder (`x`).' 'To the dispatch lease holder on task dispatch-y, kind result.' '- Report on `--task dispatch-d8ca583e`, kind result, to the CURRENT dispatch lease holder (`x`).' 'Send a result to the dispatch lease holder.'; do
+  printf '%s\n' "$line" >"$L/brief.md"
+  eq "holder line: ${line:0:40}" "c-002@box9" "$(KSR_LEASE_CMD="bash $T_TMP/lease-ok" rep | tail -n 1)"
+done
+out="$(KSR_LEASE_CMD="bash $T_TMP/lease-bad" rep)"
+has "a failed lease read says so" "the lease read failed; trying the next source" "$out"
+eq "a failed lease read falls to the seed's spawner" "c-001@box1" "$(tail -n 1 <<<"$out")"
+printf 'Step 0: the dispatch lease holder reads it first.\n' >"$L/brief.md"
+eq "a line that only mentions the holder is no report line" "c-001@box1" "$(KSR_LEASE_CMD="bash $T_TMP/lease-ok" rep | tail -n 1)"
+printf 'Report to the dispatch holder on dispatch-x.\n' >"$L/brief.md"
 rm -f "$L/prompt.txt"
 eq "no seed line: the registry requester, decorated" "reporter: c-005@box2 (from registry)"$'\n'"c-005@box2" "$(rep)"
 eq "nothing named: the orchestrator" "reporter: orchestrator (from fallback)"$'\n'"orchestrator" "$(SPOOL_AGENT_ID=m-098 bash "$R" --reporter --no-gate "$W" 2>&1)"

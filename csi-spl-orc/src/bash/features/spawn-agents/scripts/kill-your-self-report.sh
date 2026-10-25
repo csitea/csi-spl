@@ -22,7 +22,10 @@
 #
 # --reporter prints the id the exit-clean report goes to, first match wins:
 # $REPORT_TO; the brief's own "Spawner:" / "Reporter:" / "Report to:" line
-# naming an id (<spool root>/<id>/lifetime/brief.md); the seed's "your
+# naming an id (<spool root>/<id>/lifetime/brief.md); the brief's report line
+# naming "the (CURRENT) dispatch lease holder", resolved to the live holder by
+# LEASE_CMD=show do_spl_dispatch_lease (from=brief-lease; a failed read falls
+# through, said on stderr; KSR_LEASE_CMD replaces it in tests); the seed's "your
 # spawner: ... --to <id>" (lifetime/prompt.txt); the registry row's requester;
 # else "orchestrator". stderr says which source won. It runs --gate first
 # (refused: exit 3, nothing on stdout, so the report send has no recipient);
@@ -92,6 +95,26 @@ if [ -n "${TMUX_PANE:-}" ]; then
   if [ -z "$ID" ]; then ID="$(an_strip "$wname" | grep -oE "^${SPOOL_AGENT_ID_RX}" || true)"; SRC=window; fi
 fi
 
+# A brief's report line naming the holder, as dispatcher briefs word it: "Kind
+# result to the CURRENT dispatch lease holder", "To the dispatch lease holder",
+# "- Report on `--task x`, kind result, to the CURRENT ...", "reporter: the
+# dispatch lease holder." (c-236's final 3209514a and c-625's f6ccf61c
+# went to the spawner, 2026-10-20..25, SPL-3418).
+KSR_HOLDER_RX='^[-*_ ]*(reporter[*_ ]*:[*_` ]*the (current )?dispatch lease holder|((report|send|kind)[^.]{0,60})?(result )?to the (current )?dispatch lease holder)'
+
+# The live dispatch holder's <id>@<box>, or nothing when the read fails.
+ksr_lease_holder() {
+  local out
+  if [ -n "${KSR_LEASE_CMD:-}" ]; then
+    out="$($KSR_LEASE_CMD 2>/dev/null)"
+  else
+    out="$(cd "$_here/../../../../.." && env SPOOL_ROOT="$SPOOL_ROOT" LEASE_CMD=show RUN_STDOUT_IS_DATA=1 timeout 30 ./run -a do_spl_dispatch_lease 2>/dev/null </dev/null)"
+  fi
+  out="$(printf '%s\n' "$out" | awk 'NR == 1 { print $1 }')"
+  [[ "$out" =~ ^${SPOOL_AGENT_ID_RX}@[A-Za-z0-9._-]+$ ]] && printf '%s\n' "$out"
+  return 0
+}
+
 # The lane's named reporter (c-894 finding 2): the skill's {{ORCHESTRATOR_ID}}
 # rendered as "orchestrator", so m-897's report skipped c-894, the spawner its
 # brief named. Sets REP_TO and REP_FROM.
@@ -101,6 +124,10 @@ ksr_reporter() {
   if [ -z "$to" ] && [ -r "$life/brief.md" ]; then
     to="$(sed -nE "s/^[-*_ ]*(spawner|reporter|report to)[*_ ]*:[*_\` ]*(${SPOOL_AGENT_ID_RX}(@[A-Za-z0-9._-]+)?)([^A-Za-z0-9@._-].*)?\$/\2/Ip" "$life/brief.md" | sed -n 1p)"
     [ -n "$to" ] && from=brief
+  fi
+  if [ -z "$to" ] && [ -r "$life/brief.md" ] && grep -qiE "$KSR_HOLDER_RX" "$life/brief.md"; then
+    to="$(ksr_lease_holder)"
+    if [ -n "$to" ]; then from=brief-lease; else echo "reporter: the brief names the dispatch lease holder, but the lease read failed; trying the next source" >&2; fi
   fi
   if [ -z "$to" ] && [ -r "$life/prompt.txt" ]; then
     to="$(grep -oE "your spawner: spool-send\.sh --to ${SPOOL_AGENT_ID_RX}(@[A-Za-z0-9._-]+)?" "$life/prompt.txt" | sed -n 1p | sed 's/.* --to //')"

@@ -93,8 +93,11 @@ SPOOL_ROOT={{SPOOL_ROOT}} bash {{HARNESS_DIR}}/scripts/spool-send.sh --from <YOU
 ```
 
 `--reporter` prints your named reporter: a `Spawner:` / `Reporter:` /
-`Report to:` line in your brief, else the spawner your seed names, else your
-registry row's requester, else `{{ORCHESTRATOR_ID}}` (stderr says which).
+`Report to:` line in your brief naming an id, else the live dispatch lease
+holder when your brief's report line names "the (CURRENT) dispatch lease
+holder" (a failed lease read falls through), else the spawner your seed names,
+else your registry row's requester, else `{{ORCHESTRATOR_ID}}` (stderr says
+which).
 `REPORT_TO=<id>` overrides it when your brief names a reporter in prose. The
 `--body-file` is the summary `--result` printed, never the detail file.
 `<ACCEPTED-TASK-ID>` is the `task_id` of the ACCEPTED message you just

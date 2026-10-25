@@ -35,6 +35,8 @@
 # @description      blocker asking for the next rows of that class
 # @description   3b. BANDS (SPL-1817) - a ci head (CI-red on trunk) or a flagged
 # @description      one (urgent bug, owner bypass feature) is taken as it is;
+# @description      then a review seat queued on the owner's review-seat GO
+# @description      (SPL-3349: in the local bypass log, any class);
 # @description      otherwise the queued row of the class furthest under its band
 # @description      of the live lanes (do_spl_spawn_share) is taken, a class over
 # @description      its band only when no other class waits; ties refactor > bug
@@ -220,11 +222,17 @@ spl_spawn_place_dispatch() {
   return 0
 }
 
-# 3b. The row the bands pick, HEAD when it is ci or flagged, or when the
-# share cannot be read (the hub's order holds).
+# 3b. The row the bands pick, HEAD when it is ci or flagged, a review seat on
+# the owner's review-seat GO next, or HEAD when the share cannot be read (the
+# hub's order holds).
 spl_spawn_place_band() {  # HEAD ROWS
   local share pick
   if jq -e '(.class // "") == "ci" or (.flag // "") != ""' >/dev/null <<<"$1"; then printf '%s' "$1"; return 0; fi
+  pick="$(spl_spawn_place_seat "$2")"
+  if [[ -n "$pick" ]]; then
+    do_log "INFO review-seat pick: ask $(jq -r '"\(.ask_id[0:8]) (\(.class // "") \(.placement), queue position \(.position))"' <<<"$pick") on owner GO ${SPL_SPAWN_REVIEW_SEAT_GO:0:8}, ahead of the bands" >&2
+    printf '%s' "$pick"; return 0
+  fi
   share="${SPAWN_PLACE_SHARE:-}"
   [[ -n "$share" ]] || share="$(spl_spawn_share)" || { do_log "WARN the live share could not be read: the queue's order holds" >&2; printf '%s' "$1"; return 0; }
   pick="$(jq -c --argjson share "$share" '
@@ -237,6 +245,20 @@ spl_spawn_place_band() {  # HEAD ROWS
   [[ -n "$pick" ]] || { printf '%s' "$1"; return 0; }
   do_log "INFO band pick: ask $(jq -r '"\(.ask_id[0:8]) (\(._c) at \(._p)%, queue position \(.position))"' <<<"$pick") of $(spl_spawn_share_line "$share")" >&2
   jq -c 'del(._t, ._o, ._c, ._p, ._s)' <<<"$pick"
+}
+
+# 3b. The queued review seat (placement slug ending in -reviewer) whose ask the
+# local bypass log holds on the review-seat GO, first by position; nothing
+# when none. The hub keeps such a row unflagged (a bypass is a feature flag
+# there, rdb 0195), so the log is its record (spl_spawn_q_enqueue).
+spl_spawn_place_seat() {  # ROWS
+  local f ids
+  f="$(spool_asks_dir)/bypass.tsv"
+  [[ -s "$f" ]] || return 0
+  declare -F spl_spawn_q_review_seat_go >/dev/null || source "$PROJ_PATH/src/bash/run/spl-spawn-enqueue.func.sh"
+  ids="$(awk -F'\t' -v m="$SPL_SPAWN_REVIEW_SEAT_GO" '$3 == m { print $2 }' "$f" | jq -R -s -c 'split("\n") | map(select(length > 0))')"
+  jq -c --argjson ids "$ids" '[.[] | select(.state == "queued" and ((.placement // "") | sub("^[^:]*:"; "") | test("-reviewer$"))
+    and (.ask_id as $a | $ids | index($a)))] | sort_by(.position) | .[0] // empty' <<<"$1"
 }
 
 # 1. Placing requests quiet SPAWN_PLACE_LOCK_MIN go back in line. 0 = one did.

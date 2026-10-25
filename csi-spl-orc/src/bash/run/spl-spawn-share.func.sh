@@ -72,7 +72,9 @@ spl_spawn_share_jq() {  # DIR
        bypasses: ([$asks.asks[] | select((.flag // "") == "bypass")
                    | {ask: .ask_id, msg: .flag_msg, by: .flag_by, at: .flag_at, state: .state,
                       lane: (if .state == "done" then (.reason // "" | sub("^placed: "; "")) else "" end), summary: .summary}]
-                  + [$log[] | select(.ask as $a | [$asks.asks[] | .ask_id] | index($a) | not)]
+                  + [$log[] | .ask as $a | ([$asks.asks[] | select(.ask_id == $a)] | .[0]) as $h
+                     | select(($h.flag // "") != "bypass")
+                     | if $h then . + {state: $h.state, lane: (if $h.state == "done" then ($h.reason // "" | sub("^placed: "; "")) else "" end)} else . end]
                   | sort_by(.at))}'
 }
 

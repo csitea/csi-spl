@@ -23,7 +23,7 @@
 # @description auto-closed (SPL-1729) is reopened instead, never refused (SPL-3060).
 # @param SPAWN_CLASS (required) - ci (a CI-red fix on trunk), refactor, bug or feature; no default, never guessed
 # @param SPAWN_URGENT (optional) - 1: a bug placed even over its band (owner-reported prd breakage; the dispatcher's call)
-# @param SPAWN_BYPASS (optional) - the owner message id (a UUID) that explicitly asked for this feature outside the bands; ONLY on the owner's ask, recorded and listed by do_spl_spawn_share
+# @param SPAWN_BYPASS (optional) - the owner message id (a UUID) that explicitly asked for this feature outside the bands; ONLY on the owner's ask, recorded and listed by do_spl_spawn_share. The owner's review-seat GO (SPL_SPAWN_REVIEW_SEAT_GO) also takes a review seat of class refactor or bug (SPL-3349)
 # @param ASK_ID (required) - the ask id, or its first 8 hex digits (do_spl_asks_open prints them)
 # @param SPAWN_PLACE (optional) - <vendor>:<slug>: the placer launches it itself, `spawn-window.sh <vendor> auto <workdir> <brief> <slug>`, with the brief file <slug>.md under SPAWN_PLACE_BRIEF_DIR on the orch box. Unset: the placer hands it to the orchestrator when it is next
 # @param SPAWN_KIND (optional) - the lane's task kind (spec 115); unset reads the "Kind:" of the brief <slug>.md. A mistral placement of any kind but specs_and_docs or i18n is refused (owner HUM-10, t1 b61851fb, msg 91bf8278: mistral does docs and reviews only) while cnf env.box.agent_split.mistral_coding_allowed is not true
@@ -32,6 +32,7 @@
 # @example ASK_ID=8a70dfd7 SPAWN_CLASS=refactor ./run -a do_spl_spawn_enqueue
 # @example ASK_ID=8a70dfd7 SPAWN_CLASS=bug SPAWN_PLACE=claude:hub-pg-split ./run -a do_spl_spawn_enqueue
 # @example ASK_ID=8a70dfd7 SPAWN_CLASS=feature SPAWN_BYPASS=8cb6cc7d-7628-4ac3-be00-86e427bb3487 ./run -a do_spl_spawn_enqueue
+# @example ASK_ID=de5714db SPAWN_CLASS=bug SPAWN_BYPASS=994f2257-8ad1-4010-88c8-4f0a16230937 SPAWN_PLACE=agy:c002-ar1-05-agy-r7-reviewer ./run -a do_spl_spawn_enqueue
 
 do_spl_spawn_enqueue() {
   local by id row pos len rc=0
@@ -52,7 +53,7 @@ do_spl_spawn_enqueue() {
 # takes: a single enqueue, and each row a work group feeds
 # (spl-spawn-group-put.func.sh; a single ask is a group of one row, width 1).
 spl_spawn_q_enqueue() {  # ID BY PLACE CLASS URGENT(0|1) BYPASS_MSG
-  local id="$1" by="$2" place="$3" class="$4" msg="$6" flag="" row rc=0
+  local id="$1" by="$2" place="$3" class="$4" msg="$6" flag="" seat="" row rc=0
   [[ -z "$place" || "$place" =~ ^[a-z]{2,16}:[a-z0-9][a-z0-9._-]{0,63}$ ]] ||
     { do_log "FATAL SPAWN_PLACE must be <vendor>:<slug> (lowercase), got '$place'" >&2; return 1; }
   spl_spawn_enqueue_mistral_ok "$place" >&2 || return 1
@@ -64,8 +65,10 @@ spl_spawn_q_enqueue() {  # ID BY PLACE CLASS URGENT(0|1) BYPASS_MSG
       { do_log "FATAL SPAWN_BYPASS must be the owner's message id (a full lowercase UUID), got '$msg'" >&2; return 1; }
     flag=bypass
   fi
+  [[ "$flag" != bypass || "$class" == feature ]] || ! spl_spawn_q_review_seat_go "$place" "$msg" || seat=1
   [[ "$flag" != urgent || "$class" == bug ]] || { do_log "FATAL SPAWN_URGENT goes with SPAWN_CLASS=bug only" >&2; return 1; }
-  [[ "$flag" != bypass || "$class" == feature ]] || { do_log "FATAL SPAWN_BYPASS goes with SPAWN_CLASS=feature only" >&2; return 1; }
+  [[ "$flag" != bypass || "$class" == feature || -n "$seat" ]] ||
+    { do_log "FATAL SPAWN_BYPASS goes with SPAWN_CLASS=feature only (the review-seat GO ${SPL_SPAWN_REVIEW_SEAT_GO:0:8} also takes a review seat: a SPAWN_PLACE slug ending in -reviewer)" >&2; return 1; }
   [[ -z "$msg" || "$5" != 1 ]] || { do_log "FATAL SPAWN_URGENT and SPAWN_BYPASS exclude each other" >&2; return 1; }
   if [[ -n "$place" ]]; then  # the placer files the lane's issue from this brief: refuse it here, not at placement
     . "$PROJ_PATH/src/bash/features/spawn-agents/lib/lane-issue.inc.sh" >&2 || return 1
@@ -76,15 +79,31 @@ spl_spawn_q_enqueue() {  # ID BY PLACE CLASS URGENT(0|1) BYPASS_MSG
     [[ "$closed" != *$'\t'auto-closed ]] || { spl_spawn_q_enqueue_reopen "$brief" "${place#*:}" "${closed%$'\t'auto-closed}"; closed=""; }
     [[ -z "$closed" ]] || { do_log "FATAL ask not queued: $closed" >&2; return 1; }
   fi
-  row="$(spl_spawn_q_op queue "$id" "$by" "" "$place" "$class" "$flag" "$msg")" || rc=$?
+  if [[ -n "$seat" ]]; then  # the hub takes bypass on a feature only (rdb 0195): the seat goes unflagged, the log records it
+    row="$(spl_spawn_q_op queue "$id" "$by" "" "$place" "$class" "" "")" || rc=$?
+  else
+    row="$(spl_spawn_q_op queue "$id" "$by" "" "$place" "$class" "$flag" "$msg")" || rc=$?
+  fi
   (( rc == 0 )) || return "$rc"
   if [[ "$flag" == bypass ]]; then
+    local what="feature "; [[ -z "$seat" ]] || what="$class review-seat "
     spl_spawn_share_bypass_record "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$id" "$msg" "$by" "$(jq -r '.summary // ""' <<<"$row")" ||
-      do_log "WARN the bypass of ask ${id:0:8} is on the hub row but not in the local bypass log" >&2
-    do_log "INFO ask ${id:0:8} is a feature BYPASS on owner msg ${msg:0:8}: recorded, listed by do_spl_spawn_share" >&2
+      do_log "WARN the bypass of ask ${id:0:8} is not in the local bypass log${seat:+ (a review seat: the placer will not take it first)}" >&2
+    do_log "INFO ask ${id:0:8} is a ${what}BYPASS on owner msg ${msg:0:8}: recorded, listed by do_spl_spawn_share${seat:+, placed ahead of the bands}" >&2
   fi
   do_log "OK ask ${id:0:8} queued ($class${flag:+, $flag}): position $(jq -r '.position // 0' <<<"$row") of $(jq -r '.queue_len // 0' <<<"$row")${place:+, placement $place}" >&2
   printf '%s\n' "$row"
+}
+
+# The owner's review-seat GO (HUM-10, msg 994f2257, 2026-10-16): every review
+# seat is queued ahead of features, whatever its class (SPL-3349). A review
+# seat is a placement whose slug ends in -reviewer: mechanical, the slug is in
+# hand at enqueue and at placement; a brief's Kind:/title is not (Kind:
+# specs_and_docs is every docs lane too). Any other bypass id stays
+# feature-only. The placer takes a logged seat first (spl_spawn_place_band).
+SPL_SPAWN_REVIEW_SEAT_GO=994f2257-8ad1-4010-88c8-4f0a16230937
+spl_spawn_q_review_seat_go() {  # PLACE MSG -> 0: the review-seat GO on a review seat
+  [[ "$2" == "$SPL_SPAWN_REVIEW_SEAT_GO" && -n "$1" && "${1#*:}" =~ -reviewer$ ]]
 }
 
 # An epic the SPL-1729 close archived (li_brief_epic_closed's `auto-closed`

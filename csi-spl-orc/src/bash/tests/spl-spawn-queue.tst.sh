@@ -72,6 +72,13 @@
 #      brief with neither sends no category op and places as before
 #      (CONTROL); a path the hub refuses is one WARN line and the row is
 #      still placed
+#  19. SPL-3349: the owner's review-seat GO (msg 994f2257) takes a review
+#      seat (a placement slug ending in -reviewer) of class bug: queued
+#      unflagged on the hub, in the local bypass log, listed by
+#      do_spl_spawn_share; the GO on a non-seat or with no placement, and
+#      another owner id on a seat, are still refused; bug OVER its band and
+#      feature UNDER, the bypassed seat is placed before the feature (CONTROL:
+#      a seat queued without the GO waits, the feature is placed)
 #   9. do_spl_spawn_place_install_cron writes ONE line whose PATH has
 #      /usr/local/bin (yq lives there; cron's own PATH is /usr/bin:/bin) and
 #      runs under flock -n; idempotent; remove takes only its line
@@ -929,6 +936,49 @@ r="$(hubrow "$G3")"
   grep -q "WARN ask ${G3:0:8}: its category was not recorded (tests coding/no_such_node): hub refused: unknown_category" <<<"$out" &&
   pass "18. a category the hub refuses (no such node) is one WARN line; the row is still placed" ||
   fail "18. refused category: $out | $r"
+
+# 19. SPL-3349: the owner's review-seat GO (msg 994f2257) on a seat of any class -------
+SEAT_GO=994f2257-8ad1-4010-88c8-4f0a16230937
+S1=33490001-0000-4000-8000-000000000001; N1=33490002-0000-4000-8000-000000000002
+O1=33490003-0000-4000-8000-000000000003; FE=33490004-0000-4000-8000-000000000004; S2=33490005-0000-4000-8000-000000000005
+jq '(.[] | select(.state == "queued" or .state == "acked")) |= (.state = "dead")' "$T/hub/main.json" >"$T/hub/main.json.new" && mv "$T/hub/main.json.new" "$T/hub/main.json"
+for b in seat-r7-reviewer seat2-reviewer seat3-r7-reviewer bug-fix-x feat-x; do printf 'Class: bug\n%s\n' "$ES" >"$T/briefs/$b.md"; done
+for i in "$S1" "$N1" "$O1" "$FE" "$S2"; do put "$i" c-002@box-desk "dispatch-enqueue-review-bypass" "SPAWN REQUEST ${i:0:8}"; done
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$S1" SPAWN_CLASS=bug SPAWN_BYPASS=$SEAT_GO SPAWN_PLACE=claude:seat-r7-reviewer 2>&1)"; rc=$?
+r="$(hubrow "$S1")"
+[[ $rc -eq 0 && "$(jq -r .state <<<"$r")" == queued && "$(jq -r '.flag // ""' <<<"$r")" == "" ]] &&
+  grep -q "$S1"$'\t'"$SEAT_GO"$'\t'"c-001@box-desk" "$T/pc/spool/asks/bypass.tsv" && grep -q "is a bug review-seat BYPASS on owner msg 994f2257: recorded" <<<"$out" &&
+  pass "19a. a bug review seat on the review-seat GO is queued, unflagged on the hub (bypass is a feature flag there), in the local bypass log" ||
+  fail "19a. seat enqueue: rc=$rc $out | $r"
+[[ "$(on pc do_spl_spawn_share SPAWN_SHARE_FORMAT=json 2>/dev/null | jq -r --arg a "$S1" '[.bypasses[] | select(.ask == $a) | "\(.msg) \(.state)"] | join(",")')" == "$SEAT_GO queued" ]] &&
+  pass "19a. do_spl_spawn_share lists the review-seat bypass (owner msg, ask), its state from the hub row" || fail "19a. share: $(on pc do_spl_spawn_share SPAWN_SHARE_FORMAT=json 2>&1)"
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$N1" SPAWN_CLASS=bug SPAWN_BYPASS=$SEAT_GO SPAWN_PLACE=claude:bug-fix-x 2>&1)"; rc=$?
+[[ $rc -ne 0 && "$(jq -r .state <<<"$(hubrow "$N1")")" == open ]] && grep -q "FATAL SPAWN_BYPASS goes with SPAWN_CLASS=feature only" <<<"$out" &&
+  pass "19b. the review-seat GO on a bug that is no review seat: still refused, the ask stays open" || fail "19b. non-seat: rc=$rc $out"
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$N1" SPAWN_CLASS=bug SPAWN_BYPASS=$SEAT_GO 2>&1)"; rc=$?
+[[ $rc -ne 0 && "$(jq -r .state <<<"$(hubrow "$N1")")" == open ]] && grep -q "FATAL SPAWN_BYPASS goes with SPAWN_CLASS=feature only" <<<"$out" &&
+  pass "19b. the review-seat GO with no placement: refused" || fail "19b. no place: rc=$rc $out"
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$O1" SPAWN_CLASS=bug SPAWN_BYPASS=$BYPASS_MSG SPAWN_PLACE=claude:seat2-reviewer 2>&1)"; rc=$?
+[[ $rc -ne 0 && "$(jq -r .state <<<"$(hubrow "$O1")")" == open ]] && grep -q "FATAL SPAWN_BYPASS goes with SPAWN_CLASS=feature only" <<<"$out" &&
+  ! grep -q "$O1" "$T/pc/spool/asks/bypass.tsv" &&
+  pass "19c. another owner msg id on a bug review seat: still refused, nothing logged" || fail "19c. other id: rc=$rc $out"
+on pc do_spl_spawn_enqueue ASK_ID="$FE" SPAWN_CLASS=feature SPAWN_PLACE=claude:feat-x >/dev/null 2>&1
+# live lanes: bug 2 of 4 (50%, OVER 20-30%), feature 1 (25%, UNDER 40%), refactor 1 (25%)
+SEAT_LANES='[{"agent_id": "c-304", "agent_box": "box-desk", "state": "live"}, {"agent_id": "c-311", "agent_box": "box-desk", "state": "live"},
+  {"agent_id": "c-305", "agent_box": "box-desk", "state": "live"}, {"agent_id": "c-301", "agent_box": "box-desk", "state": "live"}]'
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(on pc do_spl_spawn_place LAUNCH_ID=c-521 LANES="$SEAT_LANES" 2>&1)"
+[[ "$(jq -r .reason <<<"$(hubrow "$S1")")" == "placed: c-521@box-desk" && "$(jq -r .state <<<"$(hubrow "$FE")")" == queued ]] &&
+  grep -q "^claude auto $T $T/briefs/seat-r7-reviewer.md seat-r7-reviewer$" "$T/launch.log" && grep -q "review-seat pick: ask ${S1:0:8} (bug claude:seat-r7-reviewer" <<<"$out" &&
+  pass "19d. bug OVER its band, feature UNDER: the bypassed bug review seat is placed ahead of the queued feature row" ||
+  fail "19d. seat pick: $out | $(hubrow "$S1") | $(cat "$T/launch.log")"
+on pc do_spl_spawn_enqueue ASK_ID="$S2" SPAWN_CLASS=bug SPAWN_PLACE=claude:seat3-r7-reviewer >/dev/null 2>&1
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(on pc do_spl_spawn_place LAUNCH_ID=c-522 LANES="$SEAT_LANES" 2>&1)"
+[[ "$(jq -r .reason <<<"$(hubrow "$FE")")" == "placed: c-522@box-desk" && "$(jq -r .state <<<"$(hubrow "$S2")")" == queued ]] && ! grep -q "review-seat pick" <<<"$out" &&
+  grep -q "band pick: ask ${FE:0:8} (feature at 25%" <<<"$out" &&
+  pass "19d. control: a review seat queued without the GO waits; the band pick places the feature (bug 50% OVER, feature 25% UNDER)" ||
+  fail "19d. control: $out | $(hubrow "$FE") | $(cat "$T/launch.log")"
 
 # 9. the cron line ----------------------------------------------------------------------
 cat >"$T/bin/crontab" <<'EOF'

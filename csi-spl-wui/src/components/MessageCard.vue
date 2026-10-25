@@ -404,6 +404,7 @@
       :move-topic="canMoveMsg"
       :promote-topic="canPromoteMsg"
       :make-issue="canMakeIssue"
+      :to-task="canMakeTask"
       :hide="menuHide"
       :locks="menuLocks"
       :ai-msg="msg"
@@ -427,6 +428,7 @@
       @move-topic="openMovePicker('topic')"
       @merge-topic="openMovePicker('merge')"
       @promote-topic="onPromote"
+      @make-task="onMakeTask"
       @make-issue="onMakeIssue"
       @hide-flow="onMenuHide"
     />
@@ -485,7 +487,7 @@ import { useAccessStore } from '~/stores/access'
 import { mayArchiveTopic, mayChangeTopic, paneArchiveOffer } from '~/utils/topic-archive.mjs'
 import { useDeleteUndo } from '~/composables/useDeleteUndo'
 import { isAiMessage, typedByAuthor } from '~/utils/typed-by.mjs'
-import { canSetKind } from '~/utils/msg-kind.mjs'
+import { canMakeTask as mayMakeTask, canSetKind } from '~/utils/msg-kind.mjs'
 import { ownerAllows } from '~/utils/access.mjs'
 import { POLL_HOST } from '~/utils/poll-fence.mjs'
 import type { CardClipMode } from '~/composables/useCardClip'
@@ -494,7 +496,7 @@ import { useCardReactions } from '~/composables/useCardReactions'
 import { playTapAnim } from '~/composables/useTapAnim'
 import { useCardEdit } from '~/composables/useCardEdit'
 import { useCardHeight, useCardTitle } from '~/composables/useCardHeight'
-import { useCardMessageActions, useCardTopicActions } from '~/composables/useCardTopicActions'
+import { useCardMakeTask, useCardMessageActions, useCardTopicActions } from '~/composables/useCardTopicActions'
 import { useCardMenuActions } from '~/composables/useCardMenuActions'
 import { useCardNotes } from '~/composables/useCardNotes'
 import { useCardLongPress, useCardSwipe, useCardSwipeFlags } from '~/composables/useCardSwipe'
@@ -674,12 +676,15 @@ const paneArchiveReply = computed(() => inPane.value && !props.topicMenu && show
 const kindSettable = computed(() => canSetKind(props.msg, editorId.value, access.me?.role ?? null))
 /* t1 5ea2e615 (owner db5ed497): a workspace owner makes an issue of a blocker */
 const canMakeIssue = computed(() => ownerAllows(access.me) && String(props.msg.kind || '') === 'blocker')
+/* SPL-3344 (HUM-10 t1 2a9e18c7): a blocker becomes a task in one step, where Kind -> Task is offered */
+const canMakeTask = computed(() => mayMakeTask(props.msg, editorId.value, access.me?.role ?? null))
 
 const { titleOnly, linkPreviews, title } = useCardTitle(props, editing, files)
 const { clipOn, userPx, clipped, clipStyle, startGrip, onGripClick, onGripKey } = useCardHeight(props, editing, clipEl, clipInner)
 const busyState = { removing, editError }
 const { topicDeleteOpen, topicDeleteMsgId, msgDeleteOpen, onMenuArchive, onMenuDeleteTopic, onTopicDeleted, onMenuDelete } = useCardTopicActions(props, emit, rowEl, busyState, menu, msgEdit)
 const { aiError, onAiFail, onMerge, remove, onMakeIssue } = useCardMessageActions(props, emit, busyState, editing, menu, msgEdit)
+const { onMakeTask } = useCardMakeTask(props, menu, msgEdit, aiError)
 const { showParent, parentKind, onMenuParent, copyMessageLink, copyBody, onMenuOpen, onMenuReply, onMenuKind } = useCardMenuActions(props, viewerId, rowEl, menu, openReplies)
 
 const { movedFrom, movedText, dmRef, dmRefText, dmRefTip, pointerText, pointerTip } = useCardNotes(props)
@@ -709,11 +714,11 @@ const { onKey } = useCardKeys({
   props, emit, rowEl, editing, removing, startEdit, canEdit, msgDeleteOpen, deleteUndo, openMenuAt,
   actions: {
     onMenuOpen, onMenuParent, onMenuEdit, copyMessageLink, copyBody, onMenuReply, onMenuKind,
-    onMenuArchive, onMenuDelete, onMenuDeleteTopic, openMovePicker, onPromote, onMenuHide,
+    onMenuArchive, onMenuDelete, onMenuDeleteTopic, openMovePicker, onPromote, onMenuHide, onMakeTask,
   },
   flags: {
     showParent, parentKind, showTopicArchive, paneArchiveReply, showTopicDelete, kindSettable,
-    canMoveTopic, canMoveMsg, canPromoteMsg, menuHide, menuLocks,
+    canMoveTopic, canMoveMsg, canPromoteMsg, menuHide, menuLocks, canMakeTask,
   },
 })
 

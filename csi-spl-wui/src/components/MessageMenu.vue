@@ -59,6 +59,8 @@ const props = defineProps<{
   promoteTopic?: boolean
   /** t1 5ea2e615 (owner db5ed497): a workspace owner may make an issue of this blocker */
   makeIssue?: boolean
+  /** SPL-3344: a blocker the viewer may re-type: Make it a task (Kind -> Task in one step) */
+  toTask?: boolean
   /** HUM-10 (t1 7d9faaad): a topic-view reply a left swipe may hide */
   hide?: boolean
   /** CLE-77891: a topic card's entries the viewer may not use, shown disabled with the reason */
@@ -89,6 +91,7 @@ const emit = defineEmits<{
   'move-topic': []
   'merge-topic': []
   'promote-topic': []
+  'make-task': []
   'make-issue': []
   'hide-flow': []
 }>()
@@ -131,6 +134,7 @@ const topicItems = computed(() => msgMenuItems({
   mergeTopic: props.mergeTopic,
   promoteTopic: props.promoteTopic,
   makeIssue: props.makeIssue,
+  toTask: props.toTask,
   hide: props.hide,
   locks: props.locks,
 }))
@@ -156,6 +160,7 @@ function choose(id: string) {
   else if (id === 'move-topic') emit('move-topic')
   else if (id === 'merge-topic') emit('merge-topic')
   else if (id === 'promote-topic') emit('promote-topic')
+  else if (id === 'make-task') emit('make-task')
   else if (id === 'make-issue') emit('make-issue')
   else if (id === 'hide-flow') emit('hide-flow')
   else if (ai.more(id)) { /* the sheet now shows the seven actions */ }

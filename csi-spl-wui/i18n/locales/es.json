@@ -748,6 +748,7 @@
       "move_topic": "Mover a un tema…",
       "hide_flow": "Ocultar del flujo",
       "promote_topic": "Convertir en tema",
+      "make_task": "Convertir en tarea",
       "make_issue": "Crear una incidencia",
       "make_issue_failed": "No se creó la incidencia. Inténtalo de nuevo.",
       "why": {

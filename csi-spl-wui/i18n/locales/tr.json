@@ -748,6 +748,7 @@
       "move_topic": "Konuya taşı…",
       "hide_flow": "Akıştan gizle",
       "promote_topic": "Konu yap",
+      "make_task": "Göreve dönüştür",
       "make_issue": "İş kaydı oluştur",
       "make_issue_failed": "İş kaydı oluşturulmadı. Tekrar deneyin.",
       "why": {

@@ -748,6 +748,7 @@
       "move_topic": "Pārvietot uz tēmu…",
       "hide_flow": "Paslēpt no plūsmas",
       "promote_topic": "Izveidot kā tēmu",
+      "make_task": "Pārvērst par uzdevumu",
       "make_issue": "Izveidot problēmu",
       "make_issue_failed": "Problēma netika izveidota. Mēģiniet vēlreiz.",
       "why": {

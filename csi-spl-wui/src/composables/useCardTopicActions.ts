@@ -1,7 +1,7 @@
 /*
  * What MessageCard's menu does to a topic or a message (r13-01): archive,
- * delete, merge, make an issue. The card decides what the menu offers; these
- * are the handlers, and the hub re-checks every one.
+ * delete, merge, make an issue, make a task. The card decides what the menu
+ * offers; these are the handlers, and the hub re-checks every one.
  */
 import { ref, type Ref } from 'vue'
 import { editFailureKey } from '~/utils/msg-edit.mjs'
@@ -9,6 +9,7 @@ import { openingCardId, topicErrorKey } from '~/utils/topic-archive.mjs'
 import { paneOfRow } from '~/utils/reselect-row.mjs'
 import { useArchiveUndo } from '~/composables/useArchiveUndo'
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { noteError } from '~/composables/errorJournal.mjs'
 import type { useMessageEdit } from '~/composables/useMessageEdit'
 import type { CardMenu } from '~/composables/useCardReactions'
 import type { SpoolMessage } from '~/types/spool'
@@ -182,4 +183,29 @@ export function useCardMessageActions(
   }
 
   return { aiError, onAiFail, onMerge, remove, onMakeIssue }
+}
+
+/* SPL-3344 (HUM-10 t1 2a9e18c7, msg 3e7fc3b7: "converting a blocker msg
+   to a task ... I am doing this quite often"): Make it a task is Kind ->
+   Task in one step - the same hub call and the same store update as
+   KindBadge's pick. The menu offers it only on a blocker the viewer may
+   re-type; the hub re-checks. */
+export function useCardMakeTask(props: { msg: SpoolMessage }, menu: CardMenu, msgEdit: MsgEdit, aiError: Ref<string>) {
+  const api = useSpoolApi()
+  const { t } = useI18n({ useScope: 'global' })
+  async function onMakeTask() {
+    menu.close()
+    const id = String(props.msg.msg_id || '')
+    const from = String(props.msg.kind || '')
+    if (!id || from !== 'blocker') return
+    aiError.value = ''
+    try {
+      const row = await api.setMessageKind(id, 'task')
+      msgEdit.applyKind(from, row, props.msg)
+    } catch (err) {
+      aiError.value = 'feed.kind_set.failed'
+      noteError({ source: 'kind-set', message: t('feed.kind_set.failed'), code: (err as { token?: string })?.token, error: err })
+    }
+  }
+  return { onMakeTask }
 }

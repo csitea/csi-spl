@@ -748,6 +748,7 @@
       "move_topic": "Move to topic…",
       "hide_flow": "Hide from flow",
       "promote_topic": "Make it a topic",
+      "make_task": "Make it a task",
       "make_issue": "Make an issue",
       "make_issue_failed": "The issue was not made. Try again.",
       "why": {

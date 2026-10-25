@@ -748,6 +748,7 @@
       "move_topic": "Siirrä aiheeseen…",
       "hide_flow": "Piilota flowsta",
       "promote_topic": "Tee tästä aihe",
+      "make_task": "Tee tästä tehtävä",
       "make_issue": "Luo tiketti",
       "make_issue_failed": "Tikettiä ei luotu. Yritä uudelleen.",
       "why": {

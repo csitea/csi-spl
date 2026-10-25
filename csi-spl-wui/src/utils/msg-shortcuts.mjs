@@ -21,6 +21,9 @@
 // replyBack); outside the pane, or with no such row, inside the same feed
 // (parentJump / backJump).
 //
+// Shift + X (SPL-3344, HUM-10 t1 2a9e18c7) runs Make it a task: a blocker
+// becomes a task in one step, only where Kind -> Task is offered.
+//
 // ArrowUp / ArrowDown and j / k move the selection; Shift + ? lists the keys.
 // The key map and the matching rules live here so node can test them; the
 // listener is composables/useMsgShortcuts.ts.
@@ -44,6 +47,7 @@ export const MSG_SHORTCUTS = Object.freeze([
   { key: 'L', items: ['copy'], labelKey: 'feed.msg_menu.copy_link' },
   { key: 'C', items: ['copy-text'], labelKey: 'feed.msg_menu.copy_text' },
   { key: 'K', items: ['kind'], labelKey: 'feed.msg_menu.kind' },
+  { key: 'X', items: ['make-task'], labelKey: 'feed.msg_menu.make_task' },
   { key: 'T', items: ['promote-topic'], labelKey: 'feed.msg_menu.promote_topic' },
   { key: 'M', items: ['move-channel', 'move-topic', 'merge-topic'], labelKey: 'feed.shortcuts.move' },
   { key: 'D', items: ['delete-topic', 'delete'], labelKey: 'feed.msg_menu.delete' },

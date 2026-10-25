@@ -36,3 +36,11 @@ export function canSetKind(msg, viewerId, role) {
   if (viewerId && String(m.from || '') === String(viewerId)) return true
   return KIND_SETTER_ROLES.includes(String(role || ''))
 }
+
+/**
+ * SPL-3344 (HUM-10 t1 2a9e18c7): may the menu offer Make it a task? Only on a
+ * blocker, and only where Kind -> Task is offered (canSetKind).
+ */
+export function canMakeTask(msg, viewerId, role) {
+  return String((msg && msg.kind) || '') === 'blocker' && canSetKind(msg, viewerId, role)
+}

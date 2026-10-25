@@ -748,6 +748,7 @@
       "move_topic": "Mută în subiect…",
       "hide_flow": "Ascunde din flux",
       "promote_topic": "Transformă într-un subiect",
+      "make_task": "Transformă în sarcină",
       "make_issue": "Creează un tichet",
       "make_issue_failed": "Tichetul nu a fost creat. Încearcă din nou.",
       "why": {

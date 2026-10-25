@@ -99,6 +99,7 @@ After a navigation that is not a popstate, focus goes to the new middle pane's s
 | **FR-012** | The `keyboard_shortcuts` setting turns off the single-letter and Shift keys; `Ctrl+K`, `F6`, `Esc` and the skip link stay (they are not letters) | Planned |
 | **FR-013** | `Shift+W` on a desktop closes the rightmost open pane, the same as its X (SPL-2552, owner t1 7af14523 msg 5e6f0db8); in a right-to-left locale (he) the layout mirrors, so it closes the leftmost, the pane that opened last; nothing with no pane beyond the base view, in a text field, over a menu or dialog, or on a phone; a Shift letter, so FR-012's setting turns it off | Built |
 | **FR-014** | On a phone, where FR-001's chord is ignored, a **two-finger swipe up** opens the palette (SPL-2148, epic SPL-2130, UI suggestion 4: "useGlobalKeys disables all shortcuts on phones"). Both fingers travel up >= 64 px, at most 48 px sideways, and keep their distance within 40 px (more is the browser's pinch zoom). One finger stays the page's scroll, swipe-to-back (`isMobileBackSwipe`) and a card's swipe; no other gesture uses two fingers. Not over a menu, a dialog or a sheet; with the palette open it does nothing (Back, the X, the backdrop close it). Passive listeners, so the page still scrolls. Rule `csi-spl-wui/src/utils/phone-gestures.mjs`, listener `composables/useGlobalKeys.ts`; tests `tests/unit/phone-gestures.test.mjs`, `tests/e2e/command-palette.test.mjs` (390 px, touch) | Built |
+| **FR-015** | A blocker becomes a task in one step (SPL-3344, owner HUM-10 t1 2a9e18c7 msgs 3e7fc3b7, 0c510ff7): the message menu's top-level item **Make it a task** (`make-task`, desktop menu and phone sheet, right before *Make an issue*) and **`Shift+X`** on the selected message run what Kind -> Task runs (`setMessageKind(id, 'task')`, then `applyKind`). Offered only on a blocker whose kind the viewer may set (`canMakeTask` in `csi-spl-wui/src/utils/msg-kind.mjs`, the Kind gate); on any other kind neither the item nor the key does anything. A Shift letter, so FR-012's setting and the phone rule apply; `Shift+?` and help §7 list it. Tests `tests/unit/msg-make-task.test.mjs`, `tests/e2e/make-task.test.mjs` (1280 px and 390 px) | Built |
 
 ## 6. Acceptance scenarios
 
@@ -145,5 +146,6 @@ After a navigation that is not a popstate, focus goes to the new middle pane's s
 | Version | Change | Author |
 |---|---|---|
 | v0.1 | First spec from the consensus (L5): palette, pane keys, skip link, roving left list, focus after route, complete overlay | c-245 |
+| v0.2 | FR-015: Make it a task and `Shift+X` (SPL-3344) | c-183 |
 
-<!-- version: 0.1.0 · updated: 2026-10-04 · last-edit: 2026-10-04T22:35:00Z -->
+<!-- version: 0.2.0 · updated: 2026-10-25 · last-edit: 2026-10-25T15:00:00Z -->

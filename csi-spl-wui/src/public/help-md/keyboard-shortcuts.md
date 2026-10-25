@@ -101,6 +101,7 @@ These keys act on the **selected message**. They work on a desktop. Turn them of
 | **`Shift + L`** | Selected message, desktop | Copy link |
 | **`Shift + C`** | Selected message, desktop | Copy text |
 | **`Shift + K`** | Selected message, desktop | Change kind |
+| **`Shift + X`** | Selected message, desktop | Make it a task |
 | **`Shift + T`** | Selected message, desktop | Make it a topic |
 | **`Shift + M`** | Selected message, desktop | Move or merge… |
 | **`Shift + D`** | Selected message, desktop | Delete |

@@ -33,6 +33,39 @@ do_gcp_import_to_cloudsql() {
   local account
   account=$(do_gcp_account) || quit_on "no gcloud identity could be resolved — set ACCOUNT or GCP_ACCOUNT"
   do_gcp_log_identity "${PROJ_ID}" "${account}" "do_gcp_import_to_cloudsql"
+  _gcp_import_cnf_show
+
+  gcloud auth activate-service-account --key-file="$SERVICE_KEY_FILE" --quiet
+  account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
+  quit_on "Authenticating the service account with the key file"
+
+  gcloud config set project "$PROJ_ID" --quiet
+  quit_on "Setting project to $PROJ_ID"
+
+  gcloud storage objects describe "$GS_UTIL_URI" --account="${account}" >/dev/null 2>&1 || quit_on "Backup file $GS_UTIL_URI not found for environment $ENV"
+  do_log "INFO restoring from the following GS_UTIL_URI: $GS_UTIL_URI"
+
+  _gcp_import_db_prep "${account}"
+  _gcp_import_db_recreate
+  _gcp_import_load "${account}" || return 1
+
+  # Recreate the application database
+  PGHOST=$PGHOST PGUSER=postgres PGPASSWORD=$PGPASSWORD PGDATABASE=$APP_DB psql <<EOF
+grant usage on schema $APP_SCHEMA to $APP_USR;
+EOF
+  quit_on "ensure the $APP_USR does have : $APP_DB"
+
+
+  quit_on "Importing the application database: $APP_DB from $GS_UTIL_URI"
+
+  do_log "INFO successfully imported the application database: $APP_DB from $GS_UTIL_URI"
+
+}
+
+#------------------------------------------------------------------------------
+# @description Read the rdb cnf, print the using: table, refuse a missing key file.
+#------------------------------------------------------------------------------
+_gcp_import_cnf_show() {
   CNF_PATH="$APP_PATH/${ORG}-${APP}-cnf/${ORG}-${APP}/${ENV}.env.json"
   CLOUDSQL_INSTANCE=$(cat $CNF_PATH | jq -r '.env.rdb.cloud_sql_instance')
   APP_DB=$(cat $CNF_PATH | jq -r '.env.rdb.app_db')
@@ -53,17 +86,14 @@ do_gcp_import_to_cloudsql() {
   printf "%-20s %-20s\n" "PGHOST" "${PGHOST}"
 
   test -f "$SERVICE_KEY_FILE" || quit_on "The service key file does not exist: $SERVICE_KEY_FILE"
+}
 
-  gcloud auth activate-service-account --key-file="$SERVICE_KEY_FILE" --quiet
-  account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
-  quit_on "Authenticating the service account with the key file"
-
-  gcloud config set project "$PROJ_ID" --quiet
-  quit_on "Setting project to $PROJ_ID"
-
-  gcloud storage objects describe "$GS_UTIL_URI" --account="${account}" >/dev/null 2>&1 || quit_on "Backup file $GS_UTIL_URI not found for environment $ENV"
-  do_log "INFO restoring from the following GS_UTIL_URI: $GS_UTIL_URI"
-
+#------------------------------------------------------------------------------
+# @description Check connectivity, end the app DB sessions, ensure the app role.
+# @arg $1 the pinned gcloud account
+#------------------------------------------------------------------------------
+_gcp_import_db_prep() {
+  local account="$1"
   # Test connectivity to the database
   PGDATABASE="postgres"
   PGUSER="postgres"
@@ -99,9 +129,12 @@ EOF_CREATE_APP_USR
 
   PGHOST=$PGHOST PGUSER=postgres PGPASSWORD=$PGPASSWORD PGDATABASE=postgres psql -c "GRANT $APP_USR TO postgres;"
   PGHOST=$PGHOST PGUSER=postgres PGPASSWORD=$PGPASSWORD PGDATABASE=postgres psql -c '\du $APP_USR'
+}
 
-
-
+#------------------------------------------------------------------------------
+# @description Drop and recreate the application database, owned by the app role.
+#------------------------------------------------------------------------------
+_gcp_import_db_recreate() {
   # Recreate the application database
   PGHOST=$PGHOST PGUSER=postgres PGPASSWORD=$PGPASSWORD PGDATABASE=postgres psql <<EOF
 DROP DATABASE IF EXISTS $APP_DB;
@@ -142,11 +175,14 @@ ORDER BY table_schema, table_name;
 
 EOF
   quit_on "Re-creating the application database: $APP_DB"
+}
 
-  # # Import the database
-  # #gcloud sql import sql $CLOUDSQL_INSTANCE $GS_UTIL_URI --project=$PROJ_ID --database=$APP_DB -q
-  # gcloud sql import sql $CLOUDSQL_INSTANCE $GS_UTIL_URI --project=$PROJ_ID --database=$APP_DB --user=$APP_USR -q
-
+#------------------------------------------------------------------------------
+# @description Import the dump by its format: .tar.gz, .sql, else return 1.
+# @arg $1 the pinned gcloud account
+#------------------------------------------------------------------------------
+_gcp_import_load() {
+  local account="$1"
   # Import the database
   if [[ "$GS_UTIL_URI" == *.tar.gz ]]; then
     echo "Detected a binary dump file (.tar.gz). Using 'gcloud sql import sql'..."
@@ -168,17 +204,4 @@ EOF
     echo "Unsupported file format: $GS_UTIL_URI"
     return 1
   fi
-
-
-  # Recreate the application database
-  PGHOST=$PGHOST PGUSER=postgres PGPASSWORD=$PGPASSWORD PGDATABASE=$APP_DB psql <<EOF
-grant usage on schema $APP_SCHEMA to $APP_USR;
-EOF
-  quit_on "ensure the $APP_USR does have : $APP_DB"
-
-
-  quit_on "Importing the application database: $APP_DB from $GS_UTIL_URI"
-
-  do_log "INFO successfully imported the application database: $APP_DB from $GS_UTIL_URI"
-
 }

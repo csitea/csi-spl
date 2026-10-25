@@ -171,7 +171,7 @@ func (cy *gcalCycle) sync(ctx context.Context) (*time.Time, error) {
 	if err := cy.calendar(ctx); err != nil {
 		return nil, err
 	}
-	cursor, err := cy.out(ctx)
+	cursor, err := cy.inThenOut(ctx)
 	if !errors.Is(err, errGcalCalendarGone) {
 		return cursor, err
 	}

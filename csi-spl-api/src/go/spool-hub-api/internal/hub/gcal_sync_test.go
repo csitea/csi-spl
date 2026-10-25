@@ -31,7 +31,7 @@ import (
 var gcalSyncT0 = time.Date(2001, 3, 2, 9, 0, 0, 0, time.UTC)
 
 // gcalWriteCalls are the fake's calls that write or authorize.
-var gcalWriteCalls = []string{"token", "calendars.insert", "events.insert", "events.patch", "events.delete", "events.list", "calendars.get"}
+var gcalWriteCalls = []string{"token", "calendars.insert", "events.insert", "events.patch", "events.delete", "calendars.get"}
 
 // gcalHookRT runs fn before each request to the fake.
 type gcalHookRT struct {

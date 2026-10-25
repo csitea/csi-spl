@@ -77,9 +77,10 @@
 </template>
 
 <script setup lang="ts">
-import { HEIGHT_MAX, PHONE_POSITIONS, SIZE_PRESETS, isPhoneDrag, presetSize, resizePhoneSize, sizePreset, snapPhonePosition, visibleScreen } from '~/utils/omnibox-dock.mjs'
+import { PHONE_POSITIONS, SIZE_PRESETS, isPhoneDrag, presetSize, sizePreset, snapPhonePosition, visibleScreen } from '~/utils/omnibox-dock.mjs'
 import { onOutsideTap } from '~/utils/outside-tap.mjs'
 import { useOmniboxPhonePos } from '~/composables/useOmniboxPhonePos'
+import { useOmniboxGripSize } from '~/composables/useOmniboxGripSize'
 
 type PhonePosition = 'bottom' | 'top' | 'right'
 type SizePreset = 'small' | 'medium' | 'large'
@@ -211,78 +212,7 @@ function pickSize(z: SizePreset) {
   menuOpen.value = false
 }
 
-/* the size handle: the field's height (bottom, top) or the box's width (right) */
-let sizing: { x: number, y: number, id: number, start: number, room: number, max: number, moved: boolean } | null = null
-let swallowSizeClick = false
-
-/** What a share is of: the px under the top bar above the keyboard, or the screen width. */
-function sizeRoom(): number {
-  if (pos.value === 'right') return window.innerWidth
-  const kb = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb-inset')) || 0
-  const bar = document.querySelector('[data-test=top-bar]')?.getBoundingClientRect().bottom ?? 0
-  return window.innerHeight - kb - bar
-}
-
-/** The largest height share: up to the top button section where the dock
-    measured it (owner, t1 8de4c254: --dock-field-max), else half. */
-function sizeMax(room: number): number {
-  const px = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dock-field-max'))
-  return pos.value === 'bottom' && px > 0 && room > 0 ? px / room : HEIGHT_MAX
-}
-
-function onSizeMove(e: PointerEvent) {
-  if (!sizing || e.pointerId !== sizing.id) return
-  const dx = e.clientX - sizing.x
-  const dy = e.clientY - sizing.y
-  if (!sizing.moved && !isPhoneDrag({ dx, dy })) return
-  sizing.moved = true
-  menuOpen.value = false
-  setSize(resizePhoneSize({ pos: pos.value, start: sizing.start, dx, dy, room: sizing.room, max: sizing.max }), false)
-}
-
-function onSizeUp(e: PointerEvent) {
-  if (!sizing || e.pointerId !== sizing.id) return
-  const moved = sizing.moved
-  detachSize()
-  if (!moved) return
-  swallowSizeClick = true
-  /* the last live value, now kept */
-  setSize(size.value[pos.value] ?? null)
-}
-
-/* one controller per resize: abort() removes the resize's three listeners */
-let sizeListeners: AbortController | null = null
-
-function detachSize() {
-  sizing = null
-  sizeListeners?.abort()
-  sizeListeners = null
-}
-
-function onSizeDown(e: PointerEvent) {
-  const box = props.box
-  if (e.button !== 0 || !sizeEl.value || !box) return
-  const field = box.querySelector('textarea')
-  const start = pos.value === 'right' ? box.getBoundingClientRect().width : (field?.getBoundingClientRect().height ?? 44)
-  const room = sizeRoom()
-  sizing = { x: e.clientX, y: e.clientY, id: e.pointerId, start, room, max: sizeMax(room), moved: false }
-  swallowSizeClick = false
-  try { sizeEl.value.setPointerCapture(e.pointerId) } catch { /* a synthetic event has no capture */ }
-  sizeListeners?.abort()
-  sizeListeners = new AbortController()
-  const { signal } = sizeListeners
-  sizeEl.value.addEventListener('pointermove', onSizeMove, { signal })
-  sizeEl.value.addEventListener('pointerup', onSizeUp, { signal })
-  sizeEl.value.addEventListener('pointercancel', detachSize, { signal })
-}
-
-function onSizeClick() {
-  if (swallowSizeClick) {
-    swallowSizeClick = false
-    return
-  }
-  menuOpen.value = !menuOpen.value
-}
+const { onSizeDown, onSizeClick, detachSize } = useOmniboxGripSize({ box: () => props.box, sizeEl, menuOpen })
 
 let offOutside: (() => void) | null = null
 watch(menuOpen, (open) => {

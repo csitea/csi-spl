@@ -207,15 +207,14 @@ as a `poll` form with every choice an option (section 9).
 - a prd mutation, a terraform plan or apply, an IAM or member change
   without an owner message id for THAT operation. "The owner's go" means a
   msg id you can cite; the hold note cites them so (lines 125 and 146);
-- force-push in any form (`--force`, `--force-with-lease`, `+ref`)
-  without the owner's explicit approval of that one push
-  ([fleet-rules-index.md](fleet-rules-index.md) section 2, row "never
-  force-push master");
-- `SPL_PREPUSH_OVERRIDE` to get a refused push through: a refused push is
-  fetch, rebase, re-test, push again
-  ([lane-integration-rules.md](lane-integration-rules.md) section 3.2).
-  The lane seed's emergency bypass of the pre-push hook is used only with
-  the orchestrator's yes, under the conditions that yes names;
+- a force-push in any form (`--force`, `--force-with-lease`, `+ref`), or
+  `SPL_PREPUSH_OVERRIDE`, without the OWNER's explicit approval of that
+  one push, which the owner may do by hand. A yes from anyone else, the
+  orchestrator included, is not that approval. A refused push is fetch,
+  rebase, re-test, push again
+  ([fleet-rules-index.md](fleet-rules-index.md) section 2, line 46, row
+  "never force-push master"; [lane-integration-rules.md](lane-integration-rules.md)
+  section 3.2);
 - another lane's files: check with
   `lane-map.sh --check <paths> --agent <you>`; exit 3 names the owner,
   exit 4 means ask first ([developer-guide.md](developer-guide.md)

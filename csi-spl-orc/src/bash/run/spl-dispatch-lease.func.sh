@@ -1705,6 +1705,12 @@ spl_fleet_switch_tick() {
   [[ "$role" != dispatch ]] || spl_fleet_desk_able >/dev/null || return 0
   seat="$(spl_fleet_role_seat "$role")"
   [[ "$seat" =~ ^${SPL_ROLE_SEAT_RX}$ ]] || return 0
+  # a seat with no process here has nothing to switch (SPL-3345): its restore brings it back
+  if [[ -z "$(spl_lease_agent_pid "$seat")" && -z "$(spl_lease_held "$seat")" ]]; then
+    spl_fleet_once "$role.switch-dead" "SWITCH-DEAD $role: $seat has no live process on $LEASE_MACHINE: no in-place switch of a seat that is not there (the seat's restore brings it back)"
+    return 0
+  fi
+  rm -f "$LEASE_DIR/fleet.$role.switch-dead"
   next="$(spl_fleet_switch_next "$role" "$seat")"
   if [[ -z "$next" ]]; then
     spl_fleet_once "$role.switch-none" "SWITCH $role: $seat ($(spl_fleet_vendor "$seat")) cannot act and no vendor is left after it (fallback: '$(spl_fleet_fallback "$role")')"
@@ -1722,10 +1728,26 @@ spl_fleet_switch_tick() {
   fi
   rm -f "$LEASE_DIR/fleet.$role.switch-hubwait"
   [[ -s "$f" ]] && read -r at was _ < "$f"
-  [[ "$at" =~ ^[0-9]+$ && "$was" == "$seat" ]] && (( now - at < ${LEASE_SWITCH_RETRY:-120} )) && return 0
+  [[ "$at" =~ ^[0-9]+$ && "$was" == "$seat" ]] && (( now - at < $(spl_fleet_switch_retry "$role" "$seat" "$next" "$at" "$now") )) && return 0
   echo "$now $seat $next" > "$f"
   spl_lease_log "SWITCH $role: $seat ($(spl_fleet_seat_vendor "$seat")) cannot act ($(cat "$LEASE_DIR/able.$seat" 2>/dev/null | tr '\n' ' ' | cut -c1-160)) and ${FH:-the holder} is silent ${sil}s > ${wait}s: $seat switches to $next in place (do_spl_role_failover)"
   spl_fleet_switch_start "$role" "$seat" "$sil" "$next"
+}
+
+# spl_fleet_switch_retry <role> <seat> <next> <last launch> <now>: the s
+# between two launches for the same seat. A launch that left the seat as it
+# was did not take; while the seat sits on a vendor limit with a known reset
+# (spl_fleet_seat_limit) another try every LEASE_SWITCH_RETRY is the
+# 2026-10-25 loop (20 launches 11:06-11:49Z, every vendor skipped), so it says
+# so once (SWITCH-LIMIT) and waits LEASE_SWITCH_LIMIT_RETRY (900) s instead.
+spl_fleet_switch_retry() {
+  local lim
+  if lim="$(spl_fleet_seat_limit "$2" "$5")"; then
+    spl_fleet_once "$1.switch-limit" "SWITCH-LIMIT $1: $2 ($(spl_fleet_seat_vendor "$2")) sits on a vendor limit until $(spl_fleet_utc "$lim"); the in-place switch to $3 launched $(( $5 - $4 ))s ago did not take (role-failover.out): the next try in ${LEASE_SWITCH_LIMIT_RETRY:-900}s, not every ${LEASE_SWITCH_RETRY:-120}s"
+    echo "${LEASE_SWITCH_LIMIT_RETRY:-900}"; return 0
+  fi
+  rm -f "$LEASE_DIR/fleet.$1.switch-limit"
+  echo "${LEASE_SWITCH_RETRY:-120}"
 }
 
 # 0 when this loop may launch a switch: LEASE_ROLE_SWITCH (default 1); a
@@ -1998,7 +2020,7 @@ spl_fleet_role_tick() {
   [[ -s "$sincef" ]] && read -r since last stier < "$sincef"
   [[ "$since" =~ ^[0-9]+$ && "$last" =~ ^[0-9]+$ ]] && (( now - last <= LEASE_STALE )) &&
     [[ -z "$stier" || "$stier" == "$ct" ]] || since="$now"
-  if [[ -z "$cand" ]]; then rm -f "$sincef"; else echo "$since $now $ct" > "$sincef"; fi
+  if [[ -z "$cand" ]]; then rm -f "$sincef"; else echo "$since $now $ct" > "$sincef"; rm -f "$LEASE_DIR/fleet.$role.dead-since"; fi
   if ! out="$(spl_fleet_hub --fleet "$LEASE_FLEET" --role "$role" 2>&1)" || ! spl_fleet_read "$out"; then
     spl_fleet_unreachable "$role" "$now" "$out"; return 0
   fi
@@ -2031,13 +2053,13 @@ spl_fleet_role_tick() {
     fi
   fi
   [[ -n "$want" || -z "$cand" ]] && rm -f "$LEASE_DIR/fleet.$role.hold" "$LEASE_DIR/fleet.$role.hold-int" "$LEASE_DIR/fleet.$role.fallback-wait"
-  [[ "$hm" == "$me" ]] || rm -f "$LEASE_DIR/fleet.$role.nolocal"
+  [[ "$hm" == "$me" ]] || rm -f "$LEASE_DIR/fleet.$role.nolocal" "$LEASE_DIR/fleet.$role.nolocal-limit"
   [[ "$hm" == "$me" && -z "$cand" ]] || rm -f "$LEASE_DIR/fleet.$role.nolocal-alert"
   local won=false
   if [[ -n "$want" ]]; then
     local before="$FH" age="$FA"
     if out="$(spl_fleet_hub --fleet "$LEASE_FLEET" --role "$role" --holder "$want" --if-gen "$FG" 2>&1)" && spl_fleet_read "$out"; then
-      [[ "$FW" == true ]] && { echo "$now" > "$ok"; won=true; }
+      [[ "$FW" == true ]] && { echo "$now" > "$ok"; echo "$FG" > "$ok.gen"; won=true; }
       [[ "$FW" == true && -n "$before" && "${before##*@}" != "$me" ]] &&
         spl_lease_log "FLEET $role: $me takes over from $before (silent ${age}s, rank $(spl_fleet_rank "${before##*@}" "$role") -> $(spl_fleet_rank "$me" "$role"))"
       [[ "$FW" == true && -n "$before" && "$before" != "$want" ]] && (( ct != ht )) &&
@@ -2132,11 +2154,93 @@ spl_fleet_seat_move() {
 # here. Sets FWANT to the holder to write (a handoff), else empty after the
 # NO-LOCAL-AGENT line (a role held here) and the in-place vendor switch.
 spl_fleet_nocand() {
+  local dead=""
   FWANT=""
+  dead="$(spl_fleet_seat_dead "$1" "$3")"
   [[ "$2" == "$LEASE_MACHINE" ]] && FWANT="$(spl_fleet_handoff "$1" "$3")" && return 0
+  [[ "$2" == "$LEASE_MACHINE" && -n "$dead" ]] && FWANT="$(spl_fleet_dead_handoff "$1" "$3" "$dead")" && return 0
   FWANT=""
   [[ "$2" == "$LEASE_MACHINE" ]] && spl_fleet_nolocal "$1"
   spl_fleet_switch_tick "$1"
+}
+
+# ---- a dead holder seat hands the role to the next box (SPL-3345) ------------
+# 2026-10-25 11:01:45Z: sat's c-001 sat on its claude session limit and the
+# HANDOFF above wrote the orch row to c-001@pc, a seat with no process, no
+# window and no agents record on pc. pc had no candidate, so it never
+# renewed the row and only re-launched the in-place switch of a seat it did
+# not have; the hub named the dead seat for 45 min (c-001's call, msg
+# aee024ef) and the owner was sent to restore it on the wrong box. Now a box
+# that holds a role while no seat of the role has a live process here (none
+# under a rotation hold, for LEASE_DEAD_WAIT s, default 60) writes the row to
+# the role's seat on the next box of the role's ranking (the first healthy
+# one by the hub's beats, else the next ranked) at once, and it launches no
+# in-place switch of a dead seat (SWITCH-DEAD): the seat's restore brings it
+# back, a switch has nothing to switch. One dead hand-off per role per
+# LEASE_DEAD_HANDOFF_EVERY s (600), so two boxes with dead seats pass the row
+# that often at most. LEASE_HANDOFF=0 turns it off with the limit handoff.
+
+# spl_fleet_seat_dead <role> <now>: prints "for <n>s" and returns 0 once no
+# seat of <role> has had a live process on this box (and none was under a
+# rotation hold) for LEASE_DEAD_WAIT s; the clock is fleet.<role>.dead-since
+# ("<first> <last>"), broken by a gap over LEASE_STALE (the box was off).
+spl_fleet_seat_dead() {
+  local role="$1" now="$2" f="$LEASE_DIR/fleet.$1.dead-since" id since="" last=""
+  for id in $(spl_fleet_role_agents "$role"); do
+    [[ -z "$(spl_lease_agent_pid "$id")" && -z "$(spl_lease_held "$id")" ]] || { rm -f "$f"; return 1; }
+  done
+  read -r since last < "$f" 2>/dev/null || true
+  [[ "$since" =~ ^[0-9]+$ && "$last" =~ ^[0-9]+$ ]] && (( now - last <= LEASE_STALE )) || since="$now"
+  echo "$since $now" > "$f"
+  (( now - since >= ${LEASE_DEAD_WAIT:-60} )) || return 1
+  echo "for $((now - since))s"
+}
+
+# spl_fleet_dead_handoff <role> <now> <dead for>: prints the new holder and
+# returns 0 when this machine hands its dead seat's <role> over; 1 when not.
+spl_fleet_dead_handoff() {
+  local role="$1" now="$2" last="" box="" seat m k="LEASE_PRIORITY_${1^^}" f="$LEASE_DIR/fleet.$1.dead-handoff" rc=0
+  [[ "${LEASE_HANDOFF:-1}" == 1 ]] || return 1
+  read -r last < "$f" 2>/dev/null || true
+  [[ "$last" =~ ^[0-9]+$ ]] && (( now - last < ${LEASE_DEAD_HANDOFF_EVERY:-600} )) && return 1
+  # every other box judged unhealthy by the beats: no box to go to, the
+  # NO-LOCAL alert says so (spl_fleet_nolocal); no verdicts = the next ranked
+  box="$(spl_fleet_fresh_other "$role")" || rc=$?
+  (( rc == 1 )) && return 1
+  (( rc == 0 )) || box=""
+  if [[ -z "$box" ]]; then
+    [[ -n "${!k:-}" ]] || k=LEASE_PRIORITY
+    IFS=, read -ra _ranked <<<"${!k:-}"
+    for m in "${_ranked[@]}"; do [[ -n "$m" && "$m" != "$LEASE_MACHINE" ]] && { box="$m"; break; }; done
+  fi
+  [[ -n "$box" ]] || return 1
+  case "$role" in orch) seat="$LEASE_ORCH" ;; dispatch) seat="$LEASE_MASTER" ;; *) return 1 ;; esac
+  echo "$now" > "$f"
+  spl_lease_log "HANDOFF-DEAD $role: $(spl_fleet_role_seat "$role") has no live process on $LEASE_MACHINE $3 (no rotation hold) and no seat of $role here can act: the hub row goes to $seat@$box, the next box of the ranking, now"
+  echo "$seat@$box"
+}
+
+# spl_fleet_seat_limit <id> <now>: prints the reset epoch while <id> sits on a
+# watchdog S2 kind=limit verdict (able.<id> "wd S2: HIT", <wd dir>/<id>.limit)
+# that resets after <now>; rc 1 otherwise.
+spl_fleet_seat_limit() {
+  local why="" r=""
+  read -r why < "$LEASE_DIR/able.$1" 2>/dev/null || true
+  [[ "$why" == "wd S2: HIT"* ]] || return 1
+  read -r r < "${WD_STATE_DIR:-$LEASE_DIR/wd}/$1.limit" 2>/dev/null || return 1
+  [[ "$r" =~ ^[0-9]+$ ]] && (( r > $2 )) || return 1
+  echo "$r"
+}
+
+# spl_fleet_role_limit <role> <now>: the earliest reset while EVERY seat of
+# <role> here sits on a vendor limit (spl_fleet_seat_limit); rc 1 otherwise.
+spl_fleet_role_limit() {
+  local id r until=""
+  for id in $(spl_fleet_role_agents "$1"); do
+    r="$(spl_fleet_seat_limit "$id" "$2")" || return 1
+    [[ -z "$until" ]] || (( r < until )) && until="$r"
+  done
+  [[ -n "$until" ]] && echo "$until"
 }
 
 # spl_fleet_handoff <role> <now>: prints the new holder and returns 0 when
@@ -2146,6 +2250,9 @@ spl_fleet_handoff() {
   [[ "${LEASE_HANDOFF:-1}" == 1 ]] || return 1
   read -r won < "$LEASE_DIR/fleet.$role.ok" 2>/dev/null || return 1
   [[ "$won" =~ ^[0-9]+$ ]] && spl_fleet_age_known && (( now - FA - won <= LEASE_PERIOD / 2 )) || return 1
+  # the row must be the very write of ours (SPL-3345): a dead-seat hand-back
+  # can land inside the same half period, with a newer gen
+  read -r r < "$LEASE_DIR/fleet.$role.ok.gen" 2>/dev/null && [[ "$r" =~ ^[0-9]+$ ]] && (( r != FG )) && return 1
   for id in $(spl_fleet_role_agents "$role"); do
     why="$(cat "$LEASE_DIR/able.$id" 2>/dev/null)"
     [[ "$why" == "wd S2: HIT"* ]] || return 1
@@ -2258,9 +2365,17 @@ spl_fleet_fresh_other() {
 # spl_fleet_nolocal <role>: the NO-LOCAL-AGENT line (once), and the alert when
 # no other box can take the role.
 spl_fleet_nolocal() {
-  local role="$1" me="$LEASE_MACHINE" rc=0 to v others text k="LEASE_PRIORITY_${1^^}"
+  local role="$1" me="$LEASE_MACHINE" rc=0 to v others text k="LEASE_PRIORITY_${1^^}" lim limtxt="" until
   [[ -n "${!k:-}" ]] || k=LEASE_PRIORITY
-  spl_fleet_once "$role.nolocal" "NO-LOCAL-AGENT $role: this machine holds it ($FH) but has no live candidate able to act ($(spl_fleet_why "$role")); it goes stale in ${LEASE_STALE}s"
+  # every seat on a vendor limit (SPL-3345): the line names the reset, once
+  # (also when the limit is read only after the first line)
+  if lim="$(spl_fleet_role_limit "$role" "$(spl_lease_now)")"; then
+    limtxt="; every seat of $role here sits on a vendor limit until $(spl_fleet_utc "$lim")"
+    [[ -f "$LEASE_DIR/fleet.$role.nolocal" ]] &&
+      spl_fleet_once "$role.nolocal-limit" "NO-LOCAL-AGENT $role: $FH$limtxt, no vendor switch took"
+    touch "$LEASE_DIR/fleet.$role.nolocal-limit"
+  fi
+  spl_fleet_once "$role.nolocal" "NO-LOCAL-AGENT $role: this machine holds it ($FH) but has no live candidate able to act ($(spl_fleet_why "$role"))$limtxt; it goes stale in ${LEASE_STALE}s"
   [[ -f "$LEASE_DIR/fleet.$role.nolocal-alert" ]] && return 0
   spl_fleet_fresh_other "$role" >/dev/null || rc=$?
   (( rc == 1 )) || return 0
@@ -2270,6 +2385,8 @@ spl_fleet_nolocal() {
   [[ -n "$others" ]] || others="no other box ranked"
   touch "$LEASE_DIR/fleet.$role.nolocal-alert"
   text="NO-LOCAL-AGENT $role on $me: it holds $role ($FH) with no seat able to act ($(spl_fleet_why "$role")), and no other box can take it ($others). Nobody acts as $role until a $role seat on $me is restarted."
+  [[ -n "$lim" && -n "$limtxt" ]] && until="$(spl_fleet_utc "$lim")" &&
+    text="NO-LOCAL-AGENT $role on $me: it holds $role ($FH) with no seat able to act ($(spl_fleet_why "$role"))$limtxt, and no other box can take it ($others). Nobody acts as $role until $until, when that limit resets, unless a seat of another vendor takes it first."
   spl_lease_log "NO-LOCAL-ALERT $role: no other fresh box ($others)"
   spl_fleet_alert_post "$text" || true
   to=""; [[ -r "$LEASE_DIR/fleet.orch.age" ]] && read -r to _ < "$LEASE_DIR/fleet.orch.age"

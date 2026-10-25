@@ -1257,7 +1257,8 @@ sw31() {  # sw31 <FA>: one spl_fleet_switch_tick orch, the switch stub logs to $
     spl_fleet_tier() { echo 1; }; spl_fleet_vendor() { echo claude; }; spl_fleet_vendor_id() { echo g-001; }
     FH=c-001@sat FG=3 FA="$FA31"; spl_fleet_switch_tick orch' >/dev/null 2>&1
 }
-mkdir -p "$T/sw31/proc"; printf '#!/bin/sh\necho "$ROLE_FAILOVER_SILENT" >>"$SW31"\n' >"$T/bin/sw31"; chmod +x "$T/bin/sw31"
+# the seat has a live process: a switch never moves a seat that is not there (SPL-3345)
+agent sw31 900 c-001; printf '#!/bin/sh\necho "$ROLE_FAILOVER_SILENT" >>"$SW31"\n' >"$T/bin/sw31"; chmod +x "$T/bin/sw31"
 sw31 "$EPOCHY"; sw31 -5; sw31 86401
 [[ ! -s "$T/sw31.runs" ]] && ! grep -qs 'SWITCH orch' "$T/sw31/spool/dispatch/lease.log" &&
   pass "31. an epoch-sized, a negative and a 1-day+ hub age launch no SWITCH" || fail "31. switch on a bogus age: $(cat "$T/sw31.runs" 2>&1) $(cat "$T/sw31/spool/dispatch/lease.log" 2>&1)"
@@ -1315,8 +1316,9 @@ B33=1791900000
 # beats33 <box> <from> <to> <gap-from> <gap-to>: a beat every 10 s, none strictly inside the gap
 beats33() { jq -nc --arg b "$1" --argjson f "$2" --argjson t "$3" --argjson gs "$4" --argjson ge "$5" \
   '[range($f; $t; 10) | select(. <= $gs or . >= $ge) | {box: $b, e: .}]'; }
+# the seatless holder keeps both roles: no stale take-over, no dead-seat handoff (SPL-3345)
 t33() { tick "$1" "$2" LEASE_PRIORITY=sx,ox LEASE_BEATS_CMD="$T/bin/beats" BEATS="$T/beats33.$tag33.json" LEASE_HEALTH_TTL=0 \
-  LEASE_STALE=99999 LEASE_ALERT=1 LEASE_ALERT_CMD="$T/bin/alert30" ALERTS="$T/alerts33.$tag33" "${@:3}"; }
+  LEASE_STALE=99999 LEASE_DEAD_WAIT=99999 LEASE_ALERT=1 LEASE_ALERT_CMD="$T/bin/alert30" ALERTS="$T/alerts33.$tag33" "${@:3}"; }
 # r33 <tag> <sx-gap 1|0>: sx holds both roles with no dispatch seat; ox stops at S for 180 s,
 # sx too when <sx-gap> is 1; one tick pair before, two in, every 5 min to 37 min after
 r33() {

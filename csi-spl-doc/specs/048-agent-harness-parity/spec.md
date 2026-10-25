@@ -180,3 +180,27 @@ user's home; the repo holds only the step.
 agy has the same gap and the same kind of rules dir (every
 `~/.gemini/config/rules/*.md`); mistral loads only `~/.vibe/AGENTS.md`, so it
 needs a pointer line there. Neither is changed by SPL-2738.
+
+## 6. Seed parity and per-vendor blocks (SPL-2176, 2026-10-25)
+
+Every kind renders claude's seed, sentence for sentence, at most
+`SEED_PARITY_MAX` (400) bytes over it and under the absolute cap (9135 B at
+the live paths). An adapter (`spawn-agents/scripts/spawn-<kind>.sh`) may
+declare two hooks of the core (`spawn-core.inc.sh`); a kind that declares
+neither renders the shared seed byte for byte.
+
+| hook | replaces / adds | grok |
+|---|---|---|
+| `spawn_scope_how` | the git lane's SCOPE block; keeps its header and rules (a)-(d) | tighter: "Your brief's scope only: no refactor, cleanup or extra feature beyond it." |
+| `spawn_seed_note` | one sentence after SCOPE, rendered `HARNESS NOTE (<kind>): <text>` | brevity: answer and report in few words, never restate the brief, the seed or a tool's output |
+
+Measured at the live paths on dea358a0f (n=1 render each), before -> after:
+claude 8812 -> 8812, grok 8947 -> 8985 (+135 -> +173), agy 8946, qwen 8947,
+mistral 9126, unchanged.
+
+Guard: `spawn-agents/tests/test-spawn-seed-size.sh` (grok carries the note
+and the tighter scope, the other kinds no note, every kind's SCOPE keeps
+(a)-(d), parity outside the kind's own blocks, the caps).
+`SEED_BASE_REF=<ref>` adds the check that claude's seed is byte-identical to
+the one that ref's launcher renders; it is off by default, since a later
+change to the shared seed rightly differs from its base.

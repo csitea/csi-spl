@@ -25,6 +25,15 @@ spawn_rename_how() {
   spool_dq_escape desc_esc "${SLUG:-}"
   printf '%s' "retitle your tmux window to the shortest possible description of the work you are about to implement (2-5 words) by running: bash ${_SP_DIR}/riname.sh --agent ${TITLE} \"${desc_esc}\" (grok cannot name its own session)"
 }
+# Grok lanes burned 3-4x claude's tokens and widened their scope (owner HUM-10,
+# t1 4ab84116, epic SPL-2175; SPL-2176): a tighter scope block, the same rules
+# (a)-(d), and a brevity note. Guard: tests/test-spawn-seed-size.sh.
+spawn_scope_how() {  # FETCH_CMD (git-fetch-fresh.sh, from the core)
+  printf '%s' "SCOPE + COLLISION CONTROL. Your brief's scope only: no refactor, cleanup or extra feature beyond it. Any other path: (a) FETCH = '${1}', re-check on origin/${DEFBRANCH}. (b) 'bash ${SPAWN_SCRIPTS_DIR}/lane-map.sh --check <path,...> --agent ${TITLE}' (every machine): exit 3 = owned; exit 4 = 'unknown:' lanes with edits, ask them, never free. Owned or fixed: report it, do not fix it. (c) Only if it blocks YOUR tests and nobody owns it: a SEPARATE narrow commit. (d) FETCH again during long work."
+}
+spawn_seed_note() {
+  printf '%s' "answer and report in few words (result, sha, paths, exit codes); never restate the brief, the seed or a tool's output."
+}
 _sp_core="$(dirname "$(readlink -f "$SPAWN_ADAPTER")")/spawn-core.inc.sh"
 # shellcheck source=spawn-core.inc.sh
 . "$_sp_core" || { echo "ERROR: cannot load $_sp_core" >&2; exec bash --norc; }

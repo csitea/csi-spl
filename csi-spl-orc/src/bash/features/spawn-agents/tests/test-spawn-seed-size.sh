@@ -51,19 +51,48 @@ seed_sentences() { printf '%s' "$1" | sed 's/\. /.\n/g' | grep -vE '^As your VER
 seed_extra() {  # KIND_SEED CLAUDE_SEED: the sentences of the first that the second lacks, and back
   comm -3 <(seed_sentences "$1") <(seed_sentences "$2")
 }
+# A kind's own blocks (SPL-2176): its SCOPE (spawn_scope_how) and its HARNESS
+# NOTE (spawn_seed_note) sit between the SCOPE header and the spool protocol.
+# seed_shared cuts them out for the parity check; seed_scope keeps only them.
+SEED_SCOPE_HEAD="SCOPE + COLLISION CONTROL. " SEED_PROTO_HEAD="THE SPOOL MESSAGING PROTOCOL."
+seed_shared() { printf '%s%s' "${1%%"$SEED_SCOPE_HEAD"*}" "$SEED_PROTO_HEAD${1#*"$SEED_PROTO_HEAD"}"; }
+seed_scope() { local s="${1#*"$SEED_SCOPE_HEAD"}"; printf '%s' "${s%%"$SEED_PROTO_HEAD"*}"; }
+seed_render() {  # SCRIPTS_DIR KIND ID PLAN_DIR -> the rendered seed
+  mkdir -p "$4"
+  SPAWN_PLAN_DIR="$4" SPAWN_GIT_IDENTITY='FirstName LastName <dev@example.com>' \
+    bash "$1/spawn-$2.sh" "$3" "$T_TMP/repo" "$T_TMP/brief.md" "fix it" >/dev/null 2>&1
+  cat "$4/prompt.txt" 2>/dev/null
+}
+declare -A SEED_SHARED
 for k in claude grok agy qwen mistral; do
   id=CLE-79; [ "$k" = grok ] && id=GRK-79; [ "$k" = agy ] && id=AGY-79
   [ "$k" = qwen ] && id=QWN-79; [ "$k" = mistral ] && id=m-079
-  mkdir -p "$T_TMP/plan-$k"
-  SPAWN_PLAN_DIR="$T_TMP/plan-$k" SPAWN_GIT_IDENTITY='FirstName LastName <dev@example.com>' \
-    bash "$T_SCRIPTS/spawn-$k.sh" "$id" "$T_TMP/repo" "$T_TMP/brief.md" "fix it" >/dev/null 2>&1
-  prompt="$(cat "$T_TMP/plan-$k/prompt.txt")"
+  prompt="$(seed_render "$T_SCRIPTS" "$k" "$id" "$T_TMP/plan-$k")"
+  [ "$k" = claude ] && CLAUDE_PROMPT="$prompt"
   # Sized at the live install's paths, not this checkout's: the seed embeds
   # the checkout and the sandbox ~16 times, and CI's longer checkout path
   # alone added ~240 B (c-603, wf 10 run 37873606666).
   norm="$(seed_norm "$prompt")"
   n="$(printf '%s' "$norm" | wc -c)"
   SEED_NORM[$k]="${norm//"$id"/<ID>}"; SEED_BYTES[$k]="$n"
+  SEED_SHARED[$k]="$(seed_shared "${SEED_NORM[$k]}")"
+  # Every kind's SCOPE, its own or the shared one, keeps rules (a)-(d).
+  scope="$(seed_scope "$prompt")"
+  has "$k: SCOPE (a) fetches first" "(a) FETCH = 'bash " "$scope"
+  has "$k: SCOPE (b) checks the fleet lane map" "lane-map.sh" "$scope"
+  has "$k: SCOPE (b) ... under its own id" "--agent ${id}" "$scope"
+  has "$k: SCOPE (b) ... exit 4 is not free" "exit 4 = 'unknown:' lanes" "$scope"
+  has "$k: SCOPE (b) ... owned is reported, not fixed" "do not fix it" "$scope"
+  has "$k: SCOPE (c) a blocker only in a separate commit" "(c) Only if it blocks YOUR tests and nobody owns it" "$scope"
+  has "$k: SCOPE (d) fetches again" "(d) FETCH again during long work." "$scope"
+  # grok: a tighter scope and the brevity note; every other kind: neither.
+  if [ "$k" = grok ]; then
+    has "grok: the seed carries the brevity note" "HARNESS NOTE (grok): answer and report in few words" "$prompt"
+    has "grok: ... never restating the brief" "never restate the brief" "$prompt"
+    has "grok: the scope block is the tighter one" "Your brief's scope only: no refactor, cleanup or extra feature beyond it." "$scope"
+  else
+    hasnt "$k: no harness note" "HARNESS NOTE" "$prompt"
+  fi
   # 8200: +200 for STEP 0, the developer-guide ack (owner t1 4e373f5d msg 56d7073e)
   # 8400: +200 for the ACCEPTED-gated exit line (SPAWN_EXIT_RULE, owner msg 3b4d2cb9)
   # 8500: +100 for the lane-map exit 4 ('unknown:' lanes are not free, c-904 follow-up)
@@ -88,7 +117,7 @@ for k in claude grok agy qwen mistral; do
   hasnt "$k: no FETCH_HEAD race numbers in the seed" "168/200" "$prompt"
 done
 for k in grok agy qwen mistral; do
-  eq "$k: the seed states claude's rules, no sentence more or less" "" "$(seed_extra "${SEED_NORM[$k]}" "${SEED_NORM[claude]}")"
+  eq "$k: outside its own blocks the seed states claude's rules, no sentence more or less" "" "$(seed_extra "${SEED_SHARED[$k]}" "${SEED_SHARED[claude]}")"
   check "$k: the seed is at most $SEED_PARITY_MAX bytes over claude's (got $(( SEED_BYTES[$k] - SEED_BYTES[claude] )))" \
     [ $(( SEED_BYTES[$k] - SEED_BYTES[claude] )) -le "$SEED_PARITY_MAX" ]
 done
@@ -97,6 +126,19 @@ has "control: a grok-only sentence is caught" "Read every skill first." \
   "$(seed_extra "${SEED_NORM[grok]} Read every skill first." "${SEED_NORM[claude]}")"
 has "control: a rule a kind loses is caught" "(5) After (4)" \
   "$(seed_extra "${SEED_NORM[grok]//"(5) After (4)"/}" "${SEED_NORM[claude]}")"
+has "control: a sentence outside the kinds' blocks is caught" "Read every skill first." \
+  "$(seed_extra "$(seed_shared "${SEED_NORM[grok]//"HOW TO WRITE A POST"/"Read every skill first. HOW TO WRITE A POST"}")" "${SEED_SHARED[claude]}")"
+eq "control: seed_shared cuts exactly the kind's blocks" "a $SEED_PROTO_HEAD b" "$(seed_shared "a ${SEED_SCOPE_HEAD}x HARNESS NOTE (k): y. $SEED_PROTO_HEAD b")"
+# The hooks add nothing to a kind that declares none: claude's seed is byte
+# for byte the one SEED_BASE_REF's launcher renders (SPL-2176 proof:
+# SEED_BASE_REF=origin/master before landing). Unset by default, since a
+# later change to the shared seed rightly differs from its base.
+if [ -n "${SEED_BASE_REF:-}" ]; then
+  mkdir -p "$T_TMP/base"
+  git -C "$T_ROOT" archive "$SEED_BASE_REF" csi-spl-orc/src/bash/features/spawn-agents | tar -x -C "$T_TMP/base"
+  base="$(seed_render "$T_TMP/base/csi-spl-orc/src/bash/features/spawn-agents/scripts" claude CLE-79 "$T_TMP/plan-base")"
+  eq "claude: seed is byte-identical to ${SEED_BASE_REF}'s" "$CLAUDE_PROMPT" "$(seed_root "$base" "$T_TMP/base" "$T_ROOT")"
+fi
 check "the linked rules doc exists" test -f "$T_SCRIPTS/../../../../../../csi-spl-doc/doc/md/lane-integration-rules.md"
 
 t_done

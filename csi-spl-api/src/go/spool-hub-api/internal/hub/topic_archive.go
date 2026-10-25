@@ -67,81 +67,101 @@ type topicCard struct {
 // notes.send and the capability gate. ok=false means it answered.
 func (s *Server) resolveCard(w http.ResponseWriter, r *http.Request, need cardCap) (topicCard, bool) {
 	var c topicCard
+	hum, ok := s.cardCaller(w, r, need, &c)
+	ok = ok && s.cardLookup(w, r, &c) && s.messageDoor(w, r, c.t.ID, c.m) &&
+		s.cardOpening(w, &c) && s.cardAllowed(w, r, need, hum, &c)
+	return c, ok
+}
+
+// cardCaller is who may ask: the member session (c.t, c.from), billing on a
+// mutation, then the rbac permit. It returns the caller's hum id.
+func (s *Server) cardCaller(w http.ResponseWriter, r *http.Request, need cardCap, c *topicCard) (string, bool) {
 	t, hum, ok := s.humanTenant(w, r)
 	if !ok {
-		return c, false
+		return "", false
 	}
 	c.t = t
 	from, ok := s.editorID(r, t.ID)
 	if !ok || hum == "" {
 		writeForbidden(w, rbac.NotesSend, "archiving or deleting a topic needs a signed-in member session")
-		return c, false
+		return "", false
 	}
 	c.from = from
-	mutate := need != capRead
 	perm := rbac.TopicsRead
-	if mutate {
+	if need != capRead {
 		if !billing.AllowsWrite(t.BillingStatus) {
 			writeUnpaid(w)
-			return c, false
+			return "", false
 		}
 		perm = rbac.NotesSend
 	}
-	if !s.permit(w, r, t.ID, hum, perm) {
-		return c, false
-	}
+	return hum, s.permit(w, r, t.ID, hum, perm)
+}
+
+// cardLookup is which message it is: the msg_id shape, then GetEditable and
+// CardState (c.m, c.st).
+func (s *Server) cardLookup(w http.ResponseWriter, r *http.Request, c *topicCard) bool {
 	id := strings.ToLower(r.PathValue("msg_id"))
 	if !uuidRe.MatchString(id) {
 		writeErr(w, http.StatusBadRequest, "bad_json", "msg_id must be a UUID")
-		return c, false
+		return false
 	}
 	now := s.o.Now()
-	m, err := s.o.Store.GetEditable(r.Context(), t.ID, id, now)
+	m, err := s.o.Store.GetEditable(r.Context(), c.t.ID, id, now)
 	if err == nil {
-		c.st, err = s.o.Store.CardState(r.Context(), t.ID, id, now)
+		c.st, err = s.o.Store.CardState(r.Context(), c.t.ID, id, now)
 	}
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		writeErr(w, http.StatusNotFound, "not_found", "no such message")
-		return c, false
+		return false
 	case err != nil:
 		s.o.Log.Error().Err(err).Str("msg_id", id).Msg("topic card lookup")
 		writeErr(w, http.StatusInternalServerError, "internal", "message unavailable")
-		return c, false
+		return false
 	}
 	c.m = m
-	if !s.messageDoor(w, r, t.ID, m) {
-		return c, false
-	}
-	lobby := s.o.LobbyTaskID != "" && m.TaskID == s.o.LobbyTaskID
+	return true
+}
+
+// cardOpening holds the message to a topic's opening card (not_a_card) that
+// is no issue's discussion (issue_topic), and sets c.ownTask.
+func (s *Server) cardOpening(w http.ResponseWriter, c *topicCard) bool {
+	lobby := s.o.LobbyTaskID != "" && c.m.TaskID == s.o.LobbyTaskID
 	if c.st.IsParent != 1 || (!lobby && !c.st.FirstOfTask) {
 		writeErr(w, http.StatusConflict, "not_a_card", "only a topic's opening card can be archived or deleted")
-		return c, false
+		return false
 	}
 	if !lobby {
-		c.ownTask = m.TaskID
+		c.ownTask = c.m.TaskID
 	}
 	if c.st.IssueTopic {
 		writeErr(w, http.StatusConflict, "issue_topic", "an issue's discussion is archived with its issue, not here")
-		return c, false
+		return false
 	}
-	c.may = s.mayChangeTopic(r.Context(), t.ID, hum, from, m.FromID)
+	return true
+}
+
+// cardAllowed is the capability gate: c.may and c.mayArchive, then the 403
+// the need asks for.
+func (s *Server) cardAllowed(w http.ResponseWriter, r *http.Request, need cardCap, hum string, c *topicCard) bool {
+	c.may = s.mayChangeTopic(r.Context(), c.t.ID, hum, c.from, c.m.FromID)
 	// Archive follows the workspace "Who can archive topics" setting
 	// (CLE-77819); delete keeps the narrower c.may rule.
-	c.mayArchive = s.mayArchiveByPolicy(r.Context(), t.ID, hum, s.archivePolicy(t), c.may)
+	c.mayArchive = s.mayArchiveByPolicy(r.Context(), c.t.ID, hum, s.archivePolicy(c.t), c.may)
 	switch need {
 	case capArchive:
 		if !c.mayArchive {
 			writeErr(w, http.StatusForbidden, "not_allowed", "this workspace does not let you archive this topic")
-			return c, false
+			return false
 		}
 	case capDelete:
 		if !c.may {
 			writeErr(w, http.StatusForbidden, "not_allowed", "only the author, the tenant owner or an admin may do this")
-			return c, false
+			return false
 		}
 	}
-	return c, true
+	return true
 }
 
 // mayArchiveByPolicy applies "Who can archive topics" (CLE-77819). stored is

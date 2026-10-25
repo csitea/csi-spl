@@ -198,6 +198,10 @@ rm -f "$CO/adds-x"; g checkout -q --detach origin/master
 # (spl-desk-cron-lock.func.sh) every tick judges a settled tree: no report.
 C12="$T/c12" B12="$T/c12-origin.git" O12="$T/c12/$ORC_NAME"
 mkdir -p "$C12" && git -c init.defaultBranch=master -C "$C12" init -q
+# No auto maintenance: git 2.55 (hosted runners) packs the ~800 loose objects in the
+# background after a commit, and the local clone below then copies an object file that
+# is gone ("failed to copy file", no origin, k12 < 3; 3 of 60 runs on ubuntu-24.04).
+git -C "$C12" config maintenance.auto false && git -C "$C12" config gc.auto 0
 mkdir -p "$O12/src/bash/scripts" "$O12/src/bash/features/spawn-agents/scripts" "$O12/lib/bash/funcs"
 cp "$PROJ_ROOT/src/bash/scripts/desk-reconcile-cron.sh" "$O12/src/bash/scripts/"
 LOCK_LIB="$PROJ_ROOT/lib/bash/funcs/spl-desk-cron-lock.func.sh"

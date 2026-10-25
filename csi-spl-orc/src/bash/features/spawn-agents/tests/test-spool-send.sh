@@ -71,7 +71,8 @@ P94="$(t_window CLE-94 "bash -c '$T_TMP/sudo 600; :'")"
 # A fixed "sleep 0.3" raced a loaded CI runner (wf 10 run 40233594333: the
 # pane tty showed only bash, exit 7). Wait until the fake sudo is up, <= 5 s.
 tty94="$(tmux -S "$SPOOL_TMUX_SOCKET" display -p -t "$P94" '#{pane_tty}')"
-for _ in $(seq 50); do
+end94=$(( $(date +%s%N) + 5000000000 ))
+while [ "$(date +%s%N)" -lt "$end94" ]; do
   case " $(ps -t "${tty94#/dev/}" -o comm= 2>/dev/null | tr "\n" " ") " in *" sudo "*) break ;; esac
   sleep 0.1
 done

@@ -1,0 +1,57 @@
+apiVersion: blueprints.cloud.google.com/v1alpha1
+kind: BlueprintMetadata
+metadata:
+  name: marketplace-spool-vm
+  annotations:
+    config.kubernetes.io/local-config: "true"
+spec:
+  info:
+    title: Spool Hub
+    source:
+      repo: https://github.com/csitea/csi-spl.git
+      sourceType: git
+      dir: csi-spl-iac/src/terraform/marketplace-spool-vm
+  ui:
+    input:
+      variables:
+        project_id:
+          name: project_id
+          title: Project
+        region:
+          name: region
+          title: Region
+        zone:
+          name: zone
+          title: Zone
+        machine_type:
+          name: machine_type
+          title: Machine type
+        boot_disk_image:
+          name: boot_disk_image
+          title: Boot disk image
+          # The producer GCE image does not exist yet.
+          xGoogleProperty: ET_GCE_DISK_IMAGE
+        boot_disk_size_gb:
+          name: boot_disk_size_gb
+          title: Boot disk size
+        boot_disk_type:
+          name: boot_disk_type
+          title: Boot disk type
+        spool_hub_image:
+          name: spool_hub_image
+          title: Spool Hub image
+        spool_web_image:
+          name: spool_web_image
+          title: Spool web image
+        spool_pg_image:
+          name: spool_pg_image
+          title: Postgres image
+        spool_s3_image:
+          name: spool_s3_image
+          title: Object store image
+        partner_solution_urn:
+          name: partner_solution_urn
+          title: Partner solution
+        goog_cm_deployment_name:
+          name: goog_cm_deployment_name
+          title: Deployment name

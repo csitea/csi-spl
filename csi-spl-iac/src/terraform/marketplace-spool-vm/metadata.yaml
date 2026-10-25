@@ -1,0 +1,76 @@
+apiVersion: blueprints.cloud.google.com/v1alpha1
+kind: BlueprintMetadata
+metadata:
+  name: marketplace-spool-vm
+  annotations:
+    config.kubernetes.io/local-config: "true"
+spec:
+  info:
+    title: Spool Hub
+    source:
+      repo: https://github.com/csitea/csi-spl.git
+      sourceType: git
+      dir: csi-spl-iac/src/terraform/marketplace-spool-vm
+  content:
+    subBlueprints: []
+  interfaces:
+    variables:
+      - name: project_id
+        description: GCP project that owns this VM.
+        varType: string
+        required: true
+      - name: region
+        description: Region for the subnet.
+        varType: string
+        required: false
+      - name: zone
+        description: Zone for the VM.
+        varType: string
+        required: false
+      - name: machine_type
+        description: Machine type.
+        varType: string
+        required: false
+      - name: boot_disk_image
+        description: Public Debian family used as the boot disk.
+        varType: string
+        required: false
+      - name: boot_disk_size_gb
+        description: Boot disk size in GB.
+        varType: number
+        required: false
+      - name: boot_disk_type
+        description: Boot disk type.
+        varType: string
+        required: false
+      - name: spool_hub_image
+        description: Pinned Spool Hub container image.
+        varType: string
+        required: false
+      - name: spool_web_image
+        description: Pinned Spool web container image.
+        varType: string
+        required: false
+      - name: spool_pg_image
+        description: Postgres container image.
+        varType: string
+        required: false
+      - name: spool_s3_image
+        description: SeaweedFS container image.
+        varType: string
+        required: false
+      - name: partner_solution_urn
+        description: Partner solution placeholder.
+        varType: string
+        required: false
+      - name: goog_cm_deployment_name
+        description: Deployment name, also the VM name.
+        varType: string
+        required: true
+    outputs:
+      - name: instance_name
+        description: Name of the Spool Hub VM.
+      - name: external_ip
+        description: Ephemeral public address of the Spool Hub VM.
+      - name: spool_doc_path
+        description: Path of the AGPL source tree on the VM.

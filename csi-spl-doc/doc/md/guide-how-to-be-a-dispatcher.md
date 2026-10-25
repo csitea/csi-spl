@@ -1,5 +1,7 @@
 # How to be a dispatcher: a guide for a new seat
 
+> Generated from qto doc `56b19a8b-0cc5-42a9-a53a-2670461e60ea`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 For a seat that has never dispatched, on any vendor. It teaches the job as
 the claude dispatchers do it today. It adds no rule: every rule here has its
 home in another file, named in brackets, and where this page and that home
@@ -18,6 +20,7 @@ Examples are by id only (message, topic, lane); the full story is in the
 master dispatcher's hold note of 2026-10-25 1015Z (`dispatch/hold/` on the
 orch box), cited below as "hold note line N".
 
+<a id="ws-doc-73012b36-5741-4af7-b25c-07ed261d5ef5"></a>
 ## 1. The job in one page
 
 You are the front door of the fleet. Every human post and every agent
@@ -41,6 +44,7 @@ report reaches you, and you decide what happens to it.
   change members or roles, close agents, or decide for the owner. Those go
   to the orchestrator (section 7).
 
+<a id="ws-doc-0ad23101-b894-46b1-a41b-c71291b43e77"></a>
 ## 2. What comes in
 
 | channel | what it looks like | where you read it |
@@ -57,6 +61,7 @@ spawn, before you say anything is done. List it again right before you ack:
 `--ack` archives every message in the inbox, also the ones that arrived after
 your read ([runbook-dispatcher.md](runbook-dispatcher.md) section 2.1).
 
+<a id="ws-doc-c5a96f69-585e-4fdf-9ac3-ac1bb6b1ae11"></a>
 ## 3. The 3-minute rule
 
 **Every human post is answered within 3 minutes** (owner, t1 d40c3e2f,
@@ -73,6 +78,7 @@ orchestrator takes the post as the backstop and owns the topic.
   3-minute rule is worse than a double post
   ([runbook-dispatcher.md](runbook-dispatcher.md) section 5).
 
+<a id="ws-doc-ded4762e-7835-4c15-b502-3f2e40439091"></a>
 ## 4. One message, one action
 
 For every message do exactly ONE of these, then archive it
@@ -98,12 +104,14 @@ Three tests decide the hard cases:
 3. **Never guess who owns a lane.** Read `lane-map.sh`, the registry and the
    topic; when none of them says, ask the orchestrator.
 
+<a id="ws-doc-6c37aa15-249d-43d1-96a0-dfbcb0d35172"></a>
 ## 5. Verify before GO, ACCEPTED or "Live"
 
 You judge Done. A lane says "landed"; that is its word, not your verdict
 ([runbook-dispatcher.md](runbook-dispatcher.md) section 4). Three words
 need proof you ran yourself.
 
+<a id="ws-doc-fcde8b1b-46cd-4633-8ba8-7400443a4aee"></a>
 ### 5.1 GO: a lane may push what was reviewed
 
 A reviewer seat (another vendor) reads a lane's review branch and answers
@@ -117,6 +125,7 @@ PASS or FAIL. Before you send the lane GO:
 - the GO names its conditions ("1 file, suite and gate green"), so the
   landed result can be checked against them (hold note line 9).
 
+<a id="ws-doc-b19b343f-b299-4fe2-9f1f-380772b13052"></a>
 ### 5.2 ACCEPTED: the landed commit is the reviewed one, and it works
 
 Before a message whose body starts with `ACCEPTED`:
@@ -133,6 +142,7 @@ The body STARTS with `ACCEPTED`, or the lane will not exit: lane seeds exit
 only on that first word ([runbook-dispatcher.md](runbook-dispatcher.md)
 section 4). To refuse, send the lane the exact missing proof.
 
+<a id="ws-doc-7ed273c3-292d-40cc-85da-44710f2c65ac"></a>
 ### 5.3 "Live": on master and served on dev and prd
 
 "Live" means on master AND deployed on both environments. A pushed-only
@@ -141,6 +151,7 @@ commit is "on master"; a docs-only commit stays "on master"
 sha, a `checked:` line and a `not checked:` line, or the desk action refuses
 it (rule 16).
 
+<a id="ws-doc-f08eb133-5422-4dde-b9cb-dd36d86c7597"></a>
 ## 6. Starting a lane: the queue
 
 Real lane work is spawned by the dispatcher that took it (roles spec
@@ -174,8 +185,10 @@ example one agy seat for rows 1 to 7). It saves seats; its brief lists every
 row. Placed on another box, it cannot read your brief files: send each row's
 checklist in the message body (hold note line 106).
 
+<a id="ws-doc-007a286e-ab78-4139-9906-46ae79665067"></a>
 ## 7. Escalation and the never-list
 
+<a id="ws-doc-6dab4d2c-747b-4350-9da5-33277f1bf0cd"></a>
 ### 7.1 Escalate in one message
 
 To the orchestrator (`--to orchestrator` finds the orch lease holder on any
@@ -188,6 +201,7 @@ ask is tracked: re-raised while nobody acks it, and sent to the owner after
 A question only the owner can answer is posted in the topic as a blocker,
 as a `poll` form with every choice an option (section 9).
 
+<a id="ws-doc-45db608e-f8be-4934-8e61-96b2324a8347"></a>
 ### 7.2 Never
 
 - a prd mutation, a terraform plan or apply, an IAM or member change
@@ -204,6 +218,7 @@ as a `poll` form with every choice an option (section 9).
 - a decision that is the owner's, or an option menu on something a
   standing order already decides.
 
+<a id="ws-doc-9b5c1fe2-1d2b-47af-bd8b-3843adfa9d26"></a>
 ## 8. The lease, standby and handoff
 
 - **The lease file** `/var/spool-hub/dispatch/lease` holds
@@ -225,6 +240,7 @@ as a `poll` form with every choice an option (section 9).
   file, then the inbox, then runs the ACK-COMMAND from its seed within
   600 s, and posts nothing about the rotation.
 
+<a id="ws-doc-1af7f9d3-bee9-45e7-a6cf-273dd08bae08"></a>
 ## 9. Posting to the owner
 
 The one rule is [how-to-post.md](../help/how-to-post.md). The parts a
@@ -245,10 +261,12 @@ dispatcher uses every hour:
 - **No personal data across workspaces, no secrets, no hosts**; write
   "workspace", never "tenant".
 
+<a id="ws-doc-2dad200d-18cb-4dd3-a559-785b3b577207"></a>
 ## 10. Common mistakes, with the fix
 
 Real cases of 2026-10-25 unless marked; ids only.
 
+<a id="ws-doc-5843a403-a22e-4c80-b51e-9933493cd03f"></a>
 ### 10.1 A 404 read as a routing bug
 
 The calendar callback answered 404, and the owner was told the route was
@@ -257,12 +275,14 @@ code alone proved nothing. It was corrected in a new owner post with a new
 poll (hold note line 145). **Fix:** read the body and the log behind a
 status code, or ask the lane that owns the code, before you name a cause.
 
+<a id="ws-doc-35d68a6c-753b-4ab4-8a99-16ce03b2645d"></a>
 ### 10.2 Times typed instead of read
 
 After a restore, times were written from memory; they were 30 to 60 minutes
 late in two owner topics, and both needed a correction (hold note line 128).
 **Fix:** every time comes from `date -u` at the moment you write it.
 
+<a id="ws-doc-14c8c1ae-4fcb-4a89-a094-6402aaf1d8c5"></a>
 ### 10.3 A reviewer that only read the red control
 
 A reviewer answered PASS on a row; its red controls had only been read from
@@ -270,6 +290,7 @@ the author's log, not run. Sent back, it ran them and PASSed again; only
 then did the lane get GO (hold note lines 165 and 170). **Fix:** a PASS says
 what the reviewer ran; a control that was not run is not proof.
 
+<a id="ws-doc-6158b7bb-1a8f-430c-820d-098ada6ff124"></a>
 ### 10.4 Rows lost to a false queue decline
 
 Thirteen queued rows were declined as missing their brief while every brief
@@ -278,6 +299,7 @@ brief), told the orchestrator, re-queued all thirteen and queued a bug row
 for the placer (hold note lines 114 to 117). **Fix:** a decline is a claim
 too: check it before you accept the loss.
 
+<a id="ws-doc-7642eddb-65b7-4cfa-a244-c8c16085407d"></a>
 ### 10.5 ACCEPTED sent to a seat still needed
 
 An `ACCEPTED` released a reviewer seat that had been kept for a later
@@ -285,12 +307,14 @@ review; the seat exited and the review had to be queued again (hold note
 line 41). **Fix:** a seat kept for more work gets a plain verdict ("Verdict
 GOOD, NOT an exit"), never a body that starts with `ACCEPTED`.
 
+<a id="ws-doc-ce13ef2a-1185-4849-92c5-88a15da1efac"></a>
 ### 10.6 Landed taken for Done
 
 A lane was about to be closed on "landed" while it had already been sent
 back (runbook section 9, 2026-10-11). **Fix:** relay a lane result as "for
 your Done verdict"; close only after `ACCEPTED`.
 
+<a id="ws-doc-ccf59263-66e0-4939-8d61-570c0c21bbf7"></a>
 ### 10.7 An apply-only lane and its issue
 
 A lane that only runs an apply (no code commit) lands nothing that cites its
@@ -299,6 +323,7 @@ done on the hub, and the lane's exit gate then passes
 ([lane-issue-and-docs.md](lane-issue-and-docs.md) row 1.6; hold note line
 134). **Fix:** when you accept an apply-only lane, say who closes its issue.
 
+<a id="ws-doc-06209f6f-d8fa-4822-ad4b-432afc73f279"></a>
 ### 10.8 A filtered send hid a refusal
 
 `spool-send.sh ... | grep delivery` printed nothing; the send had been
@@ -306,6 +331,7 @@ refused and the reviewer was never asked (runbook section 9). **Fix:** read
 the send's last two lines unfiltered, and write bodies with `--body-file`:
 a backtick inside `--body "..."` runs as a command.
 
+<a id="ws-doc-1aa47e6c-ef18-4162-8078-af649b6c2875"></a>
 ## 11. Training: how an agy seat starts
 
 1. **Read** this page, then [runbook-dispatcher.md](runbook-dispatcher.md),

@@ -1,6 +1,6 @@
 # Spec 156: Google Cloud Marketplace Listing for Spool Hub (Free Open-Source Application)
 
-**Feature ID**: `156-gcp-marketplace-listing` · **Status**: Draft v0.2 · **Epic**: SPL-3035 · **Issue**: SPL-3341  
+**Feature ID**: `156-gcp-marketplace-listing` · **Status**: Draft v0.3 · **Epic**: SPL-3035 · **Issue**: SPL-3341  
 **Created**: 2026-10-25 · **Lead**: a-719 · **Placement slug**: `c002-spec-gcp-marketplace-listing`  
 **Related Specs**: [044 Open Source](../044-spool-open-source/spec.md), [047 Deployability](../047-spool-deployability/deployability-analysis.md), [072 Rapid Deployability](../072-rapid-deployability/spec.md)  
 **Authority**: This document for the Google Cloud Marketplace requirements, architectural fit, gaps on origin/master, owner actions, and risk profile. Docs only; this spec introduces no code or infrastructure mutations.
@@ -67,7 +67,7 @@ To offer products on Google Cloud Marketplace, an organization must establish an
    - Per [Configure access control for Producer Portal users](https://docs.cloud.google.com/marketplace/docs/partners/access-control), team members managing listings require:
      - **Commerce Producer Admin** (`roles/commerceproducer.admin`) and **Service Management API Administrator** (`roles/servicemanagement.admin`) to create and edit products.
      - **Commerce Producer Viewer** (`roles/commerceproducer.viewer`) for view-only access.
-     - **Service Management API Consumer** (`roles/servicemanagement.apiConsumer`) to preview product listings as customers see them.
+     - **Service Management Service Consumer** (`roles/servicemanagement.serviceConsumer`) to preview product listings as customers see them.
      - **Commerce Business Enablement PaymentConfig Admin** (`roles/commercebusinessenablement.paymentConfigAdmin`) for managing payments and tax profiles.
 
 ### 2.4 Technical Integration Requirements
@@ -108,7 +108,7 @@ flowchart TD
 
 1. **Component Reviews** (can be submitted in any order):
    - **Product Details**: Title, tagline, descriptions, category IDs (up to 2), search keywords, transparent icon PNG, screenshots, and an external URL to a Google Cloud-specific Getting Started guide ([vm/set-up-environment](https://docs.cloud.google.com/marketplace/docs/partners/vm/set-up-environment)). Approval takes approximately 2–5 business days.
-   - **Pricing Review**: For free software, select **Free** ([Choosing a pricing model](https://docs.cloud.google.com/marketplace/docs/partners/vm/select-pricing)). The partner must complete the **tax category** and withholding tax information even for $0 software plans, and provide an End User License Agreement (EULA) URL. Google reviews pricing models within up to 4 business days.
+   - **Pricing Review**: For free software, select **Free** ([Choosing a pricing model](https://docs.cloud.google.com/marketplace/docs/partners/vm/select-pricing)). The partner must select a **tax category**, complete withholding tax information (applicable only for partners with a US payment profile, per select-pricing), and provide an End User License Agreement (EULA) URL. Google reviews pricing models within up to 4 business days.
    - **Deployment Package Review**: Automated validation verifies that the package parses correctly, object versioning is enabled on the storage bucket, and `terraform plan` executes without errors against `marketplace_test.tfvars` ([Configure your VM image for Terraform deployment](https://docs.cloud.google.com/marketplace/docs/partners/vm/configure-terraform-deployment)). Automated validation takes up to 2 hours.
 2. **Submit for Final Review / Private Publication**:
    - Once all component reviews are approved, clicking **Publish** in Producer Portal notifies Google and publishes the product privately ([Submit your product](https://docs.cloud.google.com/marketplace/docs/partners/vm/submitting)).
@@ -165,11 +165,11 @@ Every gap on `origin/master` required to publish the listing is itemized below w
 | **GAP-02** | **VM Deployment Package Module** | `csi-spl-iac/src/terraform/marketplace-spool-vm/main.tf`<br>`variables.tf`<br>`outputs.tf`<br>`versions.tf` | In `csi-spl-orc`: `STEP=marketplace-spool-vm make do-tf-plan` (runs terraform inside `con-csi-csi-spl-tf-runner` container, satisfying repo containerization rules). |
 | **GAP-03** | **BlueprintUI Metadata & CFT Validation** | `csi-spl-iac/src/terraform/marketplace-spool-vm/metadata.yaml`<br>`metadata.display.yaml` | Containerized CFT validation: `docker run --rm -v $(pwd)/csi-spl-iac/src/terraform/marketplace-spool-vm:/workspace -w /workspace gcr.io/cloud-foundation-toolkit/cft:latest blueprint metadata -v`. |
 | **GAP-04** | **Automated Test Variables File** | `csi-spl-iac/src/terraform/marketplace-spool-vm/marketplace_test.tfvars` | Test script `csi-spl-iac/src/bash/tests/test-marketplace-tfvars.sh` verifying that all declared variables in `variables.tf` have valid default or test values. |
-| **GAP-05** | **Public Image Build & Verification** | `.github/workflows/25_marketplace-image-publish.yml`<br>`csi-spl-api/docker/Dockerfile` | Concrete container test: `docker pull ghcr.io/csitea/spool-hub:latest && docker run --rm ghcr.io/csitea/spool-hub:latest /app/spool-hub-api --version`. |
+| **GAP-05** | **VM Image Release Bake**<br>(Reuse wf 56 & bake pinned digests into VM image) | `.github/workflows/56_ghcr-images.yml`<br>`docker-compose.yml` | Pull pinned stable tag: `docker pull ${SPOOL_IMAGE_REPO:-ghcr.io/csitea}/spool-hub:${SPOOL_IMAGE_TAG:-stable-2026-10-12} && docker run --rm ${SPOOL_IMAGE_REPO:-ghcr.io/csitea}/spool-hub:${SPOOL_IMAGE_TAG:-stable-2026-10-12} /app/spool-hub-api --version`. |
 | **GAP-06** | **Marketplace Packaging & Linter Script** | `csi-spl-iac/src/bash/run/marketplace-pack.func.sh`<br>`csi-spl-iac/src/bash/tests/test-marketplace-pack.sh` | `./run -a do_marketplace_pack` packages `.tar.gz`, verifies SHA256 checksum, schema validation, and provider whitelist (`google`, `google-beta`, `random`, `null`, `time`, `tls`). |
 | **GAP-07** | **Listing Details & Marketing Copy** | `csi-spl-doc/doc/marketplace/listing-details.md` | Linter `csi-spl-doc/src/bash/tests/test-marketplace-copy.sh` verifying required sections, category IDs, keyword formatting, and EULA links. |
 | **GAP-08** | **Branding & Visual Graphic Assets** | `csi-spl-doc/doc/marketplace/assets/logo_128x128.png`<br>`logo_256x256.png`<br>`screenshot_01.png` .. `04.png` | Linter `csi-spl-doc/src/bash/tests/test-marketplace-assets.sh` checking PNG transparency, exact pixel dimensions, and sRGB color profile. |
-| **GAP-09** | **Public Deployer Getting Started Guide** | `csi-spl-doc/doc/md/marketplace-deployer-guide.md` | Live URL probe: `curl -fsIL https://spool-hub.ai/docs/marketplace` returning HTTP 200. |
+| **GAP-09** | **Public Deployer Getting Started Guide** | `csi-spl-doc/doc/md/marketplace-deployer-guide.md` | Live URL probe: `curl -fsIL https://${BASE_DOMAIN}/docs/marketplace` returning HTTP 200. |
 | **GAP-10** | **Consumption Tracking Provider Integration** | `csi-spl-iac/src/terraform/marketplace-spool-vm/versions.tf` | Static test verifying `goog-partner-solution` key in `provider "google"` `default_labels`. |
 
 ---
@@ -195,7 +195,7 @@ Per repository standards, every infrastructural mutation is automated via named 
    - Approve granting `roles/commerceproducer.admin` and `roles/servicemanagement.admin` in `csi-spl-public` to integration agents/leads.
 7. **Configure Pricing & Tax Category in Producer Portal**:
    - In Producer Portal > Pricing, select **Free**.
-   - Complete the **tax category** selection and withholding tax questionnaire (mandatory in Google portal even for $0 plans, per [select-pricing](https://docs.cloud.google.com/marketplace/docs/partners/vm/select-pricing)).
+   - Complete the **tax category** selection and, if using a US payment profile, the withholding tax questionnaire (per [select-pricing](https://docs.cloud.google.com/marketplace/docs/partners/vm/select-pricing)).
    - Provide the public EULA URL and submit the pricing model for review.
 8. **Submit Product Details & Deployment Package**:
    - Review staged marketing text, logos, and Getting Started guide URL in Producer Portal and click **Submit**.
@@ -219,7 +219,7 @@ Review stages are asynchronous and involve both automated checks and human evalu
 | **Pricing Model & Tax Review** | Up to 4 business days | Explicitly cited in [vm/select-pricing](https://docs.cloud.google.com/marketplace/docs/partners/vm/select-pricing). |
 | **Deployment Package Validation** | Up to 2 hours (automated) | Explicitly cited in [vm/configure-terraform-deployment](https://docs.cloud.google.com/marketplace/docs/partners/vm/configure-terraform-deployment). |
 | **Final Review / Private Preview** | 2 – 5 business days | Unchecked estimate (`UNCHECKED-03`); some reviews take up to 2 weeks per `vm/set-up-environment`. |
-| **Public Launch Propagation** | A few minutes (~15 min) | Cited in [vm/submitting](https://docs.cloud.google.com/marketplace/docs/partners/vm/submitting) and [container](https://docs.cloud.google.com/marketplace/docs/partners/container). |
+| **Public Launch Propagation** | Within a few minutes | Cited in [vm/submitting](https://docs.cloud.google.com/marketplace/docs/partners/vm/submitting) and [container](https://docs.cloud.google.com/marketplace/docs/partners/container). |
 | **Total End-to-End Duration** | **3 – 5 weeks** | Assumes no re-submission loops. |
 
 ### 6.2 Potential Rejection Triggers & Mitigations
@@ -234,19 +234,19 @@ Review stages are asynchronous and involve both automated checks and human evalu
    - *Mitigation*: Restrict providers to approved list (`google`, `google-beta`, `random`, `null`, `time`, `tls`); validate offline using `cft blueprint metadata -v`.
 4. **Missing or Non-Compliant Documentation**:
    - *Risk*: Product Details review requires a live, Google Cloud-specific Getting Started guide hosted on our domain. Submitting placeholder URLs results in immediate review rejection.
-   - *Mitigation*: Author and publish [`csi-spl-doc/doc/md/marketplace-deployer-guide.md`](file:///opt/csi/csi-spl-wt/a-719/csi-spl-doc/doc/md/marketplace-deployer-guide.md) to `spool-hub.ai/docs/marketplace` prior to submitting Product Details.
+   - *Mitigation*: Author and publish `csi-spl-doc/doc/md/marketplace-deployer-guide.md` (relative doc path `../../doc/md/marketplace-deployer-guide.md`) to `https://${BASE_DOMAIN}/docs/marketplace` prior to submitting Product Details.
 
 ### 6.3 Deployer Infrastructure Costs (Customer Cloud Bill)
 The Spool Hub application is **100% Free ($0 software fee)**. However, deployers pay Google directly for the underlying infrastructure provisioned in their project:
 
-| Deployment Pattern | Sizing / Components | Estimated Monthly Idle Cost | Scaled Production Cost |
+| Deployment Pattern | Sizing / Components | Estimated Monthly Idle Cost (Unchecked) | Scaled Production Cost (Unchecked) |
 |---|---|---|---|
 | **VM Product (Compose Stack)** *(Primary)* | 1x `e2-standard-2` (2 vCPU, 8 GB RAM), 50 GB Balanced SSD | **~$50 – $65 / month** | **~$65 – $120 / month** (e2-standard-4) |
 | **VM Product (Economy Sizing)** | 1x `e2-medium` (1 vCPU, 4 GB RAM), 30 GB Standard Persistent Disk | **~$25 – $35 / month** | N/A (Constrained RAM for SeaweedFS + PG) |
 | **Serverless Stack (Cloud Run + SQL)** *(Secondary)* | Cloud Run (scale-to-zero) + Cloud SQL (`db-f1-micro`, 10 GB SSD) | **~$12 – $30 / month** | **~$70 – $200+ / month** (HA Cloud SQL) |
 
 > [!IMPORTANT]
-> A single VM running the Compose stack has a flat, predictable baseline cost (~$25–$50/mo) with zero Cloud SQL hourly idle surcharges. All Marketplace listing copy and documentation must clearly state these infrastructure estimates so prospective deployers have full visibility before launching.
+> A single VM running the Compose stack has a flat, predictable baseline cost (estimated ~$50–$65/mo for primary e2-standard-2, or ~$25–$35/mo for economy e2-medium; unchecked estimates based on standard Google Cloud list pricing) with zero Cloud SQL hourly idle surcharges. All Marketplace listing copy and documentation must clearly state these infrastructure estimates so prospective deployers have full visibility before launching.
 
 ---
 
@@ -264,4 +264,4 @@ In compliance with project truth verification standards, the following items can
 | **UNCHECKED-06** | Whether Google requires manual partner engineering CVE inspection in addition to automated vulnerability scanning. | Observe review workflow feedback upon submitting the first VM deployment package. |
 | **UNCHECKED-07** | Reason Google mandates a Google Payments Profile for $0 / Free software listings. | Confirmed as required by `get-started`, but the underlying rationale (tax/liability) remains unstated by Google. |
 
-<!-- version: 0.2.0 · updated: 2026-10-25 · last-edit: 2026-10-25T14:20:00Z -->
+<!-- version: 0.3.0 · updated: 2026-10-25 · last-edit: 2026-10-25T14:25:00Z -->

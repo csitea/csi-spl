@@ -32,6 +32,11 @@
 #      start a NEW session (no --resume) kicked to the handoff, and an empty
 #      session id is still refused; red control: the code before the fix
 #      refuses the sessionless g- role seat
+#   8. (SPL-3378, 2026-10-25: a restore by id on a box with no record of the
+#      id printed only the since-window line and "0 started") a restore by id
+#      prints one line per requested id it did not start, with the reason (no
+#      record on this box; already running, with its pid), and no since-window
+#      line, which it does not apply
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -101,7 +106,7 @@ out="$(act)"
 has "1. dry run plans CLE-81" "RESTORE CLE-81: claude session s-81 in $W/CLE-81" "$out"
 has "1. dry run plans CLE-82" "RESTORE CLE-82: claude session s-82 in $W/CLE-82" "$out"
 eq "1. ... and starts nothing" "$before" "$(tm list-windows -a | wc -l)"
-has "2. an agent gone long before the restart is skipped" "SKIP    CLE-83 not killed by the restart" "$out"
+has "2. an agent gone long before the restart is skipped" "SKIP    CLE-83: not killed by the restart" "$out"
 has "2. a transcript of another agent is refused" "REFUSE  CLE-84: session s-84 belongs to CLE-85, not to CLE-84" "$out"
 has "2. a session on two records is refused (1)" "REFUSE  CLE-86: session s-86 is on 2 records" "$out"
 has "2. a session on two records is refused (2)" "REFUSE  CLE-87: session s-86 is on 2 records" "$out"
@@ -168,5 +173,12 @@ if git -C "$T_REPO" show "$PRE:csi-spl-orc/src/bash/features/spawn-agents/script
 else
   echo "SKIP 7 red control: $PRE is not in this clone (shallow?)"
 fi
+
+# --- 8 a restore by id names every id it did not start (SPL-3378) ---------------
+out="$(act IDENTITY_RESTORE_IDS="c-001 CLE-81")"
+has "8. an id with no record on this box is named, with the reason" "SKIP    c-001: no record on this box ($SPOOL_ROOT/agents/c-001.json)" "$out"
+check "8. a running id is named with its pid" grep -qE '^SKIP    CLE-81: already running \(pid [0-9]+\)$' <<<"$out"
+hasnt "8. no since-window line: a restore by id does not apply it" "restore: agents the restart at" "$out"
+has "8. ... it says it is a restore by id instead" "restore: by id (c-001 CLE-81), from $SPOOL_ROOT/agents" "$out"
 
 t_done

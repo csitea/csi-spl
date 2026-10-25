@@ -985,7 +985,7 @@ def cmd_restore_plan(args, proc):
     is only in the recorded user's home is resumable all the same: copy_from
     names that user and the caller copies it across first; '-' = no copy."""
     live, _ = facts(proc, read_panes(sys.stdin))
-    live_ids = {f["id"] for f in live}
+    live_ids = {f["id"]: f.get("pid") for f in live}
     running = set()  # every session id a live CLI holds
     for f in live:
         if f.get("session_id"):
@@ -1005,7 +1005,7 @@ def cmd_restore_plan(args, proc):
         if want is not None and i not in want:
             continue
         if i in live_ids:
-            print("SKIP\t%s\talready running (pid of its process is live)" % i)
+            print("SKIP\t%s\talready running (pid %s)" % (i, live_ids[i] or "?"))
             continue
         # Killed by the restart: the record still says alive (no pass ran since
         # the process vanished), or the first pass after the restart flipped it
@@ -1022,6 +1022,14 @@ def cmd_restore_plan(args, proc):
             )
             continue
         cands.append(r)
+    # A restore by id names every id it was asked for: one this box has no
+    # record of is said, not dropped (SPL-3378: "0 started" and nothing about
+    # c-001 on a box whose map never held it).
+    for i in sorted((want or set()) - set(recs)):
+        print(
+            "SKIP\t%s\tno record on this box (%s)"
+            % (i, os.path.join(args.dir, i + ".json"))
+        )
     sid_n = {}
     for r in cands:
         if r.get("session_id"):

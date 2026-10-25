@@ -44,7 +44,7 @@
 # @description without it the adapters run with RESTORE_KEEP_HOLD=1.
 # @description Dry run unless DRY_RUN=0: prints the plan (RESTORE / REFUSE / SKIP / FALLBACK).
 # @param DRY_RUN (optional) - 1 (default) or 0
-# @param IDENTITY_RESTORE_IDS (optional) - only these ids ("CLE-07 CLE-12"); the since rule is not applied
+# @param IDENTITY_RESTORE_IDS (optional) - only these ids ("CLE-07 CLE-12"); the since rule is not applied, and each id not started is named with why (SKIP: no record on this box, already running (pid N); REFUSE ...)
 # @param IDENTITY_RESTORE_SINCE (optional) - UTC (2026-10-01T03:33:00Z); default the boot time
 # @param IDENTITY_RESTORE_WINDOW (optional) - minutes after SINCE a death still counts as the restart's, default 15
 # @param IDENTITY_RESTORE_SESSION (optional) - the tmux session for a record without one, default main
@@ -92,10 +92,10 @@ do_spl_agent_identity_restore() {
   # @reboot job reads no profile, so ai_tag falls back to box.env.
   tag="$(ai_tag)"
   plan="$(ai_panes | ai_py restore-plan --since "$since" --until "$until" --ids "${IDENTITY_RESTORE_IDS:-}" --agent-user "$agent_user")" || return 1
-  echo "restore: agents the restart at $since killed (dead by $until), from $(ai_dir), as $agent_user, box tag ${tag:-none}"
+  _ai_restore_head "$since" "$until" "$agent_user" "${tag:-none}"
   while IFS= read -r line; do
     case "$line" in
-      SKIP$'\t'*)   echo "SKIP    ${line#SKIP$'\t'}" | tr '\t' ' ' ;;
+      SKIP$'\t'*)   echo "SKIP    ${line#SKIP$'\t'}" | sed 's/\t/: /' ;;
       REFUSE$'\t'*) echo "REFUSE  ${line#REFUSE$'\t'}" | sed 's/\t/: /'; refused=$((refused + 1)) ;;
       RESTORE$'\t'*)
         IFS=$'\t' read -r _ id kind user sid wt sess title from <<< "$line"
@@ -142,6 +142,16 @@ do_spl_agent_identity_restore() {
     failed=$((failed + 1))
   fi
   (( failed == 0 ))
+}
+
+# The run's first line: what it restores. A restore by id applies no since
+# window (SPL-3378), so it names the ids, not the window.
+_ai_restore_head() {  # SINCE UNTIL AGENT-USER TAG
+  if [[ -n "${IDENTITY_RESTORE_IDS:-}" ]]; then
+    echo "restore: by id ($IDENTITY_RESTORE_IDS), from $(ai_dir), as $3, box tag $4"
+  else
+    echo "restore: agents the restart at $1 killed (dead by $2), from $(ai_dir), as $3, box tag $4"
+  fi
 }
 
 # A grok seat comes back on grok only when grok can start; else ONE line

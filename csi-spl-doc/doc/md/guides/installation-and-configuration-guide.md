@@ -364,6 +364,8 @@ cd /opt/csi/csi-spl/csi-spl-orc && ./run -a do_spl_agent_settings_check
 
 `csi-spl-cnf/csi-spl/<env>.env.yaml` with `all.env.yaml` under it. It holds, among the rest: the GCP org id and owner email (only for the bootstrap), the DNS names the hub and WUI answer on, `env.box.*` (spool root, its group, the workspace base, the box restart slots, the vendor split by kind, the mistral vibe pin), and every terraform step's values under `env.steps.<step>`. Never a secret and never the billing account id. Edit cnf, never a rendered file.
 
+Google sign-in and the Calendar connect use one OAuth Web client per env: its id is cnf `env.auth.social.env.SPOOL_HUB_AUTH_GOOGLE_CLIENT_ID` (`<env>.env.yaml`), its secret is in Secret Manager. Its Google console steps (the redirect URIs, the consent screen's scope and test users) and the check `cd csi-spl-iac && ENV=<env> ./run -a do_gcp_gcal_connect_check` are in the [Google Calendar connect ISG](https://github.com/csitea/csi-spl/blob/master/csi-spl-doc/doc/md/isg/google-calendar-connect.ISG.md).
+
 <a id="ws-doc-e8338d96-6a9b-477a-b96c-53c388bd9fb1"></a>
 ## 8.2 Render the tfvars
 

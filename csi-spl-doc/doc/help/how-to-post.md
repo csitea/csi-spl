@@ -135,6 +135,13 @@ comments and issue descriptions.
    Until it is live the change is written as "will ...": "the log will move
    to the bottom", never "the log moves". The post that files an issue
    (`do_spl_lane_issue`) opens `**Planned, not built yet.** Tracked as ...`.
+   Any other **Planned, not built yet.** answer names the ask that will
+   build it: an ask id (its first 8 hex digits) that the hub ask book shows
+   queued, or done "placed: <ID>@<box>" (`ASKS_ALL=1 ./run -a do_spl_asks_open`).
+   Queue the lane first (`spool-send.sh --ask task` with `SPAWN_PLACE`), then
+   post. `do_spl_desk_reply` refuses it otherwise, nothing sent (SPL-3525:
+   feature asks answered "not built" with nothing placed or queued, fix E of
+   `csi-spl-doc/doc/md/grok-dispatch-grade-2026-10-25.md` section 5).
 16. **A "Live" post carries its proof, or it is not sent** (owner HUM-10,
    2026-10-16, t1 topic 28559e83, msg 395a375b: "how can you tell first
    "Live: ... every card is the same height now, on dev and prd" ... and

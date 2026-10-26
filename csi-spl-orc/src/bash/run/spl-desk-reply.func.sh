@@ -48,6 +48,10 @@
 # @description without its proof: a sha on origin/master served by dev and prd
 # @description (or `no deploy`), a `checked:` and a `not checked:` line
 # @description (spl_desk_live_proof; how-to-post.md rule 16, SPL-2122).
+# @description A body that opens **Planned, not built yet.** is refused (FATAL,
+# @description nothing sent) unless it names an ask id the hub ask book shows
+# @description queued or placed (spl_desk_planned_ask; how-to-post.md rule 15,
+# @description SPL-3525).
 # @description A body that says released / deployed with a commit sha but no
 # @description /releases/ link for it gets a WARN per sha (spec 065 7.3, L9):
 # @description ask the lane to add the line do_release_note_link prints. A
@@ -119,6 +123,7 @@ do_spl_desk_reply() {
   _spl_desk_reply_check_args "$body" "$kind" "$to" "$task" "${files[@]}" || return 1
   spl_desk_live_proof "$body" || return 1
   spl_desk_poll_check "$body" || return 1
+  spl_desk_planned_ask "$body" || return 1
 
   local hub d
   hub="$SPL_HUB_URL"

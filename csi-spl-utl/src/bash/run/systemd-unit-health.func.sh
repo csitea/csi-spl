@@ -32,18 +32,12 @@
 #------------------------------------------------------------------------------
 type do_log &>/dev/null || do_log() { echo "$*"; }
 
-do_os_systemd_unit_check() {
-  local dry="${DRY_RUN:-1}"
-  local systemctl_bin="${SYSTEMCTL_BIN:-systemctl}"
-  local journalctl_bin="${JOURNALCTL_BIN:-journalctl}"
+# The helpers below run in the action's dynamic scope: they read and set the
+# action's locals (ignore_file, ignore_map, sys_state, failed_units, body, ...).
+# Call them plainly, never inside $(...), or their assignments are lost.
 
-  local box_name="${DEV_BOX:-$(hostname -s 2>/dev/null || echo "PC")}"
-  local to="${SYSTEMD_UNIT_ALERT_TO:-orchestrator}"
-  local from="${SYSTEMD_UNIT_ALERT_FROM:-${SPOOL_AGENT_ID:-systemd-unit-health@$box_name}}"
-  local task="${SYSTEMD_UNIT_ALERT_TASK:-systemd-unit-health}"
-
-  # Resolve ignore file
-  local ignore_file="${SYSTEMD_UNIT_IGNORE_FILE:-}"
+# Resolve the ignore file into ignore_file and fill ignore_map from it.
+_unit_health_ignore_load() {
   if [[ -z "$ignore_file" ]]; then
     if [[ -n "${PROJ_PATH:-}" && -f "$PROJ_PATH/cnf/systemd-unit-ignore.tsv" ]]; then
       ignore_file="$PROJ_PATH/cnf/systemd-unit-ignore.tsv"
@@ -54,7 +48,6 @@ do_os_systemd_unit_check() {
     fi
   fi
 
-  declare -A ignore_map=()
   if [[ -n "$ignore_file" && -f "$ignore_file" ]]; then
     while IFS=$'\t' read -r ign_unit _rest || [[ -n "$ign_unit" ]]; do
       ign_unit="$(echo "$ign_unit" | tr -d '[:space:]')"
@@ -62,22 +55,17 @@ do_os_systemd_unit_check() {
       ignore_map["$ign_unit"]=1
     done < "$ignore_file"
   fi
+}
 
-  # Resolve state dir & stamp file
-  local state_dir="${SYSTEMD_UNIT_STATE_DIR:-${SPL_STATE_DIR:-$HOME/.local/state/csi-spl}}"
-  local stamp_file="${SYSTEMD_UNIT_STAMP_FILE:-$state_dir/systemd-unit-alert.stamp}"
-  local throttle_secs="${SYSTEMD_UNIT_ALERT_THROTTLE_SECS:-1800}"
-
-  # Query systemd state
-  local sys_state="unknown"
+# Query systemd: set sys_state, and failed_units / failed_details for every
+# failed unit not in ignore_map.
+_unit_health_failed_units() {
   sys_state="$("$systemctl_bin" is-system-running 2>&1 || true)"
   sys_state="$(echo "$sys_state" | tr -d '[:space:]')"
 
   local raw_failed=""
   raw_failed="$("$systemctl_bin" --failed --plain --no-legend 2>&1 || true)"
 
-  local failed_units=()
-  local failed_details=()
   local line
   while IFS= read -r line; do
     [[ -z "$line" ]] && continue
@@ -97,18 +85,11 @@ do_os_systemd_unit_check() {
     failed_units+=("$unit_name")
     failed_details+=("$line")
   done <<< "$raw_failed"
+}
 
-  # If no unignored units failed
-  if [[ ${#failed_units[@]} -eq 0 ]]; then
-    do_log "INFO systemd units healthy: state=$sys_state, failed=0"
-    # Clean up alert stamp file if system has recovered
-    if [[ -f "$stamp_file" && "$dry" == "0" ]]; then
-      rm -f "$stamp_file" 2>/dev/null || true
-    fi
-    return 0
-  fi
-
-  # Collect crash log tail (last 5 lines) per failed unit
+# Build the alert into body: the failed units plus a crash log tail
+# (last 5 lines) per failed unit.
+_unit_health_alert_body() {
   local crash_logs=""
   for u in "${failed_units[@]}"; do
     crash_logs+="--- Log: $u ---"$'\n'
@@ -120,7 +101,6 @@ do_os_systemd_unit_check() {
     crash_logs+="$ulog"$'\n\n'
   done
 
-  # Build structured alert
   local now_iso
   now_iso="$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")"
 
@@ -129,11 +109,13 @@ do_os_systemd_unit_check() {
     formatted_units+="  - $d"$'\n'
   done
 
-  local body
   body=$(printf 'SYSTEMD UNIT FAILURE ALERT\nBox: %s\nState: %s\nFailed units count: %d\nTimestamp: %s\n\nFailed units:\n%s\nCrash logs:\n%s\n' \
     "$box_name" "$sys_state" "${#failed_units[@]}" "$now_iso" "$formatted_units" "$crash_logs")
+}
 
-  # Check throttling
+# Return 0 when the stamp is younger than throttle_secs and names the same
+# failed units, i.e. this alert was already sent.
+_unit_health_throttled() {
   local throttled=0
   if [[ -f "$stamp_file" ]]; then
     local stamp_mtime
@@ -153,45 +135,90 @@ do_os_systemd_unit_check() {
       do_log "INFO alert throttled by $stamp_file (age: ${age}s < ${throttle_secs}s, units: $current_units)"
     fi
   fi
+  [[ "$throttled" == "1" ]]
+}
 
-  if [[ "$throttled" == "0" ]]; then
+# Pick the sender (SYSTEMD_UNIT_ALERT_SEND_BIN, spool-send.sh, else spool),
+# send body as a note, and write the stamp only when the send succeeded.
+_unit_health_send() {
+  local send_bin="${SYSTEMD_UNIT_ALERT_SEND_BIN:-}"
+  if [[ -z "$send_bin" ]]; then
+    if [[ -n "${PROJ_PATH:-}" && -f "$PROJ_PATH/../csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh" ]]; then
+      send_bin="$PROJ_PATH/../csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh"
+    elif command -v spool-send.sh >/dev/null 2>&1; then
+      send_bin="$(command -v spool-send.sh)"
+    fi
+  fi
+
+  local send_ok=0
+  if [[ -n "$send_bin" && -x "$send_bin" ]]; then
+    if SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send_bin" \
+      --from "$from" --to "$to" --kind note --task "$task" --body "$body" >/dev/null 2>&1; then
+      send_ok=1
+    else
+      do_log "WARN failed to send spool note via $send_bin"
+    fi
+  elif command -v spool >/dev/null 2>&1; then
+    if SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" spool send \
+      --from "$from" --to "$to" --kind note --task "$task" --body "$body" >/dev/null 2>&1; then
+      send_ok=1
+    else
+      do_log "WARN failed to send spool note via spool"
+    fi
+  else
+    do_log "WARN no spool or spool-send.sh found to send alert"
+  fi
+
+  if [[ "$send_ok" == "1" ]]; then
+    mkdir -p "$(dirname "$stamp_file")" 2>/dev/null || true
+    printf 'TIMESTAMP=%s\nUNITS=%s\n' "$(date +%s)" "${failed_units[*]}" > "$stamp_file" 2>/dev/null || true
+  fi
+}
+
+do_os_systemd_unit_check() {
+  local dry="${DRY_RUN:-1}"
+  local systemctl_bin="${SYSTEMCTL_BIN:-systemctl}"
+  local journalctl_bin="${JOURNALCTL_BIN:-journalctl}"
+
+  local box_name="${DEV_BOX:-$(hostname -s 2>/dev/null || echo "PC")}"
+  local to="${SYSTEMD_UNIT_ALERT_TO:-orchestrator}"
+  local from="${SYSTEMD_UNIT_ALERT_FROM:-${SPOOL_AGENT_ID:-systemd-unit-health@$box_name}}"
+  local task="${SYSTEMD_UNIT_ALERT_TASK:-systemd-unit-health}"
+
+  local ignore_file="${SYSTEMD_UNIT_IGNORE_FILE:-}"
+  declare -A ignore_map=()
+  _unit_health_ignore_load
+
+  # Resolve state dir & stamp file
+  local state_dir="${SYSTEMD_UNIT_STATE_DIR:-${SPL_STATE_DIR:-$HOME/.local/state/csi-spl}}"
+  local stamp_file="${SYSTEMD_UNIT_STAMP_FILE:-$state_dir/systemd-unit-alert.stamp}"
+  local throttle_secs="${SYSTEMD_UNIT_ALERT_THROTTLE_SECS:-1800}"
+
+  local sys_state="unknown"
+  local failed_units=()
+  local failed_details=()
+  _unit_health_failed_units
+
+  # If no unignored units failed
+  if [[ ${#failed_units[@]} -eq 0 ]]; then
+    do_log "INFO systemd units healthy: state=$sys_state, failed=0"
+    # Clean up alert stamp file if system has recovered
+    if [[ -f "$stamp_file" && "$dry" == "0" ]]; then
+      rm -f "$stamp_file" 2>/dev/null || true
+    fi
+    return 0
+  fi
+
+  local body
+  _unit_health_alert_body
+
+  if ! _unit_health_throttled; then
     if [[ "$dry" == "1" ]]; then
       do_log "WARN systemd unit check failed: ${#failed_units[@]} failed unit(s)"
       do_log "INFO PLAN note to $to: $body"
     else
       do_log "WARN systemd unit check failed: emitting alert to $to"
-      local send_bin="${SYSTEMD_UNIT_ALERT_SEND_BIN:-}"
-      if [[ -z "$send_bin" ]]; then
-        if [[ -n "${PROJ_PATH:-}" && -f "$PROJ_PATH/../csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh" ]]; then
-          send_bin="$PROJ_PATH/../csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh"
-        elif command -v spool-send.sh >/dev/null 2>&1; then
-          send_bin="$(command -v spool-send.sh)"
-        fi
-      fi
-
-      local send_ok=0
-      if [[ -n "$send_bin" && -x "$send_bin" ]]; then
-        if SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send_bin" \
-          --from "$from" --to "$to" --kind note --task "$task" --body "$body" >/dev/null 2>&1; then
-          send_ok=1
-        else
-          do_log "WARN failed to send spool note via $send_bin"
-        fi
-      elif command -v spool >/dev/null 2>&1; then
-        if SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" spool send \
-          --from "$from" --to "$to" --kind note --task "$task" --body "$body" >/dev/null 2>&1; then
-          send_ok=1
-        else
-          do_log "WARN failed to send spool note via spool"
-        fi
-      else
-        do_log "WARN no spool or spool-send.sh found to send alert"
-      fi
-
-      if [[ "$send_ok" == "1" ]]; then
-        mkdir -p "$(dirname "$stamp_file")" 2>/dev/null || true
-        printf 'TIMESTAMP=%s\nUNITS=%s\n' "$(date +%s)" "${failed_units[*]}" > "$stamp_file" 2>/dev/null || true
-      fi
+      _unit_health_send
     fi
   fi
 

@@ -357,11 +357,13 @@ spl_asks_fallback_alert() {  # HOLDER ROWS FALLBACK_SEATS
 # (SPL-2654: 2026-10-20 01:19Z "silent 29874319 min", an epoch-sized age,
 # while the holder was live).
 # SPL-3462: while row 05's <dir>/fleet.hub-stall is set the holder cannot
-# renew, so the alert holds (neither posts nor clears). The stall's last seen
+# renew, so the alert holds (neither posts nor clears). Row 05 rewrites the
+# file every lease tick while the stall holds; one unwritten past
+# ASKS_ORCH_STALE was left by a stopped loop and holds nothing. The stall's last seen
 # epoch stays in <asks dir>/.orch.hub-stall: until a renewal after it, the
 # silence counts from there, not from the last renewal before the stall.
 spl_asks_orch_alert() {
-  local dh="" h="" age="" seen="" active=0 text="" now max="${ASKS_ORCH_AGE_MAX:-86400}" m="" se=""
+  local dh="" h="" age="" seen="" active=0 text="" now max="${ASKS_ORCH_AGE_MAX:-86400}" m="" se="" hs="$SPOOL_ROOT/dispatch/fleet.hub-stall"
   [[ -r "$SPOOL_ROOT/dispatch/lease" ]] && read -r dh _ <"$SPOOL_ROOT/dispatch/lease"
   [[ "$dh" == *@"$ASKS_BOX" ]] || return 0
   [[ -r "$SPOOL_ROOT/dispatch/fleet.orch.age" ]] && read -r h age seen _ <"$SPOOL_ROOT/dispatch/fleet.orch.age"
@@ -371,7 +373,7 @@ spl_asks_orch_alert() {
   age=$(( age + now - seen ))
   (( age >= 0 && age <= max )) || return 0
   m="$(spool_asks_dir)/.orch.hub-stall" || m=""
-  if [[ -s "$SPOOL_ROOT/dispatch/fleet.hub-stall" ]]; then
+  if [[ -s "$hs" ]] && (( now - $(stat -c %Y "$hs" 2>/dev/null || echo 0) <= ${ASKS_ORCH_STALE:-600} )); then
     [[ -n "$m" ]] && printf '%s\n' "$now" >"$m.tmp.$$" && mv -f "$m.tmp.$$" "$m"
     return 0
   fi

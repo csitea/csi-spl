@@ -680,6 +680,18 @@ pctick >/dev/null
 [[ "$(alerts pc post)" -eq 1 && ! -e "$T/pc/spool/asks/.orch.hub-stall" ]] && pass "SPL-3462: CONTROL with no stall file, silent 15 min alerts as before (the R2 case)" || fail "orch alert no stall: $(cat "$T/pc/alert.log")"
 echo "c-001@sat 5 $(date +%s)" >"$T/pc/spool/dispatch/fleet.orch.age"
 pctick >/dev/null
+# The hold cannot stick: row 05 rewrites fleet.hub-stall every lease tick
+# while a stall holds; one left behind by a stopped lease loop (older than
+# ASKS_ORCH_STALE) is no stall, and a silent holder alerts on time.
+: >"$T/pc/alert.log"
+echo "$(( $(date +%s) - 1000 )) $(( $(date +%s) - 700 )) l 0" >"$hs"
+touch -d "@$(( $(date +%s) - 700 ))" "$hs"
+echo "c-001@sat 900 $(date +%s)" >"$T/pc/spool/dispatch/fleet.orch.age"
+pctick >/dev/null
+[[ "$(alerts pc post)" -eq 1 && ! -e "$T/pc/spool/asks/.orch.hub-stall" ]] && pass "SPL-3462: a fleet.hub-stall left unwritten 700 s (> ASKS_ORCH_STALE) holds nothing: silent 15 min alerts" || fail "orch alert held by a stale stall file: $(cat "$T/pc/alert.log")"
+rm -f "$hs"
+echo "c-001@sat 5 $(date +%s)" >"$T/pc/spool/dispatch/fleet.orch.age"
+pctick >/dev/null
 rm -f "$T/pc/spool/dispatch/lease" "$T/pc/spool/dispatch/fleet.orch.age"
 
 # R4: the 90 asks the owner was paged for on 2026-10-11..12 (the journal's

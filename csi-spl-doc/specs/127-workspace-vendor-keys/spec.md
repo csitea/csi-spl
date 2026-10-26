@@ -9,7 +9,7 @@ Changelog:
 - v1.4 (2026-10-27): folded in [spec 159](../159-byo-ai-keys/spec.md) (BYO AI keys
   also on our shared GCP hosts, owner HUM-10 msg `87578f3a`). Points sections 5.1,
   5.3 and 8 at spec 159 (N1: `biz_owner` may add keys; N3: keys run on fleet boxes
-  as per-workspace OS users); amends K3 (§1.1, §5.1) and L2 (§6) as spec 159 §5.1 and
+  as per-workspace OS users); amends K3 (§1.1) and L2 (§6) as spec 159 §5.1 and
   §6 say, citing owner msg `2e9d03be`.
 - v1.3 (2026-10-11): owner answer Q-5 A folded in (msg c8593f0f, topic
   bdc65df6); section 9.2 is now a decision with requirements R5.1..R5.5 and
@@ -114,6 +114,11 @@ and the pin is not written back. `qwen` has one extra non-secret field,
 For `agy` the "key" of this spec is the whole service-account JSON: it is
 stored, leased and redacted as one secret (4.2, 5.4, L9), and `last4` is
 the last 4 of its `private_key_id`.
+
+> **Amended by [spec 159](../159-byo-ai-keys/spec.md) §4 (N2, owner msg `87578f3a`):**
+> Subscriptions in addition to API keys: Claude self sign-in inside the unmodified
+> CLI, behind a switch (spec 159 §4.3, owner Q-3 A msg `36279386`); terms status per
+> kind in spec 159 §4.1–§4.2.
 
 **One key per kind per workspace.** One key is one account, one bill and one
 spend limit on the customer's vendor console, which is the cap that holds.
@@ -333,11 +338,12 @@ rules a fleet box breaks today.
 > **Amended by [spec 159](../159-byo-ai-keys/spec.md) §5 (N3, owner msg `2e9d03be`):**
 > Customer keys also run in our common GCP infra on shared fleet boxes. By
 > owner decision Q-1 B (msg `2e9d03be`), workspace seats run on fleet boxes as
-> a per-workspace OS user. The desk start checks run with one exception: "no OS
-> user on the box is root-equivalent" is not required on a fleet box because the
-> fleet's agent user is root-equivalent. Any fleet lane with sudo can read keys
-> on that box (spec 159 §5.4, accepted risk). K3 holds against non-sudo fleet
-> lanes and between workspace seats.
+> a per-workspace OS user. The desk start checks run with one exception: spec 159
+> §5.2 exempts the fleet agent user from the check below ("no workspace OS user on
+> the machine is in sudo, wheel, admin, docker, lxd or disk"), because the fleet's
+> agent user is root-equivalent. Any fleet lane with sudo can read keys on that box
+> (spec 159 §5.4, accepted risk). K3 holds against non-sudo fleet lanes and between
+> workspace seats.
 
 **What keeps the fleet's lanes out** (s-claude-2 C3). `box_mode` is the box's
 own signed declaration (rdb 0170:16-20): a box that wants a key says
@@ -542,18 +548,10 @@ gains `agent-keys.vue`, beside `split.vue`):
 - visible to `vendor_keys.manage` only. New locale text in every catalogue,
   reviewed by agy LAST (text only, no secrets).
 
-> **Amended by [spec 159](../159-byo-ai-keys/spec.md) §10 (N1, N2, N3, owner msgs `87578f3a`, `2e9d03be`, `45b1e8af`, `36279386`):**
-> The Agent keys page is visible to `biz_owner` and `admin` (`vendor_keys.manage`, N1).
-> It adds:
-> - A toggle "run our agents on spool-hub's shared boxes" (spec 159 §5.2, N3) beside
->   workspace-owned boxes, with the residual risk of spec 159 §5.4 stated beside it.
-> - "Sign in with my Claude subscription" (spec 159 §4.3, N2; hidden while off until
->   Anthropic written OK, Q-3 A msg `36279386`), with sign-out.
-> - A toggle "fall back to spool-hub's metered agents" (spec 159 §9, owner Q-2 B
->   msg `45b1e8af`), off by default, on our API keys only (L24).
-> - Per-kind state: set, not set, exhausted (with retry button, spec 159 §9),
->   not available (unconfirmed vendor terms, spec 159 §4.2), or unconfirmed.
-> - Usage line per kind shows tokens at list price "paid to your vendor" (spec 159 §7).
+> **Amended by [spec 159](../159-byo-ai-keys/spec.md) §10 (N1, owner msg `87578f3a`):**
+> The Agent keys page is visible to `biz_owner` as well as `admin` (`vendor_keys.manage`, N1).
+> The additional UI controls and per-kind states for BYO AI keys on shared hosts are defined
+> in [spec 159](../159-byo-ai-keys/spec.md) §10.
 
 ## 9. Owner questions
 

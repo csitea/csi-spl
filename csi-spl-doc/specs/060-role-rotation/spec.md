@@ -138,7 +138,10 @@ its weekly limit on 2026-10-01.
   would run on the same login and stall too. The run logs
   `SKIP stalled <footer text>` and sends the orchestrator one note per
   distinct footer. The CLE-77935 lease rule already moves a stalled master's
-  lease to the failover.
+  lease to the failover. The footer is the rows below the last input rule
+  (`───`) of the pane, never the transcript or the prompt line above it: a
+  reply that quotes "limit resets" is not a stall (SPL-3483, 2026-10-25). A
+  screen with no rule (a full-screen login picker) is read by its last rows.
 
 ### 4.2 The orchestrator (`CLE-001`)
 

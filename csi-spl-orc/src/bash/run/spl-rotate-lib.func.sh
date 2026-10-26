@@ -766,10 +766,22 @@ spl_rotate_human_hold() {
 }
 
 # spl_rotate_stalled PANE: the CLE-77935 footer text when the pane is stalled
-# (usage limit, login, trust screen ...), nothing otherwise (FR-009).
+# (usage limit, login, trust screen ...), nothing otherwise (FR-009). Only the
+# CLI footer counts: the rows below the last input rule (a "───" row, the box
+# line under the prompt). The transcript and the prompt line above it are the
+# agent's own text: on 2026-10-25 the 21:05Z orch rotation was skipped as
+# "stalled limit resets" on a reply of c-001 that quoted the banner
+# (SPL-3483). A screen with no rule (a full-screen login picker) is read as
+# before, its last LEASE_PANE_TAIL non-blank rows. Matched: LEASE_STALL_RE
+# (banners) and LEASE_BLOCK_RE (login / trust screens).
 spl_rotate_stalled() {
-  spl_rotate_screen "$1" | grep -v '^[[:space:]]*$' | tail -n "${LEASE_PANE_TAIL:-8}" |
-    grep -oiE -- "${LEASE_STALL_RE:-${LEASE_STALL_RE_DEFAULT:-usage limit reached}}" | sed -n 1p
+  local screen rule
+  screen="$(spl_rotate_screen "$1")"
+  rule="$(grep -nE '^[[:space:]]*(─){3}' <<<"$screen" | tail -n 1 | cut -d: -f1)" || rule=""
+  [[ -n "$rule" ]] && screen="$(tail -n "+$((rule + 1))" <<<"$screen")"
+  grep -v '^[[:space:]]*$' <<<"$screen" | tail -n "${LEASE_PANE_TAIL:-8}" |
+    grep -oiE -- "${LEASE_STALL_RE:-${LEASE_STALL_RE_DEFAULT:-usage limit reached}}|${LEASE_BLOCK_RE:-${LEASE_BLOCK_RE_DEFAULT:-select login method}}" |
+    sed -n 1p
   return 0
 }
 

@@ -1,0 +1,132 @@
+package store
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+)
+
+// The Postgres contacts binding (contacts_sync.go). Member calls run in the
+// workspace's scope and name (tenant_id, human_id) in every WHERE; the two
+// calls that cannot name the workspace run under the operator scope.
+
+const contactsSyncCols = `human_id, tenant_id, enabled, COALESCE(sync_token, ''), out_cursor, due_at,
+	sync_lease_until, backoff_until, status_detail, last_synced_at, created_at, updated_at`
+
+func scanContactsSync(r pgx.Row) (ContactsSync, error) {
+	var b ContactsSync
+	err := r.Scan(&b.Human, &b.Tenant, &b.Enabled, &b.SyncToken, &b.OutCursor, &b.DueAt,
+		&b.SyncLeaseUntil, &b.BackoffUntil, &b.StatusDetail, &b.LastSyncedAt, &b.CreatedAt, &b.UpdatedAt)
+	return b, err
+}
+
+// contactsSyncPGErr maps a missing row and a missing Google connection or
+// seat (23503) to ErrNotFound, and the second binding (23505) to
+// ErrContactsSyncElsewhere.
+func contactsSyncPGErr(err error) error {
+	switch {
+	case errors.Is(err, pgx.ErrNoRows), sqlState(err) == "23503":
+		return ErrNotFound
+	case isUniqueViolation(err):
+		return ErrContactsSyncElsewhere
+	}
+	return err
+}
+
+// ContactsSyncIn is ContactsSyncs.ContactsSyncIn.
+func (s *Postgres) ContactsSyncIn(ctx context.Context, tenant, human string) (ContactsSync, error) {
+	if err := checkPerson(human); err != nil {
+		return ContactsSync{}, err
+	}
+	var out ContactsSync
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		var err error
+		out, err = scanContactsSync(tx.QueryRow(ctx, `SELECT `+contactsSyncCols+` FROM contacts_sync
+			WHERE tenant_id = $1 AND human_id = $2`, tenant, human))
+		return err
+	})
+	return out, contactsSyncPGErr(err)
+}
+
+// SetContactsSync is ContactsSyncs.SetContactsSync: an UPDATE, then a plain
+// INSERT whose unique violation is the binding elsewhere. Never INSERT ...
+// ON CONFLICT (human_id): against a row invisible from tenant that raises
+// an RLS error, not 23505 (spec 2.2 step 3, seat note N5).
+func (s *Postgres) SetContactsSync(ctx context.Context, tenant, human string, enabled bool, now time.Time) (ContactsSync, error) {
+	if err := checkPerson(human); err != nil {
+		return ContactsSync{}, err
+	}
+	var out ContactsSync
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		var err error
+		out, err = scanContactsSync(tx.QueryRow(ctx, `UPDATE contacts_sync
+			SET enabled = $3, due_at = CASE WHEN $3 THEN $4 ELSE due_at END, updated_at = $4
+			WHERE tenant_id = $1 AND human_id = $2 RETURNING `+contactsSyncCols, tenant, human, enabled, now))
+		if !errors.Is(err, pgx.ErrNoRows) || !enabled {
+			return err
+		}
+		out, err = scanContactsSync(tx.QueryRow(ctx, `INSERT INTO contacts_sync (human_id, tenant_id, due_at, created_at, updated_at)
+			VALUES ($2, $1, $3, $3, $3) RETURNING `+contactsSyncCols, tenant, human, now))
+		return err
+	})
+	return out, contactsSyncPGErr(err)
+}
+
+// MarkContactsSyncDue is ContactsSyncs.MarkContactsSyncDue.
+func (s *Postgres) MarkContactsSyncDue(ctx context.Context, tenant, human string, now time.Time) error {
+	if err := checkPerson(human); err != nil {
+		return err
+	}
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		var lease *time.Time
+		if err := tx.QueryRow(ctx, `SELECT sync_lease_until FROM contacts_sync
+			WHERE tenant_id = $1 AND human_id = $2 AND enabled FOR UPDATE`, tenant, human).Scan(&lease); err != nil {
+			return err
+		}
+		if lease != nil && lease.After(now) {
+			return ErrContactsSyncBusy
+		}
+		_, err := tx.Exec(ctx, `UPDATE contacts_sync SET due_at = $3, updated_at = $3
+			WHERE tenant_id = $1 AND human_id = $2`, tenant, human, now)
+		return err
+	})
+	return contactsSyncPGErr(err)
+}
+
+// ContactsSyncOf is ContactsSyncs.ContactsSyncOf, under the operator scope.
+func (s *Postgres) ContactsSyncOf(ctx context.Context, human string) (ContactsSync, error) {
+	if err := checkPerson(human); err != nil {
+		return ContactsSync{}, err
+	}
+	var out ContactsSync
+	found := false
+	err := s.asOperatorQuery(ctx, `SELECT `+contactsSyncCols+` FROM contacts_sync WHERE human_id = $1`,
+		[]any{human}, func(r pgx.Rows) error {
+			var err error
+			out, err = scanContactsSync(r)
+			found = true
+			return err
+		})
+	if err == nil && !found {
+		err = ErrNotFound
+	}
+	return out, err
+}
+
+// MarkContactsPurgePending is ContactsSyncs.MarkContactsPurgePending, under
+// the operator scope.
+func (s *Postgres) MarkContactsPurgePending(ctx context.Context, persons []string, now time.Time) (int, error) {
+	if err := checkContactsSyncPersons(persons); err != nil || len(persons) == 0 {
+		return 0, err
+	}
+	var n int64
+	err := s.asOperator(ctx, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, `UPDATE contacts_sync SET status_detail = $2, updated_at = $3
+			WHERE human_id = ANY($1::text[])`, persons, ContactsPurgePendingDetail, now)
+		n = tag.RowsAffected()
+		return err
+	})
+	return int(n), err
+}

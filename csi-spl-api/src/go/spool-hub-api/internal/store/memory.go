@@ -72,6 +72,7 @@ type Memory struct {
 	marketing   *memMarketing // rdb 0187 (spec 090, SPL-1634): see marketing_memory.go
 	gcal        *memGcal      // rdb 0217 (spec 149 B2, SPL-3170): see gcal_memory.go
 	dedicated   *memDedicated // rdb 0219 (spec 144 T002, SPL-3182): see dedicated_memory.go
+	contacts    *memContacts  // rdb 0226 (spec 154 B2, SPL-3447): see personal_contacts_memory.go
 	// box_join_switch.go (rdb 0170): spec 108 joins turned on, guarded by mu. Missing = off.
 	boxJoinOn map[string]bool
 	// roadmap_switch.go (rdb 0162): roadmap turned public, guarded by mu. Missing = internal.

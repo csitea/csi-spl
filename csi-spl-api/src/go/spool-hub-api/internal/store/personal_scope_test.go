@@ -44,6 +44,15 @@ var personCallers = map[string]string{
 	"DeleteNoteLink": "personal.note_links of the session's own person",
 	"ExportNotes":    "personal.notes, note_items, note_links of the session's own person (155 2.8 export)",
 	"EraseNotes":     "personal.notes of the session's own person (155 2.8 erase)",
+	// spec 154 B2: the contacts store, personal.contacts of the session's
+	// own person; no contacts method opens a tenant or operator scope.
+	"ListContacts":   "personal.contacts of the session's own person: the list and the search (154 2.3, C3, C3b)",
+	"ContactOf":      "personal.contacts, one live contact of the session's own person",
+	"CreateContact":  "personal.contacts of the session's own person",
+	"PatchContact":   "personal.contacts of the session's own person",
+	"DeleteContact":  "personal.contacts of the session's own person, hard or soft (154 2.6 erase one)",
+	"ExportContacts": "personal.contacts of the session's own person (154 2.6 export)",
+	"EraseContacts":  "personal.contacts of the session's own person (154 2.6 erase all, C8e)",
 }
 
 // realmTenantCallers is the realm code allowed to ALSO run a tenant scope,

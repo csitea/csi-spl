@@ -132,21 +132,32 @@ spl_lane_conf() {
 # with LANE_HUB_BACKOFF seconds between them (default "1 2", the last value
 # repeats) inside LANE_HUB_BUDGET seconds (default 10): one dropped call no
 # longer turns the fleet map into this machine's (SPL-2180). A try's timeout
-# is what is left of the budget (at most LANE_TIMEOUT), so a hung hub costs
-# the budget, not 30 s a try. LANE_HUB_TRY: the try that answered (0: none);
-# LANE_HUB_TRIED: the tries made.
+# is its share of the budget: (budget - the backoff waits) / tries, at least
+# 1 s, at most LANE_TIMEOUT and what is left, so a HUNG try leaves room for
+# the next ones (SPL-3503: the whole budget on try 1 was "1 tries").
+# LANE_HUB_TRY: the try that answered (0: none); LANE_HUB_TRIED: the tries made.
 spl_lane_hub_read() {
   local tries="${LANE_HUB_TRIES:-3}" budget="${LANE_HUB_BUDGET:-10}" max="${LANE_TIMEOUT:-30}" start=$SECONDS left n out wait
+  local share waits=0 w
   local -a back
   read -r -a back <<<"${LANE_HUB_BACKOFF:-1 2}"
   [[ "$tries" =~ ^[1-9][0-9]*$ ]] || tries=3
   [[ "$budget" =~ ^[1-9][0-9]*$ ]] || budget=10
+  [[ "$max" =~ ^[1-9][0-9]*$ ]] || max=30
+  for (( n = 1; n < tries; n++ )); do
+    w="${back[n - 1]:-${back[${#back[@]} - 1]:-1}}"
+    [[ "$w" =~ ^[0-9]+$ ]] || w=1
+    waits=$(( waits + w ))
+  done
+  share=$(( (budget - waits) / tries ))
+  (( share >= 1 )) || share=1
+  (( share <= max )) || share=$max
   LANE_HUB_JSON="" LANE_HUB_TRY=0 LANE_HUB_TRIED=0
   for (( n = 1; n <= tries; n++ )); do
     left=$(( budget - (SECONDS - start) ))
     (( left > 0 )) || break
     LANE_HUB_TRIED=$n
-    if out="$(LANE_TIMEOUT=$(( left < max ? left : max )) spl_lane_hub --fleet "$LANE_FLEET" 2>"${LANE_ERR:-/dev/null}")" &&
+    if out="$(LANE_TIMEOUT=$(( left < share ? left : share )) spl_lane_hub --fleet "$LANE_FLEET" 2>"${LANE_ERR:-/dev/null}")" &&
       jq -e '.lanes | type == "array"' >/dev/null 2>&1 <<<"$out"; then
       LANE_HUB_JSON="$out" LANE_HUB_TRY=$n
       return 0

@@ -31,7 +31,8 @@
 #      branch, a live lane's branch and its review/ slug, an unlanded and a
 #      multi-commit squash tip are KEPT with their reason; DRY_RUN=0 is
 #      refused when the lane map (failed, hub not ok) or the protected list
-#      cannot be read; ROUND, PRUNE_UNLANDED=1, a bad PRUNE_BATCH refused
+#      cannot be read; a WARN line before the map's JSON is skipped; ROUND,
+#      PRUNE_UNLANDED=1, a bad PRUNE_BATCH refused
 #  12. CONTROLS: without the live-lane check the live lane's branches are
 #      deleted; without the cherry check the unlanded tip is deleted
 # The remote is a local bare repo; nothing touches a real origin.
@@ -327,6 +328,9 @@ out="$(run_prune "$FUNC" "$T/am" "${AM_ENV[@]}" DRY_RUN=0)"; rc=$?
   && pass "all merged: a second run deletes nothing" || fail "all merged second run: rc=$rc out=$out"
 amfix ar
 before="$(heads "$T/ar")"
+out="$(run_prune "$FUNC" "$T/ar" "${AM_ENV[@]}" "PRUNE_LANES_CMD=echo 'WARN keeping x'; printf '%s\n' '$LANES_OK'")"; rc=$?
+[[ $rc -eq 0 && "$out" == *'KEEP c-500-lane-x live-lane c-500@b1'* && "$out" != *'WARN the fleet lane map'* ]] \
+  && pass "all merged: a WARN line before the lane map JSON is skipped, the live lane still KEPT" || fail "lane map after a WARN line: rc=$rc out=$out"
 for bad in "PRUNE_LANES_CMD=exit 1" "PRUNE_LANES_CMD=echo '{\"hub\":\"LOCAL-ONLY\",\"lanes\":[]}'" "PRUNE_LANES_CMD=echo not-json" "PRUNE_PROTECTED_CMD=exit 1"; do
   out="$(run_prune "$FUNC" "$T/ar" "${AM_ENV[@]}" "$bad" DRY_RUN=0)"; rc=$?
   [[ $rc -ne 0 && "$(heads "$T/ar")" == "$before" && "$out" == *'DRY_RUN=0 refused'* ]] \

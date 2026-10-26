@@ -191,13 +191,15 @@ do_git_prune_round_branches() {
 
 # --- PRUNE_ALL_MERGED=1: every merged head (SPL-3609) ------------------------
 
-# prune_all_lane_map: the fleet lane map JSON (every machine) on stdout;
-# non-zero when it cannot be read whole: the command failed, the output is not
-# the map, or the hub did not answer (the other machines' lanes are unknown).
+# prune_all_lane_map: the fleet lane map JSON (every machine) on stdout, its
+# last line that opens with { (the map may print a WARN line first); non-zero
+# when it cannot be read whole: the command failed, no line is the map, or the
+# hub did not answer (the other machines' lanes are unknown).
 prune_all_lane_map() {
   local cmd="${PRUNE_LANES_CMD:-}" out
   [[ -n "$cmd" ]] || cmd="bash '${PROJ_PATH:-.}/src/bash/features/spawn-agents/scripts/lane-map.sh' --json --all"
   out="$(bash -c "$cmd" 2>/dev/null)" || return 1
+  out="$(grep '^{' <<<"$out" | tail -n 1)"
   jq -e '.hub == "ok" and (.lanes | type == "array")' <<<"$out" >/dev/null 2>&1 || return 1
   printf '%s\n' "$out"
 }

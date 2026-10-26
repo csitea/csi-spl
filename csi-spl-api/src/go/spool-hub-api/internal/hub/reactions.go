@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/billing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
@@ -64,70 +65,19 @@ func (s *Server) handleDeleteReaction(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) changeReaction(w http.ResponseWriter, r *http.Request, add bool) {
-	s.allowOrigin(w, r)
-	t, hum, ok := s.humanTenant(w, r)
-	if !ok {
-		return
-	}
-	actor, ok := s.editorID(r, t.ID)
-	if !ok {
-		writeForbidden(w, rbac.NotesSend, "adding an emoji needs a signed-in member session")
-		return
-	}
-	if !billing.AllowsWrite(t.BillingStatus) {
-		writeUnpaid(w)
-		return
-	}
-	if !s.permit(w, r, t.ID, hum, rbac.NotesSend) {
-		return
-	}
-	id := strings.ToLower(r.PathValue("msg_id"))
-	if !uuidRe.MatchString(id) {
-		writeErr(w, http.StatusBadRequest, "bad_json", "msg_id must be a UUID")
-		return
-	}
-	emoji, ok := reactionEmoji(w, r, s.reportAllowed(t.ID))
+	t, actor, id, emoji, ok := s.reactionCaller(w, r)
 	if !ok {
 		return
 	}
 	now := s.o.Now()
-	m, err := s.o.Store.GetEditable(r.Context(), t.ID, id, now)
-	switch {
-	case errors.Is(err, store.ErrNotFound):
-		writeErr(w, http.StatusNotFound, "not_found", "no such message")
-		return
-	case err != nil:
-		s.o.Log.Error().Err(err).Str("msg_id", id).Msg("reaction lookup")
-		writeErr(w, http.StatusInternalServerError, "internal", "message unavailable")
+	m, ok := s.reactionTarget(w, r, t.ID, id, now)
+	if !ok {
 		return
 	}
-	// The door on THIS message (it was the topic's, so a mixed
-	// topic let a member react to a DM they are not an end of). A message you
-	// cannot see is a 404, so the refusal does not confirm that it exists.
-	if !s.messageDoor(w, r, t.ID, m) {
+	grouped, ok := s.reactionStore(w, r, t.ID, id, actor, emoji, add, now)
+	if !ok {
 		return
 	}
-	if add {
-		err = s.o.Store.AddReaction(r.Context(), t.ID, id, actor, emoji, now)
-	} else {
-		err = s.o.Store.RemoveReaction(r.Context(), t.ID, id, actor, emoji, now)
-	}
-	switch {
-	case errors.Is(err, store.ErrNotFound):
-		writeErr(w, http.StatusNotFound, "not_found", "no such message")
-		return
-	case err != nil:
-		s.o.Log.Error().Err(err).Str("msg_id", id).Msg("reaction store")
-		writeErr(w, http.StatusInternalServerError, "internal", "emoji not stored")
-		return
-	}
-	rows, err := s.o.Store.ReactionsFor(r.Context(), t.ID, []string{id})
-	if err != nil {
-		s.o.Log.Error().Err(err).Str("msg_id", id).Msg("reaction list")
-		writeErr(w, http.StatusInternalServerError, "internal", "emoji not stored")
-		return
-	}
-	grouped := groupReactions(rows[id])
 	s.fanoutReaction(r.Context(), t.ID, m, grouped)
 	if add && emoji == reportEmoji {
 		s.reported(r.Context(), t.ID, m) // after the reaction frame: a hide drops the row last
@@ -137,6 +87,85 @@ func (s *Server) changeReaction(w http.ResponseWriter, r *http.Request, add bool
 		"task_id":   m.TaskID,
 		"reactions": grouped,
 	})
+}
+
+// reactionCaller answers who may react and with what: the member session,
+// billing, notes.send, the msg_id and the emoji, in that order.
+// false means the response is already written.
+func (s *Server) reactionCaller(w http.ResponseWriter, r *http.Request) (t store.Tenant, actor, id, emoji string, ok bool) {
+	s.allowOrigin(w, r)
+	t, hum, ok := s.humanTenant(w, r)
+	if !ok {
+		return t, "", "", "", false
+	}
+	actor, ok = s.editorID(r, t.ID)
+	if !ok {
+		writeForbidden(w, rbac.NotesSend, "adding an emoji needs a signed-in member session")
+		return t, "", "", "", false
+	}
+	if !billing.AllowsWrite(t.BillingStatus) {
+		writeUnpaid(w)
+		return t, "", "", "", false
+	}
+	if !s.permit(w, r, t.ID, hum, rbac.NotesSend) {
+		return t, "", "", "", false
+	}
+	id = strings.ToLower(r.PathValue("msg_id"))
+	if !uuidRe.MatchString(id) {
+		writeErr(w, http.StatusBadRequest, "bad_json", "msg_id must be a UUID")
+		return t, "", "", "", false
+	}
+	emoji, ok = reactionEmoji(w, r, s.reportAllowed(t.ID))
+	return t, actor, id, emoji, ok
+}
+
+// reactionTarget reads the message and refuses one the caller may not see.
+// false means the response is already written.
+func (s *Server) reactionTarget(w http.ResponseWriter, r *http.Request, tenant, id string, now time.Time) (store.EditableMessage, bool) {
+	m, err := s.o.Store.GetEditable(r.Context(), tenant, id, now)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		writeErr(w, http.StatusNotFound, "not_found", "no such message")
+		return m, false
+	case err != nil:
+		s.o.Log.Error().Err(err).Str("msg_id", id).Msg("reaction lookup")
+		writeErr(w, http.StatusInternalServerError, "internal", "message unavailable")
+		return m, false
+	}
+	// The door on THIS message (it was the topic's, so a mixed
+	// topic let a member react to a DM they are not an end of). A message you
+	// cannot see is a 404, so the refusal does not confirm that it exists.
+	if !s.messageDoor(w, r, tenant, m) {
+		return m, false
+	}
+	return m, true
+}
+
+// reactionStore adds or removes the caller's emoji and returns the message's
+// chips as they now stand. false means the response is already written.
+func (s *Server) reactionStore(w http.ResponseWriter, r *http.Request, tenant, id, actor, emoji string, add bool, now time.Time) ([]viewReaction, bool) {
+	var err error
+	if add {
+		err = s.o.Store.AddReaction(r.Context(), tenant, id, actor, emoji, now)
+	} else {
+		err = s.o.Store.RemoveReaction(r.Context(), tenant, id, actor, emoji, now)
+	}
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		writeErr(w, http.StatusNotFound, "not_found", "no such message")
+		return nil, false
+	case err != nil:
+		s.o.Log.Error().Err(err).Str("msg_id", id).Msg("reaction store")
+		writeErr(w, http.StatusInternalServerError, "internal", "emoji not stored")
+		return nil, false
+	}
+	rows, err := s.o.Store.ReactionsFor(r.Context(), tenant, []string{id})
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("msg_id", id).Msg("reaction list")
+		writeErr(w, http.StatusInternalServerError, "internal", "emoji not stored")
+		return nil, false
+	}
+	return groupReactions(rows[id]), true
 }
 
 // reactionEmoji reads {emoji}, refuses anything the picker does not offer and

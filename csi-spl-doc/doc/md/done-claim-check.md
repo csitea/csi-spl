@@ -165,6 +165,27 @@ own customer repo). The check read only the tree holding it plus cnf
   object in any repository".
 - A lane whose worktree is gone (swept after 24 h) is judged as before.
 
+### 1.4 A sha on a review branch (SPL-3673)
+
+Three false alarms of one class on SPL-3481 (alarms 166d17f7, c4933166,
+bb60fd55): c-271's results 68039e73 ("on a review branch, not on master",
+9286598f6), 0195b188 (a80eb4de5) and 8dd71e81 (8cf3fef52) read "not in the
+repository", while `git branch -r --contains 8cf3fef52` ->
+`origin/review/grok-dispatch-grade`. The lane was no longer in the registry,
+so the `pending` rule of section 1.1 did not hold them.
+
+- A sha on no trunk that `git branch -r --contains` finds on an
+  `origin/review/*` branch is reported as "on review branch <name>, not on
+  master" (the repo's trunk name), in the printed row and in a note, never
+  as "not in the repository".
+- **Verdict `review`** (ledger, no note, counted apart in the OK line) when
+  every such sha of the result is on one AND the body says it is not landed:
+  "not (yet) on|in master|main|trunk", "not (yet) landed", "unlanded" or
+  "on a|the review branch". A bare "review" is not one: a "review request"
+  names no state, and still alerts once its lane is retired.
+- A result that claims the review-branch sha landed alerts, with that
+  wording. A sha on no branch at all alerts exactly as before.
+
 ## 2. Standing
 
 The box cron `done-claim-check`, every 5 min (row in
@@ -200,3 +221,8 @@ neither csi-spl nor in `landed_repos`) alerts with the worktree unknown (red
 control) and is landed once `registry.tsv` names it; a retired lane's repo
 whose fetch fails is judged on its last fetched trunk (pushed sha landed,
 unpushed sha one "not in the repository" note, never "not an object").
+SPL-3673: a retired lane's sha on `origin/review/grok-dispatch-grade` with
+"not on master" or "not landed" is `review`, no note (red on the code before:
+both would alert); the same sha claimed landed alerts "on review branch
+origin/review/grok-dispatch-grade, not on master"; a sha on no branch with
+"not on master" alerts "not in the repository".

@@ -105,9 +105,18 @@
 # @description     EXACTLY one trunk commit after the lane's spawn (registry.tsv,
 # @description     else 48 h) has an SPL-n key of the result in its subject; zero
 # @description     or several alert "not an object in any repository"
+# @description   - SPL-3673 (alarms 166d17f7, c4933166, bb60fd55: c-271's shas on
+# @description     origin/review/grok-dispatch-grade read "not in the
+# @description     repository"): a sha on no trunk that `git branch -r
+# @description     --contains` finds on origin/review/* is "on review branch
+# @description     <name>, not on <trunk>" in the row and the note; verdict
+# @description     review (ledger, no note) when every such sha is on one and
+# @description     the body says it is not landed ("not on master|main|trunk",
+# @description     "not landed", "unlanded", "on a review branch"); a sha on
+# @description     no branch alerts as before
 # @description Standing: the box cron done-claim-check (every 5 min). Prints one
 # @description TSV row per decided message (msg_id, lane, landed | rewritten |
-# @description seat | pending | unchecked | alert | would-alert, shas or no-sha). DRY_RUN=1 (default) reads and
+# @description seat | pending | unchecked | review | alert | would-alert, shas or no-sha). DRY_RUN=1 (default) reads and
 # @description fetches but sends nothing and writes no ledger.
 # @param DRY_RUN (optional) - 0 sends the notes and writes the ledger; default 1
 # @param DONE_CLAIM_AGE_MIN (optional) - minutes after the result before it is judged, default 15
@@ -148,10 +157,10 @@ do_spl_done_claim_check() {
   if [[ "$dry" == 0 ]]; then to="$(spl_done_claim_to)" || { rm -rf "$tmp"; return 1; }; fi
   spl_done_claim_seats "$root" "$tmp/repos" >"$tmp/seats"
   awk -F'\t' '$1 ~ /^[cmagq]-[0-9]+$/ { print $1 }' "$root/registry.tsv" 2>/dev/null >"$tmp/live"
-  local id from ts task body shas bad unchk verdict stale n_alert=0 n_ok=0 n_seat=0 n_wait=0 n_rew=0 n_unchk=0
+  local id from ts task body shas bad unchk rv verdict stale n_alert=0 n_ok=0 n_seat=0 n_wait=0 n_rew=0 n_unchk=0 n_rev=0
   while IFS=$'\t' read -r id from ts task body; do
     shas="$(spl_done_claim_notes "$tmp/repos" "$(spl_done_claim_shas "$body" "$tmp/repos")")"
-    bad="" unchk=""
+    bad="" unchk="" rv=""
     if spl_done_claim_r7 "$body" || grep -qxF -- "${from%@*}" "$tmp/seats"; then
       verdict=seat; n_seat=$((n_seat + 1))
     elif bad="$(spl_done_claim_missing "$tmp/repos" "$shas")" && [[ -n "$shas" && -z "$bad" ]]; then
@@ -164,6 +173,9 @@ do_spl_done_claim_check() {
       verdict=unchecked; n_unchk=$((n_unchk + 1))
     elif [[ -n "$bad" && -z "$(spl_done_claim_unparked "$tmp/repos" "$tmp/live" "$bad" "${from%@*}" "$root")" ]]; then
       verdict=pending; n_wait=$((n_wait + 1))
+    elif rv="$(spl_done_claim_on_review "$tmp/repos" "$bad")" && [[ -n "$rv" && "$(cut -f1 <<<"$rv" | xargs)" == "$bad" ]] &&
+      spl_done_claim_unlanded "$body"; then
+      verdict=review; n_rev=$((n_rev + 1))
     elif [[ "$dry" == 1 ]]; then
       verdict=would-alert; n_alert=$((n_alert + 1))
     else
@@ -173,6 +185,7 @@ do_spl_done_claim_check() {
     fi
     stale="$(spl_done_claim_stale "$tmp/stale" "$from")"
     [[ -n "$unchk" ]] && stale="$(spl_done_claim_unchk_text "$unchk")${stale:+; $stale}"
+    [[ "$verdict" == review ]] && stale="$(spl_done_claim_review_text "$rv")${stale:+; $stale}"
     printf '%s\t%s\t%s\t%s%s\n' "$id" "$from" "$verdict" "${shas:-no-sha}" "${stale:+$'\t'$stale}"
     if [[ "$dry" == 0 && "$verdict" != pending && "$verdict" != unchecked ]]; then
       { mkdir -p "$state" && printf '%s\t%s\t%s\n' "$id" "$verdict" "$now" >>"$state/seen.tsv"; } || rc=1
@@ -180,9 +193,9 @@ do_spl_done_claim_check() {
   done <"$tmp/due"
   if [[ "$dry" == 0 ]]; then
     spl_done_claim_prune "$state/seen.tsv" "$((now - 2 * hours * 3600))"
-    echo "OK done-claim-check: $n_ok landed, $n_rew rewritten, $n_seat seat, $n_wait pending, $n_unchk not checked, $n_alert alerted to $to"
+    echo "OK done-claim-check: $n_ok landed, $n_rew rewritten, $n_seat seat, $n_wait pending, $n_unchk not checked, $n_alert alerted to $to, $n_rev on a review branch"
   else
-    echo "OK done-claim-check: $n_ok landed, $n_rew rewritten, $n_seat seat, $n_wait pending, $n_unchk not checked, $n_alert would alert (DRY_RUN=1: nothing sent, no ledger)"
+    echo "OK done-claim-check: $n_ok landed, $n_rew rewritten, $n_seat seat, $n_wait pending, $n_unchk not checked, $n_alert would alert, $n_rev on a review branch (DRY_RUN=1: nothing sent, no ledger)"
   fi
   rm -rf "$tmp"
   return $rc
@@ -606,6 +619,38 @@ spl_done_claim_topic_lanes() {
   done
 }
 
+# spl_done_claim_on_review <repos file> <shas>: "<sha>\t<branch>\t<trunk>" per
+# sha of <shas> (all on no trunk) that `git branch -r --contains` finds on an
+# origin/review/* branch (its first, by name), <trunk> the repo's trunk without
+# "origin/" (SPL-3673: c-271's 8cf3fef52 on origin/review/grok-dispatch-grade).
+spl_done_claim_on_review() {
+  local s full top ref b
+  for s in $2; do
+    while read -r top ref; do
+      full="$(git -C "$top" rev-parse -q --verify "$s^{commit}" 2>/dev/null)" || continue
+      b="$(git -C "$top" branch -r --contains "$full" --format='%(refname:short)' 2>/dev/null)"
+      b="$(grep -m1 '^origin/review/' <<<"$b")" || continue
+      printf '%s\t%s\t%s\n' "$s" "$b" "${ref#origin/}"; break
+    done <"$1"
+  done
+  return 0
+}
+
+# spl_done_claim_unlanded <body>: true when the result itself says its sha is
+# not landed: "not (yet) on|in master|main|trunk", "not (yet) landed",
+# "unlanded" or "on a|the review branch" (SPL-3673: c-271's 68039e73 "on a
+# review branch, not on master"). A bare "review" is not one: a "review
+# request" names no state.
+spl_done_claim_unlanded() {
+  grep -qiE '(^|[^a-z])(not (yet )?(on|in) (origin/)?(master|main|trunk)|not (yet )?landed|unlanded|on (a|the) review branch)([^a-z]|$)' <<<"${1//$'\037'/$'\n'}"
+}
+
+# spl_done_claim_review_text <review rows>: "on review branch <b>, not on <trunk>: <sha> ...".
+spl_done_claim_review_text() {
+  awk -F'\t' 'NF { k = "on review branch " $2 ", not on " $3; if (!(k in s)) { o[++n] = k; s[k] = $1 } else s[k] = s[k] " " $1 }
+    END { for (i = 1; i <= n; i++) printf "%s%s: %s", (i > 1 ? "; " : ""), o[i], s[o[i]] }' <<<"$1"
+}
+
 # The recipient: DONE_CLAIM_TO, else the dispatch lease holder as the lease
 # names it (<id>@<box> on a fleet), else LEASE_ORCH from lease.conf.
 spl_done_claim_to() {
@@ -623,12 +668,14 @@ spl_done_claim_to() {
 # (SPL-2327); a lane whose own repo failed its fetch says so (SPL-2930); a sha
 # the check could not judge is listed apart, not counted (SPL-3020).
 spl_done_claim_note() {
-  local s gone known=() what=() w
+  local s gone rv tr known=() what=() w
   gone=" $(spl_done_claim_unknown "$6" "$5") "
-  for s in $5; do [[ "$gone" == *" $s "* ]] || known+=("$s"); done
+  rv="$(spl_done_claim_on_review "$6" "$5")"
+  for s in $5; do [[ "$gone" == *" $s "* ]] || grep -q -- "^$s"$'\t' <<<"$rv" || known+=("$s"); done
   gone="$(xargs <<<"$gone")"
   [[ -n "$5" ]] || what+=("no sha not in the repository")
   [[ ${#known[@]} -gt 0 ]] && w="${known[*]}" && what+=("sha ${w// /, } not in the repository")
+  while IFS=$'\t' read -r s w tr; do [[ -n "$s" ]] && what+=("sha $s on review branch $w, not on $tr"); done <<<"$rv"
   [[ -n "$gone" ]] && what+=("sha ${gone// /, } not an object in any repository (a pre-rebase sha?)")
   w="${what[*]/%/;}"
   printf 'done-claim check: %s result %s (%s, task %s): %s\n\n' "$1" "$2" "$3" "${4:-none}" "${w%;}"

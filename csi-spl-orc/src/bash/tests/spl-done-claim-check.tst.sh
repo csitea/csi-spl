@@ -192,8 +192,8 @@ run DRY_RUN=0; rc=$?
 # 4b. once the plan lane is gone from the registry, its pending sha alerts
 : >"$SP/registry.tsv"
 run DRY_RUN=0; rc=$?
-[ "$rc" = 0 ] && [ "$(grep -c '^SEND' "$T/calls.log")" = 1 ] && grep -q "c-565 result pend .*: sha ${PLANSHA:0:9} not in the repository" "$T/calls.log" &&
-  pass "4b. the lane gone, the pending sha alerts once" || fail "4b. gone (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+[ "$rc" = 0 ] && [ "$(grep -c '^SEND' "$T/calls.log")" = 1 ] && grep -q "c-565 result pend .*: sha ${PLANSHA:0:9} on review branch origin/review/c-565-c002-radar-step4, not on master$" "$T/calls.log" &&
+  pass "4b. the lane gone, the pending sha alerts once (SPL-3673: 'on review branch <name>, not on master')" || fail "4b. gone (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
 
 # 5. 15 min later the young one is due; a failed send is retried next run, not lost
 NOW=$((NOW + 15 * 60))
@@ -552,13 +552,13 @@ v="$(for k in rq21 rq20 rq22 rqret rqoid rqnob; do printf '%s=%s ' "$k" "$(verdi
   fail "18. review branch without the lane id (rc $rc) got '$v': $(cat "$T/o")"
 run DRY_RUN=0 DONE_CLAIM_TO=c-009 DONE_CLAIM_STATE_DIR="$T/st18"; rc=$?
 [ "$rc" = 0 ] && [ "$(grep -c '^SEND' "$T/calls.log")" = 3 ] && ! grep -q 'c-821\|c-822\|c-823' "$T/calls.log" &&
-  grep -q "c-824 result rqret .*: sha ${R21:0:9} not in the repository$" "$T/calls.log" &&
+  grep -q "c-824 result rqret .*: sha ${R21:0:9} on review branch origin/review/s107-v2-r021, not on master$" "$T/calls.log" &&
   ! grep -q '^rq21	\|^rq20	\|^rq22	' "$T/st18/seen.tsv" &&
   pass "18. DRY_RUN=0: no note and no ledger row for the pending review requests; the three others alert once" ||
   fail "18. note (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
 : >"$SP/registry.tsv"
 run DRY_RUN=0 DONE_CLAIM_TO=c-009 DONE_CLAIM_STATE_DIR="$T/st18"; rc=$?
-[ "$rc" = 0 ] && [ "$(grep -c '^SEND' "$T/calls.log")" = 3 ] && grep -q "c-822 result rq20 .*: sha ${T20:0:9}, ${T20X:0:9} not in the repository$" "$T/calls.log" &&
+[ "$rc" = 0 ] && [ "$(grep -c '^SEND' "$T/calls.log")" = 3 ] && grep -q "c-822 result rq20 .*: sha ${T20:0:9} on review branch origin/review/s107-v2-t020, not on master; sha ${T20X:0:9} on review branch origin/review/s107-v2-t020-expand, not on master$" "$T/calls.log" &&
   pass "18. the lanes retired, their review-branch shas alert once" || fail "18. retired (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
 
 # 19. SPL-3261 (notes 68215ba2 and d72ab6e0, 10-24; bug round 9 row 01,
@@ -644,5 +644,43 @@ v="$(for k in R C; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
 [ "$rc" = 0 ] && [ "$v" = "R=would-alert C=would-alert " ] &&
   pass "19. the author retired, the reviewers' review-branch shas alert again (the -<topic> match needs a live lane)" ||
   fail "19. author retired (rc $rc) got '$v': $(cat "$T/o")"
+
+# 20. SPL-3673 (alarms 166d17f7, c4933166, bb60fd55 on SPL-3481: c-271's
+# 9286598f6, a80eb4de5, 8cf3fef52 sit on origin/review/grok-dispatch-grade,
+# synthetic here): a sha on origin/review/* of a retired lane is "on review
+# branch <name>, not on master", and a result that says it is not landed
+# raises no alarm (verdict review, ledger). A result claiming the same sha
+# landed alerts with that wording; a sha on no branch still alerts as today.
+SP="$T/spool20"
+mkdir -p "$SP"
+rg spl fetch -q origin
+RVB=$(park "grok dispatch grade" review/grok-dispatch-grade)
+for i in $(seq 1 50); do
+  NOB20=$(rg spl commit-tree -p origin/master -m "nowhere 20 $i" "origin/master^{tree}")
+  [[ "${NOB20:0:9}" =~ [a-f] ]] && break
+done
+rg spl fetch -q origin
+msg c-002/archive rvnot c-271 c-002 30 "SPL-3481 pushed ${RVB:0:9} on a review branch, not on master; waiting for R7"
+msg c-002/archive rvsay c-272 c-002 30 "SPL-3481: ${RVB:0:9}, not landed yet (review/grok-dispatch-grade)"
+msg c-002/archive rvland c-273 c-002 30 "SPL-3481 landed ${RVB:0:9}"
+msg c-002/archive nowhere c-274 c-002 30 "SPL-3481 ${NOB20:0:9}, not on master"
+[[ "$(rg spl branch -r --contains "$RVB" --format='%(refname:short)')" == origin/review/grok-dispatch-grade ]] &&
+  ! rg spl merge-base --is-ancestor "$RVB" origin/master && [ -z "$(rg spl branch -r --contains "$NOB20")" ] &&
+  pass "20. control: ${RVB:0:9} sits only on origin/review/grok-dispatch-grade, ${NOB20:0:9} on no branch" ||
+  fail "20. control: fixture"
+run DONE_CLAIM_STATE_DIR="$T/st20"; rc=$?
+v="$(for k in rvnot rvsay rvland nowhere; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "rvnot=review rvsay=review rvland=would-alert nowhere=would-alert " ] &&
+  [ "$(awk -F'\t' '$1 == "rvnot" { print $5 }' "$T/o")" = "on review branch origin/review/grok-dispatch-grade, not on master: ${RVB:0:9}" ] &&
+  grep -q '^OK done-claim-check: .* 2 would alert, 2 on a review branch' "$T/o" &&
+  pass "20. SPL-3673: a retired lane's review-branch sha with 'not on master' / 'not landed' is review (row: on review branch <name>, not on master); one claimed landed and one on no branch would alert" ||
+  fail "20. review branch (rc $rc) got '$v': $(cat "$T/o")"
+run DRY_RUN=0 DONE_CLAIM_TO=c-009 DONE_CLAIM_STATE_DIR="$T/st20"; rc=$?
+[ "$rc" = 0 ] && [ "$(grep -c '^SEND' "$T/calls.log")" = 2 ] && ! grep -q 'c-271\|c-272' "$T/calls.log" &&
+  grep -q "c-273 result rvland .*: sha ${RVB:0:9} on review branch origin/review/grok-dispatch-grade, not on master$" "$T/calls.log" &&
+  grep -q "c-274 result nowhere .*: sha ${NOB20:0:9} not in the repository$" "$T/calls.log" &&
+  [ "$(grep -c '	review	' "$T/st20/seen.tsv")" = 2 ] &&
+  pass "20. DRY_RUN=0: no note for the two not-landed review-branch results (ledger: review); the landed claim's note says 'on review branch <name>, not on master', the no-branch sha 'not in the repository'" ||
+  fail "20. note (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
 
 exit "$fails"

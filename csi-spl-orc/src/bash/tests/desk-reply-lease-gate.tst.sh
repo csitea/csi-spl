@@ -19,9 +19,21 @@
 #   6. no lease file (a box without dispatchers) -> sent, no hub-tail read;
 #      a hub-tail that fails -> refused
 #   7. the picker path (no DESK_TASK) is gated too
+#   8. SPL-3542: a channel seat passes only in the topic's own channel when
+#      hub-tail --with-channel names it; a sole-seat channel (channel-rules
+#      map column 6) takes a first reply from that seat only, the dispatch
+#      and orch lease holders refused; a malformed column 6 refuses; not a
+#      first reply, or another channel: the holder still posts; a spool
+#      without --with-channel: the rule is not checked (WARN)
+# The stub's hub-tail prints $TAIL; with --with-channel and NO_WITH_CH=1 it
+# fails as an old binary does. Until cr_sole_seat is on the tree (c-834,
+# SPL-3542) the snippet defines a stand-in with its contract (column 6).
 # The red control: without the gate call in do_spl_desk_reply, 7 of 16 fail:
 # 1 (both), 2 (other machine), 4 (the control), 5 (other workspace), 6 (tail
-# fails) and 7 (the picker).
+# fails) and 7 (the picker). Without rule 0 (the sole-seat block in
+# spl_desk_lease_gate) 6 of 8 fail: holder, orch, other machine, malformed,
+# unread topic, old binary. Matching the tenant only (the old rule 3): 1 of 8
+# fails (another channel's topic).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -57,14 +69,17 @@ reply() {
   local agent="$1" rc=0; shift
   : >"$T/calls"
   rm -f "$T/state/dev/desk/t1/box-desk/answered"
-  SNIPPET='do_spl_desk_cnf() { SPL_HUB_URL=https://hub.invalid; }
+  SNIPPET="$STANDIN"'
+do_spl_desk_cnf() { SPL_HUB_URL=https://hub.invalid; }
 spl_host_spool() { :; }
 spl_desk_spool() {
   while [[ $# -gt 0 && "$1" != -- ]]; do shift; done; shift
   local IFS="|"; echo "$*" >>"$CALLS"
   case "$1" in
     recv) cat "$INBOX" ;;
-    hub-tail) [[ "${TAIL_FAIL:-0}" == 1 ]] && { echo "spool: hub unreachable"; return 1; }; printf "%s\n" "$TAIL" ;;
+    hub-tail) [[ "${TAIL_FAIL:-0}" == 1 ]] && { echo "spool: hub unreachable"; return 1; }
+      [[ "${NO_WITH_CH:-0}" == 1 && "$*" == *--with-channel* ]] && { echo "flag provided but not defined: -with-channel"; return 1; }
+      printf "%s\n" "$TAIL" ;;
     topics) echo "spool: no such channel"; return 1 ;;
     send) echo "{\"msg_id\":\"s-1\",\"delivery\":\"sent\"}" ;;
   esac
@@ -74,6 +89,16 @@ do_spl_desk_reply' in_orc SPOOL_ROOT="$R" LEASE_MACHINE=box-a TENANT_ID=t1 DESK_
     CALLS="$T/calls" INBOX="$T/inbox.json" TAIL="$HUMPOST" "$@" >"$T/o" 2>&1 || rc=$?
   echo "$rc" >"$T/rc"
 }
+STANDIN=""
+grep -q '^cr_sole_seat()' "$PROJ_ROOT/src/bash/features/spawn-agents/lib/channel-rules.inc.sh" || STANDIN='
+cr_sole_seat() {
+  local seat
+  [ -e "$(cr_map)" ] || return 1
+  seat="$(awk -F"\t" -v t="$1" -v c="$2" '"'"'$1 !~ /^#/ && $1 == t && $2 == c { print $6; exit }'"'"' "$(cr_map)")"
+  [ -n "$seat" ] && [ "$seat" != "-" ] || return 1
+  [[ "$seat" =~ ^[a-z]-[0-9]{3}@[A-Za-z0-9._-]+$ ]] || { echo "FATAL channel rules: bad sole seat $seat" >&2; return 2; }
+  printf "%s\n" "$seat"
+}'
 sent() { grep -c '^send|' "$T/calls"; }
 ok_sent() { [[ "$(cat "$T/rc")" == 0 && "$(sent)" == 1 ]]; }
 refused() { [[ "$(cat "$T/rc")" == 8 && "$(sent)" == 0 ]] && grep -q 'SPL-3520' "$T/o"; }
@@ -137,6 +162,43 @@ reply g-001 DESK_TO= DESK_TASK=
 refused && grep -q '^recv|' "$T/calls" && pass "the picker path (no DESK_TASK) is gated too" || fail "picker path not gated: $(show)"
 reply c-002 DESK_TO= DESK_TASK=
 ok_sent && pass "CONTROL: the picker path lets the holder answer" || fail "picker path refused the holder: $(show)"
+
+# --- 8. the topic's channel; a sole-seat channel (SPL-3542) -------------------------
+chtail() { sed 's/^{/{"channel":"'"$1"'",/' <<<"${2:-$HUMPOST}"; }
+printf '# Lane brief\nChannel: t1 #ops\n' >"$R/c-423/lifetime/brief.md"
+reply c-423 TAIL="$(chtail ops)"
+ok_sent && pass "a channel seat posts the first reply in a topic of its own channel" || fail "own-channel seat refused: $(show)"
+reply c-423 TAIL="$(chtail sales)"
+refused && pass "a channel seat of the workspace is refused in ANOTHER channel's topic" || fail "other-channel seat not refused: $(show)"
+DOC=0f0e0d0c-0b0a-4908-8706-050403020100
+MAP="$T/channel-rules.tsv"
+printf 't1\tsolo\t%s\tprd\tc-423\tc-423@box-a\nt1\tops\t%s\tprd\tc-423\n' "$DOC" "$DOC" >"$MAP"
+printf '# Lane brief\nChannel: t1 #solo\n' >"$R/c-423/lifetime/brief.md"
+reply c-002 SPOOL_CHANNEL_RULES_MAP="$MAP" TAIL="$(chtail solo)"
+refused && grep -q 'sole seat, c-423@box-a' "$T/o" && grep -q 'SPL-3542' "$T/o" &&
+  pass "a sole-seat channel: the dispatch lease holder's first reply is refused, the sole seat named" ||
+  fail "holder passed in a sole-seat channel: $(show)"
+lease c-002@box-a g-001@box-a
+reply g-001 SPOOL_CHANNEL_RULES_MAP="$MAP" TAIL="$(chtail solo)"
+refused && pass "a sole-seat channel: the orchestrator lease holder is refused too" || fail "orch passed in a sole-seat channel: $(show)"
+lease c-002@box-a c-001@box-b
+reply c-423 SPOOL_CHANNEL_RULES_MAP="$MAP" TAIL="$(chtail solo)"
+ok_sent && pass "a sole-seat channel: the sole seat (its box matched) posts the first reply" || fail "sole seat refused: $(show)"
+reply c-423 SPOOL_CHANNEL_RULES_MAP="$MAP" LEASE_MACHINE=box-z TAIL="$(chtail solo)"
+refused && pass "the sole seat's id on ANOTHER machine is refused" || fail "sole seat on another box passed: $(show)"
+reply c-002 SPOOL_CHANNEL_RULES_MAP="$MAP" TAIL="$(chtail solo "$HUMPOST"$'\n''{"v":1,"msg_id":"a-2","task_id":"'"$TK"'","ts":"2026-10-26T08:01:00Z","from":"c-423","to":"HUM-10","kind":"note","body":"Taken","files":[]}')"
+ok_sent && pass "a sole-seat channel: a reply that is not the first is not refused" || fail "follow-up refused in a sole-seat channel: $(show)"
+reply c-002 SPOOL_CHANNEL_RULES_MAP="$MAP" TAIL="$(chtail ops)"
+ok_sent && pass "CONTROL: a mapped channel without a sole seat lets the holder post" || fail "holder refused in a channel without a sole seat: $(show)"
+printf 't1\tsolo\t%s\tprd\tc-423\tc-423\n' "$DOC" >"$MAP"
+reply c-002 SPOOL_CHANNEL_RULES_MAP="$MAP" TAIL="$(chtail solo)"
+refused && grep -q 'cannot tell the sole seat' "$T/o" && pass "a malformed sole seat (no @<box>) refuses: fail closed" || fail "malformed sole seat passed: $(show)"
+printf 't1\tsolo\t%s\tprd\tc-423\tc-423@box-a\n' "$DOC" >"$MAP"
+reply c-002 SPOOL_CHANNEL_RULES_MAP="$MAP" TAIL="$(chtail solo)" TAIL_FAIL=1
+refused && grep -q 'cannot read topic' "$T/o" && pass "a map and a topic that cannot be read: the holder is refused (fail closed)" || fail "unread topic passed the holder: $(show)"
+reply c-002 SPOOL_CHANNEL_RULES_MAP="$MAP" TAIL="$HUMPOST" NO_WITH_CH=1
+ok_sent && grep -q 'sole-seat rule is not checked' "$T/o" && grep -q 'hub-tail|--task|'"$TK"'|--json' "$T/calls" &&
+  pass "a spool without --with-channel: plain --json, the rule not checked, a WARN" || fail "old binary path: $(show)"
 
 echo
 if (( fails > 0 )); then echo "FAILED: $fails"; exit 1; fi

@@ -18,7 +18,7 @@ in section 4 are one reader's (claude, c-271) judgement and say why.
 ### 1.1 Holder timeline
 
 Source: `/var/spool-hub/dispatch/lease.log` on sat (3,956 lines, mtime
-2026-10-26T08:29Z). Every line matching
+2026-10-26T06:29Z; the box clock is UTC+2, the file listing shows 08:29). Every line matching
 `^<ts> FLEET dispatch: <from> -> <to>$` is one transfer; the holder from
 `<ts>` to the next transfer is `<to>`.
 
@@ -69,7 +69,7 @@ claude comparison sets:
 
 | vendor | hours held |
 |---|---|
-| claude | 522.6 |
+| claude | 520.6 |
 | grok | 58.5 |
 | none | 0.9 |
 
@@ -157,10 +157,10 @@ holder never answered.
 | 8e89a5a3 | 10-21T13:21Z | g-002@sat | 152 | g-002 | 1 | "not built, no lane started" for a feature ask; neither placed nor queued |
 | a5b0a9e3 | 10-21T16:41Z | g-002@sat | 311 | g-002 | 2 | answered a research question itself |
 | 4cb5658b | 10-25T11:07Z | g-003@pc | 1,064 | g-003 | 2 | recorded that nothing waits on the owner, named the holding lane |
-| 04900d93 | 10-25T11:55Z | g-002@pc | 76 | g-002 | 1 | placed a B3 lane (SPL-3338); a claude seat had said "queueing B3" at 10:00Z: possible duplicate, NOT CHECKED |
+| 04900d93 | 10-25T11:55Z | g-002@pc | 76 | g-002 | 2 | took it and named the B3 lane c-424 (SPL-3338); checked: the only B3 lane, the row c-002 queued at 10:00Z (spawn request d51ab5ef), no duplicate; landed f0c811bd0 |
 | c1630f08 | 10-25T14:44Z | g-003@pc | 3,936 | c-002 | 0 | the grok holder never answered; c-002@sat took it after 66 min |
 
-Grok: **28 of 40 points (70%)**; 10 cases at 2, 8 at 1, 2 at 0.
+Grok: **29 of 40 points (72.5%)**; 11 cases at 2, 7 at 1, 2 at 0.
 
 ### 4.2 Claude-held (matched)
 
@@ -183,15 +183,15 @@ Grok: **28 of 40 points (70%)**; 10 cases at 2, 8 at 1, 2 at 0.
 | 9808f12c | 10-20T12:53Z | c-002@sat | 17 | c-002 | 2 | diagnosed and queued a lane |
 | c871ffa0 | 10-24T08:28Z | c-002@sat | 64 | c-002 | 2 | go taken, next build row started |
 | 670050b7 | 10-24T09:21Z | c-002@sat | 16 | c-002 | 2 | status with the lane and its step |
-| 0c37a4f6 | 10-24T14:06Z | c-002@sat | 220 | c-002 | 1 | read a bare "A" as the answer to a question in another topic; right or not is NOT CHECKED |
+| 0c37a4f6 | 10-24T14:06Z | c-002@sat | 220 | c-002 | 2 | read a bare "A" as the answer to poll 49126486 in another topic; right: the owner answered that poll A at 14:21Z (msg 6acb0489) |
 | 5bfbf325 | 10-25T09:59Z | c-002@sat | 55 | c-002 | 2 | went on with the build, filed the side idea on hold |
 | 0c510ff7 | 10-25T11:00Z | c-002@sat | 3,552 | c-002 | 1 | right route, but answered after 59 min |
 
-Claude: **37 of 40 points (92.5%)**; 17 cases at 2, 3 at 1, 0 at 0.
+Claude: **38 of 40 points (95%)**; 18 cases at 2, 2 at 1, 0 at 0.
 
 ## 5. Findings
 
-1. Grok held the lease 58.5 h of 582 h (10.1%), on both boxes (pc box 18.2 h,
+1. Grok held the lease 58.5 h of 580 h (10.1%), on both boxes (pc box 18.2 h,
    sat 40.4 h), and two days over 10 h (10-20: 15.1 h, 10-21: 17.3 h).
 2. Speed: 19.3% of posts answered within 3 min under grok against 79.4%
    for claude in the matched hours; median 481 s against 40 s.
@@ -201,7 +201,7 @@ Claude: **37 of 40 points (92.5%)**; 17 cases at 2, 3 at 1, 0 at 0.
 4. The grok holder wrote the first reply on 65.8% of its posts (claude
    matched: 85.1%); g-001, outside the lease, answered 14 of them, and three
    graded cases had two grok seats answering the same post.
-5. Routing by hand: grok 70%, claude 92.5%. Grok's lost points are double
+5. Routing by hand: grok 72.5%, claude 95%. Grok's lost points are double
    answers, a lane said placed and then not placed, and feature asks
    answered "not built" with nothing placed or queued.
 
@@ -216,7 +216,7 @@ Claude: **37 of 40 points (92.5%)**; 17 cases at 2, 3 at 1, 0 at 0.
   the same as the dispatcher. The dispatcher's own share is section 3's
   last table.
 - Owner posting volume differs: 161 posts in 58.5 grok hours (2.8 per h)
-  against 4,207 in 522.6 claude hours (8.1 per h). In the 35 posts that
+  against 4,207 in 520.6 claude hours (8.1 per h). In the 35 posts that
   share a date + hour with a grok post, claude was slow too (45.7% within
   3 min), so part of the gap may be the hours, not the vendor; n = 35 is too
   small to say.

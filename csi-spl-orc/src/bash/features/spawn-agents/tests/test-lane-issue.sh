@@ -19,6 +19,10 @@
 #   E. li_brief_epic_spec (the enqueue's check): no issue without an epic
 #      and a git spec (owner HUM-10, t1 7a98c2d1 msg 5863d0d6): a brief that
 #      files an issue names a spec folder on origin/master and its epic.
+#   W. a workspace lane (workspace-repo.inc.sh; owner HUM-10 msgs ca8a036d,
+#      dbead7a1): the brief's `Workspace: <tenant>` line passes the brief
+#      check with no csi-spl spec; the exit gate reads the workspace repo's
+#      trunk and asks that workspace's hub; no map row on the box: refused.
 # Control per refusal: the same case with the gate cut out of a copy of the
 # scripts passes, so each check proves the gate, not the fixture.
 set -uo pipefail
@@ -390,4 +394,47 @@ dv "$LIB" "$(printf 'fix(api): x\n\nDocs: none (\n )')"; eq "F6 an empty reason 
 dv "$LIB" "$(printf 'fix(api): x\n\nThe gate reads a Docs: none (why) line, not this prose.')"; eq "F7 the words inside prose, not a trailer: missing" missing "$V"
 dv "$LIB" "$(printf 'fix(api): x\n\nDocs: none (the reason\n\nstarts a new paragraph)')"; eq "F8 the ')' only after a blank line: missing" missing "$V"
 dv "$LIB" "$(printf 'fix(api): x\n\nDocs: none (the reason\nCloses: SPL-1 ok)')"; eq "F9 the ')' only on the next trailer: missing" missing "$V"
+# --- W. a workspace lane ----------------------------------------------------
+es "$LIB" 'Workspace: acme'
+eq "W1 a Workspace: line, no spec, no epic: accepted" 0 "$RC"
+eq "W1 ... prints the workspace, no csi-spl epic" "workspace:acme	" "$(cat "$T_TMP/o")"
+es "$LIB" 'Workspace: t1'
+eq "W1 Workspace: t1 is the fleet's own: the spec rule still holds" 1 "$RC"
+WSR="$T_TMP/ws"
+wg() { git -C "$WSR" -c user.name='FirstName LastName' -c user.email=dev@example.com "$@"; }
+git init -q --bare "$T_TMP/ws-origin.git" && git init -q -b master "$WSR"
+wg commit -q --allow-empty -m init && wg remote add origin "$T_TMP/ws-origin.git" && wg push -q origin master 2>/dev/null
+printf '# map\nacme\tdev\tacme-site\t%s\t-\thttps://site.example.com\tc-900\tbox-a\n' "$WSR" >"$SPOOL_ROOT/workspace-repos.tsv"
+cat >"$T_TMP/ws-stub" <<'EOS'
+#!/bin/sh
+echo "$TENANT_ID $ENV $DESK_AGENT $1" >>"$HUB_CALLS"
+printf 'issue-status\t%s\t%s\n' "$1" "$HUB_STATUS"
+EOS
+chmod +x "$T_TMP/ws-stub"
+CTL_WS="$T_TMP/ctl-ws/spawn-agents"; mkdir -p "$CTL_WS"
+cp -r "$T_FEAT/scripts" "$T_FEAT/lib" "$CTL_WS/"
+sed -i '/^  li_gate_ws "\$root" "\$id" || return 3$/d' "$CTL_WS/lib/lane-issue.inc.sh"
+check "control: the copy has no workspace step" sh -c "! grep -q '^  li_gate_ws ' '$CTL_WS/lib/lane-issue.inc.sh'"
+wsgate() {  # SCRIPTS ID STATUS -> rc in $RC, stderr in $T_TMP/e
+  : >"$T_TMP/hub-calls"
+  (cd "$R" && env HUB_CALLS="$T_TMP/hub-calls" HUB_STATUS="$3" LI_HUB_STATUS_CMD="$T_TMP/ws-stub" \
+    SPOOL_AGENT_ID="$2" bash "$1/kill-your-self-report.sh" --gate "$R" 2>"$T_TMP/e" >/dev/null); RC=$?
+}
+accepted c-080; echo ACME-3 >"$SPOOL_ROOT/c-080/lifetime/issue"; printf 'acme\tdev\n' >"$SPOOL_ROOT/c-080/lifetime/issue-tenant"
+wsgate "$T_SCRIPTS" c-080 wip
+eq "W2 nothing landed in the workspace repo, wip in the workspace: refused" 3 "$RC"
+eq "W2 ... the hub read went to the workspace, as its desk" "acme dev c-900 ACME-3" "$(cat "$T_TMP/hub-calls")"
+echo x >"$WSR/page.html"; wg add page.html && wg commit -q -m "feat(wui, ACME-3): the page" && wg push -q origin master 2>/dev/null && wg fetch -q origin
+wsgate "$T_SCRIPTS" c-080 wip
+eq "W3 landed on the workspace repo's trunk: exits" 0 "$RC"
+has "W3 ... the line names the landing" "issue gate: ACME-3 landed in 1 commit(s)" "$(cat "$T_TMP/e")"
+wsgate "$CTL_WS/scripts" c-080 wip
+eq "W3 control (no workspace step): the same lane is refused (it reads csi-spl)" 3 "$RC"
+accepted c-081; echo ACME-4 >"$SPOOL_ROOT/c-081/lifetime/issue"; printf 'acme\tdev\n' >"$SPOOL_ROOT/c-081/lifetime/issue-tenant"
+wsgate "$T_SCRIPTS" c-081 "done"
+eq "W4 nothing landed, done in the workspace (the closer moved it): exits" 0 "$RC"
+accepted c-082; echo ZED-1 >"$SPOOL_ROOT/c-082/lifetime/issue"; printf 'zed\tdev\n' >"$SPOOL_ROOT/c-082/lifetime/issue-tenant"
+wsgate "$T_SCRIPTS" c-082 "done"
+eq "W5 a workspace with no map row on this box: refused" 3 "$RC"
+has "W5 ... naming the map" "lives in workspace zed, which has no valid row in $SPOOL_ROOT/workspace-repos.tsv" "$(cat "$T_TMP/e")"
 t_done

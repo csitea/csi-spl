@@ -37,6 +37,16 @@
 # @description publishes its own; any other box only publishes what it holds.
 # @description A store error (an HTTP 403 too) logs "store read failed (HTTP <code>)"
 # @description or "store publish failed (HTTP <code>)", never "no snapshot yet" (SPL-2688).
+# @description Workspace mode (ISSUE_CLOSE_WORKSPACE=<tenant>, owner HUM-10
+# @description msgs ca8a036d, dbead7a1): the commits read are the trunk of that
+# @description workspace's repo, its clone on this box from the box map
+# @description $SPOOL_ROOT/workspace-repos.tsv (workspace-repo.inc.sh), which
+# @description also gives ENV, the desk (DESK_AGENT, DESK_BOX) and the live
+# @description url; TENANT_ID is the workspace. The done comment names the
+# @description repo, each sha and the live url instead of the release note.
+# @description No holder mode (the map is this box's), and the first run with
+# @description no cursor starts at the trunk head: the commits before it never
+# @description cited this workspace's keys.
 # @description Prints one TSV row per named key (key, moved | would-move |
 # @description noop | skip | failed, sha(s), detail) and a summary line. Reads
 # @description the issue list and git even with DRY_RUN=1; writes the hub, the
@@ -56,7 +66,9 @@
 # @param ISSUE_CLOSE_HOLDER (optional) - 1: holder mode (above); default 0
 # @param SPOOL_ROOT (optional) - holder mode: the spool root of dispatch/lease, default /var/spool-hub
 # @param SPOOL_BOX_TAG (optional) - holder mode: this box, default SPOOL_BOX_TAG of <SPOOL_ROOT>/box.env
+# @param ISSUE_CLOSE_WORKSPACE (optional) - a tenant of the box map: workspace mode (above)
 # @param DRY_RUN (optional) - 1 (default) or 0
+# @example ISSUE_CLOSE_WORKSPACE=acme DRY_RUN=0 ./run -a do_spl_issue_close_landed
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=c-685 DESK_BOX=box-ci ISSUE_CLOSE_SINCE=all ./run -a do_spl_issue_close_landed
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=c-685 DESK_BOX=box-ci DRY_RUN=0 ./run -a do_spl_issue_close_landed
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=c-685 ISSUE_CLOSE_HOLDER=1 ./run -a do_spl_issue_close_landed
@@ -65,14 +77,23 @@ do_spl_issue_close_landed() {
   do_require_bin git python3 || return 1
   local dry=1 ref="${ISSUE_CLOSE_REF:-origin/master}" since="${ISSUE_CLOSE_SINCE:-}" dir head rng wui list plan
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
+  ICL_REPO="$APP_PATH" ICL_WS="" ICL_WS_ROW=""
+  if [[ -n "${ISSUE_CLOSE_WORKSPACE:-}" ]]; then
+    spl_icl_ws || return 1
+    ref="$ICL_WS_REF"
+  fi
   dir="$(spl_icl_state_dir)" || return 1
-  if [[ "${ISSUE_CLOSE_HOLDER:-0}" == 1 ]]; then
+  if [[ "${ISSUE_CLOSE_HOLDER:-0}" == 1 && -z "$ICL_WS" ]]; then
     spl_icl_holder_tick "$dir" "$dry"; return
   fi
   spl_icl_fetch "$ref" || return 1
-  head="$(git -C "$APP_PATH" rev-parse -q --verify "$ref^{commit}")" || { do_log "FATAL $ref is not a commit"; return 1; }
+  head="$(git -C "$ICL_REPO" rev-parse -q --verify "$ref^{commit}")" || { do_log "FATAL $ref is not a commit"; return 1; }
+  if [[ -n "$ICL_WS" && -z "$since" && ! -s "$dir/cursor" ]]; then
+    do_log "INFO workspace $ICL_WS: no cursor yet, it starts at ${head:0:12} (no commit before it cites this workspace's keys)"
+    since="$head"
+  fi
   rng="$(spl_icl_range "$dir" "$since" "$head")" || return 1
-  wui="$(spl_icl_wui_url)" || return 1
+  if [[ -n "$ICL_WS" ]]; then wui="$(wr_field "$ICL_WS_ROW" 5)"; else wui="$(spl_icl_wui_url)" || return 1; fi
   list="$(mktemp)"; plan="$(mktemp)"
   spl_issue_list_fetch --status eval,todo,wip,blocked,onhold,qas --limit 500 >"$list" ||
     { rm -f "$list" "$plan"; return 1; }
@@ -81,7 +102,7 @@ do_spl_issue_close_landed() {
     [[ -r "$ISSUE_CLOSE_EVIDENCE" ]] || { do_log "FATAL ISSUE_CLOSE_EVIDENCE is not a readable file: '$ISSUE_CLOSE_EVIDENCE'"; rm -f "$list" "$plan"; return 1; }
     ev=("$ISSUE_CLOSE_EVIDENCE")
   fi
-  python3 "$PROJ_PATH/src/bash/scripts/issue-close-landed.py" "$list" "$APP_PATH" "$rng" "$dir/closed.tsv" "${ev[@]}" >"$plan" ||
+  python3 "$PROJ_PATH/src/bash/scripts/issue-close-landed.py" "$list" "$ICL_REPO" "$rng" "$dir/closed.tsv" "${ev[@]}" >"$plan" ||
     { do_log "FATAL issue-close-landed.py failed"; rm -f "$list" "$plan"; return 1; }
   rm -f "$list"
   local rc=0
@@ -99,7 +120,29 @@ do_spl_issue_close_landed() {
 # spl_icl_fetch REF: fetch the ref's remote first (ISSUE_CLOSE_FETCH=1, default).
 spl_icl_fetch() {
   [[ "${ISSUE_CLOSE_FETCH:-1}" == 1 && "$1" == */* ]] || return 0
-  git -C "$APP_PATH" fetch -q "${1%%/*}" "${1#*/}" || { do_log "FATAL git fetch $1 failed"; return 1; }
+  git -C "${ICL_REPO:-$APP_PATH}" fetch -q "${1%%/*}" "${1#*/}" || { do_log "FATAL git fetch $1 failed"; return 1; }
+}
+
+# spl_icl_ws: workspace mode. The box map's row of ISSUE_CLOSE_WORKSPACE sets
+# ICL_WS, ICL_WS_ROW, ICL_REPO (its clone), ICL_WS_REF (origin/<trunk>), and
+# ENV, TENANT_ID, DESK_AGENT, DESK_BOX where the caller left them unset.
+spl_icl_ws() {
+  local t="$ISSUE_CLOSE_WORKSPACE" row b rc=0
+  # shellcheck source=../features/spawn-agents/lib/workspace-repo.inc.sh
+  declare -F wr_row >/dev/null || . "$PROJ_PATH/src/bash/features/spawn-agents/lib/workspace-repo.inc.sh" || return 1
+  row="$(wr_row "$t")" || rc=$?
+  (( rc == 0 )) || { (( rc == 1 )) && do_log "FATAL ISSUE_CLOSE_WORKSPACE=$t has no row in the box map $(wr_map)"; return 1; }
+  ICL_WS="$t" ICL_WS_ROW="$row" ICL_REPO="$(wr_field "$row" 3)"
+  [[ -d "$ICL_REPO/.git" ]] || { do_log "FATAL the clone of workspace $t, $ICL_REPO, is not a git repo on this box"; return 1; }
+  b="$(wr_field "$row" 4)"
+  if [[ "$b" == - ]]; then
+    b="$(git -C "$ICL_REPO" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)"; b="${b#origin/}"
+    [[ -n "$b" ]] || { git -C "$ICL_REPO" rev-parse -q --verify refs/remotes/origin/main >/dev/null && b=main; }
+  fi
+  ICL_WS_REF="origin/${b:-master}"
+  TENANT_ID="$t" ENV="${ENV:-$(wr_field "$row" 1)}"
+  DESK_AGENT="${DESK_AGENT:-$(wr_field "$row" 6)}" DESK_BOX="${DESK_BOX:-$(wr_field "$row" 7)}"
+  export TENANT_ID ENV DESK_AGENT DESK_BOX
 }
 
 # spl_icl_holder_tick DIR DRY: holder mode (SPL-2631). The box of the dispatch
@@ -246,8 +289,8 @@ spl_icl_range() {
     [[ -s "$dir/cursor" ]] || { do_log "FATAL no cursor in $dir: run the back-fill once (ISSUE_CLOSE_SINCE=all, DRY_RUN=1 then 0)" >&2; return 1; }
     since="$(head -n 1 "$dir/cursor")"
   fi
-  c="$(git -C "$APP_PATH" rev-parse -q --verify "$since^{commit}")" || { do_log "FATAL '$since' is not a commit in $APP_PATH" >&2; return 1; }
-  git -C "$APP_PATH" merge-base --is-ancestor "$c" "$head" ||
+  c="$(git -C "${ICL_REPO:-$APP_PATH}" rev-parse -q --verify "$since^{commit}")" || { do_log "FATAL '$since' is not a commit in ${ICL_REPO:-$APP_PATH}" >&2; return 1; }
+  git -C "${ICL_REPO:-$APP_PATH}" merge-base --is-ancestor "$c" "$head" ||
     { do_log "FATAL ${c:0:12} is not an ancestor of ${head:0:12}: master was rewritten? set ISSUE_CLOSE_SINCE" >&2; return 1; }
   printf '%s..%s\n' "$c" "$head"
 }
@@ -290,6 +333,20 @@ spl_icl_apply() {
 # spl_icl_move KEY SHAS SUBJECT WUI: the audit comment, then status done.
 spl_icl_move() {
   local key="$1" shas="$2" subject="$3" wui="$4" body s lines="" ans
+  if [[ -n "${ICL_WS:-}" ]]; then
+    for s in ${shas//,/ }; do lines+="- $(wr_field "$ICL_WS_ROW" 2) ${s:0:12}"$'\n'; done
+    body="Landed on $(wr_field "$ICL_WS_ROW" 2) ${ICL_WS_REF#origin/}, so done, by do_spl_issue_close_landed.
+
+${lines}
+Live: $wui
+
+The newest: $subject
+
+Reopen it if it is not done: the same commit never closes it again."
+    spl_desk_issue_run comment --ref "$key" --body "$body" >/dev/null || return 1
+    spl_desk_issue_run update --ref "$key" --status "done" >/dev/null
+    return
+  fi
   for s in ${shas//,/ }; do lines+="- ${s:0:12}: $wui/releases/$s"$'\n'; done
   body="Landed on master, so done (owner rule, t1 dee4081d msg ea519baa), by do_spl_issue_close_landed.
 

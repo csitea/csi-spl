@@ -231,3 +231,39 @@ trunk and appends the week's row to
 
 Baseline, 2026-10-12, the day the rule landed: 1978 commits in 7 days, 17
 cite a key (0.9%), 13 close one (0.7%).
+
+<a id="ws-doc-f5916b06-5576-417d-b431-ad5b8b4244cb"></a>
+## 5. A lane in a workspace's own repo
+
+Owner HUM-10, msgs ca8a036d and dbead7a1: a workspace's issues are used in the
+software development lifecycle of its own site, and they are visible to all of
+the agents and humans in that workspace. So a lane whose work lands in a
+workspace's own repo files, moves and closes its issue in THAT workspace, under
+that workspace's key prefix (Settings, General, "Issue key prefix"), not in the
+lease's tenant, where the workspace's members cannot see it.
+
+The brief names the workspace with a header line:
+
+```text
+Workspace: <tenant>
+```
+
+The box map `$SPOOL_ROOT/workspace-repos.tsv` (`SPOOL_WORKSPACE_REPOS_MAP`)
+gives the workspace its repo. It is box-side and never in git: a customer's
+tenant, repo and host do not ship in this public repo. One TAB-separated row
+per workspace: tenant, env (`dev`, `prd` or `self`), repo name, the absolute
+path of its clone on this box, trunk (`-` = `origin/HEAD`, `master`, `main`),
+the live url (`https://...`), the workspace's seated desk agent, and that
+desk's box. The format's one home: the header of
+`csi-spl-orc/src/bash/features/spawn-agents/lib/workspace-repo.inc.sh`.
+
+| step | what changes for a workspace lane | code |
+|---|---|---|
+| 5.1 the brief check | A `Workspace:` line passes the enqueue's check (0.3) as `workspace:<tenant>`, with no csi-spl spec and no csi-spl epic: its spec lives in the workspace's repo. `Workspace: t1` is the fleet's own and changes nothing. | `li_brief_epic_spec`, `wr_tenant_of_brief` |
+| 5.2 placement (1.1) | The issue is filed (or the brief's `Issue:` key linked) in the workspace, as the map's desk agent, under the brief's own `Epic:` line if it has one (an epic the workspace does not know: one WARN, filed without it), and it links the workspace topic the brief names. The key is NOT posted back in that topic: a workspace topic is the customer's own talk. `lifetime/issue-tenant` records `<tenant>\t<env>`. A `Workspace:` line with no map row on the placing box: refused, nothing filed. | `spl_lane_issue_ws`, `spl_lane_issue_place`, `spl_lane_issue_file` |
+| 5.3 ending (1.5, 1.5b) | The end acts in the workspace from `lifetime/issue-tenant`. `LANE_LANDED_REPO=<the map's repo name>` checks the sha on the map's clone. | `spl_lane_issue_ws`, `spl_lane_issue_landed` |
+| 5.4 landing and done | The closer's workspace mode, `ISSUE_CLOSE_WORKSPACE=<tenant> DRY_RUN=0 ./run -a do_spl_issue_close_landed`, reads the commits on the workspace repo's trunk (the clone, fetched) by the same rule (1.4) and moves each open issue they name to `done`, with a comment that names the repo, each sha and the live url. The box cron `issue-close-landed` runs it after the fleet's own run, for each map workspace whose clone is on this box. Its first run starts at the trunk head (older commits never cited that workspace's keys). | `do_spl_issue_close_landed` (`spl_icl_ws`), `issue-close-landed-cron.sh` |
+| 5.5 exit (1.6) | The gate reads the landing on the map's clone (as of the closer's last fetch) and asks the workspace's hub for its status; a `done` set by the closer passes. A workspace with no map row on the exit box: refused. | `li_gate`, `li_gate_ws`, `li_hub_read` |
+
+Tests: `test-lane-issue.sh` section W, `spl-lane-issue.tst.sh` (the workspace
+cases) and `spl-issue-close-landed.tst.sh` case 18, each with a control.

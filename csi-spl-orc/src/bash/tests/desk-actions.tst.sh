@@ -761,6 +761,16 @@ es_refused "do_spl_issue_create refuses a spec folder that is not on origin/mast
 dfile="$T/desc-spec.md"; printf 'card\n\n%s\n' "$SPEC_LINE" >"$dfile"
 es_create ISSUE_EPIC=SPL-1 ISSUE_DESCRIPTION_FILE="$dfile"
 [[ $rc -eq 0 ]] && grep -q -- '|--epic|SPL-1|' "$T/issue.log" && pass "control: the epic and a spec in ISSUE_DESCRIPTION_FILE file it" || fail "es control (rc=$rc): $(cat "$T/o")"
+# A workspace of the box map (its own repo, workspace-repo.inc.sh): the epic
+# is still needed, no csi-spl spec.
+printf 'acme\tdev\tacme-site\t/srv/acme\t-\thttps://site.example.com\tCLE-00\tbox-desk\n' >"$T/ws-map.tsv"
+mkdir -p "$T/state/dev/desk/acme/box-desk/spool/CLE-00"
+es_create TENANT_ID=acme SPOOL_WORKSPACE_REPOS_MAP="$T/ws-map.tsv" ISSUE_EPIC=ACME-1
+[[ $rc -eq 0 ]] && grep -q -- '|--epic|ACME-1|' "$T/issue.log" && pass "a workspace of the box map: its epic, no csi-spl spec, files it" || fail "ws create (rc=$rc): $(cat "$T/o")"
+es_create TENANT_ID=acme SPOOL_WORKSPACE_REPOS_MAP="$T/ws-map.tsv"
+es_refused "... with no epic: still refused" "set ISSUE_EPIC=SPL-<n>"
+es_create TENANT_ID=acme SPOOL_WORKSPACE_REPOS_MAP="$T/none.tsv" ISSUE_EPIC=ACME-1
+es_refused "control: the same workspace with no map row needs the csi-spl spec" "no spec folder named"
 es_create ISSUE_KIND=epic
 [[ $rc -eq 0 && -s "$T/issue.log" ]] && pass "an epic (level 1) needs neither" || fail "epic (rc=$rc): $(cat "$T/o")"
 es_create ISSUE_PARENT=SPL-1

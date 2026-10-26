@@ -11,6 +11,9 @@
 # No issue without an epic and a git spec (owner HUM-10, t1 7a98c2d1 msg
 # 5863d0d6): a filed issue names a spec folder on origin/master and its epic
 # (the brief's Epic: line, the spec's pin, or the hub's "Spec NNN" epic).
+# A workspace lane (a `Workspace: <tenant>` brief line, a row in the box map
+# workspace-repos.tsv; owner HUM-10 msgs ca8a036d, dbead7a1) files and ends
+# its issue in that workspace, as the map's desk, no csi-spl spec, no post.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -50,7 +53,7 @@ spl_desk_issue_run() {
   local a; for a in "$@"; do printf "%s|" "$a"; done >>"$STUB_LOG"; echo >>"$STUB_LOG"
   [[ "$1" == list ]] && { printf "%s\n" "${EPICS:-no epics}"; return 0; }
   [[ "$1" == get ]] && { [[ -n "${ISSUE_GET:-}" ]] && printf "%s\n" "$ISSUE_GET"; return 0; }
-  echo "$DESK_AGENT" >>"$STUB_LOG.as"
+  echo "$DESK_AGENT" >>"$STUB_LOG.as"; echo "$TENANT_ID $ENV" >>"$STUB_LOG.tenant"
   if [[ "$1" =~ ^(comment|update)$ && "$DESK_AGENT" == "${NOT_ANNOUNCED:-none}" ]]; then
     echo "FATAL spool issue $1 as $DESK_AGENT: spool: hub refused: from_not_announced ($DESK_AGENT is not an agent announced by box-a)" >&2; return 1
   fi
@@ -73,7 +76,7 @@ spl_desk_issue_run() {
 do_spl_desk_reply() { printf "post|%s|%s|%s|\n" "$DESK_TASK" "$DRY_RUN" "$DESK_BODY" >>"$STUB_LOG"; }
 '
 run() {  # VAR=value... -> output in $T/o, rc in $rc
-  : >"$T/calls.log"; : >"$T/calls.log.as"; rm -f "$T/calls.log.archived"
+  : >"$T/calls.log"; : >"$T/calls.log.as"; : >"$T/calls.log.tenant"; rm -f "$T/calls.log.archived"
   SNIPPET="${STUBS}do_spl_lane_issue" in_orc SPOOL_ROOT="$S" SPOOL_DESK_BOX=box-a TENANT_ID= "$@" >"$T/o" 2>&1; rc=$?
 }
 
@@ -518,6 +521,44 @@ rm -rf "$S/c-123/archive" "$S/c-002/outbox"
 ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$LOC" DRY_RUN=0
 refused "applied: an ACCEPTED neither on the hub nor in the spool is refused" "is neither on the hub of dev/t1 nor in"
 ACC="$ACC_SAVE"; rm -f "$S/c-123/lifetime/issue-end"
+
+# A workspace lane: the brief's Workspace: line + the box map's row.
+printf '# box map\nacme\tdev\tacme-site\t%s/wsrepo\t-\thttps://site.example.com\tc-900\tbox-a\n' "$T" >"$S/workspace-repos.tsv"
+mkdir -p "$S/c-321/lifetime"
+cat >"$T/ws-brief.md" <<'EOF_WS'
+# Lane brief: acme - the price table
+
+Workspace: acme
+Owner HUM-10, acme topic 8fb04ca9-e5d5-4000-af23-c92177d8e4a6: "new prices".
+
+## Do
+Edit the page.
+EOF_WS
+run AGENT_ID=c-321 BRIEF="$T/ws-brief.md" DESC_COPY="$T/wsd.md" DRY_RUN=0
+line="$(head -1 "$T/calls.log")"
+[[ $rc -eq 0 && "$(cat "$S/c-321/lifetime/issue" 2>/dev/null)" == SPL-42 && "$(cat "$S/c-321/lifetime/issue-tenant" 2>/dev/null)" == $'acme\tdev' ]] &&
+  pass "workspace: no csi-spl spec, filed and recorded with its workspace (issue-tenant)" || fail "ws file (rc=$rc): $(cat "$T/o")"
+[[ "$(sort -u "$T/calls.log.tenant")" == "acme dev" && "$(sort -u "$T/calls.log.as")" == c-900 ]] &&
+  pass "... in workspace acme, as the map's desk c-900" || fail "ws tenant: $(cat "$T/calls.log.tenant") / $(cat "$T/calls.log.as")"
+[[ "$line" == "create|--title|Lane brief: acme - the price table|--description-file|"*"|--status|wip|--assignee|c-321|" ]] &&
+  pass "... no --epic (a workspace issue may stand alone)" || fail "ws create args: $line"
+grep -qx '/t/8fb04ca9-e5d5-4000-af23-c92177d8e4a6' "$T/wsd.md.create" && ! grep -q '^post|' "$T/calls.log" &&
+  pass "... it links the workspace topic and posts nothing there" || fail "ws link/post: $(cat "$T/calls.log")"
+sed '/^Workspace:/d' "$T/ws-brief.md" >"$T/ws-nows.md"
+run AGENT_ID=c-321 BRIEF="$T/ws-nows.md" DRY_RUN=0
+[[ $rc -ne 0 ]] && ! grep -q '^create|' "$T/calls.log" && grep -q 'no spec folder named' "$T/o" &&
+  pass "control: the same brief without its Workspace: line is refused (no spec)" || fail "ws control (rc=$rc): $(cat "$T/o")"
+printf 'Epic: ACME-1\n' >>"$T/ws-brief.md"
+run AGENT_ID=c-321 BRIEF="$T/ws-brief.md" DRY_RUN=0
+grep -q '^create|.*|--epic|ACME-1|' "$T/calls.log" && pass "workspace: the brief's Epic: line is its epic there" || fail "ws epic: $(cat "$T/calls.log")"
+sed 's/^Workspace: acme/Workspace: zed/' "$T/ws-brief.md" >"$T/ws-zed.md"
+run AGENT_ID=c-321 BRIEF="$T/ws-zed.md" DRY_RUN=0
+[[ $rc -ne 0 && ! -s "$T/calls.log" ]] && grep -q 'FATAL refused, nothing filed: lane c-321 works in workspace zed, which has no row in the box map' "$T/o" &&
+  pass "workspace without a map row: refused, nothing filed" || fail "ws no row (rc=$rc): $(cat "$T/o")"
+run AGENT_ID=c-321 LANE_ISSUE_OP=end LANE_ISSUE_REASON='superseded' DRY_RUN=0
+[[ $rc -eq 0 && "$(sort -u "$T/calls.log.tenant")" == "acme dev" ]] && grep -q '^update|--ref|SPL-42|--status|diss|' "$T/calls.log" &&
+  pass "workspace end: the issue is ended in its workspace" || fail "ws end (rc=$rc): $(cat "$T/o") / $(cat "$T/calls.log.tenant")"
+rm -f "$S/workspace-repos.tsv"
 
 echo "spl-lane-issue: $fails failure(s)"
 exit "$fails"

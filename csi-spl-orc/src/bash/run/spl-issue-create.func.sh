@@ -10,6 +10,9 @@
 # @description epic or feature) needs ISSUE_EPIC and a spec folder
 # @description csi-spl-doc/specs/NNN-<slug> on origin/master named in its
 # @description description (a `Spec:` line); else one FATAL line, nothing filed.
+# @description In a workspace of the box map $SPOOL_ROOT/workspace-repos.tsv
+# @description (its own repo, workspace-repo.inc.sh) the epic is still needed,
+# @description but the spec lives in that repo: no csi-spl spec is asked for.
 # @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_AGENT - required: the agent filing it (the pane's id)
@@ -52,6 +55,7 @@ spl_issue_create_epic_spec() {
   . "$PROJ_PATH/src/bash/features/spawn-agents/lib/lane-issue.inc.sh" || return 1
   [[ -n "${ISSUE_EPIC:-}" ]] ||
     { do_log "FATAL refused, nothing filed: $LI_EPIC_SPEC_RULE: set ISSUE_EPIC=SPL-<n>, the level-1 epic above it"; return 1; }
+  wr_row "${TENANT_ID:-}" >/dev/null 2>&1 && return 0
   local d spec
   d="$(mktemp)" || return 1
   { printf '%s\n' "${ISSUE_DESCRIPTION:-}"; cat "${ISSUE_DESCRIPTION_FILE:-/dev/null}" 2>/dev/null; } >"$d"

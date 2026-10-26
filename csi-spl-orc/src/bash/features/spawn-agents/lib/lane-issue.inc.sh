@@ -18,11 +18,16 @@
 #
 # Files, per lane, in <spool root>/<id>/lifetime/:
 #   issue      the key, one line (written at placement)
+#   issue-tenant  <tenant>\t<env>: a workspace lane's issue lives in that
+#              workspace, not the lease's (workspace-repo.inc.sh)
 #   issue-end  <status>\t<reason>\t<utc>: the lane ended without landing;
 #              done\t<why>\t<utc>\t<repo>\t<sha>: its work landed in another
 #              repo, checked on that repo's origin trunk (SPL-2229);
 #              done\t<why>\t<utc>\tapplied\towner=<uuid> accepted=<uuid>: an
 #              apply-only lane, both msgs checked (SPL-3471)
+
+# shellcheck source=workspace-repo.inc.sh
+. "$(dirname "${BASH_SOURCE[0]}")/workspace-repo.inc.sh"
 
 # An issue key: the tenant prefix and a number, e.g. SPL-123.
 LI_KEY_RE='[A-Z][A-Z0-9]{0,9}-[1-9][0-9]*'
@@ -110,9 +115,14 @@ li_epic_spec() {
 # li_brief_epic_spec BRIEF -> "<spec>\t<epic>" for a brief that files an
 # issue; the epic must be on the brief or pinned in its spec (an enqueue does
 # not ask the hub). A brief with an `Issue:` key passes: that issue exists.
+# A brief with a `Workspace: <tenant>` line passes as "workspace:<tenant>\t"
+# (no csi-spl epic): its issue is filed in that workspace, under the brief's
+# own Epic: line if it has one, and its spec lives in the workspace's repo
+# (owner HUM-10 msg ca8a036d; workspace-repo.inc.sh).
 li_brief_epic_spec() {
   local out
   li_key_from_brief "$1" >/dev/null && return 0
+  out="$(wr_tenant_of_brief "$1")" && { printf 'workspace:%s\t\n' "$out"; return 0; }
   out="$(li_epic_spec "$(li_spec_from_file "$1")" "$(li_epic_from_brief "$1")")" || return 1
   if [ -z "${out#*$'\t'}" ]; then
     do_log "FATAL ${LI_REFUSED:-refused, nothing filed}: $LI_EPIC_SPEC_RULE: brief $1 names no epic. Add an 'Epic: SPL-<n>' line (the level-1 epic of ${out%%$'\t'*})" >&2
@@ -236,16 +246,20 @@ li_status_of() {
 # li_hub_read KEY -> do_spl_issue_status's whole answer, its refusal line
 # too (the hub's "not_found" for an archived or deleted issue); nothing when
 # there is no hub to ask. The one hub read of li_hub_status and li_epic_closed.
+# LI_WS_ROW (a wr_row answer, set by li_gate for a workspace lane) asks that
+# workspace's hub and desk instead of the lease's.
 li_hub_read() {
   local key="$1"
-  local -a cmd=()
+  local -a cmd=() ws=()
+  [ -n "${LI_WS_ROW:-}" ] && ws=(ENV="$(wr_field "$LI_WS_ROW" 1)" TENANT_ID="$LI_WS_TENANT"
+    DESK_AGENT="$(wr_field "$LI_WS_ROW" 6)" DESK_BOX="$(wr_field "$LI_WS_ROW" 7)")
   if [ -n "${LI_HUB_STATUS_CMD:-}" ]; then
-    timeout "${LI_HUB_TIMEOUT:-20}" "$LI_HUB_STATUS_CMD" "$key" 2>&1 </dev/null
+    env "${ws[@]}" timeout "${LI_HUB_TIMEOUT:-20}" "$LI_HUB_STATUS_CMD" "$key" 2>&1 </dev/null
     return 0
   fi
   [ "${SPOOL_TEST:-}" != 1 ] && [ -x "$LI_ORC/run" ] || return 0
   li_desk_hop cmd
-  (cd "$LI_ORC" && timeout "${LI_HUB_TIMEOUT:-20}" "${cmd[@]}" env ISSUE_REF="$key" \
+  (cd "$LI_ORC" && timeout "${LI_HUB_TIMEOUT:-20}" "${cmd[@]}" env "${ws[@]}" ISSUE_REF="$key" \
     SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" ./run -a do_spl_issue_status 2>&1 </dev/null)
   return 0
 }
@@ -321,6 +335,27 @@ li_applied_cmd() {
   printf "cd csi-spl-orc && sudo -u %s env AGENT_ID=%s LANE_ISSUE_OP=end LANE_ISSUE_STATUS=done LANE_APPLIED_EVIDENCE='owner=<owner msg uuid> accepted=<ACCEPTED msg uuid>' DRY_RUN=0 ./run -a do_spl_lane_issue" "$(u="$(li_desk_user)"; printf '%s' "${u:-<box user>}")" "$1"
 }
 
+# li_gate_ws ROOT ID: a workspace lane (lifetime/issue-tenant) is gated in
+# its workspace: LI_WS_TENANT, LI_WS_ROW (wr_row) and LI_WS_CLONE (the map's
+# clone, read as of the closer's last fetch) are set for li_gate and
+# li_hub_read. A lane of the lease's tenant clears them. A workspace with no
+# map row on this box: refused, one line, nothing to read its trunk from.
+li_gate_ws() {
+  local f="$1/$2/lifetime/issue-tenant" rc=0
+  LI_WS_TENANT="" LI_WS_ROW="" LI_WS_CLONE=""
+  [ -s "$f" ] || return 0
+  LI_WS_TENANT="$(cut -f1 "$f" | sed -n 1p)"
+  [[ "$LI_WS_TENANT" =~ ^${WR_TENANT_RE}$ ]] || { echo "exit-clean refused: $f names no tenant" >&2; return 1; }
+  LI_WS_ROW="$(wr_row "$LI_WS_TENANT")" || rc=$?
+  if (( rc != 0 )); then
+    LI_WS_ROW=""
+    echo "exit-clean refused: the issue of $2 lives in workspace $LI_WS_TENANT, which has no valid row in $(wr_map) on this box: run /exit-clean on the box that holds it" >&2
+    return 1
+  fi
+  [ -d "$(wr_field "$LI_WS_ROW" 3)/.git" ] && LI_WS_CLONE="$(wr_field "$LI_WS_ROW" 3)"
+  return 0
+}
+
 # li_end_record KEY END_FILE ID: the gate's verdict on an issue-end record. A
 # done record passes only with the repo + sha its check wrote (SPL-2229), or
 # the two msg ids of an apply-only end (SPL-3471).
@@ -359,6 +394,8 @@ li_gate() {
   # No key: a lane placed before the rule; not checked, and silent (the
   # ACCEPTED line stays the gate's one line).
   [ -n "$key" ] || return 0
+  li_gate_ws "$root" "$id" || return 3
+  [ -n "${LI_WS_CLONE:-}" ] && w="$LI_WS_CLONE"
   end="$root/$id/lifetime/issue-end"
   local -a cites=()
   mapfile -t shas < <(li_landed "$w" "$key")

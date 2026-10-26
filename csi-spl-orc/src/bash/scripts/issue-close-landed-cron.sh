@@ -23,6 +23,14 @@
 # tick resets the count. Sent from ISSUE_CLOSE_ALERT_FROM, else the dispatch
 # holder's id; ISSUE_CLOSE_SEND replaces spool-send.sh (tests).
 #
+# Workspaces (owner HUM-10 msgs ca8a036d, dbead7a1): after that run, each
+# workspace of the box map ($SPOOL_ROOT/workspace-repos.tsv,
+# workspace-repo.inc.sh) whose clone is on THIS box gets its own run in
+# workspace mode (ISSUE_CLOSE_WORKSPACE=<tenant>): its repo's trunk closes
+# that workspace's issues, as the map's desk. A red one is logged and counts
+# as a red tick; the others still run. ISSUE_CLOSE_WS_RUN replaces the
+# action for them (tests).
+#
 # Exit: 0 ran (or not this box, or another run held the lock), 1 the action
 # failed, 2 a refusal (worktree, no ./run).
 set -uo pipefail
@@ -79,5 +87,26 @@ say "START issue-close-landed $env_name $tenant"
     DESK_BOX="${ISSUE_CLOSE_BOX:-${rsp:-box-rsp}}" ISSUE_CLOSE_STATE_DIR="$state" ISSUE_CLOSE_HOLDER=1 DRY_RUN=0 \
     timeout 900 ./run -a do_spl_issue_close_landed ); rc=$?
 say "STOP issue-close-landed rc=$rc"
+
+wrl="$ORC/src/bash/features/spawn-agents/lib/workspace-repo.inc.sh"
+if [ -r "$wrl" ]; then
+  # shellcheck source=../features/spawn-agents/lib/workspace-repo.inc.sh disable=SC1091
+  . "$wrl"
+else
+  wr_tenants() { :; }
+fi
+while read -r ws; do
+  [ -n "$ws" ] || continue
+  row="$(SPOOL_ROOT="$root" wr_row "$ws")" || { say "WARN workspace $ws: its map row is malformed, skipped"; rc=1; continue; }
+  [ -d "$(wr_field "$row" 3)/.git" ] || continue
+  say "START issue-close-landed workspace $ws"
+  if [ -n "${ISSUE_CLOSE_WS_RUN:-}" ]; then
+    SPOOL_ROOT="$root" ISSUE_CLOSE_WORKSPACE="$ws" $ISSUE_CLOSE_WS_RUN; wrc=$?
+  else
+    ( cd "$ORC" && env SPOOL_ROOT="$root" ISSUE_CLOSE_WORKSPACE="$ws" DRY_RUN=0 timeout 900 ./run -a do_spl_issue_close_landed ); wrc=$?
+  fi
+  say "STOP issue-close-landed workspace $ws rc=$wrc"
+  [ "$wrc" = 0 ] || rc=1
+done < <(SPOOL_ROOT="$root" wr_tenants)
 red_tick "$rc"
 [ "$rc" = 0 ] || exit 1

@@ -70,6 +70,17 @@
 # @description     which also says how a same-box ACCEPTED is checked). Then:
 # @description     status done, one comment naming both ids, lifetime/issue-end
 # @description     that li_gate passes. Anything else: one line, nothing changed.
+# @description   A workspace lane (a `Workspace: <tenant>` brief line with a row
+# @description     in the box map $SPOOL_ROOT/workspace-repos.tsv,
+# @description     workspace-repo.inc.sh): its issue is filed, linked and ended
+# @description     IN THAT WORKSPACE, as the map's desk agent (owner HUM-10 msgs
+# @description     ca8a036d, dbead7a1: visible to all its members and agents),
+# @description     under the brief's own Epic: line if any, with no csi-spl spec
+# @description     check, and the key is not posted back in its topic (the
+# @description     issue links it). lifetime/issue-tenant records the workspace
+# @description     for the end and the exit gate; the closer closes it on
+# @description     landing in the workspace's repo (ISSUE_CLOSE_WORKSPACE).
+# @description     A Workspace: line with no map row: refused, nothing filed.
 # @description Landing moves the issue on (the landed-fix rule: a commit on
 # @description master that cites the key). Dry run unless DRY_RUN=0.
 # @param AGENT_ID - required: the lane's spool id, e.g. c-123
@@ -106,8 +117,32 @@ do_spl_lane_issue() {
   [[ "$id" =~ ^[A-Za-z]{1,3}-[0-9]{2,5}$ ]] || { do_log "FATAL AGENT_ID must be a lane's spool id like c-123, got: '$id'"; return 1; }
   [[ "$op" =~ ^(place|discussion|end)$ ]] || { do_log "FATAL LANE_ISSUE_OP must be place, discussion or end, got: '$op'"; return 1; }
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
+  spl_lane_issue_ws "$root" "$id" "$op" || return 1
   spl_lane_issue_desk "$root" "$dry" || return 1
   "spl_lane_issue_$op" "$root" "$id" "$dry"
+}
+
+# spl_lane_issue_ws ROOT ID OP: a workspace lane (workspace-repo.inc.sh) acts
+# in its workspace. Place reads the brief's Workspace: line, end the lane's
+# lifetime/issue-tenant; the map row sets ENV, TENANT_ID, DESK_AGENT and
+# DESK_BOX (SLI_WS = the tenant, SLI_WS_ROW = the row). A lane of the lease's
+# tenant sets SLI_WS empty. A workspace without a valid map row: FATAL.
+spl_lane_issue_ws() {
+  local root="$1" id="$2" op="$3" t="" row rc=0
+  SLI_WS="" SLI_WS_ROW=""
+  case "$op" in
+    place) t="$(wr_tenant_of_brief "${BRIEF:-$root/$id/lifetime/brief.md}")" ;;
+    end) [[ -s "$root/$id/lifetime/issue-tenant" ]] && t="$(cut -f1 "$root/$id/lifetime/issue-tenant" | sed -n 1p)" ;;
+  esac
+  [[ -n "$t" ]] || return 0
+  row="$(wr_row "$t")" || rc=$?
+  if (( rc != 0 )); then
+    (( rc == 1 )) && do_log "FATAL refused, nothing filed: lane $id works in workspace $t, which has no row in the box map $(wr_map) (tenant, env, repo, clone, trunk, live url, desk agent, desk box; csi-spl-doc/doc/md/lane-issue-and-docs.md section 5)"
+    return 1
+  fi
+  SLI_WS="$t" SLI_WS_ROW="$row"
+  ENV="$(wr_field "$row" 1)" TENANT_ID="$t" DESK_AGENT="$(wr_field "$row" 6)" DESK_BOX="$(wr_field "$row" 7)"
+  export ENV TENANT_ID DESK_AGENT DESK_BOX
 }
 
 # spl_lane_issue_desk ROOT DRY: ENV, TENANT_ID and DESK_AGENT from the fleet
@@ -200,7 +235,11 @@ spl_lane_issue_place() {
     spl_lane_issue_hub comment --ref "$key" --body "Lane $id placed on $key, status wip.${topic:+ Topic: $(spl_lane_issue_link "$topic")}" >/dev/null || return 1
   else
     [[ -r "$brief" ]] || { do_log "FATAL no issue key and no readable brief to file one from ($brief): pass LANE_ISSUE_KEY=<KEY> or BRIEF=<file>"; return 1; }
-    spl_lane_issue_guard "${LANE_ISSUE_SPEC:-$(li_spec_from_file "$brief")}" "${LANE_ISSUE_EPIC:-$(li_epic_from_brief "$brief")}" || return 1
+    if [[ -n "${SLI_WS:-}" ]]; then
+      SLI_SPEC="${LANE_ISSUE_SPEC:-}" SLI_EPIC="${LANE_ISSUE_EPIC:-$(li_epic_from_brief "$brief")}"
+    else
+      spl_lane_issue_guard "${LANE_ISSUE_SPEC:-$(li_spec_from_file "$brief")}" "${LANE_ISSUE_EPIC:-$(li_epic_from_brief "$brief")}" || return 1
+    fi
     title="$(grep -m1 -E '^#+ ' "$brief" | sed -E 's/^#+ +//; s/^Brief: *//' | cut -c1-200)"
     [[ -n "$title" ]] || { do_log "FATAL the brief $brief has no heading to title the issue with"; return 1; }
     [[ -n "$topic" ]] || {
@@ -223,8 +262,12 @@ spl_lane_issue_place() {
   if (( SLI_DRY )); then do_log "OK DRY_RUN $id -> issue $key (wip); nothing written. Re-run with DRY_RUN=0."; return 0; fi
   mkdir -p "$life" && printf '%s\n' "$key" >"$life/issue" || { do_log "FATAL cannot write $life/issue"; return 1; }
   chmod 0664 "$life/issue" 2>/dev/null
+  if [[ -n "${SLI_WS:-}" ]]; then
+    printf '%s\t%s\n' "$SLI_WS" "$ENV" >"$life/issue-tenant" || { do_log "FATAL cannot write $life/issue-tenant"; return 1; }
+    chmod 0664 "$life/issue-tenant" 2>/dev/null
+  fi
   if [[ -w "$life/brief.md" ]] && ! li_key_from_brief "$life/brief.md" >/dev/null; then printf '\nIssue: %s\n' "$key" >>"$life/brief.md"; fi
-  do_log "OK $id carries issue $key (wip)"
+  do_log "OK $id carries issue $key (wip)${SLI_WS:+ in workspace $SLI_WS}"
 }
 
 # spl_lane_issue_file STATUS TITLE DESC_FILE [BRIEF] -> "<key>\t<topic>" ("<new>"
@@ -236,19 +279,25 @@ spl_lane_issue_place() {
 # placement never fails on the link (c-002, dispatch-fcf09921 msg c5c7d032).
 spl_lane_issue_file() {
   local out key rc=0 def err
-  local -a lab=()
+  local -a lab=() ep=()
   if [[ "${LANE_ISSUE_ANSWER:-0}" == 1 ]]; then
     spl_lane_issue_label answer || return 1
-    lab=(--labels answer)
+    lab+=(--labels answer)
   fi
+  # A workspace issue may stand alone (no epic in that workspace yet).
+  [[ -n "${SLI_EPIC:-}" || -z "${SLI_WS:-}" ]] && ep=(--epic "${SLI_EPIC:-}")
   err="$(mktemp)"
-  out="$(spl_lane_issue_assign create --title "$2" --description-file "$3" --status "$1" "${lab[@]}" --epic "$SLI_EPIC" 2>"$err")" || rc=$?
+  out="$(spl_lane_issue_assign create --title "$2" --description-file "$3" --status "$1" "${lab[@]}" "${ep[@]}" 2>"$err")" || rc=$?
+  if (( rc != 0 )) && [[ -n "${SLI_WS:-}" && ${#ep[@]} -gt 0 ]] && grep -q unknown_parent "$err"; then
+    do_log "WARN brief ${4:-<none>}: epic $SLI_EPIC is no epic of workspace $SLI_WS (unknown_parent): the issue is filed without one" >&2
+    ep=(); rc=0; out="$(spl_lane_issue_assign create --title "$2" --description-file "$3" --status "$1" "${lab[@]}" 2>"$err")" || rc=$?
+  fi
   def="$(spl_lane_issue_default_topic)"
   if (( rc != 0 )) && [[ "$(cat "$err")" =~ (discussion_required|unknown_discussion|ambiguous_discussion) ]] &&
     ! grep -qx "/t/$def" "$3"; then
     do_log "WARN brief ${4:-<none>}: topic $(sed -n '2p' "$3") did not resolve in $TENANT_ID (${BASH_REMATCH[1]}): the issue links the default discussion $def (SPL-1593)" >&2
     sed -i "2s|.*|/t/$def|" "$3"
-    rc=0; out="$(spl_lane_issue_assign create --title "$2" --description-file "$3" --status "$1" "${lab[@]}" --epic "$SLI_EPIC" 2>"$err")" || rc=$?
+    rc=0; out="$(spl_lane_issue_assign create --title "$2" --description-file "$3" --status "$1" "${lab[@]}" "${ep[@]}" 2>"$err")" || rc=$?
   fi
   cat "$err" >&2; rm -f "$err"
   (( rc == 0 )) || return 1
@@ -449,7 +498,12 @@ spl_lane_issue_act() {
 spl_lane_issue_landed() {
   local root="$1" id="$2" repo="${LANE_LANDED_REPO:-}" sha="${LANE_LANDED_SHA:-}" key clone out full trunk why
   key="$(li_key_of_agent "$root" "$id")" || { do_log "FATAL $id carries no issue key ($root/$id/lifetime/issue)"; return 1; }
-  clone="$(spl_landed_repo "$repo")" || return 1
+  if [[ -n "${SLI_WS:-}" && "$repo" == "$(wr_field "$SLI_WS_ROW" 2)" ]]; then
+    trunk="$(wr_field "$SLI_WS_ROW" 4)"; [[ "$trunk" == - ]] && trunk=""
+    clone="$(wr_field "$SLI_WS_ROW" 3)"$'\t'"$trunk"
+  else
+    clone="$(spl_landed_repo "$repo")" || return 1
+  fi
   [[ "$sha" =~ ^[0-9a-f]{7,40}$ ]] || { do_log "FATAL LANE_LANDED_SHA must be a commit sha (7-40 lower-case hex), got: '$sha'"; return 1; }
   out="$(spl_lane_issue_on_trunk "$repo" "${clone%%$'\t'*}" "$sha" "${clone#*$'\t'}")" || return 1
   full="${out%%$'\t'*}"; trunk="${out#*$'\t'}"
@@ -601,6 +655,9 @@ spl_lane_issue_keyed() {
 # A failed post warns: the issue stands and the key is printed.
 spl_lane_issue_post() {
   [[ "$2" =~ ^[0-9a-f]{8}-[0-9a-f-]{27}$ && "$2" != "$(spl_lane_issue_default_topic)" && "${LANE_ISSUE_POST:-1}" != 0 ]] || return 0
+  # A workspace topic is the customer's own talk: the issue links it, the
+  # fleet posts nothing there for it.
+  [[ -z "${SLI_WS:-}" ]] || { do_log "INFO $1 links topic $2 of workspace $SLI_WS; nothing posted there" >&2; return 0; }
   local body="**Planned, not built yet.** Tracked as **$1**: $3 (lane $id)."
   if (( SLI_DRY )); then do_log "INFO DRY_RUN would: post '$body' in topic $2 (as $DESK_AGENT)" >&2; return 0; fi
   DESK_TASK="$2" DESK_BODY="$body" DESK_BOX="$SLI_BOX" DRY_RUN=0 RUN_STDOUT_IS_DATA=1 do_spl_desk_reply >/dev/null 2>&1 ||

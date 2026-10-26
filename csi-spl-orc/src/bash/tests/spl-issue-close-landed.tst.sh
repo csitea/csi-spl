@@ -314,4 +314,46 @@ for _ in 1 2; do tick17 env FAKE_RC=1 ISSUE_CLOSE_ALERT_AFTER=2 ISSUE_CLOSE_ALER
 grep -q -- '--from c-009 --to orchestrator .*the last 2 ticks' "$T/send.log" &&
   pass "17. control: ISSUE_CLOSE_ALERT_AFTER and ISSUE_CLOSE_ALERT_FROM set the count and the sender" || fail "17. knobs: $(cat "$T/send.log")"
 
+# 18. A workspace (owner HUM-10 msgs ca8a036d, dbead7a1): its repo's trunk
+# closes its own issues, the comment names the repo, sha and live url.
+WR="$T/ws"; WO="$T/ws-origin.git"
+wg() { git -C "$WR" -c user.name=t -c user.email=t@example.com "$@"; }
+git init -q --bare "$WO" && git init -q -b master "$WR" && wg commit -q --allow-empty -m base && wg remote add origin "$WO" && wg push -q origin master 2>/dev/null
+printf 'acme\tdev\tacme-site\t%s\t-\thttps://site.example.com\tc-900\tbox-a\n' "$WR" >"$T/ws-map.tsv"
+{ printf '{"env":"dev","result":{"next_cursor":"","issues":['; issue ACME-2 wip issue; printf ']}}\n'; } >"$T/ws-list.json"
+WS_STUBS='spl_issue_list_fetch() { echo "list $TENANT_ID $*" >>"$STUB_LOG"; cat "$LIST"; }'
+wsrun() {
+  : >"$T/calls.log"
+  SNIPPET="${STUBS}${WS_STUBS}
+do_spl_issue_close_landed" in_orc APP_PATH="$R" LIST="$T/ws-list.json" TENANT_ID= DESK_AGENT= DESK_BOX= ENV= \
+    SPOOL_WORKSPACE_REPOS_MAP="$T/ws-map.tsv" ISSUE_CLOSE_STATE_DIR="$T/ws-state" "$@" >"$T/o" 2>&1
+}
+wsrun ISSUE_CLOSE_WORKSPACE=acme DRY_RUN=0; rc=$?
+[ "$rc" = 0 ] && [ "$(cat "$T/ws-state/cursor")" = "$(wg rev-parse HEAD)" ] && grep -q 'no cursor yet, it starts at' "$T/o" &&
+  pass "18. workspace, first run: no back-fill asked, the cursor starts at its trunk head" || fail "18. ws first run (rc $rc): $(cat "$T/o")"
+echo x >"$WR/page.html"; wg add page.html && wg commit -q -m "feat(wui, ACME-2): the page" && WS2=$(wg rev-parse HEAD) && wg push -q origin master 2>/dev/null
+wsrun ISSUE_CLOSE_WORKSPACE=acme DRY_RUN=0; rc=$?
+[ "$rc" = 0 ] && [ "$(row ACME-2)" = moved ] && grep -q '^list acme ' "$T/calls.log" &&
+  grep -q "^hub comment ACME-2 Landed on acme-site master" "$T/calls.log" && grep -q "acme-site ${WS2:0:12}" "$T/calls.log" &&
+  grep -q 'Live: https://site.example.com' "$T/calls.log" && ! grep -q '/releases/' "$T/calls.log" && grep -q '^hub update ACME-2 done' "$T/calls.log" &&
+  pass "18. a landing on the workspace trunk (fetched) moves its issue in that workspace, the comment names repo, sha and live url" ||
+  fail "18. ws move (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+wsrun TENANT_ID=acme DESK_AGENT=c-900 ENV=dev ISSUE_CLOSE_REF=master ISSUE_CLOSE_FETCH=0 ISSUE_CLOSE_SINCE=all ISSUE_CLOSE_WUI_URL=https://wui.example.com ISSUE_CLOSE_STATE_DIR="$T/ws-ctl"; rc=$?
+[ "$rc" = 0 ] && [ -z "$(row ACME-2)" ] &&
+  pass "18. control: without ISSUE_CLOSE_WORKSPACE the closer reads csi-spl's trunk and ACME-2 is never named" || fail "18. ws control (rc $rc): $(cat "$T/o")"
+wsrun ISSUE_CLOSE_WORKSPACE=zed DRY_RUN=0; rc=$?
+[ "$rc" -ne 0 ] && grep -q 'ISSUE_CLOSE_WORKSPACE=zed has no row in the box map' "$T/o" && ! grep -q '^hub' "$T/calls.log" &&
+  pass "18. a workspace with no map row: refused, no hub call" || fail "18. ws no row (rc $rc): $(cat "$T/o")"
+mkdir -p "$F/src/bash/features/spawn-agents/lib" "$T/root18"
+cp "$PROJ_ROOT/src/bash/features/spawn-agents/lib/workspace-repo.inc.sh" "$F/src/bash/features/spawn-agents/lib/"
+cp "$T/ws-map.tsv" "$T/root18/workspace-repos.tsv"
+printf 'zed\tdev\tzed-site\t%s/absent\t-\thttps://z.example.com\tc-901\tbox-a\n' "$T" >>"$T/root18/workspace-repos.tsv"
+printf '#!/bin/sh\necho "ws $ISSUE_CLOSE_WORKSPACE" >>"$CRON_LOG"\n' >"$T/ws-run"; chmod +x "$T/ws-run"
+: >"$T/cron.log"
+CRON_LOG="$T/cron.log" SPOOL_ROOT="$T/root18" ISSUE_CLOSE_STATE_DIR="$T/s18" ISSUE_CLOSE_WS_RUN="$T/ws-run" \
+  bash "$F/src/bash/scripts/issue-close-landed-cron.sh" >"$T/o18" 2>&1; rc=$?
+[ "$rc" = 0 ] && [ "$(grep -c '^run ' "$T/cron.log")" = 1 ] && [ "$(grep '^ws ' "$T/cron.log")" = "ws acme" ] &&
+  pass "18. the cron then runs each map workspace whose clone is on this box (acme), not one whose clone is absent (zed)" ||
+  fail "18. ws cron (rc $rc): $(cat "$T/cron.log") // $(cat "$T/o18")"
+
 [ "$fails" = 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

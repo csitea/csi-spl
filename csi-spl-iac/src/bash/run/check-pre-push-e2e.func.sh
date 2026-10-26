@@ -9,15 +9,18 @@
 # @description   an edited e2e test           itself (score 100)
 # @description   an edited tests/e2e helper   the tests that name its file
 # @description   a WUI source file            the tests that name a testid it
-# @description                                declares (data-testid="x", a
-# @description                                testid prop, or the static prefix
-# @description                                of a bound one: 'pane-divider-'),
-# @description                                weight 3; then the same for the
-# @description                                files that use it (its exported
+# @description                                declares (data-testid="x",
+# @description                                data-test="x", a testid prop, or
+# @description                                the static prefix of a bound one:
+# @description                                'pane-divider-'), weight 9 (a page:
+# @description                                also its route); then the same for
+# @description                                the files that use it (its exported
 # @description                                names, its component name), weight
-# @description                                2, and their users, weight 1
-# @description Never a ci-skip.txt file or a *.proof.mjs. The highest score
-# @description first, the CI weight (e2e-shard-weights.txt) as the tie-break;
+# @description                                3, and their users, weight 1
+# @description Never a ci-skip.txt file or a *.proof.mjs. The direct tests first
+# @description (the score from weight-9 keys and the edited tests, SPL-3190),
+# @description then the score, the CI weight (e2e-shard-weights.txt) as the
+# @description tie-break;
 # @description taken while the summed CI seconds fit PRE_PUSH_E2E_BUDGET and
 # @description the count PRE_PUSH_E2E_MAX (the top file always runs). What is
 # @description cut is printed: CI still runs every file.
@@ -91,10 +94,11 @@ _ppe_candidates() {
   done
 }
 
-# _ppe_keys <wui> <rel> - the testids a source file declares: "x" exact, or
-# "x-" for the static prefix of a bound one. At least 4 characters.
+# _ppe_keys <wui> <rel> - the testids a source file declares (data-testid,
+# a testid prop, data-test): "x" exact, or "x-" for the static prefix of a
+# bound one. At least 4 characters.
 _ppe_keys() {
-  grep -oE "[Tt]est[Ii]d[\"']?[[:space:]]*[=:][[:space:]]*\"?['\`\"][a-z0-9][a-z0-9-]{3,}" "$1/$2" 2>/dev/null |
+  grep -oE "(data-test|[Tt]est[Ii]d)[\"']?[[:space:]]*[=:][[:space:]]*\"?['\`\"][a-z0-9][a-z0-9-]{3,}" "$1/$2" 2>/dev/null |
     sed -E "s/.*['\`\"]([a-z0-9-]+)$/\1/" | sort -u
 }
 
@@ -148,8 +152,10 @@ _ppe_closure() {
   done
 }
 
-# _ppe_score <wui> <tmp> - "<test>\t<score>": the direct hits, plus per test
-# the sum of the best weight of each distinct key it names.
+# _ppe_score <wui> <tmp> - "<test>\t<score>\t<direct>": the direct hits, plus
+# per test the sum of the best weight of each distinct key it names; <direct>
+# sums only the changed files' own keys and routes (weight 9) and the direct
+# hits, so _ppe_cap keeps a component's covering tests first (SPL-3190).
 _ppe_score() {
   local wui="$1" tmp="$2"
   if [[ -s "$tmp/keys" ]]; then
@@ -163,15 +169,17 @@ _ppe_score() {
         { i = index($0, ":"); t = substr($0, 1, i - 1); m = substr($0, i + 1)
           sub(/[^a-z0-9\/-]$/, "", m)
           if (!(m in w)) { for (k in w) if (k ~ /-$/ && index(m, k) == 1) { m = k; break } }
-          if ((m in w) && !seen[t SUBSEP m]++) sc[t] += w[m] }
-        END { for (t in sc) print t "\t" sc[t] }' >>"$tmp/direct"
+          if ((m in w) && !seen[t SUBSEP m]++) { sc[t] += w[m]; if (w[m] >= 9) dc[t] += w[m] } }
+        END { for (t in sc) print t "\t" sc[t] "\t" (dc[t] + 0) }' >>"$tmp/direct"
   fi
-  awk -F'\t' '{ if ($2 > s[$1]) s[$1] = $2 } END { for (t in s) print t "\t" s[t] }' "$tmp/direct"
+  awk -F'\t' '{ d = (NF > 2) ? $3 : $2; if ($2 > s[$1]) s[$1] = $2; if (d > dd[$1]) dd[$1] = d }
+    END { for (t in s) print t "\t" s[t] "\t" (dd[t] + 0) }' "$tmp/direct"
 }
 
-# _ppe_cap <wui> - stdin "<test>\t<score>" -> the files that fit, best first,
-# "<test> <score> <ci secs>", then "CUT <test> <score> <ci secs>" per file
-# left out. The CI weight of a file with no line is the median.
+# _ppe_cap <wui> - stdin "<test>\t<score>\t<direct>" -> the files that fit,
+# the highest direct score first, then the score, "<test> <score> <ci secs>",
+# then "CUT <test> <score> <ci secs>" per file left out. The CI weight of a
+# file with no line is the median.
 _ppe_cap() {
   local wts="$1/src/node/test/e2e-shard-weights.txt"
   awk -F'\t' -v wf="$wts" -v max="${PRE_PUSH_E2E_MAX:-6}" -v budget="${PRE_PUSH_E2E_BUDGET:-240}" '
@@ -179,11 +187,11 @@ _ppe_cap() {
       while ((getline l < wf) > 0) { sub(/#.*/, "", l); if (split(l, a, " ") == 2) { w[a[1]] = a[2]; v[++n] = a[2] } }
       for (i = 1; i <= n; i++) for (j = i + 1; j <= n; j++) if (v[j] < v[i]) { x = v[i]; v[i] = v[j]; v[j] = x }
       med = n ? v[int((n + 1) / 2)] : 30 }
-    { print $2 "\t" (($1 in w) ? w[$1] : med) "\t" $1 }' |
-    sort -t$'\t' -k1,1nr -k2,2n -k3,3 |
+    { print ($3 + 0) "\t" $2 "\t" (($1 in w) ? w[$1] : med) "\t" $1 }' |
+    sort -t$'\t' -k1,1nr -k2,2nr -k3,3n -k4,4 |
     awk -F'\t' -v max="${PRE_PUSH_E2E_MAX:-6}" -v budget="${PRE_PUSH_E2E_BUDGET:-240}" '
-      { if (k == 0 || (k < max && sum + $2 <= budget)) { print $3 " " $1 " " $2; k++; sum += $2 }
-        else print "CUT " $3 " " $1 " " $2 }'
+      { if (k == 0 || (k < max && sum + $3 <= budget)) { print $4 " " $2 " " $3; k++; sum += $3 }
+        else print "CUT " $4 " " $2 " " $3 }'
 }
 
 # The files this push selects, set by _ppe_plan for the part to run (the part

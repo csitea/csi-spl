@@ -20,11 +20,17 @@
 #   8. the cap in time: a runner past PRE_PUSH_E2E_TIMEOUT -> rc 124
 #   9. the real _ppe_generate stamps the bundle with the tree's HEAD (wf 10:
 #      GITHUB_SHA), so build-watch.test.mjs finds a 40-hex commit
+#  10. a component's direct test (it names a data-test="x" the component
+#      declares) is kept first under PRE_PUSH_E2E_MAX=1, ahead of a generic
+#      test that scores higher through the component's user (SPL-3190:
+#      phone-composer-target was CUT behind 6 generic tests)
 #   CONTROL a. with the users-of step off (_ppe_names prints nothing) check 2
 #              selects nothing: the closure is what finds it
 #   CONTROL b. a dirty WUI source -> no cache key -> 2 builds for 2 runs, so
 #              check 7's single build comes from the key
 #   CONTROL c. outside a git tree the stamp is empty: check 9 reads HEAD
+#   CONTROL d. in check 10 the generic test's score IS higher, so the order
+#              comes from the direct tier, not the score
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -59,6 +65,10 @@ echo "await page.click('[data-testid=\"shell-rail\"]')" >"$W/tests/e2e/shell.tes
 echo "await page.click('[data-testid=\"foo-panel\"]')" >"$W/tests/e2e/skipped.test.mjs"
 echo "import { h } from './lib/helper.mjs'" >"$W/tests/e2e/uses-helper.test.mjs"
 echo 'export const h = 1' >"$W/tests/e2e/lib/helper.mjs"
+echo '<template><span data-test="dock-chip" /></template>' >"$W/src/components/DockBox.vue"
+echo '<template><DockBox /><i data-testid="host-a" /><i data-testid="host-b" /><i data-testid="host-c" /><i data-testid="host-d" /></template>' >"$W/src/components/DockHost.vue"
+echo "await page.click('[data-test=dock-chip]')" >"$W/tests/e2e/dock-chip.test.mjs"
+echo 'for (const k of ["host-a", "host-b", "host-c", "host-d"]) await page.click(`[data-testid=${k}]`)' >"$W/tests/e2e/dock-host.test.mjs"
 printf '# reasons\nskipped.test.mjs   needs a live hub\n' >"$W/tests/e2e/ci-skip.txt"
 printf 'tests/e2e/foo.test.mjs 20\ntests/e2e/foo-rows.test.mjs 10\ntests/e2e/thing.test.mjs 30\n' >"$W/src/node/test/e2e-shard-weights.txt"
 echo lock >"$W/pnpm-lock.yaml"; mkdir -p "$W/node_modules/.pnpm"; cp "$W/pnpm-lock.yaml" "$W/node_modules/.pnpm/lock.yaml"
@@ -141,6 +151,18 @@ chmod +x "$T/pnpm"
 got="$( _pp_pnpm() { echo "$T/pnpm"; }; cd "$W" && _ppe_generate )"
 [[ "$got" =~ ^[0-9a-f]{40}$ && "$got" == "$(g rev-parse HEAD)" ]] && pass "9. _ppe_generate stamps the bundle with HEAD ($got)" \
   || fail "9. the bundle stamp is '$got', want HEAD $(g rev-parse HEAD)"
+
+# --- 10. the direct test first ------------------------------------------------------------
+got="$(PRE_PUSH_E2E_MAX=1 sel csi-spl-wui/src/components/DockBox.vue)"
+[[ "$(runs <<<"$got")" == "tests/e2e/dock-chip.test.mjs" ]] && grep -q '^CUT tests/e2e/dock-host.test.mjs ' <<<"$got" \
+  && pass "10. DockBox.vue under MAX=1 keeps its data-test test (dock-chip), cuts the generic one (dock-host)" \
+  || fail "10. DockBox.vue under MAX=1 gave '$got'"
+# --- CONTROL d. the generic test outscores it ---------------------------------------------
+sd="$(awk '$1 == "tests/e2e/dock-chip.test.mjs" { print $2 }' <<<"$got")"
+sh="$(awk '$2 == "tests/e2e/dock-host.test.mjs" { print $3 }' <<<"$got")"
+[[ -n "$sd" && -n "$sh" && "$sh" -gt "$sd" ]] \
+  && pass "CONTROL d. dock-host scores $sh > dock-chip $sd, so check 10's order is the direct tier, not the score" \
+  || fail "CONTROL d. want dock-host to outscore dock-chip, got '$sh' vs '$sd': check 10 proves nothing"
 
 # --- CONTROL a. no users-of step ----------------------------------------------------------
 got="$( _ppe_names() { :; }; sel csi-spl-wui/src/composables/useThing.ts | runs )"

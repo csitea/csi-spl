@@ -45,8 +45,9 @@
 # @description url; TENANT_ID is the workspace. The done comment names the
 # @description repo, each sha and the live url instead of the release note.
 # @description No holder mode (the map is this box's), and the first run with
-# @description no cursor starts at the trunk head: the commits before it never
-# @description cited this workspace's keys.
+# @description no cursor reads the last ISSUE_CLOSE_WS_FIRST_N trunk commits
+# @description (default 50; all of a shorter trunk): a lane may have cited a
+# @description workspace key before the map row existed (SPL-3528).
 # @description Prints one TSV row per named key (key, moved | would-move |
 # @description noop | skip | failed, sha(s), detail) and a summary line. Reads
 # @description the issue list and git even with DRY_RUN=1; writes the hub, the
@@ -67,6 +68,7 @@
 # @param SPOOL_ROOT (optional) - holder mode: the spool root of dispatch/lease, default /var/spool-hub
 # @param SPOOL_BOX_TAG (optional) - holder mode: this box, default SPOOL_BOX_TAG of <SPOOL_ROOT>/box.env
 # @param ISSUE_CLOSE_WORKSPACE (optional) - a tenant of the box map: workspace mode (above)
+# @param ISSUE_CLOSE_WS_FIRST_N (optional) - workspace mode, first run (no cursor): the trunk commits read, default 50
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ISSUE_CLOSE_WORKSPACE=acme DRY_RUN=0 ./run -a do_spl_issue_close_landed
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=c-685 DESK_BOX=box-ci ISSUE_CLOSE_SINCE=all ./run -a do_spl_issue_close_landed
@@ -89,8 +91,7 @@ do_spl_issue_close_landed() {
   spl_icl_fetch "$ref" || return 1
   head="$(git -C "$ICL_REPO" rev-parse -q --verify "$ref^{commit}")" || { do_log "FATAL $ref is not a commit"; return 1; }
   if [[ -n "$ICL_WS" && -z "$since" && ! -s "$dir/cursor" ]]; then
-    do_log "INFO workspace $ICL_WS: no cursor yet, it starts at ${head:0:12} (no commit before it cites this workspace's keys)"
-    since="$head"
+    since="$(spl_icl_ws_first "$head")" || return 1
   fi
   rng="$(spl_icl_range "$dir" "$since" "$head")" || return 1
   if [[ -n "$ICL_WS" ]]; then wui="$(wr_field "$ICL_WS_ROW" 5)"; else wui="$(spl_icl_wui_url)" || return 1; fi
@@ -121,6 +122,18 @@ do_spl_issue_close_landed() {
 spl_icl_fetch() {
   [[ "${ISSUE_CLOSE_FETCH:-1}" == 1 && "$1" == */* ]] || return 0
   git -C "${ICL_REPO:-$APP_PATH}" fetch -q "${1%%/*}" "${1#*/}" || { do_log "FATAL git fetch $1 failed"; return 1; }
+}
+
+# spl_icl_ws_first HEAD -> the since of a workspace's first run (no cursor):
+# the commit ISSUE_CLOSE_WS_FIRST_N first-parent steps below HEAD, or "all"
+# when the trunk is shorter. The head itself is read: a lane may have cited a
+# workspace key before its map row existed.
+spl_icl_ws_first() {
+  local head="$1" n="${ISSUE_CLOSE_WS_FIRST_N:-50}" c
+  [[ "$n" =~ ^[1-9][0-9]{0,4}$ ]] || { do_log "FATAL ISSUE_CLOSE_WS_FIRST_N must be a count 1..99999, got: '$n'" >&2; return 1; }
+  c="$(git -C "$ICL_REPO" rev-list --first-parent --skip="$n" --max-count=1 "$head")" || return 1
+  do_log "INFO workspace $ICL_WS: no cursor yet, it reads the last $n trunk commits up to ${head:0:12}${c:+ (from ${c:0:12})}" >&2
+  printf '%s\n' "${c:-all}"
 }
 
 # spl_icl_ws: workspace mode. The box map's row of ISSUE_CLOSE_WORKSPACE sets

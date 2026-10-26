@@ -318,9 +318,11 @@ grep -q -- '--from c-009 --to orchestrator .*the last 2 ticks' "$T/send.log" &&
 # closes its own issues, the comment names the repo, sha and live url.
 WR="$T/ws"; WO="$T/ws-origin.git"
 wg() { git -C "$WR" -c user.name=t -c user.email=t@example.com "$@"; }
-git init -q --bare "$WO" && git init -q -b master "$WR" && wg commit -q --allow-empty -m base && wg remote add origin "$WO" && wg push -q origin master 2>/dev/null
+git init -q --bare "$WO" && git init -q -b master "$WR" && wg commit -q --allow-empty -m base &&
+  wg commit -q --allow-empty -m "feat(wui, ACME-4): before the window" && wg commit -q --allow-empty -m "fix(wui, ACME-3): before the map row" &&
+  wg remote add origin "$WO" && wg push -q origin master 2>/dev/null
 printf 'acme\tdev\tacme-site\t%s\t-\thttps://site.example.com\tc-900\tbox-a\n' "$WR" >"$T/ws-map.tsv"
-{ printf '{"env":"dev","result":{"next_cursor":"","issues":['; issue ACME-2 wip issue; printf ']}}\n'; } >"$T/ws-list.json"
+{ printf '{"env":"dev","result":{"next_cursor":"","issues":['; issue ACME-2 wip issue; printf ,; issue ACME-3 wip issue; printf ,; issue ACME-4 wip issue; printf ']}}\n'; } >"$T/ws-list.json"
 WS_STUBS='spl_issue_list_fetch() { echo "list $TENANT_ID $*" >>"$STUB_LOG"; cat "$LIST"; }'
 wsrun() {
   : >"$T/calls.log"
@@ -328,12 +330,23 @@ wsrun() {
 do_spl_issue_close_landed" in_orc APP_PATH="$R" LIST="$T/ws-list.json" TENANT_ID= DESK_AGENT= DESK_BOX= ENV= \
     SPOOL_WORKSPACE_REPOS_MAP="$T/ws-map.tsv" ISSUE_CLOSE_STATE_DIR="$T/ws-state" "$@" >"$T/o" 2>&1
 }
-wsrun ISSUE_CLOSE_WORKSPACE=acme DRY_RUN=0; rc=$?
-[ "$rc" = 0 ] && [ "$(cat "$T/ws-state/cursor")" = "$(wg rev-parse HEAD)" ] && grep -q 'no cursor yet, it starts at' "$T/o" &&
-  pass "18. workspace, first run: no back-fill asked, the cursor starts at its trunk head" || fail "18. ws first run (rc $rc): $(cat "$T/o")"
+# Red case (SPL-3528): a key cited at the trunk head before the first
+# run is closed by that first run; a commit past the window is not read.
+wsrun ISSUE_CLOSE_WORKSPACE=acme ISSUE_CLOSE_WS_FIRST_N=1 DRY_RUN=0; rc=$?
+[ "$rc" = 0 ] && [ "$(cat "$T/ws-state/cursor")" = "$(wg rev-parse HEAD)" ] && grep -q 'no cursor yet, it reads the last 1 trunk commits' "$T/o" &&
+  [ "$(row ACME-3)" = moved ] && grep -q '^hub update ACME-3 done' "$T/calls.log" && [ -z "$(row ACME-4)" ] &&
+  pass "18. workspace, first run: it reads the last N trunk commits, the head's key ACME-3 is closed, ACME-4 past the window is not read" ||
+  fail "18. ws first run (rc $rc): $(cat "$T/o")"
+wsrun ISSUE_CLOSE_WORKSPACE=acme ISSUE_CLOSE_STATE_DIR="$T/ws-state-all"; rc=$?
+[ "$rc" = 0 ] && [ "$(row ACME-3)" = would-move ] && [ "$(row ACME-4)" = would-move ] && [ ! -e "$T/ws-state-all/cursor" ] &&
+  pass "18. workspace, first run, a trunk shorter than the default 50: every commit is read (dry run, no cursor)" ||
+  fail "18. ws first run all (rc $rc): $(cat "$T/o")"
+wsrun ISSUE_CLOSE_WORKSPACE=acme ISSUE_CLOSE_WS_FIRST_N=x ISSUE_CLOSE_STATE_DIR="$T/ws-state-bad"; rc=$?
+[ "$rc" -ne 0 ] && grep -q 'ISSUE_CLOSE_WS_FIRST_N must be a count' "$T/o" && ! grep -q '^hub' "$T/calls.log" &&
+  pass "18. a bad ISSUE_CLOSE_WS_FIRST_N: refused, no hub call" || fail "18. ws bad N (rc $rc): $(cat "$T/o")"
 echo x >"$WR/page.html"; wg add page.html && wg commit -q -m "feat(wui, ACME-2): the page" && WS2=$(wg rev-parse HEAD) && wg push -q origin master 2>/dev/null
 wsrun ISSUE_CLOSE_WORKSPACE=acme DRY_RUN=0; rc=$?
-[ "$rc" = 0 ] && [ "$(row ACME-2)" = moved ] && grep -q '^list acme ' "$T/calls.log" &&
+[ "$rc" = 0 ] && [ "$(row ACME-2)" = moved ] && [ -z "$(row ACME-4)" ] && grep -q '^list acme ' "$T/calls.log" &&
   grep -q "^hub comment ACME-2 Landed on acme-site master" "$T/calls.log" && grep -q "acme-site ${WS2:0:12}" "$T/calls.log" &&
   grep -q 'Live: https://site.example.com' "$T/calls.log" && ! grep -q '/releases/' "$T/calls.log" && grep -q '^hub update ACME-2 done' "$T/calls.log" &&
   pass "18. a landing on the workspace trunk (fetched) moves its issue in that workspace, the comment names repo, sha and live url" ||

@@ -1,0 +1,6 @@
+Lay-What: A test for the background helper's restarts works again after the private-key log hiding.
+Lay-How: The test now copies the new way the run log is written and finds left-over writers by the log file they hold open.
+Lay-Why: The log-hiding change made this test fail on every check of the main branch.
+Tech-What: wd-reload-leak.tst.sh models ./run's do_run_log_tee and counts leaked log writers by an open fd on their log.
+Tech-How: The guard greps the do_run_log_tee lines; kids counts the instance's direct children; log_writers scans /proc/*/fd for the code tree's log.
+Tech-Why: f09ecd0c6 changed the tee lines the test pins; wf 10 run 40394453363 orc hermetic 1/3 went red (SPL-3614).

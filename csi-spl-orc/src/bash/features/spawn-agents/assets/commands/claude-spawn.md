@@ -70,8 +70,7 @@ succeeds the first time:
   again after the rebase. It includes the lint parts: the CI scanners on the
   touched files.
 - missing scanners are installed with `./run -a do_install_lint_tools`.
-- never `SPL_PREPUSH_OVERRIDE=1`, except in an emergency reported to the
-  orchestrator.
+- never `SPL_PREPUSH_OVERRIDE=1` without the owner's go for that one push.
 - after the push, check the scanner workflows on that sha
   (`gh run list --commit <sha>`) and fix a red one in the same lane.
 

@@ -1188,6 +1188,13 @@ jobs:
       - name: Temp files on the runner's disk, not the shared /tmp tmpfs
         run: echo "TMPDIR=$RUNNER_TEMP" >>"$GITHUB_ENV"
 
+      # SPL-3568: every WUI entry point of the live dev and prd cnf (steps.052
+      # workspaces, the enabled demo) is in env.dns.mapped_tenants: the
+      # tenant-host reconcile's own spl_th_entry_check, plus its red control.
+      # run_cnf is true on every csi-spl-cnf/** path (ci-doc-only.sh part_of).
+      - name: cnf-tenant-host-entry.tst.sh (every WUI entry point is mapped)
+        run: bash csi-spl-iac/src/bash/tests/cnf-tenant-host-entry.tst.sh
+
       # actions/setup-python has no build for the runner's Debian 13 ("version
       # '3.12' ... was not found for Debian 13"), so the job uses the runner's
       # own python3 (pyproject asks ^3.10) and a throwaway venv for poetry.

@@ -206,7 +206,7 @@ _pp_paths() {  # <part>
     orc)        echo "csi-spl-orc" ;;
     orc-features) echo "csi-spl-orc csi-spl-api/src/bash/use-go-toolchain.sh" ;;
     iac-cross)  _ppx_paths ;;
-    cnf)        echo "csi-spl-cnf/csi-spl csi-spl-iac/src/tpl csi-spl-iac/cnf/tpl-gen.ref csi-spl-iac/src/bash/run/tpl-gen.func.sh csi-spl-iac/lib/bash/funcs/spl-merged-cnf.func.sh" ;;
+    cnf)        echo "csi-spl-cnf/csi-spl csi-spl-iac/src/tpl csi-spl-iac/cnf/tpl-gen.ref csi-spl-iac/src/bash/run/tpl-gen.func.sh csi-spl-iac/lib/bash/funcs/spl-merged-cnf.func.sh $_PP_TH_ENTRY_FN" ;;
     blog)       echo "csi-spl-doc/blog csi-spl-orc/src/bash/run/spl-blog-check.func.sh" ;;
     lint-*)     _ppl_paths "$1" ;;
     *)          echo "" ;;
@@ -224,7 +224,7 @@ _pp_label() {  # <part>
     api)        echo "csi-spl-api suite" ;;
     orc)        echo "csi-spl-orc suite (tests naming a touched file) + bash-cleancode" ;;
     orc-features) echo "csi-spl-orc feature tests of the touched features" ;;
-    cnf)        echo "csi-spl-cnf tpl-gen render check (dev, prd)" ;;
+    cnf)        echo "csi-spl-cnf tpl-gen render + tenant-host entry check (dev, prd)" ;;
     blog)       echo "blog post check (spec 111 4.4)" ;;
     lint-*)     echo "$1 (touched files, CI's version + baseline)" ;;
   esac
@@ -669,9 +669,29 @@ _pp_tpl_gen_dir() {  # <tree>
 _pp_cnf_render_id() {  # <tree> <env>
   ( cd "$1/csi-spl-cnf/csi-spl" 2>/dev/null && find "$2/tf" "$2.env.json" -type f 2>/dev/null | sort | xargs -r sha1sum | sha1sum | cut -c1-40 )
 }
+# The tenant-host reconcile's own entry check (SPL-3568): every WUI entry
+# point of the env cnf (steps.052 workspaces, the enabled demo) is in
+# env.dns.mapped_tenants. Sourced from the orc file, never copied: the
+# reconcile (40_tenant-host-reconcile.yml) and this part run one function.
+_PP_TH_ENTRY_FN=csi-spl-orc/src/bash/run/spl-tenant-host-reconcile.func.sh
+# Run it on the tree's live dev and prd cnf. A tree with no all.env.yaml is no
+# spool cnf (a test fixture): nothing to check. A spool cnf tree whose orc file
+# lacks the function FAILS, so a rename cannot turn the check off quietly.
+_pp_cnf_entry_check() {  # <tree>
+  local tree="$1" d="$1/csi-spl-cnf/csi-spl" env rc=0
+  [[ -f "$d/all.env.yaml" ]] || return 0
+  for env in dev prd; do
+    [[ -f "$d/$env.env.yaml" ]] || continue
+    # shellcheck source=/dev/null
+    ( . "$tree/$_PP_TH_ENTRY_FN" && declare -F spl_th_entry_check >/dev/null &&
+        ENV="$env" spl_th_entry_check "$d/$env.env.yaml" ) ||
+      { echo "FAIL: tenant-host entry check $env -- every WUI entry point must be in env.dns.mapped_tenants (spl_th_entry_check, $_PP_TH_ENTRY_FN)"; rc=1; }
+  done
+  return "$rc"
+}
 # Re-render both envs in place (ENV=<env> do_tpl_gen): the render must not
 # change, i.e. the committed tfvars/json are what the yaml renders to. A stale
-# render is left re-rendered in the tree, ready to commit.
+# render is left re-rendered in the tree, ready to commit. Then the entry check.
 _pp_part_cnf() {  # <tree>
   local tree="$1" tg env before rc=0
   tg="$(_pp_tpl_gen_dir "$tree")" || { echo "FAIL: tpl-gen render -- no tpl-gen venv"; return 1; }
@@ -686,6 +706,7 @@ _pp_part_cnf() {  # <tree>
       rc=1
     fi
   done
+  _pp_cnf_entry_check "$tree" || rc=1
   return "$rc"
 }
 # stale-tree has no _pp_paths: it reads the outgoing commits, not paths, so it

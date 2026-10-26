@@ -46,7 +46,9 @@
 #  13. SPL-2263: a mistral placement whose brief names csi-spl-wui/ launches
 #      claude, agy when its "Kind:" is specs_and_docs or i18n (SPL-2942, an R7
 #      review of a claude author stays cross-vendor) (CONTROL: a docs brief
-#      naming no csi-spl-wui/ stays mistral)
+#      naming no csi-spl-wui/ stays mistral); SPL-3627: a brief under the
+#      data rule ("Data: secret", or the prose "Data rule:") launches
+#      claude, never agy or qwen (CONTROL: the SPL-2942 brief, no marker, agy)
 #  13b. SPL-3018: the agy swap target out of quota (agy's banner in the
 #      watchdog's pane capture, or an S2 kind=limit verdict on an a- lane): a
 #      review row holds, queued, and blocks no other row; a non-review docs
@@ -689,6 +691,24 @@ on pc do_spl_spawn_enqueue ASK_ID="$U2" SPAWN_CLASS=bug SPAWN_PLACE=mistral:docs
 out="$(on pc do_spl_spawn_place LAUNCH_ID=m-504 2>&1)"
 grep -q "^mistral auto $T $T/briefs/docs-x.md docs-x$" "$T/launch.log" &&
   pass "control: a mistral placement with a docs brief stays mistral" || fail "docs placement: $out | $(cat "$T/launch.log")"
+# SPL-3627 (ask c581963b): a data-rule brief (a "Data: secret" line, or the
+# prose "Data rule:" the c003 reviewer brief carried) swaps to claude, never
+# agy or qwen, even as a specs_and_docs WUI review. The SPL-2942 case above
+# (no marker) is its control: it still launches agy.
+D1=bcbcbcbc-0000-4000-8000-000000000001; D2=bdbdbdbd-0000-4000-8000-000000000002
+printf 'Kind: specs_and_docs\nData: secret\nR7 review; files csi-spl-wui/src/utils/search.mjs\n%s\n' "$ES" >"$T/briefs/ui-data.md"
+printf 'Kind: specs_and_docs\nYou review. Data rule: claude, grok or mistral review it, never agy or qwen.\n5. `git grep -n "in:" -- csi-spl-wui/src/utils/search.mjs`\n%s\n' "$ES" >"$T/briefs/ui-data-prose.md"
+for d in "$D1 ui-data c-509" "$D2 ui-data-prose c-510"; do
+  read -r did dslug dlid <<<"$d"
+  put "$did" c-002@box-desk "dispatch-placer-vendor-$dslug" "SPAWN REQUEST $dslug"
+  on pc do_spl_spawn_enqueue ASK_ID="$did" SPAWN_CLASS=bug SPAWN_PLACE="mistral:$dslug" >/dev/null 2>&1
+  rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+  out="$(on pc do_spl_spawn_place LAUNCH_ID="$dlid" 2>&1)"
+  grep -q "^claude auto $T $T/briefs/$dslug.md $dslug$" "$T/launch.log" && ! grep -qE '^(agy|qwen) ' "$T/launch.log" &&
+    grep -q "placed as mistral, launched as claude: mistral takes no UI work.*; the brief is under the data rule" <<<"$out" &&
+    pass "SPL-3627: a mistral data-rule brief ($dslug, specs_and_docs, names csi-spl-wui/) launches claude, never agy or qwen" ||
+    fail "data rule $dslug: $out | $(cat "$T/launch.log")"
+done
 
 # 13b. SPL-3018: the agy swap target out of quota. Its record on this box is
 # agy's banner in the watchdog's pane capture (ctx*/a-*/pane, reset = the

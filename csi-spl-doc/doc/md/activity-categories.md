@@ -36,6 +36,19 @@ The placer records both on the spawn request right before the launch
   (`unknown_category`). The placer logs one WARN line and still places the
   lane. Its tokens then count as uncategorised.
 
+The placer reads one more line when it picks the vendor (SPL-3627). A
+brief whose work is under the data rule (personal data or secrets: claude,
+grok or mistral only, never agy or qwen) starts a line with:
+
+| line | read as | stored in |
+|---|---|---|
+| `Data: secret` | the data rule: a `mistral:` row that the UI or coding rule swaps goes to claude, never to agy or qwen | nothing (`spl_spawn_place_data_rule`) |
+
+`Kind: secret` counts as the same marker, and so do the words `Data rule:`
+anywhere in the brief (ask c581963b carried only that prose and was launched
+as agy). A brief with no marker keeps the old swap: agy for
+`specs_and_docs` or `i18n`, else claude.
+
 ## 3. The routes
 
 | route | who | what |

@@ -518,17 +518,37 @@ spl_spawn_place_reopen() {  # BRIEF SLUG WHY [COMMENT]
 # UI and coding rules, spl-lane-mix.func.sh, owner HUM-10 t1 b61851fb). Such a
 # row swaps to agy when its brief's kind is specs_and_docs or i18n (agy is the
 # main of both, and a review stays cross-vendor to a claude author, SPL-2942),
-# else to claude.
+# else to claude. A brief under the data rule (spl_spawn_place_data_rule,
+# SPL-3627) swaps to claude only, never agy or qwen.
 spl_spawn_place_swap() {  # VENDOR BRIEF
-  local why kind to=claude cnf="${SPAWN_PLACE_CNF:-$APP_PATH/csi-spl-cnf/csi-spl/all.env.yaml}"
+  local why kind to=claude dr cnf="${SPAWN_PLACE_CNF:-$APP_PATH/csi-spl-cnf/csi-spl/all.env.yaml}"
   [[ "$1" == mistral ]] || { printf '%s\t\n' "$1"; return 0; }
   declare -F spl_lane_mix_mistral_ui_off >/dev/null || source "$PROJ_PATH/src/bash/run/spl-lane-mix.func.sh"
   kind="$(spl_lane_mix_brief_kind "$2")"
   why="$(spl_lane_mix_mistral_ui_off "$cnf" "$2" "")"
   [[ -n "$why" ]] || why="$(spl_lane_mix_mistral_code_off "$cnf" "$kind")"
   [[ -n "$why" ]] || { printf '%s\t\n' "$1"; return 0; }
-  case "$kind" in specs_and_docs|i18n) to=agy ;; esac
+  dr="$(spl_spawn_place_data_rule "$2" "$kind")"
+  if [[ -n "$dr" ]]; then
+    why="$why; the brief is under the data rule ($dr): claude, never agy or qwen"
+  else
+    case "$kind" in specs_and_docs|i18n) to=agy ;; esac
+  fi
   printf '%s\t%s\n' "$to" "$why"
+}
+
+# Why the brief is under the data rule (personal data or secrets: claude,
+# grok or mistral only, never agy or qwen; global CLAUDE.md "Spawn an agent"),
+# else nothing: its "Kind:" is secret (KIND), a line-start "Data: secret"
+# (the marker a dispatcher writes, guide-how-to-be-a-dispatcher.md), or the
+# words "Data rule:" anywhere (the prose ask c581963b carried, SPL-3627).
+spl_spawn_place_data_rule() {  # BRIEF KIND
+  [[ "$2" == secret ]] && { echo "Kind: secret"; return 0; }
+  [[ -n "$1" && -r "$1" ]] || return 0
+  if grep -qiE '^Data:[*_ ]*secret\b' "$1"; then echo "Data: secret"
+  elif grep -qiF 'Data rule:' "$1"; then echo "Data rule:"
+  fi
+  return 0
 }
 
 # The vendor to launch (spl_spawn_place_swap). A swap to agy while agy is out

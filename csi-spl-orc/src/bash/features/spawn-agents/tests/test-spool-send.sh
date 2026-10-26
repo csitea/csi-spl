@@ -69,14 +69,23 @@ bash "$SS" --from CLE-90 --to CLE-91 --kind note --body x --no-poke >/dev/null; 
 ln -s "$(command -v sleep)" "$T_TMP/sudo"
 P94="$(t_window CLE-94 "bash -c '$T_TMP/sudo 600; :'")"
 # A fixed "sleep 0.3" raced a loaded CI runner (wf 10 run 40233594333: the
-# pane tty showed only bash, exit 7). Wait until the fake sudo is up, <= 5 s.
+# pane tty showed only bash, exit 7). The 5 s wait that replaced it went red
+# once more (run 40243550730) and timed out silently, so the log could not
+# tell "sudo never came up" from "it went away" (SPL-3409). Now the wait is
+# up to 20 s, a timeout is its own FAIL, and a failed send says what the tty
+# and the pane ran at that moment.
 tty94="$(tmux -S "$SPOOL_TMUX_SOCKET" display -p -t "$P94" '#{pane_tty}')"
-end94=$(( $(date +%s%N) + 5000000000 ))
+ps94() { ps -t "${tty94#/dev/}" -o comm= 2>/dev/null | tr "\n" " "; }
+start94=$(date +%s%N); end94=$(( start94 + 20000000000 )); up94=0
 while [ "$(date +%s%N)" -lt "$end94" ]; do
-  case " $(ps -t "${tty94#/dev/}" -o comm= 2>/dev/null | tr "\n" " ") " in *" sudo "*) break ;; esac
+  case " $(ps94) " in *" sudo "*) up94=1; break ;; esac
   sleep 0.1
 done
-bash "$SS" --from CLE-90 --to CLE-94 --kind note --body x >/dev/null; eq "pane showing bash+sudo is alive: poked, exit 0" 0 "$?"
+eq "fake sudo is up on the CLE-94 tty (waited $(( ($(date +%s%N) - start94) / 1000000 )) ms; tty: $(ps94))" 1 "$up94"
+out94="$(bash "$SS" --from CLE-90 --to CLE-94 --kind note --body x 2>&1)"; rc94=$?
+why94=""
+[ "$rc94" = 0 ] || why94=" [tty now: $(ps94); pane cmd: $(tmux -S "$SPOOL_TMUX_SOCKET" display -p -t "$P94" '#{pane_current_command}'); $(printf '%s' "$out94" | grep '^poke:')]"
+eq "pane showing bash+sudo is alive: poked, exit 0$why94" 0 "$rc94"
 # The TUI's dim ghost suggestion after the prompt glyph is not typed text.
 t_window CLE-97 "sh -c 'printf \"❯ \\033[2mfix the thing\\033[0m\\n\"; sleep 600'" >/dev/null
 sleep 0.3

@@ -339,6 +339,18 @@ store in the insert's transaction, not by a trigger.
 
 ## 5. Routes
 
+**Built** (B4, SPL-3636): every route below is in `hub/realm_notes.go`,
+registered by `routeRealmNotes` from `routeMe` (`hub/channel_order.go`),
+cases C10-C16 in `hub/realm_notes_test.go` (memory and Postgres). Wire
+names: a list row is `id, title, snippet, pinned, position, archived,
+archived_at, updated_at, items_done, items_total, link_count`; a link is
+`id, kind, workspace_id, ref, day, label, left, position, created_at`. A
+store refusal is 400 `bad_note` (a limit of 2.4), 400 `notes_full` at
+2 000 notes; another person's note 404 `not_found`. The export is
+`{exported_at, notes}`. Section 6's switch is on in the cnf; the hub's env
+reaches Cloud Run through terraform step 030, so a hub served before 030
+is applied with it still answers `notes_off` (the binary default is off).
+
 | route | does | answer |
 |---|---|---|
 | `GET /v1/me/realm/notes` | the list: id, title, the first 200 characters of the body, pinned, position, archived, updated_at, item counts (done/total), link count | 200 |

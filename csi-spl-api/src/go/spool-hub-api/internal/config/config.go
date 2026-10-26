@@ -306,6 +306,10 @@ type Hub struct {
 	// /v1/workspace/docs routes are off.
 	WorkspaceDocsBucket string `env:"SPOOL_HUB_WORKSPACE_DOCS_BUCKET"`
 	WorkspaceDocsDir    string `env:"SPOOL_HUB_WORKSPACE_DOCS_DIR"`
+	// NotesEnabled is the Notes kill switch (spec 155 section 6, cnf hub
+	// env): false, every /v1/me/realm/notes route answers 404 notes_off and
+	// the stored notes stay.
+	NotesEnabled bool `env:"SPOOL_HUB_NOTES_ENABLED" envDefault:"false"`
 	// Editable Repo Docs (spec 075 repo-edit; cnf env.docs.repo_edit, which
 	// do_spl_merged_cnf derives into SPOOL_HUB_DOCS_EDIT_*). Enabled false is
 	// the kill switch: the edit routes 404 and no worker pushes. The App key

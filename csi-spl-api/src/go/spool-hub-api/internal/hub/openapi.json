@@ -6626,6 +6626,600 @@
         ]
       }
     },
+    "/v1/me/realm/notes": {
+      "delete": {
+        "description": "Deletes every note of the person (spec 155 2.8). Spec 155 B4. Human session only: 403 person_only under act-as, for an agent and a box token; 400 tenant_named on X-Spool-Tenant; 404 notes_off while SPOOL_HUB_NOTES_ENABLED is false.",
+        "operationId": "eraseMeRealmNotes",
+        "responses": {
+          "204": {
+            "description": "No Content. Contract: csi-spl-doc/specs/155-notes-section/spec.md section 5."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Erase all my notes",
+        "tags": [
+          "me"
+        ]
+      },
+      "get": {
+        "description": "Every note of the person, archived ones too: pinned first, then by position. Spec 155 B4. Human session only: 403 person_only under act-as, for an agent and a box token; 400 tenant_named on X-Spool-Tenant; 404 notes_off while SPOOL_HUB_NOTES_ENABLED is false.",
+        "operationId": "listMeRealmNotes",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "notes": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: {notes: [{id, title, snippet, pinned, position, archived, archived_at, updated_at, items_done, items_total, link_count}]}. Contract: csi-spl-doc/specs/155-notes-section/spec.md section 5."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "List my notes",
+        "tags": [
+          "me"
+        ]
+      },
+      "post": {
+        "description": "A new note on top of the person's order; the body may hold title, body, pinned, items and links. 400 bad_note past a limit, 400 notes_full at 2 000 notes. Spec 155 B4. Human session only: 403 person_only under act-as, for an agent and a box token; 400 tenant_named on X-Spool-Tenant; 404 notes_off while SPOOL_HUB_NOTES_ENABLED is false.",
+        "operationId": "createMeRealmNote",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "body": {
+                    "maxLength": 20000,
+                    "type": "string"
+                  },
+                  "items": {
+                    "items": {
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "links": {
+                    "items": {
+                      "description": "kind (msg, topic, issue, event, doc, channel, url), workspace_id (none for url), ref, day (event only), label",
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "pinned": {
+                    "type": "boolean"
+                  },
+                  "title": {
+                    "maxLength": 200,
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "description": "the new note",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created: the note. Contract: csi-spl-doc/specs/155-notes-section/spec.md section 5."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Create a note",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/me/realm/notes/export": {
+      "get": {
+        "description": "Every note whole, archived ones too, as one attachment notes-<date>.json. Spec 155 B4. Human session only: 403 person_only under act-as, for an agent and a box token; 400 tenant_named on X-Spool-Tenant; 404 notes_off while SPOOL_HUB_NOTES_ENABLED is false.",
+        "operationId": "exportMeRealmNotes",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "exported_at": {
+                      "type": "string"
+                    },
+                    "notes": {
+                      "items": {
+                        "description": "id, title, body, pinned, position, archived, archived_at, created_at, updated_at, items, links (a link: id, kind, workspace_id, ref, day, label, left, position, created_at; left true = a workspace the person left, label empty)",
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: {exported_at, notes: [note]}, Content-Disposition attachment. Contract: csi-spl-doc/specs/155-notes-section/spec.md section 5."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Export my notes",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/me/realm/notes/{id}": {
+      "delete": {
+        "description": "Deletes the note; its items and links cascade. Spec 155 B4. Human session only: 403 person_only under act-as, for an agent and a box token; 400 tenant_named on X-Spool-Tenant; 404 notes_off while SPOOL_HUB_NOTES_ENABLED is false.",
+        "operationId": "deleteMeRealmNote",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content. Contract: csi-spl-doc/specs/155-notes-section/spec.md section 5."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Delete a note",
+        "tags": [
+          "me"
+        ]
+      },
+      "get": {
+        "description": "One note with its checklist and links; another person's note is 404. Spec 155 B4. Human session only: 403 person_only under act-as, for an agent and a box token; 400 tenant_named on X-Spool-Tenant; 404 notes_off while SPOOL_HUB_NOTES_ENABLED is false.",
+        "operationId": "getMeRealmNote",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the note. Contract: csi-spl-doc/specs/155-notes-section/spec.md section 5."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Get a note",
+        "tags": [
+          "me"
+        ]
+      },
+      "patch": {
+        "description": "The fields sent (title, body, pinned, archived, position); a write erases the stored label of each link into a workspace the person left (D4). Spec 155 B4. Human session only: 403 person_only under act-as, for an agent and a box token; 400 tenant_named on X-Spool-Tenant; 404 notes_off while SPOOL_HUB_NOTES_ENABLED is false.",
+        "operationId": "patchMeRealmNote",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "archived": {
+                    "type": "boolean"
+                  },
+                  "body": {
+                    "type": "string"
+                  },
+                  "pinned": {
+                    "type": "boolean"
+                  },
+                  "position": {
+                    "type": "number"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "description": "the fields to change",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the note. Contract: csi-spl-doc/specs/155-notes-section/spec.md section 5."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Change a note",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/me/realm/notes/{id}/items": {
+      "put": {
+        "description": "The whole checklist, in the order sent (at most 200 lines of 500 characters). Spec 155 B4. Human session only: 403 person_only under act-as, for an agent and a box token; 400 tenant_named on X-Spool-Tenant; 404 notes_off while SPOOL_HUB_NOTES_ENABLED is false.",
+        "operationId": "putMeRealmNoteItems",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "items": {
+                    "items": {
+                      "properties": {
+                        "done": {
+                          "type": "boolean"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "text": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "description": "the checklist",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the note. Contract: csi-spl-doc/specs/155-notes-section/spec.md section 5."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Replace a note's checklist",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/me/realm/notes/{id}/links": {
+      "post": {
+        "description": "One more link after the others; 400 past 100 links. Spec 155 B4. Human session only: 403 person_only under act-as, for an agent and a box token; 400 tenant_named on X-Spool-Tenant; 404 notes_off while SPOOL_HUB_NOTES_ENABLED is false.",
+        "operationId": "addMeRealmNoteLink",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "kind (msg, topic, issue, event, doc, channel, url), workspace_id (none for url), ref, day (event only), label",
+                "type": "object"
+              }
+            }
+          },
+          "description": "the link",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created: the link. Contract: csi-spl-doc/specs/155-notes-section/spec.md section 5."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Add a link to a note",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/me/realm/notes/{id}/links/{link_id}": {
+      "delete": {
+        "description": "Removes one link. Spec 155 B4. Human session only: 403 person_only under act-as, for an agent and a box token; 400 tenant_named on X-Spool-Tenant; 404 notes_off while SPOOL_HUB_NOTES_ENABLED is false.",
+        "operationId": "deleteMeRealmNoteLink",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content. Contract: csi-spl-doc/specs/155-notes-section/spec.md section 5."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Remove a note link",
+        "tags": [
+          "me"
+        ]
+      },
+      "patch": {
+        "description": "The link's label or position. Spec 155 B4. Human session only: 403 person_only under act-as, for an agent and a box token; 400 tenant_named on X-Spool-Tenant; 404 notes_off while SPOOL_HUB_NOTES_ENABLED is false.",
+        "operationId": "patchMeRealmNoteLink",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "link_id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "label": {
+                    "maxLength": 200,
+                    "type": "string"
+                  },
+                  "position": {
+                    "type": "number"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "description": "the fields to change",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the link. Contract: csi-spl-doc/specs/155-notes-section/spec.md section 5."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Change a note link",
+        "tags": [
+          "me"
+        ]
+      }
+    },
     "/v1/me/realm/profile": {
       "get": {
         "description": "Time zone, locale and communication preferences; the name shown is humans.display_name. Human session only: 403 person_only under act-as, for an agent, a box token and a time-accountant-only seat; 400 on X-Spool-Tenant or member=.",

@@ -344,6 +344,7 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 			BanAfterHits: hc.EmbedBanAfterHits, HitsWindow: hc.EmbedHitsWindow, BanFor: hc.EmbedBanFor},
 		PingInterval: hc.WSPingInterval, PingTimeout: hc.WSPingTimeout, WSMaxLife: hc.WSMaxLife,
 		ClientIPProbe: hc.ClientIPProbe, MsgVersion: hc.MsgVersion, MarketingWorkspaces: hc.MarketingWorkspaces,
+		NotesEnabled: hc.NotesEnabled, // spec 155 section 6
 		Edge: edge.Limits{TrustedProxyHops: hc.TrustedProxyHops, Window: hc.EdgeWindow,
 			WSConnsPerIP: hc.EdgeWSConnsPerIP, WSConnsTotal: hc.EdgeWSConnsTotal,
 			WSHandshakesPerIP: hc.EdgeWSHandshakesPerIP, AuthPerIP: hc.EdgeAuthPerIP},

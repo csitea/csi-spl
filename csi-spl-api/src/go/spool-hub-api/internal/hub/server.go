@@ -239,6 +239,10 @@ type Options struct {
 	// (specs/077 T012, demo_post_quota.go); <= 0 = the Default*.
 	DemoPostsPerMinute int
 	DemoPostsPerDay    int
+	// NotesEnabled is the Notes kill switch, hub env SPOOL_HUB_NOTES_ENABLED
+	// (spec 155 section 6): off, every /v1/me/realm/notes route answers 404
+	// notes_off (realm_notes.go).
+	NotesEnabled bool
 	// EmbedEnabled is cnf env.hub.embed.enabled (specs/121, off until T207):
 	// off, every /v1/embed/* route answers as an unknown path.
 	// EmbedTokenLife is the visitor token's sliding life and hard cap;

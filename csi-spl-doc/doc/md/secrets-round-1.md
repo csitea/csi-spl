@@ -90,3 +90,7 @@ Hub health after a change: an external `GET /healthz` gets the load
 balancer's 404 page and never reaches the hub. Check with
 `cd csi-spl-orc && ENV=<env> ./run -a do_check_hub_deploy` and
 `GET https://api.<fqdn>/version` instead.
+
+## 6. Per-box GitHub token
+
+The rule is one fine-grained GitHub token per box, stored in `$HOME/.github/.csi/crs` and rotated by `do_gh_box_token_put`. Owner exception, 2026-10-26 (HUM-10 t1 msg fb86a85f): two boxes share one classic token. The file was hand-copied between boxes as the box user, and GitHub was logged in with `gh auth login --with-token` and `gh auth setup-git`. Rotating it breaks both boxes at once; the per-box rule returns when the owner mints a fine-grained token per box.

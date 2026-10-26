@@ -661,6 +661,37 @@ Three guards, each a test with a red control:
    planted csitea row fails; the real map passes, case 1). The export
    still reads an old row (no third column, or `workspace`) as the
    `TENANT_ID`'s, and skips a row of another workspace.
+   **The hand-copy check** (SPL-3541, owner poll e181a14b answer A, msg
+   12a17cbb): a private doc's text pasted into a md file by hand carries
+   no stamp. Rule 7 of the map check (`qto-private-index.py check`) FAILs
+   a tracked md line that equals a private workspace doc's id, title or
+   section heading. It names `file:line`, never the text.
+   - The index is built by
+     `cd csi-spl-orc && ENV=prd PRIVATE_INDEX_TENANTS="<private ws ...>" PRIVATE_INDEX_SEAT=<seat> DRY_RUN=0 ./run -a do_spl_private_doc_index`
+     (a dry run by default; it refuses a tenant in
+     `docs.repo_export_tenants` and a path inside the repo). It reads each
+     doc's title (`list`) and headings (`export`), and writes only sha256
+     hashes (16 hex) of the normalised text, mode 600, to
+     `QTO_PRIVATE_INDEX` (default
+     `${XDG_STATE_HOME:-$HOME/.local/state}/csi-spl/qto-private-index.txt`).
+     It never commits the index.
+   - Text counts at 3+ words and 16+ characters; a doc id always counts.
+     Text the public repo already holds is dropped at build time, so the
+     fleet's template headings do not fail every brief.
+   - Measured on this repo with a synthetic index (the headings of half
+     the md files, checked against the other half, n=780 files): the floor
+     alone matched 756 lines in 338 files. With the public-text drop from a
+     tree 3 / 8 / 16 days older it matched 9 lines in 4 files / 28 in 14 /
+     381 in 183. So **rebuild the index daily**.
+   - Not caught: a title quoted inside a longer line, and a paraphrase.
+   - CI reads the index from the repo secret `QTO_PRIVATE_INDEX_B64`
+     (base64 of the file), in the wf 10 step "No private workspace doc
+     text in the md files". Pre-push reads the local file.
+   - No index: a WARN "hand-copy check NOT RUN". Once cnf
+     `docs.private_index_required` is `true` (default `false`), it is a
+     FAIL, pre-push and CI.
+   - Until the owner seeds the index and the secret, the hand-copy gap is
+     **open**. Red controls: `csi-spl-orc/src/bash/tests/qto-private-index.tst.sh`.
 3. **Audit (read-only, daily)**: an action lists, per env, every workspace
    without a 052 bucket, any 052 bucket that is not uniform + `enforced`,
    names `allUsers` / `allAuthenticatedUsers`, or grants a non-legacy member

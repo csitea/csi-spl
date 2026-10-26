@@ -1520,6 +1520,31 @@ jobs:
           python3 csi-spl-orc/src/bash/run/check-qto-doc-drift.py . \
             csi-spl-doc/doc/md/qto-docs.tsv csi-spl-doc/doc/md/qto-docs-drift-known.tsv
 
+      # SPL-3541: the hand-copy check. A private workspace's doc text pasted
+      # into a md file carries no stamp; this fails a md line equal to a
+      # private doc's id, title or heading, by the HASHED index of
+      # do_spl_private_doc_index, given here as the repo secret
+      # QTO_PRIVATE_INDEX_B64 (never in the repo, never printed). No secret:
+      # a warning that the check was NOT RUN, or a failure once cnf
+      # docs.private_index_required is true. spec 114 section 9.4.
+      # CONTROL: csi-spl-orc/src/bash/tests/qto-private-index.tst.sh
+      - name: No private workspace doc text in the md files (hand-copy check)
+        env:
+          QTO_PRIVATE_INDEX_B64: ${{ secrets.QTO_PRIVATE_INDEX_B64 }}
+        run: |
+          idx=""
+          if [[ -n "$QTO_PRIVATE_INDEX_B64" ]]; then
+            idx="$(mktemp)"
+            chmod 600 "$idx"
+            base64 -d <<<"$QTO_PRIVATE_INDEX_B64" >"$idx" || { echo "::error::QTO_PRIVATE_INDEX_B64 is not base64"; rm -f "$idx"; exit 1; }
+          fi
+          rc=0
+          out="$(python3 csi-spl-orc/src/bash/run/qto-private-index.py check . "$idx" csi-spl-cnf/csi-spl/all.env.yaml)" || rc=$?
+          [[ -z "$idx" ]] || rm -f "$idx"
+          printf '%s\n' "$out"
+          if [[ "$out" == WARN* ]]; then echo "::warning::hand-copy check NOT RUN: no QTO_PRIVATE_INDEX_B64 secret (owner step, spec 114 section 9.4)"; fi
+          exit "$rc"
+
   # ===========================================================================
   # Security baselines grow only with a ticket (SPL-2153, owner security scan
   # action 10): a new entry in a scanner's baseline or allow-list (gosec,

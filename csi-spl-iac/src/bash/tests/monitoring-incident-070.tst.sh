@@ -27,6 +27,12 @@
 #      message logServerError writes, read from the Go source), which rate_5xx
 #      already counts: one stall paged twice on 10-22; a real error line, a
 #      "handler panic" and Cloud Run's own entries (no message) stay counted
+#   8. SPL-3477 (owner answer A, msg 917de544): every alert policy carries its
+#      severity, so the alert email subject is no longer "No severity":
+#      CRITICAL hub down, Cloud SQL down, sign-in 5xx; ERROR 5xx rate, error
+#      log rate, 429 streak; WARNING max instances, memory high, slow views.
+#      Controls: a policy without severity, a swapped one and a 10th policy
+#      outside the map each fail
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -232,5 +238,30 @@ has "$(attr "$he" filter)" 'NOT logName : \"run.googleapis.com%2Frequests\"' && 
   || fail "hub_errors counts the request log"
 counted "${he/ AND NOT jsonPayload.message = \\\"$msg5\\\"/}" error "$msg5" && pass "CONTROL the filter without the exclusion counts the 5xx line" \
   || fail "CONTROL the filter without the exclusion still leaves out the 5xx line"
+
+# --- 8. SPL-3477: each policy has exactly its owner-mapped severity --------------
+declare -A SEV=(
+  [uptime]=CRITICAL [sql_down]=CRITICAL [signin_5xx]=CRITICAL
+  [rate_5xx]=ERROR [error_logs]=ERROR [rate_429]=ERROR
+  [instances_at_max]=WARNING [memory_high]=WARNING [view_slow]=WARNING
+)
+# sev_ok <policies tf> -> 0 when the policies are exactly the mapped ones and
+# each has one severity line, equal to its mapped value
+sev_ok() {
+  local pols pol p n got
+  pols="$(sed -nE 's/^resource "google_monitoring_alert_policy" "([a-z0-9_]+)".*/\1/p' <<<"$1" | sort)"
+  [[ "$pols" == "$(printf '%s\n' "${!SEV[@]}" | sort)" ]] || { echo "  policies: $(tr '\n' ' ' <<<"$pols")"; return 1; }
+  for pol in $pols; do
+    p="$(block "$1" google_monitoring_alert_policy "$pol")"
+    n="$(grep -cE '^  severity[[:space:]]*=' <<<"$p")"
+    got="$(sed -nE 's/^  severity[[:space:]]*=[[:space:]]*"([A-Z]+)"$/\1/p' <<<"$p")"
+    [[ "$n" == 1 && "$got" == "${SEV[$pol]}" ]] || { echo "  $pol: severity '$got' ($n lines), want ${SEV[$pol]}"; return 1; }
+  done
+}
+sev_ok "$tf" && pass "each of the ${#SEV[@]} alert policies has its mapped severity (CRITICAL 3, ERROR 3, WARNING 3)" \
+  || fail "an alert policy misses its mapped severity"
+sev_ok "$(sed '0,/^  severity .*"CRITICAL"$/{//d}' <<<"$tf")" >/dev/null && fail "CONTROL a policy without severity passed" || pass "CONTROL a policy without severity fails"
+sev_ok "$(sed '0,/"WARNING"$/s//"ERROR"/' <<<"$tf")" >/dev/null && fail "CONTROL a WARNING swapped to ERROR passed" || pass "CONTROL a WARNING swapped to ERROR fails"
+sev_ok "$tf"$'\nresource "google_monitoring_alert_policy" "extra" {\n  severity = "ERROR"\n}' >/dev/null && fail "CONTROL a policy outside the map passed" || pass "CONTROL a policy outside the map fails"
 
 [[ $fails -eq 0 ]] && echo "PASS: all monitoring-incident-070.tst.sh assertions" || { echo "FAIL: $fails"; exit 1; }

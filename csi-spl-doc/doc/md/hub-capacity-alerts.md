@@ -83,3 +83,19 @@ the condition held for its duration
 alert log: an absence or ratio condition is named "not replayed", and
 `SERIES 0` means the metric had no data in the window, not that no incident
 was proven. Test: `csi-spl-iac/src/bash/tests/gcp-list-alert-incidents.tst.sh`.
+
+## 5. Severity (SPL-3477)
+
+Every alert policy of step 070 sets `severity`, so the alert email subject
+names it instead of "No severity" (owner answer A, msg 917de544, 2026-10-25):
+
+| severity | policies (`google_monitoring_alert_policy.<name>`) |
+|---|---|
+| `CRITICAL` | `uptime` (hub down), `sql_down`, `signin_5xx` |
+| `ERROR` | `rate_5xx`, `error_logs`, `rate_429` |
+| `WARNING` | `instances_at_max`, `memory_high`, `view_slow` |
+
+Test: section 8 of `csi-spl-iac/src/bash/tests/monitoring-incident-070.tst.sh`
+holds each policy to exactly its row; a policy without severity, a swapped one
+and a policy outside the table each fail it. A new policy gets a row here and
+in the test's map.

@@ -20,6 +20,7 @@ resource "google_monitoring_alert_policy" "uptime" {
   display_name          = "${local.name} hub health check failing"
   combiner              = "OR"
   notification_channels = local.channels
+  severity              = "CRITICAL"
 
   conditions {
     display_name = "https://${var.uptime_host}${var.health_path} fails from more than ${var.uptime_failing_regions} region(s)"
@@ -51,6 +52,7 @@ resource "google_monitoring_alert_policy" "rate_429" {
   display_name          = "${local.name} hub 429 streak"
   combiner              = "OR"
   notification_channels = local.channels
+  severity              = "ERROR"
 
   conditions {
     display_name = "at least ${var.rate_429_per_min} HTTP 429 in one minute"
@@ -81,6 +83,7 @@ resource "google_monitoring_alert_policy" "rate_5xx" {
   display_name          = "${local.name} hub 5xx rate"
   combiner              = "OR"
   notification_channels = local.channels
+  severity              = "ERROR"
 
   conditions {
     display_name = "at least ${var.rate_5xx_per_5min} HTTP 5xx in five minutes"
@@ -129,6 +132,7 @@ resource "google_monitoring_alert_policy" "error_logs" {
   display_name          = "${local.name} hub error log rate"
   combiner              = "OR"
   notification_channels = local.channels
+  severity              = "ERROR"
 
   conditions {
     display_name = "at least ${var.error_logs_per_5min} error log entries in five minutes"
@@ -159,6 +163,7 @@ resource "google_monitoring_alert_policy" "sql_down" {
   display_name          = "${local.name} Cloud SQL down"
   combiner              = "OR"
   notification_channels = local.channels
+  severity              = "CRITICAL"
 
   conditions {
     display_name = "${var.cloud_sql_instance_name} database/up below 1 for ${var.sql_down_seconds}s"
@@ -194,6 +199,7 @@ resource "google_monitoring_alert_policy" "instances_at_max" {
   display_name          = "${local.name} hub at max instances"
   combiner              = "AND"
   notification_channels = local.channels
+  severity              = "WARNING"
 
   conditions {
     display_name = "a revision runs ${var.hub_max_instances} instance(s), its max, for ${var.instances_at_max_seconds}s"
@@ -241,6 +247,7 @@ resource "google_monitoring_alert_policy" "memory_high" {
   display_name          = "${local.name} hub memory high"
   combiner              = "OR"
   notification_channels = local.channels
+  severity              = "WARNING"
 
   conditions {
     display_name = "p99 container memory above ${format("%.0f", var.memory_utilization_threshold * 100)}% for ${var.memory_high_seconds}s"
@@ -293,6 +300,7 @@ resource "google_monitoring_alert_policy" "signin_5xx" {
   display_name          = "${local.name} hub sign-in 5xx"
   combiner              = "OR"
   notification_channels = local.channels
+  severity              = "CRITICAL"
 
   conditions {
     display_name = "at least ${var.signin_5xx_per_5min} sign-in 5xx in five minutes"
@@ -381,6 +389,7 @@ resource "google_monitoring_alert_policy" "view_slow" {
   display_name          = "${local.name} hub views slow"
   combiner              = "OR"
   notification_channels = local.channels
+  severity              = "WARNING"
 
   conditions {
     display_name = "p95 of ${var.view_path}* above ${var.view_p95_seconds}s for ${var.view_slow_seconds}s"

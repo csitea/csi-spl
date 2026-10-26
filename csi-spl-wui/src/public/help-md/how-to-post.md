@@ -198,6 +198,19 @@ comments and issue descriptions.
    `csi-spl-api/src/go/spool-hub-api/internal/hub/human_post_guard.go`
    (rdb 0211), its off switch `SPOOL_HUB_HUMAN_POST_GUARD=false`.
 
+19. **A lane is "placed" only once the lane map shows it live** (owner
+   HUM-10, t1 topic 99ffa592, answer msg ce2045be, fix D of
+   `csi-spl-doc/doc/md/grok-dispatch-grade-2026-10-25.md` section 5: the
+   grade lost points on lanes said placed that were then never placed). A
+   line that says `placed` names the lane on that same line by its agent id
+   (`c-123`, or `c-123@<box>`; a role seat c-001..c-003 does not count), and
+   `lane-map.sh --all` shows a live row for it. Until then the ask is
+   `asked` or `queued`, not placed. `do_spl_desk_reply` refuses (FATAL,
+   nothing sent) a placed line naming no lane, a lane with no live row, and
+   a lane map whose hub did not answer. `not placed`, `never placed`, a `>`
+   quote and a code block are not claims. The code:
+   `csi-spl-orc/src/bash/run/spl-desk-placed-check.func.sh` (SPL-3524).
+
 ## 2. Example
 
 ```text

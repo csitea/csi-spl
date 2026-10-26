@@ -1,10 +1,18 @@
 # Spec 127: Workspace vendor keys (bring your own keys)
 
-Version **v1.3** (2026-10-11): the owner answered Q-5 A (msg c8593f0f):
-agy is supported through the service-account file of 5.4, switched on only
-after the B0c gate (9.2). Every owner question is decided (9.1, 9.2).
+Version **v1.4** (2026-10-27): folded in [spec 159](../159-byo-ai-keys/spec.md)
+(BYO AI keys on shared GCP hosts, owner HUM-10 msg `87578f3a`, decisions Q-1..Q-4):
+sections 5.1, 5.3 and 8 point at spec 159 (N1, N3), and a pointer at section 3
+(N2); K3 and L2 are amended as spec 159 sections 5.1 and 6 say, citing owner
+msg `2e9d03be`.
 
 Changelog:
+- v1.4 (2026-10-27): folded in [spec 159](../159-byo-ai-keys/spec.md) (BYO AI keys
+  also on our shared GCP hosts, owner HUM-10 msg `87578f3a`). Points sections 5.1,
+  5.3 and 8 at spec 159 (N1: `biz_owner` may add keys; N3: keys run on fleet boxes
+  as per-workspace OS users), and a pointer at section 3 (N2: subscriptions in
+  addition to API keys); amends K3 (§1.1) and L2 (§6) as spec 159 §5.1 and
+  §6 say, citing owner msg `2e9d03be`.
 - v1.3 (2026-10-11): owner answer Q-5 A folded in (msg c8593f0f, topic
   bdc65df6); section 9.2 is now a decision with requirements R5.1..R5.5 and
   the B0c gate; sections 3, 5.4, 8 and 10 point to it. Also recorded as
@@ -51,7 +59,7 @@ The plan told to the owner: [74c1943b](https://spool-hub.ai/m/74c1943b-27aa-4ab9
 |---|---|---|
 | K1 | A workspace admin sets, replaces and removes one API key per agent kind, in Workspace settings of that workspace | df10a44e |
 | K2 | Every launcher (claude, grok, agy, mistral, qwen) can start a seat on the workspace's key instead of the box login | 29fd4b3c |
-| K3 | Isolation: a key is used only by seats working for its own workspace. Never another workspace, the fleet's own lanes, the operator, a log, a core dump, a pane capture, a transcript or the desk mirror | 29fd4b3c |
+| K3 | Isolation: a key is used only by seats working for its own workspace. Never another workspace, the fleet's own lanes, the operator, a log, a core dump, a pane capture, a transcript or the desk mirror (amended for fleet boxes by [spec 159](../159-byo-ai-keys/spec.md) §5.1, owner msg `2e9d03be`: holds against fleet lanes only as far as they do not use sudo) | 29fd4b3c |
 | K4 | A plan "workspace as a service": the customer brings the keys, pays a share of the GCP cost + about 50% margin, no per-token charge | 6ad93fae |
 
 ## 2. Today, measured
@@ -108,6 +116,11 @@ and the pin is not written back. `qwen` has one extra non-secret field,
 For `agy` the "key" of this spec is the whole service-account JSON: it is
 stored, leased and redacted as one secret (4.2, 5.4, L9), and `last4` is
 the last 4 of its `private_key_id`.
+
+> **Amended by [spec 159](../159-byo-ai-keys/spec.md) §4 (N2, owner msg `87578f3a`):**
+> Subscriptions in addition to API keys: Claude self sign-in inside the unmodified
+> CLI, behind a switch (spec 159 §4.3, owner Q-3 A msg `36279386`); terms status per
+> kind in spec 159 §4.1–§4.2.
 
 **One key per kind per workspace.** One key is one account, one bill and one
 spend limit on the customer's vendor console, which is the cap that holds.
@@ -218,6 +231,12 @@ cloud resources at runtime.
 - A new permission `vendor_keys.manage`, held by `admin` only (it follows the
   `agents.join` exception in `rbac.Defaults`). A `biz_owner` who wants it
   makes themselves admin.
+  > **Amended by [spec 159](../159-byo-ai-keys/spec.md) §3 (N1, owner msg `87578f3a`):**
+  > `vendor_keys.manage` is granted to both `biz_owner` and `admin` (replaces
+  > "admin only"). An operator-made `biz_owner` is unconfirmed until a confirmed
+  > admin or biz owner confirms it (same rule as Q-4 A below, closing path C1).
+  > Every admin and biz owner is emailed on each set, replace, remove, and
+  > key-box approval.
 - Refused under an act-as session. An act-as session cannot hold an
   admin-only permission anyway (`internal/auth/actas.go:33-39`); the refusal
   is cheap defence in depth.
@@ -318,6 +337,16 @@ confirmed admin approved, whose workspace OS users hold no root path, with the
 key only in the seat process.** It is spec 108's per-workspace OS user, plus
 rules a fleet box breaks today.
 
+> **Amended by [spec 159](../159-byo-ai-keys/spec.md) §5 (N3, owner msg `2e9d03be`):**
+> Customer keys also run in our common GCP infra on shared fleet boxes. By
+> owner decision Q-1 B (msg `2e9d03be`), workspace seats run on fleet boxes as
+> a per-workspace OS user. The desk start checks run with one exception: spec 159
+> §5.2 exempts the fleet agent user from the check below ("no workspace OS user on
+> the machine is in sudo, wheel, admin, docker, lxd or disk"), because the fleet's
+> agent user is root-equivalent. Any fleet lane with sudo can read keys on that box
+> (spec 159 §5.4, accepted risk). K3 holds against non-sudo fleet lanes and between
+> workspace seats.
+
 **What keeps the fleet's lanes out** (s-claude-2 C3). `box_mode` is the box's
 own signed declaration (rdb 0170:16-20): a box that wants a key says
 "dedicated", so refusing shared pins only refuses an honest shared box. The
@@ -411,7 +440,7 @@ and states its red control: the same test with the guard off fails.
 | # | leak path | guard | test | red control |
 |---|---|---|---|---|
 | L1 | another workspace's seat | lease: pin's workspace = key's workspace, read in the pin's tenant scope | lease as a pin of workspace B for A's key -> 403 | drop both the Go check and the scoped read -> 200 |
-| L2 | the fleet's own lanes | 5.3 (a)-(c): no customer pin, no approval; desk refuses a root-equivalent user | lease from a pin with no approval -> 403 `box_not_approved`; desk start as a `docker` member -> refused | drop the approval check -> 200; drop the group check -> desk starts |
+| L2 | the fleet's own lanes | 5.3 (a)-(c): no customer pin, no approval; desk refuses a root-equivalent user (amended on fleet boxes by [spec 159](../159-byo-ai-keys/spec.md) §5.1, §6, owner msg `2e9d03be`: desk start exempts the fleet user from root check; any lane with sudo can read keys, §5.4; holds against non-sudo lanes, L21) | lease from a pin with no approval -> 403 `box_not_approved`; desk start as a `docker` member -> refused | drop the approval check -> 200; drop the group check -> desk starts |
 | L3 | the operator | no read route; no `operator_scope` on the key table; key-box approval; operator-made admins unconfirmed; KMS grant check | operator-scope SELECT -> 0 rows; operator invite as admin -> join -> dedicated box -> lease -> 403 `box_not_approved`; that admin PUTs a key -> 403 `admin_unconfirmed` | add the policy -> rows; drop approval -> 200; drop confirmation -> 204 |
 | L4 | a hub log | routes on the no-body-log list; no key in any error; encrypt before INSERT | PUT `sk-test-0000`, grep the captured hub and pg logs -> 0 | the route off the list -> found |
 | L5 | a box log | the desk and wrapper never print the key; dry run prints `<VENDOR_KEY>`; grok's `logs/unified.jsonl` (the key's last 12 chars, B0 2.5) is key-bearing: it lives in the seat dir (5.4), is never shipped, mirrored or collected, and goes with the seat dir | spawn dry run + desk log grep -> 0; after a grok seat ends, grep the box for the fake's last 12 chars -> 0 | a wrapper that prints the key -> found; `GROK_HOME` in the persistent home -> the suffix is found after the seat ends |
@@ -520,6 +549,11 @@ gains `agent-keys.vue`, beside `split.vue`):
 - an unconfirmed admin (5.1) sees the page read-only, with who can confirm.
 - visible to `vendor_keys.manage` only. New locale text in every catalogue,
   reviewed by agy LAST (text only, no secrets).
+
+> **Amended by [spec 159](../159-byo-ai-keys/spec.md) §10 (N1, owner msg `87578f3a`):**
+> The Agent keys page is visible to `biz_owner` as well as `admin` (`vendor_keys.manage`, N1).
+> The additional UI controls and per-kind states for BYO AI keys on shared hosts are defined
+> in [spec 159](../159-byo-ai-keys/spec.md) §10.
 
 ## 9. Owner questions
 

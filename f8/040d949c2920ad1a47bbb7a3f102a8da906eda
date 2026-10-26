@@ -1,0 +1,6 @@
+Lay-What: The number in the browser tab now matches the unread badges in the sidebar, and an open channel no longer keeps a count that no card shows.
+Lay-How: The tab now adds up only the channels and direct messages the sidebar lists, and opening a card also clears its line from the channel's count.
+Lay-Why: The tab said (3) while the sidebar said 1, and the open channel kept a 1 that nothing on screen explained, so the badges could not be trusted.
+Tech-What: WUI tab title sums the listed, unmuted channel rows plus DM rows; opening a topic card lowers its channel's ch: unread key by what its t: key held.
+Tech-How: app.vue uses tabUnread(rows, channel.ordered, muted) instead of useUnread().section('channels'); useTopicCardNew.opened() calls useUnread().dropTopic (dropTopicKey).
+Tech-Why: The old sum counted every ch: key the hub sent, including ch:issues, which has no sidebar row and could never be cleared; opened() zeroed t: but left ch: until the next hub frame.

@@ -27,7 +27,7 @@ It is one of four guides. The others are linked, not copied.
 | `GCP_BILLING_ACCOUNT_ID` in the environment | gcp-001 links the project to it; the value is never in the repo |
 | the per-env project keys, once bootstrap has written them | everything after the keys exist |
 | the owner's approval | every terraform apply, every project create |
-| a workspace's root key file, mode 600, never in git | pinning a desk box or `box-wui` in that workspace: [8.3](#83-workspace-root-keys) |
+| a workspace's root key file, mode 600, never in git | pinning a desk box or `box-wui` in that workspace: [8.3](#ws-doc-6be70ab0-925f-4b40-af99-a4f878610850) |
 
 For a box that does not exist yet, follow the installation guide, sections 3 to 5 (packages, the two users, the checkout, tpl-gen at its pin, the key table). Come back here, then finish that guide. The product domain is cnf `env.dns.BASE_DOMAIN`. This guide never pastes it.
 
@@ -375,10 +375,12 @@ cd <CHECKOUT>/csi-spl-orc && DRY_RUN=0 ENVS="prd dev" STEPS=025-gcp-dns-zone ./r
 cd <CHECKOUT>/csi-spl-orc && ENV=dev TENANT_ID=<TENANT> DRY_RUN=0 ./run -a do_spl_tenant_host_provision
 ```
 
+<a id="ws-doc-6be70ab0-925f-4b40-af99-a4f878610850"></a>
 ### 8.3 Workspace root keys
 
 Every workspace (tenant) has one ed25519 root key pair. The hub keeps only the 32-byte public half (`tenants.root_pubkey`). The private half exists only where the operator saved it. Owner, HUM-10, csitea topic 1a494e58 (msg 4c027aa4): "update the DevOps guide what those keys are, how they can be found and how-to use them".
 
+<a id="ws-doc-36a5ed58-9f2a-4fbf-8bfc-ac8b65c7d138"></a>
 #### 8.3.1 What the root key signs
 
 | it signs | through | why it matters |
@@ -389,6 +391,7 @@ Every workspace (tenant) has one ed25519 root key pair. The hub keeps only the 3
 
 All three call `spool hub-pin` (`POST /v1/pins`) with `--root-key`. The hub checks the signature against the stored public key. It cannot re-create the private key from it, and no action re-issues one (8.3.5).
 
+<a id="ws-doc-7c66bc8c-579c-468d-8c66-98a10dcf20b8"></a>
 #### 8.3.2 Where a create writes it
 
 `do_spl_tenant_create` (`DRY_RUN=0`) prints one JSON line on stdout, `{"tenant":…,"url":…,"root_pubkey":…,"root_private_key":…,"billing_status":"manual"}`, and stores the private key nowhere itself. The operator API `POST /v1/operator/workspaces` answers a generated key once in its 201 body, the same way. The operator saves that line in a file of mode 600, in a directory of mode 700, outside git. The JSON field the actions read is `root_private_key` (`spl_root_key_to_file`, `csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh`); a file that holds only the bare base64 key (the compose stack's `tenant-root.key`) is read too.
@@ -405,6 +408,7 @@ Two stores are defaults in code, and three more exist on the boxes (seen 2026-10
 
 `$HOME` is the home of `<OWNER_USER>` on that box. On a box whose homes live on the data disk it is under `/mnt/data/home/`. A key saved on one box is not on the other: search each box.
 
+<a id="ws-doc-0c0e4094-32ff-4437-ba73-21ac0a151d97"></a>
 #### 8.3.3 Find one without printing it
 
 List the files that name the field. This prints paths only:
@@ -445,6 +449,7 @@ A desk that is already pinned needs no key: the file `<state dir>/desk/<WORKSPAC
 
 The `grep -rl`, the classifier and the `ls` were each run once on both boxes on 2026-10-26, as `<OWNER_USER>`, and printed names only. The `grep -m1` copy was not run: it copies a key.
 
+<a id="ws-doc-710f8b2c-b9cd-4445-abb1-4579fa08b36a"></a>
 #### 8.3.4 Use one
 
 Pass the file path. Never the value: not on a command line, not in a post, a spool message, an issue or an agent prompt or brief. Every action copies the key into a 600 scratch file and removes it. `do_spl_desk_up` and `do_spl_desk_pin` refuse a file that is not mode 600.
@@ -471,6 +476,7 @@ cd <CHECKOUT>/csi-spl-orc && ENV=<ENV> TENANT_ID=<WORKSPACE> TENANT_FILE=<KEY_FI
 
 Each is a dry run without `DRY_RUN=0`. None was run for this section.
 
+<a id="ws-doc-49076a85-31d3-4258-bef8-0fb35472f616"></a>
 #### 8.3.5 When the key is lost
 
 - **No re-issue.** No action and no hub endpoint replaces the root public key of an existing workspace. The only write of `tenants.root_pubkey` after the create is a paid checkout's claim (`internal/store/payments_postgres.go`). The root key rotation is row 6 of [secret rotation](../secret-rotation.md) section 5, "to build".
@@ -478,6 +484,7 @@ Each is a dry run without `DRY_RUN=0`. None was run for this section.
 - **`box-wui` cannot be re-pinned.** The join path refuses the reserved `box-wui` box. A workspace whose `box-wui` pin is still in place keeps working. One that needs a new `box-wui` pin has no path without the key: gap D10.
 - Pins already made stay valid. Losing the key removes nothing.
 
+<a id="ws-doc-34ebafca-4dba-4776-bd23-41c4aac69b95"></a>
 #### 8.3.6 Where a key must never be
 
 - **Git.** Never commit a key file. `lint-gitleaks` and `lint-trufflehog` scan every push. `box-state-pack.sh` leaves `.spool-hub/tenants` out of a box-state pack.

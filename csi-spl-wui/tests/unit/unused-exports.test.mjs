@@ -60,7 +60,6 @@ const ALLOW = new Map([
   ['src/utils/pwa-install.mjs', ['isStandalone']],
   ['src/utils/read-sync.mjs', ['PUSH_MS']],
   ['src/utils/roadmap-rows.mjs', ['ROADMAP_WHEN']],
-  ['src/utils/settings-nav.mjs', ['settingsSectionOf']],
   ['src/utils/sidebar-row-menu.mjs', ['HIDDEN_PEERS_KEY']],
   ['src/utils/signed-out-redirect.mjs', ['isExemptScreen']],
   ['src/utils/spool-client.mjs', ['PER_TOPIC_MAX']],
@@ -70,7 +69,7 @@ const ALLOW = new Map([
   ['src/utils/topic-open.mjs', ['TOPIC_PANE_OWN_CLICK']],
   ['src/utils/tree-drag.ts', ['TREE_DROP_EDGE']],
 ])
-const ALLOW_CAP = 35
+const ALLOW_CAP = 34
 
 function walk(dir, out = []) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {

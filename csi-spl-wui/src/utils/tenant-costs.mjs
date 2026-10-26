@@ -108,6 +108,23 @@ function costSecondOf(r) {
   }
 }
 
+/* spec 140 3.10 (SPL-3565): one (workspace, vendor) of the estate's token burn, the operator admin's only */
+function costWorkspaceOf(w) {
+  const r = w && typeof w === 'object' ? w : {}
+  return {
+    workspace: str(r.workspace),
+    vendor: str(r.vendor),
+    tokens: int(r.tokens),
+    listValueMicros: int(r.list_value_micros),
+    days: int(r.days),
+  }
+}
+
+/** The month's list-price total (USD micros): every part's list value, 0 for none (spec 140 3.10). */
+export function costListTotal(parts) {
+  return (Array.isArray(parts) ? parts : []).reduce((s, p) => s + (p && p.listValueMicros ? p.listValueMicros : 0), 0)
+}
+
 function costCoverageOf(c) {
   const r = c && typeof c === 'object' ? c : {}
   return {
@@ -136,6 +153,8 @@ export function costMonthOf(body) {
     total: { usdMicros: int(total.usd_micros), eurMicros: int(total.eur_micros), secondMicros: intOrNull(total.second_micros) },
     parts: Array.isArray(b.parts) ? b.parts.map(costPartOf) : [],
     coverage: Array.isArray(b.coverage) ? b.coverage.map(costCoverageOf) : [],
+    /* spec 140 3.10: every workspace's token burn, the estate answer's only */
+    workspaces: b.scope === 'estate' && Array.isArray(b.workspaces) ? b.workspaces.map(costWorkspaceOf) : [],
   }
 }
 
@@ -385,6 +404,12 @@ export function mockTenantCostsBody(month = '', scenario = '', now = new Date(),
     total: { usd_micros: usd, eur_micros: eur, second_micros: second },
     parts,
     coverage,
+    /* spec 140 3.10: the operator admin's every-workspace burn (the workspace ids are the mock's) */
+    workspaces: [
+      { workspace: 'ws-alpha', vendor: 'claude', tokens: 4.2e7, list_value_micros: toMicros(13.89), days: 1 },
+      { workspace: 'ws-alpha', vendor: 'agy', tokens: 4.7e7, list_value_micros: 0, days: 1 },
+      { workspace: 'ws-operator', vendor: 'claude', tokens: 2.1e9, list_value_micros: toMicros(950), days: n },
+    ],
   }
 }
 

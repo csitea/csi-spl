@@ -12,7 +12,11 @@
      Spec 123 5.4 (SPL-2199, owner msg 44fef397): one more column, each part
      in the reader's second currency (Settings -> Appearance, EUR unless
      picked), its title the rate and the rate's date; no rate is a dash
-     saying so, never a guess. A new pick reloads the month. -->
+     saying so, never a guess. A new pick reloads the month.
+     Spec 140 3.10 (SPL-3565): a workspace's view carries its own lanes'
+     token burn as fleet_tokens parts (list price, a paid 0); the total row
+     sums the list price; the operator admin's estate adds a table of every
+     workspace's burn. -->
 <template>
   <div class="monitoring-costs" data-test="costs-page">
     <div class="costs-head">
@@ -81,11 +85,36 @@
               <td class="num" data-label="EUR" data-test="costs-total-eur">{{ money(view.total.eurMicros, 'EUR') }}</td>
               <td class="num" :data-label="secondHead" data-test="costs-total-second" :title="second(view.total).title">{{ second(view.total).text }}</td>
               <td class="num" :data-label="t('monitoring.costs.col_pct')">{{ view.total.usdMicros > 0 ? '100 %' : '' }}</td>
-              <td class="num" />
+              <td class="num" :data-label="t('monitoring.costs.col_list')" data-test="costs-total-list">{{ listTotal ? money(listTotal, 'USD') : '' }}</td>
             </tr>
           </tfoot>
         </table>
       </div>
+
+      <!-- spec 140 3.10 (SPL-3565, owner msg 96d69790): the operator admin's estate lists every workspace's token burn -->
+      <section v-if="view.workspaces.length" class="costs-workspaces" data-test="costs-workspaces">
+        <h3>{{ t('monitoring.costs.workspaces_title') }}</h3>
+        <div class="costs-table-wrap">
+          <table class="costs-table">
+            <thead>
+              <tr>
+                <th scope="col">{{ t('monitoring.costs.col_workspace') }}</th>
+                <th scope="col">{{ t('monitoring.costs.col_vendor') }}</th>
+                <th scope="col" class="num">{{ t('monitoring.costs.col_tokens') }}</th>
+                <th scope="col" class="num">{{ t('monitoring.costs.col_list') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="w in view.workspaces" :key="w.workspace + '|' + w.vendor" data-test="costs-workspace-row" :data-workspace="w.workspace" :data-vendor="w.vendor">
+                <td>{{ w.workspace }}</td>
+                <td>{{ w.vendor }}</td>
+                <td class="num" :data-label="t('monitoring.costs.col_tokens')">{{ costUnits(w.tokens, locale) }}</td>
+                <td class="num" :data-label="t('monitoring.costs.col_list')">{{ w.listValueMicros ? money(w.listValueMicros, 'USD') : '' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <section v-if="coverage.length" class="costs-coverage" data-test="costs-coverage">
         <h3>{{ t('monitoring.costs.coverage_title') }}</h3>
@@ -107,7 +136,7 @@
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
 import { useOperatorPane } from '~/stores/operator-pane'
-import { COSTS_READ, costCoverageRows, costEmptySources, costMoney, costMonthOf, costMonthOptions, costPartKey, costPieSlices, costSecondCell, costSliceColor, costUnits } from '~/utils/tenant-costs.mjs'
+import { COSTS_READ, costCoverageRows, costEmptySources, costListTotal, costMoney, costMonthOf, costMonthOptions, costPartKey, costPieSlices, costSecondCell, costSliceColor, costUnits } from '~/utils/tenant-costs.mjs'
 
 /* the pie is this route's own chunk, never the shell's (ci_costs_route_gzip_kb) */
 const MonitoringCostsPie = defineAsyncComponent(() => import('@/components/MonitoringCostsPie.vue'))
@@ -143,6 +172,7 @@ function second(p: { secondMicros: number | null, fxRate?: number | null, fxRate
 const partLabel = (p: CostPart) => `${sourceLabel(p.source)} · ${p.projectOrVendor || '-'} · ${p.kind}`
 
 const empties = computed(() => (view.value ? costEmptySources(view.value) : []))
+const listTotal = computed(() => (view.value ? costListTotal(view.value.parts) : 0))
 const coverage = computed(() => (view.value ? costCoverageRows(view.value) : []))
 const slices = computed(() => (view.value ? costPieSlices(view.value.parts) : []).map((s, i) => ({
   key: s.key,

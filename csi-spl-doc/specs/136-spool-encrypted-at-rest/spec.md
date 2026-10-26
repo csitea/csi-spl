@@ -1,6 +1,6 @@
 # 136: Spool messages encrypted at rest (phase 2 of the private workspace)
 
-Status: **v1.2, owner answers Q1-Q7 folded (msg 165607d4), key file specified (check 4 W1-W7); build lanes reshaped**. Editor s136-claude (c-399, v1.0); v1.1-v1.2 fold by a-264 (SPL-3640). Q1-Q3, Q5-Q6 confirmed recommendation A; Q4 B (fleet agents keep today's sudo/docker; only workspace user has none) and Q7 B (unattended unlock from key file) adopted with explicit R1 exception and lane updates. Build lanes L0, L1, L2, L5a, L6a, L8, L11 landed (section 11). Issue: SPL-3640 (v1.0 was SPL-1658). This spec changes no code; the build lanes of section 11 do.
+Status: **v1.2, owner answers Q1-Q7 folded (msg 165607d4), key file and boot unit specified (W1-W14); build lanes reshaped**. Editor s136-claude (c-399, v1.0); v1.1-v1.2 fold by a-264 (SPL-3640). Q1-Q3, Q5-Q6 confirmed recommendation A; Q4 B (fleet agents keep today's sudo/docker; only workspace user has none) and Q7 B (unattended unlock from key file) adopted with explicit R1 exception and lane updates. Build lanes L0, L1, L2, L5a, L6a, L8, L11 landed (section 11). Issue: SPL-3640 (v1.0 was SPL-1658). This spec changes no code; the build lanes of section 11 do.
 
 Paths: `api/` = `csi-spl-api/src/go/spool-hub-api/`, `orc/` =
 `csi-spl-orc/src/bash/`, `sa/` = `orc/features/spawn-agents/`, `rdb/` =
@@ -319,8 +319,9 @@ agents' recipients and the owner's. Sealing on the sender for the receiver
   workspace OS user). `spool recv --encrypted --as <id>` asks keyd to open the
   messages whose `for` holds `<id>`. The identities never touch disk in clear.
   Under the owner's answer Q7 B (msg 165607d4), unlock at boot is unattended:
-  `spool key unlock --key-file <state>/keys/unlock.key --workspace <ws id>`
-  (run as `spw-<id8>`) reads the key file, opens `agents.age`, and starts keyd
+  `spool key unlock --key-file <state>/keys/unlock.key` (or with optional `--workspace <ws id>`)
+  (run as `spw-<id8>`) reads the key file, resolves the workspace UUID from `<state>/keys/workspace`
+  (`internal/keyd/store.go:62` `WorkspaceOf`), opens `agents.age`, and starts keyd
   over the pipe without requiring a tty. `--key-file` takes a path, not a
   passphrase literal, so it is excluded from `FlagRefused`. Interactive
   terminal unlock (`spool key unlock --workspace <ws id>` on `/dev/tty`)
@@ -338,7 +339,7 @@ agents' recipients and the owner's. Sealing on the sender for the receiver
   - **StrictModes enforcement**: before reading, `spool key unlock --key-file <path>`
     verifies that `<path>` is owned by the process's effective UID (`spw-<id8>`),
     its permission mode is strictly `0400` (refusing any group or other bits,
-    e.g. 0440, 0600, 0644), and is a regular file (refusing symlinks outside `<state>`).
+    e.g. 0440, 0600, 0644), and is a regular file, refusing any symlink (lstat / O_NOFOLLOW).
     If any check fails, unlock refuses immediately with exit 2 and does not read.
   - **Content and format**: a random high-entropy passphrase string (32 bytes
     base64-encoded, 44 chars, generated from `crypto/rand` by `spl-ws-enc-setup`).
@@ -350,10 +351,15 @@ agents' recipients and the owner's. Sealing on the sender for the receiver
     fallback unlock on a tty (`spool key unlock`), the owner pastes or types the
     string from `unlock.key` (or passes `--key-file`).
   - **Boot mechanism**: systemd template unit `orc/assets/systemd/spool-keyd@.service`
-    (installed to `/etc/systemd/system/spool-keyd@.service`), running strictly as
-    `User=spw-%i`, `Group=spw-%i` (never root), ordered `After=local-fs.target`.
-    `ExecStart=/opt/csi/csi-spl/bin/csi/spl/spool key unlock --key-file /home/spw-%i/.spool/enc/keys/unlock.key --workspace %i`.
-    Lane L6b owns creating and enabling this service during workspace setup (`spl-ws-enc-setup`).
+    (installed to `/etc/systemd/system/spool-keyd@.service`, instantiated as `spool-keyd@<id8>.service`),
+    running strictly as `User=spw-%i`, `Group=spw-%i` (never root), ordered `After=local-fs.target`.
+    `Type=forking` with `PIDFile=/home/spw-%i/.spool/enc/keyd.pid` (keyd writes its PID at `<state>/keyd.pid`).
+    `ExecStart=@SPOOL_BIN@ key unlock --key-file /home/spw-%i/.spool/enc/keys/unlock.key`
+    (where `@SPOOL_BIN@` is rendered by `spl-ws-enc-setup` with the installed host spool binary path,
+    e.g. `/usr/local/bin/spool`, executable by `spw-%i`; `--workspace` is omitted as `unlock` reads the UUID
+    from `/home/spw-%i/.spool/enc/keys/workspace` via `WorkspaceOf`).
+    Lane L6b owns creating and enabling this service during workspace setup (`spl-ws-enc-setup`),
+    and L6b's test proves keyd still answers `spool key status` -> `unlocked` 10 s after the unit starts.
   - **Crash-safe rotation**: `spool key rotate-unlock-key --workspace <ws id>`:
     1. Generates a new 32-byte base64 key string in memory.
     2. Re-encrypts `agents.age` under the new key, writing `<state>/keys/agents.age.tmp` (mode 0600).
@@ -490,7 +496,7 @@ workspaces; vendor quota and CPU bind first, as today.
    terminal, lane L6b): creates `spw-<id8>` (no sudo, no docker), `<state>`
    directories, initializes age identities, generates `<state>/keys/unlock.key`
    (mode 0400, owned by `spw-<id8>:spw-<id8>`), installs and enables systemd
-   unit `spool-keyd@spw-<id8>.service` -> seats re-joined as the workspace
+   unit `spool-keyd@<id8>.service` -> seats re-joined as the workspace
    user, in its tmux server -> flag on -> new mail is sealed. (Lane L9
    `do_spl_ws_enc_migrate` only migrates existing clear messages and verifies
    they open through keyd; it does not create the key file).
@@ -504,18 +510,21 @@ workspaces; vendor quota and CPU bind first, as today.
    (journal, free blocks): stated in section 9, not hidden.
 4. **Rollback**:
    - **Full encryption rollback**: flag off -> new mail is clear again, in the
-     plain dirs. The unattended service `spool-keyd@spw-<id8>.service` is
-     disabled and stopped (`systemctl disable --now spool-keyd@spw-<id8>.service`);
-     `<state>/keys/unlock.key` is securely wiped and unlinked. Sealed files stay
-     sealed and readable with `spool recv --encrypted` by running `spool key unlock`
-     on a terminal (typing the owner-stored passphrase) or decrypted via
-     `do_spl_ws_enc_export`.
+     plain dirs. Before unlinking `unlock.key`, the operator/admin runs
+     `spool key rekey` to re-encrypt `<state>/keys/agents.age` under a manual
+     passphrase chosen and typed by the owner (or exports all sealed messages to
+     clear via `do_spl_ws_enc_export` while keyd is still unlocked).
+     The unattended service `spool-keyd@<id8>.service` is disabled and stopped
+     (`systemctl disable --now spool-keyd@<id8>.service`); `<state>/keys/unlock.key`
+     is securely wiped and unlinked. Sealed files stay sealed and readable with
+     `spool recv --encrypted` by running `spool key unlock` on a terminal (typing
+     the owner-typed passphrase entered during rekey) or decrypted via `do_spl_ws_enc_export`.
    - **Rollback from Q7 B to Q7 A (unattended key file to interactive passphrase)**:
-     `spool key rekey --workspace <ws id>` re-encrypts `<state>/keys/agents.age`
-     with a human-typed passphrase on `/dev/tty` (meeting the 16-char / asked-twice
-     rule of section 5), stops and disables `spool-keyd@spw-<id8>.service`, and
-     securely shreds and unlinks `<state>/keys/unlock.key`. Subsequent box boots
-     then require the owner to unlock interactively via `spool key unlock` on terminal.
+     `spool key rekey` re-encrypts `<state>/keys/agents.age` with a human-typed
+     passphrase on `/dev/tty` (meeting the 16-char / asked-twice rule of section 5),
+     stops and disables `spool-keyd@<id8>.service`, and securely shreds and unlinks
+     `<state>/keys/unlock.key`. Subsequent box boots then require the owner to unlock
+     interactively via `spool key unlock` on terminal.
 5. **The generic switch later (R4)**: `enc` as the default for every
    workspace on a shared box = the flag's default plus one OS user per
    workspace. Nothing in sections 3-6 names a workspace.
@@ -605,11 +614,11 @@ Seven build lanes and documentation benchmark corrections have landed on master:
 The owner's binding answers reshape the build plan:
 
 1. **Lanes changed**:
-   - **L6b workspace user + seats**: reshaped by Q4 B and Q7 B. Fleet agents keep today's sudo and docker; only the workspace user `spw-<id8>` has no sudo, no docker, and no `spool-agents` group. Setup action `spl-ws-enc-setup` generates `<state>/keys/unlock.key` (mode 0400, owned by `spw-<id8>:spw-<id8>`) and installs template unit `orc/assets/systemd/spool-keyd@.service` to start keyd unattended at boot.
+   - **L6b workspace user + seats**: reshaped by Q4 B and Q7 B. Fleet agents keep today's sudo and docker; only the workspace user `spw-<id8>` has no sudo, no docker, and no `spool-agents` group. Setup action `spl-ws-enc-setup` generates `<state>/keys/unlock.key` (mode 0400, owned by `spw-<id8>:spw-<id8>`) and installs template unit `orc/assets/systemd/spool-keyd@.service` (`spool-keyd@<id8>.service`, `Type=forking`, `PIDFile=...`, `@SPOOL_BIN@`) to start keyd unattended at boot.
    - **L9 migrate + rollback**: reshaped by Q7 B. Migrates existing clear mail into `encrypted/` and verifies it opens through keyd with `<state>/keys/unlock.key`. On full rollback, disables the systemd unit and securely unlinks `unlock.key`. Does not create the key file (owned by L6b).
    - **L10 guide**: reshaped by Q4 B and Q7 B. Documents unattended key file management (`unlock.key`, permissions, boot unlock, rotation) and states honest limits plainly (residual risk of fleet agents retaining sudo, physical disk theft risk).
 2. **New lane**:
-   - **L2b unattended key file**: new lane required by Q7 B (owner msg 165607d4). Files: `api/cmd/spool/key.go`, `api/internal/keyd/store.go`, `api/internal/keyd/pass.go`. Adds `--key-file` flag to `spool key unlock` (reading file, opening `agents.age` and piping to `spool keyd` without tty), `--key-file` excluded from `FlagRefused`, StrictModes check (owner UID, mode 0400, non-symlink), crash-safe rotation helper with recovery, R1 exception. Needs: L2 (`a05ea1f24`).
+   - **L2b unattended key file**: new lane required by Q7 B (owner msg 165607d4). Files: `api/cmd/spool/key.go`, `api/internal/keyd/store.go`, `api/internal/keyd/pass.go`. Adds `--key-file` flag to `spool key unlock` (reading file, resolving workspace from `<state>/keys/workspace` via `WorkspaceOf` when omitted, opening `agents.age` and piping to `spool keyd` without tty), `--key-file` excluded from `FlagRefused`, StrictModes check (owner UID, mode 0400, regular file refusing any symlink via lstat/O_NOFOLLOW), crash-safe rotation helper (`spool key rotate-unlock-key`) with `.tmp` recovery, interactive rekey command (`spool key rekey`) to transition between key file and manual passphrase, R1 exception. Tests: invalid/missing key file rejected, non-0400/symlink rejected, unattended unlock without tty succeeds, crash recovery restores consistent state, `spool key rekey` re-encrypts bundle under new passphrase and unlocks successfully. Needs: L2 (`a05ea1f24`).
 3. **Dropped lanes / tasks**:
    - **Dropped**: box-wide removal of `NOPASSWD: ALL` and `docker` from fleet agents (planned separate spec under Q4 A recommendation; dropped under owner answer Q4 B).
    - **Dropped**: interactive owner terminal unlock on `/dev/tty` at every reboot (replaced by Q7 B unattended key file).
@@ -628,14 +637,14 @@ The owner's binding answers reshape the build plan:
 | L0 brief mode | LANDED (`626ac5529`) | `sa/scripts/spawn-remote.sh` (P5: brief 644 -> 600, or 640 with ACL) | a brief file is 600 where the box user is the agent user; 640 (`stat -c %a`, ACL mask; `getfacl` shows `group::---`) where the agent CLI runs as another user | PENDING: `stat -c %a` and `getfacl` of the next remote spawn's brief on each box shape (no remote spawn reached the box since the land) | - |
 | L1 seal format | LANDED (`9ff3e5bc3`) | new `api/internal/enc/` (age seal/open, the inner JSON, header check); `api/internal/msg/msg.go` (`v:3`, `enc`, `for`, `ct`, the name without slug); `api/go.mod`, `api/go.sum` (`filippo.io/age`, `golang.org/x/term`, and `golang.org/x/sys` promoted to direct). No other lane edits `go.mod` or `go.sum`. | FR1, FR3, FR13, the 7 benchmark | - | - |
 | L2 keys + keyd (interactive) | LANDED (`a05ea1f24`, `48848e14e`, `93731a030`, `1dcde76a3`, `f2aef210a`, `4dc86e58c`) | new `api/cmd/spool/key.go`, new `api/internal/keyd/` | FR5, FR6 | the owner unlocks a throwaway workspace on the proof hub; `spool key status` -> unlocked, after `lock` -> locked | L1 |
-| L2b unattended key file | **NEW** (Q7 B) | `api/cmd/spool/key.go`, `api/internal/keyd/store.go`, `api/internal/keyd/pass.go` | FR5 exception, FR6; StrictModes checks (mode 0400, caller UID, non-symlink), unlock without tty via pipe to keyd, crash-safe rotation and tmp recovery | keyd starts unattended from `<state>/keys/unlock.key`, serves open requests, lock drops keys | L2 |
+| L2b unattended key file | **NEW** (Q7 B) | `api/cmd/spool/key.go`, `api/internal/keyd/store.go`, `api/internal/keyd/pass.go` | FR5 exception, FR6; StrictModes checks (mode 0400, caller UID, regular non-symlink), unlock without tty via pipe to keyd, crash-safe rotation and tmp recovery, `spool key rekey` command | keyd starts unattended from `<state>/keys/unlock.key`, serves open requests, lock drops keys; rekey transitions between key file and typed passphrase | L2 |
 | L3a store + flags | PENDING | `api/internal/spool/spool.go`, `api/internal/spool/retired.go`, `api/cmd/spool/main.go` (`--encrypted` on recv/tail) | FR2, FR4, the recv p50 of 7 | two agents of the throwaway workspace exchange 10 sealed DMs; `grep -r <marker>` over every spool root -> 0 | L1, L2 |
 | L3b pending + files | PENDING | `api/internal/hubclient/flush.go`, `api/internal/files/files.go` | sealed pending flushes after unlock; sealed blob round trip | a DM with an attachment while the hub is down, then up | L3a |
 | L4 MCP | PENDING | `api/internal/mcp/mcp.go` and its tool goldens; `api/cmd/spool/main.go` (the MCP server's keyd wiring only, after L3a landed) | FR4 (MCP) | an MCP recv of a sealed DM through keyd | L3a |
 | L5a notify + side files | LANDED (`8b146fa3b`) | `api/internal/notify/notify.go`, `sa/lib/spool-notify.inc.sh`, `sa/lib/spool-poke-queue.inc.sh`, `sa/lib/spool-asks.inc.sh`, `sa/scripts/spool-agent-hook.sh`, `sa/scripts/spool-mirror.py`, `sa/scripts/agent-mirror-check.py` | FR7 | after L3a: the L3a proof also greps `.pokes`, `.mirror` and the asks dir -> 0 | L1 (tests), L3a (proof) |
 | L5b argv + readers | PENDING | `sa/scripts/spool-send.sh` (stdin body; the hub-down path refuses `enc`), `orc/run/spl-desk-post.func.sh`, `sa/scripts/spool-fleet-relay.sh`, `sa/scripts/kill-your-self-report.sh`, `sa/scripts/agent-inbox.sh`, `orc/scripts/spl-desk-reply.sh`, `orc/run/spl-desk-reply.func.sh` | FR15, FR16, the spool-send fallback refusal | a sealed ACCEPTED ends a proof lane through `/exit-clean` | L3a |
 | L6a flag (hub) | LANDED (`58b7a660f`) | the next free `rdb/` migration; `api/internal/store/tenant_kv.go`; `api/internal/hub/tenant_settings.go`; the pin and roster answers (the lane names their files in its first commit, none listed by L1-L5) | the flag round trip, Memory + Postgres | flag on for the throwaway workspace only | - |
-| L6b workspace user + seats | **CHANGED** (Q4 B, Q7 B) | new `orc/run/spl-ws-enc-setup.func.sh`; new `orc/assets/systemd/spool-keyd@.service`; `orc/run/spl-local-hub-agent-join.func.sh`; `orc/run/spl-desk-up.func.sh` (the fleet root of an `enc` seat); `sa/scripts/spawn-window.sh` (`SPAWN_WORKSPACE`, the workspace tmux server); `sa/scripts/restore-core.inc.sh` (a restore keeps the user and server); the 40-window count command | FR10, FR14 + refusal tests; `<state>/keys/unlock.key` 0400 generation; systemd unattended service installation | two agents seated as the workspace user; `ps -o user=` shows it; `id spw-<id8>` without `sudo`, `docker`, `spool-agents`; fleet agents retain today's sudo/docker | L6a, L2b |
+| L6b workspace user + seats | **CHANGED** (Q4 B, Q7 B) | new `orc/run/spl-ws-enc-setup.func.sh`; new `orc/assets/systemd/spool-keyd@.service`; `orc/run/spl-local-hub-agent-join.func.sh`; `orc/run/spl-desk-up.func.sh` (the fleet root of an `enc` seat); `sa/scripts/spawn-window.sh` (`SPAWN_WORKSPACE`, the workspace tmux server); `sa/scripts/restore-core.inc.sh` (a restore keeps the user and server); the 40-window count command | FR10, FR14 + refusal tests; `<state>/keys/unlock.key` 0400 generation; systemd unattended service template (`Type=forking`, `PIDFile=...`, `@SPOOL_BIN@`) installation and test (keyd responds 10 s post-start) | two agents seated as the workspace user; `ps -o user=` shows it; `id spw-<id8>` without `sudo`, `docker`, `spool-agents`; fleet agents retain today's sudo/docker | L6a, L2b |
 | L7a captures | PENDING | `orc/run/spl-lane-restart.func.sh`, `spl-rotate-lib.func.sh`, `spl-lane-rotate.func.sh`, `spl-wd-takeover.func.sh`, `spl-peer-restart.func.sh`, `spl-orch-rotate.func.sh`, `spl-watchdog.func.sh` (P11 transcript and input included), `spl-dispatch-lease.func.sh` (P11 only) | FR8: each refuses to capture an `enc` pane | rotate one proof agent; nothing of it under `dispatch/wd/ctx` | L6b |
 | L7b copies | PENDING | `orc/run/spl-lane-handover.func.sh`, `orc/run/spl-desk-rebox.func.sh`, `orc/run/spl-agent-handoff.func.sh` (P10), `sa/scripts/agent-id-retire.sh`, `sa/scripts/desk-seat-drop.sh` | FR7 (handoff), FR8 | retire one proof agent; its `.retired/` copy holds only `encrypted/` | L6b |
 | L8 sweep gate | LANDED (`f541cafda`) | new `orc/tests/enc-dirs-untouched.tst.sh`, scanning `orc/`, `sa/` and `.py` (W1-W7, `spl-peer-poll.func.sh` included) | FR9, plus a planted control on a throwaway branch | - | - |
@@ -734,6 +743,6 @@ still steer each lane where a question touches it.
 
 Doc corrections from build lanes: L0 brief mode and live proof (c-405, msg 7e44f3cf, commit 626ac5529) and section 7 benchmark (c-406, msg 5ff49231, commit 9ff3e5bc3), folded in 7b7469cc5.
 
-v1.2 update (2026-10-26, SPL-3640, a-264): folded the owner's binding answers Q1-Q7 from msg 165607d4; resolved reviewer c-315 check 4 findings W1-W7 (specified `<state>` as `$HOME/.spool/enc`, keyd pipe contract with `spool key unlock --key-file`, `unlock.key` random 32-byte secret, systemd template unit `spool-keyd@.service` owned by L6b, 9-step crash-safe rotation, rollback and turn-on reconciliation, StrictModes checks). Q4 B reshaped L6b and Section 9 (fleet agents keep sudo/docker; residual risk stated). Q7 B added R1 exception (msg 165607d4) and reshaped Section 4, 5, 11 (unattended key file `<state>/keys/unlock.key`, mode 0400, new lane L2b, boot unlock, stolen disk limit stated). Recorded build lanes landed: L0 (`626ac5529`), L1 (`9ff3e5bc3`), L2 (`a05ea1f24`, `48848e14e`, `93731a030`, `1dcde76a3`, `f2aef210a`, `4dc86e58c`), L5a (`8b146fa3b`), L6a (`58b7a660f`), L8 (`f541cafda`), L11 (`44c8e21c3`).
+v1.2 update (2026-10-26, SPL-3640, a-264): folded the owner's binding answers Q1-Q7 from msg 165607d4; resolved reviewer c-315 check 4 findings W1-W7 and W10-W14 (specified `<state>` as `$HOME/.spool/enc`, keyd pipe contract with `spool key unlock --key-file`, workspace UUID from `keys/workspace` via `WorkspaceOf`, `unlock.key` random 32-byte secret, systemd template unit `spool-keyd@<id8>.service` with `Type=forking`, `PIDFile=...`, `@SPOOL_BIN@` owned by L6b, 10s post-start test, 9-step crash-safe rotation, StrictModes refusing any symlinks via lstat/O_NOFOLLOW, `spool key rekey` command owned by L2b, safe rollback requiring rekey or export before unlinking key). Q4 B reshaped L6b and Section 9 (fleet agents keep sudo/docker; residual risk stated). Q7 B added R1 exception (msg 165607d4) and reshaped Section 4, 5, 11 (unattended key file `<state>/keys/unlock.key`, mode 0400, new lane L2b, boot unlock, stolen disk limit stated). Recorded build lanes landed: L0 (`626ac5529`), L1 (`9ff3e5bc3`), L2 (`a05ea1f24`, `48848e14e`, `93731a030`, `1dcde76a3`, `f2aef210a`, `4dc86e58c`), L5a (`8b146fa3b`), L6a (`58b7a660f`), L8 (`f541cafda`), L11 (`44c8e21c3`).
 
-<!-- version: 1.2.0 · updated: 2026-10-26 · last-edit: 2026-10-26T22:45:00Z -->
+<!-- version: 1.2.0 · updated: 2026-10-26 · last-edit: 2026-10-26T22:50:00Z -->

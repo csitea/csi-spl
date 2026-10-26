@@ -47,3 +47,31 @@ func TestReadRootKey(t *testing.T) {
 		}
 	}
 }
+
+// TestReadRootKeyMissingFile is spec 158 row C: a --root-key path with no
+// file behind it says the file does not exist, in plain words; a bad key
+// text keeps the key message. Control: before the fix the missing file read
+// "the --root-key text is not a base64 ed25519 private key (nor a readable file)".
+func TestReadRootKeyMissingFile(t *testing.T) {
+	dir := t.TempDir()
+	for name, v := range map[string]string{
+		"abs":   filepath.Join(dir, "root.key"),
+		"home":  "~/.spool/root.key",
+		"rel":   "./root.key",
+		"plain": "root-key.b64",
+	} {
+		_, err := ReadRootKey(v, strings.NewReader(""))
+		if err == nil || !strings.Contains(err.Error(), "the root key file does not exist") {
+			t.Errorf("%s: want the plain missing-file error, got %v", name, err)
+		}
+		if err != nil && strings.Contains(err.Error(), v) {
+			t.Errorf("%s: the error echoes the value: %v", name, err)
+		}
+	}
+	if _, err := ReadRootKey(dir, strings.NewReader("")); err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Errorf("dir: want the directory error, got %v", err)
+	}
+	if _, err := ReadRootKey("AAAA", strings.NewReader("")); err == nil || !strings.Contains(err.Error(), "not a base64 ed25519 private key") {
+		t.Errorf("bad text: want the key error, got %v", err)
+	}
+}

@@ -82,9 +82,35 @@ func ReadRootKey(v string, stdin io.Reader) (ed25519.PrivateKey, error) {
 	}
 	priv, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(raw)))
 	if err != nil || len(priv) != ed25519.PrivateKeySize {
-		return nil, fmt.Errorf("%s is not a base64 ed25519 private key (nor a readable file)", src)
+		return nil, rootKeyError(v, src)
 	}
 	return priv, nil
+}
+
+// rootKeyError says in plain words why --root-key was refused (spec 158 C):
+// a value that names a file which is not there says the file does not
+// exist, instead of calling the path a bad key. It never echoes v.
+func rootKeyError(v, src string) error {
+	if st, err := os.Stat(v); err == nil && st.IsDir() {
+		return fmt.Errorf("the --root-key path is a directory, not the root key file")
+	}
+	if v != "-" && looksLikePath(v) && !fileExists(v) {
+		return fmt.Errorf("the root key file does not exist: no file at the --root-key path. " +
+			"Save the workspace root key there (mode 0600), or pass the key text, or - to read it from stdin")
+	}
+	return fmt.Errorf("%s is not a base64 ed25519 private key (nor a readable file)", src)
+}
+
+// looksLikePath is true for a value that cannot be the base64 key text: it
+// starts like a path or holds a character outside the base64 alphabet.
+func looksLikePath(v string) bool {
+	v = strings.TrimSpace(v)
+	if strings.HasPrefix(v, "~") || strings.HasPrefix(v, "./") || strings.HasPrefix(v, "../") {
+		return true
+	}
+	return strings.ContainsFunc(v, func(r rune) bool {
+		return !(r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '+' || r == '/' || r == '=')
+	})
 }
 
 func fileExists(p string) bool {

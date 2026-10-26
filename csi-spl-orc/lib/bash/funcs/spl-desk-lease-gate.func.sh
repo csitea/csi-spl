@@ -36,7 +36,9 @@
 # sole-seat rule cannot be checked (a WARN) and rule 3 matches the tenant.
 # No lease file (a box without dispatchers): no gate. A hub-tail that fails:
 # refused, the seat is not the holder and the holder can answer. Under
-# SPOOL_TEST=1 with no SPOOL_ROOT the live lease is never read: no gate.
+# SPOOL_TEST=1 there is no gate, whatever SPOOL_ROOT an agent shell exports,
+# so no test reads the live lease; the gate's own test opts in with
+# SPL_DESK_LEASE_GATE_TEST=1 and a SPOOL_ROOT of its own.
 #------------------------------------------------------------------------------
 
 declare -F spl_desk_box_default >/dev/null ||
@@ -54,7 +56,7 @@ spl_desk_lease_gate() {
   local d="$1" box="$2" tenant="$3" hub="$4" agent="$5" task="$6"
   local dir="${SPOOL_ROOT:-/var/spool-hub}/dispatch" holder="" orch="" claim seat_ch
   local tail="" tail_read=0 tail_err="" ch_known=0 topic_ch=""
-  [[ -z "${SPOOL_ROOT:-}" && "${SPOOL_TEST:-}" == 1 ]] && return 0
+  [[ "${SPOOL_TEST:-}" == 1 && "${SPL_DESK_LEASE_GATE_TEST:-}" != 1 ]] && return 0
   [[ -s "$dir/lease" ]] || return 0
   read -r holder _ < "$dir/lease"
   [[ -s "$dir/lease.orch" ]] && read -r orch _ < "$dir/lease.orch"

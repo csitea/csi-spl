@@ -84,7 +84,7 @@ spl_desk_spool() {
     send) echo "{\"msg_id\":\"s-1\",\"delivery\":\"sent\"}" ;;
   esac
 }
-do_spl_desk_reply' in_orc SPOOL_ROOT="$R" LEASE_MACHINE=box-a TENANT_ID=t1 DESK_BOX=box-desk DESK_AGENT="$agent" \
+do_spl_desk_reply' in_orc SPOOL_ROOT="$R" SPL_DESK_LEASE_GATE_TEST=1 LEASE_MACHINE=box-a TENANT_ID=t1 DESK_BOX=box-desk DESK_AGENT="$agent" \
     DESK_TO=HUM-10 DESK_TASK="$TK" DESK_BODY="Here is how the menu works." DRY_RUN=0 \
     CALLS="$T/calls" INBOX="$T/inbox.json" TAIL="$HUMPOST" "$@" >"$T/o" 2>&1 || rc=$?
   echo "$rc" >"$T/rc"

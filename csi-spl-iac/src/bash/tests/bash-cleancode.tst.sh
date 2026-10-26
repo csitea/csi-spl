@@ -2,7 +2,10 @@
 #------------------------------------------------------------------------------
 # Purpose: the bash clean-code gate (CLE-77915, refactor item 5) - the limit the
 #          hub's Go gate holds (csi-spl-api internal/cleancode), over every
-#          top-level function in the iac + orc + cnf bash trees (tests aside).
+#          top-level function in the product bash trees (tests aside): ROOTS,
+#          iac + orc + cnf + utl, and the .sh files of csi-spl-api/src and
+#          csi-spl-wui/src (r24-02). csi-spl-doc/.specify is not walked: it is
+#          the vendored spec-kit scaffold, upstream code.
 #          A function longer than MAX_LINES fails unless LONG lists it. LONG is
 #          what was over the limit when the gate landed and may only shrink:
 #          split a function and delete its line; a NEW long function fails.
@@ -73,12 +76,21 @@ check_long() {
   done < <(sed -E 's/[[:space:]]*#.*//' <<<"$list")
 }
 
-mapfile -t files < <(cd "$APP_ROOT" && find csi-spl-iac/src/bash csi-spl-iac/lib/bash csi-spl-orc/src/bash csi-spl-orc/lib/bash csi-spl-cnf/src/bash \
+ROOTS="csi-spl-iac/src/bash csi-spl-iac/lib/bash csi-spl-orc/src/bash csi-spl-orc/lib/bash csi-spl-cnf/src/bash
+  csi-spl-utl/src/bash csi-spl-api/src csi-spl-wui/src"
+# shellcheck disable=SC2086 # ROOTS is a word list
+mapfile -t files < <(cd "$APP_ROOT" && find $ROOTS \
   -type f -name '*.sh' ! -path '*/tests/*' ! -path '*/node_modules/*' 2>/dev/null | sort | sed "s#^#$APP_ROOT/#")
 all=$(measure "${files[@]}")
 n=$(grep -c . <<<"$all")
 [[ $n -ge 500 ]] && pass "the walk measured $n functions in ${#files[@]} files" || fail "measured only $n functions: the walk is broken, not the code"
 check_long "$all" "$LONG"
+
+# Control (r24-02): every root is walked. A root dropped from ROOTS passes
+# vacuously, so one known file of each newly walked tree must be in the list.
+for want in csi-spl-utl/src/bash/run/reboot-required-check.func.sh csi-spl-api/src/bash/build.sh csi-spl-wui/src/docker/wui-config.sh; do
+  [[ " ${files[*]} " == *" $APP_ROOT/$want "* ]] && pass "CONTROL: the walk lists $want" || fail "CONTROL: the walk does not list $want: a root was dropped"
+done
 
 # Control: the measure counts a known function right.
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT

@@ -9,7 +9,7 @@ published: 2026-10-25T18:10:00Z
 author: a-546
 agy_review: a-546
 tags: [agents, fleet, open-source, lifecycle, monitoring]
-image: 2026-10-25-the-ai-software-making-machine.webp
+image: 2026-10-25-the-ai-software-making-machine.jpg
 image_alt: "O fabrică automatizată de software plină de viață, unde roboți animați veseli proiectează, testează și livrează cod non-stop."
 image_prompt: "a colorful cartoon illustration of a cheerful automated software factory where diverse small robots work together: one robot designs blueprints, another inspects code with a magnifying glass, others assemble glowing modules on a conveyor belt; bright flat-colour cartoon; robots only, no logos, no lettering, no text"
 draft: false

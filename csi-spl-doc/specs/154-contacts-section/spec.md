@@ -1,12 +1,13 @@
 # 154 Contacts section, synced with Google Contacts
 
-Version v1.2 draft (2026-10-26), NOT signed yet: splits the sync cycle's
-store work into a new row B8a (after B2, before B8) as c-001 decided (msg
-`813b842a`), following B2 author c-605's finding (msg `6543fa2e`) that no
-row built the sync cycle's store work. B2 is live on master (`a4b9b1187`).
-The claude seat c-771's findings W1-W4 (`seat-claude-v12.md`, `d7b68d969`)
-are folded in this commit. v1.0 by c-951@sat, v1.1 by c-988@sat, v1.2
-draft by a-870 (agy). Awaiting claude seat re-check before signing.
+Version v1.2, signed (2026-10-26): splits the sync cycle's store work
+into a new row B8a (after B2, before B8) as c-001 decided (msg `813b842a`),
+following B2 author c-605's finding (msg `6543fa2e`) that no row built the
+sync cycle's store work. B2 is live on master (`a4b9b1187`). Signed by the
+one cross-vendor review seat (claude, c-771, msg `de40718c`, verdict file
+`seat-claude-v12.md`, `21ebac769`) at `60904da23`; this commit changes
+only this header and the section 10 record. v1.0 by c-951@sat, v1.1 by
+c-988@sat, v1.2 by a-870 (agy).
 
 Source: prd topic in the owner's workspace,
 `topic:451c020f-5440-4849-8dea-2246d5796ed4`. Issues: SPL-3156 (v0.1 to
@@ -992,6 +993,8 @@ No new owner question in v1.1.
 | 2026-10-24 | c-988@sat | v1.1 signed, this commit (SPL-3192): the header and these two rows only; the spec text is `dcd3904a3` as both seats signed it |
 | 2026-10-26 | a-870 (editor agy) | v1.2 draft, `5915c91b3` (SPL-3456): sync cycle store work split into new row B8a after B2 (claim, fencing-token lease renewal, finish on contacts_sync under asOperator, joining gcal_connections status='connected'; cycle's personal contact writes under inPerson in personal_contacts files; third operatorCallers entry in operator_scope_test.go and new inPerson names in personCallers; cases C23g-C23i); B2 names its operatorCallers entries and operator_scope_test.go; B8 is after B3, B7, B8a; row count thirteen |
 | 2026-10-26 | c-771 (seat claude) | NOT SIGNED on `5915c91b3` (msg `d0147d99`, verdict file `seat-claude-v12.md`, `d7b68d969`): W1 B8a renewal and finish are inTenant, not asOperator; W2 B8a omits store writes B8 needs (fenced backoff + status_detail, claim backoff skip, outbound reads, google_etag); W3 B8a test cell pipe unescaped; W4 B2 cites 1ab36063d instead of landed a4b9b1187. Notes N1-N2 |
-| 2026-10-26 | a-870 (editor agy) | v1.2 seat fold, this commit (SPL-3456): W1-W4 folded as c-771 proposed (each line re-read on the tree): W1 renewal, finish and fenced writes in inTenant(lease.Tenant), one new operatorCallers entry (claim); W2 fenced backoff write, claim backoff skip in C23h, outbound reads and google_etag in B8a and C23g; W3 pipe escaped in test cell; W4 B2 cites landed a4b9b1187. Not signed yet, waits for c-771 re-check |
+| 2026-10-26 | a-870 (editor agy) | v1.2 seat fold, `60904da23` (SPL-3456): W1-W4 folded as c-771 proposed (each line re-read on the tree): W1 renewal, finish and fenced writes in inTenant(lease.Tenant), one new operatorCallers entry (claim); W2 fenced backoff write, claim backoff skip in C23h, outbound reads and google_etag in B8a and C23g; W3 pipe escaped in test cell; W4 B2 cites landed a4b9b1187 |
+| 2026-10-26 | c-771 (seat claude) | signed v1.2 at `60904da23` (msg `de40718c`, verdict file `seat-claude-v12.md` section 5, `21ebac769`): W1-W4 re-checked on the tree; notes N1-N2 stay for B8a builder |
+| 2026-10-26 | a-870 (editor agy) | v1.2 signed, this commit (SPL-3456): the header and these two rows only; the spec text is `60904da23` as signed by claude seat c-771 |
 
-<!-- version: 1.2-draft (seat fold W1-W4) · updated: 2026-10-26 -->
+<!-- version: 1.2 signed at 60904da23 · updated: 2026-10-26 -->

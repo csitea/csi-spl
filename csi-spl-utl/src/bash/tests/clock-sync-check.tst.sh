@@ -18,7 +18,7 @@
 #  13. No NTPSynchronized answer -> ERROR, exit 1, alert planned
 #  14. A failed send -> no alert stamp, so the next run retries
 #  15. timedatectl / chronyc are only ever read (show, timesync-status, tracking)
-#  16. Through the csi-spl-utl ./run harness -> exits 0; the probe < 100 ms
+#  16. Through the csi-spl-utl ./run harness -> exits 0; the probe < 500 ms
 #------------------------------------------------------------------------------
 set -uo pipefail
 
@@ -226,11 +226,15 @@ else
 fi
 
 # 16. Through ./run
+# The bound is an answer, not a speed record: 50 ms is the bound that failed
+# tmux-health-guard on a loaded hosted runner (wf 10 40244469102, 87b1eb023:
+# the first probe 11 ms, the next five >= 53 ms); 24 busy loops on 16 CPUs
+# gave p50 59, p99 120 ms (n=100), idle p99 17 ms. Same 500 ms here.
 reset -34us
 out=$(cd "$UTL_ROOT" && DRY_RUN=1 ./run -a do_os_clock_sync_check 2>&1); rc=$?
 ms=$(sed -n 's/.*clock-sync OK .* ms=\([0-9]*\).*/\1/p' <<<"$out" | tail -n 1)
-if [[ $rc -eq 0 && -n "$ms" ]] && ((ms < 100)); then
-  pass "16. ./run -a do_os_clock_sync_check exits 0, probe ${ms} ms (< 100)"
+if [[ $rc -eq 0 && -n "$ms" ]] && ((ms < 500)); then
+  pass "16. ./run -a do_os_clock_sync_check exits 0, probe ${ms} ms (< 500)"
 else
   fail "16. ./run harness (rc=$rc, ms=${ms:-?}, out=$out)"
 fi

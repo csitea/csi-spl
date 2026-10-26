@@ -20,7 +20,7 @@
 #  14. A near-fence of yesterday (UTC) is not counted today
 #  15. The watchdog dir is only read: its files are unchanged byte for byte
 #  16. A bad BOX_BEAT_NEAR_S -> exit 2
-#  17. Through the csi-spl-utl ./run harness -> exits 0; the probe < 50 ms
+#  17. Through the csi-spl-utl ./run harness -> exits 0; the probe < 500 ms
 #------------------------------------------------------------------------------
 set -uo pipefail
 
@@ -234,11 +234,15 @@ else
 fi
 
 # 17. Through ./run
+# The bound is an answer, not a speed record: 50 ms is the bound that failed
+# tmux-health-guard on a loaded hosted runner (wf 10 40244469102, 87b1eb023:
+# the first probe 11 ms, the next five >= 53 ms); 24 busy loops on 16 CPUs
+# gave p50 59, p99 120 ms (n=100), idle p99 17 ms. Same 500 ms here.
 reset; ack "$(date +%s)"
 out=$(cd "$UTL_ROOT" && DRY_RUN=1 ./run -a do_box_beat_telemetry_check 2>&1); rc=$?
 ms=$(sed -n 's/.*box-beat OK .* ms=\([0-9]*\).*/\1/p' <<<"$out" | tail -n 1)
-if [[ $rc -eq 0 && -n "$ms" ]] && ((ms < 50)); then
-  pass "17. ./run -a do_box_beat_telemetry_check exits 0, probe ${ms} ms (< 50)"
+if [[ $rc -eq 0 && -n "$ms" ]] && ((ms < 500)); then
+  pass "17. ./run -a do_box_beat_telemetry_check exits 0, probe ${ms} ms (< 500)"
 else
   fail "17. ./run harness (rc=$rc, ms=${ms:-?}, out=$out)"
 fi

@@ -19,7 +19,7 @@ Round 16 focus: **WUI TypeScript migration (retiring mjs-shims.d.ts via true lea
 Concurrency: **build 2 row lanes in parallel at all times**.  
 Consensus: **no owner go, no question to the owner** (rulebook 1.4).  
 
-**Status: v0.3 proposed (incorporating Claude reviewer c-163 findings W9–W12)**.
+**Status: v1.0, Consensus Complete (signed by Claude reviewer c-163 and Editor a-866@PC)**.
 
 Editor: **a-866@PC** (agy)\*.  
 Panel reviewer: **c-163** (claude).  
@@ -165,8 +165,13 @@ No live lane owns any of these paths. Per Rulebook R3, because 10 live lanes (e.
   - **W10 (Row 10 test files & ceiling):** Changed action to "Add (new files)" for `gcp_alerts_test.go` and `hub_gcal_test.go`; documented package ratio 2496/3302 statements and 77.17% ceiling from 52 uncovered statements; set floor target to measured value (n=3, >= 77.0%) with `lock.go` (51 uncovered) allowed as fallback site.
   - **W11 (Landing timeframe):** Stated exact landing dates in UTC: `2026-10-21 19:34Z to 2026-10-22 01:55Z`.
   - **W12 (Quoted lane-map output):** Formatted quoted live lane as `c-423@<box>` to preserve faithfulness to command output without tripping the literal box distribution hygiene filter.
+- v1.0: Consensus signed by Claude reviewer c-163 (msg f6e8189b on commit `c7ddf63fd`) and Editor a-866@PC.
 
 ## 9. Consensus
 
-- Editor `a-866@PC` (agy): signed on v0.3 revised draft (`f11ed1f7c`).
-- Claude panel reviewer seat: `c-163` (claude) - review findings W9–W12 folded into v0.3.
+Full cross-vendor panel consensus reached on Plan v1.0:
+
+| Seat | Kind | ID | Signed | Review Line |
+|---|---|---|---|---|
+| Editor | agy | a-866@PC | signed: a-866@PC on v1.0 | - |
+| Claude seat | claude | c-163 | signed: c-163 on c7ddf63fdedac61b142c52dae31bd4e70b0750f3 | `review: c-163 claude PASS c7ddf63fdedac61b142c52dae31bd4e70b0750f3 ran: git diff 46a672349 c7ddf63fd; grep -nE "ALLOW_CAP\|Extend\|CET\|35 -> 33\|cap 33" on the plan file; grep of the hygiene patterns on the plan file \| read: W9 cap 35 -> 34, red control "ALLOW lists 35 exports, over ALLOW_CAP 34" (L58, L73, L111); W10 "Add (new files)", 2496/3302, ceiling 77.17%, floor = measured n=3, lock.go fallback (L59, L74, L112); W11 19:34Z..01:55Z (L34); W12 c-423@<box> (L99); 0 stale 33/Extend/CET left (L158 is only the v0.2 changelog entry); hygiene grep 0 hits. Base measurements from my earlier passes still hold on origin/master 3730c043d: 8 r16 shas on master, unused-exports 34 unused / 35 ALLOW, cmd/spool 75.6%, lane-map exit 4. Claude panel seat c-163 signs v1.0 on this sha.` |

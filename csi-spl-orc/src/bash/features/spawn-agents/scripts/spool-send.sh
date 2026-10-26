@@ -92,6 +92,9 @@
 #       e.g. "Shall I proceed?" (lib/go-ask-guard.inc.sh, SPL-2280): just do
 #       the step, or ask with a ```poll form, or name the owner gate.
 #       SPOOL_GO_ASK_OK=1 sends it anyway, with a WARN.
+#   10  refused (nothing written, no poke): --from names a role seat (001-003,
+#       lease.conf) and the caller is an agent that is not a seat (SPL-3654,
+#       send_from_guard below). `10 + 0` never comes from the line below.
 #   10+ `spool send` failed: 10 + its exit code (nothing delivered); 13 = <to>
 #       is on neither this machine nor any box the hub knows (or no fleet desk)
 set -uo pipefail
@@ -122,6 +125,97 @@ SEND_BODY_WARN=1200
 send_role_seat() {  # ID
   spl_is_role_seat "$1" && return 0
   grep -qxE "LEASE_(MASTER|FAILOVER|ORCH)=$1" "$SPOOL_ROOT/dispatch/lease.conf" 2>/dev/null
+}
+
+# ---- a role seat's --from is the seat's own (SPL-3654) ----------------------
+# m-857 sent itself ACCEPTED "from" c-296 and c-001 (2026-10-12) and a-264
+# reproduced it (2026-10-26): --from was never checked against the caller, and
+# kill-your-self-report.sh takes any ACCEPTED body from a reviewer id. All
+# agents share one uid, so the caller is read from its process chain:
+#   - TMUX_PANE is no proof: it is EMPTY in a seat's own Bash tool and `sudo -u
+#     <user> env` drops it, as it drops SPOOL_AGENT_ID (measured 2026-10-27).
+#   - The ppid chain survives both: Bash tool -> claude -> su/sudo -> pane
+#     shell -> tmux server. The harness launches every agent process with
+#     SPOOL_AGENT_ID=<id> (c-001/c-002/c-003 and the lanes, measured); a lane
+#     can set it on a child, never on its own agent process. So the caller is
+#     the OUTERMOST process of the chain that carries an id; with none, the
+#     window of the first tmux pane in it; with neither (cron, a human's
+#     shell), nobody to judge, and the send goes.
+#   - Any role seat may send as any role seat: actions a seat runs default to
+#     seat 1 (ASK_BY, spl_role_seat 1), and a seat is not the forger.
+# A raw JSON write into another agent's inbox stays possible under one uid, as
+# does a send from a detached process with its environment cleared; this
+# closes the spool-send path, the one seen in the wild.
+# Under SPOOL_TEST=1 the chain is read from SPOOL_FROM_GUARD_PROC (a fake
+# /proc, or /proc) starting at SPOOL_FROM_GUARD_PID; unset, there is none.
+
+# The caller's pids, itself first, up to (not into) the tmux server or pid 1.
+send_caller_chain() {  # ROOT PID
+  local root="$1" pid="$2" n=0 comm
+  while [[ "$pid" =~ ^[0-9]+$ ]] && [ "$pid" -gt 1 ] && [ "$n" -lt 64 ]; do
+    comm="$(cat "$root/$pid/comm" 2>/dev/null)" || break
+    case "$comm" in tmux*) break ;; esac
+    echo "$pid"
+    pid="$(awk '/^PPid:/ { print $2; exit }' "$root/$pid/status" 2>/dev/null)"
+    n=$((n + 1))
+  done
+}
+
+# The agent id of the outermost pid of CHAIN whose environ carries one. A
+# root-owned hop (sudo, su) holds a copy of its parent's environ: skipped, so
+# no read needs root.
+send_caller_env_id() {  # ROOT CHAIN
+  local root="$1" p v id="" own=()
+  local -A by=()
+  for p in $2; do [ "$(stat -c %u "$root/$p" 2>/dev/null)" = 0 ] || own+=("$p"); done
+  [ "${#own[@]}" -gt 0 ] || return 0
+  declare -F spool_proc_env_get >/dev/null || . "$_here/../lib/proc-owner.inc.sh"
+  while read -r p v; do
+    [ -n "${by[$p]:-}" ] || by[$p]="$(_spool_bare_agent_id "$v")"
+  done < <(spool_proc_env_get "$root" SPOOL_AGENT_ID "${own[@]}" 2>/dev/null
+           spool_proc_env_get "$root" MCP_BOT_AGENT_ID "${own[@]}" 2>/dev/null)
+  for p in "${own[@]}"; do [ -n "${by[$p]:-}" ] && id="${by[$p]}"; done
+  printf '%s' "$id"
+}
+
+# The agent id the window of the first tmux pane in CHAIN is named for.
+send_caller_pane_id() {  # CHAIN
+  local p pid w
+  local -A win=()
+  spool_tmux_argv
+  while IFS=$'\t' read -r pid w; do
+    [ -n "$pid" ] && win[$pid]="$w"
+  done < <(timeout 5 "${SPOOL_TM[@]}" list-panes -a -F '#{pane_pid}	#{window_name}' 2>/dev/null)
+  for p in $1; do
+    [ -n "${win[$p]+x}" ] && { spool_id_of_window "${win[$p]}"; return 0; }
+  done
+  return 0
+}
+
+# "<id> <how>" of the caller, or nothing when no agent is in its chain.
+send_caller_id() {
+  local root=/proc pid=$$ chain id
+  if [ "${SPOOL_TEST:-}" = 1 ]; then root="${SPOOL_FROM_GUARD_PROC:-}"; pid="${SPOOL_FROM_GUARD_PID:-$$}"; fi
+  [ -n "$root" ] || return 0
+  chain="$(send_caller_chain "$root" "$pid")"
+  [ -n "$chain" ] || return 0
+  id="$(send_caller_env_id "$root" "$chain")"
+  [ -n "$id" ] && { echo "$id environ"; return 0; }
+  id="$(send_caller_pane_id "$chain")"
+  [ -n "$id" ] && echo "$id pane"
+  return 0
+}
+
+# 0 = FROM may send. 1 = refused: one line on stderr.
+send_from_guard() {  # FROM
+  local from="${1%%@*}" caller="" how=""
+  send_role_seat "$from" || return 0
+  read -r caller how < <(send_caller_id)
+  [ -n "$caller" ] || return 0
+  [ "$caller" = "$from" ] && return 0
+  send_role_seat "$caller" && return 0
+  echo "ERROR: --from ${from} is a role seat and this caller is ${caller} (by its ${how}), not a seat: only a seat sends as a seat (SPL-3654). Send --from ${caller}. Nothing was sent." >&2
+  return 1
 }
 
 # The topic a live lane of this machine owns: the task_id of the first task it
@@ -273,6 +367,7 @@ if [ "$POKE_ONLY" -eq 0 ]; then
   [ "$BODY_SET" -eq 1 ] || { echo "ERROR: --body or --body-file is required" >&2; exit 2; }
   [ -z "$ACCEPT" ] || [ "$KIND" = result ] || { echo "ERROR: --accept accepts a result: it needs --kind result, got: '${KIND}'. Nothing was sent." >&2; exit 2; }
   [ -z "$ACCEPT" ] || [ "$PEERS" -eq 0 ] || { echo "ERROR: --accept goes to the agent whose result it accepts, not to the peers. Nothing was sent." >&2; exit 2; }
+  send_from_guard "$FROM" || exit 10
 
   # ---- an owner topic is the owner's (owner rule 2026-10-08) ----------------
   # Agent-to-agent rows sent on an owner topic uuid land INSIDE the owner's

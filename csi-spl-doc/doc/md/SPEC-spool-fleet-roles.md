@@ -699,6 +699,43 @@ the sender's machine.
   `spawn-agents/tests/test-fleet-send.sh` (two simulated roots, the relay
   script against a fake `/proc`).
 
+#### 4.2.1 Only a seat sends as a seat (SPL-3654)
+
+`spool-send.sh --from <id>` where `<id>` is a role seat (001-003 in any vendor
+letter, a legacy `CLE-00N`, or an id `lease.conf` names) is refused when the
+caller is an agent that is not a seat: exit 10, one line on stderr, nothing
+written (no inbox, no outbox, no poke, no hub leg). On 2026-10-12 m-857 sent
+itself ACCEPTED "from" c-296 and c-001 this way and closed itself.
+
+All agents run as one OS user, so the caller is read from its process chain
+(`/proc/<pid>/status` PPid), up to the tmux server or pid 1:
+
+| evidence, first that answers | why it holds |
+|---|---|
+| the OUTERMOST process in the chain whose environ has `SPOOL_AGENT_ID` (else `MCP_BOT_AGENT_ID`) | the harness launches every agent process with it; a lane can set it on a child, never on its own agent process. `sudo` drops it from the child, the processes above still carry it |
+| the window of the first tmux pane in the chain | for a chain with no agent process |
+| neither (cron, a human's shell) | nobody to judge: sent |
+
+- `TMUX_PANE` is not used: it is empty in a seat's own Bash tool and `sudo -u
+  <user> env` drops it.
+- Any seat may send as any seat. Actions a seat runs default to seat 1
+  (`ASK_BY`, `spl_role_seat 1`); refusing them would break the seat, not a
+  forger.
+- Cron jobs that send as c-001 keep working: no agent process is in their
+  chain.
+- Callers treat exit 10 as "not delivered" (they test `rc >= 10`).
+- Not closed: a raw JSON write into another agent's inbox, a send from a
+  process detached from its agent with its environment cleared, and
+  `spool-fleet-relay.sh` called directly. Under one OS user nothing stops
+  those. This closes the spool-send path, the one used in the wild.
+- The hub cannot vouch for a seat either: it verifies the BOX's signature,
+  and the box names the agent (`internal/spool/fromagent.go`, "the box is the
+  trust unit, not the seat"). A same-box ACCEPTED is local only: of 28
+  role-seat messages opening with ACCEPTED in `/var/spool-hub` from
+  2026-10-20 to 2026-10-27, none went through the hub.
+- Test: `spawn-agents/tests/test-spool-send-from-guard.sh` (a fake `/proc`
+  and a private tmux server).
+
 <a id="ws-doc-e391c436-5cac-438f-acea-03aaae5e1451"></a>
 ### 4.3 Asks to the orchestrator: fire and forget, tracked until closed
 
@@ -962,4 +999,4 @@ end to end in every seated workspace.
 | asks to the orchestrator tracked until closed (4.3) | code on trunk 2026-10-02 (rdb 0097, `spool ask`, `do_spl_asks_*`, `do_spl_orch_inbox`); live once rdb 0097 is applied on dev + prd, the hub rolls, and the lease loops restart on the new tree |
 | retiring the standing first responder and the relay agent | first responder retired 2026-10-01; the relay agent retires once a csitea end-to-end post is proven |
 
-<!-- version: 0.9.1 · updated: 2026-10-14 · last-edit: 2026-10-14T17:30:00Z -->
+<!-- version: 0.9.2 · updated: 2026-10-27 · last-edit: 2026-10-27T00:00:00Z -->

@@ -655,6 +655,31 @@ al="$(jq -r 'select(.op == "post") | .text' "$T/pc/alert.log")"
   pass "R2 (SPL-3378): a lease with no box: the alert says no box has a seat to restore, no restore command" || fail "orch alert no box: $al"
 echo "c-001@sat 5 $(date +%s)" >"$T/pc/spool/dispatch/fleet.orch.age"
 pctick >/dev/null
+# SPL-3462 (alerts fix round row 06, B1): during a hub stall the orch holder
+# cannot renew, so its silence is the stall's, not a dead orchestrator. While
+# row 05's <dir>/fleet.hub-stall is set the alert holds; after it clears the
+# silence counts from the stall's end until the next renewal.
+: >"$T/pc/alert.log"
+hs="$T/pc/spool/dispatch/fleet.hub-stall"
+echo "$(( $(date +%s) - 300 )) $(date +%s) l 0" >"$hs"
+echo "c-001@sat 900 $(date +%s)" >"$T/pc/spool/dispatch/fleet.orch.age"
+pctick >/dev/null
+[[ "$(alerts pc post)" -eq 0 ]] && pass "SPL-3462: silent 15 min during a hub stall (fleet.hub-stall set): no orch alert" || fail "orch alert in a hub stall: $(cat "$T/pc/alert.log")"
+rm -f "$hs"
+echo "c-001@sat 960 $(date +%s)" >"$T/pc/spool/dispatch/fleet.orch.age"
+pctick >/dev/null
+[[ "$(alerts pc post)" -eq 0 ]] && pass "SPL-3462: the stall just cleared, no renewal yet: silence counts from the stall's end, no alert" || fail "orch alert right after the stall: $(cat "$T/pc/alert.log")"
+sed -i "1s/.*/$(( $(date +%s) - 700 ))/" "$T/pc/spool/asks/.orch.hub-stall"
+pctick >/dev/null
+[[ "$(alerts pc post)" -eq 1 ]] && pass "SPL-3462: CONTROL no renewal 700 s after the stall's end: it alerts" || fail "orch alert after the stall: $(cat "$T/pc/alert.log")"
+echo "c-001@sat 5 $(date +%s)" >"$T/pc/spool/dispatch/fleet.orch.age"
+pctick >/dev/null
+: >"$T/pc/alert.log"
+echo "c-001@sat 900 $(date +%s)" >"$T/pc/spool/dispatch/fleet.orch.age"
+pctick >/dev/null
+[[ "$(alerts pc post)" -eq 1 && ! -e "$T/pc/spool/asks/.orch.hub-stall" ]] && pass "SPL-3462: CONTROL with no stall file, silent 15 min alerts as before (the R2 case)" || fail "orch alert no stall: $(cat "$T/pc/alert.log")"
+echo "c-001@sat 5 $(date +%s)" >"$T/pc/spool/dispatch/fleet.orch.age"
+pctick >/dev/null
 rm -f "$T/pc/spool/dispatch/lease" "$T/pc/spool/dispatch/fleet.orch.age"
 
 # R4: the 90 asks the owner was paged for on 2026-10-11..12 (the journal's

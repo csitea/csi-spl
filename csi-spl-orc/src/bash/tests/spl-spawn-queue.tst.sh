@@ -52,6 +52,12 @@
 #      SPL-3138: agy back but the row not launched (ceiling full): its agy
 #      WAIT line is gone, a line of an ask no longer queued is pruned
 #      (CONTROL: a non-agy reason is kept)
+#  13d. SPL-3470: a placed row queued on another box (writer_box sat) whose
+#      brief is not here HOLDS: queued, never acked or handed to the holder,
+#      .place.wait names sat, and a launchable row behind it is placed in the
+#      same tick; the brief copied here -> it launches and its WAIT line is
+#      gone (CONTROL: the same missing brief on a row queued from this box is
+#      handed to the holder, as before)
 #  14. SPL-2429: a human sender (HUM-<n>@box) has no spool inbox: its
 #      "queued" and "placed" notes go to the dispatch lease holder, naming
 #      the human, the full topic and the lane; nothing is sent to the HUM id;
@@ -173,6 +179,7 @@ for r in rows:
         r["work_kind"], r["category_path"] = kv.get("work-kind", ""), kv.get("category", "")
     else:
         print("hub refused: bad_frame (400): ask_op", file=sys.stderr); sys.exit(1)
+    r["writer_box"] = os.environ.get("SPOOL_DESK_BOX", "box-desk")
     save(); answer([r])
 print("hub refused: unknown_ask (404): no such ask in this fleet", file=sys.stderr); sys.exit(1)
 STUB
@@ -713,6 +720,43 @@ out="$(on pc do_spl_spawn_place LAUNCH_ID=a-515 2>&1)"
   grep -q "^agy auto $T $T/briefs/agy-direct.md agy-direct$" "$T/launch.log" && ! grep -q "^${Q3}"$'\t' "$T/pc/spool/asks/.place.wait" &&
   pass "SPL-3024 control: agy in quota: the row placed as agy launches agy" || fail "agy direct in: $out | $(cat "$T/launch.log")"
 rm -rf "$WD13"
+
+# 13d. SPL-3470: the brief is on the box that queued the row ----------------------------
+W1=bbbb0011-0000-4000-8000-000000000011; W2=bbbb0012-0000-4000-8000-000000000012; W3=bbbb0013-0000-4000-8000-000000000013
+printf 'brief written on sat\n%s\n' "$ES" >"$T/briefs/away-brief.md"
+printf 'brief written here\n%s\n' "$ES" >"$T/briefs/here-brief.md"
+put "$W1" c-002@sat dispatch-placer-away "SPAWN REQUEST away brief"
+on sat do_spl_spawn_enqueue ASK_ID="$W1" SPAWN_CLASS=bug SPAWN_PLACE=claude:away-brief >/dev/null 2>&1
+put "$W2" c-002@box-desk dispatch-placer-away "SPAWN REQUEST here brief"
+on pc do_spl_spawn_enqueue ASK_ID="$W2" SPAWN_CLASS=bug SPAWN_PLACE=claude:here-brief >/dev/null 2>&1
+mv "$T/briefs/away-brief.md" "$T/away-brief.md"
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"; : >"$T/send.log"
+out="$(on pc do_spl_spawn_place LAUNCH_ID=c-516 2>&1)"
+[[ "$(jq -r .writer_box <<<"$(hubrow "$W1")")" == sat && "$(jq -r .state <<<"$(hubrow "$W1")")" == queued ]] &&
+  ! grep -q "place ask ${W1:0:8} now" "$T/send.log" &&
+  grep -q "INFO hold: ask ${W1:0:8}: its brief away-brief.md is not under $T/briefs on box-desk: it was queued on sat" <<<"$out" &&
+  grep -q "^${W1}"$'\t'".*it was queued on sat" "$T/pc/spool/asks/.place.wait" &&
+  pass "13d. SPL-3470: a row queued on sat, its brief not here: held, queued, not handed to the holder, sat named" ||
+  fail "13d. away brief: $out | $(hubrow "$W1") | $(sends)"
+[[ "$(jq -r .reason <<<"$(hubrow "$W2")")" == "placed: c-516@box-desk" ]] && grep -q "^claude auto $T $T/briefs/here-brief.md here-brief$" "$T/launch.log" &&
+  pass "13d. SPL-3470: the held row blocks no other row: the launchable one behind it is placed" || fail "13d. here brief: $out | $(cat "$T/launch.log")"
+mv "$T/away-brief.md" "$T/briefs/away-brief.md"
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(on pc do_spl_spawn_place LAUNCH_ID=c-517 2>&1)"
+[[ "$(jq -r .reason <<<"$(hubrow "$W1")")" == "placed: c-517@box-desk" ]] && grep -q "^claude auto $T $T/briefs/away-brief.md away-brief$" "$T/launch.log" &&
+  ! grep -q "^${W1}"$'\t' "$T/pc/spool/asks/.place.wait" &&
+  pass "13d. SPL-3470: the brief copied here: it launches, its WAIT line is gone" || fail "13d. copied: $out | $(cat "$T/launch.log") | $(cat "$T/pc/spool/asks/.place.wait")"
+printf 'brief written here, then lost\n%s\n' "$ES" >"$T/briefs/lost-brief.md"
+put "$W3" c-002@box-desk dispatch-placer-away "SPAWN REQUEST lost brief"
+on pc do_spl_spawn_enqueue ASK_ID="$W3" SPAWN_CLASS=bug SPAWN_PLACE=claude:lost-brief >/dev/null 2>&1
+rm -f "$T/briefs/lost-brief.md" "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"; : >"$T/send.log"
+out="$(on pc do_spl_spawn_place 2>&1)"
+[[ "$(jq -r .state <<<"$(hubrow "$W3")")" == acked && ! -s "$T/launch.log" ]] &&
+  grep -q "place ask ${W3:0:8} now.*no brief file for lost-brief under $T/briefs" "$T/send.log" &&
+  pass "13d. control: the same missing brief on a row queued from this box is handed to the holder, as before" ||
+  fail "13d. control: $out | $(hubrow "$W3") | $(sends)"
+HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$W3" --by c-001@box-desk --reason test >/dev/null
+rm -f "$T/pc/spool/asks/.place.handed"
 
 # 14. SPL-2429: a human sender's notes go to the dispatch lease holder -------------
 H1=c1c1c1c1-0000-4000-8000-000000000001; H2=c2c2c2c2-0000-4000-8000-000000000002; H3=c3c3c3c3-0000-4000-8000-000000000003

@@ -77,6 +77,15 @@
 # @description         row launches claude. A row placed directly as agy:<slug>
 # @description         HOLDS too, review or not (SPL-3024): agy was picked on
 # @description         purpose, claude would change the vendor
+# @description      BRIEF ON ANOTHER BOX (SPL-3470): a placed row whose brief
+# @description         file is not here and whose hub row was last written on
+# @description         another box (writer_box: the dispatcher queued it there,
+# @description         and briefs are written on the dispatcher's box) HOLDS:
+# @description         queued, out of the line, never handed to the holder;
+# @description         .place.wait names that box. It is placed by the placer
+# @description         on that box once the orch role is there, or here once
+# @description         the file is copied here. A row queued from this box
+# @description         with no brief here is handed off as below
 # @description      CODING RULE (owner HUM-10, t1 b61851fb, msg 91bf8278): a
 # @description         mistral placement whose brief's "Kind:" is not
 # @description         specs_and_docs or i18n (none counts as coding) launches
@@ -137,6 +146,7 @@ do_spl_spawn_place() {
     return 0
   fi
   rows="$(spl_spawn_place_agy_hold "$rows")"
+  rows="$(spl_spawn_place_away_hold "$rows")"
   rows="$(spl_spawn_place_line "$rows")"
   head="$(jq -c '.[0] // empty' <<<"$rows")"
   [[ -n "$head" ]] || { do_log "INFO the spawn queue is empty, or holds only asks for the holder while one is with it"; return 0; }
@@ -552,6 +562,29 @@ spl_spawn_place_agy_hold() {  # MARKED ROWS
   jq -c --argjson h "$(spl_spawn_place_json_ids "${held[@]}")" '[.[] | select(.ask_id as $i | $h | index($i) | not)]' <<<"$1"
 }
 
+# 2d. A queued row with a placement but no brief file here, last written on
+# another box (writer_box), HOLDS (SPL-3470): briefs are written on the box of
+# the dispatcher that queued the row, and the placer moves with the orch role.
+# Handing it to the holder would make the holder decline it, and a declined
+# ask cannot be queued again (13 rows on 2026-10-25). A held row stays queued
+# and out of this tick's line, so it blocks no other row; one INFO line and
+# its .place.wait line name the box; the line of a row no longer held is
+# dropped. No writer_box, or this box: not held (4b hands it off as before).
+# Prints ROWS minus the held ones.
+spl_spawn_place_away_hold() {  # MARKED ROWS
+  local id slug wb why held=()
+  while IFS=$'\t' read -r id slug wb; do
+    why="its brief $slug.md is not under ${SPAWN_PLACE_BRIEF_DIR:-$SPOOL_ROOT/dispatch/briefs} on $ASKS_BOX: it was queued on $wb, so the file is there; it is placed from $wb, or here once the file is copied here"
+    spl_spawn_place_wait "$id" "$why"
+    do_log "INFO hold: ask ${id:0:8}: $why; it stays queued" >&2
+    held+=("$id")
+  done < <(jq -r --arg box "$ASKS_BOX" '.[] | select(.state == "queued" and (._l | not) and (.placement // "") != ""
+      and (.writer_box // "") != "" and .writer_box != $box)
+    | "\(.ask_id)\t\(.placement | sub("^[^:]*:"; ""))\t\(.writer_box)"' <<<"$1")
+  spl_spawn_place_wait_keep held "$(printf '%s\n' "${held[@]}")" "is not under .* on [^:]*: it was queued on "
+  jq -c --argjson h "$(spl_spawn_place_json_ids "${held[@]}")" '[.[] | select(.ask_id as $i | $h | index($i) | not)]' <<<"$1"
+}
+
 # The brief file of SLUG on this box, or nothing; a hand-pinned SLUG falls
 # back to its slug without the hand prefix.
 spl_spawn_place_brief() {  # SLUG
@@ -614,16 +647,17 @@ spl_spawn_place_wait() {  # ASK_ID WHY
 }
 
 # Prunes <asks dir>/.place.wait. queued IDS: keeps only the lines of IDS
-# (ask_ids, one per line). held IDS: drops every "agy is out of quota" line
-# whose ask is not in IDS, keeps every other line.
-spl_spawn_place_wait_keep() {  # queued|held IDS
+# (ask_ids, one per line). held IDS [WHY_RX]: drops every line whose reason
+# matches WHY_RX (default "agy is out of quota") and whose ask is not in IDS,
+# keeps every other line.
+spl_spawn_place_wait_keep() {  # queued|held IDS [WHY_RX]
   local f tmp
   f="$(spool_asks_dir)/.place.wait"; tmp="$f.$$"
   [[ -s "$f" ]] || return 0
-  if awk -F'\t' -v m="$1" -v ids="${2//$'\n'/ }" '
+  if awk -F'\t' -v m="$1" -v ids="${2//$'\n'/ }" -v rx="${3:-agy is out of quota}" '
     BEGIN { n = split(ids, a, " "); for (i = 1; i <= n; i++) if (a[i] != "") K[a[i]] = 1 }
     m == "queued" { if ($1 in K) print; next }
-    !($3 ~ /agy is out of quota/ && !($1 in K))' "$f" >"$tmp"; then mv -f "$tmp" "$f" 2>/dev/null || rm -f "$tmp"; else rm -f "$tmp"; fi
+    !($3 ~ rx && !($1 in K))' "$f" >"$tmp"; then mv -f "$tmp" "$f" 2>/dev/null || rm -f "$tmp"; else rm -f "$tmp"; fi
 }
 
 # 4b. The brief needs the orchestrator: one blocker to the holder.

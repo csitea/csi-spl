@@ -1,0 +1,6 @@
+Lay-What: Workspace secret keys printed by an admin command no longer stay behind in the box's command logs.
+Lay-How: The log copy of every command's output hides private key values; the screen still shows them once.
+Lay-Why: Creating a workspace printed its root private key, and a copy of it stayed in a log other users on the box could read.
+Tech-What: run.sh (iac, orc, utl) tees stdout and stderr to the run logs through do_mask_private_keys.
+Tech-How: A sed masks *private_key JSON values, *private_key= assignments and PEM PRIVATE KEY blocks in the log copy only; the caller's stdout is untouched.
+Tech-Why: do_spl_tenant_create prints root_private_key on stdout and ./run logs are mode 664, so a DRY_RUN=0 create left the key on disk (SPL-3614).

@@ -201,10 +201,15 @@ found=$(find "$DRY_STATE" \( -name '*.undo.sh' -o -name '*.journal.tsv' \) -prin
 [[ -z "$found" ]] && pass "control: dry-run writes no journal and no undo" || fail "control: dry-run wrote a journal ($found)"
 
 # origin/master, not the worktree: offline, one issue that cannot match.
+# A branch checkout in Actions has no origin/master: read HEAD there, still
+# a committed ref through SPEC_RECONCILE_REF, never the worktree.
+SMOKE_REF=origin/master
+git -C "$APP_ROOT" rev-parse --verify -q "${SMOKE_REF}^{commit}" >/dev/null || SMOKE_REF=HEAD
+echo "INFO: origin/master smoke reads SPEC_RECONCILE_REF=$SMOKE_REF"
 SMOKE_LIST="$TMP/smoke.json"
 printf '%s\n' '{"result":{"issues":[{"key":"SPL-0","title":"not-imported-smoke","status":"wip","labels":["task"]}]}}' >"$SMOKE_LIST"
 SMOKE_OUT="$TMP/smoke.out"
-SPEC_RECONCILE_OFFLINE=1 SPEC_RECONCILE_SHA=smoke-sha SPEC_RECONCILE_LIST="$SMOKE_LIST" \
+SPEC_RECONCILE_OFFLINE=1 SPEC_RECONCILE_SHA=smoke-sha SPEC_RECONCILE_REF="$SMOKE_REF" SPEC_RECONCILE_LIST="$SMOKE_LIST" \
   SPEC_RECONCILE_OUT="$TMP/smoke.tsv" PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" \
   do_spl_spec_tasks_reconcile >"$SMOKE_OUT" 2>&1
 rc=$?

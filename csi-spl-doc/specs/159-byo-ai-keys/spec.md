@@ -1,6 +1,6 @@
 # Spec 159: workspace admins and business owners bring their own AI keys, also on our shared GCP hosts
 
-**Feature ID**: `159-byo-ai-keys` · **Status**: Draft v0.1 (for R7) ·
+**Feature ID**: `159-byo-ai-keys` · **Status**: Draft v0.1 (R7 PASS) ·
 **Epic**: SPL-2398 · **Issue**: SPL-3566 · **Created**: 2026-10-26 · **Lead**: c-298 ·
 **Placement slug**: `c002-spec-byo-ai-keys`
 **Authority**: this file for what the owner's ask of 2026-10-26 adds to, or
@@ -103,9 +103,9 @@ a workspace.
 
 Checked by hand: the five `claude` quotes and the `mistral` 2.2 (i) quote
 were re-read from the raw pages (`curl -sL` + `grep -o`, n = 1). The
-Antigravity and Gemini API quotes came through a summarising fetch and are
-**not checked by hand**. The R7 reviewer re-reads them (T9 makes this a
-monthly action).
+Antigravity and Gemini API quotes came through a summarising fetch; the R7
+reviewer (a-946, agy) then fetched all nine URLs of this table live and
+matched every quote (n = 1, 2026-10-26). T9 makes this a monthly action.
 
 ### 4.2 What the hub offers per kind, then
 
@@ -194,6 +194,10 @@ and runs as that user**:
   `spool-key-exec` (or the claude `apiKeyHelper`) as W's OS user, with W's
   worktree in W's home. It never runs on a fleet box. If W has no key, the
   brief runs on our login as today, with `key_source = hub` (7).
+- If W has a key but no approved key host is online (none enrolled yet, or
+  all offline), the placer holds the row as `waiting_key_host`: it never
+  falls back to a fleet box (L19) nor to our login, and the task topic says
+  why once. The row places when an approved host of W comes online.
 - The fleet's own lanes (no `Workspace:` line) never run on a key host
   (L20).
 - The lane still talks to the spool like any lane. The key host's desk
@@ -315,7 +319,7 @@ split; secrets work goes to claude (or grok, if it has quota).
 | T6 | orc (claude), after `c002-costs-per-workspace` | collector: workspace and `key_source = 'workspace'` for key host seats (7) | a fake seat as W's OS user -> its token row carries W and `workspace`; the same seat as the fleet user -> `hub` |
 | T7 | wui (claude), with 127 W1 | the page changes of 10; agy reviews the locale text LAST | e2e: a `biz_owner` sees the page, a `developer` does not; the exhausted state shows retry; the key cleared from the store after save (127 L12) |
 | T8 | box (claude), **off until Q-3** | claude self sign-in in W's seat on a key host, sign-out, directory excluded from mirror, collector and logs; the hub's L9 redaction gains the token shape | L23; grep the hub DB, hub logs and the mirror for a fake token after sign-in -> 0 |
-| T9 | orc (mistral or agy: docs) | `do_spl_vendor_terms_check`: monthly, fetch the five pages of 4.1, compare the quoted sentences, open an issue when one changes or goes missing | a page fixture with one quote edited -> issue opened; the same fixture unchanged -> none |
+| T9 | orc (mistral or agy: docs) | `do_spl_vendor_terms_check`: monthly, fetch the nine URLs of 4.1, compare the quoted sentences, open an issue when one changes or goes missing | a page fixture with one quote edited -> issue opened; the same fixture unchanged -> none |
 
 ## 12. What needs the owner
 
@@ -380,5 +384,9 @@ to open a review topic.
 ## 14. Version log
 
 - v0.1 (2026-10-26, c-298): first draft for an R7 cross-vendor review.
+- v0.1, R7 PASS (2026-10-26, c-298): reviewer a-946 (agy) on 9bb008e43;
+  folds its W1 (T9 fetches all nine URLs), W2 (5.3 `waiting_key_host` when
+  W has a key but no online key host) and W3 (4.1 quotes all checked by
+  hand). The owner's Q-1..Q-4 answers make v0.2.
 
-<!-- version: 0.1.0 · updated: 2026-10-26 · last-edit: 2026-10-26T17:30:00Z -->
+<!-- version: 0.1.1 · updated: 2026-10-26 · last-edit: 2026-10-26T15:45:00Z -->

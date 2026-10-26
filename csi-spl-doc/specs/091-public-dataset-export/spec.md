@@ -196,7 +196,10 @@ public. The output goes to the PRIVATE staging bucket (§6), never straight to t
    read around RLS.
 3. **Content scan (C4)** of the whole file: e-mail addresses, IPv4/IPv6 addresses, JWTs, PEM blocks, cloud, Slack and
    GitHub token shapes, `iam.gserviceaccount.com`, gitleaks with the repo's config, and every other workspace's id
-   and display name, matched as whole words. Those names are read by a **separate step** whose only grant is
+   and display name, matched as whole words. One exception (owner HUM-10, answer A, msg a72d7e73; SPL-3671):
+   the id `system` of the built-in docs workspace is a plain word, so it is not matched in a message body
+   (`BODY_WORD_IDS` in `csi-spl-orc/src/bash/scripts/public-dataset-gate.py`); its display name is, and the id is
+   still matched in every other column. Those names are read by a **separate step** whose only grant is
    `SELECT (tenant_id, display_name) ON tenants` under the operator scope (the export role cannot, by design); it
    writes the list, and its lower-cased sha256 list for the grok lane (§8.2), to private staging only. Neither list
    is ever published (short names are guessable, so their hashes are reversible): both are deleted when the

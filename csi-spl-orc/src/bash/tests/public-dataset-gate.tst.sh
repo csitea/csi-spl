@@ -3,7 +3,7 @@
 # Purpose: the public dataset gate (spec 091 T005, sections 5.5 and 5.6; spec
 # 9.3 "the gate catches plants"). Synthetic rows only: the fixture
 # fixtures/public-dataset/gate/clean.sql (one workspace, 100 messages) and
-# names.tsv (two made-up other workspaces). Every secret-shaped plant is built
+# names.tsv (two made-up other workspaces and the built-in id system). Every secret-shaped plant is built
 # here at run time, never written whole in the repo.
 #   Part 1 (hermetic, the core src/bash/scripts/public-dataset-gate.py):
 #     1. the clean candidate passes and the cleaned file is the input
@@ -205,6 +205,18 @@ mk word 'body:3:seen Quokkavilles and the quokkaville-ish tool'; gate word
   && pass "3. names match whole words only (Quokkavilles, quokkaville-ish pass)" || fail "3. whole words: $(cat "$T/word.log")"
 mk word2 'body:3:the zebracorp HOLDINGS team'; gate word2
 dropped "3. a name matches case-insensitively, display names with spaces too" word2 other-workspace 1
+# owner answer A (SPL-3671): the id `system` (the built-in docs workspace) is a
+# plain word in message text and is not matched there; its display name and
+# every other id still are, and `system` is still matched outside a body
+mk sysw 'body:3:the system restarts'; gate sysw
+[[ "$(rc_of sysw)" == 0 && "$(jq -r .messages_dropped "$T/sysw.report.json")" == 0 ]] \
+  && pass "3. the id system as a word in a message body is kept" || fail "3. system word: $(cat "$T/sysw.log")"
+mk sysn 'body:3:read it in Repository docs'; gate sysn
+dropped "3. the system workspace's display name in a body still drops the message" sysn other-workspace 1
+mk sysi 'body:3:moved to ws-other today'; gate sysi
+dropped "3. another workspace's id in a body still drops the message" sysi other-workspace 1
+mk sysd 'set:channels:1:description:the system channel'; gate sysd
+fatal "3. the id system outside a body (a channel description) is still FATAL" sysd 'column description: other-workspace hit'
 mk one 'body:9:P(email)'; gate one
 dropped "3. 1 of 100 bodies hit (1 %, the cap) passes" one email 1
 mk two 'body:9:P(email)' 'body:10:P(ipv4)'; gate two

@@ -17,7 +17,8 @@ Postgres text format (spec 5.7). Each class fails closed:
           every HUM-n a message names, and every membership, is an exported
           member (Q1b)
   C4      content scan: the patterns below, gitleaks with the repo's config,
-          every other workspace's id and display name as whole words. A hit
+          every other workspace's id and display name as whole words (in a
+          body not an id of BODY_WORD_IDS, a plain word there). A hit
           in messages.body (or in msg, the v:1 object rebuilt from it) drops
           that message and counts it by class (Q3); a hit anywhere else is
           FATAL. The scan runs again on what is left and must be clean; more
@@ -112,6 +113,10 @@ PATTERNS = [
     ("service-account", re.compile(r"iam\.gserviceaccount\.com", re.I)),
 ]
 NAME_EDGE = r"A-Za-z0-9_-"
+# workspace ids that are a plain word in message text, so not matched in a body
+# (owner answer A, SPL-3671): the built-in docs workspace. Its display name, and
+# the id in every other column, are still matched.
+BODY_WORD_IDS = ("system",)
 
 
 def unescape(v):
@@ -182,12 +187,12 @@ class Gate:
                 return "%s=%s" % (key, v)
         return "row %d" % n
 
-    def hits(self, v):
-        """The scan classes v matches (patterns and names, not gitleaks)."""
+    def hits(self, v, body=False):
+        """The scan classes v matches (patterns and names, not gitleaks); a
+        body skips the BODY_WORD_IDS ids."""
         out = [cls for cls, rx in PATTERNS if rx.search(v)]
-        return out + (
-            ["other-workspace"] if any(rx.search(v) for rx in self.names) else []
-        )
+        names = [rx for rx, word in self.names if not (body and word)]
+        return out + (["other-workspace"] if any(rx.search(v) for rx in names) else [])
 
     def rows(self, table):
         b = self.blocks.get(table)
@@ -395,18 +400,18 @@ class Gate:
 
     # --- C4 ------------------------------------------------------------------------------
     def name_patterns(self):
+        """[(pattern, is a BODY_WORD_IDS id)] for each id and display name."""
         pats = []
         with open(self.a.names, encoding="utf-8") as fh:
             for line in fh:
-                for w in line.rstrip("\n").split("\t"):
+                for i, w in enumerate(line.rstrip("\n").split("\t")):
                     if w.strip():
-                        pats.append(
-                            re.compile(
-                                r"(?<![%s])%s(?![%s])"
-                                % (NAME_EDGE, re.escape(w.strip()), NAME_EDGE),
-                                re.I,
-                            )
+                        rx = re.compile(
+                            r"(?<![%s])%s(?![%s])"
+                            % (NAME_EDGE, re.escape(w.strip()), NAME_EDGE),
+                            re.I,
                         )
+                        pats.append((rx, i == 0 and w.strip() in BODY_WORD_IDS))
         return pats
 
     def cells(self, dropped):
@@ -425,7 +430,7 @@ class Gate:
         found = [
             (table, n, row, c, cls)
             for table, n, row, c, v in cells
-            for cls in self.hits(v)
+            for cls in self.hits(v, table == "messages" and c in BODY_COLS)
         ]
         return found + self.gitleaks(cells)
 

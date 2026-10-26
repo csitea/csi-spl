@@ -97,6 +97,7 @@ eq "kind: not a uuid -> exit 2" 2 "$?"
 # workspace w2, which the fleet desk cannot read. Two live sidecars, one each.
 W=44444444-5555-4666-8777-888888888888   # owner in w2, agent rows in t9
 S=55555555-6666-4777-8888-999999999999   # w2 is slow, t9 answers agent
+L=66666666-7777-4888-8999-aaaaaaaaaaaa   # w2 answers owner, but only after 2 s
 cat >"$fake" <<FAKE
 #!/usr/bin/env bash
 case "\$SPOOL_TENANT:\$3" in
@@ -104,6 +105,7 @@ case "\$SPOOL_TENANT:\$3" in
   t9:$W) echo '{"from":"c-001","to":"c-002","body":"a"}' ;;
   w2:$W) echo '{"from":"HUM-9","to":"c-001","body":"b"}' ;;
   w2:$S) sleep 5 ;;
+  w2:$L) sleep 2; echo '{"from":"HUM-9","to":"c-001","body":"b"}' ;;
   *) echo '{"from":"c-001","to":"c-002","body":"a"}' ;;
 esac
 FAKE
@@ -134,6 +136,20 @@ eq "send: the fleet workspace's owner topic still refused, exit 3" 3 "$?"
 err="$(env "${kenv[@]}" SPOOL_TOPIC_KIND_TIMEOUT=1 bash "$SS" --from CLE-80 --to CLE-84 --kind note --task "$S" --body x --no-poke 2>&1 >/dev/null)"; rc=$?
 eq "send: no hub answer from a desk keeps WARN-and-send, exit 0" 0 "$rc"
 has "…with the WARN" "cannot tell whether ${S} is an owner topic" "$err"
+# ---- a slow hub that answers is still an owner topic (the default timeout) --
+# 2026-10-26, a fleet box: answering desks took up to 9.3 s; the old 1 s default failed
+# open in 7 of 12 runs. The default (12 s) waits for the 2 s answer here.
+eq "kind: slow but answering (2 s), default timeout -> owner" owner "$(env "${kenv[@]}" bash "$K" "$L")"
+n0="$(n_json "$SPOOL_ROOT/CLE-84/inbox")"
+err="$(env "${kenv[@]}" bash "$SS" --from CLE-80 --to CLE-84 --kind note --task "$L" --body x --no-poke 2>&1 >/dev/null)"; rc=$?
+eq "send: slow but answering owner topic: refused, exit 3" 3 "$rc"
+has "…names the replacement" "--task dispatch-${L:0:8}" "$err"
+eq "…nothing new in the inbox" "$n0" "$(n_json "$SPOOL_ROOT/CLE-84/inbox")"
+env "${kenv[@]}" SPOOL_TOPIC_KIND_TIMEOUT=1 bash "$K" "$L" >/dev/null
+eq "CONTROL: the old 1 s timeout cannot tell -> exit 3" 3 "$?"
+err="$(env "${kenv[@]}" SPOOL_TOPIC_KIND_TIMEOUT=1 bash "$SS" --from CLE-80 --to CLE-84 --kind note --task "$L" --body x --no-poke 2>&1 >/dev/null)"; rc=$?
+eq "CONTROL: …so that send fails open, exit 0" 0 "$rc"
+has "…with the WARN" "cannot tell whether ${L} is an owner topic" "$err"
 unset SPOOL_OWNER_TOPIC_CMD
 kill "$sc9" "$scw" 2>/dev/null
 

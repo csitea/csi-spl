@@ -26,9 +26,18 @@
 # It reads the topic through the desk sidecars, with the desk lookup
 # spool-fleet-relay.sh and topic-text.sh make (keep the three in step).
 #
+# The timeout covers a slow hub, not only a fast one. Measured 2026-10-26, one
+# hub-tail per live desk, all in parallel, cap 30 s: a fleet box (11 desks,
+# load ~9) n=64 rounds, per answering desk min 0.46 / median 0.66 / max 9.3 s,
+# and in 6 rounds every desk's hub-tail gave up by itself at ~10.0 s (exit 1);
+# a second box (10 desks) n=24 rounds, min 0.21 / median 0.31 / max 0.51 s.
+# The old 1 s default failed open in 7 of 12 back-to-back runs on the first,
+# so the default is 12 s: the max seen plus a margin, above hub-tail's own ~10
+# s. The desks run in parallel, so one lookup waits at most about that long.
+#
 # Exit codes: 0 answered; 2 usage; 3 cannot tell, unless a desk said owner:
 # no desk or no live sidecar for the fleet tenant, or a live desk gave no hub
-# answer within SPOOL_TOPIC_KIND_TIMEOUT s (default 1).
+# answer within SPOOL_TOPIC_KIND_TIMEOUT s (default 12).
 set -uo pipefail
 
 ROOT="${SPOOL_ROOT:-/var/spool-hub}" TASK=""
@@ -84,7 +93,7 @@ ask_desk() {  # PID
   done 2>/dev/null <"/proc/$1/environ"
   [ "${#envv[@]}" -ge 5 ] || return 3
   out="$(env -i HOME="$HOME" PATH=/usr/bin:/bin SPOOL_LOG_LEVEL=error "${envv[@]}" \
-    timeout "${SPOOL_TOPIC_KIND_TIMEOUT:-1}" "$BIN" hub-tail --task "$TASK" --json 2>/dev/null)" || return 3
+    timeout "${SPOOL_TOPIC_KIND_TIMEOUT:-12}" "$BIN" hub-tail --task "$TASK" --json 2>/dev/null)" || return 3
   if grep '^{' <<<"$out" | jq -e -s 'any(.[]; ((.from // "") | tostring | startswith("HUM-")) or .to == "ALL-0")' >/dev/null 2>&1; then
     echo owner
   else

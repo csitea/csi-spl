@@ -40,6 +40,7 @@ _PPX_MAP=(
   "satellite-actions.tst.sh csi-spl-orc/src/make/tf-tasks.func.mk csi-spl-orc/src/bash/features/spool-install/render-yield.sh"
   "satellite-steps.tst.sh csi-spl-orc/src/make/tf-tasks.func.mk"
   "env-order-gate.tst.sh csi-spl-orc/src/make/tf-tasks.func.mk"
+  "gcp-alert-snooze.tst.sh csi-spl-orc/src/make/tf-tasks.func.mk csi-spl-orc/Makefile csi-spl-orc/lib/make"
   "tenant-host-workflow-40.tst.sh csi-spl-orc/src/bash/run/spl-tenant-host-reconcile.func.sh"
   "gate10-fail-fast.tst.sh csi-spl-orc/src/bash/scripts/gate-fail-fast.sh"
   "ci-doc-only.tst.sh csi-spl-orc/src/bash/scripts/ci-doc-only.sh"

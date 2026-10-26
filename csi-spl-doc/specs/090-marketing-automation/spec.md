@@ -1,7 +1,7 @@
 # 090: Marketing Automation (delegated social and email posting)
 
-**Feature ID**: `090-marketing-automation` · **Milestone**: M4 · **Status**: Consensus (v0.5.0)  
-**Created**: 2026-10-05 · **Updated**: 2026-10-26 (v0.5.0 Meta publishing, Viber/WhatsApp evaluations, draft handover) · **Lane**: a-273 (v0.1-v0.3), c-286 (v0.3.3), c-334 (v0.4.0), a-292 (v0.5.0) · **Topics**: `f0c3927e-12fd-4602-9ac6-5ec96bdcabaa`, `69b50b6c-4c6d-401e-8bf0-b325b3abe53a`, `55fd7531-5079-43c2-af38-ea0bf3692d4f`, `44a37f81-e98f-49ee-9374-970a3e7ef592`, `665401a9-bd36-46b5-8c5b-39c134669e53`  
+**Feature ID**: `090-marketing-automation` · **Milestone**: M4 · **Status**: In Review (v0.5.1)  
+**Created**: 2026-10-05 · **Updated**: 2026-10-26 (v0.5.1 Meta publishing, Viber/WhatsApp evaluations, draft handover) · **Lane**: a-273 (v0.1-v0.3), c-286 (v0.3.3), c-334 (v0.4.0), a-292 (v0.5.1) · **Topics**: `f0c3927e-12fd-4602-9ac6-5ec96bdcabaa`, `69b50b6c-4c6d-401e-8bf0-b325b3abe53a`, `55fd7531-5079-43c2-af38-ea0bf3692d4f`, `44a37f81-e98f-49ee-9374-970a3e7ef592`, `665401a9-bd36-46b5-8c5b-39c134669e53`  
 **Authority**: this file for behaviour and requirements. Status vocabulary: `../README.md` §2.3. Docs only: this spec builds nothing (`../README.md` §2.4). Organised as unified specification sections (§1–§21), with implementation tasks in `tasks.md` and owner app setup guide in `meta-app-setup.md`.
 
 Builds on, and does not repeat:
@@ -72,7 +72,7 @@ To comply with platform policies and protect account reputation, posting "on beh
 | **LinkedIn (Member)** | OAuth 2.0 (`w_member_social`) | Personal profile feed. Self-serve, free, no app review required. ~60-day token lifetime, no refresh token; re-consent reminder required. | **Phase 1** |
 | **Email Newsletter** | Transactional Provider (SMTP / API) | Authenticated workspace subdomain with SPF/DKIM/DMARC. Double opt-in, RFC 8058 one-click headers, bounce/complaint suppression. | Phase 2 |
 | **Facebook Pages** | Meta Graph API (`pages_manage_posts`, `pages_read_engagement`, `pages_show_list`) | **Facebook Pages only** (personal profiles barred). Requires Meta Business App Review & Business Verification. Page Access Token has no expiration. | **Phase 3a** |
-| **Instagram Professional** | Meta Graph API (`instagram_content_publish`, `instagram_basic`) | **Instagram Business/Creator accounts** linked to a Facebook Page. 2-step media container publishing. Max 25 posts/24h, 400 containers/24h. | **Phase 3a** |
+| **Instagram Professional** | Meta Graph API (`instagram_content_publish`, `instagram_basic`) | **Instagram Business/Creator accounts** linked to a Facebook Page. 2-step media container publishing. Max 100 posts/24h, 400 containers/24h. | **Phase 3a** |
 | **Draft Handover (Manual)** | WUI Handover Card (clipboard + asset pack) | Direct customer control (HUM-23). 1-click caption copy, asset selector/download, deep link open. Zero external API credentials required. | **Phase 3b** |
 | **Viber / WhatsApp Pre-fill** | Client Deep Links (`viber://forward`, `wa.me/?text=`) | One-click prefill links. Author taps send in app. Does not preselect channel/group; zero server tokens needed. | **Phase 3b** |
 | **LinkedIn (Company)** | OAuth 2.0 (`w_organization_social`) | Company brand page. Requires LinkedIn Community Management API access, business verification, and formal app review (weeks). | Phase 4 |
@@ -147,7 +147,7 @@ Per owner msg `fd72a794` (*"The aim is not to be spamming anyone. The aim is to 
   - Scope: Any allow-listed workspace with business social accounts.
   - Channels: Facebook Page feed (`POST /{page-id}/feed`) and Instagram Professional Content Publishing API (2-step container creation `POST /{ig-user-id}/media` and `POST /{ig-user-id}/media_publish`).
   - Auth & Security: Meta OAuth app (`pages_show_list`, `pages_read_engagement`, `pages_manage_posts`, `instagram_basic`, `instagram_content_publish`), long-lived user token exchange, non-expiring Page Access Token storage sealed in KMS envelope under FORCE RLS.
-  - Controls: Per-post human approval, daily cap enforcement, Instagram 25 posts/24h rate limit guard.
+  - Controls: Per-post human approval, daily cap enforcement, Instagram 100 posts/24h rate limit guard.
   - Owner Gates: Meta Business Portfolio verification, Developer App creation, App Review submission.
 - **Phase 3b: Customer Manual Draft Handover & Messaging Deep Links**
   - Scope: Workspaces where owners prefer manual control (HUM-23) or messaging broadcast.
@@ -401,7 +401,7 @@ Following Round 1 review, author `a-273` and reviewers `g-276`, `c-277`, and `c-
 | v0.3.3 | 2026-10-05 | c-286 | claude-a's third edit, completed: AC-08 no longer uses `rejected` (a final state) for a draft that is sent back. The stale draft stays `draft`, and the `draft_stale` audit event is added. Claude-a's other edits were already in v0.3.1/v0.3.2: quoted SQL literals, per-workspace FORCE RLS policies, and §2.3 matching FR-005. Added the build plan in `tasks.md`. |
 | v0.4.0 | 2026-10-05 | c-334 | Added §15, the per-workspace switch (owner msgs `37bcb88b` item 4 and `5cd2e544`): the cnf allow-list AND the db flag `tenants.marketing_enabled`, which defaults off; the flag never widens the list; `all` is supported but unused; the demo workspace is never on. |
 | v0.4.1 | 2026-10-14 | c-516 | §15 item 5: the WUI says why Marketing is missing (one line on the switch's `404`, one on the Publish list's `403`) instead of hiding it silently (SPL-1856). |
-| v0.5.0 | 2026-10-26 | a-292 | Added §16–§21 for Meta Publishing (Facebook Pages & Instagram Professional Content Publishing API v21.0), customer manual draft handover (HUM-23), Viber API evaluation and one-click deep link feasibility, WhatsApp Cloud API evaluation and one-click deep link feasibility, Meta app setup/review runbook, formats and limits, and updated Phase 3 channels. |
+| v0.5.1 | 2026-10-26 | a-292 | Updated §16–§21 following cross-vendor R7 review: pinned Meta Graph API v26.0 (superseding retiring v21.0), Instagram 100 posts/24h quota, JPEG-only/20-item carousel limits, Viber 200-char prefill trim with short variant, WhatsApp Cloud API Groups API evaluation, aligned status/dispatching with live 0187 schema, and unified OAuthException 190 subcodes. |
 
 ---
 
@@ -430,27 +430,27 @@ Building on owner instructions (topic `69b50b6c` msg `620011f4` and `55fd7531` m
 
 ### 16.1 Official Publishing APIs & Endpoints
 
-All calls target Meta Graph API version `v21.0`, evaluated on **2026-10-26**.
+All calls target Meta Graph API version `v26.0` (pinned in cnf via `marketing.facebook.api_version: "v26.0"`), evaluated on **2026-10-26**. Note: `v26.0` was released on 2026-07-29 as the current stable version; older `v21.0` is scheduled for retirement on January 21, 2027.
 
 #### 16.1.1 Facebook Pages API
 - **Target Surface**: Business and Organization Facebook Pages only. Automated posting to personal Facebook profiles was permanently deprecated by Meta on August 1, 2018.
 - **Core Endpoints**:
-  - `POST https://graph.facebook.com/v21.0/{page-id}/feed` (feed text posts and link preview cards).
-  - `POST https://graph.facebook.com/v21.0/{page-id}/photos` (photo posts with captions; parameters: `url`, `caption`, `published=true`).
+  - `POST https://graph.facebook.com/v26.0/{page-id}/feed` (feed text posts and link preview cards).
+  - `POST https://graph.facebook.com/v26.0/{page-id}/photos` (photo posts with captions; parameters: `url`, `caption`, `published=true`).
 - **Required Permissions**:
   - `pages_show_list`: Allows the app to list the user's managed Facebook Pages via `GET /me/accounts`.
   - `pages_read_engagement`: Allows reading Page metadata and verifying post delivery.
   - `pages_manage_posts`: Allows creating, scheduling, and publishing content as the Page.
 - **Official Documentation URLs (Verified 2026-10-26)**:
-  - `https://developers.facebook.com/docs/graph-api/reference/v21.0/page/feed`
+  - `https://developers.facebook.com/docs/graph-api/reference/page/feed`
   - `https://developers.facebook.com/docs/pages-api/posts`
 - **Authentication & Token Hierarchy**:
   - Facebook requires a **Page Access Token** to publish to a Page's feed.
   - Step 1: Member completes Facebook Login -> Hub receives short-lived User Access Token.
   - Step 2: Hub exchanges short-lived User Token for a **Long-Lived User Access Token** (~60 days validity) via:
-    `GET https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id={app-id}&client_secret={app-secret}&fb_exchange_token={short-lived-user-token}`
+    `GET https://graph.facebook.com/v26.0/oauth/access_token?grant_type=fb_exchange_token&client_id={app-id}&client_secret={app-secret}&fb_exchange_token={short-lived-user-token}`
   - Step 3: Hub requests user's accounts via:
-    `GET https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,tasks,instagram_business_account{id,username,name}`
+    `GET https://graph.facebook.com/v26.0/me/accounts?fields=id,name,access_token,tasks,instagram_business_account{id,username,name}`
   - Step 4: When requested using a long-lived User Token, the returned Page Access Token **does not expire** (it remains valid indefinitely until the user changes their password, revokes app permissions, or is removed as Page Admin).
 
 #### 16.1.2 Instagram Professional Content Publishing API
@@ -463,9 +463,9 @@ All calls target Meta Graph API version `v21.0`, evaluated on **2026-10-26**.
       - `media_type`: `IMAGE` (or `REELS`, `STORIES`, `CAROUSEL`).
     - Response: `{ "id": "<creation_container_id>" }`.
     - **Container Expiration**: The container ID expires after **24 hours** if not published.
-    - **Multi-Image Carousel Support**: For multi-image posts, the dispatcher creates child containers (`POST /{ig-user-id}/media` with `is_carousel_item=true` and `image_url`), collects their IDs, then creates the parent container with `media_type=CAROUSEL` and `children=<child_id_1>,<child_id_2>...`.
+    - **Multi-Image Carousel Support**: For multi-image posts, the dispatcher creates child containers (`POST /{ig-user-id}/media` with `is_carousel_item=true` and `image_url`), collects their IDs, then creates the parent container with `media_type=CAROUSEL` and `children=<child_id_1>,<child_id_2>...`. The Instagram API supports up to 20 carousel items; the Spool Hub UI provides a curated 10-photo selector as a product design choice.
   - **Step 1b: Status Verification (`GET /{creation_container_id}?fields=status_code`)**
-    - Before triggering publish, the dispatcher polls status code: `FINISHED` (ready), `IN_PROGRESS` (media downloading/transcoding), `ERROR` (failed), or `EXPIRED`. For static images, transition is near-instantaneous (<2 seconds).
+    - Before triggering publish, the dispatcher polls status code: `FINISHED` (ready), `IN_PROGRESS` (media downloading/transcoding), `PUBLISHED` (already published), `ERROR` (failed), or `EXPIRED`. For static images, transition is near-instantaneous (<2 seconds).
   - **Step 2: Media Publishing (`POST /{ig-user-id}/media_publish`)**
     - Parameter: `creation_id=<creation_container_id>`.
     - Response: `{ "id": "<instagram_media_id>" }`.
@@ -478,7 +478,7 @@ All calls target Meta Graph API version `v21.0`, evaluated on **2026-10-26**.
   - `https://developers.facebook.com/docs/instagram-platform/instagram-graph-api/reference/ig-user/media`
   - `https://developers.facebook.com/docs/instagram-platform/instagram-graph-api/reference/ig-user/media_publish`
 - **Rate Limits & API Quotas**:
-  - **Publishing Limit**: Strictly **25 API-published posts** per Instagram Professional account within a rolling 24-hour window.
+  - **Publishing Limit**: Strictly **100 API-published posts** per Instagram Professional account within a rolling 24-hour window (vendor documentation updated quota).
   - **Container Creation Limit**: Maximum **400 media containers** in a rolling 24-hour window.
 
 ### 16.2 Account Connection (OAuth & Personal Settings)
@@ -489,7 +489,7 @@ Mirroring the LinkedIn personal settings pattern (spec 019 / spec 090 T006):
    - In WUI (`SettingsDialog.vue` -> Personal Settings -> Social Accounts or Tenant Settings -> Marketing), the user sees "Connect Facebook & Instagram".
    - Initiates `GET /v1/marketing/facebook/connect?workspace=<id>`.
    - The browser redirects to Meta OAuth dialog:
-     `https://www.facebook.com/v21.0/dialog/oauth?client_id={app-id}&redirect_uri={redirect-url}&scope=pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish&state={signed_state}&response_type=code`
+     `https://www.facebook.com/v26.0/dialog/oauth?client_id={app-id}&redirect_uri={redirect-url}&scope=pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish&state={signed_state}&response_type=code`
    - Signed state (`marketing.State{Tenant, Member, Exp}`) expires in 15 minutes.
 2. **Callback Handling (`/api/v1/marketing/facebook/callback`)**:
    - Hub verifies HMAC signature on `state`.
@@ -503,19 +503,29 @@ Mirroring the LinkedIn personal settings pattern (spec 019 / spec 090 T006):
    - Each Page Access Token is envelope-encrypted using Cloud KMS key (`marketing.kms_key`) via `marketing.Sealer.Seal()`.
    - Ciphertext and KMS Key ID are stored in `marketing_channel_tokens` table under PostgreSQL `FORCE ROW LEVEL SECURITY`.
    - Channel records are created in `marketing_channels` (`platform='facebook_page'` or `platform='instagram_business'`).
-   - Disconnecting an account immediately deletes the database row and its encrypted token, and attempts a revocation call to `DELETE https://graph.facebook.com/v21.0/{user-id}/permissions`.
+   - Disconnecting an account immediately deletes the database row and its encrypted token, and attempts a revocation call to `DELETE https://graph.facebook.com/v26.0/{user-id}/permissions`.
 
-### 16.3 Publishing Approval Pipeline (Draft -> Approve -> Publish)
+### 16.3 Publishing Lifecycle & Human Approval Gate
 
-1. **Strict 4-State Machine**:
-   `draft` -> `approved` -> `scheduled` -> `published` (or `failed` / `rejected`).
-2. **Per-Post Approval Authority**:
-   - Publishing to a Facebook Page or Instagram Business account is strictly gated.
-   - Even when `auto_publish` is true for routine release notes, any post featuring external campaign media or custom marketing narratives requires explicit human approval in WUI.
-   - For multi-tenant workspaces, only the user who connected the account (or a workspace administrator with `tenant.settings`) may approve publishing.
-3. **Single-Flight Dispatcher**:
-   - A single-flight background dispatcher claims due posts using atomic Postgres row locking (`FOR UPDATE SKIP LOCKED`).
-   - The dispatcher retrieves the KMS-sealed Page Access Token, decrypts it in memory, executes container creation/publishing against Meta Graph API, stores the resulting `platform_post_id` and permalink URL, and marks status as `published`.
+1. **Live Post Lifecycle & Statuses**:
+   Under the Postgres schema (`marketing_posts.status`, defined in migration `0187_marketing.sql`), post statuses are:
+   `scheduled` -> `dispatching` -> `published` (or `failed`, or `skipped`).
+2. **Human Approval Gate & Authority**:
+   - In accordance with owner rules and customer input (HUM-23), automated publishing is strictly opt-in per channel (`marketing_channels.auto_publish = false` by default).
+   - When a marketing post is created for a channel where `auto_publish = false`, it is placed in `scheduled` status with `next_attempt_at = NULL` (holding the post from background dispatcher pickup).
+   - Clicking "Approve & Publish" in WUI triggers `POST /v1/marketing/posts/{id}/publish`, which sets `next_attempt_at = now()`, immediately unlocking the post for background dispatch.
+   - For multi-tenant workspaces, only the user who connected the channel (or an administrator holding `tenant.settings`) may approve publishing.
+3. **Atomic Single-Flight Dispatcher**:
+   - The background dispatcher claims due posts using atomic Postgres updates with a `RETURNING` clause (matching `internal/store/marketing.go:331`):
+     ```sql
+     UPDATE marketing_posts
+     SET status = 'dispatching', attempts = attempts + 1, claimed_at = now(), updated_at = now()
+     WHERE tenant_id = $1 AND channel_id = $2::uuid AND status = 'scheduled'
+       AND (next_attempt_at IS NULL OR next_attempt_at <= now())
+     RETURNING post_id, channel_id, content_text;
+     ```
+   - This guarantees single-flight execution across multi-instance hubs without concurrency races.
+   - The dispatcher retrieves the KMS-sealed Page Access Token, decrypts it in memory, executes container creation/publishing against Meta Graph API, stores the resulting `platform_post_id` and permalink URL, and marks status as `published` (logging audit event `post_published`).
    - The decrypted token is wiped from memory immediately upon request completion.
 
 ### 16.4 Fallback when No Account Connection Exists
@@ -563,7 +573,8 @@ When a marketing campaign, release notice, or customer story is generated:
      - "Open Viber Desktop / App"
 3. **Status Confirmation ("Mark as Posted Manually")**:
    - Once the owner posts the content, they click "Mark as Posted Manually".
-   - The post moves to `published` (or `handed_over`), setting `platform_post_id = 'manual'` and logging audit event `post_handed_over`.
+   - The post transitions to status `published`, setting `platform_post_id = 'manual'` and `published_at = now()`.
+   - The hub logs audit event `post_handed_over` (added to `marketing_post_events.event_type` CHECK in migration `0229_marketing_meta.sql`).
    - Prevents stale queue alerts and avoids duplicate drafting.
 
 ---
@@ -580,7 +591,7 @@ Evaluated on **2026-10-26** against official documentation on `developers.viber.
 
 | API / Mechanism | Official Doc URL (Read 2026-10-26) | Channel / 1-Way Support | Cost & Commercial Model | Fit with Spool Hub |
 |---|---|---|---|---|
-| **Viber Channels 1-Way Post API** | `https://developers.viber.com/docs/api/rest-bot-api/#channels-post-api` | **Yes**: 1-way broadcast feed to unlimited subscribers | **Free**: Channel Super Admin uses Channel Auth Token. Requires SSL webhook setup. | **High**: Clean fit for automated 1-way post publishing into a business Viber Channel. |
+| **Viber Channels 1-Way Post API** | `https://developers.viber.com/docs/tools/channels-post-api/` | **Yes**: 1-way broadcast feed to unlimited subscribers | Channel Super Admin uses Channel Auth Token. Mandatory SSL webhook setup on `/pa/post`. No public pricing fee stated in vendor documentation (standard Viber Channel feature, unlike Business Messages which require paid CPaaS partner). | **High**: Clean fit for automated 1-way post publishing into a business Viber Channel. |
 | **Viber REST Bot API** | `https://developers.viber.com/docs/api/rest-bot-api/` | Partial (2-way chatbot model; messages to subscribers who chatted with bot) | Commercial terms apply for new business bots via partners. | **Low**: 2-way bot is designed for interactive chat, not public broadcasting. |
 | **Viber Business Messages** | `https://www.viber.com/en/business/business-messages/` | No (sends to phone numbers, not channels) | **Cost-prohibitive**: Requires official CPaaS partner (Infobip, Dexatel, GMS). Minimum Monthly Commitment (MMC) of **€100 to €175 per month** per active Sender ID, plus €0.02–€0.05/message. | **None**: Completely unfit for social broadcasting. |
 
@@ -590,7 +601,11 @@ Evaluated on **2026-10-26** against official documentation on `developers.viber.
 - **Feasibility Verdict**: **PARTLY**.
 - **The Deep Link URI Scheme**:
   - Format: `viber://forward?text=<urlencoded_text>`
-  - Official specification: Supported natively on Viber iOS, Android, and Desktop.
+  - Official specification: Supported natively on Viber iOS, Android, and Desktop (`developers.viber.com/docs/tools/share-button/`).
+- **Character Trimming Constraint (Crucial Platform Limit)**:
+  - Viber officially documents: *"In case the text is longer than 200 characters, it will be trimmed and only the first 200 will be inserted"*.
+  - Any prefill text exceeding 200 characters is silently truncated by the Viber client.
+  - To prevent truncation, the Draft Handover UI generates a dedicated **Viber Short Variant** containing only the concise post headline and the canonical post URL, formatted strictly under the 200-character ceiling.
 - **Can a Target Group or Channel be Preselected?**:
   - **NO**. The Viber URI scheme (`viber://forward`) does **not** accept a `channel_id`, `group_id`, or `chat_id` parameter.
   - When the link is triggered, Viber opens the application and displays a **forward/share picker** containing the user's recent chats, groups, and channels.
@@ -601,10 +616,10 @@ Evaluated on **2026-10-26** against official documentation on `developers.viber.
 - **Account Connection Needed?**:
   - **NO**. The deep link operates purely client-side; no server-side bot, token, or account registration is required.
 - **Tested Link Example**:
-  `viber://forward?text=Spool%20Hub%20Release%20Update%3A%20https%3A%2F%2Fspool-hub.ai%2Fblog%2F2026-10-26-kids-human-experience`
+  `viber://forward?text=Spool%20Hub%20Release%20Update%3A%20https%3A%2F%2F<BASE_DOMAIN>%2Fblog%2F2026-10-26-kids-human-experience`
 
 ### 18.3 Recommendation:
-1. **Phase 3b (Immediate)**: Deliver the **Viber One-Click Deep Link** in WUI Draft Handover. Zero cost, zero API credentials, enables 2-click publishing on mobile and desktop.
+1. **Phase 3b (Immediate)**: Deliver the **Viber One-Click Deep Link** in WUI Draft Handover with the 200-character-constrained variant (headline + link). Zero cost, zero API credentials, enables 2-click publishing on mobile and desktop.
 2. **Phase 4 (Later)**: If a workspace maintains an official high-volume Viber Channel, implement the **Viber Channels 1-Way Post API** using the Channel Auth Token.
 3. **Reject**: Reject Viber Business Messages due to the €100–€175/month minimum commitment per sender ID.
 
@@ -621,8 +636,12 @@ Evaluated on **2026-10-26** against official documentation on `developers.facebo
 
 - **Official WhatsApp Cloud API**:
   - Doc URL: `https://developers.facebook.com/docs/whatsapp/cloud-api` (read 2026-10-26).
-  - Scope: Cloud API is strictly designed for 1-on-1 business messaging, transactional notifications, and customer support with opted-in phone numbers.
-  - **Channels Limitation**: Meta's official Cloud API **does NOT support creating or publishing posts to WhatsApp Channels**. WhatsApp Channels are currently managed exclusively via the native WhatsApp mobile/desktop applications.
+  - Scope: Cloud API is primarily designed for 1-on-1 business messaging, transactional notifications, and customer support with opted-in phone numbers.
+  - **WhatsApp Cloud API Groups API (`https://developers.facebook.com/docs/whatsapp/cloud-api/groups`)**: Meta provides a Cloud API Groups endpoint ("Create, manage, and message WhatsApp group conversations"). However, its constraints make it unusable for author social broadcasting:
+    1. It requires an **Official Business Account (OBA)** (green badge).
+    2. Groups are strictly limited to at most **8 participants** (the business plus up to 7 members).
+    3. The API can only message groups created by the business through the API itself; it cannot broadcast to an author's existing community or customer groups.
+  - **Channels Limitation**: Public vendor documentation for WhatsApp Cloud API does not mention WhatsApp Channels at all (unverified in public API docs whether programmatic Channel posting exists; Channels remain managed via native apps).
   - **Unofficial Wrappers**: Unofficial APIs (e.g. headless web scraping) violate WhatsApp Terms of Service and risk immediate, permanent phone number blacklisting. They are prohibited by Spool Hub architecture rules.
 
 ### 19.2 One-Click Deep Link Feasibility (The "Just Click Post" Question)
@@ -646,7 +665,7 @@ Evaluated on **2026-10-26** against official documentation on `developers.facebo
 - **Account Connection Needed?**:
   - **NO**. Operates entirely client-side without API keys, phone numbers, or server-side WhatsApp tokens.
 - **Tested Link Example (Empirically verified)**:
-  `https://wa.me/?text=Spool%20Hub%20Release%20Update%3A%20https%3A%2F%2Fspool-hub.ai%2Fblog%2F2026-10-26-kids-human-experience`
+  `https://wa.me/?text=Spool%20Hub%20Release%20Update%3A%20https%3A%2F%2F<BASE_DOMAIN>%2Fblog%2F2026-10-26-kids-human-experience`
   (Verified via `curl -sIL`: HTTP 302 -> HTTP 200 `content-type: text/html`, title "Share on WhatsApp").
 
 ---
@@ -702,9 +721,9 @@ To graduate from Development Mode (test users only) to Live Mode (any authorized
 | Platform | Text / Caption Cap | Media Constraints | Hyperlink Behavior | Tagging & Hashtags |
 |---|---|---|---|---|
 | **Facebook Pages** | 63,206 chars | Single/multi image: JPEG, PNG, GIF, WebP. Recommended 1200x630 (1.91:1) or 1080x1080 (1:1). Max 10 MB (API limit 30 MB). | Full URL parsed into Open Graph preview card. | Max 50 tags. Plain text hashtags supported. |
-| **Instagram Professional** | 2,200 chars | Strict aspect ratios: 4:5 (0.8) to 1.91:1. Single image or Carousel (up to 10 items). JPEG/PNG only. Max 8 MB. Min 320x320, max 1440x1800. | **URLs in feed captions are NOT clickable**. Use "Link in Bio" or Stories. | Maximum **30 hashtags**, maximum 20 user tags. |
+| **Instagram Professional** | 2,200 chars | Strict aspect ratios: 4:5 (0.8) to 1.91:1. Single image or Carousel (API supports up to 20 items; WUI provides curated 10-photo picker as a product design choice). JPEG only (API rejects PNG for feeds/carousels). Max 8 MB. Min width 320px, max width 1440px. | **URLs in feed captions are NOT clickable**. Use "Link in Bio" or Stories. | Maximum **30 hashtags**, maximum 20 user tags. |
 | **LinkedIn (Member)** | 3,000 chars (target 1,300 chars) | Single image: PNG/JPEG, max 8 MB. Aspect ratio 1.91:1 (1200x627) or 1:1. | Full clickable URL with link card generation. | Hashtags fully indexed; profile @mentions supported. |
-| **Viber (Deep Link)** | Practical limit ~1,000 chars for clean URI | Attached separately in native Viber composer. | Clickable links in Viber chats. | No hashtag indexing. |
+| **Viber (Deep Link)** | **Strict 200-character cap** (Viber trims text >200 chars; WUI provides short headline + URL variant <= 200 chars) | Attached separately in native Viber composer. | Clickable links in Viber chats. | No hashtag indexing. |
 | **WhatsApp (Deep Link)** | Practical limit ~2,000 chars for clean URI | Attached separately in native WhatsApp composer. | Clickable links in WhatsApp chats. | No hashtag indexing. |
 
 ### 21.2 Failure & Retry State Machine
@@ -718,7 +737,7 @@ The single-flight background dispatcher enforces strict failure handling to prot
        ▼                                       ▼
 [Transient Network / 5xx]           [Terminal / Auth Error]
 - HTTP 500, 502, 503, 504           - OAuthException code 190 (token expired/revoked)
-- Exponential backoff:              - Subcodes: 458 (app uninstalled), 463 (expired), 467 (invalid)
+- Exponential backoff:              - Subcodes: 458 (uninstalled), 460 (pwd changed), 463 (expired), 467 (invalid)
   1m -> 5m -> 15m                   - Media validation failure (unsupported aspect ratio)
 - Max 3 retry attempts              - Missing Page Admin permission
 - Audit: post_failed (retryable)    - Immediate transition: status = 'failed'
@@ -727,10 +746,12 @@ The single-flight background dispatcher enforces strict failure handling to prot
                                     - In-app notification sent to channel author
 ```
 
-1. **Idempotency**:
-   - Every post carries `body_sha256`. A unique database constraint prevents the same content from being scheduled twice on the same channel.
-   - Posts are claimed via `UPDATE marketing_posts SET status='scheduled' WHERE status='approved' AND scheduled_for <= now() RETURNING post_id` to guarantee single-flight execution across multi-instance hubs.
+1. **Idempotency & Deduplication**:
+   - Under the schema (`0187_marketing.sql:74`), uniqueness is enforced by `UNIQUE (channel_id, source_type, source_ref)`, ensuring that the same blog post is created and shared at most once per connected channel across all hub instances.
+   - Due posts are claimed atomically via:
+     `UPDATE marketing_posts SET status = 'dispatching', attempts = attempts + 1, claimed_at = now(), updated_at = now() WHERE tenant_id = $1 AND channel_id = $2::uuid AND status = 'scheduled' AND (next_attempt_at IS NULL OR next_attempt_at <= now()) RETURNING post_id`
+     guaranteeing single-flight execution across multi-instance hubs without race conditions.
 2. **Instagram Container Polling**:
    - For Instagram image publishing, container creation returns `creation_id`. The dispatcher verifies container status via `GET /{creation_id}?fields=status_code` before calling `media_publish`. If `status_code == 'ERROR'`, the post fails immediately without retry, logging Meta's diagnostic error message into `marketing_post_events`.
 
-<!-- version: 0.5.0 · updated: 2026-10-26 · last-edit: 2026-10-26T12:45:00Z -->
+<!-- version: 0.5.1 · updated: 2026-10-26 · last-edit: 2026-10-26T12:45:00Z -->

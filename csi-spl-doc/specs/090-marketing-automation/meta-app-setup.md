@@ -132,6 +132,9 @@ Meta requires a 2–3 minute video demonstrating the end-to-end user experience.
 - Create a test Facebook Page owned by that test user.
 - Provide the test user login credentials and detailed reproduction instructions in the App Review submission notes.
 
+> [!CAUTION]
+> Test user credentials are entered directly into Meta's web portal during App Review submission. Never commit test user passwords to git, never log them, and never post them in spool messages.
+
 ---
 
 ## 5. Token Renewal and Error Handling
@@ -139,7 +142,7 @@ Meta requires a 2–3 minute video demonstrating the end-to-end user experience.
 1. **Long-Lived User Tokens**: Last ~60 days. The hub checks expiration daily. If within 7 days of expiry, the hub queues an in-app and email reminder to the delegating member with a 1-click renewal link.
 2. **Page Access Tokens**: Derived from long-lived user tokens, Page Access Tokens do not expire unless revoked.
 3. **Revocation / Permission Drop**:
-   - If an API call fails with Meta OAuth error `OAuthException` (code `190`, subcode `458`, `460`, or `463`), the hub marks the channel status as `expired` in `marketing_channels` and logs an audit event.
+   - If an API call fails with Meta OAuth error `OAuthException` (code `190`, subcode `458`, `460`, `463`, or `467`), the hub marks the channel status as `expired` in `marketing_channels` and logs an audit event.
    - The user is notified in WUI with a direct link to reconnect.
 
-<!-- version: 0.5.0 · updated: 2026-10-26 · last-edit: 2026-10-26T12:48:00Z -->
+<!-- version: 0.5.1 · updated: 2026-10-26 · last-edit: 2026-10-26T12:48:00Z -->

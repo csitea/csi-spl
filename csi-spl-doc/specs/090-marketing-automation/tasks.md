@@ -236,18 +236,18 @@ The serial spine is T003 -> T004 -> T008 -> T009 -> T010 -> T012 -> T013. T002, 
 - [ ] T022 **Calendar linkage**: scheduled posts appear on `/calendar`, and moving one there edits `scheduled_for` (FR-010, AC-04). Depends on 089 T008.
 
 ### Phase 3a: Meta Graph API (Facebook Pages & Instagram Professional)
-Added 2026-10-26 (v0.2.0 tasks, SPL-3553) for Facebook Pages and Instagram Professional Content Publishing API (`spec.md` §16, §20, §21; runbook `meta-app-setup.md`).
+Added 2026-10-26 (v0.2.1 tasks, SPL-3553) for Facebook Pages and Instagram Professional Content Publishing API (`spec.md` §16, §20, §21; runbook `meta-app-setup.md`).
 
 - [ ] T030 **Meta OAuth app secret slots & cnf infrastructure** (`iac`, `cnf`).
-  - **Build**: Add cnf block `marketing.facebook` (`inject`, `client_id_secret`, `client_secret_secret`, `app_id`, `api_version: "v21.0"`). Add Secret Manager empty slots in step 030 (`csi-spl-hub-marketing-facebook-client-id`, `csi-spl-hub-marketing-facebook-client-secret`). Update `csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh` to forward `/api/v1/marketing/facebook/callback` to the hub.
-  - **Owns**: `csi-spl-cnf/csi-spl/all.env.yaml`, `csi-spl-iac/src/terraform/030-gcp-hub/`, `csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh`.
+  - **Build**: Add cnf block `marketing.facebook` (`inject`, `client_id_secret`, `client_secret_secret`, `app_id`, `api_version: "v26.0"`). Add Secret Manager empty slots in step 030 (`csi-spl-hub-marketing-facebook-client-id`, `csi-spl-hub-marketing-facebook-client-secret`). Update `csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh` to forward `/api/v1/marketing/facebook/callback` to the hub.
+  - **Owns**: `csi-spl-cnf/csi-spl/all.env.yaml`, `csi-spl-iac/src/terraform/030-cloud-run-hub/`, `csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh`.
   - **Tests**: `ENV=dev ./run -a do_tpl_gen`, `git diff --exit-code`, lint, `bash csi-spl-iac/src/bash/tests/run-all-tests.sh`.
-  - **Red Control**: Cloud Run deployment with `marketing.facebook.inject: "true"` fails if secret versions are missing; verified in test `hub-marketing-facebook-030.tst.sh`.
+  - **Red Control**: Local test `csi-spl-iac/src/bash/tests/hub-marketing-facebook-030.tst.sh` verifies that `do_tpl_gen` with `marketing.facebook.inject: "true"` renders the required secret volume mounts and environment variables into `csi-spl-iac/src/terraform/030-cloud-run-hub/`, and fails if `marketing.facebook.app_id` or secret references are absent.
   - **Needs from the owner**: Meta Developer App creation in Meta Business Portfolio, and adding client ID and secret version 1 into Secret Manager on dev and prd (runbook: `meta-app-setup.md`).
 
-- [ ] T031 **Hub database schema extensions for Meta channels & media assets** (`rdb`, `api/internal/store`).
-  - **Build**: Migration `0188_marketing_meta.sql` adding platform enum values `'facebook_page'` and `'instagram_business'` to `marketing_channels.platform`. Add `metadata jsonb NOT NULL DEFAULT '{}'::jsonb` to `marketing_channels` (storing page ID, Instagram business ID, username, profile picture URL) and `media_assets jsonb NOT NULL DEFAULT '[]'::jsonb` to `marketing_posts` (storing candidate image URLs, dimensions, aspect ratios, and selected flag). Update store queries in `internal/store/marketing.go`.
-  - **Owns**: `csi-spl-rdb/src/sql/postgres/spool-hub/0188_marketing_meta.sql`, `csi-spl-api/src/go/spool-hub-api/internal/store/marketing.go`, `marketing_meta_test.go`.
+- [ ] T031 **Hub database schema extensions for Meta channels, media assets & handover event** (`rdb`, `api/internal/store`).
+  - **Build**: Migration `0229_marketing_meta.sql` (next free migration after `0228`): swaps `marketing_channels_platform_check` constraint on `marketing_channels.platform` to `CHECK (platform IN ('linkedin', 'facebook_page', 'instagram_business'))` (CHECK constraint swap, not an enum). Add `metadata jsonb NOT NULL DEFAULT '{}'::jsonb` to `marketing_channels` (storing page ID, Instagram business ID, username, profile picture URL) and `media_assets jsonb NOT NULL DEFAULT '[]'::jsonb` to `marketing_posts` (storing candidate image URLs, dimensions, aspect ratios, and selected flag). Swaps `marketing_post_events_event_type_check` to add `'post_handed_over'`. Update store queries in `internal/store/marketing.go`.
+  - **Owns**: `csi-spl-rdb/src/sql/postgres/spool-hub/0229_marketing_meta.sql`, `csi-spl-api/src/go/spool-hub-api/internal/store/marketing.go`, `marketing_meta_test.go`.
   - **Tests**: `PRE_PUSH_TIER=full ./run -a do_check_pre_push`, `TestMarketingMetaChannelsRLS` on PostgreSQL.
   - **Red Control**: Inserting a channel with platform `'facebook_page'` or `'instagram_business'` fails on pre-migration schema; passes on new schema. Attempting cross-tenant read of Meta channel tokens fails closed via RLS.
   - **Depends**: T030. **Serial**.
@@ -281,7 +281,7 @@ Added 2026-10-26 (v0.2.0 tasks, SPL-3553) for Facebook Pages and Instagram Profe
   - **Build**: Extend hub dispatcher and manual publish API:
     - Extend `POST /v1/marketing/posts/{id}/publish` to support Facebook Page and Instagram channels.
     - Background worker single-flight dispatch: claims approved posts (`FOR UPDATE SKIP LOCKED`), opens KMS sealed token in memory, dispatches via `meta_client.go`, stores `platform_post_id` and permalink.
-    - Enforces Instagram 25 posts/24h rolling rate limit and daily 1 post/day channel cap.
+    - Enforces Instagram 100 posts/24h rolling rate limit and daily 1 post/day channel cap.
     - Handles OAuth token invalidation (OAuthException 190) by updating channel status to `expired` and sending re-consent alert.
   - **Owns**: `csi-spl-api/src/go/spool-hub-api/internal/hub/marketing_meta_dispatch.go`.
   - **Tests**: Concurrency tests: two racing dispatchers claim post exactly once; rate limit mock tests.
@@ -289,53 +289,54 @@ Added 2026-10-26 (v0.2.0 tasks, SPL-3553) for Facebook Pages and Instagram Profe
   - **Depends**: T032, T033. **Serial**.
 
 - [ ] T035 **WUI connected accounts & management for Facebook & Instagram** (`wui`).
-  - **Build**: Update `MarketingAccounts.vue` and `MarketingPublish.vue`:
+  - **Build**: New component `MarketingAccounts.vue` and update `MarketingPublish.vue`:
     - List connected Facebook Pages and Instagram accounts with profile avatars and status.
     - Connect button triggering OAuth popup / redirect.
     - Disconnect button with confirmation dialog and revocation instructions.
     - Publish queue displaying platform-specific character counters (2,200 for IG, 63,206 for FB) and media previews.
-  - **Owns**: `csi-spl-wui/src/components/MarketingAccounts.vue`, `MarketingPublish.vue`, `tests/e2e/marketing-meta-accounts.test.mjs`.
+  - **Owns**: `csi-spl-wui/src/components/MarketingAccounts.vue` (new), `MarketingPublish.vue` (update), `tests/e2e/marketing-meta-accounts.test.mjs`.
   - **Tests**: `pnpm run test:unit`, `pnpm run typecheck`, E2E test verifying account listing and disconnect flow.
   - **Red Control**: Connecting account without Page Admin task displays permission error banner; disconnect purges channel from UI state.
   - **Depends**: T033, T034. **Serial**.
 
 ### Phase 3b: Customer Manual Draft Handover & Messaging Deep Links
-Added 2026-10-26 (v0.2.0 tasks, SPL-3553) for customer draft handover (`spec.md` §17, HUM-23 input) and Viber/WhatsApp deep links (§18, §19).
+Added 2026-10-26 (v0.2.1 tasks, SPL-3553) for customer draft handover (`spec.md` §17, HUM-23 input) and Viber/WhatsApp deep links (§18, §19).
 
-- [ ] T036 **Customer draft handover & photo selection UI (HUM-23 design)** (`wui`).
-  - **Build**: Component `MarketingDraftHandover.vue`:
+- [ ] T036 **Customer draft handover & photo selection UI (HUM-23 design)** (`api`, `wui`).
+  - **Build**: Component `MarketingDraftHandover.vue` and hub endpoint:
     - Displays platform badges (Facebook, Instagram, LinkedIn, Viber, WhatsApp).
     - Photo selector gallery: Displays candidate images with multi-select checkboxes (1 to 10 photos).
     - 1-click "Download Selected Photos" (ZIP archive or single download).
     - 1-click "Copy Caption & Hashtags" with clipboard copy toast.
+    - Dedicated Viber Short Variant generator ensuring headline + link <= 200 characters.
     - Deep-link launch buttons: "Open Instagram Web / App", "Open Facebook Composer", "Open WhatsApp Web / App", "Open Viber Desktop / App".
-    - "Mark as Published Manually" button: `POST /v1/marketing/posts/{id}/manual-publish` updates status to `published` (manual) and logs `post_handed_over`.
-  - **Owns**: `csi-spl-wui/src/components/MarketingDraftHandover.vue`, `tests/e2e/marketing-draft-handover.test.mjs`, i18n keys in all 19 locales.
-  - **Tests**: `pnpm run test:unit`, `pnpm run typecheck`, E2E test verifying photo toggle and clipboard copy.
-  - **Red Control**: Unchecked photos are excluded from download pack; clipboard copy verifies full formatted string; initial bundle size guard.
-  - **Depends**: none (operates client-side and against existing post endpoints). **Parallel**.
+    - Hub route `POST /v1/marketing/posts/{id}/manual-publish` updates status to `published`, sets `platform_post_id = 'manual'`, `published_at = now()`, and writes audit event `post_handed_over`.
+  - **Owns**: `csi-spl-api/src/go/spool-hub-api/internal/hub/marketing_manual_publish.go`, `csi-spl-wui/src/components/MarketingDraftHandover.vue`, `tests/e2e/marketing-draft-handover.test.mjs`, i18n keys in all 19 locales.
+  - **Tests**: `bash csi-spl-api/src/bash/tests/run-all-tests.sh`, `pnpm run test:unit`, `pnpm run typecheck`, E2E test verifying photo toggle and clipboard copy.
+  - **Red Control**: Unchecked photos are excluded from download pack; clipboard copy verifies full formatted string; bundle size increase guard verifies `MarketingDraftHandover.vue` adds < 15 KB uncompressed (< 5 KB gzipped) to marketing bundle.
+  - **Depends**: T031 (migration 0229 for post_handed_over event). **Serial**.
 
 - [ ] T037 **One-click fallback & deep link generator for FB, IG, Viber & WhatsApp** (`api/internal/hub`, `wui`).
   - **Build**:
     - Hub endpoint `GET /v1/marketing/posts/{id}/share-links` returns pre-rendered share URLs:
       - Facebook: `https://www.facebook.com/sharer/sharer.php?u=<url>`
-      - Viber: `viber://forward?text=<urlencoded_text>`
+      - Viber: `viber://forward?text=<urlencoded_text>` (clamped to <= 200 chars to respect Viber client limit)
       - WhatsApp: `https://wa.me/?text=<urlencoded_text>`
       - Instagram: Client-side copy-caption + download pack (no web intent exists).
     - WUI integration in `BlogShareRow.vue` and `MarketingDraftHandover.vue`.
   - **Owns**: `csi-spl-api/src/go/spool-hub-api/internal/hub/marketing_share_links.go`, `csi-spl-wui/src/utils/marketing-share-links.mjs`.
-  - **Tests**: Unit tests validating exact URL encoding, protocol prefixes, and absence of deprecated parameters (e.g. no `quote=` on Facebook).
-  - **Red Control**: Passing raw unencoded Unicode characters to deep link generator fails URL validation test.
-  - **Depends**: T036. **Parallel**.
+  - **Tests**: Unit tests validating exact URL encoding, protocol prefixes, absence of deprecated parameters (e.g. no `quote=` on Facebook), and verifying Viber prefill text is clamped/formatted to <= 200 characters with headline and link intact.
+  - **Red Control**: Passing raw unencoded Unicode characters to deep link generator fails URL validation test; Viber link generator fails if output exceeds 200 characters.
+  - **Depends**: T031. **Parallel**.
 
 - [ ] T038 **Meta App Review submission & live verification** (`doc/manual`).
   - **Deliver**: Detailed owner submission guide and verification package:
     - 2-minute video screencast script demonstrating OAuth login, Page connection, post drafting, human review, and live publishing.
-    - Test user credentials and test Facebook Page setup instructions.
+    - Test user credentials and test Facebook Page setup instructions (with security note never to commit credentials to git or logs).
     - Submission text for `pages_show_list`, `pages_read_engagement`, `pages_manage_posts`, `instagram_basic`, and `instagram_content_publish`.
   - **Owns**: `csi-spl-doc/specs/090-marketing-automation/meta-app-review-submission.md`.
-  - **Tests**: Manual review checklist verification against Meta Developer Policy.
-  - **Red Control**: Missing permission justification or incomplete test user reproduction steps fails the review gate checklist.
+  - **Tests**: Executable test `csi-spl-doc/src/bash/tests/meta-app-review-package.tst.sh` verifies required permission justifications (`pages_show_list`, `pages_read_engagement`, `pages_manage_posts`, `instagram_basic`, `instagram_content_publish`), video screencast script, and test user steps are present and non-empty.
+  - **Red Control**: Missing permission justification or incomplete test user reproduction steps in `meta-app-review-submission.md` fails `csi-spl-doc/src/bash/tests/meta-app-review-package.tst.sh` with exit 1.
   - **Needs from the owner**: Recording the video screencast on live staging/dev environment and clicking "Submit for Review" in Meta Developer Portal.
   - **Depends**: T035. **Serial**.
 
@@ -344,4 +345,4 @@ Added 2026-10-26 (v0.2.0 tasks, SPL-3553) for customer draft handover (`spec.md`
 - [ ] T041 **Phase 4, LinkedIn company page**: needs from the owner LinkedIn Community Management API access and business verification.
 - [ ] T042 **Phase 4, Viber Channels 1-Way Post API**: high-volume broadcast channel support via Channel Auth Token.
 
-<!-- version: 0.2.0 · updated: 2026-10-26 · last-edit: 2026-10-26T12:50:00Z -->
+<!-- version: 0.2.1 · updated: 2026-10-26 · last-edit: 2026-10-26T12:50:00Z -->

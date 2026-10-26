@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: Test isolation only: under SPOOL_TEST=1 the desk lease gate stays off unless its own test opts in; nothing a user sees changes.

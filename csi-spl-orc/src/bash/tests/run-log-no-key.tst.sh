@@ -8,6 +8,8 @@
 #   1. orc, iac and utl run.sh (byte-identical): a probe action prints a fake
 #      key as a JSON field, a KEY= line and a PEM block, on stdout and stderr.
 #      stdout still carries it; neither log holds it; the logs say <redacted>.
+#      Two more shapes, each with its own fake key: a camelCase privateKey
+#      field, and a value holding an escaped quote (the key sits after it).
 #   2. the real orc tree: ENV=lde DRY_RUN=0 ./run -a do_spl_tenant_create with
 #      a stub spool CLI (no hub, no DB): stdout JSON holds the root private
 #      key, no run log does.
@@ -37,6 +39,8 @@ do_key_probe() {
   local pk="PRIVATE KEY"
   printf -- '-----BEGIN %s-----\n%s\n-----END %s-----\n' "$pk" "$PROBE_KEY" "$pk"
   printf '{"ssh_private_key": "%s"}\n' "$PROBE_KEY" >&2
+  printf '{"tenant":"acme","privateKey":"%s"}\n' "$PROBE_KEY_CAMEL"
+  printf '{"root_private_key":"ab\\"%s\\\\cd"}\n' "$PROBE_KEY_ESC"
   echo "PROBE ran"
 }
 PROBE
@@ -48,10 +52,11 @@ logs_hold() { grep -rqsF -- "$2" "$1/var/log"; }
 
 for m in csi-spl-orc csi-spl-iac csi-spl-utl; do
   d="$(probe_tree "$m")"
-  key="$(fake_key)"
+  key="$(fake_key)" kcamel="$(fake_key)" kesc="$(fake_key)"
   h="$T/home-$m"
   mkdir -p "$h"
-  (cd "$d" && HOME="$h" VAR_DIR="$T/var-$m" PROBE_KEY="$key" ./run -a do_key_probe </dev/null >"$T/out" 2>"$T/err")
+  (cd "$d" && HOME="$h" VAR_DIR="$T/var-$m" PROBE_KEY="$key" PROBE_KEY_CAMEL="$kcamel" \
+    PROBE_KEY_ESC="$kesc" ./run -a do_key_probe </dev/null >"$T/out" 2>"$T/err")
   rc=$?
   [[ $rc == 0 ]] && grep -qF "\"root_private_key\":\"$key\"" "$T/out" && grep -q 'PROBE ran' "$T/out" &&
     pass "$m: stdout still carries the key once (the action's contract)" ||
@@ -60,6 +65,12 @@ for m in csi-spl-orc csi-spl-iac csi-spl-utl; do
   [[ $n_logs -ge 2 ]] && pass "$m: the run wrote its out and err logs ($n_logs)" || fail "$m: no run logs ($n_logs)"
   logs_hold "$h" "$key" && fail "$m: a run log holds the private key ($(grep -rlF -- "$key" "$h/var/log" | wc -l) file(s))" ||
     pass "$m: no run log holds the private key"
+  grep -qF "\"privateKey\":\"$kcamel\"" "$T/out" && ! logs_hold "$h" "$kcamel" &&
+    pass "$m: a camelCase privateKey value is masked in the log, kept on stdout" ||
+    fail "$m: camelCase privateKey: a run log holds it or stdout lost it"
+  grep -qF "$kesc" "$T/out" && ! logs_hold "$h" "$kesc" &&
+    pass "$m: a value with an escaped quote is masked whole in the log, kept on stdout" ||
+    fail "$m: escaped-quote value: a run log holds the part after the quote or stdout lost it"
   grep -rqs '<redacted' "$h/var/log" && grep -rqs 'PROBE ran' "$h/var/log" &&
     pass "$m: the logs keep the other lines and mark <redacted>" ||
     fail "$m: the logs lost lines or carry no <redacted> mark"

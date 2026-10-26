@@ -211,13 +211,14 @@ do_run_log_tee() {
 }
 
 # do_mask_private_keys: a stdin-to-stdout filter that replaces the value of a
-# "..private_key": "<v>" JSON field, a ..PRIVATE_KEY=<v> assignment and a PEM
-# PRIVATE KEY block (one line or many) with <redacted>. A mask hides only the
+# "..private_key": "<v>" JSON field (or ..privateKey, any case; a \" or \\ in
+# <v> stays inside it), a ..PRIVATE_KEY=<v> assignment and a PEM PRIVATE KEY
+# block (one line or many) with <redacted>. A mask hides only the
 # shapes it names: an action prints a secret in one of them, or not at all.
 do_mask_private_keys() {
   sed -u -E \
-    -e 's/("[A-Za-z0-9_]*private_key"[[:space:]]*:[[:space:]]*")[^"]*"/\1<redacted>"/gI' \
-    -e 's/([A-Za-z0-9_]*private_key=)[^[:space:]"]+/\1<redacted>/gI' \
+    -e 's/("[A-Za-z0-9_]*private_?key"[[:space:]]*:[[:space:]]*")([^"\\]|\\.)*"/\1<redacted>"/gI' \
+    -e 's/([A-Za-z0-9_]*private_?key=)[^[:space:]"]+/\1<redacted>/gI' \
     -e 's/-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*-----END [A-Z0-9 ]*PRIVATE KEY-----/<redacted private key>/g' \
     -e '/-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/,/-----END [A-Z0-9 ]*PRIVATE KEY-----/c\
 <redacted private key>'

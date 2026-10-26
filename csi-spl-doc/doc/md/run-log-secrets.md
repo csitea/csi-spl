@@ -12,9 +12,10 @@ The terminal, or whatever the caller redirected `./run` into, gets every
 byte unchanged. Only the log copy passes through `do_mask_private_keys`,
 which replaces with `<redacted>`:
 
-- the value of a JSON field whose name ends in `private_key`
-  (`"root_private_key":"<v>"`, any case, spaces around `:` allowed);
-- a `<name>private_key=<v>` assignment, any case;
+- the value of a JSON field whose name ends in `private_key` or
+  `privateKey` (`"root_private_key":"<v>"`, any case, spaces around `:`
+  allowed, an escaped `\"` or `\\` inside `<v>` masked with it);
+- a `<name>private_key=<v>` or `<name>privateKey=<v>` assignment, any case;
 - a PEM `-----BEGIN ... PRIVATE KEY-----` block, on one line or many.
 
 So `ENV=<env> DRY_RUN=0 TENANT_ID=<id> ./run -a do_spl_tenant_create`

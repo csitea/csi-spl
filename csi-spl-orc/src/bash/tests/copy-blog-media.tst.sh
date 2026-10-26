@@ -8,10 +8,13 @@
 #      a PNG renamed .webp, a 301 KB webp, an empty file
 #   3. a name that is not <post-id>(-og).webp (../x, $(...), another id) is
 #      refused before any gcloud call
-#   4. a picture the bucket lacks: WARN, rc 0; no index / no picture: rc 0
+#   4. a picture or -og crop the bucket lacks, or a bucket it cannot list:
+#      FATAL, rc 1, nothing copied (SPL-3546: was a WARN with rc 0, and the
+#      site served its HTML as the picture); no index / no picture: rc 0
 #   5. CONTROLS: a copy of the action with one check removed (the magic bytes,
-#      the 300 KB limit, the empty check, the name check) lets its bad file
-#      through, so each assertion above goes red without its check
+#      the 300 KB limit, the empty check, the name check, the missing
+#      check) lets its bad file through, so each assertion above goes red
+#      without its check
 #   6. wf 30 runs the action in the deploy job after the last nuxt generate
 #      and before firebase deploy, as the project key
 #------------------------------------------------------------------------------
@@ -32,7 +35,7 @@ cat >"$T/stub/gcloud" <<'SH'
 #!/bin/bash
 echo "gcloud $*" >>"$STUB_LOG"
 case "$1 $2" in
-  "storage ls") b="${3#gs://}"; b="${b%/}"; for f in "$FAKE_BUCKET"/*; do [[ -e "$f" ]] && echo "gs://$b/${f##*/}"; done; exit 0 ;;
+  "storage ls") [[ -z "${FAKE_LS_FAIL:-}" ]] || exit 1; b="${3#gs://}"; b="${b%/}"; for f in "$FAKE_BUCKET"/*; do [[ -e "$f" ]] && echo "gs://$b/${f##*/}"; done; exit 0 ;;
   "storage cp") cp "$FAKE_BUCKET/${3##*/}" "$4" ;;
   *) exit 0 ;;
 esac
@@ -68,12 +71,12 @@ reset; webp "$B/$ID.webp"; webp "$B/$ID-og.webp"; index "$ID.webp"; cb
 if ((rc == 0)) && copied "$ID.webp" && copied "$ID-og.webp" && cmp -s "$B/$ID.webp" "$T/out/blog/img/$ID.webp"; then
   pass "a good webp and its -og crop are copied byte for byte"
 else fail "good webp: rc=$rc $(cat "$T/o")"; fi
-reset; webp "$B/$ID.webp" 307200; index "$ID.webp"; cb
+reset; webp "$B/$ID.webp" 307200; webp "$B/$ID-og.webp"; index "$ID.webp"; cb
 ((rc == 0)) && copied "$ID.webp" && pass "a webp of exactly 300 KB (307200 bytes) is copied" || fail "300 KB webp: rc=$rc $(cat "$T/o")"
 reset; jpg "$B/$ID.jpg"; jpg "$B/$ID-og.jpg"; index "$ID.jpg"; cb
 ((rc == 0)) && copied "$ID.jpg" && copied "$ID-og.jpg" && ! copied "$ID-og.webp" &&
   pass "a .jpg picture and its -og.jpg (the og:image a link preview reads) are copied" || fail "jpg: rc=$rc $(cat "$T/o")"
-reset; png "$B/$ID.jpg"; index "$ID.jpg"; cb
+reset; png "$B/$ID.jpg"; jpg "$B/$ID-og.jpg"; index "$ID.jpg"; cb
 ((rc == 1)) && grep -q "refused: $ID.jpg: not a jpeg" "$T/o" && none_copied &&
   pass "a PNG renamed .jpg is refused and named" || fail "png as jpg: rc=$rc $(cat "$T/o")"
 
@@ -84,9 +87,9 @@ refused() {
   if ((rc == 1)) && grep -q "refused: $ID.webp: $2" "$T/o" && none_copied; then return 0; fi
   return 1
 }
-case_png()   { reset; png "$B/$ID.webp"; index "$ID.webp"; }
-case_big()   { reset; webp "$B/$ID.webp" 308224; index "$ID.webp"; }
-case_empty() { reset; : >"$B/$ID.webp"; index "$ID.webp"; }
+case_png()   { reset; png "$B/$ID.webp"; webp "$B/$ID-og.webp"; index "$ID.webp"; }
+case_big()   { reset; webp "$B/$ID.webp" 308224; webp "$B/$ID-og.webp"; index "$ID.webp"; }
+case_empty() { reset; : >"$B/$ID.webp"; webp "$B/$ID-og.webp"; index "$ID.webp"; }
 case_png;   refused png 'not a webp'  && pass "a PNG renamed .webp is refused and named" || fail "png: rc=$rc $(cat "$T/o")"
 case_big;   refused big '308224 bytes, over the 300 KB' && pass "a 301 KB webp is refused and named" || fail "301 KB: rc=$rc $(cat "$T/o")"
 case_empty; refused empty 'empty' && pass "an empty file is refused and named" || fail "empty: rc=$rc $(cat "$T/o")"
@@ -106,7 +109,17 @@ reset; webp "$B/$ID.webp"; index "x-$ID:x-$ID.webp"; cb
 
 # --- 4. missing / nothing to do ---------------------------------------------
 reset; index "$ID.webp"; cb
-((rc == 0)) && grep -q "WARN .*holds no $ID.webp" "$T/o" && none_copied && pass "a missing picture is a WARN, rc 0" || fail "missing: rc=$rc $(cat "$T/o")"
+((rc == 1)) && grep -q "FATAL .*holds no $ID.webp" "$T/o" && none_copied && pass "a missing picture fails, rc 1, named, nothing copied" || fail "missing: rc=$rc $(cat "$T/o")"
+case_no_og() { reset; webp "$B/$ID.webp"; index "$ID.webp"; }
+case_no_og; cb
+((rc == 1)) && grep -q "FATAL .*holds no $ID-og.webp" "$T/o" && ! grep -q "holds no $ID.webp" "$T/o" && none_copied &&
+  pass "a missing -og crop (the og:image) fails, rc 1, named, nothing copied, not even the picture" || fail "missing og: rc=$rc $(cat "$T/o")"
+reset; jpg "$B/$ID.jpg"; index "$ID.jpg"; cb
+((rc == 1)) && grep -q "FATAL .*holds no $ID-og.jpg" "$T/o" && none_copied && pass "a .jpg picture without its -og.jpg fails" || fail "missing og jpg: rc=$rc $(cat "$T/o")"
+reset; webp "$B/$ID.webp"; webp "$B/$ID-og.webp"; index "$ID.webp"
+SNIPPET="source '$ACTION'; do_copy_blog_media" in_orc FAKE_BUCKET="$B" BLOG_MEDIA_OUT="$T/out" FAKE_LS_FAIL=1 \
+  GCP_ACCOUNT=test-sa@example.com </dev/null >"$T/o" 2>&1; rc=$?
+((rc == 1)) && grep -q "FATAL cannot list" "$T/o" && none_copied && pass "a bucket that cannot be listed fails, rc 1" || fail "ls fail: rc=$rc $(cat "$T/o")"
 reset; cb
 ((rc == 0)) && ! grep -q gcloud "$T/calls.log" && pass "no index: rc 0, no gcloud call" || fail "no index: rc=$rc"
 reset; mkdir -p "$T/out/blog-md"; echo '{"locales":{"en":[{"id":"'"$ID"'","title":"t"}]}}' >"$T/out/blog-md/index.json"; cb
@@ -119,12 +132,12 @@ reset; mkdir -p "$T/out/blog-md"; echo '{"locales":{"en":[{"id":"'"$ID"'","title
 PUT="$PROJ_ROOT/src/bash/run/spl-blog-media-put.func.sh"
 run_all() { SNIPPET="$1 do_copy_blog_media" in_orc FAKE_BUCKET="$B" BLOG_MEDIA_OUT="$T/out" \
   GCP_ACCOUNT=test-sa@example.com </dev/null >"$T/o" 2>&1; rc=$?; }
-reset; webp "$B/$ID.webp"; index "$ID.webp"; run_all ""
+reset; webp "$B/$ID.webp"; webp "$B/$ID-og.webp"; index "$ID.webp"; run_all ""
 ((rc == 0)) && copied "$ID.webp" && pass "with every orc file sourced (put file too) a good webp is copied" ||
   fail "all sourced: rc=$rc $(cat "$T/o")"
 sed 's/spl_blog_media_put_check/spl_blog_media_check/g' "$PUT" >"$T/put-dup.sh"
 if cmp -s "$PUT" "$T/put-dup.sh"; then fail "CONTROL clash: the sed changed nothing"; else
-  reset; webp "$B/$ID.webp"; index "$ID.webp"; run_all "source '$T/put-dup.sh';"
+  reset; webp "$B/$ID.webp"; webp "$B/$ID-og.webp"; index "$ID.webp"; run_all "source '$T/put-dup.sh';"
   ((rc != 0)) && ! copied "$ID.webp" && pass "CONTROL: the put file's old duplicate name breaks the copy (red)" ||
     fail "CONTROL clash: still copied with the duplicate name: rc=$rc"
 fi
@@ -152,6 +165,12 @@ if m=$(mutant name 's/if spl_blog_media_name_ok "$id" "$img"; then/if true; then
   reset; webp "$B/$ID.webp"; index "../x.webp"; cb "$m"
   grep -q "gcloud" "$T/calls.log" && pass "CONTROL: without the name check ../x.webp reaches gcloud (red)" ||
     fail "CONTROL name: no gcloud call even without the name check"
+fi
+
+if m=$(mutant missing '/spl_blog_media_missing "$bucket"/d'); then
+  case_no_og; cb "$m"
+  ((rc == 0)) && copied "$ID.webp" && pass "CONTROL: without the missing check the post ships with no og:image, rc 0 (red: the 2026-10-25 bug)" ||
+    fail "CONTROL missing: still rc=$rc without the missing check"
 fi
 
 # --- 6. wf 30 wiring --------------------------------------------------------

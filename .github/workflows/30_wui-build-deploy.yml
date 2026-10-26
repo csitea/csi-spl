@@ -589,6 +589,18 @@ jobs:
             [[ "$code" == 200 ]] && echo "ok - https://${FQDN}/version -> 200 (hub)" || { echo "::error::https://${FQDN}/version -> $code"; rc=1; }; }
           exit $rc
 
+      # SPL-3546: every post's picture and the og:image its page names must
+      # answer 200 image/* on the deployed site. A picture that never reached
+      # blog/img answers 200 with the site's HTML, so the post and its link
+      # preview (LinkedIn) show none; that shipped green for
+      # 2026-10-25-the-ai-software-making-machine. Reads only.
+      - name: Check the served blog pictures (do_check_blog_media_served)
+        if: steps.ver.outputs.stale != 'true' && steps.fwd.outputs.ok == 'true'
+        env:
+          ENV: ${{ matrix.environment }}
+          SITE: ${{ steps.cfg.outputs.site }}
+        run: BLOG_SITE_URL="https://${SITE}.web.app" ./csi-spl-orc/run -a do_check_blog_media_served
+
       # spec 143 T026 (SPL-2788, owner poll 3 = C, msg a8bfcdd0): report this
       # deploy to THIS env's hub, POST /v1/operator/deploys -> an rdb 0202
       # estate_deploys row (source ci), after the probe so a site that does

@@ -20,8 +20,14 @@
 # @description   4. the file starts with the RIFF....WEBP magic bytes (a .jpg:
 # @description      the FF D8 FF JPEG ones)
 # @description Any failed check fails the action (rc 1), names each bad file
-# @description and copies NOTHING. A picture the bucket does not hold is a
-# @description WARN and is skipped: pictures never block a post (s111-4).
+# @description and copies NOTHING. So does a named picture, or its <id>-og
+# @description crop, that the bucket does not hold, and a bucket that cannot
+# @description be listed (SPL-3546): the site answers a missing blog/img file
+# @description with its HTML, so the post and its link preview show no
+# @description picture. Until 2026-10-26 that was a WARN with rc 0, and
+# @description 2026-10-25-the-ai-software-making-machine shipped without its
+# @description picture on dev and prd. Put it first: do_spl_blog_media_put.
+# @description A post that names no picture still ships (spec 111 5.4).
 # @description No index, or no post with a picture: an INFO and rc 0.
 # @description As the env's project service account (GCP_SA_KEY_FILE in CI),
 # @description never the owner account.
@@ -55,22 +61,20 @@ do_copy_blog_media() {
   # shellcheck disable=SC2064
   trap "rm -rf '$stage'; trap - RETURN" RETURN
   have="$(gcloud storage ls "gs://$bucket/" --account="$GCP_ACCOUNT" 2>/dev/null)" ||
-    { do_log "WARN cannot list gs://$bucket as $GCP_ACCOUNT: the site ships without pictures"; return 0; }
+    { do_log "FATAL cannot list gs://$bucket as $GCP_ACCOUNT: the posts would ship without their pictures"; return 1; }
   have="$(sed "s|^gs://$bucket/||" <<<"$have")"
   for n in "${want[@]}"; do
     [[ "$n" == *-og.* ]] || want+=("${n%.*}-og.${n##*.}")
   done
-  local -a got=()
+  local -a got=() miss=()
   for n in $(printf '%s\n' "${want[@]}" | sort -u); do
-    if ! grep -qxF "$n" <<<"$have"; then
-      [[ "$n" == *-og.* ]] || do_log "WARN gs://$bucket holds no $n: that post ships without its picture"
-      continue
-    fi
+    if ! grep -qxF "$n" <<<"$have"; then miss+=("$n"); continue; fi
     gcloud storage cp "gs://$bucket/$n" "$stage/$n" --account="$GCP_ACCOUNT" --quiet >/dev/null 2>&1 ||
       { do_log "FATAL cannot read gs://$bucket/$n"; return 1; }
     got+=("$n")
   done
 
+  ((${#miss[@]} == 0)) || { spl_blog_media_missing "$bucket" "${miss[@]}"; return 1; }
   local why
   for n in "${got[@]}"; do
     why="$(spl_blog_media_check "$stage/$n")" || bad+=("$n: $why")
@@ -104,6 +108,14 @@ spl_blog_media_check() {
   fi
   m="$(head -c 12 "$f" | tr -c 'A-Z' '.')"
   [[ "${m:0:4}" == RIFF && "${m:8:4}" == WEBP ]] || { echo "not a webp (no RIFF/WEBP magic bytes)"; return 1; }
+}
+
+# spl_blog_media_missing <bucket> <name>...: one FATAL per picture the bucket
+# lacks, then the total and how to put it.
+spl_blog_media_missing() {
+  local b="$1" n; shift
+  for n in "$@"; do do_log "FATAL gs://$b holds no $n: its post would serve the site's HTML as that picture"; done
+  do_log "FATAL $# blog picture(s) missing: nothing copied; put each with ENV=$ENV ./run -a do_spl_blog_media_put"
 }
 
 # spl_blog_media_refuse <line>...: one FATAL per bad picture, then the total.

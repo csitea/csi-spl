@@ -367,6 +367,17 @@ page with a `<script` in a post body, an `on*=` attribute or a
   files with `do_spl_blog_media_put` (`BLOG_IMG_NAME=<post-id>(-og).jpg`,
   stored as `image/jpeg`). First used for `2026-10-16-amazing-world`, the
   owner's own picture.
+- **A named picture must be served** (SPL-3546, 2026-10-26). A post that
+  names an `image` the bucket does not hold, or whose `-og` crop it lacks,
+  fails the WUI deploy at the copy step (`do_copy_blog_media`, rc 1, nothing
+  copied); so does a bucket it cannot list. After `firebase deploy`,
+  `do_check_blog_media_served` fails the job when a post's picture or the
+  `og:image` its page names does not answer 200 with an `image/*` type.
+  Why: the site answers an unknown path with its HTML (200 `text/html`).
+  `2026-10-25-the-ai-software-making-machine` named a picture nobody made;
+  the copy step only warned, the deploy stayed green, and on dev and prd
+  the picture and the `og:image` were the HTML, so LinkedIn showed none.
+  A post that names no `image` still ships (5.4 fallback).
 - **Rejected:** a public bucket or a CDN host. It would add an `img-src`
   host to both CSP lists.
 
@@ -496,7 +507,8 @@ with the owner's key**, called by the code action `do_spl_blog_image`.
     webp re-encode strips EXIF/XMP, not the SynthID mark).
 - **Fallback.** If the key is missing, the call fails or the picture is
   filtered out, the post ships without one. A missing picture never blocks
-  a post.
+  a post: the post then names no `image`. A post that names one the media
+  store lacks fails the deploy instead (4.3, SPL-3546).
 
 ## 6. Agents publish posts (owner msg e9c2ad28)
 

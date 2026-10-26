@@ -15,8 +15,10 @@ import (
 //	BOX_ID_SRC         = [a-z0-9][a-z0-9-]{0,31}
 //
 // RE2 has no lookahead, so it is a hand scan that takes the same matches the
-// JS engine takes, backtracking included: flow_mentions_test.go pins the JS
-// sources it was written against and the matches on a shared fixture.
+// JS engine takes, backtracking included: flow_mentions_test.go pins the
+// grammar contract csi-spl-wui/src/utils/mention-grammar.json it implements,
+// the matches on a shared fixture, and (node parity tests) the same matches
+// and poke bodies from the WUI's own notify.mjs and mention-poke.mjs.
 
 // MentionedIDs is mentionedIds(body): every id the body names, in order,
 // repeats kept.

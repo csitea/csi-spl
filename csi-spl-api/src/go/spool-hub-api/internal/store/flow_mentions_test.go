@@ -100,14 +100,27 @@ func TestMentionGrammarContract(t *testing.T) {
 	}
 }
 
-// TestMentionParityWithNode runs the fixture through the WUI's own
-// mentionedIds when node is on PATH (the WUI unit job has it; a Go-only
-// runner skips and relies on the fixture and the grammar contract above).
-func TestMentionParityWithNode(t *testing.T) {
+// parityNode is node from PATH for a parity test. Without it the check is
+// lost: in CI (CI or GITHUB_ACTIONS = true) that is a FAIL, outside CI a
+// skip that names the check.
+func parityNode(t *testing.T, lost string) string {
+	t.Helper()
 	node, err := exec.LookPath("node")
-	if err != nil {
-		t.Skip("node not on PATH")
+	if err == nil {
+		return node
 	}
+	if os.Getenv("CI") == "true" || os.Getenv("GITHUB_ACTIONS") == "true" {
+		t.Fatalf("node not on PATH in CI: %s is not checked", lost)
+	}
+	t.Skipf("node not on PATH: %s is not checked", lost)
+	return ""
+}
+
+// TestMentionParityWithNode runs the fixture through the WUI's own
+// mentionedIds (node from parityNode; without it the fixture and the
+// grammar contract above still run).
+func TestMentionParityWithNode(t *testing.T) {
+	node := parityNode(t, "Go MentionedIDs against notify.mjs mentionedIds")
 	abs, err := filepath.Abs(filepath.Join(wuiUtils, "notify.mjs"))
 	if err != nil {
 		t.Fatal(err)
@@ -145,10 +158,7 @@ func TestMentionParityWithNode(t *testing.T) {
 // TestPokeBodyParityWithNode: the DM the WUI's mention-poke.mjs writes is
 // one PokeTask reads its task back from (node on PATH, as above).
 func TestPokeBodyParityWithNode(t *testing.T) {
-	node, err := exec.LookPath("node")
-	if err != nil {
-		t.Skip("node not on PATH")
-	}
+	node := parityNode(t, "Go PokeTask against mention-poke.mjs pokeBody")
 	abs, err := filepath.Abs(filepath.Join(wuiUtils, "mention-poke.mjs"))
 	if err != nil {
 		t.Fatal(err)

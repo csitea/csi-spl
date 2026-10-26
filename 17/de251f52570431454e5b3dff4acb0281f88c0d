@@ -1,0 +1,6 @@
+Lay-What: In a channel that names one seat as its only answerer, only that seat can post the first reply to a new topic; a channel's own seat can answer in its channel.
+Lay-How: The desk checks the channel rules before it sends the first reply and refuses any other seat, the dispatcher included, with a message that names the right seat.
+Lay-Why: Two seats answering the same new post, or the wrong seat answering a customer channel, confused the people who asked.
+Tech-What: spl_desk_lease_gate gains rule 0 (sole-seat channel via cr_sole_seat, column 6 of the channel-rules map) and rule 3 now matches the topic's channel, not only the tenant.
+Tech-How: hub-tail --with-channel names the topic's channel; a malformed sole seat or an unreadable topic fails closed (exit 8); without cr_sole_seat the rule is skipped with a WARN.
+Tech-Why: Finding from SPL-3542 review: the gate always passed the lease holders, even in a channel only one seat may answer.

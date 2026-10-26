@@ -12,7 +12,10 @@
      links: it works signed out and with JS off, a crawler follows it, and it
      lists exactly the hreflang locales (localeAlternates, public-seo.mjs).
      At <= 820 px its button shows the locale code, not the name, so the bar's
-     "SPOOL-HUB" stays on one line at 390 px (t1 ff3953c1). -->
+     "SPOOL-HUB" stays on one line at 390 px (t1 ff3953c1).
+     A blog-only locale (cnf env.blog.extra_locales, owner poll 6bace52f B:
+     German) has its own record, blog-<code> for the /<code>/blog/ pages (nuxt.config):
+     the posts in that language, the chrome in the i18n locale. -->
 <template>
   <div class="blog-page" data-test="blog-page">
     <header class="blog-bar" data-test="blog-bar">
@@ -26,8 +29,8 @@
         <details ref="langMenuEl" class="blog-lang" data-test="blog-lang">
           <summary class="blog-lang__button" :title="t('nav.lang_label')" data-test="blog-lang-button">
             <span class="visually-hidden">{{ t('nav.lang_label') }}: </span>
-            <span class="blog-lang__current">{{ localeName(locale) }}</span>
-            <span class="blog-lang__code" aria-hidden="true">{{ locale }}</span>
+            <span class="blog-lang__current">{{ localeName(lang) }}</span>
+            <span class="blog-lang__code" aria-hidden="true">{{ lang }}</span>
             <span class="blog-lang__chevron" aria-hidden="true">&#9662;</span>
           </summary>
           <ul class="blog-lang__list" :aria-label="t('nav.lang_label')" data-test="blog-lang-list">
@@ -37,7 +40,7 @@
                 :hreflang="l.code"
                 :lang="l.code"
                 class="blog-lang__item"
-                :aria-current="l.code === locale ? 'page' : undefined"
+                :aria-current="l.code === lang ? 'page' : undefined"
                 :data-code="l.code"
                 data-test="blog-lang-item"
                 @click="persist(l.code)"
@@ -49,10 +52,10 @@
       </div>
     </header>
 
-    <main class="blog-main">
+    <main class="blog-main" :lang="blogOnly || undefined">
       <article v-if="view.kind === 'post' && post" class="bpost" :lang="post.fallback ? 'en' : undefined" data-test="blog-post">
         <nav class="bpost__crumb" :aria-label="t('blog.breadcrumb')">
-          <NuxtLink :to="localePath('/blog')" data-test="blog-post-crumb">{{ t('auth.login.links.blog') }}</NuxtLink>
+          <NuxtLink :to="blogPath('/blog')" data-test="blog-post-crumb">{{ t('auth.login.links.blog') }}</NuxtLink>
           <span aria-hidden="true"> / </span>
           <span>{{ post.entry.title }}</span>
         </nav>
@@ -80,9 +83,9 @@
         <div class="bpost__body" data-test="blog-post-body" v-html="post.html" />
         <BlogShareRow test-id-suffix="end" :share-title="shareTitle" :share-page-url="sharePageUrl" />
         <nav class="bpost__pager" :aria-label="t('blog.more_posts')">
-          <NuxtLink v-if="post.newer" :to="localePath(`/blog/${post.newer.id}`)" rel="prev" data-test="blog-post-newer">&larr; {{ post.newer.title }}</NuxtLink>
-          <NuxtLink :to="localePath('/blog')" class="bpost__all" data-test="blog-post-back">{{ t('blog.all_posts') }}</NuxtLink>
-          <NuxtLink v-if="post.older" :to="localePath(`/blog/${post.older.id}`)" rel="next" data-test="blog-post-older">{{ post.older.title }} &rarr;</NuxtLink>
+          <NuxtLink v-if="post.newer" :to="blogPath(`/blog/${post.newer.id}`)" rel="prev" data-test="blog-post-newer">&larr; {{ post.newer.title }}</NuxtLink>
+          <NuxtLink :to="blogPath('/blog')" class="bpost__all" data-test="blog-post-back">{{ t('blog.all_posts') }}</NuxtLink>
+          <NuxtLink v-if="post.older" :to="blogPath(`/blog/${post.older.id}`)" rel="next" data-test="blog-post-older">{{ post.older.title }} &rarr;</NuxtLink>
         </nav>
       </article>
 
@@ -105,7 +108,7 @@
         <p v-if="!list.total" class="blog__empty" data-test="blog-empty">{{ t('blog.empty') }}</p>
         <ul v-else class="blog__list" data-test="blog-list">
           <li v-for="p in shown" :key="p.entry.id" class="blog__item" :lang="p.fallback ? 'en' : undefined" data-test="blog-item">
-            <NuxtLink :to="localePath(`/blog/${p.entry.id}`)" class="blog__card" data-test="blog-item-link">
+            <NuxtLink :to="blogPath(`/blog/${p.entry.id}`)" class="blog__card" data-test="blog-item-link">
               <h2 class="blog__card-title">{{ p.entry.title }}</h2>
               <p class="blog__card-meta">
                 <time :datetime="p.entry.published || p.entry.date">{{ p.entry.date }}</time>
@@ -116,15 +119,15 @@
           </li>
         </ul>
         <nav v-if="list.pages > 1" class="blog__pager" :aria-label="t('blog.pages')" data-test="blog-pager">
-          <NuxtLink v-if="list.page > 1" :to="localePath(pagePath(list.page - 1))" rel="prev" data-test="blog-page-newer">&larr; {{ t('blog.newer') }}</NuxtLink>
+          <NuxtLink v-if="list.page > 1" :to="blogPath(pagePath(list.page - 1))" rel="prev" data-test="blog-page-newer">&larr; {{ t('blog.newer') }}</NuxtLink>
           <span>{{ t('blog.page_of', { page: list.page, pages: list.pages }) }}</span>
-          <NuxtLink v-if="list.page < list.pages" :to="localePath(pagePath(list.page + 1))" rel="next" data-test="blog-page-older">{{ t('blog.older') }} &rarr;</NuxtLink>
+          <NuxtLink v-if="list.page < list.pages" :to="blogPath(pagePath(list.page + 1))" rel="next" data-test="blog-page-older">{{ t('blog.older') }} &rarr;</NuxtLink>
         </nav>
       </section>
 
       <section v-else class="blog" data-test="blog-not-found">
         <h1 class="blog__title">{{ t('blog.not_found') }}</h1>
-        <p>{{ t('blog.no_such_post') }} <NuxtLink :to="localePath('/blog')">{{ t('blog.all_posts') }}</NuxtLink></p>
+        <p>{{ t('blog.no_such_post') }} <NuxtLink :to="blogPath('/blog')">{{ t('blog.all_posts') }}</NuxtLink></p>
       </section>
     </main>
   </div>
@@ -166,6 +169,12 @@ const { locale, locales, t, te } = useI18n({ useScope: 'global' })
 const pub = useRuntimeConfig().public
 const siteUrl = String(pub.siteUrl || '').replace(/\/+$/, '')
 const defaultLocale = String(pub.defaultLocale || 'en')
+const uiCodes = computed(() => (locales.value as Array<{ code: string }>).map((l) => l.code))
+/* the blog-only locale of this record (blog-de -> de), '' on the i18n ones */
+const blogOnly = computed(() => /^blog-([a-z]{2,3})$/.exec(String(route.name || ''))?.[1] || '')
+/* the posts' language: the blog-only one, else the i18n locale */
+const lang = computed(() => blogOnly.value || String(locale.value))
+const blogPath = (p: string) => (blogOnly.value ? `/${blogOnly.value}${p}` : localePath(p))
 
 /** /blog -> list 1, /blog/page/<n> -> list n, /blog/<id> -> post, else none. */
 const view = computed(() => {
@@ -199,30 +208,31 @@ function copiesFor(index: { locales?: Record<string, BlogEntry[]> } | null, lang
 }
 
 const { data } = await useAsyncData(
-  () => `blog:${locale.value}:${route.path}`,
+  () => `blog:${lang.value}:${route.path}`,
   async () => {
     const v = view.value
     if (v.kind === 'none') return null
     const text = await readBlog('index.json')
     let index = null
     try { index = text ? JSON.parse(text) : null } catch { index = null }
-    const all = copiesFor(index, locale.value)
+    const all = copiesFor(index, lang.value)
+    const extra: string[] = Array.isArray(index?.blog_only) ? index.blog_only : []
     if (v.kind === 'list') {
       const pages = Math.max(1, Math.ceil(all.length / PAGE_SIZE))
       if (v.page > pages) return null
-      return { list: { page: v.page, pages, total: all.length, items: all.slice((v.page - 1) * PAGE_SIZE, v.page * PAGE_SIZE) } }
+      return { extra, list: { page: v.page, pages, total: all.length, items: all.slice((v.page - 1) * PAGE_SIZE, v.page * PAGE_SIZE) } }
     }
     const i = all.findIndex((c) => c.entry.id === v.id)
     if (i < 0) return null
     const c = all[i]
-    const html = await readBlog(`${c.fallback ? 'en' : locale.value}/${v.id}.html`)
+    const html = await readBlog(`${c.fallback ? 'en' : lang.value}/${v.id}.html`)
     if (html === null) return null
     const brief = (x?: Copy) => (x ? { id: x.entry.id, title: x.entry.title } : null)
     /* spec 116 T7: hreflang only for the locales that have this post */
     const langs = Object.keys(index?.locales || {}).filter((l) => l === 'en' || (index.locales[l] || []).some((e: BlogEntry) => e.id === v.id))
-    return { post: { ...c, html, langs, newer: brief(all[i - 1]), older: brief(all[i + 1]) } }
+    return { extra, post: { ...c, html, langs, newer: brief(all[i - 1]), older: brief(all[i + 1]) } }
   },
-  { watch: [locale] },
+  { watch: [locale, lang] },
 )
 
 const post = computed(() => data.value?.post || null)
@@ -234,7 +244,7 @@ const shown = computed(() => (list.value?.items || []).filter((p) => typeFilter.
 
 /* canonical + hreflang on the apex (NUXT_PUBLIC_SITE_URL), never the request host */
 function unprefixed(path: string): string {
-  const codes = (locales.value as Array<{ code: string }>).map((l) => l.code)
+  const codes = [...uiCodes.value, blogOnly.value]
   const m = /^\/([a-z]{2,3})(\/.*|$)/.exec(path)
   return m && codes.includes(m[1]) ? (m[2] || '/') : path
 }
@@ -247,7 +257,7 @@ const canNativeShare = ref(false)
 const sharePageUrl = computed(() => {
   const p = post.value
   if (!p) return ''
-  const code = p.fallback ? defaultLocale : String(locale.value)
+  const code = p.fallback ? defaultLocale : lang.value
   return absolute(localizedPath(code, `/blog/${p.entry.id}`, defaultLocale))
 })
 const shareTitle = computed(() => post.value?.entry.title || '')
@@ -257,14 +267,22 @@ const indexOn = seoIndexOn(pub.seoIndex)
    those with its copy (spec 116 T7), a list page all of them. ONE pair for
    the hreflang alternates and the language menu. */
 const seoBase = computed(() => unprefixed(route.path).replace(/\/+$/, '') || '/blog')
-const pageLangs = computed(() => post.value ? post.value.langs : (locales.value as Array<{ code: string }>).map((l) => l.code))
+const pageLangs = computed(() => post.value ? post.value.langs : [...uiCodes.value, ...(data.value?.extra || [])])
 const langMenu = computed(() => localeAlternates({ siteUrl: '', base: seoBase.value, langs: pageLangs.value, defaultLocale }))
-const localeName = (code: string) => (locales.value as Array<{ code: string, name?: string }>).find((l) => l.code === code)?.name || code
+/* a blog-only locale has no i18n entry: its own name for itself (de -> Deutsch) */
+function nativeName(code: string): string {
+  try {
+    const n = new Intl.DisplayNames([code], { type: 'language' }).of(code) || code
+    return n.charAt(0).toLocaleUpperCase(code) + n.slice(1)
+  } catch { return code }
+}
+const localeName = (code: string) => (locales.value as Array<{ code: string, name?: string }>).find((l) => l.code === code)?.name || nativeName(code)
 
 /* A pick is a full page load of the link (it works with JS off too); with JS
    the localStorage mirror is written here and the i18n_redirected cookie by
    plugins/locale-cookie.client.ts once the new locale's page runs. */
 function persist(code: string) {
+  if (!uiCodes.value.includes(code)) return /* a blog-only locale is no UI locale */
   try { localStorage.setItem(LOCALE_LS_KEY, code) } catch { /* private mode: the cookie still works */ }
 }
 /* with JS, a click outside or Escape closes the menu */
@@ -291,7 +309,7 @@ useHead(() => {
   const description = p ? p.entry.summary : t('blog.description')
   if (view.value.kind === 'none') return { title, meta: [{ name: 'robots', content: 'noindex, nofollow' }, { name: 'description', content: description }] }
   /* spec 116 T7: a copy the locale lacks (the en text) canonicalises to the default one */
-  const link = localeLinks({ siteUrl, base, canonicalCode: p?.fallback ? defaultLocale : locale.value, langs: pageLangs.value, defaultLocale })
+  const link = localeLinks({ siteUrl, base, canonicalCode: p?.fallback ? defaultLocale : lang.value, langs: pageLangs.value, defaultLocale })
   const url = link[0].href
   const image = p?.entry.image ? absolute(`/blog/img/${p.entry.image.replace(/\.(webp|jpg)$/, '-og.$1')}`) : absolute(SITE_IMAGE)
   const meta: Array<Record<string, string>> = [
@@ -311,7 +329,7 @@ useHead(() => {
           headline: p.entry.title,
           description,
           datePublished: p.entry.published || p.entry.date,
-          inLanguage: p.fallback ? 'en' : locale.value,
+          inLanguage: p.fallback ? 'en' : lang.value,
           author: { '@type': 'Person', name: p.entry.author },
           publisher: { '@type': 'Organization', '@id': `${siteUrl}/#organization`, name: SITE_NAME, logo: absolute('/logo.webp') },
           image,

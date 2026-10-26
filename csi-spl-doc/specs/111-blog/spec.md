@@ -295,6 +295,19 @@ word** on each post's content and translations.
   18 copies from the reviewed `en` post, then agy reviews them, then the
   copies pass 4.4 and land as ONE commit that touches only that post's
   locale files (`posts/*/<id>.md`).
+- **Blog-only locales** (owner HUM-10, csitea 1a494e58, poll 6bace52f
+  answer B, msg f6b36c90: "add German as a 20th blog language"): cnf
+  `env.blog.extra_locales` (today `[de]`) adds a blog language that is not a
+  UI locale. `/de/blog`, `/de/blog/page/<n>` and `/de/blog/<id>` are
+  prerendered from ONE extra route record, `blog-de` (nuxt.config
+  `blogDocumentsModule`; no `___<locale>` suffix, so the router makes no
+  locale copies of it). The post text is German, the chrome stays in the
+  default locale (no `de.json`), `<main lang="de">`. sync-blog.mjs accepts
+  `posts/de/`, writes `blog_only` into `index.json` (the language menu and
+  hreflang list it), and refuses a code that is already a UI locale. The
+  sitemap and robots.txt list `/de/blog` only. Posts are translated on
+  demand, not by `do_spl_blog_translate`; a post without its `de` copy shows
+  the English text with `lang="en"`, as in any locale.
 
 Settled, each with its recommendation:
 

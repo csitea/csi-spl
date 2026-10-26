@@ -19,6 +19,7 @@ import { expandLocaleRoutes, isLocaleRouteCopy } from "./src/utils/locale-routes
 import { buildRobotsTxt, buildSitemapXml, injectPublicHead, isPublicSeoPath, publicPageHead, robotsContent, sitemapEntries } from "./src/utils/public-seo.mjs"
 import { plainStatics, writeSplitCatalogues } from "./src/node/i18n/split-catalogue.mjs"
 import { writePublicCalendar } from "./src/node/pubcal/public-calendar-data.mjs"
+import { blogExtraLocales } from "./src/node/blog/sync-blog.mjs"
 import {
   addFirstScreenHints, deferDocumentPrefetch, firstScreenChunkGraph, firstScreenFiles, firstScreenPageLayout,
   firstScreenRoutePage,
@@ -316,6 +317,12 @@ function blogPages(): string[] {
   const pages = Math.max(1, Math.ceil(ids.length / BLOG_PAGE_SIZE))
   return ["/blog", ...Array.from({ length: pages - 1 }, (_, i) => `/blog/page/${i + 2}`), ...ids.map((id) => `/blog/${id}`)]
 }
+// Blog-only locales (cnf env.blog.extra_locales, owner poll 6bace52f B: German):
+// /<code>/blog/** pages with the default locale's chrome and no UI catalogue.
+// One route record each (blogDocumentsModule), a name with no `___<locale>`
+// suffix, so the router makes no locale copies of it; pages/blog.vue reads
+// the post language from the path.
+const BLOG_EXTRA_LOCALES: string[] = blogExtraLocales()
 /** A blog route or document, in any locale (`/blog`, `/fi/blog/<id>`, `/blog/index.html`). */
 const BLOG_ROUTE_RE = /^\/(?:[a-z]{2,3}\/)?blog(?:\/|\.html$|$)/
 
@@ -386,6 +393,7 @@ function blogDocumentsModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
     const blog = pages.find((p) => p.path === "/blog" && (p.file || "").endsWith("/pages/blog.vue"))
     if (!blog) throw new Error("blog (spec 111 T003): no /blog record for pages/blog.vue")
     blog.path = "/blog/:slug(.*)*"
+    for (const code of BLOG_EXTRA_LOCALES) pages.push({ ...blog, name: `blog-${code}`, path: `/${code}/blog/:slug(.*)*` })
   })
   nuxt.hook("nitro:init", (nitro) => {
     nitro.hooks.hook("prerender:generate", (route) => {
@@ -439,6 +447,8 @@ function helpSlugs(): string[] {
     return []
   }
 }
+// a /de/blog document is public too: strip a blog-only prefix like a locale's
+const SEO_CODES = [...LOCALE_CODES, ...BLOG_EXTRA_LOCALES]
 function publicSeoModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
   nuxt.hook("nitro:init", (nitro) => {
     const failed: string[] = []
@@ -450,7 +460,7 @@ function publicSeoModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
       const own = publicPageHead({ path: route.route, locale: LOCALE_CODES.includes(seg) ? seg : DEFAULT_LOCALE, codes: LOCALE_CODES, defaultLocale: DEFAULT_LOCALE, siteUrl: SITE_URL })
       if (own) route.contents = injectPublicHead(route.contents, own, robotsContent(route.route, LOCALE_CODES, SEO_INDEX))
       const html = route.contents
-      const pub = SEO_INDEX && isPublicSeoPath(route.route, LOCALE_CODES)
+      const pub = SEO_INDEX && isPublicSeoPath(route.route, SEO_CODES)
       const robots = html.match(/<meta\b[^>]*\bname="robots"[^>]*>/g) || []
       const want = pub ? 'content="index, follow"' : 'content="noindex, nofollow"'
       const bad = [
@@ -465,10 +475,10 @@ function publicSeoModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
     nitro.hooks.hook("prerender:done", () => {
       if (failed.length) throw new Error(`public SEO (spec 116 T7) failed for ${failed.length} documents:\n${failed.join("\n")}`)
       const out = nitro.options.output.publicDir
-      writeFileSync(join(out, "robots.txt"), buildRobotsTxt({ siteUrl: SITE_URL, codes: LOCALE_CODES, defaultLocale: DEFAULT_LOCALE, indexOn: SEO_INDEX }))
+      writeFileSync(join(out, "robots.txt"), buildRobotsTxt({ siteUrl: SITE_URL, codes: LOCALE_CODES, blogOnly: BLOG_EXTRA_LOCALES, defaultLocale: DEFAULT_LOCALE, indexOn: SEO_INDEX }))
       if (!SEO_INDEX) return
       const entries = sitemapEntries({
-        codes: LOCALE_CODES, defaultLocale: DEFAULT_LOCALE, help: helpSlugs(), pageSize: BLOG_PAGE_SIZE,
+        codes: LOCALE_CODES, blogOnly: BLOG_EXTRA_LOCALES, defaultLocale: DEFAULT_LOCALE, help: helpSlugs(), pageSize: BLOG_PAGE_SIZE,
         pages: PRERENDER_PAGES.filter((p) => isPublicSeoPath(p, LOCALE_CODES)),
         blog: blogIndex(), today: new Date().toISOString().slice(0, 10),
       })
@@ -804,7 +814,7 @@ export default defineNuxtConfig({
           I18N_LOCALES.map((l) => (l.code === DEFAULT_LOCALE ? p : `/${l.code}${p === "/" ? "" : p}`)),
         ),
         "/channel/general", "/channel/tasks", "/channel/alerts",
-        ...blogPages().flatMap((p) => I18N_LOCALES.map((l) => (l.code === DEFAULT_LOCALE ? p : `/${l.code}${p}`))),
+        ...blogPages().flatMap((p) => SEO_CODES.map((code) => (code === DEFAULT_LOCALE ? p : `/${code}${p}`))),
         // spec 116 T7: the public help pages, default locale only
         "/help", ...helpSlugs().map((s) => `/help/${s}`),
       ],

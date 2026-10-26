@@ -20,7 +20,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { applyCap, blogCnf, blogDrift, blogFiles, blogLocales, hostile, parseFrontmatter, validateMeta, writeBlog } from '../../src/node/blog/sync-blog.mjs'
+import { applyCap, blogCnf, blogDrift, blogExtraLocales, blogFiles, blogLocales, hostile, parseFrontmatter, validateMeta, writeBlog } from '../../src/node/blog/sync-blog.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 
 let failed = 0
@@ -92,7 +92,14 @@ try {
   ok('CONTROL a lang that is not the dir is refused',
     validateMeta(fm.meta, { id: '2026-10-05-a', lang: 'fi', locales: LOCALES }).some((b) => /not the dir/.test(b)))
   ok('the cnf yields env.blog (or the spec defaults)', (() => { const c = blogCnf(); return c.tz === 'Europe/Helsinki' && c.cap_per_day === 7 && c.digest_reserved === 1 })(), JSON.stringify(blogCnf()))
-  ok('the locales are i18n/locales (19)', blogLocales().length === 19 && blogLocales().includes('en'), String(blogLocales().length))
+  ok('the locales are i18n/locales (19) plus env.blog.extra_locales (de)', blogLocales().length === 20 && blogLocales().includes('en') && blogLocales().includes('de'), String(blogLocales()))
+  /* owner poll 6bace52f B: German is a blog-only locale, never a UI one */
+  ok('the cnf names de as a blog-only locale', blogCnf().extra_locales.join() === 'de' && blogExtraLocales().join() === 'de', JSON.stringify(blogCnf().extra_locales))
+  const extraRefusal = (list) => { try { blogExtraLocales({ ...CNF, extra_locales: list }); return '' } catch (e) { return e.message } }
+  ok('CONTROL a blog-only locale that is already a UI locale is refused', /fi is already a UI locale/.test(extraRefusal(['fi'])), extraRefusal(['fi']))
+  ok('CONTROL a blog-only locale that is no code is refused', /is not a locale code/.test(extraRefusal(['de-DE'])), extraRefusal(['de-DE']))
+  ok('a de copy validates against the blog locales', validateMeta({ ...fm.meta, lang: 'de' }, { id: '2026-10-05-a', lang: 'de', locales: blogLocales() }).length === 0)
+  ok('index.json names the blog-only locales (blog_only)', JSON.parse(blogFiles({ src: tmp('blog-sync-empty-'), cnf: CNF, locales: LOCALES, blogOnly: ['de'] }).files.get('index.json')).blog_only.join() === 'de')
 
   /* ── 9-c script controls in the sync ───────────────────────────────── */
   ok('a plain post is not hostile', hostile(post('2026-10-05-a')) === '')

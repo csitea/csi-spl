@@ -215,4 +215,13 @@ out=$(run_check BLOG_FILES="$N" BLOG_CHECK_NOW="$((NOW + 86400))"); rc=$?
 sed -i 's/^published: .*/published: 2026-10-10T20:30:00Z/' "$R/$N"
 refused "an edit that moves published" frontmatter "$N" BLOG_CHECK_NOW="$((NOW + 86400))"
 
+# ---- 8. a blog-only locale (env.blog.extra_locales, SPL-3573) ---------------
+DE="$P/de/2026-10-09-hello.md" XX="$P/xx/2026-10-09-hello.md"
+post de 2026-10-09-hello news | sed "s/^published: .*/$(grep -m1 "^published:" "$R/$N")/" | put "$DE"
+out=$(run_check BLOG_FILES="$DE"); rc=$?
+[[ $rc -eq 0 ]] && pass "a de copy passes (de is a blog-only locale in the cnf)" || fail "de copy: rc=$rc $out"
+post xx 2026-10-09-hello news | put "$XX"
+refused "control: a copy in a locale that is in neither list" frontmatter "$XX"
+clean
+
 [[ $fails -eq 0 ]] && echo "ALL PASS" || { echo "$fails FAIL"; exit 1; }

@@ -219,8 +219,11 @@ async function langMenu() {
   const index = await raw('/blog-md/index.json').then((t) => JSON.parse(t || '{}'), () => ({}))
   const locs = Object.keys(index.locales || {})
   const posts = index.locales?.en || []
+  const blogOnly = Array.isArray(index.blog_only) ? index.blog_only : []
   const codes = items(await raw('/blog')).map((i) => i.code)
-  ok('JS off: /blog lists all 19 locales as links', codes.length === 19 && new Set(codes).size === 19, codes)
+  const nCodes = 19 + blogOnly.length
+  ok(`JS off: /blog lists the 19 UI locales and the blog-only ones (${blogOnly.join() || 'none'}) as links`, codes.length === nCodes && new Set(codes).size === nCodes && blogOnly.every((c) => codes.includes(c)), codes)
+  await blogOnlyLocales(raw, items, index, blogOnly)
   const fi = items(await raw('/fi/blog'))
   ok('JS off: /fi/blog links fi to /fi/blog and en to /blog, fi current', fi.find((i) => i.code === 'fi')?.href === '/fi/blog' && fi.find((i) => i.code === 'en')?.href === '/blog' && fi.filter((i) => i.current).map((i) => i.code).join() === 'fi', fi.filter((i) => i.code === 'fi' || i.code === 'en'))
   /* control: the parser sees no menu in a page that has none */
@@ -244,7 +247,8 @@ async function langMenu() {
   if (!one) console.log('  (every post has a translation: the one-locale case did not run)')
   if (!many) console.log('  (no post has a translation: the many-locale case did not run)')
   const target = many || posts[0]
-  const to = has(target.id).find((c) => c !== 'en') || 'en'
+  /* a UI locale: a blog-only one (de) writes no locale cookie */
+  const to = has(target.id).find((c) => c !== 'en' && !blogOnly.includes(c)) || 'en'
   for (const js of [false, true]) {
     const { ctx, p } = await anonymousPage(browser, { width: 390, height: 844 })
     await p.setJavaScriptEnabled(js)
@@ -263,6 +267,22 @@ async function langMenu() {
     }
     await ctx.close()
   }
+}
+
+/* owner poll 6bace52f B: German is a blog-only locale (cnf env.blog.extra_locales):
+   /de/blog/** is prerendered with the posts in German and the chrome in en. */
+async function blogOnlyLocales(raw, items, index, blogOnly) {
+  for (const code of blogOnly) {
+    const list = await raw(`/${code}/blog`)
+    ok(`/${code}/blog is a prerendered blog list, public-clean`, /data-test="blog-list-page"/.test(list) && !/\/api\/v1\/auth\//.test(list) && !/config\.json/.test(list))
+    ok(`/${code}/blog: ${code} is current in the menu, <main lang="${code}">`, items(list).filter((i) => i.current).map((i) => i.code).join() === code && new RegExp(`<main[^>]*lang="${code}"`).test(list), items(list).filter((i) => i.current))
+    const own = (index.locales?.[code] || [])[0]
+    if (!own) { console.log(`  (no live ${code} copy in this build: the ${code} post step did not run)`); continue }
+    const doc = await raw(`/${code}/blog/${own.id}`)
+    ok(`/${code}/blog/${own.id} shows the ${code} title, not the pending line`, doc.includes(`<title>${own.title.replace(/&/g, '&amp;')}`) && !/data-test="blog-post-pending"/.test(doc), /<title>[^<]*/.exec(doc)?.[0])
+  }
+  /* control: a blog-only prefix the build does not know is no blog page */
+  ok('control: /xx/blog is not a prerendered blog page', !/data-test="blog-list-page"/.test(await raw('/xx/blog')))
 }
 
 const failed = results.filter((r) => !r.ok).length

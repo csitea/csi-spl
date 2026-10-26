@@ -105,7 +105,8 @@ spl_blog_verdict() {
   do_log "OK blog check: $1 post file(s) pass every row of spec 111 4.4${BLOG_CHECK_RANGE:+ (commit shape over $BLOG_CHECK_RANGE)}"
 }
 
-# spl_blog_cnf <tree> - the env cnf: SPL_CNF, the blog values, the locales, the
+# spl_blog_cnf <tree> - the env cnf: SPL_CNF, the blog values, the locales (the
+# UI ones plus the blog-only env.blog.extra_locales, SPL-3573), the
 # site name and the box names. env.blog is T001's; until it lands the spec
 # values hold.
 spl_blog_cnf() {
@@ -113,7 +114,7 @@ spl_blog_cnf() {
   ENV="$e" do_spl_cloud_cnf || return 1
   local -a v=()
   mapfile -t v < <(yq -r '[.env.blog.tz // "Europe/Helsinki", .env.blog.max_words // 450,
-      (.env.i18n.locales // [] | join(" ")), .env.dns.BASE_DOMAIN // ""] | .[]' "$SPL_CNF")
+      ((.env.i18n.locales // []) + (.env.blog.extra_locales // []) | join(" ")), .env.dns.BASE_DOMAIN // ""] | .[]' "$SPL_CNF")
   (( ${#v[@]} == 4 )) || { do_log "FATAL blog check: cannot read env.blog / env.i18n out of $SPL_CNF"; return 1; }
   BLOG_TZ="${v[0]}" BLOG_MAX_WORDS="${v[1]}" BLOG_LOCALES="${v[2]}" BLOG_SITE="${v[3]}"
   [[ -n "$BLOG_LOCALES" && "$BLOG_MAX_WORDS" =~ ^[0-9]+$ ]] ||
@@ -208,7 +209,7 @@ spl_blog_file() {
   [[ "$(_bf type)" != digest || "$id" == *-digest ]] || spl_blog_refuse "$rel" 1 frontmatter "a digest id is <date>-digest"
   v="$(_bf lang)"
   [[ -z "$v" || "$v" == "$lang" ]] || spl_blog_refuse "$rel" "$(spl_blog_line "$tree" "$rel" lang)" frontmatter "lang '$v' does not match the dir '$lang'"
-  [[ " $BLOG_LOCALES " == *" $lang "* ]] || spl_blog_refuse "$rel" 1 frontmatter "'$lang' is not a supported locale (env.i18n.locales)"
+  [[ " $BLOG_LOCALES " == *" $lang "* ]] || spl_blog_refuse "$rel" 1 frontmatter "'$lang' is not a supported locale (env.i18n.locales + env.blog.extra_locales)"
   v="$(_bf image)"
   if [[ -n "$v" ]]; then
     [[ -n "$(_bf image_alt)" ]] || spl_blog_refuse "$rel" "$(spl_blog_line "$tree" "$rel" image)" frontmatter "image without image_alt"

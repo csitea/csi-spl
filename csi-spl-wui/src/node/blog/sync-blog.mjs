@@ -48,7 +48,7 @@ export const BLOG_CNF = join(REPO, 'csi-spl-cnf/csi-spl/all.env.yaml')
 export const BLOG_LOCALES = join(WUI, 'i18n/locales')
 
 /** The spec's values (D-Q1, 6.2), used for a key env.blog does not carry. */
-export const BLOG_DEFAULTS = Object.freeze({ tz: 'Europe/Helsinki', cap_per_day: 7, digest_reserved: 1, digest_at: '23:00', cap_exempt_tags: Object.freeze([]) })
+export const BLOG_DEFAULTS = Object.freeze({ tz: 'Europe/Helsinki', cap_per_day: 7, digest_reserved: 1, digest_at: '23:00', cap_exempt_tags: Object.freeze([]), extra_locales: Object.freeze([]) })
 
 /** env.blog from the cnf, each missing key at its BLOG_DEFAULTS value. */
 export function blogCnf(cnf = BLOG_CNF) {
@@ -58,8 +58,8 @@ export function blogCnf(cnf = BLOG_CNF) {
   const m = /^( +)blog:[ \t]*\n((?:\1 +.*\n?|[ \t]*\n)*)/m.exec(text)
   if (!m) return out
   for (const line of m[2].split('\n')) {
-    const ex = /^\s+cap_exempt_tags:\s*\[([^\]]*)\]\s*(#.*)?$/.exec(line)
-    if (ex) { out.cap_exempt_tags = ex[1].split(',').map((t) => t.trim().replace(/^["']|["']$/g, '')).filter(Boolean); continue }
+    const ex = /^\s+(cap_exempt_tags|extra_locales):\s*\[([^\]]*)\]\s*(#.*)?$/.exec(line)
+    if (ex) { out[ex[1]] = ex[2].split(',').map((t) => t.trim().replace(/^["']|["']$/g, '')).filter(Boolean); continue }
     const kv = /^\s+(tz|cap_per_day|digest_reserved|digest_at):\s*["']?([^"'#\s]+)["']?\s*(#.*)?$/.exec(line)
     if (!kv) continue
     out[kv[1]] = /^(cap_per_day|digest_reserved)$/.test(kv[1]) ? Number.parseInt(kv[2], 10) : kv[2]
@@ -67,9 +67,30 @@ export function blogCnf(cnf = BLOG_CNF) {
   return out
 }
 
-/** The supported locale codes: one per i18n/locales/<code>.json (locales_from: i18n). */
-export function blogLocales(dir = BLOG_LOCALES) {
+/** The UI locale codes: one per i18n/locales/<code>.json (locales_from: i18n). */
+export function uiLocales(dir = BLOG_LOCALES) {
   return readdirSync(dir).filter((n) => /^[a-z]{2,3}\.json$/.test(n)).map((n) => n.slice(0, -5)).sort()
+}
+
+/**
+ * The blog-only locales, env.blog.extra_locales (owner HUM-10, poll 6bace52f
+ * answer B: German is a blog language, not a UI one): /<code>/blog/ pages
+ * whose chrome is the default locale's. Refused when one is not a locale
+ * code or is already a UI locale.
+ */
+export function blogExtraLocales(cnf = blogCnf(), dir = BLOG_LOCALES) {
+  const ui = uiLocales(dir)
+  const extra = [...(cnf.extra_locales || [])].sort()
+  for (const c of extra) {
+    if (!/^[a-z]{2,3}$/.test(c)) throw new Error(`env.blog.extra_locales: ${c} is not a locale code`)
+    if (ui.includes(c)) throw new Error(`env.blog.extra_locales: ${c} is already a UI locale (i18n/locales/${c}.json)`)
+  }
+  return extra
+}
+
+/** The blog's locale codes: the UI locales plus env.blog.extra_locales. */
+export function blogLocales(dir = BLOG_LOCALES, cnf = blogCnf()) {
+  return [...uiLocales(dir), ...blogExtraLocales(cnf, dir)].sort()
 }
 
 const KEYS = new Set(['id', 'lang', 'type', 'title', 'summary', 'date', 'published', 'author', 'agy_review',
@@ -304,8 +325,10 @@ const ENTRY_KEYS = ['id', 'type', 'title', 'summary', 'date', 'published', 'auth
 /**
  * Every file the copy must hold (name -> content), what is refused
  * (`errors`: the sync fails) and what the cap leaves out (`dropped`: logged).
+ * index.json also names the blog-only locales (`blog_only`): the page lists
+ * them in its language menu and hreflang, with or without a copy yet.
  */
-export function blogFiles({ src = BLOG_SRC, root = BLOG_REPO, cnf = blogCnf(), locales = blogLocales(), now = Date.now() } = {}) {
+export function blogFiles({ src = BLOG_SRC, root = BLOG_REPO, cnf = blogCnf(), locales = blogLocales(), blogOnly = blogExtraLocales(cnf), now = Date.now() } = {}) {
   const files = new Map()
   const errors = []
   const copies = new Map() // lang -> Map(id -> { meta, body, file, text })
@@ -349,7 +372,7 @@ export function blogFiles({ src = BLOG_SRC, root = BLOG_REPO, cnf = blogCnf(), l
     }
     if (list.length) index[lang] = list
   }
-  files.set('index.json', JSON.stringify({ locales: index }, null, 2) + '\n')
+  files.set('index.json', JSON.stringify({ locales: index, blog_only: blogOnly }, null, 2) + '\n')
   return { files, errors, dropped }
 }
 

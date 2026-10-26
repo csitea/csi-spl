@@ -117,6 +117,11 @@ describe('public SEO: robots.txt and sitemap.xml', () => {
     }
     assert.ok(!/Allow: \/(lobby|channel|dm\/|t\/|settings|docs|calendar)/.test(r))
   })
+  it('a blog-only locale (env.blog.extra_locales) allows /<code>/blog only', () => {
+    const r = buildRobotsTxt({ siteUrl: site, codes: ['en', 'fi'], blogOnly: ['de'], defaultLocale: 'en', indexOn: true }).split('\n')
+    assert.ok(r.includes('Allow: /de/blog'))
+    assert.ok(!r.some((l) => /^Allow: \/de\/(login|public-calendar|help)/.test(l)))
+  })
   it('any other build disallows everything and names no sitemap', () => {
     assert.equal(buildRobotsTxt({ siteUrl: site, codes, defaultLocale: 'en', indexOn: false }), 'User-agent: *\nDisallow: /\n')
     assert.equal(buildRobotsTxt({ siteUrl: '', codes, defaultLocale: 'en', indexOn: true }), 'User-agent: *\nDisallow: /\n')
@@ -133,6 +138,26 @@ describe('public SEO: robots.txt and sitemap.xml', () => {
     // a one-language page carries no hreflang group; a post in two does
     assert.ok(!/<loc>[^<]*\/blog\/2026-10-08-b<\/loc>\n {4}<lastmod>[^<]*<\/lastmod>\n {4}<xhtml/.test(xml))
     assert.match(xml, /hreflang="fi" href="https:\/\/apex\.example\.com\/fi\/blog\/2026-10-09-a"/)
+  })
+})
+
+describe('public SEO: a blog-only locale in the sitemap', () => {
+  it('lists /de/blog and each post with a de copy, in the hreflang groups; never /de/login', () => {
+    const blog = { locales: { en: [{ id: '2026-10-09-a', date: '2026-10-09' }, { id: '2026-10-08-b', date: '2026-10-08' }], de: [{ id: '2026-10-09-a' }] } }
+    const entries = sitemapEntries({ codes: ['en', 'fi'], blogOnly: ['de'], defaultLocale: 'en', today: '2026-10-10', help: [], pageSize: 10, blog })
+    const xml = buildSitemapXml({ siteUrl: site, defaultLocale: 'en', entries })
+    const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1].slice(site.length))
+    assert.deepEqual(locs, ['/login', '/fi/login', '/help', '/blog', '/fi/blog', '/de/blog', '/blog/2026-10-09-a', '/de/blog/2026-10-09-a', '/blog/2026-10-08-b'])
+    assert.match(xml, /hreflang="de" href="https:\/\/apex\.example\.com\/de\/blog\/2026-10-09-a"/)
+  })
+  it('CONTROL without blogOnly a de copy is not listed', () => {
+    const blog = { locales: { en: [{ id: '2026-10-09-a', date: '2026-10-09' }], de: [{ id: '2026-10-09-a' }] } }
+    const xml = buildSitemapXml({ siteUrl: site, defaultLocale: 'en', entries: sitemapEntries({ codes: ['en'], defaultLocale: 'en', today: '2026-10-10', help: [], pageSize: 10, blog }) })
+    assert.ok(!xml.includes('/de/'))
+  })
+  it('a /de/blog path is public once de is in the codes (nuxt.config SEO_CODES)', () => {
+    assert.ok(isPublicSeoPath('/de/blog/2026-10-09-a', ['en', 'de']))
+    assert.ok(!isPublicSeoPath('/de/blog/2026-10-09-a', ['en']))
   })
 })
 

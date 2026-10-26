@@ -208,7 +208,8 @@ const ROBOTS_ASSETS = ['/_nuxt/', '/blog-md/', '/help-md/', '/icons/', '/config.
  * robots.txt: on an indexable build only the public pages (and the files
  * they render with) are crawlable, plus / itself (a noindex page that sends
  * a visitor to /login); anything else is the app. Off = nothing is.
- * @param {{ siteUrl: string, codes: string[], defaultLocale: string, indexOn: boolean }} o
+ * `blogOnly`: the blog-only locales (env.blog.extra_locales), /<code>/blog only.
+ * @param {{ siteUrl: string, codes: string[], blogOnly?: string[], defaultLocale: string, indexOn: boolean }} o
  */
 export function buildRobotsTxt(o) {
   if (!o.indexOn || !o.siteUrl) return 'User-agent: *\nDisallow: /\n'
@@ -216,6 +217,7 @@ export function buildRobotsTxt(o) {
   for (const c of o.codes) {
     for (const p of ['/login', '/public-calendar', '/blog', '/help']) lines.push(`Allow: ${localizedPath(c, p, o.defaultLocale)}`)
   }
+  for (const c of o.blogOnly || []) lines.push(`Allow: ${localizedPath(c, '/blog', o.defaultLocale)}`)
   for (const a of ROBOTS_ASSETS) lines.push(`Allow: ${a}`)
   lines.push('', `Sitemap: ${o.siteUrl}/sitemap.xml`, '')
   return lines.join('\n')
@@ -228,8 +230,9 @@ const xmlEscape = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').
  * The sitemap's pages: every canonical public URL with its lastmod and
  * hreflang group, as the pages themselves declare them. `pages` = the public
  * pages prerendered in every locale (nuxt.config PRERENDER_PAGES: /login,
- * /public-calendar); default /login.
- * @param {{ codes: string[], defaultLocale: string, today: string, help: string[], pageSize: number, pages?: string[],
+ * /public-calendar); default /login. The blog also has the blog-only
+ * locales (`blogOnly`, env.blog.extra_locales).
+ * @param {{ codes: string[], blogOnly?: string[], defaultLocale: string, today: string, help: string[], pageSize: number, pages?: string[],
  *   blog: { locales?: Record<string, Array<{ id: string, date?: string, published?: string }>> } | null }} o
  * @returns {Array<{ base: string, code: string, langs: string[], lastmod: string }>}
  */
@@ -237,8 +240,9 @@ export function sitemapEntries(o) {
   /** @type {Array<{ base: string, code: string, langs: string[], lastmod: string }>} */
   const out = []
   /** @param {string} base @param {string} lastmod */
-  const all = (base, lastmod) => { for (const c of o.codes) out.push({ base, code: c, langs: o.codes, lastmod }) }
+  const all = (base, lastmod, codes = o.codes) => { for (const c of codes) out.push({ base, code: c, langs: codes, lastmod }) }
   for (const p of o.pages || ['/login']) all(p, o.today)
+  const blogCodes = [...o.codes, ...(o.blogOnly || [])]
   for (const h of ['', ...o.help]) out.push({ base: h ? `/help/${h}` : '/help', code: o.defaultLocale, langs: [], lastmod: o.today })
   const locales = o.blog?.locales || {}
   const en = locales.en || []
@@ -246,9 +250,9 @@ export function sitemapEntries(o) {
   const day = (e) => String(e.published || e.date || o.today).slice(0, 10)
   const newest = en.length ? en.map(day).sort().pop() || o.today : o.today
   const pages = Math.max(1, Math.ceil(en.length / o.pageSize))
-  for (let n = 1; n <= pages; n++) all(n === 1 ? '/blog' : `/blog/page/${n}`, newest)
+  for (let n = 1; n <= pages; n++) all(n === 1 ? '/blog' : `/blog/page/${n}`, newest, blogCodes)
   for (const e of en) {
-    const langs = o.codes.filter((c) => c === 'en' || (locales[c] || []).some((x) => x.id === e.id))
+    const langs = blogCodes.filter((c) => c === 'en' || (locales[c] || []).some((x) => x.id === e.id))
     for (const c of langs) out.push({ base: `/blog/${e.id}`, code: c, langs, lastmod: day(e) })
   }
   return out

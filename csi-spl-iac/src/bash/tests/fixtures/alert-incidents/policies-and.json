@@ -1,0 +1,174 @@
+[
+ {
+  "displayName": "o-a-dev and apart",
+  "enabled": true,
+  "combiner": "AND",
+  "conditions": [
+   {
+    "displayName": "above 0 on and_a",
+    "conditionThreshold": {
+     "filter": "metric.type = \"fixture.test/and_a\" AND resource.type = \"cloud_run_revision\"",
+     "comparison": "COMPARISON_GT",
+     "thresholdValue": 0,
+     "duration": "0s",
+     "aggregations": [
+      {
+       "alignmentPeriod": "60s",
+       "perSeriesAligner": "ALIGN_MAX",
+       "groupByFields": [
+        "resource.label.revision_name"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "displayName": "above 0 on and_b_apart",
+    "conditionThreshold": {
+     "filter": "metric.type = \"fixture.test/and_b_apart\" AND resource.type = \"cloud_run_revision\"",
+     "comparison": "COMPARISON_GT",
+     "thresholdValue": 0,
+     "duration": "0s",
+     "aggregations": [
+      {
+       "alignmentPeriod": "60s",
+       "perSeriesAligner": "ALIGN_MAX",
+       "groupByFields": [
+        "resource.label.revision_name"
+       ]
+      }
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "displayName": "o-a-dev and overlap",
+  "enabled": true,
+  "combiner": "AND",
+  "conditions": [
+   {
+    "displayName": "above 0 on and_a",
+    "conditionThreshold": {
+     "filter": "metric.type = \"fixture.test/and_a\" AND resource.type = \"cloud_run_revision\"",
+     "comparison": "COMPARISON_GT",
+     "thresholdValue": 0,
+     "duration": "0s",
+     "aggregations": [
+      {
+       "alignmentPeriod": "60s",
+       "perSeriesAligner": "ALIGN_MAX",
+       "groupByFields": [
+        "resource.label.revision_name"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "displayName": "above 0 on and_b_overlap",
+    "conditionThreshold": {
+     "filter": "metric.type = \"fixture.test/and_b_overlap\" AND resource.type = \"cloud_run_revision\"",
+     "comparison": "COMPARISON_GT",
+     "thresholdValue": 0,
+     "duration": "0s",
+     "aggregations": [
+      {
+       "alignmentPeriod": "60s",
+       "perSeriesAligner": "ALIGN_MAX",
+       "groupByFields": [
+        "resource.label.revision_name"
+       ]
+      }
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "displayName": "o-a-dev or two",
+  "enabled": true,
+  "combiner": "OR",
+  "conditions": [
+   {
+    "displayName": "above 0 on and_a",
+    "conditionThreshold": {
+     "filter": "metric.type = \"fixture.test/and_a\" AND resource.type = \"cloud_run_revision\"",
+     "comparison": "COMPARISON_GT",
+     "thresholdValue": 0,
+     "duration": "0s",
+     "aggregations": [
+      {
+       "alignmentPeriod": "60s",
+       "perSeriesAligner": "ALIGN_MAX",
+       "groupByFields": [
+        "resource.label.revision_name"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "displayName": "above 0 on and_b_apart",
+    "conditionThreshold": {
+     "filter": "metric.type = \"fixture.test/and_b_apart\" AND resource.type = \"cloud_run_revision\"",
+     "comparison": "COMPARISON_GT",
+     "thresholdValue": 0,
+     "duration": "0s",
+     "aggregations": [
+      {
+       "alignmentPeriod": "60s",
+       "perSeriesAligner": "ALIGN_MAX",
+       "groupByFields": [
+        "resource.label.revision_name"
+       ]
+      }
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "displayName": "o-a-dev odd combiner",
+  "enabled": true,
+  "combiner": "AND_WITH_MATCHING_RESOURCE",
+  "conditions": [
+   {
+    "displayName": "above 0 on and_a",
+    "conditionThreshold": {
+     "filter": "metric.type = \"fixture.test/and_a\" AND resource.type = \"cloud_run_revision\"",
+     "comparison": "COMPARISON_GT",
+     "thresholdValue": 0,
+     "duration": "0s",
+     "aggregations": [
+      {
+       "alignmentPeriod": "60s",
+       "perSeriesAligner": "ALIGN_MAX",
+       "groupByFields": [
+        "resource.label.revision_name"
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "displayName": "above 0 on and_b_apart",
+    "conditionThreshold": {
+     "filter": "metric.type = \"fixture.test/and_b_apart\" AND resource.type = \"cloud_run_revision\"",
+     "comparison": "COMPARISON_GT",
+     "thresholdValue": 0,
+     "duration": "0s",
+     "aggregations": [
+      {
+       "alignmentPeriod": "60s",
+       "perSeriesAligner": "ALIGN_MAX",
+       "groupByFields": [
+        "resource.label.revision_name"
+       ]
+      }
+     ]
+    }
+   }
+  ]
+ }
+]

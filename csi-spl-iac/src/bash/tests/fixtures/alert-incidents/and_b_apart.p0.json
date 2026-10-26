@@ -1,0 +1,95 @@
+{
+ "timeSeries": [
+  {
+   "resource": {
+    "type": "cloud_run_revision",
+    "labels": {
+     "project_id": "o-a-dev",
+     "revision_name": "hub-dev-00050"
+    }
+   },
+   "points": [
+    {
+     "interval": {
+      "endTime": "2026-10-22T11:07:00Z"
+     },
+     "value": {
+      "doubleValue": 0
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T11:06:00Z"
+     },
+     "value": {
+      "doubleValue": 0
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T11:05:00Z"
+     },
+     "value": {
+      "doubleValue": 0.9
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T11:04:00Z"
+     },
+     "value": {
+      "doubleValue": 0.9
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T11:03:00Z"
+     },
+     "value": {
+      "doubleValue": 0.9
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T11:02:00Z"
+     },
+     "value": {
+      "doubleValue": 0.9
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T11:01:00Z"
+     },
+     "value": {
+      "doubleValue": 0.9
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T11:00:00Z"
+     },
+     "value": {
+      "doubleValue": 0.9
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:59:00Z"
+     },
+     "value": {
+      "doubleValue": 0
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:58:00Z"
+     },
+     "value": {
+      "doubleValue": 0
+     }
+    }
+   ]
+  }
+ ]
+}

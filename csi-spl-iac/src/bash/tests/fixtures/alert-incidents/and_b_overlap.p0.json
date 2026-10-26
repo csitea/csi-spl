@@ -1,0 +1,175 @@
+{
+ "timeSeries": [
+  {
+   "resource": {
+    "type": "cloud_run_revision",
+    "labels": {
+     "project_id": "o-a-dev",
+     "revision_name": "hub-dev-00050"
+    }
+   },
+   "points": [
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:22:00Z"
+     },
+     "value": {
+      "doubleValue": 0
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:21:00Z"
+     },
+     "value": {
+      "doubleValue": 0
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:20:00Z"
+     },
+     "value": {
+      "doubleValue": 0.9
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:19:00Z"
+     },
+     "value": {
+      "doubleValue": 0.9
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:18:00Z"
+     },
+     "value": {
+      "doubleValue": 0.9
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:17:00Z"
+     },
+     "value": {
+      "doubleValue": 0.9
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:16:00Z"
+     },
+     "value": {
+      "doubleValue": 0.9
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:15:00Z"
+     },
+     "value": {
+      "doubleValue": 0.9
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:14:00Z"
+     },
+     "value": {
+      "doubleValue": 0.9
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:13:00Z"
+     },
+     "value": {
+      "doubleValue": 0.9
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:12:00Z"
+     },
+     "value": {
+      "doubleValue": 0.9
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:11:00Z"
+     },
+     "value": {
+      "doubleValue": 0.9
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:10:00Z"
+     },
+     "value": {
+      "doubleValue": 0.9
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:09:00Z"
+     },
+     "value": {
+      "doubleValue": 0.9
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:08:00Z"
+     },
+     "value": {
+      "doubleValue": 0.9
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:07:00Z"
+     },
+     "value": {
+      "doubleValue": 0.9
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:06:00Z"
+     },
+     "value": {
+      "doubleValue": 0.9
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:05:00Z"
+     },
+     "value": {
+      "doubleValue": 0.9
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:04:00Z"
+     },
+     "value": {
+      "doubleValue": 0
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:03:00Z"
+     },
+     "value": {
+      "doubleValue": 0
+     }
+    }
+   ]
+  }
+ ]
+}

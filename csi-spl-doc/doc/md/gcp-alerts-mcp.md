@@ -35,7 +35,11 @@ In claude they are `mcp__gcp-alerts__gcp_alert_incidents` and
   (`GET v3/projects/<p>/incidents` answers 404) and logs no entry per
   incident. The list action rebuilds incidents by replaying each policy's
   condition over its time series, so one incident is named by its policy
-  and the minute it opened.
+  and the minute it opened. The policy's `combiner` joins its conditions
+  (SPL-3645): `OR` (or a single condition) lists each condition's runs;
+  `AND` is one incident where every condition holds at the same time (the
+  overlap of their runs); any other combiner is named on stderr and listed
+  as `OR`.
 - `do_gcp_get_alert_incident` (`csi-spl-iac/src/bash/run/gcp-get-alert-incident.func.sh`)
   replays that one policy the same way (`src/bash/scripts/alert-incident.py`
   imports lane 1's `alert-incidents.py`) over OPENED minus 2 h .. plus 24 h

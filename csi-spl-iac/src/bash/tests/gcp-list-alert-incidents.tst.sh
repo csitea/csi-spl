@@ -17,6 +17,11 @@
 #   5. CONTROLS: a bad SINCE and a missing key are refused before gcloud runs;
 #      the same fixture with the duration dropped to 0s counts the short LT run
 #      too (so case 1's "not an incident" is the duration rule, not a miss)
+#   6. the policy combiner (fixtures policies-and.json, and_*): an AND policy
+#      whose two conditions breach at different times = 0 incidents; overlapping
+#      = 1 incident under the policy over the overlap; the same two conditions
+#      under OR = one per condition; another combiner is named on stderr and
+#      listed as OR
 # gcloud and curl are stubs on PATH. No network, no GCP.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -115,6 +120,26 @@ GC_POLICIES="$T/policies-0s.json" run_action ENV=dev SINCE=24h ALERT_UNTIL=2026-
 r=$(row 'Cloud SQL down')
 [[ "$r" == "o-a-dev Cloud SQL down 2 2026-10-22T07:00Z 2026-10-22T08:04Z 1 database_id=p:db" ]] \
   && pass "CONTROL: duration 0s counts the short run too" || fail "duration control: '$r'"
+
+# --- 6. the combiner -------------------------------------------------------------------
+GC_POLICIES="$FIX/policies-and.json" run_action ENV=dev SINCE=24h ALERT_UNTIL=2026-10-22T12:00:00Z; rc=$?
+[[ $rc -eq 0 ]] && pass "combiner fixture: exit 0" || fail "combiner fixture: rc=$rc $(cat "$T/out.log")"
+r=$(row 'and apart')
+[[ "$r" == "o-a-dev and apart 0 - - 2 -" ]] \
+  && pass "AND, conditions breach at different times: 0 incidents" || fail "AND apart row: '$r'"
+r=$(row 'and overlap')
+[[ "$r" == "o-a-dev and overlap 1 2026-10-22T10:05Z 2026-10-22T10:10Z 2 revision_name=hub-dev-00050" ]] \
+  && grep -q '^2026-10-22T10:05Z .. 2026-10-22T10:10Z  o-a-dev and overlap .*peak=2  revision_name=hub-dev-00050$' "$T/out.log" \
+  && pass "AND, overlapping: 1 incident over the overlap 10:05..10:10" || fail "AND overlap row: '$r' $(cat "$T/out.log")"
+r=$(row 'or two')
+[[ "$r" == "o-a-dev or two 2 2026-10-22T10:00Z 2026-10-22T11:05Z 2 revision_name=hub-dev-00050" ]] \
+  && pass "OR: the same two conditions list one incident each" || fail "OR row: '$r'"
+r=$(row 'odd combiner')
+[[ "$r" == "o-a-dev odd combiner 2 2026-10-22T10:00Z 2026-10-22T11:05Z 2 revision_name=hub-dev-00050" ]] \
+  && grep -q '^WARN o-a-dev odd combiner: combiner AND_WITH_MATCHING_RESOURCE is not replayed' "$T/out.log" \
+  && pass "an unknown combiner is named and listed per condition" || fail "odd combiner: '$r' $(cat "$T/out.log")"
+n=$(grep -cE '^2026-10-22T[0-9:]+Z \.\. ' "$T/out.log")
+[[ "$n" -eq 5 ]] && pass "combiner fixture: 5 incident lines (0 + 1 + 2 + 2)" || fail "incident lines: n=$n"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

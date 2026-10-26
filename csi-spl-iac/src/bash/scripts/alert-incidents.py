@@ -8,7 +8,10 @@ REPLAYS each alert policy: it reads the time series of every threshold
 condition with the condition's own filter and aggregation, and this script
 finds where the condition held for its duration. One run of violating points
 is one incident: Cloud Monitoring opens one when a condition starts to hold
-and closes it when it stops.
+and closes it when it stops. The policy's combiner joins its conditions: OR
+(or a single condition) lists each condition's runs; AND is one incident,
+under the policy, where every condition holds at the same time (the overlap
+of their runs). Any other combiner is named on stderr and listed as OR.
 
   plan <policies.json> <dir>
       writes <dir>/q<N>.curl (a curl -K config: the timeSeries query of one
@@ -158,7 +161,9 @@ def read_pages(d, n):
     return series, errors
 
 
-def replay(n, name, th, d, rows, detail):
+def condition_runs(n, th, d):
+    """[(open, last, peak, resource)] of condition N over every series it read,
+    the number of series read and the read errors."""
     agg = (th.get("aggregations") or [{}])[0]
     period = seconds(agg.get("alignmentPeriod"), 60)
     duration = seconds(th.get("duration"))
@@ -167,10 +172,7 @@ def replay(n, name, th, d, rows, detail):
     holds = CMP.get(comparison, CMP["COMPARISON_GT"])
     worse = min if comparison in ("COMPARISON_LT", "COMPARISON_LE") else max
     series, errors = read_pages(d, n)
-    row = rows.setdefault(
-        name, {"count": 0, "first": None, "last": None, "res": set(), "series": 0}
-    )
-    row["series"] += len(series)
+    out = []
     for s in series:
         pts = [
             (ts(p["interval"]["endTime"]), point_value(p)) for p in s.get("points", [])
@@ -179,21 +181,79 @@ def replay(n, name, th, d, rows, detail):
         for start, end, peak in runs(
             pts, period, duration, lambda v: holds(v, thr), worse
         ):
+            out.append((start, end, peak, {res}))
+    return out, len(series), errors
+
+
+def overlap(a, b):
+    """Where a run of <a> and a run of <b> hold at the same time: open = the
+    later open, last = the earlier last, <a>'s peak, both resources."""
+    out = []
+    for sa, ea, pa, ra in a:
+        for sb, eb, _, rb in b:
+            s, e = max(sa, sb), min(ea, eb)
+            if s <= e:
+                out.append((s, e, pa, ra | rb))
+    return out
+
+
+def combiner(policies, name):
+    """The combiner of the enabled policy <name>; unset reads OR."""
+    for p in policies:
+        if p.get("enabled") is not False and p.get("displayName", "?") == name:
+            return p.get("combiner") or "OR"
+    return "OR"
+
+
+def policy_runs(name, comb, cond_runs):
+    """A policy's incidents from its conditions' runs: OR (and a single
+    condition) lists each condition's runs; AND only where every condition
+    holds at once. Any other combiner is named on stderr and listed as OR."""
+    if comb not in ("OR", "AND", "COMBINE_UNSPECIFIED"):
+        print(
+            "WARN %s: combiner %s is not replayed, each condition listed alone"
+            % (name, comb),
+            file=sys.stderr,
+        )
+    if comb != "AND" or len(cond_runs) < 2:
+        return [r for rs in cond_runs for r in rs]
+    out = cond_runs[0]
+    for rs in cond_runs[1:]:
+        out = overlap(out, rs)
+    return out
+
+
+def replay(policies, d, rows, detail):
+    """Fills rows (per policy) and detail (per incident); returns the read errors."""
+    conds, _ = conditions(policies)
+    by_policy, errors = {}, []
+    for n, name, th in conds:
+        found, nseries, errs = condition_runs(n, th, d)
+        errors += [(name, e) for e in errs]
+        row = rows.setdefault(
+            name, {"count": 0, "first": None, "last": None, "res": set(), "series": 0}
+        )
+        row["series"] += nseries
+        by_policy.setdefault(name, []).append(found)
+    for name, cond_runs in by_policy.items():
+        row = rows[name]
+        for start, end, peak, res in policy_runs(
+            name, combiner(policies, name), cond_runs
+        ):
             row["count"] += 1
             row["first"] = start if row["first"] is None else min(row["first"], start)
             row["last"] = end if row["last"] is None else max(row["last"], end)
-            row["res"].add(res)
-            detail.append((start, name, end, peak, res))
+            row["res"] |= res
+            detail.append((start, name, end, peak, " ".join(sorted(res))))
     return errors
 
 
 def report(policies, d, since, until):
-    conds, skipped = conditions(policies)
+    _, skipped = conditions(policies)
     rows, detail, rc = {}, [], 0
-    for n, name, th in conds:
-        for e in replay(n, name, th, d, rows, detail):
-            print("ERROR %s: %s" % (name, e), file=sys.stderr)
-            rc = 1
+    for name, e in replay(policies, d, rows, detail):
+        print("ERROR %s: %s" % (name, e), file=sys.stderr)
+        rc = 1
     print(
         "== alert incidents %s .. %s (rebuilt from each policy's own condition)"
         % (since, until)

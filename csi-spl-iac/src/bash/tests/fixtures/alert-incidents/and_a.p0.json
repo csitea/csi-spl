@@ -1,0 +1,135 @@
+{
+ "timeSeries": [
+  {
+   "resource": {
+    "type": "cloud_run_revision",
+    "labels": {
+     "project_id": "o-a-dev",
+     "revision_name": "hub-dev-00050"
+    }
+   },
+   "points": [
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:12:00Z"
+     },
+     "value": {
+      "doubleValue": 0
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:11:00Z"
+     },
+     "value": {
+      "doubleValue": 0
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:10:00Z"
+     },
+     "value": {
+      "doubleValue": 2
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:09:00Z"
+     },
+     "value": {
+      "doubleValue": 2
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:08:00Z"
+     },
+     "value": {
+      "doubleValue": 2
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:07:00Z"
+     },
+     "value": {
+      "doubleValue": 2
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:06:00Z"
+     },
+     "value": {
+      "doubleValue": 2
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:05:00Z"
+     },
+     "value": {
+      "doubleValue": 2
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:04:00Z"
+     },
+     "value": {
+      "doubleValue": 2
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:03:00Z"
+     },
+     "value": {
+      "doubleValue": 2
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:02:00Z"
+     },
+     "value": {
+      "doubleValue": 2
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:01:00Z"
+     },
+     "value": {
+      "doubleValue": 2
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T10:00:00Z"
+     },
+     "value": {
+      "doubleValue": 2
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T09:59:00Z"
+     },
+     "value": {
+      "doubleValue": 0
+     }
+    },
+    {
+     "interval": {
+      "endTime": "2026-10-22T09:58:00Z"
+     },
+     "value": {
+      "doubleValue": 0
+     }
+    }
+   ]
+  }
+ ]
+}

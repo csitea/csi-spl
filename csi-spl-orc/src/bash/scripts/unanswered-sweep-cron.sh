@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# unanswered-sweep-cron.sh — run do_spl_unanswered_sweep DELIVER=1 from the
+# unanswered-sweep-cron.sh — run do_spl_unanswered_sweep DELIVER=1, then the
+# 0-seat alarm do_spl_workspace_seat_alarm DRY_RUN=0 (spec 158 B), from the
 # box user's crontab (SPEC-spool-fleet-roles.md 3.2). Installed by
 # do_spl_unanswered_sweep_install_cron as ONE line tagged
 # `# csi-spl:unanswered-sweep` (prd) / `# csi-spl:unanswered-sweep-<env>`.
@@ -52,4 +53,9 @@ esac
 say "START unanswered sweep ENV=${ENV:-prd}"
 ( cd "$ORC" && env ENV="${ENV:-prd}" DELIVER=1 ./run -a do_spl_unanswered_sweep ); rc=$?
 say "STOP unanswered sweep rc=$rc"
-[ "$rc" = 0 ] || exit 1
+# spec 158 B: a workspace with member posts and 0 agent seats, after the
+# sweep so it never delays it; its failure is logged and fails the run too
+say "START seat alarm ENV=${ENV:-prd}"
+( cd "$ORC" && env ENV="${ENV:-prd}" DRY_RUN=0 ./run -a do_spl_workspace_seat_alarm ); arc=$?
+say "STOP seat alarm rc=$arc"
+[ "$rc" = 0 ] && [ "$arc" = 0 ] || exit 1

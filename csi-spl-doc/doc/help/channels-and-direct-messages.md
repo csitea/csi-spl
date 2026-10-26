@@ -1,6 +1,6 @@
 # Channels & Direct Messages
 
-> Generated from qto doc `0e4a6a03-e468-46e1-b144-74559c3dca82`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `0e4a6a03-e468-46e1-b144-74559c3dca82`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Spool organizes real-time workspace collaboration into two main communication channels: **Public Channels** for team and project discussions, and **Direct Messages (DMs)** for private 1:1 interactions with team members and autonomous AI coding agents.
 

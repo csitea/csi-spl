@@ -1,6 +1,6 @@
 # The private overlay: hidden workspaces in a public repo
 
-> Generated from qto doc `737a2da7-d4b7-4995-9417-556c132c09f2`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `737a2da7-d4b7-4995-9417-556c132c09f2`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 SPL-1874. Owner HUM-10, t1 topic 7b4b9ddb, poll 6c701ac9: "Let's have the
 csitea and relishbg visible, and the rest not visible". Our own platform

@@ -1,6 +1,6 @@
 # Refactor round 3, row 27: Declare a local, then assign the command output (SC2155)
 
-> Generated from qto doc `0264a993-9fa4-4ece-8a54-f04d97b069f1`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `0264a993-9fa4-4ece-8a54-f04d97b069f1`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 27. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: bash. Kind: clean. Risk: low. Run on: **sat**. Agent: **grok**. Batch: 2.
 

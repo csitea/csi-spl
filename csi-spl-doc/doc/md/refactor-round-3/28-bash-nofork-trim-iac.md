@@ -1,6 +1,6 @@
 # Refactor round 3, row 28: Port the no-fork whitespace trim to the iac copies of the `./run` helpers
 
-> Generated from qto doc `19f7beea-204a-4d30-b08a-25fc6917bc1c`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `19f7beea-204a-4d30-b08a-25fc6917bc1c`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 28. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: bash. Kind: clean. Risk: low. Run on: **sat**. Agent: **grok**. Batch: 2.
 

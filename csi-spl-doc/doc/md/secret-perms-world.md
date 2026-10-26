@@ -1,6 +1,6 @@
 # Secret files closed to other users, every home
 
-> Generated from qto doc `827be63e-fd5b-4d5d-9897-f5b096f6cda2`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `827be63e-fd5b-4d5d-9897-f5b096f6cda2`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 SPL-1957. The sibling of [GCP key dir permissions](gcp-secret-perms.md)
 (SPL-1924, one key dir, ACL-aware) for the three classes the SPL-1942 secret

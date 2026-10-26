@@ -1509,7 +1509,9 @@ jobs:
       # SPL-2164: an md file that is a qto doc's export (spec 137, the map
       # csi-spl-doc/doc/md/qto-docs.tsv) and the map must agree: each mapped
       # file exists with ONE generated-from line naming its own doc id, and no
-      # file claims a doc no row names. No hub here, so a hand edit of the
+      # file claims a doc no row names. SPL-3541: each row and each stamp
+      # names its workspace, and one not in cnf docs.repo_export_tenants
+      # (a private workspace) fails, as does an unreadable list. No hub here, so a hand edit of the
       # text under a correct stamp is the box's live check
       # (QTO_DRIFT_LIVE=1 do_check_qto_doc_drift); csi-spl-doc/doc/md/pre-push-gate.md.
       # CONTROL: csi-spl-orc/src/bash/tests/check-qto-doc-drift.tst.sh

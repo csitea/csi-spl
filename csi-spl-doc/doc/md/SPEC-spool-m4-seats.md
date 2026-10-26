@@ -1,6 +1,6 @@
 # SPEC: Milestone 4 — monthly licenses per user and per bot
 
-> Generated from qto doc `6e2feabc-7e0b-41f0-ab49-25a5066a5d69`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `6e2feabc-7e0b-41f0-ab49-25a5066a5d69`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Status: **M4**. Does **not** change M2.  
 M2 stays: stranger **buys a tenant** on the site (csi-rel payment copy,

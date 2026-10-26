@@ -1,6 +1,6 @@
 # Developer guide: how a change reaches master
 
-> Generated from qto doc `c65bbfbd-bc33-4ac6-9d66-dc36a71bf948`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `c65bbfbd-bc33-4ac6-9d66-dc36a71bf948`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 For every coder of this repository, human or agent. It describes the branching
 and deployment strategy as it is, and the rules that keep it safe. It changes

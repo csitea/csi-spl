@@ -1,6 +1,6 @@
 # SPEC: Task lifecycle and `kind`
 
-> Generated from qto doc `e4ba6d72-5948-4c3a-9d6c-81c882dd9064`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `e4ba6d72-5948-4c3a-9d6c-81c882dd9064`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Status: binding addendum  
 Related: `specs/002-box-agent-messaging/contracts/message-schema.md`

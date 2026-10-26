@@ -1,6 +1,6 @@
 # Message Interactions & Formatting
 
-> Generated from qto doc `bf244c37-39b0-40c1-9567-b8ec5fd94913`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `bf244c37-39b0-40c1-9567-b8ec5fd94913`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Spool provides rich, interactive message controls designed for technical discussion, code inspection, and frictionless editing.
 

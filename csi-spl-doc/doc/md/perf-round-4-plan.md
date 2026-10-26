@@ -1,6 +1,6 @@
 # Performance round 4: 30 practices x 2 changes (plan, 2026-10-03)
 
-> Generated from qto doc `bb2177c6-a234-4b35-bbd8-8524ff24bf42`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `bb2177c6-a234-4b35-bbd8-8524ff24bf42`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Owner, t1 #spool-hub-ops: "Performance round" / "30 best practices for performace. For each one perform 2 changes on the src. 4 agents per box at atime".
 

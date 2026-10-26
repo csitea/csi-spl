@@ -1,6 +1,6 @@
 # SPEC: They pay GCP, you provision (later enterprise SKU)
 
-> Generated from qto doc `c843c4b6-5980-4338-bb3a-ffc85f61734d`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `c843c4b6-5980-4338-bb3a-ffc85f61734d`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Status: **later** — not M1, not M2 public MVP.  
 M2 stays: they pay **you** (csi-rel payment copy); you run a **multi-tenant**

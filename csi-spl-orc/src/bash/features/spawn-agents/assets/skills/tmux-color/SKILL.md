@@ -5,7 +5,7 @@ description: Set the colour of this agent's own tmux window in the status bar (b
 
 # /tmux-color — colour this agent's tmux window
 
-> Generated from qto doc `20a5cdff-4b0e-4df2-91ed-7248d0b8a62c`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `20a5cdff-4b0e-4df2-91ed-7248d0b8a62c`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Sets the status-bar colour of the window this agent runs in. The work is done
 by spawn-agents' `tmux-window-color.sh`. It keeps the colour in the window

@@ -1,6 +1,6 @@
 # csi-spl-doc
 
-> Generated from qto doc `39b109ae-b408-48b0-a7b9-7e3c50e5ee35`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `39b109ae-b408-48b0-a7b9-7e3c50e5ee35`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 `doc/md/csi-spl.feature.md` — what the spool is, its projects, the relay bucket
 contract, and how to create, apply and switch to it.

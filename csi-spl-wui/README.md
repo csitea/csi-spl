@@ -1,6 +1,6 @@
 # csi-spl-wui
 
-> Generated from qto doc `16c4e36d-c596-4ee9-af11-ee8f870954dc`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `16c4e36d-c596-4ee9-af11-ee8f870954dc`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Slack-like multi-channel interface for **csi-spl** (the Spool message bus).
 Milestone 3. Code home for git-spec `csi-spl-doc/specs/005-spool-wui/`.

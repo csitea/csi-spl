@@ -1,6 +1,6 @@
 # Detect and prevent a role seat frozen at its AI usage limit
 
-> Generated from qto doc `379b167a-e816-498d-8451-2e4402d5fb57`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `379b167a-e816-498d-8451-2e4402d5fb57`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Owner topic t1 865b7a05: "how-to detect and prevent usage limit situations for
 the orchestrators". The lease design is in

@@ -1,6 +1,6 @@
 # Spool Whole-Project Refactoring Architecture
 
-> Generated from qto doc `ec2d60fa-e504-4cd3-9740-46b38b674f7d`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `ec2d60fa-e504-4cd3-9740-46b38b674f7d`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 **Doc ID**: `SPEC-spool-project-refactor` · **Milestone**: M1–M3 Consolidation · **Status**: Binding Architecture
 **Implementation Spec**: `../../specs/011-spool-project-refactor/spec.md` · **Created**: 2026-09-18

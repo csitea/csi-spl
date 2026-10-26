@@ -1,6 +1,6 @@
 # API (hub) performance round: measured baseline, v0.1 proposal and v0.2 panel consensus (2026-10-06)
 
-> Generated from qto doc `51b0e609-9dce-4cba-99e1-0a698687517a`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `51b0e609-9dce-4cba-99e1-0a698687517a`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Owner HUM-10, prd t1 topic `ea9dc09a-9030-4177-ba94-22a3df3b89af`, verbatim, in order:
 

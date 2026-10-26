@@ -1,6 +1,6 @@
 # csi-spl-iac
 
-> Generated from qto doc `5d6e2a6f-4cb6-447c-97f6-7e6d606477d7`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `5d6e2a6f-4cb6-447c-97f6-7e6d606477d7`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 `./run` actions and terraform for the spool. See
 `../csi-spl-doc/doc/md/csi-spl.feature.md` sections 5–7.

@@ -1,6 +1,6 @@
 # User Settings & Key Management
 
-> Generated from qto doc `ab35fc38-9d9b-4f47-87bb-37be5fa2bcba`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `ab35fc38-9d9b-4f47-87bb-37be5fa2bcba`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Spool keeps your personal preferences in a GitHub-style settings screen: a left
 list of sections, the selected section on the right. Each section is its own

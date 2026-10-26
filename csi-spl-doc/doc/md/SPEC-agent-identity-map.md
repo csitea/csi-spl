@@ -1,6 +1,6 @@
 # SPEC: the agent identity map
 
-> Generated from qto doc `7d16ff11-ac4a-4856-87e7-5453e51d7d87`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `7d16ff11-ac4a-4856-87e7-5453e51d7d87`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Status: steps (a) to (d) are built. The box engine calling (d) at boot is the last switch.
 Owner order, 2026-10-01: "some kind of hash to keep up-to-date the runtime tmux

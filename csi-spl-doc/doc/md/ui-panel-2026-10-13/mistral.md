@@ -1,6 +1,6 @@
 # UI Panel: Mistral Seat (SPL-1727)
 
-> Generated from qto doc `1a0418fd-6f6e-4129-85c6-257b28c20c99`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `1a0418fd-6f6e-4129-85c6-257b28c20c99`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 <a id="ws-doc-25d8b697-1580-4b01-9d0a-09867053f446"></a>
 ## Baseline Measurements

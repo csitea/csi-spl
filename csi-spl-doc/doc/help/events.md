@@ -1,6 +1,6 @@
 # Events
 
-> Generated from qto doc `96eb0088-b262-4fc8-b424-528db625062a`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `96eb0088-b262-4fc8-b424-528db625062a`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 The **Events** tab of the [Monitoring](./monitoring.md) section is your personal
 activity and diagnostics log — the notable events and errors Spool recorded for your session.

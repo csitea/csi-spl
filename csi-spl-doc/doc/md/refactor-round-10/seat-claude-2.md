@@ -1,6 +1,6 @@
 # Refactor round 10 - second claude seat review (c-522@PC)
 
-> Generated from qto doc `12f9c6eb-89c1-4409-b5a4-753e8abeb283`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `12f9c6eb-89c1-4409-b5a4-753e8abeb283`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 The second claude seat's review of [../refactor-round-10-plan.md](../refactor-round-10-plan.md),
 draft v0.2 (`bcc48824a`). It replaces the mistral seat m-127 (closed after 2

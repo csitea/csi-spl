@@ -5,7 +5,7 @@ description: Close an agent's tmux window by its agent id, immediately or after 
 
 # /tmux-close-window — close an agent window
 
-> Generated from qto doc `1c9f728b-2ed2-447e-af99-fafac5a9702c`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `1c9f728b-2ed2-447e-af99-fafac5a9702c`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 The helper never guesses: with no provable owner it exits 3 and closes nothing,
 and a window whose name does not carry the named id is refused (exit 4).

@@ -1,6 +1,6 @@
 # Mistral seat review for refactor-round-9-plan.md
 
-> Generated from qto doc `39c4dc41-89c6-4838-9e77-0add1a365619`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `39c4dc41-89c6-4838-9e77-0add1a365619`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 **Plan sha:** `9296e7b99` (2026-10-14T08:37:00Z)
 

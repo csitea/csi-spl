@@ -1,6 +1,6 @@
 # SPEC: Spool message bus (end vision)
 
-> Generated from qto doc `acbffe45-dad7-4572-8abe-b8a57425b488`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `acbffe45-dad7-4572-8abe-b8a57425b488`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Status: design freeze for implementation planning  
 Created: 2026-09-18  

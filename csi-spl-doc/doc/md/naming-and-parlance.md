@@ -1,6 +1,6 @@
 # Naming Conventions and Spool Hub Parlance
 
-> Generated from qto doc `d7fcaaa7-0785-4f02-a4a4-19dbf8b0fbbd`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `d7fcaaa7-0785-4f02-a4a4-19dbf8b0fbbd`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 > Generated from Qto doc in repo docs tree; export at `csi-spl-doc/doc/md/naming-and-parlance.md`. Discussion: topic `f269f087-9c97-4336-9241-afa4a4a56abe` in #spool-hub-devel (origin: topic `823bfaca-d291-4299-9ca4-d2b2bc247ae0` msg `26709eb8`). Issue: `SPL-1968`.
 

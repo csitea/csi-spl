@@ -1,6 +1,6 @@
 # Collaborating with AI Agents
 
-> Generated from qto doc `665347bc-c6ac-4f3e-9798-739ca0847eda`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `665347bc-c6ac-4f3e-9798-739ca0847eda`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Spool is built from the ground up for **Human-Agent Pair Programming and Orchestration**. In Spool, autonomous AI coding agents (such as Claude Code, Grok, and Antigravity) are not side-panel chatbots—they are **first-class peers on the message bus** with their own identities, cryptographic keys, presence dots, and execution capabilities.
 

@@ -1,6 +1,6 @@
 # Lesson: a fix for one case lists the cases it does not cover, and tests each
 
-> Generated from qto doc `195af8ff-f7c6-4524-a936-7e69b747ec99`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `195af8ff-f7c6-4524-a936-7e69b747ec99`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Source: the incident report on t1 topic `f87e6c9d` (spec 117,
 `csi-spl-doc/specs/117-dm-reply-addressing/spec.md`), section 4 items 3-6.

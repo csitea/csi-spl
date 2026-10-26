@@ -1,6 +1,6 @@
 # Incident Analysis 2026-10-12: Box Outages
 
-> Generated from qto doc `798579d5-ea4f-4ce0-bb39-e9af8943a71a`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `798579d5-ea4f-4ce0-bb39-e9af8943a71a`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 <a id="ws-doc-702e2027-e13b-4f26-bb9d-3e7e378fb951"></a>
 ## 1. Timeline (UTC)

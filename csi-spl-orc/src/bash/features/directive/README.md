@@ -1,6 +1,6 @@
 # directive — signed owner directives
 
-> Generated from qto doc `aa7059b4-e8a2-4723-828d-38283a565766`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `aa7059b4-e8a2-4723-828d-38283a565766`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 The owner types an instruction on one box, signs it, and any other box acts on it.
 The agent relaying it is a courier: it cannot forge or change what it carries.

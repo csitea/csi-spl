@@ -1,6 +1,6 @@
 # Refactor round 3, row 6: Put a timeout on every raw `fetch()` in composables and pages
 
-> Generated from qto doc `41209123-0ced-4a46-a388-8a45d660e240`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `41209123-0ced-4a46-a388-8a45d660e240`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 6. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: TS/Vue. Kind: stability. Risk: low-med. Run on: **PC** (browser proof). Agent: **claude**. Batch: 1.
 

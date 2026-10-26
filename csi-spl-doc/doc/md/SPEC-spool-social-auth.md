@@ -1,6 +1,6 @@
 # SPEC: Social auth on the spool web UI
 
-> Generated from qto doc `5e6307c9-5f4e-4d49-8550-78d3b273dc1f`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `5e6307c9-5f4e-4d49-8550-78d3b273dc1f`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Status: **preferred registration and login** for humans (M2 checkout +
 M3 WUI). Not M1 (IAP/IP allowlist).

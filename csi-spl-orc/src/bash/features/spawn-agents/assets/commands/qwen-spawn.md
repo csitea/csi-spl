@@ -10,7 +10,7 @@ description: >
 
 # /qwen-spawn — spawn a Qwen Code (qwen) worker (q-NNN) or message a running one
 
-> Generated from qto doc `7f083e23-76c4-442f-b1ee-b0eed737c8a6`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `7f083e23-76c4-442f-b1ee-b0eed737c8a6`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 | Invocation | Mode |
 |---|---|

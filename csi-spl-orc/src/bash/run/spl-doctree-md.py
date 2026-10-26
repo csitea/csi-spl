@@ -41,9 +41,10 @@ never by hand. Four verbs:
       '#') and the export writes no title line. Refused (exit 1): a heading
       that skips a level.
 
-  compose <head.json> <root read.json> <export.md> <doc id>
+  compose <head.json> <root read.json> <export.md> <doc id> <workspace>
       The md file the export writes: the front matter (the hidden root's
-      attrs.front_matter), the title, the "generated from" line, then
+      attrs.front_matter), the title, the "generated from" line (it names
+      the doc and its workspace, `system` for the repo tree, SPL-3541), then
       `spool doctree export` (which opens with the preamble, the root's body;
       added here when an older spool left it out) with every heading one
       level down (outside code fences), so the sections are '##' under the
@@ -80,7 +81,8 @@ HEAD = re.compile(r"^(#{1,6}) (.*)$")
 NUM = re.compile(r"^(\d+(?:\.\d+)*)(\.?) +(.+)$")
 FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 FM_END = ("---", "...")
-# compose's generated-from line; split drops it from a page that is an export
+# compose's generated-from line; split drops it from a page that is an export,
+# in its old form (no "Workspace `<ws>`.") too
 STAMP = re.compile(r"^> Generated from qto doc `[^`]+`; edit it there\.")
 # compose's section anchor (spec 138 G4), the line before each heading: the
 # WUI's link #ws-doc-<item id> lands in the md too; split drops it
@@ -341,7 +343,7 @@ def anchored(lines, items):
     return out
 
 
-def compose(head_path, root_path, export_path, doc):
+def compose(head_path, root_path, export_path, doc, workspace):
     head = json.load(open(head_path, encoding="utf-8"))
     items = json.load(open(root_path, encoding="utf-8")).get("items") or []
     root = items[0] if items and not items[0].get("parent") else {}
@@ -375,7 +377,8 @@ def compose(head_path, root_path, export_path, doc):
     if (root.get("attrs") or {}).get("no_title") is not True:
         parts.append("# " + (head.get("title") or "Untitled"))
     parts += [
-        f"> Generated from qto doc `{doc}`; edit it there. This file is its export: "
+        f"> Generated from qto doc `{doc}`; edit it there. Workspace `{workspace}`. "
+        "This file is its export: "
         "`cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.",
     ]
     for text in (pre, "\n".join(out).strip()):
@@ -436,7 +439,7 @@ def asset_write(got_path, dest):
 if __name__ == "__main__":
     if len(sys.argv) == 4 and sys.argv[1] == "split":
         split(sys.argv[2], sys.argv[3])
-    elif len(sys.argv) == 6 and sys.argv[1] == "compose":
+    elif len(sys.argv) == 7 and sys.argv[1] == "compose" and sys.argv[6]:
         compose(*sys.argv[2:])
     elif len(sys.argv) == 3 and sys.argv[1] == "assets":
         assets(sys.argv[2])

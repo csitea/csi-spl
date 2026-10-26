@@ -1,6 +1,6 @@
 # Lane integration rules: the why (2026-10-03)
 
-> Generated from qto doc `65b76f5e-7e2d-49fa-885f-7f924536b7bf`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `65b76f5e-7e2d-49fa-885f-7f924536b7bf`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 The spawn seed (`csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh`,
 `_spawn_seed_blocks`) states the INTEGRATION rules (1)-(8), SCOPE (a)-(d) and

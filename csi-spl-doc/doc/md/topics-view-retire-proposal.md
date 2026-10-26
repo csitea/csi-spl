@@ -1,6 +1,6 @@
 # Retire the Topics view? — a proposal for the owner's decision
 
-> Generated from qto doc `d73a36f0-f13c-4400-a90e-577cd17b43f7`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `d73a36f0-f13c-4400-a90e-577cd17b43f7`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Owner, t1 topic 635f8072 (2026-10-01): "in this way we might eliminate the
 whole topics interface". This is the case for and against, and the plan if

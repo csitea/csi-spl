@@ -1,6 +1,6 @@
 # Refactoring round 4 - plan (16 rows, 2 follow-ups, 2 bugs)
 
-> Generated from qto doc `08885631-a24e-4b7c-be8a-ad7d8af59720`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `08885631-a24e-4b7c-be8a-ad7d8af59720`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Owner HUM-10, prd t1, topic `e0dda261-e14f-4cee-b248-2b62be8579c0`, msg 3366f208: the planner prompt of the example in t1 52b5d730 (msg f0e14e70) with N = 4. The row lanes are spawned from this file with the ROW-LANE brief (msg 7a55486d).
 

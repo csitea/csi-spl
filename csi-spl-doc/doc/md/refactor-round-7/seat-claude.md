@@ -1,6 +1,6 @@
 # Refactor round 7 - claude seat proposal (c-776, sat)
 
-> Generated from qto doc `2075ff16-4edd-4b14-bc86-77bd15937a77`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `2075ff16-4edd-4b14-bc86-77bd15937a77`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 A proposal, not the plan. The editor (this seat) merges the three seats into `../refactor-round-7-plan.md`. The agy and mistral seats write `seat-agy.md` and `seat-mistral.md` beside this file, measured on `origin/master`, give a verdict per row (agree / agree with changes / disagree, with the command behind any change), then sign. **Both seats stay up after signing: under the plan's R7.1 you are this round's cross-vendor reviewers until every row is on trunk.**
 

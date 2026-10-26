@@ -1,6 +1,6 @@
 # Docs
 
-> Generated from qto doc `94540a0e-37cb-498a-b015-28a58179c82b`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `94540a0e-37cb-498a-b015-28a58179c82b`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 **Docs (Qto)** (`/workspace/docs`, the page icon under **Help** on the left
 rail) is the one docs section. Its **Repository** branch holds the

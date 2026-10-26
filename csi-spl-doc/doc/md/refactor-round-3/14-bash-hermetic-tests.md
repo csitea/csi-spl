@@ -1,6 +1,6 @@
 # Refactor round 3, row 14: Make bash tests hermetic and date-proof
 
-> Generated from qto doc `36fb2752-c28a-4698-a478-ba3a099129cf`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `36fb2752-c28a-4698-a478-ba3a099129cf`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 14. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: bash. Kind: stability. Risk: low. Run on: **sat**. Agent: **grok**. Batch: 1.
 

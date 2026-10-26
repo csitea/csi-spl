@@ -1,6 +1,6 @@
 # Refactor round 9 - claude seat review (c-500)
 
-> Generated from qto doc `3b18deac-b00d-484f-8812-8f0e6059d518`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `3b18deac-b00d-484f-8812-8f0e6059d518`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 The claude seat's review of `../refactor-round-9-plan.md` at plan sha **`afbd48aaa`**. A seat commits this file and nothing else (R7.6). Editor: a-497.
 

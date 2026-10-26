@@ -1,6 +1,6 @@
 # Mobile usability: the consensus (2026-10-05)
 
-> Generated from qto doc `8f2c9533-3984-4acf-87d3-735947060606`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `8f2c9533-3984-4acf-87d3-735947060606`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Owner request (HUM-10, prd t1 topic `c893c3a9`): ideas for specs to improve the UI usability on mobile. Owner DoD
 (msg `44ff08f3`): "the DoD for this discussion will be the ready specs to implement". Owner (msg `460c3583`):

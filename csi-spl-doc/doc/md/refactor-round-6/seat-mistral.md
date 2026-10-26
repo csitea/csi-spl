@@ -1,6 +1,6 @@
 # Refactor round 6 - mistral seat proposal (m-710, sat)
 
-> Generated from qto doc `bacbb1b1-fded-481d-bffc-d0efee020b83`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `bacbb1b1-fded-481d-bffc-d0efee020b83`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 A proposal, not the plan. The editor (claude seat) merges the three seats into `../refactor-round-6-plan.md`. This file is measured on trunk sha **`afda8d026`** (origin/master, 2026-10-10).
 

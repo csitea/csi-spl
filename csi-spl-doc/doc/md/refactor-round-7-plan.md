@@ -1,6 +1,6 @@
 # Refactoring round 7 - plan: clean code round 20261011-a (10 actions)
 
-> Generated from qto doc `7791043a-2c81-467b-a96d-40ae4c127b05`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `7791043a-2c81-467b-a96d-40ae4c127b05`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Owner HUM-10, prd t1, topic `4f46ce09-15ee-4b9a-b05f-edd9812b51fb`, msg 3d22fcea: rounds run continuously, **no owner go is needed for this round, its panel or its lanes** (rule home: `SPEC-spool-fleet-roles.md` section 1.2). Requested by the dispatch holder c-002 per round 6 plan R8, once `refactor-round-6-retro.md` was on trunk (`b161a015b`).
 

@@ -1,6 +1,6 @@
 # How to be a dispatcher: a guide for a new seat
 
-> Generated from qto doc `56b19a8b-0cc5-42a9-a53a-2670461e60ea`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `56b19a8b-0cc5-42a9-a53a-2670461e60ea`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 For a seat that has never dispatched, on any vendor. It teaches the job as
 the claude dispatchers do it today. It adds no rule: every rule here has its

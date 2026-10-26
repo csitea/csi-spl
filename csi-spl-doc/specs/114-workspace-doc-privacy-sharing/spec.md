@@ -626,6 +626,25 @@ Three guards, each a test with a red control:
    `do_spl_doctree_import_md` adding a row for another workspace is refused
    the same way. Red control: a map row of a workspace off the list, the
    test expects the refusal (tasks R5).
+   **The map and the stamp name the workspace** (SPL-3541, owner HUM-10
+   csitea 8c223c17 msg 9538871d): a doc exported another way (a WUI
+   download, `spool doctree export`) and committed by hand passed the
+   export's refusal. So the third column of
+   `csi-spl-doc/doc/md/qto-docs.tsv` is the doc's workspace (`repo` = the
+   system tenant's repository docs, else the tenant id), and the export's
+   generated-from line names it:
+   ``> Generated from qto doc `<id>`; edit it there. Workspace `<ws>`.``
+   (`system` for a `repo` row). The map check
+   (`csi-spl-orc/src/bash/run/check-qto-doc-drift.py`, rule 6, run by
+   the pre-push `hygiene` part and the wf 10 step "Qto doc map agrees with
+   the exported md files") FAILs a row or a stamp
+   whose workspace is not in `docs.repo_export_tenants`, a stamp naming no
+   workspace, a stamp and row that disagree, and an unreadable or empty
+   list. The known-drift list never waives one of these. Red controls:
+   `csi-spl-orc/src/bash/tests/check-qto-doc-drift.tst.sh` case 8 (a
+   planted csitea row fails; the real map passes, case 1). The export
+   still reads an old row (no third column, or `workspace`) as the
+   `TENANT_ID`'s, and skips a row of another workspace.
 3. **Audit (read-only, daily)**: an action lists, per env, every workspace
    without a 052 bucket, any 052 bucket that is not uniform + `enforced`,
    names `allUsers` / `allAuthenticatedUsers`, or grants a non-legacy member

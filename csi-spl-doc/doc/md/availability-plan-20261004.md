@@ -1,6 +1,6 @@
 # Availability and redundancy plan, 2026-10-04
 
-> Generated from qto doc `1a35b93b-ee01-4f7a-8d38-f94806b6b2de`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `1a35b93b-ee01-4f7a-8d38-f94806b6b2de`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Topic: t1 "Improve redundancy and availability of the system", task
 `2c74edd5-d87d-4ceb-a5f7-a700085ba461`. Owner HUM-10 (aa35699c msg 4e7c0a46):

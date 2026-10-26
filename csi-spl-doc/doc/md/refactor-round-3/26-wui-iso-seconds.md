@@ -1,6 +1,6 @@
 # Refactor round 3, row 26: One `isoSeconds()` helper for the "ISO without milliseconds" stamp
 
-> Generated from qto doc `8ecaa400-ffa9-4a44-a76e-bd9b384f45cd`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `8ecaa400-ffa9-4a44-a76e-bd9b384f45cd`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 26. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: TS/Vue. Kind: clean. Risk: low. Run on: **PC**. Agent: **grok**. Batch: 2.
 

@@ -1,6 +1,6 @@
 # Performance edition 20261004: 30 measured improvements, end to end (plan, 2026-10-04)
 
-> Generated from qto doc `5d518d09-8987-43c6-9925-11ae942c5197`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `5d518d09-8987-43c6-9925-11ae942c5197`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Owner, prd t1 topic `7d7e86a9`: "performance improvements - edition 20261004." / "Basically check the best practices from the previously archived and conducted performance improvements ... Pick 30 performance improvements and implement as much as possibly based on empirical evidence" / "A yes" (measure first, one lane per fix, before/after numbers each). Scope addition (same topic): "well add the scope to be e2e - aka investigate backend , db problems as well .."
 

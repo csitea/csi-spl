@@ -1,6 +1,6 @@
 # csi-spl — the spool
 
-> Generated from qto doc `3ba355de-263f-4b35-bb8d-c718c213b595`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `3ba355de-263f-4b35-bb8d-c718c213b595`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Status as of 2026-09-17. Code: `github.com/csitea/csi-spl`, trunk `master`.
 

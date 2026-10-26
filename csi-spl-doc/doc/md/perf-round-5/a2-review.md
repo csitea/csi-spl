@@ -1,6 +1,6 @@
 # Perf round 5 — seat a2 (reviewer)
 
-> Generated from qto doc `50b4f02d-8528-4161-bc43-b14a547f5d52`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `50b4f02d-8528-4161-bc43-b14a547f5d52`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 This is the review from seat `a2` (agy). I review `c1`, `g1`, and `m1`.
 

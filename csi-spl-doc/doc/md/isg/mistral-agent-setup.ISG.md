@@ -1,6 +1,6 @@
 # mistral-agent-setup.ISG — install & setup guide (for mistral agents)
 
-> Generated from qto doc `ccadbfd0-747e-4f20-8e94-af65410af664`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `ccadbfd0-747e-4f20-8e94-af65410af664`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 > **Not yet verified.** Written 2026-10-08 from [spec 110](../../../specs/110-mistral-vendor/spec.md)
 > v1.0, before the first live `m-` seat. Nothing below was measured inside a

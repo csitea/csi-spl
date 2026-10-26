@@ -1,6 +1,6 @@
 # Refactor round 5 - claude seat proposal (c-687, sat)
 
-> Generated from qto doc `f30b42ba-0fdf-489f-88e3-f24c44814ff5`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `f30b42ba-0fdf-489f-88e3-f24c44814ff5`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 A proposal, not the plan. The editor merges three seats into `../refactor-round-5-plan.md`.
 

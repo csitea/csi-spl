@@ -1,6 +1,6 @@
 # Runbook: the dispatcher seat (any vendor)
 
-> Generated from qto doc `95d05cb6-ecfe-47ae-9884-c99a3eaf8fcb`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `95d05cb6-ecfe-47ae-9884-c99a3eaf8fcb`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 For whoever holds the dispatcher role (`c-002` master, `c-003` failover), on
 any agent vendor: a Claude seat, a Grok seat or another. Everything here is a

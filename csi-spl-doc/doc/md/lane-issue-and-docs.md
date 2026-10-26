@@ -1,6 +1,6 @@
 # Lane issue and docs: how the rule is enforced
 
-> Generated from qto doc `eda81f36-f08f-436c-b370-48eecdc55aec`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `eda81f36-f08f-436c-b370-48eecdc55aec`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 The rule's one home is the fleet fragment
 `csi-spl-orc/src/bash/features/spool-install/assets/claude/claude-md/27-lane-issue-and-docs.md`,

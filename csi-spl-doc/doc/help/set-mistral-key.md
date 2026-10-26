@@ -1,6 +1,6 @@
 # Set the Mistral key on a box
 
-> Generated from qto doc `b6dfdbac-9296-48fa-bcc7-380d4999ef7d`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `b6dfdbac-9296-48fa-bcc7-380d4999ef7d`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Spool agents of the Mistral kind (spec 110) read their key from
 `.vibe/.env` in the **agent user's** home: one line `MISTRAL_API_KEY=<key>`,

@@ -10,7 +10,7 @@ description: >
 
 # /agy-spawn — spawn a antigravity (agy) worker (a-NNN) or message a running one
 
-> Generated from qto doc `11861108-d699-49cd-b819-ce5d5963bf64`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `11861108-d699-49cd-b819-ce5d5963bf64`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 | Invocation | Mode |
 |---|---|

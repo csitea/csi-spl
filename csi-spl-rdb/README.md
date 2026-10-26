@@ -1,6 +1,6 @@
 # csi-spl-rdb
 
-> Generated from qto doc `012201ea-0eb5-4d4a-bc03-e663bcd313e5`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `012201ea-0eb5-4d4a-bc03-e663bcd313e5`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 The spool hub's Postgres schema, as plain SQL. The data shape is described in
 `csi-spl-doc/specs/003-spool-message-bus/data-model.md`; this directory is its

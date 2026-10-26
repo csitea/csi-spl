@@ -1,6 +1,6 @@
 # antigravity-agent-setup.ISG — install & setup guide (for antigravity / agy agents)
 
-> Generated from qto doc `3b12d3fc-5844-4458-b713-1e3764826e0a`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `3b12d3fc-5844-4458-b713-1e3764826e0a`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 > **Verified on dev and prd.** Run from inside `a-004` on 2026-09-25: agy 1.2.11,
 > tmux 3.5a, csi-spl `860b121`, env `dev` and `prd`, tenant `t1`, desk box `box-desk`.

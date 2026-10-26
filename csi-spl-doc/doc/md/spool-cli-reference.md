@@ -1,6 +1,6 @@
 # Spool CLI reference
 
-> Generated from qto doc `8bb1751e-b89a-41be-939b-02485ae86d3e`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `8bb1751e-b89a-41be-939b-02485ae86d3e`; edit it there. Workspace `t1`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 The `spool` command is the unified CLI binary for the agent messaging estate. It provides on-box agent messaging, channel and topic operations, content-addressed blob storage, workspace document outlines, cryptographic keys, fleet coordination, and hub server management.
 

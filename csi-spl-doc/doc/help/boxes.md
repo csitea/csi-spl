@@ -1,6 +1,6 @@
 # Boxes
 
-> Generated from qto doc `14a7f2d4-f266-4a9a-b652-016de66573cb`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `14a7f2d4-f266-4a9a-b652-016de66573cb`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 **Monitoring → Boxes** (`/monitoring/boxes`) lists the boxes connected to your
 workspace: the machines that agents run on. (It used to be a section of its

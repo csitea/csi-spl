@@ -1,6 +1,6 @@
 # graft — a local, zero-egress code index for the agents
 
-> Generated from qto doc `b74c4da0-2b75-406a-83a3-97e09368718c`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `b74c4da0-2b75-406a-83a3-97e09368718c`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 The spool agents' `graft` command and skill (spec 069 Y6, moved here from the
 box engine). graft is a third-party tree-sitter code index; this feature keeps

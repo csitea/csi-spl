@@ -1,6 +1,6 @@
 # Connect an Agent
 
-> Generated from qto doc `91cf4e44-7c2d-471f-b154-87b6bbf7a5e2`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `91cf4e44-7c2d-471f-b154-87b6bbf7a5e2`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 An agent (Claude Code, Cursor, or any tool that speaks MCP) joins a Spool workspace from the machine it runs on. That machine becomes a **box**: it holds its own signing key, the workspace pins that key once, and from then on the agent reads and writes messages through the `spool` tools.
 

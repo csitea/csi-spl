@@ -36,7 +36,8 @@
 # @param MD_PATH - required: the md page, repo-relative, e.g. csi-spl-doc/doc/md/runbook-dispatcher.md or README.md
 # @param QTO_FS (optional) - the tree: workspace (default) or repo, the
 # @param   repository docs (the system tenant, spec 137 T030a); repo adds the
-# @param   map row with a third column "repo"
+# @param   map row with a third column "repo"; workspace adds it with the
+# @param   TENANT_ID there (the map names each doc's workspace, SPL-3541)
 # @param QTO_FOLDER (optional) - the folder id to create the doc in; none = top level
 # @param QTO_MAP (optional) - default <repo>/csi-spl-doc/doc/md/qto-docs.tsv
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -93,7 +94,7 @@ _spl_doctree_import_write() {
   if [[ "${QTO_FS:-}" == repo ]]; then
     printf '%s\t%s\trepo\n' "$doc" "$rel" >>"$map"
   else
-    printf '%s\t%s\n' "$doc" "$rel" >>"$map"
+    printf '%s\t%s\t%s\n' "$doc" "$rel" "$TENANT_ID" >>"$map"
   fi
   do_log "OK $rel imported as qto doc $doc ($(wc -l <<<"$plan") sections); map row added"
   QTO_MAP="$map" QTO_DOC="$doc" do_spl_doctree_export_md

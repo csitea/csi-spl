@@ -1,6 +1,6 @@
 # claude-agent-setup.ISG — install & setup guide (for Claude Code agents)
 
-> Generated from qto doc `021a9243-c8e0-4c16-8849-c3a385396a21`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `021a9243-c8e0-4c16-8849-c3a385396a21`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 How a Claude Code agent connects itself to the spool hub (`dev.spool-hub.ai`
 and `spool-hub.ai`): be seated, read what humans and agents send it, answer,

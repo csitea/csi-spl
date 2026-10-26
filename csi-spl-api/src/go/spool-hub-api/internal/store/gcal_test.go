@@ -343,3 +343,64 @@ func TestGcalWatchLookup(t *testing.T) {
 		})
 	}
 }
+
+// TestGcalClaimMember: "Sync now" (spec 149 2.5 and section 4, SPL-3579)
+// claims the member's own connection whether due or not, never while a lease
+// is live (the 409 sync_in_progress), never a revoked one, and never another
+// member's. The claim is the ticker's lease: the ticker cannot take the row
+// while it is held, and a fenced write with the claimed token goes through.
+// CONTROL: the same member claims once the lease has ended.
+func TestGcalClaimMember(t *testing.T) {
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			f := newGcalFix(t, st)
+			if _, _, err := f.g.ClaimGcalMember(ctx, f.tenant, f.m1, f.now, 5*time.Minute); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("claim with no connection = %v, want ErrNotFound", err)
+			}
+			c := f.connect(t, f.m1, "m1@example.com")
+			// a finished cycle sets the next due 2 min ahead: not due now
+			l0, err := f.claim(t, c.ID, f.now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.g.FinishGcalSync(ctx, l0, GcalSyncDone{NextDue: f.now.Add(2 * time.Minute)}, f.now); err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := f.g.ClaimGcalMember(ctx, f.tenant, f.m2, f.now, 5*time.Minute); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("M2 claims M1's connection: %v, want ErrNotFound", err)
+			}
+			got, l1, err := f.g.ClaimGcalMember(ctx, f.tenant, f.m1, f.now, 5*time.Minute)
+			if err != nil {
+				t.Fatalf("claim of a connection not due: %v", err)
+			}
+			if got.ID != c.ID || l1.ConnectionID != c.ID || l1.Tenant != f.tenant || l1.Human != f.m1 ||
+				got.SyncLeaseUntil == nil || !got.SyncLeaseUntil.Equal(l1.Until) {
+				t.Fatalf("claim returned %+v with lease %+v", got, l1)
+			}
+			if _, _, err := f.g.ClaimGcalMember(ctx, f.tenant, f.m1, f.now.Add(time.Minute), 5*time.Minute); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("second claim inside the lease = %v, want ErrNotFound", err)
+			}
+			if _, err := f.claim(t, c.ID, f.now.Add(3*time.Minute)); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("ticker claim inside the member's lease = %v, want ErrNotFound", err)
+			}
+			if err := f.g.SetGcalCalendar(ctx, l1, "cal-now", f.now); err != nil {
+				t.Fatalf("holder write: %v", err)
+			}
+			// CONTROL: past the lease the member claims again
+			_, l2, err := f.g.ClaimGcalMember(ctx, f.tenant, f.m1, f.now.Add(6*time.Minute), 5*time.Minute)
+			if err != nil {
+				t.Fatalf("claim after the lease ended: %v", err)
+			}
+			if err := f.g.SetGcalStatus(ctx, l2, GcalRevoked, "invalid_grant", f.now); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.g.FinishGcalSync(ctx, l2, GcalSyncDone{NextDue: f.now}, f.now); err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := f.g.ClaimGcalMember(ctx, f.tenant, f.m1, f.now.Add(7*time.Minute), 5*time.Minute); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("claim of a revoked connection = %v, want ErrNotFound", err)
+			}
+		})
+	}
+}

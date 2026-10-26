@@ -150,6 +150,26 @@ func (s *Postgres) ClaimGcalConnection(ctx context.Context, now time.Time, lease
 	return out, GcalLease{Tenant: out.Tenant, Human: out.Human, ConnectionID: out.ID, Until: *out.SyncLeaseUntil}, nil
 }
 
+// ClaimGcalMember implements Gcal on the Postgres store (rdb 0217): one
+// short UPDATE in the member's tenant scope, the lease rule of
+// ClaimGcalConnection without its due_at and its SKIP LOCKED pick.
+func (s *Postgres) ClaimGcalMember(ctx context.Context, tenant, human string, now time.Time, lease time.Duration) (GcalConnection, GcalLease, error) {
+	until := gcalLeaseUntil(now, lease)
+	var out GcalConnection
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		var err error
+		out, err = scanGcal(tx.QueryRow(ctx, `UPDATE gcal_connections SET sync_lease_until = $4
+			WHERE tenant_id = $1 AND human_id = $2 AND status <> 'revoked'
+				AND (sync_lease_until IS NULL OR sync_lease_until < $3)
+			RETURNING `+gcalCols, tenant, human, now, until))
+		return gcalNoRows(err)
+	})
+	if err != nil {
+		return GcalConnection{}, GcalLease{}, err
+	}
+	return out, GcalLease{Tenant: out.Tenant, Human: out.Human, ConnectionID: out.ID, Until: *out.SyncLeaseUntil}, nil
+}
+
 // GcalConnectionByWatch implements Gcal on the Postgres store (rdb 0217).
 func (s *Postgres) GcalConnectionByWatch(ctx context.Context, watchChannelID string) (GcalConnection, error) {
 	if !calendarIDRe.MatchString(watchChannelID) {

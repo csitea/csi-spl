@@ -5759,6 +5759,49 @@
         ]
       }
     },
+    "/v1/me/google-calendar/sync": {
+      "post": {
+        "operationId": "postMeGoogleCalendarSync",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the workspace to sync; default the session's",
+            "in": "query",
+            "name": "workspace",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted: the member's sync cycle started now (the ticker's lease and code)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "sync_in_progress: a cycle holds the lease; gcal_revoked: Google refused the grant, reconnect"
+          },
+          "503": {
+            "description": "gcal_not_configured: the Google client or the KMS key is not set on this hub"
+          }
+        },
+        "summary": "Sync the member's Google Calendar now",
+        "tags": [
+          "calendar"
+        ]
+      }
+    },
     "/v1/me/hours": {
       "get": {
         "operationId": "getMeHours",

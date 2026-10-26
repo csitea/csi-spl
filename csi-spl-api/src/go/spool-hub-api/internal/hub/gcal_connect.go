@@ -23,6 +23,7 @@ import (
 //	GET    /v1/me/google-calendar/connect?workspace=  302 to Google (a plain link)
 //	GET    /v1/me/google-calendar/callback?code&state Google's redirect, on the WUI origin
 //	DELETE /v1/me/google-calendar?remove_imported=0|1 revoke at Google, delete the row
+//	POST   /v1/me/google-calendar/sync?workspace=     "Sync now": 202, the cycle runs (gcal_sync.go)
 //
 // The kill switch is GcalConnect.Workspaces (cnf gcal.workspaces): outside it
 // every route answers 404 not_found (section 2.9). The callback carries no
@@ -429,6 +430,8 @@ func (s *Server) routeGcal(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/me/google-calendar/connect", s.handleGcalConnectGo)
 	mux.HandleFunc("POST /v1/me/google-calendar/connect", s.handleGcalConnect)
 	mux.HandleFunc("OPTIONS /v1/me/google-calendar/connect", s.gcalPreflight("GET, POST"))
+	mux.HandleFunc("POST /v1/me/google-calendar/sync", s.handleGcalSyncNow)
+	mux.HandleFunc("OPTIONS /v1/me/google-calendar/sync", s.gcalPreflight("POST"))
 	// = GcalCallbackPath, a literal for the demo tests' route scan; the
 	// callback tests call it by the constant, so the two cannot drift apart
 	mux.HandleFunc("GET /v1/me/google-calendar/callback", s.handleGcalCallback)

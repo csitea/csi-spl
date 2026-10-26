@@ -155,6 +155,18 @@ func (s *Memory) ClaimGcalConnection(_ context.Context, now time.Time, lease tim
 	return *best, GcalLease{Tenant: best.Tenant, Human: best.Human, ConnectionID: best.ID, Until: *best.SyncLeaseUntil}, nil
 }
 
+// ClaimGcalMember implements Gcal on the Memory store (rdb 0217).
+func (s *Memory) ClaimGcalMember(_ context.Context, tenant, human string, now time.Time, lease time.Duration) (GcalConnection, GcalLease, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c := s.gcalLocked().member(tenant, human)
+	if c == nil || c.Status == GcalRevoked || (c.SyncLeaseUntil != nil && !c.SyncLeaseUntil.Before(now)) {
+		return GcalConnection{}, GcalLease{}, ErrNotFound
+	}
+	c.SyncLeaseUntil = memTime(gcalLeaseUntil(now, lease))
+	return *c, GcalLease{Tenant: c.Tenant, Human: c.Human, ConnectionID: c.ID, Until: *c.SyncLeaseUntil}, nil
+}
+
 // GcalConnectionByWatch implements Gcal on the Memory store (rdb 0217).
 func (s *Memory) GcalConnectionByWatch(_ context.Context, watchChannelID string) (GcalConnection, error) {
 	s.mu.Lock()

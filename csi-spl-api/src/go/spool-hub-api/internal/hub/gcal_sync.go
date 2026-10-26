@@ -3,11 +3,13 @@ package hub
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/gcal"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/marketing"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -112,6 +114,54 @@ func (s *Server) GcalSyncOnce(ctx context.Context) (bool, error) {
 	}
 	cy := &gcalCycle{s: s, g: g, gs: gs, c: c, l: l}
 	return true, cy.run(ctx)
+}
+
+// POST /v1/me/google-calendar/sync: "Sync now" (spec 149 2.5 and section
+// 4). It claims the member's own connection with the ticker's lease, due or
+// not, and runs one cycle of the ticker's code in the background: 202 once
+// the lease is taken. A live lease (the ticker's or an earlier click) is 409
+// sync_in_progress; a revoked connection is 409 gcal_revoked (reconnect); no
+// connection is 404 not_found.
+func (s *Server) handleGcalSyncNow(w http.ResponseWriter, r *http.Request) {
+	t, hum, gs, ok := s.gcalMember(w, r, rbac.SelfKeys)
+	if !ok {
+		return
+	}
+	if !s.o.Gcal.configured() {
+		writeGcalNotConfigured(w)
+		return
+	}
+	ctx := r.Context()
+	c, err := gs.GcalConnection(ctx, t.ID, hum)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		writeErr(w, http.StatusNotFound, "not_found", "no google calendar connection")
+		return
+	case err != nil:
+		writeErr(w, http.StatusInternalServerError, "internal", "google calendar connection unavailable")
+		return
+	case c.Status == store.GcalRevoked:
+		writeErr(w, http.StatusConflict, "gcal_revoked", "google refused the grant: reconnect google calendar")
+		return
+	}
+	c, l, err := gs.ClaimGcalMember(ctx, t.ID, hum, s.o.Now(), gcalLease)
+	if errors.Is(err, store.ErrNotFound) {
+		writeErr(w, http.StatusConflict, "sync_in_progress", "a google calendar sync is running")
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "google calendar sync not started")
+		return
+	}
+	cy := &gcalCycle{s: s, g: s.o.Gcal, gs: gs, c: c, l: l}
+	// the cycle outlives the request; it renews and clears its own lease
+	go func(ctx context.Context) {
+		if err := cy.run(ctx); err != nil {
+			s.o.Log.Warn().Str("tenant", c.Tenant).Str("connection", c.ID).Str("err", err.Error()).Msg("gcal: sync now")
+		}
+	}(context.WithoutCancel(ctx))
+	s.o.Log.Info().Str("tenant", t.ID).Str("member", hum).Str("connection", c.ID).Msg("gcal: sync now started")
+	writeJSON(w, http.StatusAccepted, map[string]string{"status": "started"})
 }
 
 // gcalCycle is one claimed sync of one connection.

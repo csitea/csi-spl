@@ -464,7 +464,8 @@ func TestGcalPreflight(t *testing.T) {
 		return resp
 	}
 	hours := preflight("/v1/me/hours")
-	for path, methods := range map[string]string{"/v1/me/google-calendar": "GET, DELETE", "/v1/me/google-calendar/connect": "GET, POST"} {
+	for path, methods := range map[string]string{"/v1/me/google-calendar": "GET, DELETE", "/v1/me/google-calendar/connect": "GET, POST",
+		"/v1/me/google-calendar/sync": "POST"} {
 		resp := preflight(path)
 		if resp.StatusCode != http.StatusNoContent || resp.Header.Get("Access-Control-Allow-Methods") != methods {
 			t.Fatalf("OPTIONS %s: %d methods %q", path, resp.StatusCode, resp.Header.Get("Access-Control-Allow-Methods"))

@@ -48,6 +48,11 @@ type Gcal interface {
 	// longest (due_at <= now, no lease or an expired one) for `lease`, all
 	// workspaces (operator scope; never a token). ErrNotFound when none is due.
 	ClaimGcalConnection(ctx context.Context, now time.Time, lease time.Duration) (GcalConnection, GcalLease, error)
+	// ClaimGcalMember takes the lease on the member's own connection for
+	// `lease`, due or not ("Sync now", spec 149 2.5 and section 4): status not
+	// revoked, no lease or an expired one (never a token). ErrNotFound when
+	// the member has none or it cannot be claimed (a live lease, revoked).
+	ClaimGcalMember(ctx context.Context, tenant, human string, now time.Time, lease time.Duration) (GcalConnection, GcalLease, error)
 	// GcalConnectionByWatch finds the connection of a Google push channel,
 	// all workspaces (operator scope: the push names no workspace; never a
 	// token); ErrNotFound when none.

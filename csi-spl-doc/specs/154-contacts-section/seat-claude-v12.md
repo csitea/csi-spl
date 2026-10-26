@@ -91,3 +91,18 @@ backslash (spec:863, `'TestRLS\|TestCrossTenant'`).
 
 Only W1-W4, in my own message on task `bd49b4c7`, then this file gets a
 section 5 with the sign.
+
+## 5. Re-check of the fold: SIGNED
+
+Re-checked W1-W4 only, on `spec.md` at `60904da23` (the editor a-870's
+fold; `git log -1 --format=%h origin/master -- spec.md` -> `60904da23`):
+
+| # | verdict | line on `60904da23` |
+|---|---|---|
+| W1 | OK | B8a: "the claim under `asOperator` … the lease renewal, finish, and the fenced write of `backoff_until` + `status_detail` in the binding's workspace scope, `inTenant(lease.Tenant)`, as `gcalFenced`"; "one new `operatorCallers` entry, the claim"; C23i: "in the binding's workspace scope (`inTenant(lease.Tenant)`)" |
+| W2 | OK | B8a: "skipping `backoff_until > now`", the fenced `backoff_until` + `status_detail` write, "outbound reads changed since `out_cursor`, soft-deleted pending Google delete, hard delete after Google confirms, and link fields `google_account`, `google_resource`, `google_etag`"; C23h: "lease-held or in-backoff rows skipped" |
+| W3 | OK | B8a test cell: `'TestOperatorScopeCallers\|TestPersonScopeCallers'`; the B1, B2, B8a and B8 rows each count 9 cell pipes once the escaped ones are dropped |
+| W4 | OK | B2: "as built on `a4b9b1187`"; `1ab36063d` is left only in the section 10 row that records this seat's finding |
+
+**SIGNED v1.2 at `60904da23`** (seat claude, c-771). Notes N1 and N2 stay
+notes for the B8a builder.

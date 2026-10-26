@@ -99,6 +99,7 @@
 # @param LANE_LANDED_REPO (required, end done in another repo) - the repo's cnf name, e.g. csi-rel or dvn-web
 # @param LANE_LANDED_SHA (required, end done in another repo) - the landed commit, 7-40 hex
 # @param LANE_APPLIED_EVIDENCE (required, end done applied) - "owner=<owner msg uuid> accepted=<ACCEPTED msg uuid>"
+# @param LANE_APPLIED_OWNER_TENANT (optional, end done applied) - the workspace whose hub holds the owner msg, e.g. csitea; default TENANT_ID (the ACCEPTED is always read in TENANT_ID)
 # @param ENV TENANT_ID (optional) - default LEASE_ENV / LEASE_TENANT of <spool root>/dispatch/lease.conf
 # @param DESK_AGENT (optional) - the seated desk that files it; default the first seated of LEASE_MASTER, LEASE_ORCH, LEASE_FAILOVER
 # @param DESK_BOX (optional) - default this box's desk box

@@ -433,14 +433,16 @@ run AGENT_ID=c-002 LANE_ISSUE_OP=discussion LANE_ISSUE_TOPIC=5ea2e615-ca23-451f-
 # lands no commit. End done with LANE_APPLIED_EVIDENCE: the owner msg on the
 # hub from a human, the ACCEPTED msg to this lane from a role seat, its body
 # starting with ACCEPTED. The hub is stubbed: do_spl_db_message_show answers
-# the rows of $T/ap/rows (rc 2 = no such msg, HUB_DOWN=1 = the read fails),
+# the rows of $T/ap/rows, or of $T/ap/rows.<TENANT_ID> when that file exists
+# (one workspace's hub; rc 2 = no such msg, HUB_DOWN=1 = the read fails),
 # the desk's hub-tail answers $T/ap/tail. Reads are not logged: a refusal
 # leaves calls.log empty.
 mkdir -p "$T/ap"
 OWN=705a9b08-1111-4111-8111-111111111111 ACC=31919e11-2222-4222-8222-222222222222 LOC=5e1f0000-3333-4333-8333-333333333333
 AP_STUBS='do_spl_db_message_show() {
   [[ "${HUB_DOWN:-0}" == 1 ]] && { echo "FATAL read-only query failed" >&2; return 1; }
-  grep -F "\"msg_id\": \"$MSG_ID\"" "$T_AP/rows" || { echo "FAIL no message" >&2; return 2; }
+  local f="$T_AP/rows"; [[ -e "$f.$TENANT_ID" ]] && f="$f.$TENANT_ID"
+  grep -F "\"msg_id\": \"$MSG_ID\"" "$f" || { echo "FAIL no message" >&2; return 2; }
   echo "OK 1 message row(s)"
 }
 spl_desk_issue_once() { SPL_HUB_URL=https://hub.invalid; return 0; }
@@ -501,6 +503,25 @@ ap_run LANE_APPLIED_EVIDENCE="owner=705a9b08 accepted=31919e11" DRY_RUN=0
 refused "applied: short ids are refused" "LANE_APPLIED_EVIDENCE must be 'owner=<owner msg uuid> accepted=<ACCEPTED msg uuid>'"
 ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC" LANE_LANDED_REPO=dvn-web DRY_RUN=0
 refused "applied: evidence and LANE_LANDED_REPO together are refused" "not both"
+# SPL-3672: the owner order in one workspace (csitea), the ACCEPTED in another
+# (t1, this run's TENANT_ID). LANE_APPLIED_OWNER_TENANT reads the owner msg
+# there; the ACCEPTED is still read in TENANT_ID.
+ap_rows HUM-10 c-002 c-123; ap_tail $'from_agent: c-002@box-b\nACCEPTED by c-002: applied'
+grep -F "$OWN" "$T/ap/rows" >"$T/ap/rows.csitea"; grep -F "$ACC" "$T/ap/rows" >"$T/ap/rows.t1"; mv "$T/ap/rows" "$T/ap/rows.all"
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC" DRY_RUN=0
+refused "applied, two workspaces: no LANE_APPLIED_OWNER_TENANT reads the owner msg in t1: refused" "the owner msg $OWN is not on the hub of dev/t1"
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC" LANE_APPLIED_OWNER_TENANT=csitea DRY_RUN=0
+[[ $rc -eq 0 && "$(cut -f1,4,5 "$S/c-123/lifetime/issue-end" 2>/dev/null)" == "done"$'\t'"applied"$'\t'"owner=$OWN accepted=$ACC" ]] &&
+  grep -q "owner go 705a9b08 (HUM-10 in csitea), ACCEPTED 31919e11 from c-002 (checked on the hub)" "$T/calls.log" &&
+  pass "applied, two workspaces: owner msg in csitea, ACCEPTED in t1, LANE_APPLIED_OWNER_TENANT=csitea: done, the comment names the owner's workspace" ||
+  fail "two workspaces (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC" LANE_APPLIED_OWNER_TENANT=acme DRY_RUN=0
+refused "applied, two workspaces: a wrong owner workspace is refused" "the owner msg $OWN is not on the hub of dev/acme"
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC" LANE_APPLIED_OWNER_TENANT=csitea TENANT_ID=csitea DESK_AGENT=c-002 DRY_RUN=0
+refused "applied, two workspaces: the ACCEPTED is still read in TENANT_ID, not the owner's workspace" "the ACCEPTED msg $ACC is neither on the hub of dev/csitea"
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC" LANE_APPLIED_OWNER_TENANT='Bad/slug' DRY_RUN=0
+refused "applied: a LANE_APPLIED_OWNER_TENANT that is not a slug is refused" "LANE_APPLIED_OWNER_TENANT must be a tenant slug"
+rm -f "$T/ap/rows.csitea" "$T/ap/rows.t1"; mv "$T/ap/rows.all" "$T/ap/rows"
 # A same-box ACCEPTED never reaches the hub: the lane's inbox copy counts only
 # when the sender's outbox holds the same msg.
 ap_rows HUM-10 c-002 c-123; ACC_SAVE="$ACC"; ACC="$LOC"

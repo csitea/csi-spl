@@ -8,8 +8,10 @@
 # the orchestrator set the issue done by hand). Both ids are checked first,
 # also in a dry run, and a refusal changes nothing:
 #   owner     the hub's messages row (do_spl_db_message_show, read-only) is
-#             from a human, HUM-<n>
-#   accepted  the hub's row is addressed to this lane, from a role seat
+#             from a human, HUM-<n>; read in LANE_APPLIED_OWNER_TENANT
+#             (default TENANT_ID): an owner order in one workspace (prd/csitea)
+#             can be accepted in another (prd/t1), SPL-3490 / SPL-3672
+#   accepted  read in TENANT_ID: the hub's row is addressed to this lane, from a role seat
 #             (spl_is_role_seat) or a human, never the lane itself, and its
 #             body (read through the desk, hub-tail of the row's topic) starts
 #             with ACCEPTED. A same-box ACCEPTED never reaches the hub
@@ -26,18 +28,20 @@ SLA_UUID_RE='[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 
 # spl_lane_issue_applied ROOT ID: end done on an owner go + an ACCEPTED.
 spl_lane_issue_applied() {
-  local root="$1" id="$2" ev="${LANE_APPLIED_EVIDENCE:-}" key own acc row from v why
+  local root="$1" id="$2" ev="${LANE_APPLIED_EVIDENCE:-}" ot="${LANE_APPLIED_OWNER_TENANT:-$TENANT_ID}" key own acc row from v why
   [[ -z "${LANE_LANDED_REPO:-}${LANE_LANDED_SHA:-}" ]] ||
     { do_log "FATAL give LANE_APPLIED_EVIDENCE or LANE_LANDED_REPO + LANE_LANDED_SHA, not both: refused, nothing changed"; return 1; }
   [[ "$ev" =~ ^owner=($SLA_UUID_RE)\ accepted=($SLA_UUID_RE)$ ]] ||
     { do_log "FATAL LANE_APPLIED_EVIDENCE must be 'owner=<owner msg uuid> accepted=<ACCEPTED msg uuid>' (full lower-case uuids), got: '$ev': refused, nothing changed"; return 1; }
   own="${BASH_REMATCH[1]}" acc="${BASH_REMATCH[2]}"
+  [[ "$ot" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL LANE_APPLIED_OWNER_TENANT must be a tenant slug, got: '$ot': refused, nothing changed"; return 1; }
   [[ "$own" != "$acc" ]] || { do_log "FATAL the owner msg and the ACCEPTED msg are one message ($own): refused, nothing changed"; return 1; }
   key="$(li_key_of_agent "$root" "$id")" || { do_log "FATAL $id carries no issue key ($root/$id/lifetime/issue)"; return 1; }
-  row="$(spl_lane_issue_hub_row "$own")" || { do_log "FATAL the owner msg $own is not on the hub of $ENV/$TENANT_ID (or the read failed): refused, nothing changed"; return 1; }
+  row="$(spl_lane_issue_hub_row "$own" "$ot")" || { do_log "FATAL the owner msg $own is not on the hub of $ENV/$ot (or the read failed): refused, nothing changed"; return 1; }
   from="$(jq -r '.from_id // ""' <<<"$row")"
   [[ "$from" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL the owner msg $own is from '$from', not a human (HUM-<n>): refused, nothing changed"; return 1; }
   v="$(spl_lane_issue_accepted "$root" "$id" "$acc")" || return 1
+  [[ "$ot" == "$TENANT_ID" ]] || from+=" in $ot"
   why="applied, no commit: owner go ${own:0:8} ($from), ACCEPTED ${acc:0:8} from ${v%%$'\t'*} (${v#*$'\t'})"
   [[ -n "${LANE_ISSUE_REASON:-}" ]] && why+=": $(printf '%s' "$LANE_ISSUE_REASON" | tr '\t\n\r' '   ')"
   spl_lane_issue_actor "$root" "$id"
@@ -86,11 +90,12 @@ b = re.sub(r"\A[\s*_#>`]+", "", b)
 sys.exit(0 if b.startswith("ACCEPTED") else 1)' "$1"
 }
 
-# spl_lane_issue_hub_row MSG -> the hub's messages row of MSG (one JSON line,
-# no body); rc 2 = the hub has no such message, 1 = the read failed.
+# spl_lane_issue_hub_row MSG [TENANT] -> the hub's messages row of MSG in
+# TENANT (default TENANT_ID; one JSON line, no body); rc 2 = the hub has no
+# such message, 1 = the read failed.
 spl_lane_issue_hub_row() {
   local out rc=0
-  out="$(MSG_ID="$1" RUN_STDOUT_IS_DATA=1 do_spl_db_message_show 2>/dev/null)" || rc=$?
+  out="$(TENANT_ID="${2:-$TENANT_ID}" MSG_ID="$1" RUN_STDOUT_IS_DATA=1 do_spl_db_message_show 2>/dev/null)" || rc=$?
   (( rc == 0 )) || return "$(( rc == 2 ? 2 : 1 ))"
   out="$(grep -m1 '^{' <<<"$out")"
   [[ -n "$out" ]] || return 1

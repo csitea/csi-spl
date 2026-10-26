@@ -16,6 +16,9 @@
 # @description do_check_deploy_lag's question, not this one.
 # @description   4 unhealthy - the image matches but the service / revision is not ready,
 # @description                 or traffic is not 100 % on the latest ready revision (SPL-2249)
+# @description   0 rolling   - (no SPL_HUB_IMAGE_TAG only) a two-revision split whose latest
+# @description                 ready revision is younger than cnf hub.cloud_run.canary
+# @description                 minutes + verify_margin_s: a canary in flight (SPL-3461)
 # @description   1           - cannot tell (no service, no access, bad cnf)
 # @description A green workflow run is not proof of a deploy (a skipped deploy
 # @description job is green too); this is. It only DESCRIBES: no update, no
@@ -91,10 +94,38 @@ do_hub_deploy_verify_gcp() {
     return 4
   fi
   if [[ -n "$serving" && "$serving" != "$latest:100" ]]; then
-    echo "$ENV unhealthy service=$svc image=$image traffic=$serving latest_ready=$latest (a canary split or a rolled-back canary)"
+    local age=""
+    # I5 (SPL-3461): a split younger than the canary window is a canary in
+    # flight (the hourly 00 tick landing inside a roll), not a stuck one. Only
+    # the watch asks: with SPL_HUB_IMAGE_TAG (a deploy verifying itself) the
+    # roll must be over.
+    [[ -z "${SPL_HUB_IMAGE_TAG:-}" ]] && age="$(_hub_split_age "$latest" "$serving")" && {
+      echo "$ENV rolling service=$svc image=$image traffic=$serving latest_ready=$latest ($age: a canary in flight)"
+      return 0; }
+    echo "$ENV unhealthy service=$svc image=$image traffic=$serving latest_ready=$latest (a canary split or a rolled-back canary${age:+, $age})"
     return 4
   fi
   echo "$ENV current service=$svc image=$image revision=$latest"
+}
+
+# _hub_split_age <latest> <serving> -> "age <a> s < window <w> s" and 0 when
+# <serving> is the canary's own shape (exactly two revisions, the latest ready
+# one holding a share) and the latest revision is younger than cnf
+# hub.cloud_run.canary minutes + verify_margin_s. Else 1: stuck, rolled back,
+# no window in cnf, or the age cannot be read. Counted from the revision's
+# creation (the roll's step 2), so the margin covers the deploy, the 0 %
+# probes, metrics_lag_s and the verdict. One read-only revisions describe.
+_hub_split_age() {
+  local latest="$1" serving="$2" min margin created now age win
+  [[ "$serving" =~ ^[^,:]+:[0-9]+,[^,:]+:[0-9]+$ && ",$serving," == *",$latest:"* ]] || return 1
+  IFS=$'\t' read -r min margin < <(yq -r '[.env.hub.cloud_run.canary.minutes // "", .env.hub.cloud_run.canary.verify_margin_s // ""] | @tsv' "$SPL_CNF")
+  [[ "$min" =~ ^[1-9][0-9]*$ && "$margin" =~ ^[0-9]+$ ]] || return 1
+  created="$(gcloud run revisions describe "$latest" --project="$SPL_PROJECT" --region="$SPL_REGION" \
+               --account="$GCP_ACCOUNT" --format='value(metadata.creationTimestamp)' 2>/dev/null)" || return 1
+  created="$(date -u -d "$created" +%s 2>/dev/null)" && now="$(date -u +%s)" || return 1
+  age=$((now - created)) win=$((min * 60 + margin))
+  ((age >= 0 && age < win)) || { echo "age $age s >= window $win s"; return 1; }
+  echo "age $age s < window $win s"
 }
 
 #------------------------------------------------------------------------------

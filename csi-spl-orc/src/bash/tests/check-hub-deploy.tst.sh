@@ -10,6 +10,10 @@
 #   3. unhealthy (Ready False / latest revision not the ready one) -> rc 4,
 #      Ready read by condition TYPE, not by position
 #   4. describe fails (no service / no access)                     -> rc 1
+#   4b. I5 (SPL-3461): a two-revision split whose latest revision is younger
+#      than cnf canary minutes + verify_margin_s is "rolling", rc 0 (a canary
+#      in flight); older, rolled back, three revisions, no revision age, or a
+#      deploy's own verify (SPL_HUB_IMAGE_TAG) stays unhealthy, rc 4
 #   5. no GCP_ACCOUNT and no per-env SA key -> refused, never the owner account
 #   6. every gcloud call carries --account, and none mutates
 #      (no update / deploy / create / delete / set-iam / add-iam)
@@ -34,7 +38,8 @@ fails=0
 mkdir -p "$T/nosa_home"
 
 # gcloud stub: records every call; mints a fake token; `run services describe`
-# prints $FIXTURE, or fails when FIXTURE is empty.
+# prints $FIXTURE, or fails when FIXTURE is empty; `run revisions describe`
+# prints $REV_CREATED (the revision's creationTimestamp), or fails when empty.
 mkdir -p "$T/stub"
 cat >"$T/stub/gcloud" <<'EOF'
 #!/bin/sh
@@ -43,6 +48,8 @@ case "$*" in
   "auth print-access-token"*) echo fake-token; exit 0 ;;
   "run services describe"*) [ -n "$FIXTURE" ] && cat "$FIXTURE" && exit 0
                             echo "ERROR: (gcloud.run.services.describe) NOT_FOUND" >&2; exit 1 ;;
+  "run revisions describe"*) [ -n "${REV_CREATED:-}" ] && echo "$REV_CREATED" && exit 0
+                             echo "ERROR: (gcloud.run.revisions.describe) NOT_FOUND" >&2; exit 1 ;;
 esac
 exit 1
 EOF
@@ -116,6 +123,29 @@ check "lagging: a tag BELOW the floor ($behind < $floor)"                       
 check "lagging: a later tag in ANOTHER repository"                                   3 lagging FIXTURE="$T/otherrepo.json"
 check "current: SPL_HUB_IMAGE_TAG=$ahead and the service runs exactly it"            0 current FIXTURE="$T/ahead.json" SPL_HUB_IMAGE_TAG="$ahead"
 check "lagging: SPL_HUB_IMAGE_TAG=$ahead but the service still runs the floor"       3 lagging FIXTURE="$T/current.json" SPL_HUB_IMAGE_TAG="$ahead"
+
+# I5 (SPL-3461): canary in flight vs stuck split, by the latest revision's age
+# against the cnf window (canary minutes + verify_margin_s, read here too).
+win=$(( $(yq -r '.env.hub.cloud_run.canary.minutes' "$APP_ROOT"/*-cnf/*/all.env.yaml) * 60 \
+      + $(yq -r '.env.hub.cloud_run.canary.verify_margin_s' "$APP_ROOT"/*-cnf/*/all.env.yaml) ))
+young=$(date -u -d "-60 sec" +%Y-%m-%dT%H:%M:%S.000000Z)
+old=$(date -u -d "-$((win + 60)) sec" +%Y-%m-%dT%H:%M:%S.000000Z)
+fixture "$T/split3.json" "$ref" True r-3 r-3 '[{"percent":80,"revisionName":"r-1"},{"percent":10,"revisionName":"r-2"},{"percent":10,"revisionName":"r-3","tag":"canary"}]'
+: >"$T/calls.log"
+check "rolling: a 90/10 split, latest revision 60 s old (window $win s)"        0 rolling   FIXTURE="$T/split.json" REV_CREATED="$young"
+grep -q -- "^gcloud run revisions describe r-2 .*--account=op@example.com" "$T/calls.log" \
+  && pass "the age is read from the LATEST revision, with --account" || fail "revisions describe call: $(cat "$T/calls.log")"
+out=$(in_orc GCP_ACCOUNT=op@example.com FIXTURE="$T/split.json" REV_CREATED="$young" 2>/dev/null)
+[[ "$out" == *"traffic=r-1:90,r-2:10 "*"< window $win s: a canary in flight)" ]] && pass "rolling names the split and the window" || fail "rolling line: $out"
+check "unhealthy: a 90/10 split older than the window (stuck)"               4 unhealthy FIXTURE="$T/split.json" REV_CREATED="$old"
+out=$(in_orc GCP_ACCOUNT=op@example.com FIXTURE="$T/split.json" REV_CREATED="$old" 2>/dev/null)
+[[ "$out" == *">= window $win s)" ]] && pass "a stuck split names its age and the window" || fail "stuck line: $out"
+check "unhealthy: a young split but the revision age cannot be read"         4 unhealthy FIXTURE="$T/split.json" REV_CREATED=
+check "unhealthy: a young three-revision split is no canary shape"           4 unhealthy FIXTURE="$T/split3.json" REV_CREATED="$young"
+: >"$T/calls.log"
+check "unhealthy: a young rolled-back canary (r-1 pinned 100 %)"             4 unhealthy FIXTURE="$T/pinned.json" REV_CREATED="$young"
+grep -q 'revisions describe' "$T/calls.log" && fail "a rolled-back canary still read a revision age" || pass "a rolled-back canary reads no revision age"
+check "unhealthy: a young split under SPL_HUB_IMAGE_TAG (a deploy's verify)" 4 unhealthy FIXTURE="$T/split.json" REV_CREATED="$young" SPL_HUB_IMAGE_TAG="$floor"
 
 # Past 9.9.9 the image tag is the release KEY 1.0.1-c2 while /version shows
 # 1.0.1 (spl-release-version CYCLES); cycle 1's :1.0.1 is another image.

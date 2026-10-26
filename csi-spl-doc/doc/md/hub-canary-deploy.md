@@ -46,9 +46,9 @@ the 032 domain mappings and the WUI's Firebase rewrite both honour.
 | file | change |
 |---|---|
 | `csi-spl-iac/src/terraform/030-cloud-run-hub/04-cloud-run-service.tf` | `traffic` joins `lifecycle.ignore_changes`: the split belongs to workflow 20, like the image. An apply mid-canary never snaps it to latest, nor un-pins a rolled-back service. |
-| `csi-spl-cnf/csi-spl/all.env.yaml` | `hub.cloud_run.canary`: `enabled: false`, `percent: 10`, `minutes: 10`, `tag: canary`, `probe_interval_s: 30`, `metrics_lag_s: 120`, `max_5xx: 3`, `max_5xx_pct: 1`. No tfvars change. |
+| `csi-spl-cnf/csi-spl/all.env.yaml` | `hub.cloud_run.canary`: `enabled: false`, `percent: 10`, `minutes: 10`, `tag: canary`, `probe_interval_s: 30`, `metrics_lag_s: 120`, `max_5xx: 3`, `max_5xx_pct: 1`, `verify_margin_s: 300` (SPL-3461). No tfvars change. |
 | `.github/workflows/20_hub-build-deploy.yml` | the roll step runs `do_canary_hub_deploy` when the cnf flag is `true`, else the straight roll as today. |
-| `csi-spl-orc/src/bash/run/check-hub-deploy.func.sh` | traffic not 100 % on the latest ready revision is `unhealthy` (rc 4). Without it a rolled-back canary (template on the new image, old revision pinned) read `current`. |
+| `csi-spl-orc/src/bash/run/check-hub-deploy.func.sh` | traffic not 100 % on the latest ready revision is `unhealthy` (rc 4). Without it a rolled-back canary (template on the new image, old revision pinned) read `current`. SPL-3461: without `SPL_HUB_IMAGE_TAG` (the hourly workflow 00 watch, an operator), a two-revision split whose latest ready revision is younger than `minutes` + `verify_margin_s` (900 s by default, counted from the revision's creation) is `rolling`, rc 0: a canary in flight. An older split, a rolled-back canary, a three-revision split, an unreadable revision age and a deploy's own verify stay rc 4. |
 
 ## 3. Would it have caught the 2026-10-16 stuck instance?
 

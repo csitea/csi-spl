@@ -349,10 +349,15 @@ s10() {
 # --- 11. the lifetime markers (specs/102 4.3) --------------------------------------------------
 s11() {
   box
-  for h in claude grok agy; do ln -sf "$(command -v sleep)" "$T_TMP/bin/$h"; done
+  # The fake CLI is bash under exec -a, not a symlink to sleep: a multicall
+  # coreutils (uutils on ubuntu-26.04 runners, busybox) picks the tool from
+  # argv[0], so a "claude" link to it exits at once (SPL-3430). tmux reads the
+  # pane command from argv[0]; read on a private fifo waits with builtins only.
+  printf '%s\n' '#!/bin/bash' 'f="${0%/*}/hold.fifo.$$"; mkfifo "$f"; read -r -t "$1" _ <> "$f"; rm -f "$f"' >"$T_TMP/bin/hold"
+  chmod +x "$T_TMP/bin/hold"
   for hid in claude:c-411:CLE grok:g-412:GRK agy:a-413:AGY; do
     h="${hid%%:*}" id="${hid#*:}" pfx="${hid##*:}"; id="${id%:*}"
-    P="$(t_window "$id@tbox" "$T_TMP/bin/$h 600")"
+    P="$(t_window "$id@tbox" "bash -c 'exec -a $h bash \"\$0\" 600' $T_TMP/bin/hold")"
     sleep 0.5
     env "${pfx}_TMUX_PANE=$P" bash "$SUT" --agent "$id" --defer --timeout 3 >"$T_TMP/o" 2>&1; eq "11. $h: --defer returns 0" 0 "$?"
     check "11. $h: lifetime/done is written before the $h process ends (it still runs)" bash -c "test -s '$SPOOL_ROOT/$id/lifetime/done' && tmux -S '$SPOOL_TMUX_SOCKET' list-panes -a -F '#{pane_id} #{pane_current_command}' | grep -qx '$P $h'"
@@ -665,7 +670,9 @@ s16() {
   MISTRAL_TMUX_PANE="$P16" bash "$SUT" --agent m-595 --defer --retire --timeout 3 >"$T_TMP/o" 2>&1
   eq "16. self-close with its push RUNNING is refused (5)" 5 "$?"
   has "16. ... the one line names the running push" "REFUSED self-close of m-595: its push is RUNNING since 2026-10-16T01:27:48Z" "$(cat "$T_TMP/o")"
-  eq "16. ... it is one line" 1 "$(wc -l <"$T_TMP/o")"
+  # Only the closer's own lines count: a stale bin/spool's "spool-env:" WARN
+  # on stderr is not the closer's (SPL-3439).
+  eq "16. ... it is one line" 1 "$(grep -vc '^spool-env:' "$T_TMP/o")"
   hasnt "16. ... and schedules no close" "scheduled defer-close" "$(cat "$T_TMP/o")"
   check "16. ... writes no lifetime/done" test ! -e "$SPOOL_ROOT/m-595/lifetime/done"
   kill "$H16" 2>/dev/null

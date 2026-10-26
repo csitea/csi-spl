@@ -1,6 +1,6 @@
 # 136: Spool messages encrypted at rest (phase 2 of the private workspace)
 
-Status: **v1.1, owner answers Q1-Q7 folded (msg 165607d4); build lanes reshaped**. Editor s136-claude (c-399, v1.0); v1.1 fold by a-264 (SPL-3640). Q1-Q3, Q5-Q6 confirmed recommendation A; Q4 B (fleet agents keep today's sudo/docker; only workspace user has none) and Q7 B (unattended unlock from key file) adopted with explicit R1 exception and lane updates. Build lanes L0, L1, L2, L5a, L6a, L8, L11 landed (section 11). Issue: SPL-3640 (v1.0 was SPL-1658). This spec changes no code; the build lanes of section 11 do.
+Status: **v1.2, owner answers Q1-Q7 folded (msg 165607d4), key file specified (check 4 W1-W7); build lanes reshaped**. Editor s136-claude (c-399, v1.0); v1.1-v1.2 fold by a-264 (SPL-3640). Q1-Q3, Q5-Q6 confirmed recommendation A; Q4 B (fleet agents keep today's sudo/docker; only workspace user has none) and Q7 B (unattended unlock from key file) adopted with explicit R1 exception and lane updates. Build lanes L0, L1, L2, L5a, L6a, L8, L11 landed (section 11). Issue: SPL-3640 (v1.0 was SPL-1658). This spec changes no code; the build lanes of section 11 do.
 
 Paths: `api/` = `csi-spl-api/src/go/spool-hub-api/`, `orc/` =
 `csi-spl-orc/src/bash/`, `sa/` = `orc/features/spawn-agents/`, `rdb/` =
@@ -734,6 +734,6 @@ still steer each lane where a question touches it.
 
 Doc corrections from build lanes: L0 brief mode and live proof (c-405, msg 7e44f3cf, commit 626ac5529) and section 7 benchmark (c-406, msg 5ff49231, commit 9ff3e5bc3), folded in 7b7469cc5.
 
-v1.1 update (2026-10-26, SPL-3640, a-264): folded the owner's binding answers Q1-Q7 from msg 165607d4. Q4 B reshaped L6b and Section 9 (fleet agents keep sudo/docker; residual risk stated). Q7 B added R1 exception (msg 165607d4) and reshaped Section 4, 5, 11 (unattended key file `<state>/keys/unlock.key`, mode 0400, new lane L2b, boot unlock, stolen disk limit stated). Recorded build lanes landed: L0 (`626ac5529`), L1 (`9ff3e5bc3`), L2 (`a05ea1f24`), L5a (`8b146fa3b`), L6a (`58b7a660f`), L8 (`f541cafda`), L11 (`44c8e21c3`).
+v1.2 update (2026-10-26, SPL-3640, a-264): folded the owner's binding answers Q1-Q7 from msg 165607d4; resolved reviewer c-315 check 4 findings W1-W7 (specified `<state>` as `$HOME/.spool/enc`, keyd pipe contract with `spool key unlock --key-file`, `unlock.key` random 32-byte secret, systemd template unit `spool-keyd@.service` owned by L6b, 9-step crash-safe rotation, rollback and turn-on reconciliation, StrictModes checks). Q4 B reshaped L6b and Section 9 (fleet agents keep sudo/docker; residual risk stated). Q7 B added R1 exception (msg 165607d4) and reshaped Section 4, 5, 11 (unattended key file `<state>/keys/unlock.key`, mode 0400, new lane L2b, boot unlock, stolen disk limit stated). Recorded build lanes landed: L0 (`626ac5529`), L1 (`9ff3e5bc3`), L2 (`a05ea1f24`, `48848e14e`, `93731a030`, `1dcde76a3`, `f2aef210a`, `4dc86e58c`), L5a (`8b146fa3b`), L6a (`58b7a660f`), L8 (`f541cafda`), L11 (`44c8e21c3`).
 
-<!-- version: 1.1.0 · updated: 2026-10-26 · last-edit: 2026-10-26T22:30:00Z -->
+<!-- version: 1.2.0 · updated: 2026-10-26 · last-edit: 2026-10-26T22:45:00Z -->

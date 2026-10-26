@@ -33,10 +33,11 @@
 #           leaves the held one alone
 #        c. no lock file is left behind
 #        d. a SIGKILLed run's stable leftover is reaped; a held one is kept
-#        e. (with go on PATH) a second re-check writes no new Go cache entry
-#           (module index off: its entries depend on file age, not the path)
+#        e. (with go on PATH) a second re-check compiles nothing: Go's own
+#           `go build -v` list of what it compiled, not a count of GOCACHE
+#           files, so an unrelated cache file cannot red it (SPL-3464, I7)
 #        Red control: PP_FUNC_FROM=<the func file before SPL-3128>: 9a, 9d
-#        (reaped) and 9e FAIL there (9e: 10 cache files, then 14).
+#        (reaped) and 9e FAIL there (9e: the second re-check compiles x).
 #   A stub part passes iff <tree>/flag contains 'good'; HEAD and the base ref
 #   carry different flags, so the same part yields different verdicts per tree.
 #------------------------------------------------------------------------------
@@ -242,16 +243,18 @@ if command -v go >/dev/null 2>&1; then
   printf 'module x\n\ngo 1.21\n' >"$RG/go.mod"; printf 'package p\n\nfunc F() int { return 1 }\n' >"$RG/p.go"
   echo good >"$RG/flag"; git -C "$RG" add -A; git -C "$RG" commit -qm base; git -C "$RG" branch trunkbase
   echo bad >"$RG/flag"; git -C "$RG" commit -qam head
-  _go_part() { (cd "$1" && go build ./...) && grep -q good "$1/flag"; }
-  _gc_files() { find "$GOCACHE" -type f ! -name trim.txt ! -name README | wc -l; }
+  # -v lists each package Go compiles; a cache hit lists nothing
+  _go_part() { (cd "$1" && go build -v ./... 2>>"$GLOG") && grep -q good "$1/flag"; }
   _go_recheck() { local -a _PP_NAMES=() _PP_STAT=() _PP_SECS=(); local _PP_FAILED=0 _PP_BASE_WT=""
-    _pp_run "go" _go_part "$RG" trunkbase >/dev/null 2>&1; _pp_baseline_cleanup "$RG" >/dev/null 2>&1; }
+    : >"$GLOG"; _pp_run "go" _go_part "$RG" trunkbase >/dev/null 2>&1; _pp_baseline_cleanup "$RG" >/dev/null 2>&1
+    grep -c . "$GLOG"; }
   # goindex=0: Go's module index caches a dir only once its files are >2 s
-  # old, so a slow runner adds one index entry on the 2nd re-check (10 -> 12,
-  # wf 10 run 40046892424); it is not the build cache this case measures
-  export GOCACHE="$ROOT/gocache" GOTOOLCHAIN=local GOFLAGS="" GODEBUG=goindex=0
-  _go_recheck; n1="$(_gc_files)"; _go_recheck; n2="$(_gc_files)"
-  eq "9e. a second re-check writes no new Go cache entry (after the first: $n1 files)" "$n1" "$n2"
+  # old (wf 10 run 40046892424); kept off so the runner's speed stays out
+  export GOCACHE="$ROOT/gocache" GOTOOLCHAIN=local GOFLAGS="" GODEBUG=goindex=0 GLOG="$ROOT/go-build.log"
+  n1="$(_go_recheck)"; n2="$(_go_recheck)"
+  if [[ "$n1" -ge 1 && "$n2" -eq 0 ]]; then
+    pass "9e. a second re-check compiles nothing for the same input (the first compiled $n1)"
+  else fail "9e. Go cache re-use" "want first >= 1, second 0 compiled; got $n1 then $n2"; fi
 else
   echo "SKIP: 9e. go is not on PATH"
 fi

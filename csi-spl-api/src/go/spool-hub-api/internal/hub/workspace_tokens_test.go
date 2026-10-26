@@ -106,7 +106,9 @@ func TestWorkspaceTokenCosts(t *testing.T) {
 	box := r.opBox.id
 	_, onMemory := r.e.st.(*store.Memory)
 	// A price row of this test's own model: 3 USD in, 15 USD out per million.
-	model := "claude-wscost-" + newTenantID("")
+	// The letter keeps the name off fleetTokenModel's "-<8 digits>" date suffix
+	// (an all-digit hex id was stripped and read unpriced, run 40391258842).
+	model := "claude-wscost-" + newTenantID("m")
 	for kind, micros := range map[string]int64{store.UsageKindIn: 3_000_000, store.UsageKindOut: 15_000_000} {
 		putModelPrice(t, r.e.st, store.ModelPrice{Provider: "anthropic", Model: model, Kind: kind, MicrosPerMillion: micros,
 			Currency: "USD", ValidFrom: now.Add(-24 * time.Hour)})

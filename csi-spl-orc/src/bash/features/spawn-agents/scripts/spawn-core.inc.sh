@@ -440,6 +440,37 @@ _spawn_brief_step() {
     _sp_plan topictext "the linked topics' human posts -> ${MSGDIR}/lifetime/brief.md (section Topic text), the seed reads that copy"
 }
 
+# CHANNEL RULES (SPL-3500, owner HUM-10 msg 4501003a; lib/channel-rules.inc.sh):
+# a seat whose brief names a mapped channel reads that channel's rules doc
+# before it acts, at every seed. The channel is read BEFORE the record step:
+# a rotation or restart hands a seed file as BRIEF, and lifetime/brief.md is
+# still the task brief until spawn_record_brief copies BRIEF over it.
+_spawn_channel_find() {
+  _SP_CHANNEL=""
+  [ -n "$BRIEF" ] || return 0
+  # shellcheck source=../lib/channel-rules.inc.sh
+  . "${_SP_DIR}/../lib/channel-rules.inc.sh" || return 0
+  _SP_CHANNEL="$(cr_channel_of "$BRIEF" "${MSGDIR}/lifetime/brief.md")" || _SP_CHANNEL=""
+}
+
+# The export next to the seed (a dry run: into SPAWN_PLAN_DIR, else none) and
+# CHANNEL_RULES, the seed's line. A failed or empty export stops the spawn.
+_spawn_channel_rules() {
+  CHANNEL_RULES=""
+  [ -n "$_SP_CHANNEL" ] || { _sp_plan rules "none: the brief names no channel"; return 0; }
+  local out="${MSGDIR}/lifetime/channel-rules.md" exp=1 rc=0
+  if ! _sp_live; then
+    if [ -n "${SPAWN_PLAN_DIR:-}" ]; then out="${SPAWN_PLAN_DIR}/channel-rules.md"; else exp=0; fi
+  fi
+  # shellcheck disable=SC2086 # "<tenant> <channel>", two words
+  CR_EXPORT="$exp" cr_prepare "$out" $_SP_CHANNEL || rc=$?
+  case "$rc" in
+    0) CHANNEL_RULES="$CR_LINE"; _sp_plan rules "${_SP_CHANNEL}: its doc -> ${out}, the seed names it" ;;
+    1) _sp_plan rules "none: no map row for ${_SP_CHANNEL} in $(cr_map)" ;;
+    *) _sp_fail "channel rules for ${_SP_CHANNEL}: the FATAL above; no seed written" ;;
+  esac
+}
+
 # The seed travels in a FILE; the CLI's argv carries only a pointer to it
 # (c-698 2026-10-09: one 'pkill -f "git push"' matched the seed on 12
 # seats' argv and killed them all; vibe, whose seed was not in argv, lived).
@@ -556,6 +587,7 @@ spawn_init_dirs() {
     echo "INFO: spool dir ${MSGDIR} (inbox/ outbox/ archive/)"
   fi
   _sp_plan spooldir "${MSGDIR}/{inbox,outbox,archive} 0775"
+  _spawn_channel_find
   if [ -n "$BRIEF" ]; then
     _spawn_brief_step
   fi
@@ -563,13 +595,14 @@ spawn_init_dirs() {
   _spawn_worktree
   _spawn_lane_put
   _spawn_seed_blocks
+  _spawn_channel_rules
 
   PROMPT=""
   if [ -n "$BRIEF" ]; then
     # c-440 (2026-10-06): one 'pkill -f do_check_pre_push' matched the action
     # name in every agent's argv (this prompt) and killed 15 sessions in 0.7 s.
     STOP_RULE="Stop a run with its stop action (e.g. './run -a do_stop_pre_push') or its own pid, never 'pkill -f', 'killall' or 'pgrep -f | xargs kill' on a pattern: it matches other agents' processes."
-    PROMPT="$(spool_truth_rule) As your VERY FIRST action, $(spawn_rename_how). Then read your full task brief at ${BRIEF_READ:-$BRIEF} and implement it end to end. That file is your complete, authoritative instructions: follow it exactly, inspect the real code first, and keep any module tests green. Never post greetings, welcomes or social messages; only post what your brief asks for. You do ONE small task. If someone sends you a different task, refuse it and tell ${SPOOL_ORCHESTRATOR_ID} so it spawns a new lane. ${SPAWN_EXIT_RULE} ${DEV_GUIDE:+${DEV_GUIDE} }${ISSUE_BLOCK:+${ISSUE_BLOCK} }${SCOPE:+${SCOPE} }${SEED_NOTE:+${SEED_NOTE} }${SPOOL_PROTO}${INTEGRATION:+ ${INTEGRATION}}${DEPLOY_GATE:+ ${DEPLOY_GATE}} ${NO_FORCE} ${SEED_BOX_PKG} ${STOP_RULE} Honour the project CLAUDE.md / AGENTS.md distribution-hygiene rules (org-neutral, no personal names)."
+    PROMPT="$(spool_truth_rule) As your VERY FIRST action, $(spawn_rename_how). Then read your full task brief at ${BRIEF_READ:-$BRIEF} and implement it end to end. That file is your complete, authoritative instructions: follow it exactly, inspect the real code first, and keep any module tests green. ${CHANNEL_RULES:+${CHANNEL_RULES} }Never post greetings, welcomes or social messages; only post what your brief asks for. You do ONE small task. If someone sends you a different task, refuse it and tell ${SPOOL_ORCHESTRATOR_ID} so it spawns a new lane. ${SPAWN_EXIT_RULE} ${DEV_GUIDE:+${DEV_GUIDE} }${ISSUE_BLOCK:+${ISSUE_BLOCK} }${SCOPE:+${SCOPE} }${SEED_NOTE:+${SEED_NOTE} }${SPOOL_PROTO}${INTEGRATION:+ ${INTEGRATION}}${DEPLOY_GATE:+ ${DEPLOY_GATE}} ${NO_FORCE} ${SEED_BOX_PKG} ${STOP_RULE} Honour the project CLAUDE.md / AGENTS.md distribution-hygiene rules (org-neutral, no personal names)."
   fi
   _sp_plan rename-how "$(spawn_rename_how)"
 }

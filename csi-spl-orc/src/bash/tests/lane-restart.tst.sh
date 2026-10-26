@@ -30,6 +30,10 @@
 #      fail message prints send.log
 #   6b. red control: a sender that drops the note fails case 6 with send.log shown
 #   7. LIFECYCLE_EVENTS=0: no event call
+#   8. SPL-3500 channel rules: a lane whose brief (lifetime/brief.md) names a
+#      mapped channel: the dry run names the rules file and exports nothing;
+#      DRY_RUN=0 exports it (non-empty) and the distil names it; a failed
+#      export is RULES FAIL, no distil, no respawn; no Channel: line, no change
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -307,6 +311,30 @@ world
 act DRY_RUN=0 LIFECYCLE_EVENTS=0 >"$T/o" 2>&1; rc=$?
 sleep 1
 [[ $rc -eq 0 && ! -e "$T/run.log" ]] && pass "7. LIFECYCLE_EVENTS=0: restarted, no event call" || fail "7. rc=$rc $(cat "$T/run.log" 2>/dev/null)"
+
+# --- 8. channel rules (SPL-3500) --------------------------------------------------------
+RULES="$S/c-900/lifetime/channel-rules.md"
+mkdir -p "$S/c-900/lifetime"
+printf '# Seat\n\nChannel: acme #ops\n' >"$S/c-900/lifetime/brief.md"
+printf 'acme\tops\t0a1b2c3d-1111-2222-3333-444455556666\tprd\tc-901\n' >"$S/channel-rules.tsv"
+export CHANNEL_RULES_EXPORT_CMD='printf "# Rules of %s\n\n- rule one\n" "$CR_TENANT"'
+world; rm -f "$RULES"
+act >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -e "$RULES" ]] && grep -q -- "- CHANNEL RULES (acme #ops): before you act .* read $RULES, the export of qto doc 0a1b2c3d" "$T/o" &&
+  pass "8. dry run: the distil names the rules file, nothing exported" || fail "8. dry: rc=$rc $(cat "$T/o")"
+world; rm -f "$RULES"
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && -s "$RULES" ]] && grep -q 'rule one' "$RULES" && grep -q -- "- CHANNEL RULES (acme #ops)" "$DIST" && ! grep -q 'rule one' "$DIST" &&
+  pass "8. DRY_RUN=0: the doc exported (non-empty), the distil names it, no rule copied" || fail "8. live: rc=$rc $(cat "$T/o")"
+world; rm -f "$RULES"
+act DRY_RUN=0 CHANNEL_RULES_EXPORT_CMD='exit 7' >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 1 && ! -e "$RULES" && ! -e "$DIST" && ! -e "$T/tmux/log" ]] && grep -q ' RULES FAIL FATAL channel rules: the export of qto doc' "$T/o" &&
+  pass "8. a failed export: RULES FAIL, no distil, no respawn" || fail "8. fail: rc=$rc $(cat "$T/o")"
+printf '# Seat\n\nNo channel.\n' >"$S/c-900/lifetime/brief.md"
+world
+act >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 ]] && ! grep -q 'CHANNEL RULES' "$T/o" && pass "8. no Channel: line: no rules line" || fail "8. none: rc=$rc"
+unset CHANNEL_RULES_EXPORT_CMD
 
 echo
 [[ $fails -eq 0 ]] && { echo "lane-restart: all passed"; exit 0; } || { echo "lane-restart: $fails failed"; exit 1; }

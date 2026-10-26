@@ -92,6 +92,7 @@ do_spl_lane_restart() {
     return 3
   fi
   LANE_DISTIL="$ROTATE_HOLD_DIR/$task/$id.md"
+  spl_lane_restart_rules "$id" "$rid" "$brief" || return 1
   ctx="$(spl_lane_restart_ctx_k "$tr")"
   spl_lane_restart_log "$rid" GATE OK "$id pid $pid, pane $pane, $wt clean, task $task restart $((n + 1)) of $split, ctx ${ctx:-?}k"
   if [[ "${DRY_RUN:-1}" == 1 ]]; then
@@ -339,6 +340,30 @@ spl_lane_restart_event() {
   return 0
 }
 
+# spl_lane_restart_rules ID RID BRIEF: CHANNEL RULES (SPL-3500, owner HUM-10
+# msg 4501003a; features/spawn-agents/lib/channel-rules.inc.sh). A seat whose
+# brief names a mapped channel gets that channel's rules doc exported to
+# <spool>/<id>/lifetime/channel-rules.md, and the distil names it
+# (LANE_RULES_LINE). A dry run exports nothing. 1 = a failed or empty export:
+# no distil, no respawn.
+spl_lane_restart_rules() {
+  local id="$1" rid="$2" brief="$3" ch out="$SPOOL_ROOT/$1/lifetime/channel-rules.md" err rc=0 exp=1
+  LANE_RULES_LINE=""
+  declare -F cr_prepare >/dev/null || source "$ROTATE_FEAT/lib/channel-rules.inc.sh" || return 0
+  ch="$(cr_channel_of "$brief" "$SPOOL_ROOT/$id/lifetime/brief.md")" || return 0
+  [[ "${DRY_RUN:-1}" == 1 ]] && exp=0
+  err="$(mktemp)"
+  # shellcheck disable=SC2086 # "<tenant> <channel>", two words
+  CR_EXPORT="$exp" cr_prepare "$out" $ch 2>"$err" || rc=$?
+  case "$rc" in
+    0) LANE_RULES_LINE="$CR_LINE"; spl_lane_restart_log "$rid" RULES OK "$ch: $out$( ((exp)) || echo ' (dry run: not exported)')" ;;
+    1) spl_lane_restart_log "$rid" RULES SKIP "$ch: no map row in $(cr_map)" ;;
+    *) spl_lane_restart_log "$rid" RULES FAIL "$(tr '\n' ' ' <"$err")" ;;
+  esac
+  rm -f "$err"
+  (( rc <= 1 ))
+}
+
 # ---- the distil (spec 063 section 6, the lane form) ----------------------------------
 
 # spl_lane_restart_distil ID RID TASK BRIEF WT TRANSCRIPT CTX_K OUT ("-" prints)
@@ -359,6 +384,7 @@ spl_lane_restart_distil_body() {
   echo "- reason: ${LANE_RESTART_REASON:-size}; worktree $wt"
   echo "- transcript: ${tr:-UNAVAILABLE: no session id in the identity map}"
   echo "- you keep the id $id, the worktree and the branch: re-read the brief, then go on from section 1b"
+  [[ -z "${LANE_RULES_LINE:-}" ]] || echo "- $LANE_RULES_LINE"
   echo
   echo "## 1b. NOTES (the last ${NOTES_TAIL_LINES:-40} lines of $notes)"
   if [[ -r "$notes" ]]; then tail -n "${NOTES_TAIL_LINES:-40}" "$notes" | cut -c1-300; else echo "none"; fi

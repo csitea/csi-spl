@@ -338,6 +338,30 @@ is never rewritten to swap `LEASE_MASTER` and `LEASE_FAILOVER`:
   `spool recv --as <ID>` (dispatchers).
 - **FR-043** The seed and the handoff name the old transcript's path only.
   Nothing copies it to another machine or to the hub.
+- **FR-044** Channel rules (SPL-3500; owner HUM-10, msg 4501003a: every agent
+  working on a channel keeps its rules fresh and enforced). A seat brief names
+  its channel with one header line, `Channel: <tenant> #<channel>`. The box
+  map `$SPOOL_ROOT/channel-rules.tsv` (TAB-separated: tenant, channel, qto doc
+  id, `dev|prd`, the desk agent the export runs as; box-side, never in git,
+  because a channel name can be a customer's) gives that channel its rules
+  doc. Every seed generator exports the doc next to the seat's lifetime,
+  `<spool>/<id>/lifetime/channel-rules.md` (0664, readable by the agent
+  user), through `do_spl_desk_doctree` as the desk's box user, and the seed
+  names that file in one `CHANNEL RULES` sentence: read it before acting, at
+  every start and after every rotation ack. The doc stays the one source: no
+  rule of it is copied into seed text.
+  - The generators: `spawn-core.inc.sh` (`_spawn_channel_find`,
+    `_spawn_channel_rules`) for the first seed and every seed that goes
+    through `spawn-window.sh` (lane rotation, watchdog and peer restarts, role
+    rotations); `do_spl_lane_restart` for its distil. The channel is read
+    from the BRIEF, else from `lifetime/brief.md` before spawn-core records a
+    rotation seed over it.
+  - No `Channel:` line, or no map row for it: no change. A failed or empty
+    export, or a malformed row, is a FATAL: no seed and no distil are
+    written, never one naming an empty file.
+  - The lib: `spawn-agents/lib/channel-rules.inc.sh`. Tests:
+    `spawn-agents/tests/test-seed-channel-rules.sh`,
+    `csi-spl-orc/src/bash/tests/lane-restart.tst.sh` case 8.
 
 ### 4.5 Two machines
 

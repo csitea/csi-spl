@@ -603,7 +603,8 @@ spl_lane_issue_post() {
   [[ "$2" =~ ^[0-9a-f]{8}-[0-9a-f-]{27}$ && "$2" != "$(spl_lane_issue_default_topic)" && "${LANE_ISSUE_POST:-1}" != 0 ]] || return 0
   local body="**Planned, not built yet.** Tracked as **$1**: $3 (lane $id)."
   if (( SLI_DRY )); then do_log "INFO DRY_RUN would: post '$body' in topic $2 (as $DESK_AGENT)" >&2; return 0; fi
-  DESK_TASK="$2" DESK_BODY="$body" DESK_BOX="$SLI_BOX" DRY_RUN=0 RUN_STDOUT_IS_DATA=1 do_spl_desk_reply >/dev/null 2>&1 ||
+  # the filing post names its issue, not an ask: DESK_PLANNED_CHECK=0 (SPL-3525)
+  DESK_PLANNED_CHECK=0 DESK_TASK="$2" DESK_BODY="$body" DESK_BOX="$SLI_BOX" DRY_RUN=0 RUN_STDOUT_IS_DATA=1 do_spl_desk_reply >/dev/null 2>&1 ||
     do_log "WARN $1 is filed, but posting it back in topic $2 failed: post it by hand" >&2
   return 0
 }

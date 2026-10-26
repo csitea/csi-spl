@@ -130,7 +130,8 @@ sent "6. an orc-only sha that says 'no deploy' is sent" "$B6"
 # --- 7. other states and a poll form ------------------------------------------------
 for B in '**Planned, not built yet.** Tracked as SPL-1.' '**In progress** (c-1, since 10:00Z): cards.' \
   '**Landed, not live yet.** On master.' 'The cards are Live now? no: plain text is not a state.'; do
-  send do_spl_desk_reply "$B"; rc=$?
+  # the Planned ask check is desk-planned-ask.tst.sh's (SPL-3525)
+  send do_spl_desk_reply "$B" DESK_PLANNED_CHECK=0; rc=$?
   sent "7. '${B:0:28}' is sent without a proof" "$B"
 done
 B=$'Ship it?\n\n```poll\nDeploy to prd?\n(GO) Go\n```'

@@ -583,6 +583,65 @@ minutes are stored `priced=false`, cost 0, and the Tokens tab and the Costs
 card say "not priced", never a cost of 0. A price row added later is applied with
 `do_spl_token_burn_reprice` (3.7).
 
+### 3.10 Each workspace sees its own token costs (SPL-3565)
+
+Owner HUM-10, t1 `f3ed0eed` (#spool-hub-bugs), msg `1bb1f74b`: "each of the
+workspaces should be able to distinguish between the token costs of it's own
+workspace - all of the roles should be able to check those costs"; msg
+`96d69790`: "but the admin of the spoool-hub should be able to see the costs
+of the other workspaces as well". Screenshot msg `407b4e7c`: a customer
+workspace's Costs tab read "No cost data yet this month" while lanes worked
+for it all morning.
+
+**Measured before the build (prd, 2026-10-26 ~14:00Z, n=1 read each).**
+Every October `cost_lines` row was an estate row (`tenant_id` NULL; sources
+`fleet_tokens.<box>` and `agent_hours.<box>`, counts only, the latest day
+10-25: the daily feed has no today). `fleet_token_burn_events` had no
+workspace column: the three lanes working for that workspace that day
+(c-093, c-425, a-531, box tnk) had 28.9M, 42.6M and 47.0M tokens at 11.60,
+13.89 and 0.00 USD list price (agy unpriced), all operator rows. Their
+`fleet_lanes` topic, the one lane-to-workspace mapping (spec 153 3.4 / 3.7):
+c-093@tnk named a topic of that workspace, c-425 and a-531 named none.
+`costs.read` was biz_owner's and admin's (rdb 0166), so a regular_user got
+403; the operator workspace's biz_owner read the whole estate.
+
+**Attribution (write time).** Before the hub stores a push, each sample's
+lane is looked up in the operator workspace's lane map (fleet `main`, the
+row of that agent at the pushing box); the workspace that holds the lane's
+topic (each workspace read in its own scope, the operator's first) is the
+minute's `work_tenant` (rdb `0229`, `hub/workspace_tokens.go`). An operator
+topic, no topic, no row or an unknown topic leave it NULL: the operator
+workspace's own work. A failed lookup never fails the push. The daily
+rollup carries the day's latest minute's value. A box never sends the field
+(`json:"-"`, the strict decoder refuses it). Rows written before 0229 stay
+NULL: no history is rewritten.
+
+**Read.** `GET /v1/tenant/costs` (spec 123 5.1) adds, for a workspace view,
+the month's burn of the lanes working for that workspace: one part per
+vendor, source `fleet_tokens`, kind `tokens`, units = every token (cache
+reads included), `usd_micros` 0 and `list_value_micros` = the burn's list
+price (USD rows only), since a subscription's token volume is never a paid
+amount (spec 123 Q-4). Days the minutes still hold are read from the
+minutes, older days from the rollup, each day once
+(`store/workspace_tokens.go`). The operator workspace's own view is its NULL
+rows.
+
+**Who sees what.**
+
+| caller | answer |
+|---|---|
+| any member role of a workspace (rdb 0229 grants `costs.read` to every member role; not demo_user, channel_guest or time_accountant) | `scope: workspace`: its own cost lines plus its own lanes' burn |
+| the operator workspace's members other than its admins (e.g. a customer seated there as regular_user, and its biz_owner) | `scope: workspace`: the operator workspace's own rows and burn, never the estate, never another workspace's |
+| the operator workspace's `admin` (the spool-hub admin) | `scope: estate` (spec 123), and `workspaces`: every workspace's burn per vendor (tokens, list price, days) |
+
+The estate's own `fleet_tokens.<box>` count rows are unchanged, and the burn
+is never added to a paid total (3.1).
+
+Tests (memory and Postgres): `hub/workspace_tokens_test.go`
+(TestWorkspaceTokenCosts W1-W6), `hub/cost_read_test.go` (TestCostReadRoles,
+TestCostReadEstateScope), `store/workspace_tokens_test.go`,
+`rbac/rbac_test.go` (TestCostsReadEveryMemberRole).
+
 ---
 
 ## 4. The Monitoring page tab (`/monitoring/tokens`)
@@ -680,7 +739,7 @@ When an LLM agent enters an infinite loop, recursive rebase cycle, or runaway to
 To protect codebase integrity and operational secrecy:
 
 - **Invariant P1 (Zero Transcript Content)**: The token telemetry pipeline handles strictly scalar counts and metadata (`box`, `agent_id`, `vendor`, `model`, `tokens_in`, `tokens_out`, `cache_read`, `cache_write`). **Under no circumstances does prompt text, completion text, tool call arguments, or file content leave the local runner box**.
-- **Invariant P2 (Strict Operator Isolation)**: Fleet token burn data is restricted exclusively to operator workspace administrators via PostgreSQL RLS. Standard workspace members, visitors, and guest channels cannot query or infer fleet token activity.
+- **Invariant P2 (Strict Operator Isolation)**: Fleet token burn rows stay operator-scope under PostgreSQL RLS, and the per-lane burn (the Tokens tab) is the operator workspace administrators' only. Since 3.10 a workspace's members read one sum per vendor of the lanes working for their own workspace through the hub's cost route, never a lane id, box or another workspace's burn; visitors and guest channels read none.
 - **Invariant P3 (Sanitized Logs & Hygiene)**: No raw token totals are written to public logs (matching `spl-cost-tokens-read.func.sh:74-81`). Telemetry endpoints and scripts adhere strictly to distribution hygiene: dynamic user home lookups, no personal email addresses, and org-neutral identifiers.
 
 ---

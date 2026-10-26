@@ -19,9 +19,14 @@ import (
 //
 //	GET /v1/tenant/costs?month=YYYY-MM   default: the current UTC month so far
 //
-// costs.read (biz_owner, admin; Q-1 = A). In the operator workspace the
-// answer is the ESTATE (GCP projects, fleet tokens, agent-hours) beside the
-// workspace's own rows; in any other workspace its own rows only. Parts are
+// costs.read (every member role since rdb 0229, spec 140 3.10). The ESTATE
+// (GCP projects, fleet tokens, agent-hours, beside the workspace's own rows,
+// and workspaces: every workspace's token burn) is the operator workspace's
+// ADMIN's only (owner t1 f3ed0eed msg 96d69790); any other member, there or
+// in any other workspace, reads that workspace's own rows plus the token
+// burn of the lanes working for it (source fleet_tokens, one part per
+// vendor, the list price beside a paid 0; the operator workspace's own
+// burn is its lanes that work for no other workspace). Parts are
 // the month's live cost lines summed per (scope, source, project_or_vendor,
 // kind, origin); coverage is "n of N days" per source from cost_coverage,
 // where N is the days of the month that ended. Money is micros in USD and
@@ -109,6 +114,9 @@ type costMonthBody struct {
 	Total    costMoney         `json:"total"`
 	Parts    []costPartOut     `json:"parts"`
 	Coverage []costCoverageOut `json:"coverage"`
+	// Workspaces is every workspace's token burn of the month, the estate
+	// answer's only (absent from a workspace answer).
+	Workspaces []costWorkspaceOut `json:"workspaces,omitempty"`
 }
 
 func (s *Server) routeCostRead(mux *http.ServeMux) {
@@ -123,7 +131,8 @@ func (s *Server) handleCostRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cr, ok := s.o.Store.(store.CostRead)
-	if !ok {
+	_, burns := s.o.Store.(store.WorkspaceTokens)
+	if !ok && !burns {
 		writeErr(w, http.StatusNotImplemented, "unsupported", "this hub's store keeps no cost lines")
 		return
 	}
@@ -137,21 +146,44 @@ func (s *Server) handleCostRead(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusServiceUnavailable, "unavailable", "the operator workspace was not read")
 		return
 	}
-	estate := op != "" && t.ID == op
+	estate := op != "" && t.ID == op && a.Has(rbac.Admin)
 	cur, err := s.secondCurrency(r.Context(), a.HumanID, t.ID)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", t.ID).Msg("cost.read_currency_failed")
 		writeErr(w, http.StatusServiceUnavailable, "unavailable", "your second currency was not read")
 		return
 	}
-	cm, err := cr.CostMonthRead(r.Context(), store.CostMonthQuery{Tenant: t.ID, Estate: estate,
-		From: win.From, To: win.To, CoverTo: win.CoverTo, Currency: cur})
+	cm := store.CostMonth{Parts: []store.CostPart{}, Coverage: []store.CostSourceDays{}} // no cost lines kept: none
+	if ok {
+		cm, err = cr.CostMonthRead(r.Context(), store.CostMonthQuery{Tenant: t.ID, Estate: estate,
+			From: win.From, To: win.To, CoverTo: win.CoverTo, Currency: cur})
+	}
+	var burn []store.WorkspaceTokenPart
+	if err == nil {
+		burn, err = s.workspaceTokenParts(r.Context(), op, costBurnOf(estate, t.ID), win)
+	}
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", t.ID).Str("month", win.Month).Msg("cost.read_failed")
 		writeErr(w, http.StatusInternalServerError, "internal", "cost report unavailable")
 		return
 	}
-	writeJSON(w, http.StatusOK, costMonthAnswer(win, estate, cur, cm))
+	if !estate {
+		cm.Parts = append(cm.Parts, tokenCostParts(burn)...)
+	}
+	b := costMonthAnswer(win, estate, cur, cm)
+	if estate {
+		b.Workspaces = costWorkspaces(burn)
+	}
+	writeJSON(w, http.StatusOK, b)
+}
+
+// costBurnOf is the workspace whose burn the answer reads: every one ("")
+// for the estate, else the caller's own.
+func costBurnOf(estate bool, tenant string) string {
+	if estate {
+		return ""
+	}
+	return tenant
 }
 
 // secondCurrency is the member's second currency in tenant (SPL-2108): their

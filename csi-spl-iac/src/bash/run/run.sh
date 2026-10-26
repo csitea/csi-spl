@@ -190,13 +190,37 @@ main() {
   # an unwaited tee could copy the last stdout line after ./run returned, and a
   # caller doing `./run ... >f; grep f` read f too early (SPL-2820). Each fd
   # is closed in main_exec and in the other tee, so EOF follows main_exec.
-  exec {RUN_TEE_OUT_FD}> >(tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.out.log)
+  # The log copy is masked (do_run_log_tee, SPL-3614); stdout keeps every byte.
+  exec {RUN_TEE_OUT_FD}> >(do_run_log_tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.out.log)
   RUN_TEE_PIDS=$!
-  exec {RUN_TEE_ERR_FD}> >(exec {RUN_TEE_OUT_FD}>&- && tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.err.log >&2)
+  exec {RUN_TEE_ERR_FD}> >(exec {RUN_TEE_OUT_FD}>&- && do_run_log_tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.err.log >&2)
   RUN_TEE_PIDS+=" $!"
   trap do_wait_tees EXIT
   main_exec "$@" >&$RUN_TEE_OUT_FD 2>&$RUN_TEE_ERR_FD {RUN_TEE_OUT_FD}>&- {RUN_TEE_ERR_FD}>&-
   exit $?
+}
+
+# do_run_log_tee <log>: the tee of main. stdin goes to stdout unchanged and to
+# <log> with private key values masked (do_mask_private_keys): an action that
+# prints a secret once on stdout, as do_spl_tenant_create prints the tenant
+# root private key, must not leave it in a group-readable run log (SPL-3614).
+# Waits for the masking writer, so the log is complete when this tee ends.
+do_run_log_tee() {
+  tee >(do_mask_private_keys >"$1")
+  wait $! 2>/dev/null || true
+}
+
+# do_mask_private_keys: a stdin-to-stdout filter that replaces the value of a
+# "..private_key": "<v>" JSON field, a ..PRIVATE_KEY=<v> assignment and a PEM
+# PRIVATE KEY block (one line or many) with <redacted>. A mask hides only the
+# shapes it names: an action prints a secret in one of them, or not at all.
+do_mask_private_keys() {
+  sed -u -E \
+    -e 's/("[A-Za-z0-9_]*private_key"[[:space:]]*:[[:space:]]*")[^"]*"/\1<redacted>"/gI' \
+    -e 's/([A-Za-z0-9_]*private_key=)[^[:space:]"]+/\1<redacted>/gI' \
+    -e 's/-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*-----END [A-Z0-9 ]*PRIVATE KEY-----/<redacted private key>/g' \
+    -e '/-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/,/-----END [A-Z0-9 ]*PRIVATE KEY-----/c\
+<redacted private key>'
 }
 
 # do_wait_tees: the EXIT trap of main, so an `exit` from error_handler or an

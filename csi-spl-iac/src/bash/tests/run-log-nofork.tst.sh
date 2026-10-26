@@ -9,8 +9,10 @@
 #   2. compact stdout is still LEVEL msg, with DEBUG and framework banners
 #      dropped
 #   3. eight do_log calls fork cut 0, date 0, mkdir 1
-#   4. ./run -a do_no_such_action forks cut 0, tr 0, sed 0, awk 0, date 1
-#      (the one date is main's run stamp, not a log line)
+#   4. ./run -a do_no_such_action forks cut 0, tr 0, sed 2, awk 0, date 1
+#      (the one date is main's run stamp, not a log line; the two seds are
+#      the private-key masks of the out and err log tees, one per run, not
+#      per line: SPL-3614)
 #   5. action names still split and normalise, a missing action still exits 1,
 #      and @arg flags still map to env vars with no awk
 #   Control: planted once, the pre-change run.sh is red. 8 do_log calls
@@ -171,8 +173,8 @@ MSGS
   c_tr=$(count_of "$calls" tr)
   c_sed=$(count_of "$calls" sed)
   c_awk=$(count_of "$calls" awk)
-  [[ "$rc" -eq 1 && "$c_cut" == 0 && "$c_date" == 1 && "$c_tr" == 0 && "$c_sed" == 0 && "$c_awk" == 0 ]] \
-    && pass "$mod: ./run -a do_no_such_action cut 0, tr 0, sed 0, awk 0, date 1, rc 1" \
+  [[ "$rc" -eq 1 && "$c_cut" == 0 && "$c_date" == 1 && "$c_tr" == 0 && "$c_sed" == 2 && "$c_awk" == 0 ]] \
+    && pass "$mod: ./run -a do_no_such_action cut 0, tr 0, sed 2 (log masks), awk 0, date 1, rc 1" \
     || fail "$mod: ./run forks" "rc=$rc cut=$c_cut date=$c_date tr=$c_tr sed=$c_sed awk=$c_awk"
 
   # 5. Dispatcher and @arg, no awk/sed/tr.

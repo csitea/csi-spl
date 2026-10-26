@@ -97,31 +97,36 @@ _rrc_send() {
   fi
 }
 
-do_os_reboot_required_check() {
-  local dry="${DRY_RUN:-1}"
-  local flag_file="${REBOOT_REQUIRED_FILE:-/run/reboot-required}"
-  local pkgs_file="${REBOOT_REQUIRED_PKGS_FILE:-$flag_file.pkgs}"
+# _rrc_nr_bin: the needrestart binary: NEEDRESTART_BIN, else on PATH, else
+# /usr/sbin/needrestart; nothing when none is found.
+_rrc_nr_bin() {
   local nr_bin="${NEEDRESTART_BIN:-}"
   if [[ -z "$nr_bin" ]]; then
     nr_bin="$(command -v needrestart 2>/dev/null || true)"
     [[ -z "$nr_bin" && -x /usr/sbin/needrestart ]] && nr_bin=/usr/sbin/needrestart
   fi
-  local box_name="${DEV_BOX:-$(hostname -s 2>/dev/null || echo "PC")}"
-  local to="${REBOOT_CHECK_ALERT_TO:-orchestrator}"
-  local from="${REBOOT_CHECK_ALERT_FROM:-${SPOOL_AGENT_ID:-reboot-required-check@$box_name}}"
-  local task="${REBOOT_CHECK_ALERT_TASK:-reboot-required-check}"
-  local state_dir="${REBOOT_CHECK_STATE_DIR:-${SPL_STATE_DIR:-$HOME/.local/state/csi-spl}}"
-  local stamp_file="${REBOOT_CHECK_STAMP_FILE:-$state_dir/reboot-required.stamp}"
+  echo "$nr_bin"
+}
 
-  # 1. The kernel postinst flag.
-  local flag=0 pkgs=""
+# The steps below read and set the locals of do_os_reboot_required_check by
+# bash dynamic scope: flag, pkgs (_rrc_flag); kcur, kexp, ksta, svcs,
+# nr_source (_rrc_kernel_services); _rrc_advise reads them all plus dry,
+# box_name, to, from, task and stamp_file.
+
+# _rrc_flag <flag_file> <pkgs_file>: 1. The kernel postinst flag.
+_rrc_flag() {
+  local flag_file="$1" pkgs_file="$2"
   if [[ -e "$flag_file" ]]; then
     flag=1
     [[ -f "$pkgs_file" ]] && pkgs="$(sort -u "$pkgs_file" | tr '\n' ' ' | sed 's/ *$//')"
   fi
+  return 0
+}
 
-  # 2. needrestart, or the boot-dir fallback for the kernel.
-  local kcur="" kexp="" ksta="" svcs=() nr_out line nr_source="needrestart"
+# _rrc_kernel_services <nr_bin>: 2. needrestart, or the boot-dir fallback for
+# the kernel.
+_rrc_kernel_services() {
+  local nr_bin="$1" nr_out line
   nr_out="$(_rrc_needrestart "$nr_bin")"
   if [[ -z "$nr_out" ]]; then
     nr_source="boot-dir"
@@ -144,16 +149,11 @@ do_os_reboot_required_check() {
       NEEDRESTART-SVC:*) svcs+=("${line#*: }") ;;
     esac
   done <<< "$nr_out"
+}
 
-  local kernel_pending=0
-  [[ "$ksta" == "2" || "$ksta" == "3" ]] && kernel_pending=1
-
-  if [[ "$flag" == "0" && "$kernel_pending" == "0" && ${#svcs[@]} -eq 0 ]]; then
-    do_log "INFO no reboot pending: flag=0 kernel=${kcur:-?} ksta=${ksta:-?} services=0 source=$nr_source"
-    [[ "$dry" == "0" && -f "$stamp_file" ]] && rm -f "$stamp_file"
-    return 0
-  fi
-
+# _rrc_advise: print the advisory body, then send it once per new state in
+# the window (DRY_RUN=0); always 1, a reboot or restart is pending.
+_rrc_advise() {
   local state="flag=$flag ksta=$ksta kexp=$kexp pkgs=$pkgs svcs=${svcs[*]}"
   local svc_list="" s
   for s in "${svcs[@]}"; do svc_list+="  - $s"$'\n'; done
@@ -187,6 +187,35 @@ do_os_reboot_required_check() {
     do_log "INFO advice sent to $to"
   fi
   return 1
+}
+
+do_os_reboot_required_check() {
+  local dry="${DRY_RUN:-1}"
+  local flag_file="${REBOOT_REQUIRED_FILE:-/run/reboot-required}"
+  local pkgs_file="${REBOOT_REQUIRED_PKGS_FILE:-$flag_file.pkgs}"
+  local nr_bin
+  nr_bin="$(_rrc_nr_bin)"
+  local box_name="${DEV_BOX:-$(hostname -s 2>/dev/null || echo "PC")}"
+  local to="${REBOOT_CHECK_ALERT_TO:-orchestrator}"
+  local from="${REBOOT_CHECK_ALERT_FROM:-${SPOOL_AGENT_ID:-reboot-required-check@$box_name}}"
+  local task="${REBOOT_CHECK_ALERT_TASK:-reboot-required-check}"
+  local state_dir="${REBOOT_CHECK_STATE_DIR:-${SPL_STATE_DIR:-$HOME/.local/state/csi-spl}}"
+  local stamp_file="${REBOOT_CHECK_STAMP_FILE:-$state_dir/reboot-required.stamp}"
+
+  local flag=0 pkgs=""
+  _rrc_flag "$flag_file" "$pkgs_file"
+  local kcur="" kexp="" ksta="" svcs=() nr_source="needrestart"
+  _rrc_kernel_services "$nr_bin"
+
+  local kernel_pending=0
+  [[ "$ksta" == "2" || "$ksta" == "3" ]] && kernel_pending=1
+
+  if [[ "$flag" == "0" && "$kernel_pending" == "0" && ${#svcs[@]} -eq 0 ]]; then
+    do_log "INFO no reboot pending: flag=0 kernel=${kcur:-?} ksta=${ksta:-?} services=0 source=$nr_source"
+    [[ "$dry" == "0" && -f "$stamp_file" ]] && rm -f "$stamp_file"
+    return 0
+  fi
+  _rrc_advise
 }
 
 # Auto-register with run.sh's function map when sourced

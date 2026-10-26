@@ -70,15 +70,14 @@ _dvp_used() {
   "$@" inspect --format '{{range .Mounts}}{{if eq .Type "volume"}}{{.Name}}{{"\n"}}{{end}}{{end}}' $ids
 }
 
-do_docker_volume_prune() {
-  local dry="${DRY_RUN:-1}" min_age="${DOCKER_VOLUME_PRUNE_MIN_AGE_MIN:-60}"
-  local build_cache="${DOCKER_VOLUME_PRUNE_BUILD_CACHE:-0}" now out
-  local -a dk
-  read -ra dk <<<"${DOCKER_VOLUME_PRUNE_DOCKER:-docker}"
-  [[ "$min_age" =~ ^[0-9]+$ ]] || { do_log "FATAL DOCKER_VOLUME_PRUNE_MIN_AGE_MIN '$min_age' is not a number"; return 2; }
-  now="${DOCKER_VOLUME_PRUNE_NOW:-$(date +%s)}"
+# The steps below read and set the locals of do_docker_volume_prune by bash
+# dynamic scope: dry, min_age, now, dk; dangling, used, sizes (_dvp_list);
+# in_use, size (_dvp_mark); prune, n_named, n_used, n_young (_dvp_select);
+# failed (_dvp_remove, _dvp_build_cache).
 
-  local dangling used sizes
+# _dvp_list: the dangling volumes, the mounted ones and the sizes; 2 when
+# docker is unusable.
+_dvp_list() {
   if ! dangling="$("${dk[@]}" volume ls -q -f dangling=true 2>&1)"; then
     do_log "FATAL docker volume ls failed: ${dangling:0:200}"
     return 2
@@ -89,15 +88,18 @@ do_docker_volume_prune() {
   fi
   # sizes: best effort, a volume with no size reads 0
   sizes="$("${dk[@]}" system df -v --format '{{range .Volumes}}{{.Name}} {{.Size}};{{end}}' 2>/dev/null | tr ';' '\n')" || sizes=""
+}
 
-  local -A in_use=() size=()
+# _dvp_mark: the in-use and size maps from the listings.
+_dvp_mark() {
   local name s
   while IFS= read -r name; do [[ -n "$name" ]] && in_use["$name"]=1; done <<<"$used"
   while read -r name s; do [[ -n "$name" ]] && size["$name"]="$s"; done <<<"$sizes"
+}
 
-  local created epoch age_min
-  local -a prune=()
-  local n_named=0 n_used=0 n_young=0
+# _dvp_select: the anonymous, unmounted, old enough dangling volumes into prune.
+_dvp_select() {
+  local name created epoch age_min
   while IFS= read -r name; do
     [[ -z "$name" ]] && continue
     if ! [[ "$name" =~ ^[0-9a-f]{64}$ ]]; then n_named=$((n_named + 1)); continue; fi
@@ -116,8 +118,11 @@ do_docker_volume_prune() {
     if ((age_min <= min_age)); then n_young=$((n_young + 1)); continue; fi
     prune+=("$name $age_min $epoch $created")
   done <<<"$dangling"
+}
 
-  local row bytes total=0 failed=0 n_done=0 oldest="" newest="" old_e="" new_e="" verb="removed"
+# _dvp_remove: remove (or plan) each prune row, then the summary line.
+_dvp_remove() {
+  local row name age_min epoch created s out bytes total=0 n_done=0 oldest="" newest="" old_e="" new_e="" verb="removed"
   [[ "$dry" != 0 ]] && verb="would remove"
   for row in "${prune[@]}"; do
     read -r name age_min epoch created <<<"$row"
@@ -138,17 +143,38 @@ do_docker_volume_prune() {
   done
 
   do_log "INFO docker-volume-prune: $verb $n_done anonymous dangling volume(s) older than ${min_age} min, total $(_dvp_human "$total")${oldest:+, oldest $oldest, newest $newest}; kept $n_named named, $n_used mounted, $n_young younger; failed $failed"
+}
 
-  if [[ "$build_cache" == 1 ]]; then
-    if [[ "$dry" != 0 ]]; then
-      do_log "INFO PLAN docker builder prune -f --filter until=${min_age}m"
-    elif out="$("${dk[@]}" builder prune -f --filter "until=${min_age}m" 2>&1)"; then
-      do_log "INFO build cache older than ${min_age} min pruned: $(tail -1 <<<"$out")"
-    else
-      do_log "WARN docker builder prune failed: ${out:0:200}"
-      failed=$((failed + 1))
-    fi
+# _dvp_build_cache: DOCKER_VOLUME_PRUNE_BUILD_CACHE=1 only, the old build cache.
+_dvp_build_cache() {
+  local out
+  [[ "${DOCKER_VOLUME_PRUNE_BUILD_CACHE:-0}" == 1 ]] || return 0
+  if [[ "$dry" != 0 ]]; then
+    do_log "INFO PLAN docker builder prune -f --filter until=${min_age}m"
+  elif out="$("${dk[@]}" builder prune -f --filter "until=${min_age}m" 2>&1)"; then
+    do_log "INFO build cache older than ${min_age} min pruned: $(tail -1 <<<"$out")"
+  else
+    do_log "WARN docker builder prune failed: ${out:0:200}"
+    failed=$((failed + 1))
   fi
+}
+
+do_docker_volume_prune() {
+  local dry="${DRY_RUN:-1}" min_age="${DOCKER_VOLUME_PRUNE_MIN_AGE_MIN:-60}" now
+  local -a dk
+  read -ra dk <<<"${DOCKER_VOLUME_PRUNE_DOCKER:-docker}"
+  [[ "$min_age" =~ ^[0-9]+$ ]] || { do_log "FATAL DOCKER_VOLUME_PRUNE_MIN_AGE_MIN '$min_age' is not a number"; return 2; }
+  now="${DOCKER_VOLUME_PRUNE_NOW:-$(date +%s)}"
+
+  local dangling used sizes
+  _dvp_list || return 2
+  local -A in_use=() size=()
+  _dvp_mark
+  local -a prune=()
+  local n_named=0 n_used=0 n_young=0 failed=0
+  _dvp_select
+  _dvp_remove
+  _dvp_build_cache
 
   ((failed > 0)) && return 1
   return 0

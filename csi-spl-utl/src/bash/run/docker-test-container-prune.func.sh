@@ -150,22 +150,22 @@ _dtcp_note() {
   return 0
 }
 
-do_docker_test_container_prune() {
-  local dry="${DRY_RUN:-1}" spool_root="${SPOOL_ROOT:-/var/spool-hub}"
-  local active_tsv="${DOCKER_PRUNE_ACTIVE_REGISTRY:-$spool_root/registry.tsv}"
-  local retired_tsv="${DOCKER_PRUNE_RETIRED_REGISTRY:-$spool_root/registry.retired.tsv}"
-  local min_age="${DOCKER_PRUNE_MIN_AGE_MIN:-120}" now listing fs="$_DTCP_FS"
-  local -a dk
-  read -ra dk <<<"${DOCKER_PRUNE_DOCKER:-docker}"
-  [[ "$min_age" =~ ^[0-9]+$ ]] || { do_log "FATAL DOCKER_PRUNE_MIN_AGE_MIN '$min_age' is not a number"; return 2; }
-  now="${DOCKER_PRUNE_NOW:-$(date +%s)}"
+# The steps below read and fill the locals of do_docker_test_container_prune
+# by bash dynamic scope: dry, now, min_age, fs, dk, active_tsv, retired_tsv,
+# listing (in), total, prune, report, kept (classify), done_names, failed
+# (remove).
 
+# _dtcp_list: the docker listing into listing; 2 when docker is unusable.
+_dtcp_list() {
   local fmt="{{.ID}}${fs}{{.Names}}${fs}{{.CreatedAt}}${fs}{{.Label \"csi-spl.lane\"}}${fs}{{.Label \"com.docker.compose.project\"}}${fs}{{.Labels}}"
   if ! listing="$("${dk[@]}" ps -a --no-trunc --format "$fmt" 2>&1)"; then
     do_log "FATAL docker ps failed: ${listing:0:200}"
     return 2
   fi
+}
 
+# _dtcp_classify: sort each listed container into kept, report or prune.
+_dtcp_classify() {
   local -A active=() retired=() window=() keep=()
   _dtcp_registry_ids "$active_tsv" active
   _dtcp_registry_ids "$retired_tsv" retired
@@ -174,8 +174,6 @@ do_docker_test_container_prune() {
   for n in $DOCKER_PRUNE_INFRA_NAMES ${DOCKER_PRUNE_KEEP_NAMES:-}; do keep["$n"]=1; done
 
   local id name created lane project labels epoch age_min lane_id
-  local -a prune=() report=() kept=()
-  local total=0
   while IFS="$fs" read -r id name created lane project labels; do
     [[ -z "$id" ]] && continue
     total=$((total + 1))
@@ -208,9 +206,11 @@ do_docker_test_container_prune() {
     fi
     prune+=("$id$fs$name$fs$lane$fs$age_min")
   done <<<"$listing"
+}
 
-  local row k out failed=0
-  local -a done_names=()
+# _dtcp_remove: log the kept, remove (or plan) the prune rows, log the report.
+_dtcp_remove() {
+  local row k out id name lane age_min
   for k in "${kept[@]}"; do do_log "INFO keep ${k%%:*}: ${k#*:}"; done
   for row in "${prune[@]}"; do
     IFS="$fs" read -r id name lane age_min <<<"$row"
@@ -226,7 +226,10 @@ do_docker_test_container_prune() {
     fi
   done
   for row in "${report[@]}"; do do_log "WARN unlabelled, report only: $row"; done
+}
 
+# _dtcp_report: the summary line, then the all-clear (0) or the note (1).
+_dtcp_report() {
   local verb="removed"
   [[ "$dry" != 0 ]] && verb="would remove"
   do_log "INFO docker-test-container-prune: $total container(s), $verb ${#done_names[@]}, reported ${#report[@]}, failed $failed, kept ${#kept[@]}"
@@ -243,4 +246,22 @@ do_docker_test_container_prune() {
   sig="$(printf '%s\n' "${done_names[@]%% *}" "${report[@]%% *}" "$failed" | sort | md5sum | cut -c1-16)"
   _dtcp_note "$dry" "$sig" "$body"
   return 1
+}
+
+do_docker_test_container_prune() {
+  local dry="${DRY_RUN:-1}" spool_root="${SPOOL_ROOT:-/var/spool-hub}"
+  local active_tsv="${DOCKER_PRUNE_ACTIVE_REGISTRY:-$spool_root/registry.tsv}"
+  local retired_tsv="${DOCKER_PRUNE_RETIRED_REGISTRY:-$spool_root/registry.retired.tsv}"
+  local min_age="${DOCKER_PRUNE_MIN_AGE_MIN:-120}" now listing fs="$_DTCP_FS"
+  local -a dk
+  read -ra dk <<<"${DOCKER_PRUNE_DOCKER:-docker}"
+  [[ "$min_age" =~ ^[0-9]+$ ]] || { do_log "FATAL DOCKER_PRUNE_MIN_AGE_MIN '$min_age' is not a number"; return 2; }
+  now="${DOCKER_PRUNE_NOW:-$(date +%s)}"
+  _dtcp_list || return 2
+
+  local -a prune=() report=() kept=() done_names=()
+  local total=0 failed=0
+  _dtcp_classify
+  _dtcp_remove
+  _dtcp_report
 }

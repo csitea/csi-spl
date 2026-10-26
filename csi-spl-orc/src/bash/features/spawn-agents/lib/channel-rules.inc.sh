@@ -8,7 +8,11 @@
 # The box map ($SPOOL_CHANNEL_RULES_MAP, default $SPOOL_ROOT/channel-rules.tsv,
 # never in git: a channel name can be a customer's) gives that channel its
 # qto doc, one TAB-separated row per channel:
-#   <tenant> <channel> <doc id> <env dev|prd> <desk agent the export runs as>
+#   <tenant> <channel> <doc id> <env dev|prd> <desk agent the export runs as> [<sole seat>]
+# The optional 6th column names the channel's SOLE SEAT, <agent id>@<box>:
+# the only seat that may post there (a channel's owner rule, e.g. "only one
+# named seat posts in this channel"). Code that posts on its own reads it with
+# cr_sole_seat (do_spl_take_auto, SPL-3542); empty or "-" = no sole seat.
 # The seed generator (spawn-core for a first, rotation or restart seed;
 # do_spl_lane_restart for its distil) exports the doc to a file next to the
 # seed, readable by the agent user, and the seed names that file. The doc
@@ -57,6 +61,25 @@ cr_row() {
     return 2
   fi
   printf '%s %s %s\n' "$doc" "$env" "$agent"
+}
+
+# cr_sole_seat TENANT CHANNEL: "<id>@<box>" of the channel's sole seat (map
+# column 6). 1 = no sole seat (no map, no row, or the column is empty or "-").
+# 2 = cannot tell: the map exists but cannot be read, or column 6 is not
+# "<id>@<box>" (a FATAL on stderr). A caller that posts unasked treats 2 as
+# "do not post" (fail closed).
+cr_sole_seat() {
+  local m seat
+  m="$(cr_map)"
+  [ -e "$m" ] || return 1
+  [ -r "$m" ] || { echo "FATAL channel rules: $m exists but cannot be read" >&2; return 2; }
+  seat="$(awk -F'\t' -v t="$1" -v c="$2" '$1 !~ /^#/ && $1 == t && $2 == c { print $6; exit }' "$m")"
+  [ -n "$seat" ] && [ "$seat" != "-" ] || return 1
+  if ! [[ "$seat" =~ ^[a-z]-[0-9]{3}@[A-Za-z0-9._-]+$ ]]; then
+    echo "FATAL channel rules: the sole seat of $1 #$2 in $m is not '<agent id>@<box>': '$seat'" >&2
+    return 2
+  fi
+  printf '%s\n' "$seat"
 }
 
 # The export through the desk (do_spl_desk_doctree, a read). The caller is the

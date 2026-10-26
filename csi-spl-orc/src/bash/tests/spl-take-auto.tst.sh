@@ -18,8 +18,14 @@
 #      to the holder, with the desk root and the box root; nothing for an
 #      agent sender, a non-holder, a probe, a short task id, the off switch
 #   7. wiring: spool-notify.sh sources the lib and calls the gate
+#   8. sole seat (SPL-3542): a human post in a channel whose box-map row
+#      (channel-rules.tsv column 6) names a sole seat is not taken by any
+#      other seat (one log line why); a normal channel, a DM and the sole seat
+#      itself still take; a tail that does not name the post's channel, an
+#      unreadable map or a malformed seat column posts nothing (fail closed)
 #   control: with the owner check removed (a planted copy), an owned topic is
-#      taken again -> assertion 3 would turn red
+#      taken again -> assertion 3 would turn red; with the sole-seat check
+#      removed, the sole-seat post is taken -> section 8 would turn red
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -48,7 +54,8 @@ cat "$TAIL_FILE"
 EOF
 chmod +x "$T/reply.sh" "$T/tail.sh"
 export REPLY_LOG="$T/reply.log" TAIL_FILE="$T/tail.ndjson"
-row() { printf '{"v":1,"from":"%s","to":"%s","kind":"note","task_id":"%s","body":"%s"}\n' "$1" "$2" "$TOPIC" "$3"; }
+# row FROM TO BODY [CHANNEL [MSG_ID]]: one hub-tail --with-channel line
+row() { printf '{"channel":"%s","v":1,"msg_id":"%s","from":"%s","to":"%s","kind":"note","task_id":"%s","body":"%s"}\n' "${4-ops}" "${5:-m-$RANDOM}" "$1" "$2" "$TOPIC" "$3"; }
 lease() { printf '%s %s\n' "$1" "$2" >"$S/dispatch/lease"; }
 n() { [[ -f "$1" ]] && wc -l <"$1" | tr -d ' ' || echo 0; }
 
@@ -88,7 +95,8 @@ has "1. the take ledger holds it" "c-002@box-a" "$(cat "$S/dispatch/take.log")"
 row c-002 HUM-10 'Taken by c-002@box-a: I read your post now. I post the result here.' >>"$TAIL_FILE"
 out="$(auto)"
 eq "2. a second post in the topic: still one take line" 1 "$(n "$REPLY_LOG")"
-out="$(auto TAKE_AUTO_TAIL_CMD=true)"
+row HUM-10 ALL-0 'why is the build red' >"$TAIL_FILE"
+out="$(auto)"
 has "2. even when the hub has not shown the take yet: the ledger holds" "TAKEN-ALREADY" "$out"
 eq "2. still one take line" 1 "$(n "$REPLY_LOG")"
 
@@ -159,6 +167,54 @@ SN="$FEAT/scripts/spool-notify.sh"
 eq "7. spool-notify.sh sources the take lib" 1 "$(grep -c '^\. "\$_here/../lib/spool-notify-take.inc.sh"' "$SN")"
 eq "7. spool-notify.sh calls the gate with the delivery" 1 "$(grep -c '^spool_notify_take_auto "\$TO" "\$FROM" "\$KIND" "\$TASK" "\$MSGID" "\$BODY"$' "$SN")"
 eq "7. the lib's default ./run is the orc run" "$PROJ_ROOT/run" "$(. "$FEAT/lib/spool-notify-take.inc.sh"; echo "$SPOOL_NOTIFY_TAKE_RUN_DEFAULT")"
+
+# ---- 8. sole seat (SPL-3542) -------------------------------------------------
+DOC=00000000-0000-4000-8000-0000000000d1
+printf 't1\tsole\t%s\tprd\tc-423\tc-423@box-z\nt1\tops\t%s\tprd\tc-001\nt1\tdash\t%s\tprd\tc-001\t-\n' "$DOC" "$DOC" "$DOC" >"$S/channel-rules.tsv"
+lease c-002@box-a "$(date +%s)"
+fresh() { : >"$REPLY_LOG"; : >"$S/dispatch/take.log"; : >"$S/dispatch/take-auto.log"; }
+fresh; row HUM-10 ALL-0 'q' sole >"$TAIL_FILE"
+out="$(auto)"
+has "8. a human post in a sole-seat channel: skipped, why" "sole-seat channel #sole: only c-423@box-z posts there" "$out"
+eq "8. no take line in a sole-seat channel" 0 "$(n "$REPLY_LOG")"
+has "8. one log line says why" "skip sole-seat channel #sole" "$(cat "$S/dispatch/take-auto.log")"
+eq "8. exactly one log line" 1 "$(n "$S/dispatch/take-auto.log")"
+fresh; row HUM-10 ALL-0 'q' '#Sole' >"$TAIL_FILE"
+out="$(auto)"; has "8. the channel as '#Sole' is the same channel" "sole-seat channel #sole" "$out"
+fresh; { row HUM-10 ALL-0 'q' ops ma-1; row c-009 c-002 'relay' sole; } >"$TAIL_FILE"
+out="$(auto TAKE_AUTO_MSGID=ma-1)"; has "8. any channel the topic touches counts" "sole-seat channel #sole" "$out"
+eq "8. none of those posted" 0 "$(n "$REPLY_LOG")"
+fresh; row HUM-10 ALL-0 'q' ops >"$TAIL_FILE"
+out="$(auto)"; has "8. a normal channel still takes" "TAKEN $TOPIC by c-002@box-a" "$out"
+fresh; row HUM-10 ALL-0 'q' dash >"$TAIL_FILE"
+out="$(auto)"; has "8. a '-' sole seat column is no sole seat" "TAKEN $TOPIC" "$out"
+fresh; row HUM-10 c-002 'q' '' >"$TAIL_FILE"
+out="$(auto)"; has "8. a DM (channel \"\") still takes" "TAKEN $TOPIC" "$out"
+fresh; lease c-423@box-z "$(date +%s)"; row HUM-10 ALL-0 'q' sole >"$TAIL_FILE"
+out="$(auto TAKE_AUTO_TO=c-423 SPOOL_BOX_ID=box-z)"; has "8. the sole seat itself still takes" "TAKEN $TOPIC by c-423@box-z" "$out"
+eq "8. the sole seat posted its take line" 1 "$(n "$REPLY_LOG")"
+lease c-002@box-a "$(date +%s)"
+fresh; printf '{"v":1,"msg_id":"m-x","from":"HUM-10","to":"ALL-0","kind":"note","task_id":"%s","body":"q"}\n' "$TOPIC" >"$TAIL_FILE"
+out="$(auto)"; has "8. a tail without the channel field: no post" "does not say which channel the post is in" "$out"
+fresh; row HUM-10 ALL-0 'q' ops ma-2 >"$TAIL_FILE"
+out="$(auto TAKE_AUTO_MSGID=ma-9)"; has "8. the post's own row is not in the tail: no post" "does not say which channel" "$out"
+fresh; : >"$TAIL_FILE"; out="$(auto)"; has "8. an empty tail: no post" "does not say which channel" "$out"
+fresh; printf 't1\tsole\t%s\tprd\tc-423\tc-423\n' "$DOC" >"$S/channel-rules.tsv"; row HUM-10 ALL-0 'q' sole >"$TAIL_FILE"
+out="$(auto)"; has "8. a malformed sole seat column: no post" "cannot tell the sole seat of #sole" "$out"
+chmod 000 "$S/channel-rules.tsv"
+if [[ -r "$S/channel-rules.tsv" ]]; then pass "8. an unreadable map (skipped: this user reads mode 000)"
+else fresh; out="$(auto)"; has "8. an unreadable map: no post" "cannot tell the sole seat" "$out"; fi
+chmod 644 "$S/channel-rules.tsv"
+eq "8. none of the fail-closed cases posted" 0 "$(n "$REPLY_LOG")"
+rm -f "$S/channel-rules.tsv"; fresh; row HUM-10 ALL-0 'q' sole >"$TAIL_FILE"
+out="$(auto)"; has "8. no box map: no channel has a sole seat" "TAKEN $TOPIC" "$out"
+
+# ---- control: no sole-seat check -> the sole-seat post is taken ----------------
+printf 't1\tsole\t%s\tprd\tc-423\tc-423@box-z\n' "$DOC" >"$S/channel-rules.tsv"
+sed 's/^  why="\$(spl_take_auto_sole .*$/  :/' "$PROJ_ROOT/src/bash/run/spl-take-auto.func.sh" >"$T/planted-sole.func.sh"
+fresh; row HUM-10 ALL-0 'q' sole >"$TAIL_FILE"
+auto TAKE_AUTO_FUNC="$T/planted-sole.func.sh" >/dev/null
+eq "control: the planted copy takes a sole-seat post (section 8 would be red)" 1 "$(n "$REPLY_LOG")"
 
 # ---- control: no owner check -> an owned topic is taken ------------------------
 sed 's/^  \[\[ -n "\$owner" \]\] && { echo "owned:.*$/  :/' "$PROJ_ROOT/src/bash/run/spl-take-auto.func.sh" >"$T/planted.func.sh"

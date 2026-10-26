@@ -18,6 +18,10 @@
 # @description   - the workspace is a test one (spl_test_workspace)
 # @description   - the post names another agent (@<id>): that one takes it
 # @description   - the hub tail cannot be read: fail closed, the model takes it
+# @description   - the topic is in a channel with a sole seat that is not this
+# @description     seat (column 6 of the box map channel-rules.tsv, read by
+# @description     cr_sole_seat; SPL-3542), or the hub tail does not say which
+# @description     channel the post is in: fail closed, nothing is posted
 # @description   - the topic holds an agent reply to a human or the channel: owned
 # @description Dry run unless DRY_RUN=0 (the notifier passes DRY_RUN=0).
 # @param TAKE_AUTO_TO - required: the seat the post was delivered to
@@ -28,9 +32,11 @@
 # @param SPOOL_TENANT - required: the workspace (the sidecar's)
 # @param SPOOL_ROOT (optional) - the box spool root that holds dispatch/, default /var/spool-hub
 # @param TAKE_AUTO_BODY (optional) - the post's text, for the @mention check
+# @param TAKE_AUTO_MSGID (optional) - the post's msg_id: its row in the hub tail names its channel (else the poster's rows)
+# @param SPOOL_CHANNEL_RULES_MAP (optional) - default <SPOOL_ROOT>/channel-rules.tsv, the box map whose column 6 is a channel's sole seat
 # @param TAKE_AUTO_PLAN (optional) - default "I read your post now"
 # @param TAKE_AUTO_ENV (optional) - default the env in TAKE_AUTO_DESK_ROOT's path
-# @param TAKE_AUTO_TAIL_CMD (optional) - replaces "<state>/<env>/bin/spool hub-tail --task <uuid> --json" (tests)
+# @param TAKE_AUTO_TAIL_CMD (optional) - replaces "<state>/<env>/bin/spool hub-tail --task <uuid> --with-channel" (tests)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example TAKE_AUTO_TO=c-002 TAKE_AUTO_FROM=HUM-10 TAKE_AUTO_TASK=<topic uuid> TAKE_AUTO_DESK_ROOT=<desk spool> SPOOL_BOX_ID=box-desk SPOOL_TENANT=t1 ./run -a do_spl_take_auto
 #------------------------------------------------------------------------------
@@ -66,7 +72,7 @@ spl_take_auto_env() {
 
 # Print why <id>@<box> takes nothing in <topic> and exit 0; exit 1 = take it.
 spl_take_auto_skip() {
-  local by="$1" tenant="$2" task="$3" desk="$4" env="$5" held="" at="" owner
+  local by="$1" tenant="$2" task="$3" desk="$4" env="$5" held="" at="" owner tail why
   [[ -e "$LEASE_DIR/take-auto.off" ]] && { echo "off ($LEASE_DIR/take-auto.off)"; return 0; }
   [[ -r "$LEASE_FILE" ]] && read -r held at _ <"$LEASE_FILE"
   [[ "$held" == "$by" ]] || { echo "not the dispatch lease holder (${held:-none})"; return 0; }
@@ -74,8 +80,35 @@ spl_take_auto_skip() {
     { echo "the dispatch lease is stale (${at:-no time})"; return 0; }
   spl_test_workspace "$tenant" && { echo "test workspace $tenant"; return 0; }
   owner="$(spl_take_auto_named "${by%@*}" "${TAKE_AUTO_BODY:-}")" && { echo "the post names $owner"; return 0; }
-  owner="$(spl_take_auto_owner "$task" "$desk" "$env")" || { echo "the hub tail could not be read: the seat takes it"; return 0; }
+  tail="$(spl_take_auto_tail "$task" "$desk")" || { echo "the hub tail could not be read: the seat takes it"; return 0; }
+  why="$(spl_take_auto_sole "$by" "$tenant" "$tail")" && { echo "$why"; return 0; }
+  owner="$(spl_take_auto_owner "$tail")"
   [[ -n "$owner" ]] && { echo "owned: $owner replied in the topic"; return 0; }
+  return 1
+}
+
+# Print why <id>@<box> must not post in the topic of <tail> and exit 0;
+# exit 1 = no sole seat stands in the way (SPL-3542). A channel may have a
+# sole seat, the one seat that posts there (column 6 of the box map
+# channel-rules.tsv, cr_sole_seat). Fail closed: the poster's row must say
+# which channel it is in ("" = a DM), every channel the topic touches is
+# checked, and a map that cannot be read posts nothing.
+spl_take_auto_sole() {
+  local by="$1" tenant="$2" tail="$3" known ch seat rc
+  local -a chans=()
+  declare -F cr_sole_seat >/dev/null ||
+    source "$PROJ_PATH/src/bash/features/spawn-agents/lib/channel-rules.inc.sh" ||
+    { echo "the channel rules lib cannot be read: no post"; return 0; }
+  known="$(jq -r -s --arg id "${TAKE_AUTO_MSGID:-}" --arg from "${TAKE_AUTO_FROM:-}" \
+    '[.[] | select(if $id != "" then .msg_id == $id else .from == $from end) | select(has("channel"))] | length' <<<"$tail" 2>/dev/null)"
+  [[ "$known" =~ ^[1-9][0-9]*$ ]] || { echo "the hub tail does not say which channel the post is in: no post"; return 0; }
+  mapfile -t chans < <(jq -r -s '[.[] | select(has("channel")) | .channel | tostring
+    | ltrimstr("#") | ascii_downcase | select(. != "")] | unique | .[]' <<<"$tail" 2>/dev/null)
+  for ch in "${chans[@]}"; do
+    rc=0; seat="$(cr_sole_seat "$tenant" "$ch" 2>/dev/null)" || rc=$?
+    (( rc == 2 )) && { echo "cannot tell the sole seat of #$ch: no post"; return 0; }
+    (( rc == 0 )) && [[ "$seat" != "$by" ]] && { echo "sole-seat channel #$ch: only $seat posts there"; return 0; }
+  done
   return 1
 }
 
@@ -91,10 +124,10 @@ spl_take_auto_named() {
   return 1
 }
 
-# Print the first agent that replied in <topic> (to a human or the channel),
-# or nothing. Agent-to-agent relays on the topic do not own it; neither does
-# the non-AI responder (RSP-*). Exit 1 when the hub tail fails.
-spl_take_auto_owner() {
+# Print the topic's messages as NDJSON, each with its envelope "channel"
+# (hub-tail --with-channel; a binary older than it fails the call). Exit 1
+# when the hub tail fails.
+spl_take_auto_tail() {
   local task="$1" desk="$2" out bin
   if [[ -n "${TAKE_AUTO_TAIL_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
@@ -102,10 +135,17 @@ spl_take_auto_owner() {
   else
     bin="${desk%/desk/*}/bin/spool"
     [[ -x "$bin" ]] || return 1
-    out="$(SPOOL_ROOT="$desk" SPOOL_LOG_LEVEL=error timeout "${TAKE_AUTO_TAIL_TIMEOUT:-15}" "$bin" hub-tail --task "$task" --json 2>/dev/null)" || return 1
+    out="$(SPOOL_ROOT="$desk" SPOOL_LOG_LEVEL=error timeout "${TAKE_AUTO_TAIL_TIMEOUT:-15}" "$bin" hub-tail --task "$task" --with-channel 2>/dev/null)" || return 1
   fi
-  { grep '^{' <<<"$out" || true; } | jq -r -s '[.[] | select(((.from // "") | tostring | test("^(HUM|GST|RSP)-")) | not)
-    | select(.to == "ALL-0" or ((.to // "") | tostring | startswith("HUM-")))] | (.[0].from // "")'
+  grep '^{' <<<"$out" || true
+}
+
+# Print the first agent that replied in the topic of <tail> (to a human or
+# the channel), or nothing. Agent-to-agent relays on the topic do not own it;
+# neither does the non-AI responder (RSP-*).
+spl_take_auto_owner() {
+  jq -r -s '[.[] | select(((.from // "") | tostring | test("^(HUM|GST|RSP)-")) | not)
+    | select(.to == "ALL-0" or ((.to // "") | tostring | startswith("HUM-")))] | (.[0].from // "")' <<<"$1"
 }
 
 # One line per decision: "<epoch>\t<topic>\t<id>@<box>\t<decision>".

@@ -465,6 +465,12 @@ tests the formats the brief names.
 Dispatch GO to land this doc: c-002@sat, msg `5fc59ad9` (task
 `c5a8ed9d`). A GO to build is the owner's (section 7, Q4).
 
+Accepted by the dispatch holder c-002@sat (msg `76317007`, task
+`c5a8ed9d`) on `0860285a7` + `1f4c79ec8`. The plan and the section 7 poll
+are posted in the operator workspace topic `c168784c` (msg `75d8db39`).
+SPL-3621 (this spec) ends here; each build row B1..B7 gets its own issue
+and lane on the owner's GO.
+
 ## 9. Not in scope
 
 - Following a file on a box the workspace does not own, or any path sent

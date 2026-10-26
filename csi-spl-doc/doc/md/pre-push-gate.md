@@ -101,6 +101,11 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
 <a id="ws-doc-72c4e586-63ed-4500-b316-5d48f5713b75"></a>
 ### 1.2 The override
 
+It is used only on the owner's go for that one push, never an agent's
+([fleet rules index](fleet-rules-index.md) section 2, "never force-push
+master"): a refused push is fetch, rebase onto `origin/master`, re-test and
+push again, and the hook's refusal says so.
+
 `SPL_PREPUSH_OVERRIDE=1 git push` skips the slow parts but still runs
 `hygiene` and `lint-migration` (`PRE_PUSH_ONLY=override`, seconds,
 `PRE_PUSH_LINT=0` cannot drop them) and refuses the push when one fails.

@@ -9,7 +9,8 @@
 # about would be worse than the gate it replaces. It REFUSES (exit 1) only when
 # the gate itself runs and fails.
 #
-# Emergency override:  SPL_PREPUSH_OVERRIDE=1 git push …   skips the slow parts
+# Override, only on the owner's go for that one push, never an agent's (fleet
+# rules index section 2, "never force-push master"):  SPL_PREPUSH_OVERRIDE=1 git push …  skips the slow parts
 # but still runs the seconds-cheap correctness parts (hygiene, lint-migration:
 # PRE_PUSH_ONLY=override), and writes an audit line, so a deliberate bypass is
 # never silent. 2026-10-04: an override that skipped everything landed a
@@ -201,12 +202,12 @@ fi
 # PASS-tree. This replaced the hook's own pre-push.green stamp, which was keyed
 # on the INDEX tree alone and also written by a pass that only WARNed a
 # pre-existing red.
-echo "pre-push: running the deploy-gate (do_check_pre_push, mode ${SPL_PREPUSH_MODE:-fast}, tier ${SPL_PREPUSH_TIER:-fast}). Override once with 'SPL_PREPUSH_OVERRIDE=1 git push …'." >&2
+echo "pre-push: running the deploy-gate (do_check_pre_push, mode ${SPL_PREPUSH_MODE:-fast}, tier ${SPL_PREPUSH_TIER:-fast}). SPL_PREPUSH_OVERRIDE=1 only on the owner's go for that one push, never an agent's." >&2
 tree="$(git rev-parse -q --verify 'HEAD^{tree}' 2>/dev/null || echo '?')"
 if _pp_gate "" 1; then
   _pp_logline "PASS $top HEAD=$head tree=$tree secs=$(_pp_secs)"
   exit 0
 fi
 _pp_logline "REFUSE $top HEAD=$head tree=$tree secs=$(_pp_secs) -- deploy-gate FAILED (the PART lines above say which)"
-echo "pre-push: REFUSED -- the deploy-gate failed above. Fix it, or override once with 'SPL_PREPUSH_OVERRIDE=1 git push …' (audited in $_pp_log)." >&2
+echo "pre-push: REFUSED -- the deploy-gate failed above. Fix it, fetch, rebase onto origin/master, re-test and push again (log: $_pp_log). SPL_PREPUSH_OVERRIDE=1 only on the owner's go for that one push, never an agent's." >&2
 exit 1

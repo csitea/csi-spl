@@ -13,6 +13,7 @@
 #     5. not the spool tree      -> exit 0 (fail-open), never blocks a foreign repo
 #    13. the gate gets the per-part log, the verdict cache and tier=fast
 #    14. a STALE shared checkout: the lane's own hook runs (trampoline)
+#    15. the run and refusal text give SPL_PREPUSH_OVERRIDE to the owner's go only
 #   INSTALLER
 #     6. installs core.hooksPath for ONE worktree only, others untouched
 #     7. idempotent (second run still 0)
@@ -232,6 +233,44 @@ ln -sfn "$ST/$HP/pre-push" "$ST/.git/hooks/pre-push"; before="$(cat "$ST/$HP/pre
 bash "$INSTALL" "$ROOT/stale-lane" >/dev/null 2>&1
 { [ ! -L "$ST/.git/hooks/pre-push" ] && [ "$(cat "$ST/$HP/pre-push")" = "$before" ]; } \
   && pass "14. an old symlink is replaced, its target untouched" || fail "14. an old symlink is replaced, its target untouched"
+
+# 15. SPL-3657, fleet-rules-index.md section 2 (never force-push master): the override only
+#     on the owner's go for that one push, never an agent's. The hook printed
+#     "Fix it, or override once with ..." to an agent at the very moment its
+#     push was refused. Every sentence of the run and refusal text that names
+#     the override must name the owner's go or forbid it. Control: the old text.
+override_ok() {  # TEXT -> 0 when every sentence naming the override names the owner's go or a never
+  local s; while IFS= read -r s; do
+    case "$s" in *SPL_PREPUSH_OVERRIDE*) case "$s" in *"owner's go"*|*"does not skip"*) ;; *) return 1 ;; esac ;; esac
+  done < <(printf '%s\n' "$1" | sed 's/\. /.\n/g')
+}
+R15="$ROOT/repo15"; mkdir -p "$R15/csi-spl-iac"  # a fresh repo: case 11 poisoned $REPO's config
+cp "$REPO/csi-spl-iac/run" "$R15/csi-spl-iac/run"
+git init -q "$R15"; git -C "$R15" add -A; git -C "$R15" commit -qm c15
+hook_text() {  # <hook> <logdir> [env...] -> the hook's stderr
+  local h="$1" ld="$2"; shift 2
+  mkdir -p "$ld"
+  ( cd "$R15" && lane_refs "$R15" | env "$@" SPL_PREPUSH_LOG_DIR="$ld" bash "$h" origin file://x >/dev/null 2>"$ld/stderr" )
+  cat "$ld/stderr"
+}
+t15p="$(hook_text "$HOOK" "$ROOT/l15p")"; t15f="$(hook_text "$HOOK" "$ROOT/l15f" STUB_FAIL=1)"
+case "$t15f" in *"REFUSED -- the deploy-gate failed"*) pass "15. the refusal text was rendered" ;; *) fail "15. the refusal text was rendered" "$t15f" ;; esac
+case "$t15f" in *"rebase onto origin/master, re-test and push again"*) pass "15. ... it says fetch, rebase, re-test" ;; *) fail "15. ... it says fetch, rebase, re-test" "$t15f" ;; esac
+override_ok "$t15p" && pass "15. the run line gives the override to the owner's go only" || fail "15. the run line gives the override to the owner's go only" "$t15p"
+override_ok "$t15f" && pass "15. the refusal gives the override to the owner's go only" || fail "15. the refusal gives the override to the owner's go only" "$t15f"
+OHOOK="$ROOT/old-pre-push"
+OLD_RUN="Override once with 'SPL_PREPUSH_OVERRIDE=1 git push …'." OLD_FIX="Fix it, or override once with 'SPL_PREPUSH_OVERRIDE=1 git push …' (audited in \$_pp_log)." \
+  python3 - "$HOOK" "$OHOOK" <<'PY2'
+import os, sys
+s = open(sys.argv[1], encoding="utf-8").read()
+s = s.replace("SPL_PREPUSH_OVERRIDE=1 only on the owner's go for that one push, never an agent's.\" >&2\ntree=", os.environ["OLD_RUN"] + "\" >&2\ntree=")
+s = s.replace("Fix it, fetch, rebase onto origin/master, re-test and push again (log: $_pp_log). SPL_PREPUSH_OVERRIDE=1 only on the owner's go for that one push, never an agent's.", os.environ["OLD_FIX"])
+open(sys.argv[2], "w", encoding="utf-8").write(s)
+PY2
+o15p="$(hook_text "$OHOOK" "$ROOT/l15op")"; o15f="$(hook_text "$OHOOK" "$ROOT/l15of" STUB_FAIL=1)"
+case "$o15f" in *"Fix it, or override once"*) pass "15. control: the old hook renders the old refusal" ;; *) fail "15. control: the old hook renders the old refusal" "$o15f" ;; esac
+override_ok "$o15p" && fail "15. control (old run line) -> FAIL" "$o15p" || pass "15. control (old run line) -> FAIL"
+override_ok "$o15f" && fail "15. control (old refusal) -> FAIL" "$o15f" || pass "15. control (old refusal) -> FAIL"
 
 echo "-- test-pre-push-hook.sh: $fails failed"
 [ "$fails" -eq 0 ]

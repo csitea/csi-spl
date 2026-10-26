@@ -105,11 +105,15 @@ for m in a b c; do
   printf 'CLE-77\tclaude\t%%1\t/x\t20261001T090000Z\n' >"$T/spool/registry.tsv"
   printf 'CLE-77\tc-005\tclaude\tbox-t\t2026-10-02T12:00:00Z\n' >"$T/spool/agent-id-aliases.tsv"
   mkdir -p "$(root $m)/dev/desk/t1/box-t/spool/CLE-77/inbox"
-  # A private tmux server holds the live window the rename needs.
-  tmux -S "$T/tmux.sock" new-session -d -s t -n 'CLE-77 lane' 'sleep 60'
-  out="$(run $m env SPOOL_TMUX_SOCKET="$T/tmux.sock" SPOOL_DESK_BOX=box-t SPOOL_NOW=2026-10-02T12:00:00Z RENAME_NOTE=0 \
+  # A private tmux server holds the live window the rename needs. One socket
+  # per run: kill-server returns before the old server is gone, and a
+  # new-session on the same path can reach it as it exits ("server exited
+  # unexpectedly": no window, so b failed; SPL-3589, ~1 in 300 here).
+  sock="$T/tmux-$m.sock"
+  tmux -S "$sock" new-session -d -s t -n 'CLE-77 lane' 'sleep 60'
+  out="$(run $m env SPOOL_TMUX_SOCKET="$sock" SPOOL_DESK_BOX=box-t SPOOL_NOW=2026-10-02T12:00:00Z RENAME_NOTE=0 \
     bash "$S/agent-id-rename.sh" --desk-envs dev CLE-77)"
-  tmux -S "$T/tmux.sock" kill-server 2>/dev/null
+  tmux -S "$sock" kill-server 2>/dev/null
   verdict "3. agent-id-rename" $m "$(grep -c 'PLAN desk .*dev/t1' <<<"$out")"
 done
 

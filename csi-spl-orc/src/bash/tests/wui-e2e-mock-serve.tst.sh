@@ -55,6 +55,17 @@ out=$(cd "$wui" && CHROME_PATH=/bin/true RUNNER_TEMP="$T" API_FILE="$T/api" NEVE
 out=$(cd "$wui" && env -u CHROME_PATH bash "$S" true 2>&1); rc=$?
 [[ $rc -ne 0 ]] && pass "CHROME_PATH unset is refused" || fail "CHROME_PATH unset accepted"
 
+# SPL-3469: one pinned font, the same file on the gate and on a box.
+pin="$PROJ_ROOT/src/bash/scripts/wui-e2e-fonts.conf"
+out=$(cd "$wui" && env -u FONTCONFIG_FILE CHROME_PATH=/bin/true RUNNER_TEMP="$T" API_FILE="$T/api" bash "$S" \
+  sh -c 'echo "$FONTCONFIG_FILE"; fc-match sans-serif family' 2>/dev/null); rc=$?
+[[ $rc -eq 0 && $out == "$pin"$'\n'"DejaVu Sans" ]] && pass "the command runs under the pinned fonts.conf (DejaVu Sans)" || fail "pin: rc=$rc $out"
+printf '<?xml version="1.0"?>\n<fontconfig><dir>%s</dir></fontconfig>\n' "$T/no-fonts" >"$T/other.conf"; mkdir -p "$T/no-fonts"
+out=$(cd "$wui" && CHROME_PATH=/bin/true RUNNER_TEMP="$T" API_FILE="$T/api" FONTCONFIG_FILE="$T/other.conf" bash "$S" true 2>&1); rc=$?
+[[ $rc -ne 0 ]] && grep -q 'not DejaVu Sans' <<<"$out" && pass "CONTROL: a fonts.conf without DejaVu Sans is refused" || fail "CONTROL pin: rc=$rc $out"
+grep -qF 'FONTCONFIG_FILE: ${{ github.workspace }}/csi-spl-orc/src/bash/scripts/wui-e2e-fonts.conf' "$WF10" \
+  && pass "10_ci-quality.yml pins the same fonts.conf" || fail "10_ci-quality.yml does not set FONTCONFIG_FILE to the script's file"
+
 n=$(basename "$WF10")
 grep -q 'bash ../csi-spl-orc/src/bash/scripts/wui-e2e-mock-serve.sh .*pnpm run test:e2e' "$WF10" && pass "$n runs the e2e through the script" || fail "$n does not call the script"
 for wf in "$WF10" "$WF11"; do

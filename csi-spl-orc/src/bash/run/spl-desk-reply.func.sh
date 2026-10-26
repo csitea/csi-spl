@@ -67,6 +67,12 @@
 # @description and a body that person already got from an agent in the last
 # @description 24 h, in a DM or a channel topic (exit 7, duplicate_to_human).
 # @description The FATAL names the rule and where the post belongs instead.
+# @description The FIRST agent reply in a topic is refused (exit 8, nothing
+# @description sent) unless this seat holds the dispatch or orchestrator lease
+# @description right now, is a workspace seat of its own workspace or a channel
+# @description seat of it, or the human addressed it (a DM, @<id>); a topic's
+# @description owner answering again is never refused (SPL-3520,
+# @description lib/bash/funcs/spl-desk-lease-gate.func.sh).
 # @description Exit 3 when nothing newer than this desk's last answer is
 # @description waiting. Exit 4 when more than one human conversation is, which
 # @description is a question for the operator, not a guess for the action.
@@ -134,6 +140,7 @@ do_spl_desk_reply() {
 
   local ans_to ans_task ans_msg ans_head ans_ref=""
   _spl_desk_reply_choose || return $?
+  spl_desk_lease_gate "$d" "$box" "$tenant" "$hub" "$agent" "$ans_task" || return $?
 
   local ids=()
   spl_desk_attach_args "${files[@]}"

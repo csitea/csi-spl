@@ -252,3 +252,44 @@ func TestWorkspaceLanesShortID(t *testing.T) {
 		}
 	}
 }
+
+// Spec 153 v1.2 section 3.6, case C37 (SPL-3514; owner HUM-10, discussion
+// 7e25d7ab, msg bd450d6a): only the operator workspace's admin sees every
+// workspace's lanes; any other user sees only the lanes working for their own
+// workspace. A person who is a regular_user of the operator workspace and an
+// admin of w1: the operator route answers 403, the workspace route in the
+// operator workspace answers 403, and in w1 they read the w1 lane only.
+// CONTROL (C): master already holds it; dropping the role check in
+// operatorActor turns the first assertion red.
+func TestLanesAllWorkspacesOperatorAdminOnly(t *testing.T) {
+	r := newWSLanesRig(t)
+	now := time.Now()
+	box := r.opBox.id
+	laneAt(t, r.fleetTokensRig, "c-601", box, r.t1, "", now.Add(-1*time.Minute))
+	laneAt(t, r.fleetTokensRig, "c-602", box, r.t2, "", now.Add(-2*time.Minute))
+
+	opHum, id := seatIdent(t, r.e, r.op, rbac.RegularUser)
+	h := r.e.st.(store.Humans)
+	if err := h.PutInvite(context.Background(), store.Invite{TenantID: r.w1, Email: id.Email, Role: rbac.Admin,
+		InvitedBy: store.AdmittedOperator, ExpiresAt: now.Add(time.Hour)}, now); err != nil {
+		t.Fatal(err)
+	}
+	w1Hum, err := h.Admit(context.Background(), id, r.w1, store.AdmitPolicy{}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if code, body := call(t, r.e, r.op, http.MethodGet, fleetLanesPath, opHum, nil); code != http.StatusForbidden {
+		t.Errorf("C37 operator regular_user on %s: %d %v, want 403", fleetLanesPath, code, body)
+	}
+	if code, body := call(t, r.e, r.op, http.MethodGet, workspaceLanesPath, opHum, nil); code != http.StatusForbidden {
+		t.Errorf("C37 operator regular_user on %s: %d %v, want 403", workspaceLanesPath, code, body)
+	}
+	if v, raw := wsLanes(t, r, r.w1, w1Hum, http.StatusOK); !slices.Equal(laneKeys(v), []string{"c-601"}) || strings.Contains(raw, "W2 secret plan") {
+		t.Errorf("C37 the same person as w1's admin: %s, want c-601 only", raw)
+	}
+	// Twin: the operator admin reads both workspaces' lanes.
+	if got := laneKeys(getLanes(t, r.fleetTokensRig)); !slices.Equal(got, []string{"c-601", "c-602"}) {
+		t.Errorf("C37 twin operator admin: %v, want [c-601 c-602]", got)
+	}
+}

@@ -1,7 +1,7 @@
 # 153 Monitoring: the tab row beside the heading, and a live Lanes tab
 
 Version v1.2 (2026-10-26): v1.1 plus section 3.7 (how a lane names the
-workspace it works for), cases C28b and C31-C36, build row B7 and C28's
+workspace it works for), cases C28b and C31-C37, build row B7 and C28's
 short-id clause, which B7 reverses. Owner HUM-10, topic
 `f88d6ee4`, msg `694f9ede` (2026-10-26 09:52:36Z): "I want to see the
 lanes working here as well" (the Monitoring > Lanes tab of a customer workspace, W below). Issue
@@ -577,6 +577,7 @@ rule" twin, named in its control column.
 | C34 | B7 | a box of workspace `other` puts the short id of a w2 topic | `""` | `""` | Go test; red control: no operator-only check stores w2's uuid |
 | C35 | B7 | the operator view (3.3) of C28b's lane | n/a | listed, no w1 title or text | Go test; red control: titles read in every workspace leak `W1 build` |
 | C36 | B7 | a brief whose only topic source is `Task: dispatch-55fd7531` | `--topic ''` | `--topic '55fd7531'` | dry-run test (`test-spawn-dry-run.sh`); twin C36b: prose `on task dispatch-...` and `Task: dispatch-orc-...` give `--topic ''` |
+| C37 | B7 | owner HUM-10, discussion `7e25d7ab`, msg `bd450d6a`: one person, a `regular_user` of the operator workspace and an `admin` of w1, with a w1 lane and a w2 lane active | 403 on both routes in the operator workspace; w1 lists its lane | unchanged (C): `GET /v1/operator/fleet-lanes` and `GET /v1/view/lanes` in the operator workspace 403; in w1 the w1 lane only | Go test `TestLanesAllWorkspacesOperatorAdminOnly`; red control: dropping the admin check in `operatorActor` lists both lanes; twin: the operator admin lists both |
 
 ## 5. Build rows
 
@@ -591,7 +592,7 @@ Disjoint files per row. B1 goes first and alone: it needs no data.
 | B5a issues by discussion | api | `hub/issues.go` (the list filter only), its test; `store/issues.go` (one NEW interface method beside `ListIssues` at :392, which keeps its signature, and its memory store body) and `store/issues_postgres.go` (the new method only) | - | C21-C22 |
 | B5b topic issue chips | wui | `wui/pages/t/[task_id].vue` (or its header component), new `wui/components/TopicIssueChips.vue`, its locale keys, its tests | B5a | C23-C24 |
 | B6 workspace lanes (O1 = B, 3.6) | api, wui | `hub/fleet_lanes_view.go` (factor the active rule and the row fill out of `fleetLanesView`; 3.3's behaviour unchanged); new `hub/workspace_lanes_view.go` + `_test.go`; one line in `hub/server.go` beside `routeFleetLanes` (:488); `hub/openapi.json` (the new path); `wui/utils/access.mjs` (`normalizeMe` keeps `roles`) and its unit test; `wui/utils/monitoring-tabs.mjs` (the lanes row and the `staff` rule); `wui/pages/monitoring.vue` (pass `staff`); `wui/pages/monitoring/lanes/index.vue` (pick the route); the hub client's lanes call in `wui/utils/spool-client-lazy.mjs`; `csi-spl-wui/tests/unit/monitoring-tabs.test.mjs`; the B4 lanes e2e file (C27's operator case). No store, rdb or orc file | B2, B3 and B4 on master (B4 owns the tab row, the page and the client call that B6 changes) | C25-C30 |
-| B7 workspace a lane works for (3.7) | api, orc | `hub/box_lane.go` (`laneTopic`, new `laneTopicElsewhere`); `hub/workspace_lanes_view_test.go`; `orc/features/spawn-agents/scripts/spawn-core.inc.sh` (`_spawn_lane_put` only); `orc/features/spawn-agents/tests/test-spawn-dry-run.sh`. No store, rdb or wui file, no new text key | B6 on master | C28b, C31-C36 |
+| B7 workspace a lane works for (3.7) | api, orc | `hub/box_lane.go` (`laneTopic`, new `laneTopicElsewhere`); `hub/workspace_lanes_view_test.go`; `orc/features/spawn-agents/scripts/spawn-core.inc.sh` (`_spawn_lane_put` only); `orc/features/spawn-agents/tests/test-spawn-dry-run.sh`. No store, rdb or wui file, no new text key | B6 on master | C28b, C31-C37 |
 
 Order: B1, B3 and B5a may run at once (B3's store interface is
 `store/fleet_lane.go:65`, B5a's `store/issues.go:392`: different files); B2 after B3; B4 after B1 and B3;
@@ -658,6 +659,7 @@ that workspace's own topics (3.6, row B6). B1-B5 are unchanged.
 | 2026-10-23 22:54 | c-002@sat | ACCEPTED the panel result on `0b4e55c9f` (msg `64bc4a7e`); O1 goes to the owner, the build rows get placed |
 | 2026-10-24 | c-995@sat (claude) | v1.1, SPL-3210: O1 = B recorded (section 7), 3.2 changed, 3.6, C25-C30 and B6 added; code read on `0073343c2`; no prd read. One cross-vendor review of v1.1 to follow |
 | 2026-10-26 | c-283@sat (claude) | v1.2, SPL-3514: 3.7, C28b, C31-C36 and B7 added, C28 narrowed; code read on `a066b182e`; prd read 10:08-10:12Z (3.7). One cross-vendor review (R7) before B7 lands |
+| 2026-10-26 | c-283@sat (claude) | v1.2, SPL-3514: C37 added (owner msg `bd450d6a`: only the operator admin sees every workspace's lanes); master already holds it, the test pins it |
 
 Editor findings folded in: retire already closes the lane row (C8 is a (C)
 control, no build); the stale-row data of 2.2 (P2); the migration number is

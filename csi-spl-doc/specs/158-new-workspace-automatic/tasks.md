@@ -29,6 +29,7 @@ deployed. Store rows run `PRE_PUSH_TIER=full`.
 | T8 | `spool fleet-workspaces`, `spool fleet-enrol` | `cmd/spool` tests against a fake hub |
 | T9 | `do_spl_desk_up` `DESK_PIN_MODE=fleet` + `do_spl_desk_fleet_seat` in the desk-reconcile cron | orc test: a listed new workspace gets a desk dir and a pin with no `ROOT_KEY_JSON` |
 | T10 | R2 proof: the dispatch tick subscribes the role seats in the new workspace's channels | orc test on `spl-dispatch-subscribe` with the new tenant |
+| T10b | R3 seats part (M13): the dispatcher brief names `do_spl_dispatch_tenants` instead of a list rendered once; the fleet seat seats every role seat | orc test: a desk dir added after setup is printed by `do_spl_dispatch_tenants`, a workspace listed by the hub with no local desk dir is printed too, and the rendered brief carries no workspace list; control: the old template rendered the list frozen |
 | T11 | e2e on dev: create -> seated (R1) -> channels (R2) -> member post answered within 180 s (R4) | dev run, numbers in the commit body |
 
 ## 4. Rollout rows

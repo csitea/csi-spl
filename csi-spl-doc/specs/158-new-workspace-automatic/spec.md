@@ -1,6 +1,6 @@
 # Spec 158: a new workspace works automatically
 
-**Feature ID**: `158-new-workspace-automatic` · **Status**: Draft v0.3 (for R7) ·
+**Feature ID**: `158-new-workspace-automatic` · **Status**: Draft v0.4 (for R7) ·
 **Epic**: SPL-2398 · **Issue**: SPL-3504 · **Created**: 2026-10-26 · **Lead**: c-456 ·
 **Placement slug**: `c002-s158-new-workspace-automatic`
 
@@ -50,6 +50,7 @@ Paths are relative to the repo root. `hub` = `csi-spl-api/src/go/spool-hub-api/i
 | M10 | `agents.join` is in the Admin role only, by design: `BizOwner` (the workspace owner) lacks it and `withAgents()` adds only DM/start/mention/post/reply. rdb 0119 seeds `('admin', 'agents.join')` only, so code and DB agree. A biz_owner who is not admin gets no join-token panel (WUI `mayJoin = canJoinAgents`) and cannot seat agents. On 2026-10-26 the first-case workspace was unblocked by hand, on the owner's order: `box_join_enabled` set on, and the owner made admin there (c-001 msgs e96aa466, d2815aa9). | `internal/rbac/rbac.go:217-225`; rdb `0119_agent_join_tokens.sql:66-67` |
 | M11 | Measured on ONE box (n=1; the other box not measured), 2026-10-26: its tenant store held 12 create JSONs (one per workspace, mode 0600, the box user's). The same box had 11 desk dirs. 4 workspaces with a kept key had no desk (5 before the hand seating of the day), and 3 workspaces with a desk had no kept key. The hub and WUI create keeps no key at all (M2); a file exists only when an operator saved the shell action's output there. | `ls -l` of the store and of `<state>/desk/` (names and modes only, never contents) |
 | M12 | `do_spl_desk_up` and `do_spl_desk_pin` never look in the tenant store: the key comes only from `ROOT_KEY_JSON` given by hand. `spl_newest_tenant_key`, the one reader of the store, is used only by e2e and rebox actions. | `grep -l spl_newest_tenant_key csi-spl-orc/src/bash/run/*` -> `spl-invite-e2e`, `spl-desk-rebox`, `spl-m3-e2e` |
+| M13 | The dispatcher and failover briefs list "a desk in every workspace: {TENANTS}", rendered ONCE by `do_spl_dispatch_setup` from `DISPATCH_TENANTS` (the pinned desk dirs at that moment). A workspace seated later is not in the list. On 2026-10-26, after the hand seating, the failover brief still listed 8 workspaces without the new one, and the failover seat did not see the owner's posts there (c-003 msg 5a9f8050 via c-001 msg 896823ae, n=1). | `csi-spl-orc/src/bash/features/dispatch/brief-dispatcher.tpl.md:54`; `csi-spl-orc/src/bash/run/spl-dispatch-setup.func.sh:305-309` |
 
 ## 3. Requirements (each one a testable row)
 
@@ -57,7 +58,7 @@ Paths are relative to the repo root. `hub` = `csi-spl-api/src/go/spool-hub-api/i
 |---|---|---|
 | R1 | Within 5 minutes of a workspace's create, the fleet's desks are seated in it: every desk box listed for fleet seating has a live pin and its role seats are in the roster. | e2e on dev: create a workspace through the operator route, then poll `GET /v1/view/roster` until the role seats are listed (5 min budget). |
 | R2 | The fleet agents are members of every channel of that workspace, including channels created later. | Same e2e: the role seats are in `#general`'s members, and in a channel created after the seating within one tick. |
-| R3 | The unanswered sweep covers the new workspace. | Already true (M7). The unit test proves a new tenant id appears in the rows with no list change. |
+| R3 | The unanswered sweep covers the new workspace, and so do the dispatcher and failover seats: their brief and their desks follow a new workspace with no re-setup. | The sweep part is already true (M7); its unit test proves a new tenant id appears in the rows with no list change. The seats part is row T10b (M13). |
 | R4 | A member's first post gets a first agent answer within the 3-minute rule. | e2e on dev: an invited member posts, and an agent message lands in that topic within 180 s. |
 | A | Nothing human is needed to seat the fleet, whether or not a root key was kept (M11-M12). The end state needs no root key (section 4). No root key is stored anywhere new. | Hub unit tests of 4.2 and 4.3; a grep gate: no root private key in any new table, log line or file. |
 | B | A workspace with member posts and 0 agent seats reaches the orchestrator as a blocker within 5 minutes, and repeats hourly while it lasts. | `orc` test with a planted row set (red control: the same rows with 1 seat send nothing). |
@@ -114,6 +115,17 @@ Paths are relative to the repo root. `hub` = `csi-spl-api/src/go/spool-hub-api/i
    dirs (M6), so the role seats join every channel of the new workspace on
    the next tick. That gives R2 with no new code: the tests in rows T9-T10
    prove it.
+3a. The dispatcher and failover briefs stop carrying a frozen list (M13).
+   `{TENANTS}` becomes a command the seat runs,
+   `./run -a do_spl_dispatch_tenants` (the same `DISPATCH_TENANTS` the tick
+   uses, printed). `do_spl_desk_fleet_seat` seats every role seat (the
+   orchestrator, master and failover dispatchers) in the new workspace, not
+   only the first one. Row T10b. The list is the fleet's workspaces, not
+   this box's desk dirs: `DISPATCH_TENANTS` today is the box's own desks,
+   so a re-run of the setup on a box without the new desk still leaves it
+   out (measured on the second box, n=1: setup rc 0, the new workspace
+   listed 0 times). `do_spl_dispatch_tenants` reads `GET /v1/fleet/workspaces`
+   (row T7) and falls back to the desk dirs only when the hub is unreachable.
 4. One box enrols a workspace's role seats and the rest stand by, per the
    fleet lease (spec 101). The orchestrator and dispatch seats follow the
    lease holder's box.

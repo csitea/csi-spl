@@ -40,9 +40,27 @@ _provision_check_container_dns() {
 declare -F env_order_gate >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/check-dev-leads-prd.func.sh"
 
+# SPL-3651: a step 052 apply makes a Docs bucket for every steps.052
+# workspace, and a workspace that is not in env.dns.mapped_tenants is a WUI
+# entry point with no host. The tenant-host reconcile checked it, a direct
+# apply did not. Every 052 apply passes here (make do-provision, which
+# do_tf_sweep_steps and spl_th_apply call too), so the reconcile's own
+# spl_th_entry_check runs first: sourced from the orc file, never copied. A
+# missing file or function refuses (fail closed). Other steps: no-op.
+_provision_052_entry_check() {
+  [[ "${STEP:-}" == 052-* ]] || return 0
+  local fn="$APP_PATH/$ORG-$APP-orc/src/bash/run/spl-tenant-host-reconcile.func.sh"
+  local cnf="$APP_PATH/$ORG-$APP-cnf/$ORG-$APP/$ENV.env.yaml"
+  # shellcheck source=/dev/null
+  ( . "$fn" && declare -F spl_th_entry_check >/dev/null && spl_th_entry_check "$cnf" ) && return 0
+  do_log "FATAL REFUSED: $ENV apply of STEP=$STEP: every steps.052 workspace must be in env.dns.mapped_tenants (spl_th_entry_check, $fn)"
+  return 1
+}
+
 do_provision() {
 
   _provision_check_container_dns || return $?
+  [[ "${ACTION:-}" == divest ]] || _provision_052_entry_check || return 1
   # SPL-1947: before this run exports prd's TF_VAR_*, so the dev plan of the
   # same step starts clean; do_tf_apply then finds the step already gated.
   env_order_gate || return $?

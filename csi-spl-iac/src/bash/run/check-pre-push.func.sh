@@ -71,7 +71,9 @@
 # @param        (loadavg 1 min / nproc, when over 1), at most PRE_PUSH_API_FULL_CAP
 # @param PRE_PUSH_API_FULL_CAP (optional) - seconds the load-scaled api full-tier default never exceeds, default 2700
 # @param PRE_PUSH_IAC_FULL_TIMEOUT (optional) - seconds for the iac part on the full tier, default 600
-# @param PRE_PUSH_ORC_FULL_TIMEOUT (optional) - seconds for the orc part on the full tier, default 1800
+# @param PRE_PUSH_ORC_FULL_TIMEOUT (optional) - seconds for the orc part on the full tier; default 1800 x the load per cpu
+# @param        (when over 1), at most PRE_PUSH_ORC_FULL_CAP
+# @param PRE_PUSH_ORC_FULL_CAP (optional) - seconds the load-scaled orc full-tier default never exceeds, default 3600
 # @param PRE_PUSH_WUI_TIMEOUT (optional) - seconds for the wui part, default 420
 # @param PRE_PUSH_ONLY (optional) - lint = only the lint parts (do_check_pre_push_lint);
 # @param        override = only the seconds-cheap correctness parts, hygiene + lint-migration
@@ -480,7 +482,7 @@ _pp_budget() {  # <part-fn>
     _pp_part_api) _pp_full_timeout "${PRE_PUSH_API_FULL_TIMEOUT:-$(_pp_api_full_default)}" ;;
     _pp_part_iac) _pp_full_timeout "${PRE_PUSH_IAC_FULL_TIMEOUT:-600}" ;;
     # the full tier runs every orc file: 16..17 min per CI shard of two
-    _pp_part_orc) _pp_full_timeout "${PRE_PUSH_ORC_FULL_TIMEOUT:-1800}" ;;
+    _pp_part_orc) _pp_full_timeout "${PRE_PUSH_ORC_FULL_TIMEOUT:-$(_pp_orc_full_default)}" ;;
     _pp_part_wui) echo "${PRE_PUSH_WUI_TIMEOUT:-420}" ;;
     _pp_part_wui_e2e) echo "${PRE_PUSH_E2E_TIMEOUT:-600}" ;;
     # the full tier runs every feature: 308 s on sat at load 65..118 (16
@@ -520,23 +522,39 @@ _pp_load_read() {  # sets _PP_LOAD="<load1> <nproc>", once
   [[ "$np" =~ ^[1-9][0-9]*$ ]] || np=1
   _PP_LOAD="$l1 $np"
 }
-_pp_api_full_base=1950
-_pp_api_full_default() {
+_pp_load_scaled() {  # <base s> <cap s> -> base x max(1, load1/nproc), rounded up, in [base, cap]
   local l1 np; _pp_load_read; read -r l1 np <<<"$_PP_LOAD"
-  awk -v b="$_pp_api_full_base" -v c="${PRE_PUSH_API_FULL_CAP:-2700}" -v l="$l1" -v n="$np" 'BEGIN {
+  awk -v b="$1" -v c="$2" -v l="$l1" -v n="$np" 'BEGIN {
     f = l / n; if (f < 1) f = 1
     x = b * f; if (x > int(x)) x = int(x) + 1
     if (x > c) x = c; if (x < b) x = b
     print x }'
 }
-_pp_budget_why() {  # <part-fn> -> where its budget came from (api only)
-  [[ "$1" == _pp_part_api ]] || return 0
+_pp_api_full_base=1950
+_pp_api_full_default() { _pp_load_scaled "$_pp_api_full_base" "${PRE_PUSH_API_FULL_CAP:-2700}"; }
+# The orc full-tier default scales the same way (c-001@sat, 2026-10-26, note
+# 834cc140): on sat at load1 14..52 on 16 cpus (0.9..3.3/cpu) the orc part
+# TIMED OUT at the fixed 1800 s on 4 of 4 runs of c-168's tree (9ef87b9d6) and
+# on 2 of 2 trunk re-checks; run 5 got through 328 of 536 files, so the whole
+# suite needs ~2940 s there (536/328 x 1800). The base stays 1800 s (an idle
+# box, 16..17 min per CI shard of two); the cap 3600 s (2x) covers that
+# ~2940 s and is the value those lanes were told to set by hand. A hung suite
+# still stops, after at most 60 min.
+_pp_orc_full_base=1800
+_pp_orc_full_default() { _pp_load_scaled "$_pp_orc_full_base" "${PRE_PUSH_ORC_FULL_CAP:-3600}"; }
+_pp_budget_why() {  # <part-fn> -> where its budget came from (api and orc only)
+  local part base cap var
+  case "$1" in
+    _pp_part_api) part=api base="$_pp_api_full_base" cap="${PRE_PUSH_API_FULL_CAP:-2700}" var=PRE_PUSH_API_FULL_TIMEOUT ;;
+    _pp_part_orc) part=orc base="$_pp_orc_full_base" cap="${PRE_PUSH_ORC_FULL_CAP:-3600}" var=PRE_PUSH_ORC_FULL_TIMEOUT ;;
+    *) return 0 ;;
+  esac
   if [[ -n "${PRE_PUSH_PART_TIMEOUT:-}" ]]; then echo "PRE_PUSH_PART_TIMEOUT"
   elif [[ "${_PP_TIER:-fast}" != full ]]; then echo "fast-tier part default"
-  elif [[ -n "${PRE_PUSH_API_FULL_TIMEOUT:-}" ]]; then echo "PRE_PUSH_API_FULL_TIMEOUT"
+  elif [[ -n "${!var:-}" ]]; then echo "$var"
   else
     _pp_load_read
-    echo "api full default ${_pp_api_full_base}s x load ${_PP_LOAD% *}/${_PP_LOAD#* } cpus, cap ${PRE_PUSH_API_FULL_CAP:-2700}s"
+    echo "$part full default ${base}s x load ${_PP_LOAD% *}/${_PP_LOAD#* } cpus, cap ${cap}s"
   fi
 }
 _pp_part_api() {
@@ -559,6 +577,7 @@ _pp_part_iac() {
 # <base> is _pp_run's own (bash scoping).
 _pp_part_orc() {  # <tree>
   local t="$1/csi-spl-orc/src/bash/tests" rc=0 plan files="" v
+  _pp_load_read
   local -a envv=(env) args=()
   for v in $(compgen -e); do [[ "$v" == SPOOL_* ]] && envv+=(-u "$v"); done
   if [[ "${_PP_TIER:-fast}" != full ]]; then

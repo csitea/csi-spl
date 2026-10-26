@@ -11,7 +11,7 @@
 #   6. full tier, iac part          -> 600 s, the iac full-tier default (r5-07:
 #      the full-tier iac suite passed 300 s inside the gate and TIMED OUT)
 #   7. fast tier, iac part          -> 300 s; PRE_PUSH_IAC_FULL_TIMEOUT=1200 -> 1200
-#   8. orc part: full tier 1800 s, fast tier 300 s
+#   8. orc part: full tier 1800 s on an idle box, fast tier 300 s
 #   8b. orc-features part: full tier 900 s (every feature ran 308 s on a
 #      loaded sat and TIMED OUT at 300 s), fast tier 300 s;
 #      PRE_PUSH_FEATURES_TIMEOUT wins on both tiers
@@ -29,6 +29,15 @@
 #      814d8fe84, n=2: the full-tier api suite ran 1111 s and 842 s below
 #      1 load per cpu, where the old 900 s base TIMED OUT it): the idle
 #      default is at least 1.75x the slowest, 1111 s
+#  13. the orc full-tier default fits the box load the same way (c-001@sat,
+#      2026-10-26: at load1 14..52 on 16 cpus the orc part TIMED OUT at the
+#      fixed 1800 s on 4 of 4 runs of one tree and 2 of 2 trunk re-checks):
+#      load/cpu 0.5 -> 1800, 1.25 -> 2250, 2 -> 3600, a huge load -> the cap,
+#      PRE_PUSH_ORC_FULL_CAP moves the cap, PRE_PUSH_ORC_FULL_TIMEOUT and
+#      PRE_PUSH_PART_TIMEOUT still win, the fast tier keeps 300, the reason
+#      names the load and the cap
+#   RED CONTROL: against the fixed orc 1800 s (origin/master 9575ee69a) 5 of
+#   the 9 cases in 13 fail (load 20, 32, 9999, the cap override, the reason).
 #   RED CONTROL: against the old fixed default (900) case 10's load-2 check fails;
 #   against the old 900 s base (origin/master 814d8fe84) 6 of 27 fail: 2, 11, 12
 #   and three of 10 (load 8, 20 and 32).
@@ -46,7 +55,7 @@ fail() { echo "FAIL: $1 -- ${2:-}"; fails=$((fails + 1)); }
 
 do_log() { :; }
 do_check_dist_hygiene() { return 0; }
-unset PRE_PUSH_PART_TIMEOUT PRE_PUSH_API_FULL_TIMEOUT PRE_PUSH_API_FULL_CAP PRE_PUSH_IAC_FULL_TIMEOUT PRE_PUSH_ORC_FULL_TIMEOUT PRE_PUSH_FEATURES_TIMEOUT
+unset PRE_PUSH_PART_TIMEOUT PRE_PUSH_API_FULL_TIMEOUT PRE_PUSH_API_FULL_CAP PRE_PUSH_ORC_FULL_CAP PRE_PUSH_IAC_FULL_TIMEOUT PRE_PUSH_ORC_FULL_TIMEOUT PRE_PUSH_FEATURES_TIMEOUT
 # shellcheck source=../run/check-pre-push.func.sh
 . "$FUNC"
 # timeout -k 10 <budget> bash <script>: print the budget, run nothing.
@@ -96,6 +105,21 @@ idle="$(budget _pp_part_api full PLANT_LOAD=0)"
   && pass "12. idle full-tier api budget ${idle}s >= 1.75 x 1111 s (measured trunk)" \
   || fail "12. idle full-tier api budget >= 1.75 x 1111 s (measured trunk)" "got '$idle'"
 
+orc() {  # <tier> [VAR=val ...] -> the orc part's budget
+  local tier="$1"; shift
+  ( for kv in "$@"; do export "${kv?}"; done; _PP_TIER="$tier" _pp_budget _pp_part_orc )
+}
+check "13. orc full, load 8/16 (0.5 per cpu) -> 1800"      1800 "$(orc full PLANT_LOAD=8)"
+check "13. orc full, load 20/16 (1.25 per cpu) -> 2250"    2250 "$(orc full PLANT_LOAD=20)"
+check "13. orc full, load 32/16 (2 per cpu) -> the 3600 s cap" 3600 "$(orc full PLANT_LOAD=32)"
+check "13. orc full, load 9999/16 -> the 3600 s cap"       3600 "$(orc full PLANT_LOAD=9999)"
+check "13. orc full, load 9999 + PRE_PUSH_ORC_FULL_CAP=4000" 4000 "$(orc full PLANT_LOAD=9999 PRE_PUSH_ORC_FULL_CAP=4000)"
+check "13. orc full, load 32 + PRE_PUSH_ORC_FULL_TIMEOUT wins" 1200 "$(orc full PLANT_LOAD=32 PRE_PUSH_ORC_FULL_TIMEOUT=1200)"
+check "13. orc full, load 32 + PRE_PUSH_PART_TIMEOUT wins" 77   "$(orc full PLANT_LOAD=32 PRE_PUSH_PART_TIMEOUT=77)"
+check "13. orc fast, load 32 -> 300 (the fast tier is not scaled)" 300 "$(orc fast PLANT_LOAD=32)"
+check "13. the orc reason names the load and the cap" "orc full default 1800s x load 32/16 cpus, cap 3600s" \
+  "$(PLANT_LOAD=32 _PP_TIER=full _pp_budget_why _pp_part_orc)"
+
 # 9. the real timeout on a stub iac suite that runs 2 s
 unset -f timeout
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
@@ -105,6 +129,6 @@ check "9. CONTROL: planted 1 s full-tier budget -> TIMED OUT (rc 124)" 124 "$rc"
 rc=0; ( _PP_TIER=full _pp_part_iac "$T" ) || rc=$?
 check "9. the default full-tier budget -> the 2 s suite passes" 0 "$rc"
 
-total=27
+total=36
 echo "--- $((total - fails))/$total passed ---"
 [[ "$fails" -eq 0 ]]

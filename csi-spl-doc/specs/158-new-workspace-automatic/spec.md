@@ -1,6 +1,6 @@
 # Spec 158: a new workspace works automatically
 
-**Feature ID**: `158-new-workspace-automatic` · **Status**: Draft v0.2 (for R7) ·
+**Feature ID**: `158-new-workspace-automatic` · **Status**: Draft v0.3 (for R7) ·
 **Epic**: SPL-2398 · **Issue**: SPL-3504 · **Created**: 2026-10-26 · **Lead**: c-456 ·
 **Placement slug**: `c002-s158-new-workspace-automatic`
 
@@ -14,10 +14,19 @@ Owner HUM-10, typed in an orchestrator (c-001) terminal on 2026-10-26 at about 0
 (relayed in c-001 msgs 1a1ff276, 150a1232 and 52ca9ef6),
 verbatim: "WHEN THERE IS A NEW WORKSPACE EVERYTHING MUST WORK AUTOMATICALLY".
 
-The cause: members posted in a new prd workspace from 08:57Z, and no agent
+The cause: members posted in a prd workspace from 08:57Z, and no agent
 could answer because no agent was seated there. The sweep did escalate it
-(ESC to c-001 at 09:11Z, msg 80249346). But no seat existed to answer, and
-seating one needed the workspace root key, which nobody had kept.
+(ESC to c-001 at 09:11Z, msg 80249346), but no seat existed to answer.
+
+Corrected in v0.3 (c-001 msg b8845a1e, re-measured in M11-M12): the
+workspace was created on 2026-09-26 by the shell action, and its create
+JSON, the root key included, WAS kept in one box's tenant store. Nothing
+read it. A desk is seated only when someone runs `do_spl_desk_pin` /
+`do_spl_desk_up` with that file by hand, and in a month nobody did. On the
+day, two orchestrators searched for the key and missed the file. c-001
+then seated the workspace by hand with it, at about 10:4xZ. So the failure
+is not a lost key. It is that **nothing seats the fleet in a workspace
+automatically**, whether or not a key exists.
 
 **No human step.** No root-key download, no join token by hand, no
 `do_spl_desk_up` typed for that workspace.
@@ -39,6 +48,8 @@ Paths are relative to the repo root. `hub` = `csi-spl-api/src/go/spool-hub-api/i
 | M8 | Nothing alarms on a workspace that has member posts and 0 agent seats. The delivery probe reads a workspace with no seat on this machine as `remote`, which never alerts. `store.CountBots` counts agent roster rows, but no route or action calls it. | `orc/run/spl-workspace-delivery-probe.func.sh:18-23`; `internal/store/seats_postgres.go:64` |
 | M9 | `spool hub-pin --root-key <path>`, where no file is at that path, said "the --root-key text is not a base64 ed25519 private key (nor a readable file)". A missing file falls into the key-text branch. | `internal/action/pin.go:66-88` |
 | M10 | `agents.join` is in the Admin role only, by design: `BizOwner` (the workspace owner) lacks it and `withAgents()` adds only DM/start/mention/post/reply. rdb 0119 seeds `('admin', 'agents.join')` only, so code and DB agree. A biz_owner who is not admin gets no join-token panel (WUI `mayJoin = canJoinAgents`) and cannot seat agents. On 2026-10-26 the first-case workspace was unblocked by hand, on the owner's order: `box_join_enabled` set on, and the owner made admin there (c-001 msgs e96aa466, d2815aa9). | `internal/rbac/rbac.go:217-225`; rdb `0119_agent_join_tokens.sql:66-67` |
+| M11 | Measured on ONE box (n=1; the other box not measured), 2026-10-26: its tenant store held 12 create JSONs (one per workspace, mode 0600, the box user's). The same box had 11 desk dirs. 4 workspaces with a kept key had no desk (5 before the hand seating of the day), and 3 workspaces with a desk had no kept key. The hub and WUI create keeps no key at all (M2); a file exists only when an operator saved the shell action's output there. | `ls -l` of the store and of `<state>/desk/` (names and modes only, never contents) |
+| M12 | `do_spl_desk_up` and `do_spl_desk_pin` never look in the tenant store: the key comes only from `ROOT_KEY_JSON` given by hand. `spl_newest_tenant_key`, the one reader of the store, is used only by e2e and rebox actions. | `grep -l spl_newest_tenant_key csi-spl-orc/src/bash/run/*` -> `spl-invite-e2e`, `spl-desk-rebox`, `spl-m3-e2e` |
 
 ## 3. Requirements (each one a testable row)
 
@@ -48,7 +59,7 @@ Paths are relative to the repo root. `hub` = `csi-spl-api/src/go/spool-hub-api/i
 | R2 | The fleet agents are members of every channel of that workspace, including channels created later. | Same e2e: the role seats are in `#general`'s members, and in a channel created after the seating within one tick. |
 | R3 | The unanswered sweep covers the new workspace. | Already true (M7). The unit test proves a new tenant id appears in the rows with no list change. |
 | R4 | A member's first post gets a first agent answer within the 3-minute rule. | e2e on dev: an invited member posts, and an agent message lands in that topic within 180 s. |
-| A | No root key is needed to seat the fleet. The create seats the fleet itself (section 4). No root key is stored anywhere new. | Hub unit tests of 4.2 and 4.3; a grep gate: no root private key in any new table, log line or file. |
+| A | Nothing human is needed to seat the fleet, whether or not a root key was kept (M11-M12). The end state needs no root key (section 4). No root key is stored anywhere new. | Hub unit tests of 4.2 and 4.3; a grep gate: no root private key in any new table, log line or file. |
 | B | A workspace with member posts and 0 agent seats reaches the orchestrator as a blocker within 5 minutes, and repeats hourly while it lasts. | `orc` test with a planted row set (red control: the same rows with 1 seat send nothing). |
 | C | `--root-key <path>` with no file there says in plain words that the file does not exist, without echoing the value. | `internal/action/rootkey_test.go` `TestReadRootKeyMissingFile` (red on the old code, shown in the commit). |
 
@@ -59,6 +70,7 @@ Paths are relative to the repo root. `hub` = `csi-spl-api/src/go/spool-hub-api/i
 | option | how | verdict |
 |---|---|---|
 | A-keep | The create writes the root private key to the box operator's tenant store (0600). | **Rejected.** The create runs on Cloud Run or in the browser, not on a box, so the key would have to travel to a box (a new secret channel) or sit in the hub DB. Both are new places a root key lives. |
+| A-store | The desk cron seats every workspace whose create JSON is already in this box's tenant store and has no desk dir yet (`do_spl_desk_store_seat`, reusing `spl_newest_tenant_key` and `do_spl_desk_up`). | **Interim only (row T3b), on its own GO.** It would have seated the 2026-10-26 workspace a month early, with keys that already sit on the box (no new copy). It cannot seat a WUI-created workspace (no key kept, M2), so it is not the end state. On prd its first run seats the 4 kept-key workspaces with no desk (M11): a seat change, so its first `DRY_RUN=0` on prd is c-001's, with the owner's go. |
 | A-token | The operator route mints a spec 108 join token for the new workspace and hands it to the fleet. | **Rejected.** It still moves a secret to the boxes, and spec 108 refuses shared boxes by design (M4). |
 | **A-fleet** | The hub trusts the fleet desk boxes the operator workspace has already pinned. A listed desk box proves itself with its operator-workspace box key and enrols a fresh per-workspace key into every workspace marked for fleet seating. | **Chosen.** No root key moves or is kept. The trust already exists today: the same fleet desks serve every workspace. |
 
@@ -114,7 +126,7 @@ Paths are relative to the repo root. `hub` = `csi-spl-api/src/go/spool-hub-api/i
 | A customer wants no fleet in its workspace. | `fleet_seating` false (an operator PATCH). Spec 108's dedicated boxes are unchanged. |
 | A workspace admin turns fleet seating on for itself, or lists a box. | No workspace route writes either; operator admin only (spec 074). |
 | Replay of an enrol request. | `ts` must be later than the last pin op (004 pin semantics section 5); `sig_new` binds the key. |
-| Root key exposure. | None new: A-fleet never reads, stores or moves a root key. The create still answers it once, for a workspace's own admin to keep. |
+| Root key exposure. | None new: A-fleet never reads, stores or moves a root key. The create still answers it once, for a workspace's own admin to keep. The interim A-store reads keys already in the box store (0600, box user) through `do_spl_desk_up`'s existing path (a 0600 mktemp copy, deleted after the pin) and writes no new copy. |
 
 ### 4.5 Seating with neither switch (M4, M10)
 

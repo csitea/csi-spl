@@ -11,6 +11,7 @@ deployed. Store rows run `PRE_PUSH_TIER=full`.
 | T1 | C: `ReadRootKey` says a missing file does not exist, never echoes the value | `csi-spl-api/src/go/spool-hub-api/internal/action/pin.go` | `internal/action/rootkey_test.go` `TestReadRootKeyMissingFile` (red on the old code) |
 | T2 | B: `do_spl_workspace_seat_alarm`, one blocker to the orchestrator for workspaces with member posts and 0 agent seats; re-alert hourly; lease holder only | `csi-spl-orc/src/bash/run/spl-workspace-seat-alarm.func.sh` | `csi-spl-orc/src/bash/tests/workspace-seat-alarm.tst.sh` (planted rows; red control: 1 seat sends nothing) |
 | T3 | B: the sweep's cron script runs the alarm every minute | `csi-spl-orc/src/bash/scripts/unanswered-sweep-cron.sh` | T2's test drives the cron script with stubs |
+| T3b | Interim A-store (spec 4.1): `do_spl_desk_store_seat` in the desk-reconcile cron seats every workspace with a kept create JSON and no desk dir; dry run by default; built only on its own GO; first prd `DRY_RUN=0` is c-001's with the owner's go | `csi-spl-orc/src/bash/run/spl-desk-store-seat.func.sh` | orc test: a store file with no desk dir -> `do_spl_desk_up` called with it; control: a desk dir present -> nothing; a test workspace skipped |
 
 ## 2. Hub rows (A-fleet, spec section 4.2)
 

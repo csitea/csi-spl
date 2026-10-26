@@ -166,7 +166,8 @@ and does their own work. The Bulgarian saying puts it this way:
 - Never touch another lane's files, topic or work. Before you edit a path,
   check it with `lane-map.sh --check <paths> --agent <you>`: exit 3 names the
   owning lane; exit 4 = `unknown:` lanes that recorded no files and have
-  edits: ask them first, never treat it as free.
+  edits: ask them first, never treat it as free; exit 5 = `LOCAL-ONLY:`
+  the hub did not answer, other machines unread: not free, ask c-001.
 - A finding outside your lane goes to the orchestrator
   (`spool-send.sh --to orchestrator`). You never fix it yourself. The one
   exception is your seed's SCOPE (c): it blocks your own tests and nobody

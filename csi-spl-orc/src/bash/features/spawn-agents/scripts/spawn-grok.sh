@@ -29,7 +29,7 @@ spawn_rename_how() {
 # t1 4ab84116, epic SPL-2175; SPL-2176): a tighter scope block, the same rules
 # (a)-(d), and a brevity note. Guard: tests/test-spawn-seed-size.sh.
 spawn_scope_how() {  # FETCH_CMD (git-fetch-fresh.sh, from the core)
-  printf '%s' "SCOPE + COLLISION CONTROL. Your brief's scope only: no refactor, cleanup or extra feature beyond it. Any other path: (a) FETCH = '${1}', re-check on origin/${DEFBRANCH}. (b) 'bash ${SPAWN_SCRIPTS_DIR}/lane-map.sh --check <path,...> --agent ${TITLE}' (every machine): exit 3 = owned; exit 4 = 'unknown:' lanes with edits, ask them, never free. Owned or fixed: report it, do not fix it. (c) Only if it blocks YOUR tests and nobody owns it: a SEPARATE narrow commit. (d) FETCH again during long work."
+  printf '%s' "SCOPE + COLLISION CONTROL. Your brief's scope only: no refactor, cleanup or extra feature beyond it. Any other path: (a) FETCH = '${1}', re-check on origin/${DEFBRANCH}. (b) 'bash ${SPAWN_SCRIPTS_DIR}/lane-map.sh --check <path,...> --agent ${TITLE}' (every machine): exit 3 = owned; exit 4 = 'unknown:' lanes with edits, ask them, never free; exit 5 = 'LOCAL-ONLY:' hub silent, other machines unread, not free, ask c-001. Owned or fixed: report it, do not fix it. (c) Only if it blocks YOUR tests and nobody owns it: a SEPARATE narrow commit. (d) FETCH again during long work."
 }
 spawn_seed_note() {
   printf '%s' "answer and report in few words (result, sha, paths, exit codes); never restate the brief, the seed or a tool's output."

@@ -144,7 +144,7 @@ jobs:
           set -uo pipefail
           rc=0
           out="$(GCP_ACCOUNT="$DEPLOY_SA" ./csi-spl-orc/run -a do_check_hub_deploy 2>&1)" || rc=$?
-          verdict="$(grep -E "^$ENV (current|lagging|unhealthy) " <<<"$out" | tail -1)"
+          verdict="$(grep -E "^$ENV (current|rolling|lagging|unhealthy) " <<<"$out" | tail -1)"
           echo "${verdict:-$ENV: no verdict (rc $rc)}"
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
           { echo "## Deploy lag: spool hub -> $ENV"; echo; echo "\`${verdict:-no verdict, rc $rc}\`"; } >> "$GITHUB_STEP_SUMMARY"

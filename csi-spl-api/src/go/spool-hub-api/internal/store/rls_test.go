@@ -265,3 +265,75 @@ func TestRLSScopeIsTransactionLocal(t *testing.T) {
 	}
 	unscoped("asOperator")
 }
+
+// TestRLSFleetDeskBoxesOperatorOnly (rdb 0230, spec 158 T4): the fleet desk
+// list is the estate's, not a workspace's. Only the operator scope reads or
+// writes it; a tenant scope and no scope see no row and insert none. A new
+// workspace starts with fleet_seating false.
+func TestRLSFleetDeskBoxesOperatorOnly(t *testing.T) {
+	pg := rlsStore(t)
+	ctx := context.Background()
+	a := newTenant(t, pg)
+	box := "fdb-" + a
+	if len(box) > 32 {
+		box = box[:32]
+	}
+	if err := pg.asOperator(ctx, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO fleet_desk_boxes (box_id, added_by) VALUES ($1, 'HUM-10')`, box)
+		return err
+	}); err != nil {
+		t.Fatalf("operator listing a fleet desk box: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = pg.asOperator(ctx, func(tx pgx.Tx) error {
+			_, err := tx.Exec(ctx, `DELETE FROM fleet_desk_boxes WHERE box_id = $1`, box)
+			return err
+		})
+	})
+	var seen int
+	if err := pg.asOperator(ctx, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT count(*) FROM fleet_desk_boxes WHERE box_id = $1`, box).Scan(&seen)
+	}); err != nil || seen != 1 {
+		t.Fatalf("operator scope sees %d of its 1 fleet desk box (%v)", seen, err)
+	}
+	err := pg.inTenant(ctx, a, func(tx pgx.Tx) error {
+		var n int
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM fleet_desk_boxes`).Scan(&n); err != nil {
+			return err
+		}
+		if n != 0 {
+			t.Errorf("tenant %s sees %d fleet desk box(es), want 0", a, n)
+		}
+		var on bool
+		if err := tx.QueryRow(ctx, `SELECT fleet_seating FROM tenants WHERE tenant_id = $1`, a).Scan(&on); err != nil {
+			return err
+		}
+		if on {
+			t.Errorf("new tenant %s has fleet_seating true, want the default false", a)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = pg.inTenant(ctx, a, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO fleet_desk_boxes (box_id, added_by) VALUES ('fdb-tenant-x', 'HUM-10')`)
+		return err
+	})
+	var pe *pgconn.PgError
+	if !errors.As(err, &pe) || pe.Code != "42501" {
+		t.Fatalf("a tenant listing a fleet desk box: want 42501 row-level security violation, got %v", err)
+	}
+	var none int
+	if err := pg.pool.QueryRow(ctx, `SELECT count(*) FROM fleet_desk_boxes`).Scan(&none); err != nil {
+		t.Fatal(err)
+	}
+	if none != 0 {
+		t.Fatalf("a statement with no scope sees %d fleet desk box(es), want 0", none)
+	}
+	var on, force bool
+	if err := pg.pool.QueryRow(ctx, `SELECT relrowsecurity, relforcerowsecurity FROM pg_class
+		WHERE oid = 'fleet_desk_boxes'::regclass`).Scan(&on, &force); err != nil || !on || !force {
+		t.Fatalf("fleet_desk_boxes row security enable=%v force=%v (%v)", on, force, err)
+	}
+}

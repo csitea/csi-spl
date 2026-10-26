@@ -38,6 +38,7 @@ var operatorCallers = map[string]string{
 	"RecordSamples":              "lane_op fleet_tokens_push (spec 140 3.4, rdb 0199): the instance's estate rows (no tenant_id) under the pushing box's session box; only a box of the operator workspace reaches it",
 	"ListBuckets":                "GET /v1/operator/fleet-tokens (spec 140 3.5) for the operator admin / service account, and the push's surge check: the instance's estate rows, no tenant_id",
 	"ListDays":                   "fleet token daily rollups (spec 140 3.6, rdb 0199): the instance's estate rows, no tenant_id; no route",
+	"WorkspaceTokenMonth":        "GET /v1/tenant/costs (spec 140 3.10, rdb 0229): the fleet burn rows have no tenant_id under RLS (operator scope, like 0199); the read filters on work_tenant, the hub passes the caller's own workspace (any member) or every one (the operator workspace's admin only)",
 	"PruneOldBuckets":            "fleet token rollup + 30/365-day retention (hub sweeper goroutine, spec 140 3.6), global by design; no route",
 	"RepriceUnpriced":            "spool fleet-tokens-reprice (SPL-2405, spec 140 T010): prices the instance's unpriced estate minutes (rdb 0199, no tenant_id) of named models once; operator action do_spl_token_burn_reprice only, no route",
 	"CreateCategory":             "POST /v1/operator/categories (spec 143 4.5, rdb 0204): one node of the instance's estate tree (no tenant_id); only the operator admin / service account (fleetLoadCaller) reaches it",

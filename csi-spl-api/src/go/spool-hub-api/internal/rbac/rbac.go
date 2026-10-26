@@ -56,8 +56,10 @@ const (
 	// the accounting view (FR-19).
 	HoursRates = "hours.rates"
 	// CostsRead gates the cost lines and their coverage (specs/123 §5.1, rdb
-	// 0166): biz_owner and admin (owner Q-1 = A), not billing.manage. In the
-	// operator workspace it opens the estate view, elsewhere that workspace's rows.
+	// 0166), not billing.manage: every member role since rdb 0229 (specs/140
+	// 3.10). A workspace's holder reads that workspace's rows and the token
+	// costs of the lanes working for it; only the operator workspace's admin
+	// reads the estate (the hub's cost route decides, not this id).
 	CostsRead = "costs.read"
 )
 
@@ -205,7 +207,11 @@ var Permissions = []PermissionDoc{
 // gives every role files.write, topics.manage, self.keys and channels.edit, and adds
 // demo_user without them (specs/077). rdb 0151 gives hours.read and
 // hours.approve to biz_owner alone (specs/107 §6.1, owner Q5 = A). rdb 0166
-// gives costs.read to biz_owner and admin (specs/123 §5.1, owner Q-1 = A).
+// gives costs.read to biz_owner and admin (specs/123 §5.1, owner Q-1 = A),
+// rdb 0229 to every member role (specs/140 3.10, owner t1 f3ed0eed msg
+// 1bb1f74b: "all of the roles should be able to check those costs"); never
+// demo_user, channel_guest or time_accountant (an add-on role pinned to the
+// two hours ids, FR-20).
 // rdb 0169 adds channel_guest with no permission (specs/121). rdb 0222 adds
 // time_accountant with hours.read and hours.rates, built without withMember
 // (specs/107 FR-20, FR-21). rdb 0223 adds the 23 action ids of spec 152 3.1,
@@ -216,14 +222,13 @@ var Permissions = []PermissionDoc{
 var Defaults = []Role{
 	{ID: BizOwner, TenantOwner: true, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
 		MembersInvite, MembersRoles, BillingManage, TenantSettings, KeysManage, AuditRead, MembersImpersonate, DocsRead, DocsWrite,
-		HoursRead, HoursApprove, CostsRead,
+		HoursRead, HoursApprove,
 		ChannelsAIAgents, MessagesKind, IssuesBlocker, TopicsChangeOthers, IssuesRemoveOthers, ResultsAccept, ShipApprove,
 		RoadmapPublish, MarketingPublish, EmbedsManage, PermsEdit, EmbedsVisitors)...)},
 	{ID: ProductOwner, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, AuditRead, DocsRead, DocsWrite,
 		ResultsAccept, ShipApprove)...)},
 	{ID: Admin, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
 		MembersInvite, MembersRoles, TenantSettings, KeysManage, AuditRead, MembersImpersonate, AgentsJoin, DocsRead, DocsWrite,
-		CostsRead,
 		ChannelsAIAgents, MessagesKind, TopicsChangeOthers, IssuesRemoveOthers, ResultsAccept, ShipApprove,
 		RoadmapPublish, PermsEdit, ReportingSQL, EmbedsVisitors)...)},
 	{ID: Developer, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, DocsRead, DocsWrite,
@@ -241,11 +246,11 @@ var Defaults = []Role{
 }
 
 // withMember is p plus the four permissions every member role holds and
-// demo_user does not (rdb 0124) and the five issue ids that ride with
-// topics.manage (rdb 0223), sorted.
+// demo_user does not (rdb 0124), the five issue ids that ride with
+// topics.manage (rdb 0223) and costs.read (rdb 0229), sorted.
 func withMember(p ...string) []string {
 	return sorted(append(p, FilesWrite, TopicsManage, SelfKeys, ChannelsEdit,
-		IssuesCreate, IssuesEdit, IssuesAssign, IssuesPrioritise, IssuesStatus)...)
+		IssuesCreate, IssuesEdit, IssuesAssign, IssuesPrioritise, IssuesStatus, CostsRead)...)
 }
 
 // withAgents is p plus the five agents.* ids every agents.command holder

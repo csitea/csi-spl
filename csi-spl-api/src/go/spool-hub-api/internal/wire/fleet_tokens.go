@@ -56,6 +56,11 @@ type FleetTokenSample struct {
 	CacheRead  int64     `json:"cache_read"`
 	CacheWrite int64     `json:"cache_write"`
 	IsMetered  bool      `json:"is_metered"`
+	// WorkTenant is the workspace the sample's lane works for, "" = the
+	// operator workspace's own work (spec 140 3.10, rdb 0229). The hub sets
+	// it from its lane map before it stores the push; a box never sends it
+	// (json "-": DecodeFleetTokensPush refuses the field).
+	WorkTenant string `json:"-"`
 }
 
 // Total is every token of the sample, cache reads included (the dashboard's

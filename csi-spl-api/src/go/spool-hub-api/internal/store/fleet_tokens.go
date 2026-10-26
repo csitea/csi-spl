@@ -71,6 +71,7 @@ type FleetTokenBucket struct {
 	Currency   string
 	Priced     bool
 	IsMetered  bool
+	WorkTenant string // the workspace the lane worked for, "" = the operator's own (rdb 0229)
 }
 
 // Total is every token of the row, cache reads included.
@@ -103,6 +104,7 @@ type FleetTokenDay struct {
 	CostMicros float64
 	Currency   string
 	IsMetered  bool
+	WorkTenant string // the day's latest minute's (rdb 0229)
 }
 
 // FleetTokenStore is the store half of rdb 0199. Optional: the hub answers
@@ -462,7 +464,7 @@ func (s *Memory) RecordSamples(_ context.Context, box string, samples []wire.Fle
 		f, _ := c.Float64()
 		memFleetTokens[s][fleetTokenKey(box, x.AgentID, x.Minute)] = FleetTokenBucket{BoxTag: box, AgentID: x.AgentID, Vendor: x.Vendor,
 			Model: x.ModelName(), Minute: x.Minute.UTC(), TokensIn: x.TokensIn, TokensOut: x.TokensOut, CacheRead: x.CacheRead,
-			CacheWrite: x.CacheWrite, CostMicros: f, Currency: cur, Priced: priced, IsMetered: x.IsMetered}
+			CacheWrite: x.CacheWrite, CostMicros: f, Currency: cur, Priced: priced, IsMetered: x.IsMetered, WorkTenant: x.WorkTenant}
 	}
 	return len(samples), nil
 }
@@ -536,7 +538,7 @@ func (s *Memory) PruneOldBuckets(_ context.Context, now time.Time) (FleetTokenPr
 		d := rolled[k]
 		d.Day, d.BoxTag, d.AgentID = day, b.BoxTag, b.AgentID
 		if !b.Minute.Before(latest[k]) {
-			latest[k], d.Vendor, d.Model = b.Minute, b.Vendor, b.Model
+			latest[k], d.Vendor, d.Model, d.WorkTenant = b.Minute, b.Vendor, b.Model, b.WorkTenant
 		}
 		if d.Currency == "" || b.Priced {
 			d.Currency = b.Currency

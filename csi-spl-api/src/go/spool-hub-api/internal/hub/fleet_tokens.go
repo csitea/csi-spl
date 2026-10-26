@@ -162,6 +162,7 @@ func (s *Server) fleetTokensPush(ctx context.Context, x *session, f wire.Frame) 
 			return nil, &issueErr{http.StatusBadRequest, "bad_samples", fmt.Sprintf("sample %d: minute must be within the last 30 days and not ahead of the hub's clock", i)}
 		}
 	}
+	s.stampWorkTenants(ctx, op, x.box, p.Samples)
 	n, err := ft.RecordSamples(ctx, x.box, p.Samples)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("box", x.box).Msg("fleet tokens record")

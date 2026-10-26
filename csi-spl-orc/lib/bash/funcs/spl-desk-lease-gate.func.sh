@@ -34,8 +34,9 @@ declare -F spl_desk_box_default >/dev/null ||
   source "${BASH_SOURCE[0]%/*}/spl-desk-box.func.sh"
 declare -F spl_box_ws_claim >/dev/null ||
   source "${BASH_SOURCE[0]%/*}/spl-box-workspace.func.sh"
-declare -F cr_channel_of >/dev/null ||
-  source "${BASH_SOURCE[0]%/*}/../../../src/bash/features/spawn-agents/lib/channel-rules.inc.sh"
+# channel-rules.inc.sh is sourced on first use, never at load: a tree that
+# copies lib/bash/funcs alone (the ./run framework tests) has no features dir.
+SPL_DESK_LEASE_CR_LIB="${BASH_SOURCE[0]%/*}/../../../src/bash/features/spawn-agents/lib/channel-rules.inc.sh"
 
 # spl_desk_lease_gate <state dir> <box> <tenant> <hub> <agent> <task>: 0 when
 # <agent> may post in topic <task>, else 8 with the FATAL that names the lease
@@ -55,7 +56,10 @@ spl_desk_lease_gate() {
   spl_desk_lease_is "$agent" "$orch" "$dir" && return 0
   claim="$(spl_box_ws_claim)"
   [[ -n "$claim" && "$claim" == "$tenant" ]] && return 0
-  [[ "$(cr_channel_of "${SPOOL_ROOT:-/var/spool-hub}/$agent/lifetime/brief.md")" == "$tenant "* ]] && return 0
+  # shellcheck source=../../../src/bash/features/spawn-agents/lib/channel-rules.inc.sh
+  declare -F cr_channel_of >/dev/null || { [[ -r "$SPL_DESK_LEASE_CR_LIB" ]] && source "$SPL_DESK_LEASE_CR_LIB"; }
+  declare -F cr_channel_of >/dev/null &&
+    [[ "$(cr_channel_of "${SPOOL_ROOT:-/var/spool-hub}/$agent/lifetime/brief.md")" == "$tenant "* ]] && return 0
   tail="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- hub-tail --task "$task" --json 2>&1)" || rc=$?
   if (( rc != 0 )); then
     do_log "FATAL nothing was sent: $agent does not hold the dispatch lease ($holder) and cannot read topic $task to prove this is not its first reply there: $(head -c 300 <<<"$tail"). Send the answer to the lease holder: spool-send.sh --to $holder (SPEC-spool-fleet-roles.md 3, SPL-3520)"

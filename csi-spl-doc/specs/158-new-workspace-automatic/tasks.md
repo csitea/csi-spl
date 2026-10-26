@@ -1,0 +1,39 @@
+# Spec 158 tasks: a new workspace works automatically
+
+Issue SPL-3504, epic SPL-2398. Each row is one commit, tests red first. Each
+row goes review branch -> non-claude R7 -> GO -> land -> dev AND prd
+deployed. Store rows run `PRE_PUSH_TIER=full`.
+
+## 1. Small rows first
+
+| row | what | files | test |
+|---|---|---|---|
+| T1 | C: `ReadRootKey` says a missing file does not exist, never echoes the value | `csi-spl-api/src/go/spool-hub-api/internal/action/pin.go` | `internal/action/rootkey_test.go` `TestReadRootKeyMissingFile` (red on the old code) |
+| T2 | B: `do_spl_workspace_seat_alarm`, one blocker to the orchestrator for workspaces with member posts and 0 agent seats; re-alert hourly; lease holder only | `csi-spl-orc/src/bash/run/spl-workspace-seat-alarm.func.sh` | `csi-spl-orc/src/bash/tests/workspace-seat-alarm.tst.sh` (planted rows; red control: 1 seat sends nothing) |
+| T3 | B: the sweep's cron script runs the alarm every minute | `csi-spl-orc/src/bash/scripts/unanswered-sweep-cron.sh` | T2's test drives the cron script with stubs |
+
+## 2. Hub rows (A-fleet, spec section 4.2)
+
+| row | what | test |
+|---|---|---|
+| T4 | rdb: `tenants.fleet_seating` (default false) + `fleet_desk_boxes`, RLS / operator-only | migration lint; `rls_test.go` covers the new table |
+| T5 | create sets `fleet_seating` true (request field, default true); PATCH flips it; audited | `operator_workspaces_test.go` |
+| T6 | `PUT/DELETE /v1/operator/fleet-desks/{box}` + `do_spl_fleet_desk_box` | hub test: a box with no live operator pin is refused |
+| T7 | `GET /v1/fleet/workspaces` and `POST /v1/fleet/enrol` (two signatures, `box_mode = 'fleet'`, audit row) | hub tests: unlisted box 403, bad `sig_new` 401, replayed `ts` 409, `fleet_seating` false 403, Postgres twin |
+
+## 3. Box rows (A-fleet, spec section 4.3)
+
+| row | what | test |
+|---|---|---|
+| T8 | `spool fleet-workspaces`, `spool fleet-enrol` | `cmd/spool` tests against a fake hub |
+| T9 | `do_spl_desk_up` `DESK_PIN_MODE=fleet` + `do_spl_desk_fleet_seat` in the desk-reconcile cron | orc test: a listed new workspace gets a desk dir and a pin with no `ROOT_KEY_JSON` |
+| T10 | R2 proof: the dispatch tick subscribes the role seats in the new workspace's channels | orc test on `spl-dispatch-subscribe` with the new tenant |
+| T11 | e2e on dev: create -> seated (R1) -> channels (R2) -> member post answered within 180 s (R4) | dev run, numbers in the commit body |
+
+## 4. Rollout rows
+
+| row | what | who |
+|---|---|---|
+| T12 | `do_spl_fleet_seating_switch` (dry run default) for existing workspaces | lane builds it; c-001 runs it on prd with the owner's go |
+| T13 | the first case workspace: switch on, desk cron seats it | c-001, owner's go |
+| T14 | DevOps guide: a fleet seating section | lane, with T9 |

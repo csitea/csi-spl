@@ -1700,38 +1700,73 @@ spl_wd_fence_start() {
 # The lanes whose fence wip push failed (fence.wipfail.<id>: origin was as
 # unreachable as the hub, a Wi-Fi outage on the PC box 2026-10-16: 8 of 8
 # rc=1) get it once more, now that the network is back.
+# A lane the fence TERMed that was already done (spl_wd_unfence_done) gets
+# lifetime/done, so S3 and do_spl_agent_restart's done check (spec 102 4.3)
+# never revive it (SPL-3669: one box 2026-10-26, a lane ACCEPTED and idle
+# since 02:49Z, TERMed by the 02:58Z fence, restarted after the unfence).
 spl_wd_unfence() {
-  local took id
-  local -a jp=() ids=()
+  local took id why at
+  local -a jp=() ids=() terms=() tl=()
   took="$(spl_wd_fence_locked spl_wd_unfence_take)" || return 0
   if [[ "$took" == held ]]; then
     spl_wd_log "UNHELD${WD_INST:+ instance $WD_INST}: the hub acked this box's beat again; starts resume"
     return 0
   fi
-  read -r -a ids <<<"${took#fenced}"
+  mapfile -t tl <<<"$took"
+  read -r _ at <<<"${tl[0]}"
+  read -r -a ids <<<"${tl[1]:-}"
+  read -r -a terms <<<"${tl[2]:-}"
   for id in "${ids[@]}"; do
     ( rc=0; spl_wd_fence_wip "$id" || rc=$?
       spl_wd_log "UNFENCED $id: wip push retried, rc=$rc" ) &
     jp+=("$!")
   done
   if (( ${#jp[@]} )); then wait "${jp[@]}" 2>/dev/null || true; fi
+  for id in "${terms[@]}"; do
+    why="$(spl_wd_unfence_done "$id" "$at")"
+    [[ -n "$why" ]] || continue
+    if [[ "${DRY_RUN:-1}" == 0 ]] && ! { mkdir -p "$SPOOL_ROOT/$id/lifetime" && touch "$SPOOL_ROOT/$id/lifetime/done"; } 2>/dev/null; then
+      spl_wd_log "UNFENCED $id: done ($why), but lifetime/done could not be written"; continue
+    fi
+    spl_wd_log "UNFENCED $id: skipped, done ($why)"
+  done
   [[ "${SPL_WD_FENCE_NOLOCK:-}" == 1 ]] && rm -f "$WD_DIR/fenced" "$WD_DIR/held" "$WD_DIR"/fence.term.* "$WD_DIR"/fence.wipfail.*
   spl_wd_log "UNFENCED${WD_INST:+ instance $WD_INST}: the hub acked this box's beat again; restarts resume"
 }
 
-# spl_wd_unfence_take: under the fence lock. Prints "fenced <id>..." (the
-# lanes to retry) or "held" and removes that state; 1 when another instance
-# already lifted it.
+# spl_wd_unfence_take: under the fence lock. Prints three lines, "fenced
+# <fence epoch>", the lanes to retry (fence.wipfail.<id>) and the lanes the
+# fence TERMed (fence.term.<id>), or "held", and removes that state; 1 when
+# another instance already lifted it.
 spl_wd_unfence_take() {
-  local f out
+  local f at="" wip="" term=""
   if [[ ! -e "$WD_DIR/fenced" ]]; then
     [[ -e "$WD_DIR/held" || "${SPL_WD_FENCE_NOLOCK:-}" == 1 ]] || return 1
     rm -f "$WD_DIR/held"; echo held; return 0
   fi
-  out=fenced
-  for f in "$WD_DIR"/fence.wipfail.*; do [[ -e "$f" ]] && out+=" ${f##*/fence.wipfail.}"; done
+  read -r at 2>/dev/null < "$WD_DIR/fenced" || true
+  for f in "$WD_DIR"/fence.wipfail.*; do [[ -e "$f" ]] && wip+=" ${f##*/fence.wipfail.}"; done
+  for f in "$WD_DIR"/fence.term.*; do [[ -e "$f" ]] && term+=" ${f##*/fence.term.}"; done
   [[ "${SPL_WD_FENCE_NOLOCK:-}" == 1 ]] || rm -f "$WD_DIR/fenced" "$WD_DIR/held" "$WD_DIR"/fence.term.* "$WD_DIR"/fence.wipfail.*
-  echo "$out"
+  printf 'fenced %s\n%s\n%s\n' "${at:-0}" "${wip# }" "${term# }"
+}
+
+# spl_wd_unfence_done ID FENCE_AT: why the fenced lane ID is done, nothing
+# when it is not: retired (spl_ars_retired, the restart's own check), or its
+# session had stopped (heartbeat.json state idle, its ts not after FENCE_AT)
+# and it holds an ACCEPTED newer than any REJECT (spl_lane_rotate_accepted,
+# the lane rotation's check). A lane busy at the fence is restarted as before.
+spl_wd_unfence_done() {
+  local id="$1" at="$2" st ts e
+  declare -F spl_ars_retired >/dev/null || source "$SPL_WD_RUN_DIR/spl-agent-restart.func.sh"
+  declare -F spl_lane_rotate_accepted >/dev/null || source "$SPL_WD_RUN_DIR/spl-lane-rotate.func.sh"
+  if spl_ars_retired "$id"; then echo "retired: registry.retired.tsv, no open registry row"; return 0; fi
+  read -r st ts < <(jq -r '[.state // "-", .ts // "-"] | join(" ")' "$SPOOL_ROOT/$id/heartbeat.json" 2>/dev/null) || return 0
+  [[ "$st" == idle && "$at" =~ ^[0-9]+$ ]] || return 0
+  e="$(date -u -d "$ts" +%s 2>/dev/null)" || return 0
+  (( e <= at )) || return 0
+  spl_lane_rotate_accepted "$id" || return 0
+  echo "stopped $ts, before the fence at $(date -u -d "@$at" +%FT%TZ), and ACCEPTED"
 }
 
 # spl_wd_box_fenced: 0 while this box is fenced or held (spl_wd_takeover's

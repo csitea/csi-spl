@@ -566,6 +566,11 @@ automatic paths are the R-b race again). 093 6.2's suspend guard stays.
   changes only under `<wd>/fence.lock`; a fence pass re-checks there, before
   `fenced` and before each lane, that the fence is still due, and one
   instance lifts it and retries its failed wip pushes once.
+- **A done lane is not revived** (SPL-3669): at the unfence, a lane the
+  fence TERMed that was already done gets `lifetime/done`, so S3 and the
+  restart (4.3) skip it, logged `UNFENCED <id>: skipped, done (<why>)`:
+  retired, or its session had stopped (heartbeat `idle`) before the fence
+  and it holds an ACCEPTED. A lane busy at the fence restarts as before.
 - **What moves**: only lanes. A seat is a slot of its box (001..004); the
   other boxes' seats take its jobs by the 093 claim (093 10), so a down
   box's seats simply wait for their box.

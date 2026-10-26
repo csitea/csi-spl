@@ -54,6 +54,11 @@
 #      BEAT no ack line in wd.log as before; the file keeps its last
 #      WD_BEAT_LOG_MAX lines; a tick past WD_TICK appends its step times
 #      (TICK ... <step>=<ms>), a tick inside WD_TICK appends none
+#  13. SPL-3669: a lane that stopped before the fence and holds an ACCEPTED
+#      is marked done at UNFENCED (lifetime/done, "skipped, done"): S3 no
+#      longer hits it, so it is never restarted; a lane busy at the fence is
+#      still hit; a retired lane is done. RED control: origin/master's
+#      spl_wd_unfence marks nothing and S3 hits the done lane too
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -407,6 +412,47 @@ wd slow12 30 0
 wd slow12 1 1.2
 grep -q "^TICK - tick=2027-01-15T08:00:00.000Z ms=1[0-9][0-9][0-9] peers=1[0-9][0-9][0-9]\$" "$T/wd/beat.log" 2>/dev/null &&
   pass "12. a tick past WD_TICK appends its step times" || fail "12. TICK line: $(grep TICK "$T/wd/beat.log" 2>/dev/null || echo none)"
+
+# ---- 13. a lane done before the fence is not revived at UNFENCED (SPL-3669) -----
+# c-050 stopped (heartbeat idle) 60 s before the fence and holds an ACCEPTED;
+# c-051 was mid tool. Both are TERMed by the fence. At UNFENCED c-050 gets
+# lifetime/done ("skipped, done"), so S3 (s3.sh) no longer hits it and the
+# restart is never asked; c-051 has no marker and S3 still hits it.
+# RED control: the code before (origin/master's spl_wd_unfence) writes no
+# marker, and S3 hits c-050 too (the commit body has the run).
+reset
+iso13() { date -u -d "@$1" +%FT%TZ; }
+for l in 050 051; do
+  mkdir -p "$T/spool/c-$l/lifetime" "$T/spool/c-$l/archive"
+  echo '{"started":"2026-01-01T00:00:00Z"}' > "$T/spool/c-$l/lifetime/session.json"
+done
+printf '{"state":"idle","ts":"%s"}\n' "$(iso13 $(( T0 + 60 )))" > "$T/spool/c-050/heartbeat.json"
+printf '{"state":"in-tool","ts":"%s"}\n' "$(iso13 $(( T0 + 60 )))" > "$T/spool/c-051/heartbeat.json"
+echo '{"v":1,"kind":"result","body":"ACCEPTED c-050: landed"}' > "$T/spool/c-050/archive/m1.json"
+echo '{"v":1,"kind":"result","body":"ACCEPTED c-051: landed"}' > "$T/spool/c-051/archive/m1.json"
+ticks 0 0 ok
+ticks 30 120 silent
+[[ "$(n acts 'kill -TERM 150')" == 1 && "$(n acts 'kill -TERM 151')" == 1 ]] &&
+  pass "13. fenced: both lanes TERMed" || fail "13. fence TERMs: $(cat "$T/acts" 2>/dev/null)"
+ticks 150 150 ok
+grep -q "UNFENCED c-050: skipped, done (stopped $(iso13 $(( T0 + 60 ))), before the fence at $(iso13 $(( T0 + 120 ))), and ACCEPTED)" "$T/wd.log" &&
+  [[ -e "$T/spool/c-050/lifetime/done" ]] &&
+  pass "13. UNFENCED: c-050 (stopped before the fence, ACCEPTED) skipped, lifetime/done written" ||
+  fail "13. c-050 not skipped: $(grep UNFENCED "$T/wd.log")"
+[[ ! -e "$T/spool/c-051/lifetime/done" ]] && ! grep -q "UNFENCED c-051: skipped" "$T/wd.log" &&
+  pass "13. UNFENCED: c-051 (busy at the fence) is not marked done" || fail "13. c-051 marked done"
+# s313 ID: s3.sh over the lane's lifetime, its pane a bare bash (as after the TERM)
+s313() {
+  local c="$T/ctx13.$1"; rm -rf "$c"; mkdir -p "$c"
+  wd spl_wd_lifetime "$1" "$c"; echo '$' > "$c/pane"; echo bash > "$c/tree"; echo bash > "$c/fg"
+  WD_CTX="$c" bash "$PROJ_ROOT/src/bash/features/watchdog/situations/s3.sh" "$1" - "%$1"
+}
+[[ -z "$(s313 c-050)" ]] && pass "13. S3 no longer hits c-050: never restarted" || fail "13. S3 still hits c-050: $(s313 c-050)"
+grep -q '^HIT S3 ' <<<"$(s313 c-051)" && pass "13. control: S3 still hits c-051 (restarted as before)" || fail "13. control: no S3 hit for c-051"
+printf 'c-099\tx\n' > "$T/spool/registry.retired.tsv"
+[[ "$(SPOOL_ROOT="$T/spool" wd spl_wd_unfence_done c-099 "$T0")" == retired:* ]] &&
+  [[ -z "$(SPOOL_ROOT="$T/spool" wd spl_wd_unfence_done c-051 $(( T0 + 120 )))" ]] &&
+  pass "13. a retired lane is done; a busy one is not" || fail "13. spl_wd_unfence_done: $(wd spl_wd_unfence_done c-099 "$T0")"
 
 if (( fails )); then echo "wd-fence: $fails FAILED"; exit 1; fi
 echo "wd-fence: all passed"

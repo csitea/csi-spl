@@ -1,7 +1,7 @@
 # 160 File streams: follow a box file live in Monitoring, and search it
 
-Version v0.1 (2026-10-26): the first draft, for a cross-vendor review.
-Nothing is built. Docs only until the owner's GO (section 7), then the build
+Version v0.1 (2026-10-26): the first draft, reviewed: cross-vendor PASS
+(section 8). Nothing is built. Docs only until the owner's GO (section 7), then the build
 rows of section 5 land one by one, each after its own review PASS + GO.
 
 Source: the owner's asks in the owner's customer workspace (section 1); the
@@ -448,7 +448,22 @@ Q4 GO to build rows B1..B7 in the order of section 5?
 
 ## 8. Review record
 
-Empty: the cross-vendor reviewer writes here.
+| reviewer | vendor | sha | verdict | msg |
+|---|---|---|---|---|
+| m-313@sat | mistral | `0860285a7` | PASS, no defects, no warnings | `7d8f18ae` (task `c5a8ed9d`) |
+
+The reviewer ran nine checks, each with its command: the branch and the
+one-file diff; the path model (allow-list in cnf, deny list in code after
+`realpath`); masking by `spool_redact.py` before the queue; owner/admin
+RBAC and the cross-tenant cases; the reserved `in:file-streams` value and
+`TypeFileLine` outside `DefaultTypes`; the limits and retention; the 24
+cases and their red controls; the poll form; `do_check_dist_hygiene`
+clean. Its one note, not a defect: like every list, `spool_redact` misses
+a token format it does not know (a custom `custom_abc123`); row B1's C9
+tests the formats the brief names.
+
+Dispatch GO to land this doc: c-002@sat, msg `5fc59ad9` (task
+`c5a8ed9d`). A GO to build is the owner's (section 7, Q4).
 
 ## 9. Not in scope
 

@@ -150,27 +150,10 @@ orphan_process_alert() {
   return 0
 }
 
-do_fleet_orphan_process_reap() {
-  local proc_dir="${ORPHAN_PROC_DIR:-/proc}"
-  local active_tsv="${ORPHAN_ACTIVE_REGISTRY:-${SPOOL_ROOT:-/var/spool-hub}/registry.tsv}"
-  local retired_tsv="${ORPHAN_RETIRED_REGISTRY:-${SPOOL_ROOT:-/var/spool-hub}/registry.retired.tsv}"
-  local wt_root="${ORPHAN_WT_ROOT:-${SPOOL_WT_ROOT:-/opt/csi/csi-spl-wt}}"
-  local dry="${DRY_RUN:-1}"
-  local t0 ms scanned_pids=0 orphan_count=0
-  local json_mode=0
-
-  for arg in "$@"; do
-    case "$arg" in
-      --json) json_mode=1 ;;
-    esac
-  done
-
-  [[ -d "$proc_dir" ]] || { do_log "FATAL ORPHAN_PROC_DIR '$proc_dir' is not a directory"; return 2; }
-
-  t0="$(orphan_process_ms)"
-
-  # 1. Discover currently active agent IDs from registry.tsv and live tmux windows
-  declare -A active_agents=()
+# 1. Discover currently active agent IDs from registry.tsv and live tmux windows
+# Fills the caller's active_agents set.
+orphan_process_active_ids() {
+  local active_tsv="$1"
   if [[ -f "$active_tsv" ]]; then
     local a_row_id
     while IFS=$'\t' read -r a_row_id _rest; do
@@ -201,9 +184,12 @@ do_fleet_orphan_process_reap() {
       fi
     done < <("${tmux_cmd[@]}" list-windows -a -F '#{window_name}' 2>/dev/null || true)
   fi
+}
 
-  # 2. Load retired agent IDs into hash set (excluding currently active lanes)
-  declare -A retired_agents=()
+# 2. Load retired agent IDs into hash set (excluding currently active lanes)
+# Fills the caller's retired_agents set; reads active_agents.
+orphan_process_retired_ids() {
+  local retired_tsv="$1"
   if [[ -f "$retired_tsv" ]]; then
     local r_id
     while IFS=$'\t' read -r r_id _rest; do
@@ -214,84 +200,92 @@ do_fleet_orphan_process_reap() {
       retired_agents["$r_id"]=1
     done < "$retired_tsv"
   fi
+}
 
-  # 3. Gather process directories
+# Provenance 1: Process environ contains AGENT_ID in registry.retired.tsv (and not active)
+# Reads the p_dirs of orphan_process_dirs; fills candidate_provenance / candidate_agent.
+orphan_process_environ_candidates() {
+  local env_line p_file p_pid a_id a_clean
+  while IFS= read -r env_line; do
+    [[ -z "$env_line" ]] && continue
+    p_file="${env_line%%:AGENT_ID=*}"
+    a_id="${env_line#*:AGENT_ID=}"
+    a_id="${a_id%%$'\r'*}"
+    a_id="${a_id%%$'\n'*}"
+    p_pid="${p_file%/environ}"
+    p_pid="${p_pid##*/}"
+    [[ "$p_pid" =~ ^[0-9]+$ ]] || continue
+    a_clean="${a_id%@*}"
+    # Skip if this agent ID belongs to a currently active lane
+    [[ -n "${active_agents[$a_clean]:-}" ]] && continue
+
+    if [[ -n "${retired_agents[$a_clean]:-}" ]]; then
+      candidate_provenance["$p_pid"]="retired-agent:$a_id"
+      candidate_agent["$p_pid"]="$a_id"
+    fi
+  done < <(grep -s -z -H '^AGENT_ID=' "${p_dirs[@]/%//environ}" 2>/dev/null | tr '\0' '\n' | grep ':AGENT_ID=')
+}
+
+# Provenance 2: Process working directory points to a removed worktree ((deleted))
+# Reads the p_dirs of orphan_process_dirs; fills candidate_cwd / candidate_provenance.
+orphan_process_cwd_candidates() {
+  local wt_root="$1"
+  local cwd_line c_target link_path c_pid c_clean path_agent
+  while IFS= read -r cwd_line; do
+    [[ "$cwd_line" == *" (deleted)"* ]] || continue
+    c_target="${cwd_line##*-> }"
+    c_target="${c_target#\'}"; c_target="${c_target%\'}"
+    c_target="${c_target#\"}"; c_target="${c_target%\"}"
+    c_clean="${c_target% (deleted)}"
+
+    # Must point to a worktree path (/opt/csi/csi-spl-wt/* or */csi-spl-wt/* or */wt/[acgmq]-[0-9]*)
+    if [[ "$c_clean" != "$wt_root"/* && "$c_clean" != */csi-spl-wt/* && ! "$c_clean" =~ /wt/([acgmq]-[0-9]+|[^/]+) ]]; then
+      continue
+    fi
+
+    link_path="${cwd_line% -> *}"
+    link_path="${link_path##* }"
+    c_pid="${link_path%/cwd}"
+    c_pid="${c_pid##*/}"
+    [[ "$c_pid" =~ ^[0-9]+$ ]] || continue
+
+    # If the worktree path belongs to an active agent, do not flag
+    path_agent=""
+    if [[ "$c_clean" =~ /([acgmq]-[0-9]+) ]]; then
+      path_agent="${BASH_REMATCH[1]}"
+    fi
+    if [[ -n "$path_agent" && -n "${active_agents[$path_agent]:-}" ]]; then
+      continue
+    fi
+
+    candidate_cwd["$c_pid"]="$c_target"
+    if [[ -n "${candidate_provenance[$c_pid]:-}" ]]; then
+      candidate_provenance["$c_pid"]+=",deleted-worktree:$c_target"
+    else
+      candidate_provenance["$c_pid"]="deleted-worktree:$c_target"
+    fi
+  done < <(ls -l "${p_dirs[@]/%//cwd}" 2>/dev/null)
+}
+
+# 3. Gather process directories
+# Sets the caller's scanned_pids; the two provenance scans fill the candidate_* maps.
+orphan_process_dirs() {
+  local proc_dir="$1" wt_root="$2"
   shopt -s nullglob
   local p_dirs=("$proc_dir"/[0-9]*)
   shopt -u nullglob
   scanned_pids=${#p_dirs[@]}
 
-  declare -A candidate_provenance=()
-  declare -A candidate_agent=()
-  declare -A candidate_cwd=()
-
   if ((scanned_pids > 0)); then
-    # Provenance 1: Process environ contains AGENT_ID in registry.retired.tsv (and not active)
-    local env_line p_file p_pid a_id a_clean
-    while IFS= read -r env_line; do
-      [[ -z "$env_line" ]] && continue
-      p_file="${env_line%%:AGENT_ID=*}"
-      a_id="${env_line#*:AGENT_ID=}"
-      a_id="${a_id%%$'\r'*}"
-      a_id="${a_id%%$'\n'*}"
-      p_pid="${p_file%/environ}"
-      p_pid="${p_pid##*/}"
-      [[ "$p_pid" =~ ^[0-9]+$ ]] || continue
-      a_clean="${a_id%@*}"
-      # Skip if this agent ID belongs to a currently active lane
-      [[ -n "${active_agents[$a_clean]:-}" ]] && continue
-
-      if [[ -n "${retired_agents[$a_clean]:-}" ]]; then
-        candidate_provenance["$p_pid"]="retired-agent:$a_id"
-        candidate_agent["$p_pid"]="$a_id"
-      fi
-    done < <(grep -s -z -H '^AGENT_ID=' "${p_dirs[@]/%//environ}" 2>/dev/null | tr '\0' '\n' | grep ':AGENT_ID=')
-
-    # Provenance 2: Process working directory points to a removed worktree ((deleted))
-    local cwd_line c_target link_path c_pid c_clean path_agent
-    while IFS= read -r cwd_line; do
-      [[ "$cwd_line" == *" (deleted)"* ]] || continue
-      c_target="${cwd_line##*-> }"
-      c_target="${c_target#\'}"; c_target="${c_target%\'}"
-      c_target="${c_target#\"}"; c_target="${c_target%\"}"
-      c_clean="${c_target% (deleted)}"
-
-      # Must point to a worktree path (/opt/csi/csi-spl-wt/* or */csi-spl-wt/* or */wt/[acgmq]-[0-9]*)
-      if [[ "$c_clean" != "$wt_root"/* && "$c_clean" != */csi-spl-wt/* && ! "$c_clean" =~ /wt/([acgmq]-[0-9]+|[^/]+) ]]; then
-        continue
-      fi
-
-      link_path="${cwd_line% -> *}"
-      link_path="${link_path##* }"
-      c_pid="${link_path%/cwd}"
-      c_pid="${c_pid##*/}"
-      [[ "$c_pid" =~ ^[0-9]+$ ]] || continue
-
-      # If the worktree path belongs to an active agent, do not flag
-      path_agent=""
-      if [[ "$c_clean" =~ /([acgmq]-[0-9]+) ]]; then
-        path_agent="${BASH_REMATCH[1]}"
-      fi
-      if [[ -n "$path_agent" && -n "${active_agents[$path_agent]:-}" ]]; then
-        continue
-      fi
-
-      candidate_cwd["$c_pid"]="$c_target"
-      if [[ -n "${candidate_provenance[$c_pid]:-}" ]]; then
-        candidate_provenance["$c_pid"]+=",deleted-worktree:$c_target"
-      else
-        candidate_provenance["$c_pid"]="deleted-worktree:$c_target"
-      fi
-    done < <(ls -l "${p_dirs[@]/%//cwd}" 2>/dev/null)
+    orphan_process_environ_candidates
+    orphan_process_cwd_candidates "$wt_root"
   fi
+}
 
-  # 4. Filter candidates through active agent preservation, never-list, and self protection
-  local -a orphan_pids=()
-  local -A orphan_comm=()
-  local -A orphan_cmdline=()
-  local -A orphan_ppid=()
-  local -A orphan_prov=()
-
+# 4. Filter candidates through active agent preservation, never-list, and self protection
+# Reads candidate_*; fills orphan_pids and the orphan_* maps.
+orphan_process_filter() {
+  local proc_dir="$1"
   local cand_pid p_comm p_cmdline stat_content post_comm _state p_ppid
   for cand_pid in "${!candidate_provenance[@]}"; do
     # Self-protection
@@ -345,41 +339,38 @@ do_fleet_orphan_process_reap() {
     orphan_ppid["$cand_pid"]="$p_ppid"
     orphan_prov["$cand_pid"]="${candidate_provenance[$cand_pid]}"
   done
+}
 
-  orphan_count=${#orphan_pids[@]}
-  ms=$(($(orphan_process_ms) - t0))
+# --json: print the orphans as one JSON array (reads orphan_pids and the maps)
+orphan_process_json() {
+  local -a json_items=()
+  local opid e_agent e_comm e_prov e_cwd e_cmd
+  for opid in "${orphan_pids[@]}"; do
+    e_agent="$(orphan_process_json_escape "${candidate_agent[$opid]:-}")"
+    e_comm="$(orphan_process_json_escape "${orphan_comm[$opid]}")"
+    e_prov="$(orphan_process_json_escape "${orphan_prov[$opid]}")"
+    e_cwd="$(orphan_process_json_escape "${candidate_cwd[$opid]:-}")"
+    e_cmd="$(orphan_process_json_escape "${orphan_cmdline[$opid]}")"
+    json_items+=("{\"pid\":$opid,\"ppid\":${orphan_ppid[$opid]},\"agent_id\":\"$e_agent\",\"comm\":\"$e_comm\",\"provenance\":\"$e_prov\",\"cwd\":\"$e_cwd\",\"cmdline\":\"$e_cmd\"}")
+  done
+  printf '[%s]\n' "$(IFS=,; echo "${json_items[*]}")"
+}
 
-  if ((json_mode)); then
-    local -a json_items=()
-    local opid e_agent e_comm e_prov e_cwd e_cmd
-    for opid in "${orphan_pids[@]}"; do
-      e_agent="$(orphan_process_json_escape "${candidate_agent[$opid]:-}")"
-      e_comm="$(orphan_process_json_escape "${orphan_comm[$opid]}")"
-      e_prov="$(orphan_process_json_escape "${orphan_prov[$opid]}")"
-      e_cwd="$(orphan_process_json_escape "${candidate_cwd[$opid]:-}")"
-      e_cmd="$(orphan_process_json_escape "${orphan_cmdline[$opid]}")"
-      json_items+=("{\"pid\":$opid,\"ppid\":${orphan_ppid[$opid]},\"agent_id\":\"$e_agent\",\"comm\":\"$e_comm\",\"provenance\":\"$e_prov\",\"cwd\":\"$e_cwd\",\"cmdline\":\"$e_cmd\"}")
-    done
-    printf '[%s]\n' "$(IFS=,; echo "${json_items[*]}")"
-    if ((orphan_count == 0)); then return 0; else return 1; fi
-  fi
-
-  if ((orphan_count == 0)); then
-    do_log "INFO orphan-process OK: 0 orphan processes found (scanned $scanned_pids pids in ${ms} ms)"
-    orphan_process_clear "$dry"
-    return 0
-  fi
-
-  # Report detected orphans
+# Report detected orphans
+orphan_process_report() {
+  local orphan_count="$1" scanned_pids="$2" ms="$3"
   local opid
   for opid in "${orphan_pids[@]}"; do
     do_log "WARN orphan pid=$opid ppid=${orphan_ppid[$opid]} agent=${candidate_agent[$opid]:--} comm=${orphan_comm[$opid]} provenance=${orphan_prov[$opid]} cwd=${candidate_cwd[$opid]:--} cmdline=${orphan_cmdline[$opid]}"
   done
 
   do_log "WARN orphan-process ADVISORY: $orphan_count orphan process(es) detected (scanned $scanned_pids pids in ${ms} ms)"
+}
 
-  # Build concise summary for advisory note (up to 5 pids)
-  local summary_str="" count_in_summary=0
+# Build concise summary for advisory note (up to 5 pids), then alert
+orphan_process_summary_alert() {
+  local orphan_count="$1" dry="$2"
+  local opid summary_str="" count_in_summary=0
   for opid in "${orphan_pids[@]}"; do
     ((count_in_summary++))
     if ((count_in_summary <= 5)); then
@@ -392,7 +383,66 @@ do_fleet_orphan_process_reap() {
   fi
 
   orphan_process_alert "$orphan_count" "$summary_str" "$dry"
+}
+
+# Print the result (--json, the OK line, or the report + alert).
+# Exit 0 when 0 orphans found, 1 when orphans detected.
+orphan_process_emit() {
+  local json_mode="$1" dry="$2" scanned_pids="$3" ms="$4"
+  local orphan_count=${#orphan_pids[@]}
+
+  if ((json_mode)); then
+    orphan_process_json
+    if ((orphan_count == 0)); then return 0; else return 1; fi
+  fi
+
+  if ((orphan_count == 0)); then
+    do_log "INFO orphan-process OK: 0 orphan processes found (scanned $scanned_pids pids in ${ms} ms)"
+    orphan_process_clear "$dry"
+    return 0
+  fi
+
+  orphan_process_report "$orphan_count" "$scanned_pids" "$ms"
+  orphan_process_summary_alert "$orphan_count" "$dry"
   return 1
+}
+
+do_fleet_orphan_process_reap() {
+  local proc_dir="${ORPHAN_PROC_DIR:-/proc}"
+  local active_tsv="${ORPHAN_ACTIVE_REGISTRY:-${SPOOL_ROOT:-/var/spool-hub}/registry.tsv}"
+  local retired_tsv="${ORPHAN_RETIRED_REGISTRY:-${SPOOL_ROOT:-/var/spool-hub}/registry.retired.tsv}"
+  local wt_root="${ORPHAN_WT_ROOT:-${SPOOL_WT_ROOT:-/opt/csi/csi-spl-wt}}"
+  local dry="${DRY_RUN:-1}"
+  local t0 ms scanned_pids=0
+  local json_mode=0
+
+  for arg in "$@"; do
+    case "$arg" in
+      --json) json_mode=1 ;;
+    esac
+  done
+
+  [[ -d "$proc_dir" ]] || { do_log "FATAL ORPHAN_PROC_DIR '$proc_dir' is not a directory"; return 2; }
+
+  t0="$(orphan_process_ms)"
+
+  # Shared state, filled by the orphan_process_* steps through bash dynamic scope:
+  #   active_agents, retired_agents     agent id sets (steps 1, 2)
+  #   candidate_provenance / _agent / _cwd   per-pid candidates (step 3, read by 4)
+  #   orphan_pids, orphan_comm / _cmdline / _ppid / _prov   the kept orphans (step 4)
+  #   scanned_pids                      the pid count (step 3)
+  local -A active_agents=() retired_agents=()
+  local -A candidate_provenance=() candidate_agent=() candidate_cwd=()
+  local -a orphan_pids=()
+  local -A orphan_comm=() orphan_cmdline=() orphan_ppid=() orphan_prov=()
+
+  orphan_process_active_ids "$active_tsv"
+  orphan_process_retired_ids "$retired_tsv"
+  orphan_process_dirs "$proc_dir" "$wt_root"
+  orphan_process_filter "$proc_dir"
+
+  ms=$(($(orphan_process_ms) - t0))
+  orphan_process_emit "$json_mode" "$dry" "$scanned_pids" "$ms"
 }
 
 # do_orphan_process_reap - the filename's own action name (same guard)

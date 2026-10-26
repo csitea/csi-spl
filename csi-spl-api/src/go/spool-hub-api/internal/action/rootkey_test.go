@@ -59,6 +59,7 @@ func TestReadRootKeyMissingFile(t *testing.T) {
 		"home":  "~/.spool/root.key",
 		"rel":   "./root.key",
 		"plain": "root-key.b64",
+		"abs64": "/nonexistent/rootkey", // only base64 characters (a-500 W1)
 	} {
 		_, err := ReadRootKey(v, strings.NewReader(""))
 		if err == nil || !strings.Contains(err.Error(), "the root key file does not exist") {

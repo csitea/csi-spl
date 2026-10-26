@@ -169,7 +169,7 @@ default) prints the plan only.
 looks like a path says "the root key file does not exist: no file at the
 --root-key path. Save the workspace root key there (mode 0600), or pass the
 key text, or - to read it from stdin". A value looks like a path when it
-starts with `~`, `./` or `../`, or holds a character outside the base64
+starts with `/`, `~`, `./` or `../`, or holds a character outside the base64
 alphabet. A directory says it is a directory. The value is never echoed.
 
 ## 7. Rollout

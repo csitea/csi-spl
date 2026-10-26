@@ -101,11 +101,13 @@ func rootKeyError(v, src string) error {
 	return fmt.Errorf("%s is not a base64 ed25519 private key (nor a readable file)", src)
 }
 
-// looksLikePath is true for a value that cannot be the base64 key text: it
-// starts like a path or holds a character outside the base64 alphabet.
+// looksLikePath is true for a value that is not the base64 key text: it
+// starts like a path (an absolute one too: "/tmp/rootkey" holds only base64
+// characters) or holds a character outside the base64 alphabet. A bad key
+// text that starts with "/" then reads as a missing file; it is never echoed.
 func looksLikePath(v string) bool {
 	v = strings.TrimSpace(v)
-	if strings.HasPrefix(v, "~") || strings.HasPrefix(v, "./") || strings.HasPrefix(v, "../") {
+	if strings.HasPrefix(v, "/") || strings.HasPrefix(v, "~") || strings.HasPrefix(v, "./") || strings.HasPrefix(v, "../") {
 		return true
 	}
 	return strings.ContainsFunc(v, func(r rune) bool {

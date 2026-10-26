@@ -71,52 +71,38 @@ func TestMentionedIDsMistral(t *testing.T) {
 // wuiUtils is csi-spl-wui/src/utils from this package.
 var wuiUtils = filepath.Join("..", "..", "..", "..", "..", "..", "csi-spl-wui", "src", "utils")
 
-// TestMentionGrammarPinnedToWUI: the JS sources the port was written
-// against. A change on either side fails here until the other follows.
-func TestMentionGrammarPinnedToWUI(t *testing.T) {
-	pins := map[string][]string{
-		"agent-id.mjs": {
-			"const LEGACY_ID_SRC = '[A-Z]{2,4}-[0-9]+'",
-			"export const PARTICIPANT_ID_SRC = `(?:${AGENT_ID_SRC}|${LEGACY_ID_SRC})`",
-			"export const BOX_ID_SRC = '[a-z0-9][a-z0-9-]{0,31}'",
-		},
-		"notify.mjs": {
-			"export const MENTION_RE = new RegExp(String.raw`@(${PARTICIPANT_ID_SRC})(?:@${BOX_ID_SRC})?\\b`, 'g')",
-		},
-		"mention-poke.mjs": {
-			"return `${String(author || '').split('@')[0]} needs you in ${link}: \"${pokeExcerpt(text)}\"`",
-			"return `${String(origin || '').replace(/\\/+$/, '')}/t/${encodeURIComponent(String(taskId || ''))}`",
-		},
-	}
-	// AGENT_ID_SRC: [acgmq] (spec 110) is the target; [acgq] is accepted
-	// until T010 moves the WUI, so neither lane turns the other red. Go is
-	// then a superset: an @m-004 the WUI does not yet see. The two *_SRC
-	// pins match with or without export: the grammar is pinned, not its
-	// visibility (SPL-2759 made both module-private).
-	b, err := os.ReadFile(filepath.Join(wuiUtils, "agent-id.mjs"))
+// grammarContract is csi-spl-wui/src/utils/mention-grammar.json, the one
+// mention grammar both sides read (SPL-3435 I8): agent-id.mjs builds its id
+// regexes from it, and the hand scan in flow_mentions.go was written against
+// these sources.
+var grammarContract = filepath.Join(wuiUtils, "mention-grammar.json")
+
+// TestMentionGrammarContract pins the Go scan to the shared contract, not to
+// WUI source text: a grammar change fails here until flow_mentions.go
+// follows; renaming or unexporting a WUI const does not.
+func TestMentionGrammarContract(t *testing.T) {
+	b, err := os.ReadFile(grammarContract)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(b), "const AGENT_ID_SRC = '[acgmq]-[0-9]{3}(?![0-9])'") &&
-		!strings.Contains(string(b), "const AGENT_ID_SRC = '[acgq]-[0-9]{3}(?![0-9])'") {
-		t.Errorf("agent-id.mjs AGENT_ID_SRC is neither [acgmq] nor [acgq]: port the change to flow_mentions.go, then update this pin")
+	var got map[string]string
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatalf("%s: %v", grammarContract, err)
 	}
-	for file, lines := range pins {
-		b, err := os.ReadFile(filepath.Join(wuiUtils, file))
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, l := range lines {
-			if !strings.Contains(string(b), l) {
-				t.Errorf("%s no longer holds %q: port the change to flow_mentions.go, then update this pin", file, l)
-			}
+	for key, want := range map[string]string{
+		"agent_id_src":  "[acgmq]-[0-9]{3}(?![0-9])", // agentIDAt
+		"legacy_id_src": "[A-Z]{2,4}-[0-9]+",         // legacyIDAt
+		"box_id_src":    "[a-z0-9][a-z0-9-]{0,31}",   // boxEnd
+	} {
+		if got[key] != want {
+			t.Errorf("mention-grammar.json %s = %q, the Go scan implements %q: port the change to flow_mentions.go, then update this pin", key, got[key], want)
 		}
 	}
 }
 
 // TestMentionParityWithNode runs the fixture through the WUI's own
 // mentionedIds when node is on PATH (the WUI unit job has it; a Go-only
-// runner skips and relies on the fixture and the source pins above).
+// runner skips and relies on the fixture and the grammar contract above).
 func TestMentionParityWithNode(t *testing.T) {
 	node, err := exec.LookPath("node")
 	if err != nil {
@@ -153,6 +139,35 @@ func TestMentionParityWithNode(t *testing.T) {
 		if !reflect.DeepEqual(got, js[i]) {
 			t.Errorf("%q: Go %v, WUI %v", c.body, got, js[i])
 		}
+	}
+}
+
+// TestPokeBodyParityWithNode: the DM the WUI's mention-poke.mjs writes is
+// one PokeTask reads its task back from (node on PATH, as above).
+func TestPokeBodyParityWithNode(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node not on PATH")
+	}
+	abs, err := filepath.Abs(filepath.Join(wuiUtils, "mention-poke.mjs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const task = "6b1f8f9e-2a59-4d0e-9a51-0b8c3f3a2d10"
+	script := `import(process.argv[1]).then((m) => process.stdout.write(m.pokeBody({
+		author: 'HUM-10@box-a', link: m.cardLink('https://example.com//', process.argv[2]),
+		text: 'look  at\n this',
+	})))`
+	out, err := exec.Command(node, "-e", script, "file://"+abs, task).Output()
+	if err != nil {
+		t.Skipf("node could not load mention-poke.mjs: %v", err)
+	}
+	body := string(out)
+	if want := `HUM-10 needs you in https://example.com/t/` + task + `: "look at this"`; body != want {
+		t.Errorf("pokeBody = %q, want %q", body, want)
+	}
+	if got := PokeTask(body); got != task {
+		t.Errorf("PokeTask(%q) = %q, want %q", body, got, task)
 	}
 }
 

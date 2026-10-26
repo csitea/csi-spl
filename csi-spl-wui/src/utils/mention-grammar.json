@@ -1,0 +1,6 @@
+{
+  "about": "The mention grammar contract (SPL-3435 I8): agent-id.mjs builds its id regexes from it and the hub's flow_mentions_test.go pins the Go mention scan to it. Change a source here, then port it to flow_mentions.go.",
+  "agent_id_src": "[acgmq]-[0-9]{3}(?![0-9])",
+  "legacy_id_src": "[A-Z]{2,4}-[0-9]+",
+  "box_id_src": "[a-z0-9][a-z0-9-]{0,31}"
+}

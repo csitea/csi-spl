@@ -16,18 +16,21 @@
 // The clock is injectable (FR-004): a test that writes a legacy id pins it
 // with setAgentIdNow, so CI never turns red at the deadline on its own.
 
+import grammar from './mention-grammar.json' with { type: 'json' }
+
 /** The end of legacy agent ids on a write path (spec 061 section 0; owner
     decision 2026-10-02 ~06:52Z moved it one day, to 2026-10-03). */
 export const LEGACY_ID_UNTIL = '2026-10-03T20:59:59Z'
 const LEGACY_UNTIL_MS = Date.parse(LEGACY_ID_UNTIL)
 
-/** Regex sources, for the parsers that embed an id in a bigger pattern. */
-const AGENT_ID_SRC = '[acgmq]-[0-9]{3}(?![0-9])'
-const LEGACY_ID_SRC = '[A-Z]{2,4}-[0-9]+'
+/** Regex sources, for the parsers that embed an id in a bigger pattern: the
+    shared contract mention-grammar.json, which the hub test also reads. */
+const AGENT_ID_SRC = grammar.agent_id_src
+const LEGACY_ID_SRC = grammar.legacy_id_src
 /** Any participant id, new or legacy (an agent, a member, a guest, a box). */
 export const PARTICIPANT_ID_SRC = `(?:${AGENT_ID_SRC}|${LEGACY_ID_SRC})`
 /** A box name (spec 058): `<ID>@<box>`. */
-export const BOX_ID_SRC = '[a-z0-9][a-z0-9-]{0,31}'
+export const BOX_ID_SRC = grammar.box_id_src
 
 const NEW_RE = new RegExp(`^${AGENT_ID_SRC}$`)
 const LEGACY_RE = new RegExp(`^${LEGACY_ID_SRC}$`)

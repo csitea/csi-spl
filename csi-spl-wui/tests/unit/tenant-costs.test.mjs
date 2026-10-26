@@ -13,6 +13,7 @@ import {
   COST_PIE_OTHER_COLOR,
   costCoverageRows,
   costEmptySources,
+  costListTotal,
   costMoney,
   costMonthOf,
   costMonthOptions,
@@ -134,6 +135,21 @@ describe('coverage and the honest empties', () => {
   it('a full month names only the money-less sources; a workspace scope never asks for GCP', () => {
     assert.deepEqual(costEmptySources(costMonthOf(mockTenantCostsBody('2026-10', '', NOW))), ['fleet_tokens', 'agent_hours'])
     assert.deepEqual(costEmptySources(costMonthOf({ scope: 'workspace', parts: [part('hand', 5)] })), [])
+  })
+})
+
+describe('a workspace\'s token costs (spec 140 3.10, SPL-3565)', () => {
+  it('the estate lists every workspace\'s burn; a workspace answer never does, even if the body carries it', () => {
+    const ws = [{ workspace: 'ws-a', vendor: 'claude', tokens: 1100, list_value_micros: 4500, days: 1 }]
+    assert.deepEqual(costMonthOf({ scope: 'estate', workspaces: ws }).workspaces, [{ workspace: 'ws-a', vendor: 'claude', tokens: 1100, listValueMicros: 4500, days: 1 }])
+    assert.deepEqual(costMonthOf({ scope: 'workspace', workspaces: ws }).workspaces, [])
+    assert.deepEqual(costMonthOf({}).workspaces, [])
+  })
+  it('the list-price total sums every part\'s list value; a paid-0 token part still counts', () => {
+    const m = costMonthOf({ scope: 'workspace', parts: [part('fleet_tokens', 0, { list_value_micros: 13_890_000 }), part('hand', 5, { list_value_micros: 1_000_000 }), part('gcp', 2)] })
+    assert.equal(costListTotal(m.parts), 14_890_000)
+    assert.equal(costListTotal([]), 0)
+    assert.equal(costListTotal(undefined), 0)
   })
 })
 

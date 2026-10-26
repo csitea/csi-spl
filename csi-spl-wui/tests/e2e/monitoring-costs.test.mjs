@@ -404,6 +404,12 @@ try {
       ok('n of N per source (3 sources)', (await count(p, '[data-test=costs-coverage-row]')) === 3)
       const empties = await p.$$eval('[data-test=costs-empty-source]', (els) => els.map((e) => e.getAttribute('data-source')))
       ok('count-only sources are named, GCP has money', empties.join(',') === 'fleet_tokens,agent_hours', empties)
+      /* spec 140 3.10 (SPL-3565): the list-price total, and the estate's every-workspace token table */
+      const listTot = await text(p, '[data-test=costs-total-list]')
+      ok('3.10 the total row sums the list price', listTot === '$2,650.00', listTot)
+      ok('3.10 the estate lists every workspace\'s burn (3 rows)', (await count(p, '[data-test=costs-workspace-row]')) === 3, await count(p, '[data-test=costs-workspace-row]'))
+      const alpha = await text(p, '[data-test=costs-workspace-row][data-workspace="ws-alpha"][data-vendor="claude"] td:last-child')
+      ok('3.10 a workspace row shows its list price', alpha === '$13.89', alpha)
       const wide = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
       ok('no sideways scroll', wide <= 0, wide)
       if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-costs-${size.width}.png`, fullPage: true })

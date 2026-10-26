@@ -26,6 +26,7 @@
     "feed.live_state.no_base": "connection state code shown as is",
     "monitoring.tab.tokens": "LLM term kept as English 'Tokens' in el, es, nl: agy language review SPL-2322 (a-351, msg 66006252)",
     "reporting.tab.tokens": "the same word as monitoring.tab.tokens in every locale (SPL-2351)",
+    "monitoring.costs.col_tokens": "the same word as monitoring.tab.tokens in every locale (SPL-3565)",
     "monitoring.tokens.col_box": "ro keeps 'Box' to match its 'Boxuri' tab: agy language review SPL-2322 (a-351, msg 66006252)",
     "tenant_settings.caps_col_status": "nl and sv write the caps table's Status header the same as en, like their boxes.col_state: agy language review spec 147 R5 (a-619, msg 15f62b55)",
     "auth.login.hero.agent": "the sign-in hero's lower-case 'agent' badge: et, nl, pl, ro, sk and sv write the word the same (their agents.kinds.agent is 'Agent', or a longer compound for the badge) (SPL-2417)"

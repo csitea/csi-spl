@@ -127,11 +127,12 @@ Do your brief and only your brief. Before you edit a path outside it, check
 it against every live lane on every machine:
 `csi-spl-orc/src/bash/features/spawn-agents/scripts/lane-map.sh --check <paths> --agent <id>`
 (exit 3 names the owning lane; exit 4 = a lane that recorded no files: ask
-it first). A finding outside your lane goes to the orchestrator; fix it
-yourself only when it blocks your own tests and nobody owns it, in a
-separate narrow commit.
+it first; exit 5 = `LOCAL-ONLY:` the hub did not answer, other machines
+unread: not free, ask c-001). A finding outside your lane goes to the
+orchestrator; fix it yourself only when it blocks your own tests and nobody
+owns it, in a separate narrow commit.
 
-Enforced by: `lane-map.sh --check` (exit 3 / 4); review.
+Enforced by: `lane-map.sh --check` (exit 3 / 4 / 5); review.
 
 <a id="ws-doc-ec77f12a-df1d-42cc-a309-6d9e563b67a9"></a>
 #### 2.1.3 Done means deployed on dev and prd

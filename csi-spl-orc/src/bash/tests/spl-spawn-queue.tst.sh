@@ -17,7 +17,11 @@
 #   5. the gap: a second placement waits the 3 min floor; past it, it waits
 #      until the placed lane's heartbeat progress_ts moved past the launch,
 #      at most SPAWN_PLACE_GAP_MIN (10); no, an old or unreadable heartbeat
-#      or a failed launch holds to it; the load target holds regardless
+#      or a failed launch holds to it; the load target holds regardless.
+#      SPL-3574: an agy lane (no heartbeat.json) with a metered token-burn
+#      bucket here, or a lane on another box with a metered by_agent row on
+#      the hub, past the launch ends it too (CONTROLS: an unmetered sample,
+#      burn before the launch, another id or box hold to the ceiling)
 #   6. no placement -> ONE blocker to the holder, the ask is placing; the
 #      next tick places nothing else (one at a time); past
 #      SPAWN_PLACE_LOCK_MIN it goes back to position 1; do_spl_spawn_placed
@@ -202,6 +206,9 @@ chmod +x "$T/bin/owner"
 # the lane map stub: {lanes: $LANES} (an array of {agent_id, agent_box, state})
 # shellcheck disable=SC2016 # expanded by the stub, not here
 printf '#!/usr/bin/env bash\necho "{\\"lanes\\": ${LANES:-[]}}"\n' >"$T/bin/lanes"; chmod +x "$T/bin/lanes"
+# the hub's token burn stub (GET /v1/operator/fleet-tokens): $BURN_JSON, or nothing
+# shellcheck disable=SC2016 # expanded by the stub, not here
+printf '#!/usr/bin/env bash\ncat "$BURN_JSON" 2>/dev/null\n' >"$T/bin/burn"; chmod +x "$T/bin/burn"; mkdir -p "$T/burn"
 # the launcher stub: prints "<ID> <PANE>" (LAUNCH_ID), or exits LAUNCH_RC
 cat >"$T/bin/launch" <<'STUB'
 #!/usr/bin/env bash
@@ -232,7 +239,8 @@ menv() {
     "ASKS_OWNER_CMD=$T/bin/owner" "OWNER_LOG=$T/owner.log" "ASKS_MAX_RAISES=4" \
     "SPAWN_PLACE_WINDOWS_CMD=$T/bin/windows" "SPAWN_PLACE_PICK_CMD=$T/bin/pick" "SPAWN_PLACE_LAUNCH_CMD=$T/bin/launch" \
     "LAUNCH_LOG=$T/launch.log" "SPAWN_PLACE_BRIEF_DIR=$T/briefs" "SPAWN_PLACE_WORKDIR=$T" "SPAWN_PLACE_GAP_MIN=0" "SPOOL_AGENT_ID=" \
-    "SPAWN_SHARE_LANES_CMD=$T/bin/lanes" "SPAWN_SHARE_DISPATCH=c-002@box-desk"
+    "SPAWN_SHARE_LANES_CMD=$T/bin/lanes" "SPAWN_SHARE_DISPATCH=c-002@box-desk" \
+    "TOKEN_BURN_STATE_DIR=$T/burn" "SPAWN_PLACE_BURN_CMD=$T/bin/burn" "BURN_JSON=$T/burn.json"
 }
 on() {  # <machine> <action> [env...]
   local m="$1" a="$2"; shift 2
@@ -345,7 +353,7 @@ gap() {  # MIN_AGO_LAUNCH [env...]: the room verdict, launch MIN_AGO_LAUNCH ago
 iso() { date -u -d "@$(( $(date +%s) - $1 * 60 ))" +%Y-%m-%dT%H:%M:%SZ; }
 rm -f "$HB/heartbeat.json"
 out="$(gap 4)"
-[[ "$out" == "hold: the last placement started under 10 min ago and c-281@box-desk has no heartbeat progress since" ]] &&
+[[ "$out" == "hold: the last placement started under 10 min ago and c-281@box-desk has no heartbeat or token-burn progress since" ]] &&
   pass "4 min after the launch, no heartbeat.json: holds to the ceiling" || fail "no heartbeat: $out"
 printf '{"progress_ts": "%s"}\n' "$(iso 1)" >"$HB/heartbeat.json"
 out="$(gap 4)"
@@ -358,16 +366,58 @@ out="$(gap 4 PICK='hold reason=every box past its overflow mark')"
   pass "progress_ts moved but the load target says hold: it holds" || fail "load guard: $out"
 printf '{"progress_ts": "%s"}\n' "$(iso 6)" >"$HB/heartbeat.json"
 out="$(gap 4)"
-[[ "$out" == hold:*"no heartbeat progress since" ]] && pass "progress_ts older than the launch: holds to the ceiling" || fail "old heartbeat: $out"
+[[ "$out" == hold:*"no heartbeat or token-burn progress since" ]] && pass "progress_ts older than the launch: holds to the ceiling" || fail "old heartbeat: $out"
 echo 'not json' >"$HB/heartbeat.json"
 out="$(gap 4)"
-[[ "$out" == hold:*"no heartbeat progress since" ]] && pass "an unreadable heartbeat.json: holds to the ceiling" || fail "unreadable: $out"
+[[ "$out" == hold:*"no heartbeat or token-burn progress since" ]] && pass "an unreadable heartbeat.json: holds to the ceiling" || fail "unreadable: $out"
 printf '{"progress_ts": "%s"}\n' "$(iso 1)" >"$HB/heartbeat.json"
 touch -d "@$(( $(date +%s) - 300 ))" "$GQ/.place.agent"
 out="$(gap 4)"
-[[ "$out" == hold:*"no heartbeat progress since" ]] &&
+[[ "$out" == hold:*"no heartbeat or token-burn progress since" ]] &&
   pass "a .place.agent older than the launch (the launch failed): holds to the ceiling" || fail "stale agent: $out"
 rm -f "$HB/heartbeat.json"
+# SPL-3574: an agy lane writes no heartbeat.json, and a lane on another box
+# has none here; both show progress by token burn. Here: a metered bucket of
+# the collector's buckets.tsv (id vendor model minute in out cr cw met dirty);
+# another box: the hub's fleet-tokens by_agent row of <box, id>.
+burn() { printf '%s\tagy\tgemini\t%s\t%s\t0\t0\t0\t%s\t0\n' "$1" "$(( ($(date +%s) - $2 * 60) / 60 * 60 ))" "$3" "$4" >"$T/burn/buckets.tsv"; }
+echo a-295@box-desk >"$GQ/.place.agent"
+burn a-295 1 0 0
+out="$(gap 4)"
+[[ "$out" == "hold: the last placement started under 10 min ago and a-295@box-desk has no heartbeat or token-burn progress since" ]] &&
+  pass "SPL-3574 CONTROL: an agy lane here whose pane is only alive (an unmetered sample): holds to the ceiling" || fail "agy unmetered: $out"
+burn a-295 1 1200 1
+out="$(gap 4)"
+[[ "$out" == room ]] && pass "SPL-3574: an agy lane here, no heartbeat.json, metered token burn 1 min ago: the gap ends past the floor" || fail "agy burn: $out"
+burn a-295 6 1200 1
+out="$(gap 4)"
+[[ "$out" == hold:*"no heartbeat or token-burn progress since" ]] && pass "SPL-3574 CONTROL: token burn only before the launch: holds" || fail "agy old burn: $out"
+burn a-296 1 1200 1
+out="$(gap 4)"
+[[ "$out" == hold:*"no heartbeat or token-burn progress since" ]] && pass "SPL-3574 CONTROL: another lane's token burn: holds" || fail "agy other id: $out"
+rm -f "$T/burn/buckets.tsv"
+echo a-394@sat >"$GQ/.place.agent"
+hubburn() { jq -n --arg a "$1" --arg b "$2" --argjson m "$3" --arg t "$(iso "$4")" '{by_agent: [{agent_id: $a, box: $b, vendor: "agy", is_metered: $m, last_active: $t}]}' >"$T/burn.json"; }
+rm -f "$T/burn.json"
+out="$(gap 4)"
+[[ "$out" == "hold: the last placement started under 10 min ago and a-394@sat has no heartbeat or token-burn progress since" ]] &&
+  pass "SPL-3574 CONTROL: a lane on another box, the hub has no token burn of it: holds to the ceiling" || fail "remote none: $out"
+hubburn a-394 sat true 1
+out="$(gap 4)"
+[[ "$out" == room ]] && pass "SPL-3574: a lane on another box with metered token burn on the hub 1 min ago: the gap ends past the floor" || fail "remote burn: $out"
+mkdir -p "$T/pc/spool/a-394"; printf '{"progress_ts": "%s"}\n' "$(iso 1)" >"$T/pc/spool/a-394/heartbeat.json"
+hubburn a-394 sat false 1
+out="$(gap 4)"
+[[ "$out" == hold:*"no heartbeat or token-burn progress since" ]] &&
+  pass "SPL-3574 CONTROL: a remote lane's pane only alive on the hub (unmetered), a same-id heartbeat here ignored: holds" || fail "remote unmetered: $out"
+rm -rf "$T/pc/spool/a-394"
+hubburn a-394 box-desk true 1
+out="$(gap 4)"
+[[ "$out" == hold:*"no heartbeat or token-burn progress since" ]] && pass "SPL-3574 CONTROL: the same id burning on another box: holds" || fail "remote other box: $out"
+hubburn a-394 sat true 6
+out="$(gap 4)"
+[[ "$out" == hold:*"no heartbeat or token-burn progress since" ]] && pass "SPL-3574 CONTROL: the remote lane's last metered minute is before the launch: holds" || fail "remote old: $out"
+rm -f "$T/burn.json"; echo c-281@box-desk >"$GQ/.place.agent"
 out="$(gap 11)"
 [[ "$out" == room ]] && pass "11 min after the launch, no heartbeat: the ceiling ends the gap" || fail "ceiling: $out"
 rm -rf "$HB"

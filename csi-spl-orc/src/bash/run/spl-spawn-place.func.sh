@@ -19,10 +19,12 @@
 # @description      this box are below SPOOL_AGENT_CEILING (40), the fleet load
 # @description      target does not say hold (do_spl_box_pick) and the gap
 # @description      after the last launch ended: SPAWN_PLACE_GAP_FLOOR_MIN (3)
-# @description      after it once the placed lane's heartbeat progress_ts moved
-# @description      past the launch, else SPAWN_PLACE_GAP_MIN (10) after it (no
-# @description      heartbeat = the ceiling). No room: it stays queued, one
-# @description      INFO line says why
+# @description      after it once the placed lane shows progress since the
+# @description      launch (its heartbeat's progress_ts, else a metered token
+# @description      burn bucket: this box's collector, or the hub's for a lane
+# @description      on another box, SPL-3574), else SPAWN_PLACE_GAP_MIN (10)
+# @description      after it (no signal = the ceiling). No room: it stays
+# @description      queued, one INFO line says why
 # @description   0b. WORK GROUPS (SPL-2370) - each group (do_spl_spawn_group_put)
 # @description      with fewer than its width N of rows in flight (queued,
 # @description      placing or running) gets its next waiting rows into this
@@ -106,7 +108,9 @@
 # @description Installed by do_spl_spawn_place_install_cron (every minute).
 # @param SPAWN_PLACE_LOCK_MIN (optional) - minutes a placing request may stay unclosed before it goes back in line, default 30
 # @param SPAWN_PLACE_GAP_MIN (optional) - minutes between two placements at most (the ceiling), default 10
-# @param SPAWN_PLACE_GAP_FLOOR_MIN (optional) - minutes between two placements at least, when the placed lane's heartbeat moved, default 3
+# @param SPAWN_PLACE_GAP_FLOOR_MIN (optional) - minutes between two placements at least, when the placed lane shows progress, default 3
+# @param TOKEN_BURN_STATE_DIR (optional) - the token burn collector's state dir, whose buckets.tsv shows a lane's progress on this box, default /var/csi/csi-spl/token-burn
+# @param SPAWN_PLACE_BURN_CMD (optional, tests) - prints the hub's fleet-tokens answer ({by_agent: [...]}) instead of GET /v1/operator/fleet-tokens
 # @param SPOOL_AGENT_CEILING (optional) - the agent window ceiling, default 40
 # @param SPAWN_PLACE_BRIEF_DIR (optional) - where <slug>.md (or c001-<slug>.md) is, default <spool root>/dispatch/briefs
 # @param SPAWN_PLACE_CNF (optional) - the cnf whose mistral_ui_allowed and mistral_coding_allowed the UI and coding rules read, default <APP_PATH>/csi-spl-cnf/csi-spl/all.env.yaml
@@ -298,12 +302,12 @@ spl_spawn_place_no_room() {
 
 # The gap after a launch (SDLC row 06): prints why and returns 0 while it
 # holds. It ends SPAWN_PLACE_GAP_FLOOR_MIN (3) after the launch once the
-# placed lane (<asks dir>/.place.agent, written by its launch) moved its
-# heartbeat's progress_ts past the launch, else at SPAWN_PLACE_GAP_MIN (10).
-# A missing or unreadable heartbeat, a lane on another box or a failed launch
-# (no .place.agent newer than .place.last) holds to the ceiling.
+# placed lane (<asks dir>/.place.agent, written by its launch) shows progress
+# since the launch (spl_spawn_place_progress), else at SPAWN_PLACE_GAP_MIN
+# (10). No progress signal at all, or a failed launch (no .place.agent newer
+# than .place.last), holds to the ceiling.
 spl_spawn_place_gap_hold() {
-  local d last now agent="" hb ts="" ceil=$(( ${SPAWN_PLACE_GAP_MIN:-10} * 60 )) floor=$(( ${SPAWN_PLACE_GAP_FLOOR_MIN:-3} * 60 ))
+  local d last now agent="" ceil=$(( ${SPAWN_PLACE_GAP_MIN:-10} * 60 )) floor=$(( ${SPAWN_PLACE_GAP_FLOOR_MIN:-3} * 60 ))
   d="$(spool_asks_dir)"; now="$(date +%s)"
   last="$(stat -c %Y "$d/.place.last" 2>/dev/null || echo 0)"
   (( now - last >= ceil )) && return 1
@@ -312,17 +316,64 @@ spl_spawn_place_gap_hold() {
   if (( $(stat -c %Y "$d/.place.agent" 2>/dev/null || echo 0) >= last )); then
     agent="$(head -1 "$d/.place.agent" 2>/dev/null)"
     [[ "$agent" =~ ^[acgmq]-[0-9]{3}(@[a-z0-9-]+)?$ ]] || agent=""
-    for hb in "$SPOOL_ROOT/$agent/heartbeat.json" "$SPOOL_ROOT/${agent%@"$ASKS_BOX"}/heartbeat.json"; do
-      [[ -n "$agent" && -r "$hb" ]] || continue
-      ts="$(jq -r '.progress_ts // empty' "$hb" 2>/dev/null)"
-      [[ -n "$ts" ]] && break
-    done
   fi
-  if [[ "$ts" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$ ]]; then ts="$(date -u -d "$ts" +%s 2>/dev/null || echo 0)"
-  elif [[ ! "$ts" =~ ^[0-9]+$ ]]; then ts=0; fi
-  (( ts > 0 && ts >= last )) && return 1
-  printf 'the last placement started under %s min ago and %s has no heartbeat progress since' "${SPAWN_PLACE_GAP_MIN:-10}" "${agent:-its lane}"
+  [[ -n "$agent" ]] && spl_spawn_place_progress "$agent" "$last" && return 1
+  printf 'the last placement started under %s min ago and %s has no heartbeat or token-burn progress since' "${SPAWN_PLACE_GAP_MIN:-10}" "${agent:-its lane}"
   return 0
+}
+
+# 0 when the lane AGENT (<ID>[@<box>]) shows progress since the epoch LAST,
+# by the first signal it really produces (SPL-3574):
+#   1. its heartbeat.json progress_ts (spool-agent-hook.sh; claude and the
+#      hooked vendors), read on this box only;
+#   2. token burn: a metered bucket (tokens > 0, the model answered) whose
+#      minute ends after LAST. agy writes no heartbeat, but the box's token
+#      burn collector meters its brain transcript per lane id
+#      (spl-token-burn-collect.func.sh). On this box: the collector's
+#      <TOKEN_BURN_STATE_DIR>/buckets.tsv; for a lane on another box: the
+#      hub's GET /v1/operator/fleet-tokens by_agent row of <box, ID>
+#      (spl_spawn_place_burn_hub), where every box pushes its buckets.
+# A pane that is only alive (an unmetered sample) is no progress.
+spl_spawn_place_progress() {  # AGENT LAST
+  local id="${1%@*}" box="${ASKS_BOX:-}" ts f
+  [[ "$1" == *@* ]] && box="${1#*@}"
+  if [[ "$box" == "${ASKS_BOX:-}" ]]; then
+    ts="$(jq -r '.progress_ts // empty' "$SPOOL_ROOT/$id/heartbeat.json" 2>/dev/null)"
+    [[ -n "$ts" ]] && (( $(spl_spawn_place_epoch "$ts") >= $2 )) && return 0
+    f="${TOKEN_BURN_STATE_DIR:-/var/csi/csi-spl/token-burn}/buckets.tsv"
+    [[ -r "$f" ]] || return 1
+    awk -F'\t' -v a="$id" -v t="$2" '$1 == a && $4 + 60 > t && $5 + $6 + $7 + $8 > 0 { ok = 1 } END { exit !ok }' "$f"
+    return
+  fi
+  ts="$(spl_spawn_place_burn_hub | jq -r --arg a "$id" --arg b "$box" \
+    '[.by_agent[]? | select(.agent_id == $a and .box == $b and .is_metered == true) | .last_active] | max // empty' 2>/dev/null)"
+  [[ -n "$ts" ]] && (( $(spl_spawn_place_epoch "$ts") + 60 > $2 ))
+}
+
+# An ISO-8601 UTC stamp (or an epoch) as an epoch; 0 when it is neither.
+spl_spawn_place_epoch() {  # TS
+  if [[ "$1" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$ ]]; then date -u -d "$1" +%s 2>/dev/null || echo 0
+  elif [[ "$1" =~ ^[0-9]+$ ]]; then echo "$1"
+  else echo 0; fi
+}
+
+# The hub's token burn of the last hour (GET /v1/operator/fleet-tokens), as
+# the env's project service account (do_gcp_pin_account, never the owner
+# account), in a subshell so the pinned gcloud config stays in it. Empty when
+# this machine has no hub cnf (spl_lane_init did not resolve one) or the hub
+# did not answer 200: the gap then holds as before. SPAWN_PLACE_BURN_CMD
+# (tests) prints the answer instead.
+spl_spawn_place_burn_hub() {
+  if [[ -n "${SPAWN_PLACE_BURN_CMD:-}" ]]; then
+    # shellcheck disable=SC2086 # a command line, split on purpose
+    $SPAWN_PLACE_BURN_CMD 2>/dev/null; return 0
+  fi
+  [[ -z "${LANE_HUB_CMD:-}" && -n "${SPL_CNF:-}" && -n "${SPL_HUB_URL:-}" ]] || return 0
+  (
+    do_gcp_pin_account "$SPL_CNF" >/dev/null 2>&1 || exit 0
+    spl_hub_operator_call GET '/v1/operator/fleet-tokens?window=1h' >/dev/null 2>&1 || exit 0
+    [[ "$SPL_HUB_OP_STATUS" == 200 ]] && printf '%s' "$SPL_HUB_OP_BODY"
+  )
 }
 
 # The agent windows on this box (the fleet's ceiling count).

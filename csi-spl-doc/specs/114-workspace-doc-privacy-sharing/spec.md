@@ -626,6 +626,21 @@ Three guards, each a test with a red control:
    `do_spl_doctree_import_md` adding a row for another workspace is refused
    the same way. Red control: a map row of a workspace off the list, the
    test expects the refusal (tasks R5).
+   **A workspace with a private repository** (owner HUM-10, csitea topic
+   8c223c17, msgs 9538871d and 2b3de92e; SPL-3543): cnf
+   `docs.private_repos` maps it to a PRIVATE GitHub repository
+   (`csitea: csitea/csitea-ws-docs`). `do_spl_doctree_export_md` then writes
+   its docs only into `QTO_PRIVATE_REPO_DIR`, a clone of THAT repository,
+   with the map `<clone>/qto-docs.tsv` (`QTO_MAP_SEED=1` adds a
+   `docs/<doc id>.md` row per doc of the workspace it lacks). Refused: the
+   public tree, a dir inside it, a clone whose origin is not that
+   repository, a `QTO_MAP` override, and a workspace in both cnf lists.
+   `do_spl_doctree_import_md` refuses the workspace: the hub keeps the
+   primary copy and the repository is an export copy only (owner polls
+   7aef27b6 / f76e38e4, answer A). Test:
+   `csi-spl-orc/src/bash/tests/doctree-export-private-repo.tst.sh` (its
+   control: the target check stubbed out writes the doc into the public
+   repository).
 3. **Audit (read-only, daily)**: an action lists, per env, every workspace
    without a 052 bucket, any 052 bucket that is not uniform + `enforced`,
    names `allUsers` / `allAuthenticatedUsers`, or grants a non-legacy member

@@ -14,7 +14,7 @@
 #          drift). After every reload:
 #   1. the instance's own descendants (no sleep) are the 2 tee subshells of
 #      the code it runs now, never more (red before the fix: 4, then 6)
-#   2. no tee of an earlier code tree is alive anywhere (by its log name)
+#   2. no tee of an earlier code tree is alive anywhere (by an open fd on its log)
 #      (also a tee pipe on fd 9, where the keeper lock was: closed too)
 #   3. control: same pid (exec, not restart) and the run lock (fd 7) still
 #      held by it through both reloads
@@ -30,8 +30,9 @@ mkdir -p "$W/code"
 
 # the model below repeats ./run's tee line; it must still be ./run's
 # shellcheck disable=SC2016 # the literal line, not an expansion
-if grep -qF 'exec {RUN_TEE_OUT_FD}> >(tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.out.log)' "$PROJ_ROOT/run" &&
-   grep -qF 'exec {RUN_TEE_ERR_FD}> >(exec {RUN_TEE_OUT_FD}>&- && tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.err.log >&2)' "$PROJ_ROOT/run" &&
+if grep -qF 'exec {RUN_TEE_OUT_FD}> >(do_run_log_tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.out.log)' "$PROJ_ROOT/run" &&
+   grep -qF 'exec {RUN_TEE_ERR_FD}> >(exec {RUN_TEE_OUT_FD}>&- && do_run_log_tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.err.log >&2)' "$PROJ_ROOT/run" &&
+   grep -qF 'tee >(do_mask_private_keys >"$1")' "$PROJ_ROOT/run" &&
    grep -qF 'main_exec "$@" >&$RUN_TEE_OUT_FD 2>&$RUN_TEE_ERR_FD {RUN_TEE_OUT_FD}>&- {RUN_TEE_ERR_FD}>&-' "$PROJ_ROOT/run"; then
   pass "0 ./run still starts every action under the two tee process substitutions"
 else
@@ -68,12 +69,18 @@ main_exec() {
     sleep 0.1
   done
 }
+# ./run's masked log tee (SPL-3614); the mask itself does not matter here
+do_mask_private_keys() { cat; }
+do_run_log_tee() {
+  tee >(do_mask_private_keys >"$1")
+  wait $! 2>/dev/null || true
+}
 main() {
   ts="$CODE"
   main_log_dir="$WD_DIR/log/"
   mkdir -p $main_log_dir
-  exec {RUN_TEE_OUT_FD}> >(tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.out.log)
-  exec {RUN_TEE_ERR_FD}> >(exec {RUN_TEE_OUT_FD}>&- && tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.err.log >&2)
+  exec {RUN_TEE_OUT_FD}> >(do_run_log_tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.out.log)
+  exec {RUN_TEE_ERR_FD}> >(exec {RUN_TEE_OUT_FD}>&- && do_run_log_tee $main_log_dir/${RUN_UNIT:-run.sh}.$ts.err.log >&2)
   main_exec "$@" >&$RUN_TEE_OUT_FD 2>&$RUN_TEE_ERR_FD {RUN_TEE_OUT_FD}>&- {RUN_TEE_ERR_FD}>&-
   exit $?
 }
@@ -90,15 +97,18 @@ under() {
     END { for (x in p) { y = x; while (y in p && y != r && y > 1) y = p[y]
                          if (y == r && x != r) print x, c[x] } }'
 }
-# kids PID: PID's descendants, sleep left out (the loop's own 0.1 s nap)
-kids() { under "$1" | awk '$2 != "sleep"' | wc -l; }
-# old_tees CODE...: live tee processes that write a log of these code trees
+# kids PID: PID's own children, sleep left out (the loop's own 0.1 s nap): the
+# tee process substitutions; each runs its tee and log writer below it
+kids() { ps -e -o ppid=,comm= | awk -v r="$1" '$1 == r && $2 != "sleep"' | wc -l; }
+# log_writers CODE: pids that hold a log of this code tree open (the masked
+# log writer of ./run's tee, SPL-3614, or the fd 9 tee), one per line
+log_writers() {
+  find /proc/[0-9]*/fd -maxdepth 1 -lname "$(realpath -m "$W/log")/run.sh.$1.*" 2>/dev/null | cut -d/ -f3 | sort -u
+}
+# old_tees CODE...: live processes that write a log of these code trees
 old_tees() {
-  local c n=0 k
-  for c in "$@"; do
-    k="$(pgrep -fc -- "tee $W/log/+run.sh.$c\." 2>/dev/null)"
-    n=$(( n + ${k:-0} ))
-  done
+  local c n=0
+  for c in "$@"; do n=$(( n + $(log_writers "$c" | wc -l) )); done
   echo "$n"
 }
 # settle PID WANT: kids PID drops to WANT within 5 s; prints the last count
@@ -127,7 +137,7 @@ cleanup() {
     d="$(under "$PID" | awk '{print $1}')"
     # shellcheck disable=SC2086 # one pid per word
     kill -KILL "$PID" $d 2>/dev/null
-    for c in A B C K9; do pgrep -f -- "tee $W/log/+run.sh.$c\." | xargs -r kill -KILL 2>/dev/null; done
+    for c in A B C K9; do log_writers "$c" | xargs -r kill -KILL 2>/dev/null; done
   fi
   rm -rf "$T"
 }

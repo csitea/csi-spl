@@ -23,6 +23,12 @@
 #       repository. A stamp naming no workspace, a bad row and an unreadable
 #       or empty cnf list FAIL too, and the known-drift list never makes
 #       one of these a WARN
+#     7 the hand-copy check (SPL-3541): no md line equals a private
+#       workspace doc's id, title or heading, by the hashed index of
+#       do_spl_private_doc_index (QTO_PRIVATE_INDEX, outside the repo;
+#       qto-private-index.py check). FAIL names file:line, never the text.
+#       No index: a WARN that it was NOT RUN, or a FAIL once cnf
+#       docs.private_index_required is true
 #   It cannot see a hand edit of the text under a correct stamp: the qto docs
 #   live on the hub (the system tenant for "repo" rows, spec 137 unified-fs.md
 #   section 1), which CI cannot reach. That is the live check:
@@ -38,6 +44,8 @@
 #   files the map check reports as WARN, not FAIL
 # @param QTO_TENANT_CNF (optional) - default
 #   <tree>/csi-spl-cnf/csi-spl/all.env.yaml, the cnf of rule 6
+# @param QTO_PRIVATE_INDEX (optional) - rule 7's index; default
+#   ${XDG_STATE_HOME:-$HOME/.local/state}/csi-spl/qto-private-index.txt
 # @param QTO_DRIFT_LIVE (optional) - 1: also the live check; then ENV,
 #   TENANT_ID and DESK_AGENT are required (do_spl_doctree_export_md)
 # @param QTO_DRIFT_FS (optional) - live only: repo or workspace; default both
@@ -53,6 +61,7 @@ do_check_qto_doc_drift() {
   command -v python3 >/dev/null || { _qdd_log "FATAL python3 is not on PATH"; return 1; }
   local cnf="${QTO_TENANT_CNF:-$tree/csi-spl-cnf/csi-spl/all.env.yaml}"
   _qdd_map "$tree" "$map" "$known" "$cnf" || rc=1
+  _qdd_private "$tree" "$cnf" || rc=1
   if [[ "${QTO_DRIFT_LIVE:-0}" == 1 ]]; then
     _qdd_live "$map" || rc=1
   fi
@@ -69,6 +78,16 @@ _qdd_map() {
   out="$(python3 "$py" "$1" "$2" "$3" "$4")" || rc=$?
   while IFS= read -r line; do [[ -n "$line" ]] && _qdd_log "$line"; done <<<"$out"
   (( rc == 0 )) || _qdd_log "FAIL qto doc drift: export the doc again (cd csi-spl-orc && QTO_DOC=<id> ./run -a do_spl_doctree_export_md) or fix its map row"
+  return "$rc"
+}
+
+# _qdd_private <tree> <cnf>: rule 7 of the header, by qto-private-index.py.
+_qdd_private() {
+  local py out rc=0
+  local idx="${QTO_PRIVATE_INDEX:-${XDG_STATE_HOME:-$HOME/.local/state}/csi-spl/qto-private-index.txt}"
+  py="$(dirname "${BASH_SOURCE[0]}")/qto-private-index.py"
+  out="$(python3 "$py" check "$1" "$idx" "$2")" || rc=$?
+  while IFS= read -r line; do [[ -n "$line" ]] && _qdd_log "$line"; done <<<"$out"
   return "$rc"
 }
 

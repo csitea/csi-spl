@@ -86,6 +86,8 @@ do-provision: no-plan-ref demand_var-ENV demand_var-STEP
 	  bash ../csi-spl-api/src/bash/build.sh ../csi-spl-api/src/go/spool-hub-api/bin/spool \
 	    || { echo "REFUSED: 036 needs the spool CLI its create path signs with (step 036, 03-demo-workspace.tf); the host build failed."; exit 1; } ;; \
 	esac
+	$(if $(filter 040-cloud-sql-postgres,$(STEP)),@( cd ../csi-spl-iac && ENV=$(ENV) DRY_RUN=$(or $(DRY_RUN),1) SNOOZE_CMD=start ./run -a do_gcp_alert_snooze ) \
+	  || echo "WARN 040: no alert snooze (see above and csi-spl-doc/doc/md/planned-apply-alert-snooze.md): the apply goes on and may page error_logs and sql_down.")
 	@bash -c '\
 	  source lib/bash/funcs/resolve-oap.func.sh; \
 	  do_resolve_oap ORG; do_resolve_oap APP; \
@@ -110,6 +112,8 @@ do-provision: no-plan-ref demand_var-ENV demand_var-STEP
 		con-$$ORG-$$APP-tf-runner \
 		./run -a do_provision \
 	'
+	$(if $(filter 040-cloud-sql-postgres,$(STEP)),@( cd ../csi-spl-iac && ENV=$(ENV) DRY_RUN=$(or $(DRY_RUN),1) SNOOZE_CMD=end ./run -a do_gcp_alert_snooze ) \
+	  || echo "WARN 040: the alert snooze was not ended early: it ends by itself at its end time.")
 
 .PHONY: do-provision-and-update-gh-keys ## @-> 03.03b provision step 120 + update GH GCP keys via gh CLI
 do-provision-and-update-gh-keys: no-plan-ref demand_var-ENV

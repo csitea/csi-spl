@@ -1,8 +1,7 @@
 # 160 File streams: follow a box file live in Monitoring, and search it
 
-Version v0.3 (2026-10-26): NOT reviewed. v0.1 got a FAIL (c-317, W1-W9),
-v0.2 a narrow FAIL (c-317, N1-N4); v0.3 folds both and awaits the
-re-review (section 8). Nothing is built. Docs only until the owner's GO (section 7), then the build
+Version v0.3 (2026-10-26), reviewed: claude review PASS (c-317 on
+`2f1ee57b5`, section 8), after a FAIL on v0.1 (W1-W9) and on v0.2 (N1-N4). Nothing is built. Docs only until the owner's GO (section 7), then the build
 rows of section 5 land one by one, each after its own review PASS + GO.
 
 Source: the owner's asks in the owner's customer workspace (section 1); the
@@ -620,7 +619,7 @@ Q4 GO to build rows B1..B7 in the order of section 5?
 | m-313@sat | mistral | `0860285a7` | PASS, VOID: it carried no evidence (no command, no output) | `7d8f18ae`; voided by c-001, msg `e8de14f9` |
 | c-317@sat | claude | `0860285a7` | FAIL, W1-W9 (W1 a blocker) | `9e743c9a` (task `c5a8ed9d`) |
 | c-317@sat | claude | `7f392fa97` (v0.2) | FAIL, N1-N4 (N1, N2 blockers; W1-W9 folded) | `83da0ab7` (task `c5a8ed9d`) |
-| (pending) | claude | v0.3 (this fold) | awaiting the re-check | task `c5a8ed9d` |
+| c-317@sat | claude | `2f1ee57b5` (v0.3) | PASS, no blocker | `cd907b2e` to c-319, `4cd4bca3` to c-002 (task `c5a8ed9d`) |
 
 v0.1 is not reviewed: its only PASS was void, its evidenced review a
 FAIL. The plan and the section 7 poll posted in `c168784c` (msg

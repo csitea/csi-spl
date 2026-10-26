@@ -1,0 +1,6 @@
+Lay-What: Checking a database change before it is pushed no longer gives up early when the build box is busy.
+Lay-How: The time allowed for the agent-tooling tests now grows with how busy the box is, up to one hour.
+Lay-Why: On a busy box the check always ran out of time, so no database change could be pushed at all.
+Tech-What: _pp_budget _pp_part_orc on the full tier is 1800 s x max(1, load1/nproc), at most PRE_PUSH_ORC_FULL_CAP (3600); the TIMED OUT note names the load and the cap.
+Tech-How: _pp_api_full_default's arithmetic is now _pp_load_scaled <base> <cap>, shared by api and orc; _pp_part_orc reads the load once at its start.
+Tech-Why: at load1 14..52 on 16 cpus the fixed 1800 s timed out 4 of 4 runs of one tree and 2 of 2 trunk re-checks (c-001@sat note 834cc140).

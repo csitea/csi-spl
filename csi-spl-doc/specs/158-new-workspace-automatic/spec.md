@@ -1,6 +1,6 @@
 # Spec 158: a new workspace works automatically
 
-**Feature ID**: `158-new-workspace-automatic` · **Status**: Draft v0.1 (for R7) ·
+**Feature ID**: `158-new-workspace-automatic` · **Status**: Draft v0.2 (for R7) ·
 **Epic**: SPL-2398 · **Issue**: SPL-3504 · **Created**: 2026-10-26 · **Lead**: c-456 ·
 **Placement slug**: `c002-s158-new-workspace-automatic`
 
@@ -38,6 +38,7 @@ Paths are relative to the repo root. `hub` = `csi-spl-api/src/go/spool-hub-api/i
 | M7 | The unanswered sweep reads EVERY workspace of the env in one operator-scope query. There is no list: test workspaces are skipped by `SWEEP_SKIP_TENANTS` / `SWEEP_SKIP_RE`. It runs every minute. | `orc/run/spl-unanswered-sweep.func.sh:8-9, 351-365`; `spl-unanswered-sweep-install-cron.func.sh:40-64` |
 | M8 | Nothing alarms on a workspace that has member posts and 0 agent seats. The delivery probe reads a workspace with no seat on this machine as `remote`, which never alerts. `store.CountBots` counts agent roster rows, but no route or action calls it. | `orc/run/spl-workspace-delivery-probe.func.sh:18-23`; `internal/store/seats_postgres.go:64` |
 | M9 | `spool hub-pin --root-key <path>`, where no file is at that path, said "the --root-key text is not a base64 ed25519 private key (nor a readable file)". A missing file falls into the key-text branch. | `internal/action/pin.go:66-88` |
+| M10 | `agents.join` is in the Admin role only, by design: `BizOwner` (the workspace owner) lacks it and `withAgents()` adds only DM/start/mention/post/reply. rdb 0119 seeds `('admin', 'agents.join')` only, so code and DB agree. A biz_owner who is not admin gets no join-token panel (WUI `mayJoin = canJoinAgents`) and cannot seat agents. On 2026-10-26 the first-case workspace was unblocked by hand, on the owner's order: `box_join_enabled` set on, and the owner made admin there (c-001 msgs e96aa466, d2815aa9). | `internal/rbac/rbac.go:217-225`; rdb `0119_agent_join_tokens.sql:66-67` |
 
 ## 3. Requirements (each one a testable row)
 
@@ -114,6 +115,27 @@ Paths are relative to the repo root. `hub` = `csi-spl-api/src/go/spool-hub-api/i
 | A workspace admin turns fleet seating on for itself, or lists a box. | No workspace route writes either; operator admin only (spec 074). |
 | Replay of an enrol request. | `ts` must be later than the last pin op (004 pin semantics section 5); `sig_new` binds the key. |
 | Root key exposure. | None new: A-fleet never reads, stores or moves a root key. The create still answers it once, for a workspace's own admin to keep. |
+
+### 4.5 Seating with neither switch (M4, M10)
+
+A-fleet does not use spec 108's join path. It needs neither `agents.join`
+in any member's role nor `box_join_enabled` on the workspace: the
+enrolment is authorised by the box's operator-workspace pin plus
+`fleet_seating` (4.2), which the create sets. So a workspace whose owner
+is biz_owner only, and whose `box_join_enabled` is false (the default),
+is still seated with no human step. The hand fix of 2026-10-26 (M10) is
+then not needed for the next workspace.
+
+Kept as is, deliberately: `agents.join` stays admin-only, and
+`box_join_enabled` keeps its default false. Both belong to spec 108's
+workspace-owned boxes, which the owner made a switched, paid feature
+(spec 108 3.8). Whether a TenantOwner should also get `agents.join` is a
+spec 108 permission question, not needed for R1-R4. It is listed for the
+dispatcher to route, with the built default "no change".
+
+Test (row T7): enrolment into a workspace with `box_join_enabled` false
+and no member holding `agents.join` succeeds. Control: the same
+workspace with `fleet_seating` false is refused.
 
 ## 5. Design for B: the 0-seat alarm
 

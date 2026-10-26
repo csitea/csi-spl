@@ -19,7 +19,7 @@ deployed. Store rows run `PRE_PUSH_TIER=full`.
 | T4 | rdb: `tenants.fleet_seating` (default false) + `fleet_desk_boxes`, RLS / operator-only | migration lint; `rls_test.go` covers the new table |
 | T5 | create sets `fleet_seating` true (request field, default true); PATCH flips it; audited | `operator_workspaces_test.go` |
 | T6 | `PUT/DELETE /v1/operator/fleet-desks/{box}` + `do_spl_fleet_desk_box` | hub test: a box with no live operator pin is refused |
-| T7 | `GET /v1/fleet/workspaces` and `POST /v1/fleet/enrol` (two signatures, `box_mode = 'fleet'`, audit row) | hub tests: unlisted box 403, bad `sig_new` 401, replayed `ts` 409, `fleet_seating` false 403, Postgres twin |
+| T7 | `GET /v1/fleet/workspaces` and `POST /v1/fleet/enrol` (two signatures, `box_mode = 'fleet'`, audit row) | hub tests: unlisted box 403, bad `sig_new` 401, replayed `ts` 409, `fleet_seating` false 403; enrol succeeds with `box_join_enabled` false and no `agents.join` holder (spec 4.5); Postgres twin |
 
 ## 3. Box rows (A-fleet, spec section 4.3)
 

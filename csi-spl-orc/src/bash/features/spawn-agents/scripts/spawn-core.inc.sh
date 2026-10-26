@@ -281,7 +281,9 @@ _spawn_worktree() {
 # Spec 153 3.4: the topic is SPAWN_LANE_TOPIC, else LANE_ISSUE_TOPIC, else the
 # brief's first HUB topic written `topic:<id>`, `topic <id>` or `/t/<id>` (a
 # full uuid, or an 8-hex short id the hub resolves at put); never a bare uuid,
-# which may be a spool task alias's. The issue is lifetime/issue (written
+# which may be a spool task alias's; else (spec 153 v1.2 3.7) the 8 hex of a
+# line-start `Task: dispatch-<topic8>`, a seat's desk topic, which the hub
+# resolves in the workspace that holds it. The issue is lifetime/issue (written
 # before this put), else SPAWN_ISSUE, else the brief's `Issue:` line; a key
 # the hub would refuse is left out so the row still lands.
 _spawn_lane_put() {
@@ -290,6 +292,9 @@ _spawn_lane_put() {
   if [ -z "$topic" ] && [ -n "$BRIEF" ] && [ -r "$BRIEF" ]; then
     topic="$(grep -oE '([Tt]opic[: ]+`?|/t/)[0-9a-f]{8}(-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?([^0-9A-Za-z-]|$)' "$BRIEF" 2>/dev/null |
       head -1 | grep -oE '[0-9a-f]{8}(-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?' | head -1)"
+  fi
+  if [ -z "$topic" ] && [ -n "$BRIEF" ] && [ -r "$BRIEF" ]; then
+    topic="$(grep -m1 -oE '^Task: *`?dispatch-[0-9a-f]{8}([^0-9A-Za-z-]|$)' "$BRIEF" 2>/dev/null | grep -oE '[0-9a-f]{8}' | head -1)"
   fi
   if [ -n "$BRIEF" ] && . "${_SP_DIR}/../lib/lane-issue.inc.sh" 2>/dev/null; then
     issue="$(li_key_of_agent "$SPOOL_ROOT" "$TITLE")"

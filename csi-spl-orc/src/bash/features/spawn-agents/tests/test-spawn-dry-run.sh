@@ -181,6 +181,15 @@ hasnt "C6b: ... never the alias's bare uuid planted first" "--topic '${UA}'" "$o
 printf '# C7\nIn the owner topic 5e7b15c9, row B2.\n' > "$T_TMP/brief-c7.md"
 out="$(bash "$T_SCRIPTS/spawn-claude.sh" CLE-84 "$T_TMP/repo" "$T_TMP/brief-c7.md" "fix it" 2>&1)"
 has "C7: an 8-hex short id is passed unchanged (the hub resolves it)" "--topic '5e7b15c9' --issue ''" "$out"
+# spec 153 v1.2 C36: a seat brief's line-start `Task: dispatch-<topic8>` is
+# the last source (the hub resolves it in its workspace); prose naming a
+# dispatch task, or a dispatch-orc-<topic8> line, sets nothing. Master: '' for both.
+printf '# C36\nTask: dispatch-55fd7531\nEpic: SPL-1\n' > "$T_TMP/brief-c36.md"
+out="$(bash "$T_SCRIPTS/spawn-claude.sh" CLE-85 "$T_TMP/repo" "$T_TMP/brief-c36.md" "fix it" 2>&1)"
+has "C36: the Task: dispatch-<topic8> line fills the row's topic" "--topic '55fd7531' --issue ''" "$out"
+printf '# C36b\nRelayed on task dispatch-55fd7531.\nTask: dispatch-orc-55fd7531\n' > "$T_TMP/brief-c36b.md"
+out="$(bash "$T_SCRIPTS/spawn-claude.sh" CLE-86 "$T_TMP/repo" "$T_TMP/brief-c36b.md" "fix it" 2>&1)"
+has "C36b: prose or a dispatch-orc- task sets no topic" "--topic '' --issue ''" "$out"
 has "git: leak gate quotes the identity" "dev@example.com dev@example.com" "$prompt"
 has "git: red-run owners are told via spool-send" "tell them with spool-send.sh" "$prompt"
 # spec 065 L8: the report carries sha + note link per released commit.

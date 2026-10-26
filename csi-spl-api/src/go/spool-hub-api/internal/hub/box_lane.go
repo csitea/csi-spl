@@ -21,7 +21,10 @@ import (
 //
 // A put's topic given as an 8-hex short id is stored as the one topic of the
 // tenant it starts, or "" when none or several do (spec 153 3.4): a short id
-// is never stored, so it never reaches the lanes view as a link.
+// is never stored, so it never reaches the lanes view as a link. A put by a
+// box of the operator workspace whose short id starts no operator topic
+// looks in every other workspace too (spec 153 v1.2 section 3.7): the one
+// topic it starts there is the workspace the lane works for.
 //
 // A row is the agent <agent_id>@<agent_box> (the fleet naming rule).
 // Who may: any box pinned in the tenant (the hello proved its key); the
@@ -152,7 +155,9 @@ func (s *Server) boxLane(ctx context.Context, x *session, f wire.Frame) (laneAns
 }
 
 // laneTopic is the topic a put stores: an 8-hex short id becomes the one
-// topic of the tenant it starts, "" for none or two; anything else as sent.
+// topic of the tenant it starts, else (a put in the operator workspace) the
+// one topic of any workspace it starts (laneTopicElsewhere); "" for none or
+// two; anything else as sent.
 func (s *Server) laneTopic(ctx context.Context, tenant, topic string) (string, *issueErr) {
 	if !store.TopicPrefixRe.MatchString(topic) {
 		return topic, nil
@@ -162,6 +167,9 @@ func (s *Server) laneTopic(ctx context.Context, tenant, topic string) (string, *
 		return "", nil
 	}
 	ids, err := d.TopicsByPrefix(ctx, tenant, topic, 2)
+	if err == nil && len(ids) == 0 {
+		ids, err = s.laneTopicElsewhere(ctx, d, tenant, topic)
+	}
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("fleet lane topic prefix")
 		return "", &issueErr{http.StatusInternalServerError, "internal", "lane map unavailable"}
@@ -170,4 +178,35 @@ func (s *Server) laneTopic(ctx context.Context, tenant, topic string) (string, *
 		return "", nil
 	}
 	return ids[0], nil
+}
+
+// laneTopicElsewhere is up to two topics of the other workspaces (archived
+// ones aside) that start with prefix, each read in its own workspace's
+// scope; none unless tenant is the operator workspace, so a customer box
+// never learns another workspace's topic id.
+func (s *Server) laneTopicElsewhere(ctx context.Context, d store.IssueDiscussions, tenant, prefix string) ([]string, error) {
+	op, err := s.operatorTenant(ctx)
+	ws, listed := s.o.Store.(store.OperatorWorkspaces)
+	if err != nil || op == "" || op != tenant || !listed {
+		return nil, err
+	}
+	all, err := ws.ListWorkspaces(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := []string{}
+	for _, w := range all {
+		if len(out) > 1 {
+			break
+		}
+		if w.ID == op || !w.ArchivedAt.IsZero() {
+			continue
+		}
+		ids, err := d.TopicsByPrefix(ctx, w.ID, prefix, 2)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ids...)
+	}
+	return out, nil
 }

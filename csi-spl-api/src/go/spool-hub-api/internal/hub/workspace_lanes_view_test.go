@@ -107,10 +107,7 @@ func TestWorkspaceLanesView(t *testing.T) {
 	laneAt(t, r.fleetTokensRig, "c-506", box, r.t1, "", now.Add(-6*time.Minute))        // C28 twin: full uuid
 	laneAt(t, r.fleetTokensRig, "c-507", box, r.privTopic, "", now.Add(-7*time.Minute)) // C30
 	laneAt(t, r.fleetTokensRig, "c-508", box, r.t1, "", now.Add(-3*time.Hour))          // not active: 3.2's rule
-	// C28: a short id of a w1 topic resolves among the operator's topics only.
-	if got, err := lanePut(t, r.opBox, `{"agent_id":"c-505","agent_box":"`+box+`","topic":"`+r.t1[:8]+`","state":"live"}`); err != nil || got.Topic != "" {
-		t.Fatalf("C28 short id put: %+v %v, want stored with an empty topic", got, err)
-	}
+	// C28's short id case moved to TestWorkspaceLanesShortID (v1.2: it resolves now).
 
 	// C25: w1's admin sees the w1 lanes only, with no box name.
 	v, raw := wsLanes(t, r, r.w1, r.w1Admin, http.StatusOK)
@@ -159,7 +156,7 @@ func TestWorkspaceLanesView(t *testing.T) {
 
 	// C27: the operator view is unchanged: every active lane, the box, the own keys.
 	op := getLanes(t, r.fleetTokensRig)
-	if got := laneKeys(op); !slices.Equal(got, []string{"c-505", "c-501", "c-502", "c-503", "c-504", "c-506", "c-507"}) {
+	if got := laneKeys(op); !slices.Equal(got, []string{"c-501", "c-502", "c-503", "c-504", "c-506", "c-507"}) {
 		t.Errorf("C27 operator lanes %v", got)
 	}
 	for _, l := range op.Lanes {
@@ -180,5 +177,78 @@ func TestWorkspaceLanesView(t *testing.T) {
 	}
 	if code, _ := call(t, r.e, r.w1, http.MethodGet, workspaceLanesPath+"?fleet=Main", r.w1Admin, nil); code != http.StatusBadRequest {
 		t.Errorf("fleet=Main: %d, want 400", code)
+	}
+}
+
+// Spec 153 v1.2 section 3.7 (SPL-3514; owner HUM-10, a customer workspace topic f88d6ee4, msg
+// 694f9ede): a lane works for the workspace whose topic its put names. A put
+// by an operator box with an 8-hex short id that starts no operator topic
+// stores the one topic of another workspace that it starts. C28b, C31-C35.
+// RED CONTROL (master a066b182e): C28b and C31 fail, the short id is
+// stored "" and w1's view is empty.
+func TestWorkspaceLanesShortID(t *testing.T) {
+	r := newWSLanesRig(t)
+	opBoxID := r.opBox.id
+	put := func(b *box, agent, topic string) string {
+		t.Helper()
+		got, err := lanePut(t, b, `{"agent_id":"`+agent+`","agent_box":"`+b.id+`","topic":"`+topic+`","scope":"scope of `+agent+`","state":"live"}`)
+		if err != nil {
+			t.Fatalf("put %s %s: %v", agent, topic, err)
+		}
+		return got.Topic
+	}
+	// C28b: the short id of a w1 topic is stored as that topic's full uuid.
+	if got := put(r.opBox, "c-511", r.t1[:8]); got != r.t1 {
+		t.Errorf("C28b short id %s stored %q, want w1's topic %s", r.t1[:8], got, r.t1)
+	}
+	// C32: a prefix that starts a w1 AND a w2 topic is stored "".
+	twin := uid.New()[:8]
+	lobbyTopic(t, r.e, r.w1, twin+"-0000-4000-8000-000000000001", "## W1 twin\n\none")
+	lobbyTopic(t, r.e, r.w2, twin+"-0000-4000-8000-000000000002", "## W2 twin\n\ntwo")
+	if got := put(r.opBox, "c-512", twin); got != "" {
+		t.Errorf("C32 a prefix of two workspaces' topics stored %q, want \"\"", got)
+	}
+	// C33: the operator's own topic wins over a w1 topic with the same prefix.
+	opFirst := uid.New()[:8]
+	lobbyTopic(t, r.e, r.op, opFirst+"-0000-4000-8000-000000000001", "## Operator twin\n\nop")
+	lobbyTopic(t, r.e, r.w1, opFirst+"-0000-4000-8000-000000000002", "## W1 op twin\n\nw1")
+	if got := put(r.opBox, "c-513", opFirst); got != opFirst+"-0000-4000-8000-000000000001" {
+		t.Errorf("C33 operator and w1 prefix stored %q, want the operator's topic", got)
+	}
+	// C34: a box of another workspace never resolves outside its own.
+	if got := put(r.otherBox, "c-514", r.t2[:8]); got != "" {
+		t.Errorf("C34 a customer box's short id of a w2 topic stored %q, want \"\"", got)
+	}
+
+	// C31: w1's admin sees c-511 with w1's title, w2's admin does not, and
+	// neither sees C32-C34's lanes.
+	v, raw := wsLanes(t, r, r.w1, r.w1Admin, http.StatusOK)
+	if got := laneKeys(v); !slices.Equal(got, []string{"c-511"}) {
+		t.Errorf("C31 w1 admin lanes %v, want [c-511]", got)
+	}
+	for _, l := range v.Lanes {
+		if l.TopicID != r.t1 || l.TopicTitle != "W1 build" || l.Scope != "scope of c-511" || l.AgentBox != "" {
+			t.Errorf("C31 row: %+v", l)
+		}
+	}
+	for _, leak := range []string{"W2 twin", "W1 op twin", "Operator twin", r.t2, opBoxID} {
+		if strings.Contains(raw, leak) {
+			t.Errorf("C31: %q in w1's answer: %s", leak, raw)
+		}
+	}
+	if v, raw := wsLanes(t, r, r.w2, r.w2Admin, http.StatusOK); len(v.Lanes) != 0 || strings.Contains(raw, "W1 build") {
+		t.Errorf("C31 twin w2 admin: %s, want no lane", raw)
+	}
+
+	// C35: the operator view lists c-511 with no w1 title or text.
+	op := getLanes(t, r.fleetTokensRig)
+	if !slices.Contains(laneKeys(op), "c-511") {
+		t.Errorf("C35 operator lanes %v, want c-511", laneKeys(op))
+	}
+	opRaw, _ := json.Marshal(op)
+	for _, leak := range []string{"W1 build", "row B6", "W2 secret", "confidential", "W1 twin", "W2 twin", "W1 op twin"} {
+		if strings.Contains(string(opRaw), leak) {
+			t.Errorf("C35: workspace text %q in the operator view: %s", leak, opRaw)
+		}
 	}
 }

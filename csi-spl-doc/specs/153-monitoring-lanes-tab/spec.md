@@ -1,5 +1,12 @@
 # 153 Monitoring: the tab row beside the heading, and a live Lanes tab
 
+Version v1.2 (2026-10-26): v1.1 plus section 3.7 (how a lane names the
+workspace it works for), cases C28b and C31-C36, build row B7 and C28's
+short-id clause, which B7 reverses. Owner HUM-10, topic
+`f88d6ee4`, msg `694f9ede` (2026-10-26 09:52:36Z): "I want to see the
+lanes working here as well" (the Monitoring > Lanes tab of a customer workspace, W below). Issue
+SPL-3514. Nothing else changed.
+
 Version v1.1 (2026-10-24): v1.0 plus the owner's answer to O1 = B
 (section 7), which changes 3.2 "Who sees it" and adds section 3.6, cases
 C25-C30 and build row B6. Nothing else changed. v1.1 is not reviewed yet:
@@ -462,6 +469,55 @@ The design:
   key is planned (the tab, the columns and the empty line are B4's); a key
   B6 does add gets the agy review of the language rule.
 
+### 3.7 A lane names the workspace it works for (v1.2, row B7)
+
+Measured on prd 2026-10-26 10:08-10:12Z (`ENV=prd ./run -a
+do_spl_db_query`, n = 1 read each, tree `a066b182e`). The lanes c-001
+named as working for W are all rows of the operator workspace t1,
+fleet `main`, state `live`, and all were active by 3.2's rule (a token-burn
+minute 10:06-10:11Z):
+
+| lane | row topic | why 3.6 lists it in W, or not |
+|---|---|---|
+| g-515, m-526, m-799 (seats) | `55fd7531-...`, a #development topic of W | listed: the seat briefs name the topic as a full uuid |
+| c-425 (SPL-3501, W's site) | `""` | absent: its brief names the topic only as `topic 55fd7531.`, the 8-hex short id; the put resolved it among t1's topics only (`hub/box_lane.go:154-164` on `a066b182e`), found none and stored `""` |
+| a-461 (SPL-3505, its Bulgarian reviewer) | `""` | absent: its brief names no topic at all |
+| a-355 (SPL-3498) | `""` | absent, and rightly: rotation work, not W's |
+
+The topic stays the one link between a lane and a workspace (no new
+column, no human step): a lane works for the workspace that holds its
+topic. Two gaps close:
+
+- **Hub, at put.** An 8-hex short id that starts no topic of the writer's
+  workspace is looked up in every other workspace (archived ones aside),
+  each in its own scope, only when the writer is the operator workspace;
+  exactly one match is stored as its full uuid, none or two store `""`.
+  The operator's own topic still wins (C33). A customer box never resolves
+  outside its own workspace (C34): it would learn another workspace's
+  topic id. 19 workspaces on prd: at most 19 indexed reads per put, and a
+  put is a spawn or a rotation, not a page view.
+- **Orc, at spawn.** `_spawn_lane_put` takes, after the 3.4 sources, the 8
+  hex of a line-start `Task: dispatch-<topic8>` line: a seat brief names
+  its desk topic so (the dev-seat briefs of W), and the hub resolves
+  it in the workspace that holds it. Prose that mentions a dispatch task,
+  and a `dispatch-orc-<topic8>` relay task, set nothing (C36b).
+
+Option (a), a workspace field set at spawn, was not taken: it needs a new
+column, a CLI flag and every spawn caller to know the workspace, and a
+caller can set it wrong; the topic is already in the brief and the hub
+checks it against the workspace's own messages.
+
+Isolation is 3.6's, unchanged: the workspace view shows the lane id, its
+state, its one-line scope and W's own topic title and issues, never the
+box, the lane's own (operator) key, another workspace's topic or text
+(C31). The operator view of a lane on a workspace topic shows no title and
+none of that workspace's issues: `DiscussionStates` reads the operator's
+messages only (C35).
+
+Not covered: a lane whose brief names no topic (a-461) stays tied to no
+workspace; the brief has to name one. A row stored before B7 keeps its
+`""` until its next put (a rotation keeps the old value).
+
 ## 4. Cases
 
 Every case is **planned**: none is built. "Master today" was read on
@@ -511,9 +567,16 @@ rule" twin, named in its control column.
 | C26 | B6 | a plain member of w1 (`developer` only): the route, and the tab | no route; no tab | 403 `forbidden`; `visibleMonitoringTabs({ staff: false })` has no lanes | Go test + unit test; twin: `{ staff: true }` has lanes |
 | C26b | B6 | `normalizeMe` on a me body with `roles: ['developer', 'admin']` | `roles` dropped, not staff | staff | unit test on `wui/utils/access.mjs` |
 | C27 | B6 | an operator admin: `GET /v1/operator/fleet-lanes` still lists the w1 AND the w2 lane, with `agent_box` and the own keys; the WUI tab reads that route | as B3 | unchanged (C) | B3's `fleet_lanes_view_test.go` unchanged and green; WUI e2e on the mock bundle as an operator |
-| C28 | B6 | an active lane with no topic, one on an operator topic, one stored with an empty topic after an 8-hex short id of a w1 topic | no route | none of the three in w1's view | Go test; twin: the same lane with the w1 topic's full uuid is listed |
+| C28 | B6 | an active lane with no topic, one on an operator topic | no route | neither in w1's view | Go test; twin: the same lane with the w1 topic's full uuid is listed. v1.1 also had a lane put with an 8-hex short id of a w1 topic, stored `""`; B7 reverses that (C28b) |
 | C29 | B6 | a w1 lane whose own key is SPL-2 (operator) and whose topic links w1's issue 5 | no route | `issues` = w1's key for 5 with its status only; SPL-2 absent | Go test on Postgres; twin: the operator view of the same lane lists SPL-2 |
 | C30 | B6 | a w1 lane on a w1 topic the calling admin may not open (`canReadTopic` false) | no route | absent | Go test; twin: a topic the caller may open is listed |
+| C28b | B7 | an operator box puts a lane with the 8-hex short id of a w1 topic | stored `""` | stored as the w1 topic's full uuid | Go test on Postgres (`TestWorkspaceLanesShortID`) |
+| C31 | B7 | C28b's lane: `GET /v1/view/lanes` as w1's admin, and as w2's | w1 empty | w1 lists it with w1's title, no box; w2 lists nothing; neither sees C32-C34's lanes | Go test on Postgres |
+| C32 | B7 | the short id starts a w1 AND a w2 topic | `""` | `""` | Go test; red control: accepting more than one match stores one |
+| C33 | B7 | the short id starts an operator AND a w1 topic | the operator's | the operator's | Go test |
+| C34 | B7 | a box of workspace `other` puts the short id of a w2 topic | `""` | `""` | Go test; red control: no operator-only check stores w2's uuid |
+| C35 | B7 | the operator view (3.3) of C28b's lane | n/a | listed, no w1 title or text | Go test; red control: titles read in every workspace leak `W1 build` |
+| C36 | B7 | a brief whose only topic source is `Task: dispatch-55fd7531` | `--topic ''` | `--topic '55fd7531'` | dry-run test (`test-spawn-dry-run.sh`); twin C36b: prose `on task dispatch-...` and `Task: dispatch-orc-...` give `--topic ''` |
 
 ## 5. Build rows
 
@@ -528,6 +591,7 @@ Disjoint files per row. B1 goes first and alone: it needs no data.
 | B5a issues by discussion | api | `hub/issues.go` (the list filter only), its test; `store/issues.go` (one NEW interface method beside `ListIssues` at :392, which keeps its signature, and its memory store body) and `store/issues_postgres.go` (the new method only) | - | C21-C22 |
 | B5b topic issue chips | wui | `wui/pages/t/[task_id].vue` (or its header component), new `wui/components/TopicIssueChips.vue`, its locale keys, its tests | B5a | C23-C24 |
 | B6 workspace lanes (O1 = B, 3.6) | api, wui | `hub/fleet_lanes_view.go` (factor the active rule and the row fill out of `fleetLanesView`; 3.3's behaviour unchanged); new `hub/workspace_lanes_view.go` + `_test.go`; one line in `hub/server.go` beside `routeFleetLanes` (:488); `hub/openapi.json` (the new path); `wui/utils/access.mjs` (`normalizeMe` keeps `roles`) and its unit test; `wui/utils/monitoring-tabs.mjs` (the lanes row and the `staff` rule); `wui/pages/monitoring.vue` (pass `staff`); `wui/pages/monitoring/lanes/index.vue` (pick the route); the hub client's lanes call in `wui/utils/spool-client-lazy.mjs`; `csi-spl-wui/tests/unit/monitoring-tabs.test.mjs`; the B4 lanes e2e file (C27's operator case). No store, rdb or orc file | B2, B3 and B4 on master (B4 owns the tab row, the page and the client call that B6 changes) | C25-C30 |
+| B7 workspace a lane works for (3.7) | api, orc | `hub/box_lane.go` (`laneTopic`, new `laneTopicElsewhere`); `hub/workspace_lanes_view_test.go`; `orc/features/spawn-agents/scripts/spawn-core.inc.sh` (`_spawn_lane_put` only); `orc/features/spawn-agents/tests/test-spawn-dry-run.sh`. No store, rdb or wui file, no new text key | B6 on master | C28b, C31-C36 |
 
 Order: B1, B3 and B5a may run at once (B3's store interface is
 `store/fleet_lane.go:65`, B5a's `store/issues.go:392`: different files); B2 after B3; B4 after B1 and B3;
@@ -593,6 +657,7 @@ that workspace's own topics (3.6, row B6). B1-B5 are unchanged.
 | 2026-10-23 22:5x | c-228, a-277 (second box) | both sign `5a8621a23`, no dissent (msgs `0ed0fbf6`, `9f5cd2dd`). Panel closed |
 | 2026-10-23 22:54 | c-002@sat | ACCEPTED the panel result on `0b4e55c9f` (msg `64bc4a7e`); O1 goes to the owner, the build rows get placed |
 | 2026-10-24 | c-995@sat (claude) | v1.1, SPL-3210: O1 = B recorded (section 7), 3.2 changed, 3.6, C25-C30 and B6 added; code read on `0073343c2`; no prd read. One cross-vendor review of v1.1 to follow |
+| 2026-10-26 | c-283@sat (claude) | v1.2, SPL-3514: 3.7, C28b, C31-C36 and B7 added, C28 narrowed; code read on `a066b182e`; prd read 10:08-10:12Z (3.7). One cross-vendor review (R7) before B7 lands |
 
 Editor findings folded in: retire already closes the lane row (C8 is a (C)
 control, no build); the stale-row data of 2.2 (P2); the migration number is

@@ -1,7 +1,8 @@
 # 160 File streams: follow a box file live in Monitoring, and search it
 
-Version v0.2 (2026-10-26): NOT reviewed. v0.1 got a FAIL (c-317, W1-W9);
-v0.2 folds it and awaits the re-review (section 8). Nothing is built. Docs only until the owner's GO (section 7), then the build
+Version v0.3 (2026-10-26): NOT reviewed. v0.1 got a FAIL (c-317, W1-W9),
+v0.2 a narrow FAIL (c-317, N1-N4); v0.3 folds both and awaits the
+re-review (section 8). Nothing is built. Docs only until the owner's GO (section 7), then the build
 rows of section 5 land one by one, each after its own review PASS + GO.
 
 Source: the owner's asks in the owner's customer workspace (section 1); the
@@ -211,15 +212,23 @@ A new box action `do_spl_file_stream_follow`
   - a line holding a `-----BEGIN ... KEY-----` header opens the block: that
     line and every following line become one `<redacted:private-key>`
     marker each, counted once per block;
-  - the block closes on its `-----END ... -----` line (masked too), after
-    a cap of `pem_max_lines` lines (cnf `env.box.file_streams.pem_max_lines`,
-    default 100; a 4096-bit RSA key is about 50 lines), or on a rotation,
-    truncation or new inode;
-  - a cut key with no END line is masked up to the cap, then one
-    `-- masked block cut at cap --` marker is sent and following resumes.
+  - a line holding BEGIN and its END together (a key escaped into one JSON
+    log line) opens NO block: `spool_redact` masks it as one string, and
+    the next line is followed as usual (review N4; case C37);
+  - the block closes on its `-----END ... -----` line (masked too), or on a
+    rotation, truncation or new inode;
+  - the cap: up to `pem_max_lines` lines (cnf
+    `env.box.file_streams.pem_max_lines`, default 200; an 8192-bit RSA key
+    is estimated at ~98 base64 lines, c-317, unchecked against a real key)
+    every line is masked whatever it holds (an encrypted key's
+    `Proc-Type:` header lines too). Past the cap, masking goes on while a
+    line is pure base64 (`^[A-Za-z0-9+/=]{1,76}$`); the first other line
+    closes the block with one `-- masked block cut at cap --` marker and is
+    followed as usual (review N4). So a cut key with no END leaks no body
+    line, and a block never swallows the log for good.
 
   Cases C9 (the key in one tick), C25 (a key split across 2 ticks), C26 (a
-  cut key with no END).
+  cut key past the cap, no END), C37 (a one-line key).
 - **Languages.** Python 3 for the follower (it imports `spool_redact`:
   one list, one home), bash for the action and the cron wrapper, Go for the
   push verb and the hub. Decision D2.
@@ -244,10 +253,16 @@ Two lists; the deny list wins.
     `.pgpass`, `.netrc`, `.git-credentials`, `.claude*`, `.spool-hub`,
     `.vibe`, `.gcp`, `.aws`, `.jira`, `.confluence`, `.github`, `.local`,
     shell history files ...), except the exceptions named in code with a
-    reason each; v0.2 names none;
+    reason each; v0.3 names none;
   - every home but the agent user's (`/home/*`, `/root`, and each
     `getpwent` home other than `$HOME`);
-  - the spool roots: the box's `$SPOOL_ROOT` and every desk's own spool
+  - the spool roots: the box's spool root, resolved as the repo does,
+    `${SPOOL_ROOT:-/var/spool-hub}` (`git grep -c 'SPOOL_ROOT:-/var/spool-hub'
+    -- csi-spl-orc` -> 131 files on `d1549ea17`, c-317), because the
+    follower runs from the box crontab and the cron wrapper it copies sets
+    no `SPOOL_ROOT` (`token-burn-collect-cron.sh`: 0 hits); the follower
+    refuses to start when the resolved root is not a directory (review N1;
+    case C35). Also every desk's own spool
     root and desk dir (`$SPL_STATE_DIR/desk/`, which holds `spool/` and
     `keys/`: section 7, Q1), all inboxes, keys and leases;
   - `/etc/shadow`, `/etc/gshadow`, `/etc/ssh/ssh_host_*_key`, `/proc/`,
@@ -255,18 +270,24 @@ Two lists; the deny list wins.
   - any path with a `keys/` segment, and any file named `id_*`, `*.key`,
     `*.pem`, `*.p12`, `*.pfx`, `.env` or `.env.*`, `*_history` or
     `.*history`.
-- **Open first, then check the opened file** (review W2). A check of the
-  path before the open races the open, and a check run once misses what
-  changes later. So on EVERY open and reopen (first sight, a new inode
-  after a rotation, the `*` glob switching to a newer match, a file that
-  reappears after `missing`) the follower opens the allow-listed path with
-  `O_RDONLY | O_NONBLOCK`, then checks the open fd, never the name:
-  - `readlink(/proc/self/fd/N)` is the real path: the deny list is checked
-    on it, so a symlink into a denied place, placed at start or after a
-    rotation, is refused;
-  - `fstat(fd)` must be `S_ISREG`: a fifo, socket, device or directory is
-    refused (`O_NONBLOCK` keeps a fifo from blocking the open);
-  - a refusal closes the fd before any byte is read.
+- **Open first, then check the opened file** (review W2, N3). A check of
+  the path before the open races the open, and a check run once misses
+  what changes later. A plain read open is not safe either: opening a
+  device or special file reached through a symlink runs its driver's open
+  before any `fstat` could refuse it. So on EVERY open and reopen (first
+  sight, a new inode after a rotation, the `*` glob switching to a newer
+  match, a file that reappears after `missing`) the follower:
+  1. opens the allow-listed path with `O_PATH | O_CLOEXEC`: the name is
+     resolved, no driver open runs and nothing can be read;
+  2. checks that fd, never the name: `readlink(/proc/self/fd/N)` is the
+     real path and the deny list is checked on it (so a symlink into a
+     denied place, placed at start or after a rotation, is refused), and
+     `fstat(fd)` must be `S_ISREG` (a fifo, socket, device or directory is
+     refused) with `st_nlink == 1` (below);
+  3. only then reopens for reading through `/proc/self/fd/N` with
+     `O_RDONLY | O_NOCTTY | O_NONBLOCK | O_CLOEXEC`, and compares the new
+     fd's `(st_dev, st_ino)` with step 2's: a mismatch is refused;
+  4. a refusal closes every fd before any byte is read.
 - **Hardlinks** (review W3). `realpath` and `/proc/self/fd` do not resolve
   a hardlink: a link to `$HOME/.ssh/id_x` made in an allowed directory has
   an allowed name. So `fstat(fd).st_nlink > 1` is refused. A log rotated
@@ -416,7 +437,8 @@ box); row B7 measures them before the defaults are final:
 | lines per push | 1000, frame <= 1 MiB | hub | 413 `too_large`, the box splits |
 | box queue | 20 000 lines | box | oldest dropped, counted in `dropped` |
 | lines kept per workspace | 500 000 | hub sweep | oldest pruned first |
-| bytes kept, all workspaces | 2 GB of text (`env.hub.file_streams.max_bytes`) | hub sweep | oldest pruned first, across workspaces |
+| bytes kept per workspace | 256 MiB of text (`env.hub.file_streams.max_bytes_per_workspace`) | hub, AT INSERT, in the push's own transaction and tenant scope | that workspace's own oldest lines pruned to make room; never another workspace's |
+| workspaces that stream | 4 (`env.hub.file_streams.max_workspaces`) | hub (announce) | the announce of a 5th workspace's box is answered `refused` for every key; nothing of the 4 is touched |
 | retention | 7 days | hub sweep, hourly, as `sweepFleetTokens` | pruned |
 
 Retention is question Q3. Ten streams at the full rate fill 500 000 lines
@@ -428,11 +450,24 @@ tab shows the oldest line kept.
 text per workspace, plus the STORED `tsvector` and the two btree indexes
 (their size is unmeasured; B7 measures it, case C24). The instance's disk
 is `disk_size_gb: 10` (`all.env.yaml:193`) for the whole hub, so two full
-workspaces would take a fifth of it in text alone. Hence the hub-wide
-byte cap of 2 GB above: the sum over workspaces stays bounded however
-many workspaces stream. Real log lines are far shorter than 2048 bytes;
-B7 records the measured mean line size and the bytes per stored line,
-then sets both caps.
+workspaces would take a fifth of it in text alone. Hence the byte cap per
+workspace above.
+
+**No cross-workspace pruning** (review N2). v0.2 had a hub-wide byte cap
+pruned "oldest first, across workspaces": one noisy workspace could delete
+another's lines before their 7 days. v0.3 has none. Each workspace is
+bounded by its own caps (500 000 lines and 256 MiB of text, whichever
+comes first), enforced at insert: the push transaction, in the pushing
+workspace's tenant scope, deletes that workspace's own oldest lines until
+the new ones fit. So the overshoot is at most one push (1000 lines, at most
+1 MiB), not an hour of input: a box can send 8 x 600 x 60 = 288 000 lines
+an hour, up to ~0.59 GB at 2048 B a line (c-317), which an hourly sweep
+alone could not bound. The hub-wide total is then bounded by
+`max_workspaces` x 256 MiB = 1 GiB of text by default, against the 10 GB
+disk; a workspace past `max_workspaces` is refused at announce, never by
+evicting another. The hourly sweep keeps only the 7-day retention. Real
+log lines are far shorter than 2048 bytes; B7 records the measured mean
+line size and the bytes per stored line, then sets the caps.
 
 **Connections.** The follower's push uses the box's existing session (one
 frame per tick with lines, 3.1) and the tab's poll is one indexed read
@@ -474,7 +509,7 @@ lands.
 | C23 | B2 | a push over the limits of 3.7 gets 413 or the `dropped` marker, never a partial store | store first, check after: half a frame stored |
 | C24 | B7 | the time of `in:file-streams` over 500 000 lines of one workspace on dev, n >= 5, the bytes per stored line (text + tsvector + indexes) and `SHOW max_connections`, recorded in 3.7 | n/a: a measurement; its check is the recorded n |
 | C25 | B1 | a synthetic PEM key whose BEGIN and first body line land in tick 1 and the rest in tick 2 (the follower restarted between them): every line masked, one block counted | the PEM state kept in memory only, or not at all: tick 2's body lines are queued as written |
-| C26 | B1 | a cut synthetic key, BEGIN and 120 body lines, no END: 100 lines masked, one `masked block cut at cap` marker, then following resumes | no cap: every later line of the file is masked forever; or close on the next non-base64 line: a key body with a comment line leaks |
+| C26 | B1 | a cut synthetic key, BEGIN and 250 base64 body lines, no END, then one plain log line: all 251 key lines masked (past the 200 cap, because pure base64), one `masked block cut at cap` marker, the plain line followed | a hard cap at 200: body lines 201-250 reach the queue file; or no cap: the plain line and every later one is masked forever |
 | C27 | B3 | an act-as clone of an owner of W: 403 on all three routes | the gate on `TenantOwner` only: the clone inherits the owner's 200 |
 | C28 | B3 | the operator service account: 403 on all three routes | an operator bypass on the gate: 200 |
 | C29 | B3 | a box session of a box pinned in W: 403 on all three read routes; its announce and push still pass | the read routes accept any W session: the box reads lines |
@@ -483,6 +518,10 @@ lands.
 | C32 | B1 | an allow-list glob whose newest match becomes a symlink into a denied place: refused on the switch, the old match's stream ends with a marker | the deny check on the glob's name: the symlink is followed |
 | C33 | B1 | a hardlink (same dev and inode) to a synthetic key file, made in an allowed dir under an allowed name: refused `hardlink` | `realpath` only: the link's name is allowed, its content is followed |
 | C34 | B1 | allow-list entries for a `$HOME/.config/x.log`, another user's home, a `.env`, a `*_history` and a synthetic `/etc/ssh/ssh_host_x_key`: each refused `denied path` | v0.1's named list: `$HOME/.config/x.log` and the host key are followed |
+| C35 | B1 | the follower started with an empty env (no `SPOOL_ROOT`, as under cron) and an allow-list entry under a synthetic default spool root's inbox: refused `denied path`; a resolved root that is not a directory: the follower does not start | the deny entry taken from `$SPOOL_ROOT` only: empty under cron, the inbox file is followed |
+| C36 | B1 | an allow-listed name that is a symlink to a fifo with no writer, and to a character device: refused, the follower's tick is not blocked, no read open of the target happens (traced with `strace -e openat`: only an `O_PATH` open) | a plain `O_RDONLY` open first: the fifo open blocks the tick (without `O_NONBLOCK`) and the device's driver open runs |
+| C37 | B1 | one line holding a whole synthetic key (BEGIN, body and END escaped in one JSON line), then 3 plain lines: the key line masked, the 3 lines followed unchanged | open the block on any BEGIN: the 3 plain lines are masked |
+| C38 | B2 | workspace A's boxes push 3x its byte cap while workspace B holds lines inside its own caps: B's line count and oldest line are unchanged; A never exceeds its cap by more than one push | v0.2's hub-wide prune across workspaces: B's oldest lines are deleted |
 
 ## 5. Build rows
 
@@ -493,8 +532,8 @@ contract); B3, B4 and B6 after B2; B5 after B3; B7 after B4 and B6.
 
 | row | scope | paths | cases |
 |---|---|---|---|
-| B1 | box follower, deny list, open-then-check, PEM state, masking, cron row | `orc/run/spl-file-stream-follow.func.sh`, `orc/scripts/file-stream-follow.py`, `orc/scripts/file-stream-follow-cron.sh`, `csi-spl-orc/cnf/box-crons/box-crons.manifest`, cnf `env.box.file_streams`, `orc/tests/spl-file-stream-follow.tst.sh` | C1-C10, C25, C26, C31-C34 |
-| B2 | frames, push verb, migration, store, push handler, limits | `wire/file_streams.go`, `cli/file_streams.go`, `rdb/<next>_file_streams.sql`, `store/file_streams*.go`, `hub/file_streams.go` | C11, C23, C30 |
+| B1 | box follower, deny list, open-then-check, PEM state, masking, cron row | `orc/run/spl-file-stream-follow.func.sh`, `orc/scripts/file-stream-follow.py`, `orc/scripts/file-stream-follow-cron.sh`, `csi-spl-orc/cnf/box-crons/box-crons.manifest`, cnf `env.box.file_streams`, `orc/tests/spl-file-stream-follow.tst.sh` | C1-C10, C25, C26, C31-C37 |
+| B2 | frames, push verb, migration, store, push handler, limits | `wire/file_streams.go`, `cli/file_streams.go`, `rdb/<next>_file_streams.sql`, `store/file_streams*.go`, `hub/file_streams.go` | C11, C23, C30, C38 |
 | B3 | read routes, RBAC | `hub/file_streams_view.go`, `hub/crosstenant_test.go` | C12, C13, C27-C29 |
 | B4 | the search scope and the `notices` field | `search/grammar.go`, `search/values.go`, `store/search_postgres.go`, `hub/search.go` (the answer at `:173-174` gains `notices`), `wui/utils/search.mjs`, `wui/utils/search-results.mjs`, `wui/pages/search.vue` | C14-C17 |
 | B5 | the WUI tab, `staffOnly` | `wui/utils/monitoring-tabs.mjs`, `wui/pages/monitoring/file-streams.vue`, i18n locales, e2e | C18-C21 |
@@ -580,13 +619,14 @@ Q4 GO to build rows B1..B7 in the order of section 5?
 |---|---|---|---|---|
 | m-313@sat | mistral | `0860285a7` | PASS, VOID: it carried no evidence (no command, no output) | `7d8f18ae`; voided by c-001, msg `e8de14f9` |
 | c-317@sat | claude | `0860285a7` | FAIL, W1-W9 (W1 a blocker) | `9e743c9a` (task `c5a8ed9d`) |
-| (pending) | claude, grok or mistral | v0.2 (this fold) | awaiting the re-review | task `c5a8ed9d` |
+| c-317@sat | claude | `7f392fa97` (v0.2) | FAIL, N1-N4 (N1, N2 blockers; W1-W9 folded) | `83da0ab7` (task `c5a8ed9d`) |
+| (pending) | claude | v0.3 (this fold) | awaiting the re-check | task `c5a8ed9d` |
 
 v0.1 is not reviewed: its only PASS was void, its evidenced review a
 FAIL. The plan and the section 7 poll posted in `c168784c` (msg
 `75d8db39`) went out on the void PASS; nothing is built before a real PASS
 and the owner's GO (Q4). v0.2, by c-319 (editor after the retired author),
-folds every defect:
+folded W1-W9 (line numbers below are v0.2's, sha `7f392fa97`):
 
 | defect | what changed | v0.2 lines |
 |---|---|---|
@@ -599,6 +639,15 @@ folds every defect:
 | W7 `channel:` alias, `notices` field | `channel:file-streams` reserved too (C14); `notices` named in the wire contract and in B4's paths | 377-380, 393-399, 465 (C14), 499 (B4) |
 | W8 C7's red control | an ACL / group-read case the mode bits contradict | 458 (C7) |
 | W9 the desk log is denied | its real path found; Q1's recommended answer changed to an allowed file | 535-558, 562 (Q1 A) |
+
+v0.3, by c-319, folds c-317's N1-N4 on v0.2 (line numbers are v0.3's):
+
+| defect | what changed | v0.3 lines |
+|---|---|---|
+| N1 the box spool root is open under cron | `${SPOOL_ROOT:-/var/spool-hub}` resolved as the repo does; no start when it is not a directory; new C35 | 259-265, 521 (C35) |
+| N2 the hub-wide byte cap pruned across workspaces | no cross-workspace pruning: a byte cap per workspace enforced at insert in the pushing tenant's scope (overshoot at most one push), `max_workspaces` 4 refused at announce; new C38 | 440-441, 456-470, 524 (C38), 536 (B2) |
+| N3 the read open runs a driver's open before the check | `O_PATH` open, check the fd, then reopen through `/proc/self/fd/N` with `O_NOCTTY` and compare dev+inode; new C36 | 273-290, 522 (C36) |
+| N4 PEM edge cases | a one-line BEGIN+END opens no block (C37); cap 200, then masking goes on while lines are pure base64 (C26) | 213-232, 512 (C26), 523 (C37) |
 
 ## 9. Not in scope
 

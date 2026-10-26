@@ -20,8 +20,8 @@
 #   5a. reconcile: a pending row already mapped is CHECKED only (no make,
 #      no cnf) -> ready (ws-c); CHECK_ONLY never applies an unmapped one
 #   5b. every WUI entry point (052 workspaces, the enabled demo) must be
-#      mapped: the reconcile fails naming the missing one; the live dev + prd
-#      cnf pass (CONTROL: an unmapped demo is caught)
+#      mapped: the reconcile fails naming the missing one (CONTROL: an
+#      unmapped demo is caught); LIVE_ENVS="dev prd" also checks the live cnf
 #   5c. a host that turns ready is announced once (lease master, cnf channel,
 #      owner + cc named); one that was ready already is not
 #   6. cnf push from a THROWAWAY worktree lands on a (local, bare) trunk with
@@ -49,22 +49,46 @@ for f in spl-tenant-host-provision spl-tenant-host-deprovision spl-tenant-host-r
   bash -n "$PROJ_ROOT/src/bash/run/$f.func.sh" || { echo "FAIL: bash -n $f"; exit 1; }
 done
 
-# a fake APP_PATH: the real dev cnf yaml + rendered files, so edits never touch the tree
+# a fake APP_PATH whose cnf is built here, never copied from csi-spl-cnf: a
+# live cnf edit (SPL-2947, a steps.052 list) cannot turn this test red (I6,
+# SPL-3463). Only the keys the actions read, each in its live shape: the flow
+# lists, blank lines, a second `workspaces:` in another step and in marketing.
 FAKE="$T/app"
 mkdir -p "$FAKE/csi-spl-cnf/csi-spl/dev/tf" "$FAKE/csi-spl-orc"
-# the fixture list is pinned to [t1] whatever the live cnf maps today
-sed -E 's/^    mapped_tenants: \[.*\]$/    mapped_tenants: [t1]/' "$APP_ROOT/csi-spl-cnf/csi-spl/dev.env.yaml" >"$FAKE/csi-spl-cnf/csi-spl/dev.env.yaml"
-grep -qx '    mapped_tenants: \[t1\]' "$FAKE/csi-spl-cnf/csi-spl/dev.env.yaml" || { echo "FAIL: cannot pin the fixture's mapped_tenants"; exit 1; }
-# the apex tenant is its own id here, so t1 stays an ordinary mapped tenant
-sed -i -E 's/^      wui_default_tenant: .*/      wui_default_tenant: "apex0"/' "$FAKE/csi-spl-cnf/csi-spl/dev.env.yaml"
-# the fixture's WUI entry points are only t1 (5b plants the others)
-sed -i -E 's/^      workspaces: \[.*\]$/      workspaces: [t1]/; /^  demo:$/,/^    enabled:/ s/^    enabled: .*/    enabled: false/' "$FAKE/csi-spl-cnf/csi-spl/dev.env.yaml"
-grep -qx '      workspaces: \[t1\]' "$FAKE/csi-spl-cnf/csi-spl/dev.env.yaml" || { echo "FAIL: cannot pin the fixture's 052 workspaces"; exit 1; }
-cp "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml" "$FAKE/csi-spl-cnf/csi-spl/all.env.yaml"
+# the apex tenant is its own id here, so t1 stays an ordinary mapped tenant;
+# the WUI entry points are only t1 (5b plants the demo)
+cat >"$FAKE/csi-spl-cnf/csi-spl/dev.env.yaml" <<'Y'
+env:
+  dns:
+    # the tenant hosts <tenant>.<fqdn>
+    mapped_tenants: [t1]
+
+  steps:
+    019-firebase-static-site:
+      wui_default_tenant: "apex0"
+      wui_tenant_hosts: true
+
+    052-gcs-workspace-docs:
+      bucket_prefix: csi-spl-dev-docs-
+      workspaces: [t1]
+
+    053-gcs-public-dataset:
+      workspaces: [t9]
+
+  demo:
+    enabled: false
+
+  marketing:
+    workspaces: [t1]
+Y
+printf 'env:\n  demo:\n    enabled: false\n    workspace: demo\n  tenant_hosts:\n    notify_channel: spool-hub-devel\n  steps:\n    052-gcs-workspace-docs:\n      workspaces: []\n' >"$FAKE/csi-spl-cnf/csi-spl/all.env.yaml"
 # a lease.conf for the ready notice (5c)
 mkdir -p "$T/spool/dispatch"
 printf 'LEASE_MASTER=c-902\nLEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10\n' >"$T/spool/dispatch/lease.conf"
-cp "$APP_ROOT"/csi-spl-cnf/csi-spl/dev/tf/0{19,25,52}-*.vars.tfvars "$FAKE/csi-spl-cnf/csi-spl/dev/tf/"
+# the rendered twins as tpl-gen would write them for this cnf (the stub make re-renders 019 + 052)
+echo 'additional_fqdns = ["t1.dev.example.test"]' >"$FAKE/csi-spl-cnf/csi-spl/dev/tf/019-firebase-static-site.vars.tfvars"
+echo 'zone_name = "dev-example-test"' >"$FAKE/csi-spl-cnf/csi-spl/dev/tf/025-gcp-dns-zone.vars.tfvars"
+echo 'workspaces = ["t1"]' >"$FAKE/csi-spl-cnf/csi-spl/dev/tf/052-gcs-workspace-docs.vars.tfvars"
 ORIG="$T/dev.env.yaml.orig"; cp "$FAKE/csi-spl-cnf/csi-spl/dev.env.yaml" "$ORIG"
 CNF="$FAKE/csi-spl-cnf/csi-spl/dev.env.yaml"
 
@@ -332,7 +356,9 @@ out=$(SNIPPET='do_spl_tenant_host_reconcile' in_orc DRY_RUN=0 CHECK_ONLY=1 STUB_
   pass "reconcile CHECK_ONLY: the unmapped newt is listed, never applied; t1 checked -> ready" || fail "CHECK_ONLY rc=$rc make=[$(cat "$STUB_LOG")] :: $out"
 
 # --- 5b. every WUI entry point is mapped ------------------------------------------
-LIVE_ENVS="${LIVE_ENVS:-dev prd}"
+# opt-in (I6, SPL-3463): a live cnf check turns a cnf edit into an orc
+# test red; the reconcile runs the same check on the live cnf before any apply
+LIVE_ENVS="${LIVE_ENVS:-}"
 for e in $LIVE_ENVS; do
   out=$(SNIPPET='spl_th_entry_check "$C"' in_orc ENV=$e C="$APP_ROOT/csi-spl-cnf/csi-spl/$e.env.yaml" 2>&1) &&
     pass "live $e cnf: every WUI entry point (052 workspaces, enabled demo) is in env.dns.mapped_tenants" || fail "live $e cnf: $out"

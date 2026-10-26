@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -1206,11 +1207,28 @@ func cmdHubRSP(cfg *config.Config, args []string) int {
 
 // cmdHubTail prints a task's hub topic (human lines, or --json NDJSON of the
 // inner v:1); --follow keeps printing new messages until signalled.
+// withEnvelopeChannel puts the envelope's channel first in an inner v:1
+// object: {"channel":"<c>",...}. The channel is a hub-envelope field, never a
+// v:1 one, so plain --json leaves it out; a reader that must know where a post
+// was made (do_spl_take_auto, SPL-3542) asks for it. "" is a DM.
+func withEnvelopeChannel(inner []byte, channel string) []byte {
+	if len(inner) < 2 || inner[0] != '{' {
+		return inner
+	}
+	ch, _ := json.Marshal(channel)
+	out := append([]byte(`{"channel":`), ch...)
+	if string(inner) != "{}" {
+		out = append(out, ',')
+	}
+	return append(out, inner[1:]...)
+}
+
 func cmdHubTail(cfg *config.Config, args []string) int {
 	fs := flag.NewFlagSet("hub-tail", flag.ContinueOnError)
 	task := fs.String("task", "", "task id")
 	follow := fs.Bool("follow", false, "keep streaming new messages")
 	asJSON := fs.Bool("json", false, "emit the inner v:1 objects as NDJSON")
+	withChannel := fs.Bool("with-channel", false, `--json plus the envelope's "channel" on each line ("" = a DM)`)
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
@@ -1234,8 +1252,11 @@ func cmdHubTail(cfg *config.Config, args []string) int {
 		if err != nil {
 			return
 		}
-		if *asJSON {
+		if *asJSON || *withChannel {
 			raw, _ := msg.Marshal(m)
+			if *withChannel {
+				raw = withEnvelopeChannel(raw, e.Channel)
+			}
 			fmt.Println(string(raw))
 			return
 		}

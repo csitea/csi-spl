@@ -215,6 +215,15 @@ func TestHubTailAndRSP(t *testing.T) {
 	if rc, _, errOut := capture(t, "", func() int { return cmdHubTail(cfg, []string{"--task", "refused"}) }); rc == 0 || !strings.Contains(errOut, "not_found") {
 		t.Errorf("hub-tail refused: rc %d %q", rc, errOut)
 	}
+	// --with-channel (SPL-3542): the envelope's channel leads each line, "" for a DM
+	rc, out, errOut = capture(t, "", func() int { return cmdHubTail(cfg, []string{"--task", task, "--with-channel"}) })
+	var wc struct {
+		Channel *string `json:"channel"`
+		Body    string  `json:"body"`
+	}
+	if rc != 0 || !strings.HasPrefix(out, `{"channel":"",`) || json.Unmarshal([]byte(out), &wc) != nil || wc.Channel == nil || wc.Body != "hello" {
+		t.Fatalf("hub-tail --with-channel: rc %d %q err %q", rc, out, errOut)
+	}
 	rc, out, errOut = capture(t, "", func() int { return cmdHubRSP(cfg, []string{"--task", task}) })
 	if want := `{"rsp":3,"task_id":"` + task + `"}` + "\n"; rc != 0 || out != want {
 		t.Fatalf("hub-rsp: rc %d %q err %q, want %q", rc, out, errOut, want)
@@ -225,6 +234,22 @@ func TestHubTailAndRSP(t *testing.T) {
 	for _, f := range h.Frames() {
 		if f.Type != wire.TTail {
 			t.Errorf("hub read a %q frame, want tail only", f.Type)
+		}
+	}
+}
+
+// TestWithEnvelopeChannel: the channel is put first, escaped; a non-object is
+// left as it is.
+func TestWithEnvelopeChannel(t *testing.T) {
+	for _, c := range []struct{ in, ch, want string }{
+		{`{"v":1,"body":"x"}`, "ops", `{"channel":"ops","v":1,"body":"x"}`},
+		{`{"v":1}`, "", `{"channel":"","v":1}`},
+		{`{}`, "a\"b", `{"channel":"a\"b"}`},
+		{`[1]`, "ops", `[1]`},
+		{``, "ops", ``},
+	} {
+		if got := string(withEnvelopeChannel([]byte(c.in), c.ch)); got != c.want {
+			t.Errorf("withEnvelopeChannel(%q, %q) = %q, want %q", c.in, c.ch, got, c.want)
 		}
 	}
 }

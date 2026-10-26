@@ -93,7 +93,7 @@
 //	hub-sync                   one role=box session: hello, pins, drain queue, flush
 //	hub-run                    box daemon: hold the session, reconnect with backoff
 //	hub-queue                  the fallback queue: depth, oldest age, last flush (exit 3 = past the cnf WARN age)
-//	hub-tail --task <uuid> [--follow] [--json]
+//	hub-tail --task <uuid> [--follow] [--json] [--with-channel]   --with-channel: --json plus the envelope "channel"
 //	hub-rsp --task <uuid>      {"task_id","rsp"}: RSP-* messages in the topic, any box
 //	hub-get-file --file-id <sha256>   download one file from the hub (read door proof)
 //	version

@@ -81,8 +81,37 @@ func wuiWakeRig(t *testing.T, peerWake bool) (onA, onB *wuiClient, send func(bod
 			}
 			return
 		}
-		// the ack is not read here: A's echo precedes it, and messages() counts it
+		// the ack is not read here: A's echo precedes it, and the caller reads both
 		onA.send(map[string]any{"type": "send", "task_id": "lobby", "kind": "chat", "body": body})
+	}
+}
+
+// toAck reads the message frames w gets before its next ack.
+func (w *wuiClient) toAck() []string {
+	w.t.Helper()
+	var out []string
+	for {
+		f := w.readAny("message", "ack")
+		if f.Type == "ack" {
+			return out
+		}
+		out = append(out, innerOf(w.t, f)["body"].(string))
+	}
+}
+
+// readAny is read for the first frame of either type.
+func (w *wuiClient) readAny(a, b string) wuiFrame {
+	w.t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for {
+		var f wuiFrame
+		if err := wsjson.Read(ctx, w.c, &f); err != nil {
+			w.t.Fatalf("waiting for %s or %s: %v", a, b, err)
+		}
+		if f.Type == a || f.Type == b {
+			return f
+		}
 	}
 }
 
@@ -107,6 +136,13 @@ func TestWUIWakeFansOutAcrossProcesses(t *testing.T) {
 	onA, onB, send := wuiWakeRig(t, true)
 	start := time.Now()
 	send("from a browser")
+	// A's echo, then its ack (one goroutine, wuiSend), read before the box
+	// send: the box line is fanned out by another goroutine, and B can hear
+	// the line while A is still on its echo's store reads, so without this
+	// read the two could reach A in either order (a flake on sat, 2026-10-26).
+	if got := onA.toAck(); len(got) != 1 || got[0] != "from a browser" {
+		t.Fatalf("browser on A before its ack got %q, want its echo once", got)
+	}
 	if m := innerOf(t, onB.read("message")); m["body"] != "from a browser" {
 		t.Fatalf("browser on B got %v", m)
 	}
@@ -117,9 +153,9 @@ func TestWUIWakeFansOutAcrossProcesses(t *testing.T) {
 	if d := time.Since(start); d > 2*time.Second {
 		t.Fatalf("took %v", d)
 	}
-	// A's own browser: each line once (its echo before the ack, then the
-	// box line); the announcement A hears back adds nothing.
-	if got := onA.messages(700 * time.Millisecond); len(got) != 2 || got[0] != "from a browser" || got[1] != "from a box" {
+	// A's own browser: the box line once; the announcements A hears back
+	// add nothing (no second echo, no second box line).
+	if got := onA.messages(700 * time.Millisecond); len(got) != 1 || got[0] != "from a box" {
 		t.Fatalf("browser on A got %q, want each line once", got)
 	}
 	if got := onB.messages(300 * time.Millisecond); len(got) != 0 {
@@ -130,9 +166,12 @@ func TestWUIWakeFansOutAcrossProcesses(t *testing.T) {
 func TestWUIWakeOffStaysOnTheStoringProcess(t *testing.T) { // CONTROL
 	onA, onB, send := wuiWakeRig(t, false)
 	send("from a browser")
+	if got := onA.toAck(); len(got) != 1 {
+		t.Fatalf("browser on A before its ack got %q, want its echo", got)
+	}
 	send("from a box")
-	if got := onA.messages(500 * time.Millisecond); len(got) != 2 {
-		t.Fatalf("browser on A got %q, want both lines", got)
+	if got := onA.messages(500 * time.Millisecond); len(got) != 1 {
+		t.Fatalf("browser on A got %q, want the box line", got)
 	}
 	if got := onB.messages(500 * time.Millisecond); len(got) != 0 {
 		t.Fatalf("browser on B got %q with its WUI wake-up off", got)

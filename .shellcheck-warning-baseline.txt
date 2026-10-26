@@ -107,7 +107,6 @@ SC2034|csi-spl-orc/src/bash/run/spl-spec-import-issues.func.sh|4
 SC2128|csi-spl-orc/src/bash/run/spl-tenant-test-purge.func.sh|1
 SC2178|csi-spl-orc/src/bash/run/spl-tenant-test-purge.func.sh|2
 SC2179|csi-spl-orc/src/bash/run/spl-tenant-test-purge.func.sh|1
-SC2034|csi-spl-orc/src/bash/tests/check-deploy-lag.tst.sh|1
 SC2010|csi-spl-orc/src/bash/tests/db-owner-split.tst.sh|1
 SC2100|csi-spl-orc/src/bash/tests/dispatch-inbound-pg.tst.sh|1
 SC2034|csi-spl-orc/src/bash/tests/dispatch-lease.tst.sh|1

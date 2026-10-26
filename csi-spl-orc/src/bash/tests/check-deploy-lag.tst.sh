@@ -19,6 +19,10 @@
 #     6. the age is the OLDEST unserved input commit's, not the newest
 #     7. no endpoint / junk body / commit not in this
 #        checkout / served not an ancestor              -> unknown, rc 1
+#     9. SPL-3653: the age runs from when TRUNK got the oldest unserved
+#        input (its push, GitHub's activity API through a stubbed `gh`), not
+#        from its commit time: an old %ct landed just now -> pending; landed
+#        long ago -> lagging; landing unreadable -> the %ct age, labelled
 #     8. SPL-2272: the WUI inputs are workflow 30's own `on.push.paths`, read
 #        from the workflow: a blog-post-only commit (d587d79f8's shape) is a
 #        WUI input (pending n=1), an orc-only commit is not (current n=0, the
@@ -60,6 +64,21 @@ git -C "$REPO" checkout -q -b side "$C_BASE"
 C_SIDE=$(commit csi-spl-api/src/go/s.go       "side branch hub input" 300)
 git -C "$REPO" checkout -q master
 
+# a stub `gh` on PATH: no network. It logs its args and prints $GH_STUB_JSON,
+# or fails like an unauthenticated gh when that file does not exist.
+mkdir -p "$T/bin"
+cat >"$T/bin/gh" <<'STUB'
+#!/usr/bin/env bash
+echo "$*" >>"${GH_STUB_LOG:-/dev/null}"
+[[ -f "${GH_STUB_JSON:-}" ]] || { echo "gh: not logged in" >&2; exit 4; }
+cat "$GH_STUB_JSON"
+STUB
+chmod +x "$T/bin/gh"
+export GH_STUB_JSON="$T/no-activity.json" GH_STUB_LOG="$T/gh.args" PATH="$T/bin:$PATH"
+ago() { date -u -d "-$1 minutes" +%Y-%m-%dT%H:%M:%SZ; }
+# push <after> <before> <minutes ago> -> one activity entry
+push() { printf '{"activity_type":"push","ref":"refs/heads/master","after":"%s","before":"%s","timestamp":"%s"}' "$1" "$2" "$(ago "$3")"; }
+
 fixture() { printf '{"commit":"%s","built_at":"2026-09-20T00:00:00Z"}' "$1" >"$T/$2.json"; echo "file://$T/$2.json"; }
 
 # one _spl_lag_one call: <label> <url> <sha> <grace> <want rc> <want word>
@@ -92,6 +111,37 @@ if grep -q "oldest=${C_OLD:0:8}" "$T/last" && grep -qE 'age=(3[0-9][0-9]|4[0-9][
   pass "it names oldest=${C_OLD:0:8} and an age of hours, not minutes"
 else fail "wrong oldest/age: $(cat "$T/last")"; fi
 grep -q 'n=2' "$T/last" && pass "n counts both unserved input commits" || fail "no n=2 in: $(cat "$T/last")"
+
+# 9. SPL-3653: C_OLD's %ct is ~400m old (a reviewed sha landed as-is keeps its
+#    review-branch commit time). Served C_DOC, sha C_FRESH -> oldest = C_OLD.
+#  a. RED CONTROL: trunk got it 3 minutes ago, in one push with C_NEW -> pending
+#     (origin/master's func.sh, %ct only: "lagging ... age=400m", rc 3)
+printf '[%s,%s]' "$(push "$C_FRESH" "$C_NEW" 1)" "$(push "$C_NEW" "$C_DOC" 3)" >"$T/act-new.json"
+GH_STUB_JSON="$T/act-new.json" lag_one "9a. RED CONTROL: an old %ct that trunk got just now" "$(fixture "$C_DOC" l9a)" "$C_FRESH" 60 0 pending
+grep -qE "oldest=${C_OLD:0:8} age=[34]m grace=60m age_from=landed " "$T/last" &&
+  pass "9a. the age is the push's (3m), age_from=landed" || fail "9a. wrong age/source: $(cat "$T/last")"
+grep -q 'activity?ref=refs/heads/master&activity_type=push' "$T/gh.args" &&
+  pass "9a. it asked GitHub for the pushes to master" || fail "9a. gh args: $(cat "$T/gh.args")"
+#  b. trunk got it longer ago than the grace -> still lagging rc 3
+printf '[%s,%s]' "$(push "$C_NEW" "$C_OLD" 10)" "$(push "$C_OLD" "$C_DOC" 120)" >"$T/act-old.json"
+GH_STUB_JSON="$T/act-old.json" lag_one "9b. trunk got it 120m ago, past the grace" "$(fixture "$C_DOC" l9b)" "$C_FRESH" 60 3 lagging
+grep -qE "age=12[01]m grace=60m age_from=landed url=" "$T/last" &&
+  pass "9b. lagging on the push's age (120m), not the %ct's" || fail "9b. wrong age/source: $(cat "$T/last")"
+#  c. the fallback: no gh answer, or no push in the page brought it -> the %ct
+#     age, and the line says why
+: >"$T/gh.args"
+lag_one "9c. gh fails -> the %ct age" "$(fixture "$C_DOC" l9c)" "$C_FRESH" 60 3 lagging
+grep -qE "age=(39[0-9]|40[0-9])m grace=60m age_from=commit:gh-api-failed " "$T/last" &&
+  pass "9c. it says the landing was unread: age_from=commit:gh-api-failed" || fail "9c. no fallback label: $(cat "$T/last")"
+printf '[%s]' "$(push "$C_FRESH" "$C_NEW" 1)" >"$T/act-miss.json"
+GH_STUB_JSON="$T/act-miss.json" lag_one "9c. its push is not in the page -> the %ct age" "$(fixture "$C_DOC" l9d)" "$C_FRESH" 60 3 lagging
+grep -q "age_from=commit:not-in-last-100-pushes " "$T/last" &&
+  pass "9c. it names the miss" || fail "9c. no miss label: $(cat "$T/last")"
+#  d. a %ct inside the grace never asks GitHub (a landing is never older)
+: >"$T/gh.args"
+lag_one "9d. a %ct inside the grace -> pending, no gh call" "$(fixture "$C_BASE" l9e)" "$C_FRESH" 1000 0 pending
+[[ ! -s "$T/gh.args" ]] && grep -q 'age_from=commit ' "$T/last" &&
+  pass "9d. no gh call, age_from=commit" || fail "9d. gh called or wrong label: $(cat "$T/gh.args") / $(cat "$T/last")"
 
 # 7. the four "cannot tell" shapes
 lag_one "no endpoint there" "file://$T/does-not-exist.json" "$C_FRESH" 45 1 unknown

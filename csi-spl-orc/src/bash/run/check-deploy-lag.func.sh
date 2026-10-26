@@ -33,6 +33,17 @@
 # @description age of the OLDEST unserved input commit must exceed it before the
 # @description verdict turns to lagging, so a normal pipeline (build, deploy,
 # @description propagate) is never reported as lag.
+# @description The age runs from when TRUNK got that commit, not from its commit
+# @description time (%ct): a reviewed sha landed as-is keeps its review-branch
+# @description %ct, so its review time read as lag (SPL-3653: ac97393dc, GAP
+# @description age=73m four minutes after it landed). The landing time is the
+# @description push to master that brought it, from GitHub's repo activity API
+# @description (`gh api .../activity`, the newest 100 pushes): the one record
+# @description that exists both on a box and in CI's fresh clone. It is read
+# @description only when the %ct age is already past the grace (a landing is
+# @description never older than its commit). Unreadable (no gh, no token, the
+# @description push older than the page) -> the %ct age, and the line says so:
+# @description age_from=landed | commit | commit:<why the landing was unread>.
 # @description
 # @description Prints one verdict line per component, `<env> <component>
 # @description <verdict> ...`, and exits with the WORST of them:
@@ -49,6 +60,7 @@
 # @param GRACE_MINUTES - optional: minutes of grace for a fresh commit (default 45)
 # @param LAG_HTTP_TIMEOUT - optional: per-probe curl --max-time seconds (default 15)
 # @param LAG_HUB_URL / LAG_WUI_URL - optional: override the cnf-derived probe URL (tests)
+# @param LAG_TRUNK - optional: the branch whose pushes date a landing (default master)
 # @example ENV=dev ./run -a do_check_deploy_lag
 # @example ENV=prd SHA=$(git rev-parse origin/master) GRACE_MINUTES=60 ./run -a do_check_deploy_lag
 #------------------------------------------------------------------------------
@@ -156,14 +168,48 @@ _spl_lag_one() {
 
   # the OLDEST unserved input commit decides the age: that is how long the env
   # has been behind, not how long ago the newest push was
-  local oldest age_min first
+  local oldest age_min from
   oldest="${changed[0]}"
-  first="$(git -C "$APP_PATH" show -s --format=%ct "$oldest")"
-  age_min=$(( ( $(date -u +%s) - first ) / 60 ))
+  read -r age_min from < <(_spl_lag_age "$oldest" "$grace" "$timeout")
   if [[ "$age_min" -lt "$grace" ]]; then
-    echo "$ENV $comp pending served=${served:0:8} sha=${sha:0:8} n=$n oldest=${oldest:0:8} age=${age_min}m grace=${grace}m (a roll is still within its grace period)"
+    echo "$ENV $comp pending served=${served:0:8} sha=${sha:0:8} n=$n oldest=${oldest:0:8} age=${age_min}m grace=${grace}m age_from=$from (a roll is still within its grace period)"
     return 0
   fi
-  echo "$ENV $comp lagging served=${served:0:8} sha=${sha:0:8} n=$n oldest=${oldest:0:8} age=${age_min}m grace=${grace}m url=$url"
+  echo "$ENV $comp lagging served=${served:0:8} sha=${sha:0:8} n=$n oldest=${oldest:0:8} age=${age_min}m grace=${grace}m age_from=$from url=$url"
   return 3
+}
+
+# _spl_lag_age <commit> <grace min> <timeout s> -> "<age in minutes> <from>":
+# minutes since trunk got <commit> (from=landed), or since its commit time
+# when that is already inside the grace (from=commit: a landing is never
+# older) or the landing cannot be read (from=commit:<why>).
+_spl_lag_age() {
+  local c="$1" grace="$2" timeout="$3" now first landed
+  now="$(date -u +%s)"
+  first="$(git -C "$APP_PATH" show -s --format=%ct "$c")"
+  if (( grace == 0 || (now - first) / 60 < grace )); then
+    echo "$(( (now - first) / 60 )) commit"; return 0
+  fi
+  if landed="$(_spl_lag_landed_at "$c" "$timeout")"; then
+    echo "$(( (now - landed) / 60 )) landed"
+  else
+    echo "$(( (now - first) / 60 )) commit:$landed"
+  fi
+}
+
+# _spl_lag_landed_at <commit> <timeout s> -> the epoch second of the push to
+# trunk that brought <commit>: the newest-first push whose `after` holds it and
+# whose `before` does not. rc 1 with a one-word reason when it cannot be read.
+_spl_lag_landed_at() {
+  local c="$1" timeout="$2" json after before ts
+  json="$(cd "$APP_PATH" && timeout "$timeout" gh api \
+    "repos/{owner}/{repo}/activity?ref=refs/heads/${LAG_TRUNK:-master}&activity_type=push&per_page=100" 2>/dev/null)" ||
+    { echo gh-api-failed; return 1; }
+  while read -r after before ts; do
+    git -C "$APP_PATH" merge-base --is-ancestor "$c" "$after" 2>/dev/null || continue
+    if [[ ! "$before" =~ ^0+$ ]] && git -C "$APP_PATH" merge-base --is-ancestor "$c" "$before" 2>/dev/null; then continue; fi
+    date -u -d "$ts" +%s 2>/dev/null && return 0
+    echo bad-push-timestamp; return 1
+  done < <(jq -r '.[]? | "\(.after) \(.before) \(.timestamp)"' <<<"$json" 2>/dev/null)
+  echo not-in-last-100-pushes; return 1
 }

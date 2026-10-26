@@ -1,6 +1,6 @@
 # Refactor round 7 - mistral seat (m-781, sat)
 
-> Generated from qto doc `4954513c-6cdf-4763-8e4b-694762993746`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `4954513c-6cdf-4763-8e4b-694762993746`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Verdicts on the plan's 10 actions, measured on `origin/master` (commit `b161a015b`).
 

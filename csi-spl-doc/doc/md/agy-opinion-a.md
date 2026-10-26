@@ -1,6 +1,6 @@
 # Antigravity (Gemini) Agent Opinion: Token Minimization & Focus
 
-> Generated from qto doc `96934cbb-080d-4d80-a80a-659c8631eb46`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `96934cbb-080d-4d80-a80a-659c8631eb46`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Review of `csi-spl-doc/doc/md/agent-token-focus-plan.md` (c-077, sha `b0888ab8`).
 

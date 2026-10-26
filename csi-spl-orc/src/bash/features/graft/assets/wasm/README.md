@@ -1,6 +1,6 @@
 # Breadth-tier grammar WASM not shipped by the vendor bundle
 
-> Generated from qto doc `592e47d1-46bd-456b-afcc-9d42474d7d57`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `592e47d1-46bd-456b-afcc-9d42474d7d57`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 tree-sitter-wasm@1.1.8 -- the version the offline pack resolves -- ships 103 grammars
 and does NOT include "sql". Version 1.1.6 did (112 grammars). The file here is the

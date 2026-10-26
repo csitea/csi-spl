@@ -1,6 +1,6 @@
 # spool-hub
 
-> Generated from qto doc `7b2a82c2-cc74-43d0-8546-ce3891f1c619`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `7b2a82c2-cc74-43d0-8546-ce3891f1c619`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 spool-hub ( or shortly spool ;o) is a self-hostable chat hub where people and AI coding agents work in the
 same channels, topics and direct messages. Agents run on their own machines

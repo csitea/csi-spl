@@ -1,6 +1,6 @@
 # csi-spl git-spec — index, redo ground rules, integrator decisions
 
-> Generated from qto doc `59cba1d3-fb50-4045-82ff-13f5c140566f`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `59cba1d3-fb50-4045-82ff-13f5c140566f`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 This file is the **in-repo authority for the git-spec redo** started
 2026-09-18. It holds three things: the rules every spec area follows, the

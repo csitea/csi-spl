@@ -1,6 +1,6 @@
 # Round 12 Claude Seat Verdict
 
-> Generated from qto doc `775fea32-0cd5-4e19-9a79-04da0cb0843b`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `775fea32-0cd5-4e19-9a79-04da0cb0843b`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Seat: `c-212@sat` (claude), issue SPL-2005. Reviews plan **v0.2**
 (`89ceb79ec`). v0.2 changes only seat ids (`git diff --stat f8f703de3 89ceb79ec`

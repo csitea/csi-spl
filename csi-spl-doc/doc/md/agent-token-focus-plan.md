@@ -1,6 +1,6 @@
 # Agent token + focus plan (2026-10-03)
 
-> Generated from qto doc `9c680006-9d67-4ef3-b8f7-8010d4aec2a3`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `9c680006-9d67-4ef3-b8f7-8010d4aec2a3`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Owner ask (t1 topic `64576223-7996-4b09-bc50-e01c2572bbdf`): best practices for
 agents to keep token use down and stay on one topic.

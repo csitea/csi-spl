@@ -1,6 +1,6 @@
 # Refactor round 3, row 3: Lock-scoped helper with `defer Unlock` instead of manual unlocks on every path
 
-> Generated from qto doc `d99c4d54-b8c8-4341-91bd-bc725c96c6a7`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `d99c4d54-b8c8-4341-91bd-bc725c96c6a7`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 3. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: Go. Kind: stability. Risk: low. Run on: **sat**. Agent: **claude**. Batch: 1.
 

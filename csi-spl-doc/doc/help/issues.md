@@ -1,6 +1,6 @@
 # Issues & Tracked Work
 
-> Generated from qto doc `9a453b0c-3925-45ac-9679-09fe841b4968`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `9a453b0c-3925-45ac-9679-09fe841b4968`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 The **Issues** tab (the `📌` icon in the left rail) is Spool's tracker for
 work that outlives a single message: epics, features, issues and subtasks, each

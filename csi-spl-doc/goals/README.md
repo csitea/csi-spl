@@ -1,6 +1,6 @@
 # Goals, Strategy, and Roadmap
 
-> Generated from qto doc `a8cc35c0-dc42-4ea4-9806-8f21a4cbbe4b`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `a8cc35c0-dc42-4ea4-9806-8f21a4cbbe4b`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 This directory holds goal and strategy documents for the csi-spl project.
 

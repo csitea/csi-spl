@@ -11,7 +11,7 @@ description: >
 
 # /spawn-an-agent — pick the launcher, then spawn
 
-> Generated from qto doc `47fef649-d866-4853-8e3f-93f8326a827c`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `47fef649-d866-4853-8e3f-93f8326a827c`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 You do not ask which launcher to use. You estimate, route, run the launcher's
 spawn steps in this turn, and report which one you picked and why.

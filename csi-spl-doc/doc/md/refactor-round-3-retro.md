@@ -1,6 +1,6 @@
 # Refactoring round 3 - retrospective
 
-> Generated from qto doc `7d2e99a3-c93a-46f8-92cf-9a0cfbf32258`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `7d2e99a3-c93a-46f8-92cf-9a0cfbf32258`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Measured 2026-10-06T09:31:12Z. Doc only. Each count names the command that produced it. n is that count.
 

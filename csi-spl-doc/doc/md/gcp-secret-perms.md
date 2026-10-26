@@ -1,6 +1,6 @@
 # GCP key dir permissions: no secret open to other users
 
-> Generated from qto doc `e6cafa53-a4e3-414a-b439-cf27be99133e`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `e6cafa53-a4e3-414a-b439-cf27be99133e`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 SPL-1924. On a box where the agent user's `~/.gcp` is a symlink to the box
 owner's, the agent user reads the keys through a named ACL entry

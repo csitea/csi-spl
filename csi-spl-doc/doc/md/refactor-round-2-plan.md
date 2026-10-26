@@ -1,6 +1,6 @@
 # Refactoring round 2 - plan (15 practices x 3 sites)
 
-> Generated from qto doc `5b3b1f69-999a-407f-859e-e1c2c691e78f`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `5b3b1f69-999a-407f-859e-e1c2c691e78f`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Owner order (HUM-10, prd t1, topic `51f17481-a60b-4e52-a721-ee2a11cba5e2`, "Refactoring iteration"): "List 15 best practices and for each one of them find three implementations for good refactoring and clean code and perform those." Sites measured on trunk `541696d5`.
 

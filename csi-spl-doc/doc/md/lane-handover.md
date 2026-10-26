@@ -1,6 +1,6 @@
 # Lane handover: move a lane, its work and its memory to another box
 
-> Generated from qto doc `f4e43985-4a69-48b4-8e1e-535b685daaef`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `f4e43985-4a69-48b4-8e1e-535b685daaef`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Owner, t1 ba8104f6 (msg 6d3cafa7): "move the memory from the session of the
 previous agent and also to move some work which is not done". Built for

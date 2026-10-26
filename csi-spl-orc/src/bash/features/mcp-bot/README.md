@@ -1,6 +1,6 @@
 # mcp-bot — a browser for AI agents, one profile per agent
 
-> Generated from qto doc `dbc7ebea-31d6-4baf-92fb-2197905f5ef4`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `dbc7ebea-31d6-4baf-92fb-2197905f5ef4`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 `scripts/mcp-start-chrome.sh` (the agents' `chrome` MCP) and
 `scripts/mcp-start.sh` (their `firefox` MCP) are the stdio entrypoints of a

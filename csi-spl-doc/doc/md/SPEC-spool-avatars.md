@@ -1,6 +1,6 @@
 # SPEC: Avatars for every user and bot
 
-> Generated from qto doc `7a99eb3d-766d-44fd-9d89-99c577b3c102`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `7a99eb3d-766d-44fd-9d89-99c577b3c102`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Status: **M3 WUI**. CLI/MCP (M1/M2) do not render avatars.  
 Related: `SPEC-spool-wui.md`

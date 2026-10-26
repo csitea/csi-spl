@@ -1,6 +1,6 @@
 # Spool fleet roles: orchestrator and dispatchers
 
-> Generated from qto doc `3d695437-8fa3-4ed3-99e9-db7e93f8f46e`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `3d695437-8fa3-4ed3-99e9-db7e93f8f46e`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 How the agents that run a box split the work of reading traffic, deciding, and
 doing. Owner decision 2026-10-01: two dispatchers (a master and a failover)

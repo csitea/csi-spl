@@ -1,6 +1,6 @@
 # grok-agent-setup.ISG — install & setup guide (for grok agents)
 
-> Generated from qto doc `bbd74d93-520a-4d4f-ab3a-2a78145cfe81`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `bbd74d93-520a-4d4f-ab3a-2a78145cfe81`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 > **Partly verified.** Run from inside `g-004` on 2026-09-25: grok 1.0.41
 > (`4220f3b224a6`), tmux 3.5a, csi-spl `db92f2a`, env `dev`, tenant `t1`, desk

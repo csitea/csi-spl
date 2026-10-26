@@ -1,6 +1,6 @@
 # csi-spl-cnf
 
-> Generated from qto doc `b34fc551-4143-4a50-a739-715dd3924374`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `b34fc551-4143-4a50-a739-715dd3924374`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 `csi-spl/<env>.env.yaml` is the configuration of the spool, one file per env
 (`dev`, `prd`). Everything under `csi-spl/<env>/tf/` and every `*.env.json` is

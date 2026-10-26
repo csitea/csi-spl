@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-"""The map check of do_check_qto_doc_drift (SPL-2164): rules 1-5 of
-check-qto-doc-drift.func.sh. Usage: check-qto-doc-drift.py <tree> <map> <known>.
+"""The map check of do_check_qto_doc_drift (SPL-2164): rules 1-6 of
+check-qto-doc-drift.func.sh. Usage:
+check-qto-doc-drift.py <tree> <map> <known> [<cnf>], <cnf> default
+<tree>/csi-spl-cnf/csi-spl/all.env.yaml (its docs.repo_export_tenants).
 Prints one FAIL / WARN line per finding, then OK; exit 1 on any FAIL."""
 
 import os
@@ -9,7 +11,10 @@ import subprocess
 import sys
 
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
-STAMP = re.compile(r"^> Generated from qto doc `([^`]*)`")
+STAMP = re.compile(
+    r"^> Generated from qto doc `([^`]*)`(?:; edit it there\. Workspace `([^`]*)`\.)?"
+)
+WS = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 SKIP = {".git", "node_modules", "tpl-gen", ".output", ".nuxt"}
 
 
@@ -24,8 +29,36 @@ def bad_path(rel):
     )
 
 
-def read_map(mapf, fail):
-    by_path, by_id, rows = {}, {}, 0
+def allowed_workspaces(cnf):
+    """cnf docs.repo_export_tenants (spec 114 section 9.4.2), or None when it
+    cannot be read: the caller FAILs then, never passes (SPL-3541)."""
+    try:
+        import yaml
+
+        with open(cnf, encoding="utf-8") as fh:
+            got = (((yaml.safe_load(fh) or {}).get("env") or {}).get("docs") or {}).get(
+                "repo_export_tenants"
+            )
+    except ImportError:
+        try:
+            got = subprocess.run(
+                ["yq", "-r", ".env.docs.repo_export_tenants // [] | .[]", cnf],
+                capture_output=True,
+                check=True,
+                text=True,
+            ).stdout.split()
+        except (OSError, subprocess.CalledProcessError):
+            return None
+    except (OSError, ValueError, AttributeError):
+        return None
+    if not isinstance(got, list) or not got:
+        return None
+    return {str(w) for w in got}
+
+
+def read_map(mapf, fail, hard):
+    """hard(path, why): a finding the known-drift list never downgrades."""
+    by_path, by_id, ws_of, rows = {}, {}, {}, 0
     with open(mapf, encoding="utf-8") as fh:
         for n, line in enumerate(fh, 1):
             line = line.rstrip("\n")
@@ -38,12 +71,13 @@ def read_map(mapf, fail):
             if (
                 len(f) > 3
                 or not UUID.match(doc)
-                or fs not in ("", "workspace", "repo")
+                or not WS.match(fs)
+                or fs == "workspace"
                 or bad_path(rel)
             ):
-                fail(
+                hard(
                     rel or where,
-                    f"{where}: a row is <uuid> TAB <repo-relative .md> [TAB workspace|repo], got {line!r}",
+                    f"{where}: a row is <uuid> TAB <repo-relative .md> TAB <repo|workspace id>, got {line!r}",
                 )
                 continue
             if doc in by_id:
@@ -54,7 +88,8 @@ def read_map(mapf, fail):
                     f"{where}: the path is mapped twice (also qto doc {by_path[rel]})",
                 )
             by_id[doc], by_path[rel] = rel, doc
-    return by_path, rows
+            ws_of[rel] = "system" if fs == "repo" else fs
+    return by_path, ws_of, rows
 
 
 def md_files(tree):
@@ -87,7 +122,7 @@ def stamped_files(tree):
             with open(
                 os.path.join(tree, rel), encoding="utf-8", errors="replace"
             ) as fh:
-                ids = [m.group(1) for m in map(STAMP.match, fh) if m]
+                ids = [m.groups() for m in map(STAMP.match, fh) if m]
         except OSError:
             continue
         if ids:
@@ -107,14 +142,49 @@ def read_known(knownf):
     return known
 
 
-def main(tree, mapf, knownf):
-    bad = {}
+def main(tree, mapf, knownf, cnf=None):
+    bad, worst = {}, {}
 
     def fail(p, why):
         bad.setdefault(p, []).append(why)
 
-    by_path, rows = read_map(mapf, fail)
+    def hard(p, why):
+        worst.setdefault(p, []).append(why)
+
+    cnf = cnf or os.path.join(tree, "csi-spl-cnf", "csi-spl", "all.env.yaml")
+    allowed = allowed_workspaces(cnf)
+    if allowed is None:
+        print(
+            f"FAIL {cnf}: cnf docs.repo_export_tenants is not readable or empty: no workspace can be allowed"
+        )
+        return 1
+    by_path, ws_of, rows = read_map(mapf, fail, hard)
     stamped = stamped_files(tree)
+    not_public = (
+        "is not in cnf docs.repo_export_tenants ("
+        + ", ".join(sorted(allowed))
+        + "): its docs never go to the public repository"
+    )
+    for rel, ws in ws_of.items():
+        if ws not in allowed:
+            hard(rel, f"mapped to workspace {ws}, which {not_public}")
+    for rel, ids in stamped.items():
+        for _, ws in ids:
+            if ws is None:
+                hard(
+                    rel,
+                    'its generated-from line names no workspace ("Workspace `<ws>`."): export it again',
+                )
+            elif ws not in allowed:
+                hard(
+                    rel,
+                    f"its generated-from line names workspace {ws}, which {not_public}",
+                )
+            elif rel in ws_of and ws != ws_of[rel]:
+                hard(
+                    rel,
+                    f"its generated-from line names workspace {ws}, its map row {ws_of[rel]}",
+                )
     for rel, doc in by_path.items():
         ids = stamped.get(rel)
         if not os.path.isfile(os.path.join(tree, rel)):
@@ -127,18 +197,24 @@ def main(tree, mapf, knownf):
         elif len(ids) > 1:
             fail(
                 rel,
-                f"{len(ids)} generated-from lines ({', '.join(ids)}); an export writes one",
+                f"{len(ids)} generated-from lines ({', '.join(i for i, _ in ids)}); an export writes one",
             )
-        elif ids[0] != doc:
-            fail(rel, f"its generated-from line names qto doc {ids[0]}, the map {doc}")
+        elif ids[0][0] != doc:
+            fail(
+                rel, f"its generated-from line names qto doc {ids[0][0]}, the map {doc}"
+            )
     for rel, ids in sorted(stamped.items()):
         if rel not in by_path:
             fail(
                 rel,
-                f"says generated from qto doc {ids[0]}, but no map row names it: add the row or drop the line",
+                f"says generated from qto doc {ids[0][0]}, but no map row names it: add the row or drop the line",
             )
     known = read_known(knownf)
     rc = 0
+    for p in sorted(worst):
+        for why in worst[p]:
+            print(f"FAIL {p}: {why}")
+            rc = 1
     for p in sorted(bad):
         for why in bad[p]:
             if p in known:
@@ -154,13 +230,14 @@ def main(tree, mapf, knownf):
     if rc == 0:
         n = len(set(known) & set(bad))
         print(
-            f"OK qto doc map: {rows} rows, {len(stamped)} exported md files, each stamp names its row"
+            f"OK qto doc map: {rows} rows, {len(stamped)} exported md files, each stamp names its row,"
+            + f" every workspace in docs.repo_export_tenants ({', '.join(sorted(allowed))})"
             + (f" ({n} known drift)" if n else "")
         )
     return rc
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4:
-        sys.exit("usage: check-qto-doc-drift.py <tree> <map> <known>")
+    if len(sys.argv) not in (4, 5):
+        sys.exit("usage: check-qto-doc-drift.py <tree> <map> <known> [<cnf>]")
     sys.exit(main(*sys.argv[1:]))

@@ -1,6 +1,6 @@
 # Keyboard Shortcuts Cheat Sheet
 
-> Generated from qto doc `514cf337-1312-4e6e-b370-521d17f1b5fc`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `514cf337-1312-4e6e-b370-521d17f1b5fc`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Spool is designed with a **keyboard-first philosophy**, enabling software engineers and operators to navigate channels, inspect threads, author code blocks, and command AI agents without taking their hands off the keyboard.
 

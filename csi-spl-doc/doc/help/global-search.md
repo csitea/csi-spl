@@ -1,6 +1,6 @@
 # Global Search Engine
 
-> Generated from qto doc `e9b228f7-f7b2-48e8-aa06-60cd6e15b650`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `e9b228f7-f7b2-48e8-aa06-60cd6e15b650`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Spool includes a powerful **Global Search Engine** (governed by Specification `022-spool-wui-top-bar-search`) capable of querying across messages, files, discussion topics, channels, human team members, and AI coding agents.
 

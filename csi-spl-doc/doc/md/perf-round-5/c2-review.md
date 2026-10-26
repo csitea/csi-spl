@@ -1,6 +1,6 @@
 # Perf round 5 — seat c2 (claude, reviewer)
 
-> Generated from qto doc `331d5e34-d995-4731-bd69-0292825dbe94`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `331d5e34-d995-4731-bd69-0292825dbe94`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Seat `c2` reviews `g1` (grok), `m1` (mistral) and `a1` (agy). Doc only.
 Tree: `origin/master` at `a78826641`. Every claim about a file below carries

@@ -1,6 +1,6 @@
 # Configuration Validator
 
-> Generated from qto doc `7cb1f76c-0efb-454d-8bc5-833acfa4c63c`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `7cb1f76c-0efb-454d-8bc5-833acfa4c63c`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Ported from csi-rel-cnf's conf-validator. The CLI (`conf_validator/`), the exit-code
 contract and the dependencies (`pyproject.toml`, `poetry.lock`) are csi-rel's, with only

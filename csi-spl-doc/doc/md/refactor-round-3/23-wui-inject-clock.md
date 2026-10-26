@@ -1,6 +1,6 @@
 # Refactor round 3, row 23: Inject the clock into time-dependent utils
 
-> Generated from qto doc `9e902b45-014b-41f5-b018-ed8ad0065931`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `9e902b45-014b-41f5-b018-ed8ad0065931`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 23. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: TS/Vue. Kind: clean. Risk: low. Run on: **PC**. Agent: **claude**. Batch: 2.
 

@@ -1,6 +1,6 @@
 # DevOps guide
 
-> Generated from qto doc `78e51717-7bcb-4b12-9da8-80af726f8882`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `78e51717-7bcb-4b12-9da8-80af726f8882`; edit it there. Workspace `t1`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 <a id="ws-doc-29350091-124f-4b65-a89b-1c5a8cbd4a8e"></a>
 ## 1 About this guide

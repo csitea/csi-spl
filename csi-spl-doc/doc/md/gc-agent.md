@@ -1,6 +1,6 @@
 # The GC agent: a garbage collector on every box
 
-> Generated from qto doc `929c5253-d577-4313-9257-1d9369218944`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `929c5253-d577-4313-9257-1d9369218944`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Owner HUM-10, t1 91a36ace (issue SPL-1733), in order:
 

@@ -1,6 +1,6 @@
 # Refactor round 8 - mistral seat
 
-> Generated from qto doc `8239dbdf-26cb-4803-a2df-cf73529e0c2a`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `8239dbdf-26cb-4803-a2df-cf73529e0c2a`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Measured on `origin/master` at **`6165cfc71`** (post-rewrite, mapped from `d4f9553f4` by subject).
 Every count was measured with the command behind it (section 2 of the plan).

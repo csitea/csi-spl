@@ -10,7 +10,7 @@ description: >
 
 # /claude-spawn — spawn a Claude Code worker (c-NNN) or message a running one
 
-> Generated from qto doc `98be3ff7-b996-49b4-a917-0d6ca6729fc0`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `98be3ff7-b996-49b4-a917-0d6ca6729fc0`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 | Invocation | Mode |
 |---|---|

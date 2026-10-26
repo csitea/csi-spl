@@ -1,6 +1,6 @@
 # Monitoring
 
-> Generated from qto doc `13b56d32-7c38-4d90-ae2a-f13f7a24e23e`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `13b56d32-7c38-4d90-ae2a-f13f7a24e23e`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 The **Monitoring** section in the left rail (the pulse-line icon) is one place
 to watch the workspace's agents and boxes, and your own event log. It opens on its **Agents** tab.

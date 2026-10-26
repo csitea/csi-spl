@@ -18,6 +18,11 @@
 #   7. a git tree (SPL-2307): a GIT-IGNORED stamped md with no map row (a
 #      terraform modules/README.md) is not read, the tree passes; CONTROL:
 #      the same file tracked is red, naming it
+#   8. the workspace (SPL-3541): CONTROLS, each red: a planted row of a
+#      private workspace (csitea), a stamp naming one, a stamp naming none
+#      (the old form), a stamp and row that disagree, an old two-column row,
+#      a known-drift line trying to waive a workspace FAIL, a missing cnf
+#      and an empty allow list (fail closed); the real map passes (case 1)
 #   Nothing outside the throwaway trees is written.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -43,15 +48,20 @@ expect() {
   if [[ "$rc" == "$want" && "$out" == *"$grep_for"* ]]; then pass "$label"; else fail "$label: rc=$rc (want $want), no '$grep_for' in: $out"; fi
 }
 
-stamp() { printf '# %s\n\n> Generated from qto doc `%s`; edit it there.\n\nbody\n' "$2" "$1"; }
+# stamp <doc id> <title> [workspace, default system]
+stamp() { printf '# %s\n\n> Generated from qto doc `%s`; edit it there. Workspace `%s`.\n\nbody\n' "$2" "$1" "${3:-system}"; }
+# cnf <tree> [allow-list yaml, default [system, t1]]: the tree's cnf
+cnf() { mkdir -p "$1/csi-spl-cnf/csi-spl"; printf 'env:\n  docs:\n    repo_export_tenants: %s\n' "${2:-[system, t1]}" >"$1/csi-spl-cnf/csi-spl/all.env.yaml"; }
 
-# A tree with two exported files: a.md (doc A, repo) and sub/b.md (doc B).
+# A tree with two exported files: a.md (doc A, repo = workspace system) and
+# sub/b.md (doc B, workspace t1), and its cnf.
 mk_tree() {  # <dir>
   local d="$1"
   rm -rf "$d"; mkdir -p "$d/csi-spl-doc/doc/md" "$d/sub"
-  printf '%s\ta.md\trepo\n%s\tsub/b.md\n' "$A" "$B" >"$d/$MAPREL"
+  printf '%s\ta.md\trepo\n%s\tsub/b.md\tt1\n' "$A" "$B" >"$d/$MAPREL"
   stamp "$A" "Doc A" >"$d/a.md"
-  stamp "$B" "Doc B" >"$d/sub/b.md"
+  stamp "$B" "Doc B" t1 >"$d/sub/b.md"
+  cnf "$d"
 }
 
 # 1. this tree
@@ -73,9 +83,9 @@ mk_tree "$F"; stamp 33333333-3333-4333-8333-333333333333 "Doc C" >"$F/sub/c.md"
 expect "3d CONTROL a stamped file no row names is red" 1 "FAIL sub/c.md: says generated from qto doc 33333333" -- QTO_DRIFT_TREE="$F"
 mk_tree "$F"; printf '33333333-3333-4333-8333-333333333333\ta.md\trepo\n' >>"$F/$MAPREL"
 expect "3e CONTROL a path mapped twice is red" 1 "FAIL a.md: qto-docs.tsv:3: the path is mapped twice" -- QTO_DRIFT_TREE="$F"
-mk_tree "$F"; printf 'not-a-uuid\tsub/x.md\n' >>"$F/$MAPREL"
+mk_tree "$F"; printf 'not-a-uuid\tsub/x.md\tt1\n' >>"$F/$MAPREL"
 expect "3f CONTROL a bad row is red" 1 "FAIL sub/x.md: qto-docs.tsv:3: a row is <uuid> TAB" -- QTO_DRIFT_TREE="$F"
-mk_tree "$F"; printf '%s\t../up.md\n' 33333333-3333-4333-8333-333333333333 >>"$F/$MAPREL"
+mk_tree "$F"; printf '%s\t../up.md\tt1\n' 33333333-3333-4333-8333-333333333333 >>"$F/$MAPREL"
 expect "3g CONTROL a path out of the tree is red" 1 "FAIL ../up.md: qto-docs.tsv:3: a row is" -- QTO_DRIFT_TREE="$F"
 mk_tree "$F"; stamp "$A" "Doc A" >>"$F/a.md"
 expect "3h CONTROL two stamps in one file are red" 1 "FAIL a.md: 2 generated-from lines" -- QTO_DRIFT_TREE="$F"
@@ -98,9 +108,10 @@ done
 E="$T/e"
 mk_export_tree() {
   rm -rf "$E"; mkdir -p "$E/csi-spl-doc/doc/md" "$E/sub"
-  printf '%s\ta.md\trepo\n%s\tsub/b.md\n' "$A" "$B" >"$E/$MAPREL"
-  python3 "$PROJ_ROOT/src/bash/run/spl-doctree-md.py" compose "$HUB/$A.head" "$HUB/$A.read" "$HUB/$A.export" "$A" >"$E/a.md"
-  python3 "$PROJ_ROOT/src/bash/run/spl-doctree-md.py" compose "$HUB/$B.head" "$HUB/$B.read" "$HUB/$B.export" "$B" >"$E/sub/b.md"
+  printf '%s\ta.md\trepo\n%s\tsub/b.md\tt1\n' "$A" "$B" >"$E/$MAPREL"
+  cnf "$E"
+  python3 "$PROJ_ROOT/src/bash/run/spl-doctree-md.py" compose "$HUB/$A.head" "$HUB/$A.read" "$HUB/$A.export" "$A" system >"$E/a.md"
+  python3 "$PROJ_ROOT/src/bash/run/spl-doctree-md.py" compose "$HUB/$B.head" "$HUB/$B.read" "$HUB/$B.export" "$B" t1 >"$E/sub/b.md"
 }
 # run_export <env...>: the export action in a subshell with the stubbed hub;
 # CALLS gets "<fs> <verb> <doc>" per hub call.
@@ -165,6 +176,27 @@ git -C "$G" init -q && git -C "$G" add .gitignore a.md sub csi-spl-doc
 expect "7a a git-ignored stamped md with no row is skipped" 0 "OK qto doc map: 2 rows, 2 exported md files" -- QTO_DRIFT_TREE="$G"
 git -C "$G" add -f bin/dev/README.md
 expect "7b CONTROL the same file tracked is red" 1 "FAIL bin/dev/README.md: says generated from qto doc 33333333" -- QTO_DRIFT_TREE="$G"
+
+# 8. the workspace (SPL-3541)
+C=33333333-3333-4333-8333-333333333333
+mk_tree "$F"; printf '%s\tsub/c.md\tcsitea\n' "$C" >>"$F/$MAPREL"; stamp "$C" "Doc C" csitea >"$F/sub/c.md"
+expect "8a CONTROL a planted row of workspace csitea is red" 1 "FAIL sub/c.md: mapped to workspace csitea, which is not in cnf docs.repo_export_tenants (system, t1)" -- QTO_DRIFT_TREE="$F"
+mk_tree "$F"; stamp "$B" "Doc B" csitea >"$F/sub/b.md"
+expect "8b CONTROL a stamp naming workspace csitea is red" 1 "FAIL sub/b.md: its generated-from line names workspace csitea, which is not in cnf" -- QTO_DRIFT_TREE="$F"
+mk_tree "$F"; printf '# Doc B\n\n> Generated from qto doc `%s`; edit it there. This file is its export.\n' "$B" >"$F/sub/b.md"
+expect "8c CONTROL a stamp naming no workspace (the old form) is red" 1 "FAIL sub/b.md: its generated-from line names no workspace" -- QTO_DRIFT_TREE="$F"
+mk_tree "$F"; stamp "$B" "Doc B" system >"$F/sub/b.md"
+expect "8d CONTROL a stamp and its row naming two workspaces is red" 1 "FAIL sub/b.md: its generated-from line names workspace system, its map row t1" -- QTO_DRIFT_TREE="$F"
+mk_tree "$F"; printf '%s\ta.md\trepo\n%s\tsub/b.md\n' "$A" "$B" >"$F/$MAPREL"
+expect "8e CONTROL an old two-column row (no workspace) is red" 1 "FAIL sub/b.md: qto-docs.tsv:2: a row is <uuid> TAB <repo-relative .md> TAB <repo|workspace id>" -- QTO_DRIFT_TREE="$F"
+mk_tree "$F"; printf '%s\tsub/c.md\tcsitea\n' "$C" >>"$F/$MAPREL"; stamp "$C" "Doc C" csitea >"$F/sub/c.md"; printf 'sub/c.md\twaived\n' >"$F/known.tsv"
+expect "8f CONTROL the known-drift list never waives a workspace FAIL" 1 "FAIL sub/c.md: mapped to workspace csitea" -- QTO_DRIFT_TREE="$F" QTO_DRIFT_KNOWN="$F/known.tsv"
+mk_tree "$F"; rm -r "$F/csi-spl-cnf"
+expect "8g CONTROL a missing cnf fails closed" 1 "cnf docs.repo_export_tenants is not readable or empty" -- QTO_DRIFT_TREE="$F"
+mk_tree "$F"; cnf "$F" '[]'
+expect "8h CONTROL an empty allow list fails closed" 1 "cnf docs.repo_export_tenants is not readable or empty" -- QTO_DRIFT_TREE="$F"
+mk_tree "$F"; cnf "$F" '[system]'
+expect "8i CONTROL the same t1 row is red once t1 leaves the allow list" 1 "FAIL sub/b.md: mapped to workspace t1, which is not in cnf docs.repo_export_tenants (system)" -- QTO_DRIFT_TREE="$F"
 
 echo "check-qto-doc-drift: $passes passed, $fails failed"
 (( fails == 0 ))

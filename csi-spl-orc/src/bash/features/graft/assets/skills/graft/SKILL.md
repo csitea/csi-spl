@@ -11,7 +11,7 @@ description: >
 
 # /graft — use the graft index for orientation, never for enumeration
 
-> Generated from qto doc `5ed1155f-f00a-4ed9-addc-5be3315680de`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `5ed1155f-f00a-4ed9-addc-5be3315680de`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 The index on this box is **partial by construction**. Its grammars cover shell,
 SQL, TypeScript, Python and JavaScript; the trees it runs over are 47-70% code

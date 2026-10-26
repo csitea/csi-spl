@@ -1,6 +1,6 @@
 # Archive
 
-> Generated from qto doc `f4028ca0-3354-4b04-a4ff-deed31905cdb`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `f4028ca0-3354-4b04-a4ff-deed31905cdb`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 The **Archive** tab (the `🗄` icon in the left rail) collects topics that have
 been archived out of the active channel and topic lists, so a finished

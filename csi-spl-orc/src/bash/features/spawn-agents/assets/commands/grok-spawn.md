@@ -10,7 +10,7 @@ description: >
 
 # /grok-spawn — spawn a grok worker (g-NNN) or message a running one
 
-> Generated from qto doc `bf778149-30cb-4f04-8c86-09a0ae50fc98`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `bf778149-30cb-4f04-8c86-09a0ae50fc98`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 | Invocation | Mode |
 |---|---|

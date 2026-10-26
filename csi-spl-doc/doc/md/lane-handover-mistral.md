@@ -1,6 +1,6 @@
 # Lane handover for mistral lanes
 
-> Generated from qto doc `cb55994c-8cdd-4d6b-94a4-b22bfa1551d5`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `cb55994c-8cdd-4d6b-94a4-b22bfa1551d5`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 The mistral twin of the [claude lane handover](lane-handover.md) (owner, t1
 ba8104f6 msg b072af77; topic 9d603c3d). Same steps, same shared WIP step

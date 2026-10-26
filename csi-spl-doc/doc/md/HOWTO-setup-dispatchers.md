@@ -1,6 +1,6 @@
 # Set up the master/failover dispatchers on a machine
 
-> Generated from qto doc `6bca1500-a011-4541-92f5-51a717536a27`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `6bca1500-a011-4541-92f5-51a717536a27`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 This is the setup prompt: an agent (or a person) on a NEW machine follows it
 from top to bottom. The design is in

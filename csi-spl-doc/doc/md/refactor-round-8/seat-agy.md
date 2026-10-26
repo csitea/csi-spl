@@ -1,6 +1,6 @@
 # Refactor round 8 - agy seat
 
-> Generated from qto doc `738fd81d-3a51-4fa8-bd6f-338630e9862e`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `738fd81d-3a51-4fa8-bd6f-338630e9862e`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 <a id="ws-doc-aa502ba4-625c-4e56-bec7-00afd756dbf5"></a>
 ## Verdicts

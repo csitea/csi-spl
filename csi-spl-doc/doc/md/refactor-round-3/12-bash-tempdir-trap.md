@@ -1,6 +1,6 @@
 # Refactor round 3, row 12: Clean up temp dirs on every exit path with a trap
 
-> Generated from qto doc `035ac792-7809-4245-b4f5-cfc141a340ab`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `035ac792-7809-4245-b4f5-cfc141a340ab`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 12. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: bash. Kind: stability. Risk: low. Run on: **sat**. Agent: **claude**. Batch: 1.
 

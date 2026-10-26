@@ -1,6 +1,6 @@
 # Performance audit, round 3: the next 30 improvements (2026-10-02)
 
-> Generated from qto doc `c4b5eccf-2660-4f70-8fcb-54523e7ac4dc`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `c4b5eccf-2660-4f70-8fcb-54523e7ac4dc`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Owner topic t1 `396fe7e5`: "are we finnished with those improvements, if yes
 we ned 30 more". Round 2 (`db-payload-audit-round2-2026-10-02.md`) put the

@@ -1,6 +1,6 @@
 # Shared resources tests touch, 2026-10-04
 
-> Generated from qto doc `62fd0ccf-be75-4725-9af3-f02e6e6803dc`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `62fd0ccf-be75-4725-9af3-f02e6e6803dc`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Counted on tree `e52d6a63b08b3388b6fe50f19790af48ff2ceb5b`.
 The paths cited below are the same bytes from that tree through

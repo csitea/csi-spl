@@ -1,4 +1,4 @@
-8bb1751e-b89a-41be-939b-02485ae86d3e	csi-spl-doc/doc/md/spool-cli-reference.md
+8bb1751e-b89a-41be-939b-02485ae86d3e	csi-spl-doc/doc/md/spool-cli-reference.md	t1
 95d05cb6-ecfe-47ae-9884-c99a3eaf8fcb	csi-spl-doc/doc/md/runbook-dispatcher.md	repo
 83485572-ec10-40dd-ba40-8c96624ec81c	csi-spl-doc/doc/md/runbook-orchestrator.md	repo
 738fd81d-3a51-4fa8-bd6f-338630e9862e	csi-spl-doc/doc/md/refactor-round-8/seat-agy.md	repo
@@ -183,7 +183,7 @@ b934b03c-f5c3-47bf-b0cc-a1e39fce6cf7	csi-spl-doc/doc/md/SPEC-spool-wui.md	repo
 28f00408-013e-4fa1-8c13-772377568a61	csi-spl-doc/doc/md/workspace-rules.md	repo
 737a2da7-d4b7-4995-9417-556c132c09f2	csi-spl-doc/doc/md/private-overlay.md	repo
 e6cafa53-a4e3-414a-b439-cf27be99133e	csi-spl-doc/doc/md/gcp-secret-perms.md	repo
-78e51717-7bcb-4b12-9da8-80af726f8882	csi-spl-doc/doc/md/guides/devops-guide.md
+78e51717-7bcb-4b12-9da8-80af726f8882	csi-spl-doc/doc/md/guides/devops-guide.md	t1
 827be63e-fd5b-4d5d-9897-f5b096f6cda2	csi-spl-doc/doc/md/secret-perms-world.md	repo
 d7fcaaa7-0785-4f02-a4a4-19dbf8b0fbbd	csi-spl-doc/doc/md/naming-and-parlance.md	repo
 531a3c05-6dd3-4d88-8c01-e771c06e0ac5	csi-spl-doc/doc/md/incident-2026-10-15-prd-hub-no-instance.md	repo
@@ -286,6 +286,6 @@ a8dee37d-cd7d-47a0-a337-b3752cdab807	csi-spl-doc/doc/md/refactor-round-10-retro.
 775fea32-0cd5-4e19-9a79-04da0cb0843b	csi-spl-doc/doc/md/refactor-round-12/seat-claude.md	repo
 e6b82c3e-5c93-47f4-968b-a90ef13fc53e	csi-spl-doc/doc/md/refactor-round-12/seat-mistral.md	repo
 0d291303-2b30-4b23-8541-cd2ff5863387	csi-spl-doc/doc/help/how-to-post.md	repo
-119954ab-17d0-4be3-96c1-5746ff9d1f0d	csi-spl-doc/doc/md/guides/system-guide.md
+119954ab-17d0-4be3-96c1-5746ff9d1f0d	csi-spl-doc/doc/md/guides/system-guide.md	t1
 8f7e21a4-9c12-4e89-b541-0e31db4e6721	csi-spl-doc/doc/help/reporting.md	repo
 56b19a8b-0cc5-42a9-a53a-2670461e60ea	csi-spl-doc/doc/md/guide-how-to-be-a-dispatcher.md	repo

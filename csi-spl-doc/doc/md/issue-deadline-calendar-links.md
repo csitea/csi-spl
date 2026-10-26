@@ -1,6 +1,6 @@
 # Issue deadline <-> calendar links (SPL-2034)
 
-> Generated from qto doc `ec297477-d5b3-431a-8131-8994aff3b7fa`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `ec297477-d5b3-431a-8131-8994aff3b7fa`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Owner HUM-10, t1 `edc177bc`: "any issue which has a set time deadline should
 have a linkage to open the same in the calendar view ... it should work both

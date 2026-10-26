@@ -1,6 +1,6 @@
 # Refactoring round 6 - plan: clean code round 20261010-b (10 actions)
 
-> Generated from qto doc `b6cf6c37-1817-4555-9566-3231b91758b5`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `b6cf6c37-1817-4555-9566-3231b91758b5`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Owner HUM-10, prd t1, topic `4f46ce09-15ee-4b9a-b05f-edd9812b51fb`, msg 3d22fcea: "refactoring is something which we should have embedded in our system core way of operating. We will do refactoring constantly, all of the time. You just pick all the best practices and you implement them. You shouldn't need my go-ahead for that." **No owner go is needed for this round, its panel or its lanes** (rule home: `SPEC-spool-fleet-roles.md` section 1.2). Requested by the dispatch holder c-002 (msg a4792677), placed by c-001@sat.
 

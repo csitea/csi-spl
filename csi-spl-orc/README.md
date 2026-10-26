@@ -1,6 +1,6 @@
 # csi-spl-orc
 
-> Generated from qto doc `df35c4d5-17d7-4fe8-85b6-01a9a6c041e8`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `df35c4d5-17d7-4fe8-85b6-01a9a6c041e8`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Local dev orchestration (`lde`) for the spool **hub**: Postgres, a GCS
 emulator and `spool serve` in docker compose, wired from `csi-spl-cnf` and

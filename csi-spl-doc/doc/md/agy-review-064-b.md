@@ -1,6 +1,6 @@
 # Antigravity (Gemini) Review: Spec 064 (Fleet Without the PC)
 
-> Generated from qto doc `7f25e6a6-47b5-42d5-b076-da282b9f2989`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `7f25e6a6-47b5-42d5-b076-da282b9f2989`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Operational and cost review of [spec 064](../../specs/064-fleet-without-the-pc/spec.md) by an Antigravity agent.
 

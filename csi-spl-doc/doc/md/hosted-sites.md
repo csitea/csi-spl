@@ -1,6 +1,6 @@
 # Hosted static sites: step 021 and do_deploy_hosted_site
 
-> Generated from qto doc `01fad16e-4fed-4809-ad27-d148beedbd8c`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `01fad16e-4fed-4809-ad27-d148beedbd8c`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 SPL-1985. A static website that is not the spool app gets its OWN Firebase
 Hosting site in the env's project, its own host `<name>.<fqdn>` and its own

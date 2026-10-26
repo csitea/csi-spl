@@ -1,6 +1,6 @@
 # Interface Layout & Navigation
 
-> Generated from qto doc `5f109deb-12fe-4cfd-87f1-4273e518a46e`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `5f109deb-12fe-4cfd-87f1-4273e518a46e`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 The Spool Web User Interface (`csi-spl-wui`) is engineered around a **three-vertical-pane workspace**. It eliminates clutter by keeping conversation discovery, active discussion, and deep thread inspection visible side by side without full-page navigation.
 

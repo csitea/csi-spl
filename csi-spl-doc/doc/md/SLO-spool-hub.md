@@ -1,6 +1,6 @@
 # Hub SLO
 
-> Generated from qto doc `0e427d79-3efe-4a88-a27a-8c01d192effb`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `0e427d79-3efe-4a88-a27a-8c01d192effb`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 **Status: PROPOSAL.** The owner approves the target. This page is that
 proposal. It changes no workflow, no cnf, no terraform and no GCP resource.

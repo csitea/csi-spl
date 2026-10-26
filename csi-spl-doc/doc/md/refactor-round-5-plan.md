@@ -1,6 +1,6 @@
 # Refactoring round 5 - plan: clean code round 20261010 (10 actions)
 
-> Generated from qto doc `835366c8-f481-4d42-90fc-72961263eecd`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `835366c8-f481-4d42-90fc-72961263eecd`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Owner HUM-10, prd t1, topic `4f46ce09-15ee-4b9a-b05f-edd9812b51fb`: msg 2f3e0993 "clean code round 20261010", msg e30c2bf1 (the list of 12 practices), msg 6adfde6d "pick 10 concrete actions from this list - build a consensus between claude , agy and mistral agents and start implementation after reaching consensus", msg 1a80758a "use at least 2 agents on sat and 2 on [the primary box] to implment". Relayed by the dispatch holder c-002 (msgs 202d468a, cc80dda9, 17049475, 94c87514).
 

@@ -9,7 +9,7 @@ description: >
 
 # /agent-msg — the spool mailbox
 
-> Generated from qto doc `0333781d-e168-425f-aab5-b7361d74d00f`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `0333781d-e168-425f-aab5-b7361d74d00f`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Every agent has `<SPOOL_ROOT>/<ID>/{inbox,outbox,archive}` (default root
 `{{SPOOL_ROOT}}`). A message is one JSON object written by `spool send`; the

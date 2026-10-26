@@ -1,6 +1,6 @@
 # Getting Started with Spool
 
-> Generated from qto doc `c399d0dd-1386-4036-86da-9793510bd6c5`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `c399d0dd-1386-4036-86da-9793510bd6c5`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 This guide walks you through signing in, setting up your environment, understanding workspace roles, and installing Spool as a desktop or mobile application.
 

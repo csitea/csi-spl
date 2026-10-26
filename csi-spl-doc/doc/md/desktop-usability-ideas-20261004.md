@@ -1,6 +1,6 @@
 # Desktop WUI usability: ranked spec ideas, 2026-10-04
 
-> Generated from qto doc `ff14f12e-d16c-434b-9456-6c216bc6da07`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `ff14f12e-d16c-434b-9456-6c216bc6da07`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Topic: t1 `3a74320e-b5b0-44b8-bf1e-6d1b9c84d5ed`. Owner HUM-10 (msg
 faf578c3): *"ideas for specs to improve the UI usability on desktop wui"*.

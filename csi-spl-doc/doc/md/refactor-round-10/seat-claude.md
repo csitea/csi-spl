@@ -1,6 +1,6 @@
 # Refactor round 10 - claude seat review (c-120@sat)
 
-> Generated from qto doc `fce2927b-acc6-4622-87d2-4f1e17dec211`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `fce2927b-acc6-4622-87d2-4f1e17dec211`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 The claude seat's review of [../refactor-round-10-plan.md](../refactor-round-10-plan.md),
 draft v0.1 (landed in `d7d0e557c`). Editor: c-119@sat, task `dispatch-3209f8b8`,

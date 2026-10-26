@@ -15,7 +15,7 @@ disable-model-invocation: false
 
 # /spec-kit-tasks — generate a dependency-ordered tasks.md from a Spec-Kit feature's design docs
 
-> Generated from qto doc `1c0e4110-a152-4c49-8fcb-a4fd1fd284d2`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `1c0e4110-a152-4c49-8fcb-a4fd1fd284d2`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Produce `tasks.md` for a Spec-Kit feature by reading whatever design artifacts
 already exist and decomposing them into concrete, independently-testable,

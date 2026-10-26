@@ -1,4 +1,4 @@
-> Generated from qto doc `8e8454fe-c146-4bce-b705-b24a1a89772c`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `8e8454fe-c146-4bce-b705-b24a1a89772c`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Exported from the Qto doc [Installation and configuration guide](https://spool-hub.ai/workspace/docs?doc=1a3900ac-774d-4a47-9ecd-4fc716542aa3&view=doc) (`1a3900ac-774d-4a47-9ecd-4fc716542aa3`) on 2026-10-11T20:33:54Z; edit in Qto, not here.
 

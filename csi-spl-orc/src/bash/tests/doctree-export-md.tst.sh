@@ -33,7 +33,10 @@
 #  16. T030a: QTO_FS=repo imports a page that is already an export into the
 #      repo tree: every spool call carries SPOOL_DOCTREE_FS=repo, the map row
 #      a third column "repo", the md one generated-from line (the new doc's);
-#      the export reads the column; a bad QTO_FS or column is refused
+#      the export reads the column; a bad QTO_FS or column is refused; the
+#      stamp of a repo doc names workspace system, of a workspace doc its
+#      tenant (SPL-3541); an old two-column row is still read (TENANT_ID's);
+#      a row of another workspace is skipped, no hub call
 #  17. SPL-1612: the compiled export opens with the preamble (the root's
 #      body); a preamble with a second '# ' line and a fenced '## ' line
 #      round-trips byte-stable; an older spool's export (no preamble) still
@@ -211,7 +214,8 @@ run() {
 calls() { sed 's/^doctree //' "$T/calls"; }
 # noanchor <file>: the md without compose's section anchor lines (spec 138 G4)
 noanchor() { grep -vE '^<a id="ws-doc-[^"]+"></a>$' "$1"; }
-GEN='> Generated from qto doc `d0c`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.'
+GEN='> Generated from qto doc `d0c`; edit it there. Workspace `t1`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.'
+GEN_SYS="${GEN/\`t1\`/\`system\`}"
 
 # roundtrip <label> <page rel> <want diff> [VAR=value]... - import the page
 # (its own map and doc state), then diff it against the copy taken before
@@ -264,7 +268,7 @@ if [[ $rc -eq 0 && "$got_calls" == "$want_calls" ]]; then
 else
   fail "import calls (rc=$rc): $(cat "$T/o") / $got_calls"
 fi
-[[ "$(cat "$R/csi-spl-doc/doc/md/qto-docs.tsv")" == "d0c	$PAGE" ]] &&
+[[ "$(cat "$R/csi-spl-doc/doc/md/qto-docs.tsv")" == "d0c	$PAGE	t1" ]] &&
   pass "the map row names the doc and the page" || fail "map: $(cat "$R/csi-spl-doc/doc/md/qto-docs.tsv" 2>&1)"
 grep -qxF "$GEN" "$R/$PAGE" &&
   pass "the md file says it is generated from the qto doc" || fail "no generated-from line: $(head -3 "$R/$PAGE")"
@@ -423,7 +427,7 @@ fi
 # --- 15. T017: a page at the repo root -----------------------------------------------------------------
 cp "$T/page.orig" "$R/README.md"
 roundtrip "T017: README.md at the repo root imports and exports" README.md "$want_d" 15
-grep -qx "d0c	README.md" "$T/map.15" && pass "T017: the map row names README.md" || fail "T017 map: $(cat "$T/map.15" 2>&1)"
+grep -qx "d0c	README.md	t1" "$T/map.15" && pass "T017: the map row names README.md" || fail "T017 map: $(cat "$T/map.15" 2>&1)"
 
 # --- 16. T030a: into the repo tree ----------------------------------------------------------------
 P="csi-spl-doc/doc/md/runbook-repo.md"
@@ -431,24 +435,30 @@ sed 's/`d0c`/`old-workspace-doc`/' "$R/$PAGE" >"$R/$P"
 run do_spl_doctree_import_md MD_PATH="$P" DRY_RUN=0 QTO_FS=repo QTO_MAP="$T/map.16" DT_STATE="$T/dt.16.json"
 if [[ $rc -eq 0 ]] && [[ "$(sort -u "$T/calls.fs")" == repo ]] && [[ "$(wc -l <"$T/calls.fs")" -ge 8 ]] &&
   [[ "$(cat "$T/map.16")" == "d0c	$P	repo" ]] && [[ "$(grep -c '^> Generated from qto doc' "$R/$P")" == 1 ]] &&
-  grep -qxF "$GEN" "$R/$P" && cmp -s "$R/$PAGE" "$R/$P"; then
-  pass "T030a: QTO_FS=repo: every call fs=repo, map row 'repo', one generated-from line, the same md"
+  grep -qxF "$GEN_SYS" "$R/$P" && cmp -s <(sed 's/ Workspace `t1`\. / Workspace `system`. /' "$R/$PAGE") "$R/$P"; then
+  pass "T030a: QTO_FS=repo: every call fs=repo, map row 'repo', one generated-from line naming workspace system, the same md"
 else
   fail "T030a import (rc=$rc): $(cat "$T/o") / fs: $(sort <"$T/calls.fs" | uniq -c) / map: $(cat "$T/map.16" 2>&1) / $(diff "$R/$PAGE" "$R/$P")"
 fi
 run do_spl_doctree_export_md QTO_MAP="$T/map.16" DT_STATE="$T/dt.16.json"
 [[ $rc -eq 0 && "$(sort -u "$T/calls.fs")" == repo ]] && grep -q "unchanged (qto doc d0c)" "$T/o" &&
   pass "T030a: the export reads the map's repo column" || fail "T030a export (rc=$rc): $(cat "$T/o") / $(cat "$T/calls.fs")"
-run do_spl_doctree_export_md QTO_MAP="$T/map.10" DT_STATE="$T/dt.10.json"
-[[ $rc -eq 0 && -z "$(sort -u "$T/calls.fs")" ]] && pass "CONTROL: a two-column row stays in the workspace tree" ||
+cut -f1,2 "$T/map.10" >"$T/map.10b"
+run do_spl_doctree_export_md QTO_MAP="$T/map.10b" DT_STATE="$T/dt.10.json"
+[[ $rc -eq 0 && -z "$(sort -u "$T/calls.fs")" ]] && grep -q "unchanged (qto doc d0c)" "$T/o" &&
+  pass "CONTROL: an old two-column row stays in the workspace tree, TENANT_ID's, its file unchanged" ||
   fail "T030a control (rc=$rc): $(cat "$T/calls.fs")"
 run do_spl_doctree_import_md MD_PATH="$PAGE" DRY_RUN=0 QTO_FS=git QTO_MAP="$T/map.16b"
 [[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q "a qto tree is workspace or repo, not 'git'" "$T/o" &&
   pass "T030a: import refuses QTO_FS=git, no spool call" || fail "QTO_FS=git (rc=$rc): $(cat "$T/o")"
-printf 'd0c\t%s\tgit\n' "$P" >"$T/map.16c"
+printf 'd0c\t%s\tBad_Ws\n' "$P" >"$T/map.16c"
 run do_spl_doctree_export_md QTO_MAP="$T/map.16c" DT_STATE="$T/dt.16.json"
-[[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q "a qto tree is workspace or repo, not 'git'" "$T/o" &&
-  pass "T030a: export refuses a map row whose tree is not workspace or repo" || fail "map git (rc=$rc): $(cat "$T/o")"
+[[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q "a qto map row's third column is repo or a workspace id, not 'Bad_Ws'" "$T/o" &&
+  pass "T030a: export refuses a map row whose third column is not repo or a workspace id" || fail "map Bad_Ws (rc=$rc): $(cat "$T/o")"
+printf 'd0c\t%s\tcsitea\n' "$P" >"$T/map.16d"; cp "$R/$P" "$T/p16d.orig"
+run do_spl_doctree_export_md QTO_MAP="$T/map.16d" DT_STATE="$T/dt.16.json"
+[[ ! -s "$T/calls" ]] && grep -q "skipped: qto doc d0c is workspace csitea's, this run exports t1's" "$T/o" && cmp -s "$T/p16d.orig" "$R/$P" &&
+  pass "SPL-3541: a row of another workspace is skipped: no hub call, the file untouched" || fail "map csitea (rc=$rc): $(cat "$T/o")"
 
 # --- 17. SPL-1612: the preamble comes from the export itself ---------------------------------------
 # the compiled spool's export opens with the root's body; compose keeps it as
@@ -477,7 +487,7 @@ roundtrip "SPL-1612: a preamble with a '# ' line and a fence round-trips byte-st
   pass "SPL-1612: the spool export itself opens with the preamble" || fail "go export: $(cat "$T/go17.md")"
 printf '%s\n' "$(sed -n '/^# 1 The job$/,$p' "$T/go17.md")" >"$T/old17.md"
 python3 "$PROJ_ROOT/src/bash/run/spl-doctree-md.py" compose <(echo '{"title":"Preamble page"}') \
-  "$T/dt.17.json.read.json" "$T/old17.md" d0c >"$T/old17.out" 2>&1
+  "$T/dt.17.json.read.json" "$T/old17.md" d0c t1 >"$T/old17.out" 2>&1
 [[ "$(grep -c '^Read this first\.$' "$T/old17.out")" == 1 ]] && cmp -s "$T/old17.out" "$R/$P" &&
   pass "SPL-1612: an older spool's export (no preamble) composes the same page" ||
   fail "older spool compose: $(diff "$R/$P" "$T/old17.out")"
@@ -485,7 +495,7 @@ python3 "$PROJ_ROOT/src/bash/run/spl-doctree-md.py" compose <(echo '{"title":"Pr
 # --- 18. SPL-1900: the author's heading dot and spacing come back ---------------------------------
 FX="$APP_ROOT/csi-spl-api/src/go/spool-hub-api/cmd/spool/testdata/doctree-export-fidelity.json"
 P="csi-spl-doc/doc/md/fidelity.md"
-python3 -c 'import json,sys; sys.stdout.write(json.load(open(sys.argv[1]))["md"])' "$FX" >"$R/$P"
+python3 -c 'import json,sys; sys.stdout.write(json.load(open(sys.argv[1]))["md"].replace("; edit it there. This file", "; edit it there. Workspace `t1`. This file", 1))' "$FX" >"$R/$P"
 python3 "$PROJ_ROOT/src/bash/run/spl-doctree-md.py" split "$R/$P" "$T/split18" >"$T/plan18" 2>&1
 if python3 - "$FX" "$T/plan18" "$T/split18" <<'EOF_PY'
 import json, sys
@@ -508,7 +518,7 @@ else fail "SPL-1900 split: $(cat "$T/plan18")"
 fi
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); json.dump({"title": d["title"]}, open(sys.argv[2], "w")); json.dump({"items": d["items"]}, open(sys.argv[3], "w")); open(sys.argv[4], "w").write(d["export"].rstrip("\n") + "\n")' \
   "$FX" "$T/head18.json" "$T/read18.json" "$T/export18.md"
-python3 "$PROJ_ROOT/src/bash/run/spl-doctree-md.py" compose "$T/head18.json" "$T/read18.json" "$T/export18.md" d1 >"$T/out18.md" 2>&1
+python3 "$PROJ_ROOT/src/bash/run/spl-doctree-md.py" compose "$T/head18.json" "$T/read18.json" "$T/export18.md" d1 t1 >"$T/out18.md" 2>&1
 cmp -s <(noanchor "$T/out18.md") "$R/$P" && pass "SPL-1900: compose of the fixture's export is the fixture's md, byte for byte" ||
   fail "SPL-1900 compose: $(diff "$R/$P" <(noanchor "$T/out18.md"))"
 roundtrip "SPL-1900: the fixture page round-trips, only the generated-from line's doc id changes" "$P" "< ${GEN/d0c/d1}

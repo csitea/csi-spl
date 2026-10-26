@@ -1,6 +1,6 @@
 # Perf round 5 — seat g2 (grok, reviewer)
 
-> Generated from qto doc `cd307010-2513-4ef8-ab82-ed1ca453f885`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `cd307010-2513-4ef8-ab82-ed1ca453f885`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Seat `g2` reviews `c1` (claude), `m1` (mistral) and `a1` (agy). Doc only.
 Commands below ran on tree `7ad80c2eb` from the repo root, n=1 each, read-only.

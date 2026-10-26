@@ -1,6 +1,6 @@
 # Refactor round 3, row 20: Say why each bare `.catch(() => {})` is safe
 
-> Generated from qto doc `a1c854e7-a1ac-4233-80ec-5ce4aecd08aa`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `a1c854e7-a1ac-4233-80ec-5ce4aecd08aa`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Plan: `csi-spl-doc/doc/md/refactor-round-3-plan.md`, row 20. Owner topic `3e0809fe-16f6-46e3-a225-616ac6cd555b` (HUM-10, prd t1). Sites measured on trunk `755e86235`. Language: TS/Vue. Kind: clean. Risk: low. Run on: **PC**. Agent: **claude**. Batch: 2.
 

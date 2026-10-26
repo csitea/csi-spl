@@ -5,15 +5,19 @@
 # @description md file is its export and says so in its second line ("generated
 # @description from qto doc <id>; edit it there"). Which doc goes to which file
 # @description is the map csi-spl-doc/doc/md/qto-docs.tsv (doc id, TAB, md path
-# @description relative to the repo root, and a third column "repo" for a doc
-# @description of the repository docs, the system tenant, spec 137 T030a);
-# @description do_spl_doctree_import_md adds a row.
+# @description relative to the repo root, and a third column naming the
+# @description doc's workspace: "repo" for the repository docs, the system
+# @description tenant, spec 137 T030a, else the tenant id of a workspace doc,
+# @description SPL-3541; an old row with "workspace" or no third column is the
+# @description TENANT_ID's); do_spl_doctree_import_md adds a row. A workspace
+# @description row of another tenant than TENANT_ID is skipped (its own run).
 # @description Per doc it reads, through do_spl_desk_doctree (so no key or desk
 # @description path reaches the caller), the head (title, hidden root), the
 # @description root read (its attrs.front_matter) and the Markdown of
 # @description `spool doctree export` (the WUI's export rules: it opens with
 # @description the preamble, the root's body before section 1, SPL-1612), and
-# @description composes: front matter, title, generated-from line, preamble,
+# @description composes: front matter, title, generated-from line (naming the
+# @description doc and its workspace, `system` for a "repo" row), preamble,
 # @description the sections one heading level down, each heading after its
 # @description section anchor line `<a id="ws-doc-<item id>"></a>` (spec 138 G4:
 # @description the WUI's section link lands in the md too; the import drops
@@ -52,19 +56,25 @@
 #------------------------------------------------------------------------------
 do_spl_doctree_export_md() {
   do_require_bin python3 || return 1
-  local QTO_ROOT QTO_PRIVATE_REPO map want="${QTO_DOC:-}" doc rel fs n=0 drift=0 rc
+  local QTO_ROOT QTO_PRIVATE_REPO map want="${QTO_DOC:-}" doc rel ws fs n=0 drift=0 rc
   _spl_doctree_target do_spl_doctree_export_md || return 1
   map="${QTO_MAP:-$QTO_ROOT/csi-spl-doc/doc/md/qto-docs.tsv}"
   [[ -z "$QTO_PRIVATE_REPO" ]] || map="$QTO_ROOT/qto-docs.tsv"
   [[ "${QTO_MAP_SEED:-0}" != 1 ]] || _spl_doctree_map_seed "$map" || return 1
   [[ -r "$map" ]] || { do_log "FATAL no qto doc map: $map"; return 1; }
   [[ "${QTO_CHECK:-0}" == 1 ]] || spl_refuse_desk_cron_tree do_spl_doctree_export_md || return 1
-  while IFS=$'\t' read -r doc rel fs; do
+  while IFS=$'\t' read -r doc rel ws; do
     [[ -n "$doc" && "$doc" != \#* ]] || continue
     [[ -z "$want" || "$doc" == "$want" ]] || continue
-    _spl_doctree_fs "$fs" || return 1
+    _spl_doctree_row_ws "$ws" || return 1
+    case "$ws" in
+      repo) fs=repo ws=system ;;
+      "" | workspace) fs="" ws="$TENANT_ID" ;;
+      "$TENANT_ID") fs="" ;;
+      *) do_log "INFO $rel skipped: qto doc $doc is workspace $ws's, this run exports $TENANT_ID's"; continue ;;
+    esac
     rc=0
-    QTO_FS="$fs" _spl_doctree_export_one "$doc" "$rel" || rc=$?
+    QTO_FS="$fs" QTO_WS="$ws" _spl_doctree_export_one "$doc" "$rel" || rc=$?
     (( rc == 0 || rc == 3 )) || return 1
     (( rc == 3 )) && drift=$((drift + 1))
     n=$((n + 1))
@@ -90,7 +100,7 @@ _spl_doctree_export_one() {
     _spl_doctree_call "read $doc --item $root" >"$tmp/root.json" &&
     _spl_doctree_call "export $doc" >"$tmp/export.md" &&
     python3 "$PROJ_PATH/src/bash/run/spl-doctree-md.py" compose \
-      "$tmp/head.json" "$tmp/root.json" "$tmp/export.md" "$doc" >"$tmp/out.md" || rc=1
+      "$tmp/head.json" "$tmp/root.json" "$tmp/export.md" "$doc" "${QTO_WS:?}" >"$tmp/out.md" || rc=1
   if (( rc )); then
     do_log "FATAL qto doc $doc was not exported: $(cat "$tmp"/*.json "$tmp/export.md" 2>/dev/null | tail -3)"
   elif cmp -s "$tmp/out.md" "$QTO_ROOT/$rel"; then
@@ -222,6 +232,14 @@ print(len(new), len(docs))' "$map" <<<"$out")" || { do_log "FATAL the map $map w
 # caller decided already.
 _spl_doctree_call() {
   DOCTREE_ARGS="$1" DOCTREE_IN="${2:-}" DOCTREE_FS="${QTO_FS:-}" DRY_RUN=0 do_spl_desk_doctree
+}
+
+# _spl_doctree_row_ws <map column 3>: 0 for "repo", a tenant id, or the old
+# "workspace" / "" (the TENANT_ID's, read so old rows keep working).
+_spl_doctree_row_ws() {
+  [[ "$1" == "" || "$1" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]] && return 0
+  do_log "FATAL a qto map row's third column is repo or a workspace id, not '$1'"
+  return 1
 }
 
 # _spl_doctree_fs <fs>: 0 for a qto tree: "" or workspace (the workspace's

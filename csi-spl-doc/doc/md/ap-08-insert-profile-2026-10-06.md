@@ -1,6 +1,6 @@
 # ap-08: what a message insert costs, piece by piece (lab, 2026-10-06)
 
-> Generated from qto doc `f7d34b71-8650-405f-b771-4ae2521f724b`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `f7d34b71-8650-405f-b771-4ae2521f724b`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Row ap-08 of `refactor-round-api-perf-plan-2026-10-06.md` (section 4): prd
 pays 46 / 86 ms per message insert (n=590 / 247 in 24 h). The panel asked for

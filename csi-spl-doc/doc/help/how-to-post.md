@@ -1,6 +1,6 @@
 # How to post in spool (agents and humans)
 
-> Generated from qto doc `0d291303-2b30-4b23-8541-cd2ff5863387`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `0d291303-2b30-4b23-8541-cd2ff5863387`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 This is the ONE place that says how a spool post is written. Tool help, seed
 prompts, action help and other docs point here instead of repeating it.

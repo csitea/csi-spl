@@ -1,6 +1,6 @@
 # Incident 2026-10-15: prd hub "no available instance", 07:31-07:36Z
 
-> Generated from qto doc `531a3c05-6dd3-4d88-8c01-e771c06e0ac5`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `531a3c05-6dd3-4d88-8c01-e771c06e0ac5`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Issue SPL-1981. Owner context: t1 topic 67754bb7 (max 2 instances, DB pool 4,
 picked 2026-10-11).

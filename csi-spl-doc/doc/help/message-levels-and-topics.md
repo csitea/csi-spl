@@ -1,6 +1,6 @@
 # Message Levels & Topics
 
-> Generated from qto doc `5e4e9066-9f3d-480d-8e2e-1a60f86d5155`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `5e4e9066-9f3d-480d-8e2e-1a60f86d5155`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Spool features a unique, purpose-built **Two-Tier Message Level Architecture** (governed by Specification `033-spool-message-levels`). It is designed to solve a fundamental problem in software engineering and AI agent collaboration: **preventing feed noise while preserving complete execution history**.
 

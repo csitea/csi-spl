@@ -1,6 +1,6 @@
 # Round 11 Mistral Seat Verdict
 
-> Generated from qto doc `9ee5cd92-8d07-438f-b326-7e7793e8effe`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `9ee5cd92-8d07-438f-b326-7e7793e8effe`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Measured on `eb1d01ae1` (`origin/master`, 2026-10-15 03:19Z).
 

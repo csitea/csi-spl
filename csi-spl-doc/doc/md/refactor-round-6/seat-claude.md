@@ -1,6 +1,6 @@
 # Refactor round 6 - claude seat proposal (c-709, sat)
 
-> Generated from qto doc `01fd4957-68a3-4a65-8dee-d6613f8a6fcd`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `01fd4957-68a3-4a65-8dee-d6613f8a6fcd`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 A proposal, not the plan. The editor (this seat) merges the three seats into `../refactor-round-6-plan.md`. The agy and mistral seats write `seat-agy.md` and `seat-mistral.md` beside this file, measured on the same sha, then sign.
 

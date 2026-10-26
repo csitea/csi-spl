@@ -10,7 +10,7 @@ description: >
 
 # /mistral-spawn — spawn a Mistral Vibe (mistral) worker (m-NNN) or message a running one
 
-> Generated from qto doc `02d95a11-86bb-44c3-84c2-06173cd8ff7c`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `02d95a11-86bb-44c3-84c2-06173cd8ff7c`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 | Invocation | Mode |
 |---|---|

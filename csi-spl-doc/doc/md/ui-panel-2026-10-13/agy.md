@@ -1,6 +1,6 @@
 # UI Panel: Lowest-Hanging Fruit Proposals (agy Seat)
 
-> Generated from qto doc `042b5a8d-f2c6-42bc-8b27-76e6b9d61e89`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `042b5a8d-f2c6-42bc-8b27-76e6b9d61e89`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 - **Date:** 2026-10-13
 - **Author:** a-953 (agy seat, 5-vendor UI panel: claude, grok, mistral, agy, qwen)

@@ -1,6 +1,6 @@
 # SPEC: Rented spool-hub (product MVP)
 
-> Generated from qto doc `3908b6cc-e7d8-4138-a659-1202e9f75090`; edit it there. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+> Generated from qto doc `3908b6cc-e7d8-4138-a659-1202e9f75090`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
 Status: binding product goal  
 Created: 2026-09-18  

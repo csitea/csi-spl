@@ -12,7 +12,7 @@ tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
 image_alt: "Priecīgi animācijas roboti spožā saulē aizrautīgi kārto nometnes maršrutus, ceļvežus un Vidusjūras kartes."
 image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
-draft: true
+draft: false
 ---
 Pusaudžiem vasaras valodu nometne Vidusjūras krastā ir daudz vairāk nekā tikai atvaļinājums — tas ir nozīmīgs dzīves posms. Tā ir pārliecība runāt svešvalodā, Valensijas kultūras iepazīšana, jauni starptautiski draugi un atmiņas, kas paliek uz visu mūžu.
 

@@ -12,7 +12,7 @@ tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
 image_alt: "Усмихнати анимационни роботи организират лагерни програми, пътеводители и средиземноморски карти под яркото слънце."
 image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
-draft: true
+draft: false
 ---
 За тийнейджърите летният езиков лагер в Средиземноморието е незабравим житейски крайъгълен камък: увереност при общуване на чужд език, опознаване на испанската култура във Валенсия, нови международни приятелства и спомени за цял живот.
 

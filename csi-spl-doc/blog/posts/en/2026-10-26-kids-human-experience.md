@@ -12,7 +12,7 @@ tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
 image_alt: "Cheerful cartoon robots enthusiastically organize summer camp itineraries, travel guides, and Mediterranean adventure maps under a bright sun."
 image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
-draft: true
+draft: false
 ---
 For teenagers, a summer language camp in the Mediterranean is an unforgettable milestone: gaining confidence speaking a foreign language, discovering Valencian culture, making international friends, and creating lifelong memories.
 

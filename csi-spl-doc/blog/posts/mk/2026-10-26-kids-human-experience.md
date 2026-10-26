@@ -12,7 +12,7 @@ tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
 image_alt: "Весели цртани роботи со ентузијазам организираат распореди за кампови, туристички водичи и медитерански мапи под силно сонце."
 image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
-draft: true
+draft: false
 ---
 За тинејџерите, летниот јазичен камп на Медитеранот е многу повеќе од одмор — тој е животна пресвртница. Тоа значи стекнување самодоверба во зборувањето странски јазик, запознавање на шпанската култура во Валенсија, нови меѓународни пријателства и спомени за цел живот.
 

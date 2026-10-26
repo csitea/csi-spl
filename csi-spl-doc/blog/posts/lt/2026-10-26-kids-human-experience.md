@@ -12,7 +12,7 @@ tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
 image_alt: "Nuotaikingi animaciniai robotai po ryškia saule entuziastingai rengia stovyklos tvarkaraščius, kelionių gidus ir Viduržemio jūros žemėlapius."
 image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
-draft: true
+draft: false
 ---
 Paaugliams vasaros kalbų stovykla prie Viduržemio jūros yra kur kas daugiau nei atostogos — tai gyvenimą keičiantis etapas. Tai pasitikėjimas bendraujant užsienio kalba, Valensijos kultūros pažinimas, nauji tarptautiniai draugai ir prisiminimai, išliekantys visam gyvenimui.
 

@@ -12,7 +12,7 @@ tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
 image_alt: "Rõõmsad multikarobotitest abilised korraldavad ereda päikese all suvelaagri kavasid, reisijuhte ja Vahemere kaarte."
 image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
-draft: true
+draft: false
 ---
 Teismelistele on Vahemere suvine keelelaager palju enamat kui pelgalt puhkus — see on elumuutev kogemus. See toob enesekindluse võõrkeeles suhtlemisel, Valencia kultuuri avastamise, uued rahvusvahelised sõbrad ja mälestused kogu eluks.
 

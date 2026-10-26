@@ -12,7 +12,7 @@ tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
 image_alt: "Veselé kreslené roboty s nadšením pripravujú táborové plány, sprievodcov a stredomorské mapy pod jasným slnkom."
 image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
-draft: true
+draft: false
 ---
 Pre tínedžerov je letný jazykový tábor pri Stredozemnom mori omnoho viac než len dovolenka — je to kľúčový životný míľnik. Znamená sebavedomie v komunikácii v cudzom jazyku, spoznávanie kultúry Valencie, nové medzinárodné priateľstvá a spomienky na celý život.
 

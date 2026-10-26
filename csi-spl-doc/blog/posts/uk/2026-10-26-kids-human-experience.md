@@ -12,7 +12,7 @@ tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
 image_alt: "Веселі анімаційні роботи із захопленням упорядковують табірні плани, путівники та карти Середземномор'я під яскравим сонцем."
 image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
-draft: true
+draft: false
 ---
 Для підлітків літній мовний табір на узбережжі Середземного моря — це набагато більше, ніж просто відпочинок. Це важливий життєвий етап: упевненість у спілкуванні іноземною мовою, знайомство з культурою Валенсії, нові міжнародні друзі та спогади на все життя.
 

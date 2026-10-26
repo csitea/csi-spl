@@ -5,6 +5,10 @@ Lane c-271, issue SPL-3481, epic SPL-2398, spec
 99ffa592 (poll 6de8b12d, answer A, msg c9213bd2: "Grade grok's 58 hours").
 Read-only: no hub write, no lease change, no message to a human.
 
+**Vendors.** The author (c-271) and the reviewer are both claude; the
+graded vendor is grok. A grok re-review is due when grok has usage again;
+it does not block landing.
+
 Measured 2026-10-26 on sat. The other box is written "pc box" (`@pc` in seat ids). Every number below comes from the two sources
 in section 1 and the scripts kept in the lane scratch dir; the hand grades
 in section 4 are one reader's (claude, c-271) judgement and say why.
@@ -216,5 +220,5 @@ Claude: **37 of 40 points (92.5%)**; 17 cases at 2, 3 at 1, 0 at 0.
   share a date + hour with a grok post, claude was slow too (45.7% within
   3 min), so part of the gap may be the hours, not the vendor; n = 35 is too
   small to say.
-- The grades in section 4 are one claude reader's; a non-claude reviewer
-  checks them before this lands.
+- The grades in section 4 are one claude reader's; a second claude seat
+  reviews them before this lands, and grok re-reviews them later (header).

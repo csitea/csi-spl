@@ -54,7 +54,9 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
 - **The wui-e2e part** (spec 133 action 7) runs the browser e2e files a
   WUI change maps to: an edited test itself, a helper's importers, and the
   tests that name a testid (or a page's route) of the changed file or of the
-  files that use it, never through the layouts. Best score first, at most
+  files that use it, never through the layouts. First each changed source
+  file's best test, then the tests that name the changed files' own
+  testids (`data-test` too), then the score (SPL-3612); at most
   `PRE_PUSH_E2E_MAX` files (6) summing to `PRE_PUSH_E2E_BUDGET` CI seconds
   (240); the rest print as left to CI. The mock bundle is cached by the WUI
   tree without e2e contents: measured 2026-10-12 on the first box, 152 s

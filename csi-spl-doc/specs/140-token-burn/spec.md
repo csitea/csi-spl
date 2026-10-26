@@ -608,8 +608,9 @@ c-093 named a topic of that workspace, c-425 and a-531 named none.
 **Attribution (write time).** Before the hub stores a push, each sample's
 lane is looked up in the operator workspace's lane map (fleet `main`, the
 row of that agent at the pushing box); the workspace that holds the lane's
-topic (each workspace read in its own scope, the operator's first) is the
-minute's `work_tenant` (rdb `0229`, `hub/workspace_tokens.go`). An operator
+topic (each workspace read in its own scope; another workspace before the
+operator's, whose relays on a lane's topic prove nothing) is the minute's
+`work_tenant` (rdb `0229`, `hub/workspace_tokens.go`). An operator
 topic, no topic, no row or an unknown topic leave it NULL: the operator
 workspace's own work. A failed lookup never fails the push. The daily
 rollup carries the day's latest minute's value. A box never sends the field

@@ -11,6 +11,7 @@ import (
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/uid"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
@@ -36,6 +37,20 @@ type wsCostBody struct {
 		Tokens          int64  `json:"tokens"`
 		ListValueMicros int64  `json:"list_value_micros"`
 	} `json:"workspaces"`
+}
+
+// relayOnTopic writes one lobby post of tid on another workspace's topic, as a
+// lane's relay to the operator workspace does.
+func relayOnTopic(t *testing.T, e *env, tid, task string) {
+	t.Helper()
+	at := time.Now().UTC()
+	m := store.Message{TenantID: tid, MsgID: uid.New(), TaskID: task, Channel: store.ChannelLobby, TS: at,
+		FromBox: "box-wui", FromID: "c-001", ToBox: "box-wui", ToID: "ALL-0", Kind: "note", Body: "relay",
+		Files: []byte(`[]`), Msg: []byte(`{"v":1}`), EnvSig: "sig", Env: []byte(`{"env":1}`),
+		ReceivedAt: at, ExpiresAt: at.Add(30 * 24 * time.Hour), IsParent: 1}
+	if _, err := e.st.InsertMessage(context.Background(), m); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func costsOf(t *testing.T, r *wsLanesRig, tid, hum string) wsCostBody {
@@ -96,6 +111,9 @@ func TestWorkspaceTokenCosts(t *testing.T) {
 		putModelPrice(t, r.e.st, store.ModelPrice{Provider: "anthropic", Model: model, Kind: kind, MicrosPerMillion: micros,
 			Currency: "USD", ValidFrom: now.Add(-24 * time.Hour)})
 	}
+	// The operator workspace also holds a relay on w1's topic (prd 2026-10-26:
+	// every lane topic of two workspaces had 1..72 t1 copies): still w1's.
+	relayOnTopic(t, r.e, r.op, r.t1)
 	laneAt(t, r.fleetTokensRig, "c-611", box, r.t1, "", now)      // works for w1
 	laneAt(t, r.fleetTokensRig, "c-612", box, r.t2, "", now)      // works for w2
 	laneAt(t, r.fleetTokensRig, "c-613", box, r.opTopic, "", now) // the operator's own topic

@@ -99,8 +99,8 @@ func (s *Server) topicWorkspace(ctx context.Context, op, topic string) string {
 	return ws
 }
 
-// findTopicWorkspace looks topic up in op first, then in every other
-// workspace (archived ones aside). found is false when none holds it.
+// findTopicWorkspace looks topic up in every workspace other than op
+// (archived ones aside), then in op. found is false when none holds it.
 func (s *Server) findTopicWorkspace(ctx context.Context, op, topic string) (ws string, found bool, err error) {
 	d, ok := s.o.Store.(store.IssueDiscussions)
 	wl, listed := s.o.Store.(store.OperatorWorkspaces)
@@ -111,9 +111,9 @@ func (s *Server) findTopicWorkspace(ctx context.Context, op, topic string) (ws s
 		ids, err := d.TopicsByPrefix(ctx, tenant, topic[:8], 100)
 		return slices.Contains(ids, topic), err
 	}
-	if in, err := holds(op); err != nil || in {
-		return "", in, err
-	}
+	// The other workspaces first: a lane's relays to the operator land on its
+	// topic there too (prd 2026-10-26: all 6 lane topics of two workspaces
+	// had 1..72 t1 copies), so the operator holding it proves nothing.
 	all, err := wl.ListWorkspaces(ctx)
 	if err != nil {
 		return "", false, err
@@ -126,7 +126,8 @@ func (s *Server) findTopicWorkspace(ctx context.Context, op, topic string) (ws s
 			return w.ID, in, err
 		}
 	}
-	return "", false, nil
+	in, err := holds(op)
+	return "", in, err
 }
 
 // costWorkspaceOut is one (workspace, vendor) of the estate answer's

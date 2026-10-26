@@ -35,6 +35,8 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$_here/../lib/spool-notify.inc.sh"
 # shellcheck source=../lib/spool-poke-queue.inc.sh
 . "$_here/../lib/spool-poke-queue.inc.sh"
+# shellcheck source=../lib/spool-notify-take.inc.sh
+. "$_here/../lib/spool-notify-take.inc.sh"
 # The notifier never launches a CLI, and it is the one caller on a latency
 # budget: skip resolving the CLI paths (CLE-3435).
 SPOOL_ENV_NO_BINS=1 spool_env_resolve
@@ -101,6 +103,9 @@ fi
 spool_poke_show "$TO" "$KIND" "$FROM" "$TASK" "$MSGID" "$BODY"
 #    And remember which human DM this was, for the terminal mirror (036).
 spool_notify_mark_peer "$TO" "$FROM" "$TASK" "$MSGID"
+#    A new human post to this box's dispatch lease holder: the take line is
+#    posted by code, in the background (grade fix A, SPL-3517).
+spool_notify_take_auto "$TO" "$FROM" "$KIND" "$TASK" "$MSGID" "$BODY"
 
 if [ "$probe" = 1 ]; then
   echo "poke: probe line (${SPOOL_PROBE_MARK}) - ${TO} was SHOWN it; its prompt was not touched"

@@ -24,6 +24,8 @@
 #      declares) is kept first under PRE_PUSH_E2E_MAX=1, ahead of a generic
 #      test that scores higher through the component's user (SPL-3190:
 #      phone-composer-target was CUT behind 6 generic tests)
+#  11. two components: each one's best test is pinned, so BigPanel.vue's two
+#      higher-scoring tests cannot starve DockBox.vue's under MAX=2
 #   CONTROL a. with the users-of step off (_ppe_names prints nothing) check 2
 #              selects nothing: the closure is what finds it
 #   CONTROL b. a dirty WUI source -> no cache key -> 2 builds for 2 runs, so
@@ -31,6 +33,8 @@
 #   CONTROL c. outside a git tree the stamp is empty: check 9 reads HEAD
 #   CONTROL d. in check 10 the generic test's score IS higher, so the order
 #              comes from the direct tier, not the score
+#   CONTROL e. BigPanel.vue alone fills MAX=2 with its own 2 tests, so check
+#              11's slot for dock-chip comes from the pin
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -69,6 +73,8 @@ echo '<template><span data-test="dock-chip" /></template>' >"$W/src/components/D
 echo '<template><DockBox /><i data-testid="host-a" /><i data-testid="host-b" /><i data-testid="host-c" /><i data-testid="host-d" /></template>' >"$W/src/components/DockHost.vue"
 echo "await page.click('[data-test=dock-chip]')" >"$W/tests/e2e/dock-chip.test.mjs"
 echo 'for (const k of ["host-a", "host-b", "host-c", "host-d"]) await page.click(`[data-testid=${k}]`)' >"$W/tests/e2e/dock-host.test.mjs"
+echo '<template><i data-testid="big-a" /><i data-testid="big-b" /></template>' >"$W/src/components/BigPanel.vue"
+for n in 1 2; do echo "await page.click('[data-testid=big-a]'); await page.click('[data-testid=big-b]')" >"$W/tests/e2e/big-$n.test.mjs"; done
 printf '# reasons\nskipped.test.mjs   needs a live hub\n' >"$W/tests/e2e/ci-skip.txt"
 printf 'tests/e2e/foo.test.mjs 20\ntests/e2e/foo-rows.test.mjs 10\ntests/e2e/thing.test.mjs 30\n' >"$W/src/node/test/e2e-shard-weights.txt"
 echo lock >"$W/pnpm-lock.yaml"; mkdir -p "$W/node_modules/.pnpm"; cp "$W/pnpm-lock.yaml" "$W/node_modules/.pnpm/lock.yaml"
@@ -163,6 +169,17 @@ sh="$(awk '$2 == "tests/e2e/dock-host.test.mjs" { print $3 }' <<<"$got")"
 [[ -n "$sd" && -n "$sh" && "$sh" -gt "$sd" ]] \
   && pass "CONTROL d. dock-host scores $sh > dock-chip $sd, so check 10's order is the direct tier, not the score" \
   || fail "CONTROL d. want dock-host to outscore dock-chip, got '$sh' vs '$sd': check 10 proves nothing"
+
+# --- 11. two components, one slot each ----------------------------------------------------
+got="$(PRE_PUSH_E2E_MAX=2 sel csi-spl-wui/src/components/BigPanel.vue csi-spl-wui/src/components/DockBox.vue | runs)"
+[[ "$got" == "tests/e2e/big-1.test.mjs tests/e2e/dock-chip.test.mjs" ]] \
+  && pass "11. BigPanel.vue + DockBox.vue under MAX=2: one test each (big-1, dock-chip)" \
+  || fail "11. BigPanel.vue + DockBox.vue under MAX=2 ran '$got'"
+# --- CONTROL e. BigPanel alone fills the cap --------------------------------------------
+got="$(PRE_PUSH_E2E_MAX=2 sel csi-spl-wui/src/components/BigPanel.vue | runs)"
+[[ "$got" == "tests/e2e/big-1.test.mjs tests/e2e/big-2.test.mjs" ]] \
+  && pass "CONTROL e. BigPanel.vue alone fills MAX=2 with big-1 and big-2, so check 11's dock-chip slot is the pin" \
+  || fail "CONTROL e. BigPanel.vue alone ran '$got': check 11 proves nothing"
 
 # --- CONTROL a. no users-of step ----------------------------------------------------------
 got="$( _ppe_names() { :; }; sel csi-spl-wui/src/composables/useThing.ts | runs )"

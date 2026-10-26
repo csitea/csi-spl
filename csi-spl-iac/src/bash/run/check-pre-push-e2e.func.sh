@@ -17,8 +17,10 @@
 # @description                                the files that use it (its exported
 # @description                                names, its component name), weight
 # @description                                3, and their users, weight 1
-# @description Never a ci-skip.txt file or a *.proof.mjs. The direct tests first
-# @description (the score from weight-9 keys and the edited tests, SPL-3190),
+# @description Never a ci-skip.txt file or a *.proof.mjs. First the best test of
+# @description each changed source file (so one cannot starve another), then
+# @description the direct tests (the score from weight-9 keys and the edited
+# @description tests, SPL-3190),
 # @description then the score, the CI weight (e2e-shard-weights.txt) as the
 # @description tie-break;
 # @description taken while the summed CI seconds fit PRE_PUSH_E2E_BUDGET and
@@ -61,13 +63,13 @@ _ppe_select() {
   [[ -d "$wui/tests/e2e" ]] || return 0
   local tmp; tmp="$(mktemp -d "${TMPDIR:-/tmp}/csi-spl-ppe.XXXXXX")" || return 1
   _ppe_candidates "$wui" >"$tmp/cand"
-  : >"$tmp/keys"; : >"$tmp/direct"
-  local f rel
+  : >"$tmp/keys"; : >"$tmp/direct"; : >"$tmp/first"; : >"$tmp/edited"
+  local f rel i=0
   while IFS= read -r f; do
     [[ "$f" == csi-spl-wui/* ]] || continue
     rel="${f#csi-spl-wui/}"
     case "$rel" in
-      tests/e2e/*.test.mjs) grep -qxF "$rel" "$tmp/cand" && printf '%s\t100\n' "$rel" >>"$tmp/direct" ;;
+      tests/e2e/*.test.mjs) grep -qxF "$rel" "$tmp/cand" && printf '%s\t100\n' "$rel" | tee -a "$tmp/edited" >>"$tmp/direct" ;;
       tests/e2e/*.proof.mjs|tests/e2e/ci-skip.txt) ;;
       tests/e2e/*)
         [[ -e "$wui/$rel" ]] || continue
@@ -77,10 +79,17 @@ _ppe_select() {
           cd "$wui" && grep -lF -- "$base" "${cand[@]}" 2>/dev/null) ;;
       src/*.vue|src/*.ts|src/*.js|src/*.mjs|src/*.tsx)
         [[ "$rel" == src/node/* || "$rel" == src/python/* || "$rel" == src/docker/* || "$rel" == *.d.ts ]] && continue
-        [[ -e "$wui/$rel" ]] && _ppe_closure "$wui" "$rel" >>"$tmp/keys" ;;
+        [[ -e "$wui/$rel" ]] || continue
+        i=$((i + 1)); mkdir "$tmp/f$i"; cp "$tmp/cand" "$tmp/f$i/cand"; : >"$tmp/f$i/direct"
+        _ppe_closure "$wui" "$rel" | tee "$tmp/f$i/keys" >>"$tmp/keys"
+        _ppe_score "$wui" "$tmp/f$i" | sort -t$'\t' -k3,3nr -k2,2nr -k1,1 | awk -F'\t' 'NR == 1 { print $1 }' >>"$tmp/first" ;;
     esac
   done <<<"$changed"
-  _ppe_score "$wui" "$tmp" | _ppe_cap "$wui"
+  _ppe_score "$wui" "$tmp" |
+    awk -F'\t' -v ff="$tmp/first" -v ef="$tmp/edited" '
+      BEGIN { while ((getline l < ff) > 0) p[l] = 1; while ((getline l < ef) > 0) { split(l, a, "\t"); p[a[1]] = 2 } }
+      { print $0 "\t" (p[$1] + 0) }' |
+    _ppe_cap "$wui"
   rm -rf "$tmp"
 }
 
@@ -176,8 +185,10 @@ _ppe_score() {
     END { for (t in s) print t "\t" s[t] "\t" (dd[t] + 0) }' "$tmp/direct"
 }
 
-# _ppe_cap <wui> - stdin "<test>\t<score>\t<direct>" -> the files that fit,
-# the highest direct score first, then the score, "<test> <score> <ci secs>",
+# _ppe_cap <wui> - stdin "<test>\t<score>\t<direct>\t<pin>" -> the files that
+# fit: the pinned ones first (an edited test 2, then each changed source
+# file's best test 1, so one component cannot starve another's), then the highest direct score, then the
+# score, "<test> <score> <ci secs>",
 # then "CUT <test> <score> <ci secs>" per file left out. The CI weight of a
 # file with no line is the median.
 _ppe_cap() {
@@ -187,11 +198,11 @@ _ppe_cap() {
       while ((getline l < wf) > 0) { sub(/#.*/, "", l); if (split(l, a, " ") == 2) { w[a[1]] = a[2]; v[++n] = a[2] } }
       for (i = 1; i <= n; i++) for (j = i + 1; j <= n; j++) if (v[j] < v[i]) { x = v[i]; v[i] = v[j]; v[j] = x }
       med = n ? v[int((n + 1) / 2)] : 30 }
-    { print ($3 + 0) "\t" $2 "\t" (($1 in w) ? w[$1] : med) "\t" $1 }' |
-    sort -t$'\t' -k1,1nr -k2,2nr -k3,3n -k4,4 |
+    { print ($4 + 0) "\t" ($3 + 0) "\t" $2 "\t" (($1 in w) ? w[$1] : med) "\t" $1 }' |
+    sort -t$'\t' -k1,1nr -k2,2nr -k3,3nr -k4,4n -k5,5 |
     awk -F'\t' -v max="${PRE_PUSH_E2E_MAX:-6}" -v budget="${PRE_PUSH_E2E_BUDGET:-240}" '
-      { if (k == 0 || (k < max && sum + $3 <= budget)) { print $4 " " $2 " " $3; k++; sum += $3 }
-        else print "CUT " $4 " " $2 " " $3 }'
+      { if (k == 0 || (k < max && sum + $4 <= budget)) { print $5 " " $3 " " $4; k++; sum += $4 }
+        else print "CUT " $5 " " $3 " " $4 }'
 }
 
 # The files this push selects, set by _ppe_plan for the part to run (the part

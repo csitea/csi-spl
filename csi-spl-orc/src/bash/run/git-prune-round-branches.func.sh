@@ -23,6 +23,17 @@
 # @description (bug round 1 retro; SPL-2525).
 # @description Run with DRY_RUN=0 only by the round's retro lane, after the
 # @description retro has run C7 over the review branches (round plan R7.4, R8).
+# @description PRUNE_ALL_MERGED=1 (no ROUND; SPL-3609, owner msg 34b232f4: "for
+# @description all of the merged already github branches - just delete them")
+# @description takes EVERY head on the remote instead, with the same cherry
+# @description check, and KEEPs and lists by reason: trunk (master, main),
+# @description ruleset (ruleset*), protected (GitHub's protected branches),
+# @description live-lane (a live lane's branch and its review/ and wip/ names,
+# @description lane-map.sh --json --all, every machine) and unlanded. DRY_RUN=0
+# @description is refused when the lane map or the protected list cannot be
+# @description read whole. Deletes go in atomic pushes of PRUNE_BATCH refs.
+# @description PRUNE_UNLANDED=1 is refused in this mode. The box cron row
+# @description git-prune-merged (cnf/box-crons/box-crons.manifest) runs it.
 # @param ROUND (required, or ROUNDS) - the round(s), e.g. 8, "7,8", 01, r01, sdlc or b01
 # @param ROUND a number N means prefix r<N> as written (01 = r01, not r1); a
 # @param ROUND prefix is [a-z][a-z0-9]+ (2+ characters), r0 / 00 refused
@@ -32,11 +43,19 @@
 # @param PRUNE_REMOTE (optional) - the remote, default origin
 # @param PRUNE_GIT_DIR (optional) - the checkout to run git in, default PROJ_PATH
 # @param PRUNE_UNLANDED (optional) - 1 lists (and deletes) unlanded tips too; default 0
+# @param PRUNE_ALL_MERGED (optional) - 1: every merged head, not a round (no ROUND)
+# @param PRUNE_BATCH (optional) - refs per atomic delete push, default 100
+# @param PRUNE_LANES_CMD (optional) - prints the lane map JSON, default
+# @param   lane-map.sh --json --all
+# @param PRUNE_PROTECTED_CMD (optional) - prints the protected branch names,
+# @param   default gh api repos/<owner>/<repo>/branches?protected=true
 # @example ROUND=7 ./run -a do_git_prune_round_branches
 # @example ROUND=7 DRY_RUN=0 ./run -a do_git_prune_round_branches
 # @example ROUND="7,8" ./run -a do_git_prune_round_branches
 # @example ROUNDS="7 8 9" DRY_RUN=0 ./run -a do_git_prune_round_branches
 # @example ROUND="r01,sdlc,b01" ./run -a do_git_prune_round_branches
+# @example PRUNE_ALL_MERGED=1 ./run -a do_git_prune_round_branches
+# @example PRUNE_ALL_MERGED=1 DRY_RUN=0 ./run -a do_git_prune_round_branches
 #------------------------------------------------------------------------------
 
 # prune_round_match <prefix> <branch>: 0 when the branch (no refs/heads/) is
@@ -120,6 +139,11 @@ do_git_prune_round_branches() {
   local spec="${ROUNDS:-${ROUND:-}}" dry="${DRY_RUN:-1}" r="${PRUNE_REMOTE:-origin}" g="${PRUNE_GIT_DIR:-${PROJ_PATH:-.}}"
   local list b sha left n trunk u count=0 kept=0 refs=() rounds=() del=() still=""
 
+  if [[ "${PRUNE_ALL_MERGED:-0}" == 1 ]]; then
+    [[ -z "$spec" ]] || { do_log "FATAL PRUNE_ALL_MERGED=1 takes no ROUND or ROUNDS, got: '$spec'"; return 1; }
+    prune_all_merged "$g" "$r" "$dry"
+    return
+  fi
   [[ -z "${ROUND:-}" || -z "${ROUNDS:-}" ]] || { do_log "FATAL set ROUND or ROUNDS, not both: ROUND='$ROUND' ROUNDS='$ROUNDS'"; return 1; }
   n="$(prune_round_parse "$spec")" || { do_log "FATAL ROUND must be round numbers or branch prefixes, e.g. ROUND=8, ROUND=\"7,8\" or ROUND=\"r01,sdlc,b01\", got: '$spec'"; return 1; }
   mapfile -t rounds <<<"$n"
@@ -163,4 +187,117 @@ do_git_prune_round_branches() {
   still="$(cut -f1 <<<"$left" | grep -Fxf <(printf '%s\n' "${del[@]%%$'\t'*}") | paste -sd' ' -)"
   [[ -z "$still" ]] || { do_log "FAIL round $n branches still on $r after the delete: $still"; return 1; }
   do_log "OK round $n: deleted $count branch(es) on $r, $kept kept unlanded"
+}
+
+# --- PRUNE_ALL_MERGED=1: every merged head (SPL-3609) ------------------------
+
+# prune_all_lane_map: the fleet lane map JSON (every machine) on stdout;
+# non-zero when it cannot be read whole: the command failed, the output is not
+# the map, or the hub did not answer (the other machines' lanes are unknown).
+prune_all_lane_map() {
+  local cmd="${PRUNE_LANES_CMD:-}" out
+  [[ -n "$cmd" ]] || cmd="bash '${PROJ_PATH:-.}/src/bash/features/spawn-agents/scripts/lane-map.sh' --json --all"
+  out="$(bash -c "$cmd" 2>/dev/null)" || return 1
+  jq -e '.hub == "ok" and (.lanes | type == "array")' <<<"$out" >/dev/null 2>&1 || return 1
+  printf '%s\n' "$out"
+}
+
+# prune_all_lanes <json>: "<branch>\t<id>@<box>" per name a LIVE lane holds:
+# its branch, and review/ and wip/ of the branch and of its slug (the branch
+# less its "<id>-" prefix: c-057-x has review/x).
+prune_all_lanes() {
+  jq -r '.lanes[] | select(.state == "live" and (.branch // "") != "")
+    | (.agent_id // "") as $a | .branch as $b | ($b | ltrimstr($a + "-")) as $s
+    | ([$b, "review/" + $b, "wip/" + $b, "review/" + $s, "wip/" + $s] | unique[])
+      + "\t" + $a + "@" + (.agent_box // "?")' <<<"$1"
+}
+
+# prune_all_protected <git-dir> <remote>: the remote repo's protected branch
+# names (GitHub), one per line; non-zero when they cannot be read.
+prune_all_protected() {
+  local url
+  if [[ -n "${PRUNE_PROTECTED_CMD:-}" ]]; then bash -c "$PRUNE_PROTECTED_CMD"; return; fi
+  url="$(git -C "$1" remote get-url "$2" 2>/dev/null)" || return 1
+  [[ "$url" =~ github\.com[:/]([^/]+/[^/]+)$ ]] || return 1
+  gh api --paginate "repos/${BASH_REMATCH[1]%.git}/branches?protected=true" --jq '.[].name'
+}
+
+# prune_all_reason <branch>: why a head is KEPT before the cherry check
+# (trunk, ruleset, protected, live-lane <id>@<box>), else nothing. Reads the
+# caller's protected and lanes lists.
+prune_all_reason() {
+  local b="$1" hit
+  case "$b" in master | main) echo trunk; return ;; ruleset*) echo ruleset; return ;; esac
+  grep -Fxq -- "$b" <<<"$protected" && { echo protected; return; }
+  hit="$(awk -F'\t' -v b="$b" '$1 == b { print $2; exit }' <<<"$lanes")"
+  [[ -z "$hit" ]] || echo "live-lane $hit"
+}
+
+# prune_all_delete <git-dir> <remote> <batch> <branch\tsha>...: delete in
+# atomic pushes of <batch> refs, a DELETED line per ref of a pushed batch; a
+# failed batch is logged and the others still go. Non-zero when a batch failed
+# or a deleted ref is still on the remote.
+prune_all_delete() {
+  local g="$1" r="$2" n="$3" i bad=0 left still all=() part=() refs=() done=()
+  shift 3
+  all=("$@")
+  for ((i = 0; i < ${#all[@]}; i += n)); do
+    part=("${all[@]:i:n}")
+    refs=("${part[@]%%$'\t'*}")
+    if git -C "$g" push -q --atomic "$r" --delete "${refs[@]/#/refs/heads/}"; then
+      printf 'DELETED %s\n' "${part[@]}" | tr '\t' ' '
+      done+=("${refs[@]}")
+    else
+      do_log "FAIL the delete push of batch $((i / n + 1)) (${#part[@]} refs) to $r failed; that batch is kept"
+      bad=1
+    fi
+  done
+  ((${#done[@]})) || return 1
+  left="$(git -C "$g" ls-remote --heads "$r")" || { do_log "FAIL cannot re-list $r after the delete"; return 1; }
+  still="$(sed 's#.*refs/heads/##' <<<"$left" | grep -Fxf <(printf '%s\n' "${done[@]}") | paste -sd' ' -)"
+  [[ -z "$still" ]] || { do_log "FAIL deleted branches still on $r: $still"; return 1; }
+  return "$bad"
+}
+
+# prune_all_merged <git-dir> <remote> <dry>: list every head of the remote as
+# REF (merged: no git cherry + line against trunk) or KEEP <reason>, and with
+# dry 0 delete the REF heads. The tally line names DELETE n and KEEP n by reason.
+prune_all_merged() {
+  local g="$1" r="$2" dry="$3" n="${PRUNE_BATCH:-100}" heads trunk lanes protected whole=1
+  local b sha ref u why tally="" count=0 kept=0 refs=() del=()
+  [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
+  [[ "$n" =~ ^[1-9][0-9]*$ ]] || { do_log "FATAL PRUNE_BATCH must be a positive number, got: '$n'"; return 1; }
+  [[ "${PRUNE_UNLANDED:-0}" != 1 ]] || { do_log "FATAL PRUNE_UNLANDED=1 is refused with PRUNE_ALL_MERGED=1: merged branches only"; return 1; }
+  heads="$(git -C "$g" ls-remote --heads "$r")" || { do_log "FATAL cannot list the heads of remote '$r' from $g"; return 1; }
+  if lanes="$(prune_all_lane_map)"; then lanes="$(prune_all_lanes "$lanes")"; else
+    lanes="" whole=0; echo "WARN the fleet lane map could not be read whole: live lanes unknown"
+  fi
+  protected="$(prune_all_protected "$g" "$r")" || { protected="" whole=0; echo "WARN the protected branch list of $r could not be read"; }
+  ((whole)) || [[ "$dry" == 1 ]] || { do_log "FATAL DRY_RUN=0 refused: the lane map or the protected list is not whole; nothing deleted"; return 1; }
+  trunk="$(prune_round_trunk "$g" "$r")"
+  while read -r sha ref; do [[ -n "$ref" ]] && refs+=("$ref"); done <<<"$heads"
+  # the tips' objects, for dates and git cherry; no local ref is written
+  git -C "$g" fetch -q --no-tags --no-write-fetch-head "$r" "${refs[@]}" 2>/dev/null || true
+  trunk="${trunk%%$'\t'*}"
+  while read -r sha ref; do
+    b="${ref#refs/heads/}"
+    [[ -n "$b" ]] || continue
+    why="$(prune_all_reason "$b")"
+    if [[ -z "$why" ]]; then u="$(prune_round_unlanded "$g" "$trunk" "$sha")"; [[ "$u" == 0 ]] || why="unlanded $u"; fi
+    if [[ -n "$why" ]]; then
+      printf 'KEEP %s %s\n' "$b" "$why"
+      tally+="${why%% *}"$'\n' kept=$((kept + 1))
+      continue
+    fi
+    printf 'REF %s %s %s\n' "$b" "$sha" "$(prune_round_date "$g" "$sha")"
+    del+=("$b"$'\t'"$sha") count=$((count + 1))
+  done <<<"$heads"
+  why="$(sort <<<"$tally" | uniq -c | awk 'NF == 2 { printf "%s%s %s", s, $2, $1; s = ", " }')"
+  if [[ "$dry" == 1 ]]; then
+    do_log "OK DRY_RUN all merged on $r: DELETE $count, KEEP $kept (${why:-none}), nothing deleted (DRY_RUN=0 deletes the REF lines)"
+    return 0
+  fi
+  ((count)) || { do_log "OK all merged on $r: nothing to delete, KEEP $kept (${why:-none})"; return 0; }
+  prune_all_delete "$g" "$r" "$n" "${del[@]}" || { do_log "FAIL all merged on $r: not every listed branch was deleted (the lines above)"; return 1; }
+  do_log "OK all merged on $r: deleted $count branch(es) in batches of $n, KEEP $kept (${why:-none})"
 }

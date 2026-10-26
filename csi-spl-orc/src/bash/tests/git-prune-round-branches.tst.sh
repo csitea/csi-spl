@@ -25,6 +25,15 @@
 #      zero-padded 01 = r01): its review, wip and lane-prefixed refs listed
 #      and deleted; the near misses (r1, r010, sdlcx, b011, review/sdlc with
 #      no dash) kept; a bad prefix (r0, 00, Sdlc, review/sdlc, sdlc*) refused
+#  11. PRUNE_ALL_MERGED=1 (SPL-3609) on a planted remote: merged and
+#      one-commit squash-merged heads and a done lane's head are listed and,
+#      with DRY_RUN=0, deleted in batches; master, ruleset*, a protected
+#      branch, a live lane's branch and its review/ slug, an unlanded and a
+#      multi-commit squash tip are KEPT with their reason; DRY_RUN=0 is
+#      refused when the lane map (failed, hub not ok) or the protected list
+#      cannot be read; ROUND, PRUNE_UNLANDED=1, a bad PRUNE_BATCH refused
+#  12. CONTROLS: without the live-lane check the live lane's branches are
+#      deleted; without the cherry check the unlanded tip is deleted
 # The remote is a local bare repo; nothing touches a real origin.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -267,6 +276,93 @@ for args in "ROUND=r0" "ROUND=00" "ROUND=r00" "ROUND=Sdlc" "ROUND=review/sdlc" "
   [[ $rc -ne 0 && "$(heads "$T/nb")" == "$before" && "$out" == *FATAL* ]] \
     && pass "refused, nothing deleted: '${args} DRY_RUN=0'" || fail "'${args}': rc=$rc out=$out"
 done
+
+# 11. PRUNE_ALL_MERGED=1 -----------------------------------------------------
+# amfix <name>: a remote with master, landed heads (merged, ruleset-proof/c-1,
+# release/x, the live lane c-500-lane-x and review/lane-x, the done lane's
+# c-501-old), a one-commit squash-landed head, a two-commit squash-landed head
+# and an unlanded head
+AM_DEL=(review/merged-a wip/merged-b c-501-old review/squash-one)
+AM_KEEP=(master ruleset-proof/c-1 release/x c-500-lane-x review/lane-x wip/unlanded-z review/squash-two)
+amfix() {
+  local d="$T/$1" b i=0
+  git init -q --bare "$d.git"
+  git init -q -b master "$d" && git -C "$d" remote add origin "$d.git"
+  for b in review/merged-a wip/merged-b c-501-old ruleset-proof/c-1 release/x c-500-lane-x review/lane-x; do
+    i=$((i + 1))
+    echo "$i" >"$d/f" && git -C "$d" add f && git -C "$d" commit -qm "c$i"
+    git -C "$d" push -q origin "HEAD:refs/heads/$b"
+  done
+  git -C "$d" push -q origin HEAD:refs/heads/master
+  side "$d" wip/unlanded-z z1
+  side "$d" review/squash-one o1
+  side "$d" review/squash-two t1 t2
+  git -C "$d" checkout -q master && echo o1 >"$d/o1" && echo t1 >"$d/t1" && echo t2 >"$d/t2"
+  git -C "$d" add o1 && git -C "$d" commit -qm o1-squash && git -C "$d" add t1 t2 && git -C "$d" commit -qm t-squash
+  git -C "$d" push -q origin HEAD:refs/heads/master
+}
+LANES_OK='{"hub":"ok","lanes":[{"agent_id":"c-500","agent_box":"b1","branch":"c-500-lane-x","state":"live"},{"agent_id":"c-501","agent_box":"b2","branch":"c-501-old","state":"done"}]}'
+AM_ENV=(PRUNE_ALL_MERGED=1 "PRUNE_LANES_CMD=printf '%s' '$LANES_OK'" "PRUNE_PROTECTED_CMD=echo release/x")
+amfix am
+before="$(heads "$T/am")"
+out="$(run_prune "$FUNC" "$T/am" "${AM_ENV[@]}")"; rc=$?
+got="$(grep '^REF ' <<<"$out" | cut -d' ' -f2 | sort)"
+want="$(printf '%s\n' "${AM_DEL[@]}" | sort)"
+if [[ $rc -eq 0 && "$got" == "$want" && "$(heads "$T/am")" == "$before" && "$out" == *'KEEP master trunk'* \
+  && "$out" == *'KEEP ruleset-proof/c-1 ruleset'* && "$out" == *'KEEP release/x protected'* \
+  && "$out" == *'KEEP c-500-lane-x live-lane c-500@b1'* && "$out" == *'KEEP review/lane-x live-lane c-500@b1'* \
+  && "$out" == *'KEEP wip/unlanded-z unlanded 1'* && "$out" == *'KEEP review/squash-two unlanded 2'* \
+  && "$out" == *'DELETE 4, KEEP 7 (live-lane 2, protected 1, ruleset 1, trunk 1, unlanded 2), nothing deleted'* ]]; then
+  pass "all merged dry run: 4 REF (merged, squash of one, done lane), 7 KEEP by reason, 0 deletes"
+else
+  fail "all merged dry run: rc=$rc got=$(paste -sd' ' - <<<"$got") out=$out"
+fi
+out="$(run_prune "$FUNC" "$T/am" "${AM_ENV[@]}" DRY_RUN=0 PRUNE_BATCH=3)"; rc=$?
+want="$(printf '%s\n' "${AM_KEEP[@]}" | sort)"
+[[ $rc -eq 0 && "$(heads "$T/am")" == "$want" && "$(grep -c '^DELETED ' <<<"$out")" == 4 && "$out" == *'deleted 4 branch(es) in batches of 3'* ]] \
+  && pass "all merged DRY_RUN=0 PRUNE_BATCH=3: the 4 gone in 2 pushes, the 7 KEEP stay" \
+  || fail "all merged delete: rc=$rc heads=$(heads "$T/am" | paste -sd' ' -) out=$out"
+out="$(run_prune "$FUNC" "$T/am" "${AM_ENV[@]}" DRY_RUN=0)"; rc=$?
+[[ $rc -eq 0 && "$out" == *'nothing to delete, KEEP 7'* && "$out" != *DELETED* ]] \
+  && pass "all merged: a second run deletes nothing" || fail "all merged second run: rc=$rc out=$out"
+amfix ar
+before="$(heads "$T/ar")"
+for bad in "PRUNE_LANES_CMD=exit 1" "PRUNE_LANES_CMD=echo '{\"hub\":\"LOCAL-ONLY\",\"lanes\":[]}'" "PRUNE_LANES_CMD=echo not-json" "PRUNE_PROTECTED_CMD=exit 1"; do
+  out="$(run_prune "$FUNC" "$T/ar" "${AM_ENV[@]}" "$bad" DRY_RUN=0)"; rc=$?
+  [[ $rc -ne 0 && "$(heads "$T/ar")" == "$before" && "$out" == *'DRY_RUN=0 refused'* ]] \
+    && pass "all merged DRY_RUN=0 refused, nothing deleted: '$bad'" || fail "'$bad': rc=$rc out=$out"
+done
+out="$(run_prune "$FUNC" "$T/ar" "${AM_ENV[@]}" "PRUNE_LANES_CMD=exit 1")"; rc=$?
+[[ $rc -eq 0 && "$out" == *'WARN the fleet lane map'* && "$(grep -c '^REF ' <<<"$out")" == 6 ]] \
+  && pass "all merged dry run with no lane map: WARN, the live lane's 2 heads listed, nothing deleted" || fail "dry no lane map: rc=$rc out=$out"
+for args in "ROUND=7" "PRUNE_UNLANDED=1" "PRUNE_BATCH=0" "PRUNE_BATCH=x" "DRY_RUN=2"; do
+  dr=0; [[ "$args" == DRY_RUN=* ]] && dr="${args#DRY_RUN=}"
+  out="$(run_prune "$FUNC" "$T/ar" "${AM_ENV[@]}" DRY_RUN="$dr" "$args")"; rc=$?
+  [[ $rc -ne 0 && "$(heads "$T/ar")" == "$before" && "$out" == *FATAL* ]] \
+    && pass "all merged refused, nothing deleted: '$args'" || fail "'$args': rc=$rc out=$out"
+done
+
+# 12. CONTROLS: no live-lane check, no cherry check ---------------------------
+sed 's|^  hit="$(awk .*|  hit=""|' "$FUNC" >"$T/nolive.func.sh"
+if cmp -s "$FUNC" "$T/nolive.func.sh"; then
+  fail "control: the sed did not drop the live-lane check"
+else
+  amfix al
+  run_prune "$T/nolive.func.sh" "$T/al" "${AM_ENV[@]}" DRY_RUN=0 >/dev/null
+  git --git-dir="$T/al.git" rev-parse -q --verify refs/heads/c-500-lane-x >/dev/null \
+    && fail "control: without the live-lane check the live lane's branch survived" \
+    || pass "control: without the live-lane check the live lane's branch is deleted"
+fi
+sed 's|then u="$(prune_round_unlanded [^)]*)"|then u=0|' "$FUNC" >"$T/amnocherry.func.sh"
+if cmp -s "$FUNC" "$T/amnocherry.func.sh"; then
+  fail "control: the sed did not drop the all-merged cherry check"
+else
+  amfix ac
+  run_prune "$T/amnocherry.func.sh" "$T/ac" "${AM_ENV[@]}" DRY_RUN=0 >/dev/null
+  git --git-dir="$T/ac.git" rev-parse -q --verify refs/heads/wip/unlanded-z >/dev/null \
+    && fail "control: without the cherry check the unlanded tip survived" \
+    || pass "control: without the cherry check the unlanded tip is deleted"
+fi
 
 if (( fails )); then
   echo "FAILED: $fails"

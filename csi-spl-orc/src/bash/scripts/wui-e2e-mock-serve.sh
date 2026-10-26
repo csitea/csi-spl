@@ -18,6 +18,8 @@ here=$(cd "$(dirname "$0")" && pwd)
 # is set must still resolve sans-serif to DejaVu Sans, or nothing runs.
 export FONTCONFIG_FILE="${FONTCONFIG_FILE:-$here/wui-e2e-fonts.conf}"
 font=$(fc-match sans-serif family 2>/dev/null || true)
+echo "DIAG pinned: sans-serif=$font"; fc-list -f '%{family[0]}|%{file}\n' | sort | head -60
+echo "DIAG system:"; env -u FONTCONFIG_FILE fc-match -s sans-serif family file 2>&1 | head -5; env -u FONTCONFIG_FILE fc-list -f '%{family[0]}|%{file}\n' | grep -iE 'dejavu|liberation|noto sans\||plex' | sort | head -40
 [[ $font == "DejaVu Sans" ]] \
   || { echo "::error::FONTCONFIG_FILE=$FONTCONFIG_FILE gives sans-serif '${font:-no font}', not DejaVu Sans (fonts-dejavu-core?)" >&2; exit 1; }
 # RUNNER_TEMP is per job. Without it, fixed names in the shared /tmp met a

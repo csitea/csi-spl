@@ -23,6 +23,7 @@ var operatorCallers = map[string]string{
 	"ClaimGcalConnection":        "google calendar sync cycle (spec 149 B2/B6a, SPL-3170, hub goroutine): leases the connection due longest of every workspace, never a token; no route",
 	"GcalConnectionByWatch":      "google calendar push (spec 149 B2/B7, SPL-3170): the push names a channel id, not a workspace; never a token",
 	"ContactsSyncOf":             "contacts erase-one (spec 154 2.6, seat note N4, SPL-3447): the person's one binding may be in another workspace, invisible from the session's; keyed by the session's own human, never a contact value",
+	"ClaimContactsSync":          "contacts sync cycle (spec 154 v1.2 2.5 B8a, SPL-3460, hub goroutine): leases the binding due longest of every workspace whose Google connection is connected, never a contact value; no route",
 	"MarkContactsPurgePending":   "contacts 30-day purge (spec 154 2.6 W4, SPL-3447, hub sweeper goroutine): the status line of the bindings of the persons the purge door named, in any workspace, never a contact value; no route",
 	"pruneCommitted":             "Sweep's committed-delivery prune (spec 059 S4), global by design; no route",
 	"backfillSearchSig":          "Sweep's search_sig backfill (rdb 0135): signs pre-trigger long rows of every tenant, global by design; no route",

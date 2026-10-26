@@ -16,6 +16,8 @@ type memContact struct {
 	Contact
 	deletedAt *time.Time
 	deletedBy string
+	etag      string // google_etag
+	syncHash  string // sync_hash, "" = NULL
 }
 
 // memContacts is rdb 0226 on Memory.
@@ -202,4 +204,78 @@ func (s *Memory) PurgeDeletedContacts(_ context.Context, before time.Time) ([]Co
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Person < out[j].Person })
 	return out, nil
+}
+
+// changedAt is GREATEST(updated_at, COALESCE(deleted_at, updated_at)).
+func (c *memContact) changedAt() time.Time {
+	if c.deletedAt != nil && c.deletedAt.After(c.UpdatedAt) {
+		return *c.deletedAt
+	}
+	return c.UpdatedAt
+}
+
+// ContactsChangedSince is ContactsCycle.ContactsChangedSince.
+func (s *Memory) ContactsChangedSince(_ context.Context, person string, since *time.Time) ([]ContactOut, error) {
+	if err := checkPerson(person); err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := []ContactOut{}
+	for _, c := range s.contactsLocked().byPerson[person] {
+		if (c.deletedAt != nil && c.deletedBy != ContactDeletedByMember) || (since != nil && !c.changedAt().After(*since)) {
+			continue
+		}
+		out = append(out, ContactOut{Contact: c.Contact, GoogleETag: c.etag, SyncHash: c.syncHash,
+			DeletedAt: c.deletedAt, ChangedAt: c.changedAt()})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].ChangedAt.Equal(out[j].ChangedAt) {
+			return out[i].ChangedAt.Before(out[j].ChangedAt)
+		}
+		return out[i].ID < out[j].ID
+	})
+	if len(out) > ContactsCycleMax {
+		out = out[:ContactsCycleMax]
+	}
+	return out, nil
+}
+
+// LinkContact is ContactsCycle.LinkContact.
+func (s *Memory) LinkContact(_ context.Context, person, contactID string, l ContactLink) (Contact, error) {
+	l, err := cleanContactLink(l)
+	if err != nil {
+		return Contact{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, err := s.liveContactLocked(person, contactID)
+	if err != nil {
+		return Contact{}, err
+	}
+	if l.Resource != "" {
+		for _, o := range s.contactsLocked().byPerson[person] {
+			if o != c && o.GoogleAccount == l.Account && o.GoogleResource == l.Resource {
+				return Contact{}, ErrConflict
+			}
+		}
+	}
+	c.GoogleAccount, c.GoogleResource, c.etag, c.syncHash = l.Account, l.Resource, l.ETag, l.SyncHash
+	return c.Contact, nil
+}
+
+// DropDeletedContact is ContactsCycle.DropDeletedContact.
+func (s *Memory) DropDeletedContact(_ context.Context, person, contactID string) error {
+	if err := checkContactIDs(person, contactID); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rows := s.contactsLocked().byPerson[person]
+	c, ok := rows[strings.ToLower(contactID)]
+	if !ok || c.deletedAt == nil {
+		return ErrNotFound
+	}
+	delete(rows, c.ID)
+	return nil
 }

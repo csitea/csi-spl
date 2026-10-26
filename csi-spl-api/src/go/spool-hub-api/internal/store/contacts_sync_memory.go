@@ -122,3 +122,83 @@ func (s *Memory) MarkContactsPurgePending(_ context.Context, persons []string, n
 	}
 	return len(marked), nil
 }
+
+// ClaimContactsSync is ContactsSyncs.ClaimContactsSync: the binding due
+// longest (then the lowest human id, as Postgres's ORDER BY) of every
+// workspace whose Google connection is connected.
+func (s *Memory) ClaimContactsSync(_ context.Context, now time.Time, lease time.Duration) (ContactsSync, ContactsLease, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var best *ContactsSync
+	for _, b := range s.contactsLocked().binds {
+		if !s.contactsClaimableLocked(b, now) {
+			continue
+		}
+		if best == nil || b.DueAt.Before(best.DueAt) || (b.DueAt.Equal(best.DueAt) && b.Human < best.Human) {
+			best = b
+		}
+	}
+	if best == nil {
+		return ContactsSync{}, ContactsLease{}, ErrNotFound
+	}
+	best.SyncLeaseUntil = memTime(gcalLeaseUntil(now, lease))
+	return *best, ContactsLease{Tenant: best.Tenant, Human: best.Human, Until: *best.SyncLeaseUntil}, nil
+}
+
+// contactsClaimableLocked is the claim's WHERE on one binding; s.mu is held.
+func (s *Memory) contactsClaimableLocked(b *ContactsSync, now time.Time) bool {
+	if !b.Enabled || b.DueAt.After(now) || (b.SyncLeaseUntil != nil && !b.SyncLeaseUntil.Before(now)) ||
+		(b.BackoffUntil != nil && b.BackoffUntil.After(now)) {
+		return false
+	}
+	c := s.gcalLocked().member(b.Tenant, b.Human)
+	return c != nil && c.Status == GcalConnected
+}
+
+// contactsFencedSet runs set on the binding that still holds lease l, or is
+// ErrContactsLeaseLost.
+func (s *Memory) contactsFencedSet(l ContactsLease, set func(b *ContactsSync)) error {
+	if !contactsLeaseOK(l) {
+		return ErrContactsLeaseLost
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	b := s.bindingInLocked(l.Tenant, l.Human)
+	if b == nil || b.SyncLeaseUntil == nil || !b.SyncLeaseUntil.Equal(l.Until) {
+		return ErrContactsLeaseLost
+	}
+	set(b)
+	return nil
+}
+
+// RenewContactsLease is ContactsSyncs.RenewContactsLease.
+func (s *Memory) RenewContactsLease(_ context.Context, l ContactsLease, now time.Time, lease time.Duration) (ContactsLease, error) {
+	next := l
+	next.Until = gcalLeaseUntil(now, lease)
+	return next, s.contactsFencedSet(l, func(b *ContactsSync) { b.SyncLeaseUntil = memTime(next.Until) })
+}
+
+// SetContactsBackoff is ContactsSyncs.SetContactsBackoff.
+func (s *Memory) SetContactsBackoff(_ context.Context, l ContactsLease, until *time.Time, detail string, now time.Time) error {
+	if !contactsDetailOK(detail) {
+		return ErrContactsSyncBad
+	}
+	return s.contactsFencedSet(l, func(b *ContactsSync) {
+		b.BackoffUntil = nil
+		if until != nil {
+			b.BackoffUntil = memTime(contactTime(*until))
+		}
+		b.StatusDetail, b.UpdatedAt = detail, now
+	})
+}
+
+// FinishContactsSync is ContactsSyncs.FinishContactsSync.
+func (s *Memory) FinishContactsSync(_ context.Context, l ContactsLease, d ContactsSyncDone, now time.Time) error {
+	return s.contactsFencedSet(l, func(b *ContactsSync) {
+		b.SyncToken = d.SyncToken
+		if d.OutCursor != nil {
+			b.OutCursor = memTime(contactTime(*d.OutCursor))
+		}
+		b.LastSyncedAt, b.DueAt, b.SyncLeaseUntil, b.UpdatedAt = memTime(now), d.NextDue, nil, now
+	})
+}

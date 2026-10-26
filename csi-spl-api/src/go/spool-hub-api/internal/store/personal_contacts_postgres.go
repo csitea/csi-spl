@@ -240,3 +240,65 @@ func (s *Postgres) PurgeDeletedContacts(ctx context.Context, before time.Time) (
 	})
 	return out, err
 }
+
+// contactOutCols is contactCols plus the cycle's columns (ContactOut).
+const contactOutCols = contactCols + `, google_etag, COALESCE(sync_hash, ''), deleted_at,
+	GREATEST(updated_at, COALESCE(deleted_at, updated_at))`
+
+// ContactsChangedSince is ContactsCycle.ContactsChangedSince.
+func (s *Postgres) ContactsChangedSince(ctx context.Context, person string, since *time.Time) ([]ContactOut, error) {
+	out := []ContactOut{}
+	err := s.inPerson(ctx, person, func(tx pgx.Tx) error {
+		return eachRow(ctx, tx, `SELECT `+contactOutCols+` FROM personal.contacts
+			WHERE person_id = $1 AND (deleted_at IS NULL OR deleted_by = 'member')
+			  AND ($2::timestamptz IS NULL OR GREATEST(updated_at, COALESCE(deleted_at, updated_at)) > $2::timestamptz)
+			ORDER BY GREATEST(updated_at, COALESCE(deleted_at, updated_at)), contact_id LIMIT $3`,
+			[]any{person, since, ContactsCycleMax}, func(r pgx.Rows) error {
+				var c ContactOut
+				err := r.Scan(&c.ID, &c.FirstName, &c.LastName, &c.Email, &c.Phone, &c.GoogleAccount, &c.GoogleResource,
+					&c.CreatedAt, &c.UpdatedAt, &c.GoogleETag, &c.SyncHash, &c.DeletedAt, &c.ChangedAt)
+				out = append(out, c)
+				return err
+			})
+	})
+	return out, err
+}
+
+// LinkContact is ContactsCycle.LinkContact.
+func (s *Postgres) LinkContact(ctx context.Context, person, contactID string, l ContactLink) (Contact, error) {
+	if err := checkContactIDs(person, contactID); err != nil {
+		return Contact{}, err
+	}
+	l, err := cleanContactLink(l)
+	if err != nil {
+		return Contact{}, err
+	}
+	var out Contact
+	err = s.inPerson(ctx, person, func(tx pgx.Tx) error {
+		var err error
+		out, err = scanContact(tx.QueryRow(ctx, `UPDATE personal.contacts
+			SET google_account = $3, google_resource = $4, google_etag = $5, sync_hash = $6
+			WHERE person_id = $1 AND contact_id = $2::uuid AND deleted_at IS NULL RETURNING `+contactCols,
+			person, contactID, nilEmpty(l.Account), nilEmpty(l.Resource), l.ETag, nilEmpty(l.SyncHash)))
+		return err
+	})
+	if isUniqueViolation(err) { // rdb 0226 contacts_google
+		return Contact{}, ErrConflict
+	}
+	return out, contactPGErr(err)
+}
+
+// DropDeletedContact is ContactsCycle.DropDeletedContact.
+func (s *Postgres) DropDeletedContact(ctx context.Context, person, contactID string) error {
+	if err := checkContactIDs(person, contactID); err != nil {
+		return err
+	}
+	return s.inPerson(ctx, person, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, `DELETE FROM personal.contacts
+			WHERE person_id = $1 AND contact_id = $2::uuid AND deleted_at IS NOT NULL`, person, contactID)
+		if err == nil && tag.RowsAffected() == 0 {
+			err = ErrNotFound
+		}
+		return err
+	})
+}

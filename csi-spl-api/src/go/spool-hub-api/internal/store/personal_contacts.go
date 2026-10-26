@@ -104,6 +104,80 @@ type ContactPurged struct {
 	PendingGoogle bool
 }
 
+// ContactsCycleMax is the most rows one outbound read returns: the cycle
+// sends at most 200 writes, the rest the next cycle (spec 2.5 "Rate limits").
+const ContactsCycleMax = 200
+
+// ContactOut is one row of the cycle's outbound read: a contact changed
+// since the out cursor, live or a member's soft delete still to send to
+// Google, with its Google link (spec 2.5 "Out").
+type ContactOut struct {
+	Contact
+	GoogleETag string
+	SyncHash   string     // "" = NULL
+	DeletedAt  *time.Time // nil = live
+	ChangedAt  time.Time  // GREATEST(updated_at, COALESCE(deleted_at, updated_at)), the out cursor's clock
+}
+
+// ContactLink is the Google link a cycle stores on a contact: Account and
+// Resource both set (linked under that account) or both "" (unlinked);
+// SyncHash "" = NULL, else 64 hex characters (spec 2.5 "Echo").
+type ContactLink struct {
+	Account  string
+	Resource string
+	ETag     string
+	SyncHash string
+}
+
+// The limits of rdb 0226's link CHECKs.
+const (
+	ContactGoogleResourceMax = 200
+	ContactGoogleETagMax     = 200
+)
+
+// ContactsCycle is the sync cycle's half of the contacts store (spec 2.5,
+// build row B8a), each call in inPerson of the binding's own human (seat
+// note N1: the person is the claim's, not a session's).
+type ContactsCycle interface {
+	// ContactsChangedSince is the person's contacts whose changed time is
+	// after since (nil: every one), live or soft-deleted by a member (the
+	// Google delete still to send), in changed order, at most
+	// ContactsCycleMax; a Google-side delete is never sent back.
+	ContactsChangedSince(ctx context.Context, person string, since *time.Time) ([]ContactOut, error)
+	// LinkContact stores the Google link of a live contact, never its
+	// updated_at (a link is no change to send). ErrConflict: another of
+	// the person's contacts holds that link (rdb 0226 contacts_google).
+	LinkContact(ctx context.Context, person, contactID string, l ContactLink) (Contact, error)
+	// DropDeletedContact hard-deletes a soft-deleted contact once Google
+	// confirmed its delete (spec 2.5 "Deletes"); ErrNotFound for a live one.
+	DropDeletedContact(ctx context.Context, person, contactID string) error
+}
+
+var (
+	_ ContactsCycle = (*Memory)(nil)
+	_ ContactsCycle = (*Postgres)(nil)
+)
+
+// cleanContactLink lowercases the account and checks l against rdb 0226.
+func cleanContactLink(l ContactLink) (ContactLink, error) {
+	l.Account = strings.ToLower(strings.TrimSpace(l.Account))
+	bad := fmt.Errorf("%w: a bad Google link", ErrRealmBad)
+	if (l.Account == "") != (l.Resource == "") || len(l.Resource) > ContactGoogleResourceMax ||
+		len(l.ETag) > ContactGoogleETagMax || !utf8.ValidString(l.Resource+l.ETag) {
+		return l, bad
+	}
+	if l.Account != "" && checkContactEmail(l.Account) != nil {
+		return l, bad
+	}
+	if l.SyncHash != "" && !contactSyncHashRe.MatchString(l.SyncHash) {
+		return l, bad
+	}
+	return l, nil
+}
+
+// contactSyncHashRe is a SHA-256 in hex (spec 2.5 "Echo").
+var contactSyncHashRe = regexp.MustCompile(`^[0-9a-f]{64}$`)
+
 // PersonalContacts is implemented by Memory and Postgres. person is the
 // session's own HUM-*; anything else is ErrNoPerson before any SQL.
 // ErrNotFound: no such live contact of this person.

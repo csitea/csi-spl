@@ -17,10 +17,11 @@ import (
 // TestPersonScopeCallers (personal_scope_test.go); C2e and the binding are
 // contacts_sync_test.go's. Fixtures are FirstName LastName and example.com.
 
-// contactsStore is both halves of spec 154 B2's store.
+// contactsStore is both halves of spec 154 B2's store, and B8a's cycle.
 type contactsStore interface {
 	PersonalContacts
 	ContactsSyncs
+	ContactsCycle
 }
 
 // contactsFix is one driver: the store, and how to seed what the store
@@ -34,6 +35,8 @@ type contactsFix struct {
 	seat      func(t *testing.T, tenant, human string)
 	link      func(t *testing.T, person, contactID string)
 	lease     func(t *testing.T, tenant, human string, until time.Time)
+	gcalState func(t *testing.T, tenant, human, status string)          // the Google connection's status (B8a)
+	backoff   func(t *testing.T, tenant, human string, until time.Time) // contacts_sync.backoff_until (B8a)
 }
 
 func memContactsFix(*testing.T) contactsFix {
@@ -48,7 +51,8 @@ func memContactsFix(*testing.T) contactsFix {
 			m.hum.members[[2]string{tenant, human}] = memMember{role: "developer"}
 			g := m.gcalLocked()
 			id := memUUID()
-			g.conns[id] = &GcalConnection{ID: id, Tenant: tenant, Human: human, GoogleEmail: "first.last@example.com"}
+			g.conns[id] = &GcalConnection{ID: id, Tenant: tenant, Human: human, GoogleEmail: "first.last@example.com",
+				Status: GcalConnected}
 		},
 		link: func(t *testing.T, person, contactID string) {
 			m.mu.Lock()
@@ -63,6 +67,16 @@ func memContactsFix(*testing.T) contactsFix {
 			m.mu.Lock()
 			defer m.mu.Unlock()
 			m.bindingInLocked(tenant, human).SyncLeaseUntil = &until
+		},
+		gcalState: func(_ *testing.T, tenant, human, status string) {
+			m.mu.Lock()
+			defer m.mu.Unlock()
+			m.gcalLocked().member(tenant, human).Status = status
+		},
+		backoff: func(_ *testing.T, tenant, human string, until time.Time) {
+			m.mu.Lock()
+			defer m.mu.Unlock()
+			m.bindingInLocked(tenant, human).BackoffUntil = &until
 		},
 	}
 }
@@ -104,6 +118,14 @@ func pgContactsFix(t *testing.T) contactsFix {
 		},
 		lease: func(t *testing.T, tenant, human string, until time.Time) {
 			asOwner(t, "", tenant, `UPDATE contacts_sync SET sync_lease_until = $3 WHERE tenant_id = $1 AND human_id = $2`,
+				tenant, human, until)
+		},
+		gcalState: func(t *testing.T, tenant, human, status string) {
+			asOwner(t, "", tenant, `UPDATE gcal_connections SET status = $3 WHERE tenant_id = $1 AND human_id = $2`,
+				tenant, human, status)
+		},
+		backoff: func(t *testing.T, tenant, human string, until time.Time) {
+			asOwner(t, "", tenant, `UPDATE contacts_sync SET backoff_until = $3 WHERE tenant_id = $1 AND human_id = $2`,
 				tenant, human, until)
 		},
 	}
@@ -398,5 +420,126 @@ func TestContactsRefuseBeforeSQL(t *testing.T) {
 		if _, err := st.ContactOf(ctx, "HUM-1", "not-a-uuid"); !errors.Is(err, ErrNotFound) {
 			t.Errorf("%s a malformed id: %v, want ErrNotFound", name, err)
 		}
+	}
+}
+
+// TestContactsC23gCycleReadsWrites is C23g at store level (seat note N2:
+// B8 builds the cycle): the cycle's contact calls run in inPerson of the
+// binding's human. The outbound read returns the person's contacts changed
+// since the cursor in changed order, live rows and a member's soft delete
+// still to send, never a Google-side delete nor another person's row; a
+// link stores google_account (lowercased), google_resource, google_etag and
+// sync_hash without moving updated_at; a soft-deleted row is hard-deleted
+// once Google confirmed, a live one never. Postgres: the claim's operator
+// scope reads 0 rows of the same contacts (the control), the person scope
+// all of them (the twin).
+func TestContactsC23gCycleReadsWrites(t *testing.T) {
+	eachContactsDriver(t, func(t *testing.T, f contactsFix) {
+		ctx := context.Background()
+		t0 := time.Now().UTC().Truncate(time.Second)
+		p1, p2 := realmPersons()
+		f.addHuman(t, p1)
+		f.addHuman(t, p2)
+		var c [3]Contact
+		for i := range c {
+			var err error
+			if c[i], err = f.st.CreateContact(ctx, p1, ffContact(), t0.Add(time.Duration(i)*time.Second)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		other, err := f.st.CreateContact(ctx, p2, ffContact(), t0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		changed := func(person string, since *time.Time) []string {
+			t.Helper()
+			rows, err := f.st.ContactsChangedSince(ctx, person, since)
+			if err != nil {
+				t.Fatalf("C23g ContactsChangedSince: %v", err)
+			}
+			ids := []string{}
+			for _, r := range rows {
+				ids = append(ids, r.ID)
+			}
+			return ids
+		}
+		if got := changed(p1, nil); strings.Join(got, ",") != c[0].ID+","+c[1].ID+","+c[2].ID {
+			t.Errorf("C23g outbound read, no cursor: %v, want P1's three in changed order", got)
+		}
+		if got := changed(p1, &t0); strings.Join(got, ",") != c[1].ID+","+c[2].ID {
+			t.Errorf("C23g outbound read since t0: %v, want the two changed after it", got)
+		}
+		if got := changed(p2, nil); len(got) != 1 || got[0] != other.ID {
+			t.Errorf("C23g P2's outbound read: %v, want only [%s]", got, other.ID)
+		}
+
+		hash := strings.Repeat("0123456789abcdef", 4)
+		link := ContactLink{Account: "First.Last@Example.com", Resource: "people/c1", ETag: "etag-1", SyncHash: hash}
+		got, err := f.st.LinkContact(ctx, p1, c[0].ID, link)
+		if err != nil || got.GoogleAccount != "first.last@example.com" || got.GoogleResource != "people/c1" || !got.UpdatedAt.Equal(c[0].UpdatedAt) {
+			t.Errorf("C23g link: %+v (%v), want the account lowercased, the resource set, updated_at kept", got, err)
+		}
+		last := t0.Add(2 * time.Second)
+		if ids := changed(p1, &last); len(ids) != 0 {
+			t.Errorf("C23g a link is no change to send: %v, want none", ids)
+		}
+		if rows, _ := f.st.ContactsChangedSince(ctx, p1, nil); len(rows) == 0 || rows[0].GoogleETag != "etag-1" || rows[0].SyncHash != hash {
+			t.Errorf("C23g the outbound read carries the link: %+v", rows)
+		}
+		if _, err := f.st.LinkContact(ctx, p1, c[1].ID, link); !errors.Is(err, ErrConflict) {
+			t.Errorf("C23g the same link on a second contact: %v, want ErrConflict", err)
+		}
+		if _, err := f.st.LinkContact(ctx, p1, c[1].ID, ContactLink{Account: "first.last@example.com"}); !errors.Is(err, ErrRealmBad) {
+			t.Errorf("C23g an account with no resource: %v, want ErrRealmBad", err)
+		}
+		if _, err := f.st.LinkContact(ctx, p2, c[0].ID, link); !errors.Is(err, ErrNotFound) {
+			t.Errorf("C23g P2 links P1's contact: %v, want ErrNotFound", err)
+		}
+
+		// A member's delete is sent; Google's own delete is not sent back.
+		if err := f.st.DeleteContact(ctx, p1, c[0].ID, ContactDeletedByMember, t0.Add(5*time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.st.DeleteContact(ctx, p1, c[1].ID, ContactDeletedByGoogle, t0.Add(6*time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := f.st.ContactsChangedSince(ctx, p1, &last)
+		if err != nil || len(rows) != 1 || rows[0].ID != c[0].ID || rows[0].DeletedAt == nil || !rows[0].ChangedAt.Equal(t0.Add(5*time.Second)) {
+			t.Errorf("C23g pending Google delete: %+v (%v), want only %s, deleted, changed at its delete", rows, err, c[0].ID)
+		}
+
+		if err := f.st.DropDeletedContact(ctx, p1, c[2].ID); !errors.Is(err, ErrNotFound) {
+			t.Errorf("C23g hard delete of a live contact: %v, want ErrNotFound", err)
+		}
+		if err := f.st.DropDeletedContact(ctx, p2, c[0].ID); !errors.Is(err, ErrNotFound) {
+			t.Errorf("C23g P2 hard-deletes P1's contact: %v, want ErrNotFound", err)
+		}
+		if f.pg != nil {
+			c23gScopes(t, f.st.(*Postgres), p1, 3)
+		}
+		if err := f.st.DropDeletedContact(ctx, p1, c[0].ID); err != nil {
+			t.Errorf("C23g hard delete once Google confirmed: %v", err)
+		}
+		if err := f.st.DropDeletedContact(ctx, p1, c[0].ID); !errors.Is(err, ErrNotFound) {
+			t.Errorf("C23g the row is gone: %v, want ErrNotFound", err)
+		}
+		if n, err := f.st.EraseContacts(ctx, p1); err != nil || n != 2 {
+			t.Errorf("C23g P1's rows left: %d (%v), want 2", n, err)
+		}
+	})
+}
+
+// c23gScopes is C23g's control and twin on Postgres: the operator scope
+// the claim runs in reads 0 of person's contacts; inPerson reads want.
+func c23gScopes(t *testing.T, rt *Postgres, person string, want int) {
+	t.Helper()
+	ctx := context.Background()
+	const q = `SELECT count(*) FROM personal.contacts WHERE person_id = $1`
+	var asOp, asPerson int
+	if err := rt.asOperator(ctx, func(tx pgx.Tx) error { return tx.QueryRow(ctx, q, person).Scan(&asOp) }); err != nil || asOp != 0 {
+		t.Errorf("C23g control: the operator scope reads %d contact(s) (%v), want 0", asOp, err)
+	}
+	if err := rt.inPerson(ctx, person, func(tx pgx.Tx) error { return tx.QueryRow(ctx, q, person).Scan(&asPerson) }); err != nil || asPerson != want {
+		t.Errorf("C23g twin: inPerson reads %d contact(s) (%v), want %d", asPerson, err, want)
 	}
 }

@@ -130,3 +130,68 @@ func (s *Postgres) MarkContactsPurgePending(ctx context.Context, persons []strin
 	})
 	return int(n), err
 }
+
+// ClaimContactsSync is ContactsSyncs.ClaimContactsSync, under the operator
+// scope: one UPDATE of the binding due longest whose Google connection is
+// connected, SKIP LOCKED so two hub instances never claim the same row.
+func (s *Postgres) ClaimContactsSync(ctx context.Context, now time.Time, lease time.Duration) (ContactsSync, ContactsLease, error) {
+	until := gcalLeaseUntil(now, lease)
+	var out ContactsSync
+	err := s.asOperator(ctx, func(tx pgx.Tx) error {
+		var err error
+		out, err = scanContactsSync(tx.QueryRow(ctx, `UPDATE contacts_sync SET sync_lease_until = $2
+			WHERE human_id = (SELECT b.human_id FROM contacts_sync b
+				JOIN gcal_connections g ON g.tenant_id = b.tenant_id AND g.human_id = b.human_id
+				WHERE b.enabled AND b.due_at <= $1 AND g.status = 'connected'
+					AND (b.sync_lease_until IS NULL OR b.sync_lease_until < $1)
+					AND (b.backoff_until IS NULL OR b.backoff_until <= $1)
+				ORDER BY b.due_at, b.human_id FOR UPDATE OF b SKIP LOCKED LIMIT 1)
+			RETURNING `+contactsSyncCols, now, until))
+		return err
+	})
+	if err != nil {
+		return ContactsSync{}, ContactsLease{}, contactsSyncPGErr(err)
+	}
+	return out, ContactsLease{Tenant: out.Tenant, Human: out.Human, Until: *out.SyncLeaseUntil}, nil
+}
+
+// contactsFencedSet is one fenced UPDATE of the binding in its own
+// workspace's scope: the WHERE matches only while it still holds lease l
+// ($1 tenant, $2 human, $3 the token), set's own arguments from $4 on; no
+// row matched is ErrContactsLeaseLost (as gcalFenced, spec 2.5).
+func (s *Postgres) contactsFencedSet(ctx context.Context, l ContactsLease, set string, args ...any) error {
+	if !contactsLeaseOK(l) {
+		return ErrContactsLeaseLost
+	}
+	return s.inTenant(ctx, l.Tenant, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, `UPDATE contacts_sync SET `+set+`
+			WHERE tenant_id = $1 AND human_id = $2 AND sync_lease_until = $3`,
+			append([]any{l.Tenant, l.Human, l.Until}, args...)...)
+		if err == nil && tag.RowsAffected() == 0 {
+			err = ErrContactsLeaseLost
+		}
+		return err
+	})
+}
+
+// RenewContactsLease is ContactsSyncs.RenewContactsLease.
+func (s *Postgres) RenewContactsLease(ctx context.Context, l ContactsLease, now time.Time, lease time.Duration) (ContactsLease, error) {
+	next := l
+	next.Until = gcalLeaseUntil(now, lease)
+	return next, s.contactsFencedSet(ctx, l, `sync_lease_until = $4`, next.Until)
+}
+
+// SetContactsBackoff is ContactsSyncs.SetContactsBackoff.
+func (s *Postgres) SetContactsBackoff(ctx context.Context, l ContactsLease, until *time.Time, detail string, now time.Time) error {
+	if !contactsDetailOK(detail) {
+		return ErrContactsSyncBad
+	}
+	return s.contactsFencedSet(ctx, l, `backoff_until = $4, status_detail = $5, updated_at = $6`, until, detail, now)
+}
+
+// FinishContactsSync is ContactsSyncs.FinishContactsSync.
+func (s *Postgres) FinishContactsSync(ctx context.Context, l ContactsLease, d ContactsSyncDone, now time.Time) error {
+	return s.contactsFencedSet(ctx, l, `sync_token = nullif($4, ''), out_cursor = coalesce($5, out_cursor),
+		last_synced_at = $6, due_at = $7, sync_lease_until = NULL, updated_at = $6`,
+		d.SyncToken, d.OutCursor, now, d.NextDue)
+}

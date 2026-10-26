@@ -53,6 +53,14 @@ var personCallers = map[string]string{
 	"DeleteContact":  "personal.contacts of the session's own person, hard or soft (154 2.6 erase one)",
 	"ExportContacts": "personal.contacts of the session's own person (154 2.6 export)",
 	"EraseContacts":  "personal.contacts of the session's own person (154 2.6 erase all, C8e)",
+	// spec 154 v1.2 B8a (seat note N1): the sync cycle's calls. Their person
+	// is NOT a session's: it is the binding's contacts_sync.human_id that
+	// ClaimContactsSync (operator scope) returned, as appendRealmReceipts
+	// takes the leaver's; each call still reads or writes that person's
+	// personal.contacts only, never a tenant or operator scope.
+	"ContactsChangedSince": "personal.contacts of the claimed binding's human (contacts_sync.human_id, not a session): the outbound read since out_cursor, live rows and member soft deletes still to send (154 2.5, C23g)",
+	"LinkContact":          "personal.contacts of the claimed binding's human (contacts_sync.human_id, not a session): google_account, google_resource, google_etag, sync_hash of one live contact (154 2.5, C23g)",
+	"DropDeletedContact":   "personal.contacts of the claimed binding's human (contacts_sync.human_id, not a session): the hard delete once Google confirmed the delete (154 2.5, C23g)",
 }
 
 // realmTenantCallers is the realm code allowed to ALSO run a tenant scope,

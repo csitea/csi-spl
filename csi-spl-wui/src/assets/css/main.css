@@ -400,10 +400,14 @@ html.pane-dragging * {
   padding: 8px 4px;
   border-radius: var(--radius);
   /* spec 078 FR-008 (Q4): the body column is 100ch of the body's own font
-     (.msg-body is 0.875rem, the card inherits 1rem, so 87.5ch here) plus the
-     card's padding, avatar column and gap. The card itself is capped, so the
-     header's actions (pushed to its end) follow the capped card. */
-  max-width: min(100%, calc(4px + 36px + 10px + 87.5ch + 4px));
+     plus the card's padding, avatar column and gap. The card itself is
+     capped, so the header's actions (pushed to its end) follow the capped
+     card. The card takes the body's size (0.875rem) so its ch IS the body's:
+     87.5ch of 1rem is not 100ch of 0.875rem in a hinted font (DejaVu Sans:
+     87.5 x 11 px = 962.5 px against 100 x 10 px = 1000 px; SPL-3469). The
+     card's texts set their own rem size: no card box moved under Noto. */
+  font-size: 0.875rem;
+  max-width: min(100%, calc(4px + 36px + 10px + 100ch + 4px));
   min-width: 0;
 }
 /* SPL-2120 (owner HUM-10, t1 28559e83): the cards of a list alternate a

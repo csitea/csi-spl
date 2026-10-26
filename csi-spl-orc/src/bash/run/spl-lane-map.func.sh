@@ -18,7 +18,7 @@
 # @description a live pane has `files: []`: its scope is unknown, so one line per
 # @description such lane `unknown: <ID>@<box> <branch> has no files recorded; ask
 # @description it or read its brief` replaces `free`.
-# @description The hub read is tried up to 3 times inside 10 s (SPL-2180). A hub
+# @description The hub read is tried up to 3 times inside 15 s (SPL-2180, SPL-3503). A hub
 # @description that still does not answer leaves the local map, marked: the
 # @description table and the check open with `LOCAL-ONLY: the hub did not
 # @description answer ...`, the check says exit 5 where it would have said
@@ -37,7 +37,7 @@
 # @param LANE_AGENT (optional) - the caller's own id, skipped by LANE_CHECK
 # @param LANE_REPO_DIRS (optional) - space-separated repos whose local worktrees join the map; default the repo holding this tree
 # @param LANE_HUB_CMD (optional, tests) - replaces the hub call: gets `lane <args>`, prints the hub's answer
-# @param LANE_HUB_TRIES / LANE_HUB_BACKOFF / LANE_HUB_BUDGET (optional) - the hub read: tries (default 3), seconds between them (default "1 2"), total seconds (default 10)
+# @param LANE_HUB_TRIES / LANE_HUB_BACKOFF / LANE_HUB_BUDGET (optional) - the hub read: tries (default 3), seconds between them (default "1 2"), total seconds (default 15: 4 s a try)
 # @param LANE_ALERT_GAP_S (optional) - at most one hub-down #alerts note per box in this many seconds, default 900
 # @param LANE_ALERT_DIR (optional) - where the alert's per-box stamp lives, default <spool root>/dispatch
 # @param LANE_ALERT_AGENT (optional) - the alert's author, default lease.conf LEASE_ORCH
@@ -130,23 +130,35 @@ spl_lane_conf() {
 
 # The hub's rows into LANE_HUB_JSON, tried LANE_HUB_TRIES times (default 3)
 # with LANE_HUB_BACKOFF seconds between them (default "1 2", the last value
-# repeats) inside LANE_HUB_BUDGET seconds (default 10): one dropped call no
+# repeats) inside LANE_HUB_BUDGET seconds (default 15): one dropped call no
 # longer turns the fleet map into this machine's (SPL-2180). A try's timeout
-# is what is left of the budget (at most LANE_TIMEOUT), so a hung hub costs
-# the budget, not 30 s a try. LANE_HUB_TRY: the try that answered (0: none);
-# LANE_HUB_TRIED: the tries made.
+# is its share of the budget: (budget - the backoff waits) / tries, at least
+# 1 s, at most LANE_TIMEOUT and what is left, so a HUNG try leaves room for
+# the next ones (SPL-3503: the whole budget on try 1 was "1 tries"). The default 15 s
+# gives 4 s a try: the real read took 1.1..2.2 s on a fleet box (n=32, 2026-10-26).
+# LANE_HUB_TRY: the try that answered (0: none); LANE_HUB_TRIED: the tries made.
 spl_lane_hub_read() {
-  local tries="${LANE_HUB_TRIES:-3}" budget="${LANE_HUB_BUDGET:-10}" max="${LANE_TIMEOUT:-30}" start=$SECONDS left n out wait
+  local tries="${LANE_HUB_TRIES:-3}" budget="${LANE_HUB_BUDGET:-15}" max="${LANE_TIMEOUT:-30}" start=$SECONDS left n out wait
+  local share waits=0 w
   local -a back
   read -r -a back <<<"${LANE_HUB_BACKOFF:-1 2}"
   [[ "$tries" =~ ^[1-9][0-9]*$ ]] || tries=3
-  [[ "$budget" =~ ^[1-9][0-9]*$ ]] || budget=10
+  [[ "$budget" =~ ^[1-9][0-9]*$ ]] || budget=15
+  [[ "$max" =~ ^[1-9][0-9]*$ ]] || max=30
+  for (( n = 1; n < tries; n++ )); do
+    w="${back[n - 1]:-${back[${#back[@]} - 1]:-1}}"
+    [[ "$w" =~ ^[0-9]+$ ]] || w=1
+    waits=$(( waits + w ))
+  done
+  share=$(( (budget - waits) / tries ))
+  (( share >= 1 )) || share=1
+  (( share <= max )) || share=$max
   LANE_HUB_JSON="" LANE_HUB_TRY=0 LANE_HUB_TRIED=0
   for (( n = 1; n <= tries; n++ )); do
     left=$(( budget - (SECONDS - start) ))
     (( left > 0 )) || break
     LANE_HUB_TRIED=$n
-    if out="$(LANE_TIMEOUT=$(( left < max ? left : max )) spl_lane_hub --fleet "$LANE_FLEET" 2>"${LANE_ERR:-/dev/null}")" &&
+    if out="$(LANE_TIMEOUT=$(( left < share ? left : share )) spl_lane_hub --fleet "$LANE_FLEET" 2>"${LANE_ERR:-/dev/null}")" &&
       jq -e '.lanes | type == "array"' >/dev/null 2>&1 <<<"$out"; then
       LANE_HUB_JSON="$out" LANE_HUB_TRY=$n
       return 0

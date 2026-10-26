@@ -51,7 +51,7 @@ Conventions on this page:
 | a topic, oldest first | `$SPOOL tail --task <task id>` |
 | the leases | `cat /var/spool-hub/dispatch/lease.orch`; `LEASE_CMD=show ./run -a do_spl_dispatch_lease`; history in `/var/spool-hub/dispatch/lease.log` |
 | every live lane, every box | `bash $SA/lane-map.sh` (or `./run -a do_spl_lane_map`) |
-| who owns a path | `bash $SA/lane-map.sh --check <path,...> --agent c-001` (exit 3 = owned, exit 4 = unknown lanes: ask them, exit 5 = `LOCAL-ONLY`: the hub did not answer 3 tries in 10 s, other machines unread, not free; one #alerts note per box per 15 min) |
+| who owns a path | `bash $SA/lane-map.sh --check <path,...> --agent c-001` (exit 3 = owned, exit 4 = unknown lanes: ask them, exit 5 = `LOCAL-ONLY`: the hub did not answer 3 tries in 15 s, other machines unread, not free; one #alerts note per box per 15 min) |
 | live agent windows (ceiling 40) | the count command in the global rule `20-spawn-an-agent.md` |
 | dispatcher seats and gaps | `./run -a do_spl_dispatch_check` |
 | hanging agents, at least every 5 minutes | section 2.4. Run it at the start of the session and again before each 5 minutes is up. Record the rows in the hold note |

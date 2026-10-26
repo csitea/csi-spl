@@ -84,6 +84,11 @@ case " $* " in *" --agent "*) ;; " lane "*)
   echo read >>"$HUB_DIR/reads"
   if [ -n "${HUB_FAIL_FIRST:-}" ] && [ "$(wc -l <"$HUB_DIR/reads")" -le "$HUB_FAIL_FIRST" ]; then
     echo "dial: i/o timeout" >&2; exit 1
+  fi
+  # HUB_HANG_FIRST=<n>: the first n reads hang (exec: the timeout kills the
+  # sleep itself, so no orphan holds the caller's pipe open)
+  if [ -n "${HUB_HANG_FIRST:-}" ] && [ "$(wc -l <"$HUB_DIR/reads")" -le "$HUB_HANG_FIRST" ]; then
+    exec sleep 60
   fi ;;
 esac
 [ "${HUB_DOWN:-0}" = 1 ] && { echo "dial: connection refused" >&2; exit 1; }
@@ -108,6 +113,12 @@ else
 fi
 STUB
 chmod +x "$T/bin/hub"
+# the stub under the per-try timeout, as spl_lane_spool runs the real spool
+cat >"$T/bin/hub-timed" <<STUB
+#!/usr/bin/env bash
+exec timeout "\${LANE_TIMEOUT:-30}" "$T/bin/hub" "\$@"
+STUB
+chmod +x "$T/bin/hub-timed"
 
 # machine <name> <box>: a clone with an origin, and its spool root
 machine() {
@@ -486,6 +497,25 @@ out="$(on pc do_spl_lane_map "${F[@]}" "${A[@]}" HUB_DOWN=1 LANE_HUB_TRIES=9 LAN
   fail "budget: $(reads) reads in $(( SECONDS - s0 )) s"
 out="$(on pc do_spl_lane_map "${F[@]}" "${A[@]}" HUB_DOWN=1 LANE_FORMAT=json | tail -1)"
 [[ "$(jq -r '"\(.hub) \(.hub_tries)"' <<<"$out" 2>/dev/null)" == "unreachable 3" ]] && pass "json: hub unreachable, hub_tries 3" || fail "json fallback: $out"
+# a HUNG try is cut at its share of the budget (SPL-3503): before, try 1 ran
+# under the whole budget, so one hung call was the fallback after "1 tries"
+H=(LANE_HUB_CMD="$T/bin/hub-timed" LANE_ALERT_CMD="tee -a $T/alerts-hang" LANE_ALERT_DIR="$T/alert-dir-hang")
+rm -rf "$T/hub/reads" "$T/alerts-hang" "$T/alert-dir-hang"
+s0=$SECONDS
+out="$(on pc do_spl_lane_map "${F[@]}" "${H[@]}" HUB_HANG_FIRST=1 LANE_HUB_BUDGET=6 LANE_FORMAT=json | tail -1)"; rc=$?
+el=$(( SECONDS - s0 ))
+[[ $rc -eq 0 && "$(jq -r '"\(.hub) \(.hub_tries)"' <<<"$out" 2>/dev/null)" == "ok 2" && "$out" == *c-101* && "$(reads)" -eq 2 &&
+  ! -e "$T/alerts-hang" && $el -lt 6 ]] &&
+  pass "a hub that hangs on try 1: cut at its share, try 2 answers, the fleet map, hub_tries 2, no alert, ${el} s < 6 s budget" ||
+  fail "hang once (rc=$rc, reads=$(reads), ${el} s, alerts=$(cat "$T/alerts-hang" 2>/dev/null)): $out"
+rm -rf "$T/hub/reads" "$T/alerts-hang" "$T/alert-dir-hang"
+s0=$SECONDS
+out="$(on pc 'LANE_CHECK=z/nobody-owns-this do_spl_lane_map' "${F[@]}" "${H[@]}" HUB_HANG_FIRST=99 LANE_HUB_BACKOFF="1 2" LANE_AGENT=c-921)"; rc=$?
+el=$(( SECONDS - s0 ))
+[[ $rc -eq 5 && "$out" == *"LOCAL-ONLY: the hub did not answer after 3 tries"* && "$(grep -cx free <<<"$out")" -eq 0 && "$(reads)" -eq 3 &&
+  "$(grep -c 'did not answer 3 tries in a row' "$T/alerts-hang")" -eq 1 && $el -le 16 ]] &&
+  pass "a hub that hangs every try, default 15 s budget and backoff 1 2: 3 tries, LOCAL-ONLY, exit 5, ${el} s <= 16 s" ||
+  fail "hang always (rc=$rc, reads=$(reads), ${el} s, alerts=$(cat "$T/alerts-hang" 2>/dev/null)): $out"
 
 # refusals
 out="$(on pc do_spl_lane_put "${F[@]}" LANE_AGENT=cle-1)"; rc=$?

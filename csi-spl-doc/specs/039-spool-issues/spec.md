@@ -208,4 +208,31 @@ rdb `0047_issues.sql`: `issue_counters`, `issue_labels`, `issues`; RLS in the
 0021 fail-closed form plus the operator policy on all three. Applied to dev
 and prd with `do_spl_db_bootstrap` before any hub that reads them rolled.
 
-<!-- version: 0.8.0 · updated: 2026-09-28 · last-edit: 2026-09-28T04:00:00Z -->
+## Changing a workspace's prefix (SPL-3570)
+
+A key shows the workspace's CURRENT prefix (`issue_counters.prefix`), so a
+prefix change (csitea `SPL` -> `CSI`, owner HUM-10, csitea topic 26a21b5a)
+renames every key in the Issues view at once. The text written before it,
+messages, issue titles and descriptions, workspace docs, still says
+`SPL-n`, and t1 uses `SPL` for its own numbers: csitea's old `SPL-44` and
+t1's `SPL-44` are different issues. A blind replace would break every t1
+reference.
+
+`cd csi-spl-orc && ENV=prd TENANT_ID=csitea ./run -a do_spl_issue_ref_scan`
+reads all of it (one READ ONLY transaction, the env's service account) and
+sorts each old key into one of three classes, rules in
+`csi-spl-orc/src/bash/scripts/issue-ref-scan.py`:
+
+| class | when | reasons |
+|---|---|---|
+| rewrite | the key is the workspace's own | `link` (an issues link on its own host, or its markdown label), `named` (the line names the workspace), `plain` (a live number, and no key above the workspace's range in that text) |
+| keep | not the workspace's | `other-link` (an issues link on another host), `not-ours` (n above the workspace's counter) |
+| ambiguous | listed apart, never rewritten | `mixed` (the text also holds a t1-range key), `names-other` (t1, the spool-hub project, "on dev"), `commit` (a commit scope or `Closes:` trailer), `deleted` |
+
+It prints the counts per source, samples per class and every ambiguous hit,
+and writes a plan (ids and offsets, no text) for a writer. It writes nothing:
+the owner OKs the scan before anything is changed, and the change then goes
+through the hub's own edit paths (a message edit keeps its revision), never
+raw SQL. Test: `csi-spl-orc/src/bash/tests/spl-issue-ref-scan.tst.sh`.
+
+<!-- version: 0.9.0 · updated: 2026-10-26 · last-edit: 2026-10-26T13:00:00Z -->

@@ -8,6 +8,9 @@
 # @description pushes that landed before its lane fixed it. Counting runs says
 # @description "CI is broken"; counting jobs says which four things broke, and
 # @description a job that shows up in window after window is the flake.
+# @description The per-job table counts a job's REDS apart from its fail-fast
+# @description STOPS (a "stopped" column, I9): a run with one red and three
+# @description stops shows 1 red, not 4.
 # @description Then the FIRST red per job (fail-fast stops left out) and, per
 # @description failed job, its last green run in the window (r7-02).
 # @description A job that hit its timeout-minutes concludes "cancelled" on
@@ -95,8 +98,8 @@ do_report_ci_gate() { (
     done
   done <"$tmp/failed.tsv"
 
-  echo "== $nf failed run(s); failures per JOB (a job over ~3 is a defect that sat on trunk, or a flake)"
-  cut -f5 "$tmp/jobs.tsv" | sort | uniq -c | sort -rn | sed 's/^/   /'
+  _rcg_stop_marks "$tmp"
+  _rcg_job_table "$tmp" "$nf"
   _rcg_first_red "$tmp" "$nf"
   _rcg_last_green "$tmp" "$total"
 
@@ -241,19 +244,16 @@ _rcg_mark_timeout_runs() {
   done <"$tmp/runs.tsv" >"$tmp/runs.marked" && mv "$tmp/runs.marked" "$tmp/runs.tsv"
 }
 
-# _rcg_first_red <tmp> <failed runs> - the job(s) that broke each failed run,
-# counted per job. gate-fail-fast.sh stops every other job of a red run and a
-# stopped job concludes failure too, so the per-job counts say 20 jobs broke
-# when 1 did (24 failed runs to 2026-10-10: 133 job failures, 47 first reds).
-# A stopped job carries the check-run annotation
+# _rcg_stop_marks <tmp> - "<run id>\t<job name>\t<reds it names>" in
+# <tmp>/stops.tsv for every red job of each failed run; the third field is
+# empty unless the job is a fail-fast STOP. gate-fail-fast.sh stops every
+# other job of a red run and a stopped job concludes failure too (24 failed
+# runs to 2026-10-10: 133 job failures, 47 first reds; 41 of 167 failed jobs
+# in the 100 runs to 2026-10-25, I9). A stopped job carries the check-run
+# annotation
 #   gate fail-fast: stopped, so the next gate run starts; red in this run: <names>
-# A run's first reds are the jobs named there plus the jobs that failed with
-# no such annotation, minus the stopped jobs: a job stopped early is named by
-# the jobs stopped after it. Job names hold commas and the annotation joins
-# them with commas, so a name is matched whole against the run's own failed
-# jobs, never split.
-_rcg_first_red() {
-  local tmp="$1" nf="$2" rid jid jconcl jname msg
+_rcg_stop_marks() {
+  local tmp="$1" rid jid jconcl jname msg
   : >"$tmp/stops.tsv"
   while IFS=$'\t' read -r rid _; do
     _rcg_run_jobs "$tmp" "$rid" | while IFS=$'\t' read -r jid jconcl jname; do
@@ -263,6 +263,28 @@ _rcg_first_red() {
       printf '%s\t%s\t%s\n' "$rid" "$jname" "${msg:+${msg#*red in this run: }}" >>"$tmp/stops.tsv"
     done
   done <"$tmp/failed.tsv"
+}
+
+# _rcg_job_table <tmp> <failed runs> - per job, the runs it was RED in (it
+# failed itself) apart from the runs it was STOPPED in (fail-fast, because
+# another job was red), from <tmp>/stops.tsv. Counted together, one red and
+# three stops read as 4 broken jobs (I9).
+_rcg_job_table() {
+  echo "== $2 failed run(s); per JOB, red = it failed, stopped = fail-fast stop for another job's red (a job red over ~3 is a defect that sat on trunk, or a flake)"
+  printf '   %7s %7s  %s\n' red stopped job
+  awk -F'\t' '{ if ($3 == "") red[$2]++; else stop[$2]++; seen[$2] = 1 }
+    END { for (j in seen) printf "%d\t%d\t%s\n", red[j], stop[j], j }' "$1/stops.tsv" |
+    sort -t$'\t' -k1,1rn -k2,2rn -k3,3 | awk -F'\t' '{ printf "   %7d %7d  %s\n", $1, $2, $3 }'
+}
+
+# _rcg_first_red <tmp> <failed runs> - the job(s) that broke each failed run,
+# counted per job, from <tmp>/stops.tsv (_rcg_stop_marks). A run's first reds are the jobs named there plus the jobs that failed with
+# no such annotation, minus the stopped jobs: a job stopped early is named by
+# the jobs stopped after it. Job names hold commas and the annotation joins
+# them with commas, so a name is matched whole against the run's own failed
+# jobs, never split.
+_rcg_first_red() {
+  local tmp="$1" nf="$2"
   echo "== first red per JOB, over the $nf failed run(s): the job(s) that broke each run, fail-fast stops left out"
   awk -F'\t' '
     { k = $1 SUBSEP $2; red[k] = 1; if ($3 == "") own[k] = 1; else { stop[k] = 1; list[$1] = list[$1] "," $3 } }

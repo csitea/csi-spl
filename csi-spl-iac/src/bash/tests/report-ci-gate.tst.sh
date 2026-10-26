@@ -5,7 +5,8 @@
 #          Hermetic: `gh` is stubbed. The stub is not a mock of the OUTPUT --
 #          it holds canned API JSON and runs the action's OWN --jq filter over
 #          it with real jq, so a broken filter fails here too.
-#   1. the per-job counts are the number of RUNS that job failed in
+#   1. the per-job table: per job, the RUNS it was red in and, apart, the
+#      runs it was stopped in by gate-fail-fast.sh (a "stopped" column, I9)
 #   2. every failed run is listed with its id, sha and job name
 #   3. CI_GATE_SIGNATURES=1 adds the first FAIL/::error line of that job's log
 #   4. a window with no failure says so and exits 0
@@ -24,6 +25,8 @@
 #  10. spec 131 C4: timeout headroom -- a job whose p90 wall time is 80 % of
 #      its timeout-minutes reads AT RISK, one at 70 % reads ok; a matrix name
 #      ("${{ matrix.shard }}/2") takes its job's timeout
+#  11. I9 (ci-failures-100 R-g): a run with one red and three fail-fast stops
+#      shows 1 red in the per-job table, the three under "stopped"
 #   CONTROLS -- the report cannot be silently empty:
 #     a. no runs at all               -> refused (non-zero), not "healthy"
 #     b. gh itself fails              -> refused (non-zero)
@@ -39,6 +42,8 @@
 #        "no failed run", the report before C1
 #     h. RED CONTROL for 9: the pre-C1 signature grep picks the PASS line
 #     i. RED CONTROL for 10: without the workflow file no job is AT RISK
+#     j. RED CONTROL for 11: with the annotations hidden the table shows 4
+#        reds, the count before I9
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -148,9 +153,13 @@ report() {
 }
 
 # --- 1. per-job counts --------------------------------------------------------
+# job_table_section <file> - the rows of the per-job red / stopped table only
+job_table_section() { sed -n '/^== [0-9]* failed run(s); per JOB/,/^== /{/^== /d;/^ *red  *stopped  *job$/d;p}' "$1"; }
 report; rc=$?
-if [[ $rc -eq 0 ]] && grep -qE '^ +2 iac: step contracts$' "$T/out" && grep -qE '^ +1 wui: unit tests$' "$T/out"; then
-  pass "per-job counts: iac 2 runs, wui 1 run (rc 0)"
+tab=$(job_table_section "$T/out")
+if [[ $rc -eq 0 ]] && grep -qE '^ +2 +0  iac: step contracts$' <<<"$tab" && grep -qE '^ +1 +0  wui: unit tests$' <<<"$tab" \
+   && grep -qE '^ +red +stopped  job$' "$T/out"; then
+  pass "per-job table: iac red in 2 runs, wui in 1, under a red / stopped / job header (rc 0)"
 else
   fail "per-job counts wrong (rc=$rc)"; sed 's/^/    | /' "$T/out"
 fi
@@ -180,9 +189,11 @@ if grep -qE '^ +2 iac: step contracts$' <<<"$sec" && grep -qE '^ +1 wui: unit te
 else
   fail "first red: the runs with no stop lost their red jobs"; sed 's/^/    | /' <<<"$sec"
 fi
-grep -qE '^ +8 stop: s|^ +1 stop: s' "$T/out" \
-  && pass "the old per-job section still counts the stopped jobs (other readers rely on it)" \
-  || { fail "the old per-job section changed"; sed 's/^/    | /' "$T/out"; }
+if [[ $(grep -cE '^ +0 +1  stop: s[1-8] \(a, b\)$' <<<"$tab") -eq 8 ]] && grep -qE '^ +1 +0  e2e: generate \(mock, tenant\)$' <<<"$tab"; then
+  pass "per-job table: the 8 fail-fast stops of run 907 are listed under 'stopped', 0 red; its red job is 1 red"
+else
+  fail "per-job table: the stopped jobs are not counted apart"; sed 's/^/    | /' <<<"$tab"
+fi
 
 # --- CONTROL e. red control: without the annotation parse it counts 9 --------
 report GH_STUB_NO_ANNOTATIONS=1
@@ -230,7 +241,7 @@ else
 fi
 report CI_GATE_BRANCH=; rc=$?
 if [[ $rc -eq 0 ]] && grep -qE '^== 10_ci-quality\.yml on every branch -- last 8 run\(s\)' "$T/out" \
-   && grep -qE '^ +1 branch: red on a review branch only$' "$T/out"; then
+   && grep -qE '^ +1 +0  branch: red on a review branch only$' <<<"$(job_table_section "$T/out")"; then
   pass "CI_GATE_BRANCH= (empty) reads every branch, the header says so, and 908 is counted"
 else
   fail "CI_GATE_BRANCH= did not read every branch (rc=$rc)"; sed 's/^/    | /' "$T/out"
@@ -395,6 +406,38 @@ else
   fail "CONTROL i. AT RISK without a workflow file: check 10 proves nothing"; sed 's/^/    | /' "$T/out"
 fi
 cp "$T/api/runs-before-10.json" "$T/api/runs.json"
+
+# --- 11. one red + three fail-fast stops shows 1 red (I9) -----------------------
+cp "$T/api/runs.json" "$T/api/runs-before-11.json"
+echo '[{"databaseId":930,"conclusion":"failure","createdAt":"2026-01-05T10:00:00Z","headSha":"30303030aaaa","headBranch":"master"}]' >"$T/api/runs.json"
+red11='hub: go test (pg)'
+{
+  printf '{"jobs":[{"id":7400,"name":"%s","conclusion":"failure"}' "$red11"
+  for i in 1 2 3; do printf ',\n {"id":740%s,"name":"stopped %s, 1/2","conclusion":"failure"}' "$i" "$i"; done
+  printf ']}\n'
+} >"$T/api/jobs-930.json"
+echo '[{"message":"Process completed with exit code 1."}]' >"$T/api/ann-7400.json"
+for i in 1 2 3; do
+  printf '[{"message":"gate fail-fast: stopped, so the next gate run starts; red in this run: %s"}]\n' "$red11" >"$T/api/ann-740$i.json"
+done
+# red_sum <file> - the red column of the per-job table, summed
+red_sum() { job_table_section "$1" | awk '{ s += $1 } END { print s + 0 }'; }
+report; rc=$?
+tab=$(job_table_section "$T/out")
+if [[ $rc -eq 0 ]] && [[ $(red_sum "$T/out") -eq 1 ]] && grep -qE '^ +1 +0  hub: go test \(pg\)$' <<<"$tab" \
+   && [[ $(grep -cE '^ +0 +1  stopped [1-3], 1/2$' <<<"$tab") -eq 3 ]]; then
+  pass "11. one red and three stops: the per-job table shows 1 red, 3 stopped (rc 0)"
+else
+  fail "11. the stops were counted as reds (red sum $(red_sum "$T/out"), rc=$rc)"; sed 's/^/    | /' "$T/out"
+fi
+# --- CONTROL j. without the annotations every failed job reads red ------------
+report GH_STUB_NO_ANNOTATIONS=1
+if [[ $(red_sum "$T/out") -eq 4 ]]; then
+  pass "CONTROL j. with the annotations hidden the table shows 4 reds, the count before I9, so check 11 FAILS without the stop parse"
+else
+  fail "CONTROL j. red sum $(red_sum "$T/out") with the annotations hidden: check 11 proves nothing"; sed 's/^/    | /' "$T/out"
+fi
+cp "$T/api/runs-before-11.json" "$T/api/runs.json"
 
 if [[ $fails -eq 0 ]]; then
   echo "PASS: all report-ci-gate.tst.sh assertions"

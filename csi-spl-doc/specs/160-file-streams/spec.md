@@ -1,7 +1,7 @@
 # 160 File streams: follow a box file live in Monitoring, and search it
 
-Version v0.1 (2026-10-26): the first draft, reviewed: cross-vendor PASS
-(section 8). Nothing is built. Docs only until the owner's GO (section 7), then the build
+Version v0.2 (2026-10-26): NOT reviewed. v0.1 got a FAIL (c-317, W1-W9);
+v0.2 folds it and awaits the re-review (section 8). Nothing is built. Docs only until the owner's GO (section 7), then the build
 rows of section 5 land one by one, each after its own review PASS + GO.
 
 Source: the owner's asks in the owner's customer workspace (section 1); the
@@ -145,8 +145,14 @@ terminal mirror and the session export (`spool-mirror.py`,
 
 ### 2.6 What the hub runs on
 
-- Postgres is `db-f1-micro`, `max_connections` 25; the hub runs at most 2
-  instances (`csi-spl-cnf/csi-spl/all.env.yaml:406`). A browser live
+- Postgres is `db-custom-1-3840` (1 dedicated vCPU, 3.75 GB;
+  `csi-spl-cnf/csi-spl/all.env.yaml:191` on `e4455240d`, SPL-2890 / SPL-2932,
+  `:190` "Undo: db-f1-micro"), disk `disk_size_gb: 10` (`:193`). Its
+  `max_connections` is unmeasured: the cnf sets no such flag
+  (`git grep -n max_connections origin/master -- csi-spl-cnf` -> only the
+  stale pool comment at `:467-468`, written for db-f1-micro's 25), and this
+  lane has no read of the instance. The hub runs at most 2 instances
+  (`:406`). A browser live
   WebSocket exists (`GET /v1/wui/ws`, `hub/server.go:419`;
   `hub/wui.go:31-35`: subscribe and fan-out per `task_id`).
 
@@ -178,7 +184,8 @@ A new box action `do_spl_file_stream_follow`
   - the file is gone: keep the state, send `-- file missing --` once,
     resume when it reappears (follow by name);
   - a partial last line (no `\n`) waits for the next tick, up to the line
-    limit (3.7), then goes as it is.
+    limit (3.7), then goes as it is; it is masked like any line, with the
+    PEM state below, before it is queued.
 - **Rhythm.** One long-lived process per box under `flock` (a second start
   exits 0), restarted by the minute cron when it is not running. It ticks
   every 2 s (cnf `env.box.file_streams.tick_s`), exits after 1 h so a code
@@ -195,6 +202,24 @@ A new box action `do_spl_file_stream_follow`
   the follower before it is queued: an unmasked line never touches the
   queue file and never the wire (case C9). The frame carries the redaction
   counts per kind; the hub stores the counts, never what was removed.
+- **A key spans lines: the PEM state** (review W1). `spool_redact`'s PEM
+  patterns are multi-line; fed one line at a time they mask the BEGIN line
+  and pass the body and the END line unchanged (c-317, measured on a
+  synthetic 4-line key). So the follower keeps, per file, a state "inside a
+  PEM block" in the same state row as the offset (`pem_open`,
+  `pem_lines`), so it survives a tick and a process restart:
+  - a line holding a `-----BEGIN ... KEY-----` header opens the block: that
+    line and every following line become one `<redacted:private-key>`
+    marker each, counted once per block;
+  - the block closes on its `-----END ... -----` line (masked too), after
+    a cap of `pem_max_lines` lines (cnf `env.box.file_streams.pem_max_lines`,
+    default 100; a 4096-bit RSA key is about 50 lines), or on a rotation,
+    truncation or new inode;
+  - a cut key with no END line is masked up to the cap, then one
+    `-- masked block cut at cap --` marker is sent and following resumes.
+
+  Cases C9 (the key in one tick), C25 (a key split across 2 ticks), C26 (a
+  cut key with no END).
 - **Languages.** Python 3 for the follower (it imports `spool_redact`:
   one list, one home), bash for the action and the cron wrapper, Go for the
   push verb and the hub. Decision D2.
@@ -212,18 +237,45 @@ Two lists; the deny list wins.
   developer guide 2.5). The list ships EMPTY: nothing is followed until a
   cnf commit adds an entry. Which file comes first is question Q1.
 - **Deny list, code** (`spl_file_stream_denied`, refused even when the
-  allow-list names it), checked on the path AFTER `realpath`, so a symlink
-  into a denied place is refused too: `$HOME/.ssh/`, `$HOME/.jira/`,
-  `$HOME/.confluence/`, `$HOME/.gcp/`, `$HOME/.github/`, `$HOME/.aws/`,
-  `$HOME/.config/gcloud/`, `$HOME/.claude.json`, `$HOME/.netrc`,
-  `$HOME/.git-credentials`, any path with a `keys/` segment, the spool
-  root (`$SPOOL_ROOT`: the desk state, inboxes, keys, leases),
-  `/etc/shadow`, `/proc/`, `/sys/`, `/dev/`, and any file named `id_*`,
-  `*.key`, `*.pem` or `*.p12`. A refused entry is logged once per process
-  start (`file-streams: refused <id>: denied path`), never followed, and
-  announced only as `refused`.
-- **Not a regular file** (a fifo, a socket, a device, a directory): refused
-  the same way.
+  allow-list names it). Review W4: a list of known credential paths always
+  misses one, so the home is denied by default:
+  - every dot entry of the agent user's home, `$HOME/.*` (`.ssh`, `.gnupg`,
+    `.config/gh`, `.config/gcloud`, `.docker/config.json`, `.kube`,
+    `.pgpass`, `.netrc`, `.git-credentials`, `.claude*`, `.spool-hub`,
+    `.vibe`, `.gcp`, `.aws`, `.jira`, `.confluence`, `.github`, `.local`,
+    shell history files ...), except the exceptions named in code with a
+    reason each; v0.2 names none;
+  - every home but the agent user's (`/home/*`, `/root`, and each
+    `getpwent` home other than `$HOME`);
+  - the spool roots: the box's `$SPOOL_ROOT` and every desk's own spool
+    root and desk dir (`$SPL_STATE_DIR/desk/`, which holds `spool/` and
+    `keys/`: section 7, Q1), all inboxes, keys and leases;
+  - `/etc/shadow`, `/etc/gshadow`, `/etc/ssh/ssh_host_*_key`, `/proc/`,
+    `/sys/`, `/dev/`;
+  - any path with a `keys/` segment, and any file named `id_*`, `*.key`,
+    `*.pem`, `*.p12`, `*.pfx`, `.env` or `.env.*`, `*_history` or
+    `.*history`.
+- **Open first, then check the opened file** (review W2). A check of the
+  path before the open races the open, and a check run once misses what
+  changes later. So on EVERY open and reopen (first sight, a new inode
+  after a rotation, the `*` glob switching to a newer match, a file that
+  reappears after `missing`) the follower opens the allow-listed path with
+  `O_RDONLY | O_NONBLOCK`, then checks the open fd, never the name:
+  - `readlink(/proc/self/fd/N)` is the real path: the deny list is checked
+    on it, so a symlink into a denied place, placed at start or after a
+    rotation, is refused;
+  - `fstat(fd)` must be `S_ISREG`: a fifo, socket, device or directory is
+    refused (`O_NONBLOCK` keeps a fifo from blocking the open);
+  - a refusal closes the fd before any byte is read.
+- **Hardlinks** (review W3). `realpath` and `/proc/self/fd` do not resolve
+  a hardlink: a link to `$HOME/.ssh/id_x` made in an allowed directory has
+  an allowed name. So `fstat(fd).st_nlink > 1` is refused. A log rotated
+  with `ln` (two names briefly) is refused for that tick and retried on
+  the next; the `-- refused: hardlink --` marker is sent once.
+- A refused entry is logged once per change of its state
+  (`file-streams: refused <id>: <reason>`), never followed, and announced
+  only as `refused`; the reasons are `denied path`, `not a regular file`,
+  `hardlink`, `unreadable`.
 
 ### 3.3 Wire and hub storage
 
@@ -240,7 +292,8 @@ the box is the session's, never the frame's (as 2.2):
 
 **Tables** (one migration, the next free number at build time; the owner
 and runtime split as every table since rdb 0096; FORCE RLS with the NULLIF
-tenant policy and its test, as every tenant table, developer guide 2.6.4):
+tenant policy and its test, as every tenant table, developer guide 2.6.4;
+case C30):
 
 - `file_streams (tenant_id, id uuid, box_id, stream_key, path, state,
   first_seen_at, last_line_at, lines_total, lines_dropped,
@@ -261,8 +314,17 @@ is question Q2.
 
 All three need a member session of workspace W with
 `TenantOwner || Has(rbac.Admin)` in W (2.5), else 403 `forbidden`; an
-act-as clone and the operator service account are refused. A box session
-may announce and push, never read.
+act-as clone (`hub/actas.go:29`, `readerIsActAsClone`) and the operator
+service account are refused (cases C27, C28). A box session may announce
+and push, never read (case C29).
+
+The route gate is the intended one (review W6). Today
+`visibleMonitoringTabs` (`wui/utils/monitoring-tabs.mjs:42-45`) draws a
+`staff` tab for any operator (`who.operator`), so an operator who is not
+owner or admin of W would see the tab and get 403. The file-streams tab
+therefore is drawn on `who.staff` only, not on `who.operator`: row B5
+adds a flag (`staffOnly: true`) that `visibleMonitoringTabs` reads, and
+the Lanes tab keeps its operator rule (case C18).
 
 - `GET /v1/view/file-streams`: W's streams, per box: `[{id, box_id,
   stream_key, path, state, last_line_at, lines_total, lines_dropped}]`.
@@ -280,7 +342,8 @@ visible and Follow is on (decision D3); no new WebSocket channel.
 
 - `MONITORING_TABS` gets `{ id: 'file-streams', path:
   '/monitoring/file-streams', labelKey: 'monitoring.tab.file_streams',
-  operatorsOnly: false, staff: true, ready: true }` after Lanes;
+  operatorsOnly: false, staff: true, staffOnly: true, ready: true }` after
+  Lanes (`staffOnly`: the route gate of 3.4, no operator bypass);
   `wui/pages/monitoring/file-streams.vue` is its own lazy chunk (the
   initial bundle budget).
 - **Pick.** Two selects, Box then File (`stream_key`, the path as hover
@@ -310,7 +373,10 @@ visible and Follow is on (decision D3); no new WebSocket channel.
   `file-stream`) sets `term.FileStreams`, which narrows the query to
   `TypeFileLine`, a reserved word as `dm` is. `#file-streams` (with the
   hash) stays the channel of that name, so a workspace with such a channel
-  can still search it (case C14). Decision D4.
+  can still search it (case C14). Decision D4. `channel:` is an alias of
+  `in:` (`search/grammar.go:164`) sharing `channelValue`, so
+  `channel:file-streams` is reserved too and means the same (review W7;
+  case C14 tests both spellings).
 - Other operators on `TypeFileLine`: free text; `box:<id>`;
   `before:` / `after:` / `on:` on `at`; `name:<stream_key>`. `from:`,
   `to:` and `topic:` do not apply (the grammar's applicability error, as
@@ -324,13 +390,21 @@ visible and Follow is on (decision D3); no new WebSocket channel.
   gate; for anyone else it is absent and the answer carries
   `notices: ["file_streams_staff_only"]`, which the WUI shows as one line
   (a text key). The whole search is never refused.
+- **Wire contract: `notices` is a new field** (review W7). The answer of
+  `GET /v1/view/search` is today `{query, sort, types, warnings, groups}`
+  (`hub/search.go:173-174`); `git grep -n notices` over `hub/search.go` and
+  `search/` -> 0 hits. B4 adds `notices: [string]`, always present (`[]`
+  when empty), a list of stable codes, never free text; `warnings` keeps
+  its meaning (query parse problems). The WUI reads it in
+  `wui/utils/search-results.mjs` and `wui/pages/search.vue`.
 - WUI: `search.mjs:52` `values: ['dm', 'file-streams']`; the help rows
   list it; a result opens `/monitoring/file-streams?box=&stream=&seq=`
   at that line, Follow off.
 
 ### 3.7 Limits and retention
 
-Budgets for a `db-f1-micro` (2.6). Each is a cnf value
+Budgets for the `db-custom-1-3840` instance with its 10 GB disk (2.6;
+review W5: v0.1 said db-f1-micro, a tier undone on 2026-10-22). Each is a cnf value
 (`env.hub.file_streams.*` on the hub, `env.box.file_streams.*` on the
 box); row B7 measures them before the defaults are final:
 
@@ -342,11 +416,30 @@ box); row B7 measures them before the defaults are final:
 | lines per push | 1000, frame <= 1 MiB | hub | 413 `too_large`, the box splits |
 | box queue | 20 000 lines | box | oldest dropped, counted in `dropped` |
 | lines kept per workspace | 500 000 | hub sweep | oldest pruned first |
+| bytes kept, all workspaces | 2 GB of text (`env.hub.file_streams.max_bytes`) | hub sweep | oldest pruned first, across workspaces |
 | retention | 7 days | hub sweep, hourly, as `sweepFleetTokens` | pruned |
 
 Retention is question Q3. Ten streams at the full rate fill 500 000 lines
 in under 2 hours; then the cap, not the days, decides what stays, and the
 tab shows the oldest line kept.
+
+**What the cap means on disk** (review W5). At the 2048-byte line limit,
+500 000 lines are 500 000 x 2048 = 1 024 000 000 bytes, about 0.95 GiB of
+text per workspace, plus the STORED `tsvector` and the two btree indexes
+(their size is unmeasured; B7 measures it, case C24). The instance's disk
+is `disk_size_gb: 10` (`all.env.yaml:193`) for the whole hub, so two full
+workspaces would take a fifth of it in text alone. Hence the hub-wide
+byte cap of 2 GB above: the sum over workspaces stays bounded however
+many workspaces stream. Real log lines are far shorter than 2048 bytes;
+B7 records the measured mean line size and the bytes per stored line,
+then sets both caps.
+
+**Connections.** The follower's push uses the box's existing session (one
+frame per tick with lines, 3.1) and the tab's poll is one indexed read
+every 3 s per open tab; neither opens a pool of its own. The pool budget
+of `all.env.yaml:467-472` was written for db-f1-micro's 25 connections;
+the new tier's `max_connections` is unmeasured (2.6), so B7 reads it on
+dev (`SHOW max_connections`) before any pool value is raised.
 
 ## 4. Cases
 
@@ -362,24 +455,34 @@ lands.
 | C4 | B1 | truncate (`: > f`), then write: the new lines from 0, one `truncated` marker | keep the offset: nothing until the file outgrows it |
 | C5 | B1 | delete, then recreate: one `missing` marker, then the new lines | exit on ENOENT: the stream dies |
 | C6 | B1 | a written line is on the (stub) hub within 5 s, timed | a 30 s tick: > 5 s |
-| C7 | B1 | a file the agent user cannot read (mode 600, another owner) is announced `refused`, not followed | run as root: it is read |
-| C8 | B1 | each deny-list path (3.2), and a symlink to `$HOME/.ssh/id_x` placed in an allowed dir, is refused although allow-listed | the deny check before `realpath`: the symlink is followed |
-| C9 | B1 | a line with `ghp_`, `Bearer`, `JIRA_API_TOKEN=`, a PEM block and `password:` reaches the push frame AND the queue file masked, with counts in `redactions` | queue before redact: the token is in the queue file |
+| C7 | B1 | a file whose mode bits say the agent user may read it but the open is denied (an ACL `user:<agent user>:---` on a mode 644 file), and a file whose mode bits say no but a group read grants it: the first is `refused` (`unreadable`), the second is followed | decide by a mode-bit check instead of the open: the ACL'd file is followed (and its open fails mid-tick) and the group-readable one is refused |
+| C8 | B1 | each deny-list class (3.2), and a symlink to a synthetic `$HOME/.ssh/id_x` placed in an allowed dir at start, is refused although allow-listed | the deny check on the name, not on `/proc/self/fd/N`: the symlink is followed |
+| C9 | B1 | lines with `ghp_`, `Bearer`, `JIRA_API_TOKEN=` and `password:`, and a synthetic 4-line PEM key written line by line in one tick, reach the push frame AND the queue file masked (no base64 body line of the key in either), with counts in `redactions` | per-line `redact()` with no PEM state: the BEGIN line is masked, the body and END lines reach the queue file (c-317's measurement); also queue before redact: the token is in the queue file |
 | C10 | B1 | the hub is down for 3 ticks, then up: every line arrives once, in seq order | drop on a failed push: a gap |
 | C11 | B2 | a push from box B pinned in W stores rows in W only; the frame cannot name another box or tenant | the box taken from the frame: rows land under the named box |
 | C12 | B3 | a member (not owner or admin) of W: 403 on all three routes; owner and admin: 200 | a membership-only gate: the member gets 200 |
 | C13 | B3 | the owner of W1 asks for W2's stream id: 404, the body names nothing of W2 (cross-tenant, as `crosstenant_test.go:122`) | read by id without the tenant: W2's lines |
-| C14 | B4 | `in:file-streams token` = stream lines only; `in:#file-streams token` = the channel named file-streams | strip `#` first (today's `channelValue`): both are the channel |
+| C14 | B4 | `in:file-streams token` and `channel:file-streams token` = stream lines only; `in:#file-streams token` and `channel:#file-streams token` = the channel named file-streams | strip `#` first (today's `channelValue`): all four are the channel |
 | C15 | B4 | a plain `/s token` returns no stream line | `TypeFileLine` in `DefaultTypes`: it does |
 | C16 | B4 | a member's `in:file-streams x` answers 200, no line, `notices: ["file_streams_staff_only"]` | no gate on the section: lines reach a member |
 | C17 | B4 | W1's owner searches `in:file-streams <W2 marker>`: nothing of W2 | the section without the tenant scope: W2's line |
-| C18 | B5 | the tab is drawn for an owner or admin, not for a member (unit, as `monitoring-tabs.test.mjs`) | `staff` flag missing: a member sees it |
+| C18 | B5 | the tab is drawn for an owner or admin, not for a member, and not for an operator who is neither owner nor admin of W; Lanes is still drawn for that operator (unit, as `monitoring-tabs.test.mjs`) | `staff` without `staffOnly`: the operator sees a tab its routes answer 403 |
 | C19 | B5 | e2e: pick box and file; a line the stub appends shows within 2 polls; Pause sends 0 requests in 10 s; Resume shows "N new lines" | the poll ignores Pause: requests continue |
 | C20 | B5 | e2e: scrolling up turns Follow off; "Jump to latest" turns it on | always scroll: the reader cannot read back |
 | C21 | B5 | a search result opens the tab at that line, Follow off | a link without `seq`: lands at the bottom |
 | C22 | B6 | the sweep prunes lines past retention and over the workspace cap, oldest first | no sweep: the row count only grows |
 | C23 | B2 | a push over the limits of 3.7 gets 413 or the `dropped` marker, never a partial store | store first, check after: half a frame stored |
-| C24 | B7 | the time of `in:file-streams` over 500 000 lines of one workspace on dev, n >= 5, recorded in 3.7 | n/a: a measurement; its check is the recorded n |
+| C24 | B7 | the time of `in:file-streams` over 500 000 lines of one workspace on dev, n >= 5, the bytes per stored line (text + tsvector + indexes) and `SHOW max_connections`, recorded in 3.7 | n/a: a measurement; its check is the recorded n |
+| C25 | B1 | a synthetic PEM key whose BEGIN and first body line land in tick 1 and the rest in tick 2 (the follower restarted between them): every line masked, one block counted | the PEM state kept in memory only, or not at all: tick 2's body lines are queued as written |
+| C26 | B1 | a cut synthetic key, BEGIN and 120 body lines, no END: 100 lines masked, one `masked block cut at cap` marker, then following resumes | no cap: every later line of the file is masked forever; or close on the next non-base64 line: a key body with a comment line leaks |
+| C27 | B3 | an act-as clone of an owner of W: 403 on all three routes | the gate on `TenantOwner` only: the clone inherits the owner's 200 |
+| C28 | B3 | the operator service account: 403 on all three routes | an operator bypass on the gate: 200 |
+| C29 | B3 | a box session of a box pinned in W: 403 on all three read routes; its announce and push still pass | the read routes accept any W session: the box reads lines |
+| C30 | B2 | `file_streams` and `file_stream_lines` are FORCE RLS with the NULLIF tenant policy: a statement without a tenant reads 0 rows, the runtime role cannot bypass (`rls_test.go` covers both tables) | a table without FORCE RLS: `TestRLSCoversEveryTenantTable` fails, and the tenantless read returns rows |
+| C31 | B1 | a followed file is rotated and the new file at its name is a symlink to a synthetic `$HOME/.ssh/id_x`: refused on the reopen, nothing of it read | the deny check run only at first open: the symlink is followed after the rotation |
+| C32 | B1 | an allow-list glob whose newest match becomes a symlink into a denied place: refused on the switch, the old match's stream ends with a marker | the deny check on the glob's name: the symlink is followed |
+| C33 | B1 | a hardlink (same dev and inode) to a synthetic key file, made in an allowed dir under an allowed name: refused `hardlink` | `realpath` only: the link's name is allowed, its content is followed |
+| C34 | B1 | allow-list entries for a `$HOME/.config/x.log`, another user's home, a `.env`, a `*_history` and a synthetic `/etc/ssh/ssh_host_x_key`: each refused `denied path` | v0.1's named list: `$HOME/.config/x.log` and the host key are followed |
 
 ## 5. Build rows
 
@@ -390,11 +493,11 @@ contract); B3, B4 and B6 after B2; B5 after B3; B7 after B4 and B6.
 
 | row | scope | paths | cases |
 |---|---|---|---|
-| B1 | box follower, deny list, masking, cron row | `orc/run/spl-file-stream-follow.func.sh`, `orc/scripts/file-stream-follow.py`, `orc/scripts/file-stream-follow-cron.sh`, `csi-spl-orc/cnf/box-crons/box-crons.manifest`, cnf `env.box.file_streams`, `orc/tests/spl-file-stream-follow.tst.sh` | C1-C10 |
-| B2 | frames, push verb, migration, store, push handler, limits | `wire/file_streams.go`, `cli/file_streams.go`, `rdb/<next>_file_streams.sql`, `store/file_streams*.go`, `hub/file_streams.go` | C11, C23 |
-| B3 | read routes, RBAC | `hub/file_streams_view.go`, `hub/crosstenant_test.go` | C12, C13 |
-| B4 | the search scope | `search/grammar.go`, `search/values.go`, `store/search_postgres.go`, `hub/search.go`, `wui/utils/search.mjs` | C14-C17 |
-| B5 | the WUI tab | `wui/utils/monitoring-tabs.mjs`, `wui/pages/monitoring/file-streams.vue`, i18n locales, e2e | C18-C21 |
+| B1 | box follower, deny list, open-then-check, PEM state, masking, cron row | `orc/run/spl-file-stream-follow.func.sh`, `orc/scripts/file-stream-follow.py`, `orc/scripts/file-stream-follow-cron.sh`, `csi-spl-orc/cnf/box-crons/box-crons.manifest`, cnf `env.box.file_streams`, `orc/tests/spl-file-stream-follow.tst.sh` | C1-C10, C25, C26, C31-C34 |
+| B2 | frames, push verb, migration, store, push handler, limits | `wire/file_streams.go`, `cli/file_streams.go`, `rdb/<next>_file_streams.sql`, `store/file_streams*.go`, `hub/file_streams.go` | C11, C23, C30 |
+| B3 | read routes, RBAC | `hub/file_streams_view.go`, `hub/crosstenant_test.go` | C12, C13, C27-C29 |
+| B4 | the search scope and the `notices` field | `search/grammar.go`, `search/values.go`, `store/search_postgres.go`, `hub/search.go` (the answer at `:173-174` gains `notices`), `wui/utils/search.mjs`, `wui/utils/search-results.mjs`, `wui/pages/search.vue` | C14-C17 |
+| B5 | the WUI tab, `staffOnly` | `wui/utils/monitoring-tabs.mjs`, `wui/pages/monitoring/file-streams.vue`, i18n locales, e2e | C18-C21 |
 | B6 | the retention sweep | `store/file_streams_postgres.go`, `hub/file_streams.go` | C22 |
 | B7 | measure the limits on dev, set the defaults in cnf | cnf `env.hub.file_streams`, this spec 3.7 | C24 |
 
@@ -429,9 +532,34 @@ Monitoring help page and B4 the syntax to the search help
 The dispatch holder posts them in `c168784c` as one form; the recommended
 answer is first.
 
+**Q1 changed in v0.2** (review W9). v0.1 recommended "the box desk's own
+log". Its real path, from the code on `e4455240d`:
+
+- `orc/run/spl-dispatch-lease.func.sh:1840-1847`: the desk dir is
+  `$SPL_STATE_DIR/desk/<tenant>/<box>`, its log `$d/spool/.hub/hub-run.log`;
+  the same path in `orc/run/spl-desk-up.func.sh:374,440,443`.
+- `orc/run/spl-desk-up.func.sh:174,203`: that desk runs with
+  `SPOOL_ROOT="$d/spool"` and `SPOOL_KEYS_DIR="$d/keys"`, so the log sits
+  inside a spool root, beside the desk's keys.
+- `SPL_STATE_DIR` defaults to `$HOME/.local/share/<org-app>/cloud/<env>`
+  (`csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh:136`).
+
+So it is denied three times by 3.2 (a spool root, the desk dir, and
+`$HOME/.*`), and v0.1's answer A would have streamed nothing. The new A is
+a box cron log outside the home and every spool root: the token burn
+collector's tick log, `token-burn/cron.log` under `BOX_CRONS_STATE_DIR`
+(default `/var/csi/csi-spl`, `orc/run/install-box-crons.func.sh:31`;
+manifest row `csi-spl-orc/cnf/box-crons/box-crons.manifest:33`). Why that
+one: it is written every minute (a live stream to see), its lines are tick
+summaries rather than message bodies, and B1's tests can write a synthetic
+file of the same shape. Unchecked: whether the agent user can read it on
+each box (the box owner's crons write it); if not, the open refuses it and
+the tab shows `refused`, which is the design, not a leak. This lane opened
+no real log.
+
 ```poll
 Q1 Which file should a box follow first?
-(A) The box desk's own log (recommended)
+(A) The box's token-burn cron log, a minute tick log outside the home (recommended)
 (B) The box's system journal, exported to a file
 (C) None yet: ship with an empty list, I add files later
 Q2 Whose box streams into which workspace?
@@ -439,7 +567,7 @@ Q2 Whose box streams into which workspace?
 (B) Also let a customer workspace see an operator box's streams
 Q3 How long are stream lines kept for the search?
 (A) 7 days, at most 500 000 lines per workspace (recommended)
-(B) 30 days, at most 2 000 000 lines (needs a bigger database tier)
+(B) 30 days, at most 2 000 000 lines (needs a bigger disk)
 (C) 24 hours
 Q4 GO to build rows B1..B7 in the order of section 5?
 (A) GO
@@ -450,26 +578,27 @@ Q4 GO to build rows B1..B7 in the order of section 5?
 
 | reviewer | vendor | sha | verdict | msg |
 |---|---|---|---|---|
-| m-313@sat | mistral | `0860285a7` | PASS, no defects, no warnings | `7d8f18ae` (task `c5a8ed9d`) |
+| m-313@sat | mistral | `0860285a7` | PASS, VOID: it carried no evidence (no command, no output) | `7d8f18ae`; voided by c-001, msg `e8de14f9` |
+| c-317@sat | claude | `0860285a7` | FAIL, W1-W9 (W1 a blocker) | `9e743c9a` (task `c5a8ed9d`) |
+| (pending) | claude, grok or mistral | v0.2 (this fold) | awaiting the re-review | task `c5a8ed9d` |
 
-The reviewer ran nine checks, each with its command: the branch and the
-one-file diff; the path model (allow-list in cnf, deny list in code after
-`realpath`); masking by `spool_redact.py` before the queue; owner/admin
-RBAC and the cross-tenant cases; the reserved `in:file-streams` value and
-`TypeFileLine` outside `DefaultTypes`; the limits and retention; the 24
-cases and their red controls; the poll form; `do_check_dist_hygiene`
-clean. Its one note, not a defect: like every list, `spool_redact` misses
-a token format it does not know (a custom `custom_abc123`); row B1's C9
-tests the formats the brief names.
+v0.1 is not reviewed: its only PASS was void, its evidenced review a
+FAIL. The plan and the section 7 poll posted in `c168784c` (msg
+`75d8db39`) went out on the void PASS; nothing is built before a real PASS
+and the owner's GO (Q4). v0.2, by c-319 (editor after the retired author),
+folds every defect:
 
-Dispatch GO to land this doc: c-002@sat, msg `5fc59ad9` (task
-`c5a8ed9d`). A GO to build is the owner's (section 7, Q4).
-
-Accepted by the dispatch holder c-002@sat (msg `76317007`, task
-`c5a8ed9d`) on `0860285a7` + `1f4c79ec8`. The plan and the section 7 poll
-are posted in the operator workspace topic `c168784c` (msg `75d8db39`).
-SPL-3621 (this spec) ends here; each build row B1..B7 gets its own issue
-and lane on the owner's GO.
+| defect | what changed | v0.2 lines |
+|---|---|---|
+| W1 PEM body leaks through per-line redaction | the PEM state across lines, ticks and restarts, with a cap; C9's red control is per-line redaction; new C25, C26 | 186-188, 205-222, 460 (C9), 476-477 (C25, C26), 496 (B1) |
+| W2 deny check racy and not re-run on reopen | open first, check `/proc/self/fd/N` and `fstat` S_ISREG on every (re)open; new C31, C32; C8's red control | 258-269, 459 (C8), 482-483 (C31, C32) |
+| W3 hardlink bypasses `realpath` | `st_nlink > 1` refused; new C33 | 270-274, 484 (C33) |
+| W4 credential homes missing | `$HOME/.*` denied by default, every other home, desk dirs, ssh host keys, `.env`, history files; new C34 | 239-257, 275-278, 485 (C34) |
+| W5 stale DB tier | 2.6 and 3.7 restated for `db-custom-1-3840`; bytes of the cap vs `disk_size_gb: 10`; a hub-wide byte cap; `max_connections` unmeasured, B7 reads it (C24) | 148-154, 406-407, 419, 426-442, 475 (C24), 570 (Q3 B) |
+| W6 refusals without cases, tab vs route gate | C27-C30; the route gate is intended, the tab gets `staffOnly`; C18 | 296, 316-327, 345-346, 469 (C18), 478-481 (C27-C30), 497-498, 500 |
+| W7 `channel:` alias, `notices` field | `channel:file-streams` reserved too (C14); `notices` named in the wire contract and in B4's paths | 377-380, 393-399, 465 (C14), 499 (B4) |
+| W8 C7's red control | an ACL / group-read case the mode bits contradict | 458 (C7) |
+| W9 the desk log is denied | its real path found; Q1's recommended answer changed to an allowed file | 535-558, 562 (Q1 A) |
 
 ## 9. Not in scope
 

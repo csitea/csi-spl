@@ -53,7 +53,7 @@ describe('tab title: unread count', () => {
     const app = readFileSync(join(WUI, 'src/app.vue'), 'utf8')
     assert.match(app, /withUnread\(tabTitle\(page, name\), unread\)/)
     assert.match(app, /useUnread\(\)/)
-    assert.match(app, /unreadRows\.section\('channels'\) - muted\) \+ unreadRows\.section\('dms'\)/)
+    assert.match(app, /unreadRows\.tabTitle\.value/, 'SPL-3587: the listed rows, as the rail sums them')
     assert.doesNotMatch(app, /useFlowBadge|unreadTotal/, 'the title is the row sum, not the Flow total (spec 079 Q1)')
   })
 

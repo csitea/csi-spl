@@ -50,3 +50,25 @@ export function flowDmPeers(keys) {
   }
   return out
 }
+
+/**
+ * SPL-3587 (owner HUM-10 csitea 739eb4f1: "#ops 1" on the open channel, no
+ * card marked): a topic card opened zeroes its `t:<task_id>` key at once,
+ * until the hub's next counts. Every line under that key also sits under its
+ * channel's `ch:` key (flow-v1 section 2), so the channel row drops by the
+ * same number; zeroing the topic alone left the row counting lines no card
+ * showed any more.
+ * @param {Record<string, number> | null} keys
+ * @param {string} taskId
+ * @param {string} [channel] the card's channel ('' for a DM line)
+ * @returns {Record<string, number> | null} the same object when nothing moves
+ */
+export function dropTopicKey(keys, taskId, channel = '') {
+  const t = 't:' + (taskId || '')
+  const n = keys && taskId ? whole(keys[t]) : 0
+  if (!n) return keys
+  const next = { ...keys, [t]: 0 }
+  const ch = channel ? 'ch:' + channel : ''
+  if (ch && ch in next) next[ch] = Math.max(0, whole(next[ch]) - n)
+  return next
+}

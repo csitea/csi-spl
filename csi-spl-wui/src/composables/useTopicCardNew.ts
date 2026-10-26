@@ -3,6 +3,7 @@ import { useNotificationStore } from '~/stores/notification'
 import { loadCursors, openerUnseen } from '~/utils/read-cursor.mjs'
 import { topicCounts } from '~/utils/topic-counts.mjs'
 import { useFlowKeys } from '~/composables/useFlowBadge'
+import { useUnread } from '~/composables/useUnread'
 import type { SpoolMessage } from '~/types/spool'
 
 type Cursor = { ts?: string, id?: string }
@@ -20,7 +21,9 @@ type Cursor = { ts?: string, id?: string }
  *  - unseen(m): SPL-2506 (owner, t1 43a1030f): the card's "<new>" number
  *    (topicCounts), what the unread-first order reads (useUnreadOrder).
  *  - opened(m): opening the card zeroes its topic's hub t: key at once,
- *    until the hub's next counts (here, not in the eager store).
+ *    until the hub's next counts (here, not in the eager store), and lowers
+ *    its channel's ch: key by as much (SPL-3587: the row kept a count no card
+ *    showed).
  */
 /**
  * SPL-2506 (owner, t1 d8fa6f9c): the hub's unread for one topic, its
@@ -55,9 +58,7 @@ export function useTopicCardNew(boundary: () => Cursor | null | undefined, viewe
     return topicCounts(countFor(tid), unreadFor(tid), openerNew(m), hubUnread(m)).unseen
   }
   function opened(m: SpoolMessage) {
-    const keys = useFlowKeys()
-    const k = `t:${m.task_id || ''}`
-    if (keys.value?.[k]) keys.value = { ...keys.value, [k]: 0 }
+    useUnread().dropTopic(String(m.task_id || ''), String(m.channel || ''))
   }
   return { openerNew, hubUnread, unseen, opened }
 }

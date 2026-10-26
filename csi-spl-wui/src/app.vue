@@ -20,7 +20,6 @@ import { useSessionStore } from '~/stores/session'
 import { hostTenant } from '~/composables/useSpoolApi'
 import { tabTitle, tenantTabName, withUnread } from '~/utils/tab-title.mjs'
 import { useUnread } from '~/composables/useUnread'
-import { loadMutedChannels } from '~/utils/notify.mjs'
 import { parseCloseButtons } from '~/utils/view-prefs.mjs'
 import { setTimeZoneSource } from '~/utils/date-iso.mjs'
 import { settingsQuerySection } from '~/utils/settings-nav.mjs'
@@ -77,14 +76,10 @@ const tabName = computed(() => tenantTabName(session.claims, (import.meta.client
    the person can see, muted channels left out - one model with the rows and
    the rail, no longer the Flow total (that stays on the Flow badge). Each
    unread line sits on one channel or DM row; its topic row (t:) shows the
-   same line again (flow-v1 section 2), so topic rows are not added twice. */
+   same line again (flow-v1 section 2), so topic rows are not added twice.
+   SPL-3587: only the channel rows the sidebar lists (useUnread tabTitle). */
 const unreadRows = useUnread()
-const unreadCount = computed(() => {
-  if (!import.meta.client) return 0
-  let muted = 0
-  for (const c of new Set(loadMutedChannels())) muted += unreadRows.rowOf('ch:' + c)
-  return Math.max(0, unreadRows.section('channels') - muted) + unreadRows.section('dms')
-})
+const unreadCount = computed(() => (import.meta.client ? unreadRows.tabTitle.value : 0))
 
 useHead(() => {
   /* read here, not inside titleTemplate, so a new unread re-runs the head */

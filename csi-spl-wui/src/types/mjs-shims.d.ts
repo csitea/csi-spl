@@ -2082,6 +2082,7 @@ declare module '~/utils/unread-model.mjs' {
     topics?: readonly { task_id: string, total?: number, messages?: readonly unknown[] }[]
     self?: string
   }): UnreadModel
+  export function tabUnread(rows: Map<string, number>, channelIds: Iterable<string>, muted?: readonly string[]): number
 }
 
 // 081 T003: the forward of tabForPath (merges with its first declare block).

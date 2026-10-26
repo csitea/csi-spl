@@ -3,7 +3,8 @@ import { useFlowKeys } from '~/composables/useFlowBadge'
 import { useChannelStore } from '~/stores/channel'
 import { useNotificationStore } from '~/stores/notification'
 import { loadMutedChannels } from '~/utils/notify.mjs'
-import { unreadModel } from '~/utils/unread-model.mjs'
+import { dropTopicKey } from '~/utils/flow-keys.mjs'
+import { tabUnread, unreadModel } from '~/utils/unread-model.mjs'
 
 /* no 'topics': the Topics tab that summed them is gone (t1 e4bfddb1); the
    model still counts each topic's own row (rowOf('t:<task_id>')) */
@@ -20,6 +21,9 @@ export type UnreadSection = 'channels' | 'dms'
  *  - rowOf(key): one place's unread (`ch:<id>`, `dm:<peer>`, `t:<task_id>`), 0 if none
  *  - section(id): the sum of a section's rows (muted channels included)
  *  - title: the sum for the tab title (muted channels left out, spec Q2)
+ *  - tabTitle: the tab title's number, the rows the sidebar lists (SPL-3587)
+ *  - dropTopic(task, channel): a card opened, its t: key and its channel's ch:
+ *    key drop together until the hub's next counts (SPL-3587)
  */
 export function useUnread() {
   const keys = useFlowKeys()
@@ -51,6 +55,14 @@ export function useUnread() {
     return model.value.sections[id] || 0
   }
   const title = computed(() => model.value.title)
+  /* SPL-3587: the listed rows only, as the rail sums them - a ch:issues key
+     has no row, so it made the tab read (3) over a rail of 1 */
+  const tabTitle = computed(() => tabUnread(model.value.rows, channel.ordered.map((c) => String(c.channel_id || '')), import.meta.client ? loadMutedChannels() : []))
 
-  return { rowOf, section, title }
+  function dropTopic(taskId: string, channelId: string) {
+    const next = dropTopicKey(keys.value, taskId, channelId)
+    if (next !== keys.value) keys.value = next
+  }
+
+  return { rowOf, section, title, tabTitle, dropTopic }
 }

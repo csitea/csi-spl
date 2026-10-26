@@ -66,3 +66,30 @@ export function unreadModel(inputs = {}) {
   }
   return { rows, sections, title: unreadTotal(flat, inputs.muted || []) }
 }
+
+/**
+ * Spec 079 FR-006 (SPL-3587, owner HUM-10 csitea 739eb4f1: "(3)" in the tab
+ * while the rows showed 1): the tab title's number is the sum of the rows the
+ * sidebar lists, as the rail's Channels and Direct messages numbers are
+ * (useSidebarCounts listedSum). A `ch:` key with no sidebar row - the issues
+ * and tasks boards, whose lines the hub still counts per place - is in no
+ * section a person can open, so it stays out of the title. DM rows: every
+ * `dm:` key gets a row (flowDmPeers), so all count. Muted channels are left
+ * out (Q2).
+ *
+ * @param {Map<string, number>} rows unreadModel's rows
+ * @param {Iterable<string>} channelIds the channel ids the sidebar lists
+ * @param {string[]} [muted] muted channel ids
+ * @returns {number}
+ */
+export function tabUnread(rows, channelIds, muted = []) {
+  const off = new Set(muted || [])
+  let n = 0
+  for (const id of new Set(channelIds || [])) {
+    if (!off.has(id)) n += Math.max(0, Number(rows.get('ch:' + id)) || 0)
+  }
+  for (const [k, v] of rows) {
+    if (k.startsWith('dm:')) n += Math.max(0, Number(v) || 0)
+  }
+  return n
+}

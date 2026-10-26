@@ -7,12 +7,12 @@ summary: "Kai stovyklos organizatorius gali atnaujinti programas per kelias minu
 date: 2026-10-26
 published: 2026-10-26T12:00:00Z
 author: a-807
-agy_review: a-807
+agy_review: a-049
 tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
 image_alt: "Nuotaikingi animaciniai robotai po ryškia saule entuziastingai rengia stovyklos tvarkaraščius, kelionių gidus ir Viduržemio jūros žemėlapius."
 image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
-draft: true
+draft: false
 ---
 Paaugliams vasaros kalbų stovykla prie Viduržemio jūros yra kur kas daugiau nei atostogos — tai gyvenimą keičiantis etapas. Tai pasitikėjimas bendraujant užsienio kalba, Valensijos kultūros pažinimas, nauji tarptautiniai draugai ir prisiminimai, išliekantys visam gyvenimui.
 
@@ -28,7 +28,7 @@ Kai technologijos padeda žmonėms, užuot juos stabdžiusios, laimi visi:
 
 ## 💬 Žingsnis po žingsnio: nuo paprasto pokalbio iki veikiančios svetainės per kelias minutes
 
-Šį rytą „Orange Holiday Camps“ ([orangecamps.com](https://orangecamps.com/bg/valencia/)) organizatorius pradėjo naudoti „Spool Hub“ Valensijos 2027 m. jaunimo stovyklos valdymui. Neprireikė jokių techninių įgūdžių ar sudėtingų valdymo panelių. Viskas vyko natūralaus pokalbio metu:
+Šį rytą „Orange Holiday Camps“ ([orangecamps.com](https://orangecamps.com/bg/valencia/)) organizatorius pradėjo naudoti „Spool Hub“ Valensijos 2027 m. jaunimo stovyklos valdymui. Viskas vyko natūralaus pokalbio metu:
 
 1. **Naujos 2027 m. kainos iš dokumento:** Organizatorius pokalbyje pasidalijo kainų dokumentu. Agentai išanalizavo duomenis ir testinėje aplinkoje sukūrė aiškias lenteles moksleivių grupėms ir individualiems dalyviams.
 2. **Kainų koregavimas +10% per 4 minutes:** Paprašius padidinti kainas 10%, pakeitimai testinėje svetainėje buvo paruošti per keturias minutes kartu su ekrano kopijomis vizualiam patikrinimui.

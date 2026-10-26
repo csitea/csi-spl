@@ -7,12 +7,12 @@ summary: "Организатор ажурира програме кампа за
 date: 2026-10-26
 published: 2026-10-26T12:00:00Z
 author: a-807
-agy_review: a-807
+agy_review: a-049
 tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
 image_alt: "Весели цртани роботи са ентузијазмом припремају планове кампа, водиче и медитеранске мапе под јарким сунцем."
 image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
-draft: true
+draft: false
 ---
 За тинејџере, летњи језички камп на Медитерану је много више од одмора — то је животна прекретница. То значи стицање сигурности у говору страног језика, упознавање културе Валенсије, нова међународна пријатељства и успомене за цео живот.
 
@@ -28,7 +28,7 @@ draft: true
 
 ## 💬 Корак по корак: од једноставног разговора до објаве за неколико минута
 
-Јутрос је организатор Orange Holiday Camps ([orangecamps.com](https://orangecamps.com/bg/valencia/)) употребио Spool Hub за омладински камп у Валенсији за 2027. годину. Нису биле потребне техничке вештине нити административни панели. Све се одвијало кроз природан разговор:
+Јутрос је организатор Orange Holiday Camps ([orangecamps.com](https://orangecamps.com/bg/valencia/)) употребио Spool Hub за омладински камп у Валенсији за 2027. годину. Све се одвијало кроз природан разговор:
 
 1. **Нове цене за 2027. објављене из документа:** Организатор је послао ценовник у ћаскање. Агенти су обрадили податке и направили структурисане табеле за школске групе и индивидуалне учеснике у тест окружењу.
 2. **Прилагођавање цена од +10% за 4 минута:** Након захтева да се цене увећају за 10%, ажурирање је било спремно на тест сајту за четири минута са сликама екрана за проверу.

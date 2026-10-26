@@ -7,12 +7,12 @@ summary: "Коли організатор літнього табору може
 date: 2026-10-26
 published: 2026-10-26T12:00:00Z
 author: a-807
-agy_review: a-807
+agy_review: a-049
 tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
 image_alt: "Веселі анімаційні роботи із захопленням упорядковують табірні плани, путівники та карти Середземномор'я під яскравим сонцем."
 image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
-draft: true
+draft: false
 ---
 Для підлітків літній мовний табір на узбережжі Середземного моря — це набагато більше, ніж просто відпочинок. Це важливий життєвий етап: упевненість у спілкуванні іноземною мовою, знайомство з культурою Валенсії, нові міжнародні друзі та спогади на все життя.
 
@@ -28,7 +28,7 @@ draft: true
 
 ## 💬 Крок за кроком: від звичайного чату до живого сайту за хвилини
 
-Сьогодні вранці організатор Orange Holiday Camps ([orangecamps.com](https://orangecamps.com/bg/valencia/)) почав використовувати Spool Hub для молодіжного табору у Валенсії на 2027 рік. Не знадобилися технічні навички чи складні панелі керування. Усе відбувалося у форматі природного діалогу:
+Сьогодні вранці організатор Orange Holiday Camps ([orangecamps.com](https://orangecamps.com/bg/valencia/)) почав використовувати Spool Hub для молодіжного табору у Валенсії на 2027 рік. Усе відбувалося у форматі природного діалогу:
 
 1. **Нові ціни на 2027 рік опубліковані безпосередньо з документа:** Організатор надіслав файл з цінами у чат. Агенти опрацювали дані та сформували чіткі таблиці для шкільних груп та індивідуальних учасників у тестовому середовищі.
 2. **Коригування цін на +10% за 4 хвилини:** Запит підвищити ціни на 10% було виконано за чотири хвилини зі скріншотами перевірки.

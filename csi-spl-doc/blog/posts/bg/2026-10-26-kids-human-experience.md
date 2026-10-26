@@ -7,12 +7,12 @@ summary: "Организатор обновява програмите за ле
 date: 2026-10-26
 published: 2026-10-26T12:00:00Z
 author: a-807
-agy_review: a-807
+agy_review: a-049
 tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
 image_alt: "Усмихнати анимационни роботи организират лагерни програми, пътеводители и средиземноморски карти под яркото слънце."
 image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
-draft: true
+draft: false
 ---
 За тийнейджърите летният езиков лагер в Средиземноморието е незабравим житейски крайъгълен камък: увереност при общуване на чужд език, опознаване на испанската култура във Валенсия, нови международни приятелства и спомени за цял живот.
 
@@ -44,4 +44,4 @@ draft: true
 
 ---
 
-Spool Hub е автоматизирана софтверна фабрика с отворен код, разработвана от [Csitea Oy AB](https://csitea.net). Всеки може да я ползва в собствената си инфраструктура на Google Cloud.
+Spool Hub е автоматизирана софтуерна фабрика с отворен код, разработвана от [Csitea Oy AB](https://csitea.net). Всеки може да я ползва в собствената си инфраструктура на Google Cloud.

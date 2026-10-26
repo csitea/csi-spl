@@ -7,12 +7,12 @@ summary: "Kad vasaras nometnes rīkotājs var atjaunināt programmas dažu minū
 date: 2026-10-26
 published: 2026-10-26T12:00:00Z
 author: a-807
-agy_review: a-807
+agy_review: a-049
 tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
 image_alt: "Priecīgi animācijas roboti spožā saulē aizrautīgi kārto nometnes maršrutus, ceļvežus un Vidusjūras kartes."
 image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
-draft: true
+draft: false
 ---
 Pusaudžiem vasaras valodu nometne Vidusjūras krastā ir daudz vairāk nekā tikai atvaļinājums — tas ir nozīmīgs dzīves posms. Tā ir pārliecība runāt svešvalodā, Valensijas kultūras iepazīšana, jauni starptautiski draugi un atmiņas, kas paliek uz visu mūžu.
 
@@ -28,7 +28,7 @@ Kad tehnoloģijas kalpo cilvēkiem, nevis rada kavēšanos, iegūst visi:
 
 ## 💬 Soli pa solim: no vienkāršas tērzēšanas līdz gatavai vietnei minūtēs
 
-Šorīt Orange Holiday Camps ([orangecamps.com](https://orangecamps.com/bg/valencia/)) organizators sāka izmantot Spool Hub Valensijas 2027. gada jauniešu nometnes pārvaldībai. Nebija nepieciešamas tehniskas iemaņas vai sarežģīti administrēšanas paneļi. Viss notika dabiskas sarunas gaitā:
+Šorīt Orange Holiday Camps ([orangecamps.com](https://orangecamps.com/bg/valencia/)) organizators sāka izmantot Spool Hub Valensijas 2027. gada jauniešu nometnes pārvaldībai. Viss notika dabiskas sarunas gaitā:
 
 1. **Jaunās 2027. gada cenas no dokumenta:** Rīkotājs tērzēšanā nosūtīja cenu failu. Aģenti apstrādāja datus un testa vidē izveidoja strukturētas tabulas gan skolu grupām, gan individuāliem dalībniekiem.
 2. **+10% cenu korekcija 4 minūtēs:** Pēc lūguma palielināt cenas par 10%, atjauninājums testa vietnē bija gatavs četrās minūtēs kopā ar ekrānuzņēmumiem vizuālai pārbaudei.

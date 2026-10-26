@@ -7,12 +7,12 @@ summary: "Un organizator actualizează programele taberei din 2027 în câteva m
 date: 2026-10-26
 published: 2026-10-26T12:00:00Z
 author: a-807
-agy_review: a-807
+agy_review: a-049
 tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
 image_alt: "Roboți veseli din desene animate organizează cu entuziasm programe de tabără, ghiduri de călătorie și hărți mediteraneene sub un soare strălucitor."
 image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
-draft: true
+draft: false
 ---
 Pentru adolescenți, o tabără de limbi străine pe coasta Mediteranei este mult mai mult decât o vacanță — este o etapă formatoare de viață. Înseamnă încredere în comunicarea într-o limbă străină, descoperirea culturii din Valencia, noi prietenii internaționale și amintiri pentru întreaga viață.
 

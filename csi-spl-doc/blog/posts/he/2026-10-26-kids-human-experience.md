@@ -7,12 +7,12 @@ summary: "כאשר מארגן מחנה קיץ יכול לעדכן תוכניות
 date: 2026-10-26
 published: 2026-10-26T12:00:00Z
 author: a-807
-agy_review: a-807
+agy_review: a-049
 tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
 image_alt: "רובוטים מצוירים ועליזים מארגנים בהתלהבות תוכניות מחנה קיץ, מדריכי נסיעות ומפות ים-תיכוניות תחת שמש בהירה."
 image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
-draft: true
+draft: false
 ---
 עבור בני נוער, מחנה שפות קיצי לחופי הים התיכון הוא הרבה יותר מעוד חופשה — זוהי נקודת ציון מעצבת בחיים. זהו ביטחון עצמי בדיבור בשפה זרה, היכרות עם התרבות של ולנסיה, חברויות בינלאומיות חדשות וזיכרונות שילוו אותם תמיד.
 
@@ -28,7 +28,7 @@ draft: true
 
 ## 💬 צעד אחר צעד: מצ'אט פשוט ועד לאתר החי תוך דקות
 
-הבוקר, מארגן Orange Holiday Camps ([orangecamps.com](https://orangecamps.com/bg/valencia/)) החל להשתמש ב-Spool Hub לניהול מחנה הנוער בוולנסיה לשנת 2027. לא נדרש ידע טכני או ממשקי ניהול מורכבים. הכל התנהל בשיחה טבעית:
+הבוקר, מארגן Orange Holiday Camps ([orangecamps.com](https://orangecamps.com/bg/valencia/)) החל להשתמש ב-Spool Hub לניהול מחנה הנוער בוולנסיה לשנת 2027. הכל התנהל בשיחה טבעית:
 
 1. **מחירי 2027 פורסמו מתוך מסמך:** המארגן שיתף את קובץ המחירים בצ'אט. הסוכנים עיבדו את הנתונים ויצרו טבלאות ברורות עבור קבוצות בתי ספר ועבור נרשמים יחידים בסביבת בדיקה.
 2. **התאמת מחיר של +10% בתוך 4 דקות:** כאשר המארגן ביקש להעלות את המחירים ב-10%, העדכון בוצע בסביבת הבדיקה תוך ארבע דקות בצירוף צילומי מסך לאימות חזותי.

@@ -7,12 +7,12 @@ summary: "Gdy organizator obozu może aktualizować program w kilka minut w zwyk
 date: 2026-10-26
 published: 2026-10-26T12:00:00Z
 author: a-807
-agy_review: a-807
+agy_review: a-049
 tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
 image_alt: "Radosne rysunkowe roboty z entuzjazmem przygotowują plany obozów, przewodniki i śródziemnomorskie mapy w pełnym słońcu."
 image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
-draft: true
+draft: false
 ---
 Dla nastolatków letni obóz językowy nad Morzem Śródziemnym to znacznie więcej niż wakacje — to przełomowy moment w życiu. Oznacza pewność siebie w posługiwaniu się językiem obcym, odkrywanie kultury Walencji, nowe międzynarodowe przyjaźnie i wspomnienia, które zostają na zawsze.
 

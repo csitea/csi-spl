@@ -7,12 +7,12 @@ summary: "Un organizador actualiza programas de campamento 2027 en minutos media
 date: 2026-10-26
 published: 2026-10-26T12:00:00Z
 author: a-807
-agy_review: a-807
+agy_review: a-049
 tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
 image_alt: "Alegres robots de dibujos animados organizan con entusiasmo itinerarios de campamento, guías de viaje y mapas mediterráneos bajo un sol brillante."
 image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
-draft: true
+draft: false
 ---
 Para los adolescentes, un campamento de idiomas en el Mediterráneo es un hito formativo: ganar confianza al hablar otra lengua, descubrir Valencia, hacer amigos internacionales y crear recuerdos para siempre.
 

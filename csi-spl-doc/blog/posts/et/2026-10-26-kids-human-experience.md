@@ -7,12 +7,12 @@ summary: "Kui laagrikorraldaja muudab programme minutitega lihtsas vestluses teh
 date: 2026-10-26
 published: 2026-10-26T12:00:00Z
 author: a-807
-agy_review: a-807
+agy_review: a-049
 tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
 image_alt: "Rõõmsad multikarobotitest abilised korraldavad ereda päikese all suvelaagri kavasid, reisijuhte ja Vahemere kaarte."
 image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
-draft: true
+draft: false
 ---
 Teismelistele on Vahemere suvine keelelaager palju enamat kui pelgalt puhkus — see on elumuutev kogemus. See toob enesekindluse võõrkeeles suhtlemisel, Valencia kultuuri avastamise, uued rahvusvahelised sõbrad ja mälestused kogu eluks.
 
@@ -28,7 +28,7 @@ Kui tehnoloogia toetab inimesi ega tekita viivitusi, võidavad kõik:
 
 ## 💬 Samm-sammult: lihtsast vestlusest elava veebini minutitega
 
-Täna hommikul võttis Orange Holiday Camps ([orangecamps.com](https://orangecamps.com/bg/valencia/)) korraldaja kasutusele Spool Hubi, et hallata Valencia 2027. aasta noortelaagrit. Ei läinud vaja tehnilisi oskusi ega keerulisi halduspaneele. Kõik toimus loomuliku suhtluse käigus:
+Täna hommikul võttis Orange Holiday Camps ([orangecamps.com](https://orangecamps.com/bg/valencia/)) korraldaja kasutusele Spool Hubi, et hallata Valencia 2027. aasta noortelaagrit. Kõik toimus loomuliku suhtluse käigus:
 
 1. **Uued 2027 hinnad otse dokumendist:** Korraldaja jagas hinnakirja faili vestluses. Agendid töötlesid andmed ja lõid testkeskkonnas selged tabelid nii kooligruppidele kui ka individuaalsetele osalejatele.
 2. **+10% hinnakohandus 4 minutiga:** Pärast soovi tõsta hindu 10% võrra oli uuendus testlehel valmis nelja minutiga koos kuvatõmmistega visuaalseks kontrolliks.
@@ -44,4 +44,4 @@ Vanemad saavad südamerahu. Ja teismelised saavad suurepäraselt korraldatud suv
 
 ---
 
-Spool Hub on avatud lähtekoodiga automatiseeritud tarkvaratehas, mille on loonud [Csitea Oy AB](https://csitea.net). Igaüks saab selle oma Google Cloudi taristus tasuta kasutusele võtta.
+Spool Hub on avatud lähtekoodiga automatiseeritud tarkvaratehas, mille on loonud [Csitea Oy AB](https://csitea.net). Igaüks saab selle oma Google Cloudi taristus kasutusele võtta.

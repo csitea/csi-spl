@@ -7,12 +7,12 @@ summary: "Kun leirijärjestäjä päivittää ohjelmatiedot minuuteissa tekoäly
 date: 2026-10-26
 published: 2026-10-26T12:00:00Z
 author: a-807
-agy_review: a-807
+agy_review: a-049
 tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
 image_alt: "Iloiset piirrosrobotit järjestävät innokkaasti leiriohjelmia, matkaoppaita ja Välimeren karttoja kirkkaassa auringonpaisteessa."
 image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
-draft: true
+draft: false
 ---
 Nuorille kesäinen kielileiri Välimerellä on paljon enemmän kuin pelkkä loma — se on elämän suuri virstanpylväs. Se merkitsee rohkeutta puhua vierasta kieltä, Valencian kulttuurin kokemista, uusia kansainvälisiä ystävyyksiä ja muistoja, jotka säilyvät läpi elämän.
 
@@ -28,7 +28,7 @@ Kun teknologia palvelee ihmisiä eikä hidasta heitä, kaikki hyötyvät:
 
 ## 💬 Askel askeleelta: viestiketjusta tuotantoon minuuteissa
 
-Tänä aamuna Orange Holiday Camps ([orangecamps.com](https://orangecamps.com/bg/valencia/)) otti Spool Hubin käyttöön Valencian 2027 nuorisoleirin hallinnointiin. Teknistä osaamista tai verkkosivujen ylläpitopaneeleja ei tarvittu. Kaikki tapahtui luonnollisen keskustelun kautta:
+Tänä aamuna Orange Holiday Camps ([orangecamps.com](https://orangecamps.com/bg/valencia/)) otti Spool Hubin käyttöön Valencian 2027 nuorisoleirin hallinnointiin. Kaikki tapahtui luonnollisen keskustelun kautta:
 
 1. **Vuoden 2027 hinnat suoraan dokumentista:** Järjestäjä jakoi hintatiedoston chatissa. Agentit jäsivät tiedot ja loivat selkeät taulukot kouluryhmille ja yksittäisille osallistujille esikatseluympäristöön.
 2. **+10 % hinnankorotus 4 minuutissa:** Kun järjestäjä pyysi kymmenen prosentin korotusta hintoihin, päivitys oli testipalvelimella valmiina neljässä minuutissa kuvakaappausten kera.

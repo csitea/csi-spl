@@ -236,7 +236,7 @@ The serial spine is T003 -> T004 -> T008 -> T009 -> T010 -> T012 -> T013. T002, 
 - [ ] T022 **Calendar linkage**: scheduled posts appear on `/calendar`, and moving one there edits `scheduled_for` (FR-010, AC-04). Depends on 089 T008.
 
 ### Phase 3a: Meta Graph API (Facebook Pages & Instagram Professional)
-Added 2026-10-26 (v0.2.1 tasks, SPL-3553) for Facebook Pages and Instagram Professional Content Publishing API (`spec.md` §16, §20, §21; runbook `meta-app-setup.md`).
+Added 2026-10-26 (v0.2.2 tasks, SPL-3553) for Facebook Pages and Instagram Professional Content Publishing API (`spec.md` §16, §20, §21; runbook `meta-app-setup.md`).
 
 - [ ] T030 **Meta OAuth app secret slots & cnf infrastructure** (`iac`, `cnf`).
   - **Build**: Add cnf block `marketing.facebook` (`inject`, `client_id_secret`, `client_secret_secret`, `app_id`, `api_version: "v26.0"`). Add Secret Manager empty slots in step 030 (`csi-spl-hub-marketing-facebook-client-id`, `csi-spl-hub-marketing-facebook-client-secret`). Update `csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh` to forward `/api/v1/marketing/facebook/callback` to the hub.
@@ -245,11 +245,11 @@ Added 2026-10-26 (v0.2.1 tasks, SPL-3553) for Facebook Pages and Instagram Profe
   - **Red Control**: Local test `csi-spl-iac/src/bash/tests/hub-marketing-facebook-030.tst.sh` verifies that `do_tpl_gen` with `marketing.facebook.inject: "true"` renders the required secret volume mounts and environment variables into `csi-spl-iac/src/terraform/030-cloud-run-hub/`, and fails if `marketing.facebook.app_id` or secret references are absent.
   - **Needs from the owner**: Meta Developer App creation in Meta Business Portfolio, and adding client ID and secret version 1 into Secret Manager on dev and prd (runbook: `meta-app-setup.md`).
 
-- [ ] T031 **Hub database schema extensions for Meta channels, media assets & handover event** (`rdb`, `api/internal/store`).
-  - **Build**: Migration `0229_marketing_meta.sql` (next free migration after `0228`): swaps `marketing_channels_platform_check` constraint on `marketing_channels.platform` to `CHECK (platform IN ('linkedin', 'facebook_page', 'instagram_business'))` (CHECK constraint swap, not an enum). Add `metadata jsonb NOT NULL DEFAULT '{}'::jsonb` to `marketing_channels` (storing page ID, Instagram business ID, username, profile picture URL) and `media_assets jsonb NOT NULL DEFAULT '[]'::jsonb` to `marketing_posts` (storing candidate image URLs, dimensions, aspect ratios, and selected flag). Swaps `marketing_post_events_event_type_check` to add `'post_handed_over'`. Update store queries in `internal/store/marketing.go`.
+- [ ] T031 **Hub database schema extensions for Meta channels, media assets & approval hold** (`rdb`, `api/internal/store`).
+  - **Build**: Migration `0229_marketing_meta.sql` (next free migration after `0228`): swaps `marketing_channels_platform_check` constraint on `marketing_channels.platform` to `CHECK (platform IN ('linkedin', 'facebook_page', 'instagram_business'))` (CHECK constraint swap, not an enum). Swaps `marketing_posts_status_check` constraint on `marketing_posts.status` to `CHECK (status IN ('awaiting_approval', 'skipped', 'scheduled', 'dispatching', 'published', 'failed'))` to provide an explicit approval hold for unapproved posts. Add `metadata jsonb NOT NULL DEFAULT '{}'::jsonb` to `marketing_channels` (storing page ID, Instagram business ID, username, profile picture URL) and `media_assets jsonb NOT NULL DEFAULT '[]'::jsonb` to `marketing_posts` (storing candidate image URLs, dimensions, aspect ratios, and selected flag). Swaps `marketing_post_events_event_type_check` to add `'post_handed_over'`. Update store queries in `internal/store/marketing.go`.
   - **Owns**: `csi-spl-rdb/src/sql/postgres/spool-hub/0229_marketing_meta.sql`, `csi-spl-api/src/go/spool-hub-api/internal/store/marketing.go`, `marketing_meta_test.go`.
   - **Tests**: `PRE_PUSH_TIER=full ./run -a do_check_pre_push`, `TestMarketingMetaChannelsRLS` on PostgreSQL.
-  - **Red Control**: Inserting a channel with platform `'facebook_page'` or `'instagram_business'` fails on pre-migration schema; passes on new schema. Attempting cross-tenant read of Meta channel tokens fails closed via RLS.
+  - **Red Control**: Inserting a channel with platform `'facebook_page'` or `'instagram_business'` or post with status `'awaiting_approval'` fails on pre-migration schema; passes on new schema. Attempting cross-tenant read of Meta channel tokens fails closed via RLS.
   - **Depends**: T030. **Serial**.
 
 - [ ] T032 **Meta Graph API client for Facebook Pages & Instagram Content Publishing** (`api/internal/marketing`).
@@ -279,13 +279,13 @@ Added 2026-10-26 (v0.2.1 tasks, SPL-3553) for Facebook Pages and Instagram Profe
 
 - [ ] T034 **Publishing approval & dispatcher for Facebook & Instagram** (`api/internal/hub`).
   - **Build**: Extend hub dispatcher and manual publish API:
-    - Extend `POST /v1/marketing/posts/{id}/publish` to support Facebook Page and Instagram channels.
-    - Background worker single-flight dispatch: claims approved posts (`FOR UPDATE SKIP LOCKED`), opens KMS sealed token in memory, dispatches via `meta_client.go`, stores `platform_post_id` and permalink.
+    - Extend `POST /v1/marketing/posts/{id}/publish` to support Facebook Page and Instagram channels: transitions post from `'awaiting_approval'` to `'scheduled'` with `next_attempt_at = now()`.
+    - Background worker single-flight dispatch: claims due posts using `ClaimMarketingPosts` (`FOR UPDATE SKIP LOCKED` and `RETURNING`), opens KMS sealed token in memory, dispatches via `meta_client.go`, stores `platform_post_id` and permalink.
     - Enforces Instagram 100 posts/24h rolling rate limit and daily 1 post/day channel cap.
     - Handles OAuth token invalidation (OAuthException 190) by updating channel status to `expired` and sending re-consent alert.
   - **Owns**: `csi-spl-api/src/go/spool-hub-api/internal/hub/marketing_meta_dispatch.go`.
-  - **Tests**: Concurrency tests: two racing dispatchers claim post exactly once; rate limit mock tests.
-  - **Red Control**: Second dispatch call for same post returns `409 Conflict`. Token error immediately transitions channel to `expired`.
+  - **Tests**: Concurrency tests: two racing dispatchers claim post exactly once; rate limit mock tests; approval hold test.
+  - **Red Control**: An unapproved post with status `'awaiting_approval'` on an `auto_publish = false` channel is never claimed by `ClaimMarketingPosts`; calling publish API transitions it to `'scheduled'` permitting exactly one claim. Second dispatch call for same post returns `409 Conflict`.
   - **Depends**: T032, T033. **Serial**.
 
 - [ ] T035 **WUI connected accounts & management for Facebook & Instagram** (`wui`).
@@ -300,7 +300,7 @@ Added 2026-10-26 (v0.2.1 tasks, SPL-3553) for Facebook Pages and Instagram Profe
   - **Depends**: T033, T034. **Serial**.
 
 ### Phase 3b: Customer Manual Draft Handover & Messaging Deep Links
-Added 2026-10-26 (v0.2.1 tasks, SPL-3553) for customer draft handover (`spec.md` §17, HUM-23 input) and Viber/WhatsApp deep links (§18, §19).
+Added 2026-10-26 (v0.2.2 tasks, SPL-3553) for customer draft handover (`spec.md` §17, HUM-23 input) and Viber/WhatsApp deep links (§18, §19).
 
 - [ ] T036 **Customer draft handover & photo selection UI (HUM-23 design)** (`api`, `wui`).
   - **Build**: Component `MarketingDraftHandover.vue` and hub endpoint:
@@ -345,4 +345,4 @@ Added 2026-10-26 (v0.2.1 tasks, SPL-3553) for customer draft handover (`spec.md`
 - [ ] T041 **Phase 4, LinkedIn company page**: needs from the owner LinkedIn Community Management API access and business verification.
 - [ ] T042 **Phase 4, Viber Channels 1-Way Post API**: high-volume broadcast channel support via Channel Auth Token.
 
-<!-- version: 0.2.1 · updated: 2026-10-26 · last-edit: 2026-10-26T12:50:00Z -->
+<!-- version: 0.2.2 · updated: 2026-10-26 · last-edit: 2026-10-26T12:50:00Z -->

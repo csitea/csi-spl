@@ -1,7 +1,7 @@
 # 090: Marketing Automation (delegated social and email posting)
 
-**Feature ID**: `090-marketing-automation` · **Milestone**: M4 · **Status**: In Review (v0.5.1)  
-**Created**: 2026-10-05 · **Updated**: 2026-10-26 (v0.5.1 Meta publishing, Viber/WhatsApp evaluations, draft handover) · **Lane**: a-273 (v0.1-v0.3), c-286 (v0.3.3), c-334 (v0.4.0), a-292 (v0.5.1) · **Topics**: `f0c3927e-12fd-4602-9ac6-5ec96bdcabaa`, `69b50b6c-4c6d-401e-8bf0-b325b3abe53a`, `55fd7531-5079-43c2-af38-ea0bf3692d4f`, `44a37f81-e98f-49ee-9374-970a3e7ef592`, `665401a9-bd36-46b5-8c5b-39c134669e53`  
+**Feature ID**: `090-marketing-automation` · **Milestone**: M4 · **Status**: In Review (v0.5.2)  
+**Created**: 2026-10-05 · **Updated**: 2026-10-26 (v0.5.2 Meta publishing, Viber/WhatsApp evaluations, draft handover) · **Lane**: a-273 (v0.1-v0.3), c-286 (v0.3.3), c-334 (v0.4.0), a-292 (v0.5.2) · **Topics**: `f0c3927e-12fd-4602-9ac6-5ec96bdcabaa`, `69b50b6c-4c6d-401e-8bf0-b325b3abe53a`, `55fd7531-5079-43c2-af38-ea0bf3692d4f`, `44a37f81-e98f-49ee-9374-970a3e7ef592`, `665401a9-bd36-46b5-8c5b-39c134669e53`  
 **Authority**: this file for behaviour and requirements. Status vocabulary: `../README.md` §2.3. Docs only: this spec builds nothing (`../README.md` §2.4). Organised as unified specification sections (§1–§21), with implementation tasks in `tasks.md` and owner app setup guide in `meta-app-setup.md`.
 
 Builds on, and does not repeat:
@@ -401,7 +401,7 @@ Following Round 1 review, author `a-273` and reviewers `g-276`, `c-277`, and `c-
 | v0.3.3 | 2026-10-05 | c-286 | claude-a's third edit, completed: AC-08 no longer uses `rejected` (a final state) for a draft that is sent back. The stale draft stays `draft`, and the `draft_stale` audit event is added. Claude-a's other edits were already in v0.3.1/v0.3.2: quoted SQL literals, per-workspace FORCE RLS policies, and §2.3 matching FR-005. Added the build plan in `tasks.md`. |
 | v0.4.0 | 2026-10-05 | c-334 | Added §15, the per-workspace switch (owner msgs `37bcb88b` item 4 and `5cd2e544`): the cnf allow-list AND the db flag `tenants.marketing_enabled`, which defaults off; the flag never widens the list; `all` is supported but unused; the demo workspace is never on. |
 | v0.4.1 | 2026-10-14 | c-516 | §15 item 5: the WUI says why Marketing is missing (one line on the switch's `404`, one on the Publish list's `403`) instead of hiding it silently (SPL-1856). |
-| v0.5.1 | 2026-10-26 | a-292 | Updated §16–§21 following cross-vendor R7 review: pinned Meta Graph API v26.0 (superseding retiring v21.0), Instagram 100 posts/24h quota, JPEG-only/20-item carousel limits, Viber 200-char prefill trim with short variant, WhatsApp Cloud API Groups API evaluation, aligned status/dispatching with live 0187 schema, and unified OAuthException 190 subcodes. |
+| v0.5.2 | 2026-10-26 | a-292 | Resolved review findings R1-R3: introduced explicit status 'awaiting_approval' in migration 0229 to guarantee approval hold is never claimed by background worker, aligned SQL query documentation with full live store query (FOR UPDATE SKIP LOCKED with UPDATE...RETURNING), and clarified Phase 3 source_type scope ('blog'). |
 
 ---
 
@@ -505,24 +505,29 @@ Mirroring the LinkedIn personal settings pattern (spec 019 / spec 090 T006):
    - Channel records are created in `marketing_channels` (`platform='facebook_page'` or `platform='instagram_business'`).
    - Disconnecting an account immediately deletes the database row and its encrypted token, and attempts a revocation call to `DELETE https://graph.facebook.com/v26.0/{user-id}/permissions`.
 
-### 16.3 Publishing Lifecycle & Human Approval Gate
+### 16.3 Publishing Lifecycle & Explicit Human Approval Hold
 
-1. **Live Post Lifecycle & Statuses**:
-   Under the Postgres schema (`marketing_posts.status`, defined in migration `0187_marketing.sql`), post statuses are:
-   `scheduled` -> `dispatching` -> `published` (or `failed`, or `skipped`).
-2. **Human Approval Gate & Authority**:
+1. **Post Lifecycle & Status States**:
+   Under the extended schema (migration `0229_marketing_meta.sql` extending `0187_marketing.sql`), post statuses are:
+   `awaiting_approval` -> `scheduled` -> `dispatching` -> `published` (or `failed`, or `skipped`).
+2. **Explicit Approval Hold (`awaiting_approval`)**:
    - In accordance with owner rules and customer input (HUM-23), automated publishing is strictly opt-in per channel (`marketing_channels.auto_publish = false` by default).
-   - When a marketing post is created for a channel where `auto_publish = false`, it is placed in `scheduled` status with `next_attempt_at = NULL` (holding the post from background dispatcher pickup).
-   - Clicking "Approve & Publish" in WUI triggers `POST /v1/marketing/posts/{id}/publish`, which sets `next_attempt_at = now()`, immediately unlocking the post for background dispatch.
+   - When a marketing post is generated for a channel where `auto_publish = false`, it is inserted with status `'awaiting_approval'`.
+   - The live background dispatcher claim predicate in `ClaimMarketingPosts` (`internal/store/marketing.go:334`) specifically queries `status = 'scheduled' AND (next_attempt_at IS NULL OR next_attempt_at <= $3)`. Because `status = 'awaiting_approval'` is never selected by the claim query, unapproved posts remain strictly held and cannot be dispatched accidentally.
+   - Clicking "Approve & Publish" in WUI triggers `POST /v1/marketing/posts/{id}/publish`, which transitions the post from `'awaiting_approval'` to `'scheduled'` and sets `next_attempt_at = now()`, immediately unlocking it for background dispatch.
    - For multi-tenant workspaces, only the user who connected the channel (or an administrator holding `tenant.settings`) may approve publishing.
 3. **Atomic Single-Flight Dispatcher**:
-   - The background dispatcher claims due posts using atomic Postgres updates with a `RETURNING` clause (matching `internal/store/marketing.go:331`):
+   - The background dispatcher claims due posts using atomic Postgres updates with `FOR UPDATE SKIP LOCKED` and `RETURNING` (matching `internal/store/marketing.go:331-336`):
      ```sql
-     UPDATE marketing_posts
-     SET status = 'dispatching', attempts = attempts + 1, claimed_at = now(), updated_at = now()
-     WHERE tenant_id = $1 AND channel_id = $2::uuid AND status = 'scheduled'
-       AND (next_attempt_at IS NULL OR next_attempt_at <= now())
-     RETURNING post_id, channel_id, content_text;
+     UPDATE marketing_posts SET status = 'dispatching', attempts = attempts + 1,
+         claimed_at = $3, updated_at = $3
+     WHERE post_id IN (
+         SELECT post_id FROM marketing_posts
+         WHERE tenant_id = $1 AND channel_id = $2::uuid
+           AND status = 'scheduled' AND (next_attempt_at IS NULL OR next_attempt_at <= $3)
+         ORDER BY created_at FOR UPDATE SKIP LOCKED
+     )
+     RETURNING post_id, tenant_id, channel_id, source_type, source_ref, content_text, status, attempts, coalesce(platform_post_id, ''), coalesce(last_error, '');
      ```
    - This guarantees single-flight execution across multi-instance hubs without concurrency races.
    - The dispatcher retrieves the KMS-sealed Page Access Token, decrypts it in memory, executes container creation/publishing against Meta Graph API, stores the resulting `platform_post_id` and permalink URL, and marks status as `published` (logging audit event `post_published`).
@@ -554,7 +559,7 @@ The platform acknowledges that business owners and marketing leads often require
 
 ### 17.2 The Draft Handover Workflow
 
-When a marketing campaign, release notice, or customer story is generated:
+In Phase 3, marketing posts and manual draft handovers are sourced from blog posts (`source_type = 'blog'`, matching migration `0187_marketing.sql`). When a new blog release, tip, or customer story post is published:
 
 1. **Agent Preparation**:
    - AI agent prepares:
@@ -746,12 +751,22 @@ The single-flight background dispatcher enforces strict failure handling to prot
                                     - In-app notification sent to channel author
 ```
 
-1. **Idempotency & Deduplication**:
+1. **Idempotency & Claim Mechanism**:
    - Under the schema (`0187_marketing.sql:74`), uniqueness is enforced by `UNIQUE (channel_id, source_type, source_ref)`, ensuring that the same blog post is created and shared at most once per connected channel across all hub instances.
-   - Due posts are claimed atomically via:
-     `UPDATE marketing_posts SET status = 'dispatching', attempts = attempts + 1, claimed_at = now(), updated_at = now() WHERE tenant_id = $1 AND channel_id = $2::uuid AND status = 'scheduled' AND (next_attempt_at IS NULL OR next_attempt_at <= now()) RETURNING post_id`
-     guaranteeing single-flight execution across multi-instance hubs without race conditions.
+   - Due posts are claimed atomically via `ClaimMarketingPosts` (`internal/store/marketing.go:331-336`):
+     ```sql
+     UPDATE marketing_posts SET status = 'dispatching', attempts = attempts + 1,
+         claimed_at = $3, updated_at = $3
+     WHERE post_id IN (
+         SELECT post_id FROM marketing_posts
+         WHERE tenant_id = $1 AND channel_id = $2::uuid
+           AND status = 'scheduled' AND (next_attempt_at IS NULL OR next_attempt_at <= $3)
+         ORDER BY created_at FOR UPDATE SKIP LOCKED
+     )
+     RETURNING post_id, tenant_id, channel_id, source_type, source_ref, content_text, status, attempts, coalesce(platform_post_id, ''), coalesce(last_error, '');
+     ```
+   - Posts with `status = 'awaiting_approval'` are completely excluded from the subquery, guaranteeing unapproved posts are never dispatched.
 2. **Instagram Container Polling**:
    - For Instagram image publishing, container creation returns `creation_id`. The dispatcher verifies container status via `GET /{creation_id}?fields=status_code` before calling `media_publish`. If `status_code == 'ERROR'`, the post fails immediately without retry, logging Meta's diagnostic error message into `marketing_post_events`.
 
-<!-- version: 0.5.1 · updated: 2026-10-26 · last-edit: 2026-10-26T12:45:00Z -->
+<!-- version: 0.5.2 · updated: 2026-10-26 · last-edit: 2026-10-26T12:45:00Z -->

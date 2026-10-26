@@ -534,6 +534,19 @@ resource, and its age would have come from each machine's own clock.
     takes a role from an able seat of a better vendor, and an able claude
     seat on any box takes it back from a grok or agy holder (the handback,
     with `LEASE_HOLDDOWN`, also from an intermittent box);
+  - **grok holds dispatch only on its boxes** (SPL-3519, owner HUM-10 t1
+    99ffa592 fix B, answer msg ce2045be): cnf
+    `env.box.lease.grok_dispatch_boxes` (`csi-spl-cnf/csi-spl/<env>.env.yaml`,
+    box ids are estate data; today `[sat]`) lists the boxes where a seat
+    running grok may hold the dispatch role. On any other box a grok seat is
+    no dispatch candidate (`able.<id>`: `box: grok holds dispatch only on
+    [...]`) and the in-place switch of its dispatch seat skips grok (agy
+    next); a grok holder already there is not renewed and the role goes
+    stale to a listed box. Unset = every box; `[]` = no box; the orch role
+    is untouched. The grounds: all 14 grok misses (no reply in 30 min) were
+    under a grok holder on the pc box, 0 of 92 on sat
+    (`grok-dispatch-grade-2026-10-25.md` section 5). Test:
+    `fleet-lease-vendor-failover.tst.sh` case 13;
   - **a claude seat anywhere comes first**: a seat switches to a vendor (and
     a seat of a worse vendor takes a role) only when the holder has been
     silent `LEASE_STALE` + `LEASE_FALLBACK_WAIT` (60 s) per step down the

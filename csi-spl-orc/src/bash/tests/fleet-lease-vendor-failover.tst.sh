@@ -55,6 +55,14 @@
 #  12. SPL-2943, the second claude login: a claude process whose environ
 #      carries CLAUDE_CONFIG_DIR runs claude2; after agy the next vendor
 #      step is claude2, and after claude2 none is left
+#  13. SPL-3519 (owner HUM-10 t1 99ffa592, fix B): a seat running grok holds
+#      the dispatch role only on a box of cnf env.box.lease.grok_dispatch_boxes.
+#      Both boxes run grok seats, pc ranked first: with the list [sat] the
+#      dispatch row is g-002@sat while orch stays g-001@pc (RED CONTROL:
+#      before SPL-3519, and with the key unset, pc's grok held dispatch);
+#      pc's able.g-002 says why; a grok holder already on pc stops renewing
+#      and sat takes it once it is stale; [] = no box; the in-place switch of
+#      pc's dispatch seat skips grok (agy next), orch and sat's still pick grok
 #  Fixtures only in a mktemp root: the test refuses to run where its roots
 #  could reach the live /var/spool-hub.
 #------------------------------------------------------------------------------
@@ -341,6 +349,44 @@ got="$(fl12 'echo "$(spl_fleet_seat_vendor c-007) $(spl_fleet_seat_vendor c-008)
 got="$(fl12 'echo "[$(spl_fleet_switch_next orch a-009)] [$(spl_fleet_switch_next orch c-008)] [$(spl_fleet_fallback orch)]"')"
 [[ "$got" == "[claude2] [] [claude grok agy claude2]" ]] &&
   pass "12. after agy the next step is claude2; after claude2 no vendor is left" || fail "12. switch next: '$got'"
+
+# --- 13. SPL-3519: grok holds dispatch only on the cnf's boxes -------------------------
+# grok_seats <machine>: the seats as the in-place switch leaves them (c-00N -> g-00N)
+grok_seats() {
+  local m="$1" n R="$T/$1/spool" d x
+  for n in 001 002 003; do
+    rm -rf "${R:?}/c-$n" "${R:?}/g-$n"; mkdir -p "$R/g-$n"; ln -s "g-$n" "$R/c-$n"
+  done
+  for d in "$T/$m/proc"/*; do rm -rf "$d"; done
+  x=300; [[ "$m" == pc ]] && x=310
+  for n in 1 2 3; do agent "$m" $((x + n)) "g-00$n" grok; done
+}
+printf 'env:\n  box:\n    lease:\n      grok_dispatch_boxes: [sat]\n' >"$T/cnf-sat.yaml"
+printf 'env:\n  box:\n    lease:\n      grok_dispatch_boxes: []\n' >"$T/cnf-none.yaml"
+printf 'env:\n  box:\n    health: {}\n' >"$T/cnf-unset.yaml"
+g13() { reset; grok_seats sat; grok_seats pc; for n in 130000 130060 130120; do both "$n" LEASE_PRIORITY=pc,sat "$@"; done; }
+g13 SPL_CNF="$T/cnf-unset.yaml"
+[[ "$(hub2)" == "g-001@pc g-002@pc" ]] &&
+  pass "13. CONTROL (key unset = every box): pc, ranked first, holds orch and dispatch with grok" || fail "13. control: hub $(hub2)"
+g13 SPL_CNF="$T/cnf-sat.yaml"
+[[ "$(hub2)" == "g-001@pc g-002@sat" ]] &&
+  pass "13. grok_dispatch_boxes [sat]: dispatch g-002@sat although pc ranks first; orch stays g-001@pc" || fail "13. sat-only: hub $(hub2) $(cat "$T/pc/spool/dispatch/lease.log")"
+[[ "$(cat "$T/pc/spool/dispatch/able.g-002" 2>/dev/null)" == "box: grok holds dispatch only on [sat], not on pc (cnf env.box.lease.grok_dispatch_boxes)" &&
+   "$(logc pc 'ABLE g-002: box: grok holds dispatch only on \[sat\]')" == 1 ]] &&
+  pass "13. pc's able.g-002 and lease.log say why (once)" || fail "13. why: $(cat "$T/pc/spool/dispatch/able.g-002" 2>&1)"
+# a grok holder already on pc when the list arrives: no renewal, sat takes it once stale
+g13 SPL_CNF="$T/cnf-unset.yaml"
+for n in 130180 130240 130300 130360; do both "$n" LEASE_PRIORITY=pc,sat SPL_CNF="$T/cnf-sat.yaml"; done
+[[ "$(hubh dispatch)" == g-002@pc && "$(cut -d' ' -f3 "$T/hub/main.dispatch")" == 130120 ]] &&
+  pass "13. pc's grok holder is not renewed after the list arrives; 240 s later the row still waits (a grok seat takes at LEASE_STALE + LEASE_FALLBACK_WAIT)" || fail "13. pre-stale: hub $(hub2) $(cat "$T/hub/main.dispatch")"
+both 130420 LEASE_PRIORITY=pc,sat SPL_CNF="$T/cnf-sat.yaml"
+[[ "$(hub2)" == "g-001@pc g-002@sat" ]] && pass "13. 300 s after pc's last renewal sat's grok takes dispatch" || fail "13. stale take: hub $(hub2)"
+g13 SPL_CNF="$T/cnf-none.yaml"
+[[ "$(hub2)" == "g-001@pc " ]] && pass "13. grok_dispatch_boxes []: no grok seat holds dispatch on any box; orch untouched" || fail "13. none: hub '$(hub2)'"
+fl13() { env -u LEASE_VENDOR_ORDER -u LEASE_DISPATCH_FALLBACK -u LEASE_ORCH_FALLBACK SRC="$SRC" SPL_CNF="$T/cnf-sat.yaml" LEASE_MACHINE="$1" LEASE_PROC_ROOT="$T/pc/proc" bash -c 'do_log() { :; }; source "$SRC"; '"$2" 2>&1; }
+got="$(fl13 pc 'echo "[$(spl_fleet_switch_next dispatch c-002)] [$(spl_fleet_switch_next orch c-001)]"') $(fl13 sat 'echo "[$(spl_fleet_switch_next dispatch c-002)]"')"
+[[ "$got" == "[agy] [grok] [grok]" ]] &&
+  pass "13. the in-place switch of pc's dispatch seat skips grok (agy next); orch on pc and dispatch on sat still go to grok" || fail "13. switch next: '$got'"
 
 (( fails == 0 )) && { echo "PASS: all fleet-lease-vendor-failover.tst.sh assertions"; exit 0; }
 echo "FAIL: $fails fleet-lease-vendor-failover.tst.sh assertion(s)"; exit 1

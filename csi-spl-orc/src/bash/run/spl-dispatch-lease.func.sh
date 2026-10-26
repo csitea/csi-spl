@@ -1566,7 +1566,10 @@ spl_fleet_candidate() {
     for id in $(spl_fleet_role_agents dispatch); do spl_lease_able_write "$id" "$desk"; done
     return 0
   fi
-  for id in $(spl_fleet_role_agents "$1"); do spl_fleet_try "$id" && return 0; done
+  for id in $(spl_fleet_role_agents "$1"); do
+    spl_fleet_box_refuses "$1" "$id" && continue
+    spl_fleet_try "$id" && return 0
+  done
   return 0
 }
 
@@ -1634,6 +1637,7 @@ spl_fleet_switch_next() {
   local st v
   st="$(spl_fleet_vtier "$(spl_fleet_seat_vendor "$2")")"
   for v in $(spl_fleet_fallback "$1"); do
+    spl_fleet_vendor_box_ok "$1" "$v" || continue
     (( $(spl_fleet_vtier "$v") > st )) && { echo "$v"; return 0; }
   done
   return 0
@@ -1776,6 +1780,45 @@ spl_fleet_switch_start() {
 # spl_fleet_vendor <id>: the vendor its letter names (c- and the legacy CLE- claude).
 spl_fleet_vendor() {
   case "$1" in c-*|CLE-*) echo claude ;; g-*) echo grok ;; a-*) echo agy ;; m-*) echo mistral ;; q-*) echo qwen ;; *) echo unknown ;; esac
+}
+
+# ---- grok holds the dispatch role only on its boxes (SPL-3519) ----------------
+# Owner HUM-10, t1 99ffa592 (fix B, answer msg ce2045be): the grade
+# (csi-spl-doc/doc/md/grok-dispatch-grade-2026-10-25.md section 5) found all
+# 14 grok misses (no reply in 30 min) under a grok holder on the pc box, 0 of
+# 92 on sat. cnf env.box.lease.grok_dispatch_boxes lists the boxes where a
+# seat running grok may hold the dispatch role: on any other box it is no
+# candidate (able.<id> says why) and the in-place switch skips grok. Unset =
+# every box (a fleet that names no list); [] = no box. The orch role and the
+# other vendors are untouched. Read from SPL_CNF (the merged cnf of
+# LEASE_ENV, spl_fleet_hub_init), only when a grok seat is in question.
+
+# spl_fleet_grok_boxes: the list, comma-separated; "*" when the key is unset
+# or there is no cnf; "" for [] and for a value that is not a list of names.
+spl_fleet_grok_boxes() {
+  local cnf="${SPL_CNF:-}" v
+  [[ -n "$cnf" && -r "$cnf" ]] && command -v yq >/dev/null || { echo '*'; return 0; }
+  v="$(yq -o=json -I=0 '.env.box.lease.grok_dispatch_boxes' "$cnf" 2>/dev/null)" || v='"bad"'
+  jq -r 'if . == null then "*" elif type == "array" and all(.[]; type == "string" and test("^[a-z0-9][a-z0-9-]*$")) then join(",") else "" end' <<<"${v:-null}" 2>/dev/null
+}
+
+# spl_fleet_vendor_box_ok <role> <vendor>: 0 unless <vendor> is grok, <role>
+# is dispatch and LEASE_MACHINE is not on spl_fleet_grok_boxes.
+spl_fleet_vendor_box_ok() {
+  [[ "$1" == dispatch && "$2" == grok ]] || return 0
+  local b
+  b="$(spl_fleet_grok_boxes)"
+  [[ "$b" == '*' || ",$b," == *",${LEASE_MACHINE:-},"* ]]
+}
+
+# spl_fleet_box_refuses <role> <id>: 0 (and able.<id> says why) when the seat
+# <id> runs a vendor this box may not hold <role> with.
+spl_fleet_box_refuses() {
+  local v
+  v="$(spl_fleet_vendor "${2%@*}")"
+  spl_fleet_vendor_box_ok "$1" "$v" && return 1
+  spl_lease_able_write "$2" "box: $v holds $1 only on [$(spl_fleet_grok_boxes)], not on ${LEASE_MACHINE:-} (cnf env.box.lease.grok_dispatch_boxes)"
+  return 0
 }
 
 # spl_fleet_tier <id-or-holder>: its vendor's 0-based place in

@@ -4,13 +4,15 @@
 # dispatch-<8> name and an agent topic uuid send; no hub answer WARNs and
 # sends (fail open); a human --to takes the owner topic. A red control: the
 # same script without the guard sends the owner-topic message. Then
-# spool-topic-kind.sh against a fake desk sidecar: owner, agent, timeout.
+# spool-topic-kind.sh against a fake desk sidecar: owner, agent, timeout;
+# and (SPL-3538) an owner topic of another workspace the box has a desk in,
+# refused end to end, with its control: the fleet desk alone reads agent.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
 t_spool_bin || { nok "cannot build spool"; t_done; exit 1; }
 SS="$T_SCRIPTS/spool-send.sh"
-for id in CLE-81 CLE-82 CLE-83 HUM-10; do
+for id in CLE-81 CLE-82 CLE-83 CLE-84 HUM-10; do
   printf '%s\tclaude\t%%0\t/x\t20260101T000000Z\n' "$id" >> "$SPOOL_ROOT/registry.tsv"
 done
 n_json() { find "$1" -maxdepth 1 -name '*.json' 2>/dev/null | wc -l; }
@@ -89,5 +91,50 @@ env "${kenv[@]}" bash "$K" "$O" >/dev/null
 eq "kind: no live sidecar -> exit 3" 3 "$?"
 bash "$K" dispatch-ff3953c1 >/dev/null
 eq "kind: not a uuid -> exit 2" 2 "$?"
+
+# ---- SPL-3538: an owner topic of ANOTHER workspace this box has a desk in ---
+# The fleet desk (t9) holds only agent relays on W; its owner posts are in
+# workspace w2, which the fleet desk cannot read. Two live sidecars, one each.
+W=44444444-5555-4666-8777-888888888888   # owner in w2, agent rows in t9
+S=55555555-6666-4777-8888-999999999999   # w2 is slow, t9 answers agent
+cat >"$fake" <<FAKE
+#!/usr/bin/env bash
+case "\$SPOOL_TENANT:\$3" in
+  t9:$O) echo '{"from":"HUM-10","to":"ALL-0","body":"b"}' ;;
+  t9:$W) echo '{"from":"c-001","to":"c-002","body":"a"}' ;;
+  w2:$W) echo '{"from":"HUM-9","to":"c-001","body":"b"}' ;;
+  w2:$S) sleep 5 ;;
+  *) echo '{"from":"c-001","to":"c-002","body":"a"}' ;;
+esac
+FAKE
+side() {  # TENANT: a live fake sidecar seated in TENANT, its pid in $sc
+  mkdir -p "$st/prd/desk/$1/box-x/spool/.hub"
+  env SPOOL_ROOT=/x SPOOL_KEYS_DIR=/x SPOOL_PINS_DIR=/x SPOOL_BOX_ID=box-x SPOOL_HUB_URL=http://127.0.0.1:9 SPOOL_TENANT="$1" \
+    bash -c 'exec -a "spool hub-run" sleep 60' & sc=$!
+  sleep 0.2; echo "$sc" >"$st/prd/desk/$1/box-x/spool/.hub/hub-run.pid"
+}
+side t9; sc9=$sc
+eq "CONTROL: the fleet desk alone reads the w2 owner topic as agent" agent "$(env "${kenv[@]}" bash "$K" "$W")"
+side w2; scw=$sc
+mkdir -p "$st/prd/desk/w3/box-x"   # a workspace with no live sidecar: skipped
+eq "kind: a HUM post in another workspace's desk -> owner" owner "$(env "${kenv[@]}" bash "$K" "$W")"
+eq "kind: agent rows in every desk -> agent" agent "$(env "${kenv[@]}" bash "$K" "$A")"
+s=$SECONDS; env "${kenv[@]}" SPOOL_TOPIC_KIND_TIMEOUT=1 bash "$K" "$S" >/dev/null; rc=$?
+eq "kind: another desk gives no hub answer -> exit 3" 3 "$rc"
+check "…the desks are asked in parallel, within the timeout" test $((SECONDS - s)) -le 3
+export SPOOL_OWNER_TOPIC_CMD="bash $K"
+err="$(env "${kenv[@]}" bash "$SS" --from CLE-80 --to CLE-84 --kind note --task "$W" --body x --no-poke 2>&1 >/dev/null)"; rc=$?
+eq "send: the other workspace's owner topic to an agent: refused, exit 3" 3 "$rc"
+has "…names the replacement" "--task dispatch-${W:0:8}" "$err"
+eq "…nothing in the inbox" 0 "$(n_json "$SPOOL_ROOT/CLE-84/inbox")"
+env "${kenv[@]}" bash "$SS" --from CLE-80 --to CLE-84 --kind note --task "$A" --body x --no-poke >/dev/null 2>&1
+eq "send: an agent topic still goes, exit 0" 0 "$?"
+env "${kenv[@]}" bash "$SS" --from CLE-80 --to CLE-84 --kind note --task "$O" --body x --no-poke >/dev/null 2>&1
+eq "send: the fleet workspace's owner topic still refused, exit 3" 3 "$?"
+err="$(env "${kenv[@]}" SPOOL_TOPIC_KIND_TIMEOUT=1 bash "$SS" --from CLE-80 --to CLE-84 --kind note --task "$S" --body x --no-poke 2>&1 >/dev/null)"; rc=$?
+eq "send: no hub answer from a desk keeps WARN-and-send, exit 0" 0 "$rc"
+has "…with the WARN" "cannot tell whether ${S} is an owner topic" "$err"
+unset SPOOL_OWNER_TOPIC_CMD
+kill "$sc9" "$scw" 2>/dev/null
 
 t_done

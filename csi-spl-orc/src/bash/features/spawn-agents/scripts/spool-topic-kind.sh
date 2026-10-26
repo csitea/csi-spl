@@ -5,18 +5,30 @@
 #   spool-topic-kind.sh [--spool-root <dir>] <task uuid>
 #
 # stdout: "owner" when the hub holds a message of the topic from a human seat
-# (HUM-*) or posted to the channel (to ALL-0): a topic the owner reads in the
-# WUI. "agent" otherwise, also for a topic the hub does not hold.
+# (HUM-*) or posted to the channel (to ALL-0) in ANY workspace this box has a
+# live desk in: a topic a human reads in the WUI. "agent" otherwise, also for
+# a topic the hub does not hold.
 # Measured 2026-10-10 on sat's prd desk, n=1313 task uuids of the local spool:
 # 156 owner (148 with a HUM-* post, 8 channel-only), 936 agent, 221 not on
 # the hub; 0.108 s per lookup. The uuid shape cannot tell them apart: all 156
 # owner topics and 913 of the agent ones are v4.
 #
-# It reads the topic through this machine's desk sidecar, with the desk
-# lookup spool-fleet-relay.sh makes (keep the two in step).
+# Every workspace, not only the fleet's (SPL-3538): the hub serves a topic
+# only to a desk seated in its workspace, so a topic of another workspace
+# read "agent" from the fleet desk alone, and 38+ agent relays went out on
+# such topic uuids on 2026-10-26 (prd, measured by c-001@sat). The desks are
+# asked in parallel, each within the timeout: the fleet tenant's, then every
+# other tenant's under the env's desk dir; in each, the desk box
+# (SPOOL_DESK_BOX, else lease.conf LEASE_DESK_BOX, else box-desk) first, then
+# its other desk boxes: the first with a live sidecar. A tenant with no live
+# sidecar is one this box cannot see, and is skipped.
 #
-# Exit codes: 0 answered; 2 usage; 3 cannot tell (no desk, no live sidecar,
-# no hub answer within SPOOL_TOPIC_KIND_TIMEOUT s, default 1).
+# It reads the topic through the desk sidecars, with the desk lookup
+# spool-fleet-relay.sh and topic-text.sh make (keep the three in step).
+#
+# Exit codes: 0 answered; 2 usage; 3 cannot tell, unless a desk said owner:
+# no desk or no live sidecar for the fleet tenant, or a live desk gave no hub
+# answer within SPOOL_TOPIC_KIND_TIMEOUT s (default 1).
 set -uo pipefail
 
 ROOT="${SPOOL_ROOT:-/var/spool-hub}" TASK=""
@@ -37,29 +49,67 @@ BOXENV="${SPOOL_BOX_ENV:-$ROOT/box.env}" LCONF="$ROOT/dispatch/lease.conf"
 ENVN="${SPOOL_FLEET_ENV:-$(kv "$BOXENV" SPOOL_FLEET_ENV)}"; ENVN="${ENVN:-$(kv "$LCONF" LEASE_ENV)}"
 TENANT="${SPOOL_FLEET_TENANT:-$(kv "$BOXENV" SPOOL_FLEET_TENANT)}"; TENANT="${TENANT:-$(kv "$LCONF" LEASE_TENANT)}"
 BOX="${SPOOL_DESK_BOX:-$(kv "$BOXENV" SPOOL_DESK_BOX)}"; BOX="${BOX:-$(kv "$LCONF" LEASE_DESK_BOX)}"; BOX="${BOX:-box-desk}"
-[[ "$ENVN" =~ ^(dev|prd|self)$ && "$TENANT" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$BOX" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || exit 3
+NAME_RX='^[a-z0-9][a-z0-9-]{0,31}$'
+[[ "$ENVN" =~ ^(dev|prd|self)$ && "$TENANT" =~ $NAME_RX && "$BOX" =~ $NAME_RX ]] || exit 3
 _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 # shellcheck source=../lib/spool-env.inc.sh
 . "$_here/../lib/spool-env.inc.sh"
 # shellcheck source=../lib/desk-root.inc.sh
 . "$_here/../lib/desk-root.inc.sh"
 STATE="${SPOOL_FLEET_STATE_ROOT:-$(spool_desk_root "$(getent passwd "$(id -un)" | cut -d: -f6)" "$BOXENV")}" || exit 3
-d="$STATE/$ENVN/desk/$TENANT/$BOX"
-pid="$(cat "$d/spool/.hub/hub-run.pid" 2>/dev/null)"
-[[ "$pid" =~ ^[0-9]+$ ]] && tr '\0' ' ' 2>/dev/null <"/proc/$pid/cmdline" | grep ' hub-run' >/dev/null || exit 3
-declare -a envv=()
-while IFS= read -r -d '' e; do
-  case "${e%%=*}" in
-    SPOOL_ROOT|SPOOL_KEYS_DIR|SPOOL_PINS_DIR|SPOOL_BOX_ID|SPOOL_HUB_URL|SPOOL_TENANT|SPOOL_MSG_VERSION) envv+=("$e") ;;
-  esac
-done <"/proc/$pid/environ"
-[ "${#envv[@]}" -ge 5 ] || exit 3
+DESKS="$STATE/$ENVN/desk"
 BIN="${SPOOL_FLEET_BIN:-$STATE/$ENVN/bin/spool}"
 [ -x "$BIN" ] || BIN="${SPOOL_BIN:-spool}"
-out="$(env -i HOME="$HOME" PATH=/usr/bin:/bin SPOOL_LOG_LEVEL=error "${envv[@]}" \
-  timeout "${SPOOL_TOPIC_KIND_TIMEOUT:-1}" "$BIN" hub-tail --task "$TASK" --json 2>/dev/null)" || exit 3
-if grep '^{' <<<"$out" | jq -e -s 'any(.[]; ((.from // "") | tostring | startswith("HUM-")) or .to == "ALL-0")' >/dev/null 2>&1; then
-  echo owner
-else
-  echo agent
-fi
+
+# The live sidecar pid of TENANT's first desk box that has one; 1 = none.
+live_sidecar() {  # TENANT
+  local d pid
+  for d in "$DESKS/$1/$BOX" "$DESKS/$1"/*; do
+    pid="$(cat "$d/spool/.hub/hub-run.pid" 2>/dev/null)"
+    [[ "$pid" =~ ^[0-9]+$ ]] || continue
+    tr '\0' ' ' 2>/dev/null <"/proc/$pid/cmdline" | grep ' hub-run' >/dev/null || continue
+    echo "$pid"; return 0
+  done
+  return 1
+}
+
+# The topic's kind in one sidecar's workspace: owner | agent; 3 = no answer.
+ask_desk() {  # PID
+  local e out
+  local -a envv=()
+  while IFS= read -r -d '' e; do
+    case "${e%%=*}" in
+      SPOOL_ROOT|SPOOL_KEYS_DIR|SPOOL_PINS_DIR|SPOOL_BOX_ID|SPOOL_HUB_URL|SPOOL_TENANT|SPOOL_MSG_VERSION) envv+=("$e") ;;
+    esac
+  done 2>/dev/null <"/proc/$1/environ"
+  [ "${#envv[@]}" -ge 5 ] || return 3
+  out="$(env -i HOME="$HOME" PATH=/usr/bin:/bin SPOOL_LOG_LEVEL=error "${envv[@]}" \
+    timeout "${SPOOL_TOPIC_KIND_TIMEOUT:-1}" "$BIN" hub-tail --task "$TASK" --json 2>/dev/null)" || return 3
+  if grep '^{' <<<"$out" | jq -e -s 'any(.[]; ((.from // "") | tostring | startswith("HUM-")) or .to == "ALL-0")' >/dev/null 2>&1; then
+    echo owner
+  else
+    echo agent
+  fi
+}
+
+# The fleet tenant first (it must answer), then every other seated tenant.
+mapfile -t TENANTS < <({ echo "$TENANT"; for t in "$DESKS"/*/; do [ -d "$t" ] && basename "$t"; done; } 2>/dev/null |
+  awk 'NF && !seen[$0]++' | grep -E "$NAME_RX")
+tmp="$(mktemp -d)" || exit 3
+trap 'rm -rf "$tmp"' EXIT
+declare -a pids=()
+for t in "${TENANTS[@]}"; do
+  if ! sc="$(live_sidecar "$t")"; then
+    [ "$t" = "$TENANT" ] && echo 3 >"$tmp/$t.rc"
+    continue
+  fi
+  { ask_desk "$sc" >"$tmp/$t.out"; echo "$?" >"$tmp/$t.rc"; } &
+  pids+=("$!")
+done
+for p in "${pids[@]}"; do wait "$p"; done
+
+grep -qx owner "$tmp"/*.out 2>/dev/null && { echo owner; exit 0; }
+for f in "$tmp"/*.rc; do
+  [ "$(cat "$f")" = 0 ] || exit 3
+done
+echo agent

@@ -147,12 +147,12 @@ func TestRLSCostLinesScopes(t *testing.T) {
 	}
 }
 
-// TestCostsReadGate (spec 123 section 5.1, owner Q-1 = A): a member's cost
-// read is the hub's costs.read check (the rbac authorizer over the MIGRATED
-// grant rows) followed by the workspace-scoped read. A developer of A reads 0
-// rows; A's biz_owner and admin read A's row and none of B's. CONTROL: the
-// same read without the permission check returns the developer A's row, so
-// the developer's 0 is the grant's.
+// TestCostsReadGate (spec 123 section 5.1; spec 140 section 3.10, owner
+// 1bb1f74b: "all of the roles should be able to check those costs"): a
+// member's cost read is the hub's costs.read check (the rbac authorizer over
+// the MIGRATED grant rows, rdb 0229) followed by the workspace-scoped read.
+// Every member role of A reads A's row and none of B's. CONTROL: the same B
+// read without the permission check returns B's row, so the 0 is the gate's.
 func TestCostsReadGate(t *testing.T) {
 	pg := rlsStore(t)
 	ctx := context.Background()
@@ -169,20 +169,17 @@ func TestCostsReadGate(t *testing.T) {
 		}
 		return costCount(t, pg, "tenant:"+tenant, tenant)
 	}
-	for _, c := range []struct {
-		role string
-		want int
-	}{{rbac.BizOwner, 1}, {rbac.Admin, 1}, {rbac.Developer, 0}, {rbac.ProductOwner, 0}, {rbac.Tester, 0}} {
-		hum := admitAs(t, pg, a, c.role)
-		if got := read(hum, a, true); got != c.want {
-			t.Errorf("%s of A reads %d cost rows, want %d", c.role, got, c.want)
+	for _, role := range rbac.RoleIDs {
+		hum := admitAs(t, pg, a, role)
+		if got := read(hum, a, true); got != 1 {
+			t.Errorf("%s of A reads %d cost rows, want 1", role, got)
 		}
 		if got := read(hum, b, true); got != 0 {
-			t.Errorf("%s of A reads %d of B's cost rows, want 0", c.role, got)
+			t.Errorf("%s of A reads %d of B's cost rows, want 0", role, got)
 		}
-		if c.role == rbac.Developer {
-			if got := read(hum, a, false); got != 1 {
-				t.Errorf("CONTROL: ungated, the developer's workspace scope reads %d rows, want 1", got)
+		if role == rbac.Developer {
+			if got := read(hum, b, false); got != 1 {
+				t.Errorf("CONTROL: ungated, B's workspace scope reads %d rows, want 1", got)
 			}
 		}
 	}

@@ -195,17 +195,18 @@ func TestHoursPermissionsBizOwnerOnly(t *testing.T) {
 	}
 }
 
-// specs/123 §5.1 (owner Q-1 = A): costs.read is biz_owner's and admin's;
-// every other role, demo_user included, lacks it. It is its own permission,
-// not billing.manage: the admin holds costs.read without billing.manage.
-// CONTROL: the Fixed seam answers the same, so a developer is denied.
-func TestCostsReadBizOwnerAndAdmin(t *testing.T) {
+// specs/140 3.10 (owner t1 f3ed0eed msg 1bb1f74b, rdb 0229): costs.read is
+// every member role's; demo_user, channel_guest and time_accountant lack it.
+// It is its own permission, not billing.manage: the admin holds costs.read
+// without billing.manage. CONTROL: the Fixed seam answers the same, so a
+// demo_user is denied.
+func TestCostsReadEveryMemberRole(t *testing.T) {
 	for _, r := range DefaultRoles() {
 		held := false
 		for _, q := range r.Perms {
 			held = held || q == CostsRead
 		}
-		if want := r.ID == BizOwner || r.ID == Admin; held != want {
+		if want := r.ID != DemoUser && r.ID != ChannelGuest && r.ID != TimeAccountant; held != want {
 			t.Errorf("%s costs.read = %v, want %v", r.ID, held, want)
 		}
 	}
@@ -213,8 +214,8 @@ func TestCostsReadBizOwnerAndAdmin(t *testing.T) {
 	for _, c := range []struct {
 		role string
 		want bool
-	}{{BizOwner, true}, {Admin, true}, {ProductOwner, false}, {Developer, false}, {Tester, false},
-		{PureAgent, false}, {BizCustomer, false}, {RegularUser, false}, {DemoUser, false}} {
+	}{{BizOwner, true}, {Admin, true}, {ProductOwner, true}, {Developer, true}, {Tester, true},
+		{PureAgent, true}, {BizCustomer, true}, {RegularUser, true}, {DemoUser, false}, {TimeAccountant, false}} {
 		a, err := Fixed(c.role).Access(ctx, "HUM-1", "t1")
 		if err != nil {
 			t.Fatal(err)

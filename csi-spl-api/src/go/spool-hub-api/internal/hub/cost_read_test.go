@@ -120,11 +120,10 @@ func povs(body map[string]any) map[string]bool {
 	return m
 }
 
-// TestCostReadRoles (spec 123 section 8 "WUI Security"): costs.read is
-// biz_owner's and admin's; every other role is 403 naming costs.read, in the
-// operator workspace and elsewhere, and a request with no member session is
-// refused. CONTROL: biz_owner and admin of both workspaces read 200, so each
-// 403 is the permission's, not a broken route.
+// TestCostReadRoles (spec 140 3.10, owner t1 f3ed0eed msg 1bb1f74b): every
+// member role reads its workspace's costs, in the operator workspace and
+// elsewhere, and a request with no member session is refused. CONTROL: on
+// the 0166 grant (biz_owner and admin only) the other roles read 403.
 func TestCostReadRoles(t *testing.T) {
 	e, op, other, who, whoOther, _ := costReadEnv(t)
 	for _, ws := range []struct {
@@ -132,13 +131,8 @@ func TestCostReadRoles(t *testing.T) {
 		hum map[string]string
 	}{{op, who}, {other, whoOther}} {
 		for _, role := range rbac.RoleIDs {
-			code, body := call(t, e, ws.tid, http.MethodGet, costPath, ws.hum[role], nil)
-			want := http.StatusForbidden
-			if role == rbac.BizOwner || role == rbac.Admin {
-				want = http.StatusOK
-			}
-			if code != want || (want == http.StatusForbidden && body["permission"] != rbac.CostsRead) {
-				t.Errorf("%s in %s: %d %v, want %d", role, ws.tid, code, body, want)
+			if code, body := call(t, e, ws.tid, http.MethodGet, costPath, ws.hum[role], nil); code != http.StatusOK {
+				t.Errorf("%s in %s: %d %v, want 200", role, ws.tid, code, body)
 			}
 		}
 	}
@@ -147,17 +141,19 @@ func TestCostReadRoles(t *testing.T) {
 	}
 }
 
-// TestCostReadEstateScope (spec 123 section 8 "Estate scope", Q-1 = A): the
-// operator workspace's biz_owner reads the estate row beside its own; the
-// other workspace's biz_owner and admin read their own row only, never the
-// estate nor the operator workspace's. CONTROL: the estate row is there and
-// readable (the operator's answer holds it), so the other's 0 is the scope.
+// TestCostReadEstateScope (spec 140 3.10, owner msg 96d69790; spec 123 Q-1):
+// the operator workspace's ADMIN reads the estate row beside its own; every
+// other role there (its biz_owner, a customer seated as regular_user) reads
+// the operator workspace's own row only, and the other workspace's members
+// read their own row only, never the estate nor the operator workspace's.
+// CONTROL: the estate row is there and readable (the admin's answer holds
+// it), so each 0 is the scope.
 func TestCostReadEstateScope(t *testing.T) {
 	e, op, other, who, whoOther, stub := costReadEnv(t)
-	code, body := call(t, e, op, http.MethodGet, costPath, who[rbac.BizOwner], nil)
+	code, body := call(t, e, op, http.MethodGet, costPath, who[rbac.Admin], nil)
 	got := povs(body)
 	if code != http.StatusOK || body["scope"] != "estate" || len(got) != 2 || got["op-own"] {
-		t.Fatalf("CONTROL: the operator workspace: %d %v", code, body)
+		t.Fatalf("CONTROL: the operator workspace's admin: %d %v", code, body)
 	}
 	estate := 0
 	for _, isEstate := range got {
@@ -166,24 +162,24 @@ func TestCostReadEstateScope(t *testing.T) {
 		}
 	}
 	if estate != 1 {
-		t.Fatalf("CONTROL: the operator workspace reads %d estate rows, want 1: %v", estate, body)
+		t.Fatalf("CONTROL: the operator admin reads %d estate rows, want 1: %v", estate, body)
 	}
 	if tot := body["total"].(map[string]any); tot["usd_micros"] != float64(6_000_000) {
 		t.Errorf("operator total %v, want 6.00 USD", tot)
 	}
-	for _, hum := range []string{whoOther[rbac.BizOwner], whoOther[rbac.Admin]} {
-		code, body := call(t, e, other, http.MethodGet, costPath, hum, nil)
+	for _, c := range []struct{ tid, hum, own string }{
+		{op, who[rbac.BizOwner], "op-own"}, {op, who[rbac.RegularUser], "op-own"}, {op, who[rbac.Developer], "op-own"},
+		{other, whoOther[rbac.BizOwner], "other-own"}, {other, whoOther[rbac.Admin], "other-own"}, {other, whoOther[rbac.RegularUser], "other-own"},
+	} {
+		code, body := call(t, e, c.tid, http.MethodGet, costPath, c.hum, nil)
 		got := povs(body)
-		if code != http.StatusOK || body["scope"] != "workspace" || len(got) != 1 || got["other-own"] {
-			t.Errorf("the other workspace reads %d %v, want its own row only", code, body)
-		}
-		if _, has := got["other-own"]; !has {
-			t.Errorf("the other workspace misses its own row: %v", body)
+		if _, has := got[c.own]; code != http.StatusOK || body["scope"] != "workspace" || len(got) != 1 || got[c.own] || !has {
+			t.Errorf("%s in %s reads %d %v, want its own row %s only", c.hum, c.tid, code, body, c.own)
 		}
 	}
 	if stub != nil {
 		for _, q := range stub.asks {
-			if q.Estate != (q.Tenant == op) {
+			if q.Estate && q.Tenant != op {
 				t.Errorf("the hub asked %+v: estate is the operator workspace's only", q)
 			}
 		}

@@ -1,6 +1,6 @@
 # Spec 158: a new workspace works automatically
 
-**Feature ID**: `158-new-workspace-automatic` · **Status**: Draft v0.4 (for R7) ·
+**Feature ID**: `158-new-workspace-automatic` · **Status**: Draft v0.5 (for R7) ·
 **Epic**: SPL-2398 · **Issue**: SPL-3504 · **Created**: 2026-10-26 · **Lead**: c-456 ·
 **Placement slug**: `c002-s158-new-workspace-automatic`
 
@@ -31,6 +31,11 @@ automatically**, whether or not a key exists.
 **No human step.** No root-key download, no join token by hand, no
 `do_spl_desk_up` typed for that workspace.
 
+Follow-up, folded in v0.5: HUM-10 msg e0510945, in the item-01 discussion
+(relayed c-002 msg a60d93e8), verbatim: "also make sure the existing
+workspaces get the same configs and stay "up-to-date" with the latest
+versoin". Rows R5 and R6, section 7.
+
 ## 2. What happens today (measured on tree 46fe77794, 2026-10-26)
 
 Paths are relative to the repo root. `hub` = `csi-spl-api/src/go/spool-hub-api/internal/hub`,
@@ -51,6 +56,7 @@ Paths are relative to the repo root. `hub` = `csi-spl-api/src/go/spool-hub-api/i
 | M11 | Measured on ONE box (n=1; the other box not measured), 2026-10-26: its tenant store held 12 create JSONs (one per workspace, mode 0600, the box user's). The same box had 11 desk dirs. 4 workspaces with a kept key had no desk (5 before the hand seating of the day), and 3 workspaces with a desk had no kept key. The hub and WUI create keeps no key at all (M2); a file exists only when an operator saved the shell action's output there. | `ls -l` of the store and of `<state>/desk/` (names and modes only, never contents) |
 | M12 | `do_spl_desk_up` and `do_spl_desk_pin` never look in the tenant store: the key comes only from `ROOT_KEY_JSON` given by hand. `spl_newest_tenant_key`, the one reader of the store, is used only by e2e and rebox actions. | `grep -l spl_newest_tenant_key csi-spl-orc/src/bash/run/*` -> `spl-invite-e2e`, `spl-desk-rebox`, `spl-m3-e2e` |
 | M13 | The dispatcher and failover briefs list "a desk in every workspace: {TENANTS}", rendered ONCE by `do_spl_dispatch_setup` from `DISPATCH_TENANTS` (the pinned desk dirs at that moment). A workspace seated later is not in the list. On 2026-10-26, after the hand seating, the failover brief still listed 8 workspaces without the new one, and the failover seat did not see the owner's posts there (c-003 msg 5a9f8050 via c-001 msg 896823ae, n=1). | `csi-spl-orc/src/bash/features/dispatch/brief-dispatcher.tpl.md:54`; `csi-spl-orc/src/bash/run/spl-dispatch-setup.func.sh:305-309` |
+| M14 | Existing workspaces get nothing of the above: the 4.2 migration leaves `fleet_seating` false on every existing row, and only a hand switch per workspace would change it. Each box already reports its spool binary's version in its host report (the spool entry of `Runtimes`). The hub serves it (`hub/box_facts.go`, `hub/view.go`) and the WUI box pages display it (`MonitoringBoxFacts.vue`, `BoxStatsPane.vue`), but nothing compares it with the newest release. Nothing compares a workspace's seats, channel members or dispatcher listing with what a new workspace gets. | `internal/hubclient/host.go:133-135`; section 7.3 of v0.4 |
 
 ## 3. Requirements (each one a testable row)
 
@@ -60,6 +66,8 @@ Paths are relative to the repo root. `hub` = `csi-spl-api/src/go/spool-hub-api/i
 | R2 | The fleet agents are members of every channel of that workspace, including channels created later. | Same e2e: the role seats are in `#general`'s members, and in a channel created after the seating within one tick. |
 | R3 | The unanswered sweep covers the new workspace, and so do the dispatcher and failover seats: their brief and their desks follow a new workspace with no re-setup. | The sweep part is already true (M7); its unit test proves a new tenant id appears in the rows with no list change. The seats part is row T10b (M13). |
 | R4 | A member's first post gets a first agent answer within the 3-minute rule. | e2e on dev: an invited member posts, and an agent message lands in that topic within 180 s. |
+| R5 | Every existing workspace (not a test one, not suspended or archived) gets the same fleet seating and configuration as a new one, the baseline of section 7.1, with no step per workspace. | orc test of the backfill (row T12): three planted workspaces with `fleet_seating` false are switched in one run, and a test workspace is skipped. Control: a second run changes nothing. On dev: the drift check (R6) reports 0 workspaces off the baseline. |
+| R6 | A recurring check keeps every workspace on the baseline and every fleet desk on the latest released spool version. It repairs the drift its box owns, and the rest reaches the orchestrator as a blocker within 15 minutes, repeated hourly while it lasts. | orc test with planted drift (a role seat missing from one channel, a desk on an older version, `fleet_seating` off on a non-test workspace): each one is repaired or reported. Red control: the same rows on the baseline send nothing. |
 | A | Nothing human is needed to seat the fleet, whether or not a root key was kept (M11-M12). The end state needs no root key (section 4). No root key is stored anywhere new. | Hub unit tests of 4.2 and 4.3; a grep gate: no root private key in any new table, log line or file. |
 | B | A workspace with member posts and 0 agent seats reaches the orchestrator as a blocker within 5 minutes, and repeats hourly while it lasts. | `orc` test with a planted row set (red control: the same rows with 1 seat send nothing). |
 | C | `--root-key <path>` with no file there says in plain words that the file does not exist, without echoing the value. | `internal/action/rootkey_test.go` `TestReadRootKeyMissingFile` (red on the old code, shown in the commit). |
@@ -184,16 +192,71 @@ key text, or - to read it from stdin". A value looks like a path when it
 starts with `/`, `~`, `./` or `../`, or holds a character outside the base64
 alphabet. A directory says it is a directory. The value is never echoed.
 
-## 7. Rollout
+## 7. Design for R5 and R6: existing workspaces and drift
+
+### 7.1 The baseline
+
+The baseline is one list in code, `spl_workspace_baseline` (orc). The
+create path, the backfill and the drift check all read it, so they cannot
+disagree about what a seated workspace has:
+
+1. Hub: `fleet_seating` true, plus the create-time seeds (the public notice,
+   rdb 0173).
+2. Each fleet desk box has a desk dir with a live pin (R1), and the role
+   seats are in the roster.
+3. The role seats are members of every channel (R2).
+4. The workspace is printed by `do_spl_dispatch_tenants` (R3, row T10b).
+5. Each fleet desk box runs the latest released spool binary: the version
+   in its host report equals the newest release. Row T16 first measures
+   what that field holds today and which release it should equal; the
+   version check is built only on that measurement.
+
+A row added to the baseline later applies to every workspace on the next
+drift run. That is how "stay up-to-date" holds for config added after
+this spec.
+
+### 7.2 Backfill (R5)
+
+`do_spl_fleet_seating_switch ALL=1` (row T12) sets `fleet_seating` true for
+every workspace except test, suspended and archived ones. It uses the
+sweep's skip rule (`SWEEP_SKIP_TENANTS` / `SWEEP_SKIP_RE`). The desk cron
+(row T9) then seats each one, exactly as for a new workspace. Dry run by
+default. On prd it is a member/seat change: c-001 runs it once, after 4.3
+is on prd, with the owner's go for that run. The owner's order e0510945 is
+the policy for all of them. A workspace created after that needs nothing
+(row T5 defaults `fleet_seating` to true).
+
+### 7.3 Drift check (R6)
+
+`do_spl_workspace_drift` (orc, new) runs from the desk-reconcile cron every
+5 minutes. It is read-only except for the repairs below. For each
+workspace from `GET /v1/fleet/workspaces`, and each baseline item:
+
+- What this box owns, it repairs: its own missing desk or pin is re-seated
+  through row T9, and a missing channel membership through the dispatch
+  tick's subscribe.
+- Everything else is reported: `fleet_seating` off on a non-test
+  workspace, another box's missing seat, a desk box on an older spool
+  version, and a repair that did not hold on the next run. The check never
+  restarts a desk on another box and never flips `fleet_seating` itself:
+  that is the backfill's named action.
+
+Reports work as in row B (section 5): one spool blocker per run to the
+orchestrator (task `workspace-drift`), each row repeated only when it is
+new or after an hour, sent only from the lease holder's machine,
+`DRY_RUN=1` by default.
+
+## 8. Rollout
 
 1. B and C land first, small, each through R7, the GO, land, then dev AND prd.
 2. A lands in rows 4.2 then 4.3, migration first on dev and prd (the DDL-first
    rule), each through R7.
 3. **Existing workspaces.** The migration leaves `fleet_seating` false for
-   every existing row. The operator turns it on per workspace with
-   `do_spl_fleet_seating_switch` (named action, dry run by default). On prd
-   that is a member/seat change: c-001 runs it with the owner's go, never a
-   lane.
+   every existing row. The backfill (section 7.2) turns it on for all of
+   them in one named run. On prd that is a member/seat change: c-001 runs
+   it with the owner's go, never a lane. The drift check (section 7.3) is
+   switched on with it and keeps every workspace on the baseline after
+   that.
 4. **First case: the workspace of 2026-10-26.** Once 4.3 is on prd, c-001 runs the switch for
    that workspace with the owner's go, and the desk cron seats it with no other
    step. Until then it stays blocked on the owner's root key (c-001's ask
@@ -202,7 +265,7 @@ alphabet. A directory says it is a directory. The value is never echoed.
    disjoint: it documents the manual root-key path, which A-fleet does not
    remove. This lane adds one guide section for fleet seating when 4.3 lands.
 
-## 8. Not in scope
+## 9. Not in scope
 
 - Spec 108 dedicated boxes and their join tokens (unchanged).
 - Agent quality of the first answer: R4 measures time to the first agent

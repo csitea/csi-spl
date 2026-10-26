@@ -36,6 +36,13 @@ deployed. Store rows run `PRE_PUSH_TIER=full`.
 
 | row | what | who |
 |---|---|---|
-| T12 | `do_spl_fleet_seating_switch` (dry run default) for existing workspaces | lane builds it; c-001 runs it on prd with the owner's go |
+| T12 | R5 backfill (spec 7.2): `do_spl_fleet_seating_switch` (dry run default), one workspace or `ALL=1` for every non-test, non-suspended, non-archived one; orc test: three planted workspaces switched, a test one skipped; control: a second run changes nothing | lane builds it; c-001 runs it on prd with the owner's go |
 | T13 | the first case workspace: switch on, desk cron seats it | c-001, owner's go |
 | T14 | DevOps guide: a fleet seating section | lane, with T9 |
+
+## 5. Drift rows (R6, spec section 7)
+
+| row | what | test |
+|---|---|---|
+| T15 | `spl_workspace_baseline` (7.1 items 1-4) + `do_spl_workspace_drift` in the desk-reconcile cron: repairs this box's own items, one blocker per run for the rest, hourly repeats, lease holder only, `DRY_RUN=1` default | orc test with planted drift: a role seat missing from one channel -> repaired; another box's seat missing and `fleet_seating` off -> one blocker; red control: the same rows on the baseline send nothing |
+| T16 | 7.1 item 5: measure what the host report's spool version holds and which release it must equal; then add the version item to the baseline | n and tree in the commit body; orc test: a desk box one release behind -> reported; control: on the newest -> nothing |

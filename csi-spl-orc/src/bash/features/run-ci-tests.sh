@@ -55,6 +55,9 @@ skip_file="$here/ci-skip.txt"
 serial_file="$here/ci-serial.txt"
 # CLE-77923: under SPOOL_TEST=1 the send/notify path refuses the live root.
 export SPOOL_TEST=1
+# SPL-3626: no feature test sources test-lib.inc.sh; if the rebuild below
+# fails, the stale build is still skipped, but its WARN stays out of output.
+export SPOOL_BIN_STALE_WARN=0
 
 njobs="${FEATURE_TEST_JOBS:-}"
 if [[ -z "$njobs" ]]; then

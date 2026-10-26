@@ -80,6 +80,12 @@ export SPOOL_TEST=1
 # SPL-1874: no test reads or writes the box's private overlay (test-lib.inc.sh too)
 export SPL_PRIVATE_CNF="${SPL_PRIVATE_CNF_FOR_TESTS:-/nonexistent/spl-private-cnf-for-tests.yaml}"
 export SPL_PRIVATE_WARN=0
+# SPL-3626: a lane worktree's git-ignored bin/spool is stale after any api
+# commit, and spool-env's WARN about it leaked into the output of tests that
+# do not source test-lib.inc.sh (spl-box-leave, tmux-close-window: two full
+# gates red, c-884). The skip stays; only the line goes (SPL-2911 set it in
+# the lib alone).
+export SPOOL_BIN_STALE_WARN=0
 # specs/061 FR-004: pin the clock the legacy agent-id cutoff reads, so the
 # CLE-/PRB-/ORC- fixtures here do not turn the suite red at
 # SPOOL_LEGACY_ID_UNTIL on their own. The cutoff itself is tested in

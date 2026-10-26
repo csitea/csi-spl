@@ -12,7 +12,7 @@ tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
 image_alt: "רובוטים מצוירים ועליזים מארגנים בהתלהבות תוכניות מחנה קיץ, מדריכי נסיעות ומפות ים-תיכוניות תחת שמש בהירה."
 image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
-draft: false
+draft: true
 ---
 עבור בני נוער, מחנה שפות קיצי לחופי הים התיכון הוא הרבה יותר מעוד חופשה — זוהי נקודת ציון מעצבת בחיים. זהו ביטחון עצמי בדיבור בשפה זרה, היכרות עם התרבות של ולנסיה, חברויות בינלאומיות חדשות וזיכרונות שילוו אותם תמיד.
 

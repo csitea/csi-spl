@@ -12,7 +12,7 @@ tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
 image_alt: "Vrolijke tekenfilmrobots organiseren enthousiast kampprogramma's, reisgidsen en mediterrane kaarten onder een stralende zon."
 image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
-draft: false
+draft: true
 ---
 Voor tieners is een zomers taalkamp aan de Middellandse Zee een onvergetelijke mijlpaal: zelfvertrouwen opbouwen in een vreemde taal, de cultuur van Valencia ontdekken, internationale vrienden maken en herinneringen creëren voor het leven.
 

@@ -48,4 +48,34 @@ for k in claude grok agy qwen mistral; do
   # In a repo, INTEGRATION (4) points at the rule instead of keeping a copy.
   has "$k/repo: INTEGRATION (4) points at the rule" "(rejected: 'FETCH --force', then NO FORCE-PUSH below)" "$(cat "$T_TMP/plan-$k-repo/prompt.txt")"
 done
+
+# SPL-3482: the DEPLOY-GATE offered 'emergency bypass only: SPL_PREPUSH_OVERRIDE=1
+# git push …, and tell <orch>', so an orchestrator's yes read as enough (c-001
+# msg 568e5cac, 2026-10-25). Fleet rule 46 (fleet-rules-index.md): the override
+# only on the owner's approval of that one push. Every seed sentence naming
+# the override must name the owner or forbid it. Control: the old wording.
+override_ok() {  # SEED -> 0 when every sentence naming the override names the owner's go or a never
+  local s; while IFS= read -r s; do
+    case "$s" in *SPL_PREPUSH_OVERRIDE*) case "$s" in *"owner's"*|*"never SPL_PREPUSH_OVERRIDE"*) ;; *) return 1 ;; esac ;; esac
+  done < <(printf '%s\n' "$1" | sed 's/\. /.\n/g')
+}
+OLD_GATE="emergency bypass only: 'SPL_PREPUSH_OVERRIDE=1 git push …', and tell \${SPOOL_ORCHESTRATOR_ID}."
+NEW_GATE="SPL_PREPUSH_OVERRIDE only on the owner's go for that one push, never an agent's."
+OCTL="$T_TMP/octl/spawn-agents"; mkdir -p "$OCTL"
+cp -r "$T_FEAT/scripts" "$T_FEAT/lib" "$OCTL/"
+OLD_GATE="$OLD_GATE" NEW_GATE="$NEW_GATE" python3 - "$OCTL/scripts/spawn-core.inc.sh" <<'PY'
+import os, sys
+p = sys.argv[1]; s = open(p, encoding="utf-8").read()
+open(p, "w", encoding="utf-8").write(s.replace(os.environ["NEW_GATE"], os.environ["OLD_GATE"]))
+PY
+check "override control: the old source carries the emergency bypass" grep -qF "emergency bypass only" "$OCTL/scripts/spawn-core.inc.sh"
+for k in claude mistral; do
+  id=CLE-79; [ "$k" = mistral ] && id=m-079
+  s="$(cat "$T_TMP/plan-$k-repo/prompt.txt")"
+  has "$k/repo: the DEPLOY-GATE gives the override to the owner's go only" "$NEW_GATE" "$s"
+  check "$k/repo: no seed sentence offers the override without the owner" override_ok "$s"
+  c="$(seed "$OCTL/scripts" "$k" "$id" "$T_TMP/repo" "$T_TMP/octl-$k")"
+  has "$k/repo: override control renders the old DEPLOY-GATE" "emergency bypass only" "$c"
+  if override_ok "$c"; then nok "$k/repo: override control (old wording) -> FAIL"; else ok "$k/repo: override control (old wording) -> FAIL"; fi
+done
 t_done

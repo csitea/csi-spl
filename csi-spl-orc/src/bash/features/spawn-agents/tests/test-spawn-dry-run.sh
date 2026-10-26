@@ -188,7 +188,8 @@ has "git: report asks for sha + note link" "Report sha + note link per released 
 # SPL-1253: the deploy-gate footer rides every git-repo brief.
 has "git: deploy-gate footer names the pre-push command" "./run -a do_check_pre_push" "$prompt"
 has "git: deploy-gate footer requires Postgres, not memory" "must run on POSTGRES" "$prompt"
-has "git: deploy-gate footer names the audited override" "SPL_PREPUSH_OVERRIDE=1" "$prompt"
+# SPL-3482: the override only on the owner's go (fleet rule 46), no emergency bypass.
+has "git: deploy-gate footer gives the override to the owner's go only" "SPL_PREPUSH_OVERRIDE only on the owner's go for that one push" "$prompt"
 has "git: deploy-gate footer forbids a working-around of a refused prd mutation" "do_spl_desk_up" "$prompt"
 # CLE-77829: the gate's lint parts, the re-run after the rebase, the scanner reds.
 has "git: deploy-gate footer re-runs the gate after the rebase" "AGAIN after the mandatory rebase" "$prompt"

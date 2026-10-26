@@ -12,6 +12,14 @@ set -euo pipefail
 : "${CHROME_PATH:?CHROME_PATH unset}"
 [[ $# -gt 0 ]] || { echo "usage: $0 <cmd>..." >&2; exit 2; }
 here=$(cd "$(dirname "$0")" && pwd)
+# One pinned font on the gate and on a box (SPL-3469): the hosted runner fell
+# back to DejaVu Sans, the box to Noto Sans, and 1 to 3 px of text width
+# flipped geometry asserts. wf 10's wui-e2e job sets this same file; whatever
+# is set must still resolve sans-serif to DejaVu Sans, or nothing runs.
+export FONTCONFIG_FILE="${FONTCONFIG_FILE:-$here/wui-e2e-fonts.conf}"
+font=$(fc-match sans-serif family 2>/dev/null || true)
+[[ $font == "DejaVu Sans" ]] \
+  || { echo "::error::FONTCONFIG_FILE=$FONTCONFIG_FILE gives sans-serif '${font:-no font}', not DejaVu Sans (fonts-dejavu-core?)" >&2; exit 1; }
 # RUNNER_TEMP is per job. Without it, fixed names in the shared /tmp met a
 # file another user owned: the servers never started and the script printed
 # that user's old log as this run's (SPL-2920). So a private dir, never a

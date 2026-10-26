@@ -724,6 +724,9 @@ jobs:
           CI: "1"
           E2E_SHARD: "${{ matrix.shard }}/8"
           E2E_SKIP: ${{ inputs.e2e_skip }}
+          # One pinned font (SPL-3469): the same file wui-e2e-mock-serve.sh
+          # uses on a box, so hosted (DejaVu) and box (Noto) widths agree.
+          FONTCONFIG_FILE: ${{ github.workspace }}/csi-spl-orc/src/bash/scripts/wui-e2e-fonts.conf
           # On a master push only: a pull request (wf 11) keeps the full red
           # report, every red file in one round, and nothing queues behind it.
           GATE_FAIL_FAST: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && '1' || '' }}

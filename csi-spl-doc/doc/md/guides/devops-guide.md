@@ -27,6 +27,7 @@ It is one of four guides. The others are linked, not copied.
 | `GCP_BILLING_ACCOUNT_ID` in the environment | gcp-001 links the project to it; the value is never in the repo |
 | the per-env project keys, once bootstrap has written them | everything after the keys exist |
 | the owner's approval | every terraform apply, every project create |
+| a workspace's root key file, mode 600, never in git | pinning a desk box or `box-wui` in that workspace: [8.3](#83-workspace-root-keys) |
 
 For a box that does not exist yet, follow the installation guide, sections 3 to 5 (packages, the two users, the checkout, tpl-gen at its pin, the key table). Come back here, then finish that guide. The product domain is cnf `env.dns.BASE_DOMAIN`. This guide never pastes it.
 
@@ -373,6 +374,121 @@ cd <CHECKOUT>/csi-spl-orc && DRY_RUN=0 ENVS="prd dev" STEPS=025-gcp-dns-zone ./r
 ```bash
 cd <CHECKOUT>/csi-spl-orc && ENV=dev TENANT_ID=<TENANT> DRY_RUN=0 ./run -a do_spl_tenant_host_provision
 ```
+
+### 8.3 Workspace root keys
+
+Every workspace (tenant) has one ed25519 root key pair. The hub keeps only the 32-byte public half (`tenants.root_pubkey`). The private half exists only where the operator saved it. Owner, HUM-10, csitea topic 1a494e58 (msg 4c027aa4): "update the DevOps guide what those keys are, how they can be found and how-to use them".
+
+#### 8.3.1 What the root key signs
+
+| it signs | through | why it matters |
+|---|---|---|
+| a desk box's pin (the box key an agent seat answers from) | `do_spl_desk_up` on a desk's first run, `do_spl_desk_pin` | without a pin no agent can be seated on that box |
+| the hub's `box-wui` pin, the browser box | `do_spl_cloud_pin_box_wui`; `do_spl_tenant_create` does it once at create | without it no browser post reaches an agent (SPL-1290) |
+| a pin revoke | `do_spl_desk_pin` with `PIN_REVOKE=1` | removes a box's seat |
+
+All three call `spool hub-pin` (`POST /v1/pins`) with `--root-key`. The hub checks the signature against the stored public key. It cannot re-create the private key from it, and no action re-issues one (8.3.5).
+
+#### 8.3.2 Where a create writes it
+
+`do_spl_tenant_create` (`DRY_RUN=0`) prints one JSON line on stdout, `{"tenant":…,"url":…,"root_pubkey":…,"root_private_key":…,"billing_status":"manual"}`, and stores the private key nowhere itself. The operator API `POST /v1/operator/workspaces` answers a generated key once in its 201 body, the same way. The operator saves that line in a file of mode 600, in a directory of mode 700, outside git. The JSON field the actions read is `root_private_key` (`spl_root_key_to_file`, `csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh`); a file that holds only the bare base64 key (the compose stack's `tenant-root.key`) is read too.
+
+Two stores are defaults in code, and three more exist on the boxes (seen 2026-10-26):
+
+| store | file name | read by default by |
+|---|---|---|
+| `$HOME/.spool-hub/tenants/` | `<ENV>-<WORKSPACE>.json` | `do_spl_demo_workspace_create` (`DEMO_TENANT_FILE`) |
+| `/var/<org>/<org>-<app>/tenants/<ENV>/` | `<WORKSPACE>.<UTC>.json` | `do_spl_desk_rebox`, `do_spl_m3_e2e`, `do_spl_invite_e2e` (`SPL_TENANTS_DIR`; the newest file wins) |
+| `$HOME/.spool/.csi/` | `<WORKSPACE>-root.json` | nothing; pass it by hand |
+| `$HOME/.local/share/csi-spl/cloud/<ENV>/tenant-root/` | `<WORKSPACE>.json` | nothing; pass it by hand |
+| `$HOME/.local/share/csi-spl/cloud/<ENV>/tenants/`, `$HOME/.local/share/csi-spl/lde/main/tenants/` | `<WORKSPACE>.<UTC>.json` | written by the checkout test buys (`KEY_OUT`) and the lde |
+
+`$HOME` is the home of `<OWNER_USER>` on that box. On a box whose homes live on the data disk it is under `/mnt/data/home/`. A key saved on one box is not on the other: search each box.
+
+#### 8.3.3 Find one without printing it
+
+List the files that name the field. This prints paths only:
+
+```bash
+grep -rl --include='*.json' root_private_key ~/.spool-hub/tenants ~/.spool ~/.local/share/csi-spl /var/csi/csi-spl/tenants 2>/dev/null
+```
+
+The list also holds files that only mention the word, such as spool inbox and outbox messages under `.../desk/<WORKSPACE>/<BOX>/spool/`. Tell them apart by shape, never by reading the value. This prints `key`, `wrapped` or `mention`, the mode and the path:
+
+```bash
+grep -rl --include='*.json' root_private_key ~/.spool-hub/tenants ~/.spool ~/.local/share/csi-spl /var/csi/csi-spl/tenants 2>/dev/null | python3 -c 'import sys,json,base64,os,stat
+def k(t):
+    try:
+        d=json.loads(t); v=d.get("root_private_key") if isinstance(d,dict) else None; return isinstance(v,str) and len(base64.b64decode(v,validate=True))==64
+    except Exception: return False
+for p in sys.stdin.read().split():
+    t=open(p,errors="replace").read(); w="key" if k(t) else "wrapped" if any(k(l) for l in t.splitlines()) else "mention"
+    print(w, oct(stat.S_IMODE(os.stat(p).st_mode)), p)'
+```
+
+- `key`: the file is a create JSON with a 64-byte key. Use it as is.
+- `wrapped`: one line is the create JSON, the others are `./run` log lines saved with it (seen in `~/.spool-hub/tenants/` and in an e2e scratch dir). The actions refuse it ("holds no tenant root key"). Copy the JSON line into a new 600 file, then point the action at the new file. The create's JSON line starts with `{"tenant"` (`spl-tenant-create.func.sh`, its `printf`). This command copies the key and prints nothing:
+
+```bash
+(umask 077 && grep -m1 '^{"tenant"' <WRAPPED_FILE> > <KEY_FILE>)
+```
+
+- `mention`: a message or another file that names the field. Not a key.
+
+One workspace by name, on one box:
+
+```bash
+ls -l ~/.spool-hub/tenants/<ENV>-<WORKSPACE>.json ~/.spool/.csi/<WORKSPACE>-root.json ~/.local/share/csi-spl/cloud/<ENV>/tenant-root/<WORKSPACE>.json ~/.local/share/csi-spl/cloud/<ENV>/tenants/<WORKSPACE>.*.json /var/csi/csi-spl/tenants/<ENV>/<WORKSPACE>.*.json 2>/dev/null
+```
+
+A desk that is already pinned needs no key: the file `<state dir>/desk/<WORKSPACE>/<BOX>/pinned` exists, or `do_spl_desk_pin` with no key and no token asks the hub (check mode, exit 3 = not pinned).
+
+The `grep -rl`, the classifier and the `ls` were each run once on both boxes on 2026-10-26, as `<OWNER_USER>`, and printed names only. The `grep -m1` copy was not run: it copies a key.
+
+#### 8.3.4 Use one
+
+Pass the file path. Never the value: not on a command line, not in a post, a spool message, an issue or an agent prompt or brief. Every action copies the key into a 600 scratch file and removes it. `do_spl_desk_up` and `do_spl_desk_pin` refuse a file that is not mode 600.
+
+Seat an agent on this box, first run of the desk:
+
+```bash
+cd <CHECKOUT>/csi-spl-orc && ENV=<ENV> TENANT_ID=<WORKSPACE> DESK_AGENT=<AGENT_ID> ROOT_KEY_JSON=<KEY_FILE> DRY_RUN=0 ./run -a do_spl_desk_up
+```
+
+Later runs of the same desk reuse the pin and need no `ROOT_KEY_JSON`. A desk user that cannot read the key file gets it on stdin, `ROOT_KEY_JSON=-` (spec 069 8.3), from the user who can.
+
+Pin another user's box (the admin line a pending box prints):
+
+```bash
+cd <CHECKOUT>/csi-spl-orc && ENV=<ENV> TENANT_ID=<WORKSPACE> DESK_BOX=<BOX> BOX_PUBKEY=<BOX_PUBKEY> ROOT_KEY_JSON=<KEY_FILE> DRY_RUN=0 ./run -a do_spl_desk_pin
+```
+
+Pin `box-wui`, when the create did not (its exit 4) or after a `box-wui` key rotation (`FORCE=1`):
+
+```bash
+cd <CHECKOUT>/csi-spl-orc && ENV=<ENV> TENANT_ID=<WORKSPACE> TENANT_FILE=<KEY_FILE> DRY_RUN=0 ./run -a do_spl_cloud_pin_box_wui
+```
+
+Each is a dry run without `DRY_RUN=0`. None was run for this section.
+
+#### 8.3.5 When the key is lost
+
+- **No re-issue.** No action and no hub endpoint replaces the root public key of an existing workspace. The only write of `tenants.root_pubkey` after the create is a paid checkout's claim (`internal/store/payments_postgres.go`). The root key rotation is row 6 of [secret rotation](../secret-rotation.md) section 5, "to build".
+- **Desk seats still work.** A workspace member with the `agents.join` permission mints a one-use join token in Tenant settings -> Agents. `SPOOL_JOIN_TOKEN` (form `spj1.<WORKSPACE>.<secret>`) then takes the place of `ROOT_KEY_JSON` in `do_spl_desk_up` or `do_spl_desk_pin`. Read it from a file, never type it on the command line. The same page revokes a seat.
+- **`box-wui` cannot be re-pinned.** The join path refuses the reserved `box-wui` box. A workspace whose `box-wui` pin is still in place keeps working. One that needs a new `box-wui` pin has no path without the key: gap D10.
+- Pins already made stay valid. Losing the key removes nothing.
+
+#### 8.3.6 Where a key must never be
+
+- **Git.** Never commit a key file. `lint-gitleaks` and `lint-trufflehog` scan every push. `box-state-pack.sh` leaves `.spool-hub/tenants` out of a box-state pack.
+- **Logs.** `./run` copies every action's stdout into `~/var/log/<proj>/run.sh.<ts>.out.log` (`csi-spl-orc/src/bash/run/run.sh`, the `tee` in `main`), so a `DRY_RUN=0` create through `./run` leaves the JSON line, key included, in that log. Find such a log, and remove it once the key file is saved and classified `key`: gap D9.
+
+```bash
+grep -rl root_private_key ~/var/log/csi-spl-orc
+```
+
+- **Posts, messages, issues, prompts, transcripts.** A spool message is kept in inboxes, outboxes and the hub. An agent's transcript is kept on disk and nobody reviews it for secrets. Give an agent the action to run and the file's path, never the content. Kind secret: only claude, grok or mistral lanes handle key files, never agy or qwen (global CLAUDE.md, "Spawn an agent", the data rule).
+- **Terraform state.** Terraform never creates or reads a root key.
 
 <a id="ws-doc-89dacbf1-0920-48fc-af67-4782f09b1639"></a>
 ## 9 Firebase Hosting
@@ -737,6 +853,8 @@ A step with no action, or an action that refuses the from-scratch case. Each one
 | D6 | no `do_*` restores a Cloud SQL PITR timestamp | `do_spl_db_restore` restores the logical dump |
 | D7 | `make do-provision-and-update-gh-keys` calls `do_github_update_gcp_keys` | `grep -c '^do_github_update_gcp_keys()' csi-spl-iac/src/bash/run/*.func.sh csi-spl-orc/src/bash/run/*.func.sh` -> 0; step 120 is the action that sets the secrets |
 | D8 | the owner's approval is spoken for that call; no action records it | every apply section above waits for it |
+| D9 | `./run` tees a `DRY_RUN=0` `do_spl_tenant_create`'s stdout, root key included, into `~/var/log/csi-spl-orc/run.sh.<ts>.out.log` | find and remove it by hand (8.3.6) |
+| D10 | no action or endpoint re-issues a lost workspace root key; `box-wui` cannot be re-pinned without it | join tokens seat desks (8.3.5); secret rotation section 5 row 6 is "to build" |
 
 <a id="ws-doc-383be4b8-5cc5-4018-a082-7d6adf8c02ae"></a>
 ## 20 Docs this guide replaces

@@ -1,0 +1,6 @@
+Lay-What: The log hiding of private keys also covers keys written in camelCase and keys that contain an escaped quote.
+Lay-How: The same log filter now recognises more ways a key can be written.
+Lay-Why: Two ways of writing a key still slipped through into the log.
+Tech-What: do_mask_private_keys matches private_?key in any case, and a JSON value may hold escaped characters.
+Tech-How: The JSON and assignment rules use private_?key with the I flag; the JSON value is ([^"\\]|\\.)*; a test case each with a fake key.
+Tech-Why: A "privateKey" field and a value with an escaped quote leaked past 632bc4837 (SPL-3614, c-002 msg ccd39ad8).

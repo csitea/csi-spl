@@ -20,7 +20,9 @@
 #   issue      the key, one line (written at placement)
 #   issue-end  <status>\t<reason>\t<utc>: the lane ended without landing;
 #              done\t<why>\t<utc>\t<repo>\t<sha>: its work landed in another
-#              repo, checked on that repo's origin trunk (SPL-2229)
+#              repo, checked on that repo's origin trunk (SPL-2229);
+#              done\t<why>\t<utc>\tapplied\towner=<uuid> accepted=<uuid>: an
+#              apply-only lane, both msgs checked (SPL-3471)
 
 # An issue key: the tenant prefix and a number, e.g. SPL-123.
 LI_KEY_RE='[A-Z][A-Z0-9]{0,9}-[1-9][0-9]*'
@@ -312,14 +314,30 @@ li_landed_cmd() {
   printf "cd csi-spl-orc && sudo -u %s env AGENT_ID=%s LANE_ISSUE_OP=end LANE_ISSUE_STATUS=done LANE_LANDED_REPO=<cnf repo name> LANE_LANDED_SHA=<sha> DRY_RUN=0 ./run -a do_spl_lane_issue" "$(u="$(li_desk_user)"; printf '%s' "${u:-<box user>}")" "$1"
 }
 
+# li_applied_cmd ID -> the command for an apply-only lane (a terraform apply,
+# an IAM grant, a prd action: no commit): do_spl_lane_issue checks the owner's
+# go and the ACCEPTED on the hub, then sets the issue done (SPL-3471).
+li_applied_cmd() {
+  printf "cd csi-spl-orc && sudo -u %s env AGENT_ID=%s LANE_ISSUE_OP=end LANE_ISSUE_STATUS=done LANE_APPLIED_EVIDENCE='owner=<owner msg uuid> accepted=<ACCEPTED msg uuid>' DRY_RUN=0 ./run -a do_spl_lane_issue" "$(u="$(li_desk_user)"; printf '%s' "${u:-<box user>}")" "$1"
+}
+
 # li_end_record KEY END_FILE ID: the gate's verdict on an issue-end record. A
-# done record passes only with the repo + sha its check wrote (SPL-2229).
+# done record passes only with the repo + sha its check wrote (SPL-2229), or
+# the two msg ids of an apply-only end (SPL-3471).
 li_end_record() {
-  local st repo sha
+  local st repo sha u='[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
   IFS=$'\t' read -r st _ _ repo sha <"$2"
   if [ "$st" != "done" ]; then
     echo "issue gate: $1 ended without landing: $(cut -f1,2 "$2" | tr '\t' ' ')" >&2
     return 0
+  fi
+  if [ "$repo" = applied ]; then
+    if [[ "$sha" =~ ^owner=($u)\ accepted=($u)$ ]]; then
+      echo "issue gate: $1 applied, no commit: owner go ${BASH_REMATCH[1]:0:8}, ACCEPTED ${BASH_REMATCH[2]:0:8} (checked)" >&2
+      return 0
+    fi
+    echo "exit-clean refused: $2 says applied but names no owner + ACCEPTED msg ids; set it with the check: $(li_applied_cmd "$3")" >&2
+    return 3
   fi
   if [ -n "$repo" ] && [[ "$sha" =~ ^[0-9a-f]{7,40}$ ]]; then
     echo "issue gate: $1 landed in another repo: $repo ${sha:0:12} (checked on its origin trunk)" >&2
@@ -350,7 +368,7 @@ li_gate() {
       echo "issue gate: $key done on the hub (no landed commit)" >&2
       return 0
     fi
-    echo "exit-clean refused: issue $key is still wip: no commit on $(li_trunk "$w" || echo origin/master) closes it (a fix|feat|perf|refactor subject with $key in its scope, or a 'Closes: $key' trailer; fetch first) and no end reason; land a commit citing $key, or end it: $(li_end_cmd "$id"); work landed in another repo: $(li_landed_cmd "$id")" >&2
+    echo "exit-clean refused: issue $key is still wip: no commit on $(li_trunk "$w" || echo origin/master) closes it (a fix|feat|perf|refactor subject with $key in its scope, or a 'Closes: $key' trailer; fetch first) and no end reason; land a commit citing $key, or end it: $(li_end_cmd "$id"); work landed in another repo: $(li_landed_cmd "$id"); apply-only work: $(li_applied_cmd "$id")" >&2
     return 3
   fi
   mapfile -t cites < <(li_cites "$w" "$key")

@@ -425,5 +425,99 @@ run AGENT_ID=c-002 LANE_ISSUE_OP=discussion LANE_ISSUE_TOPIC=5ea2e615-ca23-451f-
 [[ $rc -ne 0 ]] && ! grep -q '^create|' "$T/calls.log" && grep -q 'no spec folder named' "$T/o" &&
   pass "discussion with no LANE_ISSUE_SPEC: refused, nothing filed" || fail "discussion nospec (rc=$rc): $(cat "$T/o")"
 
+
+# SPL-3471: an apply-only lane (a terraform apply, an IAM grant, a prd action)
+# lands no commit. End done with LANE_APPLIED_EVIDENCE: the owner msg on the
+# hub from a human, the ACCEPTED msg to this lane from a role seat, its body
+# starting with ACCEPTED. The hub is stubbed: do_spl_db_message_show answers
+# the rows of $T/ap/rows (rc 2 = no such msg, HUB_DOWN=1 = the read fails),
+# the desk's hub-tail answers $T/ap/tail. Reads are not logged: a refusal
+# leaves calls.log empty.
+mkdir -p "$T/ap"
+OWN=705a9b08-1111-4111-8111-111111111111 ACC=31919e11-2222-4222-8222-222222222222 LOC=5e1f0000-3333-4333-8333-333333333333
+AP_STUBS='do_spl_db_message_show() {
+  [[ "${HUB_DOWN:-0}" == 1 ]] && { echo "FATAL read-only query failed" >&2; return 1; }
+  grep -F "\"msg_id\": \"$MSG_ID\"" "$T_AP/rows" || { echo "FAIL no message" >&2; return 2; }
+  echo "OK 1 message row(s)"
+}
+spl_desk_issue_once() { SPL_HUB_URL=https://hub.invalid; return 0; }
+spl_desk_spool() { [[ " $* " == *" hub-tail --task t-acc --json "* ]] && cat "$T_AP/tail"; return 0; }
+'
+ap_rows() {  # OWNER_FROM ACC_FROM ACC_TO
+  printf '{"msg_id": "%s", "task_id": "t-own", "from_box": "box-wui", "from_id": "%s", "to_box": "box-b", "to_id": "c-123", "kind": "msg"}\n' "$OWN" "$1" >"$T/ap/rows"
+  printf '{"msg_id": "%s", "task_id": "t-acc", "from_box": "box-b", "from_id": "%s", "to_box": "box-a", "to_id": "%s", "kind": "result"}\n' "$ACC" "$2" "$3" >>"$T/ap/rows"
+}
+ap_tail() {  # BODY of ACC as the hub serves it (a cross-box msg: from_agent line first)
+  python3 -c 'import json, sys; print(json.dumps({"v": 1, "msg_id": "00000000-0000-4000-8000-000000000000", "body": "other"})); print(json.dumps({"v": 1, "msg_id": sys.argv[1], "body": sys.argv[2]}))' "$ACC" "$1" >"$T/ap/tail"
+}
+ap_run() { rm -f "$S/c-123/lifetime/issue-end"; STUBS="$STUBS$AP_STUBS" run AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_STATUS=done T_AP="$T/ap" "$@"; }
+echo SPL-42 >"$S/c-123/lifetime/issue"
+ap_rows HUM-10 c-002 c-123; ap_tail $'from_agent: c-002@box-b\nACCEPTED by c-002: terraform 053 on dev and prd'
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC" DRY_RUN=0
+[[ $rc -eq 0 ]] && grep -qx 'update|--ref|SPL-42|--status|done|' "$T/calls.log" &&
+  grep -q "^comment|--ref|SPL-42|--body|Lane c-123 applied, no commit: owner go 705a9b08 (HUM-10), ACCEPTED 31919e11 from c-002 (checked on the hub). Owner msg $OWN, ACCEPTED msg $ACC." "$T/calls.log" &&
+  [[ "$(grep -c . "$T/calls.log")" == 3 && "$(cut -f1,4,5 "$S/c-123/lifetime/issue-end")" == "done"$'\t'"applied"$'\t'"owner=$OWN accepted=$ACC" ]] &&
+  pass "applied: owner HUM-10 + ACCEPTED to the lane from c-002 (on the hub): done, one comment naming both ids, issue-end" ||
+  fail "applied (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
+cp "$S/c-123/lifetime/issue-end" "$T/ap/issue-end" 2>/dev/null
+SNIPPET=". \"\$PROJ_PATH/src/bash/features/spawn-agents/lib/lane-issue.inc.sh\"; li_end_record SPL-42 '$T/ap/issue-end' c-123" in_orc >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 ]] && grep -qx "issue gate: SPL-42 applied, no commit: owner go 705a9b08, ACCEPTED 31919e11 (checked)" "$T/o" &&
+  pass "applied: li_gate's record check passes that issue-end" || fail "li_end_record applied (rc=$rc): $(cat "$T/o")"
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC"
+[[ $rc -eq 0 && ! -s "$T/calls.log" && ! -e "$S/c-123/lifetime/issue-end" ]] && grep -q "OK DRY_RUN SPL-42 -> done (applied, no commit" "$T/o" &&
+  pass "applied, dry run: both ids checked, no hub write, nothing written" || fail "applied dry (rc=$rc): $(cat "$T/o")"
+ap_rows c-001 c-002 c-123
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC" DRY_RUN=0
+refused "applied: an owner msg not from a human (c-001) is refused" "the owner msg $OWN is from 'c-001', not a human"
+ap_rows c-123 c-002 c-123
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC" DRY_RUN=0
+refused "applied: the lane's own msg as the owner go is refused" "is from 'c-123', not a human"
+ap_rows HUM-10 c-002 c-999
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC" DRY_RUN=0
+refused "applied: an ACCEPTED to another lane is refused" "is addressed to 'c-999', not to c-123"
+ap_rows HUM-10 c-123 c-123
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC" DRY_RUN=0
+refused "applied: the lane's own msg as the ACCEPTED is refused" "is from c-123 itself"
+ap_rows HUM-10 c-555 c-123
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC" DRY_RUN=0
+refused "applied: an ACCEPTED from another lane (not a seat, not a human) is refused" "is from 'c-555', not a role seat"
+ap_rows HUM-10 c-002 c-123; ap_tail $'from_agent: c-002@box-b\nREJECT: the plan shows drift; not ACCEPTED'
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC" DRY_RUN=0
+refused "applied: a body that does not start with ACCEPTED is refused" "the msg $ACC does not start with ACCEPTED"
+ap_tail $'from_agent: c-002@box-b\n**ACCEPTED** by c-002'
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC" DRY_RUN=0
+[[ $rc -eq 0 && -s "$S/c-123/lifetime/issue-end" ]] && pass "control: a markdown-bold **ACCEPTED** counts, as at the exit gate" || fail "bold (rc=$rc): $(cat "$T/o")"
+: >"$T/ap/tail"
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC" DRY_RUN=0
+refused "applied: an ACCEPTED body the desk cannot read is refused" "could not be read through the box-a desk"
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC" HUB_DOWN=1 DRY_RUN=0
+refused "applied: the hub read fails: refused" "is not on the hub of dev/t1 (or the read failed)"
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$OWN" DRY_RUN=0
+refused "applied: one msg as both ids is refused" "are one message"
+ap_run LANE_APPLIED_EVIDENCE="owner=705a9b08 accepted=31919e11" DRY_RUN=0
+refused "applied: short ids are refused" "LANE_APPLIED_EVIDENCE must be 'owner=<owner msg uuid> accepted=<ACCEPTED msg uuid>'"
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC" LANE_LANDED_REPO=dvn-web DRY_RUN=0
+refused "applied: evidence and LANE_LANDED_REPO together are refused" "not both"
+# A same-box ACCEPTED never reaches the hub: the lane's inbox copy counts only
+# when the sender's outbox holds the same msg.
+ap_rows HUM-10 c-002 c-123; ACC_SAVE="$ACC"; ACC="$LOC"
+mkdir -p "$S/c-123/archive" "$S/c-002/outbox"
+printf '{"v": 1, "msg_id": "%s", "from": "c-002", "to": "c-123", "kind": "result", "body": "ACCEPTED by c-002: applied"}\n' "$LOC" >"$S/c-123/archive/acc.json"
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$LOC" DRY_RUN=0
+refused "applied, same box: an inbox copy with no sender outbox copy is refused" "has no matching copy in $S/c-002/outbox"
+cp "$S/c-123/archive/acc.json" "$S/c-002/outbox/acc.json"
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$LOC" DRY_RUN=0
+[[ $rc -eq 0 && "$(cut -f1,4,5 "$S/c-123/lifetime/issue-end" 2>/dev/null)" == "done"$'\t'"applied"$'\t'"owner=$OWN accepted=$LOC" ]] &&
+  grep -q 'same box, not on the hub: checked in the spool' "$T/calls.log" &&
+  pass "applied, same box: the inbox copy matched by the sender's outbox: done, the comment says where it was checked" ||
+  fail "same box (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
+printf '{"v": 1, "msg_id": "%s", "from": "c-123", "to": "c-123", "kind": "result", "body": "ACCEPTED"}\n' "$LOC" >"$S/c-123/archive/acc.json"
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$LOC" DRY_RUN=0
+refused "applied, same box: a lane's own spool msg is refused" "is from c-123 itself"
+rm -rf "$S/c-123/archive" "$S/c-002/outbox"
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$LOC" DRY_RUN=0
+refused "applied: an ACCEPTED neither on the hub nor in the spool is refused" "is neither on the hub of dev/t1 nor in"
+ACC="$ACC_SAVE"; rm -f "$S/c-123/lifetime/issue-end"
+
 echo "spl-lane-issue: $fails failure(s)"
 exit "$fails"

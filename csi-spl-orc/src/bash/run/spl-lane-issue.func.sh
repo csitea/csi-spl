@@ -60,6 +60,16 @@
 # @description     Landed is not live: the dispatcher's ACCEPTED still checks the
 # @description     served build; this only replaces the orchestrator's hand-set
 # @description     done (the SPL-1813 path, which stays).
+# @description   LANE_ISSUE_OP=end LANE_ISSUE_STATUS=done (SPL-3471: an apply-only
+# @description     lane, a terraform apply, an IAM grant or a prd action, lands no
+# @description     commit): LANE_APPLIED_EVIDENCE="owner=<owner msg uuid>
+# @description     accepted=<ACCEPTED msg uuid>". The owner msg must be on the
+# @description     hub from a human (HUM-<n>); the ACCEPTED msg addressed to
+# @description     this lane, from a role seat or a human (never the lane), its
+# @description     body starting with ACCEPTED (spl-lane-issue-applied.func.sh,
+# @description     which also says how a same-box ACCEPTED is checked). Then:
+# @description     status done, one comment naming both ids, lifetime/issue-end
+# @description     that li_gate passes. Anything else: one line, nothing changed.
 # @description Landing moves the issue on (the landed-fix rule: a commit on
 # @description master that cites the key). Dry run unless DRY_RUN=0.
 # @param AGENT_ID - required: the lane's spool id, e.g. c-123
@@ -73,10 +83,11 @@
 # @param LANE_ISSUE_ANSWER (optional, place/discussion) - 1: label the filed issue `answer` (an evaluation, an answer to the owner)
 # @param LANE_ISSUE_TITLE (required, discussion) - what the work is
 # @param LANE_ISSUE_TEXT (optional, discussion) - the owner's words that ask for it
-# @param LANE_ISSUE_STATUS (optional, end) - diss (default) | onhold | blocked | done (landed in another repo)
+# @param LANE_ISSUE_STATUS (optional, end) - diss (default) | onhold | blocked | done (landed in another repo, or applied)
 # @param LANE_ISSUE_REASON (required, end; optional with done) - why the lane ends without landing
-# @param LANE_LANDED_REPO (required, end done) - the repo's cnf name, e.g. csi-rel or dvn-web
-# @param LANE_LANDED_SHA (required, end done) - the landed commit, 7-40 hex
+# @param LANE_LANDED_REPO (required, end done in another repo) - the repo's cnf name, e.g. csi-rel or dvn-web
+# @param LANE_LANDED_SHA (required, end done in another repo) - the landed commit, 7-40 hex
+# @param LANE_APPLIED_EVIDENCE (required, end done applied) - "owner=<owner msg uuid> accepted=<ACCEPTED msg uuid>"
 # @param ENV TENANT_ID (optional) - default LEASE_ENV / LEASE_TENANT of <spool root>/dispatch/lease.conf
 # @param DESK_AGENT (optional) - the seated desk that files it; default the first seated of LEASE_MASTER, LEASE_ORCH, LEASE_FAILOVER
 # @param DESK_BOX (optional) - default this box's desk box
@@ -86,6 +97,7 @@
 # @example AGENT_ID=c-002 LANE_ISSUE_OP=discussion LANE_ISSUE_TOPIC=<uuid> LANE_ISSUE_TITLE='Evaluate the runner VM' LANE_ISSUE_ANSWER=1 DRY_RUN=0 ./run -a do_spl_lane_issue
 # @example AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_REASON='superseded by c-130' DRY_RUN=0 ./run -a do_spl_lane_issue
 # @example AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_STATUS=done LANE_LANDED_REPO=dvn-web LANE_LANDED_SHA=9c74186 DRY_RUN=0 ./run -a do_spl_lane_issue
+# @example AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_STATUS=done LANE_APPLIED_EVIDENCE='owner=<uuid> accepted=<uuid>' DRY_RUN=0 ./run -a do_spl_lane_issue
 #------------------------------------------------------------------------------
 do_spl_lane_issue() {
   # shellcheck source=../features/spawn-agents/lib/lane-issue.inc.sh
@@ -343,10 +355,13 @@ spl_lane_issue_discussion() {
 spl_lane_issue_end() {
   local root="$1" id="$2" key st="${LANE_ISSUE_STATUS:-diss}" why
   SLI_DRY="$3"
-  [[ "$st" == "done" ]] && { spl_lane_issue_landed "$root" "$id"; return; }
+  if [[ "$st" == "done" ]]; then
+    if [[ -n "${LANE_APPLIED_EVIDENCE:-}" ]]; then spl_lane_issue_applied "$root" "$id"; else spl_lane_issue_landed "$root" "$id"; fi
+    return
+  fi
   why="$(printf '%s' "${LANE_ISSUE_REASON:-}" | tr '\t\n\r' '   ' | sed 's/^ *//; s/ *$//')"
   [[ -n "$why" ]] || { do_log "FATAL LANE_ISSUE_REASON must say why $id ends without landing (dropped by its gate, superseded by ...)"; return 1; }
-  [[ "$st" =~ ^(diss|onhold|blocked)$ ]] || { do_log "FATAL LANE_ISSUE_STATUS must be diss, onhold, blocked or done (landed in another repo: LANE_LANDED_REPO + LANE_LANDED_SHA), got: '$st'"; return 1; }
+  [[ "$st" =~ ^(diss|onhold|blocked)$ ]] || { do_log "FATAL LANE_ISSUE_STATUS must be diss, onhold, blocked or done (landed in another repo: LANE_LANDED_REPO + LANE_LANDED_SHA; applied: LANE_APPLIED_EVIDENCE), got: '$st'"; return 1; }
   key="$(li_key_of_agent "$root" "$id")" || { do_log "FATAL $id carries no issue key ($root/$id/lifetime/issue)"; return 1; }
   spl_lane_issue_actor "$root" "$id"
   spl_lane_issue_close "$key" "$st" "Lane $id ended without landing ($st): $why" || return 1

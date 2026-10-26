@@ -11,7 +11,8 @@
 #      reason) and when the landed commits change behaviour with neither a
 #      csi-spl-doc/ change nor a `Docs: none (<why>)` line.
 #      An issue-end `done` record (SPL-2229, work landed in another repo)
-#      passes only with the repo + sha do_spl_lane_issue checked.
+#      passes only with the repo + sha do_spl_lane_issue checked; an
+#      applied one (SPL-3471, an apply-only lane) only with both msg ids.
 #   D. the same gate, no landed commit and no end reason: the hub's status
 #      (SPL-1813, a stub read, no network): done passes; wip, a failed read,
 #      a slow read and another key's done are refused.
@@ -136,6 +137,7 @@ eq "C1 key wip, no commit cites it in its subject scope: refused, exit 3" 3 "$RC
 has "C1 ... the line says still wip" "issue SPL-5 is still wip" "$(cat "$T_TMP/e")"
 has "C1 ... and names the end command" "LANE_ISSUE_OP=end" "$(cat "$T_TMP/e")"
 has "C1 ... and the done option for work landed in another repo (SPL-2229)" "LANE_ISSUE_STATUS=done LANE_LANDED_REPO=<cnf repo name> LANE_LANDED_SHA=<sha>" "$(cat "$T_TMP/e")"
+has "C1 ... and the done option for apply-only work (SPL-3471)" "LANE_ISSUE_STATUS=done LANE_APPLIED_EVIDENCE='owner=<owner msg uuid> accepted=<ACCEPTED msg uuid>'" "$(cat "$T_TMP/e")"
 gate "$CTL/scripts" c-071
 eq "C1 control (no issue gate): the same lane exits" 0 "$RC"
 
@@ -155,6 +157,18 @@ printf 'done\tlanded somewhere\t2026-10-16T10:00:00Z\n' >"$SPOOL_ROOT/c-078/life
 gate "$T_SCRIPTS" c-078
 eq "C2b a done record with no repo + sha (not the check's): refused" 3 "$RC"
 has "C2b ... naming the command that checks it" "LANE_ISSUE_STATUS=done LANE_LANDED_REPO=" "$(cat "$T_TMP/e")"
+
+# SPL-3471: the record of an apply-only end (c-754's case: terraform 053 on dev
+# and prd, owner go + the dispatcher's ACCEPTED, no commit).
+accepted c-079; echo SPL-14 >"$SPOOL_ROOT/c-079/lifetime/issue"
+printf 'done\tapplied, no commit\t2026-10-25T10:00:00Z\tapplied\towner=705a9b08-0000-4000-8000-000000000001 accepted=31919e11-0000-4000-8000-000000000002\n' >"$SPOOL_ROOT/c-079/lifetime/issue-end"
+gate "$T_SCRIPTS" c-079
+eq "C2c applied (issue-end done + owner + ACCEPTED ids): exits" 0 "$RC"
+has "C2c ... the line names both short ids" "issue gate: SPL-14 applied, no commit: owner go 705a9b08, ACCEPTED 31919e11 (checked)" "$(cat "$T_TMP/e")"
+printf 'done\tapplied, no commit\t2026-10-25T10:00:00Z\tapplied\towner=705a9b08\n' >"$SPOOL_ROOT/c-079/lifetime/issue-end"
+gate "$T_SCRIPTS" c-079
+eq "C2c an applied record without both full ids (not the check's): refused" 3 "$RC"
+has "C2c ... naming the command that checks it" "LANE_APPLIED_EVIDENCE=" "$(cat "$T_TMP/e")"
 
 accepted c-072; echo SPL-6 >"$SPOOL_ROOT/c-072/lifetime/issue"
 land "feat(orc, SPL-6): a behaviour change" csi-spl-orc/src/bash/run/thing.func.sh csi-spl-orc/src/bash/tests/thing.tst.sh

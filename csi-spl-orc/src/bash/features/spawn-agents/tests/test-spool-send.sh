@@ -66,17 +66,38 @@ check "…but the refused message was still delivered" test -n "$(ls "$SPOOL_ROO
 bash "$SS" --from CLE-90 --to CLE-91 --kind note --body x --no-poke >/dev/null; eq "--no-poke: exit 0" 0 "$?"
 # A live agent behind the run-as hop: its pane tty shows only "bash sudo"
 # (sudo runs the CLI on its own pty). That is alive, not exited.
-ln -s "$(command -v sleep)" "$T_TMP/sudo"
+# The fake is a bash script, not a symlink to sleep: a multicall coreutils
+# (uutils on ubuntu-26.04 runners, busybox) picks the tool from argv[0], so a
+# "sudo" link to it exits at once and leaves a dead pane (remain-on-exit) with
+# an empty tty. Its comm is "sudo"; read on a private fifo waits with builtins
+# only, so no child joins the tty.
+printf '%s\n' '#!/bin/bash' 'f="${0%/*}/sudo.fifo.$$"; mkfifo "$f"; read -r -t "$1" _ <> "$f"; rm -f "$f"' > "$T_TMP/sudo"
+chmod +x "$T_TMP/sudo"
 P94="$(t_window CLE-94 "bash -c '$T_TMP/sudo 600; :'")"
 # A fixed "sleep 0.3" raced a loaded CI runner (wf 10 run 40233594333: the
-# pane tty showed only bash, exit 7). Wait until the fake sudo is up, <= 5 s.
+# pane tty showed only bash, exit 7), and the 5 s wait that replaced it went
+# red once more (run 40243550730) with no word on why (SPL-3409). Wait until
+# the fake sudo is up, <= 20 s. An empty `ps -t` list (a dead pane, or a ps
+# that cannot see the tty: run 40250420281) stops the wait after 1 s;
+# spool-send counts an empty list as alive. A failed send names what the wait
+# saw, what the tty and pane run now, and the poke line.
 tty94="$(tmux -S "$SPOOL_TMUX_SOCKET" display -p -t "$P94" '#{pane_tty}')"
-end94=$(( $(date +%s%N) + 5000000000 ))
+ps94() { ps -t "${tty94#/dev/}" -o comm= 2>/dev/null | tr "\n" " "; }
+start94=$(date +%s%N); end94=$(( start94 + 20000000000 )); blind94=0; seen94=""
 while [ "$(date +%s%N)" -lt "$end94" ]; do
-  case " $(ps -t "${tty94#/dev/}" -o comm= 2>/dev/null | tr "\n" " ") " in *" sudo "*) break ;; esac
+  seen94="$(ps94)"
+  case " $seen94 " in *" sudo "*) break ;; esac
+  if [ -z "${seen94// /}" ]; then blind94=$(( blind94 + 1 )); [ "$blind94" -ge 10 ] && break; else blind94=0; fi
   sleep 0.1
 done
-bash "$SS" --from CLE-90 --to CLE-94 --kind note --body x >/dev/null; eq "pane showing bash+sudo is alive: poked, exit 0" 0 "$?"
+wait94=$(( ($(date +%s%N) - start94) / 1000000 ))
+# A dead pane (remain-on-exit) also has an empty tty and is "alive" to
+# spool-send, so the poke check below alone would pass vacuously.
+eq "the CLE-94 pane is not dead (tty: ${seen94:-empty})" 0 "$(tmux -S "$SPOOL_TMUX_SOCKET" display -p -t "$P94" '#{pane_dead}')"
+out94="$(bash "$SS" --from CLE-90 --to CLE-94 --kind note --body x 2>&1)"; rc94=$?
+why94=""
+[ "$rc94" = 0 ] || why94=" [waited ${wait94} ms, tty then: ${seen94:-empty}; tty now: $(ps94); pane cmd: $(tmux -S "$SPOOL_TMUX_SOCKET" display -p -t "$P94" '#{pane_current_command}'); $(printf '%s' "$out94" | grep '^poke:')]"
+eq "pane showing bash+sudo is alive: poked, exit 0$why94" 0 "$rc94"
 # The TUI's dim ghost suggestion after the prompt glyph is not typed text.
 t_window CLE-97 "sh -c 'printf \"❯ \\033[2mfix the thing\\033[0m\\n\"; sleep 600'" >/dev/null
 sleep 0.3

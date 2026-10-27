@@ -10,6 +10,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/mail"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/marketing"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/vendorkey"
 )
 
@@ -47,7 +48,11 @@ func vendorKeyMailer(log zerolog.Logger, pmc *mail.Config) hub.VendorKeyMailer {
 	}
 	sender := pmc.Sender(log)
 	return func(ctx context.Context, to, locale string, n hub.VendorKeyNotice) error {
-		msg, err := mail.VendorKeyChanged(to, locale, mail.VendorKeyNotice{TenantID: n.Tenant, Kind: n.Kind,
+		build := mail.VendorKeyChanged
+		if n.Action == store.VendorKeyExhausted { // spec 159 9 point 5 (T5)
+			build = mail.VendorKeyExhausted
+		}
+		msg, err := build(to, locale, mail.VendorKeyNotice{TenantID: n.Tenant, Kind: n.Kind,
 			Action: n.Action, Last4: n.Last4, ChangedBy: n.By, ChangedAt: n.At})
 		if err != nil {
 			return err

@@ -1,0 +1,8 @@
+Sağlayıcı, spool hub çalışma alanı {{.TenantID}} içindeki bir ajan anahtarını reddetti: kredi veya kota bitti ya da anahtar iptal edildi.
+
+Ajan: {{.KeyKind}}
+Anahtarın sonu: {{.KeyLast4}}
+Ne zaman: {{.ChangedAt}}
+
+Bu ajanın görevleri, bu çalışma alanının bir yöneticisi veya işletme sahibi anahtarı değiştirene ya da çalışma alanı ayarlarındaki Ajan anahtarları bölümünde Yeniden dene düğmesine basana kadar bekler.
+Bu çalışma alanının her yöneticisi ve işletme sahibi bu e-postayı alır.

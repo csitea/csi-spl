@@ -1,0 +1,8 @@
+Pakalpojuma sniedzējs noraidīja spool hub darbvietas {{.TenantID}} aģenta atslēgu: beidzies kredīts vai kvota, vai atslēga ir atsaukta.
+
+Aģents: {{.KeyKind}}
+Atslēgas beigas: {{.KeyLast4}}
+Kad: {{.ChangedAt}}
+
+Šī aģenta uzdevumi gaida, līdz šīs darbvietas administrators vai uzņēmuma īpašnieks nomaina atslēgu vai darbvietas iestatījumu sadaļā “Aģentu atslēgas” nospiež “Mēģināt vēlreiz”.
+Šo e-pastu saņem katrs šīs darbvietas administrators un uzņēmuma īpašnieks.

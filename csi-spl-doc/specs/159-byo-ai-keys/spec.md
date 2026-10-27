@@ -433,6 +433,13 @@ with its session's upload token; the box is the token's, never a body's:
   {"metered_fallback": bool}` (a manager), stored in
   `workspace_vendor_key_settings` (no row = off, the default), audited
   `fallback_on` / `fallback_off`, read back as `metered_fallback` in GET.
+- The mail of point 5: on the FIRST report of a refusal, every `admin`
+  and `biz_owner` of W who is neither disabled nor suspended gets
+  `vendor_key_exhausted` (19 locales; workspace, kind, last4 and when, what
+  to do; no vendor text, no box, no link), through T1's
+  `mailVendorKeyNotice`. A second report of the same refusal mails nobody.
+  The locale text is a claude draft: agy reviews it LAST before it ships
+  (the fleet's language rule).
 - Tests: `internal/hub/vendor_key_lease_test.go` (the T5 red control
   `TestVendorKeyLeaseRedControl`: a report, then 409 `key_exhausted` on both
   boxes of W, retry clears it; with the exhausted check removed it goes
@@ -450,9 +457,6 @@ Not built in T5:
 - **The picker (127 Q-1 A) and what the fall-back switch does** (point 4
   with L24, our API key only) belong to the placer (T4): the hub stores the
   switch and shows an exhausted kind in GET; nothing reads them yet.
-
-Still open in T5: the mail of point 5 (its own commit, held until agy
-reviews its locale text).
 
 ### 9.3 Built: the sealed lease (T5 increment 3, SPL-3738, with 127 H2)
 

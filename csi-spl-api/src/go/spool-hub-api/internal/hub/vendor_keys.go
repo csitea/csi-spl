@@ -56,7 +56,7 @@ var VendorKeyAvailable = []string{"claude", "qwen"}
 type VendorKeyNotice struct {
 	Tenant string
 	Kind   string
-	Action string // store.VendorKeySet, VendorKeyReplace or VendorKeyRemove
+	Action string // store.VendorKeySet, VendorKeyReplace, VendorKeyRemove or VendorKeyExhausted (T5)
 	Last4  string
 	By     string // the actor's display name, else its HUM-* id
 	At     time.Time

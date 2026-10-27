@@ -1,0 +1,8 @@
+Palveluntarjoaja hylkäsi spool hub -työtilan {{.TenantID}} agentin avaimen: krediitti tai kiintiö on lopussa, tai avain on peruutettu.
+
+Agentti: {{.KeyKind}}
+Avaimen loppu: {{.KeyLast4}}
+Aika: {{.ChangedAt}}
+
+Tämän agentin tehtävät odottavat, kunnes tämän työtilan ylläpitäjä tai liiketoiminnan omistaja vaihtaa avaimen tai painaa Yritä uudelleen työtilan asetusten kohdassa Agenttien avaimet.
+Jokainen tämän työtilan ylläpitäjä ja liiketoiminnan omistaja saa tämän sähköpostin.

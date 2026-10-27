@@ -1,0 +1,8 @@
+The vendor refused an agent key of the spool hub workspace {{.TenantID}}: out of credit or quota, or the key was revoked.
+
+Agent: {{.KeyKind}}
+Key ending: {{.KeyLast4}}
+When: {{.ChangedAt}}
+
+Tasks for this agent wait until an admin or business owner of this workspace replaces the key, or presses Retry, under Agent keys in the workspace settings.
+Every admin and business owner of this workspace gets this email.

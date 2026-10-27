@@ -1,0 +1,8 @@
+Teenusepakkuja keeldus spool hubi tööruumi {{.TenantID}} agendi võtmest: krediit või kvoot on otsas või võti on tühistatud.
+
+Agent: {{.KeyKind}}
+Võtme lõpp: {{.KeyLast4}}
+Millal: {{.ChangedAt}}
+
+Selle agendi ülesanded ootavad, kuni selle tööruumi administraator või ettevõtte omanik asendab võtme või vajutab tööruumi seadetes jaotises Agentide võtmed nuppu Proovi uuesti.
+Selle e-kirja saab iga selle tööruumi administraator ja ettevõtte omanik.

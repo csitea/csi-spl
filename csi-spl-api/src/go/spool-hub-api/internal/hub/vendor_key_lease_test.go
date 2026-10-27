@@ -87,7 +87,7 @@ func refusal(err error) string {
 // and stops at the seal (increment 3).
 func TestVendorKeyLeaseRedControl(t *testing.T) {
 	logs := &syncBuf{}
-	e, _ := vkEnv(t, func(o *hub.Options) { o.Log = zerolog.New(logs).Level(zerolog.DebugLevel) })
+	e, mail := vkEnv(t, func(o *hub.Options) { o.Log = zerolog.New(logs).Level(zerolog.DebugLevel) })
 	ctx := context.Background()
 	tid, _ := e.tenant()
 	biz := seat(t, e, tid, rbac.BizOwner)
@@ -135,8 +135,13 @@ func TestVendorKeyLeaseRedControl(t *testing.T) {
 	if _, err := keydesk.Open(other, sealed); err == nil {
 		t.Fatal("CONTROL: another desk's identity opened box-a's lease")
 	}
+	mail.take()
 	if err := ha.Exhausted(ctx, "claude"); err != nil {
 		t.Fatalf("exhausted report: %v", err)
+	}
+	// 159 9 point 5: every admin and biz owner, once per refusal, last4 only.
+	if got := mail.take(); len(got) != 2 || !strings.HasSuffix(got[0], " exhausted claude 0000") || !strings.HasSuffix(got[1], " exhausted claude 0000") {
+		t.Fatalf("mail after the refusal = %v, want the biz owner and the admin, once each", got)
 	}
 	for name, h := range map[string]hubclient.VendorKeyHub{"box-a": ha, "box-b": hb} {
 		if _, err := h.Lease(ctx, "claude"); refusal(err) != "key_exhausted" {
@@ -145,6 +150,9 @@ func TestVendorKeyLeaseRedControl(t *testing.T) {
 	}
 	if err := hb.Exhausted(ctx, "claude"); err != nil {
 		t.Fatalf("second report: %v", err)
+	}
+	if got := mail.take(); len(got) != 0 {
+		t.Fatalf("mail after a second report of the same refusal = %v, want none", got)
 	}
 	code, body := call(t, e, tid, http.MethodGet, "/v1/vendor-keys", admin, nil)
 	if row := keyRow(t, body, "claude"); code != http.StatusOK || row["exhausted"] != true || row["exhausted_at"] == nil {

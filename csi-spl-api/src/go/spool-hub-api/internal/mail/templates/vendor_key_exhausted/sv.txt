@@ -1,0 +1,8 @@
+Leverantören nekade en agentnyckel i spool hub-arbetsytan {{.TenantID}}: kredit eller kvot slut, eller så har nyckeln återkallats.
+
+Agent: {{.KeyKind}}
+Nyckeln slutar på: {{.KeyLast4}}
+När: {{.ChangedAt}}
+
+Uppgifter för den här agenten väntar tills en administratör eller företagsägare i den här arbetsytan byter nyckeln eller trycker på Försök igen under Agentnycklar i arbetsytans inställningar.
+Varje administratör och företagsägare i den här arbetsytan får det här mejlet.

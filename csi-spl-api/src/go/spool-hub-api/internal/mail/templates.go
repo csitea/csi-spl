@@ -42,11 +42,17 @@ const (
 	// 159 section 3, spec 127 5.1). It carries last4 only, never the key, and
 	// no link.
 	TemplateVendorKeyChanged = "vendor_key_changed"
+	// TemplateVendorKeyExhausted tells every admin and biz owner of a
+	// workspace, once per refusal, that the vendor refused one of its agent
+	// keys (out of credit, quota, or revoked: spec 159 9, T5) and how to go
+	// on. last4 only, no vendor text, no link.
+	TemplateVendorKeyExhausted = "vendor_key_exhausted"
 )
 
 // Templates lists every template id (tests iterate it).
 var Templates = []string{TemplateEmailVerification, TemplatePasswordReset, TemplateTenantPaid,
-	TemplateTenantInvite, TemplateFederatedSignIn, TemplateEmbedRelink, TemplateVendorKeyChanged}
+	TemplateTenantInvite, TemplateFederatedSignIn, TemplateEmbedRelink, TemplateVendorKeyChanged,
+	TemplateVendorKeyExhausted}
 
 // FallbackLocale renders when a locale variant is missing (csi-rel G-02).
 const FallbackLocale = "en"
@@ -248,4 +254,12 @@ func VendorKeyChanged(to, locale string, n VendorKeyNotice) (Message, error) {
 	return build(TemplateVendorKeyChanged, to, locale, TemplateData{TenantID: n.TenantID, KeyKind: n.Kind,
 		KeyAction: n.Action, KeyLast4: n.Last4, ChangedBy: n.ChangedBy,
 		ChangedAt: n.ChangedAt.UTC().Format("2006-01-02 15:04") + " UTC"})
+}
+
+// VendorKeyExhausted renders the vendor's refusal of a key in locale (spec
+// 159 9 point 5): workspace, kind, last4 and when (UTC), from the same
+// notice; Action and ChangedBy are not used.
+func VendorKeyExhausted(to, locale string, n VendorKeyNotice) (Message, error) {
+	return build(TemplateVendorKeyExhausted, to, locale, TemplateData{TenantID: n.TenantID, KeyKind: n.Kind,
+		KeyLast4: n.Last4, ChangedAt: n.ChangedAt.UTC().Format("2006-01-02 15:04") + " UTC"})
 }

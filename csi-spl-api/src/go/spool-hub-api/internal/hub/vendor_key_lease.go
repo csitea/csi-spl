@@ -172,8 +172,10 @@ func (s *Server) handleVendorKeyExhausted(w http.ResponseWriter, r *http.Request
 		writeErr(w, http.StatusInternalServerError, "internal", "the refusal was not recorded")
 		return
 	}
-	if first {
+	if first { // 159 9 point 5: every admin and biz owner, once per refusal
 		s.o.Log.Info().Str("tenant", tenant).Str("box", box).Str("kind", kind).Str("last4", last4).Msg("vendor_key.exhausted")
+		s.mailVendorKeyNotice(r.Context(), VendorKeyNotice{Tenant: tenant, Kind: kind, Action: store.VendorKeyExhausted,
+			Last4: last4, By: box, At: s.o.Now()})
 	}
 	writeJSON(w, http.StatusOK, vendorKeyExhaustedOut{Kind: kind, Exhausted: true, First: first})
 }

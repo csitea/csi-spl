@@ -1,0 +1,8 @@
+Dobavljač je odbio ključ agenta u radnom prostoru {{.TenantID}} na spool hub-u: potrošen je kredit ili kvota, ili je ključ opozvan.
+
+Agent: {{.KeyKind}}
+Ključ se završava na: {{.KeyLast4}}
+Kada: {{.ChangedAt}}
+
+Zadaci ovog agenta čekaju dok administrator ili vlasnik firme ovog radnog prostora ne zameni ključ ili ne pritisne „Pokušaj ponovo“ u odeljku „Ključevi agenata“ u podešavanjima radnog prostora.
+Ovaj e-mail dobija svaki administrator i vlasnik firme ovog radnog prostora.

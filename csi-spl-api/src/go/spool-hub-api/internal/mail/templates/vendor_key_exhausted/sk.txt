@@ -1,0 +1,8 @@
+Poskytovateľ odmietol kľúč agenta v pracovnom priestore {{.TenantID}} v spool hub: minul sa kredit alebo kvóta, alebo bol kľúč zrušený.
+
+Agent: {{.KeyKind}}
+Koniec kľúča: {{.KeyLast4}}
+Kedy: {{.ChangedAt}}
+
+Úlohy tohto agenta čakajú, kým správca alebo vlastník firmy tohto pracovného priestoru kľúč nevymení alebo nestlačí „Skúsiť znova“ v časti „Kľúče agentov“ v nastaveniach pracovného priestoru.
+Tento e-mail dostane každý správca a vlastník firmy tohto pracovného priestoru.

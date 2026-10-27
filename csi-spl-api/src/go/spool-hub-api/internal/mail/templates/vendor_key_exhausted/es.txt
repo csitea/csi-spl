@@ -1,0 +1,8 @@
+El proveedor rechazó una clave de agente del espacio de trabajo {{.TenantID}} de spool hub: sin crédito o cuota, o la clave fue revocada.
+
+Agente: {{.KeyKind}}
+La clave termina en: {{.KeyLast4}}
+Cuándo: {{.ChangedAt}}
+
+Las tareas de este agente esperan hasta que un administrador o propietario del negocio de este espacio de trabajo sustituya la clave o pulse Reintentar en Claves de agentes, en la configuración del espacio de trabajo.
+Cada administrador y propietario del negocio de este espacio de trabajo recibe este correo.

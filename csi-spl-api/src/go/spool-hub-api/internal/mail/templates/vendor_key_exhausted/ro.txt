@@ -1,0 +1,8 @@
+Furnizorul a refuzat o cheie de agent a spațiului de lucru {{.TenantID}} din spool hub: credit sau cotă epuizată, ori cheia a fost revocată.
+
+Agent: {{.KeyKind}}
+Cheia se termină în: {{.KeyLast4}}
+Când: {{.ChangedAt}}
+
+Sarcinile acestui agent așteaptă până când un administrator sau proprietar al afacerii din acest spațiu de lucru înlocuiește cheia sau apasă „Reîncearcă” în „Chei de agenți”, în setările spațiului de lucru.
+Fiecare administrator și proprietar al afacerii din acest spațiu de lucru primește acest e-mail.

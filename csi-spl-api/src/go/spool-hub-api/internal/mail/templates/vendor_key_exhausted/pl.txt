@@ -1,0 +1,8 @@
+Dostawca odrzucił klucz agenta w obszarze roboczym {{.TenantID}} w spool hub: brak środków lub limitu albo klucz został unieważniony.
+
+Agent: {{.KeyKind}}
+Końcówka klucza: {{.KeyLast4}}
+Kiedy: {{.ChangedAt}}
+
+Zadania tego agenta czekają, aż administrator lub właściciel firmy w tym obszarze roboczym wymieni klucz albo naciśnie „Ponów” w sekcji „Klucze agentów” w ustawieniach obszaru roboczego.
+Tę wiadomość otrzymuje każdy administrator i właściciel firmy w tym obszarze roboczym.

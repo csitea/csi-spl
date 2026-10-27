@@ -1,0 +1,8 @@
+Tiekėjas atmetė spool hub darbo srities {{.TenantID}} agento raktą: baigėsi kreditas ar kvota, arba raktas atšauktas.
+
+Agentas: {{.KeyKind}}
+Rakto pabaiga: {{.KeyLast4}}
+Kada: {{.ChangedAt}}
+
+Šio agento užduotys laukia, kol šios darbo srities administratorius ar verslo savininkas pakeis raktą arba darbo srities nustatymų skiltyje „Agentų raktai“ paspaus „Bandyti dar kartą“.
+Šį laišką gauna kiekvienas šios darbo srities administratorius ir verslo savininkas.

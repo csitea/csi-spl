@@ -43,6 +43,9 @@
 #      shown) the master renews again and the renewal is the handback;
 #      a banner with no readable reset time is a stall unless the last
 #      reply is a good one (spec 093 FR-000), with that good reply as control
+#  18e. reply text quoting a limit phrase above the input box, or the
+#      phrase typed in the prompt line, is not a stall (SPL-3736); the
+#      banner as the CLI's own answer to a prompt stays one (control)
 #  18c. the "Teach auto mode about your environment?" modal (2026-10-04):
 #      a pane without it is able and no Escape is sent; a mention of the
 #      title above an idle prompt, and the title alone with no picker line,
@@ -413,6 +416,43 @@ limited 1000 'Usage limit reached'; tick renew $((N + 6720)) LEASE_TRANSCRIPT_CM
 tick renew $((N + 6780)) LEASE_TRANSCRIPT_CMD="$T/bin/tr" TR_FILE=err.jsonl
 [[ "$(cat "$D/lease")" == "M-1 $((N + 6720))" && "$(cat "$D/able.M-1")" == "stalled pid=1000: Usage limit reached, no spinner" ]] &&
   pass "18b. a banner with no reset time, no spinner, last reply an API error: renew stops (093 FR-000)" || fail "18b. no time, error: lease '$(cat "$D/lease")' able '$(cat "$D/able.M-1")'"
+
+# --- 18e. reply text that quotes a limit phrase is not a stall (SPL-3736) ---
+# the SPL-3483 hole of spl_rotate_stalled, in the lease: an idle seat whose
+# own reply quotes the banner above the input box, the footer clean
+rm -rf "$T/spool" "$T/sent"; mkdir -p "$D"; rm -rf "${P:?}"/* "$T/pane"/*
+quoted() {
+  cat >"$T/pane/$1" <<'EOF2'
+❯ [channel post from HUM-10, topic 865b7a05] why was the rotation skipped?
+● rotate.log says "stalled". The pane showed this banner only inside a reply:
+    Usage limit reached · resets 10:50am
+  and the footer below the input box was clean.
+✻ Crunched for 4s
+
+──────────────────────────────────────────────────────────── box: c-002 ─
+❯ 
+────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on · 3 monitors
+EOF2
+}
+agent 1000 M-1; agent 1100 F-1; idle 1000; idle 1100
+tick renew $N
+quoted 1000; tick renew $((N + 60)); tick renew $((N + 120))
+[[ "$(cat "$D/lease")" == "M-1 $((N + 120))" && "$(logc 'renew stop M-1')" == 0 ]] &&
+  pass "18e. an idle seat whose reply quotes the banner above the input box still renews" ||
+  fail "18e. quoted: lease '$(cat "$D/lease")' able '$(cat "$D/able.M-1" 2>/dev/null)'"
+# the prompt line itself (between the two rules) is the seat's text too
+printf '%s\n' '● done' '' '────' '❯ the owner wrote: usage limit reached, please run /login' '────' \
+  '  ⏵⏵ auto mode on' >"$T/pane/1000"
+tick renew $((N + 180))
+[[ "$(cat "$D/lease")" == "M-1 $((N + 180))" ]] &&
+  pass "18e. the phrase typed in the prompt line is not a stall" ||
+  fail "18e. prompt line: lease '$(cat "$D/lease")' able '$(cat "$D/able.M-1" 2>/dev/null)'"
+# control: the same banner as the CLI's own answer to a prompt (no reply) stays a stall
+limited 1000; tick renew $((N + 240))
+[[ "$(cat "$D/lease")" == "M-1 $((N + 180))" && "$(cat "$D/able.M-1")" == "stalled pid=1000: Usage limit reached, resets in 106 min" ]] &&
+  pass "18e. control: the banner as the CLI's answer above the input box is still a stall" ||
+  fail "18e. control: lease '$(cat "$D/lease")' able '$(cat "$D/able.M-1" 2>/dev/null)'"
 
 # --- 18c. the "Teach auto mode about your environment?" modal ----------------
 rm -rf "$T/spool" "$T/sent" "$T/keys"; mkdir -p "$D"; rm -rf "${P:?}"/* "$T/pane"/*

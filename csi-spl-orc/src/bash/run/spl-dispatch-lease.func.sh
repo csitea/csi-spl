@@ -511,18 +511,42 @@ spl_lease_dismiss_modal() {
   ) 9>"$LEASE_DIR/modal.lock"
 }
 
+# spl_lease_footer TEXT: the rows of a pane the CLI wrote, never the seat's
+# own text (SPL-3736, the lease side of SPL-3483 / spec 060 FR-009). Those
+# are the rows below the last input rule (a "───" row), plus the last turn
+# above the input box when it is the CLI's answer to a prompt: a "❯" row
+# followed by "⎿" rows and no "●" reply (the t1 865b7a05 idle-at-the-limit
+# banner). The rest of the transcript and the prompt line are the seat's: a
+# reply that quotes "Usage limit reached · resets 10:50am" is no stall. A
+# screen with no rule (a full-screen login or trust screen) is all footer.
+spl_lease_footer() {
+  local text="$1" rules top last
+  rules="$(grep -nE '^[[:space:]]*(─){3}' <<<"$text" | cut -d: -f1)" || rules=""
+  [[ -n "$rules" ]] || { printf '%s\n' "$text"; return 0; }
+  last="$(tail -n 1 <<<"$rules")"; top="$(tail -n 2 <<<"$rules" | sed -n 1p)"
+  (( top < last )) || top="$last"
+  head -n "$((top - 1))" <<<"$text" | awk '
+    /^[[:space:]]*❯/ { turn = ""; cli = 1; seen = 1; next }
+    /^[[:space:]]*●/ { cli = 0 }
+    seen { turn = turn $0 "\n" }
+    END { if (seen && cli) printf "%s", turn }'
+  tail -n "+$((last + 1))" <<<"$text"
+}
+
 spl_lease_stall() {
-  local pid="$1" text foot hit spin f st="" sat=0 now until
+  local pid="$1" text rows foot hit spin f st="" sat=0 now until
   text="$(spl_lease_pane_text "$pid" 2>/dev/null)" || return 0
   hit="$(spl_lease_modal_hit "$text")"
   [[ -n "$hit" ]] && { printf '%s\n' "$hit"; return 0; }
-  foot="$(grep -v '^[[:space:]]*$' <<<"$text" | tail -n "${LEASE_PANE_TAIL:-12}")"
+  rows="$(grep -v '^[[:space:]]*$' <<<"$text" | tail -n "${LEASE_PANE_TAIL:-12}")"
+  foot="$(spl_lease_footer "$text" | grep -v '^[[:space:]]*$' | tail -n "${LEASE_PANE_TAIL:-12}")"
   hit="$(grep -oiE -m1 -- "${LEASE_BLOCK_RE:-$LEASE_BLOCK_RE_DEFAULT}" <<<"$foot" | sed -n 1p)"
   [[ -n "$hit" ]] && { echo "$hit"; return 0; }
   hit="$(grep -oiE -m1 -- "${LEASE_STALL_RE:-$LEASE_STALL_RE_DEFAULT}" <<<"$foot" | sed -n 1p)"
   f="$LEASE_DIR/spin.$pid"
-  # the spinner's "(...)" only: its glyph and verb cycle while frozen
-  spin="$(grep -oE -- '…[[:space:]]*\([0-9][^)]*\)' <<<"$foot" | tail -1 | grep -oE '\(.*\)')"
+  # the spinner's "(...)" only: its glyph and verb cycle while frozen; it
+  # sits above the input box, so it is read from the whole tail
+  spin="$(grep -oE -- '…[[:space:]]*\([0-9][^)]*\)' <<<"$rows" | tail -1 | grep -oE '\(.*\)')"
   if [[ -n "$hit" && -z "$spin" ]]; then
     rm -f "$f"; until="$(spl_lease_limit_until "$foot")"
     [[ -n "$until" ]] && { echo "$hit, resets in $(( (until - $(spl_lease_now) + 59) / 60 )) min"; return 0; }

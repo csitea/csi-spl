@@ -142,6 +142,10 @@ its weekly limit on 2026-10-01.
   (`───`) of the pane, never the transcript or the prompt line above it: a
   reply that quotes "limit resets" is not a stall (SPL-3483, 2026-10-25). A
   screen with no rule (a full-screen login picker) is read by its last rows.
+  The lease's stall check (`spl_lease_stall`, `spl_lease_footer`) reads the
+  same footer, plus the last turn above the input box when it is the CLI's
+  own answer to a prompt (`⎿` rows, no `●` reply: the idle-at-the-limit
+  banner); the spinner is still read above the box (SPL-3736).
 
 ### 4.2 The orchestrator (`CLE-001`)
 

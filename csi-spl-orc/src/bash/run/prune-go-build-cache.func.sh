@@ -43,6 +43,17 @@
 # @description the cron trimmed the cache under them. Busy is checked before
 # @description the plan and again before each delete: a build that starts
 # @description after an idle plan stops that run (nothing deleted).
+# @description On a critical disk the busy size cap goes deeper: when the
+# @description cache is over its cap AND its filesystem is at or over the
+# @description disk headroom guard's critical mark (spl_box_disk_marks,
+# @description DISK_HEADROOM_CRIT_PCT, default 92), the size-cap step takes
+# @description entries idle over 61 min, the floor markUsed allows, not
+# @description GO_CACHE_BUSY_MIN_AGE_MIN; the age step and every other case
+# @description are unchanged. Why: sat 2026-10-27, a go build of the user
+# @description ran all day, nearly no entry was idle 180 min, the cache
+# @description stayed 13G over its 8G cap and /mnt/data reached 93%; a hand
+# @description run at 61 freed 2.41 GB. A CRIT line names the level, and the
+# @description busy cap PLAN line the cut-off (idle_min) and the use %.
 # @description GO_CACHE_GATE=1 (the cron) decides PER CACHE: a cache is
 # @description pruned on the hourly minute (GO_CACHE_HOURLY_MINUTE, default 0)
 # @description or when the filesystem that holds THAT cache is at or over
@@ -91,6 +102,14 @@
 # @example DRY_RUN=0 ./run -a do_prune_go_build_cache
 # @example GO_CACHE_GATE=1 DRY_RUN=0 ./run -a do_prune_go_build_cache
 #------------------------------------------------------------------------------
+
+# spl_box_disk_marks: the disk headroom guard's high and crit marks (one home)
+declare -F spl_box_disk_marks >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-box-disk.func.sh"
+
+# The lowest busy cut-off in minutes: over the hour after which Go's markUsed
+# refreshes a used entry's mtime (go_cache_check_inputs refuses 60 or less).
+GO_CACHE_BUSY_FLOOR_MIN=61
 
 # go_cache_as <user> <cmd...>: run as that user. sudo -n when it is not us.
 go_cache_as() {
@@ -360,15 +379,19 @@ go_cache_rm_idle() {
   ' bash "$min"
 }
 
-# go_cache_prune_busy <user> <dir> <age> <dry>: the busy cache's PLAN lines
-# and (dry 0) deletes, idle entries only (go_cache_idle_list). The age step
-# takes the idle entries older than max(age, the busy minimum); the size cap
-# trims the rest of the idle entries oldest-first until the cache is at or
-# under the cap. Adds to removed_files / removed_bytes. 1 when a list or a
-# delete fails.
+# go_cache_prune_busy <user> <dir> <age> <dry> <used-pct>: the busy cache's
+# PLAN lines and (dry 0) deletes, idle entries only (go_cache_idle_list). The
+# age step takes the idle entries older than max(age, the busy minimum); the
+# size cap trims the rest of the idle entries oldest-first until the cache is
+# at or under the cap. Over the cap on a filesystem at or over the guard's
+# crit mark, the size cap's idle cut-off is GO_CACHE_BUSY_FLOOR_MIN (a CRIT
+# line). Adds to removed_files / removed_bytes. 1 when a list or a delete fails.
 go_cache_prune_busy() {
-  local u="$1" d="$2" age="$3" dry="$4" min gb cap total list cutage agel capl="" excess an ab cn=0 cs=0
+  local u="$1" d="$2" age="$3" dry="$4" pct="$5" min gb cap total list cutage agel capl="" excess an ab cn=0 cs=0
+  local crit cmin
   min=$(( 10#${GO_CACHE_BUSY_MIN_AGE_MIN:-180} ))
+  cmin=$min
+  crit="$(spl_box_disk_marks | cut -d' ' -f2)"
   (( age > min )) || age=$min
   gb="${GO_CACHE_CAP_GB:-8}"
   cap=$(( gb * 1024 * 1024 * 1024 ))
@@ -382,15 +405,22 @@ go_cache_prune_busy() {
     [[ "$total" =~ ^[0-9]+$ ]] || return 1
     excess=$(( total - ab - cap ))
     if (( excess > 0 )); then
+      if (( pct >= crit && GO_CACHE_BUSY_FLOOR_MIN < min )); then
+        cmin=$GO_CACHE_BUSY_FLOOR_MIN
+        do_log "CRIT user=$u path=$d fs_used_pct=$pct crit_pct=$crit: over the ${gb}G cap on a critical disk, the size cap takes entries idle over $cmin min (not $min)"
+        list="$(go_cache_idle_list "$u" "$d" "$cmin")" || { do_log "FATAL cannot list idle cache entries in $d; nothing deleted there"; return 1; }
+      fi
       capl="$(awk -F '\t' -v c="$cutage" -v excess="$excess" 'NF >= 3 && $1 >= c && s < excess { s += $2; print }' <<<"$list")"
       read -r cn cs <<<"$(awk -F '\t' 'NF >= 3 { n++; b += $2 } END { printf "%d %d\n", n + 0, b + 0 }' <<<"$capl")"
       (( cs >= excess )) ||
-        do_log "WARN user=$u cache stays over the ${gb}G cap while busy: only $cs of $excess excess bytes are untouched for over $min min"
+        do_log "WARN user=$u cache stays over the ${gb}G cap while busy: only $cs of $excess excess bytes are untouched for over $cmin min"
     fi
   fi
-  printf 'PLAN user=%s files=%s bytes=%s cap_gb=%s dry_run=%s busy=1\n' "$u" "$cn" "$cs" "$gb" "$dry"
+  printf 'PLAN user=%s files=%s bytes=%s cap_gb=%s dry_run=%s busy=1 idle_min=%s fs_used_pct=%s crit_pct=%s\n' "$u" "$cn" "$cs" "$gb" "$dry" "$cmin" "$pct" "$crit"
   if [[ "$dry" == 0 && $(( an + cn )) != 0 ]]; then
-    printf '%s\n%s\n' "$agel" "$capl" | awk -F '\t' 'NF >= 3 { print $3 }' | go_cache_rm_idle "$u" "$min" ||
+    awk -F '\t' 'NF >= 3 { print $3 }' <<<"$agel" | go_cache_rm_idle "$u" "$min" ||
+      { do_log "FATAL busy delete failed in $d"; return 1; }
+    awk -F '\t' 'NF >= 3 { print $3 }' <<<"$capl" | go_cache_rm_idle "$u" "$cmin" ||
       { do_log "FATAL busy delete failed in $d"; return 1; }
   fi
   removed_files=$(( removed_files + an + cn ))
@@ -467,7 +497,7 @@ go_cache_prune_one() {
   [[ -z "$first_free" ]] && { first_free="$free"; first_mount="$mount"; }
   printf 'BEFORE user=%s bytes=%s fs_free=%s fs_used_pct=%s mount=%s\n' "$u" "$before_b" "$free" "$pct" "$mount"
   if (( busy )); then
-    go_cache_prune_busy "$u" "$real" "$age" "$dry" || return 1
+    go_cache_prune_busy "$u" "$real" "$age" "$dry" "$pct" || return 1
     go_cache_print_after "$u" "$real"
     return 0
   fi

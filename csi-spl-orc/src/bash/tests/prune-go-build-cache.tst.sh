@@ -32,6 +32,9 @@
 #      fresh ones, one idle under the margin and an executable entry whose
 #      directory Go touched stay. CONTROL: a margin over every entry deletes
 #      nothing (a WARN); a margin of 60 or less is refused.
+#  10. busy, over the cap AND its filesystem at or over the headroom guard's
+#      crit mark: the size cap takes entries idle over 61 min (not 180);
+#      CONTROL: the same cache on a roomy disk keeps the 180-min cut-off.
 #   The gate (hourly minute, or filesystem at/over the percent) and the cron
 #   line are covered with the same fixtures. No real cache, crontab or sudo:
 #   df, sudo and getent are stubs, and SPOOL_TEST=1 refuses live discovery.
@@ -630,6 +633,60 @@ out="$(run_prune "$S9c" 0 "GO_CACHE_BUSY_MIN_AGE_MIN=60")"; rc=$?
 [[ $rc -ne 0 && -f "$S9c/00/a" && "$out" == FATAL*GO_CACHE_BUSY_MIN_AGE_MIN* ]] &&
   pass "9. a busy margin of 60 min or less is refused (Go's mtime may be an hour stale)" ||
   fail "9. margin 60 (rc=$rc): $out"
+
+# 10. busy, over the cap AND the disk critical: the cap step's cut-off drops -
+# sat 2026-10-27: a go build of the user ran all day, so only entries idle
+# over 180 min could go, nearly none were, the cache stayed 13G over its 8G
+# cap and /mnt/data reached 93% (critical 92). Sparse 400000000-byte files
+# idle p 150, q 100, r 70, s 30 min, t fresh: 2000000031 bytes, 926258207
+# over 1 GiB. On the stubbed 93% filesystem (>= the headroom guard's crit 92)
+# the cap takes the oldest entries idle over 61 min, p, q and r; s (under an
+# hour) and t stay. CONTROL: the same cache on the 23% filesystem keeps the
+# 180-min cut-off, deletes nothing and WARNs.
+mk_crit() {
+  local d="$1"
+  rm -rf "$d"; mkdir -p "$d/00" "$d/ff"
+  printf 'cached build artifacts\n' >"$d/README"
+  printf 'depth-1\n' >"$d/keep"
+  truncate -s 400000000 "$d/00/p" "$d/00/q" "$d/ff/r" "$d/ff/s" "$d/ff/t"
+  touch -d '150 minutes ago' "$d/00/p"
+  touch -d '100 minutes ago' "$d/00/q"
+  touch -d '70 minutes ago' "$d/ff/r"
+  touch -d '30 minutes ago' "$d/ff/s"
+  touch -d '1 minute ago' "$d/ff/t"
+}
+S10="$T/full/crit-busy"
+mk_crit "$S10"
+out="$(run_prune "$S10" 0 "PATH=$T/stub:$PATH FAKE_FULL=$T/full GO_CACHE_MAX_AGE_MIN=420 GO_CACHE_CAP_GB=1 GO_PS_ARGS_FILE=$T/ps-go-test")"; rc=$?
+sz="$(du -sb "$S10" | awk 'NR==1 { print $1 }')"
+if [[ $rc -eq 0 && ! -e "$S10/00/p" && ! -e "$S10/00/q" && ! -e "$S10/ff/r" && -f "$S10/ff/s" && -f "$S10/ff/t" \
+  && -f "$S10/keep" && -f "$S10/README" ]] && (( sz <= CAPB )) \
+  && [[ "$out" == *'files=3 bytes=1200000000 cap_gb=1 dry_run=0 busy=1 idle_min=61 fs_used_pct=93 crit_pct=92'* \
+  && "$out" == *'CRIT user='*'fs_used_pct=93 crit_pct=92'*'idle over 61 min (not 180)'* ]]; then
+  pass "10. busy, over the cap, disk at 93% >= crit 92%: entries idle 61-180 min go oldest-first to <= 1 GiB; one under an hour stays"
+else
+  fail "10. busy over cap on a critical disk (rc=$rc du=$sz): $out"
+fi
+
+S10c="$T/roomy/crit-busy"
+mk_crit "$S10c"
+out="$(run_prune "$S10c" 0 "PATH=$T/stub:$PATH FAKE_FULL=$T/full GO_CACHE_MAX_AGE_MIN=420 GO_CACHE_CAP_GB=1 GO_PS_ARGS_FILE=$T/ps-go-test")"; rc=$?
+[[ $rc -eq 0 && -f "$S10c/00/p" && -f "$S10c/00/q" && -f "$S10c/ff/r" \
+  && "$out" == *'stays over the 1G cap while busy'* && "$out" == *'idle_min=180 fs_used_pct=23 crit_pct=92'* && "$out" != *'CRIT user='* ]] &&
+  pass "10. CONTROL: the same busy cache on a 23% disk keeps the 180-min cut-off and deletes nothing" ||
+  fail "10. not critical control (rc=$rc): $out"
+
+mk_crit "$S10"
+out="$(run_prune "$S10" 0 "PATH=$T/stub:$PATH FAKE_FULL=$T/full DISK_HEADROOM_CRIT_PCT=95 GO_CACHE_MAX_AGE_MIN=420 GO_CACHE_CAP_GB=1 GO_PS_ARGS_FILE=$T/ps-go-test")"; rc=$?
+[[ $rc -eq 0 && -f "$S10/00/p" && "$out" == *'idle_min=180 fs_used_pct=93 crit_pct=95'* ]] &&
+  pass "10. the critical level is the headroom guard's (DISK_HEADROOM_CRIT_PCT=95): 93% is not critical, nothing deleted" ||
+  fail "10. crit from the guard (rc=$rc): $out"
+
+mk_crit "$S10"
+out="$(run_prune "$S10" 1 "PATH=$T/stub:$PATH FAKE_FULL=$T/full GO_CACHE_MAX_AGE_MIN=420 GO_CACHE_CAP_GB=1 GO_PS_ARGS_FILE=$T/ps-go-test")"; rc=$?
+[[ $rc -eq 0 && -f "$S10/00/p" && -f "$S10/00/q" && "$out" == *'files=3 bytes=1200000000 cap_gb=1 dry_run=1 busy=1 idle_min=61'* ]] &&
+  pass "10. DRY_RUN on a critical disk plans the 61-min cut and deletes nothing" ||
+  fail "10. crit dry (rc=$rc): $out"
 
 echo
 if [ "$fails" -eq 0 ]; then echo "prune-go-build-cache: all passed"; exit 0; fi

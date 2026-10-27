@@ -25,7 +25,8 @@ DEV_SA=csi-spl-dev@csi-spl-dev.iam.gserviceaccount.com
 CNF="$APP_ROOT/csi-spl-cnf/csi-spl"
 NAMES_SLOT=$(yq -r '.env.public_dataset.names_password_secret' "$CNF/all.env.yaml")
 OWNER_SLOT=$(yq -r '.env.hub.db_owner_dsn_secret' "$CNF/all.env.yaml")
-WS=$(yq -r '.env.public_dataset.workspace_id' "$CNF/dev.env.yaml")
+WS=$(yq -r '.env.public_dataset.workspace_ids | join(",")' "$CNF/dev.env.yaml")
+WS_LAST=${WS##*,}
 STAGING=$(yq -r '.env.steps."053-gcs-public-dataset".staging_bucket_name' "$CNF/dev.env.yaml")
 PUBLIC=$(yq -r '.env.steps."053-gcs-public-dataset".public_bucket_name' "$CNF/dev.env.yaml")
 CAND=2026-10-25-v1.4.0
@@ -95,7 +96,7 @@ seed; in_orc do_spl_public_dataset_names DRY_RUN=0; rc=$?
 grep -q '^psql as=spool_public_names pw='"$NAMES_PW"'$' "$T/stdin" && ! grep -q 'as=spool_hub' "$T/stdin" \
   && pass "3. the read runs AS spool_public_names with its own password (never the owner)" || fail "3. login: $(head -1 "$T/stdin")"
 grep -q '^BEGIN READ ONLY;$' "$T/stdin" && grep -q "^SET LOCAL app.rls_scope = 'operator';$" "$T/stdin" &&
-  grep -qF "\\set ws '$WS'" "$T/stdin" && grep -qF "FROM tenants WHERE tenant_id <> :'ws'" "$T/stdin" &&
+  grep -qF "\\set ws '$WS'" "$T/stdin" && grep -qF "FROM tenants WHERE tenant_id <> ALL (string_to_array(:'ws', ','))" "$T/stdin" &&
   grep -q 'SELECT coalesce(json_agg(json_build_array(tenant_id, display_name)' "$T/stdin" \
   && pass "3. read only, operator scope, (tenant_id, display_name) only, every workspace but $WS" || fail "3. sql: $(cat "$T/stdin")"
 printf 'ws-other\tZebracorp Holdings\nws-quiet\tQuokka Ville\n' >"$T/want.tsv"
@@ -113,10 +114,10 @@ cmp -s "$T/names/names.tsv" "$T/want.tsv" && [[ "$(cat "$T/names/names.sha256")"
   && pass "3. the password comes from $NAMES_SLOT; every secrets call carries --account" || fail "3. secrets: $(grep secrets "$T/calls.log")"
 no_names && pass "3. the output names no workspace and no password" || fail "3. leak: $(cat "$T/out")"
 
-# --- 4. the exported workspace in the read ----------------------------------------------
-seed; NAMES_JSON="[[\"$WS\", \"Our Own\"], [\"ws-other\", \"Zebracorp Holdings\"]]" in_orc do_spl_public_dataset_names DRY_RUN=0; rc=$?
-[[ $rc -ne 0 && $(cnt 'storage ') -eq 0 ]] && grep -q 'holds the exported workspace' "$T/out" && no_names \
-  && pass "4. a read holding the exported workspace is refused; nothing uploaded" || fail "4. own ws: rc=$rc $(cat "$T/out")"
+# --- 4. an exported workspace in the read (the LAST of the cnf list) ---------------------
+seed; NAMES_JSON="[[\"$WS_LAST\", \"Our Own\"], [\"ws-other\", \"Zebracorp Holdings\"]]" in_orc do_spl_public_dataset_names DRY_RUN=0; rc=$?
+[[ $rc -ne 0 && $(cnt 'storage ') -eq 0 ]] && grep -q 'holds an exported workspace' "$T/out" && no_names \
+  && pass "4. a read holding an exported workspace ($WS_LAST of $WS) is refused; nothing uploaded" || fail "4. own ws: rc=$rc $(cat "$T/out")"
 
 # --- 5. no password ------------------------------------------------------------------------
 seed; : >"$T/sec/$NAMES_SLOT"; in_orc do_spl_public_dataset_names DRY_RUN=0; rc=$?

@@ -9,10 +9,11 @@ import (
 )
 
 // Fence 2 of the public dataset export (specs/091 T003, spec §5.2; rdb
-// 0126). Postgres only (hub-pg.tst.sh). The export role spool_public_export
-// sees ONE workspace in every exported tenant_id table, even with the
-// operator scope set, because a RESTRICTIVE policy is AND-ed with the
-// permissive ones. The hub's roles are unaffected.
+// 0126, a set of workspaces since 0233). Postgres only (hub-pg.tst.sh). The
+// export role spool_public_export sees only the listed workspaces in every
+// exported tenant_id table, even with the operator scope set, because a
+// RESTRICTIVE policy is AND-ed with the permissive ones. The hub's roles are
+// unaffected.
 
 // exportScopeTables are the exported tables that carry tenant_id (§4.1).
 var exportScopeTables = []string{"tenants", "channels", "messages", "tenant_memberships"}
@@ -32,6 +33,13 @@ func asExportRole(t *testing.T, pg *Postgres, workspace string, fn func(ctx cont
 // on (see exportScopeDropControl).
 func asExportRoleAfter(t *testing.T, pg *Postgres, workspace string, first []string, fn func(ctx context.Context, tx pgx.Tx)) {
 	t.Helper()
+	asExportRoleSet(t, pg, []string{workspace}, first, fn)
+}
+
+// asExportRoleSet is asExportRoleAfter with public_export_workspace naming
+// every one of workspaces (rdb 0233).
+func asExportRoleSet(t *testing.T, pg *Postgres, workspaces, first []string, fn func(ctx context.Context, tx pgx.Tx)) {
+	t.Helper()
 	ctx := context.Background()
 	tx, err := pg.pool.Begin(ctx)
 	if err != nil {
@@ -46,8 +54,10 @@ func asExportRoleAfter(t *testing.T, pg *Postgres, workspace string, first []str
 			t.Fatalf("%s: %v", q, err)
 		}
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO public_export_workspace (workspace_id) VALUES ($1)`, workspace); err != nil {
-		t.Fatalf("owner writes public_export_workspace: %v", err)
+	for _, w := range workspaces {
+		if _, err := tx.Exec(ctx, `INSERT INTO public_export_workspace (workspace_id) VALUES ($1)`, w); err != nil {
+			t.Fatalf("owner writes public_export_workspace: %v", err)
+		}
 	}
 	if _, err := tx.Exec(ctx, `SET LOCAL ROLE spool_public_export`); err != nil {
 		t.Fatal(err)
@@ -127,6 +137,36 @@ func exportScopeDropControl(t *testing.T, pg *Postgres, a string) {
 	})
 }
 
+// TestPublicExportScopeWorkspaceSet (rdb 0233, SPL-3808): with two of three
+// workspaces listed, the export role sees the rows of both and none of the
+// third, in each listed workspace's own scope and with the operator scope
+// set; in the third's scope it sees nothing. CONTROL: public_export_workspace
+// takes the second row (0126's one_row key refused it).
+func TestPublicExportScopeWorkspaceSet(t *testing.T) {
+	pg := rlsStore(t)
+	a, b, c := seedTenantAll(t, pg).tenant, seedTenantAll(t, pg).tenant, seedTenantAll(t, pg).tenant
+	asExportRoleSet(t, pg, []string{a, b}, nil, func(ctx context.Context, tx pgx.Tx) {
+		for _, sc := range []struct{ tenant, scope string }{{a, ""}, {b, ""}, {c, ""}, {"", "operator"}, {c, "operator"}} {
+			setScope(ctx, t, tx, sc.tenant, sc.scope)
+			for _, tb := range exportScopeTables {
+				var na, nb, nc int
+				q := `SELECT count(*) FILTER (WHERE tenant_id = $1), count(*) FILTER (WHERE tenant_id = $2),
+					count(*) FILTER (WHERE tenant_id = $3) FROM ` + pgx.Identifier{tb}.Sanitize()
+				if err := tx.QueryRow(ctx, q, a, b, c).Scan(&na, &nb, &nc); err != nil {
+					t.Fatalf("%s: %v", tb, err)
+				}
+				if nc != 0 {
+					t.Errorf("tenant=%q scope=%q: spool_public_export sees %d %s row(s) of the unlisted workspace", sc.tenant, sc.scope, nc, tb)
+				}
+				wantA, wantB := sc.tenant == a || sc.scope == "operator", sc.tenant == b || sc.scope == "operator"
+				if (na > 0) != wantA || (nb > 0) != wantB {
+					t.Errorf("tenant=%q scope=%q: %s rows of the listed workspaces: %d and %d", sc.tenant, sc.scope, tb, na, nb)
+				}
+			}
+		}
+	})
+}
+
 // TestPublicExportScopeHubUnaffected: the hub's roles (the owner here, and
 // the runtime login when hub-pg.tst.sh gives one) still read another
 // workspace in its own scope and every workspace as operator, while a
@@ -145,11 +185,7 @@ func TestPublicExportScopeHubUnaffected(t *testing.T) {
 		defer rt.Close()
 		hubs["runtime"] = rt
 	}
-	if _, err := pg.pool.Exec(ctx, `INSERT INTO public_export_workspace (workspace_id) VALUES ($1)
-		ON CONFLICT (one_row) DO UPDATE SET workspace_id = EXCLUDED.workspace_id`, a); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { pg.pool.Exec(context.Background(), `DELETE FROM public_export_workspace`) }) //nolint:errcheck
+	setExportWorkspaces(t, pg, []string{a})
 	for name, h := range hubs {
 		for _, tb := range exportScopeTables {
 			if err := h.inTenant(ctx, b, func(tx pgx.Tx) error {

@@ -4,7 +4,7 @@
 # @description 3 and 8.2): as the names login spool_public_names (its one
 # @description grant: SELECT (tenant_id, display_name) ON tenants), under the
 # @description operator scope, read every workspace OTHER than the exported
-# @description one (cnf public_dataset.workspace_id) and write, mode 0600:
+# @description ones (cnf public_dataset.workspace_ids) and write, mode 0600:
 # @description   names.tsv     <tenant_id> TAB <display_name>, the gate's C4 list
 # @description   names.sha256  the sha256 of each lower-cased id and display
 # @description                 name, one per line: the grok verifier's list
@@ -33,10 +33,9 @@ do_spl_public_dataset_names() {
     { do_log "FATAL PD_NAMES_DIR must be an existing writable local directory"; return 1; }
   do_spl_cloud_cnf || return 1
   local ws staging public slot
-  IFS=$'\t' read -r ws staging public < <(yq -r '[.env.public_dataset.workspace_id // "",
-      .env.steps."053-gcs-public-dataset".staging_bucket_name // "",
+  IFS=$'\t' read -r staging public < <(yq -r '[.env.steps."053-gcs-public-dataset".staging_bucket_name // "",
       .env.steps."053-gcs-public-dataset".public_bucket_name // ""] | @tsv' "$SPL_CNF")
-  spl_require_tenant_slug "$ws" || { do_log "FATAL cnf public_dataset.workspace_id is unset for $ENV"; return 1; }
+  ws="$(spl_pd_workspaces)" || return 1
   [[ "$staging" =~ ^[a-z0-9][a-z0-9._-]{2,62}$ ]] || { do_log "FATAL cnf staging_bucket_name of step 053 is unset for $ENV"; return 1; }
   [[ "$staging" != "$public" ]] || { do_log "FATAL the staging bucket is the public bucket: the names lists never go public"; return 1; }
   local -a slots=()
@@ -64,7 +63,7 @@ do_spl_public_dataset_names() {
   do_log "OK public dataset names ($ENV): $(wc -l <"$PD_NAMES_DIR/names.tsv") other workspace(s), $(wc -l <"$PD_NAMES_DIR/names.sha256") hash(es) in $PD_NAMES_DIR and $dest/ (private staging only)"
 }
 
-# spl_pd_names_read <password slot> <workspace> <scratch dir>: the names login
+# spl_pd_names_read <password slot> <workspaces a,b,..> <scratch dir>: the names login
 # through the proxy, the operator scope, every OTHER workspace -> names.json
 # ([[id, display_name], ...]). The database's own message is never printed: it
 # may quote a name.
@@ -78,7 +77,7 @@ spl_pd_names_read() {
   spl_sql_proxy_start || return 1
   ldsn="$(spl_pd_names_dsn "$owner_dsn" "$h/pw")" || { spl_sql_proxy_stop; do_log "FATAL cannot build the spool_public_names DSN"; return 1; }
   printf "\\\\set ws '%s'\nBEGIN READ ONLY;\nSET LOCAL app.rls_scope = 'operator';\n%s\nROLLBACK;\n" "$ws" \
-    "SELECT coalesce(json_agg(json_build_array(tenant_id, display_name) ORDER BY tenant_id), '[]') FROM tenants WHERE tenant_id <> :'ws';" |
+    "SELECT coalesce(json_agg(json_build_array(tenant_id, display_name) ORDER BY tenant_id), '[]') FROM tenants WHERE tenant_id <> ALL (string_to_array(:'ws', ','));" |
     spl_pg_env "$ldsn" psql -X -q -At -v ON_ERROR_STOP=1 -f - >"$h/names.json" 2>/dev/null || rc=$?
   spl_sql_proxy_stop
   (( rc == 0 )) || { do_log "FATAL the names read as spool_public_names failed (exit $rc; the database's message is not shown)"; return 1; }
@@ -95,16 +94,16 @@ print(u.urlunsplit((p.scheme, "spool_public_names:%s@" % u.quote(os.environ["SPL
     spl_local_dsn "$cloud" "$SPL_PROXY_PORT"
 }
 
-# spl_pd_names_write <names.json> <exported workspace> <dir>: names.tsv and
-# names.sha256, mode 0600. A tab or a line break inside a name becomes a
-# space. Refuses when the exported workspace is in the list.
+# spl_pd_names_write <names.json> <exported workspaces a,b,..> <dir>: names.tsv
+# and names.sha256, mode 0600. A tab or a line break inside a name becomes a
+# space. Refuses when an exported workspace is in the list.
 spl_pd_names_write() {
   (umask 077 && python3 - "$1" "$2" "$3" <<'EOF_PY'
 import hashlib, json, os, re, sys
 rows = json.load(open(sys.argv[1]))
 if not isinstance(rows, list) or any(not isinstance(r, list) or len(r) != 2 for r in rows):
     sys.exit("the names read is not a list of [id, display_name]")
-if any(r[0] == sys.argv[2] for r in rows):
+if any(r[0] in sys.argv[2].split(",") for r in rows):
     sys.exit("the names read holds the exported workspace")
 clean = lambda s: re.sub(r"[\t\r\n]+", " ", s or "").strip()
 tsv = ["%s\t%s\n" % (clean(i), clean(n)) for i, n in rows if clean(i)]
@@ -116,7 +115,7 @@ for name, lines in (("names.tsv", tsv), ("names.sha256", sorted(set(sha)))):
         fh.writelines(lines)
     os.chmod(p, 0o600)
 EOF_PY
-  ) 2>/dev/null || { do_log "FATAL cannot write the names lists (a malformed read, or it holds the exported workspace)"; return 1; }
+  ) 2>/dev/null || { do_log "FATAL cannot write the names lists (a malformed read, or it holds an exported workspace)"; return 1; }
 }
 
 # spl_pd_names_upload <dir> <gs://staging/candidates/<id>/names>: both files to

@@ -114,7 +114,9 @@ for e in dev prd; do
   [[ "$(yq -r '.env.public_dataset.enabled' <<<"$m")" == false ]] && pass "$e: public_dataset.enabled is false" || fail "$e: enabled is not false"
   av=$(yq -r '.env.public_dataset.allow_list_version' <<<"$m")
   [[ -f "$DIR/allow-list.v$av.yaml" ]] && pass "$e: allow_list_version $av has its file" || fail "$e: no file for allow_list_version $av"
-  for k in workspace_id topic_channel body_drop_cap_pct size_tolerance_pct candidate_ttl_hours dev_synthetic; do
+  [[ "$(yq -r '.env.public_dataset.workspace_ids | type' <<<"$m")" == '!!seq' && "$(yq -r '.env.public_dataset.workspace_ids | length' <<<"$m")" -gt 0 ]] \
+    && pass "$e: public_dataset.workspace_ids is a non-empty list" || fail "$e: public_dataset.workspace_ids is not a non-empty list"
+  for k in topic_channel body_drop_cap_pct size_tolerance_pct candidate_ttl_hours dev_synthetic; do
     [[ "$(yq -r ".env.public_dataset.$k" <<<"$m")" != null ]] || fail "$e: public_dataset.$k unset"
   done
   for k in public_bucket_name staging_bucket_name daily_retention_days stable_retention_days; do

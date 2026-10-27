@@ -1,6 +1,6 @@
 # 091: Public dataset export of the Spool Hub workspace (daily bootstrap seed)
 
-**Feature ID**: `091-public-dataset-export` · **Status**: Consensus (v0.4.1)
+**Feature ID**: `091-public-dataset-export` · **Status**: Consensus (v0.5.0)
 **Created**: 2026-10-05 · **Author**: c-307 (claude) · **Panel**: g-308 (grok), a-287 (agy), c-288 (claude)
 **Topic**: `67b63c88-9de3-40d9-a54e-66aae05e4583` (also `afa6259d…`, `acec3b7f…`)
 **Authority**: this file for behaviour and requirements. Status vocabulary: `../README.md` §2.3. Docs only:
@@ -73,10 +73,33 @@ Spool Hub, and nothing about any other workspace.**
 
 ## 4. The allow-list (version 1)
 
-Source: the **prd** Spool Hub workspace, its id read from cnf (`env.public_dataset.workspace_id`), never a literal.
-On prd that id is `spool`, the workspace named spool (owner, 2026-10-13, topic dd1fdead: public exports
-"should contain only the data from the spool tenant", every other workspace stays private). It was `t1`
-until SPL-1687. Dev keeps `t1`: dev has no spool workspace and nothing on dev is public.
+Source: the **prd** workspaces **`t1`, `spool` and `demo`**, their ids read from cnf as a list
+(`env.public_dataset.workspace_ids`), never a literal. Owner HUM-10, t1 topic `e2c0e6b4-5479-472c-9c4d-bc1929ef959c`
+(SPL-3808):
+
+- msg `c72b919b-2d78-4f72-9281-ff8353f0c457`: "make sure the open source aimed data export for the spool-hub does
+  include only the data from the t1 , spool and demo workspaces"
+- msg `c68e6073-44cc-4b8f-aff8-80536067f281`: "make sure it does not include any data of users - except my admin
+  account ( I hope the password is crypted ) ."
+- poll msg `823be927-b655-4e4c-b978-554d9620c9fc`, answer msg `afb3d81d-42dc-4b3e-86ca-8d30be309b5d`: "A — t1,
+  spool and demo, as you wrote".
+
+This replaces the 2026-10-13 rule (topic dd1fdead: public exports "should contain only the data from the spool
+tenant"), which had replaced `t1` alone (SPL-1687). Every other workspace stays private. Dev lists the same three
+(all three are rows of dev's `tenants`, `do_spl_db_query` 2026-10-27); nothing on dev is public.
+
+No data of any user: §4.2 stands unchanged. The owner's admin account appears like every member, as its `HUM-n`
+id only (§4.3: `display_name` = `human_id`, `email` NULL). No password leaves the database in any form: the
+stored one is an argon2id hash (`password_credentials.password_hash`, rdb 0009 `CHECK (password_hash LIKE
+'$argon2id$%')`), and `password_credentials` is on the never-exported list. A loaded seed gets its own first admin
+(§9.1).
+
+Every fence covers exactly the list: the RESTRICTIVE policy reads the set `public_export_workspace` (rdb 0233,
+one row per listed workspace, written by `do_spl_public_export_role`), fence 3 filters on the list, and the gate
+fails a row of any other workspace (§5.5 item 2). The store test `TestPublicExportOutputListedWorkspacesOnly`
+(`csi-spl-api/src/go/spool-hub-api/internal/store/public_export_output_test.go`) checks the output: as the real
+export login it reads every column it is granted, with a fourth workspace and two people with an e-mail, a real
+name and a password hash present, and finds none of them.
 
 ### 4.1 Rows and columns that ARE exported
 
@@ -162,24 +185,26 @@ columns and nothing else, so a query naming any other column fails in Postgres i
 migration owner (`spool_hub`): ownership would defeat FORCE RLS. Its password is a Secret Manager secret seeded by a
 named seed action, like the other `spl-*-secret-seed` actions.
 
-### 5.2 Fence 2: FORCE RLS pinned to Spool Hub
+### 5.2 Fence 2: FORCE RLS pinned to the listed workspaces
 
-Every export transaction starts with `SET LOCAL app.tenant_id = <Spool Hub id>`; `app.rls_scope` is never set.
+The export reads one listed workspace per transaction, and each starts with `SET LOCAL app.tenant_id = <that
+id>`; `app.rls_scope` is never set.
 FORCE RLS (0014, fail closed since 0021) hides every other workspace's row from this role even if a query forgot
 its filter. Estate-wide tables (no RLS) are read only through the joins in §4.1, never whole.
 
 The operator policy applies to every role, and any login can set `app.rls_scope` for its own transaction, so
 "never set it" alone would leave fence 2 one statement away from every workspace. Fence 2 therefore also carries a
 **`RESTRICTIVE` policy `public_export_scope`** on every exported `tenant_id` table, `TO spool_public_export` only:
-`tenant_id = (SELECT workspace_id FROM public_export_workspace)`, a one-row table this role can read and cannot
-write. Restrictive policies are AND-ed with the permissive ones, so even with the operator scope set the role sees one
-workspace. The hub's roles are not this role and are unaffected. The §9.3 fence test sets the operator scope on
-purpose and must still see one workspace.
+`tenant_id IN (SELECT workspace_id FROM public_export_workspace)`, a table of one row per listed workspace (rdb
+0233; it held one row under 0126) that this role can read and cannot write. Restrictive policies are AND-ed with the
+permissive ones, so even with the operator scope set the role sees only the listed workspaces. The hub's roles are
+not this role and are unaffected. The §9.3 fence test sets the operator scope on purpose and must still see only
+them.
 
 ### 5.3 Fence 3: the explicit filter
 
 Every query carries `WHERE tenant_id = $1` (or joins through a row that does). After the read, every emitted row's
-`tenant_id` is compared with the Spool Hub id; one mismatch = FATAL, nothing written.
+`tenant_id` is compared with the listed ids; one row of another workspace = FATAL, nothing written.
 
 ### 5.4 Where it runs
 
@@ -191,8 +216,10 @@ public. The output goes to the PRIVATE staging bucket (§6), never straight to t
 
 1. **Shape (C3)**: every table and column in the file is a `public` column of the allow-list; every live column of a
    listed table is classified; anything else = FATAL.
-2. **Workspace (C1, C2)**: no `tenant_id` other than Spool Hub's; `tenants` has exactly one row; every exported
-   row is re-read on a second connection pinned by RLS alone (no filter) and must be found there, so no row was
+2. **Workspace (C1, C2)**: no `tenant_id` outside the list; `tenants` has exactly one row per listed workspace;
+   with more than one listed, every table but `humans` carries `tenant_id` (a row names its own workspace, so the
+   same channel id in two of them is two rows); every exported row is re-read on a second connection pinned by
+   RLS alone (no filter), once per listed workspace, and must be found there by (workspace, key), so no row was
    read around RLS.
 3. **Content scan (C4)** of the whole file: e-mail addresses, IPv4/IPv6 addresses, JWTs, PEM blocks, cloud, Slack and
    GitHub token shapes, `iam.gserviceaccount.com`, gitleaks with the repo's config, and every other workspace's id
@@ -314,7 +341,8 @@ That trust is the fleet's lane registry, as for every other agent action.
    names the release to check out) and holds **no
    workspace row**: the seed is for a fresh database only, never a merge.
 3. Loads in one transaction under the operator scope, the empty-database check of step 2 inside that same
-   transaction, then checks: one workspace; counts equal the manifest.
+   transaction, then checks: one workspace; counts equal the manifest. (Built for one workspace, T010; a seed of
+   the §4 list of three needs the loader to take a set: its own task, T019.)
 4. Creates the instance's own secrets: a new workspace root keypair (the private key written to the operator's
    path, mode `0600`, never into the database), and the **first admin**: a new human (`humans_seq` set past the
    highest loaded `HUM-n`), membership role `owner`, a native password credential for `SEED_ADMIN_EMAIL` with a
@@ -407,6 +435,7 @@ panel's daily lanes); Q1 consent (a-287 suggests a notice plus an opt-out).
 | version | date | change |
 |---|---|---|
 | v0.1.0 | 2026-10-05 | first draft for the panel (c-307) |
+| v0.5.0 | 2026-10-27 | owner HUM-10 (t1 e2c0e6b4, msgs c72b919b, c68e6073, poll answer afb3d81d): the export holds the workspaces t1, spool and demo, a cnf list; fence 2 reads a set (rdb 0233); the gate keys rows by (workspace, key); §4.2 unchanged (SPL-3808) |
 | v0.4.1 | 2026-10-05 | §13 consensus recorded; no requirement changed |
 | v0.4.0 | 2026-10-05 | round 2, g-308: restrictive policy for the export role (fence 2 holds with the operator scope set), loader COPY targets limited to §4.1, `release_notes` out of the seed; non-member ids dropped, expired out, first file skips size check, reading lane `n`, dev lanes when real, topic post class-only and its channel never exported |
 | v0.3.0 | 2026-10-05 | round 1, a-287: §4.4 withheld NOT NULL columns get fixed constants, 0112 DM links withheld, the full measured column count, Q1/Q7 panel positions |

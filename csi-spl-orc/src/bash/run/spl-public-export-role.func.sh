@@ -11,12 +11,13 @@
 # @description                            SELECT (tenant_id, display_name) ON tenants
 # @description each password set as a SCRAM verifier computed here from the
 # @description Secret Manager slots do_spl_public_export_secret_seed fills, then
-# @description write the one public_export_workspace row (rdb 0126) from cnf
-# @description public_dataset.workspace_id. Then read EVERY flag back as the
+# @description make the public_export_workspace rows (rdb 0126, a set since
+# @description 0233) exactly cnf public_dataset.workspace_ids, one row each,
+# @description in one transaction. Then read EVERY flag back as the
 # @description owner (the do_spl_db_owner_split verify pattern): login, no
 # @description superuser / bypassrls / createrole / createdb, noinherit, 0
 # @description memberships, owns 0, the exact column and table privileges, the
-# @description workspace row; and log in AS each login: the allowed read works,
+# @description workspace rows; and log in AS each login: the allowed read works,
 # @description a withheld column (messages.msg, humans.email, tenants.root_pubkey)
 # @description and a never-exported table are refused. One OK or FAIL line each.
 # @description Passwords and verifiers travel on stdin, in 0600 scratch files and
@@ -45,8 +46,7 @@ do_spl_public_export_role() {
   [[ "${slots[0]%%:*}" == spool_public_export && "${slots[1]%%:*}" == spool_public_names ]] ||
     { do_log "FATAL cnf public_dataset export_login / names_login must be spool_public_export / spool_public_names (the names rdb 0126 and the roles SQL use)"; return 1; }
   local ws f
-  ws="$(yq -r '.env.public_dataset.workspace_id // ""' "$SPL_CNF")"
-  spl_require_tenant_slug "$ws" || { do_log "FATAL cnf public_dataset.workspace_id is unset for $ENV"; return 1; }
+  ws="$(spl_pd_workspaces)" || return 1
   for f in public-export-role.sql public-export-grants.sql public-names-role.sql; do
     [[ -r "$SPL_DB_ROLES_SQL/$f" ]] || { do_log "FATAL no roles SQL $SPL_DB_ROLES_SQL/$f"; return 1; }
   done
@@ -54,7 +54,7 @@ do_spl_public_export_role() {
 
   if (( dry )); then
     do_log "INFO DRY_RUN would: as $SPL_DB_OWNER_USER on $SPL_SQL_CONN/$SPL_DB_NAME apply public-export-role.sql, public-export-grants.sql, public-names-role.sql with the passwords in ${slots[0]#*:} / ${slots[1]#*:}"
-    do_log "INFO DRY_RUN would: set public_export_workspace to $ws, read every flag back, probe as both logins"
+    do_log "INFO DRY_RUN would: set public_export_workspace to exactly $ws, read every flag back, probe as both logins"
     do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0 to apply."
     return 0
   fi
@@ -89,7 +89,7 @@ do_spl_public_export_role() {
   (( rc == 0 )) && { spl_public_export_login_probes "$owner_dsn" "$h" || rc=1; }
   spl_sql_proxy_stop
   (( rc == 0 )) || { do_log "FAIL public dataset logins on $SPL_DB_NAME ($ENV): see above"; return 1; }
-  do_log "OK public dataset logins on $SPL_DB_NAME ($ENV): spool_public_export reads the allow-list columns of workspace $ws only, spool_public_names reads tenants (tenant_id, display_name) only"
+  do_log "OK public dataset logins on $SPL_DB_NAME ($ENV): spool_public_export reads the allow-list columns of workspaces $ws only, spool_public_names reads tenants (tenant_id, display_name) only"
 }
 
 # spl_public_export_role_psql <owner proxy dsn> <roles sql file> [<preamble>]
@@ -100,7 +100,7 @@ spl_public_export_role_psql() {
     spl_pg_env "$1" psql -X -q -v ON_ERROR_STOP=1 -f - >/dev/null
 }
 
-# spl_public_export_role_apply <owner proxy dsn> <scratch dir> <workspace>
+# spl_public_export_role_apply <owner proxy dsn> <scratch dir> <workspaces a,b,..>
 spl_public_export_role_apply() {
   local odsn="$1" h="$2" ws="$3" ev nv out
   ev="$(spl_scram_verifier <"$h/spool_public_export")" && nv="$(spl_scram_verifier <"$h/spool_public_names")" ||
@@ -112,7 +112,9 @@ spl_public_export_role_apply() {
   spl_public_export_role_psql "$odsn" public-names-role.sql "\\set names_verifier '$nv'" ||
     { do_log "FAIL public-names-role.sql as $SPL_DB_OWNER_USER"; return 1; }
   do_log "INFO applied public-export-role.sql, public-export-grants.sql, public-names-role.sql as $SPL_DB_OWNER_USER (passwords set as SCRAM verifiers)"
-  out="$(printf "\\\\set ws '%s'\nINSERT INTO public_export_workspace (workspace_id) VALUES (:'ws')\n  ON CONFLICT (one_row) DO UPDATE SET workspace_id = EXCLUDED.workspace_id;\n" "$ws" |
+  out="$(printf "\\\\set ws '%s'\nBEGIN;\n%s\n%s\nCOMMIT;\n" "$ws" \
+      "DELETE FROM public_export_workspace WHERE workspace_id <> ALL (string_to_array(:'ws', ','));" \
+      "INSERT INTO public_export_workspace (workspace_id) SELECT unnest(string_to_array(:'ws', ',')) ON CONFLICT (workspace_id) DO NOTHING;" |
     spl_pg_env "$odsn" psql -X -q -v ON_ERROR_STOP=1 -f - 2>&1)" ||
     { do_log "FAIL could not write public_export_workspace = $ws: $out"; return 1; }
   do_log "INFO public_export_workspace = $ws"
@@ -120,11 +122,11 @@ spl_public_export_role_apply() {
 
 # spl_public_export_role_facts_sql -> one JSON line, read by the OWNER: per
 # login its flags, memberships, owned objects, table and column privileges,
-# and the public_export_workspace row.
+# and the public_export_workspace rows.
 spl_public_export_role_facts_sql() {
   cat <<'EOF_SQL'
 SELECT json_build_object(
-  'workspace', (SELECT json_agg(workspace_id) FROM public_export_workspace),
+  'workspace', (SELECT json_agg(workspace_id ORDER BY workspace_id) FROM public_export_workspace),
   'public_grants', (SELECT coalesce(json_agg(g ORDER BY g), '[]') FROM (
       SELECT c.relname || ':' || x.privilege_type AS g
         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace, aclexplode(c.relacl) x
@@ -154,9 +156,9 @@ SELECT json_build_object(
 EOF_SQL
 }
 
-# spl_public_export_role_verify <owner proxy dsn> <workspace> -> reads the
-# facts as the owner and compares them with the grants file and the names
-# rule; one OK / FAIL line per login and one for the workspace row.
+# spl_public_export_role_verify <owner proxy dsn> <workspaces a,b,..> -> reads
+# the facts as the owner and compares them with the grants file and the names
+# rule; one OK / FAIL line per login and one for the workspace rows.
 spl_public_export_role_verify() {
   local odsn="$1" ws="$2" facts v
   facts="$(spl_public_export_role_facts_sql | spl_pg_env "$odsn" psql -X -q -At -v ON_ERROR_STOP=1 -f - 2>&1)" ||
@@ -172,7 +174,7 @@ spl_public_export_role_verify() {
   return "$bad"
 }
 
-# spl_public_export_role_verdict <facts json> <workspace> <grants file> ->
+# spl_public_export_role_verdict <facts json> <workspaces a,b,..> <grants file> ->
 # "OK ..." / "FAIL ..." lines. The export login's expected column set is
 # parsed from the grants file (which CHECK=1 pinned to the allow-list).
 spl_public_export_role_verdict() {
@@ -207,8 +209,9 @@ pub = d.get("public_grants") or []
 print(("FAIL PUBLIC holds %d privilege(s) every login inherits: %s" % (len(pub), ", ".join(pub[:10]))) if pub else
       "OK PUBLIC holds no table or column privilege in schema public")
 ws = d.get("workspace") or []
-print(("OK public_export_workspace = %s" % ws[0]) if ws == [os.environ["SPL_WS"]] else
-      ("FAIL public_export_workspace holds %s, cnf says %s" % (ws, os.environ["SPL_WS"])))
+want_ws = sorted(os.environ["SPL_WS"].split(","))
+print(("OK public_export_workspace = %s" % ",".join(ws)) if ws == want_ws else
+      ("FAIL public_export_workspace holds %s, cnf says %s" % (",".join(ws) or "nothing", ",".join(want_ws))))
 EOF_PY
 }
 

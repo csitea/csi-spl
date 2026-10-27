@@ -88,6 +88,10 @@ func (s *Server) onLane(ctx context.Context, x *session, f wire.Frame) {
 		s.onFleetTokensLane(ctx, x, f)
 		return
 	}
+	if isFileStreamsLaneOp(f.LaneOp) { // spec 160, rdb 0236: box file streams
+		s.onFileStreamsLane(ctx, x, f)
+		return
+	}
 	id := f.MsgID
 	if !uuidRe.MatchString(id) {
 		x.fail(ctx, "", "bad_frame", http.StatusBadRequest, "a lane frame needs msg_id (a UUID) to pair the reply")

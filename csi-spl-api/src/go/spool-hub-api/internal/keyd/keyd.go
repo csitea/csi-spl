@@ -96,6 +96,24 @@ func Serve(ctx context.Context, dir, workspace string, agents []AgentKey) error 
 	if err := harden(); err != nil {
 		return err
 	}
+	secs, err := lockIdentities(agents)
+	if err != nil {
+		return err
+	}
+	sock := filepath.Join(dir, "keyd.sock")
+	pidPath := filepath.Join(dir, "keyd.pid")
+	ln, err := listenSock(sock, pidPath)
+	if err != nil {
+		wipeSecrets(secs)
+		return err
+	}
+	serveConns(ctx, ln, sock, pidPath, workspace, secs)
+	return nil
+}
+
+// lockIdentities moves each identity into mlocked memory and wipes the
+// caller's copy; on an error it wipes what it already locked.
+func lockIdentities(agents []AgentKey) ([]secret, error) {
 	secs := make([]secret, 0, len(agents))
 	for i := range agents {
 		raw := make([]byte, len(agents[i].Identity))
@@ -104,26 +122,27 @@ func Serve(ctx context.Context, dir, workspace string, agents []AgentKey) error 
 		agents[i].Identity = ""
 		if len(raw) == 0 {
 			wipeSecrets(secs)
-			return errors.New("empty identity")
+			return nil, errors.New("empty identity")
 		}
 		if err := unix.Mlock(raw); err != nil {
 			Wipe(raw)
 			wipeSecrets(secs)
-			return errors.New("could not lock the identities in memory")
+			return nil, errors.New("could not lock the identities in memory")
 		}
 		secs = append(secs, secret{id: agents[i].ID, raw: raw})
 	}
-	sock := filepath.Join(dir, "keyd.sock")
-	pidPath := filepath.Join(dir, "keyd.pid")
+	return secs, nil
+}
+
+// listenSock clears a stale daemon, writes the pid file and binds sock 0600.
+func listenSock(sock, pidPath string) (net.Listener, error) {
 	if err := clearStale(sock, pidPath); err != nil {
-		wipeSecrets(secs)
-		return err
+		return nil, err
 	}
 	// The pid goes first: a Status dial between bind and listen is refused,
 	// and without a live pid Status would remove the socket being started.
 	if err := os.WriteFile(pidPath, []byte(strconv.Itoa(os.Getpid())+"\n"), 0644); err != nil {
-		wipeSecrets(secs)
-		return errors.New("could not listen for keyd")
+		return nil, errors.New("could not listen for keyd")
 	}
 	// 0177 makes the new socket 0600 before any peer can connect. Chmod
 	// repeats it in case the platform ignores the umask on a unix socket.
@@ -132,16 +151,19 @@ func Serve(ctx context.Context, dir, workspace string, agents []AgentKey) error 
 	unix.Umask(oldMask)
 	if err != nil {
 		os.Remove(pidPath)
-		wipeSecrets(secs)
-		return errors.New("could not listen for keyd")
+		return nil, errors.New("could not listen for keyd")
 	}
 	if err := os.Chmod(sock, 0600); err != nil {
 		ln.Close()
 		os.Remove(sock)
 		os.Remove(pidPath)
-		wipeSecrets(secs)
-		return errors.New("could not listen for keyd")
+		return nil, errors.New("could not listen for keyd")
 	}
+	return ln, nil
+}
+
+// serveConns answers requests until Lock or ctx, then wipes and cleans up.
+func serveConns(ctx context.Context, ln net.Listener, sock, pidPath, workspace string, secs []secret) {
 	var once sync.Once
 	shutdown := func() {
 		once.Do(func() {
@@ -159,11 +181,11 @@ func Serve(ctx context.Context, dir, workspace string, agents []AgentKey) error 
 		conn, err := ln.Accept()
 		if err != nil {
 			shutdown()
-			return nil
+			return
 		}
 		if handle(conn, workspace, secs) {
 			shutdown()
-			return nil
+			return
 		}
 	}
 }

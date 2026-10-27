@@ -33,7 +33,6 @@ const (
 var longFuncs = map[string]bool{
 	"cmd/spool/hub.go hubOptions":                                   true,
 	"internal/hub/server.go (*Server).Handler":                      true,
-	"internal/keyd/keyd.go Serve":                                   true,
 	"internal/store/humans_postgres.go (*Postgres).ProvisionMember": true,
 }
 

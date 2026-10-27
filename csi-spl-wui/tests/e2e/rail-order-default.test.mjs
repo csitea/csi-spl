@@ -377,8 +377,8 @@ async function monitoringSection(browser, base) {
 
 /* spec 143 1 (SPL-2351, T010-T012): the Reporting rail tab, right after
    Monitoring, opens /reporting, which replaces itself with
-   /reporting/releases; the bar draws Releases only (every other tab is
-   reserved), the sidebar keeps the icon rail only, a deep link to /reporting
+   /reporting/releases; the bar draws Releases and Costs (SPL-3798; every
+   other tab is reserved or admin-only), the sidebar keeps the icon rail only, a deep link to /reporting
    lands on Releases too. CONTROL: before SPL-2351 there is no
    sidebar-tab-reporting and every check here FAILs. */
 async function reportingSection(browser, base) {
@@ -400,7 +400,8 @@ async function reportingSection(browser, base) {
     check(`${tag}: the rail tab lands on /reporting/releases`, await at(p, '/reporting/releases'), path(p))
     check(`${tag}: the Releases tab renders`, Boolean(await p.waitForSelector('[data-test=reporting-releases]', { visible: true, timeout: NAV }).catch(() => null)))
     await sleep(400)
-    check(`${tag}: the bar draws Releases (current) only`, same(await bar(p), [['reporting-tab-releases', 'page']]), await bar(p))
+    /* SPL-3798 (costs-redesign S1): Costs shows with costs.read, which the mock's default (unrestricted) me holds */
+    check(`${tag}: the bar draws Releases (current) and Costs`, same(await bar(p), [['reporting-tab-releases', 'page'], ['reporting-tab-costs', '']]), await bar(p))
     check(`${tag}: the heading is there`, Boolean(await p.$('[data-test=reporting-heading]')))
     check(`${tag}: the rail tab reads as selected`, (await p.$eval('[data-testid=sidebar-tab-reporting]', (e) => e.getAttribute('aria-selected'))) === 'true')
     if (!touch) check(`${tag}: the sidebar keeps the icon rail only`, await p.$eval('nav.sidebar', (e) => e.classList.contains('sidebar--rail')))

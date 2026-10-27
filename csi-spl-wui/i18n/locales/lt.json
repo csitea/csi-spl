@@ -3251,18 +3251,27 @@
     "tab": {
       "releases": "Leidimai",
       "sql": "SQL",
-      "tokens": "Žetonai",
+      "costs": "Išlaidos",
       "issues": "Problemos",
       "posts": "Įrašai",
       "lanes": "Linijos"
     },
     "future": {
-      "tokens": "Žetonų ataskaita netrukus.",
       "issues": "Problemų ataskaita netrukus.",
       "posts": "Įrašų ataskaita netrukus.",
       "lanes": "Linijų ataskaita netrukus.",
-      "operators_only": "Ši ataskaita skirta tik operatoriaus administratoriams.",
-      "tokens_link": "Laivyno žetonų naudojimą rasite skiltyje Stebėsena"
+      "operators_only": "Ši ataskaita skirta tik operatoriaus administratoriams."
+    },
+    "costs": {
+      "pages_label": "Išlaidų puslapiai",
+      "currency": "Valiuta",
+      "coming": "Šis puslapis bus vėlesniame žingsnyje.",
+      "page": {
+        "spend": "Išleista",
+        "tokens": "Žetonai",
+        "price": "Žetono kaina",
+        "paid": "Apmokėti įrašai"
+      }
     },
     "releases": {
       "soon": "Leidimų ataskaita netrukus.",

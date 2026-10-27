@@ -6,19 +6,23 @@
      its `?r=` and seat hash kept (utils/monitoring-tabs.mjs
      legacyMonitoringPath). In the browser only: the WUI is `nuxt generate`
      on static hosting, where no server redirect runs, and the prerendered
-     page stays this empty line, never a redirect loop. -->
+     page stays this empty line, never a redirect loop.
+     Spec 143 costs-redesign.md 5 (SPL-3798): the Costs links too,
+     /monitoring/costs and /reporting/tokens (utils/reporting-costs.mjs
+     legacyCostsPath), `?month=` kept. -->
 <template>
   <div class="feed-col" data-test="legacy-redirect" />
 </template>
 
 <script setup lang="ts">
 import { legacyMonitoringPath } from '~/utils/monitoring-tabs.mjs'
+import { legacyCostsPath } from '~/utils/reporting-costs.mjs'
 
 const route = useRoute()
 const localePath = useLocalePath()
 
 onMounted(() => {
-  const to = legacyMonitoringPath(route.path)
+  const to = legacyMonitoringPath(route.path) || legacyCostsPath(route.path)
   if (to) void navigateTo({ path: localePath(to), query: route.query, hash: route.hash }, { replace: true })
 })
 </script>

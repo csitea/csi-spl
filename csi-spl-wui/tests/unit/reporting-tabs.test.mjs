@@ -58,7 +58,7 @@ describe('T010 the Reporting rail entry', () => {
 
 describe('T011 utils/reporting-tabs.mjs', () => {
   it('the tabs in their order, each its own path; Releases is where /reporting lands', () => {
-    assert.deepEqual(ids(REPORTING_TABS), ['releases', 'sql', 'tokens', 'issues', 'posts', 'lanes'])
+    assert.deepEqual(ids(REPORTING_TABS), ['releases', 'sql', 'costs', 'issues', 'posts', 'lanes'])
     assert.equal(REPORTING_DEFAULT_PATH, '/reporting/releases')
     for (const t of REPORTING_TABS) {
       assert.equal(t.path, '/reporting/' + t.id)
@@ -68,30 +68,46 @@ describe('T011 utils/reporting-tabs.mjs', () => {
       assert.equal(typeof t.ready, 'boolean')
     }
   })
-  it('Releases and SQL are ready today (SQL since T033, SPL-2789): a member sees Releases, an admin both', () => {
-    assert.deepEqual(REPORTING_TABS.filter((t) => t.ready).map((t) => t.id), ['releases', 'sql'])
+  it('Releases, SQL and Costs are ready today (SQL since T033, SPL-2789; Costs since S1, SPL-3798): a member sees Releases, an admin SQL too', () => {
+    assert.deepEqual(REPORTING_TABS.filter((t) => t.ready).map((t) => t.id), ['releases', 'sql', 'costs'])
     for (const who of [undefined, {}, { admin: false }]) {
       assert.deepEqual(ids(visibleReportingTabs(who)), ['releases'], JSON.stringify(who))
     }
-    for (const who of [{ admin: true }, { operator: true }, { admin: true, operator: true, can: () => true }]) {
+    for (const who of [{ admin: true }, { operator: true }]) {
       assert.deepEqual(ids(visibleReportingTabs(who)), ['releases', 'sql'], JSON.stringify(who))
     }
+    assert.deepEqual(ids(visibleReportingTabs({ admin: true, operator: true, can: () => true })), ['releases', 'sql', 'costs'])
   })
   it('a member sees no admin tab; a workspace admin sees SQL', () => {
     assert.deepEqual(ids(shown({}, ALL_READY)), ['releases', 'issues', 'posts'])
     assert.deepEqual(ids(shown({ admin: false }, ALL_READY)), ['releases', 'issues', 'posts'])
     assert.deepEqual(ids(shown({ admin: true }, ALL_READY)), ['releases', 'sql', 'issues', 'posts'])
   })
-  it('owner t1 af25a1f3 (msg a8bfcdd0): Tokens is for operator admins only, never a workspace admin', () => {
-    const tokens = REPORTING_TABS.find((t) => t.id === 'tokens')
-    assert.equal(tokens.operatorsOnly, true)
-    assert.equal(tokens.ready, false)
-    /* CONTROL: a workspace admin, a member, or a reader not known yet never sees it */
-    for (const who of [{ admin: true }, {}, { operator: false, admin: true }]) {
-      assert.equal(ids(shown(who, ALL_READY)).includes('tokens'), false, JSON.stringify(who))
+  it('costs-redesign.md 3.2 (SPL-3798): Costs comes after Releases and SQL, for a reader holding costs.read, per role', () => {
+    const costs = REPORTING_TABS.find((t) => t.id === 'costs')
+    assert.deepEqual({ path: costs.path, perm: costs.perm, adminOnly: costs.adminOnly, operatorsOnly: costs.operatorsOnly, ready: costs.ready },
+      { path: '/reporting/costs', perm: 'costs.read', adminOnly: false, operatorsOnly: false, ready: true })
+    assert.deepEqual(ids(REPORTING_TABS).slice(0, 3), ['releases', 'sql', 'costs'])
+    const holds = (perms) => (p) => perms.includes(p)
+    /* the hub's roles (rbac): biz_owner and admin hold costs.read, a developer does not */
+    const ROLE = {
+      'biz_owner (costs.read)': [{ can: holds(['costs.read']) }, ['releases', 'costs']],
+      'workspace admin (costs.read)': [{ admin: true, can: holds(['costs.read', 'members.invite']) }, ['releases', 'sql', 'costs']],
+      'operator admin (costs.read)': [{ admin: true, operator: true, can: holds(['costs.read']) }, ['releases', 'sql', 'costs']],
+      'developer (no costs.read)': [{ can: holds(['members.invite']) }, ['releases']],
+      'workspace admin without costs.read': [{ admin: true, can: holds([]) }, ['releases', 'sql']],
+      'operator admin without costs.read': [{ admin: true, operator: true, can: () => false }, ['releases', 'sql']],
+      'me not answered yet (no can)': [{ admin: true, operator: true }, ['releases', 'sql']],
     }
-    assert.deepEqual(ids(shown({ operator: true }, ALL_READY)), ['releases', 'sql', 'tokens', 'issues', 'posts', 'lanes'])
-    assert.deepEqual(ids(shown({ operator: true, admin: true }, ALL_READY)), ['releases', 'sql', 'tokens', 'issues', 'posts', 'lanes'])
+    for (const [role, [who, want]] of Object.entries(ROLE)) assert.deepEqual(ids(visibleReportingTabs(who)), want, role)
+  })
+  it('RED control: the costs.read rule is what hides Costs (dropped, a reader without it would see the tab)', () => {
+    const costs = REPORTING_TABS.find((t) => t.id === 'costs')
+    const without = { can: () => false }
+    assert.equal(reportingTabShows(costs, without), false)
+    /* the planted defect: the same row with no perm shows to that reader, so this test turns red if the row loses it */
+    const { perm: _drop, ...noPerm } = costs
+    assert.equal(reportingTabShows(noPerm, without), true)
   })
   it('a tab naming a perm shows only when who.can grants it', () => {
     const tabs = [{ id: 'x', ready: true, perm: 'p.read' }]
@@ -124,12 +140,13 @@ describe('T012 pages/reporting.vue', () => {
   it('/reporting replaces itself with the default tab, in the browser only', () => {
     assert.match(page, /onMounted\(\(\) => \{[\s\S]*productPath\(p\) === '\/reporting'\) void navigateTo\(localePath\(REPORTING_DEFAULT_PATH\), \{ replace: true \}\)/)
   })
-  it('Tokens follows the operator pane, not the workspace role', () => {
+  it('Lanes follows the operator pane, SQL the workspace role, Costs the permission', () => {
     assert.match(page, /operator: operator\.visible/)
     assert.match(page, /admin: meRead\.value && access\.me\?\.role === 'admin'/)
+    assert.match(page, /can: meRead\.value \? access\.can : undefined/)
   })
   it('each ready tab has its own page (its own chunk)', () => {
-    for (const t of visibleReportingTabs({ operator: true })) assert.ok(existsSync(join(WUI, 'src/pages' + t.path + '.vue')), t.path)
+    for (const t of visibleReportingTabs({ operator: true, can: () => true })) assert.ok(existsSync(join(WUI, 'src/pages' + t.path + '.vue')), t.path)
   })
 })
 

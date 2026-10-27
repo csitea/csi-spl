@@ -3251,18 +3251,27 @@
     "tab": {
       "releases": "Vydania",
       "sql": "SQL",
-      "tokens": "Tokeny",
+      "costs": "Náklady",
       "issues": "Úlohy",
       "posts": "Príspevky",
       "lanes": "Linky"
     },
     "future": {
-      "tokens": "Prehľad tokenov už čoskoro.",
       "issues": "Prehľad úloh už čoskoro.",
       "posts": "Prehľad príspevkov už čoskoro.",
       "lanes": "Prehľad liniek už čoskoro.",
-      "operators_only": "Tento prehľad je len pre administrátorov operátora.",
-      "tokens_link": "Spotrebu tokenov flotily nájdete v Monitorovaní"
+      "operators_only": "Tento prehľad je len pre administrátorov operátora."
+    },
+    "costs": {
+      "pages_label": "Stránky nákladov",
+      "currency": "Mena",
+      "coming": "Táto stránka príde v neskoršom kroku.",
+      "page": {
+        "spend": "Výdavky",
+        "tokens": "Tokeny",
+        "price": "Cena za token",
+        "paid": "Zaplatené položky"
+      }
     },
     "releases": {
       "soon": "Prehľad vydaní už čoskoro.",

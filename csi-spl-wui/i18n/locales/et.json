@@ -3251,18 +3251,27 @@
     "tab": {
       "releases": "Väljalasked",
       "sql": "SQL",
-      "tokens": "Tokenid",
+      "costs": "Kulud",
       "issues": "Probleemid",
       "posts": "Postitused",
       "lanes": "Rajad"
     },
     "future": {
-      "tokens": "Tokenite aruanne tuleb peagi.",
       "issues": "Probleemide aruanne tuleb peagi.",
       "posts": "Postituste aruanne tuleb peagi.",
       "lanes": "Radade aruanne tuleb peagi.",
-      "operators_only": "See aruanne on ainult operaatori administraatoritele.",
-      "tokens_link": "Vaata laevastiku tokenikulu jaotises Seire"
+      "operators_only": "See aruanne on ainult operaatori administraatoritele."
+    },
+    "costs": {
+      "pages_label": "Kulude lehed",
+      "currency": "Valuuta",
+      "coming": "See leht tuleb hilisemas sammus.",
+      "page": {
+        "spend": "Kulutused",
+        "tokens": "Tokenid",
+        "price": "Tokeni hind",
+        "paid": "Makstud kirjed"
+      }
     },
     "releases": {
       "soon": "Väljalasete aruanne tuleb peagi.",

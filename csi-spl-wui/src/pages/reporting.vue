@@ -40,8 +40,9 @@ const localePath = useLocalePath()
 const operator = useOperatorPane()
 const access = useAccessStore()
 /* an admin-only tab shows once /v1/view/me answered with role admin; an
-   operator-only one (Tokens, owner t1 af25a1f3) only to an operator admin.
-   Hiding only: the hub's 403 is the control. */
+   operator-only one (Lanes) only to an operator admin; a permission one
+   (Costs: costs.read) once me answered and grants it. Hiding only: the
+   hub's 403 is the control. */
 const meRead = ref(false)
 const tabs = computed(() => visibleReportingTabs({
   operator: operator.visible,

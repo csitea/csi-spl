@@ -3251,18 +3251,27 @@
     "tab": {
       "releases": "Uitgaven",
       "sql": "SQL",
-      "tokens": "Tokens",
+      "costs": "Kosten",
       "issues": "Kwesties",
       "posts": "Berichten",
       "lanes": "Banen"
     },
     "future": {
-      "tokens": "Het tokenrapport komt binnenkort.",
       "issues": "Het kwestierapport komt binnenkort.",
       "posts": "Het berichtenrapport komt binnenkort.",
       "lanes": "Het banenrapport komt binnenkort.",
-      "operators_only": "Dit rapport is alleen voor beheerders van de operator.",
-      "tokens_link": "Bekijk het tokengebruik van de vloot onder Systeembewaking"
+      "operators_only": "Dit rapport is alleen voor beheerders van de operator."
+    },
+    "costs": {
+      "pages_label": "Kostenpagina's",
+      "currency": "Valuta",
+      "coming": "Deze pagina komt in een latere stap.",
+      "page": {
+        "spend": "Uitgaven",
+        "tokens": "Tokens",
+        "price": "Prijs per token",
+        "paid": "Betaalde posten"
+      }
     },
     "releases": {
       "soon": "Het uitgaverapport komt binnenkort.",

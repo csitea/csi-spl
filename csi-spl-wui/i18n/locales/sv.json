@@ -3251,18 +3251,27 @@
     "tab": {
       "releases": "Versioner",
       "sql": "SQL",
-      "tokens": "Token",
+      "costs": "Kostnader",
       "issues": "Ärenden",
       "posts": "Inlägg",
       "lanes": "Banor"
     },
     "future": {
-      "tokens": "Tokenrapporten kommer snart.",
       "issues": "Ärenderapporten kommer snart.",
       "posts": "Inläggsrapporten kommer snart.",
       "lanes": "Banrapporten kommer snart.",
-      "operators_only": "Den här rapporten är bara för operatörens administratörer.",
-      "tokens_link": "Se flottans tokenanvändning under Övervakning"
+      "operators_only": "Den här rapporten är bara för operatörens administratörer."
+    },
+    "costs": {
+      "pages_label": "Kostnadssidor",
+      "currency": "Valuta",
+      "coming": "Den här sidan kommer i ett senare steg.",
+      "page": {
+        "spend": "Utgifter",
+        "tokens": "Token",
+        "price": "Pris per token",
+        "paid": "Betalda poster"
+      }
     },
     "releases": {
       "soon": "Versionsrapporten kommer snart.",

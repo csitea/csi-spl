@@ -1620,3 +1620,17 @@ html.pane-dragging * {
 .reporting-tab:hover, .reporting-tab--active { color: var(--color-fg); }
 .reporting-tab--active { border-bottom-color: var(--color-accent); }
 .reporting-soon { padding: 16px; margin: 0; }
+/* spec 143 costs-redesign.md 3.2 (SPL-3798): Reporting -> Costs, its page
+   bar and header (pages/reporting/costs.vue, CostsHeader.vue); the bar wraps
+   on a phone, never a sideways scroll */
+.reporting-costs { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 12px 16px; }
+.costs-pages { display: flex; flex-wrap: wrap; gap: 4px 8px; }
+.costs-page-link { padding: 4px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-pill); color: var(--color-muted); text-decoration: none; white-space: nowrap; }
+.costs-page-link:hover, .costs-page-link--active { color: var(--color-fg); }
+.costs-page-link--active { border-color: var(--color-accent); }
+.costs-header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.costs-header-month, .costs-header-currency { display: flex; align-items: center; gap: 8px; }
+.costs-header-cur { padding: 2px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-bg-2); color: var(--color-muted); font: inherit; cursor: pointer; }
+.costs-header-cur--on { border-color: var(--color-accent); color: var(--color-fg); background: var(--color-bg); }
+.costs-shell h3 { font-size: 1rem; margin: 0 0 6px; }
+.costs-shell p { margin: 0; }

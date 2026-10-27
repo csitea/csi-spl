@@ -3251,18 +3251,27 @@
     "tab": {
       "releases": "Laidieni",
       "sql": "SQL",
-      "tokens": "Tokeni",
+      "costs": "Izmaksas",
       "issues": "Problēmas",
       "posts": "Ieraksti",
       "lanes": "Līnijas"
     },
     "future": {
-      "tokens": "Tokenu pārskats drīzumā.",
       "issues": "Problēmu pārskats drīzumā.",
       "posts": "Ierakstu pārskats drīzumā.",
       "lanes": "Līniju pārskats drīzumā.",
-      "operators_only": "Šis pārskats ir tikai operatora administratoriem.",
-      "tokens_link": "Flotes tokenu patēriņš ir sadaļā Pārraudzība"
+      "operators_only": "Šis pārskats ir tikai operatora administratoriem."
+    },
+    "costs": {
+      "pages_label": "Izmaksu lapas",
+      "currency": "Valūta",
+      "coming": "Šī lapa nāks vēlākā solī.",
+      "page": {
+        "spend": "Tēriņi",
+        "tokens": "Tokeni",
+        "price": "Tokena cena",
+        "paid": "Apmaksātās pozīcijas"
+      }
     },
     "releases": {
       "soon": "Laidienu pārskats drīzumā.",

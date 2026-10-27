@@ -3251,18 +3251,27 @@
     "tab": {
       "releases": "Versiones",
       "sql": "SQL",
-      "tokens": "Tokens",
+      "costs": "Costes",
       "issues": "Incidencias",
       "posts": "Publicaciones",
       "lanes": "Líneas"
     },
     "future": {
-      "tokens": "El informe de tokens llegará pronto.",
       "issues": "El informe de incidencias llegará pronto.",
       "posts": "El informe de publicaciones llegará pronto.",
       "lanes": "El informe de líneas llegará pronto.",
-      "operators_only": "Este informe es solo para administradores del operador.",
-      "tokens_link": "Consulta el uso de tokens de la flota en Monitorización"
+      "operators_only": "Este informe es solo para administradores del operador."
+    },
+    "costs": {
+      "pages_label": "Páginas de costes",
+      "currency": "Moneda",
+      "coming": "Esta página llega en un paso posterior.",
+      "page": {
+        "spend": "Gasto",
+        "tokens": "Tokens",
+        "price": "Precio por token",
+        "paid": "Partidas pagadas"
+      }
     },
     "releases": {
       "soon": "El informe de versiones llegará pronto.",

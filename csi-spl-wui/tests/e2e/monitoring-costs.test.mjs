@@ -46,6 +46,14 @@
 //     /issues?issue=<KEY>; anyone else: no tab, the direct URL is the 403
 //     sentence. No Lanes code in the initial download.
 //
+//   - spec 143 costs-redesign.md slice S1 (SPL-3798): the costs page is
+//     Reporting -> Costs -> Spend now (/reporting/costs/spend); the Reporting
+//     tab shows with costs.read only; the page bar (Spend, Tokens; Price per
+//     token and Paid items for an operator admin), the header's month and
+//     currency in the query, kept across the pages; the redirects
+//     /monitoring/costs?month=2026-09 -> /reporting/costs/spend?month=2026-09,
+//     /reporting/tokens -> /reporting/costs/tokens, /reporting/costs -> Spend.
+//
 // Run:
 //   BASE_URL=<generated bundle> pnpm run test:e2e monitoring-costs
 //   SHOT_DIR=<dir> keeps a screenshot per size.
@@ -122,8 +130,69 @@ async function costsPage(browser, base, { width, height }, { me = null, scenario
 
 async function open(p, base, path) {
   const res = await p.goto(base + path, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-  await p.waitForSelector('[data-test=monitoring-tabs]', { visible: true, timeout: 20000 }).catch(() => null)
+  const bar = /^\/(?:[a-z]{2}\/)?reporting\//.test(path) ? 'reporting-tabs' : 'monitoring-tabs'
+  await p.waitForSelector(`[data-test=${bar}]`, { visible: true, timeout: 20000 }).catch(() => null)
   return res
+}
+const SPEND = '/reporting/costs/spend'
+const reportingTabIds = (p) => p.$$eval('[data-test^=reporting-tab-]', (els) => els.map((e) => e.getAttribute('data-test').slice('reporting-tab-'.length)))
+const costsPageIds = (p) => p.$$eval('[data-test^=costs-page-]', (els) => els.map((e) => e.getAttribute('data-test').slice('costs-page-'.length)))
+const where = (p) => { const u = new URL(p.url()); return u.pathname.replace(/\/$/, '') + u.search }
+const waitWhere = (p, want) => p.waitForFunction((w) => location.pathname.replace(/\/$/, '') + location.search === w, { timeout: 15000 }, want).then(() => true, () => false)
+
+/** costs-redesign.md slice S1 (SPL-3798): the redirects, the page bar and the header. CONTROL: on master before S1 /monitoring/costs is the page itself, so the redirect checks FAIL there. */
+async function costsS1(browser, base, size) {
+  {
+    const { ctx, p } = await costsPage(browser, base, size)
+    await open(p, base, '/monitoring/costs?month=2026-09')
+    ok('S1 redirect: /monitoring/costs?month=2026-09 -> /reporting/costs/spend?month=2026-09', await waitWhere(p, SPEND + '?month=2026-09'), where(p))
+    ok('S1 redirect: the Spend page renders the month asked for, not "so far"', await waitFor(p, '[data-test=costs-table]') && (await count(p, '[data-test=costs-so-far]')) === 0)
+    const months = await p.$$eval('[data-test=costs-header-month] option', (els) => els.map((e) => e.value))
+    const cur = new Date().toISOString().slice(0, 7)
+    ok('S1 header: months from the current one back to 2026-10, the URL month kept, none in the future', months[0] === cur && months.includes('2026-09')
+      && months.filter((m) => m !== '2026-09').every((m) => m >= '2026-10' && m <= cur), months)
+    ok('S1 header: the picker shows the URL month', (await p.$eval('[data-test=costs-header-month]', (e) => e.value).catch(() => '')) === '2026-09')
+    ok('S1 tab: Reporting -> Costs is the active tab', (await p.$eval('[data-test=reporting-tab-costs]', (e) => e.getAttribute('aria-current')).catch(() => '')) === 'page')
+    ok('S1 bar: Spend and Tokens for a non-operator, Spend active', (await costsPageIds(p)).join(',') === 'spend,tokens'
+      && (await p.$eval('[data-test=costs-page-spend]', (e) => e.getAttribute('aria-current')).catch(() => '')) === 'page', await costsPageIds(p))
+    const curs = await p.$$eval('[data-test^=costs-header-cur-]', (els) => els.map((e) => [e.textContent.trim(), e.getAttribute('aria-checked')]))
+    ok('S1 header: USD (picked, the default) or EUR', JSON.stringify(curs) === JSON.stringify([['USD', 'true'], ['EUR', 'false']]), curs)
+    await p.click('[data-test=costs-header-cur-EUR]')
+    ok('S1 header: picking EUR writes ?currency=EUR, the month kept', await waitWhere(p, SPEND + '?month=2026-09&currency=EUR'), where(p))
+    await p.click('[data-test=costs-page-tokens]')
+    ok('S1 bar: Tokens keeps the month and the currency', await waitWhere(p, '/reporting/costs/tokens?month=2026-09&currency=EUR'), where(p))
+    ok('S1 Tokens: the shell (title and the coming line)', await waitFor(p, '[data-test=costs-shell-tokens] [data-test=costs-shell-coming]'))
+    await p.goBack()
+    ok('S1 back: Spend again, the same query', await waitWhere(p, SPEND + '?month=2026-09&currency=EUR'), where(p))
+    if (size.width < 600) ok('S1: no sideways scroll on a phone', (await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0)
+    if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/reporting-costs-spend-${size.width}.png`, fullPage: true })
+    await open(p, base, '/reporting/tokens')
+    ok('S1 redirect: /reporting/tokens -> /reporting/costs/tokens', await waitWhere(p, '/reporting/costs/tokens'), where(p))
+    await open(p, base, '/reporting/costs?month=2026-09')
+    ok('S1 redirect: /reporting/costs -> Spend, the query kept', await waitWhere(p, SPEND + '?month=2026-09'), where(p))
+    await open(p, base, '/monitoring/tokens')
+    ok('S1: /monitoring/tokens stays', (await waitFor(p, '[data-test=tokens-forbidden]')) && where(p) === '/monitoring/tokens', where(p))
+    await ctx.close()
+  }
+  {
+    const { ctx, p } = await costsPage(browser, base, size, { operator: true })
+    await open(p, base, SPEND)
+    await p.waitForFunction(() => document.querySelectorAll('[data-test^=costs-page-]').length === 4, { timeout: 15000 }).catch(() => null)
+    ok('S1 bar: an operator admin sees all four pages', (await costsPageIds(p)).join(',') === 'spend,tokens,price,paid', await costsPageIds(p))
+    for (const id of ['price', 'paid']) {
+      await p.click(`[data-test=costs-page-${id}]`)
+      ok(`S1 ${id}: the shell for an operator admin`, await waitFor(p, `[data-test=costs-shell-${id}] [data-test=costs-shell-coming]`))
+    }
+    await ctx.close()
+  }
+  {
+    /* CONTROL: a non-operator opening Paid items directly gets the operators-only line, no shell */
+    const { ctx, p } = await costsPage(browser, base, size)
+    await open(p, base, '/reporting/costs/paid')
+    ok('S1 control: Paid items direct URL, not an operator admin: operators only', await waitFor(p, '[data-test=costs-shell-paid] [data-test=reporting-operators-only]')
+      && (await count(p, '[data-test=costs-shell-coming]')) === 0)
+    await ctx.close()
+  }
 }
 
 const titles = (p, sel) => p.$$eval(sel, (els) => els.map((e) => ({ src: e.closest('tr')?.getAttribute('data-source') || '', text: e.textContent.trim(), title: e.getAttribute('title') || '', none: e.getAttribute('data-none') })))
@@ -386,15 +455,17 @@ try {
   for (const [label, size] of [['desktop', { width: 1400, height: 900 }], ['phone', { width: 390, height: 844 }]]) {
     console.log(`-- ${label} ${size.width}x${size.height}`)
     await lanesTab(browser, server.base, size)
+    await costsS1(browser, server.base, size)
 
     /* a full month, the mock's default me (unrestricted) */
     {
       const { ctx, p } = await costsPage(browser, server.base, size)
-      const res = await open(p, server.base, '/monitoring/costs')
-      ok('/monitoring/costs answers 200', Boolean(res && res.status() === 200), res && res.status())
-      const tabs = await tabIds(p)
+      const res = await open(p, server.base, SPEND)
+      ok('/reporting/costs/spend answers 200', Boolean(res && res.status() === 200), res && res.status())
+      await p.waitForFunction(() => document.querySelector('[data-test=reporting-tab-costs]'), { timeout: 15000 }).catch(() => null)
+      const tabs = await reportingTabIds(p)
       ok('the Costs tab shows (unrestricted me)', tabs.includes('costs'), tabs)
-      const active = await p.$eval('[data-test=monitoring-tab-costs]', (e) => e.getAttribute('aria-current')).catch(() => '')
+      const active = await p.$eval('[data-test=reporting-tab-costs]', (e) => e.getAttribute('aria-current')).catch(() => '')
       ok('Costs is the active tab', active === 'page', active)
       ok('the table renders', await waitFor(p, '[data-test=costs-table]'))
       ok('one row per part (9) and a not-tracked row', (await count(p, '[data-test=costs-row]')) === 9
@@ -424,10 +495,9 @@ try {
       ok('no sideways scroll', wide <= 0, wide)
       if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-costs-${size.width}.png`, fullPage: true })
 
-      /* an earlier month: ended, so no "so far" mark (CONTROL: the mark follows the status) */
-      const months = await p.$$eval('[data-test=costs-month] option', (els) => els.map((e) => e.value))
-      ok('12 months, the current one first, none in the future', months.length === 12 && months[0] >= months[1], months.slice(0, 2))
-      await p.select('[data-test=costs-month]', months[1])
+      /* an earlier month: ended, so no "so far" mark (CONTROL: the mark follows the status); S1: the month is the header's, in the URL */
+      await go(p, SPEND + '?month=2026-09')
+      const months = ['', '2026-09']
       const gone = await p.waitForFunction(() => !document.querySelector('[data-test=costs-so-far]') && document.querySelector('[data-test=costs-table]'), { timeout: 15000 }).then(() => true, () => false)
       ok('an earlier month is not "so far"', gone)
 
@@ -455,7 +525,7 @@ try {
     /* the personal setting: Settings -> Appearance -> Second currency, then the column follows it */
     {
       const { ctx, p } = await costsPage(browser, server.base, size, { prefs: true })
-      await open(p, server.base, '/monitoring/costs')
+      await open(p, server.base, SPEND)
       ok('setting: the table renders', await waitFor(p, '[data-test=costs-table]'))
       await go(p, '/settings/appearance')
       ok('setting: the Second currency picker shows', await waitFor(p, '[data-test=second-currency-select]'))
@@ -468,7 +538,7 @@ try {
       await p.select('[data-test=second-currency-select]', 'SEK').catch(() => null)
       for (let i = 0; i < 50 && p.saved.length === 0; i++) await new Promise((r) => setTimeout(r, 100))
       ok('setting: the pick is saved through the hub setting (PUT /preferences second_currency)', p.saved.at(-1) === JSON.stringify({ second_currency: 'SEK' }), p.saved)
-      await go(p, '/monitoring/costs')
+      await go(p, SPEND)
       const sek = await p.waitForFunction(() => (document.querySelector('[data-test=costs-second-head]') || {}).textContent?.trim() === 'SEK (day rate)', { timeout: 15000 }).then(() => true, () => false)
       ok('setting: the column now names SEK', sek, await text(p, '[data-test=costs-second-head]'))
       const totSek = await text(p, '[data-test=costs-total-second]')
@@ -483,7 +553,7 @@ try {
       await p.select('[data-test=second-currency-select]', 'EUR').catch(() => null)
       for (let i = 0; i < 50 && p.saved.length < 2; i++) await new Promise((r) => setTimeout(r, 100))
       ok('setting: picking the default clears it (second_currency null)', p.saved.at(-1) === JSON.stringify({ second_currency: null }), p.saved)
-      await go(p, '/monitoring/costs')
+      await go(p, SPEND)
       const eurBack = await p.waitForFunction(() => (document.querySelector('[data-test=costs-second-head]') || {}).textContent?.trim() === 'EUR (day rate)', { timeout: 15000 }).then(() => true, () => false)
       ok('setting: the column is back to EUR', eurBack, await text(p, '[data-test=costs-second-head]'))
       if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-costs-second-${size.width}.png`, fullPage: true })
@@ -493,7 +563,7 @@ try {
     /* a part with no rate: the dash and a title saying so, never a guess; the total too */
     {
       const { ctx, p } = await costsPage(browser, server.base, size, { scenario: 'norate' })
-      await open(p, server.base, '/monitoring/costs')
+      await open(p, server.base, SPEND)
       ok('norate: the table renders', await waitFor(p, '[data-test=costs-table]'))
       const cells = await titles(p, '[data-test=costs-second]')
       const inv = cells.find((c) => c.src === 'hand') || {}
@@ -508,7 +578,7 @@ try {
     /* today's prd: counts only, no GCP rows */
     {
       const { ctx, p } = await costsPage(browser, server.base, size, { scenario: 'empty' })
-      await open(p, server.base, '/monitoring/costs')
+      await open(p, server.base, SPEND)
       ok('empty: the table renders', await waitFor(p, '[data-test=costs-table]'))
       ok('empty: no pie, its note instead', (await count(p, '[data-test=costs-pie-svg]')) === 0 && await waitFor(p, '[data-test=costs-no-pie]'))
       const empties = await p.$$eval('[data-test=costs-empty-source]', (els) => els.map((e) => e.textContent.trim()))
@@ -520,11 +590,12 @@ try {
     /* a member without costs.read: no tab, and the direct URL is the 403 state */
     {
       const { ctx, p } = await costsPage(browser, server.base, size, { me: { role: 'developer', permissions: ['members.invite'] } })
-      await open(p, server.base, '/monitoring/agents')
-      await p.waitForFunction(() => document.querySelectorAll('[data-test^=monitoring-tab-]').length >= 2, { timeout: 15000 }).catch(() => null)
-      const tabs = await tabIds(p)
-      ok('without costs.read: no Costs tab', tabs.length >= 2 && !tabs.includes('costs'), tabs)
-      await open(p, server.base, '/monitoring/costs')
+      await open(p, server.base, '/reporting/releases')
+      await p.waitForFunction(() => document.querySelectorAll('[data-test^=reporting-tab-]').length >= 1, { timeout: 15000 }).catch(() => null)
+      await new Promise((r) => setTimeout(r, 500))
+      const tabs = await reportingTabIds(p)
+      ok('without costs.read: no Reporting Costs tab', tabs.length >= 1 && !tabs.includes('costs'), tabs)
+      await open(p, server.base, SPEND)
       ok('without costs.read: the direct URL shows the 403 state', await waitFor(p, '[data-test=costs-forbidden]'))
       const why = await text(p, '[data-test=costs-forbidden]')
       ok('the 403 state names costs.read', why.includes('costs.read'), why)
@@ -535,7 +606,7 @@ try {
     /* spec 140 (SPL-2322): an operator admin, the busy mock fleet */
     {
       const { ctx, p } = await costsPage(browser, server.base, size, { operator: true })
-      await open(p, server.base, '/monitoring/costs')
+      await open(p, server.base, SPEND)
       ok('tokens: the Costs page carries the Tokens card for an operator admin', await waitFor(p, '[data-test=costs-tokens-card]'))
       const card = await text(p, '[data-test=costs-tokens-card-body]')
       ok('tokens: the card says today\'s fleet tokens and cost', card === '19.35M tokens used · $42.15', card)
@@ -621,7 +692,7 @@ try {
     /* CONTROL: not an operator admin: no card, no tab, the direct URL is the 403 sentence */
     {
       const { ctx, p } = await costsPage(browser, server.base, size)
-      await open(p, server.base, '/monitoring/costs')
+      await open(p, server.base, SPEND)
       await waitFor(p, '[data-test=costs-table]')
       ok('tokens control: no Tokens card on Costs', (await count(p, '[data-test=costs-tokens-card]')) === 0)
       ok('tokens control: no Tokens tab', !(await tabIds(p)).includes('tokens'), await tabIds(p))
@@ -635,9 +706,9 @@ try {
     /* CONTROL: the same opt-in me holding costs.read gets the tab */
     {
       const { ctx, p } = await costsPage(browser, server.base, size, { me: { role: 'biz_owner', permissions: ['costs.read'] } })
-      await open(p, server.base, '/monitoring/agents')
-      const shown = await waitFor(p, '[data-test=monitoring-tab-costs]')
-      ok('with costs.read: the Costs tab shows', shown, await tabIds(p))
+      await open(p, server.base, '/reporting/releases')
+      const shown = await waitFor(p, '[data-test=reporting-tab-costs]')
+      ok('with costs.read: the Reporting Costs tab shows', shown, await reportingTabIds(p))
       await ctx.close()
     }
   }

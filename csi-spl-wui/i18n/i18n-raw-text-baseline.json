@@ -8,7 +8,7 @@
   "src/pages/goals/[id].vue": 1,
   "src/pages/lobby.vue": 1,
   "src/pages/login.vue": 1,
-  "src/pages/monitoring/costs/index.vue": 2,
   "src/pages/public-calendar.vue": 1,
+  "src/pages/reporting/costs/spend.vue": 2,
   "src/pages/search.vue": 2
 }

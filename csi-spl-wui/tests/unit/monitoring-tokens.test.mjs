@@ -217,7 +217,7 @@ describe('monitoring tokens: the mock and the wiring', () => {
     const page = read('src/pages/monitoring/tokens/index.vue')
     assert.match(page, /visibilityState|tokensShouldPoll/, 'the poll is visibility-guarded')
     assert.match(page, /TOKENS_POLL_MS/)
-    const costs = read('src/pages/monitoring/costs/index.vue')
+    const costs = read('src/pages/reporting/costs/spend.vue')
     assert.match(costs, /defineAsyncComponent\(\(\) => import\('@\/components\/monitoring\/token-burn\/TokensCostsCard\.vue'\)\)/, 'the costs card is its own chunk')
     assert.match(costs, /v-if="operator\.visible"/, 'the costs card is for operator admins only')
     assert.match(read('src/utils/spool-client-lazy.mjs'), /live\('\/v1\/operator\/fleet-tokens' \+ mt\.tokensQuery\(window\)\)/)

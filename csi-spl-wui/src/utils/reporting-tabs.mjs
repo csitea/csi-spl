@@ -17,9 +17,11 @@ export const REPORTING_TABS = Object.freeze([
   Object.freeze({ id: 'releases', path: '/reporting/releases', labelKey: 'reporting.tab.releases', adminOnly: false, operatorsOnly: false, ready: true }),
   /* spec 143 3: workspace admins only; its page landed with T033 (SPL-2789) */
   Object.freeze({ id: 'sql', path: '/reporting/sql', labelKey: 'reporting.tab.sql', adminOnly: true, operatorsOnly: false, ready: true }),
-  /* spec 143 5.1, owner HUM-10 (t1 af25a1f3, msg a8bfcdd0): operator admins
-     only; a workspace admin never sees it */
-  Object.freeze({ id: 'tokens', path: '/reporting/tokens', labelKey: 'reporting.tab.tokens', adminOnly: false, operatorsOnly: true, ready: false }),
+  /* spec 143 costs-redesign.md 3.2, slice S1 (SPL-3798, owner HUM-10, t1
+     1be0e370, msg 3f1c7128, answer 6 A): Costs replaces the reserved Tokens
+     tab, four pages under /reporting/costs (utils/reporting-costs.mjs), for
+     a member holding costs.read (biz_owner, admin) */
+  Object.freeze({ id: 'costs', path: '/reporting/costs', labelKey: 'reporting.tab.costs', adminOnly: false, operatorsOnly: false, perm: 'costs.read', ready: true }),
   Object.freeze({ id: 'issues', path: '/reporting/issues', labelKey: 'reporting.tab.issues', adminOnly: false, operatorsOnly: false, ready: false }),
   Object.freeze({ id: 'posts', path: '/reporting/posts', labelKey: 'reporting.tab.posts', adminOnly: false, operatorsOnly: false, ready: false }),
   /* spec 143 tasks T053: the fleet's lanes, operator admins only */

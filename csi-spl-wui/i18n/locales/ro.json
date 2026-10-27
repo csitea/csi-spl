@@ -3251,18 +3251,27 @@
     "tab": {
       "releases": "Versiuni",
       "sql": "SQL",
-      "tokens": "Tokeni",
+      "costs": "Costuri",
       "issues": "Probleme",
       "posts": "Postări",
       "lanes": "Linii"
     },
     "future": {
-      "tokens": "Raportul tokenilor vine în curând.",
       "issues": "Raportul problemelor vine în curând.",
       "posts": "Raportul postărilor vine în curând.",
       "lanes": "Raportul liniilor vine în curând.",
-      "operators_only": "Acest raport este doar pentru administratorii operatorului.",
-      "tokens_link": "Vezi consumul de tokeni al flotei în Monitorizare"
+      "operators_only": "Acest raport este doar pentru administratorii operatorului."
+    },
+    "costs": {
+      "pages_label": "Paginile de costuri",
+      "currency": "Monedă",
+      "coming": "Această pagină vine într-un pas ulterior.",
+      "page": {
+        "spend": "Cheltuieli",
+        "tokens": "Tokeni",
+        "price": "Preț pe token",
+        "paid": "Elemente plătite"
+      }
     },
     "releases": {
       "soon": "Raportul versiunilor vine în curând.",

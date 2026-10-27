@@ -3251,18 +3251,27 @@
     "tab": {
       "releases": "Releases",
       "sql": "SQL",
-      "tokens": "Tokens",
+      "costs": "Costs",
       "issues": "Issues",
       "posts": "Posts",
       "lanes": "Lanes"
     },
     "future": {
-      "tokens": "The Tokens report is coming soon.",
       "issues": "The Issues report is coming soon.",
       "posts": "The Posts report is coming soon.",
       "lanes": "The Lanes report is coming soon.",
-      "operators_only": "This report is for operator admins only.",
-      "tokens_link": "See the fleet's token use under Monitoring"
+      "operators_only": "This report is for operator admins only."
+    },
+    "costs": {
+      "pages_label": "Costs pages",
+      "currency": "Currency",
+      "coming": "This page is coming in a later step.",
+      "page": {
+        "spend": "Spend",
+        "tokens": "Tokens",
+        "price": "Price per token",
+        "paid": "Paid items"
+      }
     },
     "releases": {
       "soon": "The Releases report is coming soon.",

@@ -72,6 +72,18 @@ export function filterAgentsContains(rows: readonly { id?: string, box?: string 
   return out
 }
 
+const INVITE_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/**
+ * spec 025 section 11: typed text the people picker offers to add by
+ * address (a person who has not joined the workspace yet), lower-cased; ''
+ * when it is not an address.
+ */
+export function inviteEmail(text: unknown): string {
+  const t = String(text || '').trim().toLowerCase()
+  return t.length <= 320 && INVITE_EMAIL_RE.test(t) ? t : ''
+}
+
 /** Hub error token (`not_a_member`, `channel_public`, `forbidden`, `unknown_channel`). */
 export function inviteErrorToken(err: unknown): string {
   if (err && typeof err === 'object' && (err as { token?: unknown }).token) return String((err as { token?: unknown }).token)

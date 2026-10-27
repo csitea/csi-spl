@@ -25,6 +25,8 @@ const CHANNEL = 'spl-1233-people'
 // The mock roster (src/utils/mock-data.mjs): HUM-1 is the viewer/creator; the
 // others are tenant members a fresh channel can invite.
 const INVITEE = 'HUM-2'
+// spec 025 section 11: an address nobody in the mock workspace holds.
+const NEWCOMER = 'newcomer@example.com'
 
 const results = []
 const ok = (name, pass, ev) => {
@@ -159,6 +161,29 @@ try {
     const joined = Boolean(await page.waitForSelector(`[data-testid=channel-member-remove-${INVITEE}]`, { timeout: 10000 }).catch(() => null))
     const err = await page.$eval('[data-testid=channel-invite-error]', (e) => e.textContent.trim()).catch(() => '')
     ok(`${INVITEE} becomes a member after Add`, joined, { err })
+  }
+
+  /* spec 025 section 11 (SPL-3686, owner t1 b602f8b4): a person who has not
+     joined the workspace is added by typing their address. The picker offers
+     "Invite <address>", Add puts it in the list as invited, and the minus
+     takes the pending add back. Pre-fix the typed address matched nothing
+     ("No matches") and there was no way to add it. */
+  const row = `[data-testid="channel-invited-${NEWCOMER}"]`
+  await page.click('[data-testid=channel-people-search]', { clickCount: 3 }).catch(() => {})
+  await page.type('[data-testid=channel-people-search]', NEWCOMER)
+  const offered = Boolean(await page.waitForSelector('[data-testid=channel-invite-pick-email]', { timeout: 5000 }).catch(() => null))
+  ok('a typed address is offered as "Invite <address>"', offered)
+  if (offered) {
+    await page.click('[data-testid=channel-invite-pick-email]')
+    await sleep(200)
+    await page.click('[data-testid=channel-people-add]')
+    const listed = Boolean(await page.waitForSelector(row, { timeout: 10000 }).catch(() => null))
+    const text = listed ? await page.$eval(row, (e) => e.textContent.replace(/\s+/g, ' ').trim()) : ''
+    const err = await page.$eval('[data-testid=channel-invite-error]', (e) => e.textContent.trim()).catch(() => '')
+    ok('the address is listed as invited after Add', listed && text.includes(NEWCOMER) && /invited/.test(text), { text, err })
+    await page.click(`[data-testid="channel-invited-remove-${NEWCOMER}"]`).catch(() => {})
+    const gone = await page.waitForSelector(row, { hidden: true, timeout: 10000 }).then(() => true).catch(() => false)
+    ok('the minus takes the pending add back', gone)
   }
   await page.close()
 } finally {

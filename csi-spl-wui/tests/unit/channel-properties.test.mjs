@@ -252,7 +252,11 @@ describe('the Properties dialog', () => {
         assert.equal(p.people_tab, 'People', f)
         assert.equal(p.agents_tab, 'Agents', f)
         assert.equal(p.agents_none, 'No agents', f)
-        assert.equal(p.invite_empty, 'They have to be a member of the workspace first.', f)
+        // spec 025 section 11 (SPL-3686): a person who has not joined can be added by address
+        assert.equal(p.invite_empty, 'Type an email address to add someone who has not joined the workspace yet.', f)
+        assert.equal(p.invite_email, 'Invite {email}', f)
+        assert.equal(p.invited, 'invited', f)
+        assert.equal(p.remove_invited, 'Remove the invite of {email}', f)
         assert.equal(p.invite, 'Invite', f)
         assert.equal(p.invite_person, 'Invite a person', f)
         assert.equal(p.invite_agent, 'Invite an agent', f)
@@ -289,6 +293,10 @@ describe('the Properties dialog', () => {
         assert.ok(p.agents_none.length > 0, f)
         assert.equal(typeof p.invite_empty, 'string', f)
         assert.ok(p.invite_empty.length > 0, f)
+        for (const k of ['invite_email', 'invited', 'invited_hint', 'remove_invited']) {
+          assert.ok(typeof p[k] === 'string' && p[k].length > 0, `${f} ${k}`)
+        }
+        assert.ok(p.invite_email.includes('{email}') && p.remove_invited.includes('{email}'), f)
         assert.equal(typeof p.invite, 'string', f)
         assert.ok(p.invite.length > 0, f)
         assert.equal(typeof p.invite_person, 'string', f)
@@ -408,7 +416,7 @@ describe('every people and agent list is vertical, one avatar per row', () => {
 
   it('each row of every list and every dropdown option starts with its own SpoolAvatar', () => {
     const rows = template.match(/<li\s[^>]*v-for="[^"]*"[^>]*>\s*<SpoolAvatar\s/g) || []
-    assert.equal(rows.length, 4, 'default people, members, agents, Agents tab')
+    assert.equal(rows.length, 5, 'default people, members, invited addresses (spec 025 section 11), agents, Agents tab')
     const bare = (template.match(/<li\s[^>]*v-for="[^"]*"[^>]*>\s*<(?!SpoolAvatar\s)/g) || [])
     assert.deepEqual(bare, [])
     const options = template.match(/data-testid="'channel-(invite-pick|agent-invite)-' \+ (id|row\.id)"\s*><SpoolAvatar\s/g) || []

@@ -101,6 +101,13 @@
                       v-slot="{ active, selected }"
                     >
                       <li
+                        v-if="inviteEmail(id)"
+                        class="invite-add__option"
+                        :class="{ 'is-active': active, 'is-selected': selected }"
+                        data-testid="channel-invite-pick-email"
+                      >{{ t('channels.properties.invite_email', { email: id }) }}</li>
+                      <li
+                        v-else
                         class="invite-add__option"
                         :class="{ 'is-active': active, 'is-selected': selected }"
                         :data-testid="'channel-invite-pick-' + id"
@@ -129,6 +136,21 @@
                   :title="id"
                   :disabled="busy || (!canAdd && id !== selfId)"
                   @click="removePerson(id)"
+                >
+                  <UiIcon name="minus" :size="16" />
+                </button>
+              </li>
+              <li v-for="email in localInvited" :key="email" :data-testid="'channel-invited-' + email">
+                <SpoolAvatar :id="email" :box="HUMAN_BOX" :size="22" />
+                <span class="member-rows__name">{{ email }}</span>
+                <span class="muted" :title="t('channels.properties.invited_hint')">{{ t('channels.properties.invited') }}</span>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  :data-testid="'channel-invited-remove-' + email"
+                  :aria-label="t('channels.properties.remove_invited', { email })"
+                  :disabled="busy || !canAdd"
+                  @click="removePerson(email)"
                 >
                   <UiIcon name="minus" :size="16" />
                 </button>
@@ -329,6 +351,7 @@ import {
   defaultChannelRows,
   filterAgentsContains,
   filterPeopleContains,
+  inviteEmail,
   inviteErrorToken,
   viewerHumanId,
 } from '~/utils/channel-members'
@@ -378,6 +401,8 @@ const openInvite = ref(false)
 // SPL-1684: the members answer carries ai_agents_off only when it is off.
 const aiAgentsOn = ref(true)
 const localMembers = ref<string[]>([])
+// spec 025 section 11: addresses added before they joined the workspace
+const localInvited = ref<string[]>([])
 const rosterIds = ref<string[]>([])
 const rosterBag = ref<Record<string, string[]>>({})
 const createdByLive = ref('')
@@ -436,7 +461,13 @@ const canAdd = computed(() => canAddChannelMember({
   membersOpenInvite: openInvite.value,
 }))
 const candidates = computed(() => channelInviteCandidates(rosterIds.value, localMembers.value))
-const peopleChoices = computed(() => filterPeopleContains(candidates.value, personQuery.value, people.names.value))
+const peopleChoices = computed(() => {
+  const found = filterPeopleContains(candidates.value, personQuery.value, people.names.value)
+  // spec 025 section 11: a typed address is offered too, for a person who
+  // has not joined the workspace yet (pending until they accept the invite)
+  const email = inviteEmail(personQuery.value)
+  return email && !localInvited.value.includes(email) ? [...found, email] : found
+})
 const agentRows = computed(() => channelAgentRows(agents.value))
 // SPL-997: who gets a post here when no member agent is online (FR-035).
 const fallback = ref<ReturnType<typeof channelFallbackLine>>(null)
@@ -449,7 +480,7 @@ const { agentLabel, onAgentQuery, onChooseAgent, addChosenAgent, removeAgent } =
   api, channelId: () => props.channelId, busy, canAdd, error, agents, chosenAgent, agentQuery, fallback,
 })
 const { personLabel, onPersonQuery, onChoosePerson, addChosen, removePerson } = useChannelPersonPick({
-  api, props, people, busy, canAdd, error, selfId, localMembers, chosenPerson, personQuery,
+  api, props, people, busy, canAdd, error, selfId, localMembers, localInvited, chosenPerson, personQuery,
 })
 
 function rosterOf(data: unknown): Record<string, string[]> | undefined {
@@ -476,6 +507,7 @@ watch(() => props.open, async (isOpen) => {
   openInvite.value = false
   aiAgentsOn.value = true
   localMembers.value = []
+  localInvited.value = []
   rosterIds.value = []
   rosterBag.value = {}
   createdByLive.value = ''
@@ -489,7 +521,7 @@ watch(() => props.open, async (isOpen) => {
     const [mem, ros] = await Promise.all([
       withSessionRetry(api, () => api.listChannelMembers(props.channelId)),
       withSessionRetry(api, () => api.listRoster()),
-    ]) as [{ default?: boolean, members?: string[], members_open_invite?: boolean, ai_agents_off?: boolean, created_by?: string, agents?: { id: string, box: string, online?: boolean, seated?: boolean }[], fallback?: unknown }, unknown]
+    ]) as [{ default?: boolean, members?: string[], members_open_invite?: boolean, ai_agents_off?: boolean, created_by?: string, invited?: string[], agents?: { id: string, box: string, online?: boolean, seated?: boolean }[], fallback?: unknown }, unknown]
     if (my !== ticket) return
     fallback.value = channelFallbackLine(mem.fallback)
     aiAgentsOn.value = mem.ai_agents_off !== true
@@ -504,6 +536,7 @@ watch(() => props.open, async (isOpen) => {
       return
     }
     localMembers.value = Array.isArray(mem.members) ? mem.members.map((id) => String(id)) : []
+    localInvited.value = Array.isArray(mem.invited) ? mem.invited.map((e) => String(e)) : []
     openInvite.value = mem.members_open_invite === true
     createdByLive.value = String(mem.created_by || '')
     agents.value = Array.isArray(mem.agents) ? mem.agents : []

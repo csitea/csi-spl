@@ -97,6 +97,7 @@ const LAZY_METHODS = [
   'createChannel',
   'listChannelMembers',
   'addChannelMember',
+  'addChannelInvitee',
   'addChannelAgent',
   'removeChannelMember',
   'removeChannelAgent',

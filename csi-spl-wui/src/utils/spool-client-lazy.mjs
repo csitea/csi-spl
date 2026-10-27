@@ -72,6 +72,8 @@ function parseMemberList(data, channel) {
     created_by: String((data && data.created_by) || ''),
     agents,
     responders,
+    // spec 025 section 11: addresses added before they joined the workspace
+    invited: Array.isArray(data && data.invited) ? data.invited.map((e) => String(e)).filter(Boolean) : [],
     ...(data && data.ai_agents_off === true ? { ai_agents_off: true } : {}), // SPL-1684
   }
 }
@@ -108,8 +110,16 @@ function mockMemberList(ctx, channel) {
     members_open_invite: state.openInvite[id] === true,
     created_by: String((row && row.created_by) || ''),
     agents: (state.agentMembers[id] || []).slice(),
+    invited: mockInvited(state, id).slice(),
     ...mockAIAgentsOff(state, id),
   }
+}
+
+/** spec 025 section 11: the mock's pending addresses of one channel. */
+function mockInvited(state, id) {
+  state.channelInvites ||= Object.create(null)
+  state.channelInvites[id] ||= []
+  return state.channelInvites[id]
 }
 
 /**
@@ -155,6 +165,30 @@ function mockAddMember(ctx, channel, humanId) {
   return { channel: id, human_id: hid, added_by: state.me.id }
 }
 
+/**
+ * spec 025 section 11: an address, not a HUM id. The mock has no workspace
+ * invites, so every well-formed address becomes a pending row.
+ */
+function mockAddInvitee(ctx, channel, email) {
+  const { state } = ctx
+  const id = normalizeChannelId(channel)
+  const addr = String(email || '').trim().toLowerCase()
+  if (!addr.includes('@')) throw memberError(400, 'bad_email', 'email must be an address')
+  const row = state.channels.find((c) => c.channel_id === id)
+  if (!row) throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
+  if (isPublicChannel(id)) {
+    throw memberError(409, 'channel_public', `#${id} is a default channel: every member of the tenant already reads it`)
+  }
+  const members = state.memberships[id]
+  if (!members || !members.includes(state.me.id)) {
+    throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
+  }
+  if (!mockMayInvite(ctx, row)) throw memberError(403, 'forbidden', 'forbidden')
+  const invited = mockInvited(state, id)
+  if (!invited.includes(addr)) invited.push(addr)
+  return { channel: id, email: addr, pending: true, invite: 'created', added_by: state.me.id }
+}
+
 function mockAddAgent(ctx, channel, agentId, box) {
   const { state } = ctx
   const id = normalizeChannelId(channel)
@@ -192,6 +226,12 @@ function mockRemoveMember(ctx, channel, humanId) {
     throw memberError(404, 'unknown_channel', `no channel ${channel} in this tenant`)
   }
   if (hid !== state.me.id && !mockMayInvite(ctx, row)) throw memberError(403, 'forbidden', 'forbidden')
+  if (hid.includes('@')) { // a pending address (spec 025 section 11)
+    const invited = mockInvited(state, id)
+    if (!invited.includes(hid)) throw memberError(404, 'not_found', `no pending invite for that address in #${id}`)
+    state.channelInvites[id] = invited.filter((e) => e !== hid)
+    return null
+  }
   state.memberships[id] = members.filter((m) => m !== hid)
   return null
 }
@@ -1269,6 +1309,24 @@ async function addChannelMember(ctx, channel, humanId) {
 }
 
 /**
+ * spec 025 section 11: POST `{email}`. A member's address is the plain add
+ * (201 `{human_id}`); any other address is a pending row tied to the
+ * person's workspace invite (201 `{email, pending: true, invite}`), made
+ * first when the caller holds members.invite.
+ */
+async function addChannelInvitee(ctx, channel, email) {
+  const { live, mock } = ctx
+  const addr = String(email || '').trim()
+  if (mock) return mockAddInvitee(ctx, channel, addr)
+  const data = await live(`/v1/channels/${encodeURIComponent(String(channel || ''))}/members`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: addr }),
+  })
+  return data || { channel: String(channel || ''), email: addr, pending: true }
+}
+
+/**
  * Invite one announced agent into the channel. The row survives the
  * box's next announce. 201 {channel, id, box}.
  */
@@ -1976,6 +2034,7 @@ export const lazySpoolMethods = {
   createChannel,
   listChannelMembers,
   addChannelMember,
+  addChannelInvitee,
   addChannelAgent,
   removeChannelMember,
   removeChannelAgent,

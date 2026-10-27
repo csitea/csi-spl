@@ -235,4 +235,25 @@ the owner OKs the scan before anything is changed, and the change then goes
 through the hub's own edit paths (a message edit keeps its revision), never
 raw SQL. Test: `csi-spl-orc/src/bash/tests/spl-issue-ref-scan.tst.sh`.
 
-<!-- version: 0.9.0 · updated: 2026-10-26 · last-edit: 2026-10-26T13:00:00Z -->
+### The writer (SPL-3821)
+
+After the owner's OK (csitea topic 26a21b5a, msg 642a2179: rewrite the
+plan, leave the ambiguous ones),
+`ENV=prd TENANT_ID=csitea SCAN_PLAN=<plan> ./run -a do_spl_issue_ref_rewrite`
+re-reads each planned field's current text (READ ONLY), re-checks every key
+at its offset, prints before/after per key and routes the field
+(`csi-spl-orc/src/bash/scripts/issue-ref-rewrite.py`):
+
+| route | the field | with DRY_RUN=0 |
+|---|---|---|
+| edit | a message this host's desk box sent | `do_spl_desk_edit` as its author; the hub keeps the old body as a revision |
+| issue | an issue title or description | `do_spl_issue_update` as `ISSUE_AGENT`, only when it is set |
+| other-box | a message another live desk box sent | nothing: run the action on that box |
+| human | a message typed in the WUI (`box-wui`) | nothing: its author, the owner or an admin edits it in the WUI |
+| no-pin | a message from a box whose pin is revoked | nothing: no box can re-sign it |
+| done / stale / gone | already new / changed since the scan / deleted | skipped; scan again for stale |
+
+Only the planned keys change; every other byte stays. Dry run unless
+`DRY_RUN=0`. Test: `csi-spl-orc/src/bash/tests/spl-issue-ref-rewrite.tst.sh`.
+
+<!-- version: 0.10.0 · updated: 2026-10-27 · last-edit: 2026-10-27T11:00:00Z -->

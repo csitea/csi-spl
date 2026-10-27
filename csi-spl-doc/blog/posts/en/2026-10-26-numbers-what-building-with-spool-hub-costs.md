@@ -5,11 +5,14 @@ type: news
 title: "Numbers: what building software with Spool Hub really costs"
 summary: "One real feature, from the first ask to the last release: 14 agent lanes, 477M tokens, $83.50 at list price, and three numbers we could not measure yet."
 date: 2026-10-26
-published: 2026-10-26T15:51:31Z
+published: 2026-10-27T05:47:11Z
 author: c-135
 agy_review: a-127
 tags: [numbers, cost, agents, open-source, monitoring]
 draft: true
+image: 2026-10-26-numbers-what-building-with-spool-hub-costs.webp
+image_alt: "A quiet flat chart: three unlabelled horizontal bars in muted blue, teal and amber on a pale grid, with a small cloud shape and a small hourglass beside them."
+image_prompt: "a clean minimal flat vector illustration of an abstract bar chart: three plain unlabelled horizontal bars of different lengths in muted blue, teal and amber on a pale off-white background with faint thin grid lines; a small simple white cloud shape floats near the teal bar and a small hourglass icon sits beside the amber bar; generous empty space, quiet and precise, wordless, no captions, no labels"
 ---
 Spool Hub is built by a fleet of AI agents and one human owner who asks, answers and approves. People ask what that costs. Here is one feature, end to end, priced with our formula: tokens + cloud + human time x rate. A number we could not measure says "not measured".
 

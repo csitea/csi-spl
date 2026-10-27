@@ -6,8 +6,9 @@ The owner's GO and answers (section 7.1): Q1 A, Q2 A, Q3 A, Q4 GO (HUM-10,
 msg 44ec2e44 on the v0.3 poll), then all A again on the v0.1 poll (msg
 5c6686f2, 2026-10-27), whose Q1 A is the desk log the deny list refuses
 (7.1). Row B1 is built (SPL-3820, section 5.1), its cron row off by cnf
-until it is switched on; B2 and B3 are built (SPL-3888, sections 5.2 and
-5.3); B4..B7 are being built by the same lane, row by row.
+until it is switched on; B2, B3 and the hub half of B4 are built
+(SPL-3888, sections 5.2 to 5.4); B4's WUI half and B5..B7 are being built
+by the same lane, row by row.
 
 Source: the owner's asks in the owner's customer workspace (section 1); the
 discussion moved to the operator workspace topic
@@ -668,6 +669,44 @@ Monitoring help page and B4 the syntax to the search help
   member session, which is what a box has on a view route; a box's own
   socket session asking a read route is not exercised. Red control for
   C27: with the clone check taken out, the clone reads all three paths 200.
+
+### 5.4 Row B4 as built, the hub half (SPL-3888)
+
+- Grammar 1.5 (`search/grammar.go`, `search/values.go`): the type
+  `file_line` (group `file_lines`, alias `file_lines`), in `Types` and not
+  in `DefaultTypes`. `in:file-streams` and `in:file-stream` (and the same
+  after `channel:`), with no `#`, set `Term.FileStreams`, so the term
+  applies to `file_line` only. Any other `in:` value applies to message,
+  topic and file as before, and `in:#file-streams` is the channel. A
+  negated `in:file-streams` is `400` (it picks the section, as `type:`
+  does). `box:`, `name:` (the stream key) and `before:` / `after:` / `on:`
+  apply to `file_line`; `from:`, `to:`, `topic:`, `is:` and `has:` do not.
+- `store/search_file_lines_postgres.go`: `FileLineSearcher.SearchFileLines`,
+  one statement in the tenant scope under the search budget. It joins
+  `file_streams` with both tables pinned to the tenant, matches free text
+  with `to_tsvector('spool_search', l.text)` and orders newest first, keyset
+  `(at, stream_id, seq)`. The hub's own marker lines are never a hit.
+  Postgres only, as the doc section: a hub on the memory store answers the
+  section empty.
+- **No index entry for the lines.** Every `in:file-streams` search computes
+  the entry of every line it reads, up to the 500 000-line cap per
+  workspace (3.7), under the same search budget as any search: past it the
+  answer is `503 search_budget`. Row B7 measures it on dev; a stored
+  `search_tsv` column (as rdb 0227 did for docs) is the fix if the
+  measure says so.
+- `hub/search.go`: `fileLineSection` runs `fileStreamsStaffRefusal`, the
+  read routes' gate (`hub/file_streams_view.go`). A refused caller gets the
+  section `[]` and the notice `file_streams_staff_only`. Every answer
+  carries `notices` (`[]` when empty). Contract: search-v1 sections 3.1,
+  3.2, 4 and 4.11; `openapi.json` names the field.
+- Tests: `search/golden_test.go` (C14's four spellings, the reserved word,
+  applicability, the negation), `hub/search_file_lines_test.go`: C16 on
+  any store; C14, C15 and C17 on Postgres. Red control for C16 (Postgres):
+  with the gate taken out of `fileLineSection`, the member's
+  `in:file-streams` returns W's two lines and no notice.
+- Not in this half: the WUI (`search.mjs` values, the help rows, the result
+  row that opens the tab, the notice's text), which goes with its own
+  locale keys and their agy review.
 
 ## 6. Decisions (this draft; the reviewer may challenge each)
 

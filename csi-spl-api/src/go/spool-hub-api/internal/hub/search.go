@@ -100,7 +100,13 @@ type hl struct {
 type section struct {
 	Results []any   `json:"results"`
 	Next    *string `json:"next"`
+	// notice: a stable code for the answer's notices (spec 160 3.6), never sent in the group
+	notice string
 }
+
+// noticeFileStreamsStaffOnly: in:file-streams by a caller who may not read
+// the file streams; the section is empty and the search still answers.
+const noticeFileStreamsStaffOnly = "file_streams_staff_only"
 
 // searchReader is who is asking: the member HUM-* (also the DM filter), or
 // "" with the door off. ok=false fails closed: it returned ""
@@ -157,7 +163,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, t store.Te
 	base := store.SearchQuery{Q: q, Now: now, Viewer: reader, ViewerChannels: mine, Lobby: s.o.LobbyTaskID, // specs/041
 		Limit: limit + 1, Budget: s.o.SearchBudget, Relevance: sortBy == "relevance", ScanOnly: searchIndexOff(),
 		HideRelay: !q.Relay} // agent-to-agent mail only when asked (t1 c9beaa77)
-	groups, names, err := s.searchSections(ctx, t, q, base, types, cur, hash, limit)
+	groups, names, notices, err := s.searchSections(ctx, t, q, base, types, cur, hash, limit)
 	if errors.Is(err, store.ErrSearchBudget) {
 		writeErr(w, http.StatusServiceUnavailable, "search_budget", "the search ran past its time budget; narrow the query")
 		return
@@ -171,7 +177,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, t store.Te
 		warnings = []search.Warning{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"query": raw, "sort": sortBy, "types": names,
-		"warnings": warnings, "groups": groups})
+		"warnings": warnings, "notices": notices, "groups": groups})
 }
 
 // allowSearch applies the per-reader (or, without one, per-IP) search rate;
@@ -225,16 +231,18 @@ func searchLimit(r *http.Request, sections int) int {
 // searchSections runs each section in order; a section past the time budget
 // is store.ErrSearchBudget.
 func (s *Server) searchSections(ctx context.Context, t store.Tenant, q *search.Query, base store.SearchQuery,
-	types []search.Type, cur *searchCursor, hash string, limit int) (map[string]section, []string, error) {
+	types []search.Type, cur *searchCursor, hash string, limit int) (map[string]section, []string, []string, error) {
 	groups := map[string]section{}
 	names := []string{}
+	// notices is always present (spec 160 3.6): stable codes, never free text
+	notices := []string{}
 	mod, err := s.moderation(ctx, t.ID, base.Viewer) // specs/077 T016
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	lv, err := s.lockViewFor(ctx, t.ID, base.Viewer) // the box owner lock (path 4, row B5)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	for _, ty := range types {
 		sq := base
@@ -245,20 +253,23 @@ func (s *Server) searchSections(ctx context.Context, t store.Tenant, q *search.Q
 		}
 		sec, err := s.searchSection(ctx, t, q, sq, c, limit)
 		if errors.Is(err, store.ErrSearchBudget) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return nil, nil, store.ErrSearchBudget
+			return nil, nil, nil, store.ErrSearchBudget
 		}
 		if err != nil {
 			s.o.Log.Error().Err(err).Str("tenant", t.ID).Str("type", string(ty)).Msg("search failed")
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		sec.Results = mod.keepResults(sec.Results)
 		if sec.Results, err = s.lockKeepResults(ctx, t.ID, base.Viewer, lv, sec.Results); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
+		}
+		if sec.notice != "" {
+			notices = append(notices, sec.notice)
 		}
 		groups[ty.Group()] = sec
 		names = append(names, string(ty))
 	}
-	return groups, names, nil
+	return groups, names, notices, nil
 }
 
 func strPtr(s string) *string {
@@ -286,6 +297,8 @@ func (s *Server) searchSection(ctx context.Context, t store.Tenant, q *search.Qu
 		return fileSection(ctx, se, t.ID, q, sq, c, limit)
 	case search.TypeDoc:
 		return s.docSection(ctx, t.ID, q, sq, c, limit)
+	case search.TypeFileLine:
+		return s.fileLineSection(ctx, t.ID, q, sq, c, limit)
 	}
 	out := section{Results: []any{}}
 	rows, err := s.searchEntities(ctx, t.ID, q, c.T, sq)
@@ -408,6 +421,39 @@ func (s *Server) docSection(ctx context.Context, tenant string, q *search.Query,
 			"doc_title": hl{d.DocTitle, q.HighlightWords(d.DocTitle)},
 			"title":     hl{title, q.HighlightWords(title)},
 			"snippet":   hl{text, hs}, "updated_at": rfc(d.UpdatedAt)})
+	}
+	return out, nil
+}
+
+// fileLineSection is the workspace's box file stream lines (spec 160 3.6, row
+// B4), newest first, paged by the last row's (at, stream id, seq). Only for a
+// reader who passes the read routes' gate (the owner or an admin, a member
+// session, not an act-as clone; fileStreamsStaffRefusal): anyone else gets
+// the section empty and the notice file_streams_staff_only, never a 403.
+func (s *Server) fileLineSection(ctx context.Context, tenant string, q *search.Query, sq store.SearchQuery, c searchCursor, limit int) (section, error) {
+	out := section{Results: []any{}}
+	if s.fileStreamsStaffRefusal(ctx, tenant, sq.Viewer) != "" {
+		out.notice = noticeFileStreamsStaffOnly
+		return out, nil
+	}
+	fs, ok := s.o.Store.(store.FileLineSearcher)
+	if !ok {
+		return out, nil
+	}
+	rows, err := fs.SearchFileLines(ctx, tenant, sq)
+	if err != nil {
+		return out, err
+	}
+	if len(rows) > limit {
+		rows = rows[:limit]
+		last := rows[limit-1]
+		out.Next = searchCursor{T: c.T, H: c.H, At: last.At, ID: last.StreamID, Idx: int(last.Seq)}.enc()
+	}
+	for _, l := range rows {
+		text, hs := q.Snippet(l.Text)
+		out.Results = append(out.Results, map[string]any{
+			"stream_id": l.StreamID, "box_id": l.BoxID, "stream_key": l.StreamKey, "seq": l.Seq,
+			"at": rfc(l.At), "text": text, "highlights": hs})
 	}
 	return out, nil
 }

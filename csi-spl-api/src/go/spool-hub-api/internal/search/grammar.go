@@ -15,8 +15,9 @@ import (
 )
 
 // Version is the grammar version published by the operators endpoint. 1.4
-// (SPL-3337): type:doc, the Qto documents.
-const Version = "1.4"
+// (SPL-3337): type:doc, the Qto documents. 1.5 (spec 160 3.6, SPL-3888):
+// type:file_line and in:file-streams, the box file stream lines.
+const Version = "1.5"
 
 // Limits (search-v1 §1, §2.1).
 const (
@@ -49,10 +50,14 @@ const (
 	// and its title), for a reader whose role grants docs.read. Default, so
 	// a plain search finds a document's words (owner HUM-10, t1 4e06a219).
 	TypeDoc Type = "doc"
+	// TypeFileLine (spec 160 3.6, SPL-3888): the lines of the workspace's box
+	// file streams, for its owner or admins only (the hub's gate). Opt-in:
+	// in:file-streams or type:file_line; a plain search never reads them.
+	TypeFileLine Type = "file_line"
 )
 
 // Types is every type in response order (search-v1 §4).
-var Types = []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeTenant, TypeEvent, TypeIssue, TypeDoc}
+var Types = []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeTenant, TypeEvent, TypeIssue, TypeDoc, TypeFileLine}
 
 // DefaultTypes are searched when no type: is given: content search (owner,
 // 2026-09-26: "the normal search should be by content, but there should be a
@@ -83,6 +88,7 @@ var typeAliases = map[string]Type{
 	"event": TypeEvent, "events": TypeEvent, "log": TypeEvent, "error": TypeEvent, "errors": TypeEvent,
 	"issue": TypeIssue, "issues": TypeIssue, "ticket": TypeIssue, "tickets": TypeIssue,
 	"doc": TypeDoc, "docs": TypeDoc, "document": TypeDoc, "documents": TypeDoc, "qto": TypeDoc,
+	"file_line": TypeFileLine, "file_lines": TypeFileLine,
 }
 
 // Aliases are the type: spellings of t other than its own name, sorted.
@@ -151,17 +157,17 @@ type Operator struct {
 var (
 	msgTopicFile = []Type{TypeMessage, TypeTopic, TypeFile}
 	presence     = []Type{TypeRobot, TypeUser, TypeBox}
-	dated        = []Type{TypeMessage, TypeTopic, TypeFile, TypeEvent, TypeDoc}
+	dated        = []Type{TypeMessage, TypeTopic, TypeFile, TypeEvent, TypeDoc, TypeFileLine}
 )
 
 // Operators is the table; the parser, the applicability check and the
 // operators endpoint all read it.
 var Operators = []Operator{
-	{Name: OpType, Aliases: []string{"kind"}, Values: "type", Applies: Types, Example: "type:robot", Doc: "the sections to search: message, topic, file, robot, user, channel, box, tenant, event, issue, doc (comma list)"},
+	{Name: OpType, Aliases: []string{"kind"}, Values: "type", Applies: Types, Example: "type:robot", Doc: "the sections to search: message, topic, file, robot, user, channel, box, tenant, event, issue, doc, file_line (comma list)"},
 	{Name: OpFrom, Values: "id", Applies: msgTopicFile, Example: "from:CLE-07", Doc: "sender: agent, agent@box, HUM-n or box"},
 	{Name: OpTo, Values: "id", Applies: msgTopicFile, Example: "to:HUM-3", Doc: "recipient: agent, agent@box, HUM-n or box"},
-	{Name: OpBox, Values: "box", Applies: []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeBox}, Example: "box:box-a", Doc: "sent from or to this box; a robot on it; the box itself"},
-	{Name: OpIn, Aliases: []string{"channel"}, Values: "channel", Applies: msgTopicFile, Example: "in:#lobby", Doc: "a channel (#name or name), or dm for direct messages"},
+	{Name: OpBox, Values: "box", Applies: []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeBox, TypeFileLine}, Example: "box:box-a", Doc: "sent from or to this box; a robot on it; the box itself; a file stream line of this box"},
+	{Name: OpIn, Aliases: []string{"channel"}, Values: "channel", Applies: []Type{TypeMessage, TypeTopic, TypeFile, TypeFileLine}, Example: "in:#lobby", Doc: "a channel (#name or name), dm for direct messages, or file-streams for the box file stream lines (owner or admin; #file-streams is the channel of that name)"},
 	{Name: OpIs, Values: "enum", Enum: map[string][]Type{
 		"task": {TypeMessage}, "note": {TypeMessage}, "result": {TypeMessage}, "reject": {TypeMessage},
 		"blocker": {TypeMessage}, "msg": {TypeMessage}, "relay": {TypeMessage},
@@ -175,7 +181,7 @@ var Operators = []Operator{
 	{Name: OpAfter, Values: "date", Applies: dated, Example: "after:7d", Doc: "received (a doc section: last edited) on or after a UTC day, or within an age"},
 	{Name: OpOn, Values: "date", Applies: dated, Example: "on:2026-09-19", Doc: "received (a doc section: last edited) on a UTC day"},
 	{Name: OpTitle, Aliases: []string{"subject"}, Values: "text", Applies: []Type{TypeTopic, TypeDoc}, Example: "title:migration", Doc: "topic title words; a doc section's heading (the document's title for its top)"},
-	{Name: OpName, Values: "text", Applies: []Type{TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeTenant, TypeEvent, TypeIssue, TypeDoc}, Example: "name:ops", Doc: "the object's NAME contains this (a topic's title, an event's code, an issue's key and title, a document's title), never its content"},
+	{Name: OpName, Values: "text", Applies: []Type{TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeTenant, TypeEvent, TypeIssue, TypeDoc, TypeFileLine}, Example: "name:ops", Doc: "the object's NAME contains this (a topic's title, an event's code, an issue's key and title, a document's title, a file stream's key), never its content"},
 	{Name: OpFilename, Values: "text", Applies: []Type{TypeFile}, Example: `filename:"q3 report"`, Doc: "attachment name contains this"},
 	{Name: OpExt, Values: "ext", Applies: []Type{TypeFile}, Example: "ext:pdf", Doc: "attachment extension"},
 	{Name: OpLarger, Values: "size", Applies: []Type{TypeFile}, Example: "larger:1M", Doc: "attachment larger than (bytes, K, M, G)"},
@@ -210,15 +216,17 @@ type Term struct {
 	Pos    int    // UTF-16 offset of the term in q
 	Raw    string // the term as typed
 
-	Enum    string    // is: / has: canonical value
-	ID, Box string    // from: / to: (<id>@<box> sets both; a bare value sets ID)
-	Channel string    // in: normalized slug; "" with DM
-	DM      bool      // in:dm
-	From    time.Time // before / after / on lower bound (zero = none)
-	Until   time.Time // exclusive upper bound (zero = none)
-	Size    int64     // larger / smaller; priority: the priority
-	Types   []Type    // type:
-	Lexemes []string  // text / title: lowercase words (Words of Value)
+	Enum    string // is: / has: canonical value
+	ID, Box string // from: / to: (<id>@<box> sets both; a bare value sets ID)
+	Channel string // in: normalized slug; "" with DM or FileStreams
+	DM      bool   // in:dm
+	// FileStreams: in:file-streams (no '#'), the file_line section only
+	FileStreams bool
+	From        time.Time // before / after / on lower bound (zero = none)
+	Until       time.Time // exclusive upper bound (zero = none)
+	Size        int64     // larger / smaller; priority: the priority
+	Types       []Type    // type:
+	Lexemes     []string  // text / title: lowercase words (Words of Value)
 }
 
 // NodeKind is the AST node kind.
@@ -795,6 +803,12 @@ func (q *Query) asYouType(end int) {
 func applies(t *Term) []Type {
 	if t.Op == OpText {
 		return nil
+	}
+	if t.Op == OpIn { // a channel or dm is a message's; file-streams a line's
+		if t.FileStreams {
+			return []Type{TypeFileLine}
+		}
+		return msgTopicFile
 	}
 	o := opByName[t.Op]
 	if o.Enum != nil {

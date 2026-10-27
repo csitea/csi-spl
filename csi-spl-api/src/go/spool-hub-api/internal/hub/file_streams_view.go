@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -46,16 +47,8 @@ func (s *Server) fileStreamsStaff(w http.ResponseWriter, r *http.Request) (store
 	if !ok {
 		return nil, "", false
 	}
-	if hum == "" {
-		writeForbidden(w, permFileStreams, "file streams need a member session")
-		return nil, "", false
-	}
-	if s.readerIsActAsClone(r.Context(), t.ID, hum) {
-		writeForbidden(w, permFileStreams, "an act-as session does not read file streams")
-		return nil, "", false
-	}
-	if a, err := s.access(r.Context(), hum, t.ID); err != nil || !(a.TenantOwner || a.Has(rbac.Admin)) {
-		writeForbidden(w, permFileStreams, "only the workspace owner or an admin reads file streams")
+	if why := s.fileStreamsStaffRefusal(r.Context(), t.ID, hum); why != "" {
+		writeForbidden(w, permFileStreams, why)
 		return nil, "", false
 	}
 	fs, ok := s.o.Store.(store.FileStreamStore)
@@ -64,6 +57,22 @@ func (s *Server) fileStreamsStaff(w http.ResponseWriter, r *http.Request) (store
 		return nil, "", false
 	}
 	return fs, t.ID, true
+}
+
+// fileStreamsStaffRefusal is why hum may not read tenant's file streams, ""
+// when it may: the one gate of the read routes and of the search section
+// (spec 160 3.4 and 3.6).
+func (s *Server) fileStreamsStaffRefusal(ctx context.Context, tenant, hum string) string {
+	if hum == "" {
+		return "file streams need a member session"
+	}
+	if s.readerIsActAsClone(ctx, tenant, hum) {
+		return "an act-as session does not read file streams"
+	}
+	if a, err := s.access(ctx, hum, tenant); err != nil || !(a.TenantOwner || a.Has(rbac.Admin)) {
+		return "only the workspace owner or an admin reads file streams"
+	}
+	return ""
 }
 
 // fileStreamBody is one stream as the tab lists it.

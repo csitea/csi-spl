@@ -15542,7 +15542,7 @@
                           },
                           "results": {
                             "items": {
-                              "description": "one row of the group's type: search-v1 §4.1 .. §4.9",
+                              "description": "one row of the group's type: search-v1 §4.1 .. §4.11",
                               "type": "object"
                             },
                             "type": "array"
@@ -15554,8 +15554,15 @@
                         ],
                         "type": "object"
                       },
-                      "description": "one key per searched type, plural: messages, topics, files, robots, users, channels, boxes, tenants, events, issues",
+                      "description": "one key per searched type, plural: messages, topics, files, robots, users, channels, boxes, tenants, events, issues, docs, file_lines",
                       "type": "object"
+                    },
+                    "notices": {
+                      "description": "stable codes (search-v1 §4, spec 160 3.6), [] when empty; today file_streams_staff_only",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
                     },
                     "query": {
                       "type": "string"
@@ -15598,6 +15605,7 @@
                   },
                   "required": [
                     "groups",
+                    "notices",
                     "query",
                     "sort",
                     "types",

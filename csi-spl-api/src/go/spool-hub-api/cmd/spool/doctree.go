@@ -60,7 +60,8 @@ import (
 //	         the item's code block (attrs.src, attrs.lang), one per item
 //	picture  --path f [--caption c] [--item id]  uploads the image, appends its token
 //
-// --item defaults to the last item of the document. A structural op sends
+// --item (or --under, the same for these kinds) defaults to the last item of
+// the document; an id that names no item fails. A structural op sends
 // --rev (0 = no precondition, the default); a text edit always sends the
 // item rev it just read, so a concurrent edit is a 412, never lost.
 //
@@ -243,6 +244,9 @@ func (c *dtClient) subtree(ctx context.Context, doc, item string) (int64, []dtIt
 // item reads one item (its rev, body and attrs), the first of its subtree.
 func (c *dtClient) item(ctx context.Context, doc, item string) (dtItem, error) {
 	_, items, err := c.subtree(ctx, doc, item)
+	if err != nil && strings.HasPrefix(err.Error(), "404") {
+		return dtItem{}, fmt.Errorf("404: no item %s in document %s (%w)", item, doc, err)
+	}
 	if err != nil {
 		return dtItem{}, err
 	}
@@ -693,7 +697,7 @@ func dtAdd(ctx context.Context, cfg *config.Config, args []string) error {
 	fs.StringVar(&o.kind, "kind", "", "heading, para, code, table or picture")
 	fs.StringVar(&o.title, "title", "", "the heading's title")
 	fs.IntVar(&o.level, "level", 0, "heading: its depth (1 = top level), appended at the end of the document")
-	fs.StringVar(&o.under, "under", "", "heading: the last child of this item")
+	fs.StringVar(&o.under, "under", "", "heading: the last child of this item; para, table, code, picture: this item (as --item)")
 	fs.StringVar(&o.after, "after", "", "heading: right after this item, same parent")
 	fs.StringVar(&o.text, "text", "", "the text (heading: its paragraph)")
 	fs.StringVar(&o.file, "file", "", "read the text from this file")
@@ -717,12 +721,8 @@ func dtAdd(ctx context.Context, cfg *config.Config, args []string) error {
 	switch o.kind {
 	case "heading":
 		f, err = dtAddHeading(ctx, doc, o)
-	case "para", "table":
-		f, err = dtAddText(ctx, doc, o)
-	case "code":
-		f, err = dtAddCode(ctx, doc, o)
-	case "picture":
-		f, err = dtAddPicture(ctx, doc, o)
+	case "para", "table", "code", "picture":
+		f, err = dtAddBody(ctx, doc, o)
 	default:
 		return errors.New("--kind is heading, para, code, table or picture; " + fs.usage)
 	}
@@ -730,6 +730,29 @@ func dtAdd(ctx context.Context, cfg *config.Config, args []string) error {
 		return err
 	}
 	return dtRun(ctx, cfg, f)
+}
+
+// dtAddBody is add for the kinds that write an item's body or attrs. --under
+// names that item, as --item does (SPL-3687: it was read by heading only, so
+// the text went to the last item); an id that names no item fails in
+// dtTarget, never falls back to the last item.
+func dtAddBody(ctx context.Context, doc string, o dtAddOpts) (func(*dtClient) ([]byte, error), error) {
+	if o.after != "" || o.level > 0 {
+		return nil, fmt.Errorf("%s: --after and --level place a heading; name the item with --under or --item", o.kind)
+	}
+	if o.under != "" {
+		if o.item != "" && o.item != o.under {
+			return nil, fmt.Errorf("%s: --under and --item name different items (%s, %s)", o.kind, o.under, o.item)
+		}
+		o.item = o.under
+	}
+	switch o.kind {
+	case "code":
+		return dtAddCode(ctx, doc, o)
+	case "picture":
+		return dtAddPicture(ctx, doc, o)
+	}
+	return dtAddText(ctx, doc, o)
 }
 
 func dtAddHeading(ctx context.Context, doc string, o dtAddOpts) (func(*dtClient) ([]byte, error), error) {

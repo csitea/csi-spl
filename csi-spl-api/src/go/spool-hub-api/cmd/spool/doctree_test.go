@@ -521,3 +521,40 @@ var (
 	dtWUIWhole  = "# 1 Intro\n\n  Hello ![one](/v1/workspace/doctree/d1/images/" + dtZ64 + ".png)\n\n*Figure 1: one*\n tail\n![x](/v1/workspace/doctree/other/images/" + dtZ64 + ".png)  \n\n![Sec img](https://example.com/i.png)\n\n*Figure 2: Sec [img]*\n\n## 1.1 Untitled\n\n```bash\necho hi\n```\n\n### 1.1.1 Deep\n\n![two](/v1/workspace/doctree/d1/images/" + dtZ64 + ".png)\n\n*Figure 3: two*\n\n# 2 End\n\n\n# 3 Flow\n\n```mermaid\ngraph TD\n  A --> B\n```\n"
 	dtWUIBranch = "# 1.1 Untitled\n\n```bash\necho hi\n```\n\n## 1.1.1 Deep\n\n![two](/v1/workspace/doctree/d1/images/" + dtZ64 + ".png)\n\n*Figure 3: two*\n"
 )
+
+// TestDocTreeAddUnder: --under names the item a para, table, code or picture
+// goes to (SPL-3687). It was read by heading only, so the text landed on the
+// document's last item; an --under that names no item fails, naming it.
+func TestDocTreeAddUnder(t *testing.T) {
+	h := newDTHub(t)
+	dtOK(t, "create", "--title", "T")
+	h1 := dtOK(t, "add", dtDocID, "--kind", "heading", "--title", "One")["item"].(string)
+	h2 := dtOK(t, "add", dtDocID, "--kind", "heading", "--title", "Two")["item"].(string)
+	dtOK(t, "add", dtDocID, "--kind", "heading", "--title", "Three")
+	dtOK(t, "add", dtDocID, "--kind", "para", "--under", h1, "--text", "first")
+	dtOK(t, "add", dtDocID, "--kind", "table", "--under", h2, "--text", "| a |\n|---|\n| 1 |")
+	dtOK(t, "add", dtDocID, "--kind", "code", "--under", h1, "--text", "ls")
+	items := h.doc(t).all()[1:]
+	if items[0].Body != "first" || items[0].attr("src") != "ls" || items[1].Body != "| a |\n|---|\n| 1 |" || items[2].Body != "" {
+		t.Fatalf("bodies %q %q %q, src %q", items[0].Body, items[1].Body, items[2].Body, items[0].attr("src"))
+	}
+	missing := "00000000-0000-4000-8000-000000000999"
+	cases := []struct {
+		args []string
+		want string
+	}{
+		{[]string{"--kind", "para", "--under", missing, "--text", "x"}, "404: no item " + missing + " in document " + dtDocID},
+		{[]string{"--kind", "para", "--under", h1, "--item", h2, "--text", "x"}, "--under and --item name different items"},
+		{[]string{"--kind", "para", "--after", h1, "--text", "x"}, "--after and --level place a heading"},
+		{[]string{"--kind", "code", "--level", "1", "--text", "x"}, "--after and --level place a heading"},
+	}
+	for _, c := range cases {
+		rc, _, errOut := captureRun(t, append([]string{"doctree", "add", dtDocID}, c.args...))
+		if rc == 0 || !strings.Contains(errOut, c.want) {
+			t.Errorf("%v: rc %d, stderr %q, want %q", c.args, rc, errOut, c.want)
+		}
+	}
+	if got := h.doc(t).all()[3].Body; got != "" {
+		t.Fatalf("a refused add wrote the last item: %q", got)
+	}
+}

@@ -252,7 +252,7 @@ Added 2026-10-26 (v0.2.2 tasks, SPL-3553) for Facebook Pages and Instagram Profe
   - **Red Control**: Inserting a channel with platform `'facebook_page'` or `'instagram_business'` or post with status `'awaiting_approval'` fails on pre-migration schema; passes on new schema. Attempting cross-tenant read of Meta channel tokens fails closed via RLS.
   - **Depends**: T030. **Serial**.
 
-- [ ] T032 **Meta Graph API client for Facebook Pages & Instagram Content Publishing** (`api/internal/marketing`).
+- [x] T032 **Meta Graph API client for Facebook Pages & Instagram Content Publishing** (`api/internal/marketing`) (c-435, SPL-3875, sha in the next commit). Landed as `meta_client.go` (token exchange, `/me/accounts` by cursor, backoff), `meta_errors.go` (`MetaError`, `MetaKind`: auth / rate_limit with `RetryAfter` / permission / media / not_ready / transient), `meta_publish.go` (Page feed or photo post, container create / poll / publish, local caps of §21.1); token in the Authorization header with `appsecret_proof`, never in a URL or an error. Not wired to a route (T033, T034); tested only against an httptest fake.
   - **Build**: Go package `internal/marketing/meta_client.go`:
     - `ExchangeLongLivedUserToken(ctx, code)`
     - `ListAccounts(ctx, userToken) -> []MetaPageAccount` (with `instagram_business_account`)

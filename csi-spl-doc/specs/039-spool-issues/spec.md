@@ -228,8 +228,9 @@ sorts each old key into one of three classes, rules in
 | rewrite | the key is the workspace's own | `link` (an issues link on its own host, or its markdown label), `named` (the line names the workspace), `plain` (a live number, and no key above the workspace's range in that text) |
 | keep | not the workspace's | `other-link` (an issues link on another host), `not-ours` (n above the workspace's counter) |
 | ambiguous | listed apart, never rewritten | `mixed` (the text also holds a t1-range key), `names-other` (t1, the spool-hub project, "on dev"), `commit` (a commit scope or `Closes:` trailer), `deleted` |
+| archived | a would-be rewrite key in the title or description of an archived or deleted issue: listed apart, never in the plan | the hub's update path finds only live issues and answers `not_found` (csitea CSI-20, SPL-3821) |
 
-It prints the counts per source, samples per class and every ambiguous hit,
+It prints the counts per source, samples per class and every ambiguous and archived hit,
 and writes a plan (ids and offsets, no text) for a writer. It writes nothing:
 the owner OKs the scan before anything is changed, and the change then goes
 through the hub's own edit paths (a message edit keeps its revision), never
@@ -247,13 +248,14 @@ at its offset, prints before/after per key and routes the field
 | route | the field | with DRY_RUN=0 |
 |---|---|---|
 | edit | a message this host's desk box sent | `do_spl_desk_edit` as its author; the hub keeps the old body as a revision |
-| issue | an issue title or description | `do_spl_issue_update` as `ISSUE_AGENT`, only when it is set |
+| issue | an issue title or description | `do_spl_issue_update` as `ISSUE_AGENT`, only when it is set; an agent this box's desk announces, else the hub refuses `from_not_announced` |
 | other-box | a message another live desk box sent | nothing: run the action on that box |
 | human | a message typed in the WUI (`box-wui`) | nothing: its author, the owner or an admin edits it in the WUI |
 | no-pin | a message from a box whose pin is revoked | nothing: no box can re-sign it |
 | done / stale / gone | already new / changed since the scan / deleted | skipped; scan again for stale |
+| archived | an archived or deleted issue | nothing: its keys stay (the owner's choice for csitea's CSI-20, archived on 2026-10-12) |
 
 Only the planned keys change; every other byte stays. Dry run unless
 `DRY_RUN=0`. Test: `csi-spl-orc/src/bash/tests/spl-issue-ref-rewrite.tst.sh`.
 
-<!-- version: 0.10.0 · updated: 2026-10-27 · last-edit: 2026-10-27T11:00:00Z -->
+<!-- version: 0.10.1 · updated: 2026-10-27 · last-edit: 2026-10-27T13:30:00Z -->

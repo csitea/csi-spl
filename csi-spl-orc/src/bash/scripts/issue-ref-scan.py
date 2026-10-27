@@ -25,10 +25,14 @@ so `SPL-44` may be either. This decides, per key, without writing anything:
                           `Closes:/Refs:/Fixes: SPL-n` (commits cite t1)
              deleted      n was allocated by the workspace's counter, but
                           that issue is gone
+  archived   a key that would be rewrite, in the title or description of an
+             archived or deleted issue: listed apart, never in the plan (the
+             hub's update path answers not_found for such an issue)
 
 stdin: JSON lines. One {"src":"meta","tenant","prefix","last_number",
 "numbers":[...]} row, then one row per text field:
-{"src":"msg|issue|doc_item|doc_node","id","field","text"}.
+{"src":"msg|issue|doc_item|doc_node","id","field","text"[,"archived"]};
+"archived" is true on the field of an archived or deleted issue.
 
   issue-ref-scan.py --old SPL [--samples 10] [--plan <file>]
 
@@ -176,6 +180,8 @@ def scan(c, rows, nsamples):
         text = r.get("text") or ""
         edits = []
         for pos, n, cls, why in classify(text, c):
+            if cls == "rewrite" and r.get("archived"):
+                cls = "archived"
             counts[(r["src"], cls)] = counts.get((r["src"], cls), 0) + 1
             item = {
                 "src": r["src"],
@@ -189,7 +195,7 @@ def scan(c, rows, nsamples):
             }
             if len(samples.setdefault(cls, [])) < nsamples:
                 samples[cls].append(item)
-            if cls == "ambiguous":
+            if cls in ("ambiguous", "archived"):
                 ambiguous.append(item)
             if cls == "rewrite":
                 edits.append(
@@ -218,23 +224,27 @@ def report(c, counts, samples, ambiguous, nrows):
         "SCAN tenant=%s old=%s new=%s last_number=%d live_issues=%d fields_read=%d (read-only)"
         % (c.tenant, c.old, c.prefix, c.last, len(c.numbers), nrows)
     )
-    print("COUNT source rewrite keep ambiguous")
+    print("COUNT source rewrite keep ambiguous archived")
     for s in sorted({s for s, _ in counts}):
         print(
-            "COUNT %s %d %d %d"
+            "COUNT %s %d %d %d %d"
             % (
                 s,
                 counts.get((s, "rewrite"), 0),
                 counts.get((s, "keep"), 0),
                 counts.get((s, "ambiguous"), 0),
+                counts.get((s, "archived"), 0),
             )
         )
     tot = {
         k: sum(v for (_, cl), v in counts.items() if cl == k)
-        for k in ("rewrite", "keep", "ambiguous")
+        for k in ("rewrite", "keep", "ambiguous", "archived")
     }
-    print("COUNT total %d %d %d" % (tot["rewrite"], tot["keep"], tot["ambiguous"]))
-    for cls in ("rewrite", "keep", "ambiguous"):
+    print(
+        "COUNT total %d %d %d %d"
+        % (tot["rewrite"], tot["keep"], tot["ambiguous"], tot["archived"])
+    )
+    for cls in ("rewrite", "keep", "ambiguous", "archived"):
         for it in samples.get(cls, []):
             print(
                 "SAMPLE %s %s %s %s:%s@%d %s"
@@ -250,8 +260,9 @@ def report(c, counts, samples, ambiguous, nrows):
             )
     for it in ambiguous:
         print(
-            "AMBIGUOUS %s %s %s:%s@%d %s"
+            "%s %s %s %s:%s@%d %s"
             % (
+                it["class"].upper(),
                 it["reason"],
                 it["old"],
                 it["src"],

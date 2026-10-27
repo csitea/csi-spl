@@ -18,12 +18,15 @@ every edit, and sorts each field into one route:
   stale     the text changed since the scan (length, or a key is no longer
             at its offset): skipped, scan again
   gone      the message or issue is no longer there: skipped
+  archived  an archived or deleted issue: the hub's update path finds only
+            live issues (not_found), so its keys stay as they are; reported
 
 Only the plan's offsets change: every other byte, every other key (t1's
 SPL-n, the ambiguous ones) stays as it is.
 
 stdin: JSON lines. One {"src":"meta","prefix","pins":[live box ids]} row,
-then one row per field: {"src":"msg|issue","id","field","text"[,"box","from"]}.
+then one row per field: {"src":"msg|issue","id","field","text"[,"box","from"]
+[,"archived"]}; "archived" is true for an archived or deleted issue.
 
   issue-ref-rewrite.py --plan <file> --box <this desk box> --out <dir>
 
@@ -35,7 +38,17 @@ field; <dir>/<n>.txt holds that field's new text. Exit 0; 2 on bad input.
 import argparse, json, os, re, sys
 
 PREFIX_RE = re.compile(r"[A-Z][A-Z0-9]{0,9}")
-ROUTES = ("edit", "issue", "other-box", "human", "no-pin", "done", "stale", "gone")
+ROUTES = (
+    "edit",
+    "issue",
+    "other-box",
+    "human",
+    "no-pin",
+    "done",
+    "stale",
+    "gone",
+    "archived",
+)
 WUI_BOX = "box-wui"
 CTX = 30
 
@@ -76,6 +89,8 @@ def check(f, text):
 def route(f, row, local_box, pins):
     if row is None:
         return "gone"
+    if f["src"] == "issue" and row.get("archived"):
+        return "archived"
     state = check(f, row["text"])
     if state != "ok":
         return state
@@ -149,7 +164,7 @@ def main():
         counts[r][0] += 1
         counts[r][1] += len(f["edits"])
         where = "%s:%s:%s" % (f["src"], f["id"], f["field"])
-        if r in ("done", "stale", "gone"):
+        if r in ("done", "stale", "gone", "archived"):
             print("SKIP %s %s (%d keys)" % (r, where, len(f["edits"])))
             continue
         text = row["text"]

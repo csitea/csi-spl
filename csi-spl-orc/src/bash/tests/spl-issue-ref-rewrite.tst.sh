@@ -17,6 +17,9 @@
 #      calls do_spl_desk_edit once per edit field as its author and
 #      do_spl_issue_update only with ISSUE_AGENT; a failed edit is counted and
 #      does not stop the rest
+#   7. an archived or deleted issue is route archived: reported, never in
+#      work.tsv, never sent to do_spl_issue_update (the hub answered
+#      not_found for csitea's archived CSI-20); the SQL flags both fields
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -42,6 +45,7 @@ print(json.dumps(r, ensure_ascii=False))' "$@"; }
   row msg $U5 body 'Already CSI-7 here' box-a c-002
   row msg $U6 body 'Edited later: SPL-8 moved' box-a c-002
   row issue 45 description 'Parent SPL-43, see t1 SPL-2398'
+  echo '{"src":"issue","id":46,"field":"description","text":"Предишна стъпка: SPL-3","archived":true}'
 } >"$T/rows.jsonl"
 python3 - "$T/plan.json" <<EOF
 import json, sys
@@ -57,6 +61,7 @@ json.dump({"tenant": "csitea", "old": "SPL", "new": "CSI", "fields": [
   f("msg", "$U6", 25, [(15, 8)]),
   f("msg", "$U7", 10, [(0, 9)]),
   f("issue", 45, 30, [(7, 43)]),
+  f("issue", 46, 22, [(17, 3)]),
 ]}, open(sys.argv[1], "w"), ensure_ascii=False)
 EOF
 mkdir -p "$T/out"
@@ -74,6 +79,8 @@ has "SKIP done msg:$U5:body" "already rewritten is done"
 has "SKIP stale msg:$U6:body" "a key no longer at its offset is stale"
 has "SKIP gone msg:$U7:body" "a deleted message is gone"
 has "COUNT edit 1 1" "count edit"
+has "SKIP archived issue:46:description (1 keys)" "an archived issue is route archived"
+has "COUNT archived 1 1" "count archived"
 has "COUNT stale 1 1" "count stale"
 has "  after:  Готово: CSI-3 в Issues" "before/after keeps non-ASCII text"
 
@@ -114,7 +121,9 @@ o=$(act 'do_spl_issue_ref_rewrite' TENANT_ID=t1 SCAN_PLAN="$T/plan.json"); rc=$?
 sql=$(act "spl_issue_ref_rewrite_sql csitea $T/plan.json")
 grep -qiE '\b(insert|update|delete|truncate|drop|alter|grant|create)\b' <<<"$sql" && fail "the SQL holds a write verb: $sql" || pass "the SQL holds no write verb"
 [[ $(grep -c "tenant_id = 'csitea'" <<<"$sql") == 5 ]] && pass "every read is scoped to the tenant" || fail "tenant scope: $sql"
-grep -q "msg_id IN ('$U1','$U2'," <<<"$sql" && grep -q "number IN (45)" <<<"$sql" && pass "the SQL reads the plan's ids" || fail "ids: $sql"
+grep -q "msg_id IN ('$U1','$U2'," <<<"$sql" && grep -q "number IN (45,46)" <<<"$sql" && pass "the SQL reads the plan's ids" || fail "ids: $sql"
+[[ $(grep -c "'archived', archived_at IS NOT NULL OR deleted_at IS NOT NULL" <<<"$sql") == 2 ]] \
+  && pass "the SQL flags archived and deleted issues" || fail "archived flag: $sql"
 grep -q "BEGIN TRANSACTION READ ONLY" "$PROJ_ROOT/src/bash/run/spl-issue-ref-rewrite.func.sh" && pass "the read runs in a READ ONLY transaction" || fail "no READ ONLY"
 
 # --- 6. through a stubbed proxy ---------------------------------------------------
@@ -133,5 +142,8 @@ o=$(act "$STUBS; do_spl_issue_ref_rewrite" TENANT_ID=csitea ROWS="$T/rows.jsonl"
 o=$(act "$STUBS; do_spl_issue_ref_rewrite" TENANT_ID=csitea ROWS="$T/rows.jsonl" SCAN_PLAN="$T/plan.json" DRY_RUN=0 ISSUE_AGENT=c-002 FAIL_ID=$U1); rc=$?
 [[ $rc != 0 && "$o" == *"rewrote 1 field(s) in csitea, 1 failed"* ]] && grep -qx "ISSUE c-002 box-a CSI-45 0 Parent CSI-43, see t1 SPL-2398" "$T/calls.log" \
   && pass "with ISSUE_AGENT the issue is updated by key; a failed edit is counted and the rest still runs" || fail "issue rc=$rc: $o / $(cat "$T/calls.log")"
+
+grep -q "CSI-46" "$T/calls.log" && fail "the archived issue was sent to do_spl_issue_update: $(cat "$T/calls.log")" \
+  || pass "the archived issue is never sent to do_spl_issue_update"
 
 [[ $fails == 0 ]] && { echo "ALL PASS"; exit 0; } || { echo "$fails FAIL"; exit 1; }

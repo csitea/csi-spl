@@ -17,6 +17,8 @@
 # @description             edits it there; no agent can
 # @description   no-pin    its box's pin is revoked: nobody can re-sign it
 # @description   done / stale / gone   skipped (already new, changed, deleted)
+# @description   archived  an archived or deleted issue: the hub's update path
+# @description             answers not_found for it, so its keys stay; reported
 # @description Only the plan's keys change; the ambiguous and t1 keys were never
 # @description in it. Dry run unless DRY_RUN=0.
 # @param ENV - required: dev or prd
@@ -24,7 +26,8 @@
 # @param SCAN_PLAN - required: the plan file do_spl_issue_ref_scan wrote
 # @param DESK_BOX (optional) - this host's desk box, default spl_desk_box_default
 # @param ISSUE_AGENT (optional) - the seated desk agent that edits the issues
-# @param   (e.g. c-002); unset = issue fields are listed, not edited
+# @param   (e.g. c-002), one THIS box's desk announces (else the hub refuses
+# @param   from_not_announced); unset = issue fields are listed, not edited
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd TENANT_ID=csitea SCAN_PLAN=/var/tmp/csitea-refs.json ./run -a do_spl_issue_ref_rewrite
 # @example ENV=prd TENANT_ID=csitea SCAN_PLAN=/var/tmp/csitea-refs.json ISSUE_AGENT=c-002 DRY_RUN=0 ./run -a do_spl_issue_ref_rewrite
@@ -99,9 +102,11 @@ SELECT json_build_object('src', 'meta', 'tenant', '$t',
   'pins', (SELECT coalesce(json_agg(box_id ORDER BY box_id), '[]'::json) FROM pins WHERE tenant_id = '$t' AND revoked_at IS NULL))
 UNION ALL SELECT json_build_object('src', 'msg', 'id', msg_id, 'field', 'body', 'text', body, 'box', from_box, 'from', from_id)
   FROM messages WHERE tenant_id = '$t' AND msg_id IN ($msgs)
-UNION ALL SELECT json_build_object('src', 'issue', 'id', number, 'field', 'title', 'text', title)
+UNION ALL SELECT json_build_object('src', 'issue', 'id', number, 'field', 'title', 'text', title,
+    'archived', archived_at IS NOT NULL OR deleted_at IS NOT NULL)
   FROM issues WHERE tenant_id = '$t' AND number IN ($nums)
-UNION ALL SELECT json_build_object('src', 'issue', 'id', number, 'field', 'description', 'text', description)
+UNION ALL SELECT json_build_object('src', 'issue', 'id', number, 'field', 'description', 'text', description,
+    'archived', archived_at IS NOT NULL OR deleted_at IS NOT NULL)
   FROM issues WHERE tenant_id = '$t' AND number IN ($nums)
 EOF_SQL
 }

@@ -7,11 +7,13 @@
 # @description the workspace's message bodies, its issues' titles and
 # @description descriptions, and its workspace docs (doc tree titles and
 # @description descriptions, doc item titles and bodies), then sorts each key
-# @description into rewrite / keep / ambiguous (src/bash/scripts/issue-ref-scan.py
-# @description says how). Another workspace (t1) uses the same old prefix with
-# @description its own numbers: its keys are never in the rewrite class.
+# @description into rewrite / keep / ambiguous / archived
+# @description (src/bash/scripts/issue-ref-scan.py says how). Another workspace
+# @description (t1) uses the same old prefix with its own numbers: its keys are
+# @description never in the rewrite class. An archived or deleted issue's keys
+# @description are archived: the hub cannot update that issue.
 # @description Prints counts per source and class, SCAN_SAMPLES samples per
-# @description class and every ambiguous hit; writes the rewrite plan (ids and
+# @description class and every ambiguous and archived hit; writes the rewrite plan (ids and
 # @description offsets, no text) to SCAN_PLAN. Writes nothing to the hub: a
 # @description DRY_RUN other than 1 is refused (the writer is its own action).
 # @param ENV - required: dev or prd
@@ -78,9 +80,11 @@ SELECT json_build_object('src', 'meta', 'tenant', '$t',
   'numbers', (SELECT coalesce(json_agg(number ORDER BY number), '[]'::json) FROM issues WHERE tenant_id = '$t'))
 UNION ALL SELECT json_build_object('src', 'msg', 'id', msg_id, 'field', 'body', 'text', body)
   FROM messages WHERE tenant_id = '$t' AND body ~ '$rx'
-UNION ALL SELECT json_build_object('src', 'issue', 'id', number, 'field', 'title', 'text', title)
+UNION ALL SELECT json_build_object('src', 'issue', 'id', number, 'field', 'title', 'text', title,
+    'archived', archived_at IS NOT NULL OR deleted_at IS NOT NULL)
   FROM issues WHERE tenant_id = '$t' AND title ~ '$rx'
-UNION ALL SELECT json_build_object('src', 'issue', 'id', number, 'field', 'description', 'text', description)
+UNION ALL SELECT json_build_object('src', 'issue', 'id', number, 'field', 'description', 'text', description,
+    'archived', archived_at IS NOT NULL OR deleted_at IS NOT NULL)
   FROM issues WHERE tenant_id = '$t' AND description ~ '$rx'
 UNION ALL SELECT json_build_object('src', 'doc_item', 'id', id, 'field', 'title', 'text', title)
   FROM workspace_doc_item WHERE tenant_id = '$t' AND title ~ '$rx'

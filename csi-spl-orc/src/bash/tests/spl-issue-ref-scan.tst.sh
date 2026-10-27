@@ -20,6 +20,10 @@
 #      one SELECT in a READ ONLY transaction with no write verb; through a
 #      stubbed proxy it prints the report and writes SCAN_PLAN
 #   8. the classifier refuses a workspace that still uses the old prefix
+#   9. a would-be rewrite key in an archived or deleted issue is archived,
+#      listed apart and NOT in the plan (SPL-3821: the hub answers not_found
+#      for csitea's archived CSI-20); a live issue's same key is rewrite.
+#      The scan SQL flags archived_at / deleted_at on both issue fields
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -45,6 +49,8 @@ row() { python3 -c 'import json,sys; print(json.dumps({"src":sys.argv[1],"id":sy
   row msg m-notkeys body $'XSPL-3 SPL-3a /x/SPL-3 SPL-03 spl-3'
   row issue 45 description $'Mirrors SPL-2398: every issue has an epic. First issue: SPL-23. Source: /t/64ce3bf5'
   row doc_item d-1 body $'# Plan\nSPL-2 is the finance epic.'
+  echo '{"src":"issue","id":20,"field":"description","text":"Предишна стъпка: SPL-3","archived":true}'
+  echo '{"src":"issue","id":21,"field":"description","text":"Предишна стъпка: SPL-3","archived":false}'
 } >"$T/rows.jsonl"
 
 out=$(python3 "$PY" --old SPL --samples 50 --plan "$T/plan.json" <"$T/rows.jsonl"); rc=$?
@@ -77,8 +83,8 @@ has "AMBIGUOUS commit SPL-22 msg:m-commit" "Closes: trailer is ambiguous/commit"
 has "AMBIGUOUS mixed SPL-23 issue:45" "issue description key is classified too"
 # --- 5. not keys ------------------------------------------------------------------
 grep -q 'msg:m-notkeys' <<<"$out" && fail "a non-key matched: $(grep m-notkeys <<<"$out")" || pass "XSPL-3, SPL-3a, /x/SPL-3, SPL-03, spl-3 are not keys"
-has "COUNT total 8 8 9" "totals: 8 rewrite, 8 keep, 9 ambiguous"
-has "COUNT msg 7 7 8" "msg counts"
+has "COUNT total 9 8 9 1" "totals: 9 rewrite, 8 keep, 9 ambiguous, 1 archived"
+has "COUNT msg 7 7 8 0" "msg counts"
 
 # --- 6. the plan ------------------------------------------------------------------
 applied=$(python3 - "$T/plan.json" "$T/rows.jsonl" <<'EOF'
@@ -124,8 +130,19 @@ grep -qiE '\b(insert|update|delete|truncate|drop|alter|grant|create)\b' <<<"$sql
 grep -q "BEGIN TRANSACTION READ ONLY" "$PROJ_ROOT/src/bash/run/spl-issue-ref-scan.func.sh" && pass "the read runs in a READ ONLY transaction" || fail "no READ ONLY"
 o=$(act 'do_spl_cloud_cnf() { SPL_CNF=x; }; do_gcp_pin_account() { GCP_ACCOUNT=sa; }; do_gcp_require_live_account() { :; }
   spl_via_proxy() { shift; cat "$ROWS" >"$1"; }; do_spl_issue_ref_scan' TENANT_ID=csitea ROWS="$T/rows.jsonl" SCAN_PLAN="$T/plan2.json"); rc=$?
-[[ $rc == 0 && "$o" == *"COUNT total 8 8 9"* && "$o" == *"nothing written; rewrite plan $T/plan2.json"* && -s "$T/plan2.json" ]] \
+[[ $rc == 0 && "$o" == *"COUNT total 9 8 9 1"* && "$o" == *"nothing written; rewrite plan $T/plan2.json"* && -s "$T/plan2.json" ]] \
   && pass "through a stubbed proxy the action reports and writes SCAN_PLAN" || fail "action rc=$rc: $o"
+
+# --- 9. archived / deleted issues -----------------------------------------------
+has "ARCHIVED plain SPL-3 issue:20@17" "a rewrite key in an archived issue is listed as archived"
+has "COUNT issue 1 1 1 1" "issue counts: the live copy rewrite, the archived one archived"
+python3 - "$T/plan.json" <<'EOF_PY' && pass "the archived issue is not in the plan; the live one is" || fail "plan: $(cat "$T/plan.json")"
+import json, sys
+ids = {(f["src"], str(f["id"])) for f in json.load(open(sys.argv[1]))["fields"]}
+sys.exit(0 if ("issue", "21") in ids and ("issue", "20") not in ids else 1)
+EOF_PY
+[[ $(grep -c "'archived', archived_at IS NOT NULL OR deleted_at IS NOT NULL" <<<"$sql") == 2 ]] \
+  && pass "the scan SQL flags archived and deleted issues" || fail "archived flag: $sql"
 
 # --- 8. still on the old prefix ---------------------------------------------------
 o=$(sed 's/"prefix":"CSI"/"prefix":"SPL"/' "$T/rows.jsonl" | python3 "$PY" --old SPL); rc=$?

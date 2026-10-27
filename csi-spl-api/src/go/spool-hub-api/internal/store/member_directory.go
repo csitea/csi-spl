@@ -147,6 +147,7 @@ func (s *Memory) RevokeInvite(_ context.Context, tenant, email string) error {
 		return ErrNotFound
 	}
 	delete(s.hum.invites, k)
+	s.dropChannelInvitesLocked(tenant, email) // rdb 0231: the FK cascades
 	return nil
 }
 

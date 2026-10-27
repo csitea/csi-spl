@@ -198,6 +198,11 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 		ExpiresAt: now.Add(24 * time.Hour)}, now); err != nil { // tenant_invites
 		t.Fatal(err)
 	}
+	// channel_invites (rdb 0231, spec 025 section 11): that invite, pending in
+	// the seeded channel.
+	if err := pg.AddChannelInvite(ctx, s.tenant, s.channelID, "inv-"+s.tenant+"@example.com", hum, now); err != nil {
+		t.Fatal(err)
+	}
 	if err := pg.asOperator(ctx, func(tx pgx.Tx) error { // tenant_seat_periods: the paid webhook's row
 		_, err := tx.Exec(ctx, `INSERT INTO tenant_seat_periods (tenant_id, period_start, seats_users, seats_bots, checkout_id, amount_cents, paid_at)
 			VALUES ($1, date_trunc('month', now())::date, 1, 1, $2, 100, now())`, s.tenant, co.ID)

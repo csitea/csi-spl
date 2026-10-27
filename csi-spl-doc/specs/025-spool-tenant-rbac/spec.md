@@ -573,4 +573,77 @@ change is a new migration (§7: "a changed answer is a new migration").
 | OPEN-2 | The demo post audit (A5) and the t1 repo-docs writer (A6) are t1-admin powers today, not object operations: do they stay with the t1 `admin`? | yes, they stay with `admin` (content, not objects) |
 | OPEN-3 | The estate cost view (`internal/hub/cost_read.go:140`, `costs.read` in the operator workspace) is instance-wide money data: move it to devops? | no change now (it reads costs, not workspace content); ask when R3 lands |
 
-<!-- version: 1.3.1 · updated: 2026-10-17 · last-edit: 2026-10-17T01:22:20Z -->
+## 11. Pending channel membership: add a person before they join (SPL-3686, 2026-10-27)
+
+Owner HUM-10, t1 #spool-hub-bugs topic b602f8b4 (msg 4a3ec33a, 2026-10-26):
+"it should be possible to add persons to channels even if they have not yet
+joined the spool-hub".
+
+Before: `POST /v1/channels/{channel}/members` took only `{human_id}` and
+refused anyone with no membership in the workspace (404 `not_a_member`), and
+a person who holds only an invite has no `HUM-*` id yet. The picker offered
+workspace members only ("They have to be a member of the workspace first").
+
+### 11.1 The rule
+
+- **Who may add**: the same people as for a member, `mayInviteChannel` (the
+  channel owner; any member when `members_open_invite` is on; any member of a
+  channel created by `hub`/`wui`), after `channels.edit` and billing.
+- **By address**: the body is `{"human_id"}` or `{"email"}`, never both.
+  - The address of a live member of the workspace is the plain add
+    (`channel_humans`, 201 `{human_id}`).
+  - The address of an OPEN workspace invite (unaccepted, unexpired) gets a
+    pending row: 201 `{email, pending: true, invite: "existing"}`.
+  - An address with no open invite gets one first, under the rule of
+    `POST /v1/members/invites` (`members.invite`, the default role, the
+    default 7-day ttl, the invitation mail), then the pending row:
+    `invite: "created"`, `mail`. The invite records `ordered_via = "#<channel>"`.
+    A caller without `members.invite` gets that route's 403
+    (`permission: members.invite`) and nothing is written. Why create rather
+    than refuse: the owner asked for adding people who have not joined, and an
+    invite is the only way a person who has not joined can join; the
+    permission that guards inviting stays the one that decides it.
+- **The pending row grants nothing**: the read door reads `channel_humans`
+  only. Accepting the invite (sign-in admission, `acceptInviteTx`; or an
+  operator seat, `ProvisionMember`) moves every pending row of the address to
+  `channel_humans` for the new member, in the same transaction.
+- **Nothing is left behind**: revoking the invite deletes its pending rows
+  (FK `ON DELETE CASCADE` to `tenant_invites`); deleting the channel deletes
+  them too. An expired invite leaves them inert: not listed, not moved; a
+  re-invite of a lapsed or accepted address clears them first, a re-invite of
+  an open one keeps them. So a typo still leaves no membership behind.
+- **Undo**: `DELETE /v1/channels/{channel}/members/{email}` drops one
+  pending row; whoever may add may, and `channels.manage` (the rule for
+  removing someone else).
+- **Listing**: `GET /v1/channels/{channel}/members` carries `invited`, the
+  open pending addresses (`[]` on a default channel).
+
+### 11.2 Store and schema
+
+rdb `0231_channel_invites.sql`: `channel_invites (tenant_id, channel_id,
+email, added_by, created_at)`, PK `(tenant_id, channel_id, email)`, FKs to
+`channels` and `tenant_invites`, FORCE RLS with the fail-closed tenant policy.
+It is exempt from the channel_scope policy (no visitor route reads it).
+Store interface `ChannelInvites` (Memory and Postgres).
+
+### 11.3 Web UI
+
+The channel's People picker offers a typed email address as "Invite
+<address>"; Add lists it under the members with an "invited" label until the
+person joins, and its minus takes the pending add back. New keys
+`channels.properties.{invite_email, invited, invited_hint, remove_invited}`,
+`invite_empty` reworded, in all 19 locales (agy has the final word on the text).
+Not built: picking from the workspace's pending invites (listing them needs
+`members.invite`); typing the address covers that case.
+
+### 11.4 Tests
+
+- `internal/store/channel_invites_test.go` (memory and Postgres): the add
+  needs an open invite; accept and operator seat join; revoke, expiry,
+  re-invite and undo.
+- `internal/hub/channel_invites_test.go`: the HTTP rule above. Red on
+  origin/master: `POST {"email"}` answered 400 `bad_json`.
+- `csi-spl-wui/tests/e2e/channel-people.test.mjs`: type an address, Add, it is
+  listed as invited, the minus removes it.
+
+<!-- version: 1.4.0 · updated: 2026-10-27 · last-edit: 2026-10-27T01:14:13Z -->

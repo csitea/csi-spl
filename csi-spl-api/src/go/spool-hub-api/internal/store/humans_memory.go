@@ -214,6 +214,7 @@ func (s *Memory) Admit(_ context.Context, id Identity, tenant string, p AdmitPol
 	}
 	if inv != nil {
 		inv.accepted = true
+		s.promoteChannelInvitesLocked(tenant, inv.Email, hum) // spec 025 section 11
 	}
 	return hum, nil
 }
@@ -359,6 +360,7 @@ func (s *Memory) ProvisionMember(_ context.Context, in ProvisionInput, now time.
 	}
 	if inv, ok := h.invites[[2]string{in.Tenant, email}]; ok && !inv.accepted {
 		inv.accepted = true
+		s.promoteChannelInvitesLocked(in.Tenant, email, hum) // spec 025 section 11
 		if inv.OrderedBy == "" {
 			inv.OrderedBy = in.OrderedBy
 		}
@@ -418,6 +420,9 @@ func (s *Memory) PutInvite(_ context.Context, in Invite, now time.Time) error {
 	ni := &memInvite{Invite: in, createdAt: now}
 	if old, ok := s.hum.invites[[2]string{in.TenantID, in.Email}]; ok {
 		ni.mailedAt = old.mailedAt
+		if old.accepted || !now.Before(old.ExpiresAt) { // spec 025 section 11: a lapsed invite's channels lapse
+			s.dropChannelInvitesLocked(in.TenantID, in.Email)
+		}
 	}
 	s.hum.invites[[2]string{in.TenantID, in.Email}] = ni
 	return nil

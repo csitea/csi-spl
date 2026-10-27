@@ -313,23 +313,26 @@ func (s *Postgres) admitTx(ctx context.Context, tx pgx.Tx, hum, email, tenant st
 // invite is taken, the signed-in address's first, then the oldest. done =
 // the membership was written.
 func acceptInviteTx(ctx context.Context, tx pgx.Tx, hum, email, tenant string, now time.Time) (bool, error) {
-	var role, by string
+	var role, by, taken string
 	err := tx.QueryRow(ctx, `UPDATE tenant_invites SET accepted_at = $3, accepted_by = $4
 		WHERE tenant_id = $1 AND email = (SELECT v.email FROM tenant_invites v
 			WHERE v.tenant_id = $1 AND v.accepted_at IS NULL AND v.expires_at > $3
 			AND v.email IN (SELECT i.email FROM human_identities i
 				WHERE i.human_id = $4 AND i.email_verified AND i.email IS NOT NULL)
 			ORDER BY v.email = $2 DESC, v.created_at, v.email LIMIT 1)
-		RETURNING role, invited_by`, tenant, email, now, hum).Scan(&role, &by)
+		RETURNING role, invited_by, email`, tenant, email, now, hum).Scan(&role, &by, &taken)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}
 	if err != nil {
 		return false, err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO tenant_memberships (tenant_id, human_id, role, created_at, admitted_by)
-		VALUES ($1, $2, $3, $4, $5)`, tenant, hum, role, now, by)
-	return true, err
+	if _, err = tx.Exec(ctx, `INSERT INTO tenant_memberships (tenant_id, human_id, role, created_at, admitted_by)
+		VALUES ($1, $2, $3, $4, $5)`, tenant, hum, role, now, by); err != nil {
+		return true, err
+	}
+	// spec 025 section 11: the channels the invite was added to (rdb 0231).
+	return true, promoteChannelInvitesTx(ctx, tx, tenant, taken, hum, now)
 }
 
 // seatDemoTx seats hum as a demo_user (specs/077 T007) unless the demo holds
@@ -491,6 +494,10 @@ func (s *Postgres) ProvisionMember(ctx context.Context, in ProvisionInput, now t
 		in.Tenant, hum, now, in.OrderedBy, in.OrderedVia, email); err != nil {
 		return "", false, err
 	}
+	// spec 025 section 11: the channels the invite was added to (rdb 0231).
+	if err := promoteChannelInvitesTx(ctx, tx, in.Tenant, email, hum, now); err != nil {
+		return "", false, err
+	}
 	if in.PasswordHash != "" {
 		if err := provisionCredentialTx(ctx, tx, hum, email, in.PasswordHash, in.DisplayName, now); err != nil {
 			return "", false, err
@@ -499,6 +506,7 @@ func (s *Postgres) ProvisionMember(ctx context.Context, in ProvisionInput, now t
 	if err := tx.Commit(ctx); err != nil {
 		return "", false, err
 	}
+	s.hot.forget() // an already-seated hum may hold a cached channel_humans list
 	return hum, createdHuman, nil
 }
 
@@ -581,7 +589,12 @@ func (s *Postgres) PutInvite(ctx context.Context, in Invite, now time.Time) erro
 	if err := normalizeInvite(&in); err != nil {
 		return err
 	}
-	tag, err := s.execTenant(ctx, in.TenantID, `INSERT INTO tenant_invites (tenant_id, email, role, invited_by, created_at, expires_at, ordered_by, ordered_via)
+	// spec 025 section 11: a re-invite of a lapsed or accepted address starts
+	// with no pending channel rows (rdb 0231); a re-invite of an open one keeps them.
+	tag, err := s.execTenant(ctx, in.TenantID, `WITH stale AS (DELETE FROM channel_invites c USING tenant_invites v
+			WHERE c.tenant_id = $1 AND c.email = $2 AND v.tenant_id = c.tenant_id AND v.email = c.email
+			AND (v.accepted_at IS NOT NULL OR v.expires_at <= $5))
+		INSERT INTO tenant_invites (tenant_id, email, role, invited_by, created_at, expires_at, ordered_by, ordered_via)
 		SELECT $1, $2, $3, $4, $5, $6, $7, $8 WHERE EXISTS (SELECT 1 FROM tenants WHERE tenant_id = $1)
 		ON CONFLICT (tenant_id, email) DO UPDATE SET role = EXCLUDED.role, invited_by = EXCLUDED.invited_by,
 			created_at = EXCLUDED.created_at, expires_at = EXCLUDED.expires_at, accepted_at = NULL, accepted_by = NULL,

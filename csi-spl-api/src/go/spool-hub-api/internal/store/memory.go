@@ -91,6 +91,9 @@ type Memory struct {
 	// dm_agents.go (rdb 0228, spec 151): the agents added to a DM, nil until
 	// the first add; guarded by mu
 	dmAgents map[memDMAgentKey]DMAgent
+	// channel_invites.go (rdb 0231, spec 025 section 11): pending channel
+	// rows of an invited address -> added_by, nil until the first add; guarded by mu
+	chInvites map[memChannelInviteKey]string
 	// box_locks_expected.go: cnf hub.box_locks_expected, read without mu
 	expectLocks expectedBoxLocks
 	// operator_flag.go (rdb 0116): the flagged operator workspace, "" = none; guarded by mu

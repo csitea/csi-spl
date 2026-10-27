@@ -192,6 +192,8 @@ func (s *Server) handleListChannelMembers(w http.ResponseWriter, r *http.Request
 		"members_open_invite": row.MembersOpenInvite,
 		"created_by":          row.CreatedBy,
 		"agents":              list,
+		// spec 025 section 11: addresses added before they joined (rdb 0231)
+		"invited": s.channelInvitees(r.Context(), t.ID, ch),
 	}
 	if !s.channelAgentsOn(r.Context(), t.ID, ch) { // SPL-1684: absent = on, the wire as before
 		out["ai_agents_off"] = true
@@ -274,9 +276,11 @@ func channelAgentList(byBox map[string][]string) []channelAgent {
 	return out
 }
 
-// POST /v1/channels/{channel}/members {"human_id": "HUM-n"} — add one member.
-// The owner may always. Any current member may when members_open_invite is
-// on. channels.manage is not this door.
+// POST /v1/channels/{channel}/members {"human_id": "HUM-n"} — add one member,
+// or {"email": "<address>"} — add a person who has not joined the workspace
+// yet (spec 025 section 11, channel_invites.go). The owner may always. Any
+// current member may when members_open_invite is on. channels.manage is not
+// this door.
 func (s *Server) handleAddChannelMember(w http.ResponseWriter, r *http.Request) {
 	t, ch, hum, ok := s.channelDoor(w, r)
 	if !ok {
@@ -301,39 +305,51 @@ func (s *Server) handleAddChannelMember(w http.ResponseWriter, r *http.Request) 
 	}
 	var body struct {
 		HumanID string `json:"human_id"`
+		Email   string `json:"email"`
 	}
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxMemberJSONBody))
 	dec.DisallowUnknownFields()
-	if err := dec.Decode(&body); err != nil || body.HumanID == "" {
-		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {human_id}")
+	if err := dec.Decode(&body); err != nil || (body.HumanID == "") == (body.Email == "") {
+		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {human_id} or {email}")
 		return
 	}
 	if store.ChannelPublic(ch) {
 		writeErr(w, http.StatusConflict, "channel_public", "#"+ch+" is a default channel: every member of the tenant already reads it")
 		return
 	}
+	if body.Email != "" {
+		s.addChannelInvitee(w, r, t, ch, hum, body.Email)
+		return
+	}
+	s.addChannelHuman(w, r, t, ch, hum, body.HumanID)
+}
+
+// addChannelHuman puts a member of the tenant in the channel (channel_humans).
+func (s *Server) addChannelHuman(w http.ResponseWriter, r *http.Request, t store.Tenant, ch, hum, target string) {
 	// Only a member of the TENANT can be put in one of its channels; without
-	// this a typo would create a membership row nothing ever cleans up.
+	// this a typo would create a membership row nothing ever cleans up. A
+	// person who has not joined yet is added by address instead, as a pending
+	// row tied to their invite (channel_invites.go).
 	h, hasHumans := s.o.Store.(store.Humans)
 	if !hasHumans {
 		writeErr(w, http.StatusInternalServerError, "internal", "memberships unavailable")
 		return
 	}
-	switch _, err := h.MemberRole(r.Context(), body.HumanID, t.ID); {
+	switch _, err := h.MemberRole(r.Context(), target, t.ID); {
 	case errors.Is(err, store.ErrNotFound):
-		writeErr(w, http.StatusNotFound, "not_a_member", body.HumanID+" is not a member of this tenant")
+		writeErr(w, http.StatusNotFound, "not_a_member", target+" is not a member of this tenant")
 		return
 	case err != nil:
 		writeErr(w, http.StatusInternalServerError, "internal", "memberships unavailable")
 		return
 	}
-	if err := s.o.Store.AddChannelHumans(r.Context(), t.ID, ch, []string{body.HumanID}, hum, s.o.Now()); err != nil {
+	if err := s.o.Store.AddChannelHumans(r.Context(), t.ID, ch, []string{target}, hum, s.o.Now()); err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "membership not stored")
 		return
 	}
-	s.o.Log.Info().Str("tenant", t.ID).Str("channel", ch).Str("human", body.HumanID).
+	s.o.Log.Info().Str("tenant", t.ID).Str("channel", ch).Str("human", target).
 		Str("by", hum).Msg("channel member added")
-	writeJSON(w, http.StatusCreated, map[string]any{"channel": ch, "human_id": body.HumanID, "added_by": hum})
+	writeJSON(w, http.StatusCreated, map[string]any{"channel": ch, "human_id": target, "added_by": hum})
 }
 
 // POST /v1/channels/{channel}/agents {"id","box"} — subscribe one announced
@@ -565,6 +581,10 @@ func (s *Server) handleRemoveChannelMember(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	target := r.PathValue("human_id")
+	if strings.Contains(target, "@") { // a pending add (spec 025 section 11)
+		s.removeChannelInvitee(w, r, t, ch, hum, target)
+		return
+	}
 	// Leaving needs no permission; removing SOMEONE ELSE does.
 	if target != hum && !s.permit(w, r, t.ID, hum, rbac.ChannelsManage) {
 		return

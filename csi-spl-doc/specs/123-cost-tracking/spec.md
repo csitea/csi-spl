@@ -180,6 +180,13 @@ day, else the last one published before it, and the rate's date is shown.
   `csi-spl-orc/cnf/box-crons/box-crons.manifest`, script
   `fx-rates-fetch-cron.sh`, for dev and prd. Test:
   `csi-spl-orc/src/bash/tests/spl-fx-rates-fetch.tst.sh`.
+- **Backfill** (SPL-3791): `ENV=<env> FX_FROM=<YYYY-MM-DD> [DRY_RUN=0] ./run -a do_spl_fx_rates_fetch`
+  posts every day from `FX_FROM` (1999-01-04 .. today, not with `FX_DAYS`)
+  in place of the last `env.fx.days`: it reads cnf `env.fx.ecb_hist_url` (the
+  ECB's full file) and `env.fx.fed_range_url` (the Fed series with `{from}`
+  and `{to}` filled), in the same 500-row chunks and the same UPSERT. A
+  one-off per hub (prd and dev from 2024-07-01, so an item of an older period
+  converts at a rate of its own month); the cron row never sets it.
 - **Setting**: `second_currency`, per workspace like `time_zone` (rdb 0078
   membership settings, no humans column). `PUT /api/v1/auth/preferences`
   takes an ISO 4217 code (upper-cased) or `null` (back to EUR); a code the

@@ -13,6 +13,10 @@
 #   4. one bank failing: the other's rows still post, the run is non-zero
 #   5. CONTROL: ENV, FX_DAYS, a missing URL or EUR missing from the list are
 #      refused before any download; the real cnf passes the checks
+#   6. FX_FROM (SPL-3791): a range back to 2024-07-01 reads the banks' history
+#      URLs (the ECB full file, the Fed range with from/to filled), keeps every
+#      day >= FX_FROM and posts it in chunks; FX_FROM with FX_DAYS, a bad, a
+#      future or a pre-1999 day is refused before any download
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -41,9 +45,24 @@ printf '%s\r\n' \
   '2026-10-09,ND,ND,ND,ND' \
   '2026-10-12,0.6250,1.1200,159.50,1.3100' >"$T/fed.csv"
 
-cnf() { # <file> [ecb_url] [fed_url] [currencies]
-  printf 'env:\n  fx:\n    days: 30\n    ecb_url: "%s"\n    fed_url: "%s"\n    ecb_currencies: [%s]\n' \
-    "${2-https://ecb.example/rates.xml}" "${3-https://fed.example/h10.csv}" "${4-EUR, GBP, SEK}" >"$1"
+# History: the ECB full file and the Fed range carry 2024-06-28 (before
+# FX_FROM, dropped) and 2024-07-01.
+cat >"$T/ecb-hist.xml" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?><gesmes:Envelope xmlns:gesmes="http://www.gesmes.org/xml/2002-08-01" xmlns="http://www.ecb.int/vocabulary/2002-08-01/eurofxref"><Cube><Cube time="2026-10-12"><Cube currency="USD" rate="1.25"/><Cube currency="GBP" rate="0.875"/></Cube><Cube time="2024-07-01"><Cube currency="USD" rate="1.0"/><Cube currency="GBP" rate="0.85"/></Cube><Cube time="2024-06-28"><Cube currency="USD" rate="1.0"/><Cube currency="GBP" rate="0.84"/></Cube></Cube></gesmes:Envelope>
+EOF
+printf '%s\r\n' \
+  '"Series Description","Australian Dollar","Japanese Yen"' \
+  '"Currency:","AUD","JPY"' \
+  '"Unique Identifier: ","H10/H10/RXI$US_N.B.AL","H10/H10/RXI_N.B.JA"' \
+  '2024-06-28,0.5000,160.00' \
+  '2024-07-01,0.5000,161.00' \
+  '2026-10-12,0.6250,159.50' >"$T/fed-hist.csv"
+
+FED_RANGE='https://fed.example/range.csv?from={from}&to={to}'
+cnf() { # <file> [ecb_url] [fed_url] [currencies] [ecb_hist_url] [fed_range_url]
+  printf 'env:\n  fx:\n    days: 30\n    ecb_url: "%s"\n    fed_url: "%s"\n    ecb_currencies: [%s]\n    ecb_hist_url: "%s"\n    fed_range_url: "%s"\n' \
+    "${2-https://ecb.example/rates.xml}" "${3-https://fed.example/h10.csv}" "${4-EUR, GBP, SEK}" \
+    "${5-https://ecb.example/hist.xml}" "${6-$FED_RANGE}" >"$1"
 }
 cnf "$T/cnf.yaml"
 
@@ -52,7 +71,7 @@ cnf "$T/cnf.yaml"
 runa() {
   local f="$1"; shift
   : >"$T/posts"; : >"$T/gets"
-  env -u DRY_RUN -u FX_DAYS FUNC="$FUNC" T="$T" CNF="$f" "$@" bash -c '
+  env -u DRY_RUN -u FX_DAYS -u FX_FROM FUNC="$FUNC" T="$T" CNF="$f" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*" >&2; }
     source "${FUNC%/src/bash/run/*}/lib/bash/funcs/spl-cloud-cnf.func.sh"
@@ -63,6 +82,8 @@ runa() {
     spl_fx_get() {
       echo "$1" >>"$T/gets"
       case "$1" in
+        *ecb.example/hist*) [[ "${FAIL_BANK:-}" != ecb ]] && cp "$T/ecb-hist.xml" "$2" ;;
+        *fed.example/range*) [[ "${FAIL_BANK:-}" != fed ]] && cp "$T/fed-hist.csv" "$2" ;;
         *ecb*) [[ "${FAIL_BANK:-}" != ecb ]] && cp "$T/ecb.xml" "$2" ;;
         *fed*) [[ "${FAIL_BANK:-}" != fed ]] && cp "$T/fed.csv" "$2" ;;
         *) return 1 ;;
@@ -148,6 +169,43 @@ if [[ "$(sed -n 1p "$T/real")" =~ ^[0-9]+$ ]] && grep -q '^https://' <(sed -n 2,
   pass "5 the real cnf (all.env.yaml env.fx) has days, two https URLs and EUR in the ECB list"
 else
   fail "5 real cnf env.fx: $(tr '\n' '|' <"$T/real")"
+fi
+
+# 6: FX_FROM, a historical range ----------------------------------------------
+runa "$T/cnf.yaml" ENV=dev FX_FROM=2024-07-01
+rc=$?
+if [[ $rc == 0 && ! -s "$T/posts" ]] && grep -q "since=2024-07-01 ECB rows=4 latest=2026-10-12 FED rows=4 latest=2026-10-12" "$T/e"; then
+  pass "6 FX_FROM=2024-07-01 DRY_RUN: since 2024-07-01, ECB 4 and FED 4 rows (2024-06-28 dropped), nothing posted"
+else
+  fail "6 FX_FROM dry run: rc=$rc posts=$(cat "$T/posts") err=$(tail -n 3 "$T/e" | tr '\n' ' ')"
+fi
+want_gets=$'https://ecb.example/hist.xml\nhttps://fed.example/range.csv?from=07%2F01%2F2024&to='"$(date -u +%m)%2F$(date -u +%d)%2F$(date -u +%Y)"
+[[ "$(cat "$T/gets")" == "$want_gets" ]] && pass "6 FX_FROM reads the ECB full file and the Fed range from=07/01/2024 to=today (encoded)" ||
+  fail "6 FX_FROM urls: $(tr '\n' '|' <"$T/gets")"
+runa "$T/cnf.yaml" ENV=dev FX_FROM=2024-07-01 DRY_RUN=0 FX_POST_CHUNK=3
+rc=$?
+n_calls=$(grep -c '^POST /v1/operator/fx/rates ' "$T/posts")
+first=$(grep '^POST ' "$T/posts" | sed 's|^POST /v1/operator/fx/rates ||' | jq -rs '[.[].rows[].day] | min')
+if [[ $rc == 0 && $n_calls == 3 && "$first" == 2024-07-01 ]]; then
+  pass "6 FX_FROM DRY_RUN=0 posts the 8 rows in 3 chunks of up to 3, earliest day 2024-07-01"
+else
+  fail "6 FX_FROM post: rc=$rc calls=$n_calls first=$first err=$(tail -n 3 "$T/e" | tr '\n' ' ')"
+fi
+for bad in "FX_FROM=2024-07-01 FX_DAYS=30" FX_FROM=2024-7-1 FX_FROM=2024-02-30 FX_FROM=1998-12-31 "FX_FROM=$(date -u -d '+2 days' +%F)"; do
+  # shellcheck disable=SC2086 # the VAR=val pairs split on purpose
+  runa "$T/cnf.yaml" ENV=dev $bad
+  [[ $? != 0 && ! -s "$T/gets" ]] && grep -q "FX_FROM" "$T/e" && pass "6 $bad refused before any download" || fail "6 $bad: $(tail -n 2 "$T/e" | tr '\n' ' ')"
+done
+cnf "$T/nohist.yaml" https://ecb.example/rates.xml https://fed.example/h10.csv "EUR, GBP" "" "https://fed.example/range.csv"
+runa "$T/nohist.yaml" ENV=dev FX_FROM=2024-07-01
+[[ $? != 0 && ! -s "$T/gets" ]] && pass "6 FX_FROM without an ECB history URL or a Fed range URL with {from}/{to}: refused" || fail "6 no hist url ran"
+runa "$T/nohist.yaml" ENV=dev
+[[ $? == 0 ]] && pass "6 the daily run (no FX_FROM) needs no history URL" || fail "6 daily run needs the hist url: $(tail -n 2 "$T/e" | tr '\n' ' ')"
+yq -r '.env.fx.ecb_hist_url, .env.fx.fed_range_url' "$REAL_CNF" >"$T/realh"
+if [[ "$(sed -n 1p "$T/realh")" == https://* && "$(sed -n 2p "$T/realh")" == https://*'{from}'*'{to}'* ]]; then
+  pass "6 the real cnf has an https ECB history URL and a Fed range URL with {from} and {to}"
+else
+  fail "6 real cnf history urls: $(tr '\n' '|' <"$T/realh")"
 fi
 
 echo

@@ -17,11 +17,20 @@
 # @description and the other one still posts; both failing is FATAL.
 # @description DRY_RUN=1 (default): read both banks, print the counts and the
 # @description latest day of each, post nothing.
+# @description FX_FROM=<YYYY-MM-DD> (SPL-3791) posts a historical range in
+# @description place of the last FX_DAYS days: every day from FX_FROM to today,
+# @description read from cnf env.fx.ecb_hist_url (the ECB's full file, from
+# @description 1999-01-04) and env.fx.fed_range_url (the Fed series with its
+# @description {from} and {to} filled as MM/DD/YYYY), posted in the same
+# @description chunks and UPSERT. The one-off backfill of a hub; the daily cron
+# @description row never sets it.
 # @param ENV - required: dev or prd, the hub written
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param FX_DAYS (optional) - the days back from today posted, 1..90, default cnf env.fx.days
+# @param FX_FROM (optional) - YYYY-MM-DD, 1999-01-04..today: post every day since it (not with FX_DAYS)
 # @example ENV=dev ./run -a do_spl_fx_rates_fetch
 # @example ENV=prd DRY_RUN=0 ./run -a do_spl_fx_rates_fetch
+# @example ENV=prd FX_FROM=2024-07-01 DRY_RUN=0 ./run -a do_spl_fx_rates_fetch
 #------------------------------------------------------------------------------
 do_spl_fx_rates_fetch() {
   do_require_bin curl jq yq awk || return 1
@@ -29,16 +38,20 @@ do_spl_fx_rates_fetch() {
   local dry="${DRY_RUN:-1}" days ecb_url fed_url euro since tmp n_ecb n_fed rc=0
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   do_spl_cloud_cnf || return 1
-  days="${FX_DAYS:-$(yq -r '.env.fx.days // ""' "$SPL_CNF")}"
-  ecb_url="$(yq -r '.env.fx.ecb_url // ""' "$SPL_CNF")"
-  fed_url="$(yq -r '.env.fx.fed_url // ""' "$SPL_CNF")"
   euro="$(yq -r '(.env.fx.ecb_currencies // []) | join(" ")' "$SPL_CNF")"
-  [[ "$days" =~ ^[0-9]+$ ]] && (( days >= 1 && days <= 90 )) ||
-    { do_log "FATAL FX_DAYS / cnf env.fx.days must be 1..90, got: '$days'"; return 1; }
-  [[ "$ecb_url" == https://* && "$fed_url" == https://* ]] ||
-    { do_log "FATAL cnf env.fx.ecb_url and env.fx.fed_url must be https URLs (no default)"; return 1; }
+  if [[ -n "${FX_FROM:-}" ]]; then
+    spl_fx_range || return 1
+  else
+    days="${FX_DAYS:-$(yq -r '.env.fx.days // ""' "$SPL_CNF")}"
+    ecb_url="$(yq -r '.env.fx.ecb_url // ""' "$SPL_CNF")"
+    fed_url="$(yq -r '.env.fx.fed_url // ""' "$SPL_CNF")"
+    [[ "$days" =~ ^[0-9]+$ ]] && (( days >= 1 && days <= 90 )) ||
+      { do_log "FATAL FX_DAYS / cnf env.fx.days must be 1..90, got: '$days'"; return 1; }
+    [[ "$ecb_url" == https://* && "$fed_url" == https://* ]] ||
+      { do_log "FATAL cnf env.fx.ecb_url and env.fx.fed_url must be https URLs (no default)"; return 1; }
+    since="$(date -u -d "-$days days" +%F)"
+  fi
   [[ " $euro " == *" EUR "* ]] || { do_log "FATAL cnf env.fx.ecb_currencies must name EUR"; return 1; }
-  since="$(date -u -d "-$days days" +%F)"
   tmp="$(umask 077 && mktemp -d)" || return 1
   : >"$tmp/rows"
   if spl_fx_get "$ecb_url" "$tmp/ecb.xml" && spl_fx_ecb_rows "$tmp/ecb.xml" "$euro" "$since" >"$tmp/ecb"; then
@@ -64,6 +77,28 @@ do_spl_fx_rates_fetch() {
   (( rc == 0 )) || { do_log "FATAL the rates were not all posted to the $ENV hub"; return 1; }
   (( n_ecb > 0 && n_fed > 0 )) || { do_log "FATAL one bank gave no rate (ECB $n_ecb, FED $n_fed): the other's are in the $ENV hub"; return 1; }
   do_log "OK the $((n_ecb + n_fed)) rate(s) since $since are in the $ENV hub"
+}
+
+# spl_fx_range: FX_FROM's checks; sets the caller's since, ecb_url and
+# fed_url to the day and the banks' history URLs (the Fed's {from} and {to}
+# filled as URL-encoded MM/DD/YYYY, to = today).
+spl_fx_range() {
+  local today from_q to_q
+  today="$(date -u +%F)"
+  [[ -z "${FX_DAYS:-}" ]] || { do_log "FATAL FX_FROM and FX_DAYS are mutually exclusive: set one"; return 1; }
+  [[ "$FX_FROM" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ && "$(date -u -d "$FX_FROM" +%F 2>/dev/null)" == "$FX_FROM" ]] ||
+    { do_log "FATAL FX_FROM must be a day YYYY-MM-DD, got: '$FX_FROM'"; return 1; }
+  [[ ! "$FX_FROM" < 1999-01-04 && ! "$FX_FROM" > "$today" ]] ||
+    { do_log "FATAL FX_FROM must be 1999-01-04 (the ECB's first day) .. today $today, got: $FX_FROM"; return 1; }
+  ecb_url="$(yq -r '.env.fx.ecb_hist_url // ""' "$SPL_CNF")"
+  fed_url="$(yq -r '.env.fx.fed_range_url // ""' "$SPL_CNF")"
+  [[ "$ecb_url" == https://* && "$fed_url" == https://*'{from}'*'{to}'* ]] ||
+    { do_log "FATAL FX_FROM needs cnf env.fx.ecb_hist_url (https) and env.fx.fed_range_url (https, with {from} and {to})"; return 1; }
+  from_q="${FX_FROM:5:2}%2F${FX_FROM:8:2}%2F${FX_FROM:0:4}"
+  to_q="${today:5:2}%2F${today:8:2}%2F${today:0:4}"
+  fed_url="${fed_url//\{from\}/$from_q}"
+  fed_url="${fed_url//\{to\}/$to_q}"
+  since="$FX_FROM"
 }
 
 # spl_fx_get URL OUT: one bounded download; a non-200 or an empty body fails.

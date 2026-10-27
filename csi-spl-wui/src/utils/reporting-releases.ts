@@ -79,6 +79,43 @@ export function togglePill(all: readonly string[], picked: readonly string[], id
   return all.filter((x) => on.has(x))
 }
 
+/** The size steps of the label cloud: 0 is a label no commit carries, 5 the most used. */
+export const LABEL_CLOUD_STEPS = 5
+
+/** How many commits of the daily answer carry each kind or area label. */
+export function labelCounts(days: readonly ReleaseDay[] | undefined, field: 'kinds' | 'areas'): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const d of days || []) {
+    for (const [k, n] of Object.entries(d?.[field] || {})) {
+      if (typeof n === 'number' && n > 0) out[k] = (out[k] || 0) + n
+    }
+  }
+  return out
+}
+
+/**
+ * The label cloud of one pill row (owner, t1 58c4aa4b): each label sized by
+ * how many commits carry it, the most used in the centre and the next ones
+ * placed right, left, right ... of it. A step grows with the square root of
+ * the label's share of the top one, so a rare label stays readable; ties
+ * keep the pills' order.
+ */
+export function labelCloud(all: readonly string[], counts: Record<string, number> | undefined): { id: string, n: number, step: number }[] {
+  const max = Math.max(0, ...all.map((id) => counts?.[id] || 0))
+  const ranked = all
+    .map((id, i) => {
+      const n = counts?.[id] || 0
+      return { id, n, i, step: n > 0 ? Math.max(1, Math.ceil(LABEL_CLOUD_STEPS * Math.sqrt(n / max))) : 0 }
+    })
+    .sort((a, b) => b.n - a.n || a.i - b.i)
+  const out: { id: string, n: number, step: number }[] = []
+  ranked.forEach(({ id, n, step }, r) => {
+    if (r % 2) out.push({ id, n, step })
+    else out.unshift({ id, n, step })
+  })
+  return out
+}
+
 /** A release key as a reader sees it: v1.0.1-c2 -> v1.0.1. */
 export function displayVersion(v: unknown): string {
   return String(v || '').replace(/-c[0-9]+$/, '')

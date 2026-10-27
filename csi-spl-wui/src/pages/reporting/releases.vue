@@ -3,12 +3,15 @@
      then the days newest first with their commits. Two reads per filter
      change: GET /v1/reporting/releases/daily (the day headers and the KPIs)
      and the first page of GET /v1/reporting/releases/commits; "Load more"
-     reads the next page. A read that loses the race to a newer filter is
+     reads the next page. The label cloud's counts are the daily answer's
+     with no kind or area picked; while one is picked they stay those of the
+     range and search, read once more without the picks only when the range
+     or the search changed (spec 143 2.2.1). A read that loses the race to a newer filter is
      dropped. Its own chunk: Nuxt loads this page only on /reporting/releases. -->
 <template>
   <div class="reporting-releases" data-test="reporting-releases">
     <ReportingReleasesSummary :summary="summary" />
-    <ReleasesFilterBar v-model:range="range" v-model:kinds="kinds" v-model:areas="areas" v-model:search="search" />
+    <ReleasesFilterBar v-model:range="range" v-model:kinds="kinds" v-model:areas="areas" v-model:search="search" :kind-counts="cloud?.kinds" :area-counts="cloud?.areas" />
 
     <p v-if="state === 'loading' && !daily" class="muted" data-test="releases-loading">{{ t('reporting.releases.loading') }}</p>
     <p v-else-if="state === 'error'" class="rr-error" data-test="releases-error">
@@ -32,7 +35,7 @@ import ReportingReleasesSummary from '~/components/reporting/ReportingReleasesSu
 import ReleasesFilterBar from '~/components/reporting/ReleasesFilterBar.vue'
 import ReleasesDailyList from '~/components/reporting/ReleasesDailyList.vue'
 import {
-  mergeCommitPages, RELEASE_PAGE, RELEASE_RANGE_DEFAULT, releaseDayGroups, releaseQuery, releaseReportRead, releaseSummary, releaseWindow,
+  labelCounts, mergeCommitPages, RELEASE_PAGE, RELEASE_RANGE_DEFAULT, releaseDayGroups, releaseQuery, releaseReportRead, releaseSummary, releaseWindow,
   type ReleaseCommit, type ReleaseCommits, type ReleaseDaily,
 } from '~/utils/reporting-releases'
 
@@ -50,6 +53,9 @@ const total = ref(0)
 const days = ref(7)
 const state = ref<'loading' | 'ok' | 'error'>('loading')
 const busy = ref(false)
+/* the label cloud's counts and the range + search they were read for */
+const cloud = ref<{ kinds: Record<string, number>, areas: Record<string, number> } | null>(null)
+let cloudKey = ''
 
 const summary = computed(() => (daily.value ? releaseSummary(daily.value, days.value) : null))
 const groups = computed(() => releaseDayGroups(daily.value?.days, notes.value))
@@ -65,11 +71,21 @@ async function load() {
   busy.value = true
   state.value = 'loading'
   try {
-    const [d, c] = await Promise.all([
+    const key = range.value + '|' + search.value.trim()
+    const picked = kinds.value.length > 0 || areas.value.length > 0
+    const [d, c, all] = await Promise.all([
       releaseReportRead<ReleaseDaily>(api, '/v1/reporting/releases/daily' + releaseQuery(filter())),
       releaseReportRead<ReleaseCommits>(api, '/v1/reporting/releases/commits' + releaseQuery({ ...filter(), limit: RELEASE_PAGE })),
+      picked && key !== cloudKey
+        ? releaseReportRead<ReleaseDaily>(api, '/v1/reporting/releases/daily' + releaseQuery({ ...filter(), kinds: [], areas: [] })).catch(() => null)
+        : Promise.resolve(null),
     ])
     if (mine !== seq) return
+    const counted = picked ? all : d
+    if (counted) {
+      cloud.value = { kinds: labelCounts(counted.days, 'kinds'), areas: labelCounts(counted.days, 'areas') }
+      cloudKey = key
+    }
     daily.value = d
     days.value = win.days
     notes.value = Array.isArray(c?.notes) ? c.notes : []

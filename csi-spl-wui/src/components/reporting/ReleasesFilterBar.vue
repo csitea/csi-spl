@@ -1,6 +1,9 @@
 <!-- Spec 143 2.2 T023 (SPL-2787): the Releases tab's filter bar. The range
      pills (Today, 7 days, 30 days, 90 days; one is always on), the kind and
-     area pills (any number on; none = all), and the search box. Each change
+     area pills (any number on; none = all), and the search box. The kind and
+     area pills are a label cloud (spec 143 2.2.1, SPL-3796): with the counts
+     of the range, each pill's size step grows with its commits, the most
+     used in the centre; a click still toggles it as a filter. Each change
      is an update:<field> event; the search waits RELEASE_SEARCH_DEBOUNCE_MS
      after the last key so one word is one read, not one per letter. -->
 <template>
@@ -17,29 +20,31 @@
         @click="emit('update:range', r)"
       >{{ t('reporting.releases.range_' + r) }}</button>
     </div>
-    <div class="rf-row" role="group" :aria-label="t('reporting.releases.kind_label')" data-test="releases-kinds">
+    <div class="rf-row rf-cloud" role="group" :aria-label="t('reporting.releases.kind_label')" data-test="releases-kinds">
       <button
-        v-for="k in RELEASE_KINDS"
-        :key="k"
+        v-for="(c, i) in kindCloud"
+        :key="c.id"
         type="button"
         class="rf-pill rf-pill--code"
-        :class="{ 'rf-pill--on': kinds.includes(k) }"
-        :aria-pressed="kinds.includes(k) ? 'true' : 'false'"
-        :data-test="'releases-kind-' + k"
-        @click="emit('update:kinds', togglePill(RELEASE_KINDS, kinds, k))"
-      >{{ k }}</button>
+        :class="['rf-step-' + c.step, 'rf-drift-' + (i % 3), { 'rf-pill--on': kinds.includes(c.id) }]"
+        :aria-pressed="kinds.includes(c.id) ? 'true' : 'false'"
+        :data-test="'releases-kind-' + c.id"
+        :data-count="c.n"
+        @click="emit('update:kinds', togglePill(RELEASE_KINDS, kinds, c.id))"
+      >{{ c.id }}<span v-if="kindCounts" class="rf-n">{{ c.n }}</span></button>
     </div>
-    <div class="rf-row" role="group" :aria-label="t('reporting.releases.area_label')" data-test="releases-areas">
+    <div class="rf-row rf-cloud" role="group" :aria-label="t('reporting.releases.area_label')" data-test="releases-areas">
       <button
-        v-for="a in RELEASE_AREAS"
-        :key="a"
+        v-for="(c, i) in areaCloud"
+        :key="c.id"
         type="button"
         class="rf-pill rf-pill--code"
-        :class="{ 'rf-pill--on': areas.includes(a) }"
-        :aria-pressed="areas.includes(a) ? 'true' : 'false'"
-        :data-test="'releases-area-' + a"
-        @click="emit('update:areas', togglePill(RELEASE_AREAS, areas, a))"
-      >{{ a }}</button>
+        :class="['rf-step-' + c.step, 'rf-drift-' + (i % 3), { 'rf-pill--on': areas.includes(c.id) }]"
+        :aria-pressed="areas.includes(c.id) ? 'true' : 'false'"
+        :data-test="'releases-area-' + c.id"
+        :data-count="c.n"
+        @click="emit('update:areas', togglePill(RELEASE_AREAS, areas, c.id))"
+      >{{ c.id }}<span v-if="areaCounts" class="rf-n">{{ c.n }}</span></button>
     </div>
     <label class="rf-search">
       <span class="rf-search-label">{{ t('reporting.releases.search_label') }}</span>
@@ -56,9 +61,12 @@
 </template>
 
 <script setup lang="ts">
-import { RELEASE_AREAS, RELEASE_KINDS, RELEASE_RANGES, RELEASE_SEARCH_DEBOUNCE_MS, togglePill } from '~/utils/reporting-releases'
+import { labelCloud, RELEASE_AREAS, RELEASE_KINDS, RELEASE_RANGES, RELEASE_SEARCH_DEBOUNCE_MS, togglePill } from '~/utils/reporting-releases'
 
-const props = defineProps<{ range: string, kinds: string[], areas: string[], search: string }>()
+const props = defineProps<{
+  range: string, kinds: string[], areas: string[], search: string,
+  kindCounts?: Record<string, number> | null, areaCounts?: Record<string, number> | null,
+}>()
 const emit = defineEmits<{
   'update:range': [range: string]
   'update:kinds': [kinds: string[]]
@@ -66,6 +74,11 @@ const emit = defineEmits<{
   'update:search': [search: string]
 }>()
 const { t } = useI18n({ useScope: 'global' })
+
+/* before the first counts arrive, the pills keep their order at one middle step */
+const plain = (all: readonly string[]) => all.map((id) => ({ id, n: 0, step: 2 }))
+const kindCloud = computed(() => (props.kindCounts ? labelCloud(RELEASE_KINDS, props.kindCounts) : plain(RELEASE_KINDS)))
+const areaCloud = computed(() => (props.areaCounts ? labelCloud(RELEASE_AREAS, props.areaCounts) : plain(RELEASE_AREAS)))
 
 /* the box shows what was typed at once; the parent hears it once typing stops */
 const text = ref(props.search)
@@ -91,7 +104,19 @@ onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
 }
 .rf-pill:hover { background: var(--color-surface-hover); }
 .rf-pill--code { font-family: var(--font-mono, ui-monospace, monospace); }
-.rf-pill--on { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-on-accent); }
+/* the label cloud: centred rows, size by class step (no :style, CSP), a small drift up or down */
+.rf-cloud { justify-content: center; align-items: center; gap: 6px 10px; padding: 4px 0; }
+.rf-cloud .rf-pill { display: inline-flex; align-items: baseline; gap: 4px; line-height: 1.2; }
+.rf-n { font-size: 0.6875rem; opacity: 0.7; }
+.rf-step-0 { font-size: 0.75rem; color: var(--color-muted); border-style: dashed; }
+.rf-step-1 { font-size: 0.8125rem; }
+.rf-step-2 { font-size: 0.9375rem; }
+.rf-step-3 { font-size: 1.0625rem; padding: 3px 12px; }
+.rf-step-4 { font-size: 1.25rem; padding: 4px 14px; }
+.rf-step-5 { font-size: 1.5rem; padding: 5px 16px; font-weight: 600; }
+.rf-drift-1 { position: relative; top: -5px; }
+.rf-drift-2 { position: relative; top: 5px; }
+.rf-pill--on, .rf-pill--on:hover { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-on-accent); }
 .rf-search { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .rf-search-label { font-size: 0.8125rem; color: var(--color-muted); }
 .rf-search input { flex: 1 1 auto; min-width: 0; max-width: 420px; }

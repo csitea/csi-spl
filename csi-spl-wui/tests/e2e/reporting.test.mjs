@@ -4,6 +4,9 @@
 //     section lands on its first tab);
 //   - the Releases tab draws commit rows whose short sha and version link
 //     to /releases/<ref> (spec 2.2), and a click on a sha opens that page;
+//   - the kind labels are a cloud (spec 143 2.2.1, SPL-3796): the most used
+//     kind is the centre pill and the largest, and a click on it shows the
+//     commits of that kind only, with aria-pressed set;
 //   - for a workspace admin the bar shows the SQL tab; /reporting/sql runs
 //     a test query and renders the result table with zebra rows
 //     (.row--even / .row--odd, two different backgrounds, spec 3.6), its
@@ -101,6 +104,33 @@ async function releases(p, base, tag) {
   }
 }
 
+async function cloud(p, base, tag) {
+  await p.goto(base + '/reporting/releases', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await waitFor(p, '[data-test=releases-commit]')
+  await p.waitForFunction(() => document.querySelector('[data-test=releases-kinds] .rf-step-5'), { timeout: 15000 }).catch(() => {})
+  const pills = await p.$$eval('[data-test=releases-kinds] button', (els) => els.map((e) => ({
+    id: e.getAttribute('data-test').slice('releases-kind-'.length),
+    n: Number(e.getAttribute('data-count')),
+    px: parseFloat(getComputedStyle(e).fontSize),
+  })))
+  const mid = pills[Math.floor((pills.length - 1) / 2)] || {}
+  const top = pills.reduce((a, b) => (b.n > a.n ? b : a), { n: -1 })
+  ok(`${tag}: the most used kind is the centre pill`, pills.length > 2 && mid.id === top.id, pills.map((x) => `${x.id}:${x.n}`))
+  ok(`${tag}: the centre pill is the largest`, pills.every((x) => x.px <= mid.px) && pills.some((x) => x.px < mid.px), pills.map((x) => `${x.id}:${x.px}`))
+  await p.click(`[data-test=releases-kind-${top.id}]`)
+  await p.waitForFunction((k) => {
+    const got = [...document.querySelectorAll('[data-test=releases-commit-kind]')].map((e) => e.textContent.trim())
+    return got.length > 0 && got.every((x) => x === k)
+  }, { timeout: 15000 }, top.id).catch(() => {})
+  const kinds = await p.$$eval('[data-test=releases-commit-kind]', (els) => [...new Set(els.map((e) => e.textContent.trim()))])
+  ok(`${tag}: a click on a label shows that label's commits only`, kinds.length === 1 && kinds[0] === top.id, kinds)
+  ok(`${tag}: the clicked label is pressed`, await p.$eval(`[data-test=releases-kind-${top.id}]`, (e) => e.getAttribute('aria-pressed')).catch(() => '') === 'true')
+  const after = await p.$$eval('[data-test=releases-kinds] button', (els) => els.map((e) => e.getAttribute('data-test')))
+  ok(`${tag}: the cloud keeps its places while a label is picked`, JSON.stringify(after) === JSON.stringify(pills.map((x) => 'releases-kind-' + x.id)), after)
+  ok(`${tag}: no sideways scroll on Releases`, await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/reporting-cloud-${tag}.png` })
+}
+
 async function sql(p, base, tag) {
   await p.goto(base + '/reporting/releases', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   ok(`${tag}: an admin's bar shows the SQL tab`, await waitFor(p, '[data-test=reporting-tab-sql]'), await tabIds(p))
@@ -145,6 +175,7 @@ try {
     const tag = `${size.width}px`
     let { ctx, p } = await reportingPage(browser, server.base, size, ADMIN)
     await releases(p, server.base, tag)
+    await cloud(p, server.base, tag)
     await sql(p, server.base, tag)
     if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/reporting-sql-${size.width}.png` })
     await ctx.close();

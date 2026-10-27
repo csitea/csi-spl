@@ -208,6 +208,37 @@ The Releases tab features three integrated UI sections:
      - Subject line.
      - Expandable toggle showing Lay What/How/Why and Tech What/How/Why trailers.
 
+#### 2.2.1 The kind and area pills as a label cloud (SPL-3796)
+
+Owner HUM-10, t1 topic 58c4aa4b, msgs 27cb5bc0 and d7fdbbcd: the labels
+"should be scattered" like a label cloud, "their sizes shoud reflect the
+amount of the label type used in the commits .. and the biggest one should be
+in the center", and a click on a label "will show the commits of that lable
+only".
+
+- **Counts**: per label, the commits of the range and search that carry it,
+  summed over the `kinds` / `areas` maps of `GET /v1/reporting/releases/daily`
+  (`labelCounts`). No new endpoint. With no kind or area picked the page's
+  own daily read gives them; while one is picked the page reads the daily
+  answer once more without the picks, only when the range or the search
+  changed, so the cloud keeps its sizes and places while labels are toggled.
+- **Layout** (`labelCloud` in `csi-spl-wui/src/utils/reporting-releases.ts`):
+  the most used label in the centre of its row, the next ones placed right,
+  left, right ... of it; ties keep the pill order. Rows are centred and wrap
+  at 390 px; two pills of every three drift a few pixels up or down.
+- **Size**: six class steps, `rf-step-0` (no commit carries it: smallest,
+  muted, dashed) to `rf-step-5` (the most used); a step grows with the square
+  root of the label's share of the top one. Classes only, never `:style`
+  (CSP). The count is shown in the pill, so a screen reader hears it too.
+- **Unchanged**: each pill is a `<button>` with `aria-pressed`, the
+  `releases-kind-<k>` / `releases-area-<a>` hooks, and a click toggles the
+  label in or out of the filter (one label on = that label's commits only).
+  No new UI text.
+- **Tests**: `csi-spl-wui/tests/unit/reporting-releases.test.mjs` (the
+  helpers, the centre pill, the steps) and `tests/e2e/reporting.test.mjs`
+  (1440 and 390 px: the most used kind is the centre and largest pill, a
+  click shows its commits only, the cloud keeps its places).
+
 ### 2.3 Deploy recording lane (`estate_deploys`)
 
 #### 2.3.1 Database schema migration: `0202_estate_deploys.sql`
@@ -787,4 +818,4 @@ The Tokens tab is restricted to operator workspace admins only (`operatorsOnly: 
 
 ---
 
-<!-- version: 0.2.1 · updated: 2026-10-18 · last-edit: 2026-10-18T07:35:00Z -->
+<!-- version: 0.2.2 · updated: 2026-10-27 · last-edit: 2026-10-27T10:55:00Z -->

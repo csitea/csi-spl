@@ -191,6 +191,34 @@ describe('reporting-releases helpers', () => {
 
 /* ---------- T022: the KPI strip ---------- */
 
+describe('spec 143 2.2.1 the label cloud (SPL-3796)', () => {
+  it('labelCounts sums a field over the days, ignoring junk', () => {
+    const days = [{ kinds: { fix: 3, feat: 1 }, areas: { wui: 2 } }, { kinds: { fix: 2, docs: 0, x: 'n' }, areas: {} }, null]
+    assert.deepEqual(R.labelCounts(days, 'kinds'), { fix: 5, feat: 1 })
+    assert.deepEqual(R.labelCounts(days, 'areas'), { wui: 2 })
+    assert.deepEqual(R.labelCounts(undefined, 'kinds'), {})
+  })
+
+  it('CONTROL: the most used label is in the centre, the next ones alternate right and left', () => {
+    const c = R.labelCloud(['a', 'b', 'c', 'd', 'e'], { a: 1, b: 9, c: 4, d: 0, e: 16 })
+    assert.deepEqual(c.map((x) => x.id), ['d', 'c', 'e', 'b', 'a'])
+    assert.equal(c[2].id, 'e', 'the biggest in the middle')
+    assert.equal(c[2].step, R.LABEL_CLOUD_STEPS)
+    assert.deepEqual(c.map((x) => x.n), [0, 4, 16, 9, 1])
+  })
+
+  it('a step grows with the count; a label no commit carries is step 0, a rare one at least 1', () => {
+    const c = Object.fromEntries(R.labelCloud(['a', 'b', 'c', 'd'], { a: 100, b: 25, c: 1 }).map((x) => [x.id, x.step]))
+    assert.deepEqual(c, { a: 5, b: 3, c: 1, d: 0 })
+    for (const x of R.labelCloud(R.RELEASE_KINDS, {})) assert.equal(x.step, 0)
+  })
+
+  it('ties keep the pills order, so the cloud does not shuffle', () => {
+    const c = R.labelCloud(['a', 'b', 'c'], { a: 2, b: 2, c: 2 })
+    assert.deepEqual(c.map((x) => x.id), ['c', 'a', 'b'])
+  })
+})
+
 describe('T022 ReportingReleasesSummary', () => {
   const values = (root) => ['releases', 'commits', 'per-day', 'deploys'].map((k) => textOf(byTest(root, `releases-kpi-${k}-value`)[0]))
 
@@ -245,6 +273,23 @@ describe('T023 ReleasesFilterBar', () => {
     assert.deepEqual(got.pop(), ['kinds', []])
     byTest(root, 'releases-area-wui')[0].props.onClick()
     assert.deepEqual(got.pop(), ['areas', ['wui']])
+    app.unmount()
+  })
+
+  it('with counts the kind pills are a cloud: the biggest centred, sized by step, still a toggle', async () => {
+    const { root, got, app } = await bar({ kindCounts: { fix: 40, feat: 10, docs: 2 }, areaCounts: { wui: 5 } })
+    const pills = findAll(byTest(root, 'releases-kinds')[0], (n) => n.tag === 'button')
+    const ids = pills.map((n) => n.props['data-test'].slice('releases-kind-'.length))
+    assert.equal(ids.length, R.RELEASE_KINDS.length, 'every kind keeps its pill')
+    assert.equal(ids[Math.floor((ids.length - 1) / 2)], 'fix', 'the most used in the centre')
+    const fix = byTest(root, 'releases-kind-fix')[0]
+    assert.ok(String(fix.props.class).includes('rf-step-5'), fix.props.class)
+    assert.ok(String(byTest(root, 'releases-kind-ci')[0].props.class).includes('rf-step-0'))
+    assert.equal(textOf(fix), 'fix40', 'the count is in the button, for the screen reader too')
+    assert.equal(fix.props['aria-pressed'], 'false')
+    fix.props.onClick()
+    assert.deepEqual(got.pop(), ['kinds', ['fix']])
+    assert.equal(byTest(root, 'releases-area-wui')[0].props['data-count'], 5)
     app.unmount()
   })
 

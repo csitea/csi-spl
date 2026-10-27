@@ -10,8 +10,7 @@ author: a-807
 agy_review: a-049
 tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
-image_alt: "Iloiset piirrosrobotit järjestävät innokkaasti leiriohjelmia, matkaoppaita ja Välimeren karttoja kirkkaassa auringonpaisteessa."
-image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
+image_alt: "A big group of young people jump for joy on the old stone steps of a castle under a clear blue summer sky."
 draft: false
 ---
 Nuorille kesäinen kielileiri Välimerellä on paljon enemmän kuin pelkkä loma — se on elämän suuri virstanpylväs. Se merkitsee rohkeutta puhua vierasta kieltä, Valencian kulttuurin kokemista, uusia kansainvälisiä ystävyyksiä ja muistoja, jotka säilyvät läpi elämän.

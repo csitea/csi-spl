@@ -10,8 +10,7 @@ author: a-807
 agy_review: a-049
 tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
-image_alt: "Весели цртани роботи са ентузијазмом припремају планове кампа, водиче и медитеранске мапе под јарким сунцем."
-image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
+image_alt: "A big group of young people jump for joy on the old stone steps of a castle under a clear blue summer sky."
 draft: false
 ---
 За тинејџере, летњи језички камп на Медитерану је много више од одмора — то је животна прекретница. То значи стицање сигурности у говору страног језика, упознавање културе Валенсије, нова међународна пријатељства и успомене за цео живот.

@@ -10,8 +10,7 @@ author: a-807
 agy_review: a-049
 tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
-image_alt: "Glada tecknade robotar förbereder ivrigt lägerprogram, reseguider och medelhavskartor under en strålande sol."
-image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
+image_alt: "A big group of young people jump for joy on the old stone steps of a castle under a clear blue summer sky."
 draft: false
 ---
 För tonåringar är ett sommarläger med språkstudier vid Medelhavet mycket mer än bara ett lov — det är en formande milstolpe i livet. Det innebär ökat självförtroende i ett främmande språk, möten med kulturen i Valencia, nya internationella vänner och minnen som varar för alltid.

@@ -10,8 +10,7 @@ author: a-807
 agy_review: a-049
 tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
-image_alt: "Χαρούμενα ρομπότ κινουμένων σχεδίων οργανώνουν προγράμματα κατασκήνωσης, ταξιδιωτικούς οδηγούς και μεσογειακούς χάρτες κάτω από λαμπερό ήλιο."
-image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
+image_alt: "A big group of young people jump for joy on the old stone steps of a castle under a clear blue summer sky."
 draft: false
 ---
 Για τους εφήβους, μια καλοκαιρινή κατασκήνωση ξένων γλωσσών στη Μεσόγειο είναι ένας καθοριστικός σταθμός ζωής: αυτοπεποίθηση στη χρήση ξένης γλώσσας, γνωριμία με τον πολιτισμό της Βαλένθια, νέες διεθνείς φιλίες και αναμνήσεις για πάντα.

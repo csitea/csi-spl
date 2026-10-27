@@ -10,8 +10,7 @@ author: a-807
 agy_review: a-049
 tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
-image_alt: "Веселые мультяшные роботы с энтузиазмом готовят расписания лагеря, путеводители и карты Средиземноморья под ярким солнцем."
-image_prompt: "a bright flat-colour cartoon of friendly small robots preparing summer camp gear outdoors under sunny skies with palm trees; one robot checks an itinerary map, another packs a backpack with travel guides; clean cheerful lines, robots only"
+image_alt: "A big group of young people jump for joy on the old stone steps of a castle under a clear blue summer sky."
 draft: false
 ---
 Для подростков летний языковой лагерь на Средиземноморье — это гораздо больше, чем просто каникулы. Это важный жизненный этап: уверенность в общении на иностранном языке, знакомство с культурой Валенсии, новые друзья со всего мира и воспоминания на всю жизнь.

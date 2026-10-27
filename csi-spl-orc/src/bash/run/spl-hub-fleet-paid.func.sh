@@ -17,8 +17,13 @@
 # @param QUANTITY (optional, default 1), NOTE (optional) - create
 # @param PAID_ID - delete: the item's uuid
 # @param DRY_RUN (optional) - 1 (default) or 0, create and delete only
+# @param PAID_FX (optional) - effective: 1 adds, per vendor, the read's non-USD
+#   items and how many took the rate of their own period (a rate day on or
+#   before the item's period start), the first one after it, or none
+#   (SPL-3791; counts only, a second GET of the item list)
 # @example ENV=dev ./run -a do_spl_hub_fleet_paid
 # @example ENV=dev PAID_CMD=effective FROM=2026-09-01 TO=2026-10-01 ./run -a do_spl_hub_fleet_paid
+# @example ENV=prd PAID_CMD=effective PAID_FX=1 FROM=2024-07-01 TO=2025-07-01 ./run -a do_spl_hub_fleet_paid
 # @example ENV=dev PAID_CMD=create VENDOR=agy KIND=topup PLAN_LABEL=fixture AMOUNT=1 CURRENCY=USD PERIOD_START=2020-01-01 PERIOD_END=2020-01-02 DRY_RUN=0 ./run -a do_spl_hub_fleet_paid
 #------------------------------------------------------------------------------
 do_spl_hub_fleet_paid() {
@@ -46,7 +51,25 @@ do_spl_hub_fleet_paid() {
   do_gcp_pin_account "$SPL_CNF" || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
   spl_hub_operator_call "$method" "$path" "$body" || return 1
-  _spl_hub_fleet_paid_report "$cmd"
+  _spl_hub_fleet_paid_report "$cmd" || return 1
+  [[ "$cmd" == effective && "${PAID_FX:-0}" == 1 ]] || return 0
+  _spl_hub_fleet_paid_fx_counts
+}
+
+# _spl_hub_fleet_paid_fx_counts -> per vendor of the effective read just made,
+# its non-USD items and which rate each took: own_period (the rate day is on
+# or before the period start), first_after (the hub fell back to the first
+# day after it) or no_rate. Counts only: no amount or rate is printed.
+_spl_hub_fleet_paid_fx_counts() {
+  local eff="$SPL_HUB_OP_BODY"
+  spl_hub_operator_call GET /v1/operator/fleet-tokens/paid "" || return 1
+  [[ "$SPL_HUB_OP_STATUS" == 200 ]] || { do_log "FATAL the item list answered $SPL_HUB_OP_STATUS"; return 1; }
+  jq -r --argjson l "$SPL_HUB_OP_BODY" '
+    ($l.items | map({key: .id, value: .}) | from_entries) as $m
+    | .vendors[] | .vendor as $v
+    | [(.items // [])[] | . as $s | $m[$s.id] | select(. != null and .currency != "USD")
+       | if $s.fx_rate_day == null then "none" elif $s.fx_rate_day <= .period_start[0:10] then "own" else "after" end]
+    | "  \($v) fx non_usd=\(length) own_period=\(map(select(. == "own")) | length) first_after=\(map(select(. == "after")) | length) no_rate=\(map(select(. == "none")) | length)"' <<<"$eff"
 }
 
 # _spl_hub_fleet_paid_effective_path -> the effective read's path with FROM / TO

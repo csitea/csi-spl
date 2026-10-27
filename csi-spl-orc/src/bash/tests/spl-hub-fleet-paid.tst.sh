@@ -8,6 +8,9 @@
 #   3. bad input is refused before any call
 #   4. DRY_RUN=0 create POSTs the exact body; delete DELETEs the id
 #   5. hub refusals (400, 403) fail
+#   6. PAID_FX=1 effective (SPL-3791): per vendor, the non-USD items of the
+#      read and how many took a rate on or before their period start (their
+#      own period) rather than the first one after it; counts only, no amount
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -26,7 +29,7 @@ run() {
     spl_hub_operator_url() { SPL_HUB_URL=https://hub.invalid; }
     do_gcp_pin_account() { GCP_ACCOUNT=sa@example.iam.gserviceaccount.com; }
     do_gcp_require_live_account() { :; }
-    spl_hub_operator_call() { echo "hub $1 $2 ${3:-}" >>"$CALLS"; SPL_HUB_OP_STATUS="${STUB_CODE:-200}"; SPL_HUB_OP_BODY="${STUB_BODY:-}"; }
+    spl_hub_operator_call() { echo "hub $1 $2 ${3:-}" >>"$CALLS"; SPL_HUB_OP_STATUS="${STUB_CODE:-200}"; SPL_HUB_OP_BODY="${STUB_BODY:-}"; [[ "$2" == */paid && -n "${STUB_LIST:-}" ]] && SPL_HUB_OP_BODY="$STUB_LIST"; return 0; }
     do_spl_hub_fleet_paid' >"$T/o" 2>&1
 }
 ID=0a1b2c3d-1111-4222-8333-444455556666
@@ -81,6 +84,24 @@ run "${CREATE[@]}" DRY_RUN=0 STUB_CODE=400 STUB_BODY='{"error":"bad_paid_item","
 [[ $rc -eq 1 ]] && grep -q 'refused it (400): currency must be USD' "$T/o" && pass "5. 400 fails with the hub's detail" || fail "5. 400: rc=$rc $(cat "$T/o")"
 run STUB_CODE=403 STUB_BODY='{"error":"forbidden"}'; rc=$?
 [[ $rc -eq 1 ]] && grep -q 'SPOOL_HUB_OPERATOR_EMAILS' "$T/o" && pass "5. 403 names the operator allowlist" || fail "5. 403: rc=$rc $(cat "$T/o")"
+
+# --- 6. PAID_FX=1: own-period rate counts -----------------------------------------
+it() { printf '{"id":"%s","vendor":"%s","currency":"%s","period_start":"%s","amount":7}' "$@"; }
+LIST="{\"items\":[$(it i1 claude EUR 2024-07-01),$(it i2 claude GBP 2025-03-01),$(it i3 claude USD 2025-04-01),$(it i4 agy EUR 2026-10-01),$(it i5 agy EUR 2026-09-01)]}"
+sh() { printf '{"id":"%s","fx_rate":%s,"fx_rate_day":%s,"paid_usd":7}' "$@"; }
+EFF="{\"from\":\"2024-07-01\",\"to\":\"2025-07-01\",\"days\":365,\"vendors\":[{\"vendor\":\"claude\",\"status\":\"effective\",\"items\":[$(sh i1 0.9 '"2024-07-01"'),$(sh i2 0.8 '"2026-09-28"'),$(sh i3 null null)]},{\"vendor\":\"agy\",\"status\":\"effective\",\"items\":[$(sh i4 0.9 '"2026-09-30"'),$(sh i5 null null)]},{\"vendor\":\"qwen\",\"status\":\"list_only\",\"items\":[]}]}"
+run PAID_CMD=effective PAID_FX=1 STUB_BODY="$EFF" STUB_LIST="$LIST"; rc=$?
+if [[ $rc -eq 0 ]] && grep -qx 'hub GET /v1/operator/fleet-tokens/paid ' "$T/calls" \
+  && grep -qx '  claude fx non_usd=2 own_period=1 first_after=1 no_rate=0' "$T/o" \
+  && grep -qx '  agy fx non_usd=2 own_period=1 first_after=0 no_rate=1' "$T/o" \
+  && grep -qx '  qwen fx non_usd=0 own_period=0 first_after=0 no_rate=0' "$T/o"; then
+  pass "6. PAID_FX=1 counts per vendor: own period (rate day <= start), first after, no rate; USD left out"
+else
+  fail "6. PAID_FX: rc=$rc $(cat "$T/calls" "$T/o")"
+fi
+grep -q 'fx non_usd' "$T/o" && ! grep -qE 'fx .*(amount|paid_usd|0\.9|=7)' "$T/o" && pass "6. the fx lines carry counts only (no amount, no rate)" || fail "6. fx lines leak: $(grep fx "$T/o")"
+run PAID_CMD=effective STUB_BODY="$EFF" STUB_LIST="$LIST"; rc=$?
+[[ $rc -eq 0 ]] && ! grep -q 'fleet-tokens/paid ' "$T/calls" && ! grep -q 'fx non_usd' "$T/o" && pass "6. without PAID_FX: no list call, no fx line (unchanged)" || fail "6. no PAID_FX: $(cat "$T/calls")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

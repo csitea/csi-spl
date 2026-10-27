@@ -738,6 +738,38 @@ When an LLM agent enters an infinite loop, recursive rebase cycle, or runaway to
    ```
 5. **Throttling & Cool-off**: Once an alert fires for an agent, further alerts for that specific agent are silenced for **30 minutes** unless burn rate drops below 30,000 tokens/min and subsequently surges again.
 
+### 4.5 Weekly limit alert in `#alerts` at 90, 95 and 99 % (SPL-3849)
+
+Owner HUM-10, t1 topic `6e02f297` (msgs `a86644f7`, `3c2d94f0`): "create a
+non-intelligence alert to warn when the weekly limit approaches 90% , 95% and
+99% for each agent kind", sent "in the alerts channel". As built:
+
+- **No agent runs it.** Every box runs `do_spl_weekly_limit_alert`
+  (`csi-spl-orc/src/bash/run/spl-weekly-limit-alert.func.sh`) every 5 min from
+  the box user's crontab: the box-crons manifest row `weekly-limit-alert`
+  (`csi-spl-orc/cnf/box-crons/box-crons.manifest`, script
+  `src/bash/scripts/weekly-limit-alert-cron.sh`), installed with
+  `cd csi-spl-orc && BOX_CRONS_ONLY=weekly-limit-alert DRY_RUN=0 ./run -a do_install_box_crons`
+  from the main checkout.
+- **The reading is the box pick's** (`spl_box_quota_here`,
+  `csi-spl-orc/lib/bash/funcs/spl-box-quota.func.sh`: claude banner and
+  transcripts, grok footer and limit screen). No new probe;
+  `BOX_QUOTA_RESET=1` adds the reset time the claude banner names
+  (`claude:96@<epoch>`). A kind with no reading (mistral, agy and qwen print
+  none today) is listed as `no reading` in the tick's summary, never 0.
+- **One line per crossing**, kind `note` in `#alerts` (as the asks timer
+  posts): `**WEEKLY LIMIT** <kind> on <box>: <pct>% of its weekly limit used
+  (crossed <threshold>%), resets <UTC time>` (or `reset time unknown`). A jump
+  over two thresholds posts one line, for the higher.
+- **Once per threshold per kind per box per reset week**: the state file
+  (`$XDG_STATE_HOME/csi-spl/weekly-limit-alert.tsv`, default
+  `~/.local/state`) keeps the highest threshold posted and the reset time. It
+  re-arms when that reset time has passed, or when a reading falls below 90
+  (grok names no reset time). A post that fails is not recorded and is retried
+  on the next tick.
+- Dry run unless `DRY_RUN=0` (the cron passes it): prints the line and writes
+  no state. Test: `bash csi-spl-orc/src/bash/tests/weekly-limit-alert.tst.sh`.
+
 ---
 
 ## 5. Privacy and security invariants
@@ -806,4 +838,4 @@ The owner (HUM-10, t1 topic `e8ae0aad-b8fb-4d3c-8377-072eec9cd404`, msg `ca189c3
 
 ---
 
-<!-- version: 0.2.3 · updated: 2026-10-17 · last-edit: 2026-10-17T14:40:00Z -->
+<!-- version: 0.2.4 · updated: 2026-10-27 · last-edit: 2026-10-27T15:40:00Z -->

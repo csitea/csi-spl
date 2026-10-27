@@ -29,6 +29,8 @@
 # spl_box_quota_parse VENDOR [NOW]: a pane's footer on stdin -> the used % of
 # VENDOR's weekly limit from its newest banner line, or nothing. The claude
 # banner starts its line: an agent quoting it mid-sentence is no reading.
+# BOX_QUOTA_RESET=1 (the weekly limit alert, SPL-3849) appends the reset as
+# "@<epoch>" when the banner names one ("96@1760688000"); unset, the % alone.
 spl_box_quota_parse() {
   local now="${2:-$(date +%s)}" line pct when tz at
   case "$1" in
@@ -52,6 +54,7 @@ spl_box_quota_parse() {
     *) return 0 ;;
   esac
   (( pct > 100 )) && pct=100
+  [[ "${BOX_QUOTA_RESET:-0}" == 1 && "${at:-}" =~ ^[0-9]+$ ]] && pct+="@$at"
   echo "$pct"
 }
 
@@ -100,7 +103,8 @@ spl_box_quota_log() {
 }
 
 # spl_box_quota_here: THIS box's weekly usage, "claude:96,grok:4" (the
-# vendors read), "" when nothing shows one. Reads the box user's tmux
+# vendors read), "" when nothing shows one; with BOX_QUOTA_RESET=1 a known
+# reset follows its % ("claude:96@1760688000"). Reads the box user's tmux
 # (spl_lane_tm) and claude's transcripts (spl_box_quota_log): the higher
 # claude reading wins. Seam (tests): LANE_QUOTA_CMD prints the answer; a
 # test that fakes the panes (LANE_PANES_CMD) reads only LANE_QUOTA_LOG_DIR.
@@ -110,11 +114,11 @@ spl_box_quota_here() {
     $LANE_QUOTA_CMD 2>/dev/null; return 0
   fi
   local now dead pane name id v pct out="" log
-  local -A best=()
+  local -A best=() at=()
   now="$(date +%s)"
   log="$(spl_box_quota_log "$now")"
-  [[ "$log" =~ ^[0-9]+$ ]] && best[claude]="$log"
-  if [[ -n "${LANE_PANES_CMD:-}" ]]; then echo "${best[claude]:+claude:${best[claude]}}"; return 0; fi
+  [[ "$log" =~ ^([0-9]+)(@[0-9]+)?$ ]] && best[claude]="${BASH_REMATCH[1]}" at[claude]="${BASH_REMATCH[2]}"
+  if [[ -n "${LANE_PANES_CMD:-}" ]]; then echo "${best[claude]:+claude:${best[claude]}${at[claude]}}"; return 0; fi
   declare -F spool_id_of_window_var >/dev/null ||
     source "$(dirname "${BASH_SOURCE[0]}")/../../../src/bash/features/spawn-agents/lib/spool-env.inc.sh"
   spl_lane_tm
@@ -123,9 +127,10 @@ spl_box_quota_here() {
     spool_id_of_window_var id "$name"
     case "$id" in c-*|CLE-*) v=claude ;; g-*|GRK-*) v=grok ;; *) continue ;; esac
     pct="$(timeout 5 "${LANE_TM[@]}" capture-pane -p -t "$pane" 2>/dev/null | grep -v '^[[:space:]]*$' | tail -n 12 | spl_box_quota_parse "$v" "$now")"
-    [[ "$pct" =~ ^[0-9]+$ ]] && (( pct > ${best[$v]:--1} )) && best[$v]="$pct"
+    [[ "$pct" =~ ^([0-9]+)(@[0-9]+)?$ ]] && (( BASH_REMATCH[1] > ${best[$v]:--1} )) &&
+      best[$v]="${BASH_REMATCH[1]}" at[$v]="${BASH_REMATCH[2]}"
   done < <(timeout 10 "${LANE_TM[@]}" list-panes -a -F '#{pane_dead} #{pane_id} #{window_name}' 2>/dev/null)
-  for v in "${!best[@]}"; do out+="${out:+,}$v:${best[$v]}"; done
+  for v in "${!best[@]}"; do out+="${out:+,}$v:${best[$v]}${at[$v]:-}"; done
   echo "$out"
 }
 

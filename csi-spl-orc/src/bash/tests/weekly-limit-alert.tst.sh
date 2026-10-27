@@ -141,10 +141,16 @@ out="$(SNIPPET='do_spl_weekly_limit_alert' in_orc SPOOL_ROOT="$T/spool" LANE_BOX
 grep -qE "^weekly-limit-alert +\| \*/5 \* \* \* \* +\| src/bash/scripts/weekly-limit-alert-cron.sh +\| weekly-limit-alert/cron.log" "$PROJ_ROOT/cnf/box-crons/box-crons.manifest" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/weekly-limit-alert-cron.sh" ] \
   && pass "8. the manifest row runs weekly-limit-alert-cron.sh every 5 min" || fail "8. manifest row"
-out="$(bash "$PROJ_ROOT/src/bash/scripts/weekly-limit-alert-cron.sh" 2>&1)"; rc=$?
+# Outside a worktree (CI) the script would run the real action against the
+# live spool root (the SPOOL_TEST guard refused it and reddened
+# run-all-tests-changed on master, run 40534982985): there only --check-tools.
 case "$PROJ_ROOT" in
-  *-wt/*) [ "$rc" = 2 ] && grep -q "FATAL .* is in an agent worktree" <<<"$out" && pass "8. the cron script refuses an agent worktree" || fail "8. worktree refusal (rc $rc: $out)" ;;
-  *) pass "8. (not a worktree: the refusal is not exercised)" ;;
+  *-wt/*)
+    out="$(bash "$PROJ_ROOT/src/bash/scripts/weekly-limit-alert-cron.sh" 2>&1)"; rc=$?
+    [ "$rc" = 2 ] && grep -q "FATAL .* is in an agent worktree" <<<"$out" && pass "8. the cron script refuses an agent worktree" || fail "8. worktree refusal (rc $rc: $out)" ;;
+  *)
+    out="$(WEEKLY_ALERT_TOOLS=bash bash "$PROJ_ROOT/src/bash/scripts/weekly-limit-alert-cron.sh" --check-tools 2>&1)"; rc=$?
+    [ "$rc" = 0 ] && grep -q "OK every tool" <<<"$out" && pass "8. the cron script's --check-tools (not a worktree: the action is never run here)" || fail "8. check-tools (rc $rc: $out)" ;;
 esac
 
 echo "weekly-limit-alert: $fails failure(s)"

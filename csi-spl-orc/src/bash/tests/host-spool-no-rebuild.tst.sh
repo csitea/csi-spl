@@ -144,10 +144,10 @@ g "$A" worktree add -q "$T/old" "$H1" 2>/dev/null
 
 # --- 5. an older tree is refused -------------------------------------------------
 before="$(md5sum <"$S/bin/spool")"
-out="$(TREE_APP="$T/old" in_orc 'spl_host_spool && echo "rc=0 SPOOL=$SPL_SPOOL"')"
+out="$(TREE_APP="$T/old" in_orc 'spl_host_spool && echo "rc=0 SPOOL=$SPL_SPOOL"' 2>"$T/err5")"
 eq "5 an OLDER tree builds nothing" 9 "$(builds)"
 eq "5 …the binary is untouched" "$before" "$(md5sum <"$S/bin/spool")"
-grep -q '^WARN keeping .*NEWER than this tree' <<<"$out" && pass "5 …and a WARN says why" || fail "5 no WARN: $out"
+grep -q '^WARN keeping .*NEWER than this tree' "$T/err5" && pass "5 …and a WARN on stderr says why (SPL-3809)" || fail "5 no WARN: $(cat "$T/err5")"
 grep -q "^rc=0 SPOOL=$S/bin/spool" <<<"$out" && pass "5 …while the caller still gets the (newer) binary" || fail "5 caller: $out"
 TREE_APP="$T/old" SPL_SPOOL_REBUILD=1 in_orc 'spl_host_spool' >/dev/null
 eq "5 SPL_SPOOL_REBUILD=1 overrides the refusal" 10 "$(builds)"
@@ -155,7 +155,7 @@ eq "5 …and the stamp says so" "$H1 clean" "$(cat "$S/bin/spool.src")"
 
 # --- 6. an unknown commit is refused ---------------------------------------------
 printf '#!/bin/sh\n# commit=%s\n' 0123456789abcdef0123456789abcdef01234567 >"$S/bin/spool"
-out="$(in_orc 'spl_host_spool')"
+out="$(in_orc 'spl_host_spool' 2>&1)"
 eq "6 a binary from an unknown commit is not replaced" 10 "$(builds)"
 grep -q 'does not know' <<<"$out" && pass "6 …and the WARN names it" || fail "6 no WARN: $out"
 

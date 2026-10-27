@@ -359,6 +359,8 @@ spl_dry_run() {
 # goes to a private tmp and is renamed into place, so a sidecar that execs the
 # path meanwhile gets the old file or the new one, never half of one.
 # SPL_SPOOL_REBUILD=1 builds regardless (and may downgrade: the operator asked).
+# The WARN goes to stderr: callers such as lane-map.sh --json parse stdout as
+# JSON, and from a tree behind the build it led the document (SPL-3809).
 spl_host_spool() {
   local build="$APP_PATH/$SPL_ORG_APP-api/src/bash/build.sh" verdict why tmp head
   SPL_SPOOL="$SPL_STATE_DIR/bin/spool"
@@ -366,7 +368,7 @@ spl_host_spool() {
   why="${verdict#* }"; verdict="${verdict%% *}"
   case "$verdict" in
     keep) return 0 ;;
-    refuse) do_log "WARN keeping $SPL_SPOOL: $why (SPL_SPOOL_REBUILD=1 overrides)"; return 0 ;;
+    refuse) do_log "WARN keeping $SPL_SPOOL: $why (SPL_SPOOL_REBUILD=1 overrides)" >&2; return 0 ;;
   esac
   [[ -f "$build" ]] ||
     { do_log "FATAL no spool binary to keep at $SPL_SPOOL and no $build to build one ($APP_PATH has no api tree: a watchdog code snapshot?)"; return 1; }

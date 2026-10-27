@@ -11,7 +11,8 @@
 #   2. a lane-branch build that descends from the master tree's HEAD -> build
 #      (CONTROL: the previous verdict refuses it as "NEWER")
 #   3. a master build NEWER than the tree (an older master worktree) -> refuse
-#      as today; SPL_SPOOL_REBUILD=1 still overrides
+#      as today, the WARN on stderr so a caller's stdout stays pure JSON
+#      (SPL-3809); SPL_SPOOL_REBUILD=1 still overrides
 #   4. newer master commits touching no build input -> keep (CLE-35076)
 #   5. a lane tree off master never writes the shared path: not on a newer
 #      module, not on a dirty module; it gets the shared binary and a WARN;
@@ -178,10 +179,15 @@ trunk "$M2"
 g "$A" worktree add -q --detach "$T/old" "$M1"
 plant "$M2"
 before="$(md5sum <"$S/bin/spool")"
-out="$(TREE_APP="$T/old" in_orc 'spl_host_spool && echo "rc=0 SPOOL=$SPL_SPOOL"')"
+out="$(TREE_APP="$T/old" in_orc 'spl_host_spool && echo "rc=0 SPOOL=$SPL_SPOOL"' 2>"$T/err3")"
 eq "3 an OLDER master tree builds nothing" 2 "$(builds)"
 eq "3 …the binary is untouched" "$before" "$(md5sum <"$S/bin/spool")"
-grep -q '^WARN keeping .*NEWER than this tree' <<<"$out" && pass "3 …and the WARN is today's" || fail "3 WARN: $out"
+grep -q '^WARN keeping .*NEWER than this tree' "$T/err3" && pass "3 …and the WARN is today's, on stderr" || fail "3 WARN: $(cat "$T/err3")"
+# SPL-3809: lane-map.sh --json from a tree behind the spool build led its JSON
+# with this WARN, and the desk placed-claim gate refused a true claim.
+json="$(TREE_APP="$T/old" in_orc 'spl_host_spool && printf "%s\n" "{\"lanes\": []}"' 2>/dev/null)"
+python3 -c 'import json,sys; json.loads(sys.argv[1])' "$json" 2>/dev/null &&
+  pass "3 …stdout after it stays pure JSON (SPL-3809)" || fail "3 stdout is no JSON: $json"
 TREE_APP="$T/old" SPL_SPOOL_REBUILD=1 in_orc 'spl_host_spool' >/dev/null
 eq "3 SPL_SPOOL_REBUILD=1 still overrides" 3 "$(builds)"
 
@@ -202,10 +208,10 @@ plant "$M3"
 before="$(md5sum <"$S/bin/spool")"
 v="$(SPL_SPOOL_FUNC="$old" TREE_APP="$T/lane2" verdict)"
 [[ "$v" == build* ]] && pass "5 CONTROL the previous verdict lets a lane tree overwrite the shared binary" || fail "5 control: $v"
-out="$(TREE_APP="$T/lane2" in_orc 'spl_host_spool && echo "rc=0 SPOOL=$SPL_SPOOL"')"
+out="$(TREE_APP="$T/lane2" in_orc 'spl_host_spool && echo "rc=0 SPOOL=$SPL_SPOOL"' 2>"$T/err5")"
 eq "5 a lane tree (newer module, not landed) builds nothing" 3 "$(builds)"
 eq "5 …the shared binary is untouched" "$before" "$(md5sum <"$S/bin/spool")"
-grep -q '^WARN keeping .*not on origin/master' <<<"$out" && pass "5 …a WARN says why" || fail "5 WARN: $out"
+grep -q '^WARN keeping .*not on origin/master' "$T/err5" && pass "5 …a WARN on stderr says why" || fail "5 WARN: $(cat "$T/err5")"
 grep -q "^rc=0 SPOOL=$S/bin/spool$" <<<"$out" && pass "5 …and the caller gets the shared binary" || fail "5 caller: $out"
 echo '// dirty' >>"$T/lane2/csi-spl-api/src/go/spool-hub-api/main.go"
 TREE_APP="$T/lane2" in_orc 'spl_host_spool' >/dev/null

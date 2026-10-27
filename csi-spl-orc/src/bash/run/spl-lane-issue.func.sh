@@ -49,7 +49,8 @@
 # @description     name resolves ONLY through the cnf (spl_landed_repo: a
 # @description     `name` of env.box.landed_repos, SPL-2420, or the basename
 # @description     of a `src_dir` in csi-spl-cnf/csi-spl/all.env.yaml or
-# @description     <ENV>.env.yaml), never a lane-given path or URL; its clone
+# @description     <ENV>.env.yaml, or the `repo` of a row of the workspace
+# @description     box map, SPL-3794), never a lane-given path or URL; its clone
 # @description     must be on this box (else refused, naming the cnf's box);
 # @description     it is fetched (as its owner, or SPOOL_BOX_USER), then the
 # @description     sha must pass `git merge-base --is-ancestor <sha>
@@ -518,24 +519,61 @@ spl_lane_issue_landed() {
   do_log "OK $key -> done: $why"
 }
 
-# spl_landed_repo_rows -> "name<TAB>src_dir<TAB>trunk<TAB>box" ("-" = unset:
-# read collapses an empty tab field) per repo the
-# cnf knows (SPL-2420): each env.box.landed_repos entry, and each other map
-# with an absolute `src_dir` (a hosted site, named by its basename), from
-# all.env.yaml then <ENV>.env.yaml (a later row wins). A test sandbox
-# (SPOOL_TEST=1) reads LANE_LANDED_CNF only, else no cnf: never the live clones.
+# spl_landed_repo_rows -> "name<TAB>src_dir<TAB>trunk<TAB>box<TAB>src"
+# ("-" = unset: read collapses an empty tab field; src = cnf or map) per repo
+# the fleet knows (SPL-2420): each env.box.landed_repos entry, and each other
+# map with an absolute `src_dir` (a hosted site, named by its basename), from
+# all.env.yaml then <ENV>.env.yaml (a later row wins), after the rows of the
+# workspace box map (spl_landed_repo_map_rows), so a public row wins a name. A
+# test sandbox (SPOOL_TEST=1) reads LANE_LANDED_CNF only, else no cnf: never
+# the live clones.
 spl_landed_repo_rows() {
   local d f
   local -a cnfs=()
   d="${APP_PATH:-$PROJ_PATH/..}/csi-spl-cnf/csi-spl"
   if [[ "${SPOOL_TEST:-}" == 1 ]]; then cnfs=("${LANE_LANDED_CNF:-}")
   else cnfs=("$d/all.env.yaml" "$d/${ENV:-none}.env.yaml"); fi
-  for f in "${cnfs[@]}"; do
-    [[ -r "$f" ]] || continue
-    yq -r '.. | select(tag == "!!map" and has("src_dir")) |
-      [(.name // (.src_dir | split("/") | .[-1])), .src_dir, (.trunk // ""), (.box // "")] | @tsv' "$f" 2>/dev/null
-  done | awk -F'\t' -v OFS='\t' '$2 ~ /^\// && $1 ~ /^[A-Za-z0-9][A-Za-z0-9._-]*$/ && $1 !~ /\.\./ {
+  {
+    spl_landed_repo_map_rows
+    for f in "${cnfs[@]}"; do
+      [[ -r "$f" ]] || continue
+      yq -r '.. | select(tag == "!!map" and has("src_dir")) |
+        [(.name // (.src_dir | split("/") | .[-1])), .src_dir, (.trunk // ""), (.box // ""), "cnf"] | @tsv' "$f" 2>/dev/null
+    done
+  } | awk -F'\t' -v OFS='\t' '$2 ~ /^\// && $1 ~ /^[A-Za-z0-9][A-Za-z0-9._-]*$/ && $1 !~ /\.\./ {
     if ($3 == "") $3 = "-"; if ($4 == "") $4 = "-"; print }'
+}
+
+# spl_landed_repo_map_rows -> one spl_landed_repo_rows row ("map") per row of
+# the workspace box map (SPL-3794, workspace-repo.inc.sh: box-side, never in
+# git), read through wr_tenants / wr_row: name = repo, src_dir = clone,
+# trunk, box = desk_box (the map's clone is on the box that holds the map, its
+# desk's box; measured 2026-10-27, n=1). No map: no rows. A malformed row is
+# skipped with one WARN that names no repo. A test sandbox (SPOOL_TEST=1)
+# reads SPOOL_WORKSPACE_REPOS_MAP only, never the spool root's map.
+spl_landed_repo_map_rows() {
+  local ws row
+  [[ "${SPOOL_TEST:-}" == 1 && -z "${SPOOL_WORKSPACE_REPOS_MAP:-}" ]] && return 0
+  # shellcheck source=../features/spawn-agents/lib/workspace-repo.inc.sh
+  declare -F wr_tenants >/dev/null || . "$PROJ_PATH/src/bash/features/spawn-agents/lib/workspace-repo.inc.sh" || return 0
+  while read -r ws; do
+    row="$(wr_row "$ws" 2>/dev/null)"
+    case $? in
+      0) printf '%s\t%s\t%s\t%s\tmap\n' "$(wr_field "$row" 2)" "$(wr_field "$row" 3)" "$(wr_field "$row" 4)" "$(wr_field "$row" 7)" ;;
+      2) do_log "WARN the workspace box map ($(wr_map)) has a malformed row: skipped, its repo is no landed repo" >&2 ;;
+    esac
+  done < <(wr_tenants)
+}
+
+# spl_landed_repo_shown NAME CLONE [clone] -> how a message names the repo:
+# NAME (with " (CLONE)" for "clone"), or "a workspace repo" when CLONE is a
+# clone of the workspace box map: a refusal never prints a customer's repo
+# name or path (SPL-3794).
+spl_landed_repo_shown() {
+  if spl_landed_repo_map_rows 2>/dev/null | awk -F'\t' -v c="$2" '$2 == c { f = 1 } END { exit !f }'; then
+    printf 'a workspace repo'
+  elif [[ "${3:-}" == clone ]]; then printf '%s (%s)' "$1" "$2"
+  else printf '%s' "$1"; fi
 }
 
 # spl_landed_repo_box -> this box's tag: SPOOL_BOX_TAG, else the spool
@@ -546,23 +584,30 @@ spl_landed_repo_box() {
   printf '%s' "${v:-$(hostname -s)}"
 }
 
-# spl_landed_repo NAME -> "<clone>\t<trunk>" of a repo the cnf knows, its
-# clone on THIS box (trunk empty = found on the clone). The one resolver of
-# do_spl_lane_issue (end done), spl_desk_live_proof (LIVE_REPO) and
-# do_spl_done_claim_check. A path, a URL, an unknown name and a clone that is
-# not on this box are refused, one FATAL line on stderr: a lane must not point
-# the check at a repo it controls.
+# spl_landed_repo NAME -> "<clone>\t<trunk>" of a repo the cnf or the
+# workspace box map knows, its clone on THIS box (trunk empty = found on the
+# clone). The one resolver of do_spl_lane_issue (end done), spl_desk_live_proof
+# (LIVE_REPO) and do_spl_done_claim_check. A path, a URL, an unknown name and
+# a clone that is not on this box are refused, one FATAL line on stderr: a
+# lane must not point the check at a repo it controls. The refusal lists the
+# public names only, and counts the map's (SPL-3794).
 spl_landed_repo() {
-  local name="$1" n p t b hit="" known="" where
+  local name="$1" n p t b s hit="" known="" nws=0 where
   [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && "$name" != *..* ]] ||
     { do_log "FATAL LANE_LANDED_REPO must be a repo NAME the cnf knows, not a path or URL, got: '$name'" >&2; return 1; }
-  while IFS=$'\t' read -r n p t b; do
-    known+=" $n"; [[ "$n" == "$name" ]] && hit="$p"$'\t'"$t"$'\t'"$b"
+  while IFS=$'\t' read -r n p t b s; do
+    if [[ "$s" == map ]]; then nws=$((nws + 1)); else known+=" $n"; fi
+    [[ "$n" == "$name" ]] && hit="$p"$'\t'"$t"$'\t'"$b"$'\t'"$s"
   done < <(spl_landed_repo_rows)
+  (( nws )) && known="${known:- none} and $nws workspace repo(s)"
   [[ -n "$hit" ]] || { do_log "FATAL LANE_LANDED_REPO '$name' is no repo the cnf knows (src_dir names:${known:- none}): refused, nothing changed" >&2; return 1; }
-  IFS=$'\t' read -r p t b <<<"$hit"
+  IFS=$'\t' read -r p t b s <<<"$hit"
   [[ "$t" == - ]] && t=""
   if [[ ! -d "$p/.git" ]]; then
+    if [[ "$s" == map ]]; then
+      do_log "FATAL the workspace box map's clone of that repo is not a git repo on this box ($(spl_landed_repo_box)); its desk is on box $b: run it there: refused, nothing changed" >&2
+      return 1
+    fi
     where="the cnf names no box for it (env.box.landed_repos[].box)"
     [[ "$b" != - ]] && where="its clone is on box $b: run it there"
     do_log "FATAL the cnf's clone of $name, $p, is not a git repo on this box ($(spl_landed_repo_box)); $where: refused, nothing changed" >&2
@@ -591,14 +636,14 @@ spl_landed_repo_trunk() {
   local name="$1" c="$2" t="${3:-}" b
   [[ "${SLR_NO_FETCH:-}" == 1 ]] ||
     SLR_TIMEOUT="${LANE_LANDED_FETCH_TIMEOUT:-120}" spl_landed_repo_git "$c" fetch -q origin </dev/null >&2 ||
-    { do_log "FATAL cannot fetch $name ($c) as ${SPOOL_BOX_USER:-$(stat -c %U "$c")}: not checked, refused, nothing changed" >&2; return 1; }
+    { do_log "FATAL cannot fetch $(spl_landed_repo_shown "$name" "$c" clone) as ${SPOOL_BOX_USER:-$(stat -c %U "$c")}: not checked, refused, nothing changed" >&2; return 1; }
   [[ -n "$t" ]] || { t="$(spl_landed_repo_git "$c" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)"; t="${t#origin/}"; }
   [[ -z "$t" ]] || spl_landed_repo_git "$c" rev-parse -q --verify "refs/remotes/origin/$t" >/dev/null ||
-    { do_log "FATAL $name has no origin/$t: refused, nothing changed" >&2; return 1; }
+    { do_log "FATAL $(spl_landed_repo_shown "$name" "$c") has no origin/$t: refused, nothing changed" >&2; return 1; }
   for b in master main; do
     [[ -n "$t" ]] || { spl_landed_repo_git "$c" rev-parse -q --verify "refs/remotes/origin/$b" >/dev/null && t="$b"; }
   done
-  [[ -n "$t" ]] || { do_log "FATAL $name has no origin/master or origin/main: refused, nothing changed" >&2; return 1; }
+  [[ -n "$t" ]] || { do_log "FATAL $(spl_landed_repo_shown "$name" "$c") has no origin/master or origin/main: refused, nothing changed" >&2; return 1; }
   printf '%s\n' "$t"
 }
 
@@ -610,9 +655,9 @@ spl_lane_issue_on_trunk() {
   local name="$1" c="$2" sha="$3" t full
   t="$(spl_landed_repo_trunk "$name" "$c" "${4:-}")" || return 1
   full="$(spl_landed_repo_git "$c" rev-parse -q --verify "$sha^{commit}" 2>/dev/null)" ||
-    { do_log "FATAL $sha is no commit of $name, even after a fetch: refused, nothing changed" >&2; return 1; }
+    { do_log "FATAL $sha is no commit of $(spl_landed_repo_shown "$name" "$c"), even after a fetch: refused, nothing changed" >&2; return 1; }
   spl_landed_repo_git "$c" merge-base --is-ancestor "$full" "refs/remotes/origin/$t" ||
-    { do_log "FATAL $name ${full:0:12} is not on origin/$t (a branch only?): not landed, refused, nothing changed" >&2; return 1; }
+    { do_log "FATAL $(spl_landed_repo_shown "$name" "$c") ${full:0:12} is not on origin/$t (a branch only?): not landed, refused, nothing changed" >&2; return 1; }
   printf '%s\t%s\n' "$full" "$t"
 }
 

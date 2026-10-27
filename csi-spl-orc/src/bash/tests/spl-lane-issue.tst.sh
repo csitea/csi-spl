@@ -321,6 +321,55 @@ for r in doc-hub csi-web; do
     pass "landed_repos: the repo cnf knows $r (clone, trunk, no box)" || fail "landed_repos: cnf has no $r row: $(cat "$T/o")"
 done
 
+# SPL-3794: a workspace's own repo is a landed repo through the workspace box
+# map (workspace-repo.inc.sh, box-side, never in git): name = repo, clone,
+# trunk ("-" = found on the clone), box = desk_box. A sandbox reads only
+# SPOOL_WORKSPACE_REPOS_MAP. No refusal names a map row's repo or clone.
+git clone -q "$T/lr/origin.git" "$T/lr/wsa" 2>/dev/null; git clone -q "$T/lr/origin.git" "$T/lr/wsb" 2>/dev/null
+WM="$T/lr/ws-map.tsv"
+{ printf '# tenant\tenv\trepo\tclone\ttrunk\tlive_url\tdesk_agent\tdesk_box\n'
+  printf 'ws-a\tprd\tsite-alpha\t%s\tmaster\thttps://alpha.example.com\tc-901\tbox-a\n' "$T/lr/wsa"
+  printf 'ws-b\tdev\tsite-beta\t%s\t-\thttps://beta.example.com\tc-902\tbox-a\n' "$T/lr/wsb"
+  printf 'ws-c\tnope\tsite-gamma\t%s\tmaster\thttps://gamma.example.com\tc-903\tbox-a\n' "$T/lr/wsb"
+  printf 'ws-d\tprd\tsite-delta\t%s\tmaster\thttps://delta.example.com\tc-904\tbox-b\n' "$T/lr/ws-gone"
+} >"$WM"
+no_map_leak() {  # LABEL: the output names no map repo and no map clone
+  ! grep -qE "site-(alpha|beta|gamma|delta)|$T/lr/ws(a|b|-gone)" "$T/o" && pass "$1" || fail "$1: $(cat "$T/o")"
+}
+ws_run() { done_run LANE_LANDED_CNF="$T/lr/cust.yaml" SPOOL_WORKSPACE_REPOS_MAP="$WM" SPOOL_BOX_TAG=box-a DRY_RUN=0 "$@"; }
+ws_run LANE_LANDED_REPO=site-alpha LANE_LANDED_SHA="$LANDED"
+[[ $rc -eq 0 && "$(cut -f1,4,5 "$S/c-123/lifetime/issue-end" 2>/dev/null)" == "done"$'\t'"site-alpha"$'\t'"$LANDED" ]] &&
+  grep -qx 'update|--ref|SPL-42|--status|done|' "$T/calls.log" &&
+  pass "box map: a workspace repo with a trunk, sha on it: done, issue-end names it" || fail "box map trunk (rc=$rc): $(cat "$T/o")"
+[[ "$(grep -c 'WARN the workspace box map .* has a malformed row: skipped' "$T/o")" -ge 1 ]] && ! grep -q 'FATAL' "$T/o" && ! grep -q site-gamma "$T/o" &&
+  pass "box map: a malformed row is skipped with a WARN naming no repo, never a FATAL" || fail "box map malformed: $(cat "$T/o")"
+ws_run LANE_LANDED_REPO=site-beta LANE_LANDED_SHA="$LANDED"
+[[ $rc -eq 0 && "$(cut -f1,4,5 "$S/c-123/lifetime/issue-end" 2>/dev/null)" == "done"$'\t'"site-beta"$'\t'"$LANDED" ]] &&
+  grep -q 'OK SPL-42 -> done: landed in site-beta .* on origin/master' "$T/o" &&
+  pass "box map: trunk '-' is found on the clone (origin/master): done" || fail "box map trunk - (rc=$rc): $(cat "$T/o")"
+cp "$WM" "$S/workspace-repos.tsv"
+done_run LANE_LANDED_REPO=site-alpha LANE_LANDED_SHA="$LANDED" LANE_LANDED_CNF="$T/lr/cust.yaml" DRY_RUN=0
+refused "box map: RED CONTROL no SPOOL_WORKSPACE_REPOS_MAP in a sandbox: public rows only, the spool root's map unread" \
+  "'site-alpha' is no repo the cnf knows (src_dir names: cust-rel far-rel lost-rel): refused"
+rm -f "$S/workspace-repos.tsv"
+ws_run LANE_LANDED_REPO=other-web LANE_LANDED_SHA="$LANDED"
+refused "box map: an unknown name is refused, the list names public rows and counts the map's" \
+  "'other-web' is no repo the cnf knows (src_dir names: cust-rel far-rel lost-rel and 3 workspace repo(s)): refused"
+no_map_leak "box map: ... and names no map repo or clone"
+ws_run LANE_LANDED_REPO=site-delta LANE_LANDED_SHA="$LANDED"
+refused "box map: a map clone not on this box is refused, naming the boxes only" \
+  "the workspace box map's clone of that repo is not a git repo on this box (box-a); its desk is on box box-b: run it there"
+grep -qE "$T/lr/ws-gone" "$T/o" && fail "box map: the missing clone's path is printed: $(cat "$T/o")" || pass "box map: ... its clone path is not printed"
+ws_run LANE_LANDED_REPO=site-alpha LANE_LANDED_SHA="$WIP"
+refused "box map: a sha off the map trunk is refused" "a workspace repo ${WIP:0:12} is not on origin/master (a branch only?)"
+grep -qE "$T/lr/wsa" "$T/o" && fail "box map: the clone path is printed: $(cat "$T/o")" || pass "box map: ... naming no clone path"
+SNIPPET='spl_landed_repo_rows' in_orc SPOOL_TEST=1 LANE_LANDED_CNF= SPOOL_WORKSPACE_REPOS_MAP="$T/lr/no-such-map.tsv" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -s "$T/o" ]] && pass "box map: a map path with no file: no rows, no error" || fail "box map absent (rc=$rc): $(cat "$T/o")"
+SNIPPET='spl_landed_repo_rows' in_orc SPOOL_TEST=1 LANE_LANDED_CNF="$T/lr/cust.yaml" SPOOL_WORKSPACE_REPOS_MAP="$WM" >"$T/o" 2>/dev/null
+[[ "$(awk -F'\t' '$5 == "map" { print $1 "|" $3 "|" $4 }' "$T/o" | paste -sd,)" == "site-alpha|master|box-a,site-beta|-|box-a,site-delta|master|box-b" &&
+   "$(awk -F'\t' '$5 == "cnf"' "$T/o" | wc -l)" == 3 ]] &&
+  pass "box map: rows name = repo, trunk ('-' kept), box = desk_box; the cnf's rows unchanged" || fail "box map rows: $(cat "$T/o")"
+
 # Kind: answer in the brief: the filed issue is labelled answer (the label made first).
 printf '# Brief: evaluate the runner\n\nKind: answer\n%s\n' "$ES" >"$T/answer.md"
 run AGENT_ID=c-124 BRIEF="$T/answer.md" DRY_RUN=0

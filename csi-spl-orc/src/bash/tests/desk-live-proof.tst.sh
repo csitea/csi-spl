@@ -200,6 +200,19 @@ one_line "10. a clone on another box: one line naming this box and the cnf's" "n
 send do_spl_desk_reply "$B" "${CUST[@]}" LIVE_REPO=../cust; rc=$?
 one_line "10. a path as LIVE_REPO is refused" "must be a repo NAME the cnf knows, not a path or URL"
 
+# SPL-3794: LIVE_REPO resolves through the same rows, the workspace box map's too.
+git clone -q "$T/cust.git" "$T/wsc"
+printf 'ws-a\tprd\tsite-alpha\t%s\tmaster\thttps://alpha.example.com\tc-901\tbox-a\n' "$T/wsc" >"$T/ws-map.tsv"
+WS=(SPOOL_WORKSPACE_REPOS_MAP="$T/ws-map.tsv" LIVE_REPO=site-alpha)
+B="**Live** site ${CON:0:9} on master"$'\n'"$PROOF"
+send do_spl_desk_reply "$B" "${CUST[@]}" "${WS[@]}"; rc=$?
+sent "10. LIVE_REPO=<a workspace box map repo>: its sha on the fetched trunk is Live" "$B"
+send do_spl_desk_reply "$B" "${CUST[@]}" LIVE_REPO=site-alpha; rc=$?
+one_line "10. RED CONTROL the same LIVE_REPO with no box map is refused" "'site-alpha' is no repo the cnf knows (src_dir names: cust-rel far-rel)"
+send do_spl_desk_reply "$B" "${CUST[@]}" "${WS[@]}" LIVE_REPO=other-rel; rc=$?
+one_line "10. an unknown LIVE_REPO with a box map: the list counts the map's repos, naming none" "(src_dir names: cust-rel far-rel and 1 workspace repo(s))"
+! grep -qE "site-alpha|$T/wsc" "$T/o" && pass "10. ... no map repo or clone in the refusal" || fail "10. map leak: $(cat "$T/o")"
+
 # --- 11. an all-digit short sha (SPL-2706) ----------------------------------------
 # digit_word <msg>: an empty commit on master whose 9-char prefix is all digits
 # (~1.5% of hashes: amend until it is), pushed to origin.

@@ -426,7 +426,7 @@ spl_done_claim_stale() {
 # clone's last fetched trunk (an "R" row in [unchecked file], SPL-3020), a
 # missing trunk is a FATAL; a local-trunk clone is its local branch, unfetched.
 spl_done_claim_landed_repos() {
-  local n row clone trunk rc=0 skip=" ${1:-}"
+  local n row clone trunk shown rc=0 skip=" ${1:-}"
   while IFS=$'\t' read -r n _; do
     row="$(spl_landed_repo "$n" 2>/dev/null)" || continue
     clone="${row%%$'\t'*}"
@@ -436,8 +436,9 @@ spl_done_claim_landed_repos() {
     if [[ "${DONE_CLAIM_FETCH:-1}" == 1 ]] && trunk="$(spl_landed_repo_trunk "$n" "$clone" "${row#*$'\t'}" 2>/dev/null)"; then :
     else
       if [[ "${DONE_CLAIM_FETCH:-1}" == 1 ]]; then
-        do_log "WARN git fetch origin failed in $clone ($n): its last fetched trunk counts" >&2
-        printf 'R\t%s\tgit fetch failed in %s\n' "$clone" "$clone" >>"${2:-/dev/null}"
+        shown="$(spl_landed_repo_shown "$clone" "$clone")"
+        do_log "WARN git fetch origin failed in $(spl_landed_repo_shown "$clone ($n)" "$clone"): its last fetched trunk counts" >&2
+        printf 'R\t%s\tgit fetch failed in %s\n' "$clone" "$shown" >>"${2:-/dev/null}"
       fi
       trunk="$(SLR_NO_FETCH=1 spl_landed_repo_trunk "$n" "$clone" "${row#*$'\t'}")" || { rc=1; continue; }
     fi

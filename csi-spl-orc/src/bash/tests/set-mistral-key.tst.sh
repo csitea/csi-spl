@@ -12,6 +12,10 @@
 #      with a space - nothing written
 #   5. the canary key is in no output, no stub argv/env and no ps sample
 #   6. CONTROL: a planted echo of the key IS caught by the same leak check
+#   7. CONTROL: a planted child process with the key in its argv IS caught
+#      in the ps sample alone
+# The test's own checks never put a key in an argv: the 50 ms ps sampler
+# would catch them (SPL-3860, a red case 5 in CI on the test's own grep).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -83,14 +87,18 @@ sys.exit(os.waitstatus_to_exitcode(st))' >"$T/o" 2>&1
 }
 # ps sampler: every process line while the actions run
 ( while :; do ps -eo args= 2>/dev/null; sleep 0.05; done >>"$T/ps.log" ) & PS_PID=$!
-no_leak() { ! grep -qF "$1" "$T/o" "$T/calls.log" "$T/ps.log"; }
+# key checks read the key from a process substitution (printf is a builtin),
+# so no grep argv the sampler sees carries it
+has_line() { grep -qxF -f <(printf '%s\n' "$1") "$2"; }
+leaks_in() { local k="$1"; shift; grep -lF -f <(printf '%s\n' "$k") "$@"; }
+no_leak() { ! leaks_in "$1" "$T/o" "$T/calls.log" "$T/ps.log" >/dev/null; }
 envf="$H/.vibe/.env"
 facts() { printf '%s %s %s' "$(stat -c %a "$envf")" "$(stat -c %a "$H/.vibe")" "$(stat -c %U "$envf")"; }
 
 # --- 1. terminal path ------------------------------------------------------------------------
 mkdir -p "$H/.vibe"; printf 'OTHER=keep-me\nMISTRAL_API_KEY=%s\n# a comment\n' "$OLD" >"$envf"; chmod 644 "$envf"
 on_pty "$KEY"; rc=$?
-if [[ $rc -eq 0 ]] && [[ "$(facts)" == "600 700 $ME" ]] && grep -qx "MISTRAL_API_KEY=$KEY" "$envf" &&
+if [[ $rc -eq 0 ]] && [[ "$(facts)" == "600 700 $ME" ]] && has_line "MISTRAL_API_KEY=$KEY" "$envf" &&
    grep -qx 'OTHER=keep-me' "$envf" && grep -qx '# a comment' "$envf" && ! grep -qF "$OLD" "$envf" &&
    [[ "$(grep -c '^MISTRAL_API_KEY=' "$envf")" == 1 ]] && grep -q "key read: length=${#KEY} last4=${KEY: -4}" "$T/o"; then
   pass "1: terminal key -> .vibe/.env 600 in 700, owner $ME, other lines kept, old key replaced, masked check"
@@ -99,22 +107,22 @@ compgen -G "$H/.vibe/.env.*" >/dev/null && fail "1: a temp file was left behind"
 
 # --- 2. file and stdin -------------------------------------------------------------------------
 K2="fileK3y${RANDOM}${RANDOM}${RANDOM}"; printf 'MISTRAL_API_KEY=%s\n' "$K2" >"$T/crs"; chmod 600 "$T/crs"
-smk MISTRAL_KEY_FILE="$T/crs" bash -c in_orc </dev/null >"$T/o" 2>&1 && grep -qx "MISTRAL_API_KEY=$K2" "$envf" &&
+smk MISTRAL_KEY_FILE="$T/crs" bash -c in_orc </dev/null >"$T/o" 2>&1 && has_line "MISTRAL_API_KEY=$K2" "$envf" &&
   grep -qx 'OTHER=keep-me' "$envf" && ! grep -q WARN "$T/o" && pass "2: MISTRAL_KEY_FILE (MISTRAL_API_KEY= form)" ||
   fail "2: MISTRAL_KEY_FILE: $(tail -n2 "$T/o")"
 no_leak "$K2" && pass "2: file key in no output, argv, env or ps" || fail "2: file key leaked"
 K3="bareK3y${RANDOM}${RANDOM}${RANDOM}"; printf '%s\r\n' "$K3" >"$T/crs2"; chmod 644 "$T/crs2"
-smk MISTRAL_KEY_FILE="$T/crs2" bash -c in_orc </dev/null >"$T/o" 2>&1 && grep -qx "MISTRAL_API_KEY=$K3" "$envf" &&
+smk MISTRAL_KEY_FILE="$T/crs2" bash -c in_orc </dev/null >"$T/o" 2>&1 && has_line "MISTRAL_API_KEY=$K3" "$envf" &&
   grep -q 'WARN .*readable beyond its owner' "$T/o" && pass "2: bare-key file (CRLF) + WARN on mode 644" ||
   fail "2: bare-key file: $(tail -n2 "$T/o")"
 printf 'MISTRAL_API_KEY=%s\n' "$KEY" | smk MISTRAL_KEY_STDIN=1 bash -c in_orc >"$T/o" 2>&1 &&
-  grep -qx "MISTRAL_API_KEY=$KEY" "$envf" && pass "2: MISTRAL_KEY_STDIN=1" || fail "2: stdin: $(tail -n2 "$T/o")"
+  has_line "MISTRAL_API_KEY=$KEY" "$envf" && pass "2: MISTRAL_KEY_STDIN=1" || fail "2: stdin: $(tail -n2 "$T/o")"
 
 # --- 3. TO_BOX over ssh stdin -------------------------------------------------------------------
 printf 'MISTRAL_API_KEY=%s\n' "$KEY" >"$T/crs"
 smk MISTRAL_KEY_FILE="$T/crs" TO_BOX=sat bash -c in_orc </dev/null >"$T/o" 2>&1; rc=$?
 r="$T/remote/.vibe/.env"
-[[ $rc -eq 0 && "$(stat -c %a "$r" 2>/dev/null)" == 600 ]] && grep -qx "MISTRAL_API_KEY=$KEY" "$r" &&
+[[ $rc -eq 0 && "$(stat -c %a "$r" 2>/dev/null)" == 600 ]] && has_line "MISTRAL_API_KEY=$KEY" "$r" &&
   grep -q '^remote-sudo -n -u '"$ME"' -H bash -c' "$T/calls.log" && pass "3: TO_BOX=sat: written as the box's agent user over ssh" ||
   fail "3: TO_BOX (rc=$rc): $(tail -n2 "$T/o")"
 rm -rf "$T/remote/.vibe"; printf 'AGENT_USER=%s\nBOX_TAG=other\n' "$ME" >"$T/box2.env"
@@ -147,11 +155,17 @@ on_pty "abc def ghi jkl mno pqr"
 # --- 5. leak check over every run above ---------------------------------------------------------
 on_pty "$KEY" >/dev/null
 no_leak "$KEY" && pass "5: the canary key is in no output, stub argv/env or ps sample" ||
-  fail "5: the canary key leaked: $(grep -lF "$KEY" "$T/o" "$T/calls.log" "$T/ps.log" | xargs -n1 basename | paste -sd' ')"
+  fail "5: the canary key leaked: $(leaks_in "$KEY" "$T/o" "$T/calls.log" "$T/ps.log" | xargs -n1 basename | paste -sd' ')"
 
 # --- 6. CONTROL: a planted echo is caught ---------------------------------------------------------
 on_pty "$KEY" SNIPPET='eval "$(declare -f spl_smk_main | sed "s/do_log \"INFO key read: \$mask\"/echo \"\$key\"; &/")"; do_set_mistral_key'
 no_leak "$KEY" && fail "6: CONTROL: the planted echo was NOT caught" || pass "6: CONTROL: the leak check catches a planted echo"
+
+# --- 7. CONTROL: a planted argv is caught by the ps sample alone ----------------------------------
+: >"$T/ps.log"
+on_pty "$KEY" SNIPPET='eval "$(declare -f spl_smk_main | sed "s/do_log \"INFO key read: \$mask\"/sh -c \"sleep 0.5\" x \"\$key\"; &/")"; do_set_mistral_key' >/dev/null
+leaks_in "$KEY" "$T/ps.log" >/dev/null && pass "7: CONTROL: the ps sample catches a planted key argv" ||
+  fail "7: CONTROL: the planted key argv was NOT in the ps sample"
 
 kill "$PS_PID" 2>/dev/null; wait "$PS_PID" 2>/dev/null
 echo "---"; [[ $fails -eq 0 ]] && { echo "ALL PASS"; exit 0; } || { echo "$fails FAILED"; exit 1; }

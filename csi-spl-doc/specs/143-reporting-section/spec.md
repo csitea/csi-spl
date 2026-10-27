@@ -1,9 +1,9 @@
 # 143: Reporting section of the WUI, beside Monitoring
 
-Status: **Decided / Phased for build v0.2.1** (Owner answers and schema 0202-0204 folded; issue SPL-2324).  
+Status: **Decided / Phased for build v0.3.0** (Releases label cost in currency and tokens addendum, SPL-3893; owner answers and schema 0202-0204 folded; issue SPL-2324).  
 Authority: this file for the architecture and technical requirements; [tasks.md](tasks.md) for the phased build tasks.  
 Status vocabulary: [README.md](../README.md) §2.3. Docs only: this spec builds nothing ([README.md](../README.md) §2.4).  
-Topic: `af25a1f3-7291-4675-855e-c67101680955` (HUM-10, prd t1, 2026-10-17; topic owner c-002; poll `1dd28b0e`, poll `4a6cdf4e`, poll `e804e13a`, token-burn topic `e8ae0aad` poll `2fa7180c`, poll form `e5dc787b` / `a8bfcdd0`).
+Topic: `af25a1f3-7291-4675-855e-c67101680955` (HUM-10, prd t1, 2026-10-17; topic owner c-002; poll `1dd28b0e`, poll `4a6cdf4e`, poll `e804e13a`, token-burn topic `e8ae0aad` poll `2fa7180c`, poll form `e5dc787b` / `a8bfcdd0`; label cost addendum topic `7adb4163-3c65-4a49-a9bb-d17acbe2cf95` msg `58730eea`, SPL-3893).
 
 Builds on, and does not repeat:
 - [002 box-agent messaging](../002-box-agent-messaging/spec.md) (local folder spool, CLI + MCP contracts)
@@ -238,6 +238,12 @@ only".
   helpers, the centre pill, the steps) and `tests/e2e/reporting.test.mjs`
   (1440 and 390 px: the most used kind is the centre and largest pill, a
   click shows its commits only, the cloud keeps its places).
+- **Cost in currency and tokens (Addendum v0.3.0, SPL-3893)**:
+  Each label pill in the cloud carries its total cost in tokens and currency
+  (EUR/USD per active currency), summed across all commits carrying that label
+  within the active time range. Full specification of commit token attribution,
+  multi-commit/multi-label splitting, daily estate rate pricing, and untracked
+  commit handling is in [§8. Releases label cost in currency and tokens](#8-releases-label-cost-in-currency-and-tokens-addendum-v030-spl-3893).
 
 ### 2.3 Deploy recording lane (`estate_deploys`)
 
@@ -818,4 +824,237 @@ The Tokens tab is restricted to operator workspace admins only (`operatorsOnly: 
 
 ---
 
-<!-- version: 0.2.2 · updated: 2026-10-27 · last-edit: 2026-10-27T10:55:00Z -->
+## 8. Releases label cost in currency and tokens (Addendum v0.3.0, SPL-3893)
+
+### 8.1 Context & Owner Request
+
+In prd workspace `t1`, topic `7adb4163-3c65-4a49-a9bb-d17acbe2cf95` (msg `58730eea-c431-4969-84c8-4722cdea94c5`, 2026-10-27 18:10Z), accompanied by a screenshot of `/reporting/releases` (Time window: Last 7 days), the owner requested:
+
+> "the long term in the reporting should be this view , but having both the costs in currency and tokens for each label"
+
+The Releases tab label cloud live since SPL-3796 (§2.2.1) renders two pill clusters:
+1. **Kind labels**: `perf`, `test`, `feat`, `fix`, `docs`, `refactor`, `chore`, `ci`
+2. **Area labels**: `rdb`, `iac`, `wui`, `orc`, `doc`, `api`, `cnf`
+
+Currently, each pill displays its label name and commit count (e.g. `feat 42`), sized by its share of total commits, followed by the daily commit breakdown. Under this addendum, each pill expands to present its accumulated resource consumption across both primary telemetry dimensions:
+- **Tokens**: Total metered tokens burned (input + output + cache-write) to deliver commits bearing that label within the selected window.
+- **Currency**: Actual money spent in the active currency (USD or EUR, matching the Costs section currency setting), derived from daily estate paid AI subscription rates.
+
+### 8.2 Finding a Commit's Tokens: The Attribution Chain
+
+Tokens are attributed to landed commits through a deterministic, auditable three-link chain:
+$$\text{Lane} \longrightarrow \text{Issue} \longrightarrow \text{Commit(s)}$$
+
+1. **Lane Placement**:
+   When an agent lane is spawned (e.g., `agent_id = 'a-452'` on box `sat`), `do_spl_spawn_place` and `do_spl_lane_issue place` link the lane to an assigned issue `SPL-n`:
+   - Records `a-452` in `fleet_asks` (`from_agent`, `created_at`, `work_kind`, `category_path`).
+   - Inserts active entry in `fleet_lanes` (`agent_id`, `state = 'live'`, `updated_at`).
+   - Transitions issue `SPL-n` to `status = 'wip'`, writing an audit comment: `Lane a-452 placed on SPL-n, status wip.`
+   - Writes `lifetime/issue` with key `SPL-n`.
+   - The lane's start timestamp $t_{\text{start}}$ is stamped from the `wip` transition.
+
+2. **Telemetry Accumulation**:
+   While the agent runs, the on-box collector records minute-by-minute token burn in `fleet_token_burn_events` with columns `(box_tag, agent_id, minute_bucket, vendor, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, total_tokens, is_metered, work_tenant)`. These events roll up daily into `fleet_token_burn_daily`.
+   The lane's token burn consists of all metered tokens burned by `agent_id` during its active lifespan:
+   $$T_{\text{lane}} = \sum_{t \in [t_{\text{start}}, t_{\text{end}}]} (\text{input\_tokens} + \text{output\_tokens} + \text{cache\_write\_tokens})$$
+   Consistent with S3 (§3.3.1) and spec 140 §3.8, prompt cache reads are excluded from cost attribution calculations, as cache reads carry negligible or zero marginal billing impact on AI subscriptions.
+
+3. **Landing & Closure**:
+   When the lane completes its task, it pushes commit(s) to `master`. Each commit carries the issue key in its subject scope (e.g. `feat(api, SPL-n): ...`) or in a `Closes: SPL-n` trailer.
+   - The commit lands on `master` and is ingested into `release_notes` (`sha`, `version`, `committed_at`, `kind`, `area`, `subject`).
+   - The automated closer (`do_spl_issue_close_landed`, running every 5 min) detects the landed commit citing `SPL-n`, records the closing SHA in `issue_events`, and transitions `issues.status` to `'done'`.
+   - The lane exits cleanly via `/exit-clean` (`LANE_ISSUE_OP=end LANE_ISSUE_STATUS=done`), setting $t_{\text{end}} = \text{committed\_at}$ of the landing commit (or the lane exit timestamp).
+
+### 8.3 Token & Cost Allocation for Multi-Commit and Multi-Label Lanes
+
+1. **Multi-Commit Lanes (Equal $1/N$ Split)**:
+   When a lane lands $N \ge 1$ commits $\{c_1, c_2, \dots, c_N\}$ associated with its issue `SPL-n`:
+   - The lane's total token burn $T_{\text{lane}}$ is divided equally among the $N$ landed commits:
+     $$T(c_j) = \frac{T_{\text{lane}}}{N} \quad \text{for each } j \in \{1, \dots, N\}$$
+   - If the lane operated across multiple calendar days $d \in D$, the day-by-day burn $T_{\text{lane}}(d)$ is partitioned equally:
+     $$T(c_j, d) = \frac{T_{\text{lane}}(d)}{N}$$
+   - **Rationale**: Agent lanes rebase and push their work atomically at lane exit. Intermediate git commit timestamps reflect local checkpoints rather than isolated reasoning cycles. Equal division ($1/N$) is mathematically rigorous, deterministic, requires no speculative AST or line-count churn heuristics, and strictly guarantees conservation of tokens: $\sum_{j=1}^N T(c_j) = T_{\text{lane}}$.
+
+2. **Orthogonal Label Dimensions (`kind` and `area`)**:
+   Every commit $c_j$ stored in `release_notes` possesses exactly one semantic `kind` (e.g. `feat`) and one architectural `area` (e.g. `api`).
+   - The commit's full token count $T(c_j)$ and currency cost $\text{Cost}(c_j)$ are attributed in full to its `kind` label:
+     $$T(K) = \sum_{c \in \text{commits}(K)} T(c), \quad \text{Cost}(K) = \sum_{c \in \text{commits}(K)} \text{Cost}(c)$$
+   - The commit's full token count $T(c_j)$ and currency cost $\text{Cost}(c_j)$ are attributed in full to its `area` label:
+     $$T(A) = \sum_{c \in \text{commits}(A)} T(c), \quad \text{Cost}(A) = \sum_{c \in \text{commits}(A)} \text{Cost}(c)$$
+   - **Conservation Invariant**: `kind` and `area` represent orthogonal taxonomy views over the same commit population. The sum of tokens across all kind labels equals the sum across all area labels, which equals total tracked commit tokens:
+     $$\sum_{K} T(K) = \sum_{A} T(A) = \sum_{c \in \text{tracked}} T(c)$$
+
+### 8.4 Calculating Currency Costs (Estate-Wide AI Daily Rate & FX Conversion)
+
+Currency costs follow the S3 paid-AI month read architecture (`csi-spl-api/.../internal/store/cost_ai_paid.go`, SPL-3810) and implement the owner's foundational cost allocation rule:
+
+> "the amount of tokens spent vis the total tokens spent in the spool-hub and than just divice the money"  
+> (Owner HUM-10, prd t1 topic `739e1622`, msg `ff770270`)
+
+1. **Daily Estate Rate Formulation**:
+   For each UTC calendar day $d$:
+   - Total paid AI expenditure for day $d$ is the sum of daily USD micros across all active subscriptions and top-ups in `fleet_token_paid` paying for day $d$:
+     $$\text{USD\_micros}_{\text{estate}}(d) = \sum_{i \in \text{active}(d)} \text{AIPaidDailyMicros}(i, \text{rate}(i))$$
+   - Total metered tokens burned across the estate by all agents on day $d$ is:
+     $$T_{\text{estate}}(d) = \sum_{\text{all lanes}} T(\text{lane}, d)$$
+   - The estate's effective token rate for day $d$ is:
+     $$R(d) = \frac{\text{USD\_micros}_{\text{estate}}(d)}{T_{\text{estate}}(d)} \quad (\mu\text{USD per token})$$
+   - Where broken down per agent vendor/model $v$, the rate applies per-vendor matching S3's `AIShareSplit`:
+     $$\text{USD\_micros}(L, v, d) = \left\lfloor \text{USD\_micros}_{\text{estate}}(v, d) \times \frac{T(L, v, d)}{T_{\text{estate}}(v, d)} \right\rfloor$$
+
+2. **Commit Currency Cost**:
+   For commit $c_j$ produced by lane $L$ over days $D$:
+   $$\text{USD\_micros}(c_j) = \frac{1}{N} \sum_{d \in D} \text{USD\_micros}(L, d)$$
+
+3. **Second Currency Conversion (EUR)**:
+   Consistent with S3 and spec 123 §5.4, currency conversion is performed day-by-day using that specific UTC day's ECB reference exchange rate ($\text{Rate}_{\text{USD}\to\text{EUR}}(d)$ via `secondFXDays`):
+   $$\text{EUR\_micros}(c_j) = \frac{1}{N} \sum_{d \in D} \left\lfloor \text{USD\_micros}(L, d) \times \text{Rate}_{\text{USD}\to\text{EUR}}(d) \right\rfloor$$
+   The Releases page reacts immediately to the currency selector in the header (USD or EUR), summing the appropriate daily micros.
+
+### 8.5 Label Cloud Presentation & Time Windows
+
+1. **Time Range Scopes**:
+   The Releases tab supports preset time filters:
+   - `Today` (current UTC day since 00:00Z)
+   - `Last 7 Days` (default)
+   - `Last 30 Days`
+   - `Last 90 Days`
+   - `Custom Range` (`from` and `to` dates)
+   Label costs are computed strictly over the commits whose `committed_at` falls within the chosen window.
+
+2. **Pill Visual Formatting**:
+   In `ReleasesFilterBar.vue`, each Kind and Area pill renders a structured composite badge:
+   - **Primary label & count**: e.g., `feat 42`
+   - **Token burn**: e.g., `· 12.8M tok` (formatted with metric suffixes: `k` for $\ge 10^3$, `M` for $\ge 10^6$, `B` for $\ge 10^9$)
+   - **Currency cost**: e.g., `· $19.45` or `· €17.80` (formatted to two decimal places in the active currency)
+   Example rendered pill text:
+   `[ feat 42 · 12.8M tok · $19.45 ]`
+
+3. **Layout & Sizing Preservation (SPL-3796)**:
+   - Sizing steps (`rf-step-0` to `rf-step-5`) default to scaling with commit count square root ($\sqrt{\text{count}/\text{max}}$), preserving visual stability.
+   - The center-pill placement algorithm (`labelCloud` in `csi-spl-wui/src/utils/reporting-releases.ts`) remains active: the largest label occupies the center of the cloud, with subsequent labels alternating right and left.
+   - Interactive filtering is preserved: clicking any label pill toggles that label, filtering the commit list below while keeping cloud dimensions and counts fixed.
+
+### 8.6 Handling Untracked / Human Commits and Telemetry Gaps
+
+In adherence to the repository's TRUTH FIRST mandate, costs are never estimated, guessed, or fabricated where telemetry does not exist.
+
+1. **Identified Telemetry Gaps**:
+   - **Human Commits**: Commits authored directly by human operators (e.g., initial bootstrap commits, emergency fixes, out-of-band administrative patches).
+   - **Unlinked Commits**: Commits whose subject scope contains no recognized issue key (`SPL-n`), or whose issue records no active agent lane in `fleet_asks` / `fleet_lanes`.
+   - **Historical Commits**: Commits landed before token telemetry infrastructure was established (pre-rdb `0199`/`0229`).
+   - **Unmetered Models**: Agent sessions executed on providers or mock environments flagged as `not_metered` (spec 140 §3.8).
+
+2. **Visual Treatment in WUI**:
+   - **Daily Commit List**:
+     - Tracked commits display a distinct cost badge: `[ 350k tok · $0.54 ]`.
+     - Untracked commits display a muted neutral badge: `[ — · untracked ]` or `[ human / no lane ]`. Clicking or hovering reveals an explanatory tooltip: `"No agent lane telemetry recorded for this commit."`
+   - **Label Cloud Pills**:
+     - A label's token and currency totals represent the sum of its *tracked* commits.
+     - When a label contains a mix of tracked and untracked commits (e.g. 38 tracked, 4 untracked), the pill displays a coverage indicator: e.g., tooltip `"38 of 42 commits tracked (90%)"`.
+     - When all commits in a label are untracked (e.g., a chore completed entirely by human maintainers), the pill displays `[ chore 5 · — · untracked ]`.
+
+### 8.7 Implementation Architecture: Database Ledger, Hub API & WUI Integration
+
+1. **Database Schema: `commit_token_burn` Ledger**:
+   Querying minute-by-minute `fleet_token_burn_events` across a 90-day window on every UI request is computationally prohibitive, and `events` are pruned after 30 days. Because landed commits and historical lane burns are immutable, a forward-only migration `0236_commit_token_burn.sql` introduces a persistent ledger:
+
+   ```sql
+   -- 0236_commit_token_burn.sql - landed commit token and cost ledger (spec 143 addendum §8.7, SPL-3893)
+   CREATE TABLE commit_token_burn (
+       sha                text        PRIMARY KEY REFERENCES release_notes (sha) ON DELETE CASCADE,
+       issue_key          text        NOT NULL,
+       agent_id           text        NOT NULL,
+       tokens_metered     bigint      NOT NULL CHECK (tokens_metered >= 0),
+       tokens_cache_read  bigint      NOT NULL DEFAULT 0 CHECK (tokens_cache_read >= 0),
+       usd_micros         bigint      NOT NULL CHECK (usd_micros >= 0),
+       computed_at        timestamptz NOT NULL DEFAULT now()
+   );
+
+   CREATE INDEX commit_token_burn_issue ON commit_token_burn (issue_key);
+   CREATE INDEX commit_token_burn_agent ON commit_token_burn (agent_id);
+
+   ALTER TABLE commit_token_burn ENABLE ROW LEVEL SECURITY;
+   ALTER TABLE commit_token_burn FORCE ROW LEVEL SECURITY;
+   CREATE POLICY public_select ON commit_token_burn FOR SELECT USING (true);
+   CREATE POLICY operator_write ON commit_token_burn FOR ALL
+       USING (current_setting('app.rls_scope', true) = 'operator')
+       WITH CHECK (current_setting('app.rls_scope', true) = 'operator');
+   ```
+
+2. **Ingestion & Historical Backfill**:
+   - **Automated Ingestion**: `do_spl_issue_close_landed` is extended to invoke the attribution calculator when closing an issue upon commit landing, inserting records into `commit_token_burn`.
+   - **Reconciliation Worker**: A hub background task computes and records rows for newly ingested commits in `release_notes` that cite closed issues.
+   - **Backfill**: A one-time backfill script processes historical commits within the 365-day `fleet_token_burn_daily` retention window.
+
+3. **Hub API Routes**:
+   - `GET /v1/reporting/releases/daily`: Extended to include aggregated cost maps:
+     ```json
+     {
+       "days": [ ... ],
+       "kinds": { "feat": 42, "fix": 15 },
+       "areas": { "api": 25, "wui": 32 },
+       "costs": {
+         "currency": "USD",
+         "tokens_by_kind": { "feat": 12800000, "fix": 4200000 },
+         "usd_micros_by_kind": { "feat": 19450000, "fix": 6380000 },
+         "tokens_by_area": { "api": 8500000, "wui": 8500000 },
+         "usd_micros_by_area": { "api": 12900000, "wui": 12930000 },
+         "tracked_by_kind": { "feat": 42, "fix": 14 },
+         "tracked_by_area": { "api": 25, "wui": 31 }
+       }
+     }
+     ```
+   - `GET /v1/reporting/releases/commits`: Each commit item in the returned array carries:
+     ```json
+     {
+       "sha": "1759dd7e2...",
+       "subject": "feat(api, SPL-3796): ...",
+       "tokens_metered": 350000,
+       "usd_micros": 532000,
+       "tracked": true,
+       "lane_id": "a-452"
+     }
+     ```
+     For untracked commits, `tokens_metered` and `usd_micros` are `null`, and `tracked` is `false`.
+
+4. **WUI Architecture**:
+   - `csi-spl-wui/src/utils/reporting-releases.ts`: Updated to compute `labelTokenCounts` and `labelCostAmounts` from API responses, formatting token strings with compact engineering suffixes (`12.8M`) and money strings with locale currency symbols (`$19.45` / `€17.80`).
+   - `ReleasesFilterBar.vue`: Displays tokens and currency inside pills, reacting to window and currency updates.
+   - `ReleasesDailyList.vue`: Renders the cost badge on each commit row.
+
+### 8.8 Phased Build Tasks (One Row = One Lane)
+
+The implementation is structured into seven discrete, test-guarded lane tasks:
+
+| ID | Status | Area | Lane | Summary, Gate & Red Control |
+|---|---|---|---|---|
+| **T070** | **Planned** | `rdb` | `reporting-label-cost` | **Database schema migration: `commit_token_burn`** (§8.7). Forward-only migration `0236_commit_token_burn.sql` creating table `commit_token_burn` (`sha` PK REFERENCES `release_notes`, `issue_key`, `agent_id`, `tokens_metered`, `tokens_cache_read`, `usd_micros`, `computed_at`). Estate-wide table with public select and operator write RLS.<br>• *Gate*: `psql` applies migration cleanly; foreign key enforces valid SHA in `release_notes`.<br>• *Red Control*: Inserting duplicate SHA fails primary key constraint. |
+| **T071** | **Planned** | `api` | `reporting-label-cost` | **Store implementation & token attribution engine** (§8.2, §8.3, §8.4). Implement Go store in `internal/store/commit_token_burn.go` computing lane token burn from `fleet_token_burn_events` / `fleet_token_burn_daily` between placement and landing, applying equal $1/N$ split per commit, and pricing USD micros via daily estate paid rate from `cost_ai_paid.go`.<br>• *Gate*: Unit test verifies accurate token and money split across multi-commit lanes and correct pricing against daily paid items.<br>• *Red Control*: Dividing by zero on day with zero total tokens falls back safely to zero without panic. |
+| **T072** | **Planned** | `api` | `reporting-label-cost` | **Ingestion hook in `issue-close-landed` & historical backfill** (§8.2, §8.7). Extend `issue-close-landed` to compute and write `commit_token_burn` rows as issues close upon commit landing. Provide backfill routine for existing commits.<br>• *Gate*: Test verifies closing issue triggers insertion into `commit_token_burn`.<br>• *Red Control*: Re-closing an already processed issue is idempotent and does not overwrite existing rows. |
+| **T073** | **Planned** | `api` | `reporting-label-cost` | **Hub read route extensions: releases daily & commits** (§8.7). Extend `GET /v1/reporting/releases/daily` with token and USD/EUR breakdowns per kind and area label, and `GET /v1/reporting/releases/commits` with commit-level token and cost fields.<br>• *Gate*: Endpoint test asserts returned label sums match sum of constituent commit costs.<br>• *Red Control*: Querying with unsupported currency code returns HTTP 400 `bad_currency`. |
+| **T074** | **Planned** | `wui` | `reporting-label-cost` | **Releases label cloud cost formatting: `reporting-releases.ts` & `ReleasesFilterBar.vue`** (§8.5). Render token burn and currency cost within each Kind and Area pill, maintaining centered cloud distribution and responsive 390px layout.<br>• *Gate*: Component test verifies pills display formatted tokens and money, and retain selection toggle behavior.<br>• *Red Control*: Missing cost data renders gracefully without crashing pill layout. |
+| **T075** | **Planned** | `wui` | `reporting-label-cost` | **Commit list row cost pills & currency switcher: `ReleasesDailyList.vue`** (§8.5, §8.6). Render `[tokens · cost]` badge on tracked commits and neutral `[— · untracked]` on untracked/human commits. Support header currency toggle (USD/EUR).<br>• *Gate*: Component test verifies tracked commits display cost pills and untracked commits display neutral badges.<br>• *Red Control*: Untracked commit displaying fabricated non-zero cost fails test assertion. |
+| **T076** | **Planned** | `test` | `reporting-label-cost` | **End-to-end integration and verification tests** (§8.5, §8.6). Integration tests in `tests/e2e/reporting.test.mjs` verifying label cloud cost display, currency toggling, commit list cost badges, and untracked commit rendering across desktop and mobile viewports.<br>• *Gate*: E2E test suite passes cleanly.<br>• *Red Control*: Any mismatch between label cost total and daily commit sum fails assertion. |
+
+### 8.9 Open Owner Questions
+
+```poll
+Q1 What sizes the pills in the Releases label cloud?
+(A) Keep commit count (square root of commit count, as today; tokens and money are displayed inside the pill) (recommended)
+(B) Size by token burn (largest pill = highest token consumption in the window)
+(C) Size by total money spent (largest pill = highest currency cost in the window)
+Q2 When a lane produces multiple commits, how are its tokens and money divided across them?
+(A) Equal split across the lane's landed commits (1/N per commit), full share to kind and area (recommended)
+(B) Split proportionally by file churn (lines added and deleted in each commit's diff)
+(C) Require lanes to record token shares explicitly in git trailers (e.g. Tokens: 3.5M)
+Q3 How should untracked commits (human commits, legacy commits before token tracking) be reflected?
+(A) Show neutral badge [— · untracked] on commit rows and a coverage indicator on label pills (e.g. 37/42 tracked) (recommended)
+(B) Add a dedicated (human / untracked) pill in the cloud grouping all unattributed commits
+(C) Estimate their cost using the average cost per commit of tracked commits in the same label
+```
+
+---
+
+<!-- version: 0.3.0 · updated: 2026-10-27 · last-edit: 2026-10-27T23:30:00Z -->
+

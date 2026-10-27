@@ -93,7 +93,21 @@ Docs only: this task list defines the work; implementation lanes execute it ([RE
 
 ---
 
-## 8. Parallel Lane Groups (Disjoint File Sets)
+## 8. Phase 7: Releases Label Cost in Currency and Tokens (Addendum v0.3.0, SPL-3893)
+
+| ID | Status | Area | Lane | Summary, Gate & Red Control |
+|---|---|---|---|---|
+| **T070** | **Planned** | `rdb` | `reporting-label-cost` | **Database schema migration: `commit_token_burn`** (§8.7). Forward-only migration `0236_commit_token_burn.sql` creating table `commit_token_burn` (`sha` PK REFERENCES `release_notes`, `issue_key`, `agent_id`, `tokens_metered`, `tokens_cache_read`, `usd_micros`, `computed_at`). Estate-wide table with public select and operator write RLS.<br>• *Gate*: `psql` applies migration cleanly; foreign key enforces valid SHA in `release_notes`.<br>• *Red Control*: Inserting duplicate SHA fails primary key constraint. |
+| **T071** | **Planned** | `api` | `reporting-label-cost` | **Store implementation & token attribution engine** (§8.2, §8.3, §8.4). Implement Go store in `internal/store/commit_token_burn.go` computing lane token burn from `fleet_token_burn_events` / `fleet_token_burn_daily` between placement and landing, applying equal $1/N$ split per commit, and pricing USD micros via daily estate paid rate from `cost_ai_paid.go`.<br>• *Gate*: Unit test verifies accurate token and money split across multi-commit lanes and correct pricing against daily paid items.<br>• *Red Control*: Dividing by zero on day with zero total tokens falls back safely to zero without panic. |
+| **T072** | **Planned** | `api` | `reporting-label-cost` | **Ingestion hook in `issue-close-landed` & historical backfill** (§8.2, §8.7). Extend `issue-close-landed` to compute and write `commit_token_burn` rows as issues close upon commit landing. Provide backfill routine for existing commits.<br>• *Gate*: Test verifies closing issue triggers insertion into `commit_token_burn`.<br>• *Red Control*: Re-closing an already processed issue is idempotent and does not overwrite existing rows. |
+| **T073** | **Planned** | `api` | `reporting-label-cost` | **Hub read route extensions: releases daily & commits** (§8.7). Extend `GET /v1/reporting/releases/daily` with token and USD/EUR breakdowns per kind and area label, and `GET /v1/reporting/releases/commits` with commit-level token and cost fields.<br>• *Gate*: Endpoint test asserts returned label sums match sum of constituent commit costs.<br>• *Red Control*: Querying with unsupported currency code returns HTTP 400 `bad_currency`. |
+| **T074** | **Planned** | `wui` | `reporting-label-cost` | **Releases label cloud cost formatting: `reporting-releases.ts` & `ReleasesFilterBar.vue`** (§8.5). Render token burn and currency cost within each Kind and Area pill, maintaining centered cloud distribution and responsive 390px layout.<br>• *Gate*: Component test verifies pills display formatted tokens and money, and retain selection toggle behavior.<br>• *Red Control*: Missing cost data renders gracefully without crashing pill layout. |
+| **T075** | **Planned** | `wui` | `reporting-label-cost` | **Commit list row cost pills & currency switcher: `ReleasesDailyList.vue`** (§8.5, §8.6). Render `[tokens · cost]` badge on tracked commits and neutral `[— · untracked]` on untracked/human commits. Support header currency toggle (USD/EUR).<br>• *Gate*: Component test verifies tracked commits display cost pills and untracked commits display neutral badges.<br>• *Red Control*: Untracked commit displaying fabricated non-zero cost fails test assertion. |
+| **T076** | **Planned** | `test` | `reporting-label-cost` | **End-to-end integration and verification tests** (§8.5, §8.6). Integration tests in `tests/e2e/reporting.test.mjs` verifying label cloud cost display, currency toggling, commit list cost badges, and untracked commit rendering across desktop and mobile viewports.<br>• *Gate*: E2E test suite passes cleanly.<br>• *Red Control*: Any mismatch between label cost total and daily commit sum fails assertion. |
+
+---
+
+## 9. Parallel Lane Groups (Disjoint File Sets)
 
 To allow multiple agent lanes to work concurrently without git rebase collisions, tasks are partitioned into independent lane groups with disjoint target paths:
 
@@ -105,4 +119,5 @@ To allow multiple agent lanes to work concurrently without git rebase collisions
 | **`reporting-deploys`** | `T025`, `T026`, `T027` | `csi-spl-api/src/go/spool-hub-api/internal/hub/operator_deploys.go`<br>`.github/workflows/20_hub-build-deploy.yml`<br>`.github/workflows/30_wui-build-deploy.yml` | Can build independently of WUI. |
 | **`reporting-sql`** | `T030`, `T031`, `T032`, `T033` | `csi-spl-api/src/go/spool-hub-api/internal/hub/reporting_sql.go`<br>`csi-spl-api/src/go/spool-hub-api/internal/store/reporting_sql.go`<br>`csi-spl-wui/src/pages/reporting/sql.vue` | Independent lane; requires `T002`. |
 | **`reporting-categories`** | `T040`, `T041`, `T042`, `T043` | `csi-spl-api/src/go/spool-hub-api/internal/hub/categories.go`<br>`csi-spl-api/src/go/spool-hub-api/internal/store/categories.go`<br>`csi-spl-orc/src/bash/run/spl-spawn-place.func.sh`<br>`csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-window.sh` | Independent backend/orc lane; requires `T003`. |
+| **`reporting-label-cost`** | `T070`..`T076` | `csi-spl-rdb/src/sql/postgres/spool-hub/0236_commit_token_burn.sql`<br>`csi-spl-api/.../commit_token_burn.go`<br>`csi-spl-wui/.../reporting-releases.ts` | Builds on `reporting-releases` and S3 AI paid reads. |
 | **`reporting-proof`** | `T060`, `T061`, `T062` | `csi-spl-api/src/go/spool-hub-api/internal/hub/reporting_sql_test.go`<br>`csi-spl-wui/src/tests/e2e/reporting.test.mjs` | Runs after respective feature lanes land. |

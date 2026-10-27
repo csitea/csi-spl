@@ -57,7 +57,7 @@ func keyDeskServer(cfg *config.Config, c *hubclient.Client) (*keydesk.Server, er
 	if err := os.MkdirAll(cfg.HubDir(), 0o700); err != nil {
 		return nil, err
 	}
-	id, err := keydesk.LoadOrCreateIdentity(filepath.Join(cfg.HubDir(), "desk-x25519.key"))
+	id, err := keydesk.LoadOrCreateIdentity(keydesk.IdentityPath(cfg.HubDir()))
 	if err != nil {
 		return nil, err
 	}

@@ -418,9 +418,8 @@ with its session's upload token; the box is the token's, never a body's:
   `box_mode` is not `dedicated`), 403 `box_not_approved` (no row in
   `workspace_vendor_key_boxes`), 409 `no_key`, 409 `key_exhausted`. The row
   is read in the pin's own tenant scope (127 L1). No refusal is a 404: the
-  desk reads a 404 as `no_lease_route`. The sealed answer needs the box's
-  X25519 key at join (increment 3), so today a lease that passes every
-  check is 409 `box_key_not_enrolled`, and nothing is opened or audited.
+  desk reads a 404 as `no_lease_route`. A lease that passes every check is
+  answered sealed (9.3).
 - `POST /v1/vendor-keys/{kind}/exhausted` (point 1): no body, no vendor
   text. The hub sets `workspace_vendor_keys.exhausted_at` (rdb 0235) and
   writes one `exhausted` audit row (kind, box); a second report of the same
@@ -453,8 +452,37 @@ Not built in T5:
   switch and shows an exhausted kind in GET; nothing reads them yet.
 
 Still open in T5: the mail of point 5 (its own commit, held until agy
-reviews its locale text), and increment 3: the X25519 join field and the
-sealed answer.
+reviews its locale text).
+
+### 9.3 Built: the sealed lease (T5 increment 3, SPL-3738, with 127 H2)
+
+127 5.2 step 3, so a TLS-terminating proxy sees ciphertext only:
+
+- **The join field.** A dedicated `spool join` loads (or makes, 0600) the
+  key desk's X25519 identity, `<hub dir>/desk-x25519.key`
+  (`keydesk.IdentityPath`, the file the sidecar's desk opens leases with),
+  and sends its recipient as `box_x25519` in `POST /v1/pins/join`, signed
+  with the rest (`wire.JoinKeyPayload`: the canonical join bytes plus
+  `box_x25519`; without it the bytes are exactly the old ones). The hub
+  checks the shape (`age1...`) and the signature over it, and records it
+  on the pin (rdb 0235 `pins.box_x25519`). Every join writes it, so a
+  re-join without one clears it.
+- **The answer.** The lease opens the row with T1's sealer (KMS), seals
+  `keydesk.Payload` (kind, box, key_id, key, base_url, `ttl_s` 900) to the
+  pin's recipient with age, writes the `lease` audit row (box, kind,
+  last4) and only then answers `{"sealed": "<base64>"}`. The desk refuses
+  an answer that names another kind or box. The hub logs tenant, box,
+  kind and last4, never the key (127 L4).
+- **A pin enrolled before the field** has no recipient and gets 409
+  `box_key_not_enrolled` until it joins again with a fresh token.
+- Tests: `TestVendorKeyLeaseRedControl` (box-b without a recipient is
+  refused; box-a's desk opens the answer to `sk-test-0000`; another
+  identity does not open it; the key in 0 log lines),
+  `TestJoinRecordsDeskRecipient` (recorded, cleared by a re-join without
+  it, a recipient outside the signature is 400 `bad_sig`, a malformed one
+  400 `bad_json`), `internal/store/pin_x25519_test.go` (Memory and
+  Postgres), `internal/action/join_test.go` (the join signs the desk's
+  recipient; CONTROL: the bytes without it do not verify).
 
 ## 10. The WUI: Agent keys page
 

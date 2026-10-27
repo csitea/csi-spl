@@ -2,16 +2,21 @@ package hub
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"net/http"
 	"slices"
 	"time"
 
+	"filippo.io/age"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/keydesk"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/vendorkey"
 )
 
 // A workspace key on a box (spec 127 v1.4 5.1-5.2, row H2; spec 159 v0.2 9,
-// row T5; rdb 0234). The box's desk (127 X1, hubclient.VendorKeyHub) asks
+// row T5; rdb 0235). The box's desk (127 X1, hubclient.VendorKeyHub) asks
 // over REST with its session's upload token, like every desk REST call:
 //
 //	POST /v1/vendor-keys/{kind}/lease      -> 200 {"sealed":"<base64>"}
@@ -25,10 +30,12 @@ import (
 // member's token), 503 vendor_keys_off, 400 bad_kind, 409
 // kind_not_available, 403 box_not_dedicated, 403 box_not_approved, 409
 // no_key, 409 key_exhausted. No refusal is a 404: the desk reads a 404 as
-// "this hub has no lease route" (keydesk.TokNoLeaseRoute). The sealed answer
-// (127 5.2 step 3) needs the box's X25519 key, which the join does not carry
-// yet (T5 increment 3): until then every lease that passes the checks is
-// 409 box_key_not_enrolled, and nothing is opened or audited.
+// "this hub has no lease route" (keydesk.TokNoLeaseRoute). The answer is
+// sealed (127 5.2 step 3) to the X25519 recipient the box's desk sent at
+// join (rdb 0235), with age, as keydesk.Payload: kind, box, key_id, key,
+// base_url and the TTL. A pin with no recipient is 409
+// box_key_not_enrolled, and nothing is opened; an answered lease writes
+// its lease audit row (box, kind, last4) before it is sent.
 //
 // exhausted is the desk's report that the vendor refused the key for
 // credit, quota or a revoked key (keyexec's classifier; no vendor text, no
@@ -82,14 +89,14 @@ func (s *Server) vendorKeyBox(w http.ResponseWriter, r *http.Request) (st store.
 	return st, t.ID, box, kind, true
 }
 
-// handleVendorKeyLease runs every check of a lease (127 5.2 step 2). It
-// answers a refusal in every case today: the seal is increment 3.
+// handleVendorKeyLease runs every check of a lease (127 5.2 step 2), then
+// answers the sealed key.
 func (s *Server) handleVendorKeyLease(w http.ResponseWriter, r *http.Request) {
 	st, tenant, box, kind, ok := s.vendorKeyBox(w, r)
 	if !ok {
 		return
 	}
-	_, err := st.VendorKeyForLease(r.Context(), tenant, kind, box)
+	row, err := st.VendorKeyForLease(r.Context(), tenant, kind, box)
 	switch {
 	case errors.Is(err, store.ErrVendorKeyBoxNotApproved):
 		writeErr(w, http.StatusForbidden, "box_not_approved", "no admin or business owner of this workspace approved this box for keys")
@@ -101,9 +108,52 @@ func (s *Server) handleVendorKeyLease(w http.ResponseWriter, r *http.Request) {
 		s.o.Log.Error().Err(err).Str("tenant", tenant).Str("box", box).Str("kind", kind).Msg("vendor_key.lease_failed")
 		writeErr(w, http.StatusInternalServerError, "internal", "the key was not read")
 	default:
-		s.o.Log.Info().Str("tenant", tenant).Str("box", box).Str("kind", kind).Msg("vendor_key.lease_unsealed")
-		writeErr(w, http.StatusConflict, "box_key_not_enrolled", "this box registered no X25519 key at join, so no lease can be sealed to it; re-enrol the box")
+		s.answerVendorKeyLease(w, r, st, tenant, box, kind, row)
 	}
+}
+
+// vendorKeyLeaseTTL is the lease TTL the sealed answer names (127 5.2: 15
+// min); the desk keeps the shorter of it and its own.
+const vendorKeyLeaseTTL = 15 * time.Minute
+
+// answerVendorKeyLease seals the key to the pin's desk recipient (127 5.2
+// step 3), writes the lease audit row and answers {"sealed": base64}. The
+// plaintext key lives in this function only and is never logged; a pin
+// with no recipient is 409 box_key_not_enrolled, and nothing is opened.
+func (s *Server) answerVendorKeyLease(w http.ResponseWriter, r *http.Request, st store.VendorKeyLeases,
+	tenant, box, kind string, row store.VendorKeyLeaseRow) {
+	px, ok := s.o.Store.(store.PinX25519)
+	var rcpt string
+	var err error
+	if ok {
+		rcpt, err = px.PinBoxX25519(r.Context(), tenant, box)
+	}
+	to, perr := age.ParseX25519Recipient(rcpt)
+	if !ok || err != nil || rcpt == "" || perr != nil {
+		writeErr(w, http.StatusConflict, "box_key_not_enrolled", "this box registered no X25519 key at join, so no lease can be sealed to it; join it again with a fresh token")
+		return
+	}
+	key, err := s.o.VendorKeySealer.Open(r.Context(), tenant, kind, row.KeyID, vendorkey.Sealed{Ciphertext: row.Ciphertext,
+		WrappedDEK: row.WrappedDEK, KMSKeyVersion: row.KMSKeyVersion, Last4: row.Last4})
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Str("kind", kind).Msg("vendor_key.lease_open_failed")
+		writeErr(w, http.StatusInternalServerError, "internal", "the key did not open")
+		return
+	}
+	sealed, err := keydesk.Seal(to, keydesk.Payload{Kind: kind, Box: box, KeyID: row.KeyID, Key: key, BaseURL: row.BaseURL,
+		TTLSeconds: int(vendorKeyLeaseTTL / time.Second)})
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Str("kind", kind).Msg("vendor_key.lease_seal_failed")
+		writeErr(w, http.StatusInternalServerError, "internal", "the lease was not sealed")
+		return
+	}
+	if err := st.AuditVendorKeyLease(r.Context(), tenant, kind, box, row.Last4, s.o.Now()); err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Str("kind", kind).Msg("vendor_key.lease_audit_failed")
+		writeErr(w, http.StatusInternalServerError, "internal", "the lease was not audited, so it is not answered")
+		return
+	}
+	s.o.Log.Info().Str("tenant", tenant).Str("box", box).Str("kind", kind).Str("last4", row.Last4).Msg("vendor_key.leased")
+	writeJSON(w, http.StatusOK, map[string]string{"sealed": base64.StdEncoding.EncodeToString(sealed)})
 }
 
 // handleVendorKeyExhausted records the vendor's refusal a box reports.
@@ -212,4 +262,18 @@ func exhaustedAt(t time.Time) string {
 		return ""
 	}
 	return t.UTC().Format(time.RFC3339)
+}
+
+// joinBoxX25519 records the desk recipient a join sent (or clears it, for a
+// join that sent none) on the pin the join just seated (rdb 0235). A
+// failure is logged and the join stands: the box then gets no lease (409
+// box_key_not_enrolled) until it joins again, which fails closed.
+func (s *Server) joinBoxX25519(ctx context.Context, tenant, box, recipient string) {
+	px, ok := s.o.Store.(store.PinX25519)
+	if !ok {
+		return
+	}
+	if err := px.SetPinBoxX25519(ctx, tenant, box, recipient, s.o.Now()); err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Str("box", box).Msg("join: box_x25519 not recorded")
+	}
 }

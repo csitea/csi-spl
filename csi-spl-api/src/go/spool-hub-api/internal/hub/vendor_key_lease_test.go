@@ -1,23 +1,34 @@
 package hub_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
+	"filippo.io/age"
+
+	"github.com/rs/zerolog"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hubclient"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/keydesk"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
-// Spec 159 T5 with spec 127 H2 (rdb 0234): the lease route's checks, the
+// Spec 159 T5 with spec 127 H2 (rdb 0235): the lease route's checks, the
 // box's exhausted report, the manager's retry and the fall-back switch,
 // driven through the desk's own client (hubclient.VendorKeyHub), so the
 // tokens the desk passes to a seat are the ones asserted here. The key is
@@ -43,6 +54,20 @@ func keyBox(t *testing.T, e *env, tid, id, mode string) *box {
 	return b
 }
 
+// enrolDesk gives box's pin a fresh desk recipient, as a join of a box with
+// a key desk records it (rdb 0235), and returns the desk's identity.
+func enrolDesk(t *testing.T, e *env, tid, box string) *age.X25519Identity {
+	t.Helper()
+	id, err := age.GenerateX25519Identity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.st.(store.PinX25519).SetPinBoxX25519(context.Background(), tid, box, id.Recipient().String(), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
 // refusal is the desk's token for err ("" = no error).
 func refusal(err error) string {
 	var re *keydesk.Refused
@@ -61,7 +86,8 @@ func refusal(err error) string {
 // a retry clears it. Before the report the same lease passes every check
 // and stops at the seal (increment 3).
 func TestVendorKeyLeaseRedControl(t *testing.T) {
-	e, _ := vkEnv(t)
+	logs := &syncBuf{}
+	e, _ := vkEnv(t, func(o *hub.Options) { o.Log = zerolog.New(logs).Level(zerolog.DebugLevel) })
 	ctx := context.Background()
 	tid, _ := e.tenant()
 	biz := seat(t, e, tid, rbac.BizOwner)
@@ -87,8 +113,27 @@ func TestVendorKeyLeaseRedControl(t *testing.T) {
 	if code, body := putKey(t, e, tid, "claude", biz, nil); code != http.StatusNoContent {
 		t.Fatalf("PUT = %d %v", code, body)
 	}
-	if _, err := ha.Lease(ctx, "claude"); refusal(err) != "box_key_not_enrolled" {
-		t.Fatalf("lease before the refusal: %v, want box_key_not_enrolled (every check passed)", err)
+	// 127 5.2 step 3: box-b's pin has no desk recipient, so nothing is
+	// sealed to it; box-a's desk opens the answer to the key.
+	if _, err := hb.Lease(ctx, "claude"); refusal(err) != "box_key_not_enrolled" {
+		t.Fatalf("box-b lease: %v, want box_key_not_enrolled", err)
+	}
+	idA := enrolDesk(t, e, tid, "box-a")
+	enrolDesk(t, e, tid, "box-b")
+	sealed, err := ha.Lease(ctx, "claude")
+	if err != nil {
+		t.Fatalf("lease before the refusal: %v", err)
+	}
+	if strings.Contains(string(sealed), fakeVendorKey) {
+		t.Fatal("the lease answer carries the key in the clear")
+	}
+	p, err := keydesk.Open(idA, sealed)
+	if err != nil || p.Key != fakeVendorKey || p.Kind != "claude" || p.Box != "box-a" || p.KeyID == "" || p.TTLSeconds != 900 {
+		t.Fatalf("opened lease %v, %v", p, err)
+	}
+	other, _ := age.GenerateX25519Identity()
+	if _, err := keydesk.Open(other, sealed); err == nil {
+		t.Fatal("CONTROL: another desk's identity opened box-a's lease")
 	}
 	if err := ha.Exhausted(ctx, "claude"); err != nil {
 		t.Fatalf("exhausted report: %v", err)
@@ -111,11 +156,15 @@ func TestVendorKeyLeaseRedControl(t *testing.T) {
 	if code, body := call(t, e, tid, http.MethodPost, "/v1/vendor-keys/claude/retry", admin, nil); code != http.StatusNoContent {
 		t.Fatalf("retry = %d %v", code, body)
 	}
-	if _, err := ha.Lease(ctx, "claude"); refusal(err) != "box_key_not_enrolled" {
-		t.Fatalf("lease after retry: %v, want box_key_not_enrolled", err)
+	if _, err := ha.Lease(ctx, "claude"); err != nil {
+		t.Fatalf("lease after retry: %v", err)
 	}
 	if code, _ := call(t, e, tid, http.MethodPost, "/v1/vendor-keys/qwen/retry", admin, nil); code != http.StatusNotFound {
 		t.Fatalf("retry of an unset kind = %d, want 404", code)
+	}
+	// 127 L4 on the lease path: two answered leases, the key in no log line.
+	if strings.Contains(logs.String(), fakeVendorKey) || !strings.Contains(logs.String(), "vendor_key.leased") {
+		t.Fatalf("hub log: the key is in it, or no lease was logged:\n%s", logs.String())
 	}
 }
 
@@ -171,8 +220,9 @@ func TestVendorKeyLeaseRefusals(t *testing.T) {
 	if err := hx.Exhausted(ctx, "claude"); refusal(err) != "no_key" {
 		t.Errorf("other workspace's report: %v, want no_key", err)
 	}
-	if _, err := hd.Lease(ctx, "claude"); refusal(err) != "box_key_not_enrolled" {
-		t.Errorf("tid's key after the other's report: %v, want box_key_not_enrolled", err)
+	enrolDesk(t, e, tid, "box-d")
+	if _, err := hd.Lease(ctx, "claude"); err != nil {
+		t.Errorf("tid's key after the other's report: %v", err)
 	}
 	// A member's browser token is never a box (the lease route is box-only).
 	if code, _ := call(t, e, tid, http.MethodPost, "/v1/vendor-keys/claude/lease", biz, nil); code == http.StatusOK || code == http.StatusNotFound {
@@ -209,4 +259,67 @@ func TestVendorKeyMeteredFallbackSwitch(t *testing.T) {
 	if code, _ := call(t, e, tid, http.MethodPut, "/v1/vendor-keys/settings", admin, map[string]any{}); code != http.StatusBadRequest {
 		t.Fatalf("empty body = %d, want 400", code)
 	}
+}
+
+// TestJoinRecordsDeskRecipient (127 5.2 step 3, rdb 0235): a join that
+// sends box_x25519 signs it and the pin records it; a re-join without one
+// clears it; a malformed one is 400; a signature over the bytes without the
+// recipient does not verify (CONTROL: the field is signed).
+func TestJoinRecordsDeskRecipient(t *testing.T) {
+	e := joinEnv(t)
+	tid, _ := joinTenant(t, e)
+	admin := seat(t, e, tid, rbac.Admin)
+	px := e.st.(store.PinX25519)
+	id, _ := age.GenerateX25519Identity()
+	rc := id.Recipient().String()
+	priv := newKey(t)
+	join := func(rcpt string, signRcpt string) (int, string) {
+		t.Helper()
+		tok, _ := mintToken(t, e, tid, admin, map[string]any{})
+		code, eb := redeemKey(t, e, nil, tok, "box-k", store.BoxModeDedicated, rcpt, signRcpt, priv, time.Now())
+		return code, eb.Error
+	}
+	if code, tok := join(rc, rc); code != http.StatusOK {
+		t.Fatalf("join = %d %s", code, tok)
+	}
+	if got, err := px.PinBoxX25519(context.Background(), tid, "box-k"); err != nil || got != rc {
+		t.Fatalf("pin recipient %q %v, want %q", got, err, rc)
+	}
+	if code, tok := join(rc, ""); code != http.StatusBadRequest || tok != "bad_sig" {
+		t.Fatalf("recipient outside the signature = %d %s, want 400 bad_sig", code, tok)
+	}
+	if code, tok := join("age1notarecipient", "age1notarecipient"); code != http.StatusBadRequest || tok != "bad_json" {
+		t.Fatalf("malformed recipient = %d %s, want 400 bad_json", code, tok)
+	}
+	if code, tok := join("", ""); code != http.StatusOK {
+		t.Fatalf("re-join without a desk = %d %s", code, tok)
+	}
+	if got, err := px.PinBoxX25519(context.Background(), tid, "box-k"); err != nil || got != "" {
+		t.Fatalf("after a re-join without a recipient: %q %v, want cleared", got, err)
+	}
+}
+
+// redeemKey is redeemMode with a desk recipient: rcpt in the body, signRcpt
+// in the signed bytes (they differ only in a control).
+func redeemKey(t *testing.T, e *env, hdr http.Header, tok, box, mode, rcpt, signRcpt string, priv ed25519.PrivateKey, ts time.Time) (int, wire.ErrorBody) {
+	t.Helper()
+	pub := base64.StdEncoding.EncodeToString(priv.Public().(ed25519.PublicKey))
+	at := ts.UTC().Format(time.RFC3339)
+	p, _ := wire.JoinKeyPayload(tokenHash(tok), box, pub, at, mode, signRcpt)
+	raw, _ := json.Marshal(wire.JoinRequest{Token: tok, BoxID: box, PubKey: pub, TS: at, Sig: sign.Sign(priv, p), BoxMode: mode,
+		BoxX25519: rcpt})
+	req, _ := http.NewRequest(http.MethodPost, "http://"+apiLabel+domain+"/v1/pins/join", bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	for k, v := range hdr {
+		req.Header[k] = v
+	}
+	resp, err := e.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	var eb wire.ErrorBody
+	json.Unmarshal(body, &eb) //nolint:errcheck
+	return resp.StatusCode, eb
 }

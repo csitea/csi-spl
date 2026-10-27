@@ -1053,6 +1053,23 @@ func JoinModePayload(tokenHash, boxID, pubkey, ts, mode string) ([]byte, error) 
 		"token_hash": tokenHash, "ts": ts})
 }
 
+// JoinKeyPayload is JoinModePayload with the box key desk's X25519
+// recipient (spec 127 5.2 step 3): jq -cS
+// '{box_id,box_mode,box_x25519,op:"join",pubkey,token_hash,ts}', so the
+// recipient a lease is sealed to is signed with the box key. x25519 "" is
+// JoinModePayload exactly: a box with no desk signs the same bytes as before.
+func JoinKeyPayload(tokenHash, boxID, pubkey, ts, mode, x25519 string) ([]byte, error) {
+	if x25519 == "" {
+		return JoinModePayload(tokenHash, boxID, pubkey, ts, mode)
+	}
+	m := map[string]string{"box_id": boxID, "box_x25519": x25519, "op": "join", "pubkey": pubkey,
+		"token_hash": tokenHash, "ts": ts}
+	if mode != "" {
+		m["box_mode"] = mode
+	}
+	return Canonical(m)
+}
+
 // JoinRequest is the body of POST /v1/pins/join: Token is the whole
 // spj1.<tenant>.<secret>, Sig the box key's signature over JoinModePayload.
 // BoxMode is dedicated or shared (spec 108 3.8); "" = not declared, which a
@@ -1064,6 +1081,9 @@ type JoinRequest struct {
 	TS      string `json:"ts"`
 	Sig     string `json:"sig"`
 	BoxMode string `json:"box_mode,omitempty"`
+	// BoxX25519 is the box key desk's age X25519 recipient (spec 127 5.2
+	// step 3), signed by JoinKeyPayload; "" = no desk on this box.
+	BoxX25519 string `json:"box_x25519,omitempty"`
 }
 
 // PinRequest is the body of POST /v1/pins.

@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hubclient"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/keydesk"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/testkit"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
@@ -125,13 +126,24 @@ func TestJoinSignsDeclaredMode(t *testing.T) {
 	_, hash, _ := parseJoinToken(tok)
 	raw, _ := base64.StdEncoding.DecodeString(r.PubKey)
 	sig, _ := base64.StdEncoding.DecodeString(r.Sig)
-	signed, _ := wire.JoinModePayload(hash, r.BoxID, r.PubKey, r.TS, r.BoxMode)
-	if !ed25519.Verify(ed25519.PublicKey(raw), signed, sig) {
-		t.Fatal("the signature does not cover the declared mode")
+	// Spec 127 5.2 step 3: a dedicated join sends its key desk's X25519
+	// recipient, signed with the mode, and it is the identity the desk opens
+	// leases with.
+	id, err := keydesk.LoadOrCreateIdentity(keydesk.IdentityPath(cfg.HubDir()))
+	if err != nil || r.BoxX25519 == "" || r.BoxX25519 != id.Recipient().String() {
+		t.Fatalf("box_x25519 %q, desk identity %v: want the desk's recipient", r.BoxX25519, err)
 	}
-	plain, _ := wire.JoinPayload(hash, r.BoxID, r.PubKey, r.TS)
-	if ed25519.Verify(ed25519.PublicKey(raw), plain, sig) {
-		t.Fatal("CONTROL: the signature also verifies without the mode")
+	signed, _ := wire.JoinKeyPayload(hash, r.BoxID, r.PubKey, r.TS, r.BoxMode, r.BoxX25519)
+	if !ed25519.Verify(ed25519.PublicKey(raw), signed, sig) {
+		t.Fatal("the signature does not cover the declared mode and the desk recipient")
+	}
+	for name, b := range map[string]func() ([]byte, error){
+		"without the recipient": func() ([]byte, error) { return wire.JoinModePayload(hash, r.BoxID, r.PubKey, r.TS, r.BoxMode) },
+		"without the mode":      func() ([]byte, error) { return wire.JoinPayload(hash, r.BoxID, r.PubKey, r.TS) },
+	} {
+		if plain, _ := b(); ed25519.Verify(ed25519.PublicKey(raw), plain, sig) {
+			t.Fatalf("CONTROL: the signature also verifies %s", name)
+		}
 	}
 	if _, err := sign.LoadPrivate(cfg.KeysDir, "box-j"); err != nil {
 		t.Fatalf("no box key after the join: %v", err)

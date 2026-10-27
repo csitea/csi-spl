@@ -81,6 +81,13 @@
              render-wui-firebase-json.sh when it holds a script or handler -->
         <!-- eslint-disable-next-line vue/no-v-html -- SAFE: SPL-1053, built by markdownToHtml, hostile copy refused at build -->
         <div class="bpost__body" data-test="blog-post-body" v-html="post.html" />
+        <!-- the gallery (SPL-3787): pictures the frontmatter names, served
+             from the site's own blog/img copy (CSP img-src 'self') -->
+        <div v-if="post.entry.gallery?.length" class="bpost__gallery" data-test="blog-post-gallery">
+          <figure v-for="g in post.entry.gallery" :key="g.image" class="bpost__figure">
+            <img :src="`/blog/img/${g.image}`" :alt="g.alt" loading="lazy" decoding="async" data-test="blog-post-gallery-img">
+          </figure>
+        </div>
         <BlogShareRow test-id-suffix="end" :share-title="shareTitle" :share-page-url="sharePageUrl" />
         <nav class="bpost__pager" :aria-label="t('blog.more_posts')">
           <NuxtLink v-if="post.newer" :to="blogPath(`/blog/${post.newer.id}`)" rel="prev" data-test="blog-post-newer">&larr; {{ post.newer.title }}</NuxtLink>
@@ -156,6 +163,7 @@ interface BlogEntry {
   tags?: string[]
   image?: string
   image_alt?: string
+  gallery?: { image: string, alt: string }[]
 }
 interface Copy { entry: BlogEntry, fallback: boolean }
 
@@ -453,6 +461,9 @@ useHead(() => {
 .bpost__cover { display: block; width: 100%; max-height: 420px; object-fit: cover; border-radius: var(--radius-md); }
 .bpost__body { line-height: 1.6; overflow-wrap: anywhere; }
 .bpost__body :deep(img) { max-width: 100%; }
+.bpost__gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 0.75rem; margin: 1.5rem 0; }
+.bpost__figure { margin: 0; }
+.bpost__figure img { display: block; width: 100%; height: auto; border-radius: var(--radius-md); }
 .bpost__body :deep(pre) { white-space: pre-wrap; overflow-wrap: anywhere; }
 .bpost__pager { padding-top: 16px; border-top: 1px solid var(--color-border); }
 .bpost__all { font-weight: 600; }

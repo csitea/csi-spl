@@ -80,6 +80,28 @@ reset; png "$B/$ID.jpg"; jpg "$B/$ID-og.jpg"; index "$ID.jpg"; cb
 ((rc == 1)) && grep -q "refused: $ID.jpg: not a jpeg" "$T/o" && none_copied &&
   pass "a PNG renamed .jpg is refused and named" || fail "png as jpg: rc=$rc $(cat "$T/o")"
 
+# --- 1b. the gallery (SPL-3787): body pictures, no -og crop -----------------
+gindex() {  # gindex <gallery-image>... : one en entry with the header picture and a gallery
+  local g; g=$(printf '%s\n' "$@" | jq -Rc '{image: ., alt: "a"}' | jq -sc .)
+  mkdir -p "$T/out/blog-md"
+  jq -nc --arg i "$ID" --argjson g "$g" '{locales: {en: [{id: $i, title: "t", image: ($i + ".webp"), image_alt: "a", gallery: $g}]}}' >"$T/out/blog-md/index.json"
+}
+reset; webp "$B/$ID.webp"; webp "$B/$ID-og.webp"; webp "$B/$ID-g1.webp"; jpg "$B/$ID-g2.jpg"; gindex "$ID-g1.webp" "$ID-g2.jpg"; cb
+((rc == 0)) && copied "$ID.webp" && copied "$ID-og.webp" && copied "$ID-g1.webp" && copied "$ID-g2.jpg" && ! grep -q "holds no" "$T/o" &&
+  pass "gallery pictures are copied with the header and its -og crop; a gallery picture needs no -og crop" || fail "gallery: rc=$rc $(cat "$T/o")"
+reset; webp "$B/$ID.webp"; webp "$B/$ID-og.webp"; gindex "$ID-g1.webp"; cb
+((rc == 1)) && grep -q "FATAL .*holds no $ID-g1.webp" "$T/o" && none_copied &&
+  pass "a missing gallery picture fails, rc 1, named, nothing copied" || fail "missing gallery: rc=$rc $(cat "$T/o")"
+reset; webp "$B/$ID.webp"; webp "$B/$ID-og.webp"; png "$B/$ID-g1.webp"; gindex "$ID-g1.webp"; cb
+((rc == 1)) && grep -q "refused: $ID-g1.webp: not a webp" "$T/o" && none_copied &&
+  pass "a PNG renamed as a gallery .webp is refused and named" || fail "png gallery: rc=$rc $(cat "$T/o")"
+for bad in "$ID-g0.webp" "$ID-g10.webp" "../$ID-g1.webp" "$ID-g1-og.webp"; do
+  reset; webp "$B/$ID.webp"; webp "$B/$ID-og.webp"; gindex "$bad"; cb
+  if ((rc == 1)) && grep -qF "refused: $bad" "$T/o" && ! grep -q "gcloud" "$T/calls.log" && none_copied; then
+    pass "gallery name '$bad' refused before any gcloud call"
+  else fail "gallery name '$bad': rc=$rc calls=$(cat "$T/calls.log") $(cat "$T/o")"; fi
+done
+
 # --- 2. refused files -------------------------------------------------------
 # refused <label> <reason-regex> [action]: rc 1, the file + reason named, nothing copied
 refused() {

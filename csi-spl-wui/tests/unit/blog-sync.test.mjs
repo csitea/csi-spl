@@ -101,6 +101,32 @@ try {
   ok('a de copy validates against the blog locales', validateMeta({ ...fm.meta, lang: 'de' }, { id: '2026-10-05-a', lang: 'de', locales: blogLocales() }).length === 0)
   ok('index.json names the blog-only locales (blog_only)', JSON.parse(blogFiles({ src: tmp('blog-sync-empty-'), cnf: CNF, locales: LOCALES, blogOnly: ['de'] }).files.get('index.json')).blog_only.join() === 'de')
 
+  /* ── the gallery: body pictures shown after the post body (SPL-3787) ── */
+  {
+    const v = (extra) => validateMeta({ ...fm.meta, ...extra }, { id: '2026-10-05-a', lang: 'en', locales: LOCALES })
+    const g = parseFrontmatter(post('2026-10-05-a').replace('draft: false',
+      'gallery: [2026-10-05-a-g1.webp, 2026-10-05-a-g2.jpg]\ngallery_alt: ["Kids, smiling, on a beach", \'It\'\'s a "camp"\']\ndraft: false')).meta
+    ok('a gallery and its gallery_alt parse; a comma inside a quoted item stays in it',
+      g.gallery.join('|') === '2026-10-05-a-g1.webp|2026-10-05-a-g2.jpg' && g.gallery_alt.join('|') === 'Kids, smiling, on a beach|It\'s a "camp"', JSON.stringify(g.gallery_alt))
+    ok('a gallery with one alt text per picture passes', validateMeta(g, { id: '2026-10-05-a', lang: 'en', locales: LOCALES }).length === 0,
+      validateMeta(g, { id: '2026-10-05-a', lang: 'en', locales: LOCALES }).join('; '))
+    ok('CONTROL a gallery picture that is not <id>-g<n>.webp is refused', v({ gallery: ['../x.webp'], gallery_alt: ['x'] }).some((b) => /gallery picture \.\.\/x/.test(b)))
+    ok('CONTROL the header picture as a gallery picture is refused', v({ gallery: ['2026-10-05-a.webp'], gallery_alt: ['x'] }).some((b) => /gallery picture/.test(b)))
+    ok('CONTROL a gallery without one alt text per picture is refused',
+      v({ gallery: ['2026-10-05-a-g1.webp', '2026-10-05-a-g2.webp'], gallery_alt: ['x'] }).includes('gallery without one gallery_alt text per picture'))
+    ok('CONTROL a gallery_alt without a gallery is refused', v({ gallery_alt: ['x'] }).includes('gallery_alt without gallery'))
+    ok('CONTROL a picture named twice is refused', v({ gallery: ['2026-10-05-a-g1.webp', '2026-10-05-a-g1.webp'], gallery_alt: ['x', 'y'] }).includes('gallery names a picture twice'))
+    ok('CONTROL more than 6 gallery pictures are refused',
+      v({ gallery: [1, 2, 3, 4, 5, 6, 7].map((n) => `2026-10-05-a-g${n}.webp`), gallery_alt: Array(7).fill('x') }).some((b) => /over 6/.test(b)))
+    const r = repo()
+    r.commit({ 'en/2026-10-05-a.md': post('2026-10-05-a').replace('draft: false', 'gallery: [2026-10-05-a-g1.webp]\ngallery_alt: ["Kids on a beach"]\ndraft: false'),
+      'en/2026-10-05-b.md': post('2026-10-05-b').replace('draft: false', 'gallery: [2026-10-05-b-g1.webp]\ngallery_alt: ["<script>alert(1)</script>"]\ndraft: false') }, at('2026-10-05', '07:00'))
+    const s = r.sync()
+    const e = (JSON.parse(s.files.get('index.json')).locales.en || []).find((x) => x.id === '2026-10-05-a')
+    ok('index.json carries the gallery as [{ image, alt }]', JSON.stringify(e?.gallery) === '[{"image":"2026-10-05-a-g1.webp","alt":"Kids on a beach"}]', JSON.stringify(e))
+    ok('CONTROL a hostile gallery_alt is refused by the sync', s.errors.some((x) => /2026-10-05-b\.md: refused, it holds <script/.test(x)), s.errors.join(' | '))
+  }
+
   /* ── 9-c script controls in the sync ───────────────────────────────── */
   ok('a plain post is not hostile', hostile(post('2026-10-05-a')) === '')
   ok('CONTROL <img src=x onerror=...> is refused', hostile('<img src=x onerror=alert(1)>') === 'an on*= attribute')

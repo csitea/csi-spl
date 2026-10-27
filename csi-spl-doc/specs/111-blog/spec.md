@@ -215,10 +215,21 @@ tags: [release, fleet]
 image: <id>.webp              # required for non-draft posts (owner msg fede16a9), a key in the media store, never a file in git
 image_alt: "..."              # required when image is set
 image_prompt: "..."           # required when image is set, the prompt that made it (provenance)
+gallery: [<id>-g1.webp, <id>-g2.webp]  # optional, at most 6 body pictures, keys in the media store like image
+gallery_alt: ["...", "..."]   # one alt text per gallery picture, same order
 draft: false
 ---
 <body, <= 450 words>
 ```
+
+The gallery (SPL-3787) holds pictures shown in the post page after the
+body, such as cleared customer photos. The markdown body itself still
+renders no image (`markdown.mjs`). `sync-blog.mjs` refuses a gallery name
+that is not `<id>-g<1-9>.webp` or `.jpg`, a picture named twice, and a
+gallery without one `gallery_alt` per picture. `do_copy_blog_media` copies
+each gallery picture with the same four checks as the header picture; a
+gallery picture has no `-og` crop. Put each one first with
+`do_spl_blog_media_put`.
 
 Why the repo:
 

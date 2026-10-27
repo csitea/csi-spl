@@ -94,7 +94,10 @@ export function blogLocales(dir = BLOG_LOCALES, cnf = blogCnf()) {
 }
 
 const KEYS = new Set(['id', 'lang', 'type', 'title', 'summary', 'date', 'published', 'author', 'agy_review',
-  'tags', 'image', 'image_alt', 'image_prompt', 'image_override', 'draft', 'event_start', 'event_end'])
+  'tags', 'image', 'image_alt', 'image_prompt', 'image_override', 'gallery', 'gallery_alt', 'draft', 'event_start', 'event_end'])
+const LISTS = new Set(['tags', 'gallery', 'gallery_alt'])
+/* a gallery holds at most this many body pictures, <id>-g1 .. <id>-g<GALLERY_MAX> */
+export const GALLERY_MAX = 6
 const REQUIRED = ['id', 'lang', 'type', 'title', 'summary', 'date', 'author']
 const TYPES = new Set(['digest', 'news', 'event'])
 const ID_RE = /^\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -120,6 +123,18 @@ function scalar(raw) {
   return v
 }
 
+/* the items of a `[a, "b, c"]` list: a comma inside a quoted item stays in it */
+function listItems(inner) {
+  const items = []
+  const re = /\s*("(?:[^"\\]|\\.)*"|'(?:[^']|'')*'|[^,]*?)\s*(,|$)/y
+  let m
+  while (re.lastIndex < inner.length && (m = re.exec(inner))) {
+    items.push(m[1])
+    if (!m[2]) break
+  }
+  return items
+}
+
 /**
  * `---` frontmatter + body. The frontmatter is flat `key: value` lines; a
  * value is a scalar, a quoted string or a `[a, b]` list. Throws on anything
@@ -137,7 +152,7 @@ export function parseFrontmatter(text) {
     if (!KEYS.has(key)) throw new Error(`unknown key ${key}`)
     if (key in meta) throw new Error(`duplicate key ${key}`)
     const list = /^\[(.*)\]\s*(?:#.*)?$/.exec(raw.trim())
-    meta[key] = list ? (list[1].trim() ? list[1].split(',').map((x) => String(scalar(x))) : []) : scalar(raw)
+    meta[key] = list ? (list[1].trim() ? listItems(list[1]).map((x) => String(scalar(x))) : []) : scalar(raw)
   }
   return { meta, body: m[2] }
 }
@@ -147,7 +162,7 @@ export function validateMeta(meta, { id, lang, locales }) {
   const bad = []
   for (const k of REQUIRED) if (meta[k] === undefined || meta[k] === '') bad.push(`missing ${k}`)
   for (const k of KEYS) {
-    if (k !== 'tags' && k !== 'draft' && meta[k] !== undefined && typeof meta[k] !== 'string') bad.push(`${k} is not a string`)
+    if (!LISTS.has(k) && k !== 'draft' && meta[k] !== undefined && typeof meta[k] !== 'string') bad.push(`${k} is not a string`)
   }
   if (meta.id !== undefined && meta.id !== id) bad.push(`id ${meta.id} is not the file name ${id}`)
   if (!ID_RE.test(id)) bad.push(`file name ${id} is not <yyyy-mm-dd>-<slug>`)
@@ -163,10 +178,29 @@ export function validateMeta(meta, { id, lang, locales }) {
     if (!new RegExp(`^${id}(-og)?\\.(webp|jpg)$`).test(String(meta.image))) bad.push(`image ${meta.image} is not ${id}.webp or ${id}.jpg`)
     if (!meta.image_alt) bad.push('image without image_alt')
   }
+  bad.push(...galleryBad(meta, id))
   for (const k of ['published', 'event_start', 'event_end']) {
     if (typeof meta[k] === 'string' && !ISO_RE.test(meta[k])) bad.push(`${k} is not ISO 8601 UTC (Z)`)
   }
   if (meta.type === 'event' && !meta.event_start) bad.push('event without event_start')
+  return bad
+}
+
+/*
+ * The body pictures (SPL-3787): `gallery: [<id>-g1.webp, ...]` and one
+ * `gallery_alt` text per picture, in the same order. The post page shows
+ * them after the body; the markdown body itself still renders no image.
+ */
+function galleryBad(meta, id) {
+  const { gallery: g, gallery_alt: alt } = meta
+  if (g === undefined) return alt === undefined ? [] : ['gallery_alt without gallery']
+  if (!Array.isArray(g) || !g.length) return ['gallery is not a [a, b] list of pictures']
+  const bad = []
+  if (g.length > GALLERY_MAX) bad.push(`gallery holds ${g.length} pictures, over ${GALLERY_MAX}`)
+  const re = new RegExp(`^${id}-g[1-9]\\.(webp|jpg)$`)
+  for (const n of g) if (!re.test(n)) bad.push(`gallery picture ${n} is not ${id}-g<n>.webp or ${id}-g<n>.jpg`)
+  if (new Set(g).size !== g.length) bad.push('gallery names a picture twice')
+  if (!Array.isArray(alt) || alt.length !== g.length || alt.some((a) => !a.trim())) bad.push('gallery without one gallery_alt text per picture')
   return bad
 }
 
@@ -365,7 +399,9 @@ export function blogFiles({ src = BLOG_SRC, root = BLOG_REPO, cnf = blogCnf(), l
       if (!c) continue
       const html = markdownToHtml(c.body)
       const entry = Object.fromEntries(ENTRY_KEYS.filter((k) => c.meta[k] !== undefined).map((k) => [k, c.meta[k]]))
-      const why = hostile(c.body) || hostile(html) || hostile(Object.values(entry).flat().join('\n'))
+      if (c.meta.gallery) entry.gallery = c.meta.gallery.map((image, i) => ({ image, alt: c.meta.gallery_alt[i] }))
+      const strings = [...Object.values(entry), ...(entry.gallery || []).flatMap((p) => [p.image, p.alt])].flat().filter((v) => typeof v === 'string')
+      const why = hostile(c.body) || hostile(html) || hostile(strings.join('\n'))
       if (why) { errors.push(`${c.file}: refused, it holds ${why}`); continue }
       files.set(`${lang}/${id}.html`, html + '\n')
       list.push(entry)

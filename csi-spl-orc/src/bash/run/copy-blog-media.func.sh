@@ -10,9 +10,11 @@
 # @description picture bucket (iac step
 # @description 054-gcs-blog-media, object key = the file name), and copies them
 # @description into .output/public/blog/img/, so the site serves its own copy
-# @description (CSP img-src 'self' unchanged).
+# @description (CSP img-src 'self' unchanged). Also every `gallery` picture
+# @description of an entry (SPL-3787, <id>-g<n>.webp or .jpg, the pictures the
+# @description post page shows after its body); a gallery picture has no -og crop.
 # @description Checks, in this order, before any copy:
-# @description   1. the name is ^<post-id>(-og)?\.(webp|jpg)$ for the entry naming it
+# @description   1. the name is ^<post-id>(-og|-g[1-9])?\.(webp|jpg)$ for the entry naming it
 # @description      (a key like ../x or $(...) never reaches gcloud)
 # @description   2. the file is not empty
 # @description   3. the file is at most 300 KB (307200 bytes, as T006's
@@ -46,8 +48,10 @@ do_copy_blog_media() {
   local -a want=() bad=()
   local id img
   while IFS=$'\t' read -r id img; do
-    if spl_blog_media_name_ok "$id" "$img"; then want+=("$img"); else bad+=("$img: not $id(-og).webp or $id(-og).jpg"); fi
-  done < <(jq -r '.locales[]?[]? | select(.image != null) | [.id, .image] | @tsv' "$index" | sort -u)
+    if spl_blog_media_name_ok "$id" "$img"; then want+=("$img"); else bad+=("$img: not $id(-og).webp, $id(-og).jpg or $id-g<n>.webp"); fi
+    # the header picture brings its -og crop; a gallery picture has none
+    if [[ "$img" == "$id.webp" || "$img" == "$id.jpg" ]]; then want+=("$id-og.${img##*.}"); fi
+  done < <(jq -r '.locales[]?[]? | . as $e | ([$e.image] + [($e.gallery // [])[].image]) | .[] | select(. != null) | [$e.id, .] | @tsv' "$index" | sort -u)
   ((${#bad[@]} == 0)) || { spl_blog_media_refuse "${bad[@]}"; return 1; }
   ((${#want[@]})) || { do_log "INFO no post names a picture: nothing to copy"; return 0; }
 
@@ -63,9 +67,6 @@ do_copy_blog_media() {
   have="$(gcloud storage ls "gs://$bucket/" --account="$GCP_ACCOUNT" 2>/dev/null)" ||
     { do_log "FATAL cannot list gs://$bucket as $GCP_ACCOUNT: the posts would ship without their pictures"; return 1; }
   have="$(sed "s|^gs://$bucket/||" <<<"$have")"
-  for n in "${want[@]}"; do
-    [[ "$n" == *-og.* ]] || want+=("${n%.*}-og.${n##*.}")
-  done
   local -a got=() miss=()
   for n in $(printf '%s\n' "${want[@]}" | sort -u); do
     if ! grep -qxF "$n" <<<"$have"; then miss+=("$n"); continue; fi
@@ -87,12 +88,17 @@ do_copy_blog_media() {
 }
 
 # spl_blog_media_name_ok <post-id> <image>: rc 0 when the image is
-# <post-id>(-og).webp or <post-id>(-og).jpg and the id is a post id
+# <post-id>(-og).webp or <post-id>(-og).jpg, or a gallery picture
+# <post-id>-g<1-9>.webp / .jpg, and the id is a post id
 # (<yyyy-mm-dd>-<slug>, sync-blog.mjs ID_RE).
 spl_blog_media_name_ok() {
-  local id="$1" img="$2"
+  local id="$1" img="$2" ext
   [[ "$id" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9]+(-[a-z0-9]+)*$ ]] || return 1
-  [[ "$img" == "$id.webp" || "$img" == "$id-og.webp" || "$img" == "$id.jpg" || "$img" == "$id-og.jpg" ]]
+  for ext in webp jpg; do
+    [[ "$img" == "$id.$ext" || "$img" == "$id-og.$ext" ]] && return 0
+    [[ "$img" == "$id-g"[1-9]".$ext" ]] && return 0
+  done
+  return 1
 }
 
 # spl_blog_media_check <file>: rc 0 for a non-empty RIFF/WEBP file (a *.jpg:

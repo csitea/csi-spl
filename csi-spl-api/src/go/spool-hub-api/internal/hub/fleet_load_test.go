@@ -374,3 +374,31 @@ func TestFleetLoadCIOverflow(t *testing.T) {
 		t.Fatalf("reset = %d %v", code, body)
 	}
 }
+
+// Owner HUM-10, t1 f456ecd5 msg 61cd77e7: a box's band takes an aim,
+// low <= aim <= high; it reads back with the band, a box reads it too, and
+// an aim outside the band, not an integer or 0 is a 400.
+func TestFleetLoadBoxAim(t *testing.T) {
+	e, op, other, who, _ := operatorEnv(t, func(op, _ string) string { return op })
+	admin := who[rbac.Admin]
+	code, body := call(t, e, op, http.MethodPatch, fleetLoadPath, admin, map[string]any{
+		"boxes": map[string]any{"box-s": map[string]any{"low": 70, "high": 90, "aim": 80}}})
+	if code != http.StatusOK {
+		t.Fatalf("admin PATCH = %d %v", code, body)
+	}
+	for _, aim := range []any{95, 60, 0, "80", 80.5} {
+		bad := map[string]any{"boxes": map[string]any{"box-s": map[string]any{"low": 70, "high": 90, "aim": aim}}}
+		if code, _ := call(t, e, op, http.MethodPatch, fleetLoadPath, admin, bad); code != http.StatusBadRequest {
+			t.Errorf("aim %v on 70..90 = %d, want 400", aim, code)
+		}
+	}
+	b := e.box(other, "box-b", "CLE-08")
+	e.pin(other, b)
+	raw, err := b.c.Lane(context.Background(), "fleet_load_get", "", nil)
+	var got struct {
+		Boxes map[string]map[string]int `json:"boxes"`
+	}
+	if err != nil || json.Unmarshal(raw, &got) != nil || got.Boxes["box-s"]["aim"] != 80 || got.Boxes["box-s"]["high"] != 90 {
+		t.Fatalf("box read %s %v", raw, err)
+	}
+}

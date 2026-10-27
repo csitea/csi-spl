@@ -10239,6 +10239,12 @@
                     "additionalProperties": {
                       "additionalProperties": false,
                       "properties": {
+                        "aim": {
+                          "description": "the level the box pick aims to keep this box at, low <= aim <= high; absent = high (t1 f456ecd5)",
+                          "maximum": 100,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
                         "high": {
                           "maximum": 100,
                           "minimum": 2,

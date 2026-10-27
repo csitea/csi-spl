@@ -282,3 +282,36 @@ func TestFleetLoadCIOverflow(t *testing.T) {
 		})
 	}
 }
+
+// Owner HUM-10, t1 f456ecd5 msg 61cd77e7: a box's band carries an aim,
+// low <= aim <= high, that lands and reads back with the band; an aim
+// outside its band is refused and leaves the row. Control: no aim (0) is
+// still a valid band, as before.
+func TestFleetLoadBoxAim(t *testing.T) {
+	ctx := context.Background()
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			fl := st.(FleetLoadTarget)
+			tid := newTenant(t, st)
+			bands := map[string]BoxBand{"box-s": {Low: 70, High: 90, Aim: 80}, "box-t": {Low: 40, High: 60}}
+			if _, err := fl.SetFleetLoad(ctx, tid, FleetLoadPatch{BoxesSet: true, Boxes: bands}); err != nil {
+				t.Fatalf("set an aim: %v", err)
+			}
+			if got, _ := fl.FleetLoadOf(ctx, tid); !maps.Equal(got.Boxes, bands) {
+				t.Fatalf("read back = %+v, want %+v", got.Boxes, bands)
+			}
+			for _, aim := range []int{69, 91, -1} {
+				bad := FleetLoadPatch{BoxesSet: true, Boxes: map[string]BoxBand{"box-s": {Low: 70, High: 90, Aim: aim}}}
+				if _, err := fl.SetFleetLoad(ctx, tid, bad); !errors.Is(err, ErrBadFleetLoad) {
+					t.Errorf("aim %d on 70..90: %v, want ErrBadFleetLoad", aim, err)
+				}
+			}
+			for _, aim := range []int{70, 90} {
+				edge := FleetLoadPatch{BoxesSet: true, Boxes: map[string]BoxBand{"box-s": {Low: 70, High: 90, Aim: aim}}}
+				if _, err := fl.SetFleetLoad(ctx, tid, edge); err != nil {
+					t.Errorf("aim %d on 70..90 (the edge): %v, want ok", aim, err)
+				}
+			}
+		})
+	}
+}

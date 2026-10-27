@@ -35,6 +35,8 @@ import (
 // boxes (rdb 0134, owner HUM-10 t1 29b19f85: "target hw load per box") is
 // {"<box>": {"low": n, "high": n}}: that box's own band, overriding low /
 // high for it only. A PATCH replaces the whole map; null or {} resets it.
+// A band may carry an aim (owner HUM-10, t1 f456ecd5 msg 61cd77e7), low <=
+// aim <= high: the level the box pick aims to keep that box at.
 //
 // agent_kinds_off (rdb 0149, owner HUM-10 t1 41fa1f2d: "a setting to disable
 // certain type of ai agents") is the kinds no box starts a new lane of
@@ -177,7 +179,7 @@ type fleetLoadPatchReq struct {
 	OrderedVia string `json:"ordered_via"`
 }
 
-const badFleetLoad = "low is 1..99 and high 2..100 (% of cores) with low < high; box_order is distinct box ids ([a-z0-9-], up to 32 each), at most 32; boxes maps up to 32 box ids to {low, high} with the same ranges; agent_kinds_off is distinct kinds of claude, grok, agy, qwen, mistral, never all five; agent_kinds_paused maps a kind to null (lift its pause); runner_cpu_pct is 1..100 (% of cores), fleet-wide or per box in boxes; ci_overflow is true or false; runner_cpus is 0..256 (cores, 0 = the cnf share), fleet-wide or per box in boxes"
+const badFleetLoad = "low is 1..99 and high 2..100 (% of cores) with low < high; box_order is distinct box ids ([a-z0-9-], up to 32 each), at most 32; boxes maps up to 32 box ids to {low, high, aim?} with the same ranges and low <= aim <= high; agent_kinds_off is distinct kinds of claude, grok, agy, qwen, mistral, never all five; agent_kinds_paused maps a kind to null (lift its pause); runner_cpu_pct is 1..100 (% of cores), fleet-wide or per box in boxes; ci_overflow is true or false; runner_cpus is 0..256 (cores, 0 = the cnf share), fleet-wide or per box in boxes"
 
 // patch turns the request into a store patch; ok=false: a field is not
 // its JSON type.
@@ -250,7 +252,8 @@ func (q fleetLoadPatchReq) patch() (store.FleetLoadPatch, bool) {
 }
 
 // decodeBoxBands is a strict read of the boxes map: each band carries both
-// marks as integers, an optional runner_cpu_pct 1..100 (rdb 0152), an
+// marks as integers, an optional aim (at least 1; the store checks low..high),
+// an optional runner_cpu_pct 1..100 (rdb 0152), an
 // optional runner_cpus (rdb 0185; the store checks 0..256) and nothing else,
 // so a typo is a 400, not a 0.
 func decodeBoxBands(raw json.RawMessage, out *map[string]store.BoxBand) bool {
@@ -262,8 +265,14 @@ func decodeBoxBands(raw json.RawMessage, out *map[string]store.BoxBand) bool {
 	for box, f := range m {
 		var b store.BoxBand
 		n := 2
+		if aim, ok := f["aim"]; ok {
+			n++
+			if json.Unmarshal(aim, &b.Aim) != nil || b.Aim < 1 {
+				return false
+			}
+		}
 		if cpu, ok := f["runner_cpu_pct"]; ok {
-			n = 3
+			n++
 			if json.Unmarshal(cpu, &b.RunnerCPUPct) != nil || b.RunnerCPUPct < 1 {
 				return false
 			}
@@ -282,12 +291,15 @@ func decodeBoxBands(raw json.RawMessage, out *map[string]store.BoxBand) bool {
 	return true
 }
 
-// boxBandsAudit is the boxes map as one sorted "box=low..high[/cpu][:cpus]"
+// boxBandsAudit is the boxes map as one sorted "box=low..high[~aim][/cpu][:cpus]"
 // string (cpu = runner_cpu_pct, cpus = runner_cpus).
 func boxBandsAudit(m map[string]store.BoxBand) string {
 	parts := make([]string, 0, len(m))
 	for box, b := range m {
 		part := box + "=" + strconv.Itoa(b.Low) + ".." + strconv.Itoa(b.High)
+		if b.Aim != 0 {
+			part += "~" + strconv.Itoa(b.Aim)
+		}
 		if b.RunnerCPUPct != 0 {
 			part += "/" + strconv.Itoa(b.RunnerCPUPct)
 		}

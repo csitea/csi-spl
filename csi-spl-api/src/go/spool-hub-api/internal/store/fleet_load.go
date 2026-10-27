@@ -44,11 +44,15 @@ import (
 var AgentKinds = []string{"claude", "grok", "agy", "qwen", "mistral"}
 
 // BoxBand is one box's band, % of cores, its own runner CPU cap
-// (rdb 0152; 0 = the fleet's RunnerCPUPct) and its own CI runner core count
-// (rdb 0185; 0 = the fleet's RunnerCPUs).
+// (rdb 0152; 0 = the fleet's RunnerCPUPct), its own CI runner core count
+// (rdb 0185; 0 = the fleet's RunnerCPUs) and its aim (owner HUM-10, t1
+// f456ecd5 msg 61cd77e7: the level the box pick aims to keep the box at,
+// low <= aim <= high; 0 = no aim, the pick reads it as high). The aim
+// rides the rdb 0134 jsonb: no DDL.
 type BoxBand struct {
 	Low          int `json:"low"`
 	High         int `json:"high"`
+	Aim          int `json:"aim,omitempty"`
 	RunnerCPUPct int `json:"runner_cpu_pct,omitempty"`
 	RunnerCPUs   int `json:"runner_cpus,omitempty"`
 }
@@ -138,7 +142,7 @@ func DefaultFleetLoad() FleetLoad {
 
 // ErrBadFleetLoad: a mark outside the rdb checks, low >= high, a box order
 // that is not distinct box ids, a per-box band that is not a box id with a
-// valid band, kinds off that are not distinct kinds or name every kind, or a
+// valid band (an aim, when set, low..high), kinds off that are not distinct kinds or name every kind, or a
 // pause that is not a kind with an until, a short reason and a box id, or a
 // runner CPU cap outside 1..100, or a runner core count outside
 // 0..MaxRunnerCPUs.
@@ -258,7 +262,8 @@ func mergePauses(cur map[string]KindPause, add map[string]*KindPause, now time.T
 // CheckFleetLoad is nil when the stored row is valid: each set mark within
 // the rdb 0118 range, low < high on the values in force, and the order
 // distinct box ids, at most MaxFleetBoxes; each per-box band a box id with
-// both marks in range and low < high, at most MaxFleetBoxes of them; each
+// both marks in range and low < high, an aim 0 (none) or low..high, at
+// most MaxFleetBoxes of them; each
 // runner CPU cap 1..100 (a box's 0 = the fleet's); each runner core count
 // 0..MaxRunnerCPUs; the agent kinds as checkAgentKinds.
 func CheckFleetLoad(f FleetLoadStored) error {
@@ -292,7 +297,7 @@ func CheckFleetLoad(f FleetLoadStored) error {
 	}
 	for b, band := range f.Boxes {
 		if !FleetNameRe.MatchString(b) || band.Low < 1 || band.Low > 99 || band.High < 2 || band.High > 100 || band.Low >= band.High ||
-			band.RunnerCPUPct < 0 || band.RunnerCPUPct > 100 || band.RunnerCPUs < 0 || band.RunnerCPUs > MaxRunnerCPUs {
+			(band.Aim != 0 && (band.Aim < band.Low || band.Aim > band.High)) || band.RunnerCPUPct < 0 || band.RunnerCPUPct > 100 || band.RunnerCPUs < 0 || band.RunnerCPUs > MaxRunnerCPUs {
 			return ErrBadFleetLoad
 		}
 	}

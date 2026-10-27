@@ -363,6 +363,7 @@ The owner resolved each of the five architectural questions in prd workspace `t1
 | v0.4 | Reconciled 3 Phase 1 drifts identified by c-001/c-210 (v8.5.6): (1) `operator_audit.id` is `bigserial PRIMARY KEY` (not uuid), no FK on `tenant_id`; (2) `billing_status` valid values are `active\|grace\|unpaid\|internal\|manual` - workspace suspension is orthogonal via `PATCH {"suspended": true\|false}` setting `tenants.suspended_at`; (3) removed fallback responders from `PATCH /v1/operator/workspaces/{id}` (retained in workspace settings spec 046). Marked Phase 1 FRs as Implemented (v8.5.6). | a-209 |
 | v0.5 | Folded owner decisions (HUM-10 msg 5d2e5ab5): (D1) operator workspace stored in DB (`tenants.is_operator`), reversing v8.5.6 cnf lookup; (D2) confirmed path per workspace (`/w/<workspace>/...`); (D3) 30-day grace period for legacy DNS; (D4) confirmed zero-trust privacy (metadata/members only, no channels/topics); (D5) queued agent messages preserved during suspension until retention expiry. Marked FR-001 Changed (Phase 1b). | a-209 |
 | v0.6 | §12 (SPL-2192, c-287): the operator routes move to the operator-only roles `devops` and `operator` (025 §10), one `operator.*` permission per operation, the DevOps vs Operator table and its poll, D4 narrowed to metadata only for these roles. FR-004, FR-012, FR-016 amended by §12 (Planned). | c-287 |
+| v0.7 | §13 (SPL-3876, c-436): a per-box band carries an aim, low <= aim <= high, the level the box pick aims to keep that box at; the fleet load card labels every per-box box and shows the aim. | c-436 |
 
 ---
 
@@ -487,4 +488,30 @@ FR-016 / AC10: the first account of a fresh instance gets `biz_owner` +
 `admin` + `devops` in the first workspace, so the instance is never without
 someone who manages workspaces (025 §10.3 rule 8).
 
-<!-- version: 0.6.0 · updated: 2026-10-16 · last-edit: 2026-10-16T10:30:00Z -->
+## 13. The per-box aim (SPL-3876)
+
+Owner HUM-10, t1 f456ecd5: msg 7043519b ("70 lower band, 90 highest band and
+80% average" for one box), poll 04e8ad85 answer A, msg 61cd77e7: the 80 % is
+the level the placer aims to keep that box at, a new per-box setting between
+low and high.
+
+1. **Stored with the band.** `PATCH /v1/operator/fleet-load`
+   `boxes.<box>` takes an optional `aim`, an integer with `low <= aim <= high`
+   (`store.CheckFleetLoad`; anything else is `400 bad_setting` and leaves the
+   row). It rides the rdb 0134 jsonb `tenants.fleet_box_bands`, no DDL. A box
+   with no aim reads as aim = high, so a band without one behaves as before.
+2. **Used by the box pick** (`csi-spl-orc` `do_spl_box_pick`, its header is
+   the rule's code-side text): in the fill order, the first box below its low
+   mark; else the first below its aim; else the first below its high mark;
+   else the overflow and hold rules as before. So between its aim and its
+   high a box takes a new lane only when no box is under its own aim. A box
+   running CI keeps its aim inside the lower CI-busy band.
+3. **Shown and set** on Workspace settings -> Fleet load -> Per-box bands:
+   each box's boxes carry a visible label (Low %, Aim %, High %, Runner CPU
+   cap %, CI runner CPUs), on desktop and phone, and the card refuses an aim
+   outside the box's low..high before it saves. The box page's band
+   (`BoxLoadBand.vue`) keeps a box's aim when it saves the band. By hand:
+   `cd csi-spl-orc && ENV=<env> BOX=<box> BAND=<low>..<high> AIM=<n>
+   ORDERED_BY=HUM-<n> DRY_RUN=0 ./run -a do_spl_hub_box_band`.
+
+<!-- version: 0.7.0 · updated: 2026-10-27 · last-edit: 2026-10-27T19:30:00Z -->

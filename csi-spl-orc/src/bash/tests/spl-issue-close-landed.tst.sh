@@ -386,4 +386,31 @@ ws19 ISSUE_CLOSE_WORKSPACE=acme DESK_AGENT=c-001; rc=$?
 [ "$rc" = 0 ] && grep -q '^list acme as c-001@box-a$' "$T/calls.log" &&
   pass "19. control: a DESK_AGENT the caller sets is used as given" || fail "19. ws caller desk (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
 
+# 20. Red case (SPL-3865): the orch lease moved to another box; the role seat
+# c-001 is still seated on this box's desk, but the hub ties it to the other
+# box and refused every workspace tick here "c-001 is not an agent announced
+# by <box>". The desk's roster cache says what this box announces.
+printf 'LEASE_ORCH=c-001\n' >"$T/lease20.conf"
+DK="$T/state/dev/desk/acme/box-a/spool"; mkdir -p "$DK/.hub" "$DK/c-001" "$DK/c-684"
+printf '{"box-a":["c-684"],"box-b":["c-001"]}' >"$DK/.hub/roster.json"
+ws20() { : >"$T/calls.log"; SNIPPET="${STUBS}${WS19_STUBS}
+do_spl_issue_close_landed" in_orc APP_PATH="$R" LIST="$T/ws-list.json" TENANT_ID= DESK_AGENT= DESK_BOX= ENV= LEASE_ORCH= \
+  SPOOL_WORKSPACE_REPOS_MAP="$T/ws-map19.tsv" LEASE_CONF="$T/lease20.conf" ISSUE_CLOSE_STATE_DIR="$T/ws-state20" "$@" >"$T/o" 2>&1; }
+ws20 ISSUE_CLOSE_WORKSPACE=acme; rc=$?
+[ "$rc" = 0 ] && grep -q '^list acme as c-684@box-a$' "$T/calls.log" && grep -q 'c-001 is not in the announce of box-a' "$T/o" &&
+  pass "20. a map desk the box does not announce (c-001 moved away) acts as a seated id the box announces (c-684)" ||
+  fail "20. ws unannounced desk (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+printf '{"box-a":["c-001","c-684"]}' >"$DK/.hub/roster.json"
+ws20 ISSUE_CLOSE_WORKSPACE=acme; rc=$?
+[ "$rc" = 0 ] && grep -q '^list acme as c-001@box-a$' "$T/calls.log" &&
+  pass "20. control: the map desk this box announces is kept" || fail "20. ws announced desk (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+printf '{"box-a":["c-999"],"box-b":["c-001"]}' >"$DK/.hub/roster.json"
+ws20 ISSUE_CLOSE_WORKSPACE=acme; rc=$?
+[ "$rc" -ne 0 ] && grep -q 'box-a announces no seated desk agent' "$T/o" && ! grep -q '^list' "$T/calls.log" &&
+  pass "20. no seated id announced by this box: refused before any hub call" || fail "20. ws none announced (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+rm -f "$DK/.hub/roster.json"
+ws20 ISSUE_CLOSE_WORKSPACE=acme; rc=$?
+[ "$rc" = 0 ] && grep -q '^list acme as c-001@box-a$' "$T/calls.log" &&
+  pass "20. no roster cache: the map desk is used as before (the hub call says)" || fail "20. ws no cache (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+
 [ "$fails" = 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

@@ -86,24 +86,6 @@ pid="$(cat "$d/spool/.hub/hub-run.pid" 2>/dev/null)"
 [[ "$pid" =~ ^[0-9]+$ ]] && tr '\0' ' ' <"${SPOOL_FLEET_PROC_ROOT:-/proc}/$pid/cmdline" 2>/dev/null | grep ' hub-run' >/dev/null || {
   say "no live hub-run sidecar for $BOX in $TENANT ($ENVN, $d): the message to $TO cannot leave this machine. Run do_spl_desk_up. Nothing was sent."
   exit 3; }
-# The box is the trust unit, not the seat (HOWTO-satellite-work §4 gaps 1-3):
-# a lane agent is never seated on the desk, and the hub refuses a sender the
-# box does not announce. A sender in THIS machine's registry.tsv is relayed
-# under a seated id of the box (the proxy) instead; an id the registry does
-# not list either is refused.
-SENDER="$FROM"
-if [ ! -d "$d/spool/$FROM" ]; then
-  awk -F'\t' -v id="$FROM" '$1 == id || index($1, id "@") == 1 { f = 1 } END { exit !f }' "$ROOT/registry.tsv" 2>/dev/null || {
-    say "$FROM is neither seated on $BOX in $TENANT ($ENVN) nor in this machine's $ROOT/registry.tsv: the hub refuses a sender its box does not vouch for. Nothing was sent."
-    exit 3; }
-  SENDER=""
-  for p in "${SPOOL_FLEET_PROXY:-$(kv "$BOXENV" SPOOL_FLEET_PROXY)}" "$(kv "$LCONF" LEASE_ORCH)" \
-           "$d"/spool/*; do
-    p="${p##*/}"
-    spl_is_participant_id "$p" && [ -d "$d/spool/$p" ] && { SENDER="$p"; break; }
-  done
-  [ -n "$SENDER" ] || { say "no agent is seated on $BOX in $TENANT ($ENVN) to relay for $FROM. Nothing was sent."; exit 3; }
-fi
 declare -a envv=()
 SIDEBOX=""
 while IFS= read -r -d '' e; do
@@ -113,6 +95,43 @@ while IFS= read -r -d '' e; do
   [ "${e%%=*}" = SPOOL_BOX_ID ] && SIDEBOX="${e#*=}"
 done <"${SPOOL_FLEET_PROC_ROOT:-/proc}/$pid/environ"
 [ "${#envv[@]}" -ge 5 ] || { say "cannot read the sidecar's settings (pid $pid)"; exit 3; }
+# The box is the trust unit, not the seat (HOWTO-satellite-work §4 gaps 1-3):
+# a lane agent is never seated on the desk, and the hub refuses a sender the
+# box does not announce. A sender in THIS machine's registry.tsv is relayed
+# under a seated id of the box (the proxy) instead; an id the registry does
+# not list either is refused.
+# The proxy, and a seated sender too, must be an id the hub ties to THIS box
+# (SPL-3865): a seat dir outlives its announce. The orch lease moved to the
+# other box, LEASE_ORCH stayed seated here, and every relay under it was
+# refused from_not_announced. The sidecar's roster cache (.hub/roster.json,
+# box -> ids) says what this box announces; with no cache yet, a role id is
+# taken only while its lease mirror (dispatch/lease, lease.orch) names this box.
+ME="${SIDEBOX:-$BOX}"
+ANN="$(python3 -c 'import json, sys; r = json.load(open(sys.argv[1])); print(" ".join(r[sys.argv[2]]))' \
+  "$d/spool/.hub/roster.json" "$ME" 2>/dev/null)" && ANN=" $ANN " || ANN=""
+announced() {  # ID
+  [ -d "$d/spool/$1" ] || return 1
+  [ -z "$ANN" ] || { [[ "$ANN" == *" $1 "* ]]; return; }
+  local f h
+  for f in "$ROOT/dispatch/lease" "$ROOT/dispatch/lease.orch"; do
+    read -r h _ <"$f" 2>/dev/null || continue
+    [[ "${h%@*}" == "$1" && "$h" == *@* && "${h#*@}" != "$ME" && "${h#*@}" != "$BOX" ]] && return 1
+  done
+  return 0
+}
+SENDER="$FROM"
+if ! announced "$FROM"; then
+  awk -F'\t' -v id="$FROM" '$1 == id || index($1, id "@") == 1 { f = 1 } END { exit !f }' "$ROOT/registry.tsv" 2>/dev/null || {
+    say "$FROM is neither seated on $BOX in $TENANT ($ENVN) and announced by it, nor in this machine's $ROOT/registry.tsv: the hub refuses a sender its box does not vouch for. Nothing was sent."
+    exit 3; }
+  SENDER=""
+  for p in "${SPOOL_FLEET_PROXY:-$(kv "$BOXENV" SPOOL_FLEET_PROXY)}" "$(kv "$LCONF" LEASE_ORCH)" \
+           "$d"/spool/*; do
+    p="${p##*/}"
+    spl_is_participant_id "$p" && announced "$p" && { SENDER="$p"; break; }
+  done
+  [ -n "$SENDER" ] || { say "no agent seated on $BOX in $TENANT ($ENVN) is announced by $ME to relay for $FROM. Nothing was sent."; exit 3; }
+fi
 if [ "$THISBOX" = 1 ]; then
   TOBOX="$SIDEBOX"
   [[ "$TOBOX" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { say "the sidecar (pid $pid) names no box id for --to-this-box. Nothing was sent."; exit 3; }

@@ -143,7 +143,8 @@ spl_icl_ws_first() {
 # ENV, TENANT_ID, DESK_AGENT, DESK_BOX where the caller left them unset. A
 # map desk that is a role seat (c-001) acts as the seat's live id
 # (spl_role_seat): a vendor switch moves the seat to g-001 and its desk then
-# announces g-001 only, so the hub refuses c-001 (SPL-3831).
+# announces g-001 only, so the hub refuses c-001 (SPL-3831). A map desk this
+# box does not announce acts as one it does (spl_icl_ws_announced, SPL-3865).
 spl_icl_ws() {
   local t="$ISSUE_CLOSE_WORKSPACE" row b rc=0 n live
   # shellcheck source=../features/spawn-agents/lib/workspace-repo.inc.sh
@@ -158,14 +159,41 @@ spl_icl_ws() {
     [[ -n "$b" ]] || { git -C "$ICL_REPO" rev-parse -q --verify refs/remotes/origin/main >/dev/null && b=main; }
   fi
   ICL_WS_REF="origin/${b:-master}"
-  TENANT_ID="$t" ENV="${ENV:-$(wr_field "$row" 1)}"
+  TENANT_ID="$t" ENV="${ENV:-$(wr_field "$row" 1)}" DESK_BOX="${DESK_BOX:-$(wr_field "$row" 7)}"
   if [[ -z "${DESK_AGENT:-}" ]]; then
     DESK_AGENT="$(wr_field "$row" 6)" n="$(spl_role_seat_num "$DESK_AGENT" 2>/dev/null)"
     [[ -n "$n" ]] && live="$(spl_role_seat "$n")" && [[ -n "$live" && "$live" != "$DESK_AGENT" ]] &&
       { do_log "INFO workspace $t: the map's desk $DESK_AGENT is role seat $n, live as $live" >&2; DESK_AGENT="$live"; }
+    spl_icl_ws_announced || return 1
   fi
-  DESK_BOX="${DESK_BOX:-$(wr_field "$row" 7)}"
   export TENANT_ID ENV DESK_AGENT DESK_BOX
+}
+
+# spl_icl_ws_announced: the map's desk acts only as an id the hub ties to THIS
+# box (SPL-3865). The role seat c-001 stays seated on a box after the orch
+# lease moves to another one, and the hub then refused every tick on that box
+# "c-001 is not an agent announced by <box>". The desk sidecar's roster cache
+# (<desk>/spool/.hub/roster.json, box -> ids) says what the box announces; an
+# unannounced DESK_AGENT is replaced by the first seated id the box announces.
+# No cache (or no desk state dir) checks nothing: the hub call says.
+spl_icl_ws_announced() {
+  local box="${DESK_BOX:-}" roster ids id
+  [[ -n "$box" ]] || { declare -F spl_desk_box_default >/dev/null && box="$(spl_desk_box_default)"; }
+  [[ -n "$box" ]] || return 0
+  if [[ -z "${SPL_STATE_DIR:-}" ]]; then
+    declare -F do_spl_desk_cnf >/dev/null && do_spl_desk_cnf >&2 || return 0
+  fi
+  roster="$SPL_STATE_DIR/desk/$TENANT_ID/$box/spool"
+  ids="$(python3 -c 'import json, sys; print("\n".join(json.load(open(sys.argv[1]))[sys.argv[2]]))' \
+    "$roster/.hub/roster.json" "$box" 2>/dev/null)" || return 0
+  grep -qx -- "$DESK_AGENT" <<<"$ids" && return 0
+  while read -r id; do
+    [[ -n "$id" && -d "$roster/$id" ]] || continue
+    do_log "INFO workspace $TENANT_ID: the map's desk $DESK_AGENT is not in the announce of $box (its roster cache); acting as $id" >&2
+    DESK_AGENT="$id"; return 0
+  done <<<"$ids"
+  do_log "FATAL workspace $TENANT_ID: $box announces no seated desk agent ($DESK_AGENT is not in its roster cache $roster/.hub/roster.json): run do_spl_desk_up on this box" >&2
+  return 1
 }
 
 # spl_icl_holder_tick DIR DRY: holder mode (SPL-2631). The box of the dispatch

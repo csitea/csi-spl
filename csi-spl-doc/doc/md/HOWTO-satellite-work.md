@@ -71,6 +71,10 @@ from any agent with a row in its machine's `registry.tsv` crosses the hub:
   under a seated id of that desk (`SPOOL_FLEET_PROXY` in `box.env`, else the
   lease's `LEASE_ORCH`, else the first seated id). An id that is neither
   seated nor in `registry.tsv` is still refused, exit 13.
+- The proxy (and a seated sender) must be an id this box announces, SPL-3865:
+  listed under the box in the desk's `.hub/roster.json`, else (no cache) a
+  role id only while its lease mirror names this box; the issue closer's
+  workspace desk follows the same rule.
 - Every relayed body opens with `from_agent: <ID>@<box>`. The receiving
   sidecar (`internal/spool` `WithFromAgent`) accepts the claim only for the
   box whose pin signed the envelope, writes it as `from` and drops the line.

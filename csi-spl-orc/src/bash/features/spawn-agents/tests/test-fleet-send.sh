@@ -199,6 +199,42 @@ has "6. the reply comes back to the lane's own inbox" '"the reply"' "$got"
 has "6. ... its from carries @box" '"from":"CLE-77913@box-desk"' "$(printf '%s' "$got" | tr -d ' \n')"
 [ -n "$r" ] || nok "6. the local reply send printed nothing"
 
+# ---- 6b. SPL-3865: the proxy is an id THIS box announces ---------------------------------
+# The orch lease moved to the other box: LEASE_ORCH (CLE-001) is still seated
+# on this desk, but the hub ties it to box-desk and refused every relay under
+# it with from_not_announced. The sidecar's roster cache (.hub/roster.json,
+# box -> ids) says what this box announces.
+cp "$B/box.env" "$T_TMP/box.env.6"
+printf 'SPOOL_DESK_BOX=box-desk-sat\nSPOOL_FLEET_ENV=dev\nSPOOL_FLEET_TENANT=t1\n' >"$B/box.env"
+mkdir -p "$D/spool/CLE-001"
+printf '{"box-desk":["CLE-001","CLE-77913"],"box-desk-sat":["CLE-100006"]}' >"$D/spool/.hub/roster.json"
+rl --from CLE-100005 --to CLE-77913 --kind note --body x --to-box box-desk >/dev/null 2>&1; rc=$?
+eq "6b. LEASE_ORCH seated here but announced by another box: exit 0" 0 "$rc"
+has "6b. ... the proxy is the id this box announces, not LEASE_ORCH" "send --from CLE-100006 " "$(cat "$T_TMP/stub.args")"
+printf 'CLE-001\tclaude\t%%8\t/w\t20261002T000000Z\n' >>"$B/registry.tsv"
+rl --from CLE-001 --to CLE-77913 --kind note --body 'old holder' --to-box box-desk >/dev/null 2>&1
+has "6b. a seated sender this box no longer announces goes under the proxy" "send --from CLE-100006 " "$(cat "$T_TMP/stub.args")"
+has "6b. ... naming itself as the real sender" "from_agent: CLE-001@box-desk-sat old holder" "$(tr '\n' ' ' <"$T_TMP/stub.args")"
+printf 'SPOOL_FLEET_PROXY=CLE-001\n' >>"$B/box.env"
+rl --from CLE-100005 --to CLE-77913 --kind note --body x --to-box box-desk >/dev/null 2>&1
+has "6b. a SPOOL_FLEET_PROXY this box does not announce is passed over" "send --from CLE-100006 " "$(cat "$T_TMP/stub.args")"
+printf '{"box-desk-sat":["CLE-100099"]}' >"$D/spool/.hub/roster.json"
+rm -f "$T_TMP/stub.args"
+rl --from CLE-100005 --to CLE-77913 --kind note --body x --to-box box-desk >/dev/null 2>&1; rc=$?
+eq "6b. no seated id is announced by this box: exit 3" 3 "$rc"
+check "6b. ... and nothing was sent" test ! -e "$T_TMP/stub.args"
+# No roster cache yet (a fresh sidecar): the lease mirror decides for a role id.
+rm -f "$D/spool/.hub/roster.json"
+printf 'SPOOL_DESK_BOX=box-desk-sat\nSPOOL_FLEET_ENV=dev\nSPOOL_FLEET_TENANT=t1\n' >"$B/box.env"
+printf 'CLE-001@box-desk 500\n' >"$B/dispatch/lease.orch"
+rl --from CLE-100005 --to CLE-77913 --kind note --body x --to-box box-desk >/dev/null 2>&1
+has "6b. no roster cache, the orch lease on the other box: LEASE_ORCH is passed over" "send --from CLE-100004 " "$(cat "$T_TMP/stub.args")"
+printf 'CLE-001@box-desk-sat 500\n' >"$B/dispatch/lease.orch"
+rl --from CLE-100005 --to CLE-77913 --kind note --body x --to-box box-desk >/dev/null 2>&1
+has "6b. control: the orch lease on this box: LEASE_ORCH is the proxy" "send --from CLE-001 " "$(cat "$T_TMP/stub.args")"
+rm -rf "$D/spool/CLE-001" "$B/dispatch/lease.orch"; mv "$T_TMP/box.env.6" "$B/box.env"
+sed -i '/^CLE-001\t/d' "$B/registry.tsv"
+
 # ---- 7. specs/061 3.6: a retired id inside its quarantine bounces, never relays ---------
 rows() { printf 'c-009\tclaude\t%%5\t/x\t20261002T080000Z\t%s\n' "$(date -u -d "$1" +%Y%m%dT%H%M%SZ)" >"$B/registry.retired.tsv"; }
 rows '-1 hour'

@@ -2,10 +2,11 @@
 
 Version v0.3 (2026-10-26), reviewed: claude review PASS (c-317 on
 `2f1ee57b5`, section 8), after a FAIL on v0.1 (W1-W9) and on v0.2 (N1-N4).
-The owner's GO and answers (section 7): Q1 A, Q2 A, Q3 A, Q4 GO (HUM-10,
-msg 44ec2e44). Row B1 is built (SPL-3820, section 5.1), its cron row off by
-cnf until B2 lands; B2..B7 are not built. The build rows of section 5 land
-one by one, each after its own review PASS + GO.
+The owner's GO and answers (section 7.1): Q1 A, Q2 A, Q3 A, Q4 GO (HUM-10,
+msg 44ec2e44 on the v0.3 poll), then all A again on the v0.1 poll (msg
+5c6686f2, 2026-10-27), whose Q1 A is the desk log the deny list refuses
+(7.1). Row B1 is built (SPL-3820, section 5.1), its cron row off by cnf
+until B2 lands; B2..B7 are being built by one lane (SPL-3888), row by row.
 
 Source: the owner's asks in the owner's customer workspace (section 1); the
 discussion moved to the operator workspace topic
@@ -652,6 +653,33 @@ Q4 GO to build rows B1..B7 in the order of section 5?
 (A) GO
 (B) Not yet
 ```
+
+### 7.1 The owner's answers
+
+Two answer sets, both from HUM-10 in `c168784c`, read on prd with
+`do_spl_db_query` (`messages.received_at`, n = 1 read each):
+
+| msg | poll | at (UTC) | answers |
+|---|---|---|---|
+| `44ec2e44` | `a1ada7ba` (the v0.3 form) | 2026-10-27 10:02 | GO; Q1 A the token-burn cron log; Q2 A; Q3 A |
+| `5c6686f2` | `75d8db39` (the v0.1 form) | 2026-10-27 16:26 | GO; Q1 A "The box desk's own log"; Q2 A; Q3 A |
+
+Folded:
+
+- **Q4 GO**: rows B2..B7 are built in the order of section 5 (brief
+  `c001-s160-build-rows`, issue SPL-3888, epic SPL-2403).
+- **Q2 A**: a box streams into the workspace it is pinned in, the
+  session's tenant (3.3, D5). No cross-workspace view.
+- **Q3 A**: 7 days, at most 500 000 lines per workspace (3.7, row B6).
+- **Q1**: the two answers differ. The later one (`5c6686f2`) answers the
+  v0.1 form, whose A is the desk log. v0.2 found that file inside a spool
+  root, beside the desk's keys, under `$HOME/.*` (section 7, W9), so 3.2
+  refuses it three times and B1's follower announces it `refused`. B1
+  ships the v0.3 answer (`token-burn-cron`, 5.1), and this lane does not
+  weaken the deny list: following the desk log needs a deny-list
+  exception named in code with its reason (3.2: "v0.3 names none"). That
+  is the owner's call, asked through the dispatch holder. Until then the
+  allow-list keeps the token-burn cron log.
 
 ## 8. Review record
 

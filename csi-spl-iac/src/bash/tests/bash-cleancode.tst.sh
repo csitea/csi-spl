@@ -6,7 +6,8 @@
 #          iac + orc + cnf + utl, and the .sh files of csi-spl-api/src and
 #          csi-spl-wui/src (r24-02). csi-spl-doc/.specify is not walked: it is
 #          the vendored spec-kit scaffold, upstream code.
-#          A function longer than MAX_LINES fails unless LONG lists it. LONG is
+#          A function longer than MAX_LINES (75; 80 until r29-01) fails
+#          unless LONG lists it. LONG is
 #          what was over the limit when the gate landed and may only shrink:
 #          split a function and delete its line; a NEW long function fails.
 #          Each LONG entry carries a ceiling (r5-06): a listed function that
@@ -15,11 +16,41 @@
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 APP_ROOT=$(cd "$TEST_DIR/../../../.." && pwd)
-MAX_LINES=80
+# SPL-3725: 80 -> 75, r29-01 (the bash twin of the Go gate's r28-01).
+MAX_LINES=75
 
-# <file> <function> <ceiling>: the ceiling is its length on 2026-10-10 (r5-06).
+# <file> <function> <ceiling>: the ceiling is the function's length on the date
+# it was listed (r5-06: 2026-10-10; r29-01: 2026-10-27, so never above 80). The
+# list may only shrink: split a function into named steps and delete its line.
 LONG="
   csi-spl-iac/src/bash/run/provision-firebase-dns.func.sh do_provision_firebase_dns 169
+  csi-spl-iac/src/bash/run/sec-eslint.func.sh do_sec_eslint 80
+  csi-spl-iac/src/bash/run/spl-secret-unused-list.func.sh spl_secret_unused_table 76
+  csi-spl-orc/lib/bash/funcs/lde-cnf.func.sh do_lde_cnf 76
+  csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh _spawn_worktree 79
+  csi-spl-orc/src/bash/run/export-all-dns-settings.func.sh do_export_all_dns_settings 77
+  csi-spl-orc/src/bash/run/oss-gate.func.sh do_oss_gate 76
+  csi-spl-orc/src/bash/run/spl-agent-identity-restore.func.sh do_spl_agent_identity_restore 80
+  csi-spl-orc/src/bash/run/spl-agent-mcp-install.func.sh do_spl_agent_mcp_install 80
+  csi-spl-orc/src/bash/run/spl-auth-idp-secret-seed.func.sh do_spl_auth_idp_secret_seed 80
+  csi-spl-orc/src/bash/run/spl-box-ports-loopback.func.sh spl_bpl_edit 78
+  csi-spl-orc/src/bash/run/spl-db-backup-verify.func.sh spl_db_backup_restore_counts 78
+  csi-spl-orc/src/bash/run/spl-desk-pin.func.sh do_spl_desk_pin 78
+  csi-spl-orc/src/bash/run/spl-desk-reply.func.sh spl_desk_pick 80
+  csi-spl-orc/src/bash/run/spl-desk-up.func.sh spl_desk_sidecar 78
+  csi-spl-orc/src/bash/run/spl-desk-welcome.func.sh do_spl_desk_welcome 80
+  csi-spl-orc/src/bash/run/spl-dispatch-lease.func.sh spl_fleet_role_tick 78
+  csi-spl-orc/src/bash/run/spl-dispatch-rotate.func.sh spl_disp_rotate_auto 78
+  csi-spl-orc/src/bash/run/spl-lane-restart.func.sh do_spl_lane_restart 76
+  csi-spl-orc/src/bash/run/spl-lane-wip-push.func.sh do_spl_lane_wip_push 78
+  csi-spl-orc/src/bash/run/spl-role-failover.func.sh spl_role_failover_run 76
+  csi-spl-orc/src/bash/run/spl-secrets-seed-all.func.sh do_secrets_seed_gcp 77
+  csi-spl-orc/src/bash/run/spl-spec-import-issues.func.sh do_spl_spec_import_issues 80
+  csi-spl-orc/src/bash/run/spl-stripe-webhook-probe.func.sh do_spl_stripe_webhook_probe 78
+  csi-spl-orc/src/bash/run/spl-tenant-create.func.sh do_spl_tenant_create 76
+  csi-spl-orc/src/bash/run/tf-030-import-existing-cloud-run.func.sh do_tf_030_import_existing_cloud_run 80
+  csi-spl-utl/src/bash/run/box-beat-telemetry.func.sh do_box_beat_telemetry_check 79
+  csi-spl-utl/src/bash/run/box-disk-guard-install.func.sh do_box_disk_guard_install 79
 "
 
 fails=0

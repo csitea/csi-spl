@@ -11,7 +11,8 @@
 # @description   tmux-health <OK|HUNG|DOWN|ERROR> socket=<path> sessions=<n> ms=<n>
 # @description   OK    the server answered (exit 0)
 # @description   HUNG  no answer within the timeout: the server is frozen
-# @description   DOWN  no socket, or no server behind it
+# @description   DOWN  no socket, or no server behind it (also one that exits
+# @description         while the probe connects: "server exited unexpectedly")
 # @description   ERROR any other failure of the probe (its message is shown)
 # @description The probe's output goes to a temp file, never a pipe: the tmux
 # @description client passes its stdout to the server, so a frozen server would
@@ -90,7 +91,8 @@ do_fleet_tmux_health_guard() {
       n=${#lines[@]}
     elif ((rc == 124 || rc == 137)); then
       state=HUNG detail="list-sessions gave no answer in ${tmo}s"
-    elif [[ "$out" == *"no server running"* || "$out" == *"error connecting"* || "$out" == *"Connection refused"* ]]; then
+    elif [[ "$out" == *"no server running"* || "$out" == *"error connecting"* || "$out" == *"Connection refused"* \
+      || "$out" == *"server exited unexpectedly"* ]]; then
       state=DOWN detail="${out//$'\n'/ }"
     else
       state=ERROR detail="exit $rc: ${out//$'\n'/ }"

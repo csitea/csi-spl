@@ -15,6 +15,8 @@
 #   8. socket of another uid -> NOT_OWNER, exit 2, tmux never called
 #  8b. socket dir this user cannot enter (mode 700) -> NOT_OWNER, not DOWN
 #   9. unexpected probe failure -> ERROR with its message, exit 1
+#  9b. a server that exits while the probe connects ("server exited
+#      unexpectedly") -> DOWN, not ERROR (wf 10 40564027389 case 5, SPL-3877)
 #  10. TMUX_HEALTH_TIMEOUT outside 1..4 -> exit 2, tmux never called
 #  11. ./run -a do_fleet_tmux_health_guard (the plan's name) and
 #      ./run -a do_tmux_health_guard (the file's name) both run it
@@ -174,7 +176,11 @@ else
 fi
 
 # ---- 5. state change -> DOWN sent at once ------------------------------------
+# kill-server returns before the server process is gone: wait for it, so the
+# probe does not race a server mid-exit (that case is 9b)
+dead=$SRV_PID
 srv kill-server >/dev/null 2>&1; SRV_PID=""
+for _ in $(seq 1 100); do kill -0 "$dead" 2>/dev/null || break; sleep 0.05; done
 out=$(DRY_RUN=0 guard 2>&1); rc=$?
 if ((rc == 1)) && [[ "$out" == *"tmux-health DOWN socket=$SOCK"* ]] \
    && grep -q "body tmux-health DOWN" "$SENT" && read -r st _ <"$STAMP" && [[ "$st" == DOWN ]]; then
@@ -247,6 +253,19 @@ if ((rc == 1)) && [[ "$out" == *"tmux-health ERROR socket=$SOCK"*"exit 1: protoc
   pass "9. unexpected probe failure: ERROR with its message, exit 1"
 else
   fail "9. error state (rc=$rc out=$out)"
+fi
+
+# ---- 9b. server exits while the probe connects -> DOWN, not ERROR ------------
+cat >"$BIN/tmux-lost" <<'EOF'
+#!/bin/bash
+echo "server exited unexpectedly" >&2; exit 1
+EOF
+chmod +x "$BIN/tmux-lost"
+out=$(DRY_RUN=1 TMUX_HEALTH_TMUX_BIN="$BIN/tmux-lost" guard 2>&1); rc=$?
+if ((rc == 1)) && [[ "$out" == *"tmux-health DOWN socket=$SOCK"*"server exited unexpectedly"* ]]; then
+  pass "9b. server exited while the probe connected: DOWN, exit 1"
+else
+  fail "9b. server lost mid-probe (rc=$rc out=$out)"
 fi
 
 # ---- 10. timeout out of range ------------------------------------------------

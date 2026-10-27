@@ -1208,7 +1208,7 @@
       "invite_empty": "Skriv en e-postadress för att lägga till någon som inte har gått med i arbetsytan än.",
       "invite_email": "Bjud in {email}",
       "invited": "inbjuden",
-      "invited_hint": "Går med i kanalen när hen tar emot inbjudan till arbetsytan.",
+      "invited_hint": "Går med i kanalen när hen accepterar inbjudan till arbetsytan.",
       "remove_invited": "Ta bort inbjudan till {email}",
       "invite": "Bjud in",
       "invite_person": "Bjud in en person",

@@ -33,6 +33,9 @@
 # @description     left to the orchestrator to close; a seat under a human
 # @description     hold (<spool root>/<id>/.human-hold, do_spl_wd_hold, an
 # @description     epoch in the future) is never touched (SPL-2431);
+# @description   a lane whose vendor is on its usage limit (the watchdog's S2
+# @description     kind=limit, agy's quota banner) is SKIPped, no failure,
+# @description     until its reset (SPL-3779);
 # @description   a claude seat starts only while the claude login probe (the
 # @description     one do_spl_agent_login_check runs) says ok; else no rotation
 # @description     and ONE note to the dispatch lease holder;
@@ -148,6 +151,10 @@ spl_lane_rotate_consider() {
   fi
   (( age >= ROTATE_LANE_WARN_AGE )) || return 0
   (( n == 1 )) || { spl_lane_rotate_say "$id" "DEFER duplicate: $n live processes carry $id"; return 0; }
+  # its vendor on its limit: a new session would only show the limit banner
+  # and time out its ack (SPL-3779); no warning, no failure, re-judged each tick
+  why="$(spl_lane_rotate_limit "$id" "$kind")"
+  [[ -z "$why" ]] || { spl_lane_rotate_say "$id" "SKIP $id: $why"; return 0; }
   spl_lane_rotate_warn "$id" "$pid" "$age"
   why="$(spl_lane_rotate_recent "$id")"
   [[ -z "$why" ]] || { spl_lane_rotate_say "$id" "DEFER $why"; return 0; }
@@ -167,6 +174,40 @@ spl_lane_rotate_consider() {
     LR_LOGIN_HELD+=" $id"; spl_lane_rotate_say "$id" "DEFER login: the claude probe says $LR_LOGIN"; return 0
   fi
   spl_lane_rotate_start "$id" "$kind" "$pid" "$forced" "$why"
+}
+
+# spl_lane_rotate_limit ID KIND: "<kind> is on its limit until <UTC>
+# (<evidence>)" when KIND is on its usage limit here, nothing otherwise
+# (SPL-3779: a box on 2026-10-27, agy lanes spawned on "Individual quota reached",
+# FAIL ACK after 600 s, again every ROTATE_LANE_RETRY). The readers the role
+# rotations and the spawn placer use, no new verdict source: claude
+# spl_rotate_claude_out (its limit line only), grok spl_rotate_grok_out, agy
+# spl_spawn_place_agy_out (any a- seat's verdict or quota banner), mistral and
+# qwen lane-mix's _spl_lane_mix_limit. The reset is agy's own when it prints
+# one, else the verdict's time plus that reader's window.
+spl_lane_rotate_limit() {
+  local kind="$2" out fresh at=""
+  case "$kind" in
+    claude) out="$(spl_rotate_claude_out)" fresh="${ROTATE_CLAUDE_LIMIT_FRESH:-21600}" ;;
+    grok) out="$(spl_rotate_grok_out)" fresh="${ROTATE_GROK_LIMIT_FRESH:-604800}" ;;
+    agy)
+      declare -F spl_spawn_place_agy_out >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-spawn-place.func.sh"
+      out="$(spl_spawn_place_agy_out)"
+      if [[ "$out" =~ ^agy\ is\ out\ of\ quota\ until\ ([^ ]+)\ \((.*)\)$ ]]; then
+        echo "agy is on its limit until ${BASH_REMATCH[1]} (${BASH_REMATCH[2]})"
+      fi
+      return 0 ;;
+    mistral|qwen)
+      declare -F _spl_lane_mix_limit >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-lane-mix.func.sh"
+      out="$(_spl_lane_mix_limit "$kind" "$SPOOL_ROOT" "${LANE_MIX_REGISTRY:-$SPOOL_ROOT/registry.tsv}")"
+      [[ -n "$out" ]] && at=$(( ${out%%$'\t'*} + ${LANE_MIX_LIMIT_FRESH:-21600} )) out="${out#*$'\t'}" ;;
+    *) return 0 ;;
+  esac
+  if [[ -z "$at" && "$out" =~ ^[^\ ]+\ S2\ kind=limit\ ([0-9]+)m\ ago ]]; then
+    at=$(( $(date +%s) - BASH_REMATCH[1] * 60 + fresh ))
+  fi
+  [[ -n "$at" ]] && echo "$kind is on its limit until $(date -u -d "@$at" +%FT%TZ) ($out)"
+  return 0
 }
 
 # spl_lane_rotate_say ID LINE: LINE to stdout and lane-rotate.log when it
@@ -448,6 +489,7 @@ spl_lane_rotate_one() {
   age="$(spl_rotate_age "$pid")"; age="${age:-0}"
   (( age >= ROTATE_LANE_WARN_AGE )) || { spl_rotate_log "$rid" GATE SKIP "young: pid $pid is ${age}s old"; return 0; }
   [[ -z "$(spl_lane_rotate_recent "$id")" ]] || { spl_rotate_log "$rid" GATE SKIP "$(spl_lane_rotate_recent "$id")"; return 0; }
+  [[ -z "$(spl_lane_rotate_limit "$id" "$ROTATE_KIND")" ]] || { spl_rotate_log "$rid" GATE SKIP "$(spl_lane_rotate_limit "$id" "$ROTATE_KIND")"; return 0; }
   pane="$(spl_rotate_pane_of_pid "$pid")"
   [[ -n "$pane" ]] || { spl_rotate_log "$rid" GATE SKIP "pid $pid is in no tmux pane"; return 0; }
   if spl_lane_rotate_brief_is_seed "$id"; then

@@ -42,6 +42,10 @@
 #      closed, the old one keeps its name, its pid and the lane
 #  21. SPL-2898 (E): the old window gone before SPAWN renames it: SPAWN SKIP
 #      retired with tmux's reason, no FAIL, no note, ctx ABORT
+#  22. SPL-3779: a lane whose vendor is on its limit (the lane's own watchdog
+#      S2 kind=limit; for agy any a- seat's) is SKIPped before SPAWN, logged
+#      with the reset, never a failure; a lane on a vendor without a limit is
+#      rotated in the same tick (control); the verdict gone = rotated
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc and M are read inside the check strings (eval)
 set -uo pipefail
@@ -81,7 +85,7 @@ lane() {
   printf '# Brief: the %s task\nFiles: csi-spl-orc/x.sh\n\nDo the thing.\n' "$id" >"$S/$id/lifetime/brief.md"
   wt "$id"
   printf '%s\t%s\t%s\t%s\t20261011T000000Z\tc-001\n' "$id" "$kind" "$pane" "$T/wt/$id" >>"$S/registry.tsv"
-  comm=claude; [ "$kind" = mistral ] && comm="Vibe CLI"; [ "$kind" = grok ] && comm=grok
+  comm=claude; [ "$kind" = mistral ] && comm="Vibe CLI"; [ "$kind" = grok ] && comm=grok; [ "$kind" = agy ] && comm=agy
   "$T/bin/proc" "$pid" "$age" "$id" "$comm" 1 "$kind --seed"
   printf '%s\t%s\t$0\t%s@box\n' "$pane" "$pid" "$id" >>"$T/tmux/panes"
   echo "$pid" >"$T/ai.$id"
@@ -158,7 +162,7 @@ cp "$4" "$T/seed.$2"
 cat "${SPAWN_PROMPT_HEAD_FILE:-/dev/null}" >"$T/prompt.$2" 2>/dev/null
 cp -f "$4" "$SPOOL_ROOT/$2/lifetime/brief.md"
 printf '%%%s\t%s\t$0\t%s@box\n' "$n" "$n" "$2" >>"$T/tmux/panes"
-comm=claude; [ "$1" = mistral ] && comm="Vibe CLI"
+comm=claude; [ "$1" = mistral ] && comm="Vibe CLI"; [ "$1" = agy ] && comm=agy
 "$T/bin/proc" "$n" 0 "$2" "$comm" 1 "$1 --seed"
 rid="$(grep '^ACK-COMMAND:' "$T/prompt.$2" | grep -oE 'ROTATE_ID=[0-9A-Za-z-]+' | cut -d= -f2)"
 ( sleep 1; ROTATE_CMD=ack ROTATE_ID="$rid" ID="$2" ROTATE_CALLER_PID="$n" "$T/bin/act" >>"$T/ack.out" 2>&1 ) >/dev/null 2>&1 &
@@ -442,6 +446,27 @@ check "21. gone old window: SPAWN SKIP retired, tmux's reason kept" 'grep -q " S
 check "21. gone old window: no FAIL, no note to the dispatch holder, nothing spawned" '! grep -q " FAIL FAIL " "$D/rotate.log" && [ "$(n "$T/send.log" "dispatch-lane-rotate")" = 0 ] && [ "$(n "$T/spawn.log")" = 0 ]'
 check "21. gone old window: the lane ctx ends ABORT" 'grep -qx "ROTATE_PHASE=ABORT" "$S/c-992/lifetime/rotate.lane.ctx"'
 check "21. no stray failing command under the ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
+# --- 22. SPL-3779: the vendor on its limit = SKIP before SPAWN, not a failure ------------
+# a box on 2026-10-27, rid 20261027T0237Z-lane-a-751: agy on "Individual quota
+# reached" was spawned, waited 600 s for an ack and failed, every 15 min.
+reset; lane c-961 70; lane a-962 70 agy; lane m-964 70 mistral
+mkdir -p "$D/wd/ctx.1/c-961" "$D/wd/ctx.1/a-963"
+echo 'HIT S2 kind=limit pane: You have hit your limit' >"$D/wd/ctx.1/c-961/out.s2"
+echo 'HIT S2 kind=limit pane: Individual quota reached' >"$D/wd/ctx.1/a-963/out.s2"
+ROTATE_CLAUDE_BIN=/bin/true tick
+check "22. claude lane on its own limit verdict: SKIP logged with the reset, no spawn" 'grep -qE "c-961 SKIP c-961: claude is on its limit until [0-9-]+T[0-9:]+Z \(c-961 S2 kind=limit" "$T/tick.out" && ! grep -q "spawn claude c-961" "$T/spawn.log"'
+check "22. agy lane, another a- seat on the limit: SKIP, no spawn" 'grep -qE "a-962 SKIP a-962: agy is on its limit until [0-9-]+T[0-9:]+Z \(a-963 S2 kind=limit" "$T/tick.out" && ! grep -q "spawn agy a-962" "$T/spawn.log"'
+check "22. control: the mistral lane (no limit) rotated in the same tick" 'grep -q "^spawn mistral m-964" "$T/spawn.log" && grep -q "lane-m-964 DONE OK" "$D/rotate.log"'
+check "22. the skips are no failure: no FAIL, no note, no failed-rotation stamp" '! grep -qE "lane-(c-961|a-962) .*FAIL" "$D/rotate.log" && [ "$(n "$T/send.log" "dispatch-lane-rotate")" = 0 ] && [ ! -e "$S/c-961/lifetime/rotate.lane.last" ] && [ ! -e "$S/a-962/lifetime/rotate.lane.last" ]'
+rm -f "$D/wd/ctx.1/c-961/out.s2" "$D/wd/ctx.1/a-963/out.s2"
+ROTATE_CLAUDE_BIN=/bin/true tick
+check "22. the limit gone: both lanes rotated on the next tick" 'grep -q "lane-c-961 DONE OK" "$D/rotate.log" && grep -q "lane-a-962 DONE OK" "$D/rotate.log"'
+# the same for mistral, lane-mix's reader (a vendor's limit holds all its lanes)
+reset; lane m-965 70 mistral; mkdir -p "$D/wd/ctx.1/m-965"
+echo 'HIT S2 kind=limit pane: rate limit' >"$D/wd/ctx.1/m-965/out.s2"
+tick
+check "22. mistral lane on its own limit verdict (lane-mix reader): SKIP, no spawn" 'grep -qE "m-965 SKIP m-965: mistral is on its limit until [0-9-]+T[0-9:]+Z \\(m-965 S2 kind=limit" "$T/tick.out" && ! grep -q "spawn mistral m-965" "$T/spawn.log"'
+check "22. no stray failing command under the ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
 # --- 12. the cron row ----------------------------------------------------------------------------
 M="$PROJ_ROOT/cnf/box-crons/box-crons.manifest"
 check "12. manifest row lane-rotate, every minute" 'grep -qE "^lane-rotate +\| \* \* \* \* \* +\| src/bash/scripts/lane-rotate-cron.sh +\| lane-rotate/cron.log" "$M"'

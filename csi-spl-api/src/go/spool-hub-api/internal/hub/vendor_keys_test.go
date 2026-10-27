@@ -342,3 +342,46 @@ func TestVendorKeysNeverLogTheKey(t *testing.T) {
 		}
 	}
 }
+
+// TestVendorKeysCrossWorkspace pins the workspace wall on these routes (R7
+// W2): a manager of workspace A reads, sets and removes nothing in workspace
+// B, and B's own key leaves A's untouched.
+func TestVendorKeysCrossWorkspace(t *testing.T) {
+	e, mail := vkEnv(t)
+	tidA, _ := e.tenant()
+	tidB, _ := e.tenant()
+	bizA := seat(t, e, tidA, rbac.BizOwner)
+	bizB := seat(t, e, tidB, rbac.BizOwner)
+	if code, body := putKey(t, e, tidA, "claude", bizA, nil); code != http.StatusNoContent {
+		t.Fatalf("bizA PUT in A: %d %v", code, body)
+	}
+	mail.take()
+
+	for _, c := range []struct{ method, tid, as string }{
+		{http.MethodGet, tidB, bizA}, {http.MethodPut, tidB, bizA}, {http.MethodDelete, tidB, bizA},
+		{http.MethodGet, tidA, bizB}, {http.MethodPut, tidA, bizB}, {http.MethodDelete, tidA, bizB},
+	} {
+		path := "/v1/vendor-keys/claude"
+		if c.method == http.MethodGet {
+			path = "/v1/vendor-keys"
+		}
+		if code, body := call(t, e, c.tid, c.method, path, c.as, map[string]any{"key": "sk-test-2222"}); code != http.StatusForbidden {
+			t.Fatalf("%s %s in %s as the other workspace's biz owner: %d %v, want 403", c.method, path, c.tid, code, body)
+		}
+	}
+	if sent := mail.take(); len(sent) != 0 {
+		t.Fatalf("a refused cross-workspace call sent mail: %v", sent)
+	}
+
+	if code, body := putKey(t, e, tidB, "claude", bizB, map[string]any{"key": "sk-test-3333"}); code != http.StatusNoContent {
+		t.Fatalf("bizB PUT in B: %d %v", code, body)
+	}
+	_, body := call(t, e, tidA, http.MethodGet, "/v1/vendor-keys", bizA, nil)
+	if row := keyRow(t, body, "claude"); row["set"] != true || row["last4"] != "0000" || row["set_by"] != bizA {
+		t.Fatalf("A's key after the cross-workspace calls and B's own PUT: %v", row)
+	}
+	_, body = call(t, e, tidB, http.MethodGet, "/v1/vendor-keys", bizB, nil)
+	if row := keyRow(t, body, "claude"); row["last4"] != "3333" || row["set_by"] != bizB {
+		t.Fatalf("B's key: %v", row)
+	}
+}

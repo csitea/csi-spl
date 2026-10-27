@@ -13466,13 +13466,23 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK: per kind its availability, set, last4, base_url, set_by and set_at, never the key; and whether the caller is a confirmed manager"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable: vendor_keys_off, workspace vendor keys are not configured on this hub"
           }
         },
         "summary": "Read the workspace's vendor keys per kind: set, last4, never the key (spec 127 H1, spec 159 T1)",
@@ -13509,6 +13519,16 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable: vendor_keys_off, workspace vendor keys are not configured on this hub"
           }
         },
         "summary": "Confirm an operator-made admin or business owner as a vendor key manager (spec 127 Q-4 A, spec 159 L22)",
@@ -13544,7 +13564,24 @@
             "$ref": "#/components/responses/Forbidden"
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found: unknown_kind, or not_set (this workspace holds no key of that kind)"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable: vendor_keys_off, workspace vendor keys are not configured on this hub"
           }
         },
         "summary": "Remove the workspace's key of one kind (spec 127 H1, spec 159 T1)",
@@ -13567,21 +13604,111 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "Write only: the key is sealed before it is stored and is never read back, logged or echoed (spec 127 4.2).",
+                "properties": {
+                  "base_url": {
+                    "description": "qwen only, and required there: an https base URL",
+                    "format": "uri",
+                    "maxLength": 2048,
+                    "type": "string"
+                  },
+                  "key": {
+                    "description": "the vendor key: no space or control character",
+                    "maxLength": 4096,
+                    "minLength": 1,
+                    "type": "string",
+                    "writeOnly": true
+                  }
+                },
+                "required": [
+                  "key"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "204": {
             "description": "Stored, sealed and audited"
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request: bad_json, the body is not the expected JSON object"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
-            "$ref": "#/components/responses/Forbidden"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden: no vendor_keys.manage, act_as_refused, or admin_unconfirmed (an operator-made manager waits for a confirmed one)"
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found: unknown_kind, not a vendor key kind"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict: kind_not_available, the kind waits for the vendor's terms or its gate"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unsupported Media Type: Content-Type must be application/json"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unprocessable Entity: bad_key (1 to 4096 characters, no space or control character) or bad_base_url (only qwen takes one, and it must be https)"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable: vendor_keys_off (not configured on this hub) or seal_failed (the key was not stored)"
           }
         },
         "summary": "Set or replace the workspace's key of one kind, write only (spec 127 H1, spec 159 T1)",

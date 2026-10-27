@@ -442,7 +442,7 @@ split; secrets work goes to claude (or grok, if it has quota).
 | # | lane | task | red control |
 |---|---|---|---|
 | T0 | doc | spec 127 v1.4: point 5.1, 5.3 and 8 at this spec (N1, N3), and amend K3 and L2 as 5.1 and 6 say, citing msg `2e9d03be`; 127's editor or the integrator, not this lane | `grep -c '159-byo-ai-keys' csi-spl-doc/specs/127-workspace-vendor-keys/spec.md` -> >= 4 |
-| T1 | hub (claude), with 127 H1 | `vendor_keys.manage` for `biz_owner` + `admin`; operator-made `biz_owner` unconfirmed; email to admins and biz owners | `biz_owner` PUT `sk-test-0000` -> 204 (403 on the grant removed); L22 |
+| T1 | hub (claude), with 127 H1 | `vendor_keys.manage` for `biz_owner` + `admin`; operator-made `biz_owner` unconfirmed; email to admins and biz owners | `biz_owner` PUT `sk-test-0000` -> 204 (403 on the grant removed); L22. Built: 11.1 |
 | T2 | orc (claude) | a read-only check action: measure each fleet box against the 127 5.3 checks kept in 5.2 (hidepid, ptrace, suid_dumpable, swap, tmpfs) and report which fail. No terraform, no new VM; any change to a box is a separate owner go | a fake box with swap on -> reported as failing (127 L13); all checks pass -> reported clean |
 | T3 | orc (claude), with 127 X1 | the named action that creates W's OS user (no sudoers, no root-equivalent group) and desk on a fleet box when W turns hosting on, a join token per box and workspace; the desk start checks with 5.2's one exception | the desk starts as W on a fleet box; W's user added to `sudo` or `docker` -> refused; `/proc` without `hidepid` -> refused |
 | T4 | orc (claude) | placer: `Workspace: <W>` + a keyed kind -> a box with W's desk, as W's OS user, else `waiting_key_host`; a brief without `Workspace:` never as W | L19, L20 |
@@ -452,6 +452,46 @@ split; secrets work goes to claude (or grok, if it has quota).
 | T8 | box (claude), behind a switch **off until Anthropic's written OK (O1)** | claude self sign-in in W's seat on a fleet box, sign-out, directory excluded from mirror, collector and logs; the hub's L9 redaction gains the token shape | L23; grep the hub DB, hub logs and the mirror for a fake token after sign-in -> 0 |
 | T10 | box + hub (claude), after T8 and O1 | the `<PILOT>` pilot of 4.4: switch on for `<PILOT>` only, its biz owner signs in, run the checks of 4.4, report them in the spec 159 topic | the L23 grep -> 0 for the real token shape; switch off -> seats ended and credential files gone within one lease TTL |
 | T9 | orc (mistral or agy: docs) | `do_spl_vendor_terms_check`: monthly, fetch the nine URLs of 4.1, compare the quoted sentences, open an issue when one changes or goes missing | a page fixture with one quote edited -> issue opened; the same fixture unchanged -> none |
+
+### 11.1 T1 as built (SPL-3684, with 127 H1)
+
+Hub and rdb only; the WUI page is T7's (with 127 W1), the lease and the
+key-box approval are 127 H2's.
+
+| piece | where |
+|---|---|
+| `vendor_keys.manage` for `biz_owner` and `admin` | rdb `0232_vendor_keys_manage.sql`, `internal/rbac/rbac.go` |
+| the seal of 127 4.2: a fresh data key per row, AES-256-GCM under `tenant_id\|kind\|key_id`, the data key wrapped by Cloud KMS, the fingerprint an HMAC under the pepper | `internal/vendorkey/vendorkey.go` |
+| `GET /v1/vendor-keys`: per kind `available`, `set`, `last4`, `set_at`, `set_by`, `base_url`, and the caller's `confirmed`; never the key, the ciphertext or the fingerprint | `internal/hub/vendor_keys.go` |
+| `PUT /v1/vendor-keys/{kind}` `{"key", "base_url"?}` -> 204; `DELETE /v1/vendor-keys/{kind}` -> 204, 404 `not_set`; each writes its `set`, `replace` or `remove` audit row in the same transaction | same, `internal/store/vendor_keys.go` |
+| `PUT /v1/vendor-keys/managers/{human_id}` -> 204: a confirmed manager confirms a member who holds `vendor_keys.manage`; the `admin_confirm` audit row names it in the new column `subject` | rdb 0232, same files |
+| an operator-made manager (`admitted_by` `operator` or `bootstrap`) in a workspace that holds a key: PUT, DELETE and the confirm answer 403 `admin_unconfirmed` until an `admin_confirm` row names it, written at or after its membership began; GET stays open (read-only, 127 8) | same |
+| every route refused under an act-as session, 403 `act_as_refused` (a store error reads as a clone) | same |
+| the kinds that take a key today: `claude` and `qwen` (qwen with an https `base_url`, the others none); `grok`, `mistral` (4.2, O2 and O3) and `agy` (127 R5.2, B0c) answer 409 `kind_not_available` | `VendorKeyAvailable` in `vendor_keys.go` |
+| each set, replace and remove mails every `admin` and `biz_owner` who is not disabled or suspended, last4 only; a relay failure is logged as `mail.Digest`, the change stays. The mail text (19 locales, agy reviews it last) and its relay wiring are the row's second commit; until it lands the hub logs `vendor_key.mail_off` and mails nobody | `mailVendorKeyNotice`, `hub.Options.VendorKeyMail` |
+| no body is logged: the handlers log tenant, kind, actor and last4 | test `TestVendorKeysNeverLogTheKey` (127 L4, hub half) |
+| off until configured: `SPOOL_HUB_VENDOR_KEYS_KMS_KEY` and `SPOOL_HUB_VENDOR_KEYS_PEPPER` unset -> every route 503 `vendor_keys_off`, never an unsealed write | `cmd/spool/hub_vendor_keys.go` |
+
+Tests (`internal/hub/vendor_keys_test.go`, Memory and Postgres;
+`internal/vendorkey/vendorkey_test.go`; the store shape test gains the
+`subject` rows): the T1 red control (a `biz_owner` PUTs `sk-test-0000` ->
+204, 403 with the grant taken off `biz_owner`), L22 and 127 L3's confirm
+half (403 `admin_unconfirmed`, 204 once confirmed; 204 with the check
+dropped), the act-as refusal and 127 L4 (the fake in 0 log lines and 0
+answers; 1 with a planted log line).
+
+Not done here, each its own lane:
+
+- **The hub's environment.** Step 030 does not yet inject the two variables
+  above, so the routes answer 503 on dev and prd until an iac lane adds them
+  from cnf `vendor_keys` (the KMS key name and the pepper secret of step 057).
+- **The key-box list in GET** and the box approval routes: 127 H2.
+- **One path the 127 Q-4 A rule makes slow, as written:** a workspace whose
+  only managers the operator invited can set its first key, and then every
+  one of them is unconfirmed. Today the way out is that one of them invites
+  a second admin or biz owner from the WUI (that membership is confirmed)
+  who confirms them. Whether the member who set the first key should count
+  as confirmed is the 127 editor's call, not this row's.
 
 ## 12. What needs the owner
 
@@ -534,5 +574,7 @@ owners decide:
   until Anthropic's written OK. Q-4: 12.3 records the decision and names
   SPL-3528 and spec 121 without changing them. Pilot `<PILOT>` for the
   claude self sign-in (4.4, T10; msg `4abfa8c4`). For an R7 review.
+- v0.2 + T1 (2026-10-27, c-330, SPL-3684): 11.1 records what row T1 (with
+  127 H1) built in the hub and rdb 0232, and what it leaves to other rows.
 
-<!-- version: 0.2.0 · updated: 2026-10-26 · last-edit: 2026-10-26T16:20:00Z -->
+<!-- version: 0.2.0 · updated: 2026-10-27 · last-edit: 2026-10-27T00:40:00Z -->

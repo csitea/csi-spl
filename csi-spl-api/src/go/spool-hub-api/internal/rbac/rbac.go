@@ -61,6 +61,14 @@ const (
 	// costs of the lanes working for it; only the operator workspace's admin
 	// reads the estate (the hub's cost route decides, not this id).
 	CostsRead = "costs.read"
+	// VendorKeysManage is the permission to set, replace and remove the
+	// workspace's own agent vendor keys and to confirm an operator-made
+	// manager (spec 127 4.3 and 5.1, rdb 0232). biz_owner and admin, by
+	// spec 159 section 3 (owner HUM-10 msg 87578f3a), which replaces 127's
+	// "admin only". The hub also refuses it under an act-as session and for
+	// an operator-made member in a workspace that holds a key until a
+	// confirmed manager confirms it (hub/vendor_keys.go).
+	VendorKeysManage = "vendor_keys.manage"
 )
 
 // The 23 action ids of spec 152 3.1 (rdb 0223, build row B1). Each one's
@@ -197,6 +205,7 @@ var Permissions = []PermissionDoc{
 	{PermsEdit, "edit the workspace role x action list"},
 	{ReportingSQL, "run reporting SQL"},
 	{EmbedsVisitors, "see and handle website visitors: lead, block"},
+	{VendorKeysManage, "set, replace and remove the workspace's agent vendor keys; confirm an operator-made manager"},
 }
 
 // Defaults is the system role seed (025 §3.2, OQ-1..8 defaults; rdb 0021,
@@ -218,19 +227,20 @@ var Permissions = []PermissionDoc{
 // each granted to the roles that may do it today (3.6): the five agents.*
 // ids ride with agents.command (withAgents, demo_user included), the five
 // open issue ids with topics.manage (withMember, never demo_user), the rest
-// go to the roles their site names today.
+// go to the roles their site names today. rdb 0232 adds vendor_keys.manage
+// to biz_owner and admin (spec 159 section 3, spec 127 4.3).
 var Defaults = []Role{
 	{ID: BizOwner, TenantOwner: true, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
 		MembersInvite, MembersRoles, BillingManage, TenantSettings, KeysManage, AuditRead, MembersImpersonate, DocsRead, DocsWrite,
 		HoursRead, HoursApprove,
 		ChannelsAIAgents, MessagesKind, IssuesBlocker, TopicsChangeOthers, IssuesRemoveOthers, ResultsAccept, ShipApprove,
-		RoadmapPublish, MarketingPublish, EmbedsManage, PermsEdit, EmbedsVisitors)...)},
+		RoadmapPublish, MarketingPublish, EmbedsManage, PermsEdit, EmbedsVisitors, VendorKeysManage)...)},
 	{ID: ProductOwner, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, AuditRead, DocsRead, DocsWrite,
 		ResultsAccept, ShipApprove)...)},
 	{ID: Admin, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage,
 		MembersInvite, MembersRoles, TenantSettings, KeysManage, AuditRead, MembersImpersonate, AgentsJoin, DocsRead, DocsWrite,
 		ChannelsAIAgents, MessagesKind, TopicsChangeOthers, IssuesRemoveOthers, ResultsAccept, ShipApprove,
-		RoadmapPublish, PermsEdit, ReportingSQL, EmbedsVisitors)...)},
+		RoadmapPublish, PermsEdit, ReportingSQL, EmbedsVisitors, VendorKeysManage)...)},
 	{ID: Developer, Perms: withMember(withAgents(TopicsRead, NotesSend, AgentsCommand, ChannelsManage, DocsRead, DocsWrite,
 		ResultsAccept, ShipApprove)...)},
 	{ID: Tester, Perms: withMember(TopicsRead, NotesSend, DocsRead, DocsWrite)},

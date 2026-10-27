@@ -694,6 +694,7 @@ func (s *Server) routeTenantSettings(mux *http.ServeMux) {
 	s.routeAgentLifecycle(mux) // spec 063 sections 11 + 12: Workspace settings -> Agents
 	s.routeMarketing(mux)      // spec 090 §15: Workspace settings -> General, the marketing switch
 	s.routeAgentSplit(mux)     // spec 115 HUB-1: Workspace settings -> Vendor split, per task kind
+	s.routeVendorKeys(mux)     // spec 127 H1 + spec 159 T1: a workspace's own vendor keys
 	s.routeTakeoverLadder(mux) // SPL-2115: Workspace settings -> Agent takeover
 	s.routeSenderAllow(mux)    // SPL-1018 (spec 044 FR-OS-017): Workspace settings -> Agents, who may message an agent
 }

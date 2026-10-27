@@ -34,6 +34,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub/embedassets"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/vendorkey"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
@@ -253,7 +254,15 @@ type Options struct {
 	// EmbedRelinkMail mails a visitor's relink link (specs/121 T206,
 	// embed_relink.go); nil = no relay, nothing is mailed.
 	EmbedRelinkMail EmbedRelinkMailer
-	EmbedLimits     EmbedLimits // specs/121 T105: the section 6 limits (embed_abuse.go)
+	// VendorKeySealer seals a workspace's own vendor keys (spec 127 H1, spec
+	// 159 T1, vendor_keys.go) under cnf vendor_keys.kms_key and the
+	// fingerprint pepper. nil = every /v1/vendor-keys route answers 503
+	// vendor_keys_off: there is no unsealed write.
+	VendorKeySealer *vendorkey.Sealer
+	// VendorKeyMail mails each key set, replace and remove to every admin
+	// and biz owner (spec 159 3); nil = stored and audited, nobody mailed.
+	VendorKeyMail VendorKeyMailer
+	EmbedLimits   EmbedLimits // specs/121 T105: the section 6 limits (embed_abuse.go)
 }
 
 // Server is one hub process.

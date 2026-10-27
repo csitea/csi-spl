@@ -67,6 +67,9 @@ type Memory struct {
 	agentSplit map[string]AgentSplit
 	// agent_split_kind.go (rdb 0163): tenant -> kind -> row, guarded by mu. Missing = the default.
 	splitKinds map[string]map[string]SplitKind
+	// spec 127 H1 / 159 T1 (vendor_keys.go): tenant -> kind -> sealed key, and the audit.
+	vendorKeys     map[string]map[string]memVendorKey
+	vendorKeyAudit []memVendorKeyAudit
 	// marketing_switch.go (rdb 0129): marketing turned on, guarded by mu. Missing = off.
 	marketingOn map[string]bool
 	marketing   *memMarketing // rdb 0187 (spec 090, SPL-1634): see marketing_memory.go

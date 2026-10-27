@@ -287,7 +287,11 @@ func TestVendorKeysShape(t *testing.T) {
 		{"audit lease without a box", audit(", kind, action", ", 'claude', 'lease'"), "23514"},
 		{"audit box approve", audit(", action, box_id", ", 'box_approve', 'box-a'"), ""},
 		{"audit box revoke without a box", audit(", action", ", 'box_revoke'"), "23514"},
-		{"audit admin confirm", audit(", action", ", 'admin_confirm'"), ""},
+		{"audit admin confirm", audit(", action, subject", ", 'admin_confirm', 'HUM-7'"), ""},
+		// rdb 0232: an admin_confirm names the member it confirms, and only it.
+		{"audit admin confirm without a subject", audit(", action", ", 'admin_confirm'"), "23514"},
+		{"audit set with a subject", audit(", kind, action, last4, subject", ", 'claude', 'set', '0000', 'HUM-7'"), "23514"},
+		{"audit admin confirm of a non-HUM subject", audit(", action, subject", ", 'admin_confirm', 'operator'"), "23514"},
 		{"audit unknown action", audit(", action", ", 'read'"), "23514"},
 		{"audit last4 of five", audit(", kind, action, last4", ", 'claude', 'set', '00000'"), "23514"},
 	} {

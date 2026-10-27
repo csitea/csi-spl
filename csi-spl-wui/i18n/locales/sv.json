@@ -3223,7 +3223,9 @@
       "table_label": "Aktiva banor",
       "col_scope": "Omfattning",
       "col_updated": "Uppdaterad",
-      "min_ago": "för {n} min sedan"
+      "min_ago": "för {n} min sedan",
+      "queued": "i kö",
+      "waiting_room": "väntar på ledig plats"
     }
   },
   "takeover": {

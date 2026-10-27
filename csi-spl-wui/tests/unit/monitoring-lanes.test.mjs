@@ -45,9 +45,16 @@ describe('the fleet-lanes body as a view', () => {
     assert.deepEqual(v.lanes[1].issues, [])
     assert.deepEqual(fleetLanesOf(null), { asOf: '', fleet: '', lanes: [] })
   })
-  it('spec 153 3.8 (C43): every row keeps its workspace, the name else the id', () => {
-    const v = fleetLanesOf({ lanes: [{ agent_id: 'c-002', workspace: 'w1', workspace_name: 'W one' }, { agent_id: 'c-003', workspace: 'w2' }] })
-    assert.deepEqual(v.lanes.map((l) => [l.workspace, l.workspaceName]), [['w1', 'W one'], ['w2', 'w2']])
+  it('spec 153 3.8 (C43, C44): keeps a queued ask with no agent, and every row its state and workspace', () => {
+    const v = fleetLanesOf({ lanes: [
+      { agent_id: 'c-002', workspace: 'w1', workspace_name: 'W one' },
+      { state: 'queued', scope: 'QUEUE x', wait: '', workspace: 'w1', workspace_name: 'W one' },
+      { state: 'live', scope: 'no agent, not queued' },
+      { agent_id: 'c-003', workspace: 'w2' },
+    ] })
+    assert.deepEqual(v.lanes.map((l) => [l.agentId, l.state, l.workspaceName]),
+      [['c-002', 'live', 'W one'], ['', 'queued', 'W one'], ['c-003', 'live', 'w2']], 'a row with no name shows its id')
+    assert.equal(v.lanes[1].wait, '')
   })
   it('names the agent id@box', () => {
     assert.equal(laneName({ agentId: 'c-002', box: 'box-a' }), 'c-002@box-a')
@@ -160,9 +167,10 @@ describe('the mock', () => {
   it('403 operator.workspaces unless the operator admin opted in', () => {
     assert.throws(() => mockFleetLanes(store({})), (e) => e.status === 403 && e.permission === 'operator.workspaces')
   })
-  it('three lanes: a linked topic with issues, a foreign topic, none', () => {
+  it('three lanes: a linked topic with issues, a foreign topic, none; then one queued ask', () => {
     const v = fleetLanesOf(mockFleetLanes(store(OP), new Date('2026-10-24T10:00:00Z')))
-    assert.equal(v.lanes.length, 3)
+    assert.equal(v.lanes.length, 4)
+    assert.deepEqual(v.lanes.map((l) => l.state), ['live', 'live', 'live', 'queued'])
     assert.ok(v.lanes.every((l) => l.workspaceName), 'every mock row names its workspace')
     assert.equal(laneTopicPath(v.lanes[0]), '/t/' + LANES_MOCK_TOPIC)
     assert.equal(laneTopicPath(v.lanes[1]), '')

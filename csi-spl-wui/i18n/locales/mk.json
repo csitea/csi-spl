@@ -3223,7 +3223,9 @@
       "table_label": "Активни линии",
       "col_scope": "Опфат",
       "col_updated": "Ажурирано",
-      "min_ago": "пред {n} мин"
+      "min_ago": "пред {n} мин",
+      "queued": "во редица",
+      "waiting_room": "чека слободно место"
     }
   },
   "takeover": {

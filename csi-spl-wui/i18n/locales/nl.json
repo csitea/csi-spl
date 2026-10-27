@@ -3223,7 +3223,9 @@
       "table_label": "Actieve banen",
       "col_scope": "Reikwijdte",
       "col_updated": "Bijgewerkt",
-      "min_ago": "{n} min geleden"
+      "min_ago": "{n} min geleden",
+      "queued": "in de wachtrij",
+      "waiting_room": "wacht op vrije ruimte"
     }
   },
   "takeover": {

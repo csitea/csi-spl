@@ -5,7 +5,8 @@
      when it is this workspace's topic), the issue keys (linked), when the
      row was written and the last token minute, and last the workspace the
      row belongs to (3.8, SPL-3818). Newest write first, as the hub sends
-     it. An admin of the operator workspace reads every lane; a
+     it; then the queued asks (state queued: no agent yet, its wait reason
+     in the last-activity cell, "waiting for room" when the hub has none). An admin of the operator workspace reads every lane; a
      workspace's owner or admin (3.6, row B6, SPL-3229) reads the lanes on
      its own topics from GET /v1/view/lanes: the page asks the fleet route
      while the operator console shows (or is not known yet) and, once it
@@ -49,8 +50,9 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="l in view.lanes" :key="l.agentId + '@' + l.box" data-test="lanes-row" :data-agent="l.agentId">
-              <th scope="row" class="ln-id" data-test="lanes-agent">{{ laneName(l) }}</th>
+            <tr v-for="(l, i) in view.lanes" :key="l.agentId ? l.agentId + '@' + l.box : 'queued-' + i" data-test="lanes-row" :data-agent="l.agentId" :data-state="l.state">
+              <th v-if="l.state === 'queued'" scope="row" class="ln-queued" data-test="lanes-agent">{{ t('monitoring.lanes.queued') }}</th>
+              <th v-else scope="row" class="ln-id" data-test="lanes-agent">{{ laneName(l) }}</th>
               <td data-test="lanes-vendor">{{ l.vendor || DASH }}</td>
               <td class="ln-cut" :title="l.scope || undefined" data-test="lanes-scope">{{ l.scope || DASH }}</td>
               <td class="ln-cut" :title="l.topicTitle || l.topicId || undefined" data-test="lanes-topic">
@@ -66,7 +68,8 @@
                 </template>
               </td>
               <td class="num" data-test="lanes-updated">{{ ago(l.updatedAt) }}</td>
-              <td class="num" data-test="lanes-active">{{ ago(l.lastActive) }}</td>
+              <td v-if="l.state === 'queued'" class="ln-cut" :title="l.wait || undefined" data-test="lanes-active">{{ l.wait || t('monitoring.lanes.waiting_room') }}</td>
+              <td v-else class="num" data-test="lanes-active">{{ ago(l.lastActive) }}</td>
               <td class="ln-ws" :title="l.workspace || undefined" data-test="lanes-workspace">{{ l.workspaceName || DASH }}</td>
             </tr>
           </tbody>
@@ -185,6 +188,8 @@ onBeforeUnmount(() => {
 /* a long scope or topic stays on one line, its full text in the title (3.2) */
 .ln-cut { max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ln-issue { margin-inline-end: 6px; white-space: nowrap; font-family: var(--font-mono); }
+/* a queued ask (3.8): no agent yet, the state in the agent cell */
+.ln-queued { font-weight: 600; white-space: nowrap; color: var(--color-muted); }
 /* the workspace, the last column (3.8): it may wrap, never dropped (phone too) */
 .ln-ws { min-width: 6rem; overflow-wrap: anywhere; }
 </style>

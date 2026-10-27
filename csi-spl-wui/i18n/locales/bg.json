@@ -3223,7 +3223,9 @@
       "table_label": "Активни линии",
       "col_scope": "Обхват",
       "col_updated": "Обновено",
-      "min_ago": "преди {n} мин"
+      "min_ago": "преди {n} мин",
+      "queued": "на опашка",
+      "waiting_room": "чака свободно място"
     }
   },
   "takeover": {

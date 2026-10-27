@@ -282,22 +282,24 @@ async function tabRow(browser, base) {
   }
 }
 
-/** Spec 153 C17 (SPL-3215): the Lanes tab on the mock fleet of 3 lanes, an operator admin; CONTROL anyone else. CONTROL: on master the page is absent, so every check here FAILS there. */
+/** Spec 153 C17 (SPL-3215): the Lanes tab on the mock fleet of 3 lanes and 1 queued ask (3.8, SPL-3818), an operator admin; CONTROL anyone else. CONTROL: on master the page is absent, so every check here FAILS there. */
 async function lanesTab(browser, base, size) {
   {
     const { ctx, p } = await costsPage(browser, base, size, { operator: true })
     const res = await open(p, base, '/monitoring/lanes')
     ok('lanes: /monitoring/lanes answers 200', Boolean(res && res.status() === 200), res && res.status())
-    const rows = await p.waitForFunction(() => document.querySelectorAll('[data-test=lanes-row]').length === 3, { timeout: 20000 }).then(() => true, () => false)
-    ok('C17 lanes: three rows, newest write first', rows && (await p.$$eval('[data-test=lanes-row]', (els) => els.map((e) => e.getAttribute('data-agent')).join(','))) === 'c-085,a-277,m-039')
-    /* spec 153 3.8 (SPL-3818), C43: the workspace is the last column, on every size */
+    const rows = await p.waitForFunction(() => document.querySelectorAll('[data-test=lanes-row]').length === 4, { timeout: 20000 }).then(() => true, () => false)
+    ok('C17 lanes: three lanes, newest write first, then the queued ask', rows && (await p.$$eval('[data-test=lanes-row]', (els) => els.map((e) => e.getAttribute('data-agent') + ':' + e.getAttribute('data-state')).join(','))) === 'c-085:live,a-277:live,m-039:live,:queued')
+    /* spec 153 3.8 (SPL-3818), C43: the workspace is the last column, on every size; C44: a queued row says so and why */
     const lastCol = await p.evaluate(() => {
       const ths = [...document.querySelectorAll('[data-test=lanes-table] thead th')]
       const cells = [...document.querySelectorAll('[data-test=lanes-row]')].map((tr) => tr.lastElementChild)
       return { head: ths.length ? ths[ths.length - 1].getAttribute('data-test') : '', cells: cells.map((c) => c && c.getAttribute('data-test') + '=' + c.textContent.trim()) }
     })
     ok('C43 lanes: the workspace is the right-most column', lastCol.head === 'lanes-col-workspace'
-      && lastCol.cells.join('|') === 'lanes-workspace=Mock workspace|lanes-workspace=Other workspace|lanes-workspace=Mock workspace', lastCol)
+      && lastCol.cells.join('|') === 'lanes-workspace=Mock workspace|lanes-workspace=Other workspace|lanes-workspace=Mock workspace|lanes-workspace=Mock workspace', lastCol)
+    ok('C44 lanes: a queued ask shows "queued" and "waiting for room"', (await text(p, '[data-test=lanes-row][data-state=queued] [data-test=lanes-agent]')) === 'queued'
+      && (await text(p, '[data-test=lanes-row][data-state=queued] [data-test=lanes-active]')) === 'waiting for room')
     const row = (agent, sel) => p.$$eval(`[data-test=lanes-row][data-agent="${agent}"] ${sel}`, (els) => els.map((e) => ({ href: e.getAttribute('href') || '', text: e.textContent.trim() })))
     const topic = await row('c-085', '[data-test=lanes-topic-link]')
     ok('C17 lanes: the discussion link is /t/<uuid>', topic.length === 1 && topic[0].href === '/t/' + LANES_MOCK_TOPIC, topic)
@@ -337,11 +339,12 @@ async function lanesTab(browser, base, size) {
     const ids = await tabIds(p)
     ok('C26 twin lanes: a workspace admin sees the Lanes tab, not Tokens', ids.includes('lanes') && !ids.includes('tokens'), ids)
     await open(p, base, '/monitoring/lanes')
-    const one = await p.waitForFunction(() => document.querySelectorAll('[data-test=lanes-row]').length === 1, { timeout: 20000 }).then(() => true, () => false)
-    ok('3.6 lanes: the workspace\'s own lane only (its topic), no box name', one
-      && (await text(p, '[data-test=lanes-row] [data-test=lanes-agent]')) === 'c-085', await count(p, '[data-test=lanes-row]'))
+    const two = await p.waitForFunction(() => document.querySelectorAll('[data-test=lanes-row]').length === 2, { timeout: 20000 }).then(() => true, () => false)
+    ok('3.6 lanes: the workspace\'s own lane only (its topic), no box name, then its queued ask (3.8)', two
+      && (await text(p, '[data-test=lanes-row][data-state=live] [data-test=lanes-agent]')) === 'c-085'
+      && (await count(p, '[data-test=lanes-row][data-state=queued]')) === 1, await count(p, '[data-test=lanes-row]'))
     ok('C43 lanes: inside the workspace too, the workspace is the right-most column', (await p.evaluate(() =>
-      [...document.querySelectorAll('[data-test=lanes-row]')].map((tr) => tr.lastElementChild && tr.lastElementChild.textContent.trim()).join('|'))) === 'Mock workspace')
+      [...document.querySelectorAll('[data-test=lanes-row]')].map((tr) => tr.lastElementChild && tr.lastElementChild.textContent.trim()).join('|'))) === 'Mock workspace|Mock workspace')
     await ctx.close()
   }
   {

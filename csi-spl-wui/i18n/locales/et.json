@@ -3223,7 +3223,9 @@
       "table_label": "Aktiivsed rajad",
       "col_scope": "Ulatus",
       "col_updated": "Uuendatud",
-      "min_ago": "{n} min tagasi"
+      "min_ago": "{n} min tagasi",
+      "queued": "järjekorras",
+      "waiting_room": "ootab vaba kohta"
     }
   },
   "takeover": {

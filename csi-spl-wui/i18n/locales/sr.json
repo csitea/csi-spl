@@ -3223,7 +3223,9 @@
       "table_label": "Активне линије",
       "col_scope": "Обим",
       "col_updated": "Ажурирано",
-      "min_ago": "пре {n} мин"
+      "min_ago": "пре {n} мин",
+      "queued": "у реду чекања",
+      "waiting_room": "чека слободно место"
     }
   },
   "takeover": {

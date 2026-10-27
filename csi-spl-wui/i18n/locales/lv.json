@@ -3223,7 +3223,9 @@
       "table_label": "Aktīvās līnijas",
       "col_scope": "Tvērums",
       "col_updated": "Atjaunināts",
-      "min_ago": "pirms {n} min"
+      "min_ago": "pirms {n} min",
+      "queued": "rindā",
+      "waiting_room": "gaida brīvu vietu"
     }
   },
   "takeover": {

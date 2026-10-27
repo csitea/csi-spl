@@ -3223,7 +3223,9 @@
       "table_label": "Aktiiviset kaistat",
       "col_scope": "Laajuus",
       "col_updated": "Päivitetty",
-      "min_ago": "{n} min sitten"
+      "min_ago": "{n} min sitten",
+      "queued": "jonossa",
+      "waiting_room": "odottaa vapaata paikkaa"
     }
   },
   "takeover": {

@@ -3223,7 +3223,9 @@
       "table_label": "נתיבים פעילים",
       "col_scope": "היקף",
       "col_updated": "עודכן",
-      "min_ago": "לפני {n} דקות"
+      "min_ago": "לפני {n} דקות",
+      "queued": "בתור",
+      "waiting_room": "ממתין למקום פנוי"
     }
   },
   "takeover": {

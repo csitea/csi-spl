@@ -3223,7 +3223,9 @@
       "table_label": "Active lanes",
       "col_scope": "Scope",
       "col_updated": "Updated",
-      "min_ago": "{n} min ago"
+      "min_ago": "{n} min ago",
+      "queued": "queued",
+      "waiting_room": "waiting for room"
     }
   },
   "takeover": {

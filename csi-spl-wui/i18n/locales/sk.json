@@ -3223,7 +3223,9 @@
       "table_label": "Aktívne linky",
       "col_scope": "Rozsah",
       "col_updated": "Aktualizované",
-      "min_ago": "pred {n} min"
+      "min_ago": "pred {n} min",
+      "queued": "v poradí",
+      "waiting_room": "čaká na voľné miesto"
     }
   },
   "takeover": {

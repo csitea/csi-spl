@@ -3223,7 +3223,9 @@
       "table_label": "Linii active",
       "col_scope": "Domeniu",
       "col_updated": "Actualizat",
-      "min_ago": "acum {n} min"
+      "min_ago": "acum {n} min",
+      "queued": "în coadă",
+      "waiting_room": "așteaptă un loc liber"
     }
   },
   "takeover": {

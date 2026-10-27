@@ -3223,7 +3223,9 @@
       "table_label": "Активные линии",
       "col_scope": "Область",
       "col_updated": "Обновлено",
-      "min_ago": "{n} мин назад"
+      "min_ago": "{n} мин назад",
+      "queued": "в очереди",
+      "waiting_room": "ждёт свободного места"
     }
   },
   "takeover": {

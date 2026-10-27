@@ -3223,7 +3223,9 @@
       "table_label": "Líneas activas",
       "col_scope": "Alcance",
       "col_updated": "Actualizado",
-      "min_ago": "hace {n} min"
+      "min_ago": "hace {n} min",
+      "queued": "en cola",
+      "waiting_room": "esperando espacio libre"
     }
   },
   "takeover": {

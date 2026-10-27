@@ -3223,7 +3223,9 @@
       "table_label": "Etkin hatlar",
       "col_scope": "Kapsam",
       "col_updated": "Güncellendi",
-      "min_ago": "{n} dk önce"
+      "min_ago": "{n} dk önce",
+      "queued": "kuyrukta",
+      "waiting_room": "boş yer bekliyor"
     }
   },
   "takeover": {

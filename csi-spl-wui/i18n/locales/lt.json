@@ -3223,7 +3223,9 @@
       "table_label": "Aktyvios linijos",
       "col_scope": "Apimtis",
       "col_updated": "Atnaujinta",
-      "min_ago": "prieš {n} min."
+      "min_ago": "prieš {n} min.",
+      "queued": "eilėje",
+      "waiting_room": "laukia laisvos vietos"
     }
   },
   "takeover": {

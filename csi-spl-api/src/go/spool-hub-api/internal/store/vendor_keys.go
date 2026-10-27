@@ -36,6 +36,9 @@ type VendorKeyRow struct {
 	BaseURL string
 	SetBy   string
 	SetAt   time.Time
+	// ExhaustedAt is when a box reported the vendor's refusal (rdb 0233,
+	// spec 159 9); zero = usable. A replace clears it.
+	ExhaustedAt time.Time
 }
 
 // VendorKeyPut is one sealed key to store.
@@ -86,12 +89,13 @@ func operatorMade(admittedBy string) bool {
 
 type memVendorKey struct {
 	VendorKeyPut
-	setAt time.Time
+	setAt       time.Time
+	exhaustedAt time.Time // rdb 0233; a replace writes a new value, so it clears
 }
 
 type memVendorKeyAudit struct {
-	tenant, kind, action, actor, last4, subject string
-	at                                          time.Time
+	tenant, kind, action, actor, last4, subject, box string
+	at                                               time.Time
 }
 
 // VendorKeys reads the kinds tenant holds a key for (VendorKeys).
@@ -100,7 +104,8 @@ func (s *Memory) VendorKeys(_ context.Context, tenant string) ([]VendorKeyRow, e
 	defer s.mu.Unlock()
 	out := []VendorKeyRow{}
 	for _, k := range s.vendorKeys[tenant] {
-		out = append(out, VendorKeyRow{Kind: k.Kind, Last4: k.Last4, BaseURL: k.BaseURL, SetBy: k.Actor, SetAt: k.setAt})
+		out = append(out, VendorKeyRow{Kind: k.Kind, Last4: k.Last4, BaseURL: k.BaseURL, SetBy: k.Actor, SetAt: k.setAt,
+			ExhaustedAt: k.exhaustedAt})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Kind < out[j].Kind })
 	return out, nil
@@ -184,13 +189,17 @@ func (s *Memory) ConfirmVendorKeyManager(_ context.Context, tenant, human, by st
 // VendorKeys reads the kinds tenant holds a key for (VendorKeys).
 func (s *Postgres) VendorKeys(ctx context.Context, tenant string) ([]VendorKeyRow, error) {
 	out := []VendorKeyRow{}
-	err := s.queryTenant(ctx, tenant, `SELECT kind, last4, coalesce(base_url, ''), set_by, set_at
+	err := s.queryTenant(ctx, tenant, `SELECT kind, last4, coalesce(base_url, ''), set_by, set_at, exhausted_at
 		FROM workspace_vendor_keys WHERE tenant_id = $1 ORDER BY kind`, []any{tenant}, func(rows pgx.Rows) error {
 		var r VendorKeyRow
-		if err := rows.Scan(&r.Kind, &r.Last4, &r.BaseURL, &r.SetBy, &r.SetAt); err != nil {
+		var ex *time.Time
+		if err := rows.Scan(&r.Kind, &r.Last4, &r.BaseURL, &r.SetBy, &r.SetAt, &ex); err != nil {
 			return err
 		}
 		r.SetAt = r.SetAt.UTC()
+		if ex != nil {
+			r.ExhaustedAt = ex.UTC()
+		}
 		out = append(out, r)
 		return nil
 	})
@@ -208,7 +217,7 @@ func (s *Postgres) PutVendorKey(ctx context.Context, tenant string, p VendorKeyP
 			ON CONFLICT (tenant_id, kind) DO UPDATE SET key_id = EXCLUDED.key_id, ciphertext = EXCLUDED.ciphertext,
 				wrapped_dek = EXCLUDED.wrapped_dek, kms_key_version = EXCLUDED.kms_key_version, last4 = EXCLUDED.last4,
 				fingerprint = EXCLUDED.fingerprint, base_url = EXCLUDED.base_url, set_by = EXCLUDED.set_by,
-				set_at = EXCLUDED.set_at
+				set_at = EXCLUDED.set_at, exhausted_at = NULL
 			RETURNING xmax <> 0`, tenant, p.Kind, p.KeyID, p.Ciphertext, p.WrappedDEK, p.KMSKeyVersion, p.Last4,
 			p.Fingerprint, p.BaseURL, p.Actor, now.UTC()).Scan(&replaced); err != nil {
 			return err

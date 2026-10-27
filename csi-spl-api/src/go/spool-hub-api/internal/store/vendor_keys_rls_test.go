@@ -28,7 +28,9 @@ const vendorKeyInsert = `INSERT INTO workspace_vendor_keys (tenant_id, kind, key
 	VALUES ($1, $2, gen_random_uuid(), '\x00fa4e'::bytea, '\x00dec0'::bytea, 'test-kms-version-1', '0000', repeat('0', 64), 'HUM-1')`
 
 // vendorKeyTables are rdb 0174's three tables, the key table first.
-var vendorKeyTables = []string{"workspace_vendor_keys", "workspace_vendor_key_boxes", "workspace_vendor_key_audit"}
+// rdb 0233 adds workspace_vendor_key_settings (the metered fall-back switch).
+var vendorKeyTables = []string{"workspace_vendor_keys", "workspace_vendor_key_boxes", "workspace_vendor_key_audit",
+	"workspace_vendor_key_settings"}
 
 // seedVendorKeys writes one key, one approved box and one audit row of
 // tenant under the tenant's own scope (the runtime path: RLS WITH CHECK
@@ -41,6 +43,7 @@ func seedVendorKeys(ctx context.Context, pg *Postgres, tenant string) error {
 		{vendorKeyInsert, []any{tenant, "claude"}},
 		{`INSERT INTO workspace_vendor_key_boxes (tenant_id, box_id, approved_by) VALUES ($1, 'box-a', 'HUM-1')`, []any{tenant}},
 		{`INSERT INTO workspace_vendor_key_audit (tenant_id, kind, action, actor, last4) VALUES ($1, 'claude', 'set', 'HUM-1', '0000')`, []any{tenant}},
+		{`INSERT INTO workspace_vendor_key_settings (tenant_id, set_by) VALUES ($1, 'HUM-1')`, []any{tenant}},
 	} {
 		if _, err := pg.execTenant(ctx, tenant, q.sql, q.args...); err != nil {
 			return fmt.Errorf("seed %s: %w", strings.Fields(q.sql)[2], err)
@@ -56,9 +59,10 @@ func vendorKeysCatalogueGaps(ctx context.Context, q interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
 }) []string {
 	want := map[string]string{
-		"workspace_vendor_keys":      "tenant_scope",
-		"workspace_vendor_key_boxes": "operator_scope,tenant_scope",
-		"workspace_vendor_key_audit": "operator_scope,tenant_scope",
+		"workspace_vendor_keys":         "tenant_scope",
+		"workspace_vendor_key_boxes":    "operator_scope,tenant_scope",
+		"workspace_vendor_key_audit":    "operator_scope,tenant_scope",
+		"workspace_vendor_key_settings": "operator_scope,tenant_scope",
 	}
 	var gaps []string
 	for _, tb := range vendorKeyTables {
@@ -293,6 +297,14 @@ func TestVendorKeysShape(t *testing.T) {
 		{"audit set with a subject", audit(", kind, action, last4, subject", ", 'claude', 'set', '0000', 'HUM-7'"), "23514"},
 		{"audit admin confirm of a non-HUM subject", audit(", action, subject", ", 'admin_confirm', 'operator'"), "23514"},
 		{"audit unknown action", audit(", action", ", 'read'"), "23514"},
+		// rdb 0233: a box's exhausted report names kind and box; a retry its kind.
+		{"audit exhausted", audit(", kind, action, box_id, last4", ", 'claude', 'exhausted', 'box-a', '0000'"), ""},
+		{"audit exhausted without a box", audit(", kind, action", ", 'claude', 'exhausted'"), "23514"},
+		{"audit exhausted without a kind", audit(", action, box_id", ", 'exhausted', 'box-a'"), "23514"},
+		{"audit retry", audit(", kind, action, last4", ", 'claude', 'retry', '0000'"), ""},
+		{"audit retry without a kind", audit(", action", ", 'retry'"), "23514"},
+		{"audit fallback on", audit(", action", ", 'fallback_on'"), ""},
+		{"audit fallback off", audit(", action", ", 'fallback_off'"), ""},
 		{"audit last4 of five", audit(", kind, action, last4", ", 'claude', 'set', '00000'"), "23514"},
 	} {
 		_, err := pg.execTenant(ctx, a, c.sql, a)

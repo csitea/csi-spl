@@ -70,6 +70,9 @@ type Memory struct {
 	// spec 127 H1 / 159 T1 (vendor_keys.go): tenant -> kind -> sealed key, and the audit.
 	vendorKeys     map[string]map[string]memVendorKey
 	vendorKeyAudit []memVendorKeyAudit
+	// spec 127 H2 / 159 T5 (vendor_key_lease.go): approved key boxes, and the metered fall-back switch.
+	vendorKeyBoxes    map[[2]string]bool
+	vendorKeyFallback map[string]bool
 	// marketing_switch.go (rdb 0129): marketing turned on, guarded by mu. Missing = off.
 	marketingOn map[string]bool
 	marketing   *memMarketing // rdb 0187 (spec 090, SPL-1634): see marketing_memory.go

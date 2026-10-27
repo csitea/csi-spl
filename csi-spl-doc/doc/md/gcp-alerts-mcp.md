@@ -42,10 +42,12 @@ In claude they are `mcp__gcp-alerts__gcp_alert_incidents` and
   as `OR`.
 - `do_gcp_get_alert_incident` (`csi-spl-iac/src/bash/run/gcp-get-alert-incident.func.sh`)
   replays that one policy the same way (`src/bash/scripts/alert-incident.py`
-  imports lane 1's `alert-incidents.py`) over OPENED minus 2 h .. plus 24 h
-  (capped at now) and prints the policy and its conditions, the incident with
-  its resource and peak, and the timeline: each aligned point around it,
-  marked `VIOLATES` or `ok`. Exit 3: no enabled policy of that name; exit 4:
+  imports lane 1's `alert-incidents.py`, its combiner too: `policy_runs`,
+  SPL-3773, so the list and the single view name the same incidents) over
+  OPENED minus 2 h .. plus 24 h (capped at now) and prints the policy and its
+  conditions, the incident with its resource and peak, and the timeline: each
+  aligned point around it, marked `VIOLATES` or `ok`; an `AND` incident has
+  one timeline per condition. Exit 3: no enabled policy of that name; exit 4:
   none of it opened at that minute (the ones that did are listed).
 - Why a new server and not tools on the spool MCP: `spool-<env>` runs as the
   box user, seated per agent and per env, through a sudo hop to the desk. The

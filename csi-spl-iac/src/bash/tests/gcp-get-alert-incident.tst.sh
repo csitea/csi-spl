@@ -14,6 +14,10 @@
 #      a missing or disabled policy exits 3 and reads no series
 #   5. CONTROLS: a missing key and a bad OPENED are refused before gcloud;
 #      the same fixture with duration 0s opens the incident at 08:01, not 08:03
+#   6. the combiner (SPL-3773, fixtures policies-and.json, and_*): an AND policy
+#      whose conditions breach apart has no incident; overlapping, one incident
+#      over the overlap only; OR lists each condition's run as before; the list
+#      (alert-incidents.py report) and this view agree on every fixture policy
 # gcloud and curl are stubs on PATH. No network, no GCP.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -117,6 +121,52 @@ sed 's/"duration": "120s"/"duration": "0s"/' "$FIX/policies.json" >"$T/policies-
 GC_POLICIES="$T/policies-0s.json" run_action ENV=dev POLICY="$SQL" OPENED=2026-10-22T08:01Z; rc=$?
 [[ $rc -eq 0 ]] && grep -q '^incident: 2026-10-22T08:01Z .. 2026-10-22T08:04Z' "$T/out.log" \
   && pass "CONTROL: duration 0s opens it at 08:01 (case 1's 08:03 is the duration rule)" || fail "duration control: rc=$rc $(cat "$T/out.log")"
+
+# --- 6. the combiner -------------------------------------------------------------------
+AND_FIX="$FIX/policies-and.json"
+GC_POLICIES="$AND_FIX" run_action ENV=dev POLICY='o-a-dev and apart' OPENED=2026-10-22T10:00Z; rc=$?
+[[ $rc -eq 4 ]] && ! grep -q '^incident:' "$T/out.log" && grep -qx 'none' "$T/out.log" \
+  && pass "AND, conditions breach apart: no incident (exit 4, none in the window)" || fail "AND apart: rc=$rc $(cat "$T/out.log")"
+GC_POLICIES="$AND_FIX" run_action ENV=dev POLICY='o-a-dev and overlap' OPENED=2026-10-22T10:05Z; rc=$?
+[[ $rc -eq 0 && $(grep -c '^incident:' "$T/out.log") -eq 1 ]] \
+  && grep -qx 'incident: 2026-10-22T10:05Z .. 2026-10-22T10:10Z  peak=2  resource=revision_name=hub-dev-00050' "$T/out.log" \
+  && pass "AND, overlapping: one incident over the overlap 10:05..10:10" || fail "AND overlap: rc=$rc $(cat "$T/out.log")"
+[[ $(grep -c '^== timeline' "$T/out.log") -eq 2 ]] \
+  && pass "AND, overlapping: the timeline of each condition's series" || fail "AND timelines: $(cat "$T/out.log")"
+GC_POLICIES="$AND_FIX" run_action ENV=dev POLICY='o-a-dev and overlap' OPENED=2026-10-22T10:00Z; rc=$?
+[[ $rc -eq 4 ]] && grep -qx '2026-10-22T10:05Z .. 2026-10-22T10:10Z  peak=2  revision_name=hub-dev-00050' "$T/out.log" \
+  && pass "AND: a lone condition's open (10:00) is no incident; the overlap is listed" || fail "AND 10:00: rc=$rc $(cat "$T/out.log")"
+GC_POLICIES="$AND_FIX" run_action ENV=dev POLICY='o-a-dev or two' OPENED=2026-10-22T10:00Z; rc=$?
+[[ $rc -eq 0 && $(grep -c '^incident:' "$T/out.log") -eq 1 && $(grep -c '^== timeline' "$T/out.log") -eq 1 ]] \
+  && grep -q '^incident: 2026-10-22T10:00Z .. ' "$T/out.log" \
+  && pass "OR: one condition's run is one incident, one timeline (unchanged)" || fail "OR: rc=$rc $(cat "$T/out.log")"
+
+# the list and the single view agree: every incident the list prints, the view
+# shows at its open minute, and the view shows nothing else
+SCRIPTS="$PROJ_ROOT/src/bash/scripts"
+agree=0 nagree=0
+for pf in "$FIX/policies.json" "$AND_FIX"; do
+  while IFS= read -r name; do
+    q="$T/agree/q"; rm -rf "$T/agree"; mkdir -p "$q"
+    python3 "$SCRIPTS/alert-incident.py" select "$pf" "$name" >"$T/agree/policy.json" || continue
+    python3 "$SCRIPTS/alert-incidents.py" plan "$T/agree/policy.json" "$q" >/dev/null
+    for c in "$q"/q*.curl; do
+      [[ -f "$c" ]] || continue
+      n=${c##*/q}; n=${n%.curl}
+      m=$(grep -o 'fixture\.test/[a-z_0-9]*' "$c" | sed -n 1p); m=${m#fixture.test/}
+      for f in "$FIX/$m".p*.json; do [[ -f "$f" ]] && cp "$f" "$q/q$n.${f##*/"$m".}"; done
+    done
+    list=$(python3 "$SCRIPTS/alert-incidents.py" report "$T/agree/policy.json" "$q" S U 2>/dev/null \
+      | sed -n 's/^\([0-9TZ:-]*\) \.\. \([0-9TZ:-]*\)  .* \(peak=[^ ]*\)  \(.*\)$/\1 .. \2  \3  resource=\4/p' | sort)
+    view=$(for o in $(printf '%s\n' "$list" | awk 'NF{print $1}' | sort -u); do
+      python3 "$SCRIPTS/alert-incident.py" detail "$T/agree/policy.json" "$q" "$o" S U 2>/dev/null | sed -n 's/^incident: //p'
+    done | sort)
+    nagree=$((nagree + 1))
+    [[ "$list" == "$view" ]] && agree=$((agree + 1)) || echo "  disagree '$name': list=[$list] view=[$view]"
+  done < <(jq -r '(if type == "object" then .alertPolicies else . end)[] | select(.enabled != false) | .displayName' "$pf")
+done
+[[ $nagree -ge 8 && $agree -eq $nagree ]] && pass "the list and the view agree on every fixture policy (n=$nagree)" \
+  || fail "list vs view: $agree of $nagree policies agree"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

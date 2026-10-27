@@ -5,7 +5,9 @@ do_gcp_get_alert_incident (SPL-2887) names an incident by its policy display
 name and the minute it opened, as do_gcp_list_alert_incidents prints it: an
 incident has no id (no public incidents API). This script reuses that
 action's replay (alert-incidents.py beside it, imported, never changed): the
-same conditions, the same queries, the same runs.
+same conditions, the same queries, the same runs, and the same combiner
+(policy_runs, SPL-3773): an AND policy's incident is the overlap of its
+conditions' runs, with one timeline per condition.
 
   select <policies.json> <policy display name>
       prints the one ENABLED policy of that name as a JSON list (exit 3: none)
@@ -55,6 +57,41 @@ def fmt_v(v):
     return "-" if v is None else "%g" % v
 
 
+def timelines(n, th, d, start, end, res):
+    """The timeline of each series of condition N whose own run covers the
+    incident <start> .. <end>: one for an OR incident, one per condition for
+    an AND one (alert-incidents.py policy_runs decides which incidents exist)."""
+    agg = (th.get("aggregations") or [{}])[0]
+    period = ai.seconds(agg.get("alignmentPeriod"), 60)
+    duration = ai.seconds(th.get("duration"))
+    thr = float(th.get("thresholdValue", 0))
+    holds = ai.CMP.get(th.get("comparison"), ai.CMP["COMPARISON_GT"])
+    series, _ = ai.read_pages(d, n)
+    for s in series:
+        pts = [
+            (ai.ts(p["interval"]["endTime"]), ai.point_value(p))
+            for p in s.get("points", [])
+        ]
+        rs = ai.resource_of(s, th.get("filter", ""))
+        covers = any(
+            o <= start and last >= end
+            for o, last, _ in ai.runs(
+                pts, period, duration, lambda v: holds(v, thr), max
+            )
+        )
+        if rs not in res or not covers:
+            continue
+        lo = start - datetime.timedelta(seconds=duration + 3 * period)
+        hi = end + datetime.timedelta(seconds=3 * period)
+        print("== timeline (%s, aligned point end, value, verdict)" % rs)
+        for t, v in sorted(pts):
+            if lo <= t <= hi:
+                verdict = "-" if v is None else ("VIOLATES" if holds(v, thr) else "ok")
+                print(
+                    "%s  %s  %s" % (t.strftime("%Y-%m-%dT%H:%M:%SZ"), fmt_v(v), verdict)
+                )
+
+
 def detail(policies, d, opened, since, until):
     pol = policies[0]
     name = pol.get("displayName", "?")
@@ -93,52 +130,27 @@ def detail(policies, d, opened, since, until):
         )
     for _, kind in skipped:
         print("condition: not replayed: %s" % kind)
-    found, others, rc = 0, [], 0
+    found, others, rc, cond_runs = 0, [], 0, []
     for n, _, th in conds:
-        agg = (th.get("aggregations") or [{}])[0]
-        period = ai.seconds(agg.get("alignmentPeriod"), 60)
-        duration = ai.seconds(th.get("duration"))
-        thr = float(th.get("thresholdValue", 0))
-        comparison = th.get("comparison", "COMPARISON_GT")
-        holds = ai.CMP.get(comparison, ai.CMP["COMPARISON_GT"])
-        worse = min if comparison in ("COMPARISON_LT", "COMPARISON_LE") else max
-        series, errors = ai.read_pages(d, n)
+        got, _, errors = ai.condition_runs(n, th, d)
         for e in errors:
             print("ERROR %s: %s" % (name, e), file=sys.stderr)
             rc = 1
-        for s in series:
-            pts = [
-                (ai.ts(p["interval"]["endTime"]), ai.point_value(p))
-                for p in s.get("points", [])
-            ]
-            res = ai.resource_of(s, th.get("filter", ""))
-            for start, end, peak in ai.runs(
-                pts, period, duration, lambda v: holds(v, thr), worse
-            ):
-                if ai.hm(start) != opened:
-                    others.append(
-                        "%s .. %s  peak=%g  %s" % (ai.hm(start), ai.hm(end), peak, res)
-                    )
-                    continue
-                found += 1
-                print(
-                    "incident: %s .. %s  peak=%g  resource=%s"
-                    % (ai.hm(start), ai.hm(end), peak, res)
-                )
-                lo = start - datetime.timedelta(seconds=duration + 3 * period)
-                hi = end + datetime.timedelta(seconds=3 * period)
-                print("== timeline (%s, aligned point end, value, verdict)" % res)
-                for t, v in sorted(pts):
-                    if lo <= t <= hi:
-                        verdict = (
-                            "-"
-                            if v is None
-                            else ("VIOLATES" if holds(v, thr) else "ok")
-                        )
-                        print(
-                            "%s  %s  %s"
-                            % (t.strftime("%Y-%m-%dT%H:%M:%SZ"), fmt_v(v), verdict)
-                        )
+        cond_runs.append(got)
+    for start, end, peak, res in ai.policy_runs(
+        name, ai.combiner(policies, name), cond_runs
+    ):
+        r = " ".join(sorted(res))
+        if ai.hm(start) != opened:
+            others.append("%s .. %s  peak=%g  %s" % (ai.hm(start), ai.hm(end), peak, r))
+            continue
+        found += 1
+        print(
+            "incident: %s .. %s  peak=%g  resource=%s"
+            % (ai.hm(start), ai.hm(end), peak, r)
+        )
+        for n, _, th in conds:
+            timelines(n, th, d, start, end, res)
     if not found:
         print("no incident of %s opened at %s in this window" % (name, opened))
         print(

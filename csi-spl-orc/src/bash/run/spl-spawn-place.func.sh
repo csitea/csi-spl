@@ -95,6 +95,11 @@
 # @description         env.box.agent_split.mistral_coding_allowed is not true
 # @description         (spl_lane_mix_mistral_code_off); do_spl_spawn_enqueue
 # @description         refuses such a placement up front
+# @description      REVIEW SEAT (SPL-3776): a slug ending in -reviewer (or a
+# @description         brief Kind: review) writes no code: the coding rule
+# @description         never swaps it; a swap onto its author's vendor (an
+# @description         Author: line, else every lane id the brief names) is
+# @description         refused: handed to the holder, nothing launched
 # @description      b. otherwise (no placement, no brief file here, or a brief
 # @description         whose epic is done, diss or archived on the hub, SPL-2508:
 # @description         the brief needs judgement) the holder gets ONE blocker
@@ -433,7 +438,7 @@ spl_spawn_place_pin_full() {  # BOX
 
 # 4. Take the head: placing, then launch it or hand it to the holder.
 spl_spawn_place_take() {  # HOLDER HEAD
-  local holder="$1" id place brief why closed="" ps=()
+  local holder="$1" id place brief why vendor closed="" ps=()
   id="$(jq -r '.ask_id' <<<"$2")"
   place="$(jq -r '.placement // ""' <<<"$2")"
   mapfile -t ps < <(spl_spawn_place_slug "${place#*:}")
@@ -446,10 +451,12 @@ spl_spawn_place_take() {  # HOLDER HEAD
   [[ -z "$place" || -z "$brief" ]] || closed="$(spl_spawn_place_epic_closed "$brief")"
   [[ "$closed" != *$'\t'auto-closed ]] || closed="$(spl_spawn_place_reopen "$brief" "${place#*:}" "${closed%$'\t'auto-closed}")"
   spl_spawn_q_op ack "$id" "$holder" >/dev/null || return 0
-  if [[ -n "$place" && -n "$brief" && -z "$closed" ]]; then
+  if [[ -n "$place" && -n "$brief" && -z "$closed" ]] && ! vendor="$(spl_spawn_place_vendor "${place%%:*}" "$brief" "$id")"; then
+    spl_spawn_place_hand "$holder" "$2" "$vendor"
+  elif [[ -n "$place" && -n "$brief" && -z "$closed" ]]; then
     touch "$(spool_asks_dir)/.place.last"
     spl_spawn_place_category "$holder" "$id" "$brief"
-    spl_spawn_place_launch "$holder" "$2" "$(spl_spawn_place_vendor "${place%%:*}" "$brief" "$id")" "${ps[1]}" "$brief" "${ps[0]}"
+    spl_spawn_place_launch "$holder" "$2" "$vendor" "${ps[1]}" "$brief" "${ps[0]}"
   else
     spl_spawn_place_hand "$holder" "$2" "$(if [[ -n "$closed" ]]; then echo "$closed"; elif [[ -z "$place" ]]; then echo "no placement was recorded"; else echo "no brief file for ${place#*:} under ${SPAWN_PLACE_BRIEF_DIR:-$SPOOL_ROOT/dispatch/briefs}"; fi)"
   fi
@@ -519,14 +526,19 @@ spl_spawn_place_reopen() {  # BRIEF SLUG WHY [COMMENT]
 # row swaps to agy when its brief's kind is specs_and_docs or i18n (agy is the
 # main of both, and a review stays cross-vendor to a claude author, SPL-2942),
 # else to claude. A brief under the data rule (spl_spawn_place_data_rule,
-# SPL-3627) swaps to claude only, never agy or qwen.
+# SPL-3627) swaps to claude only, never agy or qwen. A review seat
+# (spl_spawn_place_review_seat) writes no code: the coding rule never swaps
+# it, whatever its brief's kind (SPL-3776: a Kind: secret brief read as
+# coding put a claude reviewer on a claude author). A review seat's swap onto
+# a vendor of its author (spl_spawn_place_authors) prints "refuse\t<why>".
 spl_spawn_place_swap() {  # VENDOR BRIEF
-  local why kind to=claude dr cnf="${SPAWN_PLACE_CNF:-$APP_PATH/csi-spl-cnf/csi-spl/all.env.yaml}"
+  local why kind to=claude dr seat=1 au cnf="${SPAWN_PLACE_CNF:-$APP_PATH/csi-spl-cnf/csi-spl/all.env.yaml}"
   [[ "$1" == mistral ]] || { printf '%s\t\n' "$1"; return 0; }
   declare -F spl_lane_mix_mistral_ui_off >/dev/null || source "$PROJ_PATH/src/bash/run/spl-lane-mix.func.sh"
   kind="$(spl_lane_mix_brief_kind "$2")"
+  spl_spawn_place_review_seat "$2" "$kind" || seat=0
   why="$(spl_lane_mix_mistral_ui_off "$cnf" "$2" "")"
-  [[ -n "$why" ]] || why="$(spl_lane_mix_mistral_code_off "$cnf" "$kind")"
+  [[ -n "$why" ]] || (( seat )) || why="$(spl_lane_mix_mistral_code_off "$cnf" "$kind")"
   [[ -n "$why" ]] || { printf '%s\t\n' "$1"; return 0; }
   dr="$(spl_spawn_place_data_rule "$2" "$kind")"
   if [[ -n "$dr" ]]; then
@@ -534,7 +546,34 @@ spl_spawn_place_swap() {  # VENDOR BRIEF
   else
     case "$kind" in specs_and_docs|i18n) to=agy ;; esac
   fi
+  if (( seat )) && au="$(spl_spawn_place_authors "$2" | awk -F'\t' -v v="$to" '$1 == v { printf "%s%s", (n++ ? ", " : ""), $2 }')" && [[ -n "$au" ]]; then
+    printf 'refuse\t%s; a review seat swapped to %s would review its author'"'"'s vendor (%s: %s), so it is not placed (SPL-3776)\n' "$why" "$to" "$to" "$au"
+    return 0
+  fi
   printf '%s\t%s\n' "$to" "$why"
+}
+
+# A review seat (SPL-3776): its brief's file name, the placement slug, ends in
+# -reviewer (the review-seat GO's mechanical mark, spl_spawn_q_review_seat_go),
+# or its "Kind:" (KIND) is review or code_review. The wider "review" match of
+# spl_spawn_place_review (any heading word) is not one: a coding lane may say
+# review in its title.
+spl_spawn_place_review_seat() {  # BRIEF KIND
+  [[ "$(basename "$1" .md)" == *-reviewer ]] && return 0
+  [[ "$2" == review || "$2" == code_review ]]
+}
+
+# The author lanes of a review BRIEF, one "<vendor>\t<id>" line each: the id on
+# a line-start "Author:" line, else every lane id the brief names but the role
+# seats 001-003 (a review brief names its author in its row; any other lane it
+# names counts too, so a doubt refuses rather than places a same-vendor
+# review). Vendor by id letter (c claude, g grok, a agy, q qwen, m mistral).
+spl_spawn_place_authors() {  # BRIEF
+  local ids
+  [[ -r "$1" ]] || return 0
+  ids="$(grep -m1 -iE '^Author:' "$1" | grep -oE '\b[acgmq]-[0-9]{3}\b')"
+  [[ -n "$ids" ]] || ids="$(grep -oE '\b[acgmq]-[0-9]{3}\b' "$1" | grep -vE -- '-00[1-3]$')"
+  sort -u <<<"$ids" | awk 'NF { split("c claude g grok a agy q qwen m mistral", m, " "); for (i = 1; i < 10; i += 2) if (substr($0, 1, 1) == m[i]) print m[i + 1] "\t" $0 }'
 }
 
 # Why the brief is under the data rule (personal data or secrets: claude,
@@ -554,11 +593,18 @@ spl_spawn_place_data_rule() {  # BRIEF KIND
 # The vendor to launch (spl_spawn_place_swap). A swap to agy while agy is out
 # of quota here (spl_spawn_place_agy_out, SPL-3018) launches claude instead,
 # unless the row is a review: spl_spawn_place_agy_hold keeps those queued.
-# A row queued before the enqueue refused it is launched, not dropped.
+# A row queued before the enqueue refused it is launched, not dropped. A
+# refused swap (a review seat onto its author's vendor, SPL-3776) is one WARN
+# line, prints why and returns 1: the row is handed to the holder, not placed.
 spl_spawn_place_vendor() {  # VENDOR BRIEF ASK_ID
   local sw to why out
   sw="$(spl_spawn_place_swap "$1" "$2")"; to="${sw%%$'\t'*}" why="${sw#*$'\t'}"
   [[ -n "$why" ]] || { echo "$to"; return 0; }
+  if [[ "$to" == refuse ]]; then
+    do_log "WARN ask ${3:0:8}: placed as mistral, its swap is refused: $why" >&2
+    printf '%s\n' "$why"
+    return 1
+  fi
   if [[ "$to" == agy ]] && ! spl_spawn_place_review "$2" && out="$(spl_spawn_place_agy_out)" && [[ -n "$out" ]]; then
     to=claude why="$why; $out"
   fi

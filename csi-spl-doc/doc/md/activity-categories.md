@@ -49,6 +49,16 @@ anywhere in the brief (ask c581963b carried only that prose and was launched
 as agy). A brief with no marker keeps the old swap: agy for
 `specs_and_docs` or `i18n`, else claude.
 
+A review seat writes no code (SPL-3776). Its slug, the brief's file name,
+ends in `-reviewer`, or its `Kind:` is `review`. The coding rule never swaps
+it: a `mistral:` review seat on a `Kind: secret` brief stays mistral. Before,
+it was launched as claude, so a claude author got a same-vendor review. The
+UI rule can still swap a review seat. When that swap would land on the
+author's vendor, the placer places nothing. It logs one WARN line and hands
+the row to the orchestrator with the reason. The author is the lane id on a
+line that starts with `Author:`. A brief with no such line counts every lane
+id it names, except the role seats 001-003.
+
 ## 3. The routes
 
 | route | who | what |

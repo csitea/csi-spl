@@ -25,11 +25,12 @@ import (
 // gcalLease, or the member disconnected) stops the cycle at once. The lease
 // is renewed while a long cycle runs, and cleared by FinishGcalSync.
 //
-// Out: the member's live events (created by them or naming them: the
-// private filter, store.CalendarQuery.Guest) go to the target calendar,
-// inserted when unmapped, patched when their sync hash changed; a mapped
-// event that is no longer among them (trashed, or the member no longer on
-// it) is deleted at Google. The map, not the out_cursor, finds a delete: a
+// Out: every live event of the workspace the member reads (owner poll
+// d93654e1 A, SPL-3852: the workspace's events, not only the member's own;
+// the private filter still keeps another member's private event out) goes
+// to the target calendar, inserted when unmapped, patched when its sync hash
+// changed; a mapped event that is no longer among them (trashed, or turned
+// private by another member) is deleted at Google. The map, not the out_cursor, finds a delete: a
 // trash leaves updated_at as it was. Exception rows of a series
 // (recurring_event_id) are skipped in v1.
 //
@@ -172,6 +173,10 @@ type gcalCycle struct {
 	c      store.GcalConnection
 	l      store.GcalLease
 	access marketing.Plaintext
+	// the read-only half (gcal_sync_sources.go): the token object to store
+	// (nil = keep) and the status detail of its failure
+	srcSync   map[string]string
+	srcDetail string
 }
 
 func (cy *gcalCycle) now() time.Time { return cy.s.o.Now() }
@@ -203,8 +208,8 @@ func (cy *gcalCycle) run(ctx context.Context) error {
 		}
 		return err
 	}
-	if cy.c.StatusDetail != "" {
-		if err := cy.gs.SetGcalStatus(ctx, cy.l, store.GcalConnected, "", cy.now()); err != nil {
+	if cy.c.StatusDetail != cy.srcDetail {
+		if err := cy.gs.SetGcalStatus(ctx, cy.l, store.GcalConnected, cy.srcDetail, cy.now()); err != nil {
 			return err
 		}
 	}
@@ -212,9 +217,19 @@ func (cy *gcalCycle) run(ctx context.Context) error {
 }
 
 // sync is the cycle's Google work: a valid access token, the target
-// calendar, the out half. A target calendar deleted at Google is created
-// again once, and every event written to it anew.
+// calendar, the In and out halves, then the member's existing calendars
+// (read-only, gcal_sync_sources.go). A target calendar deleted at Google is
+// created again once, and every event written to it anew.
 func (cy *gcalCycle) sync(ctx context.Context) (*time.Time, error) {
+	cursor, err := cy.twoWay(ctx)
+	if err != nil {
+		return cursor, err
+	}
+	return cursor, cy.sources(ctx)
+}
+
+// twoWay is the hub's own calendar: In, then out.
+func (cy *gcalCycle) twoWay(ctx context.Context) (*time.Time, error) {
 	if err := cy.token(ctx, false); err != nil {
 		return nil, err
 	}
@@ -238,7 +253,8 @@ func (cy *gcalCycle) sync(ctx context.Context) (*time.Time, error) {
 // finish ends the cycle: cursors, next due, the lease cleared. The sync
 // token is the inbound half's and is kept as stored.
 func (cy *gcalCycle) finish(ctx context.Context, cursor *time.Time, next time.Time) error {
-	return cy.gs.FinishGcalSync(ctx, cy.l, store.GcalSyncDone{SyncToken: cy.c.SyncToken, OutCursor: cursor, NextDue: next}, cy.now())
+	return cy.gs.FinishGcalSync(ctx, cy.l, store.GcalSyncDone{SyncToken: cy.c.SyncToken, OutCursor: cursor,
+		SourceSync: cy.srcSync, NextDue: next}, cy.now())
 }
 
 // gcalDetail is an error as status_detail: short, never a token (gcal
@@ -350,14 +366,15 @@ func (cy *gcalCycle) forgetCalendar(ctx context.Context) error {
 	return nil
 }
 
-// events answers the member's live events, every page.
+// events answers every live event of the workspace the member reads (the
+// private filter: no Guest filter, poll d93654e1 A), every page.
 func (cy *gcalCycle) events(ctx context.Context) ([]store.CalendarEvent, error) {
 	cs, ok := cy.s.o.Store.(store.CalendarSearch)
 	if !ok {
 		return nil, nil
 	}
 	var out []store.CalendarEvent
-	q := store.CalendarQuery{Guest: cy.c.Human, Range: gcalAllTime, Limit: gcalPage}
+	q := store.CalendarQuery{Range: gcalAllTime, Limit: gcalPage}
 	for {
 		page, err := cs.SearchCalendarEvents(ctx, cy.c.Tenant, cy.c.Human, q)
 		if err != nil {

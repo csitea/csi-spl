@@ -213,7 +213,9 @@ Google HTTP calls would hold one of them for the whole sync.
   connection's `out_cursor` (a trash leaves `updated_at` as it was,
   `store/calendar_postgres.go:269`, so `updated_at` alone never sees a
   delete) that the member reads under the private filter
-  (`store/calendar_postgres.go:30`) and created or is a guest of: insert,
+  (`store/calendar_postgres.go:30`): every workspace event, not only the
+  ones the member created or is a guest of (owner poll d93654e1 A, section
+  2.10; before SPL-3852 it was only those): insert,
   patch or delete on the target calendar; the map row keeps the Google id,
   etag and `sync_hash`. Rows with `recurring_event_id` (097's occurrence
   exceptions, kept as their own rows, `store/calendar_postgres.go:76`) are
@@ -286,6 +288,44 @@ cnf `gcal.workspaces` (per env, `[]` = off), as `marketing.workspaces`
 (`cnf/all.env.yaml:921-922`): outside it every `/v1/me/google-calendar*`
 route answers 404 and the section says "not available" (2.7). Turning it on
 in an env is an owner go (S5).
+
+### 2.10 Owner poll d93654e1: workspace events out, existing calendars in
+
+The owner answered poll d93654e1 (HUM-10 msg ce137fef) with A and B
+(SPL-3852; C, refusing a connect whose grant lacks a scope, is SPL-3815):
+
+- **A. Workspace events out.** The out half (2.5) sends every live event
+  of the workspace the member reads, no longer only their own or those
+  naming them. The private filter still applies: another member's private
+  event and every Google import (always private to its member) stay out.
+  An event another member turns private is deleted from this member's
+  "Spool Hub" calendar on the next cycle. Code: `hub/gcal_sync.go` `events`;
+  test `TestGcalSyncSendsWorkspaceEvents`.
+- **B. Existing calendars in, read-only.** Besides the two-way "Spool Hub"
+  calendar, each calendar the member shows in Google Calendar (calendarList
+  `selected`, not hidden or deleted: their primary calendar, a team
+  calendar they made or subscribed to) comes in as the member's private
+  events, kind `other`, `source_key gcal:<connection>:src.<12 hex of
+  SHA-256(calendar id)>.<google id>`. Nothing is ever written to those
+  calendars and the imports never go back out (no map row; the out half
+  skips an unmapped `gcal:` event). Each calendar keeps its own sync token
+  in `gcal_connections.source_sync` (rdb 0233, a JSON object), a 410 lists
+  it in full from now - 30 days, a cancelled item trashes its import, a
+  changed occurrence (`recurringEventId`) is skipped as in 2.5, and a
+  calendar the member stops showing has its imports trashed. Disconnect
+  with `remove_imported=1` trashes them too. Code:
+  `hub/gcal_sync_sources.go`; tests `hub/gcal_sync_sources_test.go`,
+  `store/gcal_test.go` `TestGcalSourceSync`.
+- **Scope.** B runs only when cnf `gcal.scopes` holds
+  `https://www.googleapis.com/auth/calendar.readonly` (or the full
+  `.../auth/calendar`): `hub.GcalReadsCalendars`, wired in
+  `cmd/spool/hub_gcal.go`. Without it nothing changes (no calendarList
+  call). A member whose grant predates the scope gets a 403 from Google; the
+  cycle still syncs the "Spool Hub" calendar and `status_detail` says to
+  reconnect. `calendar.readonly` is a sensitive scope: until Google
+  verifies the app only listed test users can grant it (owner steps S7, S8).
+- Known limit: the sweep of a dropped calendar reads at most 2000 imports
+  (`ErrCalendarTooMany`); past that it is the status detail and is retried.
 
 ## 3. Data
 
@@ -473,6 +513,8 @@ it, per env (dev first, then prd).
 | S4 | no new key or secret | the KMS key and the client secret exist (`cnf/all.env.yaml:921-931`, :735); nothing new unless the panel changes P2 or P6 |
 | S5 | switch on | `gcal.workspaces` per env, dev first, after B8 is live; the hub's env comes from the 030 tfvars and the hub deploy sets none (`grep -cE 'set-env\|update-env' .github/workflows/20_hub-build-deploy.yml` -> 0), so each flip is a step-030 apply (owner go) |
 | S6 | push domain, if Google asks | unchecked, I believe: Google may require the push address's domain to be verified; if B7's first watch call is refused for that, verifying the API host's domain is an owner step |
+| S7 | read scope (poll d93654e1 B) | append `https://www.googleapis.com/auth/calendar.readonly` to cnf `gcal.scopes` per env (dev first), `do_tpl_gen`, then a step-030 apply (owner go); add the scope to the consent screen; members reconnect |
+| S8 | Google app verification for `calendar.readonly` | submit the consent screen for Google's review (O2); until it passes only listed test users can grant the scope |
 
 ## 8. Panel decisions
 

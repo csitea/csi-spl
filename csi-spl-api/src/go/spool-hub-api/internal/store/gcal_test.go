@@ -404,3 +404,45 @@ func TestGcalClaimMember(t *testing.T) {
 		})
 	}
 }
+
+// TestGcalSourceSync (rdb 0233, poll d93654e1 B, SPL-3852): a finished cycle
+// stores the sync token of each existing Google calendar, nil keeps them, a
+// same-account re-connect keeps them and another account clears them.
+func TestGcalSourceSync(t *testing.T) {
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			f := newGcalFix(t, st)
+			c := f.connect(t, f.m1, "m1@example.com")
+			if c.SourceSync != nil {
+				t.Fatalf("new connection source_sync = %v, want none", c.SourceSync)
+			}
+			finish := func(at time.Time, src map[string]string) {
+				t.Helper()
+				l, err := f.claim(t, c.ID, at)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := f.g.FinishGcalSync(ctx, l, GcalSyncDone{SourceSync: src, NextDue: at}, at); err != nil {
+					t.Fatal(err)
+				}
+			}
+			want := map[string]string{"m1@example.com": "sync-3", "team@group.example.com": "sync-9"}
+			finish(f.now, want)
+			got, err := f.g.GcalConnection(ctx, f.tenant, f.m1)
+			if err != nil || len(got.SourceSync) != 2 || got.SourceSync["team@group.example.com"] != "sync-9" {
+				t.Fatalf("source_sync = %v (%v), want %v", got.SourceSync, err, want)
+			}
+			finish(f.now.Add(time.Second), nil)
+			if got, _ := f.g.GcalConnection(ctx, f.tenant, f.m1); len(got.SourceSync) != 2 {
+				t.Fatalf("nil kept nothing: %v", got.SourceSync)
+			}
+			if same := f.connect(t, f.m1, "m1@example.com"); len(same.SourceSync) != 2 {
+				t.Fatalf("same-account re-connect source_sync = %v", same.SourceSync)
+			}
+			if other := f.connect(t, f.m1, "other@example.com"); other.SourceSync != nil {
+				t.Fatalf("other-account re-connect source_sync = %v, want none", other.SourceSync)
+			}
+		})
+	}
+}

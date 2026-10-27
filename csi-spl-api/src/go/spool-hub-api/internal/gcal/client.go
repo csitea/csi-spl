@@ -69,6 +69,25 @@ type EventsPage struct {
 	NextSyncToken string  `json:"nextSyncToken"`
 }
 
+// CalendarListEntry is one calendar of the member's calendar list (owner
+// poll d93654e1 B, SPL-3852): their primary calendar, the ones they made or
+// subscribed to. Selected = shown in the member's Google Calendar.
+type CalendarListEntry struct {
+	ID         string `json:"id"`
+	Summary    string `json:"summary"`
+	Primary    bool   `json:"primary,omitempty"`
+	Selected   bool   `json:"selected,omitempty"`
+	Hidden     bool   `json:"hidden,omitempty"`
+	Deleted    bool   `json:"deleted,omitempty"`
+	AccessRole string `json:"accessRole,omitempty"` // freeBusyReader, reader, writer, owner
+}
+
+// CalendarListPage is one page of calendarList.list.
+type CalendarListPage struct {
+	Items         []CalendarListEntry `json:"items"`
+	NextPageToken string              `json:"nextPageToken"`
+}
+
 // Channel is a push channel on a calendar's events (section 2.6). Token is
 // echoed by Google in X-Goog-Channel-Token on every push.
 type Channel struct {
@@ -96,6 +115,20 @@ func (g *Google) GetCalendar(ctx context.Context, access marketing.Plaintext, ca
 	err := g.call(ctx, access, http.MethodGet, "/calendars/"+url.PathEscape(calendarID), nil, nil, &out)
 	if err != nil {
 		return Calendar{}, fmt.Errorf("gcal calendars.get: %w", err)
+	}
+	return out, nil
+}
+
+// ListCalendars is one page of the member's calendar list (calendarList.list:
+// a read scope, calendar.readonly or wider; without it Google answers 403).
+func (g *Google) ListCalendars(ctx context.Context, access marketing.Plaintext, pageToken string) (CalendarListPage, error) {
+	q := url.Values{}
+	if pageToken != "" {
+		q.Set("pageToken", pageToken)
+	}
+	var out CalendarListPage
+	if err := g.call(ctx, access, http.MethodGet, "/users/me/calendarList", q, nil, &out); err != nil {
+		return CalendarListPage{}, fmt.Errorf("gcal calendarList.list: %w", err)
 	}
 	return out, nil
 }

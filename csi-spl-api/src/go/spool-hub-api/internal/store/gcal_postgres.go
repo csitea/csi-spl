@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -15,14 +16,28 @@ import (
 const gcalCols = `connection_id::text, tenant_id, human_id, google_email, calendar_id, status, status_detail,
 	kms_key_id, access_expiry, coalesce(sync_token, ''), out_cursor, due_at, sync_lease_until,
 	coalesce(watch_channel_id::text, ''), coalesce(watch_resource_id, ''), watch_expiry, last_synced_at,
-	created_at, updated_at`
+	created_at, updated_at, source_sync`
 
 func scanGcal(r pgx.Row) (GcalConnection, error) {
 	var c GcalConnection
 	err := r.Scan(&c.ID, &c.Tenant, &c.Human, &c.GoogleEmail, &c.CalendarID, &c.Status, &c.StatusDetail,
 		&c.KMSKeyID, &c.AccessExpiry, &c.SyncToken, &c.OutCursor, &c.DueAt, &c.SyncLeaseUntil,
-		&c.WatchChannelID, &c.WatchResourceID, &c.WatchExpiry, &c.LastSyncedAt, &c.CreatedAt, &c.UpdatedAt)
+		&c.WatchChannelID, &c.WatchResourceID, &c.WatchExpiry, &c.LastSyncedAt, &c.CreatedAt, &c.UpdatedAt,
+		&c.SourceSync)
+	if len(c.SourceSync) == 0 {
+		c.SourceSync = nil
+	}
 	return c, err
+}
+
+// gcalSourceSyncArg is d.SourceSync as a jsonb argument: nil (SQL NULL,
+// keep the stored object) or the JSON object.
+func gcalSourceSyncArg(m map[string]string) (any, error) {
+	if m == nil {
+		return nil, nil
+	}
+	b, err := json.Marshal(m)
+	return string(b), err
 }
 
 func gcalNoRows(err error) error {
@@ -53,6 +68,7 @@ func (s *Postgres) ConnectGcal(ctx context.Context, c GcalConnection, tok GcalTo
 				calendar_id = CASE WHEN g.google_email = EXCLUDED.google_email THEN g.calendar_id ELSE '' END,
 				sync_token = CASE WHEN g.google_email = EXCLUDED.google_email THEN g.sync_token END,
 				out_cursor = CASE WHEN g.google_email = EXCLUDED.google_email THEN g.out_cursor END,
+				source_sync = CASE WHEN g.google_email = EXCLUDED.google_email THEN g.source_sync ELSE '{}'::jsonb END,
 				watch_channel_id = CASE WHEN g.google_email = EXCLUDED.google_email THEN g.watch_channel_id END,
 				watch_resource_id = CASE WHEN g.google_email = EXCLUDED.google_email THEN g.watch_resource_id END,
 				watch_expiry = CASE WHEN g.google_email = EXCLUDED.google_email THEN g.watch_expiry END,
@@ -305,7 +321,12 @@ func (s *Postgres) DeleteGcalEventMap(ctx context.Context, l GcalLease, eventID 
 
 // FinishGcalSync implements Gcal on the Postgres store (rdb 0217).
 func (s *Postgres) FinishGcalSync(ctx context.Context, l GcalLease, d GcalSyncDone, now time.Time) error {
+	src, err := gcalSourceSyncArg(d.SourceSync)
+	if err != nil {
+		return err
+	}
 	return s.gcalFencedSet(ctx, l, `sync_token = nullif($3, ''), out_cursor = coalesce($4, out_cursor),
-		last_synced_at = $5, due_at = $6, sync_lease_until = NULL, updated_at = $5`,
-		d.SyncToken, d.OutCursor, now, d.NextDue)
+		last_synced_at = $5, due_at = $6, sync_lease_until = NULL, updated_at = $5,
+		source_sync = coalesce($7::jsonb, source_sync)`,
+		d.SyncToken, d.OutCursor, now, d.NextDue, src)
 }

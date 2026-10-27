@@ -50,6 +50,10 @@ type GcalConnect struct {
 	// WorkspaceURL answers the WUI origin of a workspace, where the callback
 	// sends the browser back (GcalWorkspaceURL).
 	WorkspaceURL func(tenant string) string
+	// ReadCalendars: the cnf scopes hold a read scope, so the sync reads the
+	// member's existing Google calendars in (GcalReadsCalendars, poll
+	// d93654e1 B).
+	ReadCalendars bool
 }
 
 // GcalPurpose is the AAD the calendar tokens are sealed under (spec 149
@@ -379,8 +383,9 @@ func (s *Server) gcalRevoke(ctx context.Context, gs store.Gcal, c store.GcalConn
 }
 
 // gcalImported answers the member's events that came from this connection's
-// Google calendar: its map rows whose event carries the connection's
-// source_key family `gcal:<connection>:` (section 2.5). Read before the
+// Google calendars: its map rows whose event carries the connection's
+// source_key family `gcal:<connection>:` (section 2.5), and the read-only
+// imports of the member's existing calendars (section 2.10). Read before the
 // delete, which cascades the map rows away.
 func (s *Server) gcalImported(ctx context.Context, gs store.Gcal, c store.GcalConnection) []string {
 	cal, ok := s.o.Store.(store.Calendar)
@@ -394,6 +399,16 @@ func (s *Server) gcalImported(ctx context.Context, gs store.Gcal, c store.GcalCo
 		ev, err := cal.GetCalendarEvent(ctx, c.Tenant, c.Human, m.EventID)
 		if err == nil && strings.HasPrefix(ev.SourceKey, prefix) {
 			ids = append(ids, ev.ID)
+		}
+	}
+	// the read-only imports of the member's existing calendars have no map
+	// row (gcal_sync_sources.go): found by their key family
+	if src, ok := s.o.Store.(store.CalendarSourced); ok {
+		evs, _ := src.CalendarBySourceKey(ctx, c.Tenant, c.Human, gcalSourceKey(c.ID, "", ""))
+		for _, ev := range evs {
+			if ev.CreatorID == c.Human {
+				ids = append(ids, ev.ID)
+			}
 		}
 	}
 	return ids

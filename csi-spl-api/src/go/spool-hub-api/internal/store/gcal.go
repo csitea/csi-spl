@@ -82,17 +82,21 @@ type Gcal interface {
 // GcalConnection is one member's Google connection, without its tokens.
 // Times are nil when unset; SyncToken and the watch ids are "" when unset.
 type GcalConnection struct {
-	ID              string
-	Tenant          string
-	Human           string
-	GoogleEmail     string
-	CalendarID      string
-	Status          string
-	StatusDetail    string
-	KMSKeyID        string
-	AccessExpiry    time.Time
-	SyncToken       string
-	OutCursor       *time.Time
+	ID           string
+	Tenant       string
+	Human        string
+	GoogleEmail  string
+	CalendarID   string
+	Status       string
+	StatusDetail string
+	KMSKeyID     string
+	AccessExpiry time.Time
+	SyncToken    string
+	OutCursor    *time.Time
+	// SourceSync is the sync token of each of the member's existing Google
+	// calendars the hub reads in (rdb 0233, poll d93654e1 B): calendar id ->
+	// token; empty when none was read yet. Treat it as read-only.
+	SourceSync      map[string]string
 	DueAt           time.Time
 	SyncLeaseUntil  *time.Time
 	WatchChannelID  string
@@ -141,7 +145,10 @@ type GcalEventMap struct {
 type GcalSyncDone struct {
 	SyncToken string     // "" clears it (a 410, or no inbound half)
 	OutCursor *time.Time // nil keeps the stored one
-	NextDue   time.Time
+	// SourceSync replaces the stored calendar id -> sync token object of the
+	// member's existing calendars (rdb 0233); nil keeps the stored one.
+	SourceSync map[string]string
+	NextDue    time.Time
 }
 
 // Connection statuses (rdb 0217 CHECK).

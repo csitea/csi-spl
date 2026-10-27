@@ -13,9 +13,10 @@ import (
 )
 
 // The Google Calendar sync cycle, the Google -> Spool half (spec 149
-// section 2.5 "In", build row B6b, SPL-3339; owner O1 = A: only the
-// dedicated "Spool Hub" calendar comes in, never the member's other
-// calendars). B6a's cycle calls inThenOut in place of out: In runs first, so
+// section 2.5 "In", build row B6b, SPL-3339; owner O1 = A): the dedicated
+// "Spool Hub" calendar, two ways. The member's other calendars come in
+// read-only since poll d93654e1 B (gcal_sync_sources.go, SPL-3852). B6a's
+// cycle calls inThenOut in place of out: In runs first, so
 // a Google edit newer than Spool's is in Spool before the out half compares
 // hashes, and the out half never writes it back over.
 //

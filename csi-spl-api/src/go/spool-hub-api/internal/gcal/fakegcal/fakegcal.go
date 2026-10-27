@@ -62,6 +62,8 @@ type event struct {
 type calendar struct {
 	cal     gcal.Calendar
 	owner   string
+	primary bool
+	hidden  bool // not selected in the member's Google Calendar
 	seq     int
 	minSync int // a syncToken below this answers 410
 	order   []string
@@ -112,6 +114,7 @@ func New(t testing.TB) *Fake {
 	mux.HandleFunc("PATCH /calendar/v3/calendars/{cal}/events/{ev}", f.eventsPatch)
 	mux.HandleFunc("DELETE /calendar/v3/calendars/{cal}/events/{ev}", f.eventsDelete)
 	mux.HandleFunc("POST /calendar/v3/channels/stop", f.channelsStop)
+	mux.HandleFunc("GET /calendar/v3/users/me/calendarList", f.calendarList)
 	f.srv = httptest.NewServer(mux)
 	t.Cleanup(f.srv.Close)
 	return f
@@ -260,6 +263,31 @@ func (f *Fake) Calendars(email string) []gcal.Calendar {
 	}
 	slices.SortFunc(out, func(a, b gcal.Calendar) int { return strings.Compare(a.ID, b.ID) })
 	return out
+}
+
+// AddCalendar gives email a calendar of its own on the Google side (their
+// primary one, or one they made in Google), shown (selected) in their
+// calendar list, and answers its id.
+func (f *Fake) AddCalendar(email, summary string, primary bool) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	id := f.next("own-") + "@calendar.example.com"
+	if primary {
+		id = email
+	}
+	f.cals[id] = &calendar{cal: gcal.Calendar{ID: id, Summary: summary}, owner: email, primary: primary,
+		events: map[string]*event{}}
+	return id
+}
+
+// SelectCalendar shows or hides a calendar in its owner's Google Calendar
+// (calendarList selected).
+func (f *Fake) SelectCalendar(calendarID string, selected bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if c := f.cals[calendarID]; c != nil {
+		c.hidden = !selected
+	}
 }
 
 // AddEvent writes ev on the Google side (a change the member made in
@@ -528,6 +556,26 @@ func (f *Fake) calendarGet(w http.ResponseWriter, r *http.Request) {
 	if c, ok := f.ownCal(w, r); ok {
 		wire.WriteJSON(w, http.StatusOK, c.cal)
 	}
+}
+
+// calendarList answers the caller's calendars, by id, in one page.
+func (f *Fake) calendarList(w http.ResponseWriter, r *http.Request) {
+	f.count("calendarList.list")
+	email, ok := f.authed(w, r)
+	if !ok {
+		return
+	}
+	f.mu.Lock()
+	page := gcal.CalendarListPage{Items: []gcal.CalendarListEntry{}}
+	for _, c := range f.cals {
+		if c.owner == email {
+			page.Items = append(page.Items, gcal.CalendarListEntry{ID: c.cal.ID, Summary: c.cal.Summary,
+				Primary: c.primary, Selected: !c.hidden, AccessRole: "owner"})
+		}
+	}
+	f.mu.Unlock()
+	slices.SortFunc(page.Items, func(a, b gcal.CalendarListEntry) int { return strings.Compare(a.ID, b.ID) })
+	wire.WriteJSON(w, http.StatusOK, page)
 }
 
 const defaultPage = 250

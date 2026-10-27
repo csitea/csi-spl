@@ -465,3 +465,39 @@ func TestGcalSyncLease(t *testing.T) {
 		t.Log("memory store: the open-transaction check runs on Postgres (SPOOL_TEST_PG_DSN)")
 	}
 }
+
+// Owner poll d93654e1 A (SPL-3852): the member's Google gets the
+// workspace's events, not only their own: another member's workspace event
+// is sent, their private event is not (the private filter), and neither is
+// another member's Google import (private, source_key gcal:).
+func TestGcalSyncSendsWorkspaceEvents(t *testing.T) {
+	se := gcalSyncEnvOf(t)
+	hum := se.member(t)
+	other := seat(t, se.env, se.tid, rbac.Developer)
+	shared := se.event(t, other, "All hands", func(e *store.CalendarEvent) { e.Audience = store.CalendarWorkspace })
+	se.event(t, other, "Dentist", nil)
+	if !se.cycle(t) {
+		t.Fatal("the due connection was not claimed")
+	}
+	c := se.conn(t, hum)
+	got := se.fake.Events(c.CalendarID)
+	if len(got) != 1 || got[0].Summary != "All hands" || got[0].Visibility == "private" {
+		t.Fatalf("google events %+v, want the workspace event All hands only", got)
+	}
+	m := se.maps(t, hum)
+	if len(m) != 1 || m[0].EventID != shared.ID {
+		t.Fatalf("map rows %+v, want %s", m, shared.ID)
+	}
+	// the other member turns it private: it leaves this member's Google
+	priv := store.CalendarPrivate
+	se.next()
+	if _, err := se.st.(store.Calendar).UpdateCalendarEvent(context.Background(), se.tid, other, shared.ID,
+		store.CalendarPatch{Audience: &priv}, se.clock.now()); err != nil {
+		t.Fatal(err)
+	}
+	se.next()
+	se.cycle(t)
+	if got := se.fake.Events(c.CalendarID); len(got) != 0 {
+		t.Fatalf("google events %+v after the event turned private, want none", got)
+	}
+}

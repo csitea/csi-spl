@@ -32,7 +32,8 @@ func gcalConnect(ctx context.Context, hc *config.Hub, ac *auth.Config, log zerol
 	g := &hub.GcalConnect{
 		Workspaces: hc.GcalWorkspaces,
 		CookieName: ac.StateCookieName, CookieDomain: ac.CookieDomain, CookieSecure: ac.CookieSecure,
-		WorkspaceURL: hub.GcalWorkspaceURL(hc.TenantHostPattern, apex, appURL),
+		WorkspaceURL:  hub.GcalWorkspaceURL(hc.TenantHostPattern, apex, appURL),
+		ReadCalendars: hub.GcalReadsCalendars(hc.GcalScopes),
 	}
 	google, err := gcal.New(gcal.Config{
 		ClientID: strings.TrimSpace(ac.GoogleClientID), ClientSecret: marketing.NewPlaintext(strings.TrimSpace(ac.GoogleClientSecret)),

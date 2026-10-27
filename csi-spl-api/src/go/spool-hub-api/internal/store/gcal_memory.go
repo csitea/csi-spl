@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"maps"
 	"sort"
 	"time"
 )
@@ -61,7 +62,7 @@ func (s *Memory) ConnectGcal(_ context.Context, c GcalConnection, tok GcalTokens
 		g.conns[cur.ID] = cur
 	}
 	if cur.GoogleEmail != c.GoogleEmail {
-		cur.CalendarID, cur.SyncToken, cur.OutCursor = "", "", nil
+		cur.CalendarID, cur.SyncToken, cur.OutCursor, cur.SourceSync = "", "", nil, nil
 		cur.WatchChannelID, cur.WatchResourceID, cur.WatchExpiry = "", "", nil
 		delete(g.maps, cur.ID)
 	}
@@ -294,6 +295,9 @@ func (s *Memory) FinishGcalSync(_ context.Context, l GcalLease, d GcalSyncDone, 
 		c.SyncToken = d.SyncToken
 		if d.OutCursor != nil {
 			c.OutCursor = memTime(*d.OutCursor)
+		}
+		if d.SourceSync != nil {
+			c.SourceSync = maps.Clone(d.SourceSync)
 		}
 		c.LastSyncedAt, c.DueAt, c.SyncLeaseUntil, c.UpdatedAt = memTime(now), d.NextDue, nil, now
 		return nil

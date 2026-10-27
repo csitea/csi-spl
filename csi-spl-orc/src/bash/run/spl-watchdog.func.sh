@@ -1511,9 +1511,11 @@ spl_wd_repoke() { spl_wd_key "$2" C-c && spl_wd_ring "$1"; }
 
 # spl_wd_send TO KIND ID BODY: a spool message on task wd-<id>. spool-send.sh
 # 1-9 = delivered (only the poke did not ring); 10+ or 2 = not delivered.
+# SPL_WD_SEND_RC keeps the rc for a caller that logs the failure.
 spl_wd_send() {
   local rc=0
   bash "$WD_SEND" --from "$WD_FROM" --to "$1" --kind "$2" --task "wd-$3" --body "$4" >/dev/null 2>&1 6>&- 7>&- 8>&- 9>&- || rc=$?
+  SPL_WD_SEND_RC=$rc
   (( rc < 10 && rc != 2 ))
 }
 
@@ -1665,7 +1667,7 @@ spl_wd_fence() {
   local now="$1" tick="$2" id pid _pane
   spl_wd_beat "$now"
   if ! spl_wd_fence_due "$now"; then
-    [[ -e "$WD_DIR/fenced" || -e "$WD_DIR/held" ]] && spl_wd_unfence
+    [[ -e "$WD_DIR/fenced" || -e "$WD_DIR/held" ]] && spl_wd_unfence "$now"
     return 0
   fi
   if [[ ! -e "$WD_DIR/fenced" ]] && spl_wd_hub_reachable; then
@@ -1676,11 +1678,7 @@ spl_wd_fence() {
   fi
   local new
   new="$(spl_wd_fence_locked spl_wd_fence_start "$now")" || return 0
-  if [[ "$new" == new ]]; then
-    if [[ "${DRY_RUN:-1}" == 0 ]]; then
-      spl_wd_send orchestrator note "fence-${WD_BOX:-box}" "FENCED (spec 102 10.2): box ${WD_BOX:-?} has had no beat ack from the hub for box_down_min ($(spl_wd_down_min) min). It starts nothing and TERMs its lanes after their wip push; seats keep running. It lifts at the next ack." || true
-    fi
-  fi
+  [[ "$new" == new && "${DRY_RUN:-1}" == 0 ]] && spl_wd_fence_notice "$now"
   local -a jp=()
   local rc
   while IFS=$'\t' read -r id pid _pane; do
@@ -1693,6 +1691,55 @@ spl_wd_fence() {
   done < "$tick/agents"
   if (( ${#jp[@]} )); then wait "${jp[@]}" 2>/dev/null || true; fi
   return 0
+}
+
+# spl_wd_fence_notice NOW: the FENCED note to the orchestrator. An
+# orchestrator on another box is reached through the hub relay, which is as
+# dead as the beat when the uplink is gone (one box 2026-10-26 02:58-06:51Z:
+# 8 lanes TERMed, no note anywhere, SPL-3774). Not delivered -> logged, and
+# the body appended to <WD_DIR>/fence.notice.pending for spl_wd_unfence_notice.
+spl_wd_fence_notice() {
+  local body
+  body="FENCED (spec 102 10.2): box ${WD_BOX:-?} has had no beat ack from the hub for box_down_min ($(spl_wd_down_min) min). It starts nothing and TERMs its lanes after their wip push; seats keep running. It lifts at the next ack."
+  spl_wd_send orchestrator note "fence-${WD_BOX:-box}" "$body" && return 0
+  spl_wd_log "FENCED: the note to the orchestrator was not delivered (spool-send rc=${SPL_WD_SEND_RC:-?}); kept in fence.notice.pending for UNFENCED"
+  printf '%s %s\n' "$(date -u -d "@$1" +%FT%TZ)" "$body" >> "$WD_DIR/fence.notice.pending" 2>/dev/null ||
+    spl_wd_log "FENCED: fence.notice.pending could not be written"
+  return 0
+}
+
+# spl_wd_unfence_notice NOW FENCE_AT LANES: only when a FENCED note was not
+# delivered (fence.notice.pending): ONE note to the orchestrator with the
+# fence's duration, the lanes it TERMed, the last dial error class and the
+# held text. The file is removed only when this note is delivered.
+spl_wd_unfence_notice() {
+  local f="$WD_DIR/fence.notice.pending" now="$1" at="$2" dur="unknown" body
+  [[ -s "$f" ]] || return 0
+  [[ "$at" =~ ^[0-9]+$ ]] && (( at > 0 )) && dur="$(( now - at )) s, $(date -u -d "@$at" +%FT%TZ) to $(date -u -d "@$now" +%FT%TZ)"
+  body="UNFENCED (spec 102 10.2): box ${WD_BOX:-?} was fenced $dur; lanes TERMed: ${3:-none}; last dial error: $(spl_wd_dial_class "${at:-0}"). The FENCED note was not delivered then: $(tr '\n' ' ' < "$f")"
+  if spl_wd_send orchestrator note "fence-${WD_BOX:-box}" "$body"; then
+    rm -f "$f"; spl_wd_log "UNFENCED: the held FENCED note was sent to the orchestrator"; return 0
+  fi
+  spl_wd_log "UNFENCED: the held FENCED note was not delivered either (spool-send rc=${SPL_WD_SEND_RC:-?}); fence.notice.pending kept"
+}
+
+# spl_wd_dial_class SINCE: the class of the newest failed hub dial in
+# <LEASE_DIR>/dial.log (spl_fleet_dial_log) stamped at or after the epoch
+# SINCE, with its error text: no-resolver (the local resolver refused, :53),
+# dns-timeout, dns, tcp, timeout (rc 124) or other; "none logged".
+spl_wd_dial_class() {
+  local l c since
+  since="$(date -u -d "@$1" +%FT%TZ 2>/dev/null)" || since=""
+  l="$(awk -v s="$since" '$1 >= s && $3 != "rc=0" { x = $0 } END { print x }' "${LEASE_DIR:-/nonexistent}/dial.log" 2>/dev/null)"
+  [[ -n "$l" ]] || { echo "none logged"; return 0; }
+  case "${l#* :: }" in
+    *:53*refused*) c=no-resolver ;;
+    *lookup*timeout*) c=dns-timeout ;;
+    *lookup*|*"no such host"*) c=dns ;;
+    *"dial tcp"*|*refused*|*reset*|*unreachable*) c=tcp ;;
+    *) if [[ "$l" == *" rc=124 "* ]]; then c=timeout; else c=other; fi ;;
+  esac
+  echo "$c ($(cut -c1-160 <<<"${l#* :: }"))"
 }
 
 # spl_wd_fence_locked FN ARGS: FN in a subshell under <WD_DIR>/fence.lock
@@ -1738,7 +1785,7 @@ spl_wd_fence_start() {
 # never revive it (SPL-3669: one box 2026-10-26, a lane ACCEPTED and idle
 # since 02:49Z, TERMed by the 02:58Z fence, restarted after the unfence).
 spl_wd_unfence() {
-  local took id why at
+  local took id why at now="${1:-$(date +%s)}"
   local -a jp=() ids=() terms=() tl=()
   took="$(spl_wd_fence_locked spl_wd_unfence_take)" || return 0
   if [[ "$took" == held ]]; then
@@ -1763,6 +1810,7 @@ spl_wd_unfence() {
     fi
     spl_wd_log "UNFENCED $id: skipped, done ($why)"
   done
+  [[ "${DRY_RUN:-1}" == 0 ]] && spl_wd_unfence_notice "$now" "$at" "${terms[*]}"
   [[ "${SPL_WD_FENCE_NOLOCK:-}" == 1 ]] && rm -f "$WD_DIR/fenced" "$WD_DIR/held" "$WD_DIR"/fence.term.* "$WD_DIR"/fence.wipfail.*
   spl_wd_log "UNFENCED${WD_INST:+ instance $WD_INST}: the hub acked this box's beat again; restarts resume"
 }

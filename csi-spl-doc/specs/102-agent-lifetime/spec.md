@@ -571,6 +571,15 @@ automatic paths are the R-b race again). 093 6.2's suspend guard stays.
   restart (4.3) skip it, logged `UNFENCED <id>: skipped, done (<why>)`:
   retired, or its session had stopped (heartbeat `idle`) before the fence
   and it holds an ACCEPTED. A lane busy at the fence restarts as before.
+- **The FENCED note is not lost** (SPL-3774): an orchestrator on another
+  box is reached through the hub relay, as dead as the beat when the uplink
+  is gone. A FENCED note that is not delivered is logged and kept in
+  `<wd>/fence.notice.pending`; at the unfence ONE note goes to the
+  orchestrator with the fence's duration, the lanes it TERMed, the last
+  failed hub dial's class from `dial.log` (`no-resolver`, `dns-timeout`,
+  `dns`, `tcp`, `timeout`, `other`) and the held text. The file goes only
+  when that note is delivered. A FENCED note delivered on time gets no
+  second note.
 - **What moves**: only lanes. A seat is a slot of its box (001..004); the
   other boxes' seats take its jobs by the 093 claim (093 10), so a down
   box's seats simply wait for their box.

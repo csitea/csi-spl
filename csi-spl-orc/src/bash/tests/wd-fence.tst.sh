@@ -59,6 +59,16 @@
 #      longer hits it, so it is never restarted; a lane busy at the fence is
 #      still hit; a retired lane is done. RED control: origin/master's
 #      spl_wd_unfence marks nothing and S3 hits the done lane too
+#  14. SPL-3774: the FENCED note is not lost when it cannot be sent (one box
+#      2026-10-26 02:58-06:51Z: no uplink, the orchestrator on another box,
+#      the hub relay down; 8 lanes TERMed and no note anywhere). The send
+#      fails at the fence -> logged, the body kept in
+#      <wd>/fence.notice.pending; at UNFENCED ONE note to the orchestrator
+#      with the duration, the lanes TERMed, the last dial error class
+#      (<LEASE_DIR>/dial.log) and the held text, and the file is removed.
+#      A send that fails at UNFENCED too keeps the file. A send that worked
+#      at the fence -> no second note at UNFENCED. RED control: the code
+#      before sends nothing at UNFENCED (the commit body has the run)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -81,7 +91,8 @@ if [ "$(cat "$T/hub")" = ok ]; then echo '{"ok":true,"box":"box1","beat_at":"202
 STUB
 printf '#!/usr/bin/env bash\necho "wip $ID" >> "$T/acts"\n' > "$T/bin/wip"
 printf '#!/usr/bin/env bash\necho "kill $*" >> "$T/acts"\n' > "$T/bin/kill"
-printf '#!/usr/bin/env bash\necho "send $*" >> "$T/sent"\n' > "$T/bin/send"
+# spool-send.sh: "$T/sendfail" present -> rc 12, not delivered (the hub relay is down)
+printf '#!/usr/bin/env bash\n[ -e "$T/sendfail" ] && { echo "fail $*" >> "$T/sendfails"; exit 12; }\necho "send $*" >> "$T/sent"\n' > "$T/bin/send"
 printf '#!/usr/bin/env bash\necho "restart $ID $CAUSE" >> "$T/restarts"\n' > "$T/bin/restart"
 # the hub's liveness probe: "$T/probe" says up (the hub answers) or down
 printf '#!/usr/bin/env bash\necho probe >> "$T/probes"\n[ "$(cat "$T/probe" 2>/dev/null)" = up ]\n' > "$T/bin/probe"
@@ -105,7 +116,7 @@ wd() {
     export WD_TAKEOVER_CMD="$T/bin/restart" RESTART_MAX_PER_HOUR=3 WD_TICK_SEQ=1
     "$@" )
 }
-reset() { rm -rf "$T/wd" "$T/spool" "$T/acts" "$T/sent" "$T/restarts" "$T/beats" "$T/probes" "$T/wd.log"; mkdir -p "$T/wd" "$T/spool"; echo down > "$T/probe"; }
+reset() { rm -rf "$T/wd" "$T/spool" "$T/acts" "$T/sent" "$T/sendfail" "$T/sendfails" "$T/restarts" "$T/beats" "$T/probes" "$T/wd.log"; mkdir -p "$T/wd" "$T/spool"; echo down > "$T/probe"; }
 # ticks FROM TO MODE: one fence call per 30 s from T0+FROM to T0+TO with the hub in MODE
 ticks() {
   local s; echo "$3" > "$T/hub"
@@ -453,6 +464,44 @@ printf 'c-099\tx\n' > "$T/spool/registry.retired.tsv"
 [[ "$(SPOOL_ROOT="$T/spool" wd spl_wd_unfence_done c-099 "$T0")" == retired:* ]] &&
   [[ -z "$(SPOOL_ROOT="$T/spool" wd spl_wd_unfence_done c-051 $(( T0 + 120 )))" ]] &&
   pass "13. a retired lane is done; a busy one is not" || fail "13. spl_wd_unfence_done: $(wd spl_wd_unfence_done c-099 "$T0")"
+
+# ---- 14. the FENCED note survives a dead uplink (SPL-3774) ----------------------
+reset
+export LEASE_DIR="$T/lease14"; rm -rf "$LEASE_DIR"; mkdir -p "$LEASE_DIR"
+iso14() { date -u -d "@$1" +%FT%TZ; }
+{ echo "$(iso14 $(( T0 - 600 ))) ms=9 rc=1 try=1 tenant=t1 --fleet main --role orch :: dial tcp 192.0.2.1:443: connect: connection refused"
+  echo "$(iso14 $(( T0 + 150 ))) ms=9 rc=1 try=1 tenant=t1 --fleet main --role orch :: dial: lookup hub.example.net on [::1]:53: read udp [::1]:4711->[::1]:53: read: connection refused"
+  echo "$(iso14 $(( T0 + 160 ))) ms=9 rc=0 try=1 tenant=t1 --fleet main --role dispatch :: ok"; } > "$LEASE_DIR/dial.log"
+ticks 0 0 ok
+touch "$T/sendfail"
+ticks 30 120 silent
+[[ -e "$T/wd/fenced" && "$(n sent .)" == 0 && "$(n sendfails FENCED)" == 1 ]] && grep -q "FENCED (spec 102" "$T/wd/fence.notice.pending" 2>/dev/null &&
+  pass "14. the FENCED send fails: the body is kept in fence.notice.pending" || fail "14. pending: $(cat "$T/wd/fence.notice.pending" 2>&1) sendfails=$(n sendfails FENCED)"
+grep -q "FENCED: the note to the orchestrator was not delivered (spool-send rc=12)" "$T/wd.log" &&
+  pass "14. the failed send is logged" || fail "14. no failure line: $(grep FENCED "$T/wd.log")"
+ticks 150 150 silent
+[[ "$(n sendfails FENCED)" == 1 ]] && pass "14. the next fenced tick sends nothing again" || fail "14. sendfails=$(n sendfails FENCED)"
+rm -f "$T/sendfail"
+ticks 180 180 ok
+[[ "$(n sent .)" == 1 ]] && grep -q -- "--to orchestrator --kind note --task wd-fence-box1 --body UNFENCED (spec 102 10.2): box box1 was fenced 60 s, $(iso14 $(( T0 + 120 ))) to $(iso14 $(( T0 + 180 )))" "$T/sent" &&
+  pass "14. UNFENCED: ONE note to the orchestrator with the fence duration" || fail "14. unfence note: $(cat "$T/sent" 2>/dev/null)"
+grep -q "lanes TERMed: c-050 c-051;" "$T/sent" 2>/dev/null && pass "14. the note names the lanes TERMed" || fail "14. lanes: $(cat "$T/sent" 2>/dev/null)"
+grep -q "last dial error: no-resolver (dial: lookup hub.example.net on \[::1\]:53" "$T/sent" 2>/dev/null &&
+  pass "14. the note names the last dial error class since the fence (no-resolver, not the older tcp)" || fail "14. class: $(cat "$T/sent" 2>/dev/null)"
+grep -q "The FENCED note was not delivered then: $(iso14 $(( T0 + 120 ))) FENCED (spec 102 10.2): box box1" "$T/sent" 2>/dev/null && [[ ! -e "$T/wd/fence.notice.pending" ]] &&
+  pass "14. the note carries the held text; fence.notice.pending is removed" || fail "14. held text: $(cat "$T/sent" 2>/dev/null) pending=$(ls "$T/wd")"
+# a send that fails at UNFENCED as well keeps the file
+reset; mkdir -p "$LEASE_DIR"; : > "$LEASE_DIR/dial.log"
+ticks 0 0 ok; touch "$T/sendfail"; ticks 30 120 silent; ticks 150 150 ok
+[[ -s "$T/wd/fence.notice.pending" && "$(n sendfails UNFENCED)" == 1 ]] && grep -q "UNFENCED: the held FENCED note was not delivered either (spool-send rc=12)" "$T/wd.log" &&
+  grep -q "last dial error: none logged" "$T/sendfails" &&
+  pass "14. the UNFENCED send fails too: logged, fence.notice.pending kept" || fail "14. unfence fail: $(ls "$T/wd") $(grep UNFENCED "$T/wd.log")"
+# control: the FENCED send works -> no second note at UNFENCED
+reset; mkdir -p "$LEASE_DIR"
+ticks 0 0 ok; ticks 30 120 silent; ticks 150 150 ok
+[[ "$(n sent .)" == 1 && "$(n sent FENCED)" == 1 && "$(n sent UNFENCED)" == 0 && ! -e "$T/wd/fence.notice.pending" ]] &&
+  pass "14. control: the FENCED note was delivered -> no second note at UNFENCED" || fail "14. control: $(cat "$T/sent" 2>/dev/null)"
+unset LEASE_DIR
 
 if (( fails )); then echo "wd-fence: $fails FAILED"; exit 1; fi
 echo "wd-fence: all passed"

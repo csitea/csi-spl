@@ -4,6 +4,8 @@ declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURC
 #------------------------------------------------------------------------------
 # @description Gcp 002 delete project service account.
 #------------------------------------------------------------------------------
+# The steps below read the caller's locals by bash dynamic scope:
+#   account (re-pinned by _gcp002del_authenticate) PROJ_ID SA_NAME SA_EMAIL KEY_FILE
 do_gcp_002_delete_project_service_account() {
   local _spl_sdk_saved _spl_sdk_dir
   spl_gcp_temp_sdk_config || return 1
@@ -21,118 +23,138 @@ do_gcp_002_delete_project_service_account() {
   account=$(do_gcp_account) || quit_on "no gcloud identity could be resolved — set ACCOUNT or GCP_ACCOUNT"
   do_gcp_log_identity "${PROJ_ID:-<unset>}" "${account}" "do_gcp_002_delete_project_service_account"
 
-    # ────────────────────────────────────────────────────────────────
-    # Required / expected environment variables
-    # ────────────────────────────────────────────────────────────────
-    : "${ORG:?ORG is required}"
-    : "${APP:?APP is required}"
-    : "${ENV:?ENV is required}"
-    : "${GCP_ACCOUNT:?GCP_ACCOUNT is required (e.g. your-email@domain.com)}"
+  # ────────────────────────────────────────────────────────────────
+  # Required / expected environment variables
+  # ────────────────────────────────────────────────────────────────
+  : "${ORG:?ORG is required}"
+  : "${APP:?APP is required}"
+  : "${ENV:?ENV is required}"
+  : "${GCP_ACCOUNT:?GCP_ACCOUNT is required (e.g. your-email@domain.com)}"
 
-    # Construct identifiers (same as creation)
-    local PROJ_ID="${ORG}-${APP}-${ENV}"
-    local SA_NAME="${PROJ_ID}"
-    local SA_EMAIL="${SA_NAME}@${PROJ_ID}.iam.gserviceaccount.com"
-    local KEY_FILE="$HOME/.gcp/.${ORG}/key-${SA_NAME}.json"
+  # Construct identifiers (same as creation)
+  local PROJ_ID="${ORG}-${APP}-${ENV}"
+  local SA_NAME="${PROJ_ID}"
+  local SA_EMAIL="${SA_NAME}@${PROJ_ID}.iam.gserviceaccount.com"
+  local KEY_FILE="$HOME/.gcp/.${ORG}/key-${SA_NAME}.json"
 
-    do_log "INFO" "Starting deletion of service account: ${SA_EMAIL} in project ${PROJ_ID}"
+  do_log "INFO" "Starting deletion of service account: ${SA_EMAIL} in project ${PROJ_ID}"
 
-    # ────────────────────────────────────────────────────────────────
-    # Authentication – most reliable sequence in 2025
-    # ────────────────────────────────────────────────────────────────
-    do_log "INFO" "Ensuring fresh gcloud authentication..."
+  _gcp002del_authenticate || return 1
 
-    # 1. Revoke everything old (best effort)
-    gcloud auth revoke --all 2>/dev/null || true
+  local sa_rc=0
+  _gcp002del_check_sa || sa_rc=$?
+  (( sa_rc == 3 )) && return 0 # SA absent: done, rc 0, no keys call
+  (( sa_rc == 0 )) || return 1
 
-    # 2. Force application-default credentials login (what Terraform / most SDKs use)
-    gcloud auth application-default revoke 2>/dev/null || true
+  _gcp002del_delete_keys || return 1
+  _gcp002del_delete_sa
+}
 
-    # 3. Interactive user login + update ADC
-    if ! gcloud auth login --update-adc --quiet; then
-        do_log "ERROR" "gcloud auth login failed. Please run it manually first:"
-        echo "    gcloud auth login"
-        echo "    gcloud auth application-default login"
-  return 1
+# ────────────────────────────────────────────────────────────────
+# Authentication – most reliable sequence in 2025
+# ────────────────────────────────────────────────────────────────
+# Re-pins the caller's `account` to the identity just logged in.
+_gcp002del_authenticate() {
+  do_log "INFO" "Ensuring fresh gcloud authentication..."
+
+  # 1. Revoke everything old (best effort)
+  gcloud auth revoke --all 2>/dev/null || true
+
+  # 2. Force application-default credentials login (what Terraform / most SDKs use)
+  gcloud auth application-default revoke 2>/dev/null || true
+
+  # 3. Interactive user login + update ADC
+  if ! gcloud auth login --update-adc --quiet; then
+    do_log "ERROR" "gcloud auth login failed. Please run it manually first:"
+    echo "    gcloud auth login"
+    echo "    gcloud auth application-default login"
+    return 1
+  fi
+  account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
+
+  # 4. Explicitly set the desired account
+  do_log "INFO" "Setting active account to ${GCP_ACCOUNT}"
+  if ! gcloud config set account "${GCP_ACCOUNT}"; then
+    do_log "ERROR" "Failed to set account ${GCP_ACCOUNT}"
+    return 1
+  fi
+
+  # 5. Final validation – both user credentials and ADC
+  if ! gcloud auth print-access-token --account="${account}" >/dev/null 2>&1; then
+    do_log "ERROR" "No valid user credentials after login"
+    return 1
+  fi
+
+  if ! gcloud auth application-default print-access-token >/dev/null 2>&1; then
+    do_log "WARNING" "ADC still not valid — running application-default login"
+    if ! gcloud auth application-default login --quiet; then
+      do_log "ERROR" "application-default login also failed"
+      do_log "ERROR" "Please run manually: gcloud auth application-default login"
+      return 1
     fi
-    account=$(do_gcp_isolated_active_account) || quit_on "re-pin --account to the identity just activated in the isolated gcloud config"
+  fi
 
-    # 4. Explicitly set the desired account
-    do_log "INFO" "Setting active account to ${GCP_ACCOUNT}"
-    if ! gcloud config set account "${GCP_ACCOUNT}"; then
-        do_log "ERROR" "Failed to set account ${GCP_ACCOUNT}"
-  return 1
-    fi
+  do_log "SUCCESS" "Authenticated as ${GCP_ACCOUNT} (user + ADC)"
+}
 
-    # 5. Final validation – both user credentials and ADC
-    if ! gcloud auth print-access-token --account="${account}" >/dev/null 2>&1; then
-        do_log "ERROR" "No valid user credentials after login"
-  return 1
-    fi
+# ────────────────────────────────────────────────────────────────
+# Actual cleanup
+# ────────────────────────────────────────────────────────────────
 
-    if ! gcloud auth application-default print-access-token >/dev/null 2>&1; then
-        do_log "WARNING" "ADC still not valid — running application-default login"
-        if ! gcloud auth application-default login --quiet; then
-            do_log "ERROR" "application-default login also failed"
-            do_log "ERROR" "Please run manually: gcloud auth application-default login"
-  return 1
-        fi
-    fi
-
-    do_log "SUCCESS" "Authenticated as ${GCP_ACCOUNT} (user + ADC)"
-
-    # ────────────────────────────────────────────────────────────────
-    # Actual cleanup
-    # ────────────────────────────────────────────────────────────────
-
-    # Check if SA exists
-    if ! gcloud iam service-accounts describe "${SA_EMAIL}" --project="${PROJ_ID}" --account="${account}" >/dev/null 2>&1; then
-        do_log "INFO" "Service account ${SA_EMAIL} does not exist — nothing to delete"
-        # Still clean local key if present
-        if [[ -f "${KEY_FILE}" ]]; then
-            rm -f "${KEY_FILE}" && do_log "INFO" "Removed stale local key file: ${KEY_FILE}"
-        fi
-        return 0
-    fi
-
-    do_log "INFO" "Found service account ${SA_EMAIL} — cleaning up"
-
-    # Delete all keys first
-    do_log "INFO" "Deleting all keys attached to ${SA_EMAIL}"
-    local KEY_IDS
-    KEY_IDS=$(gcloud iam service-accounts keys list \
-        --iam-account="${SA_EMAIL}" \
-        --project="${PROJ_ID}" \
-        --format="value(name)" \
-      --account="${account}" 2>/dev/null || true)
-
-    if [[ -n "${KEY_IDS}" ]]; then
-        for key_id in ${KEY_IDS}; do
-            do_log "INFO" "Deleting key: ${key_id}"
-            gcloud iam service-accounts keys delete "${key_id}" \
-                --iam-account="${SA_EMAIL}" --quiet \
-              --account="${account}" \
-              --project="${PROJ_ID}" || \
-                do_log "WARN" "Failed to delete key ${key_id} — continuing anyway"
-        done
-    else
-        do_log "INFO" "No keys found to delete"
-    fi
-
-    # Delete the service account itself
-    do_log "INFO" "Deleting service account ${SA_EMAIL}"
-    if ! gcloud iam service-accounts delete "${SA_EMAIL}" \
-        --project="${PROJ_ID}" --quiet \
-      --account="${account}"; then
-        do_log "ERROR" "Failed to delete service account ${SA_EMAIL}"
-  return 1
-    fi
-
-    # Local key file cleanup
+# Check if SA exists. Returns 0 when it does; 3 when it does not (after
+# removing a stale local key), which tells the caller the action is done.
+_gcp002del_check_sa() {
+  if ! gcloud iam service-accounts describe "${SA_EMAIL}" --project="${PROJ_ID}" --account="${account}" >/dev/null 2>&1; then
+    do_log "INFO" "Service account ${SA_EMAIL} does not exist — nothing to delete"
+    # Still clean local key if present
     if [[ -f "${KEY_FILE}" ]]; then
-        rm -f "${KEY_FILE}"
-        do_log "INFO" "Removed local service account key file: ${KEY_FILE}"
+      rm -f "${KEY_FILE}" && do_log "INFO" "Removed stale local key file: ${KEY_FILE}"
     fi
+    return 3
+  fi
 
-    do_log "SUCCESS" "Service account ${SA_EMAIL} and related resources deleted successfully"
+  do_log "INFO" "Found service account ${SA_EMAIL} — cleaning up"
+}
+
+# Delete all keys first. A key that fails to delete is WARNed and skipped.
+_gcp002del_delete_keys() {
+  do_log "INFO" "Deleting all keys attached to ${SA_EMAIL}"
+  local KEY_IDS
+  KEY_IDS=$(gcloud iam service-accounts keys list \
+    --iam-account="${SA_EMAIL}" \
+    --project="${PROJ_ID}" \
+    --format="value(name)" \
+    --account="${account}" 2>/dev/null || true)
+
+  if [[ -n "${KEY_IDS}" ]]; then
+    for key_id in ${KEY_IDS}; do
+      do_log "INFO" "Deleting key: ${key_id}"
+      gcloud iam service-accounts keys delete "${key_id}" \
+        --iam-account="${SA_EMAIL}" --quiet \
+        --account="${account}" \
+        --project="${PROJ_ID}" || \
+        do_log "WARN" "Failed to delete key ${key_id} — continuing anyway"
+    done
+  else
+    do_log "INFO" "No keys found to delete"
+  fi
+}
+
+# Delete the service account itself, then the local key file.
+_gcp002del_delete_sa() {
+  do_log "INFO" "Deleting service account ${SA_EMAIL}"
+  if ! gcloud iam service-accounts delete "${SA_EMAIL}" \
+    --project="${PROJ_ID}" --quiet \
+    --account="${account}"; then
+    do_log "ERROR" "Failed to delete service account ${SA_EMAIL}"
+    return 1
+  fi
+
+  # Local key file cleanup
+  if [[ -f "${KEY_FILE}" ]]; then
+    rm -f "${KEY_FILE}"
+    do_log "INFO" "Removed local service account key file: ${KEY_FILE}"
+  fi
+
+  do_log "SUCCESS" "Service account ${SA_EMAIL} and related resources deleted successfully"
 }

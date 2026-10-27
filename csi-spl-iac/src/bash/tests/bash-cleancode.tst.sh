@@ -19,7 +19,6 @@ MAX_LINES=80
 
 # <file> <function> <ceiling>: the ceiling is its length on 2026-10-10 (r5-06).
 LONG="
-  csi-spl-iac/src/bash/run/gcp-002-delete-project-service-account.func.sh do_gcp_002_delete_project_service_account 132
   csi-spl-iac/src/bash/run/gcp-project-delete.func.sh do_gcp_project_delete 119
   csi-spl-iac/src/bash/run/provision-firebase-dns.func.sh do_provision_firebase_dns 169
 "

@@ -104,4 +104,6 @@ func (s *Server) routeMarketingPosts(mux *http.ServeMux) {
 	s.marketingRoute(mux, "GET /v1/marketing/posts", s.handleMarketingPosts)
 	mux.HandleFunc("OPTIONS /v1/marketing/posts", s.marketingPostsPreflight)
 	mux.HandleFunc("OPTIONS /v1/marketing/posts/{id}/publish", s.marketingPostsPreflight)
+	s.marketingRoute(mux, "GET /v1/marketing/posts/{id}/share-links", s.handleMarketingShareLinks) // spec 090 T037
+	mux.HandleFunc("OPTIONS /v1/marketing/posts/{id}/share-links", s.marketingPostsPreflight)
 }

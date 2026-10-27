@@ -316,7 +316,8 @@ Added 2026-10-26 (v0.2.2 tasks, SPL-3553) for customer draft handover (`spec.md`
   - **Red Control**: Unchecked photos are excluded from download pack; clipboard copy verifies full formatted string; bundle size increase guard verifies `MarketingDraftHandover.vue` adds < 15 KB uncompressed (< 5 KB gzipped) to marketing bundle.
   - **Depends**: T031 (migration 0229 for post_handed_over event). **Serial**.
 
-- [ ] T037 **One-click fallback & deep link generator for FB, IG, Viber & WhatsApp** (`api/internal/hub`, `wui`).
+- [x] T037 **One-click fallback & deep link generator for FB, IG, Viber & WhatsApp** (`api/internal/hub`, `wui`).
+  - **Done** (c-433, SPL-3872, sha SHA_PENDING): `GET /v1/marketing/posts/{id}/share-links` (any member, marketing on; `marketing_share_links.go`, openapi.json) and its twin `csi-spl-wui/src/utils/marketing-share-links.mjs`, both RFC 3986 encoding (a space is `%20`, `!'()*` escaped) checked against one set of golden strings. The public blog row (`BlogShareRow.vue`, `blog-share.mjs`) takes Facebook (now `u` only, `quote=` dropped), WhatsApp and the new Viber link from it, and gains Instagram (copies the caption, opens instagram.com). `MarketingDraftHandover.vue` does not exist yet (T036): it takes the hub's links when it is built.
   - **Build**:
     - Hub endpoint `GET /v1/marketing/posts/{id}/share-links` returns pre-rendered share URLs:
       - Facebook: `https://www.facebook.com/sharer/sharer.php?u=<url>`

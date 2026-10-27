@@ -5446,6 +5446,48 @@
         ]
       }
     },
+    "/v1/marketing/posts/{id}/share-links": {
+      "get": {
+        "operationId": "getMarketingPostsByIdShareLinks",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {post_id, url, facebook, viber, whatsapp, instagram: {caption, images, open}}; percent-encoded one-click share links for the live blog post: the Facebook sharer (u only), viber://forward with headline and link in at most 200 characters, wa.me, and Instagram's copy-caption and download pack (spec 090 T037)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "502": {
+            "description": "the live blog index is unavailable"
+          },
+          "503": {
+            "description": "the blog is not configured on this hub"
+          }
+        },
+        "summary": "One-click share links for a live blog post: Facebook, Viber, WhatsApp, Instagram (any member, marketing on)",
+        "tags": [
+          "marketing"
+        ]
+      }
+    },
     "/v1/marketing/settings": {
       "get": {
         "operationId": "getMarketingSettings",

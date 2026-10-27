@@ -22,14 +22,12 @@ const post = { url, title }
 const enc = encodeURIComponent
 
 ok('order is copy, then the sites, e-mail last', JSON.stringify(BLOG_SHARE_ORDER) === JSON.stringify([
-  'copy', 'linkedin', 'facebook', 'x', 'whatsapp', 'telegram', 'reddit', 'substack', 'email',
+  'copy', 'linkedin', 'facebook', 'instagram', 'x', 'whatsapp', 'viber', 'telegram', 'reddit', 'substack', 'email',
 ]))
 
 const cases = {
   linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${enc(url)}&title=${enc(title)}`,
-  facebook: `https://www.facebook.com/sharer/sharer.php?u=${enc(url)}&quote=${enc(title)}`,
   x: `https://x.com/intent/post?url=${enc(url)}&text=${enc(title)}`,
-  whatsapp: `https://wa.me/?text=${enc(`${title} ${url}`)}`,
   telegram: `https://t.me/share/url?url=${enc(url)}&text=${enc(title)}`,
   reddit: `https://www.reddit.com/submit?url=${enc(url)}&title=${enc(title)}`,
   email: `mailto:?subject=${enc(title)}&body=${enc(url)}`,
@@ -43,6 +41,9 @@ for (const [net, href] of Object.entries(cases)) {
   ok(`${net} is not a script URL`, Boolean(got && !got.includes('javascript:')))
 }
 
+// Facebook, WhatsApp, Viber and Instagram: tests/unit/marketing-share-links.test.mjs (spec 090 T037).
+ok('facebook shares the post URL only (no deprecated quote=)', blogShareHref('facebook', post) === `https://www.facebook.com/sharer/sharer.php?u=${enc(url)}`)
+ok('whatsapp carries the title and the post URL', blogShareHref('whatsapp', post) === `https://wa.me/?text=${enc(`${title} ${url}`)}`)
 ok('copy has no share URL', blogShareHref('copy', post) === null)
 ok('substack has no share URL', blogShareHref('substack', post) === null)
 ok('an unknown network has no share URL', blogShareHref('tracker', post) === null)
@@ -71,6 +72,7 @@ ok('BlogShareRow.vue a check marks a successful copy', shareRowVue.includes('is-
 const KEYS = [
   'blog.share', 'blog.copy_link', 'blog.share_linkedin', 'blog.share_facebook', 'blog.share_x',
   'blog.share_whatsapp', 'blog.share_telegram', 'blog.share_reddit', 'blog.share_substack', 'blog.share_email',
+  'blog.share_instagram', 'blog.share_viber',
 ]
 const locales = readdirSync(join(WUI, 'i18n/locales')).filter((f) => f.endsWith('.json')).sort()
 ok('19 locale files and no es.tmp', locales.length === 19 && !existsSync(join(WUI, 'i18n/locales/es.tmp')), locales.join(','))
@@ -86,7 +88,7 @@ function flatten(d, prefix = '') {
 for (const f of locales) {
   const flat = flatten(JSON.parse(readFileSync(join(WUI, 'i18n/locales', f), 'utf8')))
   const missing = KEYS.filter((k) => typeof flat[k] !== 'string' || flat[k].trim() === '')
-  ok(`${f} has the 10 blog share keys`, missing.length === 0, missing.join(','))
+  ok(`${f} has the 12 blog share keys`, missing.length === 0, missing.join(','))
 }
 
 const suite = runsInUnitSuite(import.meta.url)

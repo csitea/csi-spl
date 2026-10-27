@@ -45,6 +45,16 @@ import (
 // null when a cost day has no rate on or before it, never a guess. USD and
 // EUR (what was paid) are unchanged; total.second_micros is null when any
 // part's is.
+//
+// The AI subscriptions (spec 143 costs-redesign.md 3.3.1 and 4, SPL-3810;
+// owner HUM-10 t1 1be0e370 msg 3f1c7128, answer 4 B): the estate answer adds
+// source ai_paid, one part per agent type and plan, the paid items' full
+// daily amounts of the ended days; a customer workspace's answer adds source
+// ai_share, one part per agent type, its share of those amounts by its lanes'
+// tokens (store/cost_ai_paid.go), plus ai_share_from, the first day a token
+// carries a workspace. The operator workspace's other members get neither.
+// Each source's coverage counts a day read when every item paying for it has
+// a rate.
 
 // costMonthWindow is one month's days, as of now.
 type costMonthWindow struct {
@@ -117,6 +127,9 @@ type costMonthBody struct {
 	// Workspaces is every workspace's token burn of the month, the estate
 	// answer's only (absent from a workspace answer).
 	Workspaces []costWorkspaceOut `json:"workspaces,omitempty"`
+	// AIShareFrom is a customer workspace's first day with a workspace-
+	// stamped token (no share before it); absent elsewhere.
+	AIShareFrom string `json:"ai_share_from,omitempty"`
 }
 
 func (s *Server) routeCostRead(mux *http.ServeMux) {
@@ -162,6 +175,10 @@ func (s *Server) handleCostRead(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		burn, err = s.workspaceTokenParts(r.Context(), op, costBurnOf(estate, t.ID), win)
 	}
+	var ai *store.AIPaidMonth
+	if err == nil {
+		ai, err = s.aiCostParts(r.Context(), op, estate, t.ID, win, cur)
+	}
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", t.ID).Str("month", win.Month).Msg("cost.read_failed")
 		writeErr(w, http.StatusInternalServerError, "internal", "cost report unavailable")
@@ -170,7 +187,13 @@ func (s *Server) handleCostRead(w http.ResponseWriter, r *http.Request) {
 	if !estate {
 		cm.Parts = append(cm.Parts, tokenCostParts(burn)...)
 	}
+	if ai != nil {
+		cm.Parts, cm.Coverage = append(cm.Parts, ai.Parts...), append(cm.Coverage, ai.Coverage)
+	}
 	b := costMonthAnswer(win, estate, cur, cm)
+	if ai != nil && !estate {
+		b.AIShareFrom = ai.ShareFrom
+	}
 	if estate {
 		b.Workspaces = costWorkspaces(burn)
 	}
@@ -184,6 +207,25 @@ func costBurnOf(estate bool, tenant string) string {
 		return ""
 	}
 	return tenant
+}
+
+// aiCostParts reads the month's AI parts: the estate's ai_paid, a customer
+// workspace's ai_share; nil for the operator workspace's other members
+// (3.3.1 point 4) and on a store without the read.
+func (s *Server) aiCostParts(ctx context.Context, op string, estate bool, tenant string, win costMonthWindow, cur string) (*store.AIPaidMonth, error) {
+	ar, ok := s.o.Store.(store.AIPaidRead)
+	if !ok || op == "" || (!estate && tenant == op) {
+		return nil, nil
+	}
+	q := store.AIPaidQuery{Operator: op, From: win.From, CoverTo: win.CoverTo, Currency: cur}
+	if !estate {
+		q.Workspace = tenant
+	}
+	m, err := ar.AIPaidMonthRead(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	return &m, nil
 }
 
 // secondCurrency is the member's second currency in tenant (SPL-2108): their

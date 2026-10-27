@@ -49,6 +49,8 @@ var operatorCallers = map[string]string{
 	"UpdatePaidItem":             "PATCH /v1/operator/fleet-tokens/paid/{id} (SPL-2342, rdb 0205): one estate row by id (no tenant_id); only the operator admin / service account (fleetLoadCaller) reaches it",
 	"DeletePaidItem":             "DELETE /v1/operator/fleet-tokens/paid/{id} (SPL-2342, rdb 0205): one estate row by id (no tenant_id); only the operator admin / service account (fleetLoadCaller) reaches it",
 	"FleetVendorDays":            "GET /v1/operator/fleet-tokens/effective (SPL-2342): the fleet token burn per day and vendor (rdb 0199 estate rows, no tenant_id); only the operator admin / service account (fleetLoadCaller) reaches it",
+	"WorkspaceBurnDays":          "GET /v1/tenant/costs ai_share (SPL-3810, spec 143 costs-redesign 3.3.1): the fleet burn rows per day, agent type and work_tenant (rdb 0199/0229, no tenant_id); the share needs every workspace's tokens as its denominator, and only the asked workspace's shaped share leaves the store",
+	"secondFXDays":               "GET /v1/tenant/costs ai_paid / ai_share (SPL-3810): the second currency's hub-wide daily rates (rdb 0200, no tenant column); reads no tenant's row",
 	"FleetPaidFXRate":            "GET /v1/operator/fleet-tokens/effective (SPL-2342): one hub-wide exchange rate (rdb 0200, no tenant column) for a paid item's currency; reads no tenant's row",
 	"SetTenantHost":              "tenant host reconciler (operator action / hub-tenant); no route",
 	"Memberships":                "auth session (026 tenant from identity): the SESSION's own human_id, across that human's tenants",

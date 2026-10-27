@@ -371,6 +371,30 @@ Monitoring.
 Nothing above is invented: the four "missing" reads are named here and
 built by their own slice.
 
+### 4.1 S3 as built (SPL-3810)
+
+The two AI rows above are built by slice S3 (`store/cost_ai_paid.go`,
+`store/cost_ai_paid_postgres.go`, hooked in `hub/cost_read.go`), the shape
+S4 reads:
+
+- **Estate** (operator admin): parts with `source` `ai_paid`, `estate` true,
+  `project_or_vendor` = agent type, `kind` = the plan label, `origin`
+  `paid_item`, `usd_micros` = the sum of the items' daily micros
+  (`round(fleetPaidDailyUSD * 1e6)`) over the ended days, `days` = days with
+  an amount. Never an `ai_share` part.
+- **Customer workspace**: parts with `source` `ai_share`, `kind` `share`, one
+  per agent type, `usd_micros` = the sum of its daily shares (rule 3.3.1,
+  `store.AIShareSplit`); plus `ai_share_from`, the first day of the month
+  whose burn carries any workspace stamp. Never an `ai_paid` part, a plan or
+  another workspace. The operator workspace's other members: neither.
+- **Both**: `second_micros` day by day at the second currency's rate (null
+  when a day has none), `eur_micros` 0 (the fixed EUR column is gone); one
+  coverage row per source, a day `missing` when an item paying for it has no
+  rate (its amount is then left out), else `ok`.
+- The burn read is per (UTC day, agent type, `work_tenant`), metered input +
+  output + cache write: the minutes of a day that still has any, else its
+  rollup (`fleetVendorDaysSQL`'s precedence), operator scope only.
+
 ## 5. Migration
 
 **Links** (the `legacyMonitoringPath` pattern in `monitoring-tabs.mjs`):

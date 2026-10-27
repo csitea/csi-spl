@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
+	"slices"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -254,13 +256,26 @@ func (s *Postgres) ListFileStreams(ctx context.Context, tenant string) ([]FileSt
 	return out, err
 }
 
-// FileStreamLinesAfter is FileStreamStore.FileStreamLinesAfter.
-func (s *Postgres) FileStreamLinesAfter(ctx context.Context, tenant, id string, after int64, limit int) ([]FileStreamLine, error) {
+// fileStreamLinesSQL is one page: after a seq (oldest first), or the
+// newest before a seq or of all (newest first, reversed by the caller).
+const (
+	fileStreamLinesAfterSQL = `SELECT stream_id::text, seq, at, text, marker FROM file_stream_lines
+		WHERE tenant_id = $1 AND stream_id = $2::uuid AND seq > $3 ORDER BY seq LIMIT $4`
+	fileStreamLinesBeforeSQL = `SELECT stream_id::text, seq, at, text, marker FROM file_stream_lines
+		WHERE tenant_id = $1 AND stream_id = $2::uuid AND seq < $3 ORDER BY seq DESC LIMIT $4`
+)
+
+// FileStreamLines is FileStreamStore.FileStreamLines.
+func (s *Postgres) FileStreamLines(ctx context.Context, tenant, id string, q FileStreamLinesQuery) ([]FileStreamLine, error) {
 	if !uuidRe.MatchString(id) {
 		return nil, ErrNotFound
 	}
-	if limit <= 0 {
-		limit = wire.FileStreamLinesPerPush
+	sql, from, desc := fileStreamLinesBeforeSQL, int64(math.MaxInt64), true
+	switch {
+	case q.After != nil:
+		sql, from, desc = fileStreamLinesAfterSQL, *q.After, false
+	case q.Before != nil:
+		from = *q.Before
 	}
 	out := []FileStreamLine{}
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
@@ -268,17 +283,18 @@ func (s *Postgres) FileStreamLinesAfter(ctx context.Context, tenant, id string, 
 		if err := tx.QueryRow(ctx, `SELECT 1 FROM file_streams WHERE tenant_id = $1 AND id = $2::uuid`, tenant, id).Scan(&one); err != nil {
 			return err
 		}
-		return eachRow(ctx, tx, `SELECT stream_id::text, seq, at, text, marker FROM file_stream_lines
-			WHERE tenant_id = $1 AND stream_id = $2::uuid AND seq > $3 ORDER BY seq LIMIT $4`, []any{tenant, id, after, limit},
-			func(r pgx.Rows) error {
-				var l FileStreamLine
-				err := r.Scan(&l.StreamID, &l.Seq, &l.At, &l.Text, &l.Marker)
-				out = append(out, l)
-				return err
-			})
+		return eachRow(ctx, tx, sql, []any{tenant, id, from, q.limit()}, func(r pgx.Rows) error {
+			var l FileStreamLine
+			err := r.Scan(&l.StreamID, &l.Seq, &l.At, &l.Text, &l.Marker)
+			out = append(out, l)
+			return err
+		})
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
+	}
+	if desc {
+		slices.Reverse(out)
 	}
 	return out, err
 }

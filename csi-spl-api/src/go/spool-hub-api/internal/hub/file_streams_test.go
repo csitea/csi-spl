@@ -25,13 +25,13 @@ type fsRig struct {
 	limits store.FileStreamLimits
 }
 
-func newFSRig(t *testing.T, lim store.FileStreamLimits) *fsRig {
+func newFSRig(t *testing.T, lim store.FileStreamLimits, mut ...func(*hub.Options)) *fsRig {
 	t.Helper()
 	r := &fsRig{}
-	r.e = rbacEnv(t, func(o *hub.Options) {
+	r.e = rbacEnv(t, append([]func(*hub.Options){func(o *hub.Options) {
 		lim.MaxWorkspaces = 1 << 20 // the Postgres test database keeps other runs' streams
 		o.FileStreamLimits = lim
-	})
+	}}, mut...)...)
 	r.w, _ = r.e.tenant()
 	r.w2, _ = r.e.tenant()
 	r.a, r.a2 = r.e.box(r.w, "box-a"), r.e.box(r.w2, "box-a")
@@ -77,7 +77,7 @@ func (r *fsRig) lines(t *testing.T, tid, key string) []store.FileStreamLine {
 	}
 	for _, f := range all {
 		if f.StreamKey == key {
-			ls, err := fs.FileStreamLinesAfter(context.Background(), tid, f.ID, 0, 1000)
+			ls, err := fs.FileStreamLines(context.Background(), tid, f.ID, store.FileStreamLinesQuery{})
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -214,8 +214,8 @@ func (s *Memory) ListFileStreams(_ context.Context, tenant string) ([]FileStream
 	return out, nil
 }
 
-// FileStreamLinesAfter is FileStreamStore.FileStreamLinesAfter.
-func (s *Memory) FileStreamLinesAfter(_ context.Context, tenant, id string, after int64, limit int) ([]FileStreamLine, error) {
+// FileStreamLines is FileStreamStore.FileStreamLines.
+func (s *Memory) FileStreamLines(_ context.Context, tenant, id string, q FileStreamLinesQuery) ([]FileStreamLine, error) {
 	if err := checkTenant(tenant); err != nil {
 		return nil, err
 	}
@@ -225,15 +225,8 @@ func (s *Memory) FileStreamLinesAfter(_ context.Context, tenant, id string, afte
 	if f := m.byID[id]; f == nil || f.Tenant != tenant {
 		return nil, ErrNotFound
 	}
-	out := []FileStreamLine{}
-	for _, l := range m.lines[id] {
-		if l.Seq > after {
-			out = append(out, l)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Seq < out[j].Seq })
-	if limit > 0 && len(out) > limit {
-		out = out[:limit]
-	}
+	all := slicesOf(m.lines[id])
+	sort.Slice(all, func(i, j int) bool { return all[i].Seq < all[j].Seq })
+	out := append([]FileStreamLine{}, fileStreamPage(all, q)...)
 	return out, nil
 }

@@ -66,6 +66,13 @@ func (s *Memory) ConnectMarketingChannel(_ context.Context, ch MarketingChannel,
 		m.channels[cur.ID] = cur
 	}
 	cur.AccountName, cur.DelegatedBy, cur.AutoPublish = ch.AccountName, ch.DelegatedBy, ch.AutoPublish
+	cur.AccountType, cur.Metadata = ch.AccountType, ch.Metadata
+	if cur.AccountType == "" {
+		cur.AccountType = "personal"
+	}
+	if cur.Metadata == nil {
+		cur.Metadata = map[string]any{}
+	}
 	cur.Status, cur.ExpiresAt, cur.RemindedAt = MarketingActive, ch.ExpiresAt, nil
 	m.tokens[cur.ID] = tok
 	m.event(ch.Tenant, cur.ID, "", "channel_connect")
@@ -190,10 +197,57 @@ func (s *Memory) ScheduleMarketingPost(_ context.Context, p MarketingPost, _ tim
 			return false, nil
 		}
 	}
-	p.ID, p.Status, p.Attempts = memUUID(), MarketingScheduled, 0
+	status, event := mktScheduleStatus(p.Status)
+	p.ID, p.Status, p.Attempts = memUUID(), status, 0
+	if p.MediaAssets == nil {
+		p.MediaAssets = []MarketingMediaAsset{}
+	}
 	m.posts[p.ID] = &memMktPost{MarketingPost: p}
-	m.event(p.Tenant, p.ChannelID, p.ID, "post_scheduled")
+	m.event(p.Tenant, p.ChannelID, p.ID, event)
 	return true, nil
+}
+
+// memMove is mktMove on the Memory store: the tenant's post in one of the
+// from statuses, or ErrNotFound; s.mu must be held.
+func (m *memMarketing) memMove(tenant, postID string, from ...string) (*memMktPost, error) {
+	p, ok := m.posts[postID]
+	if !ok || p.Tenant != tenant {
+		return nil, ErrNotFound
+	}
+	for _, f := range from {
+		if p.Status == f {
+			return p, nil
+		}
+	}
+	return nil, ErrNotFound
+}
+
+// ApproveMarketingPost implements Marketing on the Memory store (rdb 0236).
+func (s *Memory) ApproveMarketingPost(_ context.Context, tenant, postID, _ string, now time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m := s.mkt()
+	p, err := m.memMove(tenant, postID, MarketingAwaitingApproval)
+	if err != nil {
+		return err
+	}
+	p.Status, p.next = MarketingScheduled, now
+	m.event(tenant, p.ChannelID, postID, "post_approved")
+	return nil
+}
+
+// HandOverMarketingPost implements Marketing on the Memory store (rdb 0236).
+func (s *Memory) HandOverMarketingPost(_ context.Context, tenant, postID, _ string, _ time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m := s.mkt()
+	p, err := m.memMove(tenant, postID, MarketingAwaitingApproval, MarketingScheduled)
+	if err != nil {
+		return err
+	}
+	p.Status, p.PlatformPostID, p.next = MarketingPublished, MarketingManualPostID, time.Time{}
+	m.event(tenant, p.ChannelID, postID, "post_handed_over")
+	return nil
 }
 
 // ClaimMarketingPosts implements Marketing on the Memory store (rdb 0187).

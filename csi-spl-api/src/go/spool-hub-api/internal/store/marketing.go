@@ -39,9 +39,20 @@ type Marketing interface {
 	BaselineMarketingPosts(ctx context.Context, tenant, channelID string, refs []string, now time.Time) error
 	// MarketingPostRefs is the set of source refs the channel already has.
 	MarketingPostRefs(ctx context.Context, tenant, channelID string) (map[string]bool, error)
-	// ScheduleMarketingPost inserts a scheduled post; false when the
-	// (channel, source) row already exists (nothing changed).
+	// ScheduleMarketingPost inserts a scheduled post, or a held one when
+	// p.Status is MarketingAwaitingApproval (rdb 0236), with its media
+	// assets; false when the (channel, source) row already exists (nothing
+	// changed).
 	ScheduleMarketingPost(ctx context.Context, p MarketingPost, now time.Time) (bool, error)
+	// ApproveMarketingPost releases a held post: awaiting_approval ->
+	// scheduled, due now (+ post_approved by actor). ErrNotFound when the
+	// post is not held in tenant.
+	ApproveMarketingPost(ctx context.Context, tenant, postID, actor string, now time.Time) error
+	// HandOverMarketingPost records a post the member published by hand
+	// (spec 090 section 17): a held or scheduled post becomes published with
+	// platform_post_id 'manual' (+ post_handed_over by actor). ErrNotFound
+	// when the post is neither in tenant.
+	HandOverMarketingPost(ctx context.Context, tenant, postID, actor string, now time.Time) error
 	// ClaimMarketingPosts moves the channel's due scheduled posts to
 	// dispatching (attempts+1) and returns them.
 	ClaimMarketingPosts(ctx context.Context, tenant, channelID string, now time.Time) ([]MarketingPost, error)
@@ -58,6 +69,7 @@ type MarketingChannel struct {
 	ID          string     `json:"channel_id"`
 	Tenant      string     `json:"tenant_id"`
 	Platform    string     `json:"platform"`
+	AccountType string     `json:"account_type"` // "" on connect = personal
 	AccountRef  string     `json:"account_ref"`
 	AccountName string     `json:"account_name"`
 	DelegatedBy string     `json:"delegated_by"`
@@ -67,6 +79,10 @@ type MarketingChannel struct {
 	RemindedAt  *time.Time `json:"reminded_at,omitempty"`
 	BaselineAt  *time.Time `json:"baseline_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
+	// Metadata is the platform's public account facts (rdb 0236): the Page
+	// id, the Instagram business id, the username, the profile picture URL.
+	// Never a token.
+	Metadata map[string]any `json:"metadata"`
 }
 
 // MarketingToken is a channel's sealed token: ciphertext and the KMS key
@@ -88,6 +104,17 @@ type MarketingPost struct {
 	Attempts       int
 	PlatformPostID string
 	LastError      string
+	MediaAssets    []MarketingMediaAsset // rdb 0236; nil reads back as empty
+}
+
+// MarketingMediaAsset is one candidate picture of a post (rdb 0236
+// media_assets): where it is, its size, and whether it was picked.
+type MarketingMediaAsset struct {
+	URL         string  `json:"url"`
+	Width       int     `json:"width,omitempty"`
+	Height      int     `json:"height,omitempty"`
+	AspectRatio float64 `json:"aspect_ratio,omitempty"`
+	Selected    bool    `json:"selected"`
 }
 
 // MarketingOutcome is how a dispatching post ends: Published (with the
@@ -100,16 +127,21 @@ type MarketingOutcome struct {
 	Error          string
 }
 
-// Marketing statuses and source types (rdb 0187 CHECKs).
+// Marketing statuses, platforms and source types (rdb 0187 and 0236 CHECKs).
 const (
-	MarketingActive      = "active"
-	MarketingExpired     = "expired"
-	MarketingSkipped     = "skipped"
-	MarketingScheduled   = "scheduled"
-	MarketingDispatching = "dispatching"
-	MarketingPublished   = "published"
-	MarketingFailed      = "failed"
-	MarketingSourceBlog  = "blog"
+	MarketingAwaitingApproval = "awaiting_approval"
+	MarketingPlatformLinkedIn = "linkedin"
+	MarketingPlatformFacebook = "facebook_page"
+	MarketingPlatformIG       = "instagram_business"
+	MarketingManualPostID     = "manual"
+	MarketingActive           = "active"
+	MarketingExpired          = "expired"
+	MarketingSkipped          = "skipped"
+	MarketingScheduled        = "scheduled"
+	MarketingDispatching      = "dispatching"
+	MarketingPublished        = "published"
+	MarketingFailed           = "failed"
+	MarketingSourceBlog       = "blog"
 )
 
 // outcomeRow maps an outcome to the post's next status and its event.
@@ -138,24 +170,41 @@ func outcomeDetails(out MarketingOutcome) map[string]any {
 
 // ---- Postgres ---------------------------------------------------------------
 
-const mktChannelCols = `channel_id::text, tenant_id, platform, account_ref, account_name, delegated_by,
-	auto_publish, status, expires_at, reminded_at, baseline_at, created_at`
+const mktChannelCols = `channel_id::text, tenant_id, platform, account_type, account_ref, account_name, delegated_by,
+	auto_publish, status, expires_at, reminded_at, baseline_at, created_at, metadata`
 
 func scanMktChannel(r pgx.Row) (MarketingChannel, error) {
 	var c MarketingChannel
-	err := r.Scan(&c.ID, &c.Tenant, &c.Platform, &c.AccountRef, &c.AccountName, &c.DelegatedBy,
-		&c.AutoPublish, &c.Status, &c.ExpiresAt, &c.RemindedAt, &c.BaselineAt, &c.CreatedAt)
+	err := r.Scan(&c.ID, &c.Tenant, &c.Platform, &c.AccountType, &c.AccountRef, &c.AccountName, &c.DelegatedBy,
+		&c.AutoPublish, &c.Status, &c.ExpiresAt, &c.RemindedAt, &c.BaselineAt, &c.CreatedAt, &c.Metadata)
 	return c, err
 }
 
 const mktPostCols = `post_id::text, tenant_id, channel_id::text, source_type, source_ref, content_text,
-	status, attempts, coalesce(platform_post_id, ''), coalesce(last_error, '')`
+	status, attempts, coalesce(platform_post_id, ''), coalesce(last_error, ''), media_assets`
 
 func scanMktPost(r pgx.Row) (MarketingPost, error) {
 	var p MarketingPost
 	err := r.Scan(&p.ID, &p.Tenant, &p.ChannelID, &p.SourceType, &p.SourceRef, &p.ContentText,
-		&p.Status, &p.Attempts, &p.PlatformPostID, &p.LastError)
+		&p.Status, &p.Attempts, &p.PlatformPostID, &p.LastError, &p.MediaAssets)
 	return p, err
+}
+
+// mktJSON marshals a metadata map or a media asset list for a jsonb
+// parameter; nil becomes empty (the 0236 column defaults).
+func mktJSON(v any, empty string) (string, error) {
+	switch x := v.(type) {
+	case map[string]any:
+		if x == nil {
+			return empty, nil
+		}
+	case []MarketingMediaAsset:
+		if x == nil {
+			return empty, nil
+		}
+	}
+	b, err := json.Marshal(v)
+	return string(b), err
 }
 
 // mktEv is one marketing_post_events row; Actor "" with ActorType system.
@@ -187,16 +236,23 @@ func mktEvent(ctx context.Context, tx pgx.Tx, e mktEv) error {
 // ConnectMarketingChannel implements Marketing on the Postgres store (rdb 0187).
 func (s *Postgres) ConnectMarketingChannel(ctx context.Context, ch MarketingChannel, tok MarketingToken, now time.Time) (MarketingChannel, error) {
 	var out MarketingChannel
-	err := s.inTenant(ctx, ch.Tenant, func(tx pgx.Tx) error {
+	meta, err := mktJSON(ch.Metadata, "{}")
+	if err != nil {
+		return out, err
+	}
+	err = s.inTenant(ctx, ch.Tenant, func(tx pgx.Tx) error {
 		var err error
 		out, err = scanMktChannel(tx.QueryRow(ctx, `INSERT INTO marketing_channels
-			(tenant_id, platform, account_ref, account_name, delegated_by, auto_publish, status, expires_at, created_at, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, 'active', $7, $8, $8)
+			(tenant_id, platform, account_type, account_ref, account_name, delegated_by, auto_publish, status, expires_at,
+				metadata, created_at, updated_at)
+			VALUES ($1, $2, coalesce(nullif($9, ''), 'personal'), $3, $4, $5, $6, 'active', $7, $10::jsonb, $8, $8)
 			ON CONFLICT (tenant_id, platform, account_ref) DO UPDATE SET account_name = EXCLUDED.account_name,
+				account_type = EXCLUDED.account_type, metadata = EXCLUDED.metadata,
 				delegated_by = EXCLUDED.delegated_by, auto_publish = EXCLUDED.auto_publish, status = 'active',
 				expires_at = EXCLUDED.expires_at, reminded_at = NULL, updated_at = EXCLUDED.updated_at
 			RETURNING `+mktChannelCols,
-			ch.Tenant, ch.Platform, ch.AccountRef, ch.AccountName, ch.DelegatedBy, ch.AutoPublish, ch.ExpiresAt, now))
+			ch.Tenant, ch.Platform, ch.AccountRef, ch.AccountName, ch.DelegatedBy, ch.AutoPublish, ch.ExpiresAt, now,
+			ch.AccountType, meta))
 		if err != nil {
 			return err
 		}
@@ -306,12 +362,18 @@ func (s *Postgres) MarketingPostRefs(ctx context.Context, tenant, channelID stri
 // ScheduleMarketingPost implements Marketing on the Postgres store (rdb 0187).
 func (s *Postgres) ScheduleMarketingPost(ctx context.Context, p MarketingPost, now time.Time) (bool, error) {
 	made := false
-	err := s.inTenant(ctx, p.Tenant, func(tx pgx.Tx) error {
+	status, event := mktScheduleStatus(p.Status)
+	media, err := mktJSON(p.MediaAssets, "[]")
+	if err != nil {
+		return false, err
+	}
+	err = s.inTenant(ctx, p.Tenant, func(tx pgx.Tx) error {
 		var id string
-		err := tx.QueryRow(ctx, `INSERT INTO marketing_posts (tenant_id, channel_id, source_type, source_ref, content_text, status, created_at, updated_at)
-			VALUES ($1, $2::uuid, $3, $4, $5, 'scheduled', $6, $6)
+		err := tx.QueryRow(ctx, `INSERT INTO marketing_posts (tenant_id, channel_id, source_type, source_ref, content_text, status,
+				media_assets, created_at, updated_at)
+			VALUES ($1, $2::uuid, $3, $4, $5, $7, $8::jsonb, $6, $6)
 			ON CONFLICT (channel_id, source_type, source_ref) DO NOTHING RETURNING post_id::text`,
-			p.Tenant, p.ChannelID, p.SourceType, p.SourceRef, p.ContentText, now).Scan(&id)
+			p.Tenant, p.ChannelID, p.SourceType, p.SourceRef, p.ContentText, now, status, media).Scan(&id)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
 		}
@@ -319,9 +381,51 @@ func (s *Postgres) ScheduleMarketingPost(ctx context.Context, p MarketingPost, n
 			return err
 		}
 		made = true
-		return mktEvent(ctx, tx, mktEv{Tenant: p.Tenant, Channel: p.ChannelID, Post: id, Type: "post_scheduled", Details: map[string]any{"source_ref": p.SourceRef}})
+		return mktEvent(ctx, tx, mktEv{Tenant: p.Tenant, Channel: p.ChannelID, Post: id, Type: event, Details: map[string]any{"source_ref": p.SourceRef}})
 	})
 	return made, err
+}
+
+// mktScheduleStatus is a new post's status and event: held when asked for
+// (rdb 0236), else scheduled.
+func mktScheduleStatus(want string) (status, event string) {
+	if want == MarketingAwaitingApproval {
+		return MarketingAwaitingApproval, "post_held"
+	}
+	return MarketingScheduled, "post_scheduled"
+}
+
+// mktMove moves one post of tenant from one of the from statuses in one
+// guarded UPDATE (set is the SET list after updated_at; $1 tenant, $2 post,
+// $3 now, $4 from) and writes the event; ErrNotFound when no row moved.
+func (s *Postgres) mktMove(ctx context.Context, tenant, postID string, from []string, set string, ev mktEv, now time.Time) error {
+	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		var channel string
+		err := tx.QueryRow(ctx, `UPDATE marketing_posts SET updated_at = $3, `+set+`
+			WHERE tenant_id = $1 AND post_id = $2::uuid AND status = ANY($4::text[]) RETURNING channel_id::text`,
+			tenant, postID, now, from).Scan(&channel)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		ev.Tenant, ev.Channel, ev.Post, ev.ActorType = tenant, channel, postID, "human"
+		return mktEvent(ctx, tx, ev)
+	})
+}
+
+// ApproveMarketingPost implements Marketing on the Postgres store (rdb 0236).
+func (s *Postgres) ApproveMarketingPost(ctx context.Context, tenant, postID, actor string, now time.Time) error {
+	return s.mktMove(ctx, tenant, postID, []string{MarketingAwaitingApproval},
+		`status = 'scheduled', next_attempt_at = $3`, mktEv{Type: "post_approved", Actor: actor}, now)
+}
+
+// HandOverMarketingPost implements Marketing on the Postgres store (rdb 0236).
+func (s *Postgres) HandOverMarketingPost(ctx context.Context, tenant, postID, actor string, now time.Time) error {
+	return s.mktMove(ctx, tenant, postID, []string{MarketingAwaitingApproval, MarketingScheduled},
+		`status = 'published', platform_post_id = '`+MarketingManualPostID+`', published_at = $3, next_attempt_at = NULL`,
+		mktEv{Type: "post_handed_over", Actor: actor}, now)
 }
 
 // ClaimMarketingPosts implements Marketing on the Postgres store (rdb 0187).

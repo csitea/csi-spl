@@ -508,7 +508,7 @@ Mirroring the LinkedIn personal settings pattern (spec 019 / spec 090 T006):
 ### 16.3 Publishing Lifecycle & Explicit Human Approval Hold
 
 1. **Post Lifecycle & Status States**:
-   Under the extended schema (migration `0229_marketing_meta.sql` extending `0187_marketing.sql`), post statuses are:
+   Under the extended schema (migration `0236_marketing_meta.sql` extending `0187_marketing.sql`), post statuses are:
    `awaiting_approval` -> `scheduled` -> `dispatching` -> `published` (or `failed`, or `skipped`).
 2. **Explicit Approval Hold (`awaiting_approval`)**:
    - In accordance with owner rules and customer input (HUM-23), automated publishing is strictly opt-in per channel (`marketing_channels.auto_publish = false` by default).
@@ -579,7 +579,7 @@ In Phase 3, marketing posts and manual draft handovers are sourced from blog pos
 3. **Status Confirmation ("Mark as Posted Manually")**:
    - Once the owner posts the content, they click "Mark as Posted Manually".
    - The post transitions to status `published`, setting `platform_post_id = 'manual'` and `published_at = now()`.
-   - The hub logs audit event `post_handed_over` (added to `marketing_post_events.event_type` CHECK in migration `0229_marketing_meta.sql`).
+   - The hub logs audit event `post_handed_over` (added to `marketing_post_events.event_type` CHECK in migration `0236_marketing_meta.sql`).
    - Prevents stale queue alerts and avoids duplicate drafting.
 
 ---

@@ -34,6 +34,11 @@
 # @description <spool root>/<id>/lifetime/restart.lock) until the run ends:
 # @description an id another actor holds is REFUSED; a start and its outcome
 # @description are logged to rotate.log (run id <ts>-restore-<id>).
+# @description Under that lock each id is read again right before its start
+# @description (SPL-3771: two boot passes started one id twice): started
+# @description already by this run, or a live window or process carrying it,
+# @description is a SKIP; a worktree gone since the plan is a REFUSE naming the
+# @description path - never a start in another directory.
 # @description A grok seat (its session read from grok's own store at record
 # @description time, SPL-2507) comes back on grok only when grok can start: no
 # @description grok cli, no sign-in or its weekly limit is ONE "FALLBACK <id>"
@@ -82,7 +87,7 @@ do_spl_agent_identity_restore() {
     since="$(date -u -d "@$(awk '/^btime/{print $2}' /proc/stat)" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)"
   fi
   until="$(date -u -d "$since + $win minutes" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)"
-  local plan line kind id user sid wt sess title from adapter brief pane rid reg="${SPOOL_ROOT:-/var/spool-hub}/registry.tsv"
+  local plan line kind id user sid wt sess title from adapter brief pane rid why reg="${SPOOL_ROOT:-/var/spool-hub}/registry.tsv"
   local n=0 refused=0 failed=0 now started=() tag keep=1
   # Ids named by hand are the admin's restart (spec 102 6.1): the adapter
   # clears their hold. The automatic pass (the boot) keeps every hold.
@@ -102,11 +107,11 @@ do_spl_agent_identity_restore() {
         [[ "$user" == - ]] && user=""; [[ "$sess" == - ]] && sess=""; [[ "$title" == - ]] && title=""; [[ "$from" == - ]] && from=""
         sess="${sess:-${IDENTITY_RESTORE_SESSION:-main}}"
         adapter="${IDENTITY_RESTORE_ADAPTER_DIR:-$feat/scripts}/restore-$kind.sh"
-        brief="${SPOOL_ROOT:-/var/spool-hub}/$id/brief.md"; [[ -f "$brief" ]] || brief=""
-        rid="$(date -u +%Y%m%dT%H%M%SZ)-restore-$id"
+        brief="${SPOOL_ROOT:-/var/spool-hub}/$id/brief.md"; [[ -f "$brief" ]] || brief=""; rid="$(date -u +%Y%m%dT%H%M%SZ)-restore-$id"
         if ! spl_agent_id_lock "$id" do_spl_agent_identity_restore "$rid"; then
           echo "REFUSE  $id: $SPL_ID_LOCK_WHY"; refused=$((refused + 1)); continue
         fi
+        why="$(_ai_restore_recheck "$id" "$wt" "${started[*]}")"; [[ -z "$why" ]] || { _ai_restore_skip "$id" "$wt" "$why" || refused=$((refused + 1)); continue; }
         if [[ "$kind" == grok ]] && _ai_grok_fallback "$id" "${user:-$agent_user}" "$dry" "$rid"; then refused=$((refused + 1)); continue; fi
         if [[ "$dry" == 1 ]]; then
           [[ -n "$from" ]] && echo "COPY    $id: transcript $sid from $from's home to $user's"
@@ -152,6 +157,36 @@ _ai_restore_head() {  # SINCE UNTIL AGENT-USER TAG
   else
     echo "restore: agents the restart at $1 killed (dead by $2), from $(ai_dir), as $3, box tag $4"
   fi
+}
+
+# Why ID must not start NOW, read again under its id lock right before the
+# start; nothing when it may. The plan is read once, before any start: a box's
+# reboot 2026-10-26 ran two boot passes (the agent-boot-restore cron and the
+# box-sessions boot), both planned m-799, and the second started it again 13 s
+# after the first ended and freed the lock - two live sessions, one id
+# (SPL-3771). "gone" = its worktree is not a directory any more: the adapter
+# would run it in another cwd. Else a line: already started by this run, a
+# window named for it whose pane is not an idle shell (a start still coming
+# up), or a live process that carries the id.
+_ai_restore_recheck() {  # ID WORKTREE STARTED-IDS
+  local id="$1" wid name pane ppid cmd
+  [[ -d "$2" ]] || { echo gone; return 0; }
+  [[ " $3 " == *" $id "* ]] && { echo "already started by this run"; return 0; }
+  while IFS=$'\t' read -r _ _ pane ppid name; do
+    spool_id_of_window_var wid "$name"
+    [[ "$wid" == "$id" ]] || continue
+    cmd="$(tr '\0' ' ' < "${AI_PROC_ROOT:-/proc}/$ppid/cmdline" 2>/dev/null)"
+    [[ -z "$cmd" || "$cmd" =~ ^-?(ba|da|z)?sh(\ --norc)?\ ?$ ]] && continue
+    echo "a live window already carries it ($name, $pane)"; return 0
+  done < <(ai_panes)
+  ai_panes | ai_py restore-plan --ids "$id" 2>/dev/null | awk -F'\t' -v i="$id" '$1 == "SKIP" && $2 == i && $3 ~ /^already running/ { print $3; exit }'
+}
+
+# The re-check's one line: a gone worktree is a REFUSE (1, counted), the
+# rest a SKIP (0).
+_ai_restore_skip() {  # ID WORKTREE WHY
+  [[ "$3" == gone ]] || { echo "SKIP    $1: $3"; return 0; }
+  echo "REFUSE  $1: its worktree $2 is gone; not started in another directory (the orchestrator decides)"; return 1
 }
 
 # A grok seat comes back on grok only when grok can start; else ONE line

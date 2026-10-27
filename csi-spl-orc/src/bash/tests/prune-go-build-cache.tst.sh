@@ -19,6 +19,8 @@
 #      prune holds the lock for 2 s: it waits, then cuts an over-cap cache to
 #      the 3 GiB low cap. RED CONTROL: no wait -> the cache stays over the cap
 #      (2026-10-19 23:45Z on sat). A lock held past the wait is a FAIL step.
+#      The fake ps reaches the busy check through the sweep: a stubbed busy
+#      user keeps the cache, and a real go build on the box changes nothing.
 #   8. a cache whose user runs go (go, compile, link, vet, golangci-lint ...)
 #      loses no fresh entry, neither by the age step nor by the size cap, and
 #      a build that starts between an idle plan and the delete stops it; RED
@@ -430,9 +432,13 @@ out="$(run_prune "$LM" 0 "GO_CACHE_LANE_PARENTS=$LP SPOOL_ROOT=$T/spool6 SPOOL_T
 # Three sparse 1600000000-byte files (4.8 GB) over the 3 GiB low cap
 # (3221225472): the oldest goes, 3200000031 bytes stay. The fake orc's ./run
 # runs the real action with this cache; the sweep passes the level's limits.
+# The sweep puts /usr/bin ahead of the inherited PATH, so ./run puts the fake
+# ps back in front: else the busy check reads the box's real go builds
+# (SPL-3884, red on a busy box).
 O7="$T/orc7"; mkdir -p "$O7"
 cat >"$O7/run" <<EOF
 #!/usr/bin/env bash
+PATH="$T/ps:\$PATH"
 do_log() { printf '%s\n' "\$*"; }
 do_require_bin() { command -v "\$1" >/dev/null; }
 source "$PROJ_ROOT/src/bash/run/prune-go-build-cache.func.sh"
@@ -494,6 +500,18 @@ if [[ $rc -eq 2 && "$out" == *"whole numbers, got 'x'"* ]]; then
   pass "7. a bad lock wait is refused"
 else
   fail "7. bad wait (rc=$rc): $out"
+fi
+# The fake ps reaches the busy check through the sweep: a stubbed go test of
+# the cache user keeps every fresh entry, also on an idle box (CI). The PATH
+# line's own red control is the cut above: without it, on a box where the
+# user runs go, the cut keeps the cache over the cap (SPL-3884, n=2 on sat).
+mk_big "$S7"
+printf 'go test ./...\n' >"$T/ps7-go-test"
+out="$(GO_PS_ARGS_FILE="$T/ps7-go-test" sweep7 30 0)"; rc=$?
+if [[ $rc -eq 0 && -f "$S7/00/old" && "$out" == *'KEEP busy user='* ]]; then
+  pass "7. the sweep's go step sees the stubbed ps: a busy user keeps the fresh cache"
+else
+  fail "7. stubbed busy through the sweep (rc=$rc): $out"
 fi
 
 # 8. never prune a cache while its user runs go ------------------------------

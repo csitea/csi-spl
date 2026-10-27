@@ -700,6 +700,9 @@ func (s *Server) wuiMessage(ctx context.Context, c *wuiConn, f wuiIn, task, to s
 	if err := m.Validate(); err != nil {
 		return nil, &frameRefusal{"bad_json", http.StatusBadRequest, err.Error()}
 	}
+	if rf := vendorTokenRefusal(m.Body); rf != nil { // spec 159 L23, vendor_token.go
+		return nil, rf
+	}
 	return m, nil
 }
 

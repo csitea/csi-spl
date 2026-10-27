@@ -200,6 +200,9 @@ func (s *Server) verifyBoxEdit(ctx context.Context, x *session, id string, m sto
 	if len(inner.Body) > bodyMax {
 		return refuse("too_large", http.StatusRequestEntityTooLarge, "body must be at most 65536 bytes")
 	}
+	if rf := vendorTokenRefusal(inner.Body); rf != nil { // spec 159 L23
+		return refuse(rf.token, rf.status, rf.detail)
+	}
 	old, err := wire.ParseEnvelope(m.Env)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("msg_id", id).Msg("box edit: stored envelope")

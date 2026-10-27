@@ -777,6 +777,9 @@ func (s *Server) sendContentRefusal(ctx context.Context, x *session, env *wire.E
 			return &frameRefusal{"typed_by_not_bound", http.StatusForbidden, detail}
 		}
 	}
+	if rf := vendorTokenRefusal(m.Body); rf != nil { // spec 159 L23, vendor_token.go
+		return rf
+	}
 	return pollRefusal(m.Body)
 }
 

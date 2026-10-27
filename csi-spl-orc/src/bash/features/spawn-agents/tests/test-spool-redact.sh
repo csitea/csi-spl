@@ -32,6 +32,10 @@ rows=(
   "google-refresh-token|1//0$(rep g 40)|rt 1//0$(rep g 40)"
   "api-key|sk-ant-api03-$(rep h 40)|anthropic sk-ant-api03-$(rep h 40)"
   "api-key|xai-$(rep i 40)|grok xai-$(rep i 40)"
+  # spec 159 L23 (row T8): the Claude subscription sign-in token, access and
+  # refresh, named on its own so a mirror post says what it held
+  "claude-oauth-token|sk-ant-oat01-$(rep s 90)AA|{\"accessToken\": \"sk-ant-oat01-$(rep s 90)AA\"}"
+  "claude-oauth-token|sk-ant-ort01-$(rep t 90)AA|refresh sk-ant-ort01-$(rep t 90)AA ok"
   "stripe-key|sk_live_$(rep j 24)|stripe sk_live_$(rep j 24)"
   "stripe-key|rk_test_$(rep k 24)|stripe rk_test_$(rep k 24)"
   "stripe-webhook-secret|whsec_$(rep l 32)|hook whsec_$(rep l 32)"

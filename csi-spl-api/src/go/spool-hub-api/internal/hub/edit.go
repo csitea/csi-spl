@@ -150,6 +150,10 @@ func readEditRequest(w http.ResponseWriter, r *http.Request) (id, body string, o
 		writeErr(w, http.StatusRequestEntityTooLarge, "too_large", "body must be at most 65536 bytes")
 		return "", "", false
 	}
+	if rf := vendorTokenRefusal(req.Body); rf != nil { // spec 159 L23, vendor_token.go
+		writeErr(w, rf.status, rf.token, rf.detail)
+		return "", "", false
+	}
 	return id, req.Body, true
 }
 

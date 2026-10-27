@@ -34,6 +34,10 @@ SECRETS = [
     (r"GOCSPX-[A-Za-z0-9_-]{20,}", "google-oauth-secret"),
     (r"ya29\.[A-Za-z0-9_-]{20,}", "google-access-token"),
     (r"1//0[A-Za-z0-9_-]{30,}", "google-refresh-token"),
+    # spec 159 L23 (row T8): a Claude subscription sign-in token (access oat,
+    # refresh ort). Before the generic sk- class, so it is named; the hub
+    # refuses the same shape in any body (internal/hub/vendor_token.go).
+    (r"sk-ant-o[ar]t[0-9]{2}-[A-Za-z0-9_-]{20,}", "claude-oauth-token"),
     (r"sk-[A-Za-z0-9_-]{20,}", "api-key"),
     (r"xai-[A-Za-z0-9]{20,}", "api-key"),
     (r"(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,}", "stripe-key"),

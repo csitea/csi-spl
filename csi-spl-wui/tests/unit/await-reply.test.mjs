@@ -8,7 +8,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { gzipSync } from 'node:zlib'
 import {
   AWAIT_ANIMATIONS, AWAIT_ANIM_IDS, AWAIT_ANIM_KEY, AWAIT_ROTATE_STEP_MS, AWAIT_SHOW_MAX_MS, DEFAULT_AWAIT_SET, STILL_AWAIT_ANIM,
-  awaitAnimKey, awaitAnimSet, awaitAnimation, awaitSetAt, createRotateClock, dropLegacyAwaitAnim, legacyAwaitSet, msToNextRotate,
+  awaitAnimKey, awaitAnimSet, awaitAnimation, awaitSetAt, createRotateClock, dropLegacyAwaitAnim, msToNextRotate,
   planAwaitMigration, rotateAnimAt, rotateStepAt, toggleAwaitAnim,
   awaitSpinMs, awaitState, isAgentPost, isPersonPost, nextAwaitChange,
 } from '../../src/utils/await-reply.mjs'
@@ -239,9 +239,11 @@ describe('SPL-2113: 17 drawings, a dancing robot among them', () => {
 })
 
 describe('SPL-2113: the ticked set', () => {
-  it('never picked (null, absent, junk): the default three', () => {
-    assert.deepEqual([...DEFAULT_AWAIT_SET], ['hourglass', 'robot', 'brain'])
-    for (const v of [null, undefined, [], 'robot', {}, ['unicorn']]) assert.deepEqual(awaitAnimSet(v), ['hourglass', 'robot', 'brain'], JSON.stringify(v))
+  it('SPL-3836: never picked (null, absent, junk) = EVERY drawing of the catalogue', () => {
+    assert.equal(DEFAULT_AWAIT_SET, AWAIT_ANIM_IDS, 'one source for "all": the catalogue')
+    assert.equal(AWAIT_ANIM_IDS.length, 17)
+    for (const v of [null, undefined, [], 'robot', {}, ['unicorn']]) assert.deepEqual(awaitAnimSet(v), [...AWAIT_ANIM_IDS], JSON.stringify(v))
+    assert.notDeepEqual(awaitAnimSet(['robot']), [...AWAIT_ANIM_IDS], 'CONTROL: a stored pick stays that pick')
   })
 
   it('known ids only, once each, in catalogue order', () => {
@@ -270,9 +272,13 @@ describe('SPL-2113: the ticked ones take turns, 3 s each (SPL-2043)', () => {
     assert.equal(AWAIT_ROTATE_STEP_MS, 3000)
     assert.equal(rotateStepAt(9000), 3)
     assert.equal(rotateStepAt(NaN), 0)
-    const t0 = 3000 * 1000 * 3 /* a cycle start of the default three */
-    const seen = [0, 2999, 3000, 5999, 6000, 8999, 9000].map((d) => rotateAnimAt(t0 + d))
+    const three = ['hourglass', 'robot', 'brain']
+    const t0 = 3000 * 1000 * 3 /* a cycle start of three */
+    const seen = [0, 2999, 3000, 5999, 6000, 8999, 9000].map((d) => rotateAnimAt(t0 + d, three))
     assert.deepEqual(seen, ['hourglass', 'hourglass', 'robot', 'robot', 'brain', 'brain', 'hourglass'])
+    const n = AWAIT_ANIM_IDS.length
+    const all = Array.from({ length: n + 1 }, (_, k) => rotateAnimAt(3000 * n * 1000 + 3000 * k))
+    assert.deepEqual(all, [...AWAIT_ANIM_IDS, 'hourglass'], 'SPL-3836: the default takes every drawing in turn')
     assert.equal(rotateAnimAt(NaN), 'hourglass')
   })
 
@@ -371,38 +377,32 @@ describe('SPL-2113: the ticked ones take turns, 3 s each (SPL-2043)', () => {
   })
 })
 
-describe('SPL-2113: the old browser pick moves to the account once', () => {
+describe('SPL-2113/3836: the old browser pick is dropped, never carried over', () => {
   const ann = { hum: 'HUM-10', t: 't1' }
 
-  it('the old pick as a set: take turns = the default three, one drawing = that one', () => {
-    assert.deepEqual(legacyAwaitSet('rotate'), ['hourglass', 'robot', 'brain'])
-    for (const id of ['hourglass', 'robot', 'brain']) assert.deepEqual(legacyAwaitSet(id), [id])
-    for (const v of ['', null, 'unicorn', 'dots']) assert.equal(legacyAwaitSet(v), null, String(v))
-  })
-
-  it('an old pick and no pick in the account: migrate it, under the old per-person key', () => {
+  it('an old pick: its key to drop, whatever the account holds', () => {
     const store = memoryStore({ 'spool-await-anim:t1:HUM-10': 'robot' })
-    assert.deepEqual(planAwaitMigration(ann, store), { key: 'spool-await-anim:t1:HUM-10', set: ['robot'] })
-    assert.deepEqual(planAwaitMigration({ ...ann, await_anims: null }, store), { key: 'spool-await-anim:t1:HUM-10', set: ['robot'] })
+    assert.equal(planAwaitMigration(ann, store), 'spool-await-anim:t1:HUM-10')
+    assert.equal(planAwaitMigration({ ...ann, await_anims: null }, store), 'spool-await-anim:t1:HUM-10')
+    assert.equal(planAwaitMigration({ ...ann, await_anims: ['dots'] }, store), 'spool-await-anim:t1:HUM-10')
   })
 
-  it('once: the account already holds a pick, nothing stored, or signed out = nothing to do', () => {
+  it('nothing stored or signed out = nothing to do', () => {
     const store = memoryStore({ 'spool-await-anim:t1:HUM-10': 'brain', [AWAIT_ANIM_KEY]: 'robot' })
-    assert.equal(planAwaitMigration({ ...ann, await_anims: ['dots'] }, store), null)
     assert.equal(planAwaitMigration({ hum: 'HUM-24', t: 't1' }, store), null)
     assert.equal(planAwaitMigration(null, store), null)
     assert.equal(planAwaitMigration({ t: 't1' }, store), null)
   })
 
-  it('an unusable old value: only the key is dropped', () => {
-    const store = memoryStore({ 'spool-await-anim:t1:HUM-10': 'unicorn' })
-    assert.deepEqual(planAwaitMigration(ann, store), { key: 'spool-await-anim:t1:HUM-10', set: null })
+  it('the composable only drops the key: no save, no claim change', () => {
+    assert.doesNotMatch(COMPOSABLE, /saveAwaitAnims/)
+    assert.match(COMPOSABLE, /dropLegacyAwaitAnim\(key\)/)
   })
 
-  it('the old key is removed after the move, so the second visit has nothing to migrate', () => {
+  it('the old key is removed, so the second visit has nothing to do', () => {
     const store = memoryStore({ 'spool-await-anim:t1:HUM-10': 'rotate' })
-    const plan = planAwaitMigration(ann, store)
-    assert.equal(dropLegacyAwaitAnim(plan.key, store), true)
+    const key = planAwaitMigration(ann, store)
+    assert.equal(dropLegacyAwaitAnim(key, store), true)
     assert.equal(planAwaitMigration(ann, store), null)
     const broken = { getItem() { throw new Error('denied') }, removeItem() { throw new Error('denied') } }
     assert.equal(planAwaitMigration(ann, broken), null, 'a broken storage reads nothing, never throws')
@@ -415,8 +415,7 @@ describe('SPL-2113: the old browser pick moves to the account once', () => {
     assert.equal(awaitAnimKey(ann), 'spool-await-anim:t1:HUM-10')
   })
 
-  it('the composable migrates once per tab, keeps the old key when the save fails', () => {
+  it('the composable drops the old key once per tab, signed in only', () => {
     assert.match(COMPOSABLE, /if \(migrating \|\| !import\.meta\.client \|\| session\.state !== 'in'\) return/)
-    assert.match(COMPOSABLE, /if \(out\.ok\) dropLegacyAwaitAnim\(plan\.key\)\n\s+else mirrorAwaitAnims\(session, null\)/)
   })
 })

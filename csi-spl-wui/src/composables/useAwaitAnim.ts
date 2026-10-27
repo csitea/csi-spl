@@ -1,8 +1,7 @@
 import { useSessionStore } from '~/stores/session'
-import { useAuthClient } from '~/composables/useAuthClient'
 import { AWAIT_ANIM_IDS, STILL_AWAIT_ANIM, awaitAnimSet, awaitSetAt, createRotateClock, dropLegacyAwaitAnim, planAwaitMigration } from '~/utils/await-reply.mjs'
 
-/* SPL-2113: the old browser pick moves to the account once per tab */
+/* SPL-2113/3836: the old browser pick's key is dropped once per tab */
 let migrating = false
 
 /**
@@ -22,29 +21,20 @@ export function mirrorAwaitAnims(session: ReturnType<typeof useSessionStore>, id
  * the setting use it, so it stays off the first screen. One shared state: a
  * tick in Settings redraws every open mark.
  *
- * The first time a signed-in person with no pick in the account is seen,
- * the SPL-2027/2043 pick this browser kept is written to the account and its
- * old key removed (kept when the save fails, for the next visit).
+ * No pick in the account = every drawing (SPL-3836). The SPL-2027/2043
+ * pick this browser may still keep is dropped, never carried over: it would
+ * undo the reset to every drawing.
  */
 export function useAwaitAnim() {
   const session = useSessionStore()
-  const auth = useAuthClient()
   const set = computed(() => awaitAnimSet(session.claims?.await_anims))
 
   function migrate() {
     if (migrating || !import.meta.client || session.state !== 'in') return
-    const plan = planAwaitMigration(session.claims)
-    if (!plan) return
+    const key = planAwaitMigration(session.claims)
+    if (!key) return
     migrating = true
-    if (!plan.set) {
-      dropLegacyAwaitAnim(plan.key)
-      return
-    }
-    mirrorAwaitAnims(session, plan.set)
-    void auth.saveAwaitAnims(plan.set).then((out) => {
-      if (out.ok) dropLegacyAwaitAnim(plan.key)
-      else mirrorAwaitAnims(session, null)
-    })
+    dropLegacyAwaitAnim(key)
   }
   onMounted(migrate)
   watch(() => session.state, migrate)

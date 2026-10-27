@@ -25,16 +25,16 @@
 //   9 the ack is released: the row is stored and keeps spinning
 // SPL-2043 (owner msgs c48092cf, 19feedf8): the drawings take turns, ~3 s
 // each, and draw another 20% bigger (20.16 px in the 16 px box):
-//   T1 default pick = rotate: a waiting post shows the hourglass, then the
-//      robot ~3 s later, then the brain, then the hourglass again
+//   T1 default pick = rotate: a waiting post shows the drawings in turn,
+//      ~3 s each (SPL-3836: every drawing of the catalogue, in its order)
 //   T2 every rotating mark on screen (row + post) shows the same drawing
 //   T3 reduced motion: no cycling, the still hourglass for longer than a step
 // SPL-2113 (owner HUM-10, t1 3aa9fac2 msgs d45ec26e, c33a028e): 17
 // drawings in a vertical checkbox list, the ticked ones take turns, kept in
 // the account (PUT /preferences await_anims, answered here as the hub would):
 //   S1 Settings -> Appearance: 17 checkboxes, the dancing robot among them,
-//      the default three ticked; every row's sample runs
-//   S2 tick dancing-robot + rocket, untick the three: the account gets
+//      all 17 ticked by default (SPL-3836); every row's sample runs
+//   S2 untick every one but dancing-robot + rocket: the account gets
 //      exactly those two; one left ticked cannot be unticked
 //   S3 desktop: on the waiting post and its row ONLY those two alternate,
 //      ~3 s each, and each one's drawing runs
@@ -43,8 +43,8 @@
 //   S6 a refused save puts the tick back and says so
 //   P1 a fresh phone (390 px) whose account holds the two: the list shows
 //      them ticked, only those two alternate; reduced motion = still hourglass
-//   M1 an old browser pick (robot) and no pick in the account: it is saved
-//      to the account once, the old key removed
+//   M1 an old browser pick (robot) and no pick in the account: NOT carried
+//      over (SPL-3836): nothing saved, the old key removed, every drawing
 //   T4 a single pick (robot) stays fixed over more than a step
 //
 //   node tests/e2e/await-reply.test.mjs
@@ -124,7 +124,10 @@ const spinName = (p) => p.evaluate(() => {
   const g = document.querySelector('[data-test=await-reply][data-state=spin] .await-reply__glyph')
   return g ? [g, ...g.querySelectorAll('*')].map((n) => getComputedStyle(n).animationName).filter((n) => n && n !== 'none') : null
 })
-const ROTATION = ['hourglass', 'robot', 'brain']
+/* SPL-3836: never picked = every drawing, in catalogue order */
+const ROTATION = ['hourglass', 'robot', 'brain', 'dancing-robot', 'dots', 'spinner', 'radar', 'gears', 'bulb', 'coffee', 'orbit', 'pendulum', 'bars', 'pencil', 'rocket', 'clock', 'wave']
+/* a running animation name of any drawing of the rotation (their keyframes are `await-<id>...`) */
+const isDrawingAnim = (n) => ROTATION.some((id) => n.startsWith(`await-${id}`))
 /* SPL-2043: the drawing of every spinning mark, sampled every `every` ms for `ms` */
 const sampleAnims = async (p, ms, every = 200) => {
   const out = []
@@ -199,7 +202,7 @@ try {
 
   const a = await rowMark(p, A)
   ok('1 row A (an agent asked, HUM-1 answered 20 s ago) spins', a?.state === 'spin', a)
-  ok('1 ... as a status with a label, the default three in turn (one of its drawings)', a?.role === 'status' && a.label.length > 0 && a.pick === 'hourglass robot brain' && ROTATION.includes(a.anim), a)
+  ok('1 ... as a status with a label, every drawing in turn (one of them)', a?.role === 'status' && a.label.length > 0 && a.pick === ROTATION.join(' ') && ROTATION.includes(a.anim), a)
   const b = await rowMark(p, B)
   ok('1 row B (no agent in the topic) waits calmly, not spinning', b?.state === 'wait', b)
   const c = await rowMark(p, C)
@@ -207,7 +210,7 @@ try {
   const d = await rowMark(p, D)
   ok('1 CONTROL row D (an agent answered) shows nothing', d === null, d)
   const name = await spinName(p)
-  ok('1 the spinning glyph is animated', Array.isArray(name) && name.some((n) => /^await-(hourglass|robot|brain)/.test(n)), name)
+  ok('1 the spinning glyph is animated', Array.isArray(name) && name.some(isDrawingAnim), name)
   await shot(p, '1-row-spins')
 
   await p.click(`.feed-body article.msg[data-msg-id="${A}"] [data-test=topic-replies]`)
@@ -270,7 +273,7 @@ try {
   }, TEXT)
   let s6 = null
   for (let i = 0; i < 20 && !(s6 && s6.state); i++) { await sleep(150); s6 = await sent() }
-  ok('6 phone 390 px: the just-sent post spins once the hub has it', s6?.width === 390 && !s6.pending && s6.state === 'spin' && s6.anim?.some((n) => /^await-(hourglass|robot|brain)/.test(n)), s6)
+  ok('6 phone 390 px: the just-sent post spins once the hub has it', s6?.width === 390 && !s6.pending && s6.state === 'spin' && s6.anim?.some(isDrawingAnim), s6)
   await shot(ph, '6-phone-spins')
   let s7 = s6
   for (let i = 0; i < 20 && s7?.state === 'spin'; i++) { await sleep(200); s7 = await sent() }
@@ -322,12 +325,12 @@ try {
     const poll = () => (Date.now() % 3000 < 300 ? resolve(Math.floor(Date.now() / 3000)) : setTimeout(poll, 50))
     poll()
   }))
-  const first = ROTATION[step % 3]
+  const first = ROTATION[step % ROTATION.length]
   const samples = await sampleAnims(t, 10000)
   const runs = runsOf(samples)
   const order = runs.map((r) => r.anim)
-  const want = [0, 1, 2, 3].map((k) => ROTATION[(ROTATION.indexOf(first) + k) % 3]).join('>')
-  ok('T1 rotate: hourglass, then robot ~3 s later, then brain, then the hourglass again (from the wall-clock step)', order.slice(0, 4).join('>') === want, { want, runs })
+  const want = [0, 1, 2, 3].map((k) => ROTATION[(ROTATION.indexOf(first) + k) % ROTATION.length]).join('>')
+  ok('T1 rotate: every drawing in catalogue order, the next one ~3 s later (from the wall-clock step)', order.slice(0, 4).join('>') === want, { want, runs })
   const inner = runs.slice(1, -1)
   ok('T1 ... each drawing shows ~3 s', inner.length > 0 && inner.every((r) => r.to - r.from >= 2400 && r.to - r.from <= 3200), inner)
   await shot(t, 'T1-rotate')
@@ -343,7 +346,7 @@ try {
 
   /* SPL-2113: the checkbox list, kept in the account */
   const TWO = ['dancing-robot', 'rocket']
-  const ALL = ['hourglass', 'robot', 'brain', 'dancing-robot', 'dots', 'spinner', 'radar', 'gears', 'bulb', 'coffee', 'orbit', 'pendulum', 'bars', 'pencil', 'rocket', 'clock', 'wave']
+  const ALL = ROTATION
   /* a page whose PUT /preferences is answered as the hub would (or refused, `fail.on`); bodies kept in `saved` */
   const openPage = async (c, vp, extra = {}) => {
     const pg = await c.newPage()
@@ -393,7 +396,7 @@ try {
   await r.waitForSelector('[data-test=await-anim-setting] [data-test=await-anim-dancing-robot]', { timeout: NAV })
   const list0 = await boxes(r)
   ok('S1 Settings -> Appearance: 17 checkboxes, one under the other, the dancing robot among them', JSON.stringify(list0.map((x) => x.v)) === JSON.stringify(ALL), list0.map((x) => x.v))
-  ok('S1 ... the default three ticked', JSON.stringify(ticked(list0)) === JSON.stringify(['hourglass', 'robot', 'brain']), ticked(list0))
+  ok('S1 ... all 17 ticked by default (SPL-3836)', JSON.stringify(ticked(list0)) === JSON.stringify(ALL), ticked(list0))
   const vertical = await r.evaluate(() => {
     const xs = [...document.querySelectorAll('[data-test=await-anim-setting] li')].map((li) => li.getBoundingClientRect())
     return xs.length > 1 && xs.every((b, k) => k === 0 || (Math.abs(b.left - xs[0].left) < 1 && b.top >= xs[k - 1].bottom - 1))
@@ -408,11 +411,10 @@ try {
   ok('S1 ... every row shows its own running sample (17 drawings, each animated)', samples0.length === 17 && samples0.every((x, k) => x.anim === ALL[k] && x.runs), samples0.filter((x) => !x.runs))
   await shot(r, 'S1-settings')
 
-  for (const id of TWO) await tick(r, id)
-  for (const id of ['hourglass', 'robot', 'brain']) await tick(r, id)
+  for (const id of ALL.filter((x) => !TWO.includes(x))) await tick(r, id)
   await sleep(300)
   const list2 = await boxes(r)
-  ok('S2 tick dancing-robot + rocket, untick the three: those two ticked', JSON.stringify(ticked(list2)) === JSON.stringify(TWO), ticked(list2))
+  ok('S2 untick every one but dancing-robot + rocket: those two ticked', JSON.stringify(ticked(list2)) === JSON.stringify(TWO), ticked(list2))
   ok('S2 ... the account gets exactly those two (PUT /preferences await_anims)', JSON.stringify(lastSaved(saved)) === JSON.stringify({ await_anims: TWO }), saved.slice(-2))
   await tick(r, 'rocket')
   const list1 = await boxes(r)
@@ -475,20 +477,25 @@ try {
   ok('P1 phone, reduced motion: the still hourglass', phoneStill.length === 1 && phoneStill[0].anim === 'hourglass' && (await spinName(ph2))?.length === 0, phoneStill)
   await pctx.close()
 
-  /* an old browser pick (SPL-2027: robot) and nothing in the account */
+  /* SPL-3836: an old browser pick (SPL-2027: robot) and nothing in the
+     account is NOT carried over: the key is dropped, every drawing plays */
   const mctx = await browser.createBrowserContext()
   const { pg: m, saved: mSaved } = await openPage(mctx, 1440, { legacy: 'robot' })
   await m.goto(`${server.base}/channel/alerts`, { waitUntil: 'networkidle2', timeout: NAV })
   await m.waitForSelector(`.feed-body article.msg[data-msg-id="${A}"] [data-test=await-reply]`, { timeout: 20000 }).catch(() => {})
   await sleep(500)
-  const moved = { saved: mSaved.map((x) => JSON.parse(x)), key: await m.evaluate(() => localStorage.getItem('spool-await-anim:t1:HUM-1')) }
-  ok('M1 an old browser pick moves to the account once, the old key removed', JSON.stringify(moved.saved) === JSON.stringify([{ await_anims: ['robot'] }]) && moved.key === null, moved)
-  const fixed = runsOf(await sampleAnims(m, 4000))
-  ok('T4 a single pick (robot) stays fixed over more than a step', fixed.length === 1 && fixed[0].anim === 'robot', fixed)
-  await m.reload({ waitUntil: 'networkidle2', timeout: NAV })
-  await sleep(1500)
-  ok('M1 ... once: a reload sends nothing more', mSaved.length === 1, mSaved)
+  const dropped = { saved: mSaved.length, key: await m.evaluate(() => localStorage.getItem('spool-await-anim:t1:HUM-1')), pick: (await rowMark(m, A))?.pick }
+  ok('M1 an old browser pick is not carried over: nothing saved, the old key removed, every drawing in turn', dropped.saved === 0 && dropped.key === null && dropped.pick === ROTATION.join(' '), dropped)
   await mctx.close()
+
+  /* an account that holds one drawing */
+  const fctx = await browser.createBrowserContext()
+  const { pg: f } = await openPage(fctx, 1440, { anims: ['robot'] })
+  await f.goto(`${server.base}/channel/alerts`, { waitUntil: 'networkidle2', timeout: NAV })
+  await f.waitForSelector(`.feed-body article.msg[data-msg-id="${A}"] [data-test=await-reply]`, { timeout: 20000 }).catch(() => {})
+  const fixed = runsOf(await sampleAnims(f, 4000))
+  ok('T4 a single pick (robot) stays fixed over more than a step', fixed.length === 1 && fixed[0].anim === 'robot', fixed)
+  await fctx.close()
 
   ok('no page errors', errors.length === 0, errors)
 } catch (e) {

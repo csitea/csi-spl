@@ -32,7 +32,13 @@
 // them in a vertical checkbox list (Settings -> Appearance), at least one;
 // the ticked ones take turns. No cap: one plays at a time, each drawing is
 // loaded only when it shows. Kept in the person's account (the hub's
-// per-workspace `await_anims`), the old browser pick migrated once.
+// per-workspace `await_anims`).
+//
+// SPL-3836 (owner HUM-10, t1 f372652e msg 35afc373): "add all of the
+// animations to be selected for all users - even those which have checkd
+// their own for all workspaces". Never picked (null) = EVERY drawing of the
+// catalogue; orc do_spl_await_anims_reset clears every stored pick to null,
+// and an old browser pick is no longer carried over (its key is dropped).
 
 import { isAgentId } from './agent-id.mjs'
 import { storageGet } from './prefs.mjs'
@@ -78,8 +84,8 @@ export const AWAIT_ANIMATIONS = Object.freeze({
  * A unit test keeps the two in step.
  */
 export const AWAIT_ANIM_IDS = Object.freeze(['hourglass', 'robot', 'brain', 'dancing-robot', 'dots', 'spinner', 'radar', 'gears', 'bulb', 'coffee', 'orbit', 'pendulum', 'bars', 'pencil', 'rocket', 'clock', 'wave'])
-/** The ticked set nobody picked: the first three drawings (SPL-2043's rotation). */
-export const DEFAULT_AWAIT_SET = Object.freeze(['hourglass', 'robot', 'brain'])
+/** The ticked set nobody picked: every drawing (SPL-3836), the catalogue the one source. */
+export const DEFAULT_AWAIT_SET = AWAIT_ANIM_IDS
 
 /** The entry for animation `id`; the hourglass for an unknown or empty id. */
 export function awaitAnimation(id) {
@@ -172,8 +178,9 @@ export function createRotateClock({ now = () => Date.now(), setTimer = (fn, ms) 
 
 /**
  * SPL-2027/2043 kept the pick in this browser, per person and tenant, under
- * these keys; SPL-2113 keeps it in the account. The old key is read once to
- * migrate it (planAwaitMigration) and then removed.
+ * these keys; SPL-2113 keeps it in the account. SPL-3836: the old key is
+ * only removed, never carried over (it would bring back a pick the reset to
+ * every drawing cleared).
  */
 export const AWAIT_ANIM_KEY = 'spool-await-anim'
 /** The old per-person key (tenant and person), the browser-wide one signed out. */
@@ -184,27 +191,17 @@ export function awaitAnimKey(claims) {
   return `${AWAIT_ANIM_KEY}:${tenant ? tenant + ':' : ''}${hum}`
 }
 
-/** An old single pick as a ticked set: `rotate` = the default three, one drawing = that one; anything else null. */
-export function legacyAwaitSet(pick) {
-  const key = String(pick || '')
-  if (key === 'rotate') return [...DEFAULT_AWAIT_SET]
-  return ['hourglass', 'robot', 'brain'].includes(key) ? [key] : null
-}
-
 /**
- * What to migrate for a signed-in person whose account holds no pick yet:
- * `{ key, set }` (`set` null = an unusable old value, only drop the key), or
- * null (nothing stored in this browser, the account already has a pick, or
- * signed out).
+ * The old key to drop for a signed-in person, or null (nothing stored in
+ * this browser, or signed out).
  */
 export function planAwaitMigration(claims, store) {
-  if (!claims || !claims.hum || Array.isArray(claims.await_anims)) return null
+  if (!claims || !claims.hum) return null
   const key = awaitAnimKey(claims)
-  const old = storageGet(key, null, store)
-  return old === null ? null : { key, set: legacyAwaitSet(old) }
+  return storageGet(key, null, store) === null ? null : key
 }
 
-/** Remove the old key once the account holds the pick; never throws. */
+/** Remove the old key; never throws. */
 export function dropLegacyAwaitAnim(key, store) {
   try {
     const s = store || globalThis.localStorage

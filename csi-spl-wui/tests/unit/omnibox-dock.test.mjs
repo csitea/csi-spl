@@ -11,7 +11,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { DEFAULT_POSITION, DOCK_ID, omniboxAtBottom, omniboxMaxHeight, parsePosition, resizeHeight } from '../../src/utils/omnibox-dock.mjs'
+import { DEFAULT_POSITION, DOCK_ID, omniboxAtBottom, omniboxMaxHeight, parsePosition, resizeHeight, topButtonsBottom } from '../../src/utils/omnibox-dock.mjs'
 import { importTs } from './lib/load-ts.mjs'
 const { paneOfTarget } = await importTs('src/utils/pane-focus.ts')
 import { messageComposerSrc } from './lib/message-composer-src.mjs'
@@ -214,5 +214,33 @@ describe('the phone dock size', async () => {
     const grip = read('components/OmniboxGrip.vue')
     assert.match(grip, /data-testid="omnibox-size"[^>]*tabindex="-1"/s)
     assert.match(grip, /:aria-label="t\('composer\.size_handle'\)"/)
+  })
+})
+
+/* SPL-3785: on a phone past level 1 the section strip sits between the top
+   bar (0..58) and the topic header; a fake document of three rows */
+describe('the top button section under the phone section strip', () => {
+  const rect = (top, bottom) => ({ top, bottom, left: 0, right: 393, width: 393, height: bottom - top })
+  const el = (sel, top, bottom) => ({
+    getBoundingClientRect: () => rect(top, bottom),
+    closest: (q) => (q.split(',').some((x) => sel.split(' ').includes(x.trim())) ? el(sel, top, bottom) : null),
+    matches: (q) => (q === '[data-mobile-section] .sidebar-rail' ? sel.includes('strip') : sel.split(' ').includes(q)),
+  })
+  const docOf = (rows) => ({
+    querySelector: () => el('top-bar', 0, 58),
+    elementsFromPoint: (_x, y) => rows.filter((r) => r.getBoundingClientRect().top <= y && r.getBoundingClientRect().bottom > y),
+  })
+  const box = { getBoundingClientRect: () => rect(500, 800), contains: () => false }
+  it('the strip on top: the box stops under the topic header, not under the strip', () => {
+    assert.equal(topButtonsBottom(docOf([el('.sidebar-rail strip', 58, 120), el('header', 120, 174)]), box), 174)
+  })
+  it('level 1 (the rail, no strip): the rail is the row, as before', () => {
+    assert.equal(topButtonsBottom(docOf([el('.sidebar-rail', 58, 120), el('header', 120, 174)]), box), 120)
+  })
+  it('a desktop topic header right under the top bar, as before', () => {
+    assert.equal(topButtonsBottom(docOf([el('header', 58, 110)]), box), 110)
+  })
+  it('no row: the top bar\'s bottom', () => {
+    assert.equal(topButtonsBottom(docOf([]), box), 58)
   })
 })

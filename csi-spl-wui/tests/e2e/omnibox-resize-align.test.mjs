@@ -77,12 +77,15 @@ const facts = (p) => p.evaluate(() => {
   const ta = f.querySelector('textarea')
   const bar = document.querySelector('[data-test=top-bar]')
   const barBottom = bar ? bar.getBoundingClientRect().bottom : 0
-  /* the header row right under the top bar over the box (its middle) */
+  /* the header row right under the top bar over the box (its middle); on a
+     phone past level 1 the section strip sits between them (SPL-3785) */
+  const strip = document.querySelector('.spool-shell[data-mobile-section] > .sidebar')
+  const ceil = Math.max(barBottom, strip ? strip.getBoundingClientRect().bottom : 0)
   const fr = f.getBoundingClientRect()
   const x = fr.left + fr.width / 2
   const rows = [...document.querySelectorAll('.spool-shell header, .spool-shell .feed-header')]
     .map((e) => e.getBoundingClientRect())
-    .filter((r) => r.height > 0 && r.top <= barBottom + 1 && r.bottom > barBottom + 1 && r.left <= x && r.right >= x)
+    .filter((r) => r.height > 0 && r.top <= ceil + 1 && r.bottom > ceil + 1 && r.left <= x && r.right >= x)
   let stored = null
   try { stored = JSON.parse(localStorage.getItem('spool.omnibox-phone-size') || 'null') } catch { /* denied */ }
   return {

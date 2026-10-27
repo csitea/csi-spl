@@ -62,20 +62,28 @@ export function omniboxMaxHeight({ innerHeight, topBarH = 58, bottom = false, ch
  * the header row right under the top bar in the pane above the box (the
  * topic header: back, title, the three view buttons; the section tabs on
  * the list), else the top bar's bottom. A resized box grows up to it, never
- * over it.
+ * over it. On a phone past level 1 the section strip sits between the top
+ * bar and the topic header (SPL-3785): the header row under the strip wins.
  * @param {Document} doc
  * @param {Element} box  the composer; skipped when it covers that row
  * @returns {number} px from the top of the window
  */
 export function topButtonsBottom(doc, box) {
   const bar = doc.querySelector('[data-test=top-bar]')
-  const barBottom = bar ? bar.getBoundingClientRect().bottom : 0
   const r = box.getBoundingClientRect()
-  const y = barBottom + 1
-  const hit = doc.elementsFromPoint(r.left + r.width / 2, y).find((e) => !box.contains(e))
-  const row = hit && hit.closest('header, .feed-header, .sidebar-rail')
-  const rr = row && row.getBoundingClientRect()
-  return rr && rr.top <= y && rr.bottom > y ? rr.bottom : barBottom
+  const rowAt = (y) => {
+    const hit = doc.elementsFromPoint(r.left + r.width / 2, y).find((e) => !box.contains(e))
+    const row = hit && hit.closest('header, .feed-header, .sidebar-rail')
+    const rr = row && row.getBoundingClientRect()
+    return rr && rr.top <= y && rr.bottom > y ? { row, bottom: rr.bottom } : null
+  }
+  let bottom = bar ? bar.getBoundingClientRect().bottom : 0
+  const first = rowAt(bottom + 1)
+  if (!first) return bottom
+  bottom = first.bottom
+  if (!first.row.matches('[data-mobile-section] .sidebar-rail')) return bottom
+  const under = rowAt(bottom + 1)
+  return under && !under.row.matches('.sidebar-rail') ? under.bottom : bottom
 }
 
 /* the grip and the size handle stand 16 px over the box's free edge

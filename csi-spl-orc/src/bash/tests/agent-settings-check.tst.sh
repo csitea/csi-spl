@@ -20,6 +20,9 @@
 #      box user is flagged and told
 #   7. neither file is ever written (content and mtime unchanged)
 #   8. the default users are the agent user and the box user, once each
+#   9. a git credential.helper=store (global, per-url or system) and a
+#      non-empty ~/.git-credentials are BAD; neither git file is written and
+#      the store's content is never printed. Control: a cache helper is OK
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -122,6 +125,29 @@ go SETTINGS_CHECK_STATE_DIR="$T/st8" SETTINGS_CHECK_TO=c-9 >/dev/null
   pass "8. default: the agent user and the box user (the same here), checked once" || fail "8. $(cat "$T/o")"
 go SETTINGS_CHECK_USERS="$me nosuchuser-$$" SETTINGS_CHECK_STATE_DIR="$T/st8" >/dev/null; rc=$?
 grep -q "FATAL no passwd entry for 'nosuchuser-$$'" "$T/o" && pass "8. control: an unknown user is a usage error" || fail "8. control: $(cat "$T/o")"
+
+# --- 9. a git credential.helper=store (SPL-3761) -------------------------------------------
+# a sandbox home: <home>/.claude/settings.json good, <home>/.gitconfig with the store helper
+G="$T/gh"; mkdir -p "$G/.claude"; echo "$good" >"$G/.claude/settings.json"
+printf '[credential]\n\thelper = cache\n' >"$T/sysgit"
+export SETTINGS_CHECK_GIT_SYSTEM="$T/sysgit"
+rc="$(go SETTINGS_CHECK_FILES="ai=$G/.claude/settings.json" SETTINGS_CHECK_STATE_DIR="$T/st9")"
+[[ "$rc" == 0 ]] && grep -q "SETTINGS OK ai $G/.claude/settings.json" "$T/o" &&
+  pass "9. control: no store helper, a cache helper in the system config: OK" || fail "9. control rc=$rc $(cat "$T/o")"
+printf '[user]\n\tname = t\n[credential "https://example.com"]\n\thelper = store\n' >"$G/.gitconfig"
+printf 'https://u:fake-%s@example.com\n' "$$" >"$G/.git-credentials"
+before="$(md5sum "$G/.gitconfig" "$G/.git-credentials")"
+rc="$(go SETTINGS_CHECK_FILES="ai=$G/.claude/settings.json" SETTINGS_CHECK_STATE_DIR="$T/st9")"
+[[ "$rc" == 1 ]] && grep -q "SETTINGS BAD ai $G/.claude/settings.json mtime .*: credential.helper=store in $G/.gitconfig" "$T/o" &&
+  grep -q "$G/.git-credentials is not empty" "$T/o" && ! grep -q "fake-$$" "$T/o" &&
+  pass "9. a global store helper and a filled ~/.git-credentials: BAD, the store never printed" || fail "9. global rc=$rc $(cat "$T/o")"
+[[ "$(md5sum "$G/.gitconfig" "$G/.git-credentials")" == "$before" ]] && pass "9. neither git file written" || fail "9. a git file changed"
+rm -f "$G/.gitconfig" "$G/.git-credentials"; printf '[credential]\n\thelper = store\n' >"$T/sysgit"
+rc="$(go SETTINGS_CHECK_FILES="ai=$G/.claude/settings.json" SETTINGS_CHECK_STATE_DIR="$T/st9b")"
+[[ "$rc" == 1 ]] && grep -q "SETTINGS BAD ai .*: credential.helper=store in the system git config ($T/sysgit)" "$T/o" &&
+  pass "9. a system store helper: BAD" || fail "9. system rc=$rc $(cat "$T/o")"
+grep -q ERRTRAP "$T/o" && fail "9. ERRTRAP: $(cat "$T/o")"
+unset SETTINGS_CHECK_GIT_SYSTEM
 
 echo "agent-settings-check: $( ((fails)) && echo "$fails failure(s)" || echo "all passed")"
 exit $(( fails > 0 ))

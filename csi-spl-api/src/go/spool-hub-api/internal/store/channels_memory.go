@@ -382,33 +382,54 @@ func (s *Memory) ViewChannelStats(_ context.Context, tenant string, now time.Tim
 	defer s.mu.Unlock()
 	s.ch.init()
 	reads = s.withStoredChannelMarksLocked(tenant, reader, reads)
-	by := map[string]*ChannelStat{}
-	get := func(id string) *ChannelStat {
-		st := by[id]
-		if st == nil {
-			st = &ChannelStat{Channel: Channel{TenantID: tenant, ChannelID: id, Name: id}, Default: IsDefaultChannel(id)}
-			if st.Default {
-				st.CreatedBy = "hub"
-			}
-			by[id] = st
+	by := s.seedChannelStatsLocked(tenant)
+	posters := s.tallyChannelStatsLocked(by, tenant, now, reads, reader, lobby)
+	s.channelStatMembersLocked(by, tenant, posters)
+	return s.visibleChannelStatsLocked(by, tenant), nil
+}
+
+// channelStatSet is ViewChannelStats' working set: one stat per channel id.
+type channelStatSet struct {
+	tenant string
+	by     map[string]*ChannelStat
+}
+
+// get returns the stat of channel id, adding an empty one on first use.
+func (b *channelStatSet) get(id string) *ChannelStat {
+	st := b.by[id]
+	if st == nil {
+		st = &ChannelStat{Channel: Channel{TenantID: b.tenant, ChannelID: id, Name: id}, Default: IsDefaultChannel(id)}
+		if st.Default {
+			st.CreatedBy = "hub"
 		}
-		return st
+		b.by[id] = st
 	}
+	return st
+}
+
+// seedChannelStatsLocked starts the set with DefaultChannels and the tenant's stored channel rows.
+func (s *Memory) seedChannelStatsLocked(tenant string) *channelStatSet {
+	by := &channelStatSet{tenant: tenant, by: map[string]*ChannelStat{}}
 	for _, d := range DefaultChannels {
-		get(d)
+		by.get(d)
 	}
 	for k, c := range s.ch.rows {
 		if k[0] == tenant {
-			st := get(k[1])
+			st := by.get(k[1])
 			st.Name, st.Description, st.CreatedBy, st.CreatedAt, st.MembersOpenInvite = c.Name, c.Description, c.CreatedBy, c.CreatedAt, c.MembersOpenInvite
 		}
 	}
+	return by
+}
+
+// tallyChannelStatsLocked counts the live messages per channel (count, last, unread) and returns each channel's posters.
+func (s *Memory) tallyChannelStatsLocked(by *channelStatSet, tenant string, now time.Time, reads map[string]ReadMark, reader, lobby string) map[string]map[string]bool {
 	posters := map[string]map[string]bool{}
 	for _, m := range s.liveLocked(tenant, now) { // oldest first
 		if m.Channel == "" {
 			continue
 		}
-		st := get(m.Channel)
+		st := by.get(m.Channel)
 		st.Count++
 		st.LastAt, st.LastMsgID = m.ReceivedAt, m.MsgID
 		if r, ok := reads[m.Channel]; (!ok || s.markedNewLocked(tenant, reader, m, r)) && !OwnLine(m.FromID, m.TypedBy, reader, ok) && !s.archivedHiddenLocked(tenant, m, lobby) {
@@ -419,7 +440,12 @@ func (s *Memory) ViewChannelStats(_ context.Context, tenant string, now time.Tim
 		}
 		posters[m.Channel][m.FromID] = true
 	}
-	for id, st := range by {
+	return posters
+}
+
+// channelStatMembersLocked sets each channel's Posters, Agents and Boxes from the posters, subs and open invites.
+func (s *Memory) channelStatMembersLocked(by *channelStatSet, tenant string, posters map[string]map[string]bool) {
+	for id, st := range by.by {
 		st.Posters = len(posters[id])
 		boxes := map[string]bool{}
 		for k, m := range s.ch.subs {
@@ -446,12 +472,16 @@ func (s *Memory) ViewChannelStats(_ context.Context, tenant string, now time.Tim
 		}
 		st.Boxes = len(boxes)
 	}
-	out := make([]ChannelStat, 0, len(by))
-	for id, st := range by {
+}
+
+// visibleChannelStatsLocked drops hidden and archived channels and sorts the rest.
+func (s *Memory) visibleChannelStatsLocked(by *channelStatSet, tenant string) []ChannelStat {
+	out := make([]ChannelStat, 0, len(by.by))
+	for id, st := range by.by {
 		if !ChannelHidden(id) && !s.ch.archivedCh(tenant, id) { // issue discussions are not a channel; rdb 0052
 			out = append(out, *st)
 		}
 	}
 	SortChannelStats(out) // newest activity first
-	return out, nil
+	return out
 }

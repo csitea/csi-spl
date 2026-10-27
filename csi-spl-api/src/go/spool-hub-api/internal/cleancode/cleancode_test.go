@@ -35,7 +35,6 @@ var longFuncs = map[string]bool{
 	"internal/hub/join_tokens.go (*Server).handleJoinRedeem":        true,
 	"internal/hub/server.go (*Server).Handler":                      true,
 	"internal/keyd/keyd.go Serve":                                   true,
-	"internal/store/channels_memory.go (*Memory).ViewChannelStats":  true,
 	"internal/store/humans_postgres.go (*Postgres).ProvisionMember": true,
 }
 

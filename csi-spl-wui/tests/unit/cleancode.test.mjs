@@ -24,7 +24,8 @@ const WUI = join(__dirname, '../..')
 const SRC = join(WUI, 'src')
 
 // Measured on trunk 2026-10-02: 4676 functions, max depth 4, max params 5.
-const MAX_LINES = 80
+// r28-02 ratcheted MAX_LINES 80 -> 75; LONG grandfathers what was over 75.
+const MAX_LINES = 75
 const MAX_DEPTH = 4
 // r26-02 ratcheted MAX_PARAMS 6 -> 5; WIDE grandfathers what was at 6.
 const MAX_PARAMS = 5
@@ -32,10 +33,39 @@ const WIDE_CAP = 6
 
 // `<file> <name>` -> ceiling (an anonymous function takes its variable /
 // property name, or `<anon>`; a repeat in one file gets #2, #3). The ceiling is
-// its length on 2026-10-10 (r5-06): a listed function may not grow past it.
-// Empty since r12-05 split createSpoolClient: every WUI function is under
-// MAX_LINES, and a new long one fails.
+// its length when listed (r5-06): a listed function may not grow past it.
+// Now: the functions over 75 lines when r28-02 lowered MAX_LINES 80 -> 75 (28
+// on fba652a18). The list may only shrink: split a function into named steps
+// and delete its line; a NEW long one fails.
 const LONG = new Map([
+  ['src/components/workspace-docs/-doctree-api.ts useDocTree', 79],
+  ['src/composables/useCalendarDeepLinks.ts useCalendarDeepLinks', 78],
+  ['src/composables/useCardMove.ts useCardMove', 80],
+  ['src/composables/useCardReactions.ts useCardReactions', 76],
+  ['src/composables/useCardTopicActions.ts useCardMessageActions', 80],
+  ['src/composables/useChannelAgentPick.ts useChannelAgentPick', 76],
+  ['src/composables/useChannelPersonPick.ts useChannelPersonPick', 76],
+  ['src/composables/useDocPictures.ts useDocPictures', 79],
+  ['src/composables/useDragReorder.ts useDragReorder', 80],
+  ['src/composables/useFileTreeDrag.ts useFileTreeDrag', 80],
+  ['src/composables/useOmniboxGripSize.ts useOmniboxGripSize', 79],
+  ['src/composables/useSidebarRailNav.ts useSidebarRailNav', 76],
+  ['src/composables/useSidebarRowDrag.ts useSidebarRowDrag', 78],
+  ['src/composables/useSpoolEvents.ts useSpoolEvents', 80],
+  ['src/composables/useTenantSwitch.ts useTenantSwitch', 78],
+  ['src/stores/channel.ts liveSendSteps', 77],
+  ['src/stores/channel.ts sidebarSteps', 79],
+  ['src/stores/repoEdit.ts <anon>#6', 77],
+  ['src/stores/repoEdit.ts editLists', 78],
+  ['src/stores/roster.ts <anon>', 77],
+  ['src/stores/search.ts <anon>#4', 76],
+  ['src/utils/error-snackbar.ts createSnackbarQueue', 79],
+  ['src/utils/event-log.mjs createEventShipper', 79],
+  ['src/utils/hours-recorder.mjs createHoursRecorder', 78],
+  ['src/utils/move-drag.ts createHandleDrag', 78],
+  ['src/utils/perf-rum.mjs createPerfCollector', 80],
+  ['src/utils/swipe-archive.mjs createSwipe', 80],
+  ['src/utils/tenant-host-boot.mjs bootTenantHost', 78],
 ])
 
 // `<file> <name>` keyed as LONG. The functions at 6 parameters when r26-02

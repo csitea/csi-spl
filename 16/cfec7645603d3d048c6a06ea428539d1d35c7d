@@ -1,0 +1,6 @@
+Lay-What: Older cost items paid in euros or pounds now convert at the exchange rate of their own month.
+Lay-How: The daily rate fetch can now load a past range; prd and dev now hold daily rates back to July 2024.
+Lay-Why: Before, the oldest rate on prd was 28 September 2026, so 35 older items all used that one rate.
+Tech-What: do_spl_fx_rates_fetch FX_FROM=<YYYY-MM-DD> posts every day since it; new cnf env.fx.ecb_hist_url and fed_range_url.
+Tech-How: The ECB full file and the Fed H.10 range ({from}/{to}) go through the same parsers, 500-row chunks and UPSERT.
+Tech-Why: FX_DAYS is capped at 90 and the cnf URLs only carry 90 days (ECB) or 60 observations (Fed).

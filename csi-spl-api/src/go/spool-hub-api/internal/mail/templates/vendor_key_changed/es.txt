@@ -1,0 +1,10 @@
+Una clave de agente del espacio de trabajo {{.TenantID}} de spool hub ha cambiado.
+
+Agente: {{.KeyKind}}
+Cambio: {{if eq .KeyAction "set"}}clave establecida{{else if eq .KeyAction "replace"}}clave sustituida{{else}}clave eliminada{{end}}
+La clave termina en: {{.KeyLast4}}
+Por: {{.ChangedBy}}
+Cuándo: {{.ChangedAt}}
+
+Cada administrador y propietario del negocio de este espacio de trabajo recibe este correo.
+Si no esperabas este cambio, revisa las claves de agente en la configuración del espacio de trabajo y revoca la clave en la consola del proveedor.

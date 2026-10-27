@@ -1,0 +1,10 @@
+Kľúč agenta v pracovnom priestore {{.TenantID}} v spool hub sa zmenil.
+
+Agent: {{.KeyKind}}
+Zmena: {{if eq .KeyAction "set"}}kľúč nastavený{{else if eq .KeyAction "replace"}}kľúč nahradený{{else}}kľúč odstránený{{end}}
+Koniec kľúča: {{.KeyLast4}}
+Kto: {{.ChangedBy}}
+Kedy: {{.ChangedAt}}
+
+Tento e-mail dostane každý správca a vlastník firmy tohto pracovného priestoru.
+Ak ste túto zmenu nečakali, skontrolujte kľúče agentov v nastaveniach pracovného priestoru a zrušte kľúč v konzole dodávateľa.

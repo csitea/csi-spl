@@ -1,0 +1,10 @@
+spool hubi tööruumi {{.TenantID}} agendi võti muutus.
+
+Agent: {{.KeyKind}}
+Muudatus: {{if eq .KeyAction "set"}}võti määratud{{else if eq .KeyAction "replace"}}võti asendatud{{else}}võti eemaldatud{{end}}
+Võtme lõpp: {{.KeyLast4}}
+Kes: {{.ChangedBy}}
+Millal: {{.ChangedAt}}
+
+Selle e-kirja saab iga selle tööruumi administraator ja ettevõtte omanik.
+Kui te seda muudatust ei oodanud, kontrollige agentide võtmeid tööruumi seadetes ja tühistage võti teenusepakkuja konsoolis.

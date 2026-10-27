@@ -1,0 +1,10 @@
+spool hub darbo srities {{.TenantID}} agento raktas pasikeitė.
+
+Agentas: {{.KeyKind}}
+Pakeitimas: {{if eq .KeyAction "set"}}raktas nustatytas{{else if eq .KeyAction "replace"}}raktas pakeistas{{else}}raktas pašalintas{{end}}
+Rakto pabaiga: {{.KeyLast4}}
+Kas: {{.ChangedBy}}
+Kada: {{.ChangedAt}}
+
+Šį laišką gauna kiekvienas šios darbo srities administratorius ir verslo savininkas.
+Jei šio pakeitimo nesitikėjote, patikrinkite agentų raktus darbo srities nustatymuose ir atšaukite raktą tiekėjo konsolėje.

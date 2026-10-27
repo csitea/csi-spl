@@ -1,0 +1,10 @@
+Klucz agenta w obszarze roboczym {{.TenantID}} w spool hub został zmieniony.
+
+Agent: {{.KeyKind}}
+Zmiana: {{if eq .KeyAction "set"}}klucz ustawiony{{else if eq .KeyAction "replace"}}klucz zastąpiony{{else}}klucz usunięty{{end}}
+Końcówka klucza: {{.KeyLast4}}
+Kto: {{.ChangedBy}}
+Kiedy: {{.ChangedAt}}
+
+Tę wiadomość otrzymuje każdy administrator i właściciel firmy w tym obszarze roboczym.
+Jeśli nie spodziewano się tej zmiany, sprawdź klucze agentów w ustawieniach obszaru roboczego i unieważnij klucz w konsoli dostawcy.

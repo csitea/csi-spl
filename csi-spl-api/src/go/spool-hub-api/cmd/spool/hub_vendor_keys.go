@@ -7,6 +7,8 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/mail"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/marketing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/vendorkey"
 )
@@ -34,4 +36,22 @@ func vendorKeySealer(ctx context.Context, hc *config.Hub, log zerolog.Logger) *v
 	}
 	log.Info().Msg("vendor keys: on")
 	return s
+}
+
+// vendorKeyMailer sends the vendor key notice (spec 159 section 3,
+// mail.TemplateVendorKeyChanged) through the platform relay; nil with no
+// relay (the hub then logs vendor_key.mail_off and mails nobody).
+func vendorKeyMailer(log zerolog.Logger, pmc *mail.Config) hub.VendorKeyMailer {
+	if pmc.Transport == mail.TransportNone {
+		return nil
+	}
+	sender := pmc.Sender(log)
+	return func(ctx context.Context, to, locale string, n hub.VendorKeyNotice) error {
+		msg, err := mail.VendorKeyChanged(to, locale, mail.VendorKeyNotice{TenantID: n.Tenant, Kind: n.Kind,
+			Action: n.Action, Last4: n.Last4, ChangedBy: n.By, ChangedAt: n.At})
+		if err != nil {
+			return err
+		}
+		return sender.Send(ctx, msg)
+	}
 }

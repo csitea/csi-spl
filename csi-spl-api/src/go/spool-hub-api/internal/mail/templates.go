@@ -37,11 +37,16 @@ const (
 	// TemplateEmbedRelink is the embed visitor's relink mail (specs/121
 	// T206): the site, a single-use link back to its chat, the TTL.
 	TemplateEmbedRelink = "embed_relink"
+	// TemplateVendorKeyChanged tells every admin and biz owner of a workspace
+	// that one of its agent vendor keys was set, replaced or removed (spec
+	// 159 section 3, spec 127 5.1). It carries last4 only, never the key, and
+	// no link.
+	TemplateVendorKeyChanged = "vendor_key_changed"
 )
 
 // Templates lists every template id (tests iterate it).
 var Templates = []string{TemplateEmailVerification, TemplatePasswordReset, TemplateTenantPaid,
-	TemplateTenantInvite, TemplateFederatedSignIn, TemplateEmbedRelink}
+	TemplateTenantInvite, TemplateFederatedSignIn, TemplateEmbedRelink, TemplateVendorKeyChanged}
 
 // FallbackLocale renders when a locale variant is missing (csi-rel G-02).
 const FallbackLocale = "en"
@@ -70,6 +75,14 @@ type TemplateData struct {
 	// Site is the host of the page an embedded chat runs on
 	// (TemplateEmbedRelink), as the visitor saw it.
 	Site string
+	// The vendor key notice (TemplateVendorKeyChanged): the agent kind, the
+	// change ("set", "replace" or "remove"), the key's last four characters,
+	// who changed it and when (pre-formatted UTC). Never the key.
+	KeyKind   string
+	KeyAction string
+	KeyLast4  string
+	ChangedBy string
+	ChangedAt string
 }
 
 // providerNames words a provider slug for a mail. An unknown slug is title-cased
@@ -217,4 +230,22 @@ func FederatedSignIn(to, locale string, providers []string, signInURL string) (M
 // host of the embedding page, link the single-use link (never logged).
 func EmbedRelink(to, locale, site, link string, ttl time.Duration) (Message, error) {
 	return build(TemplateEmbedRelink, to, locale, TemplateData{Site: site, Link: link, TTL: ttl})
+}
+
+// VendorKeyNotice is what the vendor key mail says (spec 159 section 3).
+type VendorKeyNotice struct {
+	TenantID  string
+	Kind      string
+	Action    string // "set", "replace" or "remove"
+	Last4     string
+	ChangedBy string
+	ChangedAt time.Time
+}
+
+// VendorKeyChanged renders the vendor key notice in locale; the time is
+// worded in UTC ("2006-01-02 15:04 UTC") in every locale.
+func VendorKeyChanged(to, locale string, n VendorKeyNotice) (Message, error) {
+	return build(TemplateVendorKeyChanged, to, locale, TemplateData{TenantID: n.TenantID, KeyKind: n.Kind,
+		KeyAction: n.Action, KeyLast4: n.Last4, ChangedBy: n.ChangedBy,
+		ChangedAt: n.ChangedAt.UTC().Format("2006-01-02 15:04") + " UTC"})
 }

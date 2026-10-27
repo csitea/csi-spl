@@ -1,0 +1,10 @@
+En agentnyckel i spool hub-arbetsytan {{.TenantID}} har ändrats.
+
+Agent: {{.KeyKind}}
+Ändring: {{if eq .KeyAction "set"}}nyckel angiven{{else if eq .KeyAction "replace"}}nyckel ersatt{{else}}nyckel borttagen{{end}}
+Nyckeln slutar på: {{.KeyLast4}}
+Av: {{.ChangedBy}}
+När: {{.ChangedAt}}
+
+Varje administratör och företagsägare i den här arbetsytan får det här mejlet.
+Om du inte väntade dig den här ändringen, kontrollera agentnycklarna i arbetsytans inställningar och återkalla nyckeln i leverantörens konsol.

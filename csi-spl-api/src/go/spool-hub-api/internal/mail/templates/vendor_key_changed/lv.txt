@@ -1,0 +1,10 @@
+spool hub darbvietas {{.TenantID}} aģenta atslēga ir mainīta.
+
+Aģents: {{.KeyKind}}
+Izmaiņa: {{if eq .KeyAction "set"}}atslēga iestatīta{{else if eq .KeyAction "replace"}}atslēga aizstāta{{else}}atslēga noņemta{{end}}
+Atslēgas beigas: {{.KeyLast4}}
+Kas: {{.ChangedBy}}
+Kad: {{.ChangedAt}}
+
+Šo e-pastu saņem katrs šīs darbvietas administrators un uzņēmuma īpašnieks.
+Ja negaidījāt šīs izmaiņas, pārbaudiet aģentu atslēgas darbvietas iestatījumos un atsauciet atslēgu piegādātāja konsolē.

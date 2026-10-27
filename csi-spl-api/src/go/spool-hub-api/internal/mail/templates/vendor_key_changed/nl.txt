@@ -1,0 +1,10 @@
+Een agentsleutel van de spool hub-werkruimte {{.TenantID}} is gewijzigd.
+
+Agent: {{.KeyKind}}
+Wijziging: {{if eq .KeyAction "set"}}sleutel ingesteld{{else if eq .KeyAction "replace"}}sleutel vervangen{{else}}sleutel verwijderd{{end}}
+Sleutel eindigt op: {{.KeyLast4}}
+Door: {{.ChangedBy}}
+Wanneer: {{.ChangedAt}}
+
+Elke beheerder en bedrijfseigenaar van deze werkruimte ontvangt deze e-mail.
+Als je deze wijziging niet verwachtte, controleer dan de agentsleutels in de werkruimte-instellingen en trek de sleutel in via de console van de leverancier.

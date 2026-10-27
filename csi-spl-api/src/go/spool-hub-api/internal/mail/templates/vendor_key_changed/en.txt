@@ -1,0 +1,10 @@
+An agent key of the spool hub workspace {{.TenantID}} changed.
+
+Agent: {{.KeyKind}}
+Change: {{if eq .KeyAction "set"}}key set{{else if eq .KeyAction "replace"}}key replaced{{else}}key removed{{end}}
+Key ending: {{.KeyLast4}}
+By: {{.ChangedBy}}
+When: {{.ChangedAt}}
+
+Every admin and business owner of this workspace gets this email.
+If you did not expect this change, check the agent keys in the workspace settings and revoke the key in the vendor's console.

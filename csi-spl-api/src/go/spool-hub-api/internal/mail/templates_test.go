@@ -63,9 +63,10 @@ func TestMissingVariantControl(t *testing.T) {
 func TestEveryLocaleRendersItsLink(t *testing.T) {
 	const link = "https://app.example.com/fi/verify-email?token=0123abcd"
 	for _, id := range Templates {
-		if id == TemplateTenantInvite || id == TemplateFederatedSignIn {
+		if id == TemplateTenantInvite || id == TemplateFederatedSignIn || id == TemplateVendorKeyChanged {
 			// No bearer link and no TTL by design; their own per-locale tests
-			// are TestTenantInviteEveryLocale and TestFederatedSignInEveryLocale.
+			// are TestTenantInviteEveryLocale, TestFederatedSignInEveryLocale and
+			// TestVendorKeyChangedEveryLocale.
 			continue
 		}
 		for _, loc := range i18n.Supported {

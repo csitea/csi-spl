@@ -1,0 +1,10 @@
+Ključ agenta u radnom prostoru {{.TenantID}} na spool hub-u je promenjen.
+
+Agent: {{.KeyKind}}
+Promena: {{if eq .KeyAction "set"}}ključ postavljen{{else if eq .KeyAction "replace"}}ključ zamenjen{{else}}ključ uklonjen{{end}}
+Ključ se završava na: {{.KeyLast4}}
+Ko: {{.ChangedBy}}
+Kada: {{.ChangedAt}}
+
+Ovaj e-mail dobija svaki administrator i vlasnik firme ovog radnog prostora.
+Ako niste očekivali ovu promenu, proverite ključeve agenata u podešavanjima radnog prostora i opozovite ključ u konzoli dobavljača.

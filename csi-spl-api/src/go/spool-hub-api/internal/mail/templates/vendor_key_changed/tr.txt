@@ -1,0 +1,10 @@
+spool hub çalışma alanı {{.TenantID}} içindeki bir ajan anahtarı değişti.
+
+Ajan: {{.KeyKind}}
+Değişiklik: {{if eq .KeyAction "set"}}anahtar ayarlandı{{else if eq .KeyAction "replace"}}anahtar değiştirildi{{else}}anahtar kaldırıldı{{end}}
+Anahtarın sonu: {{.KeyLast4}}
+Kim: {{.ChangedBy}}
+Ne zaman: {{.ChangedAt}}
+
+Bu çalışma alanının her yöneticisi ve işletme sahibi bu e-postayı alır.
+Bu değişikliği beklemiyorsanız, çalışma alanı ayarlarındaki ajan anahtarlarını kontrol edin ve anahtarı sağlayıcının konsolunda iptal edin.

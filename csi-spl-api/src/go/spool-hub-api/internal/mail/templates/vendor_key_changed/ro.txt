@@ -1,0 +1,10 @@
+O cheie de agent a spațiului de lucru {{.TenantID}} din spool hub s-a schimbat.
+
+Agent: {{.KeyKind}}
+Modificare: {{if eq .KeyAction "set"}}cheie setată{{else if eq .KeyAction "replace"}}cheie înlocuită{{else}}cheie eliminată{{end}}
+Cheia se termină în: {{.KeyLast4}}
+De către: {{.ChangedBy}}
+Când: {{.ChangedAt}}
+
+Fiecare administrator și proprietar al afacerii din acest spațiu de lucru primește acest e-mail.
+Dacă nu te așteptai la această modificare, verifică cheile agenților în setările spațiului de lucru și revocă cheia în consola furnizorului.

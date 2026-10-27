@@ -1,0 +1,10 @@
+spool hub -työtilan {{.TenantID}} agentin avain muuttui.
+
+Agentti: {{.KeyKind}}
+Muutos: {{if eq .KeyAction "set"}}avain asetettu{{else if eq .KeyAction "replace"}}avain vaihdettu{{else}}avain poistettu{{end}}
+Avaimen loppu: {{.KeyLast4}}
+Tekijä: {{.ChangedBy}}
+Aika: {{.ChangedAt}}
+
+Jokainen tämän työtilan ylläpitäjä ja liiketoiminnan omistaja saa tämän sähköpostin.
+Jos et odottanut tätä muutosta, tarkista agenttien avaimet työtilan asetuksista ja peruuta avain palveluntarjoajan konsolissa.

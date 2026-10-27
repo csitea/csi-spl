@@ -1,0 +1,6 @@
+Lay-What: Adding one more agent to a computer no longer cuts that computer's link, so the app stops showing it as offline while it works.
+Lay-How: When an agent is added for the first time, the running link is kept as it is and picks up the new agent by itself.
+Lay-Why: Seating agents one by one restarted the link each time, and people saw the computer go offline and waited.
+Tech-What: do_spl_desk_up seating a NEW agent keeps a live but stale hub-run sidecar instead of restarting it.
+Tech-How: spl_desk_sidecar_recycle split out of spl_desk_sidecar; restart only on a re-seat or a changed DESK_BOX_POKE (read at exec).
+Tech-Why: The seat call rebuilds the spool binary, which made the running sidecar stale (SPL-952 check), so every new seat after a build restarted it.

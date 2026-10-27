@@ -56,7 +56,7 @@ func (p *parser) value(term *Term, o *Operator, v string, neg bool) string {
 		}
 		term.Box = lv
 	case OpIn:
-		return channelValue(term, lv)
+		return channelValue(term, lv, neg)
 	case OpIs, OpHas:
 		return enumValue(term, o, lv)
 	case OpTopic:
@@ -95,7 +95,7 @@ func typeValue(term *Term, lv string, neg bool) string {
 	for _, part := range strings.Split(lv, ",") {
 		ty, ok := typeAliases[strings.TrimSpace(part)]
 		if !ok {
-			return "type: must be message, topic, file, robot, user, channel, box, tenant, event, issue or doc"
+			return "type: must be message, topic, file, robot, user, channel, box, tenant, event, issue, doc or file_line"
 		}
 		if !seen[ty] {
 			seen[ty] = true
@@ -120,7 +120,14 @@ func idValue(term *Term, op, v string) string {
 }
 
 // channelValue: in: takes #name, name (general is the lobby) or dm.
-func channelValue(term *Term, lv string) string {
+func channelValue(term *Term, lv string, neg bool) string {
+	if lv == "file-streams" || lv == "file-stream" { // reserved, as dm; #file-streams is a channel
+		if neg { // it picks the section, as type: does
+			return "in:file-streams cannot be negated"
+		}
+		term.FileStreams = true
+		return ""
+	}
 	c := strings.TrimPrefix(lv, "#")
 	switch {
 	case c == "dm":
@@ -131,7 +138,7 @@ func channelValue(term *Term, lv string) string {
 		}
 		term.Channel = c
 	default:
-		return "in: must be a channel (#name) or dm"
+		return "in: must be a channel (#name), dm or file-streams"
 	}
 	return ""
 }

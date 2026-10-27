@@ -136,7 +136,8 @@ attachment without `bytes`, or a directory) matches neither.
 `files`], `robot` [`agent`, `bot`, `robots`], `user` [`human`, `users`],
 `channel` [`channels`], `box` [`boxes`], `tenant` [`tenants`, `workspace`,
 `workspaces`], `event` [`events`, `log`, `error`, `errors`], `doc` [`docs`,
-`document`, `documents`, `qto`] (grammar 1.4, SPL-3337). `thread`
+`document`, `documents`, `qto`] (grammar 1.4, SPL-3337), `file_line`
+[`file_lines`] (grammar 1.5, spec 160 3.6, SPL-3888). `thread`
 [`threads`] is accepted as the pre-rename spelling of `topic`.
 
 - At most one `type:` term, at the **top level** of the AND (not inside `OR`,
@@ -149,6 +150,12 @@ attachment without `bytes`, or a directory) matches neither.
   Since grammar 1.4 `doc` is a content type too: a plain search includes the
   workspace's Qto documents (§4.10; owner HUM-10, t1 4e06a219), one more
   round trip (spec 100 section 14).
+- `file_line` is opt-in, as `tenant` and `event`: a plain search never reads
+  the box file stream lines (cost, and they are for the workspace's owner or
+  admins only). `in:file-streams` (also `in:file-stream`, `channel:` the
+  same; no `#`) is a reserved word, as `dm` is, and searches `file_line`
+  only; `#file-streams` stays the channel of that name. It picks the
+  section, so it cannot be negated (`400 bad_query`), as `type:`.
 - **Applicability**: a section is searched only when **every** operator in
   the query applies to its type (§3.2). `from:CLE-07 report` searches
   messages, threads and files; `filename:plan` searches files only;
@@ -163,8 +170,9 @@ attachment without `bytes`, or a directory) matches neither.
 | `type:` | §3.1 | — | selects sections |
 | `from:` | `<agent>`, `<agent>@<box>`, `HUM-<n>`, `<box>` | message, thread, file | the sender: `from_id` = value, or `from_box` = value; `<agent>@<box>` needs both. thread: any message of the thread; file: the carrying message |
 | `to:` | same | message, thread, file | the recipient, like `from:` |
-| `box:` | `<box>` | message, thread, file, robot, box | message / file: `from_box` or `to_box`; thread: any message; robot: its box; box: its id |
+| `box:` | `<box>` | message, thread, file, robot, box, file_line | message / file: `from_box` or `to_box`; thread: any message; robot: its box; box: its id; file_line: the stream's box |
 | `in:` | `#<channel>`, `<channel>`, `dm` | message, thread, file | the channel (`general` = `lobby`); `in:dm` = no channel (a DM) |
+| `in:` | `file-streams` (no `#`) | file_line | every line of the workspace's file streams (§3.1, §4.11) |
 | `is:` | `task`, `note`, `result`, `reject` | message | the message kind |
 | `is:` | `relay` | message | agent-to-agent mail: a DM whose sender and recipient are both agents (neither `HUM-*`, `GST-*` nor `ALL-0`) |
 | `is:` | `root` | thread | `parent_task_id` is null |
@@ -173,9 +181,9 @@ attachment without `bytes`, or a directory) matches neither.
 | `has:` | `file` [`attachment`] | message | `files[]` is not empty |
 | `has:` | `code` | message | the body has a fenced code block (a line starting with ```` ``` ````, CLE-3407) |
 | `thread:` | `<task_id>` (UUID) | message, thread, file | `task_id` = value |
-| `before:` `after:` `on:` | §2.3 | message, thread, file | receive time (thread: last activity) |
+| `before:` `after:` `on:` | §2.3 | message, thread, file, event, doc, file_line | receive time (thread: last activity; doc: last edit; file_line: the line's time) |
 | `title:` [`subject:`] | text | thread | the thread title (first line of its first message, ≤ 140 chars, view-v1 §4.3), FTS |
-| `name:` | text | file, robot, user, channel, box, tenant, event | the entity's name only (substring) |
+| `name:` | text | file, robot, user, channel, box, tenant, event, doc, file_line | the entity's name only (substring; file_line: the stream key) |
 | `filename:` | text | file | the attachment `name` (substring) |
 | `ext:` | `[a-z0-9]{1,16}`, leading `.` allowed | file | `name` ends with `.<ext>` (case-insensitive) |
 | `larger:` `smaller:` | §2.4 | file | attachment `bytes` |
@@ -215,6 +223,7 @@ ids), which are compared as given. An operator value may be a phrase:
   "sort": "newest",
   "types": ["message", "thread", "file"],
   "warnings": [ { "token": "foo:bar", "pos": 19, "detail": "unknown operator foo: searched as text" } ],
+  "notices": [],
   "groups": {
     "messages": { "results": [ … ], "next": "<cursor or null>" },
     "threads":  { "results": [ … ], "next": null },
@@ -228,6 +237,12 @@ ids), which are compared as given. An operator value may be a phrase:
   `{"results": [], "next": null}`. There is no total count (it would cost a
   second scan).
 - With a `cursor`, `types` and `groups` hold that one section.
+- `notices` (grammar 1.5, spec 160 3.6): always present, `[]` when empty; a
+  list of stable codes, never free text, which the WUI shows as one line
+  each (a text key). `warnings` keeps its meaning (query parse problems).
+  Today one code: `file_streams_staff_only`, an `in:file-streams` search by
+  a caller who may not read the file streams (§4.11); its section is `[]`
+  and the rest of the search answers as usual.
 - **Offsets**: every `highlights` is a list of `[start, end)` pairs in
   **UTF-16 code units** of its `text` (what JavaScript `String.slice` takes),
   sorted, non-overlapping. `pos` (warnings, errors) is a UTF-16 offset into
@@ -340,6 +355,18 @@ document's title (its root only); `before:` / `after:` / `on:` the section's
 last edit. Only for a signed-in member whose role grants `docs.read` (the
 rule that opens the document); anyone else gets `[]`. Never another
 workspace's documents, never the repository docs (the system tenant).
+
+### 4.11 `file_line`
+
+The lines of the workspace's box file streams (spec 160), newest first, one
+row per line: `{ "stream_id", "box_id", "stream_key", "seq", "at", "text",
+"highlights" }`. Free text matches the line in the message configuration
+(§2.2); `box:` the stream's box; `name:` the stream key; `before:` /
+`after:` / `on:` the line's time. The hub's own markers (a rotation, a gap)
+are never a hit. Only for a member session of the workspace's owner or an
+admin that is not an act-as clone (the File streams tab's gate, spec 160
+3.4); anyone else gets `[]` and the notice `file_streams_staff_only`, never
+a `403`. Never another workspace's lines.
 
 ## 5. Errors and warnings
 

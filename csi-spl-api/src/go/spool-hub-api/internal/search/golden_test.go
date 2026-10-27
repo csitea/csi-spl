@@ -38,6 +38,10 @@ var goldenQueries = []string{
 	"assignee:CLE-07", "assignee:-x", "label:Bug", "type:issue status:done prio:2", "status:done deploy",
 	// applicability
 	"type:robot ext:pdf", "type:file ext:pdf", "ext:pdf is:online", "status:done is:task", "type:issue from:CLE-07",
+	// in:file-streams (spec 160 3.6, case C14): the reserved word, and #file-streams the channel
+	"in:file-streams token", "channel:file-streams token", "in:#file-streams token", "channel:#file-streams token",
+	"in:file-stream x", "in:FILE-STREAMS x", "type:file_line box:box-a name:app after:7d", "in:file-streams from:CLE-07",
+	"in:file-streams in:#lobby", "type:file_line is:task", "type:message in:file-streams", "-in:file-streams x",
 	// empty values
 	"from:", `title:""`, "in: x",
 }

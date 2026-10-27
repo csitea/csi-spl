@@ -25,6 +25,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
+import { AWAIT_ANIM_IDS } from '../../src/utils/await-reply.mjs'
 
 const BASE = need('BASE').replace(/\/+$/, '')
 const OUT = need('OUT')
@@ -36,7 +37,8 @@ const REPLY_CMD = process.env.REPLY_CMD || ''
 const ANIM = process.env.ANIM || ''
 const WANT = ANIM || 'rotate'
 /* rotate shows one of its drawings (SPL-2043); a single pick is itself */
-const drawsWant = (anim) => (WANT === 'rotate' ? ['hourglass', 'robot', 'brain'].includes(anim) : anim === WANT)
+/* rotate = no pick = every drawing of the catalogue (SPL-3836) */
+const drawsWant = (anim) => (WANT === 'rotate' ? AWAIT_ANIM_IDS.includes(anim) : anim === WANT)
 const BOX = 'form.composer.omnibox--global textarea'
 /* a plain token: the WUI renders an ISO time in a body as a local date */
 const NEEDLE = `await-reply proof ${Date.now().toString(36)}`

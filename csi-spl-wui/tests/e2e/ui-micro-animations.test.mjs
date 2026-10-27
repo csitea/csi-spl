@@ -293,7 +293,9 @@ async function newPage(browser, vp) {
   await p.evaluateOnNewDocument(recorder)
   await p.evaluateOnNewDocument((peer) => {
     try {
-      localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', email: 'dev@example.com', name: 'FirstName LastName', t: 't1' }))
+      /* row 08 ticks an unticked drawing: no pick = every drawing ticked
+         (SPL-3836), so the account holds three */
+      localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', email: 'dev@example.com', name: 'FirstName LastName', t: 't1', await_anims: ['hourglass', 'robot', 'brain'] }))
       /* the DM rows' own count, as dm-badge-total.test.mjs reads it */
       localStorage.setItem('spool.mock.flow-keys', 'off')
       localStorage.setItem('spool.read-cursors', JSON.stringify({ [`dm:${peer}`]: { ts: '2026-10-22T09:00:00.000Z', id: '' } }))

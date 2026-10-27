@@ -23,8 +23,9 @@
 //   type_next_paint, inp, scroll_jank, with the right device; a sample has
 //   only the allowed fields, and no batch carries a message id, a task id, an
 //   agent id or any text that was typed or received.
-//   The phone opens /channel/alerts on the feed, its rail one tap away: no
-//   load_rail there (the control), and one on / where the phone opens on it.
+//   The phone opens /channel/alerts on the feed with the section strip (the
+//   rail) on top (SPL-3785), so load_rail is timed there too, and on / where
+//   the phone opens on the full rail.
 //
 // Run:
 //   BASE_URL=<generated mock bundle> node tests/e2e/perf-rum.test.mjs
@@ -153,7 +154,7 @@ async function run(browser, base, phone) {
   const { p, errors, tag } = page
   await p.waitForSelector('article.msg[data-msg-id]', { timeout: NAV_TIMEOUT })
   /* the load's batch is in, so the first 202 has given deliver_visible its clock */
-  await untilPosted(page, phone ? ['load_messages'] : ['load_messages', 'load_rail'])
+  await untilPosted(page, ['load_messages', 'load_rail'])
 
   /* M6 + M6b: type in the composer; one keydown handler is made slow so an Event Timing entry exists */
   await p.evaluate(() => {
@@ -220,9 +221,9 @@ async function run(browser, base, phone) {
   await page.ctx.close()
 
   const by = (m) => samples.filter((s) => s.metric === m)
-  /* on a phone the feed is the open panel and the rail one tap away: no load_rail then (see railRun) */
-  if (phone) ok(`${tag}: no load_rail while the rail never showed during the load`, by('load_rail').length === 0, by('load_rail'))
-  for (const m of [...(phone ? [] : ['load_rail']), 'load_messages', 'send_ack', 'deliver_visible', 'type_next_paint', 'inp', 'scroll_jank']) {
+  /* SPL-3785: on a phone the feed is the open panel with the section strip
+     (the rail) on top of it, so the rail's first tab is timed there too */
+  for (const m of ['load_rail', 'load_messages', 'send_ack', 'deliver_visible', 'type_next_paint', 'inp', 'scroll_jank']) {
     ok(`${tag}: ${m} in a captured batch, device=${tag}`, by(m).length > 0 && by(m).every((s) => s.device === tag), by(m).slice(0, 2))
   }
   const sw = by('switch_view')

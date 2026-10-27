@@ -133,9 +133,10 @@ try {
     /* a dialog at level 2: Back closes it, a second Back pops the level */
     await click(page, '#sidebar-panel-channels .nav-item')
     const c2 = await until(page, (s) => s.path.includes('/channel/'))
-    await click(page, '[data-testid=sidebar-tab-channels]')
     const d2 = await page.evaluate(() => {
-      /* the channel's own dialog is not needed: the same UiDialog opened from the rail */
+      /* the channel's own dialog is not needed: the same UiDialog opened from
+         the rail. No tab tap first: past level 1 the rail is the section
+         strip (SPL-3785), where a tab tap goes to that section's level 1 */
       const b = document.querySelector('[data-testid=create-channel]')
       if (!b) return false
       b.click()

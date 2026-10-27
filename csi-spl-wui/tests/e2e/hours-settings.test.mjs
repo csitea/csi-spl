@@ -99,10 +99,14 @@ async function open(browser, vp, path, { theme = 'dark', level = 3 } = {}) {
   return { p, ctx, errors, saved }
 }
 
-/* step 5: the document and every element under root */
+/* step 5: the document and every element under root. The phone section
+   strip (SPL-3785: on top at every level, data-mobile-section) is the one
+   sideways scroller by design: it scrolls the selected section into view
+   (tests/e2e/section-strip-mobile.test.mjs) */
 const sideways = (p, root) => p.evaluate((r) => {
   const wide = []
   for (const el of document.querySelector(r)?.querySelectorAll('*') || []) {
+    if (el.matches('[data-mobile-section] .sidebar-rail')) continue
     if (el.scrollLeft !== 0) wide.push(`scrollLeft ${el.tagName}.${el.className}`)
   }
   const d = document.documentElement

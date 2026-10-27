@@ -4,6 +4,8 @@
 // level 3; the Back chevron, browser Back and a swipe right each pop one
 // level; deep links open where they point and still walk back 3 -> 2 -> 1.
 // At 1440 px nothing of that exists: three panels, no chevron.
+// SPL-3785 (owner, t1 c3e53990 msg 1f55e7e1): past level 1 the sidebar stays
+// on top as the section strip (data-mobile-section), above the one panel.
 //
 // Run: BASE_URL=<generated mock bundle> node tests/e2e/mobile-stack.test.mjs
 // (starts `nuxi dev` with the mock tenant when BASE_URL is unset)
@@ -70,6 +72,7 @@ const state = (p) => p.evaluate(() => {
   return {
     level: sh ? sh.getAttribute('data-mobile-level') : null,
     side: vis('.spool-shell > .sidebar'),
+    strip: sh ? sh.getAttribute('data-mobile-section') === '1' : false,
     main: vis('.spool-shell > .spool-main'),
     topic: vis('.spool-shell > .topic'),
     tab: document.querySelector('.sidebar-tab[aria-selected="true"]')?.getAttribute('data-testid') || '',
@@ -78,7 +81,7 @@ const state = (p) => p.evaluate(() => {
     back: [...document.querySelectorAll('[data-testid=mobile-back]')].filter((e) => e.getBoundingClientRect().width > 0).length,
   }
 })
-const only = (s, lv) => s.level === String(lv) && s.side === (lv === 1) && s.main === (lv === 2) && s.topic === (lv === 3) && !s.xscroll
+const only = (s, lv) => s.level === String(lv) && s.side && s.strip === (lv !== 1) && s.main === (lv === 2) && s.topic === (lv === 3) && !s.xscroll
 
 /** A topic, opened the way a card click opens it (MessageFeed -> topic store). */
 const openTopic = (p) => p.evaluate((id) => {

@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { chatKind, isSectionPage, loopPosition, railLinkSection, sectionExitPath } from '../../src/utils/section-strip.mjs'
 import { MONITORING_TABS } from '../../src/utils/monitoring-tabs.mjs'
 import { REPORTING_TABS } from '../../src/utils/reporting-tabs.mjs'
+import { COSTS_PAGES } from '../../src/utils/reporting-costs.mjs'
 import { pageRoutes } from '../e2e/lib/page-routes.mjs'
 
 const PAGES = join(dirname(fileURLToPath(import.meta.url)), '../../src/pages')
@@ -38,6 +39,15 @@ describe('isSectionPage covers every tab, derived', () => {
       assert.equal(isSectionPage(t.path), true, t.path)
       assert.equal(isSectionPage(`/fi${t.path}`), true, `/fi${t.path}`)
       assert.equal(isSectionPage(`${t.path}/some-id`), false, `${t.path}/some-id`)
+    }
+  })
+  it('each page of the Costs tab bar (/reporting/costs/paid, two segments) is a section page; under it a drill-down', () => {
+    assert.ok(COSTS_PAGES.length >= 4, `costs pages read: ${COSTS_PAGES.length}`)
+    assert.equal(isSectionPage('/reporting/costs/paid'), true, '/reporting/costs/paid')
+    for (const c of COSTS_PAGES) {
+      assert.equal(isSectionPage(c.path), true, c.path)
+      assert.equal(isSectionPage(`/fi${c.path}`), true, `/fi${c.path}`)
+      assert.equal(isSectionPage(`${c.path}/some-id`), false, `${c.path}/some-id`)
     }
   })
   it('every page file under Monitoring and Reporting: a plain page is the section, a [param] page a drill-down', () => {

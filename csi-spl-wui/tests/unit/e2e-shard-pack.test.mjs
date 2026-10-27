@@ -8,10 +8,12 @@
 //
 // Run: node tests/unit/e2e-shard-pack.test.mjs
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { createServer, connect } from 'node:net'
+import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import {
   packShards,
   medianWeight,
@@ -142,6 +144,37 @@ for (const n of SHARD_COUNTS) {
   assert.equal(new Set(flat).size, all.length)
   const packedSums = sums(packed, weightOf)
   assert.ok(spread(packedSums) <= 0.05, `n=${n} packed spread ${spread(packedSums)} sums ${packedSums}`)
+}
+
+// --- a reader slow to drain still gets the whole list ----------------------
+// --list on a loaded box: stdout is a unix stream socket the reader drains
+// late, so the runner's writes go async. It used to process.exit right after
+// one console.log per file, which dropped the queued tail with rc 0, and the
+// unsharded list above came back short (c-034's pre-push, 2026-10-27: the
+// last 7 of 293 files). Here the reader starts 500 ms late.
+{
+  const dir = mkdtempSync(join(tmpdir(), 'e2e-shard-pack-'))
+  const server = createServer({ pauseOnConnect: true })
+  await new Promise((resolve) => server.listen(join(dir, 's'), resolve))
+  const accepted = new Promise((resolve) => server.once('connection', resolve))
+  const out = connect(join(dir, 's'))
+  await new Promise((resolve) => out.once('connect', resolve))
+  const env = { ...process.env }
+  delete env.E2E_SHARD
+  const child = spawn(process.execPath, [RUNNER, '--list'], { cwd: WUI, env, stdio: ['ignore', out, 'inherit'] })
+  out.destroy()
+  const status = await new Promise((resolve) => child.once('exit', resolve))
+  const peer = await accepted
+  await new Promise((resolve) => setTimeout(resolve, 500))
+  const chunks = []
+  peer.on('data', (chunk) => chunks.push(chunk))
+  peer.resume()
+  await new Promise((resolve) => peer.once('end', resolve))
+  server.close()
+  rmSync(dir, { recursive: true, force: true })
+  assert.equal(status, 0)
+  const slow = Buffer.concat(chunks).toString('utf8').trim().split('\n').filter(Boolean)
+  assert.deepEqual(slow, list(), `a slow reader got ${slow.length} line(s)`)
 }
 
 console.log('e2e-shard-pack: all passed')

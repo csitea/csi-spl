@@ -57,8 +57,11 @@ if (selected.length === 0) {
   process.exit(1)
 }
 
+// One write, and exit only once it is out: exit right after one console.log
+// per file dropped the async-queued tail for a reader slow to drain (the
+// same defect as run-e2e-tests.mjs --list, e2e-shard-pack.test.mjs).
 if (listOnly) {
-  for (const f of selected) console.log(relative(WUI, join(UNIT_DIR, f)))
+  await new Promise((resolve) => process.stdout.write(selected.map((f) => `${relative(WUI, join(UNIT_DIR, f))}\n`).join(''), resolve))
   process.exit(0)
 }
 

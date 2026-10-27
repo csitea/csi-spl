@@ -138,7 +138,9 @@ async function main() {
   if (argv.includes('--list')) {
     const sel = args.length || all ? selectProofs(discovered, args, { all }) : { files: discovered }
     if (sel.error) refuse(sel.error)
-    for (const f of sel.files) console.log(`${writesNothing(readFileSync(join(WUI, f), 'utf8')) ? 'ro ' : 'rw?'} ${f}`)
+    // one write, exit once it is out (see run-e2e-tests.mjs --list)
+    const lines = sel.files.map((f) => `${writesNothing(readFileSync(join(WUI, f), 'utf8')) ? 'ro ' : 'rw?'} ${f}\n`)
+    await new Promise((resolve) => process.stdout.write(lines.join(''), resolve))
     process.exit(0)
   }
   const sel = selectProofs(discovered, args, { all })

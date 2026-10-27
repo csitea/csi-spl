@@ -316,9 +316,13 @@ async function main() {
   const skipped = skipSet(discovered)
   const shard = process.env.E2E_SHARD || ''
   const files = sharded(selectedFiles(discovered, skipped, paths, filters), shard)
+  // One write and a plain return, never process.exit: stdout to a reader that
+  // is slow to drain (spawnSync on a loaded box) is written async, and exit
+  // dropped the queued tail with rc 0: e2e-shard-pack's unsharded list lost
+  // its last 7 files under load (278 of 293 lines with the reader 0.3 s late).
   if (listOnly) {
-    for (const f of files) console.log(f)
-    process.exit(0)
+    process.stdout.write(files.map((f) => `${f}\n`).join(''))
+    return
   }
   await runSelected(files, {
     skipped,

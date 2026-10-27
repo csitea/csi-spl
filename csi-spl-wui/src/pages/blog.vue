@@ -15,7 +15,11 @@
      "SPOOL-HUB" stays on one line at 390 px (t1 ff3953c1).
      A blog-only locale (cnf env.blog.extra_locales, owner poll 6bace52f B:
      German) has its own record, blog-<code> for the /<code>/blog/ pages (nuxt.config):
-     the posts in that language, the chrome in the i18n locale. -->
+     the posts in that language, the chrome in the i18n locale.
+     HUM-10 t1 4d6bc718 (SPL-3871): with JS the menu becomes the app's own
+     LanguageSwitcher (flags, search, keyboard) over the same list and hrefs,
+     loaded after mount so the blog's first download does not grow; the
+     prerendered document (JS off, a crawler) keeps the <details> links. -->
 <template>
   <div class="blog-page" data-test="blog-page">
     <header class="blog-bar" data-test="blog-bar">
@@ -26,7 +30,8 @@
         <span class="blog-bar__blog">{{ t('auth.login.links.blog') }}</span>
       </NuxtLink>
       <div class="blog-bar__end">
-        <details ref="langMenuEl" class="blog-lang" data-test="blog-lang">
+        <component :is="switcher" v-if="switcher" :choices="langMenu" :current="lang" class="blog-lang-switcher" />
+        <details v-else ref="langMenuEl" class="blog-lang" data-test="blog-lang">
           <summary class="blog-lang__button" :title="t('nav.lang_label')" data-test="blog-lang-button">
             <span class="visually-hidden">{{ t('nav.lang_label') }}: </span>
             <span class="blog-lang__current">{{ localeName(lang) }}</span>
@@ -141,7 +146,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, type Component } from 'vue'
 import { LOCALE_LS_KEY } from '~/composables/useLocaleSwitch'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 import { SITE_IMAGE, SITE_NAME, jsonLd, localeAlternates, localeLinks, localizedPath, seoIndexOn, socialMeta } from '~/utils/public-seo.mjs'
@@ -277,6 +282,8 @@ const indexOn = seoIndexOn(pub.seoIndex)
 const seoBase = computed(() => unprefixed(route.path).replace(/\/+$/, '') || '/blog')
 const pageLangs = computed(() => post.value ? post.value.langs : [...uiCodes.value, ...(data.value?.extra || [])])
 const langMenu = computed(() => localeAlternates({ siteUrl: '', base: seoBase.value, langs: pageLangs.value, defaultLocale }))
+/* the app's switcher, a chunk of its own fetched after mount (SPL-3871) */
+const switcher = shallowRef<Component | null>(null)
 /* a blog-only locale has no i18n entry: its own name for itself (de -> Deutsch) */
 function nativeName(code: string): string {
   try {
@@ -302,6 +309,7 @@ function closeLangMenu(e: Event) {
 }
 onMounted(() => {
   canNativeShare.value = typeof navigator.share === 'function'
+  import('~/components/LanguageSwitcher.vue').then((m) => { switcher.value = m.default }, () => { /* the links stay */ })
   document.addEventListener('click', closeLangMenu)
   document.addEventListener('keydown', closeLangMenu)
 })
@@ -371,12 +379,18 @@ useHead(() => {
   background: var(--color-sidebar);
   border-bottom: 1px solid var(--color-border);
 }
-.blog-bar__home { display: inline-flex; align-items: center; gap: 8px; min-width: 0; color: var(--color-fg); font-weight: 700; }
+.blog-bar__home { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 8px; min-width: 0; color: var(--color-fg); font-weight: 700; }
 .blog-bar__home img { display: block; width: 28px; height: 28px; border-radius: var(--radius-sm); }
 .blog-bar__name { color: var(--color-accent); letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.9375rem; white-space: nowrap; }
 .blog-bar__sep { color: var(--color-muted); }
 .blog-bar__signin { display: inline-flex; align-items: center; min-height: var(--tap, 44px); font-weight: 600; }
-.blog-bar__end { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.blog-bar__end { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex: 0 1 auto; min-width: 0; }
+.blog-bar__signin { flex: 0 0 auto; }
+/* SPL-3871: the app's switcher gives up width on a phone, never the bar's
+   name (as in the sign-in frame, login.vue): a long name scrolls in its field */
+.blog-bar__end :deep(.lang-switcher) { flex: 0 1 auto; min-width: 0; }
+/* the Headless UI root takes no scoped style of the switcher: let it shrink */
+.blog-bar__end :deep(.lang-switcher__combobox) { min-width: 0; max-width: 100%; }
 .blog-lang { position: relative; }
 .blog-lang__button {
   display: inline-flex;
@@ -497,6 +511,21 @@ useHead(() => {
   /* the name stays for a screen reader (the code is aria-hidden) */
   .blog-lang__current { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
   .blog-lang__code { display: inline; }
+}
+@media (max-width: 480px) {
+  /* SPL-3871: a 390 px bar holds the name and the switcher, not also the
+     crumb (the post's crumb and the list's title say Blog) or "Sign in" (the
+     logo and name are the link to /login; fi's "Kirjaudu sisään" left the
+     switcher 34 px) */
+  .blog-bar__sep, .blog-bar__blog, .blog-bar__signin { display: none; }
+  .blog-bar, .blog-bar__end { gap: 8px; }
+  .blog-bar { padding-inline: 12px; }
+  /* the switcher's phone row look (its `fill` variant, UserMenu): the box is
+     one tap target, the ▾ drawn inside it, so the name keeps the room */
+  .blog-bar__end :deep(.lang-switcher__control) { position: relative; }
+  .blog-bar__end :deep(.lang-switcher__input),
+  .blog-bar__end :deep(.lang-switcher__sizer) { padding-inline-end: 26px; }
+  .blog-bar__end :deep(.lang-switcher__button) { position: absolute; inset: 0; justify-content: flex-end; padding: 0 10px; border-inline-start: 0; background: transparent; }
 }
 @media (max-width: 600px) {
   .blog-main { padding: 16px 12px 32px; }

@@ -100,6 +100,7 @@
               'lang-switcher__option--selected': selected,
             }"
             :data-test="`lang-item-${loc.code}`"
+            :data-href="loc.href"
           >
             <span class="lang-switcher__flag" aria-hidden="true">{{ loc.flag }}</span>
             <span class="lang-switcher__name">{{ loc.name }}</span>
@@ -136,7 +137,12 @@ interface LocaleEntry {
   flag: string
   /** Full IETF tag (`sv-SE`); searchable so region codes work too. */
   iso?: string
+  /** `choices` mode: the page this language opens (a full load). */
+  href?: string
 }
+
+/** A page's own language list (the blog: `/<code>/blog/<slug>`). */
+interface LocaleChoice { code: string, href: string }
 
 /** Flag emoji per configured locale (native name comes from i18n locale config). */
 const LOCALE_FLAGS: Record<LocaleCode, string> = {
@@ -160,6 +166,8 @@ const LOCALE_FLAGS: Record<LocaleCode, string> = {
   es: '🇪🇸',
   nl: '🇳🇱',
 }
+/* a blog-only language (cnf env.blog.extra_locales), never a UI locale */
+const EXTRA_FLAGS: Record<string, string> = { de: '🇩🇪' }
 
 /**
  * CLE-77892 (owner, t1 9417ccf3: "this still looks quite narrow on my
@@ -168,11 +176,21 @@ const LOCALE_FLAGS: Record<LocaleCode, string> = {
  * box is ONE tap target that opens the list (the ▾ is drawn inside it, not a
  * second button). The top bar and the sign-in frame keep the compact control.
  */
-const props = withDefaults(defineProps<{ fill?: boolean }>(), { fill: false })
+/*
+ * HUM-10 t1 4d6bc718 (SPL-3871): `choices` is a page's own list - the blog
+ * offers only the languages a post has, plus the blog-only ones (de) - each
+ * with the URL it opens; `current` is the page's language. A pick is a full
+ * load of that URL, as the link it replaces. Without `choices` the control
+ * lists the UI locales and switches the app (useLocaleSwitch), as before.
+ */
+const props = withDefaults(
+  defineProps<{ fill?: boolean, choices?: LocaleChoice[], current?: string }>(),
+  { fill: false, choices: undefined, current: '' },
+)
 const { fill } = toRefs(props)
 
 const { locales, locale: currentLocale, t } = useI18n({ useScope: 'global' })
-const { switchTo } = useLocaleSwitch()
+const { switchTo, persist } = useLocaleSwitch()
 
 const query = ref('')
 const root = ref<HTMLElement | null>(null)
@@ -188,7 +206,7 @@ onBeforeUnmount(() => stopPopover())
 /** True between focus and the click that would collapse the focus selection. */
 let keepFocusSelection = false
 
-const availableLocales = computed<LocaleEntry[]>(() =>
+const uiLocales = computed<LocaleEntry[]>(() =>
   // `language` is the @nuxtjs/i18n v9 name for what the config calls `iso`;
   // read both so the IETF tag stays searchable across module versions.
   (locales.value as Array<{ code: string; name?: string; iso?: string; language?: string }>).map(l => ({
@@ -199,9 +217,25 @@ const availableLocales = computed<LocaleEntry[]>(() =>
   })),
 )
 
-const selectedLocale = computed<LocaleEntry | null>(() =>
-  availableLocales.value.find(l => l.code === currentLocale.value) ?? null,
-)
+/** A language with no i18n entry (de on the blog): its own name for itself. */
+function extraEntry(code: string): LocaleEntry {
+  let name = code
+  try {
+    const n = new Intl.DisplayNames([code], { type: 'language' }).of(code) || code
+    name = n.charAt(0).toLocaleUpperCase(code) + n.slice(1)
+  } catch { /* an engine without DisplayNames: the code */ }
+  return { code: code as LocaleCode, name, flag: EXTRA_FLAGS[code] ?? '🌐', iso: code }
+}
+
+const availableLocales = computed<LocaleEntry[]>(() => {
+  if (!props.choices) return uiLocales.value
+  return props.choices.map(c => ({ ...(uiLocales.value.find(l => l.code === c.code) ?? extraEntry(c.code)), href: c.href }))
+})
+
+const selectedLocale = computed<LocaleEntry | null>(() => {
+  const code = props.choices ? props.current : currentLocale.value
+  return availableLocales.value.find(l => l.code === code) ?? null
+})
 
 /**
  * 0–1 characters: full list (user can open and scroll/keyboard-nav).
@@ -259,6 +293,13 @@ function onBlur() {
 async function onSelect(loc: LocaleEntry | null) {
   query.value = ''
   if (!loc) return
+  if (loc.href) {
+    if (loc.code === selectedLocale.value?.code) return
+    /* a UI locale is remembered; the cookie follows when its page runs */
+    if (uiLocales.value.some(l => l.code === loc.code)) persist(loc.code)
+    window.location.assign(loc.href)
+    return
+  }
   // The navigation, the localStorage mirror and the "switchLocalePath said
   // nothing useful" fallback all live in useLocaleSwitch, shared with
   // Settings -> Language so the two surfaces cannot drift apart.

@@ -319,6 +319,20 @@ word** on each post's content and translations.
   sitemap and robots.txt list `/de/blog` only. Posts are translated on
   demand, not by `do_spl_blog_translate`; a post without its `de` copy shows
   the English text with `lang="en"`, as in any locale.
+- **The language control** (owner HUM-10, t1 35aea5bb and 4d6bc718,
+  SPL-3871: "the same control which is here in the spool-hub interface").
+  The prerendered page carries a `<details>` menu of plain `<a href hreflang>`
+  links: the page's own languages (a post: only those with its copy; a list:
+  all, `de` included), each to `/<code>/blog/<path>` (`en` unprefixed). It
+  works with JS off and a crawler follows it. With JS, after mount, the page
+  swaps it for the app's own `LanguageSwitcher.vue` (flags, search,
+  keyboard), handed the same list as `choices` and the page's language as
+  `current`; a pick is a full load of that URL. The switcher is a chunk
+  fetched after mount, so the blog's first download does not carry it. At
+  <= 480 px the bar shows the logo, the name and the switcher only: the
+  `/ Blog` crumb and the `Sign in` link hide (the logo and name are the link
+  to `/login`). Tests: `tests/unit/blog-lang-switcher.test.mjs`,
+  `tests/e2e/blog.test.mjs` (`langMenu`, `blogSwitcher`).
 
 Settled, each with its recommendation:
 

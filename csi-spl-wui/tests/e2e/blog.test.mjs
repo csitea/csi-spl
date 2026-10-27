@@ -9,6 +9,8 @@
 //   - spec 116 T7: the public pages' SEO (publicSeo below).
 //   - HUM-10 t1 35aea5bb: the language menu (langMenu below), with JS off
 //     and on, its links the page's hreflang set.
+//   - HUM-10 t1 4d6bc718 (SPL-3871): with JS the menu is the app's own
+//     flagged LanguageSwitcher (blogSwitcher below).
 // The posts are the build's own (public/blog-md/index.json): with none, the
 // empty list is checked and the post steps say they did not run.
 //
@@ -127,6 +129,7 @@ try {
 
   await publicSeo()
   await langMenu()
+  await blogSwitcher()
 } finally {
   await browser.close()
   await server.stop()
@@ -253,10 +256,13 @@ async function langMenu() {
     const { ctx, p } = await anonymousPage(browser, { width: 390, height: 844 })
     await p.setJavaScriptEnabled(js)
     await p.goto(server.base + `/blog/${target.id}`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-    await p.click('[data-test=blog-lang-button]').catch(() => null)
-    const link = await p.waitForSelector(`[data-test=blog-lang-item][data-code=${to}]`, { visible: true, timeout: 5000 }).catch(() => null)
+    /* JS off: the <details> links; JS on: the app's switcher over the same hrefs (SPL-3871) */
+    const [button, item] = js ? ['.blog-bar [data-test=lang-switcher-button]', '.blog-bar [data-test^=lang-item-]'] : ['[data-test=blog-lang-button]', '[data-test=blog-lang-item]']
+    if (js) await p.waitForSelector(button, { visible: true, timeout: 15000 }).catch(() => null)
+    await p.click(button).catch(() => null)
+    const link = await p.waitForSelector(js ? `.blog-bar [data-test=lang-item-${to}]` : `${item}[data-code=${to}]`, { visible: true, timeout: 5000 }).catch(() => null)
     ok(`JS ${js ? 'on' : 'off'}: the menu opens on a tap`, Boolean(link))
-    const listed = await p.$$eval('[data-test=blog-lang-item]', (els) => els.filter((el) => el.getBoundingClientRect().height > 0).length)
+    const listed = await p.$$eval(item, (els) => els.filter((el) => el.getBoundingClientRect().height > 0).length)
     ok(`JS ${js ? 'on' : 'off'}: the open menu lists its links at 390 px`, listed === has(target.id).length, listed)
     if (link) await Promise.all([p.waitForNavigation({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT }).catch(() => null), link.click()])
     const want = to === 'en' ? `/blog/${target.id}` : `/${to}/blog/${target.id}`
@@ -265,6 +271,67 @@ async function langMenu() {
       const cookie = (await p.cookies()).find((c) => c.name === 'i18n_redirected')
       ok('JS on: the pick leaves the locale cookie', cookie?.value === to, cookie)
     }
+    await ctx.close()
+  }
+}
+
+/* HUM-10 t1 4d6bc718 (SPL-3871): with JS the blog's language control is the
+   app's LanguageSwitcher (flags, search, keyboard), at desktop and phone
+   width, over the post's own languages: the blog-only de with its flag, a
+   pick a full load of /<code>/blog/<id>. The <details> menu is gone once it
+   mounts; the raw document keeps the links (langMenu above). */
+async function blogSwitcher() {
+  console.log('-- the app language switcher on the blog (SPL-3871)')
+  const index = await fetch(server.base + '/blog-md/index.json').then((r) => r.json(), () => ({}))
+  const id = '2026-10-26-kids-human-experience'
+  const has = (code) => code === 'en' || (index.locales?.[code] || []).some((e) => e.id === id)
+  if (!has('en') || !(index.locales?.en || []).some((e) => e.id === id)) { console.log(`  (no ${id} in this build: the switcher steps did not run)`); return }
+  const want = Object.keys(index.locales || {}).filter(has)
+  for (const [label, size, pick] of [['desktop', { width: 1280, height: 800 }, 'keys'], ['phone', { width: 390, height: 844 }, 'tap']]) {
+    const { ctx, p } = await anonymousPage(browser, size)
+    await p.goto(server.base + `/blog/${id}`, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    const input = await p.waitForSelector('.blog-bar [data-test=lang-switcher-input]', { visible: true, timeout: 15000 }).catch(() => null)
+    ok(`${label}: the blog bar shows the app's language switcher`, Boolean(input))
+    ok(`${label}: the plain <details> menu is gone`, !(await p.$('[data-test=blog-lang]')))
+    const shown = await p.$eval('.blog-bar [data-test=lang-switcher-input]', (el) => el.value).catch(() => '')
+    ok(`${label}: it shows the current language with its flag`, shown === '🇬🇧 English', shown)
+    const name = await p.$eval('.blog-bar__name', (el) => ({ rects: el.getClientRects().length, h: el.getBoundingClientRect().height, lh: parseFloat(getComputedStyle(el).lineHeight) || 1.5 * parseFloat(getComputedStyle(el).fontSize) })).catch(() => null)
+    ok(`${label}: the bar keeps "SPOOL-HUB" on one line beside it`, Boolean(name && name.rects === 1 && name.h <= name.lh * 1.2), name)
+    const gap = await p.evaluate(() => {
+      const n = document.querySelector('.blog-bar__name')?.getBoundingClientRect()
+      const c = document.querySelector('.blog-bar .lang-switcher__control')?.getBoundingClientRect()
+      return n && c ? { nameEnd: Math.round(n.right), switcherStart: Math.round(c.left) } : null
+    })
+    ok(`${label}: the switcher never covers "SPOOL-HUB"`, Boolean(gap && gap.nameEnd <= gap.switcherStart), gap)
+    const wide = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+    ok(`${label}: no sideways scroll`, wide <= 0, wide)
+    /* the current name fits its field, not cut off */
+    const fit = await p.$eval('.blog-bar [data-test=lang-switcher-input]', (el) => ({ scroll: el.scrollWidth, client: el.clientWidth })).catch(() => null)
+    ok(`${label}: the current language fits its field`, Boolean(fit && fit.scroll <= fit.client), fit)
+    await p.click('.blog-bar [data-test=lang-switcher-button]').catch(() => null)
+    await p.waitForSelector('.blog-bar [data-test=lang-switcher-options]', { visible: true, timeout: 5000 }).catch(() => null)
+    const opts = await p.$$eval('.blog-bar [data-test^=lang-item-]', (els) => els.map((el) => ({ code: el.dataset.test.slice(10), flag: el.querySelector('.lang-switcher__flag')?.textContent.trim(), href: el.dataset.href })))
+    ok(`${label}: the list is the post's ${want.length} languages`, opts.map((o) => o.code).sort().join() === [...want].sort().join(), opts.map((o) => o.code))
+    ok(`${label}: every language has its flag`, opts.length > 0 && opts.every((o) => o.flag && o.flag !== '🌐'), opts.filter((o) => !o.flag || o.flag === '🌐'))
+    ok(`${label}: each choice opens /<code>/blog/${id} (en unprefixed)`, opts.every((o) => o.href === (o.code === 'en' ? `/blog/${id}` : `/${o.code}/blog/${id}`)))
+    if (has('de')) ok(`${label}: the blog-only de is listed with its flag`, opts.find((o) => o.code === 'de')?.flag === '🇩🇪', opts.find((o) => o.code === 'de'))
+    if (pick === 'keys') {
+      /* search + keyboard, as in the app: type, Enter picks the one match */
+      await p.focus('.blog-bar [data-test=lang-switcher-input]')
+      await p.keyboard.type('bulg')
+      const left = await p.$$eval('.blog-bar [data-test^=lang-item-]', (els) => els.map((el) => el.dataset.test.slice(10)))
+      ok(`${label}: typing "bulg" leaves only bg`, left.join() === 'bg', left)
+      await Promise.all([p.waitForNavigation({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT }).catch(() => null), p.keyboard.press('ArrowDown').then(() => p.keyboard.press('Enter'))])
+    } else {
+      const bg = await p.$('.blog-bar [data-test=lang-item-bg]')
+      await Promise.all([p.waitForNavigation({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT }).catch(() => null), bg?.click()])
+    }
+    ok(`${label}: picking bg lands on /bg/blog/${id}`, path(p) === `/bg/blog/${id}`, p.url())
+    await p.waitForSelector('.blog-bar [data-test=lang-switcher-input]', { visible: true, timeout: 15000 }).catch(() => null)
+    const now = await p.$eval('.blog-bar [data-test=lang-switcher-input]', (el) => el.value).catch(() => '')
+    ok(`${label}: there bg is the current language`, now === '🇧🇬 Български', now)
+    const fitBg = await p.$eval('.blog-bar [data-test=lang-switcher-input]', (el) => ({ scroll: el.scrollWidth, client: el.clientWidth })).catch(() => null)
+    ok(`${label}: "Български" fits its field too`, Boolean(fitBg && fitBg.scroll <= fitBg.client), fitBg)
     await ctx.close()
   }
 }

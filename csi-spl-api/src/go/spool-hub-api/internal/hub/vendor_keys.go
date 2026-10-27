@@ -94,19 +94,19 @@ type vkActor struct {
 	st        store.VendorKeys
 }
 
-// vendorKeyActor runs the checks every route shares: the routes are on (a
-// sealer and a store that keeps keys), vendor_keys.manage, no act-as
+// vendorKeyActor runs the checks every route shares: vendor_keys.manage
+// (first, so a caller without it reads 403 either way), the routes are on (a
+// sealer and a store that keeps keys), no act-as
 // session, and the caller's confirmation (write = refuse an unconfirmed
 // manager with 403 admin_unconfirmed).
 func (s *Server) vendorKeyActor(w http.ResponseWriter, r *http.Request, write bool) (vkActor, bool) {
-	st, ok := s.o.Store.(store.VendorKeys)
-	if s.o.VendorKeySealer == nil || !ok {
-		s.allowOrigin(w, r)
-		writeErr(w, http.StatusServiceUnavailable, "vendor_keys_off", "workspace vendor keys are not configured on this hub")
-		return vkActor{}, false
-	}
 	t, a, _, _, ok := s.membersActor(w, r, rbac.VendorKeysManage)
 	if !ok {
+		return vkActor{}, false
+	}
+	st, ok := s.o.Store.(store.VendorKeys)
+	if s.o.VendorKeySealer == nil || !ok {
+		writeErr(w, http.StatusServiceUnavailable, "vendor_keys_off", "workspace vendor keys are not configured on this hub")
 		return vkActor{}, false
 	}
 	if s.vendorKeyActAs(r.Context(), t.ID, a.HumanID) {

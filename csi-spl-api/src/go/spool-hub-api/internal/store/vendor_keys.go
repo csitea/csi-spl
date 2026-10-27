@@ -94,6 +94,7 @@ type memVendorKeyAudit struct {
 	at                                          time.Time
 }
 
+// VendorKeys reads the kinds tenant holds a key for (VendorKeys).
 func (s *Memory) VendorKeys(_ context.Context, tenant string) ([]VendorKeyRow, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -105,6 +106,7 @@ func (s *Memory) VendorKeys(_ context.Context, tenant string) ([]VendorKeyRow, e
 	return out, nil
 }
 
+// PutVendorKey sets or replaces a key with its audit row (VendorKeys).
 func (s *Memory) PutVendorKey(_ context.Context, tenant string, p VendorKeyPut, now time.Time) (bool, error) {
 	if !slices.Contains(VendorKeyKinds, p.Kind) {
 		return false, errors.New("store: unknown vendor key kind")
@@ -132,6 +134,7 @@ func (s *Memory) PutVendorKey(_ context.Context, tenant string, p VendorKeyPut, 
 	return replaced, nil
 }
 
+// DeleteVendorKey removes a key with its audit row (VendorKeys).
 func (s *Memory) DeleteVendorKey(_ context.Context, tenant, kind, actor string, now time.Time) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -145,6 +148,7 @@ func (s *Memory) DeleteVendorKey(_ context.Context, tenant, kind, actor string, 
 	return k.Last4, nil
 }
 
+// VendorKeyManagerConfirmed reports a manager's confirmation (VendorKeys).
 func (s *Memory) VendorKeyManagerConfirmed(_ context.Context, tenant, human string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -163,6 +167,7 @@ func (s *Memory) VendorKeyManagerConfirmed(_ context.Context, tenant, human stri
 	return false, nil
 }
 
+// ConfirmVendorKeyManager writes the admin_confirm audit row (VendorKeys).
 func (s *Memory) ConfirmVendorKeyManager(_ context.Context, tenant, human, by string, now time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -176,6 +181,7 @@ func (s *Memory) ConfirmVendorKeyManager(_ context.Context, tenant, human, by st
 
 // ---- Postgres ---------------------------------------------------------------
 
+// VendorKeys reads the kinds tenant holds a key for (VendorKeys).
 func (s *Postgres) VendorKeys(ctx context.Context, tenant string) ([]VendorKeyRow, error) {
 	out := []VendorKeyRow{}
 	err := s.queryTenant(ctx, tenant, `SELECT kind, last4, coalesce(base_url, ''), set_by, set_at
@@ -191,6 +197,7 @@ func (s *Postgres) VendorKeys(ctx context.Context, tenant string) ([]VendorKeyRo
 	return out, err
 }
 
+// PutVendorKey sets or replaces a key with its audit row (VendorKeys).
 func (s *Postgres) PutVendorKey(ctx context.Context, tenant string, p VendorKeyPut, now time.Time) (bool, error) {
 	var replaced bool
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
@@ -221,6 +228,7 @@ func (s *Postgres) PutVendorKey(ctx context.Context, tenant string, p VendorKeyP
 	return replaced, err
 }
 
+// DeleteVendorKey removes a key with its audit row (VendorKeys).
 func (s *Postgres) DeleteVendorKey(ctx context.Context, tenant, kind, actor string, now time.Time) (string, error) {
 	var last4 string
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
@@ -239,6 +247,7 @@ func (s *Postgres) DeleteVendorKey(ctx context.Context, tenant, kind, actor stri
 	return last4, err
 }
 
+// VendorKeyManagerConfirmed reports a manager's confirmation (VendorKeys).
 func (s *Postgres) VendorKeyManagerConfirmed(ctx context.Context, tenant, human string) (bool, error) {
 	var confirmed, found bool
 	err := s.queryTenant(ctx, tenant, `SELECT m.admitted_by NOT IN ('operator', 'bootstrap')
@@ -255,6 +264,7 @@ func (s *Postgres) VendorKeyManagerConfirmed(ctx context.Context, tenant, human 
 	return confirmed, err
 }
 
+// ConfirmVendorKeyManager writes the admin_confirm audit row (VendorKeys).
 func (s *Postgres) ConfirmVendorKeyManager(ctx context.Context, tenant, human, by string, now time.Time) error {
 	return s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		tag, err := tx.Exec(ctx, `INSERT INTO workspace_vendor_key_audit (tenant_id, action, actor, at, subject)

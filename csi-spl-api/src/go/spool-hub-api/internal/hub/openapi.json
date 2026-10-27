@@ -13456,6 +13456,140 @@
         ]
       }
     },
+    "/v1/vendor-keys": {
+      "get": {
+        "operationId": "getVendorKeys",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Read the workspace's vendor keys per kind: set, last4, never the key (spec 127 H1, spec 159 T1)",
+        "tags": [
+          "tenant"
+        ]
+      }
+    },
+    "/v1/vendor-keys/managers/{human_id}": {
+      "put": {
+        "operationId": "confirmVendorKeyManager",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "human_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Confirmed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Confirm an operator-made admin or business owner as a vendor key manager (spec 127 Q-4 A, spec 159 L22)",
+        "tags": [
+          "tenant"
+        ]
+      }
+    },
+    "/v1/vendor-keys/{kind}": {
+      "delete": {
+        "operationId": "deleteVendorKey",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed and audited"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Remove the workspace's key of one kind (spec 127 H1, spec 159 T1)",
+        "tags": [
+          "tenant"
+        ]
+      },
+      "put": {
+        "operationId": "putVendorKey",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Stored, sealed and audited"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Set or replace the workspace's key of one kind, write only (spec 127 H1, spec 159 T1)",
+        "tags": [
+          "tenant"
+        ]
+      }
+    },
     "/v1/view/archived": {
       "get": {
         "operationId": "getViewArchived",

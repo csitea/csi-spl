@@ -12,6 +12,7 @@ import {
   boxLoadPct,
   fleetBandList,
   fleetBandMap,
+  fleetAimOk,
   fleetBandOk,
   fleetBoxBandOf,
   fleetBoxBandPatch,
@@ -363,6 +364,36 @@ const { useFleetLoadDefaults } = await importTs('src/composables/useFleetLoadDef
   ok('defaults: reset order empties it and raises resetOrder', r.boxes.value.length === 0 && r.resetOrder.value && fn.orderUsesDefault.value)
   fn.editLow('')
   ok('defaults: an edit clears the reset; an empty field is ""', r.low.value === '' && !r.resetLow.value && !fn.lowUsesDefault.value)
+}
+
+// SPL-3876 (owner HUM-10, t1 f456ecd5): every per-box box has a visible label,
+// and a band takes an aim, low <= aim <= high, that every boxes PATCH keeps.
+{
+  const row = card.slice(card.indexOf('data-test="tenant-fleet-band"'), card.indexOf('data-test="tenant-fleet-band-remove"'))
+  const fields = ['low', 'aim', 'high', 'cpu', 'cpus']
+  const labelled = fields.filter((f) => new RegExp(`<label class="fl-band__f" data-test="tenant-fleet-band-${f}-field">\\s*<span[^>]*>\\{\\{ t\\('tenant_settings\\.[a-z_]+'\\) \\}\\}</span>\\s*<input`).test(row))
+  ok('labels: each per-box input (low, aim, high, cpu cap, runner cpus) sits in a <label> with its visible text first',
+    labelled.length === fields.length && (row.match(/<input/g) || []).length === fields.length, `labelled ${labelled.join(',')}`)
+  ok('labels: the aim box shows "Aim %" (tenant_settings.fleet_load_aim)', row.includes("t('tenant_settings.fleet_load_aim')"))
+  ok('labels: no inline :style (CSP)', !/:style=|\sstyle=/.test(row))
+  const list = fleetBandList({ 'box-s': { low: 70, high: 90, aim: 80 }, 'box-t': { low: 40, high: 60 } })
+  ok('aim: fleetBandList reads it, a band without one has none', list[0].aim === 80 && !('aim' in list[1]))
+  ok('aim: fleetBandMap writes it back', JSON.stringify(fleetBandMap(list)) === '{"box-s":{"low":70,"high":90,"aim":80},"box-t":{"low":40,"high":60}}')
+  ok('aim: low <= aim <= high is a valid band, the edges too',
+    fleetBandOk({ box: 'box-s', low: 70, high: 90, aim: 80 }) && fleetBandOk({ box: 'box-s', low: 70, high: 90, aim: 70 }) &&
+    fleetBandOk({ box: 'box-s', low: 70, high: 90, aim: 90 }) && fleetBandOk({ box: 'box-s', low: 70, high: 90, aim: null }))
+  ok('aim: RED CONTROL an aim outside its band is refused (69, 91, 80.5)',
+    !fleetAimOk({ low: 70, high: 90, aim: 69 }) && !fleetAimOk({ low: 70, high: 90, aim: 91 }) && !fleetAimOk({ low: 70, high: 90, aim: 80.5 }) &&
+    !fleetBandOk({ box: 'box-s', low: 70, high: 90, aim: 95 }))
+  const v = normalizeFleetLoad({ low: 50, high: 75, box_order: [], boxes: { 'box-s': { low: 70, high: 90, aim: 80 } } })
+  ok('aim: the box page band save keeps the box aim', JSON.stringify(fleetBoxBandPatch(v, 'box-s', { low: 72, high: 90 }).boxes) === '{"box-s":{"low":72,"high":90,"aim":80}}')
+  const mock = new Map()
+  const store = { getItem: (k) => mock.get(k) ?? null, setItem: (k, x) => mock.set(k, String(x)), removeItem: (k) => mock.delete(k) }
+  store.setItem(FLEET_OPERATOR_KEY, '1')
+  let refused = false
+  try { mockFleetWrite({ boxes: { 'box-s': { low: 70, high: 90, aim: 95 } } }, store) } catch { refused = true }
+  const saved = mockFleetWrite({ boxes: { 'box-s': { low: 70, high: 90, aim: 80 } } }, store)
+  ok('aim: the mock hub refuses an aim outside the band and keeps a good one', refused && saved.boxes['box-s'].aim === 80, JSON.stringify(saved.boxes))
 }
 
 const suite = runsInUnitSuite(import.meta.url)

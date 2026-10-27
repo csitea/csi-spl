@@ -52,9 +52,9 @@ export function useFleetLoadBoxes(opts: FleetLoadBoxesOpts) {
     return id
   }
 
-  /* an empty cap or core count is null: that box uses the fleet's */
-  function editBand(i: number, field: 'low' | 'high' | 'runnerCpuPct' | 'runnerCpus', raw: string) {
-    const empty = field === 'runnerCpuPct' || field === 'runnerCpus' ? null : NaN
+  /* an empty cap or core count is null: that box uses the fleet's; an empty aim is null: no aim (= high) */
+  function editBand(i: number, field: 'low' | 'aim' | 'high' | 'runnerCpuPct' | 'runnerCpus', raw: string) {
+    const empty = field === 'low' || field === 'high' ? NaN : null
     bands.value = bands.value.map((b, j) => (j === i ? { ...b, [field]: raw === '' ? empty : Number(raw) } : b))
     resetBoxes.value = false
   }

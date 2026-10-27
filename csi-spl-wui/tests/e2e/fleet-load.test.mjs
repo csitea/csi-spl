@@ -1,4 +1,4 @@
-// Fleet load (rdb 0118, per-box bands rdb 0134, agent types rdb 0149, CI overflow rdb 0185) in a real browser, against
+// Fleet load (rdb 0118, per-box bands rdb 0134 with their labels and aim SPL-3876, agent types rdb 0149, CI overflow rdb 0185) in a real browser, against
 // the mock bundle. Also the same per-box band set from the Boxes view
 // (/monitoring/boxes/<id>, t1 05e0fa03).
 //
@@ -176,6 +176,39 @@ try {
     JSON.stringify(keptBands) === '[{"box":"box-s","low":"60","high":"90"},{"box":"box-t","low":"20","high":"40"}]' &&
     (await value(p, '[data-test=tenant-fleet-high]')) === '80', keptBands)
 
+  // SPL-3876 (owner HUM-10, t1 f456ecd5): every per-box box carries a visible
+  // label naming it, and a band takes an aim, low <= aim <= high.
+  const LABELS = ['Low %', 'Aim %', 'High %', 'Runner CPU cap %', 'CI runner CPUs']
+  const bandLabels = (q) => q.$$eval('[data-test=tenant-fleet-band]', (els) => els.map((row) =>
+    [...row.querySelectorAll('input[type=number]')].map((inp) => {
+      const lab = inp.closest('label')
+      const span = lab && lab.querySelector('[data-test=tenant-fleet-band-label]')
+      const r = span ? span.getBoundingClientRect() : null
+      const vis = !!(r && r.width > 0 && r.height > 0 && getComputedStyle(span).visibility !== 'hidden' && r.right <= document.documentElement.clientWidth + 1)
+      return { text: span ? span.textContent.trim() : '', vis, above: !!(r && r.bottom <= inp.getBoundingClientRect().top + 1) }
+    })))
+  const labelsOk = (rows) => rows.length === 2 && rows.every((r) => JSON.stringify(r.map((x) => x.text)) === JSON.stringify(LABELS) && r.every((x) => x.vis && x.above))
+  const desk = await bandLabels(p)
+  ok('15b desktop: each per-box input has a visible label above it naming it (Low %, Aim %, High %, Runner CPU cap %, CI runner CPUs)', labelsOk(desk), desk[0])
+  if (process.env.SHOT_DIR) {
+    const { mkdirSync } = await import('node:fs')
+    mkdirSync(process.env.SHOT_DIR, { recursive: true })
+    const el = await p.$('[data-test=tenant-fleet-bands]')
+    if (el) await el.screenshot({ path: `${process.env.SHOT_DIR}/fleet-load-bands-1400.png` })
+  }
+  await setField(p, '[data-test=tenant-fleet-band-aim]', '95')
+  await p.click('[data-test=tenant-fleet-save]')
+  await p.waitForSelector('[data-test=tenant-fleet-form-error]', { visible: true, timeout: NAV_TIMEOUT })
+  ok('15c an aim above its band (95 on 60..90) is refused in the form', /aim/i.test(await text(p, '[data-test=tenant-fleet-form-error]')),
+    await text(p, '[data-test=tenant-fleet-form-error]'))
+  await setField(p, '[data-test=tenant-fleet-band-aim]', '80')
+  await p.click('[data-test=tenant-fleet-save]')
+  await p.waitForSelector('[data-test=tenant-fleet-notice]', { visible: true, timeout: NAV_TIMEOUT })
+  await p.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=tenant-fleet-band][data-box=box-s]', { timeout: NAV_TIMEOUT })
+  const aims = await p.$$eval('[data-test=tenant-fleet-band-aim]', (els) => els.map((e) => e.value))
+  ok('15d an aim of 80 on 60..90 saves and a reload shows it; box-t keeps none', JSON.stringify(aims) === '["80",""]', aims)
+
   await p.setViewport({ width: 390, height: 800 })
   await p.waitForSelector('[data-test=tenant-settings-fleet-load]', { visible: true, timeout: NAV_TIMEOUT })
   const phone = await p.$eval('[data-test=tenant-settings-fleet-load]', (e) => ({
@@ -183,6 +216,12 @@ try {
     wide: document.documentElement.scrollWidth - document.documentElement.clientWidth,
   }))
   ok('11 phone: the card fits the width', phone.overflow <= 1 && phone.wide <= 1, phone)
+  const phoneLabels = await bandLabels(p)
+  ok('11b phone: each per-box input keeps its visible label above it, inside the width', labelsOk(phoneLabels), phoneLabels[0])
+  if (process.env.SHOT_DIR) {
+    const el = await p.$('[data-test=tenant-fleet-bands]')
+    if (el) await el.screenshot({ path: `${process.env.SHOT_DIR}/fleet-load-bands-390.png` })
+  }
 
   await p.setViewport({ width: 1400, height: 900 })
   await p.click('[data-test=tenant-fleet-bands-reset]')

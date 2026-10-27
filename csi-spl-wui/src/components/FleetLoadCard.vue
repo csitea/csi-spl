@@ -11,6 +11,9 @@
      Runner CPU cap (rdb 0152): the % of a box's cores CI runners plus agents
      may use, fleet-wide, and a band's own cap where set (empty = the fleet's).
      Every boxes PATCH carries each band's cap: the hub replaces the map.
+     Each per-box box has a visible label above it (SPL-3876, t1 f456ecd5), and
+     a band takes an Aim % (low <= aim <= high, empty = high): the level the
+     box pick aims to keep that box at.
      CI overflow (rdb 0185): one on/off for CI overflowing to the box runners,
      and the cores those runners may take (0 = the cnf share), fleet-wide and
      a band's own where set (empty = the fleet's). -->
@@ -212,58 +215,87 @@
         <ul v-if="bands.length" class="fl-list" data-test="tenant-fleet-bands" aria-labelledby="tenant-fleet-bands-label">
           <li v-for="(b, i) in bands" :key="b.box" class="fl-row fl-band" data-test="tenant-fleet-band" :data-box="b.box">
             <code class="fl-row__id">{{ b.box }}</code>
-            <input
-              :value="b.low"
-              type="number"
-              min="1"
-              max="99"
-              step="1"
-              inputmode="numeric"
-              autocomplete="off"
-              :aria-label="t('tenant_settings.fleet_load_low') + ' ' + b.box"
-              data-test="tenant-fleet-band-low"
-              @input="editBand(i, 'low', ($event.target as HTMLInputElement).value)"
-            >
-            <input
-              :value="b.high"
-              type="number"
-              min="2"
-              max="100"
-              step="1"
-              inputmode="numeric"
-              autocomplete="off"
-              :aria-label="t('tenant_settings.fleet_load_high') + ' ' + b.box"
-              data-test="tenant-fleet-band-high"
-              @input="editBand(i, 'high', ($event.target as HTMLInputElement).value)"
-            >
-            <input
-              :value="b.runnerCpuPct ?? ''"
-              type="number"
-              min="1"
-              max="100"
-              step="1"
-              inputmode="numeric"
-              autocomplete="off"
-              :placeholder="String(fleetCpu)"
-              :title="t('tenant_settings.fleet_load_cpu_box', { n: fleetCpu })"
-              :aria-label="t('tenant_settings.fleet_load_cpu') + ' ' + b.box"
-              data-test="tenant-fleet-band-cpu"
-              @input="editBand(i, 'runnerCpuPct', ($event.target as HTMLInputElement).value)"
-            >
-            <input
-              :value="b.runnerCpus ?? ''"
-              type="number"
-              min="0"
-              :max="FLEET_RUNNER_CPUS_MAX"
-              step="1"
-              inputmode="numeric"
-              autocomplete="off"
-              :placeholder="String(fleetCpus)"
-              :title="t('tenant_settings.fleet_load_runner_cpus_box', { n: fleetCpus })"
-              :aria-label="t('tenant_settings.fleet_load_runner_cpus') + ' ' + b.box"
-              data-test="tenant-fleet-band-cpus"
-              @input="editBand(i, 'runnerCpus', ($event.target as HTMLInputElement).value)"
-            >
+            <label class="fl-band__f" data-test="tenant-fleet-band-low-field">
+              <span class="muted" data-test="tenant-fleet-band-label">{{ t('tenant_settings.fleet_load_low') }}</span>
+              <input
+                :value="b.low"
+                type="number"
+                min="1"
+                max="99"
+                step="1"
+                inputmode="numeric"
+                autocomplete="off"
+                :aria-label="t('tenant_settings.fleet_load_low') + ' ' + b.box"
+                data-test="tenant-fleet-band-low"
+                @input="editBand(i, 'low', ($event.target as HTMLInputElement).value)"
+              >
+            </label>
+            <label class="fl-band__f" data-test="tenant-fleet-band-aim-field">
+              <span class="muted" data-test="tenant-fleet-band-label">{{ t('tenant_settings.fleet_load_aim') }}</span>
+              <input
+                :value="b.aim ?? ''"
+                type="number"
+                :min="b.low"
+                :max="b.high"
+                step="1"
+                inputmode="numeric"
+                autocomplete="off"
+                :placeholder="String(b.high)"
+                :title="t('tenant_settings.fleet_load_aim_box', { n: b.high })"
+                :aria-label="t('tenant_settings.fleet_load_aim') + ' ' + b.box"
+                data-test="tenant-fleet-band-aim"
+                @input="editBand(i, 'aim', ($event.target as HTMLInputElement).value)"
+              >
+            </label>
+            <label class="fl-band__f" data-test="tenant-fleet-band-high-field">
+              <span class="muted" data-test="tenant-fleet-band-label">{{ t('tenant_settings.fleet_load_high') }}</span>
+              <input
+                :value="b.high"
+                type="number"
+                min="2"
+                max="100"
+                step="1"
+                inputmode="numeric"
+                autocomplete="off"
+                :aria-label="t('tenant_settings.fleet_load_high') + ' ' + b.box"
+                data-test="tenant-fleet-band-high"
+                @input="editBand(i, 'high', ($event.target as HTMLInputElement).value)"
+              >
+            </label>
+            <label class="fl-band__f" data-test="tenant-fleet-band-cpu-field">
+              <span class="muted" data-test="tenant-fleet-band-label">{{ t('tenant_settings.fleet_load_cpu') }}</span>
+              <input
+                :value="b.runnerCpuPct ?? ''"
+                type="number"
+                min="1"
+                max="100"
+                step="1"
+                inputmode="numeric"
+                autocomplete="off"
+                :placeholder="String(fleetCpu)"
+                :title="t('tenant_settings.fleet_load_cpu_box', { n: fleetCpu })"
+                :aria-label="t('tenant_settings.fleet_load_cpu') + ' ' + b.box"
+                data-test="tenant-fleet-band-cpu"
+                @input="editBand(i, 'runnerCpuPct', ($event.target as HTMLInputElement).value)"
+              >
+            </label>
+            <label class="fl-band__f" data-test="tenant-fleet-band-cpus-field">
+              <span class="muted" data-test="tenant-fleet-band-label">{{ t('tenant_settings.fleet_load_runner_cpus') }}</span>
+              <input
+                :value="b.runnerCpus ?? ''"
+                type="number"
+                min="0"
+                :max="FLEET_RUNNER_CPUS_MAX"
+                step="1"
+                inputmode="numeric"
+                autocomplete="off"
+                :placeholder="String(fleetCpus)"
+                :title="t('tenant_settings.fleet_load_runner_cpus_box', { n: fleetCpus })"
+                :aria-label="t('tenant_settings.fleet_load_runner_cpus') + ' ' + b.box"
+                data-test="tenant-fleet-band-cpus"
+                @input="editBand(i, 'runnerCpus', ($event.target as HTMLInputElement).value)"
+              >
+            </label>
             <button
               type="button"
               class="icon-btn"
@@ -365,6 +397,7 @@ import { isoDateTime } from '~/utils/date-iso.mjs'
 import {
   FLEET_AGENT_KINDS,
   FLEET_RUNNER_CPUS_MAX,
+  fleetAimOk,
   fleetBandOk,
   fleetCpuOk,
   fleetCpusOk,
@@ -528,6 +561,10 @@ async function save() {
     formError.value = t('tenant_settings.fleet_load_runner_cpus_bad')
     return
   }
+  if (!resetBoxes.value && !bands.value.every(fleetAimOk)) {
+    formError.value = t('tenant_settings.fleet_load_aim_bad')
+    return
+  }
   if (!resetBoxes.value && !bands.value.every(fleetBandOk)) {
     formError.value = t('tenant_settings.fleet_load_band_bad')
     return
@@ -599,8 +636,9 @@ watch(() => session.state, (st) => {
 .fl-row { display: flex; align-items: center; gap: 8px; min-height: 36px; min-width: 0; }
 .fl-row__n { width: 2.5ch; color: var(--color-muted); flex: none; }
 .fl-row__id { min-width: 0; overflow-wrap: anywhere; }
-.fl-band { flex-wrap: wrap; }
+.fl-band { flex-wrap: wrap; align-items: flex-end; }
 .fl-band .fl-row__id { flex: 1 1 8ch; }
+.fl-band__f { display: inline-flex; flex-direction: column; gap: 2px; min-width: 0; }
 .fl-band input { width: 6em; min-width: 0; padding: 4px 6px; background: var(--color-surface); color: var(--color-fg); border: 1px solid var(--color-border-strong); }
 .fl-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; max-width: 100%; }
 .fl-add input { flex: 1 1 10em; }

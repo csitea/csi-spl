@@ -16,6 +16,8 @@ declare module '~/utils/fleet-load.mjs' {
     box: string
     low: number
     high: number
+    /** SPL-3876: the level the box pick aims to keep this box at, low..high; absent / null = high */
+    aim?: number | null
     /** rdb 0152: this box's own runner CPU cap; absent / null = the fleet's */
     runnerCpuPct?: number | null
     /** rdb 0185: this box's own CI runner cores; absent / null = the fleet's */
@@ -74,6 +76,7 @@ declare module '~/utils/fleet-load.mjs' {
   export function fleetBandList(v: unknown): FleetBoxBand[]
   export function fleetBandMap(list: FleetBoxBand[]): Record<string, { low: number, high: number }>
   export function fleetBandOk(b: unknown): boolean
+  export function fleetAimOk(b: unknown): boolean
   export function fleetCpuOk(v: unknown): boolean
   export function fleetCpusOk(v: unknown): boolean
   export function fleetKindList(v: unknown): string[]

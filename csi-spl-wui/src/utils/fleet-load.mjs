@@ -15,6 +15,9 @@
  * rdb 0185: `ci_overflow` (default true) lets CI overflow to the box runners;
  * `runner_cpus` is the cores those runners may take, 0..256, default 0 = the
  * box's cnf share, fleet-wide and per box {low, high, runner_cpus}.
+ * SPL-3876 (owner HUM-10, t1 f456ecd5 msg 61cd77e7): a band may carry an
+ * `aim`, low <= aim <= high, the level the box pick aims to keep that box at;
+ * absent = high. Every boxes PATCH carries each band's aim back.
  * Node tests import this file; the settings card does too.
  */
 
@@ -93,7 +96,9 @@ export function fleetBandList(v) {
     if (low == null || high == null) continue
     const cpu = intOrNull(b.runner_cpu_pct)
     const cpus = intOrNull(b.runner_cpus)
+    const aim = intOrNull(b.aim)
     const band = { box: String(box), low, high }
+    if (aim) band.aim = aim
     if (cpu) band.runnerCpuPct = cpu
     if (cpus) band.runnerCpus = cpus
     out.push(band)
@@ -106,6 +111,7 @@ export function fleetBandMap(list) {
   const out = {}
   for (const b of Array.isArray(list) ? list : []) {
     const band = { low: Number(b.low), high: Number(b.high) }
+    if (b.aim != null && b.aim !== '') band.aim = Number(b.aim)
     if (b.runnerCpuPct != null && b.runnerCpuPct !== '') band.runner_cpu_pct = Number(b.runnerCpuPct)
     if (b.runnerCpus != null && b.runnerCpus !== '') band.runner_cpus = Number(b.runnerCpus)
     out[b.box] = band
@@ -113,13 +119,14 @@ export function fleetBandMap(list) {
   return out
 }
 
-/** True when one per-box band is a box id with both marks in range, low < high, its cap (if any) 1..100 and its cores (if any) 0..256. */
+/** True when one per-box band is a box id with both marks in range, low < high, its aim (if any) low..high, its cap (if any) 1..100 and its cores (if any) 0..256. */
 export function fleetBandOk(b) {
   if (!b || !validFleetBox(b.box)) return false
   const low = Number(b.low)
   const high = Number(b.high)
   if (b.runnerCpuPct != null && b.runnerCpuPct !== '' && !fleetCpuOk(Number(b.runnerCpuPct))) return false
   if (b.runnerCpus != null && b.runnerCpus !== '' && !fleetCpusOk(Number(b.runnerCpus))) return false
+  if (b.aim != null && b.aim !== '' && !fleetAimOk(b)) return false
   return Number.isInteger(low) && Number.isInteger(high) && low >= 1 && low <= 99 && high >= 2 && high <= 100 && low < high
 }
 
@@ -226,6 +233,13 @@ export function fleetKindsOk(kindsOff) {
   return fleetKindList(kindsOff).length < FLEET_AGENT_KINDS.length
 }
 
+/** True when a band's aim is a whole % within its own low..high (SPL-3876); an empty aim is no aim. */
+export function fleetAimOk(b) {
+  if (!b || b.aim == null || b.aim === '') return true
+  const aim = Number(b.aim)
+  return Number.isInteger(aim) && aim >= Number(b.low) && aim <= Number(b.high)
+}
+
 /** One box's own band from a normalizeFleetLoad() view; null = it uses the fleet band. */
 export function fleetBoxBandOf(view, box) {
   const list = view && Array.isArray(view.boxes) ? view.boxes : []
@@ -252,15 +266,17 @@ export function fleetBoxCpuOf(view, box) {
  * The Boxes view's PATCH body: set (band) or remove (null) ONE box's entry.
  * The other boxes' bands, the fleet band and the box order stay as `view` has
  * them (the hub replaces the whole map, so the rest is sent back unchanged).
- * A set keeps the box's own runner_cpu_pct (rdb 0152) and runner_cpus (rdb
- * 0185); a remove drops the entry, cap and all.
+ * A set keeps the box's own runner_cpu_pct (rdb 0152), runner_cpus (rdb
+ * 0185) and aim (SPL-3876); a remove drops the entry, cap and all.
  */
 export function fleetBoxBandPatch(view, box, band) {
   if (!view || !validFleetBox(box)) return {}
   const others = (Array.isArray(view.boxes) ? view.boxes : []).filter((b) => b.box !== box)
   const cpu = fleetBoxCpuOf(view, box)
   const cpus = fleetBoxCpusOf(view, box)
+  const kept = (Array.isArray(view.boxes) ? view.boxes : []).find((b) => b.box === box)
   const own = { box, low: Number(band && band.low), high: Number(band && band.high) }
+  if (kept && kept.aim != null) own.aim = kept.aim
   if (cpu != null) own.runnerCpuPct = cpu
   if (cpus != null) own.runnerCpus = cpus
   const boxes = band ? others.concat(own) : others
@@ -362,11 +378,14 @@ function fleetPatchBands(boxes) {
   for (const [box, b] of Object.entries(boxes)) {
     const hasCpu = b && typeof b === 'object' && hasKey(b, 'runner_cpu_pct')
     const hasCpus = b && typeof b === 'object' && hasKey(b, 'runner_cpus')
-    if (!b || typeof b !== 'object' || Object.keys(b).length !== 2 + (hasCpu ? 1 : 0) + (hasCpus ? 1 : 0)) return undefined
+    const hasAim = b && typeof b === 'object' && hasKey(b, 'aim')
+    if (!b || typeof b !== 'object' || Object.keys(b).length !== 2 + (hasCpu ? 1 : 0) + (hasCpus ? 1 : 0) + (hasAim ? 1 : 0)) return undefined
     if (!Number.isInteger(b.low) || !Number.isInteger(b.high)) return undefined
     if (hasCpu && !fleetCpuOk(b.runner_cpu_pct)) return undefined
     if (hasCpus && !Number.isInteger(b.runner_cpus)) return undefined
+    if (hasAim && (!Number.isInteger(b.aim) || b.aim < 1)) return undefined
     const one = { box, low: b.low, high: b.high }
+    if (hasAim) one.aim = b.aim
     if (hasCpu) one.runnerCpuPct = b.runner_cpu_pct
     if (hasCpus) one.runnerCpus = b.runner_cpus
     list.push(one)

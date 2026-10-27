@@ -4,8 +4,8 @@ Issue SPL-3785 · Epic SPL-2403 · Spec [043](spec.md) · Panel of 2 seats.
 
 **Signatures** (both on one sha):
 
-- claude seat, editor (c-381): pending
-- mistral slot, held by a claude seat (c-382): pending
+- claude seat, editor (c-381): SIGN 5034f89d9
+- mistral slot, held by a claude seat (c-382): SIGN 5034f89d9 (spool msg 21ac9bf6, task dispatch-c3e53990)
 
 The seat files, each written before its author read the other one:
 [seat-claude.md](section-stripe/seat-claude.md) and

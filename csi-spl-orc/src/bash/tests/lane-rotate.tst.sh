@@ -46,6 +46,10 @@
 #      S2 kind=limit; for agy any a- seat's) is SKIPped before SPAWN, logged
 #      with the reset, never a failure; a lane on a vendor without a limit is
 #      rotated in the same tick (control); the verdict gone = rotated
+#  24. SPL-3812: an a- seat's pane shows agy's quota banner (fixture
+#      wd-situations/s2-agy-quota.pane, "Resets in 2h"): the agy lane is
+#      SKIPped with ONE log line naming the reset, nothing spawned, no note;
+#      controls: no banner, a reset already past, a c- lane = rotated
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc and M are read inside the check strings (eval)
 set -uo pipefail
@@ -476,6 +480,25 @@ ROTATE_LANE_RETRY=900 ROTATE_LANE_REPORT_GRACE=0 tick; ROTATE_LANE_RETRY=900 ROT
 check "23. the notice keeps the rid, the minutes and the retry" '[ "$(n "$T/send.log" "agent-age@box-desk.*a-665@box-desk agy pid 2665 97 min (DEFER rotation 20261027T0322Z-lane-a-665 failed 3 min ago: next try after 15 min)")" = 1 ]'
 check "23. the dedupe still holds: one DEFER line for two ticks" '[ "$(n "$T/tick.out" "a-665 DEFER rotation")" = 1 ] && [ "$(n "$D/lane-rotate/lane-rotate.log" "a-665 DEFER rotation")" = 1 ]'
 check "23. no stray failing command under the ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
+# --- 24. SPL-3812: agy's quota banner on an a- pane = SKIP, not a failed ACK every 15 min ---
+# a box on 2026-10-27: a-289 failed ACK at 0506Z, 0532Z, 0558Z, 0624Z while
+# spl_spawn_place_agy_out printed "agy is out of quota until 2026-10-30T22:05:21Z".
+QP="$TEST_DIR/fixtures/wd-situations/s2-agy-quota.pane"
+banner() { mkdir -p "$D/wd/ctx.1/$1"; sed 's/Resets in [0-9hms]*\./Resets in 2h./' "$QP" >"$D/wd/ctx.1/$1/pane"; }
+reset; lane a-971 70 agy; banner a-972
+tick; tick
+check "24. banner on an a- pane: the agy lane SKIPped, the reset named" 'grep -qE "a-971 SKIP a-971: agy is on its limit until [0-9-]+T[0-9:]+Z \(a-972 banner, Resets in 2h\)" "$T/tick.out"'
+check "24. banner: ONE skip line for two ticks, nothing spawned, no note, no fail stamp" '[ "$(n "$D/lane-rotate/lane-rotate.log" "a-971 SKIP")" = 1 ] && [ "$(n "$T/spawn.log")" = 0 ] && [ "$(n "$T/send.log")" = 0 ] && [ ! -e "$S/a-971/lifetime/rotate.lane.last" ]'
+reset; lane a-973 70 agy
+tick
+check "24. control: no banner, the agy lane rotated as before" 'grep -q "^spawn agy a-973" "$T/spawn.log" && grep -q "lane-a-973 DONE OK" "$D/rotate.log"'
+reset; lane a-974 70 agy; banner a-975; touch -d "-3 hours" "$D/wd/ctx.1/a-975/pane"
+tick
+check "24. control: the reset is past (2h after a pane 3 h old), the agy lane rotated" '! grep -q "a-974 SKIP" "$T/tick.out" && grep -q "lane-a-974 DONE OK" "$D/rotate.log"'
+reset; lane c-976 70; banner a-977
+ROTATE_CLAUDE_BIN=/bin/true tick
+check "24. control: a c- lane beside the agy banner rotated" 'grep -q "^spawn claude c-976" "$T/spawn.log" && grep -q "lane-c-976 DONE OK" "$D/rotate.log"'
+check "24. no stray failing command under the ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
 # --- 12. the cron row ----------------------------------------------------------------------------
 M="$PROJ_ROOT/cnf/box-crons/box-crons.manifest"
 check "12. manifest row lane-rotate, every minute" 'grep -qE "^lane-rotate +\| \* \* \* \* \* +\| src/bash/scripts/lane-rotate-cron.sh +\| lane-rotate/cron.log" "$M"'

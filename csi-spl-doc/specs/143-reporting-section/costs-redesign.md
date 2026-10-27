@@ -20,6 +20,11 @@ msg:01a1cbaf-8f1d-400d-acbf-0656bf0b58f9, 2026-10-27); the poll of section
 7 goes to the owner in t1 topic `1be0e370`, and the slices are placed on his
 answers.
 
+**The owner's answers** (HUM-10, poll `17403643`, msg `3f1c7128`): A on
+questions 1, 2, 3, 5 and 6; **B on question 4**: a customer workspace's
+Spend also shows a share of the AI subscriptions, split by its lanes'
+tokens. The split is section 3.3.1 (SPL-3799); S3 and S4 follow it.
+
 Every figure in a wireframe is **made up**; none is a real cost. Paths:
 `wui/` = `csi-spl-wui/src/`, `hub/` and `store/` =
 `csi-spl-api/src/go/spool-hub-api/internal/{hub,store}/`. Code was read on
@@ -102,7 +107,7 @@ page bar (one path per page, each its own chunk, as Monitoring's tabs):
 
 | page | path | its one question | who sees it |
 |---|---|---|---|
-| **Spend** (default) | `/reporting/costs/spend` | What did we pay this month, and for what? | `costs.read`: its workspace's rows; the operator admin: the estate |
+| **Spend** (default) | `/reporting/costs/spend` | What did we pay this month, and for what? | `costs.read`: its workspace's rows and its share of the AI paid items (3.3.1); the operator admin: the estate |
 | **Tokens** | `/reporting/costs/tokens` | How many tokens did we use this month, by whom, and what is their list value? | owner Q1 (recommended: every member, its own workspace; operator admin, all) |
 | **Price per token** | `/reporting/costs/price` | What does 1M tokens really cost us per agent type, against the list price? | operator admin |
 | **Paid items** | `/reporting/costs/paid` | What subscriptions and top-ups (later: invoices) did we pay, for which days? Enter and correct them. | operator admin |
@@ -116,7 +121,8 @@ of spec 140 3.8), **Invoices** (hand-entered, once built, owner Q5), **Not
 tracked** ("Machines outside GCP", estate view only). Columns: part ·
 amount · % of the month. A pie of the groups; under 1 % joins "other".
 Token counts and agent hours are not on this page (they are on Tokens). A
-customer workspace sees its own rows (owner Q4).
+customer workspace sees its own rows plus **its share of the AI agents'
+paid items** (owner Q4 = B), one row per agent type, by the rule of 3.3.1.
 
 Desktop (made-up figures):
 
@@ -159,6 +165,113 @@ Total paid               1,000.00 USD
         ( pie, full width )
 26 of 26 days read          details
 ```
+
+### 3.3.1 A customer workspace's share of the AI subscriptions (owner Q4 = B)
+
+What exists today, read on origin/master `a2da59555`:
+
+- A paid item is one agent type (`vendor`), a kind and a plan, paying for
+  the UTC days `[period_start, period_end)`; its daily USD is
+  `amount * quantity / days / rate` (`fleetPaidDailyUSD`,
+  `store/fleet_token_paid.go:167-169`), the rate being the item
+  currency's on its first day, else the last before it, else the first
+  after it (`store/fleet_token_paid.go:191-200`,
+  `store/fleet_token_paid_postgres.go:125-131`, `hub/fleet_token_paid.go:248`).
+- Every burn minute carries `work_tenant`: the workspace holding the lane's
+  `fleet_lanes` topic, stamped by the hub when the box pushes
+  (`hub/fleet_tokens.go:165`, `hub/workspace_tokens.go:19-27,49-71`; rdb
+  `0229`). NULL is the operator workspace's own work: an operator topic, no
+  topic, no lane row, a topic no workspace holds, or a failed lookup.
+- The daily rollup keeps it per (day, box, agent), the day's last minute's
+  value (`store/fleet_tokens_postgres.go:119-137`).
+- The tokens the effective price divides by are input + output + cache
+  write, metered rows only (`store/fleet_token_paid_postgres.go:94-101`).
+  The workspace month read counts cache reads too
+  (`store/workspace_tokens.go:93-94`).
+- Today a workspace answer adds only `fleet_tokens` parts at a paid 0
+  (`hub/cost_read.go:170-171`); no paid item reaches any month read (section
+  2, item 1).
+
+**The rule.** For each ended UTC day `d` of the month, each paid item `i`
+paying for `d` (agent type `v`), and each customer workspace `W`:
+
+```
+share(W, i, d) = floor( daily_usd_micros(i) * T(W, v, d) / T(all, v, d) )
+```
+
+- `daily_usd_micros(i)` = `round(fleetPaidDailyUSD(i) * 1e6)`, the same
+  daily amount the estate counts for `i`.
+- `T(x, v, d)` = input + output + cache-write tokens of the metered burn of
+  agent type `v` on day `d`, by the lanes stamped `work_tenant = x`, or by
+  every lane for `all`. Cache reads are left out, as in the price per
+  token (3.5), so a workspace's share equals its tokens times the paid
+  price per token of that day.
+- The denominator is **every** token of `v` on `d`, the unattributed ones
+  included.
+
+What follows from it:
+
+1. **Tokens with no workspace keep their part with the estate.** The NULL
+   rows (the operator's own work, and every failed or missing lookup) stay
+   in the denominator and are never spread over the customer workspaces. A
+   customer pays only for what its own lanes burned.
+2. **A day with no metered tokens of `v` gives no share.** `T(all, v, d) =
+   0` (no lane worked, or an agent type with no tokens logged, such as agy
+   today, spec 140 3.8 `not_metered`): the whole daily amount stays with the
+   estate, never divided by zero, never spread evenly.
+3. **Rounding**: integer micros, rounded down per (workspace, item, day);
+   the remainder stays with the estate. So for every item and day the sum
+   of the shares never exceeds `daily_usd_micros(i)`, and a workspace's
+   month share is the sum of its daily shares, never recomputed from
+   rounded totals.
+4. **No exchange rate, no share**: an item whose currency has no rate at
+   all (status `no_fx_rate`, 3.5) adds nothing; the row
+   says "not priced yet (no exchange rate)", never 0, and its days do not
+   count as read (section 4, coverage).
+5. **Only ended days**, like the rest of Spend: today is not counted
+   ("so far" = up to yesterday, `CoverTo`, `hub/cost_read.go:57,83`).
+6. **Second currency**: the share is USD; `second_micros` converts it day by
+   day at that day's rate, like every other part (spec 123 5.4).
+
+**What a customer workspace sees.** A group "AI agents (your share)" with
+one row per agent type, its month amount and its % of the month; the amount
+counts in the workspace's total paid. It never shows a plan name, a price,
+an item, the denominator, the estate's total or another workspace's share
+or tokens. Its own tokens are on the Tokens page; the amount divided by them
+gives that workspace the effective price per token of its agent types: that
+is the one figure the rule lets it derive, and it is the price the estate
+paid, not a list price.
+
+**Who else.** The operator admin's estate view keeps the **full** paid
+amount of every item (the shares are an attribution, not a second cost:
+never subtracted from it, never added to it). A member of the operator
+workspace who is not its admin sees no share row: the unattributed tokens
+are the estate's, and the estate's money is its admin's (spec 140 3.10,
+"Who sees what").
+
+```
+Customer workspace (made-up figures)
+Costs   Month [Oct 2026 (so far) v]  1-26 Oct, UTC   Currency (USD) ( EUR )
+        (Spend)  Tokens
+| Part                              |    USD | % of month |
+| AI agents (your share)            |  42.00 |   84 %     |
+|   agent type A                    |  30.00 |   60 %     |
+|   agent type B                    |  12.00 |   24 %     |
+| Cloud (its own rows)              |   8.00 |   16 %     |
+| Total paid, 1-26 Oct              |  50.00 |  100 %     |
+AI agents: from 26 Oct only, see "what is not known"
+```
+
+**What is not known from today's data** (named, not invented):
+
+| gap | why | the share then |
+|---|---|---|
+| days before `work_tenant` was stamped | rows written before rdb `0229` and its hub stay NULL, no history is rewritten (spec 140 3.10; the column landed in `b42bf3bad`, 2026-10-26; the first tag holding it, `v5.3.2-c3`, is dated 2026-10-26 17:45Z). Which workspace those lanes worked for is not stored | **none**: those days' tokens are the estate's (rule 1). Before 2026-10-26 a customer's share is 0, and October 2026 is partial; the page says from which day its share is counted |
+| 2026-10-26 itself | the day mixes NULL minutes (before the hub roll) and stamped ones; inside the 30-day minute retention the read sees each minute, after it the rollup books the lane's whole day to its last minute's workspace (`store/fleet_tokens_postgres.go:121-123`) | as the rows say: minute-exact while the minutes are kept, the rollup's booking after |
+| a lane that moved workspace inside a day, older than 30 days | the same rollup rule | the day goes to the workspace of the lane's last minute |
+| a minute whose workspace lookup failed | it is stored as the operator's and only logged (`hub/workspace_tokens.go:25-27`); nothing marks it later | the estate's (rule 1) |
+| a minute pushed again inside the 30 days | the upsert re-stamps `work_tenant` from the topic at the new push (`store/fleet_tokens_postgres.go:35`) | the newer stamp |
+| an agent type with paid items but no metered tokens (agy) | no token count exists (spec 140 3.8, `not_metered`) | none (rule 2) |
 
 ### 3.4 Tokens
 
@@ -242,6 +355,7 @@ Monitoring.
 |---|---|---|
 | Spend, Cloud | `GET /v1/tenant/costs?month=` parts with source `gcp` (`hub/cost_read.go:123`, `cost_lines`) | yes |
 | Spend, AI agents | `fleet_token_paid` daily shares (`fleetPaidDailyUSD`, `store/fleet_token_paid.go`) | **missing in the month read**: parts with source `ai_paid`, one per agent type and plan, `usd_micros` = the month's daily shares, `second_micros` as the others, estate scope only; coverage: a day is read when every item paying for it has a rate |
+| Spend, AI agents (your share), a customer workspace | the same daily amounts times its tokens' fraction (3.3.1) | **missing**: parts with source `ai_share`, one per agent type (no plan), workspace scope only, never in the estate answer; needs a burn read per (UTC day, agent type, `work_tenant`) of input + output + cache-write tokens, metered rows only, minutes for the days still kept and the rollup before them, each day once. Neither read has that shape today: `fleetVendorDaysSQL` is per (day, agent type) over every workspace (`store/fleet_token_paid_postgres.go:94-101`); `WorkspaceTokenMonth` is per month and counts cache reads (`store/workspace_tokens.go:89-102`). Coverage: a day is read when every item paying for it has a rate; the answer also says from which day `work_tenant` exists (3.3.1, not known) |
 | Spend, Invoices | `cost_lines` origin `hand` / `invoice` | **missing**: the hand-entry API (spec 123 4.4; `POST /v1/operator/cost/day` refuses origin `hand`) |
 | Spend, currency | `usd_micros`, `second_micros`, `fx_rate*` (spec 123 5.4) | yes; `eur_micros` is no longer shown |
 | Spend, days read | `coverage` of the month read | yes |
@@ -254,7 +368,7 @@ Monitoring.
 | Paid items | `GET/POST/PATCH/DELETE /v1/operator/fleet-tokens/paid` | yes |
 | Monitoring live burn | `GET /v1/operator/fleet-tokens?window=` | yes |
 
-Nothing above is invented: the three "missing" reads are named here and
+Nothing above is invented: the four "missing" reads are named here and
 built by their own slice.
 
 ## 5. Migration
@@ -286,8 +400,8 @@ first so the pages read real data):
 |---|---|---|---|
 | S1 | wui | Reporting tab `costs`, its page bar and the 4 routes (Tokens, Price, Paid as shells), month picker (months from the first cost line) and currency pick in the header, `?month=` shared; the redirects | unit `reporting-tabs.test.mjs` (visibility per role; red: a reader without `costs.read` sees the tab), redirect table; e2e `/monitoring/costs?month=2026-09` -> `/reporting/costs/spend?month=2026-09` |
 | S2 | wui | Spend from today's month read: one money column, grouping, no token or hours row, the days-read line; the Monitoring Costs tab removed | unit grouping; e2e 1400 + 390 px; red: a `fleet_tokens` part in the mock shows in no Spend row |
-| S3 | api | the month read adds `ai_paid` parts from `fleet_token_paid` (estate scope) | store test on Postgres: a 30-day item in a 31-day month gives the right share; a workspace scope gets none (RLS); red: the part dropped fails the total |
-| S4 | wui | Spend's AI agents group from S3 | unit + e2e with the mock's `ai_paid` |
+| S3 | api | the month read adds `ai_paid` parts from `fleet_token_paid` (estate scope, the full amounts) and, for a customer workspace, `ai_share` parts by the rule of 3.3.1 (the per-day, per-agent-type, per-`work_tenant` burn read of section 4) | store test on Postgres: a 30-day item in a 31-day month gives the right estate share; a workspace with 25 % of an agent type's tokens on a day gets 25 % of that day's amount (micros, rounded down); a day with no tokens of the type and NULL-stamped tokens give no share; the estate total is unchanged by any share. RED: a workspace's answer carries another workspace's share or any `ai_paid` part, or the shares of one item on one day sum above its daily amount |
+| S4 | wui | Spend's AI agents group from S3: the estate's per agent type and plan, a customer's "AI agents (your share)" per agent type with no plan, price or item, and the "counted from <day>" line | unit + e2e with the mock's `ai_paid` and `ai_share`, 1400 + 390 px; red: a customer view in the mock shows a plan label or an `ai_paid` row |
 | S5 | wui | Paid items page and Price per token page (moves; Price on the month) | the paid round of `tests/e2e/monitoring-costs.test.mjs`, moved to the new paths |
 | S6 | wui | Monitoring > Tokens without money, the window toggle, no controls above a 403; `TokensCostsCard` removed | unit: no `kpi_cost` key read; e2e |
 | S7 | api | `GET /v1/operator/fleet-tokens/range` from the daily rollup + today's minutes | store test: a day in both the minutes and the rollup is counted once; 403 for a non-operator |
@@ -296,7 +410,8 @@ first so the pages read real data):
 | S10 | api + wui | hand-entered invoices (spec 123 4.4) as a Paid items kind and the Spend "Invoices" group | only after owner Q5; its own spec slice |
 
 S1 + S2 already answer the owner's first sentence (Costs out of Monitoring,
-into Reporting); S3 + S4 fix the biggest wrong figure (item 1).
+into Reporting); S3 + S4 fix the biggest wrong figure (item 1) and give a
+customer workspace its share (owner Q4 = B, 3.3.1).
 
 ## 6. Where the seats differed, and the merge
 
@@ -307,7 +422,7 @@ into Reporting); S3 + S4 fix the biggest wrong figure (item 1).
 | money columns | USD + the second currency, two columns | one column, a USD / second-currency toggle | **one column** (rule 3); which currency is owner Q2 |
 | hand-entered invoices | build now as a Paid items kind | later, on the Paid items page | owner Q5 |
 | who sees Tokens | not asked | owner Q1 (spec 143 Poll 4 vs 140 3.10) | owner Q1 |
-| a customer workspace on Spend | owner Q | not asked | owner Q4 |
+| a customer workspace on Spend | owner Q | not asked | owner Q4: **B**, its share of the paid items by its lanes' tokens (3.3.1) |
 | Monitoring's window picker | a lane toggle | kept | **a lane toggle** (item 4: today it only filters the list) |
 | agent hours | on Usage | owner Q4, recommended on Tokens | **on Tokens**, both seats agree: no owner question |
 

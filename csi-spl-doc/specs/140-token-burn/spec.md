@@ -638,6 +638,11 @@ rows.
 The estate's own `fleet_tokens.<box>` count rows are unchanged, and the burn
 is never added to a paid total (3.1).
 
+A customer workspace's share of the paid items (3.8), split by these
+`work_tenant` tokens (owner HUM-10, t1 `1be0e370` msg `3f1c7128`, answer
+4 B): [spec 143 costs redesign](../143-reporting-section/costs-redesign.md)
+section 3.3.1. Not built yet (its slice S3).
+
 Tests (memory and Postgres): `hub/workspace_tokens_test.go`
 (TestWorkspaceTokenCosts W1-W6), `hub/cost_read_test.go` (TestCostReadRoles,
 TestCostReadEstateScope), `store/workspace_tokens_test.go`,

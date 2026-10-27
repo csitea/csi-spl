@@ -101,6 +101,13 @@ Then, inside tmux: `spool-agent claude`. `--dry-run` prints the plan;
   prints the admin line; a failed seat exits 5 with the reason.
 - **FR-007** No root key reaches an argv or a log: it goes through a 0600
   scratch file (`do_spl_desk_pin`, as `do_spl_desk_up` does).
+- **FR-008** Adding a seat never restarts the box's live `hub-run` sidecar
+  (SPL-3713): hub-run picks the new inbox up on its own rescan, so the box
+  link and its ONLINE state in the WUI stay up while agents are seated one
+  by one. A sidecar whose spool binary was rebuilt is restarted on the next
+  RE-seat of an agent already on the box (the reconcile tick re-seats every
+  agent); a `DESK_BOX_POKE` that differs from the live one restarts it on any
+  call, because that flag is only read at exec. Both say why in the log.
 
 ## Components
 
@@ -110,6 +117,8 @@ Then, inside tmux: `spool-agent claude`. `--dry-run` prints the plan;
 | `csi-spl-orc/src/bash/run/spl-desk-pin.func.sh` | `do_spl_desk_pin`: key + pin, modes self / admin / check |
 | `csi-spl-orc/src/bash/features/spool-install/tests/test-install.sh` | hermetic suite (vendor installers, network, build, seat stubbed) |
 | `csi-spl-orc/src/bash/tests/desk-pin.tst.sh` | the action's suite |
+| `csi-spl-orc/src/bash/run/spl-desk-up.func.sh` | `do_spl_desk_up`: seat an agent, one `hub-run` sidecar per box (`spl_desk_sidecar_recycle`: when it restarts) |
+| `csi-spl-orc/src/bash/tests/desk-up-seat-no-restart.tst.sh` | FR-008 on a sandbox desk: a new seat keeps the sidecar, a re-seat or a box-poke change restarts it |
 | `csi-spl-orc/src/bash/tests/spool-install.tst.sh` | runs the installer suite in the orc CI job |
 
 ## Known limits

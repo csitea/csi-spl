@@ -23,6 +23,10 @@
 # @description into a 0600 scratch file and removed.
 # @description The sidecar is a plain background process: it dies with the box.
 # @description Stop it with do_spl_desk_down; re-run this action to restart it.
+# @description Adding a seat never restarts a live sidecar (SPL-3713): hub-run
+# @description picks the new inbox up on its own rescan. Only a re-seat
+# @description restarts a sidecar whose spool binary was rebuilt, and any
+# @description call restarts one whose DESK_BOX_POKE differs (read at exec).
 # @description On a box enrolled into one workspace (do_spl_box_workspace_setup,
 # @description spec 108 3.5) any other TENANT_ID is refused, the action runs as
 # @description that workspace's OS user, and its state dir is the workspace's.
@@ -99,6 +103,8 @@ do_spl_desk_up() {
   # spec 147 5.2: a vendor at its workspace cap is refused before any dir or
   # process (spl-agent-caps.func.sh); the hub's SetRoster gate is the authority.
   spl_desk_cap_check "$d" "$box" "$tenant" "$hub" "$agent" || return 1
+  local seat_new=1
+  [[ -d "$d/spool/$agent" ]] && seat_new=0
   mkdir -p "$d/spool/$agent/inbox" "$d/spool/$agent/outbox" "$d/spool/$agent/archive" "$d/spool/.hub" "$d/keys" ||
     { do_log "FATAL cannot create the desk state under $d"; return 1; }
   chmod -R go-rwx "$d" || return 1
@@ -111,7 +117,7 @@ do_spl_desk_up() {
   unset SPOOL_JOIN_TOKEN
   spl_desk_mute "$d" "$agent" "$poke"
   spl_desk_purge_pokes "$d" "$agent" "$poke"
-  spl_desk_sidecar "$d" "$box" "$tenant" "$hub" "$notify" "$boxpoke" || return 1
+  spl_desk_sidecar "$d" "$box" "$tenant" "$hub" "$notify" "$boxpoke" "$seat_new" || return 1
   local pid="$SPL_DESK_PID"
   local announced=0
   spl_desk_wait_roster "$d" "$box" "$agent" "$wait" && announced=1
@@ -356,7 +362,8 @@ spl_desk_keep_ids() {
   printf '%s' "${SPL_DESK_AGENT_IDS:-}"
 }
 
-# spl_desk_sidecar <state dir> <box> <tenant> <hub> <notify cmd>: ONE live
+# spl_desk_sidecar <state dir> <box> <tenant> <hub> <notify cmd> [<box poke>
+# [<new seat 0|1>]]: ONE live
 # `spool hub-run` for this root, under a lock (two would both drain the queue).
 # Sets SPL_DESK_PID to its pid. It carries SPOOL_NOTIFY_CMD: the sidecar is the
 # process that writes a human's WUI message into the local inbox, so it is the
@@ -368,41 +375,15 @@ spl_desk_keep_ids() {
 # `./run` never returns. Measured on this box 2026-09-21: the sidecar held
 # run.sh's fd 61/62/63 and the action hung after every step had passed.
 spl_desk_sidecar() {
-  local d="$1" box="$2" tenant="$3" hub="$4" notify="$5" poke="${6:-1}"
+  local d="$1" box="$2" tenant="$3" hub="$4" notify="$5" poke="${6:-1}" seat_new="${7:-0}"
   # $poke here is the BOX-wide SPOOL_POKE, not one agent's: this process serves
   # every seat on the box. A single agent is spared with spl_desk_mute.
-  local hubd="$d/spool/.hub" pidf livepoke
+  local hubd="$d/spool/.hub" pidf
   pidf="$hubd/hub-run.pid"
   SPL_DESK_PID=""
   exec 9>"$hubd/hub-run.lock" || { do_log "FATAL cannot open $hubd/hub-run.lock"; return 1; }
   flock 9
-  # SPOOL_POKE is read by the sidecar ONCE, at exec. A live sidecar carrying a
-  # different value than this call asks for is not a desk that can be fixed by
-  # asking again: re-running with DESK_POKE=1 against a SPOOL_POKE=0 process
-  # changed nothing and reported success, which is how two owner messages sat
-  # unread in an agent inbox on 2026-09-22 while every check read green. So the
-  # mismatch RESTARTS it rather than being accepted.
-  if spl_desk_alive "$pidf"; then
-    livepoke="$(spl_desk_sidecar_poke "$(cat "$pidf")")"
-    # SPL-952: a sidecar still running a spool binary that has since been
-    # rebuilt validates with the OLD code. Measured on prd 2026-09-26: a 15 h
-    # old hub-run moved a DESK_KIND=blocker line to .hub/rejected/ because its
-    # binary predated the kind, while the rebuilt file on disk accepted it.
-    local stale=0
-    spl_desk_sidecar_stale "$(cat "$pidf")" && stale=1
-    if [[ "$stale" == 1 || ( -n "$livepoke" && "$livepoke" != "$poke" ) ]]; then
-      if [[ "$stale" == 1 ]]; then
-        do_log "INFO the live sidecar of $box runs a spool binary that has been rebuilt since it started; restarting it on the new one"
-      else
-        do_log "INFO the live sidecar of $box runs SPOOL_POKE=$livepoke but this call asks for $poke; restarting it, because that flag is only read at exec"
-      fi
-      kill "$(cat "$pidf")" 2>/dev/null || true
-      local w
-      for ((w = 0; w < 75; w++)); do spl_desk_alive "$pidf" || break; sleep 0.2; done
-      spl_desk_alive "$pidf" && { do_log "FATAL the sidecar of $box will not stop, so SPOOL_POKE cannot be changed"; flock -u 9; exec 9>&-; return 1; }
-      rm -f "$pidf"
-    fi
-  fi
+  spl_desk_sidecar_recycle "$pidf" "$box" "$poke" "$seat_new" || { flock -u 9; exec 9>&-; return 1; }
   if spl_desk_alive "$pidf"; then
     SPL_DESK_PID="$(cat "$pidf")"
     do_log "INFO the hub-run sidecar of $box is already live (pid $SPL_DESK_PID, log $hubd/hub-run.log)"
@@ -444,6 +425,50 @@ spl_desk_sidecar() {
   fi
   flock -u 9; exec 9>&-
   [[ -n "$SPL_DESK_PID" ]]
+}
+
+# spl_desk_sidecar_recycle <pid file> <box> <box poke> <new seat 0|1>: stop the
+# live sidecar when it has to be restarted, under the caller's lock; 1 when it
+# will not stop. A live sidecar that may serve on is left alone.
+#
+# SPOOL_POKE is read by the sidecar ONCE, at exec. A live sidecar carrying a
+# different value than this call asks for is not a desk that can be fixed by
+# asking again: re-running with DESK_POKE=1 against a SPOOL_POKE=0 process
+# changed nothing and reported success, which is how two owner messages sat
+# unread in an agent inbox on 2026-09-22 while every check read green. So the
+# mismatch RESTARTS it, on every call, a new seat too.
+#
+# A stale binary (SPL-952) restarts it only on a RE-seat. Adding a seat needs
+# nothing from the live sidecar - hub-run picks the new inbox up on its own
+# rescan - and the seat call's own spl_host_spool rebuilds the binary whenever
+# its tree is newer, so the stale branch fired on the very call that rebuilt
+# it: seating agents one by one restarted the box link each time and the WUI
+# showed the box offline (SPL-3713; prd sat 2026-10-26..27: all 432 restarts
+# in the reconcile log were this branch). The reconcile tick re-seats every
+# agent, so a stale sidecar is still restarted within one tick.
+spl_desk_sidecar_recycle() {
+  local pidf="$1" box="$2" poke="$3" seat_new="$4" livepoke stale=0 w
+  spl_desk_alive "$pidf" || return 0
+  livepoke="$(spl_desk_sidecar_poke "$(cat "$pidf")")"
+  # SPL-952: a sidecar still running a spool binary that has since been
+  # rebuilt validates with the OLD code. Measured on prd 2026-09-26: a 15 h
+  # old hub-run moved a DESK_KIND=blocker line to .hub/rejected/ because its
+  # binary predated the kind, while the rebuilt file on disk accepted it.
+  spl_desk_sidecar_stale "$(cat "$pidf")" && stale=1
+  if [[ -n "$livepoke" && "$livepoke" != "$poke" ]]; then
+    do_log "INFO the live sidecar of $box runs SPOOL_POKE=$livepoke but this call asks for $poke; restarting it, because that flag is only read at exec"
+  elif [[ "$stale" == 1 && "$seat_new" == 1 ]]; then
+    do_log "INFO the live sidecar of $box runs a spool binary that has been rebuilt since it started; adding a seat needs nothing from it, so it keeps running (left for the next re-seat, e.g. the reconcile tick)"
+    return 0
+  elif [[ "$stale" == 1 ]]; then
+    do_log "INFO the live sidecar of $box runs a spool binary that has been rebuilt since it started; restarting it on the new one"
+  else
+    return 0
+  fi
+  kill "$(cat "$pidf")" 2>/dev/null || true
+  for ((w = 0; w < 75; w++)); do spl_desk_alive "$pidf" || break; sleep 0.2; done
+  spl_desk_alive "$pidf" && { do_log "FATAL the sidecar of $box will not stop, so it cannot be restarted"; return 1; }
+  rm -f "$pidf"
 }
 
 # spl_desk_sidecar_stale <pid>: true when that process runs a binary whose file

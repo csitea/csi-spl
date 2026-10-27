@@ -51,7 +51,15 @@ run_seed() {  # [VAR=value ...] -> stdout+stderr of the action; gcloud argv in $
       echo "$*" >>"$ARGV"
       echo "${CLOUDSDK_CONFIG:-<unset>}" >>"$CFGS"
       case "$*" in
-        "auth activate-service-account"*) [[ -z "${GC_INTERRUPT:-}" ]] || kill -INT 0; return 0 ;;
+        "auth activate-service-account"*)
+          [[ -z "${GC_FDS:-}" ]] || ls "/proc/$BASHPID/fd" >"$GC_FDS"
+          # a process of the group that survives the Ctrl-C (SIGINT ignored)
+          # and spins at 100% CPU until $GC_SPIN exists; up before the kill
+          if [[ -n "${GC_SPIN:-}" ]]; then
+            { trap "" INT; : >"$GC_SPIN.up"; while [[ ! -e "$GC_SPIN" ]]; do :; done; } &
+            for _ in $(seq 1 600); do [[ -e "$GC_SPIN.up" ]] && break; sleep 0.1; done
+          fi
+          [[ -z "${GC_INTERRUPT:-}" ]] || kill -INT 0; return 0 ;;
         "auth list"*) echo "csi-spl-dev-sa@csi-spl-dev.iam.gserviceaccount.com" ;;
         "secrets versions access latest --secret="*)
           local s="${5#--secret=}"; [[ -f "$STORE/$s" ]] || return 1; cat "$STORE/$s" ;;
@@ -86,29 +94,83 @@ if grep -qxE '<unset>|.*/\.config/gcloud' "$T/cfgs"; then fail "a gcloud call ra
 # subshell, so the shell dies at once while the orphaned subshell still runs
 # its EXIT trap. Reading the temp root then raced the trap (wf10 run
 # 38252452159, n=4 reds on two runner kinds).
-CTRL_C=(python3 -c '
-import ctypes, os, signal, sys
+# It is also BOUNDED (SPL-3894): a review push hung ~3 h because one
+# Ctrl-C run left its setsid bash spinning at 100% CPU (state R, 52 min, c-394
+# msg 7d91dc6c). This wrapper waited on it forever, and the runner's fds (fd 3
+# is its tee pipe, run-all-tests.sh `3>&2`) were inherited by that session,
+# so even after the hook's time budget killed the wrapper the orphan held
+# the push's pipe open. Now the session gets none of the runner's fds, and
+# CTRL_C_GRACE s (default 60) after the action's shell exits, or
+# CTRL_C_DEADLINE s (default 300) in all, or on SIGTERM/SIGHUP, every
+# process left in it is SIGKILLed: rc 124 when that was needed. The lines
+# tagged FIX are what the RED CONTROL below strips.
+CTRL_C_PY='
+import ctypes, os, signal, sys, time
 ctypes.CDLL(None, use_errno=True).prctl(36, 1, 0, 0, 0)  # PR_SET_CHILD_SUBREAPER
 pid = os.fork()
 if pid == 0:
-    signal.signal(signal.SIGINT, signal.SIG_DFL); os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])
-st = 0
+    signal.signal(signal.SIGINT, signal.SIG_DFL); os.setsid()
+    os.closerange(3, 65536)  # FIX: the session holds none of the runner fds
+    os.execvp(sys.argv[1], sys.argv[1:])
+def kill_all():  # FIX: the session group, then any orphan reparented here
+    try: os.killpg(pid, signal.SIGKILL)  # FIX
+    except ProcessLookupError: pass  # FIX
+    me = os.getpid()  # FIX
+    for c in open(f"/proc/{me}/task/{me}/children").read().split(): os.kill(int(c), signal.SIGKILL)  # FIX
+for n in (signal.SIGTERM, signal.SIGHUP): signal.signal(n, lambda *_: (kill_all(), os._exit(143)))  # FIX
+grace = float(os.environ.get("CTRL_C_GRACE", "60"))
+end = time.monotonic() + float(os.environ.get("CTRL_C_DEADLINE", "300"))
+st, late = 0, 0
 while True:
-    try: p, s = os.waitpid(-1, 0)
+    try: p, s = os.waitpid(-1, os.WNOHANG)
     except ChildProcessError: break
-    if p == pid: st = s
-sys.exit(128 + os.WTERMSIG(st) if os.WIFSIGNALED(st) else os.WEXITSTATUS(st))')
+    if p == pid: st = s; end = min(end, time.monotonic() + grace)
+    if p: continue
+    if not late and time.monotonic() > end: late = 1; kill_all()  # FIX
+    time.sleep(0.02)
+sys.exit(124 if late else 128 + os.WTERMSIG(st) if os.WIFSIGNALED(st) else os.WEXITSTATUS(st))'
+CTRL_C=(python3 -c "$CTRL_C_PY")
+# marker: the processes of this test's Ctrl-C runs, by the SEED_MARK in their
+# environment (never the box's other processes)
+left() { grep -lsz "^SEED_MARK=$T/mark" /proc/[0-9]*/environ | wc -l; }
+CTRL_C_PRE=()  # a command the wrapper runs under (the RED CONTROL's budget kill)
 ctrl_c_seed() {  # <tmp-dir> [VAR=value ...] -> "rc=<rc> before='<ls>' after='<ls>'"
   local tmp="$1" before after rc; shift
+  local -a w=("${CTRL_C[@]}"); [[ -z "${CTRL_C_RUN+x}" ]] || w=("${CTRL_C_RUN[@]}")
   mkdir -p "$tmp"; before=$(ls -A "$tmp"); : >"$T/cfgs"
-  run_seed DRY_RUN=0 GC_INTERRUPT=1 TMPDIR="$tmp" "$@" "${CTRL_C[@]}" >/dev/null; rc=$?
+  run_seed DRY_RUN=0 GC_INTERRUPT=1 TMPDIR="$tmp" SEED_MARK="$T/mark" "$@" "${CTRL_C_PRE[@]}" "${w[@]}" >/dev/null; rc=$?
   after=$(ls -A "$tmp")
   echo "rc=$rc before='$before' after='$after'"
 }
-got=$(ctrl_c_seed "$T/tmp")
+# fd 7 stands for the runner's tee pipe: the session must not inherit it
+got=$(ctrl_c_seed "$T/tmp" GC_FDS="$T/fds" 7>/dev/null)
 [[ "$got" == "rc=130 before='' after=''" && -s "$T/cfgs" ]] \
   && pass "Ctrl-C at activate: the throwaway config is removed (temp root empty before and after)" \
   || fail "Ctrl-C: $got"
+[[ "$(left)" == 0 ]] && pass "Ctrl-C: no process of its session is left" || fail "Ctrl-C left $(left) process(es)"
+[[ -s "$T/fds" ]] && ! grep -qx 7 "$T/fds" && pass "Ctrl-C: the session does not hold the runner's fd 7" \
+  || fail "Ctrl-C session fds: $(tr '\n' ' ' <"$T/fds")"
+# A process of the group survives the Ctrl-C and spins: it is killed
+# CTRL_C_GRACE s after the action's shell exits, nothing is left.
+got=$(ctrl_c_seed "$T/tmp-spin" GC_SPIN="$T/stop-spin" CTRL_C_GRACE=2); touch "$T/stop-spin"
+[[ "$got" == "rc=124 before='' after=''" && "$(left)" == 0 ]] \
+  && pass "Ctrl-C with a spinning survivor: it is killed, nothing is left (rc 124)" \
+  || fail "Ctrl-C spin: $got left=$(left)"
+# RED CONTROL: the wrapper without its FIX lines, SIGKILLed once the spinner
+# runs (as the hook's time budget killed it), leaves the spinner behind and
+# hands it the runner's fd 7.
+CTRL_C_RUN=(python3 -c "$(grep -v '# FIX' <<<"$CTRL_C_PY")")
+CTRL_C_PRE=(bash -c 'w=$1; shift; "$@" & p=$!
+  for _ in $(seq 1 3000); do [[ -e $w ]] && break; sleep 0.1; done; sleep 0.5; kill -KILL $p; wait $p' _ "$T/fds-nofix")
+got=$(ctrl_c_seed "$T/tmp-nofix" GC_SPIN="$T/stop-nofix" GC_FDS="$T/fds-nofix" 7>/dev/null)
+nofix_left=$(left)
+[[ "${CTRL_C_RUN[2]}" != "$CTRL_C_PY" && "$got" == "rc=137 "* && "$nofix_left" -ge 1 && $(grep -cx 7 "$T/fds-nofix") == 1 ]] \
+  && pass "RED CONTROL: without the fix the spinner outlives the wrapper ($nofix_left left) and holds fd 7" \
+  || fail "RED CONTROL nofix: $got left=$nofix_left fds=$(tr '\n' ' ' <"$T/fds-nofix" 2>/dev/null)"
+unset CTRL_C_RUN; CTRL_C_PRE=()
+touch "$T/stop-nofix"  # the planted spinner stops itself; no kill by pid
+for _ in $(seq 1 600); do [[ "$(left)" == 0 ]] && break; sleep 0.2; done
+[[ "$(left)" == 0 ]] && pass "the control's spinner is gone once told to stop" || fail "control spinner still left: $(left)"
 # CONTROL: the same Ctrl-C on a copy of the action without its trap leaves the
 # throwaway config behind, so the check above can see a missing trap.
 sed "/trap 'rm -rf \"\$cfg\"' EXIT/d" "$PROJ_ROOT/src/bash/run/spl-auth-idp-secret-seed.func.sh" >"$T/no-trap.func.sh"

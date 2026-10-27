@@ -134,6 +134,32 @@ exited non-zero. A suite that stops at its first failing step (the api
 suite is `set -e`) can still hide a later new failure behind that step.
 See `_pp_sig` in `csi-spl-iac/src/bash/run/check-pre-push.func.sh`.
 
+### 1.4 The full tier's part budgets
+
+`PRE_PUSH_TIER=full` runs every test file of a part, so the api, orc and iac
+parts get their own budget instead of the fast tier's 300 s
+(`_pp_budget` in `csi-spl-iac/src/bash/run/check-pre-push.func.sh`; the
+numbers and their measurements are in the comments there). The api and orc
+budgets are a base times the box load per cpu (`load1 / nproc`, read once
+per run) when that is over 1, never above a cap:
+
+| part | base | cap | raise it with |
+|---|---|---|---|
+| api | 1950 s | 2700 s (`PRE_PUSH_API_FULL_CAP`) | `PRE_PUSH_API_FULL_TIMEOUT` |
+| orc | 4000 s | 6000 s (`PRE_PUSH_ORC_FULL_CAP`) | `PRE_PUSH_ORC_FULL_TIMEOUT` |
+| iac | 600 s | — | `PRE_PUSH_IAC_FULL_TIMEOUT` |
+
+`PRE_PUSH_PART_TIMEOUT` overrides every part on both tiers. A part that runs
+out logs `TIMED OUT after <n>s (<why>)`, and for a default budget the why
+names the base, the load it read, the cap and the variable that raises it.
+
+The orc base was 1800 s, a CI shard's time rather than the whole suite's.
+On the first desk box (16 cpus) every green full-tier orc run took longer:
+1941..2274 s at under 1 load per cpu (n=12, 2026-10-14..27), so a lane could
+not pass the full tier without being told to set `PRE_PUSH_ORC_FULL_TIMEOUT`
+(SPL-3748). 4000 s is 1.75 times the slowest of those runs, as the api and
+iac bases are; a hung suite still stops at the cap, after 100 minutes.
+
 <a id="ws-doc-2a614fe9-783d-4d85-bc3f-8d6843822bcf"></a>
 ## 2. Lint parts
 

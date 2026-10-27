@@ -9,11 +9,16 @@
 #   3. iac part, shared part budget 1                   -> "TIMED OUT after 1s"
 #   4. api part, full tier, no env budget, load 32 on 16 cpus (stubbed reader)
 #      -> "TIMED OUT after 2700s (api full default 1950s x load 32/16 cpus,
-#      cap 2700s)": the note names the load-scaled budget and the load it read
+#      cap 2700s; raise it with PRE_PUSH_API_FULL_TIMEOUT)": the note names the
+#      load-scaled budget, the load it read and the variable that raises it
 #      (`timeout` is stubbed to return 124 at once: no 30-min wait)
 #   5. the env budget of case 1 is named in the note
 #   6. a suite that passes at once logs no TIMED OUT note
 #   7. a suite that fails at once (rc 1) logs no TIMED OUT note either
+#   8. orc part, full tier, the default budget, idle box: the note names
+#      PRE_PUSH_ORC_FULL_TIMEOUT (SPL-3748: c-168's lane had to be told it, n=3)
+#      RED CONTROL: without "; raise it with $var" in _pp_budget_why, 4 and 8
+#      fail
 #   (red control for 6-7: a `do_log ... TIMED OUT after ...` emitted before
 #   _pp_run's rc check passed cases 1-5, where every suite does time out)
 #   Each part's suite in 1..3 is a stub that sleeps past its budget, so the real
@@ -29,7 +34,7 @@ fails=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1 -- ${2:-}"; fails=$((fails + 1)); }
 
-unset PRE_PUSH_PART_TIMEOUT PRE_PUSH_API_FULL_TIMEOUT PRE_PUSH_API_FULL_CAP PRE_PUSH_WUI_TIMEOUT
+unset PRE_PUSH_PART_TIMEOUT PRE_PUSH_API_FULL_TIMEOUT PRE_PUSH_API_FULL_CAP PRE_PUSH_WUI_TIMEOUT PRE_PUSH_ORC_FULL_TIMEOUT PRE_PUSH_ORC_FULL_CAP
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 LOG="$T/log"
 do_log() { echo "$*" >>"$LOG"; }
@@ -73,7 +78,7 @@ check "3. iac reports the shared part budget" "TIMED OUT after 1s" \
   "$(_pp_timeout=1; note_of _pp_part_iac)"
 
 check "4. api full tier names its load-scaled budget and the load" \
-  "TIMED OUT after 2700s (api full default 1950s x load 32/16 cpus, cap 2700s)" \
+  "TIMED OUT after 2700s (api full default 1950s x load 32/16 cpus, cap 2700s; raise it with PRE_PUSH_API_FULL_TIMEOUT)" \
   "$(_pp_load_read() { _PP_LOAD="32 16"; }; timeout() { return 124; }; _PP_TIER=full full_note_of _pp_part_api)"
 check "5. an env budget is named in the note" "TIMED OUT after 2s (PRE_PUSH_API_FULL_TIMEOUT)" \
   "$(PRE_PUSH_API_FULL_TIMEOUT=2 _PP_TIER=full full_note_of _pp_part_api)"
@@ -83,5 +88,9 @@ check "6. a passing suite logs no TIMED OUT note" "" \
 check "7. a suite failing with rc 1 logs no TIMED OUT note" "" \
   "$(R="$T/quick1"; _pp_timeout=30; note_of _pp_part_iac)"
 
-echo "--- $((7 - fails))/7 passed ---"
+check "8. orc full tier names the variable that raises its budget" \
+  "TIMED OUT after 4000s (orc full default 4000s x load 0.5/16 cpus, cap 6000s; raise it with PRE_PUSH_ORC_FULL_TIMEOUT)" \
+  "$(_pp_load_read() { _PP_LOAD="0.5 16"; }; timeout() { return 124; }; _PP_TIER=full full_note_of _pp_part_orc)"
+
+echo "--- $((8 - fails))/8 passed ---"
 [[ "$fails" -eq 0 ]]

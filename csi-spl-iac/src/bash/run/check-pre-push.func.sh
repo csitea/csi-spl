@@ -71,9 +71,9 @@
 # @param        (loadavg 1 min / nproc, when over 1), at most PRE_PUSH_API_FULL_CAP
 # @param PRE_PUSH_API_FULL_CAP (optional) - seconds the load-scaled api full-tier default never exceeds, default 2700
 # @param PRE_PUSH_IAC_FULL_TIMEOUT (optional) - seconds for the iac part on the full tier, default 600
-# @param PRE_PUSH_ORC_FULL_TIMEOUT (optional) - seconds for the orc part on the full tier; default 1800 x the load per cpu
+# @param PRE_PUSH_ORC_FULL_TIMEOUT (optional) - seconds for the orc part on the full tier; default 4000 x the load per cpu
 # @param        (when over 1), at most PRE_PUSH_ORC_FULL_CAP
-# @param PRE_PUSH_ORC_FULL_CAP (optional) - seconds the load-scaled orc full-tier default never exceeds, default 3600
+# @param PRE_PUSH_ORC_FULL_CAP (optional) - seconds the load-scaled orc full-tier default never exceeds, default 6000
 # @param PRE_PUSH_WUI_TIMEOUT (optional) - seconds for the wui part, default 420
 # @param PRE_PUSH_ONLY (optional) - lint = only the lint parts (do_check_pre_push_lint);
 # @param        override = only the seconds-cheap correctness parts, hygiene + lint-migration
@@ -481,7 +481,7 @@ _pp_budget() {  # <part-fn>
   case "$1" in
     _pp_part_api) _pp_full_timeout "${PRE_PUSH_API_FULL_TIMEOUT:-$(_pp_api_full_default)}" ;;
     _pp_part_iac) _pp_full_timeout "${PRE_PUSH_IAC_FULL_TIMEOUT:-600}" ;;
-    # the full tier runs every orc file: 16..17 min per CI shard of two
+    # the full tier runs every orc file: ~32..38 min on sat when idle
     _pp_part_orc) _pp_full_timeout "${PRE_PUSH_ORC_FULL_TIMEOUT:-$(_pp_orc_full_default)}" ;;
     _pp_part_wui) echo "${PRE_PUSH_WUI_TIMEOUT:-420}" ;;
     _pp_part_wui_e2e) echo "${PRE_PUSH_E2E_TIMEOUT:-600}" ;;
@@ -535,18 +535,26 @@ _pp_api_full_default() { _pp_load_scaled "$_pp_api_full_base" "${PRE_PUSH_API_FU
 # The orc full-tier default scales the same way (c-001@sat, 2026-10-26, note
 # 834cc140): on sat at load1 14..52 on 16 cpus (0.9..3.3/cpu) the orc part
 # TIMED OUT at the fixed 1800 s on 4 of 4 runs of c-168's tree (9ef87b9d6) and
-# on 2 of 2 trunk re-checks; run 5 got through 328 of 536 files, so the whole
-# suite needs ~2940 s there (536/328 x 1800). The base stays 1800 s (an idle
-# box, 16..17 min per CI shard of two); the cap 3600 s (2x) covers that
-# ~2940 s and is the value those lanes were told to set by hand. A hung suite
-# still stops, after at most 60 min.
-_pp_orc_full_base=1800
-_pp_orc_full_default() { _pp_load_scaled "$_pp_orc_full_base" "${PRE_PUSH_ORC_FULL_CAP:-3600}"; }
+# on 2 of 2 trunk re-checks. A hung suite still stops, after at most 100 min.
+# The base, re-measured 2026-10-27 (c-360, SPL-3748): the full-tier orc PASSes
+# in the box user's pre-push log on sat (16 cpus), against sar's load1 over each run,
+# 10-14..10-27: n=12 ran below 1 load per cpu, where the factor is 1, in
+# 1941..2274 s (2274 s at 0.97/cpu, 2234 s at 0.93, 2029 s at 0.43); one more
+# TIMED OUT at 1800 s at 0.59/cpu (c-168, 9ef87b9d6). So the 1800 s base
+# (a CI shard's time, not a whole-suite run) timed out every green full-tier
+# run on an idle box. 4000 s is 1.75x the slowest, 2274 s, rounded up, as the
+# api and iac bases are. CI for scale: master d56ef1fcb, run 40452091167, 552
+# files in 3 shards, sum wall 7709 s, cpu 6472 s.
+# The cap 6000 s (1.5x): the loaded runs grow ~1070 s per extra load/cpu
+# (2274 s at 0.97, 2679 s at 1.58, 3159 s at 1.80), so ~6040 s at 4.5/cpu,
+# the highest mean load seen over a run (c-908, 10-14).
+_pp_orc_full_base=4000
+_pp_orc_full_default() { _pp_load_scaled "$_pp_orc_full_base" "${PRE_PUSH_ORC_FULL_CAP:-6000}"; }
 _pp_budget_why() {  # <part-fn> -> where its budget came from (api and orc only)
   local part base cap var
   case "$1" in
     _pp_part_api) part=api base="$_pp_api_full_base" cap="${PRE_PUSH_API_FULL_CAP:-2700}" var=PRE_PUSH_API_FULL_TIMEOUT ;;
-    _pp_part_orc) part=orc base="$_pp_orc_full_base" cap="${PRE_PUSH_ORC_FULL_CAP:-3600}" var=PRE_PUSH_ORC_FULL_TIMEOUT ;;
+    _pp_part_orc) part=orc base="$_pp_orc_full_base" cap="${PRE_PUSH_ORC_FULL_CAP:-6000}" var=PRE_PUSH_ORC_FULL_TIMEOUT ;;
     *) return 0 ;;
   esac
   if [[ -n "${PRE_PUSH_PART_TIMEOUT:-}" ]]; then echo "PRE_PUSH_PART_TIMEOUT"
@@ -554,7 +562,7 @@ _pp_budget_why() {  # <part-fn> -> where its budget came from (api and orc only)
   elif [[ -n "${!var:-}" ]]; then echo "$var"
   else
     _pp_load_read
-    echo "$part full default ${base}s x load ${_PP_LOAD% *}/${_PP_LOAD#* } cpus, cap ${cap}s"
+    echo "$part full default ${base}s x load ${_PP_LOAD% *}/${_PP_LOAD#* } cpus, cap ${cap}s; raise it with $var"
   fi
 }
 _pp_part_api() {

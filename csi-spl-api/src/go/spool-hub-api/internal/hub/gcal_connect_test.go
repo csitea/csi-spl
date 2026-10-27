@@ -447,6 +447,26 @@ func TestGcalCallbackLandsOnTheWorkspaceHost(t *testing.T) {
 	}
 }
 
+// SPL-3815: a consent that left the calendar box unticked (Google's
+// granular consent) is refused at the callback, the grant revoked, and no
+// row stored: such a connection answered 403 on every sync.
+func TestGcalCallbackRefusesAMissingCalendarScope(t *testing.T) {
+	ids := mktIDs(1)
+	e := gcalEnvOf(t, ids, ids...)
+	hum := seat(t, e.env, ids[0], rbac.Developer)
+	e.fake.DenyScope("https://scope.example/calendar-test")
+	loc := gcalConnectMember(t, e, ids[0], hum)
+	if !strings.HasSuffix(loc, "/?settings=calendar-google&gcal_error=scope_missing") {
+		t.Fatalf("Location %q, want gcal_error=scope_missing", loc)
+	}
+	if _, err := gcalRow(t, e, ids[0], hum); err != store.ErrNotFound {
+		t.Fatalf("a grant without the calendar scope stored a row: %v", err)
+	}
+	if n := e.fake.Calls("revoke"); n != 1 {
+		t.Fatalf("revoke calls %d, want 1: the useless grant stays at Google", n)
+	}
+}
+
 // C24c: the browser preflight answers 204 with the CORS headers of
 // /v1/me/hours, and the methods of each path.
 func TestGcalPreflight(t *testing.T) {

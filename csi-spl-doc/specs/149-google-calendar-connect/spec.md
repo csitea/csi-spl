@@ -141,6 +141,11 @@ It mirrors 090 (`hub/marketing_channels.go`) with 010's nonce cookie added
    not hard-code it, so B5 does not wait for O1: the calendar scope is
    written into cnf with S2, from O1's answer), `access_type=offline`,
    `include_granted_scopes=true`, `prompt=consent`, `state`.
+   A consent that grants the sign-in but not every non-identity scope of
+   `gcal.scopes` (Google's granular consent lets the member untick the
+   calendar box) is refused at the callback: the grant is revoked, nothing
+   is stored, and the member lands on `gcal_error=scope_missing`
+   (SPL-3815). Kept, such a connection answered 403 on every sync.
 3. `GET /v1/me/google-calendar/callback?code&state` on the WUI origin
    (Hosting's `/v1/**` rewrite reaches the hub,
    `csi-spl-orc/src/bash/scripts/render-wui-firebase-json.sh:297`; no new

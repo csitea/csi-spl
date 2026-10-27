@@ -204,3 +204,18 @@ func TestTokensNeverPrint(t *testing.T) {
 		t.Fatalf("refresh error carries the token: %v", err)
 	}
 }
+
+// SPL-3815: identity scopes may be left out; a calendar scope may not.
+func TestMissingScopes(t *testing.T) {
+	c := gcal.Config{Scopes: "openid email https://www.googleapis.com/auth/calendar.app.created"}
+	for granted, want := range map[string]string{
+		"openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/calendar.app.created": "",
+		"https://www.googleapis.com/auth/calendar.app.created":                                                       "",
+		"openid https://www.googleapis.com/auth/userinfo.email":                                                      "https://www.googleapis.com/auth/calendar.app.created",
+		"": "https://www.googleapis.com/auth/calendar.app.created",
+	} {
+		if got := strings.Join(c.MissingScopes(granted), " "); got != want {
+			t.Errorf("granted %q: missing %q, want %q", granted, got, want)
+		}
+	}
+}

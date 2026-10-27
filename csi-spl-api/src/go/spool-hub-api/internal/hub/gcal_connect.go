@@ -235,6 +235,11 @@ func (s *Server) handleGcalCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	conn, err := s.connectGcal(r.Context(), gs, st, r.URL.Query().Get("code"))
+	if errors.Is(err, gcal.ErrScopeMissing) {
+		s.o.Log.Warn().Str("tenant", st.Tenant).Str("member", st.Member).Str("err", err.Error()).Msg("gcal: connect refused, calendar permission not granted")
+		http.Redirect(w, r, back+"gcal_error=scope_missing", http.StatusFound)
+		return
+	}
 	if err != nil {
 		s.o.Log.Error().Str("tenant", st.Tenant).Str("member", st.Member).Str("err", err.Error()).Msg("gcal: connect failed")
 		http.Redirect(w, r, back+"gcal_error=exchange_failed", http.StatusFound)

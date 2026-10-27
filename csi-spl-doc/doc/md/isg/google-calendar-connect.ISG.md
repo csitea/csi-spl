@@ -224,6 +224,7 @@ connection.
 | Google "access blocked" / app not verified for this user | 6.2: the account is not a test user |
 | back on Settings with `gcal_error=cancelled` | the member declined the consent screen |
 | back on Settings with `gcal_error=exchange_failed`; hub log `gcal: connect failed` | the code exchange failed; the log line carries the error |
+| back on Settings with `gcal_error=scope_missing`; hub log `gcal: connect refused, calendar permission not granted` | the member left the calendar box unticked on Google's consent page; the hub revoked that grant and stored nothing (SPL-3815). Connect again and tick it |
 | hub page `invalid_state` (400) | the connect link expired or was opened in another browser; start again |
 | hub 404 `google calendar is not available in this workspace` | cnf `gcal.workspaces` does not list the workspace |
 

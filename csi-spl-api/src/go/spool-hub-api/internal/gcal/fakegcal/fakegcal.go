@@ -45,6 +45,7 @@ const channelTTL = 7 * 24 * time.Hour
 
 type grant struct {
 	email   string
+	scope   string // what the token answers carry
 	revoked bool
 }
 
@@ -80,7 +81,9 @@ type Fake struct {
 	srv      *httptest.Server
 	mu       sync.Mutex
 	n        int
-	codes    map[string]string // code -> email
+	codes    map[string]*grant // code -> the grant it opens
+	scopes   string            // the scopes Config was given: what IssueCode grants
+	denied   []string          // scopes the member unticks on the consent page
 	refresh  map[string]*grant
 	access   map[string]access
 	cals     map[string]*calendar
@@ -93,7 +96,7 @@ type Fake struct {
 func New(t testing.TB) *Fake {
 	t.Helper()
 	f := &Fake{
-		codes: map[string]string{}, refresh: map[string]*grant{}, access: map[string]access{},
+		codes: map[string]*grant{}, refresh: map[string]*grant{}, access: map[string]access{},
 		cals: map[string]*calendar{}, channels: map[string]*channel{}, calls: map[string]int{},
 	}
 	mux := http.NewServeMux()
@@ -125,6 +128,7 @@ func (f *Fake) Config(redirectURI, scopes string) gcal.Config {
 	if !slices.Contains(f.redirect, redirectURI) {
 		f.redirect = append(f.redirect, redirectURI)
 	}
+	f.scopes = scopes
 	f.mu.Unlock()
 	return gcal.Config{
 		ClientID: ClientID, ClientSecret: marketing.NewPlaintext(ClientKey),
@@ -151,12 +155,32 @@ func (f *Fake) next(prefix string) string {
 // ---- test controls ----
 
 // IssueCode returns a one-time authorization code for email, as the consent
-// page would.
+// page would, granting the scopes Config was given less the denied ones.
 func (f *Fake) IssueCode(email string) string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	return f.issue(email, f.scopes)
+}
+
+// DenyScope makes every later consent leave scope out of the grant, as a
+// member who unticks that box on Google's granular consent page.
+func (f *Fake) DenyScope(scope string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.denied = append(f.denied, scope)
+}
+
+// issue mints a code for email granting requested less the denied scopes.
+// The caller holds f.mu.
+func (f *Fake) issue(email, requested string) string {
+	var granted []string
+	for _, s := range strings.Fields(requested) {
+		if !slices.Contains(f.denied, s) {
+			granted = append(granted, s)
+		}
+	}
 	c := f.next("code-")
-	f.codes[c] = email
+	f.codes[c] = &grant{email: email, scope: strings.Join(granted, " ")}
 	return c
 }
 
@@ -374,7 +398,10 @@ func (f *Fake) consent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	bq := back.Query()
-	bq.Set("code", f.IssueCode(DefaultEmail))
+	f.mu.Lock()
+	code := f.issue(DefaultEmail, q.Get("scope"))
+	f.mu.Unlock()
+	bq.Set("code", code)
 	bq.Set("state", q.Get("state"))
 	back.RawQuery = bq.Encode()
 	w.Header().Set("Location", back.String())
@@ -393,13 +420,13 @@ func (f *Fake) token(w http.ResponseWriter, r *http.Request) {
 	newRefresh := ""
 	switch r.PostForm.Get("grant_type") {
 	case "authorization_code":
-		email, ok := f.codes[r.PostForm.Get("code")]
+		cg, ok := f.codes[r.PostForm.Get("code")]
 		if !ok || r.PostForm.Get("redirect_uri") == "" {
 			oauthErr(w, http.StatusBadRequest, "invalid_grant")
 			return
 		}
 		delete(f.codes, r.PostForm.Get("code"))
-		g = &grant{email: email}
+		g = cg
 		newRefresh = f.next("fake-refresh-")
 		f.refresh[newRefresh] = g
 	case "refresh_token":
@@ -415,7 +442,7 @@ func (f *Fake) token(w http.ResponseWriter, r *http.Request) {
 	acc := f.next("fake-access-")
 	f.access[acc] = access{g: g, exp: f.now().Add(accessTTL)}
 	out := map[string]any{"access_token": acc, "expires_in": int(accessTTL.Seconds()), "token_type": "Bearer",
-		"scope": "openid email"}
+		"scope": g.scope}
 	if newRefresh != "" {
 		out["refresh_token"] = newRefresh
 	}

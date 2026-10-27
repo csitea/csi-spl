@@ -48,7 +48,36 @@ var (
 	// ErrSyncTokenGone is events.list refusing a syncToken (410): the caller
 	// clears it and lists in full (spec 149 section 2.5).
 	ErrSyncTokenGone = errors.New("gcal: sync token gone")
+	// ErrScopeMissing is a consent that granted the sign-in but not every
+	// calendar permission cnf asks for: the member left a box unticked on
+	// Google's granular consent page. Every sync of such a grant would fail
+	// (403 insufficient scopes), so the connect is refused instead (SPL-3815).
+	ErrScopeMissing = errors.New("gcal: a requested permission was not granted")
 )
+
+// identityScopes are the sign-in scopes: the hub reads the email with them,
+// never the calendar, so a consent may leave the profile ones out.
+var identityScopes = map[string]bool{
+	"openid": true, "email": true, "profile": true,
+	"https://www.googleapis.com/auth/userinfo.email":   true,
+	"https://www.googleapis.com/auth/userinfo.profile": true,
+}
+
+// MissingScopes answers the cnf scopes, identity scopes aside, that granted
+// (a token answer's space separated "scope") does not hold.
+func (c Config) MissingScopes(granted string) []string {
+	have := map[string]bool{}
+	for _, s := range strings.Fields(granted) {
+		have[s] = true
+	}
+	var missing []string
+	for _, s := range strings.Fields(c.Scopes) {
+		if !identityScopes[s] && !have[s] {
+			missing = append(missing, s)
+		}
+	}
+	return missing
+}
 
 // Config is the OAuth client and the Google endpoints, all from cnf.
 type Config struct {
@@ -191,7 +220,9 @@ type Token struct {
 	Scope     string
 }
 
-// Exchange trades an authorization code for the member's tokens.
+// Exchange trades an authorization code for the member's tokens. A grant
+// that lacks a calendar scope cnf asks for is revoked at once and answers
+// ErrScopeMissing: no connection is kept that could never sync.
 func (g *Google) Exchange(ctx context.Context, code string, now time.Time) (Token, error) {
 	tok, err := g.token(ctx, url.Values{
 		"grant_type":   {"authorization_code"},
@@ -203,6 +234,12 @@ func (g *Google) Exchange(ctx context.Context, code string, now time.Time) (Toke
 	}
 	if tok.Refresh.Reveal() == "" {
 		return Token{}, errors.New("gcal token exchange: no refresh token in the answer")
+	}
+	if missing := g.cfg.MissingScopes(tok.Scope); len(missing) > 0 {
+		if err := g.Revoke(ctx, tok.Refresh); err != nil {
+			return Token{}, fmt.Errorf("%w: %s (and %w)", ErrScopeMissing, strings.Join(missing, " "), err)
+		}
+		return Token{}, fmt.Errorf("%w: %s", ErrScopeMissing, strings.Join(missing, " "))
 	}
 	return tok, nil
 }

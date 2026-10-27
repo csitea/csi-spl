@@ -114,32 +114,46 @@ _spl_served_trailers() {
   else echo found; echo "trailers=found in$found" >&2; fi
 }
 
-# _spl_served_needs_deploy <wt> <base> <sha> -> yes | no
+# _spl_served_components <wt> <base> <sha> -> the components whose build
+# input BASE..SHA changed, space-separated: "hub wui", "hub", "wui" or "".
 # Asks do_check_deploy_lag "if BASE were served, would SHA be behind?" with
 # the probes pointed at a local file naming BASE and a grace nobody reaches:
-# every component current n=0 = no build input changed = no. Anything else,
-# "cannot tell" included, is yes: the real envs are then asked.
-_spl_served_needs_deploy() {
-  local wt="$1" base="$2" sha="$3" fx out
-  fx="$(mktemp)" || { echo yes; return 0; }
+# a component current n=0 = none of its build input changed. Anything else,
+# "cannot tell" included, lists it: the real envs are then asked about it
+# (SPL-3746: a blog-only commit needs only the wui, not an unrelated hub roll).
+_spl_served_components() {
+  local wt="$1" base="$2" sha="$3" fx out c list=""
+  fx="$(mktemp)" || { echo "hub wui"; return 0; }
   printf '{"commit":"%s"}' "$base" >"$fx"
   out="$(ENV=dev APP_PATH="$wt" SHA="$sha" COMPONENT=all GRACE_MINUTES=99999999 \
     LAG_HUB_URL="file://$fx" LAG_WUI_URL="file://$fx" do_check_deploy_lag 2>&1)"
   rm -f "$fx"
-  if [[ "$(grep -cE '^dev (hub|wui) current .* n=0 ' <<<"$out")" == 2 ]]; then echo no
-  else echo yes; fi
+  for c in hub wui; do
+    grep -qE "^dev $c current .* n=0 " <<<"$out" || list+=" $c"
+  done
+  echo "${list# }"
 }
 
-# _spl_served_env <env> <wt> <sha> -> served | lag | unknown
+# _spl_served_needs_deploy <wt> <base> <sha> -> yes | no
+# no = BASE..SHA changed no hub and no wui build input (_spl_served_components).
+_spl_served_needs_deploy() {
+  if [[ -n "$(_spl_served_components "$@")" ]]; then echo yes; else echo no; fi
+}
+
+# _spl_served_env <env> <wt> <sha> [components] -> served | lag | unknown
 # do_check_deploy_lag's lines: current = served, pending/lagging = lag.
+# Only the named components are judged (default "hub wui"): one that is
+# named alone is the only one asked (COMPONENT=hub|wui).
 _spl_served_env() {
-  local env="$1" wt="$2" sha="$3" up hv wv out
+  local env="$1" wt="$2" sha="$3" comps="${4:-hub wui}" up hv wv out comp=all want=2 rx
+  case "$comps" in hub|wui) comp="$comps"; want=1 ;; *) comps="hub wui" ;; esac
+  rx="(${comps// /|})"
   up="$(tr '[:lower:]' '[:upper:]' <<<"$env")"; hv="LAG_HUB_URL_$up"; wv="LAG_WUI_URL_$up"
-  out="$(ENV="$env" APP_PATH="$wt" SHA="$sha" COMPONENT=all \
+  out="$(ENV="$env" APP_PATH="$wt" SHA="$sha" COMPONENT="$comp" \
     LAG_HUB_URL="${!hv:-}" LAG_WUI_URL="${!wv:-}" do_check_deploy_lag 2>&1)"
   printf '%s\n' "$out" >&2
-  if [[ "$(grep -cE "^$env (hub|wui) " <<<"$out")" != 2 ]] || grep -qE "^$env (hub|wui) unknown " <<<"$out"; then
+  if [[ "$(grep -cE "^$env $rx " <<<"$out")" != "$want" ]] || grep -qE "^$env $rx unknown " <<<"$out"; then
     echo unknown
-  elif grep -qE "^$env (hub|wui) (pending|lagging) " <<<"$out"; then echo lag
+  elif grep -qE "^$env $rx (pending|lagging) " <<<"$out"; then echo lag
   else echo served; fi
 }

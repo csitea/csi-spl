@@ -11,8 +11,10 @@
 #      origin/master (`git merge-base --is-ancestor <sha> origin/master`,
 #      after a git-fetch-fresh.sh fetch);
 #   2. per sha: when it changed a hub or wui build input, dev AND prd serve it
-#      (_spl_served_needs_deploy / _spl_served_env of do_check_lane_served,
-#      i.e. do_check_deploy_lag); when it changed none, the body says
+#      (_spl_served_components / _spl_served_env of do_check_lane_served,
+#      i.e. do_check_deploy_lag), judged only on the components whose input
+#      it changed (SPL-3746: a blog-only sha is not held by a pending hub
+#      roll; a mixed one needs both); when it changed none, the body says
 #      `no deploy`;
 #   3. a `checked:` line naming the measured cases and a `not checked:` line
 #      (it may say `none`).
@@ -76,22 +78,22 @@ spl_desk_live_proof() {
   elif (( ! fetched )); then
     miss+=("a fetch of $remote/$branch to prove the sha(s) landed (the fetch failed)")
   else
-    local s e v needs parent
+    local s e v comps parent
     for s in "${shas[@]}"; do
       if ! git -C "$wt" merge-base --is-ancestor "$s" "$remote/$branch" 2>/dev/null; then
         miss+=("sha ${s:0:9} on $remote/$branch (it is not: say **Landed, not live yet** only once it is, rule 14)")
         continue
       fi
       parent="$(git -C "$wt" rev-parse --verify -q "$s^" 2>/dev/null)" || parent="$s"
-      needs="$(_spl_served_needs_deploy "$wt" "$parent" "$s" 2>/dev/null)"
-      if [[ "$needs" == no ]]; then
+      comps="$(_spl_served_components "$wt" "$parent" "$s" 2>/dev/null)"
+      if [[ -z "$comps" ]]; then
         grep -qiE '\bno[[:space:]-]+deploy\b' <<<"$body" ||
           miss+=("the words 'no deploy' for sha ${s:0:9}: it changed no hub or wui build input, so no build serves it")
         continue
       fi
       for e in ${LANE_ENVS:-dev prd}; do
-        v="$(_spl_served_env "$e" "$wt" "$s" 2>/dev/null)"
-        [[ "$v" == served ]] || miss+=("sha ${s:0:9} served on $e (do_check_deploy_lag says: ${v:-unknown})")
+        v="$(_spl_served_env "$e" "$wt" "$s" "$comps" 2>/dev/null)"
+        [[ "$v" == served ]] || miss+=("sha ${s:0:9} served on $e (do_check_deploy_lag says: ${v:-unknown}) judged on: $comps")
       done
     done
   fi

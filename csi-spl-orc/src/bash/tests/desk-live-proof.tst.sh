@@ -23,8 +23,13 @@
 #      name, a clone on another box and a csi-spl sha are refused
 #  11. SPL-2706: an all-digit short sha of a commit on origin/master (c-597's
 #      704617890 shape) is a sha; a 9-digit number that is no commit is not
+#  12. SPL-3746: only the components whose input the sha changed are judged.
+#      do_check_deploy_lag is stubbed (c-002's 701c8a61f lines: wui current,
+#      hub pending): a wui-only sha is sent; a hub sha, a mixed sha and a
+#      wui-only sha with the wui pending are still refused
 # The served verdicts are stubbed at do_check_lane_served's seams
-# (_spl_served_needs_deploy / _spl_served_env, tested in lane-served.tst.sh);
+# (_spl_served_components / _spl_served_env, tested in lane-served.tst.sh);
+# case 12 stubs one level lower, do_check_deploy_lag, to drive the seams;
 # the git side is a real repo with a local origin.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -68,6 +73,7 @@ spl_desk_spool() {
   echo "{\"msg_id\":\"m1\"}"
 }
 _spl_served_needs_deploy() { echo "$NEEDS"; }
+_spl_served_components() { [[ "$NEEDS" == no ]] || echo "hub wui"; }
 _spl_served_env() { echo "$SERVED"; }'
 
 # send <action> <body> [VAR=value]... -> rc; output in $T/o, the sent body in $T/sent
@@ -217,6 +223,47 @@ NUM=123456789
 B="**Live** run $NUM (orc only, no deploy)"$'\n'"$PROOF"
 send do_spl_desk_reply "$B" NEEDS=no; rc=$?
 refused "11. a 9-digit number that is no commit is still no sha" "commit sha on origin/master"
+
+# --- 12. only the components the sha feeds are judged (SPL-3746) ------------------
+# The seams run for real; do_check_deploy_lag is the stub. Asked with a file://
+# probe it is _spl_served_components' question: TOUCH names the components
+# whose input the sha changed. Asked for real it prints c-002's 701c8a61f
+# lines: PENDING names the components still rolling, the others are current.
+STUBS_SEAMS="${STUBS%%_spl_served_needs_deploy*}"'
+do_check_deploy_lag() {
+  local c
+  for c in hub wui; do
+    if [[ "${LAG_HUB_URL:-}" == file://* ]]; then
+      if [[ " $TOUCH " == *" $c "* ]]; then echo "dev $c pending served=5ea1c2c0 sha=701c8a61 n=1 oldest=701c8a61 age=1m grace=99999999m"
+      else echo "dev $c current served=5ea1c2c0 sha=701c8a61 n=0 (no $c build input changed since the served commit)"; fi
+      continue
+    fi
+    [[ "$COMPONENT" == all || "$COMPONENT" == "$c" ]] || continue
+    echo "$c" >>"$ASKED"
+    if [[ " $PENDING " == *" $c "* ]]; then echo "$ENV $c pending served=ecb9ca07 sha=701c8a61 n=1 oldest=5ea1c2c0 age=22m grace=45m age_from=commit"
+    else echo "$ENV $c current served=701c8a61 sha=701c8a61 (the env serves this commit or a later one)"; fi
+  done
+}'
+seams() { # <action> <body> TOUCH=.. PENDING=..: send with the real seams
+  local keep="$STUBS"; STUBS="$STUBS_SEAMS"; : >"$T/asked"
+  send "$1" "$2" ASKED="$T/asked" "${@:3}"; rc=$?; STUBS="$keep"
+}
+B="**Live** ${ON:0:9} (the blog posts) on dev and prd"$'\n'"$PROOF"
+seams do_spl_desk_reply "$B" TOUCH=wui PENDING=hub
+sent "12. a wui-only sha with an unrelated hub roll pending is sent" "$B"
+grep -qx hub "$T/asked" && fail "12. the hub was asked about a wui-only sha: $(sort "$T/asked" | uniq -c)" ||
+  pass "12. only the wui was asked"
+seams do_spl_desk_reply "$B" TOUCH=hub PENDING=hub
+refused "12. CONTROL a hub sha with the hub pending is still refused" "sha ${ON:0:9} served on dev (do_check_deploy_lag says: lag) judged on: hub" "served on prd"
+seams do_spl_desk_reply "$B" TOUCH="hub wui" PENDING=hub
+refused "12. a mixed sha with the hub pending is refused" "served on dev (do_check_deploy_lag says: lag) judged on: hub wui"
+seams do_spl_desk_reply "$B" TOUCH=wui PENDING=wui
+refused "12. a wui-only sha with the wui pending is refused" "served on dev (do_check_deploy_lag says: lag) judged on: wui"
+seams do_spl_desk_reply "$B" TOUCH=hub PENDING=wui
+sent "12. a hub-only sha with only a wui roll pending is sent" "$B"
+B6="**Live** ${ON:0:9} (orc only, no deploy)"$'\n'"$PROOF"
+seams do_spl_desk_reply "$B6" TOUCH= PENDING="hub wui"
+sent "12. a sha that feeds neither is sent with 'no deploy', nothing pending matters" "$B6"
 
 echo "desk-live-proof: $fails failure(s)"
 ((fails == 0))

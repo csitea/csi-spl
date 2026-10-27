@@ -506,6 +506,7 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeFleetTokens(mux)   // spec 140, rdb 0199: GET /v1/operator/fleet-tokens
 	s.routeFleetLanes(mux)    // spec 153 3.3, rdb 0221: GET /v1/operator/fleet-lanes, fleet_lanes_view.go
 	s.routeLanesView(mux)     // spec 153 3.6, B6: GET /v1/view/lanes, a workspace's own, workspace_lanes_view.go
+	s.routeFileStreams(mux)   // spec 160 3.4, B3: GET /v1/view/file-streams, file_streams_view.go
 	s.routeFleetPaid(mux)     // SPL-2342, rdb 0205: paid items + effective price, fleet_token_paid.go
 	s.routeReportingSQL(mux)  // spec 143 3: POST /v1/reporting/sql, workspace admins, reporting_sql.go
 	s.routeCategories(mux)    // spec 143 4.5, rdb 0204: activity categories + token rollup, categories.go

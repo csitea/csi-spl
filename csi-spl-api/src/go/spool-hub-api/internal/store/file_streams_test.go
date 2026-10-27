@@ -97,7 +97,7 @@ func (c fsCase) stream(t *testing.T, tid, key string) FileStream {
 
 func (c fsCase) kept(t *testing.T, tid, key string) []FileStreamLine {
 	t.Helper()
-	ls, err := c.fs.FileStreamLinesAfter(c.ctx, tid, c.stream(t, tid, key).ID, 0, 1000)
+	ls, err := c.fs.FileStreamLines(c.ctx, tid, c.stream(t, tid, key).ID, FileStreamLinesQuery{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +173,7 @@ func TestFileStreamBoxAndWorkspaceAreTheCallers(t *testing.T) {
 			if all, _ := c.fs.ListFileStreams(c.ctx, w2); len(all) != 0 {
 				t.Fatalf("W2 lists W's streams: %+v", all)
 			}
-			if _, err := c.fs.FileStreamLinesAfter(c.ctx, w2, c.stream(t, w, "app").ID, 0, 10); !errors.Is(err, ErrNotFound) {
+			if _, err := c.fs.FileStreamLines(c.ctx, w2, c.stream(t, w, "app").ID, FileStreamLinesQuery{}); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("W2 reads W's stream by id: %v, want ErrNotFound", err)
 			}
 		})

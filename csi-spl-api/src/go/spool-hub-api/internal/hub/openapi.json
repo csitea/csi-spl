@@ -14268,6 +14268,108 @@
         ]
       }
     },
+    "/v1/view/file-streams": {
+      "get": {
+        "operationId": "getViewFileStreams",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: the workspace's file streams (spec 160 3.4): streams, each with id, box_id, stream_key, path, state, reason, last_line_at, last_seq and the lines_total, lines_dropped and lines_kept counters"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "501": {
+            "description": "this hub's store keeps no file streams"
+          }
+        },
+        "summary": "List the workspace's file streams (owner or admin, member session, not act-as)",
+        "tags": [
+          "view"
+        ]
+      }
+    },
+    "/v1/view/file-streams/{id}/lines": {
+      "get": {
+        "operationId": "getViewFileStreamLines",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the lines with seq > after, oldest first; not with before",
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "the newest lines with seq < before (scrolling up); not with after",
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "lines per page, default 200, capped at 1000",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: lines, oldest first, each with seq, at, text and marker (spec 160 3.4); without after or before the newest limit lines"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "501": {
+            "description": "this hub's store keeps no file streams"
+          }
+        },
+        "summary": "Read one file stream's lines (owner or admin, member session, not act-as)",
+        "tags": [
+          "view"
+        ]
+      }
+    },
     "/v1/view/flow": {
       "get": {
         "operationId": "getViewFlow",

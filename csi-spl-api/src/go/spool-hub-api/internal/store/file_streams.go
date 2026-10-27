@@ -136,10 +136,49 @@ type FileStreamStore interface {
 	RecordFileStreamLines(ctx context.Context, tenant, box string, p wire.FileStreamsPushFrame, lim FileStreamLimits, now time.Time) (FileStreamPushResult, error)
 	// ListFileStreams is tenant's streams, by box then key.
 	ListFileStreams(ctx context.Context, tenant string) ([]FileStream, error)
-	// FileStreamLinesAfter is up to limit lines of stream id in tenant with
-	// seq > after, oldest first (row B3 reads it for the tab); ErrNotFound
-	// for a stream that is not tenant's.
-	FileStreamLinesAfter(ctx context.Context, tenant, id string, after int64, limit int) ([]FileStreamLine, error)
+	// FileStreamLines is up to q.Limit lines of stream id in tenant, oldest
+	// first: those after q.After, or the newest before q.Before, or with
+	// neither the newest of all (spec 160 3.4, row B3). ErrNotFound for a
+	// stream that is not tenant's.
+	FileStreamLines(ctx context.Context, tenant, id string, q FileStreamLinesQuery) ([]FileStreamLine, error)
+}
+
+// FileStreamLinesQuery is one page of a stream's lines. At most one of After
+// and Before is set; Limit <= 0 reads as wire.FileStreamLinesPerPush.
+type FileStreamLinesQuery struct {
+	After  *int64
+	Before *int64
+	Limit  int
+}
+
+// limit is q.Limit, or the default.
+func (q FileStreamLinesQuery) limit() int {
+	if q.Limit <= 0 {
+		return wire.FileStreamLinesPerPush
+	}
+	return q.Limit
+}
+
+// fileStreamPage is q applied to every line of one stream, sorted by seq.
+func fileStreamPage(all []FileStreamLine, q FileStreamLinesQuery) []FileStreamLine {
+	n := q.limit()
+	if q.After != nil {
+		var out []FileStreamLine
+		for _, l := range all {
+			if l.Seq > *q.After && len(out) < n {
+				out = append(out, l)
+			}
+		}
+		return out
+	}
+	end := len(all)
+	if q.Before != nil {
+		end = 0
+		for end < len(all) && all[end].Seq < *q.Before {
+			end++
+		}
+	}
+	return all[max(0, end-n):end]
 }
 
 // fileStreamAnnouncePlan is the kept state of each announced key: the box's

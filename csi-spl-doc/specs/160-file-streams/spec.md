@@ -6,8 +6,8 @@ The owner's GO and answers (section 7.1): Q1 A, Q2 A, Q3 A, Q4 GO (HUM-10,
 msg 44ec2e44 on the v0.3 poll), then all A again on the v0.1 poll (msg
 5c6686f2, 2026-10-27), whose Q1 A is the desk log the deny list refuses
 (7.1). Row B1 is built (SPL-3820, section 5.1), its cron row off by cnf
-until it is switched on; B2 is built (SPL-3888, section 5.2); B3..B7 are
-being built by the same lane, row by row.
+until it is switched on; B2 and B3 are built (SPL-3888, sections 5.2 and
+5.3); B4..B7 are being built by the same lane, row by row.
 
 Source: the owner's asks in the owner's customer workspace (section 1); the
 discussion moved to the operator workspace topic
@@ -640,6 +640,34 @@ Monitoring help page and B4 the syntax to the search help
   tables, so `TestCrossTenantEveryTable` covers them),
   `hub/file_streams_test.go` (C11, C23 over the socket),
   `cli/file_streams_test.go` (the frame, the split, the refusals).
+
+### 5.3 Row B3 as built (SPL-3888)
+
+- Code: `hub/file_streams_view.go` (`routeFileStreams`, registered in
+  `hub/server.go`; both routes in `hub/openapi.json`), and the store read
+  `FileStreamLines(ctx, tenant, id, FileStreamLinesQuery{After, Before,
+  Limit})` in `store/file_streams.go`, which replaces B2's
+  `FileStreamLinesAfter`, in memory and in Postgres (the newest-first page
+  is read `ORDER BY seq DESC LIMIT n`, then reversed, so a page is always
+  oldest first).
+- The gate, in this order: a member session (an operator service account
+  or a box has none: 403), not a live act-as clone (403), then
+  `TenantOwner || Has(rbac.Admin)` in W (403). The 403 body names
+  `file_streams.staff`, which is a label, not an rbac permission. A store
+  without file streams answers 501.
+- The list carries three fields more than 3.4 names: `reason` (why a
+  stream is `refused` or `missing`), `last_seq` (where the tab's first
+  `after=` poll starts) and `lines_kept`.
+- `after` and `before` together are 400; `after` < 0, `before` < 1 or
+  `limit` < 1 is 400; `limit` above 1000 is read as 1000.
+- C13 is tested in `hub/file_streams_view_test.go`, not in
+  `crosstenant_test.go` as row B3 of the table says: another workspace's
+  id is 404 `not_found` there, and the body names nothing of W.
+- Tests: `hub/file_streams_view_test.go`: C12, the lines paging, C13, C27
+  (Postgres only: the clone store), C28. C29 is tested as a call with no
+  member session, which is what a box has on a view route; a box's own
+  socket session asking a read route is not exercised. Red control for
+  C27: with the clone check taken out, the clone reads all three paths 200.
 
 ## 6. Decisions (this draft; the reviewer may challenge each)
 

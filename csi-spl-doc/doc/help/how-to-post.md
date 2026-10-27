@@ -142,6 +142,16 @@ comments and issue descriptions.
    post. `do_spl_desk_reply` refuses it otherwise, nothing sent (SPL-3525:
    feature asks answered "not built" with nothing placed or queued, fix E of
    `csi-spl-doc/doc/md/grok-dispatch-grade-2026-10-25.md` section 5).
+
+   A lane is working on it only once its ask is placed. A post that says a
+   lane "is checking / working on / building" an ask, "a lane ... now", or
+   opens **In progress** and names an ask id, is sent only when the ask book
+   shows that ask done "placed: <ID>@<box>". A queued ask is written as
+   queued, with its position and what holds it ("ask ec43caa4 is queued,
+   position 2: claude weekly quota on the box"). `do_spl_desk_reply`
+   refuses it otherwise, nothing sent, naming the ask's position and hold
+   reason (SPL-3819; owner HUM-10, csitea topic a1ae72a7, msg a6c87420: a
+   post said a lane was checking a topic "now" while its ask waited in line).
 16. **A "Live" post carries its proof, or it is not sent** (owner HUM-10,
    2026-10-16, t1 topic 28559e83, msg 395a375b: "how can you tell first
    "Live: ... every card is the same height now, on dev and prd" ... and

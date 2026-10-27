@@ -55,6 +55,11 @@
 # @description nothing sent) unless it names an ask id the hub ask book shows
 # @description queued or placed (spl_desk_planned_ask; how-to-post.md rule 15,
 # @description SPL-3525).
+# @description A body that says a lane is working now ("is checking", "is
+# @description building", "a lane ... now", **In progress**) on an ask the
+# @description book shows queued, not placed, is refused (FATAL with its
+# @description position and hold reason, nothing sent; spl_desk_running_ask;
+# @description how-to-post.md rule 15, SPL-3819).
 # @description A body that says released / deployed with a commit sha but no
 # @description /releases/ link for it gets a WARN per sha (spec 065 7.3, L9):
 # @description ask the lane to add the line do_release_note_link prints. A
@@ -134,6 +139,7 @@ do_spl_desk_reply() {
   spl_desk_poll_check "$body" || return 1
   spl_desk_placed_check "$body" || return 1
   spl_desk_planned_ask "$body" || return 1
+  spl_desk_running_ask "$body" || return 1
 
   local hub d
   hub="$SPL_HUB_URL"

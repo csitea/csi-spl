@@ -6,7 +6,8 @@ The owner's GO and answers (section 7.1): Q1 A, Q2 A, Q3 A, Q4 GO (HUM-10,
 msg 44ec2e44 on the v0.3 poll), then all A again on the v0.1 poll (msg
 5c6686f2, 2026-10-27), whose Q1 A is the desk log the deny list refuses
 (7.1). Row B1 is built (SPL-3820, section 5.1), its cron row off by cnf
-until B2 lands; B2..B7 are being built by one lane (SPL-3888), row by row.
+until it is switched on; B2 is built (SPL-3888, section 5.2); B3..B7 are
+being built by the same lane, row by row.
 
 Source: the owner's asks in the owner's customer workspace (section 1); the
 discussion moved to the operator workspace topic
@@ -584,6 +585,61 @@ Monitoring help page and B4 the syntax to the search help
   session the agent user's push rides (the token burn pushes as the box
   owner's desk, `spl_token_burn_spool`) is B2's to settle;
   `FILE_STREAMS_PUSH_CMD` replaces the command.
+
+### 5.2 Row B2 as built (SPL-3888)
+
+- Code: `wire/file_streams.go` (the two frames, `DecodeFileStreamsAnnounce`,
+  `DecodeFileStreamsPush`), `cli/file_streams.go` (`spool file-streams push
+  --json <file|->`: reads a follower frame, sends its lane payload, prints
+  the ack as one JSON line of type `ack`), rdb
+  `0236_file_streams.sql` (the next free prefix at push time;
+  renumbered at each rebase if another lane lands first),
+  `store/file_streams.go` (the contract and the shared rules),
+  `store/file_streams_memory.go`, `store/file_streams_postgres.go`,
+  `hub/file_streams.go` (lane ops `file_streams_announce` and
+  `file_streams_push`, routed from `hub/box_lane.go`).
+- The box and the workspace are the session's: the decoders refuse any
+  field they do not know, so a frame naming a box or a tenant is
+  `bad_file_stream` (C11). A push stores nothing when refused (C23): 413
+  `too_large` past 1000 lines or the byte cap, 429 `rate_limited` when a
+  minute of the stream would hold more than twice the line rate (counted
+  after the insert inside the push's transaction, so a re-sent seq never
+  counts twice, then rolled back), 409 `not_announced`, 403 `refused` for a
+  stream the hub refused at announce.
+- **The frame size is 448 KiB, not 1 MiB.** The hub's socket reads at most
+  512 KiB a frame (`hub/ws.go` `maxFrameBytes`), so the CLI splits a
+  follower frame (up to 1 MiB, 3.7) into parts of at most
+  `wire.FileStreamPushMaxBytes` = 448 KiB and 1000 lines, in seq order;
+  `dropped` and `redactions` ride the first part only. The hub keys on
+  `(tenant, stream, seq)`, so a part re-sent after a failure is acked and
+  not stored twice.
+- **The caps at insert** (3.7, N2, C38): `file_streams` keeps
+  `lines_kept` and `bytes_kept` per stream, updated in the push's own
+  transaction, so the workspace's totals are a sum over its few stream
+  rows. Over a cap, the push deletes the workspace's own oldest lines (by
+  `at`, stream, seq; at most 1000 a statement, and for the byte cap only as
+  many as the overshoot needs) in its tenant scope; never another
+  workspace's.
+- **Workspaces that stream** (`max_workspaces`): counted over the streams
+  that are `following` or `missing`, inside the announce's transaction
+  (the one operator-scope read, `fileStreamWorkspaces`, listed in
+  `operatorCallers`); a 5th workspace's announce is stored and answered
+  `refused` (`max_workspaces`) on every key. A refused-only list does not
+  count. Keys past 8 per box are `refused` (`streams_per_box`).
+- Times: a line older than the 7 days is acked and not stored; a line
+  more than 2 minutes ahead of the hub's clock is stored at the hub's now.
+- `dropped` and the redaction counts are added per push; a push re-sent
+  after a lost ack adds them again (the lines are not stored twice). The
+  hub's caps are `hub.Options.FileStreamLimits`, defaults in code until B7
+  puts them in the cnf.
+- Not in B2: the follower stays off (cnf `enabled: false`); which hub
+  session the agent user's push rides is settled when it is switched on.
+- Tests: `wire/file_streams_test.go`, `store/file_streams_test.go` (memory
+  and Postgres: C11, C23, C30, C38, the caps, the times, a push with no
+  redactions), `store/crosstenant_test.go` (`seedTenantAll` seeds both
+  tables, so `TestCrossTenantEveryTable` covers them),
+  `hub/file_streams_test.go` (C11, C23 over the socket),
+  `cli/file_streams_test.go` (the frame, the split, the refusals).
 
 ## 6. Decisions (this draft; the reviewer may challenge each)
 

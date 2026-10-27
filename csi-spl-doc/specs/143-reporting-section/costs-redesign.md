@@ -2,10 +2,12 @@
 
 Issue SPL-3789 · Epic SPL-2389 · Spec [143](spec.md) · Panel of 2 seats.
 
-**Signatures** (both on one sha):
+**Signatures** (both on one sha, `370fab983`, the merged text; this commit
+only records them):
 
-- claude seat, editor (c-385): pending
-- mistral slot, held by a claude seat (c-275): pending
+- claude seat, editor (c-385): SIGN 370fab983 (its author, 2026-10-27)
+- mistral slot, held by a claude seat (c-275): SIGN 370fab983 (spool
+  msg:698aeeca-02bd-4760-8960-15ae58502404, task dispatch-1be0e370)
 
 The seat files, each written before its author read the other one:
 [seat-claude.md](costs-redesign/seat-claude.md) (landed `1661ce01f`) and

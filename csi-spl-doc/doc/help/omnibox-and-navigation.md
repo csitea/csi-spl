@@ -137,7 +137,7 @@ The moment you click send, a small spinning hourglass appears on your message (b
 
 - If no agent is in the topic, or none has answered within 10 minutes, the hourglass stops spinning and stays as a calm *waiting* mark. An operator sets the minutes in the configuration (`env.wui.await_reply_minutes`).
 - After a day without an answer the mark is no longer shown.
-- Pick how it looks in *Settings → Appearance → Thinking animation*. The default, *Take turns*, shows the hourglass, a running robot and a brain in turn, about 3 seconds each, for as long as you wait; every waiting message on screen shows the same one. You can also pick one of them to stay.
+- Pick how it looks in *Settings → Appearance → Thinking animation*. By default all 17 animations are ticked and take turns, about 3 seconds each, for as long as you wait; every waiting message on screen shows the same one. Untick the ones you do not want to narrow the turns; with one ticked, that one stays.
 - With *reduce motion* switched on in your system, the hourglass does not move and does not change.
 - Screen readers announce it as a status: *Received — waiting for an agent's answer*, or *Waiting for an answer*.
 

@@ -14,6 +14,9 @@
 #          3. fail closed: an orc file without spl_th_entry_check refuses 052.
 #          4. static: the sweep and the tenant-host apply reach 052 only via
 #             make do-provision, and that target runs do_provision.
+#          5. SPL-3775: do_tf_apply_target (make do-tf-apply-target) applies
+#             without do_provision, so it runs the same check itself: cases
+#             1-3 again for a targeted apply.
 #          No terraform, no GCP: terraform and do_tf_init are stubs.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -83,6 +86,45 @@ out=$(provision 052-gcs-workspace-docs); rc=$?
 rm -f "$A/$ORC_FN_REL"
 out=$(provision 052-gcs-workspace-docs); rc=$?
 [[ $rc -ne 0 ]] && ! grep -q terraform "$T/calls" && pass "no orc file -> 052 refused (fail closed)" || fail "052 applied with no orc file: rc=$rc out=$out"
+
+# --- 5. SPL-3775: make do-tf-apply-target runs do_tf_apply_target, which ----
+# applies by itself, never through do_provision. Only tf-apply-target.func.sh
+# is sourced here, so it must reach the check on its own.
+cp "$APP_ROOT/$ORC_FN_REL" "$A/$ORC_FN_REL"
+cp "$T/dev.bad.yaml" "$C/dev.env.yaml"
+apply_target() {
+  : >"$T/calls"
+  env -i PATH="$T/bin:/usr/bin:/bin:/usr/local/bin" HOME="$T" CALLS="$T/calls" PROJ_PATH="$P" APP_PATH="$A" \
+    ORG=csi APP=spl ENV=dev STEP="$1" TARGET=module.x SKIP_CONTAINER_DNS_CHECK=1 RUN_DIR_SRC="$RUN_DIR_SRC" bash -c '
+    set -u
+    do_log() { echo "$*"; }
+    do_simple_log() { echo "$*"; }
+    do_tf_init() { tf_proj="$STEP"; tf_run_path="$PROJ_PATH/bin/$ENV/$STEP"; mkdir -p "$tf_run_path"; }
+    source "$RUN_DIR_SRC/tf-apply-target.func.sh"
+    do_tf_apply_target' 2>&1
+}
+out=$(apply_target 052-gcs-workspace-docs); rc=$?
+[[ $rc -ne 0 ]] && ! grep -q terraform "$T/calls" && pass "apply-target: unmapped 052 workspace -> refused, terraform never ran (rc=$rc)" \
+  || fail "apply-target: unmapped 052 ran: rc=$rc calls=$(cat "$T/calls")"
+grep -q "$PLANT" <<<"$out" && grep -q REFUSED <<<"$out" && pass "apply-target: the refusal says REFUSED and names the workspace" \
+  || fail "apply-target: refusal lacks REFUSED/$PLANT: $out"
+for s in 040-cloud-sql-postgres 070-x; do
+  out=$(apply_target "$s"); rc=$?
+  [[ $rc -eq 0 ]] && grep -q ' apply .*-target=module.x' "$T/calls" && pass "apply-target: $s applies on the cnf that refuses 052" \
+    || fail "apply-target: $s: rc=$rc out=$out"
+done
+yq -i ".env.dns.mapped_tenants += [\"$PLANT\"]" "$C/dev.env.yaml"
+out=$(apply_target 052-gcs-workspace-docs); rc=$?
+[[ $rc -eq 0 ]] && grep -q ' apply .*-target=module.x' "$T/calls" && pass "apply-target CONTROL: mapped -> the 052 targeted apply runs" \
+  || fail "apply-target CONTROL: mapped 052 did not apply: rc=$rc out=$out calls=$(cat "$T/calls")"
+sed 's/^spl_th_entry_check()/renamed_entry_check()/' "$APP_ROOT/$ORC_FN_REL" >"$A/$ORC_FN_REL"
+out=$(apply_target 052-gcs-workspace-docs); rc=$?
+[[ $rc -ne 0 ]] && ! grep -q terraform "$T/calls" && pass "apply-target: no spl_th_entry_check -> 052 refused (fail closed)" \
+  || fail "apply-target: 052 applied without the check function: rc=$rc out=$out"
+rm -f "$A/$ORC_FN_REL"
+out=$(apply_target 052-gcs-workspace-docs); rc=$?
+[[ $rc -ne 0 ]] && ! grep -q terraform "$T/calls" && pass "apply-target: no orc file -> 052 refused (fail closed)" \
+  || fail "apply-target: 052 applied with no orc file: rc=$rc out=$out"
 
 # --- 4. static: every 052 apply path reaches do_provision -------------------
 grep -qE '_tf_sweep_make do-provision ' "$ORC/src/bash/run/tf-sweep-steps.func.sh" \

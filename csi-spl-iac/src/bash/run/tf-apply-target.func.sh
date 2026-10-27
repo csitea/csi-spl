@@ -5,12 +5,24 @@
 #------------------------------------------------------------------------------
 declare -F env_order_gate >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/check-dev-leads-prd.func.sh"
+# SPL-3775: a targeted apply runs terraform here, never through do_provision,
+# so it calls the same 052 entry check (SPL-3651) itself: sourced, never copied.
+declare -F _provision_052_entry_check >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/provision.func.sh"
 
 do_tf_apply_target() {
 
   do_log "INFO START ::: provisioning step ${STEP}"
 
   TARGET=${TARGET:?}
+  # SPL-3775: an unmapped steps.052 workspace refuses the apply; a missing
+  # check refuses a 052 step too (fail closed). Other steps: no-op.
+  if declare -F _provision_052_entry_check >/dev/null; then
+    _provision_052_entry_check || return 1
+  elif [[ "${STEP:-}" == 052-* ]]; then
+    do_log "FATAL REFUSED: $ENV apply of STEP=$STEP: _provision_052_entry_check not loaded (provision.func.sh)"
+    return 1
+  fi
   # SPL-1947: a prd apply waits until dev carries the same change.
   env_order_gate || return $?
 

@@ -36,3 +36,4 @@ fx-rates-fetch    | 37 16 * * *     | src/bash/scripts/fx-rates-fetch-cron.sh   
 push-orphan-check | * * * * *       | src/bash/scripts/push-orphan-check-cron.sh              | push-orphan-check/cron.log |
 restore-drill-red-note | 7,37 * * * *  | src/bash/scripts/restore-drill-red-note-cron.sh         | restore-drill-red-note/cron.log |
 login2-sync       | */5 * * * *     | src/bash/scripts/login2-sync-cron.sh                    | login2-sync/cron.log  |
+file-streams      | * * * * *       | src/bash/scripts/file-stream-follow-cron.sh             | file-streams/cron.log |

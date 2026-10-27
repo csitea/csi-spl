@@ -1,8 +1,11 @@
 # 160 File streams: follow a box file live in Monitoring, and search it
 
 Version v0.3 (2026-10-26), reviewed: claude review PASS (c-317 on
-`2f1ee57b5`, section 8), after a FAIL on v0.1 (W1-W9) and on v0.2 (N1-N4). Nothing is built. Docs only until the owner's GO (section 7), then the build
-rows of section 5 land one by one, each after its own review PASS + GO.
+`2f1ee57b5`, section 8), after a FAIL on v0.1 (W1-W9) and on v0.2 (N1-N4).
+The owner's GO and answers (section 7): Q1 A, Q2 A, Q3 A, Q4 GO (HUM-10,
+msg 44ec2e44). Row B1 is built (SPL-3820, section 5.1), its cron row off by
+cnf until B2 lands; B2..B7 are not built. The build rows of section 5 land
+one by one, each after its own review PASS + GO.
 
 Source: the owner's asks in the owner's customer workspace (section 1); the
 discussion moved to the operator workspace topic
@@ -542,6 +545,44 @@ contract); B3, B4 and B6 after B2; B5 after B3; B7 after B4 and B6.
 Docs: each row updates this spec's status line; B5 adds the tab to the
 Monitoring help page and B4 the syntax to the search help
 (`csi-spl-doc/doc/help/`).
+
+### 5.1 Row B1 as built (SPL-3820)
+
+- Code: `orc/scripts/file-stream-follow.py` (follower, deny list
+  `spl_file_stream_denied`, `open_checked`, PEM state), the action
+  `do_spl_file_stream_follow` (`orc/run/spl-file-stream-follow.func.sh`:
+  reads cnf `env.box.file_streams`, runs the follower as the first
+  `spl_cost_agent_users` user, `sudo -n -H -u` when that is not the caller),
+  the cron wrapper `orc/scripts/file-stream-follow-cron.sh` and the manifest
+  row `file-streams` (every minute; the follower's flock makes a start while
+  one runs exit 0).
+- Off until B2: cnf `env.box.file_streams.enabled: false`, so the cron row
+  logs one `file-streams: off` line a minute and opens no file. The test
+  fails while `enabled` is not false and no `file_streams_push` is under
+  `csi-spl-api/src`; it retires itself when B2 lands. The allow-list ships
+  with the owner's Q1 A file, `token-burn-cron` =
+  `/var/csi/csi-spl/token-burn/cron.log`.
+- Tests: `orc/tests/spl-file-stream-follow.tst.sh`, cases C1-C10, C25, C26,
+  C31-C37, each run on the follower and on a copy with one planted defect,
+  which must go red (the control). C7 uses the owner and other mode bits
+  (`0044` refused, `0400` followed): a test cannot make a file another user
+  owns without root, so the ACL form of 4 is not run. C36's `O_PATH`-only
+  check uses strace when the box can trace, else it checks only that the
+  tick is not blocked.
+- Beyond 3.1/3.2, all stricter: the deny list also refuses `inbox/` and
+  `outbox/` segments, the follower's own state dir, and the cnf
+  `spool_root`, `workspace_base`, `fleet_workspace_base` and
+  `$SPL_STATE_DIR/desk`; first sight runs the PEM state over up to 1 MiB
+  above its start, so a key whose BEGIN is above the last 200 lines still
+  masks its body; the announce sends the cnf path (`$HOME/` unexpanded), not
+  the resolved one; the tick line is logged on a change, else every 300
+  ticks.
+- For B2: the push runs `timeout 20 spool file-streams push --json -` as
+  the agent user, the frame on stdin, an ack is a stdout JSON line with
+  `"type": "ack"` (then the frame's lines leave the queue). Which hub
+  session the agent user's push rides (the token burn pushes as the box
+  owner's desk, `spl_token_burn_spool`) is B2's to settle;
+  `FILE_STREAMS_PUSH_CMD` replaces the command.
 
 ## 6. Decisions (this draft; the reviewer may challenge each)
 

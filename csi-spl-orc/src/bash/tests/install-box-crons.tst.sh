@@ -57,11 +57,12 @@ touch "$O/src/bash/features/box-sessions/scripts/save-sessions.sh" "$O/src/bash/
   "$O/src/bash/scripts/reverse-tunnel-cron.sh" "$O/src/bash/scripts/token-burn-collect-cron.sh" \
   "$O/src/bash/scripts/topic-status-card-cron.sh" "$O/src/bash/scripts/fx-rates-fetch-cron.sh" \
   "$O/src/bash/scripts/push-orphan-check-cron.sh" "$O/src/bash/scripts/restore-drill-red-note-cron.sh" \
-  "$O/src/bash/scripts/done-claim-check-cron.sh" "$O/src/bash/scripts/login2-sync-cron.sh"
+  "$O/src/bash/scripts/done-claim-check-cron.sh" "$O/src/bash/scripts/login2-sync-cron.sh" \
+  "$O/src/bash/scripts/file-stream-follow-cron.sh"
 inst() { SNIPPET="PROJ_PATH=$O; do_install_box_crons" in_orc BOX_CRONS_CRONTAB="$T/fake-crontab" BOX_CRONS_STATE_DIR="$T/state" "$@" 2>&1; }
 
 out="$(SNIPPET='do_install_box_crons' in_orc BOX_CRONS_CRONTAB="$T/fake-crontab" BOX_CRONS_ALLOW_WORKTREE=1 2>&1)"; rc=$?
-[ "$rc" -eq 0 ] && [ "$(grep -c '^  +.* # csi-spl:box-cron:[a-z0-9-]*$' <<<"$out")" = 23 ] \
+[ "$rc" -eq 0 ] && [ "$(grep -c '^  +.* # csi-spl:box-cron:[a-z0-9-]*$' <<<"$out")" = 24 ] \
   && grep -q "^  +@reboot i=0; until .* BOOT start csi-spl:box-cron:box-sessions-boot .*/bin/bash '$PROJ_ROOT/src/bash/features/box-sessions/scripts/sessions-boot.sh' >> '/var/csi/csi-spl/box-sessions/boot.log' 2>&1 # csi-spl:box-cron:box-sessions-boot$" <<<"$out" \
   && grep -q "^  +17 7 \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/msg-unreadable-cron.sh' >> '/var/csi/csi-spl/msg-unreadable/cron.log' 2>&1 # csi-spl:box-cron:msg-unreadable$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/msg-unreadable-cron.sh" ] \
@@ -89,6 +90,8 @@ out="$(SNIPPET='do_install_box_crons' in_orc BOX_CRONS_CRONTAB="$T/fake-crontab"
   && [ -x "$PROJ_ROOT/src/bash/scripts/reverse-tunnel-cron.sh" ] \
   && grep -q "^  +\* \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/token-burn-collect-cron.sh' >> '/var/csi/csi-spl/token-burn/cron.log' 2>&1 # csi-spl:box-cron:token-burn$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/token-burn-collect-cron.sh" ] \
+  && grep -q "^  +\* \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/file-stream-follow-cron.sh' >> '/var/csi/csi-spl/file-streams/cron.log' 2>&1 # csi-spl:box-cron:file-streams$" <<<"$out" \
+  && [ -x "$PROJ_ROOT/src/bash/scripts/file-stream-follow-cron.sh" ] \
   && grep -q "^  +\*/5 \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/topic-status-card-cron.sh' >> '/var/csi/csi-spl/topic-status-card/cron.log' 2>&1 # csi-spl:box-cron:topic-status-card$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/topic-status-card-cron.sh" ] \
   && grep -q "^  +37 16 \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/fx-rates-fetch-cron.sh' >> '/var/csi/csi-spl/fx-rates-fetch/cron.log' 2>&1 # csi-spl:box-cron:fx-rates-fetch$" <<<"$out" \
@@ -99,15 +102,15 @@ out="$(SNIPPET='do_install_box_crons' in_orc BOX_CRONS_CRONTAB="$T/fake-crontab"
   && [ -x "$PROJ_ROOT/src/bash/scripts/restore-drill-red-note-cron.sh" ] \
   && grep -q "^  +\*/5 \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/login2-sync-cron.sh' >> '/var/csi/csi-spl/login2-sync/cron.log' 2>&1 # csi-spl:box-cron:login2-sync$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/login2-sync-cron.sh" ] \
-  && pass "1. the real manifest plans C1..C4, the daily msg-unreadable run, the nightly box state backup, the CI red note, the login self-heal, the every-agent rotation, the uplink probe, the hourly qas CI accept, the hourly owner digest, the hourly landed-fix close, the weekly issue key rate, the GC agent start, the reverse tunnel, the token burn collector, the 5-min topic status card, the daily exchange rates fetch and the every-minute push orphan check, the half-hourly restore drill red note and the 5-min second login sync from this checkout" || fail "1. real manifest (rc $rc: $out)"
+  && pass "1. the real manifest plans C1..C4, the daily msg-unreadable run, the nightly box state backup, the CI red note, the login self-heal, the every-agent rotation, the uplink probe, the hourly qas CI accept, the hourly owner digest, the hourly landed-fix close, the weekly issue key rate, the GC agent start, the reverse tunnel, the token burn collector, the 5-min topic status card, the daily exchange rates fetch and the every-minute push orphan check, the half-hourly restore drill red note and the 5-min second login sync and the every-minute box file follower (spec 160 B1) from this checkout" || fail "1. real manifest (rc $rc: $out)"
 
 out="$(inst)"; rc=$?
-[ "$rc" -eq 0 ] && [ "$(grep -c '^  +' <<<"$out")" = 24 ] && [ "$(grep -c "^  -.*$E" <<<"$out")" = 6 ] \
-  && pass "2. the dry run prints the diff: +23 tagged, -6 engine lines" || fail "2. dry-run diff (rc $rc: $out)"
+[ "$rc" -eq 0 ] && [ "$(grep -c '^  +' <<<"$out")" = 25 ] && [ "$(grep -c "^  -.*$E" <<<"$out")" = 6 ] \
+  && pass "2. the dry run prints the diff: +24 tagged, -6 engine lines" || fail "2. dry-run diff (rc $rc: $out)"
 cmp -s "$CT" "$T/crontab.orig" && pass "2. ...and changes nothing" || fail "2. the dry run wrote the crontab"
 
 out="$(inst DRY_RUN=0)"; rc=$?
-[ "$rc" -eq 0 ] && [ "$(grep -c ' # csi-spl:box-cron:[a-z0-9-]*$' "$CT")" = 23 ] && pass "3. DRY_RUN=0 adds twenty-three tagged lines" || fail "3. tagged ($out; $(cat "$CT"))"
+[ "$rc" -eq 0 ] && [ "$(grep -c ' # csi-spl:box-cron:[a-z0-9-]*$' "$CT")" = 24 ] && pass "3. DRY_RUN=0 adds twenty-four tagged lines" || fail "3. tagged ($out; $(cat "$CT"))"
 [ "$(grep -v ' # csi-spl:box-cron:[a-z0-9-]*$' "$CT" | grep -c "$E/" )" = 1 ] && grep -q 'dotfiles/scripts/wifi-up.sh' "$CT" \
   && pass "3. ...no engine job left but the unlisted one" || fail "3. engine lines left: $(grep "$E/" "$CT")"
 cmp -s <(grep -v ' # csi-spl:box-cron:[a-z0-9-]*$' "$CT") "$T/crontab.kept" && pass "3. ...every other line kept, in order" || fail "3. other lines changed"

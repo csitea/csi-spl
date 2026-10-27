@@ -635,20 +635,49 @@ spl_spawn_place_review() {  # BRIEF
 # (<wd>/ctx*/a-*/pane; the reset is its mtime + that time). Both fire since
 # SPL-3022 made the watchdog read that banner as S2 kind=limit; the banner
 # alone also covers a lane the watchdog has not judged yet.
+# Only a live lane's record counts (SPL-3846: the captures of every dead a-
+# lane stay on disk, and one stale banner held every agy row for 3 days while
+# agy answered): live = listed in a fresh agent-run.tsv
+# (spl_spawn_place_agy_live). A record not newer than agy's last answered
+# probe (<probe-dir>/agy.ok, its mtime) is dropped too.
 spl_spawn_place_agy_out() {
-  local wd="${LANE_MIX_WD_DIR:-$SPOOL_ROOT/dispatch/wd}" now f line t best=0 ev="" hit
+  local wd="${LANE_MIX_WD_DIR:-$SPOOL_ROOT/dispatch/wd}" now f line t best=0 ev="" hit live since=0 id
+  local ok="${SPAWN_PLACE_PROBE_DIR:-$SPOOL_ROOT/dispatch/vendor-probe}/agy.ok"
   now="$(date +%s)"
+  live="$(spl_spawn_place_agy_live)"
+  [[ -e "$ok" ]] && since="$(stat -c %Y "$ok" 2>/dev/null || echo 0)"
   declare -F _spl_lane_mix_limit >/dev/null || source "$PROJ_PATH/src/bash/run/spl-lane-mix.func.sh"
-  hit="$(_spl_lane_mix_limit agy "$SPOOL_ROOT" "${LANE_MIX_REGISTRY:-$SPOOL_ROOT/registry.tsv}")"
+  hit="$(_spl_lane_mix_limit agy "$SPOOL_ROOT" "${LANE_MIX_REGISTRY:-$SPOOL_ROOT/registry.tsv}" "$since" "$live")"
   [[ -z "$hit" ]] || best=$(( ${hit%%$'\t'*} + ${LANE_MIX_LIMIT_FRESH:-21600} )) ev="${hit#*$'\t'}"
   for f in "$wd"/ctx*/a-*/pane; do
+    id="$(basename "$(dirname "$f")")"
+    [[ -z "$live" || "$live" == *"|$id|"* ]] || continue
     line="$(grep -aoE 'Individual quota reached.*Resets in ([0-9]+h)?([0-9]+m)?([0-9]+s)?' "$f" 2>/dev/null | tail -n 1)"
     [[ "$line" =~ Resets\ in\ (([0-9]+)h)?(([0-9]+)m)?(([0-9]+)s)?$ ]] || continue
-    t=$(( $(stat -c %Y "$f" 2>/dev/null || echo 0) + 10#${BASH_REMATCH[2]:-0} * 3600 + 10#${BASH_REMATCH[4]:-0} * 60 + 10#${BASH_REMATCH[6]:-0} ))
-    (( t > best )) && best="$t" ev="$(basename "$(dirname "$f")") banner, Resets in ${line##*Resets in }"
+    t="$(stat -c %Y "$f" 2>/dev/null || echo 0)"
+    (( t > since )) || continue
+    t=$(( t + 10#${BASH_REMATCH[2]:-0} * 3600 + 10#${BASH_REMATCH[4]:-0} * 60 + 10#${BASH_REMATCH[6]:-0} ))
+    (( t > best )) && best="$t" ev="$id banner, Resets in ${line##*Resets in }"
   done
   (( best > now )) || return 0
   printf 'agy is out of quota until %s (%s)\n' "$(date -u -d "@$best" +%FT%TZ)" "$ev"
+}
+
+# The ids with a live process on this box as "|<id>|<id>|" ("|" = none), from
+# the lease loop's agent-run.tsv (SPAWN_PLACE_AGENT_RUN, default
+# $SPOOL_ROOT/dispatch/agent-run.tsv: "# agent-run v1 <epoch>", then one
+# "<id>\t<run|stop>..." row per live id) while it is younger than
+# SPAWN_PLACE_RUN_STALE s (default 300). No fresh report prints nothing:
+# liveness unknown, every record counts as before.
+spl_spawn_place_agy_live() {
+  local f="${SPAWN_PLACE_AGENT_RUN:-$SPOOL_ROOT/dispatch/agent-run.tsv}" at="" id ids="|"
+  [[ -r "$f" ]] || return 0
+  read -r _ _ _ at _ <"$f"
+  [[ "$at" =~ ^[0-9]+$ ]] && (( $(date +%s) - at <= ${SPAWN_PLACE_RUN_STALE:-300} )) || return 0
+  while IFS=$'\t' read -r id _; do
+    [[ "$id" == \#* || -z "$id" ]] || ids+="$id|"
+  done <"$f"
+  echo "$ids"
 }
 
 # 2c. While agy is out of quota here (spl_spawn_place_agy_out), a queued row

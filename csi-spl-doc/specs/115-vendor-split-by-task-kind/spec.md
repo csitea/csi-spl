@@ -207,6 +207,14 @@ then claude. Pick the first candidate that is:
 
 A vendor out of every row (for example grok at 0) never enters the order.
 
+agy "out" on quota is read by `spl_spawn_place_agy_out` from LIVE a- lanes
+only (SPL-3846): a watchdog S2 kind=limit or an "Individual quota reached"
+banner counts while its id is in a fresh `dispatch/agent-run.tsv` (no fresh
+report: every lane counts), and never when it is older than agy's last
+answered probe (`dispatch/vendor-probe/agy.ok`, its mtime). On 2026-10-27
+the captures of dead a-338 and a-665 held every agy row for three days while
+agy answered on both boxes.
+
 ## 6. "Failed try": what counts, and where it is read
 
 A **try** is one lane id spawned for a `task_id` with a kind and a vendor.

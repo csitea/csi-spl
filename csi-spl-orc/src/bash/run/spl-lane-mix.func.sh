@@ -576,14 +576,14 @@ _spl_lane_mix_cli() {
   echo yes
 }
 
-# _spl_lane_mix_limit <vendor> <spool-root> <registry> -> "<epoch>\t<id> S2
-# kind=limit <age> ago" for the newest watchdog verdict (ctx*/<id>/out.s2) within
-# LANE_MIX_LIMIT_FRESH s on one of that vendor's lanes, else nothing. The
-# vendor is the id's registry kind, else its prefix (spec 061: c g a q; spec
-# 110: m).
+# _spl_lane_mix_limit <vendor> <spool-root> <registry> [<since> <live>] ->
+# "<epoch>\t<id> S2 kind=limit <age> ago" for the newest watchdog verdict
+# (ctx*/<id>/out.s2) within LANE_MIX_LIMIT_FRESH s on one of that vendor's
+# lanes, else nothing. The vendor is the id's registry kind, else its prefix
+# (spec 061: c g a q; spec 110: m). <since> and <live>: _spl_lane_mix_verdict.
 _spl_lane_mix_limit() {
   local hit
-  hit="$(_spl_lane_mix_verdict limit "$1" "$2" "$3" "${LANE_MIX_LIMIT_FRESH:-21600}")"
+  hit="$(_spl_lane_mix_verdict limit "$1" "$2" "$3" "${LANE_MIX_LIMIT_FRESH:-21600}" "${4:-0}" "${5:-}")"
   [[ -z "$hit" ]] || printf '%s\t%s\n' "${hit%%:*}" "${hit#*$'\t'}"
 }
 
@@ -602,19 +602,22 @@ _spl_lane_mix_auth() {
   echo "${hit#*$'\t'}"
 }
 
-# _spl_lane_mix_verdict <kind> <vendor> <spool-root> <registry> <fresh-s> ->
-# "<epoch>:<file>\t<id> S2 kind=<kind> <age> ago" for the newest watchdog
-# verdict (ctx*/<id>/out.s2) of that kind within <fresh-s> on one of that
-# vendor's lanes, else nothing
+# _spl_lane_mix_verdict <kind> <vendor> <spool-root> <registry> <fresh-s>
+# [<since> <live>] -> "<epoch>:<file>\t<id> S2 kind=<kind> <age> ago" for the
+# newest watchdog verdict (ctx*/<id>/out.s2) of that kind within <fresh-s> on
+# one of that vendor's lanes, else nothing. A verdict not newer than the epoch
+# <since> is skipped, and so is one on an id not in <live> ("|<id>|...|"),
+# when <live> is set (SPL-3846).
 _spl_lane_mix_verdict() {
-  local want="$1" v="$2" wd="${LANE_MIX_WD_DIR:-$3/dispatch/wd}" fresh="$5"
+  local want="$1" v="$2" wd="${LANE_MIX_WD_DIR:-$3/dispatch/wd}" fresh="$5" since="${6:-0}" live="${7:-}"
   local now f t id k best=-1 bestf="" hit=""
   now="$(date +%s)"
   for f in "$wd"/ctx*/*/out.s2; do
     grep -q "^HIT S2 kind=$want" "$f" 2>/dev/null || continue
     t="$(stat -c %Y "$f" 2>/dev/null)" || continue
-    (( now - t <= fresh && t > best )) || continue
+    (( now - t <= fresh && t > best && t > since )) || continue
     id="$(basename "$(dirname "$f")")"
+    [[ -z "$live" || "$live" == *"|$id|"* ]] || continue
     k="$(awk -F'\t' -v i="$id" '$1 == i {k = $2} END {print k}' "$4" 2>/dev/null)"
     [[ -n "$k" ]] || case "${id:0:2}" in c-) k=claude ;; g-) k=grok ;; a-) k=agy ;; q-) k=qwen ;; m-) k=mistral ;; esac
     [[ "$k" == "$v" ]] || continue

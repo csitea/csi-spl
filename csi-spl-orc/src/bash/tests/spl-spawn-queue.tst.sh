@@ -53,6 +53,10 @@
 #      watchdog's pane capture, or an S2 kind=limit verdict on an a- lane): a
 #      review row holds, queued, and blocks no other row; a non-review docs
 #      row launches claude (CONTROL: a banner past its reset launches agy)
+#  13b2. SPL-3846: with a fresh agent-run.tsv, the banner and the S2 of a
+#      dead a- id hold nothing (CONTROL: a live id's still hold; no fresh
+#      report = liveness unknown, they hold); an answered agy probe newer
+#      than the S2 drops it (CONTROL: a probe older than it does not)
 #  13c. SPL-3024: a row placed directly as agy:<slug> holds while agy is out
 #      of quota, review or not (CONTROL: agy in quota launches it as agy)
 #      SPL-3138: agy back but the row not launched (ceiling full): its agy
@@ -790,6 +794,43 @@ out="$(on pc do_spl_spawn_place LAUNCH_ID=a-513 2>&1)"
   grep -q "^agy auto $T $T/briefs/ui-r7.md ui-r7$" "$T/launch.log" && ! grep -q "^${Q1}"$'\t' "$T/pc/spool/asks/.place.wait" &&
   pass "SPL-3018 control: a banner past its reset = agy in: the review row launches agy" || fail "agy in: $out | $(cat "$T/launch.log")"
 rm -rf "$WD13"
+
+# 13b2. SPL-3846: agy_out reads only live lanes. A box on 2026-10-27 held every
+# agy row until 10-30T22:5xZ on dead a-338/a-665 captures ("Resets in 91h")
+# and a 90-min-old S2, while agy answered on both boxes. Live = an id in a
+# fresh agent-run.tsv; an answered probe (dispatch/vendor-probe/agy.ok) drops
+# any record not newer than it.
+AR="$T/pc/spool/dispatch/agent-run.tsv"
+agyout() { on pc 'spl_spawn_place_agy_out' 2>&1; }
+runrep() { { echo "# agent-run v1 ${2:-$(date +%s)}"; for i in $1; do printf '%s\trun\n' "$i"; done; } >"$AR"; }
+mkdir -p "$WD13/ctx.3/a-338"
+printf '⚠ Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 91h.\n' >"$WD13/ctx.3/a-338/pane"
+runrep "c-001 a-900"
+out="$(agyout)"
+[[ -z "$out" ]] && pass "SPL-3846: the banner of a dead a- id (not in a fresh agent-run.tsv) holds nothing" || fail "dead banner: $out"
+runrep "c-001 a-338"
+out="$(agyout)"
+grep -q "agy is out of quota until 20[0-9-]*T[0-9:]*Z (a-338 banner, Resets in 91h" <<<"$out" &&
+  pass "SPL-3846 control: the same banner on a live id still holds" || fail "live banner: $out"
+runrep "c-001 a-900" "$(( $(date +%s) - 900 ))"
+out="$(agyout)"
+[[ -n "$out" ]] && pass "SPL-3846 control: a stale agent-run.tsv = liveness unknown, the banner holds as before" || fail "stale report: $out"
+rm -rf "$WD13/ctx.3"; mkdir -p "$WD13/ctx.1/a-665"
+echo 'HIT S2 kind=limit pane: quota' >"$WD13/ctx.1/a-665/out.s2"
+runrep "c-001"
+out="$(agyout)"
+[[ -z "$out" ]] && pass "SPL-3846: the S2 kind=limit of a dead a- id holds nothing" || fail "dead S2: $out"
+runrep "c-001 a-665"
+out="$(agyout)"
+grep -q "(a-665 S2 kind=limit" <<<"$out" && pass "SPL-3846 control: the S2 of a live id holds" || fail "live S2: $out"
+mkdir -p "$T/pc/spool/dispatch/vendor-probe"; touch -d '1 hour ago' "$WD13/ctx.1/a-665/out.s2"
+touch "$T/pc/spool/dispatch/vendor-probe/agy.ok"
+out="$(agyout)"
+[[ -z "$out" ]] && pass "SPL-3846: an agy probe that answered after the S2 drops it" || fail "probe S2: $out"
+touch -d '2 hours ago' "$T/pc/spool/dispatch/vendor-probe/agy.ok"
+out="$(agyout)"
+grep -q "(a-665 S2 kind=limit" <<<"$out" && pass "SPL-3846 control: a probe older than the S2 drops nothing" || fail "old probe: $out"
+rm -rf "$WD13" "$AR" "$T/pc/spool/dispatch/vendor-probe"
 
 # 13c. SPL-3024: a row placed directly as agy:<slug> (agy chosen on purpose,
 # no swap) HOLDS while agy is out of quota, review or not: launching claude

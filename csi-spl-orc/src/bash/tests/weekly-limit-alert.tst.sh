@@ -14,6 +14,8 @@
 #   7. the reader: BOX_QUOTA_RESET=1 appends the banner's reset "@<epoch>",
 #      unset prints the % alone (what the box pick reads)
 #   8. the manifest row weekly-limit-alert runs the cron script every 5 min
+#   9. the claude CLI's cached usage is read below the banner (93 -> a line);
+#      another login's cache, a 6 h old one or a passed reset is no reading
 #   RED CONTROL: the same "90 again" tick with the state file gone posts a
 #   second line, so case 1's "nothing" is the state's doing.
 #------------------------------------------------------------------------------
@@ -105,6 +107,35 @@ c="$(BOX_QUOTA_RESET=1 spl_box_quota_parse grok <<<"Weekly limit left: 4%")"
 [ "$c" = 96 ] && pass "7. grok names no reset: 96 alone" || fail "7. grok ($c)"
 d="$(LANE_PANES_CMD=x LANE_QUOTA_LOG_DIR="$T/none" BOX_QUOTA_RESET=1 spl_box_quota_here)"
 [ -z "$d" ] && pass "7. no transcript, no pane -> no reading" || fail "7. here ($d)"
+
+# 9. the claude CLI's cached usage (~/.claude.json cachedUsageUtilization):
+# a reading below the banner's 90+ (the send-back: "no reading" every tick)
+cj() {  # FILE PCT FETCHED_AGO_S RESET_ISO [CACHE_ACCOUNT]
+  jq -n --argjson p "$2" --argjson f "$(( ($(date +%s) - $3) * 1000 ))" --arg r "$4" --arg a "${5:-acc-1}" \
+    '{oauthAccount: {accountUuid: "acc-1"}, cachedUsageUtilization: {accountUuid: $a, fetchedAtMs: $f,
+      utilization: {seven_day: {utilization: $p, resets_at: $r}}}}' >"$1"
+}
+RISO="2099-12-31T08:59:59.714017+00:00"; REP="$(date -d 2099-12-31T08:59:59Z +%s)"
+cj "$T/cj-ok.json" 93 600 "$RISO"
+a="$(LANE_PANES_CMD=x LANE_QUOTA_LOG_DIR="$T/none" LANE_QUOTA_CLAUDE_JSON="$T/cj-ok.json" BOX_QUOTA_RESET=1 spl_box_quota_here)"
+b="$(LANE_PANES_CMD=x LANE_QUOTA_LOG_DIR="$T/none" LANE_QUOTA_CLAUDE_JSON="$T/cj-ok.json" spl_box_quota_here)"
+[ "$a" = "claude:93@$REP" ] && [ "$b" = "claude:93" ] && pass "9. cached usage 93% -> claude:93@<reset>; the box pick reads claude:93" || fail "9. cache ($a / $b)"
+cj "$T/cj-acc.json" 93 600 "$RISO" acc-2
+cj "$T/cj-old.json" 93 30000 "$RISO"
+cj "$T/cj-past.json" 93 600 "2001-01-01T00:00:00+00:00"
+for f in acc old past; do
+  c="$(LANE_PANES_CMD=x LANE_QUOTA_LOG_DIR="$T/none" LANE_QUOTA_CLAUDE_JSON="$T/cj-$f.json" spl_box_quota_here)"
+  [ -z "$c" ] && pass "9. cache of another login / older than 6 h / reset passed ($f) -> no reading" || fail "9. $f ($c)"
+done
+printf '{"type":"assistant","timestamp":"%s","message":{"model":"<synthetic>","content":[{"type":"text","text":"You'"'"'ve hit your weekly limit · resets Dec 31 2099, 11am (UTC)"}]}}\n' \
+  "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" >"$T/hit.jsonl"; mkdir -p "$T/proj"; mv "$T/hit.jsonl" "$T/proj/"
+c="$(LANE_PANES_CMD=x LANE_QUOTA_LOG_DIR="$T/proj" LANE_QUOTA_CLAUDE_JSON="$T/cj-ok.json" spl_box_quota_here)"
+[ "$c" = "claude:100" ] && pass "9. the transcript's hit (100) beats a lower cache (93)" || fail "9. max ($c)"
+: >"$T/posts"; rm -f "$T/st.tsv"
+out="$(SNIPPET='do_spl_weekly_limit_alert' in_orc SPOOL_ROOT="$T/spool" LANE_BOX=box-a LANE_PANES_CMD=x LANE_QUOTA_LOG_DIR="$T/none" \
+  LANE_QUOTA_CLAUDE_JSON="$T/cj-ok.json" WEEKLY_ALERT_CMD="$T/post-ok" WEEKLY_ALERT_STATE="$T/st.tsv" DRY_RUN=0 2>&1)"
+[ "$(n)" = 1 ] && grep -qF "claude on box-a: 93% of its weekly limit used (crossed 90%), resets 2099-12-31T08:59Z" "$T/posts" \
+  && pass "9. the alert posts from the cached usage" || fail "9. alert ($(n): $out)"
 
 # 8. the cron row
 grep -qE "^weekly-limit-alert +\| \*/5 \* \* \* \* +\| src/bash/scripts/weekly-limit-alert-cron.sh +\| weekly-limit-alert/cron.log" "$PROJ_ROOT/cnf/box-crons/box-crons.manifest" \

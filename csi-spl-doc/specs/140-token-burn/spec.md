@@ -752,10 +752,17 @@ non-intelligence alert to warn when the weekly limit approaches 90% , 95% and
   `cd csi-spl-orc && BOX_CRONS_ONLY=weekly-limit-alert DRY_RUN=0 ./run -a do_install_box_crons`
   from the main checkout.
 - **The reading is the box pick's** (`spl_box_quota_here`,
-  `csi-spl-orc/lib/bash/funcs/spl-box-quota.func.sh`: claude banner and
-  transcripts, grok footer and limit screen). No new probe;
-  `BOX_QUOTA_RESET=1` adds the reset time the claude banner names
-  (`claude:96@<epoch>`). A kind with no reading (mistral, agy and qwen print
+  `csi-spl-orc/lib/bash/funcs/spl-box-quota.func.sh`: claude banner,
+  transcripts and cached usage, grok footer and limit screen; the highest
+  claude reading wins). No new probe; `BOX_QUOTA_RESET=1` adds the reset time
+  (`claude:96@<epoch>`).
+- **Claude below its limit** (send-back 2026-10-27: banner and transcripts
+  show only AT the limit, so every tick read `no reading`): the CLI's own
+  cache in the agent user's `~/.claude.json`, `cachedUsageUtilization`
+  (`seven_day.utilization`, `resets_at`), read as that user. It counts only
+  when it is of the logged-in account (`oauthAccount.accountUuid`), fetched
+  less than `LANE_QUOTA_CACHE_MAX_S` ago (default 6 h: the CLI refetches it
+  now and then, measured 1.4 and 2 h old) and its reset is still ahead. A kind with no reading (mistral, agy and qwen print
   none today) is listed as `no reading` in the tick's summary, never 0.
 - **One line per crossing**, kind `note` in `#alerts` (as the asks timer
   posts): `**WEEKLY LIMIT** <kind> on <box>: <pct>% of its weekly limit used

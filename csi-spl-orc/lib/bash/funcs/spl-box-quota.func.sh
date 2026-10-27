@@ -102,11 +102,53 @@ spl_box_quota_log() {
   ) | spl_box_quota_parse claude "$now"
 }
 
+# spl_box_quota_cache_read [NOW]: the claude CLI's own cached usage (SPL-3849
+# send-back, c-002@sat msg 90123310): banner and transcript show only AT the
+# limit, so a box below it read "no reading" every tick. The CLI keeps its
+# last fetch of the weekly used % in ~/.claude.json, cachedUsageUtilization
+# (seven_day.utilization, resets_at, fetchedAtMs, accountUuid). ~/.claude.json
+# on stdin -> "<pct>" ("<pct>@<reset epoch>" with BOX_QUOTA_RESET=1), or nothing when the cache is of another
+# login than oauthAccount's, older than LANE_QUOTA_CACHE_MAX_S (default 21600:
+# the CLI refetches it only now and then, measured 1.4..2 h old) or its reset
+# has passed.
+spl_box_quota_cache_read() {
+  local now="${1:-$(date +%s)}" max="${LANE_QUOTA_CACHE_MAX_S:-21600}"
+  [[ "$max" =~ ^[0-9]+$ ]] || max=21600
+  jq -r --argjson now "$now" --argjson max "$max" '
+    (.cachedUsageUtilization // {}) as $c | ($c.utilization.seven_day // {}) as $w
+    | select($c.accountUuid != null and $c.accountUuid == .oauthAccount.accountUuid)
+    | select(($c.fetchedAtMs | type) == "number" and ($now - $c.fetchedAtMs / 1000) < $max)
+    | select(($w.utilization | type) == "number" and ($w.resets_at | type) == "string")
+    | ($w.resets_at | sub("\\.[0-9]+"; "") | sub("\\+00:00$"; "Z") | fromdateiso8601) as $at
+    | select($at > $now)
+    | "\([$w.utilization | floor, 100] | min)@\($at)"' 2>/dev/null |
+    if [[ "${BOX_QUOTA_RESET:-0}" == 1 ]]; then cat; else sed 's/@.*//'; fi
+}
+
+# spl_box_quota_cache [NOW]: spl_box_quota_cache_read of the agent user's
+# ~/.claude.json, read as that user. Seam (tests): LANE_QUOTA_CLAUDE_JSON
+# reads that file as this user; a test that fakes the panes (LANE_PANES_CMD)
+# without it reads nothing.
+spl_box_quota_cache() {
+  local now="${1:-$(date +%s)}"
+  if [[ -n "${LANE_QUOTA_CLAUDE_JSON:-}" ]]; then
+    spl_box_quota_cache_read "$now" <"$LANE_QUOTA_CLAUDE_JSON"; return 0
+  fi
+  [[ -z "${LANE_PANES_CMD:-}" ]] || return 0
+  declare -F spool_agent_exec >/dev/null ||
+    source "$(dirname "${BASH_SOURCE[0]}")/../../../src/bash/features/spawn-agents/lib/spool-env.inc.sh"
+  (
+    [ -n "${SPOOL_AGENT_USER:-}" ] || SPOOL_ENV_NO_BINS=1 spool_env_resolve >/dev/null 2>&1
+    SPOOL_RUN_AS_AGENT="${SPOOL_RUN_AS_AGENT:-su-dash}"
+    spool_agent_exec 'jq -c "{cachedUsageUtilization: {accountUuid: .cachedUsageUtilization.accountUuid, fetchedAtMs: .cachedUsageUtilization.fetchedAtMs, utilization: {seven_day: .cachedUsageUtilization.utilization.seven_day}}, oauthAccount: {accountUuid: .oauthAccount.accountUuid}}" "$HOME/.claude.json"' </dev/null 2>/dev/null
+  ) | spl_box_quota_cache_read "$now"
+}
+
 # spl_box_quota_here: THIS box's weekly usage, "claude:96,grok:4" (the
 # vendors read), "" when nothing shows one; with BOX_QUOTA_RESET=1 a known
 # reset follows its % ("claude:96@1760688000"). Reads the box user's tmux
-# (spl_lane_tm) and claude's transcripts (spl_box_quota_log): the higher
-# claude reading wins. Seam (tests): LANE_QUOTA_CMD prints the answer; a
+# (spl_lane_tm), claude's transcripts (spl_box_quota_log) and claude's cached
+# usage (spl_box_quota_cache): the highest claude reading wins. Seam (tests): LANE_QUOTA_CMD prints the answer; a
 # test that fakes the panes (LANE_PANES_CMD) reads only LANE_QUOTA_LOG_DIR.
 spl_box_quota_here() {
   if [[ -n "${LANE_QUOTA_CMD:-}" ]]; then
@@ -118,6 +160,9 @@ spl_box_quota_here() {
   now="$(date +%s)"
   log="$(spl_box_quota_log "$now")"
   [[ "$log" =~ ^([0-9]+)(@[0-9]+)?$ ]] && best[claude]="${BASH_REMATCH[1]}" at[claude]="${BASH_REMATCH[2]}"
+  log="$(spl_box_quota_cache "$now")"
+  [[ "$log" =~ ^([0-9]+)(@[0-9]+)?$ ]] && (( BASH_REMATCH[1] > ${best[claude]:--1} )) &&
+    best[claude]="${BASH_REMATCH[1]}" at[claude]="${BASH_REMATCH[2]}"
   if [[ -n "${LANE_PANES_CMD:-}" ]]; then echo "${best[claude]:+claude:${best[claude]}${at[claude]}}"; return 0; fi
   declare -F spool_id_of_window_var >/dev/null ||
     source "$(dirname "${BASH_SOURCE[0]}")/../../../src/bash/features/spawn-agents/lib/spool-env.inc.sh"

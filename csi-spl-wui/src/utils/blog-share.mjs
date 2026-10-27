@@ -2,6 +2,11 @@
 // Plain URLs only: no third-party script and no tracker.
 // Substack has no share URL, so blogShareHref returns null for it.
 // That control copies the post URL and opens SUBSTACK_NOTES.
+// Instagram has no share URL either: the row copies the caption and
+// opens Instagram (spec 090 T037). Facebook, WhatsApp and Viber come from
+// marketing-share-links.mjs, the hub's twin.
+
+import { INSTAGRAM_OPEN, marketingShareLinks } from './marketing-share-links.mjs'
 
 export const SUBSTACK_NOTES = 'https://substack.com/notes'
 
@@ -10,8 +15,10 @@ export const BLOG_SHARE_ORDER = [
   'copy',
   'linkedin',
   'facebook',
+  'instagram',
   'x',
   'whatsapp',
+  'viber',
   'telegram',
   'reddit',
   'substack',
@@ -20,7 +27,8 @@ export const BLOG_SHARE_ORDER = [
 
 /**
  * The share URL for one network, built from the post URL and its title.
- * Both are percent-encoded. `copy` and `substack` return null.
+ * Both are percent-encoded. `copy` and `substack` return null;
+ * `instagram` is the page to open after the caption is copied.
  * @param {string} network
  * @param {{ url: string, title: string }} post
  * @returns {string | null}
@@ -34,11 +42,13 @@ export function blogShareHref(network, post) {
       // built from both; the card title still comes from the page.
       return `https://www.linkedin.com/sharing/share-offsite/?url=${url}&title=${title}`
     case 'facebook':
-      return `https://www.facebook.com/sharer/sharer.php?u=${url}&quote=${title}`
+    case 'whatsapp':
+    case 'viber':
+      return marketingShareLinks(post)[network]
+    case 'instagram':
+      return INSTAGRAM_OPEN
     case 'x':
       return `https://x.com/intent/post?url=${url}&text=${title}`
-    case 'whatsapp':
-      return `https://wa.me/?text=${encodeURIComponent(`${post.title} ${post.url}`)}`
     case 'telegram':
       return `https://t.me/share/url?url=${url}&text=${title}`
     case 'reddit':

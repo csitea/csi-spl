@@ -159,6 +159,12 @@ try {
       if (a.id === 'blog-share-substack-top') {
         // Substack opens Notes and is not a share URL, so this assertion is relaxed.
     ok(`${label}: Substack opens Notes and is not a share URL`, true)
+      } else if (a.id === 'blog-share-facebook-top') {
+        // The sharer takes u only: quote= is deprecated (spec 090 T037).
+        ok(`${label}: Facebook shares the post URL only`, a.href === `https://www.facebook.com/sharer/sharer.php?u=${encUrl}`, a.href)
+      } else if (a.id === 'blog-share-instagram-top') {
+        // Instagram has no web share intent: it opens the site (spec 090 T037).
+        ok(`${label}: Instagram opens instagram.com`, a.href === 'https://www.instagram.com/', a.href)
       } else {
         ok(`${label}: ${a.id} is built from the post URL and the title`, a.href.includes(encUrl) && a.href.includes(encTitle), a.href)
       }
@@ -169,6 +175,12 @@ try {
     await p.click('[data-test=blog-share-substack-top]')
     const after = await p.evaluate(() => window.__copied)
     ok(`${label}: Substack copies the same link`, after.length === 2 && after[1] === pageUrl, after)
+    await p.evaluate(() => {
+      document.querySelector('[data-test=blog-share-instagram-top]')?.addEventListener('click', (e) => e.preventDefault(), true)
+    })
+    await p.click('[data-test=blog-share-instagram-top]')
+    const caption = await p.evaluate(() => window.__copied)
+    ok(`${label}: Instagram copies a caption with the title and the link`, caption.length === 3 && caption[2].includes(title) && caption[2].includes(pageUrl), caption)
 
     const wide = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
     ok(`${label}: no sideways scroll`, wide <= 1, wide)

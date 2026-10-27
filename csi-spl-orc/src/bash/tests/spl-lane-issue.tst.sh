@@ -313,6 +313,13 @@ refused "landed_repos: no clone and no cnf box: refused, saying the cnf names no
 printf 'env:\n  box:\n    landed_repos:\n      - {name: cust-rel, src_dir: %s, trunk: main}\n' "$T/lr/dvn-web" >"$T/lr/main.yaml"
 done_run LANE_LANDED_REPO=cust-rel LANE_LANDED_SHA="$LANDED" LANE_LANDED_CNF="$T/lr/main.yaml" DRY_RUN=0
 refused "landed_repos: a cnf trunk the clone lacks is refused (never another branch)" "cust-rel has no origin/main"
+# SPL-3760: the repo's own all.env.yaml knows the Csitea repos lanes land in
+# (doc-hub, csi-web), each with an absolute clone, a trunk and no box field.
+SNIPPET='spl_landed_repo_rows' in_orc SPOOL_TEST=1 LANE_LANDED_CNF="$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml" >"$T/o" 2>&1
+for r in doc-hub csi-web; do
+  awk -F'\t' -v r="$r" '$1 == r && $2 ~ /^\// && $3 != "-" && $4 == "-" { ok = 1 } END { exit !ok }' "$T/o" &&
+    pass "landed_repos: the repo cnf knows $r (clone, trunk, no box)" || fail "landed_repos: cnf has no $r row: $(cat "$T/o")"
+done
 
 # Kind: answer in the brief: the filed issue is labelled answer (the label made first).
 printf '# Brief: evaluate the runner\n\nKind: answer\n%s\n' "$ES" >"$T/answer.md"

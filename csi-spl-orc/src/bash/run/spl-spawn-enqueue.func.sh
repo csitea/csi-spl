@@ -53,27 +53,28 @@ do_spl_spawn_enqueue() {
 # takes: a single enqueue, and each row a work group feeds
 # (spl-spawn-group-put.func.sh; a single ask is a group of one row, width 1).
 spl_spawn_q_enqueue() {  # ID BY PLACE CLASS URGENT(0|1) BYPASS_MSG
-  local id="$1" by="$2" place="$3" class="$4" msg="$6" flag="" seat="" row rc=0
+  # bymsg, never msg: the run's do_log sets a GLOBAL msg, which would overwrite a local msg here (SPL-3762)
+  local id="$1" by="$2" place="$3" class="$4" bymsg="$6" flag="" seat="" row rc=0
   [[ -z "$place" || "$place" =~ ^[a-z]{2,16}:[a-z0-9][a-z0-9._-]{0,63}$ ]] ||
     { do_log "FATAL SPAWN_PLACE must be <vendor>:<slug> (lowercase), got '$place'" >&2; return 1; }
   spl_spawn_enqueue_mistral_ok "$place" >&2 || return 1
   [[ "$class" =~ ^(ci|refactor|bug|feature)$ ]] ||
     { do_log "FATAL SPAWN_CLASS must be ci, refactor, bug or feature (got '$class'; no default: classify the request)" >&2; return 1; }
   [[ "$5" == 1 ]] && flag=urgent
-  if [[ -z "$msg" && "$5" != 1 ]] && spl_spawn_q_review_seat_go "$place" "$SPL_SPAWN_REVIEW_SEAT_GO"; then
-    msg="$SPL_SPAWN_REVIEW_SEAT_GO"  # SPL-3762: the standing GO, as SPAWN_BYPASS=<GO> would record it
-    do_log "INFO ask ${id:0:8} is a review seat ($place) with no SPAWN_BYPASS: the standing review-seat GO ${msg:0:8} applies" >&2
+  if [[ -z "$bymsg" && "$5" != 1 ]] && spl_spawn_q_review_seat_go "$place" "$SPL_SPAWN_REVIEW_SEAT_GO"; then
+    bymsg="$SPL_SPAWN_REVIEW_SEAT_GO"  # SPL-3762: the standing GO, as SPAWN_BYPASS=<GO> would record it
+    do_log "INFO ask ${id:0:8} is a review seat ($place) with no SPAWN_BYPASS: the standing review-seat GO ${bymsg:0:8} applies" >&2
   fi
-  if [[ -n "$msg" ]]; then
-    [[ "$msg" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] ||
-      { do_log "FATAL SPAWN_BYPASS must be the owner's message id (a full lowercase UUID), got '$msg'" >&2; return 1; }
+  if [[ -n "$bymsg" ]]; then
+    [[ "$bymsg" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] ||
+      { do_log "FATAL SPAWN_BYPASS must be the owner's message id (a full lowercase UUID), got '$bymsg'" >&2; return 1; }
     flag=bypass
   fi
-  [[ "$flag" != bypass || "$class" == feature ]] || ! spl_spawn_q_review_seat_go "$place" "$msg" || seat=1
+  [[ "$flag" != bypass || "$class" == feature ]] || ! spl_spawn_q_review_seat_go "$place" "$bymsg" || seat=1
   [[ "$flag" != urgent || "$class" == bug ]] || { do_log "FATAL SPAWN_URGENT goes with SPAWN_CLASS=bug only" >&2; return 1; }
   [[ "$flag" != bypass || "$class" == feature || -n "$seat" ]] ||
     { do_log "FATAL SPAWN_BYPASS goes with SPAWN_CLASS=feature only (the review-seat GO ${SPL_SPAWN_REVIEW_SEAT_GO:0:8} also takes a review seat: a SPAWN_PLACE slug ending in -reviewer)" >&2; return 1; }
-  [[ -z "$msg" || "$5" != 1 ]] || { do_log "FATAL SPAWN_URGENT and SPAWN_BYPASS exclude each other" >&2; return 1; }
+  [[ -z "$bymsg" || "$5" != 1 ]] || { do_log "FATAL SPAWN_URGENT and SPAWN_BYPASS exclude each other" >&2; return 1; }
   if [[ -n "$place" ]]; then  # the placer files the lane's issue from this brief: refuse it here, not at placement
     . "$PROJ_PATH/src/bash/features/spawn-agents/lib/lane-issue.inc.sh" >&2 || return 1
     declare -F spl_spawn_place_brief >/dev/null || source "$PROJ_PATH/src/bash/run/spl-spawn-place.func.sh"
@@ -86,14 +87,14 @@ spl_spawn_q_enqueue() {  # ID BY PLACE CLASS URGENT(0|1) BYPASS_MSG
   if [[ -n "$seat" ]]; then  # the hub takes bypass on a feature only (rdb 0195): the seat goes unflagged, the log records it
     row="$(spl_spawn_q_op queue "$id" "$by" "" "$place" "$class" "" "")" || rc=$?
   else
-    row="$(spl_spawn_q_op queue "$id" "$by" "" "$place" "$class" "$flag" "$msg")" || rc=$?
+    row="$(spl_spawn_q_op queue "$id" "$by" "" "$place" "$class" "$flag" "$bymsg")" || rc=$?
   fi
   (( rc == 0 )) || return "$rc"
   if [[ "$flag" == bypass ]]; then
     local what="feature "; [[ -z "$seat" ]] || what="$class review-seat "
-    spl_spawn_share_bypass_record "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$id" "$msg" "$by" "$(jq -r '.summary // ""' <<<"$row")" ||
+    spl_spawn_share_bypass_record "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$id" "$bymsg" "$by" "$(jq -r '.summary // ""' <<<"$row")" ||
       do_log "WARN the bypass of ask ${id:0:8} is not in the local bypass log${seat:+ (a review seat: the placer will not take it first)}" >&2
-    do_log "INFO ask ${id:0:8} is a ${what}BYPASS on owner msg ${msg:0:8}: recorded, listed by do_spl_spawn_share${seat:+, placed ahead of the bands}" >&2
+    do_log "INFO ask ${id:0:8} is a ${what}BYPASS on owner msg ${bymsg:0:8}: recorded, listed by do_spl_spawn_share${seat:+, placed ahead of the bands}" >&2
   fi
   do_log "OK ask ${id:0:8} queued ($class${flag:+, $flag}): position $(jq -r '.position // 0' <<<"$row") of $(jq -r '.queue_len // 0' <<<"$row")${place:+, placement $place}" >&2
   printf '%s\n' "$row"

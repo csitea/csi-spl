@@ -254,6 +254,8 @@ on() {  # <machine> <action> [env...]
   env "${e[@]}" PROJ_PATH="$PROJ_ROOT" APP_PATH="$T" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
+    # DO_LOG_REAL=1: the run'"'"'s own do_log, which sets the GLOBAL msg (SPL-3762)
+    [[ "${DO_LOG_REAL:-0}" != 1 ]] || source <(awk '"'"'/^(_do_log[a-z_]*|do_log)\(\) \{/,/^}/'"'"' "'"$PROJ_ROOT"'/run")
     for f in spl-lane-map spl-asks-open spl-ask-ack spl-asks-tick spl-spawn-queue spl-spawn-share spl-spawn-enqueue spl-spawn-placed spl-spawn-place; do
       source "'"$PROJ_ROOT"'/src/bash/run/$f.func.sh"
     done
@@ -1090,10 +1092,12 @@ out="$(on pc do_spl_spawn_place LAUNCH_ID=c-521 LANES="$SEAT_LANES" 2>&1)"
   pass "19d. bug OVER its band, feature UNDER: the bypassed bug review seat is placed ahead of the queued feature row" ||
   fail "19d. seat pick: $out | $(hubrow "$S1") | $(cat "$T/launch.log")"
 # 19e. SPL-3762: a review seat queued with NO SPAWN_BYPASS gets the standing GO at enqueue
-out="$(on pc do_spl_spawn_enqueue ASK_ID="$S2" SPAWN_CLASS=bug SPAWN_PLACE=claude:seat3-r7-reviewer 2>&1)"; rc=$?
+# the run's real do_log (DO_LOG_REAL): it sets the global msg, the stub does not (c-001 msg d4bff1c7)
+out="$(on pc do_spl_spawn_enqueue DO_LOG_REAL=1 LOG_DIR="$T/log" ASK_ID="$S2" SPAWN_CLASS=bug SPAWN_PLACE=claude:seat3-r7-reviewer 2>&1)"; rc=$?
 [[ $rc -eq 0 && "$(jq -r '.flag // ""' <<<"$(hubrow "$S2")")" == "" ]] && grep -q "$S2"$'\t'"$SEAT_GO"$'\t'"c-001@box-desk" "$T/pc/spool/asks/bypass.tsv" &&
-  grep -q "INFO ask ${S2:0:8} is a review seat (claude:seat3-r7-reviewer) with no SPAWN_BYPASS: the standing review-seat GO 994f2257 applies" <<<"$out" &&
-  pass "19e. a -reviewer placement queued without SPAWN_BYPASS: the standing review-seat GO is in the local bypass log, one INFO line" ||
+  grep -q "ask ${S2:0:8} is a review seat (claude:seat3-r7-reviewer) with no SPAWN_BYPASS: the standing review-seat GO 994f2257 applies" <<<"$out" &&
+  grep -q "ask ${S2:0:8} is a bug review-seat BYPASS on owner msg 994f2257: recorded" <<<"$out" && ! grep -q FATAL <<<"$out" &&
+  pass "19e. a -reviewer placement queued without SPAWN_BYPASS (the real do_log): the standing review-seat GO is in the local bypass log, one INFO line" ||
   fail "19e. default GO: rc=$rc $out | $(hubrow "$S2")"
 printf 'Class: bug\n%s\n' "$ES" >"$T/briefs/seat4-reviewer.md"
 U1=37620001-0000-4000-8000-000000000001; put "$U1" c-002@box-desk "dispatch-enqueue-review-bypass" "SPAWN REQUEST ${U1:0:8}"

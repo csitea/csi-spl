@@ -1137,6 +1137,7 @@ func cmdHubRun(cfg *config.Config) int {
 	defer q.Stop()
 	ctx, stop := interruptible()
 	defer stop()
+	startKeyDesk(ctx, cfg, c) // spec 127 X1: SPOOL_KEY_DESK=1 only
 	if err := c.Run(ctx); err != nil {
 		return fail(err)
 	}

@@ -39,6 +39,9 @@ func (c *Client) SendMessageTyped(ctx context.Context, m *msg.Message, explicitT
 // SendMessageClaims is SendMessage with the send frame's claims (typed_by,
 // ref_task_id) outside the signed envelope, kept beside the pending file.
 func (c *Client) SendMessageClaims(ctx context.Context, m *msg.Message, explicitToBox string, cl Claims) (string, error) {
+	if err := c.redactKeys(ctx, m); err != nil { // spec 127 L9: before any copy is written
+		return "", err
+	}
 	own, priv, err := c.box()
 	if err != nil {
 		return "", err
@@ -94,6 +97,9 @@ func (c *Client) SendMessageClaims(ctx context.Context, m *msg.Message, explicit
 // it without the guard. A refusal is a 409 HubError (wire.TokenAnswered,
 // wire.TokenNotResponsible); the outbox is written only once the hub took it.
 func (c *Client) SendAnswerMessage(ctx context.Context, m *msg.Message, explicitToBox, answers string, gen int64) (string, error) {
+	if err := c.redactKeys(ctx, m); err != nil { // spec 127 L9
+		return "", err
+	}
 	own, priv, err := c.box()
 	if err != nil {
 		return "", err

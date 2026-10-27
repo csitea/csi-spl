@@ -18,10 +18,12 @@
 #      CONTROL zram and dm-crypt swap pass
 #   6. (n=1) a spec 108 workspace box (no fleet-hosted marker) runs no start
 #      check: the same failing fixtures do not refuse it
-#   7. (n=5) do_spl_fleet_ws_host: the dry run plans useradd in its own group
+#   7. (n=7) do_spl_fleet_ws_host: the dry run plans useradd in its own group
 #      only (no -G, usermod, gpasswd or sudoers) plus lingering and the
-#      marker; DRY_RUN=0 without OWNER_GO is refused before any root call; a
-#      spec 108 box is refused (exit 3); the fleet agent user is refused; a
+#      marker; DRY_RUN=0 with no OWNER_GO or a malformed one (n=3) is
+#      refused rc 1 with the owner-go FATAL, before any root call and
+#      without the dry-run path; a spec 108 box is refused (exit 3); the
+#      fleet agent user is refused; a
 #      join token of another workspace is refused and no token is printed
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -149,9 +151,19 @@ if [[ $rc -eq 0 ]] && grep -q "useradd --system --user-group --home-dir '$B/wsa'
 else
   fail "dry run rc=$rc: $(cat "$T/o"; cat "$T/calls.log")"
 fi
-host DRY_RUN=0; rc=$?
-[[ $rc -ne 0 ]] && grep -q 'OWNER_GO' "$T/o" && [[ ! -s "$T/calls.log" ]] &&
-  pass "DRY_RUN=0 without OWNER_GO is refused before any root call" || fail "no go rc=$rc: $(cat "$T/o"; cat "$T/calls.log")"
+# the owner gate: rc 1 and its own FATAL (an unbound-variable crash is rc 127,
+# not the gate), no root call, nothing under the fleet base touched
+no_go() { # no_go <label> <overrides>...
+  local l="$1"; shift; local before; before=$(find "$FB" -printf '%p %m %s\n' | sort)
+  host DRY_RUN=0 "$@"; local rc=$?
+  [[ $rc -eq 1 ]] && grep -q 'FATAL DRY_RUN=0 writes root files on this box: set OWNER_GO=' "$T/o" &&
+    ! grep -q "DRY_RUN would\|OK DRY_RUN" "$T/o" && [[ ! -s "$T/calls.log" && "$(find "$FB" -printf '%p %m %s\n' | sort)" == "$before" ]] &&
+    pass "DRY_RUN=0 $l is refused (rc 1, the owner-go FATAL), no root call, nothing touched" ||
+    fail "$l rc=$rc: $(cat "$T/o"; cat "$T/calls.log")"
+}
+no_go "without OWNER_GO"
+no_go "with OWNER_GO not a msg id" OWNER_GO=not-a-msg-id
+no_go "with OWNER_GO of 7 hex" OWNER_GO=2e9d03b
 host SPL_WS_BASE="$B108"; rc=$?
 [[ $rc -eq 3 ]] && pass "a spec 108 workspace box is not a fleet box (exit 3)" || fail "108 box rc=$rc: $(cat "$T/o")"
 host SPL_WS_USER=fleetusr; rc=$?

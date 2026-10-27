@@ -11,8 +11,12 @@ Postgres text format (spec 5.7). Each class fails closed:
           one (or a constant the projection emits, or tenant_id), every
           constant holds its fixed value, every LIVE column of a listed table
           is classified public or withheld
-  C1      workspace: no tenant_id but the cnf workspace; tenants has one row
-  C2      every row of the file is found by a re-read pinned by RLS alone
+  C1      workspace: no tenant_id but the cnf workspaces (--workspace a,b,..);
+          tenants has exactly one row per listed workspace and no other; with
+          more than one listed, every block but humans carries tenant_id (a
+          row must name its workspace)
+  C2      every row of the file is found by a re-read pinned by RLS alone,
+          matched by (workspace, key): the re-read runs once per workspace
   MEMBER  every member is a HUM-n id, display_name = human_id, no e-mail;
           every HUM-n a message names, and every membership, is an exported
           member (Q1b)
@@ -302,14 +306,15 @@ class Gate:
                 self.fail("C3", t, "public column %s is missing from the file" % c)
 
     def c3_keys(self, t):
-        """A key twice in one table: C1 and C2 match by key, so a second row
-        with a public row's key would pass both with any other content."""
+        """A key twice in one table and workspace: C1 and C2 match by
+        (workspace, key), so a second row with a public row's key would pass
+        both with any other content."""
         key, seen = KEYS.get(t), set()
         if key is None:
             self.fail("C3", t, "the gate knows no key for this table")
             return
         for n, _, r in self.rows(t):
-            k = r.get(key)
+            k = (self.row_ws(r), r.get(key))
             if k in seen:
                 self.fail("C3", t, "row %d: a key seen twice in the table" % n)
             seen.add(k)
@@ -328,21 +333,40 @@ class Gate:
                     )
 
     # --- C1 and the member rule -----------------------------------------------------
+    def row_ws(self, r):
+        """The workspace a row belongs to: its tenant_id, else the one listed
+        workspace; None when several are listed and the row names none."""
+        if "tenant_id" in r:
+            return r["tenant_id"]
+        listed = self.a.workspace.split(",")
+        return listed[0] if len(listed) == 1 else None
+
     def c1(self, ws):
-        n_ws = len(self.rows("tenants"))
-        if n_ws != 1:
-            self.fail(
-                "C1",
-                "tenants",
-                "the file must hold exactly one workspace row, it holds %d" % n_ws,
-            )
-        for table in self.blocks:
-            for n, _, r in self.rows(table):
-                if "tenant_id" in r and r["tenant_id"] != ws:
+        listed = set(ws.split(","))
+        if len(listed) > 1:
+            for table, b in self.blocks.items():
+                if table != "humans" and "tenant_id" not in b["cols"]:
                     self.fail(
                         "C1",
                         table,
-                        "row %d: tenant_id is not the exported workspace" % n,
+                        "the COPY carries no tenant_id: with %d listed workspaces a row must name its own"
+                        % len(listed),
+                    )
+        got = [r.get("tenant_id") for _, _, r in self.rows("tenants")]
+        if len(got) != len(set(got)) or set(got) != listed:
+            self.fail(
+                "C1",
+                "tenants",
+                "the file must hold exactly one row per listed workspace (%d), it holds %d"
+                % (len(listed), len(got)),
+            )
+        for table in self.blocks:
+            for n, _, r in self.rows(table):
+                if "tenant_id" in r and r["tenant_id"] not in listed:
+                    self.fail(
+                        "C1",
+                        table,
+                        "row %d: tenant_id is not an exported workspace" % n,
                     )
 
     def members(self):
@@ -380,17 +404,23 @@ class Gate:
 
     # --- C2 ----------------------------------------------------------------------------
     def c2(self, reread):
+        """reread: {table: [[workspace, key], ...]}, one re-read per listed
+        workspace. humans has no RLS: its key is looked up in the
+        memberships of any listed workspace."""
         for table in self.blocks:
             src = "tenant_memberships" if table == "humans" else table
-            seen = reread.get(src)
-            if seen is None:
+            pairs = reread.get(src)
+            if pairs is None:
                 self.fail(
                     "C2", table, "the RLS re-read returned nothing for this table"
                 )
                 continue
-            seen = set(seen)
+            seen = {tuple(p) for p in pairs}
+            if table == "humans":
+                seen = {k for _, k in seen}
             for n, row, r in self.rows(table):
-                if r.get(KEYS[table]) not in seen:
+                k = r.get(KEYS[table])
+                if (k if table == "humans" else (self.row_ws(r), k)) not in seen:
                     self.fail(
                         "C2",
                         table,

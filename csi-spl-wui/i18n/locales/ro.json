@@ -3270,7 +3270,20 @@
       "table_label": "Linii active",
       "col_scope": "Domeniu",
       "col_updated": "Actualizat",
-      "min_ago": "acum {n} min"
+      "min_ago": "acum {n} min",
+      "col_state": "Stare",
+      "state_live": "Activă",
+      "state_queued": "În coadă",
+      "filter_box": "Mașină",
+      "filter_vendor": "Furnizor",
+      "filter_state": "Stare",
+      "filter_age": "Vechime",
+      "filter_text": "Caută benzi",
+      "age_1h": "Sub 1 h",
+      "age_24h": "Sub 24 h",
+      "age_older": "Peste 24 h",
+      "no_match": "Nicio bandă nu corespunde filtrelor",
+      "shown": "{n} din {total} benzi"
     }
   },
   "takeover": {

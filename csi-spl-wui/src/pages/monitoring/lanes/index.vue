@@ -14,7 +14,12 @@
      reaching the URL sees the hub's 403 as a sentence, never a table.
      Refresh (P4): every 60 s while the browser tab is visible (a hidden tab
      makes no call; it catches up when shown), plus a Refresh button, with
-     the age of the last answer: amber after 90 s, red after 180 s. -->
+     the age of the last answer: amber after 90 s, red after 180 s.
+     Sort and filter (SPL-3887; owner HUM-10, t1 31f6f470, msgs 1eedefed and
+     08b25696): the Issues sheet's controls. A column name sorts by that
+     column (▲, ▼, then back to the hub's order; components/SheetSortButton.vue),
+     the row under the names filters by box, vendor, state, age and text, and
+     Clear filters resets them. Both survive the minute's refresh. -->
 <template>
   <div class="monitoring-lanes" data-test="lanes-page">
     <div class="ln-head">
@@ -23,6 +28,8 @@
       </button>
       <span v-if="view" class="ln-age" :data-stale="stale" data-test="lanes-age">{{ t('monitoring.tokens.updated', { n: lag }) }}</span>
       <span v-if="view && stale === 'red'" class="ln-stale" role="status" data-test="lanes-stale-red">{{ t('monitoring.lanes.stale_red') }}</span>
+      <span v-if="view && filtered" class="ln-age" role="status" data-test="lanes-shown">{{ t('monitoring.lanes.shown', { n: rows.length, total: view.lanes.length }) }}</span>
+      <button v-if="view && view.lanes.length" type="button" class="btn ghost" :disabled="!filtered" data-test="lanes-filter-clear" @click="clearFilters()">{{ t('issues.filter_clear') }}</button>
     </div>
 
     <p v-if="state === 'loading' && !view" class="muted" data-test="lanes-loading">{{ t('monitoring.lanes.loading') }}</p>
@@ -38,20 +45,56 @@
         <table class="ln-table" :aria-label="t('monitoring.lanes.table_label')" data-test="lanes-table">
           <thead>
             <tr>
-              <th scope="col">{{ t('monitoring.tokens.col_agent') }}</th>
-              <th scope="col">{{ t('monitoring.tokens.col_vendor') }}</th>
-              <th scope="col">{{ t('monitoring.lanes.col_scope') }}</th>
-              <th scope="col">{{ t('issues.discussion') }}</th>
-              <th scope="col">{{ t('issues.title') }}</th>
-              <th scope="col" class="num">{{ t('monitoring.lanes.col_updated') }}</th>
-              <th scope="col" class="num">{{ t('monitoring.tokens.col_last') }}</th>
-              <th scope="col" data-test="lanes-col-workspace">{{ t('sidebar.tenant') }}</th>
+              <th
+                v-for="c in columns"
+                :key="c.col"
+                scope="col"
+                :class="c.cls"
+                :data-test="c.test"
+                :aria-sort="sort.col === c.col ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'"
+              >
+                <SheetSortButton :col="c.col" :name="c.name" :sort="sort" :test="'lanes-sort-' + c.col" @sort="toggleSort" />
+              </th>
+            </tr>
+            <tr class="ln-frow" data-test="lanes-filters">
+              <th>
+                <select v-model="filters.box" data-test="lanes-filter-box" :aria-label="t('monitoring.lanes.filter_box')">
+                  <option value="">{{ t('issues.filter_all') }}</option>
+                  <option v-for="b in choices.box" :key="b" :value="b">{{ b }}</option>
+                </select>
+              </th>
+              <th>
+                <select v-model="filters.vendor" data-test="lanes-filter-vendor" :aria-label="t('monitoring.lanes.filter_vendor')">
+                  <option value="">{{ t('issues.filter_all') }}</option>
+                  <option v-for="v in choices.vendor" :key="v" :value="v">{{ v }}</option>
+                </select>
+              </th>
+              <th>
+                <select v-model="filters.state" data-test="lanes-filter-state" :aria-label="t('monitoring.lanes.filter_state')">
+                  <option value="">{{ t('issues.filter_all') }}</option>
+                  <option v-for="s in choices.state" :key="s" :value="s">{{ stateLabel(s) }}</option>
+                </select>
+              </th>
+              <th colspan="3">
+                <input v-model="filters.text" type="search" class="ln-search" data-test="lanes-filter-text" :placeholder="t('monitoring.lanes.filter_text')" :aria-label="t('monitoring.lanes.filter_text')">
+              </th>
+              <th>
+                <select v-model="filters.age" data-test="lanes-filter-age" :aria-label="t('monitoring.lanes.filter_age')">
+                  <option value="">{{ t('issues.filter_all') }}</option>
+                  <option v-for="a in LANE_AGES" :key="a" :value="a">{{ ageLabel(a) }}</option>
+                </select>
+              </th>
+              <th colspan="2" />
             </tr>
           </thead>
           <tbody>
-            <tr v-for="l in view.lanes" :key="l.agentId + '@' + l.box" data-test="lanes-row" :data-agent="l.agentId">
+            <tr v-if="rows.length === 0">
+              <td :colspan="columns.length" class="muted" data-test="lanes-no-match">{{ t('monitoring.lanes.no_match') }}</td>
+            </tr>
+            <tr v-for="l in rows" :key="l.agentId + '@' + l.box" data-test="lanes-row" :data-agent="l.agentId">
               <th scope="row" class="ln-id" data-test="lanes-agent">{{ laneName(l) }}</th>
               <td data-test="lanes-vendor">{{ l.vendor || DASH }}</td>
+              <td data-test="lanes-state" :data-state="l.state">{{ stateLabel(l.state) }}</td>
               <td class="ln-cut" :title="l.scope || undefined" data-test="lanes-scope">{{ l.scope || DASH }}</td>
               <td class="ln-cut" :title="l.topicTitle || l.topicId || undefined" data-test="lanes-topic">
                 <NuxtLink v-if="laneTopicPath(l)" :to="localePath(laneTopicPath(l))" data-test="lanes-topic-link">{{ l.topicTitle }}</NuxtLink>
@@ -80,7 +123,8 @@
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useOperatorPane } from '~/stores/operator-pane'
 import { lagSeconds } from '~/utils/monitoring-tokens.mjs'
-import { fleetLanesOf, laneIssuePath, laneName, laneTopicPath, lanesStaleLevel, minutesAgo, startLanesPoll } from '~/utils/monitoring-lanes.mjs'
+import { LANE_AGES, LANE_COLUMNS, LANES_NO_FILTER, filterLanes, fleetLanesOf, laneFilterChoices, laneIssuePath, laneName, laneTopicPath, lanesFiltered, lanesStaleLevel, minutesAgo, sortLanes, startLanesPoll } from '~/utils/monitoring-lanes.mjs'
+import { cycleSort } from '~/utils/sheet-sort.mjs'
 
 type LanesApi = { getFleetLanes: (own?: boolean) => Promise<unknown> }
 type LanesView = ReturnType<typeof fleetLanesOf>
@@ -99,6 +143,43 @@ const fetchedAt = ref(0)
 const now = ref(Date.now())
 const lag = computed(() => (fetchedAt.value ? lagSeconds(fetchedAt.value, now.value) : 0))
 const stale = computed(() => lanesStaleLevel(lag.value))
+
+/* the sheet's columns, the sort (none = the hub's order) and the filter row (SPL-3887) */
+const COLUMN_NAMES: Record<string, { key: string, cls?: string, test?: string }> = {
+  agent: { key: 'monitoring.tokens.col_agent' },
+  vendor: { key: 'monitoring.tokens.col_vendor' },
+  state: { key: 'monitoring.lanes.col_state' },
+  scope: { key: 'monitoring.lanes.col_scope' },
+  topic: { key: 'issues.discussion' },
+  issues: { key: 'issues.title' },
+  updated: { key: 'monitoring.lanes.col_updated', cls: 'num' },
+  active: { key: 'monitoring.tokens.col_last', cls: 'num' },
+  workspace: { key: 'sidebar.tenant', test: 'lanes-col-workspace' },
+}
+const columns = computed(() => LANE_COLUMNS.map((col: string) => ({ col, name: t(COLUMN_NAMES[col]!.key), cls: COLUMN_NAMES[col]!.cls, test: COLUMN_NAMES[col]!.test })))
+const sort = ref<{ col: string, dir: string }>({ col: '', dir: '' })
+function toggleSort(col: string) {
+  sort.value = cycleSort(col, sort.value, LANE_COLUMNS)
+}
+const filters = reactive({ ...LANES_NO_FILTER })
+const filtered = computed(() => lanesFiltered(filters))
+function clearFilters() {
+  Object.assign(filters, LANES_NO_FILTER)
+}
+const choices = computed(() => laneFilterChoices(view.value ? view.value.lanes : []))
+const rows = computed(() => (view.value ? sortLanes(filterLanes(view.value.lanes, filters), sort.value) : []))
+/** the age filter's choices in words */
+function ageLabel(a: string) {
+  if (a === '1h') return t('monitoring.lanes.age_1h')
+  if (a === '24h') return t('monitoring.lanes.age_24h')
+  return t('monitoring.lanes.age_older')
+}
+/** live / queued in words; a state the page does not know shows as sent */
+function stateLabel(s: string) {
+  if (s === 'live') return t('monitoring.lanes.state_live')
+  if (s === 'queued') return t('monitoring.lanes.state_queued')
+  return s
+}
 
 /** "N min ago" against the answer's as_of; a dash for none */
 function ago(at: string) {
@@ -185,6 +266,9 @@ onBeforeUnmount(() => {
 /* a long scope or topic stays on one line, its full text in the title (3.2) */
 .ln-cut { max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ln-issue { margin-inline-end: 6px; white-space: nowrap; font-family: var(--font-mono); }
+/* the filter row under the names, as the Issues sheet's (SPL-3887) */
+.ln-frow th { font-weight: normal; padding-top: 2px; }
+.ln-frow select, .ln-search { width: 100%; min-width: 5rem; max-width: 16rem; font: inherit; }
 /* the workspace, the last column (3.8): it may wrap, never dropped (phone too) */
 .ln-ws { min-width: 6rem; overflow-wrap: anywhere; }
 </style>

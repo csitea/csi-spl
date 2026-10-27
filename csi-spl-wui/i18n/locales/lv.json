@@ -3270,7 +3270,20 @@
       "table_label": "Aktīvās līnijas",
       "col_scope": "Tvērums",
       "col_updated": "Atjaunināts",
-      "min_ago": "pirms {n} min"
+      "min_ago": "pirms {n} min",
+      "col_state": "Stāvoklis",
+      "state_live": "Darbojas",
+      "state_queued": "Rindā",
+      "filter_box": "Mašīna",
+      "filter_vendor": "Piegādātājs",
+      "filter_state": "Stāvoklis",
+      "filter_age": "Vecums",
+      "filter_text": "Meklēt joslas",
+      "age_1h": "Līdz 1 h",
+      "age_24h": "Līdz 24 h",
+      "age_older": "Vairāk par 24 h",
+      "no_match": "Neviena josla neatbilst filtriem",
+      "shown": "{n} no {total} joslām"
     }
   },
   "takeover": {

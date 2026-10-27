@@ -3270,7 +3270,20 @@
       "table_label": "Активни линии",
       "col_scope": "Опфат",
       "col_updated": "Ажурирано",
-      "min_ago": "пред {n} мин"
+      "min_ago": "пред {n} мин",
+      "col_state": "Состојба",
+      "state_live": "Активна",
+      "state_queued": "Во редица",
+      "filter_box": "Машина",
+      "filter_vendor": "Добавувач",
+      "filter_state": "Состојба",
+      "filter_age": "Старост",
+      "filter_text": "Пребарај линии",
+      "age_1h": "До 1 ч",
+      "age_24h": "До 24 ч",
+      "age_older": "Над 24 ч",
+      "no_match": "Ниедна линија не одговара на филтрите",
+      "shown": "{n} од {total} линии"
     }
   },
   "takeover": {

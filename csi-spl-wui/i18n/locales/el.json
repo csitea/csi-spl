@@ -3270,7 +3270,20 @@
       "table_label": "Ενεργές γραμμές",
       "col_scope": "Εύρος",
       "col_updated": "Ενημέρωση",
-      "min_ago": "πριν από {n} λεπτά"
+      "min_ago": "πριν από {n} λεπτά",
+      "col_state": "Κατάσταση",
+      "state_live": "Ενεργή",
+      "state_queued": "Σε αναμονή",
+      "filter_box": "Μηχάνημα",
+      "filter_vendor": "Πάροχος",
+      "filter_state": "Κατάσταση",
+      "filter_age": "Ηλικία",
+      "filter_text": "Αναζήτηση γραμμών",
+      "age_1h": "Έως 1 ώ",
+      "age_24h": "Έως 24 ώ",
+      "age_older": "Πάνω από 24 ώ",
+      "no_match": "Καμία γραμμή δεν ταιριάζει με τα φίλτρα",
+      "shown": "{n} από {total} γραμμές"
     }
   },
   "takeover": {

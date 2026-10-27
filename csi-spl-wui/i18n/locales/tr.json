@@ -3270,7 +3270,20 @@
       "table_label": "Etkin hatlar",
       "col_scope": "Kapsam",
       "col_updated": "Güncellendi",
-      "min_ago": "{n} dk önce"
+      "min_ago": "{n} dk önce",
+      "col_state": "Durum",
+      "state_live": "Etkin",
+      "state_queued": "Kuyrukta",
+      "filter_box": "Makine",
+      "filter_vendor": "Sağlayıcı",
+      "filter_state": "Durum",
+      "filter_age": "Yaş",
+      "filter_text": "Şeritlerde ara",
+      "age_1h": "1 sa içinde",
+      "age_24h": "24 sa içinde",
+      "age_older": "24 sa üstü",
+      "no_match": "Filtrelere uyan şerit yok",
+      "shown": "{n}/{total} şerit"
     }
   },
   "takeover": {

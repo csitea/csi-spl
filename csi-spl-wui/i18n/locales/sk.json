@@ -3270,7 +3270,20 @@
       "table_label": "Aktívne linky",
       "col_scope": "Rozsah",
       "col_updated": "Aktualizované",
-      "min_ago": "pred {n} min"
+      "min_ago": "pred {n} min",
+      "col_state": "Stav",
+      "state_live": "Aktívna",
+      "state_queued": "V poradí",
+      "filter_box": "Stroj",
+      "filter_vendor": "Dodávateľ",
+      "filter_state": "Stav",
+      "filter_age": "Vek",
+      "filter_text": "Hľadať dráhy",
+      "age_1h": "Do 1 h",
+      "age_24h": "Do 24 h",
+      "age_older": "Viac ako 24 h",
+      "no_match": "Filtrom nezodpovedá žiadna dráha",
+      "shown": "{n} z {total} dráh"
     }
   },
   "takeover": {

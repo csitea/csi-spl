@@ -6,6 +6,7 @@
 import { ISSUE_STATUSES, matchIssue, normalizeIssue, normalizeLabel, sortIssues } from './issues.mjs'
 import { storageGetJson, storageSetJson } from './prefs.mjs'
 import { PANE_WIDTHS_KEY } from './pane-widths.mjs'
+import { cycleSort } from './sheet-sort.mjs'
 
 /** Prio is the number 1..5 (rdb 0055 moved the old 0 "none" to 5). */
 export const ISSUE_PRIORITIES = [1, 2, 3, 4, 5]
@@ -62,10 +63,7 @@ const HUB_SORTS = new Set(['priority', 'level', 'deadline', 'updated', 'created'
 
 /** A header click: none -> ascending -> descending -> back to the default. */
 export function nextSort(col, cur = { col: '', dir: '' }) {
-  if (!SHEET_COLUMNS.includes(col)) return { col: '', dir: '' }
-  if (cur.col !== col) return { col, dir: 'asc' }
-  if (cur.dir === 'asc') return { col, dir: 'desc' }
-  return { col: '', dir: '' }
+  return cycleSort(col, cur, SHEET_COLUMNS)
 }
 
 /** ?sort=&dir= from a route query; anything unknown is the default. */

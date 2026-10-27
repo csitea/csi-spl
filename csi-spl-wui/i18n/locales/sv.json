@@ -3270,7 +3270,20 @@
       "table_label": "Aktiva banor",
       "col_scope": "Omfattning",
       "col_updated": "Uppdaterad",
-      "min_ago": "för {n} min sedan"
+      "min_ago": "för {n} min sedan",
+      "col_state": "Status",
+      "state_live": "Aktiv",
+      "state_queued": "I kö",
+      "filter_box": "Maskin",
+      "filter_vendor": "Leverantör",
+      "filter_state": "Status",
+      "filter_age": "Ålder",
+      "filter_text": "Sök banor",
+      "age_1h": "Inom 1 h",
+      "age_24h": "Inom 24 h",
+      "age_older": "Över 24 h",
+      "no_match": "Ingen bana matchar filtren",
+      "shown": "{n} av {total} banor"
     }
   },
   "takeover": {

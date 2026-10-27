@@ -3270,7 +3270,20 @@
       "table_label": "Active lanes",
       "col_scope": "Scope",
       "col_updated": "Updated",
-      "min_ago": "{n} min ago"
+      "min_ago": "{n} min ago",
+      "col_state": "State",
+      "state_live": "Live",
+      "state_queued": "Queued",
+      "filter_box": "Box",
+      "filter_vendor": "Vendor",
+      "filter_state": "State",
+      "filter_age": "Age",
+      "filter_text": "Search lanes",
+      "age_1h": "Within 1 h",
+      "age_24h": "Within 24 h",
+      "age_older": "Over 24 h",
+      "no_match": "No lane matches the filters",
+      "shown": "{n} of {total} lanes"
     }
   },
   "takeover": {

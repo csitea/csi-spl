@@ -3270,7 +3270,20 @@
       "table_label": "Aktiivsed rajad",
       "col_scope": "Ulatus",
       "col_updated": "Uuendatud",
-      "min_ago": "{n} min tagasi"
+      "min_ago": "{n} min tagasi",
+      "col_state": "Olek",
+      "state_live": "Töös",
+      "state_queued": "Järjekorras",
+      "filter_box": "Masin",
+      "filter_vendor": "Tarnija",
+      "filter_state": "Olek",
+      "filter_age": "Vanus",
+      "filter_text": "Otsi radu",
+      "age_1h": "Kuni 1 h",
+      "age_24h": "Kuni 24 h",
+      "age_older": "Üle 24 h",
+      "no_match": "Ükski rada ei vasta filtritele",
+      "shown": "{n}/{total} rada"
     }
   },
   "takeover": {

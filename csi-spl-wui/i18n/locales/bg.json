@@ -3270,7 +3270,20 @@
       "table_label": "Активни линии",
       "col_scope": "Обхват",
       "col_updated": "Обновено",
-      "min_ago": "преди {n} мин"
+      "min_ago": "преди {n} мин",
+      "col_state": "Състояние",
+      "state_live": "Активна",
+      "state_queued": "На опашка",
+      "filter_box": "Машина",
+      "filter_vendor": "Доставчик",
+      "filter_state": "Състояние",
+      "filter_age": "Възраст",
+      "filter_text": "Търсене в линиите",
+      "age_1h": "До 1 ч",
+      "age_24h": "До 24 ч",
+      "age_older": "Над 24 ч",
+      "no_match": "Няма линия, която отговаря на филтрите",
+      "shown": "{n} от {total} линии"
     }
   },
   "takeover": {

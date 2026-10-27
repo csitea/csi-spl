@@ -3270,7 +3270,20 @@
       "table_label": "נתיבים פעילים",
       "col_scope": "היקף",
       "col_updated": "עודכן",
-      "min_ago": "לפני {n} דקות"
+      "min_ago": "לפני {n} דקות",
+      "col_state": "מצב",
+      "state_live": "פעיל",
+      "state_queued": "בתור",
+      "filter_box": "מכונה",
+      "filter_vendor": "ספק",
+      "filter_state": "מצב",
+      "filter_age": "גיל",
+      "filter_text": "חיפוש נתיבים",
+      "age_1h": "עד שעה",
+      "age_24h": "עד 24 שעות",
+      "age_older": "מעל 24 שעות",
+      "no_match": "אין נתיב שתואם את המסננים",
+      "shown": "{n} מתוך {total} נתיבים"
     }
   },
   "takeover": {

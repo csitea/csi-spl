@@ -147,15 +147,15 @@
                 :data-col="c.col"
                 :aria-sort="sheetSort.col === c.col ? (sheetSort.dir === 'asc' ? 'ascending' : 'descending') : 'none'"
               >
-                <button
-                  type="button"
-                  class="issues-sort-h"
-                  :data-test="'issues-sort-' + c.col"
-                  :data-sorted="sheetSort.col === c.col ? sheetSort.dir : undefined"
-                  @click="toggleSort(c.col)"
+                <SheetSortButton
+                  :col="c.col"
+                  :name="c.name"
+                  :sort="sheetSort"
+                  :test="'issues-sort-' + c.col"
+                  @sort="toggleSort"
                   @keydown.alt.left="onGripKey($event, c.col)"
                   @keydown.alt.right="onGripKey($event, c.col)"
-                >{{ c.name }}<span class="issues-sort-mark" aria-hidden="true">{{ sheetSort.col === c.col ? (sheetSort.dir === 'asc' ? '▲' : '▼') : '' }}</span></button>
+                />
                 <!-- owner, topic beb4024f: drag the edge to resize; arrows on focus; double-click = automatic -->
                 <span
                   class="issues-col-grip"
@@ -1921,21 +1921,7 @@ select.issues-cell-select.issues-prio { display: inline-block; min-width: 3.25re
 .issues-row[data-unopened] .issues-title, .issues-card[data-unopened] .issues-card__title { font-weight: 700; }
 .issues-table .issues-person { max-width: 10rem; }
 .issues-table .issues-pill { max-width: 7rem; }
-/* owner, topic e00da93b: sort by a header click; only the sorted column shows its triangle */
-.issues-sort-h {
-  display: inline-block;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.issues-sort-h::first-letter { text-transform: uppercase; }
-.issues-sort-mark { display: inline-block; min-width: 0.75em; margin-inline-start: 4px; font-size: 0.625rem; color: var(--color-fg); }
-.issues-sort-h:not([data-sorted]):hover .issues-sort-mark::before,
-.issues-sort-h:not([data-sorted]):focus-visible .issues-sort-mark::before { content: '▲'; opacity: 0.35; }
+/* the header sort button and its triangle: components/SheetSortButton.vue */
 .issues-note { white-space: normal; }
 .issues-note p { margin: 4px 0; }
 .issues-group__cell { padding: 0; background: var(--color-bg); }

@@ -3270,7 +3270,20 @@
       "table_label": "Actieve banen",
       "col_scope": "Reikwijdte",
       "col_updated": "Bijgewerkt",
-      "min_ago": "{n} min geleden"
+      "min_ago": "{n} min geleden",
+      "col_state": "Status",
+      "state_live": "Actief",
+      "state_queued": "In wachtrij",
+      "filter_box": "Machine",
+      "filter_vendor": "Leverancier",
+      "filter_state": "Status",
+      "filter_age": "Leeftijd",
+      "filter_text": "Banen zoeken",
+      "age_1h": "Binnen 1 u",
+      "age_24h": "Binnen 24 u",
+      "age_older": "Meer dan 24 u",
+      "no_match": "Geen baan past bij de filters",
+      "shown": "{n} van {total} banen"
     }
   },
   "takeover": {

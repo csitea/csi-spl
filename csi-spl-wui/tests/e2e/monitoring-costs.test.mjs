@@ -39,6 +39,9 @@
 //     header's last element under close_buttons 'windows' (C4), the start
 //     X before the heading and no end X under the default 'mac' (C4b).
 //     C5 is every other case here finding the bar by data-test.
+//   - SPL-3887: the Lanes table sorts by a column-name click (the Issues
+//     sheet's SheetSortButton: ▲, ▼, the hub order) and filters by box,
+//     vendor, state, age and text; Clear filters shows every lane again.
 //   - spec 153 3.2 (SPL-3215, row B4): C3b, C3 again at 360 px with the
 //     fifth tab (Lanes) as an operator admin; C17, Monitoring -> Lanes on
 //     the mock fleet of 3 lanes: a row's discussion links /t/<uuid>, a
@@ -351,6 +354,53 @@ async function tabRow(browser, base) {
   }
 }
 
+/** SPL-3887 (owner HUM-10, t1 31f6f470, msgs 1eedefed and 08b25696): the Lanes table sorts by a column-name click and filters by box, vendor, state, age and text, the Issues sheet's controls. CONTROL: on master the names are plain text and no filter row exists, so every check here FAILS there. */
+async function lanesSortFilter(browser, base, size) {
+  const { ctx, p } = await costsPage(browser, base, size, { operator: true })
+  await open(p, base, '/monitoring/lanes')
+  const order = () => p.$$eval('[data-test=lanes-row]', (els) => els.map((e) => e.getAttribute('data-agent')).join(','))
+  const until = (want) => p.waitForFunction((w) => [...document.querySelectorAll('[data-test=lanes-row]')].map((e) => e.getAttribute('data-agent')).join(',') === w, { timeout: 5000 }, want).then(() => true, () => false)
+  ok('3887 lanes: three rows in the hub order', await until('c-085,a-277,m-039'), await order())
+  const names = await p.$$eval('[data-test=lanes-table] thead tr:first-child th', (els) => els.map((th) => (th.querySelector('button.issues-sort-h') ? 'b' : '-')).join(''))
+  ok('3887 lanes: every column name is the Issues sheet\'s sort button', names === 'bbbbbbbbb', names)
+  const aria = () => p.$eval('[data-test=lanes-sort-agent]', (b) => b.closest('th').getAttribute('aria-sort') + ':' + b.querySelector('.issues-sort-mark').textContent)
+  await p.click('[data-test=lanes-sort-agent]')
+  ok('3887 lanes: a name click sorts ascending, ▲', (await until('a-277,c-085,m-039')) && (await aria()) === 'ascending:▲', [await order(), await aria()])
+  await p.click('[data-test=lanes-sort-agent]')
+  ok('3887 lanes: a second click sorts descending, ▼', (await until('m-039,c-085,a-277')) && (await aria()) === 'descending:▼', [await order(), await aria()])
+  await p.click('[data-test=lanes-sort-agent]')
+  ok('3887 lanes: a third click is the hub order again, no mark', (await until('c-085,a-277,m-039')) && (await aria()) === 'none:', [await order(), await aria()])
+  await p.click('[data-test=lanes-sort-updated]')
+  ok('3887 lanes: Updated ascending = oldest write first', await until('m-039,a-277,c-085'), await order())
+  await p.click('[data-test=lanes-sort-updated]')
+  await p.click('[data-test=lanes-sort-updated]')
+  await p.select('[data-test=lanes-filter-vendor]', 'agy')
+  ok('3887 lanes: the vendor filter keeps the agy lane', await until('a-277'), await order())
+  ok('3887 lanes: the line says how many of all show', (await text(p, '[data-test=lanes-shown]')) === '1 of 3 lanes', await text(p, '[data-test=lanes-shown]'))
+  await p.select('[data-test=lanes-filter-vendor]', '')
+  await p.select('[data-test=lanes-filter-box]', 'box-b')
+  ok('3887 lanes: the box filter keeps the box-b lanes', await until('a-277,m-039'), await order())
+  await p.select('[data-test=lanes-filter-box]', '')
+  const states = await p.$$eval('[data-test=lanes-filter-state] option', (os) => os.map((o) => o.value).join(','))
+  ok('3887 lanes: the state filter offers the answer\'s states', states === ',live', states)
+  await p.select('[data-test=lanes-filter-state]', 'live')
+  ok('3887 lanes: the state filter keeps the live lanes', await until('c-085,a-277,m-039'), await order())
+  await p.select('[data-test=lanes-filter-state]', '')
+  await p.select('[data-test=lanes-filter-age]', '1h')
+  ok('3887 lanes: within 1 h keeps the lanes written 4, 25 and 50 min ago', await until('c-085,a-277,m-039'), await order())
+  await p.select('[data-test=lanes-filter-age]', 'older')
+  ok('3887 lanes: over 24 h keeps none, and the table says so', (await until('')) && (await waitFor(p, '[data-test=lanes-no-match]')), await order())
+  await p.select('[data-test=lanes-filter-age]', '')
+  await p.type('[data-test=lanes-filter-text]', 'spl-3215')
+  ok('3887 lanes: the text filter finds an issue key, any case', await until('c-085'), await order())
+  await p.click('[data-test=lanes-filter-clear]')
+  ok('3887 lanes: Clear filters shows every lane again', (await until('c-085,a-277,m-039')) && (await p.$eval('[data-test=lanes-filter-text]', (e) => e.value)) === '', await order())
+  const wide = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  ok('3887 lanes: the filter row adds no sideways page scroll', wide <= 0, wide)
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-lanes-sort-filter-${size.width}.png`, fullPage: true })
+  await ctx.close()
+}
+
 /** Spec 153 C17 (SPL-3215): the Lanes tab on the mock fleet of 3 lanes, an operator admin; CONTROL anyone else. CONTROL: on master the page is absent, so every check here FAILS there. */
 async function lanesTab(browser, base, size) {
   {
@@ -361,7 +411,7 @@ async function lanesTab(browser, base, size) {
     ok('C17 lanes: three rows, newest write first', rows && (await p.$$eval('[data-test=lanes-row]', (els) => els.map((e) => e.getAttribute('data-agent')).join(','))) === 'c-085,a-277,m-039')
     /* spec 153 3.8 (SPL-3818), C43: the workspace is the last column, on every size */
     const lastCol = await p.evaluate(() => {
-      const ths = [...document.querySelectorAll('[data-test=lanes-table] thead th')]
+      const ths = [...document.querySelectorAll('[data-test=lanes-table] thead tr:first-child th')]
       const cells = [...document.querySelectorAll('[data-test=lanes-row]')].map((tr) => tr.lastElementChild)
       return { head: ths.length ? ths[ths.length - 1].getAttribute('data-test') : '', cells: cells.map((c) => c && c.getAttribute('data-test') + '=' + c.textContent.trim()) }
     })
@@ -455,6 +505,7 @@ try {
   for (const [label, size] of [['desktop', { width: 1400, height: 900 }], ['phone', { width: 390, height: 844 }]]) {
     console.log(`-- ${label} ${size.width}x${size.height}`)
     await lanesTab(browser, server.base, size)
+    await lanesSortFilter(browser, server.base, size)
     await costsS1(browser, server.base, size)
 
     /* a full month, the mock's default me (unrestricted) */

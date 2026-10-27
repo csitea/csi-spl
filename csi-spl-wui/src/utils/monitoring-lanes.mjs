@@ -51,6 +51,7 @@ export function fleetLanesOf(body) {
     updatedAt: str(l.updated_at),
     ageS: int(l.age_s),
     lastActive: str(l.last_active),
+    state: str(l.state) || 'live',
   }))
   return { asOf: str(b.as_of), fleet: str(b.fleet), lanes }
 }
@@ -92,6 +93,108 @@ export function lanesStaleLevel(lagS) {
   if (v > LANES_STALE_RED_S) return 'red'
   if (v > LANES_STALE_AMBER_S) return 'amber'
   return 'ok'
+}
+
+/* ---- sort and filter (SPL-3887; owner HUM-10, t1 31f6f470, msgs 1eedefed
+   and 08b25696: "the lanes listing in the monitoring section must be
+   sortable and filterable", the same controls as the issues listing). The
+   header button is the Issues sheet's (components/SheetSortButton.vue, the
+   cycle utils/sheet-sort.mjs); no sort = the hub's order, newest write first. */
+
+/** The sortable columns, in the table's order. */
+export const LANE_COLUMNS = ['agent', 'vendor', 'state', 'scope', 'topic', 'issues', 'updated', 'active', 'workspace']
+
+/** The age filter: written within 1 h, within 24 h, or longer ago. */
+export const LANE_AGES = ['1h', '24h', 'older']
+const AGE_S = { '1h': 3600, '24h': 86400 }
+
+/** No filter: every lane shows. */
+export const LANES_NO_FILTER = Object.freeze({ text: '', box: '', vendor: '', state: '', age: '' })
+
+/** A lane's state; a hub without the field sends live lanes only. */
+export function laneState(lane) {
+  return str(lane.state) || 'live'
+}
+
+const timeOf = (iso) => {
+  const t = Date.parse(str(iso))
+  return Number.isFinite(t) ? t : null
+}
+
+/** What a column sorts by: a time in ms, else text; null = empty (always last). */
+function sortValue(lane, col) {
+  switch (col) {
+    case 'agent': return laneName(lane)
+    case 'state': return laneState(lane)
+    case 'topic': return lane.topicTitle || lane.topicId || null
+    case 'issues': return lane.issues.length ? lane.issues[0].key : null
+    case 'updated': return timeOf(lane.updatedAt)
+    case 'active': return timeOf(lane.lastActive)
+    case 'workspace': return lane.workspaceName || null
+    default: return str(lane[col]) || null
+  }
+}
+
+/**
+ * The lanes in a sheet sort ({ col: '', dir: '' } = the hub's order). Text
+ * compares as words with numbers (c-9 before c-10); times oldest first when
+ * ascending. An empty cell sorts last either way; ties keep the hub's order.
+ * @template T
+ * @param {T[]} lanes
+ * @param {{ col: string, dir: string }} sort
+ * @returns {T[]}
+ */
+export function sortLanes(lanes, sort) {
+  if (!sort || !LANE_COLUMNS.includes(sort.col)) return lanes.slice()
+  const sign = sort.dir === 'desc' ? -1 : 1
+  const rows = lanes.map((l, i) => ({ l, i, v: sortValue(l, sort.col) }))
+  rows.sort((a, b) => {
+    if (a.v === null || b.v === null) return a.v === b.v ? a.i - b.i : a.v === null ? 1 : -1
+    const c = typeof a.v === 'number' && typeof b.v === 'number' ? a.v - b.v : String(a.v).localeCompare(String(b.v), undefined, { numeric: true, sensitivity: 'base' })
+    return c === 0 ? a.i - b.i : sign * c
+  })
+  return rows.map((r) => r.l)
+}
+
+/** The words a text filter searches: the agent, scope, discussion, issue keys and workspace. */
+function laneWords(lane) {
+  return [laneName(lane), lane.vendor, lane.scope, lane.topicTitle, lane.topicId, ...lane.issues.map((i) => i.key), lane.workspaceName, lane.workspace]
+    .join(' ').toLowerCase()
+}
+
+function ageMatches(lane, age) {
+  if (!age) return true
+  const s = Number(lane.ageS)
+  if (age === 'older') return s >= AGE_S['24h']
+  return s < AGE_S[age]
+}
+
+/**
+ * The lanes the filter row keeps: every word of `text` in the lane's words,
+ * and box, vendor, state and age each '' (any) or equal.
+ * @template T
+ * @param {T[]} lanes
+ * @param {{ text?: string, box?: string, vendor?: string, state?: string, age?: string }} f
+ * @returns {T[]}
+ */
+export function filterLanes(lanes, f) {
+  const words = str(f.text).toLowerCase().split(/\s+/).filter(Boolean)
+  return lanes.filter((l) => (!f.box || l.box === f.box)
+    && (!f.vendor || l.vendor === f.vendor)
+    && (!f.state || laneState(l) === f.state)
+    && ageMatches(l, str(f.age))
+    && (words.length === 0 || words.every((w) => laneWords(l).includes(w))))
+}
+
+/** True when any filter is set. */
+export function lanesFiltered(f) {
+  return Boolean(str(f.text).trim() || f.box || f.vendor || f.state || f.age)
+}
+
+/** Each select's choices: the distinct non-empty values in the answer, sorted. */
+export function laneFilterChoices(lanes) {
+  const uniq = (vals) => [...new Set(vals.filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+  return { box: uniq(lanes.map((l) => l.box)), vendor: uniq(lanes.map((l) => l.vendor)), state: uniq(lanes.map(laneState)) }
 }
 
 /**

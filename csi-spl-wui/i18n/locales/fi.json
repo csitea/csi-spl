@@ -3270,7 +3270,20 @@
       "table_label": "Aktiiviset kaistat",
       "col_scope": "Laajuus",
       "col_updated": "Päivitetty",
-      "min_ago": "{n} min sitten"
+      "min_ago": "{n} min sitten",
+      "col_state": "Tila",
+      "state_live": "Käynnissä",
+      "state_queued": "Jonossa",
+      "filter_box": "Kone",
+      "filter_vendor": "Toimittaja",
+      "filter_state": "Tila",
+      "filter_age": "Ikä",
+      "filter_text": "Hae kaistoja",
+      "age_1h": "Alle 1 h",
+      "age_24h": "Alle 24 h",
+      "age_older": "Yli 24 h",
+      "no_match": "Mikään kaista ei vastaa suodattimia",
+      "shown": "{n}/{total} kaistaa"
     }
   },
   "takeover": {

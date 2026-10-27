@@ -3270,7 +3270,20 @@
       "table_label": "Активні лінії",
       "col_scope": "Обсяг",
       "col_updated": "Оновлено",
-      "min_ago": "{n} хв тому"
+      "min_ago": "{n} хв тому",
+      "col_state": "Стан",
+      "state_live": "Активна",
+      "state_queued": "У черзі",
+      "filter_box": "Машина",
+      "filter_vendor": "Постачальник",
+      "filter_state": "Стан",
+      "filter_age": "Вік",
+      "filter_text": "Пошук ліній",
+      "age_1h": "До 1 год",
+      "age_24h": "До 24 год",
+      "age_older": "Понад 24 год",
+      "no_match": "Жодна лінія не відповідає фільтрам",
+      "shown": "{n} з {total} ліній"
     }
   },
   "takeover": {

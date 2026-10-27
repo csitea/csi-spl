@@ -3270,7 +3270,20 @@
       "table_label": "Активне линије",
       "col_scope": "Обим",
       "col_updated": "Ажурирано",
-      "min_ago": "пре {n} мин"
+      "min_ago": "пре {n} мин",
+      "col_state": "Стање",
+      "state_live": "Активна",
+      "state_queued": "На чекању",
+      "filter_box": "Машина",
+      "filter_vendor": "Добављач",
+      "filter_state": "Стање",
+      "filter_age": "Старост",
+      "filter_text": "Претражи линије",
+      "age_1h": "До 1 ч",
+      "age_24h": "До 24 ч",
+      "age_older": "Преко 24 ч",
+      "no_match": "Ниједна линија не одговара филтерима",
+      "shown": "{n} од {total} линија"
     }
   },
   "takeover": {

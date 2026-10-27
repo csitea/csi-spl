@@ -9,6 +9,7 @@ import { join, dirname, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   COSTS_READ,
+  costAIShareNote,
   COST_PIE_COLORS,
   COST_PIE_OTHER_COLOR,
   costCoverageRows,
@@ -150,6 +151,38 @@ describe('a workspace\'s token costs (spec 140 3.10, SPL-3565)', () => {
     assert.equal(costListTotal(m.parts), 14_890_000)
     assert.equal(costListTotal([]), 0)
     assert.equal(costListTotal(undefined), 0)
+  })
+})
+
+describe('a workspace\'s share of the AI subscriptions (spec 143 3.3.1, SPL-3891)', () => {
+  const cov = [{ source: 'fleet_tokens', ok: 26, days: 26 }, { source: 'ai_share', ok: 26, days: 26 }]
+  it('the hub\'s ai_share_from is read for a workspace, never for the estate', () => {
+    assert.equal(costMonthOf({ scope: 'workspace', ai_share_from: '2026-10-27' }).aiShareFrom, '2026-10-27')
+    assert.equal(costMonthOf({ scope: 'estate', ai_share_from: '2026-10-27' }).aiShareFrom, '')
+    assert.equal(costMonthOf({}).aiShareFrom, '')
+  })
+  it('a workspace with a share: the line names its first day', () => {
+    const m = costMonthOf({ scope: 'workspace', coverage: cov, ai_share_from: '2026-10-03', parts: [part('ai_share', 4, { pov: 'claude', kind: 'share' })] })
+    assert.deepEqual(costAIShareNote(m), { key: 'ai_share_from', params: { day: '2026-10-03' } })
+  })
+  it('today\'s tokens only (a customer workspace on 2026-10-27): the line says no share yet, never silence', () => {
+    assert.deepEqual(costAIShareNote(costMonthOf({ scope: 'workspace', coverage: cov })), { key: 'ai_share_none', params: {} })
+  })
+  it('no line for the estate, nor when the hub read no share (the operator\'s own members)', () => {
+    assert.equal(costAIShareNote(costMonthOf({ scope: 'estate', coverage: cov })), null)
+    assert.equal(costAIShareNote(costMonthOf({ scope: 'workspace', coverage: cov.slice(0, 1) })), null)
+    assert.equal(costAIShareNote(null), null)
+  })
+  it('the mock: \'share\' carries ai_share parts and the first day, \'share_none\' neither', () => {
+    const now = new Date('2026-10-27T21:00:00Z')
+    const sh = costMonthOf(mockTenantCostsBody('', 'share', now))
+    assert.equal(sh.scope, 'workspace')
+    assert.deepEqual(sh.parts.filter((p) => p.source === 'ai_share').map((p) => p.projectOrVendor), ['agy', 'claude'])
+    assert.equal(sh.parts.some((p) => p.source === 'ai_paid'), false, 'a customer never sees the estate\'s ai_paid')
+    assert.equal(costAIShareNote(sh).key, 'ai_share_from')
+    const none = costMonthOf(mockTenantCostsBody('', 'share_none', now))
+    assert.equal(none.parts.some((p) => p.source === 'ai_share'), false)
+    assert.equal(costAIShareNote(none).key, 'ai_share_none')
   })
 })
 

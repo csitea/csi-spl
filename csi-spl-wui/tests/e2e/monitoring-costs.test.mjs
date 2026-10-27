@@ -16,6 +16,11 @@
 //     Appearance "Second currency" saves the pick (PUT /preferences, answered
 //     here as the hub would) and the column follows it; a part with no rate
 //     shows the dash saying so (mock scenario 'norate').
+//   - spec 143 3.3.1 (SPL-3891): a customer workspace's Spend names its
+//     ai_share rows "AI subscriptions (your share)" and says from which day
+//     its share is counted (mock 'share'), or that none is yet, today's
+//     tokens showing tomorrow (mock 'share_none', a customer workspace's answer of
+//     2026-10-27); no ai_paid row, no plan.
 //   - spec 140 (SPL-2322): Monitoring -> Tokens. For an operator admin (mock
 //     opt-in) the Costs page carries the Tokens card (today's fleet tokens
 //     and cost) linking to the Tokens tab: the KPI strip, the kinds (qwen
@@ -635,6 +640,37 @@ try {
       const empties = await p.$$eval('[data-test=costs-empty-source]', (els) => els.map((e) => e.textContent.trim()))
       ok('empty: "no cost data yet" for GCP, fleet tokens and agent hours', empties.length === 3 && empties[0] === 'No cost data yet for GCP', empties)
       if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-costs-empty-${size.width}.png`, fullPage: true })
+      await ctx.close()
+    }
+
+    /* spec 143 3.3.1 (SPL-3891): a customer workspace's share of the AI subscriptions */
+    {
+      const { ctx, p } = await costsPage(browser, server.base, size, { scenario: 'share' })
+      await open(p, server.base, SPEND)
+      ok('share: the table renders', await waitFor(p, '[data-test=costs-table]'))
+      const rows = await p.$$eval('[data-test=costs-row][data-source=ai_share] .costs-part', (els) => els.map((e) => e.textContent.trim()))
+      ok('share: one row per agent type, named as the workspace\'s share', rows.join('|') === 'AI subscriptions (your share) · agy|AI subscriptions (your share) · claude', rows)
+      ok('share: no ai_paid row (the estate\'s plans)', (await count(p, '[data-test=costs-row][data-source=ai_paid]')) === 0)
+      const note = await text(p, '[data-test=costs-ai-share-note]')
+      ok('share: the line names the first counted day', /^Your share of the AI subscriptions counts each ended day from \d{4}-\d{2}-03:/.test(note), note)
+      if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/costs-ai-share-${size.width}.png`, fullPage: true })
+      await ctx.close()
+    }
+    {
+      const { ctx, p } = await costsPage(browser, server.base, size, { scenario: 'share_none' })
+      await open(p, server.base, SPEND)
+      ok('share_none: the table renders', await waitFor(p, '[data-test=costs-table]'))
+      ok('share_none: no ai_share row yet', (await count(p, '[data-test=costs-row][data-source=ai_share]')) === 0)
+      const note = await p.$eval('[data-test=costs-ai-share-note]', (e) => ({ key: e.getAttribute('data-key'), text: e.textContent.trim() })).catch(() => ({}))
+      ok('share_none: the line says no share yet, today\'s tokens tomorrow', note.key === 'ai_share_none' && note.text.includes('so today\'s tokens show tomorrow'), note)
+      if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/costs-ai-share-none-${size.width}.png`, fullPage: true })
+      await ctx.close()
+    }
+    /* CONTROL: the estate's mock month carries no share line */
+    {
+      const { ctx, p } = await costsPage(browser, server.base, size, {})
+      await open(p, server.base, SPEND)
+      ok('share control: the estate has no share line', await waitFor(p, '[data-test=costs-table]') && (await count(p, '[data-test=costs-ai-share-note]')) === 0)
       await ctx.close()
     }
 

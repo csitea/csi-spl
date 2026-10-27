@@ -155,7 +155,23 @@ export function costMonthOf(body) {
     coverage: Array.isArray(b.coverage) ? b.coverage.map(costCoverageOf) : [],
     /* spec 140 3.10: every workspace's token burn, the estate answer's only */
     workspaces: b.scope === 'estate' && Array.isArray(b.workspaces) ? b.workspaces.map(costWorkspaceOf) : [],
+    /* spec 143 3.3.1 (SPL-3810): a customer workspace's first day with a stamped token, its answer's only */
+    aiShareFrom: b.scope === 'estate' ? '' : str(b.ai_share_from),
   }
+}
+
+/**
+ * Spec 143 3.3.1 (SPL-3891): the line under a customer workspace's Spend
+ * that says how its share of the AI subscriptions is counted. Only when the
+ * hub read the share (an ai_share coverage row): from its first day, or
+ * none yet (the share counts ended days only, so today's tokens show
+ * tomorrow). The i18n key under monitoring.costs and its params; null else.
+ * @param {ReturnType<typeof costMonthOf>} m
+ * @returns {{ key: 'ai_share_from' | 'ai_share_none', params: { day?: string } } | null}
+ */
+export function costAIShareNote(m) {
+  if (!m || m.scope === 'estate' || !m.coverage.some((c) => c.source === 'ai_share')) return null
+  return m.aiShareFrom ? { key: 'ai_share_from', params: { day: m.aiShareFrom } } : { key: 'ai_share_none', params: {} }
 }
 
 /** A rate, "0.9234" / "10.6" in the reader's locale (up to 4 decimals). */
@@ -363,6 +379,7 @@ function mockSecond(parts, cur, w, scenario) {
 export function mockTenantCostsBody(month = '', scenario = '', now = new Date(), currency = COST_SECOND_DEFAULT) {
   const m = MONTH_RE.test(month) ? month : costMonthOptions(now, 1)[0]
   const w = mockWindow(m, now)
+  if (scenario === 'share' || scenario === 'share_none') return mockShareBody(m, w, scenario, currency)
   const n = w.ended
   const parts = scenario === 'empty'
     ? [
@@ -410,6 +427,35 @@ export function mockTenantCostsBody(month = '', scenario = '', now = new Date(),
       { workspace: 'ws-alpha', vendor: 'agy', tokens: 4.7e7, list_value_micros: 0, days: 1 },
       { workspace: 'ws-operator', vendor: 'claude', tokens: 2.1e9, list_value_micros: toMicros(950), days: n },
     ],
+  }
+}
+
+/* spec 143 3.3.1 (SPL-3891): a customer workspace's month. 'share': its
+   share of the AI subscriptions per agent type from the 3rd day on;
+   'share_none': its agents spent tokens today only, so no share yet */
+function mockShareBody(m, w, scenario, currency) {
+  const n = w.ended
+  const share = scenario === 'share' && n >= 3
+  const parts = [mockPart('fleet_tokens', 'claude', 'tokens', 'transcript', 0, { units: 3.5e6, list: 21.4, days: 1 })]
+  if (share) {
+    parts.push(mockPart('ai_share', 'agy', 'share', 'paid_item', 6.73, { days: n - 2 }),
+      mockPart('ai_share', 'claude', 'share', 'paid_item', 4.12, { days: n - 2 }))
+  }
+  const usd = parts.reduce((s, p) => s + p.usd_micros, 0)
+  for (const p of parts) {
+    p.estate = false
+    p.hand = false
+    p.pct = usd > 0 ? Math.round((p.usd_micros * 1000) / usd) / 10 : null
+  }
+  const cur = costCurrency(currency) || COST_SECOND_DEFAULT
+  const second = mockSecond(parts, cur, w, scenario)
+  const cover = (source) => ({ source, ok: n, partial: 0, missing: 0, unrecorded: 0, days: n })
+  return {
+    month: m, from: w.from, to: w.to, status: w.soFar ? 'so_far' : 'ended', scope: 'workspace',
+    second_currency: cur, days: w.days, days_ended: n,
+    total: { usd_micros: usd, eur_micros: parts.reduce((s, p) => s + p.eur_micros, 0), second_micros: second },
+    parts, coverage: [cover('fleet_tokens'), cover('ai_share')],
+    ...(share ? { ai_share_from: `${m}-03` } : {}),
   }
 }
 

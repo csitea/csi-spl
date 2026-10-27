@@ -3155,8 +3155,12 @@
         "gcp": "GCP",
         "fleet_tokens": "Laevastiku tokenid",
         "agent_hours": "Agentide tunnid",
-        "hand": "Arved"
-      }
+        "hand": "Arved",
+        "ai_paid": "AI tellimused",
+        "ai_share": "AI tellimused (teie osa)"
+      },
+      "ai_share_from": "Teie osa AI tellimustest arvestatakse iga lõppenud päeva kohta alates {day}: agenditüübi kaupa teie agentide tokenid osana kõigist selle päeva tokenitest.",
+      "ai_share_none": "AI tellimuste osa veel pole: arvestatakse iga lõppenud päeva, mil teie agendid tokeneid kasutasid, seega tänased tokenid on näha homme."
     },
     "tokens": {
       "window": "Periood",

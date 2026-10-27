@@ -3155,8 +3155,12 @@
         "gcp": "GCP",
         "fleet_tokens": "Laivueen tokenit",
         "agent_hours": "Agenttien tunnit",
-        "hand": "Laskut"
-      }
+        "hand": "Laskut",
+        "ai_paid": "AI-tilaukset",
+        "ai_share": "AI-tilaukset (osuutesi)"
+      },
+      "ai_share_from": "Osuutesi AI-tilauksista lasketaan jokaiselta päättyneeltä päivältä alkaen {day}: agenttityypeittäin agenttiesi tokenit osana kaikkia päivän tokeneita.",
+      "ai_share_none": "AI-tilauksista ei ole vielä osuutta: se lasketaan jokaiselta päättyneeltä päivältä, jolloin agenttisi käyttivät tokeneita, joten tämän päivän tokenit näkyvät huomenna."
     },
     "tokens": {
       "window": "Aikaväli",

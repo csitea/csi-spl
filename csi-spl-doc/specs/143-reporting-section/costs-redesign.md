@@ -395,6 +395,41 @@ S4 reads:
   output + cache write: the minutes of a day that still has any, else its
   rollup (`fleetVendorDaysSQL`'s precedence), operator scope only.
 
+### 4.2 The share before S4: named, with its first day (SPL-3891)
+
+Owner HUM-10, t1 739e1622 msg 64a4b13d (2026-10-27): "the costs in
+.../reporting/costs/spend are not allocated" for a customer workspace.
+Measured on prd that evening (read only, `do_spl_db_query`): the
+workspace's first `work_tenant`-stamped burn minute was 2026-10-27 00:48Z,
+none before it this month. S3 reads ended days only (`CoverTo` = today), so
+its answer had no `ai_share` part and no `ai_share_from`: the share was not
+missing, it had not started. Today's tokens show from the next UTC day.
+
+Until S4 builds the "AI agents (your share)" group, Spend
+(`pages/reporting/costs/spend.vue`) shows the share as plain rows and says how
+it is counted:
+
+- the sources `ai_share` and `ai_paid` are named ("AI subscriptions (your
+  share)", "AI subscriptions"), never the raw source id;
+- a customer workspace whose answer has an `ai_share` coverage row gets one
+  line: "counted from `<ai_share_from>`", or, with no `ai_share_from`, "no
+  share yet: today's tokens show tomorrow" (`costAIShareNote`,
+  `utils/tenant-costs.mjs`). The estate and the operator's own members get
+  no line.
+- mock scenarios `share` and `share_none` (`spool.mock.costs`) drive it in
+  `tests/e2e/monitoring-costs.test.mjs`.
+
+S3's rule against the owner's allocation rule (msg ff770270: "the amount of
+tokens spent vis the total tokens spent in the spool-hub and than just divice
+the money"): S3 splits each paid item's daily amount by the workspace's
+tokens of that item's agent type on that day, not the month's AI money by
+the workspace's share of all tokens. On 2026-10-27, up to about 21:00Z, the
+two give different totals for the workspace measured: by agent type
+(claude 4.18 %, agy 18.44 %, grok 8.01 %, mistral 0 %) about USD 1.97 for
+the day, by all tokens (5.53 %) about USD 2.33. These are estimates from the
+burn rows and the October items at the 2026-10-01 ECB rate, not an API
+answer. Which rule is meant is the owner's to say.
+
 ## 5. Migration
 
 **Links** (the `legacyMonitoringPath` pattern in `monitoring-tabs.mjs`):

@@ -3155,8 +3155,12 @@
         "gcp": "GCP",
         "fleet_tokens": "Tokeny floty",
         "agent_hours": "Godziny agentów",
-        "hand": "Faktury"
-      }
+        "hand": "Faktury",
+        "ai_paid": "Subskrypcje AI",
+        "ai_share": "Subskrypcje AI (twój udział)"
+      },
+      "ai_share_from": "Twój udział w subskrypcjach AI liczy się za każdy zakończony dzień od {day}: według typu agenta, tokeny twoich agentów jako część wszystkich tokenów tego dnia.",
+      "ai_share_none": "Brak jeszcze udziału w subskrypcjach AI: liczy się każdy zakończony dzień, w którym twoi agenci użyli tokenów, więc dzisiejsze tokeny pojawią się jutro."
     },
     "tokens": {
       "window": "Okres",

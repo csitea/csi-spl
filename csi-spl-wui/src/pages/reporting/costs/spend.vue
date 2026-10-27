@@ -20,7 +20,10 @@
      Spec 140 3.10 (SPL-3565): a workspace's view carries its own lanes'
      token burn as fleet_tokens parts (list price, a paid 0); the total row
      sums the list price; the operator admin's estate adds a table of every
-     workspace's burn. -->
+     workspace's burn.
+     Spec 143 3.3.1 (SPL-3891, owner msg 64a4b13d): a customer workspace's
+     ai_share rows are named, and a line says from which day its share of the
+     AI subscriptions is counted, or that none is yet (ended days only). -->
 <template>
   <div class="monitoring-costs" data-test="costs-page">
     <div class="costs-head">
@@ -39,6 +42,7 @@
       <ul v-if="empties.length" class="costs-empties" data-test="costs-empties">
         <li v-for="s in empties" :key="s" data-test="costs-empty-source" :data-source="s">{{ t('monitoring.costs.empty_source', { source: sourceLabel(s) }) }}</li>
       </ul>
+      <p v-if="shareNote" class="muted" data-test="costs-ai-share-note" :data-key="shareNote.key">{{ t('monitoring.costs.' + shareNote.key, shareNote.params) }}</p>
 
       <MonitoringCostsPie v-if="slices.length" :label="t('monitoring.costs.pie_label')" :slices="slices" />
       <p v-else class="muted" data-test="costs-no-pie">{{ t('monitoring.costs.no_pie') }}</p>
@@ -135,7 +139,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
 import { useOperatorPane } from '~/stores/operator-pane'
 import { costsMonth, costsMonthOptions } from '~/utils/reporting-costs.mjs'
-import { COSTS_READ, costCoverageRows, costEmptySources, costListTotal, costMoney, costMonthOf, costPartKey, costPieSlices, costSecondCell, costSliceColor, costUnits } from '~/utils/tenant-costs.mjs'
+import { COSTS_READ, costAIShareNote, costCoverageRows, costEmptySources, costListTotal, costMoney, costMonthOf, costPartKey, costPieSlices, costSecondCell, costSliceColor, costUnits } from '~/utils/tenant-costs.mjs'
 
 /* the pie is this route's own chunk, never the shell's (ci_costs_route_gzip_kb) */
 const MonitoringCostsPie = defineAsyncComponent(() => import('@/components/MonitoringCostsPie.vue'))
@@ -172,6 +176,7 @@ function second(p: { secondMicros: number | null, fxRate?: number | null, fxRate
 }
 const partLabel = (p: CostPart) => `${sourceLabel(p.source)} · ${p.projectOrVendor || '-'} · ${p.kind}`
 
+const shareNote = computed(() => (view.value ? costAIShareNote(view.value) : null))
 const empties = computed(() => (view.value ? costEmptySources(view.value) : []))
 const listTotal = computed(() => (view.value ? costListTotal(view.value.parts) : 0))
 const coverage = computed(() => (view.value ? costCoverageRows(view.value) : []))

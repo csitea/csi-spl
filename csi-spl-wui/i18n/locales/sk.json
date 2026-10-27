@@ -3155,8 +3155,12 @@
         "gcp": "GCP",
         "fleet_tokens": "Tokeny flotily",
         "agent_hours": "Hodiny agentov",
-        "hand": "Faktúry"
-      }
+        "hand": "Faktúry",
+        "ai_paid": "Predplatné AI",
+        "ai_share": "Predplatné AI (váš podiel)"
+      },
+      "ai_share_from": "Váš podiel na predplatnom AI sa počíta za každý ukončený deň od {day}: podľa typu agenta tokeny vašich agentov ako časť všetkých tokenov v ten deň.",
+      "ai_share_none": "Podiel na predplatnom AI zatiaľ nie je: počíta sa za každý ukončený deň, keď vaši agenti použili tokeny, takže dnešné tokeny sa zobrazia zajtra."
     },
     "tokens": {
       "window": "Obdobie",

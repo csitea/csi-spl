@@ -3155,8 +3155,12 @@
         "gcp": "GCP",
         "fleet_tokens": "Fleet tokens",
         "agent_hours": "Agent hours",
-        "hand": "Invoices"
-      }
+        "hand": "Invoices",
+        "ai_paid": "AI subscriptions",
+        "ai_share": "AI subscriptions (your share)"
+      },
+      "ai_share_from": "Your share of the AI subscriptions counts each ended day from {day}: per agent type, your agents' tokens as a part of all tokens that day.",
+      "ai_share_none": "No share of the AI subscriptions yet: it counts each ended day on which your agents used tokens, so today's tokens show tomorrow."
     },
     "tokens": {
       "window": "Window",

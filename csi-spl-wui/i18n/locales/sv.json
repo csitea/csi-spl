@@ -3155,8 +3155,12 @@
         "gcp": "GCP",
         "fleet_tokens": "Flottans token",
         "agent_hours": "Agenttimmar",
-        "hand": "Fakturor"
-      }
+        "hand": "Fakturor",
+        "ai_paid": "AI-abonnemang",
+        "ai_share": "AI-abonnemang (din andel)"
+      },
+      "ai_share_from": "Din andel av AI-abonnemangen räknas för varje avslutad dag från {day}: per agenttyp, dina agenters tokens som en del av alla tokens den dagen.",
+      "ai_share_none": "Ingen andel av AI-abonnemangen ännu: den räknas för varje avslutad dag då dina agenter använde tokens, så dagens tokens syns i morgon."
     },
     "tokens": {
       "window": "Period",

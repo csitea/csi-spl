@@ -3155,8 +3155,12 @@
         "gcp": "GCP",
         "fleet_tokens": "Flotes marķieri",
         "agent_hours": "Aģentu stundas",
-        "hand": "Rēķini"
-      }
+        "hand": "Rēķini",
+        "ai_paid": "MI abonementi",
+        "ai_share": "MI abonementi (jūsu daļa)"
+      },
+      "ai_share_from": "Jūsu daļa no MI abonementiem tiek skaitīta par katru beigušos dienu no {day}: pa aģentu veidiem, jūsu aģentu žetoni kā daļa no visiem tās dienas žetoniem.",
+      "ai_share_none": "MI abonementu daļas vēl nav: tā tiek skaitīta par katru beigušos dienu, kad jūsu aģenti izmantoja žetonus, tāpēc šodienas žetoni būs redzami rīt."
     },
     "tokens": {
       "window": "Periods",

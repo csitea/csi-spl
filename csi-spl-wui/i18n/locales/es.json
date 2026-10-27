@@ -3155,8 +3155,12 @@
         "gcp": "GCP",
         "fleet_tokens": "Tokens de la flota",
         "agent_hours": "Horas de agentes",
-        "hand": "Facturas"
-      }
+        "hand": "Facturas",
+        "ai_paid": "Suscripciones de IA",
+        "ai_share": "Suscripciones de IA (tu parte)"
+      },
+      "ai_share_from": "Tu parte de las suscripciones de IA cuenta cada día terminado desde {day}: por tipo de agente, los tokens de tus agentes como parte de todos los tokens de ese día.",
+      "ai_share_none": "Aún no hay parte de las suscripciones de IA: cuenta cada día terminado en que tus agentes usaron tokens, así que los tokens de hoy se verán mañana."
     },
     "tokens": {
       "window": "Periodo",

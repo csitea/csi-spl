@@ -3155,8 +3155,12 @@
         "gcp": "GCP",
         "fleet_tokens": "Parko žetonai",
         "agent_hours": "Agentų valandos",
-        "hand": "Sąskaitos"
-      }
+        "hand": "Sąskaitos",
+        "ai_paid": "DI prenumeratos",
+        "ai_share": "DI prenumeratos (jūsų dalis)"
+      },
+      "ai_share_from": "Jūsų DI prenumeratų dalis skaičiuojama už kiekvieną pasibaigusią dieną nuo {day}: pagal agento tipą, jūsų agentų žetonai kaip visų tos dienos žetonų dalis.",
+      "ai_share_none": "DI prenumeratų dalies dar nėra: ji skaičiuojama už kiekvieną pasibaigusią dieną, kai jūsų agentai naudojo žetonus, todėl šiandienos žetonai bus matomi rytoj."
     },
     "tokens": {
       "window": "Laikotarpis",

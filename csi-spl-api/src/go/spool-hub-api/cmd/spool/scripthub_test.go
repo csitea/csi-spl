@@ -60,6 +60,8 @@ func (h *scriptHub) ws(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.CloseNow() //nolint:errcheck
+	// The real hub's read limit (hub/ws.go maxFrameBytes, 512 KiB).
+	conn.SetReadLimit(512 << 10)
 	ctx := context.Background()
 	if err := wsjson.Write(ctx, conn, wire.Frame{Type: wire.TChallenge, Nonce: "nonce-nonce-nonce"}); err != nil {
 		return

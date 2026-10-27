@@ -467,6 +467,15 @@ echo 'HIT S2 kind=limit pane: rate limit' >"$D/wd/ctx.1/m-965/out.s2"
 tick
 check "22. mistral lane on its own limit verdict (lane-mix reader): SKIP, no spawn" 'grep -qE "m-965 SKIP m-965: mistral is on its limit until [0-9-]+T[0-9:]+Z \\(m-965 S2 kind=limit" "$T/tick.out" && ! grep -q "spawn mistral m-965" "$T/spawn.log"'
 check "22. no stray failing command under the ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
+# --- 23. SPL-3792: the agent-age notice keeps the digits of its DEFER reason ----------
+# a box on 2026-10-27, notice b210a09d: "(DEFER rotation TZ-lane-a- failed min ago:
+# next try after min)": the digit-free dedupe key of why.<id> was printed as the text.
+reset; lane a-665 97 agy
+echo "$(( $(date +%s) - 200 )) 20261027T0322Z-lane-a-665 FAIL" >"$S/a-665/lifetime/rotate.lane.last"
+ROTATE_LANE_RETRY=900 ROTATE_LANE_REPORT_GRACE=0 tick; ROTATE_LANE_RETRY=900 ROTATE_LANE_REPORT_GRACE=0 tick
+check "23. the notice keeps the rid, the minutes and the retry" '[ "$(n "$T/send.log" "agent-age@box-desk.*a-665@box-desk agy pid 2665 97 min (DEFER rotation 20261027T0322Z-lane-a-665 failed 3 min ago: next try after 15 min)")" = 1 ]'
+check "23. the dedupe still holds: one DEFER line for two ticks" '[ "$(n "$T/tick.out" "a-665 DEFER rotation")" = 1 ] && [ "$(n "$D/lane-rotate/lane-rotate.log" "a-665 DEFER rotation")" = 1 ]'
+check "23. no stray failing command under the ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
 # --- 12. the cron row ----------------------------------------------------------------------------
 M="$PROJ_ROOT/cnf/box-crons/box-crons.manifest"
 check "12. manifest row lane-rotate, every minute" 'grep -qE "^lane-rotate +\| \* \* \* \* \* +\| src/bash/scripts/lane-rotate-cron.sh +\| lane-rotate/cron.log" "$M"'

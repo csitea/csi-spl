@@ -212,16 +212,17 @@ spl_lane_rotate_limit() {
 
 # spl_lane_rotate_say ID LINE: LINE to stdout and lane-rotate.log when it
 # differs from ID's last one (digits aside), so a tick a minute logs changes.
+# why.<id>: line 1 the digit-free dedupe key, line 2 the line as said (the
+# age report prints line 2; SPL-3792: it printed the key, digits lost).
 spl_lane_rotate_say() {
   local f="$ROTATE_LANE_DIR/why.$1" key last=""
   [[ "$2" == DEFER* ]] && LR_DEFER=$((LR_DEFER + 1))
   key="$(tr -d '0-9' <<<"$2")"
-  [[ -r "$f" ]] && last="$(cat "$f" 2>/dev/null || true)"
-  [[ "$key" == "$last" ]] && return 0
-  echo "$(date -u +%FT%TZ) $1 $2"
+  [[ -r "$f" ]] && { read -r last < "$f" || true; } 2>/dev/null
+  [[ "$key" == "$last" ]] || echo "$(date -u +%FT%TZ) $1 $2"
   [[ "${DRY_RUN:-1}" == 1 ]] && return 0
-  printf '%s' "$key" > "$f" 2>/dev/null || true
-  echo "$(date -u +%FT%TZ) $1 $2" >> "$ROTATE_LANE_LOG"
+  printf '%s\n%s\n' "$key" "$2" > "$f" 2>/dev/null || true
+  [[ "$key" == "$last" ]] || echo "$(date -u +%FT%TZ) $1 $2" >> "$ROTATE_LANE_LOG"
   return 0
 }
 
@@ -446,8 +447,15 @@ spl_lane_rotate_age_alert() {
   echo "$(date -u +%FT%TZ) ALERT age to $to: $new" | tee -a "$ROTATE_LANE_LOG"
 }
 
-# ID's last decision line (why it was not rotated), digits kept out.
-spl_lane_rotate_why_last() { cat "$ROTATE_LANE_DIR/why.$1" 2>/dev/null | cut -c1-120 || echo "no decision"; }
+# ID's last decision line (why it was not rotated), as said, digits kept
+# (line 2 of why.<id>; a file from before SPL-3792 has the key only).
+spl_lane_rotate_why_last() {
+  local f="$ROTATE_LANE_DIR/why.$1" w=""
+  [[ -r "$f" ]] || { echo "no decision"; return 0; }
+  w="$(sed -n 2p "$f" 2>/dev/null || true)"
+  [[ -n "$w" ]] || w="$(sed -n 1p "$f" 2>/dev/null || true)"
+  echo "${w:0:120}"
+}
 
 # ---- the worker ------------------------------------------------------------------
 

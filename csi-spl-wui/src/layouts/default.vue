@@ -33,6 +33,7 @@
         :data-topic-browse="topicPage ? '1' : undefined"
         :data-mobile-section="sectionStrip ? '1' : undefined"
         :data-mobile-section-page="sectionPage ? '1' : undefined"
+        :data-mobile-kbd="kbdFold ? '1' : undefined"
         :data-collapse-channels="collapse.collapsed.channels ? '1' : undefined"
         :data-collapse-topic="collapse.collapsed.topic ? '1' : undefined"
         :data-collapse-threads="collapse.collapsed.threads ? '1' : undefined"
@@ -236,6 +237,7 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import { topicFrameDrops, topicFrameRows, topicFrameTasks } from '~/utils/topic-archive.mjs'
 import { useViewerStore } from '~/stores/viewer'
 import { useMobileStack } from '~/composables/useMobileStack'
+import { useKeyboardInset } from '~/composables/useTouchUi'
 import { MOBILE_STACK_QUERY, isMobileFrontDoor } from '~/utils/mobile-stack.mjs'
 import { isLobbyPath } from '~/utils/lobby-warm.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
@@ -404,6 +406,12 @@ onUnmounted(disposeRouteFocus)
    (sectionPage) gives up its header: the selected control names it. */
 const sectionStrip = computed(() => stack.isMobile.value && stack.level.value !== 1)
 const sectionPage = computed(() => sectionStrip.value && stack.level.value === 2 && isSectionPage(route.path))
+/* SPL-3785 slice 3 (spec 043 strip behaviour, section 5): while the
+   on-screen keyboard is up the strip folds away, so the field and the
+   composer keep the room; it is back at the same place when the keyboard
+   goes. --kb-inset (useKeyboardInset, the visualViewport) is the signal. */
+const kbInset = import.meta.client ? useKeyboardInset() : ref(0)
+const kbdFold = computed(() => sectionStrip.value && kbInset.value > 0)
 /* SPL-3785 retires two phone rules that only held while the strip left at
    level 2 and 3: the tablet's channel strip beside the one panel (SPL-2145,
    TabletStrip) and the sidebar's idle mount at a level-2/3 boot (SPL-2436,

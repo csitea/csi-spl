@@ -967,6 +967,10 @@ html.pane-dragging * {
   }
   .spool-shell[data-mobile-section="1"] > .spool-main,
   .spool-shell[data-mobile-section="1"] > .topic { flex: 1 1 auto; min-height: 0; }
+  /* SPL-3785 slice 3: the keyboard is up (data-mobile-kbd, layouts/default)
+     - the strip folds away at once, no animation, so reduced motion needs no
+     rule of its own */
+  .spool-shell[data-mobile-section="1"][data-mobile-kbd="1"] > .sidebar { display: none; }
   /* a page's own level-3 panel (the open issue) starts under the strip: it
      is placed inside the page, not the screen */
   .spool-shell[data-mobile-section="1"] > .spool-main { position: relative; }

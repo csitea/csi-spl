@@ -231,6 +231,15 @@ comments and issue descriptions.
    quote and a code block are not claims. The code:
    `csi-spl-orc/src/bash/run/spl-desk-placed-check.func.sh` (SPL-3524).
 
+20. **Answer in the workspace and topic where the person asked** (owner
+   HUM-10, 2026-10-26, topic f88d6ee4, msg ffdbb547; lessons-learnt post
+   615e0d4b, item 4, SPL-3858: the first answers to a workspace topic went as
+   DMs in another workspace, where the person never looked). Reply in the
+   same workspace and topic (`TENANT_ID=<that workspace> DESK_TASK=<that
+   topic>`); never move the conversation to a DM or a topic in another
+   workspace. If you have no seat in that workspace, tell the orchestrator so
+   a seated agent answers or seats you there — do not answer elsewhere.
+
 <a id="ws-doc-43f5533b-1a5a-4696-8073-42c6814ab84a"></a>
 ## 2. Example
 

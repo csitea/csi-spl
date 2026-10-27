@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"cmp"
 	"context"
 	"net/http"
 	"regexp"
@@ -57,6 +58,12 @@ type fleetLaneViewJSON struct {
 	UpdatedAt  string               `json:"updated_at"`
 	AgeS       int64                `json:"age_s"`
 	LastActive string               `json:"last_active"`
+	// spec 153 v1.3 3.8: live | queued; a queued row's wait reason ("" =
+	// waiting for room); the workspace the row belongs to, the last column
+	State         string `json:"state"`
+	Wait          string `json:"wait,omitempty"`
+	Workspace     string `json:"workspace"`
+	WorkspaceName string `json:"workspace_name"`
 }
 
 type fleetLanesViewJSON struct {
@@ -97,16 +104,35 @@ func (s *Server) handleFleetLanesView(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// fleetLanesView reads the active lanes and fills their links; reader is the
-// admin whose topic door decides the titles ("" = the service account).
+// fleetLanesView reads the active lanes and the queued asks and fills their
+// links and workspaces (3.8); reader is the admin whose topic door decides
+// the titles ("" = the service account).
 func (s *Server) fleetLanesView(ctx context.Context, tenant, fleet, reader string) (fleetLanesViewJSON, error) {
 	out, active, burn, err := s.activeFleetLanes(ctx, tenant, fleet)
 	if err != nil {
 		return out, err
 	}
-	titles, byTopic, status, prefix, err := s.fleetLaneLinks(ctx, tenant, reader, active)
+	queued, err := s.queuedLanes(ctx, tenant, fleet)
 	if err != nil {
 		return out, err
+	}
+	titles, byTopic, status, prefix, err := s.fleetLaneLinks(ctx, tenant, reader, laneLinkRows(active, queued))
+	if err != nil {
+		return out, err
+	}
+	elsewhere := []string{}
+	for _, l := range laneLinkRows(active, queued) {
+		if _, mine := titles[l.Topic]; !mine && l.Topic != "" {
+			elsewhere = append(elsewhere, l.Topic)
+		}
+	}
+	names, of, err := s.laneWorkspaces(ctx, tenant, elsewhere)
+	if err != nil {
+		return out, err
+	}
+	place := func(v *fleetLaneViewJSON, topic string) {
+		v.Workspace = cmp.Or(of[topic], tenant)
+		v.WorkspaceName = cmp.Or(names[v.Workspace], v.Workspace)
 	}
 	for _, l := range active { // ListFleetLanes order: newest write first
 		v := fleetLaneRow(l, burn)
@@ -115,6 +141,16 @@ func (s *Server) fleetLanesView(ctx context.Context, tenant, fleet, reader strin
 			v.TopicTitle = title
 		}
 		v.Issues = laneIssues(l.IssueKey, prefix, mine, byTopic[l.Topic], status)
+		place(&v, l.Topic)
+		out.Lanes = append(out.Lanes, v)
+	}
+	for _, q := range queued { // the queue's order, after the lanes
+		v := q.row
+		if title, mine := titles[q.topic]; mine {
+			v.TopicTitle = title
+			v.Issues = laneIssues("", prefix, true, byTopic[q.topic], status)
+		}
+		place(&v, q.topic)
 		out.Lanes = append(out.Lanes, v)
 	}
 	return out, nil
@@ -150,7 +186,7 @@ func (s *Server) activeFleetLanes(ctx context.Context, tenant, fleet string) (
 // fleetLaneRow is one active lane's row before its links: no title, no issues.
 func fleetLaneRow(l store.FleetLane, burn map[[2]string]store.FleetTokenBucket) fleetLaneViewJSON {
 	v := fleetLaneViewJSON{AgentID: l.AgentID, AgentBox: l.AgentBox, Vendor: agentid.Kind(l.AgentID), Scope: l.Scope,
-		TopicID: l.Topic, Issues: []fleetLaneIssueJSON{}, UpdatedAt: l.UpdatedAt.UTC().Format(time.RFC3339), AgeS: int64(l.Age.Seconds())}
+		State: "live", TopicID: l.Topic, Issues: []fleetLaneIssueJSON{}, UpdatedAt: l.UpdatedAt.UTC().Format(time.RFC3339), AgeS: int64(l.Age.Seconds())}
 	if b, ok := burn[[2]string{l.AgentBox, l.AgentID}]; ok {
 		v.LastActive = b.Minute.UTC().Format(time.RFC3339)
 		if b.Vendor != "" {

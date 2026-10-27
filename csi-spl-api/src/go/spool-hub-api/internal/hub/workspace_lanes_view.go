@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"cmp"
 	"context"
 	"net/http"
 	"time"
@@ -20,8 +21,8 @@ import (
 // admin (TenantOwner || Has(rbac.Admin)), else 403; the operator service
 // account keeps GET /v1/operator/fleet-lanes (3.3) and gets none here.
 //
-// The rows: 3.3's active rule (activeFleetLanes), then only the lanes whose
-// topic is a topic of W the caller may open (DiscussionStates + canReadTopic
+// The rows: 3.3's active rule (activeFleetLanes) and the queued asks (3.8,
+// queuedLanes), then only those whose topic is a topic of W the caller may open (DiscussionStates + canReadTopic
 // in W). A lane failing either is absent, never shown with a blank cell. The
 // answer has 3.3's shape with agent_box "" (a fleet box name is the
 // operator's) and issues = W's issues that issue_discussions links to the
@@ -63,8 +64,9 @@ func (s *Server) handleWorkspaceLanesView(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, out)
 }
 
-// workspaceLanesView is the operator workspace's active lanes on topics of
-// tenant that reader may open. No operator workspace: no lanes.
+// workspaceLanesView is the operator workspace's active lanes and queued
+// asks (3.8) on topics of tenant that reader may open, each naming tenant
+// as its workspace. No operator workspace: no lanes.
 func (s *Server) workspaceLanesView(ctx context.Context, tenant, fleet, reader string) (fleetLanesViewJSON, error) {
 	op, err := s.operatorTenant(ctx)
 	if err != nil {
@@ -77,6 +79,10 @@ func (s *Server) workspaceLanesView(ctx context.Context, tenant, fleet, reader s
 	if err != nil {
 		return out, err
 	}
+	queued, err := s.queuedLanes(ctx, op, fleet)
+	if err != nil {
+		return out, err
+	}
 	// The links are read in tenant: the own keys stay out (they number
 	// operator issues, and the same number in tenant is another issue).
 	onTopic := make([]store.FleetLane, 0, len(active))
@@ -86,18 +92,30 @@ func (s *Server) workspaceLanesView(ctx context.Context, tenant, fleet, reader s
 			onTopic = append(onTopic, l)
 		}
 	}
-	titles, byTopic, status, prefix, err := s.fleetLaneLinks(ctx, tenant, reader, onTopic)
+	titles, byTopic, status, prefix, err := s.fleetLaneLinks(ctx, tenant, reader, laneLinkRows(onTopic, queued))
 	if err != nil {
 		return out, err
 	}
+	names, _, err := s.laneWorkspaces(ctx, op, nil)
+	if err != nil {
+		return out, err
+	}
+	rows := []fleetLaneViewJSON{}
 	for _, l := range onTopic { // ListFleetLanes order: newest write first
-		title, mine := titles[l.Topic]
+		v := fleetLaneRow(l, burn)
+		v.AgentBox, v.TopicID = "", l.Topic
+		rows = append(rows, v)
+	}
+	for _, q := range queued { // the queue's order, after the lanes
+		rows = append(rows, q.row)
+	}
+	for _, v := range rows {
+		title, mine := titles[v.TopicID]
 		if !mine {
 			continue
 		}
-		v := fleetLaneRow(l, burn)
-		v.AgentBox, v.TopicTitle = "", title
-		v.Issues = laneIssues("", prefix, true, byTopic[l.Topic], status)
+		v.TopicTitle, v.Workspace, v.WorkspaceName = title, tenant, cmp.Or(names[tenant], tenant)
+		v.Issues = laneIssues("", prefix, true, byTopic[v.TopicID], status)
 		out.Lanes = append(out.Lanes, v)
 	}
 	return out, nil

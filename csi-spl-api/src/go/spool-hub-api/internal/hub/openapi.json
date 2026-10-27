@@ -10144,7 +10144,7 @@
         ],
         "responses": {
           "200": {
-            "description": "OK: the operator workspace's active lanes (spec 153 3.3): as_of, fleet and lanes, newest write first, each agent_id, agent_box, vendor, scope, topic_id, topic_title (empty for a topic that is not the workspace's), issues (key and status: the lane's own key and every issue its topic links, each once), updated_at, age_s and last_active (the newest token-burn minute within the hour, empty for none). Active = live, a lane id, and token burn within 15 min or a write within 60 min"
+            "description": "OK: the operator workspace's active lanes (spec 153 3.3): as_of, fleet and lanes, newest write first, each agent_id, agent_box, vendor, scope, topic_id, topic_title (empty for a topic that is not the workspace's), issues (key and status: the lane's own key and every issue its topic links, each once), updated_at, age_s, last_active (the newest token-burn minute within the hour, empty for none), state (live), workspace and workspace_name (the workspace holding the topic, else the operator workspace). Active = live, a lane id, and token burn within 15 min or a write within 60 min. Then the queued spawn asks in queue order (spec 153 3.8): state queued, no agent_id, scope = the ask's summary, vendor = its placement's, updated_at = when it was queued, wait = its reason (empty: waiting for room), topic_id = its topic or the one topic its dispatch-<topic8> names"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -14119,7 +14119,7 @@
         ],
         "responses": {
           "200": {
-            "description": "OK: the workspace's own lanes (spec 153 3.6): the operator workspace's active lanes (3.3's rule) whose topic is a topic of this workspace the caller may open, in 3.3's shape: as_of, fleet and lanes, newest write first, with agent_box empty and issues = this workspace's issues that the topic links (key and status); the lane's own key is left out"
+            "description": "OK: the workspace's own lanes (spec 153 3.6): the operator workspace's active lanes (3.3's rule) whose topic is a topic of this workspace the caller may open, in 3.3's shape: as_of, fleet and lanes, newest write first, with agent_box empty and issues = this workspace's issues that the topic links (key and status); the lane's own key is left out. Then the queued spawn asks on such a topic (spec 153 3.8, state queued). Every row's workspace and workspace_name name this workspace"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"

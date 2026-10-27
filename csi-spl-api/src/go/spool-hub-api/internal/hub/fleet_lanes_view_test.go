@@ -61,8 +61,13 @@ type lanesView struct {
 			Key    string `json:"key"`
 			Status string `json:"status"`
 		} `json:"issues"`
-		AgeS       int64  `json:"age_s"`
-		LastActive string `json:"last_active"`
+		UpdatedAt     string `json:"updated_at"`
+		AgeS          int64  `json:"age_s"`
+		LastActive    string `json:"last_active"`
+		State         string `json:"state"`
+		Wait          string `json:"wait"`
+		Workspace     string `json:"workspace"`
+		WorkspaceName string `json:"workspace_name"`
 	} `json:"lanes"`
 }
 

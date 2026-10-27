@@ -5,8 +5,11 @@
 #   1. do_spl_agent_id_reap: DRY_RUN (the default) is the dry run; with no
 #      tmux to ask it decides nothing (exit 1); REAP_MINTED=1 is --minted
 #   2. the install: the dry run prints the diff and changes nothing; DRY_RUN=0
-#      adds ONE tagged line, DRY_RUN=1 inside it, every other line kept; a
-#      second install is a no-op; remove restores the crontab byte for byte
+#      adds ONE tagged line, DRY_RUN=0 inside it (the line applies, SPL-3769),
+#      every other line kept; a second install is a no-op; REAP_DRY_RUN=1
+#      replaces it with a report-only line and the default puts the applying
+#      line back, one tagged line each time; remove restores the crontab byte
+#      for byte
 # The reaper's own cases are features/spawn-agents/tests/test-agent-id-reap.sh.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -33,15 +36,21 @@ cp "$CT" "$T/crontab.orig"
 printf '#!/bin/sh\nif [ "$1" = -l ]; then cat %q; else cp "$1" %q; fi\n' "$CT" "$CT" >"$T/fake-crontab"; chmod +x "$T/fake-crontab"
 inst() { SNIPPET='do_spl_agent_id_reap_install_cron' in_orc SPOOL_ROOT="$R" REAP_CRONTAB="$T/fake-crontab" REAP_ALLOW_WORKTREE=1 "$@" 2>&1; }
 out="$(inst)"
-grep -q '^  +\*/15 \* \* \* \* DRY_RUN=1 bash .*agent-id-reap.sh >> '"$R"'/.reap/reap.log 2>&1 # csi-spl:agent-id-reap$' <<<"$out" \
-  && pass "2. the dry run prints the line, DRY_RUN=1 inside" || fail "2. dry-run diff ($out)"
+grep -q '^  +\*/15 \* \* \* \* DRY_RUN=0 bash .*agent-id-reap.sh >> '"$R"'/.reap/reap.log 2>&1 # csi-spl:agent-id-reap$' <<<"$out" \
+  && pass "2. the dry run prints the line, DRY_RUN=0 inside (it applies)" || fail "2. dry-run diff ($out)"
 cmp -s "$CT" "$T/crontab.orig" && pass "2. ...and changes nothing" || fail "2. the dry run wrote the crontab"
 inst DRY_RUN=0 >/dev/null
 [ "$(grep -c ' # csi-spl:agent-id-reap$' "$CT")" = 1 ] && pass "2. DRY_RUN=0 adds one tagged line" || fail "2. tagged lines: $(cat "$CT")"
 cmp -s <(grep -v ' # csi-spl:agent-id-reap$' "$CT") "$T/crontab.orig" && pass "2. ...every other line kept (the -other tag too)" || fail "2. other lines changed"
-grep -q 'DRY_RUN=1 bash' "$CT" && pass "2. ...the line reports only (DRY_RUN=1)" || fail "2. the line is live"
+grep -q 'DRY_RUN=0 bash' "$CT" && pass "2. ...the line applies (DRY_RUN=0) with no REAP_DRY_RUN given" || fail "2. the line reports only: $(cat "$CT")"
 out="$(inst DRY_RUN=0)"
 grep -q 'OK cron: nothing to change' <<<"$out" && pass "2. a second install is a no-op" || fail "2. second install ($out)"
+inst DRY_RUN=0 REAP_DRY_RUN=1 >/dev/null
+[ "$(grep -c ' # csi-spl:agent-id-reap$' "$CT")" = 1 ] && grep -q 'DRY_RUN=1 bash' "$CT" \
+  && pass "2. REAP_DRY_RUN=1 replaces it with one report-only line" || fail "2. REAP_DRY_RUN=1: $(cat "$CT")"
+inst DRY_RUN=0 >/dev/null
+[ "$(grep -c ' # csi-spl:agent-id-reap$' "$CT")" = 1 ] && grep -q 'DRY_RUN=0 bash' "$CT" && ! grep -q 'DRY_RUN=1 bash' "$CT" \
+  && pass "2. a reinstall over the report-only line makes it apply, one line" || fail "2. reinstall over report-only: $(cat "$CT")"
 inst DRY_RUN=0 REAP_CRON_ACTION=remove >/dev/null
 cmp -s "$CT" "$T/crontab.orig" && pass "2. remove restores the crontab byte for byte" || fail "2. remove ($(cat "$CT"))"
 

@@ -7,13 +7,14 @@
 # @description $SPOOL_ROOT/.reap/reap.log. Tagged `# csi-spl:agent-id-reap`,
 # @description matched only as the whole END of a line, so no other job is
 # @description touched; idempotent (the line is replaced in place). The line
-# @description is installed reporting only (REAP_DRY_RUN=1, the default):
-# @description turning it live is the orchestrator's call. From a linked
+# @description is installed to apply (REAP_DRY_RUN=0, the default, SPL-3769:
+# @description report-only it freed no id and filled the id line);
+# @description REAP_DRY_RUN=1 installs it reporting only. From a linked
 # @description worktree the install is refused (its path vanishes with it).
 # @description Dry run unless DRY_RUN=0 (prints the crontab diff).
 # @param REAP_CRON_ACTION (optional) - install (default) | remove
 # @param REAP_CRON_EVERY (optional) - minutes between ticks, 1..59, default 15
-# @param REAP_DRY_RUN (optional) - the line's DRY_RUN: 1 (default) or 0
+# @param REAP_DRY_RUN (optional) - the line's DRY_RUN: 0 (default, applies) or 1
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @example ./run -a do_spl_agent_id_reap_install_cron
@@ -22,7 +23,7 @@
 #------------------------------------------------------------------------------
 do_spl_agent_id_reap_install_cron() {
   local dry="${DRY_RUN:-1}" act="${REAP_CRON_ACTION:-install}" every="${REAP_CRON_EVERY:-15}"
-  local live="${REAP_DRY_RUN:-1}" root="${SPOOL_ROOT:-/var/spool-hub}" ct="${REAP_CRONTAB:-crontab}"
+  local live="${REAP_DRY_RUN:-0}" root="${SPOOL_ROOT:-/var/spool-hub}" ct="${REAP_CRONTAB:-crontab}"
   local tag="csi-spl:agent-id-reap" script want gd cd
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   [[ "$live" == 0 || "$live" == 1 ]] || { do_log "FATAL REAP_DRY_RUN must be 0 or 1, got: '$live'"; return 1; }

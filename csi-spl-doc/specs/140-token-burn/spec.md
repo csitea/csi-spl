@@ -504,6 +504,11 @@ weighting rule (a cap, a discount, an unused remainder) changes.
 reads the items (`PAID_CMD=list`) or the effective price (`PAID_CMD=effective
 FROM= TO=`) through the hub as the env's project service account; `create`
 and `delete` are for test fixtures and are dry runs unless `DRY_RUN=0`.
+`update` (SPL-3890) corrects a stored item through the hub's PATCH:
+`PAID_ID=<uuid>` and only the fields to change (for example
+`PERIOD_END=2027-10-01` for a payment that covers 12 months), dry unless
+`DRY_RUN=0`. A payment made once for several months is one item whose period
+covers all of them; the effective price and the Costs page spread it by days.
 
 **In the WUI (SPL-2567).** Monitoring -> Tokens carries a Paid card under
 the tables, for the operator admin only (the Tokens tab's gate; a 403 draws

@@ -11,6 +11,8 @@
 #   6. PAID_FX=1 effective (SPL-3791): per vendor, the non-USD items of the
 #      read and how many took a rate on or before their period start (their
 #      own period) rather than the first one after it; counts only, no amount
+#   7. update (SPL-3890) PATCHes PAID_ID with only the fields given, dry by
+#      default; no field, a bad field or a bad id is refused before any call
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -102,6 +104,29 @@ fi
 grep -q 'fx non_usd' "$T/o" && ! grep -qE 'fx .*(amount|paid_usd|0\.9|=7)' "$T/o" && pass "6. the fx lines carry counts only (no amount, no rate)" || fail "6. fx lines leak: $(grep fx "$T/o")"
 run PAID_CMD=effective STUB_BODY="$EFF" STUB_LIST="$LIST"; rc=$?
 [[ $rc -eq 0 ]] && ! grep -q 'fleet-tokens/paid ' "$T/calls" && ! grep -q 'fx non_usd' "$T/o" && pass "6. without PAID_FX: no list call, no fx line (unchanged)" || fail "6. no PAID_FX: $(cat "$T/calls")"
+
+# --- 7. update: PATCH only the fields given (SPL-3890) ------------------------------
+UPD=(PAID_CMD=update "PAID_ID=$ID" PERIOD_END=2027-10-01 "NOTE=paid once for 12 months")
+UBODY='{"period_end":"2027-10-01","note":"paid once for 12 months"}'
+run "${UPD[@]}"; rc=$?
+[[ $rc -eq 0 && ! -s "$T/calls" ]] && grep -qF "OK DRY_RUN would PATCH /v1/operator/fleet-tokens/paid/$ID $UBODY to https://hub.invalid in dev" "$T/o" \
+  && pass "7. update is dry by default: the exact body, 0 calls" || fail "7. dry update: rc=$rc $(cat "$T/calls" "$T/o")"
+UITEM='{"id":"'$ID'","vendor":"mistral","kind":"topup","plan_label":"fixture","quantity":1,"amount":479.8,"currency":"EUR","period_start":"2026-10-01","period_end":"2027-10-01"}'
+run "${UPD[@]}" DRY_RUN=0 STUB_BODY="$UITEM"; rc=$?
+[[ $rc -eq 0 ]] && grep -qxF "hub PATCH /v1/operator/fleet-tokens/paid/$ID $UBODY" "$T/calls" \
+  && grep -qxF "OK dev paid item $ID updated: mistral topup fixture 1 x 479.8 EUR [2026-10-01, 2027-10-01)" "$T/o" \
+  && pass "7. update PATCHes only the given fields and prints the item as stored" || fail "7. update: rc=$rc $(cat "$T/calls" "$T/o")"
+run PAID_CMD=update PAID_ID=$ID AMOUNT=12.5 QUANTITY=2 DRY_RUN=0 STUB_BODY="$UITEM"; rc=$?
+grep -qxF "hub PATCH /v1/operator/fleet-tokens/paid/$ID {\"quantity\":2,\"amount\":12.5}" "$T/calls" \
+  && pass "7. numbers ride as numbers, nothing else in the body" || fail "7. numbers: $(cat "$T/calls")"
+for bad in "PAID_ID=" "PAID_ID=1;rm" "PERIOD_END=" "PERIOD_END=2027-1-1" "AMOUNT=0" "KIND=gift" "PERIOD_START=2027-10-01" "DRY_RUN=yes"; do
+  run PAID_CMD=update PAID_ID=$ID PERIOD_END=2027-10-01 DRY_RUN=0 "$bad"; rc=$?
+  [[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q FATAL "$T/o" && pass "7. update $bad refused, no call" || fail "7. update $bad: rc=$rc $(cat "$T/calls" "$T/o")"
+done
+run PAID_CMD=update PAID_ID=$ID DRY_RUN=0; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q 'FATAL update needs at least one field' "$T/o" && pass "7. update with no field refused, no call" || fail "7. no field: rc=$rc $(cat "$T/calls" "$T/o")"
+run "${UPD[@]}" DRY_RUN=0 STUB_CODE=404 STUB_BODY='{"error":"not_found"}'; rc=$?
+[[ $rc -eq 1 ]] && grep -q 'answered 404' "$T/o" && pass "7. a 404 on update fails" || fail "7. 404: rc=$rc $(cat "$T/o")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

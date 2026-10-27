@@ -7,6 +7,9 @@
 // separate `spool-<verb>` binaries or shims ship (spec 002 Clarifications
 // 2026-09-18 spell them `spool <verb>`).
 //
+//	key-exec <kind> -- <cli> [args...]   start a seat's CLI on its workspace's own key from
+//	          the desk socket; exit 79 = key refused by the vendor (spec 127 X2, spec 159 T5)
+//	key-helper --sock <path> claude      claude's apiKeyHelper (spec 127 5.2)
 //	keygen  [--box <box_id>] [--force]      box keypair; --box defaults to $SPOOL_BOX_ID;
 //	          an existing key is kept and its public key printed (--force replaces it)
 //	pin     --box <box_id> --pubkey <b64> [--force] [--revoke] [--root-key <path>]
@@ -146,6 +149,8 @@ on a box (an agent's machine):
   keygen              make this box's signing key, or keep the existing one (prints the PUBLIC key)
   key                 workspace age keys: init, unlock, lock, status, rotate (spec 136)
   keyd                hold unlocked workspace keys (started by key unlock)
+  key-exec            start a seat's CLI on its workspace's own vendor key (spec 127 X2)
+  key-helper          claude's apiKeyHelper: the key from the desk socket
   lock                box owner lock: seal, unlock, serve, status, reseal, rotate-recovery, rebind, sign, create (spec 025)
   pin                 pin a box key locally; with --root-key also at the hub
   join                seat this box with a join token ($SPOOL_JOIN_TOKEN or - = stdin)
@@ -237,6 +242,10 @@ func run(args []string) int {
 		return cmdKey(rest)
 	case "keyd": // spec 136
 		return cmdKeyd(rest)
+	case "key-exec": // spec 127 X2, spec 159 T5
+		return cmdKeyExec(rest)
+	case "key-helper": // spec 127 X2: claude's apiKeyHelper
+		return cmdKeyHelper(rest)
 	case "migrate":
 		return cmdMigrate(rest)
 	case "fleet-tokens-reprice": // SPL-2405

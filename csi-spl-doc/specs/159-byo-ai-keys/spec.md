@@ -367,6 +367,39 @@ is **off** by default.
    sees the count of exhausted keys per day on Monitoring, never which
    workspace's.
 
+### 9.1 Built: the box half (T5 increment 1, SPL-3738)
+
+`spool key-exec <kind> -- <cli> [args...]` is 127 X2's wrapper and point 1
+above. It asks the desk socket (`$SPOOL_KEY_SOCK`, one JSON line each way:
+`{"op":"lease","kind":...}`, `{"op":"exhausted","kind":...}`; the server
+half is 127 X1, its own row) for a lease on **every** start, then forks the
+CLI in the seat dir (`$SPOOL_SEAT_DIR`) and waits:
+
+- The key is set in the CLI's environment only (grok `XAI_API_KEY` with
+  `GROK_HOME` = the seat dir, mistral `MISTRAL_API_KEY`, qwen
+  `OPENAI_API_KEY` + `OPENAI_BASE_URL` with `--auth-type openai`), never an
+  argv. claude gets no key variable: a seat settings file (0600) names
+  `spool key-helper --sock <path> claude` as its `apiKeyHelper`, passed by
+  `--settings`. Every other vendor variable is removed, the hard core limit
+  is 0, the telemetry switches of 127 L16 are off. agy is refused until
+  127's B0c gate (127 9.2, R5.2).
+- The classifier reads the CLI's exit code and the last 8 KiB of its
+  stderr: an HTTP 401 or 402, a quota 429 (`insufficient_quota`, "exceeded
+  your current quota"), a billing or credit line, or a revoked or invalid
+  key is a refusal; a plain rate limit or overload is not. A refusal is
+  reported as `exhausted <kind>`, with no vendor text, and the wrapper exits
+  **79**. A desk lease refused with `key_exhausted` also exits 79 before the
+  CLI runs, so a supervisor stops there; any other refusal exits 78.
+- Not claimed: an interactive CLI that shows the refusal and stays open is
+  not classified by the wrapper (it never exits); for claude the hub's 409
+  on the helper's next lease is the guard.
+- Tests: `csi-spl-api/src/go/spool-hub-api/internal/keyexec/` (the T5 red
+  control `TestRedControlFake402`, L6, L7, L10, L14, L15) and
+  `cmd/spool/key_exec_test.go`.
+
+The hub half (the `exhausted` state, 409 `key_exhausted` on the lease, the
+topic line, the mail, the picker, the fall-back and L24) is increment 2.
+
 ## 10. The WUI: Agent keys page
 
 127 W1's page (`csi-spl-wui/src/pages/tenant-settings/agent-keys.vue`)

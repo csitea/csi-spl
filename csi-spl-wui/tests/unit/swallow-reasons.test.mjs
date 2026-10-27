@@ -38,7 +38,7 @@ const REASONED = [
   'src/utils/flow-badge.mjs',
   'src/utils/early-session.mjs',
   // round 4 row 06
-  'src/utils/notify.mjs',
+  'src/utils/notify-sound.mjs', // its two swallows moved out of notify.mjs (SPL-3573)
   'src/composables/useChannelOrder.ts',
   'src/components/DeadlinePicker.vue',
   'src/composables/useMobileStack.ts',

@@ -27,9 +27,6 @@ import {
   saveMutedChannels,
   toggleMutedChannel,
   MUTED_CHANNELS_KEY,
-  playChime,
-  playSound,
-  SOUND_LIBRARY,
   SOUND_NAMES,
   DEFAULT_SOUND,
   normalizeSound,
@@ -37,6 +34,7 @@ import {
   saveChimeSound,
   CHIME_SOUND_KEY,
 } from '../../src/utils/notify.mjs'
+import { playChime, playSound, SOUND_LIBRARY } from '../../src/utils/notify-sound.mjs'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 import { normalizeViewMessage } from '../../src/utils/view-api.mjs'
 import { dmTotalsFromDms } from '../../src/utils/channel-feed.mjs'
@@ -160,10 +158,10 @@ describe('notify escalation', () => {
     for (const c of calls) assert.match(c, /notificationOptions\(body, chime\.value, tag(, data)?\)/)
     /* 051: the ping plays the reader's chosen sound, still gated on the note */
     assert.match(store, /if \(chime\.value && import\.meta\.client( && chimeGate\(\))?\)[\s\S]{0,140}playSound\(sound\.value\)/)
-    /* CLE-35075/051: the synth lives in notify.mjs; the gated store path plays
+    /* CLE-35075/051: the synth lives in notify-sound.mjs (a lazy chunk, SPL-3573); the gated store path plays
        it, and the Settings picker previews it. Nowhere else. */
     const sounds = execSync(`grep -rlE "playSound\\(" src || true`, { cwd: WUI }).toString().trim().split('\n').filter(Boolean).sort()
-    assert.deepEqual(sounds, ['src/components/settings/notifications.vue', 'src/stores/notification.ts', 'src/utils/notify.mjs'])
+    assert.deepEqual(sounds, ['src/components/settings/notifications.vue', 'src/stores/notification.ts', 'src/utils/notify-sound.mjs'])
     assert.match(store, /addEventListener\('storage'[\s\S]{0,80}isSoundPrefKey\(e\.key\)\) hydrate\(\)/)
     /* nothing else in src makes a sound: add it to this list AND gate it on the note */
     const hits = execSync(`grep -rlE "new (Audio|AudioContext|Notification)\\(|showNotification\\(|\\.play\\(\\)" src public || true`, { cwd: WUI }).toString().trim().split('\n').filter(Boolean)
@@ -663,7 +661,7 @@ describe('bug A: a new message signals', () => {
      was pending, so notes scheduled before it lay in the past - a short motif
      (pop / plain / chirp) never sounded */
   it('HUM-24: a suspended context schedules its notes from the clock AFTER the resume', async () => {
-    const { LEAD_S } = await import('../../src/utils/notify.mjs')
+    const { LEAD_S } = await import('../../src/utils/notify-sound.mjs')
     const param = () => ({ value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {} })
     for (const name of SOUND_NAMES) {
       const starts = []
@@ -719,11 +717,11 @@ describe('bug A: a new message signals', () => {
      phone - all three end before ~0.17 s, under Android's output latency,
      and the context was closed at the context-time end */
   it('HUM-24: the close waits for the output latency, and notes start after a lead-in', async () => {
-    const { closeDelayMs, CLOSE_GRACE_S, LEAD_S } = await import('../../src/utils/notify.mjs')
+    const { closeDelayMs, CLOSE_GRACE_S, LEAD_S } = await import('../../src/utils/notify-sound.mjs')
     /* HUM-24 msg ddd345ea: an output route that wakes in ~0.15-0.3 s drops what
        plays first; the silent three all ended inside 0.17 s */
     assert.ok(LEAD_S >= 0.3, `lead-in ${LEAD_S} s covers a waking output route (HUM-24 Linux: ~0.2-0.23 s dropped)`)
-    const { leadFor } = await import('../../src/utils/notify.mjs')
+    const { leadFor } = await import('../../src/utils/notify-sound.mjs')
     assert.equal(leadFor({}), LEAD_S)
     assert.ok(Math.abs(leadFor({ outputLatency: 0.08, baseLatency: 0.01 }) - (0.08 + LEAD_S)) < 1e-9)
     assert.equal(closeDelayMs({}), CLOSE_GRACE_S * 1000)

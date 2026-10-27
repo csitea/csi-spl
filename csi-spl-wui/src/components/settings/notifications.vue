@@ -108,10 +108,10 @@ import {
   MUTED_CHANNELS_KEY,
   SOUND_NAMES,
   loadMutedChannels,
-  playSound,
   saveMutedChannels,
   toggleMutedChannel,
 } from '~/utils/notify.mjs'
+import { playSound } from '~/utils/notify-sound.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
 const notes = useNotificationStore()

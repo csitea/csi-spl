@@ -17,7 +17,6 @@ import {
   shouldPing,
   offScreenReply,
   loadMutedChannels,
-  playSound,
   loadChimeSound,
   saveChimeSound,
   showAlert,
@@ -41,6 +40,20 @@ import {
 } from '~/utils/read-cursor.mjs'
 import { dmPeerOf, dmTotalsFromDms, namedText, peopleLabels, unreadFromDms } from '~/utils/channel-feed.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
+
+/* 027 (SPL-3573): the sound synth is a lazy chunk, not part of the initial JS.
+   The store warms it on the client when it is created, and a chime once it is
+   loaded plays at once, as before; only a chime before the chunk has arrived
+   waits for it. */
+type Synth = typeof import('~/utils/notify-sound.mjs')
+let synth: Synth | null = null
+function loadSynth(): Promise<Synth> {
+  return import('~/utils/notify-sound.mjs').then((m) => (synth = m))
+}
+function playSound(name: string) {
+  if (synth) { synth.playSound(name); return }
+  void loadSynth().then((m) => m.playSound(name)).catch(() => {}) // a chunk that fails to load costs one chime, nothing else
+}
 
 type Ctx = {
   selfId?: string
@@ -496,6 +509,7 @@ function ingestStep(unread: Counts, mentions: Counts, pingFor: Alerts[3], ownRep
 }
 
 export const useNotificationStore = defineStore('notification', () => {
+  if (import.meta.client) void loadSynth().catch(() => {}) // a warm-up that fails leaves the first chime to fetch the chunk again
   const permission = ref('unsupported')
   const chime = ref(false)
   /** 051: which sound the chime plays, per device (dd88348d) */

@@ -1863,8 +1863,8 @@
     "agent_keys": {
       "title": "Agentide võtmed",
       "hint": "Tööruumi enda API-võti iga agendiliigi jaoks. Selle tööruumi heaks töötavad agendid kasutavad seda spool-hubi võtme asemel. Pärast salvestamist võtit enam ei näidata: ainult selle 4 viimast märki.",
-      "forbidden": "Ainult selle tööruumi administraator või ärisuhte omanik saab agentide võtmeid hallata.",
-      "unconfirmed": "Saate neid võtmeid näha, kuid mitte muuta, kuni tööruumi kinnitatud administraator või ärisuhte omanik teid kinnitab.",
+      "forbidden": "Ainult selle tööruumi administraator või äriomanik saab agentide võtmeid hallata.",
+      "unconfirmed": "Saate neid võtmeid näha, kuid mitte muuta, kuni tööruumi kinnitatud administraator või äriomanik teid kinnitab.",
       "kind": {
         "claude": "Claude",
         "grok": "Grok",
@@ -1897,7 +1897,7 @@
       "retried": "Võtit proovitakse uuesti.",
       "error": {
         "forbidden": "Teie roll ei saa agentide võtmeid hallata.",
-        "admin_unconfirmed": "Kõigepealt peab teid kinnitama tööruumi kinnitatud administraator või ärisuhte omanik.",
+        "admin_unconfirmed": "Kõigepealt peab teid kinnitama tööruumi kinnitatud administraator või äriomanik.",
         "act_as_refused": "Agentide võtmeid ei saa muuta, kui tegutsete teise liikmena.",
         "vendor_keys_off": "Agentide võtmed pole selles jaoturis veel sisse lülitatud.",
         "kind_not_available": "See liik ei võta veel tööruumi võtmeid vastu.",

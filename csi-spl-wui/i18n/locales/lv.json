@@ -1858,7 +1858,54 @@
     "caps_col_status": "Statuss",
     "caps_unlimited": "Neierobežots",
     "caps_available": "Pieejams",
-    "caps_at_limit": "Sasniegts ierobežojums"
+    "caps_at_limit": "Sasniegts ierobežojums",
+    "agent_keys_nav": "Aģentu atslēgas",
+    "agent_keys": {
+      "title": "Aģentu atslēgas",
+      "hint": "Darbvietas pašas API atslēga katram aģentu veidam. Aģenti, kas strādā šai darbvietai, to izmanto spool-hub atslēgas vietā. Pēc saglabāšanas atslēga vairs netiek rādīta: tikai tās pēdējās 4 rakstzīmes.",
+      "forbidden": "Tikai šīs darbvietas administrators vai biznesa īpašnieks var pārvaldīt aģentu atslēgas.",
+      "unconfirmed": "Jūs varat redzēt šīs atslēgas, bet nevarat tās mainīt, kamēr apstiprināts darbvietas administrators vai biznesa īpašnieks jūs neapstiprina.",
+      "kind": {
+        "claude": "Claude",
+        "grok": "Grok",
+        "agy": "Antigravity",
+        "mistral": "Mistral",
+        "qwen": "Qwen"
+      },
+      "state": {
+        "set": "Iestatīta",
+        "not_set": "Nav iestatīta",
+        "exhausted": "Beidzies kredīts",
+        "not_available": "Nav pieejama"
+      },
+      "waiting_terms": "Nav pieejama darbvietas atslēgām: gaidām piegādātāja noteikumus.",
+      "not_supported": "Darbvietas atslēgām vēl netiek atbalstīta: gaidām tās pārbaudi.",
+      "set_line": "Beidzas ar {last4}, iestatīja {by} {at}",
+      "exhausted": "Piegādātājs noraidīja šo atslēgu (beidzies kredīts vai kvota). Nomainiet to vai mēģiniet vēlreiz, kad kredīts atkal būs.",
+      "key": "API atslēga",
+      "new_key": "Jauna API atslēga",
+      "base_url": "Bāzes URL (https)",
+      "set": "Iestatīt",
+      "replace": "Nomainīt",
+      "remove": "Noņemt",
+      "remove_ask": "Vai noņemt šo atslēgu?",
+      "remove_yes": "Jā, noņemt",
+      "cancel": "Atcelt",
+      "retry": "Mēģināt vēlreiz",
+      "saved": "Atslēga saglabāta.",
+      "removed": "Atslēga noņemta.",
+      "retried": "Atslēga tiks izmēģināta vēlreiz.",
+      "error": {
+        "forbidden": "Jūsu loma nevar pārvaldīt aģentu atslēgas.",
+        "admin_unconfirmed": "Vispirms jums jābūt apstiprinātam no darbvietas apstiprināta administratora vai biznesa īpašnieka.",
+        "act_as_refused": "Aģentu atslēgas nevar mainīt, darbojoties cita dalībnieka vārdā.",
+        "vendor_keys_off": "Aģentu atslēgas šajā centrā vēl nav ieslēgtas.",
+        "kind_not_available": "Šis veids vēl nepieņem darbvietas atslēgas.",
+        "bad_key": "Atslēgā nedrīkst būt atstarpju, un tā var būt līdz 4096 rakstzīmēm.",
+        "bad_base_url": "Qwen nepieciešams bāzes URL, kas sākas ar https://.",
+        "generic": "Atslēga netika mainīta. Mēģiniet vēlreiz."
+      }
+    }
   },
   "help": {
     "title": "Palīdzība",

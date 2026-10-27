@@ -1858,7 +1858,54 @@
     "caps_col_status": "Stan",
     "caps_unlimited": "Bez limitu",
     "caps_available": "Dostępne",
-    "caps_at_limit": "Osiągnięto limit"
+    "caps_at_limit": "Osiągnięto limit",
+    "agent_keys_nav": "Klucze agentów",
+    "agent_keys": {
+      "title": "Klucze agentów",
+      "hint": "Własny klucz API obszaru roboczego dla każdego rodzaju agenta. Agenci pracujący dla tego obszaru używają go zamiast klucza spool-hub. Po zapisaniu klucz nie jest już pokazywany: tylko jego 4 ostatnie znaki.",
+      "forbidden": "Tylko administrator lub właściciel biznesowy tego obszaru roboczego może zarządzać kluczami agentów.",
+      "unconfirmed": "Możesz widzieć te klucze, ale nie możesz ich zmieniać, dopóki potwierdzony administrator lub właściciel biznesowy obszaru cię nie potwierdzi.",
+      "kind": {
+        "claude": "Claude",
+        "grok": "Grok",
+        "agy": "Antigravity",
+        "mistral": "Mistral",
+        "qwen": "Qwen"
+      },
+      "state": {
+        "set": "Ustawiony",
+        "not_set": "Nieustawiony",
+        "exhausted": "Brak środków",
+        "not_available": "Niedostępny"
+      },
+      "waiting_terms": "Niedostępny dla kluczy obszaru roboczego: czekamy na warunki dostawcy.",
+      "not_supported": "Jeszcze nieobsługiwany dla kluczy obszaru roboczego: czekamy na jego sprawdzenie.",
+      "set_line": "Kończy się na {last4}, ustawił(a) {by}, {at}",
+      "exhausted": "Dostawca odrzucił ten klucz (brak środków lub limitu). Zastąp go albo spróbuj ponownie, gdy znów będą środki.",
+      "key": "Klucz API",
+      "new_key": "Nowy klucz API",
+      "base_url": "Bazowy adres URL (https)",
+      "set": "Ustaw",
+      "replace": "Zastąp",
+      "remove": "Usuń",
+      "remove_ask": "Usunąć ten klucz?",
+      "remove_yes": "Tak, usuń",
+      "cancel": "Anuluj",
+      "retry": "Ponów",
+      "saved": "Klucz zapisany.",
+      "removed": "Klucz usunięty.",
+      "retried": "Klucz zostanie wypróbowany ponownie.",
+      "error": {
+        "forbidden": "Twoja rola nie może zarządzać kluczami agentów.",
+        "admin_unconfirmed": "Najpierw musi cię potwierdzić potwierdzony administrator lub właściciel biznesowy obszaru.",
+        "act_as_refused": "Kluczy agentów nie można zmieniać podczas działania jako inny członek.",
+        "vendor_keys_off": "Klucze agentów nie są jeszcze włączone w tym hubie.",
+        "kind_not_available": "Ten rodzaj nie przyjmuje jeszcze kluczy obszaru roboczego.",
+        "bad_key": "Klucz nie może zawierać spacji i może mieć najwyżej 4096 znaków.",
+        "bad_base_url": "Qwen wymaga bazowego adresu URL zaczynającego się od https://.",
+        "generic": "Klucz nie został zmieniony. Spróbuj ponownie."
+      }
+    }
   },
   "help": {
     "title": "Pomoc",

@@ -1858,7 +1858,54 @@
     "caps_col_status": "Tila",
     "caps_unlimited": "Rajoittamaton",
     "caps_available": "Vapaana",
-    "caps_at_limit": "Raja täynnä"
+    "caps_at_limit": "Raja täynnä",
+    "agent_keys_nav": "Agenttien avaimet",
+    "agent_keys": {
+      "title": "Agenttien avaimet",
+      "hint": "Työtilan oma API-avain kullekin agenttityypille. Tämän työtilan puolesta toimivat agentit käyttävät sitä spool-hubin avaimen sijaan. Tallennuksen jälkeen avainta ei näytetä enää: vain sen 4 viimeistä merkkiä.",
+      "forbidden": "Vain tämän työtilan ylläpitäjä tai liiketoiminnan omistaja voi hallita agenttien avaimia.",
+      "unconfirmed": "Näet nämä avaimet, mutta voit muuttaa niitä vasta kun työtilan vahvistettu ylläpitäjä tai liiketoiminnan omistaja vahvistaa sinut.",
+      "kind": {
+        "claude": "Claude",
+        "grok": "Grok",
+        "agy": "Antigravity",
+        "mistral": "Mistral",
+        "qwen": "Qwen"
+      },
+      "state": {
+        "set": "Asetettu",
+        "not_set": "Ei asetettu",
+        "exhausted": "Saldo loppu",
+        "not_available": "Ei saatavilla"
+      },
+      "waiting_terms": "Ei saatavilla työtilan avaimille: odotetaan toimittajan ehtoja.",
+      "not_supported": "Työtilan avaimia ei vielä tueta: odotetaan sen tarkistusta.",
+      "set_line": "Päättyy {last4}, asettanut {by} {at}",
+      "exhausted": "Toimittaja hylkäsi tämän avaimen (saldo tai kiintiö loppu). Vaihda se tai yritä uudelleen, kun saldoa taas on.",
+      "key": "API-avain",
+      "new_key": "Uusi API-avain",
+      "base_url": "Perus-URL (https)",
+      "set": "Aseta",
+      "replace": "Vaihda",
+      "remove": "Poista",
+      "remove_ask": "Poistetaanko tämä avain?",
+      "remove_yes": "Kyllä, poista",
+      "cancel": "Peruuta",
+      "retry": "Yritä uudelleen",
+      "saved": "Avain tallennettu.",
+      "removed": "Avain poistettu.",
+      "retried": "Avainta kokeillaan uudelleen.",
+      "error": {
+        "forbidden": "Roolisi ei voi hallita agenttien avaimia.",
+        "admin_unconfirmed": "Työtilan vahvistetun ylläpitäjän tai liiketoiminnan omistajan on ensin vahvistettava sinut.",
+        "act_as_refused": "Agenttien avaimia ei voi muuttaa, kun toimit toisena jäsenenä.",
+        "vendor_keys_off": "Agenttien avaimia ei ole vielä otettu käyttöön tässä keskittimessä.",
+        "kind_not_available": "Tämä tyyppi ei vielä ota vastaan työtilan avaimia.",
+        "bad_key": "Avaimessa ei saa olla välilyöntejä ja siinä saa olla enintään 4096 merkkiä.",
+        "bad_base_url": "Qwen tarvitsee perus-URL:n, joka alkaa https://.",
+        "generic": "Avainta ei muutettu. Yritä uudelleen."
+      }
+    }
   },
   "help": {
     "title": "Ohje",

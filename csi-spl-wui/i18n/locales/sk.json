@@ -1858,7 +1858,54 @@
     "caps_col_status": "Stav",
     "caps_unlimited": "Neobmedzene",
     "caps_available": "Voľné",
-    "caps_at_limit": "Limit dosiahnutý"
+    "caps_at_limit": "Limit dosiahnutý",
+    "agent_keys_nav": "Kľúče agentov",
+    "agent_keys": {
+      "title": "Kľúče agentov",
+      "hint": "Vlastný kľúč API pracovného priestoru pre každý druh agenta. Agenti, ktorí pracujú pre tento priestor, ho používajú namiesto kľúča spool-hub. Po uložení sa kľúč už nezobrazí: iba jeho posledné 4 znaky.",
+      "forbidden": "Kľúče agentov môže spravovať iba správca alebo obchodný vlastník tohto pracovného priestoru.",
+      "unconfirmed": "Tieto kľúče vidíte, ale nemôžete ich meniť, kým vás nepotvrdí potvrdený správca alebo obchodný vlastník priestoru.",
+      "kind": {
+        "claude": "Claude",
+        "grok": "Grok",
+        "agy": "Antigravity",
+        "mistral": "Mistral",
+        "qwen": "Qwen"
+      },
+      "state": {
+        "set": "Nastavený",
+        "not_set": "Nenastavený",
+        "exhausted": "Bez kreditu",
+        "not_available": "Nedostupný"
+      },
+      "waiting_terms": "Nedostupný pre kľúče pracovného priestoru: čakáme na podmienky dodávateľa.",
+      "not_supported": "Pre kľúče pracovného priestoru zatiaľ nepodporovaný: čakáme na jeho kontrolu.",
+      "set_line": "Končí na {last4}, nastavil(a) {by} {at}",
+      "exhausted": "Dodávateľ tento kľúč odmietol (bez kreditu alebo kvóty). Nahraďte ho alebo to skúste znova, keď bude mať opäť kredit.",
+      "key": "Kľúč API",
+      "new_key": "Nový kľúč API",
+      "base_url": "Základná URL (https)",
+      "set": "Nastaviť",
+      "replace": "Nahradiť",
+      "remove": "Odstrániť",
+      "remove_ask": "Odstrániť tento kľúč?",
+      "remove_yes": "Áno, odstrániť",
+      "cancel": "Zrušiť",
+      "retry": "Skúsiť znova",
+      "saved": "Kľúč uložený.",
+      "removed": "Kľúč odstránený.",
+      "retried": "Kľúč sa vyskúša znova.",
+      "error": {
+        "forbidden": "Vaša rola nemôže spravovať kľúče agentov.",
+        "admin_unconfirmed": "Najprv vás musí potvrdiť potvrdený správca alebo obchodný vlastník priestoru.",
+        "act_as_refused": "Kľúče agentov nemožno meniť, kým konáte ako iný člen.",
+        "vendor_keys_off": "Kľúče agentov zatiaľ nie sú na tomto hube zapnuté.",
+        "kind_not_available": "Tento druh zatiaľ neprijíma kľúče pracovného priestoru.",
+        "bad_key": "Kľúč nesmie obsahovať medzery a môže mať najviac 4096 znakov.",
+        "bad_base_url": "Qwen potrebuje základnú URL začínajúcu https://.",
+        "generic": "Kľúč sa nezmenil. Skúste to znova."
+      }
+    }
   },
   "help": {
     "title": "Pomoc",

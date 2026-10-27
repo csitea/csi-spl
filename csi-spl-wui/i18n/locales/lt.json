@@ -1858,7 +1858,54 @@
     "caps_col_status": "Būsena",
     "caps_unlimited": "Neribota",
     "caps_available": "Laisva",
-    "caps_at_limit": "Riba pasiekta"
+    "caps_at_limit": "Riba pasiekta",
+    "agent_keys_nav": "Agentų raktai",
+    "agent_keys": {
+      "title": "Agentų raktai",
+      "hint": "Darbo srities nuosavas API raktas kiekvienai agentų rūšiai. Šiai darbo sričiai dirbantys agentai jį naudoja vietoj spool-hub rakto. Išsaugotas raktas daugiau nerodomas: tik paskutiniai 4 jo simboliai.",
+      "forbidden": "Tik šios darbo srities administratorius arba verslo savininkas gali tvarkyti agentų raktus.",
+      "unconfirmed": "Šiuos raktus matote, bet negalite keisti, kol jūsų nepatvirtins patvirtintas darbo srities administratorius arba verslo savininkas.",
+      "kind": {
+        "claude": "Claude",
+        "grok": "Grok",
+        "agy": "Antigravity",
+        "mistral": "Mistral",
+        "qwen": "Qwen"
+      },
+      "state": {
+        "set": "Nustatytas",
+        "not_set": "Nenustatytas",
+        "exhausted": "Baigėsi kreditas",
+        "not_available": "Negalimas"
+      },
+      "waiting_terms": "Negalimas darbo srities raktams: laukiama tiekėjo sąlygų.",
+      "not_supported": "Darbo srities raktams dar nepalaikomas: laukiama jo patikros.",
+      "set_line": "Baigiasi {last4}, nustatė {by} {at}",
+      "exhausted": "Tiekėjas atmetė šį raktą (baigėsi kreditas arba kvota). Pakeiskite jį arba bandykite dar kartą, kai vėl bus kredito.",
+      "key": "API raktas",
+      "new_key": "Naujas API raktas",
+      "base_url": "Bazinis URL (https)",
+      "set": "Nustatyti",
+      "replace": "Pakeisti",
+      "remove": "Pašalinti",
+      "remove_ask": "Pašalinti šį raktą?",
+      "remove_yes": "Taip, pašalinti",
+      "cancel": "Atšaukti",
+      "retry": "Bandyti dar kartą",
+      "saved": "Raktas išsaugotas.",
+      "removed": "Raktas pašalintas.",
+      "retried": "Raktas bus išbandytas dar kartą.",
+      "error": {
+        "forbidden": "Jūsų vaidmuo negali tvarkyti agentų raktų.",
+        "admin_unconfirmed": "Pirmiausia jus turi patvirtinti patvirtintas darbo srities administratorius arba verslo savininkas.",
+        "act_as_refused": "Agentų raktų negalima keisti veikiant kito nario vardu.",
+        "vendor_keys_off": "Agentų raktai šiame centre dar neįjungti.",
+        "kind_not_available": "Ši rūšis dar nepriima darbo srities raktų.",
+        "bad_key": "Rakte negali būti tarpų, o jo ilgis – ne daugiau kaip 4096 simboliai.",
+        "bad_base_url": "Qwen reikia bazinio URL, prasidedančio https://.",
+        "generic": "Raktas nepakeistas. Bandykite dar kartą."
+      }
+    }
   },
   "help": {
     "title": "Pagalba",

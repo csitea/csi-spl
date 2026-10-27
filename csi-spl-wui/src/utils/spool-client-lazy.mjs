@@ -1918,6 +1918,35 @@ async function agentCaps(ctx, op, id, body) {
   throw new Error('agentCaps: unknown op ' + op)
 }
 
+/**
+ * Spec 127 4.3 / spec 159 T7: the workspace's own agent vendor keys, write only.
+ *   'list'                GET    /v1/vendor-keys
+ *   'put', kind, body     PUT    /v1/vendor-keys/{kind} ({key, base_url?})
+ *   'delete', kind        DELETE /v1/vendor-keys/{kind}
+ *   'retry', kind         POST   /v1/vendor-keys/{kind}/retry (an exhausted key, spec 159 9)
+ * vendor_keys.manage on every route. The mock loads with the call
+ * (utils/vendor-keys.mjs) and keeps last4 only.
+ */
+async function vendorKeys(ctx, op, kind, body) {
+  const { live, mock } = ctx
+  if (mock) {
+    const m = await import('./vendor-keys.mjs')
+    if (op === 'list') return m.mockVendorKeys()
+    if (op === 'put') return m.mockPutVendorKey(kind, body)
+    if (op === 'delete') return m.mockDeleteVendorKey(kind)
+    if (op === 'retry') return m.mockRetryVendorKey(kind)
+    throw new Error('vendorKeys: unknown op ' + op)
+  }
+  if (op === 'list') return live('/v1/vendor-keys')
+  const path = '/v1/vendor-keys/' + encodeURIComponent(kind)
+  if (op === 'put') {
+    return live(path, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+  }
+  if (op === 'delete') return live(path, { method: 'DELETE' })
+  if (op === 'retry') return live(path + '/retry', { method: 'POST' })
+  throw new Error('vendorKeys: unknown op ' + op)
+}
+
 /* the mock's uploaded bytes, per client (ctx) */
 const mockBlobs = new WeakMap()
 const blobsOf = (ctx) => {
@@ -2009,6 +2038,7 @@ export const lazySpoolMethods = {
   getFxCurrencies,
   fleetPaid,
   agentCaps,
+  vendorKeys,
   listOperatorWorkspaces,
   createOperatorWorkspace,
   patchOperatorWorkspace,

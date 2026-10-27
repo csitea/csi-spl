@@ -1858,7 +1858,54 @@
     "caps_col_status": "Olek",
     "caps_unlimited": "Piiramatu",
     "caps_available": "Vaba",
-    "caps_at_limit": "Piir täis"
+    "caps_at_limit": "Piir täis",
+    "agent_keys_nav": "Agentide võtmed",
+    "agent_keys": {
+      "title": "Agentide võtmed",
+      "hint": "Tööruumi enda API-võti iga agendiliigi jaoks. Selle tööruumi heaks töötavad agendid kasutavad seda spool-hubi võtme asemel. Pärast salvestamist võtit enam ei näidata: ainult selle 4 viimast märki.",
+      "forbidden": "Ainult selle tööruumi administraator või ärisuhte omanik saab agentide võtmeid hallata.",
+      "unconfirmed": "Saate neid võtmeid näha, kuid mitte muuta, kuni tööruumi kinnitatud administraator või ärisuhte omanik teid kinnitab.",
+      "kind": {
+        "claude": "Claude",
+        "grok": "Grok",
+        "agy": "Antigravity",
+        "mistral": "Mistral",
+        "qwen": "Qwen"
+      },
+      "state": {
+        "set": "Määratud",
+        "not_set": "Määramata",
+        "exhausted": "Krediit otsas",
+        "not_available": "Pole saadaval"
+      },
+      "waiting_terms": "Tööruumi võtmetele pole saadaval: ootame teenusepakkuja tingimusi.",
+      "not_supported": "Tööruumi võtmetele veel ei toetata: ootame selle kontrolli.",
+      "set_line": "Lõpeb märkidega {last4}, määras {by} ajal {at}",
+      "exhausted": "Teenusepakkuja keeldus sellest võtmest (krediit või kvoot otsas). Asendage see või proovige uuesti, kui krediiti taas on.",
+      "key": "API-võti",
+      "new_key": "Uus API-võti",
+      "base_url": "Baas-URL (https)",
+      "set": "Määra",
+      "replace": "Asenda",
+      "remove": "Eemalda",
+      "remove_ask": "Kas eemaldada see võti?",
+      "remove_yes": "Jah, eemalda",
+      "cancel": "Tühista",
+      "retry": "Proovi uuesti",
+      "saved": "Võti salvestatud.",
+      "removed": "Võti eemaldatud.",
+      "retried": "Võtit proovitakse uuesti.",
+      "error": {
+        "forbidden": "Teie roll ei saa agentide võtmeid hallata.",
+        "admin_unconfirmed": "Kõigepealt peab teid kinnitama tööruumi kinnitatud administraator või ärisuhte omanik.",
+        "act_as_refused": "Agentide võtmeid ei saa muuta, kui tegutsete teise liikmena.",
+        "vendor_keys_off": "Agentide võtmed pole selles jaoturis veel sisse lülitatud.",
+        "kind_not_available": "See liik ei võta veel tööruumi võtmeid vastu.",
+        "bad_key": "Võtmes ei tohi olla tühikuid ja see võib olla kuni 4096 märki.",
+        "bad_base_url": "Qwen vajab baas-URL-i, mis algab https://.",
+        "generic": "Võtit ei muudetud. Proovige uuesti."
+      }
+    }
   },
   "help": {
     "title": "Abi",

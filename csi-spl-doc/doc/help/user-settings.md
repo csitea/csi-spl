@@ -321,6 +321,17 @@ permission. Its sections are:
   agent's machine.
 - **Vendor split**: how new agent work is shared among Claude, Grok, Antigravity,
   Qwen and Mistral. The five numbers add up to 100. They are a guideline, not a quota.
+- **Agent keys** (`/tenant-settings/agent-keys`): the workspace's own API key
+  for each kind of agent, so the agents working for this workspace run on its
+  own vendor account. Only admins and business owners see it. Each kind reads
+  **Set** (with the key's last 4 characters, who set it and when), **Not set**,
+  **Out of credit** (the vendor refused the key: **Retry** once it has credit
+  again, or replace it) or **Not available** (Grok and Mistral wait for the
+  vendor's terms, Antigravity for its check). Type the key into the password
+  field and press **Set** or **Replace**; Qwen also needs its https base URL.
+  After saving, the key is cleared from the page and never shown again.
+  **Remove** asks first. An admin or business owner the operator added sees
+  the keys read-only until a confirmed admin or business owner confirms them.
 - **Agent takeover** (`/tenant-settings/takeover`): who takes over when an
   agent fails a task. One row per task kind (Specs and docs, Tests, Simple
   coding, Complex coding, Translations, Secrets and personal data). The row's

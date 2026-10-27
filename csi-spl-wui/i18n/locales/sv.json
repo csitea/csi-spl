@@ -1858,7 +1858,54 @@
     "caps_col_status": "Status",
     "caps_unlimited": "Obegränsat",
     "caps_available": "Ledigt",
-    "caps_at_limit": "Gränsen nådd"
+    "caps_at_limit": "Gränsen nådd",
+    "agent_keys_nav": "Agentnycklar",
+    "agent_keys": {
+      "title": "Agentnycklar",
+      "hint": "Arbetsytans egen API-nyckel för varje typ av agent. Agenter som arbetar för den här arbetsytan använder den i stället för spool-hubs. Efter att den sparats visas nyckeln aldrig igen: bara dess 4 sista tecken.",
+      "forbidden": "Bara en administratör eller en affärsägare för den här arbetsytan kan hantera dess agentnycklar.",
+      "unconfirmed": "Du kan se nycklarna men inte ändra dem förrän en bekräftad administratör eller affärsägare för arbetsytan bekräftar dig.",
+      "kind": {
+        "claude": "Claude",
+        "grok": "Grok",
+        "agy": "Antigravity",
+        "mistral": "Mistral",
+        "qwen": "Qwen"
+      },
+      "state": {
+        "set": "Angiven",
+        "not_set": "Inte angiven",
+        "exhausted": "Krediten slut",
+        "not_available": "Inte tillgänglig"
+      },
+      "waiting_terms": "Inte tillgänglig för arbetsytenycklar: väntar på leverantörens villkor.",
+      "not_supported": "Stöds ännu inte för arbetsytenycklar: väntar på dess kontroll.",
+      "set_line": "Slutar på {last4}, angiven av {by} {at}",
+      "exhausted": "Leverantören avvisade nyckeln (krediten eller kvoten slut). Byt ut den eller försök igen när den har kredit igen.",
+      "key": "API-nyckel",
+      "new_key": "Ny API-nyckel",
+      "base_url": "Bas-URL (https)",
+      "set": "Ange",
+      "replace": "Byt ut",
+      "remove": "Ta bort",
+      "remove_ask": "Ta bort den här nyckeln?",
+      "remove_yes": "Ja, ta bort",
+      "cancel": "Avbryt",
+      "retry": "Försök igen",
+      "saved": "Nyckeln har sparats.",
+      "removed": "Nyckeln har tagits bort.",
+      "retried": "Nyckeln provas igen.",
+      "error": {
+        "forbidden": "Din roll kan inte hantera agentnycklar.",
+        "admin_unconfirmed": "En bekräftad administratör eller affärsägare för arbetsytan måste bekräfta dig först.",
+        "act_as_refused": "Agentnycklar kan inte ändras medan du agerar som en annan medlem.",
+        "vendor_keys_off": "Agentnycklar är ännu inte påslagna på den här hubben.",
+        "kind_not_available": "Den här typen tar ännu inte emot arbetsytenycklar.",
+        "bad_key": "Nyckeln får inte innehålla mellanslag och får vara högst 4096 tecken.",
+        "bad_base_url": "Qwen behöver en bas-URL som börjar med https://.",
+        "generic": "Nyckeln ändrades inte. Försök igen."
+      }
+    }
   },
   "help": {
     "title": "Hjälp",

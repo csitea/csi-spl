@@ -1858,7 +1858,54 @@
     "caps_col_status": "Estado",
     "caps_unlimited": "Sin límite",
     "caps_available": "Disponible",
-    "caps_at_limit": "En el límite"
+    "caps_at_limit": "En el límite",
+    "agent_keys_nav": "Claves de agentes",
+    "agent_keys": {
+      "title": "Claves de agentes",
+      "hint": "La clave de API propia del espacio de trabajo para cada tipo de agente. Los agentes que trabajan para este espacio la usan en lugar de la de spool-hub. Tras guardarla, la clave no se vuelve a mostrar: solo sus 4 últimos caracteres.",
+      "forbidden": "Solo un administrador o un propietario del negocio de este espacio de trabajo puede gestionar sus claves de agentes.",
+      "unconfirmed": "Puedes ver estas claves, pero no cambiarlas, hasta que un administrador o propietario del negocio confirmado de este espacio te confirme.",
+      "kind": {
+        "claude": "Claude",
+        "grok": "Grok",
+        "agy": "Antigravity",
+        "mistral": "Mistral",
+        "qwen": "Qwen"
+      },
+      "state": {
+        "set": "Configurada",
+        "not_set": "Sin configurar",
+        "exhausted": "Sin crédito",
+        "not_available": "No disponible"
+      },
+      "waiting_terms": "No disponible para claves del espacio de trabajo: a la espera de las condiciones del proveedor.",
+      "not_supported": "Aún no compatible con claves del espacio de trabajo: a la espera de su comprobación.",
+      "set_line": "Termina en {last4}, configurada por {by} el {at}",
+      "exhausted": "El proveedor rechazó esta clave (sin crédito o cuota). Sustitúyela o vuelve a intentarlo cuando tenga crédito.",
+      "key": "Clave de API",
+      "new_key": "Nueva clave de API",
+      "base_url": "URL base (https)",
+      "set": "Configurar",
+      "replace": "Sustituir",
+      "remove": "Quitar",
+      "remove_ask": "¿Quitar esta clave?",
+      "remove_yes": "Sí, quitar",
+      "cancel": "Cancelar",
+      "retry": "Reintentar",
+      "saved": "Clave guardada.",
+      "removed": "Clave quitada.",
+      "retried": "La clave se volverá a probar.",
+      "error": {
+        "forbidden": "Tu rol no puede gestionar claves de agentes.",
+        "admin_unconfirmed": "Primero debe confirmarte un administrador o propietario del negocio confirmado de este espacio.",
+        "act_as_refused": "Las claves de agentes no se pueden cambiar mientras actúas como otro miembro.",
+        "vendor_keys_off": "Las claves de agentes aún no están activadas en este hub.",
+        "kind_not_available": "Este tipo aún no admite claves del espacio de trabajo.",
+        "bad_key": "La clave no debe tener espacios y debe tener como máximo 4096 caracteres.",
+        "bad_base_url": "Qwen necesita una URL base que empiece por https://.",
+        "generic": "La clave no se cambió. Inténtalo de nuevo."
+      }
+    }
   },
   "help": {
     "title": "Ayuda",

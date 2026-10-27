@@ -1858,7 +1858,54 @@
     "caps_col_status": "Durum",
     "caps_unlimited": "Sınırsız",
     "caps_available": "Müsait",
-    "caps_at_limit": "Sınırda"
+    "caps_at_limit": "Sınırda",
+    "agent_keys_nav": "Ajan anahtarları",
+    "agent_keys": {
+      "title": "Ajan anahtarları",
+      "hint": "Çalışma alanının her ajan türü için kendi API anahtarı. Bu çalışma alanı için çalışan ajanlar spool-hub anahtarı yerine bunu kullanır. Kaydedildikten sonra anahtar bir daha gösterilmez: yalnızca son 4 karakteri.",
+      "forbidden": "Ajan anahtarlarını yalnızca bu çalışma alanının bir yöneticisi veya iş sahibi yönetebilir.",
+      "unconfirmed": "Bu anahtarları görebilirsiniz ancak çalışma alanının onaylı bir yöneticisi veya iş sahibi sizi onaylayana kadar değiştiremezsiniz.",
+      "kind": {
+        "claude": "Claude",
+        "grok": "Grok",
+        "agy": "Antigravity",
+        "mistral": "Mistral",
+        "qwen": "Qwen"
+      },
+      "state": {
+        "set": "Ayarlı",
+        "not_set": "Ayarlı değil",
+        "exhausted": "Kredi bitti",
+        "not_available": "Kullanılamıyor"
+      },
+      "waiting_terms": "Çalışma alanı anahtarları için kullanılamıyor: sağlayıcının koşulları bekleniyor.",
+      "not_supported": "Çalışma alanı anahtarları için henüz desteklenmiyor: denetimi bekleniyor.",
+      "set_line": "{last4} ile bitiyor, {by} tarafından {at} tarihinde ayarlandı",
+      "exhausted": "Sağlayıcı bu anahtarı reddetti (kredi veya kota bitti). Değiştirin ya da yeniden kredisi olduğunda tekrar deneyin.",
+      "key": "API anahtarı",
+      "new_key": "Yeni API anahtarı",
+      "base_url": "Temel URL (https)",
+      "set": "Ayarla",
+      "replace": "Değiştir",
+      "remove": "Kaldır",
+      "remove_ask": "Bu anahtar kaldırılsın mı?",
+      "remove_yes": "Evet, kaldır",
+      "cancel": "İptal",
+      "retry": "Tekrar dene",
+      "saved": "Anahtar kaydedildi.",
+      "removed": "Anahtar kaldırıldı.",
+      "retried": "Anahtar yeniden denenecek.",
+      "error": {
+        "forbidden": "Rolünüz ajan anahtarlarını yönetemez.",
+        "admin_unconfirmed": "Önce çalışma alanının onaylı bir yöneticisi veya iş sahibi sizi onaylamalı.",
+        "act_as_refused": "Başka bir üye adına hareket ederken ajan anahtarları değiştirilemez.",
+        "vendor_keys_off": "Ajan anahtarları bu merkezde henüz açık değil.",
+        "kind_not_available": "Bu tür henüz çalışma alanı anahtarı kabul etmiyor.",
+        "bad_key": "Anahtar boşluk içermemeli ve en fazla 4096 karakter olmalı.",
+        "bad_base_url": "Qwen için https:// ile başlayan bir temel URL gerekir.",
+        "generic": "Anahtar değiştirilmedi. Tekrar deneyin."
+      }
+    }
   },
   "help": {
     "title": "Yardım",

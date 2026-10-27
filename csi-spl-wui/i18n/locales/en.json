@@ -1858,7 +1858,54 @@
     "caps_col_status": "Status",
     "caps_unlimited": "Unlimited",
     "caps_available": "Available",
-    "caps_at_limit": "At limit"
+    "caps_at_limit": "At limit",
+    "agent_keys_nav": "Agent keys",
+    "agent_keys": {
+      "title": "Agent keys",
+      "hint": "Your workspace's own API key for each kind of agent. Agents working for this workspace use it instead of spool-hub's. After saving, a key is never shown again: only its last 4 characters.",
+      "forbidden": "Only an admin or a business owner of this workspace can manage its agent keys.",
+      "unconfirmed": "You can see these keys but cannot change them until a confirmed admin or business owner of this workspace confirms you.",
+      "kind": {
+        "claude": "Claude",
+        "grok": "Grok",
+        "agy": "Antigravity",
+        "mistral": "Mistral",
+        "qwen": "Qwen"
+      },
+      "state": {
+        "set": "Set",
+        "not_set": "Not set",
+        "exhausted": "Out of credit",
+        "not_available": "Not available"
+      },
+      "waiting_terms": "Not available for workspace keys: waiting for the vendor's terms.",
+      "not_supported": "Not supported for workspace keys yet: waiting for its check.",
+      "set_line": "Ends in {last4}, set by {by} on {at}",
+      "exhausted": "The vendor refused this key (out of credit or quota). Replace it, or retry once it has credit again.",
+      "key": "API key",
+      "new_key": "New API key",
+      "base_url": "Base URL (https)",
+      "set": "Set",
+      "replace": "Replace",
+      "remove": "Remove",
+      "remove_ask": "Remove this key?",
+      "remove_yes": "Yes, remove",
+      "cancel": "Cancel",
+      "retry": "Retry",
+      "saved": "Key saved.",
+      "removed": "Key removed.",
+      "retried": "The key will be tried again.",
+      "error": {
+        "forbidden": "Your role cannot manage agent keys.",
+        "admin_unconfirmed": "A confirmed admin or business owner of this workspace must confirm you first.",
+        "act_as_refused": "Agent keys cannot be changed while acting as another member.",
+        "vendor_keys_off": "Agent keys are not switched on for this hub yet.",
+        "kind_not_available": "This kind does not take workspace keys yet.",
+        "bad_key": "The key must have no spaces and be at most 4096 characters.",
+        "bad_base_url": "Qwen needs a base URL that starts with https://.",
+        "generic": "The key was not changed. Try again."
+      }
+    }
   },
   "help": {
     "title": "Help",

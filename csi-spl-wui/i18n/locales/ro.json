@@ -1858,7 +1858,54 @@
     "caps_col_status": "Stare",
     "caps_unlimited": "Nelimitat",
     "caps_available": "Disponibil",
-    "caps_at_limit": "Limită atinsă"
+    "caps_at_limit": "Limită atinsă",
+    "agent_keys_nav": "Chei pentru agenți",
+    "agent_keys": {
+      "title": "Chei pentru agenți",
+      "hint": "Cheia API proprie a spațiului de lucru pentru fiecare tip de agent. Agenții care lucrează pentru acest spațiu o folosesc în locul celei a spool-hub. După salvare, cheia nu mai este afișată: doar ultimele ei 4 caractere.",
+      "forbidden": "Doar un administrator sau un proprietar de afacere al acestui spațiu de lucru poate gestiona cheile pentru agenți.",
+      "unconfirmed": "Puteți vedea aceste chei, dar nu le puteți schimba până când un administrator sau proprietar de afacere confirmat al spațiului vă confirmă.",
+      "kind": {
+        "claude": "Claude",
+        "grok": "Grok",
+        "agy": "Antigravity",
+        "mistral": "Mistral",
+        "qwen": "Qwen"
+      },
+      "state": {
+        "set": "Setată",
+        "not_set": "Nesetată",
+        "exhausted": "Fără credit",
+        "not_available": "Indisponibilă"
+      },
+      "waiting_terms": "Indisponibilă pentru cheile spațiului de lucru: se așteaptă condițiile furnizorului.",
+      "not_supported": "Încă nu este acceptată pentru cheile spațiului de lucru: se așteaptă verificarea ei.",
+      "set_line": "Se termină în {last4}, setată de {by} la {at}",
+      "exhausted": "Furnizorul a refuzat această cheie (fără credit sau cotă). Înlocuiți-o sau reîncercați când are din nou credit.",
+      "key": "Cheie API",
+      "new_key": "Cheie API nouă",
+      "base_url": "URL de bază (https)",
+      "set": "Setează",
+      "replace": "Înlocuiește",
+      "remove": "Elimină",
+      "remove_ask": "Eliminați această cheie?",
+      "remove_yes": "Da, elimină",
+      "cancel": "Anulează",
+      "retry": "Reîncearcă",
+      "saved": "Cheia a fost salvată.",
+      "removed": "Cheia a fost eliminată.",
+      "retried": "Cheia va fi încercată din nou.",
+      "error": {
+        "forbidden": "Rolul dvs. nu poate gestiona cheile pentru agenți.",
+        "admin_unconfirmed": "Mai întâi trebuie să vă confirme un administrator sau proprietar de afacere confirmat al spațiului.",
+        "act_as_refused": "Cheile pentru agenți nu pot fi schimbate în timp ce acționați ca alt membru.",
+        "vendor_keys_off": "Cheile pentru agenți nu sunt încă activate pe acest hub.",
+        "kind_not_available": "Acest tip nu acceptă încă chei ale spațiului de lucru.",
+        "bad_key": "Cheia nu trebuie să conțină spații și poate avea cel mult 4096 de caractere.",
+        "bad_base_url": "Qwen are nevoie de un URL de bază care începe cu https://.",
+        "generic": "Cheia nu a fost schimbată. Încercați din nou."
+      }
+    }
   },
   "help": {
     "title": "Ajutor",

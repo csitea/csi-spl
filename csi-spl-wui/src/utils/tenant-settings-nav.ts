@@ -23,6 +23,7 @@ export const TENANT_SETTINGS_SECTIONS: TenantSection[] = [
   { id: 'members', label: 'tenant_settings.members', perm: 'members.invite' },
   { id: 'agents', label: 'tenant_settings.agents', perm: 'tenant.settings' },
   { id: 'split', label: 'tenant_settings.split', perm: 'tenant.settings' },
+  { id: 'agent-keys', label: 'tenant_settings.agent_keys_nav', perm: 'vendor_keys.manage' },
   { id: 'takeover', label: 'tenant_settings.takeover', perm: 'tenant.settings' },
   { id: 'channels', label: 'tenant_settings.channels', perm: 'tenant.settings' },
   { id: 'general', label: 'tenant_settings.general', perm: 'tenant.settings' },
@@ -33,10 +34,23 @@ export const TENANT_SETTINGS_SECTIONS: TenantSection[] = [
 /** Shown only when the fleet-load probe succeeded. Not a me() permission. */
 export const FLEET_LOAD_SECTION = { id: 'fleet-load', label: 'tenant_settings.fleet_load' }
 
-/** `me` is normalizeMe()'s shape. The mock build plays an admin. */
+/**
+ * Sections the mock gates like the hub when an e2e plays a role
+ * (spool.mock.me): Agent keys is biz_owner and admin only (spec 159 T7).
+ */
+const MOCK_GATED = new Set(['agent-keys'])
+
+/**
+ * `me` is normalizeMe()'s shape. The mock build plays an admin; a role it
+ * plays (me with a permission list) still loses the MOCK_GATED sections it
+ * lacks the permission for.
+ */
 export function tenantSettingsSections(me: TenantMe, opts: TenantSectionsOpts = {}): TenantSection[] {
   const mock = Boolean(opts.mock)
-  const base: TenantSection[] = mock ? TENANT_SETTINGS_SECTIONS.slice() : filterByPerm(me)
+  const perms = me && Array.isArray(me.permissions) ? me.permissions : null
+  const base: TenantSection[] = mock
+    ? TENANT_SETTINGS_SECTIONS.filter((s) => !perms || !MOCK_GATED.has(s.id) || perms.includes(s.perm))
+    : filterByPerm(me)
   if (opts.fleetLoad) base.push(FLEET_LOAD_SECTION as TenantSection)
   return base
 }

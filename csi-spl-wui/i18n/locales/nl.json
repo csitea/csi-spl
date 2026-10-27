@@ -1858,7 +1858,54 @@
     "caps_col_status": "Status",
     "caps_unlimited": "Onbeperkt",
     "caps_available": "Beschikbaar",
-    "caps_at_limit": "Limiet bereikt"
+    "caps_at_limit": "Limiet bereikt",
+    "agent_keys_nav": "Agentsleutels",
+    "agent_keys": {
+      "title": "Agentsleutels",
+      "hint": "De eigen API-sleutel van de werkruimte voor elk soort agent. Agents die voor deze werkruimte werken gebruiken die in plaats van die van spool-hub. Na het opslaan wordt een sleutel nooit meer getoond: alleen de laatste 4 tekens.",
+      "forbidden": "Alleen een beheerder of een bedrijfseigenaar van deze werkruimte kan de agentsleutels beheren.",
+      "unconfirmed": "Je kunt deze sleutels zien maar niet wijzigen tot een bevestigde beheerder of bedrijfseigenaar van deze werkruimte je bevestigt.",
+      "kind": {
+        "claude": "Claude",
+        "grok": "Grok",
+        "agy": "Antigravity",
+        "mistral": "Mistral",
+        "qwen": "Qwen"
+      },
+      "state": {
+        "set": "Ingesteld",
+        "not_set": "Niet ingesteld",
+        "exhausted": "Tegoed op",
+        "not_available": "Niet beschikbaar"
+      },
+      "waiting_terms": "Niet beschikbaar voor werkruimtesleutels: wachten op de voorwaarden van de leverancier.",
+      "not_supported": "Nog niet ondersteund voor werkruimtesleutels: wachten op de controle ervan.",
+      "set_line": "Eindigt op {last4}, ingesteld door {by} op {at}",
+      "exhausted": "De leverancier weigerde deze sleutel (tegoed of quotum op). Vervang hem, of probeer opnieuw zodra er weer tegoed is.",
+      "key": "API-sleutel",
+      "new_key": "Nieuwe API-sleutel",
+      "base_url": "Basis-URL (https)",
+      "set": "Instellen",
+      "replace": "Vervangen",
+      "remove": "Verwijderen",
+      "remove_ask": "Deze sleutel verwijderen?",
+      "remove_yes": "Ja, verwijderen",
+      "cancel": "Annuleren",
+      "retry": "Opnieuw proberen",
+      "saved": "Sleutel opgeslagen.",
+      "removed": "Sleutel verwijderd.",
+      "retried": "De sleutel wordt opnieuw geprobeerd.",
+      "error": {
+        "forbidden": "Je rol kan geen agentsleutels beheren.",
+        "admin_unconfirmed": "Een bevestigde beheerder of bedrijfseigenaar van deze werkruimte moet je eerst bevestigen.",
+        "act_as_refused": "Agentsleutels kunnen niet worden gewijzigd terwijl je als een ander lid optreedt.",
+        "vendor_keys_off": "Agentsleutels zijn op deze hub nog niet ingeschakeld.",
+        "kind_not_available": "Dit soort neemt nog geen werkruimtesleutels aan.",
+        "bad_key": "De sleutel mag geen spaties bevatten en hoogstens 4096 tekens lang zijn.",
+        "bad_base_url": "Qwen heeft een basis-URL nodig die met https:// begint.",
+        "generic": "De sleutel is niet gewijzigd. Probeer het opnieuw."
+      }
+    }
   },
   "help": {
     "title": "Hulp",

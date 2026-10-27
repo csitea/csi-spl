@@ -240,7 +240,7 @@ spl_lane_restart_pane_cmd() {
   spool_dq_escape esc "$(spl_lane_restart_seed)"
   launch="export SPOOL_ROOT='$SPOOL_ROOT' SPOOL_AGENT_ID='$ID' CLE_TMUX_PANE='$LANE_RESTART_PANE'; cd '$LANE_RESTART_WT' && exec bash '$ROTATE_FEAT/scripts/spool-harness.sh' --as '$ID' --mirror -- '${bin:-claude}' --name '$(spool_decorate "$ID")' $flags \"$esc\""
   b64="$(printf '%s' "$launch" | base64 | tr -d '\n')"
-  printf "env SPOOL_ROOT='%s' SPOOL_AGENT_USER='%s' SPOOL_BOX_USER='%s' SPOOL_AGENT_PTY=1 bash -c 'source \"%s/lib/spool-env.inc.sh\"; SPOOL_LIVE_OK=1 SPOOL_ENV_NO_BINS=1 spool_env_resolve; spool_agent_exec \"\$(printf %%s %s | base64 -d)\"; exec bash --norc'" \
+  printf "env SPOOL_ROOT='%s' SPOOL_AGENT_USER='%s' SPOOL_BOX_USER='%s' SPOOL_AGENT_PTY=1 bash -c 'source \"%s/lib/spool-env.inc.sh\"; SPOOL_LIVE_OK=1 SPOOL_ENV_NO_BINS=1 spool_env_resolve; spool_agent_exec \"\$(printf %%s %s | base64 -d)\"; exec env HISTSIZE=-1 HISTFILESIZE=-1 BASHOPTS=histappend bash --norc'" \
     "$SPOOL_ROOT" "${SPOOL_AGENT_USER:-}" "${SPOOL_BOX_USER:-}" "$ROTATE_FEAT" "$b64"
 }
 

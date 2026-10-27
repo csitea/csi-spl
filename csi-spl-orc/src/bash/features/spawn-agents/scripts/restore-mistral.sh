@@ -47,7 +47,7 @@ RESTORE_ARGS=restore_args
 _rs_here="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 _rs_core="$_rs_here/restore-core.inc.sh"
 # shellcheck source=restore-core.inc.sh
-. "$_rs_core" || { echo "ERROR: cannot load $_rs_core" >&2; exec bash --norc; }
+. "$_rs_core" || { echo "ERROR: cannot load $_rs_core" >&2; exec env HISTSIZE=-1 HISTFILESIZE=-1 BASHOPTS=histappend bash --norc; }
 
 # spawn-mistral.sh's own SPAWN_EXEC_PREFIX and SPAWN_AGENT_ACL lines and
 # _sp_cnf_max_price function (which reads the cnf next to $SPAWN_ADAPTER).

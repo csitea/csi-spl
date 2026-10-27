@@ -91,7 +91,7 @@ _sp_plan() { _sp_live || printf 'PLAN %-10s %s\n' "$1" "$2"; }
 # fails like any other command.
 _sp_fail() {
   echo "ERROR: $*" >&2
-  if _sp_live; then exec bash --norc; fi
+  if _sp_live; then exec env HISTSIZE=-1 HISTFILESIZE=-1 BASHOPTS=histappend bash --norc; fi
   exit 1
 }
 
@@ -666,7 +666,10 @@ spawn_register_agent() {
 # The pane ends in `exec bash --norc`: the box user's ~/.bashrc may run
 # `git config --global` (an identity loader); a rotation kills this pane a
 # second later and left a stale ~/.gitconfig.lock that failed every agent's
-# global git config (SPL-1898).
+# global git config (SPL-1898). The env keeps that shell from cutting the
+# shared ~/.bash_history to bash's default 500 lines on exit (SPL-3892):
+# unlimited sizes, and histappend so it appends instead of rewriting the file
+# (BASHOPTS is readonly in bash, so it is set through env).
 spawn_launch_session() {
   _sp_cli="${SPAWN_BIN##*/}"
   _sp_idl="${SPAWN_RESUME_ID,,}"; _sp_idl="${_sp_idl//_/ }"
@@ -726,7 +729,7 @@ spawn_launch_session() {
   echo "════════════════════════════════════════════════════════════════════"
   HIST_TARGET="${HISTFILE:-$HOME/.bash_history}"
   [ -n "$HIST_TARGET" ] && printf '%s\n' "${RESTORE}" >>"$HIST_TARGET" 2>/dev/null
-  exec bash --norc
+  exec env HISTSIZE=-1 HISTFILESIZE=-1 BASHOPTS=histappend bash --norc
 }
 
 # An adapter calls this with <TITLE> <WORKDIR> [BRIEF_FILE] [SLUG]. The steps

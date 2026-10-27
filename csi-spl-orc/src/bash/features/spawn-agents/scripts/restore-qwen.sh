@@ -17,5 +17,5 @@ restore_args() { printf "%s" "--resume $1"; }
 RESTORE_ARGS=restore_args
 _rs_core="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/restore-core.inc.sh"
 # shellcheck source=restore-core.inc.sh
-. "$_rs_core" || { echo "ERROR: cannot load $_rs_core" >&2; exec bash --norc; }
+. "$_rs_core" || { echo "ERROR: cannot load $_rs_core" >&2; exec env HISTSIZE=-1 HISTFILESIZE=-1 BASHOPTS=histappend bash --norc; }
 restore_main "$@"

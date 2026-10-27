@@ -47,7 +47,7 @@ _RS_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 # shellcheck source=../lib/agent-state.inc.sh
 . "$_RS_DIR/../lib/agent-state.inc.sh"
 
-_rs_fail() { echo "ERROR: $*" >&2; [ "${RESTORE_PRINT:-0}" = 1 ] && exit 1; exec bash --norc; }
+_rs_fail() { echo "ERROR: $*" >&2; [ "${RESTORE_PRINT:-0}" = 1 ] && exit 1; exec env HISTSIZE=-1 HISTFILESIZE=-1 BASHOPTS=histappend bash --norc; }
 
 # The kick for a claude restore with RESTORE_KICK_MODE=brief. Only an agent in
 # its own lane worktree gets the integration steps; an orchestrator (xxx-00,
@@ -180,5 +180,6 @@ restore_main() {
   # --norc: the box user's ~/.bashrc may run `git config --global` (an identity
   # loader); a rotation kills this pane a second later and left a stale
   # ~/.gitconfig.lock that failed every agent's global git config (SPL-1898).
-  exec bash --norc
+  # The env keeps it from cutting ~/.bash_history to 500 lines (SPL-3892).
+  exec env HISTSIZE=-1 HISTFILESIZE=-1 BASHOPTS=histappend bash --norc
 }

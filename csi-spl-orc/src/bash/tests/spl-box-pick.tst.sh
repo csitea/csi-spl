@@ -40,6 +40,8 @@
 #          fallback either; every box over -> hold; a sample without that
 #          mount is unknown and placed as before; the % from a stubbed df
 #          (spl_lane_box_disks) is df's Capacity.
+#          19. the AIM (t1 f456ecd5): a box past its aim, below its high,
+#          takes a lane only when no box is under its aim; no aim = high.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -577,6 +579,31 @@ got="$(source "$PROJ_ROOT/lib/bash/funcs/spl-box-disk.func.sh"; spl_box_disk_fro
 [[ "$got" == '{"box-a":{"mount":"/mnt/data","pct":92},"box-b":{"mount":"/","pct":30}}' ]] &&
   pass "18. stubbed df -> spl_lane_box_disks -> /mnt/data 92%, df's own Capacity" || fail "18. df: $disks -> $got"
 [[ "$(pick "$(run)")" == box-b ]] && pass "18. that box at 92% is not picked" || fail "18. df pick"
+
+# 19. the AIM (owner HUM-10, t1 f456ecd5 msg 61cd77e7): box-a's band 70..90
+#     aims at 80, box-b's 40..60 has no aim (= its high). Between its aim and
+#     its high, box-a takes a lane only when no box is under its aim.
+#     RED CONTROL (FAILs before SPL-3876): box-a at 85 %, box-b at 50 % ->
+#     box-b, where the pick without the aim took box-a (first below high).
+target 50 75 '["box-a","box-b"]' '{"box-a":{"low":70,"high":90,"aim":80},"box-b":{"low":40,"high":60}}'
+stats "box-a:6.8:8" "box-b:4:8"
+out="$(run)"
+[[ "$(pick "$out")" == box-b ]] && grep -q '^BOX box-a  load5 6.8  cpus 8  85%  in band  band 70..90 aim 80 (box)$' <<<"$out" &&
+  pass "19. RED CONTROL (FAILs before SPL-3876) box-a past its aim (85% >= 80%), box-b under its own (50% < 60%) -> pick=box-b" ||
+  fail "19. aim: $out"
+stats "box-a:6:8" "box-b:4:8"
+out="$(run)"
+[[ "$(pick "$out")" == box-a ]] && grep -q 'reason=box-a is the first box in order below its aim (75% < 80%)' <<<"$out" &&
+  pass "19. box-a under its aim (75% < 80%) comes first in order -> pick=box-a, the reason names the aim" || fail "19. under aim: $out"
+stats "box-a:6.8:8" "box-b:5.2:8"
+out="$(run)"
+[[ "$(pick "$out")" == box-a ]] && grep -q 'below its high mark (85% < 90%)' <<<"$out" &&
+  pass "19. no box under its aim (box-b 65% is full) -> box-a between aim and high takes it" || fail "19. between: $out"
+target 50 75 '["box-a","box-b"]' '{"box-a":{"low":70,"high":90},"box-b":{"low":40,"high":60}}'
+stats "box-a:6.8:8" "box-b:4:8"
+out="$(run)"
+[[ "$(pick "$out")" == box-a ]] && grep -q 'band 70..90 (box)  <- pick$' <<<"$out" &&
+  pass "19. CONTROL: the same loads with no aim -> box-a, first below its high, as before" || fail "19. no aim: $out"
 
 echo "spl-box-pick: $fails failure(s)"
 [ "$fails" -eq 0 ]

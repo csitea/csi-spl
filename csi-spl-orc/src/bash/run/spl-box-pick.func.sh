@@ -4,8 +4,12 @@
 # @description fleet load target (owner HUM-10, t1 c13e8023 + t1 29b19f85).
 # @description Each box has a band (low / high, % of cores = load5 / cpus * 100):
 # @description its own per-box band when the hub names it (rdb 0134, `boxes`),
-# @description else the fleet band. The pick, in the fill order: the first box
-# @description below its LOW mark; else the first below its HIGH mark; else
+# @description else the fleet band. A per-box band may carry an AIM, low <=
+# @description aim <= high (owner HUM-10, t1 f456ecd5 msg 61cd77e7): the level
+# @description the pick aims to keep that box at; no aim = its high. The pick,
+# @description in the fill order: the first box below its LOW mark; else the
+# @description first below its AIM; else (every box at or above its aim) the
+# @description first below its HIGH mark; else
 # @description (every box at or above its HIGH) the box least far past its band,
 # @description load% / high, while that box is below its OVERFLOW mark (high *
 # @description BOX_PICK_OVERFLOW / 100): a weight, so an overloaded box hands its
@@ -188,9 +192,11 @@ spl_box_pick_decide() {
     | ($ord.o + (($last | keys) - $ord.o | sort)) as $boxes
     | [$boxes[] as $b | ($last[$b]) as $r
         | (($t.boxes // {})[$b]) as $own
-        | (if $own != null then {low: $own.low, high: $own.high, src: "box"} else {low: $t.low, high: $t.high, src: "fleet"} end) as $b0
+        | (if $own != null then {low: $own.low, high: $own.high, aim: (if ($own.aim // 0) > 0 then $own.aim else $own.high end), src: "box"}
+           else {low: $t.low, high: $t.high, aim: $t.high, src: "fleet"} end) as $b0
         | ($ci[$b] // 0) as $jobs
-        | (if $jobs > 0 then {low: ([$b0.low, $cc.low] | min), high: ([$b0.high, $cc.high] | min), src: "\($b0.src), ci busy"} else $b0 end) as $band
+        | (if $jobs > 0 then ({low: ([$b0.low, $cc.low] | min), high: ([$b0.high, $cc.high] | min), src: "\($b0.src), ci busy"}
+             | . + {aim: ([([$b0.aim, .high] | min), .low] | max)}) else $b0 end) as $band
         | if $r == null or ($r.cpus // 0) < 1 then {box: $b, miss: true}
           else ($r.load5 * 100 / $r.cpus) as $p
           | {box: $b, load5: $r.load5, cpus: $r.cpus, pct: $p, at: $r.at, band: $band,
@@ -209,12 +215,13 @@ spl_box_pick_decide() {
     | [$seen0[] | select(.nokind | not)] as $kinded
     | [$kinded[] | select(.wkover | not)] as $seen
     | ((first($seen[] | select(.pct < .band.low)) | . + {why: "low"})
+       // (first($seen[] | select(.pct < .band.aim)) | . + {why: (if .band.aim < .band.high then "aim" else "high" end)})
        // (first($seen[] | select(.pct < .band.high)) | . + {why: "high"})
        // ([$seen[] | select(.pct < .band.high * $over / 100)] | min_by(.pct / .band.high) | if . == null then null else . + {why: "over"} end)
        // null) as $pick
     | "fleet load target: \($t.low)..\($t.high) % of cores (source \($t.source // "hub")), \(($t.boxes // {}) | length) per-box band(s), order \($boxes | join(" ")) (\($ord.src)), samples \($since)",
       ($rows[] | if .miss then "WARN box \(.box): no load sample in the last \($since), skipped"
-        else "BOX \(.box)  load5 \(.load5)  cpus \(.cpus)  \(.pct | floor)%  \(.state)  band \(.band.low)..\(.band.high) (\(.band.src))\(if .cord then "  CORDONED (until \(.until | todate))" else "" end)\(if .dfull then "  DISK \(.disk.mount) \(.disk.pct)% >= \($dmax)%: not picked" else "" end)\(if .sick then "  DEGRADED (\(.why))" else "" end)\(if .jobs > 0 then "  ci busy: \(.jobs) jobs, cap \($cc.max_agents) (agents \(.agents // "?"))\(if .capped then ", AT CAP: not picked" else "" end)" else "" end)\(if .nokind then "  no \($kind) CLI: not picked" else "" end)\(
+        else "BOX \(.box)  load5 \(.load5)  cpus \(.cpus)  \(.pct | floor)%  \(.state)  band \(.band.low)..\(.band.high)\(if .band.aim < .band.high then " aim \(.band.aim)" else "" end) (\(.band.src))\(if .cord then "  CORDONED (until \(.until | todate))" else "" end)\(if .dfull then "  DISK \(.disk.mount) \(.disk.pct)% >= \($dmax)%: not picked" else "" end)\(if .sick then "  DEGRADED (\(.why))" else "" end)\(if .jobs > 0 then "  ci busy: \(.jobs) jobs, cap \($cc.max_agents) (agents \(.agents // "?"))\(if .capped then ", AT CAP: not picked" else "" end)" else "" end)\(if .nokind then "  no \($kind) CLI: not picked" else "" end)\(
           if $kind == "" or .nokind then "" elif .wk == null then "  \($kind) weekly unknown" elif .wkover then "  \($kind) weekly \(.wk)% >= \($wmax)%: not picked" else "  \($kind) weekly \(.wk)%" end)\(if $pick != null and .box == $pick.box then "  <- pick" else "" end)" end),
       (if ($open | length) > 0 and all($open[]; .sick) then "WARN every box with a load sample is degraded: the pick ignores the beats" else empty end),
       (if $pick != null and $kind != "" and $pick.wk == null then "INFO \($pick.box): \($kind) weekly usage unknown (no banner read, or its BOX-0 row is an hour old): placed anyway" else empty end),
@@ -230,6 +237,8 @@ spl_box_pick_decide() {
          "pick=hold reason=no box with a sample is below its overflow mark (\($over)% of its high)\(if any($all[]; .capped) then " or under its CI-busy agent cap" else "" end): queue the lane, spawn nothing"
        elif $pick.why == "over" then
          "pick=\($pick.box) reason=every box is at or above its high mark; \($pick.box) is the least past its band (\($pick.pct | floor)% on high \($pick.band.high)%, overflow \($pick.band.high * $over / 100 | floor)%)"
+       elif $pick.why == "aim" then
+         "pick=\($pick.box) reason=\($pick.box) is the first box in order below its aim (\($pick.pct | floor)% < \($pick.band.aim)%), every box is at or above its low mark"
        elif $pick.why == "low" then
          "pick=\($pick.box) reason=\($pick.box) is the first box in order below its low mark (\($pick.pct | floor)% < \($pick.band.low)%)"
        else

@@ -9,6 +9,8 @@
 #   5. BAND keeps the box's own cap (the WUI's band save); 'default' drops the cap
 #   6. a cap on a box with no band is refused; a 400 fails with the hub's detail
 #   7. BAND=default drops the box's entry, cap and all; with a cap it is refused
+#   8. the box's own runner_cpus survives every edit of that box
+#   9. AIM sets the aim inside the band, a BAND change keeps it, default drops it
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -101,6 +103,27 @@ run BOX=box-a RUNNER_CPU_PCT=default ORDERED_BY=HUM-10 DRY_RUN=0 STUB_GET="$CPUS
 run BOX=box-a BAND=default ORDERED_BY=HUM-10 DRY_RUN=0 STUB_GET="$CPUS_GET"; rc=$?
 [[ $rc -eq 0 ]] && ! grep -q runner_cpus "$T/calls" \
   && pass "8. BAND=default drops the entry, runner_cpus and all" || fail "8. drop: rc=$rc $(cat "$T/calls" "$T/o")"
+
+# --- 9. the aim (owner HUM-10, t1 f456ecd5 msg 61cd77e7) rides the band --------------
+AIM_GET='{"boxes":{"box-a":{"low":50,"high":85},"box-b":{"low":40,"high":60,"aim":50}}}'
+run BOX=box-a BAND=70..90 AIM=80 ORDERED_BY=HUM-10 DRY_RUN=0 STUB_GET="$AIM_GET"; rc=$?
+[[ $rc -eq 0 ]] && grep -qxF 'hub PATCH /v1/operator/fleet-load {"boxes":{"box-a":{"low":70,"high":90,"aim":80},"box-b":{"low":40,"high":60,"aim":50}},"ordered_by":"HUM-10"}' "$T/calls" \
+  && pass "9. BAND=70..90 AIM=80 sets both; box-b goes back with its aim" || fail "9. set: rc=$rc $(cat "$T/calls" "$T/o")"
+run BOX=box-b BAND=45..65 ORDERED_BY=HUM-10 DRY_RUN=0 STUB_GET="$AIM_GET"; rc=$?
+[[ $rc -eq 0 ]] && grep -qF '"box-b":{"low":45,"high":65,"aim":50}' "$T/calls" \
+  && pass "9. a BAND change keeps the box's aim" || fail "9. keep: rc=$rc $(cat "$T/calls" "$T/o")"
+run BOX=box-b AIM=default ORDERED_BY=HUM-10 DRY_RUN=0 STUB_GET="$AIM_GET"; rc=$?
+[[ $rc -eq 0 ]] && grep -qF '"box-b":{"low":40,"high":60}}' "$T/calls" \
+  && pass "9. AIM=default drops the aim, keeps the band" || fail "9. drop: rc=$rc $(cat "$T/calls" "$T/o")"
+run BOX=box-b STUB_GET="$AIM_GET"; rc=$?
+[[ $rc -eq 0 ]] && grep -qxF "OK dev box box-b: band 40..60 aim 50, runner CPU cap 80% (the fleet's)" "$T/o" \
+  && pass "9. a read prints the aim" || fail "9. read: rc=$rc $(cat "$T/o")"
+for bad in "AIM=95" "AIM=65" "AIM=0" "AIM=x" "BAND=default"; do
+  run BOX=box-a BAND=70..90 AIM=80 ORDERED_BY=HUM-10 DRY_RUN=0 "$bad"; rc=$?
+  [[ $rc -ne 0 && ! -s "$T/calls" ]] && pass "9. $bad with BAND 70..90 refused before any call" || fail "9. $bad: rc=$rc $(cat "$T/calls" "$T/o")"
+done
+run BOX=box-c AIM=80 ORDERED_BY=HUM-10 DRY_RUN=0 STUB_GET="$AIM_GET"; rc=$?
+[[ $rc -ne 0 ]] && ! grep -q PATCH "$T/calls" && pass "9. an aim on a box with no band is refused, no PATCH" || fail "9. no band: rc=$rc $(cat "$T/calls" "$T/o")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

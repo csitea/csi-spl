@@ -8,24 +8,30 @@
 # @description box back as the GET gave it, and a BAND change keeps the box's
 # @description own runner_cpu_pct, as the WUI's band save does
 # @description (csi-spl-wui fleetBoxBandPatch). A cap needs a band: the hub
-# @description stores it inside the box's {low, high}. Neither BAND nor
+# @description stores it inside the box's {low, high}. AIM (owner HUM-10, t1
+# @description f456ecd5 msg 61cd77e7) is the level the box pick aims to keep
+# @description the box at, low <= aim <= high, stored inside the band too; a
+# @description BAND or cap change keeps it. None of BAND, AIM and
 # @description RUNNER_CPU_PCT: read only. DRY_RUN=1 (default) reads, prints
 # @description the PATCH body, writes nothing.
 # @param ENV - required: dev or prd
 # @param BOX - required: the box id ([a-z0-9-], up to 32)
 # @param BAND (optional) - <low>..<high>, % of cores (low 1..99, high 2..100, low < high), or 'default' to drop the box's entry, cap and all (the fleet band and cap apply)
+# @param AIM (optional) - 1..100 within the band (low <= aim <= high), or 'default' to drop the box's aim (the pick reads it as high)
 # @param RUNNER_CPU_PCT (optional) - 1..100, or 'default' to drop the box's own cap (the fleet's applies)
 # @param ORDERED_BY - required when DRY_RUN=0: the human who ordered it, a HUM-* id
 # @param ORDERED_VIA (optional) - the agent or channel that carried the order, at most 64 chars
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev BOX=box-a ./run -a do_spl_hub_box_band
 # @example ENV=dev BOX=box-a RUNNER_CPU_PCT=60 ORDERED_BY=HUM-10 ORDERED_VIA=c-540 DRY_RUN=0 ./run -a do_spl_hub_box_band
+# @example ENV=dev BOX=box-a BAND=70..90 AIM=80 ORDERED_BY=HUM-10 DRY_RUN=0 ./run -a do_spl_hub_box_band
 #------------------------------------------------------------------------------
 do_spl_hub_box_band() {
   do_require_bin jq curl gcloud || return 1
-  local box="${BOX:-}" band="${BAND:-}" cpu="${RUNNER_CPU_PCT:-}" ordby="${ORDERED_BY:-}" ordvia="${ORDERED_VIA:-}" dry=1 write=0
+  local box="${BOX:-}" band="${BAND:-}" cpu="${RUNNER_CPU_PCT:-}" aim="${AIM:-}" ordby="${ORDERED_BY:-}" ordvia="${ORDERED_VIA:-}" dry=1 write=0
   _spl_hub_box_band_check "$box" "$band" "$cpu" "$ordby" "$ordvia" || return 1
-  [[ -n "$band" || -n "$cpu" ]] && write=1
+  _spl_hub_box_band_aim_check "$band" "$aim" || return 1
+  [[ -n "$band" || -n "$cpu" || -n "$aim" ]] && write=1
   if (( write )); then
     if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
     (( dry )) || [[ -n "$ordby" ]] || { do_log "FATAL ORDERED_BY (a HUM-* id: who ordered this) is required with DRY_RUN=0"; return 1; }
@@ -38,8 +44,8 @@ do_spl_hub_box_band() {
   [[ "$SPL_HUB_OP_STATUS" == 200 ]] || { _spl_hub_box_band_report "$box"; return 1; }
   (( write )) || { _spl_hub_box_band_report "$box"; return; }
   local body
-  body="$(_spl_hub_box_band_body "$box" "$band" "$cpu" "$ordby" "$ordvia" <<<"$SPL_HUB_OP_BODY")" \
-    || { do_log "FATAL box $box has no band of its own: a runner CPU cap lives inside {low, high}; give BAND=<low>..<high> too. Nothing changed."; return 1; }
+  body="$(_spl_hub_box_band_body "$box" "$band" "$cpu" "$ordby" "$ordvia" "$aim" <<<"$SPL_HUB_OP_BODY")" \
+    || { do_log "FATAL box $box has no band of its own: a runner CPU cap or an aim lives inside {low, high}; give BAND=<low>..<high> too. Nothing changed."; return 1; }
   if (( dry )); then
     do_log "OK DRY_RUN would PATCH the hub $SPL_HUB_URL as the $SPL_PROJECT service account with: $body. Re-run with DRY_RUN=0."
     return 0
@@ -63,12 +69,24 @@ _spl_hub_box_band_check() {
   [[ ${#5} -le 64 ]] || { do_log "FATAL ORDERED_VIA is at most 64 chars"; return 1; }
 }
 
-# _spl_hub_box_band_body <box> <band> <cpu> <ordered_by> <ordered_via> < GET body
+# _spl_hub_box_band_aim_check <band> <aim> -> 1 + FATAL on a bad AIM: 1..100
+# or 'default', within BAND when both are given, never with BAND=default
+_spl_hub_box_band_aim_check() {
+  [[ -z "$2" ]] && return 0
+  [[ "$1" == default ]] && { do_log "FATAL BAND=default drops the box's aim too: leave AIM unset"; return 1; }
+  [[ "$2" == default ]] && return 0
+  [[ "$2" =~ ^[1-9][0-9]*$ && "$2" -le 100 ]] || { do_log "FATAL AIM must be 1..100 or 'default', got: '$2'"; return 1; }
+  [[ -z "$1" ]] || { [[ "$1" =~ ^([0-9]+)\.\.([0-9]+)$ ]] && (( BASH_REMATCH[1] <= $2 && $2 <= BASH_REMATCH[2] )); } \
+    || { do_log "FATAL AIM must be within BAND (low <= aim <= high), got: AIM=$2 BAND=$1"; return 1; }
+}
+
+# _spl_hub_box_band_body <box> <band> <cpu> <ordered_by> <ordered_via> [aim] < GET body
 # -> the PATCH body: every box as read, this box's band and/or cap changed
-# (its own runner_cpus, rdb 0185, goes back as read);
+# (its own runner_cpus, rdb 0185, goes back as read; its aim too, unless
+# AIM sets or drops it);
 # 1 when the box has no band and BAND is not given
 _spl_hub_box_band_body() {
-  jq -c --arg box "$1" --arg band "$2" --arg cpu "$3" --arg by "$4" --arg via "$5" '
+  jq -c --arg box "$1" --arg band "$2" --arg cpu "$3" --arg by "$4" --arg via "$5" --arg aim "${6:-}" '
     def by_via: {ordered_by: $by} + (if $via != "" then {ordered_via: $via} else {} end);
     (.boxes // {}) as $m
     | if $band == "default" then {boxes: ($m | del(.[$box]))} + by_via else .
@@ -76,7 +94,11 @@ _spl_hub_box_band_body() {
     | (if $band != "" then ($band | split("..") | {low: (.[0] | tonumber), high: (.[1] | tonumber)})
        elif $old != null then {low: $old.low, high: $old.high} else null end) as $b
     | if $b == null then error("no band") else . end
-    | ($b + (if $cpu == "default" then {}
+    | ($b + (if $aim == "default" then {}
+             elif $aim != "" then {aim: ($aim | tonumber)}
+             elif ($old.aim // null) != null then {aim: $old.aim}
+             else {} end)
+          + (if $cpu == "default" then {}
              elif $cpu != "" then {runner_cpu_pct: ($cpu | tonumber)}
              elif ($old.runner_cpu_pct // null) != null then {runner_cpu_pct: $old.runner_cpu_pct}
              else {} end)
@@ -92,7 +114,7 @@ _spl_hub_box_band_report() {
     200)
       do_log "OK $ENV box $1: $(jq -r --arg box "$1" '(.boxes // {})[$box] as $b | (.runner_cpu_pct // 80) as $f
         | if $b == null then "no band of its own (the fleet band \(.low)..\(.high)), runner CPU cap \($f)% (the fleet'"'"'s)"
-          else "band \($b.low)..\($b.high), runner CPU cap \($b.runner_cpu_pct // $f)% (\(if $b.runner_cpu_pct then "its own" else "the fleet'"'"'s" end))" end' <<<"$SPL_HUB_OP_BODY")"
+          else "band \($b.low)..\($b.high)\(if $b.aim then " aim \($b.aim)" else "" end), runner CPU cap \($b.runner_cpu_pct // $f)% (\(if $b.runner_cpu_pct then "its own" else "the fleet'"'"'s" end))" end' <<<"$SPL_HUB_OP_BODY")"
       return 0 ;;
     400) do_log "FATAL the hub refused the setting (400): $detail. Nothing changed."; return 1 ;;
     401|403) do_log "FATAL the hub refused the operator id token ($SPL_HUB_OP_STATUS): is $GCP_ACCOUNT in SPOOL_HUB_OPERATOR_EMAILS? Nothing changed. $detail"; return 1 ;;

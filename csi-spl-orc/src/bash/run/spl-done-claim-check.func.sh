@@ -114,6 +114,24 @@
 # @description     the body says it is not landed ("not on master|main|trunk",
 # @description     "not landed", "unlanded", "on a review branch"); a sha on
 # @description     no branch alerts as before
+# @description   - SPL-3758 (alerts on a commit-only lane's results, 10-26): a
+# @description     repo whose work lands as commits on work branches, never on
+# @description     its trunk, says so in its own clone, `git config
+# @description     spool.landedOnAnyBranch true` (box-local, as
+# @description     spool.localTrunk): there a sha on any local branch (`git
+# @description     for-each-ref --contains refs/heads`) is landed, a sha on no
+# @description     branch alerts as before. In a body that names a
+# @description     gr-cmd-<12 hex> request, a 12-hex token that is no object
+# @description     in any repo is a request id, and
+# @description     the request-id labels widen to "gr id", "result", "result
+# @description     for", "results/" and "gr-result-" (the shapes measured on
+# @description     those results, none a commit in 2536 lane results of 14
+# @description     days); a token after "patch-id" is a stable patch-id, no
+# @description     sha. A git clone on this box whose top dir the body names
+# @description     as an absolute path is a repo for that message, judged
+# @description     unfetched on origin's trunk and on its local master/main
+# @description     (c-761's sha on the local master of a clone no list names,
+# @description     whose https origin this box cannot fetch)
 # @description Standing: the box cron done-claim-check (every 5 min). Prints one
 # @description TSV row per decided message (msg_id, lane, landed | rewritten |
 # @description seat | pending | unchecked | review | alert | would-alert, shas or no-sha). DRY_RUN=1 (default) reads and
@@ -159,27 +177,28 @@ do_spl_done_claim_check() {
   awk -F'\t' '$1 ~ /^[cmagq]-[0-9]+$/ { print $1 }' "$root/registry.tsv" 2>/dev/null >"$tmp/live"
   local id from ts task body shas bad unchk rv verdict stale n_alert=0 n_ok=0 n_seat=0 n_wait=0 n_rew=0 n_unchk=0 n_rev=0
   while IFS=$'\t' read -r id from ts task body; do
-    shas="$(spl_done_claim_notes "$tmp/repos" "$(spl_done_claim_shas "$body" "$tmp/repos")")"
+    cp "$tmp/repos" "$tmp/r" && spl_done_claim_named "$body" "$tmp/repos" >>"$tmp/r"
+    shas="$(spl_done_claim_notes "$tmp/r" "$(spl_done_claim_shas "$body" "$tmp/r")")"
     bad="" unchk="" rv=""
     if spl_done_claim_r7 "$body" || grep -qxF -- "${from%@*}" "$tmp/seats"; then
       verdict=seat; n_seat=$((n_seat + 1))
-    elif bad="$(spl_done_claim_missing "$tmp/repos" "$shas")" && [[ -n "$shas" && -z "$bad" ]]; then
+    elif bad="$(spl_done_claim_missing "$tmp/r" "$shas")" && [[ -n "$shas" && -z "$bad" ]]; then
       verdict=landed; n_ok=$((n_ok + 1))
-    elif [[ -n "$bad" && "$(spl_done_claim_unknown "$tmp/repos" "$bad")" == "$bad" ]] &&
-      spl_done_claim_rewrite "$tmp/repos" "$body" "$(spl_done_claim_since "$root" "${from%@*}" "$now")"; then
+    elif [[ -n "$bad" && "$(spl_done_claim_unknown "$tmp/r" "$bad")" == "$bad" ]] &&
+      spl_done_claim_rewrite "$tmp/r" "$body" "$(spl_done_claim_since "$root" "${from%@*}" "$now")"; then
       verdict=rewritten; n_rew=$((n_rew + 1))
-    elif unchk="$(spl_done_claim_unchecked "$tmp/repos" "$tmp/unchk" "${from%@*}" "$bad")" &&
+    elif unchk="$(spl_done_claim_unchecked "$tmp/r" "$tmp/unchk" "${from%@*}" "$bad")" &&
       bad="$(spl_done_claim_minus "$bad" "$unchk")" && [[ -n "$unchk" && -z "$bad" ]]; then
       verdict=unchecked; n_unchk=$((n_unchk + 1))
-    elif [[ -n "$bad" && -z "$(spl_done_claim_unparked "$tmp/repos" "$tmp/live" "$bad" "${from%@*}" "$root")" ]]; then
+    elif [[ -n "$bad" && -z "$(spl_done_claim_unparked "$tmp/r" "$tmp/live" "$bad" "${from%@*}" "$root")" ]]; then
       verdict=pending; n_wait=$((n_wait + 1))
-    elif rv="$(spl_done_claim_on_review "$tmp/repos" "$bad")" && [[ -n "$rv" && "$(cut -f1 <<<"$rv" | xargs)" == "$bad" ]] &&
+    elif rv="$(spl_done_claim_on_review "$tmp/r" "$bad")" && [[ -n "$rv" && "$(cut -f1 <<<"$rv" | xargs)" == "$bad" ]] &&
       spl_done_claim_unlanded "$body"; then
       verdict=review; n_rev=$((n_rev + 1))
     elif [[ "$dry" == 1 ]]; then
       verdict=would-alert; n_alert=$((n_alert + 1))
     else
-      spl_done_claim_note "$from" "$id" "$ts" "$task" "$bad" "$tmp/repos" "$tmp/stale" "$unchk" >"$tmp/note"
+      spl_done_claim_note "$from" "$id" "$ts" "$task" "$bad" "$tmp/r" "$tmp/stale" "$unchk" >"$tmp/note"
       spl_done_claim_send "$to" "$tmp/note" || { rc=1; continue; }
       verdict=alert; n_alert=$((n_alert + 1))
     fi
@@ -235,7 +254,10 @@ spl_done_claim_results() {
 # list marks and bold (`sha:`, `- **sha**:`, `- **Sha:**`, `SHA:`), and one of
 # those lines holds a sha, only those lines count: a sha quoted on another line
 # (another lane's, another repo's, a reverted one) is context. Else every sha
-# of the body, as before. One line, space-separated. SPL-3261 (c-913's
+# of the body, as before. One line, space-separated. SPL-3758: in a body that
+# names a run-on-box request gr-cmd-<12 hex>, a 12-hex token that is no object
+# in any repo of [repos file] is a request id ("VERIFY <id>", "push requests
+# (<id>, <id>)"), never a pre-rebase sha. SPL-3261 (c-913's
 # 12472906: "- Landed: <sha>" beside "Range-diff, reviewed <review sha> ..."):
 # a line starting with "landed:", "landed sha:" or "trunk sha:" counts ahead of
 # the sha lines; "commit:" is too generic and is not one. Range-diff lines are
@@ -248,13 +270,17 @@ spl_done_claim_shas() {
   claim="$(grep -iE '^[[:space:]>*+_`-]*(landed( sha)?|trunk sha)[*_`]*:' <<<"$lines" | spl_done_claim_tokens "${2:-}")"
   [[ -n "$claim" ]] || claim="$(grep -iE '^[[:space:]>*+_`-]*shas?[*_`]*([[:space:]]|:|$)' <<<"$lines" | spl_done_claim_tokens "${2:-}")"
   [[ -n "$claim" ]] || claim="$(spl_done_claim_tokens "${2:-}" <<<"$1")"
-  echo "$claim"
+  [[ -n "${2:-}" ]] && grep -qiE 'gr-cmd-[0-9a-f]{12}' <<<"$1" || { echo "$claim"; return 0; }
+  spl_done_claim_minus "$claim" "$(spl_done_claim_unknown "$2" "$claim" | tr ' ' '\n' | grep -xE '[0-9a-f]{12}' | sed 's/$/\t/')"
 }
 
 # spl_done_claim_tokens [repos file] (stdin): the distinct hex tokens of 9..12
 # or 40 chars, UUIDs and the token after an "md5" label cut out first, and a
 # run-on-box request id (gr-cmd-<hex>[.zip], the token after a "gr-cmd",
-# "request id" or "req" label; SPL-2953); one line, space-separated. 13..39
+# "request id" or "req" label; SPL-2953; SPL-3758, measured on a lane's
+# results: after "gr id", "result", "result for", "results/", "gr-result-")
+# and a stable patch-id (the token after "patch-id", SPL-3758); one line,
+# space-separated. 13..39
 # hex (a 32-hex md5) is no git sha. A token that
 # is a tree, a blob or a tag of no commit in a repo of [repos file] is no sha
 # (c-734's "(tree cefedf318)"); an all-digit token counts only when it is a
@@ -262,7 +288,7 @@ spl_done_claim_shas() {
 spl_done_claim_tokens() {
   sed -E -e 's/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/ /g' \
     -e 's/(^|[^0-9a-zA-Z])md5(sum)?[^0-9a-zA-Z]+[0-9a-fA-F]+([^0-9a-zA-Z]|$)/\1 \3/gI' \
-    -e 's/(^|[^0-9a-zA-Z])(gr-cmd|request[ _-]?id|req)[^0-9a-zA-Z]+[0-9a-fA-F]+([^0-9a-zA-Z]|$)/\1 \3/gI' |
+    -e 's/(^|[^0-9a-zA-Z])(gr-cmd|gr[ _-]?id|request[ _-]?id|req|results?( for)?|patch[ _-]?id)[^0-9a-zA-Z]+[0-9a-fA-F]+([^0-9a-zA-Z]|$)/\1 \4/gI' |
     tr -c '0-9A-Za-z' '\n' | grep -xE '[0-9a-f]{9,12}|[0-9a-f]{40}' | awk '!s[$0]++' |
     spl_done_claim_commits "${1:-}" | paste -sd' ' -
 }
@@ -424,6 +450,7 @@ spl_done_claim_landed_repos() {
 # sha that resolves in a repo has landed when it is an ancestor of its trunk,
 # or when `git cherry` marks it "-": the same patch (patch-id) is on the trunk
 # under another sha, as a review-branch sha after the rebase that landed it.
+# In a commit-only repo (spl_done_claim_on_any_branch) any local branch counts.
 spl_done_claim_missing() {
   local s full top ref ok out=()
   for s in $2; do
@@ -431,11 +458,47 @@ spl_done_claim_missing() {
     while read -r top ref; do
       full="$(git -C "$top" rev-parse -q --verify "$s^{commit}" 2>/dev/null)" || continue
       if git -C "$top" merge-base --is-ancestor "$full" "$ref" 2>/dev/null ||
-        git -C "$top" cherry "$ref" "$full" "$full^" 2>/dev/null | grep -x -- "- $full" >/dev/null; then ok=1; break; fi
+        git -C "$top" cherry "$ref" "$full" "$full^" 2>/dev/null | grep -x -- "- $full" >/dev/null ||
+        spl_done_claim_on_any_branch "$top" "$full"; then ok=1; break; fi
     done <"$1"
     (( ok )) || out+=("$s")
   done
   echo "${out[*]}"
+}
+
+# spl_done_claim_on_any_branch <top> <full sha>: true when the clone says it is
+# commit-only (`git config spool.landedOnAnyBranch true`, box-local like
+# spool.localTrunk: work lands as commits on work branches, never on a trunk,
+# SPL-3758) and a local branch contains the sha.
+spl_done_claim_on_any_branch() {
+  [[ "$(git -C "$1" config --bool --get spool.landedOnAnyBranch 2>/dev/null)" == true ]] &&
+    [[ -n "$(git -C "$1" for-each-ref --count=1 --contains "$2" refs/heads 2>/dev/null)" ]]
+}
+
+# spl_done_claim_named <body> <repos file>: "<top> <trunk>" per git clone on this
+# box whose top dir the body names as an absolute path (c-761's "/opt/<org>/<repo>
+# was fast-forwarded", SPL-3758) and that is not in <repos file> (same git common
+# dir). Its trunks: its spool.localTrunk branch, else BOTH origin/master (else
+# origin/main) and its local master (else main): read as it is, never fetched
+# (c-761's clone could not fetch; its origin/master was stale and the sha was
+# on its local master, pushed from there).
+spl_done_claim_named() {
+  local p top c have="" ref
+  while read -r top ref; do c="$(spl_done_claim_common "$top")" && have+="$c"$'\n'; done <"$2"
+  while read -r p; do
+    p="${p%/}"
+    top="$(git -C "$p" rev-parse --show-toplevel 2>/dev/null)" && [[ "$top" == "$p" ]] || continue
+    c="$(spl_done_claim_common "$top")" && ! grep -qxF -- "$c" <<<"$have" || continue
+    have+="$c"$'\n'
+    if ref="$(spl_done_claim_local_trunk "$top")"; then echo "$top $ref"; continue; fi
+    c=""
+    for ref in origin/master origin/main - refs/heads/master refs/heads/main; do
+      [[ "$ref" == - ]] && { c=""; continue; }
+      [[ -z "$c" ]] || continue
+      git -C "$top" rev-parse -q --verify "$ref^{commit}" >/dev/null 2>&1 && echo "$top $ref" && c=1
+    done
+  done < <(tr '\037' '\n' <<<"$1" | grep -oE '(^|[^A-Za-z0-9._~/-])/[A-Za-z0-9._/-]+' | sed -E 's#^[^/]+##; s#[.]+$##' | sort -u | sed -n 1,20p)
+  return 0
 }
 
 # spl_done_claim_local_trunk <top>: "refs/heads/<branch>" when the clone says

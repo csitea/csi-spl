@@ -683,4 +683,85 @@ run DRY_RUN=0 DONE_CLAIM_TO=c-009 DONE_CLAIM_STATE_DIR="$T/st20"; rc=$?
   pass "20. DRY_RUN=0: no note for the two not-landed review-branch results (ledger: review); the landed claim's note says 'on review branch <name>, not on master', the no-branch sha 'not in the repository'" ||
   fail "20. note (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
 
+# 21. SPL-3758 (alerts 14:30Z-15:15Z 10-26 on a commit-only lane's results;
+# a-292's patch-id 53f45945; c-761's sha of a clone no list names, 7abf9fb9; synthetic here).
+# (a) a commit-only repo (`git config spool.landedOnAnyBranch true` in its own
+# clone, here with a local trunk as well) whose sha sits only on a work
+# branch is landed; without the marker it alerts. (b) a sha on no branch of
+# that repo still alerts. (c) the measured request-id shapes (gr-cmd-<id>.zip
+# then the bare id, "result for <id>", "results/<id>/", "result `<id>`",
+# "gr id `<id>`"; in a body naming a gr-cmd-<id> request, any 12-hex token
+# that is no object: "VERIFY <id>", "push requests (<id>, <id>)") and a token
+# after "patch-id" are no shas (a no-object 12-hex in a body with no gr-cmd
+# request still alerts: case 1's nokey). (d) control: a
+# real unlanded csi-spl sha beside them still alerts. (e) a clone the body
+# names by its path is read for that message, on origin's trunk and its local
+# master (c-761's clone could not fetch); a sha off both, or the same sha with
+# the clone unnamed, alerts.
+SP="$T/spool21"
+mkdir -p "$SP"
+mkrepo co
+rg co config spool.localTrunk master
+rg co checkout -q -b work-1 && rg co commit -q --allow-empty -m "work branch only" && lettered co 12 "work branch only"
+COSHA=$(rg co rev-parse HEAD)
+rg co checkout -q master
+for i in $(seq 1 50); do
+  CONONE=$(rg co commit-tree -p master -m "on no branch $i" "master^{tree}")
+  [[ "${CONONE:0:12}" =~ [a-f] ]] && break
+done
+rg co worktree add -q -b c-821-c001-wf "$T/wt/c-821" master 2>/dev/null
+git init -q -b master "$T/gr"
+rg gr commit -q --allow-empty -m "gr base" && lettered gr 12 "gr base"
+GRSHA=$(rg gr rev-parse HEAD)
+rg gr checkout -q -b side && rg gr commit -q --allow-empty -m "gr side" && lettered gr 12 "gr side"
+GRSIDE=$(rg gr rev-parse HEAD)
+rg gr checkout -q master
+rg spl fetch -q origin
+for i in $(seq 1 50); do
+  UNP21=$(rg spl commit-tree -p origin/master -m "unpushed 21 $i" "origin/master^{tree}")
+  [[ "${UNP21:0:12}" =~ [a-f] ]] && break
+done
+RQ1=5f8e51a6d27a RQ2=8a7d2223b77e RQ3=6bd27058e0f1 RQ4=a607d6c1e44b RQ5=238b14e4abfe RQ6=b8dd31077e4a PATCHID=830fd121349f0e1b6164212f6bae87d2821bb5b0
+printf 'c-821\tclaude\t%%1\t%s\t-\n' "$T/wt/c-821" >"$SP/registry.tsv"
+for l in c-822 c-823 c-824 c-825; do printf '%s\tclaude\t%%9\t%s\t-\n' "$l" "$T/wt/c-563" >>"$SP/registry.tsv"; done
+msg c-002/archive co1 c-821 c-002 30 "- \`w.v3.7.50.work-1.zip\` moved to archived/.
+- \`gr-cmd-${RQ1}.zip\` (the VERIFY) moved to archived/; I am watching \`results/${RQ1}/\`.
+- VERIFY-OK at ${COSHA:0:12} -> push once"
+msg c-002/archive co2 c-821 c-002 30 "No result for ${RQ1} yet. Push result \`${RQ2}\`, queued once as gr id \`${RQ2}\`; landed ${CONONE:0:12}"
+msg c-002/archive rq c-822 c-002 30 "VERIFY ${RQ3} exit 0; retry queued as gr-cmd-${RQ5}.zip, archived holds 2 push requests (${RQ6}, ${RQ5}); master as in result ${RQ4}; landed ${LANDED:0:12}"
+msg c-002/archive pid c-822 c-002 25 "landed ${LANDED:0:12}, the same patch as patch-id ${PATCHID}"
+msg c-002/archive ctl c-823 c-002 30 "landed ${UNP21:0:12}; verify gr-cmd-${RQ3}, result ${RQ4}"
+msg c-002/archive named c-824 c-002 30 "\`$T/gr\` was fast-forwarded.
+- sha: ${GRSHA:0:12}"
+msg c-002/archive nside c-824 c-002 25 "\`$T/gr/\` has it.
+- sha: ${GRSIDE:0:12}"
+msg c-002/archive unnamed c-825 c-002 30 "- sha: ${GRSHA:0:12}"
+! rg co merge-base --is-ancestor "$COSHA" master && [ "$(rg co branch --contains "$COSHA" --format='%(refname:short)')" = work-1 ] &&
+  [ -z "$(rg co branch -a --contains "$CONONE")" ] && ! rg spl cat-file -e "$RQ1^{object}" 2>/dev/null &&
+  ! rg spl merge-base --is-ancestor "$UNP21" origin/master && [ -z "$(rg gr branch -r)" ] &&
+  pass "21. control: ${COSHA:0:12} sits only on work branch work-1, ${CONONE:0:12} on no branch; the request ids are no objects; ${UNP21:0:12} is unpushed; the gr clone never fetched" ||
+  fail "21. control: fixture"
+k21="co1 co2 rq pid ctl named nside unnamed"
+run DONE_CLAIM_STATE_DIR="$T/st21"; rc=$?
+v="$(for k in $k21; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "co1=would-alert co2=would-alert rq=landed pid=landed ctl=would-alert named=landed nside=would-alert unnamed=would-alert " ] &&
+  pass "21. no marker: the work-branch sha of the repo alerts (the 10-26 defect, kept as the control)" ||
+  fail "21. no marker (rc $rc) got '$v': $(cat "$T/o")"
+rg co config spool.landedOnAnyBranch true
+run DONE_CLAIM_STATE_DIR="$T/st21"; rc=$?
+v="$(for k in $k21; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+row() { awk -F'\t' -v k="$1" '$1 == k { print $4 }' "$T/o"; }
+[ "$rc" = 0 ] && [ "$v" = "co1=landed co2=would-alert rq=landed pid=landed ctl=would-alert named=landed nside=would-alert unnamed=would-alert " ] &&
+  [ "$(row co1)" = "${COSHA:0:12}" ] && [ "$(row co2)" = "${CONONE:0:12}" ] && [ "$(row rq)" = "${LANDED:0:12}" ] &&
+  [ "$(row pid)" = "${LANDED:0:12}" ] && [ "$(row ctl)" = "${UNP21:0:12}" ] &&
+  pass "21. SPL-3758: (a) with spool.landedOnAnyBranch a work-branch sha is landed; (b) a sha on no branch alerts; (c) the request ids and the patch-id are no shas; (d) an unpushed csi-spl sha alerts; (e) a sha on a named clone's local master is landed, off it or unnamed it alerts" ||
+  fail "21. commit-only / request id / patch-id / named repo (rc $rc) got '$v': $(cat "$T/o")"
+run DRY_RUN=0 DONE_CLAIM_TO=c-009 DONE_CLAIM_STATE_DIR="$T/st21"; rc=$?
+[ "$rc" = 0 ] && [ "$(grep -c '^SEND' "$T/calls.log")" = 4 ] &&
+  grep -q "c-821 result co2 .*: sha ${CONONE:0:12} not in the repository$" "$T/calls.log" &&
+  grep -q "c-823 result ctl .*: sha ${UNP21:0:12} not in the repository$" "$T/calls.log" &&
+  ! grep -qE "c-822|result co1 |result named " "$T/calls.log" &&
+  pass "21. DRY_RUN=0: four notes (no-branch sha, unpushed sha, off-trunk and unnamed gr shas), none for the work-branch, request-id, patch-id or named-clone results" ||
+  fail "21. note (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+
 exit "$fails"

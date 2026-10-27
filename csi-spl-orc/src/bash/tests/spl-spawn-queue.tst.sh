@@ -90,7 +90,10 @@
 #      do_spl_spawn_share; the GO on a non-seat or with no placement, and
 #      another owner id on a seat, are still refused; bug OVER its band and
 #      feature UNDER, the bypassed seat is placed before the feature (CONTROL:
-#      a seat queued without the GO waits, the feature is placed)
+#      a non-seat bug queued without the GO waits, the feature is placed)
+#      SPL-3762: a -reviewer placement queued with no SPAWN_BYPASS gets the
+#      standing GO at enqueue (logged, one INFO line) and is placed first;
+#      SPAWN_URGENT on a seat and a non-reviewer slug are unchanged
 #   9. do_spl_spawn_place_install_cron writes ONE line whose PATH has
 #      /usr/local/bin (yq lives there; cron's own PATH is /usr/bin:/bin) and
 #      runs under flock -n; idempotent; remove takes only its line
@@ -1086,13 +1089,33 @@ out="$(on pc do_spl_spawn_place LAUNCH_ID=c-521 LANES="$SEAT_LANES" 2>&1)"
   grep -q "^claude auto $T $T/briefs/seat-r7-reviewer.md seat-r7-reviewer$" "$T/launch.log" && grep -q "review-seat pick: ask ${S1:0:8} (bug claude:seat-r7-reviewer" <<<"$out" &&
   pass "19d. bug OVER its band, feature UNDER: the bypassed bug review seat is placed ahead of the queued feature row" ||
   fail "19d. seat pick: $out | $(hubrow "$S1") | $(cat "$T/launch.log")"
-on pc do_spl_spawn_enqueue ASK_ID="$S2" SPAWN_CLASS=bug SPAWN_PLACE=claude:seat3-r7-reviewer >/dev/null 2>&1
+# 19e. SPL-3762: a review seat queued with NO SPAWN_BYPASS gets the standing GO at enqueue
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$S2" SPAWN_CLASS=bug SPAWN_PLACE=claude:seat3-r7-reviewer 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$(jq -r '.flag // ""' <<<"$(hubrow "$S2")")" == "" ]] && grep -q "$S2"$'\t'"$SEAT_GO"$'\t'"c-001@box-desk" "$T/pc/spool/asks/bypass.tsv" &&
+  grep -q "INFO ask ${S2:0:8} is a review seat (claude:seat3-r7-reviewer) with no SPAWN_BYPASS: the standing review-seat GO 994f2257 applies" <<<"$out" &&
+  pass "19e. a -reviewer placement queued without SPAWN_BYPASS: the standing review-seat GO is in the local bypass log, one INFO line" ||
+  fail "19e. default GO: rc=$rc $out | $(hubrow "$S2")"
+printf 'Class: bug\n%s\n' "$ES" >"$T/briefs/seat4-reviewer.md"
+U1=37620001-0000-4000-8000-000000000001; put "$U1" c-002@box-desk "dispatch-enqueue-review-bypass" "SPAWN REQUEST ${U1:0:8}"
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$U1" SPAWN_CLASS=bug SPAWN_URGENT=1 SPAWN_PLACE=claude:seat4-reviewer 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$(jq -r '.flag // ""' <<<"$(hubrow "$U1")")" == urgent ]] && ! grep -q "$U1" "$T/pc/spool/asks/bypass.tsv" &&
+  pass "19e. SPAWN_URGENT=1 on a review seat is unchanged: flagged urgent, no GO logged" || fail "19e. urgent seat: rc=$rc $out | $(hubrow "$U1")"
+jq --arg u "$U1" '(.[] | select(.ask_id == $u)) |= (.state = "dead")' "$T/hub/main.json" >"$T/hub/main.json.new" && mv "$T/hub/main.json.new" "$T/hub/main.json"
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$N1" SPAWN_CLASS=bug SPAWN_PLACE=claude:bug-fix-x 2>&1)"; rc=$?
+[[ $rc -eq 0 ]] && ! grep -q "$N1" "$T/pc/spool/asks/bypass.tsv" && ! grep -q "standing review-seat GO" <<<"$out" &&
+  pass "19e. a non-reviewer slug queued without SPAWN_BYPASS is unchanged: no GO logged" || fail "19e. non-seat: rc=$rc $out"
 rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
 out="$(on pc do_spl_spawn_place LAUNCH_ID=c-522 LANES="$SEAT_LANES" 2>&1)"
-[[ "$(jq -r .reason <<<"$(hubrow "$FE")")" == "placed: c-522@box-desk" && "$(jq -r .state <<<"$(hubrow "$S2")")" == queued ]] && ! grep -q "review-seat pick" <<<"$out" &&
+[[ "$(jq -r .reason <<<"$(hubrow "$S2")")" == "placed: c-522@box-desk" && "$(jq -r .state <<<"$(hubrow "$FE")")" == queued ]] &&
+  grep -q "review-seat pick: ask ${S2:0:8} (bug claude:seat3-r7-reviewer" <<<"$out" &&
+  pass "19e. bug OVER its band, feature UNDER: the review seat queued without SPAWN_BYPASS is placed ahead of the feature" ||
+  fail "19e. default seat pick: $out | $(hubrow "$S2") | $(cat "$T/launch.log")"
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(on pc do_spl_spawn_place LAUNCH_ID=c-523 LANES="$SEAT_LANES" 2>&1)"
+[[ "$(jq -r .reason <<<"$(hubrow "$FE")")" == "placed: c-523@box-desk" && "$(jq -r .state <<<"$(hubrow "$N1")")" == queued ]] && ! grep -q "review-seat pick" <<<"$out" &&
   grep -q "band pick: ask ${FE:0:8} (feature at 25%" <<<"$out" &&
-  pass "19d. control: a review seat queued without the GO waits; the band pick places the feature (bug 50% OVER, feature 25% UNDER)" ||
-  fail "19d. control: $out | $(hubrow "$FE") | $(cat "$T/launch.log")"
+  pass "19e. control: a non-reviewer bug queued without the GO waits; the band pick places the feature (bug 50% OVER, feature 25% UNDER)" ||
+  fail "19e. control: $out | $(hubrow "$FE") | $(cat "$T/launch.log")"
 
 # 9. the cron line ----------------------------------------------------------------------
 cat >"$T/bin/crontab" <<'EOF'

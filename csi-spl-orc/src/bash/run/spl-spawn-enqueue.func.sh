@@ -23,7 +23,7 @@
 # @description auto-closed (SPL-1729) is reopened instead, never refused (SPL-3060).
 # @param SPAWN_CLASS (required) - ci (a CI-red fix on trunk), refactor, bug or feature; no default, never guessed
 # @param SPAWN_URGENT (optional) - 1: a bug placed even over its band (owner-reported prd breakage; the dispatcher's call)
-# @param SPAWN_BYPASS (optional) - the owner message id (a UUID) that explicitly asked for this feature outside the bands; ONLY on the owner's ask, recorded and listed by do_spl_spawn_share. The owner's review-seat GO (SPL_SPAWN_REVIEW_SEAT_GO) also takes a review seat of class refactor or bug (SPL-3349)
+# @param SPAWN_BYPASS (optional) - the owner message id (a UUID) that explicitly asked for this feature outside the bands; ONLY on the owner's ask, recorded and listed by do_spl_spawn_share. The owner's review-seat GO (SPL_SPAWN_REVIEW_SEAT_GO) also takes a review seat of class refactor or bug (SPL-3349); unset on a review seat (a SPAWN_PLACE slug ending in -reviewer, no SPAWN_URGENT) it IS that GO (SPL-3762)
 # @param ASK_ID (required) - the ask id, or its first 8 hex digits (do_spl_asks_open prints them)
 # @param SPAWN_PLACE (optional) - <vendor>:<slug>: the placer launches it itself, `spawn-window.sh <vendor> auto <workdir> <brief> <slug>`, with the brief file <slug>.md under SPAWN_PLACE_BRIEF_DIR on the orch box. Unset: the placer hands it to the orchestrator when it is next
 # @param SPAWN_KIND (optional) - the lane's task kind (spec 115); unset reads the "Kind:" of the brief <slug>.md. A mistral placement of any kind but specs_and_docs or i18n is refused (owner HUM-10, t1 b61851fb, msg 91bf8278: mistral does docs and reviews only) while cnf env.box.agent_split.mistral_coding_allowed is not true
@@ -60,6 +60,10 @@ spl_spawn_q_enqueue() {  # ID BY PLACE CLASS URGENT(0|1) BYPASS_MSG
   [[ "$class" =~ ^(ci|refactor|bug|feature)$ ]] ||
     { do_log "FATAL SPAWN_CLASS must be ci, refactor, bug or feature (got '$class'; no default: classify the request)" >&2; return 1; }
   [[ "$5" == 1 ]] && flag=urgent
+  if [[ -z "$msg" && "$5" != 1 ]] && spl_spawn_q_review_seat_go "$place" "$SPL_SPAWN_REVIEW_SEAT_GO"; then
+    msg="$SPL_SPAWN_REVIEW_SEAT_GO"  # SPL-3762: the standing GO, as SPAWN_BYPASS=<GO> would record it
+    do_log "INFO ask ${id:0:8} is a review seat ($place) with no SPAWN_BYPASS: the standing review-seat GO ${msg:0:8} applies" >&2
+  fi
   if [[ -n "$msg" ]]; then
     [[ "$msg" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] ||
       { do_log "FATAL SPAWN_BYPASS must be the owner's message id (a full lowercase UUID), got '$msg'" >&2; return 1; }

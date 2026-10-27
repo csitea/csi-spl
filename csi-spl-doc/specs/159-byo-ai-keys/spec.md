@@ -422,7 +422,7 @@ with its session's upload token; the box is the token's, never a body's:
   X25519 key at join (increment 3), so today a lease that passes every
   check is 409 `box_key_not_enrolled`, and nothing is opened or audited.
 - `POST /v1/vendor-keys/{kind}/exhausted` (point 1): no body, no vendor
-  text. The hub sets `workspace_vendor_keys.exhausted_at` (rdb 0234) and
+  text. The hub sets `workspace_vendor_keys.exhausted_at` (rdb 0235) and
   writes one `exhausted` audit row (kind, box); a second report of the same
   refusal answers `first: false` and writes nothing. From then on every
   lease of that kind, on every box of W, is 409 `key_exhausted` (point 2).
@@ -439,10 +439,22 @@ with its session's upload token; the box is the token's, never a body's:
   boxes of W, retry clears it; with the exhausted check removed it goes
   red), `internal/store/vendor_key_lease_test.go` (Memory and Postgres).
 
-Still open in increment 2: the topic line (point 3), the mail (point 5),
-the picker reading an exhausted kind as "no key", and what the fall-back
-switch does (point 4 with L24, our API key only). Increment 3: the X25519
-join field and the sealed answer.
+Not built in T5:
+
+- **The topic line of points 3 and 4.** The running task's topic should get
+  the line, but no part of the chain knows the task: the desk's report
+  carries the kind only, and a seat has no task id in its environment. It
+  needs the task id carried seat -> `spool key-exec` -> the desk socket ->
+  the hub, and is its own row after T5 (dispatch holder c-003, msg
+  `fabf51b2`). Until then the mail (point 5) and the 409 `key_exhausted`
+  stand in for it.
+- **The picker (127 Q-1 A) and what the fall-back switch does** (point 4
+  with L24, our API key only) belong to the placer (T4): the hub stores the
+  switch and shows an exhausted kind in GET; nothing reads them yet.
+
+Still open in T5: the mail of point 5 (its own commit, held until agy
+reviews its locale text), and increment 3: the X25519 join field and the
+sealed answer.
 
 ## 10. The WUI: Agent keys page
 

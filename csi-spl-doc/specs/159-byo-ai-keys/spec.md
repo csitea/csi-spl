@@ -407,8 +407,42 @@ forks the CLI in the seat dir (`$SPOOL_SEAT_DIR`) and waits:
   control `TestRedControlFake402`, L6, L7, L10, L14, L15) and
   `cmd/spool/key_exec_test.go`.
 
-The hub half (the `exhausted` state, 409 `key_exhausted` on the lease, the
-topic line, the mail, the picker, the fall-back and L24) is increment 2.
+### 9.2 Built: the hub half, routes and state (T5 increment 2, SPL-3738)
+
+The desk's client (`hubclient.VendorKeyHub`, 127 X1) calls two box routes
+with its session's upload token; the box is the token's, never a body's:
+
+- `POST /v1/vendor-keys/{kind}/lease`: the checks of 127 5.2 step 2, in
+  this order: 403 `box_only` (a member's token), 503 `vendor_keys_off`, 400
+  `bad_kind`, 409 `kind_not_available`, 403 `box_not_dedicated` (the pin's
+  `box_mode` is not `dedicated`), 403 `box_not_approved` (no row in
+  `workspace_vendor_key_boxes`), 409 `no_key`, 409 `key_exhausted`. The row
+  is read in the pin's own tenant scope (127 L1). No refusal is a 404: the
+  desk reads a 404 as `no_lease_route`. The sealed answer needs the box's
+  X25519 key at join (increment 3), so today a lease that passes every
+  check is 409 `box_key_not_enrolled`, and nothing is opened or audited.
+- `POST /v1/vendor-keys/{kind}/exhausted` (point 1): no body, no vendor
+  text. The hub sets `workspace_vendor_keys.exhausted_at` (rdb 0233) and
+  writes one `exhausted` audit row (kind, box); a second report of the same
+  refusal answers `first: false` and writes nothing. From then on every
+  lease of that kind, on every box of W, is 409 `key_exhausted` (point 2).
+- `POST /v1/vendor-keys/{kind}/retry` (a manager, `vendor_keys.manage`,
+  confirmed) clears it with a `retry` audit row; a PUT that replaces the
+  key clears it too. `GET /v1/vendor-keys` shows `exhausted` and
+  `exhausted_at` per kind.
+- The switch of point 4: `PUT /v1/vendor-keys/settings
+  {"metered_fallback": bool}` (a manager), stored in
+  `workspace_vendor_key_settings` (no row = off, the default), audited
+  `fallback_on` / `fallback_off`, read back as `metered_fallback` in GET.
+- Tests: `internal/hub/vendor_key_lease_test.go` (the T5 red control
+  `TestVendorKeyLeaseRedControl`: a report, then 409 `key_exhausted` on both
+  boxes of W, retry clears it; with the exhausted check removed it goes
+  red), `internal/store/vendor_key_lease_test.go` (Memory and Postgres).
+
+Still open in increment 2: the topic line (point 3), the mail (point 5),
+the picker reading an exhausted kind as "no key", and what the fall-back
+switch does (point 4 with L24, our API key only). Increment 3: the X25519
+join field and the sealed answer.
 
 ## 10. The WUI: Agent keys page
 

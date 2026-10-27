@@ -13466,7 +13466,7 @@
         ],
         "responses": {
           "200": {
-            "description": "OK: per kind its availability, set, last4, base_url, set_by and set_at, never the key; and whether the caller is a confirmed manager"
+            "description": "OK: per kind its availability, set, last4, base_url, set_by, set_at, exhausted and exhausted_at (spec 159 T5), never the key; whether the caller is a confirmed manager; and metered_fallback (off by default)"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -13532,6 +13532,87 @@
           }
         },
         "summary": "Confirm an operator-made admin or business owner as a vendor key manager (spec 127 Q-4 A, spec 159 L22)",
+        "tags": [
+          "tenant"
+        ]
+      }
+    },
+    "/v1/vendor-keys/settings": {
+      "put": {
+        "operationId": "putVendorKeySettings",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "metered_fallback": {
+                    "description": "fall back to spool-hub's metered agents when a workspace key runs out (spec 159 9, owner Q-2 B); off by default",
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "metered_fallback"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Saved and audited (nothing written when unchanged)"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request: metered_fallback missing, or the body is not the expected JSON object"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden: no vendor_keys.manage, act_as_refused, or admin_unconfirmed (an operator-made manager waits for a confirmed one)"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unsupported Media Type: Content-Type must be application/json"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable: vendor_keys_off, workspace vendor keys are not configured on this hub"
+          }
+        },
+        "summary": "A manager sets the workspace's metered fall-back switch (spec 159 9, T5)",
         "tags": [
           "tenant"
         ]
@@ -13712,6 +13793,230 @@
           }
         },
         "summary": "Set or replace the workspace's key of one kind, write only (spec 127 H1, spec 159 T1)",
+        "tags": [
+          "tenant"
+        ]
+      }
+    },
+    "/v1/vendor-keys/{kind}/exhausted": {
+      "post": {
+        "operationId": "reportVendorKeyExhausted",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "exhausted": {
+                      "type": "boolean"
+                    },
+                    "first": {
+                      "description": "false when the key was already exhausted (no second audit row)",
+                      "type": "boolean"
+                    },
+                    "kind": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "exhausted",
+                    "first"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the key is exhausted; the next lease of that kind is 409 key_exhausted on every box of the workspace"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request: bad_kind, not a vendor key kind"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden: box_only (a member's token, not a box's), box_not_dedicated (the pin did not join as dedicated), or box_not_approved (no manager approved this box for keys, spec 127 5.1)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict: kind_not_available, or no_key (this workspace holds no key of that kind)"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable: vendor_keys_off, workspace vendor keys are not configured on this hub"
+          }
+        },
+        "summary": "A box's desk reports that the vendor refused the key of one kind for credit, quota or a revoked key, with no vendor text (spec 159 9, T5); box upload token only",
+        "tags": [
+          "tenant"
+        ]
+      }
+    },
+    "/v1/vendor-keys/{kind}/lease": {
+      "post": {
+        "operationId": "leaseVendorKey",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {\"sealed\": \"<base64 age ciphertext>\"}, the key sealed to the box's X25519 key (spec 127 5.2 step 3). Not answered yet: every lease that passes the checks is 409 box_key_not_enrolled until the join carries that key (T5 increment 3)"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request: bad_kind, not a vendor key kind"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden: box_only (a member's token, not a box's), box_not_dedicated (the pin did not join as dedicated), or box_not_approved (no manager approved this box for keys, spec 127 5.1)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict: kind_not_available; no_key (this workspace holds no key of that kind); key_exhausted (a box reported the vendor's refusal: a manager replaces the key or presses retry); box_key_not_enrolled (the pin carries no X25519 key). Never a 404: the desk reads a 404 as no lease route"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable: vendor_keys_off, workspace vendor keys are not configured on this hub"
+          }
+        },
+        "summary": "A box's desk leases the workspace's key of one kind, sealed to the box (spec 127 H2, spec 159 T5); box upload token only",
+        "tags": [
+          "tenant"
+        ]
+      }
+    },
+    "/v1/vendor-keys/{kind}/retry": {
+      "post": {
+        "operationId": "retryVendorKey",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Cleared and audited (nothing written when the key was not exhausted)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden: no vendor_keys.manage, act_as_refused, or admin_unconfirmed (an operator-made manager waits for a confirmed one)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found: unknown_kind, or not_set (this workspace holds no key of that kind)"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable: vendor_keys_off, workspace vendor keys are not configured on this hub"
+          }
+        },
+        "summary": "A manager clears the exhausted state of the workspace's key of one kind (spec 159 9, T5)",
         "tags": [
           "tenant"
         ]

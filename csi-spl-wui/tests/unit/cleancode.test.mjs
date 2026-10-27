@@ -4,7 +4,7 @@
 //
 //   • a function longer than MAX_LINES fails, unless LONG lists it
 //   • nesting deeper than MAX_DEPTH (if / for / while / switch / try) fails
-//   • more than MAX_PARAMS parameters fails: pass the object they belong to
+//   • more than MAX_PARAMS parameters fails, unless WIDE lists it
 //
 // LONG is what was over the limit when the gate landed. It may only shrink:
 // split a function and delete its line; a NEW long function fails. Each entry
@@ -26,7 +26,9 @@ const SRC = join(WUI, 'src')
 // Measured on trunk 2026-10-02: 4676 functions, max depth 4, max params 5.
 const MAX_LINES = 80
 const MAX_DEPTH = 4
-const MAX_PARAMS = 6
+// r26-02 ratcheted MAX_PARAMS 6 -> 5; WIDE grandfathers what was at 6.
+const MAX_PARAMS = 5
+const WIDE_CAP = 6
 
 // `<file> <name>` -> ceiling (an anonymous function takes its variable /
 // property name, or `<anon>`; a repeat in one file gets #2, #3). The ceiling is
@@ -34,6 +36,30 @@ const MAX_PARAMS = 6
 // Empty since r12-05 split createSpoolClient: every WUI function is under
 // MAX_LINES, and a new long one fails.
 const LONG = new Map([
+])
+
+// `<file> <name>` keyed as LONG. The functions at 6 parameters when r26-02
+// lowered MAX_PARAMS to 5 (17 on a3e94a77b). A listed function may take at
+// most WIDE_CAP. The list may only shrink: split a function's parameters into
+// the struct / object they belong to and delete its line; a NEW wide one fails.
+const WIDE = new Set([
+  'src/composables/useCardEdit.ts useCardEdit',
+  'src/composables/useCardEdit.ts useEditKeys',
+  'src/composables/useCardHeight.ts useCardGrip',
+  'src/composables/useCardMove.ts useCardMove',
+  'src/composables/useCardSwipe.ts useCardSwipe',
+  'src/composables/useCardSwipe.ts useCardSwipeFlags',
+  'src/composables/useCardTopicActions.ts useCardMessageActions',
+  'src/composables/useCardTopicActions.ts useCardTopicActions',
+  'src/composables/useCardTouchLift.ts useCardTouchLift',
+  'src/stores/channel.ts send',
+  'src/stores/channel.ts sendLive',
+  'src/stores/notification.ts alertSteps',
+  'src/utils/calendar-events-api.mjs send',
+  'src/utils/perf-rum.mjs perfFeedPair',
+  'src/utils/spool-client.mjs liveReader',
+  'src/utils/spool-client.mjs sessionMethods',
+  'src/utils/tenant-costs.mjs mockPart',
 ])
 
 const NEST = new Set([
@@ -131,12 +157,32 @@ export function checkLong(fns, ceilings) {
   return { fails, notes, long }
 }
 
+// checkWide(fns, wide) -> { fails, notes }: a function over MAX_PARAMS fails
+// unless `wide` lists it, and a listed one fails above WIDE_CAP.
+export function checkWide(fns, wide) {
+  const fails = []
+  const notes = []
+  const over = new Set()
+  for (const f of fns) {
+    if (f.params <= MAX_PARAMS) continue
+    over.add(f.key)
+    if (!wide.has(f.key)) fails.push(`${f.key} takes ${f.params} parameters (> ${MAX_PARAMS}): pass the object they belong to`)
+    else if (f.params > WIDE_CAP) fails.push(`${f.key} takes ${f.params} parameters, over its WIDE cap ${WIDE_CAP}: pass the object they belong to`)
+  }
+  for (const k of wide) {
+    if (!over.has(k)) notes.push(`NOTE WIDE: '${k}' no longer takes more than ${MAX_PARAMS} parameters - delete its line`)
+  }
+  return { fails, notes }
+}
+
 const { fails: longFails, notes, long } = checkLong(fns, LONG)
 for (const m of longFails) fail(m)
 for (const m of notes) console.log(`  ${m}`)
+const { fails: wideFails, notes: wideNotes } = checkWide(fns, WIDE)
+for (const m of wideFails) fail(m)
+for (const m of wideNotes) console.log(`  ${m}`)
 for (const f of fns) {
   if (f.depth > MAX_DEPTH) fail(`${f.key} nests ${f.depth} levels (> ${MAX_DEPTH}): extract the inner body`)
-  if (f.params > MAX_PARAMS) fail(`${f.key} takes ${f.params} parameters (> ${MAX_PARAMS}): pass the object they belong to`)
 }
 
 // Controls: the measures must see what they claim to.
@@ -151,7 +197,15 @@ if (grown(91).fails.length !== 1) fail('control: a listed function grown 1 line 
 if (grown(90).fails.length || grown(90).notes.length) fail('control: a listed function at its ceiling did not pass clean')
 if (grown(89).fails.length || !grown(89).notes.some((n) => n.includes('lower the ceiling to 89'))) fail('control: a listed function under its ceiling printed no NOTE')
 
+// Red control (r26-02): an unlisted function over MAX_PARAMS fails, a listed one
+// passes up to WIDE_CAP and fails past it, a stale entry prints the NOTE.
+const wide = (params, list) => checkWide([{ key: 'w.ts w', params }], new Set(list))
+if (wide(MAX_PARAMS + 1, []).fails.length !== 1) fail('control: an unlisted function over MAX_PARAMS did not fail')
+if (wide(WIDE_CAP, ['w.ts w']).fails.length || wide(WIDE_CAP, ['w.ts w']).notes.length) fail('control: a listed function at WIDE_CAP did not pass clean')
+if (wide(WIDE_CAP + 1, ['w.ts w']).fails.length !== 1) fail('control: a listed function past WIDE_CAP did not fail')
+if (!wide(MAX_PARAMS, ['w.ts w']).notes.some((n) => n.includes('delete its line'))) fail('control: a stale WIDE entry printed no NOTE')
+
 console.log(failed
   ? `\ncleancode: ${failed} FAILED`
-  : `cleancode: ${fns.length} functions, ${long.size} listed long, none deeper than ${MAX_DEPTH} or wider than ${MAX_PARAMS}`)
+  : `cleancode: ${fns.length} functions, ${long.size} listed long, ${WIDE.size} listed wide, none deeper than ${MAX_DEPTH} or wider than ${MAX_PARAMS}`)
 process.exit(failed ? 1 : 0)

@@ -15,18 +15,31 @@ import (
 // Limits measured on trunk 2026-09-28 (SPL-1029). Raise one only with a
 // reason in the commit; lower it when the code allows.
 const (
-	maxFuncLines = 80 // a function longer than this is split, or listed below with a reason
+	maxFuncLines = 75 // a function longer than this is split, or listed below with a reason (SPL-3708 from 80)
 	maxDepth     = 4  // nested if / for / switch / select levels (SPL-1032/1033 took it from 6)
 	maxParams    = 7  // pass the struct instead (SPL-1039 took the maximum from 10; SPL-3689 from 8)
 	// maxParamsListed is the old maximum: a wideFuncs entry may take up to
 	// this many parameters, never more.
 	maxParamsListed = 8
+	// maxFuncLinesListed is the old maximum: a longFuncs entry may be up to
+	// this many lines, never more.
+	maxFuncLinesListed = 80
 )
 
-// longFuncs are the functions over maxFuncLines when the gate landed. The
-// list may only shrink: split one and delete its line. A NEW long function
-// fails the gate; add it here only with a reason in the commit.
-var longFuncs = map[string]bool{}
+// longFuncs are the functions over maxFuncLines when it dropped from 80 to
+// 75 (SPL-3708); each may be at most maxFuncLinesListed lines. The list may
+// only shrink: split a function into named steps and delete its line. A NEW
+// function over maxFuncLines fails the gate.
+var longFuncs = map[string]bool{
+	"cmd/spool/hub.go hubOptions":                                   true,
+	"internal/auth/fakeidp/microsoft.go (*IdP).microsoftRoutes":     true,
+	"internal/hub/join_tokens.go (*Server).handleJoinRedeem":        true,
+	"internal/hub/server.go (*Server).Handler":                      true,
+	"internal/keyd/keyd.go Serve":                                   true,
+	"internal/store/channels_memory.go (*Memory).ViewChannelStats":  true,
+	"internal/store/flow.go (*Memory).flowWriteLocked":              true,
+	"internal/store/humans_postgres.go (*Postgres).ProvisionMember": true,
+}
 
 // wideFuncs are the functions over maxParams when it dropped from 8 to 7
 // (SPL-3689); each may take at most maxParamsListed. The list may only
@@ -91,8 +104,8 @@ func TestCleanCodeGate(t *testing.T) {
 	for _, f := range fns {
 		if f.lines > maxFuncLines {
 			seen[f.key] = true
-			if !longFuncs[f.key] {
-				t.Errorf("%s is %d lines (> %d): split it into named steps (see SPL-1036, SPL-1040)", f.key, f.lines, maxFuncLines)
+			if limit := longLimit(f.key); f.lines > limit {
+				t.Errorf("%s is %d lines (> %d): split it into named steps (see SPL-1036, SPL-1040)", f.key, f.lines, limit)
 			}
 		}
 		if f.depth > maxDepth {
@@ -125,6 +138,15 @@ func TestCleanCodeGate(t *testing.T) {
 			}
 		}
 	}
+}
+
+// longLimit is the line ceiling for key: maxFuncLinesListed for a
+// longFuncs entry, maxFuncLines for every other function.
+func longLimit(key string) int {
+	if longFuncs[key] {
+		return maxFuncLinesListed
+	}
+	return maxFuncLines
 }
 
 // wideLimit is the parameter ceiling for key: maxParamsListed for a

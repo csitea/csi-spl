@@ -71,6 +71,11 @@ func (s *Server) routeVendorKeys(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /v1/vendor-keys/{kind}", s.handlePutVendorKey)
 	mux.HandleFunc("DELETE /v1/vendor-keys/{kind}", s.handleDeleteVendorKey)
 	mux.HandleFunc("PUT /v1/vendor-keys/managers/{human_id}", s.handleConfirmVendorKeyManager)
+	mux.HandleFunc("POST /v1/vendor-keys/{kind}/lease", s.handleVendorKeyLease)         // 127 H2, vendor_key_lease.go
+	mux.HandleFunc("POST /v1/vendor-keys/{kind}/exhausted", s.handleVendorKeyExhausted) // 159 T5, vendor_key_lease.go
+	mux.HandleFunc("POST /v1/vendor-keys/{kind}/retry", s.handleRetryVendorKey)         // 159 T5, vendor_key_lease.go
+	mux.HandleFunc("PUT /v1/vendor-keys/settings", s.handlePutVendorKeySettings)        // 159 T5, vendor_key_lease.go
+	mux.HandleFunc("OPTIONS /v1/vendor-keys/{kind}/{action}", s.vendorKeysPreflight)
 	mux.HandleFunc("OPTIONS /v1/vendor-keys", s.vendorKeysPreflight)
 	mux.HandleFunc("OPTIONS /v1/vendor-keys/{kind}", s.vendorKeysPreflight)
 	mux.HandleFunc("OPTIONS /v1/vendor-keys/managers/{human_id}", s.vendorKeysPreflight)
@@ -79,7 +84,7 @@ func (s *Server) routeVendorKeys(mux *http.ServeMux) {
 func (s *Server) vendorKeysPreflight(w http.ResponseWriter, r *http.Request) {
 	if s.allowOrigin(w, r) {
 		h := w.Header()
-		h.Set("Access-Control-Allow-Methods", "GET, PUT, DELETE")
+		h.Set("Access-Control-Allow-Methods", "GET, PUT, POST, DELETE")
 		h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Locale")
 		h.Set("Access-Control-Max-Age", corsMaxAge)
 	}
@@ -162,6 +167,9 @@ type vendorKeyRowOut struct {
 	BaseURL   string `json:"base_url,omitempty"`
 	SetBy     string `json:"set_by,omitempty"`
 	SetAt     string `json:"set_at,omitempty"`
+	// Exhausted: the vendor refused the key (159 9, T5); retry or replace it.
+	Exhausted   bool   `json:"exhausted"`
+	ExhaustedAt string `json:"exhausted_at,omitempty"`
 }
 
 func (s *Server) handleVendorKeys(w http.ResponseWriter, r *http.Request) {
@@ -181,11 +189,13 @@ func (s *Server) handleVendorKeys(w http.ResponseWriter, r *http.Request) {
 			if k.Kind == kind {
 				o.Set, o.Last4, o.BaseURL, o.SetBy = true, k.Last4, k.BaseURL, k.SetBy
 				o.SetAt = k.SetAt.UTC().Format(time.RFC3339)
+				o.Exhausted, o.ExhaustedAt = !k.ExhaustedAt.IsZero(), exhaustedAt(k.ExhaustedAt)
 			}
 		}
 		out = append(out, o)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"kinds": out, "confirmed": act.confirmed})
+	writeJSON(w, http.StatusOK, map[string]any{"kinds": out, "confirmed": act.confirmed,
+		"metered_fallback": s.vendorKeyMeteredFallback(r.Context(), act.tenant)})
 }
 
 // vendorKeyBody reads the PUT body. The raw bytes are cleared once decoded;

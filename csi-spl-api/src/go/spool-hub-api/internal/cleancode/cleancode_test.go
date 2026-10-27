@@ -32,7 +32,6 @@ const (
 // function over maxFuncLines fails the gate.
 var longFuncs = map[string]bool{
 	"cmd/spool/hub.go hubOptions":                                   true,
-	"internal/hub/join_tokens.go (*Server).handleJoinRedeem":        true,
 	"internal/hub/server.go (*Server).Handler":                      true,
 	"internal/keyd/keyd.go Serve":                                   true,
 	"internal/store/humans_postgres.go (*Postgres).ProvisionMember": true,

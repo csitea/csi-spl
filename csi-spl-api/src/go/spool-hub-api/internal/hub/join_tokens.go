@@ -345,80 +345,119 @@ func (s *Server) handleSeatRevoke(w http.ResponseWriter, r *http.Request) {
 // token's holder proves it holds. The workspace is the token's; a Host or
 // X-Spool-Tenant naming another is refused (spec 108 3.2).
 func (s *Server) handleJoinRedeem(w http.ResponseWriter, r *http.Request) {
+	jr, ok := s.joinAdmit(w, r)
+	if !ok {
+		return
+	}
+	pub, ok := s.joinBoxCheck(w, jr)
+	if !ok {
+		return
+	}
+	s.joinSeat(w, r, jr, pub)
+}
+
+// joinRedeem is what the join steps hand on: the token's store, the request,
+// the token hash and the token's workspace.
+type joinRedeem struct {
+	js   store.JoinTokens
+	req  wire.JoinRequest
+	hash string
+	t    store.Tenant
+}
+
+// joinAdmit rate-limits the caller, parses the body and the token, and loads
+// the token's workspace; false = it already answered.
+func (s *Server) joinAdmit(w http.ResponseWriter, r *http.Request) (joinRedeem, bool) {
 	if ok, retry := s.redeemLim.Allow(s.edge.ClientIP(r), joinRedeemsPerHour); !ok {
 		w.Header().Set("Retry-After", strconv.Itoa(int(retry.Seconds())+1))
 		writeErr(w, http.StatusTooManyRequests, "rate_limited", "too many join attempts from this address")
-		return
+		return joinRedeem{}, false
 	}
 	js, ok := s.joinStore(w)
 	if !ok {
-		return
+		return joinRedeem{}, false
 	}
 	var req wire.JoinRequest
 	if err := json.NewDecoder(io.LimitReader(r.Body, maxJSONBody)).Decode(&req); err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_json", "join body does not parse")
-		return
+		return joinRedeem{}, false
 	}
 	tenant, hash, ok := parseJoinToken(req.Token)
 	if !ok {
 		writeErr(w, http.StatusUnauthorized, "join_token_invalid", "unknown join token; "+joinFix)
-		return
+		return joinRedeem{}, false
 	}
 	if !s.tenantConsistent(w, r, tenant) {
-		return
+		return joinRedeem{}, false
 	}
 	if _, err := s.o.Store.GetTenant(r.Context(), tenant); err != nil {
 		writeErr(w, http.StatusUnauthorized, "join_token_invalid", "unknown join token; "+joinFix)
-		return
+		return joinRedeem{}, false
 	}
 	t, ok := s.loadTenant(w, r, tenant)
 	if !ok || !s.boxJoinAllowed(w, r, t.ID) {
-		return
+		return joinRedeem{}, false
 	}
+	return joinRedeem{js: js, req: req, hash: hash, t: t}, true
+}
+
+// joinBoxCheck applies the box-mode rule, the reserved box id, the key and
+// box id shape, and the box key signature; it returns the decoded pubkey,
+// false = it already answered.
+func (s *Server) joinBoxCheck(w http.ResponseWriter, jr joinRedeem) ([]byte, bool) {
+	req := jr.req
 	if req.BoxMode != store.BoxModeDedicated {
 		// Switch on = a restricted workspace: dedicated boxes only (3.8).
 		// An undeclared mode is an older spool join on a shared box.
 		if req.BoxMode != "" && !store.ValidBoxMode(req.BoxMode) {
 			writeErr(w, http.StatusBadRequest, "bad_json", "box_mode is dedicated or shared")
-			return
+			return nil, false
 		}
 		writeErr(w, http.StatusForbidden, codeBoxModeShared, boxModeSharedMsg)
-		return
+		return nil, false
 	}
 	if req.BoxID == WUIBox {
 		writeErr(w, http.StatusBadRequest, "reserved_box", WUIBox+" is the reserved browser box")
-		return
+		return nil, false
 	}
 	pub, err := base64.StdEncoding.DecodeString(req.PubKey)
 	if err != nil || len(pub) != ed25519.PublicKeySize || !msg.ValidBoxID(req.BoxID) {
 		writeErr(w, http.StatusBadRequest, "bad_json", "box_id or pubkey is malformed")
-		return
+		return nil, false
 	}
-	payload, _ := wire.JoinModePayload(hash, req.BoxID, req.PubKey, req.TS, req.BoxMode)
+	payload, _ := wire.JoinModePayload(jr.hash, req.BoxID, req.PubKey, req.TS, req.BoxMode)
 	if !s.skewOK(req.TS) || verify(ed25519.PublicKey(pub), payload, req.Sig) != nil {
 		writeErr(w, http.StatusBadRequest, "bad_sig", "the box key signature does not verify")
-		return
+		return nil, false
 	}
+	return pub, true
+}
+
+// joinSeat checks billing, the box owner lock and the pin quota, then
+// redeems the token and answers 200; false = it already answered an error.
+func (s *Server) joinSeat(w http.ResponseWriter, r *http.Request, jr joinRedeem, pub []byte) bool {
+	t, req := jr.t, jr.req
 	if !billing.AllowsWrite(t.BillingStatus) {
 		writeUnpaid(w)
-		return
+		return false
 	}
 	// The box owner lock (path 8c, row B5): a join never re-seats a locked
 	// box id, whoever minted the token.
 	if rf := s.adminLockRefusal(r.Context(), t.ID, req.BoxID, "", boxLockPathJoin); rf != nil {
 		writeLockRefusal(w, rf)
-		return
+		return false
 	}
 	if !s.pinQuotaOK(w, r, t.ID, req.BoxID) {
-		return
+		return false
 	}
-	jt, err := js.RedeemJoinToken(r.Context(), t.ID, hash, req.BoxID, ed25519.PublicKey(pub), req.BoxMode, s.o.Now())
+	jt, err := jr.js.RedeemJoinToken(r.Context(), t.ID, jr.hash, req.BoxID, ed25519.PublicKey(pub), req.BoxMode, s.o.Now())
 	if s.joinRefused(w, jt, err) {
-		return
+		return false
 	}
 	s.o.Log.Info().Str("tenant", t.ID).Str("join_token", jt.ID()).Str("box_id", req.BoxID).
 		Str("box_mode", req.BoxMode).Msg("join token redeemed")
 	writeJSON(w, http.StatusOK, map[string]string{"tenant": t.ID, "box_id": req.BoxID, "pubkey": req.PubKey})
+	return true
 }
 
 // pinQuotaOK applies the pin quota to a box not pinned yet; false = answered.

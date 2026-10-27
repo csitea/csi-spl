@@ -239,29 +239,37 @@ func (s *Memory) flowWriteLocked(m Message) {
 		s.flowWatches, s.flowEvents = map[[3]string]time.Time{}, map[[3]string]memFlowEvent{}
 	}
 	t := flowTargetsOf(m)
-	readable := func(member string, r int) bool {
-		if member == "" || member == t.author || member == t.sender {
-			return false
-		}
-		agent := IsFlowAgent(member)
-		if !IsFlowMember(member) && !(agent && (r == 1 && m.Channel != "" || m.Channel == "" && t.label == FlowReady)) {
-			return false // an agent takes channel mentions and an accepting DM only (spec 130 section 5)
-		}
-		if m.Channel == "" || t.public {
-			return true
-		}
-		if s.ch.init(); s.ch.archivedCh(m.TenantID, m.Channel) {
-			return false
-		}
-		if agent {
-			return s.agentInChannelLocked(m.TenantID, m.Channel, member)
-		}
-		_, ok := s.ch.humansLocked()[[2]string{m.TenantID, m.Channel}][member]
-		return ok
+	rank := s.flowRankLocked(m, t)
+	s.flowRecordLocked(m, t, rank)
+}
+
+// flowReadableLocked: member may get a flow row of rank r for m (the door).
+func (s *Memory) flowReadableLocked(m Message, t flowTargets, member string, r int) bool {
+	if member == "" || member == t.author || member == t.sender {
+		return false
 	}
+	agent := IsFlowAgent(member)
+	if !IsFlowMember(member) && !(agent && (r == 1 && m.Channel != "" || m.Channel == "" && t.label == FlowReady)) {
+		return false // an agent takes channel mentions and an accepting DM only (spec 130 section 5)
+	}
+	if m.Channel == "" || t.public {
+		return true
+	}
+	if s.ch.init(); s.ch.archivedCh(m.TenantID, m.Channel) {
+		return false
+	}
+	if agent {
+		return s.agentInChannelLocked(m.TenantID, m.Channel, member)
+	}
+	_, ok := s.ch.humansLocked()[[2]string{m.TenantID, m.Channel}][member]
+	return ok
+}
+
+// flowRankLocked maps each member who reads m to its best (lowest) rank.
+func (s *Memory) flowRankLocked(m Message, t flowTargets) map[string]int {
 	rank := map[string]int{}
 	pick := func(member string, r int) {
-		if readable(member, r) && (rank[member] == 0 || r < rank[member]) {
+		if s.flowReadableLocked(m, t, member, r) && (rank[member] == 0 || r < rank[member]) {
 			rank[member] = r
 		}
 	}
@@ -284,6 +292,11 @@ func (s *Memory) flowWriteLocked(m Message) {
 		}
 		pick(t.to, r)
 	}
+	return rank
+}
+
+// flowRecordLocked stores the watches and one flow event per ranked member.
+func (s *Memory) flowRecordLocked(m Message, t flowTargets, rank map[string]int) {
 	watch := func(member string) {
 		k := [3]string{m.TenantID, m.TaskID, member}
 		if _, ok := s.flowWatches[k]; !ok {

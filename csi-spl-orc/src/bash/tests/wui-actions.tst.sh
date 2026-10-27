@@ -39,9 +39,11 @@ grep -q 'nuxt generate' "$APP_ROOT/csi-spl-wui/package.json" && pass "WUI has ge
 # no shop pages in the WUI tree. The card vendor may be named ONLY by the
 # copied card step (006 T021w) and its unit test: the allow-list and its
 # CONTROLS live in csi-spl-api/src/bash/tests/no-payment-vendor-wui.tst.sh.
+# `.output*` also skips `.output.ppe-keep`, the bundle the pre-push wui-e2e
+# part parks there while this suite may scan the same tree.
 if grep -rqiE 'wordpress|recaptcha|add.to.basket' "$APP_ROOT/csi-spl-wui" \
-     --exclude-dir=node_modules --exclude-dir=.nuxt --exclude-dir=.output 2>/dev/null ||
-   grep -rqiE 'stripe' "$APP_ROOT/csi-spl-wui" --exclude-dir=node_modules --exclude-dir=.nuxt --exclude-dir=.output \
+     --exclude-dir=node_modules --exclude-dir=.nuxt --exclude-dir='.output*' 2>/dev/null ||
+   grep -rqiE 'stripe' "$APP_ROOT/csi-spl-wui" --exclude-dir=node_modules --exclude-dir=.nuxt --exclude-dir='.output*' \
      --exclude=card-element.mjs --exclude=card-element.test.mjs 2>/dev/null ||
    ! bash "$APP_ROOT/csi-spl-api/src/bash/tests/no-payment-vendor-wui.tst.sh" >/dev/null 2>&1; then
   fail "WUI tree still mentions shop entities"

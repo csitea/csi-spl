@@ -13,13 +13,15 @@ WUI="$(cd "$HERE/../../../../csi-spl-wui" && pwd)"
 ALLOWED=(src/utils/card-element.mjs tests/unit/card-element.test.mjs)
 VENDOR_RE='\bstripe\b|\bpaypal\b|\bpaytrail\b|\bklarna\b|\bvipps\b'
 
-# hits <root> -> vendor-name hits outside the allowed files. Skips generated trees.
+# hits <root> -> vendor-name hits outside the allowed files. Skips generated
+# trees: `.output*` also covers `.output.ppe-keep`, where the pre-push wui-e2e
+# part parks the built bundle while this part may scan the same tree (SPL-3696).
 hits() {
   local root="$1" ex=() a
   for a in "${ALLOWED[@]}"; do ex+=(--exclude="$(basename "$a")"); done
   grep -rniE "$VENDOR_RE" \
     --exclude-dir=node_modules --exclude-dir=.nuxt --exclude-dir=dist \
-    --exclude-dir=.output --exclude='pnpm-lock.yaml' "${ex[@]}" \
+    --exclude-dir='.output*' --exclude='pnpm-lock.yaml' "${ex[@]}" \
     "$root" 2>/dev/null || true
 }
 # the basename exclusion must not hide a same-named file elsewhere
@@ -28,7 +30,7 @@ misplaced() {
   for a in "${ALLOWED[@]}"; do
     while IFS= read -r f; do
       [[ "$f" == "$root/$a" ]] || echo "$f"
-    done < <(find "$root" -name "$(basename "$a")" -not -path '*/node_modules/*' -not -path '*/.nuxt/*' -not -path '*/.output/*')
+    done < <(find "$root" -name "$(basename "$a")" -not -path '*/node_modules/*' -not -path '*/.nuxt/*' -not -path '*/.output*/*')
   done
 }
 
@@ -56,6 +58,14 @@ echo "PayPal button" >"$T/src/pages/checkout.vue"
 echo "just a card" >"$T/src/pages/checkout.vue"
 echo "Stripe" >"$T/src/lib/card-element.mjs"
 [ -n "$(misplaced "$T")" ] || { echo "FAIL - control: a same-named file outside the allowed path was NOT caught"; fail=1; }
+rm "$T/src/lib/card-element.mjs"
+# a built bundle parked by the pre-push wui-e2e part is generated, not source
+mkdir -p "$T/.output.ppe-keep/public/_nuxt" "$T/.output.ppe-keep/src/utils"
+echo 'loadScript("https://js.stripe.com/v3")' >"$T/.output.ppe-keep/public/_nuxt/card.js"
+echo "Stripe" >"$T/.output.ppe-keep/src/utils/card-element.mjs"
+[ -z "$(hits "$T")$(misplaced "$T")" ] || { echo "FAIL - control: the parked bundle .output.ppe-keep was flagged"; fail=1; }
+mkdir -p "$T/src/output"; echo "Stripe" >"$T/src/output/notes.vue"
+[ -n "$(hits "$T")" ] || { echo "FAIL - control: the .output* skip hid a source dir named output"; fail=1; }
 
 [ "$fail" -eq 0 ] || exit 1
 echo "ok   - no payment vendor name in csi-spl-wui outside the card step (controls ok)"

@@ -565,15 +565,20 @@ spl_spawn_place_review_seat() {  # BRIEF KIND
 
 # The author lanes of a review BRIEF, one "<vendor>\t<id>" line each: the id on
 # a line-start "Author:" line, else every lane id the brief names but the role
-# seats 001-003 (a review brief names its author in its row; any other lane it
-# names counts too, so a doubt refuses rather than places a same-vendor
-# review). Vendor by id letter (c claude, g grok, a agy, q qwen, m mistral).
+# seats (spl_is_role_seat; a review brief names its author in its row; any
+# other lane it names counts too, so a doubt refuses rather than places a
+# same-vendor review). The vendor is spl_kind_of_agent_id's.
 spl_spawn_place_authors() {  # BRIEF
-  local ids
+  local ids id
   [[ -r "$1" ]] || return 0
+  declare -F spl_kind_of_agent_id >/dev/null ||
+    source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   ids="$(grep -m1 -iE '^Author:' "$1" | grep -oE '\b[acgmq]-[0-9]{3}\b')"
-  [[ -n "$ids" ]] || ids="$(grep -oE '\b[acgmq]-[0-9]{3}\b' "$1" | grep -vE -- '-00[1-3]$')"
-  sort -u <<<"$ids" | awk 'NF { split("c claude g grok a agy q qwen m mistral", m, " "); for (i = 1; i < 10; i += 2) if (substr($0, 1, 1) == m[i]) print m[i + 1] "\t" $0 }'
+  [[ -n "$ids" ]] || ids="$(grep -oE '\b[acgmq]-[0-9]{3}\b' "$1")"
+  while read -r id; do
+    [[ -n "$id" ]] && ! spl_is_role_seat "$id" || continue
+    printf '%s\t%s\n' "$(spl_kind_of_agent_id "$id")" "$id"
+  done < <(sort -u <<<"$ids")
 }
 
 # Why the brief is under the data rule (personal data or secrets: claude,

@@ -3,8 +3,9 @@
      lanes from GET /v1/operator/fleet-lanes (B3). One row per lane: the
      agent id@box, its kind, the scope, the discussion (linked to /t/<uuid>
      when it is this workspace's topic), the issue keys (linked), when the
-     row was written and the last token minute. Newest write first, as the
-     hub sends it. An admin of the operator workspace reads every lane; a
+     row was written and the last token minute, and last the workspace the
+     row belongs to (3.8, SPL-3818). Newest write first, as the hub sends
+     it. An admin of the operator workspace reads every lane; a
      workspace's owner or admin (3.6, row B6, SPL-3229) reads the lanes on
      its own topics from GET /v1/view/lanes: the page asks the fleet route
      while the operator console shows (or is not known yet) and, once it
@@ -44,6 +45,7 @@
               <th scope="col">{{ t('issues.title') }}</th>
               <th scope="col" class="num">{{ t('monitoring.lanes.col_updated') }}</th>
               <th scope="col" class="num">{{ t('monitoring.tokens.col_last') }}</th>
+              <th scope="col" data-test="lanes-col-workspace">{{ t('sidebar.tenant') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -65,6 +67,7 @@
               </td>
               <td class="num" data-test="lanes-updated">{{ ago(l.updatedAt) }}</td>
               <td class="num" data-test="lanes-active">{{ ago(l.lastActive) }}</td>
+              <td class="ln-ws" :title="l.workspace || undefined" data-test="lanes-workspace">{{ l.workspaceName || DASH }}</td>
             </tr>
           </tbody>
         </table>
@@ -182,4 +185,6 @@ onBeforeUnmount(() => {
 /* a long scope or topic stays on one line, its full text in the title (3.2) */
 .ln-cut { max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ln-issue { margin-inline-end: 6px; white-space: nowrap; font-family: var(--font-mono); }
+/* the workspace, the last column (3.8): it may wrap, never dropped (phone too) */
+.ln-ws { min-width: 6rem; overflow-wrap: anywhere; }
 </style>

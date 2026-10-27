@@ -45,6 +45,10 @@ describe('the fleet-lanes body as a view', () => {
     assert.deepEqual(v.lanes[1].issues, [])
     assert.deepEqual(fleetLanesOf(null), { asOf: '', fleet: '', lanes: [] })
   })
+  it('spec 153 3.8 (C43): every row keeps its workspace, the name else the id', () => {
+    const v = fleetLanesOf({ lanes: [{ agent_id: 'c-002', workspace: 'w1', workspace_name: 'W one' }, { agent_id: 'c-003', workspace: 'w2' }] })
+    assert.deepEqual(v.lanes.map((l) => [l.workspace, l.workspaceName]), [['w1', 'W one'], ['w2', 'w2']])
+  })
   it('names the agent id@box', () => {
     assert.equal(laneName({ agentId: 'c-002', box: 'box-a' }), 'c-002@box-a')
     assert.equal(laneName({ agentId: 'c-002', box: '' }), 'c-002')
@@ -159,6 +163,7 @@ describe('the mock', () => {
   it('three lanes: a linked topic with issues, a foreign topic, none', () => {
     const v = fleetLanesOf(mockFleetLanes(store(OP), new Date('2026-10-24T10:00:00Z')))
     assert.equal(v.lanes.length, 3)
+    assert.ok(v.lanes.every((l) => l.workspaceName), 'every mock row names its workspace')
     assert.equal(laneTopicPath(v.lanes[0]), '/t/' + LANES_MOCK_TOPIC)
     assert.equal(laneTopicPath(v.lanes[1]), '')
     assert.equal(v.lanes[2].topicId, '')

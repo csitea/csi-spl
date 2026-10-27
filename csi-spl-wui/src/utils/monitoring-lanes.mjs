@@ -31,13 +31,16 @@ const int = (v) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Math.trunc(Nu
 
 /**
  * The hub's answer as the page's view, in the hub's order. A row without an
- * agent id is dropped; an issue without a key is dropped.
+ * agent id is dropped; an issue without a key is dropped. Every row keeps
+ * the workspace it belongs to (spec 153 3.8: name, else id).
  * @param {unknown} body
  */
 export function fleetLanesOf(body) {
   const b = body && typeof body === 'object' ? /** @type {Record<string, any>} */ (body) : {}
   const lanes = (Array.isArray(b.lanes) ? b.lanes : []).filter((l) => l && typeof l === 'object' && str(l.agent_id)).map((l) => ({
     agentId: str(l.agent_id),
+    workspace: str(l.workspace),
+    workspaceName: str(l.workspace_name) || str(l.workspace),
     box: str(l.agent_box),
     vendor: str(l.vendor),
     scope: str(l.scope),
@@ -154,11 +157,15 @@ function mockStore() {
 /** The mock's discussion: a topic of the mock workspace (a full uuid). */
 export const LANES_MOCK_TOPIC = '5e7b15c9-2995-427d-8b05-659762fbb9d8'
 
+/** The mock workspace's name, the rows' last column (3.8). */
+const LANES_MOCK_WORKSPACE = 'Mock workspace'
+
 /**
  * The mock's GET: 403 operator.workspaces unless the e2e opted into the
  * operator admin, else three active lanes as the hub answers them: one on a
  * topic of this workspace with two issues, one on another workspace's topic
  * (no title, its own key only), one with no topic, no issue and no burn.
+ * Each row names its workspace (3.8).
  */
 export function mockFleetLanes(store = mockStore(), now = new Date()) {
   const get = (k) => { try { return store ? store.getItem(k) : null } catch { return null } }
@@ -170,12 +177,14 @@ export function mockFleetLanes(store = mockStore(), now = new Date()) {
   out.lanes = [
     { agent_id: 'c-085', agent_box: 'box-a', vendor: 'claude', scope: 'Spec 153 build row B4: the Lanes tab of Monitoring, its page, its poll and its locale keys',
       topic_id: LANES_MOCK_TOPIC, topic_title: 'Monitoring: the tab row beside the heading, and a live Lanes tab',
-      issues: [{ key: 'SPL-3075', status: 'wip' }, { key: 'SPL-3215', status: 'wip' }], updated_at: ago(240), age_s: 240, last_active: ago(60) },
+      issues: [{ key: 'SPL-3075', status: 'wip' }, { key: 'SPL-3215', status: 'wip' }], updated_at: ago(240), age_s: 240, last_active: ago(60),
+      workspace: 'mock', workspace_name: LANES_MOCK_WORKSPACE },
     { agent_id: 'a-277', agent_box: 'box-b', vendor: 'agy', scope: 'Review the locale text',
       topic_id: '0b0c0d0e-1111-4222-8333-444455556666', topic_title: '',
-      issues: [{ key: 'SPL-3216', status: '' }], updated_at: ago(1500), age_s: 1500, last_active: '' },
+      issues: [{ key: 'SPL-3216', status: '' }], updated_at: ago(1500), age_s: 1500, last_active: '',
+      workspace: 'w2', workspace_name: 'Other workspace' },
     { agent_id: 'm-039', agent_box: 'box-b', vendor: 'mistral', scope: '', topic_id: '', topic_title: '',
-      issues: [], updated_at: ago(3000), age_s: 3000, last_active: '' },
+      issues: [], updated_at: ago(3000), age_s: 3000, last_active: '', workspace: 'mock', workspace_name: LANES_MOCK_WORKSPACE },
   ]
   return out
 }

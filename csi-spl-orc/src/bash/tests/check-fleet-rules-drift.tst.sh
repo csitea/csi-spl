@@ -15,6 +15,10 @@ TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 PROJ_ROOT=$(cd "$TEST_DIR/../../.." && pwd)
 APP_ROOT=$(cd "$PROJ_ROOT/.." && pwd)
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+# Run from the throwaway dir, never the caller's: a glob that forgets
+# $APP_ROOT is then red wherever the suite runs, not only off the repo root
+# (SPL-3719: 24/27 from csi-spl-orc/, 27/27 from the root).
+cd "$T" || exit 1
 fails=0 passes=0
 pass() { echo "PASS: $1"; passes=$((passes + 1)); }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
@@ -47,11 +51,12 @@ mk_tree() {  # <dir>
 # tree has it: a path (file or dir, at the root or under its component), an
 # action, a make target, a spec folder.
 stub_refs() {  # <dir>
-  local d="$1" kind ref c
+  local d="$1" kind ref c comps=("")
+  for c in "$APP_ROOT"/csi-spl-*/; do comps+=("${c#"$APP_ROOT"/}"); done
   while IFS=$'\t' read -r kind ref _; do
     case "$kind" in
       path)
-        for c in "" csi-spl-*/; do [[ -e "$APP_ROOT/$c$ref" ]] && break; c=-; done
+        for c in "${comps[@]}"; do [[ -e "$APP_ROOT/$c$ref" ]] && break; c=-; done
         [[ "$c" == - || -e "$d/$c$ref" ]] && continue
         if [[ -d "$APP_ROOT/$c$ref" ]]; then mkdir -p "$d/$c$ref"; else mkdir -p "$(dirname "$d/$c$ref")"; touch "$d/$c$ref"; fi ;;
       action) mkdir -p "$d/csi-spl-orc/src/bash/run"; echo "$ref() { :; }" >>"$d/csi-spl-orc/src/bash/run/stub-actions.sh" ;;

@@ -883,6 +883,7 @@ spl_wd_gather() {
   rundir="$(awk -F'\t' -v i="$id" '$1 == i {d = $4} END {print d}' "$SPOOL_ROOT/registry.tsv" 2>/dev/null || true)"
   if [[ "$rundir" == /* && ! -d "$rundir" ]]; then echo "$rundir" > "$ctx/rundir_gone"; fi
   spl_wd_lifetime "$id" "$ctx"
+  spl_wd_idle_wait "$id" "$ctx"
   if [[ -n "$pid" ]]; then
     awk -v p="$pid" '$1 == p {print $3}' "$tick/ps" > "$ctx/proc_age"
     spl_wd_transcript "$pid" > "$ctx/transcript"
@@ -925,6 +926,38 @@ spl_wd_lifetime() {
   awk -F'\t' -v i="$id" '$1 == i {p = ($3 == "" ? "-" : $3); f = 1} END {if (f) print p}' \
     "$SPOOL_ROOT/registry.tsv" > "$ctx/registry_open" 2>/dev/null || true
   return 0
+}
+
+# S1's idle waits (SPL-3737), read only for an idle heartbeat and not for a
+# seat of peer/seats (S1 judges those by their held set): <ctx>/standing when
+# ID is a standing seat (spl_lane_standing, the lane rotation's marker), else
+# <ctx>/result_wait "<epoch> <task_id> <to>" when its newest result to another
+# agent (the newest WD_OUTBOX_SCAN (20) outbox files) is newer than every job
+# it received since (inbox, archive): a lane idling for its verdict.
+spl_wd_idle_wait() {
+  local id="$1" ctx="$2" d="$SPOOL_ROOT/$1" f r=""
+  [[ ! -e "$ctx/seat" && "$(jq -r '.state // empty' "$ctx/heartbeat" 2>/dev/null)" == idle ]] || return 0
+  declare -F spl_lane_standing >/dev/null || source "$SPL_WD_RUN_DIR/spl-lane-rotate.func.sh"
+  if spl_lane_standing "$id"; then : > "$ctx/standing"; return 0; fi
+  [[ -d "$d/outbox" ]] || return 0
+  while read -r _ f; do
+    [[ "$(jq -r --arg me "$id" '.kind == "result" and ((.to // "") | sub("@.*"; "")) != $me' "$d/outbox/$f" 2>/dev/null)" == true ]] && { r="$d/outbox/$f"; break; }
+  done < <(find "$d/outbox" -maxdepth 1 -type f -name '*.json' -printf '%T@ %f\n' 2>/dev/null | sort -rn | sed -n "1,${WD_OUTBOX_SCAN:-20}p")
+  [[ -n "$r" ]] || return 0
+  spl_wd_job_after "$id" "$r" && return 0
+  jq -r --arg t "$(stat -c %Y "$r")" '"\($t) \(.task_id // "-") \(.to // "-")"' "$r" > "$ctx/result_wait" 2>/dev/null || rm -f "$ctx/result_wait"
+  return 0
+}
+
+# spl_wd_job_after ID FILE: 0 when ID's inbox or archive holds a job newer
+# than FILE: not a note and not its own (S1's rule; one that does not parse
+# counts as a job).
+spl_wd_job_after() {
+  local f
+  while IFS= read -r -d '' f; do
+    [[ "$(jq -r --arg me "$1" '.kind == "note" or ((.from // "") | sub("@.*"; "")) == $me' "$f" 2>/dev/null)" == true ]] || return 0
+  done < <(find "$SPOOL_ROOT/$1/inbox" "$SPOOL_ROOT/$1/archive" -maxdepth 1 -type f -name '*.json' -newer "$2" -print0 2>/dev/null)
+  return 1
 }
 
 # "<mtime epoch> <file> <kind> <from>" per <dir>/*.json, one jq for the

@@ -20,6 +20,12 @@
 # ..." pending; vibe's todo_tracker.py). age= is the time since the last
 # progress, so a wake that starts a turn ends it; one that starts none is
 # taken over at 240 s. A finished list ("☑ 7/7 · All todos complete") is not.
+# An idle wait is no job (SPL-3737; c-001 msgs 1c76e2c8, n=2, and 86512295,
+# n=1): a standing seat (the gathered `standing`, the lane rotation's
+# lifetime/standing marker) or a lane whose result is out with no job after it
+# (the gathered `result_wait`) is not hit on its plan while its inbox holds no
+# job; it prints "S1 IDLE <why>" instead, which is no HIT. A job in its inbox
+# hits as before.
 # Usage: s1.sh ID PID PANE (WD_CTX set; see lib.inc.sh)
 # shellcheck source=lib.inc.sh
 . "$(dirname "$0")/lib.inc.sh"
@@ -41,7 +47,30 @@ s1_plan() {
   [[ -n "$line" ]] || return 0
   (( base > 0 )) || base="$(wd_epoch "$(wd_hb ts)")"
   [[ "$base" =~ ^[0-9]+$ ]] && (( WD_NOW - base > wait_max )) || return 0
+  s1_idle_wait "$line"
   echo "HIT S1 age=$((WD_NOW - base))$unk plan $(sed -E 's/^[[:space:]]*//' <<<"$line" | wd_short 80) open at an idle prompt, last progress $( (( p > 0 )) && echo "$((WD_NOW - p))s ago" || echo unknown)"
+  exit 0
+}
+# The inbox jobs that arrived after epoch $1 (0: all), one line each.
+s1_jobs() {
+  wd_has inbox || return 0
+  awk -v p="${1:-0}" -v me="$WD_ID" -v box="${WD_BOX:-}" '
+    $1 + 0 > p + 0 && $3 != "note" && $4 != me && !(box != "" && $4 == me "@" box)' "$WD_CTX/inbox"
+}
+# An idle wait with no job in the inbox: the IDLE line and exit, or nothing.
+# $1 is the open plan line.
+s1_idle_wait() {
+  local t task to step
+  step="$(sed -E 's/^[[:space:]]*//' <<<"$1" | wd_short 80)"
+  [[ -n "$(s1_jobs)" ]] && return 0
+  if [[ -e "$WD_CTX/standing" ]]; then
+    echo "S1 IDLE standing seat, inbox empty: plan $step"
+    exit 0
+  fi
+  wd_has result_wait || return 0
+  read -r t task to < "$WD_CTX/result_wait" || true
+  [[ "$t" =~ ^[0-9]+$ ]] || return 0
+  echo "S1 IDLE result sent $((WD_NOW - t))s ago on $task to $to, no job since: plan $step"
   exit 0
 }
 p="$(wd_progress)"
@@ -57,10 +86,7 @@ fi
 # a seat's inbox holds stubs, reconciled by its poll loop (spec 4.5): never aged
 wd_has seat && exit 0
 t=""
-if wd_has inbox; then
-  read -r t f < <(awk -v p="$p" -v me="$WD_ID" -v box="${WD_BOX:-}" '
-    $1 + 0 > p + 0 && $3 != "note" && $4 != me && !(box != "" && $4 == me "@" box)' "$WD_CTX/inbox" | sort -n | sed -n 1p)
-fi
+read -r t f < <(s1_jobs "$p" | sort -n | sed -n 1p) || true
 if ! [[ "${t:-}" =~ ^[0-9]+$ ]] || (( WD_NOW - t <= wait_max )); then s1_plan; exit 0; fi
 s1_held
 echo "HIT S1 age=$((WD_NOW - t))$unk inbox $f unread $((WD_NOW - t))s, last progress $( (( p > 0 )) && echo "$((WD_NOW - p))s ago" || echo unknown)"

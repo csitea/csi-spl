@@ -20,6 +20,9 @@
 #   inbox        "<mtime epoch> <file> <kind> <from>" per <spool root>/<id>/inbox/*.json
 #                (kind, from "-" when unreadable; old two-field lines still read)
 #   rundir_gone  the registry workdir of a lane that no longer exists
+#   standing     present when an idle <id> is a standing seat (<spool root>/<id>/lifetime/standing)
+#   result_wait  "<epoch> <task_id> <to>": an idle lane's newest result to another agent,
+#                with no job received after it (spl_wd_idle_wait; SPL-3737)
 #   done, rebirth  mtime epoch of <spool root>/<id>/lifetime/done, .../rebirth
 #   session_start  epoch of lifetime/session.json's `started` (else its mtime)
 #   registry_open  the pane of its open registry.tsv row ("-": none named)

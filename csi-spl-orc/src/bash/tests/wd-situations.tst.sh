@@ -276,6 +276,30 @@ rm -f "$C/spin_age"; { cat "$FX/vibe-idle-plan.pane"; printf 'later\nlines\nbelo
 nohit "S1 plan control: the todo line quoted higher up the screen, not the summary row" s1 m-900
 cp "$FX/vibe-idle-plan.pane" "$C/pane"
 out="$(LC_ALL=C run_s s1 m-900)"; [[ "$out" == "HIT S1 age=600 plan "* ]] && pass "S1 plan under LC_ALL=C" || fail "S1 plan LC_ALL=C: $out"
+# S1 on a standing seat idle by design (SPL-3737; c-001 msg 1c76e2c8, n=2: a
+# standing #development seat taken over twice in 19 min on "plan Monitor ...",
+# its inbox empty): the gathered lifetime/standing marker holds the plan hit
+ctx s1st; hb idle 600; cp "$FX/vibe-idle-monitor.pane" "$C/pane"; : > "$C/standing"
+idle1() {  # idle1 <desc> <why>: s1 prints its "S1 IDLE <why>" line, no HIT
+  local out; out="$(run_s s1 m-900)"
+  if [[ "$out" == "S1 IDLE $2"* ]]; then pass "$1"; else fail "$1 (got: '$out')"; fi
+}
+idle1 "S1 a standing seat idle with an empty inbox, its monitor plan open: S1 IDLE, no hit" "standing seat, inbox empty: plan ▶ 1/2 · Monitor "
+echo "$((T0 - 30)) j.json task c-002" > "$C/inbox"
+hit "S1 standing control: a job waits in its inbox, the plan hits as before" s1 m-900
+echo "$((T0 - 30)) n.json note c-002" > "$C/inbox"
+idle1 "S1 standing: a note in its inbox is no job" "standing seat"
+rm -f "$C/standing" "$C/inbox"
+hit "S1 standing red control: the same seat without the marker hits" s1 m-900
+# a lane idling for its verdict (SPL-3737; c-001 msg 86512295, n=1: "plan 1/2
+# Wait for ACCEPTED ..."): its result is out (the gathered result_wait) and no
+# job came after it
+ctx s1rw; hb idle 600; cp "$FX/vibe-idle-plan.pane" "$C/pane"; echo "$((T0 - 500)) dispatch-1d76d339 c-001" > "$C/result_wait"
+idle1 "S1 a lane whose result is out, no later job, inbox empty: S1 IDLE, no hit" "result sent 500s ago on dispatch-1d76d339 to c-001, no job since: plan ▶ 1/7"
+echo "$((T0 - 30)) j.json reject c-001" > "$C/inbox"
+hit "S1 result-wait control: a send-back waits in its inbox, the plan hits" s1 m-900
+rm -f "$C/result_wait" "$C/inbox"
+hit "S1 result-wait red control: no result out, the plan hits" s1 m-900
 
 # S3: a bare shell in the agent's window
 ctx s3; cp "$FX/idle.pane" "$C/pane"; echo bash > "$C/fg"; printf 'bash\n' > "$C/tree"
@@ -1039,6 +1063,43 @@ grep -q '^m-978 OK' <<<"$out" && [[ ! -s "$T/takeovers" ]] && pass "10 control: 
 mreset; agent m-979 %1 4079 "Vibe CLI" 3600 "$FX/vibe-idle-done.pane"; vhb m-979 4079 $((T0 - 600)) $((T0 - 590))
 out="$(wd)"; settle
 grep -q '^m-979 OK' <<<"$out" && [[ ! -s "$T/sent" && ! -s "$T/takeovers" ]] && pass "10 control: the same lane with its list complete: no wake, no takeover" || fail "10 done control: $out"
+# SPL-3737: a standing seat (lifetime/standing, the lane rotation's marker)
+# idle on its monitor plan, inbox empty, 300 s since progress: no ring, no
+# takeover. Control: a job in its inbox, the same seat is taken over as before
+mreset; agent m-980 %1 4080 "Vibe CLI" 3600 "$FX/vibe-idle-monitor.pane"; vhb m-980 4080 $((T0 - 300)) $((T0 - 290))
+mkdir -p "$S/m-980/lifetime"; : > "$S/m-980/lifetime/standing"
+out="$(wd)"; settle
+grep -q '^m-980 OK' <<<"$out" && [[ ! -s "$T/sent" && ! -s "$T/takeovers" ]] && grep -q '^S1 IDLE standing seat' "$D/wd/ctx/m-980/out.s1" &&
+  pass "10 a standing seat idle on its monitor plan, inbox empty: no ring, no takeover" || fail "10 standing: $out / $(cat "$T/takeovers" 2>/dev/null)"
+mreset; agent m-981 %1 4081 "Vibe CLI" 3600 "$FX/vibe-idle-monitor.pane"; vhb m-981 4081 $((T0 - 300)) $((T0 - 290))
+mkdir -p "$S/m-981/lifetime"; : > "$S/m-981/lifetime/standing"
+echo '{"v":1,"kind":"task","from":"c-002","to":"m-981","body":"do"}' > "$S/m-981/inbox/j.json"; touch -d "@$((T0 - 30))" "$S/m-981/inbox/j.json"
+out="$(wd)"; settle
+grep -qx 'takeover m-981 S1' "$T/takeovers" && grep -q 'm-981 HIT S1 age=300 plan ' <<<"$out" &&
+  pass "10 control: the standing seat with a job in its inbox is taken over as before" || fail "10 standing control: $out / $(cat "$T/takeovers" 2>/dev/null)"
+# SPL-3737: a lane idling for its verdict: its result to c-001 is in its
+# outbox, no job came after it (a rotation ACK to itself is no job, an older
+# archived task is before it): no ring, no takeover. Control: a send-back
+# archived after the result, the lane is taken over as before
+rw_lane() {  # rw_lane <id> <pid>: an idle vibe lane on its plan, its result out at T0-400
+  agent "$1" %1 "$2" "Vibe CLI" 3600 "$FX/vibe-idle-plan.pane"; vhb "$1" "$2" $((T0 - 300)) $((T0 - 290))
+  mkdir -p "$S/$1/outbox" "$S/$1/archive"
+  echo '{"v":1,"kind":"task","from":"c-001","to":"'"$1"'","task_id":"dispatch-1d76d339","body":"do"}' > "$S/$1/archive/a.json"
+  echo '{"v":1,"kind":"result","from":"'"$1"'","to":"c-001@box1","task_id":"dispatch-1d76d339","body":"landed"}' > "$S/$1/outbox/r.json"
+  echo '{"v":1,"kind":"result","from":"'"$1"'","to":"'"$1"'","task_id":"lane-rotate-x","body":"ACK rotation"}' > "$S/$1/outbox/s.json"
+  echo '{"v":1,"kind":"result","from":"'"$1"'","to":"'"$1"'","task_id":"lane-rotate-x","body":"ACK rotation"}' > "$S/$1/archive/s.json"
+  touch -d "@$((T0 - 3000))" "$S/$1/archive/a.json"; touch -d "@$((T0 - 400))" "$S/$1/outbox/r.json"
+  touch -d "@$((T0 - 100))" "$S/$1/outbox/s.json" "$S/$1/archive/s.json"
+}
+mreset; rw_lane m-982 4082
+out="$(wd)"; settle
+grep -q '^m-982 OK' <<<"$out" && [[ ! -s "$T/sent" && ! -s "$T/takeovers" ]] && grep -q '^S1 IDLE result sent .*dispatch-1d76d339' "$D/wd/ctx/m-982/out.s1" &&
+  pass "10 a lane idle on its plan with its result out and no later job: no ring, no takeover" || fail "10 result wait: $out / $(cat "$T/takeovers" 2>/dev/null)"
+mreset; rw_lane m-983 4083
+echo '{"v":1,"kind":"reject","from":"c-001","to":"m-983","task_id":"dispatch-1d76d339","body":"SEND-BACK"}' > "$S/m-983/archive/b.json"; touch -d "@$((T0 - 200))" "$S/m-983/archive/b.json"
+out="$(wd)"; settle
+grep -qx 'takeover m-983 S1' "$T/takeovers" && grep -q 'm-983 HIT S1 age=300 plan ' <<<"$out" &&
+  pass "10 control: a send-back archived after the result, the lane is taken over as before" || fail "10 result-wait control: $out / $(cat "$T/takeovers" 2>/dev/null)"
 
 # 11. S2 kind=limit: one wake once the reset + WD_LIMIT_GRACE passed
 L0="$(date -u -d 2026-10-08T20:13:47Z +%s)"; LR="$(date -u -d 2026-10-08T22:50:00Z +%s)"

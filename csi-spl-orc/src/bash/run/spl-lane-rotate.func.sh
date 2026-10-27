@@ -301,12 +301,16 @@ spl_lane_rotate_recent() {
   return 0
 }
 
+# 0 when ID is a standing seat (SPL-2004): $SPOOL_ROOT/<id>/lifetime/standing
+# exists. The one rule; the watchdog's S1 reads it too (SPL-3737).
+spl_lane_standing() { [[ -f "$SPOOL_ROOT/$1/lifetime/standing" ]]; }
+
 # 0 when ID's inbox or archive holds an ACCEPTED newer than any REJECT / SEND-BACK,
 # unless ID is a standing seat (lifetime/standing exists).
 spl_lane_rotate_accepted() {
   local a r
   # Standing seat: rotate even if ACCEPTED exists
-  [[ -f "$SPOOL_ROOT/$1/lifetime/standing" ]] && return 1
+  spl_lane_standing "$1" && return 1
   a="$(grep -lsE '"body" *: *"ACCEPTED' "$SPOOL_ROOT/$1"/inbox/*.json "$SPOOL_ROOT/$1"/archive/*.json 2>/dev/null | xargs -r ls -t 2>/dev/null | sed -n 1p || true)"
   [[ -n "$a" ]] || return 1
   r="$(grep -lsE '"body" *: *"(REJECT|SEND-BACK|SENDBACK)' "$SPOOL_ROOT/$1"/inbox/*.json "$SPOOL_ROOT/$1"/archive/*.json 2>/dev/null | xargs -r ls -t 2>/dev/null | sed -n 1p || true)"

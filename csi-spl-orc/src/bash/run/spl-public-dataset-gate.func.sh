@@ -8,9 +8,11 @@
 # @description          every constant holds its fixed value, and every LIVE
 # @description          column of a listed table (pg_attribute, not a grep)
 # @description          is classified public or withheld
-# @description   C1     no tenant_id but the cnf workspace; one tenants row
+# @description   C1     no tenant_id but the cnf workspaces (workspace_ids);
+# @description          exactly one tenants row per listed workspace
 # @description   C2     every row is found again on a SECOND connection as the
-# @description          export login, pinned by RLS alone (no filter)
+# @description          export login, pinned by RLS alone (no filter), one
+# @description          transaction per listed workspace
 # @description   MEMBER members are HUM-n ids only (Q1b): display_name =
 # @description          human_id, no e-mail, every HUM-n a message names is an
 # @description          exported member
@@ -29,7 +31,7 @@
 # @description matched text (CI logs are public). The core is
 # @description src/bash/scripts/public-dataset-gate.py; this action reads the
 # @description database facts it needs and writes nothing to any bucket.
-# @param ENV - required: dev or prd (the cnf: workspace, caps, allow-list version)
+# @param ENV - required: dev or prd (the cnf: workspaces, caps, allow-list version)
 # @param PD_GATE_FILE - required: the candidate seed file (.sql or .sql.gz)
 # @param PD_GATE_OUT - required: where the cleaned file goes (must not exist)
 # @param PD_GATE_REPORT - required: the gate report JSON (counts, removed by class)
@@ -47,10 +49,9 @@ do_spl_public_dataset_gate() {
   spl_pd_gate_args || return 1
   do_spl_cloud_cnf || return 1
   local ws cap tol ver allow
-  IFS=$'\t' read -r ws cap tol ver < <(yq -r '[.env.public_dataset.workspace_id // "",
-      .env.public_dataset.body_drop_cap_pct // "", .env.public_dataset.size_tolerance_pct // "",
-      .env.public_dataset.allow_list_version // ""] | @tsv' "$SPL_CNF")
-  spl_require_tenant_slug "$ws" || { do_log "FATAL cnf public_dataset.workspace_id is unset for $ENV"; return 1; }
+  IFS=$'\t' read -r cap tol ver < <(yq -r '[.env.public_dataset.body_drop_cap_pct // "",
+      .env.public_dataset.size_tolerance_pct // "", .env.public_dataset.allow_list_version // ""] | @tsv' "$SPL_CNF")
+  ws="$(spl_pd_workspaces)" || return 1
   [[ "$cap" =~ ^[0-9]+(\.[0-9]+)?$ && "$tol" =~ ^[0-9]+(\.[0-9]+)?$ && "$ver" =~ ^[0-9]+$ ]] ||
     { do_log "FATAL cnf public_dataset body_drop_cap_pct / size_tolerance_pct / allow_list_version unset or malformed for $ENV"; return 1; }
   allow="$PROJ_PATH/cnf/public-dataset/allow-list.v$ver.yaml"
@@ -79,6 +80,22 @@ do_spl_public_dataset_gate() {
     return 1
   fi
   do_log "OK public dataset gate ($ENV): cleaned candidate $PD_GATE_OUT, report $PD_GATE_REPORT"
+}
+
+# spl_pd_workspaces -> the cnf public_dataset.workspace_ids of $SPL_CNF as one
+# comma-joined line (a,b,c), the form the gate, the names step and the role
+# action pass on. Each a workspace slug, none twice, at least one; else FATAL.
+spl_pd_workspaces() {
+  local ids w
+  ids="$(yq -r '.env.public_dataset.workspace_ids // [] | .[]' "$SPL_CNF" 2>/dev/null)" ||
+    { do_log "FATAL cnf public_dataset.workspace_ids of $ENV is not a list"; return 1; }
+  [[ -n "$ids" ]] || { do_log "FATAL cnf public_dataset.workspace_ids is unset or empty for $ENV"; return 1; }
+  while IFS= read -r w; do
+    spl_require_tenant_slug "$w" || { do_log "FATAL cnf public_dataset.workspace_ids of $ENV holds a value that is not a workspace slug"; return 1; }
+  done <<<"$ids"
+  [[ "$(sort -u <<<"$ids" | wc -l)" == "$(wc -l <<<"$ids")" ]] ||
+    { do_log "FATAL cnf public_dataset.workspace_ids of $ENV names a workspace twice"; return 1; }
+  paste -sd, <<<"$ids"
 }
 
 # spl_pd_gate_args: every refusal that needs no cnf and no database.
@@ -132,25 +149,39 @@ SELECT coalesce(json_object_agg(t.relname, t.cols), '{}') FROM (
 EOF_SQL
 }
 
-# spl_pd_gate_reread <export dsn> <workspace> <out>: a SECOND connection, the
-# export login, app.tenant_id set and NO filter: the keys RLS lets it see.
-# humans has no RLS; its rows are checked against the memberships re-read.
-# It asserts its own login too, so "RLS alone" holds for this connection.
+# spl_pd_gate_reread <export dsn> <workspaces a,b,..> <out>: a SECOND
+# connection, the export login and NO filter, one transaction per listed
+# workspace with app.tenant_id set to it: the keys RLS lets it see, merged
+# into one JSON object of [workspace, key] pairs per table. humans has no RLS; its rows are checked
+# against the memberships re-read. It asserts its own login too, so "RLS
+# alone" holds for this connection.
 spl_pd_gate_reread() {
-  local out
-  out="$(printf "\\\\set ws '%s'\nBEGIN READ ONLY;\nSET LOCAL app.tenant_id = :'ws';\n%s\nROLLBACK;\n" \
-      "$2" "$(spl_pd_gate_reread_sql)" | spl_pg_env "$1" psql -X -q -At -v ON_ERROR_STOP=1 -f - 2>&1)" ||
+  local out w sql=""
+  for w in ${2//,/ }; do
+    sql+="$(printf "\\\\set ws '%s'\nBEGIN READ ONLY;\nSET LOCAL app.tenant_id = :'ws';\n%s\nROLLBACK;" "$w" "$(spl_pd_gate_reread_sql)")"$'\n'
+  done
+  out="$(printf '%s%s' "$(spl_pd_gate_whoami_sql)"$'\n' "$sql" | spl_pg_env "$1" psql -X -q -At -v ON_ERROR_STOP=1 -f - 2>&1)" ||
     { do_log "FATAL the RLS re-read failed as the export login (the database's message is not shown)"; return 1; }
   [[ "$(sed -n 1p <<<"$out")" == "spool_public_export|f|f" ]] ||
     { do_log "FATAL the RLS re-read must run as spool_public_export (no superuser, no bypassrls), got another login"; return 1; }
-  sed -n '2,$p' <<<"$out" >"$3"
-  python3 -c 'import json, sys; json.load(open(sys.argv[1]))' "$3" 2>/dev/null ||
+  sed -n '2,$p' <<<"$out" | python3 -c '
+import json, sys
+m, ws = {}, sys.argv[2].split(",")
+lines = [json.loads(x) for x in sys.stdin if x.strip()]
+assert len(lines) == len(ws)
+for w, d in zip(ws, lines):
+    for k, v in d.items():
+        m.setdefault(k, []).extend([w, x] for x in v)
+json.dump(m, open(sys.argv[1], "w"))' "$3" "$2" 2>/dev/null ||
     { do_log "FATAL the RLS re-read is not JSON"; return 1; }
+}
+
+spl_pd_gate_whoami_sql() {
+  echo 'SELECT current_user, r.rolsuper, r.rolbypassrls FROM pg_roles r WHERE r.rolname = current_user;'
 }
 
 spl_pd_gate_reread_sql() {
   cat <<'EOF_SQL'
-SELECT current_user, r.rolsuper, r.rolbypassrls FROM pg_roles r WHERE r.rolname = current_user;
 SELECT json_build_object(
   'tenants', (SELECT coalesce(json_agg(tenant_id), '[]') FROM tenants),
   'tenant_memberships', (SELECT coalesce(json_agg(human_id), '[]') FROM tenant_memberships),

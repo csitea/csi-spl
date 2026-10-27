@@ -221,6 +221,15 @@ The three verifier lanes are **not code tasks**. The orchestrator places each on
   - **Needs from the owner**: nothing.
   - **Gate**: `do_check_dist_hygiene`, `lint-mdlinks`.
 
+### Owner change 2026-10-27: three workspaces (spec §4 v0.5.0)
+
+- [x] T018 **the workspace list** (SPL-3808; owner HUM-10, t1 e2c0e6b4, msgs c72b919b, c68e6073, poll answer afb3d81d: t1, spool and demo). Done by c-394.
+  - **Built**: cnf `env.public_dataset.workspace_ids` (a list; `workspace_id` is gone, every reader moved: `spl_pd_workspaces` in `orc/src/bash/run/spl-public-dataset-gate.func.sh`), the three ids t1, spool and demo on dev and prd; `rdb/0238_public_export_workspaces.sql` (one `public_export_workspace` row per workspace, policy `tenant_id IN (...)`); `do_spl_public_export_role` writes exactly the set; the names step reads every workspace outside it; the gate holds one `tenants` row per listed workspace, keys rows by (workspace, key) and re-reads once per workspace.
+  - **Tests**: `api/internal/store/public_export_output_test.go` (the output as the real export login: no row of a fourth workspace, no e-mail, name or hash; red without 0238, with the restrictive policy dropped, with a planted `humans.email` or `password_hash` grant), `TestPublicExportScopeWorkspaceSet`, `orc/src/bash/tests/public-dataset-gate.tst.sh` cases 5 and 12, `public-export-role.tst.sh`, `public-dataset-names.tst.sh`, `public-dataset-allow-list.tst.sh`.
+  - **For T006**: with three workspaces every `channels` and `messages` row must carry `tenant_id` (the gate refuses a block without it, and channel ids repeat across workspaces), but allow-list v1 withholds `tenant_id` on both and the export login holds no grant on it: allow-list v2 (§4.5) adds it as public.
+  - **For the humans table**: `humans` has no RLS, so fence 1 lets the export login read the `human_id` of every human; only the §4.1 join and the gate's MEMBER class keep other workspaces' members out. No e-mail, name or credential is reachable (column grants).
+- [ ] T019 **the loader takes the set** (`orc/src/bash/run/spl-public-dataset-load.func.sh`): today it refuses a seed with more than one workspace (its "exactly one workspace" checks inside the load transaction). Queued by the dispatch holder as its own lane.
+
 ### Only if the owner says yes to Q1
 
 - [ ] T017 **member notice and opt-out** (Q1, a-287's suggestion).
@@ -230,4 +239,4 @@ The three verifier lanes are **not code tasks**. The orchestrator places each on
   - **Depends**: the owner's yes to Q1, T006, T011. **Serial**.
   - **Needs from the owner**: Q1 = yes, and the notice text.
 
-<!-- version: 0.1.0 · updated: 2026-10-05 · last-edit: 2026-10-05T12:00:00Z -->
+<!-- version: 0.1.1 · updated: 2026-10-27 · last-edit: 2026-10-27T10:30:00Z -->

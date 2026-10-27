@@ -16,7 +16,10 @@
 #        an allow-list table with no COPY block
 #     5. C1 / MEMBER / C2: an extra workspace row, a foreign tenant_id, a real
 #        name or an e-mail on a member, a HUM-n not exported, a row the RLS
-#        re-read does not see, a key twice in a table
+#        re-read does not see, a key twice in a table; several listed
+#        workspaces (SPL-3808): a row per listed workspace, every block names
+#        its workspace, the same channel id in two of them, matched by
+#        (workspace, key)
 #     6. SIZE: beyond the tolerance fails; no previous file or a new
 #        allow-list version skips it; a table in the previous counts and
 #        gone from the file counts as 0 rows
@@ -28,6 +31,8 @@
 #    10. a row of ANOTHER workspace forged to the exported id: FATAL C2 (the
 #        RLS re-read does not see it)
 #    11. a superuser DSN is refused (a re-read by it is not "RLS alone")
+#    12. two listed workspaces with the SAME channel id: the action re-reads
+#        each one and passes; the cnf listing only one of them fails C1
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -60,18 +65,19 @@ grep -nE 'set -x|SELECT \*|pg_dump' "$FUNC" "$CORE" "$PROJ_ROOT/src/bash/run/spl
 yq -o=json . "$ALLOW_YAML" >"$T/allow.json"
 python3 -c 'import json, sys; a = json.load(open(sys.argv[1]))
 json.dump({t: s["public"] + s["withheld"] for t, s in a["tables"].items()}, open(sys.argv[2], "w"))' "$T/allow.json" "$T/catalog.json"
-reread_of() { # <candidate.sql> <out.json>: every key of the file, as a pinned re-read would return it
-  python3 - "$1" "$2" <<'PY'
+reread_of() { # <candidate.sql> <out.json>: every [workspace, key] of the file, as the pinned re-reads would return them
+  python3 - "$1" "$2" "${WSL:-$WS}" <<'PY'
 import json, sys
-keys = {"tenants": 0, "tenant_memberships": 1, "channels": 0, "messages": 0}
-out, t = {k: [] for k in keys}, None
+keys = {"tenants": "tenant_id", "tenant_memberships": "human_id", "channels": "channel_id", "messages": "msg_id"}
+out, t, cols = {k: [] for k in keys}, None, []
 for line in open(sys.argv[1]).read().splitlines():
     if line.startswith("COPY "):
-        t = line.split()[1]; continue
+        t = line.split()[1]; cols = [c.strip() for c in line[line.index("(") + 1:line.index(")")].split(",")]; continue
     if line == "\\.":
         t = None; continue
     if t in keys:
-        out[t].append(line.split("\t")[keys[t]])
+        f = dict(zip(cols, line.split("\t")))
+        out[t].append([f.get("tenant_id", sys.argv[3].split(",")[0]), f[keys[t]]])
 json.dump(out, open(sys.argv[2], "w"))
 PY
 }
@@ -147,7 +153,7 @@ gate() {
   local name="$1"; shift
   [[ -s "$T/$name.reread.json" ]] || reread_of "$T/$name.sql" "$T/$name.reread.json"
   python3 "$CORE" --file "$T/$name.sql" --allow-list "${ALLOW:-$T/allow.json}" --catalog "${CATALOG:-$T/catalog.json}" \
-    --reread "$T/$name.reread.json" --names "$FIX/names.tsv" --workspace "$WS" --out "$T/$name.out.sql" \
+    --reread "$T/$name.reread.json" --names "$FIX/names.tsv" --workspace "${WSL:-$WS}" --out "$T/$name.out.sql" \
     --report "$T/$name.report.json" --drop-cap-pct 1 --size-tol-pct 50 --gitleaks "$GL" \
     --gitleaks-config "$APP_ROOT/.gitleaks.toml" "$@" >"$T/$name.log" 2>&1
   echo $? >"$T/$name.rc"
@@ -245,10 +251,10 @@ fatal "4. an allow-list table with no COPY block in the file is FATAL" nomsg 'FA
 
 # --- 5. C1, MEMBER, C2 -----------------------------------------------------------------------
 mk ws2 'row:tenants:ws-other\tOther\t2026-09-01 10:00:00+00\tinternal\tdefault\t\\x'"$(printf '00%.0s' {1..32})"; gate ws2
-fatal "5. an extra workspace row is FATAL (C1)" ws2 'FATAL C1 tenants the file must hold exactly one workspace row, it holds 2'
+fatal "5. an extra workspace row is FATAL (C1)" ws2 'FATAL C1 tenants the file must hold exactly one row per listed workspace (1), it holds 2'
 grep -q 'ws-other' "$T/ws2.log" && fail "5. the foreign workspace id is printed" || pass "5. ... and the foreign workspace id is not printed"
 mk tid 'set:tenant_memberships:2:tenant_id:ws-other'; gate tid
-fatal "5. a foreign tenant_id on a row is FATAL (C1)" tid 'FATAL C1 tenant_memberships row 2: tenant_id is not the exported workspace'
+fatal "5. a foreign tenant_id on a row is FATAL (C1)" tid 'FATAL C1 tenant_memberships row 2: tenant_id is not an exported workspace'
 mk realname 'set:humans:1:display_name:Plantina Example'; gate realname
 fatal "5. a member's display name other than its HUM-n id is FATAL (Q1b)" realname 'FATAL MEMBER humans human_id=HUM-3: display_name is not the HUM-n id'
 mk hmail 'set:humans:2:email:P(email)'; gate hmail
@@ -258,13 +264,34 @@ fatal "5. a message naming a HUM-n that is not exported is FATAL" nonm 'FATAL ME
 mk hid 'set:humans:1:human_id:plant-person'; gate hid
 fatal "5. a member id that is not HUM-n is FATAL" hid 'FATAL MEMBER humans row 1: human_id is not a HUM-n id'
 cp "$FIX/clean.sql" "$T/rls.sql"; reread_of "$T/rls.sql" "$T/rls.reread.json"
-jq '.messages -= ["00000000-0000-4000-8000-000000000042"]' "$T/rls.reread.json" >"$T/x.json" && mv "$T/x.json" "$T/rls.reread.json"
+jq '.messages -= [["ws-pub", "00000000-0000-4000-8000-000000000042"]]' "$T/rls.reread.json" >"$T/x.json" && mv "$T/x.json" "$T/rls.reread.json"
 gate rls
 fatal "5. a row the RLS re-read does not see is FATAL (C2)" rls 'FATAL C2 messages msg_id=00000000-0000-4000-8000-000000000042: not found by the re-read'
 
 mk dupk 'row:channels:lobby\tlobby\tforeign private channel text\tHUM-3\t2026-09-01 10:00:00+00'; gate dupk
 fatal "5. a second channels row with a public channel_id is FATAL (C1 and C2 match by key)" dupk 'FATAL C3 channels row 3: a key seen twice in the table'
 grep -q 'foreign private channel text' "$T/dupk.log" && fail "5. the duplicate row's text is printed" || pass "5. ... and the duplicate row's text is not printed"
+
+# several listed workspaces (SPL-3808, owner: t1, spool and demo)
+TWO_ROWS=('row:tenants:ws-two\tSecond Space\t2026-09-01 10:00:00+00\tinternal\tdefault\t\\x'"$(printf '00%.0s' {1..32})"
+  'row:tenant_memberships:ws-two\tHUM-3\tmember\t2026-09-01 10:00:00+00\tseed')
+cp "$FIX/clean.sql" "$T/m-one.sql"; WSL=ws-pub,ws-two gate m-one
+fatal "5. two listed workspaces and one tenants row is FATAL (C1)" m-one 'FATAL C1 tenants the file must hold exactly one row per listed workspace (2), it holds 1'
+mk m-notid "${TWO_ROWS[@]}"; WSL=ws-pub,ws-two gate m-notid
+fatal "5. two listed workspaces and a block with no tenant_id is FATAL (C1)" m-notid 'FATAL C1 channels the COPY carries no tenant_id: with 2 listed workspaces a row must name its own'
+mk m-two "${TWO_ROWS[@]}" 'col:channels:tenant_id:ws-pub' 'col:messages:tenant_id:ws-pub' \
+  'row:channels:dev-talk\tdev-talk\tTalk in the second space\tHUM-3\t2026-09-01 10:00:00+00\tws-two'; WSL=ws-pub,ws-two gate m-two
+[[ "$(rc_of m-two)" == 0 && "$(jq -c .row_counts "$T/m-two.report.json")" == '{"channels":3,"humans":2,"messages":100,"tenant_memberships":3,"tenants":2}' ]] \
+  && pass "5. two listed workspaces, each row naming its own, the same channel id in both: passes" || fail "5. two workspaces: $(cat "$T/m-two.log")"
+mk m-gone "${TWO_ROWS[@]}" 'col:channels:tenant_id:ws-pub' 'col:messages:tenant_id:ws-pub' \
+  'row:channels:dev-talk\tdev-talk\tTalk in the second space\tHUM-3\t2026-09-01 10:00:00+00\tws-two'
+WSL=ws-pub,ws-two reread_of "$T/m-gone.sql" "$T/m-gone.reread.json"
+jq '.channels -= [["ws-two", "dev-talk"]]' "$T/m-gone.reread.json" >"$T/x.json" && mv "$T/x.json" "$T/m-gone.reread.json"
+WSL=ws-pub,ws-two gate m-gone
+fatal "5. a channel the re-read of ITS workspace does not see is FATAL (C2), though the other workspace has that id" m-gone 'FATAL C2 channels channel_id=dev-talk: not found by the re-read'
+mk m-dup "${TWO_ROWS[@]}" 'col:channels:tenant_id:ws-pub' 'col:messages:tenant_id:ws-pub' \
+  'row:channels:dev-talk\tdev-talk\tagain\tHUM-3\t2026-09-01 10:00:00+00\tws-pub'; WSL=ws-pub,ws-two gate m-dup
+fatal "5. the same (workspace, channel id) twice is FATAL" m-dup 'FATAL C3 channels row 3: a key seen twice in the table'
 
 # --- 6. SIZE -------------------------------------------------------------------------------------
 jq -n '{allow_list_version: 1, row_counts: {tenants: 1, humans: 2, tenant_memberships: 2, channels: 2, messages: 300}}' >"$T/prev-big.json"
@@ -364,7 +391,7 @@ for t, s in a["tables"].items():
     s["withheld"] += [c for c in live[t] if c not in s["public"] + s["withheld"]]
 print(json.dumps(a))' "$T/allow.json" >"$T/proj/cnf/public-dataset/allow-list.v1.yaml" &&
   [[ "$(yq -r '.["version"]' "$T/proj/cnf/public-dataset/allow-list.v1.yaml")" == 1 ]] || { fail "write the test allow-list"; exit 1; }
-printf 'env:\n  public_dataset:\n    workspace_id: %s\n    body_drop_cap_pct: 1\n    size_tolerance_pct: 50\n    allow_list_version: 1\n' "$WS" >"$T/cnf.yaml"
+printf 'env:\n  public_dataset:\n    workspace_ids: [%s]\n    body_drop_cap_pct: 1\n    size_tolerance_pct: 50\n    allow_list_version: 1\n' "$WS" >"$T/cnf.yaml"
 # act <name> <dsn>: the ACTION on $T/<name>.sql as the given login
 act() {
   env PROJ_PATH="$T/proj" APP_PATH="$APP_ROOT" PATH="$T/bin:$PATH" ENV=dev SPL_CNF_STUB="$T/cnf.yaml" \
@@ -393,6 +420,21 @@ cp "$FIX/clean.sql" "$T/d-super.sql"; act d-super "$DB_DSN"
   && pass "11. a superuser DSN is refused" || fail "11. superuser: $(cat "$T/d-super.act.log")"
 grep -lF -e Zebracorp -e Quokkaville -e export-pw "$T"/*.act.log >/dev/null && fail "11. a name or the password reached the action output" \
   || pass "11. no name and no password in the action output"
+psql -X -q -v ON_ERROR_STOP=1 "$DB_DSN" >/dev/null <<SQL || { fail "load the second exported workspace"; exit 1; }
+INSERT INTO tenants (tenant_id, root_pubkey, display_name) VALUES ('ws-two', decode(repeat('00', 32), 'hex'), 'Second Space');
+INSERT INTO tenant_memberships (tenant_id, human_id, role, admitted_by) VALUES ('ws-two', 'HUM-3', 'developer', 'seed');
+INSERT INTO channels (tenant_id, channel_id, name, created_by) VALUES ('ws-two', 'dev-talk', 'dev-talk', 'HUM-3');
+SQL
+psql -X -q -v ON_ERROR_STOP=1 -c "INSERT INTO public_export_workspace (workspace_id) VALUES ('ws-two')" "$OWNER_DSN" >/dev/null ||
+  fail "12. public_export_workspace takes a second row (rdb 0238)"
+printf 'env:\n  public_dataset:\n    workspace_ids: [%s, ws-two]\n    body_drop_cap_pct: 1\n    size_tolerance_pct: 50\n    allow_list_version: 1\n' "$WS" >"$T/cnf.yaml"
+cp "$T/m-two.sql" "$T/d-two.sql"; act d-two "$EXPORT_DSN"
+[[ "$(cat "$T/d-two.act.rc")" == 0 ]] && grep -q '^OK public dataset gate (dev)' "$T/d-two.act.log" \
+  && pass "12. two listed workspaces with the same channel id: the action re-reads each one as spool_public_export and passes" || fail "12. two: $(cat "$T/d-two.act.log")"
+printf 'env:\n  public_dataset:\n    workspace_ids: [%s]\n    body_drop_cap_pct: 1\n    size_tolerance_pct: 50\n    allow_list_version: 1\n' "$WS" >"$T/cnf.yaml"
+cp "$T/m-two.sql" "$T/d-two1.sql"; act d-two1 "$EXPORT_DSN"
+[[ "$(cat "$T/d-two1.act.rc")" == 1 ]] && grep -q 'FATAL C1 tenants the file must hold exactly one row per listed workspace (1), it holds 2' "$T/d-two1.act.log" \
+  && pass "12. the same file with the cnf listing one workspace fails C1" || fail "12. one listed: $(cat "$T/d-two1.act.log")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s)"; exit 1

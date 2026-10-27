@@ -12,10 +12,10 @@
 #        before any call; empty slots are refused naming the seed, no psql
 #     4. DRY_RUN=0: AS THE OWNER applies public-export-role.sql, then
 #        public-export-grants.sql, then public-names-role.sql (each password a
-#        SCRAM verifier on stdin), writes public_export_workspace = the cnf
-#        workspace, reads every flag back, and probes AS each login: OK
+#        SCRAM verifier on stdin), makes public_export_workspace exactly the
+#        cnf workspace list, reads every flag back, and probes AS each login: OK
 #     5. FAIL (exit 1) on: an extra column grant, a BYPASSRLS login, a
-#        PUBLIC table grant, a wrong workspace row, a withheld read that is
+#        PUBLIC table grant, a wrong or a missing workspace row, a withheld read that is
 #        NOT refused; VERIFY_ONLY=1 applies nothing
 #   6. no clear-text password in output, any argv or psql stdin; every
 #      gcloud secrets call carries --account
@@ -34,7 +34,8 @@ CNF="$APP_ROOT/csi-spl-cnf/csi-spl"
 EXPORT_SLOT=$(yq -r '.env.public_dataset.export_password_secret' "$CNF/all.env.yaml")
 NAMES_SLOT=$(yq -r '.env.public_dataset.names_password_secret' "$CNF/all.env.yaml")
 OWNER_SLOT=$(yq -r '.env.hub.db_owner_dsn_secret' "$CNF/all.env.yaml")
-WS=$(yq -r '.env.public_dataset.workspace_id' "$CNF/dev.env.yaml")
+WS=$(yq -r '.env.public_dataset.workspace_ids | join(",")' "$CNF/dev.env.yaml")
+WS_SORTED=$(tr , '\n' <<<"$WS" | sort | paste -sd,)
 GRANTS="$APP_ROOT/csi-spl-rdb/src/sql/postgres/spool-hub-roles/public-export-grants.sql"
 OWNER_PW="ownerpw$RANDOM$RANDOM"
 OWNER_DSN="postgres://spool_hub:$OWNER_PW@/spool?host=/cloudsql/csi-spl-dev:europe-north1:csi-spl-dev-pg"
@@ -95,7 +96,7 @@ for c, t in re.findall(r"^GRANT SELECT \(([^)]*)\) ON (\w+) TO spool_public_expo
     cols += ["%s.%s:SELECT" % (t, x.strip()) for x in c.split(",")]
 role = lambda cols, tables: dict(login=True, superuser=False, bypassrls=False, createrole=False, createdb=False,
                                  inherit=False, replication=False, member_of=0, owns=0, tables=tables, columns=sorted(cols))
-print(json.dumps({"workspace": [sys.argv[2]], "public_grants": [], "roles": {
+print(json.dumps({"workspace": sorted(sys.argv[2].split(",")), "public_grants": [], "roles": {
     "spool_public_export": role(cols, ["public_export_workspace:SELECT"]),
     "spool_public_names": role(["tenants.tenant_id:SELECT", "tenants.display_name:SELECT"], [])}}))
 PY
@@ -148,7 +149,7 @@ SEED_OUT="$(cat "$T/out" "$T/calls.log")"
 
 # --- 3. role: dry run + refusals --------------------------------------------------------
 in_orc do_spl_public_export_role; rc=$?
-[[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q '^OK DRY_RUN nothing was touched' "$T/out" && grep -q "set public_export_workspace to $WS" "$T/out" &&
+[[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q '^OK DRY_RUN nothing was touched' "$T/out" && grep -q "set public_export_workspace to exactly $WS" "$T/out" &&
   pass "3. role DRY_RUN: no cloud call, names the workspace" || fail "3. role dry: rc=$rc $(cat "$T/out" "$T/calls.log")"
 in_orc 'do_spl_public_export_grants_gen() { echo "FAIL stale"; return 1; }; do_spl_public_export_role' DRY_RUN=0; rc=$?
 [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "3. a stale grants file is refused before any call" || fail "3. stale: rc=$rc"
@@ -163,10 +164,13 @@ in_orc do_spl_public_export_role DRY_RUN=0; rc=$?
 [[ $rc -eq 0 ]] && grep -q "^OK public dataset logins on spool (dev)" "$T/out" && pass "4. role DRY_RUN=0: exit 0, OK" || fail "4. role: rc=$rc $(cat "$T/out")"
 a=$(line 'APPLY export-role as=spool_hub'); g=$(line 'APPLY grants as=spool_hub'); n=$(line 'APPLY names-role as=spool_hub'); w=$(line "WS set ws '$WS' as=spool_hub")
 [[ -n "$a" && -n "$g" && -n "$n" && -n "$w" && $a -lt $g && $g -lt $n && $n -lt $w ]] &&
-  pass "4. as the owner: export role, grants, names role, then the workspace row $WS" || fail "4. order: $(cat "$T/calls.log")"
+  pass "4. as the owner: export role, grants, names role, then the workspace rows $WS" || fail "4. order: $(cat "$T/calls.log")"
 grep -qE '^\\set export_verifier .SCRAM-SHA-256[$]4096:' "$T/stdin" && grep -qE '^\\set names_verifier .SCRAM-SHA-256[$]4096:' "$T/stdin" &&
   pass "4. both passwords reach psql as SCRAM verifiers on stdin" || fail "4. verifiers not on stdin"
-for want in 'OK spool_public_export: login, noinherit' 'OK spool_public_names: login, noinherit' "OK public_export_workspace = $WS" \
+grep -qF "DELETE FROM public_export_workspace WHERE workspace_id <> ALL (string_to_array(:'ws', ','));" "$T/stdin" &&
+  grep -qF "INSERT INTO public_export_workspace (workspace_id) SELECT unnest(string_to_array(:'ws', ',')) ON CONFLICT (workspace_id) DO NOTHING;" "$T/stdin" &&
+  pass "4. the workspace rows become exactly the cnf list: the others deleted, the listed ones inserted" || fail "4. set write: $(grep -A3 'set ws' "$T/stdin")"
+for want in 'OK spool_public_export: login, noinherit' 'OK spool_public_names: login, noinherit' "OK public_export_workspace = $WS_SORTED" \
             'OK PUBLIC holds no table or column privilege' 'OK refused as spool_public_export: SELECT msg FROM messages' \
             'OK refused as spool_public_export: SELECT email FROM humans' 'OK refused as spool_public_export: SELECT count(*) FROM password_credentials' \
             'OK spool_public_names reads: ' 'OK refused as spool_public_names: SELECT root_pubkey FROM tenants'; do
@@ -181,7 +185,9 @@ for c in '.roles.spool_public_export.columns += ["messages.msg:SELECT"]|extra co
          '.roles.spool_public_export.inherit = true|spool_public_export: inherit' \
          '.roles.spool_public_export.owns = 1|owns=1' \
          '.public_grants = ["humans:SELECT"]|PUBLIC holds 1 privilege' \
-         '.workspace = ["t9"]|public_export_workspace holds'; do
+         '.workspace = ["t9"]|public_export_workspace holds t9' \
+         '.workspace = .workspace[1:]|public_export_workspace holds spool,t1, cnf says demo,spool,t1' \
+         '.workspace = []|public_export_workspace holds nothing'; do
   FACTS=$(facts_with "${c%%|*}") in_orc do_spl_public_export_role DRY_RUN=0; rc=$?
   [[ $rc -ne 0 ]] && grep -q "FAIL .*${c#*|}" "$T/out" && pass "5. FAIL on: ${c#*|}" || fail "5. not caught: ${c%%|*}: rc=$rc $(grep -E 'OK|FAIL' "$T/out")"
 done

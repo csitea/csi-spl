@@ -91,6 +91,65 @@ function lockDir(opts, rx, ry, x0, y0) {
   return opts.canRight && opts.canRight(x0, y0) ? 'menu' : null
 }
 
+/** -1 in rtl, else 1: both directions mirror. */
+function swipeSign(opts) {
+  return opts.rtl && opts.rtl() ? -1 : 1
+}
+
+/** Back to idle; only a swipe that had locked calls onCancel when cancelled. */
+function swipeReset(s, opts, cancelled) {
+  const was = s.state
+  s.state = 'idle'
+  s.dx = 0
+  if (was === 'swiping' && cancelled && opts.onCancel) opts.onCancel()
+}
+
+/** A finger down: a second down mid-swipe cancels it; a mouse never starts one. */
+function swipeDown(s, opts, ev) {
+  s.swallow = false
+  if (s.state === 'swiping') return swipeReset(s, opts, true)
+  if (!isTouchLike(ev.pointerType) || ev.isPrimary === false) {
+    s.state = 'idle'
+    return
+  }
+  s.state = 'pending'
+  s.x0 = ev.clientX
+  s.y0 = ev.clientY
+  s.at = { x: s.x0, y: s.y0 }
+  s.dx = 0
+  s.threshold = swipeThresholdPx(opts.width())
+}
+
+/** A move: past SWIPE_LOCK_PX the axis locks (onLock), then the card drags (onMove). */
+function swipeMove(s, opts, ev) {
+  if (ev.isPrimary === false) return
+  if (s.state !== 'pending' && s.state !== 'swiping') return
+  const rx = (ev.clientX - s.x0) * swipeSign(opts)
+  const ry = ev.clientY - s.y0
+  if (s.state === 'pending') {
+    if (Math.hypot(rx, ry) < SWIPE_LOCK_PX) return
+    const locked = lockDir(opts, rx, ry, s.x0, s.y0)
+    if (!locked) return void (s.state = 'off')
+    s.dir = locked
+    s.state = 'swiping'
+    if (opts.onLock) opts.onLock(s.dir)
+  }
+  s.at = { x: ev.clientX, y: ev.clientY }
+  s.dx = Math.max(0, s.dir === 'menu' ? rx : -rx)
+  if (opts.onMove) opts.onMove(s.dx, s.dx >= s.threshold, s.dir)
+}
+
+/** The finger lifted: commit when past the threshold, else cancel. */
+function swipeUp(s, opts) {
+  if (s.state !== 'swiping') return swipeReset(s, opts, false)
+  const commit = s.dx >= s.threshold
+  s.swallow = true
+  s.state = 'idle'
+  s.dx = 0
+  if (commit) opts.onCommit(s.dir, s.at.x, s.at.y)
+  else if (opts.onCancel) opts.onCancel()
+}
+
 /**
  * @param {{ width: () => number, rtl?: () => boolean,
  *   canLeft?: () => boolean,
@@ -105,82 +164,45 @@ function lockDir(opts, rx, ry, x0, y0) {
  * of `canLeft` (which only ever offers 'archive').
  */
 export function createSwipe(opts) {
-  /** 'idle' | 'pending' (finger down, axis not decided) | 'swiping' | 'off' (not ours until lift) */
-  let state = 'idle'
-  let x0 = 0
-  let y0 = 0
-  /** where the finger is now: the menu opens there */
-  let at = { x: 0, y: 0 }
-  let dx = 0
-  /** @type {'archive' | 'hide' | 'menu'} */
-  let dir = 'archive'
-  let threshold = SWIPE_MIN_PX
-  let swallow = false
-  const sign = () => (opts.rtl && opts.rtl() ? -1 : 1)
-
-  function reset(cancelled) {
-    const was = state
-    state = 'idle'
-    dx = 0
-    if (was === 'swiping' && cancelled && opts.onCancel) opts.onCancel()
+  const s = {
+    /** 'idle' | 'pending' (finger down, axis not decided) | 'swiping' | 'off' (not ours until lift) */
+    state: 'idle',
+    x0: 0,
+    y0: 0,
+    /** where the finger is now: the menu opens there */
+    at: { x: 0, y: 0 },
+    dx: 0,
+    /** @type {'archive' | 'hide' | 'menu'} */
+    dir: 'archive',
+    threshold: SWIPE_MIN_PX,
+    swallow: false,
   }
 
   return {
     /** @param {{ pointerType?: string, clientX: number, clientY: number, isPrimary?: boolean }} ev */
     down(ev) {
-      swallow = false
-      if (state === 'swiping') return reset(true)
-      if (!isTouchLike(ev.pointerType) || ev.isPrimary === false) {
-        state = 'idle'
-        return
-      }
-      state = 'pending'
-      x0 = ev.clientX
-      y0 = ev.clientY
-      at = { x: x0, y: y0 }
-      dx = 0
-      threshold = swipeThresholdPx(opts.width())
+      return swipeDown(s, opts, ev)
     },
     /** @param {{ clientX: number, clientY: number, isPrimary?: boolean }} ev */
     move(ev) {
-      if (ev.isPrimary === false) return
-      if (state !== 'pending' && state !== 'swiping') return
-      const rx = (ev.clientX - x0) * sign()
-      const ry = ev.clientY - y0
-      if (state === 'pending') {
-        if (Math.hypot(rx, ry) < SWIPE_LOCK_PX) return
-        const locked = lockDir(opts, rx, ry, x0, y0)
-        if (!locked) return void (state = 'off')
-        dir = locked
-        state = 'swiping'
-        if (opts.onLock) opts.onLock(dir)
-      }
-      at = { x: ev.clientX, y: ev.clientY }
-      dx = Math.max(0, dir === 'menu' ? rx : -rx)
-      if (opts.onMove) opts.onMove(dx, dx >= threshold, dir)
+      swipeMove(s, opts, ev)
     },
     /** the finger lifted: commit when past the threshold */
     up() {
-      if (state !== 'swiping') return reset(false)
-      const commit = dx >= threshold
-      swallow = true
-      state = 'idle'
-      dx = 0
-      if (commit) opts.onCommit(dir, at.x, at.y)
-      else if (opts.onCancel) opts.onCancel()
+      return swipeUp(s, opts)
     },
     cancel() {
-      reset(true)
+      swipeReset(s, opts, true)
     },
     /** true once after a swipe: the click the lift sends is not a tap */
     takeClick() {
-      const was = swallow
-      swallow = false
+      const was = s.swallow
+      s.swallow = false
       return was
     },
-    get swiping() { return state === 'swiping' },
-    get dx() { return dx },
-    get dir() { return dir },
-    get threshold() { return threshold },
+    get swiping() { return s.state === 'swiping' },
+    get dx() { return s.dx },
+    get dir() { return s.dir },
+    get threshold() { return s.threshold },
   }
 }

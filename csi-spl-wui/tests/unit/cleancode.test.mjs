@@ -63,7 +63,6 @@ const LONG = new Map([
   ['src/utils/hours-recorder.mjs createHoursRecorder', 78],
   ['src/utils/move-drag.ts createHandleDrag', 78],
   ['src/utils/perf-rum.mjs createPerfCollector', 80],
-  ['src/utils/swipe-archive.mjs createSwipe', 80],
   ['src/utils/tenant-host-boot.mjs bootTenantHost', 78],
 ])
 

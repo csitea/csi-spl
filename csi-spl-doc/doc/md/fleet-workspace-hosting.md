@@ -27,7 +27,10 @@ It then checks the user holds no root path (`id -nG` is its own group,
 `do_spl_desk_up` with `SPL_WS_BASE=<base>/<W>`. The first start enrols the
 desk with a join token a workspace admin minted for this box
 (`SPOOL_JOIN_TOKEN_FILE`, one use, spec 073); the token goes on stdin, never
-on a command line, and is never printed.
+on a command line, and is never printed. It then sits only in the
+environment of W's own `do_spl_desk_up` process (`SPOOL_JOIN_TOKEN`, which
+desk-up unsets before it starts the desk), readable by W and root alone
+(hidepid).
 
 A box enrolled into one workspace (spec 108 claim) is not a fleet box: the
 action refuses it (exit 3). The fleet's agent user (`SPOOL_AGENT_USER`) is

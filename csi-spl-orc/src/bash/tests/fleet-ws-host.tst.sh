@@ -18,13 +18,14 @@
 #      CONTROL zram and dm-crypt swap pass
 #   6. (n=1) a spec 108 workspace box (no fleet-hosted marker) runs no start
 #      check: the same failing fixtures do not refuse it
-#   7. (n=7) do_spl_fleet_ws_host: the dry run plans useradd in its own group
+#   7. (n=8) do_spl_fleet_ws_host: the dry run plans useradd in its own group
 #      only (no -G, usermod, gpasswd or sudoers) plus lingering and the
 #      marker; DRY_RUN=0 with no OWNER_GO or a malformed one (n=3) is
 #      refused rc 1 with the owner-go FATAL, before any root call and
 #      without the dry-run path; a spec 108 box is refused (exit 3); the
 #      fleet agent user is refused; a
-#      join token of another workspace is refused and no token is printed
+#      join token of another workspace is refused and no token is printed;
+#      the desk start hands the join token to W on stdin, never on argv
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -171,6 +172,17 @@ host SPL_WS_USER=fleetusr; rc=$?
 host SPOOL_JOIN_TOKEN_FILE="$T/tok-other"; rc=$?
 [[ $rc -ne 0 ]] && grep -q "join token of workspace 'wsa'" "$T/o" && ! grep -q 'sk-test-0000' "$T/o" &&
   pass "a join token of another workspace is refused, the token not printed" || fail "other token rc=$rc: $(cat "$T/o")"
+# the desk start (sudo and the uid lookup stubbed as functions): the token
+# reaches W's desk-up on stdin, never sudo's argv or the log
+: >"$T/sudo-argv"; : >"$T/sudo-stdin"
+SNIPPET='id() { if [[ "$1" == -u && $# -eq 2 ]]; then echo 4242; else command id "$@"; fi; }
+  sudo() { printf "%s\n" "$*" >>"$T_ARGV"; [[ "$*" != *do_spl_desk_up* ]] || cat >>"$T_STDIN"; }
+  spl_fws_desk_start "$B" wsa "${P}wsa"' in_orc T_ARGV="$T/sudo-argv" T_STDIN="$T/sudo-stdin" B="$B" P="$P" \
+  DESK_BOX=wsa-fleet1 DESK_AGENT=c-101 SPOOL_JOIN_TOKEN_FILE="$T/tok-ok" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 ]] && grep -q do_spl_desk_up "$T/sudo-argv" && grep -qx 'spj1.wsa.sk-test-0000secret' "$T/sudo-stdin" &&
+  ! grep -q 'sk-test-0000' "$T/sudo-argv" "$T/o" &&
+  pass "the desk start hands the join token to W's desk-up on stdin, never on argv or in the log" ||
+  fail "desk start rc=$rc: $(cat "$T/o"; echo argv:; cat "$T/sudo-argv"; echo stdin:; cat "$T/sudo-stdin")"
 
 echo "=== $( ((fails)) && echo "$fails FAILED" || echo "all passed") ==="
 exit $((fails > 0))

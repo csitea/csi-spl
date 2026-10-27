@@ -130,7 +130,7 @@ spl_fws_verify() {
     got="$("${as_root[@]}" stat -c '%a %U' "$d" 2>/dev/null)"
     [[ "$got" == "700 $u" ]] || { do_log "FATAL $d is '$got', want '700 $u'"; return 1; }
   done
-  [[ "$(head -n 1 "$b/claim" 2>/dev/null)" == "$t" && -e "$b/fleet-hosted" ]] ||
+  [[ "$("${as_root[@]}" head -n 1 "$b/claim" 2>/dev/null)" == "$t" && -e "$b/fleet-hosted" ]] ||
     { do_log "FATAL $b lacks its claim or its fleet-hosted marker"; return 1; }
   g="$(id -nG "$u" 2>/dev/null)"
   [[ "$g" == "$u" ]] || { do_log "FATAL $u is in groups '$g', want its own group only"; return 1; }

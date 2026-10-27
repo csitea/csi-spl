@@ -108,6 +108,8 @@ var operatorCallers = map[string]string{
 	// spec 121 T105: the embed abuse limits and the token sweep (embed_abuse.go).
 	"embedScope": "/v1/embed/<embed-id>/visitor mint (spec 121 6): before the mint the visitor has no channel to scope by; the workspace is the URL embed's (EmbedCustomer) and every statement names it in its WHERE: the address's counters and bans, the embed's live-visitor count. After the mint it runs inChannel",
 	"SweepEmbed": "embed token sweep (spec 121 4.1, hub sweeper goroutine): expired visitor tokens, stale embed counters and lapsed automatic bans of every workspace, global by design; no route",
+	// spec 160 3.7 (SPL-3888): the workspaces-that-stream cap of a file streams announce.
+	"fileStreamWorkspaces": "file streams announce (spec 160 3.7 max_workspaces, box lane frame): a count of the workspaces that stream and whether the box's own is one, inside the box tenant's announce transaction; no row of another workspace is read out",
 }
 
 // operatorEntries are the only functions that set the operator scope:

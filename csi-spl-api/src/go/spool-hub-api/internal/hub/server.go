@@ -263,6 +263,9 @@ type Options struct {
 	// and biz owner (spec 159 3); nil = stored and audited, nobody mailed.
 	VendorKeyMail VendorKeyMailer
 	EmbedLimits   EmbedLimits // specs/121 T105: the section 6 limits (embed_abuse.go)
+	// FileStreamLimits are spec 160 3.7's hub caps (file_streams.go); a zero
+	// field is its default (store.FileStreamLimits.Norm).
+	FileStreamLimits store.FileStreamLimits
 }
 
 // Server is one hub process.

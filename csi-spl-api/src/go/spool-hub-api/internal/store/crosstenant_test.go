@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
 // Cross-tenant suite, store half (specs/017 FR-SEC-015). Postgres
@@ -527,7 +529,26 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// file_streams, file_stream_lines (rdb 0237, spec 160 B2, SPL-3888): box-a
+	// (pinned above) announces one stream and pushes one line carrying the
+	// marker, through the store API.
+	if err := seedFileStreams(ctx, pg, s.tenant, s.marker, now); err != nil {
+		t.Fatal(err)
+	}
 	return s
+}
+
+// seedFileStreams announces stream "app" of box-a in tenant and records one
+// line of text there.
+func seedFileStreams(ctx context.Context, pg *Postgres, tenant, text string, now time.Time) error {
+	lim := FileStreamLimits{MaxWorkspaces: 1 << 20} // the test database keeps other runs' streams
+	in := []wire.FileStreamAnnounced{{StreamKey: "app", Path: "/var/log/app.log", State: wire.FileStreamFollowing}}
+	if _, err := pg.AnnounceFileStreams(ctx, tenant, "box-a", in, lim, now); err != nil {
+		return err
+	}
+	_, err := pg.RecordFileStreamLines(ctx, tenant, "box-a", wire.FileStreamsPushFrame{StreamKey: "app",
+		Lines: []wire.FileStreamLine{{Seq: 1, At: now, Text: "file line " + text}}}, lim, now)
+	return err
 }
 
 // seedGcal writes one Google connection for human and one map row for the

@@ -59,6 +59,8 @@
 //	          pause an agent kind for every box until <until> (RFC 3339)
 //	fleet-tokens push --json <file|->
 //	          hub mode: push the box collector's live token burn buckets (spec 140 3.4)
+//	file-streams push --json <file|->
+//	          hub mode: send the box file follower's announce or masked lines (spec 160 3.3)
 //	ask     [list|put|ack|done|decline|raise|escalate] --fleet <f> [--id <msg id> ...]
 //	          hub mode: the fleet's asks to the orchestrator, tracked until closed (CLE-77929)
 //	claim   (--poll [--max n] | --renew | --release <msg> --reason <r> | --done <msg> [--how h]) --as <seat> [--ttl s] [--gen g]
@@ -178,6 +180,7 @@ on a box (an agent's machine):
   box-beat            beat this box once and print the hub's ack (put --pid), or read the beats (list)
   fleet-load          print the instance's fleet load target (get): the band and the box fill order
   fleet-tokens        push the box collector's token burn buckets (push --json <file|->)
+  file-streams        send the box file follower's announce or lines (push --json <file|->)
   ask                 list, record (put) or work (ack|done|decline) the asks to the orchestrator
   claim               a peer seat locks (--poll), keeps (--renew), gives back (--release) or closes (--done) messages
   doc-list            list workspace docs; an optional prefix keeps that folder
@@ -332,7 +335,7 @@ func runBoxCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdLease(cfg, rest)
 	case "lane": // CLE-77920
 		return cmdLane(cfg, rest)
-	case "box-stats", "caps", "box-beat", "fleet-load", "fleet-tokens":
+	case "box-stats", "caps", "box-beat", "fleet-load", "fleet-tokens", "file-streams":
 		return runFleetCmd(cfg, cmd, rest)
 	case "lifecycle": // spec 063 sections 11 + 12
 		return cmdLifecycle(cfg, rest)
@@ -366,6 +369,8 @@ func runFleetCmd(cfg *config.Config, cmd string, rest []string) int {
 		return cmdBoxBeat(cfg, rest)
 	case "fleet-load": // rdb 0118
 		return cmdFleetLoad(cfg, rest)
+	case "file-streams": // spec 160 3.3, rdb 0237
+		return cmdFileStreams(cfg, rest)
 	default: // fleet-tokens: spec 140 3.4, rdb 0199
 		return cmdFleetTokens(cfg, rest)
 	}

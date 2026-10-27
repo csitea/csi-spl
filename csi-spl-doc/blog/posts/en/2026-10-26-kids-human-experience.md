@@ -11,6 +11,8 @@ agy_review: a-049
 tags: [customers, human-experience, education, agents, open-source]
 image: 2026-10-26-kids-human-experience.webp
 image_alt: "A big group of young people jump for joy on the old stone steps of a castle under a clear blue summer sky."
+gallery: [2026-10-26-kids-human-experience-g1.webp, 2026-10-26-kids-human-experience-g2.webp]
+gallery_alt: ["Five smiling teenage girls sit side by side on a low stone wall under tall palm trees in warm evening sunlight.", "A black-and-white photo of a big group of young people crowding together for a selfie, one of them holding up a phone."]
 draft: false
 ---
 For teenagers, a summer language camp in the Mediterranean is an unforgettable milestone: gaining confidence speaking a foreign language, discovering Valencian culture, making international friends, and creating lifelong memories.

@@ -153,6 +153,17 @@ per run) when that is over 1, never above a cap:
 out logs `TIMED OUT after <n>s (<why>)`, and for a default budget the why
 names the base, the load it read, the cap and the variable that raises it.
 
+A process a part leaves behind (a test's `setsid` child, a test daemon that
+escaped its cleanup) can no longer hold the hook past the part's budget
+(SPL-3907). Such an orphan kept the part's output pipe open, so the hook
+waited forever: 2h10m and 65 min lost on 2026-10-27 (n=2). Once the part
+returns, its output gets `PRE_PUSH_ORPHAN_GRACE` seconds (default 5) to
+drain; every process still holding the pipe is then sent TERM, KILL after
+the same grace, and the log names each one: `WARN pre-push: orphan pid <pid>
+(<command>) still held the part's output pipe ...`. That line points at the
+test that leaks a process; fix the test, the hook only cleans up after it.
+The orc runner hands a test no fd beyond its own stdout and stderr.
+
 The orc base was 1800 s, a CI shard's time rather than the whole suite's.
 On the first desk box (16 cpus) every green full-tier orc run took longer:
 1941..2274 s at under 1 load per cpu (n=12, 2026-10-14..27), so a lane could

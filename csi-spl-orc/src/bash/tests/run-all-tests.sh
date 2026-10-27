@@ -205,7 +205,9 @@ if (( njobs == 1 )); then
     n=$((n + 1))
     echo "=== $(basename "$t")"
     t0=$EPOCHREALTIME rc=0
-    { time bash "$t" 2>&3; } 3>&2 2>"$times.cpu" || rc=$?
+    # 3>&-: the test gets its own stdout/stderr only; an fd 3 it inherited
+    # (the pre-push part's tee pipe) let an orphan of it hang the hook (SPL-3907)
+    { time bash "$t" 2>&3 3>&-; } 3>&2 2>"$times.cpu" || rc=$?
     (( rc == 0 )) || { echo "FAILED: $(basename "$t")"; fails=$((fails + 1)); }
     echo "$t0 $EPOCHREALTIME $(awk '{ print $1 + $2 }' "$times.cpu") $(basename "$t")" >>"$times"
   done

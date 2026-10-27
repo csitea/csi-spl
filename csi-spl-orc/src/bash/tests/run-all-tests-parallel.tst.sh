@@ -16,6 +16,9 @@
 #   starts the heaviest first, and ORC_TEST_TIMES=1 lists every file's time.
 #   A suite stopped by TERM prints every finished file with its verdict and
 #   '=== stopped: N of M files finished, K not run', and exits non-zero.
+#   A test gets only its own stdout and stderr, never the runner's spare fd 3
+#   (ORC_TEST_JOBS=1 ran each file with it open): a process the test leaves
+#   behind kept the pre-push part's tee pipe open and hung the hook (SPL-3907).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -60,6 +63,13 @@ grep -q '4/5 test files passed' "$T/out" && pass "the count is 4/5" || fail "the
 env "$JOBS_VAR=1" BARRIER=0 bash "$T/run-all-tests.sh" >"$T/out1" 2>&1; rc1=$?
 [ "$rc1" -ne 0 ] && grep -qx 'FAILED: d-fail.tst.sh' "$T/out1" && grep -q '4/5 test files passed' "$T/out1" \
   && pass "$JOBS_VAR=1 gives the same verdicts" || fail "$JOBS_VAR=1 gives the same verdicts" "rc=$rc1 $(cat "$T/out1")"
+
+F3=$T/fd3; mkdir -p "$F3"
+cp "$RUNNER" "$F3/run-all-tests.sh"
+printf '#!/usr/bin/env bash\nif [ -e /dev/fd/3 ]; then echo "fd3-open"; else echo "fd3-closed"; fi\n' >"$F3/a-fd.tst.sh"
+env "$JOBS_VAR=1" bash "$F3/run-all-tests.sh" >"$T/outfd" 2>&1
+grep -qx 'fd3-closed' "$T/outfd" && pass "$JOBS_VAR=1 hands a test no fd beyond its stdout and stderr" \
+  || fail "$JOBS_VAR=1 hands a test no fd beyond its stdout and stderr" "$(cat "$T/outfd")"
 
 env "$JOBS_VAR=x" bash "$T/run-all-tests.sh" >"$T/outx" 2>&1; rcx=$?
 [ "$rcx" -eq 2 ] && grep -q "$JOBS_VAR must be a positive integer" "$T/outx" \

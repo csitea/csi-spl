@@ -939,11 +939,58 @@ _pp_run() {  # <label> <fn> <tree> <base> [<part>]
 # A part's output is tee'd to <file> as it streams (stdout + stderr), and the
 # part runs in THIS shell (a process substitution, not a pipeline), so its rc
 # is its own and nothing it sets is lost.
+# tee ends only when every writer of its pipe has closed it, and a process the
+# part left behind (a test's `setsid` child, a test daemon that escaped its
+# cleanup) inherits that write end. Such an orphan held the hook past the part's
+# budget for 2h10m and 65 min (n=2, 2026-10-27, SPL-3907). So once the part has
+# returned, tee gets PRE_PUSH_ORPHAN_GRACE seconds (default 5) to drain; every
+# process still holding the pipe's write end is then the part's orphan: TERM,
+# KILL after the same grace, and one WARN line names each (the leaking test).
+# A process group would not catch it: `setsid` leaves the group by design.
 _pp_capture() {  # <file> <fn> <tree>
-  local f="$1" fn="$2" rc=0; shift 2
+  local f="$1" fn="$2" rc=0 tee; shift 2
   "$fn" "$@" > >(tee "$f") 2>&1 || rc=$?
-  wait $! 2>/dev/null || true
+  tee=$!
+  _pp_drain "$tee" || _pp_orphans_reap "$tee"
+  wait "$tee" 2>/dev/null || true
   return "$rc"
+}
+_pp_alive() {  # <pid>: running (a zombie is not)
+  local s; s="$(ps -o stat= -p "$1" 2>/dev/null)" && [[ -n "$s" && "$s" != Z* ]]
+}
+_pp_drain() {  # <pid>: 0 when it ends within PRE_PUSH_ORPHAN_GRACE seconds
+  local i n=$(( ${PRE_PUSH_ORPHAN_GRACE:-5} * 10 ))
+  for (( i = 0; i <= n; i++ )); do
+    _pp_alive "$1" || return 0
+    sleep 0.1
+  done
+  return 1
+}
+# The pids (but <tee> and this shell) holding the write end of <tee>'s stdin
+# pipe: an fd that links to its pipe:[inode] with O_WRONLY in its fdinfo flags.
+_pp_pipe_writers() {  # <tee pid>
+  local ino pat l p fd fl
+  ino="$(readlink "/proc/$1/fd/0" 2>/dev/null)" || return 0
+  [[ "$ino" == pipe:* ]] || return 0
+  pat="${ino//[/\\[}"; pat="${pat//]/\\]}"
+  find /proc/[0-9]*/fd -maxdepth 1 -lname "$pat" 2>/dev/null | while IFS= read -r l; do
+    p="${l#/proc/}"; p="${p%%/*}"; fd="${l##*/}"
+    [[ "$p" == "$1" || "$p" == "$BASHPID" || "$p" == "$$" ]] && continue
+    fl="$(awk '/^flags:/ { print $2 }' "/proc/$p/fdinfo/$fd" 2>/dev/null)"
+    [[ -n "$fl" ]] && (( (8#$fl & 3) == 1 )) && echo "$p"
+  done | sort -un
+}
+_pp_orphans_reap() {  # <tee pid>
+  local tee="$1" g="${PRE_PUSH_ORPHAN_GRACE:-5}" p sig
+  for sig in TERM KILL; do
+    for p in $(_pp_pipe_writers "$tee"); do
+      do_log "WARN pre-push: orphan pid $p ($(ps -o args= -p "$p" 2>/dev/null | cut -c1-160)) still held the part's output pipe ${g}s after the part ended -- sending $sig; the test that started it leaks a process"
+      kill "-$sig" "$p" 2>/dev/null || true
+    done
+    _pp_drain "$tee" && return 0
+  done
+  do_log "WARN pre-push: the part's output pipe is still held after TERM and KILL -- ending its tee (pid $tee) so the hook goes on"
+  kill "$tee" 2>/dev/null || true
 }
 
 # The FAILURE SIGNATURE of a part's output: one normalised item per failing

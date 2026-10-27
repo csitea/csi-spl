@@ -17,13 +17,46 @@ import (
 const (
 	maxFuncLines = 80 // a function longer than this is split, or listed below with a reason
 	maxDepth     = 4  // nested if / for / switch / select levels (SPL-1032/1033 took it from 6)
-	maxParams    = 8  // pass the struct instead (SPL-1039 took the maximum from 10)
+	maxParams    = 7  // pass the struct instead (SPL-1039 took the maximum from 10; SPL-3689 from 8)
+	// maxParamsListed is the old maximum: a wideFuncs entry may take up to
+	// this many parameters, never more.
+	maxParamsListed = 8
 )
 
 // longFuncs are the functions over maxFuncLines when the gate landed. The
 // list may only shrink: split one and delete its line. A NEW long function
 // fails the gate; add it here only with a reason in the commit.
 var longFuncs = map[string]bool{}
+
+// wideFuncs are the functions over maxParams when it dropped from 8 to 7
+// (SPL-3689); each may take at most maxParamsListed. The list may only
+// shrink: split a function's parameters into the struct they belong to and
+// delete its line. A NEW function over maxParams fails the gate. The
+// Memory / Postgres pairs (MoveMessage, MergeTopic, CASFleetLease,
+// IssueToken) implement one interface and leave the list together.
+var wideFuncs = map[string]bool{
+	"internal/auth/native_store.go (*MemoryCredStore).IssueToken":          true,
+	"internal/auth/native_store_postgres.go (PgCredStore).IssueToken":      true,
+	"internal/cicdlogs/cicdlogs.go ParseSettings":                          true,
+	"internal/cicdlogs/cicdlogs.go ValidateHubEnv":                         true,
+	"internal/hub/box_lock_routes.go (*Server).lockStatementOK":            true,
+	"internal/hub/demo_quota.go (*Server).takeDemoQuota":                   true,
+	"internal/hub/memberactivity.go (authActivityAdapter).RecordAuthEvent": true,
+	"internal/hub/merge.go (*Server).fanoutMerged":                         true,
+	"internal/hub/merge.go (*Server).mergePair":                            true,
+	"internal/hub/reactions.go (*Server).reactionStore":                    true,
+	"internal/hub/repo_docs_edit.go (*Server).repoDocSaveChecks":           true,
+	"internal/hub/repo_docs_edit.go (*Server).repoDocSaveWrite":            true,
+	"internal/hub/search.go (*Server).searchSections":                      true,
+	"internal/hub/view.go (*Server).inlineMessages":                        true,
+	"internal/store/fleet_lease.go (*Memory).CASFleetLease":                true,
+	"internal/store/fleet_lease_postgres.go (*Postgres).CASFleetLease":     true,
+	"internal/store/message_move.go (*Memory).MoveMessage":                 true,
+	"internal/store/message_move_postgres.go (*Postgres).MoveMessage":      true,
+	"internal/store/message_move_postgres.go scanMove":                     true,
+	"internal/store/topic_merge.go (*Memory).MergeTopic":                   true,
+	"internal/store/topic_merge_postgres.go (*Postgres).MergeTopic":        true,
+}
 
 // folded are helpers that exist ONCE; the pattern may appear only in the
 // named file (SPL-1030, SPL-1031).
@@ -54,7 +87,7 @@ func TestCleanCodeGate(t *testing.T) {
 	if len(fns) < 1000 {
 		t.Fatalf("scanned %d functions under %s: the walk is broken, not the code", len(fns), root)
 	}
-	seen := map[string]bool{}
+	seen, seenWide := map[string]bool{}, map[string]bool{}
 	for _, f := range fns {
 		if f.lines > maxFuncLines {
 			seen[f.key] = true
@@ -66,18 +99,17 @@ func TestCleanCodeGate(t *testing.T) {
 			t.Errorf("%s nests %d levels (> %d): extract the inner loop body (see SPL-1032, SPL-1033)", f.key, f.depth, maxDepth)
 		}
 		if f.params > maxParams {
-			t.Errorf("%s takes %d parameters (> %d): pass the struct the values belong to (see SPL-1039)", f.key, f.params, maxParams)
+			seenWide[f.key] = true
+			if limit := wideLimit(f.key); f.params > limit {
+				t.Errorf("%s takes %d parameters (> %d): pass the struct the values belong to (see SPL-1039)", f.key, f.params, limit)
+			}
 		}
 	}
-	var stale []string
-	for k := range longFuncs {
-		if !seen[k] {
-			stale = append(stale, k)
-		}
-	}
-	sort.Strings(stale)
-	for _, k := range stale {
+	for _, k := range staleKeys(longFuncs, seen) {
 		t.Logf("longFuncs: %q is no longer over %d lines - delete its line", k, maxFuncLines)
+	}
+	for _, k := range staleKeys(wideFuncs, seenWide) {
+		t.Logf("wideFuncs: %q no longer takes more than %d parameters - delete its line", k, maxParams)
 	}
 	for _, b := range banned {
 		for path, src := range srcs {
@@ -93,6 +125,28 @@ func TestCleanCodeGate(t *testing.T) {
 			}
 		}
 	}
+}
+
+// wideLimit is the parameter ceiling for key: maxParamsListed for a
+// wideFuncs entry, maxParams for every other function.
+func wideLimit(key string) int {
+	if wideFuncs[key] {
+		return maxParamsListed
+	}
+	return maxParams
+}
+
+// staleKeys are the sorted entries of list the scan did not see over its
+// limit: their lines can go.
+func staleKeys(list, seen map[string]bool) []string {
+	var stale []string
+	for k := range list {
+		if !seen[k] {
+			stale = append(stale, k)
+		}
+	}
+	sort.Strings(stale)
+	return stale
 }
 
 // scan parses every non-test .go file under root: one fn per declared

@@ -18,7 +18,7 @@ GCP estate), how long each takes, the one command and what to do when it fails.
 <a id="ws-doc-44f8d976-8403-44c7-9e79-54b2e0da8749"></a>
 ## Quick start (local)
 
-Needs Docker with the compose plugin.
+Needs git and Docker with the compose plugin.
 
 ```bash
 git clone https://github.com/csitea/csi-spl.git csi/csi-spl
@@ -30,12 +30,16 @@ docker compose logs hub-init
 (The `csi/csi-spl` layout matters only for the agent installer below: its
 `./run` actions read the org from the parent directory.)
 
-Open <http://localhost:8080> and sign up. On localhost the first person who
+Open <http://localhost:8080> and sign up. The stack listens on 127.0.0.1
+only: on a remote machine, open a tunnel from your own one first
+(`ssh -L 8080:localhost:8080 <vm>`), or serve it on a domain
+([Your own domain](#your-own-domain)). On localhost the first person who
 confirms their email becomes the owner of the seeded tenant. In the local
 profile the sign-up form shows the confirmation link itself, so no mail server
 is needed. `docker compose logs hub-init` prints the owner rule and the one
 line that seats an agent (next section). The whole stack idles at about
-110 MiB of RAM.
+220 MiB of RAM (the sum of `docker stats --no-stream`, 12 minutes after the
+start; the s3 file store is about 130 MiB of it).
 
 Every setting has a working local default. To change one, copy
 [`.env.example`](.env.example) to `.env` and uncomment what you need. Never
@@ -86,10 +90,17 @@ local defaults it is:
 (umask 077; docker compose exec -T hub cat /var/lib/spool/state/tenant-root.key >"$HOME/.spool-root-main.key") && SPOOL_HUB_URL=http://localhost:8080 ROOT_KEY_JSON="$HOME/.spool-root-main.key" bash csi-spl-orc/src/bash/features/spool-install/install.sh --env self --tenant main --cli claude
 ```
 
-It needs git, python3, curl and tmux; it installs the Claude Code CLI, Go and
-the `spool` CLI under your home (no sudo), and pins this machine's box key at
-the hub. `--env self` means "a hub of my own": any URL, no hosted
-configuration. Then, inside tmux, `spool-agent claude` starts an agent that
+It needs git, python3, perl, tar, curl (or wget), flock and setsid
+(util-linux), and tmux to seat an agent; a missing one is named with the
+package line to install it. It installs the Claude Code CLI, Go and the `spool`
+CLI under your home (no sudo), and pins this machine's box key at the hub. It
+also writes to your home: one completion line in `~/.bashrc` (the original is
+kept as `~/.bashrc.bak-spool-install`), the terminal mirror hooks in
+`~/.claude/settings.json`, and slash commands and skills in
+`~/.claude/commands` and `~/.claude/skills`. Add `--dry-run` to print the plan
+and change nothing. `--env self` means "a hub of my own": any URL, no hosted
+configuration. The agent runs on your own Claude login: run `claude` once and
+sign in before you seat it. Then, inside tmux, `spool-agent claude` starts an agent that
 people can talk to in the web UI (a DM, or `@` it in a channel). Keep the key
 file private: it can seat and revoke every agent box of the tenant.
 

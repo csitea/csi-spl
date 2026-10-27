@@ -26,7 +26,9 @@
 # @description A lane's AGENT_ID must push from that lane's own worktree (spawn's
 # @description <main>-wt/<AGENT_ID>, or a linked worktree on branch <AGENT_ID>-*):
 # @description any other tree, the main checkout included, is a FATAL at start
-# @description (m-181 pushed the main checkout, origin's own head, and read LANDED). It never forces, never sets SPL_PREPUSH_OVERRIDE
+# @description (m-181 pushed the main checkout, origin's own head, and read LANDED).
+# @description An origin url or pushurl with embedded credentials (`https://<user>[:<token>]@...`) is a FATAL at start
+# @description too, naming the repo and the `git -C <repo> remote set-url` fix, the userinfo masked; it never rewrites the URL (SPL-3766). It never forces, never sets SPL_PREPUSH_OVERRIDE
 # @description (it unsets it, and AGENT_ID: the hook sees a hand push's env) and never edits a file; a rebase conflict is aborted.
 # @description Its push is MARKED (SPL-2211: a one-push token while the worker holds the lock):
 # @description the pre-push hook refuses a lane's unmarked hand push to master before the gate.
@@ -76,6 +78,7 @@ _spl_push_master_state_dir() {
 _spl_push_master_start() {
   local wt="$1" state="$2" self name email
   _spl_push_master_own_tree "$wt" || return 1
+  _spl_push_master_url_creds "$wt" || return 1
   [[ "${PUSH_RETRIES:-4}" =~ ^[1-9][0-9]?$ ]] || { echo "FATAL PUSH: PUSH_RETRIES must be 1..99"; return 1; }
   if ! flock -n "$state/lock" true 2>/dev/null; then
     echo "PUSH: a push is already running for $wt"; _spl_push_master_status "$state"; return 3
@@ -98,6 +101,33 @@ _spl_push_master_start() {
       source "$1" && _spl_push_master_worker' _ "$self" </dev/null >>"$state/log" 2>&1
   echo "PUSH: started for $(git -C "$wt" rev-parse --short HEAD) in $wt"
   echo "PUSH: poll with PUSH_CMD=status (state $state)"
+}
+
+# _spl_push_master_url_creds <worktree> - 0 unless the push remote's url or
+# pushurl carries userinfo (`scheme://<user>[:<token>]@host`): FATAL naming the
+# repo, the URL with its userinfo masked, and the set-url fix. It never prints
+# the userinfo and never rewrites the URL. On 2026-10-26 a box's origin became
+# `https://x-access-token:@github.com/...` (empty token): it no longer matched
+# the box's `pushInsteadOf https://github.com/`, so every lane's push went
+# over https with no password and failed. An ssh URL with a bare user
+# (`git@host:...`, `ssh://git@host/...`) is not a credential and passes.
+_spl_push_master_url_creds() {
+  local wt="$1" remote="${PUSH_REMOTE:-origin}" key u scheme rest auth ui bad=0 flag
+  for key in url pushurl; do
+    while IFS= read -r u; do
+      [[ "$u" =~ ^([A-Za-z][A-Za-z0-9+.-]*)://(.*)$ ]] || continue
+      scheme="${BASH_REMATCH[1]}" rest="${BASH_REMATCH[2]}"
+      auth="${rest%%/*}"
+      [[ "$auth" == *@* ]] || continue
+      ui="${auth%@*}"
+      [[ "$scheme" =~ ^(ssh|git\+ssh|ssh\+git)$ && "$ui" != *:* ]] && continue
+      flag=""; [[ "$key" == pushurl ]] && flag="--push "
+      echo "FATAL PUSH: $wt: $remote URL carries embedded credentials (remote.$remote.$key = $scheme://***@${rest#*"$ui"@}); a push over it fails or leaks the token. Fix it, then push again:"
+      echo "  git -C $wt remote set-url $flag$remote $scheme://${rest#*"$ui"@}"
+      bad=1
+    done < <(git -C "$wt" config --get-all "remote.$remote.$key" 2>/dev/null)
+  done
+  return "$bad"
 }
 
 # _spl_push_master_status <state> - prints the status file; the exit code is

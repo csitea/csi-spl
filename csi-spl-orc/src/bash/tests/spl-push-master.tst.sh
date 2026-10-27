@@ -39,6 +39,17 @@
 #      sha itself is pushed: PUSHED <sha>, on origin, the log says `HEAD moved
 #      during the push`; a push that exits 0 but lands nothing -> GAVE-UP
 #      naming the sha, never PUSHED
+#  13. origin's URL carries embedded credentials (2026-10-26: an empty token
+#      in `https://x-access-token:@github.com/...` broke every push of a box):
+#      `https://x-access-token:@...`, `https://user:tok@...`, a bare-user
+#      `https://user@...` and the same in pushurl -> start exits 1, names the
+#      repo, says `origin URL carries embedded credentials`, never prints the
+#      userinfo, prints `git -C <repo> remote set-url origin <url without
+#      userinfo>` (`--push` for a pushurl), no status file, nothing pushed,
+#      the URL not rewritten;
+#      control: `git@github.com:x/y.git` and `ssh://git@github.com/x/y.git`
+#      push. url.<temp origin>.insteadOf maps each URL onto the temp origin:
+#      no network, and without the guard the creds URL lands (the red)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -273,6 +284,41 @@ commit twelve-b; sha="$(git -C "$L" rev-parse HEAD)"
 run PATH="$T/gitwrap:$PATH" >/dev/null; v="$(verdict)"; vrc=$?
 [ "$vrc" -eq 1 ] && grep -q "^GAVE-UP .*$sha is not on origin/master" <<<"$v" && ! on_origin "$sha" \
   && pass "12. a push that exits 0 but lands nothing -> GAVE-UP naming the sha, not PUSHED" || fail "12. noop (rc $vrc: $v)"
+
+# 13 an origin URL with embedded credentials is refused at start, never rewritten
+git -C "$L" switch -q lane-branch 2>/dev/null; rm -f "$T/git.mode"; echo ok >"$T/hook.mode"
+creds13() {
+  local url="$1" clean="$2" secret="$3" key="${4:-url}" s13="$T/state13-$RANDOM" out rc before c
+  git -C "$L" config "url.$B.insteadOf" "$url"
+  git -C "$L" config "remote.origin.$key" "$url"
+  commit "thirteen-$RANDOM"; c="$(git -C "$L" rev-parse HEAD)"; before="$(git --git-dir="$B" rev-parse master)"
+  out="$(SNIPPET='do_spl_push_master' in_orc PUSH_WORKTREE="$L" PUSH_STATE_DIR="$s13" FETCH_FRESH_MAX_AGE=0 GIT_TERMINAL_PROMPT=0 2>&1)"; rc=$?
+  if [ "$rc" -eq 0 ]; then S="$s13" verdict >/dev/null; fi
+  [ "$rc" -eq 1 ] && grep -qF "FATAL PUSH: $L: origin URL carries embedded credentials" <<<"$out" \
+    && grep -qxF "  git -C $L remote set-url $([ "$key" = pushurl ] && echo "--push ")origin $clean" <<<"$out" && ! grep -qF -- "$secret" <<<"$out" \
+    && [ ! -e "$s13/status" ] && [ "$(git --git-dir="$B" rev-parse master)" = "$before" ] && ! on_origin "$c" \
+    && [ "$(git -C "$L" config --get "remote.origin.$key")" = "$url" ] \
+    && pass "13. origin $key $5 -> exit 1, names the repo and the set-url fix, token masked, nothing pushed, URL kept" \
+    || fail "13. $key $5 (rc $rc: $out | on origin: $(on_origin "$c" && echo yes || echo no))"
+  git -C "$L" config --unset "url.$B.insteadOf"
+  if [ "$key" = url ]; then git -C "$L" remote set-url origin "$B"; else git -C "$L" config --unset remote.origin.pushurl; fi
+  git -C "$L" reset -q --hard "$(git --git-dir="$B" rev-parse master)"
+}
+creds13 'https://x-access-token:@github.com/x/y.git' 'https://github.com/x/y.git' 'x-access-token' url 'https://x-access-token:@... (empty token)'
+creds13 'https://user:tok-SECRET13@github.com/x/y.git' 'https://github.com/x/y.git' 'tok-SECRET13' url 'https://user:tok@...'
+creds13 'https://user13@github.com/x/y.git' 'https://github.com/x/y.git' 'user13' url 'https://user@... (no password)'
+creds13 'https://user:tok-SECRET13@github.com/x/y.git' 'https://github.com/x/y.git' 'tok-SECRET13' pushurl 'https://user:tok@...'
+ssh13() {
+  local url="$1" out rc c
+  git -C "$L" config "url.$B.insteadOf" "$url"; git -C "$L" remote set-url origin "$url"
+  commit "thirteen-ssh-$RANDOM"; c="$(git -C "$L" rev-parse HEAD)"
+  out="$(run GIT_TERMINAL_PROMPT=0)"; rc=$?; v="$(verdict)"; vrc=$?
+  [ "$rc" -eq 0 ] && [ "$vrc" -eq 0 ] && grep -qx "PUSHED $c" <<<"$v" && on_origin "$c" \
+    && pass "13. control: origin $url (ssh, no credential) -> PUSHED" || fail "13. control $url (rc $rc/$vrc: $out | $v)"
+  git -C "$L" config --unset "url.$B.insteadOf"; git -C "$L" remote set-url origin "$B"
+}
+ssh13 'git@github.com:x/y.git'
+ssh13 'ssh://git@github.com/x/y.git'
 
 echo "spl-push-master: $fails failure(s)"
 [ "$fails" -eq 0 ]

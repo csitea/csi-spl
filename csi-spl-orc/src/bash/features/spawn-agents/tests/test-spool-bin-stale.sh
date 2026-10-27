@@ -11,6 +11,11 @@
 #   5. an explicit SPOOL_BIN always wins, with no check
 #   6. not a git checkout: the build is used, not judged
 #   7. SPOOL_BIN_STALE_WARN=0 (the orc test lib): still skipped, no WARN
+#   8. SPL-3749: an older mtime but built from HEAD's sources (its embedded
+#      main.commit) is used: a rebuild Go left byte-identical, a build made
+#      before its sources were committed or re-stamped by a rebase
+#   9. control: built from a commit whose sources differ from HEAD's: stale
+#  10. control: built from a commit this tree does not know: stale
 set -uo pipefail
 . "$(dirname "$0")/lib.inc.sh"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
@@ -38,6 +43,22 @@ rm -f "$T/home/.local/bin/spool"
 eq "4 nothing else: the stale build anyway" "$API/bin/spool" "$(resolve "$T/nopath")"
 has "4 ... with a WARN" "using the stale" "$(cat "$T/err")"
 eq "5 an explicit SPOOL_BIN wins" "/explicit/spool" "$(resolve "$T/path" /explicit/spool)"
+stamp() { printf '#!/bin/sh\n# main.commit=%s\necho %s\n' "$1" "$API/bin/spool" >"$API/bin/spool"; touch -d "@$((src - 86400))" "$API/bin/spool"; }
+old="$(git -C "$R" rev-parse HEAD)"
+echo 'package x // more' >"$API/internal/x.go"
+echo doc >"$R/README.md"
+git -C "$R" add -A && git -C "$R" -c user.email=t@example.com -c user.name=t commit -q -m src2
+echo doc2 >"$R/README.md"
+git -C "$R" add -A && git -C "$R" -c user.email=t@example.com -c user.name=t commit -q -m doc
+src="$(git -C "$R" log -1 --format=%ct -- "$API/internal")"
+stamp "$(git -C "$R" rev-parse HEAD~1)"
+eq "8 an older mtime, built from HEAD's sources: the build is used" "$API/bin/spool" "$(resolve "$T/path")"
+eq "8 ... with no WARN" "" "$(cat "$T/err")"
+stamp "$old"
+eq "9 built from older sources: still skipped" "$T/path/spool" "$(resolve "$T/path")"
+has "9 ... with the WARN" "is older than its sources" "$(cat "$T/err")"
+stamp "$(printf 'f%.0s' {1..40})"
+eq "10 built from an unknown commit: still skipped" "$T/path/spool" "$(resolve "$T/path")"
 rm -rf "$R/.git"
 eq "6 not a git checkout: the build is used" "$API/bin/spool" "$(resolve "$T/path")"
 t_done

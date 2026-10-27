@@ -52,17 +52,35 @@
 # sets it) keeps the skip but drops the WARN: a lane worktree's git-ignored
 # bin/spool is stale after any api commit, and a test that captures 2>&1 read
 # the line as its own output (SPL-2911).
+# An older mtime alone is not proof (SPL-3749): a commit's time is when it was
+# committed, not when its sources changed, so a build made before its sources
+# were committed (or before a rebase re-stamped them) read stale, and c-168's
+# gate run failed on a fresh binary until `touch bin/spool`. So the binary's
+# own build stamp decides: build.sh embeds -X main.commit=<sha>, and when this
+# tree's sources at HEAD equal that commit's, the build is current.
 _spool_bin_stale() {  # REPO BUILT
   local api=csi-spl-api/src/go/spool-hub-api src built
   src="$(git -C "$1" log -1 --format=%ct -- "$api/cmd" "$api/internal" "$api/go.mod" 2>/dev/null)"
   [ -n "$src" ] || return 1
   built="$(stat -c %Y "$2" 2>/dev/null)" || return 1
-  if [ "$built" -lt "$src" ]; then
+  if [ "$built" -lt "$src" ] && ! _spool_bin_built_from_head "$1" "$2"; then
     [ "${SPOOL_BIN_STALE_WARN:-1}" = 0 ] ||
     echo "spool-env: WARN $2 is older than its sources (built $(date -u -d "@$built" +%FT%TZ), last source commit $(date -u -d "@$src" +%FT%TZ)); not using it. Rebuild: bash $1/csi-spl-api/src/bash/build.sh $2" >&2
     return 0
   fi
   return 1
+}
+
+# 0 when BUILT carries a main.commit this tree knows and the spool sources
+# did not change from it to HEAD. Read with grep, not `go version -m`: no Go
+# toolchain is needed to resolve SPOOL_BIN (~40 ms on a 62 MB binary, only on
+# the older-mtime path).
+_spool_bin_built_from_head() {  # REPO BUILT
+  local api=csi-spl-api/src/go/spool-hub-api c
+  c="$(grep -a -o -m1 'main\.commit=[0-9a-f]\{40\}' "$2" 2>/dev/null | head -n1)"
+  c="${c#main.commit=}"
+  [ -n "$c" ] && git -C "$1" cat-file -e "$c^{commit}" 2>/dev/null &&
+    git -C "$1" diff --quiet "$c" HEAD -- "$api/cmd" "$api/internal" "$api/go.mod" 2>/dev/null
 }
 
 # The spool on PATH, else the box user's ~/.local/bin/spool (not on a

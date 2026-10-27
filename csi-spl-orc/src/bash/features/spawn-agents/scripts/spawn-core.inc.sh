@@ -271,6 +271,22 @@ _spawn_worktree() {
   RUNDIR="$WORKTREE_DIR"
 }
 
+# _spawn_lane_topic FILE: the first HUB topic FILE names, written
+# `topic:<id>`, `topic <id>` or `/t/<id>` (a full uuid, or an 8-hex short id
+# the hub resolves at put); never a bare uuid, which may be a spool task
+# alias's; else (spec 153 v1.3 3.8) the 8 hex of the first
+# `dispatch-<topic8>` task it names (a seat's `Task:` line or a lane's report
+# task), which the hub resolves in the workspace that holds it; never a
+# `dispatch-orc-<topic8>` relay task. Nothing for no file.
+_spawn_lane_topic() {
+  local f="${1:-}" t
+  [ -n "$f" ] && [ -r "$f" ] || return 0
+  t="$(grep -oE '([Tt]opic[: ]+`?|/t/)[0-9a-f]{8}(-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?([^0-9A-Za-z-]|$)' "$f" 2>/dev/null |
+    head -1 | grep -oE '[0-9a-f]{8}(-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?' | head -1)"
+  [ -n "$t" ] || t="$(grep -oE '(^|[^0-9A-Za-z-])dispatch-[0-9a-f]{8}([^0-9A-Za-z-]|$)' "$f" 2>/dev/null | head -1 | grep -oE '[0-9a-f]{8}' | head -1)"
+  printf '%s' "$t"
+}
+
 # The agent's row in the fleet-wide lane map (CLE-77920, specs/058 N2):
 # <TITLE>@<box>, repo, branch, scope, files, topic, state live. Best effort and
 # in the background: a spawn never waits on, or fails for, the hub. Without a
@@ -279,23 +295,17 @@ _spawn_worktree() {
 # default the brief's first `Files:` line, so `--check` sees the lane's files
 # from spawn on) and SPAWN_LANE_TOPIC fill the row.
 # Spec 153 3.4: the topic is SPAWN_LANE_TOPIC, else LANE_ISSUE_TOPIC, else the
-# brief's first HUB topic written `topic:<id>`, `topic <id>` or `/t/<id>` (a
-# full uuid, or an 8-hex short id the hub resolves at put); never a bare uuid,
-# which may be a spool task alias's; else (spec 153 v1.2 3.7) the 8 hex of a
-# line-start `Task: dispatch-<topic8>`, a seat's desk topic, which the hub
-# resolves in the workspace that holds it. The issue is lifetime/issue (written
+# brief's first HUB topic (_spawn_lane_topic), else the same read of the
+# lane's own task brief, $SPOOL_ROOT/<ID>/lifetime/brief.md: a rotation or a
+# restart starts the lane again on a seed that names no topic, and its put
+# would blank the row (spec 153 v1.3 3.8). The issue is lifetime/issue (written
 # before this put), else SPAWN_ISSUE, else the brief's `Issue:` line; a key
 # the hub would refuse is left out so the row still lands.
 _spawn_lane_put() {
   local scope="${SPAWN_LANE_SCOPE:-}" repo="" log
   local topic="${SPAWN_LANE_TOPIC:-${LANE_ISSUE_TOPIC:-}}" issue=""
-  if [ -z "$topic" ] && [ -n "$BRIEF" ] && [ -r "$BRIEF" ]; then
-    topic="$(grep -oE '([Tt]opic[: ]+`?|/t/)[0-9a-f]{8}(-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?([^0-9A-Za-z-]|$)' "$BRIEF" 2>/dev/null |
-      head -1 | grep -oE '[0-9a-f]{8}(-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?' | head -1)"
-  fi
-  if [ -z "$topic" ] && [ -n "$BRIEF" ] && [ -r "$BRIEF" ]; then
-    topic="$(grep -m1 -oE '^Task: *`?dispatch-[0-9a-f]{8}([^0-9A-Za-z-]|$)' "$BRIEF" 2>/dev/null | grep -oE '[0-9a-f]{8}' | head -1)"
-  fi
+  [ -n "$topic" ] || topic="$(_spawn_lane_topic "$BRIEF")"
+  [ -n "$topic" ] || topic="$(_spawn_lane_topic "${SPOOL_ROOT:-}/${TITLE:-}/lifetime/brief.md")"
   if [ -n "$BRIEF" ] && . "${_SP_DIR}/../lib/lane-issue.inc.sh" 2>/dev/null; then
     issue="$(li_key_of_agent "$SPOOL_ROOT" "$TITLE")"
     [ -n "$issue" ] || issue="${SPAWN_ISSUE:-$(li_key_from_brief "$BRIEF")}"

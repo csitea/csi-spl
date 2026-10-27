@@ -182,14 +182,26 @@ printf '# C7\nIn the owner topic 5e7b15c9, row B2.\n' > "$T_TMP/brief-c7.md"
 out="$(bash "$T_SCRIPTS/spawn-claude.sh" CLE-84 "$T_TMP/repo" "$T_TMP/brief-c7.md" "fix it" 2>&1)"
 has "C7: an 8-hex short id is passed unchanged (the hub resolves it)" "--topic '5e7b15c9' --issue ''" "$out"
 # spec 153 v1.2 C36: a seat brief's line-start `Task: dispatch-<topic8>` is
-# the last source (the hub resolves it in its workspace); prose naming a
-# dispatch task, or a dispatch-orc-<topic8> line, sets nothing. Master: '' for both.
+# the last source (the hub resolves it in its workspace). v1.3 C38: so is a
+# lane's report task in prose (`--task dispatch-<topic8>`); only a
+# dispatch-orc-<topic8> relay task sets nothing. Master: '' for C38.
 printf '# C36\nTask: dispatch-55fd7531\nEpic: SPL-1\n' > "$T_TMP/brief-c36.md"
 out="$(bash "$T_SCRIPTS/spawn-claude.sh" CLE-85 "$T_TMP/repo" "$T_TMP/brief-c36.md" "fix it" 2>&1)"
 has "C36: the Task: dispatch-<topic8> line fills the row's topic" "--topic '55fd7531' --issue ''" "$out"
-printf '# C36b\nRelayed on task dispatch-55fd7531.\nTask: dispatch-orc-55fd7531\n' > "$T_TMP/brief-c36b.md"
-out="$(bash "$T_SCRIPTS/spawn-claude.sh" CLE-86 "$T_TMP/repo" "$T_TMP/brief-c36b.md" "fix it" 2>&1)"
-has "C36b: prose or a dispatch-orc- task sets no topic" "--topic '' --issue ''" "$out"
+printf '# C38\nReport on `--task dispatch-1be0e370`, kind result.\n' > "$T_TMP/brief-c38.md"
+out="$(bash "$T_SCRIPTS/spawn-claude.sh" CLE-86 "$T_TMP/repo" "$T_TMP/brief-c38.md" "fix it" 2>&1)"
+has "C38: the report task dispatch-<topic8> fills the row's topic" "--topic '1be0e370' --issue ''" "$out"
+printf '# C36b\nRelayed on Task: dispatch-orc-55fd7531\nsee dispatch-55fd7531x and xdispatch-55fd7531\n' > "$T_TMP/brief-c36b.md"
+out="$(bash "$T_SCRIPTS/spawn-claude.sh" CLE-87 "$T_TMP/repo" "$T_TMP/brief-c36b.md" "fix it" 2>&1)"
+has "C36b: a dispatch-orc- task or a longer word sets no topic" "--topic '' --issue ''" "$out"
+# v1.3 C39: a rotation's seed names no topic; the lane's own task brief
+# (<spool root>/<ID>/lifetime/brief.md) still fills the row. Master: ''.
+mkdir -p "$SPOOL_ROOT/CLE-88/lifetime"
+printf '# the task\nOwner words (HUM-10, t1 topic %s).\n' "$U1" > "$SPOOL_ROOT/CLE-88/lifetime/brief.md"
+printf '# Brief: you are CLE-88 again (hourly rotation)\n1. Your task brief, unchanged: %s\n' "$SPOOL_ROOT/CLE-88/lifetime/brief.md" > "$T_TMP/brief-c39.md"
+out="$(bash "$T_SCRIPTS/spawn-claude.sh" CLE-88 "$T_TMP/repo" "$T_TMP/brief-c39.md" "fix it" 2>&1)"
+has "C39: a rotation seed keeps the task brief's topic" "--topic '${U1}'" "$out"
+rm -rf "${SPOOL_ROOT:?}/CLE-88"
 has "git: leak gate quotes the identity" "dev@example.com dev@example.com" "$prompt"
 has "git: red-run owners are told via spool-send" "tell them with spool-send.sh" "$prompt"
 # spec 065 L8: the report carries sha + note link per released commit.

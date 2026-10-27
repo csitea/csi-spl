@@ -1,5 +1,12 @@
 # 153 Monitoring: the tab row beside the heading, and a live Lanes tab
 
+Version v1.3 (2026-10-27): v1.2 plus section 3.8 (every Lanes row names
+its issue, its discussion and its workspace; queued asks show; a rotation
+keeps the lane's topic), cases C36b (narrowed), C38-C44 and build row B8.
+Owner HUM-10: csitea topic `a1ae72a7`, msgs `80e92ffb` + `a6c87420`; t1
+topic `f94e07bf`, msgs `77d5b3ab`, `33f8eecb` and `67c63b8d`
+(2026-10-27 10:01-10:1xZ). Issue SPL-3818.
+
 Version v1.2 (2026-10-26): v1.1 plus section 3.7 (how a lane names the
 workspace it works for), cases C28b and C31-C37, build row B7 and C28's
 short-id clause, which B7 reverses. Owner HUM-10, topic
@@ -518,6 +525,73 @@ Not covered: a lane whose brief names no topic (a-461) stays tied to no
 workspace; the brief has to name one. A row stored before B7 keeps its
 `""` until its next put (a rotation keeps the old value).
 
+### 3.8 Every row names its issue, its discussion and its workspace (v1.3, row B8)
+
+The owner's rules, verbatim (HUM-10, t1 `f94e07bf`, 2026-10-27):
+
+- msgs `77d5b3ab` + `33f8eecb`: "each lane must have at least 1 link to an
+  issue WHAT It is doing and at least 1 link to a discusion from where did
+  it originated".
+- msg `67c63b8d`: "the lanes must have also to which workspace do they
+  beong even if they are viewed from within that workspace - as their last
+  right most column".
+- csitea `a1ae72a7`, msg `80e92ffb`: "you stated that a new lane has been
+  dedicated, but I cannot see any other lanes ... here": the lane promised
+  was a queued ask, which no route listed.
+
+Measured on prd 2026-10-27 10:28Z (`ENV=prd ./run -a do_spl_db_query`, the
+3.2 active rule in SQL, n = 1 read, tree `2d74bdd49`): 38 active rows, 33
+with topic `""`, 7 with issue key `""`, 33 missing either. 19 of the 33
+are lanes of the box this was measured on; each one's task brief
+(`<spool root>/<ID>/lifetime/brief.md`) was read: 15 name a topic by the
+rule below (10 in a `topic` form, 5 only as a `dispatch-<topic8>` task),
+4 name none. Why the 15 rows are blank:
+
+- **A rotation blanks the topic.** The hourly rotation and a seat restart
+  start the lane again through `spawn-window.sh` with a seed file as the
+  brief ("you are c-NNN again ..."); `_spawn_lane_put` read the topic from
+  that seed only, found none and put `""` over the row
+  (`orc/run/spl-rotate-lib.func.sh` `spl_rotate_spawn`; the scope survives
+  because `spl-lane-rotate.func.sh` passes it, the topic did not). Fix:
+  `_spawn_lane_put` reads, after the brief, the lane's own task brief
+  `$SPOOL_ROOT/<ID>/lifetime/brief.md` (C39).
+- **A report task names the topic.** Most dispatcher lanes report on
+  `dispatch-<topic8>`, written in prose ("Report on `--task
+  dispatch-1be0e370`"). v1.2 took only a line-start `Task:`; v1.3 takes the
+  first `dispatch-<topic8>` the brief names, as the last source, and the
+  hub resolves the 8 hex as for every short id (3.4, 3.7). A
+  `dispatch-orc-<topic8>` relay task still sets nothing (C36b, C38).
+- **Queued asks are rows.** A spawn ask the placer holds
+  (`fleet_asks.state = 'queued'`, role `orch`) is listed with state
+  `queued`, after the live lanes: the scope is the ask's summary, the
+  vendor its placement's, the time its `enqueued_at`. Its topic is the
+  ask's `topic` when a full uuid, else the 8 hex of a `dispatch-<topic8>`
+  topic resolved as a lane put resolves it (`laneTopic`); `gc-sat`,
+  `dispatch-status-sweep` and the like name no topic. The wait reason is the
+  ask's stored reason; the placer keeps its HOLD reason on its own box
+  (`<asks dir>/.place.wait`, not in the hub), so the row says "waiting for
+  room" (C40, C41).
+- **Workspace column, last.** Every row on both routes carries
+  `workspace` (id) and `workspace_name`: the workspace holding the row's
+  topic, else the operator workspace, where the row lives. The workspace
+  route (3.6) names W. The WUI shows it as the right-most column, also
+  inside W and on a phone (the table scrolls sideways in its wrapper, 3.2;
+  the column is never dropped) (C42, C43).
+- **A lane with no issue or no topic** shows a dash, as before. The defect
+  is upstream: a brief with neither an `Issue:` line nor a topic should be
+  refused where it is queued (`do_spl_spawn_enqueue` already refuses one
+  with no `Epic:` / `Spec:` line); that check is another lane's file and is
+  named, not built, here. Role seats (c-001, c-002, c-003) carry neither
+  by design.
+- **Several topics.** A lane links to ONE topic: `fleet_lanes.topic` is one
+  column. A lane whose brief names several owner topics shows the first;
+  listing all needs a `topics` column (rdb, store, put, both views) and is
+  left to its own row.
+- **The topic page** has no lanes strip (`grep -il lane
+  csi-spl-wui/src/pages/t/*.vue` -> none). The smallest addition: under
+  the topic header, the rows of `GET /v1/view/lanes` whose `topic_id` is
+  this topic, reusing the Lanes table row; not built in this row.
+
 ## 4. Cases
 
 Every case is **planned**: none is built. "Master today" was read on
@@ -576,8 +650,15 @@ rule" twin, named in its control column.
 | C33 | B7 | the short id starts an operator AND a w1 topic | the operator's | the operator's | Go test |
 | C34 | B7 | a box of workspace `other` puts the short id of a w2 topic | `""` | `""` | Go test; red control: no operator-only check stores w2's uuid |
 | C35 | B7 | the operator view (3.3) of C28b's lane | n/a | listed, no w1 title or text | Go test; red control: titles read in every workspace leak `W1 build` |
-| C36 | B7 | a brief whose only topic source is `Task: dispatch-55fd7531` | `--topic ''` | `--topic '55fd7531'` | dry-run test (`test-spawn-dry-run.sh`); twin C36b: prose `on task dispatch-...` and `Task: dispatch-orc-...` give `--topic ''` |
+| C36 | B7 | a brief whose only topic source is `Task: dispatch-55fd7531` | `--topic ''` | `--topic '55fd7531'` | dry-run test (`test-spawn-dry-run.sh`); twin C36b: `Task: dispatch-orc-...` and a longer word (`dispatch-55fd7531x`) give `--topic ''` (v1.3: prose `on task dispatch-...` now fills it, C38) |
 | C37 | B7 | owner HUM-10, discussion `7e25d7ab`, msg `bd450d6a`: one person, a `regular_user` of the operator workspace and an `admin` of w1, with a w1 lane and a w2 lane active | 403 on both routes in the operator workspace; w1 lists its lane | unchanged (C): `GET /v1/operator/fleet-lanes` and `GET /v1/view/lanes` in the operator workspace 403; in w1 the w1 lane only | Go test `TestLanesAllWorkspacesOperatorAdminOnly`; red control: dropping the admin check in `operatorActor` lists both lanes; twin: the operator admin lists both |
+| C38 | B8 | a brief whose only topic source is the prose report task `--task dispatch-1be0e370` | `--topic ''` | `--topic '1be0e370'` | dry-run test (`test-spawn-dry-run.sh`) |
+| C39 | B8 | a rotation: the seed names no topic, `<spool root>/<ID>/lifetime/brief.md` names `topic <uuid>` | `--topic ''` | `--topic '<uuid>'` | dry-run test |
+| C40 | B8 | an ask queued on `dispatch-<8 hex of a w1 topic>`: `GET /v1/view/lanes` as w1's admin | absent | a row, `state queued`, scope = the summary, `topic_id` = the w1 topic, `wait ""` | Go test (`TestLanesQueuedAsk`); twin: the same as w2's admin lists nothing |
+| C41 | B8 | the same ask: `GET /v1/operator/fleet-lanes` | absent | a `queued` row after the live ones; an ask on `gc-sat` too, with no topic | Go test |
+| C42 | B8 | a live lane on a w1 topic: the operator route | no workspace | `workspace` w1, `workspace_name` its name; a lane with no topic names the operator workspace | Go test |
+| C43 | B8 | the Lanes table, operator and w1 admin | no column | the last `th` is the workspace column, every row's last cell its name; at 360 px the column is still in the DOM | WUI unit (`monitoring-lanes.test.mjs`, `fleetLanesOf` keeps the fields) + e2e |
+| C44 | B8 | a `queued` row in the table | n/a | the agent cell says queued, the wait cell "waiting for room" when `wait` is empty | WUI unit + e2e |
 
 ## 5. Build rows
 
@@ -593,6 +674,7 @@ Disjoint files per row. B1 goes first and alone: it needs no data.
 | B5b topic issue chips | wui | `wui/pages/t/[task_id].vue` (or its header component), new `wui/components/TopicIssueChips.vue`, its locale keys, its tests | B5a | C23-C24 |
 | B6 workspace lanes (O1 = B, 3.6) | api, wui | `hub/fleet_lanes_view.go` (factor the active rule and the row fill out of `fleetLanesView`; 3.3's behaviour unchanged); new `hub/workspace_lanes_view.go` + `_test.go`; one line in `hub/server.go` beside `routeFleetLanes` (:488); `hub/openapi.json` (the new path); `wui/utils/access.mjs` (`normalizeMe` keeps `roles`) and its unit test; `wui/utils/monitoring-tabs.mjs` (the lanes row and the `staff` rule); `wui/pages/monitoring.vue` (pass `staff`); `wui/pages/monitoring/lanes/index.vue` (pick the route); the hub client's lanes call in `wui/utils/spool-client-lazy.mjs`; `csi-spl-wui/tests/unit/monitoring-tabs.test.mjs`; the B4 lanes e2e file (C27's operator case). No store, rdb or orc file | B2, B3 and B4 on master (B4 owns the tab row, the page and the client call that B6 changes) | C25-C30 |
 | B7 workspace a lane works for (3.7) | api, orc | `hub/box_lane.go` (`laneTopic`, new `laneTopicElsewhere`); `hub/workspace_lanes_view_test.go`; `orc/features/spawn-agents/scripts/spawn-core.inc.sh` (`_spawn_lane_put` only); `orc/features/spawn-agents/tests/test-spawn-dry-run.sh`. No store, rdb or wui file, no new text key | B6 on master | C28b, C31-C37 |
+| B8 rows complete (3.8) | orc, api, wui | `orc/features/spawn-agents/scripts/spawn-core.inc.sh` (`_spawn_lane_put`, new `_spawn_lane_topic`) and `test-spawn-dry-run.sh`; `hub/fleet_lanes_view.go`, `hub/workspace_lanes_view.go`, new `hub/lanes_queued.go` and their tests; `wui/pages/monitoring/lanes/index.vue`, `wui/utils/monitoring-lanes.mjs`, its unit test, the lanes e2e, `csi-spl-wui/i18n/locales/*.json` (new keys only, agy review). No rdb, no store, no placer file | B7 on master | C36b, C38-C44 |
 
 Order: B1, B3 and B5a may run at once (B3's store interface is
 `store/fleet_lane.go:65`, B5a's `store/issues.go:392`: different files); B2 after B3; B4 after B1 and B3;

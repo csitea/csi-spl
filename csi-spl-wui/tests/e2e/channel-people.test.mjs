@@ -145,6 +145,40 @@ try {
   await page.keyboard.press('Escape')
   await sleep(200)
 
+  /* SPL-3717 (lessons-learnt row 8): an agent's badge reads the roster
+     store's presence, the source of every other dot, and stays live while
+     the dialog is open. Pre-fix it read only the members answer of the
+     moment Properties opened, so a box whose agents answered said "box
+     offline" (the mock's answer has no online flag: no badge at all). */
+  const badge = (id) => page.evaluate((id) => {
+    const e = [...document.querySelectorAll(`[data-testid=channel-agent-state-${id}]`)].find((x) => x.getBoundingClientRect().width > 0)
+    return e ? e.textContent.trim() : ''
+  }, id)
+  const frame = (peer, status) => page.evaluate((peer, status) => {
+    const pinia = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$pinia
+    pinia?._s.get('roster')?.applyFrame({ type: 'presence', peer, status })
+  }, peer, status)
+  await page.click('[data-testid=channel-agent-search-button]').catch(() => {})
+  const agentPickable = Boolean(await page.waitForSelector('[data-testid=channel-agent-invite-GRK-03]', { timeout: 5000 }).catch(() => null))
+  if (agentPickable) {
+    await page.click('[data-testid=channel-agent-invite-GRK-03]')
+    await sleep(200)
+    await page.click('[data-testid=channel-agent-add]')
+    await page.waitForSelector('[data-testid=channel-agent-GRK-03]', { timeout: 10000 }).catch(() => null)
+  }
+  await sleep(200)
+  const onOpen = await badge('GRK-03')
+  ok('an agent of an online box reads online, from the roster presence', agentPickable && onOpen === 'online', { agentPickable, onOpen })
+  await frame('GRK-03@box-a', 'offline')
+  await frame('CLE-07@box-a', 'offline')
+  await sleep(200)
+  const wentOff = await badge('GRK-03')
+  ok('a presence frame takes the badge to "box offline" while the dialog is open', wentOff === 'box offline', { wentOff })
+  await frame('GRK-03@box-a', 'online')
+  await sleep(200)
+  const back = await badge('GRK-03')
+  ok('...and the next frame brings it back online', back === 'online', { back })
+
   /* Invite one: open the dropdown, pick the candidate, Add, and it joins.
      Native page.click (trusted events + auto-scroll) is what headlessui's
      Combobox needs — a synthetic .click() on the option does not select. */

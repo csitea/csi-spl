@@ -14,7 +14,7 @@ const HUMAN_ID_RE = /^HUM-[0-9]+$/
 export type ChannelAgentState = '' | 'online' | 'offline' | 'unseated'
 
 /** An agent row of the dialog: its state only when the hub said one. */
-type AgentRow = { id: string, box: string, state?: Exclude<ChannelAgentState, ''> }
+export type AgentRow = { id: string, box: string, state?: Exclude<ChannelAgentState, ''> }
 
 /** Sort agent rows by id, then box. */
 const byIdBox = (a: { id: string, box: string }, b: { id: string, box: string }): number =>

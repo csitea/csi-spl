@@ -9,6 +9,7 @@ import { setTimeZoneSource } from '../../src/utils/date-iso.mjs'
 import { ref } from 'vue'
 import { importTs } from './lib/load-ts.mjs'
 const { aboutChannelDescription, aboutChannelName, canAddChannelMember, canEditOpenInvite, channelAgentCandidates, channelAgentRows, channelAgentState, channelFallbackLine, channelInviteCandidates, defaultChannelRows, filterAgentsContains, filterPeopleContains, signedInHuman, viewerHumanId } = await importTs('src/utils/channel-members.ts')
+const { channelAgentsLive } = await importTs('src/utils/channel-agents-live.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -115,6 +116,33 @@ describe('People offers humans, Agents offers boxes', () => {
     ])
     assert.equal(channelAgentState({ online: false, seated: false }), 'unseated')
     assert.equal(channelAgentState(null), '')
+  })
+
+  it('SPL-3717: the badge follows the live roster presence, not the members snapshot', () => {
+    const rows = channelAgentRows([
+      { id: 'CLE-07', box: 'box-a', online: false, seated: true },
+      { id: 'GRK-03', box: 'box-b', online: true, seated: true },
+      { id: 'AGY-02', box: 'box-a', online: true, seated: false },
+      { id: 'CLE-11', box: 'box-desk', online: false, seated: true },
+      { id: 'CLE-09', box: 'box-gone' },
+    ])
+    const live = {
+      roster: { 'box-a': ['CLE-07', 'AGY-02', 'CLE-08'], 'box-b': ['GRK-03'], 'box-desk': ['CLE-11'] },
+      online: ['CLE-08@box-a'],
+      idle: ['CLE-11@box-desk'],
+    }
+    assert.deepEqual(channelAgentsLive(rows, live), [
+      { id: 'AGY-02', box: 'box-a', state: 'unseated' },
+      // its box is online: another agent of box-a is (the badge is the box's)
+      { id: 'CLE-07', box: 'box-a', state: 'online' },
+      // the roster does not know the box: the hub's answer stands
+      { id: 'CLE-09', box: 'box-gone' },
+      // machine online, agent not running: the box is not offline
+      { id: 'CLE-11', box: 'box-desk', state: 'online' },
+      // a presence frame took box-b offline after the dialog opened
+      { id: 'GRK-03', box: 'box-b', state: 'offline' },
+    ])
+    assert.deepEqual(channelAgentsLive(rows, null), rows)
   })
 
   it('an announced agent who is not already in the channel can be invited', () => {

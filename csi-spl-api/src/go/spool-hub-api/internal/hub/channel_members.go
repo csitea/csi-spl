@@ -222,8 +222,9 @@ func (s *Server) handleListChannelMembers(w http.ResponseWriter, r *http.Request
 // channelAgent is one subscribed agent on GET /v1/channels/{channel}/members.
 //
 // SPL-987: the Properties dialog shows whether an invited agent can hear the
-// channel at all. Online = its box holds a live role=box socket to this hub
-// (posts reach the box now, not on its next hello). Seated = the box's
+// channel at all. Online = its box is online by the presence the roster
+// reads (presence.go: a socket on this instance, else a fresh shared stamp;
+// SPL-3717, it was this instance's sockets only). Seated = the box's
 // current roster still names the agent (its spool dir exists on the box).
 // Neither says the agent's terminal is running: that is the box's knowledge,
 // and a box can be online with a pane that has exited.
@@ -235,7 +236,8 @@ type channelAgent struct {
 }
 
 // withAgentState fills Online and Seated. A roster read error leaves Seated
-// false rather than failing the list.
+// false, and a boxes read error leaves Online to this instance's sockets,
+// rather than failing the list.
 func (s *Server) withAgentState(ctx context.Context, tenant string, list []channelAgent) []channelAgent {
 	if len(list) == 0 {
 		return list
@@ -244,11 +246,31 @@ func (s *Server) withAgentState(ctx context.Context, tenant string, list []chann
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("roster for channel agents")
 	}
+	online := s.boxesOnline(ctx, tenant)
 	for i := range list {
-		list[i].Online = s.boxSession(tenant, list[i].Box) != nil
+		list[i].Online = online[list[i].Box] || s.boxSession(tenant, list[i].Box) != nil
 		list[i].Seated = contains(roster[list[i].Box], list[i].ID)
 	}
 	return list
+}
+
+// boxesOnline is every tenant box's presence as GET /v1/view/roster reads it
+// (boxOnlineLocked), under one hub-mutex hold. A read error is logged and
+// answers no box.
+func (s *Server) boxesOnline(ctx context.Context, tenant string) map[string]bool {
+	boxes, err := s.o.Store.ViewBoxes(ctx, tenant)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("boxes for channel agents")
+		return nil
+	}
+	out := make(map[string]bool, len(boxes))
+	now := s.o.Now()
+	s.mu.Lock()
+	for _, b := range boxes {
+		out[b.BoxID] = s.boxOnlineLocked(tenant, b, now)
+	}
+	s.mu.Unlock()
+	return out
 }
 
 // channelAgentList flattens box → agent ids. box-wui is the browser, and a

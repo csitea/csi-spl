@@ -355,6 +355,7 @@ import {
   inviteErrorToken,
   viewerHumanId,
 } from '~/utils/channel-members'
+import { channelAgentsLive } from '~/utils/channel-agents-live'
 import { rosterHumanIds } from '~/utils/spool-client.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { useLive } from '~/composables/useLive'
@@ -468,7 +469,9 @@ const peopleChoices = computed(() => {
   const email = inviteEmail(personQuery.value)
   return email && !localInvited.value.includes(email) ? [...found, email] : found
 })
-const agentRows = computed(() => channelAgentRows(agents.value))
+// SPL-3717: each badge follows the roster store's live presence (refreshed on
+// open below, then kept by the socket's presence frames), as the sidebar does.
+const agentRows = computed(() => channelAgentsLive(channelAgentRows(agents.value), roster))
 // SPL-997: who gets a post here when no member agent is online (FR-035).
 const fallback = ref<ReturnType<typeof channelFallbackLine>>(null)
 const agentCandidates = computed(() => channelAgentCandidates(rosterBag.value, agentRows.value))
@@ -482,13 +485,6 @@ const { agentLabel, onAgentQuery, onChooseAgent, addChosenAgent, removeAgent } =
 const { personLabel, onPersonQuery, onChoosePerson, addChosen, removePerson } = useChannelPersonPick({
   api, props, people, busy, canAdd, error, selfId, localMembers, localInvited, chosenPerson, personQuery,
 })
-
-function rosterOf(data: unknown): Record<string, string[]> | undefined {
-  if (!data || typeof data !== 'object' || !('roster' in data)) return undefined
-  const bag = (data as { roster?: unknown }).roster
-  if (!bag || typeof bag !== 'object' || Array.isArray(bag)) return undefined
-  return bag as Record<string, string[]>
-}
 
 // immediate: SPL-1204 gates this dialog behind v-if in the sidebar, so it now
 // mounts with open already true (channel_id and open are set in the same tick).
@@ -518,14 +514,16 @@ watch(() => props.open, async (isOpen) => {
   chosenAgent.value = null
   agentQuery.value = ''
   try {
-    const [mem, ros] = await Promise.all([
+    // SPL-3717: the roster is read into the shared store, so its presence is
+    // fresh on open and the badges below stay live with the socket's frames.
+    const [mem] = await Promise.all([
       withSessionRetry(api, () => api.listChannelMembers(props.channelId)),
-      withSessionRetry(api, () => api.listRoster()),
+      roster.refresh(),
     ]) as [{ default?: boolean, members?: string[], members_open_invite?: boolean, ai_agents_off?: boolean, created_by?: string, invited?: string[], agents?: { id: string, box: string, online?: boolean, seated?: boolean }[], fallback?: unknown }, unknown]
     if (my !== ticket) return
     fallback.value = channelFallbackLine(mem.fallback)
     aiAgentsOn.value = mem.ai_agents_off !== true
-    const bag = rosterOf(ros) || {}
+    const bag = roster.roster
     rosterBag.value = bag
     if (mem.default) {
       const everyone = defaultChannelRows(bag, mem.agents)

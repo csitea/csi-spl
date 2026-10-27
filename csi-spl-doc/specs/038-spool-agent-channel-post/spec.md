@@ -106,6 +106,16 @@ before it had deliveries for box-wui only. An invite did not back-fill.
   agent invited on a box that is down, or no longer seated, is visible. It
   does NOT show whether the agent's terminal is alive: that is box-side
   knowledge, and a box can be online while an agent's pane has exited.
+  - SPL-3717 (lessons-learnt row 8, the badge said "box offline" while that
+    box's agents answered): `online` is the presence `GET /v1/view/roster`
+    reads (`presence.go`: a socket on the answering instance, else a fresh
+    shared stamp), no longer "this instance holds the socket", which any
+    other Cloud Run instance or revision answered as offline. The dialog
+    reads the roster into the shared roster store on open and draws each
+    badge from that store's presence, which the socket's presence frames keep
+    live while it stays open (`channel-agents-live.ts`). Proof:
+    `internal/hub/channel_agent_presence_test.go`,
+    `csi-spl-wui/tests/e2e/channel-people.test.mjs`.
 
 Proof: `csi-spl-api/.../internal/hub/backfill_test.go` (memory and Postgres):
 3 browser posts in 2 topics, then 2 agents invited -> each inbox holds exactly

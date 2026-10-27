@@ -1,36 +1,25 @@
 // CLE-77886 (owner, t1 topic ac0fa400): on a phone every section keeps the
 // ONE section strip (the rail's row of Channels, DMs, Issues, ...) on top,
-// the section shown as the selected control and no title text. A section
-// whose content is a page (Issues, Event log, People, Monitoring, Help,
-// Workspace settings, ...) is level 2, so the layout shows the strip above
-// that page; a drill-down (a channel, a person's card, a settings section)
-// keeps its own header and Back.
+// the section shown as the selected control and no title text. A section's
+// own page (Issues, People, Monitoring and each of its tabs, Help, Workspace
+// settings, ...) shows the strip with no header of its own; a drill-down (a
+// channel, a person's card, a settings section) keeps its own header and Back.
 import { productPath } from './signed-out-redirect.mjs'
+import { TAB_ROUTE_PATHS } from './sidebar-tabs.mjs'
 
-const SECTION_PAGES = new Set([
-  '/',
-  '/issues',
-  '/archive',
-  '/users',
-  '/people',
-  '/calendar',
-  /* SPL-1991: Monitoring and each of its tabs (a tab is a path, not a drill-down) */
-  '/monitoring',
-  '/monitoring/agents',
-  '/monitoring/boxes',
-  /* SPL-3250: the Event log, a Monitoring tab since it left the rail */
-  '/monitoring/events',
-  /* spec 143 1.1 (SPL-2351): Reporting and its tab */
-  '/reporting',
-  '/reporting/releases',
-  '/help',
-  '/docs',
-  '/tenant-settings',
-])
+/* SPL-3785 (owner HUM-10, t1 c3e53990: the strip must not "jump on and off
+   based on the tab"): a section's own page is read off the route, never a
+   hand-kept list - the list missed 8 Monitoring and Reporting tabs added
+   after it. A tab is one segment under its section (/monitoring/costs), a
+   drill-down two (/monitoring/agents/<id>). */
+const TAB_SECTION_PAGE = /^\/(monitoring|reporting)(\/[^/]+)?$/
+/* the rail links' own pages; their deeper paths are documents and sections */
+const RAIL_LINK_ROOTS = new Set(['/help', '/docs', '/tenant-settings'])
 
 /** true when the route is a section's own page (not a drill-down inside it) */
 export function isSectionPage(path) {
-  return SECTION_PAGES.has(productPath(path))
+  const p = productPath(path)
+  return p === '/' || RAIL_LINK_ROOTS.has(p) || TAB_SECTION_PAGE.test(p) || TAB_ROUTE_PATHS.includes(p)
 }
 
 /** the rail links (not tabs) a section page may be: Help, Docs, Workspace settings */

@@ -5,7 +5,14 @@
 // Run: node tests/unit/section-strip.test.mjs
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { chatKind, isSectionPage, loopPosition, railLinkSection, sectionExitPath } from '../../src/utils/section-strip.mjs'
+import { MONITORING_TABS } from '../../src/utils/monitoring-tabs.mjs'
+import { REPORTING_TABS } from '../../src/utils/reporting-tabs.mjs'
+import { pageRoutes } from '../e2e/lib/page-routes.mjs'
+
+const PAGES = join(dirname(fileURLToPath(import.meta.url)), '../../src/pages')
 
 describe('isSectionPage', () => {
   it('every section page the owner named, with or without a locale', () => {
@@ -16,6 +23,29 @@ describe('isSectionPage', () => {
   it('a drill-down keeps its own header and Back', () => {
     for (const p of ['/channel/general', '/dm/HUM-2', '/people/HUM-2', '/monitoring/agents/CLE-1', '/monitoring/boxes/b1', '/agents', '/boxes', '/help/how-to-post', '/docs/README.md', '/tenant-settings/members', '/t/abc', '/search']) {
       assert.equal(isSectionPage(p), false, p)
+    }
+  })
+})
+
+/* SPL-3785 (owner HUM-10, t1 c3e53990: not "jump on and off based on the
+   tab"): every tab of a section is its own page, read off the tab lists and
+   the file tree, never a list kept by hand */
+describe('isSectionPage covers every tab, derived', () => {
+  it('every Monitoring and Reporting tab is a section page; one level under it is a drill-down', () => {
+    const tabs = [...MONITORING_TABS, ...REPORTING_TABS]
+    assert.ok(tabs.length >= 12, `tab lists read: ${tabs.length}`)
+    for (const t of tabs) {
+      assert.equal(isSectionPage(t.path), true, t.path)
+      assert.equal(isSectionPage(`/fi${t.path}`), true, `/fi${t.path}`)
+      assert.equal(isSectionPage(`${t.path}/some-id`), false, `${t.path}/some-id`)
+    }
+  })
+  it('every page file under Monitoring and Reporting: a plain page is the section, a [param] page a drill-down', () => {
+    const rows = pageRoutes(PAGES).filter((r) => /^\/(monitoring|reporting)(\/|$)/.test(r.path))
+    assert.ok(rows.length >= MONITORING_TABS.length + REPORTING_TABS.length, `pages walked: ${rows.length}`)
+    for (const r of rows) {
+      const sample = r.path.replace(/:[^/]+/g, 'x-1')
+      assert.equal(isSectionPage(sample), !r.dynamic, `${r.file} -> ${sample}`)
     }
   })
 })

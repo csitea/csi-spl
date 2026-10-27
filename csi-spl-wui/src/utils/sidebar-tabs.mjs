@@ -89,6 +89,9 @@ const TAB_ROUTES = {
   [REPORTING_TAB]: '/reporting',
 }
 
+/** SPL-3785: the pages the page-backed tabs open (isSectionPage reads them). */
+export const TAB_ROUTE_PATHS = Object.freeze(Object.values(TAB_ROUTES))
+
 /**
  * 081 T003: where a tab goes, the forward of tabForPath:
  * tabForPath(routeForTab(id)) === id for every id it answers. Direct

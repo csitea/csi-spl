@@ -14,6 +14,11 @@
 #           + <tenant>
 # Under SPOOL_TEST=1 the cnf base is never read: a test sees only the
 # SPL_WS_BASE it names, so the box it runs on cannot change its verdict.
+# Spec 159 5.2 (T3): a workspace HOSTED on a fleet box gets the same shape
+# under its own base, <fleet_workspace_base>/<tenant> (do_spl_fleet_ws_host),
+# which also holds the root-owned marker fleet-hosted. Its desk runs with
+# SPL_WS_BASE=<that base>, and the guard then also runs the desk start
+# checks (spl-desk-start-checks.func.sh) and refuses the desk when one fails.
 #------------------------------------------------------------------------------
 
 # spl_box_ws_cnf <key>: env.box.<key> of all.env.yaml under <ENV>.env.yaml.
@@ -44,10 +49,15 @@ spl_box_ws_claim() {
   head -n 1 "$b/claim" | tr -d '[:space:]'
 }
 
+# spl_box_ws_prefix: the workspace OS user prefix.
+spl_box_ws_prefix() {
+  printf '%s' "${SPL_WS_USER_PREFIX-$(spl_box_ws_cnf workspace_user_prefix)}"
+}
+
 # spl_box_ws_user <tenant>: the workspace's OS user name.
 spl_box_ws_user() {
   local u="${SPL_WS_USER:-}"
-  [[ -n "$u" ]] || u="${SPL_WS_USER_PREFIX-$(spl_box_ws_cnf workspace_user_prefix)}$1"
+  [[ -n "$u" ]] || u="$(spl_box_ws_prefix)$1"
   [[ "$u" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] ||
     { do_log "FATAL workspace OS user '$u' is not a user name of at most 32 chars: set SPL_WS_USER"; return 1; }
   printf '%s' "$u"
@@ -73,6 +83,11 @@ spl_box_ws_guard() {
   me="$(id -un)"
   [[ "$me" == "$owner" ]] ||
     { do_log "FATAL workspace '$tenant' runs as its own OS user '$owner', not '$me' (sudo -u $owner)"; return 1; }
+  if [[ -e "$b/fleet-hosted" ]]; then
+    declare -F spl_desk_start_checks >/dev/null ||
+      source "${BASH_SOURCE[0]%/*}/spl-desk-start-checks.func.sh"
+    spl_desk_start_checks "$me" "$(spl_box_ws_prefix)" || return 1
+  fi
   if [[ -n "${SPL_STATE_DIR:-}" && "$SPL_STATE_DIR" != "$b/$tenant/state/"* ]]; then
     do_log "FATAL SPL_STATE_DIR=$SPL_STATE_DIR is outside workspace '$tenant' ($b/$tenant/state)"; return 1
   fi

@@ -146,12 +146,13 @@ sample: hourglass, running robot, brain, dancing robot, typing dots, spinner,
 radar, gears, light bulb, coffee, orbit, pendulum, sound bars, pencil, rocket,
 clock and wave. The ticked ones take turns, about 3 seconds each; with one
 ticked, that one stays. At least one stays ticked: the last one cannot be
-unticked. The default is the hourglass, the running robot and the brain.
+unticked. Until you pick, all 17 are ticked and take turns; untick the ones
+you do not want to narrow the turns.
 
 With *reduce motion* on in your system the mark is a still hourglass. The
 pick is kept in your account for this workspace, so another device or browser
 shows the same animations. A pick made in this browser before it moved to the
-account is carried over once.
+account is not carried over.
 
 ---
 
@@ -357,6 +358,7 @@ permission. Its sections are:
 
 ---
 
+<a id="ws-doc-09a68f7f-4797-45a3-aa42-99f9c4e4903e"></a>
 ## 10. Google Calendar (`/settings/calendar-google`)
 
 Connect your own Google account so that your calendar events stay in step

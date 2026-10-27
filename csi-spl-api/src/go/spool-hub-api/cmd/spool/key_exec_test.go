@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/keyexec"
@@ -48,14 +49,16 @@ func TestCmdKeyHelper(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer ln.Close()
-	answers := []string{`{"ok":true,"key":"sk-test-0000"}`, `{"ok":false,"error":"key_exhausted"}`}
+	answers := []string{`{"ok":true,"key":"sk-test-0000"}`, `{"ok":false,"error":"no_lease"}`}
+	asks := make(chan string, len(answers))
 	go func() {
 		for _, a := range answers {
 			c, err := ln.Accept()
 			if err != nil {
 				return
 			}
-			_, _ = bufio.NewReader(c).ReadBytes('\n')
+			line, _ := bufio.NewReader(c).ReadBytes('\n')
+			asks <- strings.TrimSpace(string(line))
 			fmt.Fprintln(c, a)
 			c.Close()
 		}
@@ -64,6 +67,11 @@ func TestCmdKeyHelper(t *testing.T) {
 		t.Fatalf("lease answered: exit %d, want 0", rc)
 	}
 	if rc := cmdKeyHelper([]string{"--sock", sock, "claude"}); rc != 1 {
-		t.Fatalf("key_exhausted: exit %d, want 1", rc)
+		t.Fatalf("no_lease: exit %d, want 1", rc)
+	}
+	for range answers {
+		if a := <-asks; a != `{"op":"helper","kind":"claude"}` {
+			t.Fatalf("helper sent %s, want op helper (never a new lease)", a)
+		}
 	}
 }

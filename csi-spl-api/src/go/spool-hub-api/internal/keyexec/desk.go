@@ -18,15 +18,23 @@ const SockEnv = "SPOOL_KEY_SOCK"
 
 // Request is one ask to the desk.
 //
-//	{"op":"lease","kind":"grok"}      the key of that kind, from the lease
-//	{"op":"exhausted","kind":"grok"}  the vendor refused it (spec 159 9.1)
+//	{"op":"lease","kind":"grok","seat":"<dir>"}      the seat start: the held lease, else a new one
+//	{"op":"exhausted","kind":"grok","seat":"<dir>"}  the vendor refused it (spec 159 9.1)
+//	{"op":"helper","kind":"claude"}                  claude's apiKeyHelper: the held lease only,
+//	                                                 never a new hub lease (refused: no_lease)
+//
+// Seat is the seat's $SPOOL_SEAT_DIR: the desk records it against the
+// caller's SO_PEERCRED pid and removes the dir once that pid is gone
+// (127 5.4); a path outside its <runtime>/spool-seat/ is refused bad_seat.
 type Request struct {
 	Op   string `json:"op"`
 	Kind string `json:"kind"`
+	Seat string `json:"seat,omitempty"`
 }
 
 // Reply is the desk's answer. Error is a token, never vendor text:
-// key_exhausted, no_key, box_not_approved, no_metered_key, ...
+// key_exhausted, no_key, no_lease, bad_seat, box_not_approved,
+// no_metered_key, no_box_key, no_lease_route, bad_kind, bad_request, ...
 type Reply struct {
 	OK      bool   `json:"ok"`
 	Key     string `json:"key,omitempty"`
@@ -58,15 +66,27 @@ type Desk interface {
 	Exhausted(ctx context.Context, kind string) error
 }
 
-// SockDesk talks to the desk over its unix socket.
+// SockDesk talks to the desk over its unix socket. Seat, when set, goes
+// with every lease and exhausted ask.
 type SockDesk struct {
 	Path    string
+	Seat    string
 	Timeout time.Duration
 }
 
-// Lease asks for the key of kind.
+// Lease asks for the key of kind at a seat start.
 func (d SockDesk) Lease(ctx context.Context, kind string) (Lease, error) {
-	r, err := d.call(ctx, Request{Op: "lease", Kind: kind})
+	return d.lease(ctx, Request{Op: "lease", Kind: kind, Seat: d.Seat})
+}
+
+// Helper asks for the key of kind from the lease the desk already holds
+// (127 5.2: a helper call never takes a new hub lease).
+func (d SockDesk) Helper(ctx context.Context, kind string) (Lease, error) {
+	return d.lease(ctx, Request{Op: "helper", Kind: kind})
+}
+
+func (d SockDesk) lease(ctx context.Context, req Request) (Lease, error) {
+	r, err := d.call(ctx, req)
 	if err != nil {
 		return Lease{}, err
 	}
@@ -81,7 +101,7 @@ func (d SockDesk) Lease(ctx context.Context, kind string) (Lease, error) {
 
 // Exhausted reports that the vendor refused the key of kind.
 func (d SockDesk) Exhausted(ctx context.Context, kind string) error {
-	r, err := d.call(ctx, Request{Op: "exhausted", Kind: kind})
+	r, err := d.call(ctx, Request{Op: "exhausted", Kind: kind, Seat: d.Seat})
 	if err != nil {
 		return err
 	}

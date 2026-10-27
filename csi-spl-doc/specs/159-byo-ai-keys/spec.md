@@ -371,9 +371,19 @@ is **off** by default.
 
 `spool key-exec <kind> -- <cli> [args...]` is 127 X2's wrapper and point 1
 above. It asks the desk socket (`$SPOOL_KEY_SOCK`, one JSON line each way:
-`{"op":"lease","kind":...}`, `{"op":"exhausted","kind":...}`; the server
-half is 127 X1, its own row) for a lease on **every** start, then forks the
-CLI in the seat dir (`$SPOOL_SEAT_DIR`) and waits:
+`{"op":"lease","kind":...,"seat":...}`, `{"op":"exhausted","kind":...,"seat":...}`;
+the server half is 127 X1, its own row) for a lease on **every** start, then
+forks the CLI in the seat dir (`$SPOOL_SEAT_DIR`) and waits:
+
+- `seat` is that seat dir: the desk records it against the caller's
+  SO_PEERCRED pid and removes it once the pid is gone (127 5.4); a path
+  outside its `<runtime>/spool-seat/` is refused `bad_seat`.
+- claude's helper asks `{"op":"helper","kind":"claude"}`: answered only from
+  the lease the desk already holds, never a new hub lease per helper call
+  (127 5.2); with none held it is refused `no_lease` and the helper exits 1
+  with nothing on stdout. Refusals are tokens only (`key_exhausted`,
+  `no_key`, `no_lease`, `bad_seat`, `no_box_key`, `no_lease_route`,
+  `bad_kind`, `bad_request`, ...). Agreed with X1 (c-128), 2026-10-27.
 
 - The key is set in the CLI's environment only (grok `XAI_API_KEY` with
   `GROK_HOME` = the seat dir, mistral `MISTRAL_API_KEY`, qwen

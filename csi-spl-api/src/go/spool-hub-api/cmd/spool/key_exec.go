@@ -28,6 +28,7 @@ func cmdKeyExec(args []string) int {
 		return keyexec.ExitUsage
 	}
 	sock := os.Getenv(keyexec.SockEnv)
+	seatDir := os.Getenv(keyexec.SeatDirEnv)
 	self, err := os.Executable()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "spool key-exec: %v\n", err)
@@ -35,9 +36,9 @@ func cmdKeyExec(args []string) int {
 	}
 	return keyexec.Run(context.Background(), keyexec.Opts{
 		Kind: kind, CLI: cli, Args: rest, Env: os.Environ(),
-		SeatDir: os.Getenv(keyexec.SeatDirEnv),
+		SeatDir: seatDir,
 		Helper:  shQuote(self) + " key-helper --sock " + shQuote(sock) + " claude",
-		Desk:    keyexec.SockDesk{Path: sock},
+		Desk:    keyexec.SockDesk{Path: sock, Seat: seatDir},
 		Stdin:   os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr,
 	})
 }
@@ -51,13 +52,13 @@ func keyExecArgs(args []string) (kind, cli string, rest []string, ok bool) {
 }
 
 // cmdKeyHelper is claude's apiKeyHelper: the key on stdout and nothing on
-// stderr (127 5.2 step 5), from the desk's held lease.
+// stderr (127 5.2 step 5), from the desk's held lease only (op helper).
 func cmdKeyHelper(args []string) int {
 	if len(args) != 3 || args[0] != "--sock" || args[2] != "claude" {
 		fmt.Fprint(os.Stderr, keyExecUsage)
 		return keyexec.ExitUsage
 	}
-	l, err := keyexec.SockDesk{Path: args[1]}.Lease(context.Background(), "claude")
+	l, err := keyexec.SockDesk{Path: args[1]}.Helper(context.Background(), "claude")
 	if err != nil {
 		return 1 // silent: claude shows its own auth error
 	}

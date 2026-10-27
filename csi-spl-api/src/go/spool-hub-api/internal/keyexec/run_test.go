@@ -1,6 +1,7 @@
 package keyexec
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -59,8 +60,8 @@ func TestRedControlFake402(t *testing.T) {
 	if runs != 1 || last != ExitKeyExhausted {
 		t.Fatalf("classifier on: %d runs, last exit %d; want 1 run, exit %d", runs, last, ExitKeyExhausted)
 	}
-	if n := len(s.desk.reports); n != 1 || s.desk.reports[0].Kind != "grok" {
-		t.Fatalf("desk reports = %+v, want one exhausted grok", s.desk.reports)
+	if n := len(s.desk.reports); n != 1 || s.desk.reports[0].Kind != "grok" || s.desk.reports[0].Seat != s.seatDir {
+		t.Fatalf("desk reports = %+v, want one exhausted grok from seat %s", s.desk.reports, s.seatDir)
 	}
 	rc, msg := s.run("grok", "402", false)
 	if rc != ExitKeyExhausted || len(s.starts()) != 1 {
@@ -200,5 +201,25 @@ func writeText(t *testing.T, p, s string) {
 	t.Helper()
 	if err := os.WriteFile(p, []byte(s), 0o600); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Every ask of a seat start names its seat dir, so the desk can sweep the
+// dir once the wrapper is gone (127 5.4); the helper asks only for the
+// held lease and names no seat (127 5.2).
+func TestDeskAsksCarrySeat(t *testing.T) {
+	s := newSeat(t)
+	if rc, msg := s.run("grok", "ok", false); rc != 0 {
+		t.Fatalf("grok start: exit %d (%s)", rc, msg)
+	}
+	if len(s.desk.asks) != 1 || s.desk.asks[0] != (Request{Op: "lease", Kind: "grok", Seat: s.seatDir}) {
+		t.Fatalf("asks = %+v, want one lease naming seat %s", s.desk.asks, s.seatDir)
+	}
+	l, err := SockDesk{Path: s.desk.path, Seat: s.seatDir}.Helper(context.Background(), "claude")
+	if err != nil || l.Key != fakeKey {
+		t.Fatalf("helper: %v", err)
+	}
+	if last := s.desk.asks[len(s.desk.asks)-1]; last != (Request{Op: "helper", Kind: "claude"}) {
+		t.Fatalf("helper ask = %+v, want op helper with no seat", last)
 	}
 }

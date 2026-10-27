@@ -65,6 +65,7 @@ type fakeDesk struct {
 	path      string
 	exhausted bool
 	reports   []Request
+	asks      []Request // every request, in order
 	leases    int
 	refuse    string // a token to refuse every lease with
 }
@@ -103,6 +104,7 @@ func (d *fakeDesk) serve(c net.Conn) {
 	var req Request
 	_ = json.Unmarshal(line, &req)
 	d.mu.Lock()
+	d.asks = append(d.asks, req)
 	var r Reply
 	switch {
 	case req.Op == "exhausted":
@@ -156,7 +158,7 @@ func (s *seat) run(kind, mode string, noClassify bool, extraEnv ...string) (int,
 	rc := Run(context.Background(), Opts{
 		Kind: kind, CLI: self, Args: []string{"--fake-arg"}, Env: env, SeatDir: s.seatDir,
 		Helper: "'/opt/spool' key-helper --sock '/run/x' claude",
-		Desk:   SockDesk{Path: s.desk.path}, Stdin: strings.NewReader(""), Stdout: &bytes.Buffer{},
+		Desk:   SockDesk{Path: s.desk.path, Seat: s.seatDir}, Stdin: strings.NewReader(""), Stdout: &bytes.Buffer{},
 		Stderr: &stderr, NoClassify: noClassify,
 	})
 	return rc, stderr.String()

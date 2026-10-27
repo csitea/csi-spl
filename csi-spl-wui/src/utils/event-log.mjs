@@ -236,6 +236,91 @@ function persistedQueue(store) {
 }
 
 /**
+ * One shipper's state: its options, its queue, the pending timer handle, the
+ * re-entry guard of `flush` and the transient failures in a row.
+ * @typedef {ReturnType<typeof shipperOptions> & {
+ *   queue: ReturnType<typeof persistedQueue>,
+ *   timer: any, busy: boolean, failures: number,
+ * }} ShipperState
+ */
+
+/** Arm the flush timer for `ms` unless one is already pending. @param {ShipperState} s @param {number} ms */
+function shipperSchedule(s, ms) {
+  if (s.timer != null) return
+  s.timer = s.setTimer(() => {
+    s.timer = null
+    void shipperFlush(s)
+  }, ms)
+}
+
+/** Queue one journal record, and arm the timer when signed in. @param {ShipperState} s @param {any} rec */
+function shipperNote(s, rec) {
+  try {
+    const st = s.session()
+    if (st === 'out') return
+    const ev = toEventPayload(rec)
+    if (!ev) return
+    s.queue.push(ev)
+    if (st === 'in') shipperSchedule(s, s.delay)
+  } catch {
+    /* the shipper must never become an error of its own */
+  }
+}
+
+/** POST the queue batch by batch until it is empty, cleared or must wait; resolves to the events taken. @param {ShipperState} s */
+async function shipBatches(s) {
+  let sent = 0
+  while (s.queue.length) {
+    const batch = s.queue.head(EVENT_BATCH_MAX)
+    const res = await s.client.add(batch)
+    const next = batchVerdict(res, s.failures)
+    s.failures = next.failures
+    if (next.verdict === 'clear') { s.queue.clear(); break }
+    if (next.verdict === 'retry') {
+      shipperSchedule(s, res.retryAfter > 0 ? res.retryAfter * 1000 : s.delay * 2 ** s.failures)
+      break
+    }
+    s.queue.drop(batch.length)
+    if (next.verdict === 'sent') sent += batch.length
+  }
+  return sent
+}
+
+/** Send what is queued. Resolves to the number of events the hub took. @param {ShipperState} s */
+async function shipperFlush(s) {
+  if (s.busy) return 0
+  const st = s.session()
+  if (st === 'out') { s.queue.clear(); return 0 }
+  if (st !== 'in' || !s.queue.length) return 0
+  s.busy = true
+  let sent = 0
+  try {
+    sent = await shipBatches(s)
+  } catch {
+    /* never throws */
+  } finally {
+    s.busy = false
+  }
+  return sent
+}
+
+/** The session changed: ship what waited for it, or drop it on sign-out. @param {ShipperState} s */
+function shipperSessionChanged(s) {
+  const st = s.session()
+  if (st === 'out') {
+    s.queue.clear()
+    shipperStop(s)
+  } else if (st === 'in' && s.queue.length) {
+    shipperSchedule(s, 0)
+  }
+}
+
+/** Cancel the pending flush timer, if any. @param {ShipperState} s */
+function shipperStop(s) {
+  if (s.timer != null) { s.clearTimer(s.timer); s.timer = null }
+}
+
+/**
  * Batch journal records to the hub.
  *
  * `session()` answers 'in' | 'out' | 'unknown' | 'loading'. While it is not
@@ -258,83 +343,20 @@ function persistedQueue(store) {
  * }} opts
  */
 export function createEventShipper(opts) {
-  const { client, session, setTimer, clearTimer, delay, store } = shipperOptions(opts)
+  const o = shipperOptions(opts)
+  /** @type {ShipperState} */
+  const s = { ...o, queue: persistedQueue(o.store), timer: null, busy: false, failures: 0 }
 
-  const queue = persistedQueue(store)
-  let timer = null
-  let busy = false
-  let failures = 0
+  shipperSessionChanged(s) // what the last page left unsent: ship it, drop it, or wait
 
-  function schedule(ms) {
-    if (timer != null) return
-    timer = setTimer(() => {
-      timer = null
-      void flush()
-    }, ms)
+  return {
+    /** @param {any} rec a journal record */
+    note: (rec) => shipperNote(s, rec),
+    flush: () => shipperFlush(s),
+    sessionChanged: () => shipperSessionChanged(s),
+    stop: () => shipperStop(s),
+    size: () => s.queue.length,
   }
-
-  /** @param {any} rec a journal record */
-  function note(rec) {
-    try {
-      const st = session()
-      if (st === 'out') return
-      const ev = toEventPayload(rec)
-      if (!ev) return
-      queue.push(ev)
-      if (st === 'in') schedule(delay)
-    } catch {
-      /* the shipper must never become an error of its own */
-    }
-  }
-
-  /** Send what is queued. Resolves to the number of events the hub took. */
-  async function flush() {
-    if (busy) return 0
-    const st = session()
-    if (st === 'out') { queue.clear(); return 0 }
-    if (st !== 'in' || !queue.length) return 0
-    busy = true
-    let sent = 0
-    try {
-      while (queue.length) {
-        const batch = queue.head(EVENT_BATCH_MAX)
-        const res = await client.add(batch)
-        const next = batchVerdict(res, failures)
-        failures = next.failures
-        if (next.verdict === 'clear') { queue.clear(); break }
-        if (next.verdict === 'retry') {
-          schedule(res.retryAfter > 0 ? res.retryAfter * 1000 : delay * 2 ** failures)
-          break
-        }
-        queue.drop(batch.length)
-        if (next.verdict === 'sent') sent += batch.length
-      }
-    } catch {
-      /* never throws */
-    } finally {
-      busy = false
-    }
-    return sent
-  }
-
-  /** The session changed: ship what waited for it, or drop it on sign-out. */
-  function sessionChanged() {
-    const st = session()
-    if (st === 'out') {
-      queue.clear()
-      stop()
-    } else if (st === 'in' && queue.length) {
-      schedule(0)
-    }
-  }
-
-  function stop() {
-    if (timer != null) { clearTimer(timer); timer = null }
-  }
-
-  sessionChanged() // what the last page left unsent: ship it, drop it, or wait
-
-  return { note, flush, sessionChanged, stop, size: () => queue.length }
 }
 
 /**

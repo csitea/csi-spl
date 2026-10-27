@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
@@ -292,4 +293,114 @@ func randPass(t *testing.T) []byte {
 		out[i] = letters[int(c)%len(letters)]
 	}
 	return out
+}
+
+// TestKeyFileFlagNotRefused: --key-file carries a path (spec 136 section 5,
+// Q7 B), so FlagRefused lets it through while the passphrase flags stay
+// refused next to it.
+func TestKeyFileFlagNotRefused(t *testing.T) {
+	for _, argv := range [][]string{
+		{KeyFileFlag, "/x/unlock.key"},
+		{KeyFileFlag + "=/x/unlock.key"},
+		{"--to-key-file", "/x/unlock.key"},
+	} {
+		if err := FlagRefused(argv); err != nil {
+			t.Fatalf("%v refused: %v", argv, err)
+		}
+	}
+	if err := FlagRefused([]string{KeyFileFlag, "/x", "--passphrase-file", "/y"}); !errors.Is(err, ErrPassphrase) {
+		t.Fatal("a passphrase flag next to --key-file was not refused")
+	}
+}
+
+// TestKeyFileStrictModes is the StrictModes rule of spec 136 section 4: only
+// a regular, non-symlink file of the caller's uid at mode 0400 is read, and
+// each refusal names neither the path nor the content.
+func TestKeyFileStrictModes(t *testing.T) {
+	dir := shortDir(t)
+	key := randPass(t)
+	good := filepath.Join(dir, "good.key")
+	writeKey(t, good, append(append([]byte{}, key...), '\n'), 0400)
+	got, err := ReadKeyFile(good)
+	if err != nil || !bytes.Equal(got, key) {
+		t.Fatalf("a 0400 key file was not read: %v", err)
+	}
+	Wipe(got)
+
+	link := filepath.Join(dir, "link.key")
+	if err := os.Symlink(good, link); err != nil {
+		t.Fatal(err)
+	}
+	sub := filepath.Join(dir, "sub.key")
+	if err := os.Mkdir(sub, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(sub, 0400); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(sub, 0700) })
+	short := filepath.Join(dir, "short.key")
+	writeKey(t, short, []byte("too-short\n"), 0400)
+	cases := map[string]string{
+		filepath.Join(dir, "missing.key"): "missing",
+		link:                              "symlink",
+		sub:                               "not a regular file",
+		short:                             "less than",
+	}
+	for _, mode := range []os.FileMode{0600, 0440, 0404, 0644, 0500, 0444} {
+		p := filepath.Join(dir, fmt.Sprintf("m%o.key", mode))
+		writeKey(t, p, key, mode)
+		cases[p] = "mode must be 0400"
+	}
+	for path, want := range cases {
+		b, err := ReadKeyFile(path)
+		if err == nil || b != nil {
+			t.Fatalf("%s: read, want refusal %q", filepath.Base(path), want)
+		}
+		if !errors.Is(err, ErrPassphrase) || !strings.Contains(err.Error(), want) {
+			t.Fatalf("%s: %v, want %q", filepath.Base(path), err, want)
+		}
+		if strings.Contains(err.Error(), dir) || strings.Contains(err.Error(), string(key)) {
+			t.Fatal("refusal names the path or the key")
+		}
+	}
+}
+
+// TestKeyFileOtherOwnerRefused: a key file of another uid is refused. The
+// rule is proven on a stat result with a foreign uid, and on a real file
+// when the test runs as root and can chown it.
+func TestKeyFileOtherOwnerRefused(t *testing.T) {
+	dir := shortDir(t)
+	p := filepath.Join(dir, "unlock.key")
+	writeKey(t, p, randPass(t), 0400)
+	fi, err := os.Lstat(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := checkKeyFile(fi, os.Geteuid()); err != nil {
+		t.Fatalf("own file refused: %v", err)
+	}
+	if err := checkKeyFile(fi, os.Geteuid()+1); err == nil || !strings.Contains(err.Error(), "not owned by the caller") {
+		t.Fatalf("foreign uid accepted: %v", err)
+	}
+	if os.Geteuid() != 0 {
+		t.Log("not root: the real-file chown case is skipped, the stat case ran")
+		return
+	}
+	if err := os.Chown(p, 65534, 65534); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadKeyFile(p); err == nil || !strings.Contains(err.Error(), "not owned by the caller") {
+		t.Fatalf("a file of uid 65534 was read: %v", err)
+	}
+}
+
+func writeKey(t *testing.T, path string, b []byte, mode os.FileMode) {
+	t.Helper()
+	if err := os.WriteFile(path, b, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, mode); err != nil {
+		t.Fatal(err)
+	}
 }

@@ -484,3 +484,270 @@ func randPassCLI(t *testing.T) []byte {
 	}
 	return out
 }
+
+// keyFileState makes a c-101 bundle sealed under a generated key file at
+// <state>/keys/unlock.key, mode 0400. Test identities only.
+func keyFileState(t *testing.T) (dir, ws, keyPath string, key []byte) {
+	t.Helper()
+	dir = shortState(t)
+	ws = randWS(t)
+	t.Setenv("SPOOL_ENC_STATE", dir)
+	key, err := keyd.NewUnlockKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := keyd.InitAgent(dir, ws, "c-101", key); err != nil {
+		t.Fatal(err)
+	}
+	keyPath = keyd.UnlockKeyPath(dir)
+	writeKeyFile(t, keyPath, key)
+	return dir, ws, keyPath, key
+}
+
+func writeKeyFile(t *testing.T, path string, key []byte) {
+	t.Helper()
+	os.Remove(path)
+	if err := os.WriteFile(path, append(append([]byte{}, key...), '\n'), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, 0400); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func stopKeyd(t *testing.T, dir string) {
+	t.Cleanup(func() {
+		keyd.Lock(dir)
+		if b, err := os.ReadFile(filepath.Join(dir, "keyd.pid")); err == nil {
+			if n, err := strconv.Atoi(strings.TrimSpace(string(b))); err == nil && n > 0 {
+				syscall.Kill(n, syscall.SIGTERM)
+			}
+		}
+	})
+}
+
+// runNoTTY runs the CLI as a child in its own session with stdin on
+// /dev/null and stdout on a pipe: no terminal anywhere, as under systemd.
+func runNoTTY(t *testing.T, args ...string) (int, string, string) {
+	t.Helper()
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(exe, args...)
+	cmd.Env = append(os.Environ(), "SPOOL_KEY_HELPER=1")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	var out, errOut bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &errOut
+	err = cmd.Run()
+	rc := 0
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
+		rc = ee.ExitCode()
+	} else if err != nil {
+		t.Fatal(err)
+	}
+	return rc, out.String(), errOut.String()
+}
+
+func keyStatus(t *testing.T) string {
+	t.Helper()
+	out := captureFD(t, &os.Stdout, func() {
+		if rc := run([]string{"key", "status"}); rc != 0 {
+			t.Fatalf("status rc %d", rc)
+		}
+	})
+	return strings.TrimSpace(string(out))
+}
+
+// TestKeyUnlockKeyFileNoTTY is the Q7 B boot path: `key unlock --key-file`
+// with no --workspace and no terminal starts keyd, status reads unlocked,
+// keyd opens a message sealed to the agent, and its env holds no secret.
+func TestKeyUnlockKeyFileNoTTY(t *testing.T) {
+	dir, _, keyPath, key := keyFileState(t)
+	stopKeyd(t, dir)
+	sum := sha256.Sum256(key)
+	t.Setenv("SPOOL_KEY_PASS_SHA", hex.EncodeToString(sum[:]))
+	t.Setenv("SPOOL_KEY_ATTEST", filepath.Join(dir, "keyd.attest"))
+	rc, out, errOut := runNoTTY(t, "key", "unlock", "--key-file", keyPath)
+	if rc != 0 || out != "unlocked\n" {
+		t.Fatalf("unlock rc %d out %q err %q", rc, out, errOut)
+	}
+	if strings.Contains(errOut, string(key)) {
+		t.Fatal("stderr holds the key")
+	}
+	if st := keyStatus(t); st != "unlocked" {
+		t.Fatalf("status %q", st)
+	}
+	pub, err := os.ReadFile(filepath.Join(dir, "keys", "c-101.pub"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain, err := keyd.Open(dir, "c-101", sealPub(t, strings.TrimSpace(string(pub)), "body"))
+	if err != nil || string(plain) != "body" {
+		t.Fatal("keyd did not open a sealed message")
+	}
+	keyd.Wipe(plain)
+	assertKeydEnv(t, dir, key)
+	assertStateSealed(t, dir)
+	if rc := run([]string{"key", "lock"}); rc != 0 {
+		t.Fatalf("lock rc %d", rc)
+	}
+	if st := keyStatus(t); st != "locked" {
+		t.Fatalf("after lock %q", st)
+	}
+}
+
+// TestKeyUnlockKeyFileRefused: each StrictModes refusal exits 2 with one
+// line, starts no keyd and leaves status locked; the passphrase flags and
+// variables stay refused next to --key-file (FR5). The control is the last
+// case: the same file at 0400 does unlock.
+func TestKeyUnlockKeyFileRefused(t *testing.T) {
+	dir, ws, keyPath, key := keyFileState(t)
+	stopKeyd(t, dir)
+	link := filepath.Join(dir, "link.key")
+	if err := os.Symlink(keyPath, link); err != nil {
+		t.Fatal(err)
+	}
+	wrong := filepath.Join(dir, "wrong.key")
+	writeKeyFile(t, wrong, randPassCLI(t))
+	cases := []struct {
+		name string
+		args []string
+		mode os.FileMode
+		env  string
+		rc   int
+	}{
+		{"missing", []string{"--key-file", filepath.Join(dir, "none.key")}, 0400, "", keyd.ExitPassphrase},
+		{"mode 0600", []string{"--key-file", keyPath}, 0600, "", keyd.ExitPassphrase},
+		{"mode 0440", []string{"--key-file", keyPath}, 0440, "", keyd.ExitPassphrase},
+		{"mode 0644", []string{"--key-file", keyPath}, 0644, "", keyd.ExitPassphrase},
+		{"symlink", []string{"--key-file", link}, 0400, "", keyd.ExitPassphrase},
+		{"wrong key", []string{"--key-file", wrong}, 0400, "", 1},
+		{"passphrase flag", []string{"--key-file", keyPath, "--passphrase-file", wrong}, 0400, "", keyd.ExitPassphrase},
+		{"passphrase env", []string{"--key-file", keyPath}, 0400, "SPOOL_KEY_PASSPHRASE", keyd.ExitPassphrase},
+		{"other workspace", []string{"--key-file", keyPath, "--workspace", randWS(t)}, 0400, "", 1},
+	}
+	for _, c := range cases {
+		if err := os.Chmod(keyPath, c.mode); err != nil {
+			t.Fatal(err)
+		}
+		if c.env != "" {
+			t.Setenv(c.env, "x")
+		}
+		var rc int
+		errOut := captureFD(t, &os.Stderr, func() {
+			rc = run(append([]string{"key", "unlock"}, c.args...))
+		})
+		if c.env != "" {
+			os.Unsetenv(c.env)
+		}
+		if rc != c.rc {
+			t.Fatalf("%s: rc %d, want %d (%s)", c.name, rc, c.rc, errOut)
+		}
+		if n := bytes.Count(errOut, []byte("\n")); n != 1 || bytes.Contains(errOut, key) || bytes.Contains(errOut, []byte(dir)) {
+			t.Fatalf("%s: stderr is not one clean line: %q", c.name, errOut)
+		}
+		if _, err := os.Stat(filepath.Join(dir, "keyd.log")); !os.IsNotExist(err) {
+			t.Fatalf("%s: keyd was started", c.name)
+		}
+		if st := keyStatus(t); st != "locked" {
+			t.Fatalf("%s: status %q", c.name, st)
+		}
+	}
+	if err := os.Chmod(keyPath, 0400); err != nil {
+		t.Fatal(err)
+	}
+	rc, out, errOut := runNoTTY(t, "key", "unlock", "--key-file", keyPath, "--workspace", ws)
+	if rc != 0 || out != "unlocked\n" {
+		t.Fatalf("control: the 0400 file did not unlock: rc %d %q", rc, errOut)
+	}
+}
+
+// TestKeyRotateUnlockKeyCLI: the rotated key file unlocks, the old secret
+// does not, and a rotation that stopped between the renames is recovered by
+// the next unlock.
+func TestKeyRotateUnlockKeyCLI(t *testing.T) {
+	dir, _, keyPath, old := keyFileState(t)
+	stopKeyd(t, dir)
+	out := captureFD(t, &os.Stdout, func() {
+		if rc := run([]string{"key", "rotate-unlock-key"}); rc != 0 {
+			t.Fatalf("rotate rc %d", rc)
+		}
+	})
+	if string(out) != "rotated\n" {
+		t.Fatalf("rotate out %q", out)
+	}
+	if _, err := keyd.LoadAgents(dir, old); err == nil {
+		t.Fatal("the old key still opens the bundle")
+	}
+	next, err := keyd.ReadKeyFile(keyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer keyd.Wipe(next)
+	if bytes.Equal(next, old) {
+		t.Fatal("the key did not change")
+	}
+	// A crash after agents.age was renamed and before unlock.key was: the
+	// bundle is under the .tmp key, unlock.key holds the old one.
+	if err := keyd.RekeyToFile(dir, next, keyPath+".new"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(keyPath+".new", keyPath+".tmp"); err != nil {
+		t.Fatal(err)
+	}
+	rc, so, se := runNoTTY(t, "key", "unlock", "--key-file", keyPath)
+	if rc != 0 || so != "unlocked\n" {
+		t.Fatalf("unlock after an interrupted rotation: rc %d %q", rc, se)
+	}
+	if _, err := os.Lstat(keyPath + ".tmp"); !os.IsNotExist(err) {
+		t.Fatal("unlock.key.tmp was not recovered")
+	}
+	if _, err := keyd.LoadAgents(dir, next); err == nil {
+		t.Fatal("the pre-crash key still opens the bundle")
+	}
+}
+
+// TestKeyRekeyCLI moves the bundle key file -> key file -> typed
+// passphrase -> key file. After each step the new secret unlocks and the
+// old one does not, and a replaced key file is removed.
+func TestKeyRekeyCLI(t *testing.T) {
+	dir, _, keyPath, key := keyFileState(t)
+	stopKeyd(t, dir)
+	second := filepath.Join(dir, "keys", "second.key")
+	if rc := run([]string{"key", "rekey", "--key-file", keyPath, "--to-key-file", second}); rc != 0 {
+		t.Fatalf("rekey to a key file rc %d", rc)
+	}
+	if _, err := os.Lstat(keyPath); !os.IsNotExist(err) {
+		t.Fatal("the replaced key file was kept")
+	}
+	if _, err := keyd.LoadAgents(dir, key); err == nil {
+		t.Fatal("the old key still opens the bundle")
+	}
+	k2, err := keyd.ReadKeyFile(second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer keyd.Wipe(k2)
+	typed := randPassCLI(t)
+	defer keyd.Wipe(typed)
+	runKeyPTY(t, dir, typed, true, "key", "rekey", "--key-file", second)
+	if _, err := os.Lstat(second); !os.IsNotExist(err) {
+		t.Fatal("the key file was kept after a rekey to a typed passphrase")
+	}
+	if _, err := keyd.LoadAgents(dir, k2); err == nil {
+		t.Fatal("the key file still opens the bundle")
+	}
+	if _, err := keyd.LoadAgents(dir, typed); err != nil {
+		t.Fatal("the typed passphrase does not open the bundle")
+	}
+	runKeyPTY(t, dir, typed, false, "key", "rekey", "--to-key-file", keyPath)
+	if _, err := keyd.LoadAgents(dir, typed); err == nil {
+		t.Fatal("the typed passphrase still opens the bundle")
+	}
+	rc, so, se := runNoTTY(t, "key", "unlock", "--key-file", keyPath)
+	if rc != 0 || so != "unlocked\n" {
+		t.Fatalf("unlock with the rekeyed key file: rc %d %q", rc, se)
+	}
+}

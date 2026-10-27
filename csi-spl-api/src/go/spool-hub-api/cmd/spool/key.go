@@ -22,9 +22,12 @@ import (
 
 const keyUsage = `usage: spool key init (--as <id> | --owner) --workspace <uuid>
        spool key unlock --workspace <uuid>
+       spool key unlock --key-file <path> [--workspace <uuid>]
        spool key lock
        spool key status
        spool key rotate --as <id>
+       spool key rotate-unlock-key [--key-file <path>] [--workspace <uuid>]
+       spool key rekey [--key-file <path>] [--to-key-file <path>] [--workspace <uuid>]
 `
 
 func cmdKey(args []string) int {
@@ -47,6 +50,10 @@ func cmdKey(args []string) int {
 		return cmdKeyStatus(rest)
 	case "rotate":
 		return cmdKeyRotate(rest)
+	case "rotate-unlock-key":
+		return cmdKeyRotateUnlock(rest)
+	case "rekey":
+		return cmdKeyRekey(rest)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown key command %q\n", sub)
 		return 1
@@ -105,30 +112,25 @@ func cmdKeyInit(args []string) int {
 	return 0
 }
 
+// cmdKeyUnlock reads the passphrase on the terminal, or with --key-file
+// reads the unattended key file (spec 136 section 5, Q7 B) and needs no tty.
 func cmdKeyUnlock(args []string) int {
 	if rc := refuseFlag(args); rc != 0 {
 		return rc
 	}
 	fs := flag.NewFlagSet("key unlock", flag.ContinueOnError)
 	ws := fs.String("workspace", "", "workspace uuid")
+	keyFile := fs.String("key-file", "", "unattended key file, mode 0400")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
-	if fs.NArg() != 0 || !keyd.ValidWorkspace(*ws) {
-		fmt.Fprintln(os.Stderr, "spool: workspace id is not a uuid")
+	if fs.NArg() != 0 {
+		fmt.Fprint(os.Stderr, keyUsage)
 		return 1
 	}
-	dir, rc := encState()
+	dir, cur, rc := keyWorkspace(*ws, *keyFile != "")
 	if rc != 0 {
 		return rc
-	}
-	cur, err := keyd.WorkspaceOf(dir)
-	if err != nil {
-		return passFail(err)
-	}
-	if cur != *ws {
-		fmt.Fprintln(os.Stderr, "spool: workspace mismatch")
-		return 1
 	}
 	st, err := keyd.Status(dir)
 	if err != nil {
@@ -141,7 +143,7 @@ func cmdKeyUnlock(args []string) int {
 	if err := keyd.EnvRefused(); err != nil {
 		return passFail(err)
 	}
-	pass, err := keyd.ReadOnce()
+	pass, err := unlockSecret(dir, *keyFile)
 	if err != nil {
 		return passFail(err)
 	}
@@ -155,6 +157,128 @@ func cmdKeyUnlock(args []string) int {
 	}
 	fmt.Println("unlocked")
 	return 0
+}
+
+// keyWorkspace resolves the state dir and its workspace. ws may be empty
+// only when optional (a key file names its state); a given ws must match.
+func keyWorkspace(ws string, optional bool) (dir, cur string, rc int) {
+	if (ws == "" && !optional) || (ws != "" && !keyd.ValidWorkspace(ws)) {
+		fmt.Fprintln(os.Stderr, "spool: workspace id is not a uuid")
+		return "", "", 1
+	}
+	dir, rc = encState()
+	if rc != 0 {
+		return "", "", rc
+	}
+	cur, err := keyd.WorkspaceOf(dir)
+	if err != nil {
+		return "", "", passFail(err)
+	}
+	if ws != "" && cur != ws {
+		fmt.Fprintln(os.Stderr, "spool: workspace mismatch")
+		return "", "", 1
+	}
+	return dir, cur, 0
+}
+
+// unlockSecret is the typed passphrase, or the key file after a rotation
+// that stopped part way is recovered.
+func unlockSecret(dir, keyFile string) ([]byte, error) {
+	if keyFile == "" {
+		return keyd.ReadOnce()
+	}
+	if err := keyd.RecoverUnlockKey(dir, keyFile); err != nil {
+		return nil, err
+	}
+	return keyd.ReadKeyFile(keyFile)
+}
+
+// cmdKeyRotateUnlock seals the agent keys under a fresh key file secret
+// (spec 136 section 4). keyd keeps its identities: they do not change.
+func cmdKeyRotateUnlock(args []string) int {
+	if rc := refuseFlag(args); rc != 0 {
+		return rc
+	}
+	fs := flag.NewFlagSet("key rotate-unlock-key", flag.ContinueOnError)
+	ws := fs.String("workspace", "", "workspace uuid")
+	keyFile := fs.String("key-file", "", "key file, default <state>/keys/unlock.key")
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+	if fs.NArg() != 0 {
+		fmt.Fprint(os.Stderr, keyUsage)
+		return 1
+	}
+	dir, _, rc := keyWorkspace(*ws, true)
+	if rc != 0 {
+		return rc
+	}
+	if err := keyd.EnvRefused(); err != nil {
+		return passFail(err)
+	}
+	path := *keyFile
+	if path == "" {
+		path = keyd.UnlockKeyPath(dir)
+	}
+	if err := keyd.RotateUnlockKey(dir, path); err != nil {
+		return passFail(err)
+	}
+	fmt.Println("rotated")
+	return 0
+}
+
+// cmdKeyRekey moves the agent keys between the key file and a typed
+// passphrase. The old secret is --key-file, else typed; the new one is a
+// generated --to-key-file, else typed twice. A replaced key file is removed.
+func cmdKeyRekey(args []string) int {
+	if rc := refuseFlag(args); rc != 0 {
+		return rc
+	}
+	fs := flag.NewFlagSet("key rekey", flag.ContinueOnError)
+	ws := fs.String("workspace", "", "workspace uuid")
+	from := fs.String("key-file", "", "the current key file; typed when empty")
+	to := fs.String("to-key-file", "", "write a new key file here; typed when empty")
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
+	if fs.NArg() != 0 {
+		fmt.Fprint(os.Stderr, keyUsage)
+		return 1
+	}
+	dir, _, rc := keyWorkspace(*ws, true)
+	if rc != 0 {
+		return rc
+	}
+	if err := keyd.EnvRefused(); err != nil {
+		return passFail(err)
+	}
+	old, err := unlockSecret(dir, *from)
+	if err != nil {
+		return passFail(err)
+	}
+	defer keyd.Wipe(old)
+	if err := rekeyTo(dir, old, *to); err != nil {
+		return passFail(err)
+	}
+	if *from != "" && filepath.Clean(*from) != filepath.Clean(*to) {
+		if err := os.Remove(*from); err != nil {
+			fmt.Fprintln(os.Stderr, "spool: the old key file no longer opens the keys; remove it")
+		}
+	}
+	fmt.Println("rekeyed")
+	return 0
+}
+
+func rekeyTo(dir string, old []byte, to string) error {
+	if to != "" {
+		return keyd.RekeyToFile(dir, old, to)
+	}
+	next, err := keyd.ReadNew()
+	if err != nil {
+		return err
+	}
+	defer keyd.Wipe(next)
+	return keyd.RekeyToPass(dir, old, next)
 }
 
 func cmdKeyLock(args []string) int {

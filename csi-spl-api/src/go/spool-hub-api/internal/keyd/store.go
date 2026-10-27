@@ -1,6 +1,8 @@
 package keyd
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
@@ -8,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	"filippo.io/age"
@@ -267,11 +270,6 @@ func saveDisk(dir string, b diskBundle, pass []byte) error {
 }
 
 func writeScrypt(path string, plain, pass []byte, mode os.FileMode) error {
-	rec, err := age.NewScryptRecipient(string(pass))
-	if err != nil {
-		return errors.New("could not seal the agent keys")
-	}
-	rec.SetWorkFactor(scryptLogN)
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".w-*")
 	if err != nil {
 		return errors.New("could not seal the agent keys")
@@ -287,19 +285,9 @@ func writeScrypt(path string, plain, pass []byte, mode os.FileMode) error {
 		tmp.Close()
 		return errors.New("could not seal the agent keys")
 	}
-	w, err := age.Encrypt(tmp, rec)
-	if err != nil {
+	if err := sealScrypt(tmp, plain, pass); err != nil {
 		tmp.Close()
-		return errors.New("could not seal the agent keys")
-	}
-	if _, err := w.Write(plain); err != nil {
-		w.Close()
-		tmp.Close()
-		return errors.New("could not seal the agent keys")
-	}
-	if err := w.Close(); err != nil {
-		tmp.Close()
-		return errors.New("could not seal the agent keys")
+		return err
 	}
 	if err := tmp.Close(); err != nil {
 		return errors.New("could not seal the agent keys")
@@ -312,6 +300,27 @@ func writeScrypt(path string, plain, pass []byte, mode os.FileMode) error {
 	}
 	keep = true
 	return os.Chmod(path, mode)
+}
+
+// sealScrypt writes plain to w, sealed with age's scrypt mode under pass.
+func sealScrypt(w io.Writer, plain, pass []byte) error {
+	rec, err := age.NewScryptRecipient(string(pass))
+	if err != nil {
+		return errors.New("could not seal the agent keys")
+	}
+	rec.SetWorkFactor(scryptLogN)
+	enc, err := age.Encrypt(w, rec)
+	if err != nil {
+		return errors.New("could not seal the agent keys")
+	}
+	if _, err := enc.Write(plain); err != nil {
+		enc.Close()
+		return errors.New("could not seal the agent keys")
+	}
+	if err := enc.Close(); err != nil {
+		return errors.New("could not seal the agent keys")
+	}
+	return nil
 }
 
 func openScrypt(path string, pass []byte) ([]byte, error) {
@@ -337,4 +346,214 @@ func openScrypt(path string, pass []byte) ([]byte, error) {
 		return nil, errors.New("could not open the agent keys")
 	}
 	return plain, nil
+}
+
+// UnlockKeyPath is the unattended key file of the workspace (spec 136
+// section 4, Q7 B): <state>/keys/unlock.key, mode 0400.
+func UnlockKeyPath(dir string) string { return filepath.Join(dir, "keys", "unlock.key") }
+
+// NewUnlockKey makes a key file secret: 32 random bytes, base64, 44 chars.
+func NewUnlockKey() ([]byte, error) {
+	var raw [32]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return nil, errors.New("could not make a key")
+	}
+	out := make([]byte, base64.StdEncoding.EncodedLen(len(raw)))
+	base64.StdEncoding.Encode(out, raw[:])
+	Wipe(raw[:])
+	return out, nil
+}
+
+// rekeyStep is called after each durable step of a rekey. Tests make it
+// fail to leave the files exactly as a crash at that point would.
+var rekeyStep = func(string) error { return nil }
+
+// RotateUnlockKey seals the agent keys under a fresh key file secret. The
+// held identities do not change, so a running keyd keeps serving.
+func RotateUnlockKey(dir, keyPath string) error {
+	if err := RecoverUnlockKey(dir, keyPath); err != nil {
+		return err
+	}
+	old, err := ReadKeyFile(keyPath)
+	if err != nil {
+		return err
+	}
+	defer Wipe(old)
+	return RekeyToFile(dir, old, keyPath)
+}
+
+// RekeyToFile moves the agent keys from pass (typed or an older key file)
+// to a new generated key file at keyPath.
+func RekeyToFile(dir string, pass []byte, keyPath string) error {
+	if err := RecoverUnlockKey(dir, keyPath); err != nil {
+		return err
+	}
+	b, err := loadDisk(dir, pass)
+	if err != nil {
+		return err
+	}
+	defer WipeAgents(b.Agents)
+	next, err := NewUnlockKey()
+	if err != nil {
+		return err
+	}
+	defer Wipe(next)
+	return commitRekey(dir, b, next, keyPath)
+}
+
+// RekeyToPass moves the agent keys from pass to a typed passphrase next.
+func RekeyToPass(dir string, pass, next []byte) error {
+	b, err := loadDisk(dir, pass)
+	if err != nil {
+		return err
+	}
+	defer WipeAgents(b.Agents)
+	return commitRekey(dir, b, next, "")
+}
+
+// commitRekey is the crash-safe write of spec 136 section 4: agents.age.tmp
+// and <key>.tmp, fsync, then rename the bundle before the key. keyPath ""
+// means the new secret is typed and no key file is written.
+func commitRekey(dir string, b diskBundle, next []byte, keyPath string) error {
+	plain, err := json.Marshal(b)
+	if err != nil {
+		return errors.New("could not seal the agent keys")
+	}
+	defer Wipe(plain)
+	agentsTmp := agentsPath(dir) + ".tmp"
+	if err := writeNew(agentsTmp, 0600, func(f *os.File) error { return sealScrypt(f, plain, next) }); err != nil {
+		return err
+	}
+	if err := rekeyStep("agents-tmp"); err != nil {
+		return err
+	}
+	if keyPath != "" {
+		line := append(append([]byte(nil), next...), '\n')
+		defer Wipe(line)
+		werr := writeNew(keyPath+".tmp", 0400, func(f *os.File) error {
+			_, err := f.Write(line)
+			return err
+		})
+		if werr != nil {
+			return werr
+		}
+		if err := rekeyStep("key-tmp"); err != nil {
+			return err
+		}
+	}
+	return renameRekey(dir, agentsTmp, keyPath)
+}
+
+func renameRekey(dir, agentsTmp, keyPath string) error {
+	if err := syncDirs(dir, keyPath); err != nil {
+		return err
+	}
+	if err := os.Rename(agentsTmp, agentsPath(dir)); err != nil {
+		return errors.New("could not seal the agent keys")
+	}
+	if err := rekeyStep("agents-renamed"); err != nil {
+		return err
+	}
+	if keyPath != "" {
+		if err := os.Rename(keyPath+".tmp", keyPath); err != nil {
+			return errors.New("could not store the key file")
+		}
+	}
+	return syncDirs(dir, keyPath)
+}
+
+// RecoverUnlockKey brings a rekey that stopped part way to one consistent
+// state (spec 136 section 4, rotation step 8). With no .tmp file it does
+// nothing. A key file that fails StrictModes is refused before anything
+// is opened.
+func RecoverUnlockKey(dir, keyPath string) error {
+	agentsTmp, keyTmp := agentsPath(dir)+".tmp", keyPath+".tmp"
+	if !present(agentsTmp) && !present(keyTmp) {
+		return nil
+	}
+	if present(keyPath) {
+		cur, err := ReadKeyFile(keyPath)
+		if err != nil {
+			return err
+		}
+		ok := opensBundle(dir, cur)
+		Wipe(cur)
+		if ok {
+			os.Remove(agentsTmp)
+			os.Remove(keyTmp)
+			return syncDirs(dir, keyPath)
+		}
+	}
+	if next, err := ReadKeyFile(keyTmp); err == nil {
+		ok := opensBundle(dir, next)
+		Wipe(next)
+		if ok {
+			if err := os.Rename(keyTmp, keyPath); err != nil {
+				return errors.New("could not store the key file")
+			}
+			os.Remove(agentsTmp)
+			return syncDirs(dir, keyPath)
+		}
+	}
+	return errors.New("key state is inconsistent: no key file opens the agent keys")
+}
+
+func opensBundle(dir string, pass []byte) bool {
+	b, err := loadDisk(dir, pass)
+	if err != nil {
+		return false
+	}
+	WipeAgents(b.Agents)
+	return true
+}
+
+func present(path string) bool {
+	_, err := os.Lstat(path)
+	return err == nil
+}
+
+// writeNew creates path (gone first, never followed), fills it and fsyncs.
+func writeNew(path string, mode os.FileMode, fill func(*os.File) error) error {
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return errors.New("could not write the key state")
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL|syscall.O_NOFOLLOW, mode)
+	if err != nil {
+		return errors.New("could not write the key state")
+	}
+	if err := fill(f); err != nil {
+		f.Close()
+		os.Remove(path)
+		return errors.New("could not write the key state")
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		os.Remove(path)
+		return errors.New("could not write the key state")
+	}
+	if err := f.Close(); err != nil {
+		os.Remove(path)
+		return errors.New("could not write the key state")
+	}
+	return os.Chmod(path, mode)
+}
+
+// syncDirs fsyncs the keys dir and, when it is elsewhere, the key file's dir.
+func syncDirs(dir, keyPath string) error {
+	dirs := []string{filepath.Join(dir, "keys")}
+	if keyPath != "" && filepath.Dir(keyPath) != dirs[0] {
+		dirs = append(dirs, filepath.Dir(keyPath))
+	}
+	for _, d := range dirs {
+		f, err := os.Open(d)
+		if err != nil {
+			return errors.New("could not sync the key state")
+		}
+		err = f.Sync()
+		f.Close()
+		if err != nil {
+			return errors.New("could not sync the key state")
+		}
+	}
+	return nil
 }

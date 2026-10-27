@@ -3,12 +3,14 @@
 package keyd
 
 import (
+	"bytes"
 	"crypto/subtle"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
+	"syscall"
 	"unicode/utf8"
 
 	"golang.org/x/term"
@@ -33,6 +35,14 @@ var ErrPassphrase = errors.New("passphrase refused")
 var passEnv = []string{"SPOOL_KEY_PASSPHRASE", "PASSPHRASE", "AGE_PASSPHRASE"}
 
 var passFlags = []string{"--passphrase-file", "--password-file", "--passphrase", "--password"}
+
+// KeyFileFlag names the unattended key file (spec 136 section 5, the Q7 B
+// exception). It carries a path, never a passphrase literal, so FlagRefused
+// lets it through; ReadKeyFile applies StrictModes before it reads a byte.
+const KeyFileFlag = "--key-file"
+
+// maxKeyFile bounds a key file read. The generated key is 44 characters.
+const maxKeyFile = 4096
 
 // openTTY and readPassword are the production path onto /dev/tty. Tests
 // replace them to prove a refusal happens before either is called.
@@ -146,6 +156,62 @@ func readOne(prompt string) ([]byte, error) {
 		return nil, fmt.Errorf("%w: could not read", ErrPassphrase)
 	}
 	return pw, nil
+}
+
+// ReadKeyFile reads the unattended unlock key (spec 136 section 4, Q7 B).
+// StrictModes come first: a regular file, not a symlink, owned by the
+// caller's effective uid, mode exactly 0400. A refusal reads nothing and
+// its error names neither the path nor the content.
+func ReadKeyFile(path string) ([]byte, error) {
+	fi, err := os.Lstat(path)
+	if err != nil {
+		return nil, fmt.Errorf("%w: key file is missing", ErrPassphrase)
+	}
+	if err := checkKeyFile(fi, os.Geteuid()); err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	if err != nil {
+		return nil, fmt.Errorf("%w: key file could not be opened", ErrPassphrase)
+	}
+	defer f.Close()
+	open, err := f.Stat()
+	if err != nil || !os.SameFile(fi, open) {
+		return nil, fmt.Errorf("%w: key file changed while it was checked", ErrPassphrase)
+	}
+	if err := checkKeyFile(open, os.Geteuid()); err != nil {
+		return nil, err
+	}
+	raw, err := io.ReadAll(io.LimitReader(f, maxKeyFile+1))
+	if err != nil || len(raw) > maxKeyFile {
+		Wipe(raw)
+		return nil, fmt.Errorf("%w: key file could not be read", ErrPassphrase)
+	}
+	key := bytes.TrimRight(raw, "\r\n")
+	if utf8.RuneCount(key) < minPassphrase {
+		Wipe(raw)
+		return nil, fmt.Errorf("%w: key file holds less than %d characters", ErrPassphrase, minPassphrase)
+	}
+	out := append([]byte(nil), key...)
+	Wipe(raw)
+	return out, nil
+}
+
+// checkKeyFile is the StrictModes rule on one stat result.
+func checkKeyFile(fi os.FileInfo, uid int) error {
+	switch {
+	case fi.Mode()&os.ModeSymlink != 0:
+		return fmt.Errorf("%w: key file is a symlink", ErrPassphrase)
+	case !fi.Mode().IsRegular():
+		return fmt.Errorf("%w: key file is not a regular file", ErrPassphrase)
+	case fi.Mode().Perm() != 0400:
+		return fmt.Errorf("%w: key file mode must be 0400", ErrPassphrase)
+	}
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok || int(st.Uid) != uid {
+		return fmt.Errorf("%w: key file is not owned by the caller", ErrPassphrase)
+	}
+	return nil
 }
 
 // Wipe zeroes a secret buffer.

@@ -1,0 +1,2 @@
+Release-Note: skip
+Lay-Why: Tightens an automatic check on the size of script functions; nothing a user sees changes.

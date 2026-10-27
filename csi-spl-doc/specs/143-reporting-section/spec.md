@@ -853,7 +853,7 @@ $$\text{Lane} \longrightarrow \text{Issue} \longrightarrow \text{Commit(s)}$$
    - Records `a-452` in `fleet_lanes` (rdb `0096`, joined via `lower(agent_id)`).
    - Writes `lifetime/issue` on the box holding key `SPL-n`.
    - The lane's active burn interval $[t_{\text{start}}, t_{\text{end}}]$ starts at the `wip` transition timestamp $t_{\text{start}}$.
-   - **Multi-Lane Takeovers**: If an issue was worked by multiple lanes (e.g. an initial lane timed out or failed, and a takeover lane completed the work), each lane's active `wip` duration is tracked, and their combined token burn across all contributing lanes is aggregated for the issue.
+   - **Multi-Lane Takeovers**: If an issue was worked by multiple lanes (e.g. an initial lane timed out or failed, and a takeover lane completed the work), each lane's active duration is tracked (for a takeover lane where the issue was already in status `wip`, $t_{\text{start}}$ begins at the `issue_events` assignee change event), and their combined token burn across all contributing lanes is aggregated for the issue.
 
 2. **Telemetry Accumulation (rdb 0199)**:
    While the agent runs, the on-box collector records minute-by-minute token burn in `fleet_token_burn_events` (rdb `0199`) with exact columns:
@@ -937,7 +937,7 @@ Currency costs strictly follow the S3 paid-AI month read architecture (`cost_ai_
    Example rendered pill text (operator view):
    `[ feat 42 · 12.8M tok · $19.45 ]`
    Example rendered pill text (customer workspace member view):
-   `[ feat 42 · 12.8M tok ]`
+   `[ feat 42 ]`
 
 3. **Layout & Sizing Preservation (SPL-3796)**:
    - Sizing steps (`rf-step-0` to `rf-step-5`) scale with the square root of commit count share (preserving layout stability).
@@ -988,7 +988,8 @@ In adherence to the repository's TRUTH FIRST mandate, costs are never estimated,
 
    ALTER TABLE commit_token_burn ENABLE ROW LEVEL SECURITY;
    ALTER TABLE commit_token_burn FORCE ROW LEVEL SECURITY;
-   CREATE POLICY public_select ON commit_token_burn FOR SELECT USING (true);
+   CREATE POLICY operator_select ON commit_token_burn FOR SELECT
+       USING (current_setting('app.rls_scope', true) = 'operator');
    CREATE POLICY operator_write ON commit_token_burn FOR ALL
        USING (current_setting('app.rls_scope', true) = 'operator')
        WITH CHECK (current_setting('app.rls_scope', true) = 'operator');
@@ -996,11 +997,11 @@ In adherence to the repository's TRUTH FIRST mandate, costs are never estimated,
 
    Tokens are stored permanently per `(sha, vendor, day_bucket)`. Currency amounts are computed dynamically at read time for ended days using S3's paid-AI rate logic (`AIPaidMonthRead`), guaranteeing that late-arriving FX rates or edits to `fleet_token_paid` immediately update currency costs without data drift.
 
-2. **Access Control & Audience (Operator Admins Only for Currency Costs)**:
-   In strict accordance with Spec 143 §0 Poll 4 and §6.1:
-   - **Token counts** are public to all signed-in members of any workspace.
-   - **Currency cost fields** (`usd_micros_*`) represent confidential estate-level infrastructure expenditure and are restricted exclusively to **operator workspace admins** (`operatorActor` / `operatorsOnly`).
-   - For standard customer workspace members, `usd_micros` fields are omitted (`null`), and the WUI displays only token counts.
+2. **Access Control & Audience (Operator Admins Only)**:
+   In strict accordance with Spec 143 §0 Poll 4 (Choice A, msg `a8bfcdd0`, restricting token burn telemetry to operator admins only), §5.1, and rdb `0229`:
+   - **Both token burn and currency costs are operator-admins-only** (`operatorActor` / `operatorsOnly: true`). Commit tokens represent internal estate engineering labor (`work_tenant IS NULL`). Standard customer workspace members never see estate token burns or currency figures.
+   - For standard customer workspace members, `tokens_*` and `usd_micros_*` fields in the reporting API responses are omitted (`null`), and the WUI Releases view renders standard label counts without token or cost badges (e.g. `[ feat 42 ]`).
+   - On the database layer, `commit_token_burn` enforces operator-only RLS (`app.rls_scope = 'operator'`), preventing cross-tenant leakage.
 
 3. **Hub API Route Extensions**:
    - `GET /v1/reporting/releases/daily`: Adds optional query parameter `currency` (valid ISO 4217 code; invalid code returns HTTP 400 `bad_currency`, a new validation code).
@@ -1020,7 +1021,7 @@ In adherence to the repository's TRUTH FIRST mandate, costs are never estimated,
        }
      }
      ```
-     For non-operator callers, `usd_micros_by_kind` and `usd_micros_by_area` are `null`.
+     For non-operator callers, `tokens_by_kind`, `tokens_by_area`, `usd_micros_by_kind`, and `usd_micros_by_area` are `null`.
    - `GET /v1/reporting/releases/commits`: Each commit item in the returned array carries:
      ```json
      {
@@ -1032,7 +1033,7 @@ In adherence to the repository's TRUTH FIRST mandate, costs are never estimated,
        "lane_id": "a-452"
      }
      ```
-     For untracked commits, `tokens_metered` and `usd_micros` are `null`, and `tracked` is `false`. For non-operator callers, `usd_micros` is `null`.
+     For untracked commits, `tokens_metered` and `usd_micros` are `null`, and `tracked` is `false`. For non-operator callers, `tokens_metered` and `usd_micros` are `null`.
 
 4. **WUI Architecture**:
    - `csi-spl-wui/src/utils/reporting-releases.ts`: Updated to compute `labelTokenCounts` and `labelCostAmounts` from API responses, formatting token strings with compact engineering suffixes (`12.8M tok`) and money strings with locale currency symbols (`$19.45` / `€17.80`).
@@ -1045,11 +1046,11 @@ The implementation is structured into seven discrete, test-guarded lane tasks:
 
 | ID | Status | Area | Lane | Summary, Gate & Red Control |
 |---|---|---|---|---|
-| **T070** | **Planned** | `rdb` | `reporting-label-cost` | **Database schema migration: `commit_token_burn`** (§8.7). Forward-only migration `NNNN_commit_token_burn.sql` (the next free number at build time) creating table `commit_token_burn` (`sha`, `vendor`, `day_bucket`, `issue_key`, `agent_id`, `tokens_metered`, `tokens_cache_read`, `created_at`, PK `(sha, vendor, day_bucket)`). Estate-wide table with public select and operator write RLS.<br>• *Gate*: `psql` applies migration cleanly; foreign key enforces valid SHA in `release_notes`.<br>• *Red Control*: Inserting duplicate `(sha, vendor, day_bucket)` fails primary key constraint. |
-| **T071** | **Planned** | `api` | `reporting-label-cost` | **Store implementation & token attribution engine** (§8.2, §8.3, §8.4). Implement Go store in `internal/store/commit_token_burn.go` computing lane token burn from `fleet_token_burn_events` / `fleet_token_burn_daily` between placement and landing, applying equal $1/N$ split per commit, and dynamically pricing USD micros for ended days via S3 `AIShareSplit` using denominator $T(\text{all})$.<br>• *Gate*: Unit test asserts invariant $\sum_K \text{Cost}(K) = \sum_A \text{Cost}(A) \le \sum_{d} \text{estate paid AI}(d)$ on test fixtures.<br>• *Red Control*: Attributing tokens with a denominator less than estate total $T(\text{all})$ raises calculation error. |
+| **T070** | **Planned** | `rdb` | `reporting-label-cost` | **Database schema migration: `commit_token_burn`** (§8.7). Forward-only migration `NNNN_commit_token_burn.sql` (the next free number at build time) creating table `commit_token_burn` (`sha`, `vendor`, `day_bucket`, `issue_key`, `agent_id`, `tokens_metered`, `tokens_cache_read`, `created_at`, PK `(sha, vendor, day_bucket)`). Table with operator-only RLS (`operator_select`, `operator_write`).<br>• *Gate*: `psql` applies migration cleanly; foreign key enforces valid SHA in `release_notes`.<br>• *Red Control*: Inserting duplicate `(sha, vendor, day_bucket)` fails primary key constraint. |
+| **T071** | **Planned** | `api` | `reporting-label-cost` | **Store implementation & token attribution engine** (§8.2, §8.3, §8.4). Implement Go store in `internal/store/commit_token_burn.go` computing lane token burn from `fleet_token_burn_events` / `fleet_token_burn_daily` between placement and landing, applying equal $1/N$ split per commit, and dynamically pricing USD micros for ended days via S3 `AIShareSplit` using denominator $T(\text{all})$.<br>• *Gate*: Unit test asserts invariant $\sum_K \text{Cost}(K) = \sum_A \text{Cost}(A) \le \sum_{d} \text{estate paid AI}(d)$ on test fixtures.<br>• *Red Control*: A test fixture where the sum of lane shares exceeds item micros ($\sum \text{lane shares} > \text{item micros}$) fails. |
 | **T072** | **Planned** | `orc`/`api` | `reporting-label-cost` | **Ingestion hook in `issue-close-landed.py` & historical backfill** (§8.2, §8.7). Extend `issue-close-landed.py` to compute and write `commit_token_burn` rows as issues close upon commit landing. Provide backfill routine for historical commits within 365-day daily rollup retention.<br>• *Gate*: Test verifies closing issue triggers insertion of exact token rows into `commit_token_burn`.<br>• *Red Control*: Re-closing an already processed issue is idempotent and does not overwrite existing rows. |
-| **T073** | **Planned** | `api` | `reporting-label-cost` | **Hub read route extensions & operator privacy gate** (§8.7). Extend `GET /v1/reporting/releases/daily` and `commits` with token and cost fields; validate `currency` parameter. Mask currency fields for non-operator callers.<br>• *Gate*: Endpoint test asserts returned label token sums match sum of constituent commit tokens, and operator callers receive valid currency micros.<br>• *Red Control*: (1) Non-operator member calling route receives null/absent `usd_micros_*` fields; (2) Querying with invalid currency parameter returns HTTP 400 `bad_currency`. |
-| **T074** | **Planned** | `wui` | `reporting-label-cost` | **Releases label cloud cost formatting: `reporting-releases.ts` & `ReleasesFilterBar.vue`** (§8.5). Render token burn and currency cost within each Kind and Area pill, maintaining centered cloud distribution and responsive 390px layout.<br>• *Gate*: Component test verifies pills display exact formatted string `[feat 42 · 12.8M tok · $19.45]` for operators and `[feat 42 · 12.8M tok]` for non-operators.<br>• *Red Control*: Mismatch between pill cost sum and daily commit cost sum fails test assertion. |
+| **T073** | **Planned** | `api` | `reporting-label-cost` | **Hub read route extensions & operator privacy gate** (§8.7). Extend `GET /v1/reporting/releases/daily` and `commits` with token and cost fields; validate `currency` parameter. Mask token and currency fields for non-operator callers.<br>• *Gate*: Endpoint test asserts returned label token sums match sum of constituent commit tokens and operator callers receive valid currency micros, while non-operator callers receive null tokens and null currency.<br>• *Red Control*: (1) Non-operator member calling route receives null/absent `tokens_*` and `usd_micros_*` fields; (2) Querying with invalid currency parameter returns HTTP 400 `bad_currency`. |
+| **T074** | **Planned** | `wui` | `reporting-label-cost` | **Releases label cloud cost formatting: `reporting-releases.ts` & `ReleasesFilterBar.vue`** (§8.5). Render token burn and currency cost within each Kind and Area pill, maintaining centered cloud distribution and responsive 390px layout.<br>• *Gate*: Component test verifies pills display exact formatted string `[feat 42 · 12.8M tok · $19.45]` for operators and `[feat 42]` for non-operators.<br>• *Red Control*: Mismatch between pill cost sum and daily commit cost sum fails test assertion. |
 | **T075** | **Planned** | `wui` | `reporting-label-cost` | **Commit list row cost pills & currency switcher: `ReleasesDailyList.vue`** (§8.5, §8.6). Render `[350k tok · $0.54]` badge on tracked commits and neutral `[— · untracked]` on untracked/human commits. Add currency toggle respecting member preference.<br>• *Gate*: Component test verifies tracked commits display cost pills and untracked commits display neutral badges.<br>• *Red Control*: Untracked commit displaying fabricated non-zero cost fails test assertion. |
 | **T076** | **Planned** | `test` | `reporting-label-cost` | **End-to-end integration and verification tests** (§8.5, §8.6). Integration tests in `tests/e2e/reporting.test.mjs` verifying label cloud cost display, currency toggling, commit list cost badges, and untracked commit rendering across desktop and mobile viewports.<br>• *Gate*: E2E test asserts label pill numbers equal sum of daily commit costs across 7d and 30d windows.<br>• *Red Control*: Any discrepancy between label cost total and daily commit sum fails assertion. |
 
@@ -1072,4 +1073,4 @@ Q3 How should untracked commits (human commits, legacy commits before token trac
 
 ---
 
-<!-- version: 0.3.0 · updated: 2026-10-27 · last-edit: 2026-10-27T23:30:00Z -->
+<!-- version: 0.3.0 · updated: 2026-10-28 · last-edit: 2026-10-28T00:37:00Z -->

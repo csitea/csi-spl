@@ -19,6 +19,7 @@ import (
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hubclient"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/keydesk"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/lockkey"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
@@ -141,12 +142,16 @@ func Join(cfg *config.Config, in JoinArgs) (JoinResult, error) {
 		now = in.Now
 	}
 	ts := now().UTC().Format(time.RFC3339)
-	p, err := wire.JoinModePayload(hash, in.Box, pub, ts, mode)
+	x25519, err := deskRecipient(cfg, mode)
+	if err != nil {
+		return JoinResult{}, err
+	}
+	p, err := wire.JoinKeyPayload(hash, in.Box, pub, ts, mode, x25519)
 	if err != nil {
 		return JoinResult{}, fmt.Errorf("join payload: %w", err)
 	}
 	b, err := json.Marshal(wire.JoinRequest{Token: in.Token, BoxID: in.Box, PubKey: pub, TS: ts, Sig: sign.Sign(priv, p),
-		BoxMode: mode})
+		BoxMode: mode, BoxX25519: x25519})
 	if err != nil {
 		return JoinResult{}, err
 	}
@@ -160,6 +165,24 @@ func Join(cfg *config.Config, in JoinArgs) (JoinResult, error) {
 		return JoinResult{}, fmt.Errorf("seated at the hub, but the local pin: %w", err)
 	}
 	return JoinResult{Tenant: tenant, Box: in.Box, PubKey: pub}, nil
+}
+
+// deskRecipient is the key desk's X25519 recipient a dedicated join sends
+// (spec 127 5.2 step 3): the identity the sidecar's desk opens leases with,
+// made here (0600, O_EXCL) when the box has none yet. A shared box sends
+// none: workspace keys go only to dedicated boxes.
+func deskRecipient(cfg *config.Config, mode string) (string, error) {
+	if mode != "dedicated" {
+		return "", nil
+	}
+	if err := os.MkdirAll(cfg.HubDir(), 0o700); err != nil {
+		return "", fmt.Errorf("the key desk dir: %w", err)
+	}
+	id, err := keydesk.LoadOrCreateIdentity(keydesk.IdentityPath(cfg.HubDir()))
+	if err != nil {
+		return "", fmt.Errorf("the key desk identity: %w", err)
+	}
+	return id.Recipient().String(), nil
 }
 
 // boxKey loads the box key, or generates it when the box has none. A box

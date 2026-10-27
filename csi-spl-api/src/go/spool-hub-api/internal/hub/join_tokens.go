@@ -425,7 +425,11 @@ func (s *Server) joinBoxCheck(w http.ResponseWriter, jr joinRedeem) ([]byte, boo
 		writeErr(w, http.StatusBadRequest, "bad_json", "box_id or pubkey is malformed")
 		return nil, false
 	}
-	payload, _ := wire.JoinModePayload(jr.hash, req.BoxID, req.PubKey, req.TS, req.BoxMode)
+	if req.BoxX25519 != "" && !store.BoxX25519Re.MatchString(req.BoxX25519) {
+		writeErr(w, http.StatusBadRequest, "bad_json", "box_x25519 is an age X25519 recipient (age1...)")
+		return nil, false
+	}
+	payload, _ := wire.JoinKeyPayload(jr.hash, req.BoxID, req.PubKey, req.TS, req.BoxMode, req.BoxX25519)
 	if !s.skewOK(req.TS) || verify(ed25519.PublicKey(pub), payload, req.Sig) != nil {
 		writeErr(w, http.StatusBadRequest, "bad_sig", "the box key signature does not verify")
 		return nil, false
@@ -454,8 +458,9 @@ func (s *Server) joinSeat(w http.ResponseWriter, r *http.Request, jr joinRedeem,
 	if s.joinRefused(w, jt, err) {
 		return false
 	}
+	s.joinBoxX25519(r.Context(), t.ID, req.BoxID, req.BoxX25519)
 	s.o.Log.Info().Str("tenant", t.ID).Str("join_token", jt.ID()).Str("box_id", req.BoxID).
-		Str("box_mode", req.BoxMode).Msg("join token redeemed")
+		Str("box_mode", req.BoxMode).Bool("box_x25519", req.BoxX25519 != "").Msg("join token redeemed")
 	writeJSON(w, http.StatusOK, map[string]string{"tenant": t.ID, "box_id": req.BoxID, "pubkey": req.PubKey})
 	return true
 }

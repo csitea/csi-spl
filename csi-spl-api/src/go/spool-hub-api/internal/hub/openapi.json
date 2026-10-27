@@ -11479,12 +11479,17 @@
                     ],
                     "type": "string"
                   },
+                  "box_x25519": {
+                    "description": "the box key desk's age X25519 recipient (age1...), public; a workspace key lease is sealed to it (spec 127 5.2 step 3, rdb 0234). Signed inside the payload when present; a join without it clears the pin's recipient. Sent by a dedicated join.",
+                    "pattern": "^age1[02-9ac-hj-np-z]{58}$",
+                    "type": "string"
+                  },
                   "pubkey": {
                     "description": "base64 raw 32-byte Ed25519 key",
                     "type": "string"
                   },
                   "sig": {
-                    "description": "the box key over jq -cS '{box_id,box_mode,op:\"join\",pubkey,token_hash,ts}' (box_mode only when sent), token_hash = sha256 hex of the secret",
+                    "description": "the box key over jq -cS '{box_id,box_mode,box_x25519,op:\"join\",pubkey,token_hash,ts}' (box_mode and box_x25519 only when sent), token_hash = sha256 hex of the secret",
                     "type": "string"
                   },
                   "token": {
@@ -13910,7 +13915,23 @@
         ],
         "responses": {
           "200": {
-            "description": "OK: {\"sealed\": \"<base64 age ciphertext>\"}, the key sealed to the box's X25519 key (spec 127 5.2 step 3). Not answered yet: every lease that passes the checks is 409 box_key_not_enrolled until the join carries that key (T5 increment 3)"
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "sealed": {
+                      "description": "base64 of an age ciphertext to the pin's box_x25519: the JSON {kind, box, key_id, key, base_url?, ttl_s}; only the box's desk opens it",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "sealed"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: the key sealed to the box's desk (spec 127 5.2 step 3); a lease audit row (box, kind, last4) is written first"
           },
           "400": {
             "content": {
@@ -13943,7 +13964,17 @@
                 }
               }
             },
-            "description": "Conflict: kind_not_available; no_key (this workspace holds no key of that kind); key_exhausted (a box reported the vendor's refusal: a manager replaces the key or presses retry); box_key_not_enrolled (the pin carries no X25519 key). Never a 404: the desk reads a 404 as no lease route"
+            "description": "Conflict: kind_not_available; no_key (this workspace holds no key of that kind); key_exhausted (a box reported the vendor's refusal: a manager replaces the key or presses retry); box_key_not_enrolled (the pin carries no box_x25519: join again with a fresh token). Never a 404: the desk reads a 404 as no lease route"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal: the key did not open, the lease was not sealed, or its audit row was not written (then nothing is answered)"
           },
           "503": {
             "content": {
@@ -13956,7 +13987,7 @@
             "description": "Service Unavailable: vendor_keys_off, workspace vendor keys are not configured on this hub"
           }
         },
-        "summary": "A box's desk leases the workspace's key of one kind, sealed to the box (spec 127 H2, spec 159 T5); box upload token only",
+        "summary": "A box's desk leases the workspace's key of one kind, sealed to the box's desk (spec 127 H2, spec 159 T5); box upload token only",
         "tags": [
           "tenant"
         ]

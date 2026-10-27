@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"filippo.io/age"
@@ -75,6 +76,14 @@ func Open(id age.Identity, sealed []byte) (Payload, error) {
 	}
 	return p, nil
 }
+
+// IdentityName is the desk's X25519 identity file in its box root's hub
+// dir: the sidecar's desk opens leases with it, and `spool join` sends its
+// recipient (spec 127 5.2 step 3), so both derive the one path.
+const IdentityName = "desk-x25519.key"
+
+// IdentityPath is the identity file of the box root whose hub dir is hubDir.
+func IdentityPath(hubDir string) string { return filepath.Join(hubDir, IdentityName) }
 
 // LoadOrCreateIdentity reads the desk's X25519 identity from path, or makes
 // one there (0600, O_EXCL) on the first start. It returns the identity and

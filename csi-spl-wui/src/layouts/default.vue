@@ -32,6 +32,7 @@
         :data-mobile-topic="topicPaneOpen ? '1' : undefined"
         :data-topic-browse="topicPage ? '1' : undefined"
         :data-mobile-section="sectionStrip ? '1' : undefined"
+        :data-mobile-section-page="sectionPage ? '1' : undefined"
         :data-collapse-channels="collapse.collapsed.channels ? '1' : undefined"
         :data-collapse-topic="collapse.collapsed.topic ? '1' : undefined"
         :data-collapse-threads="collapse.collapsed.threads ? '1' : undefined"
@@ -55,9 +56,6 @@
           @input="setSidebar"
           @reset="resetSidebar"
         />
-        <!-- SPL-2145: a tablet (600..820 px) keeps a narrow strip of the
-             channels beside levels 2 and 3; a phone never mounts it -->
-        <LazyTabletStrip v-if="shellIn && tabletStrip" />
         <template v-if="mountMain">
         <main class="spool-main">
           <slot />
@@ -238,7 +236,7 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import { topicFrameDrops, topicFrameRows, topicFrameTasks } from '~/utils/topic-archive.mjs'
 import { useViewerStore } from '~/stores/viewer'
 import { useMobileStack } from '~/composables/useMobileStack'
-import { MOBILE_STACK_QUERY, MOBILE_TABLET_QUERY, isMobileFrontDoor } from '~/utils/mobile-stack.mjs'
+import { MOBILE_STACK_QUERY, isMobileFrontDoor } from '~/utils/mobile-stack.mjs'
 import { isLobbyPath } from '~/utils/lobby-warm.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { shouldOpenHubSocket } from '~/utils/shell-bootstrap.mjs'
@@ -253,7 +251,6 @@ import { useShellRouteFocus } from '~/composables/useShellRouteFocus'
 import { useDeleteUndo } from '~/composables/useDeleteUndo'
 import { useMentionDirectNote } from '~/composables/useMentionPoke'
 import { useOpenMessageNotice } from '~/composables/useOpenMessage'
-import { perfWhenIdle } from '~/utils/perf-idle.mjs'
 
 const topic = useTopicStore()
 /* SPL-1201: gate the (async) debug pane on the same claim it checks internally,
@@ -392,8 +389,6 @@ watch([mountMain, () => frontApi.mock || String(session.state) === 'in'], ([moun
     if (shouldOpenHubSocket(session.state, frontApi.mock)) frontViewer.follow()
   })
 }, { immediate: true, flush: 'post' })
-/* CLE-77886 (owner, t1 topic ac0fa400): a section's own page on a phone
-   (Issues, People, Help, ...) keeps the section strip on top, as level 1 does */
 /* the route-change close, focus and live region, the skip link and the vim
    keys (composables/useShellRouteFocus.ts) */
 const { routeAnnounce, skipToMsgs, startVim, dispose: disposeRouteFocus } = useShellRouteFocus({
@@ -401,30 +396,20 @@ const { routeAnnounce, skipToMsgs, startVim, dispose: disposeRouteFocus } = useS
 })
 onMounted(startVim)
 onUnmounted(disposeRouteFocus)
-const sectionStrip = computed(() => stack.isMobile.value && stack.level.value === 2 && isSectionPage(route.path))
-/* SPL-2145 (UI review suggestion 3): 600..820 px is a tablet - levels 2 and
-   3 keep a narrow channel strip beside the one panel (TabletStrip); level 1
-   is the full list itself, and a section page has its own strip on top */
-const tablet = ref(false)
-onMounted(() => {
-  const mq = window.matchMedia(MOBILE_TABLET_QUERY)
-  tablet.value = mq.matches
-  mq.addEventListener('change', (e) => { tablet.value = e.matches })
-})
-const tabletStrip = computed(() => tablet.value && stack.isMobile.value && stack.level.value !== 1 && !sectionStrip.value)
-/* perf round 6 row 07 (SPL-2436): a phone that boots at level 2 or 3 hides
-   the sidebar with CSS (main.css; its strip shows on a section page only),
-   ~150-230 nodes the reader never sees. Mount it in an idle slot instead
-   (perf-idle: requestIdleCallback with a timeout, setTimeout without one);
-   the moment it is shown (Back to level 1, a section page) it mounts at
-   once, and once mounted it stays. Desktop and a level-1 boot never wait. */
-const sidebarHidden = computed(() => stack.isMobile.value && stack.level.value !== 1 && !sectionStrip.value)
-const sidebarDue = ref(!import.meta.client || !sidebarHidden.value)
-const sidebarIn = computed(() => shellIn.value && (sidebarDue.value || !sidebarHidden.value))
-if (!sidebarDue.value) {
-  const offShown = watch(sidebarHidden, (hidden) => { if (!hidden) { sidebarDue.value = true; offShown() } })
-  onMounted(() => perfWhenIdle(() => { sidebarDue.value = true }))
-}
+/* SPL-3785 (owner HUM-10, t1 c3e53990 msg 1f55e7e1: "whenever one has
+   entered the first level of it, it should always be shown"; pick B, msg
+   323d03f6): on a phone the section strip is on top at EVERY level past 1 -
+   a channel, a topic, a reply, a person, an agent, a settings section - and a
+   drill-down's own header and Back sit under it. Only a section's own page
+   (sectionPage) gives up its header: the selected control names it. */
+const sectionStrip = computed(() => stack.isMobile.value && stack.level.value !== 1)
+const sectionPage = computed(() => sectionStrip.value && stack.level.value === 2 && isSectionPage(route.path))
+/* SPL-3785 retires two phone rules that only held while the strip left at
+   level 2 and 3: the tablet's channel strip beside the one panel (SPL-2145,
+   TabletStrip) and the sidebar's idle mount at a level-2/3 boot (SPL-2436,
+   perf round 6 row 07). The sidebar IS the strip there now, so it mounts with
+   the shell, as on a desktop. */
+const sidebarIn = shellIn
 
 /* CLE-3429, the state half of 1..1: opening one section closes the other, so
    the section the reader opened LAST is the one they see. Without this a stale

@@ -6,9 +6,9 @@
 // its selected control (1px in on each side, raised, darker, bold), and no
 // title text and no Back chevron show. The strip rolls endlessly: a swipe
 // never meets an end. An open issue (level 3) keeps its own header and its
-// own actions; the top bar is the same everywhere. A tap on the selected
-// control shows that section's list (the Issues epics) at level 1. At
-// 1440 px nothing of it is in the tree.
+// own actions under the strip (SPL-3785); the top bar is the same
+// everywhere. A tap on the selected control shows that section's list (the
+// Issues epics) at level 1. At 1440 px nothing of it is in the tree.
 //
 // t1 topic 7b48293b (owner): "on scrolling ... they kind of reset". A
 // finger swipe on the strip scrolls it: no reorder preview, no snap back
@@ -325,7 +325,8 @@ try {
     const l1 = await until(issuesL, (l) => l.level === '1' && l.panel)
     ok(`${scheme}: a tap on the selected Issues control shows the Issues section at level 1`, l1.level === '1' && l1.panel, l1)
 
-    /* an open issue keeps its own header and actions; the top bar stays */
+    /* an open issue keeps its own header and actions under the strip
+       (SPL-3785: the strip is on top at every level); the top bar stays */
     await p.evaluate(() => document.querySelector('[data-testid=sidebar-tab-issues]')?.click())
     await p.waitForSelector('[data-test=issues-new]', { visible: true })
     await p.click('[data-test=issues-new]')
@@ -338,10 +339,14 @@ try {
       return {
         level: document.querySelector('.spool-shell').getAttribute('data-mobile-level'),
         back: vis(document.querySelector('[data-test=issues-detail-back]')),
-        stripCovered: !vis(document.querySelector('.spool-shell > .sidebar')),
+        stripOnTop: (() => {
+          const r = document.querySelector('[data-testid=sidebar-rail]')?.getBoundingClientRect()
+          const hit = r && document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+          return Boolean(hit?.closest('[data-testid=sidebar-rail]'))
+        })(),
       }
-    }), (l) => l.level === '3' && l.back && l.stripCovered)
-    ok(`${scheme}: an open issue is level 3 with its own Back, over the strip`, l3.level === '3' && l3.back && l3.stripCovered, l3)
+    }), (l) => l.level === '3' && l.back && l.stripOnTop)
+    ok(`${scheme}: an open issue is level 3 with its own Back, under the strip`, l3.level === '3' && l3.back && l3.stripOnTop, l3)
     ok(`${scheme}: an open issue keeps the same top bar`, (await topBar(p)) === home, { home, here: await topBar(p) })
     if (SHOTS) await p.screenshot({ path: join(SHOTS, `390-${scheme}-issue-open.png`) })
     await p.close()

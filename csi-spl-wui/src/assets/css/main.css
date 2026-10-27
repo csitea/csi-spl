@@ -948,23 +948,31 @@ html.pane-dragging * {
      page's own right panel (the issue detail, useMobileStack.rightPanel)
      lives inside .spool-main and covers it itself */
   .spool-shell[data-mobile-level="3"][data-mobile-topic="1"] > .spool-main { display: none; }
-  /* CLE-77886 (owner, t1 topic ac0fa400): a section's own page (Issues,
-     People, Boxes, Agents, Event log, Help, Workspace settings, ...) keeps
-     the SAME section strip as level 1 on top of it - only the strip of the
-     sidebar shows (ChannelSidebar .sidebar--strip) - and no title text: the
-     selected control in the strip names the section. The page's header
-     gives up its Back and its title; a header that still carries a control
-     (the Event log's Clear) stays a row, any other dissolves. */
+  /* CLE-77886 (owner, t1 topic ac0fa400) and SPL-3785 (owner HUM-10, t1
+     c3e53990 msg 1f55e7e1: once inside a section "it should always be
+     shown"): at levels 2 and 3 the SAME section strip as level 1 stays on
+     top - only the strip of the sidebar shows (ChannelSidebar
+     .sidebar--strip) - and the page or the topic fills the rest under it.
+     A drill-down (a channel, a topic, a person) keeps its own header and
+     Back under the strip. A section's own page (data-mobile-section-page:
+     Issues, People, a Monitoring tab, Help, ...) has no title text: the
+     selected control names the section, so its header gives up its Back and
+     its title; a header that still carries a control (the Event log's
+     Clear) stays a row, any other dissolves. */
   .spool-shell[data-mobile-section="1"] { flex-direction: column; }
   .spool-shell[data-mobile-section="1"] > .sidebar {
     display: flex;
     flex: 0 0 auto;
     padding-bottom: 0;
   }
-  .spool-shell[data-mobile-section="1"] > .spool-main { flex: 1 1 auto; min-height: 0; }
-  .spool-shell[data-mobile-section="1"] > .spool-main .feed-header > .mobile-back,
-  .spool-shell[data-mobile-section="1"] > .spool-main .feed-header > h2 { display: none; }
-  .spool-shell[data-mobile-section="1"] > .spool-main .feed-header:not(:has(> .btn)) { display: contents; }
+  .spool-shell[data-mobile-section="1"] > .spool-main,
+  .spool-shell[data-mobile-section="1"] > .topic { flex: 1 1 auto; min-height: 0; }
+  /* a page's own level-3 panel (the open issue) starts under the strip: it
+     is placed inside the page, not the screen */
+  .spool-shell[data-mobile-section="1"] > .spool-main { position: relative; }
+  .spool-shell[data-mobile-section-page="1"] > .spool-main .feed-header > .mobile-back,
+  .spool-shell[data-mobile-section-page="1"] > .spool-main .feed-header > h2 { display: none; }
+  .spool-shell[data-mobile-section-page="1"] > .spool-main .feed-header:not(:has(> .btn)) { display: contents; }
   .spool-shell[data-mobile-level="1"] > .sidebar,
   .spool-shell[data-mobile-level="2"] > .spool-main,
   .spool-shell[data-mobile-level="3"][data-mobile-topic="1"] > .topic {
@@ -1001,7 +1009,7 @@ html.pane-dragging * {
   .topic header > .topic-close { display: none; }
   .topic header { padding: 4px 8px 4px 4px; }
   .feed-header { padding: 4px 12px 4px 4px; gap: 6px; min-height: calc(var(--tap) + 8px); }
-  .spool-shell[data-mobile-section="1"] .monitoring-tabs { flex: none; margin: 0; padding: 0 16px; box-shadow: inset 0 -1px 0 var(--color-border); } /* spec 153 (SPL-3157): the header dissolves here (CLE-77886 above, no heading), so the bar is its own row again, its own bottom line under the underline */
+  .spool-shell[data-mobile-section-page="1"] .monitoring-tabs { flex: none; margin: 0; padding: 0 16px; box-shadow: inset 0 -1px 0 var(--color-border); } /* spec 153 (SPL-3157): the header dissolves here (CLE-77886 above, no heading), so the bar is its own row again, its own bottom line under the underline */
   .feed-header__who--status { flex-direction: column; align-items: flex-start; gap: 0; line-height: 1.25; }
   .feed-header__who--status .feed-header__title,
   .feed-header__who--status .feed-header__status { max-width: 100%; }

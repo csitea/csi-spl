@@ -653,7 +653,7 @@ import { useSidePane } from '~/composables/useSidePane'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useLoopStrip } from '~/composables/useLoopStrip'
 import { useSectionExit } from '~/composables/useSectionExit'
-import { isSectionPage, railLinkSection } from '~/utils/section-strip.mjs'
+import { railLinkSection } from '~/utils/section-strip.mjs'
 import { ARCHIVE_TAB, CALENDAR_TAB, ISSUES_TAB, MONITORING_TAB, PEOPLE_TAB, REPORTING_TAB, USERS_TAB, isSearchPage, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { setLinkOpenHook } from '~/utils/msg-jump.mjs'
 import { isHumanId } from '~/utils/agent-kind.mjs'
@@ -836,8 +836,9 @@ onMounted(() => {
    links, not tabs - no tab reads as selected on a phone: the link does. */
 const sectionExit = useSectionExit()
 watch(() => route.fullPath, () => sectionExit.note(route.path, route.fullPath), { immediate: true })
-const stripOnly = computed(() => mobileStack.isMobile.value && mobileStack.level.value === 2 && isSectionPage(route.path))
-const onRailLink = computed(() => mobileStack.isMobile.value && mobileStack.level.value === 2 && Boolean(railLinkSection(route.path)))
+/* SPL-3785: at every level past 1 (the layout's sectionStrip), not only on a section's own page */
+const stripOnly = computed(() => mobileStack.isMobile.value && mobileStack.level.value !== 1)
+const onRailLink = computed(() => stripOnly.value && Boolean(railLinkSection(route.path)))
 /* the rail and section navigation: a rail tab's click, the Issues number, the search list's X (useSidebarRailNav) */
 const { selectTab, railClick, closeSearch, onCountClick } = useSidebarRailNav({ tab, holdFlow, holdSearch, stripOnly, onRailLink, helpRailOnly, docsRailOnly })
 /* spec 103 T006: Enter, the arrows, Home and End on a rail tab (useSidebarRailTabKeys) */

@@ -2498,6 +2498,9 @@ select.issues-pctl { appearance: auto; }
     border-inline-start: 0;
     padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   }
+  /* SPL-3785: the section strip stays on top at level 3 too - the issue
+     fills the page under it (main.css: .spool-main is its box there) */
+  .spool-shell[data-mobile-section="1"] .issues-detail { position: absolute; top: 0; }
   .issues-detail__h { justify-content: flex-start; }
   .issues-detail__title { min-height: var(--tap, 44px); }
   .issues-prop, .issues-pctl, .issues-pval, .issues-sub, .issues-sub-add { min-height: var(--tap, 44px); }

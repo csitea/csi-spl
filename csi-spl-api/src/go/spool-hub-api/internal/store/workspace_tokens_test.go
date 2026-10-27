@@ -21,6 +21,12 @@ func TestWorkspaceTokenMonth(t *testing.T) {
 	cut, _, _ := fleetTokenCuts(now)
 	oldDay := cut.Add(-24 * time.Hour) // pruned to the rollup
 	keep := cut.Add(24*time.Hour + 10*time.Hour)
+	// The query's To is today 00:00 UTC, so today's sample must fall on today:
+	// one minute back at 00:00:xx is yesterday 23:59 and counted (25, not 18).
+	recent := now.Truncate(time.Minute).Add(-time.Minute)
+	if today := now.Truncate(24 * time.Hour); recent.Before(today) {
+		recent = today
+	}
 	for name, st := range drivers(t) {
 		t.Run(name, func(t *testing.T) {
 			ft, wt := st.(FleetTokenStore), st.(WorkspaceTokens)
@@ -31,7 +37,7 @@ func TestWorkspaceTokenMonth(t *testing.T) {
 				at(fleetSample("c-1", "claude", "", keep, 5, 0, 0, 0), ws),
 				at(fleetSample("c-2", "claude", "", keep, 100, 0, 0, 0), ""),
 				at(fleetSample("c-1", "claude", "", now.Truncate(24*time.Hour).Add(-14*time.Hour), 3, 0, 0, 0), ws), // yesterday: rolled and kept
-				at(fleetSample("c-1", "claude", "", now.Truncate(time.Minute).Add(-time.Minute), 7, 0, 0, 0), ws),
+				at(fleetSample("c-1", "claude", "", recent, 7, 0, 0, 0), ws),
 			}); err != nil {
 				t.Fatal(err)
 			}

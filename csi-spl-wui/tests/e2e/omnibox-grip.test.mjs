@@ -27,7 +27,8 @@
 //        padding follows
 //     11 LIMIT: dragging far past the top stops where the grip meets the
 //        header row under the top bar (owner, t1 8de4c254: "up to the top
-//        button section"); the menu's Large then sets half the room
+//        button section"), on a phone under the section strip too
+//        (SPL-3785); the menu's Large then sets half the room
 //     12 a reload keeps the size
 //     13 CONTROL: with the large box a swipe on the feed still scrolls it
 //     14 at the top: a drag DOWN grows it, back up past one line is one line
@@ -323,12 +324,20 @@ async function sizes(p) {
     Boolean(f9.size && f9.size.w >= 44 && f9.size.h >= 24 && f9.size.label && Math.abs(f9.size.cy - f9.box.top) <= 4 && f9.size.cx < f9.vw * 0.25 && f9.size.cx - f9.box.left <= 40
       && f10.pos === 'bottom' && f10.field >= h0 + 200 && f10.stored_size && f10.stored_size.bottom > 0
       && f10.dockPad >= f10.box.h - 2), { f9: f9.size, h0, f10 })
-  /* 11: the limit - the grip's top on the header row under the top bar */
+  /* 11: the limit - the grip's top on the header row under the top bar.
+     SPL-3785: on a phone the section strip sits under the top bar at every
+     level and the page's own header row under the strip, so the limit is
+     the bottom of that whole stack, not of the first row */
   const f11a = await dragGrip(p, f10.size.cx, 0, 'size')
-  const head = await p.evaluate((y) => {
-    const rows = [...document.querySelectorAll('.spool-shell header, .spool-shell .feed-header, .spool-shell .sidebar-rail')]
+  const head = await p.evaluate((y0) => {
+    const below = (y) => [...document.querySelectorAll('.spool-shell header, .spool-shell .feed-header, .spool-shell .sidebar-rail')]
       .map((e) => e.getBoundingClientRect()).filter((r) => r.height > 0 && r.top <= y && r.bottom > y && r.left <= 195 && r.right >= 195)
-    return rows.length ? Math.round(Math.max(...rows.map((r) => r.bottom))) : null
+    let bottom = null
+    for (let y = y0, rows = below(y); rows.length; rows = below(y)) {
+      bottom = Math.round(Math.max(...rows.map((r) => r.bottom)))
+      y = bottom + 1
+    }
+    return bottom
   }, f11a.barBottom + 1)
   const limit = head ?? f11a.barBottom
   const gripTop = Math.min(f11a.size.cy - f11a.size.h / 2, f11a.grip.cy - f11a.grip.h / 2)

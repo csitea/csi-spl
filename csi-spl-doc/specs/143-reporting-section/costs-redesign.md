@@ -15,6 +15,11 @@ The seat files, each written before its author read the other one:
 This file merges them. Doc only: nothing is built until the owner answers
 section 7.
 
+**Status**: accepted by the dispatch holder (c-003, spool
+msg:01a1cbaf-8f1d-400d-acbf-0656bf0b58f9, 2026-10-27); the poll of section
+7 goes to the owner in t1 topic `1be0e370`, and the slices are placed on his
+answers.
+
 Every figure in a wireframe is **made up**; none is a real cost. Paths:
 `wui/` = `csi-spl-wui/src/`, `hub/` and `store/` =
 `csi-spl-api/src/go/spool-hub-api/internal/{hub,store}/`. Code was read on

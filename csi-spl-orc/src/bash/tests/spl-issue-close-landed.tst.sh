@@ -369,4 +369,21 @@ CRON_LOG="$T/cron.log" SPOOL_ROOT="$T/root18" ISSUE_CLOSE_STATE_DIR="$T/s18" ISS
   pass "18. the cron then runs each map workspace whose clone is on this box (acme), not one whose clone is absent (zed)" ||
   fail "18. ws cron (rc $rc): $(cat "$T/cron.log") // $(cat "$T/o18")"
 
+# 19. Red case (SPL-3831): the map's desk is a role seat (c-001) and a vendor
+# switch moved the seat to g-001 (role-seat-switch.sh, SPL-1685); the desk
+# announces g-001 only, so the hub refused every tick acting as c-001.
+printf 'acme\tdev\tacme-site\t%s\t-\thttps://site.example.com\tc-001\tbox-a\n' "$WR" >"$T/ws-map19.tsv"
+printf 'LEASE_ORCH=g-001\n' >"$T/lease19.conf"
+WS19_STUBS='spl_issue_list_fetch() { echo "list $TENANT_ID as $DESK_AGENT@$DESK_BOX" >>"$STUB_LOG"; cat "$LIST"; }'
+ws19() { : >"$T/calls.log"; SNIPPET="${STUBS}${WS19_STUBS}
+do_spl_issue_close_landed" in_orc APP_PATH="$R" LIST="$T/ws-list.json" TENANT_ID= DESK_AGENT= DESK_BOX= ENV= LEASE_ORCH= \
+  SPOOL_WORKSPACE_REPOS_MAP="$T/ws-map19.tsv" LEASE_CONF="$T/lease19.conf" ISSUE_CLOSE_STATE_DIR="$T/ws-state19" "$@" >"$T/o" 2>&1; }
+ws19 ISSUE_CLOSE_WORKSPACE=acme; rc=$?
+[ "$rc" = 0 ] && grep -q '^list acme as g-001@box-a$' "$T/calls.log" &&
+  pass "19. a map desk that is a role seat acts as the seat's live id (c-001 switched to g-001)" ||
+  fail "19. ws role seat (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+ws19 ISSUE_CLOSE_WORKSPACE=acme DESK_AGENT=c-001; rc=$?
+[ "$rc" = 0 ] && grep -q '^list acme as c-001@box-a$' "$T/calls.log" &&
+  pass "19. control: a DESK_AGENT the caller sets is used as given" || fail "19. ws caller desk (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+
 [ "$fails" = 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

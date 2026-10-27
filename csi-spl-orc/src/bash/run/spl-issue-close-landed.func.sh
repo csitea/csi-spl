@@ -75,6 +75,8 @@
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=c-685 DESK_BOX=box-ci DRY_RUN=0 ./run -a do_spl_issue_close_landed
 # @example ENV=prd TENANT_ID=t1 DESK_AGENT=c-685 ISSUE_CLOSE_HOLDER=1 ./run -a do_spl_issue_close_landed
 #------------------------------------------------------------------------------
+# spl_role_seat: a map desk that is a role seat, in its live id (SPL-3831)
+declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 do_spl_issue_close_landed() {
   do_require_bin git python3 || return 1
   local dry=1 ref="${ISSUE_CLOSE_REF:-origin/master}" since="${ISSUE_CLOSE_SINCE:-}" dir head rng wui list plan
@@ -138,9 +140,12 @@ spl_icl_ws_first() {
 
 # spl_icl_ws: workspace mode. The box map's row of ISSUE_CLOSE_WORKSPACE sets
 # ICL_WS, ICL_WS_ROW, ICL_REPO (its clone), ICL_WS_REF (origin/<trunk>), and
-# ENV, TENANT_ID, DESK_AGENT, DESK_BOX where the caller left them unset.
+# ENV, TENANT_ID, DESK_AGENT, DESK_BOX where the caller left them unset. A
+# map desk that is a role seat (c-001) acts as the seat's live id
+# (spl_role_seat): a vendor switch moves the seat to g-001 and its desk then
+# announces g-001 only, so the hub refuses c-001 (SPL-3831).
 spl_icl_ws() {
-  local t="$ISSUE_CLOSE_WORKSPACE" row b rc=0
+  local t="$ISSUE_CLOSE_WORKSPACE" row b rc=0 n live
   # shellcheck source=../features/spawn-agents/lib/workspace-repo.inc.sh
   declare -F wr_row >/dev/null || . "$PROJ_PATH/src/bash/features/spawn-agents/lib/workspace-repo.inc.sh" || return 1
   row="$(wr_row "$t")" || rc=$?
@@ -154,7 +159,12 @@ spl_icl_ws() {
   fi
   ICL_WS_REF="origin/${b:-master}"
   TENANT_ID="$t" ENV="${ENV:-$(wr_field "$row" 1)}"
-  DESK_AGENT="${DESK_AGENT:-$(wr_field "$row" 6)}" DESK_BOX="${DESK_BOX:-$(wr_field "$row" 7)}"
+  if [[ -z "${DESK_AGENT:-}" ]]; then
+    DESK_AGENT="$(wr_field "$row" 6)" n="$(spl_role_seat_num "$DESK_AGENT" 2>/dev/null)"
+    [[ -n "$n" ]] && live="$(spl_role_seat "$n")" && [[ -n "$live" && "$live" != "$DESK_AGENT" ]] &&
+      { do_log "INFO workspace $t: the map's desk $DESK_AGENT is role seat $n, live as $live" >&2; DESK_AGENT="$live"; }
+  fi
+  DESK_BOX="${DESK_BOX:-$(wr_field "$row" 7)}"
   export TENANT_ID ENV DESK_AGENT DESK_BOX
 }
 

@@ -7,4 +7,4 @@ De către: {{.ChangedBy}}
 Când: {{.ChangedAt}}
 
 Fiecare administrator și proprietar al afacerii din acest spațiu de lucru primește acest e-mail.
-Dacă nu te așteptai la această modificare, verifică cheile agenților în setările spațiului de lucru și revocă cheia în consola furnizorului.
+Dacă nu vă așteptați la această modificare, verificați cheile agenților în setările spațiului de lucru și revocați cheia în consola furnizorului.

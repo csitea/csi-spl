@@ -15,6 +15,7 @@
 #   added         date + issue key
 # Gate: csi-spl-iac/src/bash/tests/box-pkgs-manifest.tst.sh
 apt	acl		play 02_os_binaries	play 02_os_binaries (box baseline)		2026-10-17 SPL-2271
+apt	bc		do_box_pkg_install	lane SPL-3682		2026-10-26 SPL-3682
 apt	build-essential		play 02_os_binaries	play 02_os_binaries (box baseline)		2026-10-17 SPL-2271
 apt	ca-certificates		play 02_os_binaries	play 02_os_binaries (box baseline)		2026-10-17 SPL-2271
 apt	curl		play 02_os_binaries	play 02_os_binaries (box baseline)		2026-10-17 SPL-2271

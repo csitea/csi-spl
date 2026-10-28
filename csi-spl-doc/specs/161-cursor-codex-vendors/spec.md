@@ -1,6 +1,6 @@
 # Spec 161: Cursor and Codex as Agent Vendors of the Fleet (Launcher, Routing, Quota)
 
-Version **v1.0** (2026-10-28). Authored by seat a-513 (antigravity).
+Version **v1.1** (2026-10-28; v1.1 records the owner answers and the letter `o`). Authored by seat a-513 (antigravity).
 Placement slug: `c002-s161-cursor-codex-vendors-spec`.
 Epic: **SPL-2402**. Issue: **SPL-4010** (status wip). Kind: **specs_and_docs**.
 Authority: Dispatch task `dispatch-d60646d9` to current dispatch lease holder `c-002@sat`.
@@ -17,6 +17,12 @@ From HUM-10 (owner), prd topic `d60646d9-f63a-4787-bee6-0a497336a79f`:
 | c-003 Take (11:20Z) | "new agents ... add cursor and codex" |
 | `1e9a2d57` | **DECIDED**: "Answer: A — Add both as agent vendors in the fleet (launcher, routing, quota), then name them in the deck" |
 | c-003 Baseline (11:2xZ) | 0 hits for cursor or codex as a vendor in `spawn-window.sh` and `csi-spl-cnf/csi-spl/all.env.yaml` |
+| `4ae81b56` (poll `bb3a79e6`, Q1 letters) | **DECIDED**: "U for Cursor - aka u-004 and O for COdex" |
+| `aca6a7c5` (Q2 accounts) | **DECIDED**: "I will purchase their max 20 bucks plans" (subscription logins, not API keys) |
+| `ea50c4b0` (Q3 split) | **DECIDED**: Option B, now: 15% each for Cursor and Codex in `simple_coding` and `tests`, Claude as backup (as relayed in the B1 lane brief; the verbatim text was not available to the editor) |
+| `1fe6abcf` (Q4 data rule) | **DECIDED**: "NO — No: like Antigravity and Qwen today" (no secret or personal-data work) |
+
+**The owner overrides this spec on one point**: Codex's letter is **`o`** (`o-NNN`), not the `d` proposed in v1.0. Sections 1 to 10 use `o` / `[acgmoqu]`; section 11 keeps the poll as it was asked.
 
 This spec designs the addition of **Cursor** (Cursor Agent CLI) and **Codex** (OpenAI Codex CLI) as the 6th and 7th agent vendors of the Spool fleet end to end: installation, binary pinning, identity grammar, mailbox layout, launchers, restore adapters, skills, task routing, watchdog quota/auth detection, fleet-wide backoff, and owner decision points.
 
@@ -29,7 +35,7 @@ This spec designs the addition of **Cursor** (Cursor Agent CLI) and **Codex** (O
 | # | Goal | Measured by |
 |---|---|---|
 | **G1** | The Cursor Agent CLI and OpenAI Codex CLI are installed for the agent user (`SPOOL_AGENT_USER`) on all fleet boxes via named actions (`do_install_cursor_agent`, `do_install_openai_codex`), wrapping box package management (`do_box_pkg_install`), pinned to explicit versions in `all.env.yaml`. | Exit 0 from install actions; `cursor-agent --version` and `codex --version` match cnf pins; zero unpinned `curl \| bash`. |
-| **G2** | Two new agent kinds with dedicated, non-clashing lowercase letters: `u` for Cursor (`u-NNN`) and `d` for Codex (`d-NNN`). Schema (DDL), Go API, spool routing, CLI grammar, tmux windows, and mailboxes treat `u-` and `d-` as full first-class fleet agents. | DDL migration applies cleanly; Go `agentid` unit tests accept `u-004` and `d-004`; `spool` CLI routes messages to their mailboxes. |
+| **G2** | Two new agent kinds with dedicated, non-clashing lowercase letters: `u` for Cursor (`u-NNN`) and `o` for Codex (`o-NNN`). Schema (DDL), Go API, spool routing, CLI grammar, tmux windows, and mailboxes treat `u-` and `o-` as full first-class fleet agents. | DDL migration applies cleanly; Go `agentid` unit tests accept `u-004` and `o-004`; `spool` CLI routes messages to their mailboxes. |
 | **G3** | Launchers (`spawn-cursor.sh`, `spawn-codex.sh`) and restore adapters (`restore-cursor.sh`, `restore-codex.sh`) start autonomous interactive sessions with bypassed permissions, positional seed prompts, and session continuity. | `spawn-window.sh cursor auto ...` and `spawn-window.sh codex auto ...` plan valid launch lines with bypass flags; `/cursor-spawn` and `/codex-spawn` skills work. |
 | **G4** | Task routing in `env.box.agent_split_by_kind` and `do_spl_lane_mix`: Cursor and Codex are allocated to coding kinds (`simple_coding`, `complex_coding`, `tests`), while strictly upholding the **DATA RULE** (no secrets or personal data) and the **LANGUAGE RULE** (agy leads multilingual text). | `do_spl_lane_mix` assigns coding tasks to Cursor/Codex when available; sensitive/secret tasks strictly refuse them and route to Claude/Grok/Mistral. |
 | **G5** | Quota and limit detection: Watchdog situation S2 recognizes Cursor and Codex rate/usage limits and auth failures, propagating fleet-wide holds following the SPL-3998 pattern. | S2 emits `kind=limit` or `kind=auth` from pane banners or API errors; dispatcher receives blocker; spawn placer holds fleet-wide until quota reset. |
@@ -131,23 +137,23 @@ This spec designs the addition of **Cursor** (Cursor Agent CLI) and **Codex** (O
   - Both Cursor and Codex begin with `c`, which is permanently assigned to Claude.
   - Letter `x` is heavily used across the test suite as the negative control (e.g. `x-004 refused`), and must NOT be used.
   - Letter `b` risks ambiguity with `BOX-` desk agent IDs.
-  - Letter `o` can cause visual ambiguity with digit `0` in fixed-width fonts (e.g. `o-004` vs `0-004`).
+  - Letter `o` can cause visual ambiguity with digit `0` in fixed-width fonts (e.g. `o-004` vs `0-004`). **Known trade-off, accepted by the owner** (msg `4ae81b56` chose `o` over the proposed `d`).
 - **Assigned Letters**:
   - **`u` for Cursor**: `u-NNN` (e.g. `u-004`). Mnemonic from the second letter of **c-U-r-s-o-r**. Crisp, unambiguous, zero collisions.
-  - **`d` for Codex**: `d-NNN` (e.g. `d-004`). Mnemonic from the third letter of **c-o-D-e-x**. Crisp, visually distinct from numbers, zero collisions.
+  - **`o` for Codex**: `o-NNN` (e.g. `o-004`). The owner's choice (msg `4ae81b56`, "O for COdex"), the second letter of **c-O-d-e-x**; it replaces the `d` this spec proposed in v1.0. Zero collisions with an existing letter; the `o`/`0` look-alike above is the accepted trade-off.
 - **Updated ID Grammar**:
   - The fleet agent ID regex expands from `^[acgmq]-[0-9]{3}$` to:
     ```regexp
-    ^[acdgmqu]-[0-9]{3}$
+    ^[acgmoqu]-[0-9]{3}$
     ```
-  - Case-insensitive regex: `^[ACDGMQUacdgmqu]-[0-9]{3}$`.
+  - Case-insensitive regex: `^[ACGMOQUacgmoqu]-[0-9]{3}$`.
   - Legacy prefixes: NONE. (Legacy prefixes ended on 2026-10-03).
 - **Role Seats**:
-  - `001..003` reserved for role seats (`u-001..u-003`, `d-001..d-003`). Lanes allocate `004..999`.
+  - `001..003` reserved for role seats (`u-001..u-003`, `o-001..o-003`). Lanes allocate `004..999`.
 - **Window and Mailbox Shapes**:
-  - Tmux window: `<tag>: u-004 <title>` and `<tag>: d-004 <title>`.
-  - Spool mailbox: `$SPOOL_ROOT/u-004/{inbox,outbox,archive}` and `$SPOOL_ROOT/d-004/{inbox,outbox,archive}`.
-  - Identity map: `$SPOOL_ROOT/agents/u-004.json` and `$SPOOL_ROOT/agents/d-004.json`.
+  - Tmux window: `<tag>: u-004 <title>` and `<tag>: o-004 <title>`.
+  - Spool mailbox: `$SPOOL_ROOT/u-004/{inbox,outbox,archive}` and `$SPOOL_ROOT/o-004/{inbox,outbox,archive}`.
+  - Identity map: `$SPOOL_ROOT/agents/u-004.json` and `$SPOOL_ROOT/agents/o-004.json`.
 
 ### 3.2 Code and Schema Touch List
 
@@ -155,12 +161,12 @@ The exact files across the repository that read or enforce the grammar:
 
 | Layer | Files | Required Change |
 |---|---|---|
-| **RDB (DDL)** | `csi-spl-rdb/src/sql/postgres/spool-hub/<NNNN>_cursor_codex_kinds.sql` (the next free number after the head, taken at build time) | Forward-only migration re-making CHECKs with `[acdgmqu]`: `roster_agent_id_check`, `issues_assignee_check`, `fleet_lanes_agent_id_check`, `fleet_asks_{from_agent,acked_by,closed_by}_check`, `agent_id_aliases.new_id`. Updates function `messages_claim_defaults()`. Adds `'cursor'` and `'codex'` to `fleet_agent_kinds_off`. |
-| **Hub Go API** | `csi-spl-api/src/go/spool-hub-api/internal/agentid/agentid.go`<br>`internal/agentid/agentid_test.go`<br>`internal/hub/fleet_lanes_view.go`<br>`internal/spool/spool.go`<br>`internal/store/flow_mentions.go`<br>`internal/store/message_claim.go`<br>`internal/store/store.go`<br>`internal/hubclient/host.go` | Update `newRe` and `newAnyCaseRe` to `[acdgmqu]`. Add `'u': "cursor"` and `'d': "codex"` to `kinds` map. Update `roleSeatLetters = "acdgmqu"`, `laneIDRe`, `odSeatRe`. Update `flowAgentSQL` and `agentIDAt` rune set `"acdgmqu"`. Add `cursor` and `codex` to `store.AgentKinds`. Add host CLI version probes for `cursor` and `codex`. |
-| **Orchestrator** | `csi-spl-orc/src/bash/features/spawn-agents/scripts/next-agent-id.sh`<br>`scripts/agent-id-map.sh`<br>`scripts/spool-send.sh`<br>`scripts/asks.sh`<br>`scripts/spool-mcp.sh`<br>`scripts/spool-mirror.py`<br>`scripts/agent-name-resume.sh`<br>`scripts/spl-session-prune.sh`<br>`scripts/tmux-close-window.sh`<br>`run/spl-{dispatch-rotate,orch-rotate,orch-load-report,peer-poll,role-id-switch,unanswered-sweep}.func.sh`<br>`run/spl-agent-identity-restore.func.sh` | Add `u` / `cursor` and `d` / `codex` to `_letter_of`, `ID_ROLE_LETTERS = "acdgmqu"`, and regex parsers. Update mailbox verification, session pruning, and identity restore. |
-| **WUI** | `csi-spl-wui/src/utils/agent-id.mjs`<br>`src/utils/mention-grammar.json`<br>`src/utils/agent-kind.mjs`<br>`src/utils/rail-order.mjs`<br>`src/utils/fleet-load.mjs`<br>`src/utils/mjs-shims.d.ts`<br>`src/pages/tenant-settings/split.vue`<br>`src/locales/*.json` (19 locales) | Update regex `AGENT_ID_SRC` to `[acdgmqu]`. Add label mappings `agent_kind_cursor` ("Cursor") and `agent_kind_codex` ("Codex"). Add split inputs for Cursor and Codex in `split.vue`. Add i18n translation keys. |
-| **Utilities** | `csi-spl-utl/src/bash/run/docker-test-container-prune.func.sh`<br>`run/orphan-process-reap.func.sh`<br>`scripts/workdir-sweep.sh` | Update worktree and process regex patterns from `[acgmq]` to `[acdgmqu]`. |
-| **Tests** | `csi-spl-orc/src/bash/tests/test-agent-name-shape.sh`<br>`tests/peer-poll.tst.sh`<br>`csi-spl-iac/src/bash/tests/help-connect-agent.tst.sh`<br>`csi-spl-orc/src/bash/features/spawn-agents/tests/test-agent-id.sh`<br>`csi-spl-wui/tests/unit/agent-id.test.mjs` | Add test cases for `u-004` and `d-004`; verify negative control `x-004` remains refused. |
+| **RDB (DDL)** | `csi-spl-rdb/src/sql/postgres/spool-hub/<NNNN>_cursor_codex_kinds.sql` (the next free number after the head, taken at build time) | Forward-only migration re-making CHECKs with `[acgmoqu]`: `roster_agent_id_check`, `issues_assignee_check`, `fleet_lanes_agent_id_check`, `fleet_asks_{from_agent,acked_by,closed_by}_check`, `agent_id_aliases.new_id`. Updates function `messages_claim_defaults()`. Adds `'cursor'` and `'codex'` to `fleet_agent_kinds_off`. |
+| **Hub Go API** | `csi-spl-api/src/go/spool-hub-api/internal/agentid/agentid.go`<br>`internal/agentid/agentid_test.go`<br>`internal/hub/fleet_lanes_view.go`<br>`internal/spool/spool.go`<br>`internal/store/flow_mentions.go`<br>`internal/store/message_claim.go`<br>`internal/store/store.go`<br>`internal/hubclient/host.go` | Update `newRe` and `newAnyCaseRe` to `[acgmoqu]`. Add `'u': "cursor"` and `'o': "codex"` to `kinds` map. Update `roleSeatLetters = "acgmoqu"`, `laneIDRe`, `odSeatRe`. Update `flowAgentSQL` and `agentIDAt` rune set `"acgmoqu"`. Add `cursor` and `codex` to `store.AgentKinds`. Add host CLI version probes for `cursor` and `codex`. |
+| **Orchestrator** | `csi-spl-orc/src/bash/features/spawn-agents/scripts/next-agent-id.sh`<br>`scripts/agent-id-map.sh`<br>`scripts/spool-send.sh`<br>`scripts/asks.sh`<br>`scripts/spool-mcp.sh`<br>`scripts/spool-mirror.py`<br>`scripts/agent-name-resume.sh`<br>`scripts/spl-session-prune.sh`<br>`scripts/tmux-close-window.sh`<br>`run/spl-{dispatch-rotate,orch-rotate,orch-load-report,peer-poll,role-id-switch,unanswered-sweep}.func.sh`<br>`run/spl-agent-identity-restore.func.sh` | Add `u` / `cursor` and `o` / `codex` to `_letter_of`, `ID_ROLE_LETTERS = "acgmoqu"`, and regex parsers. Update mailbox verification, session pruning, and identity restore. |
+| **WUI** | `csi-spl-wui/src/utils/agent-id.mjs`<br>`src/utils/mention-grammar.json`<br>`src/utils/agent-kind.mjs`<br>`src/utils/rail-order.mjs`<br>`src/utils/fleet-load.mjs`<br>`src/utils/mjs-shims.d.ts`<br>`src/pages/tenant-settings/split.vue`<br>`src/locales/*.json` (19 locales) | Update regex `AGENT_ID_SRC` to `[acgmoqu]`. Add label mappings `agent_kind_cursor` ("Cursor") and `agent_kind_codex` ("Codex"). Add split inputs for Cursor and Codex in `split.vue`. Add i18n translation keys. |
+| **Utilities** | `csi-spl-utl/src/bash/run/docker-test-container-prune.func.sh`<br>`run/orphan-process-reap.func.sh`<br>`scripts/workdir-sweep.sh` | Update worktree and process regex patterns from `[acgmq]` to `[acgmoqu]`. |
+| **Tests** | `csi-spl-orc/src/bash/tests/test-agent-name-shape.sh`<br>`tests/peer-poll.tst.sh`<br>`csi-spl-iac/src/bash/tests/help-connect-agent.tst.sh`<br>`csi-spl-orc/src/bash/features/spawn-agents/tests/test-agent-id.sh`<br>`csi-spl-wui/tests/unit/agent-id.test.mjs` | Add test cases for `u-004` and `o-004`; verify negative control `x-004` remains refused. |
 
 ---
 
@@ -182,7 +188,7 @@ The exact files across the repository that read or enforce the grammar:
    - ACL: `SPAWN_AGENT_ACL=rwX`.
 3. **`spawn-codex.sh`**:
    - Adapter of `spawn-core.inc.sh`.
-   - `SPAWN_KIND=codex`, `SPAWN_ID_PREFIX=`, `SPAWN_ID_LETTER=d`, `SPAWN_BIN_VAR=CODEX_BIN`.
+   - `SPAWN_KIND=codex`, `SPAWN_ID_PREFIX=`, `SPAWN_ID_LETTER=o`, `SPAWN_BIN_VAR=CODEX_BIN`.
    - Flags: `SPAWN_EXTRA_FLAGS="--ask-for-approval never"`.
    - Execution prefix: `SPAWN_EXEC_PREFIX="env -u OPENAI_API_KEY OPENAI_TELEMETRY_DISABLED=1"`.
    - ACL: `SPAWN_AGENT_ACL=rwX`.
@@ -197,7 +203,7 @@ The exact files across the repository that read or enforce the grammar:
    - Injects brief re-kick prompt so the restored session resumes work on its inbox.
 2. **`restore-codex.sh`**:
    - Adapter of `restore-core.inc.sh`.
-   - `RESTORE_KIND=codex`, `RESTORE_ID_LETTER=d`, `RESTORE_BIN_VAR=CODEX_BIN`.
+   - `RESTORE_KIND=codex`, `RESTORE_ID_LETTER=o`, `RESTORE_BIN_VAR=CODEX_BIN`.
    - Resume command: `codex resume <SESSION_ID>` or `codex resume --last`.
    - Reads `SPAWN_EXEC_PREFIX` and `SPAWN_AGENT_ACL` from `spawn-codex.sh`.
    - Injects brief re-kick prompt.
@@ -207,7 +213,7 @@ The exact files across the repository that read or enforce the grammar:
 ### 4.3 Skills
 
 - New skill **`/cursor-spawn`**: `csi-spl-orc/src/bash/features/spawn-agents/assets/commands/cursor-spawn.md`. Allows spawning a new `u-NNN` agent or sending messages to an active `u-NNN` lane.
-- New skill **`/codex-spawn`**: `csi-spl-orc/src/bash/features/spawn-agents/assets/commands/codex-spawn.md`. Allows spawning a new `d-NNN` agent or sending messages to an active `d-NNN` lane.
+- New skill **`/codex-spawn`**: `csi-spl-orc/src/bash/features/spawn-agents/assets/commands/codex-spawn.md`. Allows spawning a new `o-NNN` agent or sending messages to an active `o-NNN` lane.
 - Update **`/spawn-an-agent`**: Names Cursor and Codex alongside existing vendors.
 - Update `csi-spl-orc/src/bash/features/spawn-agents/harness-parity.tsv` with rows for `spawn-cursor.sh`, `spawn-codex.sh`, `restore-cursor.sh`, `restore-codex.sh`, `cursor-spawn.md`, and `codex-spawn.md`.
 
@@ -304,7 +310,7 @@ env:
 
 1. **Identity Restore (`spl-agent-identity-restore.func.sh`)**:
    - On box reboot or tmux server restart, `do_spl_agent_identity_restore` scans `$SPOOL_ROOT/agents/*.json`.
-   - For `u-NNN` and `d-NNN` records, it invokes `restore-cursor.sh` and `restore-codex.sh` respectively.
+   - For `u-NNN` and `o-NNN` records, it invokes `restore-cursor.sh` and `restore-codex.sh` respectively.
    - Runs strictly as `SPOOL_AGENT_USER`.
    - Restores session into the agent's dedicated worktree (`/opt/csi/csi-spl-wt/<ID>`), preserving unpushed commits and git branch state.
 2. **Role Seats & Failover**:
@@ -349,15 +355,15 @@ Each build row is one small, self-contained task with an explicit red control an
 
 | Row | Area | Description and Touch List | Red Control | Test |
 |---|---|---|---|---|
-| **B1** | `rdb` | **DDL Migration**: Add `<NNNN>_cursor_codex_kinds.sql`, the next free number after the head, taken at build time. Update CHECK constraints `roster_agent_id_check`, `issues_assignee_check`, `fleet_lanes_agent_id_check`, `fleet_asks_*_check`, `agent_id_aliases.new_id` to `[acdgmqu]`. Update function `messages_claim_defaults()`. Update `fleet_agent_kinds_off`.<br>*Files*: `csi-spl-rdb/src/sql/postgres/spool-hub/<NNNN>_cursor_codex_kinds.sql` (next free prefix), `csi-spl-api/src/go/spool-hub-api/internal/store/cursor_codex_kind_migrate_test.go`. | Inserting `u-004` or `d-004` fails before migration; `x-004` fails after migration. | Go test applying migration and asserting valid inserts for `u-004` and `d-004`. |
-| **B2** | `api` | **Hub Go API & AgentID**: Update `agentid.go` (`newRe`, `newAnyCaseRe`, `kinds` map with `'u': "cursor"`, `'d': "codex"`). Update `flow_mentions.go` (`agentIDAt` rune set `"acdgmqu"`, `flowAgentSQL`), `fleet_lanes_view.go`, `spool.go` (`roleSeatLetters`), `message_claim.go` (`odSeatRe`), `store.go` (`AgentKinds`), and `hubclient/host.go` (CLI version probes).<br>*Files*: `csi-spl-api/src/go/spool-hub-api/internal/agentid/agentid.go`, `agentid_test.go`, `hub/fleet_lanes_view.go`, `spool/spool.go`, `store/flow_mentions.go`, `store/flow_mentions_test.go`, `store/message_claim.go`, `store/store.go`, `hubclient/host.go`. | `agentid.Parse("x-004")` and legacy prefix for cursor/codex fail. | `go test ./internal/agentid/... ./internal/store/...` green for `u-004` and `d-004`. |
+| **B1** | `rdb` | **DDL Migration**: Add `<NNNN>_cursor_codex_kinds.sql`, the next free number after the head, taken at build time. Update CHECK constraints `roster_agent_id_check`, `issues_assignee_check`, `fleet_lanes_agent_id_check`, `fleet_asks_*_check`, `agent_id_aliases.new_id` to `[acgmoqu]`. Update function `messages_claim_defaults()`. Update `fleet_agent_kinds_off`.<br>*Files*: `csi-spl-rdb/src/sql/postgres/spool-hub/<NNNN>_cursor_codex_kinds.sql` (next free prefix), `csi-spl-api/src/go/spool-hub-api/internal/store/cursor_codex_kind_migrate_test.go`. | Inserting `u-004` or `o-004` fails before migration; `x-004` and `d-004` (the letter the owner did not pick) fail after migration. | Go test applying migration and asserting valid inserts for `u-004` and `o-004`. |
+| **B2** | `api` | **Hub Go API & AgentID**: Update `agentid.go` (`newRe`, `newAnyCaseRe`, `kinds` map with `'u': "cursor"`, `'o': "codex"`). Update `flow_mentions.go` (`agentIDAt` rune set `"acgmoqu"`, `flowAgentSQL`), `fleet_lanes_view.go`, `spool.go` (`roleSeatLetters`), `message_claim.go` (`odSeatRe`), `store.go` (`AgentKinds`), and `hubclient/host.go` (CLI version probes).<br>*Files*: `csi-spl-api/src/go/spool-hub-api/internal/agentid/agentid.go`, `agentid_test.go`, `hub/fleet_lanes_view.go`, `spool/spool.go`, `store/flow_mentions.go`, `store/flow_mentions_test.go`, `store/message_claim.go`, `store/store.go`, `hubclient/host.go`. | `agentid.Parse("x-004")` and legacy prefix for cursor/codex fail. | `go test ./internal/agentid/... ./internal/store/...` green for `u-004` and `o-004`. |
 | **B3** | `orc` | **Install Actions & cnf Pins**: Add `do_install_cursor_agent`, `do_install_openai_codex`, `do_set_cursor_key`, and `do_set_codex_key`. Add cnf pins and auth markers in `all.env.yaml`. Update `install.sh`.<br>*Files*: `csi-spl-orc/src/bash/run/install-cursor-agent.func.sh`, `install-openai-codex.func.sh`, `set-cursor-key.func.sh`, `set-codex-key.func.sh`, `csi-spl-cnf/csi-spl/all.env.yaml`, `csi-spl-orc/src/bash/features/spool-install/install.sh`, `csi-spl-orc/src/bash/tests/install-cursor-agent.tst.sh`, `tests/install-openai-codex.tst.sh`. | Missing pin or unpinned `latest` fails install; key setter writes mode 0600 without stdout leak. | `install-cursor-agent.tst.sh` and `install-openai-codex.tst.sh` pass. |
 | **B4** | `orc` | **Launchers & Restore Adapters**: Add `spawn-cursor.sh`, `spawn-codex.sh`, `restore-cursor.sh`, `restore-codex.sh`. Update `spawn-window.sh` vendor routing. Update `next-agent-id.sh` (`_letter_of`, `ID_ROLE_LETTERS`).<br>*Files*: `csi-spl-orc/src/bash/features/spawn-agents/scripts/{spawn-cursor.sh,spawn-codex.sh,restore-cursor.sh,restore-codex.sh,spawn-window.sh,next-agent-id.sh}`. | Dry-run spawn for unknown vendor fails; invalid title or letter mismatch refused. | Dry-run spawn test plans `cursor-agent --force` and `codex --ask-for-approval never`. |
 | **B5** | `orc` | **Skills & Tooling Parity**: Add `/cursor-spawn` and `/codex-spawn` skill command assets. Update `/spawn-an-agent`. Update `harness-parity.tsv` and `agent-id-map.sh`. Update `check-fleet-rules-drift.tst.sh`.<br>*Files*: `csi-spl-orc/src/bash/features/spawn-agents/assets/commands/{cursor-spawn.md,codex-spawn.md,spawn-an-agent.md}`, `harness-parity.tsv`, `csi-spl-orc/src/bash/tests/check-fleet-rules-drift.tst.sh`. | Omission of `/cursor-spawn` or `/codex-spawn` in parity TSV fails drift check. | `check-fleet-rules-drift.tst.sh` green. |
 | **B6** | `orc` | **Watchdog S2 & Process Monitoring**: Update `s2.sh` and `lib.inc.sh` with Cursor/Codex stall, quota, and auth banners. Add comms `cursor-agent`, `agent`, `codex` to `WD_HARNESS_COMM_RE`. Update `spl-session-prune.sh`.<br>*Files*: `csi-spl-orc/src/bash/features/watchdog/situations/{s2.sh,lib.inc.sh}`, `csi-spl-orc/src/bash/run/spl-watchdog.func.sh`, `csi-spl-orc/src/bash/run/spl-session-prune.sh`, `csi-spl-orc/src/bash/tests/watchdog-s2-cursor-codex.tst.sh`. | Unmatched banner produces no S2; quota error emits `kind=limit`; auth failure emits `kind=auth`. | Situation test passes against simulated Cursor and Codex pane outputs. |
 | **B7** | `orc` | **Routing & Lane Mix**: Update `spl-lane-mix.func.sh` and `spl-lane-mix-journal.func.sh` to route coding tasks to Cursor and Codex. Enforce Data Rule (sensitive tasks strictly skip Cursor and Codex).<br>*Files*: `csi-spl-orc/src/bash/run/spl-lane-mix.func.sh`, `csi-spl-orc/src/bash/tests/spl-lane-mix.tst.sh`. | Sensitive task (`LANE_MIX_SENSITIVE=1`) picking Cursor or Codex fails control. | `spl-lane-mix.tst.sh` verifies weight allocation and Data Rule enforcement. |
 | **B8** | `wui` | **WUI Split & Fleet Load**: Update `split.vue` with split inputs for Cursor and Codex. Update `agent-id.mjs`, `agent-kind.mjs`, `fleet-load.mjs`, `mention-grammar.json`. Add i18n keys for 19 locales.<br>*Files*: `csi-spl-wui/src/pages/tenant-settings/split.vue`, `src/utils/{agent-id.mjs,agent-kind.mjs,fleet-load.mjs,mention-grammar.json}`, locale files.<br>Initial JS chunk size delta must remain $\le 100$ B. | Sum mismatch or 5-number split without cursor/codex refused by hub/WUI. | `pnpm run typecheck` and `tenant-settings.test.mjs` unit/e2e tests pass. |
-| **B9** | `ops` | **Live Pilot Verification**: Spawn live pilot lanes (`u-NNN` and `d-NNN`) on fleet boxes, execute sample test tasks, verify git commit creation, inbox/outbox messaging, and clean retirement.<br>*Scope*: Fleet boxes `sat` and `main`. | Lane failure, invalid sha, or leaked credential fails pilot. | Both agents complete assigned tasks and report exit 0. |
+| **B9** | `ops` | **Live Pilot Verification**: Spawn live pilot lanes (`u-NNN` and `o-NNN`) on fleet boxes, execute sample test tasks, verify git commit creation, inbox/outbox messaging, and clean retirement.<br>*Scope*: Fleet boxes `sat` and `main`. | Lane failure, invalid sha, or leaked credential fails pilot. | Both agents complete assigned tasks and report exit 0. |
 
 ---
 

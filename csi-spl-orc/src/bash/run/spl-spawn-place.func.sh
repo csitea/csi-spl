@@ -937,6 +937,8 @@ spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
     printf '%s\n' "$agent" >"$(spool_asks_dir)/.place.agent"
     spl_spawn_place_wait "$id" ""
     spl_spawn_placed_close "$id" "$holder" "$agent"
+    declare -F spl_review_notify_placed >/dev/null || source "$PROJ_PATH/src/bash/run/spl-spawn-review-notify.func.sh"
+    spl_review_notify_placed "$holder" "$agent" "$4" "$5"
     return 0
   fi
   spl_spawn_q_op queue "$id" "$holder" >/dev/null

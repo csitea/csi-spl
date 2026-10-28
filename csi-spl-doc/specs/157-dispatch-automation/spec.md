@@ -414,6 +414,7 @@ flowchart TD
    - Scan for explicit author headers:  
      `^Author:[[:space:]]*([acgmq]-[0-9]{3,})(@[A-Za-z0-9._-]+)?`
    - Extract `<author-id>` and optional `<box>`.
+   - **As built (B6, SPL-4109)**: the author header is matched as a phrase, any case, colon optional, anywhere on a line (`Author: c-372@boxa`, `Author c-372@boxa.`, `(author c-418, vendor claude)`). Measured 2026-10-28 over the 352 `dispatch/briefs/*-reviewer.md` briefs on one box: the line-start `^Author:` form matched 0, the phrase form 130, the cell form 12. Role seats and the reviewer itself are left out. An author on this box counts as live when `registry.tsv` has a row for it that has not ended, or its spool dir exists (ids are reused, so an old retired row does not make a live id retired). An author on another box is sent through the relay, which refuses an id that box does not know. Action: `do_spl_spawn_review_notify` (`csi-spl-orc/src/bash/run/spl-spawn-review-notify.func.sh`); the placer's hook is `spl_review_notify_placed`. A failed send exits 1, and the placer goes on.
 3. **Cross-Box Author Existence & Routing (Resolves N9, X4)**:
    - Check author lane existence via local `$SPOOL_ROOT/<author-id>` or fleet registry `$SPOOL_ROOT/registry.tsv` (and `$SPOOL_ROOT/registry.retired.tsv`).
    - (Note: `lane-map.sh --check` takes file path arguments, not agent IDs).

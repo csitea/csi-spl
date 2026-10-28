@@ -23,6 +23,11 @@
 #    11. the lease held elsewhere, stale, none -> nothing; never written
 #    12. the dry run prints PLAN, sends and logs nothing
 #    13. the install cron: dry run, one exact line, idempotent, check, remove
+#    14. a retired reviewer: its brief is dispatch/briefs/<title of its newest
+#        retired identity record>.md, the author in prose (one author, the
+#        sha or task named), the author brief from its Author brief: line
+#        (dispatch/briefs only) -> GO; RED CONTROLS two authors, no sha/task
+#        -> rc 3, an Author brief: elsewhere -> rc 7
 #   REVIEW_GO_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -287,6 +292,47 @@ cron DRY_RUN=0 REVIEW_GO_CRON_ACTION=remove
   pass "13. remove takes only its line" || fail "13. remove: $(cat "$T/crontab")"
 cron REVIEW_GO_CRON_ACTION=bogus; rc=$?
 (( rc == 1 )) && grep -q 'FATAL REVIEW_GO_CRON_ACTION' "$T/o" && pass "13. a bad action is refused" || fail "13. bad action rc=$rc"
+
+# --- 14. a retired reviewer, a prose brief, an author on another box ------------------------------------------
+# pbrief <slug> <text>: a placement brief in dispatch/briefs (the prose form)
+# shellcheck disable=SC2016 # the backticks are markdown, not an expansion
+pbrief() { printf '# Lane brief: review\n\nPlacement slug `%s`. %s\n' "$1" "$2" >"$S/dispatch/briefs/$1.md"; }
+# retire <reviewer> <spawned> <slug>: the seat is gone; its retired identity record keeps the slug as title
+retire() {
+  rm -rf "${S:?}/$1" && mkdir -p "$S/agents/retired" "$S/dispatch/briefs"
+  printf '{"id":"%s","title":"%s","v":1}\n' "$1" "$3" >"$S/agents/retired/$1.$2.json"
+}
+prose() { echo "Author c-222@boxa (claude). Branch \`review/c002-x\` at \`$SHA\`. Author brief: $S/dispatch/briefs/c002-x.md;"; }
+reset14() {
+  reset; retire g-111 20261028T100000Z c002-x-grok-reviewer; rm -rf "${S:?}/c-222"
+  pbrief c002-x-grok-reviewer "$(prose)"; pbrief c002-x "Do: a small orc fix. Tests green."
+}
+reset14
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 14000000-0000-4000-8000-000000000001)
+run REVIEW_GO_MSG="$f"; rc=$?
+(( rc == 0 )) && grep -qxF "SEND --from c-002 --to c-222@boxa --kind task --task $TASK --body GO $SHA" "$T/s/sent.log" &&
+  grep -qE "^PASS [^ ]+ 14000000-0000-4000-8000-000000000001 $TASK c-222 g-111 $SHA$" "$LOG" &&
+  pass "14. GREEN: retired reviewer (dispatch/briefs/<title>.md), prose author, author brief from its Author brief: line" ||
+  fail "14. green rc=$rc sent=$(cat "$T/s/sent.log") out=$(tail -3 "$T/out")"
+reset14; printf '{"id":"g-111","title":"other-slug","v":1}\n' >"$S/agents/retired/g-111.20261027T100000Z.json"
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 14000000-0000-4000-8000-000000000002)
+run REVIEW_GO_MSG="$f"; (( $? == 0 && $(gos) == 1 )) && pass "14. the newest retired record of the id is read" || fail "14. newest: $(tail -3 "$T/out")"
+reset14; pbrief c002-x-grok-reviewer "Author c-222@boxa (claude), with author c-333@boxa. Branch \`review/c002-x\` at \`$SHA\`."
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 14000000-0000-4000-8000-000000000003)
+run REVIEW_GO_MSG="$f"; refused "14. RED CONTROL: a prose brief naming two authors" $? 3 "unplaced reviewer or author not assigned in $S/dispatch/briefs/c002-x-grok-reviewer.md"
+reset14; pbrief c002-x-grok-reviewer "Author c-222@boxa (claude). Branch \`review/c002-x\` at \`0123456789abcdef\`, task 0f0f0f0f."
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 14000000-0000-4000-8000-000000000004)
+run REVIEW_GO_MSG="$f"; refused "14. RED CONTROL: a prose brief naming neither the sha nor the task (an id reused for another seat)" $? 3 "author not assigned"
+reset14; rm -f "$S/agents/retired/"*.json
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 14000000-0000-4000-8000-000000000005)
+run REVIEW_GO_MSG="$f"; refused "14. a retired reviewer with no identity record" $? 3 "author not assigned in $S/g-111/lifetime/brief.md"
+reset14; mkdir -p "$T/elsewhere" && echo 'Do: it.' >"$T/elsewhere/c002-x.md"
+pbrief c002-x-grok-reviewer "$(prose | sed "s|$S/dispatch/briefs/c002-x.md|$T/elsewhere/c002-x.md|")"
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 14000000-0000-4000-8000-000000000006)
+run REVIEW_GO_MSG="$f"; refused "14. RED CONTROL: an Author brief: outside dispatch/briefs is not read" $? 7 "author c-222 has no brief on this box"
+reset14; pbrief c002-x "Do: then ENV=prd ./run -a do_x."
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 14000000-0000-4000-8000-000000000007)
+run REVIEW_GO_MSG="$f"; refused "14. the owner-go scan reads the Author brief: copy" $? 4 "owner-go keyword 'ENV=prd'"
 
 echo "spl-review-go: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

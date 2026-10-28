@@ -12,14 +12,19 @@
 # @description of the check in brackets; REVIEW_GO_MSG runs one message file
 # @description and returns it):
 # @description   [1] the verdict is PASS (a FAIL is never checked further)
-# @description   [3] the reviewer was placed for it: $SPOOL_ROOT/<reviewer>/
-# @description       lifetime/brief.md has a `| author | ... |` table row whose
-# @description       sha / head / commits cell abbreviates the reviewed sha, or
-# @description       whose task cell is the message's task
+# @description   [3] the reviewer was placed for it: its brief ($SPOOL_ROOT/
+# @description       <reviewer>/lifetime/brief.md, else, the seat retired,
+# @description       dispatch/briefs/<title of its identity record>.md) has a
+# @description       `| author | ... |` table row whose sha / head / commits
+# @description       cell abbreviates the reviewed sha, or whose task cell is
+# @description       the message's task; no such row: it names one author in
+# @description       prose (`Author <id>@<box>`) and the sha or the task
 # @description   [2] the reviewer's vendor differs from the author's
 # @description       (rounds-rulebook 2.7.2; the vendor is the id letter)
 # @description   [7] the author's own brief ($SPOOL_ROOT/<author>/lifetime/
-# @description       brief.md) is on this box (unread = not verified)
+# @description       brief.md, else the dispatch/briefs/<slug>.md the reviewer
+# @description       brief names on its `Author brief:` line) is on this box
+# @description       (unread = not verified)
 # @description   [4] that brief names no owner-go keyword (apply, do-provision,
 # @description       do-tf-apply, PROBE_PRD_GO, DRY_RUN=0, ENV=prd, IAM,
 # @description       billing, service account key, /etc/; spec 7.1.2), or it
@@ -145,10 +150,39 @@ for r in sorted(set(rows)):
 EOF_PY
 }
 
+# _spl_review_go_brief <reviewer>: the path of the reviewer's placed brief: its
+# lifetime copy, else (a retired seat's lifetime dir is gone)
+# dispatch/briefs/<slug>.md, the slug being the title of its live identity
+# record or of its newest retired one (agents/retired/<id>.<spawned>.json).
+_spl_review_go_brief() {
+  local b="$SPOOL_ROOT/$1/lifetime/brief.md" rec="$SPOOL_ROOT/agents/$1.json" slug recs
+  [[ -s "$b" ]] && { echo "$b"; return 0; }
+  recs=("$SPOOL_ROOT/agents/retired/$1".*.json)
+  [[ -s "$rec" ]] || rec="${recs[-1]}"
+  slug="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("title") or "")' "$rec" 2>/dev/null)"
+  if [[ "$slug" =~ ^[A-Za-z0-9._-]+$ ]]; then echo "$SPOOL_ROOT/dispatch/briefs/$slug.md"; else echo "$b"; fi
+}
+
+# _spl_review_go_abrief <author> <reviewer brief>: the path of the author's
+# brief on this box: its lifetime copy, else the dispatch/briefs/<slug>.md the
+# reviewer brief names on its `Author brief:` line (an author on another
+# box). rc 1 when neither is here.
+_spl_review_go_abrief() {
+  local b="$SPOOL_ROOT/$1/lifetime/brief.md" p
+  [[ -s "$b" ]] && { echo "$b"; return 0; }
+  p="$(sed -nE 's/.*Author brief:[[:space:]]*([^[:space:];,]+\.md).*/\1/p' "$2" 2>/dev/null)"
+  p="${p%%$'\n'*}"
+  [[ "$p" == "$SPOOL_ROOT/dispatch/briefs/${p##*/}" && "${p##*/}" =~ ^[A-Za-z0-9._-]+\.md$ && -s "$p" ]] || return 1
+  echo "$p"
+}
+
 # _spl_review_go_row <brief> <sha> <task>: author_id author_box branch task of
 # the brief's `| author | ... |` table row for the review: its sha / head /
 # commits cell holds an abbreviation of <sha> (7+ hex), else its task cell is
-# <task>. Nothing printed, rc 1, when no row matches.
+# <task>. No such row: the prose form placement briefs use (`Author
+# c-805@<box> (claude)`, `Branch `review/<slug>``), only when the brief names
+# one author and holds an abbreviation of <sha> or <task>. Nothing printed,
+# rc 1, when neither matches.
 _spl_review_go_row() {
   python3 - "$1" "$2" "$3" <<'EOF_PY'
 import re, sys
@@ -179,7 +213,14 @@ for r in sorted(rows, key=lambda r: not hit(r)):
         b = (col(r, "review branch", "branch").split() or [""])[0].strip("`")
         print("\t".join((a.group(1), a.group(2) or "", b, col(r, "task") or task)))
         sys.exit(0)
-sys.exit(1)
+text = "\n".join(lines)
+named = re.findall(r"(?i)\bauthor:?[ \t]+([acgmq]-[0-9]{3,})(?:@([A-Za-z0-9._-]+))?", text)
+if len({i for i, _ in named}) != 1:
+    sys.exit(1)
+if task not in text and not any(sha.startswith(h) for h in re.findall(r"\b[0-9a-f]{7,40}\b", text)):
+    sys.exit(1)
+br = re.search(r"(?i)\bbranch[ \t]+`([A-Za-z0-9._/-]+)`", text) or re.search(r"\b(review/[A-Za-z0-9._/-]*[A-Za-z0-9_-])", text)
+print("\t".join((named[0][0], next((b for _, b in named if b), ""), br.group(1) if br else "", task)))
 EOF_PY
 }
 
@@ -218,18 +259,18 @@ EOF_PY
 # and the refusal line. Returns the check's exit code (see the header).
 _spl_review_go_one() {
   local holder="$1" msg="$2" task="$3" line="$4" log="$5" dry="$6" rx why rc
-  local rid rbox rven verdict sha author abox branch rtask brief
+  local rid rbox rven verdict sha author abox branch rtask brief abrief
   rx='^review: ([acgmq]-[0-9]{3,})@([A-Za-z0-9._-]+) ([a-z]+) ([A-Z]+) ([0-9a-f]{40}) '
   [[ "$line" =~ $rx ]] || { _spl_review_go_hold "$@" 1 "not an R7 line with a 40-hex sha"; return 1; }
   rid="${BASH_REMATCH[1]}" rbox="${BASH_REMATCH[2]}" rven="${BASH_REMATCH[3]}" verdict="${BASH_REMATCH[4]}" sha="${BASH_REMATCH[5]}"
   [[ "$verdict" == PASS ]] || { _spl_review_go_hold "$@" 1 "REVIEW $verdict from $rid@$rbox for ${sha:0:12}"; return 1; }
-  brief="$SPOOL_ROOT/$rid/lifetime/brief.md"
+  brief="$(_spl_review_go_brief "$rid")"
   IFS=$'\t' read -r author abox branch rtask < <(_spl_review_go_row "$brief" "$sha" "$task")
   [[ -n "${author:-}" ]] || { _spl_review_go_hold "$@" 3 "unplaced reviewer or author not assigned in $brief"; return 3; }
   [[ "${author%%-*}" != "${rid%%-*}" ]] || { _spl_review_go_hold "$@" 2 "reviewer $rid ($rven) shares the vendor of author $author"; return 2; }
-  [[ -s "$SPOOL_ROOT/$author/lifetime/brief.md" ]] ||
-    { _spl_review_go_hold "$@" 7 "author $author has no brief on this box ($SPOOL_ROOT/$author/lifetime/brief.md): not verified"; return 7; }
-  why="$(_spl_review_go_owner_go "$SPOOL_ROOT/$author/lifetime/brief.md" "$holder")" ||
+  abrief="$(_spl_review_go_abrief "$author" "$brief")" ||
+    { _spl_review_go_hold "$@" 7 "author $author has no brief on this box ($SPOOL_ROOT/$author/lifetime/brief.md, nor an Author brief: line in $brief): not verified"; return 7; }
+  why="$(_spl_review_go_owner_go "$abrief" "$holder")" ||
     { _spl_review_go_hold "$@" 4 "task touches owner-go scope: $why"; return 4; }
   why="$(REVIEW_LINE="$line" REVIEW_LINE_REPO="${REVIEW_GO_REPO:-}" do_spl_review_line_check 2>&1)"; rc=$?
   (( rc == 2 )) && { _spl_review_go_hold "$@" 6 "the reviewer's log is on box $rbox: run the check there (never fetched)"; return 6; }

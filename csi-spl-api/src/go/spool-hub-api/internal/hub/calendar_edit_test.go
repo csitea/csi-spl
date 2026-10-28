@@ -309,11 +309,11 @@ func TestCalendarEventLinks(t *testing.T) {
 	refuse("other tenant", calBody("x", map[string]any{"owner_id": outsider}))
 	refuse("no such member", calBody("x", map[string]any{"owner_id": "HUM-99999"}))
 	refuse("unknown topic", calBody("x", map[string]any{"topic_id": "no-such-topic"}))
-	if err := e.st.SetRoster(context.Background(), tid, "tnk", []string{"c-042"}, time.Now()); err != nil {
+	if err := e.st.SetRoster(context.Background(), tid, "box1", []string{"c-042"}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	owned := calCreate(t, e, tid, dev, calBody("Agent", map[string]any{"owner_id": "c-042@tnk"}))
-	if owned["owner_id"] != "c-042@tnk" {
+	owned := calCreate(t, e, tid, dev, calBody("Agent", map[string]any{"owner_id": "c-042@box1"}))
+	if owned["owner_id"] != "c-042@box1" {
 		t.Fatalf("agent owner: %v", owned["owner_id"])
 	}
 	refuse("unknown agent", calBody("x", map[string]any{"owner_id": "c-099"}))

@@ -165,4 +165,31 @@ describe('createSwipe', () => {
     assert.equal(log.at(-1), 'cancel')
     assert.equal(s.swiping, false)
   })
+
+  it('travel under SWIPE_LOCK_PX decides nothing; the next move past it locks', () => {
+    // the dead zone: the axis is decided only after SWIPE_LOCK_PX of travel
+    const { s, log, touch, ends } = rig()
+    s.down(touch(300, 100))
+    s.move(touch(294, 106))
+    s.move(touch(292, 101))
+    assert.deepEqual(log, [])
+    assert.equal(s.swiping, false)
+    s.move(touch(300 - SWIPE_LOCK_PX - 4, 101))
+    assert.equal(s.swiping, true)
+    assert.deepEqual(ends(), ['lock archive'])
+  })
+
+  it('a second finger down mid-swipe cancels it; the lift then commits nothing', () => {
+    // a second down while swiping resets the card and calls onCancel
+    const { s, touch, ends } = rig()
+    s.down(touch(300, 100))
+    s.move(touch(120, 100))
+    assert.equal(s.swiping, true)
+    s.down({ ...touch(200, 300), isPrimary: false })
+    assert.deepEqual(ends(), ['lock archive', 'cancel'])
+    assert.equal(s.swiping, false)
+    assert.equal(s.dx, 0)
+    s.up()
+    assert.deepEqual(ends(), ['lock archive', 'cancel'])
+  })
 })

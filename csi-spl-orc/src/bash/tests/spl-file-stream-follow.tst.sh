@@ -38,7 +38,9 @@
 # cnf keeps the follower off until row B2 (file_streams_push) is on master;
 # the hubs: one line reaches the dev AND the prd hub, each through that env's
 # desk, a hub that is down keeps only its own queue, a hub with no desk is one
-# FATAL line (CONTROL: one shared state dir feeds only one hub).
+# FATAL line (CONTROL: one shared state dir feeds only one hub); the default
+# state dir when .local/state/csi-spl is not the agent user's (CONTROL: the old
+# default fails).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -667,6 +669,36 @@ if command -v yq >/dev/null; then
   [[ -z "$(htexts "$hd" dev)" || -z "$(htexts "$hd" prd)" ]] &&
     pass "hubs CONTROL: one shared state dir, one hub gets nothing" ||
     fail "hubs CONTROL: both hubs fed with one state dir: dev='$(htexts "$hd" dev)' prd='$(htexts "$hd" prd)'"
+
+  # the default state dir, when .local/state/csi-spl belongs to another user
+  # (one box, SPL-4037: root:root, every cron tick died on its mkdir): the agent
+  # user gets a sibling dir of its own; a writable or absent one is kept.
+  sb() { bash -c 'source "$1"; spl_file_stream_state_base "$2" "$3"' _ "$1" "$(id -un)" "$2"; }
+  sbcase() { # sbcase <func>: fixture home with a csi-spl dir the user cannot write, then both hubs from the default base
+    local hd h base
+    hd="$(newcase)"; hubcase "$hd"; h="$hd/agent-home"
+    mkdir -p "$h/.local/state/csi-spl"; chmod 555 "$h/.local/state/csi-spl"
+    base="$(sb "$1" "$h")"
+    out="$(hub_act "$1" "$hd" FILE_STREAMS_STATE_DIR="$base")"; rc=$?
+    chmod 755 "$h/.local/state/csi-spl"
+    [[ "$rc" == 0 && "$(htexts "$hd" dev)" == "hb 3" && "$(htexts "$hd" prd)" == "hb 3" ]]
+  }
+  if [[ "$(id -u)" == 0 ]]; then
+    echo "SKIP state dir: root writes any dir"
+  else
+    sbcase "$FUNC" && pass "state dir: csi-spl not writable by the agent user, both hubs fed from csi-spl-file-streams" ||
+      fail "state dir: rc=$rc dev='$(htexts "$hd" dev)' out='$out'"
+    sf="$hd/c-sb.sh"
+    sed 's|echo "$s/csi-spl-file-streams"|echo "$s/csi-spl/file-streams"|' "$FUNC" >"$sf"
+    grep -qF 'echo "$s/csi-spl-file-streams"' "$sf" && fail "state dir CONTROL: the sed did not plant the old default"
+    sbcase "$sf" && fail "state dir CONTROL: the old default fed both hubs" ||
+      pass "state dir CONTROL: the old default (csi-spl/file-streams) fails, as on that box"
+    h="$hd/home-w"; mkdir -p "$h/.local/state/csi-spl"
+    [[ "$(sb "$FUNC" "$h")" == "$h/.local/state/csi-spl/file-streams" &&
+       "$(sb "$FUNC" "$hd/home-none")" == "$hd/home-none/.local/state/csi-spl/file-streams" ]] &&
+      pass "state dir: a writable or absent csi-spl dir keeps csi-spl/file-streams (sat state stays)" ||
+      fail "state dir keep: w='$(sb "$FUNC" "$h")' none='$(sb "$FUNC" "$hd/home-none")'"
+  fi
 
   # a hub with no desk on the box: one FATAL line, the other hub still fed
   hd="$(newcase)"; hubcase "$hd"; rm -rf "$hd/cloud/prd/desk"

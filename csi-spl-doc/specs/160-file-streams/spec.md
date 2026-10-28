@@ -201,7 +201,11 @@ A new box action `do_spl_file_stream_follow`
   `lane_op file_streams_push` through `spool file-streams push --json -`
   (a new verb, `cli/file_streams.go`, the shape of `cli/fleet_tokens.go`).
   Lines stay queued on the box (its state dir, bounded by 3.7) until the
-  hub acks their `seq`; a failed push is retried next tick, so a hub
+  hub acks their `seq`. The state dir defaults to the agent user's
+  `~/.local/state/csi-spl/file-streams/<env>`; when that user cannot write
+  `~/.local/state/csi-spl` (one box: root-owned) it is
+  `~/.local/state/csi-spl-file-streams/<env>`, outside the nightly
+  box-state backup (a lost state restarts each file at its last `N` lines); a failed push is retried next tick, so a hub
   restart loses no line and stores none twice (the hub keys on
   `stream_id, seq`).
 - **Masking first.** Every line passes `spool_redact.redact()` (2.3) inside

@@ -38,7 +38,8 @@
 # @param   spl_cost_agent_users user
 # @param FILE_STREAMS_CNF (optional) - default csi-spl-cnf/csi-spl/all.env.yaml
 # @param FILE_STREAMS_STATE_DIR (optional) - default the agent user's
-# @param   $HOME/.local/state/csi-spl/file-streams (plus /<env> per hub)
+# @param   $HOME/.local/state/csi-spl/file-streams, or .../csi-spl-file-streams
+# @param   when that user cannot write the csi-spl dir (plus /<env> per hub)
 # @example ./run -a do_spl_file_stream_follow
 # @example FILE_STREAMS_ENABLED=true FILE_STREAMS_TICKS=1 FILE_STREAMS_PUSH=0 ./run -a do_spl_file_stream_follow
 #------------------------------------------------------------------------------
@@ -82,7 +83,7 @@ spl_file_stream_hubs() {
   local -a pids=()
   hubs="${FILE_STREAMS_HUBS:-$(yq -r '.env.box.file_streams.hubs // [] | join(" ")' "$cnf" 2>/dev/null)}"
   [[ -n "${hubs// /}" ]] || { echo "FATAL file-streams: no hub env (cnf env.box.file_streams.hubs is empty)"; return 1; }
-  base="${FILE_STREAMS_STATE_DIR:-$(getent passwd "$user" | cut -d: -f6)/.local/state/csi-spl/file-streams}"
+  base="${FILE_STREAMS_STATE_DIR:-$(spl_file_stream_state_base "$user")}"
   for e in $hubs; do
     [[ "$e" =~ ^(dev|prd)$ ]] || { echo "FATAL file-streams: hub env '$e' is not dev or prd"; rc=1; continue; }
     cmd="$(spl_file_stream_hub_cmd "$cnf" "$e" "$user")" || { echo "$cmd"; rc=1; continue; }
@@ -92,6 +93,27 @@ spl_file_stream_hubs() {
   done
   for e in "${pids[@]}"; do wait "$e" || rc=1; done
   return "$rc"
+}
+
+# spl_file_stream_state_base <user> [<home>]: the default state dir, under
+# the agent user's home. .local/state/csi-spl is shared with other tools and
+# may belong to another user (one box: root:root, so every tick failed on its
+# mkdir, SPL-4037): a dir the user cannot write gets a sibling of its own.
+spl_file_stream_state_base() {
+  local user="$1" home="${2:-$(getent passwd "$1" | cut -d: -f6)}" s p
+  s="$home/.local/state"
+  for p in "$s/csi-spl/file-streams" "$s/csi-spl"; do
+    spl_file_stream_as "$user" test -e "$p" || continue
+    if spl_file_stream_as "$user" test -w "$p"; then echo "$s/csi-spl/file-streams"; else echo "$s/csi-spl-file-streams"; fi
+    return 0
+  done
+  echo "$s/csi-spl/file-streams"
+}
+
+# spl_file_stream_as <user> <cmd>...: <cmd> as <user> (sudo only when it differs).
+spl_file_stream_as() {
+  local user="$1"; shift
+  if [[ "$user" == "$(id -un)" ]]; then "$@"; else sudo -n -u "$user" "$@"; fi
 }
 
 # spl_file_stream_run <user> <py> <env=val>... -- [args]: the follower as the

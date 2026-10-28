@@ -495,6 +495,10 @@ class Follower:
             st["offset"] = self.tail_start(fd, fst.st_size)  # ctl:first-sight
             st["pem_open"], st["pem_lines"] = False, 0
             self.prime_pem(fd, st["offset"], st)
+        elif was == "missing":  # ctl:back-from-missing
+            # a recreated file is new even when it got the freed inode back
+            # with the old size (same ident, size == offset: nothing read)
+            st["offset"], st["pem_open"], st["pem_lines"] = 0, False, 0
         elif st.get("ident") != ident or st.get("name") != name:  # ctl:by-name
             if was != "missing":
                 self.enqueue(sid, st, "-- file rotated --", True, {})

@@ -13,6 +13,7 @@
 #   C3  rotate (mv f f.1; new f): the new file from 0, one rotated marker
 #   C4  truncate: the new lines from 0, one truncated marker
 #   C5  delete, then recreate: one missing marker, then the new lines
+#   C5b the same, when the new file gets the old inode and size back
 #   C6  a written line is on the stub hub within 5 s (control: a 30 s tick)
 #   C7  readable is proven by the open, not by mode bits
 #   C8  each deny-list class is refused, and a symlink to $HOME/.ssh/id_x in
@@ -204,6 +205,27 @@ c5() {
   fs "$1" "$d"
   got="$(texts "$d" | paste -sd'|')"
   [[ "$got" == "-- file missing --|r1" ]] || { echo "  C5: '$got'"; return 1; }
+}
+
+# c5b: the recreated file gets the deleted file's inode back with the same
+# size (CI wf 10 run 40740255058 read nothing after the recreate): forced
+# here by a hardlink that keeps the inode while the name is gone.
+c5b() {
+  local d got
+  d="$(newcase)"
+  echo o1 >"$d/logs/a.log"
+  allow "$d" a "$d/logs/a.log"
+  fs "$1" "$d"
+  : >"$d/pushed"
+  ln "$d/logs/a.log" "$d/keep"
+  rm -f "$d/logs/a.log"
+  fs "$1" "$d"
+  echo r1 >"$d/keep"
+  ln "$d/keep" "$d/logs/a.log"
+  rm -f "$d/keep"
+  fs "$1" "$d"
+  got="$(texts "$d" | paste -sd'|')"
+  [[ "$got" == "-- file missing --|r1" ]] || { echo "  C5b: '$got'"; return 1; }
 }
 
 # c6 <py> <tick_s>: the long-lived loop; a line written after its first push
@@ -476,6 +498,8 @@ check C4 "a truncation reads the new lines from 0 with one marker" c4 \
   keep-the-offset 'elif fst.st_size < st.get("offset", 0):' 'elif False:'
 check C5 "a deleted then recreated file: one missing marker, then its lines" c5 \
   exit-on-enoent 'raise Missing()' 'raise SystemExit(3)'
+check C5b "a recreated file with the old inode and size is read from 0" c5b \
+  same-inode-not-new 'elif was == "missing":  # ctl:back-from-missing' 'elif False:'
 c6 "$PY_REAL" 1 && pass "C6 a written line is on the hub within 5 s" || fail "C6 a written line is on the hub within 5 s"
 c6 "$PY_REAL" 30 >/dev/null && fail "C6 control 30 s tick: still within 5 s" || pass "C6 control 30 s tick: red, over 5 s"
 if [[ "$(id -u)" == 0 ]]; then

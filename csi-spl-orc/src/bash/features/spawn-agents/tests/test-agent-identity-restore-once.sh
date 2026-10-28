@@ -27,9 +27,18 @@
 #      every launcher leaves; the wrapper's own cmdline is never a shell) does
 #      not hold the id: it is started IN that window (respawn-pane -k, the
 #      same pane id, renamed), never a second window
-#   7. control: the same wrapper over a running non-shell child (a start
-#      still coming up) holds the id: "a live window already carries it"
-#   Red control: IR_FUNC=<the file before the fix> -> 1, 2 and 3 fail.
+#   7. control: the same wrapper over a running child, started seconds ago
+#      (a start still coming up), holds the id: "a start is still coming up"
+#   8. a dead seat (SPL-4007, orch panel row B1): a window named for c-901
+#      whose pane pid (an old one, in a fixture /proc) is tmux's
+#      `sh -c env ... spawn-claude.sh c-901 ...` with no harness under it
+#      is not live: c-901 is started IN that pane, "STARTED ... in place"
+#   9. control: the same with a claude child carrying SPOOL_AGENT_ID=c-902
+#      (the plan made before the child existed): "SKIP ... a live window
+#      already carries it", nothing started
+#   Red control: IR_FUNC=<the file before the fix> -> 1, 2 and 3 fail;
+#   IR_FUNC=<the file before SPL-4007> -> 8 fails ("SKIP c-901: a live window
+#   already carries it").
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -146,6 +155,60 @@ t_window "m-807 lane 07" "sleep 600; :" >/dev/null
 sleep 0.5
 out7="$(act DRY_RUN=0 IDENTITY_RESTORE_IDS=m-807)"
 eq "7. m-807, a start still coming up in its window, is not started" 0 "$(starts m-807)"
-has "7. ... named as carried by a live window" "SKIP    m-807: a live window already carries it" "$out7"
+has "7. ... named as a start still coming up" "SKIP    m-807: a start is still coming up in its window" "$out7"
+
+# --- 8 + 9 a dead seat (row B1): live only through a harness carrying the id ----
+# A fixture /proc: c-901's pane pid is the launcher's sh -c wrapper with nothing
+# under it, started 10 s after a boot 1e6 s ago; c-902's is the same wrapper over
+# a claude carrying SPOOL_AGENT_ID=c-902. The panes file maps each real window
+# to its fixture pid, so the in-place start still respawns a real pane.
+H="$T_TMP/home"; P="$T_TMP/proc"
+mkdir -p "$H/.claude/sessions" "$P"
+printf '1000000.00 0.00\n' > "$P/uptime"
+cat > "$A/restore-claude.sh" <<EOF
+#!/usr/bin/env bash
+printf '%s|%s\n' "\$1" "\$2" >> "$T_TMP/started"
+cd "\$2" || exit 1
+export SPOOL_AGENT_ID="\$1"
+exec -a claude sleep 600
+EOF
+chmod +x "$A/restore-claude.sh"
+fproc() {  # PID PPID COMM ENVIRON ARGV...
+  local d="$P/$1"; mkdir -p "$d"
+  printf '%s (%s) S %s %s %s 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 1000 0 0\n' "$1" "$3" "$2" "$1" "$1" > "$d/stat"
+  printf '%s\n' "$3" > "$d/comm"; printf '%s\0' "$4" > "$d/environ"
+  shift 4; printf '%s\0' "$@" > "$d/cmdline"
+}
+claude_rec() {  # ID SID WORKTREE
+  local sl; sl="$(printf '%s' "$3" | sed 's/[^A-Za-z0-9]/-/g')"
+  mkdir -p "$3" "$H/.claude/projects/$sl"
+  printf '{"type":"agent-name","agentName":"x"}\n' > "$H/.claude/projects/$sl/$2.jsonl"
+  python3 - "$SPOOL_ROOT/agents/$1.json" "$@" <<'REC'
+import json, sys
+f, i, sid, wt = sys.argv[1:5]
+json.dump({"v": 1, "id": i, "kind": "claude", "session_id": sid, "worktree": wt, "title": "lane " + i[-2:],
+           "user": None, "pid": 4000000, "proc_start": "1", "tmux_session": "t", "window_id": "@9", "pane_id": "%9",
+           "alive": True, "updated_at": "2026-10-01T02:00:00Z"}, open(f, "w"), indent=1, sort_keys=True)
+REC
+}
+claude_rec c-901 s-901 "$W/c-901"; claude_rec c-902 s-902 "$W/c-902"
+p901="$(t_window "c-901 lane 01" "sleep 600; :")"; p902="$(t_window "c-902 lane 02" "sleep 600; :")"
+fproc 9101 1 sh "" sh -c "env HISTSIZE=-1 bash $T_FEAT/scripts/spawn-claude.sh c-901 lane-01"
+fproc 9201 1 sh "" sh -c "env HISTSIZE=-1 bash $T_FEAT/scripts/spawn-claude.sh c-902 lane-02"
+printf 't\t@1\t%s\t9101\tc-901 lane 01\nt\t@2\t%s\t9201\tc-902 lane 02\n' "$p901" "$p902" > "$T_TMP/panes"
+b1() { act AI_PANES_FILE="$T_TMP/panes" AI_PROC_ROOT="$P" AI_TRANSCRIPT_HOME="$H" AI_OWNER_HOP=0 "$@"; }
+plan9="$(export AI_PANES_FILE="$T_TMP/panes" AI_PROC_ROOT="$P" AI_TRANSCRIPT_HOME="$H" AI_OWNER_HOP=0; ai_panes | ai_py restore-plan --ids "c-901 c-902" --agent-user "$(id -un)")"
+has "8. the plan restores c-901" "RESTORE	c-901	claude	" "$plan9"
+has "9. the plan, made before its harness, restores c-902" "RESTORE	c-902	claude	" "$plan9"
+fproc 9202 9201 claude "SPOOL_AGENT_ID=c-902" claude --resume s-902
+printf '%s\n' "$plan9" > "$T_TMP/stale.plan"
+out8="$(b1 DRY_RUN=0 IDENTITY_RESTORE_IDS="c-901 c-902")"
+sleep 1
+eq "8. c-901, a launcher with no harness in its window, is started" 1 "$(starts c-901)"
+has "8. ... in the same pane, in place" "STARTED c-901: claude session s-901 in $W/c-901 [$p901] in place" "$out8"
+hasnt "8. ... never SKIPped as a live window" "SKIP    c-901" "$out8"
+eq "8. ... and one window carries c-901, not two" 1 "$(tmux -S "$SPOOL_TMUX_SOCKET" list-windows -a -F '#{window_name}' | grep -c '^c-901')"
+eq "9. c-902, its claude carrying the id, is not started" 0 "$(starts c-902)"
+has "9. ... named as carried by a live window" "SKIP    c-902: a live window already carries it (c-902 lane 02, $p902)" "$out8"
 
 t_done

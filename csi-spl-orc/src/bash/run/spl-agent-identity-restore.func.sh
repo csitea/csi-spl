@@ -39,10 +39,15 @@
 # @description already by this run, or a live window or process carrying it,
 # @description is a SKIP; a worktree gone since the plan is a REFUSE naming the
 # @description path - never a start in another directory.
-# @description A window named for the id whose pane runs no harness (each process
-# @description under tmux's `sh -c` wrapper a bare shell: the session ended,
-# @description SPL-3979) is not live: the agent starts IN it (respawn-pane -k,
-# @description the same pane, renamed), so its tmux window never disappears.
+# @description A window named for the id is live only while a harness process
+# @description (agent CLI) carries the id (SPL-4007, spl_lease_agent_pid), not
+# @description because its pane runs "not a plain shell": a dead seat's window
+# @description (a bare shell, SPL-3979, or a launcher with no harness under it)
+# @description gets the agent started IN it (respawn-pane -k, the same pane,
+# @description renamed), so its tmux window never disappears and is never
+# @description closed by hand first. Only a pane younger than
+# @description IDENTITY_RESTORE_COMING_UP_S with a process under it is a start
+# @description still coming up, and a SKIP.
 # @description A grok seat (its session read from grok's own store at record
 # @description time, SPL-2507) comes back on grok only when grok can start: no
 # @description grok cli, no sign-in or its weekly limit is ONE "FALLBACK <id>"
@@ -58,6 +63,7 @@
 # @param IDENTITY_RESTORE_WINDOW (optional) - minutes after SINCE a death still counts as the restart's, default 15
 # @param IDENTITY_RESTORE_SESSION (optional) - the tmux session for a record without one, default main
 # @param IDENTITY_RESTORE_PAUSE (optional) - seconds between starts, default 5
+# @param IDENTITY_RESTORE_COMING_UP_S (optional) - a pane with no harness younger than this many seconds is a start still coming up (SKIP), default 60
 # @param IDENTITY_LEGACY_REGISTRY (optional) - a second registry.tsv to append the new rows to
 # @param IDENTITY_RESTORE_ADAPTER_DIR (optional) - where restore-<kind>.sh live (tests only)
 # @param IDENTITY_RESTORE_USER (optional) - the user to start agents as, default the box's SPOOL_AGENT_USER
@@ -170,40 +176,72 @@ _ai_restore_head() {  # SINCE UNTIL AGENT-USER TAG
 # after the first ended and freed the lock - two live sessions, one id
 # (SPL-3771). "gone" = its worktree is not a directory any more: the adapter
 # would run it in another cwd. Else a line: already started by this run, a
-# window named for it whose pane is not an idle shell (a start still coming
-# up), or a live process that carries the id. A window whose pane runs no
-# harness (_ai_pane_gone) is not live: the start reuses it (_ai_dead_pane).
+# harness process that carries the id (named by its window when one is named
+# for the id), or a window of the id whose start is still coming up
+# (_ai_pane_coming_up). A window is live only through its harness (SPL-4007,
+# orch panel row B1): a pane whose process is "not a plain shell" (a launcher
+# with nothing under it, 5 of 9 dead seats on 2026-10-27) is not, and the
+# start reuses it (_ai_dead_pane).
 _ai_restore_recheck() {  # ID WORKTREE STARTED-IDS
-  local id="$1" wid name pane ppid
+  local id="$1" wid name pane ppid hp
   [[ -d "$2" ]] || { echo gone; return 0; }
   [[ " $3 " == *" $id "* ]] && { echo "already started by this run"; return 0; }
+  hp="$(_ai_harness_pid "$id")"
   while IFS=$'\t' read -r _ _ pane ppid name; do
     spool_id_of_window_var wid "$name"
     [[ "$wid" == "$id" ]] || continue
-    _ai_pane_gone "$ppid" && continue
-    echo "a live window already carries it ($name, $pane)"; return 0
+    [[ -n "$hp" ]] && { echo "a live window already carries it ($name, $pane)"; return 0; }
+    _ai_pane_coming_up "$ppid" && { echo "a start is still coming up in its window ($name, $pane)"; return 0; }
   done < <(ai_panes)
-  ai_panes | ai_py restore-plan --ids "$id" 2>/dev/null | awk -F'\t' -v i="$id" '$1 == "SKIP" && $2 == i && $3 ~ /^already running/ { print $3; exit }'
+  [[ -z "$hp" ]] || echo "already running (pid $hp)"
 }
 
-# The first pane of a window named for ID that runs no harness; nothing when
-# none. The restore starts the agent in it, so its window never disappears.
+# The pid of a harness process (an agent CLI) that carries ID, nothing when
+# none: the lease's own reader (spl_lease_agent_pid: claude, grok, agy, vibe),
+# else the identity map's (every kind it knows, argv-renamed CLIs included).
+_ai_harness_pid() {  # ID
+  local pid
+  pid="$(LEASE_PROC_ROOT="${AI_PROC_ROOT:-/proc}" spl_lease_agent_pid "$1" 2>/dev/null)"
+  [[ -n "$pid" ]] || pid="$(ai_panes | ai_py restore-plan --ids "$1" 2>/dev/null |
+    awk -F'\t' -v i="$1" '$1 == "SKIP" && $2 == i && $3 ~ /^already running/ { gsub(/[^0-9]/, "", $3); print $3; exit }')"
+  printf '%s' "$pid"
+}
+
+# The first pane of a window named for ID; nothing when none. Called once the
+# re-check found no harness carrying ID: that pane is dead whatever it runs,
+# and the restore starts the agent in it (respawn-pane -k), so its window
+# never disappears and nobody closes it by hand first.
 _ai_dead_pane() {  # ID
   local wid name pane ppid
   while IFS=$'\t' read -r _ _ pane ppid name; do
     spool_id_of_window_var wid "$name"
-    [[ "$wid" == "$1" ]] && _ai_pane_gone "$ppid" && { echo "$pane"; return 0; }
+    [[ "$wid" == "$1" ]] && { echo "$pane"; return 0; }
   done < <(ai_panes)
   return 0
+}
+
+# 0 when the pane whose process is PANE-PID is a start still coming up: it
+# began less than IDENTITY_RESTORE_COMING_UP_S (default 60) seconds ago and
+# something other than a bare shell runs in it (a launcher whose harness has
+# not exec'd yet). An older pane with no harness is dead; an age that cannot
+# be read counts as old.
+_ai_pane_coming_up() {  # PANE-PID
+  local p="${AI_PROC_ROOT:-/proc}" lim="${IDENTITY_RESTORE_COMING_UP_S:-60}" st up hz
+  [[ "$lim" =~ ^[0-9]+$ ]] || lim=60
+  st="$(sed -E 's/^.*\) //' "$p/$1/stat" 2>/dev/null | awk '{print $20}')"
+  up="$(awk '{print int($1)}' "$p/uptime" 2>/dev/null)"
+  hz="$(getconf CLK_TCK 2>/dev/null)"
+  [[ "$st" =~ ^[0-9]+$ && "$up" =~ ^[0-9]+$ && "$hz" =~ ^[1-9][0-9]*$ ]] || return 1
+  (( up - st / hz < lim )) || return 1
+  ! _ai_pane_gone "$1"
 }
 
 # 0 when the pane whose process is PANE-PID runs no harness: that process is
 # a bare shell (or gone), or every process under it is. tmux runs a launcher
 # as `sh -c '<launcher>'`, a cmdline that is never a shell's; when the
-# session ends the launcher execs `bash --norc` under it (SPL-3979: the dead
-# window counted as live and the id was SKIPped until a hand close). A
-# wrapper with nothing under it, or with any other process under it (a start
-# still coming up), is live.
+# session ends the launcher execs `bash --norc` under it (SPL-3979). A
+# wrapper with nothing under it, or with any other process under it, is not
+# gone: only a young one counts as a start coming up (_ai_pane_coming_up).
 _ai_pane_gone() {  # PANE-PID
   local p="${AI_PROC_ROOT:-/proc}" k n=0
   _ai_bare_shell "$1" && return 0

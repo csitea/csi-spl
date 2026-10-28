@@ -49,9 +49,19 @@
 # @description Exit 1: no line, no `log:`, or the log cannot be read, not even
 # @description through `sudo -n -u <owner>` (the FATAL names the command to run
 # @description as the owner).
+# @description A WUI commit (SPL-3438, CI failures panel I11): when the line's
+# @description sha is a commit in REVIEW_LINE_REPO touching csi-spl-wui/, the
+# @description e2e files the pre-push map selects for it (csi-spl-iac's
+# @description check-pre-push-e2e.func.sh, its cap, on the commit's own tree;
+# @description the change is merge-base(origin/master, sha)..sha, or sha^..sha
+# @description once it is on master) are printed as `E2E <sha> selects: ...`,
+# @description and each one ran: does not name is `MISSING e2e <file>`, exit 3
+# @description (`SYNTAX FAIL` with REVIEW_LINE_SYNTAX=1 for a log elsewhere). A
+# @description sha not in the repo: a NOTE, unchecked.
 # @param REVIEW_LINE (required) - the review line, as in the landing commit
 # @param REVIEW_LINE_SYNTAX (optional) - 1: a log on another box gets the syntax check here
 # @param REVIEW_LINE_BOX (optional) - this box; default SPOOL_BOX_TAG, else box.env, else hostname -s
+# @param REVIEW_LINE_REPO (optional) - the repo the line's sha is read in; default this checkout
 # @example REVIEW_LINE='review: m-159@box-a mistral PASS <sha> ran: bash spl-review-line-check.tst.sh | read: 3 PASS | log: m-159@box-a:/path/journal' ./run -a do_spl_review_line_check
 #------------------------------------------------------------------------------
 do_spl_review_line_check() {
@@ -70,6 +80,8 @@ do_spl_review_line_check() {
   ran="${ran%% | read: *}" ran="${ran%% | log: *}"
   names="$(_spl_review_line_names "$ran")"
   [[ -n "$names" ]] || { echo "MISSING ran: names no test (*.tst.sh, *.test.mjs, *_test.go, go test, pnpm run): '$ran'"; return 3; }
+  local e2e=0
+  _spl_review_line_e2e "$line" "$names" || e2e=3
   path="$(_spl_review_line_vibe_session "$path")"
   if [[ ! -r "$path" ]]; then
     owner="$(_spl_review_line_owner "$path")"
@@ -82,7 +94,49 @@ do_spl_review_line_check() {
     }
     echo "NOTE read as $owner (sudo -n)"
   fi
-  _spl_review_line_match "$path" "$owner" "$rid" <<<"$names"
+  _spl_review_line_match "$path" "$owner" "$rid" <<<"$names" || return $?
+  return "$e2e"
+}
+
+# _spl_review_line_e2e <line> <names> - for a sha that touches csi-spl-wui/,
+# print the map's e2e selection and `MISSING e2e <file>` per file the names
+# (from ran:) lack; rc 1 when one is missing, else 0 (no WUI change, no sha,
+# a sha not in the repo: nothing asked).
+_spl_review_line_e2e() {
+  local sha want f miss=0
+  [[ "$1" =~ \ PASS\ ([0-9a-f]{7,40})\  ]] || return 0
+  sha="${BASH_REMATCH[1]}"
+  want="$(_spl_review_line_e2e_files "$sha")" || return 0
+  [[ -n "$want" ]] || return 0
+  echo "E2E ${sha:0:12} selects: $(paste -sd' ' <<<"$want")"
+  while IFS= read -r f; do
+    grep -qxF "file $f" <<<"$2" && continue
+    echo "MISSING e2e $f: the e2e map selects it for ${sha:0:12}; run it and name it in ran:"
+    miss=1
+  done <<<"$want"
+  return "$miss"
+}
+
+# _spl_review_line_e2e_files <sha> - the basenames of the e2e files the
+# pre-push map selects for the commit, read on its own tree (git archive of
+# csi-spl-wui/src and tests/e2e into a temp dir); rc 1 when the sha is no
+# commit in the repo (a NOTE says so).
+_spl_review_line_e2e_files() {
+  local repo="${REVIEW_LINE_REPO:-$(git -C "${BASH_SOURCE[0]%/*}" rev-parse --show-toplevel 2>/dev/null)}"
+  local map="${BASH_SOURCE[0]%/*}/../../../../csi-spl-iac/src/bash/run/check-pre-push-e2e.func.sh"
+  local sha="$1" base changed tmp
+  git -C "$repo" cat-file -e "$sha^{commit}" 2>/dev/null ||
+    { echo "NOTE e2e map not checked: ${sha:0:12} is no commit in ${repo:-this checkout}"; return 1; }
+  base="$(git -C "$repo" merge-base origin/master "$sha" 2>/dev/null)"
+  [[ -n "$base" && "$base" != "$(git -C "$repo" rev-parse "$sha^{commit}")" ]] || base="$sha^"
+  changed="$(git -C "$repo" diff --name-only "$base" "$sha" -- csi-spl-wui 2>/dev/null)"
+  [[ -n "$changed" ]] || return 0
+  [[ -r "$map" ]] || { echo "NOTE e2e map not checked: no $map"; return 1; }
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/csi-spl-rlc.XXXXXX")" || return 1
+  git -C "$repo" archive "$sha" -- csi-spl-wui/src csi-spl-wui/tests/e2e 2>/dev/null | tar -x -C "$tmp" 2>/dev/null
+  # shellcheck source=/dev/null
+  ( source "$map" && _ppe_select "$tmp" "$changed" ) | grep -v '^CUT ' | cut -d' ' -f1 | sed 's#.*/##'
+  rm -rf "$tmp"
 }
 
 # _spl_review_line_owner <path> - the user whose passwd home the path is under
@@ -128,8 +182,12 @@ _spl_review_line_syntax() {
   [[ "$1" =~ $rx ]] ||
     { echo "SYNTAX FAIL not 'review: <id>@<box> <vendor> PASS <40-hex sha> ran: ... | read: ... | log: <id>@<box>:/<path>'"; return 1; }
   _spl_review_line_reviewer "$1" || return 1
-  [[ -n "$(_spl_review_line_names "${1#* ran: }")" ]] ||
+  local names out
+  names="$(_spl_review_line_names "${1#* ran: }")"
+  [[ -n "$names" ]] ||
     { echo "SYNTAX FAIL ran: names no test (*.tst.sh, *.test.mjs, *_test.go, go test, pnpm run)"; return 1; }
+  out="$(_spl_review_line_e2e "$1" "$names")" || { echo "SYNTAX FAIL ran: lacks an e2e file the map selects"; echo "$out"; return 1; }
+  [[ -z "$out" ]] || echo "$out"
 }
 
 # _spl_review_line_reviewer <line> - the header reviewer is an agent id

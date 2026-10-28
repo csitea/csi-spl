@@ -39,6 +39,13 @@
 #      names a-901 first but says its id is a-902 (a takeover) -> OK for
 #      a-902, FATAL for a-901; an agy brain mapped only by
 #      last_conversations.json -> FATAL for another id, OK for its own
+#  12. a WUI commit's review runs the e2e files the map selects (SPL-3438,
+#      CI failures panel I11): a fixture repo whose commit restyles a component
+#      that tests/e2e/foo-pane.test.mjs covers. Red control: ran: names only
+#      another e2e file (the c834c655f review shape) -> MISSING e2e
+#      foo-pane.test.mjs, exit 3, also with REVIEW_LINE_SYNTAX=1 -> SYNTAX
+#      FAIL; ran: names it and the log ran it -> OK, the selection printed;
+#      a commit that touches no WUI file asks for no e2e file
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -255,6 +262,36 @@ out="$(chk REVIEW_LINE="$(l11 a-904 agy "$H/brain/$B2")")"; rc=$?
   && pass "11. an agy brain mapped only by last_conversations.json to a-903, cited by a-904 -> FATAL, exit 1" || fail "11. agy cache other (rc $rc: $out)"
 out="$(chk REVIEW_LINE="$(l11 a-903 agy "$H/brain/$B2/.system_generated/logs/transcript.jsonl")")"; rc=$?
 [[ $rc -eq 0 && "$out" == *"OK 1 of 1"* ]] && pass "11. control: the same brain cited by a-903 -> OK 1 of 1, exit 0" || fail "11. agy cache own (rc $rc: $out)"
+
+# 12. a WUI commit's review runs the map's e2e files (SPL-3438) ---------------
+R="$T/repo12"; mkdir -p "$R/csi-spl-wui/src/components" "$R/csi-spl-wui/tests/e2e" "$R/doc"
+g() { git -C "$R" -c user.name=t -c user.email=t@example.com "$@" >/dev/null 2>&1; }
+g init -q
+printf '<template><div data-testid="foo-pane-root" class="a"/></template>\n' >"$R/csi-spl-wui/src/components/FooPane.vue"
+printf "await page.waitForSelector('[data-testid=\"foo-pane-root\"]')\n" >"$R/csi-spl-wui/tests/e2e/foo-pane.test.mjs"
+printf "await page.waitForSelector('[data-testid=\"other-root\"]')\n" >"$R/csi-spl-wui/tests/e2e/other.test.mjs"
+echo a >"$R/doc/a.md"
+g add -A; g commit -qm base
+sed -i 's/class="a"/class="b"/' "$R/csi-spl-wui/src/components/FooPane.vue"; g commit -qam wui
+W12="$(git -C "$R" rev-parse HEAD)"
+echo b >"$R/doc/a.md"; g commit -qam doc
+D12="$(git -C "$R" rev-parse HEAD)"
+J12="$T/j12.jsonl"
+l12() { echo "review: m-159@${3:-box-a} mistral PASS $1 ran: $2 | read: 9 PASS | log: m-159@${3:-box-a}:$J12"; }
+printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"node src/node/test/run-e2e-tests.mjs tests/e2e/other.test.mjs tests/e2e/foo-pane.test.mjs"}}]}}' >"$J12"
+out="$(chk REVIEW_LINE_REPO="$R" REVIEW_LINE="$(l12 "$W12" "node run-e2e-tests.mjs tests/e2e/other.test.mjs")")"; rc=$?
+[[ $rc -eq 3 && "$out" == *"MISSING e2e foo-pane.test.mjs"* ]] \
+  && pass "12. red control: ran: names only another e2e file -> MISSING e2e foo-pane.test.mjs, exit 3" || fail "12. red control (rc $rc: $out)"
+out="$(chk REVIEW_LINE_REPO="$R" REVIEW_LINE_SYNTAX=1 REVIEW_LINE="$(l12 "$W12" "node run-e2e-tests.mjs tests/e2e/other.test.mjs" box-b)")"; rc=$?
+[[ $rc -eq 1 && "$out" == "SYNTAX FAIL"*"foo-pane.test.mjs"* ]] \
+  && pass "12. the same line from box-b, REVIEW_LINE_SYNTAX=1 -> SYNTAX FAIL naming foo-pane.test.mjs" || fail "12. syntax red (rc $rc: $out)"
+out="$(chk REVIEW_LINE_REPO="$R" REVIEW_LINE="$(l12 "$W12" "node run-e2e-tests.mjs tests/e2e/other.test.mjs tests/e2e/foo-pane.test.mjs")")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"E2E "*"foo-pane.test.mjs"* && "$out" == *"OK 2 of 2"* ]] \
+  && pass "12. ran: names the selected file and the log ran it -> OK 2 of 2, the selection printed" || fail "12. green (rc $rc: $out)"
+out="$(chk REVIEW_LINE_REPO="$R" REVIEW_LINE_SYNTAX=1 REVIEW_LINE="$(l12 "$W12" "node run-e2e-tests.mjs tests/e2e/foo-pane.test.mjs" box-b)")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"SYNTAX OK"* ]] && pass "12. box-b, REVIEW_LINE_SYNTAX=1, the file named -> SYNTAX OK" || fail "12. syntax green (rc $rc: $out)"
+out="$(chk REVIEW_LINE_REPO="$R" REVIEW_LINE="$(l12 "$D12" "node run-e2e-tests.mjs tests/e2e/other.test.mjs")")"; rc=$?
+[[ $rc -eq 0 && "$out" != *"MISSING"* ]] && pass "12. a commit that touches no WUI file asks for no e2e file" || fail "12. no wui (rc $rc: $out)"
 
 echo "spl-review-line-check: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

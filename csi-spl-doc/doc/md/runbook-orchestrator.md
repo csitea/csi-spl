@@ -292,6 +292,45 @@ Owner HUM-10, t1 3209f8b8 (binding msg 8cb6cc7d; msg ad816f96: "write this down 
 - **Work groups (SPL-2370).** Rows that run N at a time (an epic "two lanes at a time") are ONE group, not N hand-queued asks: `GROUP_EPIC=<epic> GROUP_WIDTH=<N> GROUP_ROWS=<rows file> ./run -a do_spl_spawn_group_put`, one row a line, `<class> <vendor>:<slug> <issue key>`, briefs in the briefs dir as for any placement. The placer keeps N in flight and feeds the next row when one lands or closes; a single request is the group of one at width 1. The state: `./run -a do_spl_spawn_group_list`; a `WARN <EPIC>.json: state not read: <why>` there is the hub, issue or lane read failing (the file is fine), a `not a work group file` a bad file. The placer hands the hub lists to jq as files, never argv (SPL-2428: the asks list outgrew the 128 KiB argument limit). The design: [spec 135](../../specs/135-work-process/spec.md) section 11.
 - **The weekly security round.** Every Friday 05:30 UTC two panel seats are queued (class bug, kind secret) and the round goes on the t1 calendar: `./run -a do_spl_security_round_queue` (dry run: the seats and the event it would add). The rule and its switch: [fleet-rules-index.md](fleet-rules-index.md), section 2, row "weekly security round". You install its cron (`DRY_RUN=0 ./run -a do_spl_security_round_install_cron`) and turn it on; it is off until you do.
 
+### 5.2 One agent, one topic (SPL-3937)
+
+Owner HUM-10, t1 #spool-hub-ops topic ca9124fa: msg deb40160 ("a new agent
+should work mostly one 1 topic only"), msg 7c9ddf2a (a general rule of the
+orchestrators, in this runbook), msg 27b7f2a6 ("it is part of his duties to
+make sure that the instantiatoin and spanwing of agents assignes them MOSTLY
+to one topic"), msg 0172e83e (a discussion that drifts). The case behind it,
+msg a2351104: one seat worked on several topics of one channel at once,
+because its brief was per CHANNEL and every post of that channel was routed
+to it. The cost: context switches and answers from memory.
+
+Your duty at every spawn, re-seat or instantiation of an agent:
+
+- **One topic per agent, mostly.** The brief names that ONE topic (its task
+  id), and the agent concentrates on that discussion.
+- **A new topic gets its own lane by default**, even in the same channel.
+- **A standing channel seat (answer and route) carries no real work.** Work
+  asked in a new topic is handed on and becomes a new lane.
+- **"Mostly" is the exception.** A follow-up that is the same work may go to
+  the same agent; the brief says so in one line and names the extra topic.
+
+**When a discussion drifts** (msg 0172e83e). A discussion can morph into
+another subject without a human opening a new one. Then the AGENT raises it
+with you (`spool-send.sh --to orchestrator`, kind note, on its own task): it
+restates its initial scope, names the new subject, and proposes a new
+discussion (a tangent, [how-to-post.md](../help/how-to-post.md) section 8), a
+new agent, or both. It never carries both silently. Your answer:
+
+- **Same work:** reply "same scope" and say what stays in; the agent goes on.
+- **New work:** open the tangent (or ask the dispatch holder to) and link it
+  back; queue a lane for it as for any spawn (sections 5 and 5.1), its brief
+  naming the new topic. Reply to the agent: keep the initial scope, the new
+  subject is with `<lane or ask id>`.
+- **Unsure:** ask the agent for the one line that separates the two scopes,
+  not a merged plan.
+
+TODO: the channel routing and the seat brief of that case are not changed
+here; the owner's poll in t1 topic 4bf07c81 decides them.
+
 <a id="ws-doc-cdb62881-a7b9-4564-a4f4-141513143ce5"></a>
 ## 6 Production operations
 

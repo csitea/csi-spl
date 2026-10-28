@@ -100,7 +100,8 @@ for k in claude grok agy qwen mistral; do
   # 8935: +285 for the truth rule that opens every seed (assets/seed-truth-rule.txt + its space, SPL-2097, owner msg 3e1eb819)
   # 9135: +200 for the package line (SEED_BOX_PKG, spec 142 row B8, owner t1 06871e35; mistral 9119)
   # 9235: +100 for the lane-map exit 5 ('LOCAL-ONLY:' is not free, SPL-2180 follow-up; mistral 9205)
-  check "$k: seed is at most 9235 bytes at the live paths (got $n)" [ "$n" -le 9235 ]
+  # 9385: +150 for the one-topic line (TOPIC_RULE, SPL-3937, owner t1 ca9124fa msg 0172e83e; mistral 9353)
+  check "$k: seed is at most 9385 bytes at the live paths (got $n)" [ "$n" -le 9385 ]
   has "$k: the sized seed carries STEP 0" "STEP 0, before any edit" "$prompt"
   hasnt "$k: the sized seed carries no checkout path" "$T_ROOT/" "$norm"
   for r in 1 2 3 4 5 6 7 8 a b c d e; do

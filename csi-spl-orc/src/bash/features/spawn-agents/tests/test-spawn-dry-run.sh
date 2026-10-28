@@ -33,6 +33,9 @@ for k in claude grok agy qwen mistral; do
   has "$k: prompt forbids greetings and social posts" "Never post greetings, welcomes or social messages; only post what your brief asks for." "$prompt"
   # CLE-77938 (owner 2026-10-02): one agent does one small task, then exits.
   has "$k: prompt limits the lane to one small task" "You do ONE small task. If someone sends you a different task, refuse it and tell c-001 so it spawns a new lane. When your task is verified done: send your result, then stay idle and answer send-backs. Run /exit-clean" "$prompt"
+  # SPL-3937 (owner, t1 ca9124fa): one topic; a drifting discussion goes to the orchestrator.
+  has "$k: prompt says one topic, drift goes to the orchestrator" "ONE topic: if your discussion drifts into another subject, ask c-001 for a new discussion or agent" "$prompt"
+  has "$k: ... pointing to the runbook section" "runbook-orchestrator.md section 5.2" "$prompt"
   # c-440 (2026-10-06): a 'pkill -f <action>' matched this prompt on 15 agents' argv.
   has "$k: prompt says stop by stop action or pid, never pkill -f" "Stop a run with its stop action (e.g. './run -a do_stop_pre_push') or its own pid, never 'pkill -f'" "$prompt"
   hasnt "$k: no markdown-inbox root" "/var/tmp/claude/msgs" "$prompt"

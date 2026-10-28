@@ -273,7 +273,7 @@ jobs:
       # the module cache has to be filled before they run.
       - name: Download Go modules
         working-directory: csi-spl-api/src/go/spool-hub-api
-        run: go mod download
+        run: bash ../../../../csi-spl-orc/src/bash/scripts/go-mod-download.sh
 
       # Supply-chain integrity: every downloaded module's content must match
       # go.sum. A tampered module in the cache/proxy makes `go mod verify` exit
@@ -365,7 +365,7 @@ jobs:
 
       - name: Download Go modules
         working-directory: csi-spl-api/src/go/spool-hub-api
-        run: go mod download
+        run: bash ../../../../csi-spl-orc/src/bash/scripts/go-mod-download.sh
 
       - name: Verify module checksums (go mod verify)
         working-directory: csi-spl-api/src/go/spool-hub-api
@@ -431,7 +431,7 @@ jobs:
       # hub-live-stack.sh builds offline (GOPROXY=off), as build.sh does.
       - name: Download Go modules
         working-directory: csi-spl-api/src/go/spool-hub-api
-        run: go mod download
+        run: bash ../../../../csi-spl-orc/src/bash/scripts/go-mod-download.sh
 
       - name: Verify module checksums (go mod verify)
         working-directory: csi-spl-api/src/go/spool-hub-api
@@ -980,7 +980,7 @@ jobs:
       # checkout-fake-buy builds spool offline (GOPROXY=off).
       - name: Download Go modules
         working-directory: csi/csi-spl/csi-spl-api/src/go/spool-hub-api
-        run: go mod download
+        run: bash ../../../../csi-spl-orc/src/bash/scripts/go-mod-download.sh
 
       # checkout-fake-buy SKIPs its live part without a CACHED image.
       - name: Cache the Postgres image
@@ -1158,7 +1158,7 @@ jobs:
 
       - name: Download Go modules
         working-directory: csi/csi-spl/csi-spl-api/src/go/spool-hub-api
-        run: go mod download
+        run: bash ../../../../csi-spl-orc/src/bash/scripts/go-mod-download.sh
 
       # The self-hosted box has tmux; a hosted runner may not.
       - name: tmux on PATH

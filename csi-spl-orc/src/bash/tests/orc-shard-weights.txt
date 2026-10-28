@@ -142,6 +142,7 @@ gh-runner-remove.tst.sh 1
 gh-runner-retire-offline.tst.sh 1
 git-fetch-fresh.tst.sh 2
 git-prune-round-branches.tst.sh 13
+go-mod-download.tst.sh 0
 goals-backfill-db.tst.sh 91
 graft.tst.sh 3
 harness-parity.tst.sh 0

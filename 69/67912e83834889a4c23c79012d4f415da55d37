@@ -1,0 +1,6 @@
+Lay-What: When an assistant session is swapped for a fresh one, the old one is now always stopped within seconds, and no second copy is left running.
+Lay-How: Each step of stopping the old session now has a time limit, and any other copy of the same assistant found at the end is stopped too.
+Lay-Why: One swap waited 42 minutes on a stuck step, and two copies of the same assistant answered in the same conversation at once.
+Tech-What: Lane rotation RETIRE bounds each tmux call (ROTATE_LANE_TMUX_TIMEOUT 15 s) and CLOSE retires every other live pid of the id in its own pane.
+Tech-How: spl_rotate_tmux honours ROTATE_TMUX_TIMEOUT via timeout -k 2; spl_lane_rotate_retire_extra runs spl_rotate_end per pid; lane-rotate.tst.sh cases 25, 26.
+Tech-Why: 20261027T1612Z-lane-c-423 RETIRE logged no line for 42 min inside unbounded tmux calls of spl_rotate_type; a session started after GATE was never swept.

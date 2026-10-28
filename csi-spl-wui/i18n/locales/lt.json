@@ -3287,12 +3287,12 @@
       "filter_vendor": "Tiekėjas",
       "filter_state": "Būsena",
       "filter_age": "Amžius",
-      "filter_text": "Ieškoti juostų",
+      "filter_text": "Ieškoti linijų",
       "age_1h": "Iki 1 val.",
       "age_24h": "Iki 24 val.",
       "age_older": "Daugiau nei 24 val.",
-      "no_match": "Jokia juosta neatitinka filtrų",
-      "shown": "{n} iš {total} juostų"
+      "no_match": "Jokia linija neatitinka filtrų",
+      "shown": "{n} iš {total} linijų"
     }
   },
   "takeover": {

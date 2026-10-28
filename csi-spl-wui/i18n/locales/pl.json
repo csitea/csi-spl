@@ -3281,18 +3281,18 @@
       "col_updated": "Zaktualizowano",
       "min_ago": "{n} min temu",
       "col_state": "Stan",
-      "state_live": "Aktywny",
+      "state_live": "Aktywna",
       "state_queued": "W kolejce",
       "filter_box": "Maszyna",
       "filter_vendor": "Dostawca",
       "filter_state": "Stan",
       "filter_age": "Wiek",
-      "filter_text": "Szukaj torów",
+      "filter_text": "Szukaj linii",
       "age_1h": "Do 1 godz.",
       "age_24h": "Do 24 godz.",
       "age_older": "Ponad 24 godz.",
-      "no_match": "Żaden tor nie pasuje do filtrów",
-      "shown": "{n} z {total} torów"
+      "no_match": "Żadna linia nie pasuje do filtrów",
+      "shown": "{n} z {total} linii"
     }
   },
   "takeover": {

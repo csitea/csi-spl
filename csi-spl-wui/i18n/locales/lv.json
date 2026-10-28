@@ -3287,12 +3287,12 @@
       "filter_vendor": "Piegādātājs",
       "filter_state": "Stāvoklis",
       "filter_age": "Vecums",
-      "filter_text": "Meklēt joslas",
+      "filter_text": "Meklēt līnijas",
       "age_1h": "Līdz 1 h",
       "age_24h": "Līdz 24 h",
       "age_older": "Vairāk par 24 h",
-      "no_match": "Neviena josla neatbilst filtriem",
-      "shown": "{n} no {total} joslām"
+      "no_match": "Neviena līnija neatbilst filtriem",
+      "shown": "{n} no {total} līnijām"
     }
   },
   "takeover": {

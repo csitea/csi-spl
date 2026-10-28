@@ -3287,12 +3287,12 @@
       "filter_vendor": "Proveedor",
       "filter_state": "Estado",
       "filter_age": "Antigüedad",
-      "filter_text": "Buscar carriles",
+      "filter_text": "Buscar líneas",
       "age_1h": "Menos de 1 h",
       "age_24h": "Menos de 24 h",
       "age_older": "Más de 24 h",
-      "no_match": "Ningún carril coincide con los filtros",
-      "shown": "{n} de {total} carriles"
+      "no_match": "Ninguna línea coincide con los filtros",
+      "shown": "{n} de {total} líneas"
     }
   },
   "takeover": {

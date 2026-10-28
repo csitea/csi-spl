@@ -3287,12 +3287,12 @@
       "filter_vendor": "Sağlayıcı",
       "filter_state": "Durum",
       "filter_age": "Yaş",
-      "filter_text": "Şeritlerde ara",
+      "filter_text": "Hatlarda ara",
       "age_1h": "1 sa içinde",
       "age_24h": "24 sa içinde",
       "age_older": "24 sa üstü",
-      "no_match": "Filtrelere uyan şerit yok",
-      "shown": "{n}/{total} şerit"
+      "no_match": "Filtrelere uyan hat yok",
+      "shown": "{n}/{total} hat"
     }
   },
   "takeover": {

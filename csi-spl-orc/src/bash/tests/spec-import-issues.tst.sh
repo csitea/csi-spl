@@ -612,5 +612,39 @@ out="$(pin_run 1)"
   pass "import dry run: says it would reopen the auto-closed epic, writes nothing" ||
   fail "import dry run reopen: $out | $(cat "$SPEC_CALLS")"
 
+# Three refusals no case above pins (r38-03): (G) a dry run never creates an
+# epic, even with SPEC_IMPORT_CREATE_EPIC=1; (N) bad arguments are refused
+# before anything runs; (E) the offline report's exit code is the action's.
+GAP_CALLS="$FIX_TMP/gap.calls"
+: >"$GAP_CALLS"
+do_spl_issue_list() {  # the epics list: only spec 001 has one, so spec 026 is MISSING
+  local e='{"key":"SPL-19","title":"Spec 001 - sample checklist","labels":["epic"],"parent":"","status":"wip","kind":"epic"}'
+  if [[ "${ISSUE_KIND:-}" == epic ]]; then
+    printf '{"op":"list","result":{"epics":[%s],"issues":[%s],"labels":[{"id":"epic"}]}}\n' "$e" "$e"
+  else
+    printf '%s\n' '{"op":"list","result":{"issues":[],"labels":[]}}'
+  fi
+}
+do_spl_issue_create() { echo "create ${ISSUE_TITLE:-}" >>"$GAP_CALLS"; }
+out="$(SPEC_DIR="$FIX" PROJ_PATH="$PROJ_ROOT" DRY_RUN=1 SPEC_IMPORT_CREATE_EPIC=1 SPEC_IMPORT_OUT="$FIX_TMP/gap-g.md" do_spl_spec_import_issues 2>&1)"
+rc=$?
+trap - RETURN
+[[ "$rc" == 0 && ! -s "$GAP_CALLS" ]] && grep -q 'Spec 026' <<<"$out" &&
+  pass "import dry run with SPEC_IMPORT_CREATE_EPIC=1 creates no epic, the report names the MISSING spec" ||
+  fail "import dry run created an epic: rc=$rc calls=$(cat "$GAP_CALLS")"
+out="$(SPEC_DIR="$FIX" PROJ_PATH="$PROJ_ROOT" SPEC_IMPORT_OFFLINE=1 SPEC_IMPORT_INTERVAL=abc do_spl_spec_import_issues 2>&1)"
+rc=$?
+[[ "$rc" == 1 ]] && grep -qF "SPEC_IMPORT_INTERVAL must be seconds, got: 'abc'" <<<"$out" &&
+  pass "import refuses a bad SPEC_IMPORT_INTERVAL before it runs anything" ||
+  fail "import bad interval: rc=$rc out=$(tail -n 2 <<<"$out")"
+GAP_PROJ="$FIX_TMP/gap-proj"
+mkdir -p "$GAP_PROJ/src/bash/scripts"
+printf 'import sys\nsys.exit(3)\n' >"$GAP_PROJ/src/bash/scripts/spec-import-issues.py"
+SPEC_DIR="$FIX" PROJ_PATH="$GAP_PROJ" SPEC_IMPORT_OFFLINE=1 do_spl_spec_import_issues >/dev/null 2>&1
+rc=$?
+[[ "$rc" == 3 ]] &&
+  pass "import offline: the report's exit code is the action's" ||
+  fail "import offline exit code: rc=$rc, want 3"
+
 echo "=== $([[ $fails -eq 0 ]] && echo 'spec-import-issues: ALL PASS' || echo "$fails FAILED")"
 [[ $fails -eq 0 ]]

@@ -66,14 +66,17 @@
 # @param PRE_PUSH_SKIP_PASSED (optional) - 1 = return PASS at once when this exact clean tree, parts set,
 # @param        tier, merge-base and gate code already passed whole (the pre-push hook sets it)
 # @param PRE_PUSH_NO_CACHE (optional) - 1 = ignore the green cache and the tree-pass record (always run)
-# @param PRE_PUSH_PART_TIMEOUT (optional) - seconds per part, default 300 (overrides the full-tier defaults too)
+# @param PRE_PUSH_PART_TIMEOUT (optional) - seconds per part; overrides every part budget on both tiers
+# @param        (unset keeps that part's own default; the shared fast default is 300)
 # @param PRE_PUSH_API_FULL_TIMEOUT (optional) - seconds for the api part on the full tier; default 1950 x the load per cpu
 # @param        (loadavg 1 min / nproc, when over 1), at most PRE_PUSH_API_FULL_CAP
 # @param PRE_PUSH_API_FULL_CAP (optional) - seconds the load-scaled api full-tier default never exceeds, default 2700
 # @param PRE_PUSH_IAC_FULL_TIMEOUT (optional) - seconds for the iac part on the full tier, default 600
+# @param PRE_PUSH_IAC_FAST_CAP (optional) - seconds the load-scaled iac fast-tier default never exceeds, default 1200
 # @param PRE_PUSH_ORC_FULL_TIMEOUT (optional) - seconds for the orc part on the full tier; default 4000 x the load per cpu
 # @param        (when over 1), at most PRE_PUSH_ORC_FULL_CAP
 # @param PRE_PUSH_ORC_FULL_CAP (optional) - seconds the load-scaled orc full-tier default never exceeds, default 6000
+# @param PRE_PUSH_ORC_FAST_CAP (optional) - seconds the load-scaled orc fast-tier default never exceeds, default 1500
 # @param PRE_PUSH_WUI_TIMEOUT (optional) - seconds for the wui part, default 420
 # @param PRE_PUSH_ONLY (optional) - lint = only the lint parts (do_check_pre_push_lint);
 # @param        override = only the seconds-cheap correctness parts, hygiene + lint-migration
@@ -370,7 +373,7 @@ _pp_verdict() {  # <part> <VERDICT> <secs> [detail]
   local now dir="${_PP_LOG%/*}"
   TZ=UTC printf -v now '%(%FT%TZ)T' -1
   [[ -z "$dir" || "$dir" == "$_PP_LOG" || -d "$dir" ]] || mkdir -p "$dir" 2>/dev/null || true
-  printf '%s\n' "$now $who PART $1 $2 ${3}s tree=$_PP_TOP HEAD=$_PP_HEAD${4:+ $4}" >>"$_PP_LOG" 2>/dev/null || true
+  printf '%s\n' "$now $who PART $1 $2 ${3}s tree=$_PP_TOP HEAD=$_PP_HEAD tier=${_PP_TIER:-fast}${4:+ $4}" >>"$_PP_LOG" 2>/dev/null || true
 }
 
 # pnpm is often a user-local install (~/.local/bin) not on the minimal PATH a
@@ -467,7 +470,22 @@ _pp_part_hygiene() {
 # 148 s at 16.8..15.7. Inside the gate at 00:10Z (2026-10-10) it passed 300 s
 # and TIMED OUT, so every full-tier iac push failed (r5-07). 600 s is 1.75x
 # that censored 300+ s (525 s), rounded up.
-# The fast tier keeps the 300 s default; PRE_PUSH_PART_TIMEOUT overrides both.
+# The fast tier's iac and orc budgets scale like the full tier, from a lower
+# base. Counted in the pre-push log 2026-10-22..28 (iac PASS wall, n=91):
+# p50 138 s, the 81st is 286 s, the 82nd (smallest rank at or above 90%) is
+# 288 s, max 433 s, against the old 300 s budget. 500 s is 1.75 x 286 s,
+# used as 500 s. The same window, TIMED OUT after 300s: iac 13 (2 with the
+# trunk re-check green, 11 not), orc 29 (15 with the trunk re-check green).
+# Two iac runs on 2026-10-28 logged 626 s (13:56Z, trunk 6fa3d938b; 14:14Z,
+# trunk c3815a9f0); both trunk re-checks were unparseable. sar that day, 16
+# cpus, 10-min load1: 13:50 10.04, 14:00 23.47, 14:10 13.89. The 13:50 sample
+# is 0.63 per cpu, so the load factor is 1 and would not have raised a 300 s
+# budget: the base was too low. The orc base 600 s is a placeholder: those
+# green-trunk timeouts were cut at 300 s, so their real time is not in the
+# log. Both bases are interim until tier= on the PART line gives a
+# fast-tier-only distribution; then each base becomes 1.75x the slowest
+# fast-tier green, as the full-tier bases are.
+# PRE_PUSH_PART_TIMEOUT overrides both tiers.
 _pp_full_timeout() {  # <full-tier default>
   if [[ -n "${PRE_PUSH_PART_TIMEOUT:-}" ]]; then echo "$PRE_PUSH_PART_TIMEOUT"
   elif [[ "${_PP_TIER:-fast}" == full ]]; then echo "$1"
@@ -480,9 +498,15 @@ _pp_full_timeout() {  # <full-tier default>
 _pp_budget() {  # <part-fn>
   case "$1" in
     _pp_part_api) _pp_full_timeout "${PRE_PUSH_API_FULL_TIMEOUT:-$(_pp_api_full_default)}" ;;
-    _pp_part_iac) _pp_full_timeout "${PRE_PUSH_IAC_FULL_TIMEOUT:-600}" ;;
+    _pp_part_iac)
+      if [[ -n "${PRE_PUSH_PART_TIMEOUT:-}" ]]; then echo "$PRE_PUSH_PART_TIMEOUT"
+      elif [[ "${_PP_TIER:-fast}" == full ]]; then echo "${PRE_PUSH_IAC_FULL_TIMEOUT:-600}"
+      else _pp_load_scaled "$_pp_iac_fast_base" "${PRE_PUSH_IAC_FAST_CAP:-1200}"; fi ;;
     # the full tier runs every orc file: ~32..38 min on sat when idle
-    _pp_part_orc) _pp_full_timeout "${PRE_PUSH_ORC_FULL_TIMEOUT:-$(_pp_orc_full_default)}" ;;
+    _pp_part_orc)
+      if [[ -n "${PRE_PUSH_PART_TIMEOUT:-}" ]]; then echo "$PRE_PUSH_PART_TIMEOUT"
+      elif [[ "${_PP_TIER:-fast}" == full ]]; then echo "${PRE_PUSH_ORC_FULL_TIMEOUT:-$(_pp_orc_full_default)}"
+      else _pp_load_scaled "$_pp_orc_fast_base" "${PRE_PUSH_ORC_FAST_CAP:-1500}"; fi ;;
     _pp_part_wui) echo "${PRE_PUSH_WUI_TIMEOUT:-420}" ;;
     _pp_part_wui_e2e) echo "${PRE_PUSH_E2E_TIMEOUT:-600}" ;;
     # the full tier runs every feature: 308 s on sat at load 65..118 (16
@@ -549,21 +573,35 @@ _pp_api_full_default() { _pp_load_scaled "$_pp_api_full_base" "${PRE_PUSH_API_FU
 # (2274 s at 0.97, 2679 s at 1.58, 3159 s at 1.80), so ~6040 s at 4.5/cpu,
 # the highest mean load seen over a run (c-908, 10-14).
 _pp_orc_full_base=4000
+_pp_iac_fast_base=500
+_pp_orc_fast_base=600
 _pp_orc_full_default() { _pp_load_scaled "$_pp_orc_full_base" "${PRE_PUSH_ORC_FULL_CAP:-6000}"; }
-_pp_budget_why() {  # <part-fn> -> where its budget came from (api and orc only)
-  local part base cap var
+_pp_budget_why() {  # <part-fn> -> where its budget came from
+  local part base cap var scale=""
+  if [[ -n "${PRE_PUSH_PART_TIMEOUT:-}" ]]; then
+    case "$1" in
+      _pp_part_api|_pp_part_orc|_pp_part_iac) echo "PRE_PUSH_PART_TIMEOUT" ;;
+    esac
+    return 0
+  fi
   case "$1" in
-    _pp_part_api) part=api base="$_pp_api_full_base" cap="${PRE_PUSH_API_FULL_CAP:-2700}" var=PRE_PUSH_API_FULL_TIMEOUT ;;
-    _pp_part_orc) part=orc base="$_pp_orc_full_base" cap="${PRE_PUSH_ORC_FULL_CAP:-6000}" var=PRE_PUSH_ORC_FULL_TIMEOUT ;;
+    _pp_part_api)
+      if [[ "${_PP_TIER:-fast}" != full ]]; then echo "fast-tier part default"; return 0; fi
+      part=api base="$_pp_api_full_base" cap="${PRE_PUSH_API_FULL_CAP:-2700}" var=PRE_PUSH_API_FULL_TIMEOUT scale=full ;;
+    _pp_part_orc)
+      if [[ "${_PP_TIER:-fast}" != full ]]; then
+        part=orc base="$_pp_orc_fast_base" cap="${PRE_PUSH_ORC_FAST_CAP:-1500}" var=PRE_PUSH_ORC_FAST_CAP scale=fast
+      else
+        part=orc base="$_pp_orc_full_base" cap="${PRE_PUSH_ORC_FULL_CAP:-6000}" var=PRE_PUSH_ORC_FULL_TIMEOUT scale=full
+      fi ;;
+    _pp_part_iac)
+      if [[ "${_PP_TIER:-fast}" == full ]]; then return 0; fi
+      part=iac base="$_pp_iac_fast_base" cap="${PRE_PUSH_IAC_FAST_CAP:-1200}" var=PRE_PUSH_IAC_FAST_CAP scale=fast ;;
     *) return 0 ;;
   esac
-  if [[ -n "${PRE_PUSH_PART_TIMEOUT:-}" ]]; then echo "PRE_PUSH_PART_TIMEOUT"
-  elif [[ "${_PP_TIER:-fast}" != full ]]; then echo "fast-tier part default"
-  elif [[ -n "${!var:-}" ]]; then echo "$var"
-  else
-    _pp_load_read
-    echo "$part full default ${base}s x load ${_PP_LOAD% *}/${_PP_LOAD#* } cpus, cap ${cap}s; raise it with $var"
-  fi
+  if [[ "$scale" == full && -n "${!var:-}" ]]; then echo "$var"; return 0; fi
+  _pp_load_read
+  echo "$part $scale default ${base}s x load ${_PP_LOAD% *}/${_PP_LOAD#* } cpus, cap ${cap}s; raise it with $var"
 }
 _pp_part_api() {
   _pp_load_read

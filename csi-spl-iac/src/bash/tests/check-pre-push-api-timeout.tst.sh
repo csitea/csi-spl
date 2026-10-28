@@ -10,8 +10,9 @@
 #   5. full tier + PRE_PUSH_API_FULL_TIMEOUT=1200 -> 1200
 #   6. full tier, iac part          -> 600 s, the iac full-tier default (r5-07:
 #      the full-tier iac suite passed 300 s inside the gate and TIMED OUT)
-#   7. fast tier, iac part          -> 300 s; PRE_PUSH_IAC_FULL_TIMEOUT=1200 -> 1200
-#   8. orc part: full tier 4000 s on an idle box, fast tier 300 s
+#   7. fast tier, iac part          -> 500 s idle; PRE_PUSH_IAC_FULL_TIMEOUT=1200
+#      still yields 1200 on the full tier only
+#   8. orc part: full tier 4000 s on an idle box, fast tier 600 s idle
 #   8b. orc-features part: full tier 900 s (every feature ran 308 s on a
 #      loaded sat and TIMED OUT at 300 s), fast tier 300 s;
 #      PRE_PUSH_FEATURES_TIMEOUT wins on both tiers
@@ -34,8 +35,8 @@
 #      fixed 1800 s on 4 of 4 runs of one tree and 2 of 2 trunk re-checks):
 #      load/cpu 0.5 -> 4000, 1.25 -> 5000, 2 -> 6000 (the cap), a huge load
 #      -> the cap, PRE_PUSH_ORC_FULL_CAP moves the cap, PRE_PUSH_ORC_FULL_TIMEOUT
-#      and PRE_PUSH_PART_TIMEOUT still win, the fast tier keeps 300, the reason
-#      names the load, the cap and the variable that raises it
+#      and PRE_PUSH_PART_TIMEOUT still win, the fast tier scales from 600 s,
+#      the reason names the load, the cap and the variable that raises it
 #  14. a green full-tier orc suite fits the idle-box default (SPL-3748, sat 16
 #      cpus, box user's pre-push log x sar 10-14..10-27, n=12 below 1 load per cpu:
 #      1941..2274 s, every one over the old 1800 s base): the idle default is
@@ -43,7 +44,9 @@
 #  15. the planted run, time scaled 1/1000 (a stubbed `timeout` hands the real
 #      one budget/1000 s): a stub orc suite that sleeps 2.274 s (the slowest
 #      measured, 2274 s) TIMES OUT (rc 124) under the old 1800 s base and
-#      passes under the default
+#  16. fast iac and orc scale from 500 s and 600 s (load 32/16, the cap,
+#      PRE_PUSH_PART_TIMEOUT=77 on both, the fast why string) and a verdict
+#      line carries tier= with the detail last
 #   RED CONTROL (SPL-3748): against the 1800 s base and 3600 s cap
 #   (origin/master 323d69f79) 9 of 39 fail: 8, 11, 5 of the 9 cases in 13
 #   (load 8, 20, 32, 9999, the reason), 14 and the pass of 15.
@@ -66,7 +69,7 @@ fail() { echo "FAIL: $1 -- ${2:-}"; fails=$((fails + 1)); }
 
 do_log() { :; }
 do_check_dist_hygiene() { return 0; }
-unset PRE_PUSH_PART_TIMEOUT PRE_PUSH_API_FULL_TIMEOUT PRE_PUSH_API_FULL_CAP PRE_PUSH_ORC_FULL_CAP PRE_PUSH_IAC_FULL_TIMEOUT PRE_PUSH_ORC_FULL_TIMEOUT PRE_PUSH_FEATURES_TIMEOUT
+unset PRE_PUSH_PART_TIMEOUT PRE_PUSH_API_FULL_TIMEOUT PRE_PUSH_API_FULL_CAP PRE_PUSH_ORC_FULL_CAP PRE_PUSH_IAC_FULL_TIMEOUT PRE_PUSH_ORC_FULL_TIMEOUT PRE_PUSH_FEATURES_TIMEOUT PRE_PUSH_IAC_FAST_CAP PRE_PUSH_ORC_FAST_CAP
 # shellcheck source=../run/check-pre-push.func.sh
 . "$FUNC"
 # timeout -k 10 <budget> bash <script>: print the budget, run nothing.
@@ -88,10 +91,10 @@ check "3. api full + PRE_PUSH_PART_TIMEOUT=77"  77   "$(budget _pp_part_api full
 check "4. api fast + PRE_PUSH_PART_TIMEOUT=77"  77   "$(budget _pp_part_api fast PRE_PUSH_PART_TIMEOUT=77)"
 check "5. api full + PRE_PUSH_API_FULL_TIMEOUT" 1200 "$(budget _pp_part_api full PRE_PUSH_API_FULL_TIMEOUT=1200)"
 check "6. iac full tier -> 600"                 600  "$(budget _pp_part_iac full)"
-check "7. iac fast tier -> 300"                 300  "$(budget _pp_part_iac fast)"
+check "7. iac fast tier -> 500"                 500  "$(budget _pp_part_iac fast)"
 check "7. iac full + PRE_PUSH_IAC_FULL_TIMEOUT" 1200 "$(budget _pp_part_iac full PRE_PUSH_IAC_FULL_TIMEOUT=1200)"
 check "8. orc full tier -> 4000"                4000 "$(_PP_TIER=full _pp_budget _pp_part_orc)"
-check "8. orc fast tier -> 300"                 300  "$(_PP_TIER=fast _pp_budget _pp_part_orc)"
+check "8. orc fast tier -> 600"                 600  "$(_PP_TIER=fast _pp_budget _pp_part_orc)"
 check "8b. orc-features full tier -> 900"        900  "$(_PP_TIER=full _pp_budget _pp_part_orc_features)"
 check "8b. orc-features fast tier -> 300"        300  "$(_PP_TIER=fast _pp_budget _pp_part_orc_features)"
 check "8b. orc-features full + PRE_PUSH_FEATURES_TIMEOUT" 1800 "$(PRE_PUSH_FEATURES_TIMEOUT=1800 _PP_TIER=full _pp_budget _pp_part_orc_features)"
@@ -127,7 +130,7 @@ check "13. orc full, load 9999/16 -> the 6000 s cap"       6000 "$(orc full PLAN
 check "13. orc full, load 9999 + PRE_PUSH_ORC_FULL_CAP=7000" 7000 "$(orc full PLANT_LOAD=9999 PRE_PUSH_ORC_FULL_CAP=7000)"
 check "13. orc full, load 32 + PRE_PUSH_ORC_FULL_TIMEOUT wins" 1200 "$(orc full PLANT_LOAD=32 PRE_PUSH_ORC_FULL_TIMEOUT=1200)"
 check "13. orc full, load 32 + PRE_PUSH_PART_TIMEOUT wins" 77   "$(orc full PLANT_LOAD=32 PRE_PUSH_PART_TIMEOUT=77)"
-check "13. orc fast, load 32 -> 300 (the fast tier is not scaled)" 300 "$(orc fast PLANT_LOAD=32)"
+check "13. orc fast, load 32/16 -> 1200 (600 x 2)" 1200 "$(orc fast PLANT_LOAD=32)"
 check "13. the orc reason names the load, the cap and the variable" "orc full default 4000s x load 32/16 cpus, cap 6000s; raise it with PRE_PUSH_ORC_FULL_TIMEOUT" \
   "$(PLANT_LOAD=32 _PP_TIER=full _pp_budget_why _pp_part_orc)"
 
@@ -136,6 +139,32 @@ idle="$(orc full PLANT_LOAD=0)"
 [[ "$idle" =~ ^[0-9]+$ ]] && (( idle * 100 >= 2274 * 175 )) \
   && pass "14. idle full-tier orc budget ${idle}s >= 1.75 x 2274 s (measured on sat)" \
   || fail "14. idle full-tier orc budget >= 1.75 x 2274 s (measured on sat)" "got '$idle'"
+
+# 16. fast iac and orc scale; the verdict line carries tier= and keeps the detail last.
+#     `timeout` is still the stub that prints the budget.
+_pp_vline() {  # <tier> -> the PART suffix of one verdict line
+  local tier="$1" log
+  log="$(mktemp)"
+  _PP_LOG="$log" _PP_TOP=/t _PP_HEAD=abc123 _PP_TIER="$tier" _pp_verdict iac FAIL 9 "failing=flag"
+  sed -n 's/.*\(PART iac FAIL 9s .*\)$/\1/p' "$log"
+  rm -f "$log"
+}
+check "16. fast iac, load 32/16 -> 1000 (500 x 2)" 1000 "$(budget _pp_part_iac fast PLANT_LOAD=32)"
+check "16. fast iac, load 9999/16 -> the 1200 s cap" 1200 "$(budget _pp_part_iac fast PLANT_LOAD=9999)"
+check "16. fast iac + PRE_PUSH_PART_TIMEOUT=77" 77 "$(budget _pp_part_iac fast PRE_PUSH_PART_TIMEOUT=77)"
+check "16. fast orc + PRE_PUSH_PART_TIMEOUT=77" 77 "$(orc fast PRE_PUSH_PART_TIMEOUT=77)"
+check "16. the fast iac reason names the base, the load and the cap" \
+  "iac fast default 500s x load 32/16 cpus, cap 1200s; raise it with PRE_PUSH_IAC_FAST_CAP" \
+  "$(PLANT_LOAD=32 _PP_TIER=fast _pp_budget_why _pp_part_iac)"
+check "16. the fast orc reason names the base, the load and the cap" \
+  "orc fast default 600s x load 32/16 cpus, cap 1500s; raise it with PRE_PUSH_ORC_FAST_CAP" \
+  "$(PLANT_LOAD=32 _PP_TIER=fast _pp_budget_why _pp_part_orc)"
+check "16. a verdict line carries tier=fast and keeps the detail last" \
+  "PART iac FAIL 9s tree=/t HEAD=abc123 tier=fast failing=flag" \
+  "$(_pp_vline fast)"
+check "16. a verdict line carries tier=full and keeps the detail last" \
+  "PART iac FAIL 9s tree=/t HEAD=abc123 tier=full failing=flag" \
+  "$(_pp_vline full)"
 
 # 9. the real timeout on a stub iac suite that runs 2 s
 unset -f timeout
@@ -160,6 +189,6 @@ check "15. CONTROL: the 2274 s suite under the old 1800 s base -> TIMED OUT (rc 
 rc=0; ( _PP_TIER=full _pp_part_orc "$T" ) >/dev/null 2>&1 || rc=$?
 check "15. the 2274 s suite under the default full-tier orc budget -> passes" 0 "$rc"
 
-total=39
+total=47
 echo "--- $((total - fails))/$total passed ---"
 [[ "$fails" -eq 0 ]]

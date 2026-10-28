@@ -136,18 +136,28 @@ See `_pp_sig` in `csi-spl-iac/src/bash/run/check-pre-push.func.sh`.
 
 ### 1.4 The full tier's part budgets
 
-`PRE_PUSH_TIER=full` runs every test file of a part, so the api, orc and iac
-parts get their own budget instead of the fast tier's 300 s
+`PRE_PUSH_TIER=full` runs every test file of a part. The api full tier, and
+the iac and orc parts on both tiers, get their own budget
 (`_pp_budget` in `csi-spl-iac/src/bash/run/check-pre-push.func.sh`; the
-numbers and their measurements are in the comments there). The api and orc
-budgets are a base times the box load per cpu (`load1 / nproc`, read once
-per run) when that is over 1, never above a cap:
+numbers and their measurements are in the comments there). A scaled budget
+is a base times the box load per cpu (`load1 / nproc`, read once per run)
+when that is over 1, never above a cap. The fast tier's other parts stay
+fixed: api 300 s, wui 420 s, wui-e2e 600 s, and orc-features 300 s unless
+`PRE_PUSH_FEATURES_TIMEOUT` is set.
 
-| part | base | cap | raise it with |
-|---|---|---|---|
-| api | 1950 s | 2700 s (`PRE_PUSH_API_FULL_CAP`) | `PRE_PUSH_API_FULL_TIMEOUT` |
-| orc | 4000 s | 6000 s (`PRE_PUSH_ORC_FULL_CAP`) | `PRE_PUSH_ORC_FULL_TIMEOUT` |
-| iac | 600 s | — | `PRE_PUSH_IAC_FULL_TIMEOUT` |
+| tier | part | base | cap | raise it with |
+|---|---|---|---|---|
+| full | api | 1950 s | 2700 s (`PRE_PUSH_API_FULL_CAP`) | `PRE_PUSH_API_FULL_TIMEOUT` |
+| full | orc | 4000 s | 6000 s (`PRE_PUSH_ORC_FULL_CAP`) | `PRE_PUSH_ORC_FULL_TIMEOUT` |
+| full | iac | 600 s | — | `PRE_PUSH_IAC_FULL_TIMEOUT` |
+| fast | iac | 500 s | 1200 s (`PRE_PUSH_IAC_FAST_CAP`) | `PRE_PUSH_PART_TIMEOUT` |
+| fast | orc | 600 s | 1500 s (`PRE_PUSH_ORC_FAST_CAP`) | `PRE_PUSH_PART_TIMEOUT` |
+
+The fast iac and orc bases are interim until `tier=` on the PART line gives
+a fast-tier distribution; then each base becomes 1.75 times the slowest
+fast-tier green, as the full-tier bases are. The orc fast base of 600 s is
+a placeholder: the green-trunk timeouts it replaces were cut at 300 s, so
+their real time is not in the log.
 
 `PRE_PUSH_PART_TIMEOUT` overrides every part on both tiers. A part that runs
 out logs `TIMED OUT after <n>s (<why>)`, and for a default budget the why

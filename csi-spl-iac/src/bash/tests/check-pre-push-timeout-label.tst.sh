@@ -6,7 +6,7 @@
 #          "TIMED OUT after 300s" and raised the wrong number (2026-10-07).
 #   1. api part, full tier, PRE_PUSH_API_FULL_TIMEOUT=2 -> "TIMED OUT after 2s"
 #   2. wui part, PRE_PUSH_WUI_TIMEOUT=3                 -> "TIMED OUT after 3s"
-#   3. iac part, shared part budget 1                   -> "TIMED OUT after 1s"
+#   3. iac part, PRE_PUSH_PART_TIMEOUT=1                -> "TIMED OUT after 1s"
 #   4. api part, full tier, no env budget, load 32 on 16 cpus (stubbed reader)
 #      -> "TIMED OUT after 2700s (api full default 1950s x load 32/16 cpus,
 #      cap 2700s; raise it with PRE_PUSH_API_FULL_TIMEOUT)": the note names the
@@ -74,8 +74,8 @@ check "1. api full tier reports its 2 s budget" "TIMED OUT after 2s" \
   "$(PRE_PUSH_API_FULL_TIMEOUT=2 _PP_TIER=full note_of _pp_part_api)"
 check "2. wui reports its 3 s budget" "TIMED OUT after 3s" \
   "$(PATH="$T/bin:$PATH" PRE_PUSH_WUI_TIMEOUT=3 note_of _pp_part_wui)"
-check "3. iac reports the shared part budget" "TIMED OUT after 1s" \
-  "$(_pp_timeout=1; note_of _pp_part_iac)"
+check "3. iac reports a 1 s PRE_PUSH_PART_TIMEOUT" "TIMED OUT after 1s" \
+  "$(PRE_PUSH_PART_TIMEOUT=1 note_of _pp_part_iac)"
 
 check "4. api full tier names its load-scaled budget and the load" \
   "TIMED OUT after 2700s (api full default 1950s x load 32/16 cpus, cap 2700s; raise it with PRE_PUSH_API_FULL_TIMEOUT)" \

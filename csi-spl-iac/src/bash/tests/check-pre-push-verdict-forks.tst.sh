@@ -10,7 +10,7 @@
 #   2. 20 more into the now existing dir -> 0 forks
 #   3. a log path with no dir part ('pp.log' in the cwd) -> 0 forks, written
 #   4. the line's bytes: '<UTC ts>Z <who> PART <part> <V> <n>s tree=<t>
-#      HEAD=<h>[ <detail>]', the ts in UTC even with TZ set elsewhere, between
+#      HEAD=<h> tier=<tier>[ <detail>]', the ts in UTC even with TZ set elsewhere, between
 #      a `date -u` taken before and one taken after
 #   CONTROL: the same function with its timestamp forked again
 #      (now="$(date -u +%FT%TZ)") -> the shim counts 20 date calls: the
@@ -62,7 +62,7 @@ before="$(date -u +%FT%TZ)"
 : >"$LOG"; verdicts "$FUNC" "$LOG" 1 >/dev/null
 after="$(date -u +%FT%TZ)"
 line="$(cat "$LOG")"
-re='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z c-x PART part1 PASS 1s tree=/t HEAD=abc123 d=1$'
+re='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z c-x PART part1 PASS 1s tree=/t HEAD=abc123 tier=fast d=1$'
 if [[ "$line" =~ $re ]]; then pass "4. the line's bytes"; else fail "4. the line's bytes" "$line"; fi
 ts="${line%% *}"
 if [[ ! "$ts" < "$before" && ! "$ts" > "$after" ]]; then pass "4. the ts is UTC ($before <= $ts <= $after)"

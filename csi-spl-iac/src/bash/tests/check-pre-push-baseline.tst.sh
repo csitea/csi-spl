@@ -164,12 +164,13 @@ eq "8d. real e2e log lines -> e2e-file + e2e <check>" \
 #    blocking the push forever. Point _pp_part_iac at a fake hanging suite.
 FT="$ROOT/faketree"; mkdir -p "$FT/csi-spl-iac/src/bash/tests"
 printf '#!/usr/bin/env bash\nsleep 30\n' >"$FT/csi-spl-iac/src/bash/tests/run-all-tests.sh"
-# _pp_budget prefers PRE_PUSH_PART_TIMEOUT and, in the full tier, the 600 s iac
-# budget over _pp_timeout: inherited from the caller's env they let the fake
-# suite sleep its 30 s out (rc 0, c-826 2026-10-11), so pin the fast tier here
-unset PRE_PUSH_PART_TIMEOUT PRE_PUSH_IAC_FULL_TIMEOUT
-_PP_TIER=fast _pp_timeout=1
-t0=$SECONDS; _pp_part_iac "$FT" >/dev/null 2>&1; trc=$?; tel=$((SECONDS - t0))
+# The fast iac budget is load-scaled from 500 s, so a planted _pp_timeout no
+# longer shortens it. PRE_PUSH_PART_TIMEOUT=1 is set only inside the subshell:
+# a prefix on the function would stay set in this shell and the full-tier case
+# below would then take the override instead of PRE_PUSH_IAC_FULL_TIMEOUT.
+unset PRE_PUSH_PART_TIMEOUT PRE_PUSH_IAC_FULL_TIMEOUT PRE_PUSH_IAC_FAST_CAP
+_PP_TIER=fast
+t0=$SECONDS; ( PRE_PUSH_PART_TIMEOUT=1 _pp_part_iac "$FT" ) >/dev/null 2>&1; trc=$?; tel=$((SECONDS - t0))
 [ "$trc" -eq 124 ] && pass "4. a hanging suite is killed (rc 124)" || fail "4. a hanging suite is killed (rc 124)" "rc=$trc"
 [ "$tel" -lt 10 ] && pass "4. ... within the timeout, not the full 30s" || fail "4. ... within the timeout" "took ${tel}s"
 # the full tier kills it too, under the budget the iac part reads there

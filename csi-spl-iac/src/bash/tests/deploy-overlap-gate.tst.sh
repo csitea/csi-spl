@@ -23,6 +23,9 @@
 #        on an in-flight run that already lost a job, but a suite that ran red
 #        still stops it -- unless that red is on an older sha than trunk head
 #        and no run exists on head yet: then 21 dispatches once (SPL-1719)
+#     9. a red DEPLOY job is not a red tree (SPL-4016): an in-flight 20 whose
+#        dev deploy already failed is not counted on, and a run red only in a
+#        deploy job is re-dispatched once per trunk head, never twice
 #   CONTROLS: a hub deploy that loses `needs.test.result == 'success'`, a
 #   prebuild that pushes the release tag, and a WUI gate moved after the
 #   mint are each reported.
@@ -202,6 +205,21 @@ red_moved() {  # <list json> [<run id> <jobs json>]... -> what 21 dispatched; ru
   && pass "CONTROL: 21: the re-dispatch on head went red too -> no second dispatch (no loop)" || fail "CONTROL: 21 re-dispatched a sha whose run already went red"
 [[ "$(red_moved '[{"databaseId":9,"status":"completed","conclusion":"cancelled","headSha":"0123456789abcdef"},'"$R_OLD]")" == none ]] \
   && pass "CONTROL: 21: a run already exists on head (cancelled) -> it was the one re-dispatch, no more" || fail "CONTROL: 21 dispatched again on a sha that already had a run"
+
+# SPL-4016: 20 run 40640625433 -- dev canary red at 06:14Z, prd leg still
+# rolling at 21's 06:26Z tick, trunk head one commit past it (no hub input)
+J_DEVRED='{"jobs":[{"id":93,"name":"Hub suite (run-all-tests.sh) pg","conclusion":"success","runner_name":"GitHub Actions 5"},{"id":94,"name":"Deploy hub to dev","conclusion":"failure","runner_name":"GitHub Actions 6"},{"id":95,"name":"Deploy hub to prd","conclusion":null,"runner_name":"GitHub Actions 7"}]}'
+J_DEVRED_DONE='{"jobs":[{"id":96,"name":"Hub suite (run-all-tests.sh) pg","conclusion":"success","runner_name":"GitHub Actions 5"},{"id":97,"name":"Deploy hub to dev","conclusion":"failure","runner_name":"GitHub Actions 6"},{"id":98,"name":"Deploy hub to prd","conclusion":"success","runner_name":"GitHub Actions 7"}]}'
+R_FLIGHT='{"databaseId":40,"status":"in_progress","conclusion":null,"event":"push","headSha":"fedcba9876543210"}'
+R_GREEN='{"databaseId":39,"status":"completed","conclusion":"success","event":"push","headSha":"aaaabbbbccccdddd"}'
+[[ "$(catch_case "[$R_FLIGHT,$R_GREEN]" 40 "$J_DEVRED")" == 20_hub-build-deploy.yml ]] \
+  && pass "21: an in-flight 20 whose dev deploy already went red (run 40640625433) is not counted on -> dispatches 20 once" || fail "21: an in-flight run with a red dev deploy held the dispatch back"
+[[ "$(catch_case '[{"databaseId":41,"status":"in_progress","conclusion":null,"event":"workflow_dispatch","headSha":"0123456789abcdef"},'"$R_FLIGHT,$R_GREEN]" 40 "$J_DEVRED" 41 "$J_DEVRED")" == none ]] \
+  && pass "CONTROL: 21: next tick, the re-dispatch on head failed its deploy too -> no second dispatch" || fail "CONTROL: 21 re-dispatched a head that already had its deploy retry"
+[[ "$(catch_case '[{"databaseId":9,"status":"completed","conclusion":"failure","event":"push","headSha":"0123456789abcdef"},'"$R_GREEN]" 9 "$J_DEVRED_DONE")" == 20_hub-build-deploy.yml ]] \
+  && pass "21: 20 on head went red only in a deploy job (suite green) -> dispatches 20 once" || fail "21: a red deploy job on head read as a broken tree"
+[[ "$(catch_case '[{"databaseId":41,"status":"completed","conclusion":"failure","event":"workflow_dispatch","headSha":"0123456789abcdef"},{"databaseId":9,"status":"completed","conclusion":"failure","event":"push","headSha":"0123456789abcdef"}]' 41 "$J_DEVRED_DONE" 9 "$J_DEVRED_DONE")" == none ]] \
+  && pass "CONTROL: 21: the one deploy retry on head went red too -> no loop" || fail "CONTROL: 21 retried a red deploy twice on one sha"
 
 # --- controls ------------------------------------------------------------------
 python3 - "$W/20_hub-build-deploy.yml" "$T/h1.yml" <<'PY'

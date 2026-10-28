@@ -27,6 +27,13 @@
 # hub input), so the lag would stay forever. Then it dispatches ONCE for trunk
 # head; any run of that workflow on head (red, cancelled, in flight) means the
 # one re-dispatch is spent, so a broken deploy is never retried in a loop.
+# A red DEPLOY job is not a red tree (SPL-4016): on 2026-10-28 20 run
+# 40640625433's dev canary failed its startup probe (a transient Cloud SQL
+# refusal) while its prd leg still rolled; 21 at 06:26Z read the run as in
+# flight ("it deploys") and dev stayed behind prd until a hand dispatch. An
+# in-flight run whose deploy job already went red is no longer counted on, and
+# a run that went red ONLY in a deploy job (suite green) is re-dispatched once
+# per trunk head: any workflow_dispatch run already on head spends that try.
 #
 # Local equivalent of the read: ENV=<env> GRACE_MINUTES=30 ./csi-spl-orc/run -a do_check_deploy_lag
 
@@ -133,12 +140,22 @@ jobs:
             done
             echo "$n"
           }
+          # deploy_red <run id> -> how many of its "Deploy ..." jobs got a runner
+          # and went red: the suite passed, the roll failed (SPL-4016).
+          deploy_red() {
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$1/jobs?filter=latest&per_page=100" \
+              --jq '[.jobs[] | select((.conclusion == "failure" or .conclusion == "timed_out") and ((.runner_name // "") != "") and (.name | startswith("Deploy ")))] | length' 2>/dev/null || echo 0
+          }
           catchup() {  # <workflow file> <component> [job name it may lose]
-            local wf="$1" comp="$2" spare="${3:-}" inflight=0 id verdict last lastsha onhead
-            # an in-flight run deploys only while none of its jobs starved
+            local wf="$1" comp="$2" spare="${3:-}" inflight=0 dead=0 id verdict last lastsha onhead redisp dred
+            # an in-flight run deploys only while none of its jobs starved and
+            # none of its deploy jobs already went red
             for id in $(gh run list --workflow="$wf" --branch master --limit 20 --json databaseId,status \
                           --jq '.[] | select(.status != "completed") | .databaseId'); do
-              if [[ "$(starved "$id" "$spare")" -eq 0 ]]; then
+              if [[ "$(deploy_red "$id")" -gt 0 ]]; then
+                dead=$((dead + 1))
+                echo "::notice::$comp: $wf run $id is in flight but a deploy job already went red -- not counting on it"
+              elif [[ "$(starved "$id" "$spare")" -eq 0 ]]; then
                 inflight=$((inflight + 1))
               else
                 echo "::notice::$comp: $wf run $id is in flight but already lost a job to the hosted queue -- not counting on it"
@@ -150,15 +167,28 @@ jobs:
             # runs of any kind already on trunk head: a non-zero count spends the one re-dispatch
             onhead="$(gh run list --workflow="$wf" --branch master --limit 25 --json headSha \
               --jq "[.[] | select(.headSha == \"$SHA\")] | length" 2>/dev/null)" || onhead=1
+            # dispatched runs already on trunk head: a non-zero count spends the one deploy retry
+            redisp="$(gh run list --workflow="$wf" --branch master --limit 25 --json headSha,event \
+              --jq "[.[] | select(.headSha == \"$SHA\" and .event == \"workflow_dispatch\")] | length" 2>/dev/null)" || redisp=1
             if [[ "$verdict" != success && "$verdict" != none && "$(ran_red "$last")" -eq 0 ]]; then
               echo "::notice::$comp: $wf run $last concluded $verdict, but no job that ran went red (starved, not broken)"
               verdict=starved
             fi
             if [[ "$inflight" -gt 0 ]]; then
               echo "::notice::$comp lags, but a $wf run is already queued/running on master -- it deploys; not dispatching"
+            elif [[ "$dead" -gt 0 ]]; then
+              if [[ "${redisp:-1}" == 0 ]]; then
+                echo "::warning::$comp lags and an in-flight $wf run already failed a deploy job -- dispatching $wf once for ${SHA:0:8}"
+                gh workflow run "$wf" --ref master -f environment=all
+              else
+                echo "::warning::$comp lags, an in-flight $wf run failed a deploy job, and ${SHA:0:8} already had its re-dispatch; not dispatching"
+              fi
             elif [[ "$verdict" != success && "$verdict" != none && "$verdict" != starved ]]; then
               if [[ "$lastsha" != - && "$lastsha" != "$SHA" && "${onhead:-1}" == 0 ]]; then
                 echo "::warning::$comp: $wf run $last went $verdict at ${lastsha:0:8}, master moved on to ${SHA:0:8} with no run there -- dispatching $wf once"
+                gh workflow run "$wf" --ref master -f environment=all
+              elif dred="$(deploy_red "$last")" && [[ "$dred" -gt 0 && "$(ran_red "$last")" -le "$dred" && "${redisp:-1}" == 0 ]]; then
+                echo "::warning::$comp: $wf run $last went red only in a deploy job (suite green) -- dispatching $wf once for ${SHA:0:8}"
                 gh workflow run "$wf" --ref master -f environment=all
               else
                 echo "::warning::$comp lags and $wf last concluded $verdict -- the deploy is broken, not starved (trunk head already had its run); not dispatching"

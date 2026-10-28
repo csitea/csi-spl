@@ -120,6 +120,8 @@ printf '[%s,%s]' "$(push "$C_FRESH" "$C_NEW" 1)" "$(push "$C_NEW" "$C_DOC" 3)" >
 GH_STUB_JSON="$T/act-new.json" lag_one "9a. RED CONTROL: an old %ct that trunk got just now" "$(fixture "$C_DOC" l9a)" "$C_FRESH" 60 0 pending
 grep -qE "oldest=${C_OLD:0:8} age=[34]m grace=60m age_from=landed " "$T/last" &&
   pass "9a. the age is the push's (3m), age_from=landed" || fail "9a. wrong age/source: $(cat "$T/last")"
+! grep -q 'WARN the landing of' "$T/err" &&
+  pass "9a. a landing read logs no WARN" || fail "9a. WARN on a read landing: $(cat "$T/err")"
 grep -q 'activity?ref=refs/heads/master&activity_type=push' "$T/gh.args" &&
   pass "9a. it asked GitHub for the pushes to master" || fail "9a. gh args: $(cat "$T/gh.args")"
 #  b. trunk got it longer ago than the grace -> still lagging rc 3
@@ -133,6 +135,10 @@ grep -qE "age=12[01]m grace=60m age_from=landed url=" "$T/last" &&
 lag_one "9c. gh fails -> the %ct age" "$(fixture "$C_DOC" l9c)" "$C_FRESH" 60 3 lagging
 grep -qE "age=(39[0-9]|40[0-9])m grace=60m age_from=commit:gh-api-failed " "$T/last" &&
   pass "9c. it says the landing was unread: age_from=commit:gh-api-failed" || fail "9c. no fallback label: $(cat "$T/last")"
+#     SPL-4127: and it is not silent: one WARN line on stderr names the cause
+#     (origin/master before it: no WARN, the age_from word only)
+[[ $(grep -c "WARN the landing of ${C_OLD:0:8} is unread (gh-api-failed)" "$T/err") -eq 1 ]] &&
+  pass "9c. one WARN line: the landing is unread (gh-api-failed)" || fail "9c. no single WARN: $(cat "$T/err")"
 printf '[%s]' "$(push "$C_FRESH" "$C_NEW" 1)" >"$T/act-miss.json"
 GH_STUB_JSON="$T/act-miss.json" lag_one "9c. its push is not in the page -> the %ct age" "$(fixture "$C_DOC" l9d)" "$C_FRESH" 60 3 lagging
 grep -q "age_from=commit:not-in-last-100-pushes " "$T/last" &&

@@ -220,12 +220,14 @@ jobs:
           ENV: ${{ matrix.environment }}
           SHA: ${{ github.sha }}
           GRACE_MINUTES: ${{ vars.DEPLOY_LAG_GRACE_MINUTES || '45' }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -uo pipefail
           rc=0
           out="$(./csi-spl-orc/run -a do_check_deploy_lag 2>&1)" || rc=$?
           verdicts="$(grep -E "^$ENV (hub|wui) (current|pending|lagging|unknown) " <<<"$out")"
           echo "${verdicts:-$ENV: no verdict (rc $rc)}"
+          grep -F 'WARN the landing of' <<<"$out" | sed 's/^.*WARN /::warning::/' || true
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
           { echo "## Deploy lag: is ${GITHUB_SHA:0:8} served by $ENV?"; echo
             echo '```'; echo "${verdicts:-no verdict, rc $rc}"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

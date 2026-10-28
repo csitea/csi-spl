@@ -193,6 +193,9 @@ _spl_lag_age() {
   if landed="$(_spl_lag_landed_at "$c" "$timeout")"; then
     echo "$(( (now - landed) / 60 )) landed"
   else
+    # one WARN on stderr (stdout is the age line): a CI step with no GH_TOKEN
+    # must not fall back to the commit time silently (SPL-4127)
+    do_log "WARN the landing of ${c:0:8} is unread ($landed): its age runs from the commit time; in CI set GH_TOKEN on the step" >&2
     echo "$(( (now - first) / 60 )) commit:$landed"
   fi
 }

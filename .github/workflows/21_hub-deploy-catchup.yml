@@ -85,6 +85,7 @@ jobs:
         id: lag
         env:
           GRACE_MINUTES: ${{ vars.DEPLOY_CATCHUP_GRACE_MINUTES || '30' }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -uo pipefail
           sha="$(git rev-parse HEAD)"

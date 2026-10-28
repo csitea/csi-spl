@@ -62,7 +62,6 @@ const LONG = new Map([
   ['src/utils/error-snackbar.ts createSnackbarQueue', 79],
   ['src/utils/hours-recorder.mjs createHoursRecorder', 78],
   ['src/utils/move-drag.ts createHandleDrag', 78],
-  ['src/utils/tenant-host-boot.mjs bootTenantHost', 78],
 ])
 
 // `<file> <name>` keyed as LONG. The functions at 6 parameters when r26-02

@@ -12,7 +12,7 @@ const PUB = { siteUrl: SITE, tenant: 't1', apiBase: 'https://api.app.example' }
 const U = '0b8a6a52-6c1e-4f5e-9d1e-2c7b7f5e8a11'
 const MEMBER_T1 = { tenants: [{ tenant_id: 't1' }, { tenant_id: 'northwind' }] }
 
-function rig(href, { claims = MEMBER_T1, locateTo = '', state = 'in', down = [] } = {}) {
+function rig(href, { claims = MEMBER_T1, locateTo = '', locateOk = Boolean(locateTo), state = 'in', down = [] } = {}) {
   const u = new URL(href)
   const replaced = []
   const fetched = []
@@ -31,9 +31,7 @@ function rig(href, { claims = MEMBER_T1, locateTo = '', state = 'in', down = [] 
       return { ok: true, type: 'opaque' }
     }
     fetched.push({ url, opts })
-    return locateTo
-      ? { ok: true, json: async () => ({ tenant: locateTo }) }
-      : { ok: false, json: async () => ({}) }
+    return { ok: locateOk, status: locateOk ? 200 : 404, json: async () => (locateTo ? { tenant: locateTo } : {}) }
   }
   const session = reactive({ state, claims })
   const notMember = ref({ tenant: '', home: '' })
@@ -135,6 +133,42 @@ describe('tenant-host boot', () => {
   it('turns the link rule on: a same-env tenant host is internal', () => {
     rig(SITE + '/', { state: 'out' })
     assert.equal(classifyHref('https://northwind.app.example/x', SITE).internal, true)
+  })
+
+  it('r34-01: the session goes in, out, in - the hop happens once', async () => {
+    const r = rig(SITE + '/', { claims: { tenants: [{ tenant_id: 'northwind' }] } })
+    await settle()
+    assert.deepEqual(r.replaced, ['https://northwind.app.example/'])
+    r.session.state = 'out'
+    await settle()
+    r.session.state = 'in'
+    await settle()
+    assert.deepEqual(r.replaced, ['https://northwind.app.example/'], 'a second sign-in does not hop again')
+  })
+  it('r34-01: a locate that answers 404 is unknown, even when its body names another tenant', async () => {
+    const r = rig(`${SITE}/t/${U}`, { locateTo: 'northwind', locateOk: false })
+    await settle()
+    assert.equal(r.fetched.length, 1)
+    assert.deepEqual(r.replaced, [])
+  })
+  it('r34-01: a locate leaves no probe timer pending', async () => {
+    const realSet = globalThis.setTimeout
+    const realClear = globalThis.clearTimeout
+    const armed = []
+    const cleared = new Set()
+    globalThis.setTimeout = (fn, ms, ...a) => { const h = realSet(fn, ms, ...a); if (ms === 8000) armed.push(h); return h }
+    globalThis.clearTimeout = (h) => { cleared.add(h); return realClear(h) }
+    try {
+      const r = rig(`${SITE}/t/${U}`, { locateTo: 't1' })
+      await settle()
+      assert.equal(r.fetched.length, 1)
+      assert.equal(armed.length, 1, 'locate arms one probe timer')
+      assert.ok(armed.every((h) => cleared.has(h)), 'every probe timer is cleared')
+    } finally {
+      globalThis.setTimeout = realSet
+      globalThis.clearTimeout = realClear
+      for (const h of armed) realClear(h)
+    }
   })
 
   it('r3-07: hostAnswers reads a host that never answers as down after timeoutMs', async () => {

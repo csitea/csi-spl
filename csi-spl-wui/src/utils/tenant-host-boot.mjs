@@ -67,81 +67,92 @@ export function activeElsewhere(claims, page) {
   return validTenant(t) && t !== page ? t : ''
 }
 
+/** true when url's host answers; the apex always does, so it is never probed. */
+function tenantAnswers(ctx, url) {
+  return (ctx.apexOrigin && String(url).startsWith(ctx.apexOrigin + '/')) ? Promise.resolve(true) : hostAnswers(url, ctx.fetchFn)
+}
+
+/** A signed-in hop: go now, or say the address is being prepared and retry. */
+async function tenantHopWhenReady(ctx, url, tenant) {
+  const { win, pollMs } = ctx
+  if (await tenantAnswers(ctx, url)) {
+    win.location.replace(url)
+    return
+  }
+  ctx.notMember.value = { tenant, home: '', pending: new URL(url).host }
+  const tick = async () => {
+    if (await tenantAnswers(ctx, url)) {
+      win.location.replace(url)
+      return
+    }
+    win.setTimeout(tick, pollMs)
+  }
+  win.setTimeout(tick, pollMs)
+}
+
+/** The tenant that owns old-link id; '' when off, unknown, failed or slow (PROBE_TIMEOUT_MS). */
+async function tenantLocate(ctx, id) {
+  const { base } = apiBaseFor(String(ctx.pub.apiBase || ''), ctx.page)
+  if (!base) return ''
+  const ctl = typeof AbortController === 'function' ? new AbortController() : null
+  const timer = ctl ? setTimeout(() => ctl.abort(), PROBE_TIMEOUT_MS) : null
+  try {
+    const res = await ctx.fetchFn(`${base}/v1/view/locate/${id}`, { credentials: 'include', cache: 'no-store', signal: ctl?.signal })
+    if (!res.ok) return ''
+    const body = await res.json()
+    return body && typeof body.tenant === 'string' ? body.tenant : ''
+  } catch {
+    return ''
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
+/** Signed in: an apex old link goes to its tenant; else the home tenant, or "not a member". */
+async function tenantSignedIn(ctx) {
+  const { page, apex, site, session, win } = ctx
+  const here = () => win.location.pathname + win.location.search + win.location.hash
+  if (page === apex) {
+    const id = oldLinkId(here())
+    const owner = id ? await tenantLocate(ctx, id) : ''
+    if (owner && owner !== apex) {
+      await tenantHopWhenReady(ctx, tenantUrl(owner, site, apex, here()), owner)
+      return
+    }
+  }
+  const home = homeTenant(session.claims, page) || activeElsewhere(session.claims, page)
+  if (!home) return
+  if (page === apex) {
+    await tenantHopWhenReady(ctx, tenantUrl(home, site, apex, '/'), home)
+    return
+  }
+  ctx.notMember.value = { tenant: page, home: tenantUrl(home, site, apex, '/'), pending: '' }
+}
+
+/** Wait for the session to be signed in, then act once. */
+function tenantWatchSession(ctx) {
+  if (!ctx.page) return
+  let done = false
+  watch(() => ctx.session.state, async (state) => {
+    if (state !== 'in' || done) return
+    done = true
+    await tenantSignedIn(ctx)
+  }, { immediate: true })
+}
+
 export function bootTenantHost({ pub, page, session, notMember, win = window, fetchFn = globalThis.fetch, pollMs = PENDING_POLL_MS }) {
   const site = String(pub.siteUrl || '')
   const apex = String(pub.tenant || '')
   const apexOrigin = tenantUrl(apex, site, apex, '/').replace(/\/$/, '')
+  const ctx = { pub, page, session, notMember, win, fetchFn, pollMs, site, apex, apexOrigin }
   setLinkSite(site)
-  /** Hop to url when its host answers (the apex always does). */
-  const answers = (url) => (apexOrigin && String(url).startsWith(apexOrigin + '/')) ? Promise.resolve(true) : hostAnswers(url, fetchFn)
-
-  /** A signed-in hop: go now, or say the address is being prepared and retry. */
-  async function hopWhenReady(url, tenant) {
-    if (await answers(url)) {
-      win.location.replace(url)
-      return
-    }
-    notMember.value = { tenant, home: '', pending: new URL(url).host }
-    const tick = async () => {
-      if (await answers(url)) {
-        win.location.replace(url)
-        return
-      }
-      win.setTimeout(tick, pollMs)
-    }
-    win.setTimeout(tick, pollMs)
-  }
 
   const hop = tenantParamHop(win.location.href, site, apex)
   if (hop) {
     /* the sign-in return: to a host that is not up yet it stays here, and the
        session watch below says why once the viewer is signed in */
-    void answers(hop).then((ok) => (ok ? win.location.replace(hop) : watchSession()))
+    void tenantAnswers(ctx, hop).then((ok) => (ok ? win.location.replace(hop) : tenantWatchSession(ctx)))
     return
   }
-  watchSession()
-
-  function watchSession() {
-    if (!page) return
-    const here = () => win.location.pathname + win.location.search + win.location.hash
-
-    /** The tenant that owns old-link id; '' when off, unknown, failed or slow (PROBE_TIMEOUT_MS). */
-    async function locate(id) {
-      const { base } = apiBaseFor(String(pub.apiBase || ''), page)
-      if (!base) return ''
-      const ctl = typeof AbortController === 'function' ? new AbortController() : null
-      const timer = ctl ? setTimeout(() => ctl.abort(), PROBE_TIMEOUT_MS) : null
-      try {
-        const res = await fetchFn(`${base}/v1/view/locate/${id}`, { credentials: 'include', cache: 'no-store', signal: ctl?.signal })
-        if (!res.ok) return ''
-        const body = await res.json()
-        return body && typeof body.tenant === 'string' ? body.tenant : ''
-      } catch {
-        return ''
-      } finally {
-        if (timer) clearTimeout(timer)
-      }
-    }
-
-    let done = false
-    watch(() => session.state, async (state) => {
-      if (state !== 'in' || done) return
-      done = true
-      if (page === apex) {
-        const id = oldLinkId(here())
-        const owner = id ? await locate(id) : ''
-        if (owner && owner !== apex) {
-          await hopWhenReady(tenantUrl(owner, site, apex, here()), owner)
-          return
-        }
-      }
-      const home = homeTenant(session.claims, page) || activeElsewhere(session.claims, page)
-      if (!home) return
-      if (page === apex) {
-        await hopWhenReady(tenantUrl(home, site, apex, '/'), home)
-        return
-      }
-      notMember.value = { tenant: page, home: tenantUrl(home, site, apex, '/'), pending: '' }
-    }, { immediate: true })
-  }
+  tenantWatchSession(ctx)
 }

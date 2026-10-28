@@ -97,6 +97,36 @@ describe('createSnackbarQueue', () => {
     assert.equal(q.push('x'), '')
     assert.ok(q.push(rec()))
   })
+
+  it('a coalesced repeat moves its row to the front', () => {
+    const c = clock()
+    const q = createSnackbarQueue({ now: c.now })
+    const a = q.push(rec({ seq: 1, message: 'A' }))
+    c.add(500)
+    q.push(rec({ seq: 2, message: 'B' }))
+    c.add(500)
+    const again = q.push(rec({ seq: 3, message: 'A' }))
+    assert.equal(again, a)
+    assert.equal(q.items()[0].id, a)
+    assert.equal(q.items()[0].count, 2)
+  })
+
+  it('push returns an empty id, never throws, on a record whose field throws', () => {
+    const q = createSnackbarQueue({ now: clock().now })
+    const bad = Object.defineProperty(rec(), 'message', { get() { throw new Error('x') } })
+    assert.equal(q.push(bad), '')
+  })
+
+  it('the function subscribe returns unsubscribes', () => {
+    const q = createSnackbarQueue({ now: clock().now })
+    let calls = 0
+    const unsub = q.subscribe(() => { calls += 1 })
+    q.push(rec())
+    assert.equal(calls, 1)
+    unsub()
+    q.push(rec({ seq: 2, message: 'other' }))
+    assert.equal(calls, 1)
+  })
 })
 
 describe('bindSnackbarToJournal', () => {

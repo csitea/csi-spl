@@ -574,7 +574,7 @@ split; secrets work goes to claude (or grok, if it has quota).
 | T7 | wui (claude), with 127 W1 | the page changes of 10; agy reviews the locale text LAST | e2e: a `biz_owner` sees the page, a `developer` does not; the exhausted state shows retry; the key cleared from the store after save (127 L12) |
 | T8 | box (claude), behind a switch **off until Anthropic's written OK (O1)** | claude self sign-in in W's seat on a fleet box, sign-out, directory excluded from mirror, collector and logs; the hub's L9 redaction gains the token shape | L23; grep the hub DB, hub logs and the mirror for a fake token after sign-in -> 0 |
 | T10 | box + hub (claude), after T8 and O1 | the `<PILOT>` pilot of 4.4: switch on for `<PILOT>` only, its biz owner signs in, run the checks of 4.4, report them in the spec 159 topic | the L23 grep -> 0 for the real token shape; switch off -> seats ended and credential files gone within one lease TTL |
-| T9 | orc (mistral or agy: docs) | `do_spl_vendor_terms_check`: monthly, fetch the nine URLs of 4.1, compare the quoted sentences, open an issue when one changes or goes missing | a page fixture with one quote edited -> issue opened; the same fixture unchanged -> none |
+| T9 | orc (agy) | Built (11.2): `do_spl_vendor_terms_check`: monthly, fetch the nine URLs of 4.1, compare the quoted sentences, open an issue when one changes or goes missing | a page fixture with one quote edited -> issue opened; the same fixture unchanged -> none |
 
 ### 11.1 T1 as built (SPL-3684, with 127 H1)
 
@@ -615,6 +615,18 @@ Not done here, each its own lane:
   a second admin or biz owner from the WUI (that membership is confirmed)
   who confirms them. Whether the member who set the first key should count
   as confirmed is the 127 editor's call, not this row's.
+
+### 11.2 T9 as built (SPL-4097)
+
+Orc action, test, and box-crons manifest row:
+
+| piece | where |
+|---|---|
+| `do_spl_vendor_terms_check` action | `csi-spl-orc/src/bash/run/spl-vendor-terms-check.func.sh` |
+| vendor terms checker script | `csi-spl-orc/src/bash/scripts/vendor-terms-check.py` |
+| monthly cron script | `csi-spl-orc/src/bash/scripts/vendor-terms-check-cron.sh` |
+| cron entry | `csi-spl-orc/cnf/box-crons/box-crons.manifest` row `vendor-terms-check` (`17 4 1 * *`) |
+| tests & red control | `csi-spl-orc/src/bash/tests/spl-vendor-terms-check.tst.sh` |
 
 ## 12. What needs the owner
 
@@ -702,5 +714,8 @@ owners decide:
 - v0.2 + topic line (2026-10-28, c-415, SPL-4027): 9.4, the line of 9
   point 3 in the running task's topic (task id seat -> key-exec -> desk ->
   hub, first report only, workspace-scoped); 9.2's "Not built" points to it.
+- v0.2 + T9 (2026-10-28, a-553, SPL-4097): 11.2 records what row T9 built
+  in orc: do_spl_vendor_terms_check, the monthly box cron vendor-terms-check,
+  its test spl-vendor-terms-check.tst.sh with red controls.
 
-<!-- version: 0.2.0 · updated: 2026-10-28 · last-edit: 2026-10-28T13:50:00Z -->
+<!-- version: 0.2.1 · updated: 2026-10-28 · last-edit: 2026-10-28T21:00:00Z -->

@@ -52,3 +52,4 @@ rel-gh-runner       | 3,18,33,48 * * * * | src/bash/scripts/rel-gh-runner-cron.s
 rel-clock-sync      | */5 * * * *        | src/bash/scripts/rel-clock-sync-cron.sh | rel/clock-sync.log |
 rel-cron-snitch     | */5 * * * *        | src/bash/scripts/rel-cron-snitch-cron.sh | rel/cron-snitch.log |
 rel-box-beat        | * * * * *          | src/bash/scripts/rel-box-beat-cron.sh | rel/box-beat.log |
+vendor-terms-check | 17 4 1 * *         | src/bash/scripts/vendor-terms-check-cron.sh | vendor-terms-check/cron.log |

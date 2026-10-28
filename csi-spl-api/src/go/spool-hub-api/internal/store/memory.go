@@ -84,6 +84,8 @@ type Memory struct {
 	fileStreams *memFileStreams
 	// box_join_switch.go (rdb 0170): spec 108 joins turned on, guarded by mu. Missing = off.
 	boxJoinOn map[string]bool
+	// operator_workspaces.go (rdb 0230): spec 158 fleet seating on, guarded by mu. Missing = off.
+	fleetSeating map[string]bool
 	// roadmap_switch.go (rdb 0162): roadmap turned public, guarded by mu. Missing = internal.
 	roadmapPublic map[string]bool
 	// fleet_load.go (rdb 0118): the fleet load target, guarded by mu. Missing = the default.

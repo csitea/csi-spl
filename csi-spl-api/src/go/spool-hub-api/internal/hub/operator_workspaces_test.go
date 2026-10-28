@@ -297,3 +297,84 @@ func TestOperatorWorkspaceCreateReportsDisplayName(t *testing.T) {
 		}
 	}
 }
+
+// fleetSeatingOf reads the stored spec 158 switch of id.
+func fleetSeatingOf(t *testing.T, e *env, id string) bool {
+	t.Helper()
+	on, err := e.st.(store.FleetSeating).FleetSeating(context.Background(), id)
+	if err != nil {
+		t.Fatalf("fleet_seating of %s: %v", id, err)
+	}
+	return on
+}
+
+// spec 158 T5 (4.2.1, rdb 0230): the create stores fleet_seating true when
+// the request leaves it out and false when it says false; the operator PATCH
+// flips it both ways; the create and each PATCH write an audit row carrying
+// the value. A non-operator caller (another role of the operator workspace,
+// and the workspace's own admin) is refused 403 and changes nothing.
+// CONTROL: the column default is false (rdb 0230), so the true read after a
+// bare create is the route's write, not the default.
+func TestOperatorWorkspaceFleetSeating(t *testing.T) {
+	e, op, other, who, whoOther := operatorEnv(t, func(op, _ string) string { return op })
+	admin := who[rbac.Admin]
+	if fleetSeatingOf(t, e, other) {
+		t.Fatalf("CONTROL: a workspace not made by the route reads fleet_seating true, want the default false")
+	}
+	dflt, off := newTenantID("nw"), newTenantID("nw")
+	for _, c := range []struct {
+		id   string
+		body map[string]any
+		want bool
+	}{{dflt, map[string]any{"id": dflt}, true}, {off, map[string]any{"id": off, "fleet_seating": false}, false}} {
+		code, body := call(t, e, op, http.MethodPost, opPath, admin, c.body)
+		if code != http.StatusCreated || body["fleet_seating"] != c.want || fleetSeatingOf(t, e, c.id) != c.want {
+			t.Fatalf("create %v: %d %v, stored %v, want fleet_seating %v", c.body, code, body, fleetSeatingOf(t, e, c.id), c.want)
+		}
+		assertFleetAudit(t, e, op, admin, c.id, []any{c.want})
+	}
+	for _, want := range []bool{true, false} {
+		code, body := call(t, e, op, http.MethodPatch, opPath+"/"+off, admin, map[string]any{"fleet_seating": want})
+		if code != http.StatusOK || body["fleet_seating"] != want || fleetSeatingOf(t, e, off) != want {
+			t.Fatalf("patch fleet_seating %v: %d %v", want, code, body)
+		}
+	}
+	assertFleetAudit(t, e, op, admin, off, []any{false, true, false})
+	for _, c := range []struct{ name, tenant, hum string }{
+		{"operator biz_owner", op, who[rbac.BizOwner]}, {"workspace's own admin", other, whoOther[rbac.Admin]},
+	} {
+		if code, body := call(t, e, c.tenant, http.MethodPatch, opPath+"/"+dflt, c.hum, map[string]any{"fleet_seating": false}); code != http.StatusForbidden {
+			t.Fatalf("%s: PATCH fleet_seating = %d %v, want 403", c.name, code, body)
+		}
+	}
+	if !fleetSeatingOf(t, e, dflt) {
+		t.Fatalf("a refused PATCH changed fleet_seating of %s", dflt)
+	}
+}
+
+// assertFleetAudit: id's create and update rows that carry fleet_seating
+// hold want, in order.
+func assertFleetAudit(t *testing.T, e *env, op, admin, id string, want []any) {
+	t.Helper()
+	code, body := call(t, e, op, http.MethodGet, opPath+"/"+id, admin, nil)
+	if code != http.StatusOK {
+		t.Fatalf("read %s: %d %v", id, code, body)
+	}
+	var got []any
+	rows, _ := body["audit"].([]any)
+	for _, r := range rows {
+		m := r.(map[string]any)
+		d, _ := m["detail"].(map[string]any)
+		if v, ok := d["fleet_seating"]; ok && (m["action"] == "create" || m["action"] == "update") {
+			got = append(got, v)
+		}
+	}
+	if len(got) != len(want) {
+		t.Fatalf("audit fleet_seating of %s = %v, want %v", id, got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("audit fleet_seating of %s = %v, want %v", id, got, want)
+		}
+	}
+}

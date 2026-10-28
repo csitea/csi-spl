@@ -220,7 +220,13 @@ type createWorkspaceReq struct {
 	FirstAdminEmail string `json:"first_admin_email"`
 	FirstAdminRole  string `json:"first_admin_role"`
 	NoMail          bool   `json:"no_mail"`
+	// FleetSeating is spec 158's switch (4.2.1, rdb 0230): absent = true, so
+	// a new workspace is seated by the fleet with no step of its own.
+	FleetSeating *bool `json:"fleet_seating"`
 }
+
+// fleetSeating is the switch the create stores: true unless the request says false.
+func (c createWorkspaceReq) fleetSeating() bool { return c.FleetSeating == nil || *c.FleetSeating }
 
 // check validates the request and answers the root key pair to store: the
 // caller's public key, or a fresh pair whose private half is answered once.
@@ -291,6 +297,11 @@ func (s *Server) handleOperatorWorkspaceCreate(w http.ResponseWriter, r *http.Re
 	if _, err := s.postPublicNotice(r.Context(), req.ID); err != nil { // rdb 0173; the sweep retries
 		s.o.Log.Error().Err(err).Str("tenant", req.ID).Msg("public notice")
 	}
+	// The 201 stands as with the display name; putWorkspace reads the switch
+	// back into the body, so a failed write shows there as false, never hidden.
+	if err := s.writeFleetSeating(r.Context(), req.ID, req.fleetSeating()); err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", req.ID).Msg("operator.workspace_fleet_seating")
+	}
 	out := map[string]any{}
 	if req.DisplayName != "" {
 		// The workspace exists and its root key is answered only here, so the
@@ -309,7 +320,8 @@ func (s *Server) handleOperatorWorkspaceCreate(w http.ResponseWriter, r *http.Re
 	}
 	s.putWorkspace(r, a, req.ID, out)
 	s.opAudit(r, a, req.ID, store.AuditCreate, map[string]any{"billing_status": req.BillingStatus,
-		"display_name": req.DisplayName, "first_admin_email": req.FirstAdminEmail, "key_generated": priv != nil})
+		"display_name": req.DisplayName, "first_admin_email": req.FirstAdminEmail, "key_generated": priv != nil,
+		"fleet_seating": req.fleetSeating()})
 	writeJSON(w, http.StatusCreated, out)
 }
 
@@ -325,6 +337,11 @@ func (s *Server) putWorkspace(r *http.Request, a opActor, id string, out map[str
 	out["workspace"] = s.workspaceJSON(ws, a.tenant)
 	if on, err := s.boxJoinOn(r.Context(), id); err == nil {
 		out["box_join_enabled"] = on
+	}
+	if fs, ok := s.o.Store.(store.FleetSeating); ok {
+		if on, err := fs.FleetSeating(r.Context(), id); err == nil {
+			out["fleet_seating"] = on
+		}
 	}
 }
 
@@ -375,6 +392,9 @@ type patchWorkspaceReq struct {
 	// BoxJoinEnabled is spec 108's switch (3.8, rdb 0170): only this route
 	// and do_spl_box_join_switch write it, never the workspace's own admin.
 	BoxJoinEnabled *bool `json:"box_join_enabled"`
+	// FleetSeating is spec 158's switch (4.2.1, rdb 0230): only this route,
+	// the create and do_spl_fleet_seating_switch write it.
+	FleetSeating *bool `json:"fleet_seating"`
 }
 
 func (p patchWorkspaceReq) config() (store.TenantConfigPatch, bool) {
@@ -428,6 +448,9 @@ func (s *Server) patchWorkspace(w http.ResponseWriter, r *http.Request, a opActo
 	if req.BoxJoinEnabled != nil && !s.setBoxJoin(w, r, ws.ID, *req.BoxJoinEnabled) {
 		return false
 	}
+	if req.FleetSeating != nil && !s.setFleetSeating(w, r, ws.ID, *req.FleetSeating) {
+		return false
+	}
 	s.opAudit(r, a, ws.ID, store.AuditUpdate, patchDetail(req))
 	if req.Suspended == nil {
 		return true
@@ -456,6 +479,9 @@ func patchDetail(req patchWorkspaceReq) map[string]any {
 	if req.BoxJoinEnabled != nil {
 		d["box_join_enabled"] = *req.BoxJoinEnabled
 	}
+	if req.FleetSeating != nil {
+		d["fleet_seating"] = *req.FleetSeating
+	}
 	return d
 }
 
@@ -468,6 +494,32 @@ func (s *Server) setBoxJoin(w http.ResponseWriter, r *http.Request, id string, o
 	}
 	if err := sw.SetBoxJoinEnabled(r.Context(), id, on); err != nil {
 		writeErrCause(w, http.StatusInternalServerError, "internal", "join switch not saved", err)
+		return false
+	}
+	return true
+}
+
+// errNoFleetSeating: the store keeps no fleet seating switch.
+var errNoFleetSeating = errors.New("store keeps no fleet seating switch")
+
+// writeFleetSeating writes a workspace's spec 158 switch.
+func (s *Server) writeFleetSeating(ctx context.Context, id string, on bool) error {
+	fs, ok := s.o.Store.(store.FleetSeating)
+	if !ok {
+		return errNoFleetSeating
+	}
+	return fs.SetFleetSeating(ctx, id, on)
+}
+
+// setFleetSeating writes a workspace's spec 158 switch; false = answered.
+func (s *Server) setFleetSeating(w http.ResponseWriter, r *http.Request, id string, on bool) bool {
+	err := s.writeFleetSeating(r.Context(), id, on)
+	switch {
+	case errors.Is(err, errNoFleetSeating):
+		writeErr(w, http.StatusNotImplemented, "unsupported", "this hub's store keeps no fleet seating switch")
+		return false
+	case err != nil:
+		writeErrCause(w, http.StatusInternalServerError, "internal", "fleet seating not saved", err)
 		return false
 	}
 	return true

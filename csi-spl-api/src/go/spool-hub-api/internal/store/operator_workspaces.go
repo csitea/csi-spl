@@ -264,3 +264,72 @@ func (s *Memory) OperatorAuditOf(_ context.Context, tenant string, limit int) ([
 	}
 	return out, nil
 }
+
+// FleetSeating is spec 158's per-workspace switch (4.2.1, rdb 0230
+// tenants.fleet_seating): true lets the fleet desk boxes enrol a key into
+// the workspace and seat the role seats in it. The create route sets it
+// (true unless the request says false); only the operator workspace writes
+// it after that (PATCH /v1/operator/workspaces/{id}, audited), never the
+// workspace's own admin.
+type FleetSeating interface {
+	// FleetSeating reads the switch; ErrNotFound when no such tenant.
+	FleetSeating(ctx context.Context, tenant string) (bool, error)
+	// SetFleetSeating writes it; ErrNotFound when no such tenant.
+	SetFleetSeating(ctx context.Context, tenant string, on bool) error
+}
+
+var (
+	_ FleetSeating = (*Memory)(nil)
+	_ FleetSeating = (*Postgres)(nil)
+)
+
+// FleetSeating reads tenants.fleet_seating in the tenant scope.
+func (s *Postgres) FleetSeating(ctx context.Context, tenant string) (bool, error) {
+	var on bool
+	err := s.queryRowTenant(ctx, tenant, `SELECT fleet_seating FROM tenants WHERE tenant_id = $1`,
+		[]any{tenant}, &on)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, ErrNotFound
+	}
+	return on, err
+}
+
+// SetFleetSeating writes tenants.fleet_seating in the tenant scope.
+func (s *Postgres) SetFleetSeating(ctx context.Context, tenant string, on bool) error {
+	tag, err := s.execTenant(ctx, tenant, `UPDATE tenants SET fleet_seating = $2 WHERE tenant_id = $1`, tenant, on)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// FleetSeating reads the in-memory switch; missing = off.
+func (s *Memory) FleetSeating(_ context.Context, tenant string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.tenants[tenant]; !ok {
+		return false, ErrNotFound
+	}
+	return s.fleetSeating[tenant], nil
+}
+
+// SetFleetSeating writes the in-memory switch; off deletes the key.
+func (s *Memory) SetFleetSeating(_ context.Context, tenant string, on bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.tenants[tenant]; !ok {
+		return ErrNotFound
+	}
+	if s.fleetSeating == nil {
+		s.fleetSeating = map[string]bool{}
+	}
+	if on {
+		s.fleetSeating[tenant] = true
+	} else {
+		delete(s.fleetSeating, tenant)
+	}
+	return nil
+}

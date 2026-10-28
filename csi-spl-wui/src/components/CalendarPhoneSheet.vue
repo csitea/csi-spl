@@ -492,6 +492,7 @@ function addIssue() {
 function refreshOwners() {
   const humans = roster.humansDetail || {}
   const people = roster.people || []
+  // a failed refresh leaves the owner list empty until the next open
   if (Object.keys(humans).length === 0 && people.length === 0) void roster.refresh().catch(() => {})
 }
 

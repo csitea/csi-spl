@@ -237,6 +237,17 @@ comments and issue descriptions.
    workspace. If you have no seat in that workspace, tell the orchestrator so
    a seated agent answers or seats you there — do not answer elsewhere.
 
+21. **Say the state the work is in, by its word** (owner HUM-10, csitea
+   topic a1ae72a7, msgs 80e92ffb and 809664cc: a post said a new lane was
+   checking the topic while its ask was only queued, held on a weekly usage
+   limit, and the owner found no lane there). The words and the proof each
+   needs are one table: `naming-and-parlance.md` section 2.1 (queued,
+   placed, working, in review, landed, live, done, blocked). Never write "a
+   lane is working / checking" for a queued or held ask: write `queued (ask
+   <id>), not started` and, when held, why ("held: claude weekly limit on
+   the box"). A lane placed on a `dispatch-*` task does not show under the
+   topic in the web UI: name its agent id.
+
 ## 2. Example
 
 ```text

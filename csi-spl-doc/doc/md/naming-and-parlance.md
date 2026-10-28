@@ -179,6 +179,24 @@ It explains the terms as they are used in practice, highlights how they differ f
 | **the desk** | The bridge and mailbox infrastructure (`do_spl_desk_up`, `spl-desk-reply`) connecting an agent running in a terminal pane to the Web UI / customer workspace for human interaction. | Not a piece of office furniture; an agent UI connector harness. | `glossary.md#L41`, `spl-desk-up.func.sh`, `spl-desk-reply.func.sh` |
 | **workspace (never "tenant" in posts)** | A customer's isolated instance/realm (channels, members, DMs, docs, agents), e.g. `t1`. "Workspace" is the user-facing term; "tenant" is reserved strictly for code variables (`TENANT_ID`) and internal cnf. | In developer parlance, "workspace" often means a local git worktree; here it is the multi-tenant customer organization realm. | `glossary.md#L22` & `L57`, topic `6e61fb91` |
 
+<a id="ws-doc-603e1af9-c318-4470-9260-57af9f29ef3d"></a>
+### 2.1 State words about work
+
+Owner HUM-10, csitea topic a1ae72a7, msgs 80e92ffb and 809664cc ("let's define what what means in the naming convention doc"): a post said a new lane was checking a topic while its ask was only queued, held on the placer's weekly usage limit, so the owner saw no lane under the topic. An agent uses one of these words about work only with the proof in its row; without the proof it uses the word one row up. The post rules that hold them: `how-to-post.md` rules 14, 15, 16, 19 and 21.
+
+| Word | Means | Proof the post carries | Where the owner sees it |
+|---|---|---|---|
+| **queued** | An ask is in the spawn queue; no lane exists and nobody works on it yet. | The ask id (first 8 hex digits) and, when it waits, its position and what holds it: "queued (ask ec43caa4, position 2: claude weekly limit on the box), not started". `ASKS_ALL=1 ./run -a do_spl_asks_open` shows it open. | Nowhere in the topic: a queued ask has no lane. |
+| **placed** | The placer started a lane window for the ask. | The lane's agent id on the same line (`c-123` or `c-123@<box>`; a role seat c-001..c-003 does not count), and `lane-map.sh --all` shows a live row for it; the ask book shows the ask done `placed: <ID>@<box>`. | The lane map; in the topic only as in the last row. |
+| **working** ("a lane is checking / building") | Placed AND the lane's session has started on the task. | Placed's proof, plus the lane's own first post or commit on that task (or its pane on the task). A queued or held ask is never "working". | The lane map row; in the topic only as in the last row. |
+| **in review** | The lane's result is written and waits for its reviewer seat or the dispatch holder's ACCEPTED. | The review branch or commit sha and the reviewer's agent id. | The result post in the topic. |
+| **landed** (on master) | The commit is on `origin/master`, not yet deployed (or needs no deploy). | `git fetch origin master && git merge-base --is-ancestor <sha> origin/master` exits 0; the sha in the post. | The post opens **Landed, not live yet.** (rule 15). |
+| **live** | On master AND served: bare "live" = live on dev AND live on prd (rule 14). | The sha, served on dev and prd (`ENV=<dev\|prd> ./run -a do_check_deploy_lag`), and the `checked:` / `not checked:` lines (rule 16). | The served build: `/build.json` (web UI) or `/version` (hub). |
+| **done** | The task's last step is true: live for a hub or web UI change, landed for a change with no deploy (docs, orc), and its issue is `done`. | The proof of live or landed (say `no deploy` for the second), and the issue key. | The issue's status. |
+| **blocked** | The work cannot move until someone else acts. | The blocker by name: who must act and on what (a person `@HUM-n`, an agent id, an ask id, a red job). | The issue's `blocked` status; the blocker post. |
+
+Where a lane shows in the web UI: a topic lists its lanes only when the lane's task is that topic. A lane placed on a `dispatch-<topic8>` task does not show under the topic, even when it works for it; the post names its agent id instead.
+
 ---
 
 <a id="ws-doc-c86867e2-6715-4000-9892-01f7c1b82887"></a>

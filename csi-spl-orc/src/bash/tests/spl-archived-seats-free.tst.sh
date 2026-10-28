@@ -13,13 +13,17 @@
 #   c-702 lane on a live topic (not in the hub answer)  -> untouched
 #   c-703 bound, uncommitted file                       -> kept, "1 changed"
 #   c-710 bound, a commit on no remote branch           -> kept, "1 unpushed"
-#   c-001 role seat                                     -> kept, never closed
-#   c-705 names the topic in prose only                 -> kept
-#   c-706 `Task:` line names another topic              -> kept
+#   c-001 role seat                                     -> skipped, never closed
+#   c-705 names the topic in prose only                 -> skipped (SPL-4092)
+#   c-706 `Task:` line names another topic              -> skipped (SPL-4092)
 #   c-709 brief written after the archive               -> kept
 #   c-707 lane row live, no window here                 -> skipped silently
-# Then: a second run frees nothing and sends no second blocker; a dry run
-# calls nothing. RED CONTROL: without the action file every case fails
+# A skipped lane is neither freed nor named in the blocker: the hub row names
+# its topic only because the spawn stores the first topic a brief mentions
+# (SPL-4092: n=3 blockers in 1.5 h, each answered "leave"). It is only a
+# `skip` line of the run's own output. Then: a second run frees nothing and
+# sends no second blocker; a new kept lane sends it again; a dry run calls
+# nothing. RED CONTROL: without the action file every case fails
 # (`do_spl_archived_seats_free: command not found`).
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -119,10 +123,21 @@ if [[ $rc -eq 0 && "$out" == *"WOULD free c-701"* && "$out" == *"WOULD send the 
 else fail "1 dry run (rc $rc): $out // $(cat "$LOG")"; fi
 grep -q '^hub lane --fleet main --archived --box box-a$' "$LOG" && pass "1b the hub read is lane --archived --box box-a" ||
   fail "1b the hub read: $(grep '^hub' "$LOG")"
+# skipped <out> <case>: the role seat and the unbound lanes are skip lines of
+# the output, never KEEP lines and never in the blocker the run prints.
+skipped() {
+  local id
+  for id in c-001 c-705 c-706; do
+    if grep -qE "INFO $id: " <<<"$1" && ! grep -qE "KEEP $id |- $id," <<<"$1"; then pass "$2 $id is a skip line only"
+    else fail "$2 $id not a skip line only: $(grep -- "$id" <<<"$1")"; fi
+  done
+}
+skipped "$out" "1c dry run:"
 
 # 2. the live run
 out="$(run DRY_RUN=0)"; rc=$?
 [[ $rc -eq 0 ]] && pass "2 rc 0" || fail "2 rc $rc: $out"
+skipped "$out" "2i live run:"
 [[ "$(closed c-701)" == 1 ]] && pass "2a archived topic, Task: line -> c-701 freed" || fail "2a c-701 closed $(closed c-701)x: $out"
 grep -q '^issue c-701 end diss discussion archived by the owner' "$LOG" && pass "2b c-701's open issue ended with the reason" ||
   fail "2b issue end: $(grep '^issue' "$LOG")"
@@ -138,15 +153,14 @@ if [[ "$(grep -c '^send ' "$LOG")" == 1 && "$b" == *"--to orchestrator --kind bl
   pass "2f one blocker to the orchestrator"
 else fail "2f sends: $(grep '^send' "$LOG")"; fi
 declare -A want=(
-  [c-703]="1 changed, 0 unpushed" [c-710]="0 changed, 1 unpushed" [c-001]="a role seat"
-  [c-705]="names it in passing only" [c-706]="binds it to cccccccc" [c-709]="written after the archive")
+  [c-703]="1 changed, 0 unpushed" [c-710]="0 changed, 1 unpushed" [c-709]="written after the archive")
 for id in "${!want[@]}"; do
   if grep -q -- "- $id, topic $ARCH: .*${want[$id]}" <<<"$b"; then pass "2g blocker names $id: ${want[$id]}"
   else fail "2g blocker lacks $id (${want[$id]}): $b"; fi
 done
 named=""
-for id in c-707 c-701 c-708 c-702; do grep -q -- "- $id," <<<"$b" && named+=" $id"; done
-[[ -z "$named" && "$b" == *"- c-703,"* ]] && pass "2h the blocker names no freed, live-topic or absent lane" ||
+for id in c-707 c-701 c-708 c-702 c-001 c-705 c-706; do grep -q -- "- $id," <<<"$b" && named+=" $id"; done
+[[ -z "$named" && "$b" == *"- c-703,"* ]] && pass "2h the blocker names no freed, live-topic, absent, role or unbound lane" ||
   fail "2h blocker names:${named:- (no blocker)}"
 
 # 3. a second run frees nothing more and sends no second blocker
@@ -156,12 +170,19 @@ if [[ $rc -eq 0 && "$(grep -c '^close ' "$LOG")" == "$n_close" && "$(grep -c '^s
   pass "3 second run: nothing more freed, no second blocker"
 else fail "3 second run (rc $rc): $out"; fi
 
-# 4. a new kept lane re-sends the blocker
-echo c-711 >>"$T/archived.ids" && echo c-711 >>"$T/windows"
-brief c-711 $'# Lane\n\nNo binding here, only dispatch-aaaaaaaa in passing.'
+# 4. a new unbound lane sends no blocker; a new kept lane sends it again
+echo c-712 >>"$T/archived.ids" && echo c-712 >>"$T/windows"
+brief c-712 $'# Lane\n\nNo binding here, only dispatch-aaaaaaaa in passing.'
 out="$(run DRY_RUN=0)"
-[[ "$(grep -c '^send ' "$LOG")" == $((n_send + 1)) && "$(blocker)" == *"- c-711,"* ]] &&
-  pass "4 a new kept lane sends the blocker again" || fail "4 resend: $out"
+[[ "$(grep -c '^send ' "$LOG")" == "$n_send" && "$(closed c-712)" == 0 && "$out" == *"INFO c-712: "* ]] &&
+  pass "4a a new unbound lane: a skip line, no blocker, not freed" || fail "4a c-712: $out"
+echo c-711 >>"$T/archived.ids" && echo c-711 >>"$T/windows"
+brief c-711 $'# Lane\n\nTask: dispatch-aaaaaaaa'
+wt c-711 && echo wip >"$T/wt/c-711/wip.txt"
+printf 'c-711\tclaude\t%%1\t%s\t20261026T000000Z\n' "$T/wt/c-711" >>"$SP/registry.tsv"
+out="$(run DRY_RUN=0)"
+[[ "$(grep -c '^send ' "$LOG")" == $((n_send + 1)) && "$(blocker)" == *"- c-711,"* && "$(blocker)" != *"- c-712,"* ]] &&
+  pass "4b a new kept lane sends the blocker again" || fail "4b resend: $out"
 
 # 5. the hub read fails -> rc 1, nothing freed
 n_close="$(grep -c '^close ' "$LOG")"

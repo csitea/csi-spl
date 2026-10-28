@@ -19,11 +19,15 @@
 # @description (<spool root>/<id>/lifetime/brief.md) has a `Task:` or `Topic:`
 # @description line naming that topic (`Task: dispatch-<topic8>`, `Topic: [env
 # @description tenant] <uuid>`). Kept, and named in ONE blocker to the
-# @description orchestrator (id, topic, reason, git counts): a role seat (001-003),
-# @description a lane whose brief binds it to another topic or to none, one started
-# @description after the archive, and one with uncommitted or unpushed work. The
-# @description blocker is sent again only when a new (id, topic, reason) appears.
-# @description A lane not running on this box is skipped. A re-run frees nothing
+# @description orchestrator (id, topic, reason, git counts): a lane bound to the
+# @description topic but started after the archive, and one with uncommitted or
+# @description unpushed work. The blocker is sent again only when a new (id,
+# @description topic, reason) appears. Skipped, a line of the run's own output
+# @description only (neither freed nor reported, SPL-4092: they do not belong to
+# @description the archived topic, so every new lane of such a round re-raised
+# @description the blocker): a role seat (001-003), a lane whose brief binds it
+# @description to another topic or to none, and a lane not running on this box.
+# @description A re-run frees nothing
 # @description more: a freed lane's row is done and its window gone.
 # @description Dry run unless DRY_RUN=0: it prints what it would free and keep.
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -67,20 +71,21 @@ do_spl_archived_seats_free() {
 }
 
 # spl_archived_seat_verdict ROOT ID TOPIC AT LIVE -> `free`, or `keep<TAB>why`,
-# or `skip<TAB>why` (not running here: nothing to free, nothing to report).
+# or `skip<TAB>why` (not running here, a role seat, or not bound to the
+# archived topic: nothing to free, nothing to report).
 spl_archived_seat_verdict() {
   local root="$1" id="$2" topic="$3" at="$4" live="$5" brief bound line wt
   jq -e --arg a "$id" 'index($a) != null' >/dev/null 2>&1 <<<"$live" ||
     { printf 'skip\tits lane row is live, but no window of it runs on this box\n'; return 0; }
-  if spl_is_role_seat "$id"; then printf 'keep\ta role seat (001-003) is never freed by this rule\n'; return 0; fi
+  if spl_is_role_seat "$id"; then printf 'skip\ta role seat (001-003) is never freed by this rule\n'; return 0; fi
   brief="$root/$id/lifetime/brief.md"
   line="$(grep -m1 -E '^(Task|Topic):' "$brief" 2>/dev/null)"
   bound="$(spl_archived_seat_binding "$line")"
   if [[ -z "$bound" ]]; then
-    printf 'keep\tits brief has no Task:/Topic: line naming the topic: the lane row names it in passing only\n'; return 0
+    printf 'skip\tits brief has no Task:/Topic: line naming the topic: the lane row names it in passing only\n'; return 0
   fi
   if [[ "${bound:0:8}" != "${topic:0:8}" ]]; then
-    printf 'keep\tits brief binds it to %s, not to the archived topic\n' "$bound"; return 0
+    printf 'skip\tits brief binds it to %s, not to the archived topic\n' "$bound"; return 0
   fi
   if [[ -n "$at" && -f "$brief" ]] && (( $(stat -c %Y "$brief") > $(date -d "$at" +%s 2>/dev/null || echo 0) )); then
     printf 'keep\tits brief was written after the archive (%s): placed on an archived topic on purpose?\n' "$at"; return 0

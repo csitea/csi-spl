@@ -29,14 +29,9 @@ _sec_eslint_root() {
   return 1
 }
 
-do_sec_eslint() {
-  local root cfg baseline bin
-  root=$(_sec_eslint_root) || return 1
-  cfg="${SEC_ESLINT_CONFIG:-$root/.eslint-security.config.mjs}"
-  baseline="${SEC_ESLINT_BASELINE:-$root/.eslint-security-baseline.txt}"
-  [[ -f "$cfg" ]] || { do_log "FATAL no $cfg -- eslint without the security config is not this gate"; return 1; }
-  [[ -f "$baseline" ]] || { do_log "FATAL no $baseline -- eslint without a baseline is not this gate"; return 1; }
-
+# Set the caller's bin (and cfg) from SEC_ESLINT_BIN, else SEC_ESLINT_DIR, whose
+# node_modules gets a copy of the config. Not a $(...): its FATAL must reach the log.
+_sec_eslint_bin() {
   bin="${SEC_ESLINT_BIN:-}"
   if [[ -z "$bin" ]]; then
     [[ -n "${SEC_ESLINT_DIR:-}" && -x "$SEC_ESLINT_DIR/node_modules/.bin/eslint" ]] \
@@ -47,12 +42,14 @@ do_sec_eslint() {
     cp "$cfg" "$SEC_ESLINT_DIR/eslint.config.mjs"
     cfg="$SEC_ESLINT_DIR/eslint.config.mjs"
   fi
+}
 
-  # --- control: eslint must flag a planted eval() ---------------------------
-  local ctl; ctl=$(mktemp -d)
+# The negative control: eslint must flag a planted eval(), or nothing is proven.
+_sec_eslint_control() {
+  local bin="$1" cfg="$2" ctl n
+  ctl=$(mktemp -d)
   printf 'export function f(x){ return eval(x); }\n' >"$ctl/bad.mjs"
   do_log "INFO eslint-plugin-security control (want detect-eval-with-expression)"
-  local n
   n=$(SEC_ESLINT_PHASE=control "$bin" --no-config-lookup -c "$cfg" -f json "$ctl/bad.mjs" 2>/dev/null \
       | python3 -c 'import json,sys
 try: print(sum(len(f.get("messages",[])) for f in json.load(sys.stdin)))
@@ -62,18 +59,50 @@ except Exception: print(-1)')
     do_log "FATAL control: eslint flagged nothing on a planted eval (messages=${n:-0}) -- the check proved nothing"
     return 1
   fi
+}
+
+# Print the root-relative .mjs/.js to scan, one per line: SEC_ESLINT_FILES, or
+# every file under the dirs (split on purpose) outside node_modules.
+_sec_eslint_files() {
+  local root="$1" dirs="$2" f
+  if [[ -n "${SEC_ESLINT_FILES:-}" ]]; then
+    while IFS= read -r f; do [[ -n "$f" ]] && printf '%s\n' "$f"; done <<<"$SEC_ESLINT_FILES"
+    return 0
+  fi
+  # shellcheck disable=SC2086
+  ( cd "$root" && find $dirs -type f \( -name '*.mjs' -o -name '*.js' \) 2>/dev/null | grep -v '/node_modules/' | sort )
+}
+
+# Fold eslint's JSON report (file $1) into "rule|root-relative file|n" lines.
+_sec_eslint_counts() {
+  python3 - "$1" "$2" <<'PY'
+import json,sys,collections
+root=sys.argv[2].rstrip("/")+"/"
+cur=collections.Counter()
+for f in json.load(open(sys.argv[1])):
+    fp=f.get("filePath","")
+    rel=fp[len(root):] if fp.startswith(root) else fp
+    for m in f.get("messages",[]):
+        if m.get("ruleId"): cur[(m["ruleId"],rel)]+=1
+for (rule,rel),n in sorted(cur.items()): print(f"{rule}|{rel}|{n}")
+PY
+}
+
+do_sec_eslint() {
+  local root cfg baseline bin
+  root=$(_sec_eslint_root) || return 1
+  cfg="${SEC_ESLINT_CONFIG:-$root/.eslint-security.config.mjs}"
+  baseline="${SEC_ESLINT_BASELINE:-$root/.eslint-security-baseline.txt}"
+  [[ -f "$cfg" ]] || { do_log "FATAL no $cfg -- eslint without the security config is not this gate"; return 1; }
+  [[ -f "$baseline" ]] || { do_log "FATAL no $baseline -- eslint without a baseline is not this gate"; return 1; }
+
+  _sec_eslint_bin || return 1
+  _sec_eslint_control "$bin" "$cfg" || return 1
 
   # --- scan: the WUI .mjs/.js ------------------------------------------------
   local dirs="${SEC_ESLINT_DIRS:-csi-spl-wui/src}"
-  local files=() f
-  if [[ -n "${SEC_ESLINT_FILES:-}" ]]; then
-    while IFS= read -r f; do [[ -n "$f" ]] && files+=("$f"); done <<<"$SEC_ESLINT_FILES"
-  else
-    # shellcheck disable=SC2086
-    mapfile -t files < <(
-      cd "$root" && find $dirs -type f \( -name '*.mjs' -o -name '*.js' \) 2>/dev/null | grep -v '/node_modules/' | sort
-    )
-  fi
+  local files=()
+  mapfile -t files < <(_sec_eslint_files "$root" "$dirs")
   if [[ "${#files[@]}" -eq 0 ]]; then
     do_log "FATAL no .mjs/.js under $dirs -- refusing a scan that checks nothing"
     return 1
@@ -87,17 +116,7 @@ except Exception: print(-1)')
   fi
 
   local counts rc=0; counts=$(mktemp)
-  python3 - "$out" "$root" >"$counts" <<'PY'
-import json,sys,collections
-root=sys.argv[2].rstrip("/")+"/"
-cur=collections.Counter()
-for f in json.load(open(sys.argv[1])):
-    fp=f.get("filePath","")
-    rel=fp[len(root):] if fp.startswith(root) else fp
-    for m in f.get("messages",[]):
-        if m.get("ruleId"): cur[(m["ruleId"],rel)]+=1
-for (rule,rel),n in sorted(cur.items()): print(f"{rule}|{rel}|{n}")
-PY
+  _sec_eslint_counts "$out" "$root" >"$counts"
   rm -f "$out"
   # The baseline is held below only over what was scanned: the files, or the dirs.
   if [[ -n "${SEC_ESLINT_FILES:-}" ]]; then

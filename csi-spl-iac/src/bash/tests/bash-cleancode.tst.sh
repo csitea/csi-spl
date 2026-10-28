@@ -24,7 +24,6 @@ MAX_LINES=75
 # list may only shrink: split a function into named steps and delete its line.
 LONG="
   csi-spl-iac/src/bash/run/provision-firebase-dns.func.sh do_provision_firebase_dns 169
-  csi-spl-iac/src/bash/run/sec-eslint.func.sh do_sec_eslint 80
   csi-spl-iac/src/bash/run/spl-secret-unused-list.func.sh spl_secret_unused_table 76
   csi-spl-orc/lib/bash/funcs/lde-cnf.func.sh do_lde_cnf 76
   csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh _spawn_worktree 79

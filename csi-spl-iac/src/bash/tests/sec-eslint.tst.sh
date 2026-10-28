@@ -74,6 +74,29 @@ set -e
 [[ "$rc" -ne 0 ]] && grep -q 'lower this line' <<<"$out" \
   && pass "a count below its baseline line fails" || fail "a baseline above the count passed (rc=$rc)"
 
+# --- a missing baseline is refused (r35-03 gap E) ----------------------------
+set +e
+out=$(PATH="$T/bin:$PATH" SEC_ESLINT_ROOT="$ROOT" SEC_ESLINT_BIN="$T/bin/eslint" SEC_ESLINT_BASELINE="$T/none.txt" do_sec_eslint 2>&1); rc=$?
+set -e
+[[ "$rc" -ne 0 ]] && grep -q 'without a baseline' <<<"$out" \
+  && pass "a missing baseline is refused" || fail "missing baseline not refused (rc=$rc)"
+
+# --- an empty scan is refused (r35-03 gap A) ---------------------------------
+mkdir -p "$ROOT/empty"
+set +e
+out=$(PATH="$T/bin:$PATH" SEC_ESLINT_ROOT="$ROOT" SEC_ESLINT_BIN="$T/bin/eslint" SEC_ESLINT_DIRS=empty do_sec_eslint 2>&1); rc=$?
+set -e
+[[ "$rc" -ne 0 ]] && grep -q 'refusing a scan that checks nothing' <<<"$out" \
+  && pass "a scan of no files is refused" || fail "empty scan not refused (rc=$rc)"
+
+# --- non-JSON scan output is refused (r35-03 gap B) --------------------------
+stub eslint 'if [[ "${SEC_ESLINT_PHASE:-}" == control ]]; then echo "[{\"filePath\":\"/x/bad.mjs\",\"messages\":[{\"ruleId\":\"security/detect-eval-with-expression\"}]}]"; else echo "Oops! Something went wrong"; fi'
+set +e
+out=$(PATH="$T/bin:$PATH" SEC_ESLINT_ROOT="$ROOT" SEC_ESLINT_BIN="$T/bin/eslint" do_sec_eslint 2>&1); rc=$?
+set -e
+[[ "$rc" -ne 0 ]] && grep -q 'no parseable JSON' <<<"$out" \
+  && pass "non-JSON eslint scan output is refused" || fail "non-JSON scan output not refused (rc=$rc)"
+
 # --- the workflow actually invokes the action -------------------------------
 if [[ -f "$WF" ]]; then
   miss=0

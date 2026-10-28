@@ -163,12 +163,16 @@ resource "google_cloud_run_v2_service" "hub" {
     # deploy (do_canary_hub_deploy) tags the new revision, sends it a share,
     # then promotes it to latest 100 % or pins the old revision back. That
     # split belongs to the 20 pipeline too; an apply mid-canary must never
-    # snap it to latest, nor un-pin a rolled-back service.
+    # snap it to latest, nor un-pin a rolled-back service. And the revision
+    # name (SPL-3997): the 20 pipeline names each revision it deploys, so dev
+    # planned `template.revision -> null` after every deploy and the
+    # dev-leads-prd gate refused the prd apply.
     ignore_changes = [
       client,
       client_version,
       scaling,
       template[0].containers[0].image,
+      template[0].revision,
       traffic,
     ]
   }

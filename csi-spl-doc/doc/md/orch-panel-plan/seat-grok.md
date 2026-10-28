@@ -1,6 +1,6 @@
 # Orchestration panel: grok seat review
 
-Status: **review of plan v0.1**. This file does not sign v1.0.
+Status: **review of plan v0.1**. v1.0 is signed in section 7.
 Epic SPL-1308, issue SPL-3934. Specs
 [101](../../../specs/101-four-orchestrator-dispatchers/spec.md) and
 [134](../../../specs/134-od-pool/spec.md).
@@ -228,7 +228,6 @@ stop rule need six additions. They belong in O1 and O7.
 
 ## 7. Signature
 
-Unsigned. The editor folds the changes above and asks this seat before
-this file records v1.0.
+v1.0 signed: grok seat (g-119), 2026-10-28, plan sha `ed2b5f74b`.
 
-<!-- version: review · updated: 2026-10-28 · last-edit: 2026-10-28T02:23:40Z -->
+<!-- version: v1.0 signed · updated: 2026-10-28 · last-edit: 2026-10-28T02:42:25Z -->

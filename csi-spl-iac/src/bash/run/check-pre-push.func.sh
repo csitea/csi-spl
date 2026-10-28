@@ -590,13 +590,16 @@ _pp_budget_why() {  # <part-fn> -> where its budget came from
       part=api base="$_pp_api_full_base" cap="${PRE_PUSH_API_FULL_CAP:-2700}" var=PRE_PUSH_API_FULL_TIMEOUT scale=full ;;
     _pp_part_orc)
       if [[ "${_PP_TIER:-fast}" != full ]]; then
-        part=orc base="$_pp_orc_fast_base" cap="${PRE_PUSH_ORC_FAST_CAP:-1500}" var=PRE_PUSH_ORC_FAST_CAP scale=fast
+        # FAST_CAP does not bind at load/cpu <= 1, nor while the scaled base
+        # is under it. The raise knob is PRE_PUSH_PART_TIMEOUT.
+        part=orc base="$_pp_orc_fast_base" cap="${PRE_PUSH_ORC_FAST_CAP:-1500}" var=PRE_PUSH_PART_TIMEOUT scale=fast
       else
         part=orc base="$_pp_orc_full_base" cap="${PRE_PUSH_ORC_FULL_CAP:-6000}" var=PRE_PUSH_ORC_FULL_TIMEOUT scale=full
       fi ;;
     _pp_part_iac)
       if [[ "${_PP_TIER:-fast}" == full ]]; then return 0; fi
-      part=iac base="$_pp_iac_fast_base" cap="${PRE_PUSH_IAC_FAST_CAP:-1200}" var=PRE_PUSH_IAC_FAST_CAP scale=fast ;;
+      # Same raise knob as fast orc: FAST_CAP does not bind below the cap.
+      part=iac base="$_pp_iac_fast_base" cap="${PRE_PUSH_IAC_FAST_CAP:-1200}" var=PRE_PUSH_PART_TIMEOUT scale=fast ;;
     *) return 0 ;;
   esac
   if [[ "$scale" == full && -n "${!var:-}" ]]; then echo "$var"; return 0; fi
@@ -608,6 +611,9 @@ _pp_part_api() {
   SPL_API_TEST_TIER="${_PP_TIER:-fast}" timeout -k 10 "$(_pp_budget _pp_part_api)" bash "$1/csi-spl-api/src/bash/tests/run-all-tests.sh"
 }
 _pp_part_iac() {
+  # Read the load in this shell. $(_pp_budget) is a subshell, so a read there
+  # never reaches the TIMED OUT note (api and orc already read here).
+  _pp_load_read
   IAC_TEST_TIER="${_PP_TIER:-fast}" timeout -k 10 "$(_pp_budget _pp_part_iac)" bash "$1/csi-spl-iac/src/bash/tests/run-all-tests.sh"
 }
 # An orc-only push ran no orc test, and orc was the real red in 7 of the 19 red

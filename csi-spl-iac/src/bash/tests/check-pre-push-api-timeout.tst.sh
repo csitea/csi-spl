@@ -44,11 +44,15 @@
 #  15. the planted run, time scaled 1/1000 (a stubbed `timeout` hands the real
 #      one budget/1000 s): a stub orc suite that sleeps 2.274 s (the slowest
 #      measured, 2274 s) TIMES OUT (rc 124) under the old 1800 s base and
+#      passes under the default
 #  16. fast iac and orc scale from 500 s and 600 s (load 32/16, the cap,
 #      PRE_PUSH_PART_TIMEOUT=77 on both, the fast why string) and a verdict
 #      line carries tier= with the detail last
+#  17. the fast iac part reads the load once, in its own shell, before
+#      `timeout`: the TIMED OUT note keeps that load after the plant changes
 #   RED CONTROL (SPL-3748): against the 1800 s base and 3600 s cap
-#   (origin/master 323d69f79) 9 of 39 fail: 8, 11, 5 of the 9 cases in 13
+#   (origin/master 323d69f79) 9 of 39 fail (that file's count then, not this
+#   file's total): 8, 11, 5 of the 9 cases in 13
 #   (load 8, 20, 32, 9999, the reason), 14 and the pass of 15.
 #   RED CONTROL: against the fixed orc 1800 s (origin/master 9575ee69a) 5 of
 #   the 9 cases in 13 fail (load 20, 32, 9999, the cap override, the reason).
@@ -154,10 +158,10 @@ check "16. fast iac, load 9999/16 -> the 1200 s cap" 1200 "$(budget _pp_part_iac
 check "16. fast iac + PRE_PUSH_PART_TIMEOUT=77" 77 "$(budget _pp_part_iac fast PRE_PUSH_PART_TIMEOUT=77)"
 check "16. fast orc + PRE_PUSH_PART_TIMEOUT=77" 77 "$(orc fast PRE_PUSH_PART_TIMEOUT=77)"
 check "16. the fast iac reason names the base, the load and the cap" \
-  "iac fast default 500s x load 32/16 cpus, cap 1200s; raise it with PRE_PUSH_IAC_FAST_CAP" \
+  "iac fast default 500s x load 32/16 cpus, cap 1200s; raise it with PRE_PUSH_PART_TIMEOUT" \
   "$(PLANT_LOAD=32 _PP_TIER=fast _pp_budget_why _pp_part_iac)"
 check "16. the fast orc reason names the base, the load and the cap" \
-  "orc fast default 600s x load 32/16 cpus, cap 1500s; raise it with PRE_PUSH_ORC_FAST_CAP" \
+  "orc fast default 600s x load 32/16 cpus, cap 1500s; raise it with PRE_PUSH_PART_TIMEOUT" \
   "$(PLANT_LOAD=32 _PP_TIER=fast _pp_budget_why _pp_part_orc)"
 check "16. a verdict line carries tier=fast and keeps the detail last" \
   "PART iac FAIL 9s tree=/t HEAD=abc123 tier=fast failing=flag" \
@@ -165,6 +169,33 @@ check "16. a verdict line carries tier=fast and keeps the detail last" \
 check "16. a verdict line carries tier=full and keeps the detail last" \
   "PART iac FAIL 9s tree=/t HEAD=abc123 tier=full failing=flag" \
   "$(_pp_vline full)"
+
+# 17. The file-level load stub has no once-guard, and a read inside $() never
+# reaches this shell. The plant moves inside `timeout`, which runs here, after
+# the budget is expanded. The note must still show the first read.
+note17() {
+  local log note
+  log="$(mktemp)"
+  (
+    _pp_load_read() { [[ -n "${_PP_LOAD:-}" ]] && return 0; _PP_LOAD="${PLANT_LOAD:-0} 16"; }
+    timeout() { PLANT_LOAD=9999; return 124; }
+    do_log() { printf '%s\n' "$*" >>"$log"; }
+    unset _PP_LOAD
+    PLANT_LOAD=32
+    _PP_NAMES=() _PP_STAT=() _PP_SECS=()
+    _PP_FAILED=0
+    _PP_BASE_WT=""
+    _PP_TIER=fast
+    PRE_PUSH_ORPHAN_GRACE=0 \
+      _pp_run iac _pp_part_iac /nonexistent nobase >/dev/null 2>&1
+  )
+  note="$(grep -o 'TIMED OUT after [0-9]*s[^)]*)' "$log" | sed -n '1p')"
+  rm -f "$log"
+  printf '%s' "$note"
+}
+check "17. fast iac TIMED OUT note keeps the load read before timeout" \
+  "TIMED OUT after 1000s (iac fast default 500s x load 32/16 cpus, cap 1200s; raise it with PRE_PUSH_PART_TIMEOUT)" \
+  "$(note17)"
 
 # 9. the real timeout on a stub iac suite that runs 2 s
 unset -f timeout
@@ -189,6 +220,6 @@ check "15. CONTROL: the 2274 s suite under the old 1800 s base -> TIMED OUT (rc 
 rc=0; ( _PP_TIER=full _pp_part_orc "$T" ) >/dev/null 2>&1 || rc=$?
 check "15. the 2274 s suite under the default full-tier orc budget -> passes" 0 "$rc"
 
-total=47
+total=48
 echo "--- $((total - fails))/$total passed ---"
 [[ "$fails" -eq 0 ]]

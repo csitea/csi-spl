@@ -141,7 +141,7 @@ export function calOwnerChoices(humans, people) {
  * @param {{ discussion?: string, issueKeys?: unknown[], owner?: string } | null | undefined} form
  * @returns {{ topic_id: string, issue_keys: string[], owner_id: string } | { error: string }}
  */
-export function calLinksOf(form) {
+function calLinksOf(form) {
   const discussion = String((form && form.discussion) || '').trim()
   const topicId = discussion ? calDiscussionRef(discussion) : ''
   if (discussion && !topicId) return { error: 'calendar_event.error_discussion' }

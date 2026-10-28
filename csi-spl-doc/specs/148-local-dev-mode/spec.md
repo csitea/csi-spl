@@ -384,7 +384,7 @@ The preflight script (`csi-spl-orc/src/bash/scripts/dev-preflight.sh`) executes 
 | **4** | **Docker Compose v2** | `docker compose version` returns `Docker Compose version v2.*` (>= 2.20.0) | `ERROR: Docker Compose v2 plugin is missing or older than v2.20.0.` | `sudo apt-get install -y docker-compose-plugin` | `brew install docker-compose` | `sudo dnf install -y docker-compose-plugin` |
 | **5** | **Free Disk Space** | `df -PB 1G . \| awk 'NR==2 {print $4}'` >= 5 | `ERROR: Insufficient disk space. Spool local dev requires at least 5 GB of free disk space.` | `docker system prune -f` (Free up disk space) | `docker system prune -f` (Free up disk space) | `docker system prune -f` (Free up disk space) |
 | **6** | **Available RAM** | Free memory >= 2048 MB (`/proc/meminfo` or `sysctl hw.memsize`) | `ERROR: Insufficient system memory. Spool local dev requires at least 2 GB of available RAM.` | Close unused applications | Increase Docker Desktop memory allocation | Close unused applications |
-| **7** | **Free Ports** | Ports `8080`, `5432`, `9000`, `8025`, `1025` not bound on `127.0.0.1` | `ERROR: Port <PORT> is already bound by another service on this machine.` | `sudo lsof -i :<PORT> -sTCP:LISTEN` (Inspect and stop conflicting service) | `lsof -i :<PORT> -sTCP:LISTEN` (Inspect and stop conflicting service) | `sudo ss -tulpn \| grep :<PORT>` (Inspect and stop conflicting service) |
+| **7** | **Free Ports** | Ports `8080`, `8443`, `1025`, `8025` not bound on `127.0.0.1` | `ERROR: Port <PORT> is already bound by another service on this machine.` | `sudo lsof -i :<PORT> -sTCP:LISTEN` (Inspect and stop conflicting service) | `lsof -i :<PORT> -sTCP:LISTEN` (Inspect and stop conflicting service) | `sudo ss -tulpn \| grep :<PORT>` (Inspect and stop conflicting service) |
 
 ---
 
@@ -540,7 +540,7 @@ Every scenario below was measured directly from the repository code. Each scenar
    ./run -a do_dev_mode_down --purge
    -> Containers stopped and removed.
    -> Volumes purged.
-   -> Host ports 8080, 5432, 9000, 8025, 1025 completely freed.
+   -> Host ports 8080, 8443, 1025, 8025 completely freed.
 ```
 
 ---

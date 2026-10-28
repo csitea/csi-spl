@@ -1,7 +1,8 @@
-// Spec 123 5 + 8 (SPL-2056, owner HUM-10, t1 dbf2f39b): Monitoring -> Costs
-// in a real browser, against the mock bundle (dev has no cost rows), at
-// 1400x900 and 390x844:
-//   - the tab shows for a member with costs.read (the mock's default me is
+// Spec 123 5 + 8 (SPL-2056, owner HUM-10, t1 dbf2f39b): Costs, now
+// Reporting -> Costs (spec 143 S1, SPL-3798; Monitoring has no Costs tab,
+// SPL-3986), in a real browser, against the mock bundle (dev has no cost
+// rows), at 1400x900 and 390x844:
+//   - the Reporting Costs tab shows for a member with costs.read (the mock's default me is
 //     unrestricted, and an opt-in me holding costs.read) and not otherwise;
 //     a direct URL without it shows the 403 state naming costs.read;
 //   - the table (one row per part, a total row) and the pie render from the

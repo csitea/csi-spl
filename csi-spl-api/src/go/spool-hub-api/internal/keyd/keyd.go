@@ -111,6 +111,13 @@ func Serve(ctx context.Context, dir, workspace string, agents []AgentKey) error 
 	return nil
 }
 
+// Test seams for lockIdentities: a test swaps them to force the mlock
+// failure and to see the secrets an error path wipes.
+var (
+	mlock         = unix.Mlock
+	wipeOnLockErr = wipeSecrets
+)
+
 // lockIdentities moves each identity into mlocked memory and wipes the
 // caller's copy; on an error it wipes what it already locked.
 func lockIdentities(agents []AgentKey) ([]secret, error) {
@@ -121,12 +128,12 @@ func lockIdentities(agents []AgentKey) ([]secret, error) {
 		wipeString(agents[i].Identity)
 		agents[i].Identity = ""
 		if len(raw) == 0 {
-			wipeSecrets(secs)
+			wipeOnLockErr(secs)
 			return nil, errors.New("empty identity")
 		}
-		if err := unix.Mlock(raw); err != nil {
+		if err := mlock(raw); err != nil {
 			Wipe(raw)
-			wipeSecrets(secs)
+			wipeOnLockErr(secs)
 			return nil, errors.New("could not lock the identities in memory")
 		}
 		secs = append(secs, secret{id: agents[i].ID, raw: raw})

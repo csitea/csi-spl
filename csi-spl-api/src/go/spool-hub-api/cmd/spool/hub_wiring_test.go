@@ -333,6 +333,15 @@ func TestBaseOptions(t *testing.T) {
 		opts.Edge.TrustedProxyHops != 2 || opts.Version != version {
 		t.Fatalf("cnf not mapped: %+v", opts)
 	}
+	// spec 160 3.7: the cnf defaults are the store's own, and a set value
+	// reaches the hub's caps.
+	if opts.FileStreamLimits != (store.FileStreamLimits{}).Norm() {
+		t.Fatalf("file streams: cnf defaults %+v, store defaults %+v", opts.FileStreamLimits, (store.FileStreamLimits{}).Norm())
+	}
+	hc.FileStreamsMaxWorkspaces, hc.FileStreamsRetention = 2, time.Hour
+	if l := baseOptions(hc, zerolog.Nop(), st, blob.Dir{Root: t.TempDir()}, ot).FileStreamLimits; l.MaxWorkspaces != 2 || l.Retention != time.Hour {
+		t.Fatalf("file streams cnf not mapped: %+v", l)
+	}
 }
 
 func TestHubOptions(t *testing.T) {

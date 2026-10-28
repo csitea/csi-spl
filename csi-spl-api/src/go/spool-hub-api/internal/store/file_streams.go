@@ -18,7 +18,8 @@ import (
 // of another workspace; a push never prunes another workspace's lines, and
 // the sweep prunes each workspace in its own scope (spec 160 3.7, review N2).
 
-// Defaults of spec 160 3.7; B7 measures them and the cnf may set others.
+// Defaults of spec 160 3.7, measured by row B7 (5.7); the hub's cnf
+// env.hub.file_streams sets them (config.Hub FileStreams*).
 const (
 	FileStreamsMaxLinesPerWorkspace = 500_000
 	FileStreamsMaxBytesPerWorkspace = 256 << 20
@@ -58,6 +59,7 @@ type FileStreamLimits struct {
 	MaxLines      int64
 	MaxBytes      int64
 	RatePerMin    int
+	Retention     time.Duration
 }
 
 // Norm fills every zero field with its default.
@@ -76,6 +78,9 @@ func (l FileStreamLimits) Norm() FileStreamLimits {
 	}
 	if l.RatePerMin <= 0 {
 		l.RatePerMin = FileStreamsRatePerMin
+	}
+	if l.Retention <= 0 {
+		l.Retention = FileStreamsRetention
 	}
 	return l
 }

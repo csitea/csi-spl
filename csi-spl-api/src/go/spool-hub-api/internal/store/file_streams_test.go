@@ -488,3 +488,35 @@ func TestFileStreamSweep(t *testing.T) {
 		})
 	}
 }
+
+// TestFileStreamSweepRetentionFromCnf (spec 160 3.7, row B7): the sweep
+// keeps FileStreamLimits.Retention, the cnf's env.hub.file_streams.retention,
+// not a fixed 7 days. Red control: the default keeps the 2-day-old lines.
+func TestFileStreamSweepRetentionFromCnf(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			c := newFSCase(t, s)
+			c.lim.RatePerMin = 1 << 20
+			a := c.workspace(t, "box-a")
+			c.announce(t, a, "box-a", "app")
+			if _, err := c.push(a, "box-a", "app", fsLines(1, 3, c.now.Add(-2*24*time.Hour), "old")); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := c.push(a, "box-a", "app", fsLines(4, 3, c.now, "new")); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := c.fs.SweepFileStreams(c.ctx, c.now, FileStreamLimits{}); err != nil {
+				t.Fatal(err)
+			}
+			if ka := c.kept(t, a, "app"); len(ka) != 6 {
+				t.Fatalf("CONTROL: the default 7 days kept %d lines, want 6", len(ka))
+			}
+			if _, err := c.fs.SweepFileStreams(c.ctx, c.now, FileStreamLimits{Retention: 24 * time.Hour}); err != nil {
+				t.Fatal(err)
+			}
+			if ka := c.kept(t, a, "app"); len(ka) != 3 || ka[0].Seq != 4 {
+				t.Fatalf("a 1-day retention kept %d lines, want 3 from seq 4", len(ka))
+			}
+		})
+	}
+}

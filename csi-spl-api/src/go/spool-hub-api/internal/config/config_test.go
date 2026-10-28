@@ -565,6 +565,46 @@ func TestLoadHubEmbed(t *testing.T) {
 	}
 }
 
+// TestLoadHubFileStreams (spec 160 3.7, row B7): the file streams limits
+// default to the measured budgets; one below 1 (retention below 1h) refuses
+// the start, a valid value is read.
+func TestLoadHubFileStreams(t *testing.T) {
+	setHubBase(t)
+	h, err := LoadHub()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.FileStreamsPerBox != 8 || h.FileStreamsMaxWorkspaces != 4 || h.FileStreamsMaxLinesPerWorkspace != 500_000 ||
+		h.FileStreamsMaxBytesPerWorkspace != 256<<20 || h.FileStreamsRatePerMin != 600 ||
+		h.FileStreamsRetention != 7*24*time.Hour {
+		t.Fatalf("file streams defaults: %+v", h)
+	}
+	for _, c := range []struct {
+		k, good string
+		bads    []string
+	}{
+		{"SPOOL_HUB_FILE_STREAMS_PER_BOX", "8", []string{"0", "-1", "eight"}},
+		{"SPOOL_HUB_FILE_STREAMS_MAX_WORKSPACES", "4", []string{"0"}},
+		{"SPOOL_HUB_FILE_STREAMS_MAX_LINES_PER_WORKSPACE", "500000", []string{"0", "500k"}},
+		{"SPOOL_HUB_FILE_STREAMS_MAX_BYTES_PER_WORKSPACE", "268435456", []string{"0", "256MiB"}},
+		{"SPOOL_HUB_FILE_STREAMS_RATE_PER_MIN", "600", []string{"0"}},
+		{"SPOOL_HUB_FILE_STREAMS_RETENTION", "168h", []string{"0", "59m", "7d"}},
+	} {
+		for _, bad := range c.bads {
+			t.Setenv(c.k, bad)
+			if _, err := LoadHub(); err == nil {
+				t.Fatalf("%s=%s was accepted", c.k, bad)
+			}
+		}
+		t.Setenv(c.k, c.good)
+	}
+	t.Setenv("SPOOL_HUB_FILE_STREAMS_MAX_LINES_PER_WORKSPACE", "1000")
+	t.Setenv("SPOOL_HUB_FILE_STREAMS_RETENTION", "1h")
+	if h, err := LoadHub(); err != nil || h.FileStreamsMaxLinesPerWorkspace != 1000 || h.FileStreamsRetention != time.Hour {
+		t.Fatalf("1000 lines, 1h: %+v, %v", h, err)
+	}
+}
+
 // TestConfigInCodeDefaults: a Config built in code (no env) falls back to
 // SPOOL_ID_QUARANTINE_H's 24 h and the 10 s notify timeout; a positive value
 // wins.

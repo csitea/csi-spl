@@ -374,6 +374,9 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 		PingInterval: hc.WSPingInterval, PingTimeout: hc.WSPingTimeout, WSMaxLife: hc.WSMaxLife,
 		ClientIPProbe: hc.ClientIPProbe, MsgVersion: hc.MsgVersion, MarketingWorkspaces: hc.MarketingWorkspaces,
 		NotesEnabled: hc.NotesEnabled, // spec 155 section 6
+		FileStreamLimits: store.FileStreamLimits{PerBox: hc.FileStreamsPerBox, MaxWorkspaces: hc.FileStreamsMaxWorkspaces, // spec 160 3.7
+			MaxLines: hc.FileStreamsMaxLinesPerWorkspace, MaxBytes: hc.FileStreamsMaxBytesPerWorkspace,
+			RatePerMin: hc.FileStreamsRatePerMin, Retention: hc.FileStreamsRetention},
 		Edge: edge.Limits{TrustedProxyHops: hc.TrustedProxyHops, Window: hc.EdgeWindow,
 			WSConnsPerIP: hc.EdgeWSConnsPerIP, WSConnsTotal: hc.EdgeWSConnsTotal,
 			WSHandshakesPerIP: hc.EdgeWSHandshakesPerIP, AuthPerIP: hc.EdgeAuthPerIP},

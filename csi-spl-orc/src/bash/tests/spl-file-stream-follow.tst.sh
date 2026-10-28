@@ -578,9 +578,14 @@ if command -v yq >/dev/null; then
   got="$(texts "$d" | paste -sd' ')"
   [[ "$got" == "act 4 act 5" ]] && pass "action: on, the cnf allow-list and start_lines reach the follower" ||
     fail "action on: pushed '$got' out='$out'"
-  # cron runs with no SPOOL_ROOT (SPL-4037: every tick from 18:24Z logged rc=1)
+  # cron runs with no SPOOL_ROOT (SPL-4037: every tick from 18:24Z logged rc=1
+  # with no output, the env helper's status). The follower then reads the
+  # default root: a box has it (rc 0); a CI runner has none, and the follower
+  # itself refuses to start, which still proves the helper let it run.
   out="$(act FILE_STREAMS_ENABLED=true SPOOL_ROOT= FILE_STREAMS_STATE_DIR="$d/state-cron")"; rc=$?
-  [[ "$rc" == 0 && "$out" != *FATAL* ]] && pass "action: on with no SPOOL_ROOT (cron) exits 0" ||
+  { [[ "$rc" == 0 && "$out" != *FATAL* ]] ||
+    [[ ! -d /var/spool-hub && "$out" == *"FATAL the spool root /var/spool-hub is not a directory"* ]]; } &&
+    pass "action: on with no SPOOL_ROOT (cron) reaches the follower" ||
     fail "action no SPOOL_ROOT: rc=$rc out='$out'"
 else
   fail "action on: yq is required"

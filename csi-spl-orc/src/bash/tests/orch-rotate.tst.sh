@@ -200,8 +200,10 @@ printf '%%20\t2001\t$0\t%s@box\n' "$2" >>"$T/tmux/panes"
 [ "$mode" = nostart ] || [ "$mode" = dies ] || "$T/bin/proc" 2001 0 "$2" "$1"
 # the old session re-records its identity while it still runs (section 17)
 [ -f "$T/touch-agent" ] && mkdir -p "$SPOOL_ROOT/agents" && echo '{}' >"$SPOOL_ROOT/agents/$OLD_ID.json"
-# a message lands mid-rotation (T-MSG-IN-FLIGHT)
-echo '{"v":1,"msg_id":"m9","ts":"2026-10-02T04:06:00Z","from":"c-002","to":"'"$OLD_ID"'","kind":"note","task_id":"x","body":"mid-rotation"}' >"$SPOOL_ROOT/$OLD_ID/inbox/m9.json"
+# a message lands mid-rotation (T-MSG-IN-FLIGHT); the old letter has no
+# entry after the switch, so it goes where the spool sends it (liveRoleSeat)
+box="$SPOOL_ROOT/$OLD_ID"; [ -e "$box" ] || box="$(ls -d "$SPOOL_ROOT"/[acgmq]-"${OLD_ID#*-}" 2>/dev/null | head -1)"
+echo '{"v":1,"msg_id":"m9","ts":"2026-10-02T04:06:00Z","from":"c-002","to":"'"$OLD_ID"'","kind":"note","task_id":"x","body":"mid-rotation"}' >"$box/inbox/m9.json"
 if [ "$(cat "$T/ack.mode" 2>/dev/null || echo yes)" = yes ]; then
   # a claude reads its seed; any other vendor ONLY its first prompt (the head)
   src="$4"; [ "$1" = claude ] || src="$T/head"
@@ -671,10 +673,10 @@ act DRY_RUN=0 ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" ROTATE_RO
 [[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE ]] && grep -q "^spawn grok g-001 " "$T/spawn.log" && grep -qx 'LEASE_ORCH=g-001' "$D/lease.conf" &&
   grep -q " DONE OK g-001@box-desk is pid 2001" "$T/o" &&
   pass "17. c-001 -> g-001: the grok successor starts as g-001, lease.conf LEASE_ORCH=g-001, DONE ($rid)" || fail "17. switch rc=$rc $(cat "$T/o") $(cat "$T/ack.out" 2>/dev/null)"
-[[ -d "$S/g-001" && ! -L "$S/g-001" && "$(readlink "$S/c-001")" == g-001 && "$(readlink "$S/a-001")" == g-001 ]] &&
+[[ -d "$S/g-001" && ! -L "$S/g-001" && ! -e "$S/c-001" && ! -e "$S/a-001" ]] &&
   [[ -f "$S/g-001/inbox/m9.json" && -f "$S/g-001/inbox/m1.json" ]] &&
-  pass "17. the old id links to g-001: m1 (before) and m9 (sent to c-001 mid-rotation) are in the live inbox" || fail "17. dirs: $(ls -l "$S"; ls "$S/g-001/inbox" 2>&1)"
-[[ "$(readlink "$T/desk/prd/desk/t1/box-desk/spool/c-001")" == g-001 && -d "$T/desk/prd/desk/t1/box-desk/spool/g-001/inbox" ]] &&
+  pass "17. no letter link (SPL-4031): m1 (before) and m9 (sent to c-001 mid-rotation) are in the live inbox" || fail "17. dirs: $(ls -l "$S"; ls "$S/g-001/inbox" 2>&1)"
+[[ ! -e "$T/desk/prd/desk/t1/box-desk/spool/c-001" && -d "$T/desk/prd/desk/t1/box-desk/spool/g-001/inbox" ]] &&
   pass "17. the prd desk dir moved to g-001 (the sidecar announces g-001)" || fail "17. desk: $(ls -l "$T/desk/prd/desk/t1/box-desk/spool")"
 grep -q " SWITCH OK lease.conf LEASE_ORCH=g-001: pid 2001 carries it" "$T/o" && grep -q "send c-001 -> c-001 result orch-rotate-$rid: ACK\|send g-001 -> g-001 result orch-rotate-$rid: ACK" "$T/send.log" &&
   pass "17. lease.conf flips once pid 2001 shows; the ack from either id counts" || fail "17. flip/ack: $(grep SWITCH "$T/o"; cat "$T/send.log")"
@@ -685,7 +687,7 @@ export OLD_ID=g-001
 world
 act DRY_RUN=0 ROTATE_ROLE_VENDOR=claude ROTATE_ROLE_ID_FOLLOWS_VENDOR=1 >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE ]] && grep -q "^spawn claude c-001 " "$T/spawn.log" && grep -qx 'LEASE_ORCH=c-001' "$D/lease.conf" &&
-  [[ -d "$S/c-001" && ! -L "$S/c-001" && "$(readlink "$S/g-001")" == c-001 && -f "$S/c-001/inbox/m9.json" ]] &&
+  [[ -d "$S/c-001" && ! -L "$S/c-001" && ! -e "$S/g-001" && -f "$S/c-001/inbox/m9.json" ]] &&
   pass "17. g-001 -> c-001: back to claude, the same path reversed; m9 sent to g-001 is in c-001's inbox" || fail "17. back rc=$rc $(cat "$T/o"); $(ls -l "$S")"
 # SPL-3980 (a box, 2026-10-27): the seat failed over to g-001, then lease.conf
 # was set back to LEASE_ORCH=c-001 by hand while c-001 (and the prd desk's
@@ -695,17 +697,17 @@ bash "$PROJ_PATH/src/bash/features/spawn-agents/scripts/role-seat-switch.sh" --a
 DK="$T/desk/prd/desk/t1/box-desk/spool"
 export OLD_ID=g-001
 world
-[[ "$(readlink "$S/c-001")" == g-001 && "$(readlink "$DK/c-001")" == g-001 ]] && grep -qx 'LEASE_ORCH=c-001' "$D/lease.conf" ||
+[[ ! -e "$S/c-001" && ! -e "$DK/c-001" ]] && grep -qx 'LEASE_ORCH=c-001' "$D/lease.conf" ||
   fail "17. SPL-3980 setup: $(ls -l "$S" "$DK"; cat "$D/lease.conf")"
 act DRY_RUN=0 ROTATE_ROLE_VENDOR=claude ROTATE_ROLE_ID_FOLLOWS_VENDOR=1 >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE ]] && grep -q "^spawn claude c-001 " "$T/spawn.log" && grep -qx 'LEASE_ORCH=c-001' "$D/lease.conf" &&
-  [[ -d "$S/c-001" && ! -L "$S/c-001" && "$(readlink "$S/g-001")" == c-001 && -d "$DK/c-001" && ! -L "$DK/c-001" && "$(readlink "$DK/g-001")" == c-001 ]] &&
+  [[ -d "$S/c-001" && ! -L "$S/c-001" && ! -e "$S/g-001" && -d "$DK/c-001" && ! -L "$DK/c-001" && ! -e "$DK/g-001" ]] &&
   pass "17. SPL-3980: lease.conf reset to c-001 by hand while c-001 linked to g-001: the rotation reads the live g-001 and switches the seat and its desk back to c-001" ||
   fail "17. SPL-3980 stale lease.conf c-001: rc=$rc c-001=$(readlink "$S/c-001" || echo real) desk c-001=$(readlink "$DK/c-001" || echo real) $(grep -E 'GATE|SWITCH|FAIL' "$T/o" | cut -c1-200)"
 export OLD_ID=c-001
 world; echo 'pick=grok reason=grok is the main' >"$T/mix.out"; echo nopane >"$T/spawn.mode"
 act DRY_RUN=0 ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" ROTATE_ROLE_ID_FOLLOWS_VENDOR=1 >"$T/o" 2>&1
-grep -qx 'LEASE_ORCH=c-001' "$D/lease.conf" && [[ -d "$S/c-001" && ! -L "$S/c-001" && -L "$S/g-001" && -d "$T/proc/1001" ]] &&
+grep -qx 'LEASE_ORCH=c-001' "$D/lease.conf" && [[ -d "$S/c-001" && ! -L "$S/c-001" && ! -e "$S/g-001" && -d "$T/proc/1001" ]] &&
   grep -q 'seat switch back g-001 -> c-001' "$T/o" &&
   pass "17. a failed spawn: the seat switches back, lease.conf never flipped, the old session kept" || fail "17. spawn fail: $(grep -E 'FAIL|SWITCH' "$T/o"; ls -l "$S")"
 rm -f "$T/spawn.mode"
@@ -1020,7 +1022,7 @@ act ROTATE_CMD=standby "${SBV[@]}" >"$T/o" 2>&1; rc=$?
   pass "21. dry run (the default): plans g-001 -> c-001 on claude, moves nothing" || fail "21. dry rc=$rc $(grep -E 'PLAN|SKIP|REFUSED' "$T/o")"
 act ROTATE_CMD=standby DRY_RUN=0 "${SBV[@]}" >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE && ! -d "$T/proc/1001" ]] && grep -q '^spawn claude c-001 ' "$T/spawn.log" &&
-  grep -qx 'LEASE_ORCH=c-001' "$D/lease.conf" && [[ -d "$S/c-001" && ! -L "$S/c-001" && "$(readlink "$S/g-001")" == c-001 ]] &&
+  grep -qx 'LEASE_ORCH=c-001' "$D/lease.conf" && [[ -d "$S/c-001" && ! -L "$S/c-001" && ! -e "$S/g-001" ]] &&
   grep -q ' DONE OK c-001@box-desk is pid 2001' "$T/o" &&
   pass "21. standby + vendor mismatch: fresh claude c-001 in the seat, acked, g-001 retired, lease.conf LEASE_ORCH=c-001" || fail "21. reseat rc=$rc $(grep -E 'STANDBY|SWITCH|SPAWN|ACK|FAIL|DONE' "$T/o"; ls -l "$S")"
 [[ "$(cut -d' ' -f1 "$D/lease.orch")" == c-001@box-b ]] && grep -q ' CLOSE OK ' "$T/o" && ! grep -q 'lease-moved' "$T/o" && [[ -f "$S/c-001/inbox/m1.json" ]] &&

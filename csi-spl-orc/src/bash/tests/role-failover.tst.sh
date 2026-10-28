@@ -230,8 +230,8 @@ world
 act ROLE_FAILOVER_ROLE=orch DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 [[ $rc == 0 && "$(spawns)" == 1 ]] && grep -q '^spawn grok g-001 SPAWN_REUSE_ID=1$' "$T/spawn.log" &&
   pass "2. grok started IN the seat as g-001 (SPAWN_REUSE_ID=1), one process" || fail "2. rc=$rc $(cat "$T/spawn.log" 2>&1) $(cat "$T/o")"
-real g-001 && [[ "$(lnk c-001)" == g-001 && "$(lnk a-001)" == g-001 && "$(lnk m-001)" == g-001 && -f "$S/g-001/inbox/m1.json" && -f "$S/c-001/inbox/m1.json" ]] &&
-  pass "2. one real dir g-001 (the unread inbox moved with it); c-001, a-001, m-001 link to it" || fail "2. dirs: c=$(lnk c-001) a=$(lnk a-001) $(ls -la "$S")"
+real g-001 && [[ ! -e "$S/c-001" && ! -e "$S/a-001" && ! -e "$S/m-001" && -f "$S/g-001/inbox/m1.json" ]] &&
+  pass "2. one real dir g-001 (the unread inbox moved with it); c-001, a-001, m-001 have no entry (SPL-4031)" || fail "2. dirs: c=$(lnk c-001) a=$(lnk a-001) $(ls -la "$S")"
 [[ "$(key LEASE_ORCH)" == g-001 && "$(key LEASE_MASTER)" == c-002 ]] && ls "$D"/lease.conf.bak-* >/dev/null 2>&1 &&
   pass "2. lease.conf LEASE_ORCH=g-001 (a backup first), the other keys kept" || fail "2. conf: $(cat "$D/lease.conf")"
 grep -q '^kill -TERM 101' "$T/kill.log" && [[ ! -d "$T/proc/101" ]] && grep -q '^kill-window %101' "$T/tmux/log" && pass "2. the old claude session ended (TERM after /exit) and its window closed" || fail "2. old: $(cat "$T/kill.log" "$T/tmux/log" 2>&1)"
@@ -262,7 +262,7 @@ act ROLE_FAILOVER_ROLE=orch DRY_RUN=0 GROK_OUT=1 ROLE_FAILOVER_SILENT=250 >"$T/o
   grep -q 'SWITCH SKIP agy not yet: the holder is silent 250s, agy takes a seat past 300s' "$T/o" &&
   pass "4. grok out, silent 250 s: agy's wait (300 s) has not run, nothing switched" || fail "4. wait: rc=$rc $(cat "$T/o")"
 act ROLE_FAILOVER_ROLE=orch DRY_RUN=0 GROK_OUT=1 ROLE_FAILOVER_SILENT=310 >"$T/o" 2>&1; rc=$?
-[[ $rc == 0 && "$(spawns)" == 1 && "$(key LEASE_ORCH)" == a-001 && "$(lnk c-001)" == a-001 && "$(lnk g-001)" == a-001 ]] && real a-001 &&
+[[ $rc == 0 && "$(spawns)" == 1 && "$(key LEASE_ORCH)" == a-001 && ! -e "$S/c-001" && ! -e "$S/g-001" ]] && real a-001 &&
   grep -q '^spawn agy a-001 SPAWN_REUSE_ID=1$' "$T/spawn.log" &&
   pass "4. grok out (lane-mix: no sign-in), silent 310 s: agy a-001 runs the seat" || fail "4. agy: rc=$rc $(cat "$T/o")"
 
@@ -270,10 +270,10 @@ act ROLE_FAILOVER_ROLE=orch DRY_RUN=0 GROK_OUT=1 ROLE_FAILOVER_SILENT=310 >"$T/o
 world; printf '%s\n' "$LOGIN" >"$T/spawn.lease-pane.grok"
 act ROLE_FAILOVER_ROLE=orch DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 grep -q '^spawn grok g-001' "$T/spawn.log" && grep -q '^kill -TERM 3001' "$T/kill.log" && [[ ! -d "$T/proc/3001" ]] &&
-  grep -q 'SWITCH FAIL grok g-001 (pid 3001) not able 30s after the start: stalled pid=3001: Select login method.*seat switch back g-001 -> c-001; links removed: a-001 g-001 m-001 q-001; prompt.txt put back; lease.conf untouched' "$T/o" &&
+  grep -q 'SWITCH FAIL grok g-001 (pid 3001) not able 30s after the start: stalled pid=3001: Select login method.*seat switch back g-001 -> c-001; prompt.txt put back; lease.conf untouched' "$T/o" &&
   [[ -s "$D/role-failover/refused.001.grok" ]] &&
   pass "5. grok started but unable: closed, the dirs switched back, lease.conf untouched, grok backed off" || fail "5. back: rc=$rc $(cat "$T/kill.log" "$T/o" 2>&1)"
-[[ $rc == 0 && "$(key LEASE_ORCH)" == a-001 && "$(spawns)" == 2 ]] && real a-001 && [[ "$(lnk c-001)" == a-001 ]] && grep -q '^spawn agy a-001' "$T/spawn.log" &&
+[[ $rc == 0 && "$(key LEASE_ORCH)" == a-001 && "$(spawns)" == 2 ]] && real a-001 && [[ ! -e "$S/c-001" ]] && grep -q '^spawn agy a-001' "$T/spawn.log" &&
   pass "5. grok unable -> agy in the same run: a-001 runs the seat" || fail "5. agy: rc=$rc conf=$(key LEASE_ORCH) $(cat "$T/spawn.log")"
 rm -f "$T/spawn.lease-pane.grok"; world; mkdir -p "$D/role-failover"; echo "$(date +%s) earlier fail" >"$D/role-failover/refused.001.grok"
 act ROLE_FAILOVER_ROLE=orch DRY_RUN=0 AGY_OUT=1 >"$T/o" 2>&1
@@ -285,7 +285,7 @@ world; act ROLE_FAILOVER_ROLE=orch DRY_RUN=0 >/dev/null 2>&1
 [[ "$(key LEASE_ORCH)" == g-001 ]] || fail "6. setup: $(cat "$D/lease.conf")"
 printf '%s\n' "$LOGIN" >"$T/pane/3001"; : >"$T/spawn.log"
 act ROLE_FAILOVER_ROLE=orch DRY_RUN=0 >"$T/o" 2>&1; rc=$?
-[[ $rc == 0 && "$(key LEASE_ORCH)" == a-001 && "$(lnk c-001)" == a-001 && "$(lnk g-001)" == a-001 ]] && real a-001 && [[ ! -d "$T/proc/3001" ]] &&
+[[ $rc == 0 && "$(key LEASE_ORCH)" == a-001 && ! -e "$S/c-001" && ! -e "$S/g-001" ]] && real a-001 && [[ ! -d "$T/proc/3001" ]] &&
   grep -q '^c-001 a-001 agy ' "$D/role-failover/seat.001" &&
   pass "6. grok seat g-001 unable -> agy a-001 in place; the record still names c-001 to go back to" || fail "6. rc=$rc $(cat "$D/role-failover/seat.001" "$T/o" 2>&1)"
 
@@ -344,7 +344,7 @@ out="$(vend 2>&1)"
 world; printf '%s\n' "$LOGIN" >"$T/pane/102"; printf '%s\n' "$LOGIN" >"$T/pane/103"
 mkdir -p "$D/briefs"; echo "# Dispatcher brief for c-002 (master)" >"$D/briefs/brief-dispatcher-c-002.md"
 act ROLE_FAILOVER_ROLE=dispatch DRY_RUN=0 >"$T/o" 2>&1; rc=$?
-[[ $rc == 0 && "$(key LEASE_MASTER)" == g-002 && "$(key LEASE_FAILOVER)" == c-003 && "$(key LEASE_ORCH)" == c-001 && "$(lnk c-002)" == g-002 ]] && real g-002 && real c-003 && real c-001 &&
+[[ $rc == 0 && "$(key LEASE_MASTER)" == g-002 && "$(key LEASE_FAILOVER)" == c-003 && "$(key LEASE_ORCH)" == c-001 && ! -e "$S/c-002" ]] && real g-002 && real c-003 && real c-001 &&
   grep -q '^# Dispatcher brief for g-002 (master)' "$S/g-002/lifetime/prompt.txt" && [[ "$(cat "$S/c-003/lifetime/prompt.txt")" == "SEED c-003" ]] &&
   pass "10. dispatch: the master seat c-002 -> g-002 (LEASE_MASTER), the dispatcher brief in its seed; c-001 and c-003 untouched" ||
   fail "10. rc=$rc $(cat "$D/lease.conf") $(cat "$T/o")"
@@ -356,7 +356,7 @@ act ROLE_FAILOVER_ROLE=orch DRY_RUN=0 AGY_OUT=1 NO_ACK=g >"$T/o" 2>&1; rc=$?
 grep -q '^spawn grok g-001 SPAWN_REUSE_ID=1$' "$T/spawn.log" && grep -q -- '--to g-001 --kind task .*PROBE [0-9T]*Z-failover-g-001: .*ACK-COMMAND: .*ROLE_FAILOVER_CMD=ack ROLE_FAILOVER_ROLE=orch ROTATE_ID=[0-9T]*Z-failover-g-001 ' "$T/send.log" &&
   pass "11. the switch sends the new seat g-001 a probe task carrying the ACK command" || fail "11. probe: $(cat "$T/send.log" 2>&1)"
 [[ $rc == 0 && "$(key LEASE_ORCH)" == c-001 ]] && real c-001 && [[ "$(lnk g-001)" == - && ! -d "$T/proc/3001" && -s "$D/role-failover/refused.001.grok" ]] &&
-  grep -q 'SWITCH FAIL grok g-001 (pid 3001) not able: no ack of the probe [0-9T]*Z-failover-g-001 within 2s (up, but it did no work).*seat switch back g-001 -> c-001; links removed: a-001 g-001 m-001 q-001; prompt.txt put back; lease.conf untouched' "$T/o" &&
+  grep -q 'SWITCH FAIL grok g-001 (pid 3001) not able: no ack of the probe [0-9T]*Z-failover-g-001 within 2s (up, but it did no work).*seat switch back g-001 -> c-001; prompt.txt put back; lease.conf untouched' "$T/o" &&
   grep -q 'no ack of the probe' "$D/able.g-001" &&
   pass "11. RED CONTROL: a grok seat at an idle prompt that never acks is NOT able: closed, dirs back to c-001, lease.conf untouched, grok backed off" ||
   fail "11. no-ack: rc=$rc conf=$(key LEASE_ORCH) c-001=$(lnk c-001) $(cat "$T/o")"
@@ -432,7 +432,7 @@ out="$(shared)"
   pass "15. control: g-001 alone in its dir, no flag" || fail "15. control: $out $(grep SHARED "$D/lease.log" 2>&1)"
 "$T/bin/proc" 5101 c-001
 out="$(shared)"
-[[ "$(lnk c-001)" == g-001 && "$out" == *"DIR=c-001 pid 5101"* && "$out" == *"TRY=g-001"* ]] &&
+[[ ! -e "$S/c-001" && "$out" == *"DIR=c-001 pid 5101"* && "$out" == *"TRY=g-001"* ]] &&
   [[ "$(grep -c 'SHARED-DIR g-001: another live session runs in its spool dir (c-001 pid 5101)' "$D/lease.log")" == 1 ]] &&
   [[ "$(grep -c -- '--to g-001 --kind note --task dispatch-lease --body SHARED-DIR g-001@' "$T/send.log")" == 1 ]] &&
   pass "15. a claude c-001 in g-001's dir: flagged once (lease.log + a note to g-001, two lease ticks), g-001 stays the candidate" ||

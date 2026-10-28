@@ -124,7 +124,7 @@ spl_rotate_live_seats() {
     [[ -n "${!k:-}" ]] || continue
     live="$(spl_fleet_seat_id "${!k}")"
     [[ "$live" == "${!k}" ]] && continue
-    echo "$(date -u +%FT%TZ) - SEAT OK $k=${!k} in lease.conf links to the live seat $live: the rotation acts on $live (SPL-3980)"
+    echo "$(date -u +%FT%TZ) - SEAT OK $k=${!k} in lease.conf resolves to the live seat $live: the rotation acts on $live (SPL-3980)"
     printf -v "$k" '%s' "$live"
   done
   return 0
@@ -1382,12 +1382,13 @@ spl_rotate_ack_wait() {
 }
 
 # A role seat's ack may come from any of its ids (SPL-1685): the new session
-# acks as the lease.conf id, still the old letter until the switch flips it,
-# and the old id's outbox is a link to the new one.
+# acks as the lease.conf id, still the old letter until the switch flips it.
+# A switched seat keeps no letter link (SPL-4031): every id's outbox is read.
 spl_rotate_ack_seen() {  # ID TASK
-  local ids
+  local ids i dirs=()
   ids="$(spl_role_seat_ids "$1" 2>/dev/null || echo "$1")"
-  find "$SPOOL_ROOT/$1/outbox" -maxdepth 1 -name '*.json' -mmin -120 -print0 2>/dev/null |
+  for i in $ids; do dirs+=("$SPOOL_ROOT/$i/outbox"); done
+  find "${dirs[@]}" -maxdepth 1 -name '*.json' -mmin -120 -print0 2>/dev/null |
     xargs -0 -r jq -r --arg ids "$ids" --arg t "$2" 'select(.kind == "result" and .task_id == $t and (((.from // "") | sub("@.*"; "")) as $f | $ids | split("\n") | any(. == $f))) | .msg_id' 2>/dev/null |
     grep . >/dev/null
 }

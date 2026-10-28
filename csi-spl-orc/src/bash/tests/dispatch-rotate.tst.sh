@@ -787,13 +787,12 @@ rid="$(awk '$3 == "GATE" && $4 == "OK" {print $2}' "$D/rotate.log" | sed -n 1p)"
 grep -q "^spawn grok g-002 " "$T/spawn.log" && grep -q "^spawn grok g-003 " "$T/spawn.log" && grep -q 'brief of g-002: read your inbox' "$D/handoff/$rid-c-002.seed.md" &&
   ! grep -q 'c-002' "$D/handoff/$rid-c-002.seed.md" &&
   pass "18. the successors start as g-002 / g-003; the seed names only g-002" || fail "18. spawn/seed: $(cat "$T/spawn.log"; cat "$D/handoff/$rid-c-002.seed.md")"
-echo '{"v":1,"msg_id":"m7","from":"HUM-10","to":"c-002","kind":"msg","task_id":"y","body":"late"}' >"$S/c-002/inbox/m7.json"
-[[ "$(readlink "$S/c-002")" == g-002 && "$(readlink "$S/c-003")" == g-003 && -f "$S/g-002/inbox/m1.json" && -f "$S/g-002/inbox/m7.json" ]] &&
-  pass "18. c-002 links to g-002: m1 (before) and m7 (sent to c-002 after) are in the live inbox" || fail "18. dirs: $(ls -l "$S"; ls "$S/g-002/inbox")"
+[[ ! -e "$S/c-002" && ! -e "$S/c-003" && -f "$S/g-002/inbox/m1.json" ]] &&
+  pass "18. no letter link (SPL-4031; mail to c-002 reaches g-002: test-role-seat-switch.sh): m1 (before) is in the live inbox" || fail "18. dirs: $(ls -l "$S"; ls "$S/g-002/inbox")"
 w18 g; rm -f "$T/mix.out"
 act DRY_RUN=0 "${V18[@]}" ROTATE_ROLE_VENDOR=claude >"$T/o" 2>&1; rc=$?
 rid="$(awk '$3 == "GATE" && $4 == "OK" {print $2}' "$D/rotate.log" | sed -n 1p)"
-[[ $rc -eq 0 ]] && grep -qx 'LEASE_MASTER=c-002' "$D/lease.conf" && [[ "$(holder)" == c-002 && "$(readlink "$S/g-002")" == c-002 ]] &&
+[[ $rc -eq 0 ]] && grep -qx 'LEASE_MASTER=c-002' "$D/lease.conf" && [[ "$(holder)" == c-002 && ! -e "$S/g-002" ]] &&
   grep -q 'brief of c-002: read your inbox' "$D/handoff/$rid-g-002.seed.md" &&
   pass "18. g-002 -> c-002: back to claude, g-002 (no brief of its own) seeded from c-002's brief" || fail "18. back rc=$rc $(cat "$T/o"); $(cat "$D/lease.conf")"
 w18 c; echo 'pick=grok reason=grok is the main' >"$T/mix.out"; echo no >"$T/ack.mode.g-002"
@@ -820,7 +819,7 @@ sb; act DRY_RUN=0 "${V18[@]}" ROTATE_ROLE_VENDOR= >"$T/o" 2>&1; rc=$?
 rid="$(awk '$3 == "STANDBY" && $4 == "OK" {print $2}' "$D/rotate.log" | sed -n 1p)"
 [[ $rc -eq 0 && "$rid" == *-master ]] && grep -q "^spawn claude c-002 " "$T/spawn.log" && ! grep -q ' g-003 ' "$T/spawn.log" &&
   [[ "$(cat "$T/proc/2002/comm" 2>/dev/null)" == claude && ! -d "$T/proc/102" && -d "$T/proc/103" ]] &&
-  grep -qx 'LEASE_MASTER=c-002' "$D/lease.conf" && grep -qx 'LEASE_FAILOVER=g-003' "$D/lease.conf" && [[ "$(readlink "$S/g-002")" == c-002 ]] &&
+  grep -qx 'LEASE_MASTER=c-002' "$D/lease.conf" && grep -qx 'LEASE_FAILOVER=g-003' "$D/lease.conf" && [[ ! -e "$S/g-002" ]] &&
   grep -q " $rid DONE OK standby master seat: c-002 (claude, pid 2002) replaces g-002; the dispatch lease stays g-002@sat" "$T/o" &&
   pass "19. lease remote + g-002 on its limit: replaced by c-002 (claude, the guard's vendor), g-003 untouched ($rid)" ||
   fail "19. swap rc=$rc: $(cat "$T/o") $(cat "$T/ack.out" 2>/dev/null); conf: $(cat "$D/lease.conf")"

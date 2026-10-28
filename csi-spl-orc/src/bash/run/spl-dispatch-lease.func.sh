@@ -1617,7 +1617,9 @@ spl_fleet_shared_dir() {
   own="$(readlink -f "$r/$seat" 2>/dev/null)" || return 0
   live=" $(spl_lease_live_ids | tr '\n' ' ')"
   for id in $(spl_role_seat_ids "$seat"); do
-    [[ "$id" != "$seat" && "$live" == *" $id "* && -L "$r/$id" && "$(readlink -f "$r/$id")" == "$own" ]] || continue
+    [[ "$id" != "$seat" && "$live" == *" $id "* ]] || continue
+    # no entry of its own: the spool resolves it to the live seat (SPL-4031)
+    [[ ! -e "$r/$id" && ! -L "$r/$id" ]] || [[ -L "$r/$id" && "$(readlink -f "$r/$id")" == "$own" ]] || continue
     pid="$(spl_lease_agent_pid "$id")"
     [[ -n "$pid" ]] && out+="${out:+, }$id pid $pid"
   done
@@ -1915,16 +1917,32 @@ spl_fleet_desk_able() {
 }
 
 # spl_fleet_seat_id <id>: the id that runs <id>'s role seat now. A role seat
-# has ONE real spool dir; the other letters link to it (role-seat-switch.sh,
-# SPL-1685): <id> a link to a sibling letter of the same seat = that letter.
-# Anything else is <id> itself. So the lease follows an in-place switch at its
-# next tick, before lease.conf (read once per loop) catches up.
+# has ONE real spool dir (role-seat-switch.sh, SPL-1685). <id> with no entry
+# of its own = the one sibling letter of the seat whose dir is live (SPL-4031:
+# the switch links no letters any more; the spool's liveRoleSeat reads it the
+# same way); two live dirs = <id>. <id> a link to a sibling letter (a box
+# switched before SPL-4031) = that letter. Anything else is <id> itself. So
+# the lease follows an in-place switch at its next tick, before lease.conf
+# (read once per loop) catches up.
 spl_fleet_seat_id() {
-  local id="$1" r="${SPOOL_ROOT:-/var/spool-hub}" t
-  [[ "$id" =~ ^${SPL_ROLE_SEAT_RX}$ && -L "$r/$id" ]] || { echo "$id"; return 0; }
-  t="$(readlink "$r/$id")"; t="${t##*/}"
-  [[ "$t" =~ ^${SPL_ROLE_SEAT_RX}$ && "${t#*-}" == "${id#*-}" && -d "$r/$t" && ! -L "$r/$t" ]] && { echo "$t"; return 0; }
-  echo "$id"
+  local id="$1" r="${SPOOL_ROOT:-/var/spool-hub}" t l alt live="" real=""
+  [[ "$id" =~ ^${SPL_ROLE_SEAT_RX}$ ]] || { echo "$id"; return 0; }
+  if [[ -L "$r/$id" ]]; then
+    t="$(readlink "$r/$id")"; t="${t##*/}"
+    [[ "$t" =~ ^${SPL_ROLE_SEAT_RX}$ && "${t#*-}" == "${id#*-}" && -d "$r/$t" && ! -L "$r/$t" ]] && { echo "$t"; return 0; }
+    echo "$id"; return 0
+  fi
+  [[ -e "$r/$id" ]] && { echo "$id"; return 0; }
+  for l in a c g m q; do
+    alt="$l-${id#*-}"
+    [[ "$alt" != "$id" && -d "$r/$alt" ]] || continue
+    t="$(readlink -f "$r/$alt")"
+    if [[ -z "$real" ]]; then live="$alt"; real="$t"
+    elif [[ "$t" != "$real" ]]; then echo "$id"; return 0
+    elif [[ "${t##*/}" == "$alt" ]]; then live="$alt"
+    fi
+  done
+  echo "${live:-$id}"
 }
 
 # Is <box> listed in LEASE_INTERMITTENT (a box that loses power routinely)?

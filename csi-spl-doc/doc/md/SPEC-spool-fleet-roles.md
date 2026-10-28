@@ -500,8 +500,9 @@ resource, and its age would have come from each machine's own clock.
     (grok: the rotation's `spl_rotate_grok_why`; agy: lane-mix and a lease
     that counts it), whose wait has run and that is not backed off
     (`ROLE_FAILOVER_BACKOFF`, 1800 s). It runs `role-seat-switch.sh` (the one
-    dir moves, every other letter links to it, so the inbox, handoff and lease
-    key carry over) and refuses a start whose dir is not its own (no other
+    dir moves, no other letter keeps an entry: the spool and the lease
+    resolve it to the live seat, so the inbox, handoff and lease key carry
+    over) and refuses a start whose dir is not its own (no other
     seat's `lifetime/prompt.txt` is ever written). It then ends the old
     session FIRST (SPL-4015, orch panel row B2: one seat, one session):
     `/exit`, TERM, KILL, its window closed; one that survives SIGKILL fails
@@ -908,10 +909,14 @@ it is not restated here.
 - **the id follows the vendor** (SPL-1685): a rotation whose successor is
   another vendor starts it under that vendor's letter (`c-001` -> `g-001`)
   with `role-seat-switch.sh`. Before the spawn, the seat's one real spool dir
-  moves to the new id, and every other letter of the seat (`a/c/g/m/q-00N`)
-  becomes a link to it. Mail sent to the old id, a `${X:-c-001}` default or a
-  queued message still lands in the live inbox, and the desk dirs move the same
-  way. `lease.conf` (`LEASE_ORCH`, `LEASE_MASTER`, `LEASE_FAILOVER`, and the
+  moves to the new id, and no other letter of the seat (`a/c/g/m/q-00N`)
+  keeps an entry (SPL-4031, orch panel row B2: a letter link let a stray
+  session of the old letter share the seat's inbox). The spool resolves a
+  letter with no entry to its live sibling on send, recv and delivery and
+  mints no dir for it; the lease reads it the same way (`spl_fleet_seat_id`),
+  and a legacy alias (`CLE-00N`) is pointed at the new id. Mail sent to the
+  old id, a `${X:-c-001}` default or a queued message still lands in the live
+  inbox, and the desk dirs move the same way. `lease.conf` (`LEASE_ORCH`, `LEASE_MASTER`, `LEASE_FAILOVER`, and the
   master's `rotate.hold`) takes the new id only once the new pid shows, so the
   old pid keeps the lease until then. The ack may come from either id. A
   failed rotation puts `lease.conf` and the dirs back. CLOSE retires the old

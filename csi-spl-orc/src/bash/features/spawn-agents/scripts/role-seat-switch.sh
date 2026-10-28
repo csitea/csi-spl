@@ -2,13 +2,18 @@
 # role-seat-switch.sh — move a role seat to the id of the vendor that now runs
 # it (SPL-1685, owner t1 ee1e58d5: c-001 run by Grok is g-001), and back.
 # Per seat:
-#   1. spool dir   the seat's ONE real dir moves to $SPOOL_ROOT/<NEW>; every
+#   1. spool dir   the seat's ONE real dir moves to $SPOOL_ROOT/<NEW>; no
 #                  other id of the seat (a-/c-/g-/m-/q-00N, spl_role_seat_ids)
-#                  becomes a link to it, so mail written to any of them -
-#                  a queued message, a script's ${X:-c-001} default, the hub
-#                  sidecar - lands in the live inbox. A stale real dir of
-#                  another letter is merged in first (a file name in both =
-#                  FAIL, nothing moved).
+#                  keeps an entry: a letter link is removed (SPL-4031, orch
+#                  panel plan B2). Mail written to any of them - a queued
+#                  message, a script's ${X:-c-001} default, the hub sidecar -
+#                  still lands in the live inbox: the spool resolves a role
+#                  seat letter with no entry to its live sibling on send, recv
+#                  and delivery (liveRoleSeat), the lease reads it the same
+#                  way (spl_fleet_seat_id). A legacy alias link into the seat
+#                  (CLE-00N) is pointed at <NEW>. A stale real dir of another
+#                  letter is merged in first (a file name in both = FAIL,
+#                  nothing moved).
 #   2. registry    registry.tsv column 1 <OLD>[@box] -> <NEW>[@box]
 #   3. identity    agents/<OLD>.json -> agents/<NEW>.json (agent-identity.py)
 #   4. desks       each hub desk dir of the seat (<desk-root>/<env>/desk/
@@ -85,7 +90,7 @@ _merge() {
 }
 
 # _switch ROOT: in ROOT (the spool root or one desk's spool dir) the seat's
-# real dir becomes ROOT/NEW and every other id of the seat links to NEW.
+# real dir becomes ROOT/NEW and no other id of the seat keeps an entry.
 # Nothing of the seat in ROOT = nothing to do.
 _switch() {
   local root="$1" live="" id real
@@ -111,11 +116,21 @@ _switch() {
       mv "$root/$live" "$root/$NEW"
     fi
   fi
+  local seat l t
+  seat=" $(spl_role_seat_ids "$NEW" | tr '\n' ' ') "
   for id in $(spl_role_seat_ids "$NEW"); do
-    [ "$id" = "$NEW" ] && continue
-    [ "$(readlink "$root/$id" 2>/dev/null)" = "$NEW" ] && continue
-    step link "$root/$id -> $NEW"
-    [ "$APPLY" = 1 ] && ln -sfn "$NEW" "$root/$id"
+    [ "$id" = "$NEW" ] || [ ! -L "$root/$id" ] && continue
+    step unlink "$root/$id"
+    [ "$APPLY" = 1 ] && rm -f "$root/$id"
+  done
+  # a legacy alias (CLE-00N -> c-00N) keeps resolving: it points at NEW
+  for l in "$root"/*; do
+    [ -L "$l" ] || continue
+    [[ "$seat" == *" ${l##*/} "* ]] && continue
+    t="$(readlink "$l")"
+    [[ "$seat" == *" $t "* || "$t" == "$live" ]] && [ "$t" != "$NEW" ] || continue
+    step relink "$l -> $NEW"
+    [ "$APPLY" = 1 ] && ln -sfn "$NEW" "$l"
   done
   return 0
 }

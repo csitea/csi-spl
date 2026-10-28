@@ -56,6 +56,9 @@ stub_refs() {  # <dir>
   while IFS=$'\t' read -r kind ref _; do
     case "$kind" in
       path)
+        # a git-ignored path (a sibling clone such as tpl-gen/) stays out of
+        # the copy, where the box has it or not: the check counts it ignored
+        git -C "$APP_ROOT" check-ignore "$ref" "$ref/" >/dev/null 2>&1 && continue
         for c in "${comps[@]}"; do [[ -e "$APP_ROOT/$c$ref" ]] && break; c=-; done
         [[ "$c" == - || -e "$d/$c$ref" ]] && continue
         if [[ -d "$APP_ROOT/$c$ref" ]]; then mkdir -p "$d/$c$ref"; else mkdir -p "$(dirname "$d/$c$ref")"; touch "$d/$c$ref"; fi ;;

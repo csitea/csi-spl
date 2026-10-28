@@ -875,10 +875,17 @@ spl_wd_tmux_lists() {
 spl_wd_gather() {
   local id="$1" pid="$2" pane="$3" now="$4" tick="$5" ctx="$6" ppid sess win act rundir
   echo "$now" > "$ctx/now"
-  cp "$SPOOL_ROOT/$id/heartbeat.json" "$ctx/heartbeat" 2>/dev/null || true
+  # SPL-4015 (orch panel row B2): the heartbeat and its log are read only when
+  # heartbeat.json is THIS process's (.id = ID, .pid = the pid judged); a
+  # c-001 session writing into g-001's dir through a letter link made its
+  # beats read as g-001's. No pid judged = no heartbeat (S3 reads none).
+  if [[ -n "$pid" ]] && jq -e --arg i "$id" --arg p "$pid" '.id == $i and (.pid | tostring) == $p' \
+      "$SPOOL_ROOT/$id/heartbeat.json" >/dev/null 2>&1; then
+    cp "$SPOOL_ROOT/$id/heartbeat.json" "$ctx/heartbeat" 2>/dev/null || true
+    tail -n 200 "$SPOOL_ROOT/$id/heartbeat.log" > "$ctx/hblog" 2>/dev/null || true
+  fi
   # S9 (spec 102 8.1): what was typed into the pane, and when the model got a prompt
   tail -n 50 "$SPOOL_ROOT/$id/lifetime/input.log" > "$ctx/input_log" 2>/dev/null || true
-  tail -n 200 "$SPOOL_ROOT/$id/heartbeat.log" > "$ctx/hblog" 2>/dev/null || true
   cp "$SPOOL_ROOT/peer/$id/held" "$ctx/held" 2>/dev/null || true
   if awk -v i="$id" '$1 == i {f = 1} END {exit !f}' "$SPOOL_ROOT/peer/seats" 2>/dev/null; then echo "$id" > "$ctx/seat"; fi
   spl_wd_inbox "$SPOOL_ROOT/$id/inbox" > "$ctx/inbox"

@@ -646,13 +646,26 @@ grep -qx 'takeover c-918 S1' "$T/takeovers" && pass "4 control: with a known sta
 
 # S4: Escape, then takeover 60 s later
 reset_box; agent c-914 %1 4014
-jq -n --arg s "$(iso $((T0 - 1000)))" '{v: 1, state: "in-tool", ts: $s, progress_ts: $s, tool: "Bash", tool_since: $s, calls: []}' > "$S/c-914/heartbeat.json"
+jq -n --arg s "$(iso $((T0 - 1000)))" '{v: 1, id: "c-914", pid: 4014, state: "in-tool", ts: $s, progress_ts: $s, tool: "Bash", tool_since: $s, calls: []}' > "$S/c-914/heartbeat.json"
 out="$(wd)"
 grep -q 'c-914 HIT S4 .*-> esc$' <<<"$out" && grep -qx 'keys %1 Escape' "$T/tmux/log" && pass "4 S4 sends Escape once" || fail "4 S4 esc: $out"
 NOW=$((T0 + 30)) out="$(wd)"
 [[ "$(grep -c Escape "$T/tmux/log")" == 1 && ! -s "$T/takeovers" ]] && pass "4 S4 30 s later: no second Escape, no takeover yet" || fail "4 S4 30: $out"
 NOW=$((T0 + 60)) out="$(wd)"; settle
 grep -qx 'takeover c-914 S4' "$T/takeovers" && pass "4 S4 still in the call 60 s later: takeover" || fail "4 S4 takeover: $out"
+# SPL-4015 (orch panel row B2): a heartbeat is read only when its .id and .pid
+# are the process judged. RED CONTROL: before SPL-4015 a g-914 beat in
+# c-914's dir (a letter link) was read as c-914's and S4 fired on it
+reset_box; agent c-914 %1 4014
+jq -n --arg s "$(iso $((T0 - 1000)))" '{v: 1, id: "g-914", pid: 4014, state: "in-tool", ts: $s, progress_ts: $s, tool: "Bash", tool_since: $s, calls: []}' > "$S/c-914/heartbeat.json"
+out="$(wd)"
+[[ ! -e "$D/wd/ctx/c-914/heartbeat" ]] && ! grep -q 'c-914 HIT S4' <<<"$out" &&
+  pass "4 a heartbeat whose .id is another letter (g-914) is not read: no S4" || fail "4 id mismatch: $out"
+reset_box; agent c-914 %1 4014
+jq -n --arg s "$(iso $((T0 - 1000)))" '{v: 1, id: "c-914", pid: 4014, state: "in-tool", ts: $s, progress_ts: $s, tool: "Bash", tool_since: $s, calls: []}' > "$S/c-914/heartbeat.json"
+out="$(wd)"
+[[ -s "$D/wd/ctx/c-914/heartbeat" ]] && grep -q 'c-914 HIT S4' <<<"$out" &&
+  pass "4 control: .id c-914 and .pid 4014 match: read, S4 fires" || fail "4 id control: $out"
 
 # S7 the default-mode offer: settings back to bypass + takeover; No as the fallback
 s7home() { rm -rf "${T:?}/home"; mkdir -p "$T/home/.claude"; echo '{"permissions":{"defaultMode":"auto","allow":["Bash"]},"model":"x"}' > "$T/home/.claude/settings.json"; }
@@ -863,8 +876,8 @@ s9screen() {  # s9screen <pane> <clock> [extra line]
 }
 s9agent() {  # s9agent <id> <pid> <poke epoch>
   agent "$1" %1 "$2"
-  jq -n --arg p "$(iso $(($3 - 60)))" --arg u "$(iso $(($3 - 3600)))" \
-    '{v: 1, harness: "claude", state: "idle", ts: $p, progress_ts: $p, turn_since: $u, calls: []}' > "$S/$1/heartbeat.json"
+  jq -n --arg p "$(iso $(($3 - 60)))" --arg u "$(iso $(($3 - 3600)))" --arg id "$1" --argjson pid "$2" \
+    '{v: 1, id: $id, pid: $pid, harness: "claude", state: "idle", ts: $p, progress_ts: $p, turn_since: $u, calls: []}' > "$S/$1/heartbeat.json"
   mkdir -p "$S/$1/lifetime"; echo "$(iso "$3") note" > "$S/$1/lifetime/input.log"
 }
 P=$((T0 - 630))
@@ -911,7 +924,7 @@ grep -q 'c-954 HIT S2 kind=limit .*no restart' <<<"$out" && [[ ! -s "$T/takeover
 
 # control 5: an unread file nobody poked is poked ONCE, then the window runs
 reset_box; agent c-952 %1 4052
-jq -n --arg p "$(iso $((T0 - 3600)))" --arg u "$(iso $((T0 - 7190)))" '{v: 1, harness: "claude", state: "idle", ts: $p, progress_ts: $p, turn_since: $u, calls: []}' > "$S/c-952/heartbeat.json"
+jq -n --arg p "$(iso $((T0 - 3600)))" --arg u "$(iso $((T0 - 7190)))" '{v: 1, id: "c-952", pid: 4052, harness: "claude", state: "idle", ts: $p, progress_ts: $p, turn_since: $u, calls: []}' > "$S/c-952/heartbeat.json"
 mkdir -p "$S/c-952/lifetime"; echo "$(iso $((T0 - 7200))) note" > "$S/c-952/lifetime/input.log"
 echo '{"v":1,"kind":"note","from":"c-002","to":"c-952","body":"fyi"}' > "$S/c-952/inbox/h.json"
 touch -d "@$((T0 - 300))" "$S/c-952/inbox/h.json"
@@ -1033,20 +1046,23 @@ grep -q 'm-974 HIT S1 age=130 .*-> ring' <<<"$out" && grep -q -- '--poke-only --
 mreset; agent m-975 %1 4075 "Vibe CLI"
 echo '{"v":1,"kind":"task","from":"c-002","to":"m-975","body":"do"}' > "$S/m-975/inbox/j.json"; touch -d "@$((T0 - 400))" "$S/m-975/inbox/j.json"
 jq -n --arg p "$(iso $((T0 - 600)))" --arg s "$(iso $((T0 - 120)))" \
-  '{v: 1, harness: "mistral", pid: 4075, state: "working", ts: $s, progress_ts: $p, tool: "bash", tool_since: $s, calls: []}' > "$S/m-975/heartbeat.json"
+  '{v: 1, id: "m-975", harness: "mistral", pid: 4075, state: "working", ts: $s, progress_ts: $p, tool: "bash", tool_since: $s, calls: []}' > "$S/m-975/heartbeat.json"
 for k in 0 1; do NOW=$((T0 + 30 * k)) out="$(wd)"; done; sleep 0.3
 grep -q '^m-975 OK' <<<"$out" && grep -q '^S1 HELD tool=bash' "$D/wd/ctx/m-975/out.s1" && [[ ! -s "$T/takeovers" ]] && pass "10 a vibe lane in a tool call (heartbeat pid = Vibe CLI pid) is not taken over" || fail "10 held: $out / $(cat "$T/takeovers" 2>/dev/null)"
 mreset; agent m-976 %1 4076 "Vibe CLI"
 echo '{"v":1,"kind":"task","from":"c-002","to":"m-976","body":"do"}' > "$S/m-976/inbox/j.json"; touch -d "@$((T0 - 400))" "$S/m-976/inbox/j.json"
 jq -n --arg p "$(iso $((T0 - 600)))" --arg s "$(iso $((T0 - 120)))" \
-  '{v: 1, harness: "mistral", pid: 9999, state: "working", ts: $s, progress_ts: $p, tool: "bash", tool_since: $s, calls: []}' > "$S/m-976/heartbeat.json"
+  '{v: 1, id: "m-976", harness: "mistral", pid: 9999, state: "working", ts: $s, progress_ts: $p, tool: "bash", tool_since: $s, calls: []}' > "$S/m-976/heartbeat.json"
 out="$(wd)"; settle
-grep -qx 'takeover m-976 S1' "$T/takeovers" && pass "10 control: the heartbeat of another pid does not hold: taken over" || fail "10 hold control: $out"
+# SPL-4015: a heartbeat whose .pid is another process's is not read at all
+# (progress unknown: S1 rings, the g-366 rule), so it cannot hold either
+grep -q '^m-976 HIT S1 ' <<<"$out" && ! grep -q '^S1 HELD' "$D/wd/ctx/m-976/out.s1" && [[ ! -e "$D/wd/ctx/m-976/heartbeat" ]] &&
+  pass "10 control: the heartbeat of another pid is not read and does not hold: S1 hits" || fail "10 hold control: $out"
 # m-617 / m-618 (c-001@sat 2026-10-09): a Stop mid-plan, the prompt idle, the
 # inbox empty. A wake at 130 s; the wake starts no turn: taken over at 250 s
 vhb() {  # vhb <id> <pid> <progress epoch> <ts epoch>: vibe's heartbeat after a Stop
-  jq -n --arg p "$(iso "$3")" --arg s "$(iso "$4")" --argjson pid "$2" \
-    '{v: 1, harness: "vibe", pid: $pid, event: "Stop", state: "idle", ts: $s, progress_ts: $p, tool: null, tool_since: null, calls: []}' > "$S/$1/heartbeat.json"
+  jq -n --arg p "$(iso "$3")" --arg s "$(iso "$4")" --argjson pid "$2" --arg id "$1" \
+    '{v: 1, id: $id, harness: "vibe", pid: $pid, event: "Stop", state: "idle", ts: $s, progress_ts: $p, tool: null, tool_since: null, calls: []}' > "$S/$1/heartbeat.json"
 }
 mreset; agent m-977 %1 4077 "Vibe CLI" 3600 "$FX/vibe-idle-plan.pane"; vhb m-977 4077 $((T0 - 130)) $((T0 - 110))
 out="$(wd)"

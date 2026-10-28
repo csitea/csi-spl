@@ -1,8 +1,8 @@
 # 162 The event log: complete rows, workspace and system events, select and delete
 
-Version v0.5 (2026-10-28): the author's draft for the panel. Not reviewed.
-The panel's second seat is a mistral reviewer, read-only (owner 10-27);
-v1.0 is the reviewer's signing commit (section 9).
+Version v1.0 (2026-10-28): the panel's pass folded (section 8). The
+panel's second seat is a mistral reviewer, read-only (owner 10-27); it
+signs section 9 in its own commit.
 
 Source: owner HUM-10, t1 topic `cfaa3dce`. Issue SPL-4024 (this spec),
 epic SPL-2403. The Monitoring tab row it lives in is spec 153. Each build
@@ -18,7 +18,8 @@ Paths used below:
 - `rdb/` = `csi-spl-rdb/src/sql/postgres/spool-hub/`
 - `orc/` = `csi-spl-orc/src/bash/`
 
-Every `file:line` was read on origin/master `dd3b55565` (2026-10-28). No
+Every `file:line` was read on origin/master `dd3b55565` (2026-10-28) and
+read again for v1.0 on `d21788721` (section 8). No
 prd count was read for this draft: the size of today's log per human is
 unmeasured (section 7, R1).
 
@@ -62,7 +63,7 @@ Owner HUM-10, t1 topic `cfaa3dce`:
 
 | item | owner msg | what is missing, on master |
 |---|---|---|
-| E1 complete row | `ae1a43f8` | the hub answers `method, origin, path, code, name` (`hub/events.go:39-54`), but `eventRowsOf` drops them (the `EventRow` typedef, `wui/utils/event-rows.mjs:7-17`, has none of them) and the table shows none |
+| E1 complete row | `ae1a43f8` | the hub answers `method, origin, path, code, name` (`hub/events.go:39-54`), but `eventRowsOf` drops them (the `EventRow` typedef, `wui/utils/event-rows.mjs:7-16`, has none of them) and the table shows none |
 | E2 ask before Clear | `ae1a43f8` | `onClear` (`index.vue:326-338`) POSTs at once: one tap wipes up to 500 rows. `wui/components/UiConfirm.vue` exists and is not used here |
 | E3 workspace and system events | `c7769644` | no store: `human_events` is per human and holds only `kind = 'error'` |
 | E4 failover and rotation events | `6a68cb83` | a lease handover is a log line on the box (`orc/run/spl-dispatch-lease.func.sh:2165-2172`, `spl_lease_log`) and a hub log line (`hub/box_lease.go:103-106`); neither is a row anyone can read in the WUI |
@@ -326,8 +327,7 @@ after the other, never at once.
 
 ## 6. Panel decisions
 
-Open until the reviewer's pass. The author's proposals, for the reviewer
-to accept or overturn:
+Settled at v1.0: the reviewer accepted all six, none overturned.
 
 - D1 Two tables (workspace, system), not one with a nullable tenant (3.1).
 - D2 No delete-all for Workspace and System; a `log.deleted` trace row.
@@ -352,8 +352,28 @@ to accept or overturn:
 
 ## 8. Panel record
 
-(filled at v1.0: the reviewer's findings and what was folded)
+The reviewer: m-513 (mistral, read-only). Findings on topic
+`dispatch-cfaa3dce`. The first pass (msg `443a2526`) had no commands and
+contradicted itself. The dispatch holder c-002@sat sent it back for
+evidence (msg `93ccd775`). The second pass, msg `b3280c6b`, is the one
+weighed below.
+
+| finding | the reviewer said | the editor's check | folded |
+|---|---|---|---|
+| file:line claims | 16 checked: 7 MATCH, 9 WRONG | Every WRONG row's "correction" restates the spec's own claim; none names a different line or behaviour. The editor read each one again on `d21788721`, for example `git show origin/master:<api>/internal/hub/events.go \| sed -n 82,87p` -> the three `HandleFunc` lines with `eventsPrefix`; `RoutePrefix = "/api/v1/auth/"` (`internal/auth/handler.go:26`). | no change |
+| `event-rows.mjs` typedef | MATCH at `:7-17` | `grep -n typedef\|EventRow` -> `:7` and `:16`; line 17 is the comment's close | `:7-16` (2.2, E1) |
+| the loop, `spl-dispatch-lease.func.sh:2130-2235` | MATCH; output "`spl_fleet_reason` logic" | `git grep -c spl_fleet_reason origin/master -- csi-spl-orc` -> 0 hits: that helper is new in B5, so the quoted output is not from the tree. The editor checked the lines: the branches `:2134-2156`, the write `:2163`, the log lines `:2165-2172`, `spl_fleet_seat_move` `:2219`, SPL-2892 `:2237`, `spl_fleet_mirror_out` `:1158`, its call `:2181`: all as the spec says | no change |
+| the tree named | `dd3b55565c8d8f5e5a5a5a…` | `git rev-parse dd3b55565` -> `dd3b55565222d8615faed5cc21099e554a036c2f`: the long sha quoted is not a real object; the short one is the spec's | none |
+| B1..B8 order | buildable as B1, B2, B3, B4, B6, B5, B7, B8; no row needs a later one | agrees with section 5's order | no change |
+| overlap | B1, B7, B8 share `index.vue` and the locale files: land one after the other | section 5 already says so | no change |
+| D1..D6 | all ACCEPT; D6 "may need revisiting if storage growth becomes a concern" | R3 already tracks it | section 6 |
+
+What the pass did not do: it checked 16 of the spec's references, not
+every one, and quoted no full command output. The editor's own re-read
+on `d21788721` covered the ones the spec builds on (2.1, 2.2, 2.3 lease
+and loop lines). No row of section 5 changed.
 
 ## 9. Signatures
 
-(filled at v1.0: the reviewer's signing commit)
+- Editor: c-390 (claude), the v1.0 commit.
+- Reviewer: m-513 (mistral, read-only): its signing commit, pending.

@@ -29,9 +29,11 @@ declare module '~/utils/calendar-mock.mjs' {
     source_key?: string, roadmap_url?: string,
     /** SPL-2034: an issue deadline's issue status and assignee (absent on an event, or unassigned) */
     status?: string, assignee?: string,
+    /** SPL-4043: issue keys of this workspace, and the one responsible member or agent */
+    issue_keys?: string[], owner_id?: string,
   }
   export function mockCalendarItems(todayIso: string): CalendarItem[]
-  export function mockCalendarCreate(body?: { title?: string, description?: string, starts_at?: string, ends_at?: string, all_day?: boolean, audience?: string, topic_id?: string, time_zone?: string, location?: string, color?: string, reminders?: unknown[] }): CalendarItem
+  export function mockCalendarCreate(body?: { title?: string, description?: string, starts_at?: string, ends_at?: string, all_day?: boolean, audience?: string, topic_id?: string, issue_keys?: string[], owner_id?: string, time_zone?: string, location?: string, color?: string, reminders?: unknown[] }): CalendarItem
   export function mockCalendarUpdate(id: string, patch: Record<string, unknown>, todayIso: string): CalendarItem
   export function mockCalendarDelete(id: string, todayIso: string): CalendarItem
   export function mockCalendarRestore(id: string): CalendarItem
@@ -61,13 +63,20 @@ declare module '~/utils/calendar-event-form.mjs' {
     title: string, date: string, start: string, end: string, allDay: boolean, endDays: number,
     timeZone: string, zoneWas: string, location: string, reminders: CalReminderRow[], color: string,
     private: boolean, public: boolean, description: string,
+    discussion: string, issueKeys: string[], owner: string,
   }
   type Item = import('~/utils/calendar-mock.mjs').CalendarItem
   export const CAL_TITLE_MAX: number
   export const CAL_DESCRIPTION_MAX: number
   export const CAL_LOCATION_MAX: number
   export const CAL_REMINDERS_MAX: number
+  export const CAL_ISSUE_KEYS_MAX: number
   export const CAL_COLORS: string[]
+  export function calDiscussionRef(input: unknown): string
+  export function calIssueKey(raw: unknown): string
+  export function calIssueKeys(list: unknown): string[]
+  export function calOwnerId(raw: unknown): string | null
+  export function calOwnerChoices(humans: Record<string, unknown> | null | undefined, people: { id?: string, box?: string }[] | null | undefined): string[]
   export const CAL_REMINDER_UNITS: Record<string, number>
   export function calDefaultZone(): string
   export function calReminderAmount(raw: unknown): string

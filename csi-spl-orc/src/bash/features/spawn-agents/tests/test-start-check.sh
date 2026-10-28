@@ -33,6 +33,15 @@ trust="$R
    Yes, I trust this folder
 
  Enter to confirm · Esc to cancel"
+# grok 1.0.70, read off g-563's pane %1830 (2026-10-28, SPL-4065)
+grok_trust="   g-563-peer-restart worktree /o/c/<repo>-wt/g-563
+                     Do you trust the contents of this directory?
+                                   <MAIN CHECKOUT>
+               Grok Build may run or modify contents in this directory,
+                                posing security risks.
+                             Yes, proceed                 y
+                             No, quit                     n
+                                                                 Grok Build  1.0.70 [stable]"
 automode="$R
  Make auto mode your default permission mode?
 
@@ -53,6 +62,8 @@ $R
 
 eq "Settings Warning named" "Settings Warning" "$(spool_start_dialog <<<"$settings")"
 eq "trust prompt named" "trust prompt" "$(spool_start_dialog <<<"$trust")"
+eq "grok trust prompt named (SPL-4065)" "trust prompt" "$(spool_start_dialog <<<"$grok_trust")"
+has "the trust prompt hint names grok's main checkout key" "main checkout" "$(spool_start_hint 'trust prompt')"
 eq "auto-mode offer named" "auto-mode offer" "$(spool_start_dialog <<<"$automode")"
 eq "not logged in (box drawn, login footer) named auth/login" "auth/login" "$(spool_start_dialog <<<"$nologin")"
 eq "usage limit named" "usage limit" "$(spool_start_dialog <<<"$limit")"

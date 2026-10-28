@@ -46,12 +46,17 @@
 # box, "Buy more credits" / "Try Again" over "↑/↓ navigate · y copy"; the
 # watchdog's text for it is "You hit your weekly limit" (spec 102 T029).
 # Never a bare "weekly limit": grok's normal footer reads "Weekly limit left: 1%".
+# grok's trust prompt (SPL-4065, 2026-10-28, grok 1.0.70, g-563 %1830,
+# n=1): "Do you trust the contents of this directory?" / "<dir>" / "Yes,
+# proceed  y" / "No, quit  n". Unmatched, the agent restart logged RS-SPAWN OK
+# over it. For a linked worktree <dir> is the MAIN checkout: grok keys trust
+# there (trust-workdir.sh writes that key too).
 
 # The known dialogs, "<name>|<extended regex>"; the first match wins.
 SPOOL_START_DIALOGS=(
   'Settings Warning|^[[:space:]]*Settings Warning[[:space:]]*$'
   'Settings Error|Continue without these settings|Exit and fix manually'
-  'trust prompt|Is this a project you created or one you trust|Yes, I trust this folder|Do you trust the files'
+  'trust prompt|Is this a project you created or one you trust|Yes, I trust this folder|Do you trust the files|Do you trust the contents of this directory'
   'auto-mode offer|Make auto mode your default permission mode'
   'bypass-permissions confirm|Yes, I accept'
   'auth/login|Not logged in|Select login method|[Pp]lease run /login|Invalid API key|OAuth token (has )?expired'
@@ -66,6 +71,7 @@ spool_start_hint() {
     'Settings Warning') printf ', the allow rules in the agent user'"'"'s and the box user'"'"'s ~/.claude/settings.json' ;;
     'Settings Error') printf ', a settings file the session cannot read or parse (its path is on the screen): the agent user'"'"'s and the box user'"'"'s ~/.claude/settings.json and the .claude/settings*.json of its working dir, their file modes included' ;;
     'auto-mode offer') printf ', permissions.disableAutoMode in ~/.claude/settings.json' ;;
+    'trust prompt') printf ', the agent user'"'"'s trust store for its working dir (trust-workdir.sh); grok keys a linked worktree on its main checkout, the dir the prompt names' ;;
     'auth/login') printf ', the agent user'"'"'s claude login' ;;
     'grok weekly limit') printf ', grok has no quota until its weekly reset: the successor must be claude' ;;
   esac

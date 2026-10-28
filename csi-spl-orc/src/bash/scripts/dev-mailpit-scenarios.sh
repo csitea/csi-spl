@@ -23,15 +23,16 @@
 # do_dev_mode_up turns the debug links off (SPOOL_AUTH_DEBUG_LINKS=false): no
 # answer carries a token, every token here is read from a mail.
 # Every address is new per run (example.com, +<run id>), so a re-run on the
-# same stack walks the same flows. No stack on DEV_E2E_URL: SKIP, exit 0;
-# DEV_E2E_REQUIRE=1 makes that a failure.
+# same stack walks the same flows. No stack on DEV_E2E_URL: FAIL, exit 1.
+# A script, not a *.tst.sh: it needs a live stack, and the hermetic suites
+# (CI wf 10 refuses any SKIP there) have none.
 #   DEV_E2E_URL       the app (default http://localhost:8080)
 #   DEV_E2E_MAIL_URL  Mailpit (default http://localhost:8025)
 #   DEV_E2E_MAIL_WAIT_S  seconds to wait for each mail (default 20)
 #------------------------------------------------------------------------------
 set -uo pipefail
-TEST_DIR=$(cd "$(dirname "$0")" && pwd)
-# shellcheck source=test-lib.inc.sh
+TEST_DIR=$(cd "$(dirname "$0")/../tests" && pwd)
+# shellcheck source=../tests/test-lib.inc.sh
 source "$TEST_DIR/test-lib.inc.sh"
 fails=0
 BASE="${DEV_E2E_URL:-http://localhost:8080}"
@@ -39,11 +40,8 @@ MAIL="${DEV_E2E_MAIL_URL:-http://localhost:8025}"
 WAIT_S="${DEV_E2E_MAIL_WAIT_S:-20}"
 for b in curl python3; do command -v "$b" >/dev/null || { echo "FAIL: $b is required"; exit 1; }; done
 if ! curl -fsS -m 5 "$BASE/healthz" >/dev/null 2>&1 || ! curl -fsS -m 5 "$MAIL/api/v1/info" >/dev/null 2>&1; then
-  if [[ "${DEV_E2E_REQUIRE:-0}" == 1 ]]; then
-    echo "FAIL: no local dev stack at $BASE + $MAIL (cd csi-spl-orc && ./run -a do_dev_mode_up)"; exit 1
-  fi
-  echo "SKIP: no local dev stack at $BASE + $MAIL (start one: cd csi-spl-orc && ./run -a do_dev_mode_up)"
-  exit 0
+  echo "FAIL: no local dev stack at $BASE + $MAIL (start one: cd csi-spl-orc && ./run -a do_dev_mode_up)"
+  exit 1
 fi
 RUN="$(date +%s)$$"
 U="dev-e2e-user+$RUN@example.com"

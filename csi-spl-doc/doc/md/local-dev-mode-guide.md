@@ -98,7 +98,7 @@ registered cloud application and is out of scope here.
 ### 2.3 Prove every flow at once
 
 ```bash
-bash csi-spl-orc/src/bash/tests/test-dev-mailpit-scenarios.tst.sh
+bash csi-spl-orc/src/bash/scripts/dev-mailpit-scenarios.sh
 ```
 
 It walks the flows of section 2.2 against the running stack through the
@@ -106,8 +106,9 @@ hub's API, reads each token from the mail in Mailpit's REST API (dev mode
 turns the debug links off, so no API answer carries one), and prints one
 PASS or FAIL line per step: 38 on a fresh stack. Start from a fresh stack
 (section 4.2), so the dev login still owns `main`. Other ports:
-`DEV_E2E_URL` and `DEV_E2E_MAIL_URL`. With no stack there it prints SKIP
-and exits 0; `DEV_E2E_REQUIRE=1` turns that into a failure.
+`DEV_E2E_URL` and `DEV_E2E_MAIL_URL`. With no stack there it fails at
+once. It is a script, not part of the test suites: those run without a
+stack, in CI too.
 
 The hub's own rate floors still hold, per client IP and 15 minutes:
 

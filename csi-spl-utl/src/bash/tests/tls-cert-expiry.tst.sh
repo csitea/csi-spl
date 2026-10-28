@@ -12,7 +12,8 @@
 #   5. No certificate -> ERROR, one note
 #   6. Hosts from the cnf: [sub.]api.<BASE_DOMAIN> and [sub.]<BASE_DOMAIN> per env
 #   7. The repo cnf gives 4 hosts under its BASE_DOMAIN
-#   8. Fetches run in parallel: 4 hosts x 1 s finish in < 2 s
+#   8. Fetches run in parallel: all 4 slow fetches start before any ends
+#      (stamps from the stub, not wall clock, so a loaded box cannot fail it)
 #   9. Usage errors -> rc 1 FATAL
 #  10. ./run -a do_net_cert_expiry_check through the csi-spl-utl harness
 #  11. RED CONTROL: with no CERT_EXPIRY_SEND_CMD the real-run default resolves
@@ -37,6 +38,7 @@ T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 BIN="$T/bin" CERTS="$T/certs" STATE="$T/state"
 SENT="$T/sent.log" SENTINEL_LOG="$T/sentinel.log" LIVE_LOG="$T/live-calls.log"
+SLOW_LOG="$T/slow.log"
 mkdir -p "$BIN" "$CERTS" "$T/spool"
 : >"$SENT"; : >"$SENTINEL_LOG"; : >"$LIVE_LOG"
 
@@ -49,10 +51,14 @@ mkcert ok.example.test 63
 mkcert warn.example.test 14
 mkcert crit.example.test 3
 
-# fetch <host>: the PEM of <host>; none for nocert*, 1 s late for slow*
+# fetch <host>: the PEM of <host>; none for nocert*, 1 s late for slow*,
+# which stamps "start"/"end" lines into $SLOW_LOG for step 8
 cat >"$BIN/fetch" <<EOF
 #!/bin/bash
-[[ "\$1" == slow* ]] && { sleep 1; cat "$CERTS/ok.example.test.pem"; exit 0; }
+if [[ "\$1" == slow* ]]; then
+  echo "start \$1" >>"$SLOW_LOG"; sleep 1; echo "end \$1" >>"$SLOW_LOG"
+  cat "$CERTS/ok.example.test.pem"; exit 0
+fi
 [[ -f "$CERTS/\$1.pem" ]] || exit 1
 cat "$CERTS/\$1.pem"
 EOF
@@ -193,14 +199,15 @@ else
 fi
 
 # 8 -------------------------------------------------------------------------
-s=$EPOCHREALTIME
+# Parallel = every slow fetch starts before the first one ends. Serial fetches
+# give start/end pairs, so the first "end" comes after only one "start".
+: >"$SLOW_LOG"
 out=$(CERT_EXPIRY_HOSTS="slow1.example.test slow2.example.test slow3.example.test slow4.example.test" run_check); rc=$?
-e=$EPOCHREALTIME
-ms=$(( (${e/[.,]/} - ${s/[.,]/}) / 1000 ))
-if [[ $rc -eq 0 && $ms -lt 2000 ]] && [[ $(grep -c " OK days=" <<<"$out") -eq 4 ]]; then
-  pass "8. 4 hosts x 1 s fetched in parallel: ${ms} ms (< 2000)"
+starts=$(awk '$1 == "end" { exit } $1 == "start" { n++ } END { print n + 0 }' "$SLOW_LOG")
+if [[ $rc -eq 0 && $starts -eq 4 ]] && [[ $(grep -c " OK days=" <<<"$out") -eq 4 ]]; then
+  pass "8. 4 slow fetches ran in parallel: $starts started before the first ended"
 else
-  fail "8. parallel fetch (rc=$rc ms=$ms out=$out)"
+  fail "8. parallel fetch (rc=$rc starts-before-first-end=$starts out=$out)"
 fi
 
 # 9 -------------------------------------------------------------------------

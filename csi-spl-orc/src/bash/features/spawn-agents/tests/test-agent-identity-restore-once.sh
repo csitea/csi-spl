@@ -22,6 +22,13 @@
 #   4. control: a window named for the id whose pane is an idle shell (a
 #      finished restore's "bash --norc") does not hold the id: it is started
 #   5. control: the dry run plans, re-checks and starts nothing
+#   6. a dead harness (SPL-3979): a window named for the id whose pane is
+#      tmux's `sh -c` wrapper over the ended session's bare shell (the shape
+#      every launcher leaves; the wrapper's own cmdline is never a shell) does
+#      not hold the id: it is started IN that window (respawn-pane -k, the
+#      same pane id, renamed), never a second window
+#   7. control: the same wrapper over a running non-shell child (a start
+#      still coming up) holds the id: "a live window already carries it"
 #   Red control: IR_FUNC=<the file before the fix> -> 1, 2 and 3 fail.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
@@ -122,5 +129,23 @@ out4="$(act DRY_RUN=0 IDENTITY_RESTORE_IDS=m-805)"
 sleep 1
 eq "4. m-805, whose window holds only an idle shell, is started" 1 "$(starts m-805)"
 has "4. ... in its own worktree" "STARTED m-805: mistral session - in $W/m-805" "$out4"
+
+# --- 6 a dead harness: tmux's sh -c wrapper over a bare shell --------------------
+mkdir -p "$W/m-806"; record m-806 "$W/m-806"
+p806="$(t_window "m-806 lane 06" "bash --norc; :")"
+sleep 0.5
+out6="$(act DRY_RUN=0 IDENTITY_RESTORE_IDS=m-806)"
+sleep 1
+eq "6. m-806, its harness gone under the sh -c wrapper, is started" 1 "$(starts m-806)"
+has "6. ... in its own window, in place" "STARTED m-806: mistral session - in $W/m-806 [$p806] in place" "$out6"
+eq "6. ... and one window carries m-806, not two" 1 "$(tmux -S "$SPOOL_TMUX_SOCKET" list-windows -a -F '#{window_name}' | grep -c '^m-806')"
+
+# --- 7 control: the wrapper over a running child holds the id --------------------
+mkdir -p "$W/m-807"; record m-807 "$W/m-807"
+t_window "m-807 lane 07" "sleep 600; :" >/dev/null
+sleep 0.5
+out7="$(act DRY_RUN=0 IDENTITY_RESTORE_IDS=m-807)"
+eq "7. m-807, a start still coming up in its window, is not started" 0 "$(starts m-807)"
+has "7. ... named as carried by a live window" "SKIP    m-807: a live window already carries it" "$out7"
 
 t_done

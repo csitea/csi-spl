@@ -39,6 +39,10 @@
 # @description already by this run, or a live window or process carrying it,
 # @description is a SKIP; a worktree gone since the plan is a REFUSE naming the
 # @description path - never a start in another directory.
+# @description A window named for the id whose pane runs no harness (each process
+# @description under tmux's `sh -c` wrapper a bare shell: the session ended,
+# @description SPL-3979) is not live: the agent starts IN it (respawn-pane -k,
+# @description the same pane, renamed), so its tmux window never disappears.
 # @description A grok seat (its session read from grok's own store at record
 # @description time, SPL-2507) comes back on grok only when grok can start: no
 # @description grok cli, no sign-in or its weekly limit is ONE "FALLBACK <id>"
@@ -87,7 +91,7 @@ do_spl_agent_identity_restore() {
     since="$(date -u -d "@$(awk '/^btime/{print $2}' /proc/stat)" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)"
   fi
   until="$(date -u -d "$since + $win minutes" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)"
-  local plan line kind id user sid wt sess title from adapter brief pane rid why reg="${SPOOL_ROOT:-/var/spool-hub}/registry.tsv"
+  local plan line kind id user sid wt sess title from adapter brief pane dead rid why reg="${SPOOL_ROOT:-/var/spool-hub}/registry.tsv"
   local n=0 refused=0 failed=0 now started=() tag keep=1
   # Ids named by hand are the admin's restart (spec 102 6.1): the adapter
   # clears their hold. The automatic pass (the boot) keeps every hold.
@@ -113,24 +117,24 @@ do_spl_agent_identity_restore() {
         fi
         why="$(_ai_restore_recheck "$id" "$wt" "${started[*]}")"; [[ -z "$why" ]] || { _ai_restore_skip "$id" "$wt" "$why" || refused=$((refused + 1)); continue; }
         if [[ "$kind" == grok ]] && _ai_grok_fallback "$id" "${user:-$agent_user}" "$dry" "$rid"; then refused=$((refused + 1)); continue; fi
+        dead="$(_ai_dead_pane "$id")"
         if [[ "$dry" == 1 ]]; then
           [[ -n "$from" ]] && echo "COPY    $id: transcript $sid from $from's home to $user's"
-          echo "RESTORE $id: $kind session $sid in $wt, as ${user:-the agent user}, new window '$(SPOOL_BOX_TAG="$tag" spool_decorate "$id")${title:+ $title}' in '$sess'"
+          echo "RESTORE $id: $kind session $sid in $wt, as ${user:-the agent user}, ${dead:+in place of its dead pane $dead, }window '$(SPOOL_BOX_TAG="$tag" spool_decorate "$id")${title:+ $title}'${dead:- new in '$sess'}"
           continue
         fi
         if [[ -n "$from" ]] && ! _ai_copy_transcript "$from" "$user" "$wt" "$sid"; then
           echo "FAILED  $id: cannot copy transcript $sid from $from's home to $user's"; failed=$((failed + 1)); continue
         fi
         [[ -x "$adapter" || -r "$adapter" ]] || { echo "FAILED  $id: no adapter $adapter"; failed=$((failed + 1)); continue; }
-        ai_tmux has-session -t "=$sess" 2>/dev/null || ai_tmux new-session -d -s "$sess" 2>/dev/null
         _ai_rlog "$rid" RESTORE START "$kind session $sid in $wt"
-        pane="$(ai_tmux new-window -d -t "=$sess:" -n "$(SPOOL_BOX_TAG="$tag" spool_decorate "$id")${title:+ $title}" -P -F '#{pane_id}' \
-          "env ${user:+SPOOL_AGENT_USER=$user }${tag:+SPOOL_BOX_TAG=$tag }${keep:+RESTORE_KEEP_HOLD=1 }bash '$adapter' '$id' '$wt' '$sid'${brief:+ '$brief'}" 2>/dev/null | grep -xE '%[0-9]+' | sed -n 1p)"
-        [[ -n "$pane" ]] || { echo "FAILED  $id: tmux new-window printed no pane"; failed=$((failed + 1)); _ai_rlog "$rid" FAIL FAIL "tmux new-window printed no pane"; continue; }
+        pane="$(_ai_restore_window "$sess" "$(SPOOL_BOX_TAG="$tag" spool_decorate "$id")${title:+ $title}" "$dead" \
+          "env ${user:+SPOOL_AGENT_USER=$user }${tag:+SPOOL_BOX_TAG=$tag }${keep:+RESTORE_KEEP_HOLD=1 }bash '$adapter' '$id' '$wt' '$sid'${brief:+ '$brief'}")"
+        [[ -n "$pane" ]] || { echo "FAILED  $id: tmux printed no pane"; failed=$((failed + 1)); _ai_rlog "$rid" FAIL FAIL "tmux printed no pane"; continue; }
         now="$(date -u +%Y%m%dT%H%M%SZ)"
         printf '%s\t%s\t%s\t%s\t%s\n' "$id" "$kind" "$pane" "$wt" "$now" >> "$reg" 2>/dev/null
         [[ -n "${IDENTITY_LEGACY_REGISTRY:-}" ]] && printf '%s\t%s\t%s\t%s\t%s\n' "$id" "$kind" "$pane" "$wt" "$now" >> "$IDENTITY_LEGACY_REGISTRY" 2>/dev/null
-        echo "STARTED $id: $kind session $sid in $wt [$pane]"; started+=("$id")
+        echo "STARTED $id: $kind session $sid in $wt [$pane]${dead:+ in place}"; started+=("$id")
         _ai_rlog "$rid" DONE OK "$kind session $sid in $wt [$pane]"
         n=$((n + 1))
         (( pause > 0 )) && sleep "$pause"
@@ -167,19 +171,64 @@ _ai_restore_head() {  # SINCE UNTIL AGENT-USER TAG
 # (SPL-3771). "gone" = its worktree is not a directory any more: the adapter
 # would run it in another cwd. Else a line: already started by this run, a
 # window named for it whose pane is not an idle shell (a start still coming
-# up), or a live process that carries the id.
+# up), or a live process that carries the id. A window whose pane runs no
+# harness (_ai_pane_gone) is not live: the start reuses it (_ai_dead_pane).
 _ai_restore_recheck() {  # ID WORKTREE STARTED-IDS
-  local id="$1" wid name pane ppid cmd
+  local id="$1" wid name pane ppid
   [[ -d "$2" ]] || { echo gone; return 0; }
   [[ " $3 " == *" $id "* ]] && { echo "already started by this run"; return 0; }
   while IFS=$'\t' read -r _ _ pane ppid name; do
     spool_id_of_window_var wid "$name"
     [[ "$wid" == "$id" ]] || continue
-    cmd="$(tr '\0' ' ' < "${AI_PROC_ROOT:-/proc}/$ppid/cmdline" 2>/dev/null)"
-    [[ -z "$cmd" || "$cmd" =~ ^-?(ba|da|z)?sh(\ --norc)?\ ?$ ]] && continue
+    _ai_pane_gone "$ppid" && continue
     echo "a live window already carries it ($name, $pane)"; return 0
   done < <(ai_panes)
   ai_panes | ai_py restore-plan --ids "$id" 2>/dev/null | awk -F'\t' -v i="$id" '$1 == "SKIP" && $2 == i && $3 ~ /^already running/ { print $3; exit }'
+}
+
+# The first pane of a window named for ID that runs no harness; nothing when
+# none. The restore starts the agent in it, so its window never disappears.
+_ai_dead_pane() {  # ID
+  local wid name pane ppid
+  while IFS=$'\t' read -r _ _ pane ppid name; do
+    spool_id_of_window_var wid "$name"
+    [[ "$wid" == "$1" ]] && _ai_pane_gone "$ppid" && { echo "$pane"; return 0; }
+  done < <(ai_panes)
+  return 0
+}
+
+# 0 when the pane whose process is PANE-PID runs no harness: that process is
+# a bare shell (or gone), or every process under it is. tmux runs a launcher
+# as `sh -c '<launcher>'`, a cmdline that is never a shell's; when the
+# session ends the launcher execs `bash --norc` under it (SPL-3979: the dead
+# window counted as live and the id was SKIPped until a hand close). A
+# wrapper with nothing under it, or with any other process under it (a start
+# still coming up), is live.
+_ai_pane_gone() {  # PANE-PID
+  local p="${AI_PROC_ROOT:-/proc}" k n=0
+  _ai_bare_shell "$1" && return 0
+  while read -r k; do
+    _ai_bare_shell "$k" || return 1; n=$((n + 1))
+  done < <(cat "$p"/[0-9]*/stat 2>/dev/null | awk -v r="$1" '{s = $0; sub(/^.*\) /, "", s); split(s, f, " "); kid[f[2]] = kid[f[2]] " " $1}
+    END {q[1] = r; n = 1; for (i = 1; i <= n; i++) {c = split(kid[q[i]], a, " "); for (j = 1; j <= c; j++) {print a[j]; q[++n] = a[j]}}}')
+  (( n > 0 ))
+}
+
+_ai_bare_shell() {  # PID
+  local cmd
+  cmd="$(tr '\0' ' ' < "${AI_PROC_ROOT:-/proc}/$1/cmdline" 2>/dev/null)"
+  [[ -z "$cmd" || "$cmd" =~ ^-?(ba|da|z)?sh(\ --norc)?\ ?$ ]]
+}
+
+# The pane a start runs in: DEAD (a dead window of the id) respawned in place
+# and renamed, else a new window in SESSION. Prints the pane id.
+_ai_restore_window() {  # SESSION NAME DEAD CMD
+  if [[ -n "$3" ]]; then
+    ai_tmux respawn-pane -k -t "$3" "$4" 2>/dev/null || return 0
+    ai_tmux rename-window -t "$3" "$2" 2>/dev/null; echo "$3"; return 0
+  fi
+  ai_tmux has-session -t "=$1" 2>/dev/null || ai_tmux new-session -d -s "$1" 2>/dev/null
+  ai_tmux new-window -d -t "=$1:" -n "$2" -P -F '#{pane_id}' "$4" 2>/dev/null | grep -xE '%[0-9]+' | sed -n 1p
 }
 
 # The re-check's one line: a gone worktree is a REFUSE (1, counted), the

@@ -1970,15 +1970,21 @@ spl_wd_fence_is_seat() {
 # spl_wd_beat NOW: one beat, bounded by WD_BEAT_TIMEOUT (10 s). An answer
 # with "ok": true is the ack. The first beat of a box with no ack yet starts
 # the clock (a box that never reached the hub is fenced box_down_min later).
-# Every beat appends BEAT <inst> tick= sent= ack=<time|none> ms= to beat.log.
+# Every beat appends BEAT <inst> tick= sent= ack=<time|none> ms= to beat.log;
+# a beat with no ack adds why (SPL-4017): rc= the call's exit code, err= its
+# first stderr line and ip= the address it dialled (spl_wd_beat_err). One
+# box 2026-10-28 06:50-07:19Z: 30 min of 40 ms fails, fenced, 9 lanes TERMed,
+# and wd.log said only "no answer".
 spl_wd_beat() {
-  local now="$1" out dm t0 t1 ack=none
+  local now="$1" out dm t0 t1 ack=none rc=0 ef="$WD_DIR/beat.err.$$" why=""
   spl_wd_beat_on || return 0
+  [[ -w "$WD_DIR" ]] || ef=""
   t0="${EPOCHREALTIME/,/.}"
-  out="$(spl_wd_beat_call 2>/dev/null)" || out=""
+  out="$(spl_wd_beat_call 2>"${ef:-/dev/null}")" || { rc=$?; out=""; }
   t1="${EPOCHREALTIME/,/.}"
-  if jq -e '.ok == true' >/dev/null 2>&1 <<<"$out"; then ack="$(spl_wd_iso "$t1")"; fi
-  spl_wd_beat_log "BEAT ${WD_INST:--} tick=$(spl_wd_iso "$now") sent=$(spl_wd_iso "$t0") ack=$ack ms=$(( (${t1/./} - ${t0/./}) / 1000 ))"
+  if jq -e '.ok == true' >/dev/null 2>&1 <<<"$out"; then ack="$(spl_wd_iso "$t1")"; else why="$(spl_wd_beat_err "$rc" "$ef")"; fi
+  [[ -z "$ef" ]] || rm -f "$ef"
+  spl_wd_beat_log "BEAT ${WD_INST:--} tick=$(spl_wd_iso "$now") sent=$(spl_wd_iso "$t0") ack=$ack ms=$(( (${t1/./} - ${t0/./}) / 1000 ))${why:+ $why}"
   if [[ "$ack" != none ]]; then
     echo "$now" > "$WD_DIR/beat.ack.$$" && mv -f "$WD_DIR/beat.ack.$$" "$WD_DIR/beat.ack"
     dm="$(jq -r '.box_down_min // empty' 2>/dev/null <<<"$out")"
@@ -1986,10 +1992,27 @@ spl_wd_beat() {
       echo "$dm" > "$WD_DIR/beat.down_min.$$" && mv -f "$WD_DIR/beat.down_min.$$" "$WD_DIR/beat.down_min"
     fi
   else
-    spl_wd_log "BEAT${WD_INST:+ instance $WD_INST}: no ack from the hub ($(head -c 160 <<<"${out:-no answer}" | tr '\n' ' '))"
+    spl_wd_log "BEAT${WD_INST:+ instance $WD_INST}: no ack from the hub ($(head -c 160 <<<"${out:-no answer}" | tr '\n' ' ')) $why"
     [[ -s "$WD_DIR/beat.ack" ]] || echo "$now" > "$WD_DIR/beat.ack"
   fi
   return 0
+}
+
+# spl_wd_beat_err RC ERRFILE: "rc=<n> err=<first stderr line> [ip=<addr>]".
+# err is one line cut to 160 bytes, a Bearer/Basic credential and an
+# Authorization, token, key, secret or password value masked (***). ip is
+# the address of Go's "dial tcp <addr>:<port>" (the spool binary's connect
+# error), so a failed IPv6 connect shows as one; a timeout (rc 124) has no
+# stderr, so err=- and no ip.
+spl_wd_beat_err() {
+  local e ip=""
+  e="$(head -n 1 "$2" 2>/dev/null | tr -d '\r' | sed -E \
+    -e 's/(Bearer|Basic)[[:space:]]+[^[:space:]"]+/\1 ***/Ig' \
+    -e 's/(Authorization"?[:=][[:space:]]*"?)[^*[:space:]"][^[:space:]"]*/\1***/Ig' \
+    -e 's/((token|key|secret|password)"?[=:][[:space:]]*"?)[^*[:space:]"&,]+/\1***/Ig')"
+  [[ "$e" =~ dial\ tcp[46]?\ \[?([0-9A-Fa-f:.]*[0-9A-Fa-f])\]?:[0-9]+ ]] && ip=" ip=${BASH_REMATCH[1]}"
+  e="$(head -c 160 <<<"$e")"
+  echo "rc=$1 err=${e:--}$ip"
 }
 
 # On when the beat has a hub: WD_BEAT_CMD, or the lane map's hub (lease.conf

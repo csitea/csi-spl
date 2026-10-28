@@ -33,8 +33,18 @@ BEAT 2 tick=2027-01-15T08:00:30.000Z sent=2027-01-15T08:00:41.512Z ack=2027-01-1
 | `ack=` | when the hub's `"ok": true` answer came back, or `none` (no answer, a timeout after `WD_BEAT_TIMEOUT` 10 s, or an answer that is not ok) |
 | `ms=` | how long the call took, answer or not |
 
-A beat with `ack=none` also logs the `BEAT ... no ack` line in `wd.log`, as
-before.
+A beat with `ack=none` adds why it failed (SPL-4017), and its
+`BEAT ... no ack` line in `wd.log` ends with the same fields:
+
+```text
+BEAT - tick=2027-01-15T08:00:30.000Z sent=2027-01-15T08:00:30.012Z ack=none ms=41 rc=1 err=spool: Post "https://api.example.net/v1/lane": dial tcp [2001:db8::15]:443: connect: network is unreachable ip=2001:db8::15
+```
+
+| field | meaning |
+|---|---|
+| `rc=` | the beat call's exit code: `124` a timeout after `WD_BEAT_TIMEOUT`, `0` an answer that is not ok |
+| `err=` | the call's first stderr line, cut to 160 bytes, with any Bearer, Basic, Authorization, token, key, secret or password value masked (`***`); `-` when there was none (a timeout) |
+| `ip=` | the address the call dialled, when the error names one (Go's `dial tcp <addr>:<port>`): an IPv6 address there with an IPv4 hub reachable points to a failed IPv6 connect |
 
 ### 1.2 TICK: a tick that ran past WD_TICK
 
@@ -58,7 +68,9 @@ judged, the parallel jobs) and `log` (`wd.log` written and trimmed).
    `awk '/^BEAT / && $5 != "ack=none" {split($5, a, "="); print a[2]}' beat.log | sort | uniq | while read t; do date -u -d "$t" +%s; done | awk 'NR > 1 && $1 - p > 120 {print p, $1, $1 - p} {p = $1}'`.
 2. Within the gap, look at the lines of each instance:
    - `ack=none` lines: the beat was sent and the hub did not answer. The cause
-     is on the hub or the network side, not on the box.
+     is on the hub or the network side, not on the box. `ms=` near
+     `WD_BEAT_TIMEOUT` with `rc=124` is a hub or path that hangs; a fast fail
+     (tens of ms) names its cause in `err=` and `ip=`.
    - `sent=` far after `tick=`: the steps before the fence were slow. The
      `TICK` line of that tick names the step.
    - no `BEAT` line at all for a while: no tick ran (a hung step, the watchdog

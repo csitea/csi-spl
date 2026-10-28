@@ -408,7 +408,7 @@ for s in 0 30; do echo slow > "$T/hub"; WD_BEAT_TIMEOUT=5 DRY_RUN=0 wd spl_wd_fe
 grep -q "^BEAT - tick=2027-01-15T08:00:30.000Z sent=20[^ ]*Z ack=20[^ ]*Z ms=[0-9]*\$" "$T/wd/beat.log" 2>/dev/null &&
   pass "12. the line names the tick, the call start and the ack" || fail "12. line format: $(tail -1 "$T/wd/beat.log" 2>/dev/null)"
 ticks 60 60 silent
-grep -q " ack=none ms=[0-9]*\$" <<<"$(tail -1 "$T/wd/beat.log" 2>/dev/null)" && grep -q "BEAT: no ack" "$T/wd.log" &&
+grep -q " ack=none ms=[0-9]* rc=124 err=-\$" <<<"$(tail -1 "$T/wd/beat.log" 2>/dev/null)" && grep -q "BEAT: no ack" "$T/wd.log" &&
   pass "12. control: a silent hub writes ack=none and the BEAT no ack line" ||
   fail "12. control: silent beat: $(tail -1 "$T/wd/beat.log" 2>/dev/null) | $(grep -c 'BEAT: no ack' "$T/wd.log")"
 WD_BEAT_LOG_MAX=3 ticks 90 180 ok

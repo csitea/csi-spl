@@ -139,84 +139,97 @@ function notifyAll(listeners: Set<(items: SnackbarItem[]) => void>, snap: Snackb
   }
 }
 
-export function createSnackbarQueue(opts: { now?: () => number, max?: number, ttlMs?: number, coalesceMs?: number } = {}): SnackbarQueue {
-  const { now, max, ttl, coalesce } = snackbarOptions(opts)
+/** createSnackbarQueue's state: its options, rows newest first, the last id and the subscribers. */
+type QueueState = ReturnType<typeof snackbarOptions> & {
+  rows: SnackbarRow[]
+  nextId: number
+  listeners: Set<(items: SnackbarItem[]) => void>
+}
 
-  /** newest first */
-  let rows: SnackbarRow[] = []
-  let nextId = 0
-  const listeners = new Set<(items: SnackbarItem[]) => void>()
+/** Hand every subscriber the queue's current rows. */
+function queueEmit(st: QueueState): void {
+  notifyAll(st.listeners, publicRows(st.rows))
+}
 
-  const view = () => publicRows(rows)
-  const emit = () => notifyAll(listeners, view())
-
-  /**
-   * Show one journal record. Returns the row's id, or '' when the record is
-   * not showable.
-   */
-  function push(raw: unknown): string {
-    try {
-      if (!raw || typeof raw !== 'object') return ''
-      const rec = raw as JournalRec
-      const text = snackbarText(rec)
-      const key = sameKey(rec, text)
-      const t = now()
-      const hit = rows.find((r) => r.key === key && t - r.lastAt <= coalesce)
-      if (hit) {
-        bumpRow(hit, rec, t, ttl)
-        rows = [hit, ...rows.filter((r) => r !== hit)]
-      } else {
-        nextId += 1
-        rows = [newRow({ id: `snack-${nextId}`, key, text, rec, t, ttl }), ...rows].slice(0, max)
-      }
-      emit()
-      // The row this record landed on is the newest, so it is first.
-      return rows[0]?.id ?? ''
-    } catch {
-      return ''
+/**
+ * Show one journal record: bump the row of an identical error inside the
+ * coalesce window and move it to the front, else add a new row on top.
+ * Returns the row's id, or '' when the record is not showable.
+ */
+function queuePush(st: QueueState, raw: unknown): string {
+  try {
+    if (!raw || typeof raw !== 'object') return ''
+    const rec = raw as JournalRec
+    const text = snackbarText(rec)
+    const key = sameKey(rec, text)
+    const t = st.now()
+    const hit = st.rows.find((r) => r.key === key && t - r.lastAt <= st.coalesce)
+    if (hit) {
+      bumpRow(hit, rec, t, st.ttl)
+      st.rows = [hit, ...st.rows.filter((r) => r !== hit)]
+    } else {
+      st.nextId += 1
+      st.rows = [newRow({ id: `snack-${st.nextId}`, key, text, rec, t, ttl: st.ttl }), ...st.rows].slice(0, st.max)
     }
+    queueEmit(st)
+    // The row this record landed on is the newest, so it is first.
+    return st.rows[0]?.id ?? ''
+  } catch {
+    return ''
   }
+}
+
+/** Pause (true) or restart (false) a row's clock — hover and focus. */
+function queueHold(st: QueueState, id: string, on: boolean): void {
+  const r = st.rows.find((x) => x.id === id)
+  if (!r || r.held === !!on) return
+  r.held = !!on
+  // Letting go gives the reader the full time again, not the stub that was
+  // left when they started reading.
+  if (!on) r.expiresAt = st.now() + st.ttl
+  queueEmit(st)
+}
+
+/** Drop expired rows. Returns true when something changed. */
+function queueTick(st: QueueState): boolean {
+  const t = st.now()
+  const keep = st.rows.filter((r) => r.held || r.expiresAt > t)
+  if (keep.length === st.rows.length) return false
+  st.rows = keep
+  queueEmit(st)
+  return true
+}
+
+export function createSnackbarQueue(opts: { now?: () => number, max?: number, ttlMs?: number, coalesceMs?: number } = {}): SnackbarQueue {
+  const st: QueueState = { ...snackbarOptions(opts), rows: [], nextId: 0, listeners: new Set() }
 
   /** Remove a row now (close button). */
   function dismiss(id: string): void {
-    const before = rows.length
-    rows = rows.filter((r) => r.id !== id)
-    if (rows.length !== before) emit()
-  }
-
-  /** Pause (true) or restart (false) a row's clock — hover and focus. */
-  function hold(id: string, on: boolean): void {
-    const r = rows.find((x) => x.id === id)
-    if (!r || r.held === !!on) return
-    r.held = !!on
-    // Letting go gives the reader the full time again, not the stub that was
-    // left when they started reading.
-    if (!on) r.expiresAt = now() + ttl
-    emit()
-  }
-
-  /** Drop expired rows. Returns true when something changed. */
-  function tick(): boolean {
-    const t = now()
-    const keep = rows.filter((r) => r.held || r.expiresAt > t)
-    if (keep.length === rows.length) return false
-    rows = keep
-    emit()
-    return true
+    const before = st.rows.length
+    st.rows = st.rows.filter((r) => r.id !== id)
+    if (st.rows.length !== before) queueEmit(st)
   }
 
   function clear(): void {
-    if (!rows.length) return
-    rows = []
-    emit()
+    if (!st.rows.length) return
+    st.rows = []
+    queueEmit(st)
   }
 
   function subscribe(fn: (items: SnackbarItem[]) => void): () => void {
-    listeners.add(fn)
-    return () => { listeners.delete(fn) }
+    st.listeners.add(fn)
+    return () => { st.listeners.delete(fn) }
   }
 
-  return { push, dismiss, hold, tick, clear, subscribe, items: view }
+  return {
+    push: (raw) => queuePush(st, raw),
+    dismiss,
+    hold: (id, on) => queueHold(st, id, on),
+    tick: () => queueTick(st),
+    clear,
+    subscribe,
+    items: () => publicRows(st.rows),
+  }
 }
 
 /**

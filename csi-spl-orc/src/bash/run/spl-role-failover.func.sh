@@ -23,8 +23,11 @@
 # @description   4. role-seat-switch.sh OLD NEW (the dir moves, every other
 # @description      letter links to it), then NEW must be its own real dir:
 # @description      a switch never writes another seat's lifetime/prompt.txt
-# @description   5. the vendor starts in the seat (spl_rotate_spawn: the old
-# @description      window renamed -retiring, SPAWN_REUSE_ID=1, the start
+# @description   5. the old session ends FIRST (SPL-4015, orch panel row B2:
+# @description      one seat, one session): /exit, TERM, KILL, its window
+# @description      closed; one that survives SIGKILL = FAIL, nothing started.
+# @description      Then the vendor starts in the seat (spl_rotate_spawn, in
+# @description      the old window's tmux session, SPAWN_REUSE_ID=1, the start
 # @description      check, the identity map) with a seed naming the role and a
 # @description      handoff; ROLE_FAILOVER_SETTLE s later the lease's own able
 # @description      test (spl_fleet_try) judges it, and then a proof of WORK
@@ -36,8 +39,7 @@
 # @description      lease's test alone passes for a session that started and
 # @description      sits at an idle prompt (its stuck check fires only on an
 # @description      unread inbox older than LEASE_UNREAD_MAX, 600 s)
-# @description   6. able: lease.conf LEASE_ORCH / LEASE_MASTER = NEW, the old
-# @description      process ended (/exit, TERM, KILL), its window closed, the
+# @description   6. able: lease.conf LEASE_ORCH / LEASE_MASTER = NEW, the
 # @description      seat recorded in role-failover/seat.<NNN> (the rotation
 # @description      hands it back once claude can act: spl_rotate_failover_vendor)
 # @description   7. any failure in 4-6: the new session closed, the dirs
@@ -208,14 +210,24 @@ spl_role_failover_claude2_why() {
   return 0
 }
 
-# A restart in place (claude2 on a claude seat, SPL-2943): the old session
-# cannot act and shares the id, so every able test would read it (the lowest
-# pid): it ends now, not after the new one is judged.
+# spl_role_failover_end_old RID ROLE SEAT OPID OPANE: the old session ends
+# BEFORE the new one starts (SPL-4015, orch panel row B2: one seat, one
+# session). It cannot act, and while it lives it reads the seat's inbox and
+# beats in its dir beside the new one (2026-10-27: a claude c-001 kept
+# running in g-001's dir). Its window closes with it; the new one starts in
+# that window's tmux session (ROLE_FAILOVER_SESSION). Non-zero = it survived
+# SIGKILL: alerted, ROTATE_ERR says so, nothing may start.
 spl_role_failover_end_old() {
-  local rid="$1" seat="$2" opid="$3" opane="$4"
-  spl_rotate_end "${opane:-none}" "$opid" /exit "$ROLE_FAILOVER_EXIT_WAIT" "$ROTATE_TERM_WAIT" || true
+  local rid="$1" role="$2" seat="$3" opid="$4" opane="$5"
+  ROLE_FAILOVER_SESSION=""
+  [[ -n "$opane" ]] && ROLE_FAILOVER_SESSION="$(spl_rotate_tmux display-message -p -t "$opane" '#{session_id}' 2>/dev/null || true)"
+  if ! spl_rotate_end "${opane:-none}" "$opid" /exit "$ROLE_FAILOVER_EXIT_WAIT" "$ROTATE_TERM_WAIT"; then
+    ROTATE_ERR="the old session (pid $opid) of $seat survived SIGKILL: nothing started, two processes would share seat $(spl_role_seat_num "$seat")"
+    spl_rotate_alert "$([[ "$role" == orch ]] && echo orch || echo master)" "$rid" SWITCH "old pid $opid of $seat survived SIGKILL before the start"
+    return 1
+  fi
   [[ -n "$opane" ]] && { spl_rotate_tmux kill-window -t "$opane" 2>/dev/null || true; }
-  spl_role_failover_say "$rid" OK "the old session (pid $opid) of $seat ended before the able test (restart in place)"
+  spl_role_failover_say "$rid" OK "the old session (pid $opid) of $seat ended before the new start"
 }
 
 # Why the lease's test refused ID, one line.
@@ -262,11 +274,14 @@ spl_role_failover_run() {
     ROTATE_ERR="after the switch $SPOOL_ROOT/$new is not a dir of its own ($(readlink -f "$SPOOL_ROOT/$new" 2>/dev/null || echo missing)): a start there would write another seat's prompt"
     spl_role_failover_back "$rid" "$seat" "$new" "$opane"; return 1
   fi
-  if ! spl_rotate_spawn "$new" "$seed"; then
-    spl_role_failover_back "$rid" "$seat" "$new" "$opane"; return 1
+  if [[ -n "$opid" ]]; then
+    spl_role_failover_end_old "$rid" "$role" "$seat" "$opid" "$opane" ||
+      { spl_role_failover_back "$rid" "$seat" "$new" ""; return 1; }
+    # shellcheck disable=SC2034 # read by spl_rotate_spawn / spl_rotate_restore
+    opane="" ROTATE_OLD_PANE=""
   fi
-  if [[ "$new" == "$seat" && -n "$opid" ]]; then
-    spl_role_failover_end_old "$rid" "$seat" "$opid" "$opane"; opid="" opane=""
+  if ! SPOOL_SESSION="${ROLE_FAILOVER_SESSION:-${SPOOL_SESSION:-}}" spl_rotate_spawn "$new" "$seed"; then
+    spl_role_failover_back "$rid" "$seat" "$new" "$opane"; return 1
   fi
   ack="${rid%%-*}-failover-$new"
   spl_role_failover_probe "$rid" "$role" "$new" "$ack"
@@ -292,15 +307,6 @@ spl_role_failover_run() {
   # the first claude id the seat left stays the one it goes back to
   [[ -s "$RF_DIR/seat.$(spl_role_seat_num "$new")" ]] && rec="$(cut -d' ' -f1 "$RF_DIR/seat.$(spl_role_seat_num "$new")") $new $v $rid $(date +%s)"
   echo "$rec" > "$RF_DIR/seat.$(spl_role_seat_num "$new")"
-  if [[ -n "$opid" ]]; then
-    if spl_rotate_end "${opane:-none}" "$opid" /exit "$ROLE_FAILOVER_EXIT_WAIT" "$ROTATE_TERM_WAIT"; then
-      [[ -n "$opane" ]] && { spl_rotate_tmux kill-window -t "$opane" 2>/dev/null || true; }
-      spl_role_failover_say "$rid" OK "the old session (pid $opid) ended"
-    else
-      spl_role_failover_say "$rid" FAIL "the old session (pid $opid) survived SIGKILL: two processes on seat $(spl_role_seat_num "$new")"
-      spl_rotate_alert "$([[ "$role" == orch ]] && echo orch || echo master)" "$rid" SWITCH "old pid $opid of $seat survived SIGKILL after the switch to $new"
-    fi
-  fi
   [[ "$seat" != "$new" && -e "$SPOOL_ROOT/agents/$seat.json" ]] && { spl_rotate_ai retire "$seat" "$rid" >/dev/null 2>&1 || true; }
   spl_rotate_note "$new" "$(spl_rotate_ack_task "$rid")" \
     "VENDOR FAILOVER $rid on $ROTATE_BOX: seat $seat ($(spl_fleet_vendor "$seat")) could not act; $new ($v, pid $ROTATE_NEW_PID) runs the $role seat now, same inbox. The lease names it at its next tick; the hourly rotation hands it back once claude can act. Log: $ROTATE_LOG" result

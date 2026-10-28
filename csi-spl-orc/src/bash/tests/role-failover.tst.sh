@@ -57,8 +57,14 @@
 #      session carrying c-001 runs in g-001's dir (c-001 is a link). The
 #      lease flags it (SHARED-DIR, logged and told once per pid set); the
 #      seat that owns the dir stays the candidate. Control: no stray, no flag.
+#  16. SPL-4015 (orch panel row B2): one seat, one session. The old session
+#      is gone before the new one's spawn runs (RED CONTROL: before SPL-4015
+#      the spawn ran first and found old pid 101 alive), the new one starts
+#      in the old window's tmux session; an old pid that survives SIGKILL =
+#      FAIL, nothing started, the dirs back, lease.conf untouched.
 #  RED CONTROL: on a tree before SPL-2544 every case fails (no such action);
-#  12 and 13 fail on a tree before SPL-2865; 14 before SPL-2943; 15 before SPL-3980.
+#  12 and 13 fail on a tree before SPL-2865; 14 before SPL-2943; 15 before SPL-3980;
+#  16 before SPL-4015.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -96,7 +102,7 @@ case "$cmd" in
   list-panes) awk -F'\t' '{print $2" "$1}' "$P" 2>/dev/null ;;
   capture-pane) cat "$T/tmux/screen.$tgt" 2>/dev/null || printf '────\n❯ \n────\n' ;;
   kill-window) awk -F'\t' -v p="$tgt" '$1 != p' "$P" >"$P.new"; mv "$P.new" "$P" ;;
-  display-message) echo "0 " ;;
+  display-message) echo "\$0 " ;;
   *) : ;;
 esac
 EOF
@@ -109,6 +115,7 @@ cat >"$T/bin/spawn" <<'EOF'
 id="$2"; n="${id##*-}"; case "$1" in grok) b=3000 ;; agy) b=4000 ;; *) b=5000 ;; esac
 pid=$(( b + 10#$n )); pane="%$pid"
 echo "spawn $1 $2 SPAWN_REUSE_ID=${SPAWN_REUSE_ID:-}" >>"$T/spawn.log"
+[ -n "${OLD_PID_PROBE:-}" ] && { if [ -d "$T/proc/$OLD_PID_PROBE" ]; then echo "at spawn: old pid $OLD_PID_PROBE alive"; else echo "at spawn: old pid $OLD_PID_PROBE gone"; fi; echo "at spawn: session ${SPOOL_SESSION:-none}"; } >>"$T/spawn.log"
 [ -f "$T/spawn.sleep" ] && command sleep "$(cat "$T/spawn.sleep")"
 cp "$4" "$T/seed.$id"
 mkdir -p "$SPOOL_ROOT/$id/lifetime"; cp "$4" "$SPOOL_ROOT/$id/lifetime/prompt.txt"
@@ -127,7 +134,7 @@ if [ -n "${CLAUDE_CONFIG_DIR:-}" ] && [ -f "$CLAUDE_CONFIG_DIR/login" ]; then ec
 EOF
 cat >"$T/bin/kill" <<'EOF'
 #!/usr/bin/env bash
-echo "kill $*" >>"$T/kill.log"; rm -rf "$T/proc/$2"
+echo "kill $*" >>"$T/kill.log"; [ "${KILL_SURVIVE:-}" = "$2" ] || rm -rf "$T/proc/$2"
 EOF
 cat >"$T/bin/ai" <<'EOF'
 #!/usr/bin/env bash
@@ -430,6 +437,19 @@ out="$(shared)"
   [[ "$(grep -c -- '--to g-001 --kind note --task dispatch-lease --body SHARED-DIR g-001@' "$T/send.log")" == 1 ]] &&
   pass "15. a claude c-001 in g-001's dir: flagged once (lease.log + a note to g-001, two lease ticks), g-001 stays the candidate" ||
   fail "15. flag: $out $(grep SHARED "$D/lease.log" 2>&1) $(grep -c SHARED "$T/send.log" 2>&1)"
+
+# --- 16. SPL-4015: the old session ends before the new one starts -------------------------
+world; act ROLE_FAILOVER_ROLE=orch DRY_RUN=0 OLD_PID_PROBE=101 >"$T/o" 2>&1; rc=$?
+[[ $rc == 0 && "$(spawns)" == 1 && "$(key LEASE_ORCH)" == g-001 ]] && grep -q '^at spawn: old pid 101 gone$' "$T/spawn.log" &&
+  grep -q "SWITCH OK the old session (pid 101) of c-001 ended before the new start" "$T/o" &&
+  pass "16. RED CONTROL: old pid 101 is gone before the new spawn runs (was: the spawn ran first, 101 alive), grok g-001 runs the seat" ||
+  fail "16. order: rc=$rc $(cat "$T/spawn.log" 2>&1) $(grep -E 'SWITCH (OK|FAIL)' "$T/o" | cut -c1-300)"
+grep -q '^at spawn: session \$0 *$' "$T/spawn.log" && pass "16. the new session starts in the old window's tmux session" || fail "16. session: $(cat "$T/spawn.log")"
+world; act ROLE_FAILOVER_ROLE=orch DRY_RUN=0 OLD_PID_PROBE=101 KILL_SURVIVE=101 AGY_OUT=1 >"$T/o" 2>&1; rc=$?
+[[ $rc == 0 && "$(spawns)" == 0 && "$(key LEASE_ORCH)" == c-001 ]] && real c-001 && [[ "$(lnk g-001)" == - ]] &&
+  grep -q 'SWITCH FAIL the old session (pid 101) of c-001 survived SIGKILL: nothing started' "$T/o" &&
+  pass "16. an old pid that survives SIGKILL: nothing started, the dirs back to c-001, lease.conf untouched" ||
+  fail "16. survive: rc=$rc spawns=$(spawns) g-001=$(lnk g-001) $(grep -E 'SWITCH (OK|FAIL)' "$T/o" | cut -c1-300)"
 
 echo
 (( fails == 0 )) && { echo "ALL PASS"; exit 0; }

@@ -502,8 +502,11 @@ resource, and its age would have come from each machine's own clock.
     (`ROLE_FAILOVER_BACKOFF`, 1800 s). It runs `role-seat-switch.sh` (the one
     dir moves, every other letter links to it, so the inbox, handoff and lease
     key carry over) and refuses a start whose dir is not its own (no other
-    seat's `lifetime/prompt.txt` is ever written). It then starts the vendor
-    in the seat through the rotation's spawn (the start check, the identity
+    seat's `lifetime/prompt.txt` is ever written). It then ends the old
+    session FIRST (SPL-4015, orch panel row B2: one seat, one session):
+    `/exit`, TERM, KILL, its window closed; one that survives SIGKILL fails
+    the switch and nothing starts. Then it starts the vendor in the seat, in
+    the old window's tmux session, through the rotation's spawn (the start check, the identity
     map), and `ROLE_FAILOVER_SETTLE` (30 s) later judges it with the lease's
     own test, then asks for a proof of work (SPL-2609): the lease's test
     alone passes for a session that started and sits at an idle prompt (its
@@ -517,10 +520,16 @@ resource, and its age would have come from each machine's own clock.
     The seat is able only once that ack is a result in its outbox within
     `ROLE_FAILOVER_ACK_WAIT` (300 s; grok role sessions acked 12-17 s after
     their start in the rotations of 2026-10-18/19, n=7). Able: `lease.conf`
-    takes the new id, the old session ends, and `role-failover/seat.<NNN>`
+    takes the new id and `role-failover/seat.<NNN>`
     records it. Not able (no ack, or the lease's test fails): the new session
     closes, the dirs go back, `lease.conf` is untouched, that vendor is
-    backed off, the next vendor is tried.
+    backed off, the next vendor is tried (the old session is gone already:
+    the seat runs no session until a vendor is able).
+    While a letter still links to the seat's dir (row B2a drops the links),
+    the agent hook (`spool-agent-hook.sh`) writes nothing into a dir whose
+    real name is not its `SPOOL_AGENT_ID` (one `REFUSE` line on stderr), and
+    the watchdog reads a heartbeat only when its `.id` and `.pid` are the
+    process it judges (`spl_wd_gather`).
     The lease follows the seat's link at once (`spl_fleet_seat_id`).
     `LEASE_ORCH_FALLBACK` / `LEASE_DISPATCH_FALLBACK` now list VENDORS
     (default `LEASE_VENDOR_ORDER`; an old id list reads as its letters'

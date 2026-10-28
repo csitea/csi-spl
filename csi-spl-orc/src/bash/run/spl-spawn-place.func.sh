@@ -69,7 +69,11 @@
 # @description         cnf env.box.agent_split.mistral_ui_allowed is not true
 # @description         (spl_lane_mix_mistral_ui_off, do_spl_vendor_ui_retest);
 # @description         agy when the brief's "Kind:" is specs_and_docs or i18n
-# @description         (a review stays cross-vendor to a claude author, SPL-2942)
+# @description         (a review stays cross-vendor to a claude author, SPL-2942).
+# @description         A review seat (slug ending -reviewer, or Kind: review)
+# @description         stays mistral (SPL-3954, owner msg 594d77e1: mistral may
+# @description         review UI work read-only); on a mistral author it is
+# @description         refused, handed back to the holder (SPL-3776)
 # @description      AGY OUT (SPL-3018): while agy is out of quota on this box
 # @description         (agy's banner in the watchdog's pane capture, or an S2
 # @description         kind=limit verdict on an a- lane), a row swapped to agy
@@ -527,28 +531,31 @@ spl_spawn_place_reopen() {  # BRIEF SLUG WHY [COMMENT]
 # main of both, and a review stays cross-vendor to a claude author, SPL-2942),
 # else to claude. A brief under the data rule (spl_spawn_place_data_rule,
 # SPL-3627) swaps to claude only, never agy or qwen. A review seat
-# (spl_spawn_place_review_seat) writes no code: the coding rule never swaps
-# it, whatever its brief's kind (SPL-3776: a Kind: secret brief read as
-# coding put a claude reviewer on a claude author). A review seat's swap onto
-# a vendor of its author (spl_spawn_place_authors) prints "refuse\t<why>".
+# (spl_spawn_place_review_seat) writes no code, so neither rule swaps it,
+# whatever its brief's kind or paths: the coding rule since SPL-3776 (a Kind:
+# secret brief read as coding put a claude reviewer on a claude author), the
+# UI rule since SPL-3954 (owner HUM-10, t1 1be0e370, msg 594d77e1: "Mistral
+# may review them, read-only (it writes no code; your UI-work rule still
+# holds for building)"). A mistral review seat on a mistral author
+# (spl_spawn_place_authors) prints "refuse\t<why>".
 spl_spawn_place_swap() {  # VENDOR BRIEF
-  local why kind to=claude dr seat=1 au cnf="${SPAWN_PLACE_CNF:-$APP_PATH/csi-spl-cnf/csi-spl/all.env.yaml}"
+  local why kind to=claude dr au cnf="${SPAWN_PLACE_CNF:-$APP_PATH/csi-spl-cnf/csi-spl/all.env.yaml}"
   [[ "$1" == mistral ]] || { printf '%s\t\n' "$1"; return 0; }
   declare -F spl_lane_mix_mistral_ui_off >/dev/null || source "$PROJ_PATH/src/bash/run/spl-lane-mix.func.sh"
   kind="$(spl_lane_mix_brief_kind "$2")"
-  spl_spawn_place_review_seat "$2" "$kind" || seat=0
+  if spl_spawn_place_review_seat "$2" "$kind"; then
+    au="$(spl_spawn_place_authors "$2" | awk -F'\t' '$1 == "mistral" { printf "%s%s", (n++ ? ", " : ""), $2 }')"
+    [[ -z "$au" ]] || { printf 'refuse\ta review seat on mistral would review its author'"'"'s vendor (mistral: %s), so it is not placed (SPL-3776)\n' "$au"; return 0; }
+    printf '%s\t\n' "$1"; return 0
+  fi
   why="$(spl_lane_mix_mistral_ui_off "$cnf" "$2" "")"
-  [[ -n "$why" ]] || (( seat )) || why="$(spl_lane_mix_mistral_code_off "$cnf" "$kind")"
+  [[ -n "$why" ]] || why="$(spl_lane_mix_mistral_code_off "$cnf" "$kind")"
   [[ -n "$why" ]] || { printf '%s\t\n' "$1"; return 0; }
   dr="$(spl_spawn_place_data_rule "$2" "$kind")"
   if [[ -n "$dr" ]]; then
     why="$why; the brief is under the data rule ($dr): claude, never agy or qwen"
   else
     case "$kind" in specs_and_docs|i18n) to=agy ;; esac
-  fi
-  if (( seat )) && au="$(spl_spawn_place_authors "$2" | awk -F'\t' -v v="$to" '$1 == v { printf "%s%s", (n++ ? ", " : ""), $2 }')" && [[ -n "$au" ]]; then
-    printf 'refuse\t%s; a review seat swapped to %s would review its author'"'"'s vendor (%s: %s), so it is not placed (SPL-3776)\n' "$why" "$to" "$to" "$au"
-    return 0
   fi
   printf '%s\t%s\n' "$to" "$why"
 }
@@ -599,7 +606,7 @@ spl_spawn_place_data_rule() {  # BRIEF KIND
 # of quota here (spl_spawn_place_agy_out, SPL-3018) launches claude instead,
 # unless the row is a review: spl_spawn_place_agy_hold keeps those queued.
 # A row queued before the enqueue refused it is launched, not dropped. A
-# refused swap (a review seat onto its author's vendor, SPL-3776) is one WARN
+# refused swap (a mistral review seat on a mistral author, SPL-3776) is one WARN
 # line, prints why and returns 1: the row is handed to the holder, not placed.
 spl_spawn_place_vendor() {  # VENDOR BRIEF ASK_ID
   local sw to why out

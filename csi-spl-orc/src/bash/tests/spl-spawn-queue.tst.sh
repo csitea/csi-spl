@@ -724,13 +724,20 @@ done
 # to claude, never agy. A review seat's swap onto its author's vendor is
 # refused: handed back to the holder, nothing launched; an Author: line names
 # the author, else every lane id the brief names (role seats 001-003 aside).
+# SPL-3954 (owner HUM-10, t1 1be0e370, msg 594d77e1: "Mistral may review
+# them, read-only"): the UI rule never swaps a review seat either, so a
+# mistral -reviewer seat whose brief names csi-spl-wui/ stays mistral; a
+# mistral review seat on a mistral author is refused. The ui-code and
+# ui-hover rows of 13 are the control: a mistral build row on WUI still swaps.
 R1=c3c3c3c3-0000-4000-8000-000000000001; R2=c4c4c4c4-0000-4000-8000-000000000002
 R3=c5c5c5c5-0000-4000-8000-000000000003; R4=c6c6c6c6-0000-4000-8000-000000000004
 printf 'Kind: secret\nThe cross-vendor R7 reviewer of c-709@box-desk, review only.\n%s\n' "$ES" >"$T/briefs/sec-x-reviewer.md"
 printf 'Kind: secret\nRotate the unlock key handling in csi-spl-api.\n%s\n' "$ES" >"$T/briefs/sec-code.md"
-printf 'Kind: secret\nR7 review of c-709@box-desk; files csi-spl-wui/src/utils/key.mjs; asks go to c-001.\n%s\n' "$ES" >"$T/briefs/sec-ui-reviewer.md"
+R5=c7c7c7c7-0000-4000-8000-000000000005
+printf 'Kind: secret\nAuthor: m-709@box-desk\nR7 review of m-709@box-desk; files csi-spl-wui/src/utils/key.mjs; asks go to c-001.\n%s\n' "$ES" >"$T/briefs/sec-ui-reviewer.md"
 printf 'Kind: secret\nAuthor: g-709@box-desk\nR7 review of g-709 (prior seat c-711); files csi-spl-wui/src/utils/key.mjs\n%s\n' "$ES" >"$T/briefs/sec-grok-reviewer.md"
-for r in "$R1 sec-x-reviewer m-511 mistral" "$R2 sec-code c-512 claude" "$R4 sec-grok-reviewer c-514 claude"; do
+printf 'Kind: specs_and_docs\nAuthor: c-715@box-desk\nR7 review of c-715; files csi-spl-wui/src/pages/docs.vue\n%s\n' "$ES" >"$T/briefs/ui-docs-reviewer.md"
+for r in "$R1 sec-x-reviewer m-511 mistral" "$R2 sec-code c-512 claude" "$R4 sec-grok-reviewer m-514 mistral" "$R5 ui-docs-reviewer m-515 mistral"; do
   read -r rid rslug rlid rto <<<"$r"
   put "$rid" c-002@box-desk "dispatch-spl3776-$rslug" "SPAWN REQUEST $rslug"
   on pc do_spl_spawn_enqueue ASK_ID="$rid" SPAWN_CLASS=bug SPAWN_KIND=specs_and_docs SPAWN_PLACE="mistral:$rslug" >/dev/null 2>&1
@@ -738,7 +745,7 @@ for r in "$R1 sec-x-reviewer m-511 mistral" "$R2 sec-code c-512 claude" "$R4 sec
   out="$(on pc do_spl_spawn_place LAUNCH_ID="$rlid" 2>&1)"
   [[ "$(jq -r .reason <<<"$(hubrow "$rid")")" == "placed: $rlid@box-desk" ]] &&
     grep -q "^$rto auto $T $T/briefs/$rslug.md $rslug$" "$T/launch.log" && ! grep -qE '^(agy|qwen) ' "$T/launch.log" &&
-    pass "SPL-3776: mistral:$rslug on a Kind: secret brief launches $rto, never agy or qwen" ||
+    pass "SPL-3776/SPL-3954: mistral:$rslug launches $rto, never agy or qwen" ||
     fail "SPL-3776 $rslug: want $rto: $out | $(cat "$T/launch.log")"
 done
 put "$R3" c-002@box-desk dispatch-spl3776-sec-ui-reviewer "SPAWN REQUEST sec-ui-reviewer"
@@ -746,9 +753,9 @@ on pc do_spl_spawn_enqueue ASK_ID="$R3" SPAWN_CLASS=bug SPAWN_KIND=specs_and_doc
 rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"; : >"$T/send.log"
 out="$(on pc do_spl_spawn_place LAUNCH_ID=c-513 2>&1)"
 [[ "$(jq -r .state <<<"$(hubrow "$R3")")" == acked && ! -s "$T/launch.log" && ! -e "$T/pc/spool/asks/.place.last" ]] &&
-  grep -q "place ask ${R3:0:8} now.*review seat swapped to claude would review its author's vendor (claude: c-709)" "$T/send.log" &&
-  grep -q "WARN ask ${R3:0:8}: placed as mistral, its swap is refused: .*review seat swapped to claude" <<<"$out" &&
-  pass "SPL-3776: a review seat whose swap lands on its claude author's vendor is handed back, nothing launched" ||
+  grep -q "place ask ${R3:0:8} now.*review seat on mistral would review its author's vendor (mistral: m-709)" "$T/send.log" &&
+  grep -q "WARN ask ${R3:0:8}: placed as mistral, its swap is refused: .*review seat on mistral" <<<"$out" &&
+  pass "SPL-3776: a mistral review seat on a mistral author is handed back, nothing launched" ||
   fail "SPL-3776 refusal: $out | launch: $(cat "$T/launch.log") | $(sends) | $(hubrow "$R3")"
 HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$R3" --by c-001@box-desk --reason "placed: g-513@box-desk" >/dev/null
 

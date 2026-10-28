@@ -279,11 +279,11 @@ describe('SPL-4043 discussion, issues, owner', () => {
   it('the owner is a member or an agent; empty stays empty for the hub default', () => {
     assert.equal(calOwnerId(''), '')
     assert.equal(calOwnerId(' HUM-2 '), 'HUM-2')
-    assert.equal(calOwnerId('c-007@tnk'), 'c-007@tnk')
+    assert.equal(calOwnerId('c-007@box1'), 'c-007@box1')
     assert.equal(calOwnerId('bob'), null)
     assert.equal(calFormBody({ ...base(), owner: 'bob' }).error, 'calendar_event.error_owner')
     assert.equal(calFormBody(base()).body.owner_id, '')
-    assert.deepEqual(calOwnerChoices({ 'HUM-1': {}, nope: {} }, [{ id: 'c-007', box: 'tnk' }, { id: 'nope' }]), ['HUM-1', 'c-007@tnk'])
+    assert.deepEqual(calOwnerChoices({ 'HUM-1': {}, nope: {} }, [{ id: 'c-007', box: 'box1' }, { id: 'nope' }]), ['HUM-1', 'c-007@box1'])
   })
   it('an edit sends a link only when it changed, and an empty list or owner clears it', () => {
     const e = ev({ topic_id: '11111111-2222-4333-8444-555555555555', issue_keys: ['SPL-1'], owner_id: 'HUM-1' })

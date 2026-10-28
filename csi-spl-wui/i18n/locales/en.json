@@ -3102,7 +3102,8 @@
       "events": "Events",
       "tokens": "Tokens",
       "costs": "Costs",
-      "lanes": "Lanes"
+      "lanes": "Lanes",
+      "file_streams": "File streams"
     },
     "alloc": {
       "title": "Allocation",
@@ -3297,6 +3298,24 @@
       "age_older": "Over 24 h",
       "no_match": "No lane matches the filters",
       "shown": "{n} of {total} lanes"
+    },
+    "file_streams": {
+      "loading": "Loading the file streams…",
+      "forbidden": "Only the workspace owner and admins can read file streams.",
+      "error": "The file streams could not be loaded.",
+      "none": "No file streams yet. A box follows only the files on its allow-list.",
+      "box": "Box",
+      "file": "File",
+      "find": "Find in view",
+      "follow": "Follow",
+      "pause": "Pause",
+      "resume": "Resume",
+      "jump_latest": "Jump to latest",
+      "new_lines": "{n} new line | {n} new lines",
+      "not_following": "This file is not being followed now ({state}).",
+      "log_label": "Lines of {file}",
+      "load_older": "Load older",
+      "empty": "No lines yet."
     }
   },
   "takeover": {

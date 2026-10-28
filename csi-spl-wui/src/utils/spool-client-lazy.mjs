@@ -1752,6 +1752,49 @@ async function getFleetLanes(ctx, own = false) {
 }
 
 /**
+ * Spec 160 3.4 (SPL-3888, row B5): GET /v1/view/file-streams, the
+ * workspace's box file streams, for its owner or an admin (403 for anyone
+ * else). The mock answers from monitoring-file-streams.mjs, which loads
+ * only here and on the File streams page.
+ */
+async function getFileStreams(ctx) {
+  const { live, mock } = ctx
+  if (mock) {
+    mockFileStreamsStaff()
+    return (await import('./monitoring-file-streams.mjs')).mockFileStreams()
+  }
+  return live('/v1/view/file-streams')
+}
+
+/**
+ * Spec 160 3.4: GET /v1/view/file-streams/{id}/lines, one page of a stream's
+ * lines, oldest first: after a seq, the newest before a seq, or the newest.
+ * @param {string} id the stream id
+ * @param {{ after?: number, before?: number, limit?: number }} [q]
+ */
+async function getFileStreamLines(ctx, id, q = {}) {
+  const { live, mock } = ctx
+  if (mock) {
+    mockFileStreamsStaff()
+    return (await import('./monitoring-file-streams.mjs')).mockFileStreamLines(String(id), q)
+  }
+  const p = new URLSearchParams()
+  if (q.after !== undefined) p.set('after', String(q.after))
+  if (q.before !== undefined) p.set('before', String(q.before))
+  if (q.limit !== undefined) p.set('limit', String(q.limit))
+  const qs = p.toString()
+  return live(`/v1/view/file-streams/${encodeURIComponent(String(id))}/lines${qs ? '?' + qs : ''}`)
+}
+
+/** The mock's gate of 3.4: a mock owner or admin (spool.mock.me), else the hub's 403. */
+function mockFileStreamsStaff() {
+  const me = mockMeGet()
+  if (!me || !['admin', 'biz_owner'].includes(me.role)) {
+    throw Object.assign(new Error('only the workspace owner or an admin reads file streams'), { status: 403, token: 'forbidden', permission: 'file_streams.staff' })
+  }
+}
+
+/**
  * The mock of spec 153 3.6: the mock fleet's lanes on this workspace's topics
  * (a title), no box name, for a mock owner or admin (spool.mock.me role
  * admin or biz_owner); anyone else gets the hub's 403.
@@ -2034,6 +2077,8 @@ export const lazySpoolMethods = {
   getTenantCosts,
   getFleetTokens,
   getFleetLanes,
+  getFileStreams,
+  getFileStreamLines,
   reportingSql,
   getFxCurrencies,
   fleetPaid,

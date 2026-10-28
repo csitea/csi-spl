@@ -3102,7 +3102,8 @@
       "events": "Händelser",
       "tokens": "Token",
       "costs": "Kostnader",
-      "lanes": "Banor"
+      "lanes": "Banor",
+      "file_streams": "Filströmmar"
     },
     "alloc": {
       "title": "Tilldelning",
@@ -3297,6 +3298,24 @@
       "age_older": "Över 24 h",
       "no_match": "Ingen bana matchar filtren",
       "shown": "{n} av {total} banor"
+    },
+    "file_streams": {
+      "loading": "Läser in filströmmarna…",
+      "forbidden": "Bara arbetsytans ägare och administratörer kan läsa filströmmar.",
+      "error": "Filströmmarna kunde inte läsas in.",
+      "none": "Inga filströmmar än. En maskin följer bara filerna på sin tillåtna lista.",
+      "box": "Maskin",
+      "file": "Fil",
+      "find": "Sök i vyn",
+      "follow": "Följ",
+      "pause": "Pausa",
+      "resume": "Återuppta",
+      "jump_latest": "Till det senaste",
+      "new_lines": "{n} ny rad | {n} nya rader",
+      "not_following": "Den här filen följs inte nu ({state}).",
+      "log_label": "Rader i {file}",
+      "load_older": "Ladda äldre",
+      "empty": "Inga rader än."
     }
   },
   "takeover": {

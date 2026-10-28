@@ -3102,7 +3102,8 @@
       "events": "Udalosti",
       "tokens": "Tokeny",
       "costs": "Náklady",
-      "lanes": "Linky"
+      "lanes": "Linky",
+      "file_streams": "Súborové toky"
     },
     "alloc": {
       "title": "Pridelenie",
@@ -3297,6 +3298,24 @@
       "age_older": "Viac ako 24 h",
       "no_match": "Filtrom nezodpovedá žiadna dráha",
       "shown": "{n} z {total} dráh"
+    },
+    "file_streams": {
+      "loading": "Načítavajú sa súborové toky…",
+      "forbidden": "Súborové toky môžu čítať iba vlastník a administrátori pracovného priestoru.",
+      "error": "Súborové toky sa nepodarilo načítať.",
+      "none": "Zatiaľ nie sú žiadne súborové toky. Stroj sleduje iba súbory zo svojho zoznamu povolených.",
+      "box": "Stroj",
+      "file": "Súbor",
+      "find": "Hľadať v zobrazení",
+      "follow": "Sledovať",
+      "pause": "Pozastaviť",
+      "resume": "Pokračovať",
+      "jump_latest": "Na najnovšie",
+      "new_lines": "{n} nový riadok | Nové riadky: {n}",
+      "not_following": "Tento súbor sa teraz nesleduje ({state}).",
+      "log_label": "Riadky súboru {file}",
+      "load_older": "Načítať staršie",
+      "empty": "Zatiaľ žiadne riadky."
     }
   },
   "takeover": {

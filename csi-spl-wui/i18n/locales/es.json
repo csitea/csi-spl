@@ -3102,7 +3102,8 @@
       "events": "Eventos",
       "tokens": "Tokens",
       "costs": "Costes",
-      "lanes": "Líneas"
+      "lanes": "Líneas",
+      "file_streams": "Flujos de archivos"
     },
     "alloc": {
       "title": "Asignación",
@@ -3297,6 +3298,24 @@
       "age_older": "Más de 24 h",
       "no_match": "Ningún carril coincide con los filtros",
       "shown": "{n} de {total} carriles"
+    },
+    "file_streams": {
+      "loading": "Cargando los flujos de archivos…",
+      "forbidden": "Solo el propietario y los administradores del espacio de trabajo pueden leer los flujos de archivos.",
+      "error": "No se pudieron cargar los flujos de archivos.",
+      "none": "Aún no hay flujos de archivos. Un equipo solo sigue los archivos de su lista de permitidos.",
+      "box": "Equipo",
+      "file": "Archivo",
+      "find": "Buscar en la vista",
+      "follow": "Seguir",
+      "pause": "Pausar",
+      "resume": "Reanudar",
+      "jump_latest": "Ir a lo más reciente",
+      "new_lines": "{n} línea nueva | {n} líneas nuevas",
+      "not_following": "Este archivo no se está siguiendo ahora ({state}).",
+      "log_label": "Líneas de {file}",
+      "load_older": "Cargar anteriores",
+      "empty": "Aún no hay líneas."
     }
   },
   "takeover": {

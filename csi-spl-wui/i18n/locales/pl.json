@@ -3102,7 +3102,8 @@
       "events": "Zdarzenia",
       "tokens": "Tokeny",
       "costs": "Koszty",
-      "lanes": "Linie"
+      "lanes": "Linie",
+      "file_streams": "Strumienie plików"
     },
     "alloc": {
       "title": "Przydział",
@@ -3297,6 +3298,24 @@
       "age_older": "Ponad 24 godz.",
       "no_match": "Żaden tor nie pasuje do filtrów",
       "shown": "{n} z {total} torów"
+    },
+    "file_streams": {
+      "loading": "Wczytywanie strumieni plików…",
+      "forbidden": "Strumienie plików mogą czytać tylko właściciel i administratorzy obszaru roboczego.",
+      "error": "Nie udało się wczytać strumieni plików.",
+      "none": "Nie ma jeszcze strumieni plików. Maszyna śledzi tylko pliki ze swojej listy dozwolonych.",
+      "box": "Maszyna",
+      "file": "Plik",
+      "find": "Znajdź w widoku",
+      "follow": "Śledź",
+      "pause": "Wstrzymaj",
+      "resume": "Wznów",
+      "jump_latest": "Do najnowszych",
+      "new_lines": "{n} nowy wiersz | Nowe wiersze: {n}",
+      "not_following": "Ten plik nie jest teraz śledzony ({state}).",
+      "log_label": "Wiersze pliku {file}",
+      "load_older": "Wczytaj starsze",
+      "empty": "Nie ma jeszcze wierszy."
     }
   },
   "takeover": {

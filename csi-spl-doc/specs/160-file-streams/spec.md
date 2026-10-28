@@ -704,9 +704,48 @@ Monitoring help page and B4 the syntax to the search help
   any store; C14, C15 and C17 on Postgres. Red control for C16 (Postgres):
   with the gate taken out of `fileLineSection`, the member's
   `in:file-streams` returns W's two lines and no notice.
-- Not in this half: the WUI (`search.mjs` values, the help rows, the result
-  row that opens the tab, the notice's text), which goes with its own
-  locale keys and their agy review.
+- The WUI half: `search-results.mjs` (group `file_lines` after `docs`, the
+  row's line and highlights, a target
+  `/monitoring/file-streams?box=&stream=&seq=` that a junk box, key or seq
+  never builds, the answer's `notices` kept as stable codes only),
+  `search.vue` (one muted line per notice, key `search.notice.<code>`),
+  `search.mjs` (`in:` and `channel:` offer `file-streams`, `type:` offers
+  `file_line`), the side list (box and stream key, the line's time). Keys
+  `search.group.file_lines` and `search.notice.file_streams_staff_only` in
+  every locale; agy reviews them before they ship.
+
+### 5.5 Row B5 as built (SPL-3888)
+
+- `utils/monitoring-tabs.mjs`: the tab `file-streams` after Lanes, with
+  `staff: true, staffOnly: true`; `visibleMonitoringTabs` draws a
+  `staffOnly` tab for `who.staff` alone, so an operator who is neither owner
+  nor admin sees Lanes and not this tab (C18). The label key is
+  `monitoring.tab.file_streams` (a key has no hyphen).
+- `pages/monitoring/file-streams/index.vue`, its own chunk;
+  `utils/monitoring-file-streams.mjs` holds the logic (pick, merge, find,
+  the poll, the mock) and loads only from the page and the lazy client
+  (`spool-client-lazy.mjs` `getFileStreams`, `getFileStreamLines`).
+- The view: the newest `FS_FIRST` = 200 lines, then a poll of
+  `after=<last seq>` every `FS_POLL_MS` = 3 s while the browser tab is
+  visible and the view is not paused. At most `FS_VIEW_MAX` = 2000 lines
+  (oldest dropped), one per seq. "Load older" reads `before=<first seq>`.
+  A search hit (`?seq=`) reads the lines up to and after it, marks it and
+  starts with Follow off (C21). A stream that is not `following` says so
+  with its reason.
+- The mock (lde and e2e): box-a `app` grows one line per poll, `cron`,
+  box-b `web` missing; the mock answers 403 unless `spool.mock.me` is an
+  owner or admin.
+- Keys: `monitoring.tab.file_streams` and 16 under
+  `monitoring.file_streams` in every locale, drafted by claude with each
+  locale's existing words (Box, Load older, Resume); agy reviews them before
+  they ship.
+- Tests: `tests/unit/monitoring-tabs.test.mjs` (C18),
+  `tests/unit/monitoring-file-streams.test.mjs` (the helpers, the poll's 0
+  calls while paused or hidden, the mock),
+  `tests/e2e/monitoring-file-streams.test.mjs` (C19, C20, C21 and a
+  developer's 403 line, on the mock bundle). The mock answers in the page,
+  so C19's Pause check is that the view gains no line in 10 s (a poll would
+  add one per 3 s), not a request count.
 
 ## 6. Decisions (this draft; the reviewer may challenge each)
 

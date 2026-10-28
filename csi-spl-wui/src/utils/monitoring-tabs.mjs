@@ -27,6 +27,9 @@ export const MONITORING_TABS = Object.freeze([
   /* spec 153 3.2 (SPL-3215, row B4): the fleet's active lanes, refreshed every minute; operator admins see
      every lane, a workspace's owners and admins (`staff`) its own lanes (3.6, row B6, SPL-3229) */
   Object.freeze({ id: 'lanes', path: '/monitoring/lanes', labelKey: 'monitoring.tab.lanes', operatorsOnly: false, staff: true, ready: true }),
+  /* spec 160 3.5 (SPL-3888, row B5): the box file streams, live; `staffOnly`: the workspace's owner or an admin
+     only, no operator bypass (the read routes' gate, 3.4: an operator who is neither gets 403) */
+  Object.freeze({ id: 'file-streams', path: '/monitoring/file-streams', labelKey: 'monitoring.tab.file_streams', operatorsOnly: false, staff: true, staffOnly: true, ready: true }),
 ])
 
 /** Where /monitoring itself goes (Q1 A: no Overview tab). */
@@ -35,13 +38,14 @@ export const MONITORING_DEFAULT_PATH = MONITORING_TABS[0].path
 /**
  * The tabs the bar draws for this reader: the ready ones, the operator-only
  * ones only for an operator, a `staff` one for an operator or a workspace
- * owner or admin (`who.staff`), a tab naming a `perm` only when `who.can`
+ * owner or admin (`who.staff`), a `staffOnly` one for `who.staff` alone (an
+ * operator who is neither owner nor admin does not see it), a tab naming a `perm` only when `who.can`
  * grants it (no `can` = not known yet: hidden; the hub's 403 is the control).
  * @param {{ operator?: boolean, staff?: boolean, can?: (perm: string) => boolean }} [who]
  */
 export function visibleMonitoringTabs(who = {}) {
   return MONITORING_TABS.filter((tab) => tab.ready && (!tab.operatorsOnly || who.operator === true)
-    && (!('staff' in tab) || who.operator === true || who.staff === true)
+    && (!('staff' in tab) || (!tab.staffOnly && who.operator === true) || who.staff === true)
     && (!tab.perm || (typeof who.can === 'function' && who.can(tab.perm) === true)))
 }
 

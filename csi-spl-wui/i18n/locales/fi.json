@@ -3102,7 +3102,8 @@
       "events": "Tapahtumat",
       "tokens": "Tokenit",
       "costs": "Kulut",
-      "lanes": "Kaistat"
+      "lanes": "Kaistat",
+      "file_streams": "Tiedostovirrat"
     },
     "alloc": {
       "title": "Allokointi",
@@ -3297,6 +3298,24 @@
       "age_older": "Yli 24 h",
       "no_match": "Mikään kaista ei vastaa suodattimia",
       "shown": "{n}/{total} kaistaa"
+    },
+    "file_streams": {
+      "loading": "Ladataan tiedostovirtoja…",
+      "forbidden": "Vain työtilan omistaja ja ylläpitäjät voivat lukea tiedostovirtoja.",
+      "error": "Tiedostovirtoja ei voitu ladata.",
+      "none": "Tiedostovirtoja ei vielä ole. Kone seuraa vain sallittujen luettelonsa tiedostoja.",
+      "box": "Kone",
+      "file": "Tiedosto",
+      "find": "Etsi näkymästä",
+      "follow": "Seuraa",
+      "pause": "Tauko",
+      "resume": "Jatka",
+      "jump_latest": "Uusimpiin",
+      "new_lines": "{n} uusi rivi | {n} uutta riviä",
+      "not_following": "Tätä tiedostoa ei nyt seurata ({state}).",
+      "log_label": "Tiedoston {file} rivit",
+      "load_older": "Lataa vanhempia",
+      "empty": "Rivejä ei vielä ole."
     }
   },
   "takeover": {

@@ -3102,7 +3102,8 @@
       "events": "Gebeurtenissen",
       "tokens": "Tokens",
       "costs": "Kosten",
-      "lanes": "Banen"
+      "lanes": "Banen",
+      "file_streams": "Bestandsstromen"
     },
     "alloc": {
       "title": "Toewijzing",
@@ -3297,6 +3298,24 @@
       "age_older": "Meer dan 24 u",
       "no_match": "Geen baan past bij de filters",
       "shown": "{n} van {total} banen"
+    },
+    "file_streams": {
+      "loading": "Bestandsstromen laden…",
+      "forbidden": "Alleen de eigenaar en de beheerders van de werkruimte kunnen bestandsstromen lezen.",
+      "error": "De bestandsstromen konden niet worden geladen.",
+      "none": "Nog geen bestandsstromen. Een hostmachine volgt alleen de bestanden op zijn toegestane lijst.",
+      "box": "Hostmachine",
+      "file": "Bestand",
+      "find": "Zoeken in weergave",
+      "follow": "Volgen",
+      "pause": "Pauzeren",
+      "resume": "Hervatten",
+      "jump_latest": "Naar het nieuwste",
+      "new_lines": "{n} nieuwe regel | {n} nieuwe regels",
+      "not_following": "Dit bestand wordt nu niet gevolgd ({state}).",
+      "log_label": "Regels van {file}",
+      "load_older": "Oudere laden",
+      "empty": "Nog geen regels."
     }
   },
   "takeover": {

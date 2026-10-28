@@ -3102,7 +3102,8 @@
       "events": "Įvykiai",
       "tokens": "Žetonai",
       "costs": "Išlaidos",
-      "lanes": "Linijos"
+      "lanes": "Linijos",
+      "file_streams": "Failų srautai"
     },
     "alloc": {
       "title": "Paskirstymas",
@@ -3297,6 +3298,24 @@
       "age_older": "Daugiau nei 24 val.",
       "no_match": "Jokia juosta neatitinka filtrų",
       "shown": "{n} iš {total} juostų"
+    },
+    "file_streams": {
+      "loading": "Įkeliami failų srautai…",
+      "forbidden": "Failų srautus gali skaityti tik darbo srities savininkas ir administratoriai.",
+      "error": "Nepavyko įkelti failų srautų.",
+      "none": "Failų srautų dar nėra. Mašina seka tik savo leidžiamųjų sąraše esančius failus.",
+      "box": "Mašina",
+      "file": "Failas",
+      "find": "Rasti rodinyje",
+      "follow": "Sekti",
+      "pause": "Pristabdyti",
+      "resume": "Tęsti",
+      "jump_latest": "Į naujausius",
+      "new_lines": "{n} nauja eilutė | Naujų eilučių: {n}",
+      "not_following": "Šis failas dabar nesekamas ({state}).",
+      "log_label": "Failo {file} eilutės",
+      "load_older": "Įkelti senesnius",
+      "empty": "Eilučių dar nėra."
     }
   },
   "takeover": {

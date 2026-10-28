@@ -3102,7 +3102,8 @@
       "events": "Olaylar",
       "tokens": "Belirteçler",
       "costs": "Maliyetler",
-      "lanes": "Hatlar"
+      "lanes": "Hatlar",
+      "file_streams": "Dosya akışları"
     },
     "alloc": {
       "title": "Tahsis",
@@ -3297,6 +3298,24 @@
       "age_older": "24 sa üstü",
       "no_match": "Filtrelere uyan şerit yok",
       "shown": "{n}/{total} şerit"
+    },
+    "file_streams": {
+      "loading": "Dosya akışları yükleniyor…",
+      "forbidden": "Dosya akışlarını yalnızca çalışma alanının sahibi ve yöneticileri okuyabilir.",
+      "error": "Dosya akışları yüklenemedi.",
+      "none": "Henüz dosya akışı yok. Bir kutu yalnızca izin listesindeki dosyaları izler.",
+      "box": "Kutu",
+      "file": "Dosya",
+      "find": "Görünümde bul",
+      "follow": "İzle",
+      "pause": "Duraklat",
+      "resume": "Sürdür",
+      "jump_latest": "En yeniye git",
+      "new_lines": "{n} yeni satır | {n} yeni satır",
+      "not_following": "Bu dosya şu anda izlenmiyor ({state}).",
+      "log_label": "{file} satırları",
+      "load_older": "Daha eskileri yükle",
+      "empty": "Henüz satır yok."
     }
   },
   "takeover": {

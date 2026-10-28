@@ -3102,7 +3102,8 @@
       "events": "Notikumi",
       "tokens": "Tokeni",
       "costs": "Izmaksas",
-      "lanes": "Līnijas"
+      "lanes": "Līnijas",
+      "file_streams": "Failu plūsmas"
     },
     "alloc": {
       "title": "Sadalījums",
@@ -3297,6 +3298,24 @@
       "age_older": "Vairāk par 24 h",
       "no_match": "Neviena josla neatbilst filtriem",
       "shown": "{n} no {total} joslām"
+    },
+    "file_streams": {
+      "loading": "Ielādē failu plūsmas…",
+      "forbidden": "Failu plūsmas var lasīt tikai darbvietas īpašnieks un administratori.",
+      "error": "Failu plūsmas neizdevās ielādēt.",
+      "none": "Failu plūsmu vēl nav. Mašīna seko tikai failiem no sava atļauto saraksta.",
+      "box": "Mašīna",
+      "file": "Fails",
+      "find": "Meklēt skatā",
+      "follow": "Sekot",
+      "pause": "Pauze",
+      "resume": "Atsākt",
+      "jump_latest": "Uz jaunākajām",
+      "new_lines": "{n} jauna rinda | Jaunas rindas: {n}",
+      "not_following": "Šim failam pašlaik neseko ({state}).",
+      "log_label": "Faila {file} rindas",
+      "load_older": "Ielādēt vecākus",
+      "empty": "Rindu vēl nav."
     }
   },
   "takeover": {

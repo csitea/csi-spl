@@ -3102,7 +3102,8 @@
       "events": "Sündmused",
       "tokens": "Tokenid",
       "costs": "Kulud",
-      "lanes": "Rajad"
+      "lanes": "Rajad",
+      "file_streams": "Failivood"
     },
     "alloc": {
       "title": "Jaotus",
@@ -3297,6 +3298,24 @@
       "age_older": "Üle 24 h",
       "no_match": "Ükski rada ei vasta filtritele",
       "shown": "{n}/{total} rada"
+    },
+    "file_streams": {
+      "loading": "Laadin failivooge…",
+      "forbidden": "Failivooge saavad lugeda ainult tööruumi omanik ja administraatorid.",
+      "error": "Failivooge ei õnnestunud laadida.",
+      "none": "Failivooge veel pole. Kast jälgib ainult oma lubatud loendis olevaid faile.",
+      "box": "Kast",
+      "file": "Fail",
+      "find": "Otsi vaates",
+      "follow": "Jälgi",
+      "pause": "Peata",
+      "resume": "Jätka",
+      "jump_latest": "Uusimate juurde",
+      "new_lines": "{n} uus rida | {n} uut rida",
+      "not_following": "Seda faili praegu ei jälgita ({state}).",
+      "log_label": "Faili {file} read",
+      "load_older": "Laadi vanemad",
+      "empty": "Ridu veel pole."
     }
   },
   "takeover": {

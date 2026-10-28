@@ -3102,7 +3102,8 @@
       "events": "Evenimente",
       "tokens": "Tokeni",
       "costs": "Costuri",
-      "lanes": "Linii"
+      "lanes": "Linii",
+      "file_streams": "Fluxuri de fișiere"
     },
     "alloc": {
       "title": "Alocare",
@@ -3297,6 +3298,24 @@
       "age_older": "Peste 24 h",
       "no_match": "Nicio bandă nu corespunde filtrelor",
       "shown": "{n} din {total} benzi"
+    },
+    "file_streams": {
+      "loading": "Se încarcă fluxurile de fișiere…",
+      "forbidden": "Doar proprietarul și administratorii spațiului de lucru pot citi fluxurile de fișiere.",
+      "error": "Fluxurile de fișiere nu au putut fi încărcate.",
+      "none": "Încă nu există fluxuri de fișiere. O mașină urmărește doar fișierele din lista sa de permise.",
+      "box": "Mașină",
+      "file": "Fișier",
+      "find": "Căutați în vizualizare",
+      "follow": "Urmărire",
+      "pause": "Pauză",
+      "resume": "Reia",
+      "jump_latest": "Salt la cele mai noi",
+      "new_lines": "{n} rând nou | Rânduri noi: {n}",
+      "not_following": "Acest fișier nu este urmărit acum ({state}).",
+      "log_label": "Rândurile din {file}",
+      "load_older": "Încarcă mai vechi",
+      "empty": "Încă nu există rânduri."
     }
   },
   "takeover": {

@@ -24,12 +24,12 @@ const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
 
 describe('monitoring tabs', () => {
   it('Agents first (the landing tab, Q1 A), then Boxes, Events (SPL-3250), Costs (spec 123), Tokens (spec 140), then Lanes (spec 153 C15)', () => {
-    assert.deepEqual(MONITORING_TABS.map((t) => t.id), ['agents', 'boxes', 'events', 'costs', 'tokens', 'lanes'])
-    assert.deepEqual(MONITORING_TABS.map((t) => t.path), ['/monitoring/agents', '/monitoring/boxes', '/monitoring/events', '/monitoring/costs', '/monitoring/tokens', '/monitoring/lanes'])
+    assert.deepEqual(MONITORING_TABS.map((t) => t.id), ['agents', 'boxes', 'events', 'costs', 'tokens', 'lanes', 'file-streams'])
+    assert.deepEqual(MONITORING_TABS.map((t) => t.path), ['/monitoring/agents', '/monitoring/boxes', '/monitoring/events', '/monitoring/costs', '/monitoring/tokens', '/monitoring/lanes', '/monitoring/file-streams'])
     assert.equal(MONITORING_DEFAULT_PATH, '/monitoring/agents')
     for (const t of MONITORING_TABS) {
       assert.equal(t.path, '/monitoring/' + t.id, 'a tab is its own path (D4)')
-      assert.equal(t.labelKey, 'monitoring.tab.' + t.id)
+      assert.equal(t.labelKey, 'monitoring.tab.' + t.id.replace(/-/g, '_'), 'a key has no hyphen: file-streams -> file_streams')
       assert.equal(typeof t.operatorsOnly, 'boolean')
     }
   })
@@ -66,6 +66,21 @@ describe('monitoring tabs', () => {
     assert.match(page, /client\.clear\(\)/)
     assert.doesNotMatch(page, /<MobileBack|<SectionClose|feed-header/, 'the Monitoring page holds the header and the tab bar')
   })
+  it('File streams (spec 160 3.5, SPL-3888, C18): staff only, never an operator who is neither owner nor admin', () => {
+    const fs = MONITORING_TABS.find((t) => t.id === 'file-streams')
+    assert.deepEqual({ ...fs }, { id: 'file-streams', path: '/monitoring/file-streams', labelKey: 'monitoring.tab.file_streams',
+      operatorsOnly: false, staff: true, staffOnly: true, ready: true })
+    const ids = (who) => visibleMonitoringTabs(who).map((t) => t.id)
+    assert.ok(ids({ staff: true }).includes('file-streams'), 'owner or admin')
+    assert.ok(ids({ operator: true, staff: true }).includes('file-streams'), 'an operator who is also staff')
+    /* C18 CONTROL: an operator who is not staff sees Lanes (its operator rule) but not File streams */
+    assert.ok(ids({ operator: true, staff: false }).includes('lanes'))
+    for (const who of [undefined, { operator: true }, { operator: true, staff: false }, { staff: false }, { operator: false, can: () => true }]) {
+      assert.equal(ids(who).includes('file-streams'), false, JSON.stringify(who))
+    }
+    assert.equal(monitoringTabFor('/monitoring/file-streams'), 'file-streams')
+    assert.equal(monitoringTabFor('/fi/monitoring/file-streams'), 'file-streams')
+  })
   it('Lanes (spec 153 3.2, SPL-3215, C15-C16) is ready; operator admins and, since row B6, a workspace\'s staff', () => {
     const lanes = MONITORING_TABS.find((t) => t.id === 'lanes')
     assert.deepEqual({ ...lanes }, { id: 'lanes', path: '/monitoring/lanes', labelKey: 'monitoring.tab.lanes', operatorsOnly: false, staff: true, ready: true })
@@ -81,7 +96,7 @@ describe('monitoring tabs', () => {
   it('Lanes (spec 153 3.6, row B6, SPL-3229, C26): a workspace owner or admin sees the tab, a plain member does not', () => {
     /* C26: staff false has no lanes; twin: staff true has it, and Tokens stays the operator's */
     assert.deepEqual(visibleMonitoringTabs({ staff: false }).map((t) => t.id), ['agents', 'boxes', 'events'])
-    assert.deepEqual(visibleMonitoringTabs({ staff: true }).map((t) => t.id), ['agents', 'boxes', 'events', 'lanes'])
+    assert.deepEqual(visibleMonitoringTabs({ staff: true }).map((t) => t.id), ['agents', 'boxes', 'events', 'lanes', 'file-streams'])
     assert.deepEqual(visibleMonitoringTabs({ operator: true, staff: false }).map((t) => t.id), ['agents', 'boxes', 'events', 'tokens', 'lanes'])
     /* who is staff: the hub's pair, TenantOwner || Has(admin) anywhere in the role set (C25b, C26b) */
     const me = (body) => normalizeMe(body)

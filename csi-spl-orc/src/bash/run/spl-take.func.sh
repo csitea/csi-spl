@@ -18,6 +18,9 @@
 # @description <plan>", tab-separated); a second call for the same pair posts
 # @description nothing and exits 0 saying TAKEN-ALREADY. A failed post is not
 # @description recorded, so a re-run posts it. Dry run unless DRY_RUN=0.
+# @description A take of a post one person addressed to another (to_id HUM-n, or
+# @description @-mentions of people only) is refused by do_spl_desk_reply's
+# @description human-to-human gate and not recorded (SPL-3967).
 # @param ENV - required: dev, prd or self (passed on to do_spl_desk_reply)
 # @param TENANT_ID - required: the workspace of the topic
 # @param DESK_AGENT - required: the taker's agent id (its desk)

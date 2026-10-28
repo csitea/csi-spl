@@ -85,6 +85,12 @@
 # @description seat of it, or the human addressed it (a DM, @<id>); a topic's
 # @description owner answering again is never refused (SPL-3520,
 # @description lib/bash/funcs/spl-desk-lease-gate.func.sh).
+# @description A reply is refused (exit 9, nothing sent) when the topic's newest
+# @description human post since the last agent post is addressed to people
+# @description only: its to_id is a HUM-*, or it is a channel post that
+# @description @-mentions people and no agent (SPL-3967,
+# @description lib/bash/funcs/spl-desk-human-gate.func.sh). A later human post
+# @description for everyone opens the topic again.
 # @description Exit 3 when nothing newer than this desk's last answer is
 # @description waiting. Exit 4 when more than one human conversation is, which
 # @description is a question for the operator, not a guess for the action.
@@ -118,6 +124,9 @@
 # @param   extension, e.g. shot.png; SPL-1776). A path with no known
 # @param   extension is refused (how-to-post.md rule 13)
 # @param DESK_ACK (optional) - 1 = archive the answered message, default 0
+# @param DESK_HUMAN_TO_HUMAN_OK (optional) - the msg id (or its first 8
+# @param   characters) of a post one human addressed to another, to answer it
+# @param   anyway: when that human then asks the agents (SPL-3967)
 # @param DESK_ANY (optional) - 1 = answer the newest human message even when
 # @param   several conversations are waiting (the pre-2026-09-21 behaviour)
 # @param DRY_RUN (optional) - 1 (default) or 0
@@ -156,6 +165,7 @@ do_spl_desk_reply() {
   local ans_to ans_task ans_msg ans_head ans_ref=""
   _spl_desk_reply_choose || return $?
   spl_desk_lease_gate "$d" "$box" "$tenant" "$hub" "$agent" "$ans_task" || return $?
+  spl_desk_human_gate "$d" "$box" "$tenant" "$hub" "$agent" "$ans_task" || return $?
 
   local ids=()
   spl_desk_attach_args "${files[@]}"

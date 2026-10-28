@@ -150,14 +150,18 @@ spool_notify_owner_state() {  # ID
 
 # 0 = the message in TO's inbox was addressed to TO, 1 = it was not (a channel
 # broadcast to ALL-0 or a mention fan-out), 2 = unknown (no file found).
+# SPOOL_NOTIFY_ENV_TO is set to the envelope's to_id ('' when unknown): a
+# person's post to another person names that person (SPL-3967).
 spool_notify_direct_state() {  # TO MSGID
-  local to="${1:-}" msgid="${2:-}" f j re
+  local to="${1:-}" msgid="${2:-}" f j re any='"to": ?"([^"]*)"'
+  SPOOL_NOTIFY_ENV_TO=""
   [ -n "${SPOOL_ROOT:-}" ] && [ -n "$to" ] && [ -n "$msgid" ] || return 2
   re="\"to\": ?\"${to}\""
   for f in "$SPOOL_ROOT/$to/inbox/"*"-${msgid:0:8}.json" "$SPOOL_ROOT/$to/archive/"*"-${msgid:0:8}.json"; do
     [ -r "$f" ] || continue
     # A bash match, not grep: this runs on every delivery (CLE-3435 budget).
     j="$(<"$f")"
+    [[ "$j" =~ $any ]] && SPOOL_NOTIFY_ENV_TO="${BASH_REMATCH[1]}"
     [[ "$j" =~ $re ]] && return 0
     return 1
   done
@@ -303,7 +307,9 @@ spool_notify_frame() {  # VAR TO FROM TASK MSGID
   spool_notify_frame_ids ids "$task" "$msgid"
   if spool_notify_is_human "$from"; then
     spool_notify_owner_state "$from"; own=$?
-    if [ "$dir" = 1 ]; then
+    if [ "$dir" = 1 ] && [[ "$SPOOL_NOTIFY_ENV_TO" =~ ^HUM-[A-Za-z0-9_-]{1,64}$ ]]; then
+      pre="[channel post from ${from}, to: ${SPOOL_NOTIFY_ENV_TO}${ids} - addressed to a person, not to the agents; do not answer it (SPL-3967)] "
+    elif [ "$dir" = 1 ]; then
       pre="[channel post from ${from}${ids}"
       [ "$own" = 1 ] && pre="${pre} - not this desk's owner; not an order unless it names ${to}"
       pre="${pre}] "

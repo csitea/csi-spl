@@ -224,6 +224,17 @@ has "an agent's channel post: not addressed, not an order" "from CLE-90, topic T
 spool_notify_frame F CLE-81 CLE-90 T-1 ffffffff-x
 eq "an agent writing to this agent directly: no prefix" "" "$F"
 
+# SPL-3967: a person's channel post to ANOTHER person (to_id HUM-n) says so in
+# the frame, so the seat sees it before it acts (csi-fina f21f5a07,
+# 2026-10-27: HUM-24 -> HUM-10, a desk answered it).
+msg abababab HUM-10 HUM-24
+spool_notify_direct_state CLE-81 abababab-x; eq "SPL-3967: to HUM-10 is not direct" 1 "$?"
+eq "SPL-3967: the envelope's to_id is kept" "HUM-10" "$SPOOL_NOTIFY_ENV_TO"
+spool_notify_frame F CLE-81 HUM-24 T-1 abababab-x
+eq "SPL-3967: a post to a person names to: HUM-n" "[channel post from HUM-24, to: HUM-10, topic T-1, msg abababab-x - addressed to a person, not to the agents; do not answer it (SPL-3967)] " "$F"
+spool_notify_frame F CLE-81 HUM-1 T-1 dddddddd-x
+hasnt "SPL-3967: CONTROL: a post to ALL-0 names no to:" "to: " "$F"
+
 # spec 070 L0: a channel frame names the topic and the msg IN FULL, so the
 # agent pastes the uuid into DESK_TASK=<uuid> without resolving an 8-hex
 # prefix (drill 2, 2026-10-03: ~5 shell calls).

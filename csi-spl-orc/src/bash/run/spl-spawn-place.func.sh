@@ -82,7 +82,9 @@
 # @description         of the line, the reset in .place.wait; any other such
 # @description         row launches claude. A row placed directly as agy:<slug>
 # @description         HOLDS too, review or not (SPL-3024): agy was picked on
-# @description         purpose, claude would change the vendor
+# @description         purpose, claude would change the vendor. The quota is
+# @description         one for the fleet (SPL-3998): the other box's watchdog
+# @description         blocker for a live a- lane there holds too
 # @description      BRIEF ON ANOTHER BOX (SPL-3470): a placed row whose brief
 # @description         file is not here and whose hub row was last written on
 # @description         another box (writer_box: the dispatcher queued it there,
@@ -129,6 +131,7 @@
 # @param SPAWN_SHARE_SUPPLY_MIN (optional) - minutes between two supply blockers of one class, default 60
 # @param SPAWN_SHARE_DISPATCH (optional) - the dispatch lease holder <ID>@<box>; default the lease file <spool root>/dispatch/lease
 # @param SPAWN_SHARE_LANES_CMD (optional, tests) - as do_spl_spawn_share
+# @param SPAWN_PLACE_LOAD_CMD (optional, tests) - prints the lane map's JSON ({load: [...]}) the other box's agy limit reads liveness from, instead of do_spl_lane_map
 # @param ASKS_FLEET ASKS_ENV ASKS_TENANT ASKS_DESK_BOX ASKS_HUB_CMD ASKS_HOLDER (optional) - as do_spl_asks_tick
 # @param SPAWN_GROUP_DIR SPAWN_GROUP_POLL_MIN SPAWN_GROUP_GRACE_MIN (optional) - as do_spl_spawn_group_put
 # @example ./run -a do_spl_spawn_place
@@ -666,8 +669,49 @@ spl_spawn_place_agy_out() {
     t=$(( t + 10#${BASH_REMATCH[2]:-0} * 3600 + 10#${BASH_REMATCH[4]:-0} * 60 + 10#${BASH_REMATCH[6]:-0} ))
     (( t > best )) && best="$t" ev="$id banner, Resets in ${line##*Resets in }"
   done
+  hit="$(spl_spawn_place_agy_remote "$since" "$now")"
+  [[ -z "$hit" ]] || (( ${hit%%$'\t'*} <= best )) || best="${hit%%$'\t'*}" ev="${hit#*$'\t'}"
   (( best > now )) || return 0
   printf 'agy is out of quota until %s (%s)\n' "$(date -u -d "@$best" +%FT%TZ)" "$ev"
+}
+
+# agy out of quota on ANOTHER box (SPL-3998): "<reset epoch>\t<evidence>" for
+# the latest reset, else nothing. The records above are this box's watchdog's
+# only, so a limit on the other box never held a row placed from here (sat
+# launched a-963 onto the main box 2026-10-28 00:45Z, 5 min after a-958 and
+# a-960 hit it there). agy's quota is one for the fleet, not one per box: on 2026-10-27
+# the a- lanes of both boxes hit it within 35 min and 8 of the 9 blockers named
+# the same reset (2026-10-30T22:01..22:04Z), so the hold is fleet-wide. The
+# record is the other box's watchdog blocker to the orchestrator
+# ("WATCHDOG (093 S2 kind=limit): <id> is on its usage limit until <UTC>...
+# box <box>,"), which the hub relays into an inbox here and the ack archives:
+# $SPOOL_ROOT/*/{inbox,archive}/*--watchdog-093-s2-kind-limit-a-*.json. It
+# counts while its reset is ahead, it is newer than <since> (agy.ok) and the
+# lane is live on its box (SPL-3846): in that box's busy_ids of the lane map
+# load, read from its BOX-0 row (src box). No load for that box, or only its
+# lane rows (src rows): liveness unknown, the record counts.
+spl_spawn_place_agy_remote() {  # SINCE NOW
+  local here="${ASKS_BOX:-${SPOOL_DESK_BOX:-}}" f files=() recs load="" id box u
+  for f in "$SPOOL_ROOT"/*/inbox/*--watchdog-093-s2-kind-limit-a-*.json "$SPOOL_ROOT"/*/archive/*--watchdog-093-s2-kind-limit-a-*.json; do
+    [[ -e "$f" ]] && files+=("$f")
+  done
+  (( ${#files[@]} )) || return 0
+  recs="$(jq -r --arg here "$here" --argjson since "$1" --argjson now "$2" '
+    (.body // "" | capture("^WATCHDOG \\(093 S2 kind=limit\\): (?<id>a-[0-9]+) is on its usage limit until (?<u>[0-9T:-]+Z).* box (?<b>[a-z0-9-]+),")) as $c
+    | select($c.b != $here and ($c.u | fromdate) > $now and ((.ts // "") | try fromdate catch 0) > $since)
+    | "\($c.id)\t\($c.b)\t\($c.u | fromdate)\t\(.msg_id // "" | .[0:8])"' "${files[@]}" 2>/dev/null | sort -u)"
+  [[ -n "$recs" ]] || return 0
+  if [[ -n "${SPAWN_PLACE_LOAD_CMD:-}" ]]; then
+    # shellcheck disable=SC2086 # a command line, split on purpose
+    load="$($SPAWN_PLACE_LOAD_CMD 2>/dev/null)"
+  else
+    load="$(LANE_FORMAT=json timeout "${SPAWN_SHARE_TIMEOUT:-90}" bash "$PROJ_PATH/run" -a do_spl_lane_map 2>/dev/null | grep -E '^\{' | tail -1)"
+  fi
+  [[ -n "$load" ]] || load='{}'
+  while IFS=$'\t' read -r id box u f; do
+    jq -e --arg b "$box" --arg i "$id" 'any(.load[]?; .box == $b and .src != "rows" and ((.busy_ids // []) | index($i) == null))' <<<"$load" >/dev/null 2>&1 && continue
+    printf '%s\t%s\n' "$u" "$id@$box S2 kind=limit, its watchdog's blocker $f"
+  done <<<"$recs" | sort -n | tail -n 1
 }
 
 # The ids with a live process on this box as "|<id>|<id>|" ("|" = none), from

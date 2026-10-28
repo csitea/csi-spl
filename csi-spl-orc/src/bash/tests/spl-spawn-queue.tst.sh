@@ -57,6 +57,10 @@
 #      dead a- id hold nothing (CONTROL: a live id's still hold; no fresh
 #      report = liveness unknown, they hold); an answered agy probe newer
 #      than the S2 drops it (CONTROL: a probe older than it does not)
+#  13b3. SPL-3998: the other box's watchdog blocker (S2 kind=limit on a live
+#      a- lane there) holds (CONTROLS: no lane map or rows only = unknown,
+#      holds; a dead remote lane, a blocker older than agy.ok, past its
+#      reset, or from this box hold nothing)
 #  13c. SPL-3024: a row placed directly as agy:<slug> holds while agy is out
 #      of quota, review or not (CONTROL: agy in quota launches it as agy)
 #      SPL-3138: agy back but the row not launched (ceiling full): its agy
@@ -838,6 +842,45 @@ touch -d '2 hours ago' "$T/pc/spool/dispatch/vendor-probe/agy.ok"
 out="$(agyout)"
 grep -q "(a-665 S2 kind=limit" <<<"$out" && pass "SPL-3846 control: a probe older than the S2 drops nothing" || fail "old probe: $out"
 rm -rf "$WD13" "$AR" "$T/pc/spool/dispatch/vendor-probe"
+
+# 13b3. SPL-3998: a limit on the OTHER box holds too. On 2026-10-28 00:40Z the
+# main box's watchdog sent its S2 kind=limit blockers for a-958 and a-960;
+# sat's agy_out printed nothing and sat launched a-963 there 5 min later. The
+# record here is that blocker, relayed into the orchestrator's inbox and
+# archived by its ack; the lane is live when the lane map's load lists it in
+# that box's busy_ids (its BOX-0 row, src box).
+WDM="$T/pc/spool/c-001/archive"; mkdir -p "$WDM" "$T/pc/spool/dispatch/vendor-probe"
+wdmsg() {  # ID BOX RESET-EPOCH TS-EPOCH
+  jq -n --arg b "WATCHDOG (093 S2 kind=limit): $1 is on its usage limit until $(date -u -d "@$3" +%FT%TZ): pane: Individual quota reached, Resets in 155h41m53s.. Harness agy, OS user <HARNESS_USER>, box $2, pane %1389. No restart: a restart hits the same limit." \
+    --arg ts "$(date -u -d "@$4" +%FT%TZ)" '{v: 1, msg_id: "330da055-6a5e-48a2-b6da-6b6414f73e1a", from: "c-001@\($b | capture("box (?<x>[a-z-]+),").x)", to: "c-001", kind: "blocker", task_id: "wd-x", ts: $ts, body: $b, files: []}' \
+    >"$WDM/$(date -u -d "@$4" +%Y%m%dT%H%M%SZ)--c-001@$2--watchdog-093-s2-kind-limit-$1-330da055.json"
+}
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "${LOAD_JSON:-}"\n' >"$T/bin/load"; chmod +x "$T/bin/load"
+load() { printf '{"hub":"ok","load":[{"box":"sat","here":false,"live":true,"busy_ids":%s,"src":"%s"}]}' "$1" "${2:-box}"; }
+agyr() { on pc 'spl_spawn_place_agy_out' SPAWN_PLACE_LOAD_CMD="$T/bin/load" LOAD_JSON="$1" 2>&1; }
+NOW=$(date +%s)
+wdmsg a-958 sat $(( NOW + 155 * 3600 )) $(( NOW - 60 ))
+touch -d '1 hour ago' "$T/pc/spool/dispatch/vendor-probe/agy.ok"
+out="$(agyr "$(load '["a-958","c-394"]')")"
+grep -q "^agy is out of quota until $(date -u -d "@$(( NOW + 155 * 3600 ))" +%FT%TZ) (a-958@sat S2 kind=limit, its watchdog's blocker 330da055)$" <<<"$out" &&
+  pass "SPL-3998: the other box's S2 kind=limit blocker on a live a- lane holds, its reset named" || fail "remote limit: $out"
+out="$(agyr "")"
+[[ -n "$out" ]] && pass "SPL-3998 control: no lane map (hub down) = liveness unknown, the blocker holds" || fail "remote no load: $out"
+out="$(agyr "$(load '["a-958"]' rows)")"
+[[ -n "$out" ]] && pass "SPL-3998 control: the box's lane rows only (src rows) = liveness unknown, the blocker holds" || fail "remote rows: $out"
+out="$(agyr "$(load '["c-394"]')")"
+[[ -z "$out" ]] && pass "SPL-3998 control: a dead remote lane (not in its box's busy_ids) holds nothing" || fail "remote dead: $out"
+touch "$T/pc/spool/dispatch/vendor-probe/agy.ok"
+out="$(agyr "$(load '["a-958"]')")"
+[[ -z "$out" ]] && pass "SPL-3998 control: a blocker older than agy.ok holds nothing" || fail "remote probe: $out"
+rm -f "$WDM"/*; touch -d '1 hour ago' "$T/pc/spool/dispatch/vendor-probe/agy.ok"
+wdmsg a-958 sat $(( NOW - 60 )) $(( NOW - 600 ))
+out="$(agyr "$(load '["a-958"]')")"
+[[ -z "$out" ]] && pass "SPL-3998 control: a blocker past its reset holds nothing" || fail "remote past: $out"
+rm -f "$WDM"/*; wdmsg a-958 box-desk $(( NOW + 3600 )) $(( NOW - 60 ))
+out="$(agyr "$(load '["a-958"]')")"
+[[ -z "$out" ]] && pass "SPL-3998 control: this box's own blocker is not read here (its out.s2 and pane are, under SPL-3846)" || fail "remote own box: $out"
+rm -rf "$WDM" "$T/pc/spool/dispatch/vendor-probe"
 
 # 13c. SPL-3024: a row placed directly as agy:<slug> (agy chosen on purpose,
 # no swap) HOLDS while agy is out of quota, review or not: launching claude

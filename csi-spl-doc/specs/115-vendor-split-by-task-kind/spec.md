@@ -215,6 +215,21 @@ answered probe (`dispatch/vendor-probe/agy.ok`, its mtime). On 2026-10-27
 the captures of dead a-338 and a-665 held every agy row for three days while
 agy answered on both boxes.
 
+The hold is fleet-wide (SPL-3998): agy's quota is one for the fleet, not one
+per box (on 2026-10-27 the a- lanes of both boxes hit it within 35 min, and 8
+of the 9 watchdog blockers named the same reset, 2026-10-30T22:01..22:04Z).
+So a limit on the OTHER box counts too, read by `spl_spawn_place_agy_remote`
+from that box's watchdog blocker to the orchestrator
+(`WATCHDOG (093 S2 kind=limit): <id> is on its usage limit until <UTC> ...
+box <box>,`), which the hub relays into an inbox here
+(`$SPOOL_ROOT/*/{inbox,archive}/*--watchdog-093-s2-kind-limit-a-*.json`).
+The same rules hold: it counts until its reset, never when it is not newer
+than `agy.ok`, and only while the lane is live on its box (in that box's
+`busy_ids` of the lane map load, from its BOX-0 row; no load or rows only:
+liveness unknown, it counts). On 2026-10-28 sat launched a-963 onto the main
+box 5 min after a-958 and a-960 hit the limit there, because only sat's own
+records were read.
+
 ## 6. "Failed try": what counts, and where it is read
 
 A **try** is one lane id spawned for a `task_id` with a kind and a vendor.

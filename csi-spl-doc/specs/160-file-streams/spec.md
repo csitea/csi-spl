@@ -6,9 +6,9 @@ The owner's GO and answers (section 7.1): Q1 A, Q2 A, Q3 A, Q4 GO (HUM-10,
 msg 44ec2e44 on the v0.3 poll), then all A again on the v0.1 poll (msg
 5c6686f2, 2026-10-27), whose Q1 A is the desk log the deny list refuses
 (7.1). Row B1 is built (SPL-3820, section 5.1), its cron row off by cnf
-until it is switched on; B2, B3, the hub half of B4 and B6 are built
-(SPL-3888, sections 5.2 to 5.4 and 5.6); B4's WUI half, B5 and B7 are
-being built by the same lane, row by row.
+until it is switched on; B2 to B6 are built (SPL-3888, sections 5.2 to
+5.6); row B7's measure and the search fix it called for are built (5.7),
+its cnf defaults are next.
 
 Source: the owner's asks in the owner's customer workspace (section 1); the
 discussion moved to the operator workspace topic
@@ -474,12 +474,26 @@ evicting another. The sweep keeps the 7-day retention, and re-applies the caps (
 log lines are far shorter than 2048 bytes; B7 records the measured mean
 line size and the bytes per stored line, then sets the caps.
 
+**Measured** (row B7, case C24; 2026-10-28 on dev, hub `cfd6cfb7`,
+`do_spl_file_streams_measure`, 500 000 synthetic log lines in one
+workspace, 8 streams, the table holding nothing else): the mean text is
+148.3 bytes and the stored `search_tsv` entry 301.8 bytes; table with toast
+268 926 976 bytes plus indexes 81 182 720 bytes, **700.2 bytes per stored
+line**, so a workspace at 500 000 lines takes about 350 MB of the 10 GB
+disk, 4 workspaces about 1.4 GB. `in:file-streams` over those lines (n=5
+per word, EXPLAIN ANALYZE of the hub's statement): matched on
+`to_tsvector(l.text)` as built in B4 it took 14 846..16 906 ms (median
+~15.6 s) for every word, past the 7 s search budget; matched on the
+stored `l.search_tsv` (5.7) 425..483 ms for an absent word or one in a
+thousand lines and 18..19 ms for one in three.
+
 **Connections.** The follower's push uses the box's existing session (one
 frame per tick with lines, 3.1) and the tab's poll is one indexed read
 every 3 s per open tab; neither opens a pool of its own. The pool budget
 of `all.env.yaml:467-472` was written for db-f1-micro's 25 connections;
 the new tier's `max_connections` is unmeasured (2.6), so B7 reads it on
-dev (`SHOW max_connections`) before any pool value is raised.
+dev (`SHOW max_connections`) before any pool value is raised. Measured
+2026-10-28 (row B7): 100 on dev.
 
 ## 4. Cases
 
@@ -688,12 +702,12 @@ Monitoring help page and B4 the syntax to the search help
   `(at, stream_id, seq)`. The hub's own marker lines are never a hit.
   Postgres only, as the doc section: a hub on the memory store answers the
   section empty.
-- **No index entry for the lines.** Every `in:file-streams` search computes
-  the entry of every line it reads, up to the 500 000-line cap per
-  workspace (3.7), under the same search budget as any search: past it the
-  answer is `503 search_budget`. Row B7 measures it on dev; a stored
-  `search_tsv` column (as rdb 0227 did for docs) is the fix if the
-  measure says so.
+- **No index entry for the lines** as B4 built it: every `in:file-streams`
+  search computed `to_tsvector(l.text)` for every line it read, up to the
+  500 000-line cap per workspace (3.7), under the same search budget as
+  any search, past which the answer is `503 search_budget`. Row B7
+  measured ~15.6 s on dev, so the match is now on the stored
+  `l.search_tsv` (5.7).
 - `hub/search.go`: `fileLineSection` runs `fileStreamsStaffRefusal`, the
   read routes' gate (`hub/file_streams_view.go`). A refused caller gets the
   section `[]` and the notice `file_streams_staff_only`. Every answer
@@ -772,6 +786,33 @@ Monitoring help page and B4 the syntax to the search help
   lines with no push. Red controls: an expiry that deletes nothing reads
   "A kept 6 lines from seq 1"; `RunSweeper` without the call keeps the 3
   lines and times out after 5 s.
+
+### 5.7 Row B7 as built (SPL-3888)
+
+- `csi-spl-orc` `do_spl_file_streams_measure` (ENV=dev only): `fill`
+  (DRY_RUN=0) has a pinned probe box announce up to 8 keys
+  `b7-measure-<n>` and push seeded synthetic log lines through `spool
+  file-streams push`, the follower's own verb, each line's `at` spread over
+  the last minutes at `MEASURE_RATE` (1000) a minute per key, under the
+  hub's refusal at twice 600; `size`, `time` (`MEASURE_N` >= 5 runs of
+  EXPLAIN ANALYZE of the hub's statement per word, `MEASURE_MATCH` tsv as
+  the hub or text as before) and `conns` read through `do_spl_db_query`.
+  The numbers are in 3.7. The lines stay on dev until the sweep removes
+  them.
+- The search fix the measure called for: `store/search_file_lines_postgres.go`
+  `fileLineLeaf` matches a text term on the stored entry `l.search_tsv`
+  (rdb 0237), as a message's `textMatch` does, never on
+  `to_tsvector(l.text)`. No GIN index and no migration:
+  `file_stream_lines` is FORCE RLS and `@@` is not LEAKPROOF, so the
+  planner could not use one under the tenant policy (rdb 0122, 0143,
+  0227), and the stored entry alone is ~35 times faster (3.7).
+- Tests: `store/search_file_lines_test.go` (the statement matches on
+  `l.search_tsv` and never calls `to_tsvector`, for a word, a phrase, a
+  prefix and a negation; red control: the old leaf fails both checks) and
+  `csi-spl-orc` `file-streams-measure.tst.sh` (the frames the hub takes,
+  the refusals, the timing parse; red control: the fill at twice the rate).
+- Next, its cnf: `env.hub.file_streams` with the measured defaults and
+  their hub wiring.
 
 ## 6. Decisions (this draft; the reviewer may challenge each)
 

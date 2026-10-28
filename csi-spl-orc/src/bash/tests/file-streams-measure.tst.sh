@@ -15,7 +15,9 @@
 #      at most 2048 bytes, b7needle in one line of 1000
 #   5. time: the execution ms of each EXPLAIN run (a stubbed
 #      do_spl_db_query) give n, min, median and max; a run with no
-#      Execution Time FAILS the step
+#      Execution Time FAILS the step; the default matches on l.search_tsv
+#      (as the hub), MEASURE_MATCH=text on to_tsvector(l.text), another
+#      value FAILS
 #   6. CONTROL: the stub log records a call when one is made
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -87,6 +89,18 @@ out=$(SNIPPET="$fake; spl_fsm_time spool - - - - 5" in_orc 2>&1); rc=$?
 out=$(SNIPPET='do_spl_db_query() { echo "ERROR: canceled"; return 1; }; spl_fsm_time spool - - - - 5' in_orc 2>&1); rc=$?
 [[ $rc -ne 0 ]] && grep -q "FAIL time: no Execution Time for 'b7absentword' run 1" <<<"$out" && pass "time: no Execution Time FAILS" \
   || fail "time without Execution Time: rc=$rc $out"
+
+echo_sql='do_spl_db_query() { echo "$SQL" >>"$STUB_LOG"; echo "\"Execution Time\": 1.0"; }'
+: >"$T/calls.log"
+SNIPPET="$echo_sql; spl_fsm_time spool - - - - 5" in_orc >/dev/null 2>&1
+grep -q 'AND l.search_tsv @@ plainto_tsquery' "$T/calls.log" && ! grep -q 'to_tsvector' "$T/calls.log" \
+  && pass "time: the default matches on l.search_tsv, as the hub" || fail "time tsv: $(head -c 600 "$T/calls.log")"
+: >"$T/calls.log"
+SNIPPET="$echo_sql; spl_fsm_time spool - - - - 5" in_orc MEASURE_MATCH=text >/dev/null 2>&1
+grep -q "AND to_tsvector('spool_search', l.text) @@ plainto_tsquery" "$T/calls.log" \
+  && pass "time: MEASURE_MATCH=text matches on to_tsvector(l.text)" || fail "time text: $(head -c 600 "$T/calls.log")"
+SNIPPET="$echo_sql; spl_fsm_time spool - - - - 5" in_orc MEASURE_MATCH=gin >"$T/o" 2>&1 \
+  && fail "time: accepts MEASURE_MATCH=gin" || pass "time: refuses MEASURE_MATCH=gin"
 
 # --- 6. CONTROL --------------------------------------------------------------------------
 SNIPPET='spool version' in_orc >/dev/null 2>&1

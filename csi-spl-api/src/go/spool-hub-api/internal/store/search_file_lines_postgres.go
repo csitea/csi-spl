@@ -34,7 +34,13 @@ type FileLineSearcher interface {
 
 var _ FileLineSearcher = (*Postgres)(nil)
 
-// fileLineLeaf is one term on line l of stream s. Text: the line's words.
+// fileLineLeaf is one term on line l of stream s. Text: the line's words,
+// matched on its stored entry l.search_tsv (rdb 0237), never on
+// to_tsvector(l.text): computing the entry of every line it reads took
+// ~15.6 s over 500 000 lines on dev against the 7 s search budget, the
+// stored entry 19..446 ms (spec 160 5.7, row B7, n=5). No GIN index: the
+// table is FORCE RLS and @@ is not LEAKPROOF, so the planner could not use
+// one under the tenant policy (rdb 0122, 0227).
 // in:file-streams: every line (it only picks the section). box: the stream's
 // box. name: the stream key contains the value. before: / after: / on: the
 // line's time. Every other operator never reaches this section (the grammar
@@ -42,7 +48,7 @@ var _ FileLineSearcher = (*Postgres)(nil)
 func (c *sqlc) fileLineLeaf(t *search.Term) string {
 	switch t.Op {
 	case search.OpText:
-		return "to_tsvector(" + searchConfig + ", l.text) @@ " + c.tsq(t)
+		return "l.search_tsv @@ " + c.tsq(t)
 	case search.OpIn:
 		if t.FileStreams {
 			return "true"

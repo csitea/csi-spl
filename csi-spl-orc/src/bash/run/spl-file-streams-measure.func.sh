@@ -19,7 +19,10 @@
 # @description   time  - MEASURE_N runs (>= 5) of EXPLAIN ANALYZE of the hub's
 # @description           own in:file-streams statement (searchFileLinesSQL,
 # @description           LIMIT 21) for an absent word, b7needle and tick; the
-# @description           execution ms of each run, then min / median / max
+# @description           execution ms of each run, then min / median / max.
+# @description           MEASURE_MATCH=text times the match the hub had
+# @description           before row B7 (to_tsvector(l.text)), tsv (default)
+# @description           the stored l.search_tsv the hub matches since
 # @description   conns - SHOW max_connections
 # @description The lines stay until the hub's sweep removes them (7 days, or
 # @description the caps). Dry run unless DRY_RUN=0 (it gates the fill only:
@@ -32,6 +35,7 @@
 # @param MEASURE_STREAMS (optional) - 1..8, default 8
 # @param MEASURE_RATE (optional) - lines per minute per stream, 1..1200, default 1000
 # @param MEASURE_N (optional) - runs per timed query, 5..50, default 5
+# @param MEASURE_MATCH (optional) - tsv (default: l.search_tsv, as the hub) or text (to_tsvector(l.text), before row B7)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=spool DRY_RUN=0 ./run -a do_spl_file_streams_measure
 # @example ENV=dev TENANT_ID=spool MEASURE_STEPS=time,size ./run -a do_spl_file_streams_measure
@@ -149,8 +153,13 @@ spl_fsm_size() {  # TENANT
 # hub binds them) and LIMIT 21 (a page of 20 plus one). It runs in the
 # operator scope of do_spl_db_query, not the hub's tenant scope.
 spl_fsm_time() {
-  local t="$1" n="$6" w i ms
+  local t="$1" n="$6" w i ms m
   local -a all
+  case "${MEASURE_MATCH:-tsv}" in
+    text) m="to_tsvector('spool_search', l.text)" ;;
+    tsv) m="l.search_tsv" ;;
+    *) do_log "FATAL MEASURE_MATCH must be text or tsv, got: '${MEASURE_MATCH:-}'"; return 1 ;;
+  esac
   for w in b7absentword b7needle tick; do
     all=()
     for (( i = 1; i <= n; i++ )); do
@@ -158,7 +167,7 @@ spl_fsm_time() {
         FROM file_stream_lines l
         JOIN file_streams s ON s.tenant_id = l.tenant_id AND s.id = l.stream_id
         WHERE l.tenant_id = '$t' AND s.tenant_id = '$t' AND NOT l.marker
-          AND to_tsvector('spool_search', l.text) @@ plainto_tsquery('spool_search', '$w'::text)
+          AND $m @@ plainto_tsquery('spool_search', '$w'::text)
         ORDER BY l.at DESC, l.stream_id::text DESC, l.seq DESC LIMIT 21" | grep -oE '"Execution Time": [0-9.]+' | grep -oE '[0-9.]+$')"
       [[ -n "$ms" ]] || { do_log "FAIL time: no Execution Time for '$w' run $i"; return 1; }
       all+=("$ms")

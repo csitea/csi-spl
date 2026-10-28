@@ -598,10 +598,15 @@ spl_rotate_detach_if_inside() {
 
 # ---- processes and panes -------------------------------------------------------
 
+# ROTATE_TMUX_TIMEOUT (seconds, unset = no bound): each call is ended after
+# it, exit 124. The lane RETIRE sets it: a call there hung 42 min while two
+# sessions of one id were live (20261027T1612Z-lane-c-423, SPL-3982).
 spl_rotate_tmux() {
-  if [[ -n "${ROTATE_TMUX:-}" ]]; then "$ROTATE_TMUX" "$@"; return; fi
+  local -a b=()
+  [[ "${ROTATE_TMUX_TIMEOUT:-}" =~ ^[1-9][0-9]*$ ]] && b=(timeout -k 2 "$ROTATE_TMUX_TIMEOUT")
+  if [[ -n "${ROTATE_TMUX:-}" ]]; then "${b[@]}" "$ROTATE_TMUX" "$@"; return; fi
   spool_tmux_argv
-  "${SPOOL_TM[@]}" "$@"
+  "${b[@]}" "${SPOOL_TM[@]}" "$@"
 }
 
 # spl_rotate_cli DIR COMM: 0 when the process in DIR (<proc>/<pid>) is the

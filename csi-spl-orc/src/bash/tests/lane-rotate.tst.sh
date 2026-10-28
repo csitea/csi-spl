@@ -50,6 +50,11 @@
 #      wd-situations/s2-agy-quota.pane, "Resets in 2h"): the agy lane is
 #      SKIPped with ONE log line naming the reset, nothing spawned, no note;
 #      controls: no banner, a reset already past, a c- lane = rotated
+#  25. SPL-3982: a tmux call into the old pane hangs during RETIRE: each
+#      call is bounded, the old pid gets SIGTERM, DONE with one session
+#  26. SPL-3982: another session of the id starts after GATE in its own pane
+#      (a hand restore): retired by its own pid, its window closed; control:
+#      a process of the id in the NEW pane is left and counted
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc and M are read inside the check strings (eval)
 set -uo pipefail
@@ -123,6 +128,8 @@ cmd="$1"; shift
 tgt="" lit=0 esc=0 args=()
 while [ $# -gt 0 ]; do case "$1" in -t) tgt="$2"; shift 2 ;; -l) lit=1; shift ;; -a|-p|-J) shift ;; -e) esc=1; shift ;; -F|-S) shift 2 ;; *) args+=("$1"); shift ;; esac; done
 field() { awk -F'\t' -v p="$tgt" -v f="$1" '$1 == p {print $f}' "$P"; }
+# hang.<pane>: a capture or a keypress into it never returns (SPL-3982)
+case "$cmd" in capture-pane|send-keys) [ -f "$T/tmux/hang.$tgt" ] && exec sleep 60 ;; esac
 case "$cmd" in
   list-panes) awk -F'\t' '{print $2" "$1}' "$P" ;;
   display-message) grep -q "^$tgt	" "$P" || exit 1
@@ -168,6 +175,14 @@ cp -f "$4" "$SPOOL_ROOT/$2/lifetime/brief.md"
 printf '%%%s\t%s\t$0\t%s@box\n' "$n" "$n" "$2" >>"$T/tmux/panes"
 comm=claude; [ "$1" = mistral ] && comm="Vibe CLI"; [ "$1" = agy ] && comm=agy
 "$T/bin/proc" "$n" 0 "$2" "$comm" 1 "$1 --seed"
+# at-spawn.hang <pane>: the old pane hangs from now on; at-spawn.extra
+# "<pid> <pane|NEW>": another session of the same id starts (a hand restore
+# in its own pane, or a child of the new session)
+[ -s "$T/at-spawn.hang" ] && touch "$T/tmux/hang.$(cat "$T/at-spawn.hang")"
+if [ -s "$T/at-spawn.extra" ]; then read -r xp xpane <"$T/at-spawn.extra"
+  if [ "$xpane" = NEW ]; then "$T/bin/proc" "$xp" 0 "$2" claude "$n" "claude -p"
+  else "$T/bin/proc" "$xp" 0 "$2" claude 1 "claude --resume x"; printf '%s\t%s\t$0\t%s@box\n' "$xpane" "$xp" "$2" >>"$T/tmux/panes"; fi
+fi
 rid="$(grep '^ACK-COMMAND:' "$T/prompt.$2" | grep -oE 'ROTATE_ID=[0-9A-Za-z-]+' | cut -d= -f2)"
 ( sleep 1; ROTATE_CMD=ack ROTATE_ID="$rid" ID="$2" ROTATE_CALLER_PID="$n" "$T/bin/act" >>"$T/ack.out" 2>&1 ) >/dev/null 2>&1 &
 echo "$2 %$n"
@@ -499,6 +514,28 @@ reset; lane c-976 70; banner a-977
 ROTATE_CLAUDE_BIN=/bin/true tick
 check "24. control: a c- lane beside the agy banner rotated" 'grep -q "^spawn claude c-976" "$T/spawn.log" && grep -q "lane-c-976 DONE OK" "$D/rotate.log"'
 check "24. no stray failing command under the ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
+# --- 25. SPL-3982: a tmux call into the old pane hangs in RETIRE: bounded, TERM by its pid --
+# 20261027T1612Z-lane-c-423: RETIRE WAIT at 16:14:37Z, its next line at 16:56:43Z,
+# both sessions of c-423 acting in between. Run under a hard timeout: an
+# unbounded call fails this test instead of hanging the suite.
+reset; lane c-251 70; echo %251 >"$T/at-spawn.hang"
+DRY_RUN=0 ROTATE_LANE_TMUX_TIMEOUT=2 timeout 40 "$T/bin/act" >>"$T/tick.out" 2>&1
+check "25. a hung old pane: RETIRE ends by SIGTERM of its own pid, DONE" 'grep -q "lane-c-251 RETIRE WAIT pid 2251: ./exit. never read back, no Enter: SIGTERM" "$D/rotate.log" && grep -q "^kill -TERM 2251$" "$T/kill.log" && grep -q "lane-c-251 DONE OK" "$D/rotate.log"'
+check "25. a hung old pane: one session left (the new one)" '[ ! -d "$T/proc/2251" ] && [ -d "$T/proc/3000" ] && grep -q "lane-c-251 CLOSE OK old window closed; checks: one process" "$D/rotate.log"'
+check "25. no ERR trap" '! grep -q ERRTRAP "$T/tick.out" "$D/lane-rotate/"worker.*.out'
+rm -f "$T/at-spawn.hang"
+
+# --- 26. SPL-3982: another session of the id starts after GATE (a hand restore) ----------
+reset; lane c-252 70; echo "5252 %5252" >"$T/at-spawn.extra"
+tick
+check "26. the extra session in its own pane: /exit, gone, its window closed" 'grep -q "lane-c-252 RETIRE WAIT pid 5252 in %5252 also carries c-252" "$D/rotate.log" && grep -q "submit %5252 /exit" "$T/tmux/log" && [ ! -d "$T/proc/5252" ] && grep -q "^kill %5252$" "$T/tmux/log"'
+check "26. one session left, the new one; the old one gone too" '[ -d "$T/proc/3000" ] && [ ! -d "$T/proc/2252" ] && grep -q "lane-c-252 CLOSE OK old window closed; checks: one process" "$D/rotate.log"'
+reset; lane c-253 70; echo "5253 NEW" >"$T/at-spawn.extra"
+tick
+check "26. control: a process of the id inside the NEW pane is left, the check counts it" 'grep -q "lane-c-253 RETIRE WAIT pid 5253 also carries c-253, in %3000: left" "$D/rotate.log" && [ -d "$T/proc/5253" ] && [ -d "$T/proc/3000" ] && grep -q "lane-c-253 CLOSE WAIT .*processes=2" "$D/rotate.log"'
+check "26. no ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
+rm -f "$T/at-spawn.extra"
+
 # --- 12. the cron row ----------------------------------------------------------------------------
 M="$PROJ_ROOT/cnf/box-crons/box-crons.manifest"
 check "12. manifest row lane-rotate, every minute" 'grep -qE "^lane-rotate +\| \* \* \* \* \* +\| src/bash/scripts/lane-rotate-cron.sh +\| lane-rotate/cron.log" "$M"'

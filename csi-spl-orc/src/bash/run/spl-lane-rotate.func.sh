@@ -57,6 +57,7 @@
 # @param ROTATE_LANE_RETRY (optional) - seconds after a failed rotation before the next try, default 900
 # @param ROTATE_LANE_REPORT_AGE (optional) - seconds, default 3900
 # @param ROTATE_LANE_ACK_TIMEOUT / ROTATE_LANE_EXIT_WAIT (optional) - seconds, default 600 / 120
+# @param ROTATE_LANE_TMUX_TIMEOUT (optional) - seconds each tmux call of RETIRE may take, default 15 (0 = no bound)
 # @example ./run -a do_spl_lane_rotate
 # @example DRY_RUN=0 ./run -a do_spl_lane_rotate
 # @example ROTATE_CMD=handoff ID=c-123 ./run -a do_spl_lane_rotate
@@ -84,8 +85,10 @@ spl_lane_rotate_conf() {
   : "${ROTATE_LANE:=1}" "${ROTATE_LANE_CAP:=3}" "${ROTATE_LANE_WARN_AGE:=2700}" "${ROTATE_LANE_MAX_AGE:=3600}"
   : "${ROTATE_LANE_SLOT:=300}" "${ROTATE_LANE_RETRY:=900}" "${ROTATE_LANE_REPORT_AGE:=3900}"
   : "${ROTATE_LANE_ACK_TIMEOUT:=600}" "${ROTATE_LANE_EXIT_WAIT:=120}" "${ROTATE_LANE_PROBE_MAX_AGE:=600}" "${ROTATE_LANE_REPORT_GRACE:=900}"
+  : "${ROTATE_LANE_TMUX_TIMEOUT:=15}"
   for k in ROTATE_LANE ROTATE_LANE_CAP ROTATE_LANE_WARN_AGE ROTATE_LANE_MAX_AGE ROTATE_LANE_SLOT ROTATE_LANE_RETRY \
-           ROTATE_LANE_REPORT_AGE ROTATE_LANE_ACK_TIMEOUT ROTATE_LANE_EXIT_WAIT ROTATE_LANE_PROBE_MAX_AGE ROTATE_LANE_REPORT_GRACE; do
+           ROTATE_LANE_REPORT_AGE ROTATE_LANE_ACK_TIMEOUT ROTATE_LANE_EXIT_WAIT ROTATE_LANE_PROBE_MAX_AGE ROTATE_LANE_REPORT_GRACE \
+           ROTATE_LANE_TMUX_TIMEOUT; do
     [[ "${!k}" =~ ^[0-9]+$ ]] || { do_log "FATAL $k must be a whole number, got: '${!k}'"; return 1; }
   done
   (( ROTATE_LANE_CAP > 0 )) || { do_log "FATAL ROTATE_LANE_CAP must be at least 1"; return 1; }
@@ -576,11 +579,14 @@ spl_lane_rotate_from_spawn() {
 
 # RETIRE: /exit (a lane's /exit-clean would land and report a task that goes
 # on), the restore wrapper stopped before the TERM (it would relaunch the old
-# session in place), TERM, KILL.
+# session in place), TERM, KILL. Every tmux call is bounded by
+# ROTATE_LANE_TMUX_TIMEOUT, so a stuck one falls through to the TERM
+# (SPL-3982: one hung 42 min and both sessions of c-423 acted meanwhile).
 spl_lane_rotate_from_ack() {
   local id="$1"
   spl_lane_rotate_step RETIRE WAIT "/exit into $ROTATE_OLD_PANE (pid $ROTATE_OLD_PID)"
-  if ! ROTATE_PRE_TERM=spl_lane_rotate_unwrap spl_rotate_end "$ROTATE_OLD_PANE" "$ROTATE_OLD_PID" /exit "$ROTATE_LANE_EXIT_WAIT" "$ROTATE_TERM_WAIT"; then
+  if ! ROTATE_TMUX_TIMEOUT="$ROTATE_LANE_TMUX_TIMEOUT" ROTATE_PRE_TERM=spl_lane_rotate_unwrap \
+       spl_rotate_end "$ROTATE_OLD_PANE" "$ROTATE_OLD_PID" /exit "$ROTATE_LANE_EXIT_WAIT" "$ROTATE_TERM_WAIT"; then
     spl_lane_rotate_step RETIRE FAIL "pid $ROTATE_OLD_PID survived SIGKILL: two sessions carry $id until a human clears it"
     spl_lane_rotate_last FAIL
     spl_rotate_note "$(spl_lane_rotate_holder_to)" dispatch-lane-rotate "**lane-rotate@$ROTATE_BOX**: $ROTATE_RID: the old session of $id (pid $ROTATE_OLD_PID) survived SIGKILL; the new one is pid $ROTATE_NEW_PID."
@@ -600,12 +606,33 @@ spl_lane_rotate_unwrap() {
   ${ROTATE_KILL:-sudo -n kill} -TERM "$root" 2>/dev/null || true
 }
 
-# CLOSE: the old window by pane id, the checks, DONE.
+# Every other session of ID in a pane of its own (a hand restore started
+# after GATE counted one, SPL-3982) is retired the same way, by its own pid;
+# one in the new pane (a child of the new session) or in no pane is left,
+# and CLOSE's check counts it.
+spl_lane_rotate_retire_extra() {
+  local id="$1" p pane
+  while read -r p; do
+    [[ -n "$p" && "$p" != "$ROTATE_NEW_PID" && "$p" != "$ROTATE_OLD_PID" ]] || continue
+    pane="$(ROTATE_TMUX_TIMEOUT="$ROTATE_LANE_TMUX_TIMEOUT" spl_rotate_pane_of_pid "$p")"
+    if [[ -z "$pane" || "$pane" == "$ROTATE_NEW_PANE" ]]; then
+      spl_rotate_log "$ROTATE_RID" RETIRE WAIT "pid $p also carries $id, in ${pane:-no pane}: left"; continue
+    fi
+    spl_rotate_log "$ROTATE_RID" RETIRE WAIT "pid $p in $pane also carries $id: /exit, then by its pid"
+    ROTATE_TMUX_TIMEOUT="$ROTATE_LANE_TMUX_TIMEOUT" ROTATE_PRE_TERM=spl_lane_rotate_unwrap \
+      spl_rotate_end "$pane" "$p" /exit "$ROTATE_LANE_EXIT_WAIT" "$ROTATE_TERM_WAIT" || continue
+    ROTATE_TMUX_TIMEOUT="$ROTATE_LANE_TMUX_TIMEOUT" spl_rotate_tmux kill-window -t "$pane" 2>/dev/null || true
+  done < <(spl_rotate_pids "$id")
+  return 0
+}
+
+# CLOSE: the old window by pane id, any other session of the id, the checks, DONE.
 spl_lane_rotate_close() {
   local id="$1" n mp warn=""
   if spl_rotate_tmux display-message -p -t "$ROTATE_OLD_PANE" '#{pane_id}' >/dev/null 2>&1; then
     spl_rotate_tmux kill-window -t "$ROTATE_OLD_PANE" 2>/dev/null || true
   fi
+  spl_lane_rotate_retire_extra "$id"
   n="$(spl_rotate_pids "$id" | grep -c . || true)"
   [[ "$n" == 1 ]] || warn+=" processes=$n"
   mp="$(spl_rotate_ai pane-of "$id" 2>/dev/null || true)"

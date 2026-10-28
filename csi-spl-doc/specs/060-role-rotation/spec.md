@@ -202,6 +202,27 @@ it cannot act during the overlap.
   to go, then sends SIGTERM, waits 30 s, then SIGKILL. Each signal is logged.
   If the process is still alive after SIGKILL: `FAIL exit` and an ALERT, and
   the next run's duplicate gate (FR-010) refuses until a human clears it.
+- **FR-015a** Lane rotation (`do_spl_lane_rotate`) never leaves two sessions
+  of one id behind (SPL-3982). Rid `20261027T1612Z-lane-c-423` had a
+  session restored by hand at 15:16Z. Its RETIRE logged `/exit into %1110` at
+  16:14:37Z and its next line at 16:56:43Z, and both sessions acted on the
+  same owner topic in between. The calls between those two lines are tmux
+  captures, one keypress and `sleep 1`, and none of them had a time bound.
+  Which call hung is unproven: no trace exists. The same tmux server served
+  the other rotations of that window in about 2 s.
+  - Each tmux call of RETIRE is bounded by `ROTATE_LANE_TMUX_TIMEOUT`
+    (15 s; `spl_rotate_tmux` honours `ROTATE_TMUX_TIMEOUT`). A call that
+    times out reads as "no input box", so the old pid gets its SIGTERM
+    (FR-015) by its own pid.
+  - Before CLOSE's checks, every other live process of the id that sits in
+    a tmux pane of its own (a hand restore started after GATE counted one)
+    is retired the same way: `/exit`, its restore wrapper, TERM, KILL by its
+    own pid, then its window is closed. A process of the id in the NEW pane
+    (a child of the new session) or in no pane is logged and left, and
+    CLOSE's one-process check counts it.
+
+  Tests: `lane-rotate.tst.sh` cases 25 (a hung old pane) and 26 (an extra
+  session; control: one in the new pane is left).
 - **FR-016** `/exit-clean` from a retiring window must close ITS OWN window,
   never the new one. `tmux-close-window.sh --agent <ID>` resolves a window
   by the name that carries the id, which after FR-007 is the NEW window.

@@ -39,3 +39,16 @@ restore-drill-red-note | 7,37 * * * *  | src/bash/scripts/restore-drill-red-note
 login2-sync       | */5 * * * *     | src/bash/scripts/login2-sync-cron.sh                    | login2-sync/cron.log  |
 file-streams      | * * * * *       | src/bash/scripts/file-stream-follow-cron.sh             | file-streams/cron.log |
 weekly-limit-alert | */5 * * * *    | src/bash/scripts/weekly-limit-alert-cron.sh             | weekly-limit-alert/cron.log |
+# reliability round (spec 146, SPL-4064): one row per box check; row 10 runs
+# in workflow 45_db-backup.yml. Cadences: csi-spl-doc/specs/146-reliability-round/tasks.md section 4.
+rel-systemd-unit    | */5 * * * *        | src/bash/scripts/rel-systemd-unit-cron.sh | rel/systemd-unit.log |
+rel-reboot-required | 7 4 * * *          | src/bash/scripts/rel-reboot-required-cron.sh | rel/reboot-required.log |
+rel-cert-expiry     | 13 6 * * *         | src/bash/scripts/rel-cert-expiry-cron.sh | rel/cert-expiry.log |
+rel-external-api    | * * * * *          | src/bash/scripts/rel-external-api-cron.sh | rel/external-api.log |
+rel-tmux-health     | * * * * *          | src/bash/scripts/rel-tmux-health-cron.sh | rel/tmux-health.log |
+rel-orphan-process  | 11,41 * * * *      | src/bash/scripts/rel-orphan-process-cron.sh | rel/orphan-process.log |
+rel-docker-prune    | 29 * * * *         | src/bash/scripts/rel-docker-prune-cron.sh | rel/docker-prune.log |
+rel-gh-runner       | 3,18,33,48 * * * * | src/bash/scripts/rel-gh-runner-cron.sh | rel/gh-runner.log |
+rel-clock-sync      | */5 * * * *        | src/bash/scripts/rel-clock-sync-cron.sh | rel/clock-sync.log |
+rel-cron-snitch     | */5 * * * *        | src/bash/scripts/rel-cron-snitch-cron.sh | rel/cron-snitch.log |
+rel-box-beat        | * * * * *          | src/bash/scripts/rel-box-beat-cron.sh | rel/box-beat.log |

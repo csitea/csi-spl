@@ -37,3 +37,26 @@ Docs only: this task list defines the build rows; implementation lanes execute i
 | **T010** | **Implemented**<br>(6752317a0) | `utl` | `rel-10-cloud-sql-backup-verify` | **Cloud SQL daily backup verification** (`feat(rel-10-cloud-sql-backup-verify)`). Landed in `6752317a0` (Batch 3, Lane 2, SPL-2661). Reuses `gcloud sql backups list --instance=csi-spl-<env>-pg --account="$GCP_ACCOUNT" --limit=10` from `spl-db-health.func.sh:115`; resolves instance name from cnf; verifies newest backup has `status: SUCCESSFUL` and timestamp within last 26 hours; integrates into workflow `45_db-backup.yml`.<br>• *Action & Test*: `do_cloud_sql_backup_verify`, `csi-spl-utl/src/bash/tests/cloud-sql-backup-verify.tst.sh`.<br>• *Gate*: Exits 0 when backup < 26h; exits 1 with alert if backup is stale; read-only.<br>• *Red Control*: Read-only verification passes on live GCP instances without mutating state. | Batch 3 (Lane 2) |
 | **T011** | **Implemented**<br>(5947f748a) | `utl` | `rel-11-cron-heartbeat-snitch` | **Cron dead-man's snitch & heartbeat age monitor** (`feat(rel-11-cron-heartbeat-snitch)`). Landed in `5947f748a` (Batch 3, Lane 3, SPL-2665). Inspects runner crontab directly to discover all 38 tagged active cron lines (`# csi-spl:<tag>`); provides shared wrapper touching `<state>/heartbeat/<tag>` when each cron completes; compares heartbeat timestamp against schedule + grace window (e.g. 5 min grace for 1 min job); emits spool alert if any cron becomes silent.<br>• *Action & Test*: `do_cron_heartbeat_snitch`, `csi-spl-utl/src/bash/tests/cron-heartbeat-snitch.tst.sh`.<br>• *Gate*: Verifies all crons in < 100 ms; flags silent crons with schedule and last heartbeat.<br>• *Red Control*: Simulated stale heartbeat log (> grace period) is flagged immediately. | Batch 3 (Lane 3) |
 | **T012** | **Implemented**<br>(9329c596e) | `utl` | `rel-12-box-beat-telemetry` | **Box beat & watchdog fence early-warning telemetry** (`feat(rel-12-box-beat-telemetry)`). Landed in `9329c596e` (Batch 3, Lane 4, SPL-2669). Reads watchdog `beat.ack` timestamp from `$WD_DIR/beat.ack`; tracks round-trip heartbeat latency; logs warning and counts near-fences (ack age >= 60s); sends summary note to orchestrator upon reconnection; telemetry only, zero worktree commits.<br>• *Action & Test*: `do_box_beat_telemetry_check`, `csi-spl-utl/src/bash/tests/box-beat-telemetry.tst.sh`.<br>• *Gate*: Telemetry probe completes in < 50 ms; logs ack latency; records near-fence events cleanly.<br>• *Red Control*: Simulated 75s ack age logs near-fence count; normal < 15s beat cycles report OK. | Batch 3 (Lane 4) |
+
+---
+
+## 4. Schedule: where each check runs (SPL-4064)
+
+Eleven checks are box crons: rows `rel-*` of `csi-spl-orc/cnf/box-crons/box-crons.manifest`, installed in the box user's crontab by `cd csi-spl-orc && DRY_RUN=0 BOX_CRONS_ONLY=<rows> ./run -a do_install_box_crons` from the main checkout, tagged `# csi-spl:box-cron:rel-<row>`, logs under `/var/csi/csi-spl/rel/`. Each row's thin `rel-<row>-cron.sh` calls `csi-spl-orc/src/bash/scripts/reliability-check-cron.sh <row>`, which runs the action from `csi-spl-utl` with `DRY_RUN=0` (one run per row at a time, 300 s cap) and writes the row's beat for row 11. Row 10 is no box job: it runs in `.github/workflows/45_db-backup.yml`.
+
+| Row | Action | Cadence | Where | What `DRY_RUN=0` does |
+|---|---|---|---|---|
+| 01 | `do_os_systemd_unit_check` | `*/5 * * * *` | box cron `rel-systemd-unit` | note to orchestrator, throttled 30 min |
+| 02 | `do_os_reboot_required_check` | `7 4 * * *` (the 04 advisory window, box local time) | box cron `rel-reboot-required` | note per new pending state; never reboots |
+| 03 | `do_net_cert_expiry_check` | `13 6 * * *` | box cron `rel-cert-expiry` | note at <= 21 d, throttled 24 h |
+| 04 | `do_net_external_api_check` | `* * * * *` (the uplink probe's) | box cron `rel-external-api` | report only: TSV next to the uplink probe |
+| 05 | `do_fleet_tmux_health_guard` | `* * * * *` | box cron `rel-tmux-health` | note on HUNG / DOWN; never restarts tmux |
+| 06 | `do_fleet_orphan_process_reap` | `11,41 * * * *` | box cron `rel-orphan-process` | note, throttled 30 min; never kills |
+| 07 | `do_docker_test_container_prune` | `29 * * * *` | box cron `rel-docker-prune` | removes labelled test containers of a gone lane older than 2 h (T007); unlabelled reported only |
+| 08 | `do_gh_runner_health_check` | `3,18,33,48 * * * *` | box cron `rel-gh-runner` | note on offline runner, job > 45 min or API error |
+| 09 | `do_os_clock_sync_check` | `*/5 * * * *` | box cron `rel-clock-sync` | note on drift > 1 s or sync lost > 30 min |
+| 10 | `do_cloud_sql_backup_verify` | daily, 03:17 UTC | workflow `45_db-backup.yml` | the red step is the alert |
+| 11 | `do_cron_heartbeat_snitch` | `*/5 * * * *` | box cron `rel-cron-snitch` | note per new silent set |
+| 12 | `do_box_beat_telemetry_check` | `* * * * *` | box cron `rel-box-beat` | own state + note on reconnect after a near-fence |
+
+Gate: `csi-spl-orc/src/bash/tests/reliability-checks-cron.tst.sh` installs the real manifest on a fixture crontab and fails when any of the 12 is not scheduled (red control: a dropped row).

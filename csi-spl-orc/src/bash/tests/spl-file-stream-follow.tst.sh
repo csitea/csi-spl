@@ -657,18 +657,25 @@ if command -v yq >/dev/null; then
 
   # CONTROL: one state dir for both hubs (the per-env dir removed): the second
   # follower finds the first one's lock and feeds nothing
-  hd="$(newcase)"; hubcase "$hd"
-  co="$hd/c/csi-spl-orc"
-  mkdir -p "$co/src/bash/run" "$co/src/bash/scripts" "$co/lib/bash/funcs"
-  cp "$PROJ_ROOT/src/bash/run/spl-cost-tokens-read.func.sh" "$co/src/bash/run/"
-  cp "$PROJ_ROOT/src/bash/scripts/file-stream-follow.py" "$co/src/bash/scripts/"
-  cp "$PROJ_ROOT/lib/bash/funcs/spl-desk-box.func.sh" "$co/lib/bash/funcs/"
+  # ctree <case>: an orc copy where a planted func finds its sources and the follower
+  ctree() {
+    co="$1/c/csi-spl-orc"
+    mkdir -p "$co/src/bash/run" "$co/src/bash/scripts" "$co/lib/bash/funcs"
+    cp "$PROJ_ROOT/src/bash/run/spl-cost-tokens-read.func.sh" "$co/src/bash/run/"
+    cp "$PROJ_ROOT/src/bash/scripts/file-stream-follow.py" "$co/src/bash/scripts/"
+    cp "$PROJ_ROOT/lib/bash/funcs/spl-desk-box.func.sh" "$co/lib/bash/funcs/"
+    ln -sfn "$PROJ_ROOT/src/bash/features" "$co/src/bash/features"
+  }
+  hd="$(newcase)"; hubcase "$hd"; ctree "$hd"
   sed 's|"FILE_STREAMS_STATE_DIR=$base/$e"|"FILE_STREAMS_STATE_DIR=$base"|' "$FUNC" >"$co/src/bash/run/f.sh"
   grep -q '"FILE_STREAMS_STATE_DIR=$base"' "$co/src/bash/run/f.sh" || fail "hubs CONTROL: the sed did not plant the shared state dir"
   out="$(hub_act "$co/src/bash/run/f.sh" "$hd" FILE_STREAMS_TICKS=3)"
-  [[ -z "$(htexts "$hd" dev)" || -z "$(htexts "$hd" prd)" ]] &&
+  # exactly one hub fed: a follower that never started (both empty) is no control
+  [[ -n "$(htexts "$hd" dev)" ]] && hc_dev=1 || hc_dev=0
+  [[ -n "$(htexts "$hd" prd)" ]] && hc_prd=1 || hc_prd=0
+  (( hc_dev + hc_prd == 1 )) &&
     pass "hubs CONTROL: one shared state dir, one hub gets nothing" ||
-    fail "hubs CONTROL: both hubs fed with one state dir: dev='$(htexts "$hd" dev)' prd='$(htexts "$hd" prd)'"
+    fail "hubs CONTROL: not exactly one hub fed with one state dir: dev='$(htexts "$hd" dev)' prd='$(htexts "$hd" prd)'"
 
   # the default state dir, when .local/state/csi-spl belongs to another user
   # (one box, SPL-4037: root:root, every cron tick died on its mkdir): the agent
@@ -688,11 +695,15 @@ if command -v yq >/dev/null; then
   else
     sbcase "$FUNC" && pass "state dir: csi-spl not writable by the agent user, both hubs fed from csi-spl-file-streams" ||
       fail "state dir: rc=$rc dev='$(htexts "$hd" dev)' out='$out'"
-    sf="$hd/c-sb.sh"
+    # CONTROL: the old default, planted in an orc copy where the func finds its
+    # sources and the follower, fails on the mkdir as on that box (not earlier)
+    ctree "$hd"; sf="$co/src/bash/run/f.sh"
     sed 's|echo "$s/csi-spl-file-streams"|echo "$s/csi-spl/file-streams"|' "$FUNC" >"$sf"
     grep -qF 'echo "$s/csi-spl-file-streams"' "$sf" && fail "state dir CONTROL: the sed did not plant the old default"
-    sbcase "$sf" && fail "state dir CONTROL: the old default fed both hubs" ||
-      pass "state dir CONTROL: the old default (csi-spl/file-streams) fails, as on that box"
+    if sbcase "$sf"; then fail "state dir CONTROL: the old default fed both hubs"
+    elif [[ "$out" == *PermissionError*csi-spl/file-streams* && "$out" != *"no follower"* ]]; then
+      pass "state dir CONTROL: the old default (csi-spl/file-streams) fails on its mkdir, as on that box"
+    else fail "state dir CONTROL: failed, but not on the mkdir: rc=$rc out='$out'"; fi
     h="$hd/home-w"; mkdir -p "$h/.local/state/csi-spl"
     [[ "$(sb "$FUNC" "$h")" == "$h/.local/state/csi-spl/file-streams" &&
        "$(sb "$FUNC" "$hd/home-none")" == "$hd/home-none/.local/state/csi-spl/file-streams" ]] &&

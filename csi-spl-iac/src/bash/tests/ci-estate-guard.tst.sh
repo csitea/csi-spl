@@ -31,6 +31,7 @@ ESTATE="00 12 21 22 23 24 31 40 45 46 47 48 49 55 68"
 # Scheduled or cnf-reading, yet touch no live host; the reason is the review.
 declare -A EXEMPT=(
   [10]="CI suites: reads cnf as test input, probes no host"
+  [13]="wf 10 on the next runner image, by workflow_call: probes no host"
   [15]="dependency + secret scan of the tree, no host"
   [20]="hub deploy: skips without the WIF variables; its call of 22 is asserted below"
   [30]="WUI deploy: skips without the WIF variables"

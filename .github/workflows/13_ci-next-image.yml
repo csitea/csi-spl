@@ -1,0 +1,62 @@
+# ci: the quality gate on the NEXT runner image -- reds before ubuntu-latest moves.
+#
+# SPL-3431, CI failures panel csi-spl-doc/doc/md/ci-failures-100-2026-10-25.md
+# row I4 (smell S2, theme T2). On 2026-10-25 `ubuntu-latest` moved to
+# ubuntu-26.04 and wf 10 went red for 2 h 08 min (16 jobs, 7 runs): the orc
+# test fixtures leaned on the old image's tools (uutils multi-call `sleep`,
+# bash 5.3 `wait -n`, OpenSSH 10.2). Nothing had run the suite there first.
+#
+# This workflow holds no job of its own: it calls 10_ci-quality.yml, the ONE
+# gate (as 11_ci-public.yml does), with `runner` set to the image named by the
+# repo variable SPOOL_CI_NEXT_RUNNER (JSON, as SPOOL_CI_RUNNER: a quoted label
+# or a label array). Unset, it falls back to the newest pinned label below.
+# When GitHub announces the next `ubuntu-latest` move, point the variable at
+# that image's label; a red here is then a red wf 10 will see after the move.
+# Today (2026-10-28) `ubuntu-latest` already is ubuntu-26.04 (`Image:` line of
+# wf 10 run 40620182484), so the fallback equals the gate's image until then.
+#
+# It never reds trunk's gate: it is its own workflow (its runs list under 13,
+# not 10, so gate-health and do_report_ci_gate never count them), it runs
+# - once a day (schedule, master's file), and
+# - on a push to a THROWAWAY branch `ci-next-image/**`: push a branch there to
+#   try a fix or a planted control on the next image (repo CLAUDE.md: a
+#   control that has to turn something red belongs on a throwaway branch).
+# GitHub-hosted runners only (the self-hosted group admits wf 10 at master,
+# not a call from here); public repo, so the hosted minutes are not billed.
+# Gate: csi-spl-iac/src/bash/tests/ci-next-image.tst.sh.
+
+name: "13 ci: quality gate on the next runner image"
+
+on:
+  schedule:
+    - cron: "29 6 * * *"
+  push:
+    branches: ["ci-next-image/**"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-next-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: "gate"
+    if: ${{ !github.event.repository.private }}
+    # gate-health in 10 reads the run list (actions: read); nothing writes.
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/10_ci-quality.yml
+    # The distribution-hygiene job needs SPL_PRIVATE_CNF_YAML (its hidden-
+    # workspace sweep fails without it on this repo; run 40623348179). A
+    # called workflow gets no secret unless passed. The trust is a master
+    # push's: only a repo writer can push ci-next-image/**.
+    secrets: inherit
+    with:
+      runner: ${{ vars.SPOOL_CI_NEXT_RUNNER || '"ubuntu-26.04"' }}
+      # Same skip as 11: the hosted runner's fonts wrap the 390 px channel
+      # card header to two lines (CLE-77915); not an image move signal.
+      e2e_skip: card-edge-inset.test.mjs

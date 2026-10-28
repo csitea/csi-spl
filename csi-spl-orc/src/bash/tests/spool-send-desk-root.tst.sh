@@ -32,6 +32,19 @@ has "…and the issue" "SPL-3959" "$err"
 eq "…nothing written under the desk root" 0 "$(jsons "$DESK")"
 send "$DESK/" c-189 >/dev/null 2>&1
 eq "…the root with a trailing slash: refused too, exit 9" 9 "$?"
+ln -s "$DESK" "$T_TMP/via-link"
+for r in "$DESK//" "$DESK/." "$DESK/../spool" "$T_TMP/via-link"; do
+  send "$r" c-189 >/dev/null 2>&1
+  eq "…the root spelled ${r#"$T_TMP"/}: refused too, exit 9" 9 "$?"
+done
+eq "…nothing written under the desk root by any spelling" 0 "$(jsons "$DESK")"
+
+# ---- a DM to a human is not refused: the hub is its reader (FR-017) ---------
+# Hermetic, so no hub places HUM-10 (exit 13 later on); the desk-root guard
+# (exit 9, SPL-3959) must not be what stops it.
+err="$(SPOOL_ROOT="$DESK" bash "$SS" --from c-189 --to HUM-10 --kind note --body "a note" --no-poke 2>&1 >/dev/null)"; rc=$?
+check "lane c-189 to HUM-10 on a desk root: not refused by the desk-root guard (rc ${rc})" [ "$rc" -ne 9 ]
+hasnt "…no SPL-3959 refusal line" "SPL-3959" "$err"
 
 # ---- the same send on the fleet root is delivered ---------------------------
 send "$FLEET" c-189 >/dev/null 2>&1; rc=$?

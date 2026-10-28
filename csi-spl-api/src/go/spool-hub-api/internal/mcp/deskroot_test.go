@@ -65,3 +65,29 @@ func TestLaneSendOnDeskRootIsRefused(t *testing.T) {
 		t.Fatal("a lane-shaped link (c-777 -> c-189) made c-189 a desk seat")
 	}
 }
+
+// SPL-3959 review: a symlink to a desk root, or a //, /. or /.. spelling of
+// one, is the desk root too: refused, nothing written.
+func TestLaneSendOnDeskRootSpellingIsRefused(t *testing.T) {
+	base := t.TempDir()
+	desk := filepath.Join(base, "cloud", "prd", "desk", "acme", "box1", "spool")
+	if err := os.MkdirAll(desk, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(base, "via-link")
+	if err := os.Symlink(desk, link); err != nil {
+		t.Fatal(err)
+	}
+	send := map[string]any{"to": "c-423", "task_id": task, "kind": "result", "body": "the result"}
+	for _, root := range []string{desk + "//", desk + "/.", desk + "/../spool", link} {
+		cs, cfg := seated(t, "c-189")
+		cfg.SpoolRoot, cfg.PinsDir = root, filepath.Join(desk, "pins")
+		testkit.Agents(t, cfg, "c-189", "c-423")
+		if out, isErr := callText(t, cs, "spool_send", send); !isErr || !strings.Contains(out, "Nothing was sent") {
+			t.Fatalf("lane send on %s: isErr=%v %q, want a refusal", root, isErr, out)
+		}
+	}
+	if n, _ := filepath.Glob(filepath.Join(desk, "*", "*", "*.json")); len(n) != 0 {
+		t.Fatalf("refused sends wrote %d message(s) under the desk root", len(n))
+	}
+}

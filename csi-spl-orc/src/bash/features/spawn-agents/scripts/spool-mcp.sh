@@ -35,9 +35,10 @@
 #               signs as the box the hub already knows and a send rides the
 #               sidecar's warm socket (<root>/.hub/submit.sock). No live
 #               sidecar -> refuse: nothing would arrive. SPOOL_FLEET_ROOT too
-#               (SPL-3959): a seat's DM delivered on this desk is also copied
-#               into the agent's inbox under the fleet root, the one a lane
-#               reads; a lane's own DM here is refused (internal/mcp).
+#               (SPL-3959), the sidecar's own: only a DM the hub delivers
+#               (deliverTo -> bridgeFleet) is copied into the agent's fleet
+#               inbox; a local send on the desk is not. A lane's own DM here
+#               is refused (internal/mcp).
 #               The binary is <box state>/mcp/spool, built by the install
 #               action from its checkout and touched by nothing else (the desk
 #               actions and the reconcile cron rebuild cloud/<env>/bin/spool).

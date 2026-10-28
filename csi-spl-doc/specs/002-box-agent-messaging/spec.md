@@ -221,8 +221,9 @@ so MCP is additive and lower priority than a working CLI.
   `spool-send.sh` refuses it with exit 9 and the `spool_send` MCP tool with an
   error naming the root (exit 78), both before anything is written. A channel
   post or a DM to a human still goes. `spool-mcp.sh` passes the sidecar's
-  `SPOOL_FLEET_ROOT`, so a seat's same-box DM on the desk is also copied into
-  the agent's inbox under the fleet root. Cause (SPL-3959): `spool-mcp.sh`
+  `SPOOL_FLEET_ROOT`; the copy into the agent's fleet inbox is made only for
+  a DM the hub delivers (`deliverTo` -> `bridgeFleet`), not for a local send
+  on the desk. Cause (SPL-3959): `spool-mcp.sh`
   serves every agent's MCP server from the desk root, and c-189's result
   8458b482 and c-423's task 9bb91e55 (2026-10-27) were written into desk
   inboxes nobody reads. Tests:

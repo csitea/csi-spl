@@ -30,12 +30,21 @@ func (t tools) deskRootGuard(from string, in SendIn) error {
 	if t.cfg == nil || in.Channel != "" || !agentid.IsAgent(to) {
 		return nil
 	}
-	root := filepath.ToSlash(filepath.Clean(t.cfg.SpoolRoot))
-	if !deskRootRe.MatchString(root) || deskSeat(t.cfg.SpoolRoot, from) {
+	root := deskRootResolved(t.cfg.SpoolRoot)
+	if !deskRootRe.MatchString(filepath.ToSlash(root)) || deskSeat(root, from) {
 		return nil
 	}
 	return fmt.Errorf("spool: from %s on the desk spool root %s: %w; nothing reads a lane's inbox there (SPL-3959). "+
 		"Send with spool-send.sh on the fleet root (SPOOL_ROOT=/var/spool-hub). Nothing was sent (exit 78)", from, t.cfg.SpoolRoot, errLaneOnDesk)
+}
+
+// deskRootResolved is root with its symlinks resolved and cleaned, so a link
+// to a desk root, or a //, /. or /.. spelling of one, is matched as one.
+func deskRootResolved(root string) string {
+	if r, err := filepath.EvalSymlinks(root); err == nil {
+		return r
+	}
+	return filepath.Clean(root)
 }
 
 // deskSeat reports whether id is a seat of the desk whose spool root is root.

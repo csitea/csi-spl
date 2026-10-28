@@ -227,9 +227,13 @@ send_from_guard() {  # FROM
 # spool root, <cloud>/<env>/desk/<tenant>/<box>/spool: the lane it was for
 # reads the fleet root, so nothing read it and it reached nobody. A desk root
 # is its own seats' only: the role seats (001-003) and the ids a desk alias in
-# it links to (RSP-01 -> c-684). Any other --from is refused there.
+# it links to (RSP-01 -> c-684). Any other --from is refused there; a DM to a
+# human (--to HUM-*) goes to the hub, its reader, and is not. The root
+# is matched resolved: a symlink, //, /. or /.. spelling of a desk root is one.
 send_desk_root() {
-  [[ "${SPOOL_ROOT%/}" =~ /desk/[^/]+/[^/]+/spool$ ]]
+  local r
+  r="$(realpath -m -- "$SPOOL_ROOT" 2>/dev/null)" || r="$SPOOL_ROOT"
+  [[ "${r%/}" =~ /desk/[^/]+/[^/]+/spool$ ]]
 }
 send_desk_seat() {  # ID
   local id="${1%%@*}" l
@@ -240,7 +244,8 @@ send_desk_seat() {  # ID
   return 1
 }
 # 0 = FROM may send on this SPOOL_ROOT. 1 = refused: one line on stderr.
-send_desk_root_guard() {  # FROM
+send_desk_root_guard() {  # FROM TO
+  [[ "${2:-}" =~ ^HUM- ]] && return 0
   send_desk_root || return 0
   send_desk_seat "$1" && return 0
   echo "ERROR: --from ${1} is not a seat of the desk whose spool root SPOOL_ROOT names (${SPOOL_ROOT}): nothing reads a lane's inbox there, so the message would reach nobody (SPL-3959). Send with SPOOL_ROOT=/var/spool-hub, the fleet root. Nothing was sent." >&2
@@ -400,7 +405,7 @@ if [ "$POKE_ONLY" -eq 0 ]; then
   [ -z "$ACCEPT" ] || [ "$KIND" = result ] || { echo "ERROR: --accept accepts a result: it needs --kind result, got: '${KIND}'. Nothing was sent." >&2; exit 2; }
   [ -z "$ACCEPT" ] || [ "$PEERS" -eq 0 ] || { echo "ERROR: --accept goes to the agent whose result it accepts, not to the peers. Nothing was sent." >&2; exit 2; }
   send_from_guard "$FROM" || exit 10
-  send_desk_root_guard "$FROM" || exit 9
+  send_desk_root_guard "$FROM" "$TO" || exit 9
 
   # ---- an owner topic is the owner's (owner rule 2026-10-08) ----------------
   # Agent-to-agent rows sent on an owner topic uuid land INSIDE the owner's

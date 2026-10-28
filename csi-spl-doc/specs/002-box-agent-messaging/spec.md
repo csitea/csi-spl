@@ -209,6 +209,12 @@ so MCP is additive and lower priority than a working CLI.
 - **FR-014**: The implementation MUST be self-contained under `csi-spl`; it MUST
   NOT read, write, import, or shell out to ysg-box code.
 - **FR-015**: Legacy `.md` Bridge (Option B): `spool-recv` MUST transparently ingest legacy `.md` messages found in `$SPOOL_ROOT/<id>/inbox/`, wrapping them in synthetic `v:1` envelopes (`kind: "note"`, no `sig`, parsed `ts` and `from`), and archive them atomically on `--ack` alongside `.json` messages.
+- **FR-016**: `spool-send.sh` MUST refuse an empty or whitespace-only body
+  (`--body`, or a `--body-file` that is empty; a missing file is an error),
+  for every kind, exit 2, before anything is written to an inbox or outbox
+  (SPL-3953: `--body "$(cat <never-written file>)"` delivered 6 empty
+  results from 2 review seats, 2026-10-27). Test:
+  `csi-spl-orc/src/bash/features/spawn-agents/tests/test-spool-send-empty-body.sh`.
 
 ### Non-Functional Requirements
 

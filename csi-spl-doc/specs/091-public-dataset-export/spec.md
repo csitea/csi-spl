@@ -60,8 +60,8 @@ Spool Hub, and nothing about any other workspace.**
    `pg_dump`, no `SELECT *` (a test greps the export code for it). It is an **allow-list** of tables, columns and
    rows (§4); a table, column or row not on it is excluded, including anything a future migration adds.
 2. **Three fences, each enough on its own** (§5): a dedicated Postgres login that can only SELECT the allow-listed
-   columns; that login's session pinned under FORCE RLS to the Spool Hub workspace; a `tenant_id = <Spool Hub>`
-   filter in every query. The export fails if any row carries another workspace's id.
+   columns; that login's session pinned under FORCE RLS to the listed workspaces; a `tenant_id IN (<the list>)`
+   filter in every query. The export fails if any row carries the id of a workspace not on the list.
 3. **Fail closed, publish nothing.** A gate failure, a verifier FAIL or a missing verdict means that day is not
    published; the previous file stays the latest.
 4. **A pattern list cannot prove absence.** The gate's scans only catch what someone guessed. That is why the three
@@ -94,7 +94,7 @@ stored one is an argon2id hash (`password_credentials.password_hash`, rdb 0009 `
 '$argon2id$%')`), and `password_credentials` is on the never-exported list. A loaded seed gets its own first admin
 (§9.1).
 
-Every fence covers exactly the list: the RESTRICTIVE policy reads the set `public_export_workspace` (rdb 0238,
+Every fence covers exactly the list: the RESTRICTIVE policy reads the set `public_export_workspace` (rdb 0239,
 one row per listed workspace, written by `do_spl_public_export_role`), fence 3 filters on the list, and the gate
 fails a row of any other workspace (§5.5 item 2). The store test `TestPublicExportOutputListedWorkspacesOnly`
 (`csi-spl-api/src/go/spool-hub-api/internal/store/public_export_output_test.go`) checks the output: as the real
@@ -105,11 +105,11 @@ name and a password hash present, and finds none of them.
 
 | table | rows | columns | transform |
 |---|---|---|---|
-| `tenants` | the Spool Hub row only | `tenant_id`, `display_name`, `created_at` | `root_pubkey` NOT exported; the loader generates a new key (§9.1). `billing_status` written as `internal`, `plan_id` as `default` |
+| `tenants` | the rows of the listed workspaces (§4) | `tenant_id`, `display_name`, `created_at` | `root_pubkey` NOT exported; the loader generates a new key (§9.1). `billing_status` written as `internal`, `plan_id` as `default` |
 | `channels` | `is_private = false AND deleted_at IS NULL AND archived_at IS NULL` (archived channels out, §11 Q9) | `channel_id`, `name`, `description`, `created_by`, `created_at` | `created_by` is a member or agent id (§4.3) |
-| `messages` | `channel` in the exported channels; no message of an **archived task** (0065: `archived_at` sits on the card and means the whole task, so every message sharing an archived row's `task_id` is out); the thread's root message also in an exported channel; `expires_at > now()`. A message whose `from_id` or `to_id` is a `HUM-n` that is not a member of Spool Hub is dropped and counted (no person is invented for it) | `msg_id`, `task_id`, `parent_task_id`, `channel`, `ts`, `from_id`, `to_id`, `kind`, `body`, `is_parent`, `received_at`, `expires_at` | `from_box` / `to_box` set to one synthetic box id; `msg`, `env`, `env_sig`, `files`, `typed_by` NOT exported (§11 Q6) |
-| `humans` | Spool Hub members who author or are the addressee of an exported message (membership alone is not enough) | `human_id` | `display_name` = `human_id`; `email` NULL; `disabled_at` NULL |
-| `tenant_memberships` | Spool Hub rows of the humans above | `tenant_id`, `human_id`, `role`, `created_at` | `role` forced to `member`; `admitted_by` = `seed` |
+| `messages` | `channel` in the exported channels; no message of an **archived task** (0065: `archived_at` sits on the card and means the whole task, so every message sharing an archived row's `task_id` is out); the thread's root message also in an exported channel; `expires_at > now()`. A message whose `from_id` or `to_id` is a `HUM-n` that is not a member of a listed workspace is dropped and counted (no person is invented for it) | `msg_id`, `task_id`, `parent_task_id`, `channel`, `ts`, `from_id`, `to_id`, `kind`, `body`, `is_parent`, `received_at`, `expires_at` | `from_box` / `to_box` set to one synthetic box id; `msg`, `env`, `env_sig`, `files`, `typed_by` NOT exported (§11 Q6) |
+| `humans` | members of a listed workspace who author or are the addressee of an exported message (membership alone is not enough) | `human_id` | `display_name` = `human_id`; `email` NULL; `disabled_at` NULL |
+| `tenant_memberships` | the listed workspaces' rows of the humans above | `tenant_id`, `human_id`, `role`, `created_at` | `role` forced to `member`; `admitted_by` = `seed` |
 
 RBAC roles and permissions are not exported: the migrations seed them. `release_notes` is not exported either: it
 is estate-wide text with no workspace column; a fresh checkout fills it from the public git history through the
@@ -196,7 +196,7 @@ The operator policy applies to every role, and any login can set `app.rls_scope`
 "never set it" alone would leave fence 2 one statement away from every workspace. Fence 2 therefore also carries a
 **`RESTRICTIVE` policy `public_export_scope`** on every exported `tenant_id` table, `TO spool_public_export` only:
 `tenant_id IN (SELECT workspace_id FROM public_export_workspace)`, a table of one row per listed workspace (rdb
-0238; it held one row under 0126) that this role can read and cannot write. Restrictive policies are AND-ed with the
+0239; it held one row under 0126) that this role can read and cannot write. Restrictive policies are AND-ed with the
 permissive ones, so even with the operator scope set the role sees only the listed workspaces. The hub's roles are
 not this role and are unaffected. The §9.3 fence test sets the operator scope on purpose and must still see only
 them.
@@ -297,7 +297,7 @@ verdicts before writing its own, no write access to the public bucket.
 
 | lane | method | checks |
 |---|---|---|
-| **claude** | **structure**: restore into a throwaway Postgres at the file's migration head | every table and column against §4.1 as written here; `tenants` has one row with the Spool Hub id; no row with another `tenant_id`; every §4.2 table empty; `humans.email` all NULL and `display_name = human_id`; no DM, no private channel (cross-checked against the live channel list read as `spool_public_export`) |
+| **claude** | **structure**: restore into a throwaway Postgres at the file's migration head | every table and column against §4.1 as written here; `tenants` has exactly the rows of the listed workspaces; no row with another `tenant_id`; every §4.2 table empty; `humans.email` all NULL and `display_name = human_id`; no DM, no private channel (cross-checked against the live channel list read as `spool_public_export`) |
 | **grok** | **content**: its own scanners, written by that lane, not the gate's | every string token of the file against its own patterns for contact data, credentials and keys; gitleaks default rules; a list of **sha256 hashes** of every other workspace's id and display name, lower-cased, from the names step (§5.5 item 3; the verifier never sees the names in clear, and the list is never published) |
 | **agy** | **reading**: a human-style review | a stratified random sample of at least 200 messages (every channel, every day present) plus every message new since the previous published file, read for what no pattern finds: another workspace or a customer named in prose, a quote from a private channel or DM, an internal host, path or credential described in words; and a shape diff against the previous file (new table, column or channel) |
 
@@ -435,7 +435,7 @@ panel's daily lanes); Q1 consent (a-287 suggests a notice plus an opt-out).
 | version | date | change |
 |---|---|---|
 | v0.1.0 | 2026-10-05 | first draft for the panel (c-307) |
-| v0.5.0 | 2026-10-27 | owner HUM-10 (t1 e2c0e6b4, msgs c72b919b, c68e6073, poll answer afb3d81d): the export holds the workspaces t1, spool and demo, a cnf list; fence 2 reads a set (rdb 0238); the gate keys rows by (workspace, key); §4.2 unchanged (SPL-3808) |
+| v0.5.0 | 2026-10-27 | owner HUM-10 (t1 e2c0e6b4, msgs c72b919b, c68e6073, poll answer afb3d81d): the export holds the workspaces t1, spool and demo, a cnf list; fence 2 reads a set (rdb 0239); the gate keys rows by (workspace, key); §4.2 unchanged (SPL-3808) |
 | v0.4.1 | 2026-10-05 | §13 consensus recorded; no requirement changed |
 | v0.4.0 | 2026-10-05 | round 2, g-308: restrictive policy for the export role (fence 2 holds with the operator scope set), loader COPY targets limited to §4.1, `release_notes` out of the seed; non-member ids dropped, expired out, first file skips size check, reading lane `n`, dev lanes when real, topic post class-only and its channel never exported |
 | v0.3.0 | 2026-10-05 | round 1, a-287: §4.4 withheld NOT NULL columns get fixed constants, 0112 DM links withheld, the full measured column count, Q1/Q7 panel positions |

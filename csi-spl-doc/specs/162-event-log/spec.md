@@ -376,4 +376,4 @@ and loop lines). No row of section 5 changed.
 ## 9. Signatures
 
 - Editor: c-390 (claude), the v1.0 commit.
-- Reviewer: m-513 (mistral, read-only): its signing commit, pending.
+- Reviewer: m-513 (mistral, read-only): signed v1.0 (1da9cb478).

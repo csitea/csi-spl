@@ -92,6 +92,9 @@ func Ask(ctx context.Context, cfg *config.Config, in AskArgs) (json.RawMessage, 
 	if hc == nil {
 		hc = hubclient.New(cfg)
 	}
+	if in.Op == "list" {
+		return askListAll(ctx, hc, in.Fleet, body)
+	}
 	return hc.Ask(ctx, in.Op, in.Fleet, body)
 }
 

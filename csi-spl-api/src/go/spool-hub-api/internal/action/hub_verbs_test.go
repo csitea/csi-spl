@@ -96,6 +96,9 @@ func (h *verbHub) answer(f wire.Frame) wire.Frame {
 		}
 		return wire.Frame{Type: wire.TArchive, MsgID: f.MsgID, Archive: echo(map[string]string{"task_id": f.TaskID, "op": f.ArchiveOp, "as": f.As})}
 	case wire.TAsk:
+		if strings.HasPrefix(f.Fleet, pagedFleet) {
+			return pagedAsk(f)
+		}
 		return wire.Frame{Type: wire.TAsk, MsgID: f.MsgID, Ask: echo(map[string]any{"op": f.AskOp, "fleet": f.Fleet, "body": f.Ask})}
 	case wire.TClaim:
 		return wire.Frame{Type: wire.TClaim, MsgID: f.MsgID, Claim: echo(map[string]any{"op": f.ClaimOp, "body": f.Claim})}

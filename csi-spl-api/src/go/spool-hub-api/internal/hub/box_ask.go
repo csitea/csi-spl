@@ -115,6 +115,8 @@ type askUpdate struct {
 	Free      bool   `json:"free"`   // list, role od: only the jobs a seat could lock now
 	Gen       int64  `json:"gen"`    // role od: the holder's fence
 	Refuse    string `json:"refuse"` // role od release: the harness joins not_by
+	Page      bool   `json:"page"`   // list: answer one page, Next names the rest (SPL-4018)
+	After     string `json:"after"`  // list, page: the Next of the page before
 }
 
 // odEnqueue is an enqueue request's Ask object.
@@ -155,6 +157,8 @@ type askAnswer struct {
 	Pool    *PoolRow `json:"pool,omitempty"`
 	// category: what the op recorded (spec 143 4.4, categories.go)
 	Category *AskCategoryRow `json:"category,omitempty"`
+	// list with page: the cursor of the next page; "" = this was the last
+	Next string `json:"next,omitempty"`
 }
 
 func askTime(t time.Time) string {
@@ -286,12 +290,19 @@ func (s *Server) askList(ctx context.Context, x *session, f wire.Frame) (askAnsw
 	}
 	out := askAnswer{Fleet: f.Fleet, Asks: []AskRow{}}
 	now := s.o.Now()
+	kept := []store.FleetAsk{}
 	for _, a := range as {
 		if !in.Free || store.OdFree(a, now) {
-			out.Asks = append(out.Asks, askRow(a))
+			kept = append(kept, a)
 		}
 	}
-	return out, nil
+	if !in.Page {
+		out.Asks = askRows(kept)
+		return out, nil
+	}
+	var ae *issueErr
+	out.Asks, out.Next, ae = askPage(kept, in.After)
+	return out, ae
 }
 
 func (s *Server) askUpdate(ctx context.Context, x *session, f wire.Frame) (askAnswer, *issueErr) {

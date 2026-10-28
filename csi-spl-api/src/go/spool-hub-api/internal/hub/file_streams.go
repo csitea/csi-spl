@@ -105,3 +105,20 @@ func (s *Server) fileStreamsPush(ctx context.Context, fs store.FileStreamStore, 
 	return &wire.FileStreamsAckFrame{Type: "ack", LaneOp: wire.FileStreamsPushOp, StreamKey: p.StreamKey,
 		Inserted: r.Inserted, AckedSeq: r.AckedSeq, Pruned: r.Pruned, At: now.Format(time.RFC3339)}, nil
 }
+
+// sweepFileStreams is the file streams retention pass (spec 160 3.7, row
+// B6): 7 days of lines, then each workspace within its caps.
+func (s *Server) sweepFileStreams(ctx context.Context) {
+	fs, ok := s.o.Store.(store.FileStreamStore)
+	if !ok {
+		return
+	}
+	r, err := fs.SweepFileStreams(ctx, s.o.Now(), s.o.FileStreamLimits)
+	if err != nil {
+		s.o.Log.Error().Err(err).Msg("file streams retention sweep")
+		return
+	}
+	if r.Expired+r.Pruned > 0 {
+		s.o.Log.Info().Int("expired", r.Expired).Int("pruned", r.Pruned).Msg("file streams retention sweep")
+	}
+}

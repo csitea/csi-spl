@@ -6,9 +6,9 @@ The owner's GO and answers (section 7.1): Q1 A, Q2 A, Q3 A, Q4 GO (HUM-10,
 msg 44ec2e44 on the v0.3 poll), then all A again on the v0.1 poll (msg
 5c6686f2, 2026-10-27), whose Q1 A is the desk log the deny list refuses
 (7.1). Row B1 is built (SPL-3820, section 5.1), its cron row off by cnf
-until it is switched on; B2, B3 and the hub half of B4 are built
-(SPL-3888, sections 5.2 to 5.4); B4's WUI half and B5..B7 are being built
-by the same lane, row by row.
+until it is switched on; B2, B3, the hub half of B4 and B6 are built
+(SPL-3888, sections 5.2 to 5.4 and 5.6); B4's WUI half, B5 and B7 are
+being built by the same lane, row by row.
 
 Source: the owner's asks in the owner's customer workspace (section 1); the
 discussion moved to the operator workspace topic
@@ -444,7 +444,7 @@ box); row B7 measures them before the defaults are final:
 | lines kept per workspace | 500 000 | hub sweep | oldest pruned first |
 | bytes kept per workspace | 256 MiB of text (`env.hub.file_streams.max_bytes_per_workspace`) | hub, AT INSERT, in the push's own transaction and tenant scope | that workspace's own oldest lines pruned to make room; never another workspace's |
 | workspaces that stream | 4 (`env.hub.file_streams.max_workspaces`) | hub (announce) | the announce of a 5th workspace's box is answered `refused` for every key; nothing of the 4 is touched |
-| retention | 7 days | hub sweep, hourly, as `sweepFleetTokens` | pruned |
+| retention | 7 days | hub sweep, every sweeper tick (10 min, `SweepInterval`), as `sweepFleetTokens` | pruned |
 
 Retention is question Q3. Ten streams at the full rate fill 500 000 lines
 in under 2 hours; then the cap, not the days, decides what stays, and the
@@ -466,11 +466,11 @@ comes first), enforced at insert: the push transaction, in the pushing
 workspace's tenant scope, deletes that workspace's own oldest lines until
 the new ones fit. So the overshoot is at most one push (1000 lines, at most
 1 MiB), not an hour of input: a box can send 8 x 600 x 60 = 288 000 lines
-an hour, up to ~0.59 GB at 2048 B a line (c-317), which an hourly sweep
+an hour, up to ~0.59 GB at 2048 B a line (c-317), which a periodic sweep
 alone could not bound. The hub-wide total is then bounded by
 `max_workspaces` x 256 MiB = 1 GiB of text by default, against the 10 GB
 disk; a workspace past `max_workspaces` is refused at announce, never by
-evicting another. The hourly sweep keeps only the 7-day retention. Real
+evicting another. The sweep keeps the 7-day retention, and re-applies the caps (5.6). Real
 log lines are far shorter than 2048 bytes; B7 records the measured mean
 line size and the bytes per stored line, then sets the caps.
 
@@ -746,6 +746,32 @@ Monitoring help page and B4 the syntax to the search help
   developer's 403 line, on the mock bundle). The mock answers in the page,
   so C19's Pause check is that the view gains no line in 10 s (a poll would
   add one per 3 s), not a request count.
+
+### 5.6 Row B6 as built (SPL-3888)
+
+- `store.FileStreamStore.SweepFileStreams(now, lim)`, Memory and
+  Postgres. The one cross-workspace read is the list of the ids of the
+  workspaces that keep lines (`file_streams.lines_kept > 0`, operator scope,
+  listed in `store/operator_scope_test.go`). Everything else runs in each
+  workspace's own scope (`sweepFileStreamTenant`): first its lines older
+  than 7 days (`FileStreamsRetention`) are deleted, oldest first, 1000 a
+  statement and one transaction per batch (`ix_file_stream_lines_tenant_at`),
+  with the streams' `lines_kept` and `bytes_kept` lowered in the same
+  statement. Then B2's `pruneFileStreamsToCaps` brings the workspace within
+  its 500 000 lines and 256 MiB, which only a cap lowered in the cnf since
+  the last push can still exceed.
+- `hub/file_streams.go` `sweepFileStreams` runs on every sweeper tick
+  (`RunSweeper`, `SweepInterval` 10 min), next to `sweepFleetTokens`, and
+  logs only a pass that deleted something.
+- Tests: `store/file_streams_test.go` `TestFileStreamSweep` (C22, memory
+  and Postgres: an expiry, then a lowered cap, oldest first, counts in step,
+  the other workspace whole). It drives the per-workspace step for its own
+  two workspaces, because a whole-store sweep days ahead would delete other
+  runs' lines in the shared Postgres test database.
+  `hub/file_streams_sweep_test.go` (memory): a sweeper tick removes 8-day-old
+  lines with no push. Red controls: an expiry that deletes nothing reads
+  "A kept 6 lines from seq 1"; `RunSweeper` without the call keeps the 3
+  lines and times out after 5 s.
 
 ## 6. Decisions (this draft; the reviewer may challenge each)
 

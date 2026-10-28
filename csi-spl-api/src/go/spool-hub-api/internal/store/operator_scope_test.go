@@ -34,6 +34,7 @@ var operatorCallers = map[string]string{
 	"PruneLifecycleEvents":       "agent_lifecycle_events 90-day retention (hub sweeper goroutine, spec 063 12), global by design; no route",
 	"PrunePerfSamples":           "wui_perf_samples 30-day retention (hub sweeper goroutine, spec 066 4), global by design; no route",
 	"PruneBoxStats":              "box_stats 30-day retention (hub sweeper goroutine, rdb 0117), global by design; no route",
+	"SweepFileStreams":           "file_stream_lines 7-day retention (hub sweeper goroutine, spec 160 3.7 row B6): reads only the ids of the workspaces that keep lines; every delete runs in that workspace's own scope; no route",
 	"PruneBoxBeats":              "box_beats 2-day retention (hub sweeper goroutine, rdb 0147), global by design; no route",
 	"RecordSamples":              "lane_op fleet_tokens_push (spec 140 3.4, rdb 0199): the instance's estate rows (no tenant_id) under the pushing box's session box; only a box of the operator workspace reaches it",
 	"ListBuckets":                "GET /v1/operator/fleet-tokens (spec 140 3.5) for the operator admin / service account, and the push's surge check: the instance's estate rows, no tenant_id",

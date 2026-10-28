@@ -650,6 +650,7 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 			s.sweepBoxStats(ctx)       // rdb 0117: 30-day box load + memory history
 			s.sweepBoxBeats(ctx)       // rdb 0147: 2-day box beats (spec 102 10.2)
 			s.sweepFleetTokens(ctx)    // spec 140 3.6, rdb 0199: 30-day minutes, 365-day rollups
+			s.sweepFileStreams(ctx)    // spec 160 3.7 row B6, rdb 0237: 7-day lines, the workspace caps
 			s.sweepHours(ctx)          // spec 107 4.2: hours freeze + 45-day minutes
 			s.sweepEmbedRetention(ctx) // specs/121 4.4: visitor channels, 30 days after the last message
 			s.PostPublicNotices(ctx)   // rdb 0173: a tenant made outside the hub gets its notice

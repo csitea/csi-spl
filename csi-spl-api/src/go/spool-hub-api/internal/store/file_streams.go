@@ -23,7 +23,7 @@ const (
 	FileStreamsMaxBytesPerWorkspace = 256 << 20
 	FileStreamsMaxWorkspaces        = 4
 	FileStreamsRatePerMin           = 600
-	// FileStreamsRetention is owner Q3 A: 7 days (the sweep is row B6).
+	// FileStreamsRetention is owner Q3 A: 7 days (SweepFileStreams, row B6).
 	FileStreamsRetention = 7 * 24 * time.Hour
 	// fileStreamFuture is how far ahead of the hub's clock a line's time may
 	// be (box clock skew); a later one is stored at the hub's now.
@@ -141,6 +141,20 @@ type FileStreamStore interface {
 	// neither the newest of all (spec 160 3.4, row B3). ErrNotFound for a
 	// stream that is not tenant's.
 	FileStreamLines(ctx context.Context, tenant, id string, q FileStreamLinesQuery) ([]FileStreamLine, error)
+	// SweepFileStreams is the hourly retention pass (spec 160 3.7, row B6,
+	// case C22): in each workspace that keeps lines, in that workspace's own
+	// scope, the lines older than FileStreamsRetention before now are
+	// deleted, then its oldest lines until it is within lim. The only
+	// cross-workspace read is the list of those workspaces' ids.
+	SweepFileStreams(ctx context.Context, now time.Time, lim FileStreamLimits) (FileStreamSweep, error)
+}
+
+// FileStreamSweep is what one SweepFileStreams did: the lines past the
+// retention it deleted, and the lines it pruned to bring a workspace within
+// its caps (a cap lowered in the cnf since the last push).
+type FileStreamSweep struct {
+	Expired int
+	Pruned  int
 }
 
 // FileStreamLinesQuery is one page of a stream's lines. At most one of After

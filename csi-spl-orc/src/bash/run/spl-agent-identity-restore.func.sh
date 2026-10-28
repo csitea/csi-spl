@@ -120,7 +120,7 @@ do_spl_agent_identity_restore() {
         dead="$(_ai_dead_pane "$id")"
         if [[ "$dry" == 1 ]]; then
           [[ -n "$from" ]] && echo "COPY    $id: transcript $sid from $from's home to $user's"
-          echo "RESTORE $id: $kind session $sid in $wt, as ${user:-the agent user}, ${dead:+in place of its dead pane $dead, }window '$(SPOOL_BOX_TAG="$tag" spool_decorate "$id")${title:+ $title}'${dead:- new in '$sess'}"
+          echo "RESTORE $id: $kind session $sid in $wt, as ${user:-the agent user}, $([[ -n "$dead" ]] || echo "new ")window '$(SPOOL_BOX_TAG="$tag" spool_decorate "$id")${title:+ $title}' $([[ -n "$dead" ]] && echo "in place of its dead pane $dead" || echo "in '$sess'")"
           continue
         fi
         if [[ -n "$from" ]] && ! _ai_copy_transcript "$from" "$user" "$wt" "$sid"; then

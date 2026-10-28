@@ -43,7 +43,7 @@ done
 
 # --- 4. the identity restore (@reboot) and the rotation spawn name through the helper -
 R="$T_REPO/csi-spl-orc/src/bash/run"
-check "4. identity restore names its window with spool_decorate" grep -q 'new-window -d -t "=$sess:" -n "$(SPOOL_BOX_TAG="$tag" spool_decorate "$id")' "$R/spl-agent-identity-restore.func.sh"
+check "4. identity restore names its window with spool_decorate (new or in place, SPL-3979)" grep -q '_ai_restore_window "$sess" "$(SPOOL_BOX_TAG="$tag" spool_decorate "$id")' "$R/spl-agent-identity-restore.func.sh"
 check "4. the rotation spawns through spawn-window.sh (spool_decorate)" grep -q 'ROTATE_SPAWN:-$ROTATE_FEAT/scripts/spawn-window.sh' "$R/spl-rotate-lib.func.sh"
 check "4. spawn-window names the window with spool_decorate" grep -q 'new-window -d -t "${sess}:" -n "$(spool_decorate "$TITLE")"' "$T_SCRIPTS/spawn-window.sh"
 bad="$(command grep -rnE -- "--name ['\"]?\\\$\\{?(tag|SPOOL_BOX_TAG)|'%s: %s'|\"%s: %s\"" "$T_SCRIPTS" "$T_FEAT/lib" "$R"/spl-*rotate*.sh "$R"/spl-agent-*.sh 2>/dev/null | grep -v 'an_decorate\|# ' || true)"

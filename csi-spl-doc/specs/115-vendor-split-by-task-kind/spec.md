@@ -230,6 +230,18 @@ liveness unknown, it counts). On 2026-10-28 sat launched a-963 onto the main
 box 5 min after a-958 and a-960 hit the limit there, because only sat's own
 records were read.
 
+The launch's box is judged too (SPL-4020, `spl_spawn_place_agy_box_hold`):
+each box's agy login has its own quota (on 2026-10-28 agy answered on sat
+while every a- seat on the main box showed "Individual quota reached" until
+2026-11-03), and once those seats were closed the live-lane rule above held
+nothing, so sat launched a-097 onto the main box at 08:10Z. While another
+box's watchdog blocker has its reset ahead, live lane or not and whatever
+this box's `agy.ok` says, an agy row's target (a pinned slug's box, else
+`do_spl_box_pick` with `BOX_PICK_KIND=agy`) that is that box goes to the
+placer's own box when it is not full (`spl_spawn_place_pin_full`), else it
+holds, queued and out of the tick's line, its reset in `.place.wait`. The
+judged box is the launch's `SPAWN_BOX`.
+
 ## 6. "Failed try": what counts, and where it is read
 
 A **try** is one lane id spawned for a `task_id` with a kind and a vendor.

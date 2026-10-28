@@ -65,6 +65,12 @@
 #      a- lane there) holds (CONTROLS: no lane map or rows only = unknown,
 #      holds; a dead remote lane, a blocker older than agy.ok, past its
 #      reset, or from this box hold nothing)
+#  13b4. SPL-4020: an agy row is judged against the box it launches on: the
+#      pick names sat, sat's watchdog blocker (its lane closed, so SPL-3998
+#      holds nothing) -> launched on this box (SPAWN_BOX), and HOLDS with the
+#      reset when this box is full or the row is pinned to sat (CONTROLS: the
+#      pick names this box -> launched here; no blocker -> as before, no
+#      SPAWN_BOX)
 #  13c. SPL-3024: a row placed directly as agy:<slug> holds while agy is out
 #      of quota, review or not (CONTROL: agy in quota launches it as agy)
 #      SPL-3138: agy back but the row not launched (ceiling full): its agy
@@ -925,6 +931,63 @@ rm -f "$WDM"/*; wdmsg a-958 box-desk $(( NOW + 3600 )) $(( NOW - 60 ))
 out="$(agyr "$(load '["a-958"]')")"
 [[ -z "$out" ]] && pass "SPL-3998 control: this box's own blocker is not read here (its out.s2 and pane are, under SPL-3846)" || fail "remote own box: $out"
 rm -rf "$WDM" "$T/pc/spool/dispatch/vendor-probe"
+
+# 13b4. SPL-4020: the agy row's TARGET box. On 2026-10-28 08:10Z sat's placer
+# launched ask 0224b02b as a-097 onto the main box, whose agy seats had all
+# shown "Individual quota reached" (reset 11-03) and been closed: the
+# SPL-3998 hold reads live lanes only, so nothing held, and the box pick took
+# the main box. Here the pick names sat, sat's blocker is for a closed a-958.
+B1=bbbb0041-0000-4000-8000-000000000041; B2=bbbb0042-0000-4000-8000-000000000042
+mkdir -p "$WDM"; wdmsg a-958 sat $(( NOW + 155 * 3600 )) $(( NOW - 60 ))
+RESET13=$(date -u -d "@$(( NOW + 155 * 3600 ))" +%FT%TZ)
+printf 'Kind: specs_and_docs\nReview csi-spl-doc/doc/md/agy-target.md\n%s\n' "$ES" >"$T/briefs/agy-target.md"
+put "$B1" c-002@box-desk dispatch-placer-agy-out-target-box "SPAWN REQUEST agy target"
+on pc do_spl_spawn_enqueue ASK_ID="$B1" SPAWN_CLASS=bug SPAWN_PLACE=agy:agy-target >/dev/null 2>&1
+DESK_FULL="BOX box-desk  load5 28.8  cpus 16  180%  full  band 50..85 (box)"
+agyp() { on pc do_spl_spawn_place SPAWN_PLACE_LOAD_CMD="$T/bin/load" LOAD_JSON="$(load '["c-394"]')" "$@" 2>&1; }
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(agyp "PICK=sat reason=below its low mark" "PICK_BOXES=$DESK_FULL")"
+[[ "$(jq -r .state <<<"$(hubrow "$B1")")" == queued && ! -s "$T/launch.log" && ! -e "$T/pc/spool/asks/.place.last" ]] &&
+  grep -q "INFO hold: ask ${B1:0:8}: agy on sat is at its quota limit until $RESET13 (a-958@sat S2 kind=limit, its watchdog's blocker 330da055), and box box-desk at 180% is past its overflow mark" <<<"$out" &&
+  [[ "$(grep "^$B1"$'\t' "$T/pc/spool/asks/.place.wait" | cut -f3)" == "agy on sat is at its quota limit until $RESET13 "* ]] &&
+  pass "13b4. SPL-4020: the pick names sat, sat's agy on its limit (lane closed), this box full: HOLD, queued, the reset in .place.wait" ||
+  fail "13b4. target out, here full: $out | $(hubrow "$B1") | $(cat "$T/launch.log")"
+out="$(agyp "PICK=sat reason=below its low mark" LAUNCH_ID=a-541)"
+[[ "$(jq -r .reason <<<"$(hubrow "$B1")")" == "placed: a-541@box-desk" ]] &&
+  grep -qx "agy auto $T $T/briefs/agy-target.md agy-target SPAWN_BOX=box-desk" "$T/launch.log" &&
+  grep -q "INFO ask ${B1:0:8}: agy on sat is at its quota limit until $RESET13 .*: it launches on box-desk" <<<"$out" &&
+  ! grep -q "^$B1"$'\t' "$T/pc/spool/asks/.place.wait" &&
+  pass "13b4. SPL-4020: the pick names sat, sat's agy on its limit, this box has room: launched on this box (SPAWN_BOX=box-desk), not on sat" ||
+  fail "13b4. target out, here free: $out | $(hubrow "$B1") | $(cat "$T/launch.log")"
+put "$B2" c-002@box-desk dispatch-placer-agy-out-target-box "SPAWN REQUEST agy pinned to sat"
+on pc do_spl_spawn_enqueue ASK_ID="$B2" SPAWN_CLASS=bug SPAWN_PLACE=agy:hand-sat-agy-target >/dev/null 2>&1
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(agyp "PICK=box-desk reason=below its low mark")"
+[[ "$(jq -r .state <<<"$(hubrow "$B2")")" == queued && ! -s "$T/launch.log" ]] &&
+  grep -q "INFO hold: ask ${B2:0:8}: agy on sat is at its quota limit until $RESET13 .*, and the row is pinned there" <<<"$out" &&
+  pass "13b4. SPL-4020: a row pinned to sat while sat's agy is on its limit: HOLD, not launched there" ||
+  fail "13b4. pinned out: $out | $(hubrow "$B2") | $(cat "$T/launch.log")"
+HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$B2" --by c-001@box-desk --reason "placed: a-599@sat" >/dev/null
+B1=bbbb0043-0000-4000-8000-000000000043
+put "$B1" c-002@box-desk dispatch-placer-agy-out-target-box "SPAWN REQUEST agy target 2"
+on pc do_spl_spawn_enqueue ASK_ID="$B1" SPAWN_CLASS=bug SPAWN_PLACE=agy:agy-target >/dev/null 2>&1
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(agyp "PICK=box-desk reason=below its low mark" LAUNCH_ID=a-542)"
+[[ "$(jq -r .reason <<<"$(hubrow "$B1")")" == "placed: a-542@box-desk" ]] &&
+  grep -qx "agy auto $T $T/briefs/agy-target.md agy-target SPAWN_BOX=box-desk" "$T/launch.log" &&
+  pass "13b4. control: the pick names this box (agy in): launched there, the box judged is its SPAWN_BOX" ||
+  fail "13b4. control target in: $out | $(cat "$T/launch.log")"
+rm -f "$WDM"/*
+B1=bbbb0044-0000-4000-8000-000000000044
+put "$B1" c-002@box-desk dispatch-placer-agy-out-target-box "SPAWN REQUEST agy target 3"
+on pc do_spl_spawn_enqueue ASK_ID="$B1" SPAWN_CLASS=bug SPAWN_PLACE=agy:agy-target >/dev/null 2>&1
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(agyp "PICK=sat reason=below its low mark" LAUNCH_ID=a-543)"
+[[ "$(jq -r .reason <<<"$(hubrow "$B1")")" == "placed: a-543@box-desk" ]] &&
+  grep -qx "agy auto $T $T/briefs/agy-target.md agy-target" "$T/launch.log" &&
+  pass "13b4. control: no blocker on any box: launched as before, no SPAWN_BOX (spawn-window picks)" ||
+  fail "13b4. control no blocker: $out | $(cat "$T/launch.log")"
+rm -rf "$WDM"
 
 # 13c. SPL-3024: a row placed directly as agy:<slug> (agy chosen on purpose,
 # no swap) HOLDS while agy is out of quota, review or not: launching claude

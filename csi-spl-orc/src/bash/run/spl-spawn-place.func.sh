@@ -87,6 +87,14 @@
 # @description         purpose, claude would change the vendor. The quota is
 # @description         one for the fleet (SPL-3998): the other box's watchdog
 # @description         blocker for a live a- lane there holds too
+# @description      AGY TARGET BOX (SPL-4020): while another box's watchdog
+# @description         limit blocker has its reset ahead (live lane or not),
+# @description         an agy row is judged against the box it launches on (a
+# @description         pinned slug's box, else do_spl_box_pick's pick with
+# @description         BOX_PICK_KIND=agy): that box out -> this box when it is
+# @description         not full, else HOLD (queued, out of the line, the
+# @description         reset in .place.wait); the box judged is the launch's
+# @description         SPAWN_BOX
 # @description      BRIEF ON ANOTHER BOX (SPL-3470): a placed row whose brief
 # @description         file is not here and whose hub row was last written on
 # @description         another box (writer_box: the dispatcher queued it there,
@@ -166,6 +174,7 @@ do_spl_spawn_place() {
   rows="$(spl_spawn_place_agy_hold "$rows")"
   rows="$(spl_spawn_place_away_hold "$rows")"
   rows="$(spl_spawn_place_pin_hold "$rows")"
+  rows="$(spl_spawn_place_agy_box_hold "$rows")"
   rows="$(spl_spawn_place_line "$rows")"
   head="$(jq -c '.[0] // empty' <<<"$rows")"
   [[ -n "$head" ]] || { do_log "INFO the spawn queue is empty, or holds only asks for the holder while one is with it"; return 0; }
@@ -464,7 +473,7 @@ spl_spawn_place_take() {  # HOLDER HEAD
   elif [[ -n "$place" && -n "$brief" && -z "$closed" ]]; then
     touch "$(spool_asks_dir)/.place.last"
     spl_spawn_place_category "$holder" "$id" "$brief"
-    spl_spawn_place_launch "$holder" "$2" "$vendor" "${ps[1]}" "$brief" "${ps[0]}"
+    spl_spawn_place_launch "$holder" "$2" "$vendor" "${ps[1]}" "$brief" "${ps[0]:-$(jq -r '._b // ""' <<<"$2")}"
   else
     spl_spawn_place_hand "$holder" "$2" "$(if [[ -n "$closed" ]]; then echo "$closed"; elif [[ -z "$place" ]]; then echo "no placement was recorded"; else echo "no brief file for ${place#*:} under ${SPAWN_PLACE_BRIEF_DIR:-$SPOOL_ROOT/dispatch/briefs}"; fi)"
   fi
@@ -692,15 +701,8 @@ spl_spawn_place_agy_out() {
 # load, read from its BOX-0 row (src box). No load for that box, or only its
 # lane rows (src rows): liveness unknown, the record counts.
 spl_spawn_place_agy_remote() {  # SINCE NOW
-  local here="${ASKS_BOX:-${SPOOL_DESK_BOX:-}}" f files=() recs load="" id box u
-  for f in "$SPOOL_ROOT"/*/inbox/*--watchdog-093-s2-kind-limit-a-*.json "$SPOOL_ROOT"/*/archive/*--watchdog-093-s2-kind-limit-a-*.json; do
-    [[ -e "$f" ]] && files+=("$f")
-  done
-  (( ${#files[@]} )) || return 0
-  recs="$(jq -r --arg here "$here" --argjson since "$1" --argjson now "$2" '
-    (.body // "" | capture("^WATCHDOG \\(093 S2 kind=limit\\): (?<id>a-[0-9]+) is on its usage limit until (?<u>[0-9T:-]+Z).* box (?<b>[a-z0-9-]+),")) as $c
-    | select($c.b != $here and ($c.u | fromdate) > $now and ((.ts // "") | try fromdate catch 0) > $since)
-    | "\($c.id)\t\($c.b)\t\($c.u | fromdate)\t\(.msg_id // "" | .[0:8])"' "${files[@]}" 2>/dev/null | sort -u)"
+  local recs load="" id box u f
+  recs="$(spl_spawn_place_agy_recs "$1" "$2")"
   [[ -n "$recs" ]] || return 0
   if [[ -n "${SPAWN_PLACE_LOAD_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
@@ -713,6 +715,34 @@ spl_spawn_place_agy_remote() {  # SINCE NOW
     jq -e --arg b "$box" --arg i "$id" 'any(.load[]?; .box == $b and .src != "rows" and ((.busy_ids // []) | index($i) == null))' <<<"$load" >/dev/null 2>&1 && continue
     printf '%s\t%s\n' "$u" "$id@$box S2 kind=limit, its watchdog's blocker $f"
   done <<<"$recs" | sort -n | tail -n 1
+}
+
+# The other boxes' watchdog limit blockers (SPL-3998) as
+# "<id>\t<box>\t<reset epoch>\t<msg_id8>" lines: reset ahead of NOW, sent
+# after SINCE (epoch, 0 = any), from a box that is not this one.
+spl_spawn_place_agy_recs() {  # SINCE NOW
+  local here="${ASKS_BOX:-${SPOOL_DESK_BOX:-}}" f files=()
+  for f in "$SPOOL_ROOT"/*/inbox/*--watchdog-093-s2-kind-limit-a-*.json "$SPOOL_ROOT"/*/archive/*--watchdog-093-s2-kind-limit-a-*.json; do
+    [[ -e "$f" ]] && files+=("$f")
+  done
+  (( ${#files[@]} )) || return 0
+  jq -r --arg here "$here" --argjson since "$1" --argjson now "$2" '
+    (.body // "" | capture("^WATCHDOG \\(093 S2 kind=limit\\): (?<id>a-[0-9]+) is on its usage limit until (?<u>[0-9T:-]+Z).* box (?<b>[a-z0-9-]+),")) as $c
+    | select($c.b != $here and ($c.u | fromdate) > $now and ((.ts // "") | try fromdate catch 0) > $since)
+    | "\($c.id)\t\($c.b)\t\($c.u | fromdate)\t\(.msg_id // "" | .[0:8])"' "${files[@]}" 2>/dev/null | sort -u
+}
+
+# The other boxes whose agy login is on its limit (SPL-4020), one
+# "<box>\t<UTC> (<evidence>)" line per box, its latest reset. Every blocker
+# whose reset is ahead counts, live lane or not and whatever this box's
+# agy.ok says: a closed seat leaves its box's login on the limit, and a probe
+# here proves nothing about another box's login.
+spl_spawn_place_agy_boxes() {
+  local id box u m
+  while IFS=$'\t' read -r id box u m; do
+    [[ -n "$id" ]] && printf '%s\t%s\t%s (%s@%s S2 kind=limit, its watchdog'"'"'s blocker %s)\n' \
+      "$box" "$u" "$(date -u -d "@$u" +%FT%TZ)" "$id" "$box" "$m"
+  done <<<"$(spl_spawn_place_agy_recs 0 "$(date +%s)")" | sort -t $'\t' -k1,1 -k2,2nr | awk -F'\t' '!s[$1]++ { print $1 "\t" $3 }'
 }
 
 # The ids with a live process on this box as "|<id>|<id>|" ("|" = none), from
@@ -810,6 +840,62 @@ spl_spawn_place_pin_hold() {  # MARKED ROWS
   done < <(jq -r '.[] | select(.state == "queued" and ._l) | "\(.ask_id)\t\(.placement | sub("^[^:]*:"; ""))"' <<<"$1")
   spl_spawn_place_wait_keep held "$(printf '%s\n' "${held[@]}")" "^pinned to [a-z0-9]+: "
   jq -c --argjson h "$(spl_spawn_place_json_ids "${held[@]}")" '[.[] | select(.ask_id as $i | $h | index($i) | not)]' <<<"$1"
+}
+
+# 2f. A queued row the placer would launch as agy (placed as agy, or swapped
+# to agy and not turned to claude by spl_spawn_place_vendor) is judged
+# against the box it goes to (SPL-4020): each box's agy login has its own
+# quota (2026-10-28: agy answered on sat while every a- seat on the main box
+# showed "Individual quota reached" until 11-03), and once those seats were
+# closed no record held, so sat launched a-097 onto the main box. While
+# another box's watchdog limit blocker has its reset ahead
+# (spl_spawn_place_agy_boxes), the target is the pinned slug's box, else
+# do_spl_box_pick's pick (BOX_PICK_KIND=agy). Target out: an unpinned row
+# goes to this box when it is not full (spl_spawn_place_pin_full); else it
+# HOLDS, queued, out of this tick's line, the reset in .place.wait. Target in:
+# the row carries it as _b, the launch's SPAWN_BOX, so the launch goes where
+# it was judged. Prints ROWS minus the held ones.
+spl_spawn_place_agy_box_hold() {  # MARKED ROWS
+  local outs id vendor slug brief pin box pout="" lout="" line why full held=() to='{}'
+  local rx="^agy on [a-z0-9-]+ is at its quota limit until "
+  outs="$(spl_spawn_place_agy_boxes)"
+  [[ -n "$outs" ]] || { spl_spawn_place_wait_keep held "" "$rx"; echo "$1"; return 0; }
+  while IFS=$'\t' read -r id vendor slug; do
+    brief="$(spl_spawn_place_brief "$slug")"
+    [[ -n "$brief" ]] || continue
+    if [[ "$vendor" == mistral ]]; then
+      [[ "$(spl_spawn_place_swap mistral "$brief" | cut -f1)" == agy ]] || continue
+      if ! spl_spawn_place_review "$brief"; then
+        [[ -n "$lout" ]] || lout="$(spl_spawn_place_agy_out)" lout="${lout:--}"
+        [[ "$lout" == - ]] || continue
+      fi
+    fi
+    pin="$(spl_spawn_place_slug "$slug" | sed -n 1p)" box="$pin"
+    if [[ -z "$box" ]]; then
+      [[ -n "$pout" ]] || pout="$(BOX_PICK_KIND=agy spl_spawn_place_pick_out)"
+      box="$(sed -n 's/^pick=\([a-z0-9][a-z0-9-]*\).*$/\1/p' <<<"$pout" | tail -1)"
+      [[ -n "$box" && "$box" != hold && "$box" != nokind ]] || continue
+    fi
+    line="$(awk -F'\t' -v b="$box" '$1 == b { print $2; exit }' <<<"$outs")"
+    if [[ -z "$line" ]]; then
+      [[ -n "$pin" ]] || to="$(jq -c --arg i "$id" --arg b "$box" '.[$i] = $b' <<<"$to")"
+      continue
+    fi
+    why="agy on $box is at its quota limit until $line" full=""
+    if [[ -z "$pin" ]] && ! full="$(spl_spawn_place_pin_full "$ASKS_BOX" "$pout")"; then
+      do_log "INFO ask ${id:0:8}: $why: it launches on $ASKS_BOX" >&2
+      to="$(jq -c --arg i "$id" --arg b "$ASKS_BOX" '.[$i] = $b' <<<"$to")"
+      continue
+    fi
+    why="$why, and ${full:-the row is pinned there}"
+    spl_spawn_place_wait "$id" "$why"
+    do_log "INFO hold: ask ${id:0:8}: $why; it stays queued" >&2
+    held+=("$id")
+  done < <(jq -r '.[] | select(.state == "queued" and ._l and ((.placement // "") | test("^(mistral|agy):")))
+    | "\(.ask_id)\t\(.placement | sub(":.*$"; ""))\t\(.placement | sub("^[^:]*:"; ""))"' <<<"$1")
+  spl_spawn_place_wait_keep held "$(printf '%s\n' "${held[@]}")" "$rx"
+  jq -c --argjson h "$(spl_spawn_place_json_ids "${held[@]}")" --argjson to "$to" \
+    '[.[] | select(.ask_id as $i | $h | index($i) | not) | if $to[.ask_id] then ._b = $to[.ask_id] else . end]' <<<"$1"
 }
 
 # The brief file of SLUG on this box, or nothing; a hand-pinned SLUG falls

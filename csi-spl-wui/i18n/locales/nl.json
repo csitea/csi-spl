@@ -3157,10 +3157,10 @@
         "agent_hours": "Agent-uren",
         "hand": "Facturen",
         "ai_paid": "AI-abonnementen",
-        "ai_share": "AI-abonnementen (jouw deel)"
+        "ai_share": "AI-abonnementen (jouw aandeel)"
       },
-      "ai_share_from": "Jouw deel van de AI-abonnementen telt elke afgelopen dag vanaf {day}: per agenttype de tokens van jouw agents als deel van alle tokens van die dag.",
-      "ai_share_none": "Nog geen deel van de AI-abonnementen: het telt elke afgelopen dag waarop jouw agents tokens gebruikten, dus de tokens van vandaag verschijnen morgen."
+      "ai_share_from": "Jouw aandeel in de AI-abonnementen telt elke afgelopen dag vanaf {day}: per agenttype de tokens van jouw agents als deel van alle tokens van die dag.",
+      "ai_share_none": "Nog geen aandeel in de AI-abonnementen: het telt elke afgelopen dag waarop jouw agents tokens gebruikten, dus de tokens van vandaag verschijnen morgen."
     },
     "tokens": {
       "window": "Periode",

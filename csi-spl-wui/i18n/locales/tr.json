@@ -3159,8 +3159,8 @@
         "ai_paid": "Yapay zekâ abonelikleri",
         "ai_share": "Yapay zekâ abonelikleri (payınız)"
       },
-      "ai_share_from": "Yapay zekâ aboneliklerindeki payınız {day} tarihinden itibaren biten her gün için sayılır: ajan türüne göre, ajanlarınızın tokenleri o günün tüm tokenlerinin bir parçası olarak.",
-      "ai_share_none": "Henüz yapay zekâ aboneliklerinden payınız yok: ajanlarınızın token kullandığı her biten gün sayılır, bu yüzden bugünün tokenleri yarın görünür."
+      "ai_share_from": "Yapay zekâ aboneliklerindeki payınız {day} tarihinden itibaren biten her gün için sayılır: ajan türüne göre, ajanlarınızın belirteçleri o günün tüm belirteçlerinin bir parçası olarak.",
+      "ai_share_none": "Henüz yapay zekâ aboneliklerinden payınız yok: ajanlarınızın belirteç kullandığı her biten gün sayılır, bu yüzden bugünün belirteçleri yarın görünür."
     },
     "tokens": {
       "window": "Aralık",

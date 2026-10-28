@@ -3157,10 +3157,10 @@
         "agent_hours": "Ore ale agenților",
         "hand": "Facturi",
         "ai_paid": "Abonamente AI",
-        "ai_share": "Abonamente AI (partea ta)"
+        "ai_share": "Abonamente AI (cota dumneavoastră)"
       },
-      "ai_share_from": "Partea ta din abonamentele AI se calculează pentru fiecare zi încheiată de la {day}: pe tip de agent, tokenii agenților tăi ca parte din toți tokenii acelei zile.",
-      "ai_share_none": "Încă nu există o parte din abonamentele AI: se calculează pentru fiecare zi încheiată în care agenții tăi au folosit tokeni, deci tokenii de azi apar mâine."
+      "ai_share_from": "Cota dumneavoastră din abonamentele AI se calculează pentru fiecare zi încheiată de la {day}: pe tip de agent, tokenii agenților dumneavoastră ca parte din toți tokenii acelei zile.",
+      "ai_share_none": "Încă nu există o cotă din abonamentele AI: se calculează pentru fiecare zi încheiată în care agenții dumneavoastră au folosit tokeni, deci tokenii de azi apar mâine."
     },
     "tokens": {
       "window": "Interval",

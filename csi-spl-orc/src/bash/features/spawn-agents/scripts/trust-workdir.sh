@@ -9,6 +9,12 @@
 #
 #   claude  <home>/.claude.json                projects["<dir>"].hasTrustDialogAccepted
 #   grok    <home>/.grok/trusted_folders.toml  [folders."<dir>"] trusted = true
+#           (grok keys a LINKED worktree on its main checkout, the parent of
+#           `git rev-parse --git-common-dir`: for one, that key is written too.
+#           SPL-4065: a seat on another repo whose main checkout was never trusted sat
+#           on "Do you trust the contents of this directory? <main checkout>"
+#           though its worktree was; grok 1.0.70 `inspect` .projectTrusted
+#           was False with only the worktree key, True with the main one)
 #   agy     <home>/.gemini/antigravity-cli/settings.json  trustedWorkspaces[]
 #   qwen    <home>/.qwen/trustedFolders.json   {"<dir>": "TRUST_FOLDER"}
 #   mistral $VIBE_HOME (<home>/.vibe)/trusted_folders.toml  trusted = ["<dir>", …]
@@ -50,12 +56,29 @@ AGENTS=("$@")
 
 if [ -d "$DIR" ]; then DIR_ABS="$(cd "$DIR" && pwd -P)"; else DIR_ABS="$(readlink -m -- "$DIR")"; fi
 
+# The main checkout of DIR when DIR is the top of a LINKED worktree (its
+# common dir is <main>/.git and not its own git dir); nothing otherwise:
+# never a parent dir, never the main checkout of a plain subdir.
+grok_main_checkout() {
+  local d="$1" top gd common
+  [ -d "$d" ] || return 0
+  top="$(git -c safe.directory='*' -C "$d" rev-parse --show-toplevel 2>/dev/null)" || return 0
+  [ "$(cd "$top" && pwd -P)" = "$d" ] || return 0
+  gd="$(git -c safe.directory='*' -C "$d" rev-parse --path-format=absolute --git-dir 2>/dev/null)" || return 0
+  common="$(git -c safe.directory='*' -C "$d" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 0
+  [ "$gd" != "$common" ] || return 0
+  case "$common" in */.git) [ -d "${common%/.git}" ] && (cd "${common%/.git}" && pwd -P) ;; esac
+  return 0
+}
+GROK_MAIN="$(grok_main_checkout "$DIR_ABS")"
+
 read -r -d '' TRUST_PY <<'PY'
 import fcntl, json, os, re, sys, time
 
 target = sys.argv[1]
 settle = float(sys.argv[2])
-agents = sys.argv[3:]
+grok_main = sys.argv[3]          # "" unless target is a linked worktree
+agents = sys.argv[4:]
 home = os.path.expanduser("~")
 stamp = int(time.time())
 changed, skipped = [], []
@@ -114,20 +137,28 @@ def qwen(before):
     return json.dumps(doc, indent=2) + "\n"
 
 
+GROK_KEYS = [target] + ([grok_main] if grok_main and grok_main != target else [])
+
+
+def grok_has(text, key):
+    return re.search(r"^%s\s*$" % re.escape('[folders."%s"]' % key), text, re.M) is not None
+
+
 def grok(before):
     # No stdlib TOML writer, and the file is a flat list of one-table-per-folder
     # blocks, so append a block rather than round-tripping the document.
-    header = '[folders."%s"]' % target
-    if re.search(r"^%s\s*$" % re.escape(header), before, re.M):
-        return before
-    if before == "" or before.endswith("\n\n"):
-        sep = ""
-    elif before.endswith("\n"):
-        sep = "\n"
-    else:
-        sep = "\n\n"
-    return "%s%s%s\ntrusted = true\ndecided_at = %d\n" % (
-        before, sep, header, stamp)
+    for key in GROK_KEYS:
+        if grok_has(before, key):
+            continue
+        if before == "" or before.endswith("\n\n"):
+            sep = ""
+        elif before.endswith("\n"):
+            sep = "\n"
+        else:
+            sep = "\n\n"
+        before = '%s%s[folders."%s"]\ntrusted = true\ndecided_at = %d\n' % (
+            before, sep, key, stamp)
+    return before
 
 
 def vibe_lists(text):
@@ -179,7 +210,7 @@ def trusted(name):
         if name == "mistral":
             trusted_l, untrusted_l = vibe_lists(text)
             return target in trusted_l and target not in untrusted_l
-        return re.search(r"^%s\s*$" % re.escape('[folders."%s"]' % target), text, re.M) is not None
+        return all(grok_has(text, key) for key in GROK_KEYS)
     except ValueError:
         return False   # a half-written file reads as not-yet-trusted
 
@@ -226,6 +257,8 @@ for name in agents:
 
 if changed:
     print("trust-workdir: trusted %s for %s" % (target, ", ".join(changed)))
+if "grok" in agents and len(GROK_KEYS) > 1:
+    print("trust-workdir: grok also keyed on the main checkout %s (linked worktree)" % grok_main)
 if skipped:
     print("trust-workdir: skipped %s" % ", ".join(skipped))
 
@@ -272,7 +305,7 @@ sys.exit(rc)
 PY
 
 if [ "$AGENT_USER" = "$(id -un)" ]; then
-  printf '%s' "$TRUST_PY" | python3 - "$DIR_ABS" "$SETTLE" "${AGENTS[@]}"
+  printf '%s' "$TRUST_PY" | python3 - "$DIR_ABS" "$SETTLE" "$GROK_MAIN" "${AGENTS[@]}"
 else
   # Hop the way the launcher starts the agent, so HOME is the agent's own.
   # The script travels in the command line (base64, inert in any shell), never
@@ -282,6 +315,6 @@ else
   # 3 lanes stuck 2026-10-01). The CLI launch itself keeps --pty (SIGWINCH).
   SPOOL_AGENT_USER="$AGENT_USER" SPOOL_AGENT_PTY=0
   b64="$(printf '%s' "$TRUST_PY" | base64 | tr -d '\n')"
-  printf -v args ' %q' "$DIR_ABS" "$SETTLE" "${AGENTS[@]}"
+  printf -v args ' %q' "$DIR_ABS" "$SETTLE" "$GROK_MAIN" "${AGENTS[@]}"
   spool_agent_exec "python3 -c 'import base64; exec(compile(base64.b64decode(\"${b64}\"), \"trust-workdir\", \"exec\"))'${args}" </dev/null
 fi

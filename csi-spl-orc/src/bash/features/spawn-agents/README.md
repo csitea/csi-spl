@@ -288,6 +288,22 @@ bash csi-spl-orc/src/bash/features/spawn-agents/tests/test-agent-user-default.sh
 bash csi-spl-orc/src/bash/features/spawn-agents/scripts/agent-user-check.sh
 ```
 
+### 3.9.4 grok trusts a worktree through its main checkout
+
+grok (1.0.70) reads a linked worktree as trusted only when its MAIN checkout,
+the parent of `git rev-parse --git-common-dir`, is in
+`~/.grok/trusted_folders.toml`. So for grok, `trust-workdir.sh` also writes
+that key when the dir is the top of a linked worktree. It writes no parent dir
+and nothing for any other CLI. The session still runs in its worktree. Before
+this, a grok seat on a repo whose main checkout was never trusted
+(2026-10-28, SPL-4065) stopped on "Do you trust the contents of this directory?
+<main checkout>". The proof, with a real `grok inspect` read when grok is on
+PATH:
+
+```bash
+bash csi-spl-orc/src/bash/features/spawn-agents/tests/test-trust-grok-worktree.sh
+```
+
 ### 3.10 The identity map: one record per agent
 
 The map in `$SPOOL_ROOT/agents/` holds one `<ID>.json` per agent and an

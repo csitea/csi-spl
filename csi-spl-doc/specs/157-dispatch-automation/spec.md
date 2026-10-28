@@ -386,6 +386,15 @@ flowchart TD
   7. *CI red*: Workflow failed -> script exits 7, asserts no `ACCEPTED` emitted.
 - **Green Pass**: All landed commits on branch match reviewed set in `automation.log`, journal re-verified, `do_check_lane_served` PASS, green/skipped CI -> script exits 0, executes `spool-send.sh --from "$DISPATCH_HOLDER" --to <lane> --kind result --body "ACCEPTED (auto, spec 157 rule 2, automation.log <id>): on master <sha>"`.
 
+#### 7. As built (row B5, SPL-4102)
+- `do_spl_accepted_close` (`csi-spl-orc/src/bash/run/spl-accepted-close.func.sh`), cron `do_spl_accepted_close_install_cron`; test `csi-spl-orc/src/bash/tests/spl-accepted-close.tst.sh`.
+- `do_spl_push_master` appends `<iso-ts> <pushed_base>..<landed-sha>` to `<state>/pushes.log` on every `PUSHED` (the state dir is `$SPOOL_ROOT/<id>/lifetime/push-master` for a lane).
+- **The reviewed set** is the reviewed sha back to the first pushed base, minus the landed sha of every push older than the PASS row's timestamp. Without that cut, a fixup pushed before the review and sitting under the reviewed tip would count as reviewed (red control 3 with the review built on top of push 1).
+- **Pairing**: a landed commit matches a reviewed one by stable patch-id (`spl_done_claim_patch_id`). Otherwise it pairs by the same subject, and `git range-diff --creation-factor=100` decides: a changed inner `+`/`-` line outside `Metadata` / `Commit message` is exit 5, and a context or line-offset change passes. A landed commit that neither matches nor pairs is exit 3. A reviewed commit that `git cherry` does not find and nothing pairs with is exit 2.
+- **The author** is re-derived with row B4's `_spl_review_go_row` on the reviewer's `lifetime/brief.md`. While B4 is not loaded, that check fails closed (exit 4).
+- **Exit codes beyond section 6**: 8 = DEFER (not landed yet, a fetch failed, deploy lag, CI queued, running or not started, or a cancelled run inside the 3 ticks). 9 = a refusal with no number in section 6: an issue key is missing, `do_check_lane_served` FAILs, there is no lane worktree, the reviewed sha is unknown, or `HOLD: CI workflow cancelled`. A cancelled run passes when a newer successful master run of the same workflow contains the sha.
+- A refusal is logged as `<ts> accepted-close <msg> action=refused rc=<n> ...` and sent to the holder once per message and code. It is judged again on every run, so a lane that fixes the cause is accepted later.
+
 ---
 
 ## Rule 3: Automated Reviewer Notification to Author Lanes

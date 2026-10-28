@@ -25,6 +25,9 @@
 # @description `REFUSED <reason>` (+ the tail of the push/hook output),
 # @description `GAVE-UP <reason>` or `NOTHING-TO-PUSH <sha>`: 0 commits ahead of
 # @description origin/<branch> after the rebase, so nothing landed (SPL-2312).
+# @description Each PUSHED also appends `<iso time> <base>..<sha>` to the
+# @description append-only <state>/pushes.log (<base> = origin/<branch> right
+# @description before that push; spec 157 Rule 2, read by do_spl_accepted_close).
 # @description A lane's AGENT_ID must push from that lane's own worktree (spawn's
 # @description <main>-wt/<AGENT_ID>, or a linked worktree on branch <AGENT_ID>-*):
 # @description any other tree, the main checkout included, is a FATAL at start
@@ -220,6 +223,18 @@ _spl_push_master_end() {
   echo "$(date -u +%TZ) END $(head -n 1 <<<"$1")"
 }
 
+# _spl_push_master_record <base> <sha> - appends `<iso time> <base>..<sha>`
+# to <state>/pushes.log, append-only, once per landed push: <base> is
+# <remote>/<branch> right before the push, so the range is exactly what this
+# push put on trunk. The status file keeps only the last push, and a lane
+# pushes every commit at once: an unreviewed commit of push 1 hid behind a
+# reviewed push 2 (spec 157 Rule 2 check 3, Z1). do_spl_accepted_close reads
+# every range of the lane's lifetime.
+_spl_push_master_record() {
+  echo "$(date -u +%FT%TZ) $1..$2" >>"$PUSH_STATE/pushes.log" ||
+    echo "$(date -u +%TZ) WARN could not append $1..$2 to $PUSH_STATE/pushes.log"
+}
+
 # _spl_push_master_moved <push output file> - 0 when the push was refused only
 # because the branch moved (retry), 1 otherwise (a hook or a rule said no).
 _spl_push_master_moved() {
@@ -324,7 +339,7 @@ _spl_push_master_head_moved() {
 
 _spl_push_master_worker() {
   local remote="${PUSH_REMOTE:-origin}" branch="${PUSH_BRANCH:-master}" max="${PUSH_RETRIES:-4}"
-  local try=0 out="$PUSH_STATE/push.out" sha bad landed_rc moved
+  local try=0 out="$PUSH_STATE/push.out" sha base bad landed_rc moved
   local -a G=(-c "user.name=$PUSH_NAME" -c "user.email=$PUSH_EMAIL") force
   # The hook must see the env of a hand push: no override, and no AGENT_ID
   # (SPL-1583: the lane's id leaked into the orc tests the hook runs). The
@@ -362,6 +377,7 @@ _spl_push_master_worker() {
 0 commits ahead of $remote/$branch after the rebase: nothing landed (SPL-2312). Are your commits on this branch, in this worktree?"; return 0
     fi
     echo "$(date -u +%TZ) try $try/$max: push $sha -> $remote $branch"
+    base="$(git rev-parse "$remote/$branch")"
     if _spl_push_master_git_push "$remote" "$branch" "$out" "$sha"; then
       _spl_push_master_follow
       cat "$out"
@@ -371,6 +387,7 @@ _spl_push_master_worker() {
         _spl_push_master_end "GAVE-UP the push exited 0 but $sha is not on $remote/$branch after a fresh fetch$moved
 landed_rc=$landed_rc" "$out"; return 1
       fi
+      _spl_push_master_record "$base" "$sha"
       _spl_push_master_end "PUSHED $sha
 landed_rc=$landed_rc
 tries=$try"; return 0

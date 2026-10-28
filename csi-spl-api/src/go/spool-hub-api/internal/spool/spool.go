@@ -71,6 +71,7 @@ const (
 var allBoxes = []string{boxInbox, boxOutbox, boxArchive}
 
 func (s *Store) ensureAgent(id string) error {
+	id = s.seat(id)
 	if q := s.qualifiedDir(id); q != "" {
 		base := filepath.Join(s.cfg.SpoolRoot, id)
 		if _, err := os.Lstat(base); errors.Is(err, fs.ErrNotExist) {
@@ -89,6 +90,13 @@ func (s *Store) ensureAgent(id string) error {
 	}
 	return nil
 }
+
+// seat is the id whose mailbox under this root holds id's mail: a role seat
+// letter with no entry of its own resolves to its live sibling (liveRoleSeat),
+// so send, recv and ensureAgent never mint an orphan c-001 beside a live g-001
+// (SPL-4031: before it, the first `spool recv --as c-001` after a switch made
+// c-001/, and from then on liveRoleSeat kept every mail to c-001 there).
+func (s *Store) seat(id string) string { return liveRoleSeat(s.cfg.SpoolRoot, id) }
 
 func (s *Store) dir(id, box string) string { return filepath.Join(s.cfg.SpoolRoot, id, box) }
 
@@ -141,10 +149,13 @@ func ScanAgents(root string) ([]string, error) {
 var ErrUnknownRecipient = errors.New("unknown_local_agent")
 
 // KnownLocal reports whether id is an agent of this spool root: its dir
-// exists, or registry.tsv (the spawn record) lists it in its first column (a
+// exists, it is a role seat letter whose live sibling has one (seat), or registry.tsv (the spawn record) lists it in its first column (a
 // "<box tag>: " prefix or an "@<box>" suffix there is ignored, as the
 // harness's name parsers do).
 func (s *Store) KnownLocal(id string) bool {
+	if s.seat(id) != id {
+		return true
+	}
 	if fi, err := os.Stat(filepath.Join(s.cfg.SpoolRoot, id)); err == nil && fi.IsDir() {
 		return true
 	}
@@ -407,6 +418,7 @@ func (s *Store) writeBoxRing(m *msg.Message, id, box string, ring bool) (bool, e
 	if err != nil {
 		return false, err
 	}
+	id = s.seat(id)
 	if err := s.ensureAgent(id); err != nil {
 		return false, err
 	}
@@ -452,6 +464,7 @@ func (s *Store) Recv(as string, ack bool) (*RecvResult, error) {
 	if !msg.ValidID(as) {
 		return nil, fmt.Errorf("as must be a valid agent id")
 	}
+	as = s.seat(as)
 	if err := s.ensureAgent(as); err != nil {
 		return nil, err
 	}

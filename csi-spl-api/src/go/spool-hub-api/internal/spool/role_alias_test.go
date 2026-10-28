@@ -88,3 +88,64 @@ func TestLiveRoleSeat(t *testing.T) {
 		t.Errorf("empty root: got %s", got)
 	}
 }
+
+// SPL-4031: after a role seat switch (c-001 -> g-001) with no letter links,
+// recv, send and the outbox copy of a c-001 id all use g-001's mailbox, and no
+// c-001 entry is ever minted. Before it, the first `spool recv --as c-001`
+// made c-001/ and from then on every mail to c-001 landed in that orphan.
+func TestRoleAliasSendRecvMintNothing(t *testing.T) {
+	cfg := newCfg(t)
+	st := New(cfg)
+	if err := os.MkdirAll(filepath.Join(cfg.SpoolRoot, "g-001", "inbox"), 0o775); err != nil {
+		t.Fatal(err)
+	}
+	orphan := func(step string) {
+		t.Helper()
+		if _, err := os.Lstat(filepath.Join(cfg.SpoolRoot, "c-001")); !os.IsNotExist(err) {
+			t.Fatalf("%s: an orphan c-001 entry was minted (err %v)", step, err)
+		}
+	}
+	got, err := st.Recv("c-001", false)
+	if err != nil || len(got.Messages) != 0 {
+		t.Fatalf("recv as c-001 on an empty seat: %+v %v", got, err)
+	}
+	orphan("recv")
+	if !st.KnownLocal("c-001") {
+		t.Fatal("KnownLocal(c-001) = false with g-001 live")
+	}
+	m, err := st.SendKnown("c-001", "c-001", "", "note", "to the seat by its old letter", nil)
+	if err != nil {
+		t.Fatalf("send to c-001: %v", err)
+	}
+	orphan("send")
+	name := msg.Filename(m)
+	for _, box := range []string{"inbox", "outbox"} {
+		if _, err := os.Stat(filepath.Join(cfg.SpoolRoot, "g-001", box, name)); err != nil {
+			t.Errorf("g-001/%s lacks the c-001 mail: %v", box, err)
+		}
+	}
+	got, err = st.Recv("c-001", true)
+	if err != nil || len(got.Messages) != 1 || got.Messages[0].MsgID != m.MsgID {
+		t.Fatalf("recv --ack as c-001: %+v %v", got, err)
+	}
+	orphan("recv --ack")
+	if _, err := os.Stat(filepath.Join(cfg.SpoolRoot, "g-001", "archive", name)); err != nil {
+		t.Errorf("the ack did not archive into g-001: %v", err)
+	}
+	if err := st.ensureAgent("c-001"); err != nil {
+		t.Fatal(err)
+	}
+	orphan("ensureAgent")
+}
+
+// The control: with no live sibling a role seat id is a fresh agent, and
+// recv makes its mailbox as before.
+func TestRoleSeatWithoutSiblingStillMinted(t *testing.T) {
+	cfg := newCfg(t)
+	if _, err := New(cfg).Recv("c-001", false); err != nil {
+		t.Fatal(err)
+	}
+	if fi, err := os.Stat(filepath.Join(cfg.SpoolRoot, "c-001", "inbox")); err != nil || !fi.IsDir() {
+		t.Fatalf("c-001/inbox not made: %v", err)
+	}
+}

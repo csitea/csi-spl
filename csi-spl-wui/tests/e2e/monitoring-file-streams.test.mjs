@@ -1,7 +1,11 @@
 // Spec 160 3.5 (SPL-3888, row B5): Monitoring -> File streams in a real
 // browser against the mock bundle (monitoring-file-streams.mjs: box-a app
 // grows one line per poll, cron, box-b web missing):
-//   C19 pick box and file; a line the stub appends shows within 2 polls;
+//   C39 the page lists every box and, under it, each followed file as a row
+//       with its own tail -f button; no view is open before a click;
+//   C40 tail -f on one row opens THAT file's lines only, under its row, the
+//       open file in the URL; a reload keeps it open, Back the file before;
+//   C19 a line the stub appends shows within 2 polls;
 //       Pause sends 0 requests in 10 s; Resume shows "N new lines";
 //   C20 scrolling up turns Follow off; "Jump to latest" turns it on;
 //   C21 a search hit (?seq=) opens the view at that line, Follow off;
@@ -53,16 +57,46 @@ try {
     localStorage.setItem('spool.mock.me', JSON.stringify(biz))
   }, BIZ)
 
-  // C19 pick: the first box and its first file, then cron, in the URL
+  // C39 the list: every stream of box-a and box-b is a row with a tail -f
+  // button, under its box; nothing is open yet
   await p.goto(server.base + '/monitoring/file-streams', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=fs-row]', { visible: true, timeout: 20000 }).catch(() => null)
+  const list = await p.evaluate(() => [...document.querySelectorAll('[data-test=fs-group]')].map((g) => ({
+    box: g.getAttribute('data-box'),
+    rows: [...g.querySelectorAll('[data-test=fs-row]')].map((r) => ({ stream: r.getAttribute('data-stream'), tail: (r.querySelector('[data-test=fs-tail]')?.textContent || '').trim() })),
+  })))
+  const want = [{ box: 'box-a', streams: ['app', 'cron'] }, { box: 'box-b', streams: ['web'] }]
+  const listOk = list.length === 2 && want.every((w, i) => list[i].box === w.box && list[i].rows.map((r) => r.stream).join() === w.streams.join() && list[i].rows.every((r) => r.tail === 'tail -f'))
+  ok('C39 every stream of every box is a row with a tail -f button', listOk, list)
+  ok('C39 no view is open before a tail -f click', (await p.$$('[data-test=fs-view]')).length === 0)
+
+  // C40 tail -f on cron: one view, under the cron row, cron's lines only
+  await p.click('[data-test=fs-row][data-stream=cron] [data-test=fs-tail]')
   await p.waitForSelector('[data-test=fs-line]', { visible: true, timeout: 20000 }).catch(() => null)
-  const pick0 = await p.evaluate(() => [document.querySelector('[data-test=fs-box]')?.value, document.querySelector('[data-test=fs-file]')?.value])
-  ok('C19 the first box and file are picked, lines show', pick0[0] === 'box-a' && pick0[1] === 'app' && (await lastSeq(p)) > 0, pick0)
-  await p.select('[data-test=fs-file]', 'cron')
-  await p.waitForFunction(() => location.search.includes('stream=cron'), { timeout: 10000 }).catch(() => null)
-  ok('C19 the pick is in the URL', (await p.evaluate(() => location.search)).includes('stream=cron'))
-  await p.select('[data-test=fs-file]', 'app')
+  const cron = await p.evaluate(() => ({
+    views: document.querySelectorAll('[data-test=fs-view]').length,
+    under: Boolean(document.querySelector('[data-test=fs-row][data-stream=cron] [data-test=fs-view]')),
+    texts: [...document.querySelectorAll('[data-test=fs-line]')].map((x) => x.textContent || ''),
+    search: location.search,
+  }))
+  const cronOnly = cron.texts.length > 0 && cron.texts.every((x) => x.includes('cron')) && !cron.texts.some((x) => x.includes('app'))
+  ok('C40 tail -f shows only that stream\'s lines, one view, under its row', cron.views === 1 && cron.under && cronOnly, { views: cron.views, under: cron.under, n: cron.texts.length, first: cron.texts[0] })
+  ok('C40 the open file is in the URL', cron.search.includes('box=box-a') && cron.search.includes('stream=cron'), cron.search)
+  await p.reload({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=fs-row][data-stream=cron] [data-test=fs-line]', { visible: true, timeout: 20000 }).catch(() => null)
+  ok('C40 a reload keeps the file open', Boolean(await p.$('[data-test=fs-row][data-stream=cron] [data-test=fs-view]')))
+
+  // tail -f on app: the one view moves there; Back returns to cron
+  await p.click('[data-test=fs-row][data-stream=app] [data-test=fs-tail]')
+  await p.waitForFunction(() => location.search.includes('stream=app') && document.querySelector('[data-test=fs-row][data-stream=app] [data-test=fs-line]'), { timeout: 20000 }).catch(() => null)
+  const switched = await p.evaluate(() => ({ views: document.querySelectorAll('[data-test=fs-view]').length, app: Boolean(document.querySelector('[data-test=fs-row][data-stream=app] [data-test=fs-view]')) }))
+  ok('C40 tail -f on another row moves the one view there', switched.views === 1 && switched.app, switched)
+  await p.goBack({ waitUntil: 'networkidle2', timeout: NAV_TIMEOUT }).catch(() => null)
+  await p.waitForFunction(() => location.search.includes('stream=cron') && document.querySelector('[data-test=fs-row][data-stream=cron] [data-test=fs-view]'), { timeout: 15000 }).catch(() => null)
+  ok('C40 Back opens the file before', (await p.evaluate(() => location.search)).includes('stream=cron') && Boolean(await p.$('[data-test=fs-row][data-stream=cron] [data-test=fs-view]')))
+  await p.click('[data-test=fs-row][data-stream=app] [data-test=fs-tail]')
   await p.waitForFunction(() => location.search.includes('stream=app'), { timeout: 10000 }).catch(() => null)
+  await p.waitForSelector('[data-test=fs-row][data-stream=app] [data-test=fs-line]', { visible: true, timeout: 20000 }).catch(() => null)
   await sleep(500)
 
   // C19 a line the stub appends shows within 2 polls, Follow on

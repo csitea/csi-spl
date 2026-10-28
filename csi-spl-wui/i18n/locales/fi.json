@@ -3306,8 +3306,6 @@
       "forbidden": "Vain työtilan omistaja ja ylläpitäjät voivat lukea tiedostovirtoja.",
       "error": "Tiedostovirtoja ei voitu ladata.",
       "none": "Tiedostovirtoja ei vielä ole. Kone seuraa vain sallittujen luettelonsa tiedostoja.",
-      "box": "Kone",
-      "file": "Tiedosto",
       "find": "Etsi näkymästä",
       "follow": "Seuraa",
       "pause": "Tauko",
@@ -3317,7 +3315,11 @@
       "not_following": "Tätä tiedostoa ei nyt seurata ({state}).",
       "log_label": "Tiedoston {file} rivit",
       "load_older": "Lataa vanhempia",
-      "empty": "Rivejä ei vielä ole."
+      "empty": "Rivejä ei vielä ole.",
+      "tail": "tail -f",
+      "tail_title": "Seuraa tiedostoa {file} reaaliajassa",
+      "last_line": "Viimeisin rivi: {at}",
+      "lines_total": "{n} rivi | {n} riviä"
     }
   },
   "takeover": {

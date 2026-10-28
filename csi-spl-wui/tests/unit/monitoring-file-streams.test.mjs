@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  FS_MOCK_IDS, FS_PAGE, FS_POLL_MS, FS_VIEW_MAX, atBottom, fileStreamBoxes, fileStreamLinesOf, fileStreamPickOf, fileStreamQuery,
+  FS_MOCK_IDS, FS_PAGE, FS_POLL_MS, FS_VIEW_MAX, atBottom, fileStreamBoxes, fileStreamGroupsOf, fileStreamLinesOf, fileStreamOpenOf, fileStreamQuery,
   fileStreamsOf, filterFileStreamLines, lastSeqOf, mergeFileStreamLines, mockFileStreamLines, mockFileStreams, startFileStreamPoll,
 } from '../../src/utils/monitoring-file-streams.mjs'
 
@@ -19,8 +19,8 @@ describe('file streams helpers (spec 160 3.5)', () => {
   const body = {
     streams: [
       { id: 's3', box_id: 'box-b', stream_key: 'web', path: '/var/log/web.log', state: 'missing', reason: 'not_found', last_seq: 0 },
-      { id: 's2', box_id: 'box-a', stream_key: 'cron', path: '/var/log/cron.log', state: 'following', last_seq: 4 },
-      { id: 's1', box_id: 'box-a', stream_key: 'app', path: '/var/log/app.log', state: 'following', last_seq: 9 },
+      { id: 's2', box_id: 'box-a', stream_key: 'cron', path: '/var/log/cron.log', state: 'following', last_seq: 4, lines_total: 4 },
+      { id: 's1', box_id: 'box-a', stream_key: 'app', path: '/var/log/app.log', state: 'following', last_seq: 9, last_line_at: '2026-10-28T00:00:09Z', lines_total: 9 },
       { id: '', box_id: 'box-a', stream_key: 'x' }, { id: 's9', box_id: '../x', stream_key: 'app' }, { id: 's8', box_id: 'box-a', stream_key: 'App/..' },
     ],
   }
@@ -31,18 +31,29 @@ describe('file streams helpers (spec 160 3.5)', () => {
     assert.deepEqual(fileStreamBoxes(s), ['box-a', 'box-b'])
     assert.deepEqual(fileStreamsOf(null), [])
   })
-  it('the pick from the URL; a junk or unknown box or stream falls back to the first; seq only on its own stream (C21)', () => {
+  it('the list: one group per box in order, its streams by key; lines_total and last_line_at kept (C39)', () => {
     const s = fileStreamsOf(body)
-    assert.deepEqual(fileStreamPickOf({ box: 'box-a', stream: 'cron' }, s), { box: 'box-a', stream: 'cron', id: 's2', seq: 0 })
-    assert.deepEqual(fileStreamPickOf({}, s), { box: 'box-a', stream: 'app', id: 's1', seq: 0 })
-    assert.deepEqual(fileStreamPickOf({ box: 'nope', stream: 'web' }, s), { box: 'box-a', stream: 'app', id: 's1', seq: 0 })
-    assert.deepEqual(fileStreamPickOf({ box: 'box-b' }, s), { box: 'box-b', stream: 'web', id: 's3', seq: 0 })
-    assert.deepEqual(fileStreamPickOf({ box: 'box-a', stream: 'app', seq: '7' }, s), { box: 'box-a', stream: 'app', id: 's1', seq: 7 })
-    for (const seq of ['0', '-1', 'x', '1.5']) assert.equal(fileStreamPickOf({ box: 'box-a', stream: 'app', seq }, s).seq, 0, seq)
-    assert.equal(fileStreamPickOf({ box: 'box-a', stream: 'nope', seq: '7' }, s).seq, 0, 'a seq of another stream is not followed')
-    assert.deepEqual(fileStreamPickOf({}, []), { box: '', stream: '', id: '', seq: 0 })
+    assert.deepEqual(fileStreamGroupsOf(s).map((g) => [g.boxId, g.streams.map((x) => x.streamKey)]), [['box-a', ['app', 'cron']], ['box-b', ['web']]])
+    assert.deepEqual([s[0].linesTotal, s[0].lastLineAt], [9, '2026-10-28T00:00:09Z'])
+    assert.deepEqual([s[2].linesTotal, s[2].lastLineAt], [0, ''])
+    assert.deepEqual(fileStreamGroupsOf([]), [])
+  })
+  it('the open file from the URL: only a box and a stream the hub returned, else none (no fallback); seq only on it (C21, C40)', () => {
+    const s = fileStreamsOf(body)
+    const none = { box: '', stream: '', id: '', seq: 0 }
+    assert.deepEqual(fileStreamOpenOf({ box: 'box-a', stream: 'cron' }, s), { box: 'box-a', stream: 'cron', id: 's2', seq: 0 })
+    assert.deepEqual(fileStreamOpenOf({}, s), none, 'nothing open before a tail -f click')
+    assert.deepEqual(fileStreamOpenOf({ box: 'box-a' }, s), none)
+    assert.deepEqual(fileStreamOpenOf({ box: 'nope', stream: 'web' }, s), none)
+    assert.deepEqual(fileStreamOpenOf({ box: 'box-a', stream: 'web' }, s), none, 'a stream of another box')
+    assert.deepEqual(fileStreamOpenOf({ box: 'box-a', stream: '/etc/passwd' }, s), none, 'never a typed path')
+    assert.deepEqual(fileStreamOpenOf({ box: ['box-b'], stream: ['web'] }, s), { box: 'box-b', stream: 'web', id: 's3', seq: 0 })
+    assert.deepEqual(fileStreamOpenOf({ box: 'box-a', stream: 'app', seq: '7' }, s), { box: 'box-a', stream: 'app', id: 's1', seq: 7 })
+    for (const seq of ['0', '-1', 'x', '1.5']) assert.equal(fileStreamOpenOf({ box: 'box-a', stream: 'app', seq }, s).seq, 0, seq)
+    assert.deepEqual(fileStreamOpenOf({}, []), none)
     assert.deepEqual(fileStreamQuery('box-a', 'app'), { box: 'box-a', stream: 'app' })
     assert.deepEqual(fileStreamQuery('box-a', 'app', 7), { box: 'box-a', stream: 'app', seq: '7' })
+    assert.deepEqual(fileStreamQuery('', ''), {})
   })
   it('the lines: oldest first, junk dropped; merge keeps one row per seq and at most FS_VIEW_MAX, the oldest dropped', () => {
     assert.deepEqual(fileStreamLinesOf({ lines: [line(3), line(1), { seq: 0 }, { seq: 'x' }] }).map((l) => l.seq), [1, 3])
@@ -96,11 +107,14 @@ describe('file streams helpers (spec 160 3.5)', () => {
     assert.deepEqual(fileStreamLinesOf(mockFileStreamLines(FS_MOCK_IDS.app, { after: last0 }, t0 + FS_POLL_MS)).map((l) => l.seq), [last0 + 1])
     assert.deepEqual(fileStreamLinesOf(mockFileStreamLines(FS_MOCK_IDS.app, { before: 5, limit: 3 }, t0)).map((l) => l.seq), [2, 3, 4])
     assert.ok(fileStreamLinesOf(mockFileStreamLines(FS_MOCK_IDS.app, { limit: FS_PAGE }, t0)).some((l) => l.marker))
+    assert.ok(fileStreamLinesOf(mockFileStreamLines(FS_MOCK_IDS.cron, { limit: 5 }, t0)).every((l) => l.text.includes('cron') && !l.text.includes('app')), 'a mock line names its stream (C40)')
+    assert.ok(s[0].linesTotal > 0, 'the mock carries lines_total')
     assert.throws(() => mockFileStreamLines('nope'), (e) => e.status === 404)
   })
-  it('the page: its own chunk, the controls the e2e drives, no inline style (CSP)', () => {
+  it('the page: its own chunk, a list with a tail -f per row (no box/file selects), the controls the e2e drives, no inline style (CSP)', () => {
     const page = read('src/pages/monitoring/file-streams/index.vue')
-    for (const id of ['fs-page', 'fs-box', 'fs-file', 'fs-follow', 'fs-pause', 'fs-jump', 'fs-new', 'fs-view', 'fs-line', 'fs-forbidden', 'fs-none', 'fs-find']) {
+    assert.doesNotMatch(page, /<select/, 'a list, not two selects (C39)')
+    for (const id of ['fs-page', 'fs-group', 'fs-row', 'fs-tail', 'fs-follow', 'fs-pause', 'fs-jump', 'fs-new', 'fs-view', 'fs-line', 'fs-forbidden', 'fs-none', 'fs-find']) {
       assert.match(page, new RegExp(`data-test="${id}"`), id)
     }
     assert.doesNotMatch(page, /:style=|style="/)

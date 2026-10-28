@@ -3306,8 +3306,6 @@
       "forbidden": "Alleen de eigenaar en de beheerders van de werkruimte kunnen bestandsstromen lezen.",
       "error": "De bestandsstromen konden niet worden geladen.",
       "none": "Nog geen bestandsstromen. Een hostmachine volgt alleen de bestanden op zijn toegestane lijst.",
-      "box": "Hostmachine",
-      "file": "Bestand",
       "find": "Zoeken in weergave",
       "follow": "Volgen",
       "pause": "Pauzeren",
@@ -3317,7 +3315,11 @@
       "not_following": "Dit bestand wordt nu niet gevolgd ({state}).",
       "log_label": "Regels van {file}",
       "load_older": "Oudere laden",
-      "empty": "Nog geen regels."
+      "empty": "Nog geen regels.",
+      "tail": "tail -f",
+      "tail_title": "{file} live volgen",
+      "last_line": "Laatste regel: {at}",
+      "lines_total": "{n} regel | {n} regels"
     }
   },
   "takeover": {

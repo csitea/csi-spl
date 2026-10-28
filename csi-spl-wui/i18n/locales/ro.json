@@ -3306,8 +3306,6 @@
       "forbidden": "Doar proprietarul și administratorii spațiului de lucru pot citi fluxurile de fișiere.",
       "error": "Fluxurile de fișiere nu au putut fi încărcate.",
       "none": "Încă nu există fluxuri de fișiere. O mașină urmărește doar fișierele din lista sa de permise.",
-      "box": "Mașină",
-      "file": "Fișier",
       "find": "Căutați în vizualizare",
       "follow": "Urmărire",
       "pause": "Pauză",
@@ -3317,7 +3315,11 @@
       "not_following": "Acest fișier nu este urmărit acum ({state}).",
       "log_label": "Rândurile din {file}",
       "load_older": "Încarcă mai vechi",
-      "empty": "Încă nu există rânduri."
+      "empty": "Încă nu există rânduri.",
+      "tail": "tail -f",
+      "tail_title": "Urmărește {file} în timp real",
+      "last_line": "Ultimul rând: {at}",
+      "lines_total": "{n} rând | Rânduri: {n}"
     }
   },
   "takeover": {

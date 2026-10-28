@@ -1,7 +1,8 @@
 // csi-spl-wui/src/utils/monitoring-file-streams.mjs
 //
-// Spec 160 3.5 (SPL-3888, row B5): Monitoring -> File streams, a box file
-// followed live. The page (pages/monitoring/file-streams/index.vue) and the
+// Spec 160 3.5 (SPL-3888, row B5; the list, SPL-4124 row B8): Monitoring ->
+// File streams, every box's followed files as a list, each with its own
+// tail -f button that opens that file live. The page (pages/monitoring/file-streams/index.vue) and the
 // lazy client (spool-client-lazy.mjs getFileStreams / getFileStreamLines)
 // are the only importers: this module never reaches the initial bundle.
 // The routes (3.4): GET /v1/view/file-streams and
@@ -24,7 +25,7 @@ const KEY_RE = /^[a-z0-9][a-z0-9-]{0,31}$/
  * GET /v1/view/file-streams -> the streams, sorted by box then key; a row
  * that is not a stream (no id, junk box or key) is dropped.
  * @param {unknown} body
- * @returns {{ id: string, boxId: string, streamKey: string, path: string, state: string, reason: string, lastSeq: number, lastLineAt: string, linesKept: number }[]}
+ * @returns {{ id: string, boxId: string, streamKey: string, path: string, state: string, reason: string, lastSeq: number, lastLineAt: string, linesTotal: number, linesKept: number }[]}
  */
 export function fileStreamsOf(body) {
   const rows = body && typeof body === 'object' && Array.isArray(/** @type {any} */ (body).streams) ? /** @type {any} */ (body).streams : []
@@ -39,6 +40,7 @@ export function fileStreamsOf(body) {
       reason: typeof r.reason === 'string' ? r.reason : '',
       lastSeq: Number.isSafeInteger(r.last_seq) ? r.last_seq : 0,
       lastLineAt: typeof r.last_line_at === 'string' ? r.last_line_at : '',
+      linesTotal: Number.isSafeInteger(r.lines_total) ? r.lines_total : 0,
       linesKept: Number.isSafeInteger(r.lines_kept) ? r.lines_kept : 0,
     }))
     .sort((a, b) => (a.boxId === b.boxId ? a.streamKey.localeCompare(b.streamKey) : a.boxId.localeCompare(b.boxId)))
@@ -49,28 +51,30 @@ export function fileStreamBoxes(streams) {
   return [...new Set((streams || []).map((s) => s.boxId))]
 }
 
+/** The list (C39): one group per box, in order, its streams by key. */
+export function fileStreamGroupsOf(streams) {
+  return fileStreamBoxes(streams).map((boxId) => ({ boxId, streams: streams.filter((s) => s.boxId === boxId) }))
+}
+
 /**
- * The pick from the URL (?box=&stream=&seq=): a box and a stream that
- * exist, else the first box and its first stream; seq only when a positive
- * integer (a search hit: Follow starts off, 3.6).
+ * The open file from the URL (?box=&stream=&seq=): only a box and a stream
+ * the hub returned, else none, so nothing opens before a tail -f click and
+ * a typed path never does (C40); seq only when a positive integer (a search
+ * hit: Follow starts off, 3.6).
  * @param {Record<string, unknown>} query
  * @param {ReturnType<typeof fileStreamsOf>} streams
  * @returns {{ box: string, stream: string, id: string, seq: number }}
  */
-export function fileStreamPickOf(query, streams) {
+export function fileStreamOpenOf(query, streams) {
   const q = query || {}
-  const one = (v) => (Array.isArray(v) ? v[0] : v)
-  const boxes = fileStreamBoxes(streams)
-  const want = String(one(q.box) ?? '')
-  const box = boxes.includes(want) ? want : (boxes[0] || '')
-  const mine = (streams || []).filter((s) => s.boxId === box)
-  const key = String(one(q.stream) ?? '')
-  const s = mine.find((x) => x.streamKey === key) || mine[0]
+  const one = (v) => String((Array.isArray(v) ? v[0] : v) ?? '')
+  const s = (streams || []).find((x) => x.boxId === one(q.box) && x.streamKey === one(q.stream))
+  if (!s) return { box: '', stream: '', id: '', seq: 0 }
   const seq = Number(one(q.seq))
-  return { box, stream: s ? s.streamKey : '', id: s ? s.id : '', seq: Number.isSafeInteger(seq) && seq > 0 && s && s.streamKey === key ? seq : 0 }
+  return { box: s.boxId, stream: s.streamKey, id: s.id, seq: Number.isSafeInteger(seq) && seq > 0 ? seq : 0 }
 }
 
-/** The query of a pick, for router.replace (seq only for a search hit). */
+/** The query of an open file, for router.push (seq only for a search hit). */
 export function fileStreamQuery(box, stream, seq = 0) {
   const out = /** @type {Record<string, string>} */ ({})
   if (box) out.box = box
@@ -150,8 +154,8 @@ export function mockFileStreams(now = Date.now()) {
   const at = new Date(now).toISOString()
   return {
     streams: [
-      { id: FS_MOCK_IDS.app, box_id: 'box-a', stream_key: 'app', path: '/var/log/app.log', state: 'following', reason: '', last_line_at: at, last_seq: mockLast(FS_MOCK_IDS.app, now), lines_total: 0, lines_dropped: 0, lines_kept: 0 },
-      { id: FS_MOCK_IDS.cron, box_id: 'box-a', stream_key: 'cron', path: '/var/log/cron.log', state: 'following', reason: '', last_line_at: at, last_seq: mockLast(FS_MOCK_IDS.cron, now), lines_total: 0, lines_dropped: 0, lines_kept: 0 },
+      { id: FS_MOCK_IDS.app, box_id: 'box-a', stream_key: 'app', path: '/var/log/app.log', state: 'following', reason: '', last_line_at: at, last_seq: mockLast(FS_MOCK_IDS.app, now), lines_total: mockLast(FS_MOCK_IDS.app, now), lines_dropped: 0, lines_kept: 0 },
+      { id: FS_MOCK_IDS.cron, box_id: 'box-a', stream_key: 'cron', path: '/var/log/cron.log', state: 'following', reason: '', last_line_at: at, last_seq: mockLast(FS_MOCK_IDS.cron, now), lines_total: mockLast(FS_MOCK_IDS.cron, now), lines_dropped: 0, lines_kept: 0 },
       { id: FS_MOCK_IDS.web, box_id: 'box-b', stream_key: 'web', path: '/var/log/web.log', state: 'missing', reason: 'not_found', last_line_at: null, last_seq: 0, lines_total: 0, lines_dropped: 0, lines_kept: 0 },
     ],
   }
@@ -180,11 +184,12 @@ export function mockFileStreamLines(id, q = {}, now = Date.now()) {
     to = q.before !== undefined ? Math.min(last, Number(q.before) - 1) : last
     from = Math.max(1, to - limit + 1)
   }
+  const key = id === FS_MOCK_IDS.app ? 'app' : 'cron'
   const lines = []
   for (let s = from; s <= to; s++) {
     const marker = s % 20 === 0
     lines.push({ seq: s, at: new Date(now - (last - s) * FS_POLL_MS).toISOString(), marker,
-      text: marker ? `[rotated] ${id === FS_MOCK_IDS.app ? 'app.log' : 'cron.log'}` : `${s % 7 === 0 ? 'WARN' : 'INFO'} mock line ${s}` })
+      text: marker ? `[rotated] ${key}.log` : `${s % 7 === 0 ? 'WARN' : 'INFO'} ${key} mock line ${s}` })
   }
   return { lines }
 }

@@ -3306,8 +3306,6 @@
       "forbidden": "Bara arbetsytans ägare och administratörer kan läsa filströmmar.",
       "error": "Filströmmarna kunde inte läsas in.",
       "none": "Inga filströmmar än. En maskin följer bara filerna på sin tillåtna lista.",
-      "box": "Maskin",
-      "file": "Fil",
       "find": "Sök i vyn",
       "follow": "Följ",
       "pause": "Pausa",
@@ -3317,7 +3315,11 @@
       "not_following": "Den här filen följs inte nu ({state}).",
       "log_label": "Rader i {file}",
       "load_older": "Ladda äldre",
-      "empty": "Inga rader än."
+      "empty": "Inga rader än.",
+      "tail": "tail -f",
+      "tail_title": "Följ {file} live",
+      "last_line": "Senaste rad: {at}",
+      "lines_total": "{n} rad | {n} rader"
     }
   },
   "takeover": {

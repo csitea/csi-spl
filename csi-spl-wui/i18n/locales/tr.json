@@ -3306,8 +3306,6 @@
       "forbidden": "Dosya akışlarını yalnızca çalışma alanının sahibi ve yöneticileri okuyabilir.",
       "error": "Dosya akışları yüklenemedi.",
       "none": "Henüz dosya akışı yok. Bir kutu yalnızca izin listesindeki dosyaları izler.",
-      "box": "Kutu",
-      "file": "Dosya",
       "find": "Görünümde bul",
       "follow": "İzle",
       "pause": "Duraklat",
@@ -3317,7 +3315,11 @@
       "not_following": "Bu dosya şu anda izlenmiyor ({state}).",
       "log_label": "{file} satırları",
       "load_older": "Daha eskileri yükle",
-      "empty": "Henüz satır yok."
+      "empty": "Henüz satır yok.",
+      "tail": "tail -f",
+      "tail_title": "{file} dosyasını canlı izle",
+      "last_line": "Son satır: {at}",
+      "lines_total": "{n} satır | {n} satır"
     }
   },
   "takeover": {

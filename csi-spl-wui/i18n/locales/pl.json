@@ -3306,8 +3306,6 @@
       "forbidden": "Strumienie plików mogą czytać tylko właściciel i administratorzy obszaru roboczego.",
       "error": "Nie udało się wczytać strumieni plików.",
       "none": "Nie ma jeszcze strumieni plików. Maszyna śledzi tylko pliki ze swojej listy dozwolonych.",
-      "box": "Maszyna",
-      "file": "Plik",
       "find": "Znajdź w widoku",
       "follow": "Śledź",
       "pause": "Wstrzymaj",
@@ -3317,7 +3315,11 @@
       "not_following": "Ten plik nie jest teraz śledzony ({state}).",
       "log_label": "Wiersze pliku {file}",
       "load_older": "Wczytaj starsze",
-      "empty": "Nie ma jeszcze wierszy."
+      "empty": "Nie ma jeszcze wierszy.",
+      "tail": "tail -f",
+      "tail_title": "Śledź {file} na żywo",
+      "last_line": "Ostatni wiersz: {at}",
+      "lines_total": "{n} wiersz | Wiersze: {n}"
     }
   },
   "takeover": {

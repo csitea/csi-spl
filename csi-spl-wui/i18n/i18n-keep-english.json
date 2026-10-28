@@ -18,7 +18,8 @@
     "#general": "channel name, a code",
     "#alerts · {from}": "channel name, a code",
     "runbooks/deploy.md": "file path example",
-    "{size} · sha256 {hash}": "algorithm code"
+    "{size} · sha256 {hash}": "algorithm code",
+    "tail -f": "command name, a code (spec 160 file streams list, SPL-4124)"
   },
   "keys": {
     "auth.native.dev": "environment code 'dev:'",

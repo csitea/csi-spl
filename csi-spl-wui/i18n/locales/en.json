@@ -3306,8 +3306,6 @@
       "forbidden": "Only the workspace owner and admins can read file streams.",
       "error": "The file streams could not be loaded.",
       "none": "No file streams yet. A box follows only the files on its allow-list.",
-      "box": "Box",
-      "file": "File",
       "find": "Find in view",
       "follow": "Follow",
       "pause": "Pause",
@@ -3317,7 +3315,11 @@
       "not_following": "This file is not being followed now ({state}).",
       "log_label": "Lines of {file}",
       "load_older": "Load older",
-      "empty": "No lines yet."
+      "empty": "No lines yet.",
+      "tail": "tail -f",
+      "tail_title": "Follow {file} live",
+      "last_line": "Last line: {at}",
+      "lines_total": "{n} line | {n} lines"
     }
   },
   "takeover": {

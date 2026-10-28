@@ -3306,8 +3306,6 @@
       "forbidden": "Súborové toky môžu čítať iba vlastník a administrátori pracovného priestoru.",
       "error": "Súborové toky sa nepodarilo načítať.",
       "none": "Zatiaľ nie sú žiadne súborové toky. Stroj sleduje iba súbory zo svojho zoznamu povolených.",
-      "box": "Stroj",
-      "file": "Súbor",
       "find": "Hľadať v zobrazení",
       "follow": "Sledovať",
       "pause": "Pozastaviť",
@@ -3317,7 +3315,11 @@
       "not_following": "Tento súbor sa teraz nesleduje ({state}).",
       "log_label": "Riadky súboru {file}",
       "load_older": "Načítať staršie",
-      "empty": "Zatiaľ žiadne riadky."
+      "empty": "Zatiaľ žiadne riadky.",
+      "tail": "tail -f",
+      "tail_title": "Sledovať {file} naživo",
+      "last_line": "Posledný riadok: {at}",
+      "lines_total": "{n} riadok | Riadky: {n}"
     }
   },
   "takeover": {

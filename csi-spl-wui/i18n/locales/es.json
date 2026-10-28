@@ -3306,8 +3306,6 @@
       "forbidden": "Solo el propietario y los administradores del espacio de trabajo pueden leer los flujos de archivos.",
       "error": "No se pudieron cargar los flujos de archivos.",
       "none": "Aún no hay flujos de archivos. Un equipo solo sigue los archivos de su lista de permitidos.",
-      "box": "Equipo",
-      "file": "Archivo",
       "find": "Buscar en la vista",
       "follow": "Seguir",
       "pause": "Pausar",
@@ -3317,7 +3315,11 @@
       "not_following": "Este archivo no se está siguiendo ahora ({state}).",
       "log_label": "Líneas de {file}",
       "load_older": "Cargar anteriores",
-      "empty": "Aún no hay líneas."
+      "empty": "Aún no hay líneas.",
+      "tail": "tail -f",
+      "tail_title": "Seguir {file} en directo",
+      "last_line": "Última línea: {at}",
+      "lines_total": "{n} línea | {n} líneas"
     }
   },
   "takeover": {

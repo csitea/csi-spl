@@ -3306,8 +3306,6 @@
       "forbidden": "Failu plūsmas var lasīt tikai darbvietas īpašnieks un administratori.",
       "error": "Failu plūsmas neizdevās ielādēt.",
       "none": "Failu plūsmu vēl nav. Mašīna seko tikai failiem no sava atļauto saraksta.",
-      "box": "Mašīna",
-      "file": "Fails",
       "find": "Meklēt skatā",
       "follow": "Sekot",
       "pause": "Pauze",
@@ -3317,7 +3315,11 @@
       "not_following": "Šim failam pašlaik neseko ({state}).",
       "log_label": "Faila {file} rindas",
       "load_older": "Ielādēt vecākus",
-      "empty": "Rindu vēl nav."
+      "empty": "Rindu vēl nav.",
+      "tail": "tail -f",
+      "tail_title": "Sekot {file} tiešsaistē",
+      "last_line": "Pēdējā rinda: {at}",
+      "lines_total": "{n} rinda | Rindas: {n}"
     }
   },
   "takeover": {

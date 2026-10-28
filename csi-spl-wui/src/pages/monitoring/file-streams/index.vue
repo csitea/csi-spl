@@ -1,17 +1,22 @@
-<!-- Spec 160 3.5 (SPL-3888, row B5; owner HUM-10, t1 c168784c, GO 44ec2e44
-     and 5c6686f2): Monitoring -> File streams, a box file followed live.
-     Two selects, Box then File; the pick is in the URL (?box=&stream=), so
-     it survives a reload and Back. The view: a monospace list, newest at the
-     bottom, at most FS_VIEW_MAX lines (the oldest dropped), a line's UTC
-     time on hover, marker lines styled apart, long lines wrapped. Follow
-     (default on) keeps the bottom in view; scrolling up turns it off, "Jump
-     to latest" back on. Pause stops the poll; Resume fetches what came
-     meanwhile (after=<last seq>, pages of FS_PAGE) and says how many. Find
-     in view filters the loaded lines. A search hit (?seq=, spec 160 3.6)
-     opens the view at that line with Follow off. The routes answer the
-     workspace's owner or an admin only (3.4); anyone else reaching the URL
-     sees the 403 as a sentence. The poll: every FS_POLL_MS while the tab is
-     visible and not paused (decision D3). -->
+<!-- Spec 160 3.5 (SPL-3888, row B5; the list SPL-4124, row B8; owner
+     HUM-10, t1 c168784c, GO 44ec2e44 and 5c6686f2, list msg b2717710):
+     Monitoring -> File streams, every box's followed files as a list. Under
+     each box a row per file: its key (the path as hover and second line),
+     state, last line time and lines total, and its own tail -f button. The
+     button opens THAT file's live view under its row (one open file at a
+     time, never a merged output); pressed again it closes. The open file is
+     in the URL (?box=&stream=), so it survives a reload and Back; only a
+     file the hub returned opens, never a typed path. The view: a monospace
+     list, newest at the bottom, at most FS_VIEW_MAX lines (the oldest
+     dropped), a line's UTC time on hover, marker lines styled apart, long
+     lines wrapped. Follow (default on) keeps the bottom in view; scrolling
+     up turns it off, "Jump to latest" back on. Pause stops the poll; Resume
+     fetches what came meanwhile (after=<last seq>, pages of FS_PAGE) and
+     says how many. Find in view filters the loaded lines. A search hit
+     (?seq=, spec 160 3.6) opens the view at that line with Follow off. The
+     routes answer the workspace's owner or an admin only (3.4); anyone else
+     reaching the URL sees the 403 as a sentence. The poll: every FS_POLL_MS
+     while the tab is visible, a file is open and not paused (decision D3). -->
 <template>
   <div class="monitoring-file-streams" data-test="fs-page">
     <p v-if="state === 'loading'" class="muted" data-test="fs-loading">{{ t('monitoring.file_streams.loading') }}</p>
@@ -23,53 +28,60 @@
     <p v-else-if="streams.length === 0" class="muted" data-test="fs-none">{{ t('monitoring.file_streams.none') }}</p>
 
     <template v-else>
-      <div class="fs-pick">
-        <label class="fs-field">
-          <span>{{ t('monitoring.file_streams.box') }}</span>
-          <select :value="pick.box" data-test="fs-box" @change="onBox(($event.target as HTMLSelectElement).value)">
-            <option v-for="b in boxes" :key="b" :value="b">{{ b }}</option>
-          </select>
-        </label>
-        <label class="fs-field">
-          <span>{{ t('monitoring.file_streams.file') }}</span>
-          <select :value="pick.stream" data-test="fs-file" @change="onStream(($event.target as HTMLSelectElement).value)">
-            <option v-for="s in boxStreams" :key="s.id" :value="s.streamKey" :title="s.path">{{ s.streamKey }}</option>
-          </select>
-        </label>
-        <label class="fs-field fs-find">
-          <span>{{ t('monitoring.file_streams.find') }}</span>
-          <input v-model="find" type="search" data-test="fs-find">
-        </label>
-      </div>
+      <section v-for="g in groups" :key="g.boxId" class="fs-group" :data-box="g.boxId" data-test="fs-group">
+        <h3 class="fs-box-name">{{ g.boxId }}</h3>
+        <ul class="fs-rows">
+          <li v-for="s in g.streams" :key="s.id" class="fs-row" :class="{ 'fs-row-open': s.id === pick.id }" :data-stream="s.streamKey" data-test="fs-row">
+            <div class="fs-row-head">
+              <div class="fs-name">
+                <span class="fs-key" :title="s.path">{{ s.streamKey }}</span>
+                <span class="fs-path muted">{{ s.path }}</span>
+              </div>
+              <code class="fs-state" :class="{ 'fs-state-off': s.state !== 'following' }" data-test="fs-state">{{ s.state }}</code>
+              <span class="fs-meta muted" :title="s.lastLineAt ? s.lastLineAt : undefined" data-test="fs-last">
+                {{ s.lastLineAt ? t('monitoring.file_streams.last_line', { at: isoDateTime(s.lastLineAt) }) : t('monitoring.file_streams.empty') }}
+              </span>
+              <span class="fs-meta muted" data-test="fs-total">{{ t('monitoring.file_streams.lines_total', { n: s.linesTotal }, s.linesTotal) }}</span>
+              <button type="button" class="btn fs-tail" :aria-pressed="s.id === pick.id ? 'true' : 'false'" :title="t('monitoring.file_streams.tail_title', { file: s.streamKey })" data-test="fs-tail" @click="onTail(s)">{{ t('monitoring.file_streams.tail') }}</button>
+            </div>
 
-      <div class="fs-bar">
-        <label class="fs-check">
-          <input type="checkbox" :checked="follow" data-test="fs-follow" @change="setFollow(($event.target as HTMLInputElement).checked)">
-          {{ t('monitoring.file_streams.follow') }}
-        </label>
-        <button type="button" class="btn" :aria-pressed="paused ? 'true' : 'false'" data-test="fs-pause" @click="togglePause()">
-          {{ paused ? t('monitoring.file_streams.resume') : t('monitoring.file_streams.pause') }}
-        </button>
-        <button v-if="!follow" type="button" class="btn" data-test="fs-jump" @click="jumpLatest()">{{ t('monitoring.file_streams.jump_latest') }}</button>
-        <span v-if="newCount > 0" class="fs-new" role="status" data-test="fs-new">{{ t('monitoring.file_streams.new_lines', { n: newCount }, newCount) }}</span>
-      </div>
-      <p v-if="current && current.state !== 'following'" class="muted" data-test="fs-not-following">
-        {{ t('monitoring.file_streams.not_following', { state: current.reason || current.state }) }}
-      </p>
-
-      <div ref="viewEl" class="fs-view" tabindex="0" :aria-label="t('monitoring.file_streams.log_label', { file: pick.stream })" data-test="fs-view" @scroll="onScroll">
-        <button v-if="lines.length && lines[0].seq > 1" type="button" class="btn fs-older" data-test="fs-older" @click="loadOlder()">{{ t('monitoring.file_streams.load_older') }}</button>
-        <p v-if="shown.length === 0" class="muted" data-test="fs-empty">{{ t('monitoring.file_streams.empty') }}</p>
-        <div v-for="l in shown" :key="l.seq" class="fs-line" :class="{ 'fs-marker': l.marker, 'fs-hit': l.seq === hitSeq }" :title="l.at" :data-seq="l.seq" data-test="fs-line">{{ l.text }}</div>
-      </div>
+            <div v-if="s.id === pick.id" class="fs-open">
+              <div class="fs-bar">
+                <label class="fs-check">
+                  <input type="checkbox" :checked="follow" data-test="fs-follow" @change="setFollow(($event.target as HTMLInputElement).checked)">
+                  {{ t('monitoring.file_streams.follow') }}
+                </label>
+                <button type="button" class="btn" :aria-pressed="paused ? 'true' : 'false'" data-test="fs-pause" @click="togglePause()">
+                  {{ paused ? t('monitoring.file_streams.resume') : t('monitoring.file_streams.pause') }}
+                </button>
+                <button v-if="!follow" type="button" class="btn" data-test="fs-jump" @click="jumpLatest()">{{ t('monitoring.file_streams.jump_latest') }}</button>
+                <span v-if="newCount > 0" class="fs-new" role="status" data-test="fs-new">{{ t('monitoring.file_streams.new_lines', { n: newCount }, newCount) }}</span>
+                <label class="fs-field fs-find">
+                  <span>{{ t('monitoring.file_streams.find') }}</span>
+                  <input v-model="find" type="search" data-test="fs-find">
+                </label>
+              </div>
+              <p v-if="s.state !== 'following'" class="muted" data-test="fs-not-following">
+                {{ t('monitoring.file_streams.not_following', { state: s.reason || s.state }) }}
+              </p>
+              <div ref="viewRefs" class="fs-view" tabindex="0" :aria-label="t('monitoring.file_streams.log_label', { file: s.streamKey })" data-test="fs-view" @scroll="onScroll">
+                <button v-if="lines.length && lines[0].seq > 1" type="button" class="btn fs-older" data-test="fs-older" @click="loadOlder()">{{ t('monitoring.file_streams.load_older') }}</button>
+                <p v-if="shown.length === 0" class="muted" data-test="fs-empty">{{ t('monitoring.file_streams.empty') }}</p>
+                <div v-for="l in shown" :key="l.seq" class="fs-line" :class="{ 'fs-marker': l.marker, 'fs-hit': l.seq === hitSeq }" :title="l.at" :data-seq="l.seq" data-test="fs-line">{{ l.text }}</div>
+              </div>
+            </div>
+          </li>
+        </ul>
+      </section>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { isoDateTime } from '~/utils/date-iso.mjs'
 import {
-  FS_FIRST, FS_PAGE, atBottom, fileStreamBoxes, fileStreamLinesOf, fileStreamPickOf, fileStreamQuery, fileStreamsOf,
+  FS_FIRST, FS_PAGE, atBottom, fileStreamGroupsOf, fileStreamLinesOf, fileStreamOpenOf, fileStreamQuery, fileStreamsOf,
   filterFileStreamLines, lastSeqOf, mergeFileStreamLines, startFileStreamPoll,
 } from '~/utils/monitoring-file-streams.mjs'
 
@@ -94,11 +106,11 @@ const paused = ref(false)
 const newCount = ref(0)
 const find = ref('')
 const hitSeq = ref(0)
-const viewEl = ref<HTMLElement | null>(null)
+/* the one open view sits in a v-for row, so its template ref is an array */
+const viewRefs = ref<HTMLElement[] | HTMLElement | null>(null)
+const viewEl = computed<HTMLElement | null>(() => (Array.isArray(viewRefs.value) ? viewRefs.value[0] || null : viewRefs.value))
 
-const boxes = computed(() => fileStreamBoxes(streams.value))
-const boxStreams = computed(() => streams.value.filter((s) => s.boxId === pick.value.box))
-const current = computed(() => streams.value.find((s) => s.id === pick.value.id) || null)
+const groups = computed(() => fileStreamGroupsOf(streams.value))
 const shown = computed(() => filterFileStreamLines(lines.value, find.value))
 
 /* a stale answer (the pick changed meanwhile) is dropped */
@@ -112,14 +124,14 @@ async function loadStreams() {
   try {
     streams.value = fileStreamsOf(await api().getFileStreams())
     state.value = 'ok'
-    await openPick(fileStreamPickOf(route.query, streams.value))
+    await openPick(fileStreamOpenOf(route.query, streams.value))
   } catch (e) {
     failed(e)
   }
 }
 
-/** Show a pick: the newest lines, or (a search hit) the lines up to and after seq with Follow off. */
-async function openPick(p: ReturnType<typeof fileStreamPickOf>) {
+/** Open a file: the newest lines, or (a search hit) the lines up to and after seq with Follow off. */
+async function openPick(p: ReturnType<typeof fileStreamOpenOf>) {
   const mine = ++gen
   pick.value = p
   lines.value = []
@@ -215,18 +227,13 @@ async function togglePause() {
   } catch { /* the poll catches up */ }
 }
 
-function go(box: string, stream: string) {
-  void router.replace({ query: fileStreamQuery(box, stream) })
-}
-function onBox(box: string) {
-  const first = streams.value.find((s) => s.boxId === box)
-  go(box, first ? first.streamKey : '')
-}
-function onStream(stream: string) {
-  go(pick.value.box, stream)
+/* each tail -f click is a history entry, so Back opens the file before; pressed on the open file it closes */
+function onTail(s: Stream) {
+  const open = s.id === pick.value.id
+  void router.push({ query: open ? {} : fileStreamQuery(s.boxId, s.streamKey) })
 }
 watch(() => [route.query.box, route.query.stream, route.query.seq], () => {
-  if (state.value === 'ok') void openPick(fileStreamPickOf(route.query, streams.value))
+  if (state.value === 'ok') void openPick(fileStreamOpenOf(route.query, streams.value))
 })
 
 let timer: ReturnType<typeof startFileStreamPoll> | null = null
@@ -243,9 +250,21 @@ onBeforeUnmount(() => {
 <style scoped>
 .monitoring-file-streams { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .fs-error { color: var(--color-danger); display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.fs-pick, .fs-bar { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 16px; }
+.fs-bar { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 16px; }
+.fs-group { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fs-box-name { margin: 0; font-size: 1rem; }
+.fs-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.fs-row { border: 1px solid var(--color-border); border-radius: var(--radius-md, 6px); padding: 6px 8px; min-width: 0; }
+.fs-row-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; min-width: 0; }
+.fs-name { display: flex; flex-direction: column; flex: 1 1 12rem; min-width: 0; }
+.fs-key { font-weight: 600; overflow-wrap: anywhere; }
+.fs-path { font-family: var(--font-mono); font-size: 0.8125rem; overflow-wrap: anywhere; }
+.fs-state { font-size: 0.8125rem; }
+.fs-state-off { color: var(--color-danger); }
+.fs-meta { font-size: 0.875rem; }
+.fs-open { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; min-width: 0; }
 .fs-field { display: flex; flex-direction: column; gap: 4px; font-size: 0.875rem; min-width: 0; }
-.fs-field select, .fs-field input { max-width: 100%; }
+.fs-field input { max-width: 100%; }
 .fs-find { flex: 1 1 12rem; }
 .fs-check { display: inline-flex; align-items: center; gap: 6px; }
 .fs-new { color: var(--color-muted); font-size: 0.875rem; }
@@ -256,8 +275,8 @@ onBeforeUnmount(() => {
 .fs-marker { color: var(--color-muted); font-style: italic; }
 .fs-hit { background: var(--color-highlight, rgba(255, 213, 0, 0.25)); }
 .fs-older { margin-bottom: 6px; }
-/* a phone: the selects stacked */
+/* a phone: a row's facts and button wrap under its name */
 @media (max-width: 600px) {
-  .fs-pick { flex-direction: column; align-items: stretch; }
+  .fs-row-head { flex-direction: column; align-items: stretch; }
 }
 </style>

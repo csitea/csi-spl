@@ -3306,8 +3306,6 @@
       "forbidden": "Failų srautus gali skaityti tik darbo srities savininkas ir administratoriai.",
       "error": "Nepavyko įkelti failų srautų.",
       "none": "Failų srautų dar nėra. Mašina seka tik savo leidžiamųjų sąraše esančius failus.",
-      "box": "Mašina",
-      "file": "Failas",
       "find": "Rasti rodinyje",
       "follow": "Sekti",
       "pause": "Pristabdyti",
@@ -3317,7 +3315,11 @@
       "not_following": "Šis failas dabar nesekamas ({state}).",
       "log_label": "Failo {file} eilutės",
       "load_older": "Įkelti senesnius",
-      "empty": "Eilučių dar nėra."
+      "empty": "Eilučių dar nėra.",
+      "tail": "tail -f",
+      "tail_title": "Sekti {file} tiesiogiai",
+      "last_line": "Paskutinė eilutė: {at}",
+      "lines_total": "{n} eilutė | Eilučių: {n}"
     }
   },
   "takeover": {

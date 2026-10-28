@@ -3306,8 +3306,6 @@
       "forbidden": "Failivooge saavad lugeda ainult tööruumi omanik ja administraatorid.",
       "error": "Failivooge ei õnnestunud laadida.",
       "none": "Failivooge veel pole. Kast jälgib ainult oma lubatud loendis olevaid faile.",
-      "box": "Kast",
-      "file": "Fail",
       "find": "Otsi vaates",
       "follow": "Jälgi",
       "pause": "Peata",
@@ -3317,7 +3315,11 @@
       "not_following": "Seda faili praegu ei jälgita ({state}).",
       "log_label": "Faili {file} read",
       "load_older": "Laadi vanemad",
-      "empty": "Ridu veel pole."
+      "empty": "Ridu veel pole.",
+      "tail": "tail -f",
+      "tail_title": "Jälgi faili {file} reaalajas",
+      "last_line": "Viimane rida: {at}",
+      "lines_total": "{n} rida | {n} rida"
     }
   },
   "takeover": {

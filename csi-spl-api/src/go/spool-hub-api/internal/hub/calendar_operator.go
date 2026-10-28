@@ -127,7 +127,12 @@ func (s *Server) operatorCalendarTopicOK(w http.ResponseWriter, r *http.Request,
 	if topic == nil || strings.TrimSpace(*topic) == "" {
 		return true
 	}
-	envs, err := s.o.Store.TaskEnvelopes(r.Context(), tenant, strings.TrimSpace(*topic))
+	id := strings.ToLower(strings.TrimSpace(*topic))
+	if !uuidRe.MatchString(id) { // checked here: messages.task_id is uuid, Postgres would throw 22P02
+		writeIssueErr(w, badCalendar("topic_id is not a topic of this workspace"))
+		return false
+	}
+	envs, err := s.o.Store.TaskEnvelopes(r.Context(), tenant, id)
 	if err != nil {
 		s.writeCalendarErr(w, tenant, "operator topic", err)
 		return false

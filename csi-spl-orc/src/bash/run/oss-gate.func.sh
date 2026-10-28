@@ -167,6 +167,101 @@ oss_gate_go_list() {
   sort -u -o "$out" "$out"
 }
 
+# oss_gate_inputs <dir> <report> <rules> <gitleaks config> <15 workflow> - the
+# fail-closed input refusals and the CI gitleaks pin; 2 on the first refusal.
+oss_gate_inputs() {
+  local dir="$1" report="$2" rules="$3" cfg="$4" wf_s="$5" ci_ver
+  [[ "$report" != "$dir"/* ]] || { do_log "FATAL OSS_GATE_REPORT must not be inside DIR (it would ship)"; return 2; }
+  [[ -f "$rules" ]] || { do_log "FATAL no literal rules at $rules"; return 2; }
+  [[ -f "$cfg" ]] || { do_log "FATAL no gitleaks config at $cfg"; return 2; }
+  ci_ver=$(oss_gitleaks_ci_version "$wf_s")
+  [[ "$ci_ver" == "$OSS_GITLEAKS_VERSION" ]] \
+    || { do_log "FATAL CI pins gitleaks '$ci_ver', this gate pins $OSS_GITLEAKS_VERSION - move both together"; return 2; }
+}
+
+# oss_gate_header <dir> <report> - start the report with its comment lines
+oss_gate_header() {
+  local dir="$1" report="$2"
+  {
+    echo "# do_oss_gate report - class<TAB>path<TAB>line<TAB>rule (never the matched value)"
+    echo "# dir=$dir"
+    echo "# src=$(git -C "$APP_PATH" rev-parse HEAD 2>/dev/null) gitleaks=$OSS_GITLEAKS_VERSION utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  } >"$report"
+}
+
+# oss_gate_scans <unmeasured array name> <dir> <report> <rules> <assets> <cnf>
+# <gitleaks config> <10 workflow> <oss-gate.py> - the secret, hygiene and
+# literal scans; a class that could not run is appended to the named array.
+oss_gate_scans() {
+  local -n _oss_scan_um="$1"
+  local dir="$2" report="$3" rules="$4" assets="$5" cnf="$6" cfg="$7" wf_q="$8" py="$9" cnfvars
+  oss_gate_secrets "$dir" "$cfg" "$report" || _oss_scan_um+=(secret)
+  oss_gate_hygiene "$dir" "$wf_q" "$report" || _oss_scan_um+=(hygiene)
+  cnfvars=$(mktemp)
+  if oss_gate_cnf_vars "$rules" "$cnf" "$cnfvars"; then
+    python3 "$py" scan --dir "$dir" --rules "$rules" --assets "$assets" --cnf-vars "$cnfvars" --report "$report" || _oss_scan_um+=(literals)
+  else
+    _oss_scan_um+=(literals:cnf)
+  fi
+  rm -f "$cnfvars"
+}
+
+# oss_gate_node_modules <dir> - print the WUI node_modules to read npm licences
+# from (OSS_GATE_NODE_MODULES, the export's, or the checkout's on an equal lock)
+oss_gate_node_modules() {
+  local dir="$1" nm="${OSS_GATE_NODE_MODULES:-}"
+  if [[ -z "$nm" ]]; then
+    if [[ -d "$dir/csi-spl-wui/node_modules" ]]; then
+      nm="$dir/csi-spl-wui/node_modules"
+    elif [[ -f "$dir/csi-spl-wui/pnpm-lock.yaml" ]] \
+      && cmp -s "$dir/csi-spl-wui/pnpm-lock.yaml" "$APP_PATH/csi-spl-wui/pnpm-lock.yaml" \
+      && [[ -d "$APP_PATH/csi-spl-wui/node_modules" ]]; then
+      nm="$APP_PATH/csi-spl-wui/node_modules"
+    fi
+  fi
+  printf '%s\n' "$nm"
+}
+
+# oss_gate_deps <unmeasured array name> <dir> <report> <oss-gate.py> - the
+# dependency licences (npm, go list); an unmeasured class goes to the array.
+oss_gate_deps() {
+  local -n _oss_dep_um="$1"
+  local dir="$2" report="$3" py="$4" golist nm
+  if [[ "${OSS_GATE_SKIP_DEPS:-0}" == 1 ]]; then
+    _oss_dep_um+=(dep-licence:SKIPPED); return 0
+  fi
+  golist=$(mktemp)
+  nm=$(oss_gate_node_modules "$dir")
+  if [[ -f "$dir/csi-spl-wui/package.json" && -z "$nm" ]]; then
+    do_log "ERROR no node_modules matching the exported pnpm-lock.yaml - npm licences not measured"
+    _oss_dep_um+=(dep-licence:npm)
+  fi
+  if oss_gate_go_list "$dir" "$golist"; then
+    python3 "$py" deps --report "$report" --go-list "$golist" ${nm:+--node-modules "$nm"} || _oss_dep_um+=(dep-licence)
+  else
+    _oss_dep_um+=(dep-licence:go)
+  fi
+  rm -f "$golist"
+}
+
+# oss_gate_verdict <report> <rules> <oss-gate.py> [unmeasured class...] - the
+# per-class summary, then 2 when a class went unmeasured, 1 on hits, else 0.
+oss_gate_verdict() {
+  local report="$1" rules="$2" py="$3" classes rc=0
+  shift 3
+  classes="secret,hygiene,forbidden-file,image-unlicensed,licence,ci-runner,dep-licence,$(grep -v '^#' "$rules" | cut -f1 | grep . | sort -u | paste -sd,)"
+  python3 "$py" summary --report "$report" --classes "$classes" || rc=1
+  if (( $# )); then
+    do_log "FATAL not measured: $* - this gate proved nothing for them (report $report)"
+    return 2
+  fi
+  if (( rc )); then
+    do_log "FATAL the export gate FAILS: hits above, file:line in $report"
+    return 1
+  fi
+  do_log "INFO the export gate is clean: every class 0 (report $report)"
+}
+
 do_oss_gate() {
   do_require_bin python3 jq yq git curl || return 2
   local dir="${DIR:-}"
@@ -180,66 +275,10 @@ do_oss_gate() {
   local wf_s="$APP_PATH/.github/workflows/15_sec-deps-secrets.yml"
   local py="$orc/src/bash/scripts/oss-gate.py" cfg="$APP_PATH/.gitleaks.toml"
   local cnf="${OSS_GATE_CNF:-$APP_PATH/csi-spl-cnf/csi-spl/all.env.yaml}"
-  local unmeasured=() golist ci_ver nm
-  [[ "$report" != "$dir"/* ]] || { do_log "FATAL OSS_GATE_REPORT must not be inside DIR (it would ship)"; return 2; }
-  [[ -f "$rules" ]] || { do_log "FATAL no literal rules at $rules"; return 2; }
-  [[ -f "$cfg" ]] || { do_log "FATAL no gitleaks config at $cfg"; return 2; }
-  ci_ver=$(oss_gitleaks_ci_version "$wf_s")
-  [[ "$ci_ver" == "$OSS_GITLEAKS_VERSION" ]] \
-    || { do_log "FATAL CI pins gitleaks '$ci_ver', this gate pins $OSS_GITLEAKS_VERSION - move both together"; return 2; }
-
-  {
-    echo "# do_oss_gate report - class<TAB>path<TAB>line<TAB>rule (never the matched value)"
-    echo "# dir=$dir"
-    echo "# src=$(git -C "$APP_PATH" rev-parse HEAD 2>/dev/null) gitleaks=$OSS_GITLEAKS_VERSION utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  } >"$report" || return 2
-
-  oss_gate_secrets "$dir" "$cfg" "$report" || unmeasured+=(secret)
-  oss_gate_hygiene "$dir" "$wf_q" "$report" || unmeasured+=(hygiene)
-  local cnfvars; cnfvars=$(mktemp)
-  if oss_gate_cnf_vars "$rules" "$cnf" "$cnfvars"; then
-    python3 "$py" scan --dir "$dir" --rules "$rules" --assets "$assets" --cnf-vars "$cnfvars" --report "$report" || unmeasured+=(literals)
-  else
-    unmeasured+=(literals:cnf)
-  fi
-  rm -f "$cnfvars"
-
-  if [[ "${OSS_GATE_SKIP_DEPS:-0}" == 1 ]]; then
-    unmeasured+=(dep-licence:SKIPPED)
-  else
-    golist=$(mktemp)
-    nm="${OSS_GATE_NODE_MODULES:-}"
-    if [[ -z "$nm" ]]; then
-      if [[ -d "$dir/csi-spl-wui/node_modules" ]]; then
-        nm="$dir/csi-spl-wui/node_modules"
-      elif [[ -f "$dir/csi-spl-wui/pnpm-lock.yaml" ]] \
-        && cmp -s "$dir/csi-spl-wui/pnpm-lock.yaml" "$APP_PATH/csi-spl-wui/pnpm-lock.yaml" \
-        && [[ -d "$APP_PATH/csi-spl-wui/node_modules" ]]; then
-        nm="$APP_PATH/csi-spl-wui/node_modules"
-      fi
-    fi
-    if [[ -f "$dir/csi-spl-wui/package.json" && -z "$nm" ]]; then
-      do_log "ERROR no node_modules matching the exported pnpm-lock.yaml - npm licences not measured"
-      unmeasured+=(dep-licence:npm)
-    fi
-    if oss_gate_go_list "$dir" "$golist"; then
-      python3 "$py" deps --report "$report" --go-list "$golist" ${nm:+--node-modules "$nm"} || unmeasured+=(dep-licence)
-    else
-      unmeasured+=(dep-licence:go)
-    fi
-    rm -f "$golist"
-  fi
-
-  local classes rc=0
-  classes="secret,hygiene,forbidden-file,image-unlicensed,licence,ci-runner,dep-licence,$(grep -v '^#' "$rules" | cut -f1 | grep . | sort -u | paste -sd,)"
-  python3 "$py" summary --report "$report" --classes "$classes" || rc=1
-  if (( ${#unmeasured[@]} )); then
-    do_log "FATAL not measured: ${unmeasured[*]} - this gate proved nothing for them (report $report)"
-    return 2
-  fi
-  if (( rc )); then
-    do_log "FATAL the export gate FAILS: hits above, file:line in $report"
-    return 1
-  fi
-  do_log "INFO the export gate is clean: every class 0 (report $report)"
+  local unmeasured=()
+  oss_gate_inputs "$dir" "$report" "$rules" "$cfg" "$wf_s" || return 2
+  oss_gate_header "$dir" "$report" || return 2
+  oss_gate_scans unmeasured "$dir" "$report" "$rules" "$assets" "$cnf" "$cfg" "$wf_q" "$py"
+  oss_gate_deps unmeasured "$dir" "$report" "$py"
+  oss_gate_verdict "$report" "$rules" "$py" "${unmeasured[@]}"
 }

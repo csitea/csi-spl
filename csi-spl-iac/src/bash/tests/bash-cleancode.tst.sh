@@ -28,7 +28,6 @@ LONG="
   csi-spl-orc/lib/bash/funcs/lde-cnf.func.sh do_lde_cnf 76
   csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh _spawn_worktree 79
   csi-spl-orc/src/bash/run/export-all-dns-settings.func.sh do_export_all_dns_settings 77
-  csi-spl-orc/src/bash/run/oss-gate.func.sh do_oss_gate 76
   csi-spl-orc/src/bash/run/spl-agent-identity-restore.func.sh do_spl_agent_identity_restore 80
   csi-spl-orc/src/bash/run/spl-agent-mcp-install.func.sh do_spl_agent_mcp_install 80
   csi-spl-orc/src/bash/run/spl-auth-idp-secret-seed.func.sh do_spl_auth_idp_secret_seed 80

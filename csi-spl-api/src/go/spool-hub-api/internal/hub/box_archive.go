@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -22,7 +23,8 @@ import (
 // "Who can archive topics" (CLE-77819), read for a box as:
 //   - everyone (the default): a box that can read the card - it sent it, it
 //     is addressed to it, or the hub delivered it there (the tail rule,
-//     BoxTaskEnvelopes) - and nothing else;
+//     BoxTaskEnvelopes) - or whose acting agent is a member of the card's
+//     channel (boxMemberReadsCard), and nothing else;
 //   - starter: only the box that sent the card;
 //   - admins: never a box (a box is not a tenant admin).
 // An issue's discussion and the lobby keep their own lifecycle, as in the
@@ -84,7 +86,7 @@ func (s *Server) boxArchive(ctx context.Context, x *session, f wire.Frame) (map[
 		return nil, &issueErr{http.StatusInternalServerError, "internal", "topic unavailable"}
 	}
 	// The read door: a topic this box cannot read answers as absent.
-	if !s.boxReadsCard(ctx, x, m) {
+	if !s.boxReadsCard(ctx, x, m) && !s.boxMemberReadsCard(ctx, x, f.As, task, card) {
 		return nil, &issueErr{http.StatusNotFound, "not_found", "no such topic"}
 	}
 	if card.IssueTopic {
@@ -116,6 +118,38 @@ func (s *Server) boxReadsCard(ctx context.Context, x *session, m store.EditableM
 	}
 	st, err := s.o.Store.DeliveryState(ctx, x.tenant, m.MsgID, x.box)
 	return err == nil && st != ""
+}
+
+// boxMemberReadsCard is the channel half of the read door (SPL-3965): agent
+// as, seated on this box, is a member of the channel the card is stored in,
+// so every post in it is delivered to it and it may post in the topic. The
+// tail rule alone missed a card opened before the box was seated: a prd
+// topic whose card reached only a retired desk box answered not_found to
+// the member desks that had posted in it. A DM card (no channel), the issue
+// discussions, a topic in a private scope (spec 144) and an agent dedicated
+// to another scope never read this way; a store that cannot say so fails
+// closed. The tenant is the session's, so no other tenant is read.
+func (s *Server) boxMemberReadsCard(ctx context.Context, x *session, as, task string, card store.TaskCard) bool {
+	ch := store.NormalizeChannel(card.Channel)
+	if ch == "" || store.ChannelHidden(ch) {
+		return false
+	}
+	members, err := s.o.Store.ChannelMembers(ctx, x.tenant, ch)
+	if err != nil || !slices.Contains(members[x.box], as) {
+		return false
+	}
+	ds, ok := s.o.Store.(store.DedicatedStore)
+	if !ok {
+		return false
+	}
+	if private, err := ds.IsPrivateScope(ctx, x.tenant, store.ScopeTopic, task); err != nil || private {
+		return false
+	}
+	b, err := ds.GetDedicatedBinding(ctx, x.tenant, as, x.box)
+	if errors.Is(err, store.ErrNotFound) {
+		return true
+	}
+	return err == nil && b.ScopeType == store.ScopeChannel && b.ScopeID == ch
 }
 
 // boxMayArchive is "Who can archive topics" for a box that reads the card.

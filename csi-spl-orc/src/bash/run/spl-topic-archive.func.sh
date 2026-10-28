@@ -11,7 +11,8 @@
 # @description brings it back.
 # @description WHO MAY: the workspace setting "Who can archive topics" -
 # @description everyone (default): a desk box that reads the topic (it sent,
-# @description was addressed or was delivered the opening card); starter: only
+# @description was addressed or was delivered the opening card, or DESK_AGENT
+# @description is a member of the topic's channel on it, SPL-3965); starter: only
 # @description a topic the desk box opened; admins: never a box (use the WUI).
 # @description An issue's discussion is archived with its issue (issue_topic),
 # @description and the lobby card by card from the WUI.
@@ -60,7 +61,7 @@ do_spl_topic_archive() {
     [[ "$out" == *issue_topic* ]] &&
       do_log "FATAL $topic is an issue's discussion: it is archived with its issue (the issue dialog's Archive), not here"
     [[ "$out" == *not_found* ]] &&
-      do_log "FATAL no topic $topic that $box reads in $tenant (absent, past retention, or never delivered to the desk)"
+      do_log "FATAL no topic $topic that $box reads in $tenant: absent, past retention, or its opening card was never delivered to the desk and $agent is no member of its channel on $box (invite $agent to the channel, or archive it in the WUI)"
     [[ "$out" == *not_allowed* ]] &&
       do_log "FATAL the workspace setting \"Who can archive topics\" does not let $box $mode $topic: use the WUI as an owner / admin"
     [[ "$out" == *'bad_frame'*'unknown frame type'* ]] &&

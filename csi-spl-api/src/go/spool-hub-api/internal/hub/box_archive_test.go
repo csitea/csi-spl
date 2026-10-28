@@ -153,3 +153,59 @@ func TestBoxArchiveIssueRefused(t *testing.T) {
 		t.Fatalf("issue topic archive: %v", err)
 	}
 }
+
+// SPL-3965 (prd t1 topic bea3a4e6 in #spool-hub-devel): a channel topic whose
+// card reached only a box that is gone answered not_found to the member
+// desks that posted in it. A box whose acting agent is a member of the
+// card's channel reads the card; a non-member, a private-scope topic and an
+// agent dedicated to another scope still read it as absent.
+func TestBoxArchiveChannelMember(t *testing.T) {
+	e, tid, _, _, _, c := boxArchiveRig(t)
+	ctx, now := context.Background(), time.Now().UTC()
+	if err := e.st.CreateChannel(ctx, store.Channel{TenantID: tid, ChannelID: "devel", Name: "devel", CreatedBy: "HUM-1", CreatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	task := uuidV4()
+	card := uuidV4()
+	m := store.Message{TenantID: tid, MsgID: card, TaskID: task, Channel: "devel", IsParent: 1, TS: now,
+		FromBox: hub.WUIBox, FromID: "HUM-1", ToBox: hub.WUIBox, ToID: "HUM-1", Kind: "note", Body: "archive me",
+		Files: []byte(`[]`), Msg: []byte(`{"v":1}`), Env: []byte(`{"id":"` + card + `"}`), ReceivedAt: now, ExpiresAt: now.Add(24 * time.Hour)}
+	if _, err := e.st.InsertMessage(ctx, m); err != nil {
+		t.Fatal(err)
+	}
+	archive := func(label, want string) {
+		t.Helper()
+		_, err := action.Archive(ctx, c.cfg, action.ArchiveArgs{TaskID: task, As: "CLE-09", Hub: c.c})
+		if hubToken(err) != want {
+			t.Fatalf("%s: want %q, got %v", label, want, err)
+		}
+		st, _ := e.st.CardState(ctx, tid, card, time.Now())
+		if got := !st.ArchivedAt.IsZero(); got != (want == "") {
+			t.Fatalf("%s: archived=%v", label, got)
+		}
+		if got := !st.ArchivedAt.IsZero(); got {
+			if _, err := action.Archive(ctx, c.cfg, action.ArchiveArgs{TaskID: task, As: "CLE-09", Unarchive: true, Hub: c.c}); err != nil {
+				t.Fatalf("%s unarchive: %v", label, err)
+			}
+		}
+	}
+	archive("non-member", "not_found")
+	if err := e.st.InviteChannelAgent(ctx, tid, "devel", "box-c", "CLE-09", now); err != nil {
+		t.Fatal(err)
+	}
+	archive("member, card never delivered", "")
+
+	ds := e.st.(store.DedicatedStore)
+	if err := ds.SetPrivateScope(ctx, tid, store.ScopeTopic, task, true, now); err != nil {
+		t.Fatal(err)
+	}
+	archive("member, private topic", "not_found")
+	if err := ds.SetPrivateScope(ctx, tid, store.ScopeTopic, task, false, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ds.SetDedicatedBinding(ctx, store.DedicatedBinding{TenantID: tid, AgentID: "CLE-09", BoxID: "box-c",
+		ScopeType: store.ScopeChannel, ScopeID: "lobby", BoundBy: "HUM-1"}); err != nil {
+		t.Fatal(err)
+	}
+	archive("member, dedicated elsewhere", "not_found")
+}

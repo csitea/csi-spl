@@ -1126,7 +1126,11 @@
       "tenants": "Робочі простори",
       "events": "Журнал подій",
       "issues": "Заявки",
-      "docs": "Документи"
+      "docs": "Документи",
+      "file_lines": "Рядки файлових потоків"
+    },
+    "notice": {
+      "file_streams_staff_only": "Рядки файлових потоків бачать лише власник і адміністратори робочого простору."
     },
     "placeholder_target": "Повідомлення для {target} — Enter для нового рядка · Ctrl+Enter або Cmd+Enter надсилає · /search шукає всюди",
     "phone_hints": "Enter для нового рядка · Ctrl+Enter або Cmd+Enter надсилає · /search шукає всюди",

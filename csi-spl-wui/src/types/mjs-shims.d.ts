@@ -1211,7 +1211,7 @@ declare module '~/utils/highlighter.mjs' {
 }
 
 declare module '~/utils/search.mjs' {
-  export type SearchGroupType = 'robots' | 'users' | 'channels' | 'boxes' | 'tenants' | 'topics' | 'files' | 'messages' | 'docs' | 'events' | 'issues'
+  export type SearchGroupType = 'robots' | 'users' | 'channels' | 'boxes' | 'tenants' | 'topics' | 'files' | 'messages' | 'docs' | 'file_lines' | 'events' | 'issues'
   export interface SearchOperator { op: string, example?: string, values?: string[] }
   export interface SearchRow {
     type: SearchGroupType
@@ -1224,6 +1224,8 @@ declare module '~/utils/search.mjs' {
     query: string
     groups: SearchGroup[]
     warnings: { token: string, pos: number, detail: string }[]
+    /** stable codes (search-v1 §4, spec 160 3.6); absent on an older hub */
+    notices?: string[]
   }
   export const SEARCH_OPERATORS: SearchOperator[]
   export const OP_PICKER_CAP: number

@@ -1126,7 +1126,11 @@
       "tenants": "Darbvietas",
       "events": "Notikumu žurnāls",
       "issues": "Problēmas",
-      "docs": "Dokumenti"
+      "docs": "Dokumenti",
+      "file_lines": "Failu plūsmu rindas"
+    },
+    "notice": {
+      "file_streams_staff_only": "Failu plūsmu rindas redz tikai darbvietas īpašnieks un administratori."
     },
     "placeholder_target": "Ziņa: {target} — Enter jaunai rindai · Ctrl+Enter vai Cmd+Enter nosūta · /search meklē visur",
     "phone_hints": "Enter jaunai rindai · Ctrl+Enter vai Cmd+Enter nosūta · /search meklē visur",

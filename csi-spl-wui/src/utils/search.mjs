@@ -26,7 +26,7 @@ const SEARCH_CMD_RE = /^\/(?:search|s)(?::|\s|$)/i
  * `values` are closed value sets offered after the colon.
  */
 /** Canonical kinds first, then the aliases a person actually types. */
-const TYPE_VALUES = ['message', 'topic', 'file', 'robot', 'user', 'channel', 'box', 'tenant', 'event', 'issue', 'doc', 'thread', 'person', 'workspace', 'log', 'issues', 'ticket', 'tickets', 'docs', 'document', 'qto']
+const TYPE_VALUES = ['message', 'topic', 'file', 'robot', 'user', 'channel', 'box', 'tenant', 'event', 'issue', 'doc', 'file_line', 'thread', 'person', 'workspace', 'log', 'issues', 'ticket', 'tickets', 'docs', 'document', 'qto']
 
 /** Rows the omnibox list shows. The nine kinds fit; a longer prefix narrows the rest. */
 export const OP_PICKER_CAP = 12
@@ -49,8 +49,8 @@ function issueOperators() {
 export const SEARCH_OPERATORS = [
   { op: 'from:', example: 'from:CLE-07' },
   { op: 'to:', example: 'to:HUM-1' },
-  { op: 'in:', example: 'in:#lobby', values: ['dm'] },
-  { op: 'channel:', example: 'channel:#lobby', values: ['dm'] },
+  { op: 'in:', example: 'in:#lobby', values: ['dm', 'file-streams'] },
+  { op: 'channel:', example: 'channel:#lobby', values: ['dm', 'file-streams'] },
   { op: 'is:', values: ['task', 'note', 'result', 'reject', 'blocker', 'msg', 'relay', 'root', 'online', 'offline', 'revoked'] },
   { op: 'has:', values: ['file', 'attachment', 'code'] },
   { op: 'type:', values: TYPE_VALUES },
@@ -100,7 +100,7 @@ export function ensureSearchOperators(catalogue = SEARCH_OPERATORS) {
   }
   if (!has('channel:') && has('in:')) {
     const inn = out.find((o) => o.op === 'in:')
-    out.push({ op: 'channel:', example: 'channel:#lobby', values: Array.isArray(inn.values) ? inn.values.slice() : ['dm'] })
+    out.push({ op: 'channel:', example: 'channel:#lobby', values: Array.isArray(inn.values) ? inn.values.slice() : ['dm', 'file-streams'] })
     changed = true
   }
   for (const extra of issueOperators()) {

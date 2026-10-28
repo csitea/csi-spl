@@ -1126,7 +1126,11 @@
       "tenants": "סביבות עבודה",
       "events": "יומן אירועים",
       "issues": "סוגיות",
-      "docs": "מסמכים"
+      "docs": "מסמכים",
+      "file_lines": "שורות מזרמי קבצים"
+    },
+    "notice": {
+      "file_streams_staff_only": "שורות מזרמי קבצים מוצגות רק לבעלים ולמנהלי המערכת של סביבת העבודה."
     },
     "placeholder_target": "הודעה אל {target} — Enter לשורה חדשה · Ctrl+Enter או Cmd+Enter לשליחה · ‎/search לחיפוש בכל מקום",
     "phone_hints": "Enter לשורה חדשה · Ctrl+Enter או Cmd+Enter לשליחה · ‎/search לחיפוש בכל מקום",

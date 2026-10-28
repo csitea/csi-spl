@@ -1126,7 +1126,11 @@
       "tenants": "Arbetsytor",
       "events": "Händelselogg",
       "issues": "Ärenden",
-      "docs": "Dokument"
+      "docs": "Dokument",
+      "file_lines": "Rader från filströmmar"
+    },
+    "notice": {
+      "file_streams_staff_only": "Rader från filströmmar visas bara för arbetsytans ägare och administratörer."
     },
     "placeholder_target": "Meddelande till {target} — Enter för en ny rad · Ctrl+Enter eller Cmd+Enter skickar · /search söker överallt",
     "phone_hints": "Enter för en ny rad · Ctrl+Enter eller Cmd+Enter skickar · /search söker överallt",

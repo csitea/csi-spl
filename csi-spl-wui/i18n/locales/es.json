@@ -1126,7 +1126,11 @@
       "tenants": "Espacios de trabajo",
       "events": "Registro de eventos",
       "issues": "Incidencias",
-      "docs": "Documentos"
+      "docs": "Documentos",
+      "file_lines": "Líneas de flujos de archivos"
+    },
+    "notice": {
+      "file_streams_staff_only": "Las líneas de flujos de archivos solo se muestran al propietario y a los administradores del espacio de trabajo."
     },
     "placeholder_target": "Mensaje a {target} — Enter para una línea nueva · Ctrl+Enter o Cmd+Enter para enviar · /search para buscar en todo",
     "phone_hints": "Enter para una línea nueva · Ctrl+Enter o Cmd+Enter para enviar · /search para buscar en todo",

@@ -1126,7 +1126,11 @@
       "tenants": "Darbo sritys",
       "events": "Įvykių žurnalas",
       "issues": "Problemos",
-      "docs": "Dokumentai"
+      "docs": "Dokumentai",
+      "file_lines": "Failų srautų eilutės"
+    },
+    "notice": {
+      "file_streams_staff_only": "Failų srautų eilutės rodomos tik darbo srities savininkui ir administratoriams."
     },
     "placeholder_target": "Žinutė: {target} — Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter siunčia · /search ieško visur",
     "phone_hints": "Enter naujai eilutei · Ctrl+Enter arba Cmd+Enter siunčia · /search ieško visur",

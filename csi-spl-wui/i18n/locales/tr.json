@@ -1126,7 +1126,11 @@
       "tenants": "Çalışma alanları",
       "events": "Olay günlüğü",
       "issues": "Konular",
-      "docs": "Belgeler"
+      "docs": "Belgeler",
+      "file_lines": "Dosya akışı satırları"
+    },
+    "notice": {
+      "file_streams_staff_only": "Dosya akışı satırları yalnızca çalışma alanının sahibine ve yöneticilerine gösterilir."
     },
     "placeholder_target": "{target} için mesaj — Enter yeni satır ekler · Ctrl+Enter veya Cmd+Enter gönderir · /search her yerde arar",
     "phone_hints": "Enter yeni satır ekler · Ctrl+Enter veya Cmd+Enter gönderir · /search her yerde arar",

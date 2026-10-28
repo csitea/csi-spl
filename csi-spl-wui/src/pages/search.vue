@@ -17,6 +17,10 @@
           <code v-if="w.token" dir="ltr">{{ w.token }}</code> {{ w.detail }}
         </li>
       </ul>
+      <!-- spec 160 3.6: the answer's notices, one line each (a stable code -> a text key) -->
+      <ul v-if="result && result.notices && result.notices.length" class="search-warnings" data-test="search-notices">
+        <li v-for="n in result.notices" :key="n" class="muted">{{ te('search.notice.' + n) ? t('search.notice.' + n) : n }}</li>
+      </ul>
 
       <section v-if="!query" class="search-help" data-test="search-help">
         <p class="muted">{{ t('search.help_intro') }}</p>

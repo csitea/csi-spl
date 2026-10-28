@@ -16,8 +16,9 @@ import { parentSection, parentSectionHref } from './parent-section.mjs'
 /** Result sections in render order (spec 022 FR-021; group keys of search-v1 §4).
  *  tenants, events and issues are opt-in: the hub returns them for type:tenant,
  *  type:event and type:issue. docs (spec 100 section 14, SPL-3337) are the
- *  workspace's Qto document sections, in every plain search. */
-export const SEARCH_GROUPS = ['robots', 'users', 'channels', 'boxes', 'tenants', 'topics', 'files', 'messages', 'docs', 'events', 'issues']
+ *  workspace's Qto document sections, in every plain search. file_lines (spec
+ *  160 3.6) are the box file stream lines, only for in:file-streams. */
+export const SEARCH_GROUPS = ['robots', 'users', 'channels', 'boxes', 'tenants', 'topics', 'files', 'messages', 'docs', 'file_lines', 'events', 'issues']
 
 /**
  * Canonical type names, then each type's aliases. `type:` completions lead
@@ -119,6 +120,9 @@ function textOf(v) {
  *  A doc section: its snippet when the words matched there, else its heading
  *  (a document's title for its top). */
 function displayOf(r, type) {
+  if (type === 'file_lines') { /* a stream line: its own text, the highlights beside it (search-v1 §4.11) */
+    return { text: typeof r.text === 'string' ? r.text : '', highlights: Array.isArray(r.highlights) ? r.highlights : [] }
+  }
   if (type === 'docs') {
     const sn = textOf(r.snippet)
     return (sn && sn.text && sn.highlights.length ? sn : textOf(r.title)) || { text: '', highlights: [] }
@@ -135,13 +139,15 @@ function keyOf(type, r, i) {
     return `issues:${k || i}`
   }
   if (type === 'docs') return `docs:${r.item_id || i}`
+  if (type === 'file_lines') return `file_lines:${r.stream_id || ''}:${r.seq ?? i}`
   const id = r.msg_id || r.file_id || r.task_id || r.box_id || r.channel || r.tenant_id || r.event_id || r.error_id || r.id || i
   const extra = type === 'files' ? `/${r.msg_id || ''}/${displayOf(r).text}` : ''
   return `${type}:${id}${r.box ? '@' + r.box : ''}${extra}`
 }
 
 /**
- * search-v1 §4 answer → { query, groups: [{ type, items, next }], warnings }.
+ * search-v1 §4 answer → { query, groups: [{ type, items, next }], warnings, notices }.
+ * notices are the answer's stable codes (spec 160 3.6), e.g. file_streams_staff_only.
  * Each group keeps its own `next` cursor (a cursor answers one section). A
  * group given as a bare array, or a flat `results[]`, is accepted too.
  */
@@ -168,7 +174,8 @@ export function normalizeSearchResponse(data) {
     typeof w === 'string'
       ? { token: '', pos: -1, detail: w }
       : { token: String((w && w.token) || ''), pos: Number.isInteger(w && w.pos) ? w.pos : -1, detail: String((w && (w.detail || w.message)) || '') })
-  return { query: String(d.query || ''), groups: groups.filter((g) => g.items.length), warnings }
+  const notices = (Array.isArray(d.notices) ? d.notices : []).filter((n) => typeof n === 'string' && /^[a-z0-9_]{1,64}$/.test(n))
+  return { query: String(d.query || ''), groups: groups.filter((g) => g.items.length), warnings, notices }
 }
 
 /**
@@ -257,6 +264,14 @@ export function searchTarget(row) {
       const key = String(raw ?? '').trim()
       if (!key) return null
       return { path: `/issues?issue=${encodeURIComponent(key)}` }
+    }
+    case 'file_lines': {
+      /* the File streams tab at that line, Follow off (spec 160 3.6) */
+      const box = String(r.box_id || '').trim()
+      const stream = String(r.stream_key || '').trim()
+      const seq = Number(r.seq)
+      if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(box) || !/^[a-z0-9][a-z0-9-]{0,31}$/.test(stream) || !Number.isSafeInteger(seq) || seq < 1) return null
+      return { path: `/monitoring/file-streams?box=${encodeURIComponent(box)}&stream=${stream}&seq=${seq}` }
     }
     case 'docs': {
       /* the Qto document, at its section (WorkspaceDocsPage: ?doc=, #ws-doc-<item>) */
@@ -392,7 +407,7 @@ export function mockSearch(messages, q, channels = []) {
     return { channel: id, default: false, count: (messages || []).filter((m) => m.channel === id).length, last_ts: null,
       name: { text: id, highlights: at >= 0 ? [[at, at + w.length]] : [] } }
   })
-  return { query: String(q || ''), sort: 'newest', types: ['message', 'channel'], warnings,
+  return { query: String(q || ''), sort: 'newest', types: ['message', 'channel'], warnings, notices: [],
     groups: { messages: { results, next: null }, channels: { results: chans, next: null } } }
 }
 

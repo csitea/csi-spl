@@ -1126,7 +1126,11 @@
       "tenants": "Werkruimten",
       "events": "Gebeurtenissenlogboek",
       "issues": "Kwesties",
-      "docs": "Documenten"
+      "docs": "Documenten",
+      "file_lines": "Regels uit bestandsstromen"
+    },
+    "notice": {
+      "file_streams_staff_only": "Regels uit bestandsstromen zijn alleen zichtbaar voor de eigenaar en de beheerders van de werkruimte."
     },
     "placeholder_target": "Bericht aan {target} — Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te verzenden · /search om overal te zoeken",
     "phone_hints": "Enter voor een nieuwe regel · Ctrl+Enter of Cmd+Enter om te verzenden · /search om overal te zoeken",

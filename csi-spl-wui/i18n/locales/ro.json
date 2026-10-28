@@ -1126,7 +1126,11 @@
       "tenants": "Spații de lucru",
       "events": "Jurnal de evenimente",
       "issues": "Probleme",
-      "docs": "Documente"
+      "docs": "Documente",
+      "file_lines": "Rânduri din fluxuri de fișiere"
+    },
+    "notice": {
+      "file_streams_staff_only": "Rândurile din fluxurile de fișiere sunt afișate doar proprietarului și administratorilor spațiului de lucru."
     },
     "placeholder_target": "Mesaj către {target} — Enter pentru un rând nou · Ctrl+Enter sau Cmd+Enter pentru a trimite · /search pentru a căuta peste tot",
     "phone_hints": "Enter pentru un rând nou · Ctrl+Enter sau Cmd+Enter pentru a trimite · /search pentru a căuta peste tot",

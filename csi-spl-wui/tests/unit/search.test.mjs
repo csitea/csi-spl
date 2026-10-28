@@ -161,7 +161,7 @@ describe('operator autocomplete', () => {
     assert.equal(operatorTokenAt('/search "a fr', 13), null)
   })
   it('any part of an operator, example, or value matches', () => {
-    assert.deepEqual(completeOperators('f').map((c) => c.insert), ['from:', 'is:offline ', 'has:file ', 'type:file ', 'kind:file ', 'before:', 'after:', 'filename:', 'ext:'])
+    assert.deepEqual(completeOperators('f').map((c) => c.insert), ['from:', 'in:file-streams ', 'channel:file-streams ', 'is:offline ', 'has:file ', 'type:file ', 'type:file_line ', 'kind:file ', 'kind:file_line ', 'before:', 'after:', 'filename:', 'ext:'])
     assert.deepEqual(completeOperators('task').map((c) => c.insert), ['is:task ', 'topic:'])
     assert.ok(completeOperators('Is').some((c) => c.insert === 'is:'))
   })
@@ -171,7 +171,7 @@ describe('operator autocomplete', () => {
     assert.deepEqual(completeOperators('type:ten').map((c) => c.insert), ['type:tenant '])
     assert.deepEqual(completeOperators('type:ev').map((c) => c.insert), ['type:event '])
     assert.deepEqual(completeOperators('kind:ten').map((c) => c.insert), ['kind:tenant '])
-    assert.deepEqual(completeOperators('channel:').map((c) => c.insert), ['channel:dm '])
+    assert.deepEqual(completeOperators('channel:').map((c) => c.insert), ['channel:dm ', 'channel:file-streams '])
     assert.deepEqual(completeOperators('type:top').map((c) => c.insert), ['type:topic '])
     assert.deepEqual(completeOperators('has:c').map((c) => c.insert), ['has:attachment ', 'has:code '])
   })
@@ -218,7 +218,7 @@ describe('operator autocomplete', () => {
     )
     assert.deepEqual(
       completeOperators('f', SEARCH_OPERATORS, roster).map((c) => c.insert),
-      ['from:', 'is:offline ', 'has:file ', 'type:file ', 'kind:file ', 'before:', 'after:', 'filename:', 'ext:'],
+      ['from:', 'in:file-streams ', 'channel:file-streams ', 'is:offline ', 'has:file ', 'type:file ', 'type:file_line ', 'kind:file ', 'kind:file_line ', 'before:', 'after:', 'filename:', 'ext:'],
     )
     const many = Array.from({ length: 9 }, (_, n) => ({ id: `CLE-${n + 1}` }))
     const capped = completeOperators('from:', SEARCH_OPERATORS, many)
@@ -741,5 +741,57 @@ describe('doc hits (spec 100 section 14, SPL-3337)', () => {
       assert.equal(searchTarget(r), null)
     }
     assert.deepEqual(searchTarget({ type: 'docs', doc_id: DOC, item_id: 'x/../y' }), { path: `/workspace/docs?doc=${DOC}&view=doc` })
+  })
+})
+
+describe('file stream lines (spec 160 3.6, SPL-3888)', () => {
+  const SID = '189b59bf-7478-4d7b-b427-65f02b25fc6b'
+  const res = () => normalizeSearchResponse({
+    notices: [],
+    groups: {
+      file_lines: {
+        results: [
+          { stream_id: SID, box_id: 'box-a', stream_key: 'app', seq: 3, at: '2026-10-28T00:10:00Z', text: 'retry zqline ok', highlights: [[6, 12]] },
+          { stream_id: SID, box_id: 'box-a', stream_key: 'app', seq: 1, at: '2026-10-28T00:09:00Z', text: 'deploy zqline failed', highlights: [[7, 13]] },
+        ],
+        next: 'cf',
+      },
+    },
+  })
+  it('file_lines is a group of its own, right after docs; a row shows its line', () => {
+    assert.equal(SEARCH_GROUPS[SEARCH_GROUPS.indexOf('docs') + 1], 'file_lines')
+    const g = res().groups[0]
+    assert.equal(g.type, 'file_lines')
+    assert.equal(g.next, 'cf')
+    assert.deepEqual(g.items.map((x) => x.key), [`file_lines:${SID}:3`, `file_lines:${SID}:1`])
+    assert.equal(g.items[0].display.text, 'retry zqline ok')
+    assert.deepEqual(g.items[0].display.highlights, [[6, 12]])
+    assert.equal(rowAt(g.items[0]), '2026-10-28T00:10:00Z')
+  })
+  it('opens the File streams tab at that line', () => {
+    assert.deepEqual(searchTarget(res().groups[0].items[0]), { path: '/monitoring/file-streams?box=box-a&stream=app&seq=3' })
+  })
+  it('CONTROL: a line row with a junk box, stream or seq has no target', () => {
+    for (const r of [{ type: 'file_lines' }, { type: 'file_lines', box_id: '../x', stream_key: 'app', seq: 1 },
+      { type: 'file_lines', box_id: 'box-a', stream_key: 'App/..', seq: 1 }, { type: 'file_lines', box_id: 'box-a', stream_key: 'app', seq: 0 },
+      { type: 'file_lines', box_id: 'box-a', stream_key: 'app', seq: 'x' }]) {
+      assert.equal(searchTarget(r), null, JSON.stringify(r))
+    }
+  })
+  it('the answer keeps its notices (stable codes only), [] when absent', () => {
+    assert.deepEqual(normalizeSearchResponse({ notices: ['file_streams_staff_only', 'Free Text!', 7] }).notices, ['file_streams_staff_only'])
+    assert.deepEqual(normalizeSearchResponse({}).notices, [])
+    assert.deepEqual(res().notices, [])
+  })
+  it('in: and channel: offer file-streams beside dm', () => {
+    for (const op of ['in:', 'channel:']) {
+      assert.deepEqual(SEARCH_OPERATORS.find((o) => o.op === op).values, ['dm', 'file-streams'])
+    }
+  })
+  it('every locale names the group and the notice', () => {
+    for (const f of readdirSync(join(WUI, 'i18n/locales')).filter((x) => x.endsWith('.json'))) {
+      const s = JSON.parse(readFileSync(join(WUI, 'i18n/locales', f), 'utf8')).search
+      assert.ok(s.group.file_lines && s.notice.file_streams_staff_only, f)
+    }
   })
 })

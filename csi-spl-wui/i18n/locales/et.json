@@ -1126,7 +1126,11 @@
       "tenants": "Tööruumid",
       "events": "Sündmuste logi",
       "issues": "Probleemid",
-      "docs": "Dokumendid"
+      "docs": "Dokumendid",
+      "file_lines": "Failivoogude read"
+    },
+    "notice": {
+      "file_streams_staff_only": "Failivoogude ridu näevad ainult tööruumi omanik ja administraatorid."
     },
     "placeholder_target": "Sõnum: {target} — Enter lisab rea · Ctrl+Enter või Cmd+Enter saadab · /search otsib kõikjalt",
     "phone_hints": "Enter lisab rea · Ctrl+Enter või Cmd+Enter saadab · /search otsib kõikjalt",

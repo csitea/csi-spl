@@ -1126,7 +1126,11 @@
       "tenants": "Obszary robocze",
       "events": "Dziennik zdarzeń",
       "issues": "Zgłoszenia",
-      "docs": "Dokumenty"
+      "docs": "Dokumenty",
+      "file_lines": "Wiersze strumieni plików"
+    },
+    "notice": {
+      "file_streams_staff_only": "Wiersze strumieni plików widzą tylko właściciel i administratorzy obszaru roboczego."
     },
     "placeholder_target": "Wiadomość do {target} — Enter dodaje wiersz · Ctrl+Enter lub Cmd+Enter wysyła · /search szuka wszędzie",
     "phone_hints": "Enter dodaje wiersz · Ctrl+Enter lub Cmd+Enter wysyła · /search szuka wszędzie",

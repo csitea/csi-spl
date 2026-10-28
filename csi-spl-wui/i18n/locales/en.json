@@ -1126,7 +1126,11 @@
       "tenants": "Workspaces",
       "events": "Event log",
       "issues": "Issues",
-      "docs": "Documents"
+      "docs": "Documents",
+      "file_lines": "File stream lines"
+    },
+    "notice": {
+      "file_streams_staff_only": "File stream lines are shown only to the workspace owner and admins."
     },
     "placeholder_target": "Message {target} — Enter for a new line · Ctrl+Enter or Cmd+Enter to send · /search to search everything",
     "phone_hints": "Enter for a new line · Ctrl+Enter or Cmd+Enter to send · /search to search everything",

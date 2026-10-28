@@ -1126,7 +1126,11 @@
       "tenants": "Радни простори",
       "events": "Дневник догађаја",
       "issues": "Проблеми",
-      "docs": "Документи"
+      "docs": "Документи",
+      "file_lines": "Редови из токова датотека"
+    },
+    "notice": {
+      "file_streams_staff_only": "Редове из токова датотека виде само власник и администратори радног простора."
     },
     "placeholder_target": "Порука за {target} — Enter за нови ред · Ctrl+Enter или Cmd+Enter шаље · /search претражује свуда",
     "phone_hints": "Enter за нови ред · Ctrl+Enter или Cmd+Enter шаље · /search претражује свуда",

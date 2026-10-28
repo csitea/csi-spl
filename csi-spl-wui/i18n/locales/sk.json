@@ -1126,7 +1126,11 @@
       "tenants": "Pracovné priestory",
       "events": "Denník udalostí",
       "issues": "Úlohy",
-      "docs": "Dokumenty"
+      "docs": "Dokumenty",
+      "file_lines": "Riadky súborových tokov"
+    },
+    "notice": {
+      "file_streams_staff_only": "Riadky súborových tokov vidí iba vlastník a administrátori pracovného priestoru."
     },
     "placeholder_target": "Správa pre {target} — Enter pridá riadok · Ctrl+Enter alebo Cmd+Enter odošle · /search hľadá všade",
     "phone_hints": "Enter pridá riadok · Ctrl+Enter alebo Cmd+Enter odošle · /search hľadá všade",

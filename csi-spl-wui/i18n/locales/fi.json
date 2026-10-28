@@ -1126,7 +1126,11 @@
       "tenants": "Työtilat",
       "events": "Tapahtumaloki",
       "issues": "Asiat",
-      "docs": "Dokumentit"
+      "docs": "Dokumentit",
+      "file_lines": "Tiedostovirtojen rivit"
+    },
+    "notice": {
+      "file_streams_staff_only": "Tiedostovirtojen rivit näkyvät vain työtilan omistajalle ja ylläpitäjille."
     },
     "placeholder_target": "Viesti: {target} — Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search hakee kaikkialta",
     "phone_hints": "Enter lisää rivin · Ctrl+Enter tai Cmd+Enter lähettää · /search hakee kaikkialta",

@@ -256,6 +256,12 @@ the same e2e also makes the window 300 px shorter after the focus (the
 stripe is not painted), then restores it with the field still focused (the
 stripe is back at the same y).
 
+The bottom status strip (`components/MobileStatusStrip.vue`) steps away on
+the same signal (SPL-4022): it read `--kb-inset` only, so on Android it
+stayed up over the keyboard. It now reads `useKeyboardOpen` too; iOS and the
+desktop are unchanged. Test: the same e2e checks `[data-test=status-strip]`
+is gone while the keyboard is up, in both shapes, and back after it.
+
 Budget for slices 2, 3 and 6: run `csi-spl-orc/src/bash/scripts/perf-budget.py`
 on the mock bundle as a same-box A/B against master before the push.
 

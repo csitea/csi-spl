@@ -49,7 +49,7 @@ const STRIP_IMPORTS = {
   '~/composables/useCopyText': COPY_URL,
   /* row 05's reconnect ripple: not under test here */
   '~/composables/useConnectionRipple': stub('export const vReconnectRipple = {}'),
-  '~/composables/useTouchUi': stub(`import { ref } from '${VUE_URL}'; export const useKeyboardInset = () => ref(0)`),
+  '~/composables/useTouchUi': stub(`import { ref } from '${VUE_URL}'; export const useKeyboardInset = () => ref(0); export const useKeyboardOpen = () => ref(false)`),
   '~/composables/useMobileStack': stub(`import { ref } from '${VUE_URL}'; export const useMobileStack = () => ({ sheetOpen: ref(false), overlay() {} })`),
   '~/composables/useStatusStrip': stub('export function setStatusStripHeight() {}'),
   '~/composables/useClockHost': stub(`import { ref } from '${VUE_URL}'; export const useClockHost = () => ({ strip: ref(false) })`),

@@ -12,6 +12,8 @@
 // interactive-widget=resizes-content makes Android Chrome shrink the whole
 // window for the keyboard (innerHeight AND visualViewport.height drop
 // together), done here by resizing the page's viewport after the focus.
+// SPL-4022: the bottom status strip (MobileStatusStrip, data-test=status-strip)
+// steps away for the keyboard too, in both shapes, and is back after it.
 //
 //   BASE_URL=<generated mock bundle> node tests/e2e/section-strip-kbd-fold.test.mjs
 import { createRequire } from 'node:module'
@@ -56,7 +58,9 @@ const read = (p) => p.evaluate(() => {
       top = Math.round(r.top)
     }
   }
-  return { level: shell?.getAttribute('data-mobile-level'), kbd: shell?.getAttribute('data-mobile-kbd') ?? null, painted, top }
+  const status = document.querySelector('[data-test=status-strip]')
+  const statusShown = Boolean(status) && status.getClientRects().length > 0
+  return { level: shell?.getAttribute('data-mobile-level'), kbd: shell?.getAttribute('data-mobile-kbd') ?? null, painted, top, status: statusShown }
 })
 
 /* a keyboard: the visual viewport KB px shorter (open) or the real one (close) */
@@ -101,22 +105,27 @@ try {
       await p.waitForSelector('.composer textarea', { visible: true, timeout: 15000 }).catch(() => null)
       const before = await read(p)
       ok(`${tag}: the strip is painted before the keyboard (level ${before.level})`, before.painted && before.kbd === null, before)
+      ok(`${tag}: the status strip is shown before the keyboard`, before.status, before)
       const focused = await focusComposer(p, true)
       await keyboard(p, true)
       const up = await read(p)
       ok(`${tag}: composer focused, keyboard up: the strip folds (data-mobile-kbd=1, not painted)`, focused && up.kbd === '1' && !up.painted, { focused, ...up })
+      ok(`${tag}: keyboard up: the status strip steps away`, !up.status, up)
       await keyboard(p, false)
       await focusComposer(p, false)
       const down = await read(p)
       ok(`${tag}: keyboard down: the strip is back at the same y`, down.painted && down.kbd === null && down.top === before.top, { before: before.top, ...down })
+      ok(`${tag}: keyboard down: the status strip is back`, down.status, down)
       /* Android: the window itself KB px shorter while the composer has the focus */
       const aFocused = await focusComposer(p, true)
       await androidKeyboard(p, width, true)
       const aUp = await read(p)
       ok(`${tag}: Android (window ${KB}px shorter), composer focused: the strip folds (data-mobile-kbd=1, not painted)`, aFocused && aUp.kbd === '1' && !aUp.painted, { focused: aFocused, ...aUp })
+      ok(`${tag}: Android keyboard up: the status strip steps away`, !aUp.status, aUp)
       await androidKeyboard(p, width, false)
       const aBack = await read(p)
       ok(`${tag}: Android keyboard down (field still focused, Back): the strip is back at the same y`, aBack.painted && aBack.kbd === null && aBack.top === before.top, { before: before.top, ...aBack })
+      ok(`${tag}: Android keyboard down: the status strip is back`, aBack.status, aBack)
       await focusComposer(p, false)
     }
     await p.close()

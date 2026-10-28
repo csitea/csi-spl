@@ -92,7 +92,7 @@ import { useLive } from '~/composables/useLive'
 import { useCopyText } from '~/composables/useCopyText'
 import { playTapAnim } from '~/composables/useTapAnim'
 import { vReconnectRipple } from '~/composables/useConnectionRipple'
-import { useKeyboardInset } from '~/composables/useTouchUi'
+import { useKeyboardOpen } from '~/composables/useTouchUi'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { setStatusStripHeight } from '~/composables/useStatusStrip'
 import { useClockHost } from '~/composables/useClockHost'
@@ -104,9 +104,11 @@ import { isNewer } from '~/utils/build-watch.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
 const stack = useMobileStack()
-const kbInset = useKeyboardInset()
-/* the layout mounts it on a phone only; the keyboard up = the composer is on it */
-const shown = computed(() => kbInset.value === 0)
+/* the layout mounts it on a phone only; the keyboard up = the composer is on it.
+   SPL-4022: useKeyboardOpen, the section strip's own fold signal, so it steps
+   away on Android (the window shorter, --kb-inset 0) as on iOS */
+const kbOpen = useKeyboardOpen()
+const shown = computed(() => !kbOpen.value)
 /* be316fdc: the clock is here while this version is on screen */
 const clockHost = useClockHost()
 watchEffect(() => { clockHost.strip.value = shown.value && !stack.sheetOpen.value })

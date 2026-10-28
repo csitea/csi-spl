@@ -199,6 +199,9 @@ func (t tools) send(ctx context.Context, _ *sdk.CallToolRequest, in SendIn) (*sd
 	if err != nil {
 		return nil, action.SendResult{}, err
 	}
+	if err := t.deskRootGuard(from, in); err != nil {
+		return nil, action.SendResult{}, err
+	}
 	if t.o.Seat != "" && in.ToBox == "" && in.Channel == "" && t.cfg.HubURL != "" && strings.HasPrefix(in.To, "HUM-") {
 		in.ToBox = wuiBox
 	}

@@ -453,6 +453,7 @@ These exit codes mean nothing was delivered:
 | code | meaning |
 |---|---|
 | `2` | usage error, or an empty or whitespace-only body (`--body ""`, an empty `--body-file`; a missing `--body-file` is an error too): `ERROR: the body is empty: if it came from $(cat FILE), FILE is missing or empty; nothing was sent`, for every kind (SPL-3953) |
+| `9` | `SPOOL_ROOT` is a workspace desk's spool root (`.../desk/<tenant>/<box>/spool`) and `--from` is not one of its seats (a role seat 001-003, or the id a desk alias such as `RSP-01` links to): nothing reads a lane's inbox there, so send on the fleet root (SPL-3959). The spool MCP server refuses the same DM (exit 78) |
 | `10+` | `spool send` failed. The code is 10 plus spool's own exit code |
 
 ## 5. The frozen box engine, accounted for

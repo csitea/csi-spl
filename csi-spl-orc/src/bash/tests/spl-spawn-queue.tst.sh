@@ -43,6 +43,10 @@
 #      finds the brief of <slug> and launches with SPAWN_BOX=<box>; the
 #      pinned box past its overflow mark HOLDs it (CONTROL: under it, it
 #      launches); a hand-off touches no .place.last (CONTROL: a launch does)
+#  12b. SPL-4009: a head pinned to a full box blocks nothing: the unpinned
+#      row behind it is placed in the same tick (CONTROLS: every row pinned
+#      to the full box -> nothing launched, each holds; the box with room ->
+#      the pinned head is placed first)
 #  13. SPL-2263: a mistral placement whose brief names csi-spl-wui/ launches
 #      claude, agy when its "Kind:" is specs_and_docs or i18n (SPL-2942, an R7
 #      review of a claude author stays cross-vendor) (CONTROL: a docs brief
@@ -662,6 +666,46 @@ out="$(on pc do_spl_spawn_place 2>&1)"
   pass "a hand-off to the holder burns no SPAWN_PLACE_GAP_MIN slot (control: the launch above touched .place.last)" ||
   fail "hand-off slot: $out | $(ls -la "$T/pc/spool/asks/")"
 HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$P3" --by c-001@box-desk --reason "placed: c-499@box-desk" >/dev/null
+
+# 12b. SPL-4009: a row pinned to a full box blocks nothing -----------------------
+# The head pinned to sat past its overflow mark leaves this tick's line: the
+# unpinned row behind it is placed in the same tick, the pinned one stays
+# queued with its WAIT line. CONTROLS: (a) every row pinned to the full box
+# -> nothing launched, each gets its hold line; (b) sat with room -> the
+# pinned head is placed first, as before.
+W1=d4d4d4d4-0000-4000-8000-000000000004; W2=d5d5d5d5-0000-4000-8000-000000000005
+W3=d6d6d6d6-0000-4000-8000-000000000006; W4=d7d7d7d7-0000-4000-8000-000000000007
+pinwait() { grep "^$1"$'\t' "$T/pc/spool/asks/.place.wait" 2>/dev/null | cut -f3; }
+put "$W1" c-002@box-desk dispatch-88982c94-s "SPAWN REQUEST pinned to sat, at the head"
+put "$W2" c-002@box-desk dispatch-88982c94-t "SPAWN REQUEST unpinned, behind it"
+on pc do_spl_spawn_enqueue ASK_ID="$W1" SPAWN_CLASS=bug SPAWN_PLACE=claude:hand-sat-qto-gap >/dev/null 2>&1
+on pc do_spl_spawn_enqueue ASK_ID="$W2" SPAWN_CLASS=bug SPAWN_PLACE=claude:qto-gap >/dev/null 2>&1
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(on pc do_spl_spawn_place "PICK_BOXES=$SAT_FULL" LAUNCH_ID=c-503 2>&1)"
+[[ "$(jq -r .state <<<"$(hubrow "$W1")")" == queued && "$(jq -r .reason <<<"$(hubrow "$W2")")" == "placed: c-503@box-desk" ]] &&
+  grep -qx "claude auto $T $T/briefs/qto-gap.md qto-gap" "$T/launch.log" &&
+  grep -q "ask ${W1:0:8} is pinned to sat: box sat at 180% is past its overflow mark" <<<"$out" &&
+  [[ "$(pinwait "$W1")" == "pinned to sat: box sat at 180% is past its overflow mark"* ]] &&
+  pass "12b. the head pinned to a full sat blocks nothing: the unpinned row behind it is placed, the pinned one stays queued with its WAIT line (SPL-4009)" ||
+  fail "12b. pinned head blocks: $out | $(hubrow "$W1") | $(hubrow "$W2") | $(cat "$T/launch.log")"
+put "$W3" c-002@box-desk dispatch-88982c94-u "SPAWN REQUEST pinned to sat too"
+on pc do_spl_spawn_enqueue ASK_ID="$W3" SPAWN_CLASS=bug SPAWN_PLACE=claude:sathand-qto-gap >/dev/null 2>&1
+rm -f "$T/pc/spool/asks/.place.last" "$T/pc/spool/asks/.place.wait"; : >"$T/launch.log"
+out="$(on pc do_spl_spawn_place "PICK_BOXES=$SAT_FULL" 2>&1)"
+[[ "$(jq -r .state <<<"$(hubrow "$W1")")" == queued && "$(jq -r .state <<<"$(hubrow "$W3")")" == queued && ! -s "$T/launch.log" ]] &&
+  [[ "$(pinwait "$W1")" == "pinned to sat:"* && "$(pinwait "$W3")" == "pinned to sat:"* ]] &&
+  grep -q "the spawn queue is empty" <<<"$out" && [[ ! -e "$T/pc/spool/asks/.place.last" ]] &&
+  pass "12b. control (a): every queued row pinned to the full sat: nothing launched, each gets its hold line" ||
+  fail "12b. control (a): $out | $(cat "$T/launch.log") | $(cat "$T/pc/spool/asks/.place.wait" 2>&1)"
+put "$W4" c-002@box-desk dispatch-88982c94-v "SPAWN REQUEST unpinned, behind two pinned"
+on pc do_spl_spawn_enqueue ASK_ID="$W4" SPAWN_CLASS=bug SPAWN_PLACE=claude:qto-gap >/dev/null 2>&1
+: >"$T/launch.log"
+out="$(on pc do_spl_spawn_place "PICK_BOXES=$SAT_BUSY" LAUNCH_ID=c-504 2>&1)"
+[[ "$(jq -r .reason <<<"$(hubrow "$W1")")" == "placed: c-504@box-desk" && "$(jq -r .state <<<"$(hubrow "$W4")")" == queued ]] &&
+  grep -qx "claude auto $T $T/briefs/qto-gap.md qto-gap SPAWN_BOX=sat" "$T/launch.log" && [[ -z "$(pinwait "$W1")" ]] &&
+  pass "12b. control (b): sat with room: the pinned head is placed first, as before, its WAIT line gone" ||
+  fail "12b. control (b): $out | $(hubrow "$W1") | $(cat "$T/launch.log")"
+for i in $(qids); do HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$i" --by c-001@box-desk --reason "placed: c-499@box-desk" >/dev/null; done
 
 # 13. SPL-2263 (owner HUM-10, t1 b61851fb): a mistral placement whose brief
 # names csi-spl-wui/ launches claude while mistral_ui_allowed is not true

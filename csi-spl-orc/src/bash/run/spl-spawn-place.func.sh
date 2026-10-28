@@ -63,7 +63,9 @@
 # @description         <box> at or past its overflow mark (do_spl_box_pick's BOX
 # @description         line: load% >= high * BOX_PICK_OVERFLOW / 100), DEGRADED
 # @description         or AT CAP -> HOLD: it stays queued, the reason in
-# @description         .place.wait, nothing acked
+# @description         .place.wait, nothing acked; out of the tick's line
+# @description         before the head and the band pick, so it blocks no
+# @description         other row (SPL-4009)
 # @description      UI RULE (owner HUM-10, t1 b61851fb): a mistral placement whose
 # @description         brief names csi-spl-wui/ launches claude instead while
 # @description         cnf env.box.agent_split.mistral_ui_allowed is not true
@@ -163,6 +165,7 @@ do_spl_spawn_place() {
   fi
   rows="$(spl_spawn_place_agy_hold "$rows")"
   rows="$(spl_spawn_place_away_hold "$rows")"
+  rows="$(spl_spawn_place_pin_hold "$rows")"
   rows="$(spl_spawn_place_line "$rows")"
   head="$(jq -c '.[0] // empty' <<<"$rows")"
   [[ -n "$head" ]] || { do_log "INFO the spawn queue is empty, or holds only asks for the holder while one is with it"; return 0; }
@@ -426,10 +429,12 @@ spl_spawn_place_slug() {  # SLUG
 
 # Prints why the pinned BOX takes no lane now and returns 0: its BOX line is at
 # or past its overflow mark, CORDONED, DEGRADED or AT CAP. No line for it: returns 1
-# (spawn-window judges it).
-spl_spawn_place_pin_full() {  # BOX
-  local line
-  line="$(grep -E "^BOX $1 " <<<"$(spl_spawn_place_pick_out)" | tail -1)"
+# (spawn-window judges it). PICK_OUT is do_spl_box_pick's output when the caller
+# already read it.
+spl_spawn_place_pin_full() {  # BOX [PICK_OUT]
+  local line out="${2-}"
+  [[ -n "$out" ]] || out="$(spl_spawn_place_pick_out)"
+  line="$(grep -E "^BOX $1 " <<<"$out" | tail -1)"
   [[ -n "$line" ]] || return 1
   awk -v b="$1" -v over="${BOX_PICK_OVERFLOW:-200}" '{
     for (i = 1; i <= NF; i++) {
@@ -443,18 +448,14 @@ spl_spawn_place_pin_full() {  # BOX
     exit 1 }' <<<"$line"
 }
 
-# 4. Take the head: placing, then launch it or hand it to the holder.
+# 4. Take the head: placing, then launch it or hand it to the holder. A head
+# pinned to a full box never gets here (spl_spawn_place_pin_hold).
 spl_spawn_place_take() {  # HOLDER HEAD
-  local holder="$1" id place brief why vendor closed="" ps=()
+  local holder="$1" id place brief vendor closed="" ps=()
   id="$(jq -r '.ask_id' <<<"$2")"
   place="$(jq -r '.placement // ""' <<<"$2")"
   mapfile -t ps < <(spl_spawn_place_slug "${place#*:}")
   brief="$(spl_spawn_place_brief "${place#*:}")"
-  if [[ -n "$place" && -n "$brief" && -n "${ps[0]}" ]] && why="$(spl_spawn_place_pin_full "${ps[0]}")"; then
-    spl_spawn_place_wait "$id" "pinned to ${ps[0]}: $why"
-    do_log "INFO hold: ask ${id:0:8} is pinned to ${ps[0]}: $why; it stays queued"
-    return 0
-  fi
   [[ -z "$place" || -z "$brief" ]] || closed="$(spl_spawn_place_epic_closed "$brief")"
   [[ "$closed" != *$'\t'auto-closed ]] || closed="$(spl_spawn_place_reopen "$brief" "${place#*:}" "${closed%$'\t'auto-closed}")"
   spl_spawn_q_op ack "$id" "$holder" >/dev/null || return 0
@@ -784,6 +785,30 @@ spl_spawn_place_away_hold() {  # MARKED ROWS
       and (.writer_box // "") != "" and .writer_box != $box)
     | "\(.ask_id)\t\(.placement | sub("^[^:]*:"; ""))\t\(.writer_box)"' <<<"$1")
   spl_spawn_place_wait_keep held "$(printf '%s\n' "${held[@]}")" "is not under .* on [^:]*: it was queued on "
+  jq -c --argjson h "$(spl_spawn_place_json_ids "${held[@]}")" '[.[] | select(.ask_id as $i | $h | index($i) | not)]' <<<"$1"
+}
+
+# 2e. A queued row the placer can launch whose slug is hand-pinned to a box
+# at or past its overflow mark, CORDONED, DEGRADED or AT CAP
+# (spl_spawn_place_pin_full) HOLDS (SPL-4009): it stays queued, out of this
+# tick's line, so it blocks no other row; one INFO line and its .place.wait
+# line say why. Before, the hold was judged on the head only, and one row
+# pinned to a full box stopped every row behind it (27 queued, none placed,
+# 2026-10-28). do_spl_box_pick runs once per tick, only when a row is pinned;
+# the line of a row no longer held is dropped. Prints ROWS minus the held ones.
+spl_spawn_place_pin_hold() {  # MARKED ROWS
+  local id slug box why out="" held=() ps=()
+  while IFS=$'\t' read -r id slug; do
+    mapfile -t ps < <(spl_spawn_place_slug "$slug")
+    box="${ps[0]}"
+    [[ -n "$box" ]] || continue
+    [[ -n "$out" ]] || out="$(spl_spawn_place_pick_out)"
+    why="$(spl_spawn_place_pin_full "$box" "$out")" || continue
+    spl_spawn_place_wait "$id" "pinned to $box: $why"
+    do_log "INFO hold: ask ${id:0:8} is pinned to $box: $why; it stays queued" >&2
+    held+=("$id")
+  done < <(jq -r '.[] | select(.state == "queued" and ._l) | "\(.ask_id)\t\(.placement | sub("^[^:]*:"; ""))"' <<<"$1")
+  spl_spawn_place_wait_keep held "$(printf '%s\n' "${held[@]}")" "^pinned to [a-z0-9]+: "
   jq -c --argjson h "$(spl_spawn_place_json_ids "${held[@]}")" '[.[] | select(.ask_id as $i | $h | index($i) | not)]' <<<"$1"
 }
 

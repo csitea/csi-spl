@@ -30,6 +30,9 @@
 #  23. RED CONTROL 1: stale backup (> 26h) must fail
 #  24. RED CONTROL 2: non-SUCCESSFUL status must fail
 #  25. LIVE GUARD: zero un-stubbed gcloud or spool calls leaked outside test dir
+#  26. Newest RUNNING (age 0), the SUCCESSFUL one before it 24h old -> exits 0,
+#      verdict OK, an INFO line names the running backup (SPL-4128)
+#  27. Newest RUNNING, the SUCCESSFUL one before it 28h old -> exits 1, ALERT
 #------------------------------------------------------------------------------
 set -uo pipefail
 
@@ -397,5 +400,38 @@ else
   fail "case 25 (live guard): leaked calls detected: $(cat "$LIVE_LOG")"
 fi
 
-echo "cloud-sql-backup-verify.tst.sh: 25 cases, $fails failure(s)"
+# Two backups, newest first as gcloud lists them: a RUNNING one started now
+# and the SUCCESSFUL one before it (wf 45 red 10-26 and 10-27).
+make_json_running_then() {
+  local ok_offset_s="$1" now_iso ok_iso
+  now_iso="$(iso_offset 0)"
+  ok_iso="$(iso_offset "$ok_offset_s")"
+  cat >"$GCLOUD_STUB_JSON" <<JSON_EOF
+[
+  {"id": "1026", "status": "RUNNING", "type": "AUTOMATED", "startTime": "$now_iso"},
+  {"id": "1025", "status": "SUCCESSFUL", "type": "AUTOMATED", "startTime": "$ok_iso", "endTime": "$ok_iso"}
+]
+JSON_EOF
+}
+
+# --- Case 26: RUNNING now, SUCCESSFUL 24h ago -> OK --------------------------
+make_json_running_then $(( 24 * 3600 ))
+out=$(ENV=dev run_action); rc=$?
+if [[ $rc -eq 0 ]] && grep -q "verdict=OK" <<<"$out" && grep -q "backup_id=1025" <<<"$out" \
+   && grep -q "INFO .*1026.*RUNNING" <<<"$out"; then
+  pass "case 26: newest backup RUNNING, previous SUCCESSFUL 24h old passes with an INFO line"
+else
+  fail "case 26: RUNNING + fresh SUCCESSFUL did not pass (rc=$rc): $out"
+fi
+
+# --- Case 27: RUNNING now, SUCCESSFUL 28h ago -> ALERT -----------------------
+make_json_running_then $(( 28 * 3600 ))
+out=$(ENV=dev run_action); rc=$?
+if [[ $rc -eq 1 ]] && grep -q "verdict=ALERT" <<<"$out" && grep -q "stale" <<<"$out"; then
+  pass "case 27: newest backup RUNNING, previous SUCCESSFUL 28h old alerts with exit 1"
+else
+  fail "case 27: RUNNING + stale SUCCESSFUL did not alert (rc=$rc): $out"
+fi
+
+echo "cloud-sql-backup-verify.tst.sh: 27 cases, $fails failure(s)"
 [[ $fails -eq 0 ]]

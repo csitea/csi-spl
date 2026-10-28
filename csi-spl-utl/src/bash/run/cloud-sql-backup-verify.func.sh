@@ -9,6 +9,9 @@
 # @description from spl-db-health.func.sh:115.
 # @description Resolves instance name csi-spl-<env>-pg from cnf (not -db).
 # @description Verifies latest backup has status: SUCCESSFUL and timestamp within last 26 hours.
+# @description A newest backup still RUNNING (the check ran inside the backup
+# @description window, wf 45 10-26/10-27, SPL-4128) is skipped with an INFO line
+# @description and the newest SUCCESSFUL one is judged instead; with none, it alerts.
 # @description Exits 0 when backup < 26h; exits 1 with alert if backup is stale,
 # @description missing, non-successful, or unreachable; strictly read-only.
 # @param ENV - required: dev or prd
@@ -137,9 +140,25 @@ _csq_fetch_backups() {
   gcloud sql backups list --instance="$instance" --project="$project" --account="$GCP_ACCOUNT" --limit=10 --format=json
 }
 
+# Index of the backup to judge: 0, unless the newest is RUNNING and an older
+# one is SUCCESSFUL; then that one, and an INFO line names the running backup.
+_csq_pick_backup() {
+  local raw_json="$1" idx running_id
+  if [[ "$(jq -r '.[0].status // ""' <<<"$raw_json")" != "RUNNING" ]]; then
+    echo 0
+    return 0
+  fi
+  idx="$(jq -r 'map(.status) | index("SUCCESSFUL") // 0' <<<"$raw_json")"
+  if [[ "$idx" != "0" ]]; then
+    running_id="$(jq -r '.[0].id // "-"' <<<"$raw_json")"
+    do_log "INFO [cloud-sql-backup-verify] newest backup $running_id is still RUNNING; judging the newest SUCCESSFUL one instead" >&2
+  fi
+  echo "$idx"
+}
+
 _csq_judge_backups() {
   local raw_json="$1" max_age_s="$2" now_epoch="$3"
-  local count backup_id status btype start_time window_start_time end_time ts backup_epoch age_s age_h
+  local i count backup_id status btype start_time window_start_time end_time ts backup_epoch age_s age_h
   count="$(jq '. | length' <<<"$raw_json" 2>/dev/null || echo -1)"
   if [[ "$count" -lt 0 ]]; then
     printf 'INVALID_JSON 0 - - - - "invalid JSON from backups query"\n'
@@ -150,12 +169,13 @@ _csq_judge_backups() {
     return 1
   fi
 
-  backup_id="$(jq -r '.[0].id // "-"' <<<"$raw_json")"
-  status="$(jq -r '.[0].status // "-"' <<<"$raw_json")"
-  btype="$(jq -r '.[0].type // "UNKNOWN"' <<<"$raw_json")"
-  start_time="$(jq -r '.[0].startTime // ""' <<<"$raw_json")"
-  window_start_time="$(jq -r '.[0].windowStartTime // ""' <<<"$raw_json")"
-  end_time="$(jq -r '.[0].endTime // ""' <<<"$raw_json")"
+  i="$(_csq_pick_backup "$raw_json")"
+  backup_id="$(jq -r ".[$i].id // \"-\"" <<<"$raw_json")"
+  status="$(jq -r ".[$i].status // \"-\"" <<<"$raw_json")"
+  btype="$(jq -r ".[$i].type // \"UNKNOWN\"" <<<"$raw_json")"
+  start_time="$(jq -r ".[$i].startTime // \"\"" <<<"$raw_json")"
+  window_start_time="$(jq -r ".[$i].windowStartTime // \"\"" <<<"$raw_json")"
+  end_time="$(jq -r ".[$i].endTime // \"\"" <<<"$raw_json")"
 
   ts="${start_time:-$window_start_time}"
   ts="${ts:-$end_time}"

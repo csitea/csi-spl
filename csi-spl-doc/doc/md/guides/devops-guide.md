@@ -50,6 +50,25 @@ A block that shows only `ENV=dev` is repeated for prd with `ENV=prd`, unless the
 
 Do not copy these. The fleet rules index, the developer guide and the repo `CLAUDE.md` are the homes. The provisioning rules this guide follows are spec 007, requirement R7 (numeric steps, dev then prd, DNS the other way) and R8 (the project service account after the key exists): [infra-provisioning-requirements.md](https://github.com/csitea/csi-spl/blob/master/csi-spl-doc/specs/007-spool-hub-api-infra/infra-provisioning-requirements.md). Operational incident triage, on-call roles, and escalation follow the [incident runbook](incident-runbook.md). The module contract the bootstrap test pins is [csi-spl-iac/README.md](https://github.com/csitea/csi-spl/blob/master/csi-spl-iac/README.md). It stays; this guide does not replace it.
 
+<a id="ws-doc-1102c5aa-70fc-42bc-80b1-49ed1750b3af"></a>
+### 1.4 A second terminal into the other box
+
+From the box you work on, this opens a new terminal window with a shell on the other box, in a tmux session of its own (`main`), so you do not have to reuse the tmux you are already in. `-A` attaches to `main` when it already runs on that box, else creates it. It needs a desktop with `gnome-terminal`, an ssh login to `$DEV_BOX`, and the two names set once (1.4.1).
+
+```bash
+gnome-terminal -- ssh -t "$DEV_BOX" "sudo -iu $DEV_USER tmux new-session -A -s main" &
+```
+
+<a id="ws-doc-5a43b379-2479-40d7-927a-5ea21630bf08"></a>
+#### 1.4.1 Set DEV_BOX and DEV_USER once
+
+Add these two lines to `~/.bashrc` on the box you start from, with your own values, then open a new shell. `DEV_BOX` is the other box's name in your `~/.ssh/config` (or its host name); `DEV_USER` is the OS user on that box whose tmux session you want.
+
+```bash
+export DEV_BOX=<the other box's ssh name>
+export DEV_USER=<your user on it>
+```
+
 <a id="ws-doc-70c1de60-84b2-4e69-823e-8a7d7cc04e34"></a>
 ## 2 Identity
 

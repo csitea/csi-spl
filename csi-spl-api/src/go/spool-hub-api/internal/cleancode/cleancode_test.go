@@ -48,7 +48,6 @@ var wideFuncs = map[string]bool{
 	"internal/hub/memberactivity.go (authActivityAdapter).RecordAuthEvent": true,
 	"internal/hub/merge.go (*Server).fanoutMerged":                         true,
 	"internal/hub/merge.go (*Server).mergePair":                            true,
-	"internal/hub/reactions.go (*Server).reactionStore":                    true,
 	"internal/hub/repo_docs_edit.go (*Server).repoDocSaveChecks":           true,
 	"internal/hub/repo_docs_edit.go (*Server).repoDocSaveWrite":            true,
 	"internal/hub/search.go (*Server).searchSections":                      true,

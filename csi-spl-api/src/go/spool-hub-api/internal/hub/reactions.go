@@ -69,18 +69,18 @@ func (s *Server) changeReaction(w http.ResponseWriter, r *http.Request, add bool
 	if !ok {
 		return
 	}
-	now := s.o.Now()
-	m, ok := s.reactionTarget(w, r, t.ID, id, now)
+	c := reactionChange{tenant: t.ID, msgID: id, actor: actor, emoji: emoji, add: add, now: s.o.Now()}
+	m, ok := s.reactionTarget(w, r, c.tenant, c.msgID, c.now)
 	if !ok {
 		return
 	}
-	grouped, ok := s.reactionStore(w, r, t.ID, id, actor, emoji, add, now)
+	grouped, ok := s.reactionStore(w, r, c)
 	if !ok {
 		return
 	}
-	s.fanoutReaction(r.Context(), t.ID, m, grouped)
-	if add && emoji == reportEmoji {
-		s.reported(r.Context(), t.ID, m) // after the reaction frame: a hide drops the row last
+	s.fanoutReaction(r.Context(), c.tenant, m, grouped)
+	if c.add && c.emoji == reportEmoji {
+		s.reported(r.Context(), c.tenant, m) // after the reaction frame: a hide drops the row last
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"msg_id":    m.MsgID,
@@ -141,14 +141,23 @@ func (s *Server) reactionTarget(w http.ResponseWriter, r *http.Request, tenant, 
 	return m, true
 }
 
+// reactionChange is one caller adding (add) or removing their emoji on one
+// message, at now.
+type reactionChange struct {
+	tenant, msgID, actor, emoji string
+	add                         bool
+	now                         time.Time
+}
+
 // reactionStore adds or removes the caller's emoji and returns the message's
 // chips as they now stand. false means the response is already written.
-func (s *Server) reactionStore(w http.ResponseWriter, r *http.Request, tenant, id, actor, emoji string, add bool, now time.Time) ([]viewReaction, bool) {
+func (s *Server) reactionStore(w http.ResponseWriter, r *http.Request, c reactionChange) ([]viewReaction, bool) {
+	tenant, id := c.tenant, c.msgID
 	var err error
-	if add {
-		err = s.o.Store.AddReaction(r.Context(), tenant, id, actor, emoji, now)
+	if c.add {
+		err = s.o.Store.AddReaction(r.Context(), tenant, id, c.actor, c.emoji, c.now)
 	} else {
-		err = s.o.Store.RemoveReaction(r.Context(), tenant, id, actor, emoji, now)
+		err = s.o.Store.RemoveReaction(r.Context(), tenant, id, c.actor, c.emoji, c.now)
 	}
 	switch {
 	case errors.Is(err, store.ErrNotFound):

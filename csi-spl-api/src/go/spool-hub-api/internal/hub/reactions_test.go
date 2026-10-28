@@ -2,11 +2,17 @@ package hub_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
 // An emoji can be added to an opening message (is_parent 1) and to a reply
@@ -177,5 +183,78 @@ func TestReactionOnOpeningAndReply(t *testing.T) {
 	}
 	if code, out = putReaction(t, e, tid, id2, "", "👍"); code != http.StatusForbidden && code != http.StatusUnauthorized {
 		t.Fatalf("no session: %d %v", code, out)
+	}
+}
+
+// reactFailStore fails the emoji write or the chips re-read on demand, so
+// the store-error answers of an emoji change can be pinned. The mutex keeps
+// the test's set and the handler's read race-free.
+type reactFailStore struct {
+	store.Store
+	mu      sync.Mutex
+	addErr  error
+	listErr error
+}
+
+func (s *reactFailStore) set(addErr, listErr error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.addErr, s.listErr = addErr, listErr
+}
+
+func (s *reactFailStore) errs() (addErr, listErr error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.addErr, s.listErr
+}
+
+func (s *reactFailStore) AddReaction(ctx context.Context, tenant, msgID, actor, emoji string, now time.Time) error {
+	if err, _ := s.errs(); err != nil {
+		return err
+	}
+	return s.Store.AddReaction(ctx, tenant, msgID, actor, emoji, now)
+}
+
+func (s *reactFailStore) ReactionsFor(ctx context.Context, tenant string, msgIDs []string) (map[string][]store.StoredReaction, error) {
+	if _, err := s.errs(); err != nil {
+		return nil, err
+	}
+	return s.Store.ReactionsFor(ctx, tenant, msgIDs)
+}
+
+// TestReactionStoreErrors pins the store-error answers of an emoji change:
+// the message gone between the lookup and the write is a 404, a failed write
+// and a failed chips re-read are each a 500 with no frame fanned out.
+func TestReactionStoreErrors(t *testing.T) {
+	boom := errors.New("store down")
+	cases := []struct {
+		name            string
+		addErr, listErr error
+		code            int
+		token, detail   string
+	}{
+		{"gone_before_store_404", store.ErrNotFound, nil, http.StatusNotFound, "not_found", "no such message"},
+		{"store_write_fails_500", boom, nil, http.StatusInternalServerError, "internal", "emoji not stored"},
+		{"chips_reread_fails_500", nil, boom, http.StatusInternalServerError, "internal", "emoji not stored"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var f *reactFailStore
+			e := followEnv(t, func(o *hub.Options) { f = &reactFailStore{Store: o.Store}; o.Store = f })
+			tid, _ := e.tenant()
+			author := dialMember(t, e, tid, "HUM-1", "HUM-1")
+			wsjson.Write(context.Background(), author, map[string]string{"type": "subscribe", "task_id": lobby}) //nolint:errcheck
+			readType(t, author, "subscribed")
+			id, _ := postNote(t, author, "react to me")["msg_id"].(string)
+
+			f.set(tc.addErr, tc.listErr)
+			code, out := putReaction(t, e, tid, id, "HUM-1", "👍")
+			if code != tc.code || out["error"] != tc.token || out["detail"] != tc.detail {
+				t.Fatalf("want %d %s %q, got %d %v", tc.code, tc.token, tc.detail, code, out)
+			}
+			// A refused change must stop there: a handler that wrote the error and
+			// went on would still fan the chips out (and append a 200 body).
+			quiet(t, author, "no message_reaction after a store error")
+		})
 	}
 }

@@ -1,0 +1,6 @@
+Lay-What: When the AI writer that drafts our docs runs out of its usage allowance on one machine, the other machine now waits too instead of starting more of them.
+Lay-How: Each machine now also reads the warnings the other machine sends when a writer hits its limit.
+Lay-Why: One machine kept starting new writers that stopped at once, because it only looked at its own warnings.
+Tech-What: orc placer: spl_spawn_place_agy_out also reads the other box's watchdog 093 S2 kind=limit blocker on a live a- lane (spl_spawn_place_agy_remote).
+Tech-How: Scans <spool>/*/{inbox,archive} for the relayed blocker, keeps it until its reset if newer than agy.ok and the lane is in its box's lane-map busy_ids.
+Tech-Why: The S2 verdicts, pane banners and agent-run.tsv it read are all box-local, while agy's quota is shared by the fleet.

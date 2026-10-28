@@ -292,6 +292,7 @@ Owner HUM-10, t1 3209f8b8 (binding msg 8cb6cc7d; msg ad816f96: "write this down 
 - **Work groups (SPL-2370).** Rows that run N at a time (an epic "two lanes at a time") are ONE group, not N hand-queued asks: `GROUP_EPIC=<epic> GROUP_WIDTH=<N> GROUP_ROWS=<rows file> ./run -a do_spl_spawn_group_put`, one row a line, `<class> <vendor>:<slug> <issue key>`, briefs in the briefs dir as for any placement. The placer keeps N in flight and feeds the next row when one lands or closes; a single request is the group of one at width 1. The state: `./run -a do_spl_spawn_group_list`; a `WARN <EPIC>.json: state not read: <why>` there is the hub, issue or lane read failing (the file is fine), a `not a work group file` a bad file. The placer hands the hub lists to jq as files, never argv (SPL-2428: the asks list outgrew the 128 KiB argument limit). The design: [spec 135](../../specs/135-work-process/spec.md) section 11.
 - **The weekly security round.** Every Friday 05:30 UTC two panel seats are queued (class bug, kind secret) and the round goes on the t1 calendar: `./run -a do_spl_security_round_queue` (dry run: the seats and the event it would add). The rule and its switch: [fleet-rules-index.md](fleet-rules-index.md), section 2, row "weekly security round". You install its cron (`DRY_RUN=0 ./run -a do_spl_security_round_install_cron`) and turn it on; it is off until you do.
 
+<a id="ws-doc-d1f362d7-94e0-472e-b9df-544a36d5b7de"></a>
 ### 5.2 One agent, one topic (SPL-3937)
 
 Owner HUM-10, t1 #spool-hub-ops topic ca9124fa: msg deb40160 ("a new agent

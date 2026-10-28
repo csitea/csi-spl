@@ -12,10 +12,11 @@ import (
 // announces the files it follows and pushes their masked lines; the
 // workspace is always the box session's (owner Q2 A: the workspace the box
 // is pinned in), so every call names the tenant and the box and runs in that
-// tenant's scope. The only cross-workspace read is the count of workspaces
-// that stream (FileStreamLimits.MaxWorkspaces), a number, never a row of
-// another workspace; nothing here prunes another workspace's lines (spec 160
-// 3.7, review N2).
+// tenant's scope. The only cross-workspace reads are the count of workspaces
+// that stream (FileStreamLimits.MaxWorkspaces) and, for the retention sweep,
+// the ids of the workspaces that keep lines (SweepFileStreams): never a row
+// of another workspace; a push never prunes another workspace's lines, and
+// the sweep prunes each workspace in its own scope (spec 160 3.7, review N2).
 
 // Defaults of spec 160 3.7; B7 measures them and the cnf may set others.
 const (
@@ -141,11 +142,12 @@ type FileStreamStore interface {
 	// neither the newest of all (spec 160 3.4, row B3). ErrNotFound for a
 	// stream that is not tenant's.
 	FileStreamLines(ctx context.Context, tenant, id string, q FileStreamLinesQuery) ([]FileStreamLine, error)
-	// SweepFileStreams is the hourly retention pass (spec 160 3.7, row B6,
-	// case C22): in each workspace that keeps lines, in that workspace's own
-	// scope, the lines older than FileStreamsRetention before now are
-	// deleted, then its oldest lines until it is within lim. The only
-	// cross-workspace read is the list of those workspaces' ids.
+	// SweepFileStreams is the retention pass of every sweeper tick, 10 min
+	// (spec 160 3.7, row B6, case C22): in each workspace that keeps lines,
+	// in that workspace's own scope, the lines older than
+	// FileStreamsRetention before now are deleted, then its oldest lines
+	// until it is within lim. The only cross-workspace read is the list of
+	// those workspaces' ids.
 	SweepFileStreams(ctx context.Context, now time.Time, lim FileStreamLimits) (FileStreamSweep, error)
 }
 

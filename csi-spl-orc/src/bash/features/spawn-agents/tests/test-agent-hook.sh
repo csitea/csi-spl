@@ -23,6 +23,10 @@
 #  10. vibe PostToolUse opens a file write_file made 0600 under cwd to the
 #      box user (g+rw,o+r, its new dirs g+rwx); controls: outside cwd and a
 #      claude seat keep their mode
+#  11. SPL-4015 (orch panel row B2): a c-001 session in g-001's dir (c-001
+#      links to it after a vendor switch) -> g-001's heartbeat unchanged, no
+#      handoff kick, one REFUSE line; controls: g-001 itself writes it, and
+#      the qualified layout (<id> -> <id>@<box>) is the agent's own dir
 #   9. do_spl_agent_hooks_install: dry run, install, idempotent, mirror kept,
 #      uninstall, a bad file refused, the installed command runs
 set -uo pipefail
@@ -347,5 +351,20 @@ eq "10. control: a file outside cwd keeps 0600" 600 "$(stat -c %a "$T_TMP/out10/
 chmod 600 "$W/b.txt"; SPOOL_HARNESS=claude hook PostToolUse $((T0 + 903)) "$(vpay b.txt)" >/dev/null
 eq "10. control: a claude seat's PostToolUse leaves the mode alone" 600 "$(stat -c %a "$W/b.txt")"
 eq "10. ... and the heartbeat still moved" "$(date -u -d "@$((T0 + 903))" +%Y-%m-%dT%H:%M:%SZ)" "$(hb progress_ts)"
+
+# ---- 11. SPL-4015: the hook writes only into its own dir -------------------------
+G="$SPOOL_ROOT/g-001"; mkdir -p "$G/inbox" "$G/lifetime"; ln -s g-001 "$SPOOL_ROOT/c-001"
+printf '{"v": 1, "id": "g-001", "pid": 3001, "ts": "keep"}\n' >"$G/heartbeat.json"; hb0="$(md5sum <"$G/heartbeat.json")"
+err="$(env SPOOL_AGENT_ID=c-001 HOOK_NOW=$((T0 + 1000)) HANDOFF_COMPOSE_CMD=true bash "$HOOK" PostToolUse <<<'{"tool_name":"Read"}' 2>&1 >/dev/null; echo "rc=$?")"
+eq "11. AGENT c-001 in g-001's dir: g-001's heartbeat unchanged" "$hb0" "$(md5sum <"$G/heartbeat.json")"
+check "11. ... no heartbeat.log, no handoff kick written there" test ! -e "$G/heartbeat.log" -a ! -e "$G/lifetime/handoff.kick"
+eq "11. ... one REFUSE line, exit 0" "1 rc=0" "$(grep -c "^spool-agent-hook: REFUSE c-001 PostToolUse: $SPOOL_ROOT/c-001 is .*/g-001, not this agent's own dir" <<<"$err") ${err##*$'\n'}"
+env SPOOL_AGENT_ID=g-001 HOOK_NOW=$((T0 + 1001)) HANDOFF_COMPOSE_CMD=true bash "$HOOK" PostToolUse <<<'{"tool_name":"Read"}' >/dev/null 2>&1
+eq "11. CONTROL: AGENT g-001 writes its own heartbeat" "g-001 $(iso $((T0 + 1001)))" "$(python3 -c 'import json,sys; h=json.load(open(sys.argv[1])); print(h["id"], h["ts"])' "$G/heartbeat.json")"
+check "11. CONTROL: ... and its handoff kick" test -e "$G/lifetime/handoff.kick"
+mkdir -p "$SPOOL_ROOT/c-905@box-t/inbox"; ln -s c-905@box-t "$SPOOL_ROOT/c-905"
+err="$(env SPOOL_AGENT_ID=c-905 HOOK_NOW=$((T0 + 1002)) bash "$HOOK" PreToolUse <<<'{}' 2>&1 >/dev/null)"
+check "11. CONTROL: the qualified layout c-905 -> c-905@box-t is its own dir: written, no REFUSE" test -s "$SPOOL_ROOT/c-905@box-t/heartbeat.json" -a -z "$err"
+rm -rf "$G" "$SPOOL_ROOT/c-001" "$SPOOL_ROOT/c-905" "$SPOOL_ROOT/c-905@box-t"
 
 t_done

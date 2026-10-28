@@ -42,6 +42,12 @@
 #               to cwd g+rwx,o+rx: vibe 2.26.0's write_file makes a NEW file
 #               0600, which the box user's git cannot read (spawn-mistral.sh,
 #               SPAWN_AGENT_ACL).
+#   own dir    (SPL-4015, orch panel row B2) the hook writes only into the
+#               dir whose real name is its SPOOL_AGENT_ID (or <id>@<box>, the
+#               qualified layout): <root>/c-001 linked to g-001's dir after a
+#               vendor switch is g-001's, so a c-001 session still running
+#               there gets one REFUSE line on stderr and nothing written, no
+#               heartbeat, no .hook-seen, no inbox injected, no handoff kick.
 #   main checkout (SPL-2321, claude + vibe) for a LANE, an id with its own
 #               linked worktree <repo>-wt/<id> of the repo (git's
 #               worktrees/<id>; role seats and humans have none or are
@@ -80,7 +86,8 @@
 if [ "$1" = PostToolUse ]; then
   _hd="${SPOOL_ROOT:-/var/spool-hub}/$SPOOL_AGENT_ID" _hn="${HOOK_NOW%.*}"
   [ -n "$_hn" ] || printf -v _hn '%(%s)T' -1
-  if [ -d "$_hd" ] && { [ -d "$_hd/lifetime" ] || mkdir "$_hd/lifetime" 2>/dev/null; } &&
+  if [ -d "$_hd" ] && { [ ! -L "$_hd" ] || [[ "$(readlink -f "$_hd")" =~ /${SPOOL_AGENT_ID}(@[^/]+)?$ ]]; } &&
+    { [ -d "$_hd/lifetime" ] || mkdir "$_hd/lifetime" 2>/dev/null; } &&
     [ $((_hn - $(stat -c %Y "$_hd/lifetime/handoff.kick" 2>/dev/null || echo 0))) -ge "${HANDOFF_EVERY:-60}" ] &&
     touch -d "@$_hn" "$_hd/lifetime/handoff.kick" 2>/dev/null; then
     setsid bash -c "${HANDOFF_COMPOSE_CMD:-. \"\$0\" && do_spl_agent_handoff}" "$(dirname "$0")/../../../run/spl-agent-handoff.func.sh" \
@@ -582,6 +589,11 @@ def main():
         return
     if not os.path.isdir(d):
         raise OSError("no agent dir %s" % d)
+    real = os.path.realpath(d)
+    if os.path.basename(real).split("@", 1)[0] != aid:
+        sys.stderr.write("spool-agent-hook: REFUSE %s %s: %s is %s, not this agent's own dir: nothing written (SPL-4015)\n"
+                         % (aid, event, d, real))
+        return
     try:
         payload = loads(sys.stdin.read() or "{}")
     except ValueError:

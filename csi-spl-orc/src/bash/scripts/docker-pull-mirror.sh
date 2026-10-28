@@ -12,6 +12,11 @@
 #   2. pull mirror.gcr.io/<img>   -> 3 tries, then `docker tag` it to <img>,
 #                                    so tests and compose find the usual name
 #   3. pull <img> from Docker Hub -> the last resort, one try
+# An <img> that already names the mirror (mirror.gcr.io/library/caddy:2-alpine,
+# the local hub's wui-static pin) gets the same tries and keeps its name; its
+# Docker Hub fallback is the ref without the mirror prefix. A lone bare pull
+# of it reddened orc hermetic 1/3 on one mirror blip (wf 10 run 40629806426,
+# "could not fetch content descriptor ... not found"; 2/3 and 3/3 pulled it).
 # Exit: 0 every image present, 1 one could not be had, 2 bad input.
 # Env: DOCKER_MIRROR (mirror.gcr.io), DOCKER_PULL_SLEEP (10, the retry step s)
 #------------------------------------------------------------------------------
@@ -27,14 +32,16 @@ rc=0
 for img in "$@"; do
   [[ "$img" == *:* ]] || { echo "FAIL $img: pin a tag" >&2; exit 2; }
   if have "$img"; then echo "using the cached $img"; continue; fi
-  src="$mirror/${img#docker.io/}"
+  hub="${img#"$mirror/"}"; hub="${hub#docker.io/}"
+  src="$mirror/$hub"
   for i in 1 2 3; do
-    docker pull -q "$src" >/dev/null && docker tag "$src" "$img" && break
+    docker pull -q "$src" >/dev/null && { [[ "$src" == "$img" ]] || docker tag "$src" "$img"; } && break
     sleep $((i * step))
   done
   if have "$img"; then echo "pulled $img via $mirror"; continue; fi
   echo "::warning::$src failed 3x; trying Docker Hub"
-  docker pull -q "$img" >/dev/null && have "$img" && { echo "pulled $img from Docker Hub"; continue; }
+  docker pull -q "$hub" >/dev/null && { [[ "$hub" == "$img" ]] || docker tag "$hub" "$img"; } && have "$img" \
+    && { echo "pulled $img from Docker Hub"; continue; }
   echo "FAIL cannot pull $img (mirror $mirror nor Docker Hub)" >&2
   rc=1
 done

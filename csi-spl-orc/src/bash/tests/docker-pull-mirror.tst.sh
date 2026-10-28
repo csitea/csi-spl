@@ -9,7 +9,11 @@
 #      no Docker Hub pull (library and org images alike)
 #   4. the mirror down: Docker Hub once, exit 0
 #   5. both down: exit 1, a FAIL line naming the image
-#   6. the workflows that pull Docker Hub images on the runners go through it
+#   6. the workflows that pull Docker Hub images on the runners go through it:
+#      any uncommented `docker pull ` line fails, an `inspect || docker pull`
+#      guard included (that form slipped past the old anchored regex)
+#   6b. a ref that already names the mirror: pulled as is, 3 tries, no tag;
+#      the mirror down: Docker Hub once without the prefix, tagged back
 #   7. CONTROL: the stub records a pull it is given
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -71,7 +75,7 @@ ARGS=(alpine:3.22); run FAKE_MIRROR_OK=0 FAKE_HUB_OK=0; rc=$?
 
 # 6
 for f in 10_ci-quality.yml 20_hub-build-deploy.yml 50_oss-standalone.yml; do
-  if grep -q 'docker-pull-mirror.sh' "$WF/$f" && ! grep -qE '^\s*(for i in .*)?docker pull ' "$WF/$f"; then
+  if grep -q 'docker-pull-mirror.sh' "$WF/$f" && ! grep -vE '^\s*#' "$WF/$f" | grep 'docker pull ' >/dev/null; then
     pass "6. $f pulls through docker-pull-mirror.sh, no bare docker pull"
   else fail "6. $f: a bare docker pull, or no docker-pull-mirror.sh"; fi
 done
@@ -79,6 +83,21 @@ for f in "$APP_ROOT/csi-spl-api/src/docker/hub.Dockerfile" "$APP_ROOT/csi-spl-wu
   bad=$(grep -E '^FROM ' "$f" | grep -vE '^FROM (--platform=[^ ]+ )?mirror\.gcr\.io/')
   [[ -z "$bad" ]] && pass "6. ${f##*/}: every FROM reads mirror.gcr.io" || fail "6. ${f##*/}: $bad"
 done
+
+# 6b
+ARGS=(mirror.gcr.io/library/caddy:2-alpine); run; rc=$?
+[[ $rc -eq 0 && -f "$T/img/mirror.gcr.io_library_caddy_2-alpine" ]] \
+  && grep -qx 'docker pull -q mirror.gcr.io/library/caddy:2-alpine' "$T/log" \
+  && ! grep -qE '^docker (tag|pull -q mirror.gcr.io/mirror)' "$T/log" \
+  && pass "6b. a mirror ref: pulled as is, no double prefix, no tag" || fail "6b. mirror ref: rc=$rc $(cat "$T/log")"
+rm -f "$T/img/"*
+ARGS=(mirror.gcr.io/library/caddy:2-alpine); run FAKE_MIRROR_OK=0; rc=$?
+[[ $rc -eq 0 && -f "$T/img/mirror.gcr.io_library_caddy_2-alpine" \
+   && $(grep -c '^docker pull -q mirror.gcr.io/library/caddy:2-alpine$' "$T/log") -eq 3 ]] \
+  && grep -qx 'docker pull -q library/caddy:2-alpine' "$T/log" \
+  && grep -qx 'docker tag library/caddy:2-alpine mirror.gcr.io/library/caddy:2-alpine' "$T/log" \
+  && pass "6b. a mirror ref, the mirror down: 3 tries, then Docker Hub once, tagged back" || fail "6b. mirror ref fallback: rc=$rc $(cat "$T/log")"
+rm -f "$T/img/"*
 
 # 7
 : >"$T/log"; env PATH="$T/stub:$PATH" FAKE_LOG="$T/log" FAKE_IMG="$T/img" docker pull -q x:1

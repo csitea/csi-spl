@@ -76,8 +76,8 @@ describe('the redirect table (section 5 "Links")', () => {
     const c = read('src/pages/reporting/costs.vue')
     assert.match(c, /const to = costsPageFor\(p\) \? null : legacyCostsPath\(p\)/)
     assert.match(c, /navigateTo\(\{ path: localePath\(to\), query: route\.query, hash: route\.hash \}, \{ replace: true \}\)/)
-    /* the Monitoring Costs tab stays until S2; its path is the redirect */
-    assert.equal(monitoringTabFor('/monitoring/costs'), 'costs')
+    /* SPL-3986: the Monitoring Costs tab is gone; its path is only the redirect */
+    assert.equal(monitoringTabFor('/monitoring/costs'), null)
   })
 })
 

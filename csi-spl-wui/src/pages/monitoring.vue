@@ -48,7 +48,7 @@ const route = useRoute()
 const localePath = useLocalePath()
 const operator = useOperatorPane()
 const access = useAccessStore()
-/* a permission tab (Costs: costs.read) shows once /v1/view/me answered;
+/* a permission tab (one naming a `perm`) shows once /v1/view/me answered;
    access.can fails open (no answer = unrestricted), the hub's 403 is the control */
 const meRead = ref(false)
 const tabs = computed(() => visibleMonitoringTabs({ operator: operator.visible, staff: monitoringStaff(access.me), can: meRead.value ? access.can : undefined }))

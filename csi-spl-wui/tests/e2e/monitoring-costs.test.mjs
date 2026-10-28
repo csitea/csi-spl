@@ -326,13 +326,13 @@ async function tabRow(browser, base) {
   ]) {
     const { ctx, p } = await costsPage(browser, base, size, opts)
     await open(p, base, path)
-    const want = opts.operator ? 6 : 4
+    const want = opts.operator ? 5 : 3
     await p.waitForFunction((n) => document.querySelectorAll('[data-test^=monitoring-tab-]').length >= n, { timeout: 15000 }, want).catch(() => null)
     const g = await tabRowGeometry(p)
     const phone = size.width < 600
     if (opts.operator) {
       const ids = await tabIds(p)
-      ok(`C3b ${label}: six tabs, Lanes last`, ids.join(',') === 'agents,boxes,events,costs,tokens,lanes', ids)
+      ok(`C3b ${label}: five tabs, Lanes last, no Costs (SPL-3986)`, ids.join(',') === 'agents,boxes,events,tokens,lanes', ids)
     }
     ok(`C1 ${label}: the tab bar is inside the header`, Boolean(g && g.inHeader), g)
     if (phone) {

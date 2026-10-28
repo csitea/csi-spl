@@ -23,9 +23,9 @@ const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
 
 describe('monitoring tabs', () => {
-  it('Agents first (the landing tab, Q1 A), then Boxes, Events (SPL-3250), Costs (spec 123), Tokens (spec 140), then Lanes (spec 153 C15)', () => {
-    assert.deepEqual(MONITORING_TABS.map((t) => t.id), ['agents', 'boxes', 'events', 'costs', 'tokens', 'lanes', 'file-streams'])
-    assert.deepEqual(MONITORING_TABS.map((t) => t.path), ['/monitoring/agents', '/monitoring/boxes', '/monitoring/events', '/monitoring/costs', '/monitoring/tokens', '/monitoring/lanes', '/monitoring/file-streams'])
+  it('Agents first (the landing tab, Q1 A), then Boxes, Events (SPL-3250), Tokens (spec 140), then Lanes (spec 153 C15); no Costs (SPL-3986)', () => {
+    assert.deepEqual(MONITORING_TABS.map((t) => t.id), ['agents', 'boxes', 'events', 'tokens', 'lanes', 'file-streams'])
+    assert.deepEqual(MONITORING_TABS.map((t) => t.path), ['/monitoring/agents', '/monitoring/boxes', '/monitoring/events', '/monitoring/tokens', '/monitoring/lanes', '/monitoring/file-streams'])
     assert.equal(MONITORING_DEFAULT_PATH, '/monitoring/agents')
     for (const t of MONITORING_TABS) {
       assert.equal(t.path, '/monitoring/' + t.id, 'a tab is its own path (D4)')
@@ -39,16 +39,16 @@ describe('monitoring tabs', () => {
     assert.deepEqual(visibleMonitoringTabs().map((t) => t.id), ['agents', 'boxes', 'events'])
     assert.deepEqual(visibleMonitoringTabs({ operator: false }).map((t) => t.id), ['agents', 'boxes', 'events'])
   })
-  it('Costs (spec 123 5, SPL-2056) shows to a member holding costs.read only, operator or not', () => {
-    const costs = MONITORING_TABS.find((t) => t.id === 'costs')
-    assert.equal(costs.perm, 'costs.read')
-    assert.equal(costs.operatorsOnly, false, 'any workspace: biz_owner and admin read their own rows')
+  it('no Costs tab (SPL-3986, owner HUM-10, t1 e0fec998, msg ed506f41): Costs lives in Reporting alone', () => {
+    /* "The cost tab should be removed from the monitoring section, as it does exist already in the reporting section." */
+    assert.ok(!visibleMonitoringTabs({ can: () => true, operator: true, staff: true }).some((t) => t.id === 'costs'), 'the bar never draws it')
+    assert.ok(!MONITORING_TABS.some((t) => t.id === 'costs' || t.path === '/monitoring/costs'), 'not even a hidden row')
     const holds = (perms) => (p) => perms.includes(p)
-    assert.deepEqual(visibleMonitoringTabs({ can: holds(['costs.read']) }).map((t) => t.id), ['agents', 'boxes', 'events', 'costs'])
-    assert.deepEqual(visibleMonitoringTabs({ operator: true, can: holds(['costs.read']) }).map((t) => t.id), ['agents', 'boxes', 'events', 'costs', 'tokens', 'lanes'])
-    /* CONTROL: without the permission (or before /v1/view/me answered) it is hidden */
-    assert.deepEqual(visibleMonitoringTabs({ can: holds(['members.invite']) }).map((t) => t.id), ['agents', 'boxes', 'events'])
-    assert.deepEqual(visibleMonitoringTabs({ operator: true }).map((t) => t.id), ['agents', 'boxes', 'events', 'tokens', 'lanes'])
+    assert.deepEqual(visibleMonitoringTabs({ can: holds(['costs.read']) }).map((t) => t.id), ['agents', 'boxes', 'events'])
+    assert.deepEqual(visibleMonitoringTabs({ operator: true, can: holds(['costs.read']) }).map((t) => t.id), ['agents', 'boxes', 'events', 'tokens', 'lanes'])
+    /* the old link still lands on Reporting -> Costs: the page is the redirect, off the bar */
+    assert.match(read('src/pages/monitoring/costs/index.vue'), /<LegacyMonitoringRedirect \/>/)
+    assert.equal(monitoringTabFor('/monitoring/costs'), null)
   })
   it('case 2: Events (SPL-3250) shows to everyone who saw the Event log rail section: every reader, operator or not, any permission', () => {
     const events = MONITORING_TABS.find((t) => t.id === 'events')

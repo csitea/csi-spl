@@ -20,8 +20,8 @@ export const MONITORING_TABS = Object.freeze([
   /* SPL-3250 (owner HUM-10, t1 463d7692, msgs 24316f72 + ac1c95f9: "the event log section should be come just one tab of the
      monitoring section", "on both mobile and the desktop"): the personal Event log, for everyone, as its rail section was */
   Object.freeze({ id: 'events', path: '/monitoring/events', labelKey: 'monitoring.tab.events', operatorsOnly: false, ready: true }),
-  /* spec 123 5 (SPL-2056): the month's costs, for a member holding costs.read (biz_owner, admin) */
-  Object.freeze({ id: 'costs', path: '/monitoring/costs', labelKey: 'monitoring.tab.costs', operatorsOnly: false, ready: true, perm: 'costs.read' }),
+  /* SPL-3986 (owner HUM-10, t1 e0fec998, msg ed506f41): no Costs tab; Reporting -> Costs is its one home, and the
+     old /monitoring/costs link redirects there (pages/monitoring/costs/index.vue, spec 143 S1, SPL-3798) */
   /* spec 140 4.1 (SPL-2322): the fleet's live token burn per agent type and agent, operator admins only */
   Object.freeze({ id: 'tokens', path: '/monitoring/tokens', labelKey: 'monitoring.tab.tokens', operatorsOnly: true, ready: true }),
   /* spec 153 3.2 (SPL-3215, row B4): the fleet's active lanes, refreshed every minute; operator admins see

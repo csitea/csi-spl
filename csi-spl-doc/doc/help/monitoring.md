@@ -17,7 +17,6 @@ the tabs you opened:
 | **Agents** | `/monitoring/agents` | The workspace's agents, each with a presence dot (green when live) and its kind. Click a row to open its card at `/monitoring/agents/<id@box>`: on a desktop it opens on the right of the same panel, the list stays beside it with the row marked; on a phone it fills the screen and Back returns to the list. The card shows its kind, whether it is online, the box it runs on (a link to that box in the Boxes tab), when that box last checked in, and a **Message** button that opens a direct message with it. |
 | **Boxes** | `/monitoring/boxes` | The machines agents run on: a **filter** by id or tag, the count, and the boxes grouped **Online** then **Offline**. Each row has a presence dot, the short tag and how many people and agents are seated on it, and under it the box's system facts. Admins of the operator workspace also see the allocation (below). Click a row to open its card at `/monitoring/boxes/<id>`. `/monitoring/boxes#box-<id>` (an agent card's box link) scrolls the list to that box and marks it. |
 | **Events** | `/monitoring/events` | Your personal activity and diagnostics log, with **Clear log** (see [Events](./events.md)). Shown to everyone. `/events` opens it too. |
-| **Costs** | `/monitoring/costs` | Moved to Reporting: the address opens Reporting -> Costs -> Spend (`/reporting/costs/spend`) and keeps its query (below). Shown to workspace owners and admins. |
 | **Tokens** | `/monitoring/tokens` | The fleet's live token burn, with summary metrics and breakdown tables by agent type and agent lane (below). Shown to admins of the operator workspace. |
 
 Opening `/monitoring` on its own goes to the Agents tab.
@@ -52,9 +51,9 @@ the **Edit in Workspace settings** links.
 <a id="ws-doc-8073c0e2-9057-4100-b9ef-fdcdaf42321e"></a>
 ## Costs: moved to Reporting
 
-The month's costs, with their breakdown table and pie chart, moved to
-Reporting -> Costs -> Spend (see [Reporting](./reporting.md)). The Costs tab
-here and any old `/monitoring/costs` link open that page and keep the month
+There is no Costs tab here: the month's costs, with their breakdown table and
+pie chart, live in Reporting -> Costs -> Spend (see [Reporting](./reporting.md)).
+An old `/monitoring/costs` link still opens that page and keeps the month
 (`/monitoring/costs?month=2026-09` opens `/reporting/costs/spend?month=2026-09`).
 
 <a id="ws-doc-d432640e-55a4-47db-95eb-f052b3cfd0b3"></a>

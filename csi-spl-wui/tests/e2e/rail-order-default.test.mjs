@@ -355,10 +355,9 @@ async function monitoringSection(browser, base) {
     await p.evaluate(() => document.querySelector('[data-testid=sidebar-tab-monitoring]')?.click())
     check(`${tag}: the rail tab lands on /monitoring/agents`, await at(p, '/monitoring/agents'), path(p))
     await p.waitForSelector('[data-test=monitoring-agents]', { visible: true, timeout: NAV }).catch(() => null)
-    /* Costs (spec 123, SPL-2056) shows once /v1/view/me answered; the mock's me is unrestricted */
-    await p.waitForSelector('[data-test=monitoring-tab-costs]', { timeout: NAV }).catch(() => null)
+    await p.waitForSelector('[data-test=monitoring-tab-events]', { timeout: NAV }).catch(() => null)
     /* SPL-3250: Events (the Event log, off the rail) after Boxes, for everyone */
-    check(`${tag}: the bar draws Agents (current), Boxes, Events, then Costs, no Tokens`, same(await bar(p), [['monitoring-tab-agents', 'page'], ['monitoring-tab-boxes', ''], ['monitoring-tab-events', ''], ['monitoring-tab-costs', '']]), await bar(p))
+    check(`${tag}: the bar draws Agents (current), Boxes, Events, no Costs (SPL-3986), no Tokens`, same(await bar(p), [['monitoring-tab-agents', 'page'], ['monitoring-tab-boxes', ''], ['monitoring-tab-events', '']]), await bar(p))
     check(`${tag}: the summary strip slot is there`, Boolean(await p.$('[data-test=monitoring-summary]')))
     check(`${tag}: the rail tab reads as selected`, (await p.$eval('[data-testid=sidebar-tab-monitoring]', (e) => e.getAttribute('aria-selected'))) === 'true')
     if (!touch) check(`${tag}: the sidebar keeps the icon rail only`, await p.$eval('nav.sidebar', (e) => e.classList.contains('sidebar--rail')))

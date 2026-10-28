@@ -66,8 +66,8 @@ done
 many=$(seq -s, -f 'SPL-%.0f' 1 21)
 run "${SET[@]}" DRY_RUN=0 "ISSUE_KEYS=$many"; rc=$?
 [[ $rc -ne 0 && ! -s "$T/calls" ]] && pass "2. 21 issue keys fail fast" || fail "2. many: rc=$rc $(cat "$T/o")"
-run "${SET[@]}" ISSUE_KEYS='spl-12,SPL-12,12' EVENT_OWNER='c-840@tnk'; rc=$?
-[[ $rc -eq 0 && ! -s "$T/calls" ]] && grep -q '"issue_keys":\["spl-12","12"\]' "$T/o" && grep -q '"owner_id":"c-840@tnk"' "$T/o" \
+run "${SET[@]}" ISSUE_KEYS='spl-12,SPL-12,12' EVENT_OWNER='c-840@box1'; rc=$?
+[[ $rc -eq 0 && ! -s "$T/calls" ]] && grep -q '"issue_keys":\["spl-12","12"\]' "$T/o" && grep -q '"owner_id":"c-840@box1"' "$T/o" \
   && pass "1. ISSUE_KEYS deduped, EVENT_OWNER kept, 0 calls" || fail "1. links: rc=$rc $(cat "$T/o")"
 run "${SET[@]}" ISSUE_KEYS=; rc=$?
 [[ $rc -eq 0 && ! -s "$T/calls" ]] && grep -q '"issue_keys":\[\]' "$T/o" && ! grep -q owner_id "$T/o" \

@@ -78,7 +78,8 @@
 #       (a relay to another machine exits 0: that machine rings the pane)
 #   6   delivered; REFUSED to poke: the pane holds unsent typed text
 #   7   delivered; the pane runs only bare shells (the agent has exited)
-#   2   usage error (nothing sent)
+#   2   usage error (nothing sent), also an empty or whitespace-only body
+#       (--body "" or an empty --body-file; a missing --body-file is an error)
 #   3   refused (nothing sent): --kind task to a lane of this machine that
 #       already owns another topic (its first task's task_id since spawn);
 #       spawn a new lane. SPOOL_SECOND_TOPIC_OK=1 overrides, logged to
@@ -365,6 +366,9 @@ if [ "$POKE_ONLY" -eq 0 ]; then
   [ -n "$FROM" ] || { echo "ERROR: --from is required" >&2; usage; }
   case "$KIND" in task|result|note|reject|blocker|msg) ;; *) echo "ERROR: --kind must be task|result|note|reject|blocker|msg, got: '${KIND}'" >&2; exit 2 ;; esac
   [ "$BODY_SET" -eq 1 ] || { echo "ERROR: --body or --body-file is required" >&2; exit 2; }
+  # SPL-3953: `--body "$(cat <never-written file>)"` expanded to '' and 6
+  # results from 2 review seats arrived empty (2026-10-27). Every kind.
+  [[ "$BODY" =~ [^[:space:]] ]] || { echo "ERROR: the body is empty: if it came from \$(cat FILE), FILE is missing or empty; nothing was sent" >&2; exit 2; }
   [ -z "$ACCEPT" ] || [ "$KIND" = result ] || { echo "ERROR: --accept accepts a result: it needs --kind result, got: '${KIND}'. Nothing was sent." >&2; exit 2; }
   [ -z "$ACCEPT" ] || [ "$PEERS" -eq 0 ] || { echo "ERROR: --accept goes to the agent whose result it accepts, not to the peers. Nothing was sent." >&2; exit 2; }
   send_from_guard "$FROM" || exit 10

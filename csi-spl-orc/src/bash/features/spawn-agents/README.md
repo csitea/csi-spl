@@ -452,7 +452,7 @@ These exit codes mean nothing was delivered:
 
 | code | meaning |
 |---|---|
-| `2` | usage error |
+| `2` | usage error, or an empty or whitespace-only body (`--body ""`, an empty `--body-file`; a missing `--body-file` is an error too): `ERROR: the body is empty: if it came from $(cat FILE), FILE is missing or empty; nothing was sent`, for every kind (SPL-3953) |
 | `10+` | `spool send` failed. The code is 10 plus spool's own exit code |
 
 ## 5. The frozen box engine, accounted for

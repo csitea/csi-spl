@@ -1,0 +1,6 @@
+Lay-What: The marketing area can now store Facebook Pages and Instagram business accounts, pictures and videos for a post, and a post waiting for approval.
+Lay-How: The database accepts the two new account kinds, keeps a list of media files with each post, and has a new waiting-for-approval state that holds a post until someone approves it.
+Lay-Why: Posting to Facebook and Instagram needs these records first; the approval hold stops a post going out before a person has checked it.
+Tech-What: rdb 0236_marketing_meta.sql swaps the platform, account_type, status and event CHECKs (facebook_page, instagram_business, page, business, awaiting_approval) and adds marketing_channels.metadata (jsonb object) and marketing_posts.media_assets (jsonb array); store marketing.go and marketing_memory.go read and write them.
+Tech-How: CHECK constraint swaps, not enums; RLS unchanged so a cross-tenant read of a Meta channel fails closed; TestMarketingMeta* cover both stores on Postgres.
+Tech-Why: Spec 090 T031 is the schema the Meta client (T032) and the publish flow depend on.

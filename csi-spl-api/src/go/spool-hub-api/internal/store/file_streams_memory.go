@@ -171,6 +171,49 @@ func (m *memFileStreams) pruneToCaps(tenant string, lim FileStreamLimits) int {
 	return n
 }
 
+// SweepFileStreams is FileStreamStore.SweepFileStreams.
+func (s *Memory) SweepFileStreams(ctx context.Context, now time.Time, lim FileStreamLimits) (FileStreamSweep, error) {
+	s.mu.Lock()
+	tenants := map[string]bool{}
+	for _, f := range s.fileStreamsLocked().byID {
+		if f.LinesKept > 0 {
+			tenants[f.Tenant] = true
+		}
+	}
+	s.mu.Unlock()
+	var res FileStreamSweep
+	for tenant := range tenants {
+		r, _ := s.sweepFileStreamTenant(ctx, tenant, now, lim)
+		res.Expired, res.Pruned = res.Expired+r.Expired, res.Pruned+r.Pruned
+	}
+	return res, nil
+}
+
+// sweepFileStreamTenant is one workspace's part of SweepFileStreams.
+func (s *Memory) sweepFileStreamTenant(_ context.Context, tenant string, now time.Time, lim FileStreamLimits) (FileStreamSweep, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m := s.fileStreamsLocked()
+	var res FileStreamSweep
+	cut := now.Add(-FileStreamsRetention)
+	for id, ls := range m.lines {
+		f := m.byID[id]
+		if f.Tenant != tenant {
+			continue
+		}
+		for seq, l := range ls {
+			if l.At.Before(cut) {
+				delete(ls, seq)
+				f.LinesKept--
+				f.BytesKept -= int64(len(l.Text))
+				res.Expired++
+			}
+		}
+	}
+	res.Pruned = m.pruneToCaps(tenant, lim.Norm())
+	return res, nil
+}
+
 func slicesOf(ls map[int64]FileStreamLine) []FileStreamLine {
 	out := make([]FileStreamLine, 0, len(ls))
 	for _, l := range ls {

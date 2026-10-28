@@ -412,3 +412,79 @@ func TestFileStreamNilRedactions(t *testing.T) {
 		})
 	}
 }
+
+// fsTenantSweeper is the per-workspace step of SweepFileStreams, which both
+// stores have: the Postgres test database is shared with other runs, so the
+// test drives the expiry and the caps on its own two workspaces only.
+type fsTenantSweeper interface {
+	sweepFileStreamTenant(ctx context.Context, tenant string, now time.Time, lim FileStreamLimits) (FileStreamSweep, error)
+}
+
+// TestFileStreamSweep is case C22 (row B6): the sweep deletes the lines past
+// the 7-day retention, then prunes a workspace over its caps oldest first,
+// and keeps every count in step; another workspace within its caps keeps
+// every line it has inside the retention. CONTROL: an expiry that deletes
+// nothing leaves A 6 lines ("A kept 6 lines from seq 1").
+func TestFileStreamSweep(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			c := newFSCase(t, s)
+			c.lim.RatePerMin = 1 << 20
+			sw := s.(fsTenantSweeper)
+			a, b := c.workspace(t, "box-a"), c.workspace(t, "box-b")
+			c.announce(t, a, "box-a", "app")
+			c.announce(t, b, "box-b", "app")
+			// A: 3 lines 6 days old, 3 lines now; B: 2 lines now.
+			if _, err := c.push(a, "box-a", "app", fsLines(1, 3, c.now.Add(-6*24*time.Hour), "old")); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := c.push(a, "box-a", "app", fsLines(4, 3, c.now, "new")); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := c.push(b, "box-b", "app", fsLines(1, 2, c.now, "b")); err != nil {
+				t.Fatal(err)
+			}
+			// The whole sweep at the real time and default caps: A and B are
+			// inside both, nothing of theirs goes.
+			if _, err := c.fs.SweepFileStreams(c.ctx, c.now, FileStreamLimits{}); err != nil {
+				t.Fatal(err)
+			}
+			if ka, kb := c.kept(t, a, "app"), c.kept(t, b, "app"); len(ka) != 6 || len(kb) != 2 {
+				t.Fatalf("a sweep inside retention and caps deleted lines: A %d (want 6), B %d (want 2)", len(ka), len(kb))
+			}
+			// Two days on, A's first 3 lines are 8 days old.
+			later := c.now.Add(2 * 24 * time.Hour)
+			for _, w := range []string{a, b} {
+				if _, err := sw.sweepFileStreamTenant(c.ctx, w, later, c.lim); err != nil {
+					t.Fatal(err)
+				}
+			}
+			ka := c.kept(t, a, "app")
+			if len(ka) != 3 || ka[0].Seq != 4 {
+				t.Fatalf("A kept %d lines from seq %d, want 3 from 4", len(ka), ka[0].Seq)
+			}
+			if f := c.stream(t, a, "app"); f.LinesKept != 3 || f.BytesKept != int64(3*len("new 4")) {
+				t.Fatalf("A counts after the expiry: kept %d lines %d bytes", f.LinesKept, f.BytesKept)
+			}
+			// A cap lowered since the last push: the sweep prunes A to it,
+			// oldest first; B, within it, stays whole.
+			c.lim.MaxLines = 2
+			r, err := sw.sweepFileStreamTenant(c.ctx, a, c.now, c.lim)
+			if err != nil || r.Pruned != 1 {
+				t.Fatalf("cap sweep of A: %+v %v, want 1 pruned", r, err)
+			}
+			if r, err = sw.sweepFileStreamTenant(c.ctx, b, c.now, c.lim); err != nil || r.Pruned+r.Expired != 0 {
+				t.Fatalf("cap sweep of B: %+v %v, want nothing", r, err)
+			}
+			if ka = c.kept(t, a, "app"); len(ka) != 2 || ka[0].Seq != 5 {
+				t.Fatalf("A after the cap sweep: %d lines from seq %d, want 2 from 5", len(ka), ka[0].Seq)
+			}
+			if f := c.stream(t, a, "app"); f.LinesKept != 2 {
+				t.Fatalf("A lines_kept %d, want 2", f.LinesKept)
+			}
+			if kb := c.kept(t, b, "app"); len(kb) != 2 {
+				t.Fatalf("B touched by the sweep: %d lines, want 2", len(kb))
+			}
+		})
+	}
+}

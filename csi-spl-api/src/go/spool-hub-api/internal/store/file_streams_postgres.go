@@ -244,6 +244,84 @@ func (s *Postgres) pruneFileStreamsToCaps(ctx context.Context, tx pgx.Tx, tenant
 	}
 }
 
+// fileStreamExpire deletes up to 1000 of tenant's lines older than $2,
+// oldest first (ix_file_stream_lines_tenant_at), and takes them off their
+// streams' kept counts in the same statement, as fileStreamPrune does.
+const fileStreamExpire = `WITH o AS (
+		SELECT stream_id, seq FROM file_stream_lines WHERE tenant_id = $1 AND at < $2
+		ORDER BY at, stream_id, seq LIMIT 1000
+	), d AS (
+		DELETE FROM file_stream_lines l USING o WHERE l.tenant_id = $1 AND l.stream_id = o.stream_id AND l.seq = o.seq
+		RETURNING l.stream_id, octet_length(l.text) AS b
+	), g AS (
+		SELECT stream_id, count(*) AS n, sum(b) AS b FROM d GROUP BY stream_id
+	)
+	UPDATE file_streams f SET lines_kept = f.lines_kept - g.n, bytes_kept = f.bytes_kept - g.b
+	FROM g WHERE f.tenant_id = $1 AND f.id = g.stream_id
+	RETURNING g.n`
+
+// SweepFileStreams is FileStreamStore.SweepFileStreams. The workspace list
+// is the one operator read (ids only); every delete runs in its own
+// workspace's scope, one batch of 1000 a transaction, so a long sweep never
+// holds a workspace's push behind it for more than a batch.
+func (s *Postgres) SweepFileStreams(ctx context.Context, now time.Time, lim FileStreamLimits) (FileStreamSweep, error) {
+	lim = lim.Norm()
+	var tenants []string
+	err := s.asOperatorQuery(ctx, `SELECT DISTINCT tenant_id::text FROM file_streams WHERE lines_kept > 0`, nil, func(r pgx.Rows) error {
+		var t string
+		if err := r.Scan(&t); err != nil {
+			return err
+		}
+		tenants = append(tenants, t)
+		return nil
+	})
+	if err != nil {
+		return FileStreamSweep{}, err
+	}
+	var res FileStreamSweep
+	for _, tenant := range tenants {
+		r, err := s.sweepFileStreamTenant(ctx, tenant, now, lim)
+		res.Expired, res.Pruned = res.Expired+r.Expired, res.Pruned+r.Pruned
+		if err != nil {
+			return res, err
+		}
+	}
+	return res, nil
+}
+
+// sweepFileStreamTenant is one workspace's part of SweepFileStreams, all of
+// it in tenant's scope.
+func (s *Postgres) sweepFileStreamTenant(ctx context.Context, tenant string, now time.Time, lim FileStreamLimits) (FileStreamSweep, error) {
+	var res FileStreamSweep
+	cut := now.Add(-FileStreamsRetention)
+	for {
+		got := 0
+		err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+			return eachRow(ctx, tx, fileStreamExpire, []any{tenant, cut}, func(r pgx.Rows) error {
+				var n int64
+				if err := r.Scan(&n); err != nil {
+					return err
+				}
+				got += int(n)
+				return nil
+			})
+		})
+		if err != nil {
+			return res, err
+		}
+		res.Expired += got
+		if got == 0 {
+			break
+		}
+	}
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		n, err := s.pruneFileStreamsToCaps(ctx, tx, tenant, lim.Norm())
+		res.Pruned += n
+		return err
+	})
+	return res, err
+}
+
 // ListFileStreams is FileStreamStore.ListFileStreams.
 func (s *Postgres) ListFileStreams(ctx context.Context, tenant string) ([]FileStream, error) {
 	out := []FileStream{}

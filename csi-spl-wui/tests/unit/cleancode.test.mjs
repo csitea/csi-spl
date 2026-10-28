@@ -59,7 +59,6 @@ const LONG = new Map([
   ['src/stores/repoEdit.ts editLists', 78],
   ['src/stores/roster.ts <anon>', 77],
   ['src/stores/search.ts <anon>#4', 76],
-  ['src/utils/move-drag.ts createHandleDrag', 78],
 ])
 
 // `<file> <name>` keyed as LONG. The functions at 6 parameters when r26-02

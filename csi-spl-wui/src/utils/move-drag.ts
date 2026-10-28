@@ -90,6 +90,65 @@ function pressedMove(
   return d >= cfg.startPx ? 'lift' : 'wait'
 }
 
+type HandleDragCfg = ReturnType<typeof handleDragOptions>
+/** The gesture so far. x0/y0 = where the press began, x/y = the pointer now. */
+type Gesture = {
+  state: HandleDrag['state'], pointerId: number, touch: boolean,
+  x0: number, y0: number, x: number, y: number, timer: unknown, swallow: boolean,
+}
+
+/** A gesture before any press. */
+function idleGesture(): Gesture {
+  return { state: 'idle', pointerId: -1, touch: false, x0: 0, y0: 0, x: 0, y: 0, timer: null, swallow: false }
+}
+
+/** The card lifts: the host hears the start, and the release click is swallowed. */
+function liftGesture(g: Gesture, opts: HandleDragOpts) {
+  g.state = 'lifted'
+  g.swallow = true
+  opts.onStart(g.x, g.y)
+}
+
+/** Back to idle. True when the card was lifted, so the host hears the end. */
+function settleGesture(g: Gesture, cfg: HandleDragCfg) {
+  if (g.timer !== null) cfg.clearTimer(g.timer)
+  g.timer = null
+  const was = g.state
+  g.state = 'idle'
+  return was === 'lifted'
+}
+
+/** A press on the handle: refused while one is down and for a mouse button other than the left. */
+function pressDown(g: Gesture, ev: Pt, cfg: HandleDragCfg, holdEnded: () => void): boolean {
+  if (g.state !== 'idle') return false
+  if (ev.pointerType === 'mouse' && ev.button !== 0) return false
+  g.state = 'pressed'
+  g.pointerId = ev.pointerId
+  g.touch = ev.pointerType === 'touch'
+  g.x0 = g.x = ev.clientX
+  g.y0 = g.y = ev.clientY
+  g.swallow = false
+  if (g.touch) g.timer = cfg.setTimer(holdEnded, cfg.holdMs)
+  return true
+}
+
+/** A move of the pressing pointer: a lifted card follows, a pressed one lifts or releases. */
+function pressMove(g: Gesture, ev: Pt, cfg: HandleDragCfg, opts: HandleDragOpts) {
+  if (ev.pointerId !== g.pointerId || g.state === 'idle' || g.state === 'held') return
+  g.x = ev.clientX
+  g.y = ev.clientY
+  if (g.state === 'lifted') {
+    opts.onMove(g.x, g.y)
+    return
+  }
+  const next = pressedMove(g, cfg)
+  if (next === 'release') settleGesture(g, cfg)
+  else if (next === 'lift') {
+    liftGesture(g, opts)
+    opts.onMove(g.x, g.y)
+  }
+}
+
 /**
  * The handle's gesture. The host feeds it pointer events and gets:
  *   onStart(x, y)  - the drag lifted (mouse / pen: 4 px of travel; touch: a hold)
@@ -104,74 +163,29 @@ function pressedMove(
  */
 export function createHandleDrag(opts: HandleDragOpts): HandleDrag {
   const cfg = handleDragOptions(opts)
-  /** The gesture so far. x0/y0 = where the press began, x/y = the pointer now. */
-  const g: {
-    state: HandleDrag['state'], pointerId: number, touch: boolean,
-    x0: number, y0: number, x: number, y: number, timer: unknown, swallow: boolean,
-  } = { state: 'idle', pointerId: -1, touch: false, x0: 0, y0: 0, x: 0, y: 0, timer: null, swallow: false }
+  const g = idleGesture()
 
-  function stopTimer() {
-    if (g.timer !== null) cfg.clearTimer(g.timer)
-    g.timer = null
-  }
-  function lift() {
-    g.state = 'lifted'
-    g.swallow = true
-    opts.onStart(g.x, g.y)
-  }
   /** A finger stayed down for holdMs. */
   function holdEnded() {
     g.timer = null
     if (g.state !== 'pressed') return
-    if (!opts.onHold || opts.onHold()) lift()
+    if (!opts.onHold || opts.onHold()) liftGesture(g, opts)
     else {
       g.state = 'held'
       g.swallow = true
     }
   }
-  /** Back to idle. True when the card was lifted, so the host hears the end. */
-  function settle() {
-    stopTimer()
-    const was = g.state
-    g.state = 'idle'
-    return was === 'lifted'
-  }
 
   return {
     get state() { return g.state },
-    down(ev: Pt) {
-      if (g.state !== 'idle') return false
-      if (ev.pointerType === 'mouse' && ev.button !== 0) return false
-      g.state = 'pressed'
-      g.pointerId = ev.pointerId
-      g.touch = ev.pointerType === 'touch'
-      g.x0 = g.x = ev.clientX
-      g.y0 = g.y = ev.clientY
-      g.swallow = false
-      if (g.touch) g.timer = cfg.setTimer(holdEnded, cfg.holdMs)
-      return true
-    },
-    move(ev: Pt) {
-      if (ev.pointerId !== g.pointerId || g.state === 'idle' || g.state === 'held') return
-      g.x = ev.clientX
-      g.y = ev.clientY
-      if (g.state === 'lifted') {
-        opts.onMove(g.x, g.y)
-        return
-      }
-      const next = pressedMove(g, cfg)
-      if (next === 'release') settle()
-      else if (next === 'lift') {
-        lift()
-        opts.onMove(g.x, g.y)
-      }
-    },
+    down(ev: Pt) { return pressDown(g, ev, cfg, holdEnded) },
+    move(ev: Pt) { pressMove(g, ev, cfg, opts) },
     up(ev: Pt) {
       if (ev.pointerId !== g.pointerId) return
-      if (settle()) opts.onDrop(ev.clientX, ev.clientY)
+      if (settleGesture(g, cfg)) opts.onDrop(ev.clientX, ev.clientY)
     },
     cancel() {
-      if (settle()) opts.onCancel()
+      if (settleGesture(g, cfg)) opts.onCancel()
     },
     takeClick() {
       const s = g.swallow

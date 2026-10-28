@@ -140,6 +140,7 @@ do_spl_desk_reply() {
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" agent="${DESK_AGENT:-}"
   local body="${DESK_BODY:-}" kind="${DESK_KIND:-note}" to="${DESK_TO:-}" task="${DESK_TASK:-}"
   _spl_desk_reply_body_file || return 1
+  spl_post_time_apply body || return 1
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   local uuid_re='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' f files=()
   read -r -a files <<<"${DESK_FILES:-}"

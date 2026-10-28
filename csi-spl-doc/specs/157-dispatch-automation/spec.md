@@ -553,6 +553,7 @@ flowchart LR
 
 #### 4. Execution Location
 - Filter library `csi-spl-orc/src/bash/run/spl-post-time.func.sh`, integrated into `csi-spl-orc/src/bash/run/spl-desk-reply.func.sh` and `csi-spl-orc/src/bash/run/spl-desk-post.func.sh`.
+- **Built (row B1, SPL-4023)**: `spl_post_time_apply` runs first in both actions, right after the body is read (FATAL, nothing sent). One clock reading per post fills all three tokens; any other `{{NOW_*}}` / `{{TODAY_*}}` token is refused. Refused as colloquial: an am/pm hour (`3pm`, `9 a.m.`), a clock time with no zone (`10:45`), one with a named zone (`13:45 EEST`) and an ISO date-time with no zone. Text in `code` or a fenced block is not read, so a log line or a duration that is no clock time goes there. Try a draft without posting: `cd csi-spl-orc && POST_TIME_BODY='Taken at {{NOW_UTC}}' ./run -a do_spl_post_time` (no body: the three stamps). `how-to-post.md` section 4 is a Qto export; its token paragraph is written in the Qto doc, not here.
 
 #### 5. Test Plan & Red Controls
 - **Test File**: `csi-spl-orc/src/bash/tests/spl-post-time.tst.sh`

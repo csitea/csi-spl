@@ -50,6 +50,7 @@ do_spl_desk_post() {
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" agent="${DESK_AGENT:-}"
   local body="${DESK_BODY:-}" kind="${DESK_KIND:-note}" channel="${DESK_CHANNEL:-}" typed_by="${DESK_TYPED_BY:-}"
   spl_desk_load_body_file body || return 1
+  spl_post_time_apply body || return 1
   channel="${channel#\#}"; channel="${channel,,}"
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   [[ "$channel" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]] || { do_log "FATAL DESK_CHANNEL must be a channel id (e.g. spool-hub-devel), got: '${DESK_CHANNEL:-}'"; return 1; }

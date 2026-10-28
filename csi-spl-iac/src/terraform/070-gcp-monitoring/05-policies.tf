@@ -135,12 +135,12 @@ resource "google_monitoring_alert_policy" "error_logs" {
   severity              = "ERROR"
 
   conditions {
-    display_name = "at least ${var.error_logs_per_5min} error log entries in five minutes"
+    display_name = "at least ${var.error_logs_per_5min} error log entries in five minutes, for ${var.error_logs_duration_s}s"
     condition_threshold {
       filter          = "metric.type = \"logging.googleapis.com/user/${google_logging_metric.hub_errors.name}\" AND resource.type = \"cloud_run_revision\""
       comparison      = "COMPARISON_GT"
       threshold_value = var.error_logs_per_5min - 1
-      duration        = "0s"
+      duration        = "${var.error_logs_duration_s}s"
       aggregations {
         alignment_period     = "300s"
         per_series_aligner   = "ALIGN_DELTA"

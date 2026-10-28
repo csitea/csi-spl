@@ -33,6 +33,12 @@
 #      log rate, 429 streak; WARNING max instances, memory high, slow views.
 #      Controls: a policy without severity, a swapped one and a 10th policy
 #      outside the map each fail
+#   9. SPL-3963 (owner answer C to Q2, poll 48c29645, part B): error_logs
+#      pages only when the error rate lasts var.error_logs_duration_s (cnf
+#      600): duration = "${var.error_logs_duration_s}s", the variable
+#      validated, the rendered tfvars = cnf; the 300 s alignment and the
+#      threshold stay. Controls: "0s" (master before) and a literal fail the
+#      rule; a 5-min burst (a planned apply) stays quiet where 10 min fires
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -263,5 +269,45 @@ sev_ok "$tf" && pass "each of the ${#SEV[@]} alert policies has its mapped sever
 sev_ok "$(sed '0,/^  severity .*"CRITICAL"$/{//d}' <<<"$tf")" >/dev/null && fail "CONTROL a policy without severity passed" || pass "CONTROL a policy without severity fails"
 sev_ok "$(sed '0,/"WARNING"$/s//"ERROR"/' <<<"$tf")" >/dev/null && fail "CONTROL a WARNING swapped to ERROR passed" || pass "CONTROL a WARNING swapped to ERROR fails"
 sev_ok "$tf"$'\nresource "google_monitoring_alert_policy" "extra" {\n  severity = "ERROR"\n}' >/dev/null && fail "CONTROL a policy outside the map passed" || pass "CONTROL a policy outside the map fails"
+
+# --- 9. SPL-3963: error_logs pages only on a sustained error rate ---------------
+# elog_ok <policies tf> -> 0 when error_logs holds its rate for the cnf duration
+elog_ok() {
+  local p; p="$(block "$1" google_monitoring_alert_policy error_logs)"
+  [[ -n "$p" ]] || return 1
+  [[ "$(attr "$p" duration)" == '"${var.error_logs_duration_s}s"' ]] || return 1
+  [[ "$(attr "$p" alignment_period)" == '"300s"' ]] || return 1
+  [[ "$(attr "$p" threshold_value)" == "var.error_logs_per_5min - 1" ]] || return 1
+}
+elog_ok "$tf" && pass "error_logs: duration = var.error_logs_duration_s, 300 s alignment, threshold error_logs_per_5min" \
+  || fail "error_logs does not hold the rate for var.error_logs_duration_s: $(attr "$(block "$tf" google_monitoring_alert_policy error_logs)" duration)"
+elog_ok "$(sed -E 's/duration( +)= "\$\{var.error_logs_duration_s\}s"/duration\1= "0s"/' <<<"$tf")" \
+  && fail "CONTROL duration \"0s\" passed the rule" || pass "CONTROL duration \"0s\" (pages on one window) fails the rule"
+elog_ok "$(sed -E 's/duration( +)= "\$\{var.error_logs_duration_s\}s"/duration\1= "600s"/' <<<"$tf")" \
+  && fail "CONTROL a literal \"600s\" passed the rule" || pass "CONTROL a literal \"600s\" fails the rule"
+vblk="$(awk '/^variable "error_logs_duration_s"/{on=1} on{print} on&&/^}/{exit}' "$TFD/02-variables.tf")"
+grep -q 'condition *= var.error_logs_duration_s >= 0 && var.error_logs_duration_s % 60 == 0' <<<"$vblk" \
+  && pass "error_logs_duration_s is validated (>= 0, whole minutes)" || fail "error_logs_duration_s has no validation: $vblk"
+want_d="$(yq -r '.env.steps["070-gcp-monitoring"].error_logs_duration_s' "$CNF/all.env.yaml")"
+[[ "$want_d" == 600 ]] && pass "cnf error_logs_duration_s = 600 (owner: errors that last 10 minutes)" || fail "cnf error_logs_duration_s '$want_d', want 600"
+for env in dev prd; do
+  got_d="$(sed -nE 's/^error_logs_duration_s[[:space:]]*=[[:space:]]*([0-9]+)$/\1/p' "$CNF/$env/tf/070-gcp-monitoring.vars.tfvars")"
+  [[ -n "$got_d" && "$got_d" == "$want_d" ]] && pass "$env 070 tfvars error_logs_duration_s $got_d = cnf" || fail "$env 070 tfvars error_logs_duration_s '$got_d' != cnf '$want_d'"
+done
+# sustained <duration s> <per-minute 5-min sums...> -> 0 when the sum stays
+# above the threshold for the whole duration (one point a minute; 0 s = one point)
+sustained() {
+  local d="$1" t; shift
+  t="$(yq -r '.env.steps["070-gcp-monitoring"].error_logs_per_5min' "$CNF/all.env.yaml")"
+  awk -v t="$t" -v n="$(( d / 60 + 1 ))" 'BEGIN{for(i=3;i<ARGC;i++){r=(ARGV[i]>t-1)?r+1:0; if(r>=n) exit 0} exit 1}' x x "$@"
+}
+# a planned apply: 5 min of errors at 30 a minute, seen as the 300 s sum one
+# point a minute: above the threshold for 9 points, under the 11 of 600 s
+burst=(0 30 60 90 120 150 120 90 60 30 0 0 0 0 0)
+# 12 min of errors at 30 a minute: 16 points above the threshold
+long=(0 30 60 90 120 150 150 150 150 150 150 150 150 120 90 60 30 0)
+sustained "${want_d:-0}" "${burst[@]}" && fail "a 5-min error burst (planned apply) pages at ${want_d}s" || pass "a 5-min error burst (planned apply) stays quiet at ${want_d}s"
+sustained "${want_d:-0}" "${long[@]}" && pass "12 min of errors pages at ${want_d}s" || fail "12 min of errors does not page at ${want_d}s"
+sustained 0 "${burst[@]}" && pass "CONTROL the same burst pages at 0s (the old rule)" || fail "CONTROL the burst stays quiet at 0s"
 
 [[ $fails -eq 0 ]] && echo "PASS: all monitoring-incident-070.tst.sh assertions" || { echo "FAIL: $fails"; exit 1; }

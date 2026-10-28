@@ -99,3 +99,28 @@ Test: section 8 of `csi-spl-iac/src/bash/tests/monitoring-incident-070.tst.sh`
 holds each policy to exactly its row; a policy without severity, a swapped one
 and a policy outside the table each fail it. A new policy gets a row here and
 in the test's map.
+
+## 6. Error log rate: only when it lasts 10 minutes (SPL-3963)
+
+`error_logs` (`<org>-<app>-<env> hub error log rate`) pages when the hub writes
+at least `error_logs_per_5min` (10) error log entries in a 300 s window AND
+that holds for `error_logs_duration_s` (600) seconds, for every cause. Before
+SPL-3963 its `duration` was `"0s"`: one window over the threshold paged.
+
+- Why: owner answer C ("Both") to Q2 of `alerts-fix-round-plan.md` (poll
+  48c29645, 2026-10-25). Part A, the snooze around a planned 040 apply, is
+  `planned-apply-alert-snooze.md`; this is part B. A database restart of a
+  few minutes stays quiet even outside a snoozed apply.
+- What it costs: an error storm that does start is paged about 10 minutes
+  later than before.
+- cnf `steps.070-gcp-monitoring.error_logs_duration_s`, the terraform
+  variable of the same name (a whole number of minutes, validated),
+  `duration = "${var.error_logs_duration_s}s"` in `05-policies.tf`. A
+  change is a cnf edit, `ENV=<env> ./run -a do_tpl_gen`, then a 070 apply
+  with the owner's go, dev first.
+- Test: section 9 of `csi-spl-iac/src/bash/tests/monitoring-incident-070.tst.sh`:
+  the duration is the variable, the variable is validated, the rendered
+  dev/prd tfvars carry the cnf value; controls: `"0s"` and a literal `"600s"`
+  fail the rule, and on a modelled series (300 s sums one point a minute) a
+  5-minute error burst stays quiet at 600 s where 12 minutes pages and the
+  old `0s` paged the burst.

@@ -145,6 +145,16 @@ variable "error_logs_per_5min" {
   description = "Page when the hub writes at least this many error log entries in five minutes."
 }
 
+variable "error_logs_duration_s" {
+  type        = number
+  description = "Page only when the error log rate holds for this long (SPL-3963: a planned apply's few minutes of errors stays quiet)."
+
+  validation {
+    condition     = var.error_logs_duration_s >= 0 && var.error_logs_duration_s % 60 == 0
+    error_message = "error_logs_duration_s must be a whole number of minutes, in seconds (0, 60, 120, ...)."
+  }
+}
+
 variable "sql_down_seconds" {
   type        = number
   description = "Page when Cloud SQL database/up reads 0 for this long."

@@ -5,8 +5,8 @@ owner answer to Q2: "Both"). An owner-approved apply of step
 `040-cloud-sql-postgres` restarts Cloud SQL for about a minute. Every hub
 loop logs one ERROR per failing call per 5 s tick while the database is gone,
 so the apply paged `error_logs` (and can page `sql_down`) for a change that
-was already agreed. Part B, the 600 s duration on the error-log policy, is a
-later terraform 070 change.
+was already agreed. Part B, the 600 s duration on the error-log policy, is
+`hub-capacity-alerts.md` section 6 (SPL-3963).
 
 ## 1. What happens on a 040 apply
 

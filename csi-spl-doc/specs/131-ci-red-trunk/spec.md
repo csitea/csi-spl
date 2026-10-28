@@ -112,7 +112,11 @@ that range that touch the job's inputs. The first cut is the top dir:
 `csi-spl-wui/` for wui, `csi-spl-orc/` for orc, `csi-spl-api/` for hub,
 `csi-spl-iac/` for iac. It sends ONE spool note (kind `blocker`) to the
 current dispatch lease holder on task `dispatch-ci-red`, keyed by the
-job's red streak. A red that is still red on the next tick sends nothing. A job that turns green sends one `green` line on the same key. The
+job's red streak. The action never reads a run older than one it already
+read (a run-id high-water mark, `CI_RED_NOTE_HWM`), so a re-run of the newest
+run, which drops it from the finished runs while it runs or when it ends
+cancelled, cannot re-open a closed streak from the older run below it
+(2026-10-28: run 40735010375 re-run, then notes from run 40731891879). A red that is still red on the next tick sends nothing. A job that turns green sends one `green` line on the same key. The
 dispatcher routes the note to the lane that landed the suspect commit. The
 dispatch sweep cron runs the action every 10 min.
 

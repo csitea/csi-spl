@@ -26,6 +26,13 @@
 # @description red sha in CI_RED_NOTE_LANE_STATE, dropped when the job is
 # @description green. A lane whose worktree was torn down has no branch left;
 # @description the holder's note still names its commits.
+# @description THE HIGH-WATER MARK: it never reads a run older than one it
+# @description already read. A re-run of the newest run leaves the finished
+# @description list while it runs (and may end cancelled), so the head falls
+# @description back to an older run, which re-opened a streak the newer run had
+# @description closed (2026-10-28: run 40735010375 re-run, then notes from the
+# @description older 40731891879). An equal id is read: a finished re-run has
+# @description new verdicts.
 # @param CI_RED_NOTE_RUNS (optional) - default 40: runs read back for the range
 # @param CI_RED_NOTE_STATE (optional) - the open streaks, default
 # @param CI_RED_NOTE_STATE $XDG_STATE_HOME/csi-spl/ci-red-note.tsv
@@ -37,20 +44,23 @@
 # @param CI_RED_NOTE_LANES (optional) - 0 = no lane notes, default 1
 # @param CI_RED_NOTE_LANE_STATE (optional) - the reds already told, default
 # @param CI_RED_NOTE_LANE_STATE $XDG_STATE_HOME/csi-spl/ci-red-lane.tsv
+# @param CI_RED_NOTE_HWM (optional) - the run id last read, default
+# @param CI_RED_NOTE_HWM $XDG_STATE_HOME/csi-spl/ci-red-note.hwm
 # @param CI_GATE_WORKFLOW / CI_GATE_BRANCH / CI_GATE_REPO - as do_report_ci_gate
 # @example ./run -a do_report_ci_red_note
 # @example CI_RED_NOTE_TO=c-002 ./run -a do_report_ci_red_note
 #------------------------------------------------------------------------------
 do_report_ci_red_note() { (
   local wf="${CI_GATE_WORKFLOW:-10_ci-quality.yml}" branch="${CI_GATE_BRANCH-master}"
-  local n="${CI_RED_NOTE_RUNS:-40}" top state lstate to box here=1 lanes="${CI_RED_NOTE_LANES:-1}"
+  local n="${CI_RED_NOTE_RUNS:-40}" top state lstate hwm mark to box here=1 lanes="${CI_RED_NOTE_LANES:-1}"
   [[ -n "${CI_GATE_REPO:-}" ]] && export GH_REPO="$CI_GATE_REPO"
   command -v gh >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 || { do_log "FATAL gh and jq are required"; return 1; }
   declare -F _rcg_run_jobs >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/report-ci-gate.func.sh"
   top=$(git rev-parse --show-toplevel 2>/dev/null) || { do_log "FATAL not in a git checkout"; return 1; }
   state="${CI_RED_NOTE_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/csi-spl/ci-red-note.tsv}"
   lstate="${CI_RED_NOTE_LANE_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/csi-spl/ci-red-lane.tsv}"
-  mkdir -p "$(dirname "$state")" "$(dirname "$lstate")" && touch "$state" "$lstate" || { do_log "FATAL cannot write $state or $lstate"; return 1; }
+  hwm="${CI_RED_NOTE_HWM:-${XDG_STATE_HOME:-$HOME/.local/state}/csi-spl/ci-red-note.hwm}"
+  mkdir -p "$(dirname "$state")" "$(dirname "$lstate")" "$(dirname "$hwm")" && touch "$state" "$lstate" || { do_log "FATAL cannot write $state or $lstate"; return 1; }
   to="${CI_RED_NOTE_TO:-$(_crn_holder "$top")}"
   [[ -n "$to" ]] || { do_log "FATAL no dispatch lease holder to send to"; return 1; }
   box="${CI_RED_NOTE_BOX:-$(_crn_box)}"
@@ -72,6 +82,10 @@ do_report_ci_red_note() { (
 
   local rid jid v jname sent=0 told=0
   rid=$(head -1 "$tmp/done.tsv" | cut -f1)
+  mark=$(head -1 "$hwm" 2>/dev/null)
+  if [[ "$mark" =~ ^[0-9]+$ ]] && (( mark > rid )); then
+    echo "OK ci-red-note: newest finished run $rid is older than run $mark already read; nothing sent"; return 0
+  fi
   while IFS=$'\t' read -r jid v jname; do
     if [[ "$here" == 1 && "$v" == red ]] && ! cut -f1 "$state" | grep -xF -- "$jname" >/dev/null; then
       _crn_open "$tmp" "$top" "$state" "$to" "$jname" && sent=$((sent + 1))
@@ -85,6 +99,7 @@ do_report_ci_red_note() { (
       awk -F'\t' -v j="$jname" '$1 != j' "$lstate" >"$lstate.tmp" && mv "$lstate.tmp" "$lstate"
     fi
   done < <(_crn_verdicts "$tmp" "$rid")
+  { printf '%s\n' "$rid" >"$hwm.tmp" && mv "$hwm.tmp" "$hwm"; } || { do_log "FATAL cannot write $hwm"; return 1; }
   [[ "$here" == 1 ]] && echo "OK ci-red-note: run $rid read, $sent note(s) sent to $to, $(wc -l <"$state") streak(s) open"
   [[ "$lanes" == 1 ]] && echo "OK ci-red-note: $told lane note(s) sent to this box's lanes"
   return 0

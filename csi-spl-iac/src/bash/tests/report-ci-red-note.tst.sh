@@ -24,6 +24,14 @@
 #      lane that only fast-forwarded to master, get nothing
 #   9. the holder on another box: the lane note is still sent (box-local)
 #  10. the job green again, then red from a new sha: one more lane note
+#  11. the newest run read, then re-run: run 963 (orc green) closes orc; 963
+#      running again -> 0 sends, the state files unchanged, the OK line names
+#      963 and the head 962 (the high-water mark)
+#  12. the re-run ends cancelled -> 0 sends, the same OK line
+#  13. the re-run finishes, orc red -> ONE orc red note (an equal id is read)
+#  14. no mark file (the first tick on a box) -> read as today, the mark written
+#  15. the lane path: the same re-run on the R2 lane tree -> 0 lane notes, the
+#      lane state unchanged
 #   CONTROL a. the state file wiped before every tick -> 3 sends for 3 ticks
 #              of the same red, so check 1 FAILS without the streak key
 #   CONTROL b. the annotation hidden -> "no FAIL line", so check 7 FAILS
@@ -32,6 +40,8 @@
 #              check 8 FAILS without its key
 #   CONTROL d. the lane branch deleted -> no lane note, so the lane is found
 #              from its branch, not from the commit text
+#   CONTROL e. the mark wiped before every tick of case 11 -> the re-run tick
+#              sends the stale red again, so check 11 FAILS without the mark
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -106,7 +116,7 @@ runs "$(row 962 failure 20 "$RED2")" "$(row 961 failure 10 "$RED1")" "$(row 960 
 export CRN_SENT="$T/sent"; : >"$CRN_SENT"
 STATE="$T/state.tsv"
 tick() {
-  ( cd "${TREE:-$R}" && env PATH="$T/stub:$PATH" GH_STUB_DIR="$T/api" CI_RED_NOTE_STATE="$STATE" \
+  ( cd "${TREE:-$R}" && env PATH="$T/stub:$PATH" GH_STUB_DIR="$T/api" CI_RED_NOTE_STATE="$STATE" CI_RED_NOTE_HWM="${HWM:-$T/hwm}" \
       CI_RED_NOTE_LANE_STATE="${LSTATE:-$T/lane.tsv}" CI_RED_NOTE_TO="${TO:-c-900@b1}" CI_RED_NOTE_BOX=b1 CI_RED_NOTE_SEND="$T/stub/send" \
       bash -c 'do_log() { echo "$*"; }; source "'"$GATE"'"; source "'"$FUNC"'"; do_report_ci_red_note' ) >"$T/out" 2>&1
 }
@@ -154,7 +164,7 @@ else
 fi
 
 # --- 6. the holder is on another box -> nothing --------------------------------
-: >"$STATE"; : >"$CRN_SENT"
+: >"$STATE"; : >"$T/hwm"; : >"$CRN_SENT"
 TO=c-900@other tick
 [[ "$(sends)" == 0 ]] && grep -q 'not on this box' "$T/out" \
   && pass "6. the holder on another box: nothing sent from this one" \
@@ -163,7 +173,7 @@ TO=c-900@other tick
 # --- CONTROL a. no streak key -> one send per tick ----------------------------
 : >"$CRN_SENT"
 runs "$(row 962 failure 20 "$RED2")" "$(row 961 failure 10 "$RED1")" "$(row 960 success 0 "$GREEN")"
-for _ in 1 2 3; do : >"$STATE"; tick; done
+for _ in 1 2 3; do : >"$STATE"; : >"$T/hwm"; tick; done
 [[ "$(sends)" == 3 ]] \
   && pass "CONTROL a. with the state wiped every tick the same red sends 3 times, so check 1 FAILS without the streak key" \
   || { fail "CONTROL a. want 3 sends without the state, got $(sends): check 1 proves nothing"; sed 's/^/    | /' "$T/out"; }
@@ -175,7 +185,7 @@ jobs 970 "$(job 9700 "$WUI" success)"
 jobs 971 "$(job 9710 "$WUI" failure)"
 jq -n --arg m "$LOST" '[{annotation_level: "failure", message: $m}]' >"$T/api/ann-9710.json"
 runs "$(row 971 failure 10 "$RED1")" "$(row 970 success 0 "$GREEN")"
-: >"$STATE"; : >"$CRN_SENT"; tick
+: >"$STATE"; : >"$T/hwm"; : >"$CRN_SENT"; tick
 if [[ "$(sends)" == 1 ]] && grep -qF "Signature: The self-hosted runner lost communication with the server." "$CRN_SENT"; then
   pass "7. a lost runner (no log) is a red with the annotation as its signature"
 else
@@ -183,7 +193,7 @@ else
 fi
 # --- CONTROL b. the annotation hidden -> no signature ---------------------------
 mv "$T/api/ann-9710.json" "$T/api/ann-9710.hidden"
-: >"$STATE"; : >"$CRN_SENT"; tick
+: >"$STATE"; : >"$T/hwm"; : >"$CRN_SENT"; tick
 grep -q 'Signature: (no FAIL line in the job log, no failure annotation)' "$CRN_SENT" \
   && pass "CONTROL b. with the annotation hidden the note reads 'no FAIL line', so check 7 FAILS without the fallback" \
   || { fail "CONTROL b. the signature did not depend on the annotation"; sed 's/^/    | /' "$CRN_SENT"; }
@@ -211,7 +221,7 @@ jobs 981 "$(job 9810 "$ORC" failure)"
 printf '2026-01-05T10:00:02Z FAIL: lane case broke\n' >"$T/api/log-9810.txt"
 echo '{"html_url":"https://ci.example.org/run/981/job/9810"}' >"$T/api/job-9810.json"
 runs "$(row 981 failure 10 "$R3")" "$(row 980 success 0 "$G2")"
-: >"$STATE"; : >"$CRN_SENT"; LS="$T/lane2.tsv"; : >"$LS"
+: >"$STATE"; : >"$T/hwm"; : >"$CRN_SENT"; LS="$T/lane2.tsv"; : >"$LS"
 TREE="$R2" LSTATE="$LS" tick; TREE="$R2" LSTATE="$LS" tick; TREE="$R2" LSTATE="$LS" tick
 if [[ "$(lanes)" == 1 ]] && grep -qx 'SEND from=c-900 to=c-777 kind=note task=dispatch-ci-red' "$CRN_SENT" \
    && grep -q -- "- Job: $ORC" "$CRN_SENT" && grep -q -- '- First FAIL line: FAIL: lane case broke' "$CRN_SENT" \
@@ -243,13 +253,74 @@ TREE="$R2" LSTATE="$LS" tick; TREE="$R2" LSTATE="$LS" tick
 # --- CONTROL c. no lane key -> one note per tick -------------------------------
 runs "$(row 981 failure 10 "$R3")" "$(row 980 success 0 "$G2")"
 : >"$CRN_SENT"
-for _ in 1 2 3; do : >"$LS"; TREE="$R2" LSTATE="$LS" tick; done
+for _ in 1 2 3; do : >"$LS"; : >"$T/hwm"; TREE="$R2" LSTATE="$LS" tick; done
 [[ "$(lanes)" == 3 ]] \
   && pass "CONTROL c. with the lane state wiped every tick the lane gets 3 notes, so check 8 FAILS without the key" \
   || { fail "CONTROL c. want 3 lane notes, got $(lanes): check 8 proves nothing"; sed 's/^/    | /' "$T/out"; }
+# --- 11. the newest run read, then re-run: the high-water mark ------------------
+# snap / same - copy the state files, then compare them after a tick
+snap() { for f in "$STATE" "$1" "$T/hwm"; do cp "$f" "$f.snap"; done; }
+same() { local f; for f in "$STATE" "$1" "$T/hwm"; do cmp -s "$f" "$f.snap" || return 1; done; }
+OKOLD='OK ci-red-note: newest finished run 962 is older than run 963 already read; nothing sent'
+rerun() {
+  jobs 963 "$(job 9630 "$ORC" success)" "$(job 9631 "$HUB" success)"
+  runs "$(row 962 failure 20 "$RED2")" "$(row 961 failure 10 "$RED1")" "$(row 960 success 0 "$GREEN")"
+  : >"$STATE"; : >"$T/hwm"; : >"$CRN_SENT"; : >"$T/lane.tsv"; tick
+  runs "$(row 963 success 30 "$RED2")" "$(row 962 failure 20 "$RED2")" "$(row 961 failure 10 "$RED1")" "$(row 960 success 0 "$GREEN")"
+  [[ -n "${1:-}" ]] && : >"$T/hwm"
+  tick
+  runs "$(row 963 "" 30 "$RED2")" "$(row 962 failure 20 "$RED2")" "$(row 961 failure 10 "$RED1")" "$(row 960 success 0 "$GREEN")"
+}
+rerun
+c11=$(sends); snap "$T/lane.tsv"; tick
+if [[ "$c11" == 2 && "$(sends)" == 2 ]] && grep -q "^CI green again on master: $ORC (run 963)" "$CRN_SENT" \
+   && same "$T/lane.tsv" && grep -qxF "$OKOLD" "$T/out"; then
+  pass "11. 963 closed orc; 963 re-run (running): 0 sends, state files unchanged, OK line names 963 and the head 962"
+else
+  fail "11. re-run: $c11 then $(sends) sends"; sed 's/^/    | /' "$CRN_SENT" "$T/out"
+fi
+# --- 12. the re-run ends cancelled ------------------------------------------------
+runs "$(row 963 cancelled 30 "$RED2")" "$(row 962 failure 20 "$RED2")" "$(row 961 failure 10 "$RED1")" "$(row 960 success 0 "$GREEN")"
+tick
+[[ "$(sends)" == 2 ]] && same "$T/lane.tsv" && grep -qxF "$OKOLD" "$T/out" \
+  && pass "12. the re-run cancelled: 0 sends, the same OK line" \
+  || { fail "12. cancelled re-run: $(sends) sends"; sed 's/^/    | /' "$CRN_SENT" "$T/out"; }
+# --- 13. the re-run finishes, orc red -> one red note -----------------------------
+jobs 963 "$(job 9630 "$ORC" failure)" "$(job 9631 "$HUB" success)"
+runs "$(row 963 failure 30 "$RED2")" "$(row 962 failure 20 "$RED2")" "$(row 961 failure 10 "$RED1")" "$(row 960 success 0 "$GREEN")"
+tick
+[[ "$(sends)" == 3 && "$(grep -c "^## CI red on master: $ORC" "$CRN_SENT")" == 2 && "$(cat "$T/hwm")" == 963 ]] \
+  && pass "13. the re-run finished red: ONE orc red note (the equal id 963 is read)" \
+  || { fail "13. finished re-run: $(sends) sends"; sed 's/^/    | /' "$CRN_SENT" "$T/out"; }
+# --- 14. no mark file -> read as today ----------------------------------------------
+runs "$(row 962 failure 20 "$RED2")" "$(row 961 failure 10 "$RED1")" "$(row 960 success 0 "$GREEN")"
+rm -f "$T/hwm"; : >"$STATE"; : >"$CRN_SENT"; tick
+[[ "$(sends)" == 1 && "$(cat "$T/hwm" 2>/dev/null)" == 962 ]] && grep -q "Red since run 961" "$CRN_SENT" \
+  && pass "14. no mark file: read as today (1 send), the mark then holds 962" \
+  || { fail "14. no mark: $(sends) sends, mark '$(cat "$T/hwm" 2>/dev/null)'"; sed 's/^/    | /' "$T/out"; }
+# --- 15. the lane path: the same re-run on R2 -----------------------------------------
+jobs 984 "$(job 9840 "$ORC" success)"
+runs "$(row 981 failure 10 "$R3")" "$(row 980 success 0 "$G2")"
+: >"$STATE"; : >"$T/hwm"; : >"$CRN_SENT"; : >"$LS"
+TO=c-900@other TREE="$R2" LSTATE="$LS" tick
+runs "$(row 984 success 40 "$R3")" "$(row 981 failure 10 "$R3")" "$(row 980 success 0 "$G2")"
+TO=c-900@other TREE="$R2" LSTATE="$LS" tick
+runs "$(row 984 "" 40 "$R3")" "$(row 981 failure 10 "$R3")" "$(row 980 success 0 "$G2")"
+c15=$(lanes); snap "$LS"; TO=c-900@other TREE="$R2" LSTATE="$LS" tick
+[[ "$c15" == 1 && "$(lanes)" == 1 ]] && same "$LS" \
+  && grep -qxF 'OK ci-red-note: newest finished run 981 is older than run 984 already read; nothing sent' "$T/out" \
+  && pass "15. the lane path: the re-run of 984 sends 0 lane notes, the lane state unchanged" \
+  || { fail "15. lane re-run: $c15 then $(lanes) lane notes"; sed 's/^/    | /' "$CRN_SENT" "$T/out"; }
+runs "$(row 981 failure 10 "$R3")" "$(row 980 success 0 "$G2")"
+# --- CONTROL e. the mark wiped before every tick of case 11 -> the stale red again ---
+rerun wipe
+ce=$(sends); : >"$T/hwm"; tick
+(( $(sends) - ce >= 1 )) \
+  && pass "CONTROL e. with the mark wiped every tick the re-run sends $(( $(sends) - ce )) stale note(s), so check 11 FAILS without the mark" \
+  || { fail "CONTROL e. the re-run sent nothing without the mark: check 11 proves nothing"; sed 's/^/    | /' "$T/out"; }
 # --- CONTROL d. no lane branch -> no lane note -----------------------------------
 g2 branch -qD c-777-orc-fix
-: >"$CRN_SENT"; : >"$LS"; TREE="$R2" LSTATE="$LS" tick
+: >"$CRN_SENT"; : >"$LS"; : >"$T/hwm"; TREE="$R2" LSTATE="$LS" tick
 [[ "$(lanes)" == 0 ]] \
   && pass "CONTROL d. the c-777 branch deleted: no lane note, so the lane comes from its branch reflog" \
   || { fail "CONTROL d. a lane was told without its branch ($(lanes))"; sed 's/^/    | /' "$CRN_SENT"; }

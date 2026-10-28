@@ -99,7 +99,14 @@ async function releases(p, base, tag) {
   const badV = versioned.filter((r) => !r.versionHref.endsWith('/releases/' + r.version))
   ok(`${tag}: a version badge links to /releases/<version>`, versioned.length > 0 && badV.length === 0, { versioned: versioned.length, bad: badV.slice(0, 2) })
   if (rows.length) {
-    await p.click(`[data-test=releases-commit][data-sha="${rows[0].sha}"] [data-test=releases-commit-sha]`)
+    // The mock builds its commits from Date.now(), so the label cloud above
+    // the rows changes height with the UTC hour; at 390x844 the first sha can
+    // sit under the fixed bottom composer, where puppeteer's click (it only
+    // scrolls an element that is off screen) lands on the composer. Centre
+    // the sha first, as a person scrolls a row into view before a tap.
+    const sha = `[data-test=releases-commit][data-sha="${rows[0].sha}"] [data-test=releases-commit-sha]`
+    await p.$eval(sha, (e) => e.scrollIntoView({ block: 'center' }))
+    await p.click(sha)
     ok(`${tag}: a click on the sha opens /releases/<sha>`, await at(p, '/releases/' + rows[0].sha), pathOf(p))
   }
 }

@@ -37,7 +37,8 @@ for r in "$DESK//" "$DESK/." "$DESK/../spool" "$T_TMP/via-link"; do
   send "$r" c-189 >/dev/null 2>&1
   eq "…the root spelled ${r#"$T_TMP"/}: refused too, exit 9" 9 "$?"
 done
-eq "…nothing written under the desk root by any spelling" 0 "$(jsons "$DESK")"
+send "$T_TMP/via-link/../via-link" c-189 >/dev/null 2>&1
+eq "…nothing written under the desk root by any spelling, via-link/../via-link too" 0 "$(jsons "$DESK")"
 
 # ---- a DM to a human is not refused: the hub is its reader (FR-017) ---------
 # Hermetic, so no hub places HUM-10 (exit 13 later on); the desk-root guard

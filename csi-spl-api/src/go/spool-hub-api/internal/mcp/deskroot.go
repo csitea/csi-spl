@@ -38,13 +38,18 @@ func (t tools) deskRootGuard(from string, in SendIn) error {
 		"Send with spool-send.sh on the fleet root (SPOOL_ROOT=/var/spool-hub). Nothing was sent (exit 78)", from, t.cfg.SpoolRoot, errLaneOnDesk)
 }
 
-// deskRootResolved is root with its symlinks resolved and cleaned, so a link
-// to a desk root, or a //, /. or /.. spelling of one, is matched as one.
+// deskRootResolved is the directory the store writes under for root: cleaned
+// first, as the store's filepath.Join does (so <link>/../<link> is <link>),
+// then its deepest existing ancestor's symlinks resolved. A link to a desk
+// root, or a //, /. or /.. spelling of one, is matched as one.
 func deskRootResolved(root string) string {
-	if r, err := filepath.EvalSymlinks(root); err == nil {
-		return r
+	p, rest := filepath.Clean(root), ""
+	for ; p != filepath.Dir(p); rest, p = filepath.Join(filepath.Base(p), rest), filepath.Dir(p) {
+		if r, err := filepath.EvalSymlinks(p); err == nil {
+			return filepath.Join(r, rest)
+		}
 	}
-	return filepath.Clean(root)
+	return filepath.Join(p, rest)
 }
 
 // deskSeat reports whether id is a seat of the desk whose spool root is root.

@@ -67,7 +67,7 @@ func TestLaneSendOnDeskRootIsRefused(t *testing.T) {
 }
 
 // SPL-3959 review: a symlink to a desk root, or a //, /. or /.. spelling of
-// one, is the desk root too: refused, nothing written.
+// one (also through the link), is the desk root too: refused, nothing written.
 func TestLaneSendOnDeskRootSpellingIsRefused(t *testing.T) {
 	base := t.TempDir()
 	desk := filepath.Join(base, "cloud", "prd", "desk", "acme", "box1", "spool")
@@ -79,7 +79,9 @@ func TestLaneSendOnDeskRootSpellingIsRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	send := map[string]any{"to": "c-423", "task_id": task, "kind": "result", "body": "the result"}
-	for _, root := range []string{desk + "//", desk + "/.", desk + "/../spool", link} {
+	// link + "/../via-link": EvalSymlinks fails on it, the store's Join
+	// cleans it back to the link (g-007 re-review, msg 9d41b399).
+	for _, root := range []string{desk + "//", desk + "/.", desk + "/../spool", link, link + "/../via-link"} {
 		cs, cfg := seated(t, "c-189")
 		cfg.SpoolRoot, cfg.PinsDir = root, filepath.Join(desk, "pins")
 		testkit.Agents(t, cfg, "c-189", "c-423")
@@ -89,5 +91,29 @@ func TestLaneSendOnDeskRootSpellingIsRefused(t *testing.T) {
 	}
 	if n, _ := filepath.Glob(filepath.Join(desk, "*", "*", "*.json")); len(n) != 0 {
 		t.Fatalf("refused sends wrote %d message(s) under the desk root", len(n))
+	}
+}
+
+// deskRootResolved resolves the deepest existing ancestor: a root not made
+// yet under a link to a desk's box dir is that desk's spool root.
+func TestDeskRootResolvedNotYetMade(t *testing.T) {
+	base := t.TempDir()
+	box := filepath.Join(base, "cloud", "prd", "desk", "acme", "box1")
+	if err := os.MkdirAll(box, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	real, err := filepath.EvalSymlinks(box)
+	if err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(base, "box-link")
+	if err := os.Symlink(box, link); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := deskRootResolved(link+"/spool"), filepath.Join(real, "spool"); got != want {
+		t.Fatalf("deskRootResolved(%s/spool) = %s, want %s", link, got, want)
+	}
+	if !deskRootRe.MatchString(filepath.ToSlash(deskRootResolved(link + "/./spool/"))) {
+		t.Fatal("a not-yet-made spool root under a link to a desk box dir is not matched as a desk root")
 	}
 }

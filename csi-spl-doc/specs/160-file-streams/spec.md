@@ -8,7 +8,8 @@ msg 44ec2e44 on the v0.3 poll), then all A again on the v0.1 poll (msg
 Q1 decided A, the token-burn cron log (msg 1a5ce9f1, 2026-10-28, 7.1). Row B1 is built (SPL-3820, section 5.1), its cron row off by cnf
 until it is switched on; B2 to B6 are built (SPL-3888, sections 5.2 to
 5.6); row B7's measure and the search fix it called for are built (5.7),
-its cnf defaults are next.
+its cnf defaults are next. Row B8 (SPL-4124, owner msg b2717710), the
+page as a list per box with a `tail -f` button per file, is built (5.8).
 
 Source: the owner's asks in the owner's customer workspace (section 1); the
 discussion moved to the operator workspace topic
@@ -381,10 +382,20 @@ visible and Follow is on (decision D3); no new WebSocket channel.
   Lanes (`staffOnly`: the route gate of 3.4, no operator bypass);
   `wui/pages/monitoring/file-streams.vue` is its own lazy chunk (the
   initial bundle budget).
-- **Pick.** Two selects, Box then File (`stream_key`, the path as hover
-  text); the pick is in the URL (`?box=&stream=`), so it survives a reload
-  and Back. No stream: one line saying a box follows only the files on its
-  allow-list (a text key, no path).
+- **List** (row B8, owner HUM-10 msg b2717710: "some important file logs
+  as a list from the file systems of the boxes (so that one could just
+  click on the `tail -f` button and then see the output, and not as one
+  giant output window)"). Every box, and under it a row per followed file:
+  its `stream_key` (the path as hover text and as a second line), state,
+  last line time and lines total, and its own `tail -f` button. The button
+  opens THAT file's live view under its row; one file is open at a time,
+  pressed again it closes, and the lines of two files are never merged.
+  Nothing is open before a click. The open file is in the URL
+  (`?box=&stream=`, each click a history entry), so it survives a reload
+  and Back; only a box and stream the hub returned open, never a typed path
+  (`fileStreamOpenOf`, no fallback to a first file). No stream: one line
+  saying a box follows only the files on its allow-list (a text key, no
+  path). File globs as inputs are not in B8 (owner msg 075974c4).
 - **Live view.** A monospace list, newest at the bottom; each line shows
   its UTC time on hover; marker lines (rotated, truncated, missing,
   dropped N) are styled apart. Long lines wrap; no horizontal scroll. The
@@ -395,7 +406,7 @@ visible and Follow is on (decision D3); no new WebSocket channel.
   meanwhile (`after=<last seq>`, pages of 1000) and shows "N new lines".
 - **Find in view**: a filter over the loaded lines (client side); the
   stored search is 3.6.
-- Phone: the same page, the selects stacked. Every string is a key in
+- Phone: the same page, a row's facts and button wrapped under its name. Every string is a key in
   `en.json` and every locale (developer guide 2.7); agy reviews the
   translations.
 
@@ -550,6 +561,8 @@ lands.
 | C36 | B1 | an allow-listed name that is a symlink to a fifo with no writer, and to a character device: refused, the follower's tick is not blocked, no read open of the target happens (traced with `strace -e openat`: only an `O_PATH` open) | a plain `O_RDONLY` open first: the fifo open blocks the tick (without `O_NONBLOCK`) and the device's driver open runs |
 | C37 | B1 | one line holding a whole synthetic key (BEGIN, body and END escaped in one JSON line), then 3 plain lines: the key line masked, the 3 lines followed unchanged | open the block on any BEGIN: the 3 plain lines are masked |
 | C38 | B2 | workspace A's boxes push 3x its byte cap while workspace B holds lines inside its own caps: B's line count and oldest line are unchanged; A never exceeds its cap by more than one push | v0.2's hub-wide prune across workspaces: B's oldest lines are deleted |
+| C39 | B8 | e2e: the page lists every box and, under it, each stream the hub returned as a row with its own `tail -f` button; no view is open before a click | the two selects of B5: no row, no button |
+| C40 | B8 | e2e: `tail -f` on one row shows only that stream's lines, in one view under its row, the open file in the URL; a reload keeps it open; `tail -f` on another row moves the one view there; Back opens the file before | one merged pane, or the view opened on the first file without a click: another stream's lines, or a view before the click |
 
 ## 5. Build rows
 
@@ -567,6 +580,7 @@ contract); B3, B4 and B6 after B2; B5 after B3; B7 after B4 and B6.
 | B5 | the WUI tab, `staffOnly` | `wui/utils/monitoring-tabs.mjs`, `wui/pages/monitoring/file-streams.vue`, i18n locales, e2e | C18-C21 |
 | B6 | the retention sweep | `store/file_streams_postgres.go`, `hub/file_streams.go` | C22 |
 | B7 | measure the limits on dev, set the defaults in cnf | cnf `env.hub.file_streams`, this spec 3.7 | C24 |
+| B8 | the File streams page as a list per box, a `tail -f` button per file (3.5 List) | `wui/pages/monitoring/file-streams/index.vue`, `wui/utils/monitoring-file-streams.mjs`, i18n locales, `i18n-keep-english.json`, e2e | C39, C40 |
 
 Docs: each row updates this spec's status line; B5 adds the tab to the
 Monitoring help page and B4 the syntax to the search help
@@ -822,6 +836,36 @@ Monitoring help page and B4 the syntax to the search help
   the refusals, the timing parse; red control: the fill at twice the rate).
 - Next, its cnf: `env.hub.file_streams` with the measured defaults and
   their hub wiring.
+
+### 5.8 Row B8 as built (SPL-4124)
+
+- `pages/monitoring/file-streams/index.vue`: the two selects are gone. One
+  `fs-group` per box (`fileStreamGroupsOf`, boxes in order, streams by key),
+  one `fs-row` per stream with its key, path, state, last line time
+  (`isoDateTime`), lines total and its `fs-tail` button (`aria-pressed` on
+  the open one). The live view of B5 (Follow, Pause, Jump to latest, Find
+  in view, Load older, the 3 s poll, a search hit) now sits under the open
+  row; one file is open at a time.
+- `utils/monitoring-file-streams.mjs`: `fileStreamOpenOf(query, streams)`
+  replaces `fileStreamPickOf`: only an exact box and stream the hub
+  returned, else nothing open (no fallback to the first file, so a typed or
+  stale URL opens nothing). `fileStreamsOf` keeps `lines_total`. The mock's
+  lines name their stream (`INFO cron mock line 3`) and carry
+  `lines_total`, so C40 can tell two streams' lines apart.
+- A click is `router.push` (Back opens the file before); pressing the open
+  file's button again clears the query.
+- Keys under `monitoring.file_streams`: `tail` (`tail -f`, kept English in
+  every locale, listed in `i18n/i18n-keep-english.json` as a command name),
+  `tail_title`, `last_line`, `lines_total`; `box` and `file` (the select
+  labels) removed. Drafted by claude; agy reviews them before they ship.
+- Tests: `tests/e2e/monitoring-file-streams.test.mjs` C39, C40 (and C18-C21
+  on the open row), `tests/unit/monitoring-file-streams.test.mjs` (groups,
+  the open file without fallback, the mock's stream-named lines, no
+  `<select>` in the page). Red controls on origin/master `84b6d36cd`: the
+  e2e reads `FAIL C39 every stream of every box is a row with a tail -f
+  button []` and stops at `No element found for selector:
+  [data-test=fs-row][data-stream=cron] [data-test=fs-tail]`; the unit file
+  cannot import `fileStreamGroupsOf`.
 
 ## 6. Decisions (this draft; the reviewer may challenge each)
 

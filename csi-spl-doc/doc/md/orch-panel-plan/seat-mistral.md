@@ -76,5 +76,5 @@ All rows are docs, orchestration, or UI. No mistral coding rows.
 ## 8. Signature
 
 ```
-v1.0 signed: mistral seat (m-125), 2026-10-28
+v1.0 signed: mistral seat (m-125), 2026-10-28, plan sha ed2b5f74b
 ```

@@ -79,12 +79,14 @@ func (s *Server) demoPost(ctx context.Context, tenant, member, msgID string) (st
 	}
 	now := s.o.Now().UTC()
 	perMin, perDay := s.demoPostLimits()
-	if tok, status, detail := s.takeDemoQuota(ctx, qc, tenant, member, demoQuotaPostMinute,
-		now.Truncate(time.Minute), perMin, "a demo user posts at most "+strconv.Itoa(perMin)+" messages a minute"); tok != "" {
+	if tok, status, detail := s.takeDemoQuota(ctx, qc, tenant, member, demoQuota{kind: demoQuotaPostMinute,
+		window: now.Truncate(time.Minute), limit: perMin,
+		detail: "a demo user posts at most " + strconv.Itoa(perMin) + " messages a minute"}); tok != "" {
 		return tok, status, detail
 	}
-	return s.takeDemoQuota(ctx, qc, tenant, member, demoQuotaPostDay,
-		now.Truncate(24*time.Hour), perDay, "a demo user posts at most "+strconv.Itoa(perDay)+" messages a day")
+	return s.takeDemoQuota(ctx, qc, tenant, member, demoQuota{kind: demoQuotaPostDay,
+		window: now.Truncate(24 * time.Hour), limit: perDay,
+		detail: "a demo user posts at most " + strconv.Itoa(perDay) + " messages a day"})
 }
 
 // demoBodyFits refuses 413 too_large when member is a demo_user and body is

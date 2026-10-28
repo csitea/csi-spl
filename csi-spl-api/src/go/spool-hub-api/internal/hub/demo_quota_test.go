@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -126,5 +127,96 @@ func TestDemoAgentTurnQuotaOthersUnaffected(t *testing.T) {
 	}
 	if q := queued(t, e, demo); len(q) != 25+2+1 {
 		t.Fatalf("box-a queue: %d rows, want 28", len(q))
+	}
+}
+
+// quotaTake is one recorded TakeQuota call.
+type quotaTake struct {
+	tenant, member, kind string
+	window               time.Time
+	limit                int
+}
+
+// quotaLog collects the TakeQuota calls of quotaRecMem / quotaRecPg.
+type quotaLog struct {
+	mu    sync.Mutex
+	takes []quotaTake
+}
+
+func (l *quotaLog) add(tenant, member, kind string, window time.Time, limit int) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.takes = append(l.takes, quotaTake{tenant, member, kind, window, limit})
+}
+
+func (l *quotaLog) all() []quotaTake {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return append([]quotaTake(nil), l.takes...)
+}
+
+// quotaRecMem / quotaRecPg record every TakeQuota; every store call is the
+// wrapped store's.
+type quotaRecMem struct {
+	*store.Memory
+	log *quotaLog
+}
+type quotaRecPg struct {
+	*store.Postgres
+	log *quotaLog
+}
+
+func (s quotaRecMem) TakeQuota(ctx context.Context, tenant, member, kind string, window time.Time, limit int) (int, bool, error) {
+	s.log.add(tenant, member, kind, window, limit)
+	return s.Memory.TakeQuota(ctx, tenant, member, kind, window, limit)
+}
+
+func (s quotaRecPg) TakeQuota(ctx context.Context, tenant, member, kind string, window time.Time, limit int) (int, bool, error) {
+	s.log.add(tenant, member, kind, window, limit)
+	return s.Postgres.TakeQuota(ctx, tenant, member, kind, window, limit)
+}
+
+// refactor r37-02: one agent turn and one plain post of a demo_user take
+// exactly these counters, in this order: each send's minute, its day, then
+// one agent turn of its visit (a lobby post fans out to box-a too). It pins
+// each take's tenant, member, kind, window and limit, which the count-only
+// tests above do not tell apart (a swapped kind or window still refuses).
+func TestDemoQuotaTakes(t *testing.T) {
+	clk, rec := newPostClock(), &quotaLog{}
+	e, demo := quotaEnv(t, clk.opt, func(o *hub.Options) {
+		o.DemoAgentTurns, o.DemoPostsPerDay = 7, 333
+		switch s := o.Store.(type) {
+		case *store.Memory:
+			o.Store = quotaRecMem{s, rec}
+		case *store.Postgres:
+			o.Store = quotaRecPg{s, rec}
+		}
+	})
+	vis := seat(t, e, demo, rbac.DemoUser)
+	c := dialMember(t, e, demo, "", vis)
+	if ack := sendTurn(t, c, 1); ack["type"] != "ack" {
+		t.Fatalf("agent turn: %v", ack)
+	}
+	if ack := sendPost(t, c, 2); ack["type"] != "ack" {
+		t.Fatalf("post: %v", ack)
+	}
+	since, err := e.st.(store.QuotaCounter).MemberSince(context.Background(), demo, vis)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := clk.now().UTC()
+	minute := quotaTake{demo, vis, "post_min", now.Truncate(time.Minute), 1000}
+	day := quotaTake{demo, vis, "post_day", now.Truncate(24 * time.Hour), 333}
+	turn := quotaTake{demo, vis, "agent_turn", since, 7}
+	want := []quotaTake{minute, day, turn, minute, day, turn}
+	got := rec.all()
+	if len(got) != len(want) {
+		t.Fatalf("takes: %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if g, w := got[i], want[i]; g.tenant != w.tenant || g.member != w.member || g.kind != w.kind ||
+			!g.window.Equal(w.window) || g.limit != w.limit {
+			t.Fatalf("take %d: %+v, want %+v", i, g, w)
+		}
 	}
 }

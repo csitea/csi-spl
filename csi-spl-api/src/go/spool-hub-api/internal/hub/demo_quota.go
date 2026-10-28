@@ -68,22 +68,30 @@ func (s *Server) demoAgentTurn(ctx context.Context, tenant, member, msgID string
 		return "internal", http.StatusInternalServerError, "demo visit lookup failed"
 	}
 	limit := s.demoAgentTurns()
-	return s.takeDemoQuota(ctx, qc, tenant, member, demoQuotaAgentTurn, since, limit,
-		"a demo visit holds "+strconv.Itoa(limit)+" agent turns")
+	return s.takeDemoQuota(ctx, qc, tenant, member, demoQuota{kind: demoQuotaAgentTurn, window: since, limit: limit,
+		detail: "a demo visit holds " + strconv.Itoa(limit) + " agent turns"})
 }
 
-// takeDemoQuota takes one unit of member's (kind, window) counter: 429
-// demo_quota with detail once it holds limit, 500 when the store fails.
-func (s *Server) takeDemoQuota(ctx context.Context, qc store.QuotaCounter, tenant, member, kind string,
-	window time.Time, limit int, detail string) (string, int, string) {
-	n, ok, err := qc.TakeQuota(ctx, tenant, member, kind, window, limit)
+// demoQuota is one counter take: its kind and window, its limit and the
+// detail of its 429.
+type demoQuota struct {
+	kind   string
+	window time.Time
+	limit  int
+	detail string
+}
+
+// takeDemoQuota takes one unit of member's (q.kind, q.window) counter: 429
+// demo_quota with q.detail once it holds q.limit, 500 when the store fails.
+func (s *Server) takeDemoQuota(ctx context.Context, qc store.QuotaCounter, tenant, member string, q demoQuota) (string, int, string) {
+	n, ok, err := qc.TakeQuota(ctx, tenant, member, q.kind, q.window, q.limit)
 	switch {
 	case err != nil:
-		s.o.Log.Error().Err(err).Str("tenant", tenant).Str("member", member).Str("kind", kind).Msg("demo quota")
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Str("member", member).Str("kind", q.kind).Msg("demo quota")
 		return "internal", http.StatusInternalServerError, "demo quota unavailable"
 	case !ok:
-		s.o.Log.Info().Str("tenant", tenant).Str("member", member).Str("kind", kind).Int("n", n).Msg("demo quota refused")
-		return "demo_quota", http.StatusTooManyRequests, detail
+		s.o.Log.Info().Str("tenant", tenant).Str("member", member).Str("kind", q.kind).Int("n", n).Msg("demo quota refused")
+		return "demo_quota", http.StatusTooManyRequests, q.detail
 	}
 	return "", 0, ""
 }

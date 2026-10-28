@@ -9,6 +9,8 @@
 #   2. red control: the same manifest with one rel row dropped -> not covered
 #   3. reliability-check-cron.sh runs the row's action from csi-spl-utl with
 #      DRY_RUN=0, writes the row's beat for the cron snitch, passes rc 1 on
+#   3b. ...sends its notes as this box's orchestrator seat (LEASE_ORCH):
+#      spool-send.sh refuses the checks' own <check>@<box> default
 #   4. ...refuses an unknown row and an agent worktree; a second run while the
 #      first holds the lock exits 0 without running the action
 #------------------------------------------------------------------------------
@@ -67,12 +69,13 @@ out="$(covered "$T/dropped.manifest")"
 U="$T/utl"; mkdir -p "$U/src/bash/run"
 cat >"$U/run" <<'EOF'
 #!/bin/bash
-echo "ran $2 DRY_RUN=$DRY_RUN" >>"$REL_TEST_LOG"; [ -n "${REL_TEST_SLEEP:-}" ] && sleep "$REL_TEST_SLEEP"
+echo "ran $2 DRY_RUN=$DRY_RUN" >>"$REL_TEST_LOG"; echo "from ${SPOOL_AGENT_ID:-unset}" >>"$REL_TEST_LOG"; [ -n "${REL_TEST_SLEEP:-}" ] && sleep "$REL_TEST_SLEEP"
 echo "INFO hidden"; echo "WARN shown"; exit "${REL_TEST_RC:-0}"
 EOF
 printf '#!/bin/bash\necho "beat $*" >>"$REL_TEST_LOG"\n' >"$U/src/bash/run/cron-heartbeat-snitch.func.sh"
 chmod +x "$U/run"
-wrap() { env REL_CRON_UTL="$U" REL_CRON_ALLOW_WORKTREE=1 REL_CRON_LOCK_DIR="$T/lock" REL_TEST_LOG="$T/run.log" \
+mkdir -p "$T/spool/dispatch"; printf 'LEASE_ORCH=c-001\n' >"$T/spool/dispatch/lease.conf"
+wrap() { env -u SPOOL_AGENT_ID REL_CRON_UTL="$U" REL_CRON_ALLOW_WORKTREE=1 REL_CRON_LOCK_DIR="$T/lock" REL_TEST_LOG="$T/run.log" \
   SPOOL_ROOT="$T/spool" "$@" bash "$PROJ_ROOT/src/bash/scripts/rel-clock-sync-cron.sh" 2>&1; }
 
 : >"$T/run.log"; out="$(wrap)"; rc=$?
@@ -82,6 +85,14 @@ wrap() { env REL_CRON_UTL="$U" REL_CRON_ALLOW_WORKTREE=1 REL_CRON_LOCK_DIR="$T/l
 : >"$T/run.log"; out="$(wrap REL_TEST_RC=1)"; rc=$?
 [ "$rc" = 1 ] && grep -qx 'beat --beat box-cron:rel-clock-sync 1' "$T/run.log" \
   && pass "3. an alerting check exits 1 and still beats" || fail "3. rc 1 (rc $rc: $out; $(cat "$T/run.log"))"
+
+: >"$T/run.log"; wrap >/dev/null
+grep -qx 'from c-001' "$T/run.log" && pass "3b. the notes go out as the box's orchestrator seat (LEASE_ORCH c-001)" \
+  || fail "3b. sender ($(cat "$T/run.log"))"
+mv "$T/spool/dispatch/lease.conf" "$T/lease.conf.off"; : >"$T/run.log"; out="$(wrap)"
+grep -qx 'from unset' "$T/run.log" && grep -q 'WARN no LEASE_ORCH' <<<"$out" \
+  && pass "3b. no lease conf: a WARN names the refused notes" || fail "3b. no conf ($out; $(cat "$T/run.log"))"
+mv "$T/lease.conf.off" "$T/spool/dispatch/lease.conf"
 
 out="$(bash "$WRAP" nope 2>&1)"; rc=$?
 [ "$rc" = 2 ] && grep -q "unknown row 'nope'" <<<"$out" && pass "4. an unknown row is refused" || fail "4. unknown row (rc $rc: $out)"

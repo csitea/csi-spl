@@ -64,6 +64,18 @@ if [ -n "$box" ]; then
   DEV_BOX="${DEV_BOX:-$box}"; UPLINK_PROBE_BOX="${UPLINK_PROBE_BOX:-$box}"
   export DEV_BOX UPLINK_PROBE_BOX
 fi
+# the sender of the alert notes: spool-send.sh takes only an agent id, so the
+# checks' own default (<check>@<box>) was refused and no note went out (the PC box
+# rel-docker-prune 18:29Z). As spl-push-orphan-check (_po_from): this box's
+# orchestrator seat, LEASE_ORCH of the lease conf
+if [ -z "${SPOOL_AGENT_ID:-}" ]; then
+  orch="$(sed -n 's/^LEASE_ORCH=//p' "$SPOOL_ROOT/dispatch/lease.conf" 2>/dev/null | tail -1)"
+  if [[ "$orch" =~ ^([acgmq]-[0-9]{3}|[A-Z]{2,4}-[0-9]+)$ ]]; then
+    SPOOL_AGENT_ID="$orch"; export SPOOL_AGENT_ID
+  else
+    say "WARN no LEASE_ORCH in $SPOOL_ROOT/dispatch/lease.conf: the alert notes of rel-$row will be refused"
+  fi
+fi
 # gh with no login reads GH_TOKEN from the box user's own token file (as
 # ci-red-note-cron.sh)
 if [ "$row" = gh-runner ] && [ -z "${GH_TOKEN:-}" ]; then

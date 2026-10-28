@@ -74,7 +74,10 @@ from any agent with a row in its machine's `registry.tsv` crosses the hub:
 - The proxy (and a seated sender) must be an id this box announces, SPL-3865:
   listed under the box in the desk's `.hub/roster.json`, else (no cache) a
   role id only while its lease mirror names this box; the issue closer's
-  workspace desk follows the same rule.
+  workspace desk follows the same rule. Its red-tick alert (SPL-3984) tries
+  the dispatch holder, the orch holder, then `LEASE_ORCH`, `LEASE_FAILOVER`,
+  `LEASE_MASTER`, and goes as the first one the relay accepts; none: one
+  `WARN` in the closer's cron log naming the ids tried and the relay's reason.
 - Every relayed body opens with `from_agent: <ID>@<box>`. The receiving
   sidecar (`internal/spool` `WithFromAgent`) accepts the claim only for the
   box whose pin signed the envelope, writes it as `from` and drops the line.

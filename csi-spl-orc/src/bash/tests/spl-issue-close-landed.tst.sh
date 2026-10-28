@@ -413,4 +413,30 @@ ws20 ISSUE_CLOSE_WORKSPACE=acme; rc=$?
 [ "$rc" = 0 ] && grep -q '^list acme as c-001@box-a$' "$T/calls.log" &&
   pass "20. no roster cache: the map desk is used as before (the hub call says)" || fail "20. ws no cache (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
 
+# 21. Red case (SPL-3984): the dispatch holder sits on ANOTHER box (c-002@box-b,
+# the cron runs on box-a); the relay refuses a sender this box does not announce
+# (spool-send exit 13, nothing sent), so the alert was never sent: 22 red ticks
+# on box-a, 2026-10-27. The cron then tries the lease's role seats, and the relay
+# (SPL-3865) says which one this box announces. The fake send stands in for the
+# relay: it accepts only the ids in ANNOUNCED.
+printf '#!/bin/sh\necho "try $*" >>"$SEND_LOG"\ncase " $ANNOUNCED " in *" $2 "*) echo "sent $2" >>"$SEND_LOG"; exit 0 ;; esac\necho "spool-fleet-relay: $2 is neither seated on box-a in t1 (prd) and announced by it, nor in registry.tsv. Nothing was sent." >&2\nexit 13\n' >"$T/send21"
+mkdir -p "$T/root21/dispatch"; echo "c-002@box-b 1793180480" >"$T/root21/dispatch/lease"; echo "c-001@box-b 1793180475" >"$T/root21/dispatch/lease.orch"
+printf 'LEASE_ORCH=c-001\nLEASE_FAILOVER=c-003\nLEASE_MASTER=g-002\n' >"$T/root21/dispatch/lease.conf"; printf 'SPOOL_BOX_TAG=box-a\n' >"$T/root21/box.env"
+tick21() { rm -rf "$T/s21"; : >"$T/send.log"; CRON_LOG="$T/cron.log" SEND_LOG="$T/send.log" SPOOL_ROOT="$T/root21" ISSUE_CLOSE_SEND="$T/send21" \
+  ISSUE_CLOSE_STATE_DIR="$T/s21" FAKE_RC=1 ISSUE_CLOSE_ALERT_AFTER=1 "$@" bash "$F/src/bash/scripts/issue-close-landed-cron.sh" >"$T/o21" 2>&1; }
+tick21 env ANNOUNCED="c-003 g-002"
+[ "$(grep '^try ' "$T/send.log" | awk '{print $3}' | tr '\n' ' ')" = "c-002 c-001 c-003 " ] && [ "$(grep '^sent ' "$T/send.log")" = "sent c-003" ] &&
+  grep -q -- '^try --from c-003 --to orchestrator --kind blocker --task dispatch-issue-closer --body ISSUE CLOSER RED on box box-a' "$T/send.log" &&
+  grep -q 'INFO told the orchestrator: 1 red ticks in a row (as c-003)' "$T/o21" && [ -s "$T/s21/red.alerted" ] &&
+  pass "21. the holder c-002@box-b is not announced here: the alert goes as the first lease role seat this box announces (c-003)" ||
+  fail "21. unannounced holder: $(cat "$T/send.log") // $(cat "$T/o21")"
+tick21 env ANNOUNCED="c-002"
+[ "$(grep -c '^try ' "$T/send.log")" = 1 ] && [ "$(grep '^sent ' "$T/send.log")" = "sent c-002" ] &&
+  pass "21. control: a holder this box announces sends it, nothing else is tried" || fail "21. announced holder: $(cat "$T/send.log")"
+tick21 env ANNOUNCED=""
+[ "$(grep -c '^sent ' "$T/send.log")" = 0 ] && [ ! -e "$T/s21/red.alerted" ] && [ "$(grep -c 'WARN' "$T/o21")" = 1 ] &&
+  grep -q "WARN 1 red ticks in a row and no id this box announces could send the blocker to the orchestrator (tried c-002 c-001 c-003 g-002): spool-fleet-relay: g-002 is neither seated" "$T/o21" &&
+  pass "21. this box announces none of them: ONE clear WARN naming the ids tried and the relay's reason, nothing sent" ||
+  fail "21. none announced: $(cat "$T/send.log") // $(cat "$T/o21")"
+
 [ "$fails" = 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

@@ -20,8 +20,13 @@
 # Alert (SPL-2688): after ISSUE_CLOSE_ALERT_AFTER (default 6, 30 min)
 # consecutive red ticks, ONE spool blocker to the orchestrator on task
 # dispatch-issue-closer, again at most once an hour while still red; a green
-# tick resets the count. Sent from ISSUE_CLOSE_ALERT_FROM, else the dispatch
-# holder's id; ISSUE_CLOSE_SEND replaces spool-send.sh (tests).
+# tick resets the count. Sent from ISSUE_CLOSE_ALERT_FROM, else the first of
+# the dispatch holder, the orch holder and the lease.conf role seats
+# (LEASE_ORCH, LEASE_FAILOVER, LEASE_MASTER) that THIS box announces
+# (SPL-3984): the holder may sit on another box, and the fleet relay refuses a
+# sender this box does not announce (its SPL-3865 check, spool-send exit 13,
+# nothing sent), so the next id is tried; none: one WARN.
+# ISSUE_CLOSE_SEND replaces spool-send.sh (tests).
 #
 # Workspaces (owner HUM-10 msgs ca8a036d, dbead7a1): after that run, each
 # workspace of the box map ($SPOOL_ROOT/workspace-repos.tsv,
@@ -59,10 +64,19 @@ root="${SPOOL_ROOT:-/var/spool-hub}"
 # box_env KEY -> the value of KEY in the box config (quotes dropped), or nothing.
 box_env() { sed -n "s/^$1=['\"]\{0,1\}\([A-Za-z0-9][A-Za-z0-9-]*\)['\"]\{0,1\}\r\{0,1\}\$/\1/p" "$root/box.env" 2>/dev/null | tail -n 1; }
 
+# lease_id FILE [KEY]: the agent id a lease mirror (`<id>@<box> <exp>`) or,
+# with KEY, a lease.conf row names; nothing when it names none.
+lease_id() {
+  local id
+  if [ -n "${2:-}" ]; then id="$(sed -n "s/^$2=['\"]\{0,1\}\([A-Za-z0-9-]*\).*/\1/p" "$1" 2>/dev/null | tail -n 1)"
+  else read -r id _ <"$1" 2>/dev/null; id="${id%@*}"; fi
+  [[ "$id" =~ ^[a-z]-[0-9]{3}$ ]] && printf '%s\n' "$id"
+}
+
 # red_tick RC: count consecutive red ticks; at ISSUE_CLOSE_ALERT_AFTER of them
 # send one blocker to the orchestrator, then at most one an hour while red.
 red_tick() {
-  local n now last after="${ISSUE_CLOSE_ALERT_AFTER:-6}" from send
+  local n now last after="${ISSUE_CLOSE_ALERT_AFTER:-6}" from send tried="" why="" src body
   if [ "$1" = 0 ]; then rm -f "$state/red.count" "$state/red.alerted"; return 0; fi
   [[ "$after" =~ ^[1-9][0-9]*$ ]] || after=6
   n="$(cat "$state/red.count" 2>/dev/null)"; [[ "$n" =~ ^[0-9]+$ ]] || n=0
@@ -70,15 +84,25 @@ red_tick() {
   (( n >= after )) || return 0
   now="$(date -u +%s)"; last="$(cat "$state/red.alerted" 2>/dev/null)"; [[ "$last" =~ ^[0-9]+$ ]] || last=0
   (( now - last >= 3600 )) || return 0
-  from="${ISSUE_CLOSE_ALERT_FROM:-}"; [ -n "$from" ] || { read -r from _ <"$root/dispatch/lease" 2>/dev/null; from="${from%@*}"; }
   send="${ISSUE_CLOSE_SEND:-$ORC/src/bash/features/spawn-agents/scripts/spool-send.sh}"
-  if [ -n "$from" ] && SPOOL_ROOT="$root" bash "$send" --from "$from" --to orchestrator --kind blocker --task dispatch-issue-closer \
-       --body "ISSUE CLOSER RED on box $(box_env SPOOL_BOX_TAG): the last $n ticks of do_spl_issue_close_landed ($env_name $tenant) failed, so no landed fix closes its issue. The FATAL lines are in the closer's cron log (crontab row csi-spl:box-cron:issue-close-landed)." \
-       >/dev/null 2>&1; then
-    printf '%s\n' "$now" >"$state/red.alerted"; say "INFO told the orchestrator: $n red ticks in a row"
+  body="ISSUE CLOSER RED on box $(box_env SPOOL_BOX_TAG): the last $n ticks of do_spl_issue_close_landed ($env_name $tenant) failed, so no landed fix closes its issue. The FATAL lines are in the closer's cron log (crontab row csi-spl:box-cron:issue-close-landed)."
+  if [ -n "${ISSUE_CLOSE_ALERT_FROM:-}" ]; then src="$ISSUE_CLOSE_ALERT_FROM"
   else
-    say "WARN $n red ticks in a row and the blocker to the orchestrator was not sent (from '${from:-<none>}'); the next tick retries"
+    src="$(lease_id "$root/dispatch/lease"; lease_id "$root/dispatch/lease.orch"
+           for k in LEASE_ORCH LEASE_FAILOVER LEASE_MASTER; do lease_id "$root/dispatch/lease.conf" "$k"; done)"
   fi
+  for from in $src; do
+    [[ " $tried " == *" $from "* ]] && continue
+    tried="${tried:+$tried }$from"
+    why="$(SPOOL_ROOT="$root" bash "$send" --from "$from" --to orchestrator --kind blocker --task dispatch-issue-closer \
+             --body "$body" 2>&1 >/dev/null)"
+    case $? in
+      0) printf '%s\n' "$now" >"$state/red.alerted"; say "INFO told the orchestrator: $n red ticks in a row (as $from)"; return 0 ;;
+      13) why="$(grep -v '^ERROR' <<<"$why" | tail -n 1)" ;;
+      *) say "WARN $n red ticks in a row and the blocker to the orchestrator was not sent (from '$from'): $(tail -n 1 <<<"$why"); the next tick retries"; return 0 ;;
+    esac
+  done
+  say "WARN $n red ticks in a row and no id this box announces could send the blocker to the orchestrator (tried ${tried:-<none>}): ${why:-no lease names an id}; the next tick retries"
 }
 
 rsp="$(box_env SPOOL_RSP_BOX)"

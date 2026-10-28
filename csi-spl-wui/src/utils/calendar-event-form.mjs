@@ -43,13 +43,115 @@ export const CAL_TITLE_MAX = 200
 export const CAL_DESCRIPTION_MAX = 4000
 export const CAL_LOCATION_MAX = 300
 export const CAL_REMINDERS_MAX = 5
+/** SPL-4043: an event links at most this many issues, each key at most 32 runes. */
+export const CAL_ISSUE_KEYS_MAX = 20
 /** The hub's palette (spec 3.3); "" is the kind's own colour. */
 export const CAL_COLORS = ['tomato', 'flamingo', 'tangerine', 'banana', 'sage', 'basil', 'peacock', 'blueberry', 'lavender', 'grape', 'graphite']
 /** A reminder's unit and its largest amount: 4 weeks before (spec 4.3). */
 export const CAL_REMINDER_UNITS = { minutes: 40320, hours: 672, days: 28 }
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
+const TOPIC_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+const TOPIC_SHORT = /^[0-9a-f]{8}$/
+const TOPIC_LINK = /\/t\/([0-9a-f]{8}(?:-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?)(?:[^0-9a-f-]|$)/
+const ISSUE_PREFIX = /^[A-Za-z][A-Za-z0-9]{0,9}$/
+const ISSUE_NUM = /^[1-9][0-9]*$/
+const HUM_ID = /^HUM-[0-9]+$/
+const AGENT_BARE = /^(?:[acgmq]-[0-9]{3,}|(?:CLE|AGY|GRK|QWN)-[0-9]+)$/
+const AGENT_ID = /^(?:[acgmq]-[0-9]{3,}|(?:CLE|AGY|GRK|QWN)-[0-9]+)(?:@[A-Za-z0-9][A-Za-z0-9._-]*)?$/
 const pad = (n) => String(n).padStart(2, '0')
+
+/**
+ * SPL-4043: a topic id, its 8-hex short id, or a link carrying /t/<either>,
+ * lower-cased. '' when the text is empty or none of those.
+ * @param {unknown} input
+ */
+export function calDiscussionRef(input) {
+  const v = String(input ?? '').trim().toLowerCase()
+  if (!v) return ''
+  if (TOPIC_ID.test(v) || TOPIC_SHORT.test(v)) return v
+  const m = TOPIC_LINK.exec(v)
+  return m ? m[1] : ''
+}
+
+/**
+ * One issue key as the hub's ParseIssueRef accepts it ("SPL-12", "spl-12" or
+ * "12"), or '' when it is not one. At most 32 runes.
+ * @param {unknown} raw
+ */
+export function calIssueKey(raw) {
+  const s = String(raw ?? '').trim()
+  if (!s || [...s].length > 32) return ''
+  const i = s.lastIndexOf('-')
+  if (i < 0) return ISSUE_NUM.test(s) ? s : ''
+  if (!ISSUE_PREFIX.test(s.slice(0, i)) || !ISSUE_NUM.test(s.slice(i + 1))) return ''
+  return s
+}
+
+/** The keys, trimmed, valid, first spelling kept, later copies of the same key dropped. */
+export function calIssueKeys(list) {
+  const out = []
+  for (const raw of list || []) {
+    const k = calIssueKey(raw)
+    if (!k || out.some((x) => x.toLowerCase() === k.toLowerCase())) continue
+    out.push(k)
+  }
+  return out
+}
+
+/**
+ * '' when empty (the hub then keeps the creator), the id when it is a member
+ * or an agent, null when the text is neither.
+ * @param {unknown} raw
+ * @returns {string | null}
+ */
+export function calOwnerId(raw) {
+  const s = String(raw ?? '').trim()
+  if (!s) return ''
+  return HUM_ID.test(s) || AGENT_ID.test(s) ? s : null
+}
+
+/**
+ * Owner choices for the picker: member ids, then agent ids (`id` or `id@box`).
+ * @param {Record<string, unknown> | null | undefined} humans
+ * @param {{ id?: string, box?: string }[] | null | undefined} people
+ */
+export function calOwnerChoices(humans, people) {
+  const out = []
+  const seen = new Set()
+  const add = (id) => {
+    if (!id || seen.has(id)) return
+    seen.add(id)
+    out.push(id)
+  }
+  for (const id of Object.keys(humans && typeof humans === 'object' ? humans : {})) {
+    if (HUM_ID.test(id)) add(id)
+  }
+  for (const p of people || []) {
+    const id = String((p && p.id) || '')
+    const box = String((p && p.box) || '')
+    if (!AGENT_BARE.test(id)) continue
+    add(box ? `${id}@${box}` : id)
+  }
+  return out
+}
+
+/**
+ * Discussion, issue keys and owner for a save, or `{ error }` with an i18n key.
+ * @param {{ discussion?: string, issueKeys?: unknown[], owner?: string } | null | undefined} form
+ * @returns {{ topic_id: string, issue_keys: string[], owner_id: string } | { error: string }}
+ */
+export function calLinksOf(form) {
+  const discussion = String((form && form.discussion) || '').trim()
+  const topicId = discussion ? calDiscussionRef(discussion) : ''
+  if (discussion && !topicId) return { error: 'calendar_event.error_discussion' }
+  const raw = (Array.isArray(form && form.issueKeys) ? form.issueKeys : []).map((k) => String(k ?? '').trim()).filter(Boolean)
+  if (raw.length > CAL_ISSUE_KEYS_MAX) return { error: 'calendar_event.error_issue_many' }
+  if (raw.some((k) => !calIssueKey(k))) return { error: 'calendar_event.error_issue' }
+  const owner = calOwnerId(form && form.owner)
+  if (owner === null) return { error: 'calendar_event.error_owner' }
+  return { topic_id: topicId, issue_keys: calIssueKeys(raw), owner_id: owner }
+}
 
 /** A stored event (source `event`): it opens its pop-over; an issue deadline and an official day do not. */
 export function calStored(ev) {
@@ -130,6 +232,7 @@ export function calFormFromEvent(ev, day) {
     return {
       title: '', date: day, start: '09:00', end: '10:00', allDay: false, endDays: 0,
       timeZone, zoneWas: timeZone, location: '', reminders: [], color: '', private: false, public: false, description: '',
+      discussion: '', issueKeys: [], owner: '',
     }
   }
   const allDay = Boolean(ev.all_day)
@@ -157,6 +260,9 @@ export function calFormFromEvent(ev, day) {
     private: ev.audience === 'private',
     public: calIsPublic(ev),
     description: String(ev.description || ''),
+    discussion: String(ev.topic_id || ''),
+    issueKeys: calIssueKeys(Array.isArray(ev.issue_keys) ? ev.issue_keys : []),
+    owner: String(ev.owner_id || ''),
   }
 }
 
@@ -275,11 +381,15 @@ export function calFormBody(form, ev = null) {
     if (!startsAt || !endsAt) return { error: 'calendar_event.error_time' }
     if (Date.parse(endsAt) < Date.parse(startsAt)) return { error: 'calendar_event.error_end' }
   }
+  const links = calLinksOf(form)
+  if (links.error) return { error: links.error }
   const full = {
     title, starts_at: startsAt, ends_at: endsAt, all_day: Boolean(form.allDay), time_zone: zone || 'UTC',
     location, reminders, color, audience: audienceOf(form, ev), description,
+    topic_id: links.topic_id, issue_keys: links.issue_keys, owner_id: links.owner_id,
   }
   if (!ev) return { body: full }
+  const storedKeys = calIssueKeys(Array.isArray(ev.issue_keys) ? ev.issue_keys : [])
   const body = {}
   for (const [k, v] of Object.entries(full)) {
     const was = ev[k]
@@ -287,7 +397,10 @@ export function calFormBody(form, ev = null) {
       : k === 'starts_at' || k === 'ends_at' ? Date.parse(v) === Date.parse(was)
         : k === 'time_zone' ? zone === String(form.zoneWas || '')
           : k === 'reminders' ? remindersKey(v) === remindersKey(calRemindersOf(ev))
-            : v === String(was ?? '')
+            : k === 'issue_keys' ? v.length === storedKeys.length && v.every((x, i) => x === storedKeys[i])
+              : k === 'topic_id' ? v === String(ev.topic_id || '')
+                : k === 'owner_id' ? v === String(ev.owner_id || '')
+                  : v === String(was ?? '')
     if (!same) body[k] = v
   }
   return { body: Object.keys(body).length ? body : null }

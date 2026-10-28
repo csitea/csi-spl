@@ -2,12 +2,14 @@ package hub_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"maps"
 	"net/http"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 )
@@ -70,8 +72,10 @@ func TestCalendarOldBodyNewDefaults(t *testing.T) {
 	e := rbacEnv(t)
 	tid, _ := e.tenant()
 	dev := seat(t, e, tid, rbac.Developer)
+	const topic = "8c0f4e1a-1111-4222-8333-944455556666"
+	putMsg(t, e.st, tid, topic, "tasks", dev, "box-wui", "c-001", "deploy note", time.Now().UTC(), "")
 	ev := calCreate(t, e, tid, dev, map[string]any{"title": "Deploy note", "description": "body\n\n---\n\nfrom #ops",
-		"starts_at": "2026-10-06T10:00:00Z", "ends_at": "2026-10-06T11:00:00Z", "topic_id": "8c0f4e1a-1111-4222-8333-944455556666"})
+		"starts_at": "2026-10-06T10:00:00Z", "ends_at": "2026-10-06T11:00:00Z", "topic_id": topic})
 	want089 := map[string]any{"source": "event", "title": "Deploy note", "kind": "other", "starts_at": "2026-10-06T10:00:00Z",
 		"ends_at": "2026-10-06T11:00:00Z", "all_day": false, "audience": "workspace", "creator_type": "human", "creator_id": dev,
 		"remind_at": "", "topic_id": "8c0f4e1a-1111-4222-8333-944455556666", "release_version": "", "issue_key": ""}
@@ -92,8 +96,14 @@ func TestCalendarOldBodyNewDefaults(t *testing.T) {
 			t.Errorf("%s = %#v, want []", k, ev[k])
 		}
 	}
+	if ev["owner_id"] != dev {
+		t.Errorf("owner_id = %v, want the creator %s", ev["owner_id"], dev)
+	}
+	if _, ok := ev["issue_keys"]; ok {
+		t.Errorf("empty issue_keys must be omitted, got %v", ev["issue_keys"])
+	}
 	keys := slices.Sorted(maps.Keys(ev))
-	if len(keys) != 18+10+2+2 { // 089 6.1.1's 18 fields + 097 4.1's 10 + 112 HUB-1's source_key, roadmap_url + HUB-4's specs, done_lines
+	if len(keys) != 18+10+2+2+1 { // 089's 18 + 097's 10 + 112's source_key, roadmap_url + HUB-4's specs, done_lines + SPL-4043 owner_id
 		t.Fatalf("event keys %v", keys)
 	}
 }
@@ -264,5 +274,57 @@ func TestCalendarSoftDeleteRestoreTrash(t *testing.T) {
 	}
 	if _, out := call(t, e, tid, http.MethodGet, "/v1/calendar/trash", a, nil); calTitles(out, "events") != "" {
 		t.Fatalf("restored event still in the trash: %v", out)
+	}
+}
+
+// SPL-4043: an event stores issue keys of this workspace and one owner
+// (a member or an agent). An empty list and a blank owner are the placeholders.
+func TestCalendarEventLinks(t *testing.T) {
+	e := rbacEnv(t)
+	tid, _ := e.tenant()
+	other, _ := e.tenant()
+	dev := seat(t, e, tid, rbac.Developer)
+	mate := seat(t, e, tid, rbac.Developer)
+	outsider := seat(t, e, other, rbac.Developer)
+	code, out := call(t, e, tid, http.MethodPost, "/v1/issues", dev, map[string]any{"title": "Pay VAT"})
+	key := issueOf(t, out)["key"].(string)
+	if code != http.StatusCreated || key == "" {
+		t.Fatalf("issue: %d %v", code, out)
+	}
+	ev := calCreate(t, e, tid, dev, calBody("VAT", map[string]any{
+		"issue_keys": []string{strings.ToLower(key), " " + key}, "owner_id": mate}))
+	got, _ := ev["issue_keys"].([]any)
+	if ev["owner_id"] != mate || len(got) != 1 || got[0] != key {
+		t.Fatalf("links: owner %v keys %v, want %s [%s]", ev["owner_id"], ev["issue_keys"], mate, key)
+	}
+	refuse := func(name string, body map[string]any) {
+		t.Helper()
+		code, out := call(t, e, tid, http.MethodPost, "/v1/calendar/events", dev, body)
+		if code != http.StatusBadRequest || out["error"] != "bad_event" {
+			t.Fatalf("%s: %d %v", name, code, out)
+		}
+	}
+	refuse("missing issue", calBody("x", map[string]any{"issue_keys": []string{"SPL-99999"}}))
+	refuse("foreign prefix", calBody("x", map[string]any{"issue_keys": []string{"HUM-10"}}))
+	refuse("other tenant", calBody("x", map[string]any{"owner_id": outsider}))
+	refuse("no such member", calBody("x", map[string]any{"owner_id": "HUM-99999"}))
+	refuse("unknown topic", calBody("x", map[string]any{"topic_id": "no-such-topic"}))
+	if err := e.st.SetRoster(context.Background(), tid, "tnk", []string{"c-042"}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	owned := calCreate(t, e, tid, dev, calBody("Agent", map[string]any{"owner_id": "c-042@tnk"}))
+	if owned["owner_id"] != "c-042@tnk" {
+		t.Fatalf("agent owner: %v", owned["owner_id"])
+	}
+	refuse("unknown agent", calBody("x", map[string]any{"owner_id": "c-099"}))
+	id := ev["id"].(string)
+	code, out = call(t, e, tid, http.MethodPatch, "/v1/calendar/events/"+id, dev, map[string]any{
+		"issue_keys": []string{}, "owner_id": ""})
+	cleared := calEvent(t, out)
+	if code != http.StatusOK || cleared["owner_id"] != dev {
+		t.Fatalf("reset owner: %d %v", code, out)
+	}
+	if _, ok := cleared["issue_keys"]; ok {
+		t.Fatalf("cleared keys still on the wire: %v", cleared["issue_keys"])
 	}
 }

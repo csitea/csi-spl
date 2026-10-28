@@ -290,6 +290,28 @@
               <span>{{ t('calendar_event.field_description') }}</span>
               <textarea v-model="form.description" rows="3" data-test="calphone-sheet-description" :maxlength="CAL_DESCRIPTION_MAX" :disabled="busy" />
             </label>
+            <label class="calsheet__field">
+              <span>{{ t('calendar_event.field_discussion') }}</span>
+              <input v-model="form.discussion" data-test="calphone-sheet-discussion" :placeholder="t('calendar_event.discussion_placeholder')" :disabled="busy" autocomplete="off">
+            </label>
+            <fieldset class="calsheet__field calsheet__set" data-test="calphone-sheet-issues">
+              <legend>{{ t('calendar_event.field_issues') }}</legend>
+              <div v-for="(key, i) in form.issueKeys" :key="key" class="calsheet__issue" data-test="calphone-sheet-issue">
+                <span dir="ltr">{{ key }}</span>
+                <button type="button" class="calsheet__icon" data-test="calphone-sheet-issue-remove" :aria-label="t('calendar_event.issue_remove')" :disabled="busy" @click="form.issueKeys.splice(i, 1)"><UiIcon name="x" :size="16" /></button>
+              </div>
+              <div v-if="form.issueKeys.length < CAL_ISSUE_KEYS_MAX" class="calsheet__issue">
+                <input v-model="issueDraft" data-test="calphone-sheet-issue-input" :placeholder="t('calendar_event.issues_placeholder')" :disabled="busy" autocomplete="off" @keydown.enter.prevent="addIssue">
+                <button type="button" class="calsheet__more" data-test="calphone-sheet-issue-add" :disabled="busy" @click="addIssue">{{ t('calendar_event.issue_add') }}</button>
+              </div>
+            </fieldset>
+            <label class="calsheet__field">
+              <span>{{ t('calendar_event.field_owner') }}</span>
+              <input v-model="form.owner" :list="ownerListId" data-test="calphone-sheet-owner" :placeholder="t('calendar_event.owner_placeholder')" :disabled="busy" autocomplete="off">
+              <datalist :id="ownerListId">
+                <option v-for="id in ownerIds" :key="id" :value="id" />
+              </datalist>
+            </label>
             <div v-if="event" class="calsheet__foot">
               <button
                 type="button"
@@ -310,8 +332,8 @@
 <script setup lang="ts">
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 import {
-  CAL_COLORS, CAL_DESCRIPTION_MAX, CAL_LOCATION_MAX, CAL_REMINDERS_MAX, CAL_REMINDER_UNITS, CAL_TITLE_MAX,
-  calAudienceSwitched, calCanSetPrivate, calFormBody, calFormCopy, calFormFromEvent, calHourAfter, calNewReminder, calReminderAmount, calReminderError,
+  CAL_COLORS, CAL_DESCRIPTION_MAX, CAL_ISSUE_KEYS_MAX, CAL_LOCATION_MAX, CAL_REMINDERS_MAX, CAL_REMINDER_UNITS, CAL_TITLE_MAX,
+  calAudienceSwitched, calCanSetPrivate, calFormBody, calFormCopy, calFormFromEvent, calHourAfter, calIssueKey, calNewReminder, calOwnerChoices, calReminderAmount, calReminderError,
 } from '~/utils/calendar-event-form.mjs'
 import type { CalForm, CalReminderRow } from '~/utils/calendar-event-form.mjs'
 import { calPhoneHourPreset, calPhoneNextFullHour } from '~/utils/calendar-phone-nav.mjs'
@@ -354,6 +376,9 @@ const canPrivate = computed(() => calCanSetPrivate(props.event, viewerId.value))
 
 const headId = useId()
 const formId = useId()
+const ownerListId = useId()
+const issueDraft = ref('')
+const ownerIds = computed(() => calOwnerChoices(roster.humansDetail, roster.people))
 const UNITS = Object.keys(CAL_REMINDER_UNITS)
 const SWATCHES = ['', ...CAL_COLORS]
 const allZones = import.meta.client ? knownTimeZones() : []
@@ -393,6 +418,7 @@ function reset() {
     if (p) form.value = { ...form.value, ...p }
   }
   full.value = Boolean(from)
+  issueDraft.value = ''
   error.value = ''
   confirmDelete.value = false
   dy.value = 0
@@ -448,6 +474,25 @@ function typed(e: Event, r: CalReminderRow) {
 function addReminder() {
   const r = calNewReminder(form.value.reminders)
   if (r) form.value.reminders.push(r)
+}
+function addIssue() {
+  const k = calIssueKey(issueDraft.value)
+  if (!k) {
+    if (String(issueDraft.value || '').trim()) error.value = 'calendar_event.error_issue'
+    return
+  }
+  if (form.value.issueKeys.length >= CAL_ISSUE_KEYS_MAX) {
+    error.value = 'calendar_event.error_issue_many'
+    return
+  }
+  if (!form.value.issueKeys.some((x) => x.toLowerCase() === k.toLowerCase())) form.value.issueKeys.push(k)
+  issueDraft.value = ''
+  error.value = ''
+}
+function refreshOwners() {
+  const humans = roster.humansDetail || {}
+  const people = roster.people || []
+  if (Object.keys(humans).length === 0 && people.length === 0) void roster.refresh().catch(() => {})
 }
 
 /* the keyboard lift, the drag-down to close (9.4 #4), Escape and the Tab trap */
@@ -522,8 +567,10 @@ async function remove() {
 /* last: an already-open mount runs opened() at once, after every ref above */
 watch(() => props.open, (v) => {
   if (!import.meta.client) return
-  if (v) void opened()
-  else closed()
+  if (v) {
+    refreshOwners()
+    void opened()
+  } else closed()
 }, { immediate: true })
 watch(() => [props.event, props.copy, props.day, props.hour], () => { if (props.open) reset() })
 /* rdb 0158: Private and Public exclude each other (calAudienceSwitched) */
@@ -790,6 +837,9 @@ useMobileStack().overlay(() => props.open, () => emit('update:open', false))
   margin-bottom: 6px;
 }
 .calsheet__rem-error { grid-column: 1 / -1; }
+.calsheet__issue { display: flex; align-items: center; gap: 8px; min-width: 0; margin-bottom: 6px; }
+.calsheet__issue input { flex: 1 1 auto; min-width: 0; min-height: var(--tap); }
+.calsheet__issue span { min-width: 0; overflow-wrap: anywhere; }
 .calsheet__icon {
   display: inline-grid;
   place-items: center;

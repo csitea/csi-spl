@@ -458,7 +458,8 @@ func calendarFollow(ex *CalendarEvent, old, nu *CalendarEvent, delta time.Durati
 	for _, f := range []struct{ dst, o, n *string }{{&ex.Title, &old.Title, &nu.Title},
 		{&ex.Description, &old.Description, &nu.Description}, {&ex.Kind, &old.Kind, &nu.Kind},
 		{&ex.Audience, &old.Audience, &nu.Audience}, {&ex.TopicID, &old.TopicID, &nu.TopicID},
-		{&ex.ReleaseVersion, &old.ReleaseVersion, &nu.ReleaseVersion}, {&ex.TimeZone, &old.TimeZone, &nu.TimeZone}} {
+		{&ex.ReleaseVersion, &old.ReleaseVersion, &nu.ReleaseVersion}, {&ex.TimeZone, &old.TimeZone, &nu.TimeZone},
+		{&ex.OwnerID, &old.OwnerID, &nu.OwnerID}} {
 		if *f.dst == *f.o {
 			*f.dst = *f.n
 		}
@@ -468,6 +469,9 @@ func calendarFollow(ex *CalendarEvent, old, nu *CalendarEvent, delta time.Durati
 	}
 	if slices.Equal(ex.Mentions, old.Mentions) {
 		ex.Mentions = slices.Clone(nu.Mentions)
+	}
+	if slices.Equal(ex.IssueKeys, old.IssueKeys) {
+		ex.IssueKeys = slices.Clone(nu.IssueKeys)
 	}
 	if calendarLead(ex) == calendarLead(old) {
 		ex.RemindAt = time.Time{}

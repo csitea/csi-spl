@@ -53,7 +53,8 @@ function mockAddedEvents() {
  * POST /v1/calendar/events (6.1.2) in the mock workspace: the created event,
  * kept so GET events / marks show it.
  * 097 T014: and the event's time_zone, location, color and reminders (spec 4.2).
- * @param {{ title?: string, description?: string, starts_at?: string, ends_at?: string, all_day?: boolean, audience?: string, topic_id?: string, time_zone?: string, location?: string, color?: string, reminders?: unknown[] }} body
+ * SPL-4043: issue_keys as given (or none) and owner_id, defaulting an empty owner to HUM-1.
+ * @param {{ title?: string, description?: string, starts_at?: string, ends_at?: string, all_day?: boolean, audience?: string, topic_id?: string, time_zone?: string, location?: string, color?: string, reminders?: unknown[], issue_keys?: string[], owner_id?: string }} body
  */
 export function mockCalendarCreate(body = {}) {
   const now = new Date().toISOString()
@@ -66,6 +67,8 @@ export function mockCalendarCreate(body = {}) {
     all_day: Boolean(body.all_day),
     audience: mockAudience(body.audience) || 'workspace',
     topic_id: String(body.topic_id || ''),
+    issue_keys: Array.isArray(body.issue_keys) ? body.issue_keys : [],
+    owner_id: String(body.owner_id || 'HUM-1'),
     time_zone: String(body.time_zone || 'UTC'),
     location: String(body.location || ''),
     color: String(body.color || ''),

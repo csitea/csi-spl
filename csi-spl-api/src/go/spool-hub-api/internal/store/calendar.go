@@ -170,6 +170,13 @@ type CalendarEvent struct {
 	// SourceKey is a synced event's key (specs/112, rdb 0156; "" for an event
 	// a member wrote). Read only: only UpsertCalendarBySourceKey sets it.
 	SourceKey string
+	// OwnerID is the one responsible member or agent (SPL-4043, rdb 0239).
+	// Empty on create becomes CreatorID. Distinct from the creator and the
+	// guests: the hub checks it is a member or an agent of the workspace.
+	OwnerID string
+	// IssueKeys are issue keys in this workspace (SPL-12). Empty until set.
+	// The hub checks each key exists; the store checks shape only.
+	IssueKeys []string
 }
 
 // CalendarPatch is an update: a nil field is left as it is. A zero *RemindAt
@@ -194,8 +201,12 @@ type CalendarPatch struct {
 	TimeZone       *string
 	RRule          *string
 	Guests         *[]CalendarGuest
-	IfUpdatedAt    time.Time
-	Scope          string
+	// OwnerID empty resets to the creator. IssueKeys replaces the list;
+	// nil leaves it (SPL-4043).
+	OwnerID     *string
+	IssueKeys   *[]string
+	IfUpdatedAt time.Time
+	Scope       string
 }
 
 // CalendarMark is one UTC day of the year strip with events the viewer can
@@ -296,6 +307,12 @@ func normalizeCalendarEvent(e *CalendarEvent) error {
 		return err
 	}
 	e.Props = props
+	if e.IssueKeys == nil {
+		e.IssueKeys = []string{}
+	}
+	if e.OwnerID == "" {
+		e.OwnerID = e.CreatorID
+	}
 	if err := validateCalendarEvent(e); err != nil {
 		return err
 	}
@@ -378,6 +395,29 @@ func validateCalendarEvent(e *CalendarEvent) error {
 	case len(e.TimeZone) > 64:
 		return bad("time_zone must be 1..64 characters")
 	}
+	return validateCalendarLinks(e)
+}
+
+// validateCalendarLinks checks rdb 0239's owner and issue keys (shape only;
+// the hub checks they belong to the workspace).
+func validateCalendarLinks(e *CalendarEvent) error {
+	bad := func(what string) error { return fmt.Errorf("%w: %s", ErrInvalidCalendarEvent, what) }
+	if n := utf8.RuneCountInString(e.OwnerID); n < 1 || n > 64 {
+		return bad("owner_id must be 1..64 characters")
+	}
+	if len(e.IssueKeys) > 20 {
+		return bad("issue_keys holds at most 20 keys")
+	}
+	seen := map[string]bool{}
+	for _, k := range e.IssueKeys {
+		if n := utf8.RuneCountInString(k); n < 1 || n > 32 {
+			return bad("an issue key must be 1..32 characters")
+		}
+		if seen[k] {
+			return bad("issue_keys has a duplicate")
+		}
+		seen[k] = true
+	}
 	return nil
 }
 
@@ -416,6 +456,10 @@ func applyCalendarPatch(e *CalendarEvent, p CalendarPatch) {
 	set(&e.RRule, p.RRule)
 	if p.Guests != nil {
 		e.Guests = mergeCalendarGuests(e.Guests, *p.Guests)
+	}
+	set(&e.OwnerID, p.OwnerID)
+	if p.IssueKeys != nil {
+		e.IssueKeys = slices.Clone(*p.IssueKeys)
 	}
 }
 

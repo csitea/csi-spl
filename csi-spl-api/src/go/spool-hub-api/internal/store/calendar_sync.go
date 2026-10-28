@@ -145,6 +145,12 @@ func (s *Memory) UpsertCalendarBySourceKey(_ context.Context, tenant string, bat
 			continue
 		default:
 			n.ID, n.CreatedAt = old.ID, old.CreatedAt
+			if old.OwnerID != "" {
+				n.OwnerID = old.OwnerID
+			}
+			if old.IssueKeys != nil {
+				n.IssueKeys = slices.Clone(old.IssueKeys)
+			}
 			res.Updated++
 		}
 		n.UpdatedAt, n.DeletedAt, n.DeletedBy = at, time.Time{}, ""
@@ -199,6 +205,12 @@ const calendarSyncPrune = `UPDATE calendar_events SET deleted_at = $3, deleted_b
 // calendarHasSourceKey is the catalogue probe for rdb 0156.
 const calendarHasSourceKey = `SELECT EXISTS (SELECT 1 FROM pg_attribute
 	WHERE attrelid = to_regclass('calendar_events') AND attname = 'source_key' AND NOT attisdropped)`
+
+// calendarHasOwnerID is the catalogue probe for rdb 0239 (owner_id stands
+// for issue_keys too: one migration added them together). A sync does not
+// write either column, so a later sync leaves a member's owner and links.
+const calendarHasOwnerID = `SELECT EXISTS (SELECT 1 FROM pg_attribute
+	WHERE attrelid = to_regclass('calendar_events') AND attname = 'owner_id' AND NOT attisdropped)`
 
 // UpsertCalendarBySourceKey writes a sync batch (see above) in one
 // transaction; ErrCalendarUnavailable until rdb 0156 reaches the database.

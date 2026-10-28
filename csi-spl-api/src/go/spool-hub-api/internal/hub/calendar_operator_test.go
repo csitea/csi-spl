@@ -40,14 +40,14 @@ func TestOperatorCalendarEvent(t *testing.T) {
 	putMsg(t, e.st, tb, topicB, "tasks", "HUM-1", "box-wui", "c-001", "other workspace", now, "")
 
 	body := func(tenant, topic string) map[string]any {
-		return map[string]any{"tenant": tenant, "agent_id": "c-840", "ordered_by": "HUM-10",
+		return map[string]any{"tenant": tenant, "agent_id": "c-840", "ordered_by": memA,
 			"title": "Payment: VAT", "description": "source msg", "all_day": true,
 			"starts_at": "2026-10-12T00:00:00Z", "ends_at": "2026-10-13T00:00:00Z", "topic_id": topic}
 	}
 	code, out := opCall(t, e, ta, http.MethodPost, "/v1/operator/calendar/events", "good", body(ta, topicA))
 	ev, _ := out["event"].(map[string]any)
 	if code != http.StatusCreated || ev == nil || ev["creator_type"] != "agent" || ev["creator_id"] != "c-840" ||
-		ev["all_day"] != true || ev["topic_id"] != topicA || ev["audience"] != "workspace" {
+		ev["owner_id"] != memA || ev["all_day"] != true || ev["topic_id"] != topicA || ev["audience"] != "workspace" {
 		t.Fatalf("create: %d %v", code, out)
 	}
 	id := ev["id"].(string)

@@ -27,6 +27,10 @@ func cloneCalendarEvent(e *CalendarEvent) CalendarEvent {
 	if c.Guests == nil {
 		c.Guests = []CalendarGuest{}
 	}
+	c.IssueKeys = slices.Clone(e.IssueKeys)
+	if c.IssueKeys == nil {
+		c.IssueKeys = []string{}
+	}
 	return c
 }
 

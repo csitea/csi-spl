@@ -27,6 +27,19 @@
         <UiIcon name="pin" :size="16" /><span>{{ event.location }}</span>
       </p>
       <p v-if="event.description" class="cal-pop__desc muted" data-test="calendar-popover-description">{{ event.description }}</p>
+      <p v-if="!deadline" class="cal-pop__line" data-test="calendar-popover-discussion">
+        <NuxtLink v-if="topicTo" :to="topicTo" data-test="calendar-popover-discussion-link">{{ t('calendar_event.open_discussion') }}</NuxtLink>
+        <span v-else class="muted">{{ t('calendar_event.discussion_empty') }}</span>
+      </p>
+      <p v-if="!deadline" class="cal-pop__links" data-test="calendar-popover-issues">
+        <template v-if="issueLinks.length">
+          <NuxtLink v-for="iss in issueLinks" :key="iss.key" :to="iss.to" data-test="calendar-popover-issue">{{ iss.key }}</NuxtLink>
+        </template>
+        <span v-else class="muted">{{ t('calendar_event.issues_empty') }}</span>
+      </p>
+      <p v-if="!deadline" data-test="calendar-popover-owner">
+        <span dir="ltr">{{ ownerLabel || t('calendar_event.owner_empty') }}</span>
+      </p>
       <p v-if="synced" class="cal-pop__line" data-test="calendar-popover-synced">
         <NuxtLink v-if="roadmapHref" :to="roadmapHref" data-test="calendar-popover-repo" @click="emit('update:open', false)">{{ t('calendar_event.synced_link') }}</NuxtLink>
         <span v-else class="muted">{{ t('calendar_event.synced_link') }}</span>
@@ -52,7 +65,7 @@
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 import { calAddDays } from '~/utils/calendar-year.mjs'
 import { isoClock, isoDate, isoDateTime } from '~/utils/date-iso.mjs'
-import { calRoadmapHref, calSynced } from '~/utils/calendar-event-form.mjs'
+import { calDiscussionRef, calRoadmapHref, calSynced } from '~/utils/calendar-event-form.mjs'
 import { useCalendarEventLink } from '~/composables/useCalendarEventLink'
 import { issuePageHref } from '~/utils/issue-calendar-link.mjs'
 import { statusLabel } from '~/utils/issues-view.mjs'
@@ -68,6 +81,18 @@ const deadline = computed(() => props.event?.source === 'issue')
 const localePath = useLocalePath()
 const router = useRouter()
 const issueTo = computed(() => localePath(issuePageHref(props.event?.issue_key || props.event?.id || '')))
+const topicTo = computed(() => {
+  const id = calDiscussionRef(props.event?.topic_id)
+  return id ? localePath('/t/' + id) : ''
+})
+const issueLinks = computed(() => {
+  const keys = Array.isArray(props.event?.issue_keys) ? props.event.issue_keys : []
+  return keys.flatMap((key) => {
+    const href = issuePageHref(String(key || ''))
+    return href ? [{ key: String(key), to: localePath(href) }] : []
+  })
+})
+const ownerLabel = computed(() => String(props.event?.owner_id || '').trim())
 /* a real link (a new tab works); a plain click goes through the view, which
    first drops issue= from the calendar's URL so Back returns to the week
    with the pop-over closed */
@@ -101,6 +126,7 @@ const when = computed(() => {
 .cal-pop__dot { flex: 0 0 auto; width: 12px; height: 12px; border-radius: 50%; }
 .cal-pop__line { display: flex; align-items: center; gap: 8px; }
 .cal-pop__desc { white-space: pre-wrap; max-height: 12em; overflow: auto; }
+.cal-pop__links { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
 .cal-pop__actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; flex-wrap: wrap; width: 100%; }
 .cal-pop__actions .btn { display: inline-flex; align-items: center; gap: 6px; }
 .cal-pop__copied { margin-inline-end: auto; }

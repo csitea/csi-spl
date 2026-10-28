@@ -46,6 +46,8 @@ type Postgres struct {
 	calEdit seatsProbe
 	// calKey: is rdb 0156's calendar_events.source_key there yet (calendar_postgres.go)
 	calKey seatsProbe
+	// calLinks: is rdb 0239's calendar_events.owner_id there yet (calendar_postgres.go)
+	calLinks seatsProbe
 	// sig: is rdb 0135 messages.search_sig there yet (search_postgres.go)
 	sig seatsProbe
 	// idx: is rdb 0143 spool_search_candidates there and executable (search_postgres.go)

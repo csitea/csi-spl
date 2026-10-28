@@ -143,12 +143,19 @@ try {
   let saved = (await stored(p, 'T014 fields'))[0] || {}
   ok('stored as typed: zone, location, colour, reminders', saved.time_zone === 'America/New_York' && saved.location === 'Room 4' && saved.color === 'sage'
     && JSON.stringify(saved.reminders) === JSON.stringify([{ amount: 15, unit: 'minutes', method: 'popup' }, { amount: 1, unit: 'days', method: 'popup' }]), saved)
+  ok('stored discussion empty, no issues, owner HUM-1', saved.topic_id === '' && JSON.stringify(saved.issue_keys) === '[]' && saved.owner_id === 'HUM-1', saved)
   ok('09:00 New York is 13:00Z', Date.parse(saved.starts_at) === Date.parse(`${today}T13:00:00Z`), saved.starts_at)
   ok('the event shows its colour', await p.evaluate(() => document.querySelector('[data-test=calendar-item][data-color=sage]') !== null))
 
   await clickItem(p, 'T014 fields')
   ok('a click shows the pop-over, not the dialog', await visible(p, POPOVER) && !(await p.$(DIALOG)))
   ok('the pop-over shows the location', await p.evaluate(() => document.querySelector('[data-test=calendar-popover-location]')?.textContent?.trim() === 'Room 4'))
+  ok('a saved event shows empty discussion and issues, and the default owner', await p.evaluate(() => {
+    const d = document.querySelector('[data-test=calendar-popover-discussion]')?.textContent || ''
+    const iss = document.querySelector('[data-test=calendar-popover-issues]')?.textContent || ''
+    const o = document.querySelector('[data-test=calendar-popover-owner]')?.textContent || ''
+    return d.includes('No discussion') && iss.includes('No issues') && o.includes('HUM-1')
+  }))
   await shot(p, 'popover-1440')
   await p.click('[data-test=calendar-popover-edit]')
   ok('Edit opens the dialog', await visible(p, DIALOG))
@@ -170,6 +177,28 @@ try {
   ok('Save makes a second event, the source untouched', await waitItems(p, 'T014 fields', 2))
   const both = await stored(p, 'T014 fields')
   ok('two ids, the same fields', both.length === 2 && both[0].id !== both[1].id && both.every((e) => e.location === 'Room 4' && e.color === 'sage'), both.map((e) => e.id))
+
+  await p.click('[data-test=calendar-new]')
+  ok('a second New opens the dialog', await visible(p, DIALOG))
+  const topic = '11111111-2222-4333-8444-555555555555'
+  await typeInto(p, '[data-test=calendar-event-title]', 'T014 links')
+  await typeInto(p, '[data-test=calendar-event-discussion]', `/t/${topic}`)
+  await typeInto(p, '[data-test=calendar-event-issue-input]', 'spl-12')
+  await p.click('[data-test=calendar-event-issue-add]')
+  await typeInto(p, '[data-test=calendar-event-owner]', 'HUM-2')
+  await p.click('[data-test=calendar-event-save]')
+  ok('the linked event closes the dialog', await gone(p, DIALOG))
+  ok('the linked event shows in the week', await waitItems(p, 'T014 links', 1))
+  const linked = (await stored(p, 'T014 links'))[0] || {}
+  ok('stored discussion, one issue, owner HUM-2', linked.topic_id === topic && JSON.stringify(linked.issue_keys) === '["spl-12"]' && linked.owner_id === 'HUM-2', linked)
+  await clickItem(p, 'T014 links')
+  ok('the pop-over links the discussion and the issue', await visible(p, POPOVER) && await p.evaluate((id) => {
+    const d = document.querySelector('[data-test=calendar-popover-discussion-link]')
+    const iss = document.querySelector('[data-test=calendar-popover-issue]')
+    const o = document.querySelector('[data-test=calendar-popover-owner]')?.textContent || ''
+    const href = (el) => String(el?.getAttribute('href') || '')
+    return href(d).includes('/t/' + id) && href(iss).includes('issue=spl-12') && o.includes('HUM-2')
+  }, topic))
   await p.close()
 } finally {
   await browser.close()

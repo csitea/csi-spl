@@ -23,6 +23,8 @@ import (
 //     allow-list (operatorAuth), as the other /v1/operator routes. A member
 //     session is not enough.
 //   - Creator: the agent the body names (creator_type 'agent'), never a human.
+//     The owner (SPL-4043) is ordered_by when the body leaves owner_id
+//     empty, otherwise the agent. A named owner must be a member or agent.
 //   - One workspace: the body's tenant, written by the same store call as the
 //     member create (RLS inside that tenant). A Host or X-Spool-Tenant naming
 //     another workspace is 403 tenant_mismatch, and topic_id must be a topic
@@ -104,6 +106,12 @@ func (s *Server) handleOperatorCalendarCreate(w http.ResponseWriter, r *http.Req
 		return
 	}
 	e.CreatorType = "agent"
+	if (q.OwnerID == nil || *q.OwnerID == "") && orderedBy != "" {
+		e.OwnerID = orderedBy
+	}
+	if !s.bindEventLinks(w, r, t.ID, e.CreatorID, &e) {
+		return
+	}
 	out, err := c.CreateCalendarEvent(r.Context(), t.ID, e, s.o.Now())
 	if err != nil {
 		s.writeCalendarErr(w, t.ID, "operator create", err)

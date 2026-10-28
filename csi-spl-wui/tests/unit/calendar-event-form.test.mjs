@@ -27,8 +27,8 @@ import { afterEach, beforeEach, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { setTimeZoneSource } from '../../src/utils/date-iso.mjs'
 import {
-  CAL_COLORS, CAL_PUBLIC_WIRE, calAudienceSwitched, calCanSetPrivate, calEditable, calFormBody, calFormCopy, calFormFromEvent, calHourAfter, calIsPublic, calNewReminder,
-  calReminderAmount, calReminderError, calRoadmapHref, calStored, calSynced, calWallToUtc,
+  CAL_COLORS, CAL_ISSUE_KEYS_MAX, CAL_PUBLIC_WIRE, calAudienceSwitched, calCanSetPrivate, calDiscussionRef, calEditable, calFormBody, calFormCopy, calFormFromEvent, calHourAfter, calIsPublic, calIssueKey, calIssueKeys, calNewReminder,
+  calOwnerChoices, calOwnerId, calReminderAmount, calReminderError, calRoadmapHref, calStored, calSynced, calWallToUtc,
 } from '../../src/utils/calendar-event-form.mjs'
 import { mockCalendarCreate, mockCalendarDelete, mockCalendarEvents, mockCalendarUpdate, mockWebCalendarEvents } from '../../src/utils/calendar-mock.mjs'
 
@@ -48,12 +48,14 @@ describe('create', () => {
     assert.deepEqual(form, {
       title: '', date: '2026-10-07', start: '09:00', end: '10:00', allDay: false, endDays: 0,
       timeZone: 'UTC', zoneWas: 'UTC', location: '', reminders: [], color: '', private: false, public: false, description: '',
+      discussion: '', issueKeys: [], owner: '',
     })
     form.title = '  Planning  '
     assert.deepEqual(calFormBody(form), {
       body: {
         title: 'Planning', starts_at: '2026-10-07T09:00:00Z', ends_at: '2026-10-07T10:00:00Z', all_day: false, time_zone: 'UTC',
         location: '', reminders: [], color: '', audience: 'workspace', description: '',
+        topic_id: '', issue_keys: [], owner_id: '',
       },
     })
   })
@@ -245,7 +247,52 @@ describe('097 T014: reminders, location, colour', () => {
     assert.deepEqual(body, {
       title: 'Retro', starts_at: '2026-10-07T09:00:00Z', ends_at: '2026-10-07T09:30:00Z', all_day: false, time_zone: 'UTC',
       location: 'Room 1', reminders: [{ amount: 2, unit: 'hours', method: 'popup' }], color: 'grape', audience: 'workspace', description: 'notes',
+      topic_id: '', issue_keys: [], owner_id: '',
     })
+  })
+})
+
+describe('SPL-4043 discussion, issues, owner', () => {
+  const base = () => ({ ...calFormFromEvent(null, '2026-10-07'), title: 'x' })
+  it('a topic id, its short id or a /t/ link; anything else is refused', () => {
+    const id = '11111111-2222-4333-8444-555555555555'
+    assert.equal(calDiscussionRef(id), id)
+    assert.equal(calDiscussionRef('  AABBCCDD '), 'aabbccdd')
+    assert.equal(calDiscussionRef(`https://spool.example/t/${id}?x=1`), id)
+    assert.equal(calDiscussionRef(''), '')
+    assert.equal(calDiscussionRef('not a topic'), '')
+    assert.equal(calFormBody({ ...base(), discussion: `see /t/${id}` }).body.topic_id, id)
+    assert.equal(calFormBody({ ...base(), discussion: 'hello' }).error, 'calendar_event.error_discussion')
+  })
+  it('issue keys keep the first spelling, drop copies, and refuse a bad one or 21', () => {
+    assert.equal(calIssueKey(' spl-12 '), 'spl-12')
+    assert.equal(calIssueKey('12'), '12')
+    assert.equal(calIssueKey('SPL-0'), '')
+    assert.equal(calIssueKey('FOO-BAR-1'), '')
+    assert.deepEqual(calIssueKeys(['spl-12', 'SPL-12', '12']), ['spl-12', '12'])
+    const { body } = calFormBody({ ...base(), issueKeys: ['spl-12', 'SPL-12'] })
+    assert.deepEqual(body.issue_keys, ['spl-12'])
+    assert.equal(calFormBody({ ...base(), issueKeys: ['nope'] }).error, 'calendar_event.error_issue')
+    const many = Array.from({ length: CAL_ISSUE_KEYS_MAX + 1 }, (_, i) => `SPL-${i + 1}`)
+    assert.equal(calFormBody({ ...base(), issueKeys: many }).error, 'calendar_event.error_issue_many')
+  })
+  it('the owner is a member or an agent; empty stays empty for the hub default', () => {
+    assert.equal(calOwnerId(''), '')
+    assert.equal(calOwnerId(' HUM-2 '), 'HUM-2')
+    assert.equal(calOwnerId('c-007@tnk'), 'c-007@tnk')
+    assert.equal(calOwnerId('bob'), null)
+    assert.equal(calFormBody({ ...base(), owner: 'bob' }).error, 'calendar_event.error_owner')
+    assert.equal(calFormBody(base()).body.owner_id, '')
+    assert.deepEqual(calOwnerChoices({ 'HUM-1': {}, nope: {} }, [{ id: 'c-007', box: 'tnk' }, { id: 'nope' }]), ['HUM-1', 'c-007@tnk'])
+  })
+  it('an edit sends a link only when it changed, and an empty list or owner clears it', () => {
+    const e = ev({ topic_id: '11111111-2222-4333-8444-555555555555', issue_keys: ['SPL-1'], owner_id: 'HUM-1' })
+    const f = calFormFromEvent(e, '')
+    assert.equal(calFormBody(f, e).body, null)
+    assert.deepEqual(calFormBody({ ...f, discussion: '' }, e).body, { topic_id: '' })
+    assert.deepEqual(calFormBody({ ...f, issueKeys: [] }, e).body, { issue_keys: [] })
+    assert.deepEqual(calFormBody({ ...f, owner: '' }, e).body, { owner_id: '' })
+    assert.deepEqual(calFormBody({ ...f, owner: 'c-007' }, e).body, { owner_id: 'c-007' })
   })
 })
 
@@ -317,6 +364,18 @@ describe('mock workspace writes', () => {
     assert.deepEqual([a.time_zone, a.location, a.color, a.reminders.length], ['Europe/Helsinki', 'Room 1', 'sage', 1])
     const r = week().find((x) => x.kind === 'release')
     assert.deepEqual([r.time_zone, r.location, r.color, r.reminders], ['UTC', '', '', []])
+  })
+  it('SPL-4043: create keeps issue_keys and defaults an empty owner to HUM-1', () => {
+    const a = mockCalendarCreate({
+      title: 'Linked', starts_at: '2026-10-07T09:00:00Z', ends_at: '2026-10-07T10:00:00Z',
+      topic_id: '11111111-2222-4333-8444-555555555555', issue_keys: ['SPL-12'], owner_id: '',
+    })
+    assert.equal(a.topic_id, '11111111-2222-4333-8444-555555555555')
+    assert.deepEqual(a.issue_keys, ['SPL-12'])
+    assert.equal(a.owner_id, 'HUM-1')
+    const r = week().find((x) => x.kind === 'release')
+    assert.equal(r.issue_keys, undefined)
+    assert.equal(r.owner_id, undefined)
   })
   it('edit and delete a seeded event; private is the creator\'s only (403)', () => {
     const release = week().find((x) => x.kind === 'release')

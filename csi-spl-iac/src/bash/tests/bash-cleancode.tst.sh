@@ -42,7 +42,6 @@ LONG="
   csi-spl-orc/src/bash/run/spl-lane-restart.func.sh do_spl_lane_restart 76
   csi-spl-orc/src/bash/run/spl-lane-wip-push.func.sh do_spl_lane_wip_push 78
   csi-spl-orc/src/bash/run/spl-secrets-seed-all.func.sh do_secrets_seed_gcp 77
-  csi-spl-orc/src/bash/run/spl-spec-import-issues.func.sh do_spl_spec_import_issues 80
   csi-spl-orc/src/bash/run/spl-stripe-webhook-probe.func.sh do_spl_stripe_webhook_probe 78
   csi-spl-orc/src/bash/run/spl-tenant-create.func.sh do_spl_tenant_create 76
   csi-spl-orc/src/bash/run/tf-030-import-existing-cloud-run.func.sh do_tf_030_import_existing_cloud_run 80

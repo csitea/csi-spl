@@ -49,17 +49,8 @@ do_spl_spec_import_issues() {
   local py="${PROJ_PATH:?}/src/bash/scripts/spec-import-issues.py"
   local interval="${SPEC_IMPORT_INTERVAL:-0.25}"
   local limit="${SPEC_IMPORT_LIMIT:-0}"
-  local only="${SPEC_IMPORT_SPECS:-}"
   local -a onlyarg=() parsearg=()
-  [[ -n "$only" ]] && onlyarg=(--only "$only")
-  parsearg=("${onlyarg[@]}")
-  local extra="${SPEC_IMPORT_LABELS:-}"
-  [[ -n "$extra" ]] && parsearg+=(--extra-labels "$extra")
-  local -a docarg=()
-  [[ "${SPEC_IMPORT_DOCS:-0}" == 1 ]] && docarg+=(--docs)
-  [[ -n "${SPEC_IMPORT_REDACT:-}" ]] && docarg+=(--redact "$SPEC_IMPORT_REDACT")
-  onlyarg+=("${docarg[@]}")
-  parsearg+=("${docarg[@]}")
+  _spl_spec_parse_args onlyarg parsearg
   _spl_spec_check_args "$py" "$specs" "$interval" "$limit" || return 1
 
   if [[ "${SPEC_IMPORT_OFFLINE:-0}" == 1 ]]; then
@@ -80,7 +71,37 @@ do_spl_spec_import_issues() {
   trap "rm -rf '$work'; trap - RETURN" RETURN
 
   python3 "$py" parse --specs "$specs" "${parsearg[@]}" --out "$work/plan.json" || return 1
+  _spl_spec_list_all "$py" "$work" "$dry" || return 1
 
+  python3 "$py" reconcile --plan "$work/plan.json" --list "$work/list.out" --desc "$work/desc" --out "$work/ops.json" || return 1
+  mkdir -p "$(dirname "$report")"
+  python3 "$py" report --ops "$work/ops.json" --out "$report" || return 1
+  cat "$report"
+
+  _spl_spec_finish "$report" "$work" "$interval" "$limit" "$dry"
+}
+
+# _spl_spec_parse_args <only array> <parse array>: the parser arguments the
+# SPEC_IMPORT_* env asks for, into the caller's two arrays. The offline report
+# takes the spec filter and the docs args; the parse also the extra labels.
+_spl_spec_parse_args() {
+  local -n _only="$1" _parse="$2"
+  local -a docarg=()
+  [[ -n "${SPEC_IMPORT_SPECS:-}" ]] && _only=(--only "$SPEC_IMPORT_SPECS")
+  _parse=("${_only[@]}")
+  [[ -n "${SPEC_IMPORT_LABELS:-}" ]] && _parse+=(--extra-labels "$SPEC_IMPORT_LABELS")
+  [[ "${SPEC_IMPORT_DOCS:-0}" == 1 ]] && docarg+=(--docs)
+  [[ -n "${SPEC_IMPORT_REDACT:-}" ]] && docarg+=(--redact "$SPEC_IMPORT_REDACT")
+  _only+=("${docarg[@]}")
+  _parse+=("${docarg[@]}")
+}
+
+# _spl_spec_list_all <parser> <work dir> <dry 0|1>: every read-only list the
+# reconcile needs, into <work>/list.out: the epics (an auto-closed pinned one
+# reopened), the missing ones created on SPEC_IMPORT_CREATE_EPIC=1, then the
+# children of each of this plan's epics.
+_spl_spec_list_all() {
+  local py="$1" work="$2" dry="$3"
   # Read-only listing, EPIC-SCOPED (SPL-963, CLE-001 2026-09-30). The hub filters
   # in memory and returns every match in one frame, so a whole-tenant list of the
   # done set (thousands of rows) overruns the CLI socket ("hub unreachable: socket
@@ -100,13 +121,14 @@ do_spl_spec_import_issues() {
     _spl_spec_create_missing_epics "$py" "$work" "$all_status" || return 1
   fi
 
-  _spl_spec_list_children "$py" "$work" "$all_status" || return 1
+  _spl_spec_list_children "$py" "$work" "$all_status"
+}
 
-  python3 "$py" reconcile --plan "$work/plan.json" --list "$work/list.out" --desc "$work/desc" --out "$work/ops.json" || return 1
-  mkdir -p "$(dirname "$report")"
-  python3 "$py" report --ops "$work/ops.json" --out "$report" || return 1
-  cat "$report"
-
+# _spl_spec_finish <report> <work dir> <pause secs> <limit> <dry 0|1>: the
+# ending. A dry run publishes the report and stops; a live run ensures the
+# labels, applies every planned write, then publishes. 1 on any failed write.
+_spl_spec_finish() {
+  local report="$1" work="$2" interval="$3" limit="$4" dry="$5"
   if (( dry )); then
     report="$(_spl_spec_publish_report "$report" "$work")" || return 1
     do_log "OK DRY_RUN nothing was written. Re-run with DRY_RUN=0. Report: $report"

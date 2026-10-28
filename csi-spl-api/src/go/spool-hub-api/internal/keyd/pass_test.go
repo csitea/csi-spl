@@ -185,17 +185,16 @@ func ttyHash(t *testing.T, helper string, pass []byte, twice bool) []byte {
 			t.Fatal(err)
 		}
 	}
-	done := make(chan error, 1)
-	go func() { done <- cmd.Wait() }()
+	// Wait closes the stderr pipe, so it runs only after the read reaches
+	// EOF; called earlier it can drop the hash line (os/exec, StderrPipe).
 	var errOut bytes.Buffer
-	readDone := make(chan struct{})
+	done := make(chan error, 1)
 	go func() {
 		io.Copy(&errOut, errPipe)
-		close(readDone)
+		done <- cmd.Wait()
 	}()
 	select {
 	case err := <-done:
-		<-readDone
 		if err != nil {
 			t.Fatalf("helper exit: %v", err)
 		}

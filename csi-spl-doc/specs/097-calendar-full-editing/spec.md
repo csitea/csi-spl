@@ -401,6 +401,10 @@ and the event dialog), not instead of it.
 | Undo | the toast after a delete; the trash list in the calendar menu |
 | export | "Export .ics" in the calendar menu |
 
+### Discussion, issues and the owner (SPL-4043)
+
+Every calendar entry shows a discussion link, one or more issue links, and one owner. The discussion is `calendar_events.topic_id` (rdb 0125): the dialog takes a topic id or a `/t/<id>` link, and the popover and the phone peek link to `/t/<id>`. Issues are `issue_keys text[]` (rdb 0239), at most 20 keys of this workspace, shown as chips; each chip links to `/issues?issue=<key>`. The owner is `owner_id` (rdb 0239), one workspace member (`HUM-n`) or one agent id, distinct from `creator_id` and from guests. A new event defaults to its creator. Empty fields stay as placeholders. The operator action `do_spl_calendar_event_add` takes optional `ISSUE_KEYS` (comma separated) and `EVENT_OWNER` (`HUM-n` or an agent id). An empty `EVENT_OWNER` leaves the hub default: `ORDERED_BY` when that human is set, otherwise the agent. The catalogue strings are in all 19 locales. Outside English they are drafts; an agy review has the last word on the wording.
+
 ### 5.1 Mobile first
 
 Mobile first (owner HUM-10 msg `8d181e85`, t1 `70484be0`; mobile channel
@@ -742,9 +746,10 @@ proposed". Every row below is **DECIDED (as proposed).** With E1..E3
 
 | Version | Date | Author | Description |
 |---|---|---|---|
+| v0.5 | 2026-10-28 | g-523 | Discussion link, issue keys and one owner on every calendar entry (SPL-4043). Catalogue strings in all 19 locales; outside English they are drafts, and an agy review has the last word on the wording. |
 | v0.4 | 2026-10-06 | a-424 | Mobile-first section 5.1 (phone layout, touch gestures, full-screen dialogs, thumb reach, 360/390 px acceptance checks for all 10 v1 features, owner questions M1..M5); owner HUM-10 approved feature list and mobile-first rule (msg `adf16567`). |
 | v0.3 | 2026-10-06 | c-363 | Owner answered Q1..Q9 "as proposed" (msg `92b3e0d6`): every row of section 10 DECIDED as proposed; with E1..E3 the spec is fully decided. |
 | v0.2 | 2026-10-06 | c-397 | Owner decisions E1..E3 (section 0.1): v1 list approved; reminders are a typed whole number of minutes / hours / days (up to 5); video-call link and busy / free dropped. Q1..Q9 still open. |
 | v0.1 | 2026-10-06 | c-397 | Gap analysis against Google Calendar (G1..G15); additive DDL (jsonb `props` under the 098 promotion rule, recurrence columns, soft delete, `calendar_guests`); the calls; the WUI surface; ranking and v1 line; Q1..Q9. |
 
-<!-- version: 0.4 · updated: 2026-10-06 -->
+<!-- version: 0.5 · updated: 2026-10-28 -->

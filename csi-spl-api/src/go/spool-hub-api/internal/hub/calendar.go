@@ -103,6 +103,11 @@ type calendarEventJSON struct {
 	RoadmapURL string   `json:"roadmap_url"`
 	Specs      []string `json:"specs"`
 	DoneLines  []string `json:"done_lines"`
+	// SPL-4043: the responsible member or agent, and the issue keys. Omitted
+	// on a deadline item (its one issue stays issue_key). An empty issue
+	// list is omitted; the client shows a placeholder.
+	OwnerID   string   `json:"owner_id,omitempty"`
+	IssueKeys []string `json:"issue_keys,omitempty"`
 	// SPL-2034: a deadline item's issue status and assignee, so its read-only
 	// pop-over paints without reading the issue (omitted on an event).
 	Status   string `json:"status,omitempty"`
@@ -147,6 +152,14 @@ func toCalendarJSON(e store.CalendarEvent, now time.Time, viewer string) calenda
 		tz = store.CalendarUTC
 	}
 	guests, mine := calendarGuestsJSON(e, viewer)
+	owner := e.OwnerID
+	if owner == "" {
+		owner = e.CreatorID
+	}
+	var keys []string
+	if len(e.IssueKeys) > 0 {
+		keys = e.IssueKeys
+	}
 	return calendarEventJSON{ID: e.ID, Source: calendarSourceEvent, Title: e.Title, Description: e.Description,
 		Kind: e.Kind, StartsAt: rfc(e.StartsAt), EndsAt: rfc(e.EndsAt), AllDay: e.AllDay, Audience: e.Audience,
 		Mentions: mentions, CreatorType: e.CreatorType, CreatorID: e.CreatorID, RemindAt: optCalTime(wireRemindAt(e, now)),
@@ -155,7 +168,8 @@ func toCalendarJSON(e store.CalendarEvent, now time.Time, viewer string) calenda
 		Location: propsString(e, calPropLocation), Color: propsString(e, calPropColor),
 		Reminders: eventReminders(e), Guests: guests, MyResponse: mine, DeletedAt: optCalTime(e.DeletedAt),
 		SourceKey: e.SourceKey, RoadmapURL: propsString(e, calPropRoadmapURL),
-		Specs: store.CalendarPropStrings(e.Props, calSyncPropSpecs), DoneLines: store.CalendarPropStrings(e.Props, calSyncPropDoneLines)}
+		Specs: store.CalendarPropStrings(e.Props, calSyncPropSpecs), DoneLines: store.CalendarPropStrings(e.Props, calSyncPropDoneLines),
+		OwnerID: owner, IssueKeys: keys}
 }
 
 // calendarGuestsJSON is e's guests on the wire, the owner never listed (spec
@@ -212,6 +226,10 @@ type calendarRequest struct {
 	RRule          *string            `json:"rrule"`
 	Guests         *[]calendarGuestIn `json:"guests"`
 	NotifyGuests   *bool              `json:"notify_guests"`
+	// SPL-4043. Nil on a PATCH leaves the stored value. owner_id "" resets
+	// to the creator; issue_keys [] clears the list.
+	OwnerID   *string   `json:"owner_id"`
+	IssueKeys *[]string `json:"issue_keys"`
 }
 
 // calendarGuestIn is one guest of a create or PATCH body (spec 4.2).
@@ -269,7 +287,7 @@ func calMentions(in []string) ([]string, *issueErr) {
 // reminders' remind_at column; the store checks the rest of rdb 0125's rules.
 func (q calendarRequest) patch(cur store.CalendarEvent) (store.CalendarPatch, *issueErr) {
 	p := store.CalendarPatch{Title: q.Title, Description: q.Description, Kind: q.Kind, AllDay: q.AllDay,
-		Audience: q.Audience, TopicID: q.TopicID, ReleaseVersion: q.ReleaseVersion}
+		Audience: q.Audience, TopicID: q.TopicID, ReleaseVersion: q.ReleaseVersion, OwnerID: q.OwnerID, IssueKeys: q.IssueKeys}
 	if p.Audience != nil {
 		a := store.CalendarAudienceOf(*p.Audience)
 		p.Audience = &a
@@ -374,7 +392,8 @@ func (q calendarRequest) patchProps(cur store.CalendarEvent, p *store.CalendarPa
 func calendarPatchEmpty(p store.CalendarPatch) bool {
 	return p.Title == nil && p.Description == nil && p.Kind == nil && p.StartsAt == nil && p.EndsAt == nil &&
 		p.AllDay == nil && p.Audience == nil && p.Mentions == nil && p.RemindAt == nil && p.TopicID == nil &&
-		p.ReleaseVersion == nil && p.Props == nil && p.TimeZone == nil && p.RRule == nil && p.Guests == nil
+		p.ReleaseVersion == nil && p.Props == nil && p.TimeZone == nil && p.RRule == nil && p.Guests == nil &&
+		p.OwnerID == nil && p.IssueKeys == nil
 }
 
 // calendarGuestList checks the body's guests (trimmed, no repeats, at most 50)
@@ -473,8 +492,12 @@ func (s *Server) checkGuestsInWorkspace(ctx context.Context, tenant string, q ca
 }
 
 // newEvent is a create: the defaults of spec 6.1.2 (kind other, audience
-// workspace) under the request's fields; the caller is the owner.
+// workspace) under the request's fields. The caller is the creator; the
+// owner defaults to the caller unless the body names one.
 func (q calendarRequest) newEvent(actor string) (store.CalendarEvent, *issueErr) {
+	if ie := takeLinks(&q); ie != nil {
+		return store.CalendarEvent{}, ie
+	}
 	if q.Title == nil || q.StartsAt == nil || q.EndsAt == nil {
 		return store.CalendarEvent{}, badCalendar("title, starts_at and ends_at are required")
 	}
@@ -517,6 +540,13 @@ func (q calendarRequest) newEvent(actor string) (store.CalendarEvent, *issueErr)
 	}
 	if p.Guests != nil {
 		e.Guests = *p.Guests
+	}
+	e.OwnerID = actor
+	if p.OwnerID != nil && *p.OwnerID != "" {
+		e.OwnerID = *p.OwnerID
+	}
+	if p.IssueKeys != nil {
+		e.IssueKeys = slices.Clone(*p.IssueKeys)
 	}
 	return e, nil
 }
@@ -945,12 +975,15 @@ func (s *Server) handleCreateCalendarEvent(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	if !s.calendarGuestsOK(w, r, t.ID, q) {
+	if !s.calendarGuestsOK(w, r, t.ID, q) || !s.operatorCalendarTopicOK(w, r, t.ID, q.TopicID) {
 		return
 	}
 	e, ie := q.newEvent(actor)
 	if ie != nil {
 		writeIssueErr(w, ie)
+		return
+	}
+	if !s.bindEventLinks(w, r, t.ID, e.CreatorID, &e) {
 		return
 	}
 	out, err := c.CreateCalendarEvent(r.Context(), t.ID, e, s.o.Now())
@@ -1033,9 +1066,19 @@ func (s *Server) patchCalendarOnce(r *http.Request, c store.Calendar, tenant, ac
 	if !want.IsZero() && !want.Equal(cur.UpdatedAt) {
 		return cur, nil, store.ErrEditConflict
 	}
+	if ie := takeLinks(&q); ie != nil {
+		return cur, ie, nil
+	}
 	p, ie := q.patch(cur)
 	if ie == nil {
 		ie = q.patchGuests(cur, actor, &p)
+	}
+	if ie == nil {
+		var linkErr error
+		ie, linkErr = s.canonPatchLinks(r.Context(), tenant, cur.CreatorID, &p)
+		if linkErr != nil {
+			return cur, nil, linkErr
+		}
 	}
 	if ie == nil && calendarPatchEmpty(p) {
 		ie = badCalendar("nothing to change")
@@ -1081,7 +1124,7 @@ func (s *Server) handlePatchCalendarEvent(w http.ResponseWriter, r *http.Request
 		return
 	}
 	want, scope, ok := calendarWriteArgs(w, r)
-	if !ok || !s.calendarGuestsOK(w, r, t.ID, q) {
+	if !ok || !s.calendarGuestsOK(w, r, t.ID, q) || !s.operatorCalendarTopicOK(w, r, t.ID, q.TopicID) {
 		return
 	}
 	var out store.CalendarEvent

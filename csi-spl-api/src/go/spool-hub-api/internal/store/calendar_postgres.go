@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"time"
 
@@ -23,6 +24,10 @@ const (
 	// rdb 0156's source_key ends every row, or '' before it.
 	calendarCols0156   = `, COALESCE(source_key, '')`
 	calendarColsAs0156 = `, ''::text`
+	// rdb 0239's owner_id and issue_keys follow source_key, or their
+	// defaults before the migration (the hub may roll first).
+	calendarCols0239   = `, COALESCE(owner_id, ''), COALESCE(issue_keys, '{}')`
+	calendarColsAs0239 = `, ''::text, '{}'::text[]`
 )
 
 // calendarPrivateSQL is the private filter with the viewer at $2 (spec 089
@@ -47,6 +52,7 @@ func (s *Postgres) hasCalendar(ctx context.Context) bool {
 type calendarSQL struct {
 	full   bool
 	key    bool   // rdb 0156: source_key is in cols
+	links  bool   // rdb 0239: owner_id and issue_keys are in cols
 	cols   string // the select list scanCalendarEvent reads
 	live   string // " AND deleted_at IS NULL", or ""
 	top    string // not an exception row: a single event or a series
@@ -65,14 +71,22 @@ func (s *Postgres) calendarShape(ctx context.Context) calendarSQL {
 		err = s.pool.QueryRow(ctx, calendarHasSourceKey).Scan(&ok)
 		return ok, err
 	}, s.now())
-	key := calendarColsAs0156
+	hasLinks := full && s.calLinks.present(ctx, func(ctx context.Context) (ok bool, err error) {
+		err = s.pool.QueryRow(ctx, calendarHasOwnerID).Scan(&ok)
+		return ok, err
+	}, s.now())
+	key, links := calendarColsAs0156, calendarColsAs0239
 	if hasKey {
 		key = calendarCols0156
 	}
-	if !full {
-		return calendarSQL{cols: calendarCols89 + calendarColsAs89 + key}
+	if hasLinks {
+		links = calendarCols0239
 	}
-	return calendarSQL{full: true, key: hasKey, cols: calendarCols89 + calendarCols0139 + key, live: ` AND deleted_at IS NULL`,
+	if !full {
+		return calendarSQL{cols: calendarCols89 + calendarColsAs89 + key + links}
+	}
+	return calendarSQL{full: true, key: hasKey, links: hasLinks,
+		cols: calendarCols89 + calendarCols0139 + key + links, live: ` AND deleted_at IS NULL`,
 		top: ` AND recurring_event_id IS NULL`, single: ` AND rrule IS NULL AND recurring_event_id IS NULL`}
 }
 
@@ -81,7 +95,8 @@ func scanCalendarEvent(row pgx.Row) (CalendarEvent, error) {
 	var remind, deleted, until, orig *time.Time
 	err := row.Scan(&e.ID, &e.Title, &e.Description, &e.Kind, &e.StartsAt, &e.EndsAt, &e.AllDay, &e.Audience,
 		&e.Mentions, &e.CreatorType, &e.CreatorID, &remind, &e.TopicID, &e.ReleaseVersion, &e.CreatedAt, &e.UpdatedAt,
-		&e.Props, &e.TimeZone, &deleted, &e.DeletedBy, &e.RRule, &until, &e.RecurringEventID, &orig, &e.Status, &e.Guests, &e.SourceKey)
+		&e.Props, &e.TimeZone, &deleted, &e.DeletedBy, &e.RRule, &until, &e.RecurringEventID, &orig, &e.Status, &e.Guests,
+		&e.SourceKey, &e.OwnerID, &e.IssueKeys)
 	for _, t := range []struct {
 		dst *time.Time
 		src *time.Time
@@ -101,6 +116,12 @@ func scanCalendarEvent(row pgx.Row) (CalendarEvent, error) {
 	}
 	if e.Guests == nil {
 		e.Guests = []CalendarGuest{}
+	}
+	if e.IssueKeys == nil {
+		e.IssueKeys = []string{}
+	}
+	if e.OwnerID == "" {
+		e.OwnerID = e.CreatorID // a row from before the 0239 backfill
 	}
 	return e, err
 }
@@ -129,6 +150,7 @@ func (s *Postgres) CreateCalendarEvent(ctx context.Context, tenant string, e Cal
 		cols, vals = `, props, time_zone, rrule, recur_until`, `, $16, $17, $18, $19`
 		args = append(args, e.Props, e.TimeZone, nullIfEmpty(e.RRule), nullTime(e.RecurUntil))
 	}
+	cols, vals, args = calendarLinkCols(cols, vals, args, e.OwnerID, e.IssueKeys, q.links)
 	insert := `INSERT INTO calendar_events (tenant_id, title, description, kind, starts_at, ends_at,
 			all_day, audience, mentions, creator_type, creator_id, remind_at, topic_id, release_version, created_at, updated_at` + cols + `)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15` + vals + `)
@@ -247,6 +269,7 @@ func (s *Postgres) UpdateCalendarEvent(ctx context.Context, tenant, viewer, id s
 		} else if e.RRule != "" || len(e.Guests) > 0 {
 			return errCalendarScope("a repeating event or a guest needs rdb 0139")
 		}
+		set, args = calendarLinkAssign(set, args, e.OwnerID, e.IssueKeys, q.links)
 		out, err = scanCalendarEvent(tx.QueryRow(ctx, `UPDATE calendar_events SET title = $3, description = $4, kind = $5,
 				starts_at = $6, ends_at = $7, all_day = $8, audience = $9, mentions = $10, remind_at = $11,
 				topic_id = $12, release_version = $13, updated_at = $14`+set+`
@@ -334,7 +357,7 @@ func (s *Postgres) RestoreCalendarEvent(ctx context.Context, tenant, viewer, id 
 				return err
 			}
 			out = pl.out
-			return upsertCalendarRows(ctx, tx, tenant, pl.writes)
+			return upsertCalendarRows(ctx, tx, tenant, pl.writes, q.links)
 		})
 		return out, err
 	}
@@ -514,7 +537,30 @@ func writeCalendarSeries(ctx context.Context, tx pgx.Tx, q calendarSQL, tenant s
 	if err != nil {
 		return pl.out, err
 	}
-	return pl.out, upsertCalendarRows(ctx, tx, tenant, pl.writes)
+	return pl.out, upsertCalendarRows(ctx, tx, tenant, pl.writes, q.links)
+}
+
+// calendarLinkCols appends owner_id and issue_keys when rdb 0239 is present.
+// Placeholders follow len(args), so the same helper serves a full row and an
+// 089 row.
+func calendarLinkCols(cols, vals string, args []any, owner string, keys []string, on bool) (string, string, []any) {
+	if !on {
+		return cols, vals, args
+	}
+	n := len(args) + 1
+	cols += `, owner_id, issue_keys`
+	vals += fmt.Sprintf(`, $%d, $%d`, n, n+1)
+	return cols, vals, append(args, owner, keys)
+}
+
+// calendarLinkAssign appends the 0239 SET clause the same way.
+func calendarLinkAssign(set string, args []any, owner string, keys []string, on bool) (string, []any) {
+	if !on {
+		return set, args
+	}
+	n := len(args) + 1
+	set += fmt.Sprintf(`, owner_id = $%d, issue_keys = $%d`, n, n+1)
+	return set, append(args, owner, keys)
 }
 
 // calendarUpsertSQL writes one full row of a series plan: a new row, or every
@@ -534,14 +580,41 @@ const calendarUpsertSQL = `INSERT INTO calendar_events (event_id, tenant_id, tit
 		deleted_by = EXCLUDED.deleted_by
 	WHERE calendar_events.tenant_id = EXCLUDED.tenant_id`
 
+// calendarUpsertLinksSQL is calendarUpsertSQL once rdb 0239 is present: a
+// series write must store owner_id and issue_keys or an exception row drops
+// them back to the column default.
+const calendarUpsertLinksSQL = `INSERT INTO calendar_events (event_id, tenant_id, title, description, kind, starts_at,
+		ends_at, all_day, audience, mentions, creator_type, creator_id, remind_at, topic_id, release_version, created_at,
+		updated_at, props, time_zone, rrule, recur_until, recurring_event_id, original_start, status, deleted_at, deleted_by,
+		owner_id, issue_keys)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23,
+		$24, $25, $26, $27, $28)
+	ON CONFLICT (event_id) DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description,
+		kind = EXCLUDED.kind, starts_at = EXCLUDED.starts_at, ends_at = EXCLUDED.ends_at, all_day = EXCLUDED.all_day,
+		audience = EXCLUDED.audience, mentions = EXCLUDED.mentions, remind_at = EXCLUDED.remind_at,
+		topic_id = EXCLUDED.topic_id, release_version = EXCLUDED.release_version, updated_at = EXCLUDED.updated_at,
+		props = EXCLUDED.props, time_zone = EXCLUDED.time_zone, rrule = EXCLUDED.rrule,
+		recur_until = EXCLUDED.recur_until, recurring_event_id = EXCLUDED.recurring_event_id,
+		original_start = EXCLUDED.original_start, status = EXCLUDED.status, deleted_at = EXCLUDED.deleted_at,
+		deleted_by = EXCLUDED.deleted_by, owner_id = EXCLUDED.owner_id, issue_keys = EXCLUDED.issue_keys
+	WHERE calendar_events.tenant_id = EXCLUDED.tenant_id`
+
 // upsertCalendarRows writes rows in order, each in tenant, with its guest rows.
-func upsertCalendarRows(ctx context.Context, tx pgx.Tx, tenant string, rows []CalendarEvent) error {
+func upsertCalendarRows(ctx context.Context, tx pgx.Tx, tenant string, rows []CalendarEvent, links bool) error {
+	sqlText := calendarUpsertSQL
+	if links {
+		sqlText = calendarUpsertLinksSQL
+	}
 	for _, e := range rows {
-		tag, err := tx.Exec(ctx, calendarUpsertSQL, e.ID, tenant, e.Title, e.Description, e.Kind, e.StartsAt, e.EndsAt,
+		args := []any{e.ID, tenant, e.Title, e.Description, e.Kind, e.StartsAt, e.EndsAt,
 			e.AllDay, e.Audience, e.Mentions, e.CreatorType, e.CreatorID, nullTime(e.RemindAt), nullIfEmpty(e.TopicID),
 			nullIfEmpty(e.ReleaseVersion), e.CreatedAt, e.UpdatedAt, e.Props, e.TimeZone, nullIfEmpty(e.RRule),
 			nullTime(e.RecurUntil), nullIfEmpty(e.RecurringEventID), nullTime(e.OriginalStart), e.Status,
-			nullTime(e.DeletedAt), nullIfEmpty(e.DeletedBy))
+			nullTime(e.DeletedAt), nullIfEmpty(e.DeletedBy)}
+		if links {
+			args = append(args, e.OwnerID, e.IssueKeys)
+		}
+		tag, err := tx.Exec(ctx, sqlText, args...)
 		if err != nil {
 			return err
 		}

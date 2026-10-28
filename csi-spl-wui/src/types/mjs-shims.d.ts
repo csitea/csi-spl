@@ -1999,6 +1999,8 @@ declare module '~/utils/section-strip.mjs' {
   export function onStripGrid(pos: number, step: number): number
   export function chatKind(path: string): '' | 'channel' | 'dm'
   export function sectionExitPath(last: { channel?: string, dm?: string, chat?: string }, tab?: string): string
+  export const STRIP_SCROLL_STEP: number
+  export function stripScroll(anchor: number, y: number, hidden: boolean, step?: number): { anchor: number, hidden: boolean }
 }
 
 declare module '~/utils/id-links.mjs' {

@@ -971,6 +971,19 @@ html.pane-dragging * {
      - the strip folds away at once, no animation, so reduced motion needs no
      rule of its own */
   .spool-shell[data-mobile-section="1"][data-mobile-kbd="1"] > .sidebar { display: none; }
+  /* SPL-3785 slice 6: a scroll down slides the strip up and away and gives
+     its room to the pane (layouts/default, data-mobile-strip-hidden); a
+     scroll up brings it back. --mobile-strip-h is its height, measured as it
+     goes. It is invisible only once the slide is over. */
+  .spool-shell[data-mobile-section="1"] > .sidebar {
+    transition: margin-top .2s ease-out, opacity .2s ease-out, visibility 0s;
+  }
+  .spool-shell[data-mobile-section="1"][data-mobile-strip-hidden="1"] > .sidebar {
+    margin-top: calc(-1 * var(--mobile-strip-h, 61px));
+    opacity: 0;
+    visibility: hidden;
+    transition: margin-top .2s ease-out, opacity .2s ease-out, visibility 0s .2s;
+  }
   /* a page's own level-3 panel (the open issue) starts under the strip: it
      is placed inside the page, not the screen */
   .spool-shell[data-mobile-section="1"] > .spool-main { position: relative; }
@@ -1029,6 +1042,8 @@ html.pane-dragging * {
   .spool-shell > .sidebar,
   .spool-shell > .spool-main,
   .spool-shell > .topic { animation: none !important; }
+  /* SPL-3785 slice 6: the strip goes and comes at once, no slide */
+  .spool-shell > .sidebar { transition: none !important; }
 }
 
 /* read-only topic viewer (spec 005 US1) */

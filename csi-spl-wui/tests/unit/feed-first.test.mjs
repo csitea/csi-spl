@@ -53,7 +53,7 @@ describe('feed first: wired into the layout and the lobby', () => {
   it('the layout holds the top bar and ChannelSidebar on a desktop /lobby only, with a cap', () => {
     assert.match(layout, /<TopBar v-if="shellIn" \/>/)
     /* SPL-3785: on a phone the sidebar is the section strip at every level, so it mounts with the shell (the SPL-2436 idle mount is retired) */
-    assert.match(layout, /<ChannelSidebar v-if="sidebarIn" \/>/)
+    assert.match(layout, /<ChannelSidebar v-if="sidebarIn"[^>]*\/>/)
     assert.match(layout, /const sidebarIn = shellIn\n/)
     const hold = layout.slice(layout.indexOf("useState('shell-in'"))
     assert.match(hold.slice(0, 400), /isLobbyPath\(window\.location\.pathname\)/)

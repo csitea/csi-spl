@@ -34,6 +34,7 @@
         :data-mobile-section="sectionStrip ? '1' : undefined"
         :data-mobile-section-page="sectionPage ? '1' : undefined"
         :data-mobile-kbd="kbdFold ? '1' : undefined"
+        :data-mobile-strip-hidden="stripAway ? '1' : undefined"
         :data-collapse-channels="collapse.collapsed.channels ? '1' : undefined"
         :data-collapse-topic="collapse.collapsed.topic ? '1' : undefined"
         :data-collapse-threads="collapse.collapsed.threads ? '1' : undefined"
@@ -43,7 +44,7 @@
         @touchstart.passive="stack.swipe.onTouchStart"
         @touchend.passive="stack.swipe.onTouchEnd"
       >
-        <ChannelSidebar v-if="sidebarIn" />
+        <ChannelSidebar v-if="sidebarIn" :inert="stripAway || undefined" />
         <div v-else-if="!shellIn" class="shell-late" aria-hidden="true" :style="{ flex: `0 0 var(${collapse.collapsed.channels ? '--pane-strip-w' : '--sidebar-w'})` }" />
         <!-- 050: a collapsed panel is a strip, so resizing it makes no sense -
              hide the divider that would grow it (also while the middle is a
@@ -215,7 +216,7 @@ import PaneCollapseToggle from '@/components/PaneCollapseToggle.vue'
 import TopicPaneWait from '@/components/TopicPaneWait.vue'
 import { usePaneCollapse } from '~/stores/pane-collapse'
 import { fillerPane } from '~/utils/pane-collapse.mjs'
-import { isSectionPage } from '~/utils/section-strip.mjs'
+import { isSectionPage, stripScroll } from '~/utils/section-strip.mjs'
 import { productPath } from '~/utils/signed-out-redirect.mjs'
 import { useTopicStore } from '~/stores/topic'
 import { useLiveFeed } from '~/stores/live'
@@ -412,6 +413,52 @@ const sectionPage = computed(() => sectionStrip.value && stack.level.value === 2
    goes. --kb-inset (useKeyboardInset, the visualViewport) is the signal. */
 const kbInset = import.meta.client ? useKeyboardInset() : ref(0)
 const kbdFold = computed(() => sectionStrip.value && kbInset.value > 0)
+/* SPL-3785 slice 6 (owner pick B, t1 c3e53990 poll 12414c26): the strip
+   slides away while the reader scrolls a pane down and comes back on a scroll
+   up, at the top (utils/section-strip stripScroll), on any route or level
+   change (Back, a tab) and when focus goes into it; inert while away. One
+   capture listener on the document sees every pane's scroll. Only a scroll
+   within STRIP_INPUT_MS of the reader's own touch, wheel or key counts, so a
+   feed that jumps to its newest row by itself never hides it. Each change
+   waits STRIP_QUIET_MS: the pane grows by the strip's height, and the
+   browser clamping scrollTop at the end must not bring it straight back. */
+const STRIP_INPUT_MS = 600
+const STRIP_QUIET_MS = 400
+const stripHidden = ref(false)
+const stripAway = computed(() => sectionStrip.value && stripHidden.value)
+const stripAnchor = new WeakMap<object, number>()
+let stripInputAt = -Infinity
+let stripQuietTill = 0
+const stripInput = () => { stripInputAt = performance.now() }
+function onStripScroll(e: Event) {
+  if (!sectionStrip.value) return
+  const el = e.target instanceof Element ? e.target : document.scrollingElement
+  if (!el || el.closest('.spool-shell > .sidebar')) return
+  const y = el.scrollTop
+  const next = stripScroll(stripAnchor.get(el) ?? y, y, stripHidden.value)
+  stripAnchor.set(el, next.anchor)
+  const now = performance.now()
+  if (next.hidden === stripHidden.value || now < stripQuietTill || now - stripInputAt > STRIP_INPUT_MS) return
+  const strip = document.querySelector<HTMLElement>('.spool-shell > .sidebar')
+  if (next.hidden && strip) strip.style.setProperty('--mobile-strip-h', `${strip.offsetHeight}px`)
+  stripHidden.value = next.hidden
+  stripQuietTill = now + STRIP_QUIET_MS
+}
+function onStripFocus(e: FocusEvent) {
+  if (e.target instanceof Element && e.target.closest('.spool-shell > .sidebar')) stripHidden.value = false
+}
+const STRIP_INPUTS = ['touchmove', 'wheel', 'keydown'] as const
+onMounted(() => {
+  document.addEventListener('scroll', onStripScroll, { capture: true, passive: true })
+  document.addEventListener('focusin', onStripFocus)
+  for (const t of STRIP_INPUTS) document.addEventListener(t, stripInput, { capture: true, passive: true })
+})
+onUnmounted(() => {
+  document.removeEventListener('scroll', onStripScroll, { capture: true })
+  document.removeEventListener('focusin', onStripFocus)
+  for (const t of STRIP_INPUTS) document.removeEventListener(t, stripInput, { capture: true })
+})
+watch(() => [route.fullPath, stack.level.value], () => { stripHidden.value = false })
 /* SPL-3785 retires two phone rules that only held while the strip left at
    level 2 and 3: the tablet's channel strip beside the one panel (SPL-2145,
    TabletStrip) and the sidebar's idle mount at a level-2/3 boot (SPL-2436,

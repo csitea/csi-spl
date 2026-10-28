@@ -7,7 +7,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { chatKind, isSectionPage, loopPosition, railLinkSection, sectionExitPath } from '../../src/utils/section-strip.mjs'
+import { STRIP_SCROLL_STEP, chatKind, isSectionPage, loopPosition, railLinkSection, sectionExitPath, stripScroll } from '../../src/utils/section-strip.mjs'
 import { MONITORING_TABS } from '../../src/utils/monitoring-tabs.mjs'
 import { REPORTING_TABS } from '../../src/utils/reporting-tabs.mjs'
 import { COSTS_PAGES } from '../../src/utils/reporting-costs.mjs'
@@ -105,5 +105,26 @@ describe('the way out of a section page (HUM-24, 7930dfbf)', () => {
     assert.equal(sectionExitPath({}, 'channels'), '/lobby')
     assert.equal(sectionExitPath({}), '/lobby')
     assert.equal(sectionExitPath({}, 'dm'), '')
+  })
+})
+
+describe('stripScroll: the strip hides on a scroll down, shows on a scroll up (SPL-3785 slice 6)', () => {
+  it('a scroll down past the step hides it, a scroll up past the step shows it', () => {
+    assert.deepEqual(stripScroll(0, 40, false), { anchor: 40, hidden: true })
+    assert.deepEqual(stripScroll(40, 300, true), { anchor: 300, hidden: true })
+    assert.deepEqual(stripScroll(300, 280, true), { anchor: 280, hidden: false })
+  })
+  it('a move under the step changes nothing (no flicker)', () => {
+    assert.deepEqual(stripScroll(100, 105, false), { anchor: 100, hidden: false })
+    assert.deepEqual(stripScroll(100, 95, true), { anchor: 100, hidden: true })
+  })
+  it('at the top it is always shown', () => {
+    assert.deepEqual(stripScroll(300, 0, true), { anchor: 0, hidden: false })
+    assert.deepEqual(stripScroll(4, -3, true), { anchor: 0, hidden: false })
+  })
+  it('the step is STRIP_SCROLL_STEP unless given', () => {
+    assert.equal(stripScroll(0, STRIP_SCROLL_STEP, false).hidden, true)
+    assert.equal(stripScroll(0, STRIP_SCROLL_STEP - 1, false).hidden, false)
+    assert.equal(stripScroll(0, 20, false, 30).hidden, false)
   })
 })

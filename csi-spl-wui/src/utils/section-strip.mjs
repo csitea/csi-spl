@@ -112,3 +112,26 @@ export function sectionExitPath(last, tab = '') {
   if (tab === 'channels') return l.channel || '/lobby'
   return l.chat || '/lobby'
 }
+
+/* SPL-3785 slice 6 (owner pick B, t1 c3e53990 poll 12414c26): on a phone the
+   strip slides away while a reader scrolls down and comes back on a scroll
+   up or at the top. A move under STRIP_SCROLL_STEP px from where the last
+   decision was made changes nothing, so a jitter does not flicker it. */
+export const STRIP_SCROLL_STEP = 8
+
+/**
+ * One scroll of a pane: whether the strip is hidden now, and the scrollTop
+ * the next move is measured from.
+ * @param {number} anchor the scrollTop of the last decision
+ * @param {number} y the pane's scrollTop now
+ * @param {boolean} hidden
+ * @param {number} [step]
+ * @returns {{ anchor: number, hidden: boolean }}
+ */
+export function stripScroll(anchor, y, hidden, step = STRIP_SCROLL_STEP) {
+  if (y <= 0) return { anchor: 0, hidden: false }
+  const d = y - anchor
+  if (d >= step) return { anchor: y, hidden: true }
+  if (d <= -step) return { anchor: y, hidden: false }
+  return { anchor, hidden }
+}

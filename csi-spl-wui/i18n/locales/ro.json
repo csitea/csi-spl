@@ -3292,12 +3292,12 @@
       "filter_vendor": "Furnizor",
       "filter_state": "Stare",
       "filter_age": "Vechime",
-      "filter_text": "Caută benzi",
+      "filter_text": "Caută linii",
       "age_1h": "Sub 1 h",
       "age_24h": "Sub 24 h",
       "age_older": "Peste 24 h",
-      "no_match": "Nicio bandă nu corespunde filtrelor",
-      "shown": "{n} din {total} benzi"
+      "no_match": "Nicio linie nu corespunde filtrelor",
+      "shown": "{n} din {total} linii"
     },
     "file_streams": {
       "loading": "Se încarcă fluxurile de fișiere…",

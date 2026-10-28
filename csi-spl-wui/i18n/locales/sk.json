@@ -3292,12 +3292,12 @@
       "filter_vendor": "Dodávateľ",
       "filter_state": "Stav",
       "filter_age": "Vek",
-      "filter_text": "Hľadať dráhy",
+      "filter_text": "Hľadať linky",
       "age_1h": "Do 1 h",
       "age_24h": "Do 24 h",
       "age_older": "Viac ako 24 h",
-      "no_match": "Filtrom nezodpovedá žiadna dráha",
-      "shown": "{n} z {total} dráh"
+      "no_match": "Filtrom nezodpovedá žiadna linka",
+      "shown": "{n} z {total} liniek"
     },
     "file_streams": {
       "loading": "Načítavajú sa súborové toky…",

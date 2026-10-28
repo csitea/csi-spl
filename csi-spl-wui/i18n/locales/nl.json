@@ -2386,8 +2386,11 @@
     "view": "Weergave",
     "view_day": "Dag",
     "view_week": "Weekweergave",
+    "view_3day": "3 dagen",
     "prev_day": "Vorige dag",
     "next_day": "Volgende dag",
+    "prev_3day": "Vorige 3 dagen",
+    "next_3day": "Volgende 3 dagen",
     "load_failed": "De agenda kon niet worden geladen. Probeer het later opnieuw.",
     "months": {
       "m1": "Januari",

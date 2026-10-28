@@ -184,13 +184,14 @@ try {
   ok('the bottom edge drags a new end: 14:00-16:30', it && Date.parse(it.ends) === Date.parse(iso(other, '16:30')) && Date.parse(it.starts) === Date.parse(iso(other, '14:00')), it)
   ok('the new end is stored', Date.parse((await stored(a, seed[0].id))?.ends_at) === Date.parse(iso(other, '16:30')))
 
-  /* create: drag on empty time 18:00 -> 19:30 */
-  const c0 = await gridAt(a, today, 18 * 60 + 5)
-  const c1 = await gridAt(a, today, 19 * 60 + 30)
+  /* create: drag on empty time 12:00 -> 13:30 (SPL-4060: the grid shows
+     09:00-17:00 on open, so a point outside it is off screen) */
+  const c0 = await gridAt(a, today, 12 * 60 + 5)
+  const c1 = await gridAt(a, today, 13 * 60 + 30)
   if (c0 && c1) await mouseDrag(a, c0, c1)
   ok('a drag on empty time opens the new-event dialog', await dialog(a))
   let f = await form(a)
-  ok('for that day and span (18:00-19:30)', f.mode === 'create' && f.date === today && f.start === '18:00' && f.end === '19:30', f)
+  ok('for that day and span (12:00-13:30)', f.mode === 'create' && f.date === today && f.start === '12:00' && f.end === '13:30', f)
   await shot(a, '1440-create')
   await closeDialog(a)
 
@@ -216,7 +217,7 @@ try {
   await b.bringToFront()
   it = await item(b, 'Drag me')
   ok('CONTROL tab B still shows its stale copy (14:00)', Date.parse(it?.starts) === Date.parse(iso(other, '14:00')), it)
-  to = await gridAt(b, other, 20 * 60 + 15)
+  to = await gridAt(b, other, 15 * 60 + 15)
   if (it && to) await mouseDrag(b, { x: it.cx, y: it.y + 6 }, to)
   const note = await b.waitForSelector('[data-test=calendar-notice]', { visible: true, timeout: 8000 }).then(() => b.$eval('[data-test=calendar-notice]', (el) => ({ key: el.getAttribute('data-key'), text: el.textContent?.trim() })), () => null)
   ok('tab B: edit_conflict is said in the view', note?.key === 'calendar_event.drag_conflict' && Boolean(note.text), note)

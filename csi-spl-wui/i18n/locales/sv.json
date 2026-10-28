@@ -2386,8 +2386,11 @@
     "view": "Vy",
     "view_day": "Dag",
     "view_week": "Vecka",
+    "view_3day": "3 dagar",
     "prev_day": "Föregående dag",
     "next_day": "Nästa dag",
+    "prev_3day": "Föregående 3 dagar",
+    "next_3day": "Nästa 3 dagar",
     "load_failed": "Kalendern kunde inte läsas in. Försök igen senare.",
     "months": {
       "m1": "Januari",

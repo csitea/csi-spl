@@ -2386,8 +2386,11 @@
     "view": "Vista",
     "view_day": "Día",
     "view_week": "Semana",
+    "view_3day": "3 días",
     "prev_day": "Día anterior",
     "next_day": "Día siguiente",
+    "prev_3day": "3 días anteriores",
+    "next_3day": "3 días siguientes",
     "load_failed": "No se pudo cargar el calendario. Inténtalo de nuevo más tarde.",
     "months": {
       "m1": "Enero",

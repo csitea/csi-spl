@@ -9,26 +9,17 @@
      spec 106 T011: at <= 820 px the page is CalendarPhone (its own lazy
      chunk, spec 106 T004) for everyone; above 820 px nothing changes. The
      089 T009 phone branch (the strip as a sheet, the main view's Day / Week
-     list) is retired. -->
+     list) is retired.
+     SPL-4060 (owner HUM-10, t1 080e1f77 msg a62b3dce): no header bar on the
+     desktop: the section close and the Hours toggle moved into the main
+     view's vertical tab group (CalendarViewTabs), the title stays the
+     document title and a heading for assistive tech. The view is in the URL
+     too (?v=day|3day|month; Week has none), so a link keeps it. -->
 <template>
   <div class="feed-col calendar-page" data-test="calendar-page">
     <CalendarPhone v-if="phone" :focus="focus" :today="today" @move="show" />
     <template v-else>
-    <header class="feed-header">
-      <MobileBack />
-      <SectionClose side="start" />
-      <h2 data-test="calendar-heading">{{ t('calendar.title') }}</h2>
-      <span class="calendar-spacer" />
-      <!-- spec 107 v1.2 T011 (owner R11): the right side's hours tabs, shown or hidden -->
-      <button
-        type="button"
-        class="btn ghost calendar-hours-toggle"
-        data-test="calendar-hours-toggle"
-        :aria-pressed="hoursPanel ? 'true' : 'false'"
-        @click="toggleHours"
-      >{{ t('hours_cal.panel_title') }}</button>
-      <SectionClose side="end" />
-    </header>
+    <h2 class="sr-only" data-test="calendar-heading">{{ t('calendar.title') }}</h2>
     <div class="calendar-body" :class="{ 'calendar-body--hours': hoursPanel }">
       <CalendarYearStrip class="calendar-body__strip"
         :focus="focus"
@@ -36,7 +27,8 @@
         @pick="show"
       />
       <div class="calendar-body__main">
-        <CalendarMainView ref="mainView" :focus="focus" :today="today" @move="show" />
+        <!-- spec 107 v1.2 T011 (owner R11): its Hours tab shows or hides the hours panel -->
+        <CalendarMainView ref="mainView" :focus="focus" :today="today" :view="view" :hours-open="hoursPanel" @move="show" @view="pickView" @hours="toggleHours" />
       </div>
       <CalendarHoursPanel v-if="hoursPanel" class="calendar-body__hours" :focus="focus" :today="today" closable @open-day="openHoursDay" @close="toggleHours" />
     </div>
@@ -52,6 +44,7 @@ import { useMobileStack } from '~/composables/useMobileStack'
 import { useSessionStore } from '~/stores/session'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { signedOutCalendarTarget } from '~/utils/public-calendar.mjs'
+import { calDeskView } from '~/utils/calendar-desktop-view.mjs'
 
 /* the main view is its own chunk, fetched on route entry (spec 3, AC-02) */
 const CalendarMainView = defineAsyncComponent(() => import('~/components/CalendarMainView.vue'))
@@ -75,6 +68,15 @@ const focus = computed(() => {
 /* spec 106 T011: a phone (<= 820 px) gets CalendarPhone, everyone */
 const stack = useMobileStack()
 const phone = computed(() => stack.isMobile.value)
+
+/* SPL-4060: the desktop view, ?v= (Week when absent) */
+const view = computed(() => calDeskView(route.query.v))
+/* a view tab opens that view on the period holding today, a month's day
+   number that day in Day */
+async function pickView(v: string, iso = today) {
+  const next = calDeskView(v)
+  await router.replace({ query: { ...route.query, v: next === 'week' ? undefined : next, d: iso === today ? undefined : iso } })
+}
 
 /* a day picked in the strip, or the main view's Today / previous / next */
 async function show(iso: string) {
@@ -129,7 +131,6 @@ useHead(() => ({ title: t('calendar.title') }))
 
 <style scoped>
 .calendar-page { min-height: 0; }
-.calendar-spacer { flex: 1 1 auto; }
 .calendar-body {
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);

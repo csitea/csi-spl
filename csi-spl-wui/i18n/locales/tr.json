@@ -2386,8 +2386,11 @@
     "view": "Görünüm",
     "view_day": "Gün",
     "view_week": "Hafta",
+    "view_3day": "3 gün",
     "prev_day": "Önceki gün",
     "next_day": "Sonraki gün",
+    "prev_3day": "Önceki 3 gün",
+    "next_3day": "Sonraki 3 gün",
     "load_failed": "Takvim yüklenemedi. Daha sonra tekrar deneyin.",
     "months": {
       "m1": "Ocak",

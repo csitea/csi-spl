@@ -2386,8 +2386,11 @@
     "view": "Vizualizare",
     "view_day": "Zi",
     "view_week": "Săptămână",
+    "view_3day": "3 zile",
     "prev_day": "Ziua anterioară",
     "next_day": "Ziua următoare",
+    "prev_3day": "3 zile anterioare",
+    "next_3day": "Următoarele 3 zile",
     "load_failed": "Calendarul nu a putut fi încărcat. Încercați din nou mai târziu.",
     "months": {
       "m1": "Ianuarie",

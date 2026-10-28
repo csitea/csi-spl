@@ -2386,8 +2386,11 @@
     "view": "Skats",
     "view_day": "Diena",
     "view_week": "Nedēļa",
+    "view_3day": "3 dienas",
     "prev_day": "Iepriekšējā diena",
     "next_day": "Nākamā diena",
+    "prev_3day": "Iepriekšējās 3 dienas",
+    "next_3day": "Nākamās 3 dienas",
     "load_failed": "Kalendāru neizdevās ielādēt. Mēģiniet vēlāk vēlreiz.",
     "months": {
       "m1": "Janvāris",

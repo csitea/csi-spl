@@ -2386,8 +2386,11 @@
     "view": "View",
     "view_day": "Day",
     "view_week": "Week",
+    "view_3day": "3 days",
     "prev_day": "Previous day",
     "next_day": "Next day",
+    "prev_3day": "Previous 3 days",
+    "next_3day": "Next 3 days",
     "load_failed": "The calendar could not be loaded. Try again later.",
     "months": {
       "m1": "January",

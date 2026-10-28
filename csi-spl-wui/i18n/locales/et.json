@@ -2386,8 +2386,11 @@
     "view": "Vaade",
     "view_day": "Päev",
     "view_week": "Nädal",
+    "view_3day": "3 päeva",
     "prev_day": "Eelmine päev",
     "next_day": "Järgmine päev",
+    "prev_3day": "Eelmised 3 päeva",
+    "next_3day": "Järgmised 3 päeva",
     "load_failed": "Kalendrit ei õnnestunud laadida. Proovige hiljem uuesti.",
     "months": {
       "m1": "Jaanuar",

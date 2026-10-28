@@ -2386,8 +2386,11 @@
     "view": "Zobrazenie",
     "view_day": "Deň",
     "view_week": "Týždeň",
+    "view_3day": "3 dni",
     "prev_day": "Predchádzajúci deň",
     "next_day": "Nasledujúci deň",
+    "prev_3day": "Predchádzajúce 3 dni",
+    "next_3day": "Nasledujúce 3 dni",
     "load_failed": "Kalendár sa nepodarilo načítať. Skúste to neskôr.",
     "months": {
       "m1": "Január",

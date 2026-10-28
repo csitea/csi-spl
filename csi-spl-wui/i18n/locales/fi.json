@@ -2386,8 +2386,11 @@
     "view": "Näkymä",
     "view_day": "Päivä",
     "view_week": "Viikko",
+    "view_3day": "3 päivää",
     "prev_day": "Edellinen päivä",
     "next_day": "Seuraava päivä",
+    "prev_3day": "Edelliset 3 päivää",
+    "next_3day": "Seuraavat 3 päivää",
     "load_failed": "Kalenteria ei voitu ladata. Yritä myöhemmin uudelleen.",
     "months": {
       "m1": "Tammikuu",

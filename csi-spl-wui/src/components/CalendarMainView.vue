@@ -25,7 +25,15 @@
      the URL's issue=, never a history entry. A link the week lacks reads the
      issue once and says closed / no deadline / not available, beside an Open
      issue (disabled when not available). The week reads again on window
-     focus and on CALENDAR_CHANGED_EVENT (a deadline saved on Issues). -->
+     focus and on CALENDAR_CHANGED_EVENT (a deadline saved on Issues).
+     SPL-4060 (owner HUM-10, t1 080e1f77, poll 7c472af4): the top bar is gone;
+     CalendarViewTabs, a vertical strip at the grid's left edge, holds the
+     views (Day, 3 days, Week, Month), Hours, Today / previous / next, the
+     period title and the menu, and the + floats round at the grid's bottom
+     right. The time grid shows 8 hours at once and opens on 09:00; a timed
+     block is tinted in its colour with the text in the theme's foreground,
+     so a 30-min entry reads (>= 4.5:1 in both themes). Month is
+     CalendarDeskMonth. -->
 <template>
   <section
     class="cal-main"
@@ -33,35 +41,21 @@
     data-test="calendar-main"
     :data-week="weekStart"
     :data-day="focus"
-    data-view="week"
+    :data-view="view"
     :data-state="state"
   >
-    <div class="cal-main__bar">
-      <!-- SPL-3396 (owner, t1 2fc43707): a plain round +, the Issues (issues-fab) and Docs (wsdocs-fab) pattern -->
-      <button type="button" class="cal-main__new" data-test="calendar-new" :aria-label="t('calendar_event.new')" :title="t('calendar_event.new')" @click="openCreate(focus)">
-        <UiIcon name="plus" :size="22" :stroke-width="2.5" />
-      </button>
-      <button type="button" class="btn ghost" data-test="calendar-today" @click="emit('move', today)">{{ t('calendar.today') }}</button>
-      <button type="button" class="icon-btn" data-test="calendar-prev" :aria-label="prevLabel" :title="prevLabel" @click="step(-1)">
-        <UiIcon name="chevron-left" :size="18" />
-      </button>
-      <button type="button" class="icon-btn" data-test="calendar-next" :aria-label="nextLabel" :title="nextLabel" @click="step(1)">
-        <UiIcon name="chevron-right" :size="18" />
-      </button>
-      <h3 class="cal-main__range" data-test="calendar-range" aria-live="polite">{{ range }}</h3>
-      <button
-        type="button"
-        class="icon-btn cal-main__menu"
-        data-test="calendar-menu"
-        :aria-label="t('calendar_trash.menu')"
-        :title="t('calendar_trash.menu')"
-        aria-haspopup="menu"
-        :aria-expanded="menu ? 'true' : 'false'"
-        @click="openMenu"
-      >
-        <UiIcon name="more" :size="18" />
-      </button>
-    </div>
+    <CalendarViewTabs
+      :view="view"
+      :title="range"
+      :hours-open="hoursOpen"
+      :menu-open="menu !== null"
+      @view="(v) => emit('view', v)"
+      @hours="emit('hours')"
+      @today="emit('move', today)"
+      @step="step"
+      @menu="openMenu"
+    />
+    <div class="cal-main__body">
     <p v-if="state === 'failed'" class="muted" role="alert" data-test="calendar-failed">{{ t('calendar.load_failed') }}</p>
     <p v-if="notice" class="cal-main__notice" role="status" data-test="calendar-notice" :data-key="notice">
       {{ t(notice) }}
@@ -70,7 +64,17 @@
         <button v-else type="button" class="btn ghost cal-main__open" data-test="calendar-notice-open-issue" disabled :title="t('calendar_event.open_issue_denied')">{{ t('calendar_event.open_issue') }}</button>
       </template>
     </p>
-    <div ref="weekEl" class="cal-week cal-week--grid" :style="{ '--cal-days': shown.length }" data-test="calendar-week">
+    <CalendarDeskMonth
+      v-if="view === 'month'"
+      :focus="focus"
+      :today="today"
+      :by-day="byDay"
+      :attrs="itemAttrs"
+      @day="(d) => emit('view', 'day', d)"
+      @create="openCreate"
+      @open="openPeek"
+    />
+    <div v-else ref="weekEl" class="cal-week cal-week--grid" :style="{ '--cal-days': shown.length, '--cal-hour': `${hourPx}px` }" data-test="calendar-week">
       <div class="cal-week__gutter" aria-hidden="true">
         <div class="cal-week__top" />
         <div class="cal-grid cal-grid--gutter">
@@ -87,7 +91,7 @@
         @click="onDayClick($event, day)"
       >
         <div class="cal-week__top">
-          <h4 class="cal-week__head">{{ dayHead(day) }}</h4>
+          <h4 class="cal-week__head">{{ t('calendar.weekdays.d' + calWeekday(day)) }} <span class="cal-week__date" dir="ltr">{{ day.slice(5) }}</span></h4>
           <!-- spec 107 v1.2 T011 (owner R9): the day's Working hours line -->
           <CalendarHoursLine v-if="hoursShowsLine(day, hours.index.value)" :day="day" :data="hours.index.value.get(day)" @open="openHours" />
           <ul class="cal-week__list">
@@ -122,6 +126,7 @@
             v-for="b in timedOf(day)"
             :key="b.ev.id"
             v-bind="itemAttrs(b.ev)"
+            :class="{ 'cal-ev--short': (b.len * hourPx) / 60 < SHORT_PX }"
             :style="boxStyle(b)"
             @pointerdown="onItemDown($event, b.ev, day)"
             @click.stop="onItemClick($event, b.ev)"
@@ -129,8 +134,8 @@
             @contextmenu.stop="onItemMenu($event, b.ev)"
           >
             <span class="cal-ev__body">
-              <span class="cal-week__time" dir="ltr">{{ isoClock(b.ev.starts_at) }}</span>
               <span class="cal-week__title">{{ b.ev.title }}</span>
+              <span class="cal-week__time" dir="ltr">{{ isoClock(b.ev.starts_at) }}</span>
               <span v-if="b.ev.release_version" class="cal-week__badge" dir="ltr">{{ b.ev.release_version }}</span>
               <span v-if="b.ev.audience === 'private'" class="cal-week__badge" data-test="calendar-item-private">{{ t('calendar_event.private_badge') }}</span>
             </span>
@@ -163,6 +168,12 @@
           />
         </div>
       </div>
+    </div>
+      <!-- SPL-3396 (owner, t1 2fc43707): a plain round +, the Issues (issues-fab) and Docs (wsdocs-fab) pattern;
+           SPL-4060 (poll 7c472af4 Q4): it floats at the grid's bottom right -->
+      <button type="button" class="cal-main__new" data-test="calendar-new" :aria-label="t('calendar_event.new')" :title="t('calendar_event.new')" @click="openCreate(focus)">
+        <UiIcon name="plus" :size="22" :stroke-width="2.5" />
+      </button>
     </div>
     <CalendarEventDialog v-model:open="dialogOpen" :event="dialogEvent" :copy="dialogCopy" :day="dialogDay" :today="today" :span="dialogSpan" :hours="hoursEntry" @saved="reload" @deleted="onDeleted" />
     <CalendarEventPopover v-model:open="peekOpen" :event="peekEvent" @edit="openEdit" @duplicate="openDuplicate" @open-issue="openIssue" />
@@ -208,7 +219,8 @@
 
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { calAddDays, calLoadWindow, calWeekday, calWeekDays, calWeekStart } from '~/utils/calendar-year.mjs'
+import { calLoadWindow, calWeekday, calWeekStart } from '~/utils/calendar-year.mjs'
+import { CAL_DESK_MIN_HOUR_PX, CAL_DESK_OPEN_MIN, calDeskDays, calDeskHourPx, calDeskRange, calDeskStep, calDeskTitle } from '~/utils/calendar-desktop-view.mjs'
 import { isoClock } from '~/utils/date-iso.mjs'
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
@@ -226,30 +238,22 @@ import { useCalendarDrag } from '~/composables/useCalendarDrag'
 import { useCalendarDeepLinks } from '~/composables/useCalendarDeepLinks'
 import { issuePageHref } from '~/utils/issue-calendar-link.mjs'
 
-const props = defineProps<{ focus: string, today: string }>()
-const emit = defineEmits<{ move: [iso: string] }>()
+const props = defineProps<{ focus: string, today: string, view: string, hoursOpen: boolean }>()
+/* view: a tab picked (the period holding today) or a month's day number (that day) */
+const emit = defineEmits<{ move: [iso: string], view: [v: string, iso?: string], hours: [] }>()
 
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()
 
 const weekStart = computed(() => calWeekStart(props.focus))
-const days = computed(() => calWeekDays(props.focus))
-/* a date is YYYY-MM-DD in every UI locale (utils/date-iso.mjs); the weekday
-   name comes from the catalogue */
-function dayHead(iso: string) {
-  return `${t('calendar.weekdays.d' + calWeekday(iso))} ${iso.slice(5)}`
-}
-const shown = days
-const prevLabel = computed(() => t('calendar.prev_week'))
-const nextLabel = computed(() => t('calendar.next_week'))
+/* SPL-4060: every day the view shows (Month: its 42), and the grid's columns */
+const days = computed(() => calDeskDays(props.view, props.focus))
+const shown = computed(() => (props.view === 'month' ? [] : days.value))
 function step(dir: 1 | -1) {
-  emit('move', calAddDays(weekStart.value, dir * 7))
+  emit('move', calDeskStep(props.view, props.focus, dir))
 }
 
-const range = computed(() => {
-  const d = days.value
-  return d.length ? `${d[0]} – ${d[6]}` : ''
-})
+const range = computed(() => calDeskTitle(props.view, props.focus))
 
 const items = shallowRef<CalendarItem[]>([])
 const state = ref<'loading' | 'ready' | 'failed'>('loading')
@@ -301,7 +305,8 @@ let seq = 0
    never fetched. The mock workspace answers from calendar-mock. */
 async function load(deadlinesOnly = false) {
   const mine = ++seq
-  const { start, end } = calLoadWindow(weekStart.value, calAddDays(weekStart.value, 7)) || { start: '', end: '' }
+  const r = calDeskRange(props.view, props.focus)
+  const { start, end } = (r && calLoadWindow(r.from, r.to)) || { start: '', end: '' }
   if (!deadlinesOnly) state.value = 'loading'
   try {
     let body: { events?: CalendarItem[] }
@@ -330,7 +335,7 @@ async function load(deadlinesOnly = false) {
     state.value = 'failed'
   }
 }
-watch(weekStart, () => { void load() })
+watch(() => days.value.join(), () => { void load() })
 onMounted(() => { void load() })
 /* SPL-2034: a deadline saved on Issues (this tab) or elsewhere (another tab,
    seen on focus) shows without a reload */
@@ -344,24 +349,39 @@ onBeforeUnmount(() => {
   window.removeEventListener('focus', reloadDeadlines)
 })
 
-/* 097 T013: a grid opens scrolled to the morning, or to the first event
-   shown when it starts earlier */
+/* SPL-4060 (owner msg f1003a7a, poll 7c472af4 Q2 W9): an hour row is a
+   1/8 of the grid's visible height, so 8 hours are on screen, and a grid
+   opens scrolled to 09:00; the rest of the day is a scroll away */
 const weekEl = ref<HTMLElement | null>(null)
+const hourPx = ref(CAL_DESK_MIN_HOUR_PX)
+/* a block shorter than two lines puts its title and time on one */
+const SHORT_PX = 34
+const gridHead = (box: HTMLElement) => box.querySelector<HTMLElement>('.cal-grid[data-grid-day]')?.previousElementSibling as HTMLElement | null
+function fitHours() {
+  const box = weekEl.value
+  if (box) hourPx.value = calDeskHourPx(box.clientHeight - (gridHead(box)?.offsetHeight || 0))
+}
+let fit: ResizeObserver | null = null
+watch(weekEl, (box) => {
+  fit?.disconnect()
+  fit = box && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(fitHours) : null
+  if (box) fit?.observe(box)
+})
+onBeforeUnmount(() => fit?.disconnect())
 let scrolledFor = ''
 watch([state, () => shown.value.join()], async () => {
   const key = shown.value.join()
-  if (state.value !== 'ready' || scrolledFor === key) return
+  if (state.value !== 'ready' || !key || scrolledFor === key) return
   scrolledFor = key
+  await nextTick()
+  fitHours()
   await nextTick()
   const box = weekEl.value
   const g = box?.querySelector<HTMLElement>('.cal-grid[data-grid-day]')
   if (!box || !g) return
-  const firsts = shown.value.flatMap((d) => timedOf(d).map((b) => b.top))
-  const min = Math.max(0, Math.min(8 * 60, ...firsts) - 30)
   const r = g.getBoundingClientRect()
   const gridTop = r.top - box.getBoundingClientRect().top + box.scrollTop
-  const head = (g.previousElementSibling as HTMLElement | null)?.offsetHeight || 0
-  box.scrollTop = gridTop + (min / CAL_DAY_MIN) * r.height - head
+  box.scrollTop = gridTop + (CAL_DESK_OPEN_MIN / CAL_DAY_MIN) * r.height - (gridHead(box)?.offsetHeight || 0)
 })
 
 /* 089 T008 v1 (owner msg 72db6282): New event, or a click on a day, opens
@@ -542,9 +562,17 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
 </script>
 
 <style scoped>
-.cal-main { display: flex; flex-direction: column; gap: 8px; padding: 8px 12px; min-width: 0; height: 100%; min-height: 0; }
-.cal-main__bar { display: flex; align-items: center; gap: 6px; }
-.cal-main__range { margin: 0 0 0 8px; font-size: 1rem; font-weight: 600; }
+.cal-main { display: flex; min-width: 0; height: 100%; min-height: 0; }
+.cal-main__body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 auto;
+  padding: 8px 12px;
+  min-width: 0;
+  min-height: 0;
+}
 .cal-main__open { min-height: 48px; margin-inline-start: 8px; text-decoration: none; }
 .cal-main__notice {
   margin: 0;
@@ -566,6 +594,9 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
 .cal-week__day:first-child { border-inline-start: 0; }
 .cal-week__day--today .cal-week__head { color: var(--color-accent); }
 .cal-week__head { margin: 0 0 6px; font-size: 0.8125rem; font-weight: 600; text-transform: capitalize; }
+/* a date is YYYY-MM-DD in every UI locale (utils/date-iso.mjs), the weekday
+   from the catalogue; a narrow column breaks between them, never in the date */
+.cal-week__date { white-space: nowrap; }
 .cal-week__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .cal-week__item {
   display: flex; flex-wrap: wrap; gap: 4px; align-items: baseline;
@@ -580,7 +611,10 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
 .cal-week__item--synced { cursor: pointer; }
 .cal-week__item--synced:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
 .cal-main__new {
-  flex: 0 0 auto;
+  position: absolute;
+  inset-inline-end: 36px;
+  bottom: 24px;
+  z-index: 5;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -610,7 +644,6 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
 /* 097 T013: the time grid - a gutter of hours, then each day: its head and
    all-day items on one row (as tall as the tallest), its 24 hours below */
 .cal-week--grid {
-  --cal-hour: 48px;
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
@@ -651,21 +684,42 @@ async function saveTimes(ev: CalendarItem, next: CalTimes) {
   font-size: 0.6875rem;
   color: var(--color-muted);
 }
+/* SPL-4060 (msg 57bcb720 "kind of unvisible"): a block was the surface
+   colour on the page colour with a muted time; it is tinted in its own
+   colour now, its text in the foreground (>= 4.5:1 in both themes), a ring
+   of the page colour keeps side by side blocks apart; the title comes
+   first and ends in an ellipsis when narrow, and a block too short for two
+   lines puts the time beside it */
 .cal-ev {
   position: absolute;
   z-index: 1;
   display: block;
   padding: 0;
   overflow: visible;
-  border-inline-start: 3px solid var(--cal-ev-color, var(--color-accent));
+  border-inline-start: 4px solid var(--cal-ev-color, var(--color-accent));
+  background: color-mix(in srgb, var(--cal-ev-color, var(--color-accent)) 20%, var(--color-bg));
+  color: var(--color-fg);
+  box-shadow: 0 0 0 1px var(--color-bg);
   box-sizing: border-box;
 }
+.cal-ev.cal-week__item--edit:hover { background: color-mix(in srgb, var(--cal-ev-color, var(--color-accent)) 32%, var(--color-bg)); }
 .cal-ev__body {
   display: flex; flex-wrap: wrap; gap: 0 4px; align-items: baseline;
   height: 100%;
-  padding: 1px 4px;
+  padding: 2px 4px;
   overflow: hidden;
+  line-height: 1.25;
 }
+.cal-ev .cal-week__time { color: inherit; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cal-ev .cal-week__title {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.cal-ev--short .cal-ev__body { flex-wrap: nowrap; white-space: nowrap; }
 .cal-ev__resize {
   position: absolute;
   inset-inline: 0;

@@ -2386,8 +2386,11 @@
     "view": "Rodinys",
     "view_day": "Diena",
     "view_week": "Savaitė",
+    "view_3day": "3 dienos",
     "prev_day": "Ankstesnė diena",
     "next_day": "Kita diena",
+    "prev_3day": "Ankstesnės 3 dienos",
+    "next_3day": "Kitos 3 dienos",
     "load_failed": "Kalendoriaus įkelti nepavyko. Bandykite vėliau.",
     "months": {
       "m1": "Sausis",

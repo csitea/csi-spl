@@ -16,7 +16,9 @@
 # @description and "API key refused" for the others; a usage
 # @description limit: ONE blocker to the orchestrator naming the reset, ONE
 # @description wake once its reset + WD_LIMIT_GRACE passed, and S1 does not
-# @description take the seat over until 2 x WD_JOB_WAIT after that), S3 takes
+# @description take the seat over until 2 x WD_JOB_WAIT after that; a harness
+# @description that EXITED on its limit, S2 and S3 together, is S2 until the
+# @description reset + WD_LIMIT_GRACE and S3 from then, SPL-3979), S3 takes
 # @description over, S4 Escape then takeover, S5 Escape + note then takeover,
 # @description S6 clears a poke-shaped box and re-pokes, S7 Escape once (the
 # @description default-mode offer: bypass settings re-asserted + takeover,
@@ -1081,6 +1083,7 @@ spl_wd_judge() {
   done < "$ctx/hits"
   mv -f "$WD_DIR/$id.hits.new.$BASHPID" "$WD_DIR/$id.hits"
   spl_wd_episodes_end "$id" "$ctx/hits"
+  spl_wd_limit_dead "$id" "$now" "$ctx"
   for code in $WD_ORDER; do
     [[ "$code" == S9 && -n "$s2pend" ]] && continue
     ev="$(awk -F'\t' -v c="$code" '$1 == c {print $2; exit}' "$ctx/confirmed" 2>/dev/null || true)"
@@ -1104,6 +1107,25 @@ spl_wd_judge() {
   act="$(spl_wd_s9_pokes "$id" "$now" "$ctx")"
   printf '%s%s%s\n' "$extra" "$pend" "${act:+ (S9 $act)}"
   return 0
+}
+
+# A harness that EXITED on its usage limit (SPL-3979): S3 (no harness) and
+# S2 kind=limit hit together, because the dead session's transcript still
+# ends on the limit error. Until the reset + WD_LIMIT_GRACE S2 is the
+# verdict (it records the reset; a takeover then is refused by the restart's
+# vendor gate). Past it S3 is: a restore in place, and this tick's out.s2 is
+# emptied, else the restart's own-limit gate (spl_ars_own_limit) reads the
+# stale transcript as a live limit and refuses every takeover for good (one
+# box 2026-10-27: 9 lanes left on a bare shell past the reset).
+spl_wd_limit_dead() {
+  local id="$1" now="$2" ctx="$3" c="$3/confirmed" r
+  grep -q '^S3'$'\t' "$c" 2>/dev/null && grep -q '^HIT S2 kind=limit' "$ctx/hits" 2>/dev/null || return 0
+  r="$(cat "$WD_DIR/$id.ep.S2.reset" 2>/dev/null || true)"; r="${r%b}"
+  if [[ ! "$r" =~ ^[0-9]+$ ]] || (( now < r + ${WD_LIMIT_GRACE:-120} )); then
+    awk -F'\t' '$1 != "S3"' "$c" > "$c.tmp" && mv -f "$c.tmp" "$c"; return 0
+  fi
+  awk -F'\t' -v OFS='\t' -v r="$(date -u -d "@$r" +%FT%TZ)" '$1 == "S2" {next} $1 == "S3" {$2 = "limit over (reset " r ") and no harness: " $2} {print}' "$c" > "$c.tmp" && mv -f "$c.tmp" "$c"
+  : > "$ctx/out.s2"
 }
 
 # <spool root>/dispatch/wd.<id>: "HIT <code> <epoch>" or "OK <epoch>", atomically.

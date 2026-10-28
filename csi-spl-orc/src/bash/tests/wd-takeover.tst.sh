@@ -33,6 +33,12 @@
 #      closes its try in the tries journal with ONE `fail:F2` row, source
 #      watchdog; one takeover alone and an S2 kind=limit verdict write none;
 #      control: a writer with the source field dropped is red
+#  11. a harness that EXITED on its usage limit (SPL-3979; one box 2026-10-27,
+#      9 lanes): S3 (no harness) and S2 kind=limit hit together. Before the
+#      reset + WD_LIMIT_GRACE the verdict is S2 (it waits, no futile
+#      takeover); past it the verdict is S3, a takeover, and this tick's
+#      out.s2 no longer says limit (the restart's own-limit gate reads it);
+#      control: a live harness on its limit past the reset stays S2 (a wake)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -379,6 +385,30 @@ if ! tail -n 1 "$J" | awk -F'\t' 'NF == 6 && $6 == "fail:F2" { ok = 1 } END { ex
   fail "10. control: the copy wrote no 6-column fail:F2 row: $(cat "$T/o") | $(tr '\t' ' ' < "$J")"
 elif f2_ok c-933; then fail "10. control: the row check passed with no source field"
 else pass "10. control: no source field -> the row check is red ($(tail -n 1 "$J" | tr '\t' ' '))"; fi
+
+# --- 11. limit + harness gone: S3 past the reset ---------------------------------------
+# judge11 <id> <now>: two ticks of spl_wd_judge on the ctx of <id> (the debounce is 2)
+j11() { local i; export LEASE_DIR="$D" DRY_RUN=0; for i in 1 2; do spl_wd_judge "$1" - %41 "$2" "$D/wd/ctx/$1"; done; }
+judge11() { wdf j11 "$1" "$2"; }
+ctx11() {  # ctx11 <id> [no-s3]: out.s2 says limit, out.s3 says no harness
+  local c="$D/wd/ctx/$1"; mkdir -p "$c"
+  echo 'HIT S2 kind=limit transcript: You have hit your limit · resets 9pm (UTC)' > "$c/out.s2"
+  if [[ -z "${2:-}" ]]; then echo "HIT S3 pane %41 runs only 'bash', no harness process carries $1" > "$c/out.s3"; else : > "$c/out.s3"; fi
+}
+world; mkdir -p "$D/wd"; ctx11 c-941; echo "$((T0 + 600))" > "$D/wd/c-941.ep.S2.reset"
+judge11 c-941 "$T0"
+[[ "$(cut -d' ' -f1,2 "$D/wd.c-941")" == "HIT S2" ]] && ! grep -q 'TAKEOVER c-941' "$T/wd.log" 2>/dev/null &&
+  pass "11. limit + no harness before the reset: verdict S2, no takeover" || fail "11. before the reset: $(cat "$D/wd.c-941" 2>/dev/null) | $(tail -2 "$T/o")"
+world; mkdir -p "$D/wd"; ctx11 c-942; echo "$((T0 - 600))" > "$D/wd/c-942.ep.S2.reset"
+judge11 c-942 "$T0"
+[[ "$(cut -d' ' -f1,2 "$D/wd.c-942")" == "HIT S3" ]] && grep -q 'TAKEOVER c-942 S3 limit over' "$T/wd.log" 2>/dev/null &&
+  pass "11. limit + no harness past the reset: verdict S3, a takeover" || fail "11. past the reset: $(cat "$D/wd.c-942" 2>/dev/null) | $(tail -3 "$T/o")"
+! grep -q 'kind=limit' "$D/wd/ctx/c-942/out.s2" && pass "11. ... and its out.s2 no longer says limit (the restart's own-limit gate)" ||
+  fail "11. out.s2 still says limit: $(cat "$D/wd/ctx/c-942/out.s2")"
+world; mkdir -p "$D/wd"; ctx11 c-943 no-s3; echo "$((T0 - 600))" > "$D/wd/c-943.ep.S2.reset"
+judge11 c-943 "$T0"
+[[ "$(cut -d' ' -f1,2 "$D/wd.c-943")" == "HIT S2" ]] && ! grep -q 'TAKEOVER c-943' "$T/wd.log" 2>/dev/null && grep -q 'kind=limit' "$D/wd/ctx/c-943/out.s2" &&
+  pass "11. control: a live harness on its limit past the reset stays S2, no takeover" || fail "11. control: $(cat "$D/wd.c-943" 2>/dev/null) | $(tail -2 "$T/o")"
 
 echo "wd-takeover: $fails failure(s)"
 exit $(( fails > 0 ))

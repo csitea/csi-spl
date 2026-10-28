@@ -215,6 +215,19 @@ so MCP is additive and lower priority than a working CLI.
   (SPL-3953: `--body "$(cat <never-written file>)"` delivered 6 empty
   results from 2 review seats, 2026-10-27). Test:
   `csi-spl-orc/src/bash/features/spawn-agents/tests/test-spool-send-empty-body.sh`.
+- **FR-017**: A lane MUST NOT send an agent-to-agent DM on a workspace desk's
+  spool root (`<cloud>/<env>/desk/<tenant>/<box>/spool`): only the desk's own
+  seats (a role seat 001-003, or the id a desk alias links to) send there.
+  `spool-send.sh` refuses it with exit 9 and the `spool_send` MCP tool with an
+  error naming the root (exit 78), both before anything is written. A channel
+  post or a DM to a human still goes. `spool-mcp.sh` passes the sidecar's
+  `SPOOL_FLEET_ROOT`, so a seat's same-box DM on the desk is also copied into
+  the agent's inbox under the fleet root. Cause (SPL-3959): `spool-mcp.sh`
+  serves every agent's MCP server from the desk root, and c-189's result
+  8458b482 and c-423's task 9bb91e55 (2026-10-27) were written into desk
+  inboxes nobody reads. Tests:
+  `csi-spl-orc/src/bash/tests/spool-send-desk-root.tst.sh`,
+  `csi-spl-api/src/go/spool-hub-api/internal/mcp/deskroot_test.go`.
 
 ### Non-Functional Requirements
 

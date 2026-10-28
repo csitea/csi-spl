@@ -101,9 +101,9 @@ for _ in $(seq 50); do tr '\0' ' ' <"/proc/$SIDE/cmdline" 2>/dev/null | grep ' h
 box --as c-007 dev; rc=$?
 if [[ $rc -eq 0 && -s "$T/served" ]]; then
   grep -qx "$(argv c-007)" "$T/served" && pass "3. runs spool mcp --as c-007 --desks --desk-box --seat-cmd" || fail "3. argv: $(head -1 "$T/served")"
-  want="SPOOL_BOX_ID=box-desk SPOOL_HUB_URL=https://hub.example.net SPOOL_KEYS_DIR=$D/keys SPOOL_LOG_LEVEL=error SPOOL_ROOT=$D/spool SPOOL_TENANT=t1"
+  want="SPOOL_BOX_ID=box-desk SPOOL_FLEET_ROOT=$FLEET SPOOL_HUB_URL=https://hub.example.net SPOOL_KEYS_DIR=$D/keys SPOOL_LOG_LEVEL=error SPOOL_ROOT=$D/spool SPOOL_TENANT=t1"
   got="$(grep -v '^ARGV' "$T/served" | tr '\n' ' ' | sed 's/ $//')"
-  [[ "$got" == "$want" ]] && pass "3. only the sidecar's spool settings (no notify hook, no caller env)" ||
+  [[ "$got" == "$want" ]] && pass "3. only the sidecar's spool settings, its fleet root included (SPL-3959; no notify hook, no caller env)" ||
     fail "3. env:\n got  $got\n want $want"
 else
   fail "3. seated start: rc $rc $(cat "$T/out")"

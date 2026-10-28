@@ -4,8 +4,8 @@ Version v0.3 (2026-10-26), reviewed: claude review PASS (c-317 on
 `2f1ee57b5`, section 8), after a FAIL on v0.1 (W1-W9) and on v0.2 (N1-N4).
 The owner's GO and answers (section 7.1): Q1 A, Q2 A, Q3 A, Q4 GO (HUM-10,
 msg 44ec2e44 on the v0.3 poll), then all A again on the v0.1 poll (msg
-5c6686f2, 2026-10-27), whose Q1 A is the desk log the deny list refuses
-(7.1). Row B1 is built (SPL-3820, section 5.1), its cron row off by cnf
+5c6686f2, 2026-10-27), whose Q1 A is the desk log the deny list refuses;
+Q1 decided A, the token-burn cron log (msg 1a5ce9f1, 2026-10-28, 7.1). Row B1 is built (SPL-3820, section 5.1), its cron row off by cnf
 until it is switched on; B2 to B6 are built (SPL-3888, sections 5.2 to
 5.6); row B7's measure and the search fix it called for are built (5.7),
 its cnf defaults are next.
@@ -885,13 +885,14 @@ Q4 GO to build rows B1..B7 in the order of section 5?
 
 ### 7.1 The owner's answers
 
-Two answer sets, both from HUM-10 in `c168784c`, read on prd with
+Three answers, all from HUM-10 in `c168784c`, read on prd with
 `do_spl_db_query` (`messages.received_at`, n = 1 read each):
 
 | msg | poll | at (UTC) | answers |
 |---|---|---|---|
 | `44ec2e44` | `a1ada7ba` (the v0.3 form) | 2026-10-27 10:02 | GO; Q1 A the token-burn cron log; Q2 A; Q3 A |
 | `5c6686f2` | `75d8db39` (the v0.1 form) | 2026-10-27 16:26 | GO; Q1 A "The box desk's own log"; Q2 A; Q3 A |
+| `1a5ce9f1` | `f5bc82a1` (the Q1 poll) | 2026-10-28 13:26 | Q1 A: keep the token-burn cron log, as built; the key-folder rule stays with no exception |
 
 Folded:
 
@@ -906,9 +907,10 @@ Folded:
   refuses it three times and B1's follower announces it `refused`. B1
   ships the v0.3 answer (`token-burn-cron`, 5.1), and this lane does not
   weaken the deny list: following the desk log needs a deny-list
-  exception named in code with its reason (3.2: "v0.3 names none"). That
-  is the owner's call, asked through the dispatch holder. Until then the
-  allow-list keeps the token-burn cron log.
+  exception named in code with its reason (3.2: "v0.3 names none").
+  **Decided A** (`1a5ce9f1`, poll `f5bc82a1`): the token-burn cron log
+  stays, as built; the key-folder rule keeps no exception, so B1 does not
+  change and the desk log stays refused.
 
 ## 8. Review record
 

@@ -595,7 +595,8 @@
     "your_status_online": "Jouw status: online",
     "your_status_offline": "Jouw status: offline",
     "monitoring": "Systeembewaking",
-    "reporting": "Rapportage"
+    "reporting": "Rapportage",
+    "notes": "Notities"
   },
   "composer": {
     "biz_owner": "bedrijfseigenaar",
@@ -771,7 +772,8 @@
         "risks": "Risico's vinden",
         "calendar": "Toevoegen aan agenda",
         "failed": "De AI-actie is niet gelukt. Probeer het opnieuw."
-      }
+      },
+      "add_to_note": "Aan notitie toevoegen"
     },
     "emoji": {
       "add": "Emoji toevoegen",
@@ -1588,7 +1590,8 @@
     "open_parent": "Bovenliggende openen",
     "move": "Verplaatsen naar…",
     "epic_actions": "Acties voor {key}",
-    "select_epic": "Open een epic of functie om er actie op te ondernemen"
+    "select_epic": "Open een epic of functie om er actie op te ondernemen",
+    "add_to_note": "Aan notitie toevoegen"
   },
   "issues_epic_close": {
     "title": "{key} en het {count} openstaande issue sluiten? | {key} en de {count} openstaande issues sluiten?",
@@ -3436,6 +3439,79 @@
         "other": "De query is niet uitgevoerd"
       }
     }
+  },
+  "notes": {
+    "title": "Notities",
+    "new": "Nieuwe notitie",
+    "filter": "Notities filteren",
+    "archived": "Gearchiveerd",
+    "pinned": "Vastgezet",
+    "others": "Andere notities",
+    "list_label": "Notitielijst",
+    "loading": "Notities laden…",
+    "load_failed": "De notities konden niet worden geladen.",
+    "retry": "Opnieuw proberen",
+    "create_failed": "De notitie is niet gemaakt. Probeer het opnieuw.",
+    "off": "Notities zijn uitgeschakeld.",
+    "empty": "Nog geen notities. Begin er een met Nieuwe notitie.",
+    "empty_filter": "Geen notitie komt overeen met het filter.",
+    "empty_archived": "Geen gearchiveerde notities.",
+    "untitled": "Naamloze notitie",
+    "items": "{done}/{total}",
+    "items_hint": "Controlelijst: {done} van {total} klaar",
+    "links": "Koppelingen: {n}",
+    "changed": "Gewijzigd {when}",
+    "not_found": "Notitie niet gevonden",
+    "close": "Notitie sluiten",
+    "title_label": "Titel",
+    "body_label": "Tekst",
+    "body_placeholder": "Schrijf een notitie…",
+    "checklist": "Controlelijst",
+    "checklist_add": "Regel toevoegen",
+    "checklist_remove": "Regel verwijderen",
+    "pin": "Vastzetten",
+    "unpin": "Losmaken",
+    "archive": "Archiveren",
+    "unarchive": "Uit archief halen",
+    "delete": "Verwijderen",
+    "deleted": "Notitie verwijderd",
+    "undo": "Ongedaan maken",
+    "saving": "Opslaan…",
+    "not_saved": "Niet opgeslagen, opnieuw proberen",
+    "move_up": "Omhoog",
+    "move_down": "Omlaag",
+    "links_title": "Koppelingen",
+    "link_add": "Koppeling toevoegen",
+    "link_paste": "Plak een link, een msg:- of topic:-verwijzing, of een kwestiesleutel",
+    "link_remove": "Koppeling verwijderen",
+    "not_a_link": "Geen link",
+    "link_left": "Link naar een werkruimte die je hebt verlaten",
+    "kind": {
+      "msg": "Bericht",
+      "topic": "Onderwerp",
+      "issue": "Kwestie",
+      "event": "Agenda-item",
+      "doc": "Document",
+      "channel": "Kanaal",
+      "url": "Weblink"
+    },
+    "picker_filter": "Notitie zoeken",
+    "added": "Toegevoegd aan {title}",
+    "open": "Openen",
+    "created": "Notitie gemaakt",
+    "too_long": "Dit is te lang om op te slaan.",
+    "full": "Je hebt de limiet van {max} notities bereikt. Verwijder er eerst een paar.",
+    "settings": {
+      "title": "Notities",
+      "export": "Notities exporteren",
+      "export_hint": "Download alle notities, ook de gearchiveerde, als één JSON-bestand.",
+      "erase": "Alle notities wissen",
+      "erase_hint": "Verwijdert al je notities. Dit kan niet ongedaan worden gemaakt.",
+      "erase_confirm": "Typ {word} om te bevestigen",
+      "erase_word": "wissen",
+      "erased": "Alle notities zijn gewist."
+    },
+    "add_to_note": "Aan notitie toevoegen"
   },
   "offline": {
     "banner": {

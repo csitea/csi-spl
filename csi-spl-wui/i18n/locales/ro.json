@@ -595,7 +595,8 @@
     "your_status_online": "Starea ta: online",
     "your_status_offline": "Starea ta: offline",
     "monitoring": "Monitorizare",
-    "reporting": "Rapoarte"
+    "reporting": "Rapoarte",
+    "notes": "Notițe"
   },
   "composer": {
     "biz_owner": "proprietarul afacerii",
@@ -771,7 +772,8 @@
         "risks": "Găsește riscuri",
         "calendar": "Adaugă în calendar",
         "failed": "Acțiunea AI nu a reușit. Încercați din nou."
-      }
+      },
+      "add_to_note": "Adaugă la notiță"
     },
     "emoji": {
       "add": "Adaugă emoji",
@@ -1588,7 +1590,8 @@
     "open_parent": "Deschide părintele",
     "move": "Mută în…",
     "epic_actions": "Acțiuni pentru {key}",
-    "select_epic": "Deschide un epic sau o funcționalitate pentru a acționa asupra ei"
+    "select_epic": "Deschide un epic sau o funcționalitate pentru a acționa asupra ei",
+    "add_to_note": "Adaugă la notiță"
   },
   "issues_epic_close": {
     "title": "Închizi {key} și {count} problemă deschisă din el? | Închizi {key} și problemele deschise din el: {count}?",
@@ -3436,6 +3439,79 @@
         "other": "Interogarea nu a rulat"
       }
     }
+  },
+  "notes": {
+    "title": "Notițe",
+    "new": "Notiță nouă",
+    "filter": "Filtrează notițele",
+    "archived": "Arhivate",
+    "pinned": "Fixate",
+    "others": "Alte notițe",
+    "list_label": "Lista de notițe",
+    "loading": "Se încarcă notițele…",
+    "load_failed": "Notițele nu au putut fi încărcate.",
+    "retry": "Încearcă din nou",
+    "create_failed": "Notița nu a fost creată. Încearcă din nou.",
+    "off": "Notițele sunt dezactivate.",
+    "empty": "Încă nu există notițe. Începe una cu Notiță nouă.",
+    "empty_filter": "Nicio notiță nu se potrivește filtrului.",
+    "empty_archived": "Nu există notițe arhivate.",
+    "untitled": "Notiță fără titlu",
+    "items": "{done}/{total}",
+    "items_hint": "Listă de verificare: {done} din {total} gata",
+    "links": "Linkuri: {n}",
+    "changed": "Modificată {when}",
+    "not_found": "Notița nu a fost găsită",
+    "close": "Închide notița",
+    "title_label": "Titlu",
+    "body_label": "Conținut",
+    "body_placeholder": "Scrie o notiță…",
+    "checklist": "Listă de verificare",
+    "checklist_add": "Adaugă un rând",
+    "checklist_remove": "Elimină rândul",
+    "pin": "Fixează",
+    "unpin": "Anulează fixarea",
+    "archive": "Arhivează",
+    "unarchive": "Scoate din arhivă",
+    "delete": "Șterge",
+    "deleted": "Notița a fost ștearsă",
+    "undo": "Anulează",
+    "saving": "Se salvează…",
+    "not_saved": "Nesalvată, încearcă din nou",
+    "move_up": "Mută în sus",
+    "move_down": "Mută în jos",
+    "links_title": "Linkuri",
+    "link_add": "Adaugă link",
+    "link_paste": "Lipește un link, o referință msg: sau topic:, sau o cheie de problemă",
+    "link_remove": "Elimină linkul",
+    "not_a_link": "Nu este un link",
+    "link_left": "Link către un spațiu de lucru pe care l-ai părăsit",
+    "kind": {
+      "msg": "Mesaj",
+      "topic": "Subiect",
+      "issue": "Problemă",
+      "event": "Intrare în calendar",
+      "doc": "Document",
+      "channel": "Canal",
+      "url": "Link web"
+    },
+    "picker_filter": "Caută o notiță",
+    "added": "Adăugat la {title}",
+    "open": "Deschide",
+    "created": "Notița a fost creată",
+    "too_long": "Este prea lung pentru a fi salvat.",
+    "full": "Ai atins limita de {max} notițe. Șterge mai întâi câteva.",
+    "settings": {
+      "title": "Notițe",
+      "export": "Exportă notițele",
+      "export_hint": "Descarcă toate notițele, inclusiv cele arhivate, ca un singur fișier JSON.",
+      "erase": "Șterge toate notițele",
+      "erase_hint": "Șterge toate notițele tale. Acțiunea nu poate fi anulată.",
+      "erase_confirm": "Tastează {word} pentru a confirma",
+      "erase_word": "șterge",
+      "erased": "Toate notițele au fost șterse."
+    },
+    "add_to_note": "Adaugă la notiță"
   },
   "offline": {
     "banner": {

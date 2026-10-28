@@ -595,7 +595,8 @@
     "your_status_online": "Tu estado: en línea",
     "your_status_offline": "Tu estado: sin conexión",
     "monitoring": "Monitorización",
-    "reporting": "Informes"
+    "reporting": "Informes",
+    "notes": "Notas"
   },
   "composer": {
     "biz_owner": "propietario del negocio",
@@ -771,7 +772,8 @@
         "risks": "Buscar riesgos",
         "calendar": "Añadir al calendario",
         "failed": "La acción de IA no se completó. Inténtalo de nuevo."
-      }
+      },
+      "add_to_note": "Añadir a una nota"
     },
     "emoji": {
       "add": "Añadir emoji",
@@ -1588,7 +1590,8 @@
     "open_parent": "Abrir el padre",
     "move": "Mover a…",
     "epic_actions": "Acciones para {key}",
-    "select_epic": "Abre un épico o una función para actuar sobre él"
+    "select_epic": "Abre un épico o una función para actuar sobre él",
+    "add_to_note": "Añadir a una nota"
   },
   "issues_epic_close": {
     "title": "¿Cerrar {key} y su {count} incidencia abierta? | ¿Cerrar {key} y sus {count} incidencias abiertas?",
@@ -3436,6 +3439,79 @@
         "other": "La consulta no se ejecutó"
       }
     }
+  },
+  "notes": {
+    "title": "Notas",
+    "new": "Nueva nota",
+    "filter": "Filtrar notas",
+    "archived": "Archivadas",
+    "pinned": "Fijadas",
+    "others": "Otras notas",
+    "list_label": "Lista de notas",
+    "loading": "Cargando notas…",
+    "load_failed": "No se pudieron cargar las notas.",
+    "retry": "Reintentar",
+    "create_failed": "No se creó la nota. Inténtalo de nuevo.",
+    "off": "Las notas están desactivadas.",
+    "empty": "Aún no hay notas. Empieza una con Nueva nota.",
+    "empty_filter": "Ninguna nota coincide con el filtro.",
+    "empty_archived": "No hay notas archivadas.",
+    "untitled": "Nota sin título",
+    "items": "{done}/{total}",
+    "items_hint": "Lista de tareas: {done} de {total} hechas",
+    "links": "Enlaces: {n}",
+    "changed": "Modificada {when}",
+    "not_found": "Nota no encontrada",
+    "close": "Cerrar nota",
+    "title_label": "Título",
+    "body_label": "Texto",
+    "body_placeholder": "Escribe una nota…",
+    "checklist": "Lista de tareas",
+    "checklist_add": "Añadir una línea",
+    "checklist_remove": "Quitar línea",
+    "pin": "Fijar",
+    "unpin": "Desfijar",
+    "archive": "Archivar",
+    "unarchive": "Desarchivar",
+    "delete": "Eliminar",
+    "deleted": "Nota eliminada",
+    "undo": "Deshacer",
+    "saving": "Guardando…",
+    "not_saved": "No guardada, reintentar",
+    "move_up": "Subir",
+    "move_down": "Bajar",
+    "links_title": "Enlaces",
+    "link_add": "Añadir enlace",
+    "link_paste": "Pega un enlace, una referencia msg: o topic:, o una clave de incidencia",
+    "link_remove": "Quitar enlace",
+    "not_a_link": "No es un enlace",
+    "link_left": "Enlace a un espacio de trabajo que dejaste",
+    "kind": {
+      "msg": "Mensaje",
+      "topic": "Tema",
+      "issue": "Incidencia",
+      "event": "Evento del calendario",
+      "doc": "Documento",
+      "channel": "Canal",
+      "url": "Enlace web"
+    },
+    "picker_filter": "Buscar una nota",
+    "added": "Añadido a {title}",
+    "open": "Abrir",
+    "created": "Nota creada",
+    "too_long": "Es demasiado largo para guardarlo.",
+    "full": "Has llegado al límite de {max} notas. Elimina algunas primero.",
+    "settings": {
+      "title": "Notas",
+      "export": "Exportar notas",
+      "export_hint": "Descarga todas las notas, también las archivadas, en un único archivo JSON.",
+      "erase": "Borrar todas las notas",
+      "erase_hint": "Elimina todas tus notas. No se puede deshacer.",
+      "erase_confirm": "Escribe {word} para confirmar",
+      "erase_word": "borrar",
+      "erased": "Todas las notas se han borrado."
+    },
+    "add_to_note": "Añadir a una nota"
   },
   "offline": {
     "banner": {

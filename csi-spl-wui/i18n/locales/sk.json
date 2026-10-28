@@ -595,7 +595,8 @@
     "your_status_online": "Váš stav: online",
     "your_status_offline": "Váš stav: offline",
     "monitoring": "Monitorovanie",
-    "reporting": "Prehľady"
+    "reporting": "Prehľady",
+    "notes": "Poznámky"
   },
   "composer": {
     "biz_owner": "majiteľ firmy",
@@ -771,7 +772,8 @@
         "risks": "Nájsť riziká",
         "calendar": "Pridať do kalendára",
         "failed": "Akcia AI sa nepodarila. Skúste to znova."
-      }
+      },
+      "add_to_note": "Pridať do poznámky"
     },
     "emoji": {
       "add": "Pridať emoji",
@@ -1588,7 +1590,8 @@
     "open_parent": "Otvoriť nadradenú",
     "move": "Presunúť do…",
     "epic_actions": "Akcie pre {key}",
-    "select_epic": "Otvorte epik alebo funkciu, aby ste s ňou mohli pracovať"
+    "select_epic": "Otvorte epik alebo funkciu, aby ste s ňou mohli pracovať",
+    "add_to_note": "Pridať do poznámky"
   },
   "issues_epic_close": {
     "title": "Zavrieť {key} a jeho {count} otvorenú úlohu? | Zavrieť {key} a jeho otvorené úlohy: {count}?",
@@ -3436,6 +3439,79 @@
         "other": "Dopyt sa nespustil"
       }
     }
+  },
+  "notes": {
+    "title": "Poznámky",
+    "new": "Nová poznámka",
+    "filter": "Filtrovať poznámky",
+    "archived": "Archivované",
+    "pinned": "Pripnuté",
+    "others": "Ostatné poznámky",
+    "list_label": "Zoznam poznámok",
+    "loading": "Načítavajú sa poznámky…",
+    "load_failed": "Poznámky sa nepodarilo načítať.",
+    "retry": "Skúsiť znova",
+    "create_failed": "Poznámka sa nevytvorila. Skúste to znova.",
+    "off": "Poznámky sú vypnuté.",
+    "empty": "Zatiaľ žiadne poznámky. Začnite tlačidlom Nová poznámka.",
+    "empty_filter": "Filtru nezodpovedá žiadna poznámka.",
+    "empty_archived": "Žiadne archivované poznámky.",
+    "untitled": "Poznámka bez názvu",
+    "items": "{done}/{total}",
+    "items_hint": "Kontrolný zoznam: hotovo {done} z {total}",
+    "links": "Odkazy: {n}",
+    "changed": "Zmenené {when}",
+    "not_found": "Poznámka sa nenašla",
+    "close": "Zavrieť poznámku",
+    "title_label": "Názov",
+    "body_label": "Obsah",
+    "body_placeholder": "Napíšte poznámku…",
+    "checklist": "Kontrolný zoznam",
+    "checklist_add": "Pridať riadok",
+    "checklist_remove": "Odstrániť riadok",
+    "pin": "Pripnúť",
+    "unpin": "Odopnúť",
+    "archive": "Archivovať",
+    "unarchive": "Obnoviť z archívu",
+    "delete": "Odstrániť",
+    "deleted": "Poznámka odstránená",
+    "undo": "Späť",
+    "saving": "Ukladá sa…",
+    "not_saved": "Neuložené, skúsiť znova",
+    "move_up": "Posunúť nahor",
+    "move_down": "Posunúť nadol",
+    "links_title": "Odkazy",
+    "link_add": "Pridať odkaz",
+    "link_paste": "Vložte odkaz, odkaz msg: alebo topic: alebo kľúč úlohy",
+    "link_remove": "Odstrániť odkaz",
+    "not_a_link": "Toto nie je odkaz",
+    "link_left": "Odkaz na pracovný priestor, ktorý ste opustili",
+    "kind": {
+      "msg": "Správa",
+      "topic": "Téma",
+      "issue": "Úloha",
+      "event": "Záznam v kalendári",
+      "doc": "Dokument",
+      "channel": "Kanál",
+      "url": "Webový odkaz"
+    },
+    "picker_filter": "Nájsť poznámku",
+    "added": "Pridané do {title}",
+    "open": "Otvoriť",
+    "created": "Poznámka vytvorená",
+    "too_long": "Je to príliš dlhé na uloženie.",
+    "full": "Dosiahli ste limit {max} poznámok. Najprv niektoré odstráňte.",
+    "settings": {
+      "title": "Poznámky",
+      "export": "Exportovať poznámky",
+      "export_hint": "Stiahnuť všetky poznámky, aj archivované, ako jeden súbor JSON.",
+      "erase": "Vymazať všetky poznámky",
+      "erase_hint": "Odstráni všetky vaše poznámky. Nedá sa to vrátiť späť.",
+      "erase_confirm": "Na potvrdenie napíšte {word}",
+      "erase_word": "vymazať",
+      "erased": "Všetky poznámky sú vymazané."
+    },
+    "add_to_note": "Pridať do poznámky"
   },
   "offline": {
     "banner": {

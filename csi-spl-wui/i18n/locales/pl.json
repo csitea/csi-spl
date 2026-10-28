@@ -595,7 +595,8 @@
     "your_status_online": "Twój status: online",
     "your_status_offline": "Twój status: offline",
     "monitoring": "Monitorowanie",
-    "reporting": "Raporty"
+    "reporting": "Raporty",
+    "notes": "Notatki"
   },
   "composer": {
     "biz_owner": "właściciel firmy",
@@ -771,7 +772,8 @@
         "risks": "Znajdź ryzyka",
         "calendar": "Dodaj do kalendarza",
         "failed": "Akcja AI nie powiodła się. Spróbuj ponownie."
-      }
+      },
+      "add_to_note": "Dodaj do notatki"
     },
     "emoji": {
       "add": "Dodaj emoji",
@@ -1588,7 +1590,8 @@
     "open_parent": "Otwórz nadrzędne",
     "move": "Przenieś do…",
     "epic_actions": "Akcje dla {key}",
-    "select_epic": "Otwórz epik lub funkcję, aby wykonać na niej działanie"
+    "select_epic": "Otwórz epik lub funkcję, aby wykonać na niej działanie",
+    "add_to_note": "Dodaj do notatki"
   },
   "issues_epic_close": {
     "title": "Zamknąć {key} i jego {count} otwarte zgłoszenie? | Zamknąć {key} i jego otwarte zgłoszenia: {count}?",
@@ -3436,6 +3439,79 @@
         "other": "Zapytanie nie zostało wykonane"
       }
     }
+  },
+  "notes": {
+    "title": "Notatki",
+    "new": "Nowa notatka",
+    "filter": "Filtruj notatki",
+    "archived": "Zarchiwizowane",
+    "pinned": "Przypięte",
+    "others": "Inne notatki",
+    "list_label": "Lista notatek",
+    "loading": "Wczytywanie notatek…",
+    "load_failed": "Nie udało się wczytać notatek.",
+    "retry": "Spróbuj ponownie",
+    "create_failed": "Notatka nie została utworzona. Spróbuj ponownie.",
+    "off": "Notatki są wyłączone.",
+    "empty": "Nie ma jeszcze notatek. Zacznij od przycisku Nowa notatka.",
+    "empty_filter": "Żadna notatka nie pasuje do filtra.",
+    "empty_archived": "Brak zarchiwizowanych notatek.",
+    "untitled": "Notatka bez tytułu",
+    "items": "{done}/{total}",
+    "items_hint": "Lista kontrolna: wykonano {done} z {total}",
+    "links": "Linki: {n}",
+    "changed": "Zmieniono {when}",
+    "not_found": "Nie znaleziono notatki",
+    "close": "Zamknij notatkę",
+    "title_label": "Tytuł",
+    "body_label": "Tekst",
+    "body_placeholder": "Napisz notatkę…",
+    "checklist": "Lista kontrolna",
+    "checklist_add": "Dodaj wiersz",
+    "checklist_remove": "Usuń wiersz",
+    "pin": "Przypnij",
+    "unpin": "Odepnij",
+    "archive": "Archiwizuj",
+    "unarchive": "Przywróć z archiwum",
+    "delete": "Usuń",
+    "deleted": "Notatka usunięta",
+    "undo": "Cofnij",
+    "saving": "Zapisywanie…",
+    "not_saved": "Nie zapisano, spróbuj ponownie",
+    "move_up": "Przenieś w górę",
+    "move_down": "Przenieś w dół",
+    "links_title": "Linki",
+    "link_add": "Dodaj link",
+    "link_paste": "Wklej link, odwołanie msg: lub topic: albo klucz zgłoszenia",
+    "link_remove": "Usuń link",
+    "not_a_link": "To nie jest link",
+    "link_left": "Link do obszaru roboczego, który opuszczono",
+    "kind": {
+      "msg": "Wiadomość",
+      "topic": "Wątek",
+      "issue": "Zgłoszenie",
+      "event": "Wpis w kalendarzu",
+      "doc": "Dokument",
+      "channel": "Kanał",
+      "url": "Link do strony"
+    },
+    "picker_filter": "Znajdź notatkę",
+    "added": "Dodano do {title}",
+    "open": "Otwórz",
+    "created": "Notatka utworzona",
+    "too_long": "To jest zbyt długie, aby zapisać.",
+    "full": "Osiągnięto limit {max} notatek. Najpierw usuń kilka.",
+    "settings": {
+      "title": "Notatki",
+      "export": "Eksportuj notatki",
+      "export_hint": "Pobierz wszystkie notatki, także zarchiwizowane, jako jeden plik JSON.",
+      "erase": "Wymaż wszystkie notatki",
+      "erase_hint": "Usuwa wszystkie Twoje notatki. Tego nie można cofnąć.",
+      "erase_confirm": "Wpisz {word}, aby potwierdzić",
+      "erase_word": "wymaż",
+      "erased": "Wszystkie notatki zostały wymazane."
+    },
+    "add_to_note": "Dodaj do notatki"
   },
   "offline": {
     "banner": {

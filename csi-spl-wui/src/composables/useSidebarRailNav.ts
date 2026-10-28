@@ -10,7 +10,7 @@ import { useOperatorPane } from '~/stores/operator-pane'
 import { useLiveFeed } from '~/stores/live'
 import { useTopicStore } from '~/stores/topic'
 import { chatKind, isSectionPage } from '~/utils/section-strip.mjs'
-import { ARCHIVE_TAB, CALENDAR_TAB, ISSUES_TAB, MONITORING_TAB, PEOPLE_TAB, REPORTING_TAB, isSearchPage, tabForPath } from '~/utils/sidebar-tabs.mjs'
+import { ARCHIVE_TAB, CALENDAR_TAB, ISSUES_TAB, MONITORING_TAB, NOTES_TAB, PEOPLE_TAB, REPORTING_TAB, isSearchPage, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { productPath } from '~/utils/signed-out-redirect.mjs'
 
 const PHONE_LIST_TABS = new Set<string>(['dm', 'channels', 'flow', 'people'])
@@ -32,6 +32,7 @@ async function openSectionPage(next: string, phoneList: boolean, query: Record<s
   if (next === CALENDAR_TAB && tabForPath(route.path) !== CALENDAR_TAB) await navigateTo(localePath('/calendar'))
   if (next === MONITORING_TAB && tabForPath(route.path) !== MONITORING_TAB) await navigateTo(localePath('/monitoring'))
   if (next === REPORTING_TAB && tabForPath(route.path) !== REPORTING_TAB) await navigateTo(localePath('/reporting'))
+  if (next === NOTES_TAB && tabForPath(route.path) !== NOTES_TAB) await navigateTo(localePath('/notes'))
 }
 
 export function useSidebarRailNav<T extends string>(opts: {

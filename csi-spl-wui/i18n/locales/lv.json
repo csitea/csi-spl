@@ -595,7 +595,8 @@
     "your_status_online": "Jūsu statuss: tiešsaistē",
     "your_status_offline": "Jūsu statuss: bezsaistē",
     "monitoring": "Pārraudzība",
-    "reporting": "Pārskati"
+    "reporting": "Pārskati",
+    "notes": "Piezīmes"
   },
   "composer": {
     "biz_owner": "uzņēmuma īpašnieks",
@@ -771,7 +772,8 @@
         "risks": "Atrast riskus",
         "calendar": "Pievienot kalendāram",
         "failed": "MI darbība neizdevās. Mēģiniet vēlreiz."
-      }
+      },
+      "add_to_note": "Pievienot piezīmei"
     },
     "emoji": {
       "add": "Pievienot emoji",
@@ -1588,7 +1590,8 @@
     "open_parent": "Atvērt vecākuzdevumu",
     "move": "Pārvietot uz…",
     "epic_actions": "Darbības ar {key}",
-    "select_epic": "Atveriet eposu vai funkciju, lai ar to darbotos"
+    "select_epic": "Atveriet eposu vai funkciju, lai ar to darbotos",
+    "add_to_note": "Pievienot piezīmei"
   },
   "issues_epic_close": {
     "title": "Aizvērt {key} un tā {count} atvērto uzdevumu? | Aizvērt {key} un tā atvērtos uzdevumus: {count}?",
@@ -3436,6 +3439,79 @@
         "other": "Vaicājums netika izpildīts"
       }
     }
+  },
+  "notes": {
+    "title": "Piezīmes",
+    "new": "Jauna piezīme",
+    "filter": "Filtrēt piezīmes",
+    "archived": "Arhivētās",
+    "pinned": "Piespraustās",
+    "others": "Citas piezīmes",
+    "list_label": "Piezīmju saraksts",
+    "loading": "Ielādē piezīmes…",
+    "load_failed": "Piezīmes neizdevās ielādēt.",
+    "retry": "Mēģināt vēlreiz",
+    "create_failed": "Piezīme netika izveidota. Mēģiniet vēlreiz.",
+    "off": "Piezīmes ir izslēgtas.",
+    "empty": "Piezīmju vēl nav. Sāciet ar pogu Jauna piezīme.",
+    "empty_filter": "Filtram neatbilst neviena piezīme.",
+    "empty_archived": "Arhivētu piezīmju nav.",
+    "untitled": "Piezīme bez nosaukuma",
+    "items": "{done}/{total}",
+    "items_hint": "Kontrolsaraksts: izpildīti {done} no {total}",
+    "links": "Saites: {n}",
+    "changed": "Mainīta {when}",
+    "not_found": "Piezīme nav atrasta",
+    "close": "Aizvērt piezīmi",
+    "title_label": "Nosaukums",
+    "body_label": "Teksts",
+    "body_placeholder": "Rakstiet piezīmi…",
+    "checklist": "Kontrolsaraksts",
+    "checklist_add": "Pievienot rindu",
+    "checklist_remove": "Noņemt rindu",
+    "pin": "Piespraust",
+    "unpin": "Atspraust",
+    "archive": "Arhivēt",
+    "unarchive": "Atjaunot no arhīva",
+    "delete": "Dzēst",
+    "deleted": "Piezīme izdzēsta",
+    "undo": "Atsaukt",
+    "saving": "Saglabā…",
+    "not_saved": "Nav saglabāts, mēģiniet vēlreiz",
+    "move_up": "Pārvietot augšup",
+    "move_down": "Pārvietot lejup",
+    "links_title": "Saites",
+    "link_add": "Pievienot saiti",
+    "link_paste": "Ielīmējiet saiti, msg: vai topic: atsauci vai problēmas atslēgu",
+    "link_remove": "Noņemt saiti",
+    "not_a_link": "Tā nav saite",
+    "link_left": "Saite uz darbvietu, kuru esat pametis",
+    "kind": {
+      "msg": "Ziņojums",
+      "topic": "Tēma",
+      "issue": "Problēma",
+      "event": "Kalendāra ieraksts",
+      "doc": "Dokuments",
+      "channel": "Kanāls",
+      "url": "Tīmekļa saite"
+    },
+    "picker_filter": "Atrast piezīmi",
+    "added": "Pievienots piezīmei {title}",
+    "open": "Atvērt",
+    "created": "Piezīme izveidota",
+    "too_long": "Tas ir pārāk garš, lai to saglabātu.",
+    "full": "Sasniegts ierobežojums: {max} piezīmes. Vispirms izdzēsiet dažas.",
+    "settings": {
+      "title": "Piezīmes",
+      "export": "Eksportēt piezīmes",
+      "export_hint": "Lejupielādēt visas piezīmes, arī arhivētās, vienā JSON failā.",
+      "erase": "Dzēst visas piezīmes",
+      "erase_hint": "Izdzēš visas jūsu piezīmes. To nevar atsaukt.",
+      "erase_confirm": "Lai apstiprinātu, ierakstiet {word}",
+      "erase_word": "dzēst",
+      "erased": "Visas piezīmes izdzēstas."
+    },
+    "add_to_note": "Pievienot piezīmei"
   },
   "offline": {
     "banner": {

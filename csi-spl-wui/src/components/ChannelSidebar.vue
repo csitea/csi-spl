@@ -1,5 +1,5 @@
 <template>
-  <nav class="sidebar" :class="{ 'sidebar--rail': issuesRailOnly || calendarRailOnly || monitoringRailOnly || reportingRailOnly || helpRailOnly || docsRailOnly, 'sidebar--strip': stripOnly }" :data-help-rail="helpRailOnly ? '1' : undefined" :data-docs-rail="docsRailOnly ? '1' : undefined">
+  <nav class="sidebar" :class="{ 'sidebar--rail': issuesRailOnly || calendarRailOnly || monitoringRailOnly || reportingRailOnly || notesRailOnly || helpRailOnly || docsRailOnly, 'sidebar--strip': stripOnly }" :data-help-rail="helpRailOnly ? '1' : undefined" :data-docs-rail="docsRailOnly ? '1' : undefined">
     <div class="sidebar-main">
     <!-- The person's order (SPL-979, Settings → Behaviour → Left panel
          order; default: direct messages, channels, issues, flow,
@@ -654,7 +654,7 @@ import { useMobileStack } from '~/composables/useMobileStack'
 import { useLoopStrip } from '~/composables/useLoopStrip'
 import { useSectionExit } from '~/composables/useSectionExit'
 import { railLinkSection } from '~/utils/section-strip.mjs'
-import { ARCHIVE_TAB, CALENDAR_TAB, ISSUES_TAB, MONITORING_TAB, PEOPLE_TAB, REPORTING_TAB, USERS_TAB, isSearchPage, tabForPath } from '~/utils/sidebar-tabs.mjs'
+import { ARCHIVE_TAB, CALENDAR_TAB, ISSUES_TAB, MONITORING_TAB, NOTES_TAB, PEOPLE_TAB, REPORTING_TAB, USERS_TAB, isSearchPage, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { setLinkOpenHook } from '~/utils/msg-jump.mjs'
 import { isHumanId } from '~/utils/agent-kind.mjs'
 import { RAIL_TABS, isRailMovable, railLabelKey, type RailId } from '~/utils/rail-order'
@@ -680,7 +680,7 @@ import { useSidebarRailNav } from '~/composables/useSidebarRailNav'
 import { useSidebarVersion } from '~/composables/useSidebarVersion'
 import type { UiIconName } from '~/utils/uiIcons'
 
-type SideTab = 'dm' | 'channels' | 'flow' | 'search' | 'issues' | 'archive' | 'users' | 'people' | 'calendar' | 'monitoring' | 'reporting'
+type SideTab = 'dm' | 'channels' | 'flow' | 'search' | 'issues' | 'archive' | 'users' | 'people' | 'calendar' | 'monitoring' | 'reporting' | 'notes'
 /* The six rail tabs (utils/rail-order.ts RAIL_TABS) in the person's order
    (SPL-979). A matching route follows the page; search and settings keep the
    reader's choice. */
@@ -805,7 +805,7 @@ const selfStatus = computed(() => {
 const { onKeydown: onSubmitKey } = useSubmitKey()
 const localePath = useLocalePath()
 /* the pages that keep the icon rail alone, .sidebar--rail (useSidebarRailOnly) */
-const { issueEpics, issuesRailOnly, calendarRailOnly, monitoringRailOnly, reportingRailOnly, helpRailOnly, docsRailOnly, railOnly } = useSidebarRailOnly(tab, mobileStack.isMobile, route)
+const { issueEpics, issuesRailOnly, calendarRailOnly, monitoringRailOnly, reportingRailOnly, notesRailOnly, helpRailOnly, docsRailOnly, railOnly } = useSidebarRailOnly(tab, mobileStack.isMobile, route)
 /* owner 2026-09-28 (topic bea3a4e6): no Users icon - the users CRUD is
    reached only through the settings gear (Settings -> Members) */
 const tenantSettingsShown = computed(() => tenantSettingsVisible(access.me, { mock: api.mock }))
@@ -896,7 +896,7 @@ watch(() => sidePane.requested.value, (req) => {
 })
 watch(tab, (id) => {
   rowMenu.value = ''
-  if (id !== 'search' && id !== USERS_TAB && id !== ISSUES_TAB && id !== ARCHIVE_TAB && id !== PEOPLE_TAB && id !== CALENDAR_TAB && id !== MONITORING_TAB && id !== REPORTING_TAB) sidePane.setCurrent(id)
+  if (id !== 'search' && id !== USERS_TAB && id !== ISSUES_TAB && id !== ARCHIVE_TAB && id !== PEOPLE_TAB && id !== CALENDAR_TAB && id !== MONITORING_TAB && id !== REPORTING_TAB && id !== NOTES_TAB) sidePane.setCurrent(id)
 }, { immediate: true })
 /** Socket state token (open, reconnecting, …) in words; an unknown token (a config error) shows as is. */
 const stateLabel = (s: string) => (te('feed.live_state.' + s) ? t('feed.live_state.' + s) : s)

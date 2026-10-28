@@ -595,7 +595,8 @@
     "your_status_online": "Your status: online",
     "your_status_offline": "Your status: offline",
     "monitoring": "Monitoring",
-    "reporting": "Reporting"
+    "reporting": "Reporting",
+    "notes": "Notes"
   },
   "composer": {
     "biz_owner": "business owner",
@@ -771,7 +772,8 @@
         "risks": "Find risks",
         "calendar": "Add to calendar",
         "failed": "The AI action did not go through. Try again."
-      }
+      },
+      "add_to_note": "Add to note"
     },
     "emoji": {
       "add": "Add emoji",
@@ -1588,7 +1590,8 @@
     "open_parent": "Open parent",
     "move": "Move to…",
     "epic_actions": "Actions for {key}",
-    "select_epic": "Open an epic or feature to act on it"
+    "select_epic": "Open an epic or feature to act on it",
+    "add_to_note": "Add to note"
   },
   "issues_epic_close": {
     "title": "Close {key} and its {count} open issue? | Close {key} and its {count} open issues?",
@@ -3436,6 +3439,79 @@
         "other": "The query did not run"
       }
     }
+  },
+  "notes": {
+    "title": "Notes",
+    "new": "New note",
+    "filter": "Filter notes",
+    "archived": "Archived",
+    "pinned": "Pinned",
+    "others": "Other notes",
+    "list_label": "Notes list",
+    "loading": "Loading notes…",
+    "load_failed": "The notes could not be loaded.",
+    "retry": "Try again",
+    "create_failed": "The note was not created. Try again.",
+    "off": "Notes are turned off.",
+    "empty": "No notes yet. Start one with New note.",
+    "empty_filter": "No note matches the filter.",
+    "empty_archived": "No archived notes.",
+    "untitled": "Untitled note",
+    "items": "{done}/{total}",
+    "items_hint": "Checklist: {done} of {total} done",
+    "links": "Links: {n}",
+    "changed": "Changed {when}",
+    "not_found": "Note not found",
+    "close": "Close note",
+    "title_label": "Title",
+    "body_label": "Text",
+    "body_placeholder": "Write a note…",
+    "checklist": "Checklist",
+    "checklist_add": "Add a line",
+    "checklist_remove": "Remove line",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "archive": "Archive",
+    "unarchive": "Unarchive",
+    "delete": "Delete",
+    "deleted": "Note deleted",
+    "undo": "Undo",
+    "saving": "Saving…",
+    "not_saved": "Not saved, retry",
+    "move_up": "Move up",
+    "move_down": "Move down",
+    "links_title": "Links",
+    "link_add": "Add link",
+    "link_paste": "Paste a link, a msg: or topic: reference, or an issue key",
+    "link_remove": "Remove link",
+    "not_a_link": "Not a link",
+    "link_left": "Link to a workspace you left",
+    "kind": {
+      "msg": "Message",
+      "topic": "Topic",
+      "issue": "Issue",
+      "event": "Calendar entry",
+      "doc": "Doc",
+      "channel": "Channel",
+      "url": "Web link"
+    },
+    "picker_filter": "Find a note",
+    "added": "Added to {title}",
+    "open": "Open",
+    "created": "Note created",
+    "too_long": "This is too long to save.",
+    "full": "You have reached the limit of {max} notes. Delete some first.",
+    "settings": {
+      "title": "Notes",
+      "export": "Export notes",
+      "export_hint": "Download every note, archived ones too, as one JSON file.",
+      "erase": "Erase all notes",
+      "erase_hint": "Deletes every note you have. This cannot be undone.",
+      "erase_confirm": "Type {word} to confirm",
+      "erase_word": "erase",
+      "erased": "All notes erased."
+    },
+    "add_to_note": "Add to note"
   },
   "offline": {
     "banner": {

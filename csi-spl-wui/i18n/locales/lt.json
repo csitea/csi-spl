@@ -595,7 +595,8 @@
     "your_status_online": "Jūsų būsena: prisijungęs",
     "your_status_offline": "Jūsų būsena: neprisijungęs",
     "monitoring": "Stebėsena",
-    "reporting": "Ataskaitos"
+    "reporting": "Ataskaitos",
+    "notes": "Užrašai"
   },
   "composer": {
     "biz_owner": "verslo savininkas",
@@ -771,7 +772,8 @@
         "risks": "Rasti rizikas",
         "calendar": "Pridėti į kalendorių",
         "failed": "DI veiksmas nepavyko. Bandykite dar kartą."
-      }
+      },
+      "add_to_note": "Pridėti prie užrašo"
     },
     "emoji": {
       "add": "Pridėti emoji",
@@ -1588,7 +1590,8 @@
     "open_parent": "Atidaryti tėvinę",
     "move": "Perkelti į…",
     "epic_actions": "Veiksmai: {key}",
-    "select_epic": "Atverkite epiką ar funkciją, kad galėtumėte su ja dirbti"
+    "select_epic": "Atverkite epiką ar funkciją, kad galėtumėte su ja dirbti",
+    "add_to_note": "Pridėti prie užrašo"
   },
   "issues_epic_close": {
     "title": "Uždaryti {key} ir {count} atvirą jo užduotį? | Uždaryti {key} ir atviras jo užduotis: {count}?",
@@ -3436,6 +3439,79 @@
         "other": "Užklausa nebuvo įvykdyta"
       }
     }
+  },
+  "notes": {
+    "title": "Užrašai",
+    "new": "Naujas užrašas",
+    "filter": "Filtruoti užrašus",
+    "archived": "Archyvuoti",
+    "pinned": "Prisegti",
+    "others": "Kiti užrašai",
+    "list_label": "Užrašų sąrašas",
+    "loading": "Įkeliami užrašai…",
+    "load_failed": "Nepavyko įkelti užrašų.",
+    "retry": "Bandyti dar kartą",
+    "create_failed": "Užrašas nesukurtas. Bandykite dar kartą.",
+    "off": "Užrašai išjungti.",
+    "empty": "Užrašų dar nėra. Pradėkite mygtuku „Naujas užrašas“.",
+    "empty_filter": "Filtrą atitinkančių užrašų nėra.",
+    "empty_archived": "Archyvuotų užrašų nėra.",
+    "untitled": "Užrašas be pavadinimo",
+    "items": "{done}/{total}",
+    "items_hint": "Kontrolinis sąrašas: atlikta {done} iš {total}",
+    "links": "Nuorodos: {n}",
+    "changed": "Pakeista {when}",
+    "not_found": "Užrašas nerastas",
+    "close": "Uždaryti užrašą",
+    "title_label": "Pavadinimas",
+    "body_label": "Tekstas",
+    "body_placeholder": "Rašykite užrašą…",
+    "checklist": "Kontrolinis sąrašas",
+    "checklist_add": "Pridėti eilutę",
+    "checklist_remove": "Pašalinti eilutę",
+    "pin": "Prisegti",
+    "unpin": "Atsegti",
+    "archive": "Archyvuoti",
+    "unarchive": "Grąžinti iš archyvo",
+    "delete": "Ištrinti",
+    "deleted": "Užrašas ištrintas",
+    "undo": "Atšaukti",
+    "saving": "Įrašoma…",
+    "not_saved": "Neįrašyta, bandykite dar kartą",
+    "move_up": "Perkelti aukštyn",
+    "move_down": "Perkelti žemyn",
+    "links_title": "Nuorodos",
+    "link_add": "Pridėti nuorodą",
+    "link_paste": "Įklijuokite nuorodą, msg: ar topic: nuorodą arba problemos raktą",
+    "link_remove": "Pašalinti nuorodą",
+    "not_a_link": "Tai ne nuoroda",
+    "link_left": "Nuoroda į darbo sritį, kurią palikote",
+    "kind": {
+      "msg": "Žinutė",
+      "topic": "Tema",
+      "issue": "Problema",
+      "event": "Kalendoriaus įrašas",
+      "doc": "Dokumentas",
+      "channel": "Kanalas",
+      "url": "Interneto nuoroda"
+    },
+    "picker_filter": "Rasti užrašą",
+    "added": "Pridėta prie {title}",
+    "open": "Atidaryti",
+    "created": "Užrašas sukurtas",
+    "too_long": "Tai per ilga, kad būtų įrašyta.",
+    "full": "Pasiekėte {max} užrašų ribą. Pirmiausia ištrinkite kelis.",
+    "settings": {
+      "title": "Užrašai",
+      "export": "Eksportuoti užrašus",
+      "export_hint": "Atsisiųsti visus užrašus, taip pat ir archyvuotus, vienu JSON failu.",
+      "erase": "Ištrinti visus užrašus",
+      "erase_hint": "Ištrina visus jūsų užrašus. Šio veiksmo atšaukti negalima.",
+      "erase_confirm": "Patvirtinimui įveskite {word}",
+      "erase_word": "ištrinti",
+      "erased": "Visi užrašai ištrinti."
+    },
+    "add_to_note": "Pridėti prie užrašo"
   },
   "offline": {
     "banner": {

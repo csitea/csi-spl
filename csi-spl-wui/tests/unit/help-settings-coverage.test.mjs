@@ -39,6 +39,7 @@ const RAIL_HELP = {
   calendar: { slug: 'calendar', word: 'calendar' },
   monitoring: { slug: 'monitoring', word: 'monitoring' },
   reporting: { slug: 'reporting', word: 'reporting' },
+  notes: { slug: 'notes', word: 'notes' },
 }
 
 let failed = 0

@@ -389,6 +389,9 @@ export const UI_ICON_PATHS = {
   // Reporting (spec 143 1.1, SPL-2351): an axis with three bars (lucide
   // chart-column), the rail's one reporting glyph.
   "chart-column": ["M3 3v16a2 2 0 0 0 2 2h16", "M18 17V9", "M13 17V5", "M8 17v-3"],
+  // Notes (spec 155 2.6, B5 SPL-4123): a sheet with a folded corner (lucide
+  // sticky-note), the rail's one notes glyph.
+  notes: ["M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8Z", "M15 3v4a2 2 0 0 0 2 2h4"],
 } as const
 
 export type UiIconName = keyof typeof UI_ICON_PATHS

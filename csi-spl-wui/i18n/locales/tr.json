@@ -595,7 +595,8 @@
     "your_status_online": "Durumunuz: çevrimiçi",
     "your_status_offline": "Durumunuz: çevrimdışı",
     "monitoring": "İzleme",
-    "reporting": "Raporlama"
+    "reporting": "Raporlama",
+    "notes": "Notlar"
   },
   "composer": {
     "biz_owner": "işletme sahibi",
@@ -771,7 +772,8 @@
         "risks": "Riskleri bul",
         "calendar": "Takvime ekle",
         "failed": "Yapay zekâ işlemi tamamlanamadı. Yeniden deneyin."
-      }
+      },
+      "add_to_note": "Nota ekle"
     },
     "emoji": {
       "add": "Emoji ekle",
@@ -1588,7 +1590,8 @@
     "open_parent": "Üst öğeyi aç",
     "move": "Taşı…",
     "epic_actions": "{key} için eylemler",
-    "select_epic": "Üzerinde işlem yapmak için bir epik veya özellik açın"
+    "select_epic": "Üzerinde işlem yapmak için bir epik veya özellik açın",
+    "add_to_note": "Nota ekle"
   },
   "issues_epic_close": {
     "title": "{key} ve içindeki {count} açık iş kapatılsın mı? | {key} ve içindeki {count} açık iş kapatılsın mı?",
@@ -3436,6 +3439,79 @@
         "other": "Sorgu çalıştırılmadı"
       }
     }
+  },
+  "notes": {
+    "title": "Notlar",
+    "new": "Yeni not",
+    "filter": "Notları filtrele",
+    "archived": "Arşivlenenler",
+    "pinned": "Sabitlenenler",
+    "others": "Diğer notlar",
+    "list_label": "Not listesi",
+    "loading": "Notlar yükleniyor…",
+    "load_failed": "Notlar yüklenemedi.",
+    "retry": "Yeniden dene",
+    "create_failed": "Not oluşturulamadı. Yeniden deneyin.",
+    "off": "Notlar kapalı.",
+    "empty": "Henüz not yok. Yeni not ile bir tane başlatın.",
+    "empty_filter": "Filtreyle eşleşen not yok.",
+    "empty_archived": "Arşivlenmiş not yok.",
+    "untitled": "Başlıksız not",
+    "items": "{done}/{total}",
+    "items_hint": "Yapılacaklar listesi: {total} maddeden {done} tamamlandı",
+    "links": "Bağlantılar: {n}",
+    "changed": "Değiştirildi: {when}",
+    "not_found": "Not bulunamadı",
+    "close": "Notu kapat",
+    "title_label": "Başlık",
+    "body_label": "Metin",
+    "body_placeholder": "Bir not yazın…",
+    "checklist": "Yapılacaklar listesi",
+    "checklist_add": "Satır ekle",
+    "checklist_remove": "Satırı kaldır",
+    "pin": "Sabitle",
+    "unpin": "Sabitlemeyi kaldır",
+    "archive": "Arşivle",
+    "unarchive": "Arşivden çıkar",
+    "delete": "Sil",
+    "deleted": "Not silindi",
+    "undo": "Geri al",
+    "saving": "Kaydediliyor…",
+    "not_saved": "Kaydedilmedi, yeniden dene",
+    "move_up": "Yukarı taşı",
+    "move_down": "Aşağı taşı",
+    "links_title": "Bağlantılar",
+    "link_add": "Bağlantı ekle",
+    "link_paste": "Bir bağlantı, msg: veya topic: başvurusu ya da bir konu anahtarı yapıştırın",
+    "link_remove": "Bağlantıyı kaldır",
+    "not_a_link": "Bu bir bağlantı değil",
+    "link_left": "Ayrıldığınız bir çalışma alanına bağlantı",
+    "kind": {
+      "msg": "Mesaj",
+      "topic": "Başlık",
+      "issue": "Konu",
+      "event": "Takvim kaydı",
+      "doc": "Belge",
+      "channel": "Kanal",
+      "url": "Web bağlantısı"
+    },
+    "picker_filter": "Not bul",
+    "added": "{title} notuna eklendi",
+    "open": "Aç",
+    "created": "Not oluşturuldu",
+    "too_long": "Bu, kaydedilemeyecek kadar uzun.",
+    "full": "{max} not sınırına ulaştınız. Önce bazılarını silin.",
+    "settings": {
+      "title": "Notlar",
+      "export": "Notları dışa aktar",
+      "export_hint": "Arşivlenenler dahil tüm notları tek bir JSON dosyası olarak indirin.",
+      "erase": "Tüm notları sil",
+      "erase_hint": "Tüm notlarınızı siler. Bu işlem geri alınamaz.",
+      "erase_confirm": "Onaylamak için {word} yazın",
+      "erase_word": "sil",
+      "erased": "Tüm notlar silindi."
+    },
+    "add_to_note": "Nota ekle"
   },
   "offline": {
     "banner": {

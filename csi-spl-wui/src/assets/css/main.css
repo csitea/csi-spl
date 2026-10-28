@@ -216,8 +216,8 @@ html.pane-dragging * {
     white-space: nowrap;
     font-size: 0.625rem;
   }
-  .sidebar-rail :is([data-reorder-id=channels], [data-reorder-id=dm], [data-reorder-id=issues], [data-reorder-id=topics], [data-reorder-id=flow], [data-reorder-id=calendar]) + :is([data-reorder-id=events], [data-reorder-id=people], [data-reorder-id=agents], [data-reorder-id=boxes], [data-reorder-id=monitoring], [data-reorder-id=reporting], [data-reorder-id=archive])::before,
-  .sidebar-rail :is([data-reorder-id=events], [data-reorder-id=people], [data-reorder-id=agents], [data-reorder-id=boxes], [data-reorder-id=monitoring], [data-reorder-id=reporting], [data-reorder-id=archive]) + :is([data-reorder-id=channels], [data-reorder-id=dm], [data-reorder-id=issues], [data-reorder-id=topics], [data-reorder-id=flow], [data-reorder-id=calendar])::before {
+  .sidebar-rail :is([data-reorder-id=channels], [data-reorder-id=dm], [data-reorder-id=issues], [data-reorder-id=topics], [data-reorder-id=flow], [data-reorder-id=calendar], [data-reorder-id=notes]) + :is([data-reorder-id=events], [data-reorder-id=people], [data-reorder-id=agents], [data-reorder-id=boxes], [data-reorder-id=monitoring], [data-reorder-id=reporting], [data-reorder-id=archive])::before,
+  .sidebar-rail :is([data-reorder-id=events], [data-reorder-id=people], [data-reorder-id=agents], [data-reorder-id=boxes], [data-reorder-id=monitoring], [data-reorder-id=reporting], [data-reorder-id=archive]) + :is([data-reorder-id=channels], [data-reorder-id=dm], [data-reorder-id=issues], [data-reorder-id=topics], [data-reorder-id=flow], [data-reorder-id=calendar], [data-reorder-id=notes])::before {
     content: "";
     position: absolute;
     inset-inline: 20%;

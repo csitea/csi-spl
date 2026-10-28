@@ -39,6 +39,11 @@ export const MONITORING_TAB = 'monitoring'
  *  (/reporting/releases, ...). A page, so not one of the sidebar lists. */
 export const REPORTING_TAB = 'reporting'
 
+/** Notes (spec 155 2.6, B5 SPL-4123): /notes, the person's own list, one
+ *  sheet like Calendar; a note opens as /notes?note=<id>. A page, so not one
+ *  of the sidebar lists. */
+export const NOTES_TAB = 'notes'
+
 /** Names accepted after `/switch-pane:`. `messages` is the direct-message pane.
  *  `topic` and `topics` still parse (the Topics pane is gone, t1 e4bfddb1)
  *  and open Channels. */
@@ -55,7 +60,7 @@ const SWITCH_PANE_NAMES = {
  * Search and settings return null so the reader's own choice stays.
  * The call site starts on direct messages.
  * @param {string} path vue-router path, no query
- * @returns {'dm' | 'channels' | 'flow' | 'users' | 'issues' | 'archive' | 'people' | 'calendar' | 'monitoring' | 'reporting' | null}
+ * @returns {'dm' | 'channels' | 'flow' | 'users' | 'issues' | 'archive' | 'people' | 'calendar' | 'monitoring' | 'reporting' | 'notes' | null}
  */
 export function tabForPath(path) {
   const p = productPath(path)
@@ -75,6 +80,7 @@ export function tabForPath(path) {
   /* SPL-3250: and an old /events link into Monitoring -> Events */
   if (p === '/events') return MONITORING_TAB
   if (p === '/reporting' || p.startsWith('/reporting/')) return REPORTING_TAB
+  if (p === '/notes') return NOTES_TAB
   return null
 }
 
@@ -87,6 +93,7 @@ const TAB_ROUTES = {
   [CALENDAR_TAB]: '/calendar',
   [MONITORING_TAB]: '/monitoring',
   [REPORTING_TAB]: '/reporting',
+  [NOTES_TAB]: '/notes',
 }
 
 /** SPL-3785: the pages the page-backed tabs open (isSectionPage reads them). */

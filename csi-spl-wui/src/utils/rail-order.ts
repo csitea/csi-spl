@@ -13,7 +13,7 @@
 
 import type { UiIconName } from '~/utils/uiIcons'
 
-export type RailId = 'dm' | 'channels' | 'issues' | 'flow' | 'archive' | 'people' | 'calendar' | 'monitoring' | 'reporting'
+export type RailId = 'dm' | 'channels' | 'issues' | 'flow' | 'archive' | 'people' | 'calendar' | 'monitoring' | 'reporting' | 'notes'
 type RailTab = { readonly id: RailId, readonly icon: UiIconName, readonly labelKey: string, readonly phoneLabelKey?: string }
 
 /** The tabs in the default order, with their icon and catalogue key. */
@@ -60,6 +60,12 @@ export const RAIL_TABS: readonly RailTab[] = Object.freeze([
      before it is drawn with Reporting appended (parseRailOrder). The hub
      admits it since SPL-2587 (rdb 0209). */
   Object.freeze({ id: 'reporting', icon: 'chart-column', labelKey: 'sidebar.reporting' }),
+  /* spec 155 2.6 (SPL-2403, B5 SPL-4123): Notes opens /notes, the person's
+     own list, rail-only like Calendar. Last here, so a stored order from
+     before it is drawn with Notes appended before Archive (parseRailOrder);
+     the default order puts it after Calendar (D5, DEFAULT_RAIL_ORDER). The
+     hub admits it since spec 155 B1 (auth.RailTabs, rdb human_rail_order_notes). */
+  Object.freeze({ id: 'notes', icon: 'notes', labelKey: 'sidebar.notes' }),
 ])
 
 /** Every drawn rail id - a set, not the drawn order. */
@@ -89,6 +95,7 @@ export const RAIL_RETIRED: readonly string[] = Object.freeze(['topics', 'agents'
  * SPL-1990: the hub admits monitoring (auth.RailTabs, rdb 0198), so none.
  * SPL-2351 (spec 143 1.1): reporting waited here until SPL-2587 (auth.RailTabs,
  * rdb 0209) admitted it, so none.
+ * Spec 155 B5: notes needs no wait, the hub admitted it first (B1), so none.
  */
 export const RAIL_HUB_PENDING: readonly string[] = Object.freeze([])
 
@@ -121,8 +128,14 @@ export function pinRailOrder<T extends string>(order: readonly T[]): T[] {
  * 2b61230c, msg a351c864, "A"): in RAIL_IDS order Calendar sat between Boxes
  * and Archive, so the desktop rail drew 3 talk/workspace lines (spec 109
  * T015); grouped, it draws 1. A stored order is drawn as stored.
+ * Spec 155 D5 (B5): Notes right after Calendar.
  */
-export const DEFAULT_RAIL_ORDER: readonly RailId[] = Object.freeze(pinRailOrder(moveTo([...RAIL_IDS], 'calendar', RAIL_IDS.indexOf('flow') + 1)))
+export const DEFAULT_RAIL_ORDER: readonly RailId[] = Object.freeze(pinRailOrder(defaultOrder()))
+
+function defaultOrder(): RailId[] {
+  const withCalendar = moveTo([...RAIL_IDS], 'calendar', RAIL_IDS.indexOf('flow') + 1)
+  return moveTo(withCalendar, 'notes', withCalendar.indexOf('calendar') + 1)
+}
 
 /** Can this rail tab be dragged / stepped? Archive cannot. */
 export function isRailMovable(id: string): boolean {

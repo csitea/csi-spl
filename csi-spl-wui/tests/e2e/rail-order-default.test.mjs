@@ -81,6 +81,13 @@ const railOf = (p) => p.$$eval('[data-testid=sidebar-rail] [data-reorder-id]', (
    Pressing Archive and moving it previews nothing. Released with Escape-free
    pointercancel so nothing is saved. */
 async function dragProbe(p, tag, rail) {
+  /* spec 155 B5: with Notes the 820 px strip holds 13 controls (10 tabs plus
+     Help, Docs, Settings, ~68 px each) in an 816 px row, so it overflows and
+     loops like the phone's (useLoopStrip); centring the selected tab can leave
+     the real tabs off screen, a clone copy in their place. Bring the real ones
+     in first: the start of the middle copy never wraps (loopPosition). */
+  await p.$eval('[data-testid=sidebar-rail] [data-reorder-id]', (e) => e.scrollIntoView({ block: 'nearest', inline: 'start' }))
+  await sleep(300)
   const boxes = await p.$$eval('[data-testid=sidebar-rail] [data-reorder-id]', (els) => els.map((e) => {
     const r = e.getBoundingClientRect()
     return { id: e.getAttribute('data-reorder-id'), x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height }
@@ -412,6 +419,46 @@ async function reportingSection(browser, base) {
   }
 }
 
+/* spec 155 C17 (B5, SPL-4123): the Notes rail tab sits right after Calendar
+   for a new member, opens /notes, the sidebar keeps the icon rail only, and
+   the page lists the mock notes: the Pinned group first, the filter box and
+   the Archived switch narrow it. CONTROL: before B5 there is no
+   sidebar-tab-notes and every check here FAILs. */
+async function notesSection(browser, base) {
+  const path = (p) => new URL(p.url()).pathname
+  const at = (p, want) => p.waitForFunction((w) => location.pathname === w, { timeout: 15000 }, want).then(() => true, () => false)
+  const rows = (p) => p.$$eval('[data-test=notes-row]', (els) => els.map((e) => e.getAttribute('data-note-id')))
+  for (const [width, touch] of [[1440, false], [360, true]]) {
+    const tag = `${width}px notes`
+    const p = await browser.newPage()
+    await p.setViewport({ width, height: 900, isMobile: touch, hasTouch: touch })
+    await p.goto(`${base}/`, { waitUntil: 'networkidle2', timeout: NAV })
+    await p.waitForSelector('[data-test=top-bar]', { timeout: NAV })
+    if (!(await signIn(p, undefined))) throw new Error('no session store')
+    await p.waitForSelector('[data-testid=sidebar-rail] [data-reorder-id]', { timeout: NAV })
+    await sleep(400)
+    const rail = await railOf(p)
+    check(`${tag}: the rail has Notes right after Calendar (D5)`, rail.includes('notes') && rail.indexOf('notes') === rail.indexOf('calendar') + 1 && rail.at(-1) === 'archive', { rail })
+    await p.evaluate(() => document.querySelector('[data-testid=sidebar-tab-notes]')?.click())
+    check(`${tag}: the rail tab lands on /notes`, await at(p, '/notes'), path(p))
+    check(`${tag}: the list renders`, Boolean(await p.waitForSelector('[data-test=notes-row]', { visible: true, timeout: NAV }).catch(() => null)))
+    check(`${tag}: the heading reads Notes`, (await p.$eval('[data-test=notes-heading]', (e) => e.textContent.trim()).catch(() => '')) === 'Notes')
+    check(`${tag}: Pinned first, then the rest; no archived note`, same(await rows(p), ['mock-note-1', 'mock-note-2', 'mock-note-3']) && Boolean(await p.$('[data-test=notes-group-pinned]')), await rows(p))
+    check(`${tag}: the rail tab reads as selected`, (await p.$eval('[data-testid=sidebar-tab-notes]', (e) => e.getAttribute('aria-selected'))) === 'true')
+    if (!touch) check(`${tag}: the sidebar keeps the icon rail only`, await p.$eval('nav.sidebar', (e) => e.classList.contains('sidebar--rail')))
+    await p.type('[data-test=notes-filter]', 'ideas')
+    await sleep(200)
+    check(`${tag}: the filter box narrows the list`, same(await rows(p), ['mock-note-2']), await rows(p))
+    await p.$eval('[data-test=notes-filter]', (e) => { e.value = ''; e.dispatchEvent(new Event('input', { bubbles: true })) })
+    await p.click('[data-test=notes-archived]')
+    await sleep(200)
+    check(`${tag}: Archived shows the archived note only`, same(await rows(p), ['mock-note-4']), await rows(p))
+    check(`${tag}: no sideways scroll`, await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
+    if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/notes-${width}.png` })
+    await p.close()
+  }
+}
+
 const server = await startServer()
 const browser = await launch()
 let code = 0
@@ -422,6 +469,7 @@ try {
   await railDividerLabels(browser, server.base)
   await monitoringSection(browser, server.base)
   await reportingSection(browser, server.base)
+  await notesSection(browser, server.base)
 } catch (e) {
   console.error(e)
   code = 1

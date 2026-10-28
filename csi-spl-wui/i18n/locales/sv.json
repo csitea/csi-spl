@@ -595,7 +595,8 @@
     "your_status_online": "Din status: online",
     "your_status_offline": "Din status: offline",
     "monitoring": "Övervakning",
-    "reporting": "Rapporter"
+    "reporting": "Rapporter",
+    "notes": "Anteckningar"
   },
   "composer": {
     "biz_owner": "företagsägare",
@@ -771,7 +772,8 @@
         "risks": "Hitta risker",
         "calendar": "Lägg till i kalendern",
         "failed": "AI-åtgärden gick inte igenom. Försök igen."
-      }
+      },
+      "add_to_note": "Lägg till i anteckning"
     },
     "emoji": {
       "add": "Lägg till emoji",
@@ -1588,7 +1590,8 @@
     "open_parent": "Öppna överordnad",
     "move": "Flytta till…",
     "epic_actions": "Åtgärder för {key}",
-    "select_epic": "Öppna ett epos eller en funktion för att agera på det"
+    "select_epic": "Öppna ett epos eller en funktion för att agera på det",
+    "add_to_note": "Lägg till i anteckning"
   },
   "issues_epic_close": {
     "title": "Stänga {key} och dess {count} öppna ärende? | Stänga {key} och dess {count} öppna ärenden?",
@@ -3436,6 +3439,79 @@
         "other": "Frågan kördes inte"
       }
     }
+  },
+  "notes": {
+    "title": "Anteckningar",
+    "new": "Ny anteckning",
+    "filter": "Filtrera anteckningar",
+    "archived": "Arkiverade",
+    "pinned": "Fästa",
+    "others": "Övriga anteckningar",
+    "list_label": "Anteckningslista",
+    "loading": "Läser in anteckningar…",
+    "load_failed": "Anteckningarna kunde inte läsas in.",
+    "retry": "Försök igen",
+    "create_failed": "Anteckningen skapades inte. Försök igen.",
+    "off": "Anteckningar är avstängda.",
+    "empty": "Inga anteckningar än. Börja med Ny anteckning.",
+    "empty_filter": "Ingen anteckning matchar filtret.",
+    "empty_archived": "Inga arkiverade anteckningar.",
+    "untitled": "Namnlös anteckning",
+    "items": "{done}/{total}",
+    "items_hint": "Checklista: {done} av {total} klara",
+    "links": "Länkar: {n}",
+    "changed": "Ändrad {when}",
+    "not_found": "Anteckningen hittades inte",
+    "close": "Stäng anteckningen",
+    "title_label": "Rubrik",
+    "body_label": "Brödtext",
+    "body_placeholder": "Skriv en anteckning…",
+    "checklist": "Checklista",
+    "checklist_add": "Lägg till en rad",
+    "checklist_remove": "Ta bort raden",
+    "pin": "Fäst",
+    "unpin": "Lossa",
+    "archive": "Arkivera",
+    "unarchive": "Återställ från arkiv",
+    "delete": "Ta bort",
+    "deleted": "Anteckningen togs bort",
+    "undo": "Ångra",
+    "saving": "Sparar…",
+    "not_saved": "Inte sparad, försök igen",
+    "move_up": "Flytta upp",
+    "move_down": "Flytta ned",
+    "links_title": "Länkar",
+    "link_add": "Lägg till länk",
+    "link_paste": "Klistra in en länk, en msg:- eller topic:-referens eller en ärendenyckel",
+    "link_remove": "Ta bort länken",
+    "not_a_link": "Inte en länk",
+    "link_left": "Länk till en arbetsyta du har lämnat",
+    "kind": {
+      "msg": "Meddelande",
+      "topic": "Ämne",
+      "issue": "Ärende",
+      "event": "Kalenderpost",
+      "doc": "Dokument",
+      "channel": "Kanal",
+      "url": "Webblänk"
+    },
+    "picker_filter": "Hitta en anteckning",
+    "added": "Tillagd i {title}",
+    "open": "Öppna",
+    "created": "Anteckningen skapades",
+    "too_long": "Det här är för långt för att sparas.",
+    "full": "Du har nått gränsen på {max} anteckningar. Ta bort några först.",
+    "settings": {
+      "title": "Anteckningar",
+      "export": "Exportera anteckningar",
+      "export_hint": "Ladda ned alla anteckningar, även arkiverade, som en JSON-fil.",
+      "erase": "Radera alla anteckningar",
+      "erase_hint": "Tar bort alla dina anteckningar. Det går inte att ångra.",
+      "erase_confirm": "Skriv {word} för att bekräfta",
+      "erase_word": "radera",
+      "erased": "Alla anteckningar raderades."
+    },
+    "add_to_note": "Lägg till i anteckning"
   },
   "offline": {
     "banner": {

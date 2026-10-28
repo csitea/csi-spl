@@ -595,7 +595,8 @@
     "your_status_online": "Sinu olek: võrgus",
     "your_status_offline": "Sinu olek: võrguühenduseta",
     "monitoring": "Seire",
-    "reporting": "Aruanded"
+    "reporting": "Aruanded",
+    "notes": "Märkmed"
   },
   "composer": {
     "biz_owner": "ettevõtte omanik",
@@ -771,7 +772,8 @@
         "risks": "Leia riskid",
         "calendar": "Lisa kalendrisse",
         "failed": "AI toiming ei õnnestunud. Proovi uuesti."
-      }
+      },
+      "add_to_note": "Lisa märkmesse"
     },
     "emoji": {
       "add": "Lisa emoji",
@@ -1588,7 +1590,8 @@
     "open_parent": "Ava ülemülesanne",
     "move": "Teisalda…",
     "epic_actions": "Toimingud: {key}",
-    "select_epic": "Ava epic või funktsioon, et sellega tegutseda"
+    "select_epic": "Ava epic või funktsioon, et sellega tegutseda",
+    "add_to_note": "Lisa märkmesse"
   },
   "issues_epic_close": {
     "title": "Kas sulgeda {key} ja selle {count} avatud teema? | Kas sulgeda {key} ja selle {count} avatud teemat?",
@@ -3436,6 +3439,79 @@
         "other": "Päringut ei käivitatud"
       }
     }
+  },
+  "notes": {
+    "title": "Märkmed",
+    "new": "Uus märge",
+    "filter": "Filtreeri märkmeid",
+    "archived": "Arhiveeritud",
+    "pinned": "Kinnitatud",
+    "others": "Muud märkmed",
+    "list_label": "Märkmete loend",
+    "loading": "Märkmete laadimine…",
+    "load_failed": "Märkmeid ei õnnestunud laadida.",
+    "retry": "Proovi uuesti",
+    "create_failed": "Märget ei loodud. Proovi uuesti.",
+    "off": "Märkmed on välja lülitatud.",
+    "empty": "Märkmeid veel pole. Alusta nupuga Uus märge.",
+    "empty_filter": "Ükski märge ei vasta filtrile.",
+    "empty_archived": "Arhiveeritud märkmeid pole.",
+    "untitled": "Pealkirjata märge",
+    "items": "{done}/{total}",
+    "items_hint": "Kontrollnimekiri: {done} / {total} tehtud",
+    "links": "Lingid: {n}",
+    "changed": "Muudetud {when}",
+    "not_found": "Märget ei leitud",
+    "close": "Sulge märge",
+    "title_label": "Pealkiri",
+    "body_label": "Tekst",
+    "body_placeholder": "Kirjuta märge…",
+    "checklist": "Kontrollnimekiri",
+    "checklist_add": "Lisa rida",
+    "checklist_remove": "Eemalda rida",
+    "pin": "Kinnita",
+    "unpin": "Vabasta",
+    "archive": "Arhiveeri",
+    "unarchive": "Taasta arhiivist",
+    "delete": "Kustuta",
+    "deleted": "Märge kustutatud",
+    "undo": "Võta tagasi",
+    "saving": "Salvestamine…",
+    "not_saved": "Ei salvestatud, proovi uuesti",
+    "move_up": "Liiguta üles",
+    "move_down": "Liiguta alla",
+    "links_title": "Lingid",
+    "link_add": "Lisa link",
+    "link_paste": "Kleebi link, msg: või topic: viide või probleemi võti",
+    "link_remove": "Eemalda link",
+    "not_a_link": "See pole link",
+    "link_left": "Link tööruumi, millest lahkusid",
+    "kind": {
+      "msg": "Sõnum",
+      "topic": "Teema",
+      "issue": "Probleem",
+      "event": "Kalendrikirje",
+      "doc": "Dokument",
+      "channel": "Kanal",
+      "url": "Veebilink"
+    },
+    "picker_filter": "Otsi märget",
+    "added": "Lisatud märkmesse {title}",
+    "open": "Ava",
+    "created": "Märge loodud",
+    "too_long": "See on salvestamiseks liiga pikk.",
+    "full": "Oled jõudnud {max} märkme piirini. Kustuta enne mõni.",
+    "settings": {
+      "title": "Märkmed",
+      "export": "Ekspordi märkmed",
+      "export_hint": "Laadi kõik märkmed, ka arhiveeritud, alla ühe JSON-failina.",
+      "erase": "Kustuta kõik märkmed",
+      "erase_hint": "Kustutab kõik sinu märkmed. Seda ei saa tagasi võtta.",
+      "erase_confirm": "Kinnitamiseks sisesta {word}",
+      "erase_word": "kustuta",
+      "erased": "Kõik märkmed on kustutatud."
+    },
+    "add_to_note": "Lisa märkmesse"
   },
   "offline": {
     "banner": {

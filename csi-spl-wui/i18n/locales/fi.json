@@ -595,7 +595,8 @@
     "your_status_online": "Tilasi: paikalla",
     "your_status_offline": "Tilasi: offline",
     "monitoring": "Valvonta",
-    "reporting": "Raportit"
+    "reporting": "Raportit",
+    "notes": "Muistiinpanot"
   },
   "composer": {
     "biz_owner": "yrityksen omistaja",
@@ -771,7 +772,8 @@
         "risks": "Etsi riskit",
         "calendar": "Lisää kalenteriin",
         "failed": "AI-toiminto ei onnistunut. Yritä uudelleen."
-      }
+      },
+      "add_to_note": "Lisää muistiinpanoon"
     },
     "emoji": {
       "add": "Lisää emoji",
@@ -1588,7 +1590,8 @@
     "open_parent": "Avaa yläasia",
     "move": "Siirrä…",
     "epic_actions": "Toiminnot: {key}",
-    "select_epic": "Avaa eepos tai ominaisuus, jotta voit toimia sen suhteen"
+    "select_epic": "Avaa eepos tai ominaisuus, jotta voit toimia sen suhteen",
+    "add_to_note": "Lisää muistiinpanoon"
   },
   "issues_epic_close": {
     "title": "Suljetaanko {key} ja sen {count} avoin tehtävä? | Suljetaanko {key} ja sen {count} avointa tehtävää?",
@@ -3436,6 +3439,79 @@
         "other": "Kyselyä ei suoritettu"
       }
     }
+  },
+  "notes": {
+    "title": "Muistiinpanot",
+    "new": "Uusi muistiinpano",
+    "filter": "Suodata muistiinpanoja",
+    "archived": "Arkistoidut",
+    "pinned": "Kiinnitetyt",
+    "others": "Muut muistiinpanot",
+    "list_label": "Muistiinpanoluettelo",
+    "loading": "Ladataan muistiinpanoja…",
+    "load_failed": "Muistiinpanoja ei voitu ladata.",
+    "retry": "Yritä uudelleen",
+    "create_failed": "Muistiinpanoa ei luotu. Yritä uudelleen.",
+    "off": "Muistiinpanot on poistettu käytöstä.",
+    "empty": "Ei vielä muistiinpanoja. Aloita painikkeella Uusi muistiinpano.",
+    "empty_filter": "Mikään muistiinpano ei vastaa suodatinta.",
+    "empty_archived": "Ei arkistoituja muistiinpanoja.",
+    "untitled": "Nimetön muistiinpano",
+    "items": "{done}/{total}",
+    "items_hint": "Tarkistuslista: {done}/{total} tehty",
+    "links": "Linkit: {n}",
+    "changed": "Muutettu {when}",
+    "not_found": "Muistiinpanoa ei löytynyt",
+    "close": "Sulje muistiinpano",
+    "title_label": "Otsikko",
+    "body_label": "Teksti",
+    "body_placeholder": "Kirjoita muistiinpano…",
+    "checklist": "Tarkistuslista",
+    "checklist_add": "Lisää rivi",
+    "checklist_remove": "Poista rivi",
+    "pin": "Kiinnitä",
+    "unpin": "Irrota",
+    "archive": "Arkistoi",
+    "unarchive": "Palauta arkistosta",
+    "delete": "Poista",
+    "deleted": "Muistiinpano poistettu",
+    "undo": "Kumoa",
+    "saving": "Tallennetaan…",
+    "not_saved": "Ei tallennettu, yritä uudelleen",
+    "move_up": "Siirrä ylös",
+    "move_down": "Siirrä alas",
+    "links_title": "Linkit",
+    "link_add": "Lisää linkki",
+    "link_paste": "Liitä linkki, msg:- tai topic:-viittaus tai asian tunnus",
+    "link_remove": "Poista linkki",
+    "not_a_link": "Ei linkki",
+    "link_left": "Linkki työtilaan, josta olet lähtenyt",
+    "kind": {
+      "msg": "Viesti",
+      "topic": "Aihe",
+      "issue": "Asia",
+      "event": "Kalenterimerkintä",
+      "doc": "Dokumentti",
+      "channel": "Kanava",
+      "url": "Verkkolinkki"
+    },
+    "picker_filter": "Etsi muistiinpano",
+    "added": "Lisätty muistiinpanoon {title}",
+    "open": "Avaa",
+    "created": "Muistiinpano luotu",
+    "too_long": "Tämä on liian pitkä tallennettavaksi.",
+    "full": "Olet saavuttanut {max} muistiinpanon rajan. Poista ensin joitakin.",
+    "settings": {
+      "title": "Muistiinpanot",
+      "export": "Vie muistiinpanot",
+      "export_hint": "Lataa kaikki muistiinpanot, myös arkistoidut, yhtenä JSON-tiedostona.",
+      "erase": "Poista kaikki muistiinpanot",
+      "erase_hint": "Poistaa kaikki muistiinpanosi. Tätä ei voi kumota.",
+      "erase_confirm": "Vahvista kirjoittamalla {word}",
+      "erase_word": "poista",
+      "erased": "Kaikki muistiinpanot poistettu."
+    },
+    "add_to_note": "Lisää muistiinpanoon"
   },
   "offline": {
     "banner": {

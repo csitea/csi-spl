@@ -238,7 +238,7 @@ import { useMessageEdit } from '~/composables/useMessageEdit'
 import { topicFrameDrops, topicFrameRows, topicFrameTasks } from '~/utils/topic-archive.mjs'
 import { useViewerStore } from '~/stores/viewer'
 import { useMobileStack } from '~/composables/useMobileStack'
-import { useKeyboardInset } from '~/composables/useTouchUi'
+import { useKeyboardOpen } from '~/composables/useTouchUi'
 import { MOBILE_STACK_QUERY, isMobileFrontDoor } from '~/utils/mobile-stack.mjs'
 import { isLobbyPath } from '~/utils/lobby-warm.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
@@ -410,9 +410,11 @@ const sectionPage = computed(() => sectionStrip.value && stack.level.value === 2
 /* SPL-3785 slice 3 (spec 043 strip behaviour, section 5): while the
    on-screen keyboard is up the strip folds away, so the field and the
    composer keep the room; it is back at the same place when the keyboard
-   goes. --kb-inset (useKeyboardInset, the visualViewport) is the signal. */
-const kbInset = import.meta.client ? useKeyboardInset() : ref(0)
-const kbdFold = computed(() => sectionStrip.value && kbInset.value > 0)
+   goes. useKeyboardOpen is the signal: --kb-inset (the visualViewport, iOS)
+   or, on Android (owner, t1 c3e53990 msg d4459f4c), the page itself shorter
+   than before a field took the focus (utils/touch-ui layoutKeyboardStep). */
+const kbOpen = import.meta.client ? useKeyboardOpen() : ref(false)
+const kbdFold = computed(() => sectionStrip.value && kbOpen.value)
 /* SPL-3785 slice 6 (owner pick B, t1 c3e53990 poll 12414c26): the strip
    slides away while the reader scrolls a pane down and comes back on a scroll
    up, at the top (utils/section-strip stripScroll), on any route or level

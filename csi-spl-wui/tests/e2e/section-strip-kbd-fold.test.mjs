@@ -8,6 +8,10 @@
 // viewport by a keyboard (as tests/e2e/kb-inset.test.mjs does): the shell
 // says data-mobile-kbd="1" and the strip is not painted; close the keyboard
 // and blur: the strip is painted again at the same y.
+// The Android shape (owner, t1 c3e53990 msg d4459f4c): the viewport meta's
+// interactive-widget=resizes-content makes Android Chrome shrink the whole
+// window for the keyboard (innerHeight AND visualViewport.height drop
+// together), done here by resizing the page's viewport after the focus.
 //
 //   BASE_URL=<generated mock bundle> node tests/e2e/section-strip-kbd-fold.test.mjs
 import { createRequire } from 'node:module'
@@ -68,6 +72,12 @@ const keyboard = (p, open) => p.evaluate(async (kb, open) => {
   for (let i = 0; i < 3; i++) await new Promise((r) => requestAnimationFrame(r))
 }, KB, open)
 
+/* the Android keyboard: the whole window KB px shorter (open) or back (close) */
+async function androidKeyboard(p, width, open) {
+  await p.setViewport({ width, height: open ? 844 - KB : 844, isMobile: true, hasTouch: true })
+  await p.evaluate(async () => { for (let i = 0; i < 3; i++) await new Promise((r) => requestAnimationFrame(r)) })
+}
+
 const focusComposer = (p, on) => p.evaluate((on) => {
   const ta = [...document.querySelectorAll('.composer textarea')].filter((e) => e.getClientRects().length).pop()
   if (!ta) return false
@@ -99,6 +109,15 @@ try {
       await focusComposer(p, false)
       const down = await read(p)
       ok(`${tag}: keyboard down: the strip is back at the same y`, down.painted && down.kbd === null && down.top === before.top, { before: before.top, ...down })
+      /* Android: the window itself KB px shorter while the composer has the focus */
+      const aFocused = await focusComposer(p, true)
+      await androidKeyboard(p, width, true)
+      const aUp = await read(p)
+      ok(`${tag}: Android (window ${KB}px shorter), composer focused: the strip folds (data-mobile-kbd=1, not painted)`, aFocused && aUp.kbd === '1' && !aUp.painted, { focused: aFocused, ...aUp })
+      await androidKeyboard(p, width, false)
+      const aBack = await read(p)
+      ok(`${tag}: Android keyboard down (field still focused, Back): the strip is back at the same y`, aBack.painted && aBack.kbd === null && aBack.top === before.top, { before: before.top, ...aBack })
+      await focusComposer(p, false)
     }
     await p.close()
   }

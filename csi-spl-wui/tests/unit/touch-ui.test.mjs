@@ -14,6 +14,8 @@ const {
   createLongPress,
   isTouchPointer,
   keyboardInset,
+  isTextEntry,
+  layoutKeyboardStep,
 } = await importTs('src/utils/touch-ui.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -65,6 +67,52 @@ describe('keyboardInset', () => {
     assert.equal(keyboardInset(800, undefined), 0)
     assert.equal(keyboardInset(0, { height: 400 }), 0)
     assert.equal(keyboardInset(800, { height: Number.NaN }), 0)
+  })
+})
+
+describe('SPL-3785 layoutKeyboardStep: the Android keyboard (resizes-content)', () => {
+  /* the frames a Pixel 7 gives: 915 tall, a field focused, then the keyboard
+     shrinks innerHeight (and visualViewport.height with it) to 615 */
+  const run = (frames) => frames.reduce((st, [h, w, editing]) => layoutKeyboardStep(st, h, w, editing), null)
+  it('innerHeight 300 px below its height before the focus, a field focused: open', () => {
+    assert.equal(run([[915, 412, false], [615, 412, true]]).open, true)
+    /* CONTROL: iOS leaves innerHeight alone - not this rule's case (keyboardInset is) */
+    assert.equal(run([[915, 412, false], [915, 412, true]]).open, false)
+  })
+  it('the keyboard goes while the field keeps the focus (Android Back): closed', () => {
+    assert.equal(run([[915, 412, false], [615, 412, true], [915, 412, true]]).open, false)
+  })
+  it('the field loses the focus: closed, and the base is the new height', () => {
+    const st = run([[915, 412, false], [615, 412, true], [615, 412, false]])
+    assert.equal(st.open, false)
+    assert.equal(st.base, 615)
+  })
+  it('a shrink with NO field focused is the toolbar or a split screen, not a keyboard', () => {
+    assert.equal(run([[915, 412, false], [615, 412, false]]).open, false)
+  })
+  it('a turned phone (another width) is a new base, not a keyboard', () => {
+    assert.equal(run([[915, 412, false], [412, 915, true]]).open, false)
+  })
+  it('the browser toolbar sliding (< 60 px) is no keyboard', () => {
+    assert.equal(run([[915, 412, false], [860, 412, true]]).open, false)
+  })
+  it('nonsense keeps it closed', () => {
+    assert.equal(run([[915, 412, false], [0, 412, true]]).open, false)
+    assert.equal(run([[915, 412, false], [Number.NaN, 412, true]]).open, false)
+  })
+})
+
+describe('SPL-3785 isTextEntry: a field the keyboard types into', () => {
+  it('text inputs, textareas and contenteditable are; buttons, checkboxes and read-only fields are not', () => {
+    assert.equal(isTextEntry({ tagName: 'TEXTAREA' }), true)
+    assert.equal(isTextEntry({ tagName: 'INPUT', type: 'text' }), true)
+    assert.equal(isTextEntry({ tagName: 'INPUT', type: 'search' }), true)
+    assert.equal(isTextEntry({ tagName: 'INPUT', type: '' }), true)
+    assert.equal(isTextEntry({ tagName: 'DIV', isContentEditable: true }), true)
+    assert.equal(isTextEntry({ tagName: 'INPUT', type: 'checkbox' }), false)
+    assert.equal(isTextEntry({ tagName: 'BUTTON' }), false)
+    assert.equal(isTextEntry({ tagName: 'TEXTAREA', readOnly: true }), false)
+    assert.equal(isTextEntry(null), false)
   })
 })
 

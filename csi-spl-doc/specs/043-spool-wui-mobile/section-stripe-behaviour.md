@@ -241,6 +241,21 @@ lands. Every check runs at 360 and 390 px, in the dark and the light scheme.
 | 5 | docs | spec 043 (D1 and the level rows) and the CLE-77886 comment in `section-strip.mjs` state the new rule | the reviewer reads the diff |
 | 6 | (B only) hide on scroll | a composable on each scroller sets `data-mobile-strip-hidden`; the stripe is `inert` while hidden; it shows again on scroll up, at the top, on Back, on a level or tab change and on focus | e2e: scroll every derived route that scrolls, with `prefers-reduced-motion` both on and off |
 
+Slice 3 on Android (owner, t1 c3e53990 msg d4459f4c: on his Android phone
+the stripe did not fold). The viewport meta asks for
+`interactive-widget=resizes-content`, so Android Chrome makes the whole
+window shorter for the keyboard: `innerHeight` and `visualViewport.height`
+drop together and `--kb-inset` stays 0. `layoutKeyboardStep` in
+`utils/touch-ui.ts` reads that shape: the keyboard is up while a text field
+has the focus and `innerHeight` is at least 60 px below its height before
+the focus, at the same width (a turned phone is a new base, not a keyboard).
+`useKeyboardOpen` (`composables/useTouchUi.ts`) is true for either shape, and
+`default.vue` folds the stripe on it. `--kb-inset` is unchanged: on Android
+the page already ends at the keyboard, so nothing docked needs lifting. Test:
+the same e2e also makes the window 300 px shorter after the focus (the
+stripe is not painted), then restores it with the field still focused (the
+stripe is back at the same y).
+
 Budget for slices 2, 3 and 6: run `csi-spl-orc/src/bash/scripts/perf-budget.py`
 on the mock bundle as a same-box A/B against master before the push.
 

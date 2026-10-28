@@ -41,6 +41,37 @@ export function keyboardInset(innerHeight: number, vv: { height?: number, offset
   return inset >= KEYBOARD_MIN_PX ? inset : 0
 }
 
+/** a field the on-screen keyboard types into (not a button, a checkbox, ...) */
+export function isTextEntry(el: { tagName?: string, type?: string, isContentEditable?: boolean, readOnly?: boolean } | null | undefined): boolean {
+  if (!el) return false
+  if (el.isContentEditable) return true
+  const tag = String(el.tagName || '').toUpperCase()
+  if (tag === 'TEXTAREA') return !el.readOnly
+  if (tag !== 'INPUT') return false
+  return !el.readOnly && /^(|text|search|email|url|tel|password|number)$/.test(String(el.type || '').toLowerCase())
+}
+
+export type LayoutKeyboard = { base: number, width: number, open: boolean }
+
+/**
+ * SPL-3785 (owner, t1 c3e53990 msg d4459f4c: on his Android phone the strip
+ * did not fold for the keyboard): the viewport meta asks for
+ * interactive-widget=resizes-content, so Android Chrome shrinks the LAYOUT
+ * viewport for the keyboard - innerHeight and visualViewport.height drop
+ * together and keyboardInset (the iOS shape) reads 0. There the keyboard is
+ * the drop of innerHeight below its height while no field had the focus, at
+ * the same width (a turned phone is a new base, not a keyboard). One step per
+ * viewport frame; `prev` is the last step's state.
+ */
+export function layoutKeyboardStep(prev: LayoutKeyboard | null, innerHeight: number, innerWidth: number, editing: boolean): LayoutKeyboard {
+  const h = Number(innerHeight)
+  const w = Number(innerWidth)
+  if (!Number.isFinite(h) || h <= 0) return { base: prev?.base ?? 0, width: prev?.width ?? 0, open: false }
+  if (!prev || prev.width !== w || !editing) return { base: h, width: w, open: false }
+  const base = Math.max(prev.base, h)
+  return { base, width: w, open: base - h >= KEYBOARD_MIN_PX }
+}
+
 /** Only a finger (or a pen) long-presses. A mouse has its right-click. */
 export function isTouchPointer(pointerType: string | undefined): boolean {
   return pointerType === 'touch' || pointerType === 'pen'

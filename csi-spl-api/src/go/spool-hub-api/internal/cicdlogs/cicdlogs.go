@@ -152,12 +152,26 @@ func (s Settings) Allowed(tenant, owner, repo string) bool {
 	return false
 }
 
+// HubEnv holds the published SPOOL_HUB_CICD_* env strings, as config.Hub
+// carries them, before ParseSettings checks and parses them.
+type HubEnv struct {
+	// Enabled is the feature flag; Env is the hub's environment (lde, dev, prd).
+	Enabled bool
+	Env     string
+	// Token is the default GitHub token; TenantTokens is `tenant:token,...`.
+	Token, TenantTokens string
+	// Allowlist is `tenant:owner/repo,...`; API is the GitHub API base URL.
+	Allowlist, API string
+	// FromBox and FromID sign the posted notes; empty means the defaults.
+	FromBox, FromID string
+}
+
 // ParseSettings builds Settings from the published env strings.
-func ParseSettings(enabled bool, env, token, tenantTokens, allowlist, api, fromBox, fromID string) (Settings, error) {
+func ParseSettings(e HubEnv) (Settings, error) {
 	s := Settings{
-		Enabled: enabled, Env: env, GitHubAPI: strings.TrimSpace(api),
-		DefaultToken: token, TenantTokens: map[string]string{}, Allow: map[string][]Pattern{},
-		FromBox: fromBox, FromID: fromID,
+		Enabled: e.Enabled, Env: e.Env, GitHubAPI: strings.TrimSpace(e.API),
+		DefaultToken: e.Token, TenantTokens: map[string]string{}, Allow: map[string][]Pattern{},
+		FromBox: e.FromBox, FromID: e.FromID,
 	}
 	if s.FromBox == "" {
 		s.FromBox = defaultFromBox
@@ -165,12 +179,12 @@ func ParseSettings(enabled bool, env, token, tenantTokens, allowlist, api, fromB
 	if s.FromID == "" {
 		s.FromID = defaultFromID
 	}
-	tt, err := parseTenantTokens(tenantTokens)
+	tt, err := parseTenantTokens(e.TenantTokens)
 	if err != nil {
 		return Settings{}, err
 	}
 	s.TenantTokens = tt
-	al, err := ParseAllowlist(allowlist)
+	al, err := ParseAllowlist(e.Allowlist)
 	if err != nil {
 		return Settings{}, err
 	}
@@ -258,11 +272,11 @@ func splitComma(s string) []string {
 // ValidateHubEnv is called from config.LoadHub. When the flag is off it is a
 // no-op (M1 default). When on, the API base is required and prd fail-closes
 // on a missing/placeholder GitHub token.
-func ValidateHubEnv(enabled bool, env, token, tenantTokens, allowlist, api, fromBox, fromID string) error {
-	if !enabled {
+func ValidateHubEnv(e HubEnv) error {
+	if !e.Enabled {
 		return nil
 	}
-	s, err := ParseSettings(true, env, token, tenantTokens, allowlist, api, fromBox, fromID)
+	s, err := ParseSettings(e)
 	if err != nil {
 		return err
 	}

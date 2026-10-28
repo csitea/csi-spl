@@ -728,7 +728,10 @@ func (h *Hub) checkLimits() error {
 	if h.QuotaMessagesPerMonth < 0 || h.QuotaPins < 0 || h.QuotaFileBytes < 0 {
 		return errors.New("hub quotas must be zero (unlimited) or positive")
 	}
-	if err := cicdlogs.ValidateHubEnv(h.CICDLogsEnabled, h.Env, h.CICDGitHubToken, h.CICDTenantTokens, h.CICDRepoAllowlist, h.CICDGitHubAPI, h.CICDFromBox, h.CICDFromID); err != nil {
+	if err := cicdlogs.ValidateHubEnv(cicdlogs.HubEnv{
+		Enabled: h.CICDLogsEnabled, Env: h.Env, Token: h.CICDGitHubToken, TenantTokens: h.CICDTenantTokens,
+		Allowlist: h.CICDRepoAllowlist, API: h.CICDGitHubAPI, FromBox: h.CICDFromBox, FromID: h.CICDFromID,
+	}); err != nil {
 		return err
 	}
 	return nil

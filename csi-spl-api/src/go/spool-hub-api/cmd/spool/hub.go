@@ -421,7 +421,10 @@ func cicdService(hc *config.Hub) (*cicdlogs.Service, error) {
 	if !hc.CICDLogsEnabled {
 		return nil, nil
 	}
-	stt, err := cicdlogs.ParseSettings(true, hc.Env, hc.CICDGitHubToken, hc.CICDTenantTokens, hc.CICDRepoAllowlist, hc.CICDGitHubAPI, hc.CICDFromBox, hc.CICDFromID)
+	stt, err := cicdlogs.ParseSettings(cicdlogs.HubEnv{
+		Enabled: true, Env: hc.Env, Token: hc.CICDGitHubToken, TenantTokens: hc.CICDTenantTokens,
+		Allowlist: hc.CICDRepoAllowlist, API: hc.CICDGitHubAPI, FromBox: hc.CICDFromBox, FromID: hc.CICDFromID,
+	})
 	if err != nil {
 		return nil, err
 	}

@@ -1128,7 +1128,9 @@ func (e *env) pinKey(tenant, boxID string, pub ed25519.PublicKey) {
 
 func cicdOn(t *testing.T, token, allow string, fetch cicdlogs.Fetcher, priv ed25519.PrivateKey) (*env, *cicdlogs.Service) {
 	t.Helper()
-	stt, err := cicdlogs.ParseSettings(true, "lde", token, "", allow, "https://api.example.test", "hub", "CI-0")
+	stt, err := cicdlogs.ParseSettings(cicdlogs.HubEnv{
+		Enabled: true, Env: "lde", Token: token, Allowlist: allow, API: "https://api.example.test", FromBox: "hub", FromID: "CI-0",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

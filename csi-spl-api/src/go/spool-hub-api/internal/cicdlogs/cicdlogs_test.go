@@ -31,7 +31,7 @@ func baseReq() Request {
 
 func enabled(t *testing.T, token, allow string) Settings {
 	t.Helper()
-	s, err := ParseSettings(true, "lde", token, "", allow, "https://api.example.test", "hub", "CI-0")
+	s, err := ParseSettings(HubEnv{Enabled: true, Env: "lde", Token: token, Allowlist: allow, API: "https://api.example.test", FromBox: "hub", FromID: "CI-0"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,21 +79,21 @@ func TestStarPatternsRejected(t *testing.T) {
 }
 
 func TestPrdFailClosed(t *testing.T) {
-	s, err := ParseSettings(true, "prd", "", "", "t1:o/r", "https://api.example.test", "", "")
+	s, err := ParseSettings(HubEnv{Enabled: true, Env: "prd", Allowlist: "t1:o/r", API: "https://api.example.test"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Validate(); err == nil {
 		t.Fatal("prd enabled without token accepted")
 	}
-	s, err = ParseSettings(true, "prd", "CHANGE_ME", "", "t1:o/r", "https://api.example.test", "", "")
+	s, err = ParseSettings(HubEnv{Enabled: true, Env: "prd", Token: "CHANGE_ME", Allowlist: "t1:o/r", API: "https://api.example.test"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Validate(); !IsPlaceholder("CHANGE_ME") || err == nil {
 		t.Fatalf("placeholder not fail-closed: %v", err)
 	}
-	s, err = ParseSettings(false, "prd", "", "", "", "", "", "")
+	s, err = ParseSettings(HubEnv{Env: "prd"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,10 +103,10 @@ func TestPrdFailClosed(t *testing.T) {
 }
 
 func TestValidateHubEnvOffIsNoop(t *testing.T) {
-	if err := ValidateHubEnv(false, "prd", "", "", "", "", "", ""); err != nil {
+	if err := ValidateHubEnv(HubEnv{Env: "prd"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := ValidateHubEnv(true, "lde", "tok", "", "t:o/r", "", "", ""); err == nil {
+	if err := ValidateHubEnv(HubEnv{Enabled: true, Env: "lde", Token: "tok", Allowlist: "t:o/r"}); err == nil {
 		t.Fatal("enabled without API accepted")
 	}
 }

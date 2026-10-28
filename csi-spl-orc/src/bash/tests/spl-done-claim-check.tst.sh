@@ -764,4 +764,127 @@ run DRY_RUN=0 DONE_CLAIM_TO=c-009 DONE_CLAIM_STATE_DIR="$T/st21"; rc=$?
   pass "21. DRY_RUN=0: four notes (no-branch sha, unpushed sha, off-trunk and unnamed gr shas), none for the work-branch, request-id, patch-id or named-clone results" ||
   fail "21. note (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
 
+
+# 22. SPL-4085 (alert 9c8aa4c2 on another box, n=1; synthetic here): a lane
+# whose own worktree is a csi-spl one commits on a work branch of a box-local
+# clone that sets spool.landedOnAnyBranch and spool.localTrunk. No list names
+# it and the body names no path, so the check never read it and alerted. The
+# box-local file $SPOOL_ROOT/done-claim-local-repos.txt lists it: its work
+# branch sha is landed, a sha on no branch still alerts, a listed clone with
+# neither marker is skipped with a WARN, and the clone is never fetched.
+SP="$T/spool22"
+mkdir -p "$SP"
+git init -q -b master "$T/lc"
+rg lc remote add origin "$T/no-such-origin.git"
+rg lc commit -q --allow-empty -m "lc base"
+rg lc config spool.localTrunk master && rg lc config spool.landedOnAnyBranch true
+rg lc checkout -q -b work-22 && rg lc commit -q --allow-empty -m "work 22" && lettered lc 12 "work 22"
+LCSHA=$(rg lc rev-parse HEAD)
+rg lc checkout -q master
+for i in $(seq 1 50); do
+  LCNONE=$(rg lc commit-tree -p master -m "lc no branch $i" "master^{tree}")
+  [[ "${LCNONE:0:12}" =~ [a-f] ]] && break
+done
+git init -q -b master "$T/plain"
+rg plain commit -q --allow-empty -m "plain base"
+rg plain checkout -q -b work-p && rg plain commit -q --allow-empty -m "plain work" && lettered plain 12 "plain work"
+PLSHA=$(rg plain rev-parse HEAD)
+: >"$SP/registry.tsv"
+for l in c-901 c-902 c-903; do printf '%s\tclaude\t%%9\t%s\t-\n' "$l" "$T/wt/c-563" >>"$SP/registry.tsv"; done
+msg c-002/archive lw c-901 c-002 30 "Committed on the work branch, no push (my brief).
+- sha: ${LCSHA:0:12}"
+msg c-002/archive ln c-902 c-002 30 "- sha: ${LCNONE:0:12}"
+msg c-002/archive lp c-903 c-002 30 "- sha: ${PLSHA:0:12}"
+url22="$(rg lc config --get remote.origin.url)"
+[ "$(rg lc for-each-ref --contains "$LCSHA" --format='%(refname:short)' refs/heads)" = work-22 ] &&
+  [ -z "$(rg lc branch -a --contains "$LCNONE")" ] && ! rg spl cat-file -e "$LCSHA^{object}" 2>/dev/null &&
+  pass "22. control: ${LCSHA:0:12} sits only on work branch work-22 of the clone, ${LCNONE:0:12} on no branch; the lane's own repo lacks both" ||
+  fail "22. control: fixture"
+k22="lw ln lp"
+run DONE_CLAIM_STATE_DIR="$T/st22"; rc=$?
+v="$(for k in $k22; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "lw=would-alert ln=would-alert lp=would-alert " ] &&
+  pass "22. RED CONTROL: the clone listed nowhere, its work-branch sha alerts (the 9c8aa4c2 shape)" ||
+  fail "22. unlisted (rc $rc) got '$v': $(cat "$T/o")"
+printf '# box-local: clones read unfetched\n%s\n%s  # no marker\n%s\nrelative/path\n' "$T/lc" "$T/plain" "$T/nope22" >"$SP/done-claim-local-repos.txt"
+run DONE_CLAIM_STATE_DIR="$T/st22"; rc=$?
+v="$(for k in $k22; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "lw=landed ln=would-alert lp=would-alert " ] &&
+  grep -q "WARN .* lists $T/plain, which sets neither spool.landedOnAnyBranch nor spool.localTrunk: skipped" "$T/o" &&
+  grep -q "WARN .* lists $T/nope22, no git clone: skipped" "$T/o" &&
+  [ ! -e "$T/lc/.git/FETCH_HEAD" ] && [ "$(rg lc config --get remote.origin.url)" = "$url22" ] &&
+  pass "22. SPL-4085: listed in the box-local file, the clone's work-branch sha is landed; a sha on no branch alerts; a listed clone with no marker and a missing path are skipped with a WARN; the clone is never fetched, its remote untouched" ||
+  fail "22. listed (rc $rc) got '$v': $(cat "$T/o")"
+run DONE_CLAIM_STATE_DIR="$T/st22" DONE_CLAIM_LOCAL_REPOS="$T/no-list"; rc=$?
+[ "$rc" = 0 ] && [ "$(verdict lw)" = would-alert ] &&
+  pass "22. DONE_CLAIM_LOCAL_REPOS names the list; a missing list lists none" ||
+  fail "22. DONE_CLAIM_LOCAL_REPOS (rc $rc): $(cat "$T/o")"
+
+# 23. SPL-4085 (c-002 msg 60b5dc28, n=3 on 10-28: c-441's 9cf514e0, c-522's
+# f96219df, c-533's fdbbffeb; synthetic here): a patch-id in a table column
+# headed "patch-id", after "patch-ids", or after "patch-id (`git show ...`):"
+# is no sha, so a live lane's review request on its origin/review/<id>-...
+# branch is pending (SPL-3116), a pre-amend sha with the same stable patch-id
+# included. Controls: a done claim with a sha on no branch alerts, patch-id
+# beside it or not; a review request with a sha of another patch on no branch
+# alerts.
+SP="$T/spool23"
+mkdir -p "$SP"
+rg spl fetch -q origin
+rg spl checkout -q -b c-923-fix origin/master
+echo r23 >"$T/spl/f23" && rg spl add f23 && rg spl commit -q -m "rv23" && lettered spl 9 "rv23"
+OLD23=$(rg spl rev-parse HEAD)
+rg spl commit -q --amend -m "rv23, message changed" && lettered spl 9 "rv23, message changed"
+RV23=$(rg spl rev-parse HEAD)
+rg spl push -q origin HEAD:refs/heads/review/c-923-fix
+rg spl checkout -q --detach origin/master
+echo n23 >"$T/spl/g23" && rg spl add g23 && rg spl commit -q -m "nb23" && lettered spl 9 "nb23"
+NB23=$(rg spl rev-parse HEAD)
+rg spl checkout -q master
+rg spl fetch -q origin
+PID23=$(rg spl show "$RV23" | git patch-id --stable | cut -d' ' -f1)
+printf 'c-923\tclaude\t%%9\t%s\t-\n' "$T/wt/c-563" >"$SP/registry.tsv"
+printf '# path\tkind\tagent\tbox\tbranch\tfinished_at\n' >"$SP/workdirs.tsv"
+for l in c-921 c-924; do
+  printf '%s\tworktree\t%s\tbox-a\t%s-c002-fix\t%s\n' "$T/wt/c-563" "$l" "$l" "$(iso "$NOW")" >>"$SP/workdirs.tsv"
+done
+msg c-002/archive pidtab c-921 c-002 30 "**Live on dev and prd.**
+
+| commit | sha on master | patch-id |
+|---|---|---|
+| orc action | \`${LANDED:0:9}\` | bc963e89c54f (= reviewed) |
+| docs | \`${LANDED:0:9}\` | — |"
+msg c-002/archive pids c-923 c-002 30 "**Landed, not live yet**
+- \`${LANDED:0:9}\` (patch-ids \`1d12336ba982\` and \`b505af53bd8f\`, the pair you approved).
+**For R7 review: branch \`review/c-923-fix\` = \`${RV23:0:9}\`**
+1. \`${RV23:0:9}\` (patch-id \`3a5113c89ec9\`): the fix.
+Ask: an R7 reviewer for \`${RV23:0:9}\`, then your go."
+msg c-002/archive r7 c-923 c-002 30 "**R7 review request**
+- Review sha: \`${RV23}\` on \`review/c-923-fix\`
+- patch-id (\`git show ${RV23:0:8} | git patch-id --stable\`): \`${PID23}\`
+- \`do_check_pre_push\` on ${OLD23:0:9} (same patch-id; only the message changed since)"
+msg c-002/archive ctl1 c-924 c-002 30 "landed \`${NB23:0:9}\` (patch-id \`9e9e9e9e9e9e\`)"
+msg c-002/archive ctl2 c-923 c-002 30 "R7 review request: \`${RV23:0:9}\` and \`${NB23:0:9}\`"
+[ -z "$(rg spl branch -a --contains "$OLD23")" ] && [ -z "$(rg spl branch -a --contains "$NB23")" ] &&
+  [[ "$(rg spl branch -r --contains "$RV23" --format='%(refname:short)')" == origin/review/c-923-fix ]] &&
+  [ "$(rg spl show "$OLD23" | git patch-id --stable | cut -d' ' -f1)" = "$PID23" ] && ! rg spl cat-file -e "$PID23^{object}" 2>/dev/null &&
+  pass "23. control: ${RV23:0:9} sits only on origin/review/c-923-fix; ${OLD23:0:9} (same patch) and ${NB23:0:9} (another) on no branch; the patch-id is no object" ||
+  fail "23. control: fixture"
+k23="pidtab pids r7 ctl1 ctl2"
+run DONE_CLAIM_STATE_DIR="$T/st23"; rc=$?
+v="$(for k in $k23; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "pidtab=landed pids=pending r7=pending ctl1=would-alert ctl2=would-alert " ] &&
+  [ "$(row pidtab)" = "${LANDED:0:9}" ] && [ "$(row ctl1)" = "${NB23:0:9}" ] &&
+  [ "$(row r7)" = "$RV23 ${OLD23:0:9}" ] &&
+  [ "$(row pids)" = "${LANDED:0:9} ${RV23:0:9}" ] &&
+  pass "23. SPL-4085: patch-ids in a patch-id column, after 'patch-ids' and after 'patch-id (...):' are no shas; a live lane's review request on its review branch is pending, a same-patch pre-amend sha with it; a done claim with a sha on no branch and a review request with another patch on no branch alert" ||
+  fail "23. patch-id / review request (rc $rc) got '$v': $(cat "$T/o")"
+: >"$SP/registry.tsv"
+msg c-002/archive r7nl c-923 c-002 30 "${RV23:0:9} and ${OLD23:0:9} (same patch-id), not landed yet"
+run DONE_CLAIM_STATE_DIR="$T/st23"; rc=$?
+[ "$rc" = 0 ] && [ "$(verdict r7)" = would-alert ] && [ "$(verdict r7nl)" = review ] &&
+  grep -q "^r7nl	.*on review branch origin/review/c-923-fix (same patch as ${RV23:0:9}), not on master: ${OLD23:0:9}" "$T/o" &&
+  pass "23. the lane retired: its review request alerts again (SPL-3116); one that says it is not landed is review, the same-patch sha 'on review branch <name> (same patch as <sha>)'" ||
+  fail "23. retired (rc $rc): $(cat "$T/o")"
+
 exit "$fails"

@@ -186,6 +186,29 @@ so the `pending` rule of section 1.1 did not hold them.
 - A result that claims the review-branch sha landed alerts, with that
   wording. A sha on no branch at all alerts exactly as before.
 
+### 1.5 Box-local clones and patch-ids (SPL-4085)
+
+- **Box-local clones.** A clone that no list names was never read (alert
+  9c8aa4c2, n=1: a lane on a csi-spl worktree committed, by its brief, on a
+  work branch of a box-local customer clone marked
+  `spool.landedOnAnyBranch`). The box-local file
+  `$SPOOL_ROOT/done-claim-local-repos.txt` (`DONE_CLAIM_LOCAL_REPOS`), one
+  absolute path per line, `#` a comment, lists such clones; a listed clone
+  is read for every message when it sets `spool.landedOnAnyBranch` or
+  `spool.localTrunk`, else it is skipped with a WARN. It is read as it is,
+  never fetched. The list lives on the box, never in git: this repo names no
+  customer repo or path. Neither the lane's brief nor its workdir names the
+  clone, so neither could be the source.
+- **Patch-ids** (c-002 msg 60b5dc28, n=3 on 2026-10-28: c-441, c-522,
+  c-533). A hex token that is no object in any repo is no sha when it
+  stands after a `patch-id` / `patch-ids` label on its line, or in a
+  markdown table column headed `patch-id`. Those tokens had kept two live
+  lanes' review requests from being `pending` (section 1.1).
+- **Amended shas.** A sha on no branch whose `git patch-id --stable` equals
+  that of a parked or review-branch sha of the same message (the sha before
+  an amend of the message only) goes with it: `pending`, or on the review
+  branch "(same patch as <sha>)".
+
 ## 2. Standing
 
 The box cron `done-claim-check`, every 5 min (row in

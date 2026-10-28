@@ -132,6 +132,22 @@
 # @description     unfetched on origin's trunk and on its local master/main
 # @description     (c-761's sha on the local master of a clone no list names,
 # @description     whose https origin this box cannot fetch)
+# @description   - SPL-4085 (alert 9c8aa4c2: a lane's commit on a work branch
+# @description     of a box-local customer clone, a csi-spl worktree lane): a
+# @description     clone listed in the box-local file DONE_CLAIM_LOCAL_REPOS
+# @description     (one absolute path per line, under the spool root, in no
+# @description     repo) is a repo for every message when it sets
+# @description     spool.landedOnAnyBranch or spool.localTrunk; read as it
+# @description     is, never fetched. A box file, not the lane's brief or
+# @description     workdir: neither names the clone (the lane's workdir was
+# @description     a csi-spl worktree), and git must name no customer path
+# @description   - SPL-4085 (c-002 msg 60b5dc28): a hex token that is no
+# @description     object in any repo is a patch-id, no sha, after a
+# @description     "patch-id(s)" label on its line or in a table column headed
+# @description     "patch-id" (they broke a live lane's pending review
+# @description     request); a sha on no branch with the same stable patch-id
+# @description     as a review- or wip-branch sha of that message (a sha
+# @description     amended since) is on that branch: pending or review with it
 # @description Standing: the box cron done-claim-check (every 5 min). Prints one
 # @description TSV row per decided message (msg_id, lane, landed | rewritten |
 # @description seat | pending | unchecked | review | alert | would-alert, shas or no-sha). DRY_RUN=1 (default) reads and
@@ -140,6 +156,7 @@
 # @param DONE_CLAIM_AGE_MIN (optional) - minutes after the result before it is judged, default 15
 # @param DONE_CLAIM_DAYS_H (optional) - hours of results read, default 24
 # @param DONE_CLAIM_REPO_DIRS (optional) - space-separated clones whose trunks count; default the repo holding this tree; the cnf's customer repos (env.box.landed_repos, SPL-2420) whose clone is on this box always count too, and each sender lane's own repo (SPL-2930)
+# @param DONE_CLAIM_LOCAL_REPOS (optional) - the box-local list of clones read unfetched (SPL-4085), default $SPOOL_ROOT/done-claim-local-repos.txt; a missing file lists none
 # @param DONE_CLAIM_FETCH (optional) - 1 (default) fetches each repo before the check
 # @param DONE_CLAIM_STATE_DIR (optional) - the ledger's dir, default $XDG_STATE_HOME/csi-spl/done-claim-check
 # @param DONE_CLAIM_BOX (optional) - this box's id (a lane <id>@<other box> is skipped); default the desk box
@@ -170,6 +187,7 @@ do_spl_done_claim_check() {
   fi
   : >"$tmp/unchk"
   spl_done_claim_repos "$tmp/unchk" >"$tmp/repos" || { rm -rf "$tmp"; return 1; }
+  spl_done_claim_listed "${DONE_CLAIM_LOCAL_REPOS:-$root/done-claim-local-repos.txt}" "$tmp/repos" >>"$tmp/repos"
   spl_done_claim_lane_repos "$root" "$tmp/due" "$tmp/repos" "$tmp/unchk" >"$tmp/stale"
   local to=""
   if [[ "$dry" == 0 ]]; then to="$(spl_done_claim_to)" || { rm -rf "$tmp"; return 1; }; fi
@@ -270,8 +288,32 @@ spl_done_claim_shas() {
   claim="$(grep -iE '^[[:space:]>*+_`-]*(landed( sha)?|trunk sha)[*_`]*:' <<<"$lines" | spl_done_claim_tokens "${2:-}")"
   [[ -n "$claim" ]] || claim="$(grep -iE '^[[:space:]>*+_`-]*shas?[*_`]*([[:space:]]|:|$)' <<<"$lines" | spl_done_claim_tokens "${2:-}")"
   [[ -n "$claim" ]] || claim="$(spl_done_claim_tokens "${2:-}" <<<"$1")"
-  [[ -n "${2:-}" ]] && grep -qiE 'gr-cmd-[0-9a-f]{12}' <<<"$1" || { echo "$claim"; return 0; }
+  [[ -n "${2:-}" ]] || { echo "$claim"; return 0; }
+  claim="$(spl_done_claim_minus "$claim" "$(spl_done_claim_patch_ids "$1" "$2" | tr ' ' '\n' | sed '/^$/d; s/$/\t/')")"
+  grep -qiE 'gr-cmd-[0-9a-f]{12}' <<<"$1" || { echo "$claim"; return 0; }
   spl_done_claim_minus "$claim" "$(spl_done_claim_unknown "$2" "$claim" | tr ' ' '\n' | grep -xE '[0-9a-f]{12}' | sed 's/$/\t/')"
+}
+
+# spl_done_claim_patch_ids <body> <repos file>: the hex tokens that are no
+# object in any repo of <repos file> and stand where a patch-id stands
+# (SPL-4085, c-002 msg 60b5dc28, n=3): after the first "patch-id(s)" of a
+# line (c-522's "(patch-ids `<a>` and `<b>`", c-533's "patch-id (`git show
+# <sha> | git patch-id --stable`): `<40 hex>`"), or in the cell of a markdown
+# table column headed "patch-id" (c-441's "| commit | sha on master |
+# patch-id |"). A commit there is still a sha.
+spl_done_claim_patch_ids() {
+  local t
+  t="$(tr '\037' '\n' <<<"$1" | awk '
+    function pid(s) { return match(tolower(s), /patch[ _-]?ids?([^a-z]|$)/) }
+    /^[[:space:]]*\|/ {
+      n = split($0, c, "|")
+      if (!tab) { tab = 1; col = 0; for (i = 1; i <= n; i++) if (pid(c[i])) col = i; next }
+      if (col) print c[col]
+      next
+    }
+    { tab = 0 }
+    pid($0) { print substr($0, RSTART) }' | spl_done_claim_tokens "$2")"
+  spl_done_claim_unknown "$2" "$t"
 }
 
 # spl_done_claim_tokens [repos file] (stdin): the distinct hex tokens of 9..12
@@ -502,6 +544,34 @@ spl_done_claim_named() {
   return 0
 }
 
+# spl_done_claim_listed <list file> <repos file>: "<top> <ref>" per clone of
+# the box-local <list file> (SPL-4085: one absolute path per line, # a
+# comment) not yet in <repos file> (same git common dir) that sets
+# spool.landedOnAnyBranch true or spool.localTrunk; <ref> its local trunk,
+# else origin/master|main, else its local master|main, else HEAD (the
+# any-branch rule judges its branches). Read only, never fetched: such a
+# clone may never touch its remote. A listed clone with neither marker is
+# skipped with a WARN (it would need a fetch).
+spl_done_claim_listed() {
+  local p top c have="" ref
+  [[ -f "$1" ]] || return 0
+  while read -r top ref; do c="$(spl_done_claim_common "$top")" && have+="$c"$'\n'; done <"$2"
+  while read -r p _; do
+    [[ "$p" == /* ]] || continue
+    top="$(git -C "$p" rev-parse --show-toplevel 2>/dev/null)" || { do_log "WARN $1 lists $p, no git clone: skipped" >&2; continue; }
+    c="$(spl_done_claim_common "$top")" && ! grep -qxF -- "$c" <<<"$have" || continue
+    have+="$c"$'\n'
+    if ref="$(spl_done_claim_local_trunk "$top")"; then echo "$top $ref"; continue; fi
+    if [[ "$(git -C "$top" config --bool --get spool.landedOnAnyBranch 2>/dev/null)" != true ]]; then
+      do_log "WARN $1 lists $top, which sets neither spool.landedOnAnyBranch nor spool.localTrunk: skipped" >&2; continue
+    fi
+    for ref in origin/master origin/main refs/heads/master refs/heads/main HEAD; do
+      git -C "$top" rev-parse -q --verify "$ref^{commit}" >/dev/null 2>&1 && break
+    done
+    echo "$top $ref"
+  done < <(sed -e 's/#.*//' "$1")
+}
+
 # spl_done_claim_local_trunk <top>: "refs/heads/<branch>" when the clone says
 # its trunk is local by design (`git config spool.localTrunk <branch>`, never
 # pushed from this box, SPL-3020) and that branch exists; else false.
@@ -654,20 +724,30 @@ spl_done_claim_seats() {
 # no lane id (c-912's review/s107-v2-t020) is the sender's own branch.
 # SPL-3261 (a-709's review of c-906's review/r19-04-...): it is also the branch
 # of each lane of [root]/registry.tsv whose worktree branch ends in -<topic>.
+# SPL-4085 (c-533's e86a4c096, amended into its review sha 39cc35093): a sha
+# on no branch whose stable patch-id is that of a parked sha of <shas> is
+# parked with it.
 spl_done_claim_unparked() {
-  local s full top ref ids brs ok out=()
+  local s full top ref ids brs ok p out=()
+  local -A pid=() at=()
   for s in $3; do
     ok=0
     while read -r top ref; do
       full="$(git -C "$top" rev-parse -q --verify "$s^{commit}" 2>/dev/null)" || continue
       brs="$(git -C "$top" branch -r --contains "$full" --format='%(refname:short)' 2>/dev/null)"
+      [[ -z "$brs" && -z "$(git -C "$top" branch --contains "$full" 2>/dev/null)" ]] && at[$s]="$top"
       ids="$(sed -nE -e 's#^origin/((review|wip)/)?([cmagq]-[0-9]+)-.*#\3#p;t' -e "s#^origin/(review|wip)/.+#${4:-}#p" <<<"$brs")"
       ids+=$'\n'"$(spl_done_claim_topic_lanes "${5:-}" "$brs")"
-      grep -qxFf "$2" <<<"$ids" && { ok=1; break; }
+      grep -qxFf "$2" <<<"$ids" && { ok=1; p="$(spl_done_claim_patch_id "$top" "$full")" && [[ -n "$p" ]] && pid[$p]=1; break; }
     done <"$1"
     (( ok )) || out+=("$s")
   done
-  echo "${out[*]}"
+  local left=()
+  for s in "${out[@]}"; do
+    if [[ -n "${at[$s]:-}" && ${#pid[@]} -gt 0 ]] && p="$(spl_done_claim_patch_id "${at[$s]}" "$s")" && [[ -n "$p" && -n "${pid[$p]:-}" ]]; then continue; fi
+    left+=("$s")
+  done
+  echo "${left[*]}"
 }
 
 # spl_done_claim_topic_lanes <root> <remote branches>: the lane ids of
@@ -687,17 +767,36 @@ spl_done_claim_topic_lanes() {
 # sha of <shas> (all on no trunk) that `git branch -r --contains` finds on an
 # origin/review/* branch (its first, by name), <trunk> the repo's trunk without
 # "origin/" (SPL-3673: c-271's 8cf3fef52 on origin/review/grok-dispatch-grade).
+# SPL-4085 (c-533's e86a4c096, amended into 39cc35093): a sha on no branch
+# whose `git patch-id --stable` is that of one found on origin/review/* is on
+# that branch, "<branch> (same patch as <sha>)".
 spl_done_claim_on_review() {
-  local s full top ref b
+  local s full top ref b p
+  local -A row=() pid=() at=()
   for s in $2; do
     while read -r top ref; do
       full="$(git -C "$top" rev-parse -q --verify "$s^{commit}" 2>/dev/null)" || continue
+      at[$s]="$top"$'\t'"${ref#origin/}"
       b="$(git -C "$top" branch -r --contains "$full" --format='%(refname:short)' 2>/dev/null)"
       b="$(grep -m1 '^origin/review/' <<<"$b")" || continue
-      printf '%s\t%s\t%s\n' "$s" "$b" "${ref#origin/}"; break
+      row[$s]="$s"$'\t'"$b"$'\t'"${ref#origin/}"
+      p="$(spl_done_claim_patch_id "$top" "$full")" && [[ -n "$p" ]] && pid[$p]="$b (same patch as $s)"
+      break
     done <"$1"
   done
+  for s in $2; do
+    if [[ -z "${row[$s]:-}" && -n "${at[$s]:-}" && ${#pid[@]} -gt 0 ]]; then
+      p="$(spl_done_claim_patch_id "${at[$s]%%$'\t'*}" "$s")"
+      [[ -n "$p" && -n "${pid[$p]:-}" ]] && row[$s]="$s"$'\t'"${pid[$p]}"$'\t'"${at[$s]#*$'\t'}"
+    fi
+    [[ -n "${row[$s]:-}" ]] && printf '%s\n' "${row[$s]}"
+  done
   return 0
+}
+
+# spl_done_claim_patch_id <top> <sha>: the commit's stable patch-id, else empty.
+spl_done_claim_patch_id() {
+  git -C "$1" show "$2" 2>/dev/null | git patch-id --stable 2>/dev/null | awk '{ print $1; exit }'
 }
 
 # spl_done_claim_unlanded <body>: true when the result itself says its sha is

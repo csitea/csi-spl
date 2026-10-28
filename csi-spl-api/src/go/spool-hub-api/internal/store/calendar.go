@@ -170,7 +170,7 @@ type CalendarEvent struct {
 	// SourceKey is a synced event's key (specs/112, rdb 0156; "" for an event
 	// a member wrote). Read only: only UpsertCalendarBySourceKey sets it.
 	SourceKey string
-	// OwnerID is the one responsible member or agent (SPL-4043, rdb 0239).
+	// OwnerID is the one responsible member or agent (SPL-4043, rdb 0240).
 	// Empty on create becomes CreatorID. Distinct from the creator and the
 	// guests: the hub checks it is a member or an agent of the workspace.
 	OwnerID string
@@ -398,7 +398,7 @@ func validateCalendarEvent(e *CalendarEvent) error {
 	return validateCalendarLinks(e)
 }
 
-// validateCalendarLinks checks rdb 0239's owner and issue keys (shape only;
+// validateCalendarLinks checks rdb 0240's owner and issue keys (shape only;
 // the hub checks they belong to the workspace).
 func validateCalendarLinks(e *CalendarEvent) error {
 	bad := func(what string) error { return fmt.Errorf("%w: %s", ErrInvalidCalendarEvent, what) }

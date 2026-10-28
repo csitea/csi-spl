@@ -59,6 +59,19 @@ for bad in "STARTS_AT=" "ENDS_AT=2026-10-12T08:00:00Z" "STARTS_AT=2026-10-12T09:
   run "${SET[@]}" DRY_RUN=0 ALL_DAY=0 DAY= STARTS_AT=2026-10-12T09:00:00Z ENDS_AT=2026-10-12T10:00:00Z "$bad"; rc=$?
   [[ $rc -ne 0 && ! -s "$T/calls" ]] && pass "2. ALL_DAY=0 $bad fails fast" || fail "2. timed $bad: rc=$rc $(cat "$T/calls" "$T/o")"
 done
+for bad in "ISSUE_KEYS=SPL-0" "ISSUE_KEYS=," "ISSUE_KEYS=nope" "ISSUE_KEYS=FOO-BAR-1" "EVENT_OWNER=bob" "EVENT_OWNER=c-1" "EVENT_OWNER=HUM-"; do
+  run "${SET[@]}" DRY_RUN=0 "$bad"; rc=$?
+  [[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q FATAL "$T/o" && pass "2. $bad fails fast, no call" || fail "2. $bad: rc=$rc $(cat "$T/calls" "$T/o")"
+done
+many=$(seq -s, -f 'SPL-%.0f' 1 21)
+run "${SET[@]}" DRY_RUN=0 "ISSUE_KEYS=$many"; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls" ]] && pass "2. 21 issue keys fail fast" || fail "2. many: rc=$rc $(cat "$T/o")"
+run "${SET[@]}" ISSUE_KEYS='spl-12,SPL-12,12' EVENT_OWNER='c-840@tnk'; rc=$?
+[[ $rc -eq 0 && ! -s "$T/calls" ]] && grep -q '"issue_keys":\["spl-12","12"\]' "$T/o" && grep -q '"owner_id":"c-840@tnk"' "$T/o" \
+  && pass "1. ISSUE_KEYS deduped, EVENT_OWNER kept, 0 calls" || fail "1. links: rc=$rc $(cat "$T/o")"
+run "${SET[@]}" ISSUE_KEYS=; rc=$?
+[[ $rc -eq 0 && ! -s "$T/calls" ]] && grep -q '"issue_keys":\[\]' "$T/o" && ! grep -q owner_id "$T/o" \
+  && pass "1. empty ISSUE_KEYS sends [], owner omitted" || fail "1. empty keys: rc=$rc $(cat "$T/o")"
 
 # --- 3. the write and its read-back --------------------------------------------
 run "${SET[@]}" DRY_RUN=0 STUB_BODY="$EV"; rc=$?

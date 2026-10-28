@@ -61,6 +61,19 @@
       <p v-if="event.location" class="calpeek__line" data-test="calpeek-location">
         <UiIcon name="pin" :size="16" /><span>{{ event.location }}</span>
       </p>
+      <p v-if="!deadline" class="calpeek__line" data-test="calpeek-discussion">
+        <NuxtLink v-if="topicTo" :to="topicTo" data-test="calpeek-discussion-link">{{ t('calendar_event.open_discussion') }}</NuxtLink>
+        <span v-else class="muted">{{ t('calendar_event.discussion_empty') }}</span>
+      </p>
+      <p v-if="!deadline" class="calpeek__links" data-test="calpeek-issues">
+        <template v-if="issueLinks.length">
+          <NuxtLink v-for="iss in issueLinks" :key="iss.key" :to="iss.to" data-test="calpeek-issue">{{ iss.key }}</NuxtLink>
+        </template>
+        <span v-else class="muted">{{ t('calendar_event.issues_empty') }}</span>
+      </p>
+      <p v-if="!deadline" class="calpeek__line" data-test="calpeek-owner">
+        <span dir="ltr">{{ ownerLabel || t('calendar_event.owner_empty') }}</span>
+      </p>
       <p v-if="event.audience === 'private'" class="calpeek__line">
         <span class="calpeek__badge" data-test="calpeek-private">{{ t('calendar_event.private_badge') }}</span>
       </p>
@@ -125,7 +138,7 @@ import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 import { calAddDays } from '~/utils/calendar-year.mjs'
 import { isoClock, isoDate, isoDateTime, viewerTimeZone } from '~/utils/date-iso.mjs'
 import { isoDateTimeIn } from '~/utils/date-iso-zone.mjs'
-import { calDeadline, calEditable } from '~/utils/calendar-event-form.mjs'
+import { calDeadline, calDiscussionRef, calEditable } from '~/utils/calendar-event-form.mjs'
 import { issuePageHref } from '~/utils/issue-calendar-link.mjs'
 import { statusLabel } from '~/utils/issues-view.mjs'
 import { useCalendarEventLink } from '~/composables/useCalendarEventLink'
@@ -157,6 +170,18 @@ const { copied, copyLink } = useCalendarEventLink()
 /* a real link; a plain tap goes through the shell (CalendarPhone), which
    drops issue= first so Back returns to the day with the peek closed */
 const issueTo = computed(() => localePath(issuePageHref(props.event?.issue_key || props.event?.id || '')))
+const topicTo = computed(() => {
+  const id = calDiscussionRef(props.event?.topic_id)
+  return id ? localePath('/t/' + id) : ''
+})
+const issueLinks = computed(() => {
+  const keys = Array.isArray(props.event?.issue_keys) ? props.event.issue_keys : []
+  return keys.flatMap((key) => {
+    const href = issuePageHref(String(key || ''))
+    return href ? [{ key: String(key), to: localePath(href) }] : []
+  })
+})
+const ownerLabel = computed(() => String(props.event?.owner_id || '').trim())
 const issueLink = computed(() => router.resolve(issueTo.value).href)
 function onOpenIssue(e: MouseEvent) {
   if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
@@ -378,6 +403,7 @@ async function undo() {
   margin: 0;
   font-size: 0.875rem;
 }
+.calpeek__links { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
 .calpeek__line > span,
 .calpeek__guest { min-width: 0; overflow-wrap: anywhere; }
 .calpeek__zone { color: var(--color-muted); }

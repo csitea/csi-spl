@@ -194,6 +194,28 @@
         <span>{{ t('calendar_event.field_description') }}</span>
         <textarea v-model="form.description" rows="3" data-test="calendar-event-description" :maxlength="CAL_DESCRIPTION_MAX" :disabled="busy" />
       </label>
+      <label class="cal-dlg__field cal-dlg__field--wide">
+        <span>{{ t('calendar_event.field_discussion') }}</span>
+        <input v-model="form.discussion" data-test="calendar-event-discussion" :placeholder="t('calendar_event.discussion_placeholder')" :disabled="busy" autocomplete="off">
+      </label>
+      <fieldset class="cal-dlg__field cal-dlg__field--wide cal-dlg__set">
+        <legend>{{ t('calendar_event.field_issues') }}</legend>
+        <div v-for="(key, i) in form.issueKeys" :key="key" class="cal-dlg__issue" data-test="calendar-event-issue">
+          <span dir="ltr">{{ key }}</span>
+          <button type="button" class="btn ghost" data-test="calendar-event-issue-remove" :aria-label="t('calendar_event.issue_remove')" :disabled="busy" @click="form.issueKeys.splice(i, 1)"><UiIcon name="x" :size="16" /></button>
+        </div>
+        <div v-if="form.issueKeys.length < CAL_ISSUE_KEYS_MAX" class="cal-dlg__issue">
+          <input v-model="issueDraft" data-test="calendar-event-issue-input" :placeholder="t('calendar_event.issues_placeholder')" :disabled="busy" autocomplete="off" @keydown.enter.prevent="addIssue">
+          <button type="button" class="btn ghost" data-test="calendar-event-issue-add" :disabled="busy" @click="addIssue">{{ t('calendar_event.issue_add') }}</button>
+        </div>
+      </fieldset>
+      <label class="cal-dlg__field cal-dlg__field--wide">
+        <span>{{ t('calendar_event.field_owner') }}</span>
+        <input v-model="form.owner" :list="ownerListId" data-test="calendar-event-owner" :placeholder="t('calendar_event.owner_placeholder')" :disabled="busy" autocomplete="off">
+        <datalist :id="ownerListId">
+          <option v-for="id in ownerIds" :key="id" :value="id" />
+        </datalist>
+      </label>
       <p v-if="error" class="cal-dlg__error cal-dlg__field--wide" role="alert" data-test="calendar-event-error">{{ t(error) }}</p>
     </form>
     <template #footer>
@@ -231,8 +253,8 @@
 <script setup lang="ts">
 import type { CalendarItem } from '~/utils/calendar-mock.mjs'
 import {
-  CAL_COLORS, CAL_DESCRIPTION_MAX, CAL_LOCATION_MAX, CAL_REMINDERS_MAX, CAL_REMINDER_UNITS, CAL_TITLE_MAX,
-  calAudienceSwitched, calCanSetPrivate, calFormBody, calFormCopy, calFormFromEvent, calHourAfter, calNewReminder, calReminderAmount, calReminderError,
+  CAL_COLORS, CAL_DESCRIPTION_MAX, CAL_ISSUE_KEYS_MAX, CAL_LOCATION_MAX, CAL_REMINDERS_MAX, CAL_REMINDER_UNITS, CAL_TITLE_MAX,
+  calAudienceSwitched, calCanSetPrivate, calFormBody, calFormCopy, calFormFromEvent, calHourAfter, calIssueKey, calNewReminder, calOwnerChoices, calReminderAmount, calReminderError,
 } from '~/utils/calendar-event-form.mjs'
 import type { CalReminderRow } from '~/utils/calendar-event-form.mjs'
 import { knownTimeZones } from '~/utils/date-iso.mjs'
@@ -276,6 +298,9 @@ const canPrivate = computed(() => calCanSetPrivate(props.event, viewerId.value))
 
 const form = ref<CalForm>(calFormFromEvent(null, props.day))
 const formId = useId()
+const ownerListId = useId()
+const issueDraft = ref('')
+const ownerIds = computed(() => calOwnerChoices(roster.humansDetail, roster.people))
 const UNITS = Object.keys(CAL_REMINDER_UNITS)
 const SWATCHES = ['', ...CAL_COLORS]
 /* every zone this browser knows, and the form's own when it does not */
@@ -295,16 +320,37 @@ function addReminder() {
 const busy = ref(false)
 const error = ref('')
 const confirmDelete = ref(false)
+function addIssue() {
+  const k = calIssueKey(issueDraft.value)
+  if (!k) {
+    if (String(issueDraft.value || '').trim()) error.value = 'calendar_event.error_issue'
+    return
+  }
+  if (form.value.issueKeys.length >= CAL_ISSUE_KEYS_MAX) {
+    error.value = 'calendar_event.error_issue_many'
+    return
+  }
+  if (!form.value.issueKeys.some((x) => x.toLowerCase() === k.toLowerCase())) form.value.issueKeys.push(k)
+  issueDraft.value = ''
+  error.value = ''
+}
+function refreshOwners() {
+  const humans = roster.humansDetail || {}
+  const people = roster.people || []
+  if (Object.keys(humans).length === 0 && people.length === 0) void roster.refresh().catch(() => {})
+}
 
 /* every opening starts from the event (or a clean new one): a dialog
    closed half-typed is a cancel */
 function reset() {
   form.value = !props.event && props.copy ? calFormCopy(props.copy, props.day) : calFormFromEvent(props.event, props.day || props.today)
   if (!props.event && props.span) form.value = { ...form.value, start: props.span.start, end: props.span.end }
+  issueDraft.value = ''
   error.value = ''
   confirmDelete.value = false
 }
 watch(() => [props.open, props.event, props.copy, props.day], () => { if (props.open) reset() }, { immediate: true })
+watch(() => props.open, (v) => { if (v) refreshOwners() }, { immediate: true })
 /* Private and Public exclude each other: the one switched on turns the other off */
 watch(() => form.value.private, (v) => { if (v) form.value = calAudienceSwitched(form.value, 'private') })
 watch(() => form.value.public, (v) => { if (v) form.value = calAudienceSwitched(form.value, 'public') })
@@ -408,6 +454,9 @@ async function remove() {
 .cal-dlg__before { color: var(--color-muted); white-space: nowrap; }
 .cal-dlg__rem-error { grid-column: 1 / -1; font-size: 0.75rem; }
 .cal-dlg__add { justify-self: start; align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; }
+.cal-dlg__issue { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.cal-dlg__issue input { flex: 1 1 auto; min-width: 0; width: auto; }
+.cal-dlg__issue span { min-width: 0; overflow-wrap: anywhere; }
 .cal-dlg__swatches { display: flex; flex-wrap: wrap; gap: 6px; }
 .cal-dlg__swatch {
   position: relative;

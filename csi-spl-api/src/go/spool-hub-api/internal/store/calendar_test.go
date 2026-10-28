@@ -325,3 +325,102 @@ func TestCalendarProbeMissingTable(t *testing.T) {
 		t.Fatalf("CONTROL range with the table: %+v %v", evs, err)
 	}
 }
+
+// rdb 0239 (SPL-4043): owner defaults to the creator, issue keys round-trip,
+// an empty owner on update returns to the creator, and a nil patch leaves
+// both. Shape errors are ErrInvalidCalendarEvent. Workspace B cannot read
+// the row (the 0125 policy covers the new columns).
+func TestCalendarLinks0239(t *testing.T) {
+	ctx := context.Background()
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			cal := st.(Calendar)
+			a, b := newTenant(t, st), newTenant(t, st)
+			def, err := cal.CreateCalendarEvent(ctx, a, calEvent("plain"), calT0)
+			if err != nil || def.OwnerID != calOwner || len(def.IssueKeys) != 0 {
+				t.Fatalf("default owner: %+v %v", def, err)
+			}
+			e := calEvent("linked")
+			e.OwnerID, e.IssueKeys = calAgent, []string{"SPL-12", "SPL-13"}
+			got, err := cal.CreateCalendarEvent(ctx, a, e, calT0)
+			if err != nil || got.OwnerID != calAgent || strings.Join(got.IssueKeys, ",") != "SPL-12,SPL-13" {
+				t.Fatalf("round trip: %+v %v", got, err)
+			}
+			again, err := cal.GetCalendarEvent(ctx, a, calOwner, got.ID)
+			if err != nil || again.OwnerID != calAgent || strings.Join(again.IssueKeys, ",") != "SPL-12,SPL-13" {
+				t.Fatalf("get: %+v %v", again, err)
+			}
+			empty, cleared := "", []string{}
+			patched, err := cal.UpdateCalendarEvent(ctx, a, calOwner, got.ID, CalendarPatch{OwnerID: &empty, IssueKeys: &cleared}, calT0)
+			if err != nil || patched.OwnerID != calOwner || len(patched.IssueKeys) != 0 {
+				t.Fatalf("reset: %+v %v", patched, err)
+			}
+			title := "linked-2"
+			left, err := cal.UpdateCalendarEvent(ctx, a, calOwner, got.ID, CalendarPatch{Title: &title}, calT0)
+			if err != nil || left.OwnerID != calOwner || len(left.IssueKeys) != 0 || left.Title != title {
+				t.Fatalf("nil patch leaves links: %+v %v", left, err)
+			}
+			if _, err := cal.GetCalendarEvent(ctx, b, calOwner, got.ID); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("B reads A's links: %v", err)
+			}
+			calLinksRefused(t, cal, a)
+		})
+	}
+}
+
+func calLinksRefused(t *testing.T, cal Calendar, tenant string) {
+	t.Helper()
+	many := make([]string, 21)
+	for i := range many {
+		many[i] = "K" + strings.Repeat("x", i)
+	}
+	for what, mut := range map[string]func(*CalendarEvent){
+		"owner long": func(e *CalendarEvent) { e.OwnerID = strings.Repeat("o", 65) },
+		"21 keys":    func(e *CalendarEvent) { e.IssueKeys = many },
+		"duplicate":  func(e *CalendarEvent) { e.IssueKeys = []string{"SPL-1", "SPL-1"} },
+		"blank key":  func(e *CalendarEvent) { e.IssueKeys = []string{""} },
+	} {
+		e := calEvent("bad")
+		mut(&e)
+		if _, err := cal.CreateCalendarEvent(context.Background(), tenant, e, calT0); !errors.Is(err, ErrInvalidCalendarEvent) {
+			t.Fatalf("%s: %v", what, err)
+		}
+	}
+}
+
+// A raw insert that omits rdb 0239's columns stores ” and '{}'. The Go read
+// shows the creator as owner. Another workspace's scope sees no row.
+func TestCalendarLinksColumns0239(t *testing.T) {
+	pg := pgOnly(t)
+	ctx := context.Background()
+	a, b := newTenant(t, pg), newTenant(t, pg)
+	var id string
+	err := pg.inTenant(ctx, a, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `INSERT INTO calendar_events
+			(tenant_id, title, kind, starts_at, ends_at, creator_type, creator_id)
+			VALUES ($1, 'defaults', 'other', $2, $2, 'human', $3)
+			RETURNING event_id::text`, a, calT0, calOwner).Scan(&id)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var owner string
+	var keys []string
+	err = pg.inTenant(ctx, a, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT owner_id, issue_keys FROM calendar_events WHERE event_id = $1::uuid`, id).Scan(&owner, &keys)
+	})
+	if err != nil || owner != "" || len(keys) != 0 {
+		t.Fatalf("raw defaults: owner %q keys %v err %v", owner, keys, err)
+	}
+	got, err := pg.GetCalendarEvent(ctx, a, calOwner, id)
+	if err != nil || got.OwnerID != calOwner || len(got.IssueKeys) != 0 {
+		t.Fatalf("go read: %+v %v", got, err)
+	}
+	var n int
+	err = pg.inTenant(ctx, b, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT count(*) FROM calendar_events WHERE event_id = $1::uuid`, id).Scan(&n)
+	})
+	if err != nil || n != 0 {
+		t.Fatalf("B sees A's row: %d %v", n, err)
+	}
+}

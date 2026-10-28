@@ -692,6 +692,7 @@ The file is `.github/workflows/<file>`. Runner is the literal `runs-on` in that 
 | 10_ci-quality.yml | the quality gate on every master push; a docs-only push skips the code jobs | expression, self-hosted `spool-ci` on this repo |
 | 11_ci-public.yml | the same gate for a pull request, after a maintainer approves it | passes ubuntu-latest into 10 |
 | 12_ci-rerun-setup-flake.yml | reruns a run lost to an action download at Set up job | ubuntu-latest |
+| 13_ci-next-image.yml | wf 10 on the next runner image (vars.SPOOL_CI_NEXT_RUNNER), daily and on a ci-next-image/** push | passes the next image into 10 |
 | 15_sec-deps-secrets.yml | dependency and secret scans | ubuntu-latest |
 | 20_hub-build-deploy.yml | mint, build, migrate, roll the hub; then, non-blocking, the invite e2e (`do_spl_invite_e2e`) on dev t1 and on prd in the test workspace `e2e` only (`vars.INVITE_E2E_TENANT_PRD`; t1 and customer workspaces are refused) | ubuntu-latest |
 | 21_hub-deploy-catchup.yml | a trunk hub or WUI that never got served | ubuntu-latest |

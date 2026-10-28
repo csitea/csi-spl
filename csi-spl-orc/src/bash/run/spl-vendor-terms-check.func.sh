@@ -15,6 +15,7 @@
 # @param VENDOR_TERMS_DISCUSSIONS (optional) - default f8f9dfcc-659a-480d-bc7f-1cffd5fb38b9
 # @param VENDOR_TERMS_FETCH_CMD (optional, tests) - custom fetcher
 # @param VENDOR_TERMS_ISSUE_CMD (optional, tests) - custom issue opener
+# @param VENDOR_TERMS_ISSUE_LIST_CMD (optional, tests) - custom issue lister
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ./run -a do_spl_vendor_terms_check
 # @example DRY_RUN=0 ./run -a do_spl_vendor_terms_check
@@ -48,16 +49,32 @@ do_spl_vendor_terms_check() {
     return 0
   fi
 
-  # Findings detected
   if [[ ! -f "$tmp/report.json" ]]; then
     do_log "FATAL vendor terms check failed with code $prc: $out"
     rm -rf "$tmp"
     return 1
   fi
 
+  local status
+  status="$(python3 "$py" get-field "$tmp/report.json" status 2>/dev/null || true)"
+  if [[ "$status" != "changed" ]]; then
+    do_log "$out"
+    rm -rf "$tmp"
+    return 0
+  fi
+
   local title desc
-  title="$(python3 -c "import json; r=json.load(open('$tmp/report.json')); print(r.get('title', 'Vendor terms changed'))")"
-  desc="$(python3 -c "import json; r=json.load(open('$tmp/report.json')); print(r.get('description', ''))")"
+  title="$(python3 "$py" get-field "$tmp/report.json" title)"
+  desc="$(python3 "$py" get-field "$tmp/report.json" description)"
+
+  _spl_vendor_terms_query_existing "$tmp/existing.json" "$tenant" "$agent" "$epic"
+
+  local existing_matches=""
+  if existing_matches="$(python3 "$py" check-duplicate "$tmp/report.json" "$tmp/existing.json" 2>/dev/null)"; then
+    do_log "INFO open issue already exists for vendor terms findings: $existing_matches; skipping duplicate issue"
+    rm -rf "$tmp"
+    return 0
+  fi
 
   if [[ "$dry" == 1 ]]; then
     do_log "PLAN would open issue: $title"
@@ -68,14 +85,56 @@ do_spl_vendor_terms_check() {
     return 1
   fi
 
+  _spl_vendor_terms_create_issue "$title" "$epic" "$disc" "$desc" "$tenant" "$agent"
+  local rc=$?
+  rm -rf "$tmp"
+  return "$rc"
+}
+
+_spl_vendor_terms_query_existing() {
+  local out_file="$1" tenant="$2" agent="$3" epic="$4"
+  : >"$out_file"
+  if [[ -n "${VENDOR_TERMS_ISSUE_LIST_CMD:-}" ]]; then
+    "$VENDOR_TERMS_ISSUE_LIST_CMD" >"$out_file" 2>/dev/null || true
+  elif [[ -n "${VENDOR_TERMS_ISSUE_CMD:-}" ]]; then
+    "$VENDOR_TERMS_ISSUE_CMD" list >"$out_file" 2>/dev/null || true
+  else
+    ENV="${ENV:-dev}" TENANT_ID="$tenant" DESK_AGENT="$agent" ISSUE_ASSIGNEE='' \
+      ISSUE_EPIC="$epic" ISSUE_STATUS="eval,todo,wip,blocked,onhold,qas" DRY_RUN=0 \
+      do_spl_issue_list >"$out_file" 2>/dev/null || true
+  fi
+}
+
+_spl_vendor_terms_create_issue() {
+  local title="$1" epic="$2" disc="$3" desc="$4" tenant="$5" agent="$6"
   do_log "ALERT vendor terms changed or missing; opening issue: $title"
   if [[ -n "${VENDOR_TERMS_ISSUE_CMD:-}" ]]; then
-    ISSUE_TITLE="$title"     ISSUE_EPIC="$epic"     ISSUE_DISCUSSIONS="$disc"     ISSUE_DESCRIPTION="$desc"     ISSUE_PRIORITY="${VENDOR_TERMS_PRIORITY:-2}"     ENV="${ENV:-dev}"     TENANT_ID="$tenant"     DESK_AGENT="$agent"     "$VENDOR_TERMS_ISSUE_CMD" create       --title "$title"       --epic "$epic"       --discussions "$disc"       --description "$desc"       --priority "${VENDOR_TERMS_PRIORITY:-2}"
+    ISSUE_TITLE="$title" \
+    ISSUE_EPIC="$epic" \
+    ISSUE_DISCUSSIONS="$disc" \
+    ISSUE_DESCRIPTION="$desc" \
+    ISSUE_PRIORITY="${VENDOR_TERMS_PRIORITY:-2}" \
+    ENV="${ENV:-dev}" \
+    TENANT_ID="$tenant" \
+    DESK_AGENT="$agent" \
+    "$VENDOR_TERMS_ISSUE_CMD" create \
+      --title "$title" \
+      --epic "$epic" \
+      --discussions "$disc" \
+      --description "$desc" \
+      --priority "${VENDOR_TERMS_PRIORITY:-2}"
   else
-    ISSUE_TITLE="$title"     ISSUE_EPIC="$epic"     ISSUE_DISCUSSIONS="$disc"     ISSUE_DESCRIPTION="$desc"     ISSUE_PRIORITY="${VENDOR_TERMS_PRIORITY:-2}"     ENV="${ENV:-dev}"     TENANT_ID="$tenant"     DESK_AGENT="$agent"     DRY_RUN=0     do_spl_issue_create
+    ISSUE_TITLE="$title" \
+    ISSUE_EPIC="$epic" \
+    ISSUE_DISCUSSIONS="$disc" \
+    ISSUE_DESCRIPTION="$desc" \
+    ISSUE_PRIORITY="${VENDOR_TERMS_PRIORITY:-2}" \
+    ENV="${ENV:-dev}" \
+    TENANT_ID="$tenant" \
+    DESK_AGENT="$agent" \
+    DRY_RUN=0 \
+    do_spl_issue_create
   fi
-
   do_log "ISSUE opened for vendor terms change: $title"
-  rm -rf "$tmp"
   return 1
 }

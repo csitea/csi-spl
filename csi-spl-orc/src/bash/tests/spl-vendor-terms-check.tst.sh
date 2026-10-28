@@ -4,8 +4,11 @@
 # monthly, fetch the nine URLs of spec 159 section 4.1, compare the quoted
 # sentences, open an issue when one changes or goes missing.
 #
-# Red control: a page fixture with one quote edited -> issue opened; the same
-# fixture unchanged -> none.
+# Red controls:
+# - A page fixture with one quote edited -> issue opened; unchanged fixture -> none.
+# - A fetch error (timeout exit 28) -> not measured, NO issue opened.
+# - An HTTP error (404 / curl exit 22) -> not measured, NO issue opened.
+# - Second run with same finding -> dedup detects open issue, NO duplicate opened.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -96,12 +99,21 @@ esac
 EOFIX
 chmod +x "$T/fakefetch"
 
-# Setup fake issue creator script
+# Setup fake issue script (supports create and list)
 cat >"$T/fakeissue" <<'EOFIX'
 #!/bin/sh
-printf "%s|" "$@" >>"$FAKE_LOG"
-echo >>"$FAKE_LOG"
-echo '{"key":"SPL-9999","ok":true}'
+cmd="${1:-create}"
+case "$cmd" in
+  list)
+    cat "${FAKE_LIST:-/dev/null}" 2>/dev/null || echo '{"result":{"issues":[]}}'
+    ;;
+  create|*)
+    echo "--- ISSUE CALL ---" >>"$FAKE_LOG"
+    printf "%s|" "$@" >>"$FAKE_LOG"
+    echo >>"$FAKE_LOG"
+    echo '{"key":"SPL-9999","ok":true}'
+    ;;
+esac
 EOFIX
 chmod +x "$T/fakeissue"
 
@@ -112,12 +124,14 @@ base=(
   VENDOR_TERMS_DISCUSSIONS="f8f9dfcc-659a-480d-bc7f-1cffd5fb38b9"
   FIXTURES="$T/fixtures"
   FAKE_LOG="$T/issue.log"
+  FAKE_LIST="$T/existing.json"
   TENANT_ID="t1"
   DESK_AGENT="c-001"
 )
 
 # Test 4: Unchanged fixtures -> NO issue opened
 : >"$T/issue.log"
+: >"$T/existing.json"
 out=$(SNIPPET="do_spl_vendor_terms_check" in_orc "${base[@]}" DRY_RUN=0 2>&1)
 rc=$?
 if [[ $rc -eq 0 && ! -s "$T/issue.log" && "$out" == *"OK"* ]]; then
@@ -152,10 +166,11 @@ fi
 # Verify the issue call details
 if grep -q "SPL-2398" "$T/issue.log" &&
    grep -q "159-byo-ai-keys" "$T/issue.log" &&
-   grep -q "f8f9dfcc" "$T/issue.log"; then
-  pass "7. opened issue cites epic SPL-2398, spec 159, and topic"
+   grep -q "f8f9dfcc" "$T/issue.log" &&
+   grep -q "Fingerprints:" "$T/issue.log"; then
+  pass "7. opened issue cites epic SPL-2398, spec 159, topic, and stable fingerprint"
 else
-  fail "7. opened issue missing required epic, spec, or topic: $(cat "$T/issue.log")"
+  fail "7. opened issue missing required epic, spec, topic or fingerprint: $(cat "$T/issue.log")"
 fi
 
 # Test 8: Missing quote (quote removed completely) -> issue opened
@@ -167,6 +182,87 @@ if [[ $rc_missing -eq 1 && -s "$T/issue.log" ]]; then
   pass "8. red control missing quote -> issue opened"
 else
   fail "8. missing quote failed (rc=$rc_missing): $out_missing; issue log: $(cat "$T/issue.log")"
+fi
+
+# Restore fixtures for fetch error & HTTP error tests
+if ! grep -q "You may not share" "$T/fixtures/grok-consumer.html"; then
+  echo "<html><body>You may not share your account credentials or make your account available to anyone else</body></html>" >"$T/fixtures/grok-consumer.html"
+fi
+
+# Test 9: W1 - Fetch error (e.g. exit 28 timeout) -> reported as not measured, NO issue opened
+cat >"$T/failfetch_timeout" <<'EOFIX'
+#!/bin/sh
+exit 28
+EOFIX
+chmod +x "$T/failfetch_timeout"
+
+: >"$T/issue.log"
+out_fe=$(SNIPPET="do_spl_vendor_terms_check" in_orc "${base[@]}" VENDOR_TERMS_FETCH_CMD="$T/failfetch_timeout" DRY_RUN=0 2>&1)
+rc_fe=$?
+if [[ $rc_fe -eq 0 && ! -s "$T/issue.log" && "$out_fe" == *"not measured"* ]]; then
+  pass "9. fetch error (exit 28) -> reported as not measured, 0 issues opened (rc=0)"
+else
+  fail "9. fetch error failed (rc=$rc_fe): $out_fe; issue log: $(cat "$T/issue.log")"
+fi
+
+# Test 10: W2 - HTTP error (e.g. 404 / curl exit 22) -> reported as not measured, NO issue opened
+cat >"$T/failfetch_404" <<'EOFIX'
+#!/bin/sh
+exit 22
+EOFIX
+chmod +x "$T/failfetch_404"
+
+: >"$T/issue.log"
+out_404=$(SNIPPET="do_spl_vendor_terms_check" in_orc "${base[@]}" VENDOR_TERMS_FETCH_CMD="$T/failfetch_404" DRY_RUN=0 2>&1)
+rc_404=$?
+if [[ $rc_404 -eq 0 && ! -s "$T/issue.log" && "$out_404" == *"not measured"* ]]; then
+  pass "10. HTTP error (exit 22) -> reported as not measured, 0 issues opened (rc=0)"
+else
+  fail "10. HTTP error failed (rc=$rc_404): $out_404; issue log: $(cat "$T/issue.log")"
+fi
+
+# Test 11: W3 - Duplicate issue guard
+# Step A: Edit grok fixture, run 1 with no open issues -> issue is created
+sed -i "s/You may not share/You are welcome to share/" "$T/fixtures/grok-consumer.html"
+: >"$T/issue.log"
+: >"$T/existing.json"
+out_r1=$(SNIPPET="do_spl_vendor_terms_check" in_orc "${base[@]}" DRY_RUN=0 2>&1)
+rc_r1=$?
+count_r1=$(grep -c '^--- ISSUE CALL ---' "$T/issue.log" || true)
+if [[ $rc_r1 -eq 1 && $count_r1 -eq 1 ]]; then
+  pass "11a. duplicate guard: run 1 opens issue"
+else
+  fail "11a. duplicate guard run 1 failed (rc=$rc_r1): $out_r1; count: $count_r1"
+fi
+
+# Extract fingerprint created in run 1
+created_desc=$(cat "$T/issue.log")
+fp=$(python3 -c "import re, sys; m=re.search(r'Fingerprint[s]*[:\`\s]+([a-f0-9]{12})', sys.argv[1]); print(m.group(1) if m else '')" "$created_desc")
+
+# Populate existing issues list with open issue SPL-9999 containing that fingerprint
+cat >"$T/existing.json" <<EOJSON
+{"result":{"issues":[{"key":"SPL-9999","title":"Vendor terms changed: grok","description":"Fingerprints: $fp","status":"todo"}]}}
+EOJSON
+
+# Step B: Run 2 with the same finding -> open issue found -> NO duplicate created
+out_r2=$(SNIPPET="do_spl_vendor_terms_check" in_orc "${base[@]}" DRY_RUN=0 2>&1)
+rc_r2=$?
+count_r2=$(grep -c '^--- ISSUE CALL ---' "$T/issue.log" || true)
+if [[ $rc_r2 -eq 0 && $count_r2 -eq 1 && "$out_r2" == *"open issue already exists"* ]]; then
+  pass "11b. duplicate guard: run 2 detects open issue SPL-9999, skips creation (rc=0)"
+else
+  fail "11b. duplicate guard run 2 failed (rc=$rc_r2): $out_r2; issue count: $count_r2"
+fi
+
+# Step C: RED CONTROL for duplicate guard: without open issue in list -> creates issue
+: >"$T/existing.json"
+out_ctrl=$(SNIPPET="do_spl_vendor_terms_check" in_orc "${base[@]}" DRY_RUN=0 2>&1)
+rc_ctrl=$?
+count_ctrl=$(grep -c '^--- ISSUE CALL ---' "$T/issue.log" || true)
+if [[ $rc_ctrl -eq 1 && $count_ctrl -eq 2 ]]; then
+  pass "11c. red control: clearing existing issue causes creation (count=2)"
+else
+  fail "11c. red control failed: count=$count_ctrl, out=$out_ctrl"
 fi
 
 exit "$fails"

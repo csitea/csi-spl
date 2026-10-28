@@ -626,7 +626,19 @@ Orc action, test, and box-crons manifest row:
 | vendor terms checker script | `csi-spl-orc/src/bash/scripts/vendor-terms-check.py` |
 | monthly cron script | `csi-spl-orc/src/bash/scripts/vendor-terms-check-cron.sh` |
 | cron entry | `csi-spl-orc/cnf/box-crons/box-crons.manifest` row `vendor-terms-check` (`17 4 1 * *`) |
-| tests & red control | `csi-spl-orc/src/bash/tests/spl-vendor-terms-check.tst.sh` |
+| tests & red controls | `csi-spl-orc/src/bash/tests/spl-vendor-terms-check.tst.sh` |
+
+- **URL and quote source:** dynamically parsed from section 4.1 table (9 URLs,
+  14 quotes).
+- **Fetch and HTTP errors:** fetched via `curl -fsL` (or custom fetcher). Network
+  timeouts or HTTP 4xx/5xx errors are classified as `not_measured`; a warning is
+  logged and no issue is opened.
+- **Deduplication guard:** issue titles use a stable vendor list without
+  variable counts. Each `(url, quote)` pair receives a deterministic 12-char
+  SHA-256 fingerprint embedded in the issue body. Before creating an issue,
+  `do_spl_vendor_terms_check` checks open issues under epic `SPL-2398` via
+  `do_spl_issue_list` and skips issue creation if open issues already cover the
+  findings.
 
 ## 12. What needs the owner
 

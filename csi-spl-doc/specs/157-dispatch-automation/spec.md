@@ -242,6 +242,15 @@ sequenceDiagram
   6. *Remote box log*: Reviewer log path on remote box -> script exits 6, asserts no local file read attempted, logs remote execution requirement.
 - **Green Pass**: Valid cross-vendor `PASS` from assigned reviewer on immutable branch with verified journal and no unapproved owner-go keywords -> script exits 0, writes `PASS ... <sha>` to `automation.log`, and executes `spool-send.sh --kind task --body "GO <sha>"`.
 
+#### 6. As built (row B4, SPL-4101)
+- **Where the review is read**: the dispatch holder's spool `$SPOOL_ROOT/<holder>/{inbox,archive}` (reviewer briefs say "send to the author, cc the dispatch lease holder"), messages of kind `result` or `note` newer than `REVIEW_GO_MAX_AGE` (60 min), whose `from` (bare id) is the reviewer the `review:` line names. A relayed or quoted copy from anyone else is not read. `REVIEW_GO_MSG=<file>` checks one message and returns its exit code.
+- **The author** is not in the review message: it is the `author` cell of the reviewer's `$SPOOL_ROOT/<reviewer>/lifetime/brief.md` table row (`| author | review branch | sha | ... | task |` and its variants) whose sha / head / commits cell abbreviates the reviewed sha, else whose task cell is the message's task. The same row gives the branch and the task the GO is sent on.
+- **Exit codes**: 1 not PASS (or no R7 line), 2 same vendor, 3 unplaced reviewer or author not in the brief, 4 owner-go keyword without a verified `Owner-go:`, 5 branch moved, 6 log on another box, plus 7 (the author's brief is not on this box: the keyword scan cannot run, fails closed), 8 (`do_spl_review_line_check` failed: a docs-only `ran:`, a test the log never ran) and 9 (the GO send failed: nothing logged, retried next run).
+- **Branch immutability** reads `git ls-remote origin refs/heads/<branch>` (read only) instead of a fetch, so the shared checkout's refs are never moved.
+- **The record** (what Rule 2 reads): `PASS <ts> <msg_id> <task_id> <author_id> <reviewer_id> <sha>`, bare ids, `task_id` = the review message's own. A refusal is logged as `<ts> review-go <msg_id> action=refused rc=<n> ...` and told to the holder once (spool note, task `review-go`); a message already in the log is never checked again.
+- **`Owner-go:`** is verified by a message with that id from `HUM-<n>` in the holder's spool or its desk spools under the running user's state dir. Run as `box_agent_user`, the desk spools are usually not readable, so a brief with an owner-go keyword is in practice refused and handed to the dispatcher (fails closed).
+- **Cron**: `do_spl_review_go_install_cron` (tag `<org>-<app>:review-go`, every minute, flock), installed as `box_agent_user`; its live install waits for the dispatch holder's go.
+
 ---
 
 ## Rule 2: Automated ACCEPTED After Landing Verification

@@ -17,18 +17,34 @@
 # @param FILE_STREAMS_TICKS (optional) - run N ticks, then exit; default the
 # @param   long-lived loop
 # @param FILE_STREAMS_PUSH (optional) - 1 (default) push, 0 queue only
-# @param FILE_STREAMS_PUSH_CMD (optional) - replaces
-# @param   `spool file-streams push --json -` (tests, and until row B2 lands)
+# @param FILE_STREAMS_PUSH_CMD (optional) - one push command for ONE follower
+# @param   (tests, a by-hand run); default one follower per hub below
+# @param FILE_STREAMS_HUBS (optional) - the hub envs fed, space separated;
+# @param   default the cnf env.box.file_streams.hubs (owner HUM-10, poll
+# @param   38eeb655: BOTH, dev and prd). Each env has its own follower, state
+# @param   dir <state>/<env> and queue, so a line one hub acked still waits
+# @param   for the other. The push rides the box's desk of that env, as the
+# @param   token burn does: `timeout 20 <desk state>/bin/spool file-streams
+# @param   push --json -` with the desk's keys, box id, tenant and the env's
+# @param   hub (https://<cnf <env>.env.json env.dns.api_fqdn>), run as the
+# @param   desk user. A hub with no desk on this box: one FATAL line, the
+# @param   other hubs still run
+# @param FILE_STREAMS_DESK_USER (optional) - default box.env SPOOL_DESK_USER,
+# @param   else the owner of the spool root
+# @param FILE_STREAMS_DESK_STATE (optional) - the desk state root, %ENV% for
+# @param   the env; default <desk user home>/.local/share/<org-app>/cloud/%ENV%
+# @param FILE_STREAMS_TENANT (optional) - default box.env SPOOL_FLEET_TENANT, else t1
 # @param FILE_STREAMS_AGENT_USER (optional) - default the first
 # @param   spl_cost_agent_users user
 # @param FILE_STREAMS_CNF (optional) - default csi-spl-cnf/csi-spl/all.env.yaml
 # @param FILE_STREAMS_STATE_DIR (optional) - default the agent user's
-# @param   $HOME/.local/state/csi-spl/file-streams
+# @param   $HOME/.local/state/csi-spl/file-streams (plus /<env> per hub)
 # @example ./run -a do_spl_file_stream_follow
 # @example FILE_STREAMS_ENABLED=true FILE_STREAMS_TICKS=1 FILE_STREAMS_PUSH=0 ./run -a do_spl_file_stream_follow
 #------------------------------------------------------------------------------
 
 declare -F spl_cost_agent_users >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-cost-tokens-read.func.sh"
+declare -F spl_desk_box_default >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-box.func.sh"
 
 do_spl_file_stream_follow() {
   local orc cnf on user py
@@ -48,11 +64,86 @@ do_spl_file_stream_follow() {
   [[ "$user" != root ]] || { echo "FATAL file-streams: the agent user is root: refused"; return 1; }
   local args=()
   [[ -n "${FILE_STREAMS_TICKS:-}" ]] && args=(--ticks "$FILE_STREAMS_TICKS")
-  if [[ "$user" == "$(id -un)" ]]; then
-    env "${envs[@]}" python3 "$py" "${args[@]}"
-  else
-    sudo -n -H -u "$user" env "${envs[@]}" python3 "$py" "${args[@]}"
+  if [[ "${FILE_STREAMS_PUSH:-1}" == 0 || -n "${FILE_STREAMS_PUSH_CMD:-}" ]]; then
+    local cmd=""
+    [[ "${FILE_STREAMS_PUSH:-1}" == 0 ]] || cmd="$FILE_STREAMS_PUSH_CMD"
+    spl_file_stream_run "$user" "$py" "FILE_STREAMS_PUSH_CMD=$cmd" -- "${args[@]}"
+    return
   fi
+  spl_file_stream_hubs "$cnf" "$user" "$py" "${args[@]}"
+}
+
+# spl_file_stream_hubs <cnf> <user> <py> [args]: one follower per hub env,
+# each with its own state dir and push; waits for all. Non-zero when any
+# failed; a hub with no desk does not stop the others.
+spl_file_stream_hubs() {
+  local cnf="$1" user="$2" py="$3" e cmd base rc=0 hubs
+  shift 3
+  local -a pids=()
+  hubs="${FILE_STREAMS_HUBS:-$(yq -r '.env.box.file_streams.hubs // [] | join(" ")' "$cnf" 2>/dev/null)}"
+  [[ -n "${hubs// /}" ]] || { echo "FATAL file-streams: no hub env (cnf env.box.file_streams.hubs is empty)"; return 1; }
+  base="${FILE_STREAMS_STATE_DIR:-$(getent passwd "$user" | cut -d: -f6)/.local/state/csi-spl/file-streams}"
+  for e in $hubs; do
+    [[ "$e" =~ ^(dev|prd)$ ]] || { echo "FATAL file-streams: hub env '$e' is not dev or prd"; rc=1; continue; }
+    cmd="$(spl_file_stream_hub_cmd "$cnf" "$e" "$user")" || { echo "$cmd"; rc=1; continue; }
+    spl_file_stream_run "$user" "$py" "FILE_STREAMS_PUSH_CMD=$cmd" "FILE_STREAMS_STATE_DIR=$base/$e" -- "$@" 2>&1 |
+      sed -u "s/^/hub=$e /" &
+    pids+=("$!")
+  done
+  for e in "${pids[@]}"; do wait "$e" || rc=1; done
+  return "$rc"
+}
+
+# spl_file_stream_run <user> <py> <env=val>... -- [args]: the follower as the
+# agent user, with the caller's envs plus the given ones.
+spl_file_stream_run() {
+  local user="$1" py="$2"; shift 2
+  local -a more=()
+  while [[ $# -gt 0 && "$1" != -- ]]; do more+=("$1"); shift; done
+  [[ "${1:-}" == -- ]] && shift
+  if [[ "$user" == "$(id -un)" ]]; then
+    env "${envs[@]}" "${more[@]}" python3 "$py" "$@"
+  else
+    sudo -n -H -u "$user" env "${envs[@]}" "${more[@]}" python3 "$py" "$@"
+  fi
+}
+
+# spl_file_stream_boxenv <key>: one value of the box's spool box.env.
+spl_file_stream_boxenv() {
+  local f="${SPOOL_BOX_ENV:-${SPOOL_LIVE_ROOT:-/var/spool-hub}/box.env}" k v
+  [[ "${SPOOL_TEST:-}" == 1 && -z "${SPOOL_BOX_ENV:-}" ]] && return 0
+  [[ -r "$f" ]] || return 0
+  while IFS='=' read -r k v || [[ -n "$k" ]]; do
+    [[ "$k" == "$1" ]] || continue
+    v="${v%$'\r'}"; v="${v#[\"\']}"; v="${v%[\"\']}"
+    printf '%s' "$v"
+  done <"$f"
+}
+
+# spl_file_stream_hub_cmd <cnf> <env> <agent user>: prints the push command
+# the agent user runs (sudo to the desk user when they differ) through the
+# box's desk of <env>; a missing desk, binary or hub: prints one FATAL line,
+# non-zero. A bare `spool` is never called (under sudo, secure_path has none).
+spl_file_stream_hub_cmd() {
+  local cnf="$1" e="$2" au="$3" du root d bin fqdn tenant box oa as=""
+  du="${FILE_STREAMS_DESK_USER:-$(spl_file_stream_boxenv SPOOL_DESK_USER)}"
+  du="${du:-$(stat -c %U "${SPOOL_ROOT:-/var/spool-hub}" 2>/dev/null)}"
+  [[ "$du" =~ ^[a-z_][a-z0-9_-]*$ && "$du" != root ]] || { echo "FATAL file-streams: hub=$e: bad desk user '$du'"; return 1; }
+  oa="$(basename "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)")"
+  root="${FILE_STREAMS_DESK_STATE:-$(getent passwd "$du" | cut -d: -f6)/.local/share/${oa%-orc}/cloud/%ENV%}"
+  root="${root//%ENV%/$e}"
+  tenant="${FILE_STREAMS_TENANT:-$(spl_file_stream_boxenv SPOOL_FLEET_TENANT)}"
+  tenant="${tenant:-t1}" box="$(spl_desk_box_default)"
+  d="$root/desk/$tenant/$box" bin="$root/bin/spool"
+  fqdn="$(jq -r '.env.dns.api_fqdn // ""' "$(dirname "$cnf")/$e.env.json" 2>/dev/null)"
+  [[ "$fqdn" =~ ^[A-Za-z0-9.-]+$ ]] || { echo "FATAL file-streams: hub=$e: no env.dns.api_fqdn in $(dirname "$cnf")/$e.env.json"; return 1; }
+  [[ "$du" == "$au" ]] || as="sudo -n -u $du "
+  if ! spl_cost_as "$du" test -x "$bin" || ! spl_cost_as "$du" test -d "$d/keys"; then
+    echo "FATAL file-streams: hub=$e: no desk keys $d/keys or spool $bin for $du: this hub is not fed"
+    return 1
+  fi
+  printf '%senv SPOOL_ROOT=%q SPOOL_KEYS_DIR=%q SPOOL_BOX_ID=%q SPOOL_HUB_URL=%q SPOOL_TENANT=%q timeout 20 %q file-streams push --json -' \
+    "$as" "$d/spool" "$d/keys" "$box" "https://$fqdn" "$tenant" "$bin"
 }
 
 # spl_file_stream_cnf <cnf> <key> <default>: one scalar of env.box.file_streams.
@@ -86,9 +177,4 @@ spl_file_stream_env() {
   envs+=("FILE_STREAMS_DENY_EXTRA=$extra")
   [[ -n "${FILE_STREAMS_STATE_DIR:-}" ]] && envs+=("FILE_STREAMS_STATE_DIR=$FILE_STREAMS_STATE_DIR")
   [[ -n "${SPOOL_ROOT:-}" ]] && envs+=("SPOOL_ROOT=$SPOOL_ROOT")
-  if [[ "${FILE_STREAMS_PUSH:-1}" == 0 ]]; then
-    envs+=("FILE_STREAMS_PUSH_CMD=")
-  else
-    envs+=("FILE_STREAMS_PUSH_CMD=${FILE_STREAMS_PUSH_CMD:-timeout 20 spool file-streams push --json -}")
-  fi
 }

@@ -34,7 +34,10 @@
 # And: the line cut and the rate limit (3.7), the action (cnf off = nothing
 # followed; on = the cnf allow-list reaches the follower), the cron wrapper
 # (refuses a worktree; off logs one line), the manifest row, and the shipped
-# cnf keeps the follower off until row B2 (file_streams_push) is on master.
+# cnf keeps the follower off until row B2 (file_streams_push) is on master;
+# the hubs: one line reaches the dev AND the prd hub, each through that env's
+# desk, a hub that is down keeps only its own queue, a hub with no desk is one
+# FATAL line (CONTROL: one shared state dir feeds only one hub).
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -555,9 +558,110 @@ else
   fail "action on: yq is required"
 fi
 
+# ------------------------------------------------------------------ hubs
+# Owner HUM-10 poll 38eeb655 (BOTH): every box feeds the dev AND the prd hub,
+# each through the box's desk of that env, each with its own state and queue.
+# hubcase <dir>: a desk per env (keys dir, a stub spool that logs the frames
+# it acks to <dir>/pushed-<env>, none while <dir>/fail-<env> exists) and the
+# cnf with its <env>.env.json hub names.
+hubcase() {
+  local d="$1" e
+  for e in dev prd; do
+    mkdir -p "$d/cloud/$e/desk/t9/box-t/keys" "$d/cloud/$e/bin"
+    cat >"$d/cloud/$e/bin/spool" <<EOS
+#!/bin/sh
+[ "\$1 \$2 \$3" = "file-streams push --json" ] || exit 9
+f="\$(cat)"
+[ -e "$d/fail-$e" ] && exit 1
+printf '%s %s %s %s\n' "\$SPOOL_HUB_URL" "\$SPOOL_BOX_ID" "\$SPOOL_TENANT" "\$SPOOL_KEYS_DIR" >>"$d/via-$e"
+printf '%s\n' "\$f" >>"$d/pushed-$e"
+echo '{"type":"ack","lane_op":"x"}'
+EOS
+    chmod +x "$d/cloud/$e/bin/spool"
+    printf '{"env":{"dns":{"api_fqdn":"%s.api.example.com"}}}\n' "$e" >"$d/$e.env.json"
+    : >"$d/pushed-$e"
+  done
+  seq 1 3 | sed 's/^/hb /' >"$d/logs/a.log"
+  printf 'env:\n  box:\n    file_streams:\n      enabled: true\n      hubs: [dev, prd]\n      allow:\n        - id: h\n          path: %s\n      start_lines: 1\n' \
+    "$d/logs/a.log" >"$d/cnf.yaml"
+}
+hub_act() {
+  local func="$1" d="$2"; shift 2
+  env -u FILE_STREAMS_PUSH_CMD -u FILE_STREAMS_HUBS HOME="$d/home" SPOOL_ROOT="$d/spool" SPOOL_TEST=1 \
+    SPOOL_DESK_BOX=box-t FILE_STREAMS_TENANT=t9 FILE_STREAMS_DESK_USER="$(id -un)" \
+    FILE_STREAMS_DESK_STATE="$d/cloud/%ENV%" FILE_STREAMS_STATE_DIR="$d/state" FILE_STREAMS_CNF="$d/cnf.yaml" \
+    FILE_STREAMS_AGENT_USER="$(id -un)" FILE_STREAMS_TICKS=1 "$@" \
+    bash -c 'source "$1"; do_spl_file_stream_follow' _ "$func" 2>&1
+}
+htexts() { jq -r 'select(.lane_op == "file_streams_push") | .lines[] | .text' "$1/pushed-$2" | paste -sd' '; }
+if command -v yq >/dev/null; then
+  FUNC="$PROJ_ROOT/src/bash/run/spl-file-stream-follow.func.sh"
+  hd="$(newcase)"; hubcase "$hd"
+  out="$(hub_act "$FUNC" "$hd")"; rc=$?
+  [[ "$rc" == 0 && "$(htexts "$hd" dev)" == "hb 3" && "$(htexts "$hd" prd)" == "hb 3" ]] &&
+    pass "hubs: one line reaches BOTH the dev and the prd hub" || fail "hubs both: rc=$rc dev='$(htexts "$hd" dev)' prd='$(htexts "$hd" prd)' out='$out'"
+  [[ "$(sort -u "$hd/via-dev")" == "https://dev.api.example.com box-t t9 $hd/cloud/dev/desk/t9/box-t/keys" &&
+     "$(sort -u "$hd/via-prd")" == "https://prd.api.example.com box-t t9 $hd/cloud/prd/desk/t9/box-t/keys" ]] &&
+    pass "hubs: each push rides that env's desk (hub url, box, tenant, keys)" || fail "hubs via: dev='$(cat "$hd/via-dev")' prd='$(cat "$hd/via-prd")'"
+  [[ "$out" == *"hub=dev "* && "$out" == *"hub=prd "* ]] && pass "hubs: every follower line names its hub" ||
+    fail "hubs log: '$out'"
+
+  # one hub down: its line stays queued for it, the other hub is not held back
+  hd="$(newcase)"; hubcase "$hd"; : >"$hd/fail-prd"
+  out="$(hub_act "$FUNC" "$hd")"
+  q="$(jq -r '.text' "$hd/state/prd/queue.jsonl" 2>/dev/null | paste -sd' ')"
+  [[ "$(htexts "$hd" dev)" == "hb 3" && -z "$(htexts "$hd" prd)" && "$q" == "hb 3" &&
+     -z "$(jq -r '.text' "$hd/state/dev/queue.jsonl" 2>/dev/null)" ]] &&
+    pass "hubs: prd down keeps its line queued for prd; dev got it and its queue is empty" ||
+    fail "hubs prd down: dev='$(htexts "$hd" dev)' prdq='$q' out='$out'"
+  rm -f "$hd/fail-prd"
+  hub_act "$FUNC" "$hd" >/dev/null
+  [[ "$(htexts "$hd" prd)" == "hb 3" && "$(htexts "$hd" dev)" == "hb 3" ]] &&
+    pass "hubs: prd back, the queued line reaches prd once, dev gets no second copy" ||
+    fail "hubs prd back: dev='$(htexts "$hd" dev)' prd='$(htexts "$hd" prd)'"
+
+  # CONTROL: one state dir for both hubs (the per-env dir removed): the second
+  # follower finds the first one's lock and feeds nothing
+  hd="$(newcase)"; hubcase "$hd"
+  co="$hd/c/csi-spl-orc"
+  mkdir -p "$co/src/bash/run" "$co/src/bash/scripts" "$co/lib/bash/funcs"
+  cp "$PROJ_ROOT/src/bash/run/spl-cost-tokens-read.func.sh" "$co/src/bash/run/"
+  cp "$PROJ_ROOT/src/bash/scripts/file-stream-follow.py" "$co/src/bash/scripts/"
+  cp "$PROJ_ROOT/lib/bash/funcs/spl-desk-box.func.sh" "$co/lib/bash/funcs/"
+  sed 's|"FILE_STREAMS_STATE_DIR=$base/$e"|"FILE_STREAMS_STATE_DIR=$base"|' "$FUNC" >"$co/src/bash/run/f.sh"
+  grep -q '"FILE_STREAMS_STATE_DIR=$base"' "$co/src/bash/run/f.sh" || fail "hubs CONTROL: the sed did not plant the shared state dir"
+  out="$(hub_act "$co/src/bash/run/f.sh" "$hd" FILE_STREAMS_TICKS=3)"
+  [[ -z "$(htexts "$hd" dev)" || -z "$(htexts "$hd" prd)" ]] &&
+    pass "hubs CONTROL: one shared state dir, one hub gets nothing" ||
+    fail "hubs CONTROL: both hubs fed with one state dir: dev='$(htexts "$hd" dev)' prd='$(htexts "$hd" prd)'"
+
+  # a hub with no desk on the box: one FATAL line, the other hub still fed
+  hd="$(newcase)"; hubcase "$hd"; rm -rf "$hd/cloud/prd/desk"
+  out="$(hub_act "$FUNC" "$hd")"; rc=$?
+  [[ "$rc" != 0 && "$(grep -c 'FATAL file-streams: hub=prd: no desk keys' <<<"$out")" == 1 &&
+     "$(htexts "$hd" dev)" == "hb 3" && ! -e "$hd/state/prd" ]] &&
+    pass "hubs: prd with no desk logs one FATAL line, dev is still fed" || fail "hubs no desk: rc=$rc '$out'"
+  # the push runs as the agent user: a different desk user is reached by sudo,
+  # the same one is not
+  hd="$(newcase)"; hubcase "$hd"
+  hc() { env SPOOL_TEST=1 SPOOL_DESK_BOX=box-t FILE_STREAMS_TENANT=t9 FILE_STREAMS_DESK_USER="$(id -un)" \
+    FILE_STREAMS_DESK_STATE="$hd/cloud/%ENV%" bash -c 'source "$1"; spl_file_stream_hub_cmd "$2" dev "$3"' _ "$FUNC" "$hd/cnf.yaml" "$1"; }
+  [[ "$(hc zz-agent)" == "sudo -n -u $(id -un) env SPOOL_ROOT="* && "$(hc "$(id -un)")" == "env SPOOL_ROOT="* ]] &&
+    pass "hubs: the push sudoes to the desk user only when the agent user differs" ||
+    fail "hubs sudo: other='$(hc zz-agent)' same='$(hc "$(id -un)")'"
+  # a bare `spool` is never what the push calls
+  [[ "$(grep -c 'timeout 20 spool ' "$FUNC")" == 0 ]] &&
+    pass "hubs: no bare spool call in the action" || fail "hubs: a bare spool call is back"
+  v="$(yq -r '.env.box.file_streams.hubs | join(" ")' "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml")"
+  [[ "$v" == "dev prd" ]] && pass "cnf: file_streams.hubs is dev and prd (owner: BOTH)" || fail "cnf hubs: '$v'"
+else
+  fail "hubs: yq is required"
+fi
+
 # ------------------------------------------------------------------ cron
 W="$T/x-wt/c-1/csi-spl-orc/src/bash"
-mkdir -p "$W/scripts" "$W/run"
+mkdir -p "$W/scripts" "$W/run" "$W/../../lib/bash/funcs"
+cp "$PROJ_ROOT/lib/bash/funcs/spl-desk-box.func.sh" "$W/../../lib/bash/funcs/"
 cp "$PROJ_ROOT/src/bash/scripts/file-stream-follow-cron.sh" "$W/scripts/"
 cp "$PROJ_ROOT/src/bash/run/spl-file-stream-follow.func.sh" "$PROJ_ROOT/src/bash/run/spl-cost-tokens-read.func.sh" "$W/run/"
 out="$(bash "$W/scripts/file-stream-follow-cron.sh" 2>&1)"

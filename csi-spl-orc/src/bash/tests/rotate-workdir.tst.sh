@@ -15,6 +15,9 @@
 #      ROTATE_ROLE_WORKDIR, else the tree above PROJ_PATH; a lane id does not
 #   5. the seat switch (c-001 -> g-001): the new id has no row, the old one does
 #   6. spl_rotate_spawn refuses with the reason and never calls the spawn
+#   7. a seat on ANOTHER repo (SPL-4065, g-563 2026-10-28): its
+#      linked worktree <repo>-wt/<id> from the registry, never <repo>; that
+#      worktree gone and no old pid = refused, still never the main checkout
 #------------------------------------------------------------------------------
 set -uo pipefail
 while read -r v; do unset "$v"; done < <(compgen -e | grep -E '^(SPOOL_|ROTATE_|LEASE_)')
@@ -109,6 +112,18 @@ out="$(env -i PATH="$PATH" HOME="$T/home/box" T="$T" SPOOL_ROOT="$T/spool" LEASE
     spl_rotate_spawn c-777 /dev/null || echo "rc=1 $ROTATE_ERR"' _ "$PROJ_ROOT")"
 [[ "$out" == "rc=1 no working dir for c-777"* && ! -e "$T/spawned" ]] &&
   pass "6. spl_rotate_spawn: refused with the reason, no spawn" || fail "6. spawn: $out $(ls "$T")"
+
+# 7. a seat on another repo: the worktree, never the main checkout
+git -c init.defaultBranch=master init -q "$T/other"
+git -C "$T/other" -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m init
+git -C "$T/other" worktree add -q -b g-563 "$T/other-wt/g-563"
+printf 'g-563\tgrok\t%%1811\t%s\t20261028T163309Z\n' "$T/other-wt/g-563" >"$T/spool/registry.tsv"
+out="$(wd g-563 ROTATE_OLD_PID=)"
+[[ "$out" == "$T/other-wt/g-563|rc=0" ]] && pass "7. another repo's seat, its process gone: its worktree" || fail "7. worktree: $out"
+rm -rf "$T/other-wt/g-563"
+out="$(wd g-563 ROTATE_OLD_PID=)"
+[[ "$out" == "|rc=1|no working dir for g-563"* ]] && pass "7. its worktree gone: refused, not the main checkout $T/other" || fail "7. gone: $out"
+: >"$T/spool/registry.tsv"
 
 echo "rotate-workdir: $fails failure(s)"
 (( fails == 0 ))

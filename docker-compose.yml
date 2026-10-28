@@ -237,6 +237,10 @@ services:
       # the one-click "Dev login" as the workspace owner (spec 148 2.3.2):
       # off unless set; the hub refuses to start with it on outside lde
       SPOOL_HUB_AUTH_DEV_LOGIN_ENABLED: ${SPOOL_AUTH_DEV_LOGIN_ENABLED:-false}
+      # sign-up, confirm, forgot and reset calls per client IP per 15 min (the
+      # hub's default 10); do_dev_mode_up raises it, so the login flows can be
+      # walked again and again (spec 148 row B9)
+      SPOOL_HUB_AUTH_NATIVE_FORM_PER_IP: ${SPOOL_AUTH_FORM_PER_IP:-10}
     secrets: [spool_s3_secret_key, spool_mail_smtp_password]
     volumes:
       - hub-state:/var/lib/spool/state:ro
@@ -277,6 +281,9 @@ services:
       SPOOL_PUBLIC_URL: ${SPOOL_PUBLIC_URL:-http://localhost:${SPOOL_HTTP_PORT:-8080}}
       SPOOL_TENANT: ${SPOOL_TENANT:-main}
       SPOOL_LOBBY_TASK_ID: ${SPOOL_LOBBY_TASK_ID:-00000000-0000-4000-8000-000000000001}
+      # config.json envName: "lde" (do_dev_mode_up sets it) shows the dev
+      # toolbar, Dev login + Mailpit inbox, on a loopback host (spec 148 B7)
+      SPOOL_ENV_NAME: ${SPOOL_ENV_NAME:-}
       # the source repository's url pieces (.env.example); "" = links hidden
       SPOOL_REPO_WEB_URL: ${SPOOL_REPO_WEB_URL:-}
       SPOOL_REPO_CLONE_URL: ${SPOOL_REPO_CLONE_URL:-}

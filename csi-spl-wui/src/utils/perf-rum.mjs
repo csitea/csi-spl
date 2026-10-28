@@ -242,6 +242,80 @@ function perfDeliver(clock, stats, mark, hubMs, wallMs) {
   }
 }
 
+/** One sample into the ring buffer, under the hourly cap; a full batch queues an idle flush. Never throws. */
+function perfMarkOne(c, metric, valueMs, fields) {
+  const { o, buf, st, stats } = c
+  try {
+    if (st.stopped) return false
+    const t = o.now()
+    if (t - st.winStart >= HOUR_MS) { st.winStart = t; st.winCount = 0 }
+    if (st.winCount >= PERF_HOUR_CAP) { stats.capped++; return false }
+    const s = perfSample(metric, valueMs, fields, { sessionId: o.sessionId, device: o.device(), net: o.net(), build: o.build })
+    if (!s) { stats.invalid++; return false }
+    st.winCount++
+    buf.push(s)
+    if (buf.length > PERF_BUFFER_MAX) { buf.shift(); st.dropped++ }
+    stats.kept++
+    if (buf.length >= PERF_BATCH_MAX && !st.flushQueued) { st.flushQueued = true; o.idle(() => { st.flushQueued = false; perfFlushOne(c) }) }
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Send one batch; never throws, never retries. The promise is for tests. */
+function perfFlushOne(c) {
+  const { o, buf, st, stats } = c
+  try {
+    if (st.stopped || st.inFlight || !o.ready() || (!buf.length && !st.dropped)) return Promise.resolve(false)
+    const rows = buf.splice(0, PERF_BATCH_MAX)
+    const lost = rows.length + st.dropped
+    const payload = perfBody(rows, st.dropped)
+    st.dropped = 0
+    st.inFlight = true
+    const t0 = o.wallNow()
+    return perfSendOnce(o, payload).then((res) => {
+      st.inFlight = false
+      if (!res) return perfFailed(c, lost)
+      st.failures = 0
+      stats.sent += rows.length
+      perfReadClock(res, t0, o.wallNow()).then((k) => perfPickClock(st, k))
+      return true
+    })
+  } catch {
+    return Promise.resolve(false)
+  }
+}
+
+/** M4: keep the hub clock offset with the lowest error seen so far. */
+function perfPickClock(st, k) {
+  if (k && (!st.clock || k.errMs < st.clock.errMs)) st.clock = k
+}
+
+/** A dropped batch: counted, never resent; PERF_FAIL_STOP in a row stop the tab. */
+function perfFailed(c, n) {
+  const { st, stats } = c
+  st.dropped += n
+  stats.failed++
+  if (++st.failures >= PERF_FAIL_STOP) perfStop(c)
+  return false
+}
+
+/** The periodic flush: one batch every PERF_FLUSH_MS until stopped. */
+function perfLoop(c) {
+  const { o, st } = c
+  st.tick = o.setTimer(() => { if (!st.stopped) { perfFlushOne(c); perfLoop(c) } }, PERF_FLUSH_MS)
+}
+
+/** Stop the tab: empty the buffer and cancel the periodic flush. */
+function perfStop(c) {
+  const { o, buf, st } = c
+  st.stopped = true
+  buf.length = 0
+  if (st.tick !== null) o.clearTimer(st.tick)
+  st.tick = null
+}
+
 /**
  * The collector: ring buffer + hourly cap + batcher + sender.
  * @param {{
@@ -259,74 +333,16 @@ export function createPerfCollector(opts) {
   const buf = []
   const st = { dropped: 0, failures: 0, stopped: !o.sessionId, inFlight: false, flushQueued: false, winStart: o.now(), winCount: 0, clock: null, tick: null }
   const stats = { kept: 0, capped: 0, invalid: 0, sent: 0, failed: 0, beacons: 0, clockDropped: 0 }
+  const c = { o, buf, st, stats }
+  const mark = (metric, valueMs, fields) => perfMarkOne(c, metric, valueMs, fields)
 
-  function mark(metric, valueMs, fields) {
-    try {
-      if (st.stopped) return false
-      const t = o.now()
-      if (t - st.winStart >= HOUR_MS) { st.winStart = t; st.winCount = 0 }
-      if (st.winCount >= PERF_HOUR_CAP) { stats.capped++; return false }
-      const s = perfSample(metric, valueMs, fields, { sessionId: o.sessionId, device: o.device(), net: o.net(), build: o.build })
-      if (!s) { stats.invalid++; return false }
-      st.winCount++
-      buf.push(s)
-      if (buf.length > PERF_BUFFER_MAX) { buf.shift(); st.dropped++ }
-      stats.kept++
-      if (buf.length >= PERF_BATCH_MAX && !st.flushQueued) { st.flushQueued = true; o.idle(() => { st.flushQueued = false; flush() }) }
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  /** Send one batch; never throws, never retries. The promise is for tests. */
-  function flush() {
-    try {
-      if (st.stopped || st.inFlight || !o.ready() || (!buf.length && !st.dropped)) return Promise.resolve(false)
-      const rows = buf.splice(0, PERF_BATCH_MAX)
-      const lost = rows.length + st.dropped
-      const payload = perfBody(rows, st.dropped)
-      st.dropped = 0
-      st.inFlight = true
-      const t0 = o.wallNow()
-      return perfSendOnce(o, payload).then((res) => {
-        st.inFlight = false
-        if (!res) return failed(lost)
-        st.failures = 0
-        stats.sent += rows.length
-        perfReadClock(res, t0, o.wallNow()).then((c) => { if (c && (!st.clock || c.errMs < st.clock.errMs)) st.clock = c })
-        return true
-      })
-    } catch {
-      return Promise.resolve(false)
-    }
-  }
-
-  /** A dropped batch: counted, never resent; PERF_FAIL_STOP in a row stop the tab. */
-  function failed(n) {
-    st.dropped += n
-    stats.failed++
-    if (++st.failures >= PERF_FAIL_STOP) stop()
-    return false
-  }
-
-  function loop() {
-    st.tick = o.setTimer(() => { if (!st.stopped) { flush(); loop() } }, PERF_FLUSH_MS)
-  }
-
-  function stop() {
-    st.stopped = true
-    buf.length = 0
-    if (st.tick !== null) o.clearTimer(st.tick)
-    st.tick = null
-  }
-
-  if (!st.stopped) loop()
+  if (!st.stopped) perfLoop(c)
   return {
     mark,
     deliver: (hubMs, wallMs) => perfDeliver(st.clock, stats, mark, hubMs, wallMs),
-    flush,
-    stop,
+    /** Send one batch; never throws, never retries. The promise is for tests. */
+    flush: () => perfFlushOne(c),
+    stop: () => perfStop(c),
     /** pagehide / hidden: the rest goes in beacons. */
     final: () => perfBeaconRest(o, buf, st, stats),
     /** M4's offset to the hub clock from the lowest-RTT exchange, or null. */

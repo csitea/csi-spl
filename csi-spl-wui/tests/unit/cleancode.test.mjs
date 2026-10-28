@@ -62,7 +62,6 @@ const LONG = new Map([
   ['src/utils/error-snackbar.ts createSnackbarQueue', 79],
   ['src/utils/hours-recorder.mjs createHoursRecorder', 78],
   ['src/utils/move-drag.ts createHandleDrag', 78],
-  ['src/utils/perf-rum.mjs createPerfCollector', 80],
   ['src/utils/tenant-host-boot.mjs bootTenantHost', 78],
 ])
 

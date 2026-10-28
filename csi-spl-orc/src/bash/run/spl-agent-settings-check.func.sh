@@ -157,6 +157,26 @@ spl_as_user() {
   (cd / && sudo -n -u "$u" "$@" 2>/dev/null)
 }
 
+# spl_settings_harm USER LINE: what a BAD line's problems do, by kind
+# (SPL-4005). A settings.json problem parks every new claude session on a
+# dialog; a git finding (spl_git_store_finding) makes no dialog, it leaves a
+# token in clear text. A line with both says both.
+spl_settings_harm() {
+  local u="$1" pr dialog="" token="" harm="" nl=$'\n'
+  local -a probs=()
+  pr="${2#*: }"
+  mapfile -t probs <<<"${pr//; /$nl}"
+  for pr in "${probs[@]}"; do
+    case "$pr" in
+      "credential.helper=store in "* | *" is not empty (clear-text git credentials)") token=1 ;;
+      *) dialog=1 ;;
+    esac
+  done
+  [[ -n "$dialog" ]] && harm="Every new claude session of $u stops on a dialog until it is fixed"
+  [[ -n "$token" ]] && harm="${harm:+$harm. }git keeps a token in clear text: run spool-install step Y19 (install.sh --fleet) as $u, and rotate the token"
+  printf '%s' "$harm"
+}
+
 # spl_settings_tell USER LINE STATE: one note per change of USER's verdict
 # (the line, whose mtime part moves with every edit of a bad file), and one
 # when a told bad file is good again. The mark is <state>/<user>.told.
@@ -169,7 +189,7 @@ spl_settings_tell() {
     body="SETTINGS FIXED: $u's ${line#SETTINGS OK "$u" } (was: ${prev#SETTINGS BAD "$u" })"
   else
     [[ "$line" == "$prev" ]] && return 0
-    body="SETTINGS BAD on $(spl_desk_box_default 2>/dev/null || hostname -s): ${line#SETTINGS BAD }. Every new claude session of $u stops on a dialog until it is fixed; this check never writes the file."
+    body="SETTINGS BAD on $(spl_desk_box_default 2>/dev/null || hostname -s): ${line#SETTINGS BAD }. $(spl_settings_harm "$u" "$line"); this check never writes the file."
   fi
   conf="$SPOOL_ROOT/dispatch/lease.conf"
   to="${SETTINGS_CHECK_TO:-$(sed -n 's/^LEASE_ORCH=\([A-Za-z0-9_-]*\)$/\1/p' "$conf" 2>/dev/null | sed -n 1p)}"

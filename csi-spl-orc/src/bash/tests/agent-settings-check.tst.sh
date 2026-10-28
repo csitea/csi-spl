@@ -23,6 +23,9 @@
 #   9. a git credential.helper=store (global, per-url or system) and a
 #      non-empty ~/.git-credentials are BAD; neither git file is written and
 #      the store's content is never printed. Control: a cache helper is OK
+#  10. the note's tail follows the finding (SPL-4005): a git-only line names
+#      the clear-text token and step Y19, never the dialog; a settings.json
+#      line keeps the dialog; a line with both keeps both
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -147,6 +150,25 @@ rc="$(go SETTINGS_CHECK_FILES="ai=$G/.claude/settings.json" SETTINGS_CHECK_STATE
 [[ "$rc" == 1 ]] && grep -q "SETTINGS BAD ai .*: credential.helper=store in the system git config ($T/sysgit)" "$T/o" &&
   pass "9. a system store helper: BAD" || fail "9. system rc=$rc $(cat "$T/o")"
 grep -q ERRTRAP "$T/o" && fail "9. ERRTRAP: $(cat "$T/o")"
+printf '[credential]\n\thelper = cache\n' >"$T/sysgit"
+
+# --- 10. the note's tail follows the finding (SPL-4005) ------------------------------------
+# a git-only line made no dialog, yet its note claimed one (2026-10-28 02:18Z)
+dialog='stops on a dialog'; token='git keeps a token in clear text: run spool-install step Y19 (install.sh --fleet) as'
+printf 'https://u:fake-%s@example.com\n' "$$" >"$G/.git-credentials"; : >"$T/sent10"
+go SETTINGS_CHECK_FILES="ai=$G/.claude/settings.json" SETTINGS_CHECK_STATE_DIR="$T/st10a" SENT="$T/sent10" >/dev/null
+grep -q "is not empty" "$T/sent10" && ! grep -q "$dialog" "$T/sent10" && grep -qF "$token ai, and rotate the token" "$T/sent10" &&
+  pass "10. a git-only finding: the token sentence, no dialog sentence" || fail "10. git-only: $(cat "$T/sent10")"
+echo "$withstar" >"$G/.claude/settings.json"; : >"$T/sent10"
+go SETTINGS_CHECK_FILES="ai=$G/.claude/settings.json" SETTINGS_CHECK_STATE_DIR="$T/st10b" SENT="$T/sent10" >/dev/null
+grep -q "allow rule" "$T/sent10" && grep -q "is not empty" "$T/sent10" && grep -q "$dialog" "$T/sent10" && grep -qF "$token" "$T/sent10" &&
+  pass "10. a settings.json and a git finding: both sentences" || fail "10. both: $(cat "$T/sent10")"
+rm -f "$G/.git-credentials"; : >"$T/sent10"
+go SETTINGS_CHECK_FILES="ai=$G/.claude/settings.json" SETTINGS_CHECK_STATE_DIR="$T/st10c" SENT="$T/sent10" >/dev/null
+grep -q "allow rule" "$T/sent10" && grep -q "$dialog" "$T/sent10" && ! grep -qF "$token" "$T/sent10" &&
+  pass "10. control: a settings.json-only finding keeps the dialog sentence, no token sentence" || fail "10. settings-only: $(cat "$T/sent10")"
+grep -q "fake-$$" "$T/sent10" "$T/o" && fail "10. the store content was printed"
+grep -q ERRTRAP "$T/o" && fail "10. ERRTRAP: $(cat "$T/o")"
 unset SETTINGS_CHECK_GIT_SYSTEM
 
 echo "agent-settings-check: $( ((fails)) && echo "$fails failure(s)" || echo "all passed")"

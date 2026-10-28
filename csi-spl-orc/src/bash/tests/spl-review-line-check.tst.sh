@@ -45,15 +45,19 @@
 #      another e2e file (the c834c655f review shape) -> MISSING e2e
 #      foo-pane.test.mjs, exit 3, also with REVIEW_LINE_SYNTAX=1 -> SYNTAX
 #      FAIL; ran: names it and the log ran it -> OK, the selection printed;
-#      a commit that touches no WUI file asks for no e2e file
+#      a commit that touches no WUI file asks for no e2e file; a sha that is
+#      no commit in the repo is void -> FATAL exit 1, SYNTAX FAIL on box-b
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 source "$TEST_DIR/test-lib.inc.sh"
 fails=0
 
-chk() { SNIPPET='do_spl_review_line_check' in_orc REVIEW_LINE_BOX=box-a SPOOL_ROOT="$T" "$@" 2>&1; }
-SHA=0123456789abcdef0123456789abcdef01234567
+# the line's sha must be a commit (SPL-3438): one commit touching no WUI file
+R0="$T/repo0"; mkdir -p "$R0"; echo a >"$R0/a.md"
+git -C "$R0" init -q && git -C "$R0" add a.md && git -C "$R0" -c user.name=t -c user.email=t@example.com commit -qm a
+SHA="$(git -C "$R0" rev-parse HEAD)"
+chk() { SNIPPET='do_spl_review_line_check' in_orc REVIEW_LINE_BOX=box-a SPOOL_ROOT="$T" REVIEW_LINE_REPO="$R0" "$@" 2>&1; }
 line() { echo "review: m-159@box-a mistral PASS $SHA ran: $1 | read: 9 PASS | log: m-159@${3:-box-a}:$2"; }
 TST=csi-spl-orc/src/bash/tests/git-prune-round-branches.tst.sh
 
@@ -292,6 +296,14 @@ out="$(chk REVIEW_LINE_REPO="$R" REVIEW_LINE_SYNTAX=1 REVIEW_LINE="$(l12 "$W12" 
 [[ $rc -eq 0 && "$out" == *"SYNTAX OK"* ]] && pass "12. box-b, REVIEW_LINE_SYNTAX=1, the file named -> SYNTAX OK" || fail "12. syntax green (rc $rc: $out)"
 out="$(chk REVIEW_LINE_REPO="$R" REVIEW_LINE="$(l12 "$D12" "node run-e2e-tests.mjs tests/e2e/other.test.mjs")")"; rc=$?
 [[ $rc -eq 0 && "$out" != *"MISSING"* ]] && pass "12. a commit that touches no WUI file asks for no e2e file" || fail "12. no wui (rc $rc: $out)"
+
+N12=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+out="$(chk REVIEW_LINE_REPO="$R" REVIEW_LINE="$(l12 "$N12" "node run-e2e-tests.mjs tests/e2e/other.test.mjs")")"; rc=$?
+[[ $rc -eq 1 && "$out" == *"FATAL $N12 is no commit"* && "$out" != *"OK 1 of 1"* ]] \
+  && pass "12. a sha that is no commit in the repo -> FATAL, exit 1 (g-357 R7: was OK 1 of 1)" || fail "12. no commit (rc $rc: $out)"
+out="$(chk REVIEW_LINE_REPO="$R" REVIEW_LINE_SYNTAX=1 REVIEW_LINE="$(l12 "$N12" "node run-e2e-tests.mjs tests/e2e/other.test.mjs" box-b)")"; rc=$?
+[[ $rc -eq 1 && "$out" == "SYNTAX FAIL $N12 is no commit"* ]] \
+  && pass "12. the same from box-b, REVIEW_LINE_SYNTAX=1 -> SYNTAX FAIL, rc 1 (was SYNTAX OK)" || fail "12. no commit syntax (rc $rc: $out)"
 
 echo "spl-review-line-check: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

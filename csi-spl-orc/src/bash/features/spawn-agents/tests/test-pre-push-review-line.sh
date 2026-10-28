@@ -4,13 +4,16 @@
 # check do_spl_push_master runs (row r11-04), so a hand `git push` cannot skip
 # it (row r11-05). Real `git push` into a bare temp remote with the hook as
 # core.hooksPath; the scratch repo carries the real spl-push-master.func.sh at
-# its tree path (the hook sources it from there), no csi-spl-iac/run, so the
+# its tree path (the hook sources it from there; it sources its sibling
+# spl-review-line-check.func.sh, copied too), no csi-spl-iac/run, so the
 # gate itself fail-opens and only the review-line block decides.
 #   1. a row commit with no review line              -> REFUSED, remote unchanged
 #   2. ... with a typed sha that does not resolve    -> REFUSED
 #   3. ... no line, SPL_PREPUSH_OVERRIDE=1           -> still REFUSED
 #   4. ... line with no '| log:'                     -> REFUSED
 #   5. ... the full line, sha only on review/r11-99  -> fetched, pushed
+#  5a. ... ran: names tests only as a brace token     -> REFUSED by the retro
+#      checker's syntax path (SPL-4066: c-585's r36-02 line)
 #   6. a commit that is not a round row, no line     -> pushed
 #   7. a row commit to a non-master branch           -> pushed
 #   8. the hook carries no second copy of the regex
@@ -23,6 +26,7 @@ unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OB
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$(cd "$HERE/../hooks" && pwd)/pre-push"
 HELPER="$(cd "$HERE/../../../run" && pwd)/spl-push-master.func.sh"
+CHECKER="${HELPER%/*}/spl-review-line-check.func.sh"
 
 fails=0
 pass() { echo "ok   - $1"; }
@@ -32,6 +36,8 @@ eq()   { [ "$2" = "$3" ] && pass "$1" || fail "$1" "want '$2' got '$3'"; }
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 ROOT=$(mktemp -d); trap 'rm -rf "$ROOT"' EXIT
 export SPL_PREPUSH_LOG_DIR="$ROOT/log"
+# the checker's registry lookup reads a temp spool root, never the box's
+export SPOOL_ROOT="$ROOT/spool"
 
 NEW="$ROOT/hooks-new"; OLD="$ROOT/hooks-old"; mkdir -p "$NEW" "$OLD"
 install -m 0755 "$HOOK" "$NEW/pre-push"
@@ -42,7 +48,7 @@ grep -q '_spl_push_master_unreviewed' "$OLD/pre-push" && fail "control hook stil
 git init -q --bare "$ROOT/remote.git"
 A="$ROOT/a"; git clone -q "$ROOT/remote.git" "$A" 2>/dev/null
 git -C "$A" checkout -q -b master
-mkdir -p "$A/csi-spl-orc/src/bash/run"; cp "$HELPER" "$A/csi-spl-orc/src/bash/run/"
+mkdir -p "$A/csi-spl-orc/src/bash/run"; cp "$HELPER" "$CHECKER" "$A/csi-spl-orc/src/bash/run/"
 git -C "$A" add csi-spl-orc; git -C "$A" commit -q -m "base"; git -C "$A" push -q origin master 2>/dev/null
 c() { git -C "$A" commit -q --allow-empty -m "$1" ${2:+-m "$2"}; }
 push() {  # <hooksdir> [env...] -- <push args...>
@@ -86,8 +92,15 @@ redo; c "$ROW" "review: m-000@box mistral PASS $rev ran: x | read: ok"
 push "$NEW" -- master; eq "4. no '| log:' -> refused" 1 "$(( $? != 0 ))"
 grep -q "no '| log: <id>@<box>:<path>'" "$ROOT/err" && pass "4. ... names the missing log" || fail "4. ... names the missing log" "$(cat "$ROOT/err")"
 
+# 5a. a brace-token ran: names no test for the checker
+redo; before="$(rtip master)"
+c "$ROW" "review: m-000@box mistral PASS $rev ran: bash check-{a,b}.tst.sh $LOG"
+push "$NEW" -- master; eq "5a. brace-token ran: -> refused" 1 "$(( $? != 0 ))"
+grep -q "review line: checker: ran: names no test" "$ROOT/err" && pass "5a. ... names the checker's reason" || fail "5a. ... names the checker's reason" "$(cat "$ROOT/err")"
+eq "5a. ... remote unchanged" "$before" "$(rtip master)"
+
 # 5. the full line
-redo; c "$ROW" "review: m-000@box mistral PASS $rev ran: x $LOG"
+redo; c "$ROW" "review: m-000@box mistral PASS $rev ran: bash x.tst.sh $LOG"
 push "$NEW" -- master; eq "5. full review line -> exit 0" 0 "$?"
 eq "5. ... remote moved to the local tip" "$(git -C "$A" rev-parse HEAD)" "$(rtip master)"
 git -C "$A" fetch -q origin

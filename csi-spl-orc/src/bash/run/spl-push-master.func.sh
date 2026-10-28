@@ -12,7 +12,9 @@
 # @description identity check (%ae and %ce, --no-mailmap) -> the R7 review-line
 # @description check (a round row `<type>(rNN-NN-...`, or bNN-NN / pNN-NN for a bug / perf round, needs a `review: ... PASS
 # @description <40-hex sha> ... | log: <id>@<box>:<path>` body line whose sha
-# @description resolves after fetching `review/rNN-NN`; rounds-rulebook.md 2.7.4) -> `git push <remote>
+# @description resolves after fetching `review/rNN-NN`, and that do_spl_review_line_check's
+# @description syntax path (REVIEW_LINE_SYNTAX=1) passes, so `ran:` names a test, SPL-4066;
+# @description rounds-rulebook.md 2.7.4) -> `git push <remote>
 # @description <sha>:<branch>`, the sha it logged, never HEAD (a lane rotation switched
 # @description c-462's tree mid-push: HEAD was origin's head, read PUSHED; SPL-2574);
 # @description a push refused because the branch moved is retried
@@ -240,7 +242,8 @@ _spl_push_master_unreviewed() {
 # _spl_push_master_review_why <body> <round row, e.g. rNN-NN> <remote> - prints why the body's
 # review line is void, nothing when it is checkable: the plan section 1 format
 # `review: <id>@<box> <vendor> PASS <40-hex sha> ran: ... | read: ... | log:
-# <id>@<box>:<path>`, its sha a commit here after fetching `review/<rNN-NN>`.
+# <id>@<box>:<path>`, its sha a commit here after fetching `review/<rNN-NN>`,
+# and then whatever the retro checker's syntax path refuses (SPL-4066).
 _spl_push_master_review_why() {
   local line sha
   line="$(grep -m 1 -E '^review: \S+@\S+ \S+ PASS ' <<<"$1")" ||
@@ -249,7 +252,26 @@ _spl_push_master_review_why() {
   [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "sha '$sha' is not 40 hex"; return 0; }
   git fetch -q "$3" "+refs/heads/review/$2:refs/remotes/$3/review/$2" >/dev/null 2>&1
   git rev-parse --verify -q "$sha^{commit}" >/dev/null || { echo "sha $sha does not resolve (fetched review/$2)"; return 0; }
-  grep -qE '\| log: \S+@\S+:\S+' <<<"$line" || echo "no '| log: <id>@<box>:<path>'"
+  grep -qE '\| log: \S+@\S+:\S+' <<<"$line" || { echo "no '| log: <id>@<box>:<path>'"; return 0; }
+  _spl_push_master_review_syntax "$line"
+}
+
+# _spl_push_master_review_syntax <line> - prints `checker: <why>` when
+# do_spl_review_line_check's syntax path (REVIEW_LINE_SYNTAX=1, the check
+# that needs no log) refuses the line, nothing when it passes. It calls the
+# checker's own function, never a copy of its regexes: c-585's r36-02 line
+# named its tests as `check-pre-push-{...}.tst.sh`, the checker said `MISSING
+# ran: names no test` (exit 3) and this gate would have landed it (SPL-4066).
+# The sha is read in this checkout (the worker's cwd).
+_spl_push_master_review_syntax() {
+  local f="${BASH_SOURCE[0]%/*}/spl-review-line-check.func.sh" out
+  if ! declare -F _spl_review_line_syntax >/dev/null; then
+    # shellcheck source=/dev/null
+    source "$f" 2>/dev/null || { echo "checker: cannot read $f"; return 0; }
+  fi
+  out="$(REVIEW_LINE_REPO="$(git rev-parse --show-toplevel)" _spl_review_line_syntax "$1" 2>&1)" && return 0
+  out="$(grep -m 1 '^SYNTAX FAIL ' <<<"$out")"
+  echo "checker: ${out#SYNTAX FAIL }"
 }
 
 # The marker of the worker's own push (SPL-2211): the pre-push hook refuses a

@@ -20,7 +20,12 @@
 #      sha, a 40-char sha that does not resolve, or no `| log:` -> REFUSED round
 #      row <sha> review line: <reason>, not on origin; the full line, its sha
 #      only on origin's review/r99-01 (fetched) -> PUSHED; a `chore(r99-01-x)`
-#      and a `docs(...)` commit with no line -> PUSHED
+#      and a `docs(...)` commit with no line -> PUSHED. The gate agrees with
+#      the retro checker (SPL-4066): a `ran:` that names its tests only as a
+#      brace token `check-pre-push-{a,b}.tst.sh` plus a `$t` loop (c-585's
+#      r36-02 line) -> REFUSED `checker: ran: names no test ...`, and
+#      do_spl_review_line_check REVIEW_LINE_SYNTAX=1 refuses it too (exit 1)
+#      while it passes the line the gate lands (exit 0)
 #   9. the lane closes while its push runs (m-595, SPL-2264): the hook moves
 #      the state dir away as agent-id-retire does, then is red -> the moved dir
 #      reads REFUSED, not RUNNING; the same with a green hook -> PUSHED there.
@@ -97,7 +102,8 @@ chmod +x "$T/hooks/pre-push"
 git -C "$L" config core.hooksPath "$T/hooks"
 
 commit() { printf '%s\n' "$1" >"$L/$1.txt"; git -C "$L" add "$1.txt" && git -C "$L" "${G[@]}" commit -qm "$1"; }
-run() { SNIPPET='do_spl_push_master' in_orc PUSH_WORKTREE="$L" PUSH_STATE_DIR="$S" FETCH_FRESH_MAX_AGE=0 "$@" 2>&1; }
+# SPOOL_ROOT: the checker's registry lookup (case 8) reads a temp one, never the box's.
+run() { SNIPPET='do_spl_push_master' in_orc PUSH_WORKTREE="$L" PUSH_STATE_DIR="$S" FETCH_FRESH_MAX_AGE=0 SPOOL_ROOT="$T/spool" "$@" 2>&1; }
 # verdict - polls status (each call short) until it is not RUNNING; prints it.
 verdict() {
   local out rc
@@ -184,12 +190,13 @@ rcommit() { printf '%s\n' "$1" >"$L/$1.txt"; git -C "$L" add "$1.txt" && git -C 
 # The reviewed sha lives only on origin's review/r99-01: the gate must fetch it.
 git -C "$O" switch -q -c review-r99 && commit_o() { printf 'r\n' >"$O/rev.txt"; git -C "$O" add rev.txt && git -C "$O" "${G[@]}" commit -qm reviewed; }
 commit_o && git -C "$O" push -q origin HEAD:refs/heads/review/r99-01 && RS="$(git -C "$O" rev-parse HEAD)"; git -C "$O" switch -q master
-TAIL='ran: tests | read: diff | log: m-999@sat:/x/journal.jsonl'
+TAIL='ran: bash spl-push-master.tst.sh | read: diff | log: m-999@sat:/x/journal.jsonl'
+BRACE="ran: bash check-pre-push-{a,b}.tst.sh; for t in x; do bash \$t; done | read: diff | log: m-999@sat:/x/journal.jsonl"
 red8() {
   git -C "$L" "${G[@]}" commit -q --amend -m 'refactor(r99-01-x): a round row' -m "$2"
   run >/dev/null; v="$(verdict)"; vrc=$?
   short="$(git -C "$L" rev-parse --short HEAD)"
-  [ "$vrc" -eq 1 ] && grep -qx "REFUSED round row $short review line: $3" <<<"$v" && ! on_origin "$(git -C "$L" rev-parse HEAD)" \
+  [ "$vrc" -eq 1 ] && grep -qxF "REFUSED round row $short review line: $3" <<<"$v" && ! on_origin "$(git -C "$L" rev-parse HEAD)" \
     && pass "8. red control: $1 -> REFUSED round row $short review line: $3" || fail "8. red control $1 (rc $vrc: $v)"
 }
 rcommit eight 'refactor(r99-01-x): a round row'
@@ -197,6 +204,17 @@ red8 'no PASS line' 'review: m-999 mistral FAIL 0123456 no box, no PASS' "none o
 red8 'a 39-char sha' "review: m-999@sat mistral PASS ${RS:0:39} $TAIL" "sha '${RS:0:39}' is not 40 hex"
 red8 'an unresolvable 40-char sha' "review: m-999@sat mistral PASS $(printf 'f%.0s' $(seq 40)) $TAIL" "sha $(printf 'f%.0s' $(seq 40)) does not resolve (fetched review/r99-01)"
 red8 'no log:' "review: m-999@sat mistral PASS $RS ran: tests | read: diff" "no '| log: <id>@<box>:<path>'"
+red8 'a brace-token ran: (c-585, SPL-4066)' "review: m-999@sat mistral PASS $RS $BRACE" \
+  'checker: ran: names no test (*.tst.sh, *.test.mjs, *_test.go, go test, pnpm run)'
+# The checker itself, on the same two lines: the gate refuses what it refuses.
+chk8() { SNIPPET='do_spl_review_line_check' in_orc REVIEW_LINE="review: m-999@sat mistral PASS $RS $1" REVIEW_LINE_SYNTAX=1 \
+  REVIEW_LINE_BOX=other REVIEW_LINE_REPO="$L" SPOOL_ROOT="$T/spool" 2>&1; }
+out="$(chk8 "$BRACE")"; rc=$?
+[ "$rc" -eq 1 ] && grep -q '^SYNTAX FAIL ran: names no test' <<<"$out" \
+  && pass "8. the checker (REVIEW_LINE_SYNTAX=1) refuses the brace-token line too" || fail "8. checker brace (rc $rc: $out)"
+out="$(chk8 "$TAIL")"; rc=$?
+[ "$rc" -eq 0 ] && grep -q '^SYNTAX OK' <<<"$out" \
+  && pass "8. the checker passes the line the gate lands" || fail "8. checker full line (rc $rc: $out)"
 git -C "$L" "${G[@]}" commit -q --amend -m 'refactor(r99-01-x): a round row' -m "review: m-999@sat mistral PASS $RS $TAIL"
 run >/dev/null; v="$(verdict)"; vrc=$?
 [ "$vrc" -eq 0 ] && grep -qx "PUSHED $(git -C "$L" rev-parse HEAD)" <<<"$v" \

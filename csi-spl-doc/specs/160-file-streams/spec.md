@@ -208,6 +208,11 @@ A new box action `do_spl_file_stream_follow`
   box-state backup (a lost state restarts each file at its last `N` lines); a failed push is retried next tick, so a hub
   restart loses no line and stores none twice (the hub keys on
   `stream_id, seq`).
+  The hubs fed: env `FILE_STREAMS_HUBS`, else that key in the box's
+  spool `box.env` (the cron line carries no env; owner poll 5a85c2c1:
+  sat feeds prd only until its dev desk is pinned), else cnf
+  `env.box.file_streams.hubs` (dev and prd). Each hub has its own
+  follower and state dir `<env>`.
 - **Masking first.** Every line passes `spool_redact.redact()` (2.3) inside
   the follower before it is queued: an unmasked line never touches the
   queue file and never the wire (case C9). The frame carries the redaction

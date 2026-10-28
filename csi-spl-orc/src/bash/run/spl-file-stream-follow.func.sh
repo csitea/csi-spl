@@ -20,8 +20,10 @@
 # @param FILE_STREAMS_PUSH_CMD (optional) - one push command for ONE follower
 # @param   (tests, a by-hand run); default one follower per hub below
 # @param FILE_STREAMS_HUBS (optional) - the hub envs fed, space separated;
-# @param   default the cnf env.box.file_streams.hubs (owner HUM-10, poll
-# @param   38eeb655: BOTH, dev and prd). Each env has its own follower, state
+# @param   default box.env FILE_STREAMS_HUBS (the cron line carries no env:
+# @param   owner poll 5a85c2c1, sat feeds prd only until its dev desk is
+# @param   pinned), else the cnf env.box.file_streams.hubs (owner HUM-10,
+# @param   poll 38eeb655: BOTH, dev and prd). Each env has its own follower, state
 # @param   dir <state>/<env> and queue, so a line one hub acked still waits
 # @param   for the other. The push rides the box's desk of that env, as the
 # @param   token burn does: `timeout 20 <desk state>/bin/spool file-streams
@@ -81,8 +83,9 @@ spl_file_stream_hubs() {
   local cnf="$1" user="$2" py="$3" e cmd base rc=0 hubs
   shift 3
   local -a pids=()
-  hubs="${FILE_STREAMS_HUBS:-$(yq -r '.env.box.file_streams.hubs // [] | join(" ")' "$cnf" 2>/dev/null)}"
-  [[ -n "${hubs// /}" ]] || { echo "FATAL file-streams: no hub env (cnf env.box.file_streams.hubs is empty)"; return 1; }
+  hubs="${FILE_STREAMS_HUBS:-$(spl_file_stream_boxenv FILE_STREAMS_HUBS)}"
+  [[ -n "${hubs// /}" ]] || hubs="$(yq -r '.env.box.file_streams.hubs // [] | join(" ")' "$cnf" 2>/dev/null)"
+  [[ -n "${hubs// /}" ]] || { echo "FATAL file-streams: no hub env (box.env FILE_STREAMS_HUBS and cnf env.box.file_streams.hubs are empty)"; return 1; }
   base="${FILE_STREAMS_STATE_DIR:-$(spl_file_stream_state_base "$user")}"
   for e in $hubs; do
     [[ "$e" =~ ^(dev|prd)$ ]] || { echo "FATAL file-streams: hub env '$e' is not dev or prd"; rc=1; continue; }

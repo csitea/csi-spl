@@ -677,6 +677,32 @@ if command -v yq >/dev/null; then
     pass "hubs CONTROL: one shared state dir, one hub gets nothing" ||
     fail "hubs CONTROL: not exactly one hub fed with one state dir: dev='$(htexts "$hd" dev)' prd='$(htexts "$hd" prd)'"
 
+  # box.env FILE_STREAMS_HUBS picks the hubs (the cron line carries no env;
+  # owner poll 5a85c2c1: sat feeds prd only); an env FILE_STREAMS_HUBS beats it
+  # hbcase <func> [env=val]: box.env FILE_STREAMS_HUBS=prd, then one tick
+  hbcase() {
+    local func="$1"; shift
+    hd="$(newcase)"; hubcase "$hd"
+    printf 'SPOOL_DESK_USER=x\nFILE_STREAMS_HUBS=prd\n' >"$hd/box.env"
+    out="$(hub_act "$func" "$hd" SPOOL_BOX_ENV="$hd/box.env" "$@")"; rc=$?
+  }
+  hbcase "$FUNC"
+  [[ "$rc" == 0 && -z "$(htexts "$hd" dev)" && "$(htexts "$hd" prd)" == "hb 3" && "$out" != *"hub=dev "* ]] &&
+    pass "hubs: box.env FILE_STREAMS_HUBS=prd feeds prd only" ||
+    fail "hubs box.env: rc=$rc dev='$(htexts "$hd" dev)' prd='$(htexts "$hd" prd)' out='$out'"
+  hbcase "$FUNC" FILE_STREAMS_HUBS=dev
+  [[ "$rc" == 0 && "$(htexts "$hd" dev)" == "hb 3" && -z "$(htexts "$hd" prd)" ]] &&
+    pass "hubs: an env FILE_STREAMS_HUBS beats box.env" ||
+    fail "hubs env over box.env: rc=$rc dev='$(htexts "$hd" dev)' prd='$(htexts "$hd" prd)'"
+  # CONTROL: the func without the box.env read (cnf only, as before) feeds dev too
+  ctree "$hd"; sf="$co/src/bash/run/f.sh"
+  sed 's|hubs="${FILE_STREAMS_HUBS:-$(spl_file_stream_boxenv FILE_STREAMS_HUBS)}"|hubs="${FILE_STREAMS_HUBS:-}"|' "$FUNC" >"$sf"
+  grep -q 'boxenv FILE_STREAMS_HUBS' "$sf" && fail "hubs box.env CONTROL: the sed did not remove the box.env read"
+  hbcase "$sf"
+  [[ "$(htexts "$hd" dev)" == "hb 3" && "$(htexts "$hd" prd)" == "hb 3" ]] &&
+    pass "hubs box.env CONTROL: without the box.env read both hubs are fed" ||
+    fail "hubs box.env CONTROL: rc=$rc dev='$(htexts "$hd" dev)' prd='$(htexts "$hd" prd)' out='$out'"
+
   # the default state dir, when .local/state/csi-spl belongs to another user
   # (one box, SPL-4037: root:root, every cron tick died on its mkdir): the agent
   # user gets a sibling dir of its own; a writable or absent one is kept.

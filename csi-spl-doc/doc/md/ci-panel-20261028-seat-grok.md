@@ -2,6 +2,8 @@
 
 Verdict on v0.1 ([ci-panel-20261028.md](ci-panel-20261028.md), commit `3bb99eda4`): **sign**. W items: none.
 
+Dispatch accepted this sign at 2026-10-28T23:40:45Z, message 2000c125-54b8-438a-baf9-0622798f7530. v1.0 `50940f933` folds it.
+
 Git claims below were checked with `git merge-base --is-ancestor <sha> origin/master` on 2026-10-29. `origin/master` was `c2e69d1d1`. The editor's tree was `beefee4c6` .. `9699d4165`. `git diff --name-only 9699d4165 c2e69d1d1` is the panel doc plus WUI calendar and locale files. None of those paths are an F1-F4 file.
 
 `lane-map.sh --check` on 2026-10-29, for this file and the F1-F4 paths, exited 4. No live lane lists them. Seven lanes record no files. This seat edits only this file.

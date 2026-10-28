@@ -201,6 +201,19 @@ run_export; check "$rc" 2 "a CI gitleaks pin that drifted from the gate's refuse
 git -C "$R" checkout -q -- .github
 OSS_GATE_SKIP_DEPS=1 run_export; check "$rc" 2 "a skipped dependency class is never a pass"
 OSS_GATE_NODE_MODULES="$tmp/none" run_export; check "$rc" 2 "an unreadable npm store is never a pass"
+# the gate itself, on the last export: each fail-closed refusal names its cause
+: >"$LOGF"; DIR="$tmp/nope" do_oss_gate >/dev/null 2>&1; rc=$?
+check "$rc" 2 "a missing DIR refused"
+grep -q "FATAL DIR must name the exported tree" "$LOGF" && ok "a missing DIR is named" || no "a missing DIR went unnamed"
+: >"$LOGF"; DIR="$out" OSS_GATE_REPORT="$out/r.tsv" do_oss_gate >/dev/null 2>&1; rc=$?
+check "$rc" 2 "a report inside DIR refused (it would ship)"
+grep -q "FATAL OSS_GATE_REPORT must not be inside DIR" "$LOGF" && [[ ! -e "$out/r.tsv" ]] \
+  && ok "a report inside DIR is named and not written" || no "a report inside DIR went unnamed or was written"
+wui="$tmp/wui-export"; cp -r "$out" "$wui" && mkdir -p "$wui/csi-spl-wui"
+echo '{"name":"w","version":"1.0.0","license":"MIT"}' >"$wui/csi-spl-wui/package.json"
+: >"$LOGF"; DIR="$wui" OSS_GATE_NODE_MODULES="" do_oss_gate >/dev/null 2>&1; rc=$?
+check "$rc" 2 "a WUI export with no matching node_modules is never a pass"
+grep -q "FATAL not measured: .*dep-licence:npm" "$LOGF" && ok "the unmeasured npm licences are named" || no "the unmeasured npm licences went unnamed"
 
 # ---- 7. the real allow-list names no private path (T004) ---------------------
 real="$PROJ_ROOT/cnf/oss/export-allow-list.txt"

@@ -156,8 +156,11 @@ agent() {
   fi
 }
 hb() {  # hb <id> <state> <progress age> [jq extra]
-  jq -n --arg st "$2" --arg p "$(iso $((T0 - $3)))" \
-    "{v: 1, id: \"$1\", state: \$st, event: \"Stop\", ts: \$p, progress_ts: \$p, tool: null, tool_since: null, api_error: null, calls: []} ${4:-}" \
+  # .pid = the pane's harness pid, as the hook writes it: the watchdog reads a
+  # heartbeat only when its .id and .pid are the process judged (SPL-4015)
+  local pid; pid=$(awk -F'\t' -v w="$1@box1" '$4 == w && $5 != "bash" {p = $2} END {print p + 0}' "$T/tmux/panes")
+  jq -n --arg st "$2" --arg p "$(iso $((T0 - $3)))" --argjson pid "$pid" \
+    "{v: 1, id: \"$1\", pid: \$pid, state: \$st, event: \"Stop\", ts: \$p, progress_ts: \$p, tool: null, tool_since: null, api_error: null, calls: []} ${4:-}" \
     > "$S/$1/heartbeat.json"
 }
 loop() {  # loop <id>: a running poll loop of <id>

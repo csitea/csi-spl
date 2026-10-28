@@ -214,6 +214,7 @@ Per owner msg `fd72a794` (*"The aim is not to be spamming anyone. The aim is to 
 7. **Cold / Unsolicited Email Blasts**: Sending marketing emails to individuals who have not explicitly double opted-in.
 8. **Two-Way Social CRM**: Managing inbound comments, mentions, or direct messages inside the Spool WUI.
 9. **Reach Analytics in Phase 1 & Phase 3a**: Paid API metrics and engagement dashboards (deferred).
+   Planned in [163 marketing metrics](../163-marketing-metrics/spec.md).
 
 ---
 
@@ -769,4 +770,4 @@ The single-flight background dispatcher enforces strict failure handling to prot
 2. **Instagram Container Polling**:
    - For Instagram image publishing, container creation returns `creation_id`. The dispatcher verifies container status via `GET /{creation_id}?fields=status_code` before calling `media_publish`. If `status_code == 'ERROR'`, the post fails immediately without retry, logging Meta's diagnostic error message into `marketing_post_events`.
 
-<!-- version: 0.5.2 · updated: 2026-10-26 · last-edit: 2026-10-26T12:45:00Z -->
+<!-- version: 0.5.3 · updated: 2026-10-28 · last-edit: 2026-10-28T13:40:00Z -->

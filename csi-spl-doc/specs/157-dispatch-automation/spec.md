@@ -394,6 +394,7 @@ flowchart TD
 - **The author** is re-derived with row B4's `_spl_review_go_row` on the reviewer's `lifetime/brief.md`. While B4 is not loaded, that check fails closed (exit 4).
 - **Exit codes beyond section 6**: 8 = DEFER (not landed yet, a fetch failed, deploy lag, CI queued, running or not started, or a cancelled run inside the 3 ticks). 9 = a refusal with no number in section 6: an issue key is missing, `do_check_lane_served` FAILs, there is no lane worktree, the reviewed sha is unknown, or `HOLD: CI workflow cancelled`. A cancelled run passes when a newer successful master run of the same workflow contains the sha.
 - A refusal is logged as `<ts> accepted-close <msg> action=refused rc=<n> ...` and sent to the holder once per message and code. It is judged again on every run, so a lane that fixes the cause is accepted later.
+- **Known limit (box-local)**: `pushes.log`, `registry.tsv` and the lane worktrees live on the lane's own box, and the action runs only on the box holding the dispatch lease. So only lanes on that box are judged. A lane on another box gets no automatic ACCEPTED (it fails closed: no worktree, exit 9), and its ACCEPTED stays with the dispatcher.
 
 ---
 

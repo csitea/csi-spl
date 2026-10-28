@@ -6,7 +6,7 @@
 // and the recorder kept out of the initial chunk.
 // Run: node tests/unit/hours-recorder.test.mjs
 import { readFileSync } from 'node:fs'
-import { BATCH_MAX, FLUSH_MS, HOURS_MINUTES_MOCK_LOG, MINUTE_MS, TICK_MS, createHoursRecorder, hoursTargetOf, mockSendHoursMinutes } from '../../src/utils/hours-recorder.mjs'
+import { BATCH_MAX, BUFFER_MAX, FLUSH_MS, HOURS_MINUTES_MOCK_LOG, MINUTE_MS, TICK_MS, createHoursRecorder, hoursTargetOf, mockSendHoursMinutes } from '../../src/utils/hours-recorder.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 
 let failed = 0
@@ -20,7 +20,7 @@ function target() {
 }
 
 /** a recorder on a fake clock; `sent` keeps every batch with its keepalive */
-function rig({ fail } = {}) {
+function rig({ fail, tz = () => 'Europe/Helsinki', clearTimer = () => {} } = {}) {
   const T0 = Date.UTC(2026, 9, 12, 9, 0, 5)
   const s = { t: T0, visible: true, focus: true, on: true, path: '/channel/general', search: '', sent: [], timers: [] }
   const win = target()
@@ -33,13 +33,13 @@ function rig({ fail } = {}) {
     now: () => s.t,
     target: () => hoursTargetOf(s.path, s.search),
     enabled: () => s.on,
-    tz: () => 'Europe/Helsinki',
+    tz,
     send: async (body, opts) => {
       if (fail) throw fail
       s.sent.push({ ...body, keepalive: opts.keepalive })
     },
     setTimer: (fn, ms) => { s.timers.push({ fn, ms }); return s.timers.length },
-    clearTimer: () => {},
+    clearTimer,
   })
   const input = (ev = 'keydown') => win.fire(ev)
   const advance = (ms) => {
@@ -137,6 +137,20 @@ console.log('hours-recorder: the flush moments')
   ok('over 60 minutes go out as batches of <= 60', r.s.sent.length === 2 && r.s.sent[0].minutes.length === BATCH_MAX && r.rows().length === BATCH_MAX + 5, String(r.s.sent.map((b) => b.minutes.length)))
 }
 
+{
+  const r = rig({ tz: () => '' })
+  r.input()
+  await r.rec.flush()
+  ok('no time zone from the browser: the batch says UTC', r.s.sent.length === 1 && r.s.sent[0].tz === 'UTC', JSON.stringify(r.s.sent))
+}
+{
+  const r = rig()
+  const first = Math.floor(r.s.t / MINUTE_MS) * MINUTE_MS
+  for (let i = 0; i < BUFFER_MAX + 3; i++) { r.input(); r.s.t += MINUTE_MS }
+  const p = r.rec.pending()
+  ok('a long run without a flush keeps at most BUFFER_MAX minutes, the oldest dropped first', r.s.sent.length === 0 && p.length === BUFFER_MAX && p[0].at === new Date(first + 3 * MINUTE_MS).toISOString(), `${p.length} ${p[0]?.at}`)
+}
+
 console.log('hours-recorder: the switch and failures')
 {
   const r = rig()
@@ -171,6 +185,12 @@ console.log('hours-recorder: the switch and failures')
   r.s.t += MINUTE_MS
   r.input()
   ok('stop: listeners gone, buffer empty', r.rec.pending().length === 0 && [...r.win.ls.values()].every((x) => x.size === 0))
+}
+{
+  const cleared = []
+  const r = rig({ clearTimer: (id) => cleared.push(id) })
+  r.rec.stop()
+  ok('stop: clears the timer setTimer gave it', r.s.timers.length === 1 && cleared.length === 1 && cleared[0] === 1, JSON.stringify(cleared))
 }
 
 console.log('hours-recorder: the mock hub')

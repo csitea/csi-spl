@@ -68,6 +68,73 @@ function listen(env, onInput, onVisibility, onPageHide) {
   }
 }
 
+/** the recorder's shared state over its env and clock */
+function hoursState(env, now) {
+  return {
+    env,
+    now,
+    /** minute start (ms) -> target */
+    buffer: new Map(),
+    lastInput: -Infinity,
+    lastFlush: now(),
+    /** the last minute handed to the hub: never counted again */
+    sentUpTo: -Infinity,
+  }
+}
+
+/** true when counting is on; off drops the buffer */
+function hoursOn(st) {
+  if (st.env.enabled()) return true
+  st.buffer.clear()
+  return false
+}
+
+/** counts this minute when the tab is visible, focused and had input in the last 60 s */
+function hoursSample(st) {
+  if (!hoursOn(st)) return
+  if (st.env.doc.visibilityState !== 'visible' || !st.env.doc.hasFocus()) return
+  const t = st.now()
+  if (t - st.lastInput > INPUT_WINDOW_MS) return
+  const key = Math.floor(t / MINUTE_MS) * MINUTE_MS
+  if (key <= st.sentUpTo || st.buffer.has(key)) return
+  st.buffer.set(key, String(st.env.target() || 'ws'))
+  while (st.buffer.size > BUFFER_MAX) st.buffer.delete(st.buffer.keys().next().value)
+}
+
+/** sends the buffer to the hub in batches of <= BATCH_MAX, oldest first */
+async function hoursFlush(st, keepalive) {
+  st.lastFlush = st.now()
+  if (!hoursOn(st) || !st.buffer.size) return
+  const rows = [...st.buffer.entries()].sort((a, b) => a[0] - b[0])
+  st.buffer.clear()
+  st.sentUpTo = Math.max(st.sentUpTo, rows[rows.length - 1][0])
+  const tz = String(st.env.tz() || 'UTC')
+  for (let i = 0; i < rows.length; i += BATCH_MAX) await hoursSendPart(st, rows.slice(i, i + BATCH_MAX), tz, keepalive)
+}
+
+/** sends one batch; off the network it goes back to the buffer */
+async function hoursSendPart(st, part, tz, keepalive) {
+  try {
+    await st.env.send({ tz, minutes: asRows(part) }, { keepalive })
+  } catch (e) {
+    /* off the network: keep them for the next flush; a refusal (409 frozen, 400) is final */
+    if (e && e.status) return
+    for (const [at, target] of part) if (!st.buffer.has(at)) st.buffer.set(at, target)
+  }
+}
+
+/** the timer step: sample, and flush once FLUSH_MS has passed */
+function hoursTick(st) {
+  hoursSample(st)
+  if (st.now() - st.lastFlush >= FLUSH_MS) void hoursFlush(st, false)
+}
+
+/** hidden flushes at once (keepalive); visible again samples */
+function hoursOnVisibility(st) {
+  if (st.env.doc.visibilityState === 'hidden') void hoursFlush(st, true)
+  else hoursSample(st)
+}
+
 /**
  * @param {{
  *   win: { addEventListener: Function, removeEventListener: Function },
@@ -85,65 +152,15 @@ export function createHoursRecorder(env) {
   const now = env.now || (() => Date.now())
   const setTimer = env.setTimer || ((fn, ms) => setInterval(fn, ms))
   const clearTimer = env.clearTimer || ((id) => clearInterval(id))
-  /** minute start (ms) -> target */
-  const buffer = new Map()
-  let lastInput = -Infinity
-  let lastFlush = now()
-  /** the last minute handed to the hub: never counted again */
-  let sentUpTo = -Infinity
-
-  function on() {
-    if (env.enabled()) return true
-    buffer.clear()
-    return false
-  }
-
-  function sample() {
-    if (!on()) return
-    if (env.doc.visibilityState !== 'visible' || !env.doc.hasFocus()) return
-    const t = now()
-    if (t - lastInput > INPUT_WINDOW_MS) return
-    const key = Math.floor(t / MINUTE_MS) * MINUTE_MS
-    if (key <= sentUpTo || buffer.has(key)) return
-    buffer.set(key, String(env.target() || 'ws'))
-    while (buffer.size > BUFFER_MAX) buffer.delete(buffer.keys().next().value)
-  }
-
-  async function flush(keepalive = false) {
-    lastFlush = now()
-    if (!on() || !buffer.size) return
-    const rows = [...buffer.entries()].sort((a, b) => a[0] - b[0])
-    buffer.clear()
-    sentUpTo = Math.max(sentUpTo, rows[rows.length - 1][0])
-    const tz = String(env.tz() || 'UTC')
-    for (let i = 0; i < rows.length; i += BATCH_MAX) await sendPart(rows.slice(i, i + BATCH_MAX), tz, keepalive)
-  }
-
-  async function sendPart(part, tz, keepalive) {
-    try {
-      await env.send({ tz, minutes: asRows(part) }, { keepalive })
-    } catch (e) {
-      /* off the network: keep them for the next flush; a refusal (409 frozen, 400) is final */
-      if (e && e.status) return
-      for (const [at, target] of part) if (!buffer.has(at)) buffer.set(at, target)
-    }
-  }
-
+  const st = hoursState(env, now)
+  const sample = () => hoursSample(st)
+  const flush = (keepalive = false) => hoursFlush(st, keepalive)
+  const tick = () => hoursTick(st)
   const onInput = () => {
-    lastInput = now()
+    st.lastInput = now()
     sample()
   }
-  const onVisibility = () => {
-    if (env.doc.visibilityState === 'hidden') void flush(true)
-    else sample()
-  }
-  const onPageHide = () => { void flush(true) }
-  const tick = () => {
-    sample()
-    if (now() - lastFlush >= FLUSH_MS) void flush(false)
-  }
-
-  const unlisten = listen(env, onInput, onVisibility, onPageHide)
+  const unlisten = listen(env, onInput, () => hoursOnVisibility(st), () => { void flush(true) })
   const timer = setTimer(tick, TICK_MS)
 
   return {
@@ -151,11 +168,11 @@ export function createHoursRecorder(env) {
     flush,
     tick,
     /** the buffered minutes, oldest first (tests) */
-    pending: () => asRows(buffer.entries()),
+    pending: () => asRows(st.buffer.entries()),
     stop() {
       clearTimer(timer)
       unlisten()
-      buffer.clear()
+      st.buffer.clear()
     },
   }
 }

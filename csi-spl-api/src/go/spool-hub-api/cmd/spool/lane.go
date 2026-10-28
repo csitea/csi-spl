@@ -11,7 +11,8 @@ import (
 
 // cmdLane lists the fleet-wide lane map or, with --agent, writes that agent's
 // row (CLE-77920): the primitive do_spl_lane_map / do_spl_lane_put build on.
-// Prints the hub's answer {fleet, lanes}.
+// Prints the hub's answer {fleet, lanes}. --archived lists the live rows
+// whose topic is archived, --box's only (SPL-3983), and writes nothing.
 func cmdLane(cfg *config.Config, args []string) int {
 	fs := flag.NewFlagSet("lane", flag.ContinueOnError)
 	fleet := fs.String("fleet", "", "the fleet (a lowercase slug)")
@@ -24,6 +25,7 @@ func cmdLane(cfg *config.Config, args []string) int {
 	topic := fs.String("topic", "", "write: its topic (task id)")
 	issue := fs.String("issue", "", "write: its issue key, e.g. SPL-12")
 	state := fs.String("state", "live", "write: live or done")
+	archived := fs.Bool("archived", false, "list the live rows whose topic is archived (with --box: that box's only)")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
@@ -39,7 +41,7 @@ func cmdLane(cfg *config.Config, args []string) int {
 	ctx, stop := interruptible()
 	defer stop()
 	out, err := action.Lane(ctx, cfg, action.LaneArgs{Fleet: *fleet, Agent: *agent, Box: *agentBox, Repo: *repo,
-		Branch: *branch, Scope: *scope, Files: fl, Topic: *topic, Issue: *issue, State: *state})
+		Branch: *branch, Scope: *scope, Files: fl, Topic: *topic, Issue: *issue, State: *state, Archived: *archived})
 	if err != nil {
 		return fail(err)
 	}

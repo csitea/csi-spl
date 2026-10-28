@@ -234,6 +234,8 @@ closed by the orchestrator, not kept open "in case".
 
 - **Lane map check:** A seat with no recorded files (read-only, not a git repo) makes every `lane-map.sh --check` exit 4. Recording a non-repo path clears this.
 
+- **Archived discussion:** when the owner archives a topic, the box cron frees the lanes whose brief names it on a `Task:` or `Topic:` line, and lists the rest to the orchestrator (`do_spl_archived_seats_free`; rule: [fleet-rules-index.md](fleet-rules-index.md) section 2). Put the topic a lane works for on that line, not only in prose.
+
 - **Disk headroom notice:** On a disk-headroom notice, stop placing lanes on that box.
 
 - **Spawn HOLD:** A spawn answered HOLD (rc 10, "nothing was spawned") still leaves a remote request behind. Drop the duplicate before it spawns.

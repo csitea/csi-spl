@@ -25,6 +25,10 @@ type LaneArgs struct {
 	Issue  string            `json:"issue_key,omitempty"` // the lane's own issue key, "" for none (spec 153 3.4)
 	State  string            `json:"state,omitempty"`
 	Hub    *hubclient.Client `json:"-"` // nil = hubclient.New(cfg)
+
+	// Archived reads the live rows whose topic is archived (SPL-3983), Box's
+	// only when Box is set; nothing is written.
+	Archived bool `json:"-"`
 }
 
 // Lane writes one row or lists the map and returns the hub's answer
@@ -40,6 +44,13 @@ func Lane(ctx context.Context, cfg *config.Config, in LaneArgs) (json.RawMessage
 	hc := in.Hub
 	if hc == nil {
 		hc = hubclient.New(cfg)
+	}
+	if in.Archived {
+		row, err := json.Marshal(map[string]string{"agent_box": in.Box})
+		if err != nil {
+			return nil, err
+		}
+		return hc.Lane(ctx, "archived", in.Fleet, row)
 	}
 	if in.Agent == "" {
 		return hc.Lane(ctx, "list", in.Fleet, nil)

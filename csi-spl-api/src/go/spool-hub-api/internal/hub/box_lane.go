@@ -18,6 +18,7 @@ import (
 //
 //	lane_op put  - upsert the row of lane.agent_id (spawn: live, exit: done)
 //	lane_op list - every row of the fleet, live first
+//	lane_op archived - the live rows whose topic is archived (box_lane_archived.go)
 //
 // A put's topic given as an 8-hex short id is stored as the one topic of the
 // tenant it starts, or "" when none or several do (spec 153 3.4): a short id
@@ -44,6 +45,8 @@ type LaneRow struct {
 	WriterBox string   `json:"writer_box,omitempty"`
 	UpdatedAt string   `json:"updated_at,omitempty"`
 	AgeS      int64    `json:"age_s"`
+	// TopicArchivedAt is set on a lane_op archived answer only (SPL-3983).
+	TopicArchivedAt string `json:"topic_archived_at,omitempty"`
 }
 
 // laneAnswer is the reply object.
@@ -152,8 +155,10 @@ func (s *Server) boxLane(ctx context.Context, x *session, f wire.Frame) (laneAns
 		for _, l := range ls {
 			out.Lanes = append(out.Lanes, laneRow(l))
 		}
+	case "archived":
+		return s.laneArchived(ctx, x, f, now)
 	default:
-		return laneAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", "lane_op must be put or list"}
+		return laneAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", "lane_op must be put, list or archived"}
 	}
 	return out, nil
 }

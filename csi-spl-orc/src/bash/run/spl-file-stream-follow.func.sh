@@ -176,5 +176,7 @@ spl_file_stream_env() {
   [[ -n "${SPL_STATE_DIR:-}" ]] && extra+="${extra:+:}$SPL_STATE_DIR/desk"
   envs+=("FILE_STREAMS_DENY_EXTRA=$extra")
   [[ -n "${FILE_STREAMS_STATE_DIR:-}" ]] && envs+=("FILE_STREAMS_STATE_DIR=$FILE_STREAMS_STATE_DIR")
+  # cron sets no SPOOL_ROOT: end on success, not on that test's status
   [[ -n "${SPOOL_ROOT:-}" ]] && envs+=("SPOOL_ROOT=$SPOOL_ROOT")
+  return 0
 }

@@ -554,6 +554,10 @@ if command -v yq >/dev/null; then
   got="$(texts "$d" | paste -sd' ')"
   [[ "$got" == "act 4 act 5" ]] && pass "action: on, the cnf allow-list and start_lines reach the follower" ||
     fail "action on: pushed '$got' out='$out'"
+  # cron runs with no SPOOL_ROOT (SPL-4037: every tick from 18:24Z logged rc=1)
+  out="$(act FILE_STREAMS_ENABLED=true SPOOL_ROOT= FILE_STREAMS_STATE_DIR="$d/state-cron")"; rc=$?
+  [[ "$rc" == 0 && "$out" != *FATAL* ]] && pass "action: on with no SPOOL_ROOT (cron) exits 0" ||
+    fail "action no SPOOL_ROOT: rc=$rc out='$out'"
 else
   fail "action on: yq is required"
 fi

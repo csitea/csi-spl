@@ -343,15 +343,18 @@ func TestHubOptions(t *testing.T) {
 		wantWUIKey   bool
 		wantOperator bool
 		wantCICD     bool
+		// r34-02: the wiring a dropped line left green
+		wantOrigin, wantUploadKey, wantGcal bool
 	}{
 		{name: "defaults"},
 		{name: "ephemeral wui key, tenant hosts, cicd", env: map[string]string{"SPOOL_HUB_WUI_KEY_EPHEMERAL": "true",
 			"SPOOL_HUB_WUI_TENANT_HOSTS": "true", "SPOOL_HUB_CICD_LOGS_ENABLED": "true",
-			"SPOOL_HUB_CICD_GITHUB_API": "https://api.example.test"}, wantWUIKey: true, wantCICD: true},
+			"SPOOL_HUB_CICD_GITHUB_API": "https://api.example.test"}, wantWUIKey: true, wantCICD: true, wantOrigin: true},
 		{name: "native sign-in and operator routes", env: map[string]string{"SPOOL_HUB_AUTH_NATIVE_ENABLED": "true",
 			"SPOOL_HUB_AUTH_SESSION_KEY": strings.Repeat("k", 32), "SPOOL_HUB_AUTH_APP_URL": "https://app.test",
 			"SPOOL_HUB_MAIL_TRANSPORT": "log", "SPOOL_HUB_OPERATOR_EMAILS": "ops@example.test",
-			"SPOOL_HUB_OPERATOR_AUDIENCE": "https://hub.test"}, wantOperator: true},
+			"SPOOL_HUB_OPERATOR_AUDIENCE": "https://hub.test", "SPOOL_HUB_GCAL_WORKSPACES": "acme"},
+			wantOperator: true, wantUploadKey: true, wantGcal: true},
 		{name: "bad wui key", env: map[string]string{"SPOOL_HUB_WUI_KEY": "bm90LWEta2V5"}, wantErr: "SPOOL_HUB_WUI_KEY"},
 		{name: "operator emails without audience", env: map[string]string{"SPOOL_HUB_OPERATOR_EMAILS": "ops@example.test"},
 			wantErr: "SPOOL_HUB_OPERATOR_AUDIENCE"},
@@ -388,6 +391,23 @@ func TestHubOptions(t *testing.T) {
 				t.Fatalf("wui key %v, operator %v/%v, cicd %v", opts.WUIKey != nil, opts.OperatorVerify != nil,
 					opts.OperatorMail != nil, opts.CICD != nil)
 			}
+			if (opts.OriginTenant != nil) != c.wantOrigin || (len(opts.UploadTokenKey) > 0) != c.wantUploadKey ||
+				(opts.Gcal != nil) != c.wantGcal {
+				t.Fatalf("origin tenant %v, upload token key %v, gcal %v", opts.OriginTenant != nil,
+					len(opts.UploadTokenKey) > 0, opts.Gcal != nil)
+			}
 		})
+	}
+}
+
+// TestAuthOptions pins what auth.New is handed: inside auth.Handler it is
+// out of the test's reach, so the step that builds it is read directly.
+func TestAuthOptions(t *testing.T) {
+	hubEnv(t)
+	hc := loadHub(t)
+	ao := authOptions(hc, zerolog.Nop(), store.NewMemory(), blob.Dir{Root: t.TempDir()}, nil)
+	if ao.Revocations == nil || ao.Registrar == nil || ao.DefaultLocale != hc.DefaultLocale {
+		t.Fatalf("auth options not wired: revocations %v, registrar %v, locale %q",
+			ao.Revocations != nil, ao.Registrar != nil, ao.DefaultLocale)
 	}
 }

@@ -230,14 +230,9 @@ func hubOptions(ctx context.Context, hc *config.Hub, log zerolog.Logger, st stor
 		originTenant = hub.NewOriginTenant(hc.TenantHostPattern, hc.WUIApexTenant)
 	}
 	opts := baseOptions(hc, log, st, bs, originTenant)
-	wuiKey, err := hc.WUIPrivateKey() // specs/014; the private key is never logged
+	err := wuiKeyOptions(&opts, hc, log)
 	if err != nil {
 		return opts, err
-	}
-	opts.WUIKey, opts.WUIDispatch = wuiKey, hc.WUIDispatch
-	if wuiKey != nil {
-		log.Info().Str("box_wui_pubkey", base64.StdEncoding.EncodeToString(wuiKey.Public().(ed25519.PublicKey))).
-			Bool("dispatch", hc.WUIDispatch).Bool("ephemeral", strings.TrimSpace(hc.WUIKey) == "").Msg("box-wui key loaded")
 	}
 	if opts.CICD, err = cicdService(hc); err != nil {
 		return opts, err
@@ -249,26 +244,7 @@ func hubOptions(ctx context.Context, hc *config.Hub, log zerolog.Logger, st stor
 	opts.UploadTokenKey = auth.UploadTokenKey(ac) // SPL-1815: any instance checks the upload token
 	logCookiePosture(log, ac, nc)
 	logRLSPosture(ctx, log, st)
-	// Registration + membership are store-backed (010 T012/T013, rdb 0006).
-	// The IdP picture lands in the same tenant blob store (010 T044).
-	// The open demo admission (specs/077 T007, T008 cap) is on only with the demo flag.
-	hooks := store.AuthHooks{H: st.(store.Humans), Policy: store.AdmitPolicy{BootstrapOwner: hc.AuthBootstrapOwner,
-		OpenWorkspace: hc.DemoTenant(), OpenProviders: hc.DemoProviders, OpenMaxLive: hc.DemoMaxLive,
-		OpenMaxStay: hc.DemoMaxStay, OpenVisitsPerDay: hc.DemoVisitsPerDay, OpenSignupsPerIP: hc.DemoSignupsPerIP},
-		Blob: bs, AvatarErr: func(hum string, err error) {
-			log.Warn().Err(err).Str("human_id", hum).Msg("auth.avatar_not_stored")
-		}}
-	// preferred_locale lives on the human (rdb 0017); the default
-	// locale is cnf, validated by LoadHub.
-	opts.Auth = auth.New(ac, log, auth.Options{Registrar: hooks, Membership: hooks, Unlinker: hooks, Avatars: hooks,
-		Preferences: hooks, Federated: hooks, DefaultLocale: hc.DefaultLocale, PageTenant: originTenant.Request,
-		DemoWorkspace: hc.DemoTenant(),          // specs/077 §3.8: fenced demo seats name no tenant
-		Impersonation: hub.NewActAs(st, 0, nil), // specs/054 act-as; nil under the memory store
-		// CLE-77799: record sign-in / sign-out to member_activity for the
-		// per-person Activity log; the same trusted-proxy hops as the edge.
-		Audit: hub.AuthActivityRecorder(st), TrustedProxyHops: hc.TrustedProxyHops,
-		// the admin password reset's "sign out everywhere" (rdb 0148)
-		Revocations: sessionRevoker(st)})
+	opts.Auth = auth.New(ac, log, authOptions(hc, log, st, bs, originTenant))
 	log.Info().Str("default_locale", hc.DefaultLocale).Msg("i18n")
 	if err := enableNativeSignIn(opts.Auth, nc, st, log); err != nil {
 		return opts, err
@@ -280,6 +256,53 @@ func hubOptions(ctx context.Context, hc *config.Hub, log zerolog.Logger, st stor
 	if err := mailPreflight(ctx, hc, log, pmc); err != nil {
 		return opts, err
 	}
+	mailOptions(ctx, &opts, hc, log, st, pmc, ac)
+	err = operatorInviteOptions(&opts, hc, log, st, pmc, ac.AppURL)
+	return opts, err
+}
+
+// wuiKeyOptions loads the box-wui signing key (specs/014) and logs its public half.
+func wuiKeyOptions(opts *hub.Options, hc *config.Hub, log zerolog.Logger) error {
+	wuiKey, err := hc.WUIPrivateKey() // specs/014; the private key is never logged
+	if err != nil {
+		return err
+	}
+	opts.WUIKey, opts.WUIDispatch = wuiKey, hc.WUIDispatch
+	if wuiKey != nil {
+		log.Info().Str("box_wui_pubkey", base64.StdEncoding.EncodeToString(wuiKey.Public().(ed25519.PublicKey))).
+			Bool("dispatch", hc.WUIDispatch).Bool("ephemeral", strings.TrimSpace(hc.WUIKey) == "").Msg("box-wui key loaded")
+	}
+	return nil
+}
+
+// authOptions is what auth.New gets: the store-backed sign-in hooks and the
+// session wiring around them.
+func authOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Store, originTenant *hub.OriginTenant) auth.Options {
+	// Registration + membership are store-backed (010 T012/T013, rdb 0006).
+	// The IdP picture lands in the same tenant blob store (010 T044).
+	// The open demo admission (specs/077 T007, T008 cap) is on only with the demo flag.
+	hooks := store.AuthHooks{H: st.(store.Humans), Policy: store.AdmitPolicy{BootstrapOwner: hc.AuthBootstrapOwner,
+		OpenWorkspace: hc.DemoTenant(), OpenProviders: hc.DemoProviders, OpenMaxLive: hc.DemoMaxLive,
+		OpenMaxStay: hc.DemoMaxStay, OpenVisitsPerDay: hc.DemoVisitsPerDay, OpenSignupsPerIP: hc.DemoSignupsPerIP},
+		Blob: bs, AvatarErr: func(hum string, err error) {
+			log.Warn().Err(err).Str("human_id", hum).Msg("auth.avatar_not_stored")
+		}}
+	// preferred_locale lives on the human (rdb 0017); the default
+	// locale is cnf, validated by LoadHub.
+	return auth.Options{Registrar: hooks, Membership: hooks, Unlinker: hooks, Avatars: hooks,
+		Preferences: hooks, Federated: hooks, DefaultLocale: hc.DefaultLocale, PageTenant: originTenant.Request,
+		DemoWorkspace: hc.DemoTenant(),          // specs/077 §3.8: fenced demo seats name no tenant
+		Impersonation: hub.NewActAs(st, 0, nil), // specs/054 act-as; nil under the memory store
+		// CLE-77799: record sign-in / sign-out to member_activity for the
+		// per-person Activity log; the same trusted-proxy hops as the edge.
+		Audit: hub.AuthActivityRecorder(st), TrustedProxyHops: hc.TrustedProxyHops,
+		// the admin password reset's "sign out everywhere" (rdb 0148)
+		Revocations: sessionRevoker(st)}
+}
+
+// mailOptions wires the mailers and connects that ride the relay: invites,
+// LinkedIn, Google Calendar, the embed relink and the vendor keys.
+func mailOptions(ctx context.Context, opts *hub.Options, hc *config.Hub, log zerolog.Logger, st store.Store, pmc *mail.Config, ac *auth.Config) {
 	opts.InviteMail = inviteMailer(hc, log, st, pmc, ac.AppURL)
 	// spec 090 (SPL-1634): connect LinkedIn, share the blog
 	opts.MarketingLinkedIn = marketingLinkedIn(ctx, hc, log, pmc, ac.AppURL)
@@ -288,19 +311,23 @@ func hubOptions(ctx context.Context, hc *config.Hub, log zerolog.Logger, st stor
 	opts.VendorKeySealer = vendorKeySealer(ctx, hc, log) // spec 127 H1 + spec 159 T1: a workspace's own vendor keys
 	opts.VendorKeyMail = vendorKeyMailer(log, pmc)       // spec 159 3: every admin and biz owner is told
 	log.Info().Bool("invite_mail", opts.InviteMail != nil).Msg("members api")
-	// CLE-77780: the operator invite routes let the box create/mail invites
-	// FROM the hub (no box SMTP). Off unless SPOOL_HUB_OPERATOR_EMAILS is set.
+}
+
+// operatorInviteOptions turns on the operator invite routes (CLE-77780): the
+// box creates and mails invites FROM the hub (no box SMTP). Off unless
+// SPOOL_HUB_OPERATOR_EMAILS is set.
+func operatorInviteOptions(opts *hub.Options, hc *config.Hub, log zerolog.Logger, st store.Store, pmc *mail.Config, appURL string) error {
 	opEmails, opAud, err := operatorInviteConfig()
 	if err != nil {
-		return opts, err
+		return err
 	}
 	if len(opEmails) > 0 {
 		opts.OperatorEmails, opts.OperatorAudience = opEmails, opAud
 		opts.OperatorVerify = googleOperatorVerify
-		opts.OperatorMail = operatorMailer(hc, log, st, pmc, ac.AppURL)
+		opts.OperatorMail = operatorMailer(hc, log, st, pmc, appURL)
 		log.Info().Int("operator_emails", len(opEmails)).Bool("operator_mail", opts.OperatorMail != nil).Msg("operator invite routes")
 	}
-	return opts, nil
+	return nil
 }
 
 // mailPreflight checks the relay at start (spec 047 W7). require: before

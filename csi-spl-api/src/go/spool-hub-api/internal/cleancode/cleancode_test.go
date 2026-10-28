@@ -31,7 +31,6 @@ const (
 // only shrink: split a function into named steps and delete its line. A NEW
 // function over maxFuncLines fails the gate.
 var longFuncs = map[string]bool{
-	"cmd/spool/hub.go hubOptions":                                   true,
 	"internal/hub/server.go (*Server).Handler":                      true,
 	"internal/store/humans_postgres.go (*Postgres).ProvisionMember": true,
 }

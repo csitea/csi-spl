@@ -687,6 +687,21 @@ act DRY_RUN=0 ROTATE_ROLE_VENDOR=claude ROTATE_ROLE_ID_FOLLOWS_VENDOR=1 >"$T/o" 
 [[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE ]] && grep -q "^spawn claude c-001 " "$T/spawn.log" && grep -qx 'LEASE_ORCH=c-001' "$D/lease.conf" &&
   [[ -d "$S/c-001" && ! -L "$S/c-001" && "$(readlink "$S/g-001")" == c-001 && -f "$S/c-001/inbox/m9.json" ]] &&
   pass "17. g-001 -> c-001: back to claude, the same path reversed; m9 sent to g-001 is in c-001's inbox" || fail "17. back rc=$rc $(cat "$T/o"); $(ls -l "$S")"
+# SPL-3980 (a box, 2026-10-27): the seat failed over to g-001, then lease.conf
+# was set back to LEASE_ORCH=c-001 by hand while c-001 (and the prd desk's
+# c-001) still linked to g-001. The rotation read c-001 as it stood: no claude
+# carries it, nothing switched back, two sessions could share one dir.
+bash "$PROJ_PATH/src/bash/features/spawn-agents/scripts/role-seat-switch.sh" --apply --desk-envs prd c-001 g-001 >/dev/null 2>&1
+DK="$T/desk/prd/desk/t1/box-desk/spool"
+export OLD_ID=g-001
+world
+[[ "$(readlink "$S/c-001")" == g-001 && "$(readlink "$DK/c-001")" == g-001 ]] && grep -qx 'LEASE_ORCH=c-001' "$D/lease.conf" ||
+  fail "17. SPL-3980 setup: $(ls -l "$S" "$DK"; cat "$D/lease.conf")"
+act DRY_RUN=0 ROTATE_ROLE_VENDOR=claude ROTATE_ROLE_ID_FOLLOWS_VENDOR=1 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE ]] && grep -q "^spawn claude c-001 " "$T/spawn.log" && grep -qx 'LEASE_ORCH=c-001' "$D/lease.conf" &&
+  [[ -d "$S/c-001" && ! -L "$S/c-001" && "$(readlink "$S/g-001")" == c-001 && -d "$DK/c-001" && ! -L "$DK/c-001" && "$(readlink "$DK/g-001")" == c-001 ]] &&
+  pass "17. SPL-3980: lease.conf reset to c-001 by hand while c-001 linked to g-001: the rotation reads the live g-001 and switches the seat and its desk back to c-001" ||
+  fail "17. SPL-3980 stale lease.conf c-001: rc=$rc c-001=$(readlink "$S/c-001" || echo real) desk c-001=$(readlink "$DK/c-001" || echo real) $(grep -E 'GATE|SWITCH|FAIL' "$T/o" | cut -c1-200)"
 export OLD_ID=c-001
 world; echo 'pick=grok reason=grok is the main' >"$T/mix.out"; echo nopane >"$T/spawn.mode"
 act DRY_RUN=0 ROTATE_ROLE_VENDOR=grok ROTATE_LEASE_KINDS="claude grok" ROTATE_ROLE_ID_FOLLOWS_VENDOR=1 >"$T/o" 2>&1

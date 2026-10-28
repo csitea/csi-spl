@@ -77,6 +77,7 @@ do_spl_dispatch_rotate() {
   # the dispatchers' ack window is shorter than the orchestrator's (FR-027)
   ROTATE_ACK_TIMEOUT="${ROTATE_ACK_TIMEOUT:-600}"
   spl_rotate_conf || return 1
+  spl_rotate_live_seats
   # the old and the new session may be different vendors (ROTATE_ROLE_VENDOR)
   ROTATE_CLI_KINDS="${ROTATE_CLI_KINDS:-claude grok mistral agy}"
   : "${ROTATE_PROMOTE_WAIT:=240}" "${ROTATE_SETTLE:=120}" "${ROTATE_SEQ_WAIT:=600}"

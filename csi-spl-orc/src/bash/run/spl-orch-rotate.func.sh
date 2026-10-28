@@ -6,6 +6,7 @@
 # @description a NEW session (claude; with ROTATE_ORCH_SPLIT=1 the vendor of
 # @description cnf agent_split_by_kind.orchestration) takes the role over under the SAME id
 # @description (same inbox, same asks, same lease) and the old one ends.
+# @description A LEASE_ORCH that links to a sibling letter (c-001 -> g-001) is read as that live id, so a switch back restores c-001's own dir and desks (SPL-3980).
 # @description Mechanical (FR-001): no step calls a model; the new session only
 # @description reads its handoff and runs the ack command. ROTATE_CMD picks:
 # @description   auto    - the gates (FR-010: the id lock of spec 102 4.2,
@@ -74,6 +75,7 @@ declare -F spl_rotate_conf >/dev/null ||
 
 do_spl_orch_rotate() {
   spl_rotate_conf || return 1
+  spl_rotate_live_seats
   spl_is_agent_id "${LEASE_ORCH:-}" || { spl_rotate_log - GATE SKIP "no LEASE_ORCH in $LEASE_CONF"; return 0; }
   # the old and the new session may be different vendors (spl_orch_rotate_vendor)
   ROTATE_CLI_KINDS="${ROTATE_CLI_KINDS:-claude grok mistral agy}"

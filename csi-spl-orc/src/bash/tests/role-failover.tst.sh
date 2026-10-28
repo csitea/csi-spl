@@ -53,8 +53,12 @@
 #      no login in the folder = dormant, nothing started. The handback: the
 #      rotation keeps the second login while claude is out, the main login
 #      (no CLAUDE_CONFIG_DIR) once claude can act; the record goes then.
+#  15. SPL-3980, the 2026-10-27 picture: after a failover to g-001 a claude
+#      session carrying c-001 runs in g-001's dir (c-001 is a link). The
+#      lease flags it (SHARED-DIR, logged and told once per pid set); the
+#      seat that owns the dir stays the candidate. Control: no stray, no flag.
 #  RED CONTROL: on a tree before SPL-2544 every case fails (no such action);
-#  12 and 13 fail on a tree before SPL-2865; 14 before SPL-2943.
+#  12 and 13 fail on a tree before SPL-2865; 14 before SPL-2943; 15 before SPL-3980.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -411,6 +415,21 @@ out="$(env ROTATE_CLAUDE_BIN="$T/bin/claude" CLAUDE2_CONFIG_DIR="$C2" bash -c 's
 out="$(bash -c 'do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-orch-rotate.func.sh"; spl_rotate_conf >/dev/null
   spl_rotate_failover_seat c-001 && echo KEPT || echo GONE' 2>&1)"
 [[ "$out" == *GONE* && ! -e "$D/role-failover/seat.001" ]] && pass "14. the seat on the main login again: the claude2 record is gone" || fail "14. record: $out"
+
+# --- 15. SPL-3980: a second live session in the seat's dir is flagged -----------------------------
+shared() { env LEASE_SEND="$T/bin/send" bash -c 'do_log() { :; }; source "$PROJ_PATH/src/bash/run/spl-orch-rotate.func.sh"; spl_rotate_conf >/dev/null
+  echo "DIR=$(spl_fleet_shared_dir g-001)"; echo "TRY=$(spl_fleet_candidate orch)"; spl_fleet_candidate orch >/dev/null' 2>&1; }
+world; act ROLE_FAILOVER_ROLE=orch DRY_RUN=0 >/dev/null 2>&1
+out="$(shared)"
+[[ "$out" == *"DIR="$'\n'* && "$out" == *"TRY=g-001"* ]] && ! grep -q SHARED-DIR "$D/lease.log" 2>/dev/null &&
+  pass "15. control: g-001 alone in its dir, no flag" || fail "15. control: $out $(grep SHARED "$D/lease.log" 2>&1)"
+"$T/bin/proc" 5101 c-001
+out="$(shared)"
+[[ "$(lnk c-001)" == g-001 && "$out" == *"DIR=c-001 pid 5101"* && "$out" == *"TRY=g-001"* ]] &&
+  [[ "$(grep -c 'SHARED-DIR g-001: another live session runs in its spool dir (c-001 pid 5101)' "$D/lease.log")" == 1 ]] &&
+  [[ "$(grep -c -- '--to g-001 --kind note --task dispatch-lease --body SHARED-DIR g-001@' "$T/send.log")" == 1 ]] &&
+  pass "15. a claude c-001 in g-001's dir: flagged once (lease.log + a note to g-001, two lease ticks), g-001 stays the candidate" ||
+  fail "15. flag: $out $(grep SHARED "$D/lease.log" 2>&1) $(grep -c SHARED "$T/send.log" 2>&1)"
 
 echo
 (( fails == 0 )) && { echo "ALL PASS"; exit 0; }

@@ -13,6 +13,7 @@
 #   spl_rotate_agy_why                      why agy cannot take a dispatch seat (lane-mix: CLI, sign-in, limit; the lease) (SPL-3395)
 #   spl_rotate_vendor_id ID                 the seat id the successor's vendor gives it (SPL-1685), when it differs
 #   spl_rotate_seat_switch OLD NEW          role-seat-switch.sh: the seat's spool dir to NEW, the other letters link to it
+#   spl_rotate_live_seats                   the lease.conf role ids as their seats run now: a link to a sibling letter = that letter (SPL-3980)
 #   spl_rotate_failover_vendor ID           a seat do_spl_role_failover moved: claude once claude can act, else it stays (SPL-2544)
 #   spl_rotate_failover_due ID              that seat, and claude can act again: the handback is due
 #   spl_rotate_conf_flip KEY OLD NEW        lease.conf KEY=OLD -> NEW and the shell's KEY
@@ -107,6 +108,26 @@ spl_rotate_conf() {
 # The id that holds a role on this machine (lease.conf).
 spl_rotate_role_id() {
   case "$1" in orch) echo "${LEASE_ORCH:-}" ;; master) echo "${LEASE_MASTER:-}" ;; failover) echo "${LEASE_FAILOVER:-}" ;; esac
+}
+
+# spl_rotate_live_seats: SPL-3980. LEASE_ORCH, LEASE_MASTER and LEASE_FAILOVER
+# each as its seat runs now (spl_fleet_seat_id). On 2026-10-27 lease.conf was
+# set back to LEASE_ORCH=c-001 by hand while c-001 (spool root and desks)
+# still linked to the failover seat g-001: the rotation read c-001, found no
+# process carrying it and never switched the seat back. Read as the live
+# g-001, the handback runs its seat switch (dirs and desks to c-001) and a
+# successor never starts in a dir a live seat owns. lease.conf is not
+# written here. One line per id it reads through.
+spl_rotate_live_seats() {
+  local k live
+  for k in LEASE_ORCH LEASE_MASTER LEASE_FAILOVER; do
+    [[ -n "${!k:-}" ]] || continue
+    live="$(spl_fleet_seat_id "${!k}")"
+    [[ "$live" == "${!k}" ]] && continue
+    echo "$(date -u +%FT%TZ) - SEAT OK $k=${!k} in lease.conf links to the live seat $live: the rotation acts on $live (SPL-3980)"
+    printf -v "$k" '%s' "$live"
+  done
+  return 0
 }
 
 # spl_rotate_role_vendor -> ROTATE_KIND, ROTATE_VENDOR_WHY from

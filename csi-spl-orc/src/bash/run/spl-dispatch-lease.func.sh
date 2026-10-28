@@ -1592,7 +1592,8 @@ spl_fleet_candidate() {
   fi
   for id in $(spl_fleet_role_agents "$1"); do
     spl_fleet_box_refuses "$1" "$id" && continue
-    spl_fleet_try "$id" && return 0
+    # a tick, not a failover start check: the old session still runs there (SPL-3980)
+    spl_fleet_try "$id" && { spl_fleet_shared_flag "$id" >/dev/null; return 0; }
   done
   return 0
 }
@@ -1602,6 +1603,40 @@ spl_fleet_candidate() {
 spl_fleet_try() {
   [[ -n "$(spl_lease_agent_able "$1" fleet)" ]] || return 1
   echo "$1"
+}
+
+# spl_fleet_shared_dir <seat>: SPL-3980. "<id> pid <pid>" for each other
+# letter of <seat> whose spool entry resolves to <seat>'s dir and that a live
+# process carries: a second session in one dir (2026-10-27: a claude c-001
+# ran in g-001's dir after a failover). Two sessions then read one inbox and
+# the lease cannot tell their activity apart. One /proc walk, then a pid
+# lookup only for the ids it found.
+spl_fleet_shared_dir() {
+  local seat="${1%@*}" r="${SPOOL_ROOT:-/var/spool-hub}" own id pid live out=""
+  [[ "$seat" =~ ^${SPL_ROLE_SEAT_RX}$ ]] || return 0
+  own="$(readlink -f "$r/$seat" 2>/dev/null)" || return 0
+  live=" $(spl_lease_live_ids | tr '\n' ' ')"
+  for id in $(spl_role_seat_ids "$seat"); do
+    [[ "$id" != "$seat" && "$live" == *" $id "* && -L "$r/$id" && "$(readlink -f "$r/$id")" == "$own" ]] || continue
+    pid="$(spl_lease_agent_pid "$id")"
+    [[ -n "$pid" ]] && out+="${out:+, }$id pid $pid"
+  done
+  [[ -n "$out" ]] && echo "$out"
+  return 0
+}
+
+# spl_fleet_shared_flag <seat>: a shared dir (spl_fleet_shared_dir) logged
+# and told to the seat, once per set of pids. A flag, not a refusal: the seat
+# that owns the dir stays the candidate (a refusal would fail the role over
+# and end the wrong process); the stray session is the orchestrator's to end.
+spl_fleet_shared_flag() {
+  local seat="$1" why mark
+  why="$(spl_fleet_shared_dir "$seat")"
+  [[ -n "$why" ]] || return 0
+  mark="shared.$seat.$(tr -c 'a-z0-9-' _ <<<"$why")"
+  [[ -f "$LEASE_DIR/fleet.$mark" ]] && return 0
+  spl_fleet_once "$mark" "SHARED-DIR $seat: another live session runs in its spool dir ($why)"
+  spl_lease_tell "$seat" "SHARED-DIR $seat@$LEASE_MACHINE: another live session runs in this seat's spool dir ($why). Two sessions read one inbox and the lease cannot tell their activity apart. End the stray session by its own pid, or switch the seat to its id (role-seat-switch.sh --apply --desk-envs \"dev prd\" $seat <id>) and end the other; the lease keeps $seat as the candidate (SPL-3980)."
 }
 
 # ---- the vendor fallback (SPL-2521, SPL-2544; owner HUM-10 t1 b3e90079) -------

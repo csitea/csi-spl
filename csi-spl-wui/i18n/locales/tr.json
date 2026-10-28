@@ -1772,7 +1772,7 @@
     "fleet_load_high": "Yüksek %",
     "fleet_load_aim": "Hedef %",
     "fleet_load_aim_box": "Hedef % (boş: üst sınır, {n})",
-    "fleet_load_aim_bad": "Her makinenin hedefi alt ve üst sınırı arasında olmalıdır.",
+    "fleet_load_aim_bad": "Her kutunun hedefi alt ve üst sınırı arasında olmalıdır.",
     "fleet_load_default": "Varsayılan: {n}",
     "fleet_load_reset": "Varsayılana sıfırla",
     "fleet_load_using_default": "Varsayılan kullanılıyor.",

@@ -195,7 +195,7 @@ func (s *Memory) sweepFileStreamTenant(_ context.Context, tenant string, now tim
 	defer s.mu.Unlock()
 	m := s.fileStreamsLocked()
 	var res FileStreamSweep
-	cut := now.Add(-FileStreamsRetention)
+	cut := now.Add(-lim.Norm().Retention)
 	for id, ls := range m.lines {
 		f := m.byID[id]
 		if f.Tenant != tenant {

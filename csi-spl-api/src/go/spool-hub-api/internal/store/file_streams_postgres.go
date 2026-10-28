@@ -293,7 +293,7 @@ func (s *Postgres) SweepFileStreams(ctx context.Context, now time.Time, lim File
 // it in tenant's scope.
 func (s *Postgres) sweepFileStreamTenant(ctx context.Context, tenant string, now time.Time, lim FileStreamLimits) (FileStreamSweep, error) {
 	var res FileStreamSweep
-	cut := now.Add(-FileStreamsRetention)
+	cut := now.Add(-lim.Norm().Retention)
 	for {
 		got := 0
 		err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {

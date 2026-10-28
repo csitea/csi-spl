@@ -523,6 +523,17 @@ type Hub struct {
 	EmbedBanFor             time.Duration `env:"SPOOL_HUB_EMBED_BAN_FOR" envDefault:"24h"`
 	EmbedTokenIdleTTL       time.Duration `env:"SPOOL_HUB_EMBED_TOKEN_IDLE_TTL" envDefault:"720h"`
 	EmbedTokenMaxAge        time.Duration `env:"SPOOL_HUB_EMBED_TOKEN_MAX_AGE" envDefault:"4320h"`
+	// Box file streams (spec 160 3.7, row B7; cnf env.hub.file_streams):
+	// stream keys per box, workspaces that stream, lines and bytes of text
+	// kept per workspace, a stream's line rate a minute (a push over twice
+	// it is refused) and the days a line is kept. Below 1 (retention below
+	// 1h) the hub refuses to start: 0 must never read as unlimited.
+	FileStreamsPerBox               int           `env:"SPOOL_HUB_FILE_STREAMS_PER_BOX" envDefault:"8"`
+	FileStreamsMaxWorkspaces        int           `env:"SPOOL_HUB_FILE_STREAMS_MAX_WORKSPACES" envDefault:"4"`
+	FileStreamsMaxLinesPerWorkspace int64         `env:"SPOOL_HUB_FILE_STREAMS_MAX_LINES_PER_WORKSPACE" envDefault:"500000"`
+	FileStreamsMaxBytesPerWorkspace int64         `env:"SPOOL_HUB_FILE_STREAMS_MAX_BYTES_PER_WORKSPACE" envDefault:"268435456"`
+	FileStreamsRatePerMin           int           `env:"SPOOL_HUB_FILE_STREAMS_RATE_PER_MIN" envDefault:"600"`
+	FileStreamsRetention            time.Duration `env:"SPOOL_HUB_FILE_STREAMS_RETENTION" envDefault:"168h"`
 	// #general lobby task id (specs/003 contracts/wui-live-ws.md §1); "" = off.
 	LobbyTaskID string `env:"SPOOL_HUB_LOBBY_TASK_ID"`
 	// AuthBootstrapOwner: the first human to sign in to a tenant with zero
@@ -795,6 +806,9 @@ func (h *Hub) checkViews() error {
 	if err := h.checkEmbed(); err != nil {
 		return err
 	}
+	if err := h.checkFileStreams(); err != nil {
+		return err
+	}
 	for _, o := range h.ViewCORSOrigins {
 		if err := checkOrigin(o); err != nil {
 			return err
@@ -839,6 +853,28 @@ func (h *Hub) checkEmbed() error {
 	if h.EmbedTokenIdleTTL > h.EmbedTokenMaxAge {
 		return fmt.Errorf("SPOOL_HUB_EMBED_TOKEN_IDLE_TTL %v must not exceed SPOOL_HUB_EMBED_TOKEN_MAX_AGE %v",
 			h.EmbedTokenIdleTTL, h.EmbedTokenMaxAge)
+	}
+	return nil
+}
+
+// checkFileStreams refuses a file streams limit below 1 and a retention
+// below 1h (spec 160 3.7).
+func (h *Hub) checkFileStreams() error {
+	for _, l := range []struct {
+		name string
+		v    int64
+	}{
+		{"PER_BOX", int64(h.FileStreamsPerBox)}, {"MAX_WORKSPACES", int64(h.FileStreamsMaxWorkspaces)},
+		{"MAX_LINES_PER_WORKSPACE", h.FileStreamsMaxLinesPerWorkspace},
+		{"MAX_BYTES_PER_WORKSPACE", h.FileStreamsMaxBytesPerWorkspace},
+		{"RATE_PER_MIN", int64(h.FileStreamsRatePerMin)},
+	} {
+		if l.v < 1 {
+			return fmt.Errorf("SPOOL_HUB_FILE_STREAMS_%s %d must be at least 1", l.name, l.v)
+		}
+	}
+	if h.FileStreamsRetention < time.Hour {
+		return fmt.Errorf("SPOOL_HUB_FILE_STREAMS_RETENTION %v must be at least 1h", h.FileStreamsRetention)
 	}
 	return nil
 }

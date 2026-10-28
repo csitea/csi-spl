@@ -60,6 +60,7 @@ if [[ -f "$H" ]]; then
   # + the four SPOOL_HUB_DEMO_* (derived from env.demo, spec 077 T023)
   # + the 13 SPOOL_HUB_DOCS_EDIT_* (derived from env.docs.repo_edit, spec 075)
   # + one SPOOL_HUB_EMBED_* per env.hub.embed key (spec 121 T103)
+  # + one SPOOL_HUB_FILE_STREAMS_* per env.hub.file_streams key (spec 160 3.7)
   want=$( (yq ea -r '. as $i ireduce ({}; . * $i) | [.env.hub.env, .env.auth.social.env, .env.auth.native.env, .env.mail.env]
              | .[] | to_entries | .[] | select((.value | tostring | test("PLACEHOLDER")) | not) | .key' \
              "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml" "$APP_ROOT/csi-spl-cnf/csi-spl/lde.env.yaml"
@@ -68,7 +69,9 @@ if [[ -f "$H" ]]; then
            yq -r '.env.docs.repo_edit | keys | .[]' "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml" |
              grep -vxE 'inject|secret_env' | tr '[:lower:]' '[:upper:]' | sed 's/^/SPOOL_HUB_DOCS_EDIT_/'
            yq -r '.env.hub.embed | keys | .[]' "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml" |
-             tr '[:lower:]' '[:upper:]' | sed 's/^/SPOOL_HUB_EMBED_/') | sort -u)
+             tr '[:lower:]' '[:upper:]' | sed 's/^/SPOOL_HUB_EMBED_/'
+           yq -r '.env.hub.file_streams | keys | .[]' "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml" |
+             tr '[:lower:]' '[:upper:]' | sed 's/^/SPOOL_HUB_FILE_STREAMS_/') | sort -u)
   got=$(cut -d= -f1 "$H" | sort -u)
   [[ "$want" == "$got" ]] && pass "hub.env keys = cnf hub/auth/mail env keys (no PLACEHOLDER) + 4 switches ($(wc -l <<<"$got"))" \
     || fail "hub.env keys differ from cnf: $(diff <(echo "$want") <(echo "$got") | grep '^[<>]' | tr '\n' ' ')"

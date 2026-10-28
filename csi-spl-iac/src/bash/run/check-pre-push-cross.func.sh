@@ -58,6 +58,7 @@ _PPX_MAP=(
   "hub-version-digits.tst.sh *.version *package.json"
   "hub-version-tag-parity.tst.sh *.version"
   "hub-marketing-kms-key-030.tst.sh csi-spl-api/src/go/spool-hub-api/internal/config/config.go"
+  "hub-file-streams-030.tst.sh csi-spl-api/src/go/spool-hub-api/internal/config/config.go"
   "check-pre-push.tst.sh csi-spl-api/src/bash/tests/no-payment-vendor-wui.tst.sh csi-spl-orc/src/bash/tests/run-all-tests.sh csi-spl-orc/src/bash/tests/changed-tests.sh"
 )
 # Tests that name another part's tree but need no row: what they read is

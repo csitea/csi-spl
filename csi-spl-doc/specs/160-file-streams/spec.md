@@ -669,7 +669,7 @@ Monitoring help page and B4 the syntax to the search help
 - `dropped` and the redaction counts are added per push; a push re-sent
   after a lost ack adds them again (the lines are not stored twice). The
   hub's caps are `hub.Options.FileStreamLimits`, defaults in code until B7
-  puts them in the cnf.
+  puts them in the cnf (done: `env.hub.file_streams`, 5.7).
 - Not in B2: the follower stays off (cnf `enabled: false`); which hub
   session the agent user's push rides is settled when it is switched on.
 - Tests: `wire/file_streams_test.go`, `store/file_streams_test.go` (memory
@@ -834,8 +834,26 @@ Monitoring help page and B4 the syntax to the search help
   prefix and a negation; red control: the old leaf fails both checks) and
   `csi-spl-orc` `file-streams-measure.tst.sh` (the frames the hub takes,
   the refusals, the timing parse; red control: the fill at twice the rate).
-- Next, its cnf: `env.hub.file_streams` with the measured defaults and
-  their hub wiring.
+- Its cnf (B7b): `csi-spl-cnf/csi-spl/all.env.yaml` `env.hub.file_streams`
+  holds the hub's six caps of 3.7 (`per_box` 8, `max_workspaces` 4,
+  `max_lines_per_workspace` 500 000, `max_bytes_per_workspace` 268 435 456,
+  `rate_per_min` 600, `retention` 168h). The measure keeps the defaults: at
+  700.2 bytes a stored line, 4 full workspaces take ~1.4 GB of the 10 GB
+  disk. `do_spl_merged_cnf` derives `SPOOL_HUB_FILE_STREAMS_<KEY>` from each
+  key (as `env.hub.embed`), `config.Hub` reads them and refuses a value
+  below 1 or a retention below 1h, and `baseOptions` hands them to the hub
+  as `hub.Options.FileStreamLimits`. The retention, a fixed 7 days in B6,
+  is now `FileStreamLimits.Retention`, read by both sweeps. The values reach
+  Cloud Run with the next apply of step 030 (its tfvars carry them); until
+  then the hub runs the same defaults from code.
+- Tests (B7b): `config_test.go` `TestLoadHubFileStreams` (defaults, each
+  value below its floor refused), `hub_wiring_test.go` `TestBaseOptions`
+  (the cnf defaults equal the store's `Norm`, a set value reaches the caps),
+  `store/file_streams_test.go` `TestFileStreamSweepRetentionFromCnf`
+  (memory and Postgres; red control: the fixed 7 days keeps the 2-day-old
+  lines) and `csi-spl-iac` `hub-file-streams-030.tst.sh` (every key is
+  derived, read by config.go and in the dev and prd 030 tfvars; control: a
+  changed value is derived, a key with no hub field is caught).
 
 ### 5.8 Row B8 as built (SPL-4124)
 

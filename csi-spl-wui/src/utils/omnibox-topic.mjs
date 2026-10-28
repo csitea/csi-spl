@@ -65,6 +65,18 @@ export function omniboxReplyTaskId({ selectedTaskId = '', namedTopicId = '', pan
 }
 
 /**
+ * Whether /t/<id> takes the line into its topic. The URL names the topic, so
+ * it does from the first frame, not only once topic.open is set: the page sets
+ * that after a door-check read answers, and a line sent before it went out
+ * with no task and no channel, refused as dm_needs_to (SPL-3440, wf 30 runs
+ * 39480361834 and 39717268991). The view door up (no read access) is closed.
+ * @param {{ open?: boolean, taskId?: string, door?: unknown }} [opts]
+ */
+export function topicPageOpen({ open = false, taskId = '', door = null } = {}) {
+  return Boolean(open) || (Boolean(taskId) && !door)
+}
+
+/**
  * Whether the line alone opens a new topic while one is open: never.
  *
  * SPL-996 B (2026-09-27) made `@CLE-07 do X` the explicit new topic even

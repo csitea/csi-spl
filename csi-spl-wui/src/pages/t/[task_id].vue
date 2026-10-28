@@ -30,7 +30,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useSidePane } from '~/composables/useSidePane'
 import { useMessageEdit } from '~/composables/useMessageEdit'
-import { isParentFlag, omniboxReplyTaskId, startsNewTopic } from '~/utils/omnibox-topic.mjs'
+import { isParentFlag, omniboxReplyTaskId, startsNewTopic, topicPageOpen } from '~/utils/omnibox-topic.mjs'
 import { openingCardId } from '~/utils/topic-archive.mjs'
 import { dmPeerOf } from '~/utils/channel-feed.mjs'
 import { isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
@@ -126,9 +126,14 @@ async function dmPeerOfTopic(id: string): Promise<string> {
   return root && !root.channel ? dmPeerOf(root, String(editor.viewerId.value || '')) : ''
 }
 
+/* SPL-3440: the URL's topic takes the line before the door-check read opens it */
+function pageOpen() {
+  return topicPageOpen({ open: topic.open, taskId: taskId.value, door: door.value })
+}
+
 async function onSend(text: string, files?: File[], topicId?: string, channelId?: string) {
   const fresh = startsNewTopic(text)
-  const visible = topic.open
+  const visible = pageOpen()
   const target = omniboxReplyTaskId({
     tab: sidePane.current.value,
     selectedTaskId: taskId.value,
@@ -156,7 +161,7 @@ function replyTarget() {
     tab: sidePane.current.value,
     selectedTaskId: taskId.value,
     namedTopicId: '',
-    paneVisible: topic.open,
+    paneVisible: pageOpen(),
   })
 }
 

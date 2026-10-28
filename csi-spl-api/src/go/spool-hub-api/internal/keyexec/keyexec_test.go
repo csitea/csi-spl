@@ -192,3 +192,21 @@ func envOf(rec map[string]any) map[string]string {
 	}
 	return out
 }
+
+// TestSockDeskExhaustedTask (spec 159 9 point 3): an exhausted ask carries the
+// seat's task when it has one, and none otherwise (today's ask).
+func TestSockDeskExhaustedTask(t *testing.T) {
+	d := newFakeDesk(t)
+	ctx := context.Background()
+	if err := (SockDesk{Path: d.path, Seat: "/s", Task: "task-9"}).Exhausted(ctx, "grok"); err != nil {
+		t.Fatal(err)
+	}
+	if err := (SockDesk{Path: d.path, Seat: "/s"}).Exhausted(ctx, "grok"); err != nil {
+		t.Fatal(err)
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if len(d.reports) != 2 || d.reports[0].Task != "task-9" || d.reports[1].Task != "" {
+		t.Fatalf("reports = %+v, want task-9 then no task", d.reports)
+	}
+}

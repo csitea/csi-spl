@@ -17,6 +17,11 @@ var Kinds = []string{"claude", "grok", "agy", "mistral", "qwen"}
 // seat settings file and agy's credential file live there.
 const SeatDirEnv = "SPOOL_SEAT_DIR"
 
+// TaskEnv names the task the seat runs, when its launcher knows it (spec 159
+// 9 points 3-4): an exhausted report carries it, so the hub can post one line
+// in that task's topic. Unset is today's report, with no task.
+const TaskEnv = "SPOOL_TASK_ID"
+
 // vendorVars is every variable through which some CLI picks up a vendor
 // credential or endpoint (127 3, L10). The wrapper removes all of them, then
 // sets only its own kind's.

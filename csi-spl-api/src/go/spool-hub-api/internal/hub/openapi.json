@@ -13867,6 +13867,24 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "task_id": {
+                    "description": "the running task's id",
+                    "format": "uuid",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "description": "optional; no body is a report with no task (the report as before). task_id names the seat's running task ($SPOOL_TASK_ID): on the FIRST report of a refusal only, the hub posts one HUB-0 line in that task's topic, looked up in the box's own workspace (spec 159 9 point 3). A task of another workspace, an unknown one or a direct-message topic gets no line; a body that does not parse, or a task_id that is not a UUID, reads as no task. The refusal is recorded either way.",
+          "required": false
+        },
         "responses": {
           "200": {
             "content": {
@@ -13939,7 +13957,7 @@
             "description": "Service Unavailable: vendor_keys_off, workspace vendor keys are not configured on this hub"
           }
         },
-        "summary": "A box's desk reports that the vendor refused the key of one kind for credit, quota or a revoked key, with no vendor text (spec 159 9, T5); box upload token only",
+        "summary": "A box's desk reports that the vendor refused the key of one kind for credit, quota or a revoked key, with no vendor text and optionally the running task (spec 159 9, T5); box upload token only",
         "tags": [
           "tenant"
         ]

@@ -19,17 +19,21 @@ const SockEnv = "SPOOL_KEY_SOCK"
 // Request is one ask to the desk.
 //
 //	{"op":"lease","kind":"grok","seat":"<dir>"}      the seat start: the held lease, else a new one
-//	{"op":"exhausted","kind":"grok","seat":"<dir>"}  the vendor refused it (spec 159 9.1)
+//	{"op":"exhausted","kind":"grok","seat":"<dir>","task":"<id>"}
+//	                                                 the vendor refused it (spec 159 9.1); task
+//	                                                 is the seat's $SPOOL_TASK_ID, when set
 //	{"op":"helper","kind":"claude"}                  claude's apiKeyHelper: the held lease only,
 //	                                                 never a new hub lease (refused: no_lease)
 //
 // Seat is the seat's $SPOOL_SEAT_DIR: the desk records it against the
 // caller's SO_PEERCRED pid and removes the dir once that pid is gone
 // (127 5.4); a path outside its <runtime>/spool-seat/ is refused bad_seat.
+// Task goes with an exhausted report only, and only when the seat knows it.
 type Request struct {
 	Op   string `json:"op"`
 	Kind string `json:"kind"`
 	Seat string `json:"seat,omitempty"`
+	Task string `json:"task,omitempty"`
 }
 
 // Reply is the desk's answer. Error is a token, never vendor text:
@@ -67,10 +71,11 @@ type Desk interface {
 }
 
 // SockDesk talks to the desk over its unix socket. Seat, when set, goes
-// with every lease and exhausted ask.
+// with every lease and exhausted ask; Task, when set, with an exhausted ask.
 type SockDesk struct {
 	Path    string
 	Seat    string
+	Task    string
 	Timeout time.Duration
 }
 
@@ -101,7 +106,7 @@ func (d SockDesk) lease(ctx context.Context, req Request) (Lease, error) {
 
 // Exhausted reports that the vendor refused the key of kind.
 func (d SockDesk) Exhausted(ctx context.Context, kind string) error {
-	r, err := d.call(ctx, Request{Op: "exhausted", Kind: kind, Seat: d.Seat})
+	r, err := d.call(ctx, Request{Op: "exhausted", Kind: kind, Seat: d.Seat, Task: d.Task})
 	if err != nil {
 		return err
 	}

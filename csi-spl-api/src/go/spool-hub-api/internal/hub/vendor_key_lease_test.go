@@ -136,7 +136,7 @@ func TestVendorKeyLeaseRedControl(t *testing.T) {
 		t.Fatal("CONTROL: another desk's identity opened box-a's lease")
 	}
 	mail.take()
-	if err := ha.Exhausted(ctx, "claude"); err != nil {
+	if err := ha.Exhausted(ctx, "claude", ""); err != nil {
 		t.Fatalf("exhausted report: %v", err)
 	}
 	// 159 9 point 5: every admin and biz owner, once per refusal, last4 only.
@@ -148,7 +148,7 @@ func TestVendorKeyLeaseRedControl(t *testing.T) {
 			t.Fatalf("%s lease after the refusal: %v, want key_exhausted", name, err)
 		}
 	}
-	if err := hb.Exhausted(ctx, "claude"); err != nil {
+	if err := hb.Exhausted(ctx, "claude", ""); err != nil {
 		t.Fatalf("second report: %v", err)
 	}
 	if got := mail.take(); len(got) != 0 {
@@ -176,6 +176,94 @@ func TestVendorKeyLeaseRedControl(t *testing.T) {
 	}
 }
 
+// TestVendorKeyExhaustedTopicLine (spec 159 9 point 3): a report that names
+// the running task posts ONE hub line in that task's topic, on the first
+// report only; a repeat writes nothing. A task id of another workspace, a
+// direct-message topic, a task id that is not a UUID and a report with no
+// task post nothing, and the
+// refusal is recorded all the same. CONTROL: the other workspace's own box,
+// reporting its own task, does get the line, so the zero of the
+// cross-workspace case is the workspace check, not a dead path.
+func TestVendorKeyExhaustedTopicLine(t *testing.T) {
+	e, _ := vkEnv(t)
+	ctx := context.Background()
+	tid, _ := e.tenant()
+	other, _ := e.tenant()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	mine, theirs, dm := uuidV4(), uuidV4(), uuidV4()
+	for _, c := range []struct{ tenant, task, channel string }{{tid, mine, "work"}, {other, theirs, "work"}, {tid, dm, ""}} {
+		if c.channel != "" {
+			if err := e.st.CreateChannel(ctx, store.Channel{TenantID: c.tenant, ChannelID: c.channel, Name: c.channel,
+				CreatedBy: "HUM-1", CreatedAt: now}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		putRowWith(t, privacyRig{e: e, tid: c.tenant}, c.task, c.channel, "HUM-1", "c-001", now, func(*store.Message) {})
+	}
+	lines := func(tenant, task string) [][]byte { return hubNotes(t, privacyRig{e: e, tid: tenant}, task) }
+	reporter := func(tenant, box string) (hubclient.VendorKeyHub, string) {
+		t.Helper()
+		biz := seat(t, e, tenant, rbac.BizOwner)
+		if code, body := putKey(t, e, tenant, "claude", biz, nil); code != http.StatusNoContent {
+			t.Fatalf("PUT = %d %v", code, body)
+		}
+		b := keyBox(t, e, tenant, box, store.BoxModeDedicated)
+		if err := e.st.(store.VendorKeyLeases).ApproveVendorKeyBox(ctx, tenant, box, biz, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		return hubclient.VendorKeyHub{C: b.c}, biz
+	}
+	ha, biz := reporter(tid, "box-a")
+	admin, _ := seatBy(t, e, tid, rbac.Admin, biz) // confirmed: it may retry
+	report := func(task string) {
+		t.Helper()
+		if err := ha.Exhausted(ctx, "claude", task); err != nil {
+			t.Fatalf("report (task %q): %v", task, err)
+		}
+		_, body := call(t, e, tid, http.MethodGet, "/v1/vendor-keys", admin, nil)
+		if row := keyRow(t, body, "claude"); row["exhausted"] != true {
+			t.Fatalf("after a report (task %q) the key is not exhausted: %v", task, body)
+		}
+	}
+	retry := func() {
+		t.Helper()
+		if code, body := call(t, e, tid, http.MethodPost, "/v1/vendor-keys/claude/retry", admin, nil); code != http.StatusNoContent {
+			t.Fatalf("retry = %d %v", code, body)
+		}
+	}
+	for _, c := range []struct{ name, task string }{{"another workspace's task", theirs}, {"a direct-message topic", dm},
+		{"not a uuid", "dispatch-s159"}, {"no task", ""}} {
+		report(c.task)
+		if uuidOK(c.task) {
+			if n := len(lines(tid, c.task)) + len(lines(other, c.task)); n != 0 {
+				t.Fatalf("%s: %d lines posted, want none", c.name, n)
+			}
+		}
+		retry()
+	}
+	if n := len(lines(tid, mine)); n != 0 {
+		t.Fatalf("lines in the task's topic before any report names it = %d, want 0", n)
+	}
+	report(mine)
+	report(mine) // the same refusal again: first is false
+	got := lines(tid, mine)
+	if len(got) != 1 {
+		t.Fatalf("lines in the task's topic after two reports of one refusal = %d, want 1:\n%s", len(got), bytes.Join(got, []byte("\n")))
+	}
+	line := string(got[0])
+	if !strings.Contains(line, `"body":"claude key of this workspace refused by the vendor (out of credit or quota); a workspace admin or business owner can replace it on Agent keys."`) ||
+		strings.Contains(line, fakeVendorKey) || strings.Contains(line, "box-a") {
+		t.Fatalf("the line is not the kind-only text of 9 point 3: %s", line)
+	}
+	hx, _ := reporter(other, "box-x")
+	if err := hx.Exhausted(ctx, "claude", theirs); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(lines(other, theirs)); n != 1 {
+		t.Fatalf("CONTROL: the other workspace's own report of its own task posted %d lines, want 1", n)
+	}
+}
+
 // TestVendorKeyLeaseRefusals: a shared or undeclared pin, an unavailable
 // kind, a member's token, and another workspace's box never pass.
 func TestVendorKeyLeaseRefusals(t *testing.T) {
@@ -197,7 +285,7 @@ func TestVendorKeyLeaseRefusals(t *testing.T) {
 		if _, err := h.Lease(ctx, "claude"); refusal(err) != "box_not_dedicated" {
 			t.Errorf("%s lease: %v, want box_not_dedicated", c.id, err)
 		}
-		if err := h.Exhausted(ctx, "claude"); refusal(err) != "box_not_dedicated" {
+		if err := h.Exhausted(ctx, "claude", ""); refusal(err) != "box_not_dedicated" {
 			t.Errorf("%s exhausted: %v, want box_not_dedicated", c.id, err)
 		}
 	}
@@ -212,7 +300,7 @@ func TestVendorKeyLeaseRefusals(t *testing.T) {
 	if _, err := hd.Lease(ctx, "openai"); refusal(err) != "bad_kind" {
 		t.Errorf("unknown kind: %v, want bad_kind (never a 404: the desk reads it as no route)", err)
 	}
-	if err := hd.Exhausted(ctx, "qwen"); refusal(err) != "no_key" {
+	if err := hd.Exhausted(ctx, "qwen", ""); refusal(err) != "no_key" {
 		t.Errorf("exhausted of an unset kind: %v, want no_key", err)
 	}
 	// Another workspace's dedicated, approved box reads its OWN workspace's
@@ -225,7 +313,7 @@ func TestVendorKeyLeaseRefusals(t *testing.T) {
 	if _, err := hx.Lease(ctx, "claude"); refusal(err) != "no_key" {
 		t.Errorf("other workspace's box: %v, want no_key", err)
 	}
-	if err := hx.Exhausted(ctx, "claude"); refusal(err) != "no_key" {
+	if err := hx.Exhausted(ctx, "claude", ""); refusal(err) != "no_key" {
 		t.Errorf("other workspace's report: %v, want no_key", err)
 	}
 	enrolDesk(t, e, tid, "box-d")
@@ -330,4 +418,10 @@ func redeemKey(t *testing.T, e *env, hdr http.Header, tok, box, mode, rcpt, sign
 	var eb wire.ErrorBody
 	json.Unmarshal(body, &eb) //nolint:errcheck
 	return resp.StatusCode, eb
+}
+
+// uuidOK is whether task can be looked up as a topic (a uuid column on
+// Postgres).
+func uuidOK(task string) bool {
+	return len(task) == 36 && strings.Count(task, "-") == 4
 }

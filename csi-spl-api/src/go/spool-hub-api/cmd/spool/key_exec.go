@@ -15,7 +15,9 @@ const keyExecUsage = `usage:
       start a seat's CLI on its workspace's own key, asked from the desk
       socket ($SPOOL_KEY_SOCK), in the seat dir ($SPOOL_SEAT_DIR). Exit 79:
       the vendor refused the key (reported to the desk), or the hub marked
-      it exhausted; 78: no key for this seat; else the CLI's own code.
+      it exhausted; 78: no key for this seat; else the CLI's own code. A
+      refusal names the seat's task ($SPOOL_TASK_ID, when set), so its topic
+      gets one line.
   spool key-helper --sock <path> claude
       claude's apiKeyHelper: prints the key on stdout, nothing on stderr.
 `
@@ -38,7 +40,7 @@ func cmdKeyExec(args []string) int {
 		Kind: kind, CLI: cli, Args: rest, Env: os.Environ(),
 		SeatDir: seatDir,
 		Helper:  shQuote(self) + " key-helper --sock " + shQuote(sock) + " claude",
-		Desk:    keyexec.SockDesk{Path: sock, Seat: seatDir},
+		Desk:    keyexec.SockDesk{Path: sock, Seat: seatDir, Task: os.Getenv(keyexec.TaskEnv)},
 		Stdin:   os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr,
 	})
 }

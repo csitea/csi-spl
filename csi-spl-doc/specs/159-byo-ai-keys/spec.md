@@ -371,7 +371,7 @@ is **off** by default.
 
 `spool key-exec <kind> -- <cli> [args...]` is 127 X2's wrapper and point 1
 above. It asks the desk socket (`$SPOOL_KEY_SOCK`, one JSON line each way:
-`{"op":"lease","kind":...,"seat":...}`, `{"op":"exhausted","kind":...,"seat":...}`;
+`{"op":"lease","kind":...,"seat":...}`, `{"op":"exhausted","kind":...,"seat":...,"task":...}`;
 the server half is 127 X1, its own row) for a lease on **every** start, then
 forks the CLI in the seat dir (`$SPOOL_SEAT_DIR`) and waits:
 
@@ -420,8 +420,9 @@ with its session's upload token; the box is the token's, never a body's:
   is read in the pin's own tenant scope (127 L1). No refusal is a 404: the
   desk reads a 404 as `no_lease_route`. A lease that passes every check is
   answered sealed (9.3).
-- `POST /v1/vendor-keys/{kind}/exhausted` (point 1): no body, no vendor
-  text. The hub sets `workspace_vendor_keys.exhausted_at` (rdb 0235) and
+- `POST /v1/vendor-keys/{kind}/exhausted` (point 1): no vendor text; an
+  optional body `{"task_id": "<task>"}` (9.4), none = a report with no
+  task. The hub sets `workspace_vendor_keys.exhausted_at` (rdb 0235) and
   writes one `exhausted` audit row (kind, box); a second report of the same
   refusal answers `first: false` and writes nothing. From then on every
   lease of that kind, on every box of W, is 409 `key_exhausted` (point 2).
@@ -447,13 +448,8 @@ with its session's upload token; the box is the token's, never a body's:
 
 Not built in T5:
 
-- **The topic line of points 3 and 4.** The running task's topic should get
-  the line, but no part of the chain knows the task: the desk's report
-  carries the kind only, and a seat has no task id in its environment. It
-  needs the task id carried seat -> `spool key-exec` -> the desk socket ->
-  the hub, and is its own row after T5 (dispatch holder c-003, msg
-  `fabf51b2`). Until then the mail (point 5) and the 409 `key_exhausted`
-  stand in for it.
+- **The topic line of points 3 and 4** was its own row after T5 (dispatch
+  holder c-003, msg `fabf51b2`): built in 9.4, SPL-4027.
 - **The picker (127 Q-1 A) and what the fall-back switch does** (point 4
   with L24, our API key only) belong to the placer (T4): the hub stores the
   switch and shows an exhausted kind in GET; nothing reads them yet.
@@ -487,6 +483,55 @@ Not built in T5:
   400 `bad_json`), `internal/store/pin_x25519_test.go` (Memory and
   Postgres), `internal/action/join_test.go` (the join signs the desk's
   recipient; CONTROL: the bytes without it do not verify).
+
+### 9.4 Built: the topic line (SPL-4027)
+
+Point 3's line reaches the running task's topic. The task id rides the
+chain the refusal already takes:
+
+1. **The seat.** `SPOOL_TASK_ID` (`keyexec.TaskEnv`) in the seat's
+   environment names its task. `spool key-exec` reads it into
+   `keyexec.SockDesk.Task`; unset, the report is today's.
+2. **The desk socket.** The exhausted ask carries it as `task`
+   (`{"op":"exhausted","kind":...,"seat":...,"task":...}`, omitted when
+   empty); `keydesk` passes it as it is to `Hub.Exhausted(ctx, kind, task)`.
+3. **The hub.** `hubclient.VendorKeyHub.Exhausted` sends
+   `{"task_id": "<task>"}` as the body of `POST
+   /v1/vendor-keys/{kind}/exhausted`, and no body when there is no task.
+   On the FIRST report of a refusal only (`first: true`), the hub posts
+   ONE hub note (`HUB-0`, kind `note`) in that task's topic:
+   "<kind> key of this workspace refused by the vendor (out of credit or
+   quota); a workspace admin or business owner can replace it on Agent
+   keys." The kind only: no vendor text, no key, no last4, no box. A
+   repeat report (`first: false`) writes nothing.
+4. **Workspace-scoped.** The topic's channel is looked up in the reporting
+   box's own workspace (the token's tenant, under RLS). A task id of
+   another workspace, an unknown one or a direct-message topic finds no
+   channel, and nothing is posted anywhere. A body that does not parse, or
+   a task id that is not a UUID (a topic's task id is one), reads as no
+   task.
+   The refusal is recorded, mailed and answered exactly as without a task.
+
+What it does not do:
+
+- **Point 4's line** ("the task goes on with spool-hub's metered agents")
+  waits for the picker (T4): nothing switches a task to a metered agent
+  yet, so the hub posts point 3's line whatever the switch says.
+- **Who sets `SPOOL_TASK_ID`.** The seat launcher that starts `spool
+  key-exec` for a workspace (127 X1, 5.3) must export it; a seat started
+  without it reports with no task, and only the mail and the 409
+  `key_exhausted` tell anyone.
+
+Tests: `internal/hub/vendor_key_lease_test.go`
+`TestVendorKeyExhaustedTopicLine` (one line after two reports of one
+refusal; nothing for another workspace's task, a DM topic, a task id that
+is not a UUID or no task;
+CONTROL: the other workspace's own report of its own task gets its line).
+Red controls, run by hand: with the first-only check removed it posts 2
+lines; with the workspace lookup replaced by a fixed channel, another
+workspace's task id gets a line. `internal/keydesk/keydesk_test.go`
+`TestExhaustedPassesTheTask`, `internal/keyexec/keyexec_test.go`
+`TestSockDeskExhaustedTask`.
 
 ## 10. The WUI: Agent keys page
 
@@ -654,5 +699,8 @@ owners decide:
   claude self sign-in (4.4, T10; msg `4abfa8c4`). For an R7 review.
 - v0.2 + T1 (2026-10-27, c-330, SPL-3684): 11.1 records what row T1 (with
   127 H1) built in the hub and rdb 0232, and what it leaves to other rows.
+- v0.2 + topic line (2026-10-28, c-415, SPL-4027): 9.4, the line of 9
+  point 3 in the running task's topic (task id seat -> key-exec -> desk ->
+  hub, first report only, workspace-scoped); 9.2's "Not built" points to it.
 
-<!-- version: 0.2.0 · updated: 2026-10-27 · last-edit: 2026-10-27T00:40:00Z -->
+<!-- version: 0.2.0 · updated: 2026-10-28 · last-edit: 2026-10-28T13:50:00Z -->

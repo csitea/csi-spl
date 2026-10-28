@@ -31,6 +31,7 @@ type fakeHub struct {
 	err       error
 	leases    atomic.Int32
 	exhausted atomic.Int32
+	task      atomic.Value // the last exhausted report's task
 }
 
 func (h *fakeHub) Lease(_ context.Context, kind string) ([]byte, error) {
@@ -48,8 +49,9 @@ func (h *fakeHub) Lease(_ context.Context, kind string) ([]byte, error) {
 	return Seal(h.to, p)
 }
 
-func (h *fakeHub) Exhausted(context.Context, string) error {
+func (h *fakeHub) Exhausted(_ context.Context, _, task string) error {
 	h.exhausted.Add(1)
+	h.task.Store(task)
 	return nil
 }
 
@@ -252,8 +254,8 @@ func TestExhaustedRefusesForOneTTL(t *testing.T) {
 	if r := askReply(t, s.Path, request{Op: "exhausted", Kind: "grok"}); !r.OK {
 		t.Fatalf("exhausted: %+v", r)
 	}
-	if hub.exhausted.Load() != 1 {
-		t.Fatal("the hub was not told")
+	if hub.exhausted.Load() != 1 || hub.task.Load() != "" {
+		t.Fatalf("the hub was not told, or told a task (%v) the seat never named", hub.task.Load())
 	}
 	if r := askReply(t, s.Path, request{Op: "lease", Kind: "grok"}); r.Error != TokKeyExhausted {
 		t.Fatalf("lease after exhausted: %+v", r)
@@ -410,5 +412,17 @@ func TestPayloadNeverPrintsKey(t *testing.T) {
 		if strings.Contains(s, fakeKey) {
 			t.Fatalf("printed the key: %s", s)
 		}
+	}
+}
+
+// TestExhaustedPassesTheTask (spec 159 9 point 3): the seat's task reaches
+// the hub's report as it is, so the hub can post the line in its topic.
+func TestExhaustedPassesTheTask(t *testing.T) {
+	s, hub := startDesk(t, nil)
+	if r := askReply(t, s.Path, request{Op: "exhausted", Kind: "grok", Task: "7c1f2a9e-task"}); !r.OK {
+		t.Fatalf("exhausted: %+v", r)
+	}
+	if hub.exhausted.Load() != 1 || hub.task.Load() != "7c1f2a9e-task" {
+		t.Fatalf("hub told %d times, task %v; want once, 7c1f2a9e-task", hub.exhausted.Load(), hub.task.Load())
 	}
 }

@@ -39,7 +39,7 @@ func (h sealingHub) Lease(_ context.Context, kind string) ([]byte, error) {
 	return keydesk.Seal(h.to, keydesk.Payload{Kind: kind, Box: "box-a", KeyID: "k1", Key: fakeVendorKey})
 }
 
-func (sealingHub) Exhausted(context.Context, string) error { return nil }
+func (sealingHub) Exhausted(context.Context, string, string) error { return nil }
 
 // keyDeskUp runs this client's box-root key desk and leases a grok key
 // through it, as a seat start does.
@@ -209,7 +209,7 @@ func TestVendorKeyHubLease(t *testing.T) {
 			t.Fatalf("%s: %v, want refused %s", kind, err, want)
 		}
 	}
-	if err := h.Exhausted(ctx, "grok"); err != nil || exhausted.Load() != 1 {
+	if err := h.Exhausted(ctx, "grok", ""); err != nil || exhausted.Load() != 1 {
 		t.Fatalf("exhausted: %v (%d)", err, exhausted.Load())
 	}
 }

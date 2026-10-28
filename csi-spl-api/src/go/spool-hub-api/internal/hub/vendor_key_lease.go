@@ -1,17 +1,21 @@
 package hub
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"slices"
+	"strconv"
 	"time"
 
 	"filippo.io/age"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/keydesk"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/uid"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/vendorkey"
 )
 
@@ -21,6 +25,7 @@ import (
 //
 //	POST /v1/vendor-keys/{kind}/lease      -> 200 {"sealed":"<base64>"}
 //	POST /v1/vendor-keys/{kind}/exhausted  -> 200 {"kind","exhausted":true,"first"}
+//	     optional body {"task_id": "<the running task>"}
 //
 // The box is the token's, proven by the session's hello; no body names it.
 // A lease is answered only for a pin that declared box_mode dedicated, a box
@@ -38,11 +43,13 @@ import (
 // its lease audit row (box, kind, last4) before it is sent.
 //
 // exhausted is the desk's report that the vendor refused the key for
-// credit, quota or a revoked key (keyexec's classifier; no vendor text, no
-// body). The hub marks the key exhausted, so the next lease of that kind is
+// credit, quota or a revoked key (keyexec's classifier; no vendor text). Its
+// only body field is the running task's id, when the seat knows it. The
+// hub marks the key exhausted, so the next lease of that kind is
 // 409 key_exhausted on every box of the workspace, until a manager replaces
 // the key or presses retry (POST /v1/vendor-keys/{kind}/retry). first is
-// false when the key was already exhausted.
+// false when the key was already exhausted. On the first report only, the
+// task's topic gets one hub line (159 9 point 3), in the box's workspace.
 
 // vendorKeyExhaustedOut answers POST /v1/vendor-keys/{kind}/exhausted.
 type vendorKeyExhaustedOut struct {
@@ -162,6 +169,7 @@ func (s *Server) handleVendorKeyExhausted(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
+	task := vendorKeyReportTask(w, r)
 	first, last4, err := st.MarkVendorKeyExhausted(r.Context(), tenant, kind, box, s.o.Now())
 	switch {
 	case errors.Is(err, store.ErrNotFound):
@@ -176,8 +184,56 @@ func (s *Server) handleVendorKeyExhausted(w http.ResponseWriter, r *http.Request
 		s.o.Log.Info().Str("tenant", tenant).Str("box", box).Str("kind", kind).Str("last4", last4).Msg("vendor_key.exhausted")
 		s.mailVendorKeyNotice(r.Context(), VendorKeyNotice{Tenant: tenant, Kind: kind, Action: store.VendorKeyExhausted,
 			Last4: last4, By: box, At: s.o.Now()})
+		s.postVendorKeyExhaustedLine(r.Context(), tenant, kind, task)
 	}
 	writeJSON(w, http.StatusOK, vendorKeyExhaustedOut{Kind: kind, Exhausted: true, First: first})
+}
+
+// vendorKeyReportTask reads the optional body of an exhausted report,
+// {"task_id": "<the running task>"} (159 9 points 3-4). No body is today's
+// report. A body that does not parse, or a task id that is not a UUID (a
+// topic's task_id is one), reads as no task: the refusal is recorded either
+// way, only the topic line is skipped.
+func vendorKeyReportTask(w http.ResponseWriter, r *http.Request) string {
+	raw, err := readAllCapped(w, r, vendorKeysMaxBody)
+	if err != nil || len(bytes.TrimSpace(raw)) == 0 {
+		return ""
+	}
+	var in struct {
+		TaskID string `json:"task_id"`
+	}
+	if json.Unmarshal(raw, &in) != nil || !uuidRe.MatchString(in.TaskID) {
+		return ""
+	}
+	return in.TaskID
+}
+
+// vendorKeyExhaustedLine is the line of 159 9 point 3: the kind only, no
+// vendor text, no key, no box.
+func vendorKeyExhaustedLine(kind string) string {
+	return kind + " key of this workspace refused by the vendor (out of credit or quota); " +
+		"a workspace admin or business owner can replace it on Agent keys."
+}
+
+// postVendorKeyExhaustedLine posts that line once into the running task's
+// topic, as a hub note (HUB-0). The topic is looked up in the reporting
+// box's own workspace only (RLS), so a task id of another workspace, an
+// unknown one or a direct-message topic finds no channel and nothing is
+// posted. A failure is logged: the refusal is recorded and mailed anyway.
+func (s *Server) postVendorKeyExhaustedLine(ctx context.Context, tenant, kind, task string) {
+	if task == "" {
+		return
+	}
+	channel := s.channelOf(ctx, tenant, "", task)
+	if channel == "" {
+		s.o.Log.Info().Str("tenant", tenant).Str("kind", kind).Msg("vendor_key.exhausted_line_skipped")
+		return
+	}
+	id := uid.FromSeed("spool-vendor-key-exhausted:" + tenant + ":" + task + ":" + kind + ":" +
+		strconv.FormatInt(s.o.Now().UnixNano(), 10))
+	if err := s.postHubNote(ctx, tenant, channel, task, id, vendorKeyExhaustedLine(kind)); err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Str("kind", kind).Msg("vendor_key.exhausted_line_failed")
+	}
 }
 
 // handleRetryVendorKey: a manager clears the exhausted state (159 9 point

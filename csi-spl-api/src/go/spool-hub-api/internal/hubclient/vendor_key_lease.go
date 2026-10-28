@@ -1,9 +1,12 @@
 package hubclient
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/keydesk"
@@ -26,7 +29,7 @@ type leaseAnswer struct {
 // Lease asks the hub for kind's sealed key.
 func (h VendorKeyHub) Lease(ctx context.Context, kind string) ([]byte, error) {
 	var a leaseAnswer
-	if err := h.post(ctx, "/v1/vendor-keys/"+kind+"/lease", &a); err != nil {
+	if err := h.post(ctx, "/v1/vendor-keys/"+kind+"/lease", nil, &a); err != nil {
 		return nil, err
 	}
 	b, err := base64.StdEncoding.DecodeString(a.Sealed)
@@ -37,20 +40,31 @@ func (h VendorKeyHub) Lease(ctx context.Context, kind string) ([]byte, error) {
 }
 
 // Exhausted reports the vendor's refusal of kind (spec 159 9 point 1): the
-// kind only, never the vendor's text.
-func (h VendorKeyHub) Exhausted(ctx context.Context, kind string) error {
-	return h.post(ctx, "/v1/vendor-keys/"+kind+"/exhausted", nil)
+// kind only, never the vendor's text. A task sends {"task_id": task}, so the
+// hub posts one line in that task's topic (159 9 point 3); "" sends no body,
+// as before.
+func (h VendorKeyHub) Exhausted(ctx context.Context, kind, task string) error {
+	var body []byte
+	if task != "" {
+		body, _ = json.Marshal(map[string]string{"task_id": task})
+	}
+	return h.post(ctx, "/v1/vendor-keys/"+kind+"/exhausted", body, nil)
 }
 
-// post runs one box-authenticated POST; a hub refusal becomes
-// keydesk.Refused with the hub's token, a 404 TokNoLeaseRoute.
-func (h VendorKeyHub) post(ctx context.Context, path string, out any) error {
+// post runs one box-authenticated POST, with body when it is not nil; a hub
+// refusal becomes keydesk.Refused with the hub's token, a 404
+// TokNoLeaseRoute.
+func (h VendorKeyHub) post(ctx context.Context, path string, body []byte, out any) error {
 	sess, err := h.C.Dial(ctx, wire.RoleCLI)
 	if err != nil {
 		return err
 	}
 	defer sess.Close()
-	err = sess.rest(ctx, http.MethodPost, path, nil, out)
+	var rd io.Reader
+	if body != nil {
+		rd = bytes.NewReader(body)
+	}
+	err = sess.rest(ctx, http.MethodPost, path, rd, out)
 	var he *HubError
 	if errors.As(err, &he) {
 		if he.Status == http.StatusNotFound {

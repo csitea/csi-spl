@@ -10,7 +10,9 @@
 //
 //	{"op":"lease","kind":"grok","seat":"<seat dir>"}  a seat starts: the held lease, else a hub lease
 //	{"op":"helper","kind":"claude"}                   claude's apiKeyHelper: the held lease only
-//	{"op":"exhausted","kind":"grok","seat":"..."}     the vendor refused the key (spec 159 9.1)
+//	{"op":"exhausted","kind":"grok","seat":"...","task":"..."}
+//	                                                  the vendor refused the key (spec 159 9.1);
+//	                                                  task, optional, is the seat's running task
 //	{"op":"redact","text":"..."}                      the text with every handed-out key removed
 //
 // A reply is {"ok":true,...} or {"ok":false,"error":"<token>"}; a token is
@@ -70,6 +72,7 @@ type request struct {
 	Op   string `json:"op"`
 	Kind string `json:"kind,omitempty"`
 	Seat string `json:"seat,omitempty"`
+	Task string `json:"task,omitempty"`
 	Text string `json:"text,omitempty"`
 }
 
@@ -86,8 +89,9 @@ type reply struct {
 type Hub interface {
 	// Lease returns the hub's sealed answer for kind (127 5.2 step 3).
 	Lease(ctx context.Context, kind string) ([]byte, error)
-	// Exhausted reports the vendor's refusal of kind, with no vendor text.
-	Exhausted(ctx context.Context, kind string) error
+	// Exhausted reports the vendor's refusal of kind, with no vendor text;
+	// task is the seat's running task, "" when it named none (159 9 point 3).
+	Exhausted(ctx context.Context, kind, task string) error
 }
 
 // Refused is a hub refusal; Token is its error token (box_not_approved,
@@ -253,7 +257,7 @@ func (s *Server) answer(ctx context.Context, p Peer, req request) reply {
 	case "helper":
 		return s.helper(req.Kind)
 	case "exhausted":
-		return s.markExhausted(ctx, req.Kind)
+		return s.markExhausted(ctx, req.Kind, req.Task)
 	}
 	return reply{Error: TokBadRequest}
 }
@@ -327,13 +331,13 @@ func (s *Server) fetch(ctx context.Context, kind string) (held, string) {
 // markExhausted drops the held lease of kind and refuses new ones for one
 // TTL (the hub's 409 key_exhausted takes over once it is live), then tells
 // the hub. The hub report is best effort: the seat has stopped either way.
-func (s *Server) markExhausted(ctx context.Context, kind string) reply {
+func (s *Server) markExhausted(ctx context.Context, kind, task string) reply {
 	s.mu.Lock()
 	delete(s.leases, kind)
 	s.exhausted[kind] = s.now().Add(s.ttl())
 	s.mu.Unlock()
 	if s.Hub != nil {
-		if err := s.Hub.Exhausted(ctx, kind); err != nil {
+		if err := s.Hub.Exhausted(ctx, kind, task); err != nil {
 			s.logf("keydesk: the %s exhausted report did not reach the hub", kind)
 		}
 	}

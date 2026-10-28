@@ -524,7 +524,7 @@ Every scenario below was measured directly from the repository code. Each scenar
 
 4. AUTOMATED LOGIN SCENARIOS WALKTHROUGH
    Run automated test suite:
-   bash csi-spl-orc/src/bash/tests/test-dev-mailpit-scenarios.tst.sh
+   bash csi-spl-orc/src/bash/scripts/dev-mailpit-scenarios.sh
    -> Scenario 1: POST /register user@example.com -> Mailpit receives verification email.
    -> Scenario 2: Extracts token from Mailpit /api/v1/messages; POST /email/verify -> 204 OK.
    -> Scenario 3: POST /login user@example.com -> 200 OK + session cookie.
@@ -556,10 +556,10 @@ The implementation is broken down into nine independent, strictly disjoint build
 | **B3** | `api` | One-click Dev-login hub endpoint (`POST /api/v1/auth/dev-login`) & strict dev/prd anti-leak guard | `csi-spl-api/src/go/spool-hub-api/internal/auth/dev_login.go` | `go test ./src/go/spool-hub-api/internal/auth/... -run TestDevLogin` |
 | **B4** | `api` | Parameterized secrets & anti-leak startup guard | `csi-spl-api/src/go/spool-hub-api/internal/config/config.go` | `go test ./src/go/spool-hub-api/internal/config/... -run TestValidateProductionSecrets` |
 | **B5** | `docker` | Root compose dev profile (`--profile dev`) for Mailpit and dev overrides | `docker-compose.yml` | `docker compose --profile dev config` |
-| **B6** | `orc` | Shell wrapper actions `do_dev_mode_up` and `down` | `csi-spl-orc/src/bash/run/dev-mode-ctl.func.sh` | `./run -a do_dev_mode_up && ./run -a do_dev_mode_down` |
+| **B6** | `orc` | Shell wrapper actions `do_dev_mode_up` and `down` | `csi-spl-orc/src/bash/run/dev-mode-up.func.sh`, `csi-spl-orc/src/bash/run/dev-mode-down.func.sh`, `csi-spl-orc/src/bash/run/dev-mode-ctl.func.sh` | `./run -a do_dev_mode_up && ./run -a do_dev_mode_down` |
 | **B7** | `wui` | WUI local dev helpers (Dev-login button + Mailpit mailbox link) | `csi-spl-wui/src/components/DevToolbar.vue` | `pnpm --dir csi-spl-wui test:unit` |
 | **B8** | `doc` | Developer onboarding documentation & quickstart guide | `csi-spl-doc/doc/md/local-dev-mode-guide.md` | `./run -a do_check_dist_hygiene` |
-| **B9** | `test` | Automated end-to-end integration test walking all non-cloud login scenarios via Mailpit REST API | `csi-spl-orc/src/bash/tests/test-dev-mailpit-scenarios.tst.sh` | `bash csi-spl-orc/src/bash/tests/test-dev-mailpit-scenarios.tst.sh` |
+| **B9** | `test` | Automated end-to-end integration test walking all non-cloud login scenarios via Mailpit REST API | `csi-spl-orc/src/bash/scripts/dev-mailpit-scenarios.sh` | `bash csi-spl-orc/src/bash/scripts/dev-mailpit-scenarios.sh` |
 
 ---
 

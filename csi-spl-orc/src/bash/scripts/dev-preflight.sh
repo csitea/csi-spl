@@ -12,7 +12,8 @@
 #   4 compose `docker compose version` is v2, >= 2.20.0
 #   5 disk    >= 5 GB free where the stack runs
 #   6 ram     >= 2048 MB available
-#   7 ports   8080 5432 9000 8025 1025 not bound on 127.0.0.1
+#   7 ports   published host ports of docker-compose.yml not bound on 127.0.0.1
+#             (8080 8443 1025 8025 when the file cannot be read)
 #
 # Output: one "OK <n>/7 <check>: <what>" line per passed check, then
 # "OK dev preflight: all 7 checks passed". On a failure: "ERROR: ..." and
@@ -27,7 +28,9 @@
 #   DEV_PREFLIGHT_DIR                  where free disk is measured (default .)
 #   DEV_PREFLIGHT_DISK_GB              free GB instead of df
 #   DEV_PREFLIGHT_MEM_MB               available MB instead of meminfo/sysctl
-#   DEV_PREFLIGHT_PORTS                ports to check (default the five above)
+#   DEV_PREFLIGHT_PORTS                ports to check (default: the compose file)
+#   DEV_PREFLIGHT_COMPOSE              compose file those ports are read from
+#   DEV_PREFLIGHT_PRINT_PORTS=1        print the resolved port list and exit 0
 #   DEV_PREFLIGHT_MIN_DISK_GB (5)  DEV_PREFLIGHT_MIN_MEM_MB (2048)
 # git and docker are found on PATH, so a stub on PATH stands in for them.
 #------------------------------------------------------------------------------
@@ -37,7 +40,43 @@ MIN_GIT=2.30
 MIN_COMPOSE=2.20.0
 MIN_DISK_GB="${DEV_PREFLIGHT_MIN_DISK_GB:-5}"
 MIN_MEM_MB="${DEV_PREFLIGHT_MIN_MEM_MB:-2048}"
-PORTS="${DEV_PREFLIGHT_PORTS:-8080 5432 9000 8025 1025}"
+
+# dp_compose_host_ports <file> - host ports published by that compose file,
+# in file order. A mapping is `${NAME:-HOST}:CONTAINER"` at the end of a
+# line. Other `:-NUMBER` lines (smtp 587, a URL) do not match.
+dp_compose_host_ports() {
+  local f="$1" p
+  [ -r "$f" ] || return 0
+  p=$(sed -n 's/.*:-\([0-9][0-9]*\)}:\([0-9][0-9]*\)"$/\1/p' "$f" \
+    | tr '\n' ' ' | sed 's/ *$//')
+  printf '%s' "$p"
+}
+
+# dp_default_ports - published host ports of the repo compose file.
+# DEV_PREFLIGHT_COMPOSE names another file (a test fixture). A missing file,
+# or one with no published host port, falls back to the four the dev stack
+# publishes: http, https, smtp, ui.
+dp_default_ports() {
+  local f="${DEV_PREFLIGHT_COMPOSE:-}" root="" p=""
+  if [ -z "$f" ]; then
+    root=$(CDPATH='' cd -P "$(dirname "$0")/../../../.." && pwd) || root=""
+    [ -n "$root" ] && f="$root/docker-compose.yml"
+  fi
+  [ -n "$f" ] && p=$(dp_compose_host_ports "$f")
+  if [ -z "$p" ]; then
+    printf '%s' "8080 8443 1025 8025"
+  else
+    printf '%s' "$p"
+  fi
+}
+
+# unset or empty -> the compose default. A single space is a real list of
+# no ports (do_dev_mode_up passes that when a stack is already running).
+PORTS="${DEV_PREFLIGHT_PORTS:-$(dp_default_ports)}"
+if [ "${DEV_PREFLIGHT_PRINT_PORTS:-}" = 1 ]; then
+  printf '%s\n' "$PORTS"
+  exit 0
+fi
 UNAME_S="${DEV_PREFLIGHT_UNAME_S:-$(uname -s)}"
 UNAME_M="${DEV_PREFLIGHT_UNAME_M:-$(uname -m)}"
 

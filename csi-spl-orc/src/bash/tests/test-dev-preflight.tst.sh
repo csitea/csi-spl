@@ -54,12 +54,20 @@ for b in sh bash sed tr sort head grep awk df uname cat; do
   p=$(command -v "$b") && ln -sf "$p" "$BASE/$b"
 done
 
-# run_pf <bin dir> [VAR=value]... - run the script; sets OUT and RC
+# run_pf <bin dir> [VAR=value]... - run the script; sets OUT and RC.
+# DEV_PREFLIGHT_PORTS is set, so these cases never see the default list.
 run_pf() {
   local bin="$1"; shift
   OUT=$(env -i HOME="$T" PATH="$bin:$BASE" DEV_PREFLIGHT_UNAME_S=Linux DEV_PREFLIGHT_UNAME_M=x86_64 \
     DEV_PREFLIGHT_OS_RELEASE="$T/os-debian" DEV_PREFLIGHT_DISK_GB=50 DEV_PREFLIGHT_MEM_MB=8000 \
     DEV_PREFLIGHT_PORTS="$P1 $P2" "$@" bash "$SCRIPT" 2>&1); RC=$?
+}
+# run_pf_def <bin dir> [VAR=value]... - same, with DEV_PREFLIGHT_PORTS left unset
+run_pf_def() {
+  local bin="$1"; shift
+  OUT=$(env -i HOME="$T" PATH="$bin:$BASE" DEV_PREFLIGHT_UNAME_S=Linux DEV_PREFLIGHT_UNAME_M=x86_64 \
+    DEV_PREFLIGHT_OS_RELEASE="$T/os-debian" DEV_PREFLIGHT_DISK_GB=50 DEV_PREFLIGHT_MEM_MB=8000 \
+    "$@" bash "$SCRIPT" 2>&1); RC=$?
 }
 # expect <label> <rc> <regex> [<regex absent>]
 expect() {
@@ -147,6 +155,34 @@ run_pf "$B"
 expect "4 git missing + docker down -> git only" 2 '^ERROR: Git' 'Docker engine'
 n=$(grep -c '^ERROR' <<<"$OUT")
 if [ "$n" -eq 1 ]; then pass "4b exactly one ERROR line"; else fail "4b $n ERROR lines"; fi
+
+# 5. the default list is the compose file's published host ports
+#    (8080 8443 1025 8025). 5432 and 9000 are not host ports. An explicit
+#    DEV_PREFLIGHT_PORTS still wins, including over a compose file.
+Q1=$(free_port); Q2=$(free_port); Q3=$(free_port); Q4=$(free_port)
+cat > "$T/compose-ports.yml" <<EOF
+services:
+  web:
+    ports:
+      - "\${SPOOL_BIND:-127.0.0.1}:\${SPOOL_HTTP_PORT:-$Q1}:80"
+      - "\${SPOOL_BIND:-127.0.0.1}:\${SPOOL_HTTPS_PORT:-$Q2}:443"
+  mail:
+    ports:
+      - "127.0.0.1:\${SPOOL_MAILPIT_SMTP_PORT:-$Q3}:1025"
+      - "127.0.0.1:\${SPOOL_MAILPIT_UI_PORT:-$Q4}:8025"
+  decoy:
+    environment:
+      SPOOL_HUB_MAIL_SMTP_PORT: \${SPOOL_MAIL_SMTP_PORT:-587}
+      SPOOL_PUBLIC_URL: http://127.0.0.1:\${SPOOL_HTTP_PORT:-9999}
+EOF
+run_pf_def "$GOOD" DEV_PREFLIGHT_PRINT_PORTS=1 DEV_PREFLIGHT_COMPOSE="$T/no-such-compose.yml"
+expect "5 missing compose falls back to 8080 8443 1025 8025" 0 '^8080 8443 1025 8025$' '5432|9000'
+run_pf_def "$GOOD" DEV_PREFLIGHT_COMPOSE="$T/compose-ports.yml"
+expect "5b reads the published host ports from the compose file" 0 "OK 7/7 ports: $Q1 $Q2 $Q3 $Q4 free" '5432|9000'
+run_pf_def "$GOOD" DEV_PREFLIGHT_PRINT_PORTS=1 DEV_PREFLIGHT_COMPOSE="$APP_ROOT/docker-compose.yml"
+expect "5c repo compose publishes 8080 8443 1025 8025" 0 '^8080 8443 1025 8025$' '5432|9000|587'
+run_pf "$GOOD" DEV_PREFLIGHT_COMPOSE="$T/compose-ports.yml"
+expect "5d DEV_PREFLIGHT_PORTS overrides the compose file" 0 "OK 7/7 ports: $P1 $P2 free"
 
 echo
 [ "$fails" -eq 0 ] && { echo "ALL PASS: test-dev-preflight"; exit 0; }

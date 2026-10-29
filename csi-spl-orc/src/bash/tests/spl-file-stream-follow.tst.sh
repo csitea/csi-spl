@@ -620,13 +620,14 @@ EOS
   printf 'env:\n  box:\n    file_streams:\n      enabled: true\n      hubs: [dev, prd]\n      allow:\n        - id: h\n          path: %s\n      start_lines: 1\n' \
     "$d/logs/a.log" >"$d/cnf.yaml"
 }
+# hub_act <func> <case> [env=val]: one tick of the action, under pipefail as ./run runs it
 hub_act() {
   local func="$1" d="$2"; shift 2
   env -u FILE_STREAMS_PUSH_CMD -u FILE_STREAMS_HUBS HOME="$d/home" SPOOL_ROOT="$d/spool" SPOOL_TEST=1 \
     SPOOL_DESK_BOX=box-t FILE_STREAMS_TENANT=t9 FILE_STREAMS_DESK_USER="$(id -un)" \
     FILE_STREAMS_DESK_STATE="$d/cloud/%ENV%" FILE_STREAMS_STATE_DIR="$d/state" FILE_STREAMS_CNF="$d/cnf.yaml" \
     FILE_STREAMS_AGENT_USER="$(id -un)" FILE_STREAMS_TICKS=1 "$@" \
-    bash -c 'source "$1"; do_spl_file_stream_follow' _ "$func" 2>&1
+    bash -c 'set -o pipefail; source "$1"; do_spl_file_stream_follow' _ "$func" 2>&1
 }
 htexts() { jq -r 'select(.lane_op == "file_streams_push") | .lines[] | .text' "$1/pushed-$2" | paste -sd' '; }
 if command -v yq >/dev/null; then
@@ -643,8 +644,11 @@ if command -v yq >/dev/null; then
 
   # one hub down: its line stays queued for it, the other hub is not held back
   hd="$(newcase)"; hubcase "$hd"; : >"$hd/fail-prd"
-  out="$(hub_act "$FUNC" "$hd")"
+  out="$(hub_act "$FUNC" "$hd")"; rc=$?
   q="$(jq -r '.text' "$hd/state/prd/queue.jsonl" 2>/dev/null | paste -sd' ')"
+  [[ "$rc" == 0 && "$out" == *"hub=prd "*"push_rc=1"* ]] &&
+    pass "hubs: prd down is not an error (rc 0), its follower logs push_rc=1" ||
+    fail "hubs prd down rc: rc=$rc out='$out'"
   [[ "$(htexts "$hd" dev)" == "hb 3" && -z "$(htexts "$hd" prd)" && "$q" == "hb 3" &&
      -z "$(jq -r '.text' "$hd/state/dev/queue.jsonl" 2>/dev/null)" ]] &&
     pass "hubs: prd down keeps its line queued for prd; dev got it and its queue is empty" ||

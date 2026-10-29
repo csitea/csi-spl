@@ -77,8 +77,11 @@ do_spl_file_stream_follow() {
 }
 
 # spl_file_stream_hubs <cnf> <user> <py> [args]: one follower per hub env,
-# each with its own state dir and push; waits for all. Non-zero when any
-# failed; a hub with no desk does not stop the others.
+# each with its own state dir and push; waits for all. A hub that is down is
+# not an error: its follower logs push_rc=<n>, keeps the lines queued for the
+# next tick and exits 0. Non-zero when a hub env is not dev or prd, a hub has
+# no desk (that hub is not fed) or a follower exits non-zero (under ./run's
+# pipefail); none of these stops the other hubs.
 spl_file_stream_hubs() {
   local cnf="$1" user="$2" py="$3" e cmd base rc=0 hubs
   shift 3

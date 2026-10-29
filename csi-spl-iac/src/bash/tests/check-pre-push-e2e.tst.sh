@@ -26,6 +26,9 @@
 #      phone-composer-target was CUT behind 6 generic tests)
 #  11. two components: each one's best test is pinned, so BigPanel.vue's two
 #      higher-scoring tests cannot starve DockBox.vue's under MAX=2
+#  12. the bundle budget (SPL-4129): the part runs wf 10's perf-budget.py
+#      bundle on the bundle it built; over perf-budgets.json -> rc 1, the
+#      FAIL line, no file runs (check 7's small bundle prints PASS)
 #   CONTROL a. with the users-of step off (_ppe_names prints nothing) check 2
 #              selects nothing: the closure is what finds it
 #   CONTROL b. a dirty WUI source -> no cache key -> 2 builds for 2 runs, so
@@ -79,6 +82,11 @@ printf '# reasons\nskipped.test.mjs   needs a live hub\n' >"$W/tests/e2e/ci-skip
 printf 'tests/e2e/foo.test.mjs 20\ntests/e2e/foo-rows.test.mjs 10\ntests/e2e/thing.test.mjs 30\n' >"$W/src/node/test/e2e-shard-weights.txt"
 echo lock >"$W/pnpm-lock.yaml"; mkdir -p "$W/node_modules/.pnpm"; cp "$W/pnpm-lock.yaml" "$W/node_modules/.pnpm/lock.yaml"
 printf 'node_modules\n.output\n' >"$R/.gitignore"
+# the real budget script, as wf 10 runs it; ceilings small enough for a stub
+mkdir -p "$R/csi-spl-orc/src/bash/scripts" "$R/csi-spl-doc/specs/027-spool-performance/contracts"
+cp "$PROJ_ROOT/../csi-spl-orc/src/bash/scripts/perf-budget.py" "$R/csi-spl-orc/src/bash/scripts/"
+echo '{"ceilings": {"ci_initial_gzip_kb": 2.0, "ci_home_gzip_kb": 2.0}}' \
+  >"$R/csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json"
 g init -q; g add -A; g commit -qm base
 
 sel() { PRE_PUSH_TREE="$R" WUI_E2E_CHANGED="$*" do_check_pre_push_e2e; }
@@ -121,7 +129,9 @@ PRE_PUSH_E2E=0 _ppe_plan "csi-spl-wui/src/components/FooBar.vue" "$R" && fail "6
 # --- 7. the run, the bundle cache -----------------------------------------------------------
 cat >"$T/gen" <<'EOF'
 #!/bin/bash
-echo build >>"$PPE_T/builds"; mkdir -p .output/public; echo ok >.output/public/index.html
+echo build >>"$PPE_T/builds"; mkdir -p .output/public/_nuxt
+head -c "${PPE_JS_BYTES:-64}" /dev/urandom | base64 >.output/public/_nuxt/entry.js
+for d in index 200; do echo '<script type="module" src="/_nuxt/entry.js"></script>' >".output/public/$d.html"; done
 EOF
 cat >"$T/run" <<'EOF'
 #!/bin/bash
@@ -138,8 +148,9 @@ mkdir -p "$W/.output"; echo mine >"$W/.output/keep"
 part; r1=$?; part; r2=$?
 if [[ "$r1" == 0 && "$r2" == 0 && "$(wc -l <"$T/builds")" == 1 && "$(wc -l <"$T/ran")" == 2 ]] \
    && grep -qx 'tests/e2e/foo-rows.test.mjs tests/e2e/foo.test.mjs' "$T/ran" \
-   && [[ "$(cat "$W/.output/keep" 2>/dev/null)" == mine && ! -e "$W/.output/public" ]]; then
-  pass "7. 2 runs: the runner got the selected files, 1 build (re-used), the old .output put back"
+   && [[ "$(cat "$W/.output/keep" 2>/dev/null)" == mine && ! -e "$W/.output/public" ]] \
+   && [[ "$(grep -c '^PASS ci_initial_gzip_kb ' "$T/out")" == 2 ]]; then
+  pass "7. 2 runs: the runner got the selected files, 1 build (re-used), the old .output put back, budget PASS"
 else
   fail "7. rc $r1/$r2, builds $(wc -l <"$T/builds" 2>/dev/null), runs $(wc -l <"$T/ran" 2>/dev/null)"; sed 's/^/    | /' "$T/out" "$T/ran"
 fi
@@ -147,6 +158,18 @@ rm -rf "$W/.output"
 # --- 8. the time cap ------------------------------------------------------------------------
 PPE_SLEEP=20 PRE_PUSH_E2E_TIMEOUT=2 part; r=$?
 [[ "$r" == 124 ]] && pass "8. a run past PRE_PUSH_E2E_TIMEOUT stops with rc 124" || fail "8. time cap: rc $r"
+
+# --- 12. the bundle budget ---------------------------------------------------------------
+: >"$T/out"; : >"$T/ran"
+( export PPE_T="$T" PRE_PUSH_E2E_GENERATE="$T/gen" PRE_PUSH_E2E_RUNNER="$T/run" PRE_PUSH_E2E_BUNDLES="$T/bundles-big" \
+    CHROME_PATH=/bin/true TMPDIR="$T" PPE_JS_BYTES=4096
+  _ppe_plan "csi-spl-wui/src/components/FooBar.vue" "$R" && _pp_part_wui_e2e "$R" ) >>"$T/out" 2>&1; r=$?
+if [[ "$r" == 1 && ! -s "$T/ran" ]] && grep -q '^FAIL ci_initial_gzip_kb [0-9.]* > 2$' "$T/out" \
+   && grep -q '^FAIL: wui-e2e: the bundle is over perf-budgets.json' "$T/out"; then
+  pass "12. a bundle over perf-budgets.json: rc 1, $(grep -m1 '^FAIL ci_initial' "$T/out"), no file ran"
+else
+  fail "12. over budget: rc $r, ran '$(cat "$T/ran")'"; sed 's/^/    | /' "$T/out"
+fi
 
 # --- 9. the stamp -----------------------------------------------------------------------------
 cat >"$T/pnpm" <<'EOF2'

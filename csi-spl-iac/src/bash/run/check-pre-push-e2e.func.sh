@@ -320,6 +320,12 @@ _pp_part_wui_e2e() {
       fi
     fi
     if [[ -n "$key" ]]; then mkdir -p .output && ln -s "$cache/$key/public" .output/public; fi
+    # wf 10 step "Initial JS gzip stays within the performance budget", same
+    # script, same budgets, same bundle: a budget only CI measured made 8 red
+    # runs on 10-27 (ci-panel-20261028 3.3, SPL-4129)
+    python3 "$tree/csi-spl-orc/src/bash/scripts/perf-budget.py" bundle --pub .output/public \
+      --budgets "$tree/csi-spl-doc/specs/027-spool-performance/contracts/perf-budgets.json" ||
+      { echo "FAIL: wui-e2e: the bundle is over perf-budgets.json (wf 10 measures the same)"; exit 1; }
     export CHROME_PATH="${CHROME_PATH:-$(command -v google-chrome || command -v chromium || command -v chromium-browser)}"
     export TMPDIR="$run_dir" SHOT_DIR="$run_dir/shots"; mkdir -p "$SHOT_DIR"
     # shellcheck disable=SC2086 # files: one word each

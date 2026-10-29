@@ -76,7 +76,13 @@ spl_box_health_verdicts() {
     --argjson gap "$BH_MAX_GAP_S" --argjson hold "${2:-$BH_HOLD_S}" '
     def epoch: sub("\\.[0-9]+"; "") | sub("\\+00:00$"; "Z") | (try fromdateiso8601 catch null);
     ($w / $bs * $pct / 100) as $need
-    | [.rows[] | select(type == "object" and (.box | type) == "string")
+    # a degraded why prints a comparison only for the rule that fired (SPL-4200:
+    # "47 beats in 10m < 30" was the gap rule, worded as the count rule)
+    | def why_bad($a): [
+        (if $a.n < $need then "\($a.n) beats in \($w / 60)m < \($need)" else "\($a.n) beats in \($w / 60)m" end),
+        (if $a.age == null then "no beat" elif $a.age > $gap then "last beat \($a.age)s ago > max \($gap)s"
+         else "last beat \($a.age)s ago" end)] | join(", ");
+    [.rows[] | select(type == "object" and (.box | type) == "string")
         | {box, t: (.beat_at | tostring | epoch)} | select(.t != null)] as $r
     | if ($r | length) == 0 then {} else
       ($r | map(.t) | max) as $now
@@ -97,7 +103,7 @@ spl_box_health_verdicts() {
         | ([$cp[] | .t | select(. != null)] | max) as $lb
         | .value = {n: $at.n, need: $need, age: $at.age,
             state: (if $at.badat then "degraded" elif $lb != null then "recovering" else "healthy" end),
-            why: (if $at.badat then "\($at.n) beats in \($w / 60)m < \($need), last beat \($at.age // "none")s ago (max \($gap)s)"
+            why: (if $at.badat then why_bad($at)
                   elif $lb != null then "healthy for \($now - $lb)s < hold \($hold)s"
                   else "\($at.n) beats in \($w / 60)m, last \($at.age)s ago" end)})
       end' <<<"$1"

@@ -134,6 +134,13 @@
 #      boxes beat every 10 s, both stop for the same 180 s, then resume: 0
 #      bench, 0 "could not be delivered", 0 NO-LOCAL-AGENT posts and ONE "Hub
 #      stall" line. CONTROL: only one box stops: benched and back as before.
+#  34. one bench verdict per box (SPL-4200, PC box drill 2026-10-29 08:14Z: the
+#      two bench files disagreed): fleet.bench.v holds the verdicts fleet.bench
+#      was judged from, each with .bench equal to fleet.bench's value, so a
+#      box reads healthy in one exactly when it is ok in the other: a degraded
+#      box, then both boxes recovering from a hub stall (raw recovering, the
+#      stall view healthy). CONTROL: the raw read the .v file held before
+#      (fleet.bench.raw now) reads recovering while fleet.bench says ok.
 #  Fixtures only in a mktemp root: the test refuses to run where its roots
 #  could reach the live /var/spool-hub.
 #------------------------------------------------------------------------------
@@ -1018,9 +1025,9 @@ tick26 hs 3800 "$VBACK"
 # recovering, why "healthy for 1260s < hold 1800s"} was posted as "Box <box>
 # benched: 61 of 60 heartbeats in 10 min, last 0 s ago", a healthy-looking box benched.
 VREC='{"hp":{"state":"recovering","n":61,"need":30,"age":0,"why":"healthy for 1260s < hold 1800s"},"hs":{"state":"healthy","n":60,"age":5}}'
-VDEG='{"hp":{"state":"degraded","n":3,"need":30,"age":90,"why":"3 beats in 10m < 30, last beat 90s ago (max 120s)"},"hs":{"state":"healthy","n":60,"age":5}}'
+VDEG='{"hp":{"state":"degraded","n":3,"need":30,"age":90,"why":"3 beats in 10m < 30, last beat 90s ago"},"hs":{"state":"healthy","n":60,"age":5}}'
 want_rec="hs :: Box hp benched (recovering: healthy for 1260s < hold 1800s; 61 of 60 heartbeats in 10 min, last 0 s ago) (no new lanes, last for the roles)"
-want_deg="hs :: Box hp benched (degraded: 3 beats in 10m < 30, last beat 90s ago (max 120s); 3 of 60 heartbeats in 10 min, last 90 s ago) (no new lanes, last for the roles)"
+want_deg="hs :: Box hp benched (degraded: 3 beats in 10m < 30, last beat 90s ago; 3 of 60 heartbeats in 10 min, last 90 s ago) (no new lanes, last for the roles)"
 # names_why LINE STATE: the line states the verdict and the why it carries
 names_why() { [[ "$1" == *"benched ($2: "*"; "*" heartbeats in "*") (no new lanes, last for the roles)" ]]; }
 rm -rf "$T/hs" "$T/hp"; rm -f "$T/alerts26" "$T/alerts26.tried"
@@ -1348,6 +1355,36 @@ r33 one 0
    "$(c33 one '^sx [0-9]* :: Box ox back after 30 healthy min$')" == 1 && "$(c33 one 'NO-LOCAL-AGENT dispatch on sx')" == 1 ]] &&
   pass "33. CONTROL: one box stops alone: benched, back (short line) and the NO-LOCAL alert, as before" ||
   fail "33. control: alerts $(cat "$T/alerts33.one" 2>&1)"
+
+# --- 34. one bench verdict per box (SPL-4200) ---------------------------------
+# agree34 VFILE: every box of fleet.bench is in VFILE, healthy there exactly when ok in fleet.bench
+agree34() { jq -e -n --slurpfile v "$1" --slurpfile b "$T/hs/spool/dispatch/fleet.bench" \
+  '$b[0] | to_entries | length > 0 and all(.value as $s | $v[0][.key] as $x
+    | $x != null and (($s == "ok") == ($x.state == "healthy")))' >/dev/null 2>&1; }
+# benchf34: every box of fleet.bench.v carries .bench, fleet.bench's value for it
+benchf34() { jq -e -n --slurpfile v "$T/hs/spool/dispatch/fleet.bench.v" --slurpfile b "$T/hs/spool/dispatch/fleet.bench" \
+  '$v[0] | to_entries | all(.value.bench == $b[0][.key])' >/dev/null 2>&1; }
+D34="$T/hs/spool/dispatch"
+rm -rf "$T/hs" "$T/hp"; rm -f "$T/alerts26" "$T/alerts26.tried"
+tick26 hs 1000 "$VOK"; tick26 hs 2000 "$VDEG"
+[[ "$(jq -r .hp "$D34/fleet.bench")" == benched && "$(jq -r .hp.state "$D34/fleet.bench.v")" == degraded ]] &&
+  agree34 "$D34/fleet.bench.v" && benchf34 &&
+  pass "34. a degraded box: fleet.bench benched, fleet.bench.v degraded with bench benched" ||
+  fail "34. degraded: bench $(cat "$D34/fleet.bench" 2>&1) v $(cat "$D34/fleet.bench.v" 2>&1)"
+VREC34='{"hp":{"state":"recovering","n":40,"need":30,"age":5,"why":"healthy for 90s < hold 1800s"},"hs":{"state":"recovering","n":45,"need":30,"age":3,"why":"healthy for 100s < hold 1800s"}}'
+rm -rf "$T/hs" "$T/hp"; rm -f "$T/alerts26" "$T/alerts26.tried"; b26 5850 5860
+tick26 hs 5000 "$VOK"
+tick26 hs 6000 "$VBOTH" "${B26[@]}"
+tick26 hs 6100 "$VREC34" "${B26[@]}"
+[[ "$(jq -c . "$D34/fleet.bench")" == '{"hp":"ok","hs":"ok"}' &&
+   "$(jq -r '[.[] | "\(.state)/\(.stall)/\(.bench)"] | join(" ")' "$D34/fleet.bench.v")" == "healthy/beats/ok healthy/beats/ok" ]] &&
+  agree34 "$D34/fleet.bench.v" && benchf34 &&
+  pass "34. recovering from a hub stall: both files say ok / healthy (stall beats), one verdict per box" ||
+  fail "34. stall: bench $(cat "$D34/fleet.bench" 2>&1) v $(cat "$D34/fleet.bench.v" 2>&1)"
+# CONTROL: the raw read (what fleet.bench.v held before) disagrees with fleet.bench here
+[[ "$(jq -r .hp.state "$D34/fleet.bench.raw")" == recovering ]] && ! agree34 "$D34/fleet.bench.raw" &&
+  pass "34. CONTROL: the raw read says recovering while fleet.bench says ok, and the check refuses it" ||
+  fail "34. control: raw $(cat "$D34/fleet.bench.raw" 2>&1)"
 
 echo
 (( fails == 0 )) && { echo "PASS: all fleet-lease.tst.sh assertions"; exit 0; }

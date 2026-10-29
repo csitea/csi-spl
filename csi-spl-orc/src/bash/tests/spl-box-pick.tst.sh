@@ -255,7 +255,7 @@ done
   pass "12. replay of 2026-10-11 (n = 35 picks): the PC box never picked 02:00..05:30Z (22 picks), picked again from 05:40Z ($seq12)" ||
   fail "12. replay: $bad pick(s) on the degraded box, $good healthy pick(s) missed: $seq12"
 out="$(run BEATS="$T/beats.json" HUB_NOW=$((B0 + 15 * 600)))"
-grep -q '^BOX box-a .*DEGRADED (3 beats in 10m < 30, last beat .*s ago (max 120s))$' <<<"$out" &&
+grep -q '^BOX box-a .*DEGRADED (3 beats in 10m < 30, last beat [0-9]*s ago)$' <<<"$out" &&
   pass "12. the per-box line says why: DEGRADED (3 beats in 10m < 30 ...)" || fail "12. line: $out"
 # the gap rule alone: 40 beats in the last 10 min, but none in the last 150 s
 jq -nc --argjson n $((B0 + 600)) '[range(0; 40) | {box: "box-a", e: ($n - 150 - . * 11)}] + [range(0; 60) | {box: "box-b", e: ($n - . * 10)}]' >"$T/gap.json"

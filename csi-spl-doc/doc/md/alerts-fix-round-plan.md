@@ -158,6 +158,20 @@ Paths under `csi-spl-api/src/go/spool-hub-api/`:
   2 minutes. Row 07 adds that record; the fix follows the measurement.
 - Out of scope: the self-contradicting bench text ("33 beats in 10m < 30",
   `spl-box-health.func.sh:100`) is SPL-1998 (wip), not this round.
+- Fixed later by SPL-4200 (PC box drill 2026-10-29: "degraded: 47 beats in 10m <
+  30" at 06:45:51Z). The degraded why printed "N beats in 10m < need" whatever
+  rule fired; 47 beats is the gap rule (last beat over `max_gap_s`). It now
+  prints a comparison only for the rule that fired: "47 beats in 10m, last
+  beat 130s ago > max 120s", "3 beats in 10m < 30, last beat 5s ago", or
+  both. Test: `spl-box-health.tst.sh` case 6.
+- Same issue, one verdict per box: `<dir>/fleet.bench.v` held the raw beat
+  verdicts while `fleet.bench` was judged from the stall view (a box a hub
+  stall explains counts healthy), so in a stall the two files disagreed.
+  `fleet.bench.v` now holds the verdicts the bench judged, each with
+  `.bench` (`ok` or `benched`, fleet.bench's value), and a box the stall
+  explains reads healthy there with its `.stall` mark; the raw read (the
+  "nothing changed" cache) is `fleet.bench.raw`. Test: `fleet-lease.tst.sh`
+  section 34.
 
 ### 2.6 B3 disk WARN re-fires at the 85 % line (SPL-3198)
 

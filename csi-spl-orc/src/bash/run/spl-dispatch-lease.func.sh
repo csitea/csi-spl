@@ -1350,6 +1350,12 @@ spl_fleet_outranks() {
 # The benched line names the verdict and its why (spl_box_health_verdicts):
 # "Box <box> benched (recovering: healthy for 1260s < hold 1800s; 61 of 60 ...)"
 # explains a box that beats fine now but had a bad window inside the hold.
+# ONE verdict per box (SPL-4200): <dir>/fleet.bench.v holds the verdicts the
+# bench judged (after the stall view: a box a hub stall explains reads
+# healthy there, with its .stall mark), each with .bench, the value
+# fleet.bench records for it. It held the raw read before, so in a stall the
+# two files told two stories; the raw read, the "nothing changed" cache, is
+# <dir>/fleet.bench.raw now. A tick the stall holds writes neither file.
 
 # spl_fleet_bench_tick: record every judged box's bench state, post the
 # changes this machine owns. One jq: line 1 the new state, then one
@@ -1364,7 +1370,7 @@ spl_fleet_bench_tick() {
   v="$(spl_fleet_health_get)"
   [[ "$v" == '{}' || -z "$v" ]] && return 0
   # the same verdicts as the last tick judged (the cached read): nothing can have changed
-  [[ -s "$f.v" && "$(<"$f.v")" == "$v" ]] && return 0
+  [[ -s "$f.raw" && "$(<"$f.raw")" == "$v" ]] && return 0
   [[ -n "${BH_BEAT_S:-}" ]] || spl_box_health_cnf
   # a hub stall: every box alert held (rc 1), the boxes it explains count healthy
   raw="$v"; v="$(spl_fleet_stall_view "$raw")" || return 0
@@ -1383,8 +1389,9 @@ spl_fleet_bench_tick() {
       | if $new[$b] == "benched" then
           $v[$b] | "benched\t\($b)\t\($who)\tBox \($b) benched (\(.state // "benched")\(if .why == null then "" else ": \(.why)" end); \(.n) of \($e) heartbeats in \($w) min, last \(if .age == null then "none" else "\(.age) s ago" end)) (no new lanes, last for the roles)"
         else "back\t\($b)\t\($who)\tBox \($b) back after \($h) healthy min" end)')" || return 0
-  printf '%s\n' "$raw" > "$f.v"
+  printf '%s\n' "$raw" > "$f.raw"
   { IFS= read -r new; printf '%s\n' "$new" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
+    jq -c --argjson b "$new" 'with_entries(.value.bench = $b[.key])' <<<"$v" > "$f.v.tmp.$$" && mv -f "$f.v.tmp.$$" "$f.v"
     while IFS=$'\t' read -r kind box who line; do
       [[ -n "${kind:-}" ]] && spl_fleet_bench_change "$kind" "$box" "$who" "$line"
     done; } <<<"$out"

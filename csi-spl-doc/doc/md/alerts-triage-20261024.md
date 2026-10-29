@@ -118,7 +118,8 @@ issue was filed.
 | C1 CI reds | 97 failed runs in 7 days, separate short-lived signatures | 97 | down | a defect landed, then fixed by its lane | each lane, the standing CI seat | covered: the standing CI seat; no new issue |
 
 The bench line's text ("33 beats in 10m < 30") contradicts itself; that is
-SPL-1998 (wip), not a new type.
+SPL-1998 (wip), not a new type. Fixed by SPL-4200 (2026-10-29): it was the gap
+rule worded as the count rule; see `alerts-fix-round-plan.md` section 2.5.
 
 ## 6. Issues filed
 

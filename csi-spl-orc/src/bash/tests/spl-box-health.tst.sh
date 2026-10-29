@@ -22,6 +22,14 @@
 #              2026-10-16 the PC box read sat recovering at 19:08:15Z while sat read
 #              itself healthy at 19:08:32Z and took the roles back, and the PC box
 #              was "back after 30 healthy min" 2.5 min after a bench).
+#           6. SPL-4200: a degraded why prints a comparison only for the rule
+#              that fired, and every one it prints holds. Fake series: 47
+#              beats in 10 min, the last 130 s ago (the gap rule) reads "47
+#              beats in 10m, last beat 130s ago > max 120s"; 3 recent beats
+#              (the count rule) "3 beats in 10m < 30, last beat 5s ago"; both
+#              rules both comparisons. RED control: the formula before reads
+#              "47 beats in 10m < 30" for the gap case (PC box drill 2026-10-29
+#              06:45:51Z), which the same check refuses.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -119,5 +127,42 @@ c5 "$B_MISS"; mmiss="$(tick5 moving_state "$B_MISS")"
 [[ "$mhit" == *healthy:* && "$mhit" == *recovering:* && "$mmiss" == *healthy:* && "$mmiss" == *recovering:* ]] &&
   pass "5. RED control: the grid that moves with now flips both cases (hit $mhit; miss $mmiss)" ||
   fail "5. RED control: the moving grid did not flip (hit $mhit; miss $mmiss)"
+
+# 6. the degraded why names the rule that fired (SPL-4200)
+N6=$(date -u -d 2026-10-29T06:45:51Z +%s)
+jq -nc --argjson n "$N6" '[range(0; 47) | {box: "box-d", e: ($n - 130 - . * 10)}]
+  + [($n - 5), ($n - 100), ($n - 200) | {box: "box-e", e: .}]
+  + [($n - 150), ($n - 240), ($n - 330) | {box: "box-f", e: .}]' >"$T/beats.json"
+# why6 FUNC_FILE: box -> why of the three boxes, judged now only
+# shellcheck source=/dev/null
+why6() ( source "$1"; spl_box_health_verdicts "$(rows "$N6" "$(spl_box_health_since)")" 0 |
+  jq -r 'to_entries[] | select(.key != "box-b") | "\(.key)\t\(.value.state)\t\(.value.why)"' )
+# holds WHY: every comparison the why prints is true (N < NEED, AGE > MAX), and it prints one
+holds() {
+  local w="$1" seen=0
+  if [[ "$w" =~ ([0-9]+)\ beats\ in\ [0-9]+m\ \<\ ([0-9]+) ]]; then
+    (( BASH_REMATCH[1] < BASH_REMATCH[2] )) || return 1; seen=1
+  fi
+  if [[ "$w" =~ last\ beat\ ([0-9]+)s\ ago\ \>\ max\ ([0-9]+)s ]]; then
+    (( BASH_REMATCH[1] > BASH_REMATCH[2] )) || return 1; seen=1
+  fi
+  (( seen == 1 ))
+}
+declare -A want6=([box-d]="47 beats in 10m, last beat 130s ago > max 120s"
+  [box-e]="3 beats in 10m < 30, last beat 5s ago" [box-f]="3 beats in 10m < 30, last beat 150s ago > max 120s")
+got6="$(why6 "$FUNC")" bad6=""
+for b in box-d box-e box-f; do
+  line="$(grep -P "^$b\t" <<<"$got6")"; st="$(cut -f2 <<<"$line")"; w="$(cut -f3 <<<"$line")"
+  [[ "$st" == degraded && "$w" == "${want6[$b]}" ]] && holds "$w" || bad6+=" $b:[$st] $w;"
+done
+[[ -z "$bad6" ]] && pass "6. degraded whys name the rule that fired, every comparison true (box-d: ${want6[box-d]})" ||
+  fail "6. whys:$bad6"
+# RED control: the formula before SPL-4200, on the same series
+sed 's|why: (if \$at.badat then why_bad(\$at)|why: (if $at.badat then "\\($at.n) beats in \\($w / 60)m < \\($need), last beat \\($at.age // "none")s ago (max \\($gap)s)"|' "$FUNC" >"$T/why-old.func.sh"
+grep -q 'm < \\(\$need), last beat' "$T/why-old.func.sh" || fail "6. control: the why formula was not found to put back"
+old6="$(why6 "$T/why-old.func.sh" | grep -P '^box-d\t' | cut -f3)"
+[[ "$old6" == "47 beats in 10m < 30, last beat 130s ago (max 120s)" ]] && ! holds "$old6" &&
+  pass "6. RED control: the old formula reads \"$old6\" for the gap case, and the check refuses it" ||
+  fail "6. RED control: old why '$old6' (want the self-contradicting line, refused)"
 
 [[ $fails == 0 ]] && echo "ALL PASS" || { echo "$fails FAIL"; exit 1; }

@@ -2157,3 +2157,28 @@ declare module '~/utils/contact-links.mjs' {
   export function hasPhone(text: string): boolean
   export function phoneBlocks<T>(blocks: T[]): T[]
 }
+
+declare module '~/utils/topic-list-order.mjs' {
+  export type TopicListFilter = 'all' | 'new'
+  export type TopicListSort = 'last' | 'messages' | 'priority'
+  export const TOPIC_LIST_FILTERS: readonly TopicListFilter[]
+  export const TOPIC_LIST_SORTS: readonly TopicListSort[]
+  export const TOPIC_LIST_FILTER_DEFAULT: TopicListFilter
+  export const TOPIC_LIST_SORT_DEFAULT: TopicListSort
+  export const TOPIC_PRIORITY_DEFAULT: number
+  export function parseTopicListFilter(raw: unknown): TopicListFilter
+  export function parseTopicListSort(raw: unknown): TopicListSort
+  export function topicUnreadCount(n: unknown): number
+  export function topicPriority(p: unknown): number
+  export function topicListView<T>(
+    rows: T[],
+    opts?: {
+      filter?: unknown
+      sort?: unknown
+      unreadOf?: (row: T) => number
+      countOf?: (row: T) => number | null | undefined
+      priorityOf?: (row: T) => number | null | undefined
+      lastOf?: (row: T) => string
+    },
+  ): T[]
+}

@@ -3367,9 +3367,32 @@
       "coming": "Esta página llega en un paso posterior.",
       "page": {
         "spend": "Gasto",
-        "tokens": "Tokens",
+        "tokens": "Tokens de IA",
         "price": "Precio por token",
-        "paid": "Partidas pagadas"
+        "paid": "Partidas pagadas",
+        "cloud": "Nube",
+        "human": "Personas"
+      },
+      "cloud": {
+        "title": "Costes de la nube por proyecto de GCP",
+        "crumbs_label": "Niveles de coste de la nube",
+        "all_projects": "Todos los proyectos",
+        "col_project": "Proyecto de GCP",
+        "col_service": "Servicio",
+        "col_day": "Día",
+        "box": "máquina {box}",
+        "services": "Servicios: {n}",
+        "days": "Días con coste: {n}",
+        "empty": "Aún no hay ninguna línea de coste de la nube este mes. La exportación de facturación se lee una vez al día."
+      },
+      "tokens": {
+        "title": "Costes de tokens de IA",
+        "list_note": "Lo pagado está en la columna de la moneda; el precio de lista se muestra al lado y nunca se suma.",
+        "empty": "Aún no hay ninguna línea de coste de tokens de IA este mes."
+      },
+      "human": {
+        "title": "Costes de personas",
+        "not_tracked": "Aún sin seguimiento. Los costes de personas son tiempo aprobado al precio propio de cada persona, que construyen las filas {rows} de la especificación 107; no se muestra ninguna cifra hasta que estén listas."
       }
     },
     "releases": {

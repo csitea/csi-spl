@@ -58,7 +58,7 @@
                   data-test="notes-open"
                 >
                   <span class="notes-row__title">{{ rowTitle(n) }}</span>
-                  <span v-if="n.title && n.snippet" class="notes-row__text muted">{{ n.snippet }}</span>
+                  <span v-if="rowText(n)" class="notes-row__text muted" data-test="notes-row-text">{{ rowText(n) }}</span>
                   <span class="notes-row__meta muted">
                     <span v-if="n.items_total" :title="t('notes.items_hint', { done: n.items_done, total: n.items_total })" dir="ltr">{{ t('notes.items', { done: n.items_done, total: n.items_total }) }}</span>
                     <span v-if="n.link_count">{{ t('notes.links', { n: n.link_count }) }}</span>
@@ -105,6 +105,11 @@ const openId = computed(() => String(route.query.note || ''))
 /** the title, else the first line of the text (2.6), else "Untitled note" */
 function rowTitle(n: NoteSummary) {
   return n.title || n.snippet.split('\n')[0] || t('notes.untitled')
+}
+
+/** up to two lines of text; with no title the first line is the title (2.6), so the text starts at the second */
+function rowText(n: NoteSummary) {
+  return n.title ? n.snippet : n.snippet.split('\n').slice(1).join('\n')
 }
 
 async function newNote() {

@@ -444,6 +444,8 @@ async function notesSection(browser, base) {
     check(`${tag}: the list renders`, Boolean(await p.waitForSelector('[data-test=notes-row]', { visible: true, timeout: NAV }).catch(() => null)))
     check(`${tag}: the heading reads Notes`, (await p.$eval('[data-test=notes-heading]', (e) => e.textContent.trim()).catch(() => '')) === 'Notes')
     check(`${tag}: Pinned first, then the rest; no archived note`, same(await rows(p), ['mock-note-1', 'mock-note-2', 'mock-note-3']) && Boolean(await p.$('[data-test=notes-group-pinned]')), await rows(p))
+    const untitled = await p.$eval('[data-note-id=mock-note-3]', (e) => [e.querySelector('.notes-row__title')?.textContent.trim(), e.querySelector('[data-test=notes-row-text]')?.textContent.trim()]).catch(() => [])
+    check(`${tag}: an untitled note shows its first line as the title and its second line as text (2.6)`, same(untitled, ['Call back about the invoice', 'and the new address']), untitled)
     check(`${tag}: the rail tab reads as selected`, (await p.$eval('[data-testid=sidebar-tab-notes]', (e) => e.getAttribute('aria-selected'))) === 'true')
     if (!touch) check(`${tag}: the sidebar keeps the icon rail only`, await p.$eval('nav.sidebar', (e) => e.classList.contains('sidebar--rail')))
     await p.type('[data-test=notes-filter]', 'ideas')

@@ -376,7 +376,10 @@ in `csi-spl-cnf/csi-spl/all.env.yaml` like `SPOOL_HUB_AUTH_NATIVE_ENABLED`
 `api/cmd/spool/hub.go`. `false`: every notes route answers 404
 `notes_off`. The WUI needs no session claim: when
 `GET /v1/me/realm/notes` answers 404 `notes_off`, it hides the tab and the
-"Add to note" items. The stored notes stay.
+"Add to note" items. The stored notes stay. Deferred, by name: B5 shows
+"Notes are turned off" on `/notes` only; hiding the rail tab and the items
+lands with B8, since it needs a notes read at boot that the first screen's
+budget (`ci_initial_gzip_kb` 154.9 <= 155 at B5) has little room for.
 
 ## 7. Cases
 
@@ -404,7 +407,7 @@ workspaces.
 | C15 | B4 | `SPOOL_HUB_NOTES_ENABLED=false` | n/a | 404 `notes_off` on every notes route; the WUI store reads it as "off" | Go test; twin: true answers 200 |
 | C16 | B4 | a route's log line on create | n/a | holds the person and note id, never the title | Go test greps the captured log for the title |
 | C17 | B5 | a new member's rail | no Notes tab | `notes` after `calendar` | `rail-order.test.mjs`: today's default order has no `notes` |
-| C18 | B5 | an order saved before B5, read back | 10 tabs | `notes` drawn before Archive; the saved order omits it while `RAIL_HUB_PENDING` lists it | unit test on `parseRailOrder` / `wireRailOrder` |
+| C18 | B5 | an order saved before B5, read back | 10 tabs | `notes` drawn before Archive (no `RAIL_HUB_PENDING`: B1 was live first) | unit test on `parseRailOrder` / `wireRailOrder` |
 | C19 | B5 | the i18n parity and raw-text gates | pass | pass (C) | a `notes.*` key missing in one locale fails `i18n-parity.test.mjs` |
 | C20 | B6 | click a row; reload `/notes?note=<id>`; Back | n/a | the note opens; reopens; closes | e2e on the mock bundle; twin: an unknown id shows "Note not found" |
 | C21 | B6 | delete, then Undo within 10 s | n/a | no DELETE sent, the note stays | e2e counts DELETE requests: 0; twin: no Undo -> 1 |
@@ -434,10 +437,10 @@ its docs or a `Docs: none (<why>)` line.
 | B2 | the three realm tables | `rdb/<next>_personal_notes.sql`, `roles/runtime-grants.sql`, `store/personal_catalogue_test.go` (the lists and `seedRealm`), `store/personal_rls_test.go` (`realmSeedPG`, v1.1 W1) | C3-C6 | B1 (migration order) |
 | B3 | the notes store, memory and Postgres | `store/personal_notes.go`, `store/personal_notes_memory.go`, `store/personal_notes_test.go`, `store/personal_scope_test.go` (`personCallers`) | C7-C9 | B2 |
 | B4 | the realm routes, the kill switch, labels after a leave | `hub/realm_notes.go`, `hub/realm_notes_test.go`, `hub/channel_order.go` (one line in `routeMe`), `hub/server.go` (`Options`), `api/internal/config/config.go`, `api/cmd/spool/hub.go` (v1.1 W2), `csi-spl-cnf/csi-spl/all.env.yaml` (+ its tpl-gen output); docs: section 5 of this spec marked built | C10-C16 | B3 |
-| B5 | WUI section shell: rail entry, `/notes` list page, notes store, i18n keys, help page | `wui/utils/rail-order.ts` (no `RAIL_HUB_PENDING`: B1 was live first; `rail-order.mjs` is gone, the `.ts` is the one file), `wui/utils/sidebar-tabs.mjs`, `wui/types/mjs-shims.d.ts` (`NOTES_TAB`, the `tabForPath` / `routeForTab` types), `wui/composables/useSidebarRailNav.ts` (the rail click opens `/notes`; the navigation moved there from `ChannelSidebar.vue` in r19-01), `wui/utils/section-strip.mjs`, `wui/utils/uiIcons.ts`, `wui/composables/useSidebarRailOnly.ts`, `wui/components/ChannelSidebar.vue`, `wui/pages/notes.vue`, `wui/stores/notes.ts`, `csi-spl-wui/i18n/locales/*.json`, `csi-spl-doc/doc/help/notes.md` + its synced copy `wui/public/help-md/notes.md` and `wui/public/help-md/pages.json` (`node src/node/help/sync-help.mjs`), `wui-tests/unit/help-settings-coverage.test.mjs` (`RAIL_HELP`, v1.1 W3), `wui-tests/unit/rail-order.test.mjs`, `wui-tests/e2e/rail-order-default.test.mjs` | C17-C19 | B4 for live data (the mock serves before) |
+| B5 | WUI section shell: rail entry, `/notes` list page, notes store, i18n keys, help page | `wui/utils/rail-order.ts` (no `RAIL_HUB_PENDING`: B1 was live first; `rail-order.mjs` is gone, the `.ts` is the one file), `wui/utils/sidebar-tabs.mjs`, `wui/types/mjs-shims.d.ts` (`NOTES_TAB`, the `tabForPath` / `routeForTab` types), `wui/composables/useSidebarRailNav.ts` (the rail click opens `/notes`; the navigation moved there from `ChannelSidebar.vue` in r19-01), `wui/utils/uiIcons.ts`, `wui/composables/useSidebarRailOnly.ts`, `wui/components/ChannelSidebar.vue`, `wui/pages/notes.vue`, `wui/stores/notes.ts`, `csi-spl-wui/i18n/locales/*.json`, `csi-spl-doc/doc/help/notes.md` + its synced copy `wui/public/help-md/notes.md` and `wui/public/help-md/pages.json` (`node src/node/help/sync-help.mjs`), `wui-tests/unit/help-settings-coverage.test.mjs` (`RAIL_HELP`, v1.1 W3), `wui-tests/unit/rail-order.test.mjs`, `wui-tests/e2e/rail-order-default.test.mjs` | C17-C19 | B4 for live data (the mock serves before) |
 | B6 | the open note: editor, checklist, pin, archive, delete + Undo, order | `wui/components/NoteDetail.vue`, `wui/components/NoteChecklist.vue`, `wui/utils/note-order.mjs`, their tests | C20-C22 | B5 |
 | B7 | links: parse, render, open | `wui/utils/note-links.mjs` (`parseNoteLink`, the href builder), `wui/components/NoteLinks.vue`, `wui-tests/unit/note-links.test.mjs` | C23-C25 | B6 |
-| B8 | "Add to note" everywhere + the picker | `wui/utils/msg-menu.mjs`, `wui/components/MessageMenu.vue`, `wui/utils/msg-shortcuts.mjs`, `wui/components/IssueRowMenu.vue`, `wui/components/IssueDetailActions.vue`, `wui/components/SidebarRowMenu.vue`, `wui/components/CalendarEventDialog.vue`, `wui/components/AddToNotePicker.vue`, `wui-tests/unit/msg-menu.test.mjs`, `wui-tests/unit/msg-shortcuts.test.mjs`, a new e2e | C26, C27 | B7 |
+| B8 | "Add to note" everywhere + the picker; on `notes_off` the rail tab and the items hide (section 6) | `wui/utils/msg-menu.mjs`, `wui/components/MessageMenu.vue`, `wui/utils/msg-shortcuts.mjs`, `wui/components/IssueRowMenu.vue`, `wui/components/IssueDetailActions.vue`, `wui/components/SidebarRowMenu.vue`, `wui/components/CalendarEventDialog.vue`, `wui/components/AddToNotePicker.vue`, `wui-tests/unit/msg-menu.test.mjs`, `wui-tests/unit/msg-shortcuts.test.mjs`, a new e2e | C26, C27 | B7 |
 | B9 | `/note` in the omnibox, the palette's `notes` group | `wui/utils/search.mjs` (`omniboxMode`), `wui/components/TopBar.vue`, `wui/composables/usePaletteItems.ts`, `wui-tests/unit/search.test.mjs`, `wui-tests/unit/palette.test.mjs` | C28-C30 | B7 |
 | B10 | Settings -> Notes: export and erase | `wui/utils/settings-nav.mjs`, `wui/pages/settings/[[section]].vue`, `wui/components/SettingsNotes.vue`, `csi-spl-doc/doc/help/user-settings.md` + its synced copy `wui/public/help-md/user-settings.md` (names `/settings/notes`, v1.1 W4), a new e2e | C31 | B5 |
 

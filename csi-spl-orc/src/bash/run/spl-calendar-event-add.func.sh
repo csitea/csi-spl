@@ -20,7 +20,7 @@
 # @param   0: a timed event from STARTS_AT to ENDS_AT
 # @param STARTS_AT, ENDS_AT - required with ALL_DAY=0: RFC 3339 UTC (2026-10-12T09:00:00Z)
 # @param DESCRIPTION (optional) - the event text, e.g. a link to the source message
-# @param TOPIC_ID (optional) - a topic (task id) of TENANT_ID the event points to
+# @param TOPIC_ID (optional) - a topic of TENANT_ID: a full id, or an 8-hex short id that matches exactly one topic there
 # @param AGENT_ID - required: the agent shown as the creator, e.g. c-042
 # @param ORDERED_BY (optional) - the human who ordered it, a HUM-* id (logged by the hub)
 # @param ISSUE_KEYS (optional) - comma-separated issue keys of TENANT_ID (at most 20);

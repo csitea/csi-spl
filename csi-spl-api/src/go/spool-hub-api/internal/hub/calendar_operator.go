@@ -27,8 +27,9 @@ import (
 //     empty, otherwise the agent. A named owner must be a member or agent.
 //   - One workspace: the body's tenant, written by the same store call as the
 //     member create (RLS inside that tenant). A Host or X-Spool-Tenant naming
-//     another workspace is 403 tenant_mismatch, and topic_id must be a topic
-//     of that workspace (400 bad_event), so one workspace's request never
+//     another workspace is 403 tenant_mismatch. topic_id is a topic of that
+//     workspace: a full id, or an 8-hex short id that matches exactly one
+//     topic (400 bad_event otherwise), so one workspace's request never
 //     lands in or points into another.
 //   - The event body is the member create's (calendarRequest, spec 6.1.2)
 //     less guests: an agent invites nobody.
@@ -122,12 +123,22 @@ func (s *Server) handleOperatorCalendarCreate(w http.ResponseWriter, r *http.Req
 	writeJSON(w, http.StatusCreated, map[string]any{"event": toCalendarJSON(out, s.o.Now(), agent)})
 }
 
-// operatorCalendarTopicOK: a topic_id must name a topic of tenant.
+// operatorCalendarTopicOK: a topic_id must name a topic of tenant. An 8-hex
+// short id is resolved to that one topic and rewritten onto topic, so the
+// stored value is a uuid (messages.task_id). None, or more than one, is
+// bad_event. An empty topic is allowed.
 func (s *Server) operatorCalendarTopicOK(w http.ResponseWriter, r *http.Request, tenant string, topic *string) bool {
 	if topic == nil || strings.TrimSpace(*topic) == "" {
 		return true
 	}
 	id := strings.ToLower(strings.TrimSpace(*topic))
+	if store.TopicPrefixRe.MatchString(id) {
+		full, ok := s.calendarTopicByPrefix(w, r, tenant, id)
+		if !ok {
+			return false
+		}
+		id = full
+	}
 	if !uuidRe.MatchString(id) { // checked here: messages.task_id is uuid, Postgres would throw 22P02
 		writeIssueErr(w, badCalendar("topic_id is not a topic of this workspace"))
 		return false
@@ -141,7 +152,30 @@ func (s *Server) operatorCalendarTopicOK(w http.ResponseWriter, r *http.Request,
 		writeIssueErr(w, badCalendar("topic_id is not a topic of this workspace"))
 		return false
 	}
+	*topic = id
 	return true
+}
+
+// calendarTopicByPrefix resolves an 8-hex short id to the one topic of the
+// workspace that starts with it.
+func (s *Server) calendarTopicByPrefix(w http.ResponseWriter, r *http.Request, tenant, prefix string) (string, bool) {
+	d, ok := s.issueDiscussionStore()
+	if !ok {
+		writeIssueErr(w, badCalendar("topic_id is not a topic of this workspace"))
+		return "", false
+	}
+	ids, err := d.TopicsByPrefix(r.Context(), tenant, prefix, 2)
+	switch {
+	case err != nil:
+		s.writeCalendarErr(w, tenant, "operator topic", err)
+	case len(ids) == 1:
+		return strings.ToLower(ids[0]), true
+	case len(ids) == 0:
+		writeIssueErr(w, badCalendar("topic_id is not a topic of this workspace"))
+	default:
+		writeIssueErr(w, badCalendar("more than one topic starts with "+prefix+": give the full topic id"))
+	}
+	return "", false
 }
 
 // handleOperatorCalendarGet reads one event back as the operator sees it:

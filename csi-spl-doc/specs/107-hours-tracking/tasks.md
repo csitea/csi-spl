@@ -202,4 +202,80 @@ From a domain expert's answers and suggestions in csitea topic `55a2d6c2` (2026-
 - what workspace agents may send to external models (legal basis, provider contracts);
 - two of her poll answers differ from what is built: 2A (no auto-approval at the freeze) against the owner's v1-Q2 = B, which T044 keeps for rows with evidence; 3A (one workspace idle threshold) against the per-member override built for owner Q3 = B (`store/hours.go:60-62`).
 
+---
+
+## v2.4: the human time counter and the hourly price (spec section 21)
+
+**Status: Planned, not built.** Rows written by c-410 on `db3ec550e` (lane issue SPL-4163, epic SPL-3036; owner R14 msg `54d01e8c`, R15 msg `cfea214c`). Each row is one lane. The ids continue this file: 107's T071..T077 are not spec 143's T070..T076. The owner questions Q26..Q28 (spec 21.9) run on their recommendation until answered, and each names the rows it changes.
+
+Every row follows the v1 and v2 rules above, plus these:
+
+- **Approved time only** (spec 21.0 rules 1..5, P0). No row reads `hours_minutes`, `hours_entry_spans` or an open suggestion for a counter. A test asserts it.
+- **Money only through `hours.rates`** (FR-20, spec 21.6). The member's own price is the one exception.
+- **Ledger rows name no member** (spec 21.7).
+- **Rows that touch spec 143's files** (T075, T076) wait for 143's T070..T075 to land, and edit only the lines they add.
+
+- [ ] T071 **prices and the commit ledger, rdb** (spec 21.5, 21.8). One forward-only migration (the next free number at its push):
+  - `member_hourly_prices`: per workspace, the 3.2 RLS shape plus the 3.4 `member_scope` guard.
+  - `commit_human_time`: operator-only RLS as `commit_token_burn`, no member column, FK `release_notes`.
+  - The partial index `hours_entries (tenant_id, target) WHERE state = 'approved'`.
+  - Both tables seeded in `store/crosstenant_test.go`'s `seedTenantAll`: the v2 rule; `commit_human_time` is operator-only, like 143's ledger.
+
+  **Gate**: `PRE_PUSH_TIER=full ./run -a do_check_pre_push`; `TestRLSCoversEveryTenantTable`; `lint-migration`. **Red control**: on master, a store test that writes a price for member A, then reads it under member B's `inMember` scope, fails to compile (no table). After the row it reads 0 rows. A second-workspace read of the price also reads 0 rows. Vendor: claude. Depends: none.
+- [ ] T072 **the member's price, store and routes** (spec 21.5, 21.6). `store/hours_price.go` (+ `_postgres`, `_memory`) and `hub/hours_price.go`, appended to the route hook (T033):
+  - `GET|PUT /v1/me/hours/price` (the member's own, from a day onward; a day in a frozen or final period is 409 `period_frozen`).
+  - `GET /v1/hours/prices` (`hours.rates` only).
+  - A currency without an rdb 0200 rate is 400 `bad_currency`.
+
+  **Gate**: `bash csi-spl-api/src/bash/tests/run-all-tests.sh`; route tests on Postgres. **Red control**:
+  - A biz owner (`hours.read`, `hours.approve`, no `hours.rates`) calling `GET /v1/hours/prices` must get 403. The planted defect, the route gated on `hours.read`, returns 200 and fails the test.
+  - A `PUT` by member A naming member B must be refused.
+
+  Vendor: claude. Depends: T071, T033.
+- [ ] T073 **the counters, store and routes** (spec 21.2, 21.3, 21.6; Q26). `hub/hours_targets.go`:
+  - `GET /v1/me/hours/targets?target=&from=&to=`: own approved minutes plus "to approve".
+  - `GET /v1/hours/targets?target=&from=&to=&by=member`: `hours.read`, or the foreman for their crew through T033's scope.
+  - Sums approved `hours_entries` and `hours_adjustments` per target; an issue key resolves to `t:<task_id>`.
+
+  **Gate**: api tests on Postgres. **Red control**:
+  - A seeded topic with one approved and one open suggestion must total the approved row only. The planted defect, counting `hours_minutes`, fails it.
+  - A plain member's call to the team route must be 403.
+  - A grep test names `hours_minutes` only in the files 1.7 allows.
+
+  Vendor: claude. Depends: T071 (the index), T033.
+- [ ] T074 **the counter and the price in the WUI** (spec 21.2, 21.5, 21.6; Q26).
+  - A lazy `TopicHoursCounter.vue` in the topic and issue header, the I1 hook ("Booked 12:30"). It shows the member's own time plus "to approve" (a link to the day's Working hours dialog), and the total for `hours.read`.
+  - A lazy `HoursPriceSettings.vue` in the member's settings: the amount, the currency and the start day.
+  - Locale keys in all 19 files (drafts for the agy review, as T064).
+
+  **Gate**: `pnpm run test:unit`, `pnpm run typecheck`, e2e on the mock bundle at 390 and 1440 px, `perf-budget.py` <= 155 KB. **Red control**:
+  - An e2e as a plain member must not find the total's testid. The planted defect, rendering the total for every member, fails it.
+  - The e2e asserts a non-empty value, so a missing testid cannot pass vacuously.
+
+  Vendor: claude. Depends: T072, T073.
+- [ ] T075 **the commit ledger writer and the Releases fields** (spec 21.4; Q27, Q28).
+  - **Writer.** The hours sweep (`hub/hours_sweep.go`, one call to a new `store/commit_human_time.go`) writes a commit's rows once every period holding its counted days is frozen or final. It follows the 21.4 chain: closing commits, the issue topic plus the source discussion inside the open window, 1/k for a shared discussion, 1/N per commit, and the price in force per day.
+  - **Reads.** 143's `GET /v1/reporting/releases/daily` and `/commits` gain `human_minutes`, `human_amount_micros`, `human_pending` and `human_unpriced`. The money is masked unless the caller is an operator admin holding `hours.rates` (Q27 A).
+
+  **Gate**: api tests on Postgres; 143's T071 invariant extended to `sum over kinds = sum over areas` for human minutes. **Red control**:
+  - In a fixture of two commits closing one issue, each must get half; a third commit that only mentions the key (`Refs:`) must get none.
+  - A minute booked to the discussion before the issue was created must be absent.
+  - The ledger must hold no member id (a column-list assertion).
+  - Writing the ledger before the freeze must fail the "pending" test.
+
+  Vendor: claude. Depends: T071, T072, T073; spec 143 T070..T073.
+- [ ] T076 **the human part on the Releases page** (spec 21.4 step 7; Q27). `reporting-releases.ts`, `ReleasesFilterBar.vue`, `ReleasesDailyList.vue`, only the added lines:
+  - The commit row's human part (`3:15 h · €210`, `human: pending approval`, unpriced).
+  - The pill sums.
+  - Coverage counts a commit as tracked when it has either part.
+
+  **Gate**: unit and e2e as 143's T074 / T075. **Red control**:
+  - A commit with approved human time and no lane must not render `[ — · untracked ]`; the planted defect, coverage reading only `commit_token_burn`, fails it.
+  - An operator admin without `hours.rates` must see hours and no money.
+
+  Vendor: claude. Depends: T075; spec 143 T074, T075.
+- [ ] T077 **live proof on dev and prd** (spec 21.8.1): the seeded scenario end to end at 390 and 1440 px, then `do_check_deploy_lag` and the release-note links for both envs. **Gate**: the proof script `wui/tests/e2e/hours-107-v24-live.proof.mjs` green on dev, then prd. **Red control**: run before T075 lands, the proof fails on `human: pending approval` never turning into minutes. Vendor: claude. Depends: T071..T076.
+
+The FR map for this addendum: R14 T071, T073, T074, T075 · R15 T071, T072, T074 · Releases T075, T076 · proof T077.
+
 <!-- version: 2.0.4 · updated: 2026-10-23 · last-edit: 2026-10-23T17:45:00Z -->

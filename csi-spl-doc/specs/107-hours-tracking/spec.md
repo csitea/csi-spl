@@ -1,6 +1,6 @@
 # 107 Hours tracking: suggested, approved, frozen
 
-**Feature ID**: `107-hours-tracking` · **Milestone**: M3 · **Status**: **v2.3** (2026-10-11: start and end times in `hours_entry_spans` and the database member guard, section 3.4, for spec 118 v1.1, owner msg `23d782e1`) · v2.2 (2026-10-10: owner answers Q9..Q25 folded into the FRs and design points) · v2.1 (2026-10-10: owner principle P0 at the top of section 0, msgs `4d6d200c` and `4fd07875`; owner rows R12, R13; the points that push toward exact tracing and the timer, keyword and UI-direction questions as owner questions Q9..Q25 in section 20; no FR changed) · v2.0 (2026-10-10: the business-needs gaps, sections 14..17, FR-14..FR-40; v2 panel consensus of four seats in section 18; owner Q8 = C) · v1.2 (v1.0 unanimous consensus: seats s107-1..4 agree with changes, section 12; owner questions Q1..Q7 in section 13; **v1.2: the owner moved the member UI into the calendar**, R8 and R9 in section 0, section 5)
+**Feature ID**: `107-hours-tracking` · **Milestone**: M3 · **Status**: **v2.4** (2026-10-29: section 21, a human time counter per discussion, per issue and per object, and the member's own hourly price, for the Releases page; spec only, rows T071..T077 Planned) · v2.3 (2026-10-11: start and end times in `hours_entry_spans` and the database member guard, section 3.4, for spec 118 v1.1, owner msg `23d782e1`) · v2.2 (2026-10-10: owner answers Q9..Q25 folded into the FRs and design points) · v2.1 (2026-10-10: owner principle P0 at the top of section 0, msgs `4d6d200c` and `4fd07875`; owner rows R12, R13; the points that push toward exact tracing and the timer, keyword and UI-direction questions as owner questions Q9..Q25 in section 20; no FR changed) · v2.0 (2026-10-10: the business-needs gaps, sections 14..17, FR-14..FR-40; v2 panel consensus of four seats in section 18; owner Q8 = C) · v1.2 (v1.0 unanimous consensus: seats s107-1..4 agree with changes, section 12; owner questions Q1..Q7 in section 13; **v1.2: the owner moved the member UI into the calendar**, R8 and R9 in section 0, section 5)
 **Created**: 2026-10-07 · **Drafter / folder**: c-522 (seat s107-1) · **Topic**: t1 `ef217164-daaa-43bb-8343-f55ddb2f53a8` · lane dispatch `dispatch-ef217164`
 **Authority**: this file for behaviour; [tasks.md](tasks.md) for what is built. Docs only: this spec builds nothing (`../README.md` §2.4). v2 input: [business-needs.md](business-needs.md) (consensus `2c6c36732`) and its seats [bn-agy](reviews/bn-agy.md) · [bn-mistral](reviews/bn-mistral.md) · [bn-claude](reviews/bn-claude.md) · [bn-claude-2](reviews/bn-claude-2.md). Status vocabulary: `../README.md` §2.3; every FR below is **Planned**.
 
@@ -905,6 +905,7 @@ Each seat signs the v2.0 sha below on the same lane.
 | 2.1 (fold) | 2026-10-10 | c-837 | owner answer to Q25 (msg `e91fe1b5`): UI directions 1 (Day sketch) and 3 (From what you did); Q9..Q24 still open |
 | 2.2 | 2026-10-10 | a-899 | owner answers Q9..Q25 (msgs 8c9b7b56..b04b30bf) folded into sections 1..6, 14..17 and FRs; Q25 includes 4 as extra |
 | 2.3 | 2026-10-11 | c-164 | section 3.4: `hours_entry_spans` (start and end times, written by the timer and the approval; plan and clock when built) and the `member_scope` guard on `hours_entries`, `hours_entry_spans`, `hours_minutes`, rdb 0176; spec 118 v1.1 Q1 A, Q2 A, Q3 A (owner msg `23d782e1`) |
+| 2.4 | 2026-10-29 | c-410 | section 21 (owner R14 msg `54d01e8c`, R15 msg `cfea214c`): a human time counter per discussion, issue and object from approved entries only (P0); the member's own hourly price; a commit's human time and money for the Releases page (spec 143 section 8); owner questions Q26..Q28; build rows T071..T077 in `tasks.md` |
 
 ---
 
@@ -959,5 +960,216 @@ These mirror the questions the dispatcher c-002 already put to the owner on `dis
 - **Q24**: **A**: an unmatched keyword stays the row's label under "other", countable by keyword in reports (msg `b04b30bf`)
 - **Q25**: **A**: UI directions 1 (Day sketch) + 3 (From what you did), with 4 (`/hours` in chat) as a cheap extra (msg `b04b30bf`; v2.1 had folded 1+3 from msg `e91fe1b5`).
 ****
+
+---
+
+## 21. Addendum v2.4: a human time counter per discussion, per issue and per object, and the member's hourly price
+
+**Status: Planned, spec only.** Written on `db3ec550e` (origin/master at the start of this lane, lane issue SPL-4163, epic SPL-3036). Nothing here is built; the build rows are T071..T077 in [tasks.md](tasks.md). The data model below is a sketch: no migration file comes with this section.
+
+### 21.0 The owner's words (verbatim) and what binds them
+
+| # | where | text |
+|---|---|---|
+| R14 | HUM-10, t1 `7adb4163`, msg `54d01e8c` | "We should implement a human time counter per discussion, per issue, and per object, but there should be a separate issue for this one because it's so complex." |
+| R15 | HUM-10, t1 `9815e592` (this addendum's discussion), msg `cfea214c` | "Each human should be able to set an hourly price for himself." |
+
+Context: the Releases page (spec 143 section 8) prices a commit from the agent tokens of the lane that landed it (`commit_token_burn`, 143 section 8.7). A commit with no lane telemetry shows `[ — · untracked ]` (143 section 8.6). Human work on the same issue has no record there. Every commit carries the same real git identity (repo `CLAUDE.md`, "Commits:"), so git cannot tell a human commit from an agent one. This addendum gives every commit its human part as well, read from approved hours.
+
+**P0 decides** (section 0): the counter gives a direction of where human time goes, never a trace of what a person did. Five rules follow from it, and every point below keeps them:
+
+1. **Approved time only.** A counter sums approved entries (state `approved`) and adjustment rows, never raw minutes, open suggestions or spans (1.7, 3.4).
+2. **Totals, not timelines.** Each counter is a sum of minutes per object, shown in quarter hours (Q9). It has no clock times (Q15) and no per-day list on the object.
+3. **No new signal.** The counter reads what sections 1..4 already record. It adds no tracking of its own.
+4. **No per-person detail by default.** A counter sums over people (Q18). The split per member stays with the holders who already see it (6.1).
+5. **No new raw retention.** A counter is computed on read, or stored per commit with no member column. It never keeps a row per person per minute.
+
+### 21.1 What the tree holds today (counts on `db3ec550e`)
+
+`grep -oE 'CREATE TABLE( IF NOT EXISTS)? [a-z_.]*hours_[a-z_]*' csi-spl-rdb/src/sql/postgres/spool-hub/*.sql` -> 17 tables in 6 migrations (0151, 0168, 0176, 0215, 0216, 0222). Those that hold a human's time, and what that time is booked to:
+
+| table (rdb) | grain | booked to | approved? |
+|---|---|---|---|
+| `hours_minutes` (0151) | member x **minute** (PK `(tenant_id, member_id, minute)`, `0151_hours.sql:41`) | `t:` topic, `ch:` channel, `dm:`, `ws` (CHECK `0151_hours.sql:38`) | no: raw signal, pruned at the freeze (1.7) |
+| `hours_entries` (0151, widened by 0218) | member x day x target x kind | `t:`, `ch:`, `dm:`, `cal:` meeting, `job:` (0218), `ws` | yes (`approved`, `rejected`, `proposed`, `disputed`) |
+| `hours_entry_spans` (0176) | intervals of one entry | its entry's target | as its entry; raw-class for privacy (3.4) |
+| `hours_adjustments` (0215) | signed minutes per member x day corrected | `t:`, `ch:`, `dm:`, `cal:`, `job:`, `ws` (`0215_hours_v2_record.sql:117`) | yes (FR-40) |
+| `hours_plan` (0216) | member x day x slot | `job_id` | no: the plan, not the work |
+| `hours_periods` (0151) | member x period total | no target | yes (frozen / approved) |
+| `hours_days` (0215) | member x day start, end, break | no target | yes (at approval) |
+| `personal.hours_receipts` (0168) | person x workspace x day | a `label` string, not a target id | yes (a copy for the person, spec 118) |
+
+Not a table of time but read here: `calendar_events` / `calendar_guests` (the meeting plan, 1.4), `issues.task_id` (rdb 0047: an issue's discussion is the topic `t:<task_id>`, section 8), `release_notes` (rdb 0108: one row per landed commit).
+
+What the tree does **not** hold, checked by grep:
+
+- **No issue target.** No time table has an `iss:` prefix: an issue's time is its topic's time (section 8).
+- **No commit link.** `grep -rn commit_token_burn csi-spl-rdb csi-spl-api/src/go` -> 0 hits: spec 143's ledger is not built yet (its T070..T076 are Planned).
+- **No price.** `grep -inE '^\s+[a-z_]*(rate|price)[a-z_]*\s+(integer|bigint|numeric|text)'` over the migrations -> 1 hit, `0200_fx_rates.sql:25` (an exchange rate). No hours table has a rate, a price or an amount; 0222's header says so ("No money (FR-19)").
+
+### 21.2 What "time on a discussion, an issue, an object" means (R14)
+
+A counter is **the sum of approved human minutes booked to one target**, over every member and every day of a range. Its default range is all time; the views also offer a period. The targets are those sections 1.3, 7, 8 and FR-18 already define:
+
+| counter | sums the approved minutes of | the signal that suggested them (already allowed) |
+|---|---|---|
+| **discussion** (a topic) | target `t:<task_id>`, plus meetings whose `topic_id` is that topic (1.4) | posts, edits and reactions in the topic (1.2, the hub's writer); the topic open in a focused tab with recent input (1.2, the WUI's writer, if the member counts reading time); an accepted meeting on the topic |
+| **issue** | its own topic `t:<issues.task_id>` (section 8) | as a discussion |
+| **issue with its source** (for a commit, 21.4) | the issue's topic, plus its **source discussion** within the issue's open window | the source discussion is the topic named on the first `Source: /t/<uuid>` line of the issue's description (spec 135 Q4 = A: no column) |
+| **object** | any other target: a job `job:<id>` (FR-18), a meeting `cal:<event_id>` (1.4), a channel `ch:<name>` | as its target type in 1.3; a job also gets the minutes of its linked topic (T042) |
+
+Three choices keep this directional:
+
+- **The counter is not added up an issue tree.** An epic shows its own topic's time. The epic roll-up is the later hook I4 (section 8).
+- **A workspace doc is not an object in this addendum.** A doc open in a tab counts as `ws` today (1.3). Giving docs their own target means a fourth target prefix, a CHECK widening on three tables. That is left for later, behind a measured need (P0).
+- **"Other" (`ws`) and DMs have no counter.** DMs fold into `ws` (Q13), so there is nothing per person to count.
+
+### 21.3 It stays a suggestion the member approves (107's flow)
+
+The counter adds no record that the member has not approved:
+
+1. Activity on a discussion becomes a **suggested row** for that topic in the member's day, exactly as today (sections 1, 2).
+2. The member approves, edits or rejects it in the Working hours dialog (4.1, 5.2). Only then does it count. A suggestion approved by the sweep at the freeze counts too (v1-Q2 = B, T044: rows with evidence only).
+3. **An open suggestion never reaches a counter**, the member's own included. In the member's own view, the discussion shows "0:45 to approve" as a link to that day's dialog, never as counted time.
+4. A rejected row counts 0. An adjustment (FR-40) adds its signed minutes to its target's counter.
+5. A frozen or final period is never rewritten by a counter: the counter only reads.
+
+### 21.4 A commit's human time and money, for the Releases page (spec 143 section 8)
+
+The chain mirrors 143's agent chain (section 8.2), with approved hours in place of token burn:
+
+$$\text{commit} \longrightarrow \text{issue (subject scope or } \texttt{Closes:}\text{)} \longrightarrow \text{issue topic} + \text{source discussion} \longrightarrow \text{approved minutes}$$
+
+1. **Which commits.** A landed commit that cites an issue key in the form that closes it (subject scope or a `Closes:` trailer, spec 135). `Refs:` and bare mentions do not count. This is the closer's rule (`do_spl_issue_close_landed`), and 143 uses it too.
+2. **Which time.** The approved minutes of every human member on the issue's topic, and on its source discussion. Both are cut to the **open window**: from the day the issue was created (`issues.created_at`, in the member's zone, 1.6) to the landing day of its last closing commit. Time on the discussion before the issue existed, or after it closed, stays on the discussion's own counter. It is not credited to the commit.
+3. **A discussion behind several issues.** If k issues name the same source discussion and their windows overlap, each overlapping day's discussion minutes split 1/k across those issues. The issue's own topic is never split.
+4. **Several commits for one issue.** The issue's human minutes split **1/N** over its N closing commits, as 143 section 8.3 does for tokens. Kind and area labels each take the commit's full share (143's conservation rule).
+5. **Money.** For each approved entry: minutes / 60 x the member's **price in force on the entry's day** (21.5). The result is summed per commit and per day, in the price's currency. The amount is converted at that day's ECB rate (rdb 0200) to USD and to the viewer's second currency, exactly as the Costs page and 143 section 8.4 do. A day with no rate, or a member with no price, leaves that part **unpriced** (`null`), never a guess. The minutes still count.
+6. **When it is written.** A ledger row for a commit is written by the hours sweep once **every period that holds the counted days is frozen or final** for every member who booked time to the issue. Until then the commit shows `human: pending approval`. A number that could still move is never shown as final.
+7. **What the page shows** (operator view; 143 section 8.7 audience):
+   - Each commit row gains a human part beside the agent part, e.g. `[ 350k tok · $0.54 | 3:15 h · €210 ]`.
+   - A commit with neither part keeps `[ — · untracked ]`.
+   - Each label pill sums both parts: `[ feat 42 · 12.8M tok · $19.45 · 31:30 h · $2,040 ]`.
+   - The coverage tooltip counts a commit as tracked when it has either part.
+   - Money columns follow owner question Q27.
+
+### 21.5 The member's hourly price (R15)
+
+1. **Set by the member, for themself only.** Each member sets one hourly price in their own settings: an amount and a currency. Nobody else writes it: not the biz owner, the time-accountant or the operator. A member who sets none has no price, and their time stays unpriced (21.4 step 5).
+2. **Dated, never retroactive.** A change applies from a chosen day onward (default: tomorrow in the member's zone). It never reprices a day inside a frozen or final period. The old prices are kept, because a past commit's money reads the price of its day.
+3. **Currency.** The currency is the member's pick among those the Costs page converts (USD plus any second currency with an rdb 0200 rate). It is stored with the amount. Conversion happens on read, per day (21.4 step 5).
+4. **Per workspace.** The price lives in one workspace, like all hours data (FR-37). A person in several workspaces sets one price in each; the cross-workspace view is spec 118's.
+5. **What this changes in v2.** FR-19 said a person's rate lives in "a future accounting view, a separate spec (not written)", and T063 is blocked on it. R15 settles the first part of that view: the price is the member's own setting, stored outside the `hours_*` tables, so FR-19's "hours tracking has no rate field" still holds for those tables. T063's job-cost half (approved hours x price against a quote) reads this price once T072 lands. The FR-20 rule stays as written: money is served only to `hours.rates` holders. The one new reader is the member, who sees their own price.
+
+### 21.6 Who sees what (spec 025 RBAC, section 6.1)
+
+| who | discussion / issue / object counter | prices | a commit's human part (Releases) |
+|---|---|---|---|
+| the member | their own approved minutes on each target, plus "to approve" | their own price and history; set it | as their role allows below |
+| `hours.read` (default `biz_owner`, 6.1), a foreman for their crew (FR-22) | the total summed over people; per member one click away (Q18) | no | no (Releases is an operator page) |
+| `hours.rates` (pinned to `time_accountant`, FR-20) | as `hours.read` | every member's price in the workspace, read only | no |
+| every other member | **nothing of others** by default (owner question Q26) | no | no |
+| operator admin (operator workspace, 143 section 8.7) | no | no | human minutes per commit and label; money per owner question Q27 |
+
+Enforced by route, as 1.7 is, and in the database:
+
+- `member_hourly_prices` carries the 3.4 `member_scope` guard: a per-member call reads and writes only that member's rows.
+- The read of every member's price is the `hours.rates` route alone.
+- The commit ledger is operator-only RLS, as `commit_token_burn` is.
+
+### 21.7 What it never stores (P0)
+
+- **No per-person row in the commit ledger.** The ledger keeps minutes and an amount per (commit, day, currency) only. Who worked on a commit is not stored there.
+- **No new raw signal.** No minute-level row, clock time, keystroke, typing or reading sequence. `hours_minutes` is unchanged and still pruned at the freeze (1.7).
+- **No open suggestion in a counter**, and no counter on a person's DMs (`dm:` folds into `ws`, Q13).
+- **No price shown to someone other than its owner** outside `hours.rates`. A price is never written into an export line unless the caller holds `hours.rates`.
+- **No money in the `hours_*` tables**: the price and the commit ledger are their own tables (FR-19).
+- **No retention beyond 107's:**
+  - The commit ledger follows the approved-period totals (`hours.retention_years`, Q22). After that the commit keeps its agent part and shows `human: expired`.
+  - Prices are kept as long as an approved period could still read them, then pruned.
+
+### 21.8 Data model (sketch; no migration file)
+
+Two new tables, one index, no CHECK widening:
+
+```sql
+-- per workspace, the 3.2 RLS shape (tenant_scope with the NULLIF guard, operator_scope) plus member_scope (3.4)
+member_hourly_prices (
+  tenant_id     text   FK tenants, cascade,
+  member_id     text,                       -- HUM-*
+  valid_from    date,                       -- the member's local day the price starts
+  amount_micros bigint CHECK (amount_micros > 0),
+  currency      char(3),                    -- ISO 4217, one the Costs page converts
+  set_at        timestamptz,
+  PRIMARY KEY (tenant_id, member_id, valid_from)
+)
+
+-- operator-only RLS, as commit_token_burn (143 section 8.7); no member column (P0)
+commit_human_time (
+  sha           text   FK release_notes, cascade,
+  day_bucket    date,
+  currency      char(3) NULL,               -- NULL: the minutes of members with no price
+  issue_key     text,
+  minutes       integer CHECK (minutes >= 0),
+  amount_micros bigint  NULL,               -- in currency; converted on read
+  written_at    timestamptz,
+  PRIMARY KEY (sha, day_bucket, currency)   -- the build picks a NULL-safe key
+)
+
+-- the counter read: approved entries per target
+CREATE INDEX ... ON hours_entries (tenant_id, target) WHERE state = 'approved';
+```
+
+Routes, in the style of 6.3:
+
+| route | who | what |
+|---|---|---|
+| `GET /v1/me/hours/price`, `PUT /v1/me/hours/price` | member | the member's own price and its history; a change from a day onward, never into a frozen period (409 `period_frozen`) |
+| `GET /v1/hours/prices` | `hours.rates` | every member's price, read only |
+| `GET /v1/me/hours/targets?target=&from=&to=` | member | own approved minutes (and "to approve") per target |
+| `GET /v1/hours/targets?target=&from=&to=&by=member` | `hours.read` / foreman scope | the total over people; per member with `by=member` |
+| 143's `GET /v1/reporting/releases/daily` and `/commits` | operator admin | gain `human_minutes`, `human_amount_micros` (per Q27), `human_pending`, `human_unpriced` |
+
+#### 21.8.1 Acceptance (for T077)
+
+The seeded scenario:
+
+- Two members book time on an issue's topic and on its source discussion over two weeks. One member has a price; the other has none.
+- Two commits close the issue in week 2.
+
+Then:
+
+- Before the freeze, the Releases rows show `human: pending approval`.
+- After the freeze, each commit shows half of the issue's approved minutes, with the in-window discussion minutes included and the out-of-window ones excluded.
+- Each commit's money is half the priced member's minutes x their price. The other member's minutes show as unpriced.
+- The label pill sums the commits.
+- A biz owner sees the issue's counter but no price.
+- A `time_accountant` sees both prices.
+- A plain member sees only their own time and their own price.
+- A second workspace reads nothing.
+- No ledger row names a member.
+
+### 21.9 Questions for the owner
+
+The build starts on the recommendations (owner rule 10-05). Each answer changes the rows named here. The numbering continues section 20 (Q9..Q25).
+
+- Q26 changes T073 (the route's gate) and T074 (what the topic header shows).
+- Q27 changes T075 (the masked fields) and T076 (the pill text).
+- Q28 changes T075 (the attribution).
+
+```poll
+Q26 Who sees the human time total on a discussion or an issue (summed over people)?
+(A) Holders of hours.read (the biz owner by default) and a foreman for their crew; each member sees only their own time (recommended: as section 6.1 today, since a total on a one-person topic would show that person's hours)
+(B) Everyone who can read the topic, once at least 3 people booked time to it
+(C) Everyone who can read the topic, always
+Q27 Who sees the human money (hours x price) on the Releases page?
+(A) Only an operator admin who also holds hours.rates (the time-accountant role); other operator admins see the human hours without money (recommended: keeps FR-20, money only to hours.rates)
+(B) Every operator admin sees hours and money, as they see agent token money today
+(C) Nobody yet: hours only on Releases, money only in the time-accountant's views
+Q28 Which human time is credited to a commit?
+(A) Approved time on the closed issue's topic plus its source discussion, inside the issue's open window, split 1/N over the commits that close it (recommended: the issue and the discussion the commit closes, as 143's token chain)
+(B) The issue's own topic only (the discussion's time stays on the discussion)
+(C) As A, plus the time of the issue's child issues rolled up to the parent
+```
 
 <!-- version: 2.0.0 · updated: 2026-10-10 -->

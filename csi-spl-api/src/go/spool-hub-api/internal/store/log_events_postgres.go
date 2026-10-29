@@ -77,6 +77,7 @@ func addSystemEventTx(ctx context.Context, tx pgx.Tx, e LogEvent, now time.Time)
 	return out, err
 }
 
+// AddWorkspaceEvent is LogEvents.AddWorkspaceEvent.
 func (s *Postgres) AddWorkspaceEvent(ctx context.Context, tenant string, e LogEvent, now time.Time) (LogEvent, error) {
 	e, err := normLogEvent(e)
 	if err != nil {
@@ -90,6 +91,7 @@ func (s *Postgres) AddWorkspaceEvent(ctx context.Context, tenant string, e LogEv
 	return out, mapFK(err) // no such workspace: the tenants FK, ErrNotFound
 }
 
+// WorkspaceEventsPage is LogEvents.WorkspaceEventsPage.
 func (s *Postgres) WorkspaceEventsPage(ctx context.Context, tenant string, before int64, limit int) ([]LogEvent, error) {
 	var out []LogEvent
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
@@ -104,6 +106,7 @@ func (s *Postgres) WorkspaceEventsPage(ctx context.Context, tenant string, befor
 	return out, err
 }
 
+// DeleteWorkspaceEvents is LogEvents.DeleteWorkspaceEvents.
 func (s *Postgres) DeleteWorkspaceEvents(ctx context.Context, tenant string, ids []int64, actor string, now time.Time) (int, error) {
 	if err := checkLogEventIDs(ids); err != nil {
 		return 0, err
@@ -126,6 +129,7 @@ func (s *Postgres) DeleteWorkspaceEvents(ctx context.Context, tenant string, ids
 	return n, err
 }
 
+// AddSystemEvent is LogEvents.AddSystemEvent.
 func (s *Postgres) AddSystemEvent(ctx context.Context, e LogEvent, now time.Time) (LogEvent, error) {
 	e, err := normLogEvent(e)
 	if err != nil {
@@ -139,6 +143,7 @@ func (s *Postgres) AddSystemEvent(ctx context.Context, e LogEvent, now time.Time
 	return out, err
 }
 
+// SystemEventsPage is LogEvents.SystemEventsPage.
 func (s *Postgres) SystemEventsPage(ctx context.Context, before int64, limit int) ([]LogEvent, error) {
 	rows, err := s.pool.Query(ctx, `SELECT `+logEventCols+` FROM system_events
 		WHERE ($1::bigint <= 0 OR id < $1) ORDER BY id DESC LIMIT $2`, before, limit)
@@ -148,6 +153,7 @@ func (s *Postgres) SystemEventsPage(ctx context.Context, before int64, limit int
 	return scanLogEvents(rows, "")
 }
 
+// DeleteSystemEvents is LogEvents.DeleteSystemEvents.
 func (s *Postgres) DeleteSystemEvents(ctx context.Context, ids []int64, actor string, now time.Time) (int, error) {
 	if err := checkLogEventIDs(ids); err != nil {
 		return 0, err

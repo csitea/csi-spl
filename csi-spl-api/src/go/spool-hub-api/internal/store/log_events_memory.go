@@ -53,6 +53,7 @@ func logEventsDrop(rows []LogEvent, ids []int64) ([]LogEvent, int) {
 	return rows, n - len(rows)
 }
 
+// AddWorkspaceEvent is LogEvents.AddWorkspaceEvent.
 func (s *Memory) AddWorkspaceEvent(_ context.Context, tenant string, e LogEvent, now time.Time) (LogEvent, error) {
 	if err := checkTenant(tenant); err != nil {
 		return LogEvent{}, err
@@ -72,6 +73,7 @@ func (s *Memory) AddWorkspaceEvent(_ context.Context, tenant string, e LogEvent,
 	return e, nil
 }
 
+// WorkspaceEventsPage is LogEvents.WorkspaceEventsPage.
 func (s *Memory) WorkspaceEventsPage(_ context.Context, tenant string, before int64, limit int) ([]LogEvent, error) {
 	if err := checkTenant(tenant); err != nil {
 		return nil, err
@@ -81,6 +83,7 @@ func (s *Memory) WorkspaceEventsPage(_ context.Context, tenant string, before in
 	return logEventsPage(s.logEventsLocked().workspace[tenant], before, limit), nil
 }
 
+// DeleteWorkspaceEvents is LogEvents.DeleteWorkspaceEvents.
 func (s *Memory) DeleteWorkspaceEvents(_ context.Context, tenant string, ids []int64, actor string, now time.Time) (int, error) {
 	if err := checkTenant(tenant); err != nil {
 		return 0, err
@@ -105,6 +108,7 @@ func (s *Memory) DeleteWorkspaceEvents(_ context.Context, tenant string, ids []i
 	return n, nil
 }
 
+// AddSystemEvent is LogEvents.AddSystemEvent.
 func (s *Memory) AddSystemEvent(_ context.Context, e LogEvent, now time.Time) (LogEvent, error) {
 	e, err := normLogEvent(e)
 	if err != nil {
@@ -118,12 +122,14 @@ func (s *Memory) AddSystemEvent(_ context.Context, e LogEvent, now time.Time) (L
 	return e, nil
 }
 
+// SystemEventsPage is LogEvents.SystemEventsPage.
 func (s *Memory) SystemEventsPage(_ context.Context, before int64, limit int) ([]LogEvent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return logEventsPage(s.logEventsLocked().system, before, limit), nil
 }
 
+// DeleteSystemEvents is LogEvents.DeleteSystemEvents.
 func (s *Memory) DeleteSystemEvents(_ context.Context, ids []int64, actor string, now time.Time) (int, error) {
 	if err := checkLogEventIDs(ids); err != nil {
 		return 0, err

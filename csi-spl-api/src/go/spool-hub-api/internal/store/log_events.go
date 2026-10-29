@@ -48,8 +48,8 @@ const (
 	LogKindMemberRoleChanged   = "member.role_changed"
 	LogKindMemberRemoved       = "member.removed"
 	LogKindChannelDeleted      = "channel.deleted"
-	LogKindJoinTokenMinted     = "box.join_token_minted"
-	LogKindJoinTokenRevoked    = "box.join_token_revoked"
+	LogKindJoinMinted          = "box.join_token_minted"
+	LogKindJoinRevoked         = "box.join_token_revoked"
 	LogKindPinRevoked          = "box.pin_revoked"
 )
 
@@ -59,7 +59,7 @@ var LogEventKinds = []string{
 	LogKindLeaseClaim, LogKindLeaseRotation, LogKindLeaseSeatMove, LogKindLeaseFailover,
 	LogKindLeaseHandback, LogKindLeaseVendor, LogKindLeaseLimit, LogKindHubStarted,
 	LogKindMemberInvited, LogKindMemberInviteRevoked, LogKindMemberRoleChanged, LogKindMemberRemoved,
-	LogKindChannelDeleted, LogKindJoinTokenMinted, LogKindJoinTokenRevoked, LogKindPinRevoked,
+	LogKindChannelDeleted, LogKindJoinMinted, LogKindJoinRevoked, LogKindPinRevoked,
 }
 
 // The levels (rdb 0240's level CHECK).

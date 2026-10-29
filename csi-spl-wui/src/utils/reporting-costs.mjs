@@ -2,19 +2,24 @@
 //
 // Spec 143 costs-redesign.md 3.2 and 5, slice S1 (SPL-3798, owner HUM-10,
 // t1 1be0e370, msg 3f1c7128, answers 2 A and 6 A): Reporting -> Costs, one
-// tab with four pages, each its own path and chunk; the header's one month
-// and one currency, carried in the query so every page and the back button
-// keep them; the old links that land here. One list for the page bar
-// (pages/reporting/costs.vue) and the tests. No costs code here: the Spend
-// page alone loads utils/tenant-costs.mjs.
+// tab with its pages (six since SPL-4187), each its own path and chunk;
+// the header's one month and one currency, carried in the query so every
+// page and the back button keep them; the old links that land here. One
+// list for the page bar (pages/reporting/costs.vue) and the tests. No costs
+// code here: the Spend, Cloud and AI tokens pages load utils/tenant-costs.mjs.
 
 import { productPath } from './signed-out-redirect.mjs'
 
 /** The pages in their order; Spend is where /reporting/costs lands.
- *  `operatorsOnly`: drawn for an operator admin only (the hub's 403 is the control). */
+ *  `operatorsOnly`: drawn for an operator admin only (the hub's 403 is the control).
+ *  SPL-4187 (spec 123 5.5, owner t1 e2c0e6b4 msg 81217a3f): the three kinds
+ *  of cost, Cloud, AI tokens and Human, each a section of its own; Cloud is
+ *  the estate's, so the operator admin's. */
 export const COSTS_PAGES = Object.freeze([
   Object.freeze({ id: 'spend', path: '/reporting/costs/spend', labelKey: 'reporting.costs.page.spend', operatorsOnly: false }),
+  Object.freeze({ id: 'cloud', path: '/reporting/costs/cloud', labelKey: 'reporting.costs.page.cloud', operatorsOnly: true }),
   Object.freeze({ id: 'tokens', path: '/reporting/costs/tokens', labelKey: 'reporting.costs.page.tokens', operatorsOnly: false }),
+  Object.freeze({ id: 'human', path: '/reporting/costs/human', labelKey: 'reporting.costs.page.human', operatorsOnly: false }),
   Object.freeze({ id: 'price', path: '/reporting/costs/price', labelKey: 'reporting.costs.page.price', operatorsOnly: true }),
   Object.freeze({ id: 'paid', path: '/reporting/costs/paid', labelKey: 'reporting.costs.page.paid', operatorsOnly: true }),
 ])

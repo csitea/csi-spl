@@ -26,13 +26,36 @@ Each note has its own address, `/notes?note=<id>`, so a bookmark or the
 browser's Back button finds it again. The list is read again when you come
 back to the browser tab.
 
+## An open note
+
+Click (or tap) a row to open the note. On a wide screen it opens as a window
+over the list: **Esc**, the **X** or a click beside it closes it. On a phone
+it fills the screen, and the **Back** arrow at the top left (or a swipe right,
+or the phone's Back) takes you back to the list.
+
+- **Title** and **text**: type to change them. Each change is saved a moment
+  after you stop typing, and again when you close the note. When a save
+  fails, the note keeps what you typed and shows **Not saved, retry**; press
+  it to try again.
+- **Checklist**: tick a line, edit its text, remove it with the **x**, or add
+  one with **Add a line**. Move a line with **Alt+Up** / **Alt+Down**, or drag
+  it by its handle on a wide screen.
+- **Pin** puts the note in the Pinned group; **Unpin** takes it out.
+- **Archive** hides the note from the list and closes it. Find it again with
+  **Archived**, open it and press **Unarchive**.
+- **Move up** / **Move down** change the note's place in its group. In the
+  list, **Alt+Up** / **Alt+Down** on a row does the same, and on a wide screen
+  you can drag a row.
+- **Delete** removes the note at once and shows **Note deleted** with
+  **Undo** for 10 seconds. Undo brings it back as it was. When the message
+  goes away, the note is deleted for good; there is no trash.
+
 ## Coming next
 
-Spec 155 adds the rest in the next steps: opening a note to edit its title,
-text and checklist, pin, archive and delete it; links in a note to messages,
-topics, issues, calendar entries, docs, channels and web pages; **Add to note**
-on messages, issues and rows; `/note <text>` in the top bar; and Settings ->
-Notes to export or erase all your notes.
+Spec 155 adds the rest in the next steps: links in a note to messages,
+topics, issues, calendar entries, docs, channels and web pages; **Add to
+note** on messages, issues and rows; `/note <text>` in the top bar; and
+Settings -> Notes to export or erase all your notes.
 
 If an administrator turns Notes off for the whole Spool, the page says so and
 your notes are kept.

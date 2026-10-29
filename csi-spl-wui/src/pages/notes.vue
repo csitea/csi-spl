@@ -2,7 +2,11 @@
      own list (the realm, 2.2: the same list in every workspace). The sidebar
      keeps the icon rail only (ChannelSidebar notesRailOnly); this page is the
      list: New note, the filter box, the Archived switch, the Pinned group,
-     then the rest. A row is /notes?note=<id>; the open note is B6's. -->
+     then the rest. A row is /notes?note=<id>; B6 (SPL-4186) opens it:
+     components/NoteDetail.vue, lazy, a modal above 820 px and the level-3
+     full screen on a phone. The order is the person's own: drag a row, or
+     Alt+Up / Alt+Down on it (utils/note-order.mjs). Delete (D2) takes the note
+     off at once and shows a 10 s Undo; the DELETE goes when it ends. -->
 <template>
   <div class="feed-col notes-page" data-test="notes-page">
     <header class="feed-header">
@@ -49,13 +53,29 @@
           <section v-for="g in groups" :key="g.id" class="notes-group" :data-test="'notes-group-' + g.id">
             <h3 v-if="g.label" class="notes-group__head">{{ t(g.label) }}</h3>
             <ul class="notes-list" :aria-label="t('notes.list_label')">
-              <li v-for="n in g.rows" :key="n.id" class="notes-row" data-test="notes-row" :data-note-id="n.id">
-                <NuxtLink
+              <li
+                v-for="n in g.rows"
+                :key="n.id"
+                class="notes-row"
+                :class="{ 'notes-row--over': dragOver === n.id }"
+                data-test="notes-row"
+                :data-note-id="n.id"
+                :draggable="phone ? undefined : 'true'"
+                @dragstart="onDragStart(n.id, $event)"
+                @dragover.prevent="dragOver = n.id"
+                @dragleave="dragOver = ''"
+                @drop.prevent="onDrop(n.id)"
+                @dragend="dragId = ''; dragOver = ''"
+              >
+                <a
                   class="notes-row__open"
                   :class="{ 'notes-row__open--current': openId === n.id }"
-                  :to="{ path: localePath('/notes'), query: { note: n.id } }"
+                  :href="noteHref(n.id)"
                   :aria-current="openId === n.id ? 'true' : undefined"
                   data-test="notes-open"
+                  @click.exact.prevent="open(n.id)"
+                  @keydown.alt.up.prevent="move(n.id, -1)"
+                  @keydown.alt.down.prevent="move(n.id, 1)"
                 >
                   <span class="notes-row__title">{{ rowTitle(n) }}</span>
                   <span v-if="rowText(n)" class="notes-row__text muted" data-test="notes-row-text">{{ rowText(n) }}</span>
@@ -64,13 +84,35 @@
                     <span v-if="n.link_count">{{ t('notes.links', { n: n.link_count }) }}</span>
                     <span dir="ltr">{{ t('notes.changed', { when: isoDateTime(n.updated_at) }) }}</span>
                   </span>
-                </NuxtLink>
+                </a>
               </li>
             </ul>
           </section>
         </template>
       </template>
     </div>
+    <LazyNoteDetail
+      v-if="openId"
+      :id="openId"
+      :phone="phone"
+      :can-up="canMove(openId, -1)"
+      :can-down="canMove(openId, 1)"
+      @close="close"
+      @delete="onDelete"
+      @move="move"
+    />
+    <UndoSnackbar
+      v-if="deleted"
+      :key="deleted.id"
+      icon="trash"
+      testid="notes-delete-toast"
+      :text="t('notes.deleted')"
+      :undo-label="t('notes.undo')"
+      :close-label="t('common.close')"
+      :duration="DELETE_UNDO_MS"
+      @undo="undoDelete"
+      @dismiss="sendDelete()"
+    />
   </div>
 </template>
 
@@ -78,9 +120,20 @@
 import { filterNotes, useNotesStore } from '~/stores/notes'
 import type { NoteSummary } from '~/stores/notes'
 import { isoDateTime } from '~/utils/date-iso.mjs'
+import { movePosition, dropPosition } from '~/utils/note-order.mjs'
+import UndoSnackbar from '~/components/UndoSnackbar.vue'
+import { useMobileStack } from '~/composables/useMobileStack'
+import { useNoteOpen } from '~/composables/useNoteOpen'
+
+/* D2 (spec 155 section 3): Delete has a 10 s Undo, then the DELETE goes */
+const DELETE_UNDO_MS = 10_000
 
 const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
+const router = useRouter()
+const stack = useMobileStack()
+const phone = computed(() => stack.isMobile.value)
+const { openId, open, close } = useNoteOpen({ route, router, phone })
 const localePath = useLocalePath()
 const store = useNotesStore()
 const query = ref('')
@@ -100,7 +153,62 @@ const groups = computed(() => {
   return [{ id: 'pinned', label: 'notes.pinned', rows: pinned }, ...(rest.length ? [{ id: 'rest', label: 'notes.others', rows: rest }] : [])]
 })
 const emptyKey = computed(() => (query.value.trim() ? 'notes.empty_filter' : archived.value ? 'notes.empty_archived' : 'notes.empty'))
-const openId = computed(() => String(route.query.note || ''))
+
+/* the order (B6): one PATCH position; the row moves at once, a refusal reloads the list */
+function move(id: string, dir: number) {
+  place(id, movePosition(store.notes, id, dir))
+}
+function canMove(id: string, dir: number) {
+  return movePosition(store.notes, id, dir) !== null
+}
+function place(id: string, position: number | null) {
+  if (position === null) return
+  store.notes = store.notes.map((n) => (n.id === id ? { ...n, position } : n))
+  store.patch(id, { position }).catch(() => store.load())
+}
+const dragId = ref('')
+const dragOver = ref('')
+function onDragStart(id: string, e: DragEvent) {
+  dragId.value = id
+  e.dataTransfer?.setData('text/plain', id)
+}
+function onDrop(target: string) {
+  const id = dragId.value
+  dragId.value = dragOver.value = ''
+  if (!id) return
+  /* dragged down: it lands after the row it is dropped on; dragged up: before it */
+  const pos = (x: string) => store.notes.find((n) => n.id === x)?.position ?? 0
+  place(id, dropPosition(store.notes, id, target, pos(id) < pos(target)))
+}
+
+/* D2: the note leaves the list at once; Undo puts it back, nothing sent */
+const deleted = ref<NoteSummary | null>(null)
+function onDelete(id: string) {
+  sendDelete()
+  close()
+  const row = store.hide(id)
+  if (row) deleted.value = row
+  else void store.remove(id)
+}
+function undoDelete() {
+  if (deleted.value) store.unhide(deleted.value)
+  deleted.value = null
+}
+function sendDelete(keepalive = false) {
+  const row = deleted.value
+  deleted.value = null
+  if (row) void store.remove(row.id, keepalive)
+}
+/* the page goes (reload, tab closed): the DELETE still goes */
+const onPageHide = () => sendDelete(true)
+
+/* a plain link: a click opens the note in place (useNoteOpen), a
+   Ctrl / middle click still opens its address in a new tab. A NuxtLink's own
+   click pushed the route before the page could open it, so a phone got two
+   history entries and Back did not close the note. */
+function noteHref(id: string) {
+  return router.resolve({ path: localePath('/notes'), query: { note: id } }).href
+}
 
 /** the title, else the first line of the text (2.6), else "Untitled note" */
 function rowTitle(n: NoteSummary) {
@@ -123,7 +231,7 @@ async function newNote() {
   }
   archived.value = false
   query.value = ''
-  await navigateTo({ path: localePath('/notes'), query: { note: id } })
+  open(id)
 }
 
 /* 2.1: no live updates between tabs; the list is read again on focus */
@@ -133,8 +241,13 @@ function onFocus() {
 onMounted(() => {
   void store.load()
   window.addEventListener('focus', onFocus)
+  window.addEventListener('pagehide', onPageHide)
 })
-onUnmounted(() => window.removeEventListener('focus', onFocus))
+onUnmounted(() => {
+  window.removeEventListener('focus', onFocus)
+  window.removeEventListener('pagehide', onPageHide)
+  sendDelete()
+})
 </script>
 
 <style scoped>
@@ -169,6 +282,7 @@ onUnmounted(() => window.removeEventListener('focus', onFocus))
   min-width: 0;
 }
 .notes-row__open--current { border-color: var(--color-accent); }
+.notes-row--over .notes-row__open { border-top: 2px solid var(--color-accent); }
 .notes-row__title { font-weight: 600; overflow-wrap: anywhere; }
 .notes-row__text {
   display: -webkit-box;

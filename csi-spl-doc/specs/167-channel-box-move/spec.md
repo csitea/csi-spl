@@ -1,7 +1,8 @@
 # 167 Channel Box Move: move ALL the work of one channel to another box in one action
 
-Version: v0.2 (2026-10-29). Status: **Draft, for R7 review**; the owner's four
-decisions are in (section 7). Nothing below is built.
+Version: v0.3 (2026-10-29). Status: **Draft, for R7 review**; the owner's four
+decisions are in (section 7); v0.3 adds the hand move's agent's own account
+(rows W7-W10, from its spool msg b3fb3d9e). Nothing below is built.
 Issue SPL-4227 · Epic SPL-2398 · Class feature · Kind specs_and_docs ·
 Placement slug `c002-channel-box-move-spec` · Lead c-873.
 
@@ -54,6 +55,10 @@ at about 11:33-11:42Z, by two agents, by hand. From their two handoff files
 | W4 | Keys the channel uses could not move: secret, the owner's call; the owner's poll answer was read two ways. | Secrets never move by default; a secret moves only on the owner's GO for that move, asked as one button. |
 | W5 | Each handoff listed the open owner asks with permalinks, branch and sha, tests run and not run, and "every path ... created ... on this box (delete after you verify)". | That list is the ball pass AND the cleanup list. Make it mechanical. |
 | W6 | The cleanup on the target was a hand `find` over the listed paths -> 0 hits; the agent's session transcript, which quotes the channel's code, was left for the owner to decide. | Cleanup = delete the recorded paths, then a find proof; the transcript is in the list. |
+| W7 | The first `find` check of that cleanup missed two things: test logs a seat's test run wrote under the box user's home (`~<BOX_USER>/var`), and a copy of a bundle left in `/tmp`; a correction found them later. | The cleanup roots include `/tmp` and the box user's home, and every file the move itself writes (bundles, chunks, copies) is a derived manifest line. |
+| W8 | One voice per channel was kept by hand: the source seat stopped posting only once the target seat had posted, and the reverse on the way back, each step relayed by the orchestrator. | The switch (S8) is one coded step; the old seat is held from S1 and leaves the channel at S8. |
+| W9 | Both seat briefs and both handoffs were written by hand. | The handoff and the move block are written from code (4.7). |
+| W10 | The owner changed the return time three times in four minutes, so the way back started before the target had run all test suites (one suite ran there, the others were re-run on the source after the way back). | The move block lists the tests run and NOT run; the receiving seat runs the not-run ones as its first check. A `back` issued while a move is in flight stops the forward move cleanly (C17). |
 
 ## 3. Today: what exists on master
 
@@ -131,7 +136,11 @@ Rules:
   sees what was named cannot prove absence). 4.8 says what the cleanup proof
   does cover.
 - A manifest path outside the box's allowed roots (`/opt/<org>`, `/var/tmp`,
-  `$SPOOL_ROOT`, the agent user's home) is refused in `plan`.
+  `/tmp`, `$SPOOL_ROOT`, the agent user's home, the box user's home) is
+  refused in `plan`.
+- Every file the move itself writes on either box (bundles, chunks, patch and
+  tar files, any copy of them) is a derived `scratch` line of the move, so
+  `clean` deletes it (W7).
 
 ### 4.3 The order, and how long it takes
 
@@ -229,13 +238,16 @@ Reuses spec 060 and spec 102; nothing new for the agents to learn.
    the channel, the seat's open owner asks with their permalinks (from the
    handoff's open questions and owned topics), each repo's branch and head
    sha and the bundle path on the target, uncommitted paths, manifest paths
-   moved and NOT moved (secrets, scratch), and the next step.
+   moved and NOT moved (secrets, scratch), the tests the source seat ran and
+   did NOT run on its last tree (from the seat's handoff note), and the next
+   step.
 2. **Seed** (S6): the target agent is spawned with the source seat's brief,
    the handoff and one ACK command:
    `MOVE_CMD=ack MOVE_ID=<id> SEAT=<new id> ./run -a do_spl_channel_move`.
    It runs the ack only after it has (a) checked out every bundle at the
    named sha, (b) read its unread inbox items from the handoff, (c) run the
-   first check the handoff names. The ack records what it checked, and the
+   first check the handoff names; the tests listed as not run come right
+   after the ack, before new work (W10). The ack records what it checked, and the
    action re-checks (a) itself before it accepts the ack.
 3. **No ack, no kill.** The source seat is closed only after its successor's
    ack (S9). No ack within `MOVE_ACK_TIMEOUT`: the target agent is closed,
@@ -258,7 +270,8 @@ Reuses spec 060 and spec 102; nothing new for the agents to learn.
   dirs of the seats, and the old seats' CLI session transcripts (D3; they
   quote the channel's code, and the handoff on the target carries the state).
 - **Proof**, printed and kept in the journal: (1) `find` of every deleted path
-  -> 0; (2) a `find` over the allowed roots (4.2) for files owned by the moved
+  -> 0; (2) a `find` over the allowed roots (4.2, which include `/tmp` and
+  the box user's home, W7) for files owned by the moved
   seats or newer than the move's start that hold a `marker` string -> listed
   with a count. (1) proves the listed paths are gone. (2) finds only what a
   marker names; it cannot prove nothing else is left, and the report says so.
@@ -269,6 +282,10 @@ Reuses spec 060 and spec 102; nothing new for the agents to learn.
   its clean, the bundle is a few kB, W2). A temporary move
   (`MOVE_BACK_AFTER=2h`) does not move back by itself: at that time the action
   posts one `(GO) Go` poll in the channel's topic asking to move back.
+- **A `back` while the forward move is in flight** (the owner changes the
+  time, W10): before S8 it is an abort, the hold is released and the source
+  keeps the channel; after S8 it waits for the forward move's S9 and then runs
+  as a normal `back`. The newest order wins; the journal records each.
 
 ## 5. Cases (each lands with a red control)
 
@@ -289,6 +306,9 @@ Reuses spec 060 and spec 102; nothing new for the agents to learn.
 | C13 | the journal, the handoff and the posts | 0 key bytes and no secret path beyond kind and count (`grep` of the planted key bytes over the journal dir -> 0) | a planted key path in a `data` line is printed |
 | C14 | an agent that is not the orch lease holder runs `plan` | refused, nothing read (D1) | the plan runs for a lane agent |
 | C15 | a second move of the same channel after a GO'd one | asks the secret GO again | the old GO is reused |
+| C16 | a seat's test run wrote a log under the box user's home and a bundle copy sits in `/tmp` (W7) | `clean` deletes both; the marker report shows 0 | a clean that searches only `/opt/<org>` and `/var/tmp` leaves both |
+| C17 | `back` issued at S7 of a forward move (W10) | the forward move aborts, the source keeps the channel, the target agent is closed | the forward move switches anyway |
+| C18 | the source seat's handoff lists a test suite as not run | the move block names it; the target seat's first check after the ack runs it | the move block drops the not-run list |
 
 Tests run on a private `SPOOL_ROOT` with two sandbox boxes (two dirs, a stub
 ssh and a stub hub), never the live spool (`SPOOL_TEST=1`).
@@ -302,8 +322,8 @@ Disjoint files. Batch 1 first, batch 2 in parallel, batch 3 last.
 | B1 | manifest: derive + declare + `plan` + the caller check (D1) | new `orc/run/spl-channel-move.func.sh` (plan only), `orc/run/spl-channel-manifest-add.func.sh`, `sa/lib/channel-move.inc.sh`, `orc/tests/channel-move-plan.tst.sh` | C1, C14 | claude / grok | 1 |
 | B2 | git and uncommitted transfer | `sa/lib/channel-move-git.inc.sh`, `orc/tests/channel-move-git.tst.sh` | C2, C11 | claude / grok | 2 |
 | B3 | resumable transport, checksums, secret refusal | `sa/lib/channel-move-ship.inc.sh`, `orc/tests/channel-move-ship.tst.sh` | C3, C6, C7, C13, C15 | claude / grok (secret kind) | 2 |
-| B4 | ball pass: move block, seed, ack, retire | `sa/lib/channel-move-seat.inc.sh`, `orc/tests/channel-move-seat.tst.sh`; calls `spl-agent-handoff.func.sh`, `spawn-remote.sh`, `agent-id-retire.sh`, edits none of them | C4, C5, C12 | claude / grok | 2 |
-| B5 | switch, clean, back, lock, `status` | `orc/run/spl-channel-move.func.sh` (the other commands), `orc/tests/channel-move-switch.tst.sh` | C8, C9, C10 | claude / grok | 3 (after B1-B4) |
+| B4 | ball pass: move block, seed, ack, retire | `sa/lib/channel-move-seat.inc.sh`, `orc/tests/channel-move-seat.tst.sh`; calls `spl-agent-handoff.func.sh`, `spawn-remote.sh`, `agent-id-retire.sh`, edits none of them | C4, C5, C12, C18 | claude / grok | 2 |
+| B5 | switch, clean, back, lock, `status` | `orc/run/spl-channel-move.func.sh` (the other commands), `orc/tests/channel-move-switch.tst.sh` | C8, C9, C10, C16, C17 | claude / grok | 3 (after B1-B4) |
 | B6 | dev drill on two boxes with a test channel; measure each step; put the numbers in 4.3 | this spec | the drill journal | claude / grok | 3 |
 | B7 | docs: one operator and owner how-to page | new `csi-spl-doc/doc/md/channel-box-move.md`, its row in `fleet-rules-index.md` | `do_check_fleet_rules_drift` green | agy / claude | 3 |
 
@@ -340,5 +360,10 @@ No other question is open.
    refuses otherwise.
 5. **Open check**: whether the hub queues a channel post for a seat that is
    between S8 and the new seat's first read; measured in the B6 drill.
+6. **Not a move problem (the hand move's agent believes so, unchecked)**: the
+   same afternoon a new workspace missing from one box's private overlay made
+   the desk's reply FATAL until the overlay was pulled
+   (`do_spl_private_overlay_pull`). S6's probe post would catch it before the
+   switch either way.
 
-<!-- version: 0.2.0 · updated: 2026-10-29 · last-edit: 2026-10-29T12:50:00Z -->
+<!-- version: 0.3.0 · updated: 2026-10-29 · last-edit: 2026-10-29T17:40:00Z -->

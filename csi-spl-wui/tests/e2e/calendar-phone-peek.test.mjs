@@ -145,9 +145,30 @@ async function open(browser, vp, { theme = 'dark', path = '/calendar', keyboard 
 }
 
 const row = (id) => `${ROOT} [data-test=calphone-page][data-dir="0"] [data-test=calweek-event][data-id="${id}"]`
+/* el.tap() scrolls a row below the fold into view and aims at once, but the
+   week still moves after that scroll: on a loaded box (load 59) Lunch sat at
+   387-431 and the tap landed at y=445, on Same clock. So scroll it into view
+   here (only when it is off screen), and aim once its box held still for 3
+   frames. */
 async function tap(p, sel) {
   const el = await p.$(sel)
   if (!el) return false
+  await el.evaluate((x) => new Promise((done) => {
+    const b = x.getBoundingClientRect()
+    if (b.top < 0 || b.bottom > window.innerHeight) x.scrollIntoView({ block: 'center' })
+    let last = ''
+    let still = 0
+    let n = 0
+    const step = () => {
+      const r = x.getBoundingClientRect()
+      const at = `${r.top},${r.left}`
+      still = at === last ? still + 1 : 0
+      last = at
+      if (still >= 3 || ++n > 120) done()
+      else requestAnimationFrame(step)
+    }
+    requestAnimationFrame(step)
+  })).catch(() => {})
   await el.tap()
   return true
 }

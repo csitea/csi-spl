@@ -1,4 +1,4 @@
--- 0240_calendar_event_links.sql — an event's issue links and its owner
+-- 0241_calendar_event_links.sql — an event's issue links and its owner
 -- (SPL-4043, specs/097). Forward-only, additive, idempotent.
 --
 --   calendar_events.issue_keys  issue keys in this workspace (SPL-12).

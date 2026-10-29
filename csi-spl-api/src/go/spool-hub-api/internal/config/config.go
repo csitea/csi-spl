@@ -471,6 +471,12 @@ type Hub struct {
 	GcalRevokeURL    string   `env:"SPOOL_HUB_GCAL_REVOKE_URL"`
 	GcalUserinfoURL  string   `env:"SPOOL_HUB_GCAL_USERINFO_URL"`
 	GcalCalendarBase string   `env:"SPOOL_HUB_GCAL_CALENDAR_BASE"`
+	// The contacts switch (spec 154 2.9, cnf contacts): workspace ids or the
+	// one entry "all"; empty = off, every /v1/me/contacts route answers 404.
+	// ContactsScopes is what the Google connect asks for contacts (B7),
+	// empty until the owner step S2.
+	ContactsWorkspaces []string `env:"SPOOL_HUB_CONTACTS_WORKSPACES" envSeparator:","`
+	ContactsScopes     string   `env:"SPOOL_HUB_CONTACTS_SCOPES"`
 	// A workspace's own vendor keys (spec 127 H1, spec 159 T1): the KMS key
 	// that wraps each key's data key (cnf vendor_keys.kms_key, the full
 	// CryptoKey resource name of step 057) and the fingerprint HMAC pepper

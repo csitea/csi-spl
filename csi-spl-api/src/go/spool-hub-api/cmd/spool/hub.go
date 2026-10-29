@@ -372,7 +372,8 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 			BanAfterHits: hc.EmbedBanAfterHits, HitsWindow: hc.EmbedHitsWindow, BanFor: hc.EmbedBanFor},
 		PingInterval: hc.WSPingInterval, PingTimeout: hc.WSPingTimeout, WSMaxLife: hc.WSMaxLife,
 		ClientIPProbe: hc.ClientIPProbe, MsgVersion: hc.MsgVersion, MarketingWorkspaces: hc.MarketingWorkspaces,
-		NotesEnabled: hc.NotesEnabled, // spec 155 section 6
+		NotesEnabled:       hc.NotesEnabled,       // spec 155 section 6
+		ContactsWorkspaces: hc.ContactsWorkspaces, // spec 154 2.9 B3
 		FileStreamLimits: store.FileStreamLimits{PerBox: hc.FileStreamsPerBox, MaxWorkspaces: hc.FileStreamsMaxWorkspaces, // spec 160 3.7
 			MaxLines: hc.FileStreamsMaxLinesPerWorkspace, MaxBytes: hc.FileStreamsMaxBytesPerWorkspace,
 			RatePerMin: hc.FileStreamsRatePerMin, Retention: hc.FileStreamsRetention},

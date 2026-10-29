@@ -254,11 +254,11 @@ Every row follows the v1 and v2 rules above, plus these:
 
   Vendor: claude. Depends: T072, T073.
 - [ ] T075 **the commit ledger writer and the Releases fields** (spec 21.4; Q27, Q28).
-  - **Writer.** The hours sweep (`hub/hours_sweep.go`, one call to a new `store/commit_human_time.go`) writes a commit's rows once every period holding its counted days is frozen or final. It follows the 21.4 chain: closing commits, the issue topic plus the source discussion inside the open window, 1/k for a shared discussion, 1/N per commit, and the price in force per day.
+  - **Writer.** The hours sweep (`hub/hours_sweep.go`, one call to a new `store/commit_human_time.go`) writes a commit's rows once every period holding its counted days is frozen or final. It follows the 21.4 chain: closing commits, the issue topic plus the source discussion inside the open window, an even split for a discussion shared by several issues, day slices across the commits, and the price in force per day.
   - **Reads.** 143's `GET /v1/reporting/releases/daily` and `/commits` gain `human_minutes`, `human_amount_micros`, `human_pending` and `human_unpriced`. The money is masked unless the caller is an operator admin holding `hours.rates` (Q27 A).
 
   **Gate**: api tests on Postgres; 143's T071 invariant extended to `sum over kinds = sum over areas` for human minutes. **Red control**:
-  - In a fixture of two commits closing one issue, each must get half; a third commit that only mentions the key (`Refs:`) must get none.
+  - In a fixture of two commits closing one issue, landed on days 3 and 10 with minutes booked on days 1, 5 and 12, the first commit must get day 1 only and the second days 5 and 12. An engine that splits evenly fails; a third commit that only mentions the key (`Refs:`) must get none.
   - A minute booked to the discussion before the issue was created must be absent.
   - The ledger must hold no member id (a column-list assertion).
   - Writing the ledger before the freeze must fail the "pending" test.

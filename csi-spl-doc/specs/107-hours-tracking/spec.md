@@ -1042,8 +1042,8 @@ $$\text{commit} \longrightarrow \text{issue (subject scope or } \texttt{Closes:}
 
 1. **Which commits.** A landed commit that cites an issue key in the form that closes it (subject scope or a `Closes:` trailer, spec 135). `Refs:` and bare mentions do not count. This is the closer's rule (`do_spl_issue_close_landed`), and 143 uses it too.
 2. **Which time.** The approved minutes of every human member on the issue's topic, and on its source discussion. Both are cut to the **open window**: from the day the issue was created (`issues.created_at`, in the member's zone, 1.6) to the landing day of its last closing commit. Time on the discussion before the issue existed, or after it closed, stays on the discussion's own counter. It is not credited to the commit.
-3. **A discussion behind several issues.** If k issues name the same source discussion and their windows overlap, each overlapping day's discussion minutes split 1/k across those issues. The issue's own topic is never split.
-4. **Several commits for one issue.** The issue's human minutes split **1/N** over its N closing commits, as 143 section 8.3 does for tokens. Kind and area labels each take the commit's full share (143's conservation rule).
+3. **A discussion behind several issues.** If k issues name the same source discussion and their windows overlap, each overlapping day's discussion minutes are split evenly across those k issues. The issue's own topic is never split.
+4. **Several commits for one issue: day slices** (owner question Q28). Spec 143 cuts a lane's tokens into time slices between its landings (143 section 8.3.1, owner Q2 msg `51f2fff5`, which rejected the equal split). Human time has no minute stamp to cut, and P0 wants none: an entry carries only its day. So the slice is a **day**. Commit $c_j$ takes the issue's approved minutes from the day after the landing day of the previous closing commit, up to and including its own landing day. The first commit starts at the issue's creation day. Minutes after the last landing, while the window is still open, go to the last commit. Two commits that land on the same day split that day's minutes evenly. Every approved minute lands on exactly one commit, so the issue's minutes are conserved, as 143's tokens are. Kind and area labels each take the commit's full share (143's conservation rule).
 5. **Money.** For each approved entry: minutes / 60 x the member's **price in force on the entry's day** (21.5). The result is summed per commit and per day, in the price's currency. The amount is converted at that day's ECB rate (rdb 0200) to USD and to the viewer's second currency, exactly as the Costs page and 143 section 8.4 do. A day with no rate, or a member with no price, leaves that part **unpriced** (`null`), never a guess. The minutes still count.
 6. **When it is written.** A ledger row for a commit is written by the hours sweep once **every period that holds the counted days is frozen or final** for every member who booked time to the issue. Until then the commit shows `human: pending approval`. A number that could still move is never shown as final.
 7. **What the page shows** (operator view; 143 section 8.7 audience):
@@ -1140,8 +1140,8 @@ The seeded scenario:
 Then:
 
 - Before the freeze, the Releases rows show `human: pending approval`.
-- After the freeze, each commit shows half of the issue's approved minutes, with the in-window discussion minutes included and the out-of-window ones excluded.
-- Each commit's money is half the priced member's minutes x their price. The other member's minutes show as unpriced.
+- After the freeze, each commit shows the issue's approved minutes of its own day slice (21.4 step 4), with the in-window discussion minutes included and the out-of-window ones excluded.
+- Each commit's money is the priced member's minutes in that commit's day slice x their price. The other member's minutes show as unpriced.
 - The label pill sums the commits.
 - A biz owner sees the issue's counter but no price.
 - A `time_accountant` sees both prices.
@@ -1155,7 +1155,9 @@ The build starts on the recommendations (owner rule 10-05). Each answer changes 
 
 - Q26 changes T073 (the route's gate) and T074 (what the topic header shows).
 - Q27 changes T075 (the masked fields) and T076 (the pill text).
-- Q28 changes T075 (the attribution).
+- Q28 changes T075 (how an issue's time is divided among its commits).
+
+What a commit is credited with (the closed issue's topic plus its source discussion, inside the issue's open window, 21.4 steps 1..3) is not asked: the brief of this addendum fixes it as "the issue and discussion the commit closes".
 
 ```poll
 Q26 Who sees the human time total on a discussion or an issue (summed over people)?
@@ -1166,10 +1168,10 @@ Q27 Who sees the human money (hours x price) on the Releases page?
 (A) Only an operator admin who also holds hours.rates (the time-accountant role); other operator admins see the human hours without money (recommended: keeps FR-20, money only to hours.rates)
 (B) Every operator admin sees hours and money, as they see agent token money today
 (C) Nobody yet: hours only on Releases, money only in the time-accountant's views
-Q28 Which human time is credited to a commit?
-(A) Approved time on the closed issue's topic plus its source discussion, inside the issue's open window, split 1/N over the commits that close it (recommended: the issue and the discussion the commit closes, as 143's token chain)
-(B) The issue's own topic only (the discussion's time stays on the discussion)
-(C) As A, plus the time of the issue's child issues rolled up to the parent
+Q28 When several commits close one issue, how is the issue's human time divided among them?
+(A) Day slices: each commit takes the approved minutes booked from the day after the previous closing commit landed up to its own landing day; the first starts at the issue's creation day (recommended: the day-grain twin of the time slices you chose for agent tokens in spec 143 Q2, without minute stamps, as P0 asks)
+(B) Equal split: each of the N commits takes 1/N of the issue's minutes
+(C) All of the issue's human time goes to the last closing commit
 ```
 
 <!-- version: 2.0.0 · updated: 2026-10-10 -->

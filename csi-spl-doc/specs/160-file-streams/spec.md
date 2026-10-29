@@ -1,8 +1,9 @@
 # 160 File streams: follow a box file live in Monitoring, and search it
 
-Version v0.4 (2026-10-29): adds 3.8, file globs typed in the web page by a
+Version v0.5 (2026-10-29): fixes review W1-W3 of v0.4 (grok g-746 FAIL on
+`7814f50a4`). v0.4 (2026-10-29) added 3.8, file globs typed in the web page by a
 workspace owner or admin (owner answer B, poll `376e9435`) and a deny class
-for security-related system files; not reviewed yet, rows B9..B12 planned
+for security-related system files; rows B9..B12 planned
 (change log, section 10). v0.3 (2026-10-26) was reviewed: claude review PASS (c-317 on
 `2f1ee57b5`, section 8), after a FAIL on v0.1 (W1-W9) and on v0.2 (N1-N4).
 The owner's GO and answers (section 7.1): Q1 A, Q2 A, Q3 A, Q4 GO (HUM-10,
@@ -66,7 +67,9 @@ Read as three asks:
   those streams.
 
 Added by the brief (dispatch, c-423 msg ac657d72), not by the owner:
-only files on an explicit allow-list, never a path typed in the browser;
+only files on an explicit allow-list, never a path typed in the browser
+(from v0.4: a glob a workspace owner or admin types, which the box itself
+expands under its allowed folders only, 3.8);
 only the workspace's owners and admins see a stream; lines are masked
 before they leave the box, then stored, indexed and kept for a limited
 time.
@@ -618,7 +621,7 @@ service account or a box session has none: 403), not a live act-as clone
 - The syntax (400 `bad_glob`): one line of 1..512 bytes, UTF-8, no control
   character; absolute or `$HOME/`; `*` and `?` only, and only in the last
   segment; no `[`, `{`, `**`, no `.` or `..` segment. `key` matches
-  `^[a-z0-9][a-z0-9-]{0,23}$` (24, so a match key fits 3.3's 32, 3.8.6) and
+  `^[a-z0-9][a-z0-9-]{0,23}$` (24, so a match key fits 3.2's 32, 3.8.6) and
   is unique among W's live globs on that box (409 `glob_key_taken`).
 - The glob's literal directory must be under one of the box's announced
   folders, compared as strings after `$HOME/` is kept unexpanded on both
@@ -661,9 +664,11 @@ There is still no hub-to-box command channel (D1). The follower asks:
   resumes on the next good pull. The list is not saved across a restart, so
   a deleted glob never outlives the process. cnf `allow` streams are not
   touched by any of this.
-- The announce frame (`wire/file_streams.go:64-68`, `:132`) gains
-  `folders: [{path, state, reason}]`, `globs: [{id, state, matched,
-  followed, over_cap, reason}]` and, on a stream entry, `glob_id`. The hub
+- The announce frame `FileStreamsAnnounceFrame` (`wire/file_streams.go:71-73`)
+  gains `folders: [{path, state, reason}]` and `globs: [{id, state, matched,
+  followed, over_cap, reason}]`; the stream entry `FileStreamAnnounced`
+  (`:64-68`) gains `glob_id`; the decoder `DecodeFileStreamsAnnounce`
+  (`:132`, strict through `strictDecode` `:122-126`) checks them. The hub
   stores the glob fields on the `file_stream_globs` row (3.8.4). Because the
   decoder is strict, the hub row (B9) lands and deploys before the box row
   (B10) sends them.
@@ -703,7 +708,9 @@ glob itself, with its reason).
 
 #### 3.8.7 Over the 8-stream cap
 
-The cap stays 8 streams a box, cnf and web globs together
+If Q6 = A (3.8.11; the poll is open, this paragraph is the design only for
+that answer; on Q6 = B a glob follows only its newest match, as a cnf
+entry's `*` does today, and takes one slot). The cap stays 8 streams a box, cnf and web globs together
 (`FILE_STREAMS_MAX`, `file-stream-follow.py:151-170`; the hub's
 `streams_per_box`, 3.7). Slots go, in order: the cnf entries, in cnf order;
 then the globs, oldest glob first; inside a glob, the newest match by mtime
@@ -854,7 +861,7 @@ lands.
 | C47 | B10 | folders `[<tmp>/a]`: a glob `<tmp>/a/*.log` follows its matches; a glob `<tmp>/b/*.log`, relayed by a stub hub that accepts anything, is refused `outside allowed folders` on the box | the box trusts the hub's check: `<tmp>/b/x.log` is followed |
 | C48 | B10 | inside folder `<tmp>/a`, a dir `out -> <tmp>/b` and a glob `<tmp>/a/out/*.log`: refused; a match `<tmp>/a/y.log -> <tmp>/b/y.log`: refused `outside allowed folders` | the folder check on the glob's text, not on the fd: both are followed |
 | C49 | B10 | C8, C31, C32, C33, C34 and C36 re-run with the entry made by a glob match, not a cnf entry: a match that is a symlink to a synthetic `$HOME/.ssh/id_x`, a hardlink to a key file, a fifo, a device, a `.env`, another home: each refused with 3.2's reason, nothing read | a match opened with a plain open, skipping `open_checked`: the key's lines reach the queue file |
-| C50 | B10 | 2 cnf entries and a glob matching 12 files: 6 matches followed, newest mtime first; the glob reports `matched 12, followed 6, over_cap 6`; touching an older unfollowed file does not take a followed one's slot | no cap: 12 announced, the hub refuses 6 as `streams_per_box` and the newest may be among them |
+| C50 | B10 | If Q6 = A (on Q6 = B: the glob follows only its newest match, `followed 1`): 2 cnf entries and a glob matching 12 files: 6 matches followed, newest mtime first; the glob reports `matched 12, followed 6, over_cap 6`; touching an older unfollowed file does not take a followed one's slot | no cap: 12 announced, the hub refuses 6 as `streams_per_box` and the newest may be among them |
 | C51 | B10 | the glob removed on the stub hub: within `globs_s` + 1 tick its streams leave the announce; the stub hub down past `globs_stale_s`: each web-glob stream stops with one `glob list stale` marker while the cnf stream keeps pushing | keep the last list for good: a removed glob is followed while the hub is down |
 | C52 | B10 | a matched dir of 50 000 entries: one scan reads at most 10 000, no tick takes more than 1 s; `x.log.2.gz` under a `*.log*` glob is skipped `compressed` | `glob.glob` over the whole dir: the tick blocks, and the `.gz` is followed as text |
 | C53 | B11 | `--denied` prints `security file` for each path of 3.8.10's table (`/etc/passwd`, `/etc/group`, `/etc/sudoers.d/x`, `/etc/security/opasswd`, `/etc/ssh/sshd_config`, `/var/log/auth.log.1`, `/var/log/btmp`, `/var/spool/cron/crontabs/x`, ...); as cnf entries each is announced `refused` (`denied path`); `/var/log/syslog` and `/var/csi/csi-spl/token-burn/cron.log` are not denied | today's list: `--denied /etc/passwd` exits 1 (measured on `bf6991ecf`, 3.8.10), so `/etc/passwd` is followed |
@@ -1195,7 +1202,7 @@ row is one lane and one issue, after the owner's answers to Q5..Q7.
 
 | row | what | sites (sha `bf6991ecf`) | red control | measure after | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|
-| B9 | hub: glob store and migration, the four routes and their gate, the `file_streams_globs` pull op, the announce's new fields, the audit | `hub/file_streams_view.go:36-39,65-72`; `hub/file_streams.go:54-70`; `wire/file_streams.go:31-34,64-68,132`; `store/file_streams.go:130-136`; `hub/box_lock_view.go:140`; new `rdb/<next>_file_stream_globs.sql` | C41: a membership-only gate gives the member 201; C42-C46 as in section 4 | `go test ./internal/hub/ ./internal/store/ ./internal/wire/ -run 'FileStreamGlob'`; `PRE_PUSH_TIER=full ./run -a do_check_pre_push` (a migration) | claude (backup grok) | complex_coding | 1 |
+| B9 | hub: glob store and migration, the four routes and their gate, the `file_streams_globs` pull op, the announce's new fields, the audit | `hub/file_streams_view.go:36-39,65-72`; `hub/file_streams.go:54-70`; `wire/file_streams.go:31-34,64-68,71-73,122-126,132`; `store/file_streams.go:130-136`; `hub/box_lock_view.go:140`; new `rdb/<next>_file_stream_globs.sql` | C41: a membership-only gate gives the member 201; C42-C46 as in section 4 | `go test ./internal/hub/ ./internal/store/ ./internal/wire/ -run 'FileStreamGlob'`; `PRE_PUSH_TIER=full ./run -a do_check_pre_push` (a migration) | claude (backup grok) | complex_coding | 1 |
 | B11 | the `security file` deny class of 3.8.10 | `orc/scripts/file-stream-follow.py:92-105,224-252`; `orc/tests/spl-file-stream-follow.tst.sh` | C53: `--denied /etc/passwd` exits 1 on master today | `--denied <path>` prints `security file` for each row of 3.8.10's table; `bash orc/tests/spl-file-stream-follow.tst.sh` green | claude (backup grok) | complex_coding | 1 |
 | B10 | box: `folders` cnf, the pull, the expansion through fds, the cap order, the stale rule | `orc/scripts/file-stream-follow.py:140-191,262-298,565-579,626-653`; `orc/run/spl-file-stream-follow.func.sh:89,187-205`; `csi-spl-cnf/csi-spl/all.env.yaml:1159-1174`; `cli/file_streams.go:78-110` | C47: a box that trusts the hub's folder check follows `<tmp>/b/x.log`; C48-C52, C54 | `bash orc/tests/spl-file-stream-follow.tst.sh` (each case on the follower and on its planted defect); `ENV=dev ./run -a do_tpl_gen` + `git diff --exit-code` (cnf) | claude (backup grok) | complex_coding | 2 (after B9: the pull op and the strict announce; after B11: same `.py`) |
 | B12 | WUI: the glob form, list, state and Remove under each box; the audit list; the help page line | `wui/pages/monitoring/file-streams/index.vue:28-45`; `wui/utils/monitoring-file-streams.mjs:30-78`; `wui/utils/spool-client-lazy.mjs:1760-1779,2080`; `csi-spl-wui/i18n/locales/en.json:3307-3311` and every locale | C55: the form drawn on `who.operator`; C56: a key in `en.json` only | `pnpm run typecheck`; `BASE_URL=<mock bundle> pnpm run test:e2e`; agy review of the keys before land | claude (backup grok; never mistral, a WUI row) | complex_coding | 2 (after B9: its routes; disjoint from B10's files) |
@@ -1359,3 +1366,4 @@ v0.3, by c-319, folds c-317's N1-N4 on v0.2 (line numbers are v0.3's):
 | v0.2 | 2026-10-26 | c-319 | folds review W1-W9 (section 8) |
 | v0.3 | 2026-10-26 | c-319 | folds review N1-N4; reviewed PASS |
 | v0.4 | 2026-10-29 | c-601 | 3.8: web-typed file globs under allowed folders (owner answer B, poll `376e9435`, msg `d925f9a3`) and the `security file` deny class (owner msg `7f673aef`); 3.1, 3.2, 3.5 and section 9 say what changed; cases C41-C56; rows B9-B12 (5.9); D6, D7; owner questions Q5-Q7 (3.8.11) |
+| v0.5 | 2026-10-29 | c-601 | review of v0.4 (grok g-746 FAIL on `7814f50a4`): W1 3.8.5 and row B9 cite the announce frame at `wire/file_streams.go:71-73` (`folders`, `globs`), the stream entry at `:64-68` (`glob_id`), the strict decoder at `:132` / `:122-126`; W2 section 1's asks-list sentence points at 3.8; W3 the 32-character key bound is 3.2's, not 3.3's; note: 3.8.7 and C50 say they hold only if Q6 = A |

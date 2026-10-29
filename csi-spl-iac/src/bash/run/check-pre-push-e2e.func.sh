@@ -17,6 +17,10 @@
 # @description                                the files that use it (its exported
 # @description                                names, its component name), weight
 # @description                                3, and their users, weight 1
+# @description   the shell (a layout,         also the data-* state attributes
+# @description   app.vue, main.css)           it names, two words or more
+# @description                                (data-mobile-level), weight 9: the
+# @description                                phone tests select by them (SPL-4139)
 # @description Never a ci-skip.txt file or a *.proof.mjs. First the best test of
 # @description each changed source file (so one cannot starve another), then
 # @description the direct tests (the score from weight-9 keys and the edited
@@ -77,7 +81,7 @@ _ppe_select() {
         local -a cand; mapfile -t cand <"$tmp/cand"
         while IFS= read -r t; do printf '%s\t50\n' "$t" >>"$tmp/direct"; done < <(
           cd "$wui" && grep -lF -- "$base" "${cand[@]}" 2>/dev/null) ;;
-      src/*.vue|src/*.ts|src/*.js|src/*.mjs|src/*.tsx)
+      src/*.vue|src/*.ts|src/*.js|src/*.mjs|src/*.tsx|src/*.css)
         [[ "$rel" == src/node/* || "$rel" == src/python/* || "$rel" == src/docker/* || "$rel" == *.d.ts ]] && continue
         [[ -e "$wui/$rel" ]] || continue
         i=$((i + 1)); mkdir "$tmp/f$i"; cp "$tmp/cand" "$tmp/f$i/cand"; : >"$tmp/f$i/direct"
@@ -105,10 +109,17 @@ _ppe_candidates() {
 
 # _ppe_keys <wui> <rel> - the testids a source file declares (data-testid,
 # a testid prop, data-test): "x" exact, or "x-" for the static prefix of a
-# bound one. At least 4 characters.
+# bound one. At least 4 characters. For the shell (a layout, app.vue,
+# main.css) also its data-* state attributes of two words or more
+# (data-mobile-level, not data-state): the tests of the shell's states select
+# by them (ci-panel-20261028 3.4, SPL-4139).
 _ppe_keys() {
-  grep -oE "(data-test|[Tt]est[Ii]d)[\"']?[[:space:]]*[=:][[:space:]]*\"?['\`\"][a-z0-9][a-z0-9-]{3,}" "$1/$2" 2>/dev/null |
-    sed -E "s/.*['\`\"]([a-z0-9-]+)$/\1/" | sort -u
+  {
+    grep -oE "(data-test|[Tt]est[Ii]d)[\"']?[[:space:]]*[=:][[:space:]]*\"?['\`\"][a-z0-9][a-z0-9-]{3,}" "$1/$2" 2>/dev/null |
+      sed -E "s/.*['\`\"]([a-z0-9-]+)$/\1/"
+    [[ "$2" == src/layouts/* || "$2" == src/app.vue || "$2" == src/assets/css/main.css ]] &&
+      grep -oE "data-[a-z]+(-[a-z0-9]+)+" "$1/$2" 2>/dev/null | grep -vE '^data-(v|test)-'
+  } | sort -u
 }
 
 # _ppe_names <wui> <rel> - the names other files use a source file by: its

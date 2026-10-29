@@ -58,9 +58,16 @@ header says `# pre-push-tier: slow` (terraform validate, tpl-gen renders).
   file's best test, then the tests that name the changed files' own
   testids (`data-test` too), then the score (SPL-3612); at most
   `PRE_PUSH_E2E_MAX` files (6) summing to `PRE_PUSH_E2E_BUDGET` CI seconds
-  (240); the rest print as left to CI. The mock bundle is cached by the WUI
-  tree without e2e contents: measured 2026-10-12 on the first box, 152 s
-  cold (113 s build), 31 s warm, n=1 each, for 2 files. Print a selection:
+  (240); the rest print as left to CI. A change to a layout, `app.vue` or
+  `main.css` also scores the tests by the shell's `data-*` state attributes
+  it names (`data-mobile-level`), at weight 9 (SPL-4139): a shell change
+  still cannot run all 31 data-mobile-level tests within the cap; the 4
+  tests that went red after 46afd70ba stay CI-only; panel 3.4 is only partly
+  fixed. The part also checks the bundle it builds against
+  `perf-budgets.json`, as wf 10 does (SPL-4129). The mock bundle is cached
+  by the WUI tree without e2e contents: measured 2026-10-12 on the first
+  box, 152 s cold (113 s build), 31 s warm, n=1 each, for 2 files. Print a
+  selection:
   `WUI_E2E_RANGE=origin/master..HEAD ./run -a do_check_pre_push_e2e`.
   `PRE_PUSH_E2E=0` turns it off.
 - **The orc-features part** (spec 133 F1) runs wf 10's orc feature tests

@@ -29,6 +29,9 @@
 #  12. the bundle budget (SPL-4129): the part runs wf 10's perf-budget.py
 #      bundle on the bundle it built; over perf-budgets.json -> rc 1, the
 #      FAIL line, no file runs (check 7's small bundle prints PASS)
+#  13. the shell's data-* state attributes (SPL-4139), on 46afd70ba's tree:
+#      A main.css alone selects a test reading one; B the 4 files of that
+#      commit score mobile-stack above master's 22; C still <= MAX files
 #   CONTROL a. with the users-of step off (_ppe_names prints nothing) check 2
 #              selects nothing: the closure is what finds it
 #   CONTROL b. a dirty WUI source -> no cache key -> 2 builds for 2 runs, so
@@ -219,6 +222,33 @@ mkdir -p "$T/nogit"
 got="$( _pp_pnpm() { echo "$T/pnpm"; }; cd "$T/nogit" && GIT_CEILING_DIRECTORIES="$T" _ppe_generate )"
 [[ -z "$got" ]] && pass "CONTROL c. outside a git tree the stamp is empty, so check 9's commit comes from HEAD" \
   || fail "CONTROL c. want no stamp outside a git tree, got '$got'"
+
+# --- 13. the shell's state attributes, on the real tree of 46afd70ba ------------------------
+# ci-panel-20261028 3.4 (SPL-4139): 46afd70ba changed the layout and main.css;
+# the phone tests that went red read the shell's data-mobile-level, not a
+# testid. 31 tests name it, so no rule keeps a given one under the cap: these
+# checks prove the attribute is scored, not that mobile-stack runs.
+H="$T/h46"; mkdir -p "$H"
+sel_h() { PRE_PUSH_TREE="$H" WUI_E2E_CHANGED="$*" do_check_pre_push_e2e; }
+if git -C "$PROJ_ROOT/.." archive 46afd70ba csi-spl-wui/src csi-spl-wui/tests/e2e 2>/dev/null | tar -x -C "$H"; then
+  # A: main.css alone (master: no case matched it, nothing selected)
+  got="$(sel_h csi-spl-wui/src/assets/css/main.css | runs)"
+  hit=""; for t in $got; do grep -qE 'data-mobile-[a-z-]+' "$H/csi-spl-wui/$t" && { hit="$t"; break; }; done
+  [[ -n "$hit" ]] && pass "13A. a main.css-only change selects a test that reads a shell data-* attribute ($hit)" \
+    || fail "13A. a main.css-only change selected '$got', none reading a shell data-* attribute"
+  # B: the four files of 46afd70ba: mobile-stack's score rises over master's 22
+  got="$(sel_h csi-spl-wui/src/assets/css/main.css csi-spl-wui/src/components/ChannelSidebar.vue \
+               csi-spl-wui/src/layouts/default.vue csi-spl-wui/src/pages/issues.vue)"
+  sc="$(awk '{ t = ($1 == "CUT") ? $2 : $1; s = ($1 == "CUT") ? $3 : $2 } t == "tests/e2e/mobile-stack.test.mjs" { print s }' <<<"$got")"
+  [[ -n "$sc" && "$sc" -gt 22 ]] && pass "13B. 46afd70ba's change scores mobile-stack.test.mjs $sc (master 22): the layout's data-mobile-level counts" \
+    || fail "13B. mobile-stack.test.mjs scores '$sc', want more than master's 22"
+  # C: the cap still holds
+  kept="$(grep -vc '^CUT ' <<<"$got")"
+  [[ "$kept" -ge 1 && "$kept" -le 6 ]] && pass "13C. the same change keeps $kept file(s), within PRE_PUSH_E2E_MAX 6" \
+    || fail "13C. the same change keeps $kept file(s), want 1..6"
+else
+  fail "13. cannot read 46afd70ba from the repo (a shallow clone?)"
+fi
 
 if [[ $fails -eq 0 ]]; then
   echo "PASS: all check-pre-push-e2e.tst.sh assertions"

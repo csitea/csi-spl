@@ -1,109 +1,98 @@
-# 090 Meta developer app: setup and App Review runbook (Owner Step / Prerequisites)
+# 090 Meta app: add Page + Instagram publishing to the existing app (Owner Step / Prerequisites)
 
 **Feature ID**: `090-marketing-automation` · **Scope**: Meta Graph API (Facebook Pages & Instagram Professional)  
-**Authority**: Owner runbook for Meta Developer Portal setup, Business Verification, and App Review submission.
+**Authority**: Owner runbook for the Meta app's Page + Instagram use cases, Business Verification and App Review.
 
-Setting up a Meta developer application and submitting it for App Review are **OWNER-ONLY** steps requiring verified business identity and legal entity documentation. Autonomous agents must never attempt to create Meta apps or handle credentials.
+There is no second Meta app. Page + Instagram publishing reuses the app that
+already serves "Sign in with Facebook" (spec 049): the cnf
+`auth.social.env.SPOOL_HUB_AUTH_FACEBOOK_CLIENT_ID` of dev and prd, its secret
+in the existing Secret Manager slot `csi-spl-hub-auth-facebook-client-secret`
+(owner msg 0aad8975: "There is a Meta app. We probably should modify
+the settings for that one"). The work is to ADD the Page + Instagram products
+and permissions to that app. Nothing that sign-in uses today (its redirect
+URI, its `email,public_profile` scopes) is changed or removed.
 
 ---
 
-## 1. What is Needed
+## 1. What the app has (read 2026-10-29, Graph API v26.0, app token)
 
-| Item | Value / Requirement |
+Read by T030 (SPL-4164) with the app's own access token; the token never left
+the box and is not in any log.
+
+| Item | Read value |
 |---|---|
-| **Meta Business Account** | Verified Business Portfolio in Meta Business Suite (`business.facebook.com`) |
-| **Developer App** | App Name: **Spool Hub** (or workspace brand), App Type: **Business** |
-| **Connected Facebook Page** | Company Facebook Page (e.g. Csitea / Workspace Company Page) |
-| **Connected Instagram** | Instagram Professional (Business or Creator) account linked to the Facebook Page |
-| **Privacy Policy URL** | `https://<BASE_DOMAIN>/privacy` |
-| **Terms of Service URL** | `https://<BASE_DOMAIN>/terms` |
-| **App Icon** | 1024x1024 PNG logo (`csi-spl-wui/src/public/icons/icon-512.png` scaled) |
-| **Products Added** | 1. **Facebook Login for Business**<br>2. **Instagram Graph API** |
-| **Permissions Required** | `pages_show_list`<br>`pages_read_engagement`<br>`pages_manage_posts`<br>`instagram_basic`<br>`instagram_content_publish` |
-| **Token Lifetimes** | User Token: exchanged to Long-Lived (~60 days); Page Access Token: **Indefinite (no expiry)** |
-| **Client ID / Secret** | Stored exclusively in Secret Manager; never in git or logs |
+| Name, platform | `spool-hub`, `WEB` |
+| App domains | `<BASE_DOMAIN>` (covers `dev.<BASE_DOMAIN>`) |
+| Privacy / terms URLs | `https://<BASE_DOMAIN>/privacy`, `https://<BASE_DOMAIN>/terms` |
+| Deauthorize callback | `https://<BASE_DOMAIN>/api/v1/auth/facebook/deauthorize` |
+| Roles | 1 administrator (the owner); no developers, testers or test users |
+| Permissions (`/{app-id}/permissions`) | `email` live, `public_profile` live, `user_payment_tokens` live; no `pages_*` and no `instagram_*` |
+| Products (`/{app-id}/products`) | empty list |
+| Webhook subscriptions | none |
+| Valid OAuth redirect URIs | NOT readable with an app token (`(#100) Tried accessing nonexisting field`) |
+| Business portfolio, Business Verification, App Review state | NOT readable with an app token (`nonexisting field` / `A user access token is required`) |
+| Linked Page and Instagram account | NOT readable without a user token of a Page admin (that is what T033's connect does) |
 
----
+Sign-in today (dev, `GET <api host>/api/v1/auth/facebook/start`): 302 to
+`https://www.facebook.com/v25.0/dialog/oauth` with the same client id,
+`redirect_uri=https://dev.<BASE_DOMAIN>/api/v1/auth/facebook/callback` and
+`scope=email,public_profile`.
 
-### 1.1 Authorized Redirect URLs
+## 2. What publishing needs, and the gap
 
-Register the following redirect URLs under **Facebook Login for Business** -> **Settings**:
+| # | Step | Who |
+|---|---|---|
+| 1 | Add the use cases **"Manage everything on your Page"** (Facebook Login for Business) and **"Manage messaging & content on Instagram"** (Instagram API with Facebook Login) to the app, in the App Dashboard (use-case names as Meta words them; the API cannot list them, so check the wording there). If the dashboard does not offer them, first connect the app to the business portfolio (App settings -> Basic -> Business portfolio). | (b) owner, Meta UI: no Graph API adds a product or use case |
+| 2 | Under those use cases, add the permissions `pages_show_list`, `pages_read_engagement`, `pages_manage_posts`, `instagram_basic`, `instagram_content_publish` (Standard Access). | (b) owner, Meta UI |
+| 3 | Add the T033 callbacks to **Valid OAuth Redirect URIs** (Facebook Login for Business -> Settings), next to the sign-in ones, which stay: `https://<BASE_DOMAIN>/api/v1/marketing/facebook/callback` and `https://dev.<BASE_DOMAIN>/api/v1/marketing/facebook/callback`. | (b) owner, Meta UI: the list is neither readable nor writable with the app token, so an API write could not be proven add-only |
+| 4 | Link the company Facebook Page to an Instagram Professional (Business or Creator) account, if not linked yet. | (b) owner, Meta Business Suite / Instagram app |
+| 5 | Business Verification of the portfolio (Security Center). Needed only for Advanced Access (step 6). | (b) owner, Meta UI |
+| 6 | App Review for Advanced Access to the five permissions (section 4). Needed only to publish to Pages of people who hold no role on the app; with Standard Access the app's admins (the owner) can connect their own Page. | (b) owner, Meta UI |
+| 7 | Hub cnf: `marketing.facebook` reuses the app id and the secret slot; 030 injects `SPOOL_HUB_MARKETING_FACEBOOK_*` once `inject` is `"true"` (T030, done). The WUI host forwards `/api/v1/marketing/facebook/callback` to the hub. | (a) agents, done |
+| 8 | Flip `marketing.facebook.inject` to `"true"` per env when T033 reads the values, after steps 1-3 (step 030 apply, owner go). | (a) agents, with T033 |
+
+No agent changed the Meta app on 2026-10-29: every additive change it needs
+(steps 1-3) is UI-only, and nothing was deleted.
+
+### 2.1 Redirect URLs (step 3)
 
 | Environment | Redirect URL |
 |---|---|
 | Production | `https://<BASE_DOMAIN>/api/v1/marketing/facebook/callback` |
-| Production (direct) | `https://<BASE_DOMAIN>/v1/marketing/facebook/callback` |
 | Development | `https://dev.<BASE_DOMAIN>/api/v1/marketing/facebook/callback` |
-| Development (direct) | `https://dev.<BASE_DOMAIN>/v1/marketing/facebook/callback` |
 
-Firebase Hosting rewrite in `render-wui-firebase-json.sh` forwards `/api/v1/marketing/facebook/callback` directly to Cloud Run hub ahead of the SPA routing fallback, matching the LinkedIn flow.
+The Firebase Hosting rewrite in `render-wui-firebase-json.sh` forwards
+`/api/v1/marketing/facebook/callback` to the Cloud Run hub ahead of the SPA
+fallback, as for the LinkedIn flow. Meta matches redirect URIs exactly
+(Strict Mode), so the sign-in URI does not cover this path.
 
 ---
 
-## 2. Where Client ID and Secret Live
+## 3. Where the app id and secret live
 
-Client credentials must never pass through chat, spool messages, terminal logs, or git commits.
+Nothing new is stored: the app id is public cnf, the secret is the sign-in
+slot.
 
-| Store | Location | Written By |
+| Store | Location | Written by |
 |---|---|---|
-| **Secret Manager, dev** | Project `csi-spl-dev`, secrets `csi-spl-hub-marketing-facebook-client-id` and `csi-spl-hub-marketing-facebook-client-secret`, version 1 | Dev project SA (`key-csi-spl-dev.json`) |
-| **Secret Manager, prd** | Project `csi-spl-prd`, same two secrets, version 1 | Prd project SA (`key-csi-spl-prd.json`) |
-| **Secret Manager, all** | Project `csi-spl-all`, same two secrets, version 1, labels `spec=090,app=spool-hub` | All project SA (`key-csi-spl-all.json`) |
-| **Agent Box File** | `~<AGENT_USER>/.facebook/.csi/client_id` and `client_secret` (dirs 0700, files 0600) | Standard secrets layout |
-| **Owner KeePassXC** | Entry `Facebook-app-Spool-Hub-csi-spl`: username = client id, password = client secret | `keepassxc-cli` with owner key file |
+| **cnf** | `auth.social.env.SPOOL_HUB_AUTH_FACEBOOK_CLIENT_ID` (dev, prd); `marketing.facebook` in `all.env.yaml` names the slot | git |
+| **Secret Manager** | Project `csi-spl-<env>`, secret `csi-spl-hub-auth-facebook-client-secret`, the version pinned in `hub.secret_versions` | `do_spl_auth_idp_secret_seed` (spec 049) |
+
+030 hands the hub the same secret twice, as `SPOOL_HUB_AUTH_FACEBOOK_CLIENT_SECRET`
+(sign-in) and, while `marketing.facebook.inject` is `"true"`, as
+`SPOOL_HUB_MARKETING_FACEBOOK_CLIENT_SECRET`, with `SPOOL_HUB_MARKETING_FACEBOOK_APP_ID`,
+`_API_VERSION` and `_SCOPES`. Test: `csi-spl-iac/src/bash/tests/hub-marketing-facebook-030.tst.sh`.
 
 ---
 
-## 3. Step-by-Step Owner Setup Guide
+## 4. Meta App Review submission package (step 6)
 
-### 3.1 Business Verification
-1. Navigate to **Meta Business Suite** -> **Settings** -> **Security Center** (`https://business.facebook.com/settings/security`).
-2. Click **Start Verification** under Business Verification.
-3. Submit official company registration certificate, utility bill/bank statement matching the business name, and verify domain ownership via DNS TXT record.
-4. Business verification approval typically takes 1–3 business days.
+While the five permissions have Standard Access only, only users with a role
+on the app (admin, developer, tester) can connect their Pages and publish. To
+let any workspace administrator connect a Page, Meta requires App Review for
+Advanced Access, which requires Business Verification (step 5).
 
-### 3.2 Create the Meta Developer App
-1. Go to **Meta for Developers** (`https://developers.facebook.com/apps/`).
-2. Click **Create App**.
-3. Select **Other** -> Next -> Select **Business** as the app type -> Next.
-4. Fill in:
-   - **App Name**: `Spool Hub` (or workspace brand).
-   - **App Contact Email**: Owner contact email.
-   - **Business Account**: Select the verified Business Portfolio from §3.1.
-5. Click **Create App**.
-
-### 3.3 Add Products and Configure OAuth
-1. In the App Dashboard, locate **Facebook Login for Business** and click **Set Up**.
-2. Go to **Facebook Login for Business** -> **Settings**:
-   - Enable **Client OAuth Login**: Yes.
-   - Enable **Web OAuth Login**: Yes.
-   - Add all four Authorized Redirect URIs listed in §1.1.
-   - Save Changes.
-3. In the App Dashboard, click **Add Product** and locate **Instagram Graph API** -> click **Set Up**.
-
-### 3.4 Store Credentials in Secret Manager
-Piped straight into Secret Manager without echoing or printing:
-
-```bash
-# Example for prd
-printf '%s' "$FACEBOOK_CLIENT_SECRET" | gcloud secrets versions add csi-spl-hub-marketing-facebook-client-secret \
-  --project=csi-spl-prd \
-  --account=$GCP_ACCOUNT \
-  --data-file=-
-```
-
-Verify storage integrity using SHA256 checksum comparison:
-```bash
-gcloud secrets versions access latest --secret=csi-spl-hub-marketing-facebook-client-secret --project=csi-spl-prd --account=$GCP_ACCOUNT | sha256sum
-```
-
----
-
-## 4. Meta App Review Submission Package
-
-While in **Development Mode**, only users with developer, tester, or admin roles on the app can connect their Pages and publish. To allow any workspace administrator to connect their Pages, Meta requires formal **App Review**.
-
-### 4.1 Permissions to Request in App Review
+### 4.1 Permissions to request
 Under **App Review** -> **Permissions and Features**, request Advanced Access for:
 
 1. **`pages_show_list`**:
@@ -117,7 +106,7 @@ Under **App Review** -> **Permissions and Features**, request Advanced Access fo
 5. **`instagram_content_publish`**:
    - *Justification*: "Enables Spool Hub to create media containers and publish approved photo announcements and carousels to the user's Instagram Professional feed."
 
-### 4.2 Video Screencast Requirements
+### 4.2 Video screencast requirements
 Meta requires a 2–3 minute video demonstrating the end-to-end user experience. The screencast must show:
 1. The user navigating to Spool Hub workspace settings.
 2. Clicking "Connect Facebook & Instagram" and logging in through Meta's OAuth dialog.
@@ -127,7 +116,7 @@ Meta requires a 2–3 minute video demonstrating the end-to-end user experience.
 6. The human user clicking "Approve & Publish".
 7. Switching to Facebook and Instagram in a live browser to show the published post appearing on the Page and Profile feeds.
 
-### 4.3 Test User Credentials for Meta Reviewers
+### 4.3 Test user credentials for Meta reviewers
 - Create a Test User in **App Dashboard** -> **Roles** -> **Test Users**.
 - Create a test Facebook Page owned by that test user.
 - Provide the test user login credentials and detailed reproduction instructions in the App Review submission notes.
@@ -137,7 +126,7 @@ Meta requires a 2–3 minute video demonstrating the end-to-end user experience.
 
 ---
 
-## 5. Token Renewal and Error Handling
+## 5. Token renewal and error handling
 
 1. **Long-Lived User Tokens**: Last ~60 days. The hub checks expiration daily. If within 7 days of expiry, the hub queues an in-app and email reminder to the delegating member with a 1-click renewal link.
 2. **Page Access Tokens**: Derived from long-lived user tokens, Page Access Tokens do not expire unless revoked.
@@ -145,4 +134,4 @@ Meta requires a 2–3 minute video demonstrating the end-to-end user experience.
    - If an API call fails with Meta OAuth error `OAuthException` (code `190`, subcode `458`, `460`, `463`, or `467`), the hub marks the channel status as `expired` in `marketing_channels` and logs an audit event.
    - The user is notified in WUI with a direct link to reconnect.
 
-<!-- version: 0.5.1 · updated: 2026-10-26 · last-edit: 2026-10-26T12:48:00Z -->
+<!-- version: 0.6.0 · updated: 2026-10-29 · last-edit: 2026-10-29T03:34:54Z -->

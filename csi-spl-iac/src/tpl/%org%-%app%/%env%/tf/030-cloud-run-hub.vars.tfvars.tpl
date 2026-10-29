@@ -76,6 +76,14 @@ files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | 
 {%- if (mkt_li.get("inject", "false") | string | lower) == "true" %}
 {%- set _ = run_sec.update(mkt_sec) %}
 {%- endif %}
+{#- spec 090 T030 (SPL-4164): Page + Instagram publishing reuses the sign-in
+    Meta app: its id and its secret slot (already in auth_secret_ids, so no
+    new slot), only while marketing.facebook.inject is "true" #}
+{%- set mkt_fb = marketing["facebook"] if (marketing is defined and marketing["facebook"] is defined) else {} %}
+{%- if (mkt_fb.get("inject", "false") | string | lower) == "true" %}
+{%- set _ = run_env.update({"SPOOL_HUB_MARKETING_FACEBOOK_APP_ID": auth_env["SPOOL_HUB_AUTH_FACEBOOK_CLIENT_ID"], "SPOOL_HUB_MARKETING_FACEBOOK_API_VERSION": mkt_fb["api_version"], "SPOOL_HUB_MARKETING_FACEBOOK_SCOPES": mkt_fb["scopes"]}) %}
+{%- set _ = run_sec.update({"SPOOL_HUB_MARKETING_FACEBOOK_CLIENT_SECRET": mkt_fb["client_secret_secret"]}) %}
+{%- endif %}
 {#- spec 090 T006 (SPL-1634): the KMS key that seals LinkedIn member tokens
     (step 055), as its full CryptoKey name, only while marketing.kms_key.inject
     is "true" (055 applied, the hub SA holds encrypterDecrypter on it) #}

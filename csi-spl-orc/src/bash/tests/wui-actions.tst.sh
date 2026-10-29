@@ -33,6 +33,10 @@ spa_ln=$(grep -n '"source": "\*\*", "destination"' "$R" | sed -n 1p | cut -d: -f
 li_ln=$(grep -n '"/api/v1/marketing/linkedin/callback"' "$R" | sed -n 1p | cut -d: -f1)
 [[ -n "$li_ln" && -n "$spa_ln" && "$li_ln" -lt "$spa_ln" ]] \
   && pass "render: linkedin callback rewrite precedes the SPA fallback" || fail "render: linkedin callback rewrite missing or after '**'"
+# spec 090 T030 (SPL-4164): the Meta connect callback, same shape as LinkedIn's
+fb_ln=$(grep -n '"/api/v1/marketing/facebook/callback"' "$R" | sed -n 1p | cut -d: -f1)
+[[ -n "$fb_ln" && -n "$spa_ln" && "$fb_ln" -lt "$spa_ln" ]] \
+  && pass "render: facebook callback rewrite precedes the SPA fallback" || fail "render: facebook callback rewrite missing or after '**'"
 [[ -f "$APP_ROOT/csi-spl-wui/package.json" ]] && pass "csi-spl-wui/package.json exists" || fail "missing WUI package.json"
 grep -q '"@pinia/nuxt"' "$APP_ROOT/csi-spl-wui/package.json" && pass "WUI depends on Pinia" || fail "Pinia missing"
 grep -q 'nuxt generate' "$APP_ROOT/csi-spl-wui/package.json" && pass "WUI has generate script" || fail "generate script"

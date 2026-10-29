@@ -21,8 +21,9 @@ import (
 // Instagram Professional accounts (spec 090 T032, SPL-3875; spec.md §16,
 // §21): the token exchange, the Page list, a Page post and the Instagram
 // container -> poll -> publish flow. It is not wired to a route yet (T033,
-// T034); no real Meta app exists until the owner creates it
-// (meta-app-setup.md), so it is tested only against an httptest fake.
+// T034). It uses the existing sign-in Meta app (spec 049): the owner adds the
+// Page + Instagram products and permissions to that app (meta-app-setup.md,
+// T030); until then it is tested only against an httptest fake.
 //
 // Tokens: every token-bearing call sends the token in the Authorization
 // header (never in a URL) with appsecret_proof, and the app secret goes in a

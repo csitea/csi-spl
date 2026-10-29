@@ -40,7 +40,8 @@ for env in dev prd; do
   rnb_inject=$(yq -r '.env.hub.release_note_bans.inject // "false"' "$CNF/$env.env.json")
   mkt_inject=$(yq -r '.env.marketing.linkedin.inject // "false"' "$CNF/$env.env.json")
   gh_inject=$(yq -r '.env.docs.repo_edit.inject // "false"' "$CNF/$env.env.json")
-  inv=$(python3 - "$envline" "$secline" "$wui_inject" "$rnb_inject" "$mkt_inject" "$gh_inject" <<'PY'
+  fb_inject=$(yq -r '.env.marketing.facebook.inject // "false"' "$CNF/$env.env.json")
+  inv=$(python3 - "$envline" "$secline" "$wui_inject" "$rnb_inject" "$mkt_inject" "$gh_inject" "$fb_inject" <<'PY'
 import json, sys
 env = json.loads(sys.argv[1].split("=", 1)[1]); sec = set(json.loads(sys.argv[2].split("=", 1)[1]))
 listed = [p.strip().upper() for p in env.get("SPOOL_HUB_AUTH_PROVIDERS", "").split(",") if p.strip()]
@@ -56,6 +57,8 @@ if env.get("SPOOL_HUB_PAYMENT_PROVIDER") == "stripe": want |= {"SPOOL_HUB_STRIPE
 if env.get("SPOOL_HUB_ENABLE_PAYPAL") == "true": want.add("SPOOL_HUB_PAYPAL_CLIENT_SECRET")
 # spec 075 repo-edit: the GitHub App key only while docs.repo_edit.inject is "true"
 if sys.argv[6] == "true": want.add("SPOOL_GITHUB_APP_KEY")
+# spec 090 T030: the reused sign-in Meta secret only while marketing.facebook.inject is "true"
+if sys.argv[7] == "true": want.add("SPOOL_HUB_MARKETING_FACEBOOK_CLIENT_SECRET")
 print("ok" if sec == want else f"injected {sorted(sec)} != expected {sorted(want)}")
 PY
 )

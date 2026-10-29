@@ -301,6 +301,9 @@ doc = {
       # WUI origin (cmd/spool/hub_marketing.go linkedInCallbackPath). Without
       # it the SPA fallback answers "The page does not exist".
       {"source": "/api/v1/marketing/linkedin/callback", "run": {"serviceId": service, "region": region}},
+      # spec 090 T030 (SPL-4164): the Meta (Facebook Page + Instagram) connect
+      # callback of T033, registered on the WUI origin like LinkedIn's.
+      {"source": "/api/v1/marketing/facebook/callback", "run": {"serviceId": service, "region": region}},
       # spec 006 checkout-v1 §1 (the bare prefix for POST /api/v1/checkout)
       {"source": "/api/v1/checkout", "run": {"serviceId": service, "region": region}},
       {"source": "/api/v1/checkout/**", "run": {"serviceId": service, "region": region}},

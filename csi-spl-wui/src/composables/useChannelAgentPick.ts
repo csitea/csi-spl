@@ -24,15 +24,17 @@ interface AgentPickOpts {
   fallback: Ref<ReturnType<typeof channelFallbackLine>>
 }
 
-export function useChannelAgentPick(o: AgentPickOpts) {
-  const { api, channelId, busy, canAdd, error, agents, chosenAgent, agentQuery, fallback } = o
+// An agent row's label: its id, then its box when it has one.
+function agentLabel(row: unknown) {
+  if (!row || typeof row !== 'object') return ''
+  const r = row as { id?: string, box?: string }
+  if (!r.id) return ''
+  return r.box ? `${r.id} ${r.box}` : r.id
+}
 
-  function agentLabel(row: unknown) {
-    if (!row || typeof row !== 'object') return ''
-    const r = row as { id?: string, box?: string }
-    if (!r.id) return ''
-    return r.box ? `${r.id} ${r.box}` : r.id
-  }
+// The query input, the choice and the remove: the steps that edit the list.
+function agentEditSteps(o: AgentPickOpts) {
+  const { api, channelId, busy, canAdd, error, agents, chosenAgent, agentQuery } = o
 
   function onAgentQuery(ev: Event) {
     const el = ev.target
@@ -42,16 +44,6 @@ export function useChannelAgentPick(o: AgentPickOpts) {
   function onChooseAgent(row: ChosenAgent | null) {
     chosenAgent.value = row
     agentQuery.value = ''
-  }
-
-  async function addChosenAgent() {
-    const row = chosenAgent.value
-    if (!row || busy.value || !canAdd.value) return
-    await pickAgent(row)
-    if (agents.value.some((a) => a.id === row.id && a.box === row.box)) {
-      chosenAgent.value = null
-      agentQuery.value = ''
-    }
   }
 
   async function removeAgent(row: { id: string, box: string }) {
@@ -65,6 +57,23 @@ export function useChannelAgentPick(o: AgentPickOpts) {
       error.value = inviteErrorToken(e)
     } finally {
       busy.value = false
+    }
+  }
+
+  return { onAgentQuery, onChooseAgent, removeAgent }
+}
+
+// The add, the pick and the refresh: the steps that ask the hub for a new row.
+function agentAddSteps(o: AgentPickOpts) {
+  const { api, channelId, busy, canAdd, error, agents, chosenAgent, agentQuery, fallback } = o
+
+  async function addChosenAgent() {
+    const row = chosenAgent.value
+    if (!row || busy.value || !canAdd.value) return
+    await pickAgent(row)
+    if (agents.value.some((a) => a.id === row.id && a.box === row.box)) {
+      chosenAgent.value = null
+      agentQuery.value = ''
     }
   }
 
@@ -98,5 +107,11 @@ export function useChannelAgentPick(o: AgentPickOpts) {
     }
   }
 
+  return { addChosenAgent, refreshAgentState, pickAgent }
+}
+
+export function useChannelAgentPick(o: AgentPickOpts) {
+  const { onAgentQuery, onChooseAgent, removeAgent } = agentEditSteps(o)
+  const { addChosenAgent, refreshAgentState, pickAgent } = agentAddSteps(o)
   return { agentLabel, onAgentQuery, onChooseAgent, addChosenAgent, removeAgent, refreshAgentState, pickAgent }
 }

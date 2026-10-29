@@ -43,7 +43,6 @@ const LONG = new Map([
   ['src/composables/useCardMove.ts useCardMove', 80],
   ['src/composables/useCardReactions.ts useCardReactions', 76],
   ['src/composables/useCardTopicActions.ts useCardMessageActions', 80],
-  ['src/composables/useChannelAgentPick.ts useChannelAgentPick', 76],
   ['src/composables/useChannelPersonPick.ts useChannelPersonPick', 76],
   ['src/composables/useDocPictures.ts useDocPictures', 79],
   ['src/composables/useDragReorder.ts useDragReorder', 80],

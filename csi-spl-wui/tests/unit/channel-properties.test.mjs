@@ -561,4 +561,42 @@ describe('the agent pick', async () => {
     assert.deepEqual(calls, [])
     assert.equal(fn.agentLabel({ id: 'CLE-1', box: 'box-a' }), 'CLE-1 box-a')
   })
+
+  // r39-01: the hub refuses the add with a token.
+  const refusing = () => {
+    const s = setup()
+    const api = {
+      addChannelAgent: async (...a) => {
+        s.calls.push(['add', ...a])
+        throw Object.assign(new Error('x'), { token: 'not_allowed' })
+      },
+    }
+    return { ...s, fn: useChannelAgentPick({ api, channelId: () => 'one', ...s.r }) }
+  }
+
+  it('a refused add keeps the chosen agent and the query', async () => {
+    const { r, fn } = refusing()
+    r.chosenAgent.value = { id: 'CLE-9', box: 'box-z', key: 'CLE-9@box-z' }
+    r.agentQuery.value = 'cle'
+    await fn.addChosenAgent()
+    assert.deepEqual(r.chosenAgent.value, { id: 'CLE-9', box: 'box-z', key: 'CLE-9@box-z' })
+    assert.equal(r.agentQuery.value, 'cle')
+  })
+
+  it('a refused pick shows the hub token and adds no row', async () => {
+    const { calls, r, fn } = refusing()
+    await fn.pickAgent({ id: 'CLE-9', box: 'box-z' })
+    assert.equal(r.error.value, 'not_allowed')
+    assert.deepEqual(r.agents.value, [{ id: 'CLE-2', box: 'box-b' }])
+    assert.deepEqual(calls, [['add', 'one', 'CLE-9', 'box-z']])
+    assert.equal(r.busy.value, false)
+  })
+
+  it('a pick while busy sends nothing', async () => {
+    const { calls, r, fn } = setup()
+    r.busy.value = true
+    await fn.pickAgent({ id: 'CLE-9', box: 'box-z' })
+    assert.deepEqual(calls, [])
+    assert.deepEqual(r.agents.value, [{ id: 'CLE-2', box: 'box-b' }])
+  })
 })

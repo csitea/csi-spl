@@ -74,7 +74,7 @@ func (s *Server) handleMergeMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := s.o.Now()
-	src, keep, pub, ok := s.mergePair(w, r, t.ID, hum, from, srcID, keepID, now)
+	src, keep, pub, ok := s.mergePair(w, r, mergeIDs{tenant: t.ID, hum: hum, from: from, src: srcID, keep: keepID}, now)
 	if !ok {
 		return
 	}
@@ -143,17 +143,23 @@ func readMergeRequest(w http.ResponseWriter, r *http.Request) (srcID, keepID str
 	return srcID, keepID, true
 }
 
+// mergeIDs names one merge: the tenant, the caller (its human and editor
+// ids) and the two messages, the source that goes and the row it is kept in.
+type mergeIDs struct {
+	tenant, hum, from, src, keep string
+}
+
 // mergePair reads both rows and applies the merge's refusals in order: one
 // thread, one author, the caller may change it, both browser-authored and
 // re-signable, and the source is not a topic's card. It answers the key to
 // re-sign the kept row with (nil when it was never signed); false has
 // written the refusal.
-func (s *Server) mergePair(w http.ResponseWriter, r *http.Request, tenant, hum, from, srcID, keepID string,
+func (s *Server) mergePair(w http.ResponseWriter, r *http.Request, ids mergeIDs,
 	now time.Time) (src, keep store.EditableMessage, pub ed25519.PublicKey, ok bool) {
-	if src, ok = s.mergeRow(w, r, tenant, srcID, now); !ok {
+	if src, ok = s.mergeRow(w, r, ids.tenant, ids.src, now); !ok {
 		return src, keep, nil, false
 	}
-	if keep, ok = s.mergeRow(w, r, tenant, keepID, now); !ok {
+	if keep, ok = s.mergeRow(w, r, ids.tenant, ids.keep, now); !ok {
 		return src, keep, nil, false
 	}
 	if src.TaskID != keep.TaskID {
@@ -164,7 +170,7 @@ func (s *Server) mergePair(w http.ResponseWriter, r *http.Request, tenant, hum, 
 		writeErr(w, http.StatusConflict, "not_same_author", "only two messages of one author can be merged")
 		return src, keep, nil, false
 	}
-	if !s.mayChangeTopic(r.Context(), tenant, hum, from, src.FromID) {
+	if !s.mayChangeTopic(r.Context(), ids.tenant, ids.hum, ids.from, src.FromID) {
 		writeErr(w, http.StatusForbidden, "not_allowed", "only the author, the tenant owner or an admin may merge these messages")
 		return src, keep, nil, false
 	}
@@ -173,7 +179,7 @@ func (s *Server) mergePair(w http.ResponseWriter, r *http.Request, tenant, hum, 
 		writeErr(w, http.StatusConflict, "not_editable", "a box-signed message can only be edited by its box")
 		return src, keep, nil, false
 	}
-	if !s.mergeSourceNotCard(w, r, tenant, src, now) {
+	if !s.mergeSourceNotCard(w, r, ids.tenant, src, now) {
 		return src, keep, nil, false
 	}
 	if keep.EnvSig == "" {

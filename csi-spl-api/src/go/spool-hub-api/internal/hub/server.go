@@ -229,6 +229,10 @@ type Options struct {
 	// Gcal connects a member's own Google Calendar (spec 149 B5, SPL-3208,
 	// gcal_connect.go); nil = off: every /v1/me/google-calendar route is 404.
 	Gcal *GcalConnect
+	// ContactsWorkspaces is the contacts kill switch (spec 154 2.9, cnf
+	// contacts.workspaces): workspace ids, or the one entry "all"; empty = off,
+	// every /v1/me/contacts route answers 404 (contacts.go).
+	ContactsWorkspaces []string
 	// DemoMaxStay is how long a demo seat lasts (specs/077 FR-005,
 	// demo_stay.go); <= 0 = store.DefaultDemoMaxStay. GET /v1/demo shows it
 	// and the stay sweep gives a seat admitted before T009 that end.
@@ -522,6 +526,7 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	// spec 143 T025: POST /v1/operator/deploys, operator_deploys.go
 	s.routeOperatorDeploys(mux)
 	s.routeReportingReleases(mux) // spec 143 T020/T021: /v1/reporting/releases/{daily,commits}
+	s.routeContacts(mux)          // spec 154 B3: /v1/me/contacts*, contacts.go
 }
 
 // handleVersion is public, like /healthz: the deploy acceptance check (T037),
@@ -654,6 +659,7 @@ func (s *Server) RunSweeper(ctx context.Context, interval time.Duration) {
 			s.sweepFileStreams(ctx)    // spec 160 3.7 row B6, rdb 0237: 7-day lines, the workspace caps
 			s.sweepHours(ctx)          // spec 107 4.2: hours freeze + 45-day minutes
 			s.sweepEmbedRetention(ctx) // specs/121 4.4: visitor channels, 30 days after the last message
+			s.SweepContacts(ctx)       // spec 154 2.6 B3: soft-deleted contacts, 30 days
 			s.PostPublicNotices(ctx)   // rdb 0173: a tenant made outside the hub gets its notice
 			s.PostIssueBacklogs(ctx)   // rdb 0194: a relink to a tenant's backlog topic
 		}

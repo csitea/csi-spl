@@ -110,6 +110,9 @@ type meBody struct {
 	// decide whether a topic card's menu offers Archive. It rides the cached
 	// tenant row, so it costs no extra round trip (TestRoundTripsPerRequest).
 	TopicArchivePolicy string `json:"topic_archive_policy,omitempty"`
+	// Contacts is the contacts switch for this workspace (spec 154 2.9,
+	// W5): a cnf lookup, no query (TestRoundTripsPerRequest).
+	Contacts bool `json:"contacts"`
 }
 
 // actAsMe is the act-as state of a clone session (specs/054).
@@ -127,7 +130,7 @@ func (s *Server) handleViewMe(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	out := meBody{TenantID: t.ID}
+	out := meBody{TenantID: t.ID, Contacts: s.contactsListed(t.ID)}
 	if hum != "" {
 		a, err := s.access(r.Context(), hum, t.ID)
 		if err != nil {

@@ -5612,6 +5612,416 @@
         ]
       }
     },
+    "/v1/me/contacts": {
+      "delete": {
+        "description": "Erases the person's whole list in Spool only (?scope=spool, else 400 scope_required); the person's Google contacts sync is switched off first. Spec 154 B3. Human session only: 403 person_only under act-as, for an agent and a box token; 404 not_found in a workspace outside cnf contacts.workspaces (SPOOL_HUB_CONTACTS_WORKSPACES).",
+        "operationId": "eraseMeContacts",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "scope",
+            "required": true,
+            "schema": {
+              "enum": [
+                "spool"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 4."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Erase all my contacts",
+        "tags": [
+          "me"
+        ]
+      },
+      "get": {
+        "description": "A page of the person's own contacts, the same list in every workspace; q matches each word as a prefix of a name or the email, or digits of the phone. Spec 154 B3. Human session only: 403 person_only under act-as, for an agent and a box token; 404 not_found in a workspace outside cnf contacts.workspaces (SPOOL_HUB_CONTACTS_WORKSPACES).",
+        "operationId": "listMeContacts",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: {contacts: [contact], next}, next null on the last page; a contact: {contact_id, first_name, last_name, email, phone, google, member_id, created_at, updated_at}; email and phone null when unset, member_id null until row B6. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 4."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "List my contacts",
+        "tags": [
+          "me"
+        ]
+      },
+      "post": {
+        "description": "A new contact of the four values; at least one is needed (400 contact_empty), bad_email and bad_phone on a bad value. Spec 154 B3. Human session only: 403 person_only under act-as, for an agent and a box token; 404 not_found in a workspace outside cnf contacts.workspaces (SPOOL_HUB_CONTACTS_WORKSPACES).",
+        "operationId": "createMeContact",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  },
+                  "first_name": {
+                    "type": "string"
+                  },
+                  "last_name": {
+                    "type": "string"
+                  },
+                  "phone": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "description": "first_name, last_name, email, phone",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Created: a contact: {contact_id, first_name, last_name, email, phone, google, member_id, created_at, updated_at}; email and phone null when unset, member_id null until row B6. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 4."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Add a contact",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/me/contacts/export": {
+      "get": {
+        "description": "The person's contacts as CSV, header first_name,last_name,email,phone,google_resource, Content-Disposition attachment. Spec 154 B3. Human session only: 403 person_only under act-as, for an agent and a box token; 404 not_found in a workspace outside cnf contacts.workspaces (SPOOL_HUB_CONTACTS_WORKSPACES).",
+        "operationId": "exportMeContacts",
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK: text/csv. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 4."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Export my contacts",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/me/contacts/sync": {
+      "post": {
+        "description": "Marks the person's contacts sync binding in this workspace due now. Spec 154 B3. Human session only: 403 person_only under act-as, for an agent and a box token; 404 not_found in a workspace outside cnf contacts.workspaces (SPOOL_HUB_CONTACTS_WORKSPACES).",
+        "operationId": "syncMeContactsNow",
+        "responses": {
+          "202": {
+            "description": "Accepted. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 4."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Conflict: gcal_not_connected (no enabled binding here), sync_in_progress (a cycle holds the lease). Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 4."
+          }
+        },
+        "summary": "Sync my contacts now",
+        "tags": [
+          "me"
+        ]
+      },
+      "put": {
+        "description": "The Contacts switch of the person's Google connection in the session's workspace; one binding per person. Spec 154 B3. Human session only: 403 person_only under act-as, for an agent and a box token; 404 not_found in a workspace outside cnf contacts.workspaces (SPOOL_HUB_CONTACTS_WORKSPACES).",
+        "operationId": "setMeContactsSync",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "enabled"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "{enabled}",
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 4."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Conflict: gcal_not_connected (no Google connection here), contacts_sync_elsewhere (the sync is on in another of the person's workspaces). Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 4."
+          }
+        },
+        "summary": "Switch the Google contacts sync",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/v1/me/contacts/{id}": {
+      "delete": {
+        "description": "Removes the contact from every read at once; it is kept as a soft delete while its Google delete is still to be sent. Spec 154 B3. Human session only: 403 person_only under act-as, for an agent and a box token; 404 not_found in a workspace outside cnf contacts.workspaces (SPOOL_HUB_CONTACTS_WORKSPACES).",
+        "operationId": "deleteMeContact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 4."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Delete a contact",
+        "tags": [
+          "me"
+        ]
+      },
+      "get": {
+        "description": "One of the person's contacts; another person's id is 404. Spec 154 B3. Human session only: 403 person_only under act-as, for an agent and a box token; 404 not_found in a workspace outside cnf contacts.workspaces (SPOOL_HUB_CONTACTS_WORKSPACES).",
+        "operationId": "getMeContact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: a contact: {contact_id, first_name, last_name, email, phone, google, member_id, created_at, updated_at}; email and phone null when unset, member_id null until row B6. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 4."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Get a contact",
+        "tags": [
+          "me"
+        ]
+      },
+      "patch": {
+        "description": "The fields sent; an empty string clears one; 400 contact_empty when none of the four is left. Spec 154 B3. Human session only: 403 person_only under act-as, for an agent and a box token; 404 not_found in a workspace outside cnf contacts.workspaces (SPOOL_HUB_CONTACTS_WORKSPACES).",
+        "operationId": "patchMeContact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  },
+                  "first_name": {
+                    "type": "string"
+                  },
+                  "last_name": {
+                    "type": "string"
+                  },
+                  "phone": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "description": "the fields to change",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: a contact: {contact_id, first_name, last_name, email, phone, google, member_id, created_at, updated_at}; email and phone null when unset, member_id null until row B6. Contract: csi-spl-doc/specs/154-contacts-section/spec.md section 4."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Change a contact",
+        "tags": [
+          "me"
+        ]
+      }
+    },
     "/v1/me/google-calendar": {
       "delete": {
         "operationId": "deleteMeGoogleCalendar",

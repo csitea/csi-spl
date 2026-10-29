@@ -691,15 +691,16 @@ func topicAccessRead(tenant, task string, now time.Time, a *TopicAccess) tenantR
 			COALESCE(array_agg(DISTINCT from_id) FILTER (WHERE channel IS NULL), '{}')
 				|| COALESCE(array_agg(DISTINCT to_id) FILTER (WHERE channel IS NULL), '{}'),
 			COALESCE(array_agg(DISTINCT from_box) FILTER (WHERE from_box <> ''), '{}')
-				|| COALESCE(array_agg(DISTINCT to_box) FILTER (WHERE to_box <> ''), '{}')
+				|| COALESCE(array_agg(DISTINCT to_box) FILTER (WHERE to_box <> ''), '{}'),
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = $2::uuid), ` + topicPriorityDefaultSQL + `)
 		FROM messages WHERE tenant_id = $1 AND task_id = $2::uuid AND expires_at > $3`,
 		args: []any{tenant, task, now}, each: func(rows pgx.Rows) error {
 			var chans, ends, boxes []string
-			var n int
-			if err := rows.Scan(&n, &chans, &ends, &boxes); err != nil || n == 0 {
+			var n, prio int
+			if err := rows.Scan(&n, &chans, &ends, &boxes, &prio); err != nil || n == 0 {
 				return err
 			}
-			a.Found, a.Channels = true, chans
+			a.Found, a.Channels, a.Priority = true, chans, prio
 			sort.Strings(boxes)
 			for i, b := range boxes {
 				if i == 0 || b != boxes[i-1] {

@@ -1384,7 +1384,17 @@
     "col_id": "Klaidos id",
     "col_route": "Puslapis",
     "signed_out": "Prisijunkite, kad pamatytumėte savo įvykių žurnalą.",
-    "load_failed": "Įvykių žurnalo nepavyko perskaityti."
+    "load_failed": "Įvykių žurnalo nepavyko perskaityti.",
+    "col_select": "Pasirinkti",
+    "select_row": "Pasirinkti įrašą {id}",
+    "select_page": "Pasirinkti visus rodomus",
+    "bulk_label": "Pasirinkti įrašai",
+    "selected_count": "Pasirinkta: {n}",
+    "delete_selected": "Ištrinti pasirinktus",
+    "clear_selection": "Išvalyti pasirinkimą",
+    "delete_confirm_title": "Ištrinti pasirinktus įrašus ({n})?",
+    "delete_confirm_body": "To negalima atšaukti.",
+    "delete_failed": "Nepavyko ištrinti pasirinktų įrašų."
   },
   "snackbar": {
     "dismiss": "Atmesti",

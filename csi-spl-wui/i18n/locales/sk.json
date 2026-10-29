@@ -1384,7 +1384,17 @@
     "col_id": "Id. chyby",
     "col_route": "Stránka",
     "signed_out": "Prihláste sa, aby ste videli svoj denník udalostí.",
-    "load_failed": "Denník udalostí sa nepodarilo načítať."
+    "load_failed": "Denník udalostí sa nepodarilo načítať.",
+    "col_select": "Vybrať",
+    "select_row": "Vybrať záznam {id}",
+    "select_page": "Vybrať všetky zobrazené",
+    "bulk_label": "Vybrané záznamy",
+    "selected_count": "Vybrané: {n}",
+    "delete_selected": "Odstrániť vybrané",
+    "clear_selection": "Zrušiť výber",
+    "delete_confirm_title": "Odstrániť vybrané záznamy ({n})?",
+    "delete_confirm_body": "Túto akciu nie je možné vrátiť.",
+    "delete_failed": "Vybrané záznamy sa nepodarilo odstrániť."
   },
   "snackbar": {
     "dismiss": "Zavrieť",

@@ -1655,6 +1655,7 @@ declare module '~/utils/event-log.mjs' {
     list(opts?: { limit?: number, before?: number }): Promise<EventsClientResult>
     add(events: unknown[]): Promise<EventsClientResult>
     clear(): Promise<EventsClientResult>
+    delete(ids: number[]): Promise<EventsClientResult>
   }
   export function createEventShipper(opts: {
     client: ReturnType<typeof createEventsClient>
@@ -1674,6 +1675,16 @@ declare module '~/utils/event-log.mjs' {
     journal: { getErrors: () => unknown[], subscribeErrors: (fn: (r: unknown[]) => void) => () => void },
   ): () => void
   export function eventsErrorKey(error: string): string
+}
+
+declare module '~/utils/event-delete.mjs' {
+  /** Spec 162 B7: Delete selected, one POST /delete per EVENTS_DELETE_MAX ids. */
+  export const EVENTS_DELETE_MAX: number
+  export function deleteEventIds(
+    client: { delete: (ids: number[]) => Promise<{ ok: boolean, error: string }> },
+    ids: Array<number | string>,
+  ): Promise<{ ok: boolean, done: number[], error: string }>
+  export function eventsDeleteErrorKey(error: string): string
 }
 
 declare module '~/utils/issue-discussions.mjs' {

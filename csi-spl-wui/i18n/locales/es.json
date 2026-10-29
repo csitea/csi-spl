@@ -1384,7 +1384,17 @@
     "col_id": "Id. de error",
     "col_route": "Página",
     "signed_out": "Inicia sesión para ver tu registro de eventos.",
-    "load_failed": "No se pudo leer el registro de eventos."
+    "load_failed": "No se pudo leer el registro de eventos.",
+    "col_select": "Seleccionar",
+    "select_row": "Seleccionar la entrada {id}",
+    "select_page": "Seleccionar todas las mostradas",
+    "bulk_label": "Entradas seleccionadas",
+    "selected_count": "Seleccionadas: {n}",
+    "delete_selected": "Eliminar seleccionadas",
+    "clear_selection": "Borrar selección",
+    "delete_confirm_title": "¿Eliminar las entradas seleccionadas ({n})?",
+    "delete_confirm_body": "Esto no se puede deshacer.",
+    "delete_failed": "No se pudieron eliminar las entradas seleccionadas."
   },
   "snackbar": {
     "dismiss": "Cerrar",

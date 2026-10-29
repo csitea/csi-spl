@@ -1384,7 +1384,17 @@
     "col_id": "Id. błędu",
     "col_route": "Strona",
     "signed_out": "Zaloguj się, aby zobaczyć swój dziennik zdarzeń.",
-    "load_failed": "Nie można odczytać dziennika zdarzeń."
+    "load_failed": "Nie można odczytać dziennika zdarzeń.",
+    "col_select": "Zaznacz",
+    "select_row": "Zaznacz wpis {id}",
+    "select_page": "Zaznacz wszystkie pokazane",
+    "bulk_label": "Zaznaczone wpisy",
+    "selected_count": "Zaznaczono: {n}",
+    "delete_selected": "Usuń zaznaczone",
+    "clear_selection": "Wyczyść zaznaczenie",
+    "delete_confirm_title": "Usunąć zaznaczone wpisy ({n})?",
+    "delete_confirm_body": "Tej operacji nie można cofnąć.",
+    "delete_failed": "Nie udało się usunąć zaznaczonych wpisów."
   },
   "snackbar": {
     "dismiss": "Zamknij",

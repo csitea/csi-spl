@@ -45,6 +45,8 @@ import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 import { importTs } from '../unit/lib/load-ts.mjs'
 import { EVENT_COLUMNS } from '../../src/utils/event-sheet.mjs'
+/* spec 162 B7: each row also carries its select box, the first cell */
+const EVENT_CELLS = EVENT_COLUMNS.length + 1
 const { wireRailOrder } = await importTs('src/utils/rail-order.ts')
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
@@ -394,10 +396,10 @@ async function checkPages(browser, base, vp) {
           }
         })
         if (vp.w <= 600) {
-          const same = m.cells.length === EVENT_COLUMNS.length && m.cells.every((c) => c.x === m.cells[0].x && c.w === m.cells[0].w)
+          const same = m.cells.length === EVENT_CELLS && m.cells.every((c) => c.x === m.cells[0].x && c.w === m.cells[0].w)
           ok(`${tag} /events: one card per event, every value on its own line with its label`, same && m.cells.every((c) => c.label && c.label !== 'none') && m.wrapScroll <= 0, m)
         } else {
-          ok(`${tag} CONTROL: /events stays a table above 600 px`, m.cells.length === EVENT_COLUMNS.length && new Set(m.cells.map((c) => c.x)).size === EVENT_COLUMNS.length, m)
+          ok(`${tag} CONTROL: /events stays a table above 600 px`, m.cells.length === EVENT_CELLS && new Set(m.cells.map((c) => c.x)).size === EVENT_CELLS, m)
         }
       }
     }

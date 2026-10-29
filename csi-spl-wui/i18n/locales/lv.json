@@ -1384,7 +1384,17 @@
     "col_id": "Kļūdas id",
     "col_route": "Lapa",
     "signed_out": "Pierakstieties, lai skatītu savu notikumu žurnālu.",
-    "load_failed": "Notikumu žurnālu neizdevās nolasīt."
+    "load_failed": "Notikumu žurnālu neizdevās nolasīt.",
+    "col_select": "Atlasīt",
+    "select_row": "Atlasīt ierakstu {id}",
+    "select_page": "Atlasīt visus parādītos",
+    "bulk_label": "Atlasītie ieraksti",
+    "selected_count": "Atlasīti: {n}",
+    "delete_selected": "Dzēst atlasītos",
+    "clear_selection": "Notīrīt atlasi",
+    "delete_confirm_title": "Vai dzēst atlasītos ierakstus ({n})?",
+    "delete_confirm_body": "To nevar atsaukt.",
+    "delete_failed": "Atlasītos ierakstus neizdevās izdzēst."
   },
   "snackbar": {
     "dismiss": "Aizvērt",

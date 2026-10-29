@@ -1384,7 +1384,17 @@
     "col_id": "מזהה שגיאה",
     "col_route": "עמוד",
     "signed_out": "היכנס כדי לראות את יומן האירועים שלך.",
-    "load_failed": "לא ניתן היה לקרוא את יומן האירועים."
+    "load_failed": "לא ניתן היה לקרוא את יומן האירועים.",
+    "col_select": "בחירה",
+    "select_row": "בחר את הרשומה {id}",
+    "select_page": "בחר את כל המוצגות",
+    "bulk_label": "רשומות שנבחרו",
+    "selected_count": "נבחרו: {n}",
+    "delete_selected": "מחק את הנבחרות",
+    "clear_selection": "נקה את הבחירה",
+    "delete_confirm_title": "למחוק את הרשומות שנבחרו ({n})?",
+    "delete_confirm_body": "לא ניתן לבטל פעולה זו.",
+    "delete_failed": "לא ניתן היה למחוק את הרשומות שנבחרו."
   },
   "snackbar": {
     "dismiss": "סגור",

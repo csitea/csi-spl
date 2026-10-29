@@ -18,6 +18,7 @@ import {
   eventsErrorKey,
   toEventPayload,
 } from '../../src/utils/event-log.mjs'
+import { EVENTS_DELETE_MAX, deleteEventIds, eventsDeleteErrorKey } from '../../src/utils/event-delete.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 
@@ -94,6 +95,52 @@ describe('createEventsClient', () => {
   it('maps errors to i18n keys', () => {
     assert.equal(eventsErrorKey('unauthenticated'), 'events.signed_out')
     assert.equal(eventsErrorKey('network'), 'events.load_failed')
+    assert.equal(eventsDeleteErrorKey('unauthenticated'), 'events.signed_out')
+    assert.equal(eventsDeleteErrorKey('bad_request'), 'events.delete_failed')
+  })
+})
+
+/* spec 162 B7: Delete selected, one POST /delete per EVENTS_DELETE_MAX ids */
+describe('deleteEventIds', () => {
+  it('POSTs the named ids to /delete, credentialed', async () => {
+    const f = fakeFetch([{ status: 200, body: { deleted: 3 } }])
+    const c = createEventsClient({ fetchFn: f.fn, base: 'https://api.example.test' })
+    const r = await deleteEventIds(c, [12, '9', 5])
+    assert.deepEqual(r, { ok: true, done: [12, 9, 5], error: '' })
+    assert.equal(f.calls.length, 1)
+    assert.equal(f.calls[0].url, 'https://api.example.test/api/v1/auth/events/delete')
+    assert.equal(f.calls[0].init.method, 'POST')
+    assert.equal(f.calls[0].init.credentials, 'include')
+    assert.deepEqual(f.calls[0].body, { ids: [12, 9, 5] })
+  })
+  it('splits 450 ids into calls of 200, 200 and 50, in order', async () => {
+    const f = fakeFetch([{ status: 200, body: { deleted: 200 } }])
+    const ids = Array.from({ length: 450 }, (_, i) => i + 1)
+    const r = await deleteEventIds(createEventsClient({ fetchFn: f.fn }), ids)
+    assert.equal(EVENTS_DELETE_MAX, 200)
+    assert.deepEqual(f.calls.map((x) => x.body.ids.length), [200, 200, 50])
+    assert.deepEqual(f.calls.flatMap((x) => x.body.ids), ids)
+    assert.equal(r.ok, true)
+    assert.equal(r.done.length, 450)
+  })
+  it('stops at a failed call: its ids and the rest are not done', async () => {
+    const f = fakeFetch([{ status: 200, body: { deleted: 200 } }, { status: 503, body: { error: 'unavailable' } }])
+    const ids = Array.from({ length: 450 }, (_, i) => i + 1)
+    const r = await deleteEventIds(createEventsClient({ fetchFn: f.fn }), ids)
+    assert.equal(f.calls.length, 2)
+    assert.equal(r.ok, false)
+    assert.equal(r.error, 'unavailable')
+    assert.deepEqual(r.done, ids.slice(0, 200))
+  })
+  it('drops ids that are not positive integers and sends nothing for none', async () => {
+    const f = fakeFetch([{ status: 200, body: { deleted: 0 } }])
+    const r = await deleteEventIds(createEventsClient({ fetchFn: f.fn }), ['x', 0, -3, 1.5])
+    assert.deepEqual(r, { ok: true, done: [], error: '' })
+    assert.equal(f.calls.length, 0)
+  })
+  it('never throws: a transport failure is error network, nothing done', async () => {
+    const r = await deleteEventIds(createEventsClient({ fetchFn: fakeFetch(['throw']).fn }), [1, 2])
+    assert.deepEqual(r, { ok: false, done: [], error: 'network' })
   })
 })
 

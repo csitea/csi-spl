@@ -1384,7 +1384,17 @@
     "col_id": "Virhetunnus",
     "col_route": "Sivu",
     "signed_out": "Kirjaudu sisään nähdäksesi tapahtumalokisi.",
-    "load_failed": "Tapahtumalokia ei voitu lukea."
+    "load_failed": "Tapahtumalokia ei voitu lukea.",
+    "col_select": "Valitse",
+    "select_row": "Valitse merkintä {id}",
+    "select_page": "Valitse kaikki näytetyt",
+    "bulk_label": "Valitut merkinnät",
+    "selected_count": "Valittu: {n}",
+    "delete_selected": "Poista valitut",
+    "clear_selection": "Tyhjennä valinta",
+    "delete_confirm_title": "Poistetaanko valitut merkinnät ({n})?",
+    "delete_confirm_body": "Tätä ei voi perua.",
+    "delete_failed": "Valittuja merkintöjä ei voitu poistaa."
   },
   "snackbar": {
     "dismiss": "Sulje",

@@ -1384,7 +1384,17 @@
     "col_id": "Veakood",
     "col_route": "Leht",
     "signed_out": "Logi sisse, et näha oma sündmuste logi.",
-    "load_failed": "Sündmuste logi ei õnnestunud lugeda."
+    "load_failed": "Sündmuste logi ei õnnestunud lugeda.",
+    "col_select": "Vali",
+    "select_row": "Vali kirje {id}",
+    "select_page": "Vali kõik näidatud",
+    "bulk_label": "Valitud kirjed",
+    "selected_count": "Valitud: {n}",
+    "delete_selected": "Kustuta valitud",
+    "clear_selection": "Tühjenda valik",
+    "delete_confirm_title": "Kas kustutada valitud kirjed ({n})?",
+    "delete_confirm_body": "Seda ei saa tagasi võtta.",
+    "delete_failed": "Valitud kirjeid ei õnnestunud kustutada."
   },
   "snackbar": {
     "dismiss": "Sulge",

@@ -1384,7 +1384,17 @@
     "col_id": "Ід. помилки",
     "col_route": "Сторінка",
     "signed_out": "Увійдіть, щоб побачити журнал подій.",
-    "load_failed": "Журнал подій не вдалося прочитати."
+    "load_failed": "Журнал подій не вдалося прочитати.",
+    "col_select": "Вибір",
+    "select_row": "Вибрати запис {id}",
+    "select_page": "Вибрати всі показані",
+    "bulk_label": "Вибрані записи",
+    "selected_count": "Вибрано: {n}",
+    "delete_selected": "Видалити вибрані",
+    "clear_selection": "Зняти вибір",
+    "delete_confirm_title": "Видалити вибрані записи ({n})?",
+    "delete_confirm_body": "Цю дію не можна скасувати.",
+    "delete_failed": "Не вдалося видалити вибрані записи."
   },
   "snackbar": {
     "dismiss": "Закрити",

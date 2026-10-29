@@ -8,7 +8,7 @@
 //
 // Two halves, both pure (no Vue, no DOM), executed by the unit suite:
 //
-//   createEventsClient  events-v1 over fetch: list / add / clear. Every call
+//   createEventsClient  events-v1 over fetch: list / add / clear / delete. Every call
 //                       resolves (never throws) to { ok, status, data, error,
 //                       retryAfter }, the human-keys client's shape.
 //   createEventShipper  batches journal records to POST /api/v1/auth/events
@@ -178,6 +178,8 @@ export function createEventsClient({ fetchFn = globalThis.fetch, base = '' } = {
     /** @param {object[]} events wire-form events (toEventPayload) */
     add: (events) => call('', { method: 'POST', body: JSON.stringify({ events: Array.isArray(events) ? events : [] }) }),
     clear: () => call('/clear', { method: 'POST', body: '{}' }),
+    /** Spec 162 B2: the caller's rows named in ids (1..EVENTS_DELETE_MAX). */
+    delete: (ids) => call('/delete', { method: 'POST', body: JSON.stringify({ ids: Array.isArray(ids) ? ids : [] }) }),
   }
 }
 

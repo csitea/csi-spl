@@ -1384,7 +1384,17 @@
     "col_id": "Fout-id",
     "col_route": "Pagina",
     "signed_out": "Meld je aan om je gebeurtenissenlogboek te zien.",
-    "load_failed": "Het gebeurtenissenlogboek kon niet worden gelezen."
+    "load_failed": "Het gebeurtenissenlogboek kon niet worden gelezen.",
+    "col_select": "Selecteren",
+    "select_row": "Item {id} selecteren",
+    "select_page": "Alle getoonde selecteren",
+    "bulk_label": "Geselecteerde items",
+    "selected_count": "Geselecteerd: {n}",
+    "delete_selected": "Geselecteerde verwijderen",
+    "clear_selection": "Selectie wissen",
+    "delete_confirm_title": "De geselecteerde items ({n}) verwijderen?",
+    "delete_confirm_body": "Dit kan niet ongedaan worden gemaakt.",
+    "delete_failed": "De geselecteerde items konden niet worden verwijderd."
   },
   "snackbar": {
     "dismiss": "Sluiten",

@@ -12,7 +12,13 @@
      would hide it. Clear log still clears the whole personal log.
 
      Spec 162 B1: the request and code columns (E1), When as ISO 8601 with
-     seconds and the viewer's offset (E7), and Clear log asks first (E2). -->
+     seconds and the viewer's offset (E7), and Clear log asks first (E2).
+
+     Spec 162 B7 (E5): a box per row and a page box, Gmail-style, with the
+     Issues list's pure selection (utils/issues-bulk.ts). The selection holds
+     row ids, survives sort and filter, and drops ids no longer held. With a
+     row checked EventsBulkBar takes the head actions' place; Delete selected
+     asks first, one POST /delete per 200 ids (utils/event-delete.mjs). -->
 <template>
   <div class="monitoring-events" data-test="events-page">
     <!-- a desktop's Clear log sits in the Monitoring header row, top right,
@@ -20,15 +26,24 @@
          bottom centre, below); client only: the prerendered tab has no rows -->
     <ClientOnly>
       <Teleport to="#monitoring-head-actions" defer>
+        <LazyEventsBulkBar
+          v-if="signedIn && !phone && bulkOn"
+          :count="selected.length"
+          :page-state="bulkPage"
+          :busy="busy"
+          @toggle-page="togglePage"
+          @delete="onDeleteSelected"
+          @clear="clearSelection"
+        />
         <button
-          v-if="signedIn && !phone && filtersOn"
+          v-else-if="signedIn && !phone && filtersOn"
           type="button"
           class="btn ghost"
           data-test="events-filter-clear"
           @click="clearFilters"
         >{{ t('issues.filter_clear') }}</button>
         <button
-          v-if="signedIn && rows.length && !phone"
+          v-if="signedIn && rows.length && !phone && !bulkOn"
           type="button"
           class="btn"
           data-test="events-clear"
@@ -44,6 +59,15 @@
       <p v-else-if="loading" class="muted" data-test="events-loading">{{ t('common.loading') }}</p>
       <p v-else-if="!rows.length" class="muted" data-test="events-empty">{{ t('events.empty') }}</p>
       <div v-else class="events-table-wrap">
+        <LazyEventsBulkBar
+          v-if="phone && bulkOn"
+          :count="selected.length"
+          :page-state="bulkPage"
+          :busy="busy"
+          @toggle-page="togglePage"
+          @delete="onDeleteSelected"
+          @clear="clearSelection"
+        />
         <div v-if="phone" class="events-mbar" data-test="events-mbar">
           <span class="events-mbar__sorted muted" data-test="events-sorted-by" :data-sort="sort.col" :title="sortWords">{{ t('issues_mobile.sorted_by', { sort: sortWords }) }}</span>
           <button type="button" class="btn ghost events-mbar__btn" data-test="events-sort-open" :aria-label="t('issues_mobile.sort')" :title="t('issues_mobile.sort')" aria-haspopup="dialog" @click="openSort">
@@ -57,6 +81,18 @@
         <table class="events-table" data-test="events-table">
           <thead :data-test="phone ? undefined : 'events-filters'">
             <tr>
+              <th scope="col" class="events-check-h">
+                <input
+                  ref="pageBoxEl"
+                  type="checkbox"
+                  class="events-check__box"
+                  data-test="events-select-page"
+                  :checked="bulkPage === 'all'"
+                  :aria-label="t('events.select_page')"
+                  :title="t('events.select_page')"
+                  @click="togglePage"
+                >
+              </th>
               <th v-for="c in EVENT_COLUMNS" :key="c.col" scope="col" :aria-sort="phone ? undefined : ariaSort(c.col)">
                 <button
                   v-if="!phone"
@@ -70,6 +106,7 @@
               </th>
             </tr>
             <tr v-if="!phone" class="events-frow">
+              <th class="events-check-h" />
               <th v-for="c in EVENT_COLUMNS" :key="'f-' + c.col" class="events-filter-h">
                 <input
                   v-if="c.kind === 'text'"
@@ -94,6 +131,16 @@
           </thead>
           <tbody>
             <tr v-for="r in view" :id="r.id > 0 ? String(r.id) : undefined" :key="r.id" data-test="events-row" :class="{ 'events-row--focus': route.hash === '#' + r.id }">
+              <td class="events-check" :data-label="t('events.col_select')">
+                <input
+                  type="checkbox"
+                  class="events-check__box"
+                  data-test="events-row-check"
+                  :checked="selSet.has(String(r.id))"
+                  :aria-label="t('events.select_row', { id: r.error_id || String(r.id) })"
+                  @click="onCheck(r, $event)"
+                >
+              </td>
               <td dir="ltr" :data-label="t('events.col_when')"><time :datetime="utcOf(r) || undefined" :title="utcOf(r) || undefined" data-test="events-when">{{ whenOf(r) }}</time></td>
               <td :data-label="t('events.col_id')"><code dir="ltr">{{ r.error_id }}</code></td>
               <td dir="ltr" :data-label="t('events.col_source')">{{ r.source }}</td>
@@ -121,7 +168,7 @@
       <div v-if="phone && signedIn && rows.length" class="events-clear-room" aria-hidden="true" />
     </div>
     <button
-      v-if="phone && signedIn && rows.length"
+      v-if="phone && signedIn && rows.length && !bulkOn"
       type="button"
       class="btn events-clear--phone"
       data-test="events-clear"
@@ -142,6 +189,20 @@
     >
       <p>{{ t('events.clear_confirm_body', { n: rows.length }) }}</p>
       <p v-if="nextBefore" data-testid="events-clear-confirm-older">{{ t('events.clear_confirm_older') }}</p>
+    </UiConfirm>
+    <UiConfirm
+      v-if="deleteOpen"
+      :open="deleteOpen"
+      :title="t('events.delete_confirm_title', { n: selected.length })"
+      testid="events-delete-confirm"
+      :confirm-label="t('events.delete_selected')"
+      :busy-label="t('events.delete_selected')"
+      :busy="busy"
+      :error="deleteError ? t(deleteError) : ''"
+      @update:open="deleteOpen = $event"
+      @confirm="onConfirmDelete"
+    >
+      <p>{{ t('events.delete_confirm_body') }}</p>
     </UiConfirm>
     <template v-if="phone && (filtersOpen || sortOpen)">
       <div class="events-sheet-scrim" data-test="events-sheet-scrim" @pointerdown.stop @click="closeSheets" />
@@ -203,6 +264,8 @@
 <script setup lang="ts">
 import { useSessionStore } from '~/stores/session'
 import { createEventsClient, eventsErrorKey } from '~/utils/event-log.mjs'
+import { deleteEventIds, eventsDeleteErrorKey } from '~/utils/event-delete.mjs'
+import { keepShown, pageState, rangeSelect, toggleAll, toggleKey } from '~/utils/issues-bulk'
 import { isoDateTimeOffset } from '~/utils/date-iso-offset.mjs'
 import { formatIsoTs } from '~/utils/channel-feed.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
@@ -316,6 +379,66 @@ function choicesFor(field: string): string[] {
   return presentValues(rows.value, field)
 }
 
+/* Spec 162 B7 (E5): the selection is row ids as text, in the order checked.
+   Sort and filter keep it; a row the page no longer holds leaves it. */
+const selected = ref<string[]>([])
+const selSet = computed(() => new Set(selected.value))
+const bulkOn = computed(() => selected.value.length > 0)
+const viewIds = computed(() => view.value.map((r) => String(r.id)))
+const bulkPage = computed(() => pageState(selected.value, viewIds.value))
+const pageBoxEl = ref<HTMLInputElement | null>(null)
+const deleteOpen = ref(false)
+const deleteError = ref('')
+let checkAnchor = ''
+watchEffect(() => { if (pageBoxEl.value) pageBoxEl.value.indeterminate = bulkPage.value === 'some' })
+watch(rows, (list) => {
+  const next = keepShown(selected.value, list.map((r) => String(r.id)))
+  if (next !== selected.value) selected.value = next
+})
+
+/* a shift-click checks (or unchecks) the run from the last row clicked, in
+   the order shown */
+function onCheck(r: EventRow, ev: MouseEvent) {
+  const id = String(r.id)
+  const on = !selSet.value.has(id)
+  selected.value = ev.shiftKey && checkAnchor
+    ? rangeSelect(selected.value, viewIds.value, checkAnchor, id, on)
+    : toggleKey(selected.value, id, on)
+  checkAnchor = id
+}
+function togglePage() {
+  selected.value = toggleAll(selected.value, viewIds.value)
+}
+function clearSelection() {
+  selected.value = []
+  checkAnchor = ''
+}
+
+function onDeleteSelected() {
+  if (!signedIn.value || busy.value || !bulkOn.value) return
+  deleteError.value = ''
+  deleteOpen.value = true
+}
+
+/* the rows leave on the hub's answer; a failure is a sentence in the
+   confirm and its rows stay */
+async function onConfirmDelete() {
+  if (!signedIn.value || busy.value || !bulkOn.value) return
+  busy.value = true
+  deleteError.value = ''
+  const res = await deleteEventIds(client, selected.value)
+  busy.value = false
+  if (res.done.length) {
+    const gone = new Set(res.done)
+    rows.value = rows.value.filter((r) => !gone.has(r.id))
+  }
+  if (!res.ok) {
+    deleteError.value = eventsDeleteErrorKey(res.error)
+    return
+  }
+  deleteOpen.value = false
+}
+
 async function load(before = 0, append = false) {
   if (!signedIn.value) {
     rows.value = []
@@ -378,6 +501,7 @@ watch(() => session.state, (st) => {
     nextBefore.value = 0
     loadError.value = ''
     clearOpen.value = false
+    deleteOpen.value = false
     resetSheet()
   }
 }, { immediate: true })
@@ -455,6 +579,16 @@ watch(() => route.hash, () => revealEvent())
 /* the code cell: the code, then the error name on a second line */
 .events-code { display: flex; flex-direction: column; min-width: 0; }
 .events-code__name { color: var(--color-muted); }
+/* spec 162 B7: the box column, before When */
+.events-check-h,
+.events-table td.events-check { width: 2.25rem; }
+.events-check__box {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
 .events-table-wrap .btn { margin-top: 0.75rem; }
 .events-sort-h {
   display: inline-flex;
@@ -669,5 +803,8 @@ watch(() => route.hash, () => revealEvent())
   }
   .events-table-wrap { overflow-x: visible; }
   .events-table-wrap .btn { min-height: var(--tap, 44px); }
+  /* the card's box row spans the card; a bigger box for a thumb */
+  .events-table td.events-check { width: auto; align-items: center; }
+  .events-check__box { width: 24px; height: 24px; }
 }
 </style>

@@ -22,6 +22,12 @@
 //   8 spec 162 C5: Clear log asks first; Cancel keeps every row and sends no
 //     POST, OK clears (control C6: an onClear without the confirm POSTs at
 //     the first tap and fails here)
+//   9 spec 162 C24: check 3 rows, shift-click the row 5 below the third -> 8
+//     checked, the bar replaces Clear log; the selection survives a sort and
+//     a filter; Delete selected asks first (Cancel sends nothing), OK POSTs
+//     /delete with exactly those 8 ids and they leave, the other 4 stay
+//     (control C25: a Delete selected that sends the page's ids removes the
+//     unchecked rows and fails here)
 // Control: the bundle of origin/master a1d2ced73 fails 1, 2, 3 and 4 on both
 // viewports (an Events rail tab, no Events tab in Monitoring, /events stays).
 //
@@ -95,6 +101,8 @@ function answer(req) {
 }
 
 let clears = 0
+/* spec 162 C24: the ids of every POST /api/v1/auth/events/delete */
+const deletes = []
 async function open(browser, base, vp, path) {
   const p = await browser.newPage()
   p.setDefaultNavigationTimeout(NAV_TIMEOUT)
@@ -107,6 +115,13 @@ async function open(browser, base, vp, path) {
     if (req.method() === 'POST' && new URL(req.url()).pathname === '/api/v1/auth/events/clear') {
       clears++
       req.respond(json(200, { ok: true })).catch(() => {})
+      return
+    }
+    if (req.method() === 'POST' && new URL(req.url()).pathname === '/api/v1/auth/events/delete') {
+      let ids = []
+      try { ids = JSON.parse(req.postData() || '{}').ids || [] } catch { /* recorded as none */ }
+      deletes.push(ids)
+      req.respond(json(200, { deleted: ids.length })).catch(() => {})
       return
     }
     const a = answer(req)
@@ -215,6 +230,73 @@ async function check(browser, base, vp, name) {
     await p.close()
   }
   await checkSheet(browser, base, vp, name)
+  await checkSelect(browser, base, vp, name)
+}
+
+/* spec 162 C24 + C25: what is checked, and what the bar shows */
+const picked = (p) => p.evaluate(() => ({
+  checked: [...document.querySelectorAll('[data-test=events-row]')]
+    .filter((r) => r.querySelector('[data-test=events-row-check]')?.checked).map((r) => r.id),
+  count: document.querySelector('[data-test=events-bulk-bar]')?.getAttribute('data-count') || '',
+  clear: Boolean(document.querySelector('[data-test=events-clear]')),
+}))
+/* a click on row <id>'s box, with or without shift */
+const tickRow = (p, id, shift = false) => p.evaluate((rid, sh) => {
+  const box = document.getElementById(rid)?.querySelector('[data-test=events-row-check]')
+  if (!box) throw new Error('no box on row ' + rid)
+  box.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: sh }))
+}, String(id), shift)
+
+async function checkSelect(browser, base, vp, name) {
+  const phone = vp.mobile
+  const p = await open(browser, base, vp, '/monitoring/events')
+  try {
+    await settle(p)
+    for (const id of [12, 11, 10]) { await tickRow(p, id); await sleep(150) }
+    await tickRow(p, 5, true)
+    await p.waitForSelector('[data-test=events-bulk-bar]', { visible: true, timeout: 8000 })
+    await sleep(300)
+    const want = ['12', '11', '10', '9', '8', '7', '6', '5']
+    const s1 = await picked(p)
+    await shot(p, `${name}-select`)
+    ok(`${name}: 9 three checks and a shift-click 5 below the third -> 8 checked`, s1.checked.join(',') === want.join(',') && s1.count === '8', s1)
+    ok(`${name}: 9 the bar takes Clear log's place`, !s1.clear, s1)
+    await openSortSheet(p, phone)
+    await clickSortMessage(p)
+    if (phone) { await click(p, '[data-test=events-sheet-scrim]'); await sleep(200) }
+    await openFilterSheet(p, phone)
+    await setField(p, '[data-test=events-filter-source]', 'api')
+    if (phone) { await click(p, '[data-test=events-sheet-scrim]'); await sleep(200) }
+    const sf = await picked(p)
+    ok(`${name}: 9 the selection survives a sort and a filter`, sf.count === '8', sf)
+    /* the head's Clear filters gives way to the bar on the desktop: empty the field */
+    await openFilterSheet(p, phone)
+    await setField(p, '[data-test=events-filter-source]', '')
+    if (phone) { await click(p, '[data-test=events-sheet-scrim]'); await sleep(200) }
+    await sleep(300)
+    const before = deletes.length
+    await click(p, '[data-test=events-bulk-delete]')
+    const asked = Boolean(await p.waitForSelector('[data-testid=events-delete-confirm-confirm]', { visible: true, timeout: 5000 }).catch(() => null))
+    ok(`${name}: 9 Delete selected asks first and sends no POST`, asked && deletes.length === before, { asked, posts: deletes.length - before })
+    await click(p, '[data-testid=events-delete-confirm-cancel]')
+    await sleep(400)
+    const sc = await seen(p)
+    ok(`${name}: 9 Cancel keeps every row and sends no POST`, sc.rows === 12 && deletes.length === before, { rows: sc.rows, posts: deletes.length - before })
+    await click(p, '[data-test=events-bulk-delete]')
+    await p.waitForSelector('[data-testid=events-delete-confirm-confirm]', { visible: true, timeout: 5000 })
+    await click(p, '[data-testid=events-delete-confirm-confirm]')
+    await p.waitForFunction(() => document.querySelectorAll('[data-test=events-row]').length < 12, { timeout: 8000 }).catch(() => {})
+    await sleep(400)
+    const sent = (deletes[before] || []).map(String).sort()
+    const left = await rowIds(p)
+    const s2 = await picked(p)
+    ok(`${name}: 9 OK POSTs /delete once with exactly the 8 checked ids`, deletes.length === before + 1 && sent.join(',') === [...want].sort().join(','), { posts: deletes.length - before, sent })
+    ok(`${name}: 9 those 8 leave, the 4 unchecked stay, nothing stays checked`, [...left].sort().join(',') === '1,2,3,4' && s2.count === '' && s2.clear, { left, s2 })
+  } catch (e) {
+    ok(`${name}: select and delete ran`, false, String(e && e.message || e))
+  } finally {
+    await p.close()
+  }
 }
 
 async function confirmShown(p) {
@@ -245,7 +327,8 @@ async function checkRow(p, phone, name) {
   ok(`${name}: 7 the request cell reads POST /v1/x`, r.reqVisible && r.request === 'POST /v1/x', r)
   ok(`${name}: 7 the code cell reads bad_request, then TypeError below`, r.codes.join('|') === 'bad_request|TypeError' && r.codeLines[1] > r.codeLines[0], r)
   if (phone) ok(`${name}: 7 the phone card labels Request and Code`, r.reqLabel === 'Request' && r.codeLabel === 'Code', r)
-  else ok(`${name}: 7 the desktop head has Request and Code after Status`, r.head.slice(3, 6).join('|') === 'Status|Request|Code', r.head)
+  /* spec 162 B7: the box column comes first */
+  else ok(`${name}: 7 the desktop head has Request and Code after Status`, r.head.slice(4, 7).join('|') === 'Status|Request|Code', r.head)
   ok(`${name}: 7 When reads ISO 8601 with seconds and offset, the hover the Z instant`,
     /^2026-10-24 \d{2}:00:00[+-]\d{2}:\d{2}$/.test(r.when) && r.hover === '2026-10-24T08:00:00Z', { when: r.when, hover: r.hover })
 }

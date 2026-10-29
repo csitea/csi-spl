@@ -1384,7 +1384,17 @@
     "col_id": "Fel-id",
     "col_route": "Sida",
     "signed_out": "Logga in för att se din händelselogg.",
-    "load_failed": "Händelseloggen kunde inte läsas."
+    "load_failed": "Händelseloggen kunde inte läsas.",
+    "col_select": "Markera",
+    "select_row": "Markera post {id}",
+    "select_page": "Markera alla som visas",
+    "bulk_label": "Markerade poster",
+    "selected_count": "Markerade: {n}",
+    "delete_selected": "Ta bort markerade",
+    "clear_selection": "Rensa markering",
+    "delete_confirm_title": "Ta bort de markerade posterna ({n})?",
+    "delete_confirm_body": "Det går inte att ångra.",
+    "delete_failed": "De markerade posterna kunde inte tas bort."
   },
   "snackbar": {
     "dismiss": "Stäng",

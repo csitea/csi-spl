@@ -1384,7 +1384,17 @@
     "col_id": "Hata kimliği",
     "col_route": "Sayfa",
     "signed_out": "Olay günlüğünüzü görmek için oturum açın.",
-    "load_failed": "Olay günlüğü okunamadı."
+    "load_failed": "Olay günlüğü okunamadı.",
+    "col_select": "Seç",
+    "select_row": "{id} kaydını seç",
+    "select_page": "Gösterilenlerin tümünü seç",
+    "bulk_label": "Seçili kayıtlar",
+    "selected_count": "Seçili: {n}",
+    "delete_selected": "Seçilenleri sil",
+    "clear_selection": "Seçimi temizle",
+    "delete_confirm_title": "Seçili kayıtlar ({n}) silinsin mi?",
+    "delete_confirm_body": "Bu işlem geri alınamaz.",
+    "delete_failed": "Seçili kayıtlar silinemedi."
   },
   "snackbar": {
     "dismiss": "Kapat",

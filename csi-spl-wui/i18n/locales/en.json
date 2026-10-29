@@ -1384,7 +1384,17 @@
     "col_id": "Error id",
     "col_route": "Page",
     "signed_out": "Sign in to see your event log.",
-    "load_failed": "The event log could not be read."
+    "load_failed": "The event log could not be read.",
+    "col_select": "Select",
+    "select_row": "Select entry {id}",
+    "select_page": "Select all shown",
+    "bulk_label": "Selected entries",
+    "selected_count": "Selected: {n}",
+    "delete_selected": "Delete selected",
+    "clear_selection": "Clear selection",
+    "delete_confirm_title": "Delete {n} entries?",
+    "delete_confirm_body": "This cannot be undone.",
+    "delete_failed": "The selected entries could not be deleted."
   },
   "snackbar": {
     "dismiss": "Dismiss",

@@ -1384,7 +1384,17 @@
     "col_id": "Id. eroare",
     "col_route": "Pagină",
     "signed_out": "Autentifică-te pentru a-ți vedea jurnalul de evenimente.",
-    "load_failed": "Jurnalul de evenimente nu a putut fi citit."
+    "load_failed": "Jurnalul de evenimente nu a putut fi citit.",
+    "col_select": "Selectare",
+    "select_row": "Selectează intrarea {id}",
+    "select_page": "Selectează toate cele afișate",
+    "bulk_label": "Intrări selectate",
+    "selected_count": "Selectate: {n}",
+    "delete_selected": "Șterge selectate",
+    "clear_selection": "Golește selecția",
+    "delete_confirm_title": "Ștergi intrările selectate ({n})?",
+    "delete_confirm_body": "Acțiunea nu poate fi anulată.",
+    "delete_failed": "Intrările selectate nu au putut fi șterse."
   },
   "snackbar": {
     "dismiss": "Închide",

@@ -475,7 +475,9 @@ out="$(lq)"
 [[ "$(pick "$out")" == box-a ]] && grep -q '^INFO box-a: claude weekly usage unknown' <<<"$out" &&
   pass "16e. a real answer newer than the limit entry (lifted) -> unknown, placed with the INFO line" || fail "16e. lifted: $out"
 rm -f "$L/q1.jsonl"
-ent "<synthetic>" "You've hit your weekly limit · resets ${RS/$(date -u -d '+2 days' +%b)/$(date -u -d '-40 days' +%b)}" 3600 >"$L/s1.jsonl"
+# a pinned past reset: the parser reads a year-less date as this year, so an
+# "N days ago" day can be invalid ("Sep 31") or land in the future (January)
+ent "<synthetic>" "You've hit your weekly limit · resets Jan 1, 12am (UTC)" 3600 >"$L/s1.jsonl"
 out="$(lq)"
 [[ "$(pick "$out")" == box-a ]] && pass "16e. a limit entry whose reset has passed -> unknown, placed" || fail "16e. reset passed: $out"
 ent "claude-x" "You've hit your weekly limit · resets $RS" 3600 >"$L/s1.jsonl"

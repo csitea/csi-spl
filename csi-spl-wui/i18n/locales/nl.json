@@ -3351,6 +3351,7 @@
       "releases": "Uitgaven",
       "sql": "SQL",
       "costs": "Kosten",
+      "marketing": "Marketingcijfers",
       "issues": "Kwesties",
       "posts": "Berichten",
       "lanes": "Banen"
@@ -3437,6 +3438,25 @@
         "admin_required": "Alleen beheerders van de werkruimte mogen query's uitvoeren",
         "query_timeout": "De query duurde langer dan 10 seconden en is gestopt",
         "other": "De query is niet uitgevoerd"
+      }
+    },
+    "marketing": {
+      "loading": "De marketingcijfers worden geladen…",
+      "forbidden": "Alleen de eigenaar van de werkruimte en de beheerders ervan zien de marketingcijfers.",
+      "error": "De marketingcijfers konden niet worden geladen.",
+      "intro": "Eén kaart per fase. De cijfers verschijnen hier zodra een bron is gekoppeld.",
+      "attribution": "Attributie: {rule}, {days} dagen",
+      "rule_last_touch": "Laatste contact",
+      "cards_label": "Marketingfasen",
+      "empty": "Nog geen cijfers",
+      "stage": {
+        "reach": "Bereik",
+        "engagement": "Betrokkenheid",
+        "acquisition": "Acquisitie",
+        "conversion": "Conversie",
+        "revenue": "Omzet",
+        "retention": "Klantbehoud",
+        "content_seo": "Inhoud / SEO"
       }
     }
   },

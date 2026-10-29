@@ -12,7 +12,12 @@
 //     (.row--even / .row--odd, two different backgrounds, spec 3.6), its
 //     NULL cells marked; a write is refused with the read-only message and
 //     no table (spec 3.2);
-//   - for a member who is not an admin the bar has no SQL tab.
+//   - for a member who is not an admin the bar has no SQL tab;
+//   - spec 163 B1 (SPL-4250, Q8): an admin's bar shows the Marketing tab;
+//     /reporting/marketing draws the seven empty stage cards in the
+//     overview's order and the Q7 attribution line (last touch, 28 days);
+//     a member's bar has no Marketing tab, and the page opened by its path
+//     shows the hub's refusal and no card.
 // RED CONTROL: a tab, a link or the table missing fails a check, and the
 // file exits 1.
 //
@@ -172,6 +177,32 @@ async function nonAdmin(p, base, tag) {
   await new Promise((r) => setTimeout(r, 500))
   const tabs = await tabIds(p)
   ok(`${tag}: a member's bar has Releases and no SQL tab`, tabs.includes('releases') && !tabs.includes('sql'), tabs)
+  ok(`${tag}: a member's bar has no Marketing tab (Q8)`, !tabs.includes('marketing'), tabs)
+  await p.goto(base + '/reporting/marketing', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  ok(`${tag}: a member on /reporting/marketing gets the refusal line`, await waitFor(p, '[data-test=reporting-marketing-forbidden]'))
+  ok(`${tag}: and no card`, (await p.$$('[data-test^=reporting-marketing-card-]')).length === 0)
+}
+
+const STAGES = ['reach', 'engagement', 'acquisition', 'conversion', 'revenue', 'retention', 'content_seo']
+
+async function marketing(p, base, tag) {
+  await p.goto(base + '/reporting/releases', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  ok(`${tag}: an admin's bar shows the Marketing tab`, await waitFor(p, '[data-test=reporting-tab-marketing]'), await tabIds(p))
+  await p.$eval('[data-test=reporting-tab-marketing]', (e) => e.scrollIntoView({ block: 'center', inline: 'center' }))
+  await p.click('[data-test=reporting-tab-marketing]')
+  ok(`${tag}: the Marketing tab opens /reporting/marketing`, await at(p, '/reporting/marketing'), pathOf(p))
+  ok(`${tag}: the stage cards render`, await waitFor(p, '[data-test=reporting-marketing-cards]'))
+  const cards = await p.$$eval('[data-test^=reporting-marketing-card-]:not([data-test=reporting-marketing-card-empty])', (els) => els.map((e) => ({
+    id: e.getAttribute('data-test').slice('reporting-marketing-card-'.length),
+    title: e.querySelector('h3')?.textContent.trim() || '',
+    empty: Boolean(e.querySelector('[data-test=reporting-marketing-card-empty]')),
+  })))
+  ok(`${tag}: seven cards in the overview's order`, JSON.stringify(cards.map((c) => c.id)) === JSON.stringify(STAGES), cards.map((c) => c.id))
+  ok(`${tag}: every card has a title and is empty`, cards.length === 7 && cards.every((c) => c.title && c.empty), cards.filter((c) => !c.title || !c.empty))
+  const line = await p.$eval('[data-test=reporting-marketing-attribution]', (e) => e.textContent.trim()).catch(() => '')
+  ok(`${tag}: the attribution line is last touch, 28 days (Q7)`, /Last touch/.test(line) && /28/.test(line), line)
+  ok(`${tag}: no sideways scroll on Marketing`, await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/reporting-marketing-${tag}.png` })
 }
 
 const server = await startServer()
@@ -184,6 +215,7 @@ try {
     await releases(p, server.base, tag)
     await cloud(p, server.base, tag)
     await sql(p, server.base, tag)
+    await marketing(p, server.base, tag)
     if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/reporting-sql-${size.width}.png` })
     await ctx.close();
     ({ ctx, p } = await reportingPage(browser, server.base, size, MEMBER))

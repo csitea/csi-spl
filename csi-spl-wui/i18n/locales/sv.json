@@ -3351,6 +3351,7 @@
       "releases": "Versioner",
       "sql": "SQL",
       "costs": "Kostnader",
+      "marketing": "Marknadsföring",
       "issues": "Ärenden",
       "posts": "Inlägg",
       "lanes": "Banor"
@@ -3437,6 +3438,25 @@
         "admin_required": "Endast arbetsytans administratörer får köra frågor",
         "query_timeout": "Frågan tog mer än 10 sekunder och stoppades",
         "other": "Frågan kördes inte"
+      }
+    },
+    "marketing": {
+      "loading": "Läser in marknadsföringssiffrorna…",
+      "forbidden": "Bara arbetsytans ägare och dess administratörer ser marknadsföringssiffrorna.",
+      "error": "Marknadsföringssiffrorna kunde inte läsas in.",
+      "intro": "Ett kort per steg. Siffrorna visas här när en källa har anslutits.",
+      "attribution": "Attribuering: {rule}, {days} dagar",
+      "rule_last_touch": "Senaste kontakt",
+      "cards_label": "Marknadsföringssteg",
+      "empty": "Inga siffror ännu",
+      "stage": {
+        "reach": "Räckvidd",
+        "engagement": "Engagemang",
+        "acquisition": "Förvärv",
+        "conversion": "Konvertering",
+        "revenue": "Intäkter",
+        "retention": "Kundlojalitet",
+        "content_seo": "Innehåll / SEO"
       }
     }
   },

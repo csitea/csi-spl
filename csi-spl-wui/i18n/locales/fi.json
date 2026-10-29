@@ -3351,6 +3351,7 @@
       "releases": "Julkaisut",
       "sql": "SQL",
       "costs": "Kulut",
+      "marketing": "Markkinointi",
       "issues": "Asiat",
       "posts": "Viestit",
       "lanes": "Kaistat"
@@ -3437,6 +3438,25 @@
         "admin_required": "Vain työtilan ylläpitäjät voivat suorittaa kyselyitä",
         "query_timeout": "Kysely kesti yli 10 sekuntia ja keskeytettiin",
         "other": "Kyselyä ei suoritettu"
+      }
+    },
+    "marketing": {
+      "loading": "Ladataan markkinoinnin lukuja…",
+      "forbidden": "Vain työtilan omistaja ja sen ylläpitäjät näkevät markkinoinnin luvut.",
+      "error": "Markkinoinnin lukuja ei voitu ladata.",
+      "intro": "Yksi kortti vaihetta kohden. Luvut näkyvät täällä, kun lähde on yhdistetty.",
+      "attribution": "Attribuutio: {rule}, {days} päivää",
+      "rule_last_touch": "Viimeinen kosketus",
+      "cards_label": "Markkinoinnin vaiheet",
+      "empty": "Ei vielä lukuja",
+      "stage": {
+        "reach": "Tavoittavuus",
+        "engagement": "Sitoutuminen",
+        "acquisition": "Hankinta",
+        "conversion": "Konversio",
+        "revenue": "Tulot",
+        "retention": "Asiakaspysyvyys",
+        "content_seo": "Sisältö / SEO"
       }
     }
   },

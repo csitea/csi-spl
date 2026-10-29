@@ -257,3 +257,62 @@ func TestViewTopicsSinceDelta(t *testing.T) {
 		}
 	}
 }
+
+// Spec 150 C308 (row B2): a topic's priority set after the cursor lists the
+// topic in a since= answer - the change kind "priority" (rdb 0214's set_at).
+// CONTROL: a set stamped before the cursor is not listed, so the step is
+// the set_at after since, not any topic_priorities row. Memory and, with
+// SPOOL_TEST_PG_DSN, Postgres.
+func TestViewTopicsSinceDeltaPriority(t *testing.T) {
+	r := newDoorRig(t)
+	tenant, _ := r.e.tenant()
+	if landed := r.signIn(t, tenant); strings.Contains(landed, "auth_error") {
+		t.Fatalf("sign-in landed on %s", landed)
+	}
+	ctx := context.Background()
+	c, _, err := websocket.Dial(ctx, "ws://"+tenant+domain+"/v1/wui/ws", &websocket.DialOptions{HTTPClient: r.browser})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.CloseNow()                                       //nolint:errcheck
+	wsjson.Write(ctx, c, map[string]string{"type": "hello"}) //nolint:errcheck
+	me := (&wuiClient{t: t, c: c}).read("welcome").As
+
+	task := map[string]string{}
+	var newest string
+	for _, k := range []string{"A", "B", "C"} {
+		task[k] = uuid4()
+		for i := 0; i < 2; i++ {
+			newest = uuid4()
+			channelFrame(t, c, newest, task[k], "feedback", fmt.Sprintf("topic %s line %d", k, i))
+			time.Sleep(2 * time.Millisecond)
+		}
+	}
+	since := viewCursor(time.Now().Add(31*time.Second), newest)
+	read := func(step string, tasks ...string) {
+		t.Helper()
+		code, _, body := r.get(t, tenant, "/v1/view/topics?channel=feedback&since="+url.QueryEscape(since))
+		var l deltaList
+		if code != http.StatusOK || json.Unmarshal([]byte(body), &l) != nil || l.Delta == nil || !*l.Delta {
+			t.Fatalf("%s: not a delta: %d %s", step, code, body)
+		}
+		if got, w := l.tasks(), sorted(tasks...); strings.Join(got, ",") != strings.Join(w, ",") {
+			t.Fatalf("%s: topics %v, want %v", step, got, w)
+		}
+	}
+	tp := r.e.st.(store.TopicPriorityStore)
+	read("quiet")
+
+	// CONTROL: a set stamped before the cursor is no change.
+	if _, err := tp.SetTopicPriority(ctx, tenant, task["A"], 2, me, time.Now().Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	read("set before the cursor")
+
+	// C308: a set after the cursor lists its topic, and only it; the task id
+	// in upper case is the same topic.
+	if _, err := tp.SetTopicPriority(ctx, tenant, strings.ToUpper(task["B"]), 1, me, time.Now().Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	read("priority set", task["B"])
+}

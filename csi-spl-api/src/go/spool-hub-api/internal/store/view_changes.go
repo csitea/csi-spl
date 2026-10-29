@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -13,8 +14,9 @@ import (
 // finds them.
 //
 // A change is anything that alters what a held row shows: a new message, an
-// edit, a kind change, a move, an archive, a reaction added - each leaves a
-// timestamp - and a reaction REMOVED, which leaves no row behind. For that
+// edit, a kind change, a move, an archive, a reaction added, a topic's
+// priority set (spec 150 row B2, rdb 0214) - each leaves a timestamp - and a
+// reaction REMOVED, which leaves no row behind. For that
 // one the browser sends the reaction count it holds per message (Held), and
 // a message whose count differs is a change.
 //
@@ -35,6 +37,9 @@ const (
 	ChangeMove    ChangeKind = "move"
 	ChangeArchive ChangeKind = "archive"
 	ChangeReact   ChangeKind = "react"
+	// ChangePriority: the topic's priority was set (topic_priorities.set_at,
+	// spec 150 3.3). It names the topic by its oldest live row.
+	ChangePriority ChangeKind = "priority"
 )
 
 // ChangeQuery asks for every change in a tenant after Since.
@@ -78,8 +83,14 @@ func (s *Memory) ViewChanges(_ context.Context, tenant string, q ChangeQuery) ([
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var out []TopicChange
+	first := map[string]bool{}                      // topics whose oldest live row was seen
 	for _, m := range s.liveLocked(tenant, q.Now) { // oldest first
-		for _, k := range s.changeKindsLocked(tenant, m, q) {
+		ks := s.changeKindsLocked(tenant, m, q)
+		if !first[m.TaskID] {
+			first[m.TaskID] = true
+			ks = append(ks, s.priorityKindLocked(tenant, m.TaskID, q)...)
+		}
+		for _, k := range ks {
 			out = append(out, TopicChange{Kind: k, MsgID: m.MsgID, TaskID: m.TaskID, Channel: m.Channel,
 				FromID: m.FromID, ToID: m.ToID, HomeChan: homeChan(m), HomeTask: m.Move.FromTask})
 		}
@@ -92,7 +103,16 @@ func (s *Memory) ViewChanges(_ context.Context, tenant string, q ChangeQuery) ([
 	return out, nil
 }
 
-var changeOrder = map[ChangeKind]int{ChangeNew: 1, ChangeEdit: 2, ChangeKindSet: 3, ChangeMove: 4, ChangeArchive: 5, ChangeReact: 6}
+var changeOrder = map[ChangeKind]int{ChangeNew: 1, ChangeEdit: 2, ChangeKindSet: 3, ChangeMove: 4, ChangeArchive: 5, ChangeReact: 6, ChangePriority: 7}
+
+// priorityKindLocked is ChangePriority when the topic's priority was set
+// after q.Since; it is asked once per topic, on its oldest live row.
+func (s *Memory) priorityKindLocked(tenant, taskID string, q ChangeQuery) []ChangeKind {
+	if p, ok := s.topicPrio[[2]string{tenant, strings.ToLower(taskID)}]; ok && p.SetAt.After(q.Since) {
+		return []ChangeKind{ChangePriority}
+	}
+	return nil
+}
 
 // changeKindsLocked lists why m is a change after q.Since.
 func (s *Memory) changeKindsLocked(tenant string, m *Message, q ChangeQuery) []ChangeKind {

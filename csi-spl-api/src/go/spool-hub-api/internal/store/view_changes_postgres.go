@@ -17,7 +17,11 @@ import (
 //     messages_archived (only moved / archived rows; "x > $2" implies the
 //     index's "x IS NOT NULL");
 //   - react: message_reactions created after since, plus each held message
-//     whose current count is not the one the caller holds (a removal).
+//     whose current count is not the one the caller holds (a removal);
+//   - priority: topic_priorities set after since (spec 150 row B2), named by
+//     the topic's oldest live row on messages_task_received. It reads the
+//     tenant's topic_priorities rows (one per topic someone set, the
+//     primary key's tenant prefix), a small table: no set_at index.
 //
 // The join keeps rows inside retention and reads where each row is now.
 const viewChangesSQL = `SELECT c.kind, m.msg_id::text, m.task_id::text, COALESCE(m.channel, ''), m.from_id, m.to_id,
@@ -35,6 +39,10 @@ const viewChangesSQL = `SELECT c.kind, m.msg_id::text, m.task_id::text, COALESCE
 			SELECT h.msg_id FROM unnest($3::uuid[], $4::bigint[]) AS h (msg_id, n)
 			WHERE h.n <> (SELECT count(*) FROM message_reactions x WHERE x.tenant_id = $1 AND x.msg_id = h.msg_id)
 		) r
+		UNION ALL SELECT 7, 'priority', (SELECT x.msg_id FROM messages x
+			WHERE x.tenant_id = $1 AND x.task_id = p.task_id AND x.expires_at > $5
+			ORDER BY x.received_at, x.msg_id LIMIT 1)
+			FROM topic_priorities p WHERE p.tenant_id = $1 AND p.set_at > $2
 	) c
 	JOIN messages m ON m.tenant_id = $1 AND m.msg_id = c.msg_id AND m.expires_at > $5
 	ORDER BY c.o, m.received_at, m.msg_id

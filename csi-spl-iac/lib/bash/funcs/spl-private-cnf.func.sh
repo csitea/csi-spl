@@ -130,6 +130,10 @@ spl_private_add() {
 #                        a DNS record name, <slug>.[dev.]<base_domain>
 #                        (spool is also the product word)
 #   each deny: entry     as written (PCRE)
+# A word boundary is a Unicode letter or digit (\p{L}\p{N}), never ASCII
+# only: after "í" a slug that ends a Spanish word is no word (SPL-4249). Run
+# them with grep -P under LC_ALL="$(spl_private_gate_locale)", or \p{L} reads
+# bytes and the accented letter is a boundary again.
 spl_private_gate_patterns() {
   local base="${1:-}" map forms slug b
   map="$(spl_private_map)" || return 1
@@ -140,10 +144,24 @@ spl_private_gate_patterns() {
     if [[ "$forms" == *" $slug "* ]]; then
       printf '%s\n' "(?i)(?:workspaces|tenants|fqdns)\\b.*[\\[,]\\s*\"?$slug\"?\\s*(?=[,\\]])" \
         "(?i)\"name\":\\s*\"$slug\""
-      [[ -n "$b" ]] && printf '%s\n' "(?i)(?<![a-z0-9-])$slug\\.(?:dev\\.)?$b"
+      [[ -n "$b" ]] && printf '%s\n' "(?i)(?<![\\p{L}\\p{N}-])$slug\\.(?:dev\\.)?$b"
     else
-      printf '%s\n' "(?i)(?<![a-z0-9])$slug(?![a-z0-9])"
+      printf '%s\n' "(?i)(?<![\\p{L}\\p{N}])$slug(?![\\p{L}\\p{N}])"
     fi
   done <<<"$map"
   spl_private_list deny
+}
+
+# spl_private_gate_locale -> a locale under which grep -P matches UTF-8
+# characters, not bytes (the gate patterns need it whatever the caller's
+# LC_ALL / LANG, e.g. C in cron or CI); non-zero when the box has none, so
+# the gate can refuse instead of sweeping bytes (SPL-4249)
+spl_private_gate_locale() {
+  local l
+  for l in C.UTF-8 C.utf8 en_US.UTF-8 en_US.utf8; do
+    # "é" is two bytes: one \p{L} only in a UTF-8 locale
+    printf '\303\251\n' | LC_ALL="$l" grep -qxP '\p{L}' 2>/dev/null && { printf '%s\n' "$l"; return 0; }
+  done
+  echo "FATAL no UTF-8 locale for grep -P (tried C.UTF-8 C.utf8 en_US.UTF-8 en_US.utf8): the hidden-workspace patterns need one (SPL-4249)" >&2
+  return 1
 }

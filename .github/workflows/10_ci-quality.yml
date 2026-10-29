@@ -1472,11 +1472,15 @@ jobs:
           # shellcheck source=/dev/null
           if [[ -f "$lib" ]] && source "$lib" && [[ -s "$(spl_private_cnf_path)" ]]; then
             base="$(sed -n 's/^ *BASE_DOMAIN: *"\{0,1\}\([^"# ]*\).*/\1/p' csi-spl-cnf/csi-spl/all.env.yaml | head -1)"
-            if pats="$(spl_private_gate_patterns "$base")" && [[ -n "$pats" ]]; then
+            if ! gate_loc="$(spl_private_gate_locale)"; then
+              echo "::error::hygiene: no UTF-8 locale for grep -P -- the hidden-workspace sweep proved nothing"; fail=1
+            elif pats="$(spl_private_gate_patterns "$base")" && [[ -n "$pats" ]]; then
               # 0051 is a forward-only migration: its sha256 is pinned in every
               # env's spool_schema_migrations, so its comment cannot change.
               skip_re='^\./csi-spl-rdb/src/sql/postgres/spool-hub/0051_tenants_sort_order\.sql$'
-              sweep "hidden workspace or private literal (SPL-1874)" "$(paste -sd'|' <<<"$pats")"
+              # SPL-4249: the word boundaries are \p{L}\p{N}; in the C locale
+              # grep -P reads bytes and "í" before a slug is a boundary again
+              LC_ALL="$gate_loc" sweep "hidden workspace or private literal (SPL-1874)" "$(paste -sd'|' <<<"$pats")"
               skip_re=''
             else
               echo "::error::hygiene: the private overlay does not parse -- the hidden-workspace sweep proved nothing"; fail=1

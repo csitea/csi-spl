@@ -13,6 +13,8 @@
 #   4. the overlay as the CI secret (SPL_PRIVATE_CNF_YAML) works the same
 #   5. no overlay: a warning on a pull request (rc 0), a FAIL on a master push
 #      (SPL_PRIVATE_REQUIRED=1) - never a silent pass
+#   6. a slug at the end of a non-ASCII word ("xí<slug>", "<slug>é") passes,
+#      the bare slug beside it is red, both from a caller in LC_ALL=C (SPL-4249)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -92,6 +94,17 @@ check SPL_PRIVATE_CNF="$T/none.yaml"; rc=$?
 check SPL_PRIVATE_CNF="$T/none.yaml" SPL_PRIVATE_REQUIRED=1; rc=$?
 [[ $rc -ne 0 ]] && grep -q '::error::hygiene: no private overlay' "$T/out" &&
   pass "5. CONTROL: no overlay on a master push FAILS, never a silent pass" || { fail "5. push rc=$rc"; sed 's/^/    | /' "$T/out"; }
+
+# --- 6. Unicode word boundary, whatever the caller's locale (SPL-4249) ----------------
+plant es.md "una lí$a y $b, ${a}é al final"
+check LC_ALL=C SPL_PRIVATE_CNF="$T/overlay.yaml"; rc=$?
+[[ $rc -eq 0 ]] && grep -q '^ok - hidden workspace' "$T/out" &&
+  pass "6. a slug inside a non-ASCII word passes under LC_ALL=C" || { fail "6. accented rc=$rc"; sed 's/^/    | /' "$T/out"; }
+plant es.md "una lí$a y el $a aquí"
+check LC_ALL=C SPL_PRIVATE_CNF="$T/overlay.yaml"; rc=$?
+[[ $rc -ne 0 ]] && grep -q '\./es\.md:1' "$T/out" &&
+  pass "6. CONTROL: the bare slug on the same line is red under LC_ALL=C" || { fail "6. bare rc=$rc"; sed 's/^/    | /' "$T/out"; }
+git -C "$T/tree" rm -q --cached es.md && rm "$T/tree/es.md"
 
 if [[ $fails -eq 0 ]]; then
   echo "PASS: all hygiene-hidden-workspaces.tst.sh assertions"

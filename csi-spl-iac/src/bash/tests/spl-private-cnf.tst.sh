@@ -12,7 +12,8 @@
 #      add appends the next placeholder, once
 #   6. gate patterns: a word slug matches as a word only; a forms_only slug
 #      matches as a workspace-list entry, a DNS record name and a tenant host,
-#      never as the plain word
+#      never as the plain word; the boundaries are Unicode letters and
+#      digits under the gate's UTF-8 locale (SPL-4249)
 #   7. the tracked cnf of this repo: every placeholder it names is a token
 #      shape the resolver knows (no stray ws-hidden-x form)
 #------------------------------------------------------------------------------
@@ -86,6 +87,17 @@ hit() { grep -qP "$alt" <<<"$1"; }
 [[ $rc -eq 0 ]] && hit 'owner zz-alpha said' && hit 'zz-gamma-utl' && hit 'a zz-delta line' && hit 'Zz-Alpha' &&
   pass "6. a word slug and a deny entry match, any case" || fail "6. word: $pats"
 ! hit 'zz-alphabet' && ! hit 'xzz-alpha' && pass "6. a word slug only as a word" || fail "6. word boundary"
+# SPL-4249: the word boundary is Unicode, under the gate's own UTF-8 locale
+# whatever the caller's (a slug that ends a Spanish word after an accented
+# letter is no hit); the run starts from LC_ALL=C on purpose
+loc=$(LC_ALL=C spl_private_gate_locale); rc=$?
+[[ $rc -eq 0 && -n "$loc" ]] && pass "6. the gate has a UTF-8 locale ($loc)" || fail "6. no gate locale rc=$rc"
+uhit() { LC_ALL="$loc" grep -qP "$alt" <<<"$1"; }
+! uhit 'xízz-alpha' && ! uhit 'zz-alphaé' && ! uhit 'Ñzz-alpha' && ! uhit 'xízz-beta.example.test' &&
+  pass "6. a slug inside a non-ASCII word is no hit" || fail "6. non-ASCII boundary"
+uhit 'zz-alpha' && uhit 'zz-alpha-dev' && uhit '"zz-alpha"' && uhit '/zz-alpha/' && uhit 'é zz-alpha é' &&
+  uhit '«zz-alpha»' && uhit 'zz-beta.example.test' &&
+  pass "6. CONTROL: the slug alone, -dev, quoted, a path, beside a non-ASCII non-letter still hit" || fail "6. unicode form too narrow"
 hit '    workspaces: [t1, zz-beta, e2e]' && hit 'additional_fqdns = ["zz-beta.example.test"]' &&
   hit '{"name": "zz-beta", "type": "A"}' && hit 'mapped_tenants: [zz-beta]' &&
   pass "6. a forms_only slug matches as a list entry, a DNS name, a tenant host" || fail "6. forms"

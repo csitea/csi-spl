@@ -1,6 +1,6 @@
 # 107 Hours tracking: suggested, approved, frozen
 
-**Feature ID**: `107-hours-tracking` · **Milestone**: M3 · **Status**: **v2.4** (2026-10-29: section 21, a human time counter per discussion, per issue and per object, and the member's own hourly price, for the Releases page; spec only, rows T071..T077 Planned) · v2.3 (2026-10-11: start and end times in `hours_entry_spans` and the database member guard, section 3.4, for spec 118 v1.1, owner msg `23d782e1`) · v2.2 (2026-10-10: owner answers Q9..Q25 folded into the FRs and design points) · v2.1 (2026-10-10: owner principle P0 at the top of section 0, msgs `4d6d200c` and `4fd07875`; owner rows R12, R13; the points that push toward exact tracing and the timer, keyword and UI-direction questions as owner questions Q9..Q25 in section 20; no FR changed) · v2.0 (2026-10-10: the business-needs gaps, sections 14..17, FR-14..FR-40; v2 panel consensus of four seats in section 18; owner Q8 = C) · v1.2 (v1.0 unanimous consensus: seats s107-1..4 agree with changes, section 12; owner questions Q1..Q7 in section 13; **v1.2: the owner moved the member UI into the calendar**, R8 and R9 in section 0, section 5)
+**Feature ID**: `107-hours-tracking` · **Milestone**: M3 · **Status**: **v2.5** (2026-10-29: owner answers Q26..Q28 = A, A, A folded into section 21, msg `ce14ad70`; spec only, rows T071..T077 Planned) · v2.4 (2026-10-29: section 21, a human time counter per discussion, per issue and per object, and the member's own hourly price, for the Releases page) · v2.3 (2026-10-11: start and end times in `hours_entry_spans` and the database member guard, section 3.4, for spec 118 v1.1, owner msg `23d782e1`) · v2.2 (2026-10-10: owner answers Q9..Q25 folded into the FRs and design points) · v2.1 (2026-10-10: owner principle P0 at the top of section 0, msgs `4d6d200c` and `4fd07875`; owner rows R12, R13; the points that push toward exact tracing and the timer, keyword and UI-direction questions as owner questions Q9..Q25 in section 20; no FR changed) · v2.0 (2026-10-10: the business-needs gaps, sections 14..17, FR-14..FR-40; v2 panel consensus of four seats in section 18; owner Q8 = C) · v1.2 (v1.0 unanimous consensus: seats s107-1..4 agree with changes, section 12; owner questions Q1..Q7 in section 13; **v1.2: the owner moved the member UI into the calendar**, R8 and R9 in section 0, section 5)
 **Created**: 2026-10-07 · **Drafter / folder**: c-522 (seat s107-1) · **Topic**: t1 `ef217164-daaa-43bb-8343-f55ddb2f53a8` · lane dispatch `dispatch-ef217164`
 **Authority**: this file for behaviour; [tasks.md](tasks.md) for what is built. Docs only: this spec builds nothing (`../README.md` §2.4). v2 input: [business-needs.md](business-needs.md) (consensus `2c6c36732`) and its seats [bn-agy](reviews/bn-agy.md) · [bn-mistral](reviews/bn-mistral.md) · [bn-claude](reviews/bn-claude.md) · [bn-claude-2](reviews/bn-claude-2.md). Status vocabulary: `../README.md` §2.3; every FR below is **Planned**.
 
@@ -906,6 +906,7 @@ Each seat signs the v2.0 sha below on the same lane.
 | 2.2 | 2026-10-10 | a-899 | owner answers Q9..Q25 (msgs 8c9b7b56..b04b30bf) folded into sections 1..6, 14..17 and FRs; Q25 includes 4 as extra |
 | 2.3 | 2026-10-11 | c-164 | section 3.4: `hours_entry_spans` (start and end times, written by the timer and the approval; plan and clock when built) and the `member_scope` guard on `hours_entries`, `hours_entry_spans`, `hours_minutes`, rdb 0176; spec 118 v1.1 Q1 A, Q2 A, Q3 A (owner msg `23d782e1`) |
 | 2.4 | 2026-10-29 | c-410 | section 21 (owner R14 msg `54d01e8c`, R15 msg `cfea214c`): a human time counter per discussion, issue and object from approved entries only (P0); the member's own hourly price; a commit's human time and money for the Releases page (spec 143 section 8); owner questions Q26..Q28; build rows T071..T077 in `tasks.md` |
+| 2.5 | 2026-10-29 | c-600 | owner answers Q26 A, Q27 A, Q28 A (HUM-10, t1 `9815e592`, poll `e9523b1f`, msg `ce14ad70`) folded into section 21: 21.4 steps 4 and 7, 21.6, 21.8 routes, 21.9 now a decided table; `tasks.md` T073..T076 cite the answers; no rule changed, every answer was the recommendation |
 
 ---
 
@@ -965,7 +966,7 @@ These mirror the questions the dispatcher c-002 already put to the owner on `dis
 
 ## 21. Addendum v2.4: a human time counter per discussion, per issue and per object, and the member's hourly price
 
-**Status: Planned, spec only.** Written on `db3ec550e` (origin/master at the start of this lane, lane issue SPL-4163, epic SPL-3036). Nothing here is built; the build rows are T071..T077 in [tasks.md](tasks.md). The data model below is a sketch: no migration file comes with this section.
+**Status: Planned, spec only.** Written on `db3ec550e` (origin/master at the start of this lane, lane issue SPL-4163, epic SPL-3036). v2.5: the owner decided Q26..Q28, all three on the recommendation (21.9, msg `ce14ad70`). Nothing here is built; the build rows are T071..T077 in [tasks.md](tasks.md). The data model below is a sketch: no migration file comes with this section.
 
 ### 21.0 The owner's words (verbatim) and what binds them
 
@@ -1043,7 +1044,7 @@ $$\text{commit} \longrightarrow \text{issue (subject scope or } \texttt{Closes:}
 1. **Which commits.** A landed commit that cites an issue key in the form that closes it (subject scope or a `Closes:` trailer, spec 135). `Refs:` and bare mentions do not count. This is the closer's rule (`do_spl_issue_close_landed`), and 143 uses it too.
 2. **Which time.** The approved minutes of every human member on the issue's topic, and on its source discussion. Both are cut to the **open window**: from the day the issue was created (`issues.created_at`, in the member's zone, 1.6) to the landing day of its last closing commit. Time on the discussion before the issue existed, or after it closed, stays on the discussion's own counter. It is not credited to the commit.
 3. **A discussion behind several issues.** If k issues name the same source discussion and their windows overlap, each overlapping day's discussion minutes are split evenly across those k issues. The issue's own topic is never split.
-4. **Several commits for one issue: day slices** (owner question Q28). Spec 143 cuts a lane's tokens into time slices between its landings (143 section 8.3.1, owner Q2 msg `51f2fff5`, which rejected the equal split). Human time has no minute stamp to cut, and P0 wants none: an entry carries only its day. So the slice is a **day**. Commit $c_j$ takes the issue's approved minutes from the day after the landing day of the previous closing commit, up to and including its own landing day. The first commit starts at the issue's creation day. Minutes after the last landing, while the window is still open, go to the last commit. Two commits that land on the same day split that day's minutes evenly. Every approved minute lands on exactly one commit, so the issue's minutes are conserved, as 143's tokens are. Kind and area labels each take the commit's full share (143's conservation rule).
+4. **Several commits for one issue: day slices** (owner Q28 A, decided, msg `ce14ad70`). Spec 143 cuts a lane's tokens into time slices between its landings (143 section 8.3.1, owner Q2 msg `51f2fff5`, which rejected the equal split). Human time has no minute stamp to cut, and P0 wants none: an entry carries only its day. So the slice is a **day**. Commit $c_j$ takes the issue's approved minutes from the day after the landing day of the previous closing commit, up to and including its own landing day. The first commit starts at the issue's creation day. Minutes after the last landing, while the window is still open, go to the last commit. Two commits that land on the same day split that day's minutes evenly. Every approved minute lands on exactly one commit, so the issue's minutes are conserved, as 143's tokens are. Kind and area labels each take the commit's full share (143's conservation rule).
 5. **Money.** For each approved entry: minutes / 60 x the member's **price in force on the entry's day** (21.5). The result is summed per commit and per day, in the price's currency. The amount is converted at that day's ECB rate (rdb 0200) to USD and to the viewer's second currency, exactly as the Costs page and 143 section 8.4 do. A day with no rate, or a member with no price, leaves that part **unpriced** (`null`), never a guess. The minutes still count.
 6. **When it is written.** A ledger row for a commit is written by the hours sweep once **every period that holds the counted days is frozen or final** for every member who booked time to the issue. Until then the commit shows `human: pending approval`. A number that could still move is never shown as final.
 7. **What the page shows** (operator view; 143 section 8.7 audience):
@@ -1051,7 +1052,7 @@ $$\text{commit} \longrightarrow \text{issue (subject scope or } \texttt{Closes:}
    - A commit with neither part keeps `[ — · untracked ]`.
    - Each label pill sums both parts: `[ feat 42 · 12.8M tok · $19.45 · 31:30 h · $2,040 ]`.
    - The coverage tooltip counts a commit as tracked when it has either part.
-   - Money columns follow owner question Q27.
+   - Money columns: only an operator admin who also holds `hours.rates` (the time-accountant role) sees the money; other operator admins see the human hours without money (owner Q27 A, decided, msg `ce14ad70`).
 
 ### 21.5 The member's hourly price (R15)
 
@@ -1068,8 +1069,8 @@ $$\text{commit} \longrightarrow \text{issue (subject scope or } \texttt{Closes:}
 | the member | their own approved minutes on each target, plus "to approve" | their own price and history; set it | as their role allows below |
 | `hours.read` (default `biz_owner`, 6.1), a foreman for their crew (FR-22) | the total summed over people; per member one click away (Q18) | no | no (Releases is an operator page) |
 | `hours.rates` (pinned to `time_accountant`, FR-20) | as `hours.read` | every member's price in the workspace, read only | no |
-| every other member | **nothing of others** by default (owner question Q26) | no | no |
-| operator admin (operator workspace, 143 section 8.7) | no | no | human minutes per commit and label; money per owner question Q27 |
+| every other member | **nothing of others**: only their own time (owner Q26 A, decided, msg `ce14ad70`; a total on a one-person topic would show that person's hours) | no | no |
+| operator admin (operator workspace, 143 section 8.7) | no | no | human minutes per commit and label; money only when they also hold `hours.rates` (the time-accountant role), otherwise hours without money (owner Q27 A, decided, msg `ce14ad70`) |
 
 Enforced by route, as 1.7 is, and in the database:
 
@@ -1128,7 +1129,7 @@ Routes, in the style of 6.3:
 | `GET /v1/hours/prices` | `hours.rates` | every member's price, read only |
 | `GET /v1/me/hours/targets?target=&from=&to=` | member | own approved minutes (and "to approve") per target |
 | `GET /v1/hours/targets?target=&from=&to=&by=member` | `hours.read` / foreman scope | the total over people; per member with `by=member` |
-| 143's `GET /v1/reporting/releases/daily` and `/commits` | operator admin | gain `human_minutes`, `human_amount_micros` (per Q27), `human_pending`, `human_unpriced` |
+| 143's `GET /v1/reporting/releases/daily` and `/commits` | operator admin | gain `human_minutes`, `human_amount_micros` (masked unless the caller also holds `hours.rates`, Q27 A), `human_pending`, `human_unpriced` |
 
 #### 21.8.1 Acceptance (for T077)
 
@@ -1149,29 +1150,16 @@ Then:
 - A second workspace reads nothing.
 - No ledger row names a member.
 
-### 21.9 Questions for the owner
+### 21.9 Owner answers (decided)
 
-The build starts on the recommendations (owner rule 10-05). Each answer changes the rows named here. The numbering continues section 20 (Q9..Q25).
+The owner answered all three questions on 2026-10-29 at 05:34Z (HUM-10, t1 topic `9815e592`, poll `e9523b1f`, msg `ce14ad70`), each with A, the recommendation the build was to start on (owner rule 10-05). No rule above changed; the open wording became the decided rule. The numbering continues section 20 (Q9..Q25).
 
-- Q26 changes T073 (the route's gate) and T074 (what the topic header shows).
-- Q27 changes T075 (the masked fields) and T076 (the pill text).
-- Q28 changes T075 (how an issue's time is divided among its commits).
+| question | answer (verbatim) | msg | rows |
+|---|---|---|---|
+| Q26 Who sees the human time total on a discussion or an issue (summed over people)? | "A — Holders of hours.read (the biz owner by default) and a foreman for their crew; each member sees only their own time (recommended: a total on a one-person topic would show that person's hours)" | `ce14ad70` | T073 (the route's gate), T074 (what the topic header shows); 21.6 |
+| Q27 Who sees the human money (hours x price) on the Releases page? | "A — Only an operator admin who also holds the time-accountant role; other operator admins see the hours without money (recommended: money stays with the time-accountant)" | `ce14ad70` | T075 (the masked fields), T076 (the pill text); 21.4 step 7, 21.6, 21.8 |
+| Q28 When several commits close one issue, how is the issue's human time divided among them? | "A — Day slices: each commit takes the time booked from the day after the previous closing commit landed up to its own landing day (recommended: the day-sized version of the time slices you chose for agent tokens)" | `ce14ad70` | T075 (how an issue's time is divided among its commits); 21.4 step 4 |
 
-What a commit is credited with (the closed issue's topic plus its source discussion, inside the issue's open window, 21.4 steps 1..3) is not asked: the brief of this addendum fixes it as "the issue and discussion the commit closes".
-
-```poll
-Q26 Who sees the human time total on a discussion or an issue (summed over people)?
-(A) Holders of hours.read (the biz owner by default) and a foreman for their crew; each member sees only their own time (recommended: as section 6.1 today, since a total on a one-person topic would show that person's hours)
-(B) Everyone who can read the topic, once at least 3 people booked time to it
-(C) Everyone who can read the topic, always
-Q27 Who sees the human money (hours x price) on the Releases page?
-(A) Only an operator admin who also holds hours.rates (the time-accountant role); other operator admins see the human hours without money (recommended: keeps FR-20, money only to hours.rates)
-(B) Every operator admin sees hours and money, as they see agent token money today
-(C) Nobody yet: hours only on Releases, money only in the time-accountant's views
-Q28 When several commits close one issue, how is the issue's human time divided among them?
-(A) Day slices: each commit takes the approved minutes booked from the day after the previous closing commit landed up to its own landing day; the first starts at the issue's creation day (recommended: the day-grain twin of the time slices you chose for agent tokens in spec 143 Q2, without minute stamps, as P0 asks)
-(B) Equal split: each of the N commits takes 1/N of the issue's minutes
-(C) All of the issue's human time goes to the last closing commit
-```
+What a commit is credited with (the closed issue's topic plus its source discussion, inside the issue's open window, 21.4 steps 1..3) was not asked: the brief of this addendum fixes it as "the issue and discussion the commit closes".
 
 <!-- version: 2.0.0 · updated: 2026-10-10 -->

@@ -206,7 +206,7 @@ From a domain expert's answers and suggestions in csitea topic `55a2d6c2` (2026-
 
 ## v2.4: the human time counter and the hourly price (spec section 21)
 
-**Status: Planned, not built.** Rows written by c-410 on `db3ec550e` (lane issue SPL-4163, epic SPL-3036; owner R14 msg `54d01e8c`, R15 msg `cfea214c`). Each row is one lane. The ids continue this file: 107's T071..T077 are not spec 143's T070..T076. The owner questions Q26..Q28 (spec 21.9) run on their recommendation until answered, and each names the rows it changes.
+**Status: Planned, not built.** Rows written by c-410 on `db3ec550e` (lane issue SPL-4163, epic SPL-3036; owner R14 msg `54d01e8c`, R15 msg `cfea214c`). Each row is one lane. The ids continue this file: 107's T071..T077 are not spec 143's T070..T076. The owner answered Q26..Q28 with A, the recommendation, on 2026-10-29 (spec 21.9, msg `ce14ad70`), so the rows below stand as written and cite the answer they follow.
 
 Every row follows the v1 and v2 rules above, plus these:
 
@@ -232,7 +232,7 @@ Every row follows the v1 and v2 rules above, plus these:
   - A `PUT` by member A naming member B must be refused.
 
   Vendor: claude. Depends: T071, T033.
-- [ ] T073 **the counters, store and routes** (spec 21.2, 21.3, 21.6; Q26). `hub/hours_targets.go`:
+- [ ] T073 **the counters, store and routes** (spec 21.2, 21.3, 21.6; Q26 A, msg `ce14ad70`). `hub/hours_targets.go`:
   - `GET /v1/me/hours/targets?target=&from=&to=`: own approved minutes plus "to approve".
   - `GET /v1/hours/targets?target=&from=&to=&by=member`: `hours.read`, or the foreman for their crew through T033's scope.
   - Sums approved `hours_entries` and `hours_adjustments` per target; an issue key resolves to `t:<task_id>`.
@@ -243,7 +243,7 @@ Every row follows the v1 and v2 rules above, plus these:
   - A grep test names `hours_minutes` only in the files 1.7 allows.
 
   Vendor: claude. Depends: T071 (the index), T033.
-- [ ] T074 **the counter and the price in the WUI** (spec 21.2, 21.5, 21.6; Q26).
+- [ ] T074 **the counter and the price in the WUI** (spec 21.2, 21.5, 21.6; Q26 A, msg `ce14ad70`).
   - A lazy `TopicHoursCounter.vue` in the topic and issue header, the I1 hook ("Booked 12:30"). It shows the member's own time plus "to approve" (a link to the day's Working hours dialog), and the total for `hours.read`.
   - A lazy `HoursPriceSettings.vue` in the member's settings: the amount, the currency and the start day.
   - Locale keys in all 19 files (drafts for the agy review, as T064).
@@ -253,9 +253,9 @@ Every row follows the v1 and v2 rules above, plus these:
   - The e2e asserts a non-empty value, so a missing testid cannot pass vacuously.
 
   Vendor: claude. Depends: T072, T073.
-- [ ] T075 **the commit ledger writer and the Releases fields** (spec 21.4; Q27, Q28).
+- [ ] T075 **the commit ledger writer and the Releases fields** (spec 21.4; Q27 A, Q28 A, msg `ce14ad70`).
   - **Writer.** The hours sweep (`hub/hours_sweep.go`, one call to a new `store/commit_human_time.go`) writes a commit's rows once every period holding its counted days is frozen or final. It follows the 21.4 chain: closing commits, the issue topic plus the source discussion inside the open window, an even split for a discussion shared by several issues, day slices across the commits, and the price in force per day.
-  - **Reads.** 143's `GET /v1/reporting/releases/daily` and `/commits` gain `human_minutes`, `human_amount_micros`, `human_pending` and `human_unpriced`. The money is masked unless the caller is an operator admin holding `hours.rates` (Q27 A).
+  - **Reads.** 143's `GET /v1/reporting/releases/daily` and `/commits` gain `human_minutes`, `human_amount_micros`, `human_pending` and `human_unpriced`. The money is masked unless the caller is an operator admin holding `hours.rates` (Q27 A, decided).
 
   **Gate**: api tests on Postgres; 143's T071 invariant extended to `sum over kinds = sum over areas` for human minutes. **Red control**:
   - In a fixture of two commits closing one issue, landed on days 3 and 10 with minutes booked on days 1, 5 and 12, the first commit must get day 1 only and the second days 5 and 12. An engine that splits evenly fails; a third commit that only mentions the key (`Refs:`) must get none.
@@ -264,7 +264,7 @@ Every row follows the v1 and v2 rules above, plus these:
   - Writing the ledger before the freeze must fail the "pending" test.
 
   Vendor: claude. Depends: T071, T072, T073; spec 143 T070..T073.
-- [ ] T076 **the human part on the Releases page** (spec 21.4 step 7; Q27). `reporting-releases.ts`, `ReleasesFilterBar.vue`, `ReleasesDailyList.vue`, only the added lines:
+- [ ] T076 **the human part on the Releases page** (spec 21.4 step 7; Q27 A, msg `ce14ad70`). `reporting-releases.ts`, `ReleasesFilterBar.vue`, `ReleasesDailyList.vue`, only the added lines:
   - The commit row's human part (`3:15 h · €210`, `human: pending approval`, unpriced).
   - The pill sums.
   - Coverage counts a commit as tracked when it has either part.

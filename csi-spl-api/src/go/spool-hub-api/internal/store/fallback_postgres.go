@@ -107,10 +107,14 @@ func (s *Postgres) UnheardPosts(ctx context.Context, tenant string, since, until
 // satisfies for a channel post) and replaces it with "no agent replied in
 // the topic". A reply is any later message in the same task from a non-human
 // sender (an agent posts through its desk, so from_box <> 'box-wui' and
-// from_id is not a HUM-/GST- id).
+// from_id is not a HUM-/GST- id). Spec 150 3.4 (row B12, C406): the posts
+// of a priority 1 topic come first, then by received_at; a topic with no
+// topic_priorities row ranks at TopicPriorityDefault (one primary-key probe
+// per post).
 func (s *Postgres) UnansweredPosts(ctx context.Context, tenant string, since, until time.Time, limit int) ([]Queued, error) {
 	var out []Queued
 	err := s.queryTenant(ctx, tenant, `SELECT m.msg_id::text, m.env, m.task_id::text FROM messages m
+		LEFT JOIN topic_priorities tp ON tp.tenant_id = m.tenant_id AND tp.task_id = m.task_id
 		WHERE m.tenant_id = $1 AND m.received_at >= $2 AND m.received_at < $3
 		  AND m.from_box = 'box-wui' AND m.from_id LIKE 'HUM-%' AND m.env_sig <> ''
 		  AND (m.channel IS NOT NULL OR (m.to_id NOT LIKE 'HUM-%' AND m.to_id NOT LIKE 'GST-%' AND m.to_id <> 'ALL-0'))
@@ -123,7 +127,7 @@ func (s *Postgres) UnansweredPosts(ctx context.Context, tenant string, since, un
 		                    AND r.received_at > m.received_at
 		                    AND r.from_box <> 'box-wui'
 		                    AND r.from_id NOT LIKE 'HUM-%' AND r.from_id NOT LIKE 'GST-%')
-		ORDER BY m.received_at, m.msg_id LIMIT $4`, []any{tenant, since, until, limit},
+		ORDER BY coalesce(tp.priority, $5), m.received_at, m.msg_id LIMIT $4`, []any{tenant, since, until, limit, TopicPriorityDefault},
 		func(rows pgx.Rows) error {
 			var q Queued
 			if err := rows.Scan(&q.MsgID, &q.Env, &q.TaskID); err != nil {

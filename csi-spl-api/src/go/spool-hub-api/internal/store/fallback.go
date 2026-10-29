@@ -65,9 +65,10 @@ type Fallbacks interface {
 	UnheardPosts(ctx context.Context, tenantID string, since, until time.Time, limit int) ([]Queued, error)
 	// UnansweredPosts lists signed browser posts by a person (from_box
 	// box-wui, from HUM-*) received in [since, until) that NO agent replied
-	// to in their topic and no fallback took, oldest first, at most limit
-	// (SPL-1225). Unlike UnheardPosts it does NOT care whether an agent box
-	// was "sent" the frame: a channel post is marked sent the instant it is
+	// to in their topic and no fallback took, at most limit (SPL-1225): by
+	// their topic's priority, 1 first, then oldest first (spec 150 3.4).
+	// Unlike UnheardPosts it does NOT care whether an agent box was "sent"
+	// the frame: a channel post is marked sent the instant it is
 	// relayed to the shared box-desk, whose roster names every agent that
 	// ever had a dir there - alive or long dead - so "sent" and "an agent is
 	// online" both read true while no live agent acts. The ground truth that

@@ -145,7 +145,25 @@ func (s *Memory) UnansweredPosts(_ context.Context, tenant string, since, until 
 			ms = append(ms, m)
 		}
 	}
-	return oldestFirst(ms, limit), nil
+	return s.byTopicPriority(tenant, ms, limit), nil
+}
+
+// byTopicPriority is oldestFirst with the topic's priority as the first key
+// (spec 150 3.4, row B12): a topic nobody set ranks at TopicPriorityDefault,
+// as the Postgres twin's coalesce. Called with s.mu held.
+func (s *Memory) byTopicPriority(tenant string, ms []*Message, limit int) []Queued {
+	out := oldestFirst(ms, len(ms))
+	prio := func(q Queued) int {
+		if p, ok := s.topicPrio[[2]string{tenant, strings.ToLower(q.TaskID)}]; ok {
+			return p.Priority
+		}
+		return TopicPriorityDefault
+	}
+	sort.SliceStable(out, func(i, j int) bool { return prio(out[i]) < prio(out[j]) })
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out
 }
 
 func (s *Memory) ReescalatablePosts(_ context.Context, tenant string, since, escalatedBefore, until time.Time, maxAttempts, limit int) ([]Queued, error) {

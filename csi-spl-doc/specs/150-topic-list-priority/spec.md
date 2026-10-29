@@ -387,10 +387,21 @@ before a row that depends on it starts.
 | B9 | 4 | `fleet_asks.discussion`, the hub resolve, priority in `askPositions`; C401-C404 | `rdb/0215_fleet_ask_discussion.sql`, `store/fleet_ask.go` (it also holds the memory store), `store/fleet_ask_postgres.go`, `store/fleet_ask_queue_test.go`, `hub/box_ask.go`, `hub/box_ask_test.go` | B1, Q5 answered |
 | B10 | 4 | ask-put and enqueue pass `ASK_DISCUSSION`, the `PRIO` column, the rules-index row; C405 | `orc/spl-spawn-enqueue.func.sh`, `orc/spl-ask-put.func.sh`, `orc/spl-spawn-queue.func.sh`, `csi-spl-orc/src/bash/tests/spl-spawn-queue.tst.sh`, `csi-spl-doc/doc/md/fleet-rules-index.md` | B9 |
 | B11 | 2-3 | agy's language review of the 19 locales, the last step before the text ships | `csi-spl-wui/i18n/locales/*.json` (after B4, B6, B7 and B8 have landed) | B6, B7, B8 |
-| B12 | 4 | unanswered posts by priority; C406 | `store/fallback_postgres.go`, `store/fallback_memory.go`, `store/unanswered_test.go`, `csi-spl-orc/src/bash/tests/unanswered-sweep-pg.tst.sh` | B1 |
+| B12 (Implemented, store half) | 4 | unanswered posts by priority; C406 | `store/fallback_postgres.go`, `store/fallback_memory.go`, `store/unanswered_test.go`, `csi-spl-orc/src/bash/tests/unanswered-sweep-pg.tst.sh` | B1 |
 
 - Every row runs the module gate of the repo CLAUDE.md before its push.
 - B1, B2, B9 and B12 touch the store or a migration: `PRE_PUSH_TIER=full`.
+- B12 landed the store half: `UnansweredPosts` (Postgres and memory) orders
+  by the topic's priority, then `received_at`, so the hub's escalation
+  (`hub/relay.go` `escalateUnanswered`) takes a priority 1 post first; C406 is
+  `TestUnansweredPostsByTopicPriority` in `store/unanswered_test.go`. The
+  sweep half is not built: `do_spl_unanswered_sweep` reads its own SQL
+  (`orc/spl-unanswered-sweep.func.sh`) and sorts in
+  `csi-spl-orc/src/bash/scripts/unanswered-sweep-classify.py`, neither in
+  B12's file list, and its row format is read by 7 orc tests and the delta
+  and measure actions. It needs its own row (the `PRIO` column, the delta on
+  `topic_priorities.set_at`, the classifier sort, C406 in
+  `unanswered-sweep-pg.tst.sh`).
 - B3 and B9 ship the hub (run 20); B6, B7, B8 and B11 ship the WUI (run
   30). A row is done when it is served on dev and prd.
 - B4 and B11 both edit the locale files, never at the same time: B11 starts

@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 )
@@ -178,6 +179,59 @@ func TestReescalatablePosts(t *testing.T) {
 			}
 			if err != nil {
 				t.Fatal(err)
+			}
+		})
+	}
+}
+
+// Spec 150 C406 (row B12): the unanswered posts come by their topic's
+// priority first, then oldest first. A priority 1 post comes before an older
+// post whose topic is at 5 (set or never set); posts of one priority keep
+// the received_at order, and the limit cuts after the priority order.
+// Red control: ORDER BY received_at only (UnansweredPosts without the
+// topic_priorities key) returns the older post first and fails here.
+func TestUnansweredPostsByTopicPriority(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			tid := newTenant(t, s)
+			fb := s.(Fallbacks)
+			tp := s.(TopicPriorityStore)
+			base := time.Now().UTC().Truncate(time.Microsecond).Add(-time.Hour)
+			taskOld, taskSet5, taskUrgent, taskTwo := uuid4(), uuid4(), uuid4(), uuid4()
+			ins := func(task string, at time.Time) Message {
+				m := humanPost(tid, task, "devel", "anyone?", at)
+				if _, err := s.InsertMessage(ctx, m); err != nil {
+					t.Fatal(err)
+				}
+				return m
+			}
+			old := ins(taskOld, base)                          // never set: 5
+			set5 := ins(taskSet5, base.Add(time.Second))       // set to 5
+			two := ins(taskTwo, base.Add(2*time.Second))       // set to 2
+			urgent := ins(taskUrgent, base.Add(3*time.Second)) // set to 1, the newest
+			for task, p := range map[string]int{taskSet5: 5, taskTwo: 2, taskUrgent: 1} {
+				if _, err := tp.SetTopicPriority(ctx, tid, task, p, "HUM-10", base); err != nil {
+					t.Fatal(err)
+				}
+			}
+			ids := func(limit int) []string {
+				got, err := fb.UnansweredPosts(ctx, tid, base.Add(-time.Minute), time.Now().UTC(), limit)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var out []string
+				for _, q := range got {
+					out = append(out, q.MsgID)
+				}
+				return out
+			}
+			want := []string{urgent.MsgID, two.MsgID, old.MsgID, set5.MsgID}
+			if got := ids(20); !slices.Equal(got, want) {
+				t.Fatalf("C406: want priority 1, 2, then the 5s oldest first %v, got %v", want, got)
+			}
+			if got := ids(1); !slices.Equal(got, want[:1]) {
+				t.Fatalf("C406: limit 1 must keep the priority 1 post, got %v", got)
 			}
 		})
 	}

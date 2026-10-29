@@ -1160,6 +1160,12 @@
             },
             "type": "array"
           },
+          "priority": {
+            "description": "1 the most urgent .. 5 the least; 5 when nobody set it. Contract: csi-spl-doc/specs/150-topic-list-priority/spec.md §3.3.",
+            "maximum": 5,
+            "minimum": 1,
+            "type": "integer"
+          },
           "subject": {
             "maxLength": 140,
             "type": "string"
@@ -13616,6 +13622,99 @@
         ]
       }
     },
+    "/v1/topics/{task_id}/priority": {
+      "put": {
+        "operationId": "putTopicsByTaskIdPriority",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "The topic's new priority. Contract: csi-spl-doc/specs/150-topic-list-priority/spec.md §3.3.",
+                "properties": {
+                  "priority": {
+                    "description": "1 the most urgent .. 5 the least; 5 when nobody set it (spec 150 panel D7).",
+                    "maximum": 5,
+                    "minimum": 1,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "priority"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The stored priority; every open view of the topic also gets the live frame topic_priority with these fields. Contract: csi-spl-doc/specs/150-topic-list-priority/spec.md §3.3.",
+                  "properties": {
+                    "priority": {
+                      "maximum": 5,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "set_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "set_by": {
+                      "type": "string"
+                    },
+                    "task_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "priority",
+                    "set_at",
+                    "set_by",
+                    "task_id"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK: set"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Set a topic's priority: the read door (404), then the workspace's \"Who can archive topics\" policy (403 not_allowed)",
+        "tags": [
+          "topics"
+        ]
+      }
+    },
     "/v1/vendor-keys": {
       "get": {
         "operationId": "getVendorKeys",
@@ -16102,6 +16201,12 @@
                     "next": {
                       "nullable": true,
                       "type": "string"
+                    },
+                    "priority": {
+                      "description": "on a read without after=; 5 when nobody set it. Contract: csi-spl-doc/specs/150-topic-list-priority/spec.md §3.3.",
+                      "maximum": 5,
+                      "minimum": 1,
+                      "type": "integer"
                     },
                     "task_id": {
                       "format": "uuid",

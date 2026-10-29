@@ -63,6 +63,7 @@ func (s *Server) routeView(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/view/messages/{msg_id}/topic", s.handleViewTopicSize)
 	mux.HandleFunc("GET /v1/view/messages/{msg_id}/move", s.handleViewMove) // specs/045
 	s.routeSearch(mux)                                                      // search-v1.md
+	s.routeTopicPriority(mux)                                               // spec 150 B3, topic_priority.go
 	s.routeAgentAliases(mux)                                                // spec 061
 	mux.HandleFunc("GET /v1/me/reads", s.handleReadMarks)                   // CLE-77930, rdb 0098
 	mux.HandleFunc("PUT /v1/me/reads", s.handleReadMarks)
@@ -572,6 +573,9 @@ type viewTopic struct {
 	Kinds        map[string]int `json:"kinds"`
 	Participants []string       `json:"participants"`
 	Subject      string         `json:"subject"`
+	// Priority 1..5, 5 when nobody set it (spec 150 3.3): the store reads it
+	// in the list's own statement (TopicRow.Priority).
+	Priority int `json:"priority,omitempty"`
 	// per_topic=N only: the topic's newest N messages, exactly
 	// GET /v1/view/topics/{task_id}?order=desc&limit=N, and that read's next.
 	Messages     *[]viewMsg `json:"messages,omitempty"`
@@ -614,6 +618,9 @@ type topicBody struct {
 	// WUI marks it (t1 8fb802cd). Absent = live.
 	ArchivedAt string `json:"archived_at,omitempty"`
 	ArchivedBy string `json:"archived_by,omitempty"`
+	// The topic's priority 1..5 (spec 150 3.3), on a read that is not an
+	// after= poll.
+	Priority int `json:"priority,omitempty"`
 }
 
 // perTopicMax caps per_topic: a page of viewLimitMax topics at this many
@@ -1035,7 +1042,7 @@ func (s *Server) inlineMessages(w http.ResponseWriter, r *http.Request, t store.
 
 func topicView(row store.TopicRow) viewTopic {
 	v := viewTopic{TaskID: row.TaskID, FirstTS: rfc(row.FirstAt), LastTS: rfc(row.LastAt),
-		Count: row.Count, Kinds: map[string]int{}}
+		Count: row.Count, Kinds: map[string]int{}, Priority: row.Priority}
 	if row.Channel != "" {
 		c := row.Channel
 		v.Channel = &c
@@ -1159,7 +1166,7 @@ func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store
 	if !ok {
 		return
 	}
-	rows, next, ok := s.topicPage(w, r, t.ID, task, hum, sq, door)
+	rows, next, prio, ok := s.topicPage(w, r, t.ID, task, hum, sq, door)
 	if !ok {
 		return
 	}
@@ -1179,6 +1186,9 @@ func (s *Server) handleViewTopic(w http.ResponseWriter, r *http.Request, t store
 	body := topicBody{TaskID: task, Messages: viewMsgsIn(rows, react, task), Next: next}
 	mod.markMsgs(rows, body.Messages)
 	if sq.AfterAt.IsZero() && task != s.o.LobbyTaskID && !s.topicArchiveStamp(w, r, t.ID, &body) {
+		return
+	}
+	if sq.AfterAt.IsZero() && !s.topicPriorityStamp(w, r, t.ID, prio, &body) {
 		return
 	}
 	writeJSON(w, http.StatusOK, body)
@@ -1219,39 +1229,42 @@ func (s *Server) topicQuery(w http.ResponseWriter, r *http.Request, tenant, task
 
 // topicPage reads one page of task: through door when the store fuses the
 // door into the page's batch (door != nil), else the plain ViewTopic. It
-// trims the look-ahead row into the next cursor. false has answered (404
-// refused or empty, 500).
+// trims the look-ahead row into the next cursor; prio is the topic's
+// priority as the fused door read it (0 = not read). false has answered
+// (404 refused or empty, 500).
 func (s *Server) topicPage(w http.ResponseWriter, r *http.Request, tenant, task, hum string,
-	sq store.TopicMsgQuery, door topicDoorReader) (rows []store.ViewMsg, next *string, ok bool) {
+	sq store.TopicMsgQuery, door topicDoorReader) (rows []store.ViewMsg, next *string, prio int, ok bool) {
 	var err error
 	if door != nil {
 		var may bool
-		_, may, rows, err = door.ViewTopicDoor(r.Context(), tenant, sq, func(a store.TopicAccess) (bool, error) {
+		var a store.TopicAccess
+		a, may, rows, err = door.ViewTopicDoor(r.Context(), tenant, sq, func(a store.TopicAccess) (bool, error) {
 			return s.topicDoor(r.Context(), tenant, task, a, hum)
 		})
 		if err == nil && !may {
 			// 404, never 403, as topicReader answers it.
 			writeErr(w, http.StatusNotFound, "not_found", "no such topic")
-			return nil, nil, false
+			return nil, nil, 0, false
 		}
+		prio = a.Priority
 	} else {
 		rows, err = s.o.Store.ViewTopic(r.Context(), tenant, sq)
 	}
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "topic unavailable")
-		return nil, nil, false
+		return nil, nil, 0, false
 	}
 	if len(rows) == 0 && sq.AfterAt.IsZero() && sq.BeforeAt.IsZero() && task != s.o.LobbyTaskID {
 		// the lobby exists before its first post (wui-live-ws.md §1)
 		writeErr(w, http.StatusNotFound, "not_found", "no such topic")
-		return nil, nil, false
+		return nil, nil, 0, false
 	}
 	if len(rows) == sq.Limit {
 		rows = rows[:sq.Limit-1]
 		c := encCursor(rows[len(rows)-1].ReceivedAt, rows[len(rows)-1].MsgID)
 		next = &c
 	}
-	return rows, next, true
+	return rows, next, prio, true
 }
 
 // lockedRows is a topic page without the messages a box owner lock hides

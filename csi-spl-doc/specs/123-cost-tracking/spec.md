@@ -1,6 +1,6 @@
 # Spec 123: Cost Tracking
 
-**Status:** v1.1 (2026-10-29: section 13, the project's cost, plan only, SPL-4189) · v1.0 (draft ff04d3ca3 by a-816, folded by the editor
+**Status:** v1.2 (2026-10-29: 13.12, owned hardware written off monthly, monthly and yearly totals first, the untracked-cost list; SPL-4189) · v1.1 (2026-10-29: section 13, the project's cost, plan only, SPL-4189) · v1.0 (draft ff04d3ca3 by a-816, folded by the editor
 s123-claude from the four seat reviews in `reviews/`; rc1 cc831a665 signed by
 all four seats and the drafter; the owner's answers Q-1..Q-7 folded, section 12)
 
@@ -515,7 +515,76 @@ question: Spec 123 section 13, the project's cost: three open points
 - Q-10 An operator admin without the time-accountant role: A) hours only, the total over cloud + AI only, labelled (recommended: 107 Q27 A; a full total would reveal the human money) B) the full total, the human part hidden
 ```
 
+### 13.12 Owned hardware, recurring hand costs, monthly and yearly first (v1.2)
+
+The owner (HUM-10, t1 `e2c0e6b4`, relayed verbatim by the dispatcher; the
+box name is replaced by `<box>`, public repo):
+
+- msg `b84a7d41`: "Are there any other parts of the infrastructure which we are missing out ... BTW t should be possible to add the cost of the <box> box - as well - it is an expensive laptop - Bought some 1 year ago for 2000 € - and it should be depreciated fully in 2 years , so the ui should support adding this type of costs as well this way"
+- msg `143a0a1c`: "aka the importance is to be able to see the monthly and yearly costs"
+
+This narrows Q-7 (B, "not tracked"): a machine outside GCP is still not
+READ automatically, but its cost can now be **entered by hand** as owned
+hardware. It is a new source behind the 4.6 factory (`hand_asset`), so the
+rollup, the table and the page do not change for it.
+
+**1. Two hand-entered cost kinds** (the 4.4 form, operator workspace, by a
+`costs.read` holder who may see money; stored as `cost_lines` with origin
+`hand`, an edit supersedes, never in place):
+
+- **Owned hardware (an asset)**: name, purchase price + currency, purchase
+  date, write-off period in months. Straight line: the monthly share =
+  price / months, from the purchase month for `months` months, then 0.
+  Example: 2,000 EUR over 24 months = 83.33 EUR a month (the last month takes
+  the rounding rest, so the shares sum to the price exactly). A month's share
+  is pro-rated to days like a subscription (4.5), so "so far" stays honest.
+  An asset bought before the first cost month carries its remaining months
+  only (bought 2025-10, 24 months: 2026-10 .. 2027-09 remain).
+- **Recurring hand cost**: name, amount + currency, every month or every
+  year, from, until (open). Domains, subscriptions with no reader, a line.
+  A yearly amount is spread over its 12 months.
+
+Both convert per day at the existing fx (13.4) and appear in the Cloud
+part's neighbour **"Infrastructure, entered by hand"** (a fourth part of
+13.2, marked "entered by hand"), never inside Cloud.
+
+**2. Monthly and yearly totals first.** The top view (13.2) opens on two
+figures: **this month so far** and **this year to date**, each split in the
+parts, then the 12 month bars. Every closed month's total stays as closed
+(4.5); a hand row added later lands in the open month.
+
+**3. Infrastructure costs, tracked or not** (prd facts relayed by the
+dispatcher, not re-measured by this lane: `cost_lines` holds the sources
+`gcp`, `fleet_tokens.<box>` and `agent_hours.<box>`; `fleet_token_paid_items`
+holds the paid AI subscriptions). The page lists every kind with a mark:
+
+| cost kind | tracked today | how, or the plan |
+|---|---|---|
+| GCP projects `csi-spl-*` | yes | billing export (4.2) |
+| AI subscriptions and top-ups | yes | paid items (spec 143 4.1) |
+| AI tokens, counts | yes, units only | `fleet_tokens.<box>` (4.3), list value beside |
+| agent hours | yes, usage only | `agent_hours.<box>`, never money |
+| owned machines (laptops, boxes) | no | hand asset, 13.12 item 1 |
+| domains and DNS | no | recurring hand cost |
+| GitHub plan and CI minutes | no | recurring hand cost; a reader later |
+| other SaaS (mail, storage) | no | recurring hand cost |
+| power and network line of a box | no | recurring hand cost |
+| human time | no | spec 107 T071..T077, then P02 |
+| metered API tokens | no | spec 121 `usage_events` |
+
+**4. Rows** (continuing 13.8, Planned):
+
+| # | slug | what | target & proof | test (red control) | vendor | batch |
+|---|---|---|---|---|---|---|
+| P08 | `feat(api, cost-hand-asset)` | the hand-entry API for both kinds (`POST /v1/operator/cost/hand`, supersede on edit) and the `hand_asset` source behind 4.6 writing the daily shares | 2,000 EUR / 24 months: 24 monthly shares summing to 2,000.00 exactly; month 25 is 0 | `TestCostHandAssetShares` (red: dropping the rounding rest makes the sum 1,999.92) | claude | 1 |
+| P09 | `feat(wui, cost-hand-form)` | the form on the Paid items page (asset or recurring), list with "counted from .. to .." | an asset entered shows its monthly share in the month and year totals | `tests/e2e/reporting-costs-hand.test.mjs` (red: a yearly cost counted in one month fails) | claude | 3 |
+| P10 | `feat(wui, project-cost-month-year)` | the two first figures, month so far and year to date, on P05's page | both equal the sums of their parts | joins P05's e2e (red: the year total without the closed months fails) | claude | 3 |
+
 ### 13.11 Change log
 
 - v1.1 (2026-10-29, SPL-4189): section 13 added, plan only; rows P01..P07
   Planned; owner questions Q-8..Q-10 open.
+- v1.2 (2026-10-29, SPL-4189): 13.12, the owner's msgs `b84a7d41` and
+  `143a0a1c`: owned hardware written off straight-line, recurring hand
+  costs, monthly and yearly totals first, the tracked/untracked list; rows
+  P08..P10 Planned.

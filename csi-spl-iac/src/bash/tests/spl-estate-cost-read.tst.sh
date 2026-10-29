@@ -8,8 +8,10 @@
 #      cost_lines and no delete: an absent export is never 0.
 #   3. A fixture export: per day ok / partial (newest export day, a line in a
 #      currency with no EUR rate) / missing (no row); credits and the box label
-#      as rendered; any csi-spl-* project counted (the LIKE parameter, not a
-#      list); a row outside the window ignored; polling and paging followed.
+#      as rendered; every project of the export counted, csi-spl-* or not
+#      (SPL-4187: the cnf LIKE parameter is "%"; CONTROL: a narrowed
+#      "csi-spl-%" drops the other project); a row outside the window
+#      ignored; polling and paging followed.
 #   4. DRY_RUN=1 (default) never calls psql; DRY_RUN=0 applies ONE transaction
 #      in the operator RLS scope with the 0166 UPSERT key.
 #   5. Re-read is idempotent: two runs apply the same SQL but for the run id;
@@ -43,6 +45,7 @@ row() { printf '{"f":[{"v":"%s"},{"v":"%s"},{"v":"%s"},{"v":"%s"},{"v":"%s"},{"v
   row 2026-10-05 csi-spl-prd "" "Cloud SQL" EUR 2000000 2300000; echo ,
   row 2026-10-05 csi-spl-all satellite "Compute Engine" EUR 500000 560000; echo ,
   row 2026-10-06 csi-spl-x "" "Cloud Run" EUR 100 110; echo ,
+  row 2026-10-06 other-proj "" "Cloud Run" EUR 200 220; echo ,
   row 2026-10-07 csi-spl-dev "" "Cloud Run" USD 300 300; echo ,
   row 2026-10-09 csi-spl-prd "" "Cloud Run" EUR 10 11; echo ,
   row 2026-10-01 csi-spl-prd "" "Cloud Run" EUR 999 999
@@ -74,7 +77,10 @@ case "$m $p" in
     echo "$body" >>"$LOG.queries"
     if grep -q "MAX(DATE" <<<"$body"; then printf "{\"jobComplete\":true,\"jobReference\":{\"jobId\":\"jf\"},\"rows\":[{\"f\":[{\"v\":\"2026-10-09\"}]}]}\n200"
     elif [[ -n "${POLL:-}" ]]; then printf "{\"jobComplete\":false,\"jobReference\":{\"jobId\":\"jr\"}}\n200"
-    else printf "{\"jobComplete\":true,\"jobReference\":{\"jobId\":\"jr\"},\"rows\":%s}\n200" "$(cat "$ROWS")"; fi ;;
+    else
+      # BigQuery'"'"'s project.id LIKE @like, for a <prefix>% pattern
+      like=$(jq -r ".queryParameters[] | select(.name == \"like\") | .parameterValue.value" <<<"$body")
+      printf "{\"jobComplete\":true,\"jobReference\":{\"jobId\":\"jr\"},\"rows\":%s}\n200" "$(jq -c --arg p "${like%\%}" "[.[] | select(.f[1].v | startswith(\$p))]" "$ROWS")"; fi ;;
   "GET projects/csi-spl-all/queries/jr"*pageToken=p2*)
     printf "{\"jobComplete\":true,\"jobReference\":{\"jobId\":\"jr\"},\"rows\":%s}\n200" "$(jq -c ".[3:]" "$ROWS")" ;;
   "GET projects/csi-spl-all/queries/jr"*)
@@ -143,11 +149,20 @@ grep -q '^rc=0$' "$T/o" && grep -q 'OK wrote the window 2026-10-05..2026-10-09 t
 grep -qF "(DATE '2026-10-05', 'gcp', 'csi-spl-all/box=satellite', NULL, NULL, NULL, 'compute-engine', 0, 500000, 'EUR', 560000, 500000, DATE '2026-10-05', 'billing_export', '" "$sql" \
   && pass "a box-labelled line: project/box=<label>, kind = the service slug, EUR amount = eur_micros, usd from the export's rate" \
   || fail "satellite row: $(grep satellite "$sql")"
-[[ "$(grep -c "'billing_export', '" "$sql")" -eq 5 ]] && ! grep -q "2026-10-01" "$sql" && ! grep -q "'USD'" "$sql" \
-  && pass "5 cost lines: the out-of-window row and the USD line (held) are not written" || fail "line count: $(grep -c billing_export "$sql")"
-grep -qF "'csi-spl-x'" "$sql" && jq -se '.[0].queryParameters[] | select(.name == "like") | .parameterValue.value == "csi-spl-%"' "$T/log.queries" >/dev/null \
+[[ "$(grep -c "'billing_export', '" "$sql")" -eq 6 ]] && ! grep -q "2026-10-01" "$sql" && ! grep -q "'USD'" "$sql" \
+  && pass "6 cost lines: the out-of-window row and the USD line (held) are not written" || fail "line count: $(grep -c billing_export "$sql")"
+grep -qF "'csi-spl-x'" "$sql" && grep -qF "(DATE '2026-10-06', 'gcp', 'other-proj', NULL, NULL, NULL, 'cloud-run', 0, 200, 'EUR'" "$sql" \
+  && jq -se '.[0].queryParameters[] | select(.name == "like") | .parameterValue.value == "%"' "$T/log.queries" >/dev/null \
   && grep -q 'project.id LIKE @like' "$T/log.queries" \
-  && pass "every csi-spl-* project: the query filters LIKE 'csi-spl-%' (cnf), and csi-spl-x is counted" || fail "project filter: $(head -c 600 "$T/log.queries")"
+  && pass "every project of the export (SPL-4187): the query filters LIKE '%' (cnf), csi-spl-x and other-proj are counted" || fail "project filter: $(head -c 600 "$T/log.queries")"
+# CONTROL: the cnf narrowed back to csi-spl-% drops the non-csi-spl- project
+mkdir -p "$T/narrow/csi-spl-cnf/csi-spl"
+yq '.env.cost.gcp.project_like = "csi-spl-%"' "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml" >"$T/narrow/csi-spl-cnf/csi-spl/all.env.yaml"
+run_case "$T/o" APP_PATH="$T/narrow"
+grep -q '^rc=0$' "$T/o" && grep -q "projects LIKE 'csi-spl-%'" "$T/o" && grep -q 'DRY_RUN=0 applies 5 cost line(s)' "$T/o" \
+  && pass "CONTROL: project_like csi-spl-% drops other-proj: 5 lines, not 6 (the filter is what keeps it)" || fail "narrowed control: $(tail -n 2 "$T/o")"
+rm -f "$T/log".sql.*; run_case "$T/o" DRY_RUN=0 COST_DB_DSN=postgres://u:p@127.0.0.1:5999/db
+sql="$T/log.sql.1"
 grep -q "^DELETE FROM cost_lines .*day IN (DATE '2026-10-05', DATE '2026-10-06', DATE '2026-10-07', DATE '2026-10-09')" "$sql" \
   && pass "stale lines are deleted only on days that were read (08, missing, keeps what it had)" || fail "delete: $(grep DELETE "$sql")"
 
@@ -161,13 +176,13 @@ grep -q '^psql user=u host=127.0.0.1 port=5999 db=db -X -q -v ON_ERROR_STOP=1 -f
   && pass "COST_DB_DSN reaches psql as PG* env vars, the password never in argv" || fail "psql call: $(grep psql "$T/log")"
 rm -f "$T/log".sql.*
 run_case "$T/o"
-grep -q '^rc=0$' "$T/o" && ! grep -q '^psql' "$T/log" && grep -q 'DRY_RUN=0 applies 5 cost line(s) and 5 coverage row(s)' "$T/o" \
+grep -q '^rc=0$' "$T/o" && ! grep -q '^psql' "$T/log" && grep -q 'DRY_RUN=0 applies 6 cost line(s) and 5 coverage row(s)' "$T/o" \
   && pass "DRY_RUN unset = 1: the export is read, psql is never called" || fail "dry run: $(grep -E 'psql|OK' "$T/log" "$T/o")"
 
 # polling and paging: jobComplete false, then two pages
 rm -f "$T/log".sql.*
 run_case "$T/o" DRY_RUN=0 COST_DB_DSN=postgres://u:p@127.0.0.1:5999/db POLL=1
-[[ "$(grep -c "'billing_export', '" "$T/log.sql.1")" -eq 5 ]] && grep -q 'pageToken=p2' "$T/log" \
+[[ "$(grep -c "'billing_export', '" "$T/log.sql.1")" -eq 6 ]] && grep -q 'pageToken=p2' "$T/log" \
   && pass "an unfinished job is polled and every page is read" || fail "poll/page: $(grep curl "$T/log")"
 
 run_case "$T/o" DRY_RUN=0 COST_DB_DSN=postgres://u:p@127.0.0.1:5999/db PATH="$T/failbin:$T/bin:$PATH"
@@ -216,8 +231,8 @@ grep -q '^curl GET projects/csi-spl-prd/datasets/csi_spl_prd/tables' "$T/log" &&
   && ! grep -q 'resource_v1' "$T/log.queries" && [[ "$(grep -c '^curl POST projects/csi-spl-all/queries$' "$T/log")" -eq 2 ]] \
   && pass "both queries read \`csi-spl-prd.csi_spl_prd.gcp_billing_export_v1_*\` (found by prefix, not resource_v1); the jobs run in csi-spl-all" \
   || fail "source query: $(jq -r '.query' "$T/log.queries" | grep FROM) / $(grep POST "$T/log")"
-grep -q "^OK DRY_RUN complete: nothing was written. DRY_RUN=0 applies 5 cost line(s)" "$T/o" \
-  && pass "the source read yields the same 5 cost lines" || fail "source read result: $(tail -n 2 "$T/o")"
+grep -q "^OK DRY_RUN complete: nothing was written. DRY_RUN=0 applies 6 cost line(s)" "$T/o" \
+  && pass "the source read yields the same 6 cost lines" || fail "source read result: $(tail -n 2 "$T/o")"
 # no export_source_* in the cnf -> export_project / export_dataset, as before
 mkdir -p "$T/app/csi-spl-cnf/csi-spl"
 yq 'del(.env.cost.gcp.export_source_project) | del(.env.cost.gcp.export_source_dataset)' \

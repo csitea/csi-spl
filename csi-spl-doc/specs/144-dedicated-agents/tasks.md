@@ -97,6 +97,7 @@ Remaining tasks planned awaiting owner review on open questions Q1..Q5 in [spec.
     - Implement `PUT /v1/topics/{task_id}/private-scope`.
     - Restrict endpoints to workspace owner and workspace admins via RBAC.
   - **Done:** API tests verify binding creation, deletion, scope toggling, and RBAC rejection of unauthorized callers.
+  - **Operator path until T005 lands** (spec 158, SPL-4273): `cd csi-spl-orc && ENV=<env> TENANT_ID=<ws> AGENT_ID=<id> BOX_ID=<box> SCOPE_TYPE=channel|topic SCOPE_ID=<id> BOUND_BY=<HUM-n> ./run -a do_spl_dedicated_bind` (`RUN/spl-dedicated-bind.func.sh`; `DEDICATED_CMD=bind|unbind|list`). Dry run by default: the same checks in a READ ONLY transaction. One statement checks and writes: refused for an agent not seated in the workspace on that box (`agent_seats`), a scope that is not a channel or a topic (a `messages.task_id`) of the workspace, a `BOUND_BY` that is missing or not an owner / admin member, and an agent already bound to another scope (unbind first); the same binding again is a no-op. It runs as the env's project SA through the Cloud SQL proxy. It does not flag the scope private (`SetPrivateScope` stays T005's). Test `OT/dedicated-bind.tst.sh` (stubbed psql, then the statement on a throwaway Postgres; red control: the `agent_seats` check removed binds an unseated agent).
 
 ---
 

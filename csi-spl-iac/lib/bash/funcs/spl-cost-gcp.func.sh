@@ -47,7 +47,7 @@ do_spl_cost_gcp_cnf() {
   [[ "${vals[2]}" =~ ^[A-Za-z0-9_]{1,1024}$ ]] || { do_log "FATAL env.cost.gcp.export_dataset is no dataset id: ${vals[2]}"; return 1; }
   [[ "${vals[3]}" =~ ^[A-Za-z0-9-]{2,40}$ ]] || { do_log "FATAL env.cost.gcp.export_location is no location: ${vals[3]}"; return 1; }
   [[ "${vals[4]}" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]] || { do_log "FATAL env.cost.gcp.reader_sa is no SA id: ${vals[4]}"; return 1; }
-  [[ "${vals[5]}" =~ ^[a-z0-9-]+%$ ]] || { do_log "FATAL env.cost.gcp.project_like must be <prefix>%, got: ${vals[5]}"; return 1; }
+  [[ "${vals[5]}" =~ ^[a-z0-9-]*%$ ]] || { do_log "FATAL env.cost.gcp.project_like must be <prefix>% or %, got: ${vals[5]}"; return 1; }
   [[ "${vals[6]}" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]] || { do_log "FATAL env.cost.gcp.export_source_project is no project id: ${vals[6]}"; return 1; }
   [[ "${vals[7]}" =~ ^[A-Za-z0-9_]{1,1024}$ ]] || { do_log "FATAL env.cost.gcp.export_source_dataset is no dataset id: ${vals[7]}"; return 1; }
   COST_REREAD_DAYS="${vals[0]}"

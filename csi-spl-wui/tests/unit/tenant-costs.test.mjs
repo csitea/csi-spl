@@ -307,9 +307,9 @@ describe('the chunk rule (spec 123 8: ci_initial_gzip_kb stays <= 155)', () => {
     assert.match(page, /defineAsyncComponent\(\(\) => import\('@\/components\/MonitoringCostsPie\.vue'\)\)/)
     assert.doesNotMatch(page, /^import .*MonitoringCostsPie/m)
   })
-  it('tenant-costs.mjs is statically imported by the costs page only; the client loads it on call', () => {
+  it('tenant-costs.mjs is statically imported by the costs pages only (Spend; Cloud and AI tokens, SPL-4187); the client loads it on call', () => {
     const statics = files.filter((f) => /^import [^\n]*from '[^']*tenant-costs\.mjs'/m.test(read(f)))
-    assert.deepEqual(statics, ['src/pages/reporting/costs/spend.vue'])
+    assert.deepEqual(statics, ['src/pages/reporting/costs/cloud.vue', 'src/pages/reporting/costs/spend.vue', 'src/pages/reporting/costs/tokens.vue'])
     assert.match(read('src/utils/spool-client-lazy.mjs'), /await import\('\.\/tenant-costs\.mjs'\)/)
     assert.doesNotMatch(read('src/utils/spool-client.mjs'), /tenant-costs/)
   })

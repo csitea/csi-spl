@@ -3390,6 +3390,7 @@
       "releases": "Väljalasked",
       "sql": "SQL",
       "costs": "Kulud",
+      "marketing": "Turundus",
       "issues": "Probleemid",
       "posts": "Postitused",
       "lanes": "Rajad"
@@ -3499,6 +3500,25 @@
         "admin_required": "Päringuid võivad käivitada ainult tööruumi administraatorid",
         "query_timeout": "Päring kestis üle 10 sekundi ja peatati",
         "other": "Päringut ei käivitatud"
+      }
+    },
+    "marketing": {
+      "loading": "Turundusnumbrite laadimine…",
+      "forbidden": "Turundusnumbreid näevad ainult tööruumi omanik ja selle administraatorid.",
+      "error": "Turundusnumbreid ei õnnestunud laadida.",
+      "intro": "Üks kaart iga etapi kohta. Numbrid ilmuvad siia, kui allikas on ühendatud.",
+      "attribution": "Omistamine: {rule}, {days} päeva",
+      "rule_last_touch": "Viimane kokkupuude",
+      "cards_label": "Turunduse etapid",
+      "empty": "Numbreid veel pole",
+      "stage": {
+        "reach": "Ulatus",
+        "engagement": "Kaasatus",
+        "acquisition": "Hankimine",
+        "conversion": "Konversioon",
+        "revenue": "Tulu",
+        "retention": "Hoidmine",
+        "content_seo": "Sisu / SEO"
       }
     }
   },

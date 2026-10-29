@@ -3390,6 +3390,7 @@
       "releases": "Wydania",
       "sql": "SQL",
       "costs": "Koszty",
+      "marketing": "Marketing",
       "issues": "Zgłoszenia",
       "posts": "Posty",
       "lanes": "Linie"
@@ -3499,6 +3500,25 @@
         "admin_required": "Zapytania mogą uruchamiać tylko administratorzy przestrzeni roboczej",
         "query_timeout": "Zapytanie trwało dłużej niż 10 sekund i zostało zatrzymane",
         "other": "Zapytanie nie zostało wykonane"
+      }
+    },
+    "marketing": {
+      "loading": "Wczytywanie danych marketingowych…",
+      "forbidden": "Dane marketingowe widzą tylko właściciel obszaru roboczego i jego administratorzy.",
+      "error": "Nie udało się wczytać danych marketingowych.",
+      "intro": "Jedna karta na etap. Liczby pojawią się tutaj po podłączeniu źródła.",
+      "attribution": "Atrybucja: {rule}, {days} dni",
+      "rule_last_touch": "Ostatni kontakt",
+      "cards_label": "Etapy marketingu",
+      "empty": "Nie ma jeszcze liczb",
+      "stage": {
+        "reach": "Zasięg",
+        "engagement": "Zaangażowanie",
+        "acquisition": "Pozyskanie",
+        "conversion": "Konwersja",
+        "revenue": "Przychody",
+        "retention": "Utrzymanie",
+        "content_seo": "Treści / SEO"
       }
     }
   },

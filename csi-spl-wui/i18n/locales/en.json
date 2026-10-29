@@ -3390,6 +3390,7 @@
       "releases": "Releases",
       "sql": "SQL",
       "costs": "Costs",
+      "marketing": "Marketing",
       "issues": "Issues",
       "posts": "Posts",
       "lanes": "Lanes"
@@ -3499,6 +3500,25 @@
         "admin_required": "Only workspace admins may run queries",
         "query_timeout": "The query took longer than 10 seconds and was stopped",
         "other": "The query did not run"
+      }
+    },
+    "marketing": {
+      "loading": "Loading the marketing numbers…",
+      "forbidden": "Only the workspace owner and its admins see the marketing numbers.",
+      "error": "The marketing numbers could not be loaded.",
+      "intro": "One card per stage. Numbers appear here once a source is connected.",
+      "attribution": "Attribution: {rule}, {days} days",
+      "rule_last_touch": "Last touch",
+      "cards_label": "Marketing stages",
+      "empty": "No numbers yet",
+      "stage": {
+        "reach": "Reach",
+        "engagement": "Engagement",
+        "acquisition": "Acquisition",
+        "conversion": "Conversion",
+        "revenue": "Revenue",
+        "retention": "Retention",
+        "content_seo": "Content / SEO"
       }
     }
   },

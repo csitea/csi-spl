@@ -3390,6 +3390,7 @@
       "releases": "Sürümler",
       "sql": "SQL",
       "costs": "Maliyetler",
+      "marketing": "Pazarlama",
       "issues": "Konular",
       "posts": "Gönderiler",
       "lanes": "Hatlar"
@@ -3499,6 +3500,25 @@
         "admin_required": "Yalnızca çalışma alanı yöneticileri sorgu çalıştırabilir",
         "query_timeout": "Sorgu 10 saniyeden uzun sürdü ve durduruldu",
         "other": "Sorgu çalıştırılmadı"
+      }
+    },
+    "marketing": {
+      "loading": "Pazarlama rakamları yükleniyor…",
+      "forbidden": "Pazarlama rakamlarını yalnızca çalışma alanının sahibi ve yöneticileri görür.",
+      "error": "Pazarlama rakamları yüklenemedi.",
+      "intro": "Her aşama için bir kart. Bir kaynak bağlandığında rakamlar burada görünür.",
+      "attribution": "İlişkilendirme: {rule}, {days} gün",
+      "rule_last_touch": "Son temas",
+      "cards_label": "Pazarlama aşamaları",
+      "empty": "Henüz rakam yok",
+      "stage": {
+        "reach": "Erişim",
+        "engagement": "Etkileşim",
+        "acquisition": "Edinme",
+        "conversion": "Dönüşüm",
+        "revenue": "Gelir",
+        "retention": "Elde tutma",
+        "content_seo": "İçerik / SEO"
       }
     }
   },

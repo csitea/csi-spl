@@ -3390,6 +3390,7 @@
       "releases": "Versiuni",
       "sql": "SQL",
       "costs": "Costuri",
+      "marketing": "Marketing",
       "issues": "Probleme",
       "posts": "Postări",
       "lanes": "Linii"
@@ -3499,6 +3500,25 @@
         "admin_required": "Doar administratorii spațiului de lucru pot rula interogări",
         "query_timeout": "Interogarea a durat mai mult de 10 secunde și a fost oprită",
         "other": "Interogarea nu a rulat"
+      }
+    },
+    "marketing": {
+      "loading": "Se încarcă cifrele de marketing…",
+      "forbidden": "Doar proprietarul spațiului de lucru și administratorii săi văd cifrele de marketing.",
+      "error": "Cifrele de marketing nu au putut fi încărcate.",
+      "intro": "Un card pentru fiecare etapă. Cifrele apar aici după ce este conectată o sursă.",
+      "attribution": "Atribuire: {rule}, {days} zile",
+      "rule_last_touch": "Ultimul contact",
+      "cards_label": "Etapele de marketing",
+      "empty": "Încă nu există cifre",
+      "stage": {
+        "reach": "Acoperire",
+        "engagement": "Implicare",
+        "acquisition": "Achiziție",
+        "conversion": "Conversie",
+        "revenue": "Venituri",
+        "retention": "Retenție",
+        "content_seo": "Conținut / SEO"
       }
     }
   },

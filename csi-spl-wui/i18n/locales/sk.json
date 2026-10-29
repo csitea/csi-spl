@@ -3390,6 +3390,7 @@
       "releases": "Vydania",
       "sql": "SQL",
       "costs": "Náklady",
+      "marketing": "Marketing",
       "issues": "Úlohy",
       "posts": "Príspevky",
       "lanes": "Linky"
@@ -3499,6 +3500,25 @@
         "admin_required": "Dopyty môžu spúšťať iba správcovia pracovného priestoru",
         "query_timeout": "Dopyt trval dlhšie ako 10 sekúnd a bol zastavený",
         "other": "Dopyt sa nespustil"
+      }
+    },
+    "marketing": {
+      "loading": "Načítavajú sa marketingové čísla…",
+      "forbidden": "Marketingové čísla vidí iba vlastník pracovného priestoru a jeho správcovia.",
+      "error": "Marketingové čísla sa nepodarilo načítať.",
+      "intro": "Jedna karta na každú fázu. Čísla sa tu zobrazia po pripojení zdroja.",
+      "attribution": "Atribúcia: {rule}, {days} dní",
+      "rule_last_touch": "Posledný kontakt",
+      "cards_label": "Fázy marketingu",
+      "empty": "Zatiaľ žiadne čísla",
+      "stage": {
+        "reach": "Dosah",
+        "engagement": "Zapojenie",
+        "acquisition": "Akvizícia",
+        "conversion": "Konverzia",
+        "revenue": "Príjmy",
+        "retention": "Udržanie",
+        "content_seo": "Obsah / SEO"
       }
     }
   },

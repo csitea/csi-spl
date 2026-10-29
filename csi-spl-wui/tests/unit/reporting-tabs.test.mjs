@@ -58,7 +58,7 @@ describe('T010 the Reporting rail entry', () => {
 
 describe('T011 utils/reporting-tabs.mjs', () => {
   it('the tabs in their order, each its own path; Releases is where /reporting lands', () => {
-    assert.deepEqual(ids(REPORTING_TABS), ['releases', 'sql', 'costs', 'issues', 'posts', 'lanes'])
+    assert.deepEqual(ids(REPORTING_TABS), ['releases', 'sql', 'costs', 'marketing', 'issues', 'posts', 'lanes'])
     assert.equal(REPORTING_DEFAULT_PATH, '/reporting/releases')
     for (const t of REPORTING_TABS) {
       assert.equal(t.path, '/reporting/' + t.id)
@@ -68,8 +68,8 @@ describe('T011 utils/reporting-tabs.mjs', () => {
       assert.equal(typeof t.ready, 'boolean')
     }
   })
-  it('Releases, SQL and Costs are ready today (SQL since T033, SPL-2789; Costs since S1, SPL-3798): a member sees Releases, an admin SQL too', () => {
-    assert.deepEqual(REPORTING_TABS.filter((t) => t.ready).map((t) => t.id), ['releases', 'sql', 'costs'])
+  it('Releases, SQL, Costs and Marketing are ready today (SQL since T033, SPL-2789; Costs since S1, SPL-3798; Marketing since spec 163 B1, SPL-4250): a member sees Releases, an admin SQL too', () => {
+    assert.deepEqual(REPORTING_TABS.filter((t) => t.ready).map((t) => t.id), ['releases', 'sql', 'costs', 'marketing'])
     for (const who of [undefined, {}, { admin: false }]) {
       assert.deepEqual(ids(visibleReportingTabs(who)), ['releases'], JSON.stringify(who))
     }
@@ -144,9 +144,10 @@ describe('T012 pages/reporting.vue', () => {
     assert.match(page, /operator: operator\.visible/)
     assert.match(page, /admin: meRead\.value && access\.me\?\.role === 'admin'/)
     assert.match(page, /can: meRead\.value \? access\.can : undefined/)
+    assert.match(page, /staff: meRead\.value && monitoringStaff\(access\.me\)/)
   })
   it('each ready tab has its own page (its own chunk)', () => {
-    for (const t of visibleReportingTabs({ operator: true, can: () => true })) assert.ok(existsSync(join(WUI, 'src/pages' + t.path + '.vue')), t.path)
+    for (const t of visibleReportingTabs({ operator: true, staff: true, can: () => true })) assert.ok(existsSync(join(WUI, 'src/pages' + t.path + '.vue')), t.path)
   })
 })
 

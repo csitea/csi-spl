@@ -3390,6 +3390,7 @@
       "releases": "Versiones",
       "sql": "SQL",
       "costs": "Costes",
+      "marketing": "Marketing",
       "issues": "Incidencias",
       "posts": "Publicaciones",
       "lanes": "Líneas"
@@ -3499,6 +3500,25 @@
         "admin_required": "Solo los administradores del espacio de trabajo pueden ejecutar consultas",
         "query_timeout": "La consulta tardó más de 10 segundos y se detuvo",
         "other": "La consulta no se ejecutó"
+      }
+    },
+    "marketing": {
+      "loading": "Cargando las cifras de marketing…",
+      "forbidden": "Solo el propietario del espacio de trabajo y sus administradores ven las cifras de marketing.",
+      "error": "No se pudieron cargar las cifras de marketing.",
+      "intro": "Una tarjeta por etapa. Las cifras aparecen aquí en cuanto se conecta una fuente.",
+      "attribution": "Atribución: {rule}, {days} días",
+      "rule_last_touch": "Último contacto",
+      "cards_label": "Etapas de marketing",
+      "empty": "Aún no hay cifras",
+      "stage": {
+        "reach": "Alcance",
+        "engagement": "Interacción",
+        "acquisition": "Adquisición",
+        "conversion": "Conversión",
+        "revenue": "Ingresos",
+        "retention": "Retención",
+        "content_seo": "Contenido / SEO"
       }
     }
   },

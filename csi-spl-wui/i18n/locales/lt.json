@@ -3390,6 +3390,7 @@
       "releases": "Leidimai",
       "sql": "SQL",
       "costs": "Išlaidos",
+      "marketing": "Rinkodara",
       "issues": "Problemos",
       "posts": "Įrašai",
       "lanes": "Linijos"
@@ -3499,6 +3500,25 @@
         "admin_required": "Užklausas gali vykdyti tik darbo srities administratoriai",
         "query_timeout": "Užklausa truko ilgiau nei 10 sekundžių ir buvo sustabdyta",
         "other": "Užklausa nebuvo įvykdyta"
+      }
+    },
+    "marketing": {
+      "loading": "Įkeliami rinkodaros skaičiai…",
+      "forbidden": "Rinkodaros skaičius mato tik darbo srities savininkas ir jos administratoriai.",
+      "error": "Nepavyko įkelti rinkodaros skaičių.",
+      "intro": "Viena kortelė kiekvienam etapui. Skaičiai čia atsiras, kai bus prijungtas šaltinis.",
+      "attribution": "Priskyrimas: {rule}, {days} d.",
+      "rule_last_touch": "Paskutinis sąlytis",
+      "cards_label": "Rinkodaros etapai",
+      "empty": "Skaičių dar nėra",
+      "stage": {
+        "reach": "Pasiekiamumas",
+        "engagement": "Įsitraukimas",
+        "acquisition": "Pritraukimas",
+        "conversion": "Konversija",
+        "revenue": "Pajamos",
+        "retention": "Išlaikymas",
+        "content_seo": "Turinys / SEO"
       }
     }
   },

@@ -104,6 +104,16 @@ files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | 
 {%- if gc_ws %}
 {%- set _ = run_env.update({"SPOOL_HUB_GCAL_WORKSPACES": gc_ws, "SPOOL_HUB_GCAL_SCOPES": gc["scopes"], "SPOOL_HUB_GCAL_AUTH_URL": gc["auth_url"], "SPOOL_HUB_GCAL_TOKEN_URL": gc["token_url"], "SPOOL_HUB_GCAL_REVOKE_URL": gc["revoke_url"], "SPOOL_HUB_GCAL_USERINFO_URL": gc["userinfo_url"], "SPOOL_HUB_GCAL_CALENDAR_BASE": gc["calendar_base"]}) %}
 {%- endif %}
+{#- spec 154 S4 (SPL-4263): cnf contacts reaches the hub as
+    SPOOL_HUB_CONTACTS_*, the workspaces joined with commas or the literal
+    "all", plus the scopes; nothing while the list is empty (= off: every
+    /v1/me/contacts route answers 404, GET /v1/view/me says contacts: false) #}
+{%- set ct = contacts if contacts is defined else {} %}
+{%- set ct_ws = ct.get("workspaces", []) %}
+{%- set ct_ws = ct_ws if ct_ws is string else (ct_ws | join(",")) %}
+{%- if ct_ws %}
+{%- set _ = run_env.update({"SPOOL_HUB_CONTACTS_WORKSPACES": ct_ws, "SPOOL_HUB_CONTACTS_SCOPES": ct.get("scopes", "")}) %}
+{%- endif %}
 {#- spec 025 box owner lock 6.4 (row B6, SPL-3014): hub.box_locks_expected
     reaches the hub as one plain env value, "<tenant>:<box>:<lock_pubkey>"
     entries joined with commas ("" = no box locked) #}

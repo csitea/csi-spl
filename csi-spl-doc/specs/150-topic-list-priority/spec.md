@@ -377,7 +377,7 @@ before a row that depends on it starts.
 | row | part | task | files (only these) | depends on |
 |---|---|---|---|---|
 | B1 (Implemented, a63179997) | 3 | `topic_priorities` table with RLS and the change_stamp trigger, the store; C301-C304 | `rdb/0214_topic_priorities.sql`, `store/topic_priority.go`, `store/topic_priority_postgres.go`, `store/topic_priority_memory.go`, `store/topic_priority_test.go`, `store/change_stamp_test.go` | - |
-| B2 | 3 | the delta change kind; C308 | `store/view_changes.go`, `store/view_changes_postgres.go`, `hub/view_delta_test.go` | B1 |
+| B2 (Implemented, 3267decb0) | 3 | the delta change kind; C308 | `store/view_changes.go`, `store/view_changes_postgres.go`, `hub/view_delta_test.go` | B1 |
 | B3 | 3 | `PUT /v1/topics/{task_id}/priority` (door, policy), `priority` on the view rows, the `topic_priority` frame, openapi; C305-C307 | `hub/topic_priority.go`, `hub/topic_priority_test.go`, `hub/view.go` (the row field only), `hub/openapi.json` | B1 |
 | B4 | 2-3 | the i18n keys of 3.5 in all 19 locales, one commit | `csi-spl-wui/i18n/locales/*.json` | Q2 answered |
 | B5 (Implemented, d7e5d1ae8) | 2 | the `topicListView` pure function; C201-C206, C208, C210 | `wui/utils/topic-list-order.mjs`, `wui/types/mjs-shims.d.ts` (its declaration), `csi-spl-wui/tests/unit/topic-list-order.test.mjs` | Q2 answered |

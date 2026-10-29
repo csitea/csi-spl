@@ -3,7 +3,8 @@
 # @description Read the GCP billing export into the hub DB's cost_lines and
 # @description cost_coverage (spec 123 section 4.2, build lane 2; rdb 0166).
 # @description Read-only on GCP: one BigQuery query, as the dedicated reader SA
-# @description (Q-2 = A), rows of every project LIKE env.cost.gcp.project_like.
+# @description (Q-2 = A), rows of every project LIKE env.cost.gcp.project_like
+# @description ("%", the default: every project of the export, SPL-4187).
 # @description The export table is found by its prefix gcp_billing_export_v1_ in
 # @description env.cost.gcp.export_source_project.export_source_dataset (where
 # @description the owner set up the export, SPL-3376); the query job runs in

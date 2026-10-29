@@ -25,14 +25,43 @@ import (
 
 // The test binary is re-exec'd for the pty. init runs before the testing
 // flag parser, so dashed key flags are not rejected as unknown test flags.
+// The test binary records its own pid for every helper it starts.
 func init() {
 	if os.Getenv("SPOOL_KEY_HELPER") != "1" {
+		os.Setenv("SPOOL_KEY_TEST_PARENT", strconv.Itoa(os.Getpid()))
 		return
 	}
 	if len(os.Args) > 1 && os.Args[1] == "keyd" {
 		writeKeydAttest()
+		dieWithTestParent()
 	}
 	os.Exit(run(os.Args[1:]))
+}
+
+// dieWithTestParent stops a keyd a test started once the test binary is
+// gone, however it died: keyd runs in its own session and its parent (the
+// helper) exits at once, so neither Pdeathsig nor t.Cleanup reaches it.
+// SIGTERM takes keyd's own shutdown path; production keyd is unchanged.
+func dieWithTestParent() {
+	n, err := strconv.Atoi(os.Getenv("SPOOL_KEY_TEST_PARENT"))
+	if err != nil || n <= 0 {
+		return
+	}
+	fd, err := unix.PidfdOpen(n, 0)
+	if err != nil {
+		os.Exit(1)
+	}
+	go func() {
+		fds := []unix.PollFd{{Fd: int32(fd), Events: unix.POLLIN}}
+		for {
+			if _, err := unix.Poll(fds, -1); err != unix.EINTR {
+				break
+			}
+		}
+		syscall.Kill(os.Getpid(), syscall.SIGTERM)
+		time.Sleep(5 * time.Second)
+		os.Exit(1)
+	}()
 }
 
 // writeKeydAttest runs in the keyd child before harden. A dumpable process
@@ -750,4 +779,98 @@ func TestKeyRekeyCLI(t *testing.T) {
 	if rc != 0 || so != "unlocked\n" {
 		t.Fatalf("unlock with the rekeyed key file: rc %d %q", rc, se)
 	}
+}
+
+// TestKeydDiesWithTestBinary: a test binary that unlocks and is then
+// SIGKILLed, so no t.Cleanup runs, leaves no keyd behind.
+func TestKeydDiesWithTestBinary(t *testing.T) {
+	if os.Getenv("SPOOL_KEYD_ORPHAN_KEY") != "" {
+		t.Skip("the inner test binary runs TestKeydOrphanParent")
+	}
+	dir, _, keyPath, _ := keyFileState(t)
+	stopKeyd(t, dir)
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(exe, "-test.run=^TestKeydOrphanParent$", "-test.v")
+	cmd.Env = append(os.Environ(), "SPOOL_KEYD_ORPHAN_KEY="+keyPath)
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	ready := make(chan bool, 1)
+	go func() {
+		var buf bytes.Buffer
+		tmp := make([]byte, 256)
+		for {
+			k, err := out.Read(tmp)
+			buf.Write(tmp[:k])
+			if bytes.Contains(buf.Bytes(), []byte("keyd-orphan-ready")) {
+				ready <- true
+				io.Copy(io.Discard, out)
+				return
+			}
+			if err != nil {
+				ready <- false
+				return
+			}
+		}
+	}()
+	select {
+	case ok := <-ready:
+		if !ok {
+			cmd.Wait()
+			t.Fatal("the inner test binary did not unlock")
+		}
+	case <-time.After(60 * time.Second):
+		cmd.Process.Kill()
+		cmd.Wait()
+		t.Fatal("the inner test binary timed out")
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "keyd.pid"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(b)))
+	if err != nil || pid <= 0 || !procAlive(pid) {
+		t.Fatalf("keyd is not running: pid %q", b)
+	}
+	cmd.Process.Signal(syscall.SIGKILL)
+	cmd.Wait()
+	deadline := time.Now().Add(10 * time.Second)
+	for procAlive(pid) {
+		if time.Now().After(deadline) {
+			t.Fatalf("keyd pid %d outlived its SIGKILLed test binary", pid)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// TestKeydOrphanParent is the inner test binary of TestKeydDiesWithTestBinary:
+// it unlocks, says so, and waits to be killed.
+func TestKeydOrphanParent(t *testing.T) {
+	keyPath := os.Getenv("SPOOL_KEYD_ORPHAN_KEY")
+	if keyPath == "" {
+		t.Skip("run by TestKeydDiesWithTestBinary only")
+	}
+	rc, out, errOut := runNoTTY(t, "key", "unlock", "--key-file", keyPath)
+	if rc != 0 || out != "unlocked\n" {
+		t.Fatalf("unlock rc %d out %q err %q", rc, out, errOut)
+	}
+	fmt.Println("keyd-orphan-ready")
+	time.Sleep(10 * time.Minute)
+}
+
+// procAlive: the pid exists and is not a zombie.
+func procAlive(pid int) bool {
+	b, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
+	if err != nil {
+		return false
+	}
+	i := bytes.LastIndexByte(b, ')')
+	return i > 0 && i+2 < len(b) && b[i+2] != 'Z'
 }

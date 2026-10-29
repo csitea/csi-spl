@@ -20,6 +20,10 @@
 // on .app-frame), the pane takes the room of both bars and a docked composer
 // stays painted; on the wheel up and on Back its logo is painted again at the
 // same y. Red control: without the change the logo stays painted.
+// Touch (real CDP touch): a swipe up hides both bars; a scroll by code after
+// the finger is up leaves them as they are (merge-by-touch-drag and
+// calendar-phone-day read a card's place, then press it); a finger held
+// before it moves (a hold-drag) changes nothing.
 //
 //   BASE_URL=<generated mock bundle> node tests/e2e/section-strip-scroll-hide.test.mjs
 import { createRequire } from 'node:module'
@@ -137,6 +141,17 @@ const wheel = async (p, at, dy) => {
   await sleep(500)
 }
 
+/* a real CDP touch: down at `at`, after `hold` ms moved by dy in 6 steps, up */
+async function swipe(p, at, dy, hold = 0) {
+  const cdp = await p.createCDPSession()
+  const pt = (y) => [{ x: at.x, y: Math.round(y), id: 1 }]
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pt(at.y) })
+  if (hold) await sleep(hold)
+  for (let i = 1; i <= 6; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pt(at.y + (dy * i) / 6) }); await sleep(16) }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await cdp.detach().catch(() => {})
+}
+
 const flat = []
 const srv = await startServer()
 const browsers = []
@@ -154,10 +169,12 @@ try {
     await p.setViewport({ width, height: 844, isMobile: true, hasTouch: true })
     /* reduced motion: no slide (the app's reduce rule leaves 1e-05s) */
     const slideOk = (s) => motion === 'reduce' ? parseFloat(s.slide) < 0.01 : parseFloat(s.slide) >= 0.1
+    let touchRoute = ''
     for (const route of ROUTES) {
       await p.goto(`${srv.base}${route}`, { waitUntil: 'networkidle2' }).catch(() => null)
       const s0 = await settle(p)
       if (!s0.pane || !s0.painted) { flat.push(`${tag} ${route}`); continue }
+      touchRoute ||= route
       await p.evaluate(() => { document.querySelector('[data-e2e-scroller]').scrollTop += 150 })
       await sleep(500)
       const byScript = await read(p)
@@ -177,6 +194,22 @@ try {
         { before: { logo: s0.logo, pane: s0.pane?.top, barH: s0.barH, dock: s0.dock }, barsHidden: down.barsHidden, logo: down.logo, barBottom: down.barBottom, pane: down.pane?.top, barSlide: down.barSlide, dock: down.dock })
       ok(`${tag} ${route}: wheel up: the logo bar is painted again at the same y`, up.logo && up.barsHidden === null && up.logoTop === s0.logoTop, { before: s0.logoTop, logo: up.logo, logoTop: up.logoTop, barsHidden: up.barsHidden })
     }
+    /* touch: a swipe hides both bars, a scroll by code after it moves nothing, nor does a hold-drag */
+    await p.goto(`${srv.base}${touchRoute}`, { waitUntil: 'networkidle2' }).catch(() => null)
+    const t0 = await settle(p)
+    if (t0.pane) await swipe(p, t0.pane, -300)
+    await sleep(500)
+    const tAway = await read(p)
+    ok(`${tag} touch ${touchRoute}: a swipe up hides both bars`, Boolean(t0.pane) && tAway.hidden === '1' && tAway.barsHidden === '1' && !tAway.logo, { hidden: tAway.hidden, bars: tAway.barsHidden, logo: tAway.logo })
+    await swipe(p, t0.pane || { x: 100, y: 400 }, -60)
+    await p.evaluate(() => { document.querySelector('[data-e2e-scroller]').scrollTop -= 120 })
+    await sleep(500)
+    const tCode = await read(p)
+    ok(`${tag} touch: a scroll by code right after the finger is up leaves both bars away`, tCode.hidden === '1' && tCode.barsHidden === '1', { hidden: tCode.hidden, bars: tCode.barsHidden })
+    await swipe(p, t0.pane || { x: 100, y: 400 }, 200, 400)
+    await sleep(500)
+    const tHold = await read(p)
+    ok(`${tag} touch: a finger held 400 ms, then moved down, changes neither bar`, tHold.hidden === '1' && tHold.barsHidden === '1', { hidden: tHold.hidden, bars: tHold.barsHidden })
     /* Back brings it back: Help, a tapped help page scrolled down, then Back */
     await p.goto(`${srv.base}/help`, { waitUntil: 'networkidle2' })
     await settle(p)

@@ -429,14 +429,32 @@ const kbdFold = computed(() => sectionStrip.value && kbOpen.value)
 /* SPL-4264 (owner HUM-10, t1 9b62ee09 msg d9d12c8c): the logo bar above
    it follows the same state, so both bars go and come together (main.css,
    .app-frame[data-mobile-bars-hidden]). */
+/* SPL-4264: a touch counts only while the finger is down and moved at once
+   (a swipe; a fling starts then). A finger held STRIP_HOLD_MS before it moves
+   is a hold-drag (a card, a calendar event): the bars stay as they are, so
+   nothing shifts under it. A scroll by code after the finger is up never
+   counts: both bars are 119 px, enough to move a card from under a press. */
 const STRIP_INPUT_MS = 600
 const STRIP_QUIET_MS = 400
+const STRIP_HOLD_MS = 250
 const stripHidden = ref(false)
 const stripAway = computed(() => sectionStrip.value && stripHidden.value)
 const stripAnchor = new WeakMap<object, number>()
 let stripInputAt = -Infinity
 let stripQuietTill = 0
+let stripTouch: '' | 'down' | 'swipe' | 'hold' = ''
+let stripTouchAt = 0
 const stripInput = () => { stripInputAt = performance.now() }
+const stripTouchStart = () => { stripTouch = 'down'; stripTouchAt = performance.now() }
+const stripTouchMove = () => {
+  if (stripTouch === 'down') stripTouch = performance.now() - stripTouchAt >= STRIP_HOLD_MS ? 'hold' : 'swipe'
+}
+const stripTouchEnd = () => { stripTouch = '' }
+const STRIP_TOUCH: [string, () => void][] = [
+  ['touchstart', stripTouchStart], ['touchmove', stripTouchMove], ['touchend', stripTouchEnd], ['touchcancel', stripTouchEnd],
+]
+/** the reader's own scroll: a swipe under the finger, or a wheel or key just now */
+const stripByReader = (now: number) => stripTouch === 'swipe' || (stripTouch === '' && now - stripInputAt <= STRIP_INPUT_MS)
 function onStripScroll(e: Event) {
   if (!sectionStrip.value) return
   const el = e.target instanceof Element ? e.target : document.scrollingElement
@@ -445,7 +463,7 @@ function onStripScroll(e: Event) {
   const next = stripScroll(stripAnchor.get(el) ?? y, y, stripHidden.value)
   stripAnchor.set(el, next.anchor)
   const now = performance.now()
-  if (next.hidden === stripHidden.value || now < stripQuietTill || now - stripInputAt > STRIP_INPUT_MS) return
+  if (next.hidden === stripHidden.value || now < stripQuietTill || !stripByReader(now)) return
   const strip = document.querySelector<HTMLElement>('.spool-shell > .sidebar')
   if (next.hidden && strip) strip.style.setProperty('--mobile-strip-h', `${strip.offsetHeight}px`)
   stripHidden.value = next.hidden
@@ -454,16 +472,18 @@ function onStripScroll(e: Event) {
 function onStripFocus(e: FocusEvent) {
   if (e.target instanceof Element && e.target.closest('.spool-shell > .sidebar')) stripHidden.value = false
 }
-const STRIP_INPUTS = ['touchmove', 'wheel', 'keydown'] as const
+const STRIP_INPUTS = ['wheel', 'keydown'] as const
 onMounted(() => {
   document.addEventListener('scroll', onStripScroll, { capture: true, passive: true })
   document.addEventListener('focusin', onStripFocus)
   for (const t of STRIP_INPUTS) document.addEventListener(t, stripInput, { capture: true, passive: true })
+  for (const [t, f] of STRIP_TOUCH) document.addEventListener(t, f, { capture: true, passive: true })
 })
 onUnmounted(() => {
   document.removeEventListener('scroll', onStripScroll, { capture: true })
   document.removeEventListener('focusin', onStripFocus)
   for (const t of STRIP_INPUTS) document.removeEventListener(t, stripInput, { capture: true })
+  for (const [t, f] of STRIP_TOUCH) document.removeEventListener(t, f, { capture: true })
 })
 watch(() => [route.fullPath, stack.level.value], () => { stripHidden.value = false })
 /* SPL-3785 retires two phone rules that only held while the strip left at

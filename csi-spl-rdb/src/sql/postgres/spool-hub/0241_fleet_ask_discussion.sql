@@ -1,0 +1,21 @@
+-- 0241_fleet_ask_discussion.sql - an ask names the owner discussion it works
+-- for, so the queue can serve a priority 1 discussion first (spec 150 v1.0
+-- section 3.4, row B9, SPL-4193). Forward-only, idempotent.
+--
+-- Owner HUM-10 (prd t1 0344254d, msg 2a1c2d12): "the orchestrator should be
+-- able to queque and give priority to those discussions which priority is
+-- closer to 1 than 5"; poll Q5 answer A: priority first, a priority 1 feature
+-- before a priority 3 bug.
+--
+-- discussion : the owner topic (a task_id uuid) the ask works for; NULL =
+--              none known. The hub sets it once, when it writes the ask: the
+--              caller's discussion, else a topic dispatch-<topic8> that
+--              starts exactly one topic of the workspace (none or two leave
+--              it NULL, never guessed; panel F3). The spec numbered this
+--              file 0215; 0215..0240 were taken when the row was built.
+-- The queue (store askPositions) reads the discussion's topic_priorities row
+-- (rdb 0214; no row = 5), then the class, then enqueued_at. An issue keeps
+-- its own priority: nothing is copied (panel D4).
+--
+-- Catalog-only: a nullable column, no rewrite. No personal data, no secret.
+ALTER TABLE fleet_asks ADD COLUMN IF NOT EXISTS discussion uuid;

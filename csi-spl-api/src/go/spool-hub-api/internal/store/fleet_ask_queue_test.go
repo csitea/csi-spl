@@ -222,3 +222,105 @@ func TestCheckFleetAskQueue(t *testing.T) {
 		}
 	}
 }
+
+// Spec 150 row B9 (rdb 0241, SPL-4193; owner HUM-10 prd t1 0344254d, poll Q5
+// answer A: "priority first: a priority 1 feature goes before a priority 3
+// bug"). The queue ranks by the discussion's priority (rdb 0214, none = 5),
+// then by class, then by enqueued_at. Run on Memory and Postgres.
+//
+//   - C401: of two queued bugs, the one whose discussion is priority 1 is
+//     position 1 although it was queued later. CONTROL: the rank ignores
+//     priority (FIFO puts the older bug first).
+//   - C402: asks with no discussion, or a discussion nobody set, keep the
+//     class, then enqueued_at order. CONTROL: a default that ranks first.
+//   - C403: a priority 1 feature goes before a priority 3 bug, and both before
+//     a ci row nobody gave a priority. CONTROL: class first (poll Q5 B) puts
+//     the ci row, then the bug, first.
+func TestFleetAskQueuePriority(t *testing.T) {
+	ctx := context.Background()
+	t0 := time.Date(2026, 10, 29, 8, 0, 0, 0, time.UTC)
+	const (
+		dP1    = "0344254d-90fa-4341-989e-ec3675da3741" // a discussion set to 1
+		dP3    = "0344254d-90fa-4341-989e-ec3675da3743" // a discussion set to 3
+		dUnset = "0344254d-90fa-4341-989e-ec3675da3745" // a discussion nobody set
+	)
+	type row struct{ key, class, disc string }
+	rows := []row{ // queued in this order, one minute apart
+		{"bugOld", "bug", ""}, {"ciNone", "ci", ""}, {"refUnset", "refactor", dUnset},
+		{"bugP3", "bug", dP3}, {"featP1", "feature", dP1}, {"bugP1", "bug", dP1}, {"featNone", "feature", ""},
+	}
+	ids := map[string]string{}
+	for i, r := range rows {
+		ids[r.key] = "b9b9b9b9-0000-4000-8000-00000000000" + string(rune('1'+i))
+	}
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			tid := newTenant(t, st)
+			for p, d := range map[int]string{1: dP1, 3: dP3} {
+				if _, err := st.(TopicPriorityStore).SetTopicPriority(ctx, tid, d, p, "HUM-10", t0); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for i, r := range rows {
+				at := t0.Add(time.Duration(i) * time.Minute)
+				got, _, err := st.PutFleetAsk(ctx, tid, FleetAsk{Fleet: "main", AskID: ids[r.key], Role: "orch", Kind: "task", From: "c-002@box-b",
+					Topic: "dispatch-0344254d", Discussion: r.disc, Summary: "SPAWN REQUEST " + r.key}, "box-b", at)
+				if err != nil || got.Discussion != r.disc {
+					t.Fatalf("put %s: discussion %q, want %q: %v", r.key, got.Discussion, r.disc, err)
+				}
+				if _, err := st.UpdateFleetAsk(ctx, tid, AskUpdate{Fleet: "main", AskID: ids[r.key], Op: AskQueue, By: "c-001@sat", Class: r.class}, "sat", at); err != nil {
+					t.Fatalf("queue %s: %v", r.key, err)
+				}
+			}
+			as, err := st.ListFleetAsks(ctx, tid, "main", "orch", false, t0.Add(time.Hour))
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := map[string]FleetAsk{}
+			for k, id := range ids {
+				for _, a := range as {
+					if a.AskID == id {
+						got[k] = a
+					}
+				}
+			}
+			want := map[string][2]int{ // position, priority
+				"bugP1": {1, 1}, "featP1": {2, 1}, // C401: the priority 1 bug before the older bugs; the class orders within 1
+				"bugP3":  {3, 3},                                                           // C403: a priority 3 bug after the priority 1 feature
+				"ciNone": {4, 5}, "refUnset": {5, 5}, "bugOld": {6, 5}, "featNone": {7, 5}, // C402: the class order at 5
+			}
+			for k, w := range want {
+				if got[k].Position != w[0] || got[k].Priority != w[1] || got[k].QueueLen != len(rows) {
+					t.Errorf("%s at %d priority %d, want %d priority %d", k, got[k].Position, got[k].Priority, w[0], w[1])
+				}
+			}
+			// another tenant's priority on the same topic id moves nothing here
+			other := newTenant(t, st)
+			if _, err := st.(TopicPriorityStore).SetTopicPriority(ctx, other, dUnset, 1, "HUM-10", t0); err != nil {
+				t.Fatal(err)
+			}
+			if as, _ = st.ListFleetAsks(ctx, tid, "main", "orch", false, t0.Add(time.Hour)); len(as) == 0 {
+				t.Fatal("empty list")
+			}
+			for _, a := range as {
+				if a.AskID == ids["refUnset"] && (a.Priority != 5 || a.Position != 5) {
+					t.Fatalf("another workspace's priority leaked: %+v", a)
+				}
+			}
+		})
+	}
+}
+
+func TestCheckFleetAskDiscussion(t *testing.T) {
+	a := FleetAsk{Fleet: "main", AskID: "b9b9b9b9-0000-4000-8000-000000000001", Role: "orch", Kind: "task", From: "c-002", Topic: "dispatch-0344254d"}
+	for _, d := range []string{"", "0344254d-90fa-4341-989e-ec3675da374d"} {
+		if a.Discussion = d; CheckFleetAsk(a) != "" {
+			t.Fatalf("discussion %q refused: %s", d, CheckFleetAsk(a))
+		}
+	}
+	for _, d := range []string{"0344254d", "0344254D-90FA-4341-989E-EC3675DA374D", "dispatch-0344254d", "not a uuid"} {
+		if a.Discussion = d; CheckFleetAsk(a) == "" {
+			t.Fatalf("discussion %q accepted", d)
+		}
+	}
+}

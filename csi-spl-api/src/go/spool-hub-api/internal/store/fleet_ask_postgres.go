@@ -16,7 +16,7 @@ import (
 const askCols = `ask_id, role, kind, from_agent, topic, summary, state, deadline_at, acked_by, closed_by, reason,
 	raised_n, raised_at, escalated_at, writer_box, created_at, updated_at, enqueued_at, placement,
 	class, flag, flag_msg, flag_by, flag_at,
-	lock_until, lease_s, gen, dedupe_key, issue_key, vendor_allow, needs, not_by`
+	lock_until, lease_s, gen, dedupe_key, issue_key, vendor_allow, needs, not_by, COALESCE(discussion::text, '')`
 
 func scanAsk(row pgx.Row, fleet string, now time.Time) (FleetAsk, error) {
 	a := FleetAsk{Fleet: fleet}
@@ -24,7 +24,7 @@ func scanAsk(row pgx.Row, fleet string, now time.Time) (FleetAsk, error) {
 	if err := row.Scan(&a.AskID, &a.Role, &a.Kind, &a.From, &a.Topic, &a.Summary, &a.State, &deadline, &a.AckedBy, &a.ClosedBy,
 		&a.Reason, &a.RaisedN, &raised, &escalated, &a.WriterBox, &a.CreatedAt, &a.UpdatedAt, &enqueued, &a.Placement,
 		&a.Class, &a.Flag, &a.FlagMsg, &a.FlagBy, &flagAt,
-		&lockUntil, &a.LeaseS, &a.Gen, &a.DedupeKey, &a.IssueKey, &a.VendorAllow, &a.Needs, &a.NotBy); err != nil {
+		&lockUntil, &a.LeaseS, &a.Gen, &a.DedupeKey, &a.IssueKey, &a.VendorAllow, &a.Needs, &a.NotBy, &a.Discussion); err != nil {
 		return a, err
 	}
 	if a.NotBy == nil {
@@ -53,10 +53,10 @@ func (s *Postgres) PutFleetAsk(ctx context.Context, tenant string, a FleetAsk, b
 			return err
 		}
 		tag, err := tx.Exec(ctx, `INSERT INTO fleet_asks
-			(tenant_id, fleet, ask_id, role, kind, from_agent, topic, summary, state, deadline_at, writer_box, created_at, updated_at)
-			VALUES ($1, $2, $3, $11, $4, $5, $6, $7, 'open', $8, $9, $10, $10)
+			(tenant_id, fleet, ask_id, role, kind, from_agent, topic, summary, state, deadline_at, writer_box, created_at, updated_at, discussion)
+			VALUES ($1, $2, $3, $11, $4, $5, $6, $7, 'open', $8, $9, $10, $10, NULLIF($12, '')::uuid)
 			ON CONFLICT (tenant_id, fleet, ask_id) DO NOTHING`,
-			tenant, a.Fleet, a.AskID, a.Kind, a.From, a.Topic, a.Summary, nullTime(a.DeadlineAt), box, now, a.Role)
+			tenant, a.Fleet, a.AskID, a.Kind, a.From, a.Topic, a.Summary, nullTime(a.DeadlineAt), box, now, a.Role, a.Discussion)
 		if err != nil {
 			return err
 		}
@@ -146,9 +146,40 @@ func (s *Postgres) ListFleetAsks(ctx context.Context, tenant, fleet, role string
 			}
 			out = append(out, a)
 		}
-		return rows.Err()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		return askListPriorities(ctx, tx, tenant, out)
 	})
 	sortAsks(out)
 	askPositions(out)
 	return out, err
+}
+
+// askListPriorities fills each ask's Priority from its discussion's
+// topic_priorities row (rdb 0214, spec 150 row B9), one primary-key probe for
+// the list's distinct discussions, in the list's own transaction.
+func askListPriorities(ctx context.Context, tx pgx.Tx, tenant string, as []FleetAsk) error {
+	prio := map[string]int{}
+	if ds := askDiscussions(as); len(ds) > 0 {
+		rows, err := tx.Query(ctx, `SELECT task_id::text, priority FROM topic_priorities
+			WHERE tenant_id = $1 AND task_id = ANY ($2::uuid[])`, tenant, ds)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var k string
+			var p int
+			if err := rows.Scan(&k, &p); err != nil {
+				return err
+			}
+			prio[k] = p
+		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
+	}
+	askFillPriorities(as, prio)
+	return nil
 }

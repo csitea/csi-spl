@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -18,7 +20,10 @@ import (
 // frames ride a one-shot role=cli session:
 //
 //	ask_op put      - record a new open ask (idempotent on ask_id, the msg_id
-//	                  that carried it: a journal replay changes nothing)
+//	                  that carried it: a journal replay changes nothing);
+//	                  discussion is the owner topic it works for (rdb 0241),
+//	                  else resolved from a topic dispatch-<topic8>
+//	ask_op list     - each ask carries its discussion's priority (1..5)
 //	ask_op list     - the fleet's open asks to a role, oldest first (all: + closed week)
 //	ask_op ack      - in progress, by <ID>@<box>
 //	ask_op done     - closed, reason optional
@@ -67,6 +72,7 @@ type AskRow struct {
 	Kind        string `json:"kind"`
 	From        string `json:"from"`
 	Topic       string `json:"topic"`
+	Discussion  string `json:"discussion,omitempty"` // rdb 0241: the owner topic uuid it works for
 	Summary     string `json:"summary"`
 	State       string `json:"state,omitempty"`
 	DeadlineAt  string `json:"deadline_at,omitempty"`
@@ -83,6 +89,7 @@ type AskRow struct {
 	FlagMsg     string `json:"flag_msg,omitempty"`
 	FlagBy      string `json:"flag_by,omitempty"`
 	FlagAt      string `json:"flag_at,omitempty"`
+	Priority    int    `json:"priority,omitempty"` // list: the discussion's priority 1..5 (5 without one)
 	Position    int    `json:"position,omitempty"`
 	QueueLen    int    `json:"queue_len,omitempty"`
 	WriterBox   string `json:"writer_box,omitempty"`
@@ -169,11 +176,11 @@ func askTime(t time.Time) string {
 }
 
 func askRow(a store.FleetAsk) AskRow {
-	return AskRow{AskID: a.AskID, Role: a.Role, Kind: a.Kind, From: a.From, Topic: a.Topic, Summary: a.Summary, State: a.State,
+	return AskRow{AskID: a.AskID, Role: a.Role, Kind: a.Kind, From: a.From, Topic: a.Topic, Discussion: a.Discussion, Summary: a.Summary, State: a.State,
 		DeadlineAt: askTime(a.DeadlineAt), AckedBy: a.AckedBy, ClosedBy: a.ClosedBy, Reason: a.Reason,
 		RaisedN: a.RaisedN, RaisedAt: askTime(a.RaisedAt), EscalatedAt: askTime(a.EscalatedAt),
 		EnqueuedAt: askTime(a.EnqueuedAt), Placement: a.Placement,
-		Class: a.Class, Flag: a.Flag, FlagMsg: a.FlagMsg, FlagBy: a.FlagBy, FlagAt: askTime(a.FlagAt), Position: a.Position, QueueLen: a.QueueLen, WriterBox: a.WriterBox,
+		Class: a.Class, Flag: a.Flag, FlagMsg: a.FlagMsg, FlagBy: a.FlagBy, FlagAt: askTime(a.FlagAt), Priority: a.Priority, Position: a.Position, QueueLen: a.QueueLen, WriterBox: a.WriterBox,
 		LockUntil: askTime(a.LockUntil), LeaseS: a.LeaseS, Gen: a.Gen, DedupeKey: a.DedupeKey, IssueKey: a.IssueKey,
 		VendorAllow: a.VendorAllow, Needs: a.Needs, NotBy: a.NotBy,
 		CreatedAt: askTime(a.CreatedAt), UpdatedAt: askTime(a.UpdatedAt),
@@ -249,7 +256,11 @@ func (s *Server) askPut(ctx context.Context, x *session, f wire.Frame) (askAnswe
 	if in.From, ae = s.resolveAgent(ctx, x.tenant, in.From, ""); ae != nil {
 		return askAnswer{}, ae
 	}
-	a := store.FleetAsk{Fleet: f.Fleet, AskID: in.AskID, Role: in.Role, Kind: in.Kind, From: in.From, Topic: in.Topic, Summary: in.Summary}
+	a := store.FleetAsk{Fleet: f.Fleet, AskID: in.AskID, Role: in.Role, Kind: in.Kind, From: in.From, Topic: in.Topic, Summary: in.Summary,
+		Discussion: strings.ToLower(strings.TrimSpace(in.Discussion))}
+	if a.Discussion == "" {
+		a.Discussion = s.askDiscussion(ctx, x.tenant, in.Topic)
+	}
 	if in.DeadlineAt != "" {
 		t, err := time.Parse(time.RFC3339, in.DeadlineAt)
 		if err != nil {
@@ -268,6 +279,31 @@ func (s *Server) askPut(ctx context.Context, x *session, f wire.Frame) (askAnswe
 	s.o.Log.Info().Str("tenant", x.tenant).Str("box", x.box).Str("fleet", f.Fleet).Str("ask", got.AskID).
 		Str("kind", got.Kind).Str("from", got.From).Bool("created", created).Msg("fleet ask put")
 	return askAnswer{Fleet: f.Fleet, Created: created, Asks: []AskRow{askRow(got)}}, nil
+}
+
+// askDispatchTopicRe is a dispatcher's task id for an owner topic,
+// dispatch-<topic8>; the group is the topic's short id.
+var askDispatchTopicRe = regexp.MustCompile(`^dispatch-([0-9a-f]{8})$`)
+
+// askDiscussion resolves the owner topic an ask works for from its topic
+// dispatch-<topic8> (spec 150 row B9, panel F3): the one topic of the
+// workspace that starts with topic8; "" for none or two (never guessed), for
+// any other topic, and when the lookup fails (the ask is recorded anyway).
+func (s *Server) askDiscussion(ctx context.Context, tenant, topic string) string {
+	m := askDispatchTopicRe.FindStringSubmatch(topic)
+	d, ok := s.issueDiscussionStore()
+	if m == nil || !ok {
+		return ""
+	}
+	ids, err := d.TopicsByPrefix(ctx, tenant, m[1], 2)
+	if err != nil {
+		s.o.Log.Warn().Err(err).Str("tenant", tenant).Str("topic", topic).Msg("fleet ask discussion")
+		return ""
+	}
+	if len(ids) != 1 {
+		return ""
+	}
+	return ids[0]
 }
 
 func (s *Server) askList(ctx context.Context, x *session, f wire.Frame) (askAnswer, *issueErr) {

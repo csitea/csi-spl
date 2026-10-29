@@ -392,8 +392,10 @@ func (s *Server) handleExportContacts(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	cw := csv.NewWriter(w)
 	_ = cw.Write(strings.Split(contactsCSVHeader, ","))
+	// csvSafe (hours_export.go): a cell that starts with = + - @ is quoted, so a
+	// spreadsheet never runs it as a formula; a +phone reads back with a leading '.
 	for _, ct := range all {
-		_ = cw.Write([]string{ct.FirstName, ct.LastName, ct.Email, ct.Phone, ct.GoogleResource})
+		_ = cw.Write([]string{csvSafe(ct.FirstName), csvSafe(ct.LastName), csvSafe(ct.Email), csvSafe(ct.Phone), csvSafe(ct.GoogleResource)})
 	}
 	cw.Flush()
 	s.o.Log.Info().Str("op", "contacts_export").Str("person", c.person).Int("rows", len(all)).Msg("contacts")

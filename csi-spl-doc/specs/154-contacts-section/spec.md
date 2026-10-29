@@ -474,7 +474,9 @@ Contacts are personal data of people who never agreed to be in Spool.
 - **Never logged**: no contact value (name, email, phone) in a log line, an
   error body or a metric label; logs carry `contact_id` only (C12).
 - **Export**: `GET /v1/me/contacts/export` answers the person's contacts
-  as CSV with exactly the four columns plus `google_resource`.
+  as CSV with exactly the four columns plus `google_resource`; a cell
+  that starts with `=`, `+`, `-` or `@` gets a leading `'` (`csvSafe`, as
+  `hub/hours_export.go`), so a spreadsheet never runs it as a formula.
 - **Erase one**: `DELETE /v1/me/contacts/{id}` removes the contact from
   every read at once. If a Google delete must be sent (the contact is
   linked under the bound account and the binding is enabled), it is a soft

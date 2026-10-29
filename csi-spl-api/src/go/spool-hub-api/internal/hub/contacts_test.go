@@ -399,11 +399,12 @@ func TestContactsKillSwitch(t *testing.T) {
 	}
 }
 
-// C7: the export is the CSV header and P1's own rows only (two persons).
+// C7: the export is the CSV header and P1's own rows only (two persons);
+// a cell that starts with = + - @ is quoted (W1, csvSafe).
 func TestContactsExport(t *testing.T) {
 	c := newContactsRig(t, onAll)
 	c.create(t, c.b1, map[string]any{"first_name": ctFirst, "last_name": ctLast, "email": ctEmail, "phone": ctPhone})
-	c.create(t, c.b1, map[string]any{"first_name": "Second"})
+	c.create(t, c.b1, map[string]any{"first_name": "=HYPERLINK(\"x\")", "last_name": "@SUM(A1)", "email": "-x@example.com"})
 	stranger, _ := c.other(t, "")
 	c.create(t, stranger, map[string]any{"first_name": "Stranger", "email": "stranger@example.com"})
 
@@ -418,8 +419,12 @@ func TestContactsExport(t *testing.T) {
 	if len(rows) != 3 || strings.Join(rows[0], ",") != "first_name,last_name,email,phone,google_resource" {
 		t.Fatalf("export = %q, want the header and 2 rows", rows)
 	}
-	if strings.Join(rows[1], ",") != ctFirst+","+ctLast+","+ctEmail+","+ctPhone+"," {
-		t.Errorf("first row = %q", rows[1])
+	if strings.Join(rows[1], ",") != ctFirst+","+ctLast+","+ctEmail+",'"+ctPhone+"," {
+		t.Errorf("first row = %q, want the +phone quoted", rows[1])
+	}
+	// W1: no cell starts with a formula character (= + - @), csvSafe quotes it.
+	if want := []string{`'=HYPERLINK("x")`, "'@SUM(A1)", "'-x@example.com", "", ""}; strings.Join(rows[2], "|") != strings.Join(want, "|") {
+		t.Errorf("formula row = %q, want %q", rows[2], want)
 	}
 	if strings.Contains(string(raw), "Stranger") || strings.Contains(string(raw), "stranger@example.com") {
 		t.Error("the export carries another person's contact")

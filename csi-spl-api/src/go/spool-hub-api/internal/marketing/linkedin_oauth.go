@@ -92,25 +92,39 @@ type State struct {
 }
 
 func (l *LinkedIn) stateKey() []byte {
-	m := hmac.New(sha256.New, []byte(l.ClientSecret.Reveal()))
-	m.Write([]byte("spool-marketing-connect-state/v1"))
-	return m.Sum(nil)
+	return stateKey(l.ClientSecret, "spool-marketing-connect-state/v1")
 }
 
 // NewState signs st (a fresh nonce is added): "<payload>.<mac>", base64url.
-func (l *LinkedIn) NewState(st State) string {
+func (l *LinkedIn) NewState(st State) string { return signState(l.stateKey(), st) }
+
+// VerifyState checks s's MAC and expiry at now and returns what it binds.
+func (l *LinkedIn) VerifyState(s string, now time.Time) (State, error) {
+	return verifyState(l.stateKey(), s, now)
+}
+
+// stateKey derives a connect-state key from an app secret, one label per
+// app, so a state minted for one app never verifies for another.
+func stateKey(secret Plaintext, label string) []byte {
+	m := hmac.New(sha256.New, []byte(secret.Reveal()))
+	m.Write([]byte(label))
+	return m.Sum(nil)
+}
+
+// signState signs st with key (a fresh nonce is added): "<payload>.<mac>".
+func signState(key []byte, st State) string {
 	n := make([]byte, 16)
 	rand.Read(n) //nolint:errcheck // crypto/rand.Read never fails since Go 1.24
 	st.Nonce = base64.RawURLEncoding.EncodeToString(n)
 	b, _ := json.Marshal(st) //nolint:errchkjson // plain strings and an int
 	p := base64.RawURLEncoding.EncodeToString(b)
-	m := hmac.New(sha256.New, l.stateKey())
+	m := hmac.New(sha256.New, key)
 	m.Write([]byte(p))
 	return p + "." + base64.RawURLEncoding.EncodeToString(m.Sum(nil))
 }
 
-// VerifyState checks s's MAC and expiry at now and returns what it binds.
-func (l *LinkedIn) VerifyState(s string, now time.Time) (State, error) {
+// verifyState checks s's MAC under key and its expiry at now.
+func verifyState(key []byte, s string, now time.Time) (State, error) {
 	p, mac, ok := strings.Cut(s, ".")
 	if !ok {
 		return State{}, ErrState
@@ -119,7 +133,7 @@ func (l *LinkedIn) VerifyState(s string, now time.Time) (State, error) {
 	if err != nil {
 		return State{}, ErrState
 	}
-	m := hmac.New(sha256.New, l.stateKey())
+	m := hmac.New(sha256.New, key)
 	m.Write([]byte(p))
 	if !hmac.Equal(got, m.Sum(nil)) {
 		return State{}, ErrState

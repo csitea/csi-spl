@@ -305,6 +305,8 @@ func mailOptions(ctx context.Context, opts *hub.Options, hc *config.Hub, log zer
 	opts.InviteMail = inviteMailer(hc, log, st, pmc, ac.AppURL)
 	// spec 090 (SPL-1634): connect LinkedIn, share the blog
 	opts.MarketingLinkedIn = marketingLinkedIn(ctx, hc, log, pmc, ac.AppURL)
+	// spec 090 T033 (SPL-4254): connect Facebook Pages + Instagram
+	opts.MarketingMeta = marketingMeta(ctx, hc, log, ac.AppURL)
 	opts.Gcal = gcalConnect(ctx, hc, ac, log)            // spec 149 B5: a member's Google Calendar
 	opts.EmbedRelinkMail = embedRelinkMailer(log, pmc)   // specs/121 T206
 	opts.VendorKeySealer = vendorKeySealer(ctx, hc, log) // spec 127 H1 + spec 159 T1: a workspace's own vendor keys

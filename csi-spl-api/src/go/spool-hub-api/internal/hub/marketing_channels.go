@@ -65,9 +65,35 @@ func (m *MarketingLinkedIn) ConnectLink(workspace string) string {
 	return m.APIURL + "/v1/marketing/linkedin/connect?" + url.Values{"workspace": {workspace}}.Encode()
 }
 
-// marketingConnectActor resolves who may start a connect, and for which
-// workspace: ?workspace=<id> (a member of it), else the session's own.
+// marketingConnectActor resolves who may start a LinkedIn connect.
 func (s *Server) marketingConnectActor(w http.ResponseWriter, r *http.Request) (tenant, hum string, ok bool) {
+	if tenant, hum, ok = s.marketingConnectMember(w, r); !ok {
+		return "", "", false
+	}
+	if s.o.MarketingLinkedIn == nil {
+		writeErr(w, http.StatusServiceUnavailable, "linkedin_not_configured", "the LinkedIn app is not configured on this hub")
+		return "", "", false
+	}
+	if !s.marketingStoreOK(w) {
+		return "", "", false
+	}
+	return tenant, hum, true
+}
+
+// marketingStoreOK writes 501 unless the store keeps marketing channels.
+func (s *Server) marketingStoreOK(w http.ResponseWriter) bool {
+	if _, has := s.o.Store.(store.Marketing); !has {
+		writeErr(w, http.StatusNotImplemented, "unsupported", "this hub's store keeps no marketing channels")
+		return false
+	}
+	return true
+}
+
+// marketingConnectMember resolves who may start a connect, and for which
+// workspace: ?workspace=<id> (a member of it), else the session's own. Only
+// an admin (rbac.TenantSettings) of an allow-listed workspace with marketing
+// switched on passes; the platform's own checks follow in the caller.
+func (s *Server) marketingConnectMember(w http.ResponseWriter, r *http.Request) (tenant, hum string, ok bool) {
 	s.allowOrigin(w, r)
 	w.Header().Set("Cache-Control", "no-store")
 	if ws := r.URL.Query().Get("workspace"); ws != "" && s.o.Auth != nil {
@@ -96,14 +122,6 @@ func (s *Server) marketingConnectActor(w http.ResponseWriter, r *http.Request) (
 		return "", "", false
 	}
 	if !s.permit(w, r, tenant, hum, rbac.TenantSettings) {
-		return "", "", false
-	}
-	if s.o.MarketingLinkedIn == nil {
-		writeErr(w, http.StatusServiceUnavailable, "linkedin_not_configured", "the LinkedIn app is not configured on this hub")
-		return "", "", false
-	}
-	if _, has := s.o.Store.(store.Marketing); !has {
-		writeErr(w, http.StatusNotImplemented, "unsupported", "this hub's store keeps no marketing channels")
 		return "", "", false
 	}
 	return tenant, hum, true
@@ -211,12 +229,22 @@ func (s *Server) connectLinkedIn(ctx context.Context, m *MarketingLinkedIn, mk s
 
 // connectPage answers the browser with one short, escaped page.
 func (s *Server) connectPage(w http.ResponseWriter, status int, title, text string) {
+	appURL := ""
+	if m := s.o.MarketingLinkedIn; m != nil {
+		appURL = m.AppURL
+	}
+	connectPageBack(w, status, title, text, appURL)
+}
+
+// connectPageBack is connectPage with its "Back to spool-hub" link to appURL
+// ("" = no link).
+func connectPageBack(w http.ResponseWriter, status int, title, text, appURL string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'")
 	w.WriteHeader(status)
 	back := ""
-	if m := s.o.MarketingLinkedIn; m != nil && m.AppURL != "" {
-		back = `<p><a href="` + html.EscapeString(m.AppURL) + `">Back to spool-hub</a></p>`
+	if appURL != "" {
+		back = `<p><a href="` + html.EscapeString(appURL) + `">Back to spool-hub</a></p>`
 	}
 	_, _ = w.Write([]byte(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>` +
 		html.EscapeString(title) + `</title></head><body style="font-family:sans-serif;max-width:36em;margin:3em auto;padding:0 1em"><h1>` +

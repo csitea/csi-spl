@@ -5257,6 +5257,159 @@
         ]
       }
     },
+    "/v1/marketing/facebook/callback": {
+      "get": {
+        "operationId": "getMarketingFacebookCallback",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "code",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "an HTML page: the Pages and Instagram accounts connected (each held for approval), none found, or Meta's refusal"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "502": {
+            "description": "the exchange with Meta failed"
+          },
+          "503": {
+            "description": "not_configured: the Meta app is not configured on this hub"
+          }
+        },
+        "summary": "Meta's OAuth redirect",
+        "tags": [
+          "marketing"
+        ]
+      }
+    },
+    "/v1/marketing/facebook/connect": {
+      "get": {
+        "operationId": "getMarketingFacebookConnect",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the workspace to connect for; default the session's",
+            "in": "query",
+            "name": "workspace",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Found: to Meta's OAuth dialog, asking the five Page + Instagram permissions (the one-click connect link, spec 090 T033)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "description": "not_configured: the Meta app is not configured on this hub"
+          }
+        },
+        "summary": "Connect Facebook Pages and Instagram accounts (browser link)",
+        "tags": [
+          "marketing"
+        ]
+      },
+      "post": {
+        "operationId": "postMarketingFacebookConnect",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the workspace to connect for; default the session's",
+            "in": "query",
+            "name": "workspace",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {authorize_url}"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "description": "not_configured: the Meta app is not configured on this hub"
+          }
+        },
+        "summary": "Start connecting Facebook Pages and Instagram accounts",
+        "tags": [
+          "marketing"
+        ]
+      }
+    },
+    "/v1/marketing/facebook/pages": {
+      "get": {
+        "operationId": "getMarketingFacebookPages",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {pages: [{channel_id, page_id, name, status, auto_publish, delegated_by, instagram: {channel_id, ig_user_id, username, status, auto_publish} | null}]}, never a token (spec 090 T033)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "description": "not_configured: the Meta app is not configured on this hub"
+          }
+        },
+        "summary": "List connected Facebook Pages and their Instagram accounts",
+        "tags": [
+          "marketing"
+        ]
+      }
+    },
     "/v1/marketing/linkedin/callback": {
       "get": {
         "operationId": "getMarketingLinkedInCallback",

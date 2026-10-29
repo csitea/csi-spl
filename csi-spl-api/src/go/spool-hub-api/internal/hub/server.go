@@ -226,6 +226,10 @@ type Options struct {
 	// MarketingLinkedIn connects LinkedIn accounts and shares the blog with
 	// them (spec 090, SPL-1634, marketing_channels.go); nil = not configured.
 	MarketingLinkedIn *MarketingLinkedIn
+	// MarketingMeta connects Facebook Pages and Instagram accounts (spec
+	// 090 T033, SPL-4254, marketing_meta_channels.go); nil = not configured:
+	// every /v1/marketing/facebook route answers 503 not_configured.
+	MarketingMeta *MarketingMeta
 	// Gcal connects a member's own Google Calendar (spec 149 B5, SPL-3208,
 	// gcal_connect.go); nil = off: every /v1/me/google-calendar route is 404.
 	Gcal *GcalConnect

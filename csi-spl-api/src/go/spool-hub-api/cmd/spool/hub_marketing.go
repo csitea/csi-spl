@@ -51,3 +51,37 @@ func marketingLinkedIn(ctx context.Context, hc *config.Hub, log zerolog.Logger, 
 	log.Info().Str("redirect_uri", m.LinkedIn.RedirectURI).Bool("mail", m.Mail != nil).Msg("marketing: linkedin on")
 	return m
 }
+
+// marketingMeta builds the Facebook Page + Instagram connect (spec 090 T033,
+// SPL-4254), or nil while the Meta app's id, its secret, the KMS key or the
+// WUI origin is not set (cnf marketing.facebook.inject "false"): then every
+// /v1/marketing/facebook route answers 503 not_configured. The redirect URI
+// is the WUI origin's callback, registered in the Meta app (meta-app-setup.md
+// step 3).
+func marketingMeta(ctx context.Context, hc *config.Hub, log zerolog.Logger, appURL string) *hub.MarketingMeta {
+	id, secret, key := strings.TrimSpace(hc.MarketingFacebookAppID), strings.TrimSpace(hc.MarketingFacebookClientSecret), strings.TrimSpace(hc.MarketingKMSKey)
+	appURL = strings.TrimRight(strings.TrimSpace(appURL), "/")
+	if id == "" || secret == "" || key == "" || appURL == "" {
+		log.Info().Bool("app_id", id != "").Bool("client_secret", secret != "").Bool("kms_key", key != "").
+			Bool("app_url", appURL != "").Msg("marketing: meta off, connect answers 503")
+		return nil
+	}
+	meta := &marketing.Meta{AppID: id, AppSecret: marketing.NewPlaintext(secret), RedirectURI: appURL + hub.MetaCallbackPath,
+		Version: strings.TrimSpace(hc.MarketingFacebookAPIVersion), Scopes: strings.TrimSpace(hc.MarketingFacebookScopes)}
+	if _, err := meta.AuthorizeURL(""); err != nil {
+		log.Error().Err(err).Msg("marketing: meta off, connect answers 503")
+		return nil
+	}
+	kms, err := marketing.NewCloudKMS(ctx)
+	if err != nil {
+		log.Error().Err(err).Msg("marketing: meta off, no KMS client, connect answers 503")
+		return nil
+	}
+	sealer, err := marketing.NewSealer(kms, key)
+	if err != nil {
+		log.Error().Err(err).Msg("marketing: meta off, connect answers 503")
+		return nil
+	}
+	log.Info().Str("redirect_uri", meta.RedirectURI).Msg("marketing: meta on")
+	return &hub.MarketingMeta{Meta: meta, Sealer: sealer, AppURL: appURL}
+}

@@ -62,7 +62,12 @@ type Meta struct {
 	RedirectURI string
 	Version     string // Graph API version, e.g. v26.0
 	GraphBase   string
-	HTTP        *http.Client
+	// DialogBase is the host of the OAuth dialog (meta_oauth.go); Scopes the
+	// comma-separated permissions it asks for. Empty = MetaDialogBase,
+	// MetaScopes.
+	DialogBase string
+	Scopes     string
+	HTTP       *http.Client
 	// Attempts is the most tries of one retry-safe call (default 3).
 	Attempts int
 	// BackoffBase is the first wait between tries, doubled each time up to

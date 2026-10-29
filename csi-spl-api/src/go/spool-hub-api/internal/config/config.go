@@ -458,6 +458,17 @@ type Hub struct {
 	MarketingLinkedInClientSecret string `env:"SPOOL_HUB_MARKETING_LINKEDIN_CLIENT_SECRET"`
 	MarketingKMSKey               string `env:"SPOOL_HUB_MARKETING_KMS_KEY"`
 	MarketingLinkedInVersion      string `env:"SPOOL_HUB_MARKETING_LINKEDIN_VERSION" envDefault:"202606"`
+	// The Meta app for Facebook Page + Instagram publishing (spec 090 T030,
+	// T033, SPL-4254): the sign-in Meta app reused (cnf marketing.facebook,
+	// injected by 030 while its inject is "true"; the secret is never
+	// logged). Connecting is on only when the app id, the secret and
+	// MarketingKMSKey are all set; else every /v1/marketing/facebook route
+	// answers 503 not_configured. Empty version / scopes = the spec's
+	// (marketing.MetaDefaultVersion, marketing.MetaScopes).
+	MarketingFacebookAppID        string `env:"SPOOL_HUB_MARKETING_FACEBOOK_APP_ID"`
+	MarketingFacebookClientSecret string `env:"SPOOL_HUB_MARKETING_FACEBOOK_CLIENT_SECRET"`
+	MarketingFacebookAPIVersion   string `env:"SPOOL_HUB_MARKETING_FACEBOOK_API_VERSION"`
+	MarketingFacebookScopes       string `env:"SPOOL_HUB_MARKETING_FACEBOOK_SCOPES"`
 	// The Google Calendar connect (spec 149 B5, SPL-3208, cnf gcal): the
 	// allow-list (workspace ids or the one entry "all"; empty = off
 	// everywhere, every /v1/me/google-calendar route answers 404), the

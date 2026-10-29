@@ -45,14 +45,17 @@ SPL_SECURITY_ROUND_TOPIC=3d0675ba-6dab-46cc-92c9-2aba3ac7cd23
 do_spl_security_round_queue() {
   local dry="${DRY_RUN:-1}" on day tpl holder from v1 v2 n=0 seat vendor
   spl_security_round_check || return 1
+  # The cron line exports no SPOOL_ROOT: spl_asks_init's default, set before
+  # its first use (SPL-4246; under set -u the Friday cron died on line 49).
+  SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"
   day="${SECURITY_ROUND_DATE:-$(date -u +%F)}"
-  tpl="${SECURITY_ROUND_TEMPLATE:-$SPOOL_ROOT/dispatch/briefs/c002-security-round-seat.md}"
-  [[ -s "$tpl" ]] || { do_log "FATAL the seat brief template $tpl is missing or empty"; return 1; }
   on="$(spl_security_round_switch)"
   if [[ "$dry" == 0 && "$on" != on ]]; then
     do_log "INFO the security round is off (SECURITY_ROUND / cnf env.box.security_round.enabled): nothing queued"
     return 0
   fi
+  tpl="${SECURITY_ROUND_TEMPLATE:-$SPOOL_ROOT/dispatch/briefs/c002-security-round-seat.md}"
+  [[ -s "$tpl" ]] || { do_log "FATAL the seat brief template $tpl is missing or empty"; return 1; }
   spl_spawn_q_init || return 1
   holder="$(spl_asks_holder)"
   if [[ "$dry" == 0 && "${holder##*@}" != "$ASKS_BOX" ]]; then

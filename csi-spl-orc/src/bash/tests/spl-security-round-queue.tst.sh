@@ -112,6 +112,8 @@ round() {  # [env...]
     SECURITY_ROUND_CNF="$T/none.yaml" SECURITY_ROUND_DATE=2026-10-16 QUEUE_SRC="${QUEUE_SRC:-$T/src/queue.func.sh}" \
     PROJ_PATH="$PROJ_ROOT" APP_PATH="$T" "$@" bash -c '
     set -uo pipefail
+    # shellcheck disable=SC2086 # ROUND_UNSET is a list of names
+    [[ -z "${ROUND_UNSET:-}" ]] || unset $ROUND_UNSET
     do_log() { echo "$*"; }
     for f in spl-lane-map spl-asks-open spl-asks-tick spl-spawn-queue spl-spawn-share spl-spawn-enqueue spl-spawn-place; do
       source "'"$PROJ_ROOT"'/src/bash/run/$f.func.sh"
@@ -130,6 +132,18 @@ out="$(round)"
 [[ "$(grep -c '^PLAN would queue seat' <<<"$out")" == 2 && "$(asks)" == 0 && ! -s "$T/cal.log" ]] &&
   grep -q '^PLAN would add .Weekly security round (2026-10-16). 2026-10-16 06:00-08:00Z' <<<"$out" && grep -q 'switch off' <<<"$out" &&
   pass "dry run (the default) plans 2 seats and the event, queues nothing" || fail "dry: $out"
+# SPL-4246: the cron line exports no SPOOL_ROOT (and no template); set -u
+# killed the run on the template default before the switch was read.
+out="$(round DRY_RUN=0 ROUND_UNSET='SPOOL_ROOT SECURITY_ROUND_TEMPLATE')"; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'the security round is off' <<<"$out" && ! grep -q 'unbound variable' <<<"$out" &&
+  pass "cron env: no SPOOL_ROOT, no template + DRY_RUN=0 -> off, rc 0, no unbound variable" || fail "no SPOOL_ROOT: rc=$rc $out"
+# CONTROL: the pre-fix order (template default before the SPOOL_ROOT default) dies the same way.
+sed -e '/^  SPOOL_ROOT="\${SPOOL_ROOT:-/d' -e '/^  day=/a\  tpl="${SECURITY_ROUND_TEMPLATE:-$SPOOL_ROOT/x.md}"' \
+  "$PROJ_ROOT/src/bash/run/spl-security-round-queue.func.sh" >"$T/src/unbound.func.sh"
+out="$(QUEUE_SRC="$T/src/unbound.func.sh" round DRY_RUN=0 ROUND_UNSET='SPOOL_ROOT SECURITY_ROUND_TEMPLATE')"; rc=$?
+[[ $rc -ne 0 ]] && grep -q 'SPOOL_ROOT: unbound variable' <<<"$out" &&
+  pass "control: without the SPOOL_ROOT default the cron env dies on unbound SPOOL_ROOT (the check above can fail)" ||
+  fail "control unbound: rc=$rc $out"
 printf 'env:\n  box:\n    security_round:\n      enabled: true\n' >"$T/on.yaml"
 out="$(round DRY_RUN=0 SECURITY_ROUND_CNF="$T/on.yaml" ASKS_HOLDER=c-001@sat)"
 grep -q 'held on sat' <<<"$out" && [[ "$(asks)" == 0 ]] &&

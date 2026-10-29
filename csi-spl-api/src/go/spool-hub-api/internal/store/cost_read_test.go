@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
+	"strings"
 	"sync"
 	"testing"
 
@@ -226,5 +227,52 @@ func TestCostMonthReadRLS(t *testing.T) {
 	}
 	if est := partsBy(control.Parts); len(control.Parts) != 2 || !control.Parts[0].Estate || est["false/"+hand+"/b-invoice/invoice"].USDMicros != 2_000_000 {
 		t.Errorf("CONTROL: the operator scope reads %+v, want the estate row and B's", control.Parts)
+	}
+}
+
+// TestCostCloudDays (SPL-4187): one estate GCP project's month per day and
+// service: its own lines summed per (day, kind), never another project's,
+// a workspace's line of the same project, another source, the day after the
+// month or a superseded line. CONTROL: the statement without the estate
+// filter reads the workspace's line too, so its absence is the filter's.
+func TestCostCloudDays(t *testing.T) {
+	pg := rlsStore(t)
+	ctx := context.Background()
+	from, to, day := costTestMonth(t)
+	a := newTenant(t, pg)
+	pov := uid("csi-spl-") + "/box=sat"
+	costSeed(t, pg, "", day(1), "gcp", pov, "compute-engine", "billing_export", 0, 1_000_000, 920_000)
+	costSeed(t, pg, "", day(1), "gcp", pov, "cloud-run", "billing_export", 0, 300_000, 276_000)
+	costSeed(t, pg, "", day(2), "gcp", pov, "compute-engine", "billing_export", 0, 2_000_000, 1_840_000)
+	costSeed(t, pg, "", day(2), "gcp", uid("other-"), "compute-engine", "billing_export", 0, 7_000_000, 7_000_000)
+	costSeed(t, pg, a, day(2), "gcp", pov, "compute-engine", "hand", 0, 5_000_000, 5_000_000)
+	costSeed(t, pg, "", day(3), uid("gcp-"), pov, "compute-engine", "billing_export", 0, 4_000_000, 4_000_000)
+	costSeed(t, pg, "", to, "gcp", pov, "compute-engine", "billing_export", 0, 9_000_000, 9_000_000)
+
+	q := CostCloudDaysQuery{Project: pov, From: from, To: to}
+	got, err := pg.CostCloudDays(ctx, q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{day(1) + "/cloud-run/300000", day(1) + "/compute-engine/1000000", day(2) + "/compute-engine/2000000"}
+	var have []string
+	for _, d := range got {
+		have = append(have, fmt.Sprintf("%s/%s/%d", d.Day, d.Kind, d.USDMicros))
+	}
+	if fmt.Sprint(have) != fmt.Sprint(want) {
+		t.Errorf("days %v, want %v", have, want)
+	}
+	if _, err := pg.CostCloudDays(ctx, CostCloudDaysQuery{From: from, To: to}); err == nil {
+		t.Error("no project: want a refusal")
+	}
+	saved := costCloudDays
+	t.Cleanup(func() { costCloudDays = saved })
+	costCloudDays = strings.Replace(costCloudDays, "AND c.tenant_id IS NULL ", "", 1)
+	control, err := pg.CostCloudDays(ctx, q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(control) != 3 || control[2].USDMicros != 7_000_000 {
+		t.Errorf("CONTROL: without the estate filter day 2 should hold the workspace line too: %+v", control)
 	}
 }

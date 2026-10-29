@@ -199,3 +199,94 @@ func costMonthIn(ctx context.Context, tx pgx.Tx, q CostMonthQuery) (CostMonth, e
 	})
 	return out, err
 }
+
+// The Cloud section's day drill-down (SPL-4187, owner HUM-10, t1 e2c0e6b4
+// msg 8c7f4962: "the first level by gcp project of the cloud costs, than
+// there should be drill down by service etc."): one estate GCP project's
+// live billing-export lines of one month, per day and service (kind). The
+// month read already gives the first two levels; this is the third.
+
+// CostCloudDaysQuery is one month of one GCP project of the estate (Project
+// is the line's project_or_vendor, "<project>[/box=<label>]"). From and To
+// are UTC days, To exclusive; Currency is the caller's second currency.
+type CostCloudDaysQuery struct {
+	Project  string
+	From     string
+	To       string
+	Currency string
+}
+
+// CostCloudDay is one day of one service of the project: what was paid in
+// USD and EUR, and the USD at that day's fx_rates rate (else the last one
+// before it), nil while no rate is on or before the day.
+type CostCloudDay struct {
+	Day          string `json:"day"`
+	Kind         string `json:"kind"`
+	USDMicros    int64  `json:"usd_micros"`
+	EURMicros    int64  `json:"eur_micros"`
+	SecondMicros *int64 `json:"second_micros"`
+}
+
+// CostCloudDaysRead is the store half of the drill-down. Optional: the hub
+// answers 501 on a store without it.
+type CostCloudDaysRead interface {
+	// CostCloudDays reads q under the operator scope: estate rows only
+	// (tenant_id NULL), source gcp, by day then kind.
+	CostCloudDays(ctx context.Context, q CostCloudDaysQuery) ([]CostCloudDay, error)
+}
+
+var _ CostCloudDaysRead = (*Postgres)(nil)
+
+// costCloudDays is the month of one estate project per day and kind; a
+// package var so the red control can drop the estate filter.
+var costCloudDays = `SELECT to_char(c.day, 'YYYY-MM-DD'), c.kind,
+	coalesce(sum(c.usd_micros), 0)::bigint, coalesce(sum(c.eur_micros), 0)::bigint,
+	CASE WHEN bool_and(fx.rate IS NOT NULL) THEN round(sum(c.usd_micros * fx.rate))::bigint END
+FROM cost_lines c
+LEFT JOIN LATERAL (SELECT r.rate FROM fx_rates r WHERE r.quote = $4 AND r.day <= c.day
+	ORDER BY r.day DESC, r.source = 'ECB' DESC LIMIT 1) fx ON true
+WHERE c.day >= $1::date AND c.day < $2::date AND c.superseded_by IS NULL
+	AND c.tenant_id IS NULL AND c.source = 'gcp' AND c.project_or_vendor = $3
+GROUP BY 1, 2
+ORDER BY 1, 2`
+
+// CheckCostCloudDaysQuery names the first thing q may not carry ("" = fine).
+func CheckCostCloudDaysQuery(q CostCloudDaysQuery) string {
+	from, err1 := time.Parse(time.DateOnly, q.From)
+	to, err2 := time.Parse(time.DateOnly, q.To)
+	switch {
+	case q.Project == "" || len(q.Project) > 200:
+		return "project must be 1..200 characters"
+	case err1 != nil || err2 != nil || !to.After(from):
+		return "from and to must be UTC days YYYY-MM-DD, from before to"
+	case to.Sub(from) > 31*24*time.Hour:
+		return "at most one month"
+	case q.Currency != "" && !IsCurrencyCode(q.Currency):
+		return "currency must be an ISO 4217 code"
+	}
+	return ""
+}
+
+// CostCloudDays is CostCloudDaysRead on Postgres (see the interface).
+func (s *Postgres) CostCloudDays(ctx context.Context, q CostCloudDaysQuery) ([]CostCloudDay, error) {
+	if why := CheckCostCloudDaysQuery(q); why != "" {
+		return nil, fmt.Errorf("cost cloud days: %s", why)
+	}
+	cur := q.Currency
+	if cur == "" {
+		cur = DefaultSecondCurrency
+	}
+	out := []CostCloudDay{}
+	err := s.asOperator(ctx, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, costCloudDays, q.From, q.To, q.Project, cur)
+		if err != nil {
+			return err
+		}
+		out, err = pgx.CollectRows(rows, func(r pgx.CollectableRow) (d CostCloudDay, err error) {
+			err = r.Scan(&d.Day, &d.Kind, &d.USDMicros, &d.EURMicros, &d.SecondMicros)
+			return d, err
+		})
+		return err
+	})
+	return out, err
+}

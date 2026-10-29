@@ -228,6 +228,39 @@ day, else the last one published before it, and the rate's date is shown.
   (1400 and 390 px). Not here: the help pages (`monitoring.md`,
   `user-settings.md`, Qto exports).
 
+### 5.5 Three sections: Cloud, AI tokens, Human (SPL-4187)
+
+Owner HUM-10, t1 e2c0e6b4: msg 81217a3f "Switch it on to see all of the
+expenses from the cloud, and make sure they have their own section. There
+are three main types of costs: cloud costs, AI token costs, and human
+costs."; msg 156c8939 "the export IS the part of the most of the cloud
+costs - I need to add the other projects too"; msg 8c7f4962 "this should be
+the first level by gcp project of the cloud costs, thatn there should be
+drill down by service etc."
+
+- **Every project of the export.** cnf `env.cost.gcp.project_like` is `%`:
+  the reader (4.2) takes every project the billing export carries; the
+  owner adds his other projects to the export himself. A `<prefix>%`
+  still narrows it. Test: `spl-estate-cost-read.tst.sh` (CONTROL: the cnf
+  narrowed to `csi-spl-%` drops a non-`csi-spl-` project).
+- **Cloud** (`/reporting/costs/cloud`, the operator admin's, as the estate
+  is): level 1 one row per GCP project (`project_or_vendor`, its
+  `box=<label>` shown apart), from the month read's `gcp` parts; level 2,
+  a project's services (the line `kind`); level 3, a service per day, from
+  `GET /v1/tenant/costs/cloud?month=YYYY-MM&project=<project_or_vendor>`
+  (`internal/hub/cost_cloud_days.go`, `store.CostCloudDays`): the estate
+  project's live lines per (day, kind), `usd_micros`, `eur_micros` and
+  `second_micros` at each day's rate (null with no rate, never a guess);
+  403 for anyone but the operator workspace's admin. The drill-down rides
+  in the query (`?project=`, `&kind=`) beside the header's month and
+  currency. Tests: `TestCostCloudDays` (store, Postgres; hub, both stores).
+- **AI tokens** (`/reporting/costs/tokens`): the month read's token parts
+  (`fleet_tokens`, `ai_paid`, `ai_share`), paid money and the list value
+  beside it, never added (13.3), plus today's live fleet card for the
+  operator admin.
+- **Human** (`/reporting/costs/human`): "not tracked yet", naming spec 107
+  rows T071..T077; no number until they land (13.5).
+
 ## 6. The 1-Month Collection Plan
 
 - **First month**: 2026-10 (Q-5), with what is live; each source is marked missing for every day before it runs. October is the iteration month (Q-3: "we will iterate during October and start for real in Nov").
@@ -427,7 +460,7 @@ Costs › The project's cost   Oct 2026 (so far), 1-28 Oct UTC   (USD) ( EUR )
 
 | part | money from | read today by | price source |
 |---|---|---|---|
-| **Cloud** | `cost_lines` source `gcp`, origin `billing_export` (4.2), every `csi-spl-*` project (Q-2) | `GET /v1/tenant/costs` parts (5.2) | the GCP bill itself; `estimate` rows (4.2) are marked |
+| **Cloud** | `cost_lines` source `gcp`, origin `billing_export` (4.2), every project of the export (5.5; Q-2 was every `csi-spl-*` project) | `GET /v1/tenant/costs` parts (5.2) | the GCP bill itself; `estimate` rows (4.2) are marked |
 | **Owned hardware** | `cost_lines` origin `hand`, source `hand_asset`: the daily shares of each asset entered by hand (13.12 item 1) | not built: P08 | the purchase price, written off straight-line over its months |
 | **AI tokens** | the paid items' daily shares, source `ai_paid` (spec 143 4.1, `store/cost_ai_paid.go`); later the metered API turns, `usage_events` x `unit_cost_micros` (spec 121 section 7) | the same month read | **what was paid** (subscriptions and top-ups, `fleet_token_paid`), never the list value. The list value (the `model_prices` cost of the `fleet_tokens` lines, which carry units and no money amount) stays "list value (not paid)", shown beside, never added (Q-4 A, spec 143 3.1 rule 1) |
 | **Human** | approved time x each person's own price in force on the day (spec 107 21.4 step 5, 21.5) | not built: spec 107 rows T071..T077 | the member's own hourly price (`member_hourly_prices`). This view sums approved entries per day; it does not need the per-commit ledger |
@@ -483,7 +516,7 @@ any part is incomplete. The shares are of the priced total.
 ### 13.7 What "project" means
 
 - **Now: this fleet's project, the spool**, read in the operator workspace.
-  Cloud = every `csi-spl-*` GCP project (Q-2); owned hardware = the assets
+  Cloud = every GCP project of the billing export (5.5); owned hardware = the assets
   entered in the operator workspace; AI tokens = the fleet's paid items (all
   boxes); Human = approved hours booked in the operator workspace.
 - **Later, per workspace**: a customer workspace's project cost would be its

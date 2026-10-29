@@ -1,6 +1,7 @@
 # 167 Channel Box Move: move ALL the work of one channel to another box in one action
 
-Version: v0.1 (2026-10-29). Status: **Draft, for R7 review**. Nothing below is built.
+Version: v0.2 (2026-10-29). Status: **Draft, for R7 review**; the owner's four
+decisions are in (section 7). Nothing below is built.
 Issue SPL-4227 · Epic SPL-2398 · Class feature · Kind specs_and_docs ·
 Placement slug `c002-channel-box-move-spec` · Lead c-873.
 
@@ -81,9 +82,11 @@ cd csi-spl-orc && CHANNEL=<TENANT>/<CHANNEL> TO=<BOX_B> ./run -a do_spl_channel_
 
 - Dry run unless `DRY_RUN=0`. The dry run is `MOVE_CMD=plan`; it prints the
   whole plan (4.3) and changes nothing.
-- Runs from either box, by the owner or the administrator (the owner's
-  "wither by me or by the adminsitrator"; who exactly: Q1). The box that runs
-  it is the **driver**; the driver reaches the other box over ssh where it
+- Runs from either box, by the owner or the orchestrator seat only (D1).
+  Any other caller is refused before `plan` reads anything: an agent caller
+  (`SPOOL_AGENT_ID` set) must be the fleet's orch lease holder
+  (`<spool root>/dispatch/lease.orch`); a caller with no agent id is the
+  owner at a terminal. The box that runs it is the **driver**; the driver reaches the other box over ssh where it
   can, else through the hub (4.6).
 - Commands: `plan` (default), `move`, `status`, `resume` (re-runs a broken
   move from its last finished step), `back` (the same move in the other
@@ -115,7 +118,7 @@ with these kinds of line:
 | `secret` | `secret <path>` | declared, or found by the existing secret scan (`spl_box_state_upload_scan`) under any other line | never by default, 4.5 |
 | `marker` | `marker <string>` | declared: a word only this channel's files hold (a repo name, a project code) | not moved; used by the cleanup report, 4.8 |
 | `scratch` | (derived) | each seat's CLI scratch dir and `/var/tmp/<seat id>/` | not moved; listed for cleanup |
-| `transcript` | (derived) | each seat's CLI session files | not moved; the handoff carries the state (Q3) |
+| `transcript` | (derived) | each seat's CLI session files | not moved; the handoff carries the state; deleted by the clean (D3) |
 | `spool` | (derived) | each seat's `<spool root>/<id>/` (inbox, outbox, handoff) | unread inbox items travel in the handoff; the dir is retired with the id |
 
 Rules:
@@ -149,7 +152,7 @@ estimate at the measured uplink (`MOVE_UPLINK_KBPS`, default: measured by
 | S7 | **ack**: each target agent reads its handoff, checks out its bundles, runs its first check, and acks (4.7) | target | - | <= `MOVE_ACK_TIMEOUT` (900 s) |
 | S8 | **switch**: channel-rules row (sole seat) to the new `<id>@<BOX_B>` on both boxes; old seats out of `<CHANNEL>` (T8); with spec 164 served, the channel's box pin to `[<BOX_B>]`; one post in each open topic of the channel naming the new seat | both, hub | - | < 30 s |
 | S9 | **retire** the source seats: `/exit-clean` typed, then `do_spl_agent_id_retire` with the new `<id>@<BOX_B>` as successor (T6) | source | - | <= 5 min |
-| S10 | **clean** the source (4.8), at once or later (Q2) | source | - | < 1 min |
+| S10 | **clean** the source (4.8), at once after the last ack and retire (D2) | source | - | < 1 min |
 
 Done means S9 finished and the journal says every step `ok`; `status` prints
 it. With the worked example's sizes, S0-S9 is about **8-10 minutes**, almost
@@ -183,12 +186,14 @@ never acks is closed (the spec 060 FR-014 rule). After S8 the way back is
 - The `plan` lists every `secret` line and every secret the scan finds under
   another line: path, mode, size, and a sha256 yes/no match on the target.
   **Never the content, never in a log or a post.**
-- Default: secrets do **not** move. The target uses its own copy where it has
-  one (sha256 match = nothing to do); where it has none, the plan says so, and
-  the step that needs it waits.
-- With the owner's GO for this move (`MOVE_SECRET_GO=<owner msg id>`; the GO is
-  asked as one `(GO) Go` poll listing the secrets by count and kind), a
-  secret moves over ssh only, never through the hub or the bucket (the bucket
+- A secret moves only with the owner's GO for THIS move (D4). Where the
+  target already has the same copy (sha256 match) nothing moves and no GO is
+  asked. Otherwise `plan` asks one `(GO) Go` poll in the channel's topic,
+  listing the secrets by count and kind; `move` reads the answer and records
+  its message id as `MOVE_SECRET_GO=<owner msg id>`. Without the GO the
+  secrets stay, and the step that needs one waits; the rest of the move goes
+  on. A GO is for one move id; the next move asks again.
+- With the GO, a secret moves over ssh only, never through the hub or the bucket (the bucket
   refuses it anyway, T10), lands 0600 owned by the box user, and is checked by
   sha256 yes/no. Without a direct ssh path the move of a secret is refused, and
   the owner is told which box has to drive it.
@@ -245,18 +250,20 @@ Reuses spec 060 and spec 102; nothing new for the agents to learn.
 
 ### 4.8 Nothing left behind, and the way back
 
-- **`clean`** deletes, on the source, every manifest path that moved, each
+- **`clean`** runs at once after the last ack and retire (D2; `MOVE_CMD=clean`
+  re-runs it by hand). It deletes, on the source, every manifest path that moved, each
   source seat's worktree and branch (after S9 these are on the target; the
   24 h disk guard is skipped for this move only, by the owner's order), the
   seats' scratch dirs, the move's bundles and chunks, and the retired spool
-  dirs of the seats. Transcripts: per Q3.
+  dirs of the seats, and the old seats' CLI session transcripts (D3; they
+  quote the channel's code, and the handoff on the target carries the state).
 - **Proof**, printed and kept in the journal: (1) `find` of every deleted path
   -> 0; (2) a `find` over the allowed roots (4.2) for files owned by the moved
   seats or newer than the move's start that hold a `marker` string -> listed
   with a count. (1) proves the listed paths are gone. (2) finds only what a
   marker names; it cannot prove nothing else is left, and the report says so.
-- **Secrets on the source** are not deleted unless the owner's GO says so
-  (Q4).
+- **Secrets on the source are never deleted** by the move (D4 = move with a
+  GO, not move-and-delete); the clean lists them by kind and count as kept.
 - **The way back** is `MOVE_CMD=back MOVE_ID=<id>`: the same steps from
   `<BOX_B>` to `<BOX_A>`, with the base commits the old box still has (before
   its clean, the bundle is a few kB, W2). A temporary move
@@ -280,6 +287,8 @@ Reuses spec 060 and spec 102; nothing new for the agents to learn.
 | C11 | the source seat has uncommitted and untracked files | the target's `git status --porcelain` lists the same paths | the target worktree is clean |
 | C12 | an @mention of the old id after the move | reaches the new seat (alias row) | the mention bounces |
 | C13 | the journal, the handoff and the posts | 0 key bytes and no secret path beyond kind and count (`grep` of the planted key bytes over the journal dir -> 0) | a planted key path in a `data` line is printed |
+| C14 | an agent that is not the orch lease holder runs `plan` | refused, nothing read (D1) | the plan runs for a lane agent |
+| C15 | a second move of the same channel after a GO'd one | asks the secret GO again | the old GO is reused |
 
 Tests run on a private `SPOOL_ROOT` with two sandbox boxes (two dirs, a stub
 ssh and a stub hub), never the live spool (`SPOOL_TEST=1`).
@@ -290,9 +299,9 @@ Disjoint files. Batch 1 first, batch 2 in parallel, batch 3 last.
 
 | row | what | files (only these) | red control | vendor (main / backup) | batch |
 |---|---|---|---|---|---|
-| B1 | manifest: derive + declare + `plan` | new `orc/run/spl-channel-move.func.sh` (plan only), `orc/run/spl-channel-manifest-add.func.sh`, `sa/lib/channel-move.inc.sh`, `orc/tests/channel-move-plan.tst.sh` | C1 | claude / grok | 1 |
+| B1 | manifest: derive + declare + `plan` + the caller check (D1) | new `orc/run/spl-channel-move.func.sh` (plan only), `orc/run/spl-channel-manifest-add.func.sh`, `sa/lib/channel-move.inc.sh`, `orc/tests/channel-move-plan.tst.sh` | C1, C14 | claude / grok | 1 |
 | B2 | git and uncommitted transfer | `sa/lib/channel-move-git.inc.sh`, `orc/tests/channel-move-git.tst.sh` | C2, C11 | claude / grok | 2 |
-| B3 | resumable transport, checksums, secret refusal | `sa/lib/channel-move-ship.inc.sh`, `orc/tests/channel-move-ship.tst.sh` | C3, C6, C7, C13 | claude / grok (secret kind) | 2 |
+| B3 | resumable transport, checksums, secret refusal | `sa/lib/channel-move-ship.inc.sh`, `orc/tests/channel-move-ship.tst.sh` | C3, C6, C7, C13, C15 | claude / grok (secret kind) | 2 |
 | B4 | ball pass: move block, seed, ack, retire | `sa/lib/channel-move-seat.inc.sh`, `orc/tests/channel-move-seat.tst.sh`; calls `spl-agent-handoff.func.sh`, `spawn-remote.sh`, `agent-id-retire.sh`, edits none of them | C4, C5, C12 | claude / grok | 2 |
 | B5 | switch, clean, back, lock, `status` | `orc/run/spl-channel-move.func.sh` (the other commands), `orc/tests/channel-move-switch.tst.sh` | C8, C9, C10 | claude / grok | 3 (after B1-B4) |
 | B6 | dev drill on two boxes with a test channel; measure each step; put the numbers in 4.3 | this spec | the drill journal | claude / grok | 3 |
@@ -302,22 +311,20 @@ Spec 164 is not a prerequisite: until its B2 is served, S8 switches the
 channel-rules seat and the channel membership only; once it is served, S8 also
 sets the pin. B5 calls spec 164's API and never edits its files.
 
-## 7. Owner questions
+## 7. Owner decisions
 
-One poll in the topic, four questions:
+Asked as one poll (msg 7f6fe3d3); answered by HUM-10 in topic 0941c5c2 at
+12:39:30Z (msg 0102e85b; relayed by the dispatch holder, c-002 msg
+8cc12ff2).
 
-- **Q1 Who may run it**: (A) you and the orchestrator seat only (recommended);
-  (B) any agent seated in the channel; (C) only you.
-- **Q2 When the source is cleaned**: (A) at once after the new seat acks
-  (recommended: matches "delete anything after the move"); (B) after 2 hours;
-  (C) after 24 hours.
-- **Q3 The old seats' session transcripts** (they quote the channel's code):
-  (A) delete them with the cleanup (recommended; the handoff carries the
-  state); (B) keep them on the source; (C) move them to the target.
-- **Q4 Keys and other secrets**: (A) never move; the target box uses its own,
-  and a step that needs a missing one waits (recommended); (B) move them over
-  ssh with your GO each time; (C) move them, and delete them on the source,
-  with your GO each time.
+| # | question | answer | where it lands |
+|---|---|---|---|
+| D1 | Who may run the move | **A**: the owner and the orchestrator seat only | 4.1, C14, B1 |
+| D2 | When the old box is cleaned | **A**: at once, after the new agent acks | 4.3 S10, 4.8 |
+| D3 | The old agents' session transcripts | **A**: deleted with the cleanup | 4.2, 4.8 |
+| D4 | Keys and other secrets | **B**: moved over ssh, with the owner's GO each time (never deleted on the source by the move) | 4.5, 4.8, C6, C7, C15 |
+
+No other question is open.
 
 ## 8. Risks and open checks
 
@@ -334,4 +341,4 @@ One poll in the topic, four questions:
 5. **Open check**: whether the hub queues a channel post for a seat that is
    between S8 and the new seat's first read; measured in the B6 drill.
 
-<!-- version: 0.1.0 · updated: 2026-10-29 · last-edit: 2026-10-29T13:00:00Z -->
+<!-- version: 0.2.0 · updated: 2026-10-29 · last-edit: 2026-10-29T12:50:00Z -->

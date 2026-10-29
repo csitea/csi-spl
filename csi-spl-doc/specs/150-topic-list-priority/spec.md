@@ -223,9 +223,14 @@ holds (panel.md section 1, one row per claim with its command).
 - `store/topic_priority.go` (interface, validation 1..5),
   `store/topic_priority_postgres.go`, `store/topic_priority_memory.go`.
 - `SetTopicPriority(tenant, taskID, prio, by, at)` and
-  `TopicPriorities(tenant, taskIDs) map[string]int` (absent = 5). The list
-  reads priorities only for the topics on the page (`task_id = ANY($ids)` on
-  the primary key), as spec 099 5.2 runs `summary()` for the page only.
+  `TopicPriorities(tenant, taskIDs) map[string]int` (absent = 5).
+- The list reads a topic's priority inside `summary()`, the row statement
+  spec 099 5.2 runs for the page only: one primary-key probe of
+  `topic_priorities` per row, into `TopicRow.Priority`. A topic read takes it
+  in the topic door's batch (`TopicAccess.Priority`). Built so at B3: a
+  separate `TopicPriorities` call per read was one more DB round trip and
+  failed `TestRoundTripsPerRequest` (2/1, 3/2, 3/2 against the budgets;
+  dispatch holder c-002, msg `b29b98fe`).
 - `store/change_stamp_test.go:21-25` `stampTables` gains `topic_priorities`;
   its `TestChangeStampTriggerCatalogue` (line 43) fails when the trigger and
   the list part.
@@ -381,7 +386,7 @@ before a row that depends on it starts.
 |---|---|---|---|---|
 | B1 (Implemented, a63179997) | 3 | `topic_priorities` table with RLS and the change_stamp trigger, the store; C301-C304 | `rdb/0214_topic_priorities.sql`, `store/topic_priority.go`, `store/topic_priority_postgres.go`, `store/topic_priority_memory.go`, `store/topic_priority_test.go`, `store/change_stamp_test.go` | - |
 | B2 (Implemented, 3267decb0) | 3 | the delta change kind; C308 | `store/view_changes.go`, `store/view_changes_postgres.go`, `hub/view_delta_test.go` | B1 |
-| B3 | 3 | `PUT /v1/topics/{task_id}/priority` (door, policy), `priority` on the view rows, the `topic_priority` frame, openapi; C305-C307 | `hub/topic_priority.go`, `hub/topic_priority_test.go`, `hub/view.go` (the row field only), `hub/openapi.json` | B1 |
+| B3 (Implemented, e0ca5a3c4) | 3 | `PUT /v1/topics/{task_id}/priority` (door, policy), `priority` on the view rows, the `topic_priority` frame, openapi; C305-C307 | `hub/topic_priority.go`, `hub/topic_priority_test.go`, `hub/view.go` (the row field only), `hub/openapi.json`; widened by the dispatch holder (c-002 msg `b29b98fe`) so the priority rides the reads it is on with no round trip of its own (`TestRoundTripsPerRequest` budgets unchanged): `store/view.go` (`TopicRow.Priority`, the memory twin), `store/view_postgres.go` (`summary()`), `store/channel_humans.go` (`TopicAccess.Priority`), `store/channels_postgres.go` (the topic door read) | B1 |
 | B4 | 2-3 | the i18n keys of 3.5 in all 19 locales, one commit | `csi-spl-wui/i18n/locales/*.json` | Q2 answered |
 | B5 (Implemented, d7e5d1ae8) | 2 | the `topicListView` pure function; C201-C206, C208, C210 | `wui/utils/topic-list-order.mjs`, `wui/types/mjs-shims.d.ts` (its declaration), `csi-spl-wui/tests/unit/topic-list-order.test.mjs` | Q2 answered |
 | B6 | 1-2 | `TopicListControl` in FeedHeader, the MessageFeed wiring, the per-browser choice; C101-C104, C207, C209 | `wui/components/TopicListControl.vue`, `wui/components/FeedHeader.vue`, `wui/components/MessageFeed.vue`, `wui/composables/useTopicListChoice.ts`, `csi-spl-wui/tests/e2e/topic-list-control.test.mjs` | B4, B5 |

@@ -17,7 +17,9 @@
     <a class="skip-link" href="#" data-testid="skip-link" @click.prevent="skipToMsgs">{{ $t('pane.skip_to_msgs') }}</a>
     <div class="sr-only" role="status" aria-live="polite" data-testid="route-announce">{{ routeAnnounce }}</div>
     <ClientOnly>
-      <div class="app-frame">
+      <!-- SPL-4264: on a phone the logo bar (TopBar, header.top-bar) goes
+           and comes with the section strip - one state, stripAway -->
+      <div class="app-frame" :data-mobile-bars-hidden="stripAway ? '1' : undefined">
       <!-- spec 109 T006: on a desktop load of /lobby the feed's first rows
            paint first; the top bar, the rail and panel 1 mount in a later
            task (utils/feed-first.mjs). Until then a box of their size holds
@@ -424,6 +426,9 @@ const kbdFold = computed(() => sectionStrip.value && kbOpen.value)
    feed that jumps to its newest row by itself never hides it. Each change
    waits STRIP_QUIET_MS: the pane grows by the strip's height, and the
    browser clamping scrollTop at the end must not bring it straight back. */
+/* SPL-4264 (owner HUM-10, t1 9b62ee09 msg d9d12c8c): the logo bar above
+   it follows the same state, so both bars go and come together (main.css,
+   .app-frame[data-mobile-bars-hidden]). */
 const STRIP_INPUT_MS = 600
 const STRIP_QUIET_MS = 400
 const stripHidden = ref(false)

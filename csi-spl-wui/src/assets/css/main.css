@@ -923,6 +923,8 @@ html.pane-dragging * {
   /* M2 (viewport-fit=cover): the bar grows by the notch, and everything that
      sits under it reads this token; 0 on a device without one */
   :root { --top-bar-h: calc(58px + env(safe-area-inset-top, 0px)); }
+  /* SPL-4264: the bar's own height while it is away, when --top-bar-h is 0 */
+  :root { --top-bar-full-h: calc(58px + env(safe-area-inset-top, 0px)); }
   .spool-shell {
     padding-inline: env(safe-area-inset-left, 0px) env(safe-area-inset-right, 0px);
     padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -984,6 +986,29 @@ html.pane-dragging * {
     visibility: hidden;
     transition: margin-top .2s ease-out, opacity .2s ease-out, visibility 0s .2s;
   }
+  /* SPL-4264 (owner HUM-10, t1 9b62ee09 msg d9d12c8c): the logo bar (TopBar's
+     header.top-bar) goes and comes with the strip, the same state
+     (layouts/default, data-mobile-bars-hidden). It slides up by its own
+     height, the shell grows into the room, and --top-bar-h is 0 for what
+     sits under it (a level-3 panel, a top dock). Not sticky while away, or
+     it would stick at 0 again. Its controls fade, never the header itself:
+     the phone's docked composer is inside it and stays. */
+  .app-frame > header.top-bar { transition: margin-top .2s ease-out; }
+  .app-frame > header.top-bar > :not(.top-bar__omnibox) { transition: opacity .2s ease-out, visibility 0s; }
+  .app-frame[data-mobile-bars-hidden="1"] { --top-bar-h: 0px; }
+  .app-frame[data-mobile-bars-hidden="1"] > header.top-bar {
+    position: relative;
+    height: var(--top-bar-full-h);
+    min-height: var(--top-bar-full-h);
+    max-height: var(--top-bar-full-h);
+    flex-basis: var(--top-bar-full-h);
+    margin-top: calc(-1 * var(--top-bar-full-h));
+  }
+  .app-frame[data-mobile-bars-hidden="1"] > header.top-bar > :not(.top-bar__omnibox) {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity .2s ease-out, visibility 0s .2s;
+  }
   /* a page's own level-3 panel (the open issue) starts under the strip: it
      is placed inside the page, not the screen */
   .spool-shell[data-mobile-section="1"] > .spool-main { position: relative; }
@@ -1044,6 +1069,9 @@ html.pane-dragging * {
   .spool-shell > .topic { animation: none !important; }
   /* SPL-3785 slice 6: the strip goes and comes at once, no slide */
   .spool-shell > .sidebar { transition: none !important; }
+  /* SPL-4264: so does the logo bar */
+  .app-frame > header.top-bar,
+  .app-frame > header.top-bar > * { transition: none !important; }
 }
 
 /* read-only topic viewer (spec 005 US1) */

@@ -69,17 +69,31 @@ describe('T051-T053 each reserved tab has its page and stays hidden', () => {
   })
 })
 
-describe('S1 Costs pages (SPL-3798): Tokens for every member, Price per token and Paid items for an operator admin', () => {
+describe('S1 Costs pages (SPL-3798; SPL-4187): AI tokens and Human for every member; Cloud, Price per token and Paid items for an operator admin', () => {
   it('/reporting/tokens is a redirect now, no page of its own', () => {
     const src = read(page('tokens'))
     assert.match(src, /<LegacyMonitoringRedirect \/>/)
     assert.doesNotMatch(src, /reporting\.future\.tokens/)
   })
-  it('the Tokens shell: its title and the coming line, for every role', async () => {
+  it('SPL-4187: AI tokens is a section of its own now (the month read\'s token parts), no longer the shell', () => {
+    const src = read(page('costs/tokens'))
+    assert.match(src, /data-test="costs-tokens-table"/)
+    assert.match(src, /tokenParts\(/)
+    assert.doesNotMatch(src, /costs-shell-tokens|reporting\.costs\.coming/)
+  })
+  it('SPL-4187: Human says "not tracked yet" for every role, no number', async () => {
     for (const role of Object.keys(ROLES)) {
-      const html = await render('costs/tokens', role)
-      assert.match(html, /data-test="costs-shell-tokens"/, role)
-      assert.ok(html.includes(t('reporting.costs.page.tokens')) && html.includes(t('reporting.costs.coming')), role)
+      const html = await render('costs/human', role)
+      assert.match(html, /data-test="costs-human-not-tracked"/, role)
+      assert.ok(html.includes(t('reporting.costs.human.title')), role)
+    }
+  })
+  it('SPL-4187: Cloud is the estate\'s: anyone but an operator admin gets the operators-only line, no table', async () => {
+    for (const role of ['workspace admin', 'member']) {
+      const html = await render('costs/cloud', role)
+      /* CONTROL: the page's gate, not the bar, keeps a direct visit out */
+      assert.doesNotMatch(html, /data-test="cloud-table"/, role)
+      assert.ok(html.includes(t('reporting.future.operators_only')), role)
     }
   })
   it('the Price and Paid shells: the coming line for an operator admin; anyone else the operators-only line', async () => {

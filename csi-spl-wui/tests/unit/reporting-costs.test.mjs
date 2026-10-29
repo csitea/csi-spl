@@ -1,6 +1,7 @@
 // Spec 143 costs-redesign.md 3.2 and 5, slice S1 (SPL-3798, owner HUM-10,
 // t1 1be0e370, msg 3f1c7128, answers 2 A and 6 A): Reporting -> Costs, its
-// four pages, the header's month and currency, and the redirect table.
+// pages (six since SPL-4187: Cloud, AI tokens and Human, each a section of
+// its own), the header's month and currency, and the redirect table.
 //
 // Run: node --test tests/unit/reporting-costs.test.mjs
 import { describe, it } from 'node:test'
@@ -19,11 +20,11 @@ const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (p) => readFileSync(join(WUI, p), 'utf8')
 const ids = (pages) => pages.map((p) => p.id)
 
-describe('the four pages (section 3.2)', () => {
-  it('Spend (default), Tokens, Price per token, Paid items, each its own path and page file (its own chunk)', () => {
+describe('the pages (section 3.2; SPL-4187 the three sections)', () => {
+  it('Spend (default), Cloud, AI tokens, Human, Price per token, Paid items, each its own path and page file (its own chunk)', () => {
     assert.deepEqual(COSTS_PAGES.map((p) => [p.id, p.path]), [
-      ['spend', '/reporting/costs/spend'], ['tokens', '/reporting/costs/tokens'],
-      ['price', '/reporting/costs/price'], ['paid', '/reporting/costs/paid'],
+      ['spend', '/reporting/costs/spend'], ['cloud', '/reporting/costs/cloud'], ['tokens', '/reporting/costs/tokens'],
+      ['human', '/reporting/costs/human'], ['price', '/reporting/costs/price'], ['paid', '/reporting/costs/paid'],
     ])
     assert.equal(COSTS_DEFAULT_PATH, '/reporting/costs/spend')
     for (const p of COSTS_PAGES) {
@@ -33,10 +34,10 @@ describe('the four pages (section 3.2)', () => {
     /* no page is imported by hand: Nuxt makes each route its own chunk */
     for (const f of walk('src')) assert.doesNotMatch(read(f), /import [^\n]*pages\/reporting\/costs\//, f)
   })
-  it('Price per token and Paid items for an operator admin only; Spend and Tokens for every costs reader', () => {
-    assert.deepEqual(ids(visibleCostsPages({ operator: true })), ['spend', 'tokens', 'price', 'paid'])
+  it('Cloud (the estate), Price per token and Paid items for an operator admin only; Spend, AI tokens and Human for every costs reader', () => {
+    assert.deepEqual(ids(visibleCostsPages({ operator: true })), ['spend', 'cloud', 'tokens', 'human', 'price', 'paid'])
     /* CONTROL: anyone else, or not known yet */
-    for (const who of [undefined, {}, { operator: false }]) assert.deepEqual(ids(visibleCostsPages(who)), ['spend', 'tokens'], JSON.stringify(who))
+    for (const who of [undefined, {}, { operator: false }]) assert.deepEqual(ids(visibleCostsPages(who)), ['spend', 'tokens', 'human'], JSON.stringify(who))
   })
   it('costsPageFor: the page a route is on, locale prefix or not; the Reporting tab is Costs', () => {
     assert.equal(costsPageFor('/reporting/costs/spend'), 'spend')

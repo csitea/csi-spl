@@ -3406,9 +3406,32 @@
       "coming": "Această pagină vine într-un pas ulterior.",
       "page": {
         "spend": "Cheltuieli",
-        "tokens": "Tokeni",
+        "tokens": "Tokeni AI",
         "price": "Preț pe token",
-        "paid": "Elemente plătite"
+        "paid": "Elemente plătite",
+        "cloud": "Nor",
+        "human": "Oameni"
+      },
+      "cloud": {
+        "title": "Costuri cloud pe proiect GCP",
+        "crumbs_label": "Niveluri ale costurilor cloud",
+        "all_projects": "Toate proiectele",
+        "col_project": "Proiect GCP",
+        "col_service": "Serviciu",
+        "col_day": "Zi",
+        "box": "mașină {box}",
+        "services": "Servicii: {n}",
+        "days": "Zile cu cost: {n}",
+        "empty": "Încă nu există nicio linie de cost cloud luna aceasta. Exportul de facturare este citit o dată pe zi."
+      },
+      "tokens": {
+        "title": "Costuri cu tokeni AI",
+        "list_note": "Suma plătită este în coloana monedei; prețul de listă este afișat alături și nu se adună niciodată la ea.",
+        "empty": "Încă nu există nicio linie de cost cu tokeni AI luna aceasta."
+      },
+      "human": {
+        "title": "Costuri cu oameni",
+        "not_tracked": "Încă neurmărit. Costurile cu oameni sunt timp aprobat la prețul propriu al fiecărei persoane, construite de rândurile {rows} din specificația 107; nu se afișează niciun număr până nu sunt gata."
       }
     },
     "releases": {

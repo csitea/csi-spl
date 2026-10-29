@@ -3406,9 +3406,32 @@
       "coming": "Deze pagina komt in een latere stap.",
       "page": {
         "spend": "Uitgaven",
-        "tokens": "Tokens",
+        "tokens": "AI-tokens",
         "price": "Prijs per token",
-        "paid": "Betaalde posten"
+        "paid": "Betaalde posten",
+        "cloud": "Wolk",
+        "human": "Mensen"
+      },
+      "cloud": {
+        "title": "Cloudkosten per GCP-project",
+        "crumbs_label": "Niveaus van cloudkosten",
+        "all_projects": "Alle projecten",
+        "col_project": "GCP-project",
+        "col_service": "Dienst",
+        "col_day": "Dag",
+        "box": "machine {box}",
+        "services": "Diensten: {n}",
+        "days": "Dagen met kosten: {n}",
+        "empty": "Nog geen regel met cloudkosten in deze maand. De facturatie-export wordt eenmaal per dag gelezen."
+      },
+      "tokens": {
+        "title": "Kosten van AI-tokens",
+        "list_note": "Wat betaald is staat in de valutakolom; de catalogusprijs staat ernaast en wordt er nooit bij opgeteld.",
+        "empty": "Nog geen regel met kosten van AI-tokens in deze maand."
+      },
+      "human": {
+        "title": "Personeelskosten",
+        "not_tracked": "Nog niet bijgehouden. Personeelskosten zijn goedgekeurde tijd tegen de eigen prijs van elke persoon, gebouwd door de rijen {rows} van specificatie 107; er wordt geen getal getoond tot die klaar zijn."
       }
     },
     "releases": {

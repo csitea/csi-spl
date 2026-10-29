@@ -3406,9 +3406,32 @@
       "coming": "This page is coming in a later step.",
       "page": {
         "spend": "Spend",
-        "tokens": "Tokens",
+        "tokens": "AI tokens",
         "price": "Price per token",
-        "paid": "Paid items"
+        "paid": "Paid items",
+        "cloud": "Cloud",
+        "human": "Human"
+      },
+      "cloud": {
+        "title": "Cloud costs by GCP project",
+        "crumbs_label": "Cloud cost levels",
+        "all_projects": "All projects",
+        "col_project": "GCP project",
+        "col_service": "Service",
+        "col_day": "Day",
+        "box": "box {box}",
+        "services": "Services: {n}",
+        "days": "Days with cost: {n}",
+        "empty": "No cloud cost line in this month yet. The billing export is read once a day."
+      },
+      "tokens": {
+        "title": "AI token costs",
+        "list_note": "What was paid is in the currency column; the list price is shown beside it and never added to it.",
+        "empty": "No AI token cost line in this month yet."
+      },
+      "human": {
+        "title": "Human costs",
+        "not_tracked": "Not tracked yet. Human costs are approved time at each person's own price, built by spec 107 rows {rows}; no number is shown until they land."
       }
     },
     "releases": {

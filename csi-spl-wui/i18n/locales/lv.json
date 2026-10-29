@@ -3406,9 +3406,32 @@
       "coming": "Šī lapa nāks vēlākā solī.",
       "page": {
         "spend": "Tēriņi",
-        "tokens": "Tokeni",
+        "tokens": "MI tokeni",
         "price": "Tokena cena",
-        "paid": "Apmaksātās pozīcijas"
+        "paid": "Apmaksātās pozīcijas",
+        "cloud": "Mākonis",
+        "human": "Cilvēki"
+      },
+      "cloud": {
+        "title": "Mākoņa izmaksas pa GCP projektiem",
+        "crumbs_label": "Mākoņa izmaksu līmeņi",
+        "all_projects": "Visi projekti",
+        "col_project": "GCP projekts",
+        "col_service": "Pakalpojums",
+        "col_day": "Diena",
+        "box": "mašīna {box}",
+        "services": "Pakalpojumi: {n}",
+        "days": "Dienas ar izmaksām: {n}",
+        "empty": "Šajā mēnesī vēl nav nevienas mākoņa izmaksu rindas. Norēķinu eksports tiek nolasīts reizi dienā."
+      },
+      "tokens": {
+        "title": "MI tokenu izmaksas",
+        "list_note": "Samaksātā summa ir valūtas kolonnā; cenrāža cena ir parādīta blakus un nekad netiek pieskaitīta.",
+        "empty": "Šajā mēnesī vēl nav nevienas MI tokenu izmaksu rindas."
+      },
+      "human": {
+        "title": "Cilvēku izmaksas",
+        "not_tracked": "Vēl netiek uzskaitīts. Cilvēku izmaksas ir apstiprināts laiks pēc katra cilvēka paša cenas, ko veido specifikācijas 107 rindas {rows}; skaitlis netiek rādīts, līdz tās ir gatavas."
       }
     },
     "releases": {

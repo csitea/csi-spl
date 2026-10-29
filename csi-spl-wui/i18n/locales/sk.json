@@ -3406,9 +3406,32 @@
       "coming": "Táto stránka príde v neskoršom kroku.",
       "page": {
         "spend": "Výdavky",
-        "tokens": "Tokeny",
+        "tokens": "Tokeny AI",
         "price": "Cena za token",
-        "paid": "Zaplatené položky"
+        "paid": "Zaplatené položky",
+        "cloud": "Oblak",
+        "human": "Ľudia"
+      },
+      "cloud": {
+        "title": "Náklady na cloud podľa projektu GCP",
+        "crumbs_label": "Úrovne nákladov na cloud",
+        "all_projects": "Všetky projekty",
+        "col_project": "Projekt GCP",
+        "col_service": "Služba",
+        "col_day": "Deň",
+        "box": "stroj {box}",
+        "services": "Služby: {n}",
+        "days": "Dni s nákladmi: {n}",
+        "empty": "Tento mesiac zatiaľ nie je žiadny riadok nákladov na cloud. Export fakturácie sa číta raz denne."
+      },
+      "tokens": {
+        "title": "Náklady na tokeny AI",
+        "list_note": "Zaplatená suma je v stĺpci meny; cenníková cena je zobrazená vedľa a nikdy sa k nej nepripočítava.",
+        "empty": "Tento mesiac zatiaľ nie je žiadny riadok nákladov na tokeny AI."
+      },
+      "human": {
+        "title": "Náklady na ľudí",
+        "not_tracked": "Zatiaľ sa nesleduje. Náklady na ľudí sú schválený čas podľa vlastnej sadzby každej osoby, ktorý budujú riadky {rows} špecifikácie 107; žiadne číslo sa nezobrazí, kým nebudú hotové."
       }
     },
     "releases": {

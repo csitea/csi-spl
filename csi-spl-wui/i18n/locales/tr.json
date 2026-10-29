@@ -3406,9 +3406,32 @@
       "coming": "Bu sayfa sonraki bir adımda geliyor.",
       "page": {
         "spend": "Harcama",
-        "tokens": "Belirteçler",
+        "tokens": "Yapay zekâ belirteçleri",
         "price": "Belirteç başına fiyat",
-        "paid": "Ödenen kalemler"
+        "paid": "Ödenen kalemler",
+        "cloud": "Bulut",
+        "human": "İnsan"
+      },
+      "cloud": {
+        "title": "GCP projesine göre bulut maliyetleri",
+        "crumbs_label": "Bulut maliyeti düzeyleri",
+        "all_projects": "Tüm projeler",
+        "col_project": "GCP projesi",
+        "col_service": "Hizmet",
+        "col_day": "Gün",
+        "box": "makine {box}",
+        "services": "Hizmet sayısı: {n}",
+        "days": "Maliyetli gün sayısı: {n}",
+        "empty": "Bu ay henüz bulut maliyeti satırı yok. Faturalama dışa aktarımı günde bir kez okunur."
+      },
+      "tokens": {
+        "title": "Yapay zekâ belirteci maliyetleri",
+        "list_note": "Ödenen tutar para birimi sütunundadır; liste fiyatı yanında gösterilir ve asla ona eklenmez.",
+        "empty": "Bu ay henüz yapay zekâ belirteci maliyeti satırı yok."
+      },
+      "human": {
+        "title": "İnsan maliyetleri",
+        "not_tracked": "Henüz izlenmiyor. İnsan maliyetleri, her kişinin kendi ücretiyle onaylanmış süredir ve 107 numaralı belirtimin {rows} satırlarıyla oluşturulur; bunlar tamamlanana kadar hiçbir sayı gösterilmez."
       }
     },
     "releases": {

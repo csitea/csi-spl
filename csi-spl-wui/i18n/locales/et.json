@@ -3406,9 +3406,32 @@
       "coming": "See leht tuleb hilisemas sammus.",
       "page": {
         "spend": "Kulutused",
-        "tokens": "Tokenid",
+        "tokens": "AI-tokenid",
         "price": "Tokeni hind",
-        "paid": "Makstud kirjed"
+        "paid": "Makstud kirjed",
+        "cloud": "Pilv",
+        "human": "Inimesed"
+      },
+      "cloud": {
+        "title": "Pilvekulud GCP projekti kaupa",
+        "crumbs_label": "Pilvekulude tasemed",
+        "all_projects": "Kõik projektid",
+        "col_project": "GCP projekt",
+        "col_service": "Teenus",
+        "col_day": "Päev",
+        "box": "masin {box}",
+        "services": "Teenuseid: {n}",
+        "days": "Kuluga päevi: {n}",
+        "empty": "Selle kuu kohta pole veel ühtegi pilvekulu rida. Arvelduse eksporti loetakse kord päevas."
+      },
+      "tokens": {
+        "title": "AI-tokenite kulud",
+        "list_note": "Makstud summa on valuuta veerus; hinnakirjahind on näidatud kõrval ja seda ei liideta kunagi.",
+        "empty": "Selle kuu kohta pole veel ühtegi AI-tokenite kulu rida."
+      },
+      "human": {
+        "title": "Inimeste kulud",
+        "not_tracked": "Veel ei jälgita. Inimeste kulud on kinnitatud aeg iga inimese enda hinnaga, mille ehitavad spetsifikatsiooni 107 read {rows}; arvu ei näidata enne, kui need valmivad."
       }
     },
     "releases": {

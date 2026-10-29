@@ -230,9 +230,10 @@ day, else the last one published before it, and the rate's date is shown.
 
 ### 5.5 Three sections: Cloud, AI tokens, Human (SPL-4187)
 
-**Status:** the reader (every project of the export) and `GET /v1/tenant/costs/cloud`
-are built; the three WUI pages below are planned: they wait for the agy
-language review of their 19-locale text (language rule), then land.
+**Status:** built: the reader (every project of the export),
+`GET /v1/tenant/costs/cloud` and the three WUI pages below; their
+19-locale text lands only after a claude language review (owner order
+f8f9dfcc moved the agy language reviews to claude).
 
 Owner HUM-10, t1 e2c0e6b4: msg 81217a3f "Switch it on to see all of the
 expenses from the cloud, and make sure they have their own section. There

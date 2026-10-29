@@ -32,6 +32,9 @@
 #  13. the shell's data-* state attributes (SPL-4139), on 46afd70ba's tree:
 #      A main.css alone selects a test reading one; B the 4 files of that
 #      commit score mobile-stack above master's 22; C still <= MAX files
+#  14. the shell's attribute keys leave out Vue's scoped data-v-* and the
+#      data-test-* family, and one-word names (data-state): app.vue naming
+#      all of them selects only the test reading data-mobile-level
 #   CONTROL a. with the users-of step off (_ppe_names prints nothing) check 2
 #              selects nothing: the closure is what finds it
 #   CONTROL b. a dirty WUI source -> no cache key -> 2 builds for 2 runs, so
@@ -249,6 +252,18 @@ if git -C "$PROJ_ROOT/.." archive 46afd70ba csi-spl-wui/src csi-spl-wui/tests/e2
 else
   fail "13. cannot read 46afd70ba from the repo (a shallow clone?)"
 fi
+
+# --- 14. which shell attributes are keys ---------------------------------------------------
+echo '<template><div data-v-abc123 data-test-foo="x" data-state="1" :data-mobile-level="l" /></template>' >"$W/src/app.vue"
+echo "await page.\$('[data-mobile-level=\"2\"]')" >"$W/tests/e2e/attr-level.test.mjs"
+echo "await page.\$('[data-v-abc123]')" >"$W/tests/e2e/attr-scoped.test.mjs"
+echo "await page.\$('[data-test-foo]')" >"$W/tests/e2e/attr-test.test.mjs"
+echo "await page.\$('[data-state]')" >"$W/tests/e2e/attr-state.test.mjs"
+got="$(PRE_PUSH_E2E_MAX=9 sel csi-spl-wui/src/app.vue | runs)"
+[[ "$got" == "tests/e2e/attr-level.test.mjs" ]] \
+  && pass "14. app.vue's keys: data-mobile-level only (not data-v-*, data-test-*, data-state)" \
+  || fail "14. app.vue selected '$got', want tests/e2e/attr-level.test.mjs alone"
+rm -f "$W/src/app.vue" "$W"/tests/e2e/attr-*.test.mjs
 
 if [[ $fails -eq 0 ]]; then
   echo "PASS: all check-pre-push-e2e.tst.sh assertions"

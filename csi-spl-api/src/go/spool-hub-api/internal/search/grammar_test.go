@@ -38,7 +38,7 @@ func eval(q *Query) want {
 // TestOperators is the table-driven suite of search-v1 §3.2: one row (at
 // least) per operator, with the sections it selects and what it matches.
 func TestOperators(t *testing.T) {
-	all := []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeDoc}
+	all := []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeDoc, TypeContact}
 	mtf := []Type{TypeMessage, TypeTopic, TypeFile}
 	dated := []Type{TypeMessage, TypeTopic, TypeFile, TypeDoc} // before: / after: / on: (a doc section: last edited)
 	cases := []struct {

@@ -137,7 +137,8 @@ attachment without `bytes`, or a directory) matches neither.
 `channel` [`channels`], `box` [`boxes`], `tenant` [`tenants`, `workspace`,
 `workspaces`], `event` [`events`, `log`, `error`, `errors`], `doc` [`docs`,
 `document`, `documents`, `qto`] (grammar 1.4, SPL-3337), `file_line`
-[`file_lines`] (grammar 1.5, spec 160 3.6, SPL-3888). `thread`
+[`file_lines`] (grammar 1.5, spec 160 3.6, SPL-3888), `contact`
+[`contacts`] (grammar 1.6, spec 154 row B5, SPL-4197). `thread`
 [`threads`] is accepted as the pre-rename spelling of `topic`.
 
 - At most one `type:` term, at the **top level** of the AND (not inside `OR`,
@@ -150,6 +151,11 @@ attachment without `bytes`, or a directory) matches neither.
   Since grammar 1.4 `doc` is a content type too: a plain search includes the
   workspace's Qto documents (§4.10; owner HUM-10, t1 4e06a219), one more
   round trip (spec 100 section 14).
+- Since grammar 1.6 `contact` is a content type too (spec 154 2.3): a plain
+  search includes the reader's own contacts (§4.12). Where the contacts kill
+  switch (cnf `contacts.workspaces`, spec 154 2.9) is off for the workspace,
+  the answer has no `contact` type and no `contacts` group, and the search
+  makes no extra round trip.
 - `file_line` is opt-in, as `tenant` and `event`: a plain search never reads
   the box file stream lines (cost, and they are for the workspace's owner or
   admins only). `in:file-streams` (also `in:file-stream`, `channel:` the
@@ -367,6 +373,25 @@ are never a hit. Only for a member session of the workspace's owner or an
 admin that is not an act-as clone (the File streams tab's gate, spec 160
 3.4); anyone else gets `[]` and the notice `file_streams_staff_only`, never
 a `403`. Never another workspace's lines.
+
+### 4.12 `contact`
+
+The reader's own contacts (spec 154 2.3, row B5): the person's one list,
+the same in every workspace they belong to, in created order, one row per
+contact: `{ "contact_id", "first_name", "last_name", "email", "phone",
+"google", "name" }` (`email` / `phone` `null` when unset; `name` is the
+name, else the email, else the phone, with its highlights). Each word of
+the free text at the query's top level is a prefix of the first name, the
+last name or the email, case-insensitive; a word of digits matches the
+phone with its spaces and punctuation removed (`5550100000` finds
+`+1 555 010 0000`). `OR` and `-` filter the page as in every section, so a
+page may hold fewer rows than the limit and still carry `next`. No
+operator applies to a contact: any operator but `type:` leaves the section
+out (§3.1). Only for a signed-in person's session (no box token, no act-as
+clone, no agent seat: the contacts routes' gate) in a workspace inside the
+kill switch; anyone else gets no `contacts` group. Never another person's
+contacts, an admin's and the operator's included. A hit carries no member
+match: it opens the contact's card (spec 154 2.7).
 
 ## 5. Errors and warnings
 

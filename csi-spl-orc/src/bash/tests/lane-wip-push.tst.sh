@@ -20,6 +20,9 @@
 #      top-level file and a file over WIP_UNTRACKED_MAX_BYTES (logged) do not;
 #      red control: on the tracked-only code the new file is missing
 #      (runs before 5, which needs a clean tree)
+#   9. DRY_RUN=1 plans and pushes nothing; a noreply author is refused; a
+#      clean tree pushes HEAD itself, no wip commit (runs before 7, in this
+#      order: under a broken dry run G would read red too)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -140,6 +143,20 @@ out="$(run ID=c-901 SPOOL_LIVE_ROOT="$R")"; rc=$?
 [ "$rc" -eq 1 ] && grep -q 'live root' <<<"$out" && pass "6. SPOOL_TEST refuses the live spool root" || fail "6. live root (rc $rc: $out)"
 out="$(run ID='c-901;x')"; rc=$?
 [ "$rc" -eq 1 ] && pass "6. a malformed ID is refused" || fail "6. bad ID (rc $rc)"
+
+# 9. the dry run, the noreply author and the clean tree
+w9="$(wip)"
+printf 'nine\n' >>"$L/f.txt"
+out="$(run ID=c-901 DRY_RUN=1)"; rc=$?
+[ "$rc" -eq 0 ] && grep -q '^PLAN WIP c-901' <<<"$out" && [ "$(wip)" = "$w9" ] \
+  && pass "9. DRY_RUN=1 prints the plan and pushes nothing" || fail "9. dry run (rc $rc: $out, wip $(wip))"
+out="$(run ID=c-901 WIP_GIT_EMAIL=1+x@users.noreply.github.com)"; rc=$?
+[ "$rc" -eq 1 ] && grep -q 'no canonical author' <<<"$out" && [ "$(wip)" = "$w9" ] \
+  && pass "9. a noreply author is refused, nothing pushed" || fail "9. noreply author (rc $rc: $out, wip $(wip))"
+git -C "$L" "${G[@]}" commit -qam probe
+out="$(run ID=c-901)"; rc=$?
+[ "$rc" -eq 0 ] && [ "$(wip)" = "$(git -C "$L" rev-parse HEAD)" ] \
+  && pass "9. a clean tree pushes HEAD itself, no wip commit" || fail "9. clean tree (rc $rc: $out, wip $(wip), HEAD $(git -C "$L" rev-parse HEAD))"
 
 # 7. the hook alone, against the failing gate stub
 hook() { (cd "$L" && printf '%s\n' "$@" | SPL_PREPUSH_LOG_DIR="$T/pplog" bash "$HOOK" origin "$B" >/dev/null 2>&1); }

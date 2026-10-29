@@ -8,9 +8,9 @@ Consensus: **no owner go, no question to the owner** (rulebook §1.4).
 Rules: [rounds-rulebook.md](rounds-rulebook.md) (at most 10 items, push caps, bands, R1-R16), linked here, not copied. Issue: SPL-4152.  
 Model: [bug-round-9-plan.md](bug-round-9-plan.md) (same shape, same 5 sources).
 
-**Status: v0.3** (editor a-577@sat).  
+**Status: v1.0** (signed consensus, editor a-577@sat, reviewer c-408@<box2>).  
 Editor: **a-577@sat** (agy, `specs_and_docs`).  
-Reviewer: **c-408@<box2>** (claude, cross-vendor reviewer, rulebook 2.7.2, brief `c002-bug-round-10-claude-reviewer`). Reviewed v0.1 FAIL (W1-W3) and v0.2 FAIL (W4-W7); re-reviewing v0.3.
+Reviewer: **c-408@<box2>** (claude, cross-vendor reviewer, rulebook 2.7.2, brief `c002-bug-round-10-claude-reviewer`). Signed v1.0 consensus (PASS on b4ad49dc6).
 
 **One sha:** every count below is measured on **`1663c828b`** (`origin/master` at the start, 2026-10-29T02:57:32+01:00 / 01:57:32Z), on sat. n=1 per command unless stated.
 
@@ -115,7 +115,9 @@ Reviewer: **c-408@<box2>** (claude, cross-vendor reviewer, rulebook 2.7.2, brief
   - 2026-10-29 03:45Z: Editor landed v0.2 draft (`4eabb2da0`, `csi-spl-doc/doc/md/bug-round-10-plan.md`, SPL-4152) folding reviewer findings: Row 01 (`do_spl_lane_mix` latency timeout in spawn-fill), Row 02 (`do_spl_security_round_queue` unbound SPOOL_ROOT in Friday cron), 16e flake attribution to `c6463e496` (SPL-4135), and t1 measurement end time `2026-10-29T01:57:32Z`.
   - 2026-10-29 03:59Z: Reviewer `c-408@<box2>` verdict `FAIL` on v0.2 (msg `f237e0db`, findings W4, W5, W6, W7, and minor row 02 line 49 evidence correction).
   - 2026-10-29 04:00Z: Dispatcher `c-002@sat` requested v0.3 addressing W4-W7 (msg `2e7a7eba`).
-  - 2026-10-29 04:05Z: Editor landed v0.3 draft (`csi-spl-doc/doc/md/bug-round-10-plan.md`, SPL-4152) folding reviewer findings: Row 01 fix scope updated to single grep -l pass preserving 6h/7d windows; target set to exit 0 well inside 60 s (< 15 s loaded, < 5 s idle) + process counting test; suite counts corrected to 114 PASS lane-mix and 23 PASS security-round; rulebook 2.11.4 citation removed (2 parallel lanes by planner choice over disjoint files); row 02 line 49 template path and spl_asks_init evidence corrected.
+  - 2026-10-29 04:05Z: Editor landed v0.3 draft (`b4ad49dc6`, `csi-spl-doc/doc/md/bug-round-10-plan.md`, SPL-4152) folding reviewer findings: Row 01 fix scope updated to single grep -l pass preserving 6h/7d windows; target set to exit 0 well inside 60 s (< 15 s loaded, < 5 s idle) + process counting test; suite counts corrected to 114 PASS lane-mix and 23 PASS security-round; rulebook 2.11.4 citation removed (2 parallel lanes by planner choice over disjoint files); row 02 line 49 template path and spl_asks_init evidence corrected.
+  - 2026-10-29 04:10Z: Reviewer `c-408@<box2>` re-review verdict `PASS` on v0.3 `b4ad49dc6` (msg `b4a23bd4`, `1e8382a8`).
+  - 2026-10-29 04:12Z: Dispatcher `c-002@sat` accepted bug round 10 plan v1.0 (msg `eca3d0b4`) and queued Row 01 (`claude:c002-b10-01-lane-mix-wd-timeout`, ask `b0311e2a`) and Row 02 (`claude:c002-b10-02-security-round-spool-root`, ask `36b0b0d5`), class bug.
 
 ---
 
@@ -123,5 +125,5 @@ Reviewer: **c-408@<box2>** (claude, cross-vendor reviewer, rulebook 2.7.2, brief
 
 | seat | id | status |
 |---|---|---|
-| Editor | a-577@sat | **v0.3** |
-| Reviewer | c-408@<box2> | awaiting re-review on v0.3 |
+| Editor | a-577@sat | **v1.0** (accepted) |
+| Reviewer | c-408@<box2> | **PASS** (signed v1.0 consensus on `b4ad49dc6`) |

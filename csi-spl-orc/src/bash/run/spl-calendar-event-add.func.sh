@@ -26,7 +26,7 @@
 # @param ISSUE_KEYS (optional) - comma-separated issue keys of TENANT_ID (at most 20);
 # @param   empty sends an empty list; unset omits the field
 # @param EVENT_OWNER (optional) - the responsible member (HUM-n) or agent id;
-# @param   empty or unset leaves the hub default (ORDERED_BY when set, else the agent)
+# @param   empty or unset leaves the hub default (ORDERED_BY when that human is a member, else the agent)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=<tenant> TITLE='Payment due' DAY=2026-10-12 AGENT_ID=c-042 ./run -a do_spl_calendar_event_add
 # @example ENV=dev TENANT_ID=<tenant> TITLE='Payment due' DAY=2026-10-12 AGENT_ID=c-042 ORDERED_BY=HUM-10 DRY_RUN=0 ./run -a do_spl_calendar_event_add

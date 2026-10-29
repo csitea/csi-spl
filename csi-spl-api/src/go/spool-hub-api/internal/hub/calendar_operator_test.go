@@ -40,14 +40,14 @@ func TestOperatorCalendarEvent(t *testing.T) {
 	putMsg(t, e.st, tb, topicB, "tasks", "HUM-1", "box-wui", "c-001", "other workspace", now, "")
 
 	body := func(tenant, topic string) map[string]any {
-		return map[string]any{"tenant": tenant, "agent_id": "c-840", "ordered_by": memA,
+		return map[string]any{"tenant": tenant, "agent_id": "c-840", "ordered_by": "HUM-10",
 			"title": "Payment: VAT", "description": "source msg", "all_day": true,
 			"starts_at": "2026-10-12T00:00:00Z", "ends_at": "2026-10-13T00:00:00Z", "topic_id": topic}
 	}
 	code, out := opCall(t, e, ta, http.MethodPost, "/v1/operator/calendar/events", "good", body(ta, topicA))
 	ev, _ := out["event"].(map[string]any)
 	if code != http.StatusCreated || ev == nil || ev["creator_type"] != "agent" || ev["creator_id"] != "c-840" ||
-		ev["owner_id"] != memA || ev["all_day"] != true || ev["topic_id"] != topicA || ev["audience"] != "workspace" {
+		ev["owner_id"] != "c-840" || ev["all_day"] != true || ev["topic_id"] != topicA || ev["audience"] != "workspace" {
 		t.Fatalf("create: %d %v", code, out)
 	}
 	id := ev["id"].(string)
@@ -98,5 +98,34 @@ func TestOperatorCalendarEvent(t *testing.T) {
 	}
 	if _, got := call(t, e, tb, http.MethodGet, day, memB, nil); calTitles(got, "events") != "" {
 		t.Fatalf("a refusal wrote into B: %v", got)
+	}
+}
+
+// SPL-4043: ordered_by becomes the owner only when that human is a member.
+// A named owner who is not a member or an agent is still refused.
+func TestOperatorCalendarOwnerDefault(t *testing.T) {
+	e := rbacEnv(t, func(o *hub.Options) {
+		o.OperatorEmails = []string{operatorSA}
+		o.OperatorAudience = "https://api.dev.example"
+		o.OperatorVerify = func(_ context.Context, token, _ string) (string, error) {
+			if token == "good" {
+				return operatorSA, nil
+			}
+			return "", errors.New("token rejected")
+		}
+	})
+	ta, _ := e.tenant()
+	mem := seat(t, e, ta, rbac.Developer)
+	body := map[string]any{"tenant": ta, "agent_id": "c-840", "ordered_by": mem, "title": "Due",
+		"all_day": true, "starts_at": "2026-10-12T00:00:00Z", "ends_at": "2026-10-13T00:00:00Z"}
+	code, out := opCall(t, e, ta, http.MethodPost, "/v1/operator/calendar/events", "good", body)
+	ev, _ := out["event"].(map[string]any)
+	if code != http.StatusCreated || ev["owner_id"] != mem || ev["creator_id"] != "c-840" {
+		t.Fatalf("member ordered_by: %d %v", code, out)
+	}
+	body["title"] = "Named"
+	body["owner_id"] = "HUM-99999"
+	if code, got := opCall(t, e, ta, http.MethodPost, "/v1/operator/calendar/events", "good", body); code != http.StatusBadRequest || got["error"] != "bad_event" {
+		t.Fatalf("named owner: %d %v", code, got)
 	}
 }

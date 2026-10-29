@@ -24,7 +24,8 @@ import (
 //     session is not enough.
 //   - Creator: the agent the body names (creator_type 'agent'), never a human.
 //     The owner (SPL-4043) is ordered_by when the body leaves owner_id
-//     empty, otherwise the agent. A named owner must be a member or agent.
+//     empty and that human is a member of the workspace, otherwise the
+//     agent. A named owner must be a member or an agent.
 //   - One workspace: the body's tenant, written by the same store call as the
 //     member create (RLS inside that tenant). A Host or X-Spool-Tenant naming
 //     another workspace is 403 tenant_mismatch. topic_id is a topic of that
@@ -107,10 +108,8 @@ func (s *Server) handleOperatorCalendarCreate(w http.ResponseWriter, r *http.Req
 		return
 	}
 	e.CreatorType = "agent"
-	if (q.OwnerID == nil || *q.OwnerID == "") && orderedBy != "" {
-		e.OwnerID = orderedBy
-	}
-	if !s.bindEventLinks(w, r, t.ID, e.CreatorID, &e) {
+	if !s.operatorOwnerDefault(w, r, t.ID, orderedBy, e.CreatorID, q.OwnerID, &e) ||
+		!s.bindEventLinks(w, r, t.ID, e.CreatorID, &e) {
 		return
 	}
 	out, err := c.CreateCalendarEvent(r.Context(), t.ID, e, s.o.Now())
@@ -176,6 +175,24 @@ func (s *Server) calendarTopicByPrefix(w http.ResponseWriter, r *http.Request, t
 		writeIssueErr(w, badCalendar("more than one topic starts with "+prefix+": give the full topic id"))
 	}
 	return "", false
+}
+
+// operatorOwnerDefault: with no named owner_id, the owner is orderedBy when
+// that human is a member of the workspace. When orderedBy is not a member,
+// the creator (the agent, set by newEvent) stays. A store error is a failure.
+func (s *Server) operatorOwnerDefault(w http.ResponseWriter, r *http.Request, tenant, orderedBy, creator string, named *string, e *store.CalendarEvent) bool {
+	if (named != nil && strings.TrimSpace(*named) != "") || orderedBy == "" {
+		return true
+	}
+	ie, err := s.calendarOwnerKnown(r.Context(), tenant, orderedBy, creator)
+	if err != nil {
+		s.writeCalendarErr(w, tenant, "owner", err)
+		return false
+	}
+	if ie == nil {
+		e.OwnerID = orderedBy
+	}
+	return true
 }
 
 // handleOperatorCalendarGet reads one event back as the operator sees it:

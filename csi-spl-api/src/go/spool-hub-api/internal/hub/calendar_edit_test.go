@@ -328,3 +328,37 @@ func TestCalendarEventLinks(t *testing.T) {
 		t.Fatalf("cleared keys still on the wire: %v", cleared["issue_keys"])
 	}
 }
+
+// SPL-4043: an 8-hex topic id is the short id of exactly one topic of this
+// workspace. The stored topic_id is that topic's full id. None, or more
+// than one, is bad_event (the same refusal as a topic that is not a uuid).
+func TestCalendarEventShortTopic(t *testing.T) {
+	e := rbacEnv(t)
+	tid, _ := e.tenant()
+	dev := seat(t, e, tid, rbac.Developer)
+	now := time.Now().UTC()
+	one := "5eed0001-0000-4000-8000-000000000001"
+	twinA := "a1b2c3d4-0000-4000-8000-00000000000a"
+	twinB := "a1b2c3d4-0000-4000-8000-00000000000b"
+	putMsg(t, e.st, tid, one, "tasks", "HUM-1", "box-wui", "c-001", "one", now, "")
+	putMsg(t, e.st, tid, twinA, "tasks", "HUM-1", "box-wui", "c-001", "twin a", now, "")
+	putMsg(t, e.st, tid, twinB, "tasks", "HUM-1", "box-wui", "c-001", "twin b", now, "")
+
+	ev := calCreate(t, e, tid, dev, calBody("short", map[string]any{"topic_id": "  5EED0001 "}))
+	if ev["topic_id"] != one {
+		t.Fatalf("unique short id stored %v, want %s", ev["topic_id"], one)
+	}
+	code, out := call(t, e, tid, http.MethodPost, "/v1/calendar/events", dev, calBody("twins", map[string]any{"topic_id": "a1b2c3d4"}))
+	if code != http.StatusBadRequest || out["error"] != "bad_event" {
+		t.Fatalf("ambiguous short id: %d %v", code, out)
+	}
+	code, out = call(t, e, tid, http.MethodPost, "/v1/calendar/events", dev, calBody("missing", map[string]any{"topic_id": "5ea2e615"}))
+	if code != http.StatusBadRequest || out["error"] != "bad_event" {
+		t.Fatalf("unknown short id: %d %v", code, out)
+	}
+	code, out = call(t, e, tid, http.MethodPatch, "/v1/calendar/events/"+ev["id"].(string), dev, map[string]any{"topic_id": "5eed0001"})
+	patched := calEvent(t, out)
+	if code != http.StatusOK || patched["topic_id"] != one {
+		t.Fatalf("patch short id: %d %v", code, out)
+	}
+}

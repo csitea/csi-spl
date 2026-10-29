@@ -982,6 +982,19 @@
       "hint": "No one has posted here yet. Write the first message to start the conversation.",
       "start": "Write the first message",
       "filter_hint": "Nothing here matches the filter. Clear it to see every message."
+    },
+    "topic_list": {
+      "label": "Topic list",
+      "filter": "Filter",
+      "filter_new": "New",
+      "filter_all": "All",
+      "sort": "Sort by",
+      "sort_last": "Last update",
+      "sort_count": "Number of messages",
+      "sort_prio": "Priority",
+      "window": "Sorted: the {n} topics loaded",
+      "window_new": "Showing new among the {n} topics loaded",
+      "empty_new": "No new topics."
     }
   },
   "topic": {
@@ -995,7 +1008,14 @@
     "issue_chip_aria": "Linked issue {key}: {status}",
     "load_failed": "topic load failed",
     "no_replies": "No replies yet — write the first one.",
-    "list_title": "Topic: {text}"
+    "list_title": "Topic: {text}",
+    "priority": {
+      "label": "Priority",
+      "hint": "1 is the most urgent, 5 the least. The orchestrator serves 1 first.",
+      "badge": "P{n}",
+      "saved": "Priority set to {n}.",
+      "failed": "Could not save the priority ({token})."
+    }
   },
   "notify": {
     "alerts_on": "alerts on",

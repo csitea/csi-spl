@@ -164,7 +164,7 @@ holds (panel.md section 1, one row per claim with its command).
   group, as CardClipControl does (Tab lands on the group, the arrows move,
   Escape closes).
   - **Filter**: New / All.
-  - **Sort**: Last update / Messages / slot 3 (poll Q2) / Priority.
+  - **Sort**: Last update / Messages / Priority (no third sort, D12).
 - An icon shows a dot when its choice is not the default (All, Last update),
   so a filtered list never looks like a short list.
 - It loads lazily (`LazyTopicListControl`) in a fixed-size slot, as
@@ -189,7 +189,7 @@ holds (panel.md section 1, one row per claim with its command).
   - Messages: the topic's total count (`channel.repliesFor`, the hub's
     `count`).
   - Priority: 1 first, 5 last; a topic nobody set is 5 (panel D7).
-  - Slot 3: per poll Q2; dropped if Q2 is A.
+  - No third sort: poll Q2 was answered A (D12).
 - **Unread stays at the edge after any sort** (panel D9): owner rule
   SPL-2506, "every listing puts the items with unread at the edge"
   (`useUnreadOrder.ts:2-5`). The chosen sort orders the unread group and the
@@ -296,7 +296,8 @@ holds (panel.md section 1, one row per claim with its command).
 - New keys in `csi-spl-wui/i18n/locales/en.json` and the same keys in the
   other 18 locale files (19: bg el en es et fi he lt lv mk nl pl ro ru sk sr
   sv tr uk). `i18n-parity.test.mjs` refuses a missing key; the raw-text
-  ratchet refuses a literal (developer guide 2.4).
+  ratchet refuses a literal (developer guide 2.4). Row B4 landed them; the
+  16 keys below, no slot-3 key (D12).
 
 | key | en |
 |---|---|
@@ -307,7 +308,6 @@ holds (panel.md section 1, one row per claim with its command).
 | `feed.topic_list.sort` | Sort by |
 | `feed.topic_list.sort_last` | Last update |
 | `feed.topic_list.sort_count` | Number of messages |
-| `feed.topic_list.sort_slot3` | (per poll Q2; no key if Q2 is A) |
 | `feed.topic_list.sort_prio` | Priority |
 | `feed.topic_list.window` | Sorted: the {n} topics loaded |
 | `feed.topic_list.window_new` | Showing new among the {n} topics loaded |
@@ -379,7 +379,7 @@ before a row that depends on it starts.
 | B1 (Implemented, a63179997) | 3 | `topic_priorities` table with RLS and the change_stamp trigger, the store; C301-C304 | `rdb/0214_topic_priorities.sql`, `store/topic_priority.go`, `store/topic_priority_postgres.go`, `store/topic_priority_memory.go`, `store/topic_priority_test.go`, `store/change_stamp_test.go` | - |
 | B2 | 3 | the delta change kind; C308 | `store/view_changes.go`, `store/view_changes_postgres.go`, `hub/view_delta_test.go` | B1 |
 | B3 | 3 | `PUT /v1/topics/{task_id}/priority` (door, policy), `priority` on the view rows, the `topic_priority` frame, openapi; C305-C307 | `hub/topic_priority.go`, `hub/topic_priority_test.go`, `hub/view.go` (the row field only), `hub/openapi.json` | B1 |
-| B4 | 2-3 | the i18n keys of 3.5 in all 19 locales, one commit | `csi-spl-wui/i18n/locales/*.json` | Q2 answered |
+| B4 (Implemented, SPL-4203) | 2-3 | the i18n keys of 3.5 in all 19 locales, one commit | `csi-spl-wui/i18n/locales/*.json` | Q2 answered |
 | B5 | 2 | the `topicListView` pure function; C201-C206, C208, C210 | `wui/utils/topic-list-order.mjs`, `wui/types/mjs-shims.d.ts` (its declaration), `csi-spl-wui/tests/unit/topic-list-order.test.mjs` | Q2 answered |
 | B6 | 1-2 | `TopicListControl` in FeedHeader, the MessageFeed wiring, the per-browser choice; C101-C104, C207, C209 | `wui/components/TopicListControl.vue`, `wui/components/FeedHeader.vue`, `wui/components/MessageFeed.vue`, `wui/composables/useTopicListChoice.ts`, `csi-spl-wui/tests/e2e/topic-list-control.test.mjs` | B4, B5 |
 | B7 | 3 | `TopicPriorityChooser` in both topic panes, the client call and the mock; C309-C311 | `wui/components/TopicPriorityChooser.vue`, `wui/components/TopicPane.vue`, `wui/components/LiveTopicPane.vue`, `wui/utils/spool-client.mjs`, `wui/utils/spool-client-mock.mjs`, `csi-spl-wui/tests/e2e/topic-priority.test.mjs` | B3, B4 |
@@ -417,6 +417,7 @@ is in panel.md section 3.
 | D9 (Q7) | unread at the edge after a sort | yes | owner rule SPL-2506: "every listing puts the items with unread at the edge" (`useUnreadOrder.ts:2-5`) |
 | D10 (F5) | where the write route lives | `PUT /v1/topics/{task_id}/priority` | every `/v1/view/` route reads (`hub/view.go:48-62`) |
 | D11 (Q8) | does the card show the priority | a small badge when not 5 | a list sorted by priority with no visible value cannot be read |
+| D12 (Q2) | the third sort | none: three sorts (last update, messages, priority) | the owner, poll `b4e82851` msg `f6350266`: "Answer: A — There is no third sort: three sorts are enough"; then msg `603d2f64`: "can you proceed now" |
 
 ## 7. Questions for the owner
 
@@ -431,6 +432,8 @@ Q2. Your sort list reads "sort by time of last update, sort by amount of msgs, s
 (B) Importance: topics that mention me or that I take part in first
 (C) Kind: blockers and escalations first
 ```
+
+Q2 answered **A** (msg `f6350266`): decision D12.
 
 ```poll
 Q5. In the orchestrator's queue, how does a discussion's priority combine with the work class (CI, refactor, bug, feature)?

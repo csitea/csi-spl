@@ -982,6 +982,19 @@
       "hint": "Zatiaľ sem nikto nič nenapísal. Napíšte prvú správu a začnite konverzáciu.",
       "start": "Napíšte prvú správu",
       "filter_hint": "Filtru tu nič nezodpovedá. Vymažte ho, aby ste videli všetky správy."
+    },
+    "topic_list": {
+      "label": "Zoznam tém",
+      "filter": "Filtrovanie",
+      "filter_new": "Nové",
+      "filter_all": "Všetky",
+      "sort": "Zoradiť podľa",
+      "sort_last": "Posledná aktualizácia",
+      "sort_count": "Počet správ",
+      "sort_prio": "Priorita",
+      "window": "Zoradené medzi načítanými témami: {n}",
+      "window_new": "Nové medzi načítanými témami: {n}",
+      "empty_new": "Žiadne nové témy."
     }
   },
   "topic": {
@@ -995,7 +1008,14 @@
     "issue_chip_aria": "Prepojená úloha {key}: {status}",
     "load_failed": "načítanie témy zlyhalo",
     "no_replies": "Zatiaľ žiadne odpovede — napíšte prvú.",
-    "list_title": "Téma: {text}"
+    "list_title": "Téma: {text}",
+    "priority": {
+      "label": "Priorita",
+      "hint": "1 je najnaliehavejšia, 5 najmenej naliehavá. Orchestrátor obsluhuje najprv 1.",
+      "badge": "P{n}",
+      "saved": "Priorita nastavená na {n}.",
+      "failed": "Prioritu sa nepodarilo uložiť ({token})."
+    }
   },
   "notify": {
     "alerts_on": "upozornenia zapnuté",

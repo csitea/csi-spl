@@ -982,6 +982,19 @@
       "hint": "Nikt jeszcze nic tu nie opublikował. Napisz pierwszą wiadomość, aby rozpocząć rozmowę.",
       "start": "Napisz pierwszą wiadomość",
       "filter_hint": "Nic tutaj nie pasuje do filtra. Wyczyść go, aby zobaczyć wszystkie wiadomości."
+    },
+    "topic_list": {
+      "label": "Lista tematów",
+      "filter": "Filtr",
+      "filter_new": "Nowe",
+      "filter_all": "Wszystkie",
+      "sort": "Sortuj według",
+      "sort_last": "Ostatnia aktualizacja",
+      "sort_count": "Liczba wiadomości",
+      "sort_prio": "Priorytet",
+      "window": "Posortowano spośród wczytanych tematów: {n}",
+      "window_new": "Nowe spośród wczytanych tematów: {n}",
+      "empty_new": "Brak nowych tematów."
     }
   },
   "topic": {
@@ -995,7 +1008,14 @@
     "issue_chip_aria": "Powiązane zgłoszenie {key}: {status}",
     "load_failed": "ładowanie tematu nie powiodło się",
     "no_replies": "Brak odpowiedzi — napisz pierwszą.",
-    "list_title": "Temat: {text}"
+    "list_title": "Temat: {text}",
+    "priority": {
+      "label": "Priorytet",
+      "hint": "1 jest najpilniejszy, 5 najmniej pilny. Orkiestrator obsługuje najpierw 1.",
+      "badge": "P{n}",
+      "saved": "Ustawiono priorytet {n}.",
+      "failed": "Nie udało się zapisać priorytetu ({token})."
+    }
   },
   "notify": {
     "alerts_on": "alerty włączone",

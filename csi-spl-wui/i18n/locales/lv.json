@@ -982,6 +982,19 @@
       "hint": "Šeit vēl neviens nav neko publicējis. Uzrakstiet pirmo ziņu, lai sāktu sarunu.",
       "start": "Uzrakstiet pirmo ziņu",
       "filter_hint": "Nekas šeit neatbilst filtram. Notīriet to, lai redzētu visas ziņas."
+    },
+    "topic_list": {
+      "label": "Tēmu saraksts",
+      "filter": "Filtrs",
+      "filter_new": "Jaunās",
+      "filter_all": "Visas",
+      "sort": "Kārtot pēc",
+      "sort_last": "Pēdējā atjaunināšana",
+      "sort_count": "Ziņojumu skaits",
+      "sort_prio": "Prioritāte",
+      "window": "Sakārtots starp ielādētajām tēmām: {n}",
+      "window_new": "Jaunās starp ielādētajām tēmām: {n}",
+      "empty_new": "Nav jaunu tēmu."
     }
   },
   "topic": {
@@ -995,7 +1008,14 @@
     "issue_chip_aria": "Saistītais uzdevums {key}: {status}",
     "load_failed": "tēmas ielāde neizdevās",
     "no_replies": "Atbilžu vēl nav — uzrakstiet pirmo.",
-    "list_title": "Tēma: {text}"
+    "list_title": "Tēma: {text}",
+    "priority": {
+      "label": "Prioritāte",
+      "hint": "1 ir vissteidzamākā, 5 – vismazāk steidzamā. Orķestrētājs vispirms apkalpo 1.",
+      "badge": "P{n}",
+      "saved": "Prioritāte iestatīta: {n}.",
+      "failed": "Neizdevās saglabāt prioritāti ({token})."
+    }
   },
   "notify": {
     "alerts_on": "paziņojumi ieslēgti",

@@ -982,6 +982,19 @@
       "hint": "Nimeni nu a postat aici încă. Scrie primul mesaj pentru a începe conversația.",
       "start": "Scrie primul mesaj",
       "filter_hint": "Nimic de aici nu se potrivește filtrului. Șterge-l pentru a vedea toate mesajele."
+    },
+    "topic_list": {
+      "label": "Lista subiectelor",
+      "filter": "Filtru",
+      "filter_new": "Noi",
+      "filter_all": "Toate",
+      "sort": "Sortează după",
+      "sort_last": "Ultima actualizare",
+      "sort_count": "Număr de mesaje",
+      "sort_prio": "Prioritate",
+      "window": "Sortate: cele {n} subiecte încărcate",
+      "window_new": "Noi dintre cele {n} subiecte încărcate",
+      "empty_new": "Nu există subiecte noi."
     }
   },
   "topic": {
@@ -995,7 +1008,14 @@
     "issue_chip_aria": "Sarcină asociată {key}: {status}",
     "load_failed": "încărcarea temei a eșuat",
     "no_replies": "Încă nu există răspunsuri — scrie-l pe primul.",
-    "list_title": "Temă: {text}"
+    "list_title": "Temă: {text}",
+    "priority": {
+      "label": "Prioritate",
+      "hint": "1 este cel mai urgent, 5 cel mai puțin urgent. Orchestratorul servește mai întâi 1.",
+      "badge": "P{n}",
+      "saved": "Prioritatea a fost setată la {n}.",
+      "failed": "Prioritatea nu a putut fi salvată ({token})."
+    }
   },
   "notify": {
     "alerts_on": "alerte activate",

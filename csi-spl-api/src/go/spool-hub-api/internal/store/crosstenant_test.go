@@ -535,6 +535,11 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := seedFileStreams(ctx, pg, s.tenant, s.marker, now); err != nil {
 		t.Fatal(err)
 	}
+	// workspace_events (rdb 0240, spec 162 B3, SPL-4167): one row carrying
+	// the marker, through the store API.
+	if _, err := pg.AddWorkspaceEvent(ctx, s.tenant, LogEvent{Kind: LogKindMemberInvited, Message: "invited " + s.marker}, now); err != nil {
+		t.Fatal(err)
+	}
 	return s
 }
 

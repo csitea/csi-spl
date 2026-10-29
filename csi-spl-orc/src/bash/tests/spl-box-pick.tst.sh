@@ -436,6 +436,17 @@ B="You've used 96% of your weekly limit · resets Oct 17, 11am (Europe/Helsinki)
   pass "16. a reset time alone is the next one -> 86" || fail "16. time only"
 [[ "$(printf "  ⎿  You've hit your weekly limit · resets Oct 17, 11am (Europe/Helsinki)\n" | parse claude "$N")" == 100 ]] &&
   pass "16. hit your weekly limit -> 100" || fail "16. hit"
+# a year-less reset date (SPL-4155): read as this year, "resets Jan 2" on Dec 30
+# was 363 days past and a box at its limit read free every year-end
+H="  You've hit your weekly limit · resets"
+[[ "$(printf '%s Jan 2, 12am (UTC)\n' "$H" | parse claude "$(date -u -d 2026-12-30T12:00:00Z +%s)")" == 100 ]] &&
+  pass "16. RED CONTROL (FAILs on 63bd3899a) Dec 30 + resets Jan 2 -> next year, 100" || fail "16. year-end reset"
+[[ -z "$(printf '%s Jan 1, 12am (UTC)\n' "$H" | parse claude "$(date -u -d 2027-01-05T12:00:00Z +%s)")" ]] &&
+  pass "16. Jan 5 + resets Jan 1 -> passed, no reading" || fail "16. new-year stale"
+[[ -z "$(printf '%s Dec 30, 12am (UTC)\n' "$H" | parse claude "$(date -u -d 2027-01-01T12:00:00Z +%s)")" ]] &&
+  pass "16. Jan 1 + resets Dec 30 -> last year, passed, no reading" || fail "16. last-year stale"
+[[ "$(printf '%s Nov 2, 12am (UTC)\n' "$H" | parse claude "$(date -u -d 2026-10-29T12:00:00Z +%s)")" == 100 ]] &&
+  pass "16. Oct 29 + resets Nov 2 -> 100" || fail "16. same-year reset"
 [[ "$(printf ' Weekly limit left: 4%%\n' | parse grok "$N")" == 96 ]] && pass "16. grok footer left 4% -> 96" || fail "16. grok"
 # grok's limit screen draws no footer (b04-03): its framed line reads 100
 G="$(printf '  ┃  You hit your weekly limit.\n  ┃  1 (○) Buy more credits\n  ┃  2 (○) Try Again\n')"
@@ -475,9 +486,9 @@ out="$(lq)"
 [[ "$(pick "$out")" == box-a ]] && grep -q '^INFO box-a: claude weekly usage unknown' <<<"$out" &&
   pass "16e. a real answer newer than the limit entry (lifted) -> unknown, placed with the INFO line" || fail "16e. lifted: $out"
 rm -f "$L/q1.jsonl"
-# a pinned past reset: the parser reads a year-less date as this year, so an
-# "N days ago" day can be invalid ("Sep 31") or land in the future (January)
-ent "<synthetic>" "You've hit your weekly limit · resets Jan 1, 12am (UTC)" 3600 >"$L/s1.jsonl"
+# a reset two days ago: a year-less date is the latest one at most 8 days
+# ahead (SPL-4155), so a pinned "Jan 1" would read next year's from Dec 24
+ent "<synthetic>" "You've hit your weekly limit · resets $(date -u -d '-2 days' '+%b %-d, %-l%P') (UTC)" 3600 >"$L/s1.jsonl"
 out="$(lq)"
 [[ "$(pick "$out")" == box-a ]] && pass "16e. a limit entry whose reset has passed -> unknown, placed" || fail "16e. reset passed: $out"
 ent "claude-x" "You've hit your weekly limit · resets $RS" 3600 >"$L/s1.jsonl"

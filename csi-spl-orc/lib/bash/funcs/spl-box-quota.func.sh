@@ -26,6 +26,26 @@
 # overrides, default 90.
 #------------------------------------------------------------------------------
 
+# spl_box_quota_reset_at WHEN TZ NOW: the banner's reset ("Oct 17 11am", or a
+# time alone "8pm") as an epoch; a date with its year is read as given. The
+# banner names none (SPL-4155): read as NOW's year, "resets Jan 2" on Dec 30
+# was 363 days past and a box at its limit read free. A weekly reset is never
+# more than a week ahead, so a date is the latest of next, this or last
+# year's that is at most 8 days after NOW (Dec 30 + "Jan 2" -> next year;
+# Jan 1 + "Dec 30" -> last year, stale).
+spl_box_quota_reset_at() {
+  local when="$1" tz="$2" now="$3" day rest y at off
+  [[ "$when" =~ ^([A-Za-z]+\ [0-9]{1,2})(\ (.*))?$ ]] && day="${BASH_REMATCH[1]}" rest="${BASH_REMATCH[3]}"
+  if [[ -z "${day:-}" || "$rest" =~ ^[0-9]{4} ]]; then
+    TZ="$tz" date -d "$when" +%s 2>/dev/null; return 0
+  fi
+  y="$(TZ="$tz" date -d "@$now" +%Y)"
+  for off in 1 0 -1; do
+    at="$(TZ="$tz" date -d "$day $(( y + off )) $rest" +%s 2>/dev/null)" || continue
+    (( at <= now + 8 * 86400 )) && { echo "$at"; return 0; }
+  done
+}
+
 # spl_box_quota_parse VENDOR [NOW]: a pane's footer on stdin -> the used % of
 # VENDOR's weekly limit from its newest banner line, or nothing. The claude
 # banner starts its line: an agent quoting it mid-sentence is no reading.
@@ -40,7 +60,7 @@ spl_box_quota_parse() {
       if [[ "$line" =~ used\ ([0-9]{1,3})% ]]; then pct="${BASH_REMATCH[1]}"; else pct=100; fi
       if [[ "$line" =~ resets\ ([A-Za-z0-9\ ,:]*[a-z0-9])(\ \(([A-Za-z_/+-]+)\))? ]]; then
         when="${BASH_REMATCH[1]//,/}" tz="${BASH_REMATCH[3]:-UTC}"
-        at="$(TZ="$tz" date -d "$when" +%s 2>/dev/null)"
+        at="$(spl_box_quota_reset_at "$when" "$tz" "$now")"
         # a time alone ("resets 8pm") is the next one; a date in the past: reset, stale
         [[ "$when" =~ ^[0-9] && "$at" =~ ^[0-9]+$ ]] && (( at <= now )) && at=$(( at + 86400 ))
         [[ "$at" =~ ^[0-9]+$ ]] && (( at <= now )) && return 0

@@ -2146,7 +2146,11 @@
       "qwen": "Qwen",
       "mistral": "Mistral",
       "agent": "Tarkvaraagent"
-    }
+    },
+    "tabs_label": "Agendi kaart",
+    "tab_lanes": "Rajad",
+    "tab_details": "Üksikasjad",
+    "lanes_none": "See agent ei tööta ühelgi aktiivsel rajal."
   },
   "boxes": {
     "none": "Ühtegi boxi veel pole.",

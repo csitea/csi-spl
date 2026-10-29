@@ -19,7 +19,10 @@
      08b25696): the Issues sheet's controls. A column name sorts by that
      column (▲, ▼, then back to the hub's order; components/SheetSortButton.vue),
      the row under the names filters by box, vendor, state, age and text, and
-     Clear filters resets them. Both survive the minute's refresh. -->
+     Clear filters resets them. Both survive the minute's refresh.
+     Deep link (3.9, SPL-4206; owner HUM-10, t1 fb9b6e4b, msg 470ae116): a
+     lane on the agent card opens this page at ?lane=<id@box>; that row is
+     marked selected and scrolled into view once it is in the answer. -->
 <template>
   <div class="monitoring-lanes" data-test="lanes-page">
     <div class="ln-head">
@@ -91,7 +94,16 @@
             <tr v-if="rows.length === 0">
               <td :colspan="columns.length" class="muted" data-test="lanes-no-match">{{ t('monitoring.lanes.no_match') }}</td>
             </tr>
-            <tr v-for="l in rows" :key="l.agentId + '@' + l.box" data-test="lanes-row" :data-agent="l.agentId">
+            <tr
+              v-for="l in rows"
+              :key="l.agentId + '@' + l.box"
+              class="ln-row"
+              data-test="lanes-row"
+              :data-agent="l.agentId"
+              :data-lane="laneName(l)"
+              :data-selected="laneName(l) === selectedLane ? '1' : undefined"
+              :aria-current="laneName(l) === selectedLane ? 'true' : undefined"
+            >
               <th scope="row" class="ln-id" data-test="lanes-agent">{{ laneName(l) }}</th>
               <td data-test="lanes-vendor">{{ l.vendor || DASH }}</td>
               <td data-test="lanes-state" :data-state="l.state">{{ stateLabel(l.state) }}</td>
@@ -123,7 +135,7 @@
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useOperatorPane } from '~/stores/operator-pane'
 import { lagSeconds } from '~/utils/monitoring-tokens.mjs'
-import { LANE_AGES, LANE_COLUMNS, LANES_NO_FILTER, filterLanes, fleetLanesOf, laneFilterChoices, laneIssuePath, laneName, laneTopicPath, lanesFiltered, lanesStaleLevel, minutesAgo, sortLanes, startLanesPoll } from '~/utils/monitoring-lanes.mjs'
+import { LANE_AGES, LANE_COLUMNS, LANE_QUERY, LANES_NO_FILTER, filterLanes, fleetLanesOf, laneFilterChoices, laneIssuePath, laneName, laneTopicPath, lanesFiltered, lanesStaleLevel, minutesAgo, readLanes, sortLanes, startLanesPoll } from '~/utils/monitoring-lanes.mjs'
 import { cycleSort } from '~/utils/sheet-sort.mjs'
 
 type LanesApi = { getFleetLanes: (own?: boolean) => Promise<unknown> }
@@ -133,8 +145,9 @@ const DASH = '—'
 const { t } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
 const operator = useOperatorPane()
-/* the fleet route refused this reader (403): read the workspace's own lanes */
-let own = false
+const route = useRoute()
+/* the fleet route refused this reader (403, s.own): read the workspace's own lanes */
+const lanesRead = { own: false, operatorVisible: false }
 const view = ref<LanesView | null>(null)
 const state = ref<'loading' | 'ok' | 'forbidden' | 'error'>('loading')
 const busy = ref(false)
@@ -193,7 +206,8 @@ async function load() {
   busy.value = true
   try {
     const api = useSpoolApi() as unknown as LanesApi
-    const body = await lanesOf(api)
+    lanesRead.operatorVisible = operator.visible
+    const body = await readLanes(api, lanesRead)
     if (mine !== seq) return
     view.value = fleetLanesOf(body)
     fetchedAt.value = Date.now()
@@ -211,17 +225,20 @@ async function load() {
   }
 }
 
-/** The fleet route for an operator admin, else (after its 403) the workspace's own. */
-async function lanesOf(api: LanesApi) {
-  if (own && !operator.visible) return api.getFleetLanes(true)
-  try {
-    return await api.getFleetLanes(false)
-  } catch (e) {
-    if ((e as { status?: number })?.status !== 403 || operator.visible) throw e
-    own = true
-    return api.getFleetLanes(true)
-  }
-}
+/* the lane a deep link selects (?lane=<id@box>), scrolled into view once it is shown */
+const selectedLane = computed(() => {
+  const q = route.query[LANE_QUERY]
+  return String((Array.isArray(q) ? q[0] : q) || '')
+})
+let scrolledTo = ''
+watch([selectedLane, rows], async () => {
+  const want = selectedLane.value
+  if (!want || want === scrolledTo || !rows.value.some((l) => laneName(l) === want)) return
+  scrolledTo = want
+  await nextTick()
+  const row = document.querySelector(`[data-test=lanes-row][data-lane="${CSS.escape(want)}"]`)
+  if (row) row.scrollIntoView({ block: 'center' })
+})
 
 let poll: ReturnType<typeof startLanesPoll> | null = null
 let clock: ReturnType<typeof setInterval> | null = null
@@ -261,6 +278,7 @@ onBeforeUnmount(() => {
 .ln-table { border-collapse: collapse; width: 100%; font-size: 0.875rem; }
 .ln-table th, .ln-table td { padding: 6px 8px; border-bottom: 1px solid var(--color-border); text-align: start; vertical-align: top; }
 .ln-table .num { text-align: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ln-row[data-selected="1"] > * { background: var(--color-selected); }
 .ln-id { font-family: var(--font-mono); font-weight: 600; white-space: nowrap; }
 .ln-mono { font-family: var(--font-mono); }
 /* a long scope or topic stays on one line, its full text in the title (3.2) */

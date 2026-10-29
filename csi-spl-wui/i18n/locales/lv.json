@@ -2146,7 +2146,11 @@
       "qwen": "Qwen",
       "mistral": "Mistral",
       "agent": "Aģents"
-    }
+    },
+    "tabs_label": "Aģenta kartīte",
+    "tab_lanes": "Līnijas",
+    "tab_details": "Detaļas",
+    "lanes_none": "Šis aģents nestrādā nevienā aktīvā joslā."
   },
   "boxes": {
     "none": "Vēl nav neviena box.",

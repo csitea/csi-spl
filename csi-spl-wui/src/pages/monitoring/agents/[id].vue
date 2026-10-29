@@ -12,14 +12,50 @@
      SPL-3399 (owner HUM-10, t1 fb9b6e4b, msg f9e50fae: "in this view I
      should be able to click on the machine which will take me to this
      box"): the right pane of the Agents tab (pages/monitoring/agents.vue);
-     its Box links to the Boxes tab at that box's card (#box-<id>). -->
+     its Box links to the Boxes tab at that box's card (#box-<id>).
+
+     SPL-4206 (spec 153 3.9; owner HUM-10, t1 fb9b6e4b, msgs 78f2071b and
+     470ae116): the card has tabs (utils/agent-card-tabs.mjs). Lanes, first
+     and the default, lists the lanes this agent works on, read as the Lanes
+     page reads them; each opens Monitoring -> Lanes with its row selected
+     (?lane=<id@box>). The hub's lane row names no spawner, so a role seat
+     lists only its own lane rows. Details holds the card above (?tab=details). -->
 <template>
   <div class="monitoring-card" data-test="agent-page">
     <h3 class="agent-head">
       <UiIcon name="bot" :size="22" />
       <span>{{ agentId }}</span>
     </h3>
-    <div>
+    <div class="agent-tabs" role="tablist" :aria-label="t('agents.tabs_label')" data-test="agent-tabs" @keydown="onTabKey">
+      <button
+        v-for="k in AGENT_CARD_TABS"
+        :id="'agent-tab-' + k"
+        :key="k"
+        type="button"
+        role="tab"
+        class="agent-tabs__tab"
+        :data-test="'agent-tab-' + k"
+        :aria-selected="k === tab ? 'true' : 'false'"
+        :aria-controls="'agent-panel-' + k"
+        :tabindex="k === tab ? 0 : -1"
+        @click="openTab(k)"
+      >{{ t(TAB_KEYS[k]) }}</button>
+    </div>
+    <div v-if="tab === 'lanes'" id="agent-panel-lanes" role="tabpanel" aria-labelledby="agent-tab-lanes" class="agent-lanes" data-test="agent-lanes">
+      <p v-if="lanesState === 'loading'" class="muted" data-test="agent-lanes-loading">{{ t('monitoring.lanes.loading') }}</p>
+      <p v-else-if="lanesState === 'forbidden'" class="agent-lanes__error" data-test="agent-lanes-forbidden">{{ t('monitoring.lanes.forbidden') }}</p>
+      <p v-else-if="lanesState === 'error'" class="agent-lanes__error" data-test="agent-lanes-error">{{ t('monitoring.lanes.error') }}</p>
+      <p v-else-if="lanes.length === 0" class="muted" data-test="agent-lanes-empty">{{ t('agents.lanes_none') }}</p>
+      <ul v-else class="agent-lanes__list">
+        <li v-for="l in lanes" :key="laneName(l)" class="agent-lanes__row" data-test="agent-lane" :data-lane="laneName(l)">
+          <NuxtLink class="agent-lanes__link" data-test="agent-lane-link" :to="localePath(laneDeepLink(l))"><code>{{ laneName(l) }}</code></NuxtLink>
+          <span v-if="l.scope" class="agent-lanes__scope" :title="l.scope">{{ l.scope }}</span>
+          <span v-if="l.topicTitle" class="muted agent-lanes__topic">{{ l.topicTitle }}</span>
+          <span v-for="i in l.issues" :key="i.key" class="agent-lanes__issue">{{ i.key }}</span>
+        </li>
+      </ul>
+    </div>
+    <div v-else id="agent-panel-details" role="tabpanel" aria-labelledby="agent-tab-details">
       <div class="agent-card" data-test="agent-card">
         <div class="agent-card__hero">
           <span class="agent-card__glyph" aria-hidden="true"><UiIcon name="bot" :size="34" /></span>
@@ -52,6 +88,13 @@
 import { useRosterStore } from '~/stores/roster'
 import { agentKindLabelKey } from '~/utils/agent-kind.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
+import { useSpoolApi } from '~/composables/useSpoolApi'
+import { useOperatorPane } from '~/stores/operator-pane'
+import { AGENT_CARD_TABS, agentCardTab, agentCardTabQuery } from '~/utils/agent-card-tabs.mjs'
+import { agentLanes, fleetLanesOf, laneDeepLink, laneName, readLanes } from '~/utils/monitoring-lanes.mjs'
+
+type LanesApi = { getFleetLanes: (own?: boolean) => Promise<unknown> }
+type Lane = ReturnType<typeof fleetLanesOf>['lanes'][number]
 
 const route = useRoute()
 const roster = useRosterStore()
@@ -72,7 +115,43 @@ const boxDetail = computed(() => roster.boxes[box.value] || { online: false, las
 const boxLink = computed(() => localePath({ path: '/monitoring/boxes', hash: '#box-' + encodeURIComponent(box.value) }))
 const lastHello = computed(() => (boxDetail.value.last_hello_at ? isoDateTime(boxDetail.value.last_hello_at) : t('people.never_seen')))
 
-onMounted(() => { if (!roster.boxes[box.value]) void roster.refresh() })
+/* the open tab lives in ?tab= (none = Lanes), so a link opens the right one */
+const TAB_KEYS: Record<string, string> = { lanes: 'agents.tab_lanes', details: 'agents.tab_details' }
+const tab = computed(() => agentCardTab(route.query.tab))
+function openTab(k: string) {
+  if (k !== tab.value) void navigateTo({ path: route.path, query: agentCardTabQuery(route.query, k), hash: route.hash }, { replace: true })
+}
+/** Arrow keys move between the tabs (the WAI tabs pattern). */
+function onTabKey(e: KeyboardEvent) {
+  const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+  if (!step) return
+  e.preventDefault()
+  const n = AGENT_CARD_TABS.length
+  const next = AGENT_CARD_TABS[(AGENT_CARD_TABS.indexOf(tab.value) + step + n) % n]!
+  openTab(next)
+  void nextTick(() => document.getElementById('agent-tab-' + next)?.focus())
+}
+
+/* the lanes, read once per card as the Lanes page reads them (fleet, else the workspace's own) */
+const operator = useOperatorPane()
+const allLanes = ref<Lane[]>([])
+const lanesState = ref<'loading' | 'ok' | 'forbidden' | 'error'>('loading')
+const lanes = computed(() => agentLanes(allLanes.value, agentId.value, box.value))
+const lanesRead = { own: false, operatorVisible: false }
+async function loadLanes() {
+  lanesRead.operatorVisible = operator.visible
+  try {
+    allLanes.value = fleetLanesOf(await readLanes(useSpoolApi() as unknown as LanesApi, lanesRead)).lanes
+    lanesState.value = 'ok'
+  } catch (e) {
+    lanesState.value = (e as { status?: number })?.status === 403 ? 'forbidden' : 'error'
+  }
+}
+
+onMounted(() => {
+  if (!roster.boxes[box.value]) void roster.refresh()
+  void loadLanes()
+})
 
 function message() {
   void navigateTo(localePath('/dm/' + encodeURIComponent(label.value)))
@@ -101,6 +180,20 @@ function message() {
 .agent-card__facts dd { margin: 0; overflow-wrap: anywhere; min-width: 0; }
 .agent-card__actions { display: flex; gap: 8px; }
 .agent-card__box { color: var(--color-accent); text-decoration: underline; text-underline-offset: 2px; }
+.agent-tabs { display: flex; gap: 4px; padding: 8px 16px 0; border-bottom: 1px solid var(--color-border); overflow-x: auto; }
+.agent-tabs__tab {
+  padding: 6px 12px; border: 0; border-bottom: 3px solid transparent; background: transparent;
+  color: var(--color-fg); font: inherit; cursor: pointer; white-space: nowrap;
+}
+.agent-tabs__tab:hover { background: var(--color-surface-hover); }
+.agent-tabs__tab[aria-selected='true'] { border-bottom-color: var(--color-accent); font-weight: 600; }
+.agent-lanes { padding: 16px; max-width: 640px; min-width: 0; }
+.agent-lanes__error { color: var(--color-danger); }
+.agent-lanes__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.agent-lanes__row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; min-width: 0; padding: 8px 0; border-bottom: 1px solid var(--color-border); }
+.agent-lanes__link { color: var(--color-accent); text-decoration: underline; text-underline-offset: 2px; font-weight: 600; }
+.agent-lanes__scope, .agent-lanes__topic { min-width: 0; overflow-wrap: anywhere; }
+.agent-lanes__issue { font-family: var(--font-mono); font-size: 0.8125rem; }
 @media (max-width: 480px) {
   .agent-card__facts { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .agent-card__facts dd + dt { margin-top: 8px; }

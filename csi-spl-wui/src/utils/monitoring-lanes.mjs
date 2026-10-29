@@ -245,6 +245,50 @@ export function startLanesPoll(o) {
   }
 }
 
+/* ---- the agent card's Lanes tab (spec 153 3.9, SPL-4206; owner HUM-10, t1
+   fb9b6e4b, msgs 78f2071b and 470ae116): the lanes an agent works on, each
+   linking to its row on Monitoring -> Lanes (?lane=<id@box>). The hub's lane
+   row carries no spawner or owner field, so a role seat lists only its own
+   lane rows, never the lanes it placed. */
+
+/** The query key of the Lanes page's deep link: the lane it selects and scrolls to. */
+export const LANE_QUERY = 'lane'
+
+/**
+ * An agent's own lanes, in the order given: the same id, and the same box
+ * when both name one (an id runs on more than one box).
+ * @template {{ agentId: string, box: string }} T
+ * @param {T[]} lanes
+ * @param {string} agentId
+ * @param {string} box
+ * @returns {T[]}
+ */
+export function agentLanes(lanes, agentId, box) {
+  return lanes.filter((l) => l.agentId === agentId && (!l.box || !box || l.box === box))
+}
+
+/** The link to a lane's row on Monitoring -> Lanes. */
+export function laneDeepLink(lane) {
+  return { path: '/monitoring/lanes', query: { [LANE_QUERY]: laneName(lane) } }
+}
+
+/**
+ * One read of the lanes: the fleet route for an operator admin, else (after
+ * its 403, remembered in `s.own`) the workspace's own, as the Lanes page.
+ * @param {{ getFleetLanes: (own?: boolean) => Promise<unknown> }} api
+ * @param {{ own: boolean, operatorVisible: boolean }} s
+ */
+export async function readLanes(api, s) {
+  if (s.own && !s.operatorVisible) return api.getFleetLanes(true)
+  try {
+    return await api.getFleetLanes(false)
+  } catch (e) {
+    if (/** @type {{ status?: number }} */ (e)?.status !== 403 || s.operatorVisible) throw e
+    s.own = true
+    return api.getFleetLanes(true)
+  }
+}
+
 function mockForbidden() {
   const e = /** @type {Error & { status?: number, token?: string, permission?: string }} */ (new Error('only an admin of the operator workspace reads the fleet'))
   e.status = 403

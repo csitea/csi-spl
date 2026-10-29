@@ -2146,7 +2146,11 @@
       "qwen": "Qwen",
       "mistral": "Mistral",
       "agent": "Агент"
-    }
+    },
+    "tabs_label": "Картка агента",
+    "tab_lanes": "Лінії",
+    "tab_details": "Деталі",
+    "lanes_none": "Цей агент не працює над жодною активною лінією."
   },
   "boxes": {
     "none": "Поки що немає boxes.",

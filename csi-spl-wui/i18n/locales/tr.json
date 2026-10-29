@@ -2146,7 +2146,11 @@
       "qwen": "Qwen",
       "mistral": "Mistral",
       "agent": "Ajan"
-    }
+    },
+    "tabs_label": "Ajan kartı",
+    "tab_lanes": "Hatlar",
+    "tab_details": "Ayrıntılar",
+    "lanes_none": "Bu ajan etkin bir şeritte çalışmıyor."
   },
   "boxes": {
     "none": "Henüz box yok.",

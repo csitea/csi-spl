@@ -203,3 +203,63 @@ describe('locale keys (C19) and the chunk rules (C20)', () => {
     }
   })
 })
+
+/* spec 153 3.9 (SPL-4206; owner HUM-10, t1 fb9b6e4b, msgs 78f2071b and
+   470ae116): the agent card's tabs, Lanes first, each lane linking to its
+   row on Monitoring -> Lanes. */
+describe('the agent card tabs and the Lanes deep link', async () => {
+  const { AGENT_CARD_TABS, agentCardTab, agentCardTabQuery } = await import('../../src/utils/agent-card-tabs.mjs')
+  const { LANE_QUERY, agentLanes, laneDeepLink, readLanes } = await import('../../src/utils/monitoring-lanes.mjs')
+  const card = read('src/pages/monitoring/agents/[id].vue')
+  const lanesPage = read('src/pages/monitoring/lanes/index.vue')
+
+  it('Lanes is the first tab and the default; ?tab= opens a known tab only', () => {
+    assert.deepEqual(AGENT_CARD_TABS, ['lanes', 'details'])
+    assert.equal(agentCardTab(undefined), 'lanes')
+    assert.equal(agentCardTab('details'), 'details')
+    assert.equal(agentCardTab(['details', 'lanes']), 'details')
+    assert.equal(agentCardTab('nope'), 'lanes')
+    assert.deepEqual(agentCardTabQuery({ x: '1', tab: 'details' }, 'lanes'), { x: '1' })
+    assert.deepEqual(agentCardTabQuery({ x: '1' }, 'details'), { x: '1', tab: 'details' })
+  })
+  it('an agent lists its own lanes only: same id, same box when both name one', () => {
+    const lanes = fleetLanesOf(mockFleetLanes(store(OP))).lanes
+    assert.deepEqual(agentLanes(lanes, 'c-085', 'box-a').map(laneName), ['c-085@box-a'])
+    assert.deepEqual(agentLanes(lanes, 'c-085', 'box-b'), [], 'another box is another agent')
+    assert.deepEqual(agentLanes(lanes, 'CLE-07', 'box-a'), [], 'no lane, no row (never a guess)')
+    assert.deepEqual(agentLanes([{ agentId: 'c-1', box: '' }], 'c-1', 'box-a').length, 1, 'a row without a box matches the id')
+  })
+  it('a lane links to its row on Monitoring -> Lanes (?lane=<id@box>)', () => {
+    assert.equal(LANE_QUERY, 'lane')
+    assert.deepEqual(laneDeepLink({ agentId: 'c-085', box: 'box-a' }), { path: '/monitoring/lanes', query: { lane: 'c-085@box-a' } })
+    assert.match(card, /laneDeepLink\(l\)/)
+    assert.match(lanesPage, /route\.query\[LANE_QUERY\]/)
+    assert.match(lanesPage, /:data-selected="laneName\(l\) === selectedLane/)
+    assert.match(lanesPage, /scrollIntoView/)
+  })
+  it('readLanes asks the fleet route, then (after its 403) the workspace route for good', async () => {
+    const calls = []
+    const api = { getFleetLanes: async (own) => { calls.push(own); if (!own) throw Object.assign(new Error('no'), { status: 403 }); return { lanes: [] } } }
+    const s = { own: false, operatorVisible: false }
+    await readLanes(api, s)
+    await readLanes(api, s)
+    assert.deepEqual(calls, [false, true, true])
+    assert.equal(s.own, true)
+    const op = { own: false, operatorVisible: true }
+    await assert.rejects(readLanes(api, op), (e) => e.status === 403, 'the operator console showing: the 403 stands')
+  })
+  it('the card renders its tab keys and the reused lane keys in all 19 locales, and binds no :style', () => {
+    const keys = [...new Set([...card.matchAll(/\bt\('([a-z_.]+)'/g)].map((m) => m[1]))]
+    for (const k of ['agents.tab_lanes', 'agents.tab_details', 'agents.tabs_label', 'agents.lanes_none', 'monitoring.lanes.forbidden']) {
+      assert.ok(card.includes(`'${k}'`), k)
+      if (!keys.includes(k)) keys.push(k)
+    }
+    for (const loc of ['bg', 'el', 'en', 'es', 'et', 'fi', 'he', 'lt', 'lv', 'mk', 'nl', 'pl', 'ro', 'ru', 'sk', 'sr', 'sv', 'tr', 'uk']) {
+      const cat = JSON.parse(read('i18n/locales/' + loc + '.json'))
+      const get = (key) => key.split('.').reduce((o, k) => (o == null ? o : o[k]), cat)
+      for (const key of keys) assert.equal(typeof get(key), 'string', loc + ': ' + key)
+      assert.equal(get('agents.tab_lanes'), get('monitoring.tab.lanes'), loc)
+    }
+    assert.doesNotMatch(card, /:style=|v-bind:style/)
+  })
+})

@@ -2146,7 +2146,11 @@
       "qwen": "Qwen",
       "mistral": "Mistral",
       "agent": "Programagent"
-    }
+    },
+    "tabs_label": "Agentkort",
+    "tab_lanes": "Banor",
+    "tab_details": "Detaljer",
+    "lanes_none": "Den här agenten arbetar inte på någon aktiv bana."
   },
   "boxes": {
     "none": "Inga boxes ännu.",

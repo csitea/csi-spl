@@ -2146,7 +2146,11 @@
       "qwen": "Qwen",
       "mistral": "Mistral",
       "agent": "Software-agent"
-    }
+    },
+    "tabs_label": "Agentkaart",
+    "tab_lanes": "Banen",
+    "tab_details": "Gegevens",
+    "lanes_none": "Deze agent werkt aan geen actieve baan."
   },
   "boxes": {
     "none": "Nog geen boxes.",

@@ -30,6 +30,13 @@
 // RED CONTROL: on origin/master 55d2453e4 the list is gone once a row is
 // clicked (a separate page) and the Box is plain text, so the 1400 rows FAIL.
 //
+// SPL-4206 (spec 153 3.9; owner HUM-10, t1 fb9b6e4b, msgs 78f2071b and
+// 470ae116): section 5. The card has tabs, Lanes first and open by default,
+// Details holding the card above (?tab=details); a lane in the Lanes tab
+// opens Monitoring -> Lanes with that lane's row selected and in view.
+// RED CONTROL: on origin/master 278897c76 the card has no tabs, so every
+// section 5 row FAILS.
+//
 // Screenshots of the rail for the owner post land in $SHOT_DIR when set.
 //
 // Run:
@@ -152,7 +159,10 @@ try {
     await applyViewport(p, vp)
     const agentRow = `[data-test=monitoring-agents] a[data-key="${AGENT}"]`
     if (await has(p, agentRow)) await p.click(agentRow)
-    ok(`${tag}: agents - a row opens the agent's card in Monitoring`, await at(p, '/monitoring/agents/' + AGENT) && await has(p, '[data-test=agent-card]'), await where(p))
+    ok(`${tag}: agents - a row opens the agent's card in Monitoring`, await at(p, '/monitoring/agents/' + AGENT) && await has(p, '[data-test=agent-page]'), await where(p))
+    /* SPL-4206: the details live in the card's Details tab */
+    if (await has(p, '[data-test=agent-tab-details]', 5000)) await p.click('[data-test=agent-tab-details]')
+    ok(`${tag}: agents - the Details tab shows the card, ?tab=details`, await has(p, '[data-test=agent-card]') && (await where(p)).search === '?tab=details', await where(p))
     ok(`${tag}: agents - kind`, /Claude/i.test(await textOf(p, '[data-test=agent-kind]')), await textOf(p, '[data-test=agent-kind]'))
     ok(`${tag}: agents - liveness`, (await textOf(p, '[data-test=agent-status]')).length > 0)
     ok(`${tag}: agents - the box it runs on`, await textOf(p, '[data-test=agent-box]') === 'box-a')
@@ -215,17 +225,17 @@ try {
     await applyViewport(p, vp)
     const agentRow = `[data-test=monitoring-agents] a[data-key="${AGENT}"]`
     if (await has(p, agentRow)) await p.click(agentRow)
-    const card = await at(p, '/monitoring/agents/' + AGENT) && await has(p, '[data-test=agent-card]')
+    const card = await at(p, '/monitoring/agents/' + AGENT) && await has(p, '[data-test=agent-page]')
     const boxes = card ? await p.evaluate(() => {
       const r = (s) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return { left: b.left, right: b.right, top: b.top, w: b.width } }
-      return { list: r('[data-test=monitoring-agents]'), card: r('[data-test=agent-card]') }
+      return { list: r('[data-test=monitoring-agents]'), card: r('[data-test=agent-page]') }
     }) : null
     ok('1400x900: split - a click shows the card on the right, the list still beside it', Boolean(boxes && boxes.list && boxes.card
       && boxes.list.w > 0 && boxes.card.left >= boxes.list.right - 1), { where: await where(p), boxes })
     ok('1400x900: split - the clicked row stays selected', await p.$eval(agentRow, (e) => e.classList.contains('active') && e.getAttribute('aria-current') === 'true').catch(() => false))
     await shot(p, 'monitoring-agents-split-1400')
     /* a deep link opens the same state */
-    await p.goto(server.base + '/monitoring/agents/' + encodeURIComponent(AGENT), { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await p.goto(server.base + '/monitoring/agents/' + encodeURIComponent(AGENT) + '?tab=details', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     ok('1400x900: split - a deep link opens list + card, the row selected', await has(p, '[data-test=agent-card]') && await shown(p, '[data-test=monitoring-agents]')
       && await p.$eval(agentRow, (e) => e.classList.contains('active')).catch(() => false))
     /* the Box jumps to that box's card in Boxes */
@@ -253,12 +263,53 @@ try {
     await applyViewport(p, vp)
     const agentRow = `[data-test=monitoring-agents] a[data-key="${AGENT}"]`
     if (await has(p, agentRow)) await p.click(agentRow)
-    const card = await at(p, '/monitoring/agents/' + AGENT) && await has(p, '[data-test=agent-card]')
+    const card = await at(p, '/monitoring/agents/' + AGENT) && await has(p, '[data-test=agent-page]')
     ok('390x844: phone - the card is full page, the list hidden', card && !(await shown(p, '[data-test=monitoring-agents]')), await where(p))
     ok('390x844: phone - no sideways scroll', await noXScroll(p))
     await shot(p, 'monitoring-agents-card-390')
     if (await has(p, '[data-testid=mobile-back]', 5000)) await p.click('[data-testid=mobile-back]')
     ok('390x844: phone - Back returns to the list', await at(p, '/monitoring/agents') && await has(p, agentRow), await where(p))
+    await p.close()
+  }
+
+  /* 5. SPL-4206: the card's tabs, Lanes first; a lane opens Monitoring -> Lanes, that row selected */
+  for (const [w, h] of [[1400, 900], [390, 844]]) {
+    const tag = `${w}x${h}`
+    const vp = { width: w, height: h }
+    const LANE = 'c-085@box-a'
+    const p = await browser.newPage()
+    await setPageViewport(p, vp)
+    /* the operator admin reads the mock fleet's three lanes (src/utils/monitoring-lanes.mjs) */
+    await p.evaluateOnNewDocument(() => {
+      try {
+        localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', name: 'Admin', email: 'admin@example.com', t: 'mock' }))
+        localStorage.setItem('spool.mock.operator_admin', '1')
+      } catch { /* private mode */ }
+    })
+    await p.goto(server.base + '/monitoring/agents/' + encodeURIComponent(LANE), { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await applyViewport(p, vp)
+    const tabs = await has(p, '[data-test=agent-tabs]') ? await p.$$eval('[data-test=agent-tabs] [role=tab]', (els) => els.map((e) => e.getAttribute('data-test') + ':' + e.getAttribute('aria-selected'))) : []
+    ok(`${tag}: card tabs - Lanes first and open, Details second`, tabs.join(',') === 'agent-tab-lanes:true,agent-tab-details:false', tabs)
+    const lanes = await has(p, '[data-test=agent-lanes] [data-test=agent-lane]') ? await p.$$eval('[data-test=agent-lane]', (els) => els.map((e) => e.getAttribute('data-lane'))) : []
+    ok(`${tag}: card tabs - the Lanes tab lists this agent's lane only`, lanes.join(',') === LANE, lanes)
+    ok(`${tag}: card tabs - no sideways scroll`, await noXScroll(p))
+    await shot(p, `monitoring-agent-tabs-lanes-${w}`)
+    if (lanes.length) await p.click('[data-test=agent-lane-link]')
+    const landed = await at(p, '/monitoring/lanes') && decodeURIComponent((await where(p)).search) === '?lane=' + LANE
+    ok(`${tag}: card tabs - a lane opens Monitoring -> Lanes (?lane=)`, landed, await where(p))
+    const sel = `[data-test=lanes-row][data-lane="${LANE}"]`
+    const marked = await has(p, sel) && await p.waitForFunction((s) => {
+      const e = document.querySelector(s)
+      if (!e || e.getAttribute('data-selected') !== '1' || e.getAttribute('aria-current') !== 'true') return false
+      const b = e.getBoundingClientRect()
+      return b.top >= 0 && b.bottom <= window.innerHeight
+    }, { timeout: 15000 }, sel).then(() => true, () => false)
+    ok(`${tag}: card tabs - that lane's row is selected and in view`, marked)
+    ok(`${tag}: card tabs - one row selected`, await count(p, '[data-test=lanes-row][data-selected="1"]') === 1)
+    await shot(p, `monitoring-agent-tabs-lane-jump-${w}`)
+    /* an agent with no lane says so (CLE-07 runs no lane in the mock) */
+    await p.goto(server.base + '/monitoring/agents/' + encodeURIComponent(AGENT), { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    ok(`${tag}: card tabs - an agent with no lane says so`, await has(p, '[data-test=agent-lanes-empty]'))
     await p.close()
   }
 } finally {

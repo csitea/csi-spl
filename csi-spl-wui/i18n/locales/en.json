@@ -2146,7 +2146,11 @@
       "qwen": "Qwen",
       "mistral": "Mistral",
       "agent": "Agent"
-    }
+    },
+    "tabs_label": "Agent card",
+    "tab_lanes": "Lanes",
+    "tab_details": "Details",
+    "lanes_none": "This agent works on no active lane."
   },
   "boxes": {
     "none": "No boxes yet.",

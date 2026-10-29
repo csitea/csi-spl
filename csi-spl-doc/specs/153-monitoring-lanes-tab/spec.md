@@ -592,6 +592,49 @@ rule below (10 in a `topic` form, 5 only as a `dispatch-<topic8>` task),
   the topic header, the rows of `GET /v1/view/lanes` whose `topic_id` is
   this topic, reusing the Lanes table row; not built in this row.
 
+### 3.9 The agent card's tabs: the lanes this agent works on (row B9, SPL-4206)
+
+The owner's words, verbatim (HUM-10, prd t1 `fb9b6e4b`, 2026-10-29):
+
+- msg `78f2071b` (on Monitoring -> Agents, an agent's card open on the
+  right): "we should see from tis view also different tabs per agent ...
+  the first tab should be - one which lanes this agent is working on".
+- msg `470ae116`: "and of course the links to those lanes tot refer to the
+  lanes section o fthe monitoring".
+
+What is built (`csi-spl-wui/src/pages/monitoring/agents/[id].vue`,
+`csi-spl-wui/src/utils/agent-card-tabs.mjs`):
+
+- **Tabs.** The card gets a tab row: **Lanes** first and the default, then
+  **Details** (the card as it was: kind, box, last seen, Message). The open
+  tab is in the URL, `?tab=details` (Lanes drops the key), so a link opens
+  the right tab; an unknown value opens Lanes.
+- **Which lanes.** The card reads the lanes as the Lanes page does (3.6:
+  the fleet route for an operator admin, else, after its 403, the
+  workspace's own) and keeps the rows whose agent id is this agent's and
+  whose box is this agent's box (a row with no box matches the id). The
+  hub's lane row carries no spawner or owner field (`fleet_lanes_view.go`
+  sends agent, box, vendor, scope, topic, issues, times, state,
+  workspace), so a role seat (orchestrator, dispatcher) lists only its own
+  lane rows, never the lanes it placed: listing those needs a spawner
+  column in the hub first, left to its own row. No lane: "This agent works
+  on no active lane."; a reader the lanes routes refuse sees their 403
+  sentence.
+- **The link rule.** Each lane links to Monitoring -> Lanes at
+  `/monitoring/lanes?lane=<id@box>`. That page marks the row whose
+  `laneName` equals the value (`data-selected`, `aria-current`, the
+  selected-row background) and scrolls it into view once it is in the
+  answer; an unknown value marks nothing.
+- **Text.** Four new keys under `agents.`: `tabs_label`, `tab_lanes`
+  (the locale's `monitoring.tab.lanes` word), `tab_details`, `lanes_none`,
+  in all 19 locales; agy reviews them (the language rule).
+- **Proof.** Unit: `csi-spl-wui/tests/unit/monitoring-lanes.test.mjs`
+  (the tab rule, the lane match, the link, the keys). e2e:
+  `csi-spl-wui/tests/e2e/monitoring-takeover.test.mjs` section 5 (Lanes
+  first, the agent's lane only, a click lands on Monitoring -> Lanes with
+  that row selected and in view, an agent with no lane says so; 1400x900
+  and 390x844).
+
 ## 4. Cases
 
 Every case is **planned**: none is built. "Master today" was read on
@@ -675,6 +718,7 @@ Disjoint files per row. B1 goes first and alone: it needs no data.
 | B6 workspace lanes (O1 = B, 3.6) | api, wui | `hub/fleet_lanes_view.go` (factor the active rule and the row fill out of `fleetLanesView`; 3.3's behaviour unchanged); new `hub/workspace_lanes_view.go` + `_test.go`; one line in `hub/server.go` beside `routeFleetLanes` (:488); `hub/openapi.json` (the new path); `wui/utils/access.mjs` (`normalizeMe` keeps `roles`) and its unit test; `wui/utils/monitoring-tabs.mjs` (the lanes row and the `staff` rule); `wui/pages/monitoring.vue` (pass `staff`); `wui/pages/monitoring/lanes/index.vue` (pick the route); the hub client's lanes call in `wui/utils/spool-client-lazy.mjs`; `csi-spl-wui/tests/unit/monitoring-tabs.test.mjs`; the B4 lanes e2e file (C27's operator case). No store, rdb or orc file | B2, B3 and B4 on master (B4 owns the tab row, the page and the client call that B6 changes) | C25-C30 |
 | B7 workspace a lane works for (3.7) | api, orc | `hub/box_lane.go` (`laneTopic`, new `laneTopicElsewhere`); `hub/workspace_lanes_view_test.go`; `orc/features/spawn-agents/scripts/spawn-core.inc.sh` (`_spawn_lane_put` only); `orc/features/spawn-agents/tests/test-spawn-dry-run.sh`. No store, rdb or wui file, no new text key | B6 on master | C28b, C31-C37 |
 | B8 rows complete (3.8) | orc, api, wui | `orc/features/spawn-agents/scripts/spawn-core.inc.sh` (`_spawn_lane_put`, new `_spawn_lane_topic`) and `test-spawn-dry-run.sh`; `hub/fleet_lanes_view.go`, `hub/workspace_lanes_view.go`, new `hub/lanes_queued.go` and their tests; `wui/pages/monitoring/lanes/index.vue`, `wui/utils/monitoring-lanes.mjs`, its unit test, the lanes e2e, `csi-spl-wui/i18n/locales/*.json` (new keys only, agy review). No rdb, no store, no placer file | B7 on master | C36b, C38-C44 |
+| B9 agent card tabs (3.9) | wui | `wui/pages/monitoring/agents/[id].vue`; new `wui/utils/agent-card-tabs.mjs`; `wui/utils/monitoring-lanes.mjs` (`agentLanes`, `laneDeepLink`, `readLanes`); `wui/pages/monitoring/lanes/index.vue` (the `?lane=` deep link); `csi-spl-wui/i18n/locales/*.json` (four new keys, agy review); `tests/unit/monitoring-lanes.test.mjs`; `tests/e2e/monitoring-takeover.test.mjs`. No hub, rdb or orc file | B8 on master | - |
 
 Order: B1, B3 and B5a may run at once (B3's store interface is
 `store/fleet_lane.go:65`, B5a's `store/issues.go:392`: different files); B2 after B3; B4 after B1 and B3;

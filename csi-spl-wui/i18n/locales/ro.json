@@ -2146,7 +2146,11 @@
       "qwen": "Qwen",
       "mistral": "Mistral",
       "agent": "Agent"
-    }
+    },
+    "tabs_label": "Fișa agentului",
+    "tab_lanes": "Linii",
+    "tab_details": "Detalii",
+    "lanes_none": "Acest agent nu lucrează pe nicio bandă activă."
   },
   "boxes": {
     "none": "Încă niciun box.",

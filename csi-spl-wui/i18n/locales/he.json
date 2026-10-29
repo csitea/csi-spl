@@ -2146,7 +2146,11 @@
       "qwen": "Qwen",
       "mistral": "Mistral",
       "agent": "סוכן"
-    }
+    },
+    "tabs_label": "כרטיס סוכן",
+    "tab_lanes": "נתיבים",
+    "tab_details": "פרטים",
+    "lanes_none": "הסוכן הזה אינו עובד על אף נתיב פעיל."
   },
   "boxes": {
     "none": "אין עדיין boxes.",

@@ -2146,7 +2146,11 @@
       "qwen": "Qwen",
       "mistral": "Mistral",
       "agent": "Agente"
-    }
+    },
+    "tabs_label": "Ficha del agente",
+    "tab_lanes": "Líneas",
+    "tab_details": "Detalles",
+    "lanes_none": "Este agente no trabaja en ningún carril activo."
   },
   "boxes": {
     "none": "Aún no hay equipos.",

@@ -2146,7 +2146,11 @@
       "qwen": "Qwen",
       "mistral": "Mistral",
       "agent": "Agent"
-    }
+    },
+    "tabs_label": "Karta agenta",
+    "tab_lanes": "Linie",
+    "tab_details": "Szczegóły",
+    "lanes_none": "Ten agent nie pracuje na żadnym aktywnym torze."
   },
   "boxes": {
     "none": "Brak boxów.",

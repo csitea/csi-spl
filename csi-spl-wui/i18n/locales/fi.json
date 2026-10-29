@@ -2146,7 +2146,11 @@
       "qwen": "Qwen",
       "mistral": "Mistral",
       "agent": "Agentti"
-    }
+    },
+    "tabs_label": "Agentin kortti",
+    "tab_lanes": "Kaistat",
+    "tab_details": "Tiedot",
+    "lanes_none": "Tämä agentti ei työskentele millään aktiivisella kaistalla."
   },
   "boxes": {
     "none": "Ei vielä boxeja.",

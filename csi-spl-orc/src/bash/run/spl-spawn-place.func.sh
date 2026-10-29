@@ -54,7 +54,11 @@
 # @description         claude weekly >= 90% on box-a, box-b", SPL-2035) is kept
 # @description         in <asks dir>/.place.wait and do_spl_spawn_queue shows it.
 # @description         Only a launch starts the SPAWN_PLACE_GAP_MIN slot
-# @description         (.place.last); a hand-off (4b) or a hold burns none
+# @description         (.place.last); a hand-off (4b) or a hold burns none:
+# @description         a HOLD puts .place.last back as it was (SPL-4265),
+# @description         and the tick takes the next row the placer can
+# @description         launch, the held one keeping its place, up to
+# @description         SPAWN_PLACE_HOLD_TRIES rows a tick
 # @description      HAND-PINNED SLUG (SPL-2088), the dispatcher's convention:
 # @description         hand-<box>-<slug> or <box>hand-<slug> (box id letters and
 # @description         digits only) pins the lane to <box>. Its brief is
@@ -129,6 +133,7 @@
 # @description Installed by do_spl_spawn_place_install_cron (every minute).
 # @param SPAWN_PLACE_LOCK_MIN (optional) - minutes a placing request may stay unclosed before it goes back in line, default 30
 # @param SPAWN_PLACE_GAP_MIN (optional) - minutes between two placements at most (the ceiling), default 10
+# @param SPAWN_PLACE_HOLD_TRIES (optional) - rows one tick tries while the launcher answers HOLD (SPL-4265), default 5
 # @param SPAWN_PLACE_GAP_FLOOR_MIN (optional) - minutes between two placements at least, when the placed lane shows progress, default 3
 # @param TOKEN_BURN_STATE_DIR (optional) - the token burn collector's state dir, whose buckets.tsv shows a lane's progress on this box, default /var/csi/csi-spl/token-burn
 # @param SPAWN_PLACE_BURN_CMD (optional, tests) - prints the hub's fleet-tokens answer ({by_agent: [...]}) instead of GET /v1/operator/fleet-tokens
@@ -183,7 +188,25 @@ do_spl_spawn_place() {
     return 0
   fi
   head="$(spl_spawn_place_band "$head" "$rows")"
-  spl_spawn_place_take "$holder" "$(jq -c 'del(._l, ._h)' <<<"$head")"
+  spl_spawn_place_take_next "$holder" "$head" "$rows"
+}
+
+# 4. Takes HEAD; while the launcher answers HOLD (10), the next row of LINE
+# the placer can launch, up to SPAWN_PLACE_HOLD_TRIES rows. A held row keeps
+# its place. Before, one held grok head stopped 40 rows on sat for over an
+# hour (2026-10-29, SPL-4265).
+spl_spawn_place_take_next() {  # HOLDER HEAD LINE
+  local head="$2" rows="$3" n=1 rc
+  while :; do
+    rc=0
+    spl_spawn_place_take "$1" "$(jq -c 'del(._l, ._h)' <<<"$head")" || rc=$?
+    (( rc == 10 && n < ${SPAWN_PLACE_HOLD_TRIES:-5} )) || return 0
+    rows="$(jq -c --arg i "$(jq -r '.ask_id' <<<"$head")" '[.[] | select(._l and .ask_id != $i)]' <<<"$rows")"
+    head="$(jq -c '.[0] // empty' <<<"$rows")"
+    [[ -n "$head" ]] || return 0
+    head="$(spl_spawn_place_band "$head" "$rows")"
+    n=$((n + 1))
+  done
 }
 
 # 2. Marks each row: _l = the placer can launch it (a placement and its brief
@@ -460,9 +483,11 @@ spl_spawn_place_pin_full() {  # BOX [PICK_OUT]
 }
 
 # 4. Take the head: placing, then launch it or hand it to the holder. A head
-# pinned to a full box never gets here (spl_spawn_place_pin_hold).
+# pinned to a full box never gets here (spl_spawn_place_pin_hold). Returns 10
+# when the launcher says HOLD: .place.last is then put back as it was, a hold
+# burns no gap slot (SPL-4265).
 spl_spawn_place_take() {  # HOLDER HEAD
-  local holder="$1" id place brief vendor closed="" ps=()
+  local holder="$1" id place brief vendor closed="" ps=() last prev rc=0
   id="$(jq -r '.ask_id' <<<"$2")"
   place="$(jq -r '.placement // ""' <<<"$2")"
   mapfile -t ps < <(spl_spawn_place_slug "${place#*:}")
@@ -473,9 +498,14 @@ spl_spawn_place_take() {  # HOLDER HEAD
   if [[ -n "$place" && -n "$brief" && -z "$closed" ]] && ! vendor="$(spl_spawn_place_vendor "${place%%:*}" "$brief" "$id")"; then
     spl_spawn_place_hand "$holder" "$2" "$vendor"
   elif [[ -n "$place" && -n "$brief" && -z "$closed" ]]; then
-    touch "$(spool_asks_dir)/.place.last"
+    last="$(spool_asks_dir)/.place.last"
+    prev="$(stat -c %Y "$last" 2>/dev/null)"
+    touch "$last"
     spl_spawn_place_category "$holder" "$id" "$brief"
-    spl_spawn_place_launch "$holder" "$2" "$vendor" "${ps[1]}" "$brief" "${ps[0]:-$(jq -r '._b // ""' <<<"$2")}"
+    spl_spawn_place_launch "$holder" "$2" "$vendor" "${ps[1]}" "$brief" "${ps[0]:-$(jq -r '._b // ""' <<<"$2")}" || rc=$?
+    (( rc == 10 )) || return "$rc"
+    if [[ -n "$prev" ]]; then touch -d "@$prev" "$last"; else rm -f "$last"; fi
+    return 10
   else
     spl_spawn_place_hand "$holder" "$2" "$(if [[ -n "$closed" ]]; then echo "$closed"; elif [[ -z "$place" ]]; then echo "no placement was recorded"; else echo "no brief file for ${place#*:} under ${SPAWN_PLACE_BRIEF_DIR:-$SPOOL_ROOT/dispatch/briefs}"; fi)"
   fi
@@ -912,8 +942,9 @@ spl_spawn_place_brief() {  # SLUG
   return 0
 }
 
-# 4a. The existing launcher. The new id closes the ask; HOLD or a failure
-# puts it back in line. PIN (a hand-pinned slug's box) is its SPAWN_BOX.
+# 4a. The existing launcher. The new id closes the ask; HOLD (returns 10) or
+# a failure puts it back in line. PIN (a hand-pinned slug's box) is its
+# SPAWN_BOX.
 spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
   local holder="$1" id out err rc=0 agent why
   id="$(jq -r '.ask_id' <<<"$2")"
@@ -948,7 +979,7 @@ spl_spawn_place_launch() {  # HOLDER ROW VENDOR SLUG BRIEF [PIN]
     why="$(sed -n 's/^spawn-window: HOLD [^:]*: //p' <<<"$out" | tail -1 | sed 's/: queue the lane, spawn nothing.*$//; s/\. Queue it; nothing was spawned\.$//')"
     spl_spawn_place_wait "$id" "${why:-every box is past its load mark}"
     do_log "INFO ask ${id:0:8}: the launcher says HOLD (${why:-every box is past its load mark}): back in line at position 1"
-    return 0
+    return 10
   fi
   do_log "WARN ask ${id:0:8}: the launch of $3:$4 failed (exit $rc): back in line"
   spl_spawn_q_send "$holder" "$holder" blocker spawn-queue "**SPAWN QUEUE: the launch of ask ${id:0:8} ($3:$4) failed** (spawn-window exit $rc); it is back at position 1 and the placer retries it in ${SPAWN_PLACE_GAP_MIN:-10} min. Last lines: $(tail -3 <<<"$out" | tr '\n' ' ' | cut -c1-400)" || true

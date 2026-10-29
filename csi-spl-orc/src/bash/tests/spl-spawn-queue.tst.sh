@@ -232,13 +232,17 @@ printf '#!/usr/bin/env bash\necho "{\\"lanes\\": ${LANES:-[]}}"\n' >"$T/bin/lane
 # the hub's token burn stub (GET /v1/operator/fleet-tokens): $BURN_JSON, or nothing
 # shellcheck disable=SC2016 # expanded by the stub, not here
 printf '#!/usr/bin/env bash\ncat "$BURN_JSON" 2>/dev/null\n' >"$T/bin/burn"; chmod +x "$T/bin/burn"; mkdir -p "$T/burn"
-# the launcher stub: prints "<ID> <PANE>" (LAUNCH_ID), or exits LAUNCH_RC
+# the launcher stub: prints "<ID> <PANE>" (LAUNCH_ID), or exits LAUNCH_RC;
+# the slug LAUNCH_HOLD_SLUG alone gets spawn-window's HOLD (exit 10)
 cat >"$T/bin/launch" <<'STUB'
 #!/usr/bin/env bash
 echo "$*${SPAWN_BOX:+ SPAWN_BOX=$SPAWN_BOX}" >>"$LAUNCH_LOG"
 echo "$5 SPAWN_LANE_TOPIC=${SPAWN_LANE_TOPIC-<unset>}" >>"$LAUNCH_LOG.env"
 echo "spawn-window: c-001 asked for $2" >&2
 [ -z "${LAUNCH_ERR:-}" ] || echo "$LAUNCH_ERR" >&2
+if [ -n "${LAUNCH_HOLD_SLUG:-}" ] && [ "$5" = "$LAUNCH_HOLD_SLUG" ]; then
+  echo "spawn-window: HOLD auto: waiting: grok weekly >= 90% on box-a: queue the lane, spawn nothing." >&2; exit 10
+fi
 [ "${LAUNCH_RC:-0}" = 0 ] || exit "$LAUNCH_RC"
 echo "${LAUNCH_ID:-c-281} %42"
 STUB
@@ -711,6 +715,48 @@ out="$(on pc do_spl_spawn_place "PICK_BOXES=$SAT_BUSY" LAUNCH_ID=c-504 2>&1)"
   grep -qx "claude auto $T $T/briefs/qto-gap.md qto-gap SPAWN_BOX=sat" "$T/launch.log" && [[ -z "$(pinwait "$W1")" ]] &&
   pass "12b. control (b): sat with room: the pinned head is placed first, as before, its WAIT line gone" ||
   fail "12b. control (b): $out | $(hubrow "$W1") | $(cat "$T/launch.log")"
+for i in $(qids); do HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$i" --by c-001@box-desk --reason "placed: c-499@box-desk" >/dev/null; done
+
+# 12c. SPL-4265: a launcher HOLD (spawn-window exit 10) of the head burns no
+# gap slot and blocks nothing: the next row the placer can launch is placed
+# in the same tick, the held head keeps position 1. Before, .place.last was
+# touched before the launch, the HOLD left it armed with no .place.agent, and
+# the gap held the whole queue SPAWN_PLACE_GAP_MIN behind the same head (15
+# HOLD lines and 40 rows unplaced on sat, 2026-10-29). CONTROLS: a hold with
+# nothing launchable behind it leaves .place.last as it was (absent, or its
+# old time); a real launch still arms the gap.
+G1=9a9a9a9a-0000-4000-8000-000000000001; G2=9b9b9b9b-0000-4000-8000-000000000002
+printf 'brief text\n%s\n' "$ES" >"$T/briefs/grok-head.md"
+put "$G1" c-002@box-desk dispatch-88982c94-w "SPAWN REQUEST a held grok head"
+put "$G2" c-002@box-desk dispatch-88982c94-x "SPAWN REQUEST a claude row behind it"
+on pc do_spl_spawn_enqueue ASK_ID="$G1" SPAWN_CLASS=bug SPAWN_PLACE=claude:grok-head >/dev/null 2>&1
+on pc do_spl_spawn_enqueue ASK_ID="$G2" SPAWN_CLASS=bug SPAWN_PLACE=claude:qto-gap >/dev/null 2>&1
+rm -f "$T/pc/spool/asks/.place.last" "$T/pc/spool/asks/.place.agent"; : >"$T/launch.log"
+out="$(on pc do_spl_spawn_place SPAWN_PLACE_GAP_MIN=10 LAUNCH_HOLD_SLUG=grok-head LAUNCH_ID=c-505 2>&1)"
+g1="$(listrow "$G1")"
+[[ "$(jq -r .state <<<"$g1")" == queued && "$(jq -r .position <<<"$g1")" == 1 && "$(jq -r .reason <<<"$(hubrow "$G2")")" == "placed: c-505@box-desk" ]] &&
+  grep -q "ask ${G1:0:8}: the launcher says HOLD (waiting: grok weekly >= 90% on box-a): back in line at position 1" <<<"$out" &&
+  [[ "$(sed -n 2p "$T/launch.log")" == "claude auto $T $T/briefs/qto-gap.md qto-gap" && "$(cat "$T/pc/spool/asks/.place.agent" 2>/dev/null)" == c-505@box-desk ]] &&
+  pass "12c. a launcher HOLD of the head blocks nothing: the row behind it is placed in the same tick, the held head keeps position 1 (SPL-4265)" ||
+  fail "12c. held head blocks the queue: $out | $g1 | $(hubrow "$G2") | $(cat "$T/launch.log")"
+out="$(on pc do_spl_spawn_place SPAWN_PLACE_GAP_MIN=10 LAUNCH_HOLD_SLUG=grok-head 2>&1)"
+grep -q "hold: the last placement started under 3 min ago (the floor)" <<<"$out" && [[ "$(jq -r .state <<<"$(hubrow "$G1")")" == queued ]] &&
+  pass "12c. control: the real launch of the row behind armed the gap" || fail "12c. gap after the launch: $out"
+for i in $(qids); do [[ "$i" == "$G1" ]] || HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$i" --by c-001@box-desk --reason "placed: c-499@box-desk" >/dev/null; done
+rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
+out="$(on pc do_spl_spawn_place SPAWN_PLACE_GAP_MIN=10 LAUNCH_HOLD_SLUG=grok-head 2>&1)"
+[[ ! -e "$T/pc/spool/asks/.place.last" && "$(jq -r .state <<<"$(hubrow "$G1")")" == queued && "$(grep -c . "$T/launch.log")" == 1 ]] &&
+  pass "12c. a HOLD with nothing launchable behind it burns no gap slot: .place.last stays absent" ||
+  fail "12c. the hold burned the gap: $out | $(cat "$T/launch.log")"
+out="$(on pc do_spl_spawn_place SPAWN_PLACE_GAP_MIN=10 LAUNCH_HOLD_SLUG=grok-head 2>&1)"
+! grep -q "hold: the last placement" <<<"$out" && grep -q "ask ${G1:0:8}: the launcher says HOLD" <<<"$out" &&
+  pass "12c. the next tick tries the held head again, no gap hold (before: 'no heartbeat' for SPAWN_PLACE_GAP_MIN)" ||
+  fail "12c. next tick: $out"
+old_t=$(( $(date +%s) - 20 * 60 )); touch -d "@$old_t" "$T/pc/spool/asks/.place.last"
+on pc do_spl_spawn_place SPAWN_PLACE_GAP_MIN=10 LAUNCH_HOLD_SLUG=grok-head >/dev/null 2>&1
+[[ "$(stat -c %Y "$T/pc/spool/asks/.place.last")" == "$old_t" ]] &&
+  pass "12c. a HOLD keeps an older .place.last at its time (the last real launch)" ||
+  fail "12c. .place.last moved: $(stat -c %Y "$T/pc/spool/asks/.place.last") != $old_t"
 for i in $(qids); do HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id "$i" --by c-001@box-desk --reason "placed: c-499@box-desk" >/dev/null; done
 
 # 13. SPL-2263 (owner HUM-10, t1 b61851fb): a mistral placement whose brief

@@ -26,6 +26,10 @@
 #   9. prune: dry run lists the desk.moved-* copies, DRY_RUN=0 removes them
 #  10. ROOT_KEY_JSON=-: stdin reaches the pin as a 0600 file that is removed
 #      after; empty stdin is refused; a key path is passed on unchanged
+#  11. a proof with no verdict (no probe login) while the sidecar is up: the
+#      forward and the rollback FAIL lines name the proof and the live pid,
+#      never "its sidecar did not come up"; a sidecar that really died after
+#      its start is named as not up. RED CONTROL: the old wording fails it
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -78,12 +82,16 @@ do_spl_desk_down() {
 }
 spl_desk_box_restart() {
   echo "start \$2/\$3 seat=\$4 home=\$HOME" >>"$T/side.log"
+  if [[ -e "$T/start-dies.\${HOME##*/}" ]]; then  # the pid file names a process that has exited
+    mkdir -p "\$1/spool/.hub"; (:) & wait "\$!"; echo "\$!" >"\$1/spool/.hub/hub-run.pid"; return 0
+  fi
   _fake_start "\$1"
 }
 do_spl_desk_check() {
   local d="\$SPL_STATE_DIR/desk/\$TENANT_ID/\$DESK_BOX" v=ok
   spl_desk_alive "\$d/spool/.hub/hub-run.pid" || v=down
   [[ -s "$T/verdict" ]] && v="\$(cat "$T/verdict")"
+  [[ "\$v" == none ]] && { echo "FATAL no readable password file"; return 1; }
   echo "check \$TENANT_ID/\$DESK_BOX \$v home=\$HOME" >>"$T/side.log"
   echo "{\"verdict\": \"\$v\"}"
   [[ "\$v" == ok ]]
@@ -126,7 +134,7 @@ mkdesk() {
   return 0
 }
 reset_box() {
-  reap; : >"$REAP"; rm -rf "$BH" "$DH" "$T/spool" "$T/side.log" "$T/sudo.log" "$T/verdict"
+  reap; : >"$REAP"; rm -rf "$BH" "$DH" "$T/spool" "$T/side.log" "$T/sudo.log" "$T/verdict" "$T"/start-dies.*
   mkdir -p "$BH" "$DH" "$T/spool"
   printf 'SPOOL_DESK_BOX=box-x\nSPOOL_FLEET_TENANT=ws-fleet\nSPOOL_FLEET_ENV=prd\n' >"$T/box.env"
   mkdesk prd ws-fleet box-x live
@@ -263,6 +271,18 @@ out="$(up_run "" ROOT_KEY_JSON=-)"; rc=$?
 echo '{"k":1}' >"$T/rk.json"; chmod 600 "$T/rk.json"
 out="$(up_run "ignored" ROOT_KEY_JSON="$T/rk.json")"
 grep -q "PIN path=$T/rk.json mode=600" <<<"$out" && pass "10. a key path is passed on unchanged" || fail "10. path: $(grep PIN <<<"$out")"
+
+# --- 11. a proof with no verdict is not a sidecar down -----------------------------------
+reset_box; echo none >"$T/verdict"
+out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" DRY_RUN=0)"; rc=$?
+[[ $rc -ne 0 ]] && pass "11. a proof with no verdict stops the move" || fail "11. no-verdict proof ignored"
+has "11. the proof line says no verdict" "says 'no verdict'" "$out"
+grep -Eq "FAIL the desk prd ws-a/box-a failed as $DU: its sidecar is up \(pid [0-9]+\) but the proof did not pass" <<<"$out" && pass "11. the forward line names the proof and the live pid" || fail "11. forward line: $(grep 'FAIL the desk' <<<"$out")"
+grep -Eq "FAIL prd ws-a/box-a is back on disk as $ME, but its sidecar is up \(pid [0-9]+\) but the proof did not pass" <<<"$out" && pass "11. the rollback line names the proof and the live pid" || fail "11. rollback line: $(grep 'back on disk' <<<"$out")"
+hasnt "11. no false 'sidecar did not come up'" "did not come up" "$out"
+reset_box; echo none >"$T/verdict"; : >"$T/start-dies.${BH##*/}"
+out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" DRY_RUN=0)"
+has "11. a sidecar that died after its start is named as not up" "is back on disk as $ME, but its sidecar is not up (no live hub-run behind its pid file)" "$out"
 
 echo "--- 4. move output (the measure) ---"; grep -E '^(PLAN|OK moved|INFO)' <<<"$out4" | sed -n 1,12p
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"

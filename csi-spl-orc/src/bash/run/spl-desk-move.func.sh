@@ -239,7 +239,7 @@ _spl_dm_one() {
   if ! { _spl_dm_as "$DM_FROM" mkdir -p "${aside%/*}" && _spl_dm_as "$DM_FROM" mv "$src" "$aside"; }; then
     _spl_dm_undo_copy "$dst" "$base"; do_log "FAIL cannot rename $src aside"; return 1
   fi
-  if [[ -n "$pid" ]] && ! { _spl_dm_side_as "$DM_TO" start "$e" "$ws" "$id" "$troot" && _spl_dm_side_as "$DM_TO" proof "$e" "$ws" "$id" "$troot"; }; then
+  if [[ -n "$pid" ]] && ! _spl_dm_up "$DM_TO" "$e" "$ws" "$id" "$troot" "$dst"; then
     _spl_dm_undo_all "$e" "$ws" "$id" "$src" "$dst" "$aside" "$froot" "$troot"; return 1
   fi
   _spl_dm_as "$DM_FROM" find "$froot/desk" -mindepth 0 -maxdepth 1 -type d -empty -delete 2>/dev/null
@@ -298,22 +298,39 @@ _spl_dm_undo_copy() {
   else _spl_dm_as "$DM_TO" rm -rf -- "$dst"; fi
 }
 
+# _spl_dm_up <user> <env> <ws> <id> <root> <desk dir>: start the sidecar as
+# that user, then the proof. 0 = proven; else DM_WHY says which step failed
+# and whether the sidecar is up (pid file + a live hub-run), so a proof that
+# could not run (no verdict: no probe login) never reads as a sidecar down.
+_spl_dm_up() {
+  local u="$1" p; DM_WHY=""
+  _spl_dm_side_as "$u" start "$2" "$3" "$4" "$5" || { DM_WHY="its sidecar did not start"; return 1; }
+  _spl_dm_side_as "$u" proof "$2" "$3" "$4" "$5" && return 0
+  p="$(_spl_dm_pid "$u" "$6")"
+  if [[ -n "$p" ]]; then
+    DM_WHY="its sidecar is up (pid $p) but the proof did not pass (the 'FAIL proof' line above; 'no verdict' = do_spl_desk_check could not run, e.g. no readable probe login)"
+  else
+    DM_WHY="its sidecar is not up (no live hub-run behind its pid file)"
+  fi
+  return 1
+}
+
 # _spl_dm_undo_all <env> <ws> <id> <src> <dst> <aside> <from root> <to root>:
-# the start or its proof failed. Stop DM_TO's sidecar, copy dst over the
+# the start or its proof failed (DM_WHY says which). Stop DM_TO's sidecar, copy dst over the
 # aside source (messages since are kept), rename it back, set dst aside in
 # DM_TO's own desk.moved-<stamp>, start as DM_FROM.
 _spl_dm_undo_all() {
   local e="$1" ws="$2" id="$3" src="$4" dst="$5" aside="$6" froot="$7" troot="$8" tas
   tas="$troot/desk.moved-$DM_STAMP/$ws/$id"
-  do_log "FAIL the desk $e $ws/$id did not come up as $DM_TO: rolling it back"
+  do_log "FAIL the desk $e $ws/$id failed as $DM_TO: $DM_WHY; rolling it back"
   _spl_dm_side_as "$DM_TO" stop "$e" "$ws" "$id" "$troot"
   _spl_dm_as "$DM_TO" tar -C "$dst" -cf - . 2>/dev/null | _spl_dm_as "$DM_FROM" tar -C "$aside" -xpf - 2>/dev/null
   _spl_dm_as "$DM_FROM" mv "$aside" "$src" || { do_log "FATAL cannot rename $aside back to $src: put it back by hand, then MOVE_CMD=back"; return 1; }
   _spl_dm_as "$DM_TO" mkdir -p "${tas%/*}" && _spl_dm_as "$DM_TO" mv "$dst" "$tas"
-  if _spl_dm_side_as "$DM_FROM" start "$e" "$ws" "$id" "$froot" && _spl_dm_side_as "$DM_FROM" proof "$e" "$ws" "$id" "$froot"; then
+  if _spl_dm_up "$DM_FROM" "$e" "$ws" "$id" "$froot" "$src"; then
     do_log "OK $e $ws/$id is back as $DM_FROM"
   else
-    do_log "FAIL $e $ws/$id is back on disk as $DM_FROM but its sidecar did not come up: do_spl_desk_check"
+    do_log "FAIL $e $ws/$id is back on disk as $DM_FROM, but $DM_WHY: do_spl_desk_check"
   fi
 }
 

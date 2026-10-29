@@ -1907,6 +1907,7 @@ declare module '~/utils/date-iso.mjs' {
   export function isoDateTime(value: unknown): string
   export function isoDateTimeSec(value: unknown): string
   export function parseIsoDate(value: unknown): string
+  export function isoDateTimeOffset(value: unknown): string;
 }
 
 declare module '~/utils/tab-title.mjs' {

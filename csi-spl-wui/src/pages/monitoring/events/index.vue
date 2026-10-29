@@ -9,7 +9,10 @@
 
      SPL-3366: sort and filter the rows this page already holds. The list
      call stays limit and before. A hash row stays visible when a filter
-     would hide it. Clear log still clears the whole personal log. -->
+     would hide it. Clear log still clears the whole personal log.
+
+     Spec 162 B1: the request and code columns (E1), When as ISO 8601 with
+     seconds and the viewer's offset (E7), and Clear log asks first (E2). -->
 <template>
   <div class="monitoring-events" data-test="events-page">
     <!-- a desktop's Clear log sits in the Monitoring header row, top right,
@@ -95,6 +98,8 @@
               <td :data-label="t('events.col_id')"><code dir="ltr">{{ r.error_id }}</code></td>
               <td dir="ltr" :data-label="t('events.col_source')">{{ r.source }}</td>
               <td dir="ltr" :data-label="t('events.col_status')">{{ r.status ? String(r.status) : '' }}</td>
+              <td :data-label="t('events.col_request')" data-test="events-request"><code v-if="eventRequestText(r)" dir="ltr" :title="r.origin || undefined">{{ eventRequestText(r) }}</code></td>
+              <td :data-label="t('events.col_code')" data-test="events-code"><span class="events-code"><code v-if="r.code" dir="ltr">{{ r.code }}</code><code v-if="r.name" dir="ltr" class="events-code__name">{{ r.name }}</code></span></td>
               <td :data-label="t('events.col_message')" data-test="events-message">{{ r.message }}</td>
               <td :data-label="t('events.col_route')"><code dir="ltr">{{ r.route }}</code></td>
             </tr>
@@ -123,6 +128,21 @@
       :disabled="busy"
       @click="onClear"
     >{{ t('events.clear') }}</button>
+    <UiConfirm
+      v-if="clearOpen"
+      :open="clearOpen"
+      :title="t('events.clear_confirm_title')"
+      testid="events-clear-confirm"
+      :confirm-label="t('events.clear')"
+      :busy-label="t('events.clear')"
+      :busy="busy"
+      :error="clearError ? t(clearError) : ''"
+      @update:open="clearOpen = $event"
+      @confirm="onConfirmClear"
+    >
+      <p>{{ t('events.clear_confirm_body', { n: rows.length }) }}</p>
+      <p v-if="nextBefore" data-testid="events-clear-confirm-older">{{ t('events.clear_confirm_older') }}</p>
+    </UiConfirm>
     <template v-if="phone && (filtersOpen || sortOpen)">
       <div class="events-sheet-scrim" data-test="events-sheet-scrim" @pointerdown.stop @click="closeSheets" />
       <section v-if="sortOpen" class="events-sheet" role="dialog" aria-modal="false" data-test="events-sort-sheet" :aria-label="t('issues_mobile.sort')">
@@ -183,7 +203,7 @@
 <script setup lang="ts">
 import { useSessionStore } from '~/stores/session'
 import { createEventsClient, eventsErrorKey } from '~/utils/event-log.mjs'
-import { isoDateTime } from '~/utils/date-iso.mjs'
+import { isoDateTimeOffset } from '~/utils/date-iso.mjs'
 import { formatIsoTs } from '~/utils/channel-feed.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { eventRowsOf } from '~/utils/event-rows.mjs'
@@ -194,6 +214,7 @@ import {
   applyEventSheet,
   emptyEventFilters,
   emptyEventSort,
+  eventRequestText,
   eventSortLabel,
   filtersActive as sheetFiltersActive,
   nextEventSort,
@@ -218,6 +239,8 @@ const nextBefore = ref(0)
 const loading = ref(false)
 const busy = ref(false)
 const loadError = ref('')
+const clearOpen = ref(false)
+const clearError = ref('')
 const sort = ref<EventSort>(emptyEventSort())
 const filters = ref<Record<string, string>>(emptyEventFilters())
 const sortOpen = ref(false)
@@ -243,10 +266,11 @@ const sortWords = computed(() => {
 
 /* CLE-77908 (owner, 07b84fd7): stored UTC, shown in the person's own zone for
    this workspace (Settings -> Appearance, else the browser's); the hover and
-   the <time datetime> keep the exact UTC instant, ISO 8601 with Z. */
+   the <time datetime> keep the exact UTC instant, ISO 8601 with Z. Spec 162
+   E7: the cell carries seconds and the offset, so it sorts as text. */
 function whenOf(r: EventRow) {
   const raw = r.at || r.received_at || ''
-  return isoDateTime(raw) || raw
+  return isoDateTimeOffset(raw) || raw
 }
 function utcOf(r: EventRow) {
   const raw = r.at || r.received_at || ''
@@ -323,15 +347,25 @@ function loadMore() {
   void load(nextBefore.value, true)
 }
 
-async function onClear() {
+/* Spec 162 E2: one tap used to wipe up to 500 rows; Clear log now asks
+   first (UiConfirm), and only its OK POSTs. */
+function onClear() {
+  if (!signedIn.value || busy.value) return
+  clearError.value = ''
+  clearOpen.value = true
+}
+
+async function onConfirmClear() {
   if (!signedIn.value || busy.value) return
   busy.value = true
+  clearError.value = ''
   const res = await client.clear()
   busy.value = false
   if (!res.ok) {
-    loadError.value = eventsErrorKey(res.error)
+    clearError.value = eventsErrorKey(res.error)
     return
   }
+  clearOpen.value = false
   rows.value = []
   nextBefore.value = 0
   resetSheet()
@@ -343,6 +377,7 @@ watch(() => session.state, (st) => {
     rows.value = []
     nextBefore.value = 0
     loadError.value = ''
+    clearOpen.value = false
     resetSheet()
   }
 }, { immediate: true })
@@ -417,6 +452,9 @@ watch(() => route.hash, () => revealEvent())
   font-family: var(--font-mono);
   font-size: 0.8125rem;
 }
+/* the code cell: the code, then the error name on a second line */
+.events-code { display: flex; flex-direction: column; min-width: 0; }
+.events-code__name { color: var(--color-muted); }
 .events-table-wrap .btn { margin-top: 0.75rem; }
 .events-sort-h {
   display: inline-flex;

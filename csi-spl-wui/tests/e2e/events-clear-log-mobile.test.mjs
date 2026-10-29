@@ -16,8 +16,13 @@
 //     4 the status line, against BEFORE (1 mm = 3.78 px, within 1 px):
 //       bell 8 px nearer the dot, note 11 px left, version unmoved, clock
 //       8 px left
+//     6 spec 162 C5: Clear log asks first (UiConfirm); Cancel keeps the 14
+//       cards and sends no POST, OK POSTs /clear and empties the log
 //   desktop (1280x800):
 //     5 Clear log stays in the header, top right
+//     6 the same ask before Clear
+//   control C6: an onClear that skips the confirm POSTs at the first tap,
+//   before any OK, and fails 6 on both viewports
 //
 // Run:
 //   node tests/e2e/events-clear-log-mobile.test.mjs
@@ -91,6 +96,8 @@ function answer(req) {
   return json(404, { error: 'not_found' })
 }
 
+let clears = 0
+
 async function open(browser, base, vp) {
   const p = await browser.newPage()
   await p.evaluateOnNewDocument((session) => {
@@ -99,6 +106,11 @@ async function open(browser, base, vp) {
   await p.setViewport({ width: vp.w, height: vp.h, isMobile: vp.mobile, hasTouch: vp.mobile, deviceScaleFactor: 1 })
   await p.setRequestInterception(true)
   p.on('request', (req) => {
+    if (req.method() === 'POST' && new URL(req.url()).pathname === '/api/v1/auth/events/clear') {
+      clears++
+      req.respond(json(200, { ok: true })).catch(() => {})
+      return
+    }
     const a = answer(req)
     if (a) req.respond(a).catch(() => {})
     else req.continue().catch(() => {})
@@ -140,6 +152,28 @@ const measure = (p) => p.evaluate(() => {
   }
 })
 
+/* spec 162 C5: ask first; Cancel keeps every row, OK clears. A tap that
+   POSTs before OK (control C6) fails the first check. */
+async function checkConfirm(p, label, total) {
+  const tap = (sel) => p.$eval(sel, (e) => e.click())
+  const rows = () => p.$$eval('[data-test=events-row]', (els) => els.length)
+  const before = clears
+  await tap('[data-test=events-clear]')
+  const asked = Boolean(await p.waitForSelector('[data-testid=events-clear-confirm-confirm]', { visible: true, timeout: 5000 }).catch(() => null))
+  ok(`${label}: Clear log opens the confirm, no POST yet`, asked && clears === before, { asked, posts: clears - before })
+  await tap('[data-testid=events-clear-confirm-cancel]')
+  await sleep(400)
+  const kept = await rows()
+  const closed = !(await p.$('[data-testid=events-clear-confirm-confirm]'))
+  ok(`${label}: Cancel keeps every row and sends no POST`, closed && kept === total && clears === before, { closed, kept, posts: clears - before })
+  await tap('[data-test=events-clear]')
+  await p.waitForSelector('[data-testid=events-clear-confirm-confirm]', { visible: true, timeout: 5000 }).catch(() => null)
+  await tap('[data-testid=events-clear-confirm-confirm]')
+  await p.waitForSelector('[data-test=events-empty]', { visible: true, timeout: 8000 }).catch(() => null)
+  const left = await rows()
+  ok(`${label}: OK POSTs /clear once and empties the log`, clears === before + 1 && left === 0, { posts: clears - before, left })
+}
+
 async function checkPhone(browser, base) {
   const p = await open(browser, base, PHONE)
   try {
@@ -178,6 +212,7 @@ async function checkPhone(browser, base) {
     }
     ok('phone: the dot did not move', Math.round(m.dot.x) === 26, { dot: m.dot.x })
     if (OUT) await p.screenshot({ path: join(OUT, 'events-phone-412x915.png') })
+    await checkConfirm(p, 'phone', EVENTS.length)
   } catch (e) {
     ok('phone ran', false, String(e.message || e))
   } finally {
@@ -194,6 +229,7 @@ async function checkDesktop(browser, base) {
     ok('desktop: Clear log stays top right', c.r >= m.vw * 0.75 && c.y <= 120, { right: c.r, top: c.y, vw: m.vw })
     ok('desktop: no phone dock or strip', !m.dock?.h && !m.strip, { dock: m.dock, strip: m.strip })
     if (OUT) await p.screenshot({ path: join(OUT, 'events-desktop-1280x800.png') })
+    await checkConfirm(p, 'desktop', EVENTS.length)
   } catch (e) {
     ok('desktop ran', false, String(e.message || e))
   } finally {

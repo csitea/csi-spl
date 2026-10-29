@@ -1,19 +1,22 @@
 // Sort and filter for the personal event log. The page already holds the
-// rows; nothing here calls the hub. SPL-3366.
+// rows; nothing here calls the hub. SPL-3366. Spec 162 B1 (E1): the
+// request (METHOD path) and code (code, then name) columns.
 
 /** @typedef {{ col: string, dir: string }} EventSort */
-/** @typedef {{ when: string, id: string, source: string, status: string, message: string, route: string }} EventFilters */
+/** @typedef {{ when: string, id: string, source: string, status: string, request: string, code: string, message: string, route: string }} EventFilters */
 
 export const EVENT_COLUMNS = [
   { col: 'when', key: 'events.col_when', kind: 'text' },
   { col: 'id', key: 'events.col_id', kind: 'text' },
   { col: 'source', key: 'events.col_source', kind: 'choice' },
   { col: 'status', key: 'events.col_status', kind: 'choice' },
+  { col: 'request', key: 'events.col_request', kind: 'text' },
+  { col: 'code', key: 'events.col_code', kind: 'text' },
   { col: 'message', key: 'events.col_message', kind: 'text' },
   { col: 'route', key: 'events.col_route', kind: 'text' },
 ]
 
-const FILTER_KEYS = ['when', 'id', 'source', 'status', 'message', 'route']
+const FILTER_KEYS = ['when', 'id', 'source', 'status', 'request', 'code', 'message', 'route']
 
 /** @returns {EventSort} */
 export function emptyEventSort() {
@@ -22,7 +25,7 @@ export function emptyEventSort() {
 
 /** @returns {EventFilters} */
 export function emptyEventFilters() {
-  return { when: '', id: '', source: '', status: '', message: '', route: '' }
+  return { when: '', id: '', source: '', status: '', request: '', code: '', message: '', route: '' }
 }
 
 function knownColumn(col) {
@@ -65,9 +68,23 @@ function eventInstant(row) {
   return Number.isFinite(n) ? n : 0
 }
 
+/** The request cell: METHOD path, either one alone when the other is blank. */
+export function eventRequestText(row) {
+  if (!row) return ''
+  return [row.method, row.path].map((x) => String(x || '').trim()).filter(Boolean).join(' ')
+}
+
+/** The code cell as one string: code, then name. */
+export function eventCodeText(row) {
+  if (!row) return ''
+  return [row.code, row.name].map((x) => String(x || '').trim()).filter(Boolean).join(' ')
+}
+
 function textOf(row, col) {
   if (!row) return ''
   if (col === 'id') return String(row.error_id || '')
+  if (col === 'request') return eventRequestText(row)
+  if (col === 'code') return eventCodeText(row)
   if (col === 'source') return String(row.source || '')
   if (col === 'message') return String(row.message || '')
   if (col === 'route') return String(row.route || '')
@@ -148,12 +165,16 @@ function rowMatches(row, filters, pinId) {
   const id = String(filters.id || '').trim().toLowerCase()
   const source = String(filters.source || '').trim()
   const status = String(filters.status || '').trim()
+  const request = String(filters.request || '').trim().toLowerCase()
+  const code = String(filters.code || '').trim().toLowerCase()
   const message = String(filters.message || '').trim().toLowerCase()
   const route = String(filters.route || '').trim().toLowerCase()
   if (when && !whenMatches(row, when)) return false
   if (id && !contains(row && row.error_id, id)) return false
   if (source && String((row && row.source) || '').trim() !== source) return false
   if (status !== '' && String(row && row.status) !== status) return false
+  if (request && !contains(eventRequestText(row), request)) return false
+  if (code && !contains(eventCodeText(row), code)) return false
   if (message && !contains(row && row.message, message)) return false
   if (route && !contains(row && row.route, route)) return false
   return true

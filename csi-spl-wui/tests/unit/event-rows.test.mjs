@@ -29,9 +29,22 @@ describe('eventRowsOf', () => {
     }] })
     assert.deepEqual(r, {
       id: 12, error_id: '99', at: '1700000000', received_at: '2026-10-01T00:00:00Z',
-      source: 'wui', status: 502, message: '', route: '',
+      source: 'wui', method: '', origin: '', path: '', status: 502, code: '', name: '', message: '', route: '',
     })
     assert.equal(eventRowsOf({ events: [{ id: 1, status: 'nope' }] })[0].status, 0)
+  })
+
+  /* spec 162 C1/C2: the hub answers method, origin, path, code and name;
+     the row keeps all of them (an eventRowsOf without method fails here) */
+  it('keeps the request and the code the hub answers', () => {
+    const [r] = eventRowsOf({ events: [{
+      id: 4, method: 'POST', origin: 'https://example.com', path: '/v1/x', code: 'bad_request', name: 'TypeError',
+    }] })
+    assert.equal(r.method, 'POST')
+    assert.equal(r.origin, 'https://example.com')
+    assert.equal(r.path, '/v1/x')
+    assert.equal(r.code, 'bad_request')
+    assert.equal(r.name, 'TypeError')
   })
 
   it('keeps the list order', () => {

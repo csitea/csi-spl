@@ -16,6 +16,12 @@
 //   6 SPL-3366: each column sorts and filters, on the phone and on the desktop.
 //     A filter that matches nothing keeps the controls. /events#5 stays visible
 //     when the filter would hide that row.
+//   7 spec 162 C1: event 12's request (POST /v1/x) and code (bad_request, then
+//     TypeError) show, in the desktop columns and with the phone card labels;
+//     C3: When reads YYYY-MM-DD HH:MM:SS+HH:MM, its hover the Z instant
+//   8 spec 162 C5: Clear log asks first; Cancel keeps every row and sends no
+//     POST, OK clears (control C6: an onClear without the confirm POSTs at
+//     the first tap and fails here)
 // Control: the bundle of origin/master a1d2ced73 fails 1, 2, 3 and 4 on both
 // viewports (an Events rail tab, no Events tab in Monitoring, /events stays).
 //
@@ -65,10 +71,12 @@ const STATUSES = [500, 404, 200, 0]
 const ROUTES = ['/events', '/lobby', '/issues', '/monitoring/events']
 const EVENTS = Array.from({ length: 12 }, (_, i) => {
   const id = 12 - i
-  return {
+  const row = {
     id, error_id: `e-${id}`, at: '2026-10-24T08:00:00Z', received_at: '2026-10-24T08:00:01Z',
     source: SOURCES[id % 3], status: STATUSES[id % 4], message: `event ${id}`, route: ROUTES[id % 4],
   }
+  // spec 162 C1: the newest row carries the request and the code
+  return id === 12 ? { ...row, method: 'POST', origin: 'https://example.com', path: '/v1/x', code: 'bad_request', name: 'TypeError' } : row
 })
 function answer(req) {
   const u = new URL(req.url())
@@ -165,10 +173,22 @@ async function check(browser, base, vp, name) {
     ok(`${name}: 3 the tab shows the event log and Clear log, one log`, s2.row && s2.rows === 12 && s2.clear && s2.logs === 1, s2)
     ok(`${name}: 5 no sideways scroll`, s2.sideways <= 0, s2)
     if (phone) ok(`${name}: 5 tap targets: Monitoring tabs and Clear log >= 44 px`, s2.tabH.length > 0 && s2.tabH.every((x) => x >= 44) && s2.clearH.every((x) => x >= 44), { tabH: s2.tabH, clearH: s2.clearH })
+    await checkRow(p, phone, name)
     const before = clears
     await click(p, '[data-test=events-clear]')
+    const asked = await confirmShown(p)
+    ok(`${name}: 8 Clear log asks first and sends no POST`, asked && clears === before, { asked, clears: clears - before })
+    await click(p, '[data-testid=events-clear-confirm-cancel]')
+    await sleep(400)
+    const sc = await seen(p)
+    const gone = !(await p.$('[data-testid=events-clear-confirm-confirm]'))
+    ok(`${name}: 8 Cancel keeps every row and sends no POST`, gone && sc.rows === 12 && clears === before, { gone, rows: sc.rows, clears: clears - before })
+    await click(p, '[data-test=events-clear]')
+    await confirmShown(p)
+    await click(p, '[data-testid=events-clear-confirm-confirm]')
     const s3 = await settle(p, '[data-test=events-empty]')
-    ok(`${name}: 3 Clear log POSTs /clear and empties the log`, clears === before + 1 && s3.rows === 0 && s3.empty, { clears: clears - before, s3 })
+    const closed = !(await p.$('[data-testid=events-clear-confirm-confirm]'))
+    ok(`${name}: 3 OK POSTs /clear and empties the log`, clears === before + 1 && s3.rows === 0 && s3.empty && closed, { clears: clears - before, closed, s3 })
   } catch (e) {
     ok(`${name}: tab ran`, false, String(e.message || e))
   } finally {
@@ -195,6 +215,39 @@ async function check(browser, base, vp, name) {
     await p.close()
   }
   await checkSheet(browser, base, vp, name)
+}
+
+async function confirmShown(p) {
+  return Boolean(await p.waitForSelector('[data-testid=events-clear-confirm-confirm]', { visible: true, timeout: 5000 }).catch(() => null))
+}
+
+/* spec 162 C1 + C3: what event 12's cells read, and the label each card shows */
+async function checkRow(p, phone, name) {
+  const r = await p.evaluate(() => {
+    const row = document.getElementById('12')
+    const cell = (sel) => row?.querySelector(sel)
+    const label = (el) => (el ? getComputedStyle(el, '::before').content.replace(/^"|"$/g, '') : '')
+    const req = cell('[data-test=events-request]')
+    const code = cell('[data-test=events-code]')
+    const when = cell('[data-test=events-when]')
+    return {
+      request: (req?.textContent || '').trim(),
+      codes: [...(code?.querySelectorAll('code') || [])].map((e) => (e.textContent || '').trim()),
+      codeLines: [...(code?.querySelectorAll('code') || [])].map((e) => Math.round(e.getBoundingClientRect().top)),
+      reqLabel: label(req),
+      codeLabel: label(code),
+      reqVisible: Boolean(req && req.getBoundingClientRect().width > 0),
+      when: (when?.textContent || '').trim(),
+      hover: when?.getAttribute('title') || '',
+      head: [...document.querySelectorAll('[data-test=events-table] thead tr:first-child th')].map((e) => (e.textContent || '').trim().replace(/[▲▼]/g, '')),
+    }
+  })
+  ok(`${name}: 7 the request cell reads POST /v1/x`, r.reqVisible && r.request === 'POST /v1/x', r)
+  ok(`${name}: 7 the code cell reads bad_request, then TypeError below`, r.codes.join('|') === 'bad_request|TypeError' && r.codeLines[1] > r.codeLines[0], r)
+  if (phone) ok(`${name}: 7 the phone card labels Request and Code`, r.reqLabel === 'Request' && r.codeLabel === 'Code', r)
+  else ok(`${name}: 7 the desktop head has Request and Code after Status`, r.head.slice(3, 6).join('|') === 'Status|Request|Code', r.head)
+  ok(`${name}: 7 When reads ISO 8601 with seconds and offset, the hover the Z instant`,
+    /^2026-10-24 \d{2}:00:00[+-]\d{2}:\d{2}$/.test(r.when) && r.hover === '2026-10-24T08:00:00Z', { when: r.when, hover: r.hover })
 }
 
 const firstMessage = (p) => p.$eval('[data-test=events-row] [data-test=events-message]', (e) => (e.textContent || '').trim())

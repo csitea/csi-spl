@@ -4,7 +4,7 @@ import assert from "node:assert/strict"
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
-import { isoDate, isoDateTime, isoDateTimeSec, parseIsoDate } from "../../src/utils/date-iso.mjs"
+import { isoDate, isoDateTime, isoDateTimeOffset, isoDateTimeSec, parseIsoDate, setTimeZoneSource } from "../../src/utils/date-iso.mjs"
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "../../src")
 const BANNED = /toLocale(?:Date|Time)?String|Intl\.DateTimeFormat/
@@ -36,6 +36,23 @@ describe("iso dates", () => {
     assert.equal(isoDateTime(new Date(2026, 0, 5, 7, 8, 9)), "2026-01-05 07:08")
     assert.equal(isoDateTimeSec("not a date"), "")
     assert.equal(isoDateTimeSec(""), "")
+  })
+  /* spec 162 C3 (E7): the event log's When, ISO 8601 with seconds and the
+     viewer's offset at that instant: summer and winter time differ */
+  it("prints seconds and the viewer's offset", () => {
+    setTimeZoneSource(() => "Europe/Helsinki")
+    try {
+      assert.equal(isoDateTimeOffset("2026-07-28T09:14:03Z"), "2026-07-28 12:14:03+03:00")
+      assert.equal(isoDateTimeOffset("2026-10-28T09:14:03Z"), "2026-10-28 11:14:03+02:00")
+      setTimeZoneSource(() => "America/St_Johns")
+      assert.equal(isoDateTimeOffset("2026-01-05T12:00:00Z"), "2026-01-05 08:30:00-03:30")
+      setTimeZoneSource(() => "UTC")
+      assert.equal(isoDateTimeOffset("2026-01-05T12:00:00.900Z"), "2026-01-05 12:00:00+00:00")
+      assert.equal(isoDateTimeOffset("not a date"), "")
+      assert.equal(isoDateTimeOffset(""), "")
+    } finally {
+      setTimeZoneSource(() => "")
+    }
   })
   it("accepts only a real calendar day", () => {
     assert.equal(parseIsoDate("2026-09-26"), "2026-09-26")

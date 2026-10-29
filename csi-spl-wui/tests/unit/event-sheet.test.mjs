@@ -3,10 +3,14 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
+import { isoDateTimeOffset, setTimeZoneSource } from '../../src/utils/date-iso.mjs'
 import {
+  EVENT_COLUMNS,
   applyEventSheet,
   emptyEventFilters,
   emptyEventSort,
+  eventCodeText,
+  eventRequestText,
   eventSortDirKey,
   eventSortLabel,
   filtersActive,
@@ -202,5 +206,70 @@ describe('presentValues and filtersActive', () => {
     assert.equal(filtersActive(emptyEventFilters()), false)
     assert.equal(filtersActive({ ...emptyEventFilters(), when: '   ' }), false)
     assert.equal(filtersActive({ ...emptyEventFilters(), route: ' /events ' }), true)
+  })
+})
+
+/* spec 162 B1 (E1): the request and code columns */
+describe('request and code columns', () => {
+  it('sit after status, both text columns with their keys', () => {
+    assert.deepEqual(EVENT_COLUMNS.map((c) => c.col), ['when', 'id', 'source', 'status', 'request', 'code', 'message', 'route'])
+    const byCol = Object.fromEntries(EVENT_COLUMNS.map((c) => [c.col, c]))
+    assert.deepEqual(byCol.request, { col: 'request', key: 'events.col_request', kind: 'text' })
+    assert.deepEqual(byCol.code, { col: 'code', key: 'events.col_code', kind: 'text' })
+    assert.equal(emptyEventFilters().request, '')
+    assert.equal(emptyEventFilters().code, '')
+  })
+
+  it('read METHOD path and code then name, either part alone when the other is blank', () => {
+    assert.equal(eventRequestText(ev({ method: 'POST', path: '/v1/x' })), 'POST /v1/x')
+    assert.equal(eventRequestText(ev({ method: '', path: '/v1/x' })), '/v1/x')
+    assert.equal(eventRequestText(ev({ method: 'GET' })), 'GET')
+    assert.equal(eventRequestText(ev()), '')
+    assert.equal(eventCodeText(ev({ code: 'bad_request', name: 'TypeError' })), 'bad_request TypeError')
+    assert.equal(eventCodeText(ev({ name: 'TypeError' })), 'TypeError')
+    assert.equal(eventRequestText(null), '')
+    assert.equal(eventCodeText(null), '')
+  })
+
+  it('sort and filter by the cell text', () => {
+    const rows = [
+      ev({ id: 1, method: 'POST', path: '/v1/b', code: 'not_found', name: '' }),
+      ev({ id: 2, method: 'GET', path: '/v1/a', code: 'bad_request', name: 'TypeError' }),
+      ev({ id: 3 }),
+    ]
+    assert.deepEqual(ids(sortEvents(rows, { col: 'request', dir: 'asc' })), [3, 2, 1])
+    assert.deepEqual(ids(sortEvents(rows, { col: 'code', dir: 'desc' })), [1, 2, 3])
+    const only = (f) => ids(applyEventSheet(rows, { sort: emptyEventSort(), filters: { ...emptyEventFilters(), ...f }, pinId: '' }))
+    assert.deepEqual(only({ request: 'post /v1' }), [1])
+    assert.deepEqual(only({ code: 'typeerror' }), [2])
+    assert.deepEqual(only({ code: ' bad_request ' }), [2])
+    assert.equal(filtersActive({ ...emptyEventFilters(), request: 'GET' }), true)
+  })
+})
+
+/* spec 162 C4 (E7): one viewer's When cells sort as text in instant order,
+   across a summer and a winter offset */
+describe('When cell text sorts as the instant', () => {
+  it('20 random rows of one viewer in Europe/Helsinki', () => {
+    let seed = 162
+    const rand = () => {
+      seed = (seed * 1103515245 + 12345) % 2147483648
+      return seed / 2147483648
+    }
+    const lo = Date.parse('2026-01-01T00:00:00Z') / 1000
+    const hi = Date.parse('2027-01-01T00:00:00Z') / 1000
+    setTimeZoneSource(() => 'Europe/Helsinki')
+    try {
+      const rows = Array.from({ length: 20 }, (_, i) => {
+        const at = new Date(Math.floor(lo + rand() * (hi - lo)) * 1000).toISOString()
+        return ev({ id: i + 1, at, received_at: at })
+      })
+      const cells = rows.map((r) => ({ id: r.id, text: isoDateTimeOffset(r.at) }))
+      assert.ok(cells.some((c) => c.text.endsWith('+03:00')) && cells.some((c) => c.text.endsWith('+02:00')), JSON.stringify(cells))
+      const byText = cells.slice().sort((a, b) => (a.text < b.text ? -1 : a.text > b.text ? 1 : 0)).map((c) => c.id)
+      assert.deepEqual(byText, ids(sortEvents(rows, { col: 'when', dir: 'asc' })))
+    } finally {
+      setTimeZoneSource(() => '')
+    }
   })
 })

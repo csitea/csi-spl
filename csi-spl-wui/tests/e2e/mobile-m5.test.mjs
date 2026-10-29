@@ -21,7 +21,7 @@
 //             moves the row and PUTs the new rail_order once; grip and
 //             up / down are >= 44 px targets at <= 820 px.
 //   pages    - /events at <= 600 px: one card per event, its label beside each
-//             value (no 6-column squeeze); /archive, /events, /login and
+//             value (no squeeze of its EVENT_COLUMNS); /archive, /events, /login and
 //             /reset-password never scroll sideways at 360 px.
 //   keyboard - /login and /reset-password at 360 px with a field focused and
 //             the viewport cut to 400 px (the keyboard open, as
@@ -44,6 +44,7 @@ import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 import { importTs } from '../unit/lib/load-ts.mjs'
+import { EVENT_COLUMNS } from '../../src/utils/event-sheet.mjs'
 const { wireRailOrder } = await importTs('src/utils/rail-order.ts')
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
@@ -391,10 +392,10 @@ async function checkPages(browser, base, vp) {
           }
         })
         if (vp.w <= 600) {
-          const same = m.cells.length === 6 && m.cells.every((c) => c.x === m.cells[0].x && c.w === m.cells[0].w)
+          const same = m.cells.length === EVENT_COLUMNS.length && m.cells.every((c) => c.x === m.cells[0].x && c.w === m.cells[0].w)
           ok(`${tag} /events: one card per event, every value on its own line with its label`, same && m.cells.every((c) => c.label && c.label !== 'none') && m.wrapScroll <= 0, m)
         } else {
-          ok(`${tag} CONTROL: /events stays a table above 600 px`, m.cells.length === 6 && new Set(m.cells.map((c) => c.x)).size === 6, m)
+          ok(`${tag} CONTROL: /events stays a table above 600 px`, m.cells.length === EVENT_COLUMNS.length && new Set(m.cells.map((c) => c.x)).size === EVENT_COLUMNS.length, m)
         }
       }
     }

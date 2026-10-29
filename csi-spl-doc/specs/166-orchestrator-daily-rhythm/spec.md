@@ -1,6 +1,11 @@
 # Spec 166: the orchestrators' daily rhythm (day and night window)
 
-Version **v0.2** (2026-10-29), draft for the cross-vendor review. v0.2: review W1, the zone is `Europe/Berlin`, not `TZ=CET` (0.2, 4.1, B1).
+Version **v0.3** (2026-10-29), the owner's poll answers folded in (section 7:
+Q1 A, Q2 B, Q3 A, Q4 A, Q5 A, Q6 A). v0.3: bugs shift to the night with
+refactoring (3.1, B2, B4); the zombie age is 7 days and the cap 500 (3.2); the
+reflection is a Qto page (3.3); weekends are the same window (4.5); bypass rows
+are placed at any hour (3.1, 6). v0.2: review W1, the zone is `Europe/Berlin`,
+not `TZ=CET` (0.2, 4.1, B1).
 Placement slug `c002-s166-daily-rhythm-spec`. Epic **SPL-2129**. Issue
 **SPL-4217**. Class: feature. Kind: specs_and_docs (agy is the main vendor
 for specs; agy is out until 2026-11-03, so claude writes this draft).
@@ -12,8 +17,8 @@ origin/master csi-spl-doc/specs/ | tail -2` -> `165-agy-orchestrator-watcher-sea
 
 This spec changes nothing by itself. It lists what runs on a clock for the
 orchestrator and dispatcher roles today, says which of it moves to a nightly
-window, defines the new night jobs, and lists the build rows. The owner's open
-choices are one poll, section 7.
+window, defines the new night jobs, and lists the build rows. The owner's
+choices were one poll, section 7, now answered in full.
 
 ## 0. The owner's order and the baseline
 
@@ -82,9 +87,10 @@ safe form, row B1) runs every N minutes and asks `do_spl_rhythm_phase`.
 
 1. One shared definition of day and night (`do_spl_rhythm_phase`), read by
    every job that changes behaviour by hour.
-2. At night the placer prefers refactor rows (a band shift by hour), so the
-   majority of refactoring runs 20:00-07:00 CET while the 24 h share stays in
-   the owner's 20-30% band.
+2. At night the placer prefers refactor and bug rows (a band shift by hour,
+   poll Q2 B), so the majority of refactoring and bug fixing runs 20:00-07:00
+   CET while each 24 h share stays in the owner's 20-30% band, and the day
+   keeps more room for features.
 3. A nightly zombie-discussion sweep with a measurable definition.
 4. A nightly reflection job that writes a review of the day and turns it into
    at most a few rows for the next night.
@@ -131,7 +137,7 @@ upkeep is in 2.4, one line each.
 | 6 | unanswered sweep, owner answer in 3 min (`csi-spl:unanswered-sweep`) | `src/bash/scripts/unanswered-sweep-cron.sh:6`; install `spl-peer-crons.func.sh:9`; `SWEEP_MIN_AGE=3 SWEEP_ESCALATE_AGE=5` in box 1's line | `* * * * *` | 1, 2 | script, 1440 runs a day; agents only through the escalation | 24h | **stays** (goal 5) |
 | 7 | asks timer, `ASKS STILL OPEN` re-raise | `src/bash/run/spl-asks-tick.func.sh:224`, run by the dispatch lease loop (not cron) | each lease-loop tick | every box with the lease loop | posts to every live DO seat | 24h | **stays** |
 | 8 | placer: spawn queue, bands, supply blocker (`csi-spl:spawn-place`) | install `src/bash/run/spl-spawn-place-install-cron.func.sh:34`; bands `SPL_SPAWN_BANDS` `src/bash/run/spl-spawn-share.func.sh:25`; band pick `spl-spawn-place.func.sh:37-46`, `:263`; supply `:226-248`; rule home `csi-spl-doc/doc/md/fleet-rules-index.md:53` | `* * * * *` | 1, 2 | every lane placed is an agent; refactor 20-30%, bug 20-30%, feature rest, the same at every hour | 24h | **moves**: bands by phase (B2), supply lead (B3) |
-| 9 | idle filler (`csi-spl:spawn-fill`) | install `src/bash/run/spl-spawn-fill-install-cron.func.sh:36`; classes `spl-spawn-fill.func.sh:145-153`; rule `fleet-rules-index.md:54` | `*/10 * * * *` | 1 | queues bug/feature issues when the queue is empty; latest tick: `the spawn queue is not empty (30 queued, 0 placing): nothing to fill` | 24h | **moves**: night fill by phase (B4, poll Q2) |
+| 9 | idle filler (`csi-spl:spawn-fill`) | install `src/bash/run/spl-spawn-fill-install-cron.func.sh:36`; classes `spl-spawn-fill.func.sh:145-153`; rule `fleet-rules-index.md:54` | `*/10 * * * *` | 1 | queues bug/feature issues when the queue is empty; latest tick: `the spawn queue is not empty (30 queued, 0 placing): nothing to fill` | 24h | **moves**: the night fill takes bug issues only (B4, poll Q2 B) |
 | 10 | refactor / bug rounds (planner, rows, reviewer seats, retro) | `csi-spl-doc/doc/md/rounds-rulebook.md` 1.4 (continuous, no owner go), R8 (retro, then the next planner), R10 (hourly placement check); last plan `refactor-round-16-plan.md` | no clock: started by the dispatcher on the supply blocker or the previous retro | either | round 16: 10 actions, "2 row lanes in parallel" | whenever | **moves**: planner by day, rows at night (B3) |
 | 11 | security round queue (`csi-spl:security-round`) | install `src/bash/run/spl-security-round-install-cron.func.sh:36` | `30 * * * *`, acts when `date -u +%u%H` = `505` (Fri 05:30Z) | 1 | one round a week | night in winter; day in summer (05:30Z is after 05:00Z) | **stays weekly**, pinned to the phase (B7) |
 | 12 | owner digest (`box-cron:owner-digest`) | `box-crons.manifest:27`; cnf `csi-spl-cnf/csi-spl/prd.env.yaml:477` (`hour: 9`, `timezone: Europe/Helsinki`) | `7 * * * *`, posts once a day at 09 Helsinki (07:00Z winter) | lease holder's box | script, one post | day | **stays**; links the reflection (row 20) |
@@ -186,20 +192,32 @@ tmp-scratch-sweep (`17 * * * *`).
 | | day: 07:00-20:00 CET/CEST (06:00Z-19:00Z winter) | night: 20:00-07:00 CET/CEST (19:00Z-06:00Z winter) |
 |---|---|---|
 | owner answers | within 3 min (unanswered sweep, row 6) | the same, within 3 min |
-| placer bands (B2) | refactor **10-20%**, bug 20-30%, feature the rest | refactor **40-60%**, bug 20-30%, feature the rest |
-| idle filler (B4) | bug and feature issues, as today | per poll Q2 (recommended: bug issues only) |
+| placer bands (B2) | refactor **10-20%**, bug **15-20%**, feature the rest (60-75%) | refactor **40-60%**, bug **30-40%**, feature the rest (0-30%) |
+| idle filler (B4) | bug and feature issues, as today | bug issues only (poll Q2 B) |
+| owner-approved bypass rows | placed as today | placed as today (poll Q6 A) |
 | refactor rounds (B3) | the planner and its panel | the round's row lanes, reviewer seats, the retro |
 | new jobs | none | zombie sweep (B5, B6), reflection (B8) |
 | rotation, GC, CI fixes | as today | as today |
 
-**The 24 h share stays in the owner's band.** With 13 day hours and 11 night
-hours and the same lane count, the time-weighted refactor share is `(13 x 10%
-+ 11 x 40%) / 24 = 23.75%` at the low ends and `(13 x 20% + 11 x 60%) / 24 =
-38.3%` at the high ends. The high end is over 30%, so the share report (B2)
-also prints the **last 24 h weighted share**, and the placer stops preferring
-refactor at night once that share reaches 30%. The night then carries the
-bigger part of the refactoring, which is what the owner asked ("the
-majority"), and the day keeps room for features.
+**The 24 h shares stay in the owner's bands** (refactor 20-30%, bug 20-30%,
+feature the rest; `fleet-rules-index.md:53`). The owner chose poll Q2 B: bugs
+shift to the night with refactoring, and the day keeps more room for
+features. With 13 day hours and 11 night hours and the same lane count, the
+time-weighted 24 h shares are:
+
+| class | day band | night band | 24 h, low ends | 24 h, high ends |
+|---|---|---|---|---|
+| refactor | 10-20% | 40-60% | `(13 x 10 + 11 x 40) / 24 = 23.75%` | `(13 x 20 + 11 x 60) / 24 = 38.3%` |
+| bug | 15-20% | 30-40% | `(13 x 15 + 11 x 30) / 24 = 21.9%` | `(13 x 20 + 11 x 40) / 24 = 29.2%` |
+
+The refactor high end is over 30%, so the share report (B2) also prints the
+**last 24 h weighted share** per class, and the placer stops preferring a
+class at night once its 24 h share reaches 30% (refactor or bug alike). The
+night then carries the bigger part of the refactoring and the bug fixing,
+which is what the owner asked ("the majority"); features get 60-75% of the
+lanes by day and 0-30% at night. CI fix rows keep the queue head at every
+hour, and owner-approved feature bypass rows are placed at any hour as today
+(poll Q6 A), outside the bands.
 
 ### 3.2 A zombie discussion, measurably
 
@@ -207,7 +225,7 @@ A **zombie discussion** is a topic whose topic head (rdb `topic_heads`)
 satisfies **all** of:
 
 1. `not card_archived`;
-2. `last_at < now() - N days` (N: poll Q1, recommended 7);
+2. `last_at < now() - 7 days` (poll Q1 A; cnf `env.rhythm.zombie_idle_days: 7`);
 3. no hub ask on it in state open, acked, queued or placing
    (`do_spl_asks_open`);
 4. no live lane on it (`do_spl_lane_map`: no lane whose task or brief names
@@ -218,8 +236,8 @@ satisfies **all** of:
 
 The sweep **archives** a zombie (the soft card archive of rdb 0065, which
 `unarchive` reverses) and never deletes one; a new post brings it back as
-today. Each night it archives at most `ZOMBIE_MAX` topics (poll Q3), oldest
-first, one log line per topic. The first night runs as a dry-run report only,
+today. Each night it archives at most `ZOMBIE_MAX` = **500** topics (poll Q3
+A; cnf `env.rhythm.zombie_max: 500`), oldest first, one log line per topic. The first night runs as a dry-run report only,
 sent to the dispatch holder.
 
 Size, for the cap: 6443 t1 topics are idle 7+ days today before conditions
@@ -242,9 +260,9 @@ in the first quarter hour of the window (19:15Z winter):
   result was wrong), each with its msg id, and writes: reds, reverts, owner
   corrections, what each correction asks the fleet to change, and at most 3
   proposed rows (refactor or bug) with an `Epic:` and `Spec:` line each.
-- **Where it goes:** per poll Q4; recommended a Qto doc page per day in the
-  system workspace, never git: the repository is public and the owner's
-  messages may carry private matter. The proposed rows go to the spawn queue
+- **Where it goes** (poll Q4 A): a Qto doc page per day in the system
+  workspace, **never git**: the repository is public and the owner's messages
+  may carry private matter. Nothing is posted to a channel. The proposed rows go to the spawn queue
   with `SPAWN_CLASS=refactor|bug` through the normal enqueue gates, so they
   run the same night. The next morning's owner digest (row 12) links the
   page.
@@ -252,7 +270,8 @@ in the first quarter hour of the window (19:15Z winter):
 ## 4. Behaviour in detail
 
 1. `do_spl_rhythm_phase` prints `day` or `night` and exits 0. It reads cnf
-   `env.rhythm` (`timezone: Europe/Berlin`, `night_start: 20`, `night_end: 7`) and
+   `env.rhythm` (`timezone: Europe/Berlin`, `night_start: 20`, `night_end: 7`;
+   the sweep's `zombie_idle_days: 7` and `zombie_max: 500` live there too) and
    honours `RHYTHM_NOW=<ISO-8601>` for tests. Every row below calls it; no
    job does its own hour arithmetic.
 2. The placer reads the phase each tick and takes its bands from
@@ -265,7 +284,8 @@ in the first quarter hour of the window (19:15Z winter):
    the phase is `night`, only on the dispatch lease holder's box, and only
    once per night (a stamp file per night date), the guard the owner digest
    uses.
-5. Weekend: poll Q5; recommended the same window seven days a week.
+5. Weekend (poll Q5 A): the same window every day, seven days a week; no
+   weekend case in `do_spl_rhythm_phase`.
 
 ## 5. Build rows
 
@@ -276,9 +296,9 @@ batch.
 | row | slug | files | test and red control |
 |---|---|---|---|
 | **B1** | `s166-b1-rhythm-phase` | `csi-spl-orc/src/bash/run/spl-rhythm-phase.func.sh` (new); `csi-spl-cnf/csi-spl/all.env.yaml` (`env.rhythm`); `csi-spl-cnf/src/python/conf-validator/EnvModels/all.py`; `csi-spl-orc/src/bash/tests/spl-rhythm-phase.tst.sh` (new); `csi-spl-doc/doc/md/fleet-rules-index.md` (new row) | `RHYTHM_NOW=2026-01-15T18:59Z` -> day, `2026-01-15T19:00Z` -> night, `2026-07-15T18:00Z` -> night, `2026-07-15T05:00Z` -> day, `2026-01-15T06:00Z` -> day. **Red:** a variant with a fixed `+1` offset fails both July cases. A variant reading `TZ=CET` fails the 19:00Z winter case on a box with no `zoneinfo/CET` (it reads 19, not 20). conf-validator refuses `night_start` outside 0..23. |
-| **B2** | `s166-b2-bands-by-phase` | `csi-spl-orc/src/bash/run/spl-spawn-share.func.sh`; `csi-spl-orc/src/bash/run/spl-spawn-place.func.sh` (band pick only); `csi-spl-orc/src/bash/tests/spl-spawn-share.tst.sh`; `csi-spl-orc/src/bash/tests/spl-spawn-place-argmax.tst.sh`; `fleet-rules-index.md` row at line 53 | at night with refactor 35% and one refactor and one feature row queued, the placer takes refactor; by day the same input takes feature; last 24 h share at 30% -> the night takes feature. **Red:** on today's tree the night case takes feature (one band set). |
+| **B2** | `s166-b2-bands-by-phase` | `csi-spl-orc/src/bash/run/spl-spawn-share.func.sh`; `csi-spl-orc/src/bash/run/spl-spawn-place.func.sh` (band pick only); `csi-spl-orc/src/bash/tests/spl-spawn-share.tst.sh`; `csi-spl-orc/src/bash/tests/spl-spawn-place-argmax.tst.sh`; `fleet-rules-index.md` row at line 53 | bands day `refactor 10-20, bug 15-20`, night `refactor 40-60, bug 30-40`. At night with refactor 35% and one refactor and one feature row queued, the placer takes refactor; at night with bug 25% and one bug and one feature row queued, it takes bug; by day both inputs take feature; last 24 h refactor share at 30% -> the night takes feature over refactor (the same for bug); an owner-approved bypass row is placed at night as by day (Q6 A). **Red:** on today's tree both night cases take feature (one band set). |
 | **B3** | `s166-b3-supply-lead` | `spl-spawn-place.func.sh` (supply block only, after B2 lands); `csi-spl-orc/src/bash/tests/spl-spawn-place-supply.tst.sh` (new); `csi-spl-doc/doc/md/rounds-rulebook.md` (1.4: planner by day, rows by night) | 2 h before the night with 0 refactor rows queued the holder gets one blocker naming the night; at noon with the same queue only today's hourly one. **Red:** today no blocker is sent ahead of the night. |
-| **B4** | `s166-b4-fill-by-phase` | `csi-spl-orc/src/bash/run/spl-spawn-fill.func.sh`; `csi-spl-orc/src/bash/tests/spl-spawn-fill.tst.sh`; `fleet-rules-index.md` row at line 54 | at night with one `feature` and one `bug` issue todo and Q2 = A, only the bug is queued; by day both classes as today. **Red:** today the night tick queues the feature. |
+| **B4** | `s166-b4-fill-by-phase` | `csi-spl-orc/src/bash/run/spl-spawn-fill.func.sh`; `csi-spl-orc/src/bash/tests/spl-spawn-fill.tst.sh`; `fleet-rules-index.md` row at line 54 | at night with one `feature` and one `bug` issue todo only the bug is queued (poll Q2 B); by day both classes as today. **Red:** today the night tick queues the feature. |
 | **B5** | `s166-b5-hub-zombie-list` | `csi-spl-api/src/go/spool-hub-api/internal/hub/` (a read-only list of idle topic heads: `idle_days`, `limit`; conditions 1, 2 and 6 of 3.2 in SQL) and its `_test.go` on Postgres | a topic idle 8 days -> listed; idle 8 days but archived, a DM, or prioritised -> not listed; idle 6 days -> not listed with `idle_days=7`. **Red:** the endpoint does not exist (404). |
 | **B6** | `s166-b6-zombie-sweep` | `csi-spl-orc/src/bash/run/spl-zombie-topics.func.sh` (new: conditions 3-5 against asks, lane map and issues; `DRY_RUN=1` default; `ZOMBIE_MAX`); `csi-spl-orc/src/bash/scripts/zombie-topics-cron.sh` (new); `csi-spl-orc/cnf/box-crons/box-crons.manifest` (row `zombie-topics`, `*/15 * * * *`); `csi-spl-orc/src/bash/tests/spl-zombie-topics.tst.sh` (new); `csi-spl-doc/doc/md/gc-agent.md` (pointer) | a fake hub list of 3 candidates, one with an open ask and one held by a live lane: only the third is archived; by day nothing runs; a second tick the same night does nothing; `DRY_RUN=1` archives nothing. **Red:** the archive call for the topic with the open ask. Needs B1, B5. |
 | **B7** | `s166-b7-fixed-clocks` | `csi-spl-iac/src/terraform/060-gcp-vm-satellite/roles/10_rotation_cron/tasks/main.yml` (weekly full scan to Fri 21:00 Helsinki); `csi-spl-orc/src/bash/run/spl-security-round-install-cron.func.sh` (act on Friday in phase `night`, not on `%u%H = 505`); their tests | the security round acts on a Friday 02:00Z in July (night) and not on Friday 05:30Z in July (day). **Red:** today it acts on Friday 05:30Z in July. |
@@ -293,12 +313,25 @@ Order: B1 first; then B2, B4, B5, B7 in parallel (disjoint files); then B3
 - Manifest row `issue-key-rate` (`box-crons.manifest:31`) is in neither box's
   crontab as read on 2026-10-29. Reported to the dispatch holder with this
   spec; not a row of it.
-- 647 recorded feature bypasses in the share report (0.3). The night band
-  does not touch bypasses; whether bypass rows wait for the day is poll Q6.
+- 647 recorded feature bypasses in the share report (0.3). The night bands
+  do not touch bypasses: owner-approved bypass rows are placed at any hour,
+  as today (poll Q6 A).
 
 ## 7. The owner's choices (one poll)
 
-The text the dispatch holder posts in the topic, recommended answers first:
+Posted by the dispatch holder in t1 `5d1c5023` (poll msg `d102c775`).
+**Answered** by the owner (msgs `33fdf316` for Q1-Q5, `c6ad2e61` for Q6):
+
+| Q | answer | folded into |
+|---|---|---|
+| Q1 | A, 7 days | 3.2 condition 2 |
+| Q2 | **B**, bugs shift to the night as well (not the recommended A) | 1.1 goal 2, 2.2 row 9, 3.1, B2, B4 |
+| Q3 | A, 500 a night | 3.2 |
+| Q4 | A, a Qto doc page per day, never git | 3.3 |
+| Q5 | A, the same window every day | 4.5 |
+| Q6 | A, bypass rows placed at any hour | 3.1, 6 |
+
+The poll as posted, recommended answers first:
 
 ```poll
 Zombie discussion: idle how many days (and no open ask, no live lane, no open issue) before the nightly sweep archives it? Archive is reversible.

@@ -14,6 +14,8 @@
 #      marker, a gone pane with an open registry row, each with its control
 #      S3 left behind (SPL-2511): the wrapper's ended screen while a job of
 #      the ended session carries the id; red control: no ended screen
+#      Never left behind (SPL-4248): the pid is a harness by its comm, or
+#      runs under another pane; control: a node job in no pane still hits
 #      S1 holds while a tool call runs (heartbeat tool + tool_since) under
 #      WD_S1_TOOL_CAP while its pid is the live harness (heartbeat ts 216 s
 #      old: c-545 2026-10-08); controls: past the cap, no live harness, the
@@ -346,6 +348,16 @@ s3end s3lg agy a-900
 nohit "S3 left behind control: a pid and no pane" s3 a-900 4242 -
 s3end s3ld agy a-900; echo $((T0 - 60)) > "$C/done"
 nohit "S3 left behind control: a done marker (finished)" s3 a-900 4242
+# SPL-4248 (g-523 main box 2026-10-29, n=1): the ended screen is a stale window of
+# the id; the pid carrying it is the live harness of another pane
+s3end s3lw grok g-900; echo grok > "$C/proc_comm"; echo %2178 > "$C/proc_pane"
+nohit "S3 left behind (SPL-4248): the pid is a grok harness under another pane: live, no hit" s3 g-900 4242
+echo node > "$C/proc_comm"
+nohit "S3 left behind (SPL-4248): a node pid under another pane is that pane's session: no hit" s3 g-900 4242
+echo grok > "$C/proc_comm"; : > "$C/proc_pane"
+nohit "S3 left behind (SPL-4248): a grok pid in no pane is still a harness: no hit" s3 g-900 4242
+echo node > "$C/proc_comm"
+hit "S3 left behind control (SPL-4248): a node job in no pane is left behind, as before" s3 g-900 4242
 # S3 (spec 102 4.3, T005): done and rebirth markers, a gone pane
 s3ctx() { ctx "$1"; cp "$FX/idle.pane" "$C/pane"; echo bash > "$C/fg"; printf 'bash\n' > "$C/tree"; echo "%9" > "$C/registry_open"; }
 s3ctx s3d; echo $((T0 - 60)) > "$C/done"; echo $((T0 - 600)) > "$C/session_start"

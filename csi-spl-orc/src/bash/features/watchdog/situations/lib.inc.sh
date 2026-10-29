@@ -27,6 +27,7 @@
 #   session_start  epoch of lifetime/session.json's `started` (else its mtime)
 #   registry_open  the pane of its open registry.tsv row ("-": none named)
 #   proc_age     s since the harness process started; user: its OS user
+#   proc_comm    the comm of that pid; proc_pane: the pane it runs under (empty: none)
 #   (the ps dump names mistral's vibe `vibe`: it renames itself "Vibe CLI")
 # It prints one line `HIT <code> <evidence>` or nothing, and exits 0.
 #------------------------------------------------------------------------------

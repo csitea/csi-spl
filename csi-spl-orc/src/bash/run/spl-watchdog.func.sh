@@ -778,6 +778,17 @@ spl_wd_pane_of_pids() {
       print $1, $2, $3 }' "$tick/ps" "$tick/panepids" "$tick/agents.raw"
 }
 
+# spl_wd_pid_pane PID TICK: the pane whose pane_pid is PID or one of its
+# ancestors (the ps dump's ppid chain); nothing when no pane holds it. S3
+# reads it: a pid under ANOTHER pane than the one judged is a live session
+# there, never a job the judged pane's ended session left behind.
+spl_wd_pid_pane() {
+  awk -F'\t' -v p0="$1" -v ps="$2/ps" '
+    FILENAME == ps { split($0, a, " "); pp[a[1]] = a[2]; next }
+    { pane[$2] = $1 }
+    END { p = p0; for (k = 0; k < 64 && p > 1; k++) { if (p in pane) { print pane[p]; exit }; p = pp[p] } }' "$2/ps" "$2/panes"
+}
+
 # "<pid>\t<id>" per agent id: the harness process carrying SPOOL_AGENT_ID=<id>.
 # Another user's environ goes through the owner hop (proc-owner.inc.sh).
 spl_wd_proc_ids() {
@@ -895,6 +906,8 @@ spl_wd_gather() {
   spl_wd_idle_wait "$id" "$ctx"
   if [[ -n "$pid" ]]; then
     awk -v p="$pid" '$1 == p {print $3}' "$tick/ps" > "$ctx/proc_age"
+    awk -v p="$pid" '$1 == p {print $4}' "$tick/ps" > "$ctx/proc_comm"
+    spl_wd_pid_pane "$pid" "$tick" > "$ctx/proc_pane"
     spl_wd_transcript "$pid" > "$ctx/transcript"
     spl_rotate_user "$pid" > "$ctx/user" 2>/dev/null || true
   fi

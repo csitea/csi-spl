@@ -92,6 +92,11 @@
 #      limit): the seat's OWN fresh S2 kind=limit verdict refuses even when
 #      another claude seat wrote a newer 0-byte out.s2. Red control
 #      (origin/master): restarted
+#  21. S3 left behind is never a live harness (SPL-4248; g-523 main box
+#      2026-10-29, n=1): the id's first window shows the ended screen, its
+#      live grok runs in a second pane: exit 3 no S3 hit, nothing spawned,
+#      the grok kept (origin/master: a second grok). Control: no live
+#      harness anywhere -> restarted
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -635,6 +640,22 @@ left19 c-961 %61
 rc="$(go ID=c-961 CAUSE=S3 DRY_RUN=0)"
 [[ "$rc" == 4 ]] && grep -q 'duplicate: 2 live processes carry c-961' "$T/o" "$D/rotate.log" 2>/dev/null && [[ ! -s "$T/spawn.log" ]] &&
   pass "19. red control: the same jobs with no ended screen -> exit 4 duplicate, nothing spawned" || fail "19. red control rc=$rc: $(tail -3 "$T/o")"
+
+# --- 21. S3 left behind: a stale window, the live harness in another pane --------------------
+ended21() { printf '%s\n' '════' " Restored grok session '$1' ended. Pane kept open so the" ' window stays visible.' '════' 'bash-5.2$' > "$T/tmux/screen.$2"; }
+world; lane g-970 %70 - grok; win g-970 %71 79970 grok; ended21 g-970 %70
+rc="$(go ID=g-970 CAUSE=S3 DRY_RUN=0)"
+bad=""
+[[ "$rc" == 3 ]] || bad+=" rc=$rc"
+[[ ! -s "$T/spawn.log" ]] || bad+=" spawned:$(cat "$T/spawn.log")"
+alive 79970 || bad+=" the-live-grok-was-killed"
+grep -q 'no S3 hit' "$T/o" "$D/rotate.log" 2>/dev/null || bad+=" no-refusal"
+[[ -z "$bad" ]] && pass "21. S3 (SPL-4248): stale ended pane %70, live grok in %71 -> exit 3 no S3 hit, nothing spawned, the grok kept" ||
+  fail "21. two panes:$bad $(tail -3 "$T/o")"
+world; lane g-971 %72 - grok; ended21 g-971 %72
+rc="$(go ID=g-971 CAUSE=S3 DRY_RUN=0)"
+[[ "$rc" == 0 ]] && grep -q '^spawn grok g-971 ' "$T/spawn.log" 2>/dev/null &&
+  pass "21. control: the same ended pane and no live harness anywhere -> restarted" || fail "21. control rc=$rc: $(tail -3 "$T/o")"
 
 # --- 20. the vendor at its usage limit: no restart -------------------------------------------
 printf '#!/usr/bin/env bash\nexit 0\n' > "$T/bin/claude"; chmod +x "$T/bin/claude"

@@ -19,6 +19,11 @@
 # other box 02:06Z, back only after the fence TERMed the pid).
 # `HIT S3 left behind: ...`; the restart then neither kills the job nor
 # counts it as a second session.
+# Never left behind: the pid is itself a harness (proc_comm claude, grok,
+# agy, qwen or vibe), or it lives under another pane (proc_pane): that is the
+# live session, restarted elsewhere, and the judged pane only a stale window
+# of the same id (g-523 main box 2026-10-29, n=1: the stale pane %2166 judged, the
+# live grok of %2178 called no harness, a second grok spawned; SPL-4248).
 # Usage: s3.sh ID PID PANE (WD_CTX set; see lib.inc.sh)
 # shellcheck source=lib.inc.sh
 . "$(dirname "$0")/lib.inc.sh"
@@ -35,6 +40,9 @@ if [[ -n "$WD_PANE" ]]; then
   if [[ -n "$WD_PID" ]]; then
     foot="$(wd_f pane | grep -v '^[[:space:]]*$' | tail -n "${WD_ENDED_TAIL:-40}")"
     grep -qE "session '${WD_ID}(@[a-z0-9-]+)?' ended\. Pane kept open" <<<"$foot" || exit 0
+    grep -qxE 'claude|grok|agy|qwen|vibe' <<<"$(wd_f proc_comm)" && exit 0
+    pp="$(wd_f proc_pane)"
+    [[ -n "$pp" && "$pp" != "$WD_PANE" ]] && exit 0
     ev="left behind: pane $WD_PANE shows $WD_ID's session ended and runs only '$fg'; pid $WD_PID carrying $WD_ID is no harness"
   else
     ev="pane $WD_PANE runs only '$fg', no harness process carries $WD_ID"

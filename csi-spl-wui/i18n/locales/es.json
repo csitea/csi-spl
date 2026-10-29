@@ -982,6 +982,19 @@
       "hint": "Nadie ha publicado aquí todavía. Escribe el primer mensaje para iniciar la conversación.",
       "start": "Escribe el primer mensaje",
       "filter_hint": "Nada aquí coincide con el filtro. Bórralo para ver todos los mensajes."
+    },
+    "topic_list": {
+      "label": "Lista de temas",
+      "filter": "Filtro",
+      "filter_new": "Nuevos",
+      "filter_all": "Todos",
+      "sort": "Ordenar por",
+      "sort_last": "Última actualización",
+      "sort_count": "Número de mensajes",
+      "sort_prio": "Prioridad",
+      "window": "Ordenados: los {n} temas cargados",
+      "window_new": "Nuevos entre los {n} temas cargados",
+      "empty_new": "No hay temas nuevos."
     }
   },
   "topic": {
@@ -995,7 +1008,14 @@
     "issue_chip_aria": "Incidencia vinculada {key}: {status}",
     "load_failed": "error al cargar el tema",
     "no_replies": "Aún no hay respuestas: escribe la primera.",
-    "list_title": "Tema: {text}"
+    "list_title": "Tema: {text}",
+    "priority": {
+      "label": "Prioridad",
+      "hint": "1 es lo más urgente, 5 lo menos. El orquestador atiende primero el 1.",
+      "badge": "P{n}",
+      "saved": "Prioridad establecida en {n}.",
+      "failed": "No se pudo guardar la prioridad ({token})."
+    }
   },
   "notify": {
     "alerts_on": "alertas activadas",

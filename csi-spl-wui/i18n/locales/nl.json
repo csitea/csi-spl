@@ -982,6 +982,19 @@
       "hint": "Niemand heeft hier nog iets geplaatst. Schrijf het eerste bericht om het gesprek te starten.",
       "start": "Schrijf het eerste bericht",
       "filter_hint": "Niets hier komt overeen met het filter. Wis het om alle berichten te zien."
+    },
+    "topic_list": {
+      "label": "Lijst met onderwerpen",
+      "filter": "Filteren",
+      "filter_new": "Nieuw",
+      "filter_all": "Alle",
+      "sort": "Sorteren op",
+      "sort_last": "Laatst bijgewerkt",
+      "sort_count": "Aantal berichten",
+      "sort_prio": "Prioriteit",
+      "window": "Gesorteerd: de {n} geladen onderwerpen",
+      "window_new": "Nieuwe onder de {n} geladen onderwerpen",
+      "empty_new": "Geen nieuwe onderwerpen."
     }
   },
   "topic": {
@@ -995,7 +1008,14 @@
     "issue_chip_aria": "Gekoppelde issue {key}: {status}",
     "load_failed": "onderwerp laden mislukt",
     "no_replies": "Nog geen antwoorden — schrijf het eerste.",
-    "list_title": "Onderwerp: {text}"
+    "list_title": "Onderwerp: {text}",
+    "priority": {
+      "label": "Prioriteit",
+      "hint": "1 is het meest urgent, 5 het minst. De orkestrator behandelt 1 eerst.",
+      "badge": "P{n}",
+      "saved": "Prioriteit ingesteld op {n}.",
+      "failed": "Kon de prioriteit niet opslaan ({token})."
+    }
   },
   "notify": {
     "alerts_on": "meldingen aan",

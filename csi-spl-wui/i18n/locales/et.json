@@ -982,6 +982,19 @@
       "hint": "Keegi pole siia veel postitanud. Vestluse alustamiseks kirjuta esimene sõnum.",
       "start": "Kirjuta esimene sõnum",
       "filter_hint": "Miski siin ei vasta filtrile. Kõigi sõnumite nägemiseks tühjenda see."
+    },
+    "topic_list": {
+      "label": "Teemade loend",
+      "filter": "Filtreeri",
+      "filter_new": "Uued",
+      "filter_all": "Kõik",
+      "sort": "Sorteeri",
+      "sort_last": "Viimane uuendus",
+      "sort_count": "Sõnumite arv",
+      "sort_prio": "Prioriteet",
+      "window": "Sorditud laaditud teemade seas: {n}",
+      "window_new": "Uued laaditud teemade seas: {n}",
+      "empty_new": "Uusi teemasid pole."
     }
   },
   "topic": {
@@ -995,7 +1008,14 @@
     "issue_chip_aria": "Seotud ülesanne {key}: {status}",
     "load_failed": "teema laadimine ebaõnnestus",
     "no_replies": "Vastuseid veel ei ole — kirjuta esimene.",
-    "list_title": "Teema: {text}"
+    "list_title": "Teema: {text}",
+    "priority": {
+      "label": "Prioriteet",
+      "hint": "1 on kõige kiireloomulisem, 5 kõige vähem. Orkestreerija teenindab esmalt 1.",
+      "badge": "P{n}",
+      "saved": "Prioriteet on nüüd {n}.",
+      "failed": "Prioriteeti ei õnnestunud salvestada ({token})."
+    }
   },
   "notify": {
     "alerts_on": "teavitused sees",

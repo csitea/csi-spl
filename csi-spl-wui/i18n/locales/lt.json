@@ -982,6 +982,19 @@
       "hint": "Čia dar niekas nieko nepaskelbė. Parašykite pirmąją žinutę, kad pradėtumėte pokalbį.",
       "start": "Parašykite pirmąją žinutę",
       "filter_hint": "Niekas čia neatitinka filtro. Išvalykite jį, kad matytumėte visas žinutes."
+    },
+    "topic_list": {
+      "label": "Temų sąrašas",
+      "filter": "Filtras",
+      "filter_new": "Naujos",
+      "filter_all": "Visos",
+      "sort": "Rikiuoti pagal",
+      "sort_last": "Paskutinis atnaujinimas",
+      "sort_count": "Žinučių skaičius",
+      "sort_prio": "Prioritetas",
+      "window": "Surikiuota tarp įkeltų temų: {n}",
+      "window_new": "Naujos tarp įkeltų temų: {n}",
+      "empty_new": "Naujų temų nėra."
     }
   },
   "topic": {
@@ -995,7 +1008,14 @@
     "issue_chip_aria": "Susieta užduotis {key}: {status}",
     "load_failed": "temos įkelti nepavyko",
     "no_replies": "Atsakymų kol kas nėra — parašykite pirmąjį.",
-    "list_title": "Tema: {text}"
+    "list_title": "Tema: {text}",
+    "priority": {
+      "label": "Prioritetas",
+      "hint": "1 – skubiausia, 5 – mažiausiai skubi. Orkestruotojas pirmiausia aptarnauja 1.",
+      "badge": "P{n}",
+      "saved": "Prioritetas nustatytas: {n}.",
+      "failed": "Nepavyko išsaugoti prioriteto ({token})."
+    }
   },
   "notify": {
     "alerts_on": "įspėjimai įjungti",

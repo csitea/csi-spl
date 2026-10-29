@@ -982,6 +982,19 @@
       "hint": "Burada henüz kimse paylaşım yapmadı. Sohbeti başlatmak için ilk mesajı yazın.",
       "start": "İlk mesajı yazın",
       "filter_hint": "Burada filtreyle eşleşen hiçbir şey yok. Tüm mesajları görmek için filtreyi temizleyin."
+    },
+    "topic_list": {
+      "label": "Konu listesi",
+      "filter": "Filtre",
+      "filter_new": "Yeni",
+      "filter_all": "Tümü",
+      "sort": "Sırala",
+      "sort_last": "Son güncelleme",
+      "sort_count": "Mesaj sayısı",
+      "sort_prio": "Öncelik",
+      "window": "Sıralandı: yüklenen {n} konu",
+      "window_new": "Yüklenen {n} konu arasında yeniler",
+      "empty_new": "Yeni konu yok."
     }
   },
   "topic": {
@@ -995,7 +1008,14 @@
     "issue_chip_aria": "Bağlı iş kaydı {key}: {status}",
     "load_failed": "konu yüklenemedi",
     "no_replies": "Henüz yanıt yok — ilkini siz yazın.",
-    "list_title": "Konu: {text}"
+    "list_title": "Konu: {text}",
+    "priority": {
+      "label": "Öncelik",
+      "hint": "1 en acil, 5 en az acil olandır. Orkestratör önce 1'i işler.",
+      "badge": "P{n}",
+      "saved": "Öncelik {n} olarak ayarlandı.",
+      "failed": "Öncelik kaydedilemedi ({token})."
+    }
   },
   "notify": {
     "alerts_on": "uyarılar açık",

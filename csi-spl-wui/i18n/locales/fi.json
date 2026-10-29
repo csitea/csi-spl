@@ -982,6 +982,19 @@
       "hint": "Kukaan ei ole vielä kirjoittanut tänne. Aloita keskustelu kirjoittamalla ensimmäinen viesti.",
       "start": "Kirjoita ensimmäinen viesti",
       "filter_hint": "Mikään ei vastaa suodatinta. Tyhjennä se nähdäksesi kaikki viestit."
+    },
+    "topic_list": {
+      "label": "Aiheluettelo",
+      "filter": "Suodata",
+      "filter_new": "Uudet",
+      "filter_all": "Kaikki",
+      "sort": "Lajittele",
+      "sort_last": "Viimeisin päivitys",
+      "sort_count": "Viestien määrä",
+      "sort_prio": "Prioriteetti",
+      "window": "Lajiteltu ladattujen aiheiden joukosta: {n}",
+      "window_new": "Uudet ladattujen aiheiden joukosta: {n}",
+      "empty_new": "Ei uusia aiheita."
     }
   },
   "topic": {
@@ -995,7 +1008,14 @@
     "issue_chip_aria": "Linkitetty tiketti {key}: {status}",
     "load_failed": "aiheen lataus epäonnistui",
     "no_replies": "Ei vielä vastauksia — kirjoita ensimmäinen.",
-    "list_title": "Aihe: {text}"
+    "list_title": "Aihe: {text}",
+    "priority": {
+      "label": "Prioriteetti",
+      "hint": "1 on kiireellisin, 5 vähiten kiireellinen. Orkestroija palvelee ensin 1:n.",
+      "badge": "P{n}",
+      "saved": "Prioriteetiksi asetettu {n}.",
+      "failed": "Prioriteettia ei voitu tallentaa ({token})."
+    }
   },
   "notify": {
     "alerts_on": "ilmoitukset päällä",

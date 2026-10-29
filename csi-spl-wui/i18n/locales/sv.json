@@ -982,6 +982,19 @@
       "hint": "Ingen har skrivit här ännu. Skriv det första meddelandet för att starta konversationen.",
       "start": "Skriv det första meddelandet",
       "filter_hint": "Inget här matchar filtret. Rensa det för att se alla meddelanden."
+    },
+    "topic_list": {
+      "label": "Ämneslista",
+      "filter": "Filtrera",
+      "filter_new": "Nya",
+      "filter_all": "Alla",
+      "sort": "Sortera efter",
+      "sort_last": "Senast uppdaterad",
+      "sort_count": "Antal meddelanden",
+      "sort_prio": "Prioritet",
+      "window": "Sorterat: de {n} inlästa ämnena",
+      "window_new": "Nya bland de {n} inlästa ämnena",
+      "empty_new": "Inga nya ämnen."
     }
   },
   "topic": {
@@ -995,7 +1008,14 @@
     "issue_chip_aria": "Länkat ärende {key}: {status}",
     "load_failed": "kunde inte läsa in ämnet",
     "no_replies": "Inga svar än — skriv det första.",
-    "list_title": "Ämne: {text}"
+    "list_title": "Ämne: {text}",
+    "priority": {
+      "label": "Prioritet",
+      "hint": "1 är mest brådskande, 5 minst. Orkestreraren hanterar 1 först.",
+      "badge": "P{n}",
+      "saved": "Prioritet satt till {n}.",
+      "failed": "Kunde inte spara prioriteten ({token})."
+    }
   },
   "notify": {
     "alerts_on": "aviseringar på",

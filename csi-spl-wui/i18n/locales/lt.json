@@ -3367,9 +3367,32 @@
       "coming": "Šis puslapis bus vėlesniame žingsnyje.",
       "page": {
         "spend": "Išleista",
-        "tokens": "Žetonai",
+        "tokens": "DI žetonai",
         "price": "Žetono kaina",
-        "paid": "Apmokėti įrašai"
+        "paid": "Apmokėti įrašai",
+        "cloud": "Debesis",
+        "human": "Žmonės"
+      },
+      "cloud": {
+        "title": "Debesijos išlaidos pagal GCP projektą",
+        "crumbs_label": "Debesijos išlaidų lygiai",
+        "all_projects": "Visi projektai",
+        "col_project": "GCP projektas",
+        "col_service": "Paslauga",
+        "col_day": "Diena",
+        "box": "mašina {box}",
+        "services": "Paslaugų: {n}",
+        "days": "Dienų su išlaidomis: {n}",
+        "empty": "Šį mėnesį dar nėra debesijos išlaidų eilutės. Atsiskaitymų eksportas nuskaitomas kartą per dieną."
+      },
+      "tokens": {
+        "title": "DI žetonų išlaidos",
+        "list_note": "Sumokėta suma yra valiutos stulpelyje; kainoraščio kaina rodoma šalia ir niekada nepridedama.",
+        "empty": "Šį mėnesį dar nėra DI žetonų išlaidų eilutės."
+      },
+      "human": {
+        "title": "Žmonių išlaidos",
+        "not_tracked": "Dar nesekama. Žmonių išlaidos yra patvirtintas laikas pagal kiekvieno žmogaus kainą, kurį kuria specifikacijos 107 eilutės {rows}; skaičius nerodomas, kol jos neparengtos."
       }
     },
     "releases": {

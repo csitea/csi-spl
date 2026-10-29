@@ -3367,9 +3367,32 @@
       "coming": "Tämä sivu tulee myöhemmässä vaiheessa.",
       "page": {
         "spend": "Menot",
-        "tokens": "Tokenit",
+        "tokens": "Tekoälytokenit",
         "price": "Tokenin hinta",
-        "paid": "Maksetut erät"
+        "paid": "Maksetut erät",
+        "cloud": "Pilvi",
+        "human": "Ihmiset"
+      },
+      "cloud": {
+        "title": "Pilvikulut GCP-projekteittain",
+        "crumbs_label": "Pilvikulujen tasot",
+        "all_projects": "Kaikki projektit",
+        "col_project": "GCP-projekti",
+        "col_service": "Palvelu",
+        "col_day": "Päivä",
+        "box": "kone {box}",
+        "services": "Palveluja: {n}",
+        "days": "Päiviä, joilla kuluja: {n}",
+        "empty": "Tältä kuukaudelta ei ole vielä pilvikulurivejä. Laskutusvienti luetaan kerran päivässä."
+      },
+      "tokens": {
+        "title": "Tekoälytokenien kulut",
+        "list_note": "Maksettu summa on valuuttasarakkeessa; listahinta näytetään sen vieressä eikä sitä koskaan lasketa mukaan.",
+        "empty": "Tältä kuukaudelta ei ole vielä tekoälytokenien kulurivejä."
+      },
+      "human": {
+        "title": "Henkilöstökulut",
+        "not_tracked": "Ei vielä seurannassa. Henkilöstökulut ovat hyväksyttyä aikaa kunkin henkilön omalla hinnalla, ja ne rakennetaan määrittelyn 107 riveillä {rows}; lukua ei näytetä ennen kuin ne ovat valmiit."
       }
     },
     "releases": {

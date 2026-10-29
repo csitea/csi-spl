@@ -3367,9 +3367,32 @@
       "coming": "Den här sidan kommer i ett senare steg.",
       "page": {
         "spend": "Utgifter",
-        "tokens": "Token",
+        "tokens": "AI-token",
         "price": "Pris per token",
-        "paid": "Betalda poster"
+        "paid": "Betalda poster",
+        "cloud": "Moln",
+        "human": "Människor"
+      },
+      "cloud": {
+        "title": "Molnkostnader per GCP-projekt",
+        "crumbs_label": "Nivåer av molnkostnader",
+        "all_projects": "Alla projekt",
+        "col_project": "GCP-projekt",
+        "col_service": "Tjänst",
+        "col_day": "Dag",
+        "box": "maskin {box}",
+        "services": "Tjänster: {n}",
+        "days": "Dagar med kostnad: {n}",
+        "empty": "Ingen rad med molnkostnad ännu den här månaden. Faktureringsexporten läses en gång om dagen."
+      },
+      "tokens": {
+        "title": "Kostnader för AI-token",
+        "list_note": "Det som betalats står i valutakolumnen; listpriset visas bredvid och läggs aldrig till.",
+        "empty": "Ingen rad med kostnad för AI-token ännu den här månaden."
+      },
+      "human": {
+        "title": "Personalkostnader",
+        "not_tracked": "Spåras inte ännu. Personalkostnader är godkänd tid till varje persons eget pris, byggda av rader {rows} i specifikation 107; ingen siffra visas förrän de är klara."
       }
     },
     "releases": {

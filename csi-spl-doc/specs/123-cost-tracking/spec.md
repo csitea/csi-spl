@@ -1,6 +1,6 @@
 # Spec 123: Cost Tracking
 
-**Status:** v1.2 (2026-10-29: 13.12, owned hardware written off monthly, monthly and yearly totals first, the untracked-cost list; SPL-4189) · v1.1 (2026-10-29: section 13, the project's cost, plan only, SPL-4189) · v1.0 (draft ff04d3ca3 by a-816, folded by the editor
+**Status:** v1.3 (2026-10-29: R7 review W1..W7 folded: owned hardware is the fourth part of the project-cost read, one hand-entered kind only, files disjoint per batch, Q-10 dropped as decided by 107 Q27 A; SPL-4189) · v1.2 (2026-10-29: 13.12, owned hardware written off monthly, monthly and yearly totals first, the untracked-cost list; SPL-4189) · v1.1 (2026-10-29: section 13, the project's cost, plan only, SPL-4189) · v1.0 (draft ff04d3ca3 by a-816, folded by the editor
 s123-claude from the four seat reviews in `reviews/`; rc1 cc831a665 signed by
 all four seats and the drafter; the owner's answers Q-1..Q-7 folded, section 12)
 
@@ -367,7 +367,7 @@ One list, merged from Q-C1..Q-C5 (s123-claude) and Q-1..Q-7 (s123-claude-2), plu
   - **Panel: A** (claude-2; no seat objected). You asked for "the whole" instance; a marked hand row is honest about its source.
   - **Owner: B, plus a factory.** msg `6078c151`: "7. no supported for now - factory design patterns in the code to support for the future". Section 4.6.
 
-## 13. The project's cost: cloud + AI tokens + human (v1.1, plan only)
+## 13. The project's cost: cloud + AI tokens + human (v1.1..v1.3, plan only)
 
 **Status: Planned, not built.** Lane issue SPL-4189, epic SPL-2373. Nothing
 below exists in code. It is the level ABOVE the near-term three-sections
@@ -382,23 +382,30 @@ does not duplicate it.
 
 ### 13.2 The top view
 
-One view, **"The project's cost"**, the first page of Reporting -> Costs
-(before Spend, spec 143 3.2). For the picked period it shows one total =
-**cloud + AI tokens + human**, and three parts under it. Each part has:
+One view, **"The project's cost"**. Spec 143 3.2 defines four Costs pages,
+Spend the default and first. This view is planned as a **fifth page**,
+`/reporting/costs/project`, placed first and made the default; that changes
+143 3.2 and is owner question Q-9 (13.10). Until he answers, 143 3.2 stands.
+For the picked period it shows one total =
+**cloud + owned hardware + AI tokens + human**, and four parts under it
+(owned hardware is entered by hand, 13.12). Each part has:
 
 - its amount in the header's currency (spec 143 3.1 rule 3) and its **share**
   of the priced total;
 - its completeness in words (13.5);
 - a link to its own section below, and from there to the existing page that
-  holds the detail: Cloud -> Spend (Cloud group); AI tokens -> Spend (AI
-  agents group), Tokens and Price per token; Human -> the hours reports of
-  spec 107 (section 6) and the Releases human part (107 21.4).
+  holds the detail: Cloud -> Spend (Cloud group); Owned hardware -> Paid
+  items (the asset list, 13.12 item 1); AI tokens -> Spend (AI agents
+  group), Tokens and Price per token; Human -> the hours reports of spec 107
+  (section 6) and the Releases human part (107 21.4).
 
 Period: the Costs header's one period (143 3.1 rule 2: a calendar month "so
 far" and the months before it), plus a **year to date** pick that sums the
-closed months and the month so far. A pie of the three parts (the inline-SVG
-pie of 143 3.3) and, under it, one bar per month of the year, each split in
-the three parts. No chart library (section 5).
+closed months and the month so far. The page opens on two figures, this
+month so far and this year to date (13.12 item 2). A pie of the four parts
+(the pie of 143 3.3, drawn in inline SVG like the Tokens bars of 143 3.4)
+and, under it, one bar per month of the year, each split in the four parts.
+No chart library (section 5).
 
 Made-up figures, none is a real cost:
 
@@ -408,7 +415,8 @@ Costs › The project's cost   Oct 2026 (so far), 1-28 Oct UTC   (USD) ( EUR )
 | Part          |    Amount | Share  | Completeness                     |
 +---------------+-----------+--------+----------------------------------+
 | Cloud         |    160.00 |  16 %  | 27 of 28 days read               |
-| AI tokens     |    710.00 |  71 %  | every paid item priced           |
+| Owned hardware|     80.00 |   8 %  | entered by hand, 1 asset         |
+| AI tokens     |    630.00 |  63 %  | every paid item priced           |
 | Human         |    130.00 |  13 %  | 2 of 3 people priced, 1 unpriced |
 +---------------+-----------+--------+----------------------------------+
 | Total, priced |  1,000.00 | 100 %  | partial: see the parts           |
@@ -420,7 +428,8 @@ Costs › The project's cost   Oct 2026 (so far), 1-28 Oct UTC   (USD) ( EUR )
 | part | money from | read today by | price source |
 |---|---|---|---|
 | **Cloud** | `cost_lines` source `gcp`, origin `billing_export` (4.2), every `csi-spl-*` project (Q-2) | `GET /v1/tenant/costs` parts (5.2) | the GCP bill itself; `estimate` rows (4.2) are marked |
-| **AI tokens** | the paid items' daily shares, source `ai_paid` (spec 143 4.1, `store/cost_ai_paid.go`); later the metered API turns, `usage_events` x `unit_cost_micros` (spec 121, 4.5) | the same month read | **what was paid** (subscriptions and top-ups, `fleet_token_paid`), never the list value. The list value (the `model_prices` cost of the `fleet_tokens` lines, which carry units and no money amount) stays "list value (not paid)", shown beside, never added (Q-4 A, spec 143 3.1 rule 1) |
+| **Owned hardware** | `cost_lines` origin `hand`, source `hand_asset`: the daily shares of each asset entered by hand (13.12 item 1) | not built: P08 | the purchase price, written off straight-line over its months |
+| **AI tokens** | the paid items' daily shares, source `ai_paid` (spec 143 4.1, `store/cost_ai_paid.go`); later the metered API turns, `usage_events` x `unit_cost_micros` (spec 121 section 7) | the same month read | **what was paid** (subscriptions and top-ups, `fleet_token_paid`), never the list value. The list value (the `model_prices` cost of the `fleet_tokens` lines, which carry units and no money amount) stays "list value (not paid)", shown beside, never added (Q-4 A, spec 143 3.1 rule 1) |
 | **Human** | approved time x each person's own price in force on the day (spec 107 21.4 step 5, 21.5) | not built: spec 107 rows T071..T077 | the member's own hourly price (`member_hourly_prices`). This view sums approved entries per day; it does not need the per-commit ledger |
 
 Context relayed by the dispatcher (c-002, 2026-10-29), not re-measured by
@@ -448,30 +457,35 @@ A part that is not known is never summed as 0. Each shows one of:
   and tokens still show as counts. The money leaves them out and says how
   much is left out ("3:15 h unpriced").
 - **"not tracked"**: a part with no source at all. Human reads "not tracked
-  yet" until 107 T071..T073 land. Machines outside GCP stay "not tracked"
-  (Q-7).
+  yet" until 107 T071..T073 land. Machines outside GCP are not read
+  automatically (Q-7 B); one entered by hand counts in Owned hardware
+  (13.12), and the page says "entered by hand".
 
 The total is labelled **"Total, priced"**, and its row says "partial" while
 any part is incomplete. The shares are of the priced total.
 
 ### 13.6 Who may see the money
 
-- **Cloud and AI tokens**: `costs.read`, scoped as in 5.1 (Q-1 A). The
+- **Cloud, owned hardware and AI tokens**: `costs.read`, scoped as in 5.1
+  (Q-1 A); owned hardware is an estate part, operator workspace only. The
   operator workspace sees the estate; any other workspace sees its own rows
   and its AI share (spec 143 3.3.1).
 - **Human money**: only a holder of `hours.rates` (the time-accountant role,
   107 FR-20) sees the Human amount. An operator admin without it sees the
-  human **hours** and "money: time-accountant only" (107 Q27 A). For that
-  viewer the total and the shares cover Cloud + AI tokens only, labelled so:
-  a total that included the human money would reveal it by subtraction.
+  human **hours** and "money: time-accountant only". This is decided by
+  107 Q27 A (msg `ce14ad70`, 107 21.6), so it is not asked again. For that
+  viewer the total and the shares cover Cloud + owned hardware + AI tokens
+  only, labelled so: a total that included the human money would reveal it
+  by subtraction.
 - **Never per person**: the Human part is one sum per day; no row names a
   member (107 21.7). Each member sees only their own time (107 Q26 A).
 
 ### 13.7 What "project" means
 
 - **Now: this fleet's project, the spool**, read in the operator workspace.
-  Cloud = every `csi-spl-*` GCP project (Q-2); AI tokens = the fleet's paid
-  items (all boxes); Human = approved hours booked in the operator workspace.
+  Cloud = every `csi-spl-*` GCP project (Q-2); owned hardware = the assets
+  entered in the operator workspace; AI tokens = the fleet's paid items (all
+  boxes); Human = approved hours booked in the operator workspace.
 - **Later, per workspace**: a customer workspace's project cost would be its
   AI share (143 3.3.1) plus its own members' human cost. It has no cloud part
   of its own until a per-workspace cloud split exists (none is planned).
@@ -480,19 +494,23 @@ any part is incomplete. The shares are of the priced total.
 ### 13.8 Planned build rows (rounds-rulebook format, at most 10)
 
 Status of every row: **Planned**. Each row is one lane, aiming at one push.
-Files are disjoint per batch (R1), with a cross-vendor reviewer per row (R7).
-Batch 2 waits for the three-sections build (ask `156c8939`) and for 107
-T071..T072, and edits only the lines it adds.
+Each row names its files; no file is in two rows of one batch (rounds-rulebook
+2.1 R1), and a row that changes an earlier row's file sits in a later batch.
+A cross-vendor reviewer per row (R7). Waits: P02 waits for 107 T071..T072;
+P05 waits for the three-sections build (ask `156c8939`, it owns `costs.vue`).
+Rows P08..P09 are in 13.12 item 4; P10 (v1.2) is folded into P05 (v1.3).
+Paths: `hub/`, `store/` under `csi-spl-api/src/go/spool-hub-api/internal/`;
+`pages/`, `components/` under `csi-spl-wui/src/`; `tests/` under `csi-spl-wui/`.
 
 | # | slug | what | target & proof | test (red control) | vendor | batch |
 |---|---|---|---|---|---|---|
-| P01 | `feat(api, project-cost-read)` | `GET /v1/tenant/costs/project?month=` (or `year=`), `hub/cost_project.go` + `store/cost_project.go`: the three parts, each with amount, share and completeness, over the month read (5.2) | the parts sum to `total.priced`; an unpriced part is `null`, never 0; Human is `not_tracked` until P02 | `TestCostProjectParts` (red: a part with no rate summed as 0 changes the total) | claude | 1 |
-| P02 | `feat(api, project-cost-human)` | the human day sum for P01: approved minutes x the price in force per day, per currency, no member column | reads 107's tables once T071..T072 land | `TestCostProjectHumanSum` (red: pricing at today's price instead of the day's changes the sum) | claude | 2 |
-| P03 | `feat(api, project-cost-mask)` | the human money mask: without `hours.rates` the Human amount is `null` and `total.priced` covers Cloud + AI only, flagged | an operator admin without `hours.rates` gets hours, no money, and no total that holds it | `TestCostProjectHumanMask` (red: removing the mask lets total minus parts reveal the human money) | claude | 2 |
-| P04 | `test(api, project-cost-rls)` | tenant isolation and estate scope of P01 on Postgres | workspace B reads 0 of A's parts; a non-operator reads no estate part | `TestCostProjectRLS` (red: the policy dropped reads A's rows) | claude | 2 |
-| P05 | `feat(wui, project-cost-page)` | the page `/reporting/costs/project`, first in the Costs bar: table, shares, completeness words, links to the sections and pages | drawn at 1400 and 390 px, no sideways scroll | `tests/e2e/reporting-costs-project.test.mjs` (red: a `null` part drawn as 0.00 fails) | claude | 3 |
-| P06 | `feat(wui, project-cost-year)` | the year-to-date pick and the month bars split in three parts (inline SVG) | the bars sum to the year total; the route chunk stays under its ceiling | unit `cost-project.test.mjs` (red: a static import of the bars into the shell fails the 155 KB initial-size check) | claude | 3 |
-| P07 | `docs(doc, project-cost-help)` | the help page for the view, every locale (agy has the last word on languages) | the help-coverage gate is green | the help-coverage test (red: the page without its md fails) | agy | 3 |
+| P01 | `feat(api, project-cost-read)` | `GET /v1/tenant/costs/project?month=` (or `year=`), new `hub/cost_project.go` + `store/cost_project.go` + `store/cost_project_test.go`: the four parts (Cloud, Owned hardware from source `hand_asset`, AI tokens, Human), each with amount, share and completeness, over the month read (5.2) | the parts sum to `total.priced`; an unpriced part is `null`, never 0; Human is `not_tracked` until P02 | `TestCostProjectParts` (red: a part with no rate summed as 0 changes the total; a `hand_asset` line left out changes the total) | claude | 1 |
+| P02 | `feat(api, project-cost-human)` | the human day sum for P01, new `store/cost_project_human.go` + `store/cost_project_human_test.go`, one call added in `store/cost_project.go`: approved minutes x the price in force per day, per currency, no member column | reads 107's tables once T071..T072 land | `TestCostProjectHumanSum` (red: pricing at today's price instead of the day's changes the sum) | claude | 2 |
+| P04 | `test(api, project-cost-rls)` | tenant isolation and estate scope of P01 on Postgres, new `store/cost_project_rls_test.go` only | workspace B reads 0 of A's parts; a non-operator reads no estate part (no cloud, no owned hardware) | `TestCostProjectRLS` (red: the policy dropped reads A's rows) | claude | 2 |
+| P03 | `feat(api, project-cost-mask)` | the human money mask in `hub/cost_project.go` + new `hub/cost_project_mask_test.go`: without `hours.rates` the Human amount is `null` and `total.priced` covers Cloud + owned hardware + AI only, flagged | an operator admin without `hours.rates` gets hours, no money, and no total that holds it | `TestCostProjectHumanMask` (red: removing the mask lets total minus parts reveal the human money) | claude | 3 |
+| P05 | `feat(wui, project-cost-page)` | new page `pages/reporting/costs/project.vue`, its entry first in the Costs bar in `pages/reporting/costs.vue` (Q-9), labels in the locale catalogue (agy reviews the locale text last): the two first figures (month so far, year to date, 13.12 item 2), the table, shares, completeness words, links to the sections and pages | drawn at 1400 and 390 px, no sideways scroll; both first figures equal the sums of their parts | new `tests/e2e/reporting-costs-project.test.mjs` (red: a `null` part drawn as 0.00 fails; the year total without the closed months fails) | claude | 3 |
+| P06 | `feat(wui, project-cost-year)` | the year-to-date pick and the month bars split in four parts, new `components/reporting/CostProjectBars.vue` (inline SVG, lazy) + `tests/unit/cost-project.test.mjs`, mounted in `pages/reporting/costs/project.vue` | the bars sum to the year total; the route chunk stays under its ceiling | `tests/unit/cost-project.test.mjs` (red: a static import of the bars into the shell fails the 155 KB initial-size check) | claude | 4 |
+| P07 | `docs(doc, project-cost-help)` | a "The project's cost" section in `csi-spl-doc/doc/help/reporting.md` and its served copy `csi-spl-wui/src/public/help-md/reporting.md` (help is one English page; the page labels' locales are P05's) | the help copy matches its source | `tests/unit/help-sync.test.mjs` (red: the source edited without refreshing the served copy fails) | agy | 4 |
 
 ### 13.9 Red-control cases
 
@@ -504,7 +522,8 @@ T071..T072, and edits only the lines it adds.
 | the list value of subscription tokens | shown beside, not in the AI amount | the AI amount jumps to the list value |
 | an operator admin without `hours.rates` | hours only, total over Cloud + AI, labelled | total minus parts gives the human money |
 | human not built yet | "not tracked yet" | a 0.00 row, and the other parts read as a complete 100 % |
-| a non-operator workspace | its own parts, no estate cloud | the estate cloud appears |
+| a non-operator workspace | its own parts, no estate cloud, no owned hardware | the estate cloud appears |
+| an owned machine entered by hand | its monthly share in the month and year totals, in Owned hardware | left out of the total, or its full price in the purchase month |
 
 ### 13.10 Owner questions (only what the words leave open)
 
@@ -512,15 +531,15 @@ T071..T072, and edits only the lines it adds.
 Q-8 Should a customer workspace later get its own project cost?
 (A) Yes: its AI share + its own people, no cloud part (recommended)
 (B) No: only the spool's own estate
-Q-9 Where does the project-cost view live?
-(A) The first page of Reporting -> Costs, before Spend (recommended)
-(B) A card on top of Spend
-Q-10 What does an operator admin without the time-accountant role see?
-(A) Hours only, the total over cloud + AI only, labelled (recommended: 107 Q27 A; a full total would reveal the human money)
-(B) The full total, the human part hidden
+Q-9 Where does the project-cost view live? Spec 143 3.2 has four Costs pages, Spend first.
+(A) A fifth Costs page, first and the default (recommended)
+(B) A card on top of Spend, 143 3.2 unchanged
 ```
 
-### 13.12 Owned hardware, recurring hand costs, monthly and yearly first (v1.2)
+Q-10 of v1.1 is withdrawn: what an operator admin without `hours.rates`
+sees is decided by spec 107 Q27 A (msg `ce14ad70`), 13.6.
+
+### 13.12 Owned hardware, monthly and yearly first (v1.2, narrowed in v1.3)
 
 The owner (HUM-10, t1 `e2c0e6b4`, relayed verbatim by the dispatcher; the
 box name is replaced by `<box>`, public repo):
@@ -530,12 +549,16 @@ box name is replaced by `<box>`, public repo):
 
 This narrows Q-7 (B, "not tracked"): a machine outside GCP is still not
 READ automatically, but its cost can now be **entered by hand** as owned
-hardware. It is a new source behind the 4.6 factory (`hand_asset`), so the
-rollup, the table and the page do not change for it.
+hardware. It is a new source behind the 4.6 factory (`hand_asset`): the
+daily rollup and Spend read it like any other source, and the project-cost
+read (P01) counts it as the fourth part of 13.2, Owned hardware, in the
+month and the year totals.
 
-**1. Two hand-entered cost kinds** (the 4.4 form, operator workspace, by a
-`costs.read` holder who may see money; stored as `cost_lines` with origin
-`hand`, an edit supersedes, never in place):
+**1. One hand-entered cost kind, owned hardware** (the 4.4 form, operator
+workspace, by a `costs.read` holder who may see money; stored as
+`cost_lines` with origin `hand`, an edit supersedes, never in place). Only
+this kind: the owner asked for owned hardware (msg `b84a7d41`), and any
+other hand-entered kind waits for his word.
 
 - **Owned hardware (an asset)**: name, purchase price + currency, purchase
   date, write-off period in months. Straight line: the monthly share =
@@ -545,13 +568,9 @@ rollup, the table and the page do not change for it.
   is pro-rated to days like a subscription (4.5), so "so far" stays honest.
   An asset bought before the first cost month carries its remaining months
   only (bought 2025-10, 24 months: 2026-10 .. 2027-09 remain).
-- **Recurring hand cost**: name, amount + currency, every month or every
-  year, from, until (open). Domains, subscriptions with no reader, a line.
-  A yearly amount is spread over its 12 months.
-
-Both convert per day at the existing fx (13.4) and appear in the Cloud
-part's neighbour **"Infrastructure, entered by hand"** (a fourth part of
-13.2, marked "entered by hand"), never inside Cloud.
+Its shares convert per day at the existing fx (13.4) and appear as the
+part **"Owned hardware"** of 13.2, marked "entered by hand", never inside
+Cloud.
 
 **2. Monthly and yearly totals first.** The top view (13.2) opens on two
 figures: **this month so far** and **this year to date**, each split in the
@@ -570,10 +589,10 @@ holds the paid AI subscriptions). The page lists every kind with a mark:
 | AI tokens, counts | yes, units only | `fleet_tokens.<box>` (4.3), list value beside |
 | agent hours | yes, usage only | `agent_hours.<box>`, never money |
 | owned machines (laptops, boxes) | no | hand asset, 13.12 item 1 |
-| domains and DNS | no | recurring hand cost |
-| GitHub plan and CI minutes | no | recurring hand cost; a reader later |
-| other SaaS (mail, storage) | no | recurring hand cost |
-| power and network line of a box | no | recurring hand cost |
+| domains and DNS | no | not tracked; no plan in this spec |
+| GitHub plan and CI minutes | no | not tracked; no plan in this spec |
+| other SaaS (mail, storage) | no | not tracked; no plan in this spec |
+| power and network line of a box | no | not tracked; no plan in this spec |
 | human time | no | spec 107 T071..T077, then P02 |
 | metered API tokens | no | spec 121 `usage_events` |
 
@@ -581,9 +600,11 @@ holds the paid AI subscriptions). The page lists every kind with a mark:
 
 | # | slug | what | target & proof | test (red control) | vendor | batch |
 |---|---|---|---|---|---|---|
-| P08 | `feat(api, cost-hand-asset)` | the hand-entry API for both kinds (`POST /v1/operator/cost/hand`, supersede on edit) and the `hand_asset` source behind 4.6 writing the daily shares | 2,000 EUR / 24 months: 24 monthly shares summing to 2,000.00 exactly; month 25 is 0 | `TestCostHandAssetShares` (red: dropping the rounding rest makes the sum 1,999.92) | claude | 1 |
-| P09 | `feat(wui, cost-hand-form)` | the form on the Paid items page (asset or recurring), list with "counted from .. to .." | an asset entered shows its monthly share in the month and year totals | `tests/e2e/reporting-costs-hand.test.mjs` (red: a yearly cost counted in one month fails) | claude | 3 |
-| P10 | `feat(wui, project-cost-month-year)` | the two first figures, month so far and year to date, on P05's page | both equal the sums of their parts | joins P05's e2e (red: the year total without the closed months fails) | claude | 3 |
+| P08 | `feat(api, cost-hand-asset)` | the asset entry API (`POST /v1/operator/cost/hand`, supersede on edit), new `hub/cost_hand.go` + `store/cost_hand_asset.go` + `store/cost_hand_asset_test.go`, and the `hand_asset` source behind 4.6 writing the daily shares | 2,000 EUR / 24 months: 24 monthly shares summing to 2,000.00 exactly; month 25 is 0 | `TestCostHandAssetShares` (red: dropping the rounding rest makes the sum 1,999.92) | claude | 1 |
+| P09 | `feat(wui, cost-hand-form)` | the asset form and list ("counted from .. to ..") on the Paid items page, `pages/reporting/costs/paid.vue` | an asset entered lists its months and monthly share; P05 then shows it in the month and year totals | new `tests/e2e/reporting-costs-hand.test.mjs` (red: the full price counted in the purchase month fails) | claude | 2 |
+
+P10 (v1.2, the two first figures) is folded into P05 (v1.3): it shared P05's
+page and e2e file in the same batch (R1).
 
 ### 13.11 Change log
 
@@ -593,3 +614,11 @@ holds the paid AI subscriptions). The page lists every kind with a mark:
   `143a0a1c`: owned hardware written off straight-line, recurring hand
   costs, monthly and yearly totals first, the tracked/untracked list; rows
   P08..P10 Planned.
+- v1.3 (2026-10-29, SPL-4189): the cross-vendor R7 (FAIL, W1..W7) folded.
+  W1: owned hardware is the fourth part of 13.2 and of the P01 read, its
+  month and year totals. W2: the pie cite is 143 3.3, inline SVG as 3.4.
+  W3: spec 121 section 7. W4: Q-10 withdrawn (decided by 107 Q27 A); Q-9
+  says the view is a fifth page that changes 143 3.2. W5: P07 names
+  `help-sync.test.mjs` and the files. W6: every row names its files; P03 to
+  batch 3, P06 and P07 to batch 4, P09 to batch 2, P10 folded into P05.
+  W7: the recurring hand cost kind dropped; only owned hardware.

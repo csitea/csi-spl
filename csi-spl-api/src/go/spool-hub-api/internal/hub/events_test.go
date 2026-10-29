@@ -232,3 +232,69 @@ func TestEvents_RateLimited(t *testing.T) {
 		t.Fatalf("bob = %d", c)
 	}
 }
+
+// spec 162 C7/C9: delete selected deletes only the caller's named rows.
+func TestEvents_DeleteSelectedOwnOnly(t *testing.T) {
+	k := newKeysRig(t, 0)
+	k.ev(t, k.alice, "POST", "", batch("a1", "a2", "a3", "a4"))
+	k.ev(t, k.bob, "POST", "", batch("b1", "b2"))
+	ids := func(who string) []int64 {
+		_, b := k.ev(t, who, "GET", "", "")
+		var p eventsPage
+		if err := json.Unmarshal([]byte(b), &p); err != nil {
+			t.Fatal(err)
+		}
+		out := make([]int64, 0, len(p.Events))
+		for _, e := range p.Events {
+			out = append(out, e.ID)
+		}
+		return out
+	}
+	mine, bobs := ids(k.alice), ids(k.bob)
+	if len(mine) != 4 || len(bobs) != 2 {
+		t.Fatalf("seed: alice %v bob %v", mine, bobs)
+	}
+	body, _ := json.Marshal(map[string][]int64{"ids": append(append([]int64{}, mine[:3]...), bobs...)})
+	if c, b := k.ev(t, k.alice, "POST", "/delete", string(body)); c != http.StatusOK || !strings.Contains(b, `"deleted":3`) {
+		t.Fatalf("delete = %d %s, want 200 deleted 3", c, b)
+	}
+	if left := ids(k.alice); len(left) != 1 || left[0] != mine[3] {
+		t.Fatalf("alice left %v, want [%d]", left, mine[3])
+	}
+	if left := ids(k.bob); len(left) != 2 {
+		t.Fatalf("bob left %v: alice's delete took bob's rows", left)
+	}
+	// Bob naming alice's last id deletes nothing and is not refused.
+	if c, b := k.ev(t, k.bob, "POST", "/delete", fmt.Sprintf(`{"ids":[%d]}`, mine[3])); c != http.StatusOK || !strings.Contains(b, `"deleted":0`) {
+		t.Fatalf("bob on alice's id = %d %s, want 200 deleted 0", c, b)
+	}
+}
+
+func TestEvents_DeleteSelectedRefusals(t *testing.T) {
+	k := newKeysRig(t, 0)
+	many := make([]string, 201)
+	for i := range many {
+		many[i] = fmt.Sprint(i + 1)
+	}
+	cases := []struct {
+		name, who, body string
+		want            int
+	}{
+		{"signed out", "", `{"ids":[1]}`, http.StatusUnauthorized},
+		{"no ids", k.alice, `{"ids":[]}`, http.StatusBadRequest},
+		{"empty body", k.alice, `{}`, http.StatusBadRequest},
+		{"201 ids", k.alice, `{"ids":[` + strings.Join(many, ",") + `]}`, http.StatusBadRequest},
+		{"string id", k.alice, `{"ids":["x"]}`, http.StatusBadRequest},
+		{"fraction id", k.alice, `{"ids":[1.5]}`, http.StatusBadRequest},
+		{"zero id", k.alice, `{"ids":[0]}`, http.StatusBadRequest},
+		{"unknown field", k.alice, `{"ids":[1],"all":true}`, http.StatusBadRequest},
+	}
+	for _, c := range cases {
+		if got, b := k.ev(t, c.who, "POST", "/delete", c.body); got != c.want {
+			t.Errorf("%s: %d %s, want %d", c.name, got, b, c.want)
+		}
+	}
+	if c, b := k.ev(t, k.alice, "POST", "/delete", `{"ids":[`+strings.Join(many[:200], ",")+`]}`); c != http.StatusOK {
+		t.Fatalf("200 ids = %d %s, want 200", c, b)
+	}
+}

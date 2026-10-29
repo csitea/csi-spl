@@ -77,3 +77,24 @@ func (s *Memory) ClearHumanEvents(_ context.Context, humanID string) (int, error
 	s.events.rows = kept
 	return n, nil
 }
+
+// DeleteHumanEvents deletes the named rows of humanID only (spec 162 B2).
+func (s *Memory) DeleteHumanEvents(_ context.Context, humanID string, ids []int64) (int, error) {
+	want := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		want[id] = true
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	kept := s.events.rows[:0]
+	n := 0
+	for _, r := range s.events.rows {
+		if r.HumanID == humanID && want[r.ID] {
+			n++
+			continue
+		}
+		kept = append(kept, r)
+	}
+	s.events.rows = kept
+	return n, nil
+}

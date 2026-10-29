@@ -51,6 +51,9 @@ type HumanEvents interface {
 	HumanEventsPage(ctx context.Context, humanID string, before int64, limit int) ([]HumanEvent, error)
 	// ClearHumanEvents deletes every row of the human; returns how many.
 	ClearHumanEvents(ctx context.Context, humanID string) (int, error)
+	// DeleteHumanEvents deletes the human's rows whose id is in ids; an id of
+	// another human's row deletes nothing. Returns how many rows went.
+	DeleteHumanEvents(ctx context.Context, humanID string, ids []int64) (int, error)
 }
 
 // HumanEventErrorIDRe is the WUI's ERROR_ID_RE (errorJournal.mjs).

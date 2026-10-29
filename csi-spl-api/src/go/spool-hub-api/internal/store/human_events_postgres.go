@@ -81,3 +81,12 @@ func (s *Postgres) ClearHumanEvents(ctx context.Context, humanID string) (int, e
 	}
 	return int(tag.RowsAffected()), nil
 }
+
+// DeleteHumanEvents deletes the named rows of humanID only (spec 162 B2).
+func (s *Postgres) DeleteHumanEvents(ctx context.Context, humanID string, ids []int64) (int, error) {
+	tag, err := s.pool.Exec(ctx, `DELETE FROM human_events WHERE human_id = $1 AND event_id = ANY($2::bigint[])`, humanID, ids)
+	if err != nil {
+		return 0, err
+	}
+	return int(tag.RowsAffected()), nil
+}

@@ -34,6 +34,8 @@ const (
 	// eventsPageDefault / eventsPageMax bound GET ?limit.
 	eventsPageDefault = 50
 	eventsPageMax     = 200
+	// eventsDeleteMax is the most ids one delete may name (spec 162 3.2).
+	eventsDeleteMax = 200
 )
 
 type eventJSON struct {
@@ -84,6 +86,7 @@ func (s *Server) registerEvents(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+eventsPrefix, s.handleEventsList)
 	mux.HandleFunc("POST "+eventsPrefix, s.handleEventsAdd)
 	mux.HandleFunc("POST "+eventsPrefix+"/clear", s.handleEventsClear)
+	mux.HandleFunc("POST "+eventsPrefix+"/delete", s.handleEventsDelete)
 }
 
 // eventsHuman answers the caller's HUM-* and the event store, or writes the error.
@@ -229,4 +232,37 @@ func (s *Server) handleEventsClear(w http.ResponseWriter, r *http.Request) {
 	}
 	s.o.Log.Info().Str("human_id", hum).Int("rows", n).Msg("events.cleared")
 	writeJSON(w, http.StatusOK, map[string]int{"cleared": n})
+}
+
+// handleEventsDelete deletes the caller's rows named in ids (spec 162 B2). An
+// id of another human's row counts 0, never 403: the answer does not tell
+// whose ids exist.
+func (s *Server) handleEventsDelete(w http.ResponseWriter, r *http.Request) {
+	hum, es, ok := s.eventsHuman(w, r)
+	if !ok || !s.selfKeys(w, r, hum) || !s.eventsWrite(w, hum) {
+		return
+	}
+	var req struct {
+		IDs []int64 `json:"ids"`
+	}
+	if !readJSONStrict(w, r, &req, keysMaxBody, "invalid JSON body (expected {\"ids\":[<event id>, ...]})") {
+		return
+	}
+	if len(req.IDs) == 0 || len(req.IDs) > eventsDeleteMax {
+		writeErr(w, http.StatusBadRequest, "bad_request", "ids must hold 1.."+strconv.Itoa(eventsDeleteMax)+" event ids")
+		return
+	}
+	for _, id := range req.IDs {
+		if id < 1 {
+			writeErr(w, http.StatusBadRequest, "bad_request", "ids must be positive event ids")
+			return
+		}
+	}
+	n, err := es.DeleteHumanEvents(r.Context(), hum, req.IDs)
+	if err != nil {
+		writeErr(w, http.StatusServiceUnavailable, "unavailable", "event store")
+		return
+	}
+	s.o.Log.Info().Str("human_id", hum).Int("rows", n).Msg("events.deleted")
+	writeJSON(w, http.StatusOK, map[string]int{"deleted": n})
 }

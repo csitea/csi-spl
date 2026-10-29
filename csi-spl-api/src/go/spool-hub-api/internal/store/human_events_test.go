@@ -86,3 +86,46 @@ func TestHumanEvents(t *testing.T) {
 		})
 	}
 }
+
+// spec 162 C7/C8: DeleteHumanEvents deletes only the named rows of the
+// human, never another human's row named by id.
+func TestHumanEventsDeleteOwnOnly(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			now := time.Now().UTC().Truncate(time.Microsecond)
+			h := s.(Humans)
+			es := s.(HumanEvents)
+			a, err := h.Admit(ctx, Identity{Provider: "google", Subject: uid("evd-a-")}, "", AdmitPolicy{}, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			b, err := h.Admit(ctx, Identity{Provider: "google", Subject: uid("evd-b-")}, "", AdmitPolicy{}, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := es.AddHumanEvents(ctx, a, []HumanEvent{{Message: "a1"}, {Message: "a2"}, {Message: "a3"}, {Message: "a4"}}, now); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := es.AddHumanEvents(ctx, b, []HumanEvent{{Message: "b1"}, {Message: "b2"}}, now); err != nil {
+				t.Fatal(err)
+			}
+			mine, _ := es.HumanEventsPage(ctx, a, 0, 10)
+			bobs, _ := es.HumanEventsPage(ctx, b, 0, 10)
+			ids := []int64{mine[0].ID, mine[1].ID, mine[2].ID, bobs[0].ID, bobs[1].ID}
+			n, err := es.DeleteHumanEvents(ctx, a, ids)
+			if err != nil || n != 3 {
+				t.Fatalf("delete: %d %v, want 3", n, err)
+			}
+			if left, _ := es.HumanEventsPage(ctx, a, 0, 10); len(left) != 1 || left[0].ID != mine[3].ID {
+				t.Fatalf("alice left %+v, want only %d", left, mine[3].ID)
+			}
+			if left, _ := es.HumanEventsPage(ctx, b, 0, 10); len(left) != 2 {
+				t.Fatalf("bob left %d rows, want 2: the delete crossed humans", len(left))
+			}
+			if n, err := es.DeleteHumanEvents(ctx, a, []int64{mine[0].ID}); err != nil || n != 0 {
+				t.Fatalf("delete again: %d %v, want 0", n, err)
+			}
+		})
+	}
+}

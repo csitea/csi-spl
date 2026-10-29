@@ -1,6 +1,6 @@
 # Spec 166: the orchestrators' daily rhythm (day and night window)
 
-Version **v0.1** (2026-10-29), draft for the cross-vendor review.
+Version **v0.2** (2026-10-29), draft for the cross-vendor review. v0.2: review W1, the zone is `Europe/Berlin`, not `TZ=CET` (0.2, 4.1, B1).
 Placement slug `c002-s166-daily-rhythm-spec`. Epic **SPL-2129**. Issue
 **SPL-4217**. Class: feature. Kind: specs_and_docs (agy is the main vendor
 for specs; agy is out until 2026-11-03, so claude writes this draft).
@@ -29,9 +29,15 @@ choices are one poll, section 7.
 ### 0.2 The window, in every clock the fleet uses
 
 The rule is stated in Central European time: **night = 20:00 to 07:00
-CET/CEST**, day = the rest. CET/CEST is the tz database zone `CET` (EU summer
-time rules); the code reads the hour with `TZ=CET date +%H`, never a fixed
-UTC offset.
+CET/CEST**, day = the rest. CET/CEST is read from the tz database zone `Europe/Berlin` (CET in winter,
+CEST in summer); the code reads the hour with `TZ=Europe/Berlin date +%H`,
+never a fixed UTC offset and never `TZ=CET`: box 1 has no
+`/usr/share/zoneinfo/CET` (`ls` -> No such file or directory), so glibc reads
+`TZ=CET` as a POSIX zone name with no offset, which is UTC (`TZ=CET date +%H`
+-> `12` at 12:3xZ, 2026-10-29, n=1). Checked on box 1:
+`TZ=Europe/Berlin date -d 2026-01-15T19:00Z +%H:%M%Z` -> `20:00CET`, the same
+for `2026-07-15T18:00Z` -> `20:00CEST`; `2026-01-15T06:00Z` -> `07:00CET`,
+`2026-07-15T05:00Z` -> `07:00CEST`.
 
 | period | CET/CEST (the rule) | UTC | box-local `Europe/Helsinki` (EET/EEST) |
 |---|---|---|---|
@@ -246,7 +252,7 @@ in the first quarter hour of the window (19:15Z winter):
 ## 4. Behaviour in detail
 
 1. `do_spl_rhythm_phase` prints `day` or `night` and exits 0. It reads cnf
-   `env.rhythm` (`timezone: CET`, `night_start: 20`, `night_end: 7`) and
+   `env.rhythm` (`timezone: Europe/Berlin`, `night_start: 20`, `night_end: 7`) and
    honours `RHYTHM_NOW=<ISO-8601>` for tests. Every row below calls it; no
    job does its own hour arithmetic.
 2. The placer reads the phase each tick and takes its bands from
@@ -269,7 +275,7 @@ batch.
 
 | row | slug | files | test and red control |
 |---|---|---|---|
-| **B1** | `s166-b1-rhythm-phase` | `csi-spl-orc/src/bash/run/spl-rhythm-phase.func.sh` (new); `csi-spl-cnf/csi-spl/all.env.yaml` (`env.rhythm`); `csi-spl-cnf/src/python/conf-validator/EnvModels/all.py`; `csi-spl-orc/src/bash/tests/spl-rhythm-phase.tst.sh` (new); `csi-spl-doc/doc/md/fleet-rules-index.md` (new row) | `RHYTHM_NOW=2026-01-15T18:59Z` -> day, `2026-01-15T19:00Z` -> night, `2026-07-15T18:00Z` -> night, `2026-07-15T05:00Z` -> day, `2026-01-15T06:00Z` -> day. **Red:** a variant with a fixed `+1` offset fails both July cases. conf-validator refuses `night_start` outside 0..23. |
+| **B1** | `s166-b1-rhythm-phase` | `csi-spl-orc/src/bash/run/spl-rhythm-phase.func.sh` (new); `csi-spl-cnf/csi-spl/all.env.yaml` (`env.rhythm`); `csi-spl-cnf/src/python/conf-validator/EnvModels/all.py`; `csi-spl-orc/src/bash/tests/spl-rhythm-phase.tst.sh` (new); `csi-spl-doc/doc/md/fleet-rules-index.md` (new row) | `RHYTHM_NOW=2026-01-15T18:59Z` -> day, `2026-01-15T19:00Z` -> night, `2026-07-15T18:00Z` -> night, `2026-07-15T05:00Z` -> day, `2026-01-15T06:00Z` -> day. **Red:** a variant with a fixed `+1` offset fails both July cases. A variant reading `TZ=CET` fails the 19:00Z winter case on a box with no `zoneinfo/CET` (it reads 19, not 20). conf-validator refuses `night_start` outside 0..23. |
 | **B2** | `s166-b2-bands-by-phase` | `csi-spl-orc/src/bash/run/spl-spawn-share.func.sh`; `csi-spl-orc/src/bash/run/spl-spawn-place.func.sh` (band pick only); `csi-spl-orc/src/bash/tests/spl-spawn-share.tst.sh`; `csi-spl-orc/src/bash/tests/spl-spawn-place-argmax.tst.sh`; `fleet-rules-index.md` row at line 53 | at night with refactor 35% and one refactor and one feature row queued, the placer takes refactor; by day the same input takes feature; last 24 h share at 30% -> the night takes feature. **Red:** on today's tree the night case takes feature (one band set). |
 | **B3** | `s166-b3-supply-lead` | `spl-spawn-place.func.sh` (supply block only, after B2 lands); `csi-spl-orc/src/bash/tests/spl-spawn-place-supply.tst.sh` (new); `csi-spl-doc/doc/md/rounds-rulebook.md` (1.4: planner by day, rows by night) | 2 h before the night with 0 refactor rows queued the holder gets one blocker naming the night; at noon with the same queue only today's hourly one. **Red:** today no blocker is sent ahead of the night. |
 | **B4** | `s166-b4-fill-by-phase` | `csi-spl-orc/src/bash/run/spl-spawn-fill.func.sh`; `csi-spl-orc/src/bash/tests/spl-spawn-fill.tst.sh`; `fleet-rules-index.md` row at line 54 | at night with one `feature` and one `bug` issue todo and Q2 = A, only the bug is queued; by day both classes as today. **Red:** today the night tick queues the feature. |

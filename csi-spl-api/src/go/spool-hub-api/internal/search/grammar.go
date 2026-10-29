@@ -16,8 +16,9 @@ import (
 
 // Version is the grammar version published by the operators endpoint. 1.4
 // (SPL-3337): type:doc, the Qto documents. 1.5 (spec 160 3.6, SPL-3888):
-// type:file_line and in:file-streams, the box file stream lines.
-const Version = "1.5"
+// type:file_line and in:file-streams, the box file stream lines. 1.6 (spec
+// 154 row B5, SPL-4197): type:contact, the reader's own contacts.
+const Version = "1.6"
 
 // Limits (search-v1 §1, §2.1).
 const (
@@ -54,10 +55,16 @@ const (
 	// file streams, for its owner or admins only (the hub's gate). Opt-in:
 	// in:file-streams or type:file_line; a plain search never reads them.
 	TypeFileLine Type = "file_line"
+	// TypeContact (spec 154 2.3, row B5): the reader's own contacts, the
+	// person's one list (the same in every workspace), never another
+	// person's. Default (spec 2.3, seat note N8: a deliberate choice), so a
+	// plain search finds a contact with the members; the hub answers no
+	// section where the contacts kill switch is off (spec 2.9).
+	TypeContact Type = "contact"
 )
 
 // Types is every type in response order (search-v1 §4).
-var Types = []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeTenant, TypeEvent, TypeIssue, TypeDoc, TypeFileLine}
+var Types = []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeTenant, TypeEvent, TypeIssue, TypeDoc, TypeFileLine, TypeContact}
 
 // DefaultTypes are searched when no type: is given: content search (owner,
 // 2026-09-26: "the normal search should be by content, but there should be a
@@ -65,8 +72,9 @@ var Types = []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeUser, TypeCh
 // type: - they cost DB reads the default search's round-trip budget (spec
 // 027 P2, TestRoundTripsPerRequest) does not carry. doc is default: the
 // owner asked for a search that includes the Qto documents (SPL-3337), and
-// its section is one batch.
-var DefaultTypes = []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeDoc}
+// its section is one batch. contact is default (spec 154 2.3); it reads the
+// store only where the contacts kill switch is on (spec 2.9).
+var DefaultTypes = []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeUser, TypeChannel, TypeBox, TypeDoc, TypeContact}
 
 // Group is the plural response key of t.
 func (t Type) Group() string {
@@ -89,6 +97,7 @@ var typeAliases = map[string]Type{
 	"issue": TypeIssue, "issues": TypeIssue, "ticket": TypeIssue, "tickets": TypeIssue,
 	"doc": TypeDoc, "docs": TypeDoc, "document": TypeDoc, "documents": TypeDoc, "qto": TypeDoc,
 	"file_line": TypeFileLine, "file_lines": TypeFileLine,
+	"contact": TypeContact, "contacts": TypeContact,
 }
 
 // Aliases are the type: spellings of t other than its own name, sorted.
@@ -163,7 +172,7 @@ var (
 // Operators is the table; the parser, the applicability check and the
 // operators endpoint all read it.
 var Operators = []Operator{
-	{Name: OpType, Aliases: []string{"kind"}, Values: "type", Applies: Types, Example: "type:robot", Doc: "the sections to search: message, topic, file, robot, user, channel, box, tenant, event, issue, doc, file_line (comma list)"},
+	{Name: OpType, Aliases: []string{"kind"}, Values: "type", Applies: Types, Example: "type:robot", Doc: "the sections to search: message, topic, file, robot, user, channel, box, tenant, event, issue, doc, file_line, contact (comma list)"},
 	{Name: OpFrom, Values: "id", Applies: msgTopicFile, Example: "from:CLE-07", Doc: "sender: agent, agent@box, HUM-n or box"},
 	{Name: OpTo, Values: "id", Applies: msgTopicFile, Example: "to:HUM-3", Doc: "recipient: agent, agent@box, HUM-n or box"},
 	{Name: OpBox, Values: "box", Applies: []Type{TypeMessage, TypeTopic, TypeFile, TypeRobot, TypeBox, TypeFileLine}, Example: "box:box-a", Doc: "sent from or to this box; a robot on it; the box itself; a file stream line of this box"},

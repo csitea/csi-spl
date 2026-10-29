@@ -151,10 +151,11 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, t store.Te
 		writeErr(w, http.StatusBadRequest, "bad_cursor", "cursor is not from this API for this q and sort")
 		return
 	}
+	types, person := s.searchContactTypes(r, t.ID, reader, types) // spec 154 2.3, 2.9
 	limit := searchLimit(r, len(types))
 	ctx, cancel := context.WithTimeout(r.Context(), s.o.SearchBudget+time.Second)
 	defer cancel()
-	ctx = withSearchBoxes(ctx)
+	ctx = context.WithValue(withSearchBoxes(ctx), searchContactsKey{}, person)
 	mine, err := s.readerChannels(ctx, t.ID, reader) // rdb 0028, the read door
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "search unavailable")
@@ -299,6 +300,8 @@ func (s *Server) searchSection(ctx context.Context, t store.Tenant, q *search.Qu
 		return s.docSection(ctx, t.ID, q, sq, c, limit)
 	case search.TypeFileLine:
 		return s.fileLineSection(ctx, t.ID, q, sq, c, limit)
+	case search.TypeContact:
+		return s.contactSection(ctx, q, c, limit)
 	}
 	out := section{Results: []any{}}
 	rows, err := s.searchEntities(ctx, t.ID, q, c.T, sq)
@@ -456,6 +459,134 @@ func (s *Server) fileLineSection(ctx context.Context, tenant string, q *search.Q
 			"at": rfc(l.At), "text": text, "highlights": hs})
 	}
 	return out, nil
+}
+
+// searchContactsKey carries the person whose own contacts one search reads
+// (searchContactTypes); "" reads none.
+type searchContactsKey struct{}
+
+// searchContactTypes is types with the contact section kept only for a
+// reader whose own contacts it may show, and that person (spec 154 2.3, 2.6,
+// 2.9). The kill switch first, a cnf lookup with no query: outside
+// contacts.workspaces the answer has no contact section and the search's
+// round trips do not change. Then the contacts routes' person gate: a
+// signed-in human session, no box token, and realmRefuses (no act-as clone,
+// no agent seat). A gate that fails, or errs, drops the section (fail
+// closed); the search still answers.
+func (s *Server) searchContactTypes(r *http.Request, tenant, reader string, types []search.Type) ([]search.Type, string) {
+	if !slices.Contains(types, search.TypeContact) {
+		return types, ""
+	}
+	if person := s.searchContactsPerson(r, tenant, reader); person != "" {
+		return types, person
+	}
+	return slices.DeleteFunc(slices.Clone(types), func(t search.Type) bool { return t == search.TypeContact }), ""
+}
+
+// searchContactsPerson is the reader when they are a person who may read
+// their own contacts in this workspace, else "".
+func (s *Server) searchContactsPerson(r *http.Request, tenant, reader string) string {
+	if reader == "" || s.o.Auth == nil || !s.contactsListed(tenant) {
+		return ""
+	}
+	if _, ok := s.o.Store.(store.PersonalContacts); !ok || strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
+		return ""
+	}
+	sess, ok := s.o.Auth.SessionFromRequest(r)
+	if !ok || sess.HumanID != reader {
+		return ""
+	}
+	sess.Tenant = tenant
+	refuse, err := s.realmRefuses(r.Context(), sess)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Str("op", "search_contacts").Msg("contacts")
+	}
+	if err != nil || refuse {
+		return ""
+	}
+	return reader
+}
+
+// contactSection is the reader's own contacts (spec 154 2.3, row B5): B2's
+// ListContacts in its own inPerson transaction, never nested in a workspace
+// scope. The query's required free-text words narrow it in the store (each
+// a prefix of the first name, the last name or the email, or a digit run of
+// the phone); the whole query then filters the page, so OR and - work as in
+// every section. Paged by the store's own cursor, in created order. A hit
+// carries no member match (seat note N6): it opens the contact's card.
+func (s *Server) contactSection(ctx context.Context, q *search.Query, c searchCursor, limit int) (section, error) {
+	out := section{Results: []any{}}
+	person, _ := ctx.Value(searchContactsKey{}).(string)
+	pc, ok := s.o.Store.(store.PersonalContacts)
+	if person == "" || !ok {
+		return out, nil
+	}
+	page, err := pc.ListContacts(ctx, person, store.ContactQuery{Q: contactStoreWords(q.Root), After: c.ID, Limit: limit})
+	if errors.Is(err, store.ErrRealmBad) { // a cursor id the store did not mint
+		return out, nil
+	}
+	if err != nil {
+		return out, err
+	}
+	for _, ct := range page.Contacts {
+		name := contactLabel(ct)
+		e := search.Entity{Type: search.TypeContact, Name: name, Text: []string{
+			ct.FirstName, ct.LastName, strings.TrimSpace(ct.FirstName + " " + ct.LastName), ct.Email, ct.Phone,
+			phoneDigits(ct.Phone)}}
+		if !search.MatchEntity(q.Root, e) {
+			continue
+		}
+		out.Results = append(out.Results, map[string]any{"contact_id": ct.ID, "first_name": ct.FirstName,
+			"last_name": ct.LastName, "email": strPtr(ct.Email), "phone": strPtr(ct.Phone),
+			"google": ct.GoogleResource != "", "name": hl{name, q.HighlightSubstrings(name)}})
+	}
+	if page.Next != "" {
+		out.Next = searchCursor{T: c.T, H: c.H, ID: page.Next}.enc()
+	}
+	return out, nil
+}
+
+// contactLabel is what a contact hit shows: the name, else the email, else
+// the phone (a contact holds at least one of the four).
+func contactLabel(c store.Contact) string {
+	if n := strings.TrimSpace(c.FirstName + " " + c.LastName); n != "" {
+		return n
+	}
+	if c.Email != "" {
+		return c.Email
+	}
+	return c.Phone
+}
+
+// phoneDigits is a phone with every non-digit removed, so a query of digits
+// finds "+1 555 010 0000" (spec 154 2.3, C10b), as the store matches it.
+func phoneDigits(phone string) string {
+	return strings.Map(func(r rune) rune {
+		if r >= '0' && r <= '9' {
+			return r
+		}
+		return -1
+	}, phone)
+}
+
+// contactStoreWords is the free text every contact hit must hold: the words
+// of the positive text terms at the query's top level (a lone term, or the
+// terms of its top AND). Words under OR or - are left to the filter.
+func contactStoreWords(root *search.Node) string {
+	if root == nil {
+		return ""
+	}
+	terms := []*search.Node{root}
+	if root.Kind == search.And {
+		terms = root.Kids
+	}
+	var words []string
+	for _, n := range terms {
+		if n.Kind == search.Leaf && n.Term.Op == search.OpText {
+			words = append(words, strings.Fields(strings.TrimSuffix(n.Term.Value, "*"))...)
+		}
+	}
+	return strings.Join(words, " ")
 }
 
 // searchEntities filters the tenant's robots, users, channels or boxes (small

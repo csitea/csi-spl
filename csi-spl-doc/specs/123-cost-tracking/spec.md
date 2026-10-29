@@ -509,10 +509,15 @@ T071..T072, and edits only the lines it adds.
 ### 13.10 Owner questions (only what the words leave open)
 
 ```poll
-question: Spec 123 section 13, the project's cost: three open points
-- Q-8 Per workspace later: A) yes, a customer workspace gets its own project cost (its AI share + its own people), no cloud part (recommended) B) no, only the spool's own estate
-- Q-9 Where it lives: A) the first page of Reporting -> Costs, before Spend (recommended) B) a card on top of Spend
-- Q-10 An operator admin without the time-accountant role: A) hours only, the total over cloud + AI only, labelled (recommended: 107 Q27 A; a full total would reveal the human money) B) the full total, the human part hidden
+Q-8 Should a customer workspace later get its own project cost?
+(A) Yes: its AI share + its own people, no cloud part (recommended)
+(B) No: only the spool's own estate
+Q-9 Where does the project-cost view live?
+(A) The first page of Reporting -> Costs, before Spend (recommended)
+(B) A card on top of Spend
+Q-10 What does an operator admin without the time-accountant role see?
+(A) Hours only, the total over cloud + AI only, labelled (recommended: 107 Q27 A; a full total would reveal the human money)
+(B) The full total, the human part hidden
 ```
 
 ### 13.12 Owned hardware, recurring hand costs, monthly and yearly first (v1.2)

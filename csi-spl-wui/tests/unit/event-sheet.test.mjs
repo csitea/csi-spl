@@ -3,7 +3,8 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { isoDateTimeOffset, setTimeZoneSource } from '../../src/utils/date-iso.mjs'
+import { setTimeZoneSource } from '../../src/utils/date-iso.mjs'
+import { isoDateTimeOffset } from '../../src/utils/date-iso-offset.mjs'
 import {
   EVENT_COLUMNS,
   applyEventSheet,

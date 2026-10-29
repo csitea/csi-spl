@@ -123,24 +123,6 @@ export function isoDateTimeSec(value) {
   return `${f.y}-${pad(f.mo)}-${pad(f.da)} ${pad(f.h)}:${pad(f.mi)}:${pad(f.s)}`
 }
 
-/**
- * YYYY-MM-DD HH:MM:SS±HH:MM in the viewer's zone, or "" when value is not a
- * time. ISO 8601 with seconds and the zone's offset at that instant, so one
- * viewer's cells sort as text and none is ambiguous (spec 162 E7).
- * @param {unknown} value
- * @returns {string}
- */
-export function isoDateTimeOffset(value) {
-  const d = asDate(value)
-  if (!d) return ""
-  const f = fields(d)
-  const wall = Date.UTC(f.y, f.mo - 1, f.da, f.h, f.mi, f.s)
-  const mins = Math.round((wall - Math.floor(d.getTime() / 1000) * 1000) / 60000)
-  const abs = Math.abs(mins)
-  const off = `${mins < 0 ? "-" : "+"}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`
-  return `${f.y}-${pad(f.mo)}-${pad(f.da)} ${pad(f.h)}:${pad(f.mi)}:${pad(f.s)}${off}`
-}
-
 /** A typed day. "" when it is not a real YYYY-MM-DD calendar day. */
 export function parseIsoDate(value) {
   const m = String(value || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/)

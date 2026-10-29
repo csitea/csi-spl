@@ -4,7 +4,8 @@ import assert from "node:assert/strict"
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
-import { isoDate, isoDateTime, isoDateTimeOffset, isoDateTimeSec, parseIsoDate, setTimeZoneSource } from "../../src/utils/date-iso.mjs"
+import { isoDate, isoDateTime, isoDateTimeSec, parseIsoDate, setTimeZoneSource } from "../../src/utils/date-iso.mjs"
+import { isoDateTimeOffset } from "../../src/utils/date-iso-offset.mjs"
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "../../src")
 const BANNED = /toLocale(?:Date|Time)?String|Intl\.DateTimeFormat/

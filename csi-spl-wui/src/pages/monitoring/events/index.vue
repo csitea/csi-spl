@@ -203,7 +203,7 @@
 <script setup lang="ts">
 import { useSessionStore } from '~/stores/session'
 import { createEventsClient, eventsErrorKey } from '~/utils/event-log.mjs'
-import { isoDateTimeOffset } from '~/utils/date-iso.mjs'
+import { isoDateTimeOffset } from '~/utils/date-iso-offset.mjs'
 import { formatIsoTs } from '~/utils/channel-feed.mjs'
 import { scrollRowToTop } from '~/utils/pane-scroll.mjs'
 import { eventRowsOf } from '~/utils/event-rows.mjs'

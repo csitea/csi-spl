@@ -10273,6 +10273,115 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/fleet-desks": {
+      "get": {
+        "operationId": "getOperatorFleetDesks",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {items: [{box_id, added_by, added_at, live_pin}]}, every fleet desk box (spec 158 4.2.2, rdb 0230), box_id order; live_pin = the box still holds a live pin in the operator workspace"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "List the fleet desk boxes that may self-enrol",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/fleet-desks/{box}": {
+      "delete": {
+        "operationId": "deleteOperatorFleetDesksByBox",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "box",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content: unlisted, new enrolments stop (spec 158 4.2.5); one operator_audit row"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Unlist a fleet desk box (spec 158 row T6)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      },
+      "put": {
+        "operationId": "putOperatorFleetDesksByBox",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "box",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: already listed, the row kept"
+          },
+          "201": {
+            "description": "Created: {box_id, added_by, added_at, live_pin}; one operator_audit row"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "Conflict: no_live_pin, the box holds no live pin in the operator workspace (spec 158 4.2.2)"
+          }
+        },
+        "summary": "List a fleet desk box (spec 158 row T6)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/fleet-lanes": {
       "get": {
         "operationId": "getOperatorFleetLanes",

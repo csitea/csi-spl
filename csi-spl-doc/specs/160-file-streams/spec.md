@@ -1,6 +1,9 @@
 # 160 File streams: follow a box file live in Monitoring, and search it
 
-Version v0.3 (2026-10-26), reviewed: claude review PASS (c-317 on
+Version v0.4 (2026-10-29): adds 3.8, file globs typed in the web page by a
+workspace owner or admin (owner answer B, poll `376e9435`) and a deny class
+for security-related system files; not reviewed yet, rows B9..B12 planned
+(change log, section 10). v0.3 (2026-10-26) was reviewed: claude review PASS (c-317 on
 `2f1ee57b5`, section 8), after a FAIL on v0.1 (W1-W9) and on v0.2 (N1-N4).
 The owner's GO and answers (section 7.1): Q1 A, Q2 A, Q3 A, Q4 GO (HUM-10,
 msg 44ec2e44 on the v0.3 poll), then all A again on the v0.1 poll (msg
@@ -178,8 +181,11 @@ A new box action `do_spl_file_stream_follow`
   `[agent user]` of the owner's ask), never root and never the box owner's login.
   A file that user cannot read is not followed: "readable by the agent
   user" is proven by the open, not by a mode check.
-- **Which files.** Only the allow-list (3.2). The browser never sends a
-  path: it picks a stream the box announced (3.3).
+- **Which files.** Only the allow-list (3.2), and from v0.4 the globs a
+  workspace owner or admin typed in the web page, expanded by the box under
+  its allowed folders only (3.8). The browser never sends a path to open:
+  it picks a stream the box announced (3.3), and a glob it sends is text the
+  box checks itself (3.8.1).
 - **tail -F semantics** (the token burn rule, 2.2). One state row per file:
   `path, dev, inode, offset, seq`. Each tick:
   - first sight of a file (no state): start at its last `N` lines
@@ -282,6 +288,9 @@ Two lists; the deny list wins.
     `keys/`: section 7, Q1), all inboxes, keys and leases;
   - `/etc/shadow`, `/etc/gshadow`, `/etc/ssh/ssh_host_*_key`, `/proc/`,
     `/sys/`, `/dev/`;
+  - from v0.4, the security-related system files of 3.8.10 (`/etc/passwd`,
+    `/etc/group`, sudoers, pam, the login records, ...), reason
+    `security file`;
   - any path with a `keys/` segment, and any file named `id_*`, `*.key`,
     `*.pem`, `*.p12`, `*.pfx`, `.env` or `.env.*`, `*_history` or
     `.*history`.
@@ -395,7 +404,8 @@ visible and Follow is on (decision D3); no new WebSocket channel.
   and Back; only a box and stream the hub returned open, never a typed path
   (`fileStreamOpenOf`, no fallback to a first file). No stream: one line
   saying a box follows only the files on its allow-list (a text key, no
-  path). File globs as inputs are not in B8 (owner msg 075974c4).
+  path). File globs as inputs are not in B8 (owner msg 075974c4); the
+  owner's answer B (poll `376e9435`) adds them as 3.8, rows B9..B12.
 - **Live view.** A monospace list, newest at the bottom; each line shows
   its UTC time on hover; marker lines (rotated, truncated, missing,
   dropped N) are styled apart. Long lines wrap; no horizontal scroll. The
@@ -515,6 +525,278 @@ the new tier's `max_connections` is unmeasured (2.6), so B7 reads it on
 dev (`SHOW max_connections`) before any pool value is raised. Measured
 2026-10-28 (row B7): 100 on dev.
 
+### 3.8 File globs typed in the web page (owner answer B)
+
+Planned, not built yet (v0.4). The owner, HUM-10 in `c168784c`, poll
+`376e9435` "Where can a file glob be given?", msg `d925f9a3`, verbatim:
+"Answer: B — Also pasted in the web page by a workspace owner or admin: the
+box expands it, but only under allowed folders and never onto a denied
+file". The other options were A (only each box's allow-list, cnf) and C
+(both); B adds the web page to the cnf allow-list of 3.2, which stays.
+His follow-up (msg `7f673aef`), verbatim: "Now, some obvious files from a
+security point of view, such as etc/passwd, etc/groups, and others, which
+are pretty much related to security, should not, of course, be allowed by
+default." That is 3.8.10.
+
+Every `file:line` below was read on origin/master `bf6991ecf` by c-601,
+n = 1 read each.
+
+#### 3.8.1 What changes in 3.2, and why it stays safe
+
+3.1 and 3.2 said "the browser never sends a path". From v0.4 the browser
+sends a glob PATTERN, as text, to the hub, for one box of its workspace.
+What does not change:
+
+- The hub never opens, lists or resolves the pattern. It checks the syntax,
+  stores it, audits it, and hands it to that box when the box asks (3.8.5).
+- The folders a glob may reach are the box's own cnf (3.8.2), a reviewed git
+  commit, never a value the hub or the browser sends. The hub learns them
+  only from the box's announce, to show them and to refuse an obvious miss
+  early; that check is a convenience, not the gate.
+- The box treats every pattern as untrusted input: it re-checks the syntax,
+  resolves the directory through an fd, and puts every match through
+  `open_checked` (`orc/scripts/file-stream-follow.py:262-298`), the same
+  open-then-check of 3.2 that cnf entries pass. So every deny case of 3.2
+  (C8, C31-C36: a denied path, a symlink into one at start or after a
+  rotation, a newer glob match that is a symlink, a hardlink, a fifo or
+  device, another home) applies to each match unchanged, plus a folder check
+  on the opened fd's real path.
+- The hub never treats a box path as inside an allowed folder on its own
+  word: a glob's state (`following`, `partial`, `none`, `refused`) comes only
+  from the box's announce, after the box's own check.
+
+So the worst a stolen owner session or a compromised hub can do is have a
+box follow a regular, single-link, non-denied file inside a folder the box's
+cnf already allows, masked by `spool_redact` as every line is (3.1). That is
+the set of files a cnf commit could add, minus nothing and plus nothing.
+
+#### 3.8.2 Allowed folders: a new cnf key
+
+- `env.box.file_streams.folders` in `csi-spl-cnf/csi-spl/all.env.yaml`
+  (beside `allow`, `:1159-1174`): a list of directory paths, absolute or
+  `$HOME/`, no glob. A box narrows or replaces it with `FILE_STREAMS_FOLDERS`
+  in its `box.env`, as `FILE_STREAMS_HUBS` is read today
+  (`orc/run/spl-file-stream-follow.func.sh:89`); `box.env` is the box's own
+  file, never written from the hub.
+- Today's `allow` entries do NOT become folder roots. An entry names one file
+  that its cnf commit's review saw; making
+  `/var/csi/csi-spl/token-burn/cron.log` a folder root would open every
+  sibling under `/var/csi/csi-spl/` without that review (on one box,
+  `find /var/csi/csi-spl -maxdepth 3 -type f | wc -l` -> 241: the box crons'
+  `cron.log` and `cron.out` files, and their state tables and locks). A
+  folder root is a wider grant than a file, so it is a new key, and it ships
+  with what the owner picks in Q5.
+- The box refuses a folder entry, and announces it `refused`, when it is `/`
+  or has fewer than two segments (`/etc`, `/var`), holds a glob, or is
+  denied itself or lies under a denied root (`$HOME/.config`, `/proc/x`,
+  `/etc/ssh`, a spool root). A folder is resolved once per scan through an
+  `O_PATH | O_DIRECTORY` fd, so a folder that is a symlink counts as where it
+  points.
+
+#### 3.8.3 Who may type a glob, and the routes
+
+New routes in `hub/file_streams_view.go` (registered beside `:36-39`):
+
+- `POST /v1/file-streams/globs` `{box_id, key, glob}` -> 201 `{id, ...}`
+- `GET /v1/view/file-streams/globs` -> W's globs per box, each with the
+  box's last reported state, `matched`, `followed`, `over_cap`, `reason`
+- `DELETE /v1/file-streams/globs/{id}` -> 204
+- `GET /v1/view/file-streams/globs/audit?before=&limit=` -> the audit rows
+  (3.8.9)
+
+The gate is the read routes' one, `fileStreamsStaffRefusal`
+(`hub/file_streams_view.go:65-72`): a member session of W (an operator
+service account or a box session has none: 403), not a live act-as clone
+(403), and `TenantOwner || Has(rbac.Admin)` in W (403). Then:
+
+- `box_id` must be a box that announced in W (a `file_streams` row of W
+  names it); any other box, and another workspace's glob id on DELETE,
+  answer 404, never 403 (no existence leak, as 3.4).
+- A box under an owner lock (spec 025) takes a glob only from one of the
+  lock's owners (`l.IsOwner(hum)`, `hub/box_lock_view.go:140`), else 403
+  `box_locked`, so a lock is not bypassed through a stream.
+- The syntax (400 `bad_glob`): one line of 1..512 bytes, UTF-8, no control
+  character; absolute or `$HOME/`; `*` and `?` only, and only in the last
+  segment; no `[`, `{`, `**`, no `.` or `..` segment. `key` matches
+  `^[a-z0-9][a-z0-9-]{0,23}$` (24, so a match key fits 3.3's 32, 3.8.6) and
+  is unique among W's live globs on that box (409 `glob_key_taken`).
+- The glob's literal directory must be under one of the box's announced
+  folders, compared as strings after `$HOME/` is kept unexpanded on both
+  sides: else 400 `outside_folders`, the text naming the folders. Advisory
+  only (3.8.1): a glob that passes here can still be refused on the box.
+- At most `env.hub.file_streams.globs_per_box` (default 8, one per stream
+  slot) live globs a box: 409 `too_many_globs`.
+
+#### 3.8.4 Hub storage
+
+One migration (the next free number at build time, after `0239`), owner and
+runtime split, FORCE RLS with the NULLIF tenant policy and its test, as
+every tenant table (developer guide 2.6.4):
+
+- `file_stream_globs (tenant_id, id uuid, box_id, key, glob, created_by,
+  created_at, removed_at, box_state, box_reason, matched, followed,
+  over_cap, reported_at)`, unique `(tenant_id, box_id, key)` where
+  `removed_at IS NULL`.
+- `file_stream_glob_audit (tenant_id, id uuid, glob_id, box_id, action
+  add|remove|refused, key, glob, actor, reason, at)`, key `(tenant_id,
+  at)`.
+
+#### 3.8.5 How a glob reaches the box: the box pulls
+
+There is still no hub-to-box command channel (D1). The follower asks:
+
+- a new lane op `file_streams_globs` (`wire/file_streams.go:31-34` gains the
+  constant), payload `{}`, sent through the same verb as announce and push,
+  `spool file-streams push --json -` (`cli/file_streams.go:78-110` gains the
+  op). The ack is `{type: ack, globs: [{id, key, glob}]}`: the live globs of
+  the session's box in the session's workspace. The box and the workspace
+  are the session's, never the frame's (2.2; the strict decoder refuses a
+  field it does not know, C46).
+- At process start, then every `globs_s` (cnf `env.box.file_streams.globs_s`,
+  default 30). Each hub env has its own follower (3.1), so a prd glob is
+  followed and pushed only to prd.
+- Fail closed: a failed pull keeps the last list for at most
+  `globs_stale_s` (default 600); past it the box stops following every
+  web-glob stream, sends one `-- glob list stale --` marker on each, and
+  resumes on the next good pull. The list is not saved across a restart, so
+  a deleted glob never outlives the process. cnf `allow` streams are not
+  touched by any of this.
+- The announce frame (`wire/file_streams.go:64-68`, `:132`) gains
+  `folders: [{path, state, reason}]`, `globs: [{id, state, matched,
+  followed, over_cap, reason}]` and, on a stream entry, `glob_id`. The hub
+  stores the glob fields on the `file_stream_globs` row (3.8.4). Because the
+  decoder is strict, the hub row (B9) lands and deploys before the box row
+  (B10) sends them.
+
+#### 3.8.6 How the box expands a glob
+
+Every `glob_scan_s` (default 10 s, not every 2 s tick), per glob:
+
+1. Re-check the syntax of 3.8.3 (the box never trusts the hub's check):
+   else `refused` `bad glob`.
+2. Expand `$HOME/`; open the literal directory `O_PATH | O_DIRECTORY |
+   O_CLOEXEC`; its `/proc/self/fd/N` real path must be under a folder root's
+   real path (3.8.2) and pass `spl_file_stream_denied`
+   (`file-stream-follow.py:224-252`): else `refused` `outside allowed
+   folders` or `denied path`. A directory inside a folder that is a symlink
+   out of it is refused here (C48).
+3. List that fd's entries, at most `glob_scan_max` (default 10 000) read, so
+   a directory of a million files does not stall the tick (C52); match the
+   last segment with `fnmatch`, where `*` and `?` never match a leading `.`.
+   A name ending `.gz`, `.xz`, `.zst`, `.bz2`, `.lz4`, `.zip` or `.Z` is
+   skipped as `compressed` (a rotated `auth.log.2.gz` is binary, and denied
+   besides, 3.8.10).
+4. Each match is opened with `open_checked` on every open and reopen (3.2,
+   unchanged: O_PATH, the deny list on the fd's real path, `S_ISREG`,
+   `st_nlink == 1`, dev and inode compared on the read reopen), and its fd's
+   real path must also be under a folder root: a match that is a symlink out
+   of the folder is refused `outside allowed folders`.
+5. Its stream key is `<key>-<first 6 hex of sha256(real path)>`, stable
+   across scans and restarts; a key equal to a cnf `id` on that box is
+   refused `key taken` (the cnf wins).
+6. From there it is a stream like any other: 3.1's `tail -F` rules, the
+   masking and the PEM state, 3.7's limits.
+
+The glob's state: `following` (every match followed), `partial` (some over
+the cap or refused), `none` (no match yet; it is re-scanned), `refused` (the
+glob itself, with its reason).
+
+#### 3.8.7 Over the 8-stream cap
+
+The cap stays 8 streams a box, cnf and web globs together
+(`FILE_STREAMS_MAX`, `file-stream-follow.py:151-170`; the hub's
+`streams_per_box`, 3.7). Slots go, in order: the cnf entries, in cnf order;
+then the globs, oldest glob first; inside a glob, the newest match by mtime
+first. A followed match keeps its slot while it exists and its glob is live,
+so a busy directory does not swap streams every scan; a freed slot goes to
+the next match in that order. A match past the cap is neither followed nor
+announced as a stream (a glob over a large directory would flood the
+announce); it is counted in `over_cap`, and the page shows "5 of 12 matches
+followed (8 streams a box)". The hub still refuses an announced key past 8
+(`streams_per_box`), as today.
+
+#### 3.8.8 Removing a glob
+
+`DELETE /v1/file-streams/globs/{id}` (the gate of 3.8.3) sets `removed_at`
+and writes the audit row. The next pull omits it; within `globs_s` plus one
+tick the box stops following its matches, and the next announce no longer
+names their keys, which the hub turns `gone` (3.3); their lines stay until
+retention (3.7). A glob of a box that stopped announcing stays listed under
+that box until it is removed. Removing twice answers 404 and writes no audit
+row.
+
+#### 3.8.9 The audit
+
+One `file_stream_glob_audit` row per add, remove and hub refusal of an add
+(with its code: `bad_glob`, `outside_folders`, `too_many_globs`,
+`glob_key_taken`, `box_locked`), carrying the actor's human id; an act-as
+clone is refused before (3.8.3), so the actor is always the real person. A
+refusal by the box is not an audit row: it is the glob's and the stream's
+state and reason, as 3.2's refusals are. Rows are kept 365 days
+(`env.hub.file_streams.glob_audit_retention`, 8760h), pruned by B6's
+sweep. The page shows the newest 50 under the glob list.
+
+#### 3.8.10 Security-related system files, denied by default
+
+The owner's follow-up. Today `SYSTEM_FILES`
+(`file-stream-follow.py:105`) is `/etc/shadow` and `/etc/gshadow`, plus
+`/etc/ssh/ssh_host_*_key` (`:229`) and the roots `/proc`, `/sys`, `/dev`
+(`:104`). Measured on `bf6991ecf`:
+`python3 csi-spl-orc/src/bash/scripts/file-stream-follow.py --denied /etc/passwd`
+-> exit 1 (not denied), the same for `/etc/group`, `/etc/sudoers` and
+`/var/log/auth.log`; `/etc/shadow` -> `system secret`, exit 0. n = 1 each.
+
+A new class in `spl_file_stream_denied`, reason `security file`. Because
+every open runs through that function (3.2), it holds for cnf `allow`
+entries, web-glob matches and folder roots alike:
+
+| path | why |
+|---|---|
+| `/etc/passwd`, `/etc/group`, `/etc/passwd-`, `/etc/group-` | every account, uid, group membership, home and shell: the first map an intruder reads; the `-` files are their backups |
+| `/etc/shadow-`, `/etc/gshadow-` | the backups of the hash files already denied |
+| `/etc/subuid`, `/etc/subgid` | the user namespace maps, by account name |
+| `/etc/sudoers`, `/etc/sudoers.d/` | who may become root, and with which commands |
+| `/etc/pam.d/`, `/etc/security/` | the login and auth policy; `/etc/security/opasswd` holds old password hashes |
+| `/etc/ssh/` (the whole dir; today only the host keys) | `sshd_config` names who may log in and how |
+| `/etc/ssl/private/`, `/etc/letsencrypt/` | TLS private keys (a `*.pem` is denied by name already; the dirs are denied whatever the name) |
+| `/etc/krb5.keytab`, `/etc/sssd/`, `/var/lib/sss/` | domain credentials and their caches |
+| `/etc/wireguard/`, `/etc/openvpn/`, `/etc/NetworkManager/system-connections/` | VPN keys and Wi-Fi passwords |
+| `/etc/environment`, `/etc/cron.d/`, `/var/spool/cron/` | system env and crontabs, which often carry a token in an env line |
+| under `/var/log/`: `auth.log*`, `secure*`, `btmp*`, `wtmp*`, `lastlog*`, `faillog*`, `audit/` | who logged in, from where, and failed logins, where a password typed at the user prompt is logged as the user name |
+| `/var/log/journal/`, `/var/log/private/` | the binary journal (it holds the auth messages too) and the logs of services that run as a dynamic user |
+
+- Exceptions only in code, each with its reason; v0.4 names none (as the
+  dot-entry rule of 3.2). Whether a cnf key may ever lift one is Q7.
+- The class is a list of paths, and a list catches only what it names: a
+  copy of `/etc/passwd` written into an allowed folder is a new file, and
+  this class does not see it (`spool_redact` masks secrets in it, not
+  account names). It narrows what is followed; it proves nothing absent.
+- `token-burn-cron` (`/var/csi/csi-spl/token-burn/cron.log`), the one cnf
+  entry, is in none of these and stays followed (C53).
+
+#### 3.8.11 Owner questions
+
+Only what answer B leaves open. The dispatch holder posts them in
+`c168784c` as one form; the recommended answer is first.
+
+```poll
+Q5 Which folders may a typed glob reach, by default?
+(A) Only the fleet's own box log folder, /var/csi/csi-spl (recommended)
+(B) That folder and /var/log, minus the security files of 3.8.10
+(C) None: ship the list empty, folders are added by a cnf commit later
+Q6 One glob matches several files: what does the box follow?
+(A) Every match as its own stream, newest first, up to 8 streams a box (recommended)
+(B) Only the newest match, as a cnf entry's * does today
+Q7 May a security file of 3.8.10 ever be followed?
+(A) No: an exception only in code with its reason, none today (recommended)
+(B) Yes: a per-box cnf key may lift one named file
+```
+
+Not asked, decided here (a reviewer may challenge each): a glob is for one
+box, not for every box of the workspace (D6); any owner or admin of W may
+remove any glob of W, not only its author (D7); the box pulls its globs
+(3.8.5) instead of a new hub-to-box channel (D1 stands).
+
 ## 4. Cases
 
 Every case is planned; none is built. Each red control is what FAILS on
@@ -563,6 +845,22 @@ lands.
 | C38 | B2 | workspace A's boxes push 3x its byte cap while workspace B holds lines inside its own caps: B's line count and oldest line are unchanged; A never exceeds its cap by more than one push | v0.2's hub-wide prune across workspaces: B's oldest lines are deleted |
 | C39 | B8 | e2e: the page lists every box and, under it, each stream the hub returned as a row with its own `tail -f` button; no view is open before a click | the two selects of B5: no row, no button |
 | C40 | B8 | e2e: `tail -f` on one row shows only that stream's lines, in one view under its row, the open file in the URL; a reload keeps it open; `tail -f` on another row moves the one view there; Back opens the file before | one merged pane, or the view opened on the first file without a click: another stream's lines, or a view before the click |
+| C41 | B9 | a member of W: 403 on POST, GET and DELETE of globs; an owner and an admin: 201 / 200 / 204; an act-as clone of an owner, the operator service account and a box session: 403 | a membership-only gate: the member's POST is 201 |
+| C42 | B9 | W1's owner POSTs a glob for a box of W2 only, and DELETEs W2's glob id: 404 both, the body names nothing of W2 | `box_id` taken from the body unchecked: the glob is stored for W2's box |
+| C43 | B9 | each bad glob of 3.8.3 (relative, `**`, `*` in a directory, `[`, `{`, a `..` segment, a control character, 513 bytes) is 400 `bad_glob`; a bad or taken key 400 / 409; a 9th live glob on one box 409 `too_many_globs`; a glob outside the announced folders 400 `outside_folders` | accept any string: each is 201 |
+| C44 | B9 | a box under an owner lock: an admin who is not a lock owner gets 403 `box_locked`; a lock owner gets 201 | no lock check: the admin's glob is 201 |
+| C45 | B9 | an add, a remove and one refused add each write one audit row with the actor and the reason code; a second DELETE of the same glob is 404 and writes none | audit on success only: the refused add leaves no row |
+| C46 | B9 | the `file_streams_globs` pull of box B's session in W returns B's live globs in W only (not another box's, not a removed one); a frame naming a box or a tenant is `bad_file_stream` | the box taken from the frame: another box's globs come back |
+| C47 | B10 | folders `[<tmp>/a]`: a glob `<tmp>/a/*.log` follows its matches; a glob `<tmp>/b/*.log`, relayed by a stub hub that accepts anything, is refused `outside allowed folders` on the box | the box trusts the hub's check: `<tmp>/b/x.log` is followed |
+| C48 | B10 | inside folder `<tmp>/a`, a dir `out -> <tmp>/b` and a glob `<tmp>/a/out/*.log`: refused; a match `<tmp>/a/y.log -> <tmp>/b/y.log`: refused `outside allowed folders` | the folder check on the glob's text, not on the fd: both are followed |
+| C49 | B10 | C8, C31, C32, C33, C34 and C36 re-run with the entry made by a glob match, not a cnf entry: a match that is a symlink to a synthetic `$HOME/.ssh/id_x`, a hardlink to a key file, a fifo, a device, a `.env`, another home: each refused with 3.2's reason, nothing read | a match opened with a plain open, skipping `open_checked`: the key's lines reach the queue file |
+| C50 | B10 | 2 cnf entries and a glob matching 12 files: 6 matches followed, newest mtime first; the glob reports `matched 12, followed 6, over_cap 6`; touching an older unfollowed file does not take a followed one's slot | no cap: 12 announced, the hub refuses 6 as `streams_per_box` and the newest may be among them |
+| C51 | B10 | the glob removed on the stub hub: within `globs_s` + 1 tick its streams leave the announce; the stub hub down past `globs_stale_s`: each web-glob stream stops with one `glob list stale` marker while the cnf stream keeps pushing | keep the last list for good: a removed glob is followed while the hub is down |
+| C52 | B10 | a matched dir of 50 000 entries: one scan reads at most 10 000, no tick takes more than 1 s; `x.log.2.gz` under a `*.log*` glob is skipped `compressed` | `glob.glob` over the whole dir: the tick blocks, and the `.gz` is followed as text |
+| C53 | B11 | `--denied` prints `security file` for each path of 3.8.10's table (`/etc/passwd`, `/etc/group`, `/etc/sudoers.d/x`, `/etc/security/opasswd`, `/etc/ssh/sshd_config`, `/var/log/auth.log.1`, `/var/log/btmp`, `/var/spool/cron/crontabs/x`, ...); as cnf entries each is announced `refused` (`denied path`); `/var/log/syslog` and `/var/csi/csi-spl/token-burn/cron.log` are not denied | today's list: `--denied /etc/passwd` exits 1 (measured on `bf6991ecf`, 3.8.10), so `/etc/passwd` is followed |
+| C54 | B10 | folder entries `/`, `/etc`, `/etc/ssh`, `$HOME/.config` and `/proc/x` are each announced `refused`, and no glob under them is followed | no folder check: a glob `/etc/ssh/*` reaches `open_checked` and only the per-file list stands between it and the file |
+| C55 | B12 | e2e on the mock: an owner or admin sees "Add a file glob" under each box and no operator who is neither does (C18's rule); the form sends `{box_id, key, glob}` only; a hub 400 shows its code's text key; a glob row shows its state and "N of M matches followed"; Remove asks first, then calls DELETE | the form drawn on `who.operator`: the operator sees a form the hub answers 403 |
+| C56 | B12 | every new text key is in `en.json` and every locale (`i18n-parity`), and agy reviewed them before they ship (language rule) | a key in `en.json` only: `i18n-parity.test.mjs` fails |
 
 ## 5. Build rows
 
@@ -885,6 +1183,27 @@ Monitoring help page and B4 the syntax to the search help
   [data-test=fs-row][data-stream=cron] [data-test=fs-tail]`; the unit file
   cannot import `fileStreamGroupsOf`.
 
+### 5.9 Rows for answer B: web globs and the security files (planned)
+
+Planned, not built yet. The format of the rounds rulebook
+(`csi-spl-doc/doc/md/rounds-rulebook.md` 3.1). Every site was read on
+origin/master `bf6991ecf`. Vendor: the data rule (a stream carries box
+logs: claude, grok or mistral, never agy or qwen) and the owner's rule of
+2026-10-17 (no mistral coding or testing lane) leave claude as main and
+grok as backup for every row; a WUI row never goes to mistral either. Each
+row is one lane and one issue, after the owner's answers to Q5..Q7.
+
+| row | what | sites (sha `bf6991ecf`) | red control | measure after | vendor | kind | batch |
+|---|---|---|---|---|---|---|---|
+| B9 | hub: glob store and migration, the four routes and their gate, the `file_streams_globs` pull op, the announce's new fields, the audit | `hub/file_streams_view.go:36-39,65-72`; `hub/file_streams.go:54-70`; `wire/file_streams.go:31-34,64-68,132`; `store/file_streams.go:130-136`; `hub/box_lock_view.go:140`; new `rdb/<next>_file_stream_globs.sql` | C41: a membership-only gate gives the member 201; C42-C46 as in section 4 | `go test ./internal/hub/ ./internal/store/ ./internal/wire/ -run 'FileStreamGlob'`; `PRE_PUSH_TIER=full ./run -a do_check_pre_push` (a migration) | claude (backup grok) | complex_coding | 1 |
+| B11 | the `security file` deny class of 3.8.10 | `orc/scripts/file-stream-follow.py:92-105,224-252`; `orc/tests/spl-file-stream-follow.tst.sh` | C53: `--denied /etc/passwd` exits 1 on master today | `--denied <path>` prints `security file` for each row of 3.8.10's table; `bash orc/tests/spl-file-stream-follow.tst.sh` green | claude (backup grok) | complex_coding | 1 |
+| B10 | box: `folders` cnf, the pull, the expansion through fds, the cap order, the stale rule | `orc/scripts/file-stream-follow.py:140-191,262-298,565-579,626-653`; `orc/run/spl-file-stream-follow.func.sh:89,187-205`; `csi-spl-cnf/csi-spl/all.env.yaml:1159-1174`; `cli/file_streams.go:78-110` | C47: a box that trusts the hub's folder check follows `<tmp>/b/x.log`; C48-C52, C54 | `bash orc/tests/spl-file-stream-follow.tst.sh` (each case on the follower and on its planted defect); `ENV=dev ./run -a do_tpl_gen` + `git diff --exit-code` (cnf) | claude (backup grok) | complex_coding | 2 (after B9: the pull op and the strict announce; after B11: same `.py`) |
+| B12 | WUI: the glob form, list, state and Remove under each box; the audit list; the help page line | `wui/pages/monitoring/file-streams/index.vue:28-45`; `wui/utils/monitoring-file-streams.mjs:30-78`; `wui/utils/spool-client-lazy.mjs:1760-1779,2080`; `csi-spl-wui/i18n/locales/en.json:3307-3311` and every locale | C55: the form drawn on `who.operator`; C56: a key in `en.json` only | `pnpm run typecheck`; `BASE_URL=<mock bundle> pnpm run test:e2e`; agy review of the keys before land | claude (backup grok; never mistral, a WUI row) | complex_coding | 2 (after B9: its routes; disjoint from B10's files) |
+
+Docs: B9 adds the routes to `hub/openapi.json`; B12 adds the glob form to
+the Monitoring help page (`csi-spl-doc/doc/help/`); each row ticks its
+status line here.
+
 ## 6. Decisions (this draft; the reviewer may challenge each)
 
 - **D1 Always on, not on demand.** A box follows its allow-listed files
@@ -906,6 +1225,10 @@ Monitoring help page and B4 the syntax to the search help
   that name searchable.
 - **D5 The workspace is the box's pin.** No new mapping table; Q2 decides
   whether the owner wants more.
+- **D6 A web glob is for one box** (3.8.3), not for every box of the
+  workspace: each box has its own folders and its own 8 slots.
+- **D7 Any owner or admin of W may remove any glob of W** (3.8.8), not only
+  its author: the audit row keeps who did what.
 
 ## 7. Owner questions
 
@@ -1021,8 +1344,18 @@ v0.3, by c-319, folds c-317's N1-N4 on v0.2 (line numbers are v0.3's):
 
 ## 9. Not in scope
 
-- Following a file on a box the workspace does not own, or any path sent
-  from the browser.
+- Following a file on a box the workspace does not own, or a path sent from
+  the browser and opened as sent: a typed glob is text the box checks
+  under its own allowed folders (3.8).
 - Writing to a file, or running a command, from the tab.
 - Alerts on a pattern in a stream (a later spec, if the owner asks).
 - A workspace's cloud logs (Cloud Logging).
+
+## 10. Change log
+
+| version | date | by | change |
+|---|---|---|---|
+| v0.1 | 2026-10-26 | c-131 | first draft |
+| v0.2 | 2026-10-26 | c-319 | folds review W1-W9 (section 8) |
+| v0.3 | 2026-10-26 | c-319 | folds review N1-N4; reviewed PASS |
+| v0.4 | 2026-10-29 | c-601 | 3.8: web-typed file globs under allowed folders (owner answer B, poll `376e9435`, msg `d925f9a3`) and the `security file` deny class (owner msg `7f673aef`); 3.1, 3.2, 3.5 and section 9 say what changed; cases C41-C56; rows B9-B12 (5.9); D6, D7; owner questions Q5-Q7 (3.8.11) |

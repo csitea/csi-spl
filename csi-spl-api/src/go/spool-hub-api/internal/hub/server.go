@@ -502,6 +502,7 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeBoxStats(mux)      // rdb 0117: GET /v1/tenant/box-stats
 	s.routeBoxLocks(mux)      // spec 025 box owner lock 6.2: /v1/boxes/{box}/lock, box_lock_routes.go
 	s.routeCostRead(mux)      // spec 123 lane 4b: GET /v1/tenant/costs, cost_read.go
+	s.routeCostCloudDays(mux) // SPL-4187: GET /v1/tenant/costs/cloud, cost_cloud_days.go
 	s.routeFXRates(mux)       // SPL-2108, rdb 0200: the costs' second-currency rates, fx_rates.go
 	s.routeFleetTokens(mux)   // spec 140, rdb 0199: GET /v1/operator/fleet-tokens
 	s.routeFleetLanes(mux)    // spec 153 3.3, rdb 0221: GET /v1/operator/fleet-lanes, fleet_lanes_view.go

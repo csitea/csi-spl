@@ -9,9 +9,9 @@
  * - Presence: wui-live-ws §3 `presence` frames, last-writer-wins per peer,
  *   and the rows the people pane draws from them (`peopleRows`).
  */
-import { displayName } from './channel-feed.mjs'
+import { displayName } from './channel-feed-core.mjs'
 import { BROWSER_BOX } from './view-api.mjs'
-import { safeRedirect } from './auth-client.mjs'
+import { safeRedirect } from './auth-client-core.mjs'
 
 /**
  * The cursor of the newest stored row (view-v1 §4.4: cursors are opaque, the

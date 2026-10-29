@@ -1,6 +1,6 @@
 import { noteError } from '../composables/errorJournal.mjs'
 import { isAbortError } from '../composables/apiHealth.mjs'
-import { parseMention } from './channel-feed.mjs'
+import { parseMention } from './channel-feed-core.mjs'
 import { dmPointerRows } from './dm-pointer.mjs'
 import {
   channelReadQuery,

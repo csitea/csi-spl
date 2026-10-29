@@ -29,12 +29,12 @@ import {
   topicReplyIndex,
   topicRepliesIn,
   topLevel,
-} from '~/utils/channel-feed.mjs'
+} from '~/utils/channel-feed-core.mjs'
 import { loadCursors, readMap } from '~/utils/read-cursor.mjs'
 import { useNotificationStore } from '~/stores/notification'
 import { pendingRow, withoutMsg } from '~/utils/feed.mjs'
 import { applyEdit } from '~/utils/msg-apply.mjs'
-import { applyReactions as patchReactions } from '~/utils/emoji.mjs'
+import { applyReactions as patchReactions } from '~/utils/emoji-core.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import type { ChannelRow, FileRef, SendFrame, SpoolMessage } from '~/types/spool'
 

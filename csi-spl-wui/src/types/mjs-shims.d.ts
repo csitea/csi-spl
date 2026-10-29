@@ -420,6 +420,50 @@ declare module '~/utils/flow-badge.mjs' {
   export function mockFlowCounts(events: unknown[], seen?: string, opened?: Set<string>, cursors?: Record<string, { ts?: string }> | null): FlowCounts | null
 }
 
+declare module '~/utils/channel-feed-core.mjs' {
+  export type TopicReplyIndex = { rowOf: Map<unknown, unknown>, children: Map<unknown, number>, same: Map<unknown, unknown[]> }
+  export type TopicTotal = { count: number, last_ts: string }
+  export function topLevel<T extends { parent_task_id?: string | null, ts?: string }>(messages: T[]): T[]
+  export function parseMention(text: string): { to: string, toBox?: string, kind: string, body: string }
+  export function displayName(id: string, box?: string): string
+  export function personLabel(id: string, box: string | undefined, names: Record<string, string> | null | undefined): string
+  export function namedRuns(text: string, names: Record<string, string> | null | undefined): { text: string, title?: string }[]
+  export function namedText(text: string, names: Record<string, string> | null | undefined): string
+  export function peopleLabels(peers: readonly string[] | null | undefined, names: Record<string, string> | null | undefined): string
+  export function channelSlug(name: string): string
+  export function feedRow<T>(row: T): T
+  export function belongsTo(msg: unknown, where: { channel?: string | null, peer?: string | null }): boolean
+  export function mergeLive<T>(rows: T[], msg: unknown): T[]
+  export function followPlan(current: Iterable<string>, want: string[], keep?: string): { add: string[], drop: string[] }
+  export function channelFollow(current: string, view?: { channel?: string | null, peer?: string | null }): { sub: string, unsub: string, next: string }
+  export function dmFollow(current: string, view?: { peer?: string | null }): { sub: string, unsub: string, next: string }
+  export const CATCH_UP_RX_MAX: number
+  export function cursorTime(cursor: string): number
+  export function catchUpQuery(rows: unknown[], sync?: string): { since: string, sinceAt: string, rx: string[] } | null
+  export function mergeCatchUp<T>(rows: T[], incoming: T[], opts?: { delta?: boolean, goneTasks?: string[], goneMsgs?: string[], sinceAt?: string }): T[]
+  export function rowFromAck(ack: unknown, frame: unknown, who?: { from?: string, channel?: string | null }): Record<string, unknown>
+  export function rootsByTask<T extends { task_id?: string }>(messages: T[]): T[]
+  export function topicReplyIndex(messages: { task_id?: string, parent_task_id?: string | null }[]): TopicReplyIndex
+  export function topicRepliesIn(index: TopicReplyIndex, taskId: string, total?: TopicTotal | null): number
+  export function mergeTopicTotals(held: Record<string, TopicTotal> | null | undefined, incoming: Record<string, TopicTotal> | null | undefined): Record<string, TopicTotal>
+  export function dropFromTotals<T extends Record<string, TopicTotal>>(totals: T, msg: unknown): T
+  export function channelView<T>(messages: T[], opts?: { search?: string, visible?: number, lobby?: boolean }): { rows: T[], hasOlder: boolean }
+  export function channelActivity(row: unknown, liveAt?: Record<string, string>): string
+  export function orderChannels<T extends { channel_id?: string }>(rows: T[], liveAt?: Record<string, string>): T[]
+  export function dmActivity(topics: unknown[], self?: string): Record<string, string>
+  export function unreadFromDms(topics: unknown, cursors: Record<string, unknown>, self?: string): Record<string, number>
+  export function dmTotalsFromDms(topics: unknown, self?: string): Record<string, number>
+  export function dmReadParams(cursors: Record<string, unknown>): string[]
+  export function dmPeerOf(msg: unknown, self?: string): string
+  export function noteActivity(
+    maps: { channels?: Record<string, string>, peers?: Record<string, string> },
+    msg: unknown,
+    self?: string,
+  ): { channels: Record<string, string>, peers: Record<string, string> }
+  export function addChannelRow<T>(rows: T[], frame: unknown): T[]
+  export function applyChannelFrame<T>(rows: T[], frame: unknown): T[]
+}
+
 declare module '~/utils/channel-feed.mjs' {
   export function topLevel<T extends { parent_task_id?: string | null, ts?: string }>(messages: T[]): T[]
   export function topicOf<T extends { task_id?: string, parent_task_id?: string | null, ts?: string }>(
@@ -593,6 +637,43 @@ declare module '~/utils/auth-client.mjs' {
   export function authErrorKey(code: string): CopyKey | null
   export function retryAfterKey(seconds: number): CopyKey
   export function nativeErrorKey(out: Partial<NativeResult> | null): CopyKey | null
+  export function createAuthClient(opts?: { fetchFn?: typeof fetch, base?: string, locale?: string | (() => string), sendLocale?: boolean, mock?: boolean }): {
+    loadProviders(): Promise<{ status: 'ok' | 'unavailable', reason: string, providers: string[], native: boolean }>
+    register(b: { email: string, password: string, name?: string }): Promise<NativeResult>
+    verifyEmail(a: { token: string; password: string }): Promise<NativeResult>
+    login(b: { email: string, password: string, tenant?: string, redirect?: string }): Promise<NativeResult>
+    forgotPassword(email: string): Promise<NativeResult>
+    resetPassword(b: { token: string, password: string }): Promise<NativeResult>
+    changePassword(b: { current: string, next: string }): Promise<NativeResult>
+    savePreferences(b: { preferred_locale: string }): Promise<NativeResult>
+    saveDiagnostics(on: boolean): Promise<NativeResult>
+    saveDisplayName(name: string): Promise<NativeResult>
+    saveInterests(interests: string): Promise<NativeResult>
+    saveTheme(theme: string): Promise<NativeResult>
+    saveSubmitKey(key: string): Promise<NativeResult>
+    saveRailOrder(order: string[] | null): Promise<NativeResult>
+    saveViewPref(key: 'message_order' | 'composer_position' | 'issues_view' | 'close_buttons' | 'email_client' | 'phone_app', value: string | null): Promise<NativeResult>
+    saveIssueColumns(cols: Record<string, number> | null, opts?: { keepalive?: boolean }): Promise<NativeResult>
+    switchTenant(tenant: string): Promise<NativeResult>
+    providers(): Promise<string[]>
+    session(pending?: Promise<Response> | null): Promise<{ state: 'in' | 'out' | 'unknown', claims: Record<string, unknown> | null }>
+    logout(): Promise<boolean>
+  }
+}
+
+declare module '~/utils/auth-client-core.mjs' {
+  export interface NativeResult {
+    ok: boolean
+    status: number
+    data: Record<string, unknown> | null
+    error: string
+    detail: string
+    retryAfter: number
+  }
+  export const AUTH_PREFIX: string
+  export function safeRedirect(path: string): string
+  export function authOrigin(base: string): string
+  export function sessionProbeUrl(base: string): string
   export function createAuthClient(opts?: { fetchFn?: typeof fetch, base?: string, locale?: string | (() => string), sendLocale?: boolean, mock?: boolean }): {
     loadProviders(): Promise<{ status: 'ok' | 'unavailable', reason: string, providers: string[], native: boolean }>
     register(b: { email: string, password: string, name?: string }): Promise<NativeResult>
@@ -898,6 +979,11 @@ declare module '~/utils/msg-apply.mjs' {
 declare module '~/utils/bidi.mjs' {
   export const BIDI_CLASS: string
   export function stripBidiControls(s: unknown): string
+}
+
+declare module '~/utils/emoji-core.mjs' {
+  export function normalizeReactions(list: unknown): { emoji: string, actors: string[] }[]
+  export function applyReactions<T>(list: T[], update: unknown): T[]
 }
 
 declare module '~/utils/emoji.mjs' {

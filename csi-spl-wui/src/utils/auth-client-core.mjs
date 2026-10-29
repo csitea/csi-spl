@@ -1,0 +1,442 @@
+/**
+ * The EAGER core of utils/auth-client.mjs: the session probe and the auth
+ * client every signed-in page opens (useLive, useAuthClient, the early
+ * session script) and the same-site redirect guard. The initial JS chunk is
+ * at its 027 budget (ci_initial_gzip_kb 155), so the sign-in copy (error
+ * messages and keys, provider names, the start link, the login hint) lives in
+ * auth-client.mjs and loads with the sign-in pages. Lazy code and the tests
+ * import auth-client.mjs, which re-exports this file.
+ */
+
+export const AUTH_PREFIX = '/api/v1/auth'
+
+/**
+ * A same-site path to land on after sign-in; anything else → '/' (the hub enforces the same).
+ * Whitespace, a C0 control or DEL anywhere, or any backslash, is refused: the URL parser
+ * drops tab / CR / LF and reads a backslash as '/', so "/<TAB>/evil.example"
+ * is "//evil.example" to the browser, and NuxtLink (ufo hasProtocol) renders
+ * it as an external link; ufo reads any whitespace there the same
+ * way. The URL check is the backstop: whatever
+ * survives must still resolve on this origin.
+ */
+export function safeRedirect(path) {
+  const p = String(path || '')
+  if (!p.startsWith('/') || p.startsWith('//') || /[\s\u0000-\u001f\u007f\\]/.test(p)) return '/'
+  if (p.startsWith('/login')) return '/'
+  // spec 021: the locale-prefixed sign-in page (/fi/login, /he/login?x) is /login too
+  if (/^\/[a-z]{2}\/login(?:[/?#]|$)/i.test(p)) return '/'
+  try {
+    if (new URL(p, 'https://wui.invalid').origin !== 'https://wui.invalid') return '/'
+  } catch {
+    return '/'
+  }
+  return p
+}
+
+/**
+ * The auth base as an origin: '' (same-origin) or http(s)://host[:port] with
+ * no path. Anything else is refused as '' rather than sending the browser, or
+ * the session cookie, somewhere unintended.
+ */
+export function authOrigin(base) {
+  const b = String(base || '').trim().replace(/\/+$/, '')
+  return /^https?:\/\/[a-z0-9.-]+(:\d+)?$/i.test(b) ? b : ''
+}
+
+/**
+ * The §4 session probe's address. One source for the client below and the
+ * document-head script that starts the same probe at parse time (P3-03,
+ * utils/early-session-script.mjs): the app adopts the parked answer only when
+ * the two addresses agree.
+ */
+export function sessionProbeUrl(base) {
+  return `${authOrigin(base)}${AUTH_PREFIX}/session`
+}
+
+
+/** GET /providers that has not answered by then reads as 'unavailable' / 'network'. */
+export const PROVIDERS_TIMEOUT_MS = 8000
+
+/** in-flight GET /providers per fetch function and auth origin (loadProviders) */
+const providersInFlight = new WeakMap()
+
+/** the opt-in e2e mock (specs/054), one lazy chunk; live builds never load it */
+const mockModule = () => import('./act-as-mock.mjs')
+
+/**
+ * The credentialed fetch every auth call goes through.
+ * 'include': the cookie must ride a cross-origin call to the auth base; it is
+ * the same as 'same-origin' when the base is ''.
+ * X-Locale (spec 021, the donor's header): browser fetch cannot override
+ * Accept-Language, so the active UI locale rides here; the hub mails a
+ * person who has no stored preference in it. OFF unless `sendLocale`: the
+ * header is non-simple, so a cross-origin call preflights, and a hub whose
+ * CORS allow-list lacks X-Locale refuses EVERY auth call (2e2c601 broke
+ * sign-in on dev + prd exactly so). Turn it on only where the hub admits it.
+ * Even then it rides only a write: the hub reads it in the native
+ * POST handlers that mail, never on a GET, and on GET /session it made the
+ * probe every cold load waits for preflight first (one extra round trip,
+ * ~380 ms on dev).
+ */
+function authCall(fetchFn, root, locale, sendLocale) {
+  return (path, opts) => {
+    const write = String((opts && opts.method) || 'GET').toUpperCase() !== 'GET'
+    const loc = sendLocale && write ? String((typeof locale === 'function' ? locale() : locale) || '') : ''
+    return fetchFn(`${root}${AUTH_PREFIX}${path}`, {
+      credentials: 'include',
+      ...opts,
+      headers: { accept: 'application/json', ...(loc ? { 'x-locale': loc } : {}), ...(opts && opts.headers) },
+    })
+  }
+}
+
+/** GET /providers, shared while in flight and bounded by PROVIDERS_TIMEOUT_MS. */
+function providerLoader(fetchFn, root, call) {
+  /**
+   * The registry read WITH its outcome, so "auth is off in this env" (status
+   * 'ok', empty list) is told apart from "the hub could not be asked" (status
+   * 'unavailable': non-2xx, network, bad JSON). `reason` is the HTTP status or
+   * 'network' / 'bad_json'; '' when ok.
+   */
+  /* /login mounts SocialAuthButtons AND NativeAuthForm, and each asked the
+     registry on mount: two identical GETs per load (CLE-35076's probe,
+     CLE-35075). Callers in flight at the same moment share one read; each
+     gets its own copy, and a later mount reads afresh. */
+  function loadProviders() {
+    const key = typeof fetchFn === 'function' ? fetchFn : providersInFlight
+    let joins = providersInFlight.get(key)
+    if (!joins) providersInFlight.set(key, (joins = new Map()))
+    let p = joins.get(root)
+    if (!p) {
+      p = readProviders().finally(() => { joins.delete(root) })
+      joins.set(root, p)
+    }
+    return p.then((out) => ({ ...out, providers: [...out.providers] }))
+  }
+
+  /* Bounded by PROVIDERS_TIMEOUT_MS: a hung registry read would keep the
+     sign-in buttons from ever showing. Scoped to this GET only; the shared
+     call() and every write keep the fetch's own wait. A timeout reads as
+     'network'. */
+  async function readProviders() {
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null
+    const timer = ctl ? setTimeout(() => ctl.abort(), PROVIDERS_TIMEOUT_MS) : null
+    try {
+      return await askProviders(ctl?.signal)
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
+  }
+
+  async function askProviders(signal) {
+    let res
+    try {
+      res = await call('/providers', { signal })
+    } catch {
+      return { status: 'unavailable', reason: 'network', providers: [], native: false }
+    }
+    if (!res.ok) return { status: 'unavailable', reason: String(res.status), providers: [], native: false }
+    try {
+      const data = await res.json()
+      const list = Array.isArray(data && data.providers) ? data.providers.map(String) : []
+      // native-auth-v1: "native": true sits next to the social list only when on
+      return { status: 'ok', reason: '', providers: list, native: Boolean(data && data.native === true) }
+    } catch {
+      return { status: 'unavailable', reason: 'bad_json', providers: [], native: false }
+    }
+  }
+
+  return loadProviders
+}
+
+/** native-auth-v1 §2 JSON writes through `call`. */
+function authPost(call) {
+  /**
+   * native-auth-v1 §2: POST a JSON body. Resolves (never throws) to
+   * { ok, status, data, error, detail, retryAfter }: `error` is the envelope
+   * token, 'network' when the hub was not reached, 'unavailable' for a non-JSON
+   * failure; `retryAfter` is the 429 Retry-After in seconds (0 when absent).
+   * `extra` adds fetch options (keepalive, for a save sent while the page goes).
+   */
+  async function post(path, body, method = 'POST', extra = undefined) {
+    let res
+    try {
+      res = await call(path, {
+        ...extra,
+        method,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body || {}),
+      })
+    } catch {
+      return { ok: false, status: 0, data: null, error: 'network', detail: '', retryAfter: 0 }
+    }
+    let data = null
+    if (res.status !== 204) {
+      try { data = await res.json() } catch { data = null }
+    }
+    if (res.ok) return { ok: true, status: res.status, data, error: '', detail: '', retryAfter: 0 }
+    const ra = res.headers && typeof res.headers.get === 'function' ? Number(res.headers.get('retry-after')) : 0
+    return {
+      ok: false,
+      status: res.status,
+      data,
+      error: String((data && data.error) || (res.status === 429 ? 'rate_limited' : 'unavailable')),
+      detail: String((data && data.detail) || ''),
+      retryAfter: Number.isFinite(ra) && ra > 0 ? ra : 0,
+    }
+  }
+
+  return post
+}
+
+/**
+ * §4 signed-in probe: 200 → 'in', 401 → 'out', anything else (5xx, network,
+ * bad JSON) → 'unknown' — keep state, never treat as signed out.
+ * `pending` is the same GET already in flight (the head script's, P3-03):
+ * its answer is read instead; if it failed, the probe is sent again here.
+ * `mock` (specs/054 e2e) reads the mock's answer instead.
+ */
+async function probeSession(call, mock, pending) {
+  if (mock) {
+    // specs/054 e2e: the mock's answer lives in its lazy chunk (act-as-mock).
+    // Live never takes this.
+    return (await mockModule()).mockSessionAnswer()
+  }
+  let res
+  try {
+    const ask = () => call('/session', { cache: 'no-store' })
+    res = await (pending ? Promise.resolve(pending).catch(ask) : ask())
+  } catch {
+    return { state: 'unknown', claims: null }
+  }
+  if (res.status === 401) return { state: 'out', claims: null }
+  if (res.status !== 200) return { state: 'unknown', claims: null }
+  try {
+    return { state: 'in', claims: await res.json() }
+  } catch {
+    return { state: 'unknown', claims: null }
+  }
+}
+
+/**
+ * native-auth-v1 §2 sign-in and password calls, and the person's own
+ * settings (language, debug pane, name, interests, palette).
+ */
+function accountMethods(post) {
+  return {
+    /** §2 register; also "resend": the same email + password mails a fresh link. */
+    register({ email, password, name } = {}) {
+      const b = { email: String(email || ''), password: String(password || '') }
+      if (name) b.name = String(name)
+      return post('/register', b)
+    },
+    /** the password the link was issued for rides with the token. */
+    verifyEmail({ token, password } = {}) {
+      return post('/email/verify', { token: String(token || ''), password: String(password || '') })
+    },
+    /** 200 → `data` is the session claims plus the guarded `redirect`. */
+    login({ email, password, tenant, redirect } = {}) {
+      const b = { email: String(email || ''), password: String(password || ''), redirect: safeRedirect(redirect) }
+      const t = String(tenant || '')
+      if (/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(t)) b.tenant = t
+      return post('/login', b)
+    },
+    forgotPassword(email) {
+      return post('/password/forgot', { email: String(email || '') })
+    },
+    resetPassword({ token, password } = {}) {
+      return post('/password/reset', { token: String(token || ''), password: String(password || '') })
+    },
+    /** 204 clears the cookie: the caller signs in again with the new password. */
+    changePassword({ current, next } = {}) {
+      return post('/password/change', { current_password: String(current || ''), new_password: String(next || '') })
+    },
+    /**
+     * spec 021: store the signed-in human's preferred UI + mail language.
+     * 204/200 → ok; 400 = unsupported code; 401 = no session.
+     * Resolves (never throws), with post()'s { ok, status, data, error, ... }.
+     */
+    savePreferences({ preferred_locale } = {}) {
+      return post('/preferences', { preferred_locale: String(preferred_locale || '') }, 'PUT')
+    },
+    /**
+     * store the signed-in human's "Debug pane" checkbox. Sends
+     * ONLY that key (the language is left as it is) and only a real boolean.
+     * 200 → ok; 400 = not a boolean; 401 = no session; 409 = no human.
+     */
+    saveDiagnostics(on) {
+      return post('/preferences', { diagnostics_enabled: on === true }, 'PUT')
+    },
+    /**
+     * store the signed-in human's display name. Sends ONLY that
+     * key. 200 → `data.display_name` is the stored (trimmed) name; 400
+     * invalid_display_name; 401 = no session; 409 = no human.
+     * Resolves (never throws), with post()'s { ok, status, data, error, ... }.
+     */
+    saveDisplayName(name) {
+      return post('/preferences', { display_name: String(name ?? '') }, 'PUT')
+    },
+    /**
+     * CLE-77794: Settings → Profile "Interests" (humans.interests, rdb 0086),
+     * shown on the person's card in the People section. Sends ONLY that key:
+     * the free text, or null to clear it. 200 → `data.interests` is the stored
+     * value (null when cleared); 400 invalid_interests; 401; 409 = no human.
+     */
+    saveInterests(interests) {
+      const v = String(interests ?? '').trim()
+      return post('/preferences', { interests: v === '' ? null : v }, 'PUT')
+    },
+    /**
+     * keep the palette pick on the account (humans.preferred_theme,
+     * the field an operator sets with do_spl_human_theme). Sends ONLY that
+     * key. 200 → ok; 400 unsupported_theme; 401 = no session; 409 = no human.
+     */
+    saveTheme(theme) {
+      return post('/preferences', { preferred_theme: String(theme || '') }, 'PUT')
+    },
+  }
+}
+
+/**
+ * Settings -> Behaviour (submit key, rail order, view prefs) and the
+ * per-tenant workspace layout and switches (rdb 0076 / 0078).
+ */
+function layoutPreferenceMethods(post) {
+  return {
+    /**
+     * SPL-976: Settings -> Behaviour "Text fields" (humans.submit_key, the
+     * field do_spl_human_behaviour sets). Sends ONLY that key. 200 → ok;
+     * 400 unsupported_submit_key; 401 = no session; 409 = no human.
+     */
+    saveSubmitKey(key) {
+      return post('/preferences', { submit_key: String(key || '') }, 'PUT')
+    },
+    /**
+     * SPL-979: Settings -> Behaviour "Left panel order" (humans.rail_order).
+     * Sends ONLY that key: the six rail ids in order, or null for the
+     * default. 200 → ok; 400 unsupported_rail_order; 401; 409 = no human.
+     */
+    saveRailOrder(order) {
+      return post('/preferences', { rail_order: Array.isArray(order) ? order.map(String) : null }, 'PUT')
+    },
+    /**
+     * Topic c6994436: Settings -> Behaviour "Message order" / "Omnibox
+     * position" (humans.message_order / composer_position, rdb 0070). `key`
+     * is a ViewPrefKey (SPL-1609 adds email_client / phone_app); sends ONLY that key, null
+     * clears it. 200 → ok; 400 unsupported_<key>; 401; 409 = no human.
+     */
+    saveViewPref(key, value) {
+      return post('/preferences', { [String(key)]: value ? String(value) : null }, 'PUT')
+    },
+    /**
+     * SPL-1132: the Issues sheet's column widths (humans.issues_columns, rdb
+     * 0076). Sends ONLY that key: an object of column -> whole px, or null
+     * (an empty object too) for the automatic layout. 200 → ok; 400
+     * unsupported_issues_columns; 401; 409 = no human. `{ keepalive: true }`
+     * when the page is going (pagehide): the PUT must outlive the page.
+     */
+    saveIssueColumns(cols, opts = undefined) {
+      const obj = cols && typeof cols === 'object' && !Array.isArray(cols) && Object.keys(cols).length ? cols : null
+      return post('/preferences', { issues_columns: obj }, 'PUT', opts && opts.keepalive ? { keepalive: true } : undefined)
+    },
+    // SPL-1181: Issues list default sort, per tenant (rdb 0078); null clears.
+    // Resolves (never throws), with post()'s { ok, status, data, error, ... }.
+    saveIssuesSort(sort) {
+      const v = sort && sort.col && sort.dir ? { col: String(sort.col), dir: String(sort.dir) } : null
+      return post('/preferences', { issues_sort: v }, 'PUT')
+    },
+    // CLE-77908: the person's time zone in this workspace, per tenant (rdb 0078);
+    // null clears it (back to the browser's zone).
+    saveTimeZone(zone) {
+      const v = typeof zone === 'string' && zone.trim() ? zone.trim() : null
+      return post('/preferences', { time_zone: v }, 'PUT')
+    },
+    // HUM-10 ae2e5093: the message shortcuts switch, per tenant (rdb 0078);
+    // null clears it (back to the default, on).
+    saveKeyboardShortcuts(on) {
+      return post('/preferences', { keyboard_shortcuts: typeof on === 'boolean' ? on : null }, 'PUT')
+    },
+    // Spec 107 1.2: "Count my reading time", per tenant (rdb 0078); null
+    // clears it (back to the default, on).
+    saveHoursReading(on) {
+      return post('/preferences', { hours_reading: typeof on === 'boolean' ? on : null }, 'PUT')
+    },
+    // SPL-2113: the ticked thinking animations, per tenant (rdb 0078); null
+    // (or an empty list) clears it (back to the WUI's default set).
+    saveAwaitAnims(ids) {
+      const v = Array.isArray(ids) && ids.length ? ids.map(String) : null
+      return post('/preferences', { await_anims: v }, 'PUT')
+    },
+    // SPL-1182: the two divider widths, per tenant (rdb 0078); null clears.
+    savePaneSizes(sizes) {
+      const obj = sizes && typeof sizes === 'object' && !Array.isArray(sizes) && Object.keys(sizes).length ? sizes : null
+      return post('/preferences', { pane_sizes: obj }, 'PUT')
+    },
+  }
+}
+
+export function createAuthClient({ fetchFn = globalThis.fetch, base = '', locale = () => '', sendLocale = false, mock = false } = {}) {
+  const root = authOrigin(base)
+  const call = authCall(fetchFn, root, locale, sendLocale)
+  const loadProviders = providerLoader(fetchFn, root, call)
+  const post = authPost(call)
+
+  return {
+    loadProviders,
+    /** Enabled providers in cnf order; [] = auth off (or unreachable → also []). */
+    async providers() {
+      return (await loadProviders()).providers
+    },
+    /** §4 signed-in probe: 'in' / 'out' / 'unknown' (probeSession). */
+    session(pending) {
+      return probeSession(call, mock, pending)
+    },
+    ...accountMethods(post),
+    ...layoutPreferenceMethods(post),
+    /**
+     * specs/026 §6: make `tenant` the session's active tenant (the hub
+     * re-issues the cookie). 200 → `data` is the new session; 403
+     * not_member; 401 = no session.
+     */
+    switchTenant(tenant) {
+      return post('/tenant', { tenant: String(tenant || '') })
+    },
+    /**
+     * specs/054: start acting as a member. 200 → this browser's cookie is now
+     * the clone (data = { clone_hum, target, expires_at }); 403 forbidden /
+     * not_member (the ceiling); 401 = no session.
+     */
+    async actAsStart(humanId) {
+      const id = String(humanId || '')
+      if (mock) {
+        // OPT-IN e2e mock: record the act-as so me() reports it (the hub's
+        // cookie swap has no analogue with no hub). Live builds never take this.
+        const { mockActAsSet } = await mockModule()
+        mockActAsSet({ target_hum: id, expires_at: '' })
+        return { ok: true, status: 200, data: { clone_hum: 'HUM-clone', target: id }, error: '', detail: '', retryAfter: 0 }
+      }
+      return post('/act-as', { human_id: id })
+    },
+    /** specs/054: stop acting (sign-out of the clone). 204 → the cookie is cleared. */
+    async actAsExit() {
+      if (mock) {
+        const { mockActAsClear } = await mockModule()
+        mockActAsClear()
+        return true
+      }
+      const res = await call('/act-as/exit', { method: 'POST' })
+      return res.status === 204 || res.ok
+    },
+    async logout() {
+      if (mock) {
+        // clear the opt-in mock session + any act-as so a reload is signed out
+        const { mockSessionClear, mockActAsClear } = await mockModule()
+        mockSessionClear()
+        mockActAsClear()
+        return true
+      }
+      const res = await call('/logout', { method: 'POST' })
+      return res.status === 204 || res.ok
+    },
+  }
+}

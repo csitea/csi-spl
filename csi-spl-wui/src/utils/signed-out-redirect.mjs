@@ -5,7 +5,7 @@
  * still good. The mock tenant has no sign-in. Login, reset, verify and
  * checkout stay put so the redirect cannot loop.
  */
-import { safeRedirect } from './auth-client.mjs'
+import { safeRedirect } from './auth-client-core.mjs'
 import { isSignedOutVisitor } from './shell-bootstrap.mjs'
 
 /** Shipped UI locales (nuxt.config I18N_LOCALES). `dm` is a route, not one of these. */

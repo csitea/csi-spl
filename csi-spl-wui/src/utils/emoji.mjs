@@ -5,6 +5,10 @@
  * tests/unit/emoji.test.mjs fail when the two lists differ.
  */
 
+import { normalizeReactions } from './emoji-core.mjs'
+
+export { applyReactions, normalizeReactions } from './emoji-core.mjs'
+
 /**
  * Eight across, six full rows: 48 glyphs, each once (SPL-1002, owner: "the
  * angry emoji is displayed twice ... 2 empty emoji places"). 48 also divides
@@ -97,29 +101,6 @@ export function emojiName(emoji, t) {
 }
 
 /**
- * The wire shape: [{ emoji, actors: [id, ...] }], emoji order kept, empty
- * actors dropped. Anything else becomes [].
- */
-export function normalizeReactions(list) {
-  if (!Array.isArray(list)) return []
-  const out = []
-  for (const r of list) {
-    if (!r || typeof r.emoji !== 'string' || !r.emoji) continue
-    const actors = []
-    const seen = new Set()
-    for (const a of (Array.isArray(r.actors) ? r.actors : [])) {
-      const id = String(a || '')
-      if (!id || seen.has(id)) continue
-      seen.add(id)
-      actors.push(id)
-    }
-    if (!actors.length) continue
-    out.push({ emoji: r.emoji, actors })
-  }
-  return out
-}
-
-/**
  * Chips for one card. `mine` is the signed-in member. `actors` names who
  * reacted (the chip's tooltip); `showCount` is true from 2 people on
  * (SPL-982, owner: "if there are multiple persons with the same reaction add
@@ -142,21 +123,4 @@ export function reactionOp(list, emoji, me) {
   const row = normalizeReactions(list).find((r) => r.emoji === emoji)
   if (row && who && row.actors.includes(who)) return 'remove'
   return 'add'
-}
-
-/**
- * Replace `reactions` on the one row whose msg_id matches. A list that does
- * not hold the message is returned as-is, so telling every store is cheap.
- */
-export function applyReactions(list, update) {
-  const id = String((update && update.msg_id) || '')
-  if (!id || !Array.isArray(list)) return list
-  const reactions = normalizeReactions(update && update.reactions)
-  let hit = false
-  const next = list.map((m) => {
-    if (!m || String(m.msg_id || '') !== id) return m
-    hit = true
-    return { ...m, reactions }
-  })
-  return hit ? next : list
 }

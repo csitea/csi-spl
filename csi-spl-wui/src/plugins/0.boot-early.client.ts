@@ -7,7 +7,7 @@
 //   2. on a product screen, the default layout and the top bar's language
 //      switcher, which the frame imports as soon as it renders
 import { useAuthBase, useAuthClient } from '~/composables/useAuthClient'
-import { sessionProbeUrl } from '~/utils/auth-client.mjs'
+import { sessionProbeUrl } from '~/utils/auth-client-core.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { startEarlySession, takeParkedSession } from '~/utils/early-session.mjs'
 import { isProductScreen } from '~/utils/signed-out-redirect.mjs'

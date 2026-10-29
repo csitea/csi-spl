@@ -1,4 +1,4 @@
-import { authOrigin, createAuthClient } from '~/utils/auth-client.mjs'
+import { authOrigin, createAuthClient } from '~/utils/auth-client-core.mjs'
 
 /**
  * The hub origin every /api/v1/auth/** call goes to (runtime

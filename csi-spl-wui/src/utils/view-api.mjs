@@ -9,7 +9,7 @@
  * grouping folds a reply into its root task.
  */
 
-import { normalizeReactions } from './emoji.mjs'
+import { normalizeReactions } from './emoji-core.mjs'
 import { plainText } from './plain-text.mjs'
 
 /** channels-v1 §2: absent, null and "" all mean absent → null. */

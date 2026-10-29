@@ -208,7 +208,7 @@ describe('theme pick saved on the account', () => {
     const src = read('src/components/ThemeToggle.vue')
     assert.match(src, /function choose[\s\S]*?saveThemeToAccount\(id,/)
     assert.match(src, /save: \(t\) => auth\.saveTheme\(t\)/)
-    const client = read('src/utils/auth-client.mjs')
+    const client = read('src/utils/auth-client-core.mjs')
     assert.match(client, /saveTheme\(theme\) \{\s*return post\('\/preferences', \{ preferred_theme: /)
   })
 })

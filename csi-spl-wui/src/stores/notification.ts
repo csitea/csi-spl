@@ -38,7 +38,7 @@ import {
   topicKey,
   unreadFromChannels,
 } from '~/utils/read-cursor.mjs'
-import { dmPeerOf, dmTotalsFromDms, namedText, peopleLabels, unreadFromDms } from '~/utils/channel-feed.mjs'
+import { dmPeerOf, dmTotalsFromDms, namedText, peopleLabels, unreadFromDms } from '~/utils/channel-feed-core.mjs'
 import { useHumanNames } from '~/composables/useHumanNames'
 
 /* 027 (SPL-3573): the sound synth is a lazy chunk, not part of the initial JS.

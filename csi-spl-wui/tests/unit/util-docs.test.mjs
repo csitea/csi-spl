@@ -64,9 +64,11 @@ const PIN_TOTAL_AT_LEAST = {
 // bare count at landing for every other module that was already above 0.
 // A module absent from this map has a ceiling of 0.
 const CEILING = {
-  'auth-client.mjs': 2,
+  'auth-client-core.mjs': 1,
+  'auth-client.mjs': 1,
   'card-clip.mjs': 6,
-  'channel-feed.mjs': 10,
+  'channel-feed-core.mjs': 4,
+  'channel-feed.mjs': 6,
   'code-blocks.mjs': 1,
   'fleet-load.mjs': 1,
   'id-link-gate.mjs': 4,

@@ -11,7 +11,7 @@
 // verbatim and its sha256 goes into the Hosting CSP (the render hashes every
 // inline block of the generated bundle). connect-src already admits the auth
 // base. Unit-tested by tests/unit/early-session-script.test.mjs.
-import { sessionProbeUrl } from './auth-client.mjs'
+import { sessionProbeUrl } from './auth-client-core.mjs'
 
 /** `window` key of the parked probe: `{ u: <url>, p: Promise<Response> }`. */
 export const EARLY_SESSION_KEY = '__spoolEarlySession'

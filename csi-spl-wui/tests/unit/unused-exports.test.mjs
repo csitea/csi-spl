@@ -39,7 +39,7 @@ const ALLOW = new Map([
   ['src/composables/usePaletteItems.ts', ['PALETTE_GROUPS']],
   ['src/composables/useRealmHours.ts', ['useRealmHours']],
   ['src/composables/useSettledQuery.ts', ['firstQueryValue']],
-  ['src/utils/auth-client.mjs', ['PROVIDERS_TIMEOUT_MS']],
+  ['src/utils/auth-client-core.mjs', ['PROVIDERS_TIMEOUT_MS']],
   ['src/utils/await-reply.mjs', ['DEFAULT_AWAIT_MINUTES']],
   ['src/utils/card-element.mjs', ['CARD_SDK_URL']],
   ['src/utils/code-blocks.mjs', ['wikiRegions']],

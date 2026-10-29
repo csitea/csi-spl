@@ -78,7 +78,7 @@ describe('view pref values', () => {
     const ts = read('src/stores/session.ts')
     assert.match(ts, /message_order\?: string \| null/)
     assert.match(ts, /composer_position\?: string \| null/)
-    const client = read('src/utils/auth-client.mjs')
+    const client = read('src/utils/auth-client-core.mjs')
     assert.match(client, /saveViewPref\(key, value\) \{\n\s+return post\('\/preferences', \{ \[String\(key\)\]: value \? String\(value\) : null \}, 'PUT'\)/)
   })
   it('every locale names both settings and their choices', () => {

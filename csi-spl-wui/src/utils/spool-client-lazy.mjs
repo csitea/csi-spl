@@ -1722,6 +1722,24 @@ async function getTenantCosts(ctx, month = '', secondCurrency = '') {
 }
 
 /**
+ * SPL-4187 (spec 123 5.5): GET /v1/tenant/costs/cloud?month=&project=, one
+ * estate GCP project's month per day and service, the Cloud section's third
+ * level (403 for anyone but the operator workspace's admin). The mock
+ * spreads the mock month's parts of that project over its ended days.
+ */
+async function getCloudCostDays(ctx, month = '', project = '', secondCurrency = '') {
+  const { live, mock } = ctx
+  const cs = await import('./costs-sections.mjs')
+  if (mock) {
+    const [tc, mt] = await Promise.all([import('./tenant-costs.mjs'), import('./monitoring-tokens.mjs')])
+    let op = null
+    try { op = localStorage.getItem(mt.TOKENS_MOCK_OPERATOR_KEY) } catch { /* none */ }
+    return cs.mockCloudDays(tc.mockTenantCosts(month, { me: mockMeGet(), currency: secondCurrency }), project, { operator: op === '1' })
+  }
+  return live('/v1/tenant/costs/cloud' + cs.cloudDaysQuery(month, project))
+}
+
+/**
  * Spec 140 4 (SPL-2322): GET /v1/operator/fleet-tokens?window=1h|today|24h,
  * the fleet's live token burn per kind and per lane (403 operator.workspaces
  * for anyone but an admin of the operator workspace). The mock answers from
@@ -2075,6 +2093,7 @@ export const lazySpoolMethods = {
   getFleetLoad,
   patchFleetLoad,
   getTenantCosts,
+  getCloudCostDays,
   getFleetTokens,
   getFleetLanes,
   getFileStreams,

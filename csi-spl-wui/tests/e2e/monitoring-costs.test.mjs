@@ -62,6 +62,13 @@
 //     currency in the query, kept across the pages; the redirects
 //     /monitoring/costs?month=2026-09 -> /reporting/costs/spend?month=2026-09,
 //     /reporting/tokens -> /reporting/costs/tokens, /reporting/costs -> Spend.
+//   - SPL-4187 (spec 123 5.5): the three sections. The bar is Spend, AI
+//     tokens, Human for a member; Spend, Cloud, AI tokens, Human, Price,
+//     Paid for an operator admin. Cloud drills down GCP project -> service
+//     -> day (?project=, &kind=), each level's total the row it came from,
+//     the crumbs and the back button walk up; anyone else opening Cloud
+//     gets the operators-only line. AI tokens lists the month's token
+//     parts; Human says "not tracked yet" naming spec 107 T071..T077.
 //
 // Run:
 //   BASE_URL=<generated bundle> pnpm run test:e2e monitoring-costs
@@ -162,7 +169,7 @@ async function costsS1(browser, base, size) {
       && months.filter((m) => m !== '2026-09').every((m) => m >= '2026-10' && m <= cur), months)
     ok('S1 header: the picker shows the URL month', (await p.$eval('[data-test=costs-header-month]', (e) => e.value).catch(() => '')) === '2026-09')
     ok('S1 tab: Reporting -> Costs is the active tab', (await p.$eval('[data-test=reporting-tab-costs]', (e) => e.getAttribute('aria-current')).catch(() => '')) === 'page')
-    ok('S1 bar: Spend and Tokens for a non-operator, Spend active', (await costsPageIds(p)).join(',') === 'spend,tokens'
+    ok('S1 bar: Spend, AI tokens and Human for a non-operator, Spend active', (await costsPageIds(p)).join(',') === 'spend,tokens,human'
       && (await p.$eval('[data-test=costs-page-spend]', (e) => e.getAttribute('aria-current')).catch(() => '')) === 'page', await costsPageIds(p))
     const curs = await p.$$eval('[data-test^=costs-header-cur-]', (els) => els.map((e) => [e.textContent.trim(), e.getAttribute('aria-checked')]))
     ok('S1 header: USD (picked, the default) or EUR', JSON.stringify(curs) === JSON.stringify([['USD', 'true'], ['EUR', 'false']]), curs)
@@ -170,7 +177,8 @@ async function costsS1(browser, base, size) {
     ok('S1 header: picking EUR writes ?currency=EUR, the month kept', await waitWhere(p, SPEND + '?month=2026-09&currency=EUR'), where(p))
     await p.click('[data-test=costs-page-tokens]')
     ok('S1 bar: Tokens keeps the month and the currency', await waitWhere(p, '/reporting/costs/tokens?month=2026-09&currency=EUR'), where(p))
-    ok('S1 Tokens: the shell (title and the coming line)', await waitFor(p, '[data-test=costs-shell-tokens] [data-test=costs-shell-coming]'))
+    ok('SPL-4187 AI tokens: the month\'s token parts, no shell', await waitFor(p, '[data-test=costs-tokens-table]')
+      && (await count(p, '[data-test=costs-tokens-row]')) >= 1 && (await count(p, '[data-test=costs-shell-coming]')) === 0, await count(p, '[data-test=costs-tokens-row]'))
     await p.goBack()
     ok('S1 back: Spend again, the same query', await waitWhere(p, SPEND + '?month=2026-09&currency=EUR'), where(p))
     if (size.width < 600) ok('S1: no sideways scroll on a phone', (await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0)
@@ -186,8 +194,8 @@ async function costsS1(browser, base, size) {
   {
     const { ctx, p } = await costsPage(browser, base, size, { operator: true })
     await open(p, base, SPEND)
-    await p.waitForFunction(() => document.querySelectorAll('[data-test^=costs-page-]').length === 4, { timeout: 15000 }).catch(() => null)
-    ok('S1 bar: an operator admin sees all four pages', (await costsPageIds(p)).join(',') === 'spend,tokens,price,paid', await costsPageIds(p))
+    await p.waitForFunction(() => document.querySelectorAll('[data-test^=costs-page-]').length === 6, { timeout: 15000 }).catch(() => null)
+    ok('S1 bar: an operator admin sees all six pages', (await costsPageIds(p)).join(',') === 'spend,cloud,tokens,human,price,paid', await costsPageIds(p))
     for (const id of ['price', 'paid']) {
       await p.click(`[data-test=costs-page-${id}]`)
       ok(`S1 ${id}: the shell for an operator admin`, await waitFor(p, `[data-test=costs-shell-${id}] [data-test=costs-shell-coming]`))
@@ -200,6 +208,52 @@ async function costsS1(browser, base, size) {
     await open(p, base, '/reporting/costs/paid')
     ok('S1 control: Paid items direct URL, not an operator admin: operators only', await waitFor(p, '[data-test=costs-shell-paid] [data-test=reporting-operators-only]')
       && (await count(p, '[data-test=costs-shell-coming]')) === 0)
+    await ctx.close()
+  }
+}
+
+/** SPL-4187: the three sections. CONTROL: on master before it there is no Cloud or Human page, so every check here FAILS there. */
+async function costsSections(browser, base, size) {
+  {
+    const { ctx, p } = await costsPage(browser, base, size, { operator: true })
+    const root = '/reporting/costs/cloud?month=2026-09'
+    await open(p, base, root)
+    const keys = () => p.$$eval('[data-test=cloud-row]', (els) => els.map((e) => e.getAttribute('data-key')))
+    await p.waitForSelector('[data-test=cloud-row]', { visible: true, timeout: 20000 }).catch(() => null)
+    ok('Cloud level 1: one row per GCP project, the most expensive first', (await keys()).join(',') === 'project-prd,project-all,project-dev', await keys())
+    ok('Cloud level 1: the money in the header\'s currency (USD)', (await text(p, '[data-test=cloud-currency]')) === 'USD')
+    const prdAmount = await text(p, '[data-test=cloud-row][data-key=project-prd] [data-test=cloud-amount]')
+    await p.click('[data-test=cloud-row][data-key=project-prd] [data-test=cloud-drill]')
+    ok('Cloud level 2: a project\'s services, in the query', await waitWhere(p, '/reporting/costs/cloud?month=2026-09&project=project-prd'), where(p))
+    await p.waitForFunction(() => document.querySelector('[data-test=costs-cloud]')?.getAttribute('data-level') === 'service', { timeout: 15000 }).catch(() => null)
+    ok('Cloud level 2: cloud_sql, cloud_run, network; the total is the project row', (await keys()).join(',') === 'cloud_sql,cloud_run,network'
+      && (await text(p, '[data-test=cloud-total-amount]')) === prdAmount, [await keys(), prdAmount, await text(p, '[data-test=cloud-total-amount]')])
+    const sqlAmount = await text(p, '[data-test=cloud-row][data-key=cloud_sql] [data-test=cloud-amount]')
+    await p.click('[data-test=cloud-row][data-key=cloud_sql] [data-test=cloud-drill]')
+    ok('Cloud level 3: the service per day, in the query', await waitWhere(p, '/reporting/costs/cloud?month=2026-09&project=project-prd&kind=cloud_sql'), where(p))
+    await p.waitForFunction(() => document.querySelector('[data-test=costs-cloud]')?.getAttribute('data-level') === 'day' && document.querySelectorAll('[data-test=cloud-row]').length > 0, { timeout: 15000 }).catch(() => null)
+    const days = await keys()
+    ok('Cloud level 3: the 30 days of September, oldest first; the total is the service row', days.length === 30 && days[0] === '2026-09-01' && days[29] === '2026-09-30'
+      && (await text(p, '[data-test=cloud-total-amount]')) === sqlAmount, [days.length, sqlAmount, await text(p, '[data-test=cloud-total-amount]')])
+    if (size.width < 600) ok('Cloud: no sideways scroll on a phone', (await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0)
+    if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/reporting-costs-cloud-day-${size.width}.png`, fullPage: true })
+    await p.click('[data-test=cloud-crumb-project]')
+    ok('Cloud crumbs: the project crumb walks up to the services', await waitWhere(p, '/reporting/costs/cloud?month=2026-09&project=project-prd'), where(p))
+    await p.goBack()
+    ok('Cloud back: the day level again', await waitWhere(p, '/reporting/costs/cloud?month=2026-09&project=project-prd&kind=cloud_sql'), where(p))
+    await p.click('[data-test=cloud-crumb-all]')
+    ok('Cloud crumbs: All projects is level 1, the month kept', await waitWhere(p, root), where(p))
+    await p.click('[data-test=costs-page-human]')
+    ok('Human: "not tracked yet", naming spec 107 T071..T077', await waitFor(p, '[data-test=costs-human-not-tracked]')
+      && (await text(p, '[data-test=costs-human-not-tracked]')).includes('T071..T077'), await text(p, '[data-test=costs-human-not-tracked]'))
+    await ctx.close()
+  }
+  {
+    /* CONTROL: a member opening Cloud directly gets the operators-only line, no table */
+    const { ctx, p } = await costsPage(browser, base, size)
+    await open(p, base, '/reporting/costs/cloud')
+    ok('Cloud control: a direct URL, not an operator admin: operators only, no table', await waitFor(p, '[data-test=costs-cloud] [data-test=reporting-operators-only]')
+      && (await count(p, '[data-test=cloud-table]')) === 0)
     await ctx.close()
   }
 }
@@ -513,6 +567,7 @@ try {
     await lanesTab(browser, server.base, size)
     await lanesSortFilter(browser, server.base, size)
     await costsS1(browser, server.base, size)
+    await costsSections(browser, server.base, size)
 
     /* a full month, the mock's default me (unrestricted) */
     {

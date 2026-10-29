@@ -3367,9 +3367,32 @@
       "coming": "Ta strona pojawi się w późniejszym kroku.",
       "page": {
         "spend": "Wydatki",
-        "tokens": "Tokeny",
+        "tokens": "Tokeny AI",
         "price": "Cena za token",
-        "paid": "Opłacone pozycje"
+        "paid": "Opłacone pozycje",
+        "cloud": "Chmura",
+        "human": "Ludzie"
+      },
+      "cloud": {
+        "title": "Koszty chmury według projektu GCP",
+        "crumbs_label": "Poziomy kosztów chmury",
+        "all_projects": "Wszystkie projekty",
+        "col_project": "Projekt GCP",
+        "col_service": "Usługa",
+        "col_day": "Dzień",
+        "box": "maszyna {box}",
+        "services": "Usługi: {n}",
+        "days": "Dni z kosztem: {n}",
+        "empty": "W tym miesiącu nie ma jeszcze żadnej pozycji kosztów chmury. Eksport rozliczeń jest odczytywany raz dziennie."
+      },
+      "tokens": {
+        "title": "Koszty tokenów AI",
+        "list_note": "Zapłacona kwota jest w kolumnie waluty; cena katalogowa jest pokazana obok i nigdy nie jest do niej doliczana.",
+        "empty": "W tym miesiącu nie ma jeszcze żadnej pozycji kosztów tokenów AI."
+      },
+      "human": {
+        "title": "Koszty ludzi",
+        "not_tracked": "Jeszcze nie śledzone. Koszty ludzi to zatwierdzony czas według własnej stawki każdej osoby, budowany przez wiersze {rows} specyfikacji 107; żadna liczba nie jest pokazywana, dopóki nie zostaną ukończone."
       }
     },
     "releases": {

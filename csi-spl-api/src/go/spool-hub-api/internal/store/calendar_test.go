@@ -326,11 +326,11 @@ func TestCalendarProbeMissingTable(t *testing.T) {
 	}
 }
 
-// rdb 0241 (SPL-4043): owner defaults to the creator, issue keys round-trip,
+// rdb 0242 (SPL-4043): owner defaults to the creator, issue keys round-trip,
 // an empty owner on update returns to the creator, and a nil patch leaves
 // both. Shape errors are ErrInvalidCalendarEvent. Workspace B cannot read
 // the row (the 0125 policy covers the new columns).
-func TestCalendarLinks0241(t *testing.T) {
+func TestCalendarLinks0242(t *testing.T) {
 	ctx := context.Background()
 	for name, st := range drivers(t) {
 		t.Run(name, func(t *testing.T) {
@@ -388,9 +388,9 @@ func calLinksRefused(t *testing.T, cal Calendar, tenant string) {
 	}
 }
 
-// A raw insert that omits rdb 0241's columns stores ” and '{}'. The Go read
+// A raw insert that omits rdb 0242's columns stores ” and '{}'. The Go read
 // shows the creator as owner. Another workspace's scope sees no row.
-func TestCalendarLinksColumns0241(t *testing.T) {
+func TestCalendarLinksColumns0242(t *testing.T) {
 	pg := pgOnly(t)
 	ctx := context.Background()
 	a, b := newTenant(t, pg), newTenant(t, pg)

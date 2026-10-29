@@ -206,7 +206,7 @@ const calendarSyncPrune = `UPDATE calendar_events SET deleted_at = $3, deleted_b
 const calendarHasSourceKey = `SELECT EXISTS (SELECT 1 FROM pg_attribute
 	WHERE attrelid = to_regclass('calendar_events') AND attname = 'source_key' AND NOT attisdropped)`
 
-// calendarHasOwnerID is the catalogue probe for rdb 0241 (owner_id stands
+// calendarHasOwnerID is the catalogue probe for rdb 0242 (owner_id stands
 // for issue_keys too: one migration added them together). A sync does not
 // write either column, so a later sync leaves a member's owner and links.
 const calendarHasOwnerID = `SELECT EXISTS (SELECT 1 FROM pg_attribute

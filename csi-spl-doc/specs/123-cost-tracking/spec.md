@@ -1,6 +1,6 @@
 # Spec 123: Cost Tracking
 
-**Status:** v1.0 (draft ff04d3ca3 by a-816, folded by the editor
+**Status:** v1.1 (2026-10-29: section 13, the project's cost, plan only, SPL-4189) · v1.0 (draft ff04d3ca3 by a-816, folded by the editor
 s123-claude from the four seat reviews in `reviews/`; rc1 cc831a665 signed by
 all four seats and the drafter; the owner's answers Q-1..Q-7 folded, section 12)
 
@@ -366,3 +366,156 @@ One list, merged from Q-C1..Q-C5 (s123-claude) and Q-1..Q-7 (s123-claude-2), plu
   - B: out of scope, listed as "not tracked".
   - **Panel: A** (claude-2; no seat objected). You asked for "the whole" instance; a marked hand row is honest about its source.
   - **Owner: B, plus a factory.** msg `6078c151`: "7. no supported for now - factory design patterns in the code to support for the future". Section 4.6.
+
+## 13. The project's cost: cloud + AI tokens + human (v1.1, plan only)
+
+**Status: Planned, not built.** Lane issue SPL-4189, epic SPL-2373. Nothing
+below exists in code. It is the level ABOVE the near-term three-sections
+build (ask `156c8939`: Costs gets Cloud / AI tokens / Human sections), and it
+does not duplicate it.
+
+### 13.1 The owner's words (HUM-10, prd t1 topic `e2c0e6b4`, verbatim)
+
+- msg `81217a3f`: "Switch it on to see all of the expenses from the cloud, and make sure they have their own section. There are three main types of costs: cloud costs, AI token costs, and human costs."
+- msg `d0651111`: "but as the longer term vision - basically the whole Costs section , but present on higher level ( and plann this for now , but have it in the specs ) , the combination of cloud costs , human costs and ai costs"
+- msg `3a190b70`: "These the costs of this project"
+
+### 13.2 The top view
+
+One view, **"The project's cost"**, the first page of Reporting -> Costs
+(before Spend, spec 143 3.2). For the picked period it shows one total =
+**cloud + AI tokens + human**, and three parts under it. Each part has:
+
+- its amount in the header's currency (spec 143 3.1 rule 3) and its **share**
+  of the priced total;
+- its completeness in words (13.5);
+- a link to its own section below, and from there to the existing page that
+  holds the detail: Cloud -> Spend (Cloud group); AI tokens -> Spend (AI
+  agents group), Tokens and Price per token; Human -> the hours reports of
+  spec 107 (section 6) and the Releases human part (107 21.4).
+
+Period: the Costs header's one period (143 3.1 rule 2: a calendar month "so
+far" and the months before it), plus a **year to date** pick that sums the
+closed months and the month so far. A pie of the three parts (the inline-SVG
+pie of 143 3.3) and, under it, one bar per month of the year, each split in
+the three parts. No chart library (section 5).
+
+Made-up figures, none is a real cost:
+
+```
+Costs › The project's cost   Oct 2026 (so far), 1-28 Oct UTC   (USD) ( EUR )
++---------------+-----------+--------+----------------------------------+
+| Part          |    Amount | Share  | Completeness                     |
++---------------+-----------+--------+----------------------------------+
+| Cloud         |    160.00 |  16 %  | 27 of 28 days read               |
+| AI tokens     |    710.00 |  71 %  | every paid item priced           |
+| Human         |    130.00 |  13 %  | 2 of 3 people priced, 1 unpriced |
++---------------+-----------+--------+----------------------------------+
+| Total, priced |  1,000.00 | 100 %  | partial: see the parts           |
++---------------+-----------+--------+----------------------------------+
+```
+
+### 13.3 How each part gets money
+
+| part | money from | read today by | price source |
+|---|---|---|---|
+| **Cloud** | `cost_lines` source `gcp`, origin `billing_export` (4.2), every `csi-spl-*` project (Q-2) | `GET /v1/tenant/costs` parts (5.2) | the GCP bill itself; `estimate` rows (4.2) are marked |
+| **AI tokens** | the paid items' daily shares, source `ai_paid` (spec 143 4.1, `store/cost_ai_paid.go`); later the metered API turns, `usage_events` x `unit_cost_micros` (spec 121, 4.5) | the same month read | **what was paid** (subscriptions and top-ups, `fleet_token_paid`), never the list value. The list value (the `model_prices` cost of the `fleet_tokens` lines, which carry units and no money amount) stays "list value (not paid)", shown beside, never added (Q-4 A, spec 143 3.1 rule 1) |
+| **Human** | approved time x each person's own price in force on the day (spec 107 21.4 step 5, 21.5) | not built: spec 107 rows T071..T077 | the member's own hourly price (`member_hourly_prices`). This view sums approved entries per day; it does not need the per-commit ledger |
+
+Context relayed by the dispatcher (c-002, 2026-10-29), not re-measured by
+this lane: prd `cost_lines` source `gcp` since 2026-10-23; `fleet_tokens.<box>`
+lines since 2026-10-09 (units only).
+
+### 13.4 Currency
+
+One rule, the existing fx (5.4). Each part keeps its own amount and currency
+(GCP: the bill's; a paid item: its own; a human price: the member's). It is
+converted **per cost day** at that day's rate (rdb `0200_fx_rates.sql`, ECB
+or FED, else the last rate before the day) to USD and to the viewer's second
+currency. A day with no rate leaves its amount `null` in that currency,
+never a guess, and the part says so (13.5).
+
+### 13.5 When a part is incomplete
+
+A part that is not known is never summed as 0. Each shows one of:
+
+- **"n of N days read"**: from `cost_coverage` (Cloud) and the month read's
+  coverage (AI tokens). A missing day is named in the part's section.
+- **"unpriced"**: AI tokens of an agent type with no paid item that month,
+  or a day with no fx rate; human minutes of a member with no price, or of a
+  period not yet approved ("pending approval", 107 21.4 step 6). The minutes
+  and tokens still show as counts. The money leaves them out and says how
+  much is left out ("3:15 h unpriced").
+- **"not tracked"**: a part with no source at all. Human reads "not tracked
+  yet" until 107 T071..T073 land. Machines outside GCP stay "not tracked"
+  (Q-7).
+
+The total is labelled **"Total, priced"**, and its row says "partial" while
+any part is incomplete. The shares are of the priced total.
+
+### 13.6 Who may see the money
+
+- **Cloud and AI tokens**: `costs.read`, scoped as in 5.1 (Q-1 A). The
+  operator workspace sees the estate; any other workspace sees its own rows
+  and its AI share (spec 143 3.3.1).
+- **Human money**: only a holder of `hours.rates` (the time-accountant role,
+  107 FR-20) sees the Human amount. An operator admin without it sees the
+  human **hours** and "money: time-accountant only" (107 Q27 A). For that
+  viewer the total and the shares cover Cloud + AI tokens only, labelled so:
+  a total that included the human money would reveal it by subtraction.
+- **Never per person**: the Human part is one sum per day; no row names a
+  member (107 21.7). Each member sees only their own time (107 Q26 A).
+
+### 13.7 What "project" means
+
+- **Now: this fleet's project, the spool**, read in the operator workspace.
+  Cloud = every `csi-spl-*` GCP project (Q-2); AI tokens = the fleet's paid
+  items (all boxes); Human = approved hours booked in the operator workspace.
+- **Later, per workspace**: a customer workspace's project cost would be its
+  AI share (143 3.3.1) plus its own members' human cost. It has no cloud part
+  of its own until a per-workspace cloud split exists (none is planned).
+  This is owner question Q-8 (13.10).
+
+### 13.8 Planned build rows (rounds-rulebook format, at most 10)
+
+Status of every row: **Planned**. Each row is one lane, aiming at one push.
+Files are disjoint per batch (R1), with a cross-vendor reviewer per row (R7).
+Batch 2 waits for the three-sections build (ask `156c8939`) and for 107
+T071..T072, and edits only the lines it adds.
+
+| # | slug | what | target & proof | test (red control) | vendor | batch |
+|---|---|---|---|---|---|---|
+| P01 | `feat(api, project-cost-read)` | `GET /v1/tenant/costs/project?month=` (or `year=`), `hub/cost_project.go` + `store/cost_project.go`: the three parts, each with amount, share and completeness, over the month read (5.2) | the parts sum to `total.priced`; an unpriced part is `null`, never 0; Human is `not_tracked` until P02 | `TestCostProjectParts` (red: a part with no rate summed as 0 changes the total) | claude | 1 |
+| P02 | `feat(api, project-cost-human)` | the human day sum for P01: approved minutes x the price in force per day, per currency, no member column | reads 107's tables once T071..T072 land | `TestCostProjectHumanSum` (red: pricing at today's price instead of the day's changes the sum) | claude | 2 |
+| P03 | `feat(api, project-cost-mask)` | the human money mask: without `hours.rates` the Human amount is `null` and `total.priced` covers Cloud + AI only, flagged | an operator admin without `hours.rates` gets hours, no money, and no total that holds it | `TestCostProjectHumanMask` (red: removing the mask lets total minus parts reveal the human money) | claude | 2 |
+| P04 | `test(api, project-cost-rls)` | tenant isolation and estate scope of P01 on Postgres | workspace B reads 0 of A's parts; a non-operator reads no estate part | `TestCostProjectRLS` (red: the policy dropped reads A's rows) | claude | 2 |
+| P05 | `feat(wui, project-cost-page)` | the page `/reporting/costs/project`, first in the Costs bar: table, shares, completeness words, links to the sections and pages | drawn at 1400 and 390 px, no sideways scroll | `tests/e2e/reporting-costs-project.test.mjs` (red: a `null` part drawn as 0.00 fails) | claude | 3 |
+| P06 | `feat(wui, project-cost-year)` | the year-to-date pick and the month bars split in three parts (inline SVG) | the bars sum to the year total; the route chunk stays under its ceiling | unit `cost-project.test.mjs` (red: a static import of the bars into the shell fails the 155 KB initial-size check) | claude | 3 |
+| P07 | `docs(doc, project-cost-help)` | the help page for the view, every locale (agy has the last word on languages) | the help-coverage gate is green | the help-coverage test (red: the page without its md fails) | agy | 3 |
+
+### 13.9 Red-control cases
+
+| case | expected | with the guard removed |
+|---|---|---|
+| a part with a day with no fx rate | that part `null` in the second currency, "unpriced" | it reads 0 and the total is short |
+| a member with no price | the minutes show, "unpriced", money left out | the minutes are priced at 0 |
+| a price changed mid-month | each day at its own price | every day at the new price |
+| the list value of subscription tokens | shown beside, not in the AI amount | the AI amount jumps to the list value |
+| an operator admin without `hours.rates` | hours only, total over Cloud + AI, labelled | total minus parts gives the human money |
+| human not built yet | "not tracked yet" | a 0.00 row, and the other parts read as a complete 100 % |
+| a non-operator workspace | its own parts, no estate cloud | the estate cloud appears |
+
+### 13.10 Owner questions (only what the words leave open)
+
+```poll
+question: Spec 123 section 13, the project's cost: three open points
+- Q-8 Per workspace later: A) yes, a customer workspace gets its own project cost (its AI share + its own people), no cloud part (recommended) B) no, only the spool's own estate
+- Q-9 Where it lives: A) the first page of Reporting -> Costs, before Spend (recommended) B) a card on top of Spend
+- Q-10 An operator admin without the time-accountant role: A) hours only, the total over cloud + AI only, labelled (recommended: 107 Q27 A; a full total would reveal the human money) B) the full total, the human part hidden
+```
+
+### 13.11 Change log
+
+- v1.1 (2026-10-29, SPL-4189): section 13 added, plan only; rows P01..P07
+  Planned; owner questions Q-8..Q-10 open.

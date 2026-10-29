@@ -51,6 +51,9 @@
 #------------------------------------------------------------------------------
 type do_log &>/dev/null || do_log() { echo "$*"; }
 
+# spl_box_name: the box name from the config, never the hostname (SPL-4201)
+declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh"
+
 orphan_process_ms() { local t="${EPOCHREALTIME/[.,]/}"; printf '%s' "$((10#$t / 1000))"; }
 
 orphan_process_json_escape() {
@@ -109,8 +112,7 @@ orphan_process_alert() {
   local throttle="${ORPHAN_PROCESS_THROTTLE_S:-1800}" send_tmo="${ORPHAN_PROCESS_SEND_TIMEOUT:-20}"
   local -a send
 
-  box="${DEV_BOX:-$(hostname -s 2>/dev/null || echo PC)}"
-  [[ "$box" == "box" ]] && box="PC"
+  box="${DEV_BOX:-$(spl_box_name)}"
   from="${ORPHAN_PROCESS_ALERT_FROM:-${SPOOL_AGENT_ID:-orphan-process-advisory@$box}}"
   stamp="$(orphan_process_stamp)"
   now="${EPOCHSECONDS:-$(date +%s)}"

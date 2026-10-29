@@ -35,9 +35,12 @@
 # @param GO_SWITCH_ROOT (optional) - the root /usr/local and /etc sit under
 # @param GO_SWITCH_ROOT - (a test sandbox), default "" = /
 # @param GO_SWITCH_JOURNAL (optional) - default /var/lib/csi-spl/box-go/journal.tsv
-# @param GO_SWITCH_BOX (optional) - the box column, default `hostname -s`
+# @param GO_SWITCH_BOX (optional) - the box column, default the configured box name (spl_box_name)
 # @example GO_VERSION=1.26.9 GO_SWITCH_REASON='SPL-n needs 1.26' AGENT_ID=c-1 ./run -a do_box_go_switch
 #------------------------------------------------------------------------------
+
+# spl_box_name: the box name from the config, never the hostname (SPL-4201)
+declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh"
 
 # _bgs_sudo <cmd...>: run as root, through sudo unless already root
 _bgs_sudo() {
@@ -156,7 +159,7 @@ _bgs_fetch_target() {
 _bgs_journal() {
   local j="${GO_SWITCH_JOURNAL:-/var/lib/csi-spl/box-go/journal.tsv}" r="${GO_SWITCH_REASON//$'\t'/ }"
   _bgs_sudo mkdir -p "$(dirname "$j")" || return 1
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$(date -u +%FT%TZ)" "${GO_SWITCH_BOX:-$(hostname -s)}" \
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$(date -u +%FT%TZ)" "${GO_SWITCH_BOX:-$(spl_box_name)}" \
     "$AGENT_ID" "${GO_SWITCH_ISSUE:-}" "$1" "${from:-}" "$GO_VERSION" "${r//$'\n'/ }" |
     _bgs_sudo tee -a "$j" >/dev/null
 }

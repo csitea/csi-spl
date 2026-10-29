@@ -49,7 +49,7 @@ BIN="$T/bin" STATE="$T/state"
 SENT="$T/sent.log" PROBES="$T/probes.log" LIVE_LOG="$T/live-calls.log" SENTINEL_LOG="$T/sentinel.log"
 mkdir -p "$BIN" "$STATE" "$T/tt"
 : >"$SENT"; : >"$PROBES"; : >"$LIVE_LOG"; : >"$SENTINEL_LOG"
-unset TMUX TMUX_PANE SPOOL_AGENT_ID TMUX_HEALTH_ALERT_FROM TMUX_HEALTH_SOCKET SPOOL_TMUX_SOCKET
+unset TMUX TMUX_PANE SPOOL_AGENT_ID TMUX_HEALTH_ALERT_FROM TMUX_HEALTH_SOCKET SPOOL_TMUX_SOCKET SPOOL_DESK_BOX SPOOL_BOX_TAG
 export TMUX_TMPDIR="$T/tt"
 SOCK="$T/tt/tmux-$(id -u)/test-probe"
 
@@ -304,8 +304,10 @@ cat >"$T/repo/csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh" 
 printf 'SENTINEL %s\n' "\$*" >>"$SENTINEL_LOG"
 EOF
 rm -f "$STAMP"
-out=$(DRY_RUN=0 PROJ_PATH="$FAKE" TMUX_HEALTH_SEND_CMD="" guard 2>&1); rc=$?
-if ((rc == 1)) && grep -q -- "--from tmux-health-guard@$(hostname -s) --to orchestrator --kind note --task tmux-health --no-poke" "$SENTINEL_LOG"; then
+# the box is the configured name, not the hostname (SPL-4201)
+printf 'SPOOL_DESK_BOX=box-t13\n' >"$T/box.env"
+out=$(DRY_RUN=0 PROJ_PATH="$FAKE" TMUX_HEALTH_SEND_CMD="" SPOOL_BOX_ENV="$T/box.env" guard 2>&1); rc=$?
+if ((rc == 1)) && grep -q -- "--from tmux-health-guard@box-t13 --to orchestrator --kind note --task tmux-health --no-poke" "$SENTINEL_LOG"; then
   pass "13. no TMUX_HEALTH_SEND_CMD: repo-relative spool-send.sh used, from tmux-health-guard@<box>"
 else
   fail "13. default sender (rc=$rc sentinel=$(cat "$SENTINEL_LOG") out=$out)"

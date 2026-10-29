@@ -3,6 +3,9 @@
 declare -F spl_gcp_temp_sdk_config >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/gcp-temp-sdk-config.func.sh"
 # shellcheck source=spl-secret-age-report.func.sh
 declare -F spl_secret_age_dump >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-secret-age-report.func.sh"
+# spl_box_name: the box name from the config, never the hostname (SPL-4201)
+declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh"
+
 #------------------------------------------------------------------------------
 # @description READ-ONLY dry-run list of the unused credentials of one env and
 # @description of this box (SPL-1945 row 2, owner Q3: the list is shown to the
@@ -32,7 +35,7 @@ declare -F spl_secret_age_dump >/dev/null || source "$(dirname "${BASH_SOURCE[0]
 # @param ENV - required: dev or prd
 # @param SECRET_UNUSED_REPO (optional) - the repo grepped for consumers, default $APP_PATH
 # @param SECRET_UNUSED_BOX (optional) - the box name in the table, default
-# @param   SPOOL_DESK_BOX, else that line of $SPOOL_BOX_ENV (/var/spool-hub/box.env), else hostname -s
+# @param   SPOOL_DESK_BOX / SPOOL_BOX_TAG, else those lines of $SPOOL_BOX_ENV (/var/spool-hub/box.env), else hostname -s (spl_box_name)
 # @param SECRET_UNUSED_NOW (optional) - the UTC instant ages count to (tests), default now
 # @example ENV=prd ./run -a do_spl_secret_unused_list
 #------------------------------------------------------------------------------
@@ -130,10 +133,8 @@ print("\n" + ", ".join(f"{v}: {sum(1 for r in rows if r[3] == v)}" for v in ("UN
 PY
 }
 
-# spl_secret_unused_box - the box name for the table: SPOOL_DESK_BOX, else its
-# line in the box env file, else the short hostname
+# spl_secret_unused_box - the box name for the table: SECRET_UNUSED_BOX, else
+# the configured box name (spl_box_name)
 spl_secret_unused_box() {
-  local b="${SECRET_UNUSED_BOX:-${SPOOL_DESK_BOX:-}}" f="${SPOOL_BOX_ENV:-/var/spool-hub/box.env}"
-  [[ -n "$b" || ! -r "$f" ]] || b="$(sed -n "s/^SPOOL_DESK_BOX=[\"']\{0,1\}\([a-z0-9-]*\).*/\1/p" "$f" | tail -1)"
-  printf '%s' "${b:-$(hostname -s)}"
+  printf '%s' "${SECRET_UNUSED_BOX:-$(spl_box_name)}"
 }

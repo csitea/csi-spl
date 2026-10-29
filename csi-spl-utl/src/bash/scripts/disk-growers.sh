@@ -9,20 +9,22 @@
 # The headroom alert (csi-spl-orc check-disk-headroom.sh) appends this line.
 #
 #   DISK_GROWERS_TSV   default /var/<org>/<org>-<app>/box-disk-sweep/growth.tsv
-#   DISK_GROWERS_BOX   default hostname -s
+#   DISK_GROWERS_BOX   default the configured box name (spl_box_name)
 #   DISK_GROWERS_DAYS  the window, default 7
 #   DISK_GROWERS_TOP   how many, default 3
 #   DISK_GROWERS_TODAY the window's end day (tests), default today UTC
 #
 # Exit: 0 always (a missing record is a line, not a failure); 2 usage.
 set -uo pipefail
+# spl_box_name: the box name from the config, never the hostname (SPL-4201)
+declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh"
 
 SELF="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 UTL="$(cd "$SELF/../../.." && pwd)"
 oa="$(basename "$UTL")"; oa="${oa%-utl}"
 
 tsv="${DISK_GROWERS_TSV:-/var/${oa%%-*}/$oa/box-disk-sweep/growth.tsv}"
-box="${DISK_GROWERS_BOX:-$(hostname -s 2>/dev/null)}"
+box="${DISK_GROWERS_BOX:-$(spl_box_name)}"
 days="${DISK_GROWERS_DAYS:-7}"
 top="${DISK_GROWERS_TOP:-3}"
 today="${DISK_GROWERS_TODAY:-$(date -u +%F)}"

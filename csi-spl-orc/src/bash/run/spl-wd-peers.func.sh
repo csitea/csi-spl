@@ -33,6 +33,9 @@ declare -F spl_wd_inst_start >/dev/null ||
 
 SPL_WD_PEERS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# spl_box_name: the box name from the config, never the hostname (SPL-4201)
+declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-box.func.sh"
+
 do_spl_wd_peers() {
   local dir now i
   spl_rotate_conf || return 1
@@ -84,7 +87,7 @@ spl_wd_peers() {
   return 0
 }
 
-spl_wd_peer_box() { echo "${ROTATE_BOX:-${LEASE_MACHINE:-$(hostname -s)}}"; }
+spl_wd_peer_box() { echo "${ROTATE_BOX:-${LEASE_MACHINE:-$(spl_box_name)}}"; }
 
 # One line to peers.log (and the tick's output).
 spl_wd_peer_log() {

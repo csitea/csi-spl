@@ -102,6 +102,8 @@
 # Exit: 0 every step ran clean; 1 a step failed; 2 usage.
 # spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
 declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
+# spl_box_name: the box name from the config, never the hostname (SPL-4201)
+declare -F spl_box_name >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../lib/bash/funcs/spl-desk-box.func.sh"
 set -uo pipefail
 PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/go/bin${PATH:+:$PATH}"
 export PATH
@@ -149,7 +151,7 @@ free_pct() {
 # note <text> - a spool note to the orchestrator; a failed send is a WARN
 note() {
   [[ "${BOX_SWEEP_NOTE:-1}" == 0 || "$dry" == 1 ]] && { say "PLAN note to orchestrator: $1"; return 0; }
-  local box; box="$(hostname -s)"
+  local box; box="$(spl_box_name)"
   if bash "$send" --from "${LEASE_ORCH:-$(spl_role_seat 1)}" --to orchestrator --kind note --task "disk-sweep-$box" \
       --body "box disk sweep on $box ($(id -un)): $1" >/dev/null 2>&1 7>&- 8>&- 9>&-; then
     say "INFO note sent to the orchestrator (task disk-sweep-$box)"; return 0
@@ -191,7 +193,7 @@ if [[ "$gate" == 1 && "$level" == normal && -f "$stamp" ]] && [[ -n "$(find "$st
 fi
 (( fpct >= crit_pct )) && rm -f "$noted" 2>/dev/null
 
-say "START box=$(hostname -s) user=$(id -un) dry_run=$dry level=$level free=${fpct}% ($fmount) docker_until=$until builder_cap_pct=$cap_pct go_age_min=$go_age go_cap_gb=$go_cap vartmp_age_h=${vartmp_age:-off} runlog_age_h=$runlog_age steps='$steps' $(df_line)"
+say "START box=$(spl_box_name) user=$(id -un) dry_run=$dry level=$level free=${fpct}% ($fmount) docker_until=$until builder_cap_pct=$cap_pct go_age_min=$go_age go_cap_gb=$go_cap vartmp_age_h=${vartmp_age:-off} runlog_age_h=$runlog_age steps='$steps' $(df_line)"
 rc=0
 for s in $steps; do
   # the root-disk steps are driven by free space, never by age alone

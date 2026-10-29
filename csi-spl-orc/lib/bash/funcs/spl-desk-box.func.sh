@@ -31,3 +31,31 @@ spl_desk_box_default() {
   fi
   printf '%s' "${v:-box-desk}"
 }
+
+#------------------------------------------------------------------------------
+# spl_box_name: this machine's fleet box name (the <box> of <ID>@<box>, of a
+# beat, a lease, a desk, a record's box column), from the config and never
+# from the OS hostname: a machine's hostname need not be its box name (one PC's
+# is `box`, read by the drill panel 2026-10-29; SPL-4201). Read in this order:
+#   1. SPOOL_DESK_BOX, then SPOOL_BOX_TAG, in the environment
+#   2. SPOOL_DESK_BOX, then SPOOL_BOX_TAG, in the box config $SPOOL_BOX_ENV
+#      (default /var/spool-hub/box.env)
+#   3. hostname -s, only on a machine with neither: nothing names the box
+# Under SPOOL_TEST=1 the live box config is skipped, as spl_desk_box_default
+# does. Standalone scripts source this file by path: it needs nothing else.
+#------------------------------------------------------------------------------
+spl_box_name() {
+  local v="${SPOOL_DESK_BOX:-${SPOOL_BOX_TAG:-}}" f="${SPOOL_BOX_ENV:-${SPOOL_LIVE_ROOT:-/var/spool-hub}/box.env}" k val d="" t=""
+  [[ "${SPOOL_TEST:-}" == 1 && -z "${SPOOL_BOX_ENV:-}" ]] && f=""
+  if [[ -z "$v" && -r "$f" ]]; then
+    while IFS='=' read -r k val || [[ -n "$k" ]]; do
+      k="${k#export }"
+      [[ "$k" == SPOOL_DESK_BOX || "$k" == SPOOL_BOX_TAG ]] || continue
+      val="${val%$'\r'}"; val="${val#\"}"; val="${val%\"}"; val="${val#\'}"; val="${val%\'}"
+      if [[ "$k" == SPOOL_DESK_BOX ]]; then d="$val"; else t="$val"; fi
+    done <"$f"
+    v="${d:-$t}"
+  fi
+  [[ -n "$v" ]] || v="$(hostname -s 2>/dev/null)"
+  printf '%s' "$v"
+}

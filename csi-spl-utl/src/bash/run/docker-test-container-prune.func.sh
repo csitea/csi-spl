@@ -109,10 +109,11 @@ _dtcp_stamp() {
   echo "${DOCKER_PRUNE_STATE_DIR:-${SPL_STATE_DIR:-$HOME/.local/state/csi-spl}/docker-test-container-prune}/alert.stamp"
 }
 
+# spl_box_name: the box name from the config, never the hostname (SPL-4201)
+declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh"
+
 _dtcp_box() {
-  local box="${DEV_BOX:-$(hostname -s 2>/dev/null || echo PC)}"
-  [[ "$box" == "box" ]] && box="PC"
-  echo "$box"
+  echo "${DEV_BOX:-$(spl_box_name)}"
 }
 
 # _dtcp_note <dry> <signature> <body>: send (or plan) the orchestrator note,

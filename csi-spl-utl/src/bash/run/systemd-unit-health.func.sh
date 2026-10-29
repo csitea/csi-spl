@@ -36,6 +36,9 @@ type do_log &>/dev/null || do_log() { echo "$*"; }
 # action's locals (ignore_file, ignore_map, sys_state, failed_units, body, ...).
 # Call them plainly, never inside $(...), or their assignments are lost.
 
+# spl_box_name: the box name from the config, never the hostname (SPL-4201)
+declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh"
+
 # Resolve the ignore file into ignore_file and fill ignore_map from it.
 _unit_health_ignore_load() {
   if [[ -z "$ignore_file" ]]; then
@@ -180,7 +183,7 @@ do_os_systemd_unit_check() {
   local systemctl_bin="${SYSTEMCTL_BIN:-systemctl}"
   local journalctl_bin="${JOURNALCTL_BIN:-journalctl}"
 
-  local box_name="${DEV_BOX:-$(hostname -s 2>/dev/null || echo "PC")}"
+  local box_name="${DEV_BOX:-$(spl_box_name)}"
   local to="${SYSTEMD_UNIT_ALERT_TO:-orchestrator}"
   local from="${SYSTEMD_UNIT_ALERT_FROM:-${SPOOL_AGENT_ID:-systemd-unit-health@$box_name}}"
   local task="${SYSTEMD_UNIT_ALERT_TASK:-systemd-unit-health}"

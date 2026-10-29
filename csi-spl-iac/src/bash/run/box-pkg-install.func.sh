@@ -31,11 +31,14 @@
 # @param BOX_PKG_SERVICES (optional) - the service map, default cnf env.box.pkg_services
 # @param BOX_PKG_HUB_HOST (optional) - the probe's host, default cnf env.dns.BASE_DOMAIN
 # @param BOX_PKG_AUTO_UNDO (optional) - 0 turns the auto-undo hook off (D5)
-# @param BOX_PKG_BOX (optional) - the box column, default `hostname -s`
+# @param BOX_PKG_BOX (optional) - the box column, default the configured box name (spl_box_name)
 # @param BOX_PKG_SEND (optional) - the sender, default orc's spool-send.sh
 # @param BOX_PKG_TASK (optional) - the note's task, default box-pkg
 # @example BOX_PKG=jq BOX_PKG_REASON='json in the probes' AGENT_ID=c-1 ./run -a do_box_pkg_install
 #------------------------------------------------------------------------------
+
+# spl_box_name: the box name from the config, never the hostname (SPL-4201)
+declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh"
 
 # _bpi_sudo <cmd...>: run as root, through sudo unless already root
 _bpi_sudo() {
@@ -121,7 +124,7 @@ _bpi_snapshot() {
 _bpi_journal() {
   local j="${BOX_PKG_JOURNAL:-/var/lib/csi-spl/box-pkg/journal.tsv}" line
   _bpi_sudo mkdir -p "$(dirname "$j")" || return 1
-  line="$(date -u +%FT%TZ)"$'\t'"${BOX_PKG_BOX:-$(hostname -s)}"$'\t'"$AGENT_ID"
+  line="$(date -u +%FT%TZ)"$'\t'"${BOX_PKG_BOX:-$(spl_box_name)}"$'\t'"$AGENT_ID"
   line+=$'\t'"${BOX_PKG_ISSUE:-}"$'\t'"$1"$'\t'"$(_bpi_clean "$BOX_PKG")"$'\t'"$2"
   line+=$'\t'"$(_bpi_clean "${3//$'\n'/; }")"$'\t'"$4"$'\t'"$(_bpi_clean "$BOX_PKG_REASON")"
   printf '%s\n' "$line" | _bpi_sudo tee -a "$j" >/dev/null
@@ -224,7 +227,7 @@ do_box_pkg_install() {
   flags="$(_bpi_flags "$tmp/sim")"
   if [[ -n "$flags" ]]; then
     printf '%s\n' "$flags"
-    _bpi_send "box-pkg ($mode): $AGENT_ID installs $BOX_PKG on ${BOX_PKG_BOX:-$(hostname -s)}, a service takeover: ${flags//$'\n'/; }. Reason: $BOX_PKG_REASON"
+    _bpi_send "box-pkg ($mode): $AGENT_ID installs $BOX_PKG on ${BOX_PKG_BOX:-$(spl_box_name)}, a service takeover: ${flags//$'\n'/; }. Reason: $BOX_PKG_REASON"
   fi
   if [[ "${DRY_RUN:-1}" != 0 ]]; then
     _bpi_dry "$closure" "$flags"

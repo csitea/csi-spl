@@ -23,10 +23,18 @@
 # @description is counted on its own, as gw_loss_100. This is what an
 # @description orchestrator reads.
 # @description
+# @description UPLINK_PROBE_CMD=dns asks ONE question, for the spawn gate
+# @description (spawn-window.sh HUB DNS, SPL-4253): does this box resolve the
+# @description hub API host now, within UPLINK_DNS_TIMEOUT_S? One line, no
+# @description sample kept: `uplink-dns ok <host> <ms>ms` rc 0, `uplink-dns
+# @description FAIL <host>: ...` rc 1; no hub host (cnf unreadable) is
+# @description `uplink-dns unknown ...` rc 0: not a network fault.
+# @description
 # @description The hub API host is cnf env.dns.api_fqdn of ENV, the value
 # @description do_spl_desk_cnf makes the desk's SPL_HUB_URL from
 # @description (lib/bash/funcs/spl-cloud-cnf.func.sh): no literal host here.
-# @param UPLINK_PROBE_CMD (optional) - probe (default) | report
+# @param UPLINK_PROBE_CMD (optional) - probe (default) | report | dns
+# @param UPLINK_DNS_TIMEOUT_S (optional) - dns: the lookup's timeout, 1..99 s, default 5
 # @param UPLINK_PROBE_HOURS (optional) - report: the last N hours, default 24
 # @param UPLINK_PROBE_DIR (optional) - default <BOX_CRONS_STATE_DIR or
 # @param   /var/csi/csi-spl>/uplink-probe
@@ -40,10 +48,12 @@
 # @param   `ping`, `getent` and the /dev/tcp connect (tests)
 # @example ./run -a do_spl_uplink_probe
 # @example UPLINK_PROBE_CMD=report ./run -a do_spl_uplink_probe
+# @example UPLINK_PROBE_CMD=dns ENV=prd ./run -a do_spl_uplink_probe
 # @example UPLINK_PROBE_CMD=report UPLINK_PROBE_HOURS=6 UPLINK_PROBE_BOX=<box> ./run -a do_spl_uplink_probe
 #------------------------------------------------------------------------------
 do_spl_uplink_probe() {
   local cmd="${UPLINK_PROBE_CMD:-probe}" dir box file
+  [[ "$cmd" != dns ]] || { spl_uplink_dns_check; return; }
   dir="${UPLINK_PROBE_DIR:-${BOX_CRONS_STATE_DIR:-/var/csi/csi-spl}/uplink-probe}"
   box="${UPLINK_PROBE_BOX:-$(spl_desk_box_default)}"
   [[ "$box" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { do_log "FATAL the box id '$box' is not a plain name (set UPLINK_PROBE_BOX)"; return 1; }
@@ -75,6 +85,23 @@ spl_uplink_hub_host() {
     [[ "$h" =~ ^[A-Za-z0-9.-]+$ ]] && printf '%s' "$h"
     exit 0
   )
+}
+
+# spl_uplink_dns_check - UPLINK_PROBE_CMD=dns: this box resolves the hub API
+# host within UPLINK_DNS_TIMEOUT_S (rc 0), or not (rc 1); unknown host rc 0
+spl_uplink_dns_check() {
+  local host t="${UPLINK_DNS_TIMEOUT_S:-5}" t0
+  local -a getent
+  [[ "$t" =~ ^[1-9][0-9]?$ ]] || { do_log "FATAL UPLINK_DNS_TIMEOUT_S must be 1..99 s, got: '$t'"; return 2; }
+  read -ra getent <<<"${UPLINK_GETENT_CMD:-getent}"
+  host="$(spl_uplink_hub_host)"
+  [[ -n "$host" ]] || { echo "uplink-dns unknown: no hub API host (cnf env.dns.api_fqdn of ENV=${ENV:-prd} unreadable): not judged"; return 0; }
+  t0="$(spl_uplink_ms)"
+  if timeout "$t" "${getent[@]}" hosts "$host" >/dev/null 2>&1; then
+    echo "uplink-dns ok $host $(( $(spl_uplink_ms) - t0 ))ms"; return 0
+  fi
+  echo "uplink-dns FAIL $host: no DNS answer within ${t}s"
+  return 1
 }
 
 # spl_uplink_gateway - prints "<gw> <iface>" of the default route, or nothing.

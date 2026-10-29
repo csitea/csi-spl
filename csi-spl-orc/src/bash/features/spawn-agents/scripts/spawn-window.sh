@@ -46,7 +46,8 @@
 # load target's high mark (LOAD TARGET below), so queue the lane, 11 the
 # new session is stopped on a dialog (START CHECK above), 12 the lane has
 # no issue (LANE ISSUE below), 13 the box has no <kind> CLI (VENDOR CLI
-# below). Only c-001, c-002 and c-003 (any box), or a
+# below), 14 this box cannot resolve the hub API host (HUB DNS below).
+# Only c-001, c-002 and c-003 (any box), or a
 # shell with no agent id, may spawn. The id is the caller's SPOOL_AGENT_ID
 # or MCP_BOT_AGENT_ID, else the window or registry row of $TMUX_PANE, else
 # the closest ancestor that still carries the id (`sudo -u` strips it from
@@ -118,6 +119,23 @@
 # spawn. A box nobody measured (an older box: no cli= in its row) stays a
 # candidate. Seam: SPOOL_VENDOR_CLIS_CMD prints this box's kinds
 # ("claude,qwen").
+#
+# HUB DNS (SPL-4253, drill finding #5 on a box, 2026-10-29): a box that cannot
+# resolve the hub API host refused two launches in 10 min at the lane issue
+# step (exit 12, an id claimed each time) while the bench still read it
+# healthy: a 1-2 min DNS loss never benches a box. So the box that LAUNCHES
+# resolves the host first (do_spl_uplink_probe UPLINK_PROBE_CMD=dns, cnf
+# env.dns.api_fqdn of LANE_ENV / lease.conf LEASE_ENV, timeout
+# SPAWN_HUB_DNS_TIMEOUT_S, default 5): on the target box that is the remote
+# serve's own spawn-window, so the check runs ON the target. It runs after the
+# session check and before any id claim. On failure it prints one line naming
+# the box, the host and the reason, then exits 14 with nothing claimed. The
+# requester then re-picks: its fallback starts the lane here, after the same
+# check here. If this box fails the check too, the exit is 14 and the placer
+# puts the row back in line. Only in a fleet, and only on a real launch of a new
+# id: a dry run and a respawn (SPAWN_REUSE_ID=1) skip it. A probe that cannot
+# judge (no host in the cnf, the action failed) never refuses: a WARN. Seam:
+# SPAWN_HUB_DNS_CMD replaces the action (prints its `uplink-dns` line).
 set -uo pipefail
 
 HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -343,6 +361,31 @@ if [ -z "$sess" ]; then
   [ -n "$sess" ] || sess="$("${SPOOL_TM[@]}" list-sessions -F '#{session_id}' 2>/dev/null | head -1)"
 fi
 [ -n "$sess" ] || { echo "spawn-window: no tmux session on ${SPOOL_TMUX_SOCKET}" >&2; exit 5; }
+
+# HUB DNS (header): 0 resolves or not judged, 14 this box cannot resolve it.
+sw_hub_dns() {
+  local env out rc=0 line
+  [ "${SPAWN_DRY_RUN:-0}" != 1 ] && [ "${SPAWN_REUSE_ID:-0}" != 1 ] || return 0
+  [ -n "${LANE_FLEET:-$(_spool_fleet_conf LEASE_FLEET)}" ] || return 0
+  env="${LANE_ENV:-$(_spool_fleet_conf LEASE_ENV)}"
+  if [ -n "${SPAWN_HUB_DNS_CMD:-}" ]; then
+    # shellcheck disable=SC2086 # a command line, split on purpose
+    out="$($SPAWN_HUB_DNS_CMD 2>&1)" || rc=$?
+  else
+    out="$(env ${env:+ENV="$env"} UPLINK_PROBE_CMD=dns UPLINK_DNS_TIMEOUT_S="${SPAWN_HUB_DNS_TIMEOUT_S:-5}" \
+      timeout 60 bash "${SPAWN_ORC_RUN:-$HERE/../../../../../run}" -a do_spl_uplink_probe 2>&1)" || rc=$?
+  fi
+  line="$(grep -E '^uplink-dns (ok|FAIL|unknown)' <<<"$out" | tail -1)"
+  case "$rc:$line" in
+    0:"uplink-dns ok "*) return 0 ;;
+    *:"uplink-dns FAIL "*)
+      echo "spawn-window: REFUSED ${TITLE/#auto/a new $KIND lane} on $(spool_fleet_box): this box cannot resolve the hub API host (${line#uplink-dns FAIL }); nothing was claimed, re-pick another box or keep the row queued" >&2
+      return 14 ;;
+  esac
+  echo "spawn-window: WARN the hub DNS check on $(spool_fleet_box) did not judge (exit ${rc}: $(tail -1 <<<"${line:-$out}" | cut -c1-200)): launching" >&2
+  return 0
+}
+sw_hub_dns || exit $?
 
 DRY=0; [ "${SPAWN_DRY_RUN:-0}" = 1 ] && DRY=1
 if [ "$TITLE" = auto ]; then

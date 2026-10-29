@@ -19,6 +19,9 @@
 #   8. bad UPLINK_PROBE_CMD / UPLINK_PROBE_HOURS are refused
 #   9. the manifest row and the cron script: executable, exits 0 with the
 #      link down, refuses a worktree unless allowed
+#  10. UPLINK_PROBE_CMD=dns (the spawn gate, SPL-4253): resolves -> `ok` rc 0,
+#      no answer -> `FAIL <host>` rc 1, a hanging lookup is cut at
+#      UPLINK_DNS_TIMEOUT_S, no host -> `unknown` rc 0; no sample is written
 #   No real ping, DNS or TCP: every network call is a stub via env.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -163,6 +166,23 @@ case "$PROJ_ROOT" in
     [[ $rc -eq 2 && "$out" == *"agent worktree"* ]] && pass "9c. the cron script refuses a worktree" || fail "9c. worktree (rc $rc): $out" ;;
   *) pass "9c. (not in a worktree: refusal not exercised)" ;;
 esac
+
+# 10. dns mode
+printf '#!/bin/sh\nsleep 30\n' >"$B/getent-hang"; chmod +x "$B/getent-hang"
+N="$T/dnsmode"
+out="$(probe UPLINK_PROBE_DIR="$N" UPLINK_PROBE_CMD=dns UPLINK_GETENT_CMD="$B/getent-up")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"uplink-dns ok hub.invalid "* && ! -e "$N/bx.tsv" ]] &&
+  pass "10a. dns: resolves -> ok, rc 0, no sample" || fail "10a. (rc $rc): $out"
+out="$(probe UPLINK_PROBE_DIR="$N" UPLINK_PROBE_CMD=dns UPLINK_GETENT_CMD="$B/getent-down")"; rc=$?
+[[ $rc -eq 1 && "$out" == *"uplink-dns FAIL hub.invalid"* && ! -e "$N/bx.tsv" ]] &&
+  pass "10b. dns: no answer -> FAIL <host>, rc 1" || fail "10b. (rc $rc): $out"
+t0=$SECONDS
+out="$(probe UPLINK_PROBE_DIR="$N" UPLINK_PROBE_CMD=dns UPLINK_DNS_TIMEOUT_S=1 UPLINK_GETENT_CMD="$B/getent-hang")"; rc=$?
+[[ $rc -eq 1 && "$out" == *"within 1s"* && $((SECONDS - t0)) -lt 15 ]] &&
+  pass "10c. dns: a hanging lookup is cut at UPLINK_DNS_TIMEOUT_S" || fail "10c. (rc $rc, $((SECONDS - t0)) s): $out"
+out="$(SNIPPET='do_spl_cloud_cnf() { return 1; }; do_spl_uplink_probe' in_orc UPLINK_PROBE_CMD=dns UPLINK_GETENT_CMD="$B/getent-down" 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"uplink-dns unknown"* ]] &&
+  pass "10d. dns: no hub host -> unknown, rc 0 (not a network fault)" || fail "10d. (rc $rc): $out"
 
 echo
 if [ "$fails" -eq 0 ]; then echo "spl-uplink-probe: all passed"; exit 0; fi

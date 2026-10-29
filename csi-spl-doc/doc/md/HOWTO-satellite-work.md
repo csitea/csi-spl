@@ -179,6 +179,16 @@ crontab, finds it in that inbox or archive, and runs ITS OWN `spawn-window.sh`
   local fallback starts anything after a remote that did not answer in time, it
   reads the lane map fresh; if a live lane on any box already carries the slug
   (branch `<ID>-<slug>`), it prints that `<ID>@<box>` and starts nothing.
+- **Hub DNS check before the claim (SPL-4253)**: the box that launches first
+  resolves the hub API host (`UPLINK_PROBE_CMD=dns ./run -a do_spl_uplink_probe`,
+  cnf `env.dns.api_fqdn`, 5 s). On the target this is the serve's own
+  `spawn-window`, so the check runs there. A failure is exit 14 with nothing
+  claimed: one line names the box, the host and the reason, the reply says
+  `refused`, and the requester re-picks its own box after the same check
+  there. Failing there too gives exit 14, and the placer puts the row back in
+  line. Before this, a 1-2 min DNS loss on the PC (2026-10-29, n=2) claimed an
+  id and then failed at the lane issue step (exit 12) while the bench read the
+  box healthy. Test: `features/spawn-agents/tests/test-spawn-hub-dns.sh`.
 
 Install the receiver on each machine that should accept remote spawns:
 

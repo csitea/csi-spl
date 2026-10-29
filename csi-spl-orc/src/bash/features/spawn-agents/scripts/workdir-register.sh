@@ -29,6 +29,8 @@
 #   /var/spool-hub), SPOOL_NOW (the clock: --at defaults to it, else now).
 # Exit 0 ok; 1 the lock stayed held; 2 usage.
 set -uo pipefail
+# spl_box_name: the box name from the config, never the hostname (SPL-4201)
+declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../../lib/bash/funcs/spl-desk-box.func.sh"
 PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
 
 table="${WORKDIR_TABLE:-${SPOOL_ROOT:-/var/spool-hub}/workdirs.tsv}"
@@ -76,7 +78,7 @@ case "$cmd" in
     ok_path "$path" || die "needs an absolute path with no . / .. segment, got '${path}'"
     case "$kind" in worktree|scratch|var-tmp) ;; *) die "--kind must be worktree, scratch or var-tmp, got '${kind}'" ;; esac
     [[ "$agent" =~ ^[A-Za-z0-9][A-Za-z0-9._@-]*$ ]] || die "--agent must be an agent id, got '${agent}'"
-    box="${box:-$(hostname -s)}"
+    box="${box:-$(spl_box_name)}"
     for v in "$box" "$branch"; do [[ "$v" != *[[:space:]]* ]] || die "box and branch are one word each, got '${v}'"; done
     [ -n "$at" ] || at="$(date -u -d "${SPOOL_NOW:-now}" +%Y-%m-%dT%H:%M:%SZ)"
     [[ "$at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || die "--at must be UTC like 2026-10-16T08:00:00Z, got '${at}'"

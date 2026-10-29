@@ -45,6 +45,9 @@
 #------------------------------------------------------------------------------
 type do_log &>/dev/null || do_log() { echo "$*"; }
 
+# spl_box_name: the box name from the config, never the hostname (SPL-4201)
+declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh"
+
 # _rrc_needrestart <bin>: print needrestart's batch output, or nothing when
 # the binary is missing. LC_ALL=C keeps perl's locale warnings out.
 _rrc_needrestart() {
@@ -195,7 +198,7 @@ do_os_reboot_required_check() {
   local pkgs_file="${REBOOT_REQUIRED_PKGS_FILE:-$flag_file.pkgs}"
   local nr_bin
   nr_bin="$(_rrc_nr_bin)"
-  local box_name="${DEV_BOX:-$(hostname -s 2>/dev/null || echo "PC")}"
+  local box_name="${DEV_BOX:-$(spl_box_name)}"
   local to="${REBOOT_CHECK_ALERT_TO:-orchestrator}"
   local from="${REBOOT_CHECK_ALERT_FROM:-${SPOOL_AGENT_ID:-reboot-required-check@$box_name}}"
   local task="${REBOOT_CHECK_ALERT_TASK:-reboot-required-check}"

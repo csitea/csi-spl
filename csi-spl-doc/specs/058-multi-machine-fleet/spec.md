@@ -96,6 +96,7 @@ today. **FIXED** means it was broken and is now fixed on trunk by this lane.
 | an agent, everywhere (address, tmux window, claude `--name`, lease holder) | `<ID>@<box>`, e.g. `CLE-002@sat` | windows/sessions: `spool_decorate`, `an_decorate`, `agent-identity.py want_name` (F5); lease: rdb 0095 (CLE-77911); WUI commands: F3 |
 | `<ID>` | `^[A-Z]{2,4}-[0-9]+$`, unchanged | `msg.ValidID`, `spool_valid_id` |
 | `<box>` | the machine's desk box id, `^[a-z0-9][a-z0-9-]{0,31}$`, 3 letters preferred, from box.env `SPOOL_DESK_BOX` | `spl_desk_box_default` (F2), `box-config.sh` |
+| this box's name anywhere else (an `<ID>@<box>` sender, a beat, a note, a record's box column) | the configured name, never the OS hostname (a machine's hostname need not be its box name; SPL-4201): `SPOOL_DESK_BOX`, then `SPOOL_BOX_TAG`, from the environment, then box.env; `hostname -s` only on a machine with neither | `spl_box_name` (`lib/bash/funcs/spl-desk-box.func.sh`); gate `csi-spl-orc/src/bash/tests/box-name-from-cnf.tst.sh` (a stub hostname, and a ratchet on any new `$(hostname` in the shell) |
 | reserved on every box | `CLE-001` orchestrator, `CLE-002` master dispatcher, `CLE-003` failover | the allocator never hands out 1-3 (F4); they are only `--claim`ed |
 
 Every parser reads both `<ID>@<box>` and the older `<tag>: <ID>` during the

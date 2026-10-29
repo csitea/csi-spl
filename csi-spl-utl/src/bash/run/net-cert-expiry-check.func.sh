@@ -50,6 +50,9 @@
 #------------------------------------------------------------------------------
 type do_log &>/dev/null || do_log() { echo "$*"; }
 
+# spl_box_name: the box name from the config, never the hostname (SPL-4201)
+declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh"
+
 do_net_cert_expiry_check() {
   local warn_s="${CERT_EXPIRY_WARN_S:-1814400}" crit_s="${CERT_EXPIRY_CRIT_S:-604800}"
   local tmo="${CERT_EXPIRY_TIMEOUT:-5}" dry="${DRY_RUN:-1}" hosts tmp i host level days end
@@ -162,7 +165,7 @@ cert_expiry_alert() {
   local to="${CERT_EXPIRY_ALERT_TO:-orchestrator}" task="${CERT_EXPIRY_ALERT_TASK:-cert-expiry}"
   local throttle="${CERT_EXPIRY_THROTTLE_S:-86400}"
   local -a send
-  box="$(hostname -s 2>/dev/null)"
+  box="$(spl_box_name)"
   from="${CERT_EXPIRY_ALERT_FROM:-${SPOOL_AGENT_ID:-cert-expiry-check@$box}}"
   stamp="$(cert_expiry_stamp "$host")"
   now="${EPOCHSECONDS:-$(date +%s)}"

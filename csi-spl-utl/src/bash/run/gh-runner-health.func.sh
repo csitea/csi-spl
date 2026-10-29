@@ -61,6 +61,9 @@
 #------------------------------------------------------------------------------
 type do_log &>/dev/null || do_log() { echo "$*"; }
 
+# spl_box_name: the box name from the config, never the hostname (SPL-4201)
+declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh"
+
 do_gh_runner_health_check() {
   local repo org max="${GH_RUNNER_HEALTH_JOB_MAX_MIN:-45}" dry="${DRY_RUN:-1}" now t0 tmp counts ms
   local parked="${CPU_BUDGET_STATE_DIR:-/var/tmp/gh-runner-cpu-budget}/parked"
@@ -258,7 +261,7 @@ ghrh_alert() {
   local throttle="${GH_RUNNER_HEALTH_THROTTLE_S:-1800}"
   local -a send
   shift 2
-  box="$(hostname -s 2>/dev/null)"
+  box="$(spl_box_name)"
   from="${GH_RUNNER_HEALTH_ALERT_FROM:-${SPOOL_AGENT_ID:-gh-runner-health@$box}}"
   # the key leaves out the minute count, so a hung job that only aged is
   # the same alert

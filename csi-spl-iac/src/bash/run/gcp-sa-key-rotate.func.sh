@@ -28,6 +28,9 @@
 # @example ENV=dev ./run -a do_gcp_sa_key_rotate
 # @example ENV=dev ROTATE_STEP=mint DRY_RUN=0 ./run -a do_gcp_sa_key_rotate
 #------------------------------------------------------------------------------
+# spl_box_name: the box name from the config, never the hostname (SPL-4201)
+declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh"
+
 do_gcp_sa_key_rotate() {
   local step="${ROTATE_STEP:-status}" dry="${DRY_RUN:-1}"
   [[ "$step" =~ ^(status|mint|prove|retire)$ ]] || { do_log "FATAL ROTATE_STEP must be status, mint, prove or retire, got: '$step'"; return 2; }
@@ -143,7 +146,7 @@ gcp_sa_key_rotate_prove() {
     { do_log "FATAL PROVE key $kid mints no token for $sa"; return 1; }
   [[ "$(gcloud projects describe "$PROJ_ID" --account="$sa" --format='value(projectId)' --quiet </dev/null 2>/dev/null)" == "$PROJ_ID" ]] ||
     { do_log "FATAL PROVE key $kid cannot read the project $PROJ_ID"; return 1; }
-  box="${SA_KEY_PROOF_BOX:-$(hostname -s)}"
+  box="${SA_KEY_PROOF_BOX:-$(spl_box_name)}"
   proof="$box:${kid:0:12}:$(date -u +%Y%m%dT%H%M%SZ)"
   state="$(gcp_sa_key_rotate_state)"
   mkdir -p "$(dirname "$state")" && printf '%s %s %s\n' "$PROJ_ID" "$kid" "$proof" >>"$state" ||

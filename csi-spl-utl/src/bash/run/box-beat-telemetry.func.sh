@@ -58,6 +58,9 @@
 #------------------------------------------------------------------------------
 type do_log &>/dev/null || do_log() { echo "$*"; }
 
+# spl_box_name: the box name from the config, never the hostname (SPL-4201)
+declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh"
+
 do_box_beat_telemetry_check() {
   local dry="${DRY_RUN:-1}" t0 ms now wd ack="" age=0 step="?" down near fence state wdst=ok
   local dir last_ack="" open_ack="" open_max=0 open_kind="" ev="" body="" lo hi
@@ -155,7 +158,7 @@ box_beat_today() {
 # box_beat_body <kind> <lo> <hi> <last ack> <new ack> <near> <fence> - the note
 box_beat_body() {
   local box a b
-  box="$(hostname -s 2>/dev/null)"
+  box="$(spl_box_name)"
   TZ=UTC printf -v a '%(%FT%TZ)T' "$4"
   TZ=UTC printf -v b '%(%FT%TZ)T' "$5"
   printf 'box-beat RECONNECT on %s after a %s silence: no beat ack for %s..%s s (last ack %s, acked again by %s; near-fence at %s s, the watchdog fences at %s s).' \
@@ -200,7 +203,7 @@ box_beat_send() {
   fi
   [[ -s "$pending" ]] || return 0
   body="$(<"$pending")"
-  box="$(hostname -s 2>/dev/null)"
+  box="$(spl_box_name)"
   from="${BOX_BEAT_ALERT_FROM:-${SPOOL_AGENT_ID:-box-beat-telemetry@$box}}"
   read -ra send <<<"${BOX_BEAT_SEND_CMD:-}"
   if ! ((${#send[@]})); then

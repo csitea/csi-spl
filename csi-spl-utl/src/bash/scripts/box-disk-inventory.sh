@@ -15,7 +15,7 @@
 #   DISK_INV_GROWTH      0 (default) | 1  append to the growth record
 #   DISK_INV_GROWTH_TSV  default /var/<org>/<org>-<app>/box-disk-sweep/growth.tsv
 #   DISK_INV_REPORT      also write the table to this file (mode 0644)
-#   DISK_INV_BOX         the box name in the table and the record, default hostname -s
+#   DISK_INV_BOX         the box name in the table and the record, default the configured box name (spl_box_name)
 #   DISK_INV_SUDO        auto (default: sudo -n when it works) | 0 | 1
 #   DISK_INV_TIMEOUT     seconds per path, default 600 (a timed-out path reads "timeout")
 #   DISK_INV_DAY         the record's day (tests), default today UTC
@@ -23,6 +23,8 @@
 #
 # Exit: 0 table printed; 2 usage.
 set -uo pipefail
+# spl_box_name: the box name from the config, never the hostname (SPL-4201)
+declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh"
 PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
 
 SELF="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -32,7 +34,7 @@ oa="$(basename "$UTL")"; oa="${oa%-utl}"
 rows_file="${DISK_INV_ROWS:-$UTL/cnf/disk-inventory.rows}"
 growth="${DISK_INV_GROWTH:-0}"
 tsv="${DISK_INV_GROWTH_TSV:-/var/${oa%%-*}/$oa/box-disk-sweep/growth.tsv}"
-box="${DISK_INV_BOX:-$(hostname -s 2>/dev/null)}"
+box="${DISK_INV_BOX:-$(spl_box_name)}"
 tmo="${DISK_INV_TIMEOUT:-600}"
 day="${DISK_INV_DAY:-$(date -u +%F)}"
 docker_bin="${DISK_INV_DOCKER:-docker}"

@@ -34,6 +34,9 @@
 #------------------------------------------------------------------------------
 type do_log &>/dev/null || do_log() { echo "$*"; }
 
+# spl_box_name: the box name from the config, never the hostname (SPL-4201)
+declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh"
+
 _csq_cnf_dir() {
   local d
   if [[ -n "${CLOUD_SQL_CNF_DIR:-}" && -d "${CLOUD_SQL_CNF_DIR}" ]]; then
@@ -244,7 +247,7 @@ _csq_send_spool() {
 _csq_alert() {
   local env="$1" instance="$2" code="$3" reason="$4" dry="$5"
   local box_name state_dir stamp_file throttle_s now_iso to from task body now_ep stamp_mtime age_s
-  box_name="$(hostname -s 2>/dev/null || echo "unknown")"
+  box_name="$(spl_box_name)"
   state_dir="${CLOUD_SQL_BACKUP_STATE_DIR:-${SPL_STATE_DIR:-$HOME/.local/state/csi-spl/cloud-sql-backup-verify}}"
   stamp_file="${CLOUD_SQL_BACKUP_STAMP_FILE:-$state_dir/cloud-sql-backup-alert-$env.stamp}"
   throttle_s="${CLOUD_SQL_BACKUP_THROTTLE_S:-86400}"

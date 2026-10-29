@@ -51,6 +51,9 @@
 #------------------------------------------------------------------------------
 type do_log &>/dev/null || do_log() { echo "$*"; }
 
+# spl_box_name: the box name from the config, never the hostname (SPL-4201)
+declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh"
+
 do_fleet_tmux_health_guard() {
   local uid sock tmo="${TMUX_HEALTH_TIMEOUT:-3}" dry="${DRY_RUN:-1}"
   local tmux_bin="${TMUX_HEALTH_TMUX_BIN:-tmux}" owner="" state out outf rc t0 ms n=0 detail=""
@@ -131,7 +134,7 @@ tmux_health_alert() {
   local to="${TMUX_HEALTH_ALERT_TO:-orchestrator}" task="${TMUX_HEALTH_ALERT_TASK:-tmux-health}"
   local throttle="${TMUX_HEALTH_THROTTLE_S:-1800}" send_tmo="${TMUX_HEALTH_SEND_TIMEOUT:-20}"
   local -a send
-  box="$(hostname -s 2>/dev/null)"
+  box="$(spl_box_name)"
   from="${TMUX_HEALTH_ALERT_FROM:-${SPOOL_AGENT_ID:-tmux-health-guard@$box}}"
   stamp="$(tmux_health_stamp "$sock")"
   now="${EPOCHSECONDS:-$(date +%s)}"

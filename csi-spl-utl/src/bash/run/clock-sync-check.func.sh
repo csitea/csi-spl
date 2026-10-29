@@ -51,6 +51,9 @@
 #------------------------------------------------------------------------------
 type do_log &>/dev/null || do_log() { echo "$*"; }
 
+# spl_box_name: the box name from the config, never the hostname (SPL-4201)
+declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh"
+
 do_os_clock_sync_check() {
   local dry="${DRY_RUN:-1}" max_ms="${CLOCK_SYNC_MAX_OFFSET_MS:-1000}" lost_min="${CLOCK_SYNC_LOST_MIN:-30}"
   local tdc="${CLOCK_SYNC_TIMEDATECTL_BIN:-timedatectl}" chr="${CLOCK_SYNC_CHRONYC_BIN:-chronyc}"
@@ -182,7 +185,7 @@ clock_sync_alert() {
   local to="${CLOCK_SYNC_ALERT_TO:-orchestrator}" task="${CLOCK_SYNC_ALERT_TASK:-clock-sync}"
   local throttle="${CLOCK_SYNC_THROTTLE_S:-3600}" send_tmo="${CLOCK_SYNC_SEND_TIMEOUT:-20}"
   local -a send
-  box="$(hostname -s 2>/dev/null)"
+  box="$(spl_box_name)"
   from="${CLOCK_SYNC_ALERT_FROM:-${SPOOL_AGENT_ID:-clock-sync-check@$box}}"
   stamp="$(clock_sync_dir)/last-alert.stamp"
   now="${CLOCK_SYNC_NOW:-${EPOCHSECONDS:-$(date +%s)}}"

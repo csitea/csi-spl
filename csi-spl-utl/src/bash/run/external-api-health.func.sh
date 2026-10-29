@@ -26,7 +26,7 @@
 # @param EXTERNAL_API_CNF (optional) - default ../<org-app>-cnf/<org-app>/all.env.yaml
 # @param EXTERNAL_API_DIR (optional) - default <UPLINK_PROBE_DIR or
 # @param   BOX_CRONS_STATE_DIR or /var/csi/csi-spl>/uplink-probe
-# @param EXTERNAL_API_BOX (optional) - default UPLINK_PROBE_BOX, else the short hostname
+# @param EXTERNAL_API_BOX (optional) - default UPLINK_PROBE_BOX, else the configured box name (spl_box_name)
 # @param EXTERNAL_API_NOW (optional) - epoch seconds for "now" (tests)
 # @param EXTERNAL_API_GETENT_CMD / EXTERNAL_API_TCP_CMD / EXTERNAL_API_TLS_CMD
 # @param   (optional) - replace `getent`, the /dev/tcp connect and the
@@ -36,6 +36,9 @@
 # @example EXTERNAL_API_ENDPOINTS="github=api.github.com:443" ./run -a do_net_external_api_check
 #------------------------------------------------------------------------------
 type do_log &>/dev/null || do_log() { echo "$*"; }
+
+# spl_box_name: the box name from the config, never the hostname (SPL-4201)
+declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh"
 
 do_net_external_api_check() {
   local cnf oa tmo eps dir box file now ts cut down=0 n=0 t0 t1 ep i tmp
@@ -57,7 +60,7 @@ do_net_external_api_check() {
     [[ "$ep" =~ ^[a-z0-9-]+=[A-Za-z0-9.-]+:[0-9]{1,5}$ ]] || { do_log "FATAL endpoint '$ep' is not name=host:port"; return 1; }
   done
   dir="${EXTERNAL_API_DIR:-${UPLINK_PROBE_DIR:-${BOX_CRONS_STATE_DIR:-/var/csi/csi-spl}/uplink-probe}}"
-  box="${EXTERNAL_API_BOX:-${UPLINK_PROBE_BOX:-$(hostname -s 2>/dev/null)}}"
+  box="${EXTERNAL_API_BOX:-${UPLINK_PROBE_BOX:-$(spl_box_name)}}"
   [[ "$box" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { do_log "FATAL the box id '$box' is not a plain name (set EXTERNAL_API_BOX)"; return 1; }
   file="$dir/$box.external-api.tsv"
   now="${EXTERNAL_API_NOW:-${EPOCHSECONDS:-$(date +%s)}}"

@@ -62,6 +62,9 @@
 #------------------------------------------------------------------------------
 type do_log &>/dev/null || do_log() { echo "$*"; }
 
+# spl_box_name: the box name from the config, never the hostname (SPL-4201)
+declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh"
+
 # _chs_hb_dir: the beat dir, the same for the wrapper and the check.
 _chs_hb_dir() {
   local state_dir="${CRON_HB_STATE_DIR:-${SPL_STATE_DIR:-$HOME/.local/state/csi-spl}}"
@@ -397,7 +400,7 @@ do_cron_heartbeat_snitch() {
   local stamp_file="${CRON_HB_STAMP_FILE:-$state_dir/cron-heartbeat-snitch.stamp}"
   local grace_min="${CRON_HB_GRACE_MIN_S:-300}" grace_pct="${CRON_HB_GRACE_PCT:-25}"
   local now="${CRON_HB_NOW:-${EPOCHSECONDS:-$(date +%s)}}"
-  local box_name="${DEV_BOX:-$(hostname -s 2>/dev/null || echo "PC")}"
+  local box_name="${DEV_BOX:-$(spl_box_name)}"
   local to="${CRON_HB_ALERT_TO:-orchestrator}"
   local from="${CRON_HB_ALERT_FROM:-${SPOOL_AGENT_ID:-cron-heartbeat-snitch@$box_name}}"
   local task="${CRON_HB_ALERT_TASK:-cron-heartbeat-snitch}"

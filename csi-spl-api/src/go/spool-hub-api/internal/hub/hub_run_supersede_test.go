@@ -75,13 +75,19 @@ func TestHubRunReconnectsAfterOneShotSync(t *testing.T) {
 
 // Two long-running hub-runs on one box must not fight for it: after one
 // re-hello each, exactly one exits with ErrSuperseded and the other keeps it.
+//
+// B starts only once A's session is up, not once A's upgrade is counted: the
+// upgrade is counted before A's hello, so B's hello could land first, A's
+// then evicts B inside B's dial (no 4409 for Run to yield on, a plain redial)
+// and B pays one extra hello: "upgrades A 2 + B 3" (wf 10 40813917512,
+// SPL-4173).
 func TestHubRunTwoDaemonsOneLeaves(t *testing.T) {
 	e := newEnv(t)
 	tid, _ := e.tenant()
 	bx := e.box(tid, "box-a", "GRK-03")
 	e.pin(tid, bx)
 	bx.cfg.SubmitSocket = "off"
-	daemon := func() (*hubclient.Client, *split) {
+	daemon := func() (*hubclient.Client, *split, *syncWriter) {
 		c := hubclient.New(bx.cfg)
 		sp := newSplit(e.client, e.client)
 		c.HTTP = sp.client()
@@ -89,15 +95,22 @@ func TestHubRunTwoDaemonsOneLeaves(t *testing.T) {
 		c.SessionProbe = -1
 		c.SupersedeYield = 300 * time.Millisecond
 		c.SupersedeFight = 3 * time.Second
-		return c, sp
+		logs := &syncWriter{w: &bytes.Buffer{}}
+		c.Log = zerolog.New(logs).With().Timestamp().Logger()
+		return c, sp, logs
 	}
-	ca, spa := daemon()
-	cb, spb := daemon()
+	ca, spa, la := daemon()
+	cb, spb, lb := daemon()
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("daemon A log:\n%s\ndaemon B log:\n%s", la.String(), lb.String())
+		}
+	})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	da, db := make(chan error, 1), make(chan error, 1)
 	go func() { da <- ca.Run(ctx) }()
-	eventually(t, "daemon A up", func() bool { return spa.dials.Load() == 1 })
+	eventually(t, "daemon A's session", func() bool { return strings.Contains(la.String(), "hub session up") })
 	go func() { db <- cb.Run(ctx) }()
 
 	var left error

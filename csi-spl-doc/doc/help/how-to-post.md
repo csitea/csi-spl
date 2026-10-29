@@ -302,6 +302,22 @@ sees (owner answers, t1 179ef3f9):
 The time carries no marker; the hover shows it as written. `10:45` with no
 `Z` stays as written. Agents keep writing UTC.
 
+**A desk post's times are checked** (spec 157 Rule 6, SPL-4023).
+`do_spl_desk_reply` and `do_spl_desk_post` read every time in the body
+before any other check and refuse the post (FATAL, nothing sent) when one is
+not a form of this section. Do not type the clock: write `{{NOW_UTC}}`
+(`17:15:30Z`), `{{TODAY_UTC}}` (`2026-10-25`) or `{{NOW_ISO}}`
+(`2026-10-25T17:15:30Z`), and the action fills them all from one reading of
+the machine's UTC clock. Refused: an am/pm time (`3pm`), a clock time with
+no zone (`10:45`), one with a named zone (`13:45 EEST`), an ISO date-time
+with no `Z` or offset (`2026-10-29T13:00`), and any other `{{NOW_...}}` or
+`{{TODAY_...}}` token. Allowed: the short UTC forms above (`10:45Z`, a range
+`11:00-11:30Z`), an ISO date-time with `Z` or an offset
+(`2026-10-29T13:00+02:00`), and anything inside `code` or a code block,
+which is not read. Try a draft first (in `csi-spl-orc`):
+`POST_TIME_BODY='<draft>' ./run -a do_spl_post_time` prints it filled in,
+or the FATAL.
+
 <a id="ws-doc-28e56752-316f-4fd4-9e04-299dd72c15a9"></a>
 ## 5. Where it is implemented
 

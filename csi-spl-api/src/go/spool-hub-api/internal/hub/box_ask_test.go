@@ -9,6 +9,7 @@ import (
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
 // CLE-77929 (owner bug t1 2f7996aa): asks to the orchestrator survive the
@@ -210,4 +211,81 @@ func TestBoxFleetAskQueuePosition(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "placement") {
 		t.Fatalf("a bad placement: %v", err)
 	}
+}
+
+// C404, spec 150 row B9 (rdb 0240, SPL-4193; panel F3): the hub sets an
+// ask's discussion when it writes it. A topic dispatch-<topic8> that starts
+// exactly one topic of the workspace resolves to it; two matches leave it
+// empty (CONTROL: take the first match), as do no match and a topic of
+// another shape. A discussion the caller sends wins over the resolve and is
+// refused unless it is a uuid. The list carries the discussion's priority.
+func TestBoxFleetAskDiscussionResolve(t *testing.T) {
+	e, tid, _, _, home, _ := boxArchiveRig(t)
+	ctx := context.Background()
+	const (
+		one   = "c4040001-0000-4000-8000-000000000001"
+		twoA  = "c4040002-0000-4000-8000-00000000000a"
+		twoB  = "c4040002-0000-4000-8000-00000000000b"
+		other = "d4040003-0000-4000-8000-000000000003"
+	)
+	for _, task := range []string{one, twoA, twoB, other} {
+		putCard(t, e, tid, task, "", "HUM-10", hub.WUIBox, 1, time.Now().UTC())
+	}
+	put := func(askID, topic string) hub.AskRow {
+		t.Helper()
+		got := askCall(t, home, action.AskArgs{Fleet: "main", Op: "put", AskID: askID, Kind: "task", From: "c-002@box-b", Topic: topic, Summary: "SPAWN REQUEST"})
+		if len(got.Asks) != 1 {
+			t.Fatalf("put %s: %+v", topic, got)
+		}
+		return got.Asks[0]
+	}
+	for topic, want := range map[string]string{
+		"dispatch-c4040001": one, // one match
+		"dispatch-c4040002": "",  // two matches: never guessed
+		"dispatch-e4040004": "",  // no match
+		"c4040001":          "",  // not dispatch-<topic8>
+	} {
+		id := uuidV4()
+		if r := put(id, topic); r.Discussion != want {
+			t.Errorf("topic %s: discussion %q, want %q", topic, r.Discussion, want)
+		}
+		if as, _ := e.st.ListFleetAsks(ctx, tid, "main", "orch", false, time.Now()); !hasAskDiscussion(as, id, want) {
+			t.Errorf("topic %s: stored discussion is not %q", topic, want)
+		}
+	}
+
+	// the caller's discussion wins over the topic's resolve
+	raw := `{"ask_id":"` + uuidV4() + `","kind":"task","from":"c-002@box-b","topic":"dispatch-c4040001","discussion":"` + strings.ToUpper(other) + `"}`
+	ans, err := home.c.Ask(ctx, "put", "main", json.RawMessage(raw))
+	var out askOut
+	if err != nil || json.Unmarshal(ans, &out) != nil || len(out.Asks) != 1 || out.Asks[0].Discussion != other {
+		t.Fatalf("explicit discussion: %s %v", ans, err)
+	}
+	bad := `{"ask_id":"` + uuidV4() + `","kind":"task","from":"c-002@box-b","topic":"x","discussion":"c4040001"}`
+	if _, err := home.c.Ask(ctx, "put", "main", json.RawMessage(bad)); err == nil || !strings.Contains(err.Error(), "discussion") {
+		t.Fatalf("a short discussion id was accepted: %v", err)
+	}
+
+	// the list carries the discussion's priority, 5 without one
+	if _, err := e.st.(store.TopicPriorityStore).SetTopicPriority(ctx, tid, one, 2, "HUM-10", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range askCall(t, home, action.AskArgs{Fleet: "main", Role: "orch"}).Asks {
+		want := 5
+		if r.Discussion == one {
+			want = 2
+		}
+		if r.Priority != want {
+			t.Fatalf("priority of %s (discussion %q): %d, want %d", r.AskID, r.Discussion, r.Priority, want)
+		}
+	}
+}
+
+func hasAskDiscussion(as []store.FleetAsk, askID, want string) bool {
+	for _, a := range as {
+		if a.AskID == askID {
+			return a.Discussion == want
+		}
+	}
+	return false
 }

@@ -266,16 +266,19 @@ holds (panel.md section 1, one row per claim with its command).
 ### 3.4 Part 4: the orchestrator serves priority 1 first
 
 1. **The spawn queue.**
-   - Migration `rdb/0215_fleet_ask_discussion.sql`: column `discussion`
-     (uuid, NULL) on `fleet_asks`, the owner topic the ask works for
-     (panel D3).
+   - Migration `rdb/0240_fleet_ask_discussion.sql` (planned as 0215; 0215
+     to 0239 were taken when row B9 was built): column `discussion` (uuid,
+     NULL) on `fleet_asks`, the owner topic the ask works for (panel D3).
    - The hub sets it when it writes the ask (`hub/box_ask.go:259`):
      `ASK_DISCUSSION=<uuid>` when the caller sends one; else a `topic` of
      the form `dispatch-<topic8>` is resolved with
      `TopicsByPrefix(tenant, topic8, 2)`: one match sets it, none or two
      leave it NULL, never guessed (panel F3).
    - `askPositions` reads each queued ask's discussion priority (absent =
-     5). Where it goes against the class rank: **poll Q5**.
+     5). Poll Q5 (`0709b075`) was answered **A, priority first**: the queue
+     ranks by priority, then the class rank, then `EnqueuedAt`, so a
+     priority 1 feature goes before a priority 3 bug. Each ask in the hub's
+     list carries its `priority`.
    - Every ask nobody gave a priority ranks at 5, so today's order holds for
      every row until someone sets one.
 2. **The unanswered owner posts.** `UnansweredPosts`
@@ -363,7 +366,7 @@ language rule, global CLAUDE.md "Spawn an agent"): build row B11.
 | C313 | 3 | i18n parity + raw text | all 19 locales hold every new key; the raw-text count does not rise | a literal "Priority" in the template | `csi-spl-wui/tests/unit/i18n-parity.test.mjs`, `i18n-no-raw-text.test.mjs` |
 | C401 | 4 | queue order | of two queued asks in one class, the priority 1 ask is position 1 even when queued later | the rank ignores priority | `store/fleet_ask_queue_test.go` |
 | C402 | 4 | no priority = today | asks with no discussion keep the class, EnqueuedAt order | the default ranks first | same |
-| C403 | 4 | class vs priority | per poll Q5 | the other Q5 answer | same |
+| C403 | 4 | class vs priority | priority first (Q5 A): a priority 1 feature before a priority 3 bug and before a ci row with no priority | class first (Q5 B) | same |
 | C404 | 4 | discussion resolve | `dispatch-<topic8>` with one match sets `discussion`; two matches leave it NULL | take the first match | `hub/box_ask_test.go` |
 | C405 | 4 | queue table | the `PRIO` column shows 1..5 | the column dropped | `csi-spl-orc/src/bash/tests/spl-spawn-queue.tst.sh` |
 | C406 | 4 | unanswered posts | a priority 1 post comes before an older priority 5 post | ORDER BY received_at only | `store/unanswered_test.go`, `csi-spl-orc/src/bash/tests/unanswered-sweep-pg.tst.sh` |
@@ -384,7 +387,7 @@ before a row that depends on it starts.
 | B6 | 1-2 | `TopicListControl` in FeedHeader, the MessageFeed wiring, the per-browser choice; C101-C104, C207, C209 | `wui/components/TopicListControl.vue`, `wui/components/FeedHeader.vue`, `wui/components/MessageFeed.vue`, `wui/composables/useTopicListChoice.ts`, `csi-spl-wui/tests/e2e/topic-list-control.test.mjs` | B4, B5 |
 | B7 | 3 | `TopicPriorityChooser` in both topic panes, the client call and the mock; C309-C311 | `wui/components/TopicPriorityChooser.vue`, `wui/components/TopicPane.vue`, `wui/components/LiveTopicPane.vue`, `wui/utils/spool-client.mjs`, `wui/utils/spool-client-mock.mjs`, `csi-spl-wui/tests/e2e/topic-priority.test.mjs` | B3, B4 |
 | B8 | 3 | the card badge; C312 | `wui/components/MessageCard.vue`, `csi-spl-wui/tests/e2e/topic-priority-badge.test.mjs` | B3, B4 |
-| B9 | 4 | `fleet_asks.discussion`, the hub resolve, priority in `askPositions`; C401-C404 | `rdb/0215_fleet_ask_discussion.sql`, `store/fleet_ask.go` (it also holds the memory store), `store/fleet_ask_postgres.go`, `store/fleet_ask_queue_test.go`, `hub/box_ask.go`, `hub/box_ask_test.go` | B1, Q5 answered |
+| B9 | 4 | `fleet_asks.discussion`, the hub resolve, priority in `askPositions`; C401-C404 | `rdb/0240_fleet_ask_discussion.sql` (planned as 0215), `store/fleet_ask.go` (it also holds the memory store), `store/fleet_ask_postgres.go`, `store/fleet_ask_queue_test.go`, `hub/box_ask.go`, `hub/box_ask_test.go` | B1, Q5 answered |
 | B10 | 4 | ask-put and enqueue pass `ASK_DISCUSSION`, the `PRIO` column, the rules-index row; C405 | `orc/spl-spawn-enqueue.func.sh`, `orc/spl-ask-put.func.sh`, `orc/spl-spawn-queue.func.sh`, `csi-spl-orc/src/bash/tests/spl-spawn-queue.tst.sh`, `csi-spl-doc/doc/md/fleet-rules-index.md` | B9 |
 | B11 | 2-3 | agy's language review of the 19 locales, the last step before the text ships | `csi-spl-wui/i18n/locales/*.json` (after B4, B6, B7 and B8 have landed) | B6, B7, B8 |
 | B12 | 4 | unanswered posts by priority; C406 | `store/fallback_postgres.go`, `store/fallback_memory.go`, `store/unanswered_test.go`, `csi-spl-orc/src/bash/tests/unanswered-sweep-pg.tst.sh` | B1 |

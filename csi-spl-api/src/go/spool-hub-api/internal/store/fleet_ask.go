@@ -28,9 +28,10 @@ import (
 //
 // A spawn request waits in a queue (rdb 0180, owner HUM-10 t1 c9beaa77):
 // queued is open for the ops but the tick never raises it, and Position is
-// its rank among its role's queued asks, filled on a list: by Class (rdb
-// 0195, SPL-1817: ci, a flagged row, refactor, bug, feature), then by
-// EnqueuedAt.
+// its rank among its role's queued asks, filled on a list: by Priority, its
+// discussion's (rdb 0214, 0240, spec 150 row B9: 1 first, none = 5), then by
+// Class (rdb 0195, SPL-1817: ci, a flagged row, refactor, bug, feature), then
+// by EnqueuedAt.
 //
 // Age is now - CreatedAt and Quiet is now - the newest of UpdatedAt and
 // RaisedAt, both on the hub's clock, so the machines' clocks never have to
@@ -42,6 +43,7 @@ type FleetAsk struct {
 	Kind        string // blocker | task | escalation; role od: route_post | spawn | lane_verify | box_op
 	From        string // <ID> or <ID>@<box>
 	Topic       string
+	Discussion  string // the owner topic (a uuid) it works for, "" = none known (rdb 0240, set once by the hub at put)
 	Summary     string
 	State       string // open | acked | queued | needs_owner | done | declined | dead
 	DeadlineAt  time.Time
@@ -58,6 +60,7 @@ type FleetAsk struct {
 	FlagMsg     string    // bypass: the owner message id that asked for it
 	FlagBy      string    // who set Flag
 	FlagAt      time.Time // when Flag was set
+	Priority    int       // its Discussion's priority 1..5, TopicPriorityDefault without one (filled by ListFleetAsks)
 	Position    int       // 1 = next to place; 0 = not queued (filled by ListFleetAsks)
 	QueueLen    int       // the queued asks of its role (filled with Position)
 	WriterBox   string    // the box that last wrote it (from the authenticated hello)
@@ -245,9 +248,47 @@ func sortAsks(as []FleetAsk) {
 	})
 }
 
-// askPositions numbers each role's queued asks by class rank (rdb 0195),
-// then EnqueuedAt, then AskID: position 1 is placed next unless the placer's
-// bands pick another class. Both drivers call it on a list.
+// askPrio is the priority the queue ranks by: the discussion's, the default
+// (5) when the list did not fill one.
+func askPrio(a FleetAsk) int {
+	if a.Priority < TopicPriorityMin || a.Priority > TopicPriorityMax {
+		return TopicPriorityDefault
+	}
+	return a.Priority
+}
+
+// askFillPriorities sets each ask's Priority from its discussion's (prio:
+// discussion -> priority, as TopicPriorities answers), the default without
+// one. Both drivers call it on a list, before askPositions.
+func askFillPriorities(as []FleetAsk, prio map[string]int) {
+	for i := range as {
+		as[i].Priority = TopicPriorityDefault
+		if p, ok := prio[as[i].Discussion]; ok && as[i].Discussion != "" {
+			as[i].Priority = p
+		}
+	}
+}
+
+// askDiscussions is the distinct discussions of the asks, the ids a list
+// reads the priorities of.
+func askDiscussions(as []FleetAsk) []string {
+	seen := map[string]bool{}
+	out := []string{}
+	for _, a := range as {
+		if a.Discussion != "" && !seen[a.Discussion] {
+			seen[a.Discussion] = true
+			out = append(out, a.Discussion)
+		}
+	}
+	return out
+}
+
+// askPositions numbers each role's queued asks by their discussion's
+// priority (spec 150 row B9, owner poll Q5 answer A: a priority 1 feature
+// before a priority 3 bug), then class rank (rdb 0195), then EnqueuedAt, then
+// AskID: position 1 is placed next unless the placer's bands pick another
+// class. An ask with no discussion ranks at 5, so with no priority set the
+// order is the class order. Both drivers call it on a list.
 func askPositions(as []FleetAsk) {
 	byRole := map[string][]int{}
 	for i, a := range as {
@@ -258,6 +299,9 @@ func askPositions(as []FleetAsk) {
 	for _, ix := range byRole {
 		sort.SliceStable(ix, func(i, j int) bool {
 			a, b := as[ix[i]], as[ix[j]]
+			if pa, pb := askPrio(a), askPrio(b); pa != pb {
+				return pa < pb
+			}
 			if ra, rb := askQueueRank(a), askQueueRank(b); ra != rb {
 				return ra < rb
 			}
@@ -300,6 +344,8 @@ func CheckFleetAsk(a FleetAsk) string {
 		return "from must be the sender, <ID> or <ID>@<box>"
 	case !LaneTopicRe.MatchString(a.Topic):
 		return "topic must be a task id ([A-Za-z0-9_-], up to 64)"
+	case a.Discussion != "" && !canonUUIDRe.MatchString(a.Discussion):
+		return "discussion must be the owner topic id (a lowercase uuid)"
 	case len(a.Summary) > AskTextMax || hasControl(a.Summary):
 		return "summary must be one line of up to 500 bytes"
 	}
@@ -439,6 +485,13 @@ func (s *Memory) ListFleetAsks(_ context.Context, tenant, fleet, role string, al
 			out = append(out, r)
 		}
 	}
+	prio := map[string]int{}
+	for _, d := range askDiscussions(out) {
+		if p, ok := s.topicPrio[[2]string{tenant, d}]; ok {
+			prio[d] = p.Priority
+		}
+	}
+	askFillPriorities(out, prio)
 	sortAsks(out)
 	askPositions(out)
 	return out, nil

@@ -13,7 +13,8 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			) s
 			WHERE w.n < $4
 		)
-		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
+		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 5)
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
@@ -49,7 +50,8 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			) s
 			WHERE w.n < $6
 		)
-		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
+		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 5)
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
@@ -85,7 +87,8 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			) s
 			WHERE w.n < $4
 		)
-		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
+		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 5)
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
@@ -121,7 +124,8 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			) s
 			WHERE w.n < $6
 		)
-		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
+		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 5)
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
@@ -157,7 +161,8 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			) s
 			WHERE w.n < $5
 		)
-		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
+		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 5)
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
@@ -193,7 +198,8 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			) s
 			WHERE w.n < $6
 		)
-		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
+		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 5)
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
@@ -229,7 +235,8 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			) s
 			WHERE w.n < $5
 		)
-		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
+		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 5)
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
@@ -281,7 +288,8 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			) s
 			WHERE w.n < $7
 		)
-		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
+		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 5)
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
@@ -333,7 +341,8 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			) s
 			WHERE w.n < $4
 		)
-		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
+		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 5)
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
@@ -369,7 +378,8 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			) s
 			WHERE w.n < $4
 		)
-		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
+		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 5)
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
@@ -405,7 +415,8 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			) s
 			WHERE w.n < $5
 		)
-		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
+		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 5)
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
@@ -441,7 +452,8 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			) s
 			WHERE w.n < $4
 		)
-		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
+		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 5)
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
@@ -471,7 +483,8 @@ WITH w (task_id, received_at) AS (
 		AND (z.msg_id = l.task_id OR (z.task_id = l.task_id AND l.task_id::text <> $5))) AND l.task_id = t.id ORDER BY l.received_at DESC LIMIT 1
 			) l
 		)
-		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
+		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 5)
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
@@ -523,7 +536,8 @@ WITH RECURSIVE w (task_id, received_at, n) AS (
 			) s
 			WHERE w.n < $20
 		)
-		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
+		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = w.task_id), 5)
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,

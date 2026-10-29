@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -146,7 +147,7 @@ func scanTopicRows(out *[]TopicRow) func(pgx.Rows) error {
 	return func(rows pgx.Rows) error {
 		var r TopicRow
 		if err := rows.Scan(&r.TaskID, &r.Channel, &r.Parent, &r.FirstAt, &r.LastAt, &r.Count,
-			&r.Kinds, &r.Parties, &r.FirstMsg); err != nil {
+			&r.Kinds, &r.Parties, &r.FirstMsg, &r.Priority); err != nil {
 			return err
 		}
 		*out = append(*out, r)
@@ -376,11 +377,14 @@ func (b *topicsSQL) listed(walk string) string {
 		)`
 }
 
-// summary is each walked topic's row: count, kinds, parties and its first
-// message, newest topic first.
+// summary is each walked topic's row: count, kinds, parties, its first
+// message and its priority, newest topic first. The priority is one primary
+// key probe of topic_priorities per row (spec 150 3.3, 5 when unset), in the
+// list's own statement, so it costs no round trip of its own.
 func (b *topicsSQL) summary(aggDoor string) string {
 	return `
-		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg
+		SELECT w.task_id::text, f.channel, f.parent, f.first_at, w.received_at, a.n, a.kinds, a.parties, f.first_msg,
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = ` + b.tn + ` AND tp.task_id = w.task_id), ` + topicPriorityDefaultSQL + `)
 		FROM w CROSS JOIN LATERAL (
 			SELECT count(*)::int AS n,
 				array_agg(m.kind ORDER BY m.received_at, m.msg_id::text) AS kinds,
@@ -397,6 +401,9 @@ func (b *topicsSQL) summary(aggDoor string) string {
 		) f ON true
 		ORDER BY w.received_at DESC, w.task_id::text DESC`
 }
+
+// topicPriorityDefaultSQL is TopicPriorityDefault as a SQL literal.
+var topicPriorityDefaultSQL = strconv.Itoa(TopicPriorityDefault)
 
 // goSpaceSQL is Go's unicode.IsSpace set, which strings.TrimSpace trims, as
 // a Postgres escape-string literal (ltrim takes a set of characters).

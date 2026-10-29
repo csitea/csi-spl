@@ -561,14 +561,25 @@ func (s *Server) handlePutRepoDoc(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	base := docBaseOf(r)
-	if !s.repoDocSaveChecks(w, r, st, c, p, base, tree, data) {
+	sv := repoDocSave{st: st, c: c, p: p, base: docBaseOf(r), tree: tree, data: data}
+	if !s.repoDocSaveChecks(w, r, sv) {
 		return
 	}
 	if !s.repoDocSaveConsented(w, r, st, c, author) {
 		return
 	}
-	s.repoDocSaveWrite(w, r, st, c, p, base, data, author)
+	s.repoDocSaveWrite(w, r, sv, author)
+}
+
+// repoDocSave is one save to path p: the caller and its store, the base the
+// editor opened, the published tree and the new text.
+type repoDocSave struct {
+	st   repoDocStore
+	c    repoDocCaller
+	p    string
+	base string
+	tree map[string]string
+	data []byte
 }
 
 // repoDocSaveInput is the published tree and the body of a save to p, after
@@ -660,26 +671,26 @@ func (s *Server) repoDocSaveAuthor(w http.ResponseWriter, r *http.Request, st re
 
 // repoDocSaveChecks are the base (409), the text gates on the new lines
 // (422) and the rate caps (429).
-func (s *Server) repoDocSaveChecks(w http.ResponseWriter, r *http.Request, st repoDocStore, c repoDocCaller, p, base string, tree map[string]string, data []byte) bool {
+func (s *Server) repoDocSaveChecks(w http.ResponseWriter, r *http.Request, sv repoDocSave) bool {
 	ctx := r.Context()
-	if ok, err := s.knownBase(ctx, st, p, base, tree); err != nil {
+	if ok, err := s.knownBase(ctx, sv.st, sv.p, sv.base, sv.tree); err != nil {
 		writeErrCause(w, http.StatusServiceUnavailable, "internal", "the base of this doc could not be checked", err)
 		return false
 	} else if !ok {
 		writeErr(w, http.StatusConflict, "base_unknown", "If-Match must name the blob the editor opened (the doc's "+DocBaseHeader+")")
 		return false
 	}
-	old, err := s.readDocsKey(ctx, p)
+	old, err := s.readDocsKey(ctx, sv.p)
 	if err != nil {
 		writeErrCause(w, http.StatusServiceUnavailable, "internal", "docs store unavailable", err)
 		return false
 	}
-	if hits := repodocs.Gate(old, data); len(hits) > 0 {
+	if hits := repodocs.Gate(old, sv.data); len(hits) > 0 {
 		writeJSON(w, http.StatusUnprocessableEntity, repoDocRejected{Error: "rejected_text",
 			Detail: fmt.Sprintf("%s rule %q on line %d", hits[0].Kind, hits[0].Rule, hits[0].Line), Hits: hits})
 		return false
 	}
-	if why, err := s.repoDocRateLimited(ctx, st, c, s.o.Now()); err != nil {
+	if why, err := s.repoDocRateLimited(ctx, sv.st, sv.c, s.o.Now()); err != nil {
 		writeErrCause(w, http.StatusServiceUnavailable, "internal", "repo docs store unavailable", err)
 		return false
 	} else if why != "" {
@@ -711,33 +722,33 @@ func (s *Server) repoDocSaveConsented(w http.ResponseWriter, r *http.Request, st
 // repoDocSaveWrite writes the overlay, then queues the row (§3: a 200 means
 // both); a row that fails after the overlay leaves an orphan the worker's
 // 30-day sweep drops.
-func (s *Server) repoDocSaveWrite(w http.ResponseWriter, r *http.Request, st repoDocStore, c repoDocCaller, p, base string, data []byte, author repodocs.Author) {
-	re := s.o.RepoEdit
+func (s *Server) repoDocSaveWrite(w http.ResponseWriter, r *http.Request, sv repoDocSave, author repodocs.Author) {
+	re, c, p := s.o.RepoEdit, sv.c, sv.p
 	id := uuid.NewString()
 	key := repodocs.OverlayPrefix + p + "/" + id + ".md"
 	ctx := context.WithoutCancel(r.Context()) // a save the client left still lands whole
-	if _, err := s.o.Docs.PutReader(ctx, key, bytes.NewReader(data)); err != nil {
+	if _, err := s.o.Docs.PutReader(ctx, key, bytes.NewReader(sv.data)); err != nil {
 		writeErrCause(w, http.StatusServiceUnavailable, "internal", "docs store unavailable", err)
 		return
 	}
-	sum := sha256.Sum256(data)
+	sum := sha256.Sum256(sv.data)
 	kind := "member"
 	if c.agent != "" {
 		kind = "agent"
 	}
-	row, superseded, err := st.InsertRepoDocEdit(ctx, store.RepoDocEdit{EditID: id, TenantID: c.t.ID, HumanID: c.hum,
-		ActorKind: kind, AgentID: c.agent, Path: p, BaseBlob: base, OverlayKey: key, TextSHA256: hex.EncodeToString(sum[:]),
+	row, superseded, err := sv.st.InsertRepoDocEdit(ctx, store.RepoDocEdit{EditID: id, TenantID: c.t.ID, HumanID: c.hum,
+		ActorKind: kind, AgentID: c.agent, Path: p, BaseBlob: sv.base, OverlayKey: key, TextSHA256: hex.EncodeToString(sum[:]),
 		AuthorName: author.Name, AuthorEmail: author.Email, AuthorSource: author.Source}, re.CoalesceAfter, re.CoalesceMax, s.o.Now())
 	if err != nil {
 		writeErrCause(w, http.StatusServiceUnavailable, "internal", "repo docs queue unavailable", err)
 		return
 	}
 	s.o.Log.Info().Str("audit", "repo_doc.save").Str("tenant", c.t.ID).Str("human", c.hum).Str("agent", c.agent).
-		Str("path", p).Str("edit_id", id).Str("base", base).Strs("superseded", superseded).Msg("repo doc saved")
+		Str("path", p).Str("edit_id", id).Str("base", sv.base).Strs("superseded", superseded).Msg("repo doc saved")
 	if superseded == nil {
 		superseded = []string{}
 	}
-	writeJSON(w, http.StatusOK, RepoDocSaved{EditID: row.EditID, Status: row.Status, Path: p, Base: base,
+	writeJSON(w, http.StatusOK, RepoDocSaved{EditID: row.EditID, Status: row.Status, Path: p, Base: sv.base,
 		Superseded: superseded, Author: RepoDocAuthorBody{author.Name, author.Email, author.Source}})
 }
 

@@ -3,6 +3,7 @@ package hub_test
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -273,6 +274,38 @@ func TestRepoDocsSaveNoticeThenQueuedAndServed(t *testing.T) {
 	if code, list, _ = r.do(http.MethodGet, "edits", alice, "", ""); code != http.StatusBadRequest {
 		t.Fatalf("edits without a filter: %d %v", code, list)
 	}
+}
+
+// TestRepoDocsSaveAnswerAndRow pins three parts of a consented first save:
+// the 200 answers superseded [] (not null) and the published author, and the
+// queued row carries the sha256 of the text.
+func TestRepoDocsSaveAnswerAndRow(t *testing.T) {
+	r := newRepoRig(t)
+	alice := seat(t, r.e, r.tid, rbac.Developer)
+	_, notice := r.save(r.doc, alice, r.blob, "# Guide\n\nline one\nprobe\n")
+	r.consent(alice)
+	text := "# Guide\n\nline one\nanswer and row\n"
+	code, body := r.save(r.doc, alice, r.blob, text)
+	if code != http.StatusOK {
+		t.Fatalf("save after consent: %d %v", code, body)
+	}
+	t.Run("superseded_empty_not_null", func(t *testing.T) {
+		if sup, ok := body["superseded"].([]any); !ok || len(sup) != 0 {
+			t.Fatalf("superseded = %#v, want []", body["superseded"])
+		}
+	})
+	t.Run("answer_names_author", func(t *testing.T) {
+		a, _ := body["author"].(map[string]any)
+		if a == nil || a["git_name"] != notice["git_name"] || a["git_email"] != notice["git_email"] || a["author_source"] != "signin" {
+			t.Fatalf("author = %#v, want the notice's %v / %v from signin", body["author"], notice["git_name"], notice["git_email"])
+		}
+	})
+	t.Run("row_text_sha256", func(t *testing.T) {
+		sum := sha256.Sum256([]byte(text))
+		if rows := r.edits(r.doc); len(rows) != 1 || rows[0].TextSHA256 != hex.EncodeToString(sum[:]) {
+			t.Fatalf("rows = %+v, want one with text sha256 %x", rows, sum)
+		}
+	})
 }
 
 func TestRepoDocsSaveRefusals(t *testing.T) {

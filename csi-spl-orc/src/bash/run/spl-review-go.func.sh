@@ -11,7 +11,10 @@
 # @description by that reviewer, and checks each one, in this order (exit code
 # @description of the check in brackets; REVIEW_GO_MSG runs one message file
 # @description and returns it):
-# @description   [1] the verdict is PASS (a FAIL is never checked further)
+# @description   [1] the verdict is PASS (a FAIL is never checked further),
+# @description       and the read: part does not say FAIL as a verdict
+# @description       (`JUDGMENT|VERDICT|OVERALL|REVIEW FAIL`, `FAIL W<n>`;
+# @description       a count such as `red control 2 FAIL` is no verdict)
 # @description   [3] the reviewer was placed for it: its brief ($SPOOL_ROOT/
 # @description       <reviewer>/lifetime/brief.md, else, the seat retired,
 # @description       dispatch/briefs/<title of its identity record>.md) has a
@@ -36,6 +39,14 @@
 # @description       docs-only line names none: refused)
 # @description   [5] the row's branch on origin (git ls-remote, read only) is
 # @description       still the reviewed sha
+# @description  [10] no other review seat waits: every other dispatch/briefs/
+# @description       <slug>.md naming the same one author and the reviewed
+# @description       sha (an agy strings seat beside the grok R7, SPL-4251)
+# @description       has its verified PASS logged as `WAIT <ts> <msg_id>
+# @description       <task_id> <author_id> <reviewer_id> <sha> <slug>`; while
+# @description       one has none, this PASS is logged as such a WAIT line
+# @description       (the holder told once) and the GO waits for the last
+# @description       seat's PASS
 # @description All pass: `GO <sha>` goes to the author (spool-send, kind task,
 # @description the row's task, from the holder), then the line (bare ids; the
 # @description task_id is the review message's, the author the brief row's)
@@ -105,10 +116,20 @@ _spl_review_go_holder() {
   spl_lease_holder_id
 }
 
-# _spl_review_go_seen <msg> <log>: 0 when automation.log already holds a PASS
-# or a review-go line for the message.
+# _spl_review_go_seen <msg> <log>: 0 when automation.log already holds a PASS,
+# a WAIT or a review-go line for the message.
 _spl_review_go_seen() {
-  grep -qE "^PASS [^ ]+ $1 | review-go $1 " "$2" 2>/dev/null
+  grep -qE "^(PASS|WAIT) [^ ]+ $1 | review-go $1 " "$2" 2>/dev/null
+}
+
+# _spl_review_go_read_fail <line>: 0 when the line's read: part says FAIL as
+# a verdict (g-161 had to write `grok PASS ... read: JUDGMENT FAIL W1`, msg
+# 95d5ed90). A count is no verdict: 1 of 242 PASS lines on a box matched this,
+# 36 named FAIL for a red control (one box, since 2026-10-22).
+_spl_review_go_read_fail() {
+  local r="${1#* | read: }"
+  r="${r%% | log: *}"
+  grep -qiE '\b(judgment|judgement|verdict|overall|review)\b[^a-z0-9]{0,3}fail(ed)?\b|\bfail(ed)?\b[^a-z0-9]{0,3}w[0-9]+\b' <<<"$r"
 }
 
 # _spl_review_go_scan <max minutes> <spool dir | message file>: one TSV row per
@@ -155,12 +176,49 @@ EOF_PY
 # dispatch/briefs/<slug>.md, the slug being the title of its live identity
 # record or of its newest retired one (agents/retired/<id>.<spawned>.json).
 _spl_review_go_brief() {
-  local b="$SPOOL_ROOT/$1/lifetime/brief.md" rec="$SPOOL_ROOT/agents/$1.json" slug recs
+  local b="$SPOOL_ROOT/$1/lifetime/brief.md" slug
   [[ -s "$b" ]] && { echo "$b"; return 0; }
+  slug="$(_spl_review_go_title "$1")"
+  if [[ -n "$slug" ]]; then echo "$SPOOL_ROOT/dispatch/briefs/$slug.md"; else echo "$b"; fi
+}
+
+# _spl_review_go_title <id>: the title (placement slug) of the seat's live
+# identity record, else of its newest retired one; empty when none is valid.
+_spl_review_go_title() {
+  local rec="$SPOOL_ROOT/agents/$1.json" recs slug
   recs=("$SPOOL_ROOT/agents/retired/$1".*.json)
   [[ -s "$rec" ]] || rec="${recs[-1]}"
   slug="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("title") or "")' "$rec" 2>/dev/null)"
-  if [[ "$slug" =~ ^[A-Za-z0-9._-]+$ ]]; then echo "$SPOOL_ROOT/dispatch/briefs/$slug.md"; else echo "$b"; fi
+  [[ "$slug" =~ ^[A-Za-z0-9._-]+$ ]] && echo "$slug"
+  return 0
+}
+
+# _spl_review_go_slug <reviewer> <its brief>: the reviewer's placement slug:
+# the brief's name when it is a dispatch/briefs copy, else its identity
+# title, else `-` (no sibling brief is then ever matched to it).
+_spl_review_go_slug() {
+  local t
+  if [[ "$2" == "$SPOOL_ROOT/dispatch/briefs/"*.md ]]; then t="${2##*/}"; echo "${t%.md}"; return 0; fi
+  t="$(_spl_review_go_title "$1")"
+  echo "${t:--}"
+}
+
+# _spl_review_go_siblings <reviewer> <its brief> <author> <sha> <log>: the
+# slugs of the OTHER review seats for the same author and sha still without a
+# WAIT line, space-separated; nothing when none waits. A sibling is a
+# dispatch/briefs/<slug>.md, not the reviewer's own (by slug or content), whose
+# row (_spl_review_go_row, matched by the sha only) names the author.
+_spl_review_go_siblings() {
+  local own f slug miss=()
+  own="$(_spl_review_go_slug "$1" "$2")"
+  while IFS= read -r f; do
+    slug="${f##*/}" && slug="${slug%.md}"
+    [[ "$slug" == "$own" ]] || cmp -s "$f" "$2" && continue
+    [[ "$(_spl_review_go_row "$f" "$4" '@@no-task@@' | cut -f1)" == "$3" ]] || continue
+    grep -qE "^WAIT [^ ]+ [^ ]+ [^ ]+ $3 [^ ]+ $4 $slug\$" "$5" 2>/dev/null && continue
+    miss+=("$slug")
+  done < <(grep -lF -- "${4:0:7}" "$SPOOL_ROOT"/dispatch/briefs/*.md 2>/dev/null)
+  echo "${miss[*]}"
 }
 
 # _spl_review_go_abrief <author> <reviewer brief>: the path of the author's
@@ -264,6 +322,7 @@ _spl_review_go_one() {
   [[ "$line" =~ $rx ]] || { _spl_review_go_hold "$@" 1 "not an R7 line with a 40-hex sha"; return 1; }
   rid="${BASH_REMATCH[1]}" rbox="${BASH_REMATCH[2]}" rven="${BASH_REMATCH[3]}" verdict="${BASH_REMATCH[4]}" sha="${BASH_REMATCH[5]}"
   [[ "$verdict" == PASS ]] || { _spl_review_go_hold "$@" 1 "REVIEW $verdict from $rid@$rbox for ${sha:0:12}"; return 1; }
+  ! _spl_review_go_read_fail "$line" || { _spl_review_go_hold "$@" 1 "PASS header but its read: says FAIL from $rid@$rbox for ${sha:0:12}"; return 1; }
   brief="$(_spl_review_go_brief "$rid")"
   IFS=$'\t' read -r author abox branch rtask < <(_spl_review_go_row "$brief" "$sha" "$task")
   [[ -n "${author:-}" ]] || { _spl_review_go_hold "$@" 3 "unplaced reviewer or author not assigned in $brief"; return 3; }
@@ -277,6 +336,8 @@ _spl_review_go_one() {
   (( rc == 0 )) || { _spl_review_go_hold "$@" 8 "review line check failed (rc $rc): $(tail -n2 <<<"$why" | paste -sd' ')"; return 8; }
   why="$(_spl_review_go_tip "$branch")"
   [[ "$why" == "$sha" ]] || { _spl_review_go_hold "$@" 5 "branch '${branch:-none}' on origin is ${why:-missing}, not the reviewed ${sha:0:12}: re-review"; return 5; }
+  why="$(_spl_review_go_siblings "$rid" "$brief" "$author" "$sha" "$log")"
+  [[ -z "$why" ]] || { _spl_review_go_wait "$@" "$author" "$rid" "$sha" "$(_spl_review_go_slug "$rid" "$brief")" "$why"; return 10; }
   _spl_review_go_send "$holder" "$msg" "$task" "$author" "$abox" "$rid" "$sha" "$log" "$dry" "${rtask:-$task}"
 }
 
@@ -303,6 +364,24 @@ _spl_review_go_send() {
     >/dev/null 2>&1 7>&- 8>&- 9>&- || { do_log "WARN msg $2: GO to $to failed; the next run tries again"; return 9; }
   printf 'PASS %s %s %s %s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$2" "$3" "$4" "$6" "$7" >>"$8"
   do_log "OK msg $2: GO ${7:0:12} sent to $to (review PASS by $6)"
+}
+
+# _spl_review_go_wait <holder> <msg> <task> <line> <log> <dry> <author>
+# <reviewer> <sha> <slug> <waiting slugs>: a verified PASS while other review
+# seats wait: the WAIT record (what the last seat's check reads) and one note
+# to the holder; no GO.
+_spl_review_go_wait() {
+  local who="${REVIEW_GO_FROM:-${LEASE_ORCH:-$(spl_role_seat 1)}}" send="${REVIEW_GO_SEND:-$PROJ_PATH/src/bash/features/spawn-agents/scripts/spool-send.sh}"
+  local why="PASS by $8 verified for $7 ${9:0:12}; the GO waits for the other review seat(s): ${11}"
+  if [[ "$6" == 1 ]]; then
+    echo "PLAN WAIT msg $2 (rc 10): $why"
+    return 0
+  fi
+  printf 'WAIT %s %s %s %s %s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$2" "$3" "$7" "$8" "$9" "${10}" >>"$5"
+  SPOOL_ROOT="$SPOOL_ROOT" bash "$send" --from "$who" --to "$1" --kind note --task review-go \
+    --body "REVIEW-GO WAIT (spec 157 rule 1, rc 10): review msg $2 on task $3: $why. No GO yet; the last seat's PASS sends it." \
+    >/dev/null 2>&1 7>&- 8>&- 9>&- || do_log "WARN msg $2: the WAIT note to $1 failed"
+  do_log "INFO msg $2: WAIT (rc 10) $why"
 }
 
 # _spl_review_go_hold <holder> <msg> <task> <line> <log> <dry> <rc> <why>:

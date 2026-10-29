@@ -28,6 +28,14 @@
 #        sha or task named), the author brief from its Author brief: line
 #        (dispatch/briefs only) -> GO; RED CONTROLS two authors, no sha/task
 #        -> rc 3, an Author brief: elsewhere -> rc 7
+#    15. RED CONTROL a PASS header whose read: says FAIL (g-161's `grok PASS
+#        ... read: JUDGMENT FAIL W1`, msg 95d5ed90) -> rc 1, no GO; control: a
+#        red control's FAIL count in read: -> GO (SPL-4251)
+#    16. a second review seat (spec 155 B5: grok R7 + agy strings, SPL-4251):
+#        RED CONTROL the grok PASS while another placed brief names the same
+#        author and sha -> rc 10, no GO, WAIT in automation.log; the agy PASS
+#        then -> one GO, one PASS line; both in one tick -> one GO; controls:
+#        a sibling brief of another sha or another author holds nothing
 #   REVIEW_GO_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -333,6 +341,55 @@ run REVIEW_GO_MSG="$f"; refused "14. RED CONTROL: an Author brief: outside dispa
 reset14; pbrief c002-x "Do: then ENV=prd ./run -a do_x."
 f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 14000000-0000-4000-8000-000000000007)
 run REVIEW_GO_MSG="$f"; refused "14. the owner-go scan reads the Author brief: copy" $? 4 "owner-go keyword 'ENV=prd'"
+
+# --- 15. a PASS header whose read: says FAIL -------------------------------------------------------------------
+reset
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS | sed 's/read: 1 PASS 0 failures/read: 9 PASS; JUDGMENT FAIL W1 a.sh:3 drops the lock/')" 15000000-0000-4000-8000-000000000001)
+run REVIEW_GO_MSG="$f"; refused "15. RED CONTROL: a PASS header whose read: says JUDGMENT FAIL W1" $? 1 "read: says FAIL"
+reset
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS | sed 's/read: 1 PASS 0 failures/read: 9 PASS, red control 2 FAIL, restored 9 PASS/')" 15000000-0000-4000-8000-000000000002)
+run REVIEW_GO_MSG="$f"; rc=$?
+(( rc == 0 && $(gos) == 1 )) && pass "15. control: a red control's FAIL count in read: still GOes" || fail "15. red-control count rc=$rc out=$(tail -3 "$T/out")"
+
+# --- 16. a second review seat for the same author and sha ----------------------------------------------------------
+waits() { count "$LOG" '^WAIT '; }
+reset16() {
+  reset14; retire a-333 20261028T100000Z c002-x-agy-strings; rlog a-333 "bash csi-spl-orc/src/bash/tests/foo.tst.sh"
+  pbrief c002-x-agy-strings "Author c-222@boxa (claude). Author brief: $S/dispatch/briefs/c002-x.md; Branch \`review/c002-x\` at \`${SHA:0:12}\`. Strings only."
+}
+reset16
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 16000000-0000-4000-8000-000000000001)
+run REVIEW_GO_MSG="$f"; rc=$?
+if (( rc == 10 )) && [[ $(gos) == 0 && $(holds) == 1 && $(waits) == 1 ]] && ! grep -q '^PASS ' "$LOG" &&
+  grep -qE "^WAIT [^ ]+ 16000000-0000-4000-8000-000000000001 $TASK c-222 g-111 $SHA c002-x-grok-reviewer$" "$LOG" &&
+  grep -q 'c002-x-agy-strings' "$T/s/sent.log"; then
+  pass "16. RED CONTROL: the grok PASS waits for the agy seat of the same author and sha (rc 10, no GO, WAIT logged, holder told)"
+else fail "16. wait rc=$rc gos=$(gos) holds=$(holds) log=$(cat "$LOG" 2>/dev/null) out=$(tail -3 "$T/out")"; fi
+run REVIEW_GO_MSG="$f"; [[ $(gos) == 0 && $(holds) == 1 ]] && pass "16. the waiting message is not checked again" || fail "16. rechecked holds=$(holds)"
+f=$(msg 20261028T115930Z a-333@boxa "$(line a-333 agy PASS)" 16000000-0000-4000-8000-000000000002)
+run REVIEW_GO_MSG="$f"; rc=$?
+if (( rc == 0 )) && [[ $(gos) == 1 ]] && grep -qxF "SEND --from c-002 --to c-222@boxa --kind task --task $TASK --body GO $SHA" "$T/s/sent.log" &&
+  [[ $(count "$LOG" '^PASS ') == 1 ]] && grep -qE "^PASS [^ ]+ 16000000-0000-4000-8000-000000000002 $TASK c-222 a-333 $SHA$" "$LOG"; then
+  pass "16. the agy PASS then sends the one GO and the one PASS line"
+else fail "16. second rc=$rc gos=$(gos) log=$(cat "$LOG") out=$(tail -3 "$T/out")"; fi
+reset16
+msg 20261028T115900Z a-333@boxa "$(line a-333 agy PASS)" 16000000-0000-4000-8000-000000000003 >/dev/null
+msg 20261028T115930Z g-111@boxa "$(line g-111 grok PASS)" 16000000-0000-4000-8000-000000000004 >/dev/null
+run; run; rc=$?
+(( rc == 0 )) && [[ $(gos) == 1 && $(waits) == 1 && $(count "$LOG" '^PASS ') == 1 ]] && grep -q "^PASS .* 16000000-0000-4000-8000-000000000004 " "$LOG" &&
+  pass "16. both PASS in one tick (agy first): one WAIT, one GO, the next tick nothing" || fail "16. one tick gos=$(gos) log=$(cat "$LOG") out=$(tail -3 "$T/out")"
+reset16
+msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 16000000-0000-4000-8000-000000000005 >/dev/null
+run DRY_RUN=1; rc=$?
+(( rc == 0 )) && grep -q '^PLAN WAIT msg 16000000-0000-4000-8000-000000000005 (rc 10): .*c002-x-agy-strings' "$T/out" && [[ ! -s "$T/s/sent.log" && ! -e "$LOG" ]] &&
+  pass "16. the dry run prints PLAN WAIT, sends and logs nothing" || fail "16. dry rc=$rc out=$(tail -3 "$T/out")"
+for other in "another sha|Author c-222@boxa (claude). Branch \`review/c002-x\` at \`0123456789abcdef\`." \
+             "another author|Author c-444@boxa (claude). Branch \`review/c002-y\` at \`${SHA:0:12}\`."; do
+  reset16; pbrief c002-x-agy-strings "${other#*|}"
+  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 16000000-0000-4000-8000-000000000006)
+  run REVIEW_GO_MSG="$f"; rc=$?
+  (( rc == 0 && $(gos) == 1 && $(waits) == 0 )) && pass "16. control: a brief of ${other%%|*} holds nothing" || fail "16. ${other%%|*} rc=$rc out=$(tail -3 "$T/out")"
+done
 
 echo "spl-review-go: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

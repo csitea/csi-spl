@@ -47,6 +47,11 @@
 #      FAIL; ran: names it and the log ran it -> OK, the selection printed;
 #      a commit that touches no WUI file asks for no e2e file; a sha that is
 #      no commit in the repo is void -> FATAL exit 1, SYNTAX FAIL on box-b
+#  13. a FAIL verdict (spec 157 Rule 1, SPL-4251; g-161 had to write `grok
+#      PASS ... read: JUDGMENT FAIL W1`, msg 95d5ed90): red control: a FAIL
+#      header naming W1 -> OK on this box and SYNTAX OK from box-b (was
+#      SYNTAX FAIL); control: a FAIL naming no W<n> defect, or a verdict
+#      that is neither PASS nor FAIL -> SYNTAX FAIL, rc 1
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -304,6 +309,19 @@ out="$(chk REVIEW_LINE_REPO="$R" REVIEW_LINE="$(l12 "$N12" "node run-e2e-tests.m
 out="$(chk REVIEW_LINE_REPO="$R" REVIEW_LINE_SYNTAX=1 REVIEW_LINE="$(l12 "$N12" "node run-e2e-tests.mjs tests/e2e/other.test.mjs" box-b)")"; rc=$?
 [[ $rc -eq 1 && "$out" == "SYNTAX FAIL $N12 is no commit"* ]] \
   && pass "12. the same from box-b, REVIEW_LINE_SYNTAX=1 -> SYNTAX FAIL, rc 1 (was SYNTAX OK)" || fail "12. no commit syntax (rc $rc: $out)"
+
+# 13. a FAIL verdict ------------------------------------------------------------
+F13="review: m-159@box-a mistral FAIL $SHA ran: bash $TST | read: 8 PASS 1 FAIL; JUDGMENT W1 a.sh:3 drops the lock | log: m-159@box-a:$J"
+out="$(chk REVIEW_LINE="$F13")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"OK 1 of 1"* ]] && pass "13. RED CONTROL: a FAIL header naming W1 -> OK on this box" || fail "13. fail local (rc $rc: $out)"
+out="$(syn "${F13//box-a/box-b}")"; rc=$?
+[[ $rc -eq 0 && "$out" == *"SYNTAX OK"* ]] && pass "13. RED CONTROL: the same FAIL from box-b, REVIEW_LINE_SYNTAX=1 -> SYNTAX OK" || fail "13. fail syntax (rc $rc: $out)"
+out="$(chk REVIEW_LINE="review: m-159@box-a mistral FAIL $SHA ran: bash $TST | read: 8 PASS 1 FAIL | log: m-159@box-a:$J")"; rc=$?
+[[ $rc -eq 1 && "$out" == "SYNTAX FAIL"*"W<n>"* ]] && pass "13. a FAIL naming no W<n> defect -> SYNTAX FAIL, rc 1" || fail "13. fail no W (rc $rc: $out)"
+out="$(syn "review: m-159@box-b mistral FAIL $SHA ran: bash $TST | read: 1 FAIL | log: m-159@box-b:/r/j.jsonl")"; rc=$?
+[[ $rc -eq 1 && "$out" == "SYNTAX FAIL"*"W<n>"* ]] && pass "13. the same from box-b -> SYNTAX FAIL, rc 1" || fail "13. fail no W syntax (rc $rc: $out)"
+out="$(chk REVIEW_LINE="${F13/ FAIL $SHA/ HOLD $SHA}")"; rc=$?
+[[ $rc -eq 1 && "$out" == "SYNTAX FAIL"* ]] && pass "13. a verdict neither PASS nor FAIL -> SYNTAX FAIL, rc 1" || fail "13. other verdict (rc $rc: $out)"
 
 echo "spl-review-line-check: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

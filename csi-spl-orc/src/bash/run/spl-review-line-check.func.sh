@@ -2,9 +2,11 @@
 #------------------------------------------------------------------------------
 # @description Check an R7 review line against the reviewer's own session
 # @description journal, read-only (refactor round 11 row 06; plan section 1:
-# @description `review: <id>@<box> <vendor> PASS <sha> ran: <commands> | read:
-# @description <output> | log: <id>@<box>:<path>`). The dispatcher read journals
-# @description by hand 4 times in round 10; this is that read, named.
+# @description `review: <id>@<box> <vendor> PASS|FAIL <sha> ran: <commands> |
+# @description read: <output> | log: <id>@<box>:<path>`). The dispatcher read
+# @description journals by hand 4 times in round 10; this is that read, named.
+# @description A FAIL line names its defects: no `W<n>` anywhere in REVIEW_LINE
+# @description is `SYNTAX FAIL`, exit 1 (spec 157 Rule 1, SPL-4251).
 # @description Every test the `ran:` part names (`*.tst.sh`, `*.test.mjs`,
 # @description `*_test.go` by basename, `go test <pkg>`, `pnpm run <script>`)
 # @description needs a `"command"` value in the `log:` file that names it: a
@@ -76,6 +78,7 @@ do_spl_review_line_check() {
   me="$(_spl_review_line_box)"
   [[ "$box" == "$me" ]] || { _spl_review_line_remote "$line" "$box" "$me"; return $?; }
   _spl_review_line_reviewer "${line%%$'\n'*}" || return 1
+  _spl_review_line_defects "$line" || return 1
   ran="${line#* ran: }"
   [[ "$ran" != "$line" ]] || { echo "FATAL the line has no ' ran: '"; return 1; }
   ran="${ran%% | read: *}" ran="${ran%% | log: *}"
@@ -107,8 +110,8 @@ do_spl_review_line_check() {
 # in the line: nothing asked).
 _spl_review_line_e2e() {
   local sha want f miss=0
-  [[ "$1" =~ \ PASS\ ([0-9a-f]{7,40})\  ]] || return 0
-  sha="${BASH_REMATCH[1]}"
+  [[ "$1" =~ \ (PASS|FAIL)\ ([0-9a-f]{7,40})\  ]] || return 0
+  sha="${BASH_REMATCH[2]}"
   want="$(_spl_review_line_e2e_files "$sha")" || { echo "$want"; return 2; }
   [[ -n "$want" ]] || return 0
   echo "E2E ${sha:0:12} selects: $(paste -sd' ' <<<"$want")"
@@ -174,16 +177,26 @@ _spl_review_line_remote() {
     return 2
   fi
   _spl_review_line_syntax "$first" || return 1
+  _spl_review_line_defects "$1" || return 1
   echo "SYNTAX OK the line's format and reviewer check on $3; the run is not (the log is on $2): $q"
+}
+
+# _spl_review_line_defects <line> - a FAIL verdict names at least one defect
+# `W<n>` in the line or the lines after it (the body); PASS needs none.
+_spl_review_line_defects() {
+  [[ "${1%%$'\n'*}" =~ ^review:\ [^[:space:]]+\ [a-z]+\ FAIL\  ]] || return 0
+  grep -qE '(^|[^A-Za-z0-9])W[0-9]+([^A-Za-z0-9]|$)' <<<"$1" && return 0
+  echo "SYNTAX FAIL a FAIL names no defect: list each as W<n> with file:line"
+  return 1
 }
 
 # _spl_review_line_syntax <line> - the plan section 1 format, header id@box =
 # log: id@box, the vendor is the id's (a agy, c claude, g grok, m mistral,
 # q qwen) and any registry row of the id here, ran: names a test.
 _spl_review_line_syntax() {
-  local rx='^review: ([acgmq]-[0-9]{3,})@([A-Za-z0-9._-]+) ([a-z]+) PASS [0-9a-f]{40} ran: .+ \| read: .+ \| log: ([^[:space:]@]+)@([^[:space:]:]+):/[^[:space:]]+$'
+  local rx='^review: ([acgmq]-[0-9]{3,})@([A-Za-z0-9._-]+) ([a-z]+) (PASS|FAIL) [0-9a-f]{40} ran: .+ \| read: .+ \| log: ([^[:space:]@]+)@([^[:space:]:]+):/[^[:space:]]+$'
   [[ "$1" =~ $rx ]] ||
-    { echo "SYNTAX FAIL not 'review: <id>@<box> <vendor> PASS <40-hex sha> ran: ... | read: ... | log: <id>@<box>:/<path>'"; return 1; }
+    { echo "SYNTAX FAIL not 'review: <id>@<box> <vendor> PASS|FAIL <40-hex sha> ran: ... | read: ... | log: <id>@<box>:/<path>'"; return 1; }
   _spl_review_line_reviewer "$1" || return 1
   local names out
   names="$(_spl_review_line_names "${1#* ran: }")"
@@ -203,10 +216,10 @@ _spl_review_line_syntax() {
 # (a agy, c claude, g grok, m mistral, q qwen) and any registry row of it here.
 _spl_review_line_reviewer() {
   local id vendor reg want who owner
-  local rx='^review: ([^[:space:]@]+)@([^[:space:]]+) ([a-z]+) PASS .* \| log: ([^[:space:]@]+)@([^[:space:]:]+):'
-  [[ "$1" =~ $rx ]] || { echo "SYNTAX FAIL no 'review: <id>@<box> <vendor> PASS ... | log: <id>@<box>:<path>'"; return 1; }
+  local rx='^review: ([^[:space:]@]+)@([^[:space:]]+) ([a-z]+) (PASS|FAIL) .* \| log: ([^[:space:]@]+)@([^[:space:]:]+):'
+  [[ "$1" =~ $rx ]] || { echo "SYNTAX FAIL no 'review: <id>@<box> <vendor> PASS|FAIL ... | log: <id>@<box>:<path>'"; return 1; }
   id="${BASH_REMATCH[1]}" vendor="${BASH_REMATCH[3]}"
-  who="$id@${BASH_REMATCH[2]}" owner="${BASH_REMATCH[4]}@${BASH_REMATCH[5]}"
+  who="$id@${BASH_REMATCH[2]}" owner="${BASH_REMATCH[5]}@${BASH_REMATCH[6]}"
   [[ "$id" =~ ^[acgmq]-[0-9]{3,}$ ]] || { echo "SYNTAX FAIL reviewer '$who' is not an agent id <[acgmq]-NNN>@<box>"; return 1; }
   [[ "$who" == "$owner" ]] || { echo "SYNTAX FAIL reviewer $who is not the log: owner $owner"; return 1; }
   case "${id%%-*}" in a) want=agy ;; c) want=claude ;; g) want=grok ;; m) want=mistral ;; q) want=qwen ;; esac

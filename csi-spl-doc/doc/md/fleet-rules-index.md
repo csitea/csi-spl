@@ -2,14 +2,6 @@
 
 > Generated from qto doc `9d7d5428-f4b3-45bb-9217-de2d10bcef8b`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
 
-## CI Panel 2026-10-28
-
-The following files are part of the CI panel 2026-10-28:
-- [ci-panel-20261028.md](ci-panel-20261028.md) (Editor Draft v0.1)
-- [ci-panel-20261028-seat-grok.md](ci-panel-20261028-seat-grok.md) (Grok Seat)
-- [ci-panel-20261028-seat-agy.md](ci-panel-20261028-seat-agy.md) (Agy Seat)
-- [ci-panel-20261028-seat-mistral.md](ci-panel-20261028-seat-mistral.md) (Mistral Seat)
-
 Owner, t1 5c3bb16a (2026-10-08): "is that manageable", "does it need somekind
 of optimization / rationalization", then "go". This page lists every source of
 fleet rules, what it governs, and the ONE home of each rule that used to be

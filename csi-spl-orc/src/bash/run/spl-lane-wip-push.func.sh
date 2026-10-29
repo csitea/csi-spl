@@ -30,7 +30,29 @@
 #------------------------------------------------------------------------------
 
 do_spl_lane_wip_push() {
-  local id="${ID:-}" root="${SPOOL_ROOT:-/var/spool-hub}" remote="${WIP_REMOTE:-origin}"
+  local -A w=([id]="${ID:-}" [root]="${SPOOL_ROOT:-/var/spool-hub}" [remote]="${WIP_REMOTE:-origin}")
+  spl_lane_wip_checks w && spl_lane_wip_branch w || return 1
+  w[ref]="${WIP_REF:-refs/heads/wip/${w[branch]}}"
+  spl_lane_wip_ref_ok "${w[ref]}" || { do_log "FATAL WIP ${w[id]}: refused ref '${w[ref]}': only refs/heads/wip/<branch> is ever pushed"; return 1; }
+  w[life]="${w[root]}/${w[id]}/lifetime"
+  w[ts]="$(date -u +%Y%m%dT%H%M%SZ)"
+  spl_lane_wip_key w || return 1
+  if [[ -f "${w[life]}/wip.last" && "$(cat "${w[life]}/wip.last")" == "${w[key]}" ]]; then
+    do_log "SKIP WIP ${w[id]}: unchanged since the last push (${w[ref]})"; return 0
+  fi
+  if [[ "${DRY_RUN:-0}" == 1 ]]; then
+    do_log "PLAN WIP ${w[id]}: push ${w[src]:-<a wip commit on HEAD>} -> ${w[remote]} ${w[ref]}${w[mid]:+ (mid-${w[mid]}: ORIG_HEAD, the dirty diff as a patch file)}"
+    return 0
+  fi
+  spl_lane_wip_send w
+}
+
+# spl_lane_wip_checks STATE: refuse a bad id, the live spool root under
+# SPOOL_TEST and a bad DRY_RUN; set STATE[wt], the worktree (WIP_WORKTREE,
+# else the registry rundir), refused unless it is a git work tree.
+spl_lane_wip_checks() {
+  local -n _wc="$1"
+  local id="${_wc[id]}" root="${_wc[root]}"
   [[ "$id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || { do_log "FATAL ID must be a lane id like c-050, got '$id'"; return 1; }
   if [[ "${SPOOL_TEST:-}" == 1 && "$(readlink -m -- "$root")" == "$(readlink -m -- "${SPOOL_LIVE_ROOT:-/var/spool-hub}")" ]]; then
     do_log "FATAL SPOOL_TEST=1 and SPOOL_ROOT is the live root: a test must give its own SPOOL_ROOT"; return 1
@@ -41,8 +63,15 @@ do_spl_lane_wip_push() {
   if [[ -z "$wt" || ! -d "$wt" ]] || ! git -C "$wt" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     do_log "FATAL WIP $id: no git worktree (WIP_WORKTREE or the registry rundir), got '$wt'"; return 1
   fi
+  _wc[wt]="$wt"
+}
 
-  local gd mid="" branch
+# spl_lane_wip_branch STATE: set STATE[mid] (rebase, merge or empty) and
+# STATE[branch], the lane branch, read from the rebase state when mid-rebase;
+# a detached HEAD is refused.
+spl_lane_wip_branch() {
+  local -n _wb="$1"
+  local id="${_wb[id]}" wt="${_wb[wt]}" gd mid="" branch
   gd="$(git -C "$wt" rev-parse --absolute-git-dir)" || return 1
   if [[ -d "$gd/rebase-merge" || -d "$gd/rebase-apply" ]]; then
     mid=rebase
@@ -53,12 +82,16 @@ do_spl_lane_wip_push() {
   fi
   branch="${branch#refs/heads/}"
   [[ -n "$branch" && "$branch" != detached* ]] || { do_log "FATAL WIP $id: no lane branch (detached HEAD in $wt)"; return 1; }
+  _wb[mid]="$mid" _wb[branch]="$branch"
+}
 
-  local ref="${WIP_REF:-refs/heads/wip/$branch}"
-  spl_lane_wip_ref_ok "$ref" || { do_log "FATAL WIP $id: refused ref '$ref': only refs/heads/wip/<branch> is ever pushed"; return 1; }
-
-  local life="$root/$id/lifetime" ts src key diff="" patch=""
-  ts="$(date -u +%Y%m%dT%H%M%SZ)"
+# spl_lane_wip_key STATE: set STATE[key], what wip.last compares, and
+# STATE[src], the commit to push (empty: a wip commit of STATE[tree] on
+# STATE[head] is still to write). Mid-rebase / mid-merge: ORIG_HEAD plus
+# STATE[diff], the dirty diff; else the tree of a TEMPORARY index.
+spl_lane_wip_key() {
+  local -n _wk="$1"
+  local id="${_wk[id]}" wt="${_wk[wt]}" mid="${_wk[mid]}" src key diff=""
   if [[ -n "$mid" ]]; then
     src="$(git -C "$wt" rev-parse -q --verify ORIG_HEAD)" || { do_log "FATAL WIP $id: mid-$mid without ORIG_HEAD"; return 1; }
     diff="$(git -C "$wt" diff --binary HEAD 2>/dev/null)"
@@ -78,22 +111,26 @@ do_spl_lane_wip_push() {
     key="tree $head $tree"
     src="$head"
     [[ "$tree" == "$(git -C "$wt" rev-parse "$head^{tree}")" ]] || src=""
+    _wk[tree]="$tree" _wk[head]="$head"
   fi
-  if [[ -f "$life/wip.last" && "$(cat "$life/wip.last")" == "$key" ]]; then
-    do_log "SKIP WIP $id: unchanged since the last push ($ref)"; return 0
-  fi
-  if [[ "${DRY_RUN:-0}" == 1 ]]; then
-    do_log "PLAN WIP $id: push ${src:-<a wip commit on HEAD>} -> $remote $ref${mid:+ (mid-$mid: ORIG_HEAD, the dirty diff as a patch file)}"
-    return 0
-  fi
+  _wk[src]="$src" _wk[key]="$key" _wk[diff]="$diff"
+}
 
+# spl_lane_wip_send STATE: write the wip commit under the canonical author
+# (a noreply address is refused) when STATE[src] is empty, the patch file when
+# there is a dirty diff, push with a lease on the remote wip ref, then record
+# STATE[key] in lifetime/wip.last.
+spl_lane_wip_send() {
+  local -n _ws="$1"
+  local id="${_ws[id]}" wt="${_ws[wt]}" life="${_ws[life]}" ts="${_ws[ts]}" ref="${_ws[ref]}" remote="${_ws[remote]}"
+  local src="${_ws[src]}" diff="${_ws[diff]}" patch=""
   if [[ -z "$src" ]]; then
     local name="${WIP_GIT_NAME:-$(git -C "$wt" config user.name)}" email="${WIP_GIT_EMAIL:-$(git -C "$wt" config user.email)}"
     [[ -n "$name" ]] || name="$(git -C "$wt" log -1 --no-mailmap --format=%an)"
     [[ -n "$email" ]] || email="$(git -C "$wt" log -1 --no-mailmap --format=%ae)"
     [[ -n "$name" && -n "$email" && "$email" != *noreply* ]] || { do_log "FATAL WIP $id: no canonical author (set WIP_GIT_NAME / WIP_GIT_EMAIL)"; return 1; }
     src="$(GIT_AUTHOR_NAME="$name" GIT_AUTHOR_EMAIL="$email" GIT_COMMITTER_NAME="$name" GIT_COMMITTER_EMAIL="$email" \
-      git -C "$wt" commit-tree "$tree" -p "$head" -m "wip($id): $ts handoff")" || { do_log "FATAL WIP $id: commit-tree failed"; return 1; }
+      git -C "$wt" commit-tree "${_ws[tree]}" -p "${_ws[head]}" -m "wip($id): $ts handoff")" || { do_log "FATAL WIP $id: commit-tree failed"; return 1; }
   fi
   mkdir -p "$life" || { do_log "FATAL WIP $id: cannot create $life"; return 1; }
   if [[ -n "$diff" ]]; then
@@ -104,7 +141,7 @@ do_spl_lane_wip_push() {
   lease="$(git -C "$wt" ls-remote "$remote" "$ref" 2>/dev/null | awk '{print $1; exit}')"
   git -C "$wt" push -q --force-with-lease="$ref:$lease" "$remote" "$src:$ref" ||
     { do_log "FATAL WIP $id: push to $remote $ref failed (lease '${lease:-absent}')"; return 1; }
-  printf '%s\n' "$key" >"$life/wip.last"
+  printf '%s\n' "${_ws[key]}" >"$life/wip.last"
   do_log "OK WIP $id: pushed ${src:0:12} -> $remote $ref${patch:+ patch=$patch}"
 }
 

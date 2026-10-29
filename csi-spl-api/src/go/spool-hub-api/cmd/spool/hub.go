@@ -95,8 +95,7 @@ func cmdServe() int {
 	if err != nil {
 		return fail(err)
 	}
-	st, err := openStore(ctx, dsn, store.PoolLimits{MaxConns: int32(hc.DBMaxConns),
-		MinConns: int32(hc.DBMinConns), MaxConnIdleTime: hc.DBMaxConnIdleTime})
+	st, err := openHubStore(ctx, dsn, hc, log)
 	if err != nil {
 		return fail(err)
 	}
@@ -685,13 +684,67 @@ func serveUntilDone(ctx context.Context, hc *config.Hub, log zerolog.Logger, srv
 	return 0
 }
 
+// openHubStore opens the serving hub's store: its pool limits from the hub
+// config, retried within SPOOL_HUB_DB_OPEN_WITHIN (openStoreWithin).
+func openHubStore(ctx context.Context, dsn string, hc *config.Hub, log zerolog.Logger) (store.Store, error) {
+	within, err := openStoreWithin()
+	if err != nil {
+		return nil, err
+	}
+	return openStore(ctx, dsn, store.PoolLimits{MaxConns: int32(hc.DBMaxConns),
+		MinConns: int32(hc.DBMinConns), MaxConnIdleTime: hc.DBMaxConnIdleTime}, within, log)
+}
+
+// openStoreBackoff is the wait after the first failed open; it doubles per
+// try (1, 2, 4, 8 s ...). A var so a test can shrink it.
+var openStoreBackoff = time.Second
+
+// openStoreWithin reads SPOOL_HUB_DB_OPEN_WITHIN, how long the hub keeps
+// retrying its first Postgres open (default 60 s). It must stay below the
+// 120 s startup probe (terraform step 030) so a dead database still fails the
+// revision; 0 means one try.
+func openStoreWithin() (time.Duration, error) {
+	v := os.Getenv("SPOOL_HUB_DB_OPEN_WITHIN")
+	if v == "" {
+		return 60 * time.Second, nil
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d < 0 || d >= 120*time.Second {
+		return 0, fmt.Errorf("SPOOL_HUB_DB_OPEN_WITHIN=%q: want a duration from 0s to below 120s (the startup probe)", v)
+	}
+	return d, nil
+}
+
 // openStore opens Postgres; the literal DSN "memory:" is an in-process store
 // for tests and throwaway lde runs only (state dies with the process).
-func openStore(ctx context.Context, dsn string, limits store.PoolLimits) (store.Store, error) {
+//
+// CI panel 2026-10-28 row F5: one failed Cloud SQL dial exited dev revision
+// 01128-muv with 110 s of its startup probe left. So a failed open is retried
+// with a doubling backoff while `within` lasts, one WARN line per failed try;
+// within 0 (the one-shot CLI verbs) is a single try.
+func openStore(ctx context.Context, dsn string, limits store.PoolLimits, within time.Duration, log zerolog.Logger) (store.Store, error) {
 	if dsn == "memory:" {
 		return store.NewMemory(), nil
 	}
-	return store.OpenPostgres(ctx, dsn, limits)
+	deadline := time.Now().Add(within)
+	wait := openStoreBackoff
+	for try := 1; ; try++ {
+		st, err := store.OpenPostgres(ctx, dsn, limits)
+		if err == nil || within <= 0 {
+			return st, err
+		}
+		left := time.Until(deadline)
+		log.Warn().Err(err).Int("try", try).Dur("retry_in", min(wait, left)).Dur("left", left).Msg("open store")
+		if left <= 0 || ctx.Err() != nil {
+			return nil, err
+		}
+		select {
+		case <-ctx.Done():
+			return nil, err
+		case <-time.After(min(wait, left)):
+		}
+		wait *= 2
+	}
 }
 
 // cmdHubTenant seeds a tenant row (006 owns tenant creation; this is the
@@ -868,7 +921,7 @@ func cmdHubResetPassword(args []string) int {
 	}
 	ctx, stop := interruptible()
 	defer stop()
-	st, err := openStore(ctx, *dsn, store.PoolLimits{})
+	st, err := openStore(ctx, *dsn, store.PoolLimits{}, 0, zerolog.Nop())
 	if err != nil {
 		return fail(err)
 	}

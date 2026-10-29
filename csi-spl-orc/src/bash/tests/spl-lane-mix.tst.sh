@@ -827,5 +827,55 @@ for k in tests simple_coding complex_coding secret orchestration; do
 done
 [[ -z "$bad" && "$(yq -r '.env.box.agent_split_by_kind.specs_and_docs.mistral' "$REAL_CNF")" -gt 0 ]]   && pass "16. the real cnf rows: mistral 0 and never the backup in every coding kind, still in specs_and_docs" || fail "16. real rows:$bad"
 
+
+# --- 17. the verdict scan: a fixed process count (SPL-4237) -------------------
+# 2,953 out.s2 files took 107 s at ~4 processes each, and spawn-fill's 60 s
+# timeout dropped every pick. wd_fill <n>: n lanes over 3 ctx dirs, every 5th a
+# fresh limit verdict, the rest a login verdict or none.
+wd_fill() {
+  local i d
+  rm -rf "$T/dispatch/wd"
+  for (( i = 1; i <= $1; i++ )); do
+    d="$T/dispatch/wd/ctx.$(( i % 3 ))/c-$(( 1000 + i ))"; mkdir -p "$d"
+    if (( i % 5 == 0 )); then echo "HIT S2 kind=limit pane: x" >"$d/out.s2"
+    elif (( i % 2 == 0 )); then echo "HIT S2 kind=login pane: x" >"$d/out.s2"
+    else : >"$d/out.s2"; fi
+    touch -d "@$(( $(date +%s) - 600 - i ))" "$d/out.s2"
+  done
+}
+mkdir -p "$T/shim"
+for c in grep stat awk basename dirname xargs date; do
+  printf '#!/bin/sh\necho %s >>"$T/calls"\nexec %s "$@"\n' "$c" "$(command -v "$c")" >"$T/shim/$c"; chmod +x "$T/shim/$c"
+done
+calls() {  # calls <n>: processes one limit scan spawns over n files
+  wd_fill "$1"; : >"$T/calls"
+  MIX_BODY='PATH="$T/shim:$PATH" _spl_lane_mix_verdict limit claude "$SPOOL_ROOT" "$LANE_MIX_REGISTRY" 21600' mix T="$T"
+  wc -l <"$T/calls"
+}
+: >"$T/registry.tsv"
+n1="$(calls 30)"; o1="$(cat "$T/out")"; n10="$(calls 300)"
+[[ "$n1" -gt 0 && "$n1" -le 6 && "$n1" == "$n10" ]] \
+  && pass "17. a verdict scan spawns the same $n1 processes over 30 and 300 out.s2 files" \
+  || fail "17. process count: $n1 over 30 files, $n10 over 300"
+[[ "$o1" == *$'\t'"c-1005 S2 kind=limit 10m ago" && "$(cat "$T/out")" == *$'\t'"c-1005 S2 kind=limit 10m ago" ]] \
+  && pass "17. the newest fresh limit verdict wins, whatever the file count" || fail "17. newest: $o1 / $(cat "$T/out")"
+wd_fill 3000
+s0="$(date +%s%N)"
+MIX_BODY='_spl_lane_mix_verdict limit claude "$SPOOL_ROOT" "$LANE_MIX_REGISTRY" 21600' mix
+ms=$(( ($(date +%s%N) - s0) / 1000000 ))
+(( ms < 15000 )) && grep -q 'c-1005 S2 kind=limit' "$T/out" \
+  && pass "17. 3000 out.s2 files scan in ${ms} ms (< 15 s)" || fail "17. 3000 files: ${ms} ms $(cat "$T/out")"
+printf 'c-1005\tmistral\t%%1\t/w/x\t20261003T000000Z\tc-001\tsimple_coding\n' >"$T/registry.tsv"
+MIX_BODY='_spl_lane_mix_verdict limit claude "$SPOOL_ROOT" "$LANE_MIX_REGISTRY" 21600; echo "--"; _spl_lane_mix_verdict limit mistral "$SPOOL_ROOT" "$LANE_MIX_REGISTRY" 21600' mix
+[[ "$(sed -n 1p "$T/out")" == *"c-1010 S2 kind=limit"* && "$(sed -n 3p "$T/out")" == *"c-1005 S2 kind=limit"* ]] \
+  && pass "17. the registry kind beats the id prefix (c-1005 registered as mistral)" || fail "17. registry kind: $(cat "$T/out")"
+since="$(stat -c %Y "$T/dispatch/wd/ctx.1/c-1010/out.s2")"
+MIX_BODY='_spl_lane_mix_verdict limit claude "$SPOOL_ROOT" "$LANE_MIX_REGISTRY" 21600 '"$since"'; echo "--"; _spl_lane_mix_verdict limit claude "$SPOOL_ROOT" "$LANE_MIX_REGISTRY" 21600 0 "|c-1020|c-1025|"' mix
+[[ "$(sed -n 1p "$T/out")" == -- && "$(sed -n 2p "$T/out")" == *$'\t'"c-1020 S2 kind=limit"* ]] \
+  && pass "17. <since> and <live> still filter the scan" || fail "17. since/live: $(cat "$T/out")"
+MIX_BODY='_spl_lane_mix_verdict auth claude "$SPOOL_ROOT" "$LANE_MIX_REGISTRY" 604800; echo "rc=$?"' mix
+[[ "$(cat "$T/out")" == "rc=0" ]] && pass "17. control: no auth verdict among 3000 files prints nothing, rc 0" || fail "17. no auth: $(cat "$T/out")"
+rm -rf "$T/dispatch"
+
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

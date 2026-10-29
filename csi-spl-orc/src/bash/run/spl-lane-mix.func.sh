@@ -607,21 +607,28 @@ _spl_lane_mix_auth() {
 # newest watchdog verdict (ctx*/<id>/out.s2) of that kind within <fresh-s> on
 # one of that vendor's lanes, else nothing. A verdict not newer than the epoch
 # <since> is skipped, and so is one on an id not in <live> ("|<id>|...|"),
-# when <live> is set (SPL-3846).
+# when <live> is set (SPL-3846). One grep -l over every out.s2, then one stat
+# and one awk over its matches only: a fixed process count however many files
+# the watchdog left (2,953 files took 107 s at ~4 processes each, SPL-4237).
 _spl_lane_mix_verdict() {
   local want="$1" v="$2" wd="${LANE_MIX_WD_DIR:-$3/dispatch/wd}" fresh="$5" since="${6:-0}" live="${7:-}"
-  local now f t id k best=-1 bestf="" hit=""
+  local reg="$4" now hit fs
+  fs=("$wd"/ctx*/*/out.s2)
+  [[ -e "${fs[0]}" ]] || return 0
   now="$(date +%s)"
-  for f in "$wd"/ctx*/*/out.s2; do
-    grep -q "^HIT S2 kind=$want" "$f" 2>/dev/null || continue
-    t="$(stat -c %Y "$f" 2>/dev/null)" || continue
-    (( now - t <= fresh && t > best && t > since )) || continue
-    id="$(basename "$(dirname "$f")")"
-    [[ -z "$live" || "$live" == *"|$id|"* ]] || continue
-    k="$(awk -F'\t' -v i="$id" '$1 == i {k = $2} END {print k}' "$4" 2>/dev/null)"
-    [[ -n "$k" ]] || case "${id:0:2}" in c-) k=claude ;; g-) k=grok ;; a-) k=agy ;; q-) k=qwen ;; m-) k=mistral ;; esac
-    [[ "$k" == "$v" ]] || continue
-    best="$t" bestf="$f" hit="$id S2 kind=$want $(( (now - t) / 60 ))m ago"
-  done
-  [[ -z "$hit" ]] || printf '%s:%s\t%s\n' "$best" "$bestf" "$hit"
+  hit="$(printf '%s\0' "${fs[@]}" | xargs -0 grep -l -- "^HIT S2 kind=$want" 2>/dev/null \
+    | xargs -r -d '\n' stat -c $'%Y\t%n' 2>/dev/null \
+    | awk -F'\t' -v now="$now" -v fresh="$fresh" -v since="$since" -v live="$live" -v v="$v" -v want="$want" -v reg="$reg" '
+      BEGIN { while ((getline l < reg) > 0) { split(l, r, "\t"); k[r[1]] = r[2] } }
+      { t = $1 + 0; f = substr($0, index($0, "\t") + 1)
+        if (!(now - t <= fresh && t > best + 0 && t > since + 0)) next
+        n = split(f, p, "/"); id = p[n - 1]
+        if (live != "" && index(live, "|" id "|") == 0) next
+        kk = (id in k) ? k[id] : ""
+        if (kk == "") { pre = substr(id, 1, 2)
+          kk = pre == "c-" ? "claude" : pre == "g-" ? "grok" : pre == "a-" ? "agy" : pre == "q-" ? "qwen" : pre == "m-" ? "mistral" : "" }
+        if (kk != v) next
+        best = t; out = t ":" f "\t" id " S2 kind=" want " " int((now - t) / 60) "m ago" }
+      END { if (out != "") print out }')" || true
+  [[ -z "$hit" ]] || printf '%s\n' "$hit"
 }

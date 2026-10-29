@@ -23,7 +23,7 @@ import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
    keeps its place and the tabs added since (people, agents) are appended, so the
    expected order tracks RAIL_IDS instead of a hardcoded list. */
 import { importTs } from '../unit/lib/load-ts.mjs'
-const { parseRailOrder } = await importTs('src/utils/rail-order.ts')
+const { parseRailOrder, NOTES_RAIL_ON } = await importTs('src/utils/rail-order.ts')
 
 const results = []
 function check(name, pass, ev) {
@@ -423,7 +423,10 @@ async function reportingSection(browser, base) {
    for a new member, opens /notes, the sidebar keeps the icon rail only, and
    the page lists the mock notes: the Pinned group first, the filter box and
    the Archived switch narrow it. CONTROL: before B5 there is no
-   sidebar-tab-notes and every check here FAILs. */
+   sidebar-tab-notes and every check here FAILs.
+   Owner HUM-10 (t1 cb9d7bdc, msg cdf216a0): the rail tab is off until the
+   CRUD is live (NOTES_RAIL_ON in utils/rail-order.ts). Off, the rail has no
+   Notes and the page is opened by URL; on, the tab checks run as before. */
 async function notesSection(browser, base) {
   const path = (p) => new URL(p.url()).pathname
   const at = (p, want) => p.waitForFunction((w) => location.pathname === w, { timeout: 15000 }, want).then(() => true, () => false)
@@ -438,15 +441,21 @@ async function notesSection(browser, base) {
     await p.waitForSelector('[data-testid=sidebar-rail] [data-reorder-id]', { timeout: NAV })
     await sleep(400)
     const rail = await railOf(p)
-    check(`${tag}: the rail has Notes right after Calendar (D5)`, rail.includes('notes') && rail.indexOf('notes') === rail.indexOf('calendar') + 1 && rail.at(-1) === 'archive', { rail })
-    await p.evaluate(() => document.querySelector('[data-testid=sidebar-tab-notes]')?.click())
-    check(`${tag}: the rail tab lands on /notes`, await at(p, '/notes'), path(p))
+    if (NOTES_RAIL_ON) {
+      check(`${tag}: the rail has Notes right after Calendar (D5)`, rail.includes('notes') && rail.indexOf('notes') === rail.indexOf('calendar') + 1 && rail.at(-1) === 'archive', { rail })
+      await p.evaluate(() => document.querySelector('[data-testid=sidebar-tab-notes]')?.click())
+      check(`${tag}: the rail tab lands on /notes`, await at(p, '/notes'), path(p))
+    } else {
+      check(`${tag}: switched off, the rail has no Notes`, !rail.includes('notes') && !(await p.$('[data-testid=sidebar-tab-notes]')) && rail.at(-1) === 'archive', { rail })
+      await go(p, '/notes')
+      check(`${tag}: /notes still opens by its route`, await at(p, '/notes'), path(p))
+    }
     check(`${tag}: the list renders`, Boolean(await p.waitForSelector('[data-test=notes-row]', { visible: true, timeout: NAV }).catch(() => null)))
     check(`${tag}: the heading reads Notes`, (await p.$eval('[data-test=notes-heading]', (e) => e.textContent.trim()).catch(() => '')) === 'Notes')
     check(`${tag}: Pinned first, then the rest; no archived note`, same(await rows(p), ['mock-note-1', 'mock-note-2', 'mock-note-3']) && Boolean(await p.$('[data-test=notes-group-pinned]')), await rows(p))
     const untitled = await p.$eval('[data-note-id=mock-note-3]', (e) => [e.querySelector('.notes-row__title')?.textContent.trim(), e.querySelector('[data-test=notes-row-text]')?.textContent.trim()]).catch(() => [])
     check(`${tag}: an untitled note shows its first line as the title and its second line as text (2.6)`, same(untitled, ['Call back about the invoice', 'and the new address']), untitled)
-    check(`${tag}: the rail tab reads as selected`, (await p.$eval('[data-testid=sidebar-tab-notes]', (e) => e.getAttribute('aria-selected'))) === 'true')
+    if (NOTES_RAIL_ON) check(`${tag}: the rail tab reads as selected`, (await p.$eval('[data-testid=sidebar-tab-notes]', (e) => e.getAttribute('aria-selected'))) === 'true')
     if (!touch) check(`${tag}: the sidebar keeps the icon rail only`, await p.$eval('nav.sidebar', (e) => e.classList.contains('sidebar--rail')))
     await p.type('[data-test=notes-filter]', 'ideas')
     await sleep(200)

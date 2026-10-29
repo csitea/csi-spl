@@ -5,8 +5,15 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { importTs } from './lib/load-ts.mjs'
+import { importTs, importTsPatched } from './lib/load-ts.mjs'
 import { channelSidebarSrc } from './lib/channel-sidebar-src.mjs'
+/* Spec 155 (owner HUM-10, t1 cb9d7bdc, msg cdf216a0): the Notes rail tab is
+   off until its CRUD is live (NOTES_RAIL_ON). Every check below but the
+   'switched off' block runs with the switch on, so the Notes coverage stays;
+   that block runs the module as shipped. */
+const SWITCH_OFF = 'export const NOTES_RAIL_ON: boolean = false'
+const SWITCH_ON = 'export const NOTES_RAIL_ON: boolean = true'
+const shipped = await importTs('src/utils/rail-order.ts')
 const {
   RAIL_TABS,
   RAIL_IDS,
@@ -28,7 +35,9 @@ const {
   pinRailOrder,
   isRailMovable,
   dragAxis,
-} = await importTs('src/utils/rail-order.ts')
+  NOTES_RAIL_ON,
+  RAIL_SWITCHED_OFF,
+} = await importTsPatched('src/utils/rail-order.ts', SWITCH_OFF, SWITCH_ON)
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -269,6 +278,49 @@ describe('spec 155 B5: the Notes tab', () => {
     assert.ok(wire.includes('notes'), 'the saved order keeps Notes')
     assert.equal(wire.at(-1), 'archive')
     assert.deepEqual(parseRailOrder(wire), drawn, 'read back, the same order')
+  })
+})
+
+describe('spec 155: the Notes rail tab switched off (NOTES_RAIL_ON, as shipped)', () => {
+  /* CONTROL: with the switch flipped back to true (or the filter removed)
+     every assertion naming Notes here fails */
+  it('the shipped switch is off and is the one line that turns it back on', () => {
+    assert.equal(shipped.NOTES_RAIL_ON, false)
+    assert.ok(read('src/utils/rail-order.ts').includes(SWITCH_OFF))
+    assert.deepEqual([...shipped.RAIL_SWITCHED_OFF], ['notes'])
+  })
+  it('no rail tab, no default place and no Settings row for Notes', () => {
+    assert.equal(shipped.RAIL_IDS.includes('notes'), false)
+    assert.equal(shipped.RAIL_TABS.some((t) => t.id === 'notes'), false)
+    assert.deepEqual([...shipped.DEFAULT_RAIL_ORDER], ['channels', 'dm', 'issues', 'flow', 'calendar', 'people', 'monitoring', 'reporting', 'archive'])
+  })
+  it('a stored order that lists Notes is drawn without it', () => {
+    const stored = ['channels', 'dm', 'issues', 'flow', 'calendar', 'notes', 'people', 'monitoring', 'reporting', 'topics', 'agents', 'boxes', 'events', 'archive']
+    assert.deepEqual(shipped.parseRailOrder(stored), ['channels', 'dm', 'issues', 'flow', 'calendar', 'people', 'monitoring', 'reporting', 'archive'])
+    assert.deepEqual(shipped.parseRailOrder(['notes']), [...shipped.DEFAULT_RAIL_ORDER])
+  })
+  it('a save still carries Notes for the hub (fourteen ids), once, and reads back without it', async () => {
+    const drawn = ['calendar', 'people', 'flow', 'issues', 'channels', 'dm', 'monitoring', 'reporting', 'archive']
+    const wire = shipped.wireRailOrder(drawn)
+    assert.equal(wire.length, 14, 'the hub CHECK admits fourteen ids')
+    assert.equal(wire.filter((id) => id === 'notes').length, 1)
+    assert.equal(wire.at(-1), 'archive')
+    assert.deepEqual(shipped.wireRailOrder(wire), wire, 'idempotent')
+    assert.deepEqual(shipped.parseRailOrder(wire), drawn)
+    const out = await shipped.applyRailOrder(drawn, { current: null, apply: () => {}, save: async () => ({ ok: true }) })
+    assert.equal(out.ok, true)
+    assert.deepEqual(out.value, wire)
+  })
+  it('with the switch on, Notes is back right after Calendar', () => {
+    assert.equal(NOTES_RAIL_ON, true)
+    assert.equal(DEFAULT_RAIL_ORDER.indexOf('notes'), DEFAULT_RAIL_ORDER.indexOf('calendar') + 1)
+    assert.deepEqual([...RAIL_SWITCHED_OFF], [])
+  })
+  it('the /notes route stays reachable by URL', async () => {
+    const { tabForPath, routeForTab } = await import('../../src/utils/sidebar-tabs.mjs')
+    assert.equal(tabForPath('/notes'), 'notes')
+    assert.equal(routeForTab('notes'), '/notes')
+    assert.ok(read('src/pages/notes.vue').length > 0)
   })
 })
 

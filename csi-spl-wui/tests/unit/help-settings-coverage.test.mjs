@@ -19,9 +19,12 @@ import { SETTINGS_SECTIONS } from '../../src/utils/settings-nav.mjs'
 const { TENANT_SETTINGS_SECTIONS } = await importTs('src/utils/tenant-settings-nav.ts')
 import { SOUND_NAMES } from '../../src/utils/notify.mjs'
 import { CLOSE_BUTTONS } from '../../src/utils/view-prefs.mjs'
-const { RAIL_TABS } = await importTs('src/utils/rail-order.ts')
+/* spec 155 (SPL-4219): the Notes rail tab is switched off (NOTES_RAIL_ON) until
+   its CRUD is live; its help mapping is still held, so read the tabs with it on */
+const { RAIL_TABS } = await importTsPatched('src/utils/rail-order.ts',
+  'export const NOTES_RAIL_ON: boolean = false', 'export const NOTES_RAIL_ON: boolean = true')
 import { runsInUnitSuite } from './lib/in-suite.mjs'
-import { importTs } from './lib/load-ts.mjs'
+import { importTs, importTsPatched } from './lib/load-ts.mjs'
 
 const { SUBMIT_KEYS } = await importTs('src/utils/submit-key.ts')
 

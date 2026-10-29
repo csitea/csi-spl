@@ -40,18 +40,23 @@ function absolute(spec, from) {
   return pathToFileURL(path).href
 }
 
-/** The .ts at absolute `file`, transpiled, its imports linked, as a data: URL. */
-function tsDataUrl(file) {
-  const known = linkedTs.get(file)
-  if (known) return known
-  const js = ts.transpileModule(readFileSync(file, 'utf8'), {
+/** TypeScript `src` of absolute `file`, transpiled, its imports linked, as a data: URL. */
+function linkTs(src, file) {
+  const js = ts.transpileModule(src, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
     fileName: file,
   }).outputText
   const linked = js.replace(/(\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)(['"])([^'"]+)\2/g,
     (_, head, q, spec) => head + q + absolute(spec, file) + q)
   // %27: the URL sits in a quoted specifier of the importing module
-  const url = 'data:text/javascript,' + encodeURIComponent(linked).replace(/'/g, '%27')
+  return 'data:text/javascript,' + encodeURIComponent(linked).replace(/'/g, '%27')
+}
+
+/** The .ts at absolute `file`, transpiled, its imports linked, as a data: URL. */
+function tsDataUrl(file) {
+  const known = linkedTs.get(file)
+  if (known) return known
+  const url = linkTs(readFileSync(file, 'utf8'), file)
   linkedTs.set(file, url)
   return url
 }
@@ -59,4 +64,18 @@ function tsDataUrl(file) {
 /** The module at `rel` (relative to csi-spl-wui), transpiled and imported. */
 export async function importTs(rel) {
   return import(tsDataUrl(join(WUI, rel)))
+}
+
+/**
+ * The module at `rel` with the literal `from` replaced by `to` before it is
+ * transpiled: a test runs a module under the other value of a one-line
+ * switch (spec 155: NOTES_RAIL_ON). Throws when `from` is not in the file,
+ * so a renamed switch fails the test instead of testing the shipped value.
+ * Not cached: each call is its own instance.
+ */
+export async function importTsPatched(rel, from, to) {
+  const file = join(WUI, rel)
+  const src = readFileSync(file, 'utf8')
+  if (!src.includes(from)) throw new Error(`importTsPatched: ${rel} has no ${JSON.stringify(from)}`)
+  return import(linkTs(src.replace(from, to), file))
 }

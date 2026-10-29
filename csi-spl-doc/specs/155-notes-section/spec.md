@@ -450,6 +450,17 @@ Only B5 changes locale files: agy reviews them last (2.7). B5 to B10 are
 WUI rows: never placed on mistral (developer guide 4.1). B8 and B9 both
 come after B7 and touch no common file, so they may run side by side.
 
+The rail entry is off until the CRUD rows are live (owner HUM-10, 2026-10-29,
+t1 `cb9d7bdc`, msg `cdf216a0`: "hide the notes section in the UI until the
+CRUD has been completed"; SPL-4219). One line turns it back on:
+`export const NOTES_RAIL_ON: boolean = false` in
+`csi-spl-wui/src/utils/rail-order.ts`, set to `true`. While it is off no
+person's rail draws Notes, a stored order that lists it is drawn without it,
+a saved order still carries `notes` for the hub (`RAIL_SWITCHED_OFF`,
+`wireRailOrder`), and `/notes` stays reachable by URL. `rail-order.test.mjs`
+runs the Notes cases with the switch on and the shipped module with it off;
+`rail-order-default.test.mjs` follows the shipped value.
+
 ## 9. Review record
 
 - v1.0 `471c55f24`: agy seat a-089, NOT SIGNED at `fafbb86d0`

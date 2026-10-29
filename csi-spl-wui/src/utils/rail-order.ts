@@ -16,6 +16,19 @@ import type { UiIconName } from '~/utils/uiIcons'
 export type RailId = 'dm' | 'channels' | 'issues' | 'flow' | 'archive' | 'people' | 'calendar' | 'monitoring' | 'reporting' | 'notes'
 type RailTab = { readonly id: RailId, readonly icon: UiIconName, readonly labelKey: string, readonly phoneLabelKey?: string }
 
+/**
+ * Owner HUM-10 (t1 cb9d7bdc, msg cdf216a0, 2026-10-29: "hide the notes
+ * section in the UI until the CRUD has been completed"): the ONE switch for
+ * the Notes rail tab (spec 155). Off, Notes is drawn for nobody, a stored
+ * order that lists it included (parseRailOrder drops it, nothing is written
+ * back), and a saved order still carries it for the hub (wireRailOrder). The
+ * /notes page stays reachable by URL. Turn it back on: set this to true.
+ */
+export const NOTES_RAIL_ON: boolean = false
+
+/** Ids the hub admits but a switch keeps off the rail (NOTES_RAIL_ON). */
+export const RAIL_SWITCHED_OFF: readonly RailId[] = Object.freeze(NOTES_RAIL_ON ? [] : ['notes' as const])
+
 /** The tabs in the default order, with their icon and catalogue key. */
 export const RAIL_TABS: readonly RailTab[] = Object.freeze([
   /* Owner 2026-09-27 (topic 116646c8): new members start with Channels,
@@ -66,7 +79,7 @@ export const RAIL_TABS: readonly RailTab[] = Object.freeze([
      the default order puts it after Calendar (D5, DEFAULT_RAIL_ORDER). The
      hub admits it since spec 155 B1 (auth.RailTabs, rdb human_rail_order_notes). */
   Object.freeze({ id: 'notes', icon: 'notes', labelKey: 'sidebar.notes' }),
-])
+].filter((t) => !RAIL_SWITCHED_OFF.includes(t.id)))
 
 /** Every drawn rail id - a set, not the drawn order. */
 export const RAIL_IDS: readonly RailId[] = Object.freeze(RAIL_TABS.map((t) => t.id))
@@ -100,12 +113,13 @@ export const RAIL_RETIRED: readonly string[] = Object.freeze(['topics', 'agents'
 export const RAIL_HUB_PENDING: readonly string[] = Object.freeze([])
 
 /**
- * A drawn order as the hub stores it: the retired ids added, the ids the hub
- * does not admit yet left out, Archive last.
+ * A drawn order as the hub stores it: the retired and the switched-off ids
+ * added, the ids the hub does not admit yet left out, Archive last.
  */
 export function wireRailOrder(order: readonly string[]): string[] {
-  const drop = (id: string) => RAIL_RETIRED.includes(id) || RAIL_HUB_PENDING.includes(id)
-  return pinRailOrder([...order.filter((id) => !drop(id)), ...RAIL_RETIRED])
+  const off = (id: string) => (RAIL_SWITCHED_OFF as readonly string[]).includes(id)
+  const drop = (id: string) => RAIL_RETIRED.includes(id) || RAIL_HUB_PENDING.includes(id) || off(id)
+  return pinRailOrder([...order.filter((id) => !drop(id)), ...RAIL_RETIRED, ...RAIL_SWITCHED_OFF])
 }
 
 /**
@@ -128,7 +142,7 @@ export function pinRailOrder<T extends string>(order: readonly T[]): T[] {
  * 2b61230c, msg a351c864, "A"): in RAIL_IDS order Calendar sat between Boxes
  * and Archive, so the desktop rail drew 3 talk/workspace lines (spec 109
  * T015); grouped, it draws 1. A stored order is drawn as stored.
- * Spec 155 D5 (B5): Notes right after Calendar.
+ * Spec 155 D5 (B5): Notes right after Calendar (when NOTES_RAIL_ON).
  */
 export const DEFAULT_RAIL_ORDER: readonly RailId[] = Object.freeze(pinRailOrder(defaultOrder()))
 

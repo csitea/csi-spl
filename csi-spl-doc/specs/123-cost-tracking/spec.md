@@ -1,6 +1,6 @@
 # Spec 123: Cost Tracking
 
-**Status:** v1.3 (2026-10-29: R7 review W1..W7 folded: owned hardware is the fourth part of the project-cost read, one hand-entered kind only, files disjoint per batch, Q-10 dropped as decided by 107 Q27 A; SPL-4189) · v1.2 (2026-10-29: 13.12, owned hardware written off monthly, monthly and yearly totals first, the untracked-cost list; SPL-4189) · v1.1 (2026-10-29: section 13, the project's cost, plan only, SPL-4189) · v1.0 (draft ff04d3ca3 by a-816, folded by the editor
+**Status:** v1.4 (2026-10-29: R7 re-review W1: the 13.9 masked-viewer case counts owned hardware in the total, as 13.6 and P03; SPL-4189) · v1.3 (2026-10-29: R7 review W1..W7 folded: owned hardware is the fourth part of the project-cost read, one hand-entered kind only, files disjoint per batch, Q-10 dropped as decided by 107 Q27 A; SPL-4189) · v1.2 (2026-10-29: 13.12, owned hardware written off monthly, monthly and yearly totals first, the untracked-cost list; SPL-4189) · v1.1 (2026-10-29: section 13, the project's cost, plan only, SPL-4189) · v1.0 (draft ff04d3ca3 by a-816, folded by the editor
 s123-claude from the four seat reviews in `reviews/`; rc1 cc831a665 signed by
 all four seats and the drafter; the owner's answers Q-1..Q-7 folded, section 12)
 
@@ -367,7 +367,7 @@ One list, merged from Q-C1..Q-C5 (s123-claude) and Q-1..Q-7 (s123-claude-2), plu
   - **Panel: A** (claude-2; no seat objected). You asked for "the whole" instance; a marked hand row is honest about its source.
   - **Owner: B, plus a factory.** msg `6078c151`: "7. no supported for now - factory design patterns in the code to support for the future". Section 4.6.
 
-## 13. The project's cost: cloud + AI tokens + human (v1.1..v1.3, plan only)
+## 13. The project's cost: cloud + AI tokens + human (v1.1..v1.4, plan only)
 
 **Status: Planned, not built.** Lane issue SPL-4189, epic SPL-2373. Nothing
 below exists in code. It is the level ABOVE the near-term three-sections
@@ -520,7 +520,7 @@ Paths: `hub/`, `store/` under `csi-spl-api/src/go/spool-hub-api/internal/`;
 | a member with no price | the minutes show, "unpriced", money left out | the minutes are priced at 0 |
 | a price changed mid-month | each day at its own price | every day at the new price |
 | the list value of subscription tokens | shown beside, not in the AI amount | the AI amount jumps to the list value |
-| an operator admin without `hours.rates` | hours only, total over Cloud + AI, labelled | total minus parts gives the human money |
+| an operator admin without `hours.rates` | hours only, total over Cloud + owned hardware + AI tokens, labelled | total minus parts gives the human money |
 | human not built yet | "not tracked yet" | a 0.00 row, and the other parts read as a complete 100 % |
 | a non-operator workspace | its own parts, no estate cloud, no owned hardware | the estate cloud appears |
 | an owned machine entered by hand | its monthly share in the month and year totals, in Owned hardware | left out of the total, or its full price in the purchase month |
@@ -622,3 +622,6 @@ page and e2e file in the same batch (R1).
   `help-sync.test.mjs` and the files. W6: every row names its files; P03 to
   batch 3, P06 and P07 to batch 4, P09 to batch 2, P10 folded into P05.
   W7: the recurring hand cost kind dropped; only owned hardware.
+- v1.4 (2026-10-29, SPL-4189): R7 re-review (g-844, FAIL on W1 only):
+  the 13.9 case "an operator admin without `hours.rates`" now expects the
+  total over Cloud + owned hardware + AI tokens, matching 13.6 and P03.

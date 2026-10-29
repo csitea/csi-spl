@@ -13351,6 +13351,55 @@
         ]
       }
     },
+    "/v1/tenant/costs/cloud": {
+      "get": {
+        "operationId": "getCloudCostDays",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "calendar month YYYY-MM (UTC); default the current month so far; a month not started yet is 400",
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "pattern": "^[0-9]{4}-[0-9]{2}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "the estate GCP project, the line project_or_vendor (\"<project>[/box=<label>]\"), 1..200 characters",
+            "in": "query",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {month, project, second_currency, days: [{day, kind, usd_micros, eur_micros, second_micros}]} (SPL-4187, spec 123 5.5): one estate GCP project's live billing-export lines of the month per day and service (kind), oldest day first; second_micros is the USD at that day's rate in the caller's second currency, null when no rate is on or before the day"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Read one estate GCP project's month per day and service, the Cloud section's third level (the operator workspace's admin only)",
+        "tags": [
+          "tenant"
+        ]
+      }
+    },
     "/v1/tenant/embed-visitors": {
       "get": {
         "description": "The workspace's visitor channels, newest activity first: channel, embed, created, last message, lead and block marks, whether the token is live. No token, e-mail or ip_hash. Staff only (biz_owner, admin). Answers 404, as an unknown path, while cnf env.hub.embed.enabled is off (specs/121 T106).",

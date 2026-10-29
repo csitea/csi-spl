@@ -540,6 +540,14 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, err := pg.AddWorkspaceEvent(ctx, s.tenant, LogEvent{Kind: LogKindMemberInvited, Message: "invited " + s.marker}, now); err != nil {
 		t.Fatal(err)
 	}
+	// marketing_metric_samples, _definitions (rdb 0242, spec 163 B1,
+	// SPL-4250): one sample and one definition, through the store API.
+	if _, err := pg.AddMarketingMetricSample(ctx, s.tenant, mktSample("impressions", "1", now), now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pg.AddMarketingMetricDefinition(ctx, s.tenant, MarketingMetricDefinition{Metric: "ctr", Formula: s.marker}, now); err != nil {
+		t.Fatal(err)
+	}
 	return s
 }
 
@@ -671,9 +679,11 @@ var systemReadTables = map[string]bool{"workspace_doc": true, "workspace_doc_ite
 // appendOnlyTables refuse every UPDATE and DELETE outside their purge
 // (rdb 0131 demo_post_audit), a tenant delete (rdb 0171 usage_events,
 // rdb 0174 workspace_vendor_key_audit, rdb 0187 marketing_post_events,
-// rdb 0203 sql_query_audit) or the retention prune (rdb 0215 hours_changes).
+// rdb 0203 sql_query_audit, rdb 0242 marketing_metric_samples and
+// _definitions) or the retention prune (rdb 0215 hours_changes).
 var appendOnlyTables = map[string]bool{"demo_post_audit": true, "usage_events": true, "workspace_vendor_key_audit": true,
-	"marketing_post_events": true, "sql_query_audit": true, "hours_changes": true}
+	"marketing_post_events": true, "sql_query_audit": true, "hours_changes": true,
+	"marketing_metric_samples": true, "marketing_metric_definitions": true}
 
 // tenantReadOnlyTables are read in a tenant's scope and written only in the
 // operator scope: their tenant_scope policy is FOR SELECT (rdb 0212

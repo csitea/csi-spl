@@ -70,6 +70,8 @@ var rlsTables = []string{
 	"channels", "channel_subscriptions", "tenant_memberships", "tenant_invites", "payment_checkouts",
 	"tenant_hosts", "tenant_seat_periods", "rbac_roles",
 	"workspace_events", // rdb 0240, spec 162 B3
+	// rdb 0242, spec 163 B1
+	"marketing_metric_samples", "marketing_metric_definitions",
 }
 
 // TestRLSCoversEveryTenantTable: a table that gains a tenant_id column must

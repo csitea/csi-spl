@@ -3351,6 +3351,7 @@
       "releases": "Laidieni",
       "sql": "SQL",
       "costs": "Izmaksas",
+      "marketing": "Mārketings",
       "issues": "Problēmas",
       "posts": "Ieraksti",
       "lanes": "Līnijas"
@@ -3437,6 +3438,25 @@
         "admin_required": "Vaicājumus var izpildīt tikai darbvietas administratori",
         "query_timeout": "Vaicājums ilga vairāk nekā 10 sekundes un tika apturēts",
         "other": "Vaicājums netika izpildīts"
+      }
+    },
+    "marketing": {
+      "loading": "Ielādē mārketinga skaitļus…",
+      "forbidden": "Mārketinga skaitļus redz tikai darbvietas īpašnieks un tās administratori.",
+      "error": "Mārketinga skaitļus neizdevās ielādēt.",
+      "intro": "Viena kartīte katram posmam. Skaitļi šeit parādās, tiklīdz ir pievienots avots.",
+      "attribution": "Attiecināšana: {rule}, {days} dienas",
+      "rule_last_touch": "Pēdējais saskares punkts",
+      "cards_label": "Mārketinga posmi",
+      "empty": "Skaitļu vēl nav",
+      "stage": {
+        "reach": "Sasniedzamība",
+        "engagement": "Iesaiste",
+        "acquisition": "Piesaiste",
+        "conversion": "Konversija",
+        "revenue": "Ieņēmumi",
+        "retention": "Noturēšana",
+        "content_seo": "Saturs / SEO"
       }
     }
   },

@@ -12604,6 +12604,31 @@
         ]
       }
     },
+    "/v1/reporting/marketing": {
+      "get": {
+        "operationId": "getReportingMarketing",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {as_of, attribution {rule, window_days}, stages, samples, definitions}, the newest sample per key and the newest definition per metric of this workspace (spec 163 G5, row B1)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Read the marketing metrics: the workspace owner and admins only (spec 163 Q8)",
+        "tags": [
+          "reporting"
+        ]
+      }
+    },
     "/v1/reporting/releases/commits": {
       "get": {
         "operationId": "getReportingReleasesCommits",

@@ -1,6 +1,6 @@
 # 163: Marketing metrics in Spool Hub (one section per metric)
 
-**Feature ID**: `163-marketing-metrics` · **Status**: Draft v0.2 · **Created**: 2026-10-28  
+**Feature ID**: `163-marketing-metrics` · **Status**: Draft v0.3 · **Created**: 2026-10-28  
 Epic: **SPL-2400**. Issue: **SPL-4028** (v0.1, lane c-418), **SPL-4047** (v0.2 owner decisions folded, lane a-526). Kind: **specs_and_docs**.  
 **Topics**: overview `b13f7763-23c6-4599-ad47-5ee9c92bdc64` (metric list msg `623841cf`, discussion index msg `5763ad69`), owner decisions poll `337fb605` (msg `449350b3`), and the 26 "Metric N of 26" discussions linked in section 2.  
 **Authority**: this file for what each metric needs. Status vocabulary: [README.md](../README.md) §2.3. Docs only: this spec builds nothing ([README.md](../README.md) §2.4); every change it needs is a row of section 3.
@@ -394,7 +394,7 @@ Reach, engagement, and ads early: ad connectors (B3) move early (Q5 decided); Sp
 
 | row | builds | metrics served | needs | owner step before it |
 |---|---|---|---|---|
-| **B1** | G1 metrics store + G2 definitions table (one rdb migration, next free number at build time, FORCE RLS + NULLIF test; Q7 default: last-touch, 28-day window), G5 tab `/reporting/marketing` with empty cards visible to workspace admins and owner only (Q8) | all | none | none |
+| **B1** (**Partial**: built on branch `review/c-954-s163-b1`, not on master until its R7 review; SPL-4250, section 3.1) | G1 metrics store + G2 definitions table (one rdb migration, next free number at build time, FORCE RLS + NULLIF test; Q7 default: last-touch, 28-day window), G5 tab `/reporting/marketing` with empty cards visible to workspace admins and owner only (Q8) | all | none | none |
 | **B2** | G4 UTM tagger in the 090 dispatcher and blog share row; the scheme published on the definitions page (G2) | 4, 7, 8, 11, 12, 13, 14, 15, 16 | B1 | none |
 | **B3** | Ad-account connectors (Google Ads, Meta Ads, LinkedIn Ads) built early (Q5): campaign impressions, clicks, spend into `cost_lines` (new `origin` `ad_platform`) | 1, 2, 9, 10 | B1 | an ad account exists and grants read (Q5) |
 | **B4** | Site GA4 tag + cookie consent banner (Q3): deploy GA4 measurement snippet and cookie consent banner on the site / blog front-end | 1, 6, 7, 8, 11, 23 | none | GA4 property created; cookie consent text agreed (Q3) |
@@ -410,6 +410,19 @@ Reach, engagement, and ads early: ad connectors (B3) move early (Q5 decided); Sp
 | **B14** | Meta Page + Instagram insights connector, post impressions, reach, clicks, reactions, comments | 1, 2, 4, 5 | B1 | `read_insights`, `instagram_manage_insights` approved in Meta app review (090 §20.4) |
 | **B15** | LinkedIn post analytics connector: impressions, reach, clicks, reactions, comments, reshares per published post (waits on API grant, Q2) | 1, 2, 4, 5 | B1 | LinkedIn Community Management API access granted (human page admin submits application, §1.1) |
 | **B16** | Email provider stats: delivered, opens, clicks | 26 | B1, 090 Phase 2 provider | email provider selected in 090 Phase 2 |
+
+
+### 3.1 B1 as built (SPL-4250)
+
+| piece | where | what it does |
+|---|---|---|
+| G1 + G2 tables | `csi-spl-rdb/src/sql/postgres/spool-hub/0242_marketing_metrics.sql` | `marketing_metric_samples` (the G1 columns, `value` numeric, `post_id` without an FK as `marketing_post_events`) and `marketing_metric_definitions` (key `tenant_id, metric, version`; `attribution_rule` default `last_touch`, `attribution_window_days` default 28, Q7). Both append-only (a tenant delete's cascade is the one DELETE), FORCE RLS, `tenant_scope` with the NULLIF guard plus `operator_scope`. A sign-off is a new version, never an edit. |
+| store | `csi-spl-api/.../internal/store/marketing_metrics.go`, `_postgres.go`, `_memory.go` | `AddMarketingMetricSample`, `AddMarketingMetricDefinition` (version = newest + 1), `ReadMarketingMetrics`: the newest sample per (source, object_type, object_ref, metric, period) and the newest definition per metric. The connector rows (B3..B16) write through it. |
+| hub route | `csi-spl-api/.../internal/hub/reporting_marketing.go` | `GET /v1/reporting/marketing`: `{as_of, attribution {rule, window_days}, stages, samples, definitions}`. The workspace owner or an admin only (`TenantOwner || Has(rbac.Admin)`, Q8); anyone else 403 `reporting.marketing`. |
+| WUI tab | `csi-spl-wui/src/utils/reporting-tabs.mjs` (`staff: true`), `src/pages/reporting/marketing.vue`, `src/utils/reporting-marketing.mjs` | One card per stage of section 2, in that order, each "No numbers yet"; the attribution line "Last touch, 28 days". Hidden from other members; opened by its path it shows the hub's refusal and no card. |
+| tests | store `marketing_metrics_test.go` (Memory + Postgres; RLS scopes, append-only, the NULLIF red control, the Q7 column defaults), `crosstenant_test.go` seeds both tables; hub `reporting_marketing_test.go` (every role: biz_owner and admin 200, the rest 403); WUI `tests/unit/reporting-marketing.test.mjs`, `tests/e2e/reporting.test.mjs` | |
+
+The tab is not behind the 090 marketing switch (spec 090 section 15): it reads numbers only, and none exist until a connector row is built.
 
 ---
 
@@ -494,4 +507,6 @@ The owner answered all eight questions in poll `337fb605` (final form msg `44935
   - **Q8 (B)**: Visibility of `/reporting/marketing` tab restricted to workspace admins and the owner only.
   - Section 3 re-ordered and updated into 16 disjoint buildable rows (B1-B16); Section 4 poll blocks replaced with decision records.
 
-<!-- version: 0.2.0 · updated: 2026-10-28 · last-edit: 2026-10-28T16:25:00Z -->
+- **v0.3** (2026-10-29, c-954, SPL-4250): row B1 built (section 3.1): rdb 0242, the store, `GET /v1/reporting/marketing` (owner and admins, Q8), the `/reporting/marketing` tab with empty stage cards and the Q7 attribution line.
+
+<!-- version: 0.3.0 · updated: 2026-10-29 · last-edit: 2026-10-29T15:00:00Z -->

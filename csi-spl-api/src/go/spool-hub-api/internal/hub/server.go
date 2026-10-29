@@ -528,6 +528,8 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeOperatorDeploys(mux)
 	s.routeReportingReleases(mux) // spec 143 T020/T021: /v1/reporting/releases/{daily,commits}
 	s.routeContacts(mux)          // spec 154 B3: /v1/me/contacts*, contacts.go
+	// spec 163 B1: GET /v1/reporting/marketing, owner + admins, reporting_marketing.go
+	s.routeReportingMarketing(mux)
 }
 
 // handleVersion is public, like /healthz: the deploy acceptance check (T037),

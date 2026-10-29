@@ -56,6 +56,10 @@
 # @param   ASKS_LOCK_MIN (an acked ask's holder quiet that long is released, default 60) and
 # @param   ASKS_MAX_RAISES (the delivery limit before the dead-letter to the owner, default 4).
 # @param   Unset, the ASKS_ lines already in lease.conf are KEPT
+# @param DISPATCH_DESK_USER (optional) - the OS user the taught desk commands and allow rules run as;
+# @param   default spl_desk_user (SPOOL_DESK_USER, else box.env), else DISPATCH_BOX_USER (spec 069 row B8)
+# @param DISPATCH_AGENT_USER (optional) - the OS user the seats run as, default SPOOL_AGENT_USER; equal
+# @param   to the desk user, the commands carry no sudo
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd ./run -a do_spl_dispatch_setup
@@ -67,6 +71,9 @@
 declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 declare -F spl_desk_box_default >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-box.func.sh"
+# spl_desk_user: the desk user (spec 069 section 8.3) the desk commands run as
+declare -F spl_desk_user >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-cloud-cnf.func.sh"
 # the one lease.conf writer (SPL-1713: keeps the other keys, leaves a .bak)
 declare -F spl_lease_conf_write >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-lease-conf.func.sh"
@@ -322,18 +329,31 @@ sys.stdout.write(s)
 PY
 }
 
+# spl_dispatch_desk_hop: the prefix a dispatcher's desk command runs under
+# (spec 069 section 8.3, row B8): "sudo -u <desk user> ", the desk user being
+# DISPATCH_DESK_USER, else spl_desk_user (SPOOL_DESK_USER, else box.env), else
+# DISPATCH_BOX_USER as before the key. Empty when the seat already runs as the
+# desk user (DISPATCH_AGENT_USER, else SPOOL_AGENT_USER): no sudo at all.
+spl_dispatch_desk_hop() {
+  local u="${DISPATCH_DESK_USER:-}"
+  [[ -n "$u" ]] || ! declare -F spl_desk_user >/dev/null || u="$(spl_desk_user)"
+  u="${u:-$DISPATCH_BOX_USER}"
+  [[ "$u" == "${DISPATCH_AGENT_USER:-${SPOOL_AGENT_USER:-}}" ]] && return 0
+  printf 'sudo -u %s ' "$u"
+}
+
 # The desk-reply command the brief teaches <id>: ONE command (no cd, no $(),
 # no &&: the harness judges each part of a compound line on its own), run from
 # the seat's own worktree csi-spl-orc, the body read from a file.
 spl_dispatch_reply_cmd() {
-  echo "sudo -u $DISPATCH_BOX_USER env ENV=$ENV TENANT_ID=<workspace> DESK_AGENT=$1 DESK_TO=<HUM-n> DESK_TASK=<full topic uuid> DESK_BODY_FILE=<file> DRY_RUN=0 ./run -a do_spl_desk_reply"
+  echo "$(spl_dispatch_desk_hop)env ENV=$ENV TENANT_ID=<workspace> DESK_AGENT=$1 DESK_TO=<HUM-n> DESK_TASK=<full topic uuid> DESK_BODY_FILE=<file> DRY_RUN=0 ./run -a do_spl_desk_reply"
 }
 
 # The take command the brief teaches <id> (t1 bc1a43e1 fix C): the same ONE
 # command shape as the reply; it posts "Taken by <id>@<box>: <plan>" in the
 # topic before any work, once per topic.
 spl_dispatch_take_cmd() {
-  echo "sudo -u $DISPATCH_BOX_USER env ENV=$ENV TENANT_ID=<workspace> DESK_AGENT=$1 DESK_TO=<HUM-n> DESK_TASK=<full topic uuid> TAKE_PLAN='<one-line plan>' DRY_RUN=0 ./run -a do_spl_take"
+  echo "$(spl_dispatch_desk_hop)env ENV=$ENV TENANT_ID=<workspace> DESK_AGENT=$1 DESK_TO=<HUM-n> DESK_TASK=<full topic uuid> TAKE_PLAN='<one-line plan>' DRY_RUN=0 ./run -a do_spl_take"
 }
 
 # The permissions a dispatcher gets beyond auto mode: as itself
@@ -344,10 +364,10 @@ spl_dispatch_take_cmd() {
 # as well."). do_spl_dispatch_check proves the reply rule matches
 # spl_dispatch_reply_cmd.
 spl_dispatch_settings_json() {
-  local a
+  local a hop; hop="$(spl_dispatch_desk_hop)"
   {
   for a in do_spl_desk_reply do_spl_take do_spl_desk_post do_spl_topic_archive; do
-    printf '      "Bash(sudo -u %s env ENV=%s TENANT_ID=* DESK_AGENT=%s * ./run -a %s)"\n' "$DISPATCH_BOX_USER" "$ENV" "$1" "$a"
+    printf '      "Bash(%senv ENV=%s TENANT_ID=* DESK_AGENT=%s * ./run -a %s)"\n' "$hop" "$ENV" "$1" "$a"
   done
   # The unanswered sweep reads every workspace (no DESK_AGENT); its cron runs
   # it every 10 min anyway (owner 2026-10-03: "The dispatcher should be doing
@@ -361,9 +381,9 @@ spl_dispatch_settings_json() {
 # bare command and each side of ENV=<env> are their own form (2026-10-04, both
 # refused: the bare command at 08:16Z, SPOOL_ROOT=... before ENV=prd later).
 spl_dispatch_env_rules() {
-  local f
+  local f hop; hop="$(spl_dispatch_desk_hop)"
   for f in "ENV=$ENV" "ENV=$ENV *" "* ENV=$ENV" "* ENV=$ENV *"; do
-    printf '      "Bash(sudo -u %s env %s ./run -a %s)"\n' "$DISPATCH_BOX_USER" "$f" "$1"
+    printf '      "Bash(%senv %s ./run -a %s)"\n' "$hop" "$f" "$1"
   done
 }
 

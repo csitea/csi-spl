@@ -734,6 +734,16 @@ calls B1's resolver and the existing desk up/down/check/probe actions; it
 edits only its own files plus one line in `spl-desk-up.func.sh`, which no
 other row touches.
 
+Build status, 2026-10-29 (SPL-4159, checked on origin/master `6d70ca07d`):
+B1 `50941490a`, B2 `f2e2af405`, B3 `74a335452`, B4 `ec95d0f96`, B5
+`e56361dac`, B6 `8e18e63ca`, B7 `5dc2707e6`. B8 code: the dispatcher's taught
+reply and take commands and its allow rules hop to the desk user
+(`spl_dispatch_desk_hop` in `spl-dispatch-setup.func.sh`), with no `sudo` when
+the seat runs as the desk user; test `csi-spl-orc/src/bash/tests/dispatch-desk-user.tst.sh`.
+B8 docs still open: the three `sudo -u "$BOX_USER" ... do_spl_desk_reply`
+lines are in the Qto exports `isg/claude-agent-setup.ISG.md` and
+`isg/antigravity-agent-setup.ISG.md`; they change in their Qto docs, not here.
+
 ### 8.6 Acceptance, per box
 
 1. `ps -eo user,args | awk '/ hub-run$/ {print $1}' | sort | uniq -c` ->

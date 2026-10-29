@@ -237,9 +237,9 @@ spl_spawn_place_supply() {  # HOLDER ROWS
   SPAWN_PLACE_SHARE="$share"
   (( $(jq '.known' <<<"$share") > 0 )) || return 0
   for c in "${due[@]}"; do
-    line="$(jq -r --arg c "$c" --argjson rows "$2" '
+    line="$(jq -r --arg c "$c" --slurpfile rows <(printf '%s' "$2") '
       def cls: (.class // "") | if . == "" or . == "ci" then "bug" else . end;
-      .by[$c] as $b | select($b.pct < $b.lo and ([$rows[] | select(.state == "queued" and cls == $c)] | length) == 0)
+      .by[$c] as $b | select($b.pct < $b.lo and ([$rows[0][] | select(.state == "queued" and cls == $c)] | length) == 0)
       | "\($c) share \($b.pct)% < \($b.lo)% (\($b.n) of \(.known) live lanes with a class) and no \($c) row is queued"' <<<"$share")"
     [[ -n "$line" ]] || continue
     to="$(spl_spawn_place_dispatch)"
@@ -262,7 +262,8 @@ spl_spawn_place_dispatch() {
 
 # 3b. The row the bands pick, HEAD when it is ci or flagged, a review seat on
 # the owner's review-seat GO next, or HEAD when the share cannot be read (the
-# hub's order holds).
+# hub's order holds). The share goes to jq as a file, never argv: its bypass
+# list is over one argument's 128 KiB (171 KB on sat 2026-10-29, SPL-4156).
 spl_spawn_place_band() {  # HEAD ROWS
   local share pick
   if jq -e '(.class // "") == "ci" or (.flag // "") != ""' >/dev/null <<<"$1"; then printf '%s' "$1"; return 0; fi
@@ -273,9 +274,9 @@ spl_spawn_place_band() {  # HEAD ROWS
   fi
   share="${SPAWN_PLACE_SHARE:-}"
   [[ -n "$share" ]] || share="$(spl_spawn_share)" || { do_log "WARN the live share could not be read: the queue's order holds" >&2; printf '%s' "$1"; return 0; }
-  pick="$(jq -c --argjson share "$share" '
+  pick="$(jq -c --slurpfile share <(printf '%s' "$share") '
     def cls: (.class // "") | if . == "" or . == "ci" then "bug" else . end;
-    [.[] | select(.state == "queued") | cls as $c | $share.by[$c] as $b
+    $share[0] as $share | [.[] | select(.state == "queued") | cls as $c | $share.by[$c] as $b
      | (if $b.pct < $b.lo then 0 elif $c == "feature" or $b.pct < $b.hi then 1 else 3 end) as $t
      | . + {_t: $t, _o: ({"refactor": 0, "bug": 1, "feature": 2}[$c]), _c: $c, _p: $b.pct,
             _s: (if $t == 0 then ($b.lo - $b.pct) / $b.lo elif $t == 1 and $c != "feature" then ($b.hi - $b.pct) / $b.hi else 0 end)}]
@@ -288,14 +289,15 @@ spl_spawn_place_band() {  # HEAD ROWS
 # 3b. The queued review seat (placement slug ending in -reviewer) whose ask the
 # local bypass log holds on the review-seat GO, first by position; nothing
 # when none. The hub keeps such a row unflagged (a bypass is a feature flag
-# there, rdb 0195), so the log is its record (spl_spawn_q_enqueue).
+# there, rdb 0195), so the log is its record (spl_spawn_q_enqueue). The ids
+# go to jq as a file: the log only grows (SPL-4156).
 spl_spawn_place_seat() {  # ROWS
-  local f ids
+  local f
   f="$(spool_asks_dir)/bypass.tsv"
   [[ -s "$f" ]] || return 0
   declare -F spl_spawn_q_review_seat_go >/dev/null || source "$PROJ_PATH/src/bash/run/spl-spawn-enqueue.func.sh"
-  ids="$(awk -F'\t' -v m="$SPL_SPAWN_REVIEW_SEAT_GO" '$3 == m { print $2 }' "$f" | jq -R -s -c 'split("\n") | map(select(length > 0))')"
-  jq -c --argjson ids "$ids" '[.[] | select(.state == "queued" and ((.placement // "") | sub("^[^:]*:"; "") | test("-reviewer$"))
+  jq -c --slurpfile ids <(awk -F'\t' -v m="$SPL_SPAWN_REVIEW_SEAT_GO" '$3 == m { print $2 }' "$f" | jq -R -s -c 'split("\n") | map(select(length > 0))') \
+    '$ids[0] as $ids | [.[] | select(.state == "queued" and ((.placement // "") | sub("^[^:]*:"; "") | test("-reviewer$"))
     and (.ask_id as $a | $ids | index($a)))] | sort_by(.position) | .[0] // empty' <<<"$1"
 }
 

@@ -145,7 +145,12 @@
 # without the pick: the busy count (no pick line) skips cordoned boxes and
 # holds (exit 10) when none is left; the orch lease held on another box and a
 # failed remote spawn hold (exit 10) instead of starting on a cordoned box
-# here. SPAWN_BOX still wins.
+# here. SPAWN_BOX still wins. The marker is written on the orch holder's box
+# only, so in a fleet every box reads the cordons the boxes publish in their
+# BOX-0 load rows (cordon=, spl-lane-map.func.sh) with its own (SPL-4380 W3).
+# A NEW named id (not auto) on a cordoned box is
+# refused (exit 10, SPL-4380 W4); a respawn of an id (SPAWN_REUSE_ID=1: the
+# watchdog restart, the rotation) stays on its own box.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -191,12 +196,29 @@ export SPAWN_REQUESTER
 . "$HERE/../lib/spool-fleet.inc.sh"
 # shellcheck source=../../../run/spl-box-cordon.func.sh
 . "$HERE/../../../run/spl-box-cordon.func.sh"
+# The live cordons as JSON {"<box>": until_epoch}: this box's markers, and in a
+# fleet those every box published in its BOX-0 row (the lane map's
+# .load[].cordon): the marker is written on the orch holder's box only.
+sw_cordon_map() {
+  local here; here="$(spl_box_cordon_active)"
+  [ -n "${LANE_FLEET:-$(_spool_fleet_conf LEASE_FLEET)}" ] || { printf '%s\n' "$here"; return 0; }
+  sw_load_map
+  jq -c --argjson here "${here:-{\}}" --argjson now "$(date +%s)" \
+    'reduce (.load[]?.cordon // {} | to_entries[] | select((.value | type) == "number" and .value > $now)) as $e
+       ($here; .[$e.key] = ([.[$e.key] // 0, $e.value] | max))' <<<"${SW_MAP:-{\}}" 2>/dev/null || printf '%s\n' "$here"
+}
 # 0 when BOX has a live cordon (CORDON above).
 sw_cordoned() {  # BOX
-  jq -e --arg b "$1" 'has($b)' >/dev/null 2>&1 <<<"$(spl_box_cordon_active)"
+  jq -e --arg b "$1" 'has($b)' >/dev/null 2>&1 <<<"$(sw_cordon_map)"
 }
 sw_hold_cordon() {  # BOX WHY
   echo "spawn-window: HOLD ${TITLE}: $1 is CORDONED (do_spl_box_cordon) and $2. Queue it; nothing was spawned." >&2
+  return 10
+}
+# A NEW named id on a cordoned box (CORDON above, SPL-4380 W4): refused, exit
+# 10 so the placer puts it back in line; a respawn (SPAWN_REUSE_ID=1) never gets here.
+sw_refuse_cordon_named() {  # BOX
+  echo "spawn-window: REFUSED ${TITLE}: $1 is CORDONED (do_spl_box_cordon), a new id never starts there; lift it with BOX=$1 CORDON_CMD=off DRY_RUN=0 ./run -a do_spl_box_cordon, or place it with SPAWN_BOX=<another box>. Queue it; nothing was spawned." >&2
   return 10
 }
 # Withdraw a remote request this process filed and will not use. OUT is
@@ -267,7 +289,7 @@ sw_place_by_busy() {  # HERE
     echo "spawn-window: WARN no lane map load (hub or lane map down): starting here" >&2; return 0; }
   floor="${SPAWN_MEM_FLOOR_MB:-4096}"
   [[ "$floor" =~ ^[0-9]+$ ]] || { echo "spawn-window: SPAWN_MEM_FLOOR_MB must be a number of MB, got '$floor'" >&2; return 2; }
-  cordon="$(spl_box_cordon_active)"
+  cordon="$(sw_cordon_map)"
   best="$(jq -r --arg here "$here" --argjson floor "$((floor * 1024))" --arg kind "$KIND" --argjson cordon "${cordon:-null}" '
     [.load[] | select((.live or .box == $here) and (.mem_kb == null or .mem_kb >= $floor)
                       and (.clis == null or (.clis | index($kind)) != null)
@@ -295,7 +317,10 @@ place_box() {
     ! sw_lacks_kind "$want" || { sw_refuse_kind "$want" "SPAWN_BOX names a box with no ${KIND} CLI for the agent user"; return; }
     printf '%s' "$want"; return 0
   fi
-  [ "$TITLE" = auto ] || return 0
+  if [ "$TITLE" != auto ]; then
+    [ "${SPAWN_REUSE_ID:-0}" = 1 ] || ! sw_cordoned "$here" || { sw_refuse_cordon_named "$here"; return; }
+    return 0
+  fi
   fleet="${LANE_FLEET:-$(_spool_fleet_conf LEASE_FLEET)}"
   [ -n "$fleet" ] || return 0
   [ -r "$SPOOL_ROOT/dispatch/lease.orch" ] && read -r holder _ <"$SPOOL_ROOT/dispatch/lease.orch"

@@ -53,6 +53,8 @@ declare -F spl_desk_box_default >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-box.func.sh"
 declare -F spl_box_ci_jobs >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-box-ci.func.sh"
+declare -F spl_box_cordon_active >/dev/null ||
+  source "$(dirname "${BASH_SOURCE[0]}")/spl-box-cordon.func.sh"
 
 do_spl_lane_map() {
   local rows hub_json="" fmt="${LANE_FORMAT:-table}" rc=0 live_here load
@@ -324,7 +326,7 @@ spl_lane_table_recent() {
 }
 
 # The reserved id of a box's LOAD row in the lane map: one row per box,
-# BOX-0@<box>, scope `mem_kb=<MemAvailable> [ci=<n>] [cli=<kind>,...] [wk=<kind>:<pct>,...] live=<id>,...`: the agents
+# BOX-0@<box>, scope `mem_kb=<MemAvailable> [ci=<n>] [cli=<kind>,...] [wk=<kind>:<pct>,...] [cordon=<box>:<until>,...] live=<id>,...`: the agents
 # with a live tmux pane on that box and its free memory, as that box itself
 # read them. The hub stores it like any lane (no field of its own, no hub
 # change); this action writes it (spl_lane_box_report) and the map never
@@ -372,7 +374,7 @@ spl_lane_clis_here() {
 }
 
 # The load per box, as a JSON array of
-# {box, here, live, busy, busy_ids, seats, clean_ids, mem, mem_kb, clis, src}: the
+# {box, here, live, busy, busy_ids, seats, clean_ids, mem, mem_kb, clis, cordon, src}: the
 # agents live on the box NOW, split into busy (build lanes, their ids in
 # busy_ids) and seats; clean_ids, from another box's BOX-0 row, are its lanes
 # with `files: []` and a clean worktree (spl_lane_clean_here) (001-003 and the ids lease.conf
@@ -388,7 +390,11 @@ spl_lane_clis_here() {
 # MemAvailable (here /proc/meminfo, LANE_MEMINFO in the tests; another box its
 # BOX-0 row), "?" unknown. clis = the vendor kinds the box can start (SPL-1649:
 # here CLIS_HERE, another box the cli= of its BOX-0 row), null unknown (an older
-# box, rows only): spawn-window.sh places a lane only where its kind is. The boxes: this one first, then the lease.conf
+# box, rows only): spawn-window.sh places a lane only where its kind is.
+# cordon = the live cordons that box wrote, {"<box>": until_epoch} (SPL-4380:
+# do_spl_box_cordon writes its marker on the orch holder's box only; here
+# spl_box_cordon_active, another box the cordon= of its BOX-0 row), {} none:
+# spawn-window.sh reads them on every box. The boxes: this one first, then the lease.conf
 # rankings (LEASE_PRIORITY*), then any other box a row names.
 # spawn-window.sh places a lane by it; the table prints it as its header.
 spl_lane_load() {  # ROWS (every merged row, done and BOX-0 too) LIVE_HERE (JSON array or null) [CLIS_HERE (JSON array or null)]
@@ -401,6 +407,7 @@ spl_lane_load() {  # ROWS (every merged row, done and BOX-0 too) LIVE_HERE (JSON
   kb="$(awk '$1 == "MemAvailable:" {print $2; exit}' "${LANE_MEMINFO:-/proc/meminfo}" 2>/dev/null)"
   [[ "$kb" =~ ^[0-9]+$ ]] || kb=null
   jq -c --arg here "$LANE_BOX" --argjson herekb "$kb" --argjson herelive "${2:-null}" --argjson hereclis "${3:-null}" --arg h "$LANE_HUB_STATE" \
+    --argjson herecordon "$(spl_box_cordon_active)" --argjson now "$(date +%s)" \
     --argjson max "${LANE_RECENT_S:-7200}" --argjson boxmax "${LANE_BOX_ROW_MAX_S:-3600}" --arg brid "$LANE_BOX_ROW_ID" \
     --arg conf "$conf_boxes" --arg seats "$seat_ids" --arg seatrx "^${SPL_ROLE_SEAT_RX}$" '
     ($seats | split("\n") | map(select(length > 0))) as $ids
@@ -425,14 +432,18 @@ spl_lane_load() {  # ROWS (every merged row, done and BOX-0 too) LIVE_HERE (JSON
                         - [$since[] | .agent_id]),
                 kb: ($rep.scope | field("mem_kb") | if test("^[0-9]+$") then tonumber else null end),
                 clis: ([$rep.scope | capture("(^| )cli=(?<v>[^ ]*)")][0].v
-                       | if . == null then null else split(",") | map(select(test("^[a-z]+$"))) end)}
+                       | if . == null then null else split(",") | map(select(test("^[a-z]+$"))) end),
+                cordon: ($rep.scope | field("cordon") | split(",")
+                         | map(capture("^(?<b>[a-z0-9][a-z0-9-]{0,31}):(?<u>[0-9]{1,12})$") | {(.b): (.u | tonumber)})
+                         | add // {} | with_entries(select(.value > $now)))}
            else {src: "rows", ids: [$recent[] | select(.agent_box == $b) | .agent_id], kb: (if $b == $here then $herekb else null end),
                  clis: (if $b == $here then $hereclis else null end)}
            end) as $x
         | ($x.ids | unique) as $u
         | {box: $b, here: ($b == $here), live: ($x.src != "rows" or ($u | length) > 0),
            busy: ([$u[] | select(seat | not)] | length), busy_ids: [$u[] | select(seat | not)], seats: ([$u[] | select(seat)] | length),
-           clean_ids: ($x.clean // []), mem: ($x.kb | gb), mem_kb: $x.kb, clis: $x.clis, src: $x.src})' <<<"$1"
+           clean_ids: ($x.clean // []), mem: ($x.kb | gb), mem_kb: $x.kb, clis: $x.clis,
+           cordon: (if $b == $here then $herecordon else $x.cordon // {} end), src: $x.src})' <<<"$1"
 }
 
 # Publish THIS box's load as its BOX-0 row, so the other boxes read real
@@ -440,26 +451,28 @@ spl_lane_load() {  # ROWS (every merged row, done and BOX-0 too) LIVE_HERE (JSON
 # lib/bash/funcs/spl-box-ci.func.sh) and its vendors' weekly usage (wk=,
 # lib/bash/funcs/spl-box-quota.func.sh) here. Only in a fleet, with the hub
 # answering and the panes read; at most once per LANE_BOX_ROW_S (300 s), but at
-# once when the CI job count changed. Best effort: a refusal is one line on
+# once when the CI job count or the cordons this box wrote (cordon=, SPL-4380)
+# changed. Best effort: a refusal is one line on
 # stderr, never the map's exit code.
 spl_lane_box_report() {  # ROWS LIVE_HERE LOAD
   [[ "$LANE_MODE" == hub && "$LANE_HUB_STATE" == ok && "${2:-null}" != null ]] || return 0
-  local age was ci scope out id wk
+  local age was ci scope out id wk cordon wascordon
   ci="$(spl_box_ci_jobs)"
-  read -r age was < <(jq -r --arg id "$LANE_BOX_ROW_ID" --arg b "$LANE_BOX" \
+  cordon="$(jq -r --arg b "$LANE_BOX" '.[] | select(.box == $b) | .cordon // {} | to_entries | map("\(.key):\(.value)") | join(",")' <<<"$3")"
+  read -r age was wascordon < <(jq -r --arg id "$LANE_BOX_ROW_ID" --arg b "$LANE_BOX" \
     '[.[] | select(.agent_id == $id and .agent_box == $b and .state == "live")] | min_by(.age_s)
-     | if . == null then "-1 -" else "\(.age_s) \((.scope // "") | [capture("(^| )ci=(?<n>[0-9]+)")][0].n // "0")" end' <<<"$1")
-  [[ "$age" =~ ^[0-9]+$ ]] && (( age < ${LANE_BOX_ROW_S:-300} )) && [[ "$was" == "$ci" ]] && return 0
+     | if . == null then "-1 - -" else "\(.age_s) \((.scope // "") | [capture("(^| )ci=(?<n>[0-9]+)")][0].n // "0") \((.scope // "") | [capture("(^| )cordon=(?<v>[^ ]*)")][0].v // "-")" end' <<<"$1")
+  [[ "$age" =~ ^[0-9]+$ ]] && (( age < ${LANE_BOX_ROW_S:-300} )) && [[ "$was" == "$ci" && "$wascordon" == "${cordon:--}" ]] && return 0
   declare -F spl_box_quota_here >/dev/null ||
     source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-box-quota.func.sh"
   wk="$(spl_box_quota_here)"
   # ci=<N> only while N > 0, cli=<kinds> ("-" none, left out when unknown)
-  # and wk=<kind>:<pct>,... (left out when no pane shows one), before live=:
-  # the cut below never drops them
-  scope="$(jq -r --arg b "$LANE_BOX" --argjson ids "$2" --arg ci "$ci" --arg wk "$wk" \
+  # wk=<kind>:<pct>,... (left out when no pane shows one) and cordon=<box>:<until>,...
+  # (left out when none), before live=: the cut below never drops them
+  scope="$(jq -r --arg b "$LANE_BOX" --argjson ids "$2" --arg ci "$ci" --arg wk "$wk" --arg cordon "$cordon" \
     '.[] | select(.box == $b) | "mem_kb=\(.mem_kb // "?")\(if $ci == "0" then "" else " ci=\($ci)" end)\(
       if .clis == null then "" elif (.clis | length) == 0 then " cli=-" else " cli=\(.clis | join(","))" end)\(
-      if $wk == "" then "" else " wk=\($wk)" end) live=\($ids | join(","))"' <<<"$3")"
+      if $wk == "" then "" else " wk=\($wk)" end)\(if $cordon == "" then "" else " cordon=\($cordon)" end) live=\($ids | join(","))"' <<<"$3")"
   scope="${scope:0:500}"
   # whole ids only: a cut one could name a shorter id that is not clean
   for id in $(spl_lane_clean_here "$1" "$2"); do

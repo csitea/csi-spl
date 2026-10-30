@@ -58,6 +58,13 @@
 #      orch lease on another box and this box cordoned = exit 10; 3) a failed
 #      remote spawn does not fall back to a cordoned box here (exit 10);
 #      CONTROL each path without the cordon, and an expired cordon is none
+#  17. SPL-4380 (R7 bf8dc25f W3/W4). W3: the cordon is written on the orch
+#      holder's box only; that box's BOX-0 row publishes it (cordon=), so
+#      path 2 here (the lease on that box) holds on it with no marker here;
+#      CONTROL the same row without cordon=, an expired one is none. W4: a
+#      NEW named id on a cordoned box is refused (exit 10, the line names
+#      the box and the lift action), by a local marker or a published one;
+#      a respawn (SPAWN_REUSE_ID=1) on it is not; CONTROL no cordon
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -417,5 +424,32 @@ OUT="$(REMOTE_RC=5 bash "$SW" claude auto "$T_TMP/wd" 2>&1)"; RC=$?
 check "16. path 3: the remote spawn fails, this box cordoned: exit 10, not started here" \
   bash -c '[ "$1" = 10 ] && [[ "$2" == *"HOLD auto: '"$HERE_BOX"' is CORDONED"* ]] && [[ "$2" != *"no tmux session"* ]] && [ -e "$3" ]' _ "$RC" "$OUT" "$T_TMP/remote.calls"
 uncordon
+
+# 17. SPL-4380: the cordon read where it is written, and a named id honours it
+FUT=$(( $(date +%s) + 3600 )) PAST=$(( $(date +%s) - 60 ))
+echo "c-001@$OTHER 1" > "$SPOOL_ROOT/dispatch/lease.orch"
+pub() {  # [cordon= value]: OTHER's BOX-0 row, as its lane map publishes it
+  { rows "$OTHER" 1 300; echo "BOX-0 $OTHER 30 live mem_kb=8388608${1:+ cordon=$1} live=c-300"; } | set_rows
+}
+pub; spawn; check "17. W3 CONTROL path 2: the holder's BOX-0 row has no cordon=: stays here" went_here
+pub "$HERE_BOX:$PAST"; spawn; check "17. W3 CONTROL path 2: an expired published cordon is none: stays here" went_here
+pub "$HERE_BOX:$FUT"; spawn
+check "17. W3 path 2: no marker here, the holder's BOX-0 row cordons this box: exit 10, nothing spawned" held "$HERE_BOX"
+refused() { [ "$RC" = 10 ] && [[ "$OUT" == *"REFUSED $1: $HERE_BOX is CORDONED"* ]] &&
+  [[ "$OUT" == *"BOX=$HERE_BOX CORDON_CMD=off DRY_RUN=0 ./run -a do_spl_box_cordon"* ]] && [[ "$OUT" != *"no tmux session"* ]] &&
+  [ ! -e "$SPOOL_ROOT/c-5${1#c-5}/inbox" ]; }
+pub; spawn c-501; check "17. W4 CONTROL a new named id, no cordon: starts here" went_here
+cordon "$HERE_BOX"
+spawn c-502; check "17. W4 a new named id, this box cordoned here: refused, exit 10, the lift action named" refused c-502
+uncordon
+pub "$HERE_BOX:$FUT"
+spawn c-503; check "17. W4 a new named id, this box cordoned by the holder's BOX-0 row: refused, exit 10" refused c-503
+cordon "$HERE_BOX"
+mkdir -p "$SPOOL_ROOT/c-504/inbox"
+rm -f "$T_TMP/remote.calls"
+OUT="$(SPAWN_REUSE_ID=1 bash "$SW" claude c-504 "$T_TMP/wd" 2>&1)"; RC=$?
+check "17. W4 a respawn (SPAWN_REUSE_ID=1) on a cordoned box is not refused: it starts here" went_here
+uncordon
+echo "c-001@$HERE_BOX 1" > "$SPOOL_ROOT/dispatch/lease.orch"
 
 t_done

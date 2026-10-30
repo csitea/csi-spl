@@ -60,6 +60,11 @@
 #      15 min, and the check exit 5 with no `free`. CONTROLS: the same check
 #      with the hub up is free; a stamp older than 15 min raises the next
 #      alert. RED on the action before it: one read, no marker, no alert
+#  16. the cordon in the BOX-0 row (SPL-4380 W3): do_spl_box_cordon writes
+#      its marker on the orch holder's box only, so that box's BOX-0 row
+#      says `cordon=<box>:<until>` before live=, rewritten at once when it
+#      changes, and the other box's json load reads it as
+#      {"<box>": until}; CONTROL an expired marker is no cordon= and {}
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -526,6 +531,25 @@ read -r -a c <<<"$(cuts)"
   "${c[1]}" -ge 1 && "${c[1]}" -le 4 && "${c[2]}" -ge 1 && "${c[2]}" -le 4 && $el -lt 45 ]] &&
   pass "a hub that hangs every try, bound by tries and cuts not the wall clock: 3 tries cut at most 4 s each ((15 s budget - backoff 1 2) / 3), LOCAL-ONLY, exit 5 (cuts $(cuts), ${el} s)" ||
   fail "hang always (rc=$rc, reads=$(reads), cuts=$(cuts), ${el} s, alerts=$(cat "$T/alerts-hang" 2>/dev/null)): $out"
+
+# 16. the cordon in the BOX-0 row
+FUT=$(( $(date +%s) + 3600 ))
+mkdir -p "$T/sat/spool/dispatch/cordon"
+printf 'until=%s at=t by=test min=60\n' "$FUT" >"$T/sat/spool/dispatch/cordon/box-desk"
+on sat do_spl_lane_map "${F[@]}" LANE_PANES_CMD="cat $T/panes" LANE_MEMINFO="$T/meminfo" >/dev/null
+row="$(jq -r '.lanes[] | select(.agent_id == "BOX-0" and .agent_box == "sat") | .scope' "$T/hub/main.json")"
+[[ "$row" == "mem_kb=8388608 cordon=box-desk:$FUT live="* ]] &&
+  pass "sat's BOX-0 row publishes the cordon it wrote, before live=, at once (the row is 0 s old): '$row'" || fail "BOX-0 cordon: $row"
+out="$(on pc do_spl_lane_map "${F[@]}" LANE_FORMAT=json LANE_ALL=1 | tail -1)"
+[[ "$(jq -c '.load[] | select(.box == "sat") | .cordon' <<<"$out")" == "{\"box-desk\":$FUT}" ]] &&
+  pass "pc's json load reads sat's published cordon as {\"box-desk\": until}" || fail "load cordon: $(jq -c '.load' <<<"$out")"
+printf 'until=%s at=t by=test min=60\n' "$(( $(date +%s) - 60 ))" >"$T/sat/spool/dispatch/cordon/box-desk"
+on sat do_spl_lane_map "${F[@]}" LANE_PANES_CMD="cat $T/panes" LANE_MEMINFO="$T/meminfo" >/dev/null
+row="$(jq -r '.lanes[] | select(.agent_id == "BOX-0" and .agent_box == "sat") | .scope' "$T/hub/main.json")"
+out="$(on pc do_spl_lane_map "${F[@]}" LANE_FORMAT=json LANE_ALL=1 | tail -1)"
+[[ "$row" != *cordon=* && "$(jq -c '.load[] | select(.box == "sat") | .cordon' <<<"$out")" == "{}" ]] &&
+  pass "control: an expired marker is no cordon= ('$row') and {} in the load" || fail "expired cordon: $row / $(jq -c '.load' <<<"$out")"
+rm -rf "$T/sat/spool/dispatch/cordon"
 
 # refusals
 out="$(on pc do_spl_lane_put "${F[@]}" LANE_AGENT=cle-1)"; rc=$?

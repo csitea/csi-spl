@@ -249,7 +249,7 @@ func sortAsks(as []FleetAsk) {
 }
 
 // askPrio is the priority the queue ranks by: the discussion's, the default
-// (5) when the list did not fill one.
+// (3) when the list did not fill one.
 func askPrio(a FleetAsk) int {
 	if a.Priority < TopicPriorityMin || a.Priority > TopicPriorityMax {
 		return TopicPriorityDefault
@@ -287,8 +287,9 @@ func askDiscussions(as []FleetAsk) []string {
 // priority (spec 150 row B9, owner poll Q5 answer A: a priority 1 feature
 // before a priority 3 bug), then class rank (rdb 0195), then EnqueuedAt, then
 // AskID: position 1 is placed next unless the placer's bands pick another
-// class. An ask with no discussion ranks at 5, so with no priority set the
-// order is the class order. Both drivers call it on a list.
+// class. An ask with no discussion ranks at TopicPriorityDefault (3: after a
+// set 1 or 2, before a set 4 or 5), so with no priority set the order is the
+// class order. Both drivers call it on a list.
 func askPositions(as []FleetAsk) {
 	byRole := map[string][]int{}
 	for i, a := range as {

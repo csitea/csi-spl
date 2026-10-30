@@ -48,7 +48,7 @@ type TopicAccess struct {
 	// in the topic, sorted: the box owner lock hides a topic that touches a
 	// box locked to someone else (spec 025 box-owner-lock.md, row B5).
 	Boxes []string
-	// Priority is the topic's topic_priorities value (spec 150 3.3, 5 when
+	// Priority is the topic's topic_priorities value (spec 150 3.3, 3 when
 	// unset) as the Postgres door read takes it, so the fused topic page
 	// (ViewTopicDoor) carries it with no round trip of its own; 0 = not read
 	// (the memory store).

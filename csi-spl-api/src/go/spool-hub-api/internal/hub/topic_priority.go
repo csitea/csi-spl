@@ -15,7 +15,7 @@ import (
 
 // A priority 1..5 per discussion (spec 150 v1.0 section 3.3, row B3,
 // SPL-4192; the table and the store are row B1, rdb 0214). 1 is the most
-// urgent; a topic nobody set reads store.TopicPriorityDefault (5, panel D7).
+// urgent; a topic nobody set reads store.TopicPriorityDefault (3, spec 150 v1.1 D7).
 //
 // PUT /v1/topics/{task_id}/priority, body {"priority": 1..5} (panel D10):
 //   - a member session only, billing and notes.send as for an archive; a

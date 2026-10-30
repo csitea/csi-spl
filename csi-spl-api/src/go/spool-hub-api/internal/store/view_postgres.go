@@ -379,7 +379,7 @@ func (b *topicsSQL) listed(walk string) string {
 
 // summary is each walked topic's row: count, kinds, parties, its first
 // message and its priority, newest topic first. The priority is one primary
-// key probe of topic_priorities per row (spec 150 3.3, 5 when unset), in the
+// key probe of topic_priorities per row (spec 150 3.3, TopicPriorityDefault when unset), in the
 // list's own statement, so it costs no round trip of its own.
 func (b *topicsSQL) summary(aggDoor string) string {
 	return `

@@ -573,7 +573,7 @@ type viewTopic struct {
 	Kinds        map[string]int `json:"kinds"`
 	Participants []string       `json:"participants"`
 	Subject      string         `json:"subject"`
-	// Priority 1..5, 5 when nobody set it (spec 150 3.3): the store reads it
+	// Priority 1..5, 3 when nobody set it (spec 150 3.3): the store reads it
 	// in the list's own statement (TopicRow.Priority).
 	Priority int `json:"priority,omitempty"`
 	// per_topic=N only: the topic's newest N messages, exactly

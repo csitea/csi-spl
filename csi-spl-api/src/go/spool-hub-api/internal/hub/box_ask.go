@@ -89,7 +89,7 @@ type AskRow struct {
 	FlagMsg     string `json:"flag_msg,omitempty"`
 	FlagBy      string `json:"flag_by,omitempty"`
 	FlagAt      string `json:"flag_at,omitempty"`
-	Priority    int    `json:"priority,omitempty"` // list: the discussion's priority 1..5 (5 without one)
+	Priority    int    `json:"priority,omitempty"` // list: the discussion's priority 1..5 (3 without one)
 	Position    int    `json:"position,omitempty"`
 	QueueLen    int    `json:"queue_len,omitempty"`
 	WriterBox   string `json:"writer_box,omitempty"`

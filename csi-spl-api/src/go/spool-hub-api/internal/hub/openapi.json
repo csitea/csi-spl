@@ -1161,7 +1161,7 @@
             "type": "array"
           },
           "priority": {
-            "description": "1 the most urgent .. 5 the least; 5 when nobody set it. Contract: csi-spl-doc/specs/150-topic-list-priority/spec.md §3.3.",
+            "description": "1 the most urgent .. 5 the least; 3 when nobody set it. Contract: csi-spl-doc/specs/150-topic-list-priority/spec.md §3.3.",
             "maximum": 5,
             "minimum": 1,
             "type": "integer"
@@ -14911,7 +14911,7 @@
                 "description": "The topic's new priority. Contract: csi-spl-doc/specs/150-topic-list-priority/spec.md §3.3.",
                 "properties": {
                   "priority": {
-                    "description": "1 the most urgent .. 5 the least; 5 when nobody set it (spec 150 panel D7).",
+                    "description": "1 the most urgent .. 5 the least; 3 when nobody set it (spec 150 panel D7).",
                     "maximum": 5,
                     "minimum": 1,
                     "type": "integer"
@@ -17553,7 +17553,7 @@
                       "type": "string"
                     },
                     "priority": {
-                      "description": "on a read without after=; 5 when nobody set it. Contract: csi-spl-doc/specs/150-topic-list-priority/spec.md §3.3.",
+                      "description": "on a read without after=; 3 when nobody set it. Contract: csi-spl-doc/specs/150-topic-list-priority/spec.md §3.3.",
                       "maximum": 5,
                       "minimum": 1,
                       "type": "integer"

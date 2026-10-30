@@ -266,12 +266,12 @@ func TestBoxFleetAskDiscussionResolve(t *testing.T) {
 		t.Fatalf("a short discussion id was accepted: %v", err)
 	}
 
-	// the list carries the discussion's priority, 5 without one
+	// the list carries the discussion's priority, 3 without one (SPL-4367)
 	if _, err := e.st.(store.TopicPriorityStore).SetTopicPriority(ctx, tid, one, 2, "HUM-10", time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	for _, r := range askCall(t, home, action.AskArgs{Fleet: "main", Role: "orch"}).Asks {
-		want := 5
+		want := unsetTopicPriority
 		if r.Discussion == one {
 			want = 2
 		}

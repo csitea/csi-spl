@@ -9,14 +9,16 @@ import (
 
 // A priority 1..5 per discussion (spec 150 v1.0 section 3.3, row B1, rdb
 // 0214, SPL-3052). 1 is the most urgent; the orchestrator serves 1 first
-// (section 3.4). A topic nobody set reads TopicPriorityDefault (panel D7, the
-// issues' default): there is no clear, setting 5 is the default.
+// (section 3.4). A topic nobody set reads TopicPriorityDefault, 3: the
+// owner's "radio buttons whith default 3" (prd t1 0344254d, msg f5ed1396,
+// spec 150 v1.1 D7, SPL-4367; issues keep their 5). There is no clear,
+// setting 3 is the default. It is not stored: no row means the default.
 
 // Topic priority bounds (rdb 0214's CHECK).
 const (
 	TopicPriorityMin     = 1
 	TopicPriorityMax     = 5
-	TopicPriorityDefault = TopicPriorityMax
+	TopicPriorityDefault = 3
 )
 
 // ErrBadTopicPriority refuses a priority outside 1..5 before any write (the

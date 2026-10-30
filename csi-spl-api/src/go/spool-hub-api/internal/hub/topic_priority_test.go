@@ -42,6 +42,11 @@ func listedPriority(t *testing.T, e *env, tid, as, task string) (float64, bool) 
 	return 0, false
 }
 
+// unsetTopicPriority is what a topic nobody set reads: 3, the owner's
+// default (msg f5ed1396, spec 150 v1.1 D7, SPL-4367), a literal so the
+// tests hold the owner's value, not the constant's.
+const unsetTopicPriority = 3
+
 func storedPriority(t *testing.T, e *env, tid, task string) int {
 	t.Helper()
 	got, err := e.st.(store.TopicPriorityStore).TopicPriorities(context.Background(), tid, []string{task})
@@ -71,7 +76,7 @@ func TestTopicPriorityReadDoor(t *testing.T) {
 			t.Fatalf("%s outside the DM: %d %v", as, code, out)
 		}
 	}
-	if got := storedPriority(t, e, tid, dm); got != store.TopicPriorityDefault {
+	if got := storedPriority(t, e, tid, dm); got != unsetTopicPriority {
 		t.Fatalf("a refused PUT stored %d", got)
 	}
 	// An unknown topic and a task id that is no uuid read the same.
@@ -103,7 +108,7 @@ func TestTopicPriorityPolicy(t *testing.T) {
 			t.Fatalf("%s under admins: %d %v", as, code, out)
 		}
 	}
-	if got := storedPriority(t, e, tid, T); got != store.TopicPriorityDefault {
+	if got := storedPriority(t, e, tid, T); got != unsetTopicPriority {
 		t.Fatalf("a refused PUT stored %d", got)
 	}
 	// No member session (an agent, a box): refused before the door.
@@ -127,8 +132,8 @@ func TestTopicPriorityPolicy(t *testing.T) {
 	}
 }
 
-// C307 list rows carry it: a GET /v1/view/topics row has priority, 5 when
-// nobody set it, the set value after a PUT; the topic read carries it too.
+// C307 list rows carry it: a GET /v1/view/topics row has priority, 3 when
+// nobody set it (the owner's default, msg f5ed1396, SPL-4367), the set value after a PUT; the topic read carries it too.
 // Red control: drop the attachTopicPriorities call in listTopics -> the
 // row has no priority.
 func TestTopicPriorityOnViewRows(t *testing.T) {
@@ -138,20 +143,23 @@ func TestTopicPriorityOnViewRows(t *testing.T) {
 	T, U := uuidV4(), uuidV4()
 	putCard(t, e, tid, T, "", "HUM-1", hub.WUIBox, 1, now)
 	putCard(t, e, tid, U, "", "HUM-1", hub.WUIBox, 1, now.Add(time.Second))
-	if p, ok := listedPriority(t, e, tid, "HUM-2", T); !ok || p != store.TopicPriorityDefault {
+	if p, ok := listedPriority(t, e, tid, "HUM-2", T); !ok || p != unsetTopicPriority {
 		t.Fatalf("unset row: %v %v", p, ok)
 	}
-	if code, out := putPriority(t, e, tid, T, "HUM-2", map[string]any{"priority": 3}); code != http.StatusOK {
+	if code, out := putPriority(t, e, tid, T, "HUM-2", map[string]any{"priority": 4}); code != http.StatusOK {
 		t.Fatalf("set: %d %v", code, out)
 	}
-	if p, ok := listedPriority(t, e, tid, "HUM-2", T); !ok || p != 3 {
+	if p, ok := listedPriority(t, e, tid, "HUM-2", T); !ok || p != 4 {
 		t.Fatalf("set row: %v %v", p, ok)
 	}
-	if p, ok := listedPriority(t, e, tid, "HUM-2", U); !ok || p != store.TopicPriorityDefault {
+	if p, ok := listedPriority(t, e, tid, "HUM-2", U); !ok || p != unsetTopicPriority {
 		t.Fatalf("the other row: %v %v", p, ok)
 	}
-	if code, out := call(t, e, tid, http.MethodGet, "/v1/view/topics/"+T, "HUM-2", nil); code != http.StatusOK || out["priority"] != float64(3) {
+	if code, out := call(t, e, tid, http.MethodGet, "/v1/view/topics/"+T, "HUM-2", nil); code != http.StatusOK || out["priority"] != float64(4) {
 		t.Fatalf("topic read: %d %v", code, out["priority"])
+	}
+	if code, out := call(t, e, tid, http.MethodGet, "/v1/view/topics/"+U, "HUM-2", nil); code != http.StatusOK || out["priority"] != float64(unsetTopicPriority) {
+		t.Fatalf("unset topic read: %d %v", code, out["priority"])
 	}
 }
 
@@ -168,7 +176,7 @@ func TestTopicPriorityBounds(t *testing.T) {
 			t.Fatalf("%v: %d %v", body, code, out)
 		}
 	}
-	if got := storedPriority(t, e, tid, T); got != store.TopicPriorityDefault {
+	if got := storedPriority(t, e, tid, T); got != unsetTopicPriority {
 		t.Fatalf("a refused PUT stored %d", got)
 	}
 	for _, p := range []int{1, 5} {

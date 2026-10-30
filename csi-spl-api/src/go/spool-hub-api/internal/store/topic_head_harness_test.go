@@ -68,7 +68,7 @@ const refTopicsSQL = `WITH d AS (
 			array_agg(d.kind ORDER BY d.received_at, d.msg_id::text),
 			array_agg(d.from_id || '@' || d.from_box) || array_agg(d.to_id || '@' || d.to_box),
 			(array_agg(d.msg ORDER BY d.received_at, d.msg_id::text))[1],
-			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = s.task_id), 5)
+			COALESCE((SELECT tp.priority FROM topic_priorities tp WHERE tp.tenant_id = $1 AND tp.task_id = s.task_id), 3)
 		FROM s JOIN d ON d.task_id = s.task_id AND d.door
 		GROUP BY s.task_id, s.last_at
 		ORDER BY s.last_at DESC, s.task_id::text DESC`

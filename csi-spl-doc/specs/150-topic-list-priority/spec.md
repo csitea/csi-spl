@@ -362,7 +362,7 @@ language rule, global CLAUDE.md "Spawn an agent"): build row B11.
 | C208 | 2 | unread edge with a sort | unread cards stay at the edge; each group in the chosen sort | apply the sort after the unread move | unit as C201 |
 | C209 | 2 | the choice survives a reload | same filter and sort after a reload in the same browser | not stored | e2e as C101 |
 | C210 | 2 | New and the unread edge agree | every card `useUnreadOrder` puts at the edge is kept by New | pass `channel.unreadFor` as `unreadOf` | unit as C201 |
-| C301 | 3 | store set / read | `SetTopicPriority` 3, then read 3; an unset topic reads 3 | skip the write | `store/topic_priority_test.go` (Postgres + memory) |
+| C301 | 3 | store set / read | `SetTopicPriority` 4, then read 4; an unset topic reads 3 | skip the write | `store/topic_priority_test.go` (Postgres + memory) |
 | C302 | 3 | bounds | 0 and 6 refused, 1 and 5 accepted | widen the CHECK | same |
 | C303 | 3 | change stamp | a set moves the tenant stamp; `TestChangeStampTriggerCatalogue` lists the table | drop the trigger | `store/change_stamp_test.go` |
 | C304 | 3 | tenant isolation (RLS) | tenant B reads none of tenant A's rows | drop the RLS policy | `store/topic_priority_test.go`, as spec 099 7.4 |

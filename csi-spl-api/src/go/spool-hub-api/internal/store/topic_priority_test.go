@@ -15,10 +15,16 @@ import (
 // (hub-pg.tst.sh, PRE_PUSH_TIER=full); C304 and the CHECK half of C302 are
 // Postgres only. C303 (the change stamp) is store/change_stamp_test.go.
 
-// TestTopicPrioritySetRead is C301: a set of 3 reads back 3; a topic nobody
-// set, and an id that is no uuid, read 5; a second set replaces the first;
+// unsetTopicPriority is what a topic nobody set reads: 3, the owner's
+// default (prd t1 0344254d, msg f5ed1396, spec 150 v1.1 D7, SPL-4367). A
+// literal, not TopicPriorityDefault, so the tests hold the owner's value.
+const unsetTopicPriority = 3
+
+// TestTopicPrioritySetRead is C301: a set of 4 reads back 4; a topic nobody
+// set, and an id that is no uuid, read 3; a second set replaces the first;
 // another workspace reads its own default for the same task id.
-// RED CONTROL: skip the write and the read stays 5.
+// RED CONTROL: skip the write and the read stays 3; default 5 and the
+// unset reads fail.
 func TestTopicPrioritySetRead(t *testing.T) {
 	ctx := context.Background()
 	at := time.Now().UTC().Truncate(time.Microsecond)
@@ -28,14 +34,14 @@ func TestTopicPrioritySetRead(t *testing.T) {
 			tid, other := newTenant(t, s), newTenant(t, s)
 			task, unset := uuid4(), uuid4()
 			got, err := ps.TopicPriorities(ctx, tid, []string{task})
-			if err != nil || got[task] != TopicPriorityDefault {
-				t.Fatalf("before any set: %v %v, want %d", got, err, TopicPriorityDefault)
+			if err != nil || got[task] != unsetTopicPriority {
+				t.Fatalf("before any set: %v %v, want %d", got, err, unsetTopicPriority)
 			}
-			row, err := ps.SetTopicPriority(ctx, tid, task, 3, "HUM-1", at)
+			row, err := ps.SetTopicPriority(ctx, tid, task, 4, "HUM-1", at)
 			if err != nil {
 				t.Fatal(err)
 			}
-			want := TopicPriority{TenantID: tid, TaskID: task, Priority: 3, SetBy: "HUM-1", SetAt: at}
+			want := TopicPriority{TenantID: tid, TaskID: task, Priority: 4, SetBy: "HUM-1", SetAt: at}
 			if row != want {
 				t.Fatalf("set answered %+v, want %+v", row, want)
 			}
@@ -44,8 +50,8 @@ func TestTopicPrioritySetRead(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got[task] != 3 || got[upper] != 3 || got[unset] != TopicPriorityDefault || got["not-a-uuid"] != TopicPriorityDefault || len(got) != 4 {
-				t.Fatalf("read %v, want %s=3 (any case), the rest %d", got, task, TopicPriorityDefault)
+			if got[task] != 4 || got[upper] != 4 || got[unset] != unsetTopicPriority || got["not-a-uuid"] != unsetTopicPriority || len(got) != 4 {
+				t.Fatalf("read %v, want %s=4 (any case), the rest %d", got, task, unsetTopicPriority)
 			}
 			if row, err = ps.SetTopicPriority(ctx, tid, task, 1, "HUM-2", at.Add(time.Second)); err != nil || row.Priority != 1 || row.SetBy != "HUM-2" {
 				t.Fatalf("second set: %+v %v", row, err)
@@ -53,8 +59,8 @@ func TestTopicPrioritySetRead(t *testing.T) {
 			if got, _ = ps.TopicPriorities(ctx, tid, []string{task}); got[task] != 1 {
 				t.Fatalf("after the second set read %v, want 1", got)
 			}
-			if got, _ = ps.TopicPriorities(ctx, other, []string{task}); got[task] != TopicPriorityDefault {
-				t.Fatalf("another workspace read %v for the task, want %d", got, TopicPriorityDefault)
+			if got, _ = ps.TopicPriorities(ctx, other, []string{task}); got[task] != unsetTopicPriority {
+				t.Fatalf("another workspace read %v for the task, want %d", got, unsetTopicPriority)
 			}
 			if got, err = ps.TopicPriorities(ctx, tid, nil); err != nil || len(got) != 0 {
 				t.Fatalf("no ids: %v %v", got, err)
@@ -81,7 +87,7 @@ func TestTopicPriorityBounds(t *testing.T) {
 					t.Errorf("priority %d: %v, want ErrBadTopicPriority", p, err)
 				}
 			}
-			if got, _ := ps.TopicPriorities(ctx, tid, []string{task}); got[task] != TopicPriorityDefault {
+			if got, _ := ps.TopicPriorities(ctx, tid, []string{task}); got[task] != unsetTopicPriority {
 				t.Fatalf("a refused set wrote %v", got)
 			}
 			for _, p := range []int{1, 5} {
@@ -182,8 +188,8 @@ func TestRLSTopicPriorities(t *testing.T) {
 	if err != nil || tag.RowsAffected() != 0 {
 		t.Errorf("B's scope updated %d of A's rows: %v", tag.RowsAffected(), err)
 	}
-	if got, err := pg.TopicPriorities(ctx, b, []string{task}); err != nil || got[task] != TopicPriorityDefault {
-		t.Errorf("B read A's task as %v %v, want %d", got, err, TopicPriorityDefault)
+	if got, err := pg.TopicPriorities(ctx, b, []string{task}); err != nil || got[task] != unsetTopicPriority {
+		t.Errorf("B read A's task as %v %v, want %d", got, err, unsetTopicPriority)
 	}
 	if got, err := pg.TopicPriorities(ctx, a, []string{task}); err != nil || got[task] != 2 {
 		t.Errorf("A read its task as %v %v, want 2 (B's update reached it?)", got, err)

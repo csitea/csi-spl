@@ -225,15 +225,17 @@ func TestCheckFleetAskQueue(t *testing.T) {
 
 // Spec 150 row B9 (rdb 0241, SPL-4193; owner HUM-10 prd t1 0344254d, poll Q5
 // answer A: "priority first: a priority 1 feature goes before a priority 3
-// bug"). The queue ranks by the discussion's priority (rdb 0214, none = 5),
+// bug"). The queue ranks by the discussion's priority (rdb 0214, none = 3,
+// the owner's default, msg f5ed1396, SPL-4367),
 // then by class, then by enqueued_at. Run on Memory and Postgres.
 //
 //   - C401: of two queued bugs, the one whose discussion is priority 1 is
 //     position 1 although it was queued later. CONTROL: the rank ignores
 //     priority (FIFO puts the older bug first).
 //   - C402: asks with no discussion, or a discussion nobody set, keep the
-//     class, then enqueued_at order. CONTROL: a default that ranks first.
-//   - C403: a priority 1 feature goes before a priority 3 bug, and both before
+//     class, then enqueued_at order at 3: after a priority 2 bug, before a
+//     priority 4 ci row. CONTROL: a default that ranks first, or the old 5.
+//   - C403: a priority 1 feature goes before a priority 2 bug, and both before
 //     a ci row nobody gave a priority. CONTROL: class first (poll Q5 B) puts
 //     the ci row, then the bug, first.
 func TestFleetAskQueuePriority(t *testing.T) {
@@ -241,13 +243,14 @@ func TestFleetAskQueuePriority(t *testing.T) {
 	t0 := time.Date(2026, 10, 29, 8, 0, 0, 0, time.UTC)
 	const (
 		dP1    = "0344254d-90fa-4341-989e-ec3675da3741" // a discussion set to 1
-		dP3    = "0344254d-90fa-4341-989e-ec3675da3743" // a discussion set to 3
+		dP2    = "0344254d-90fa-4341-989e-ec3675da3742" // a discussion set to 2
+		dP4    = "0344254d-90fa-4341-989e-ec3675da3744" // a discussion set to 4
 		dUnset = "0344254d-90fa-4341-989e-ec3675da3745" // a discussion nobody set
 	)
 	type row struct{ key, class, disc string }
 	rows := []row{ // queued in this order, one minute apart
 		{"bugOld", "bug", ""}, {"ciNone", "ci", ""}, {"refUnset", "refactor", dUnset},
-		{"bugP3", "bug", dP3}, {"featP1", "feature", dP1}, {"bugP1", "bug", dP1}, {"featNone", "feature", ""},
+		{"bugP2", "bug", dP2}, {"featP1", "feature", dP1}, {"bugP1", "bug", dP1}, {"featNone", "feature", ""}, {"ciP4", "ci", dP4},
 	}
 	ids := map[string]string{}
 	for i, r := range rows {
@@ -256,7 +259,7 @@ func TestFleetAskQueuePriority(t *testing.T) {
 	for name, st := range drivers(t) {
 		t.Run(name, func(t *testing.T) {
 			tid := newTenant(t, st)
-			for p, d := range map[int]string{1: dP1, 3: dP3} {
+			for p, d := range map[int]string{1: dP1, 2: dP2, 4: dP4} {
 				if _, err := st.(TopicPriorityStore).SetTopicPriority(ctx, tid, d, p, "HUM-10", t0); err != nil {
 					t.Fatal(err)
 				}
@@ -286,8 +289,9 @@ func TestFleetAskQueuePriority(t *testing.T) {
 			}
 			want := map[string][2]int{ // position, priority
 				"bugP1": {1, 1}, "featP1": {2, 1}, // C401: the priority 1 bug before the older bugs; the class orders within 1
-				"bugP3":  {3, 3},                                                           // C403: a priority 3 bug after the priority 1 feature
-				"ciNone": {4, 5}, "refUnset": {5, 5}, "bugOld": {6, 5}, "featNone": {7, 5}, // C402: the class order at 5
+				"bugP2":  {3, 2},                                                           // C403: a priority 2 bug after the priority 1 feature
+				"ciNone": {4, 3}, "refUnset": {5, 3}, "bugOld": {6, 3}, "featNone": {7, 3}, // C402: the class order at the unset 3, after a 2 (SPL-4367)
+				"ciP4": {8, 4}, // a priority 4 ci row after every unset ask: unset is 3, not 5 (msg f5ed1396)
 			}
 			for k, w := range want {
 				if got[k].Position != w[0] || got[k].Priority != w[1] || got[k].QueueLen != len(rows) {
@@ -303,7 +307,7 @@ func TestFleetAskQueuePriority(t *testing.T) {
 				t.Fatal("empty list")
 			}
 			for _, a := range as {
-				if a.AskID == ids["refUnset"] && (a.Priority != 5 || a.Position != 5) {
+				if a.AskID == ids["refUnset"] && (a.Priority != unsetTopicPriority || a.Position != 5) {
 					t.Fatalf("another workspace's priority leaked: %+v", a)
 				}
 			}

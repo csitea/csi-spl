@@ -371,9 +371,11 @@ _spl_push_master_worker() {
   # The hook must see the env of a hand push: no override, and no AGENT_ID
   # (SPL-1583: the lane's id leaked into the orc tests the hook runs). The
   # caller already picked the state dir from AGENT_ID. Nor the PUSH_* knobs,
-  # read above: a PUSH_BRANCH=review/<x> push sent the orc tests in the hook
-  # to review/<x> on their temp origins (12 FAILs, SPL-4437).
-  unset SPL_PREPUSH_OVERRIDE AGENT_ID PUSH_REMOTE PUSH_BRANCH PUSH_RETRIES
+  # read above or by the caller: a PUSH_BRANCH=review/<x> push sent the orc
+  # tests in the hook to review/<x> on their temp origins (12 FAILs), and a
+  # PUSH_GIT_EMAIL reached their identity check (29 FAILs, SPL-4437).
+  unset SPL_PREPUSH_OVERRIDE AGENT_ID PUSH_REMOTE PUSH_BRANCH PUSH_RETRIES \
+    PUSH_CMD PUSH_WORKTREE PUSH_STATE_DIR PUSH_GIT_NAME PUSH_GIT_EMAIL PUSH_FETCH_SCRIPT
   exec 9>"$PUSH_STATE/lock"
   flock -n 9 || { echo "another worker holds the lock"; return 0; }
   exec 8<"$PUSH_STATE"

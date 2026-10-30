@@ -74,8 +74,9 @@
 #      on fd 2 is in the log, and case 14's first push logs `<branch> is not on
 #      origin yet`, so its second push's `! grep` checks something; the red:
 #      the fd-closing loop's `2>/dev/null` left the worker's fd 2 on /dev/null
-#  17. PUSH_BRANCH, PUSH_REMOTE and PUSH_RETRIES in the caller's env never
-#      reach the hook (SPL-4437): a hook that fails when one is set -> PUSHED
+#  17. no PUSH_* knob in the caller's env (BRANCH, REMOTE, RETRIES, GIT_EMAIL;
+#      run adds WORKTREE, STATE_DIR) reaches the hook (SPL-4437): a hook that
+#      fails when one is set -> PUSHED
 #      on review/c-999-s17; the red: a review/ push sent the orc tests the hook
 #      runs to review/<x> on their temp origins (12 FAILs)
 #------------------------------------------------------------------------------
@@ -85,7 +86,8 @@ source "$TEST_DIR/test-lib.inc.sh"
 fails=0
 # A lane running this suite exports its own AGENT_ID: cases 1-9 run with none.
 # Nor a caller's PUSH_* knobs: each case names the ones it wants (case 17).
-unset AGENT_ID PUSH_REMOTE PUSH_BRANCH PUSH_RETRIES
+unset AGENT_ID PUSH_REMOTE PUSH_BRANCH PUSH_RETRIES PUSH_CMD PUSH_WORKTREE PUSH_STATE_DIR \
+  PUSH_GIT_NAME PUSH_GIT_EMAIL PUSH_FETCH_SCRIPT
 
 B="$T/origin.git" L="$T/lane" O="$T/other" S="$T/state"
 EM=lane@example.com
@@ -119,7 +121,7 @@ case "\$mode" in
     sleep 2; mv "$S" "\$(cat "$T/retire.to")"
     [ "\$mode" = retire-red ] && { echo "deploy-gate FAILED: RETIRE-RED-MARKER"; exit 1; } ;;
   agent-red) [ -n "\${AGENT_ID:-}" ] && { echo "STUB: AGENT_ID=\$AGENT_ID reached the hook"; exit 1; } ;;
-  knob-red) env | grep -E '^PUSH_(REMOTE|BRANCH|RETRIES)=' && { echo "STUB: a PUSH_* knob reached the hook"; exit 1; } ;;
+  knob-red) env | grep -E '^PUSH_(REMOTE|BRANCH|RETRIES|CMD|WORKTREE|STATE_DIR|GIT_NAME|GIT_EMAIL|FETCH_SCRIPT)=' && { echo "STUB: a PUSH_* knob reached the hook"; exit 1; } ;;
 esac
 exit 0
 EOF
@@ -422,12 +424,12 @@ sha="$(git -C "$L" rev-parse HEAD)"
   && pass "16. the worker's stderr (a fetch stub's fd 2) lands in <state>/log" \
   || fail "16. worker stderr (rc $vrc: $v | log: $(tail -n 6 "$S/log"))"
 
-# 17 the caller's PUSH_BRANCH / PUSH_REMOTE / PUSH_RETRIES never reach the hook
+# 17 the caller's PUSH_* knobs never reach the hook
 echo knob-red >"$T/hook.mode"; commit seventeen
-run PUSH_BRANCH=review/c-999-s17 PUSH_REMOTE=origin PUSH_RETRIES=2 >/dev/null; v="$(verdict)"; vrc=$?
+run PUSH_BRANCH=review/c-999-s17 PUSH_REMOTE=origin PUSH_RETRIES=2 PUSH_GIT_EMAIL="$EM" >/dev/null; v="$(verdict)"; vrc=$?
 sha="$(git -C "$L" rev-parse HEAD)"
 [ "$vrc" -eq 0 ] && grep -qx "PUSHED $sha" <<<"$v" && [ "$(git --git-dir="$B" rev-parse refs/heads/review/c-999-s17 2>/dev/null)" = "$sha" ] \
-  && pass "17. PUSH_BRANCH/PUSH_REMOTE/PUSH_RETRIES in the caller's env never reach the hook -> PUSHED" \
+  && pass "17. the caller's PUSH_* knobs never reach the hook -> PUSHED" \
   || fail "17. knobs reached the hook (rc $vrc: $v)"
 echo ok >"$T/hook.mode"
 

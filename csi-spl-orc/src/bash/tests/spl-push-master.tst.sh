@@ -70,6 +70,10 @@
 #      origin/<branch> failed` (not origin/master); a new branch whose
 #      fetch of master fails (a stub PUSH_FETCH_SCRIPT) -> the GAVE-UP names
 #      origin/master, the ref actually fetched (the red named origin/<branch>)
+#  16. the worker's stderr reaches <state>/log (SPL-4437): a fetch stub's line
+#      on fd 2 is in the log, and case 14's first push logs `<branch> is not on
+#      origin yet`, so its second push's `! grep` checks something; the red:
+#      the fd-closing loop's `2>/dev/null` left the worker's fd 2 on /dev/null
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -365,7 +369,8 @@ sha="$(git -C "$L" rev-parse HEAD)"
 [ "$vrc" -eq 0 ] && grep -qx "PUSHED $sha" <<<"$v" && grep -qx 'tries=1' <<<"$v" \
   && [ "$(git --git-dir="$B" rev-parse "refs/heads/$NB" 2>/dev/null)" = "$sha" ] \
   && git --git-dir="$B" merge-base --is-ancestor "$m14" "$sha" && [ "$(git --git-dir="$B" rev-parse master)" = "$m14" ] \
-  && pass "14. a PUSH_BRANCH not on origin -> rebased onto origin/master, the new ref pushed: PUSHED, master unchanged" \
+  && grep -q "$NB is not on origin yet: rebase onto origin/master" "$S/log" \
+  && pass "14. a PUSH_BRANCH not on origin -> rebased onto origin/master, the new ref pushed: PUSHED, master unchanged, the log says not on origin yet" \
   || fail "14. new branch (rc $vrc: $v | log: $(tail -n 6 "$S/log"))"
 commit fourteen-b
 run PUSH_BRANCH="$NB" >/dev/null; v="$(verdict)"; vrc=$?
@@ -399,6 +404,17 @@ run PUSH_BRANCH="$NB" PUSH_FETCH_SCRIPT="$T/fetch-stub.sh" >/dev/null; v="$(verd
 [ "$vrc" -eq 1 ] && grep -qx "GAVE-UP the fetch of origin/master failed" <<<"$v" \
   && pass "15. a new branch whose master fetch fails -> GAVE-UP names origin/master, the ref fetched" \
   || fail "15. master fetch (rc $vrc: $v | log: $(tail -n 6 "$S/log"))"
+
+# 16 the worker's stderr lands in <state>/log (SPL-4437)
+printf '#!/bin/bash\necho "STDERR-MARKER-16 $$" >&2\nexec bash "%s" "$@"\n' \
+  "$TEST_DIR/../features/spawn-agents/scripts/git-fetch-fresh.sh" >"$T/fetch-stderr.sh"
+git -C "$L" switch -q lane-branch && git -C "$L" reset -q --hard "$(git --git-dir="$B" rev-parse master)"
+commit sixteen
+run PUSH_FETCH_SCRIPT="$T/fetch-stderr.sh" >/dev/null; v="$(verdict)"; vrc=$?
+sha="$(git -C "$L" rev-parse HEAD)"
+[ "$vrc" -eq 0 ] && grep -qx "PUSHED $sha" <<<"$v" && grep -q '^STDERR-MARKER-16 ' "$S/log" \
+  && pass "16. the worker's stderr (a fetch stub's fd 2) lands in <state>/log" \
+  || fail "16. worker stderr (rc $vrc: $v | log: $(tail -n 6 "$S/log"))"
 
 echo "spl-push-master: $fails failure(s)"
 [ "$fails" -eq 0 ]

@@ -103,10 +103,13 @@ _spl_push_master_start() {
   : >"$state/log"
   # The worker closes every inherited fd above 2: a lock fd of the caller held
   # open by a detached child blocks the caller's next run (and tmux servers).
+  # No redirect on that loop: bash saves fd 2 to a high fd for a `2>/dev/null`,
+  # the loop closed that copy and fd 2 stayed on /dev/null, so no stderr line
+  # ever reached the log (SPL-4437). Closing a closed fd prints nothing.
   PUSH_WT="$wt" PUSH_STATE="$state" PUSH_NAME="$name" PUSH_EMAIL="$email" \
     PUSH_FETCH="${PUSH_FETCH_SCRIPT:-$(dirname "$self")/../features/spawn-agents/scripts/git-fetch-fresh.sh}" \
     setsid -f bash -c '
-      for fd in /proc/$$/fd/*; do fd="${fd##*/}"; [[ "$fd" -gt 2 ]] && eval "exec $fd>&-"; done 2>/dev/null
+      for fd in /proc/$$/fd/*; do fd="${fd##*/}"; [[ "$fd" -gt 2 ]] && eval "exec $fd>&-"; done
       source "$1" && _spl_push_master_worker' _ "$self" </dev/null >>"$state/log" 2>&1
   echo "PUSH: started for $(git -C "$wt" rev-parse --short HEAD) in $wt"
   echo "PUSH: poll with PUSH_CMD=status (state $state)"

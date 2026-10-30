@@ -67,7 +67,9 @@ func (s *Memory) MembersByVerifiedEmail(_ context.Context, tenant string, emails
 	defer s.mu.Unlock()
 	s.hum.init()
 	// The identities map has no order: walk it by human id, so the lowest
-	// one wins when two humans carry one verified address.
+	// one wins when two humans carry one verified address. Postgres breaks
+	// that tie by the earliest identity instead: which of the two humans a
+	// contact names is unspecified, and no caller depends on it.
 	ids := make([]*memIdent, 0, len(s.hum.identities))
 	for _, id := range s.hum.identities {
 		ids = append(ids, id)

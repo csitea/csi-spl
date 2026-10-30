@@ -151,7 +151,8 @@ func TestContactsMatchDisabledMember(t *testing.T) {
 }
 
 // C13e: a full page of 100 contacts is one match call, not one per
-// contact; the twin, a page with no contact, makes none.
+// contact; the twins, a page with no contact and a page whose contacts
+// have no email, make none.
 func TestContactsMatchOneCallPerPage(t *testing.T) {
 	c := newContactsRig(t, onAll)
 	cm := &countingMatch{ContactMembers: c.cs.ContactMembers}
@@ -178,5 +179,13 @@ func TestContactsMatchOneCallPerPage(t *testing.T) {
 	}
 	if calls := cm.n() - before; calls != 0 {
 		t.Errorf("C13e twin: an empty page = %d match calls, want 0", calls)
+	}
+	c.create(t, c.b1, map[string]any{"last_name": "Nomail", "phone": ctPhone})
+	before = cm.n()
+	if page := c.memberIDs(t, c.b1, "?q=nomail"); len(page) != 1 {
+		t.Fatalf("twin: q=nomail page = %v, want the one contact with no email", page)
+	}
+	if calls := cm.n() - before; calls != 0 {
+		t.Errorf("C13e twin: a page with no email = %d match calls, want 0", calls)
 	}
 }

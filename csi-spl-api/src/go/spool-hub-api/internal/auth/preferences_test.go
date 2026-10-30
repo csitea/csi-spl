@@ -586,6 +586,20 @@ func TestPreferencesRailOrder(t *testing.T) {
 	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":["gauges",`+thirteen[1:]+`}`); got.code != http.StatusBadRequest {
 		t.Fatalf("fourteen with an unknown: %d %s", got.code, got.raw)
 	}
+	// SPL-4382 (spec 143 costs-redesign.md 3.8): the fifteen (+ Expenses) is a
+	// valid new order, read back by the session; an unknown fifteenth is refused.
+	fifteen := `["expenses",` + fourteen[1:]
+	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":`+fifteen+`}`); got.code != http.StatusOK {
+		t.Fatalf("fifteen tabs: %d %s", got.code, got.raw)
+	}
+	if got := r.call(t, c, http.MethodGet, "session", ""); true {
+		if b, _ := json.Marshal(got.body["rail_order"]); string(b) != fifteen {
+			t.Fatalf("session after fifteen: %s", got.raw)
+		}
+	}
+	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":["gauges",`+fourteen[1:]+`}`); got.code != http.StatusBadRequest {
+		t.Fatalf("fifteen with an unknown: %d %s", got.code, got.raw)
+	}
 	// ten ids with Calendar but without Boxes is no set the hub admits
 	if got := r.call(t, c, http.MethodPut, "preferences", `{"rail_order":["calendar","agents","people","events","archive","flow","topics","issues","channels","dm"]}`); got.code != http.StatusBadRequest {
 		t.Fatalf("ten with calendar, no boxes: %d %s", got.code, got.raw)

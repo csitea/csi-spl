@@ -43,19 +43,19 @@ type Entry struct {
 // name as @<bind>, with their Postgres types. `plan` (T4) computes them in
 // <SRC> in one read transaction.
 var Binds = map[string]string{
-	"channel":       "text",   // M1 the channel id
-	"tasks":         "uuid[]", // M2 every task id of the set (topics, threads, sub-tasks)
-	"msgs":          "uuid[]", // M2 every msg id of the set
-	"mark_keys":     "text[]", // read_marks keys of the set: 'ch:<channel>' and 't:<task>' per task
-	"events":        "uuid[]", // calendar_events.event_id of rows whose topic_id is an M2 task
-	"jobs":          "text[]", // hours_jobs.job_id of jobs whose task_id is an M2 task
-	"hours_targets": "text[]", // M6c hours targets: 'ch:<channel>', 't:<task>', 'cal:<event>', 'job:<job>'
-	"numbers":       "int[]",  // M7 the <SRC> issue numbers of the set
-	"issue_keys":    "text[]", // M7 their <SRC> keys (<prefix>-<number>)
-	"docs":          "uuid[]", // M8 workspace_doc ids of the set
-	"nodes":         "uuid[]", // workspace_doc_node ids of those docs
-	"ids":           "text[]", // every id above as text: audit rows whose ref names one (5.2)
-	"id_likes":      "text[]", // '%<id>%' for each of @ids: audit rows whose free text quotes one (5.2)
+	"channel":    "text",   // M1 the channel id
+	"tasks":      "uuid[]", // M2 every task id of the set (topics, threads, sub-tasks)
+	"msgs":       "uuid[]", // M2 every msg id of the set
+	"mark_keys":  "text[]", // read_marks keys of the set: 'ch:<channel>' and 't:<task>' per task
+	"events":     "uuid[]", // calendar_events.event_id of rows whose topic_id is an M2 task
+	"jobs":       "text[]", // hours_jobs.job_id of jobs whose task_id is an M2 task
+	"targets":    "text[]", // M6c hours targets: 'ch:<channel>', 't:<task>', 'cal:<event>', 'job:<job>'
+	"numbers":    "int[]",  // M7 the <SRC> issue numbers of the set
+	"issue_keys": "text[]", // M7 their <SRC> keys (<prefix>-<number>)
+	"docs":       "uuid[]", // M8 workspace_doc ids of the set
+	"nodes":      "uuid[]", // workspace_doc_node ids of those docs
+	"ids":        "text[]", // every id above as text: audit rows whose ref names one (5.2)
+	"id_likes":   "text[]", // '%<id>%' for each of @ids: audit rows whose free text quotes one (5.2)
 }
 
 // Catalogue is every tenant_id table, Moved entries in insert order (a parent
@@ -96,11 +96,11 @@ var movedTables = []Entry{
 	{Table: "calendar_guests", Class: Moved, Set: `event_id = ANY(@events)`, Reason: "child of calendar_events (FK, cascade)"},
 	{Table: "hours_jobs", Class: Moved, Set: `job_id = ANY(@jobs)`, Reason: "M6 (rdb 0216) jobs that name an M2 topic"},
 	{Table: "hours_plan", Class: Moved, Set: `job_id = ANY(@jobs)`, Reason: "child of hours_jobs (FK, cascade): plan slots follow their job"},
-	{Table: "hours_minutes", Class: Moved, Set: `target = ANY(@hours_targets)`,
-		Reason: "M6c (5.1a): kept members only; a row in a frozen or approved <SRC> period makes plan refuse (Q8)"},
-	{Table: "hours_entries", Class: Moved, Set: `target = ANY(@hours_targets)`, Reason: "M6c (5.1a), as hours_minutes"},
-	{Table: "hours_entry_spans", Class: Moved, Set: `target = ANY(@hours_targets)`, Reason: "M6c (5.1a), child of hours_entries (FK)"},
-	{Table: "hours_adjustments", Class: Moved, Set: `target = ANY(@hours_targets)`, Reason: "M6c (5.1a), as hours_minutes"},
+	{Table: "hours_minutes", Class: Moved, Set: `target = ANY(@targets)`,
+		Reason: "M6c (5.1a), only its t: and ch: targets exist (rdb 0218); kept members only; a row in a frozen or approved <SRC> period makes plan refuse (Q8, T4)"},
+	{Table: "hours_entries", Class: Moved, Set: `target = ANY(@targets)`, Reason: "M6c (5.1a), as hours_minutes"},
+	{Table: "hours_entry_spans", Class: Moved, Set: `target = ANY(@targets)`, Reason: "M6c (5.1a), child of hours_entries (FK)"},
+	{Table: "hours_adjustments", Class: Moved, Set: `target = ANY(@targets)`, Reason: "M6c (5.1a), as hours_minutes"},
 	{Table: "issues", Class: Moved, Set: `number = ANY(@numbers)`, Reason: "M7, renumbered under <DST>'s prefix (F6)"},
 	{Table: "issue_events", Class: Moved, Set: `number = ANY(@numbers)`, Reason: "M7"},
 	{Table: "issue_opens", Class: Moved, Set: `number = ANY(@numbers)`, Reason: "M7"},

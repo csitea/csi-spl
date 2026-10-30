@@ -600,6 +600,8 @@ func TestCatalogueGateRedControls(t *testing.T) {
 			"deliveries references messages: move messages before it"},
 		{"moved child of a staying parent", "", func() []Entry { return edit("channel_invites", func(e *Entry) { e.Needs = nil }) },
 			"channel_invites references tenant_invites, which does not move"},
+		{"hours spans before their entries", "", func() []Entry { return swap("hours_entries", "hours_entry_spans") },
+			"hours_entry_spans references hours_entries: move hours_entries before it"},
 		{"refuse without a predicate", "", func() []Entry { return edit("embed_visitors", func(e *Entry) { e.Set = "" }) },
 			"embed_visitors: class refuse wants Set=true"},
 		{"cascade into an unclassified stayer", "", func() []Entry {
@@ -692,6 +694,11 @@ func TestCatalogueFollowsSpec(t *testing.T) {
 			if e, ok := Lookup(tb); !ok || e.Class != class {
 				t.Errorf("%s: spec 169 says %s, catalogue has %q (found %v)", tb, class, e.Class, ok)
 			}
+		}
+	}
+	for table, cite := range map[string]string{"embed_visitors": "5.1b", "issue_labels": "label_id", "gcal_event_map": "Google event"} {
+		if e, _ := Lookup(table); !strings.Contains(e.Reason, cite) {
+			t.Errorf("%s: its reason must cite %q (spec 169 v0.5), got %q", table, cite, e.Reason)
 		}
 	}
 	if _, ok := Lookup("no_such_table"); ok {

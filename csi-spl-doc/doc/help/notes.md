@@ -40,6 +40,16 @@ or the phone's Back) takes you back to the list.
 - **Checklist**: tick a line, edit its text, remove it with the **x**, or add
   one with **Add a line**. Move a line with **Alt+Up** / **Alt+Down**, or drag
   it by its handle on a wide screen.
+- **Links**: paste into the link box and press **Add link**. It takes
+  `msg:<id>` or `topic:<id>`, an issue key of this workspace such as
+  `SPL-12`, the address of a Spool page (a topic, a message, an issue, a
+  calendar entry, a doc or a channel) or any other `https://` address. Any
+  other text is refused with **Not a link**. A link to a Spool page opens on
+  its own workspace's address, where that page decides what you may see; the
+  workspace's name shows beside a link into another of your workspaces. A web
+  address opens in a new tab. The **x** removes a link. A link into a
+  workspace you have left shows **Link to a workspace you left** and opens
+  nothing.
 - **Pin** puts the note in the Pinned group; **Unpin** takes it out.
 - **Archive** hides the note from the list and closes it. Find it again with
   **Archived**, open it and press **Unarchive**.
@@ -52,10 +62,9 @@ or the phone's Back) takes you back to the list.
 
 ## Coming next
 
-Spec 155 adds the rest in the next steps: links in a note to messages,
-topics, issues, calendar entries, docs, channels and web pages; **Add to
-note** on messages, issues and rows; `/note <text>` in the top bar; and
-Settings -> Notes to export or erase all your notes.
+Spec 155 adds the rest in the next steps: **Add to note** on messages,
+issues and rows; `/note <text>` in the top bar; and Settings -> Notes to
+export or erase all your notes.
 
 If an administrator turns Notes off for the whole Spool, the page says so and
 your notes are kept.

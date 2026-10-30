@@ -15,6 +15,12 @@
 // plus the owner's report at a 390 px phone: open full screen with Back, edit,
 // archive, delete; and the order (Alt+Down) and the checklist on a desktop.
 //
+// Row B7 (SPL-4330), the links, at 1440 px and at 390 px: a url link opens in
+// a new tab with rel="noopener noreferrer" (C25, as served); a pasted
+// topic:<uuid> and SPL-12 become a topic and an issue link of this workspace
+// that open in this tab (C23); "hello" is "Not a link"; a remove takes one
+// link off and the list row's count follows.
+//
 // Run:
 //   node tests/e2e/notes-open.test.mjs
 //   BASE_URL=http://127.0.0.1:3000 node tests/e2e/notes-open.test.mjs
@@ -110,6 +116,58 @@ async function desktop(browser, base) {
   await p.close()
 }
 
+const linkRows = (p) => p.$$eval('[data-test=note-link]', (els) => els.map((e) => {
+  const a = e.querySelector('[data-test=note-link-open]')
+  return { kind: e.dataset.kind, href: a?.getAttribute('href') || '', target: a?.getAttribute('target') || '', rel: a?.getAttribute('rel') || '', text: (a || e).textContent.trim() }
+}))
+const TOPIC = '0b7f2c3e-1d2a-4b5c-8d9e-0f1a2b3c4d5e'
+async function paste(p, text) {
+  await p.$eval('[data-test=note-link-new]', (e) => { e.focus(); e.select() })
+  await p.type('[data-test=note-link-new]', text)
+  await p.click('[data-test=note-link-add]')
+  await sleep(400)
+}
+
+/* B7: the links of mock-note-1 (3 url links), add, refuse, remove */
+async function links(browser, base, width, touch) {
+  const tag = `${width}px B7`
+  const p = await openPage(browser, base, width, touch)
+  await clickRow(p, 'mock-note-1')
+  await waitDetail(p, 'mock-note-1')
+  const first = await linkRows(p)
+  check(`${tag}: the note shows its 3 links`, first.length === 3, first.length)
+  check(`${tag} C25: a url link opens in a new tab, rel="noopener noreferrer"`, first[0]?.kind === 'url' && first[0].href === 'https://example.com/1' && first[0].target === '_blank' && first[0].rel === 'noopener noreferrer', first[0])
+  await paste(p, 'hello')
+  const err = await p.$eval('[data-test=note-link-error]', (e) => e.textContent.trim()).catch(() => '')
+  check(`${tag} C23: "hello" is refused as Not a link`, err === 'Not a link' && (await linkRows(p)).length === 3, err)
+  await paste(p, `topic:${TOPIC}`)
+  const topic = (await linkRows(p))[3]
+  check(`${tag} C23: topic:<uuid> becomes a topic link that opens /t/<uuid> in this tab`, topic?.kind === 'topic' && topic.href.endsWith(`/t/${TOPIC}`) && !topic.target, topic)
+  check(`${tag}: the error went with the good paste`, !(await p.$('[data-test=note-link-error]')))
+  await paste(p, 'SPL-12')
+  const issue = (await linkRows(p))[4]
+  check(`${tag} C23: SPL-12 becomes an issue link`, issue?.kind === 'issue' && issue.href.endsWith('/issues?issue=SPL-12') && issue.text === 'SPL-12', issue)
+  if (touch) {
+    const tap = await p.$eval('[data-test=note-link-remove]', (e) => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)] })
+    check(`${tag}: the remove x is a 44 px tap target`, tap[0] >= 44 && tap[1] >= 44, tap)
+    check(`${tag}: no sideways scroll`, await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
+    if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/notes-links-390.png` })
+  }
+  await p.click('[data-test=note-link]:first-child [data-test=note-link-remove]')
+  await sleep(400)
+  const left = await linkRows(p)
+  check(`${tag}: remove takes that one link off`, left.length === 4 && left[0].href === 'https://example.com/2', left.map((l) => l.href))
+  if (touch) await p.click('[data-test=note-detail] [data-testid=mobile-back]')
+  else await p.keyboard.press('Escape')
+  await waitGone(p)
+  const meta = await p.$eval('[data-note-id=mock-note-1] .notes-row__meta', (e) => e.textContent).catch(() => '')
+  check(`${tag}: the list row counts 4 links`, meta.includes('Links: 4'), meta)
+  await clickRow(p, 'mock-note-1')
+  await waitDetail(p, 'mock-note-1')
+  check(`${tag}: reopened, the note keeps the 4 links`, (await linkRows(p)).length === 4)
+  await p.close()
+}
+
 async function desktopActions(browser, base) {
   const tag = '1440px'
   const p = await openPage(browser, base, 1440, false)
@@ -202,6 +260,8 @@ try {
   await desktop(browser, server.base)
   await desktopActions(browser, server.base)
   await phone(browser, server.base)
+  await links(browser, server.base, 1440, false)
+  await links(browser, server.base, 390, true)
 } catch (e) {
   console.error(e)
   code = 1

@@ -2,7 +2,8 @@
      open issue (IssueDetailFrame: focus trap, Esc / X / backdrop close); on a
      phone the level-3 full screen with the Back chevron (MobileBack). Owner
      HUM-10 (t1 cb9d7bdc, msg cc1a052f): "I cannot edit notes on mobile."
-     Inside: title, text, the checklist, and Pin, Archive, Move up / down,
+     Inside: title, text, the checklist, the links (B7, NoteLinks: each link
+     added or removed is its own POST / DELETE), and Pin, Archive, Move up / down,
      Delete. Each field saves 800 ms after the last key and on close; a failed
      save keeps the text and shows "Not saved, retry". Delete is the page's
      (D2: the note goes at once, the DELETE waits for the 10 s Undo).
@@ -70,6 +71,7 @@
           @input="schedule('fields')"
         />
         <NoteChecklist :items="items" @change="onItems" />
+        <NoteLinks :note-id="note.id" :links="note.links" @change="onLinks" />
         <p class="note-in__status" role="status" aria-live="polite">
           <span v-if="saveFailed" class="note-in__error" data-test="note-not-saved">
             <button type="button" class="btn ghost" data-test="note-save-retry" @click="flush()">{{ t(failKey) }}</button>
@@ -82,7 +84,7 @@
 </template>
 
 <script setup lang="ts">
-import { useNotesStore, type Note, type NoteItem, type NotePatch } from '~/stores/notes'
+import { useNotesStore, type Note, type NoteItem, type NoteLink, type NotePatch } from '~/stores/notes'
 import type { UiIconName } from '~/utils/uiIcons'
 
 /* spec 155 2.6: a field saves this long after the last key */
@@ -172,6 +174,11 @@ function adoptItems(n: Note) {
   note.value = n
   if (dirty.items || n.items.length !== items.value.length) return
   items.value = n.items.map((it, k) => ({ ...it, text: items.value[k]?.text ?? it.text }))
+}
+
+/* B7: a link write is saved by NoteLinks itself; the open note follows */
+function onLinks(links: NoteLink[]) {
+  if (note.value) note.value = { ...note.value, links }
 }
 
 async function patch(fields: NotePatch) {

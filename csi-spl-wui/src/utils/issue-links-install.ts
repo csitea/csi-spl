@@ -9,8 +9,9 @@ import { useSessionStore } from '~/stores/session'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 
 /* the mock tenant's issue store is bound by the Issues page; a throwaway
-   one answers the same prefix without binding it */
-async function prefixRead(api: ReturnType<typeof useSpoolApi>): Promise<{ prefix?: unknown } | null> {
+   one answers the same prefix without binding it. Also the notes link box's
+   (components/NoteLinks.vue, spec 155 B7): a pasted key of this prefix. */
+export async function prefixRead(api: ReturnType<typeof useSpoolApi>): Promise<{ prefix?: unknown } | null> {
   if (api.mock) {
     const store = (await import('~/utils/issues.mjs')).createMockIssues({ me: 'HUM-1' }) as { list: (q: string) => { prefix?: unknown } }
     return store.list('limit=1')

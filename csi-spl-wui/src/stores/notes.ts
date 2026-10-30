@@ -17,7 +17,9 @@ import { HUB_READ_TIMEOUT_MS, HUB_WRITE_TIMEOUT_MS } from '~/utils/fetch-timeout
  * switch (section 6) answers 404 `notes_off`: the store reads it as `off`.
  * The mock answers from a small list kept in memory, so the page works on
  * the mock bundle before the hub serves it. Links (B7) and the rest call
- * the same routes from here.
+ * the same routes from here:
+ *   POST   /v1/me/realm/notes/{id}/links            one more link (B7, SPL-4330)
+ *   DELETE /v1/me/realm/notes/{id}/links/{link_id}  one link
  */
 
 /** A list row, as the hub writes it (hub/realm_notes.go noteSummaryJSON). */
@@ -38,7 +40,23 @@ export type NoteSummary = {
 /** A checklist line (hub/realm_notes.go noteItemJSON). */
 export type NoteItem = { id: string, text: string, done: boolean, position?: number }
 
-/** A whole note, as GET / PATCH / PUT items answer it (noteJSON); links are B7's. */
+/** A link (hub/realm_notes.go noteLinkJSON): a typed ref, spec 155 2.3. `left`: a workspace the person left (D4). */
+export type NoteLink = {
+  id: string
+  kind: 'msg' | 'topic' | 'issue' | 'event' | 'doc' | 'channel' | 'url'
+  workspace_id?: string
+  ref: string
+  day?: string
+  label: string
+  left?: boolean
+  position?: number
+  created_at?: string
+}
+
+/** A link as POST takes it: no id yet. */
+export type NoteLinkIn = Omit<NoteLink, 'id' | 'left' | 'position' | 'created_at'>
+
+/** A whole note, as GET / PATCH / PUT items answer it (noteJSON). */
 export type Note = {
   id: string
   title: string
@@ -50,7 +68,7 @@ export type Note = {
   created_at?: string
   updated_at: string
   items: NoteItem[]
-  links: unknown[]
+  links: NoteLink[]
 }
 
 /** The fields PATCH takes; the others are kept. */
@@ -76,7 +94,7 @@ function headersOf(api: NotesApi, extra: Record<string, string> = {}) {
 }
 
 const mockItems = (texts: string[], done: number): NoteItem[] => texts.map((text, i) => ({ id: `mock-item-${i + 1}`, text, done: i < done, position: i }))
-const mockLinks = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `mock-link-${i + 1}`, kind: 'url', ref: `https://example.com/${i + 1}`, label: '' }))
+const mockLinks = (n: number): NoteLink[] => Array.from({ length: n }, (_, i) => ({ id: `mock-link-${i + 1}`, kind: 'url', ref: `https://example.com/${i + 1}`, label: '' }))
 
 const MOCK_NOTES: Note[] = [
   { id: 'mock-note-1', title: 'Release checklist', body: 'Things to check before the next release.', pinned: true, position: 1, archived: false, updated_at: '2026-10-28T09:00:00Z', items: mockItems(['Tests green', 'Docs updated', 'Dev deployed', 'Prd deployed', 'Release note'], 2), links: mockLinks(3) },
@@ -94,7 +112,7 @@ export function summaryOf(n: Note): NoteSummary {
   }
 }
 
-const copyNote = (n: Note): Note => ({ ...n, items: n.items.map((i) => ({ ...i })), links: [...n.links] })
+const copyNote = (n: Note): Note => ({ ...n, items: n.items.map((i) => ({ ...i })), links: n.links.map((l) => ({ ...l })) })
 
 /** Pinned first, each group by the person's own order (position, then newest). */
 export function sortNotes(list: readonly NoteSummary[]): NoteSummary[] {
@@ -110,6 +128,27 @@ export function filterNotes(list: readonly NoteSummary[], query: string, archive
 /** What a note read answers: the note, or why there is none. */
 export type NoteRead = { note: Note } | { missing: true } | { failed: true }
 
+/** B7: a note's link routes; a write answers the link or throws the refusal. */
+function hubNoteLinks(api: NotesApi) {
+  const at = (id: string, tail = '') => `/${encodeURIComponent(id)}/links${tail}`
+  return {
+    async addLink(id: string, link: NoteLinkIn): Promise<NoteLink> {
+      const r = await fetch(notesUrl(api, at(id)), {
+        method: 'POST', credentials: api.credentials, headers: headersOf(api, { 'content-type': 'application/json' }),
+        body: JSON.stringify(link), signal: AbortSignal.timeout(HUB_WRITE_TIMEOUT_MS),
+      })
+      if (!r.ok) throw await refusal(r, 'notes link add')
+      return (await r.json()) as NoteLink
+    },
+    async removeLink(id: string, linkId: string): Promise<void> {
+      const r = await fetch(notesUrl(api, at(id, '/' + encodeURIComponent(linkId))), {
+        method: 'DELETE', credentials: api.credentials, headers: headersOf(api), signal: AbortSignal.timeout(HUB_WRITE_TIMEOUT_MS),
+      })
+      if (!r.ok && r.status !== 404) throw await refusal(r, 'notes link delete')
+    },
+  }
+}
+
 /** The hub's notes routes; a write answers the note or throws the refusal. */
 function hubNotes(api: NotesApi) {
   const one = (id: string, tail = '') => `/${encodeURIComponent(id)}${tail}`
@@ -122,6 +161,7 @@ function hubNotes(api: NotesApi) {
     return normalNote(await r.json())
   }
   return {
+    ...hubNoteLinks(api),
     async list(): Promise<NoteSummary[]> {
       const r = await fetch(notesUrl(api), { credentials: api.credentials, headers: headersOf(api), signal: AbortSignal.timeout(HUB_READ_TIMEOUT_MS) })
       if (!r.ok) throw await refusal(r, 'notes list')
@@ -179,9 +219,35 @@ function mockNotes(): ReturnType<typeof hubNotes> {
     putItems: async (id: string, items: NoteItem[]) => write(id, (n) => {
       n.items = items.map((i, k) => ({ ...i, id: i.id.startsWith('new-') ? `mock-item-${Date.now()}-${k}` : i.id, position: k }))
     }),
+    async addLink(id: string, link: NoteLinkIn) {
+      const added: NoteLink = { ...link, label: link.label || '', id: `mock-link-${Date.now()}`, left: false }
+      write(id, (n) => { n.links = [...n.links, { ...added, position: n.links.length }] })
+      return added
+    },
+    async removeLink(id: string, linkId: string) {
+      write(id, (n) => { n.links = n.links.filter((l) => l.id !== linkId) })
+    },
     async remove(id: string) {
       all = all.filter((n) => n.id !== id)
       return true
+    },
+  }
+}
+
+/** B7: add and remove one link; the list row's link count follows. A refusal is thrown. */
+function linkActions(wire: () => ReturnType<typeof hubNotes>, notes: Ref<NoteSummary[]>) {
+  const count = (id: string, by: number) => {
+    notes.value = notes.value.map((n) => (n.id === id ? { ...n, link_count: Math.max(0, n.link_count + by) } : n))
+  }
+  return {
+    async addLink(id: string, link: NoteLinkIn): Promise<NoteLink> {
+      const added = await wire().addLink(id, link)
+      count(id, 1)
+      return added
+    },
+    async removeLink(id: string, linkId: string): Promise<void> {
+      await wire().removeLink(id, linkId)
+      count(id, -1)
     },
   }
 }
@@ -259,7 +325,7 @@ export const useNotesStore = defineStore('notes', () => {
     return wire().remove(id, keepalive)
   }
 
-  return { notes, state, hidden, load, create, get, patch, putItems, hide, unhide, remove }
+  return { notes, state, hidden, load, create, get, patch, putItems, ...linkActions(wire, notes), hide, unhide, remove }
 })
 
 /** A note from the hub, with the arrays always present. */

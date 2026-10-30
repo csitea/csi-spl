@@ -38,6 +38,7 @@ const {
   NOTES_RAIL_ON,
   RAIL_SWITCHED_OFF,
   helpPageListed,
+  settingsSectionListed,
 } = await importTsPatched('src/utils/rail-order.ts', SWITCH_OFF, SWITCH_ON)
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -324,6 +325,18 @@ describe('spec 155: the Notes rail tab switched off (NOTES_RAIL_ON, as shipped)'
     const pages = JSON.parse(read('src/public/help-md/pages.json')).pages
     assert.ok(pages.some((p) => p.slug === 'notes'), 'the page stays in pages.json, /help/notes opens')
     assert.match(read('src/pages/help/[[page]].vue'), /&& helpPageListed\(p\.slug\)\)/, '/help filters its list through helpPageListed')
+  })
+  it('Settings and the palette leave the Notes section out while the tab is off (SPL-4331), and list it with it on', async () => {
+    assert.equal(shipped.settingsSectionListed('notes'), false)
+    assert.equal(shipped.settingsSectionListed('keys'), true)
+    assert.equal(settingsSectionListed('notes'), true)
+    const { SETTINGS_SECTIONS, settingsQuerySection } = await import('../../src/utils/settings-nav.mjs')
+    assert.ok(SETTINGS_SECTIONS.some((s) => s.id === 'notes'), 'the section stays defined')
+    assert.equal(settingsQuerySection({ settings: 'notes' }), 'notes', '?settings=notes still opens it')
+    const dialog = read('src/components/SettingsDialog.vue')
+    assert.match(dialog, /const LISTED_SECTIONS = SETTINGS_SECTIONS\.filter\(\(s\) => settingsSectionListed\(s\.id\)\)/)
+    assert.match(dialog, /<li v-for="s in LISTED_SECTIONS"/, 'the nav draws the listed sections')
+    assert.match(read('src/composables/usePaletteItems.ts'), /SETTINGS_SECTIONS\.filter\(\(s\) => settingsSectionListed\(s\.id\)\)\.map/, 'the palette rows too')
   })
   it('the /notes route stays reachable by URL', async () => {
     const { tabForPath, routeForTab } = await import('../../src/utils/sidebar-tabs.mjs')

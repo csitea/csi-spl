@@ -2,7 +2,8 @@
 // signed in. The mock bundle keeps the notes in the notes store's memory
 // (stores/notes.ts), so every step stays in one page: a reload would bring
 // the four mock notes back.
-//   C31-1 1440: ?settings=notes opens the section; the nav lists Notes, active
+//   C31-1 1440: ?settings=notes opens the section; the nav lists Notes, active,
+//         or, while the Notes rail tab is off (NOTES_RAIL_ON), leaves it out
 //   C31-2 Export hands the browser notes-<date>.json holding every note, the
 //         archived one too (the file is read back from its object URL)
 //   C31-3 CONTROL (the twin): a wrong word keeps Erase off; pressing Enter in
@@ -19,6 +20,9 @@ import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS, applyViewport, setPageViewport } from './lib/viewport.mjs'
+import { importTs } from '../unit/lib/load-ts.mjs'
+/* spec 155 B10: the nav lists Notes only while its rail tab is on (NOTES_RAIL_ON) */
+const { settingsSectionListed } = await importTs('src/utils/rail-order.ts')
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const OUT = process.env.OUT || ''
@@ -101,7 +105,8 @@ try {
   const open = await shown()
   ok('C31-1 ?settings=notes opens the section', open && await has('snotes-export') && await has('snotes-erase'))
   if (!open) throw new Error('no Settings -> Notes section: stop')
-  ok('C31-1 the nav lists Notes, active', await p.$eval('[data-test=settings-nav-notes]', (a) => a.getAttribute('aria-current') === 'page' && a.textContent.trim() === 'Notes').catch(() => false))
+  if (settingsSectionListed('notes')) ok('C31-1 the nav lists Notes, active', await p.$eval('[data-test=settings-nav-notes]', (a) => a.getAttribute('aria-current') === 'page' && a.textContent.trim() === 'Notes').catch(() => false))
+  else ok('C31-1 the nav leaves Notes out while its rail tab is off', !(await has('settings-nav-notes')) && await has('settings-nav-keys'))
   await shot('1440')
 
   /* C31-2 */

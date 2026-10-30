@@ -15,7 +15,7 @@ import { useChannelStore } from '~/stores/channel'
 import { useRosterStore } from '~/stores/roster'
 import { useViewerStore } from '~/stores/viewer'
 import { useAccessStore } from '~/stores/access'
-import { RAIL_TABS } from '~/utils/rail-order'
+import { RAIL_TABS, settingsSectionListed } from '~/utils/rail-order'
 import { routeForTab } from '~/utils/sidebar-tabs.mjs'
 import { SETTINGS_QUERY, SETTINGS_SECTIONS } from '~/utils/settings-nav.mjs'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
@@ -105,7 +105,7 @@ function docRows(ws: readonly TreeFile[], repo: readonly TreeFile[]): PaletteGoI
 
 /** The Settings modal opens over the current view (CLE-77853). */
 function settingsRows(t: Translate, here: { path: string, query: LocationQuery }): PaletteGoItem[] {
-  return SETTINGS_SECTIONS.map((s) => ({ id: 'settings:' + s.id, group: 'settings', label: t(s.label), icon: 'settings', to: { path: here.path, query: { ...here.query, [SETTINGS_QUERY]: s.id } } }))
+  return SETTINGS_SECTIONS.filter((s) => settingsSectionListed(s.id)).map((s) => ({ id: 'settings:' + s.id, group: 'settings', label: t(s.label), icon: 'settings', to: { path: here.path, query: { ...here.query, [SETTINGS_QUERY]: s.id } } }))
 }
 
 /**

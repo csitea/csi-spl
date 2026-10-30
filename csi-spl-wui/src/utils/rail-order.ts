@@ -36,6 +36,13 @@ export function helpPageListed(slug: string): boolean {
   return !(RAIL_SWITCHED_OFF as readonly string[]).includes(slug)
 }
 
+/** Whether Settings lists its section `id` (spec 155 B10, SPL-4331): the
+    Notes section waits for the Notes rail tab, so the dialog and the palette
+    leave it out while the tab is off. ?settings=notes still opens it. */
+export function settingsSectionListed(id: string): boolean {
+  return !(RAIL_SWITCHED_OFF as readonly string[]).includes(id)
+}
+
 /** The tabs in the default order, with their icon and catalogue key. */
 export const RAIL_TABS: readonly RailTab[] = Object.freeze([
   /* Owner 2026-09-27 (topic 116646c8): new members start with Channels,

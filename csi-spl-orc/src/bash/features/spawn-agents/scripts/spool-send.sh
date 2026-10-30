@@ -22,7 +22,8 @@
 # machine's desk sidecar (scripts/spool-fleet-relay.sh); the hub roster names
 # the box that holds it, and that machine's sidecar writes it into the agent's
 # inbox there and rings its pane. delivery is then the hub's (sent|queued|
-# pending), never "local", and no orphan inbox is made here. An id the hub
+# pending), never "local", and no orphan inbox is made here; the sender's
+# outbox still gets its copy, named --relayed-<id8> (SPL-4430). An id the hub
 # cannot place either is refused, exit 13, nothing written.
 # `--to <ID>@<box>` names the machine: this machine's own desk box sends
 # locally, any other box is relayed with that to_box (the role ids 001-003
@@ -340,6 +341,33 @@ send_peers_local() {
   printf '{"delivery":"peers-local","msg_id":"%s","task_id":"%s","ts":"%s"}\n' "$id" "$task" "$ts"
 }
 
+# SPL-4430: the sender's outbox copy of a send relayed to another machine. The
+# relay writes the peer's inbox over there only, so every reader that takes
+# the outbox as "sent" (GC, done-claim) missed the post. ONE v:1 object with
+# the msg_id / task_id / ts the relay returned (OUT, its JSON); `to` is
+# <id>@<box> when --to named the box, else the bare id (the hub placed it).
+# The "relayed" marker is in the file name, not a key: msg.Parse refuses an
+# unknown key, so `spool tail` would drop the copy. A failed copy WARNs only.
+send_relay_outbox() {  # OUT
+  local id task ts to d f
+  id="$(printf '%s' "$1" | sed -n 's/.*"msg_id" *: *"\([^"]*\)".*/\1/p')"
+  task="$(printf '%s' "$1" | sed -n 's/.*"task_id" *: *"\([^"]*\)".*/\1/p')"
+  ts="$(printf '%s' "$1" | sed -n 's/.*"ts" *: *"\([^"]*\)".*/\1/p')"
+  to="$TO"; [ -n "$TO_BOX" ] && to="$TO@$TO_BOX"
+  d="$SPOOL_ROOT/$FROM/outbox"
+  f="$(date -u +%Y%m%dT%H%M%SZ)--${FROM}--relayed-${id:0:8}.json"
+  if [ -n "$id" ] && [ -n "$task" ] && { mkdir -p "$d" &&
+       jq -n -c --arg id "$id" --arg t "$task" --arg ts "${ts:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" \
+         --arg f "$FROM" --arg to "$to" --arg k "$KIND" --arg b "$BODY" \
+         '{v: 1, msg_id: $id, task_id: $t, ts: $ts, from: $f, to: $to, kind: $k, body: $b, files: []}' \
+         >"$d/.$f.tmp" && mv -f "$d/.$f.tmp" "$d/$f"; } 2>/dev/null; then
+    return 0
+  fi
+  rm -f "$d/.$f.tmp" 2>/dev/null
+  echo "outbox: WARN ${id:-(no msg_id)} was relayed to ${to}, but its copy in ${d} failed; do not resend" >&2
+  return 0
+}
+
 # Spec 101 R2 (fleet-roles 3): the dispatcher that takes real lane work spawns
 # the lane itself. A `task` from a dispatcher (?-002 / ?-003) to the
 # orchestrator whose body asks for a new lane is that work handed back to the
@@ -549,6 +577,7 @@ if [ "$POKE_ONLY" -eq 0 ]; then
       exit $((10 + rc))
     fi
     RELAY=1
+    send_relay_outbox "$out"
   elif [ -n "$ACCEPT" ] && [ "${#EXTRA[@]}" -eq 0 ] && ! spool_fleet_retired "$TO" &&
        out="$(send_accept_via_hub)"; then
     RELAY=2

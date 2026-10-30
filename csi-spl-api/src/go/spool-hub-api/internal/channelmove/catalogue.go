@@ -46,7 +46,7 @@ var Binds = map[string]string{
 	"channel":    "text",   // M1 the channel id
 	"tasks":      "uuid[]", // M2 every task id of the set (topics, threads, sub-tasks)
 	"msgs":       "uuid[]", // M2 every msg id of the set
-	"mark_keys":  "text[]", // read_marks keys of the set: 'ch:<channel>' and 't:<task>' per task
+	"mark_keys":  "text[]", // read_marks keys of the set: 'ch:<channel>', 't:<task>' per task, 'f:<msg>' per msg (flow marks, rdb 0104)
 	"events":     "uuid[]", // calendar_events.event_id of rows whose topic_id is an M2 task
 	"jobs":       "text[]", // hours_jobs.job_id of jobs whose task_id is an M2 task
 	"targets":    "text[]", // M6c hours targets: 'ch:<channel>', 't:<task>', 'cal:<event>', 'job:<job>'

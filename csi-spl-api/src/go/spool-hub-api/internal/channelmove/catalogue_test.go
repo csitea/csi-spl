@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -733,12 +734,33 @@ func TestCatalogueSchemaMatchesPostgres(t *testing.T) {
 			if p == "" {
 				continue
 			}
-			q := "EXPLAIN SELECT 1 FROM " + e.Table + " WHERE tenant_id = @src AND (" + p + ")"
-			if _, err := pg.Pool().Exec(ctx, q, sampleBinds()); err != nil {
+			if err := explain(ctx, pg, e.Table, p); err != nil {
 				t.Errorf("%s: %s: %v", e.Table, p, err)
 			}
 		}
 	}
+	// CONTROL (c-909, R7 N1): a text column against a uuid[] bind. Without
+	// the casts in explain, the server infers the bind's type from the
+	// column and this plans.
+	if err := explain(ctx, pg, "usage_events", `channel_id = ANY(@tasks)`); err == nil {
+		t.Error("CONTROL: usage_events channel_id = ANY(@tasks) planned; the bind types are not enforced")
+	}
+}
+
+var bindRef = regexp.MustCompile(`@([a-z_]+)`)
+
+// explain plans one predicate with every bind cast to its Binds type, so a
+// predicate that compares a column with a bind of another type is refused.
+func explain(ctx context.Context, pg *store.Postgres, table, pred string) error {
+	typed := bindRef.ReplaceAllStringFunc(pred, func(m string) string {
+		if typ, ok := Binds[m[1:]]; ok {
+			return m + "::" + typ
+		}
+		return m
+	})
+	q := "EXPLAIN SELECT 1 FROM " + table + " WHERE tenant_id = @src AND (" + typed + ")"
+	_, err := pg.Pool().Exec(ctx, q, sampleBinds())
+	return err
 }
 
 func liveSchema(t *testing.T, pg *store.Postgres) schema {

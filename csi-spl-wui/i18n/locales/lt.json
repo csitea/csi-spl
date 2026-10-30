@@ -3409,7 +3409,7 @@
         "tokens": "DI žetonai",
         "price": "Žetono kaina",
         "paid": "Apmokėti įrašai",
-        "cloud": "Debesis",
+        "cloud": "Debesija",
         "human": "Žmonės"
       },
       "cloud": {
@@ -3419,14 +3419,14 @@
         "col_project": "GCP projektas",
         "col_service": "Paslauga",
         "col_day": "Diena",
-        "box": "mašina {box}",
+        "box": "box {box}",
         "services": "Paslaugų: {n}",
         "days": "Dienų su išlaidomis: {n}",
         "empty": "Šį mėnesį dar nėra debesijos išlaidų eilutės. Atsiskaitymų eksportas nuskaitomas kartą per dieną."
       },
       "tokens": {
         "title": "DI žetonų išlaidos",
-        "list_note": "Sumokėta suma yra valiutos stulpelyje; kainoraščio kaina rodoma šalia ir niekada nepridedama.",
+        "list_note": "Sumokėta suma yra valiutos stulpelyje; kainyno kaina rodoma šalia ir niekada nepridedama.",
         "empty": "Šį mėnesį dar nėra DI žetonų išlaidų eilutės."
       },
       "human": {

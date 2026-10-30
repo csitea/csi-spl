@@ -263,7 +263,13 @@ drill down by service etc."
   drill-down rides in the query (`?project=`, `&kind=`) beside the
   header's month and currency. Tests: `TestCostCloudDays` (store,
   Postgres, a superseded line seeded; hub, both stores),
-  `TestCostCloudDaysActAsClone` (hub, Postgres).
+  `TestCostCloudDaysActAsClone` (hub, Postgres). Each level draws a
+  share-of-total % column and a Total row, the month's coverage line
+  (`monitoring.costs.coverage_row`) and crumbs that walk back up a level.
+  WUI tests: `tests/unit/costs-sections.test.mjs` (the three levels, the
+  sums and the order) and the Cloud checks in
+  `tests/e2e/monitoring-costs.test.mjs` (levels 1..3, totals = the row
+  drilled from, the operators-only control).
 - **AI tokens** (`/reporting/costs/tokens`): the month read's token parts
   (`fleet_tokens`, `ai_paid`, `ai_share`), paid money and the list value
   beside it, never added (13.3), plus today's live fleet card for the

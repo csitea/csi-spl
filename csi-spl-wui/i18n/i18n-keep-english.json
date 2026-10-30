@@ -31,6 +31,8 @@
     "monitoring.tokens.col_box": "ro keeps 'Box' to match its 'Boxuri' tab: agy language review SPL-2322 (a-351, msg 66006252)",
     "tenant_settings.caps_col_status": "nl and sv write the caps table's Status header the same as en, like their boxes.col_state: agy language review spec 147 R5 (a-619, msg 15f62b55)",
     "auth.login.hero.agent": "the sign-in hero's lower-case 'agent' badge: et, nl, pl, ro, sk and sv write the word the same (their agents.kinds.agent is 'Agent', or a longer compound for the badge) (SPL-2417)",
-    "feed.topic_list.filter": "the topic list filter control: sk writes the word the same, 'Filter', as its feed.move.filter (claude language review W12, c-692 msg 71fe7b12, SPL-4203)"
+    "feed.topic_list.filter": "the topic list filter control: sk writes the word the same, 'Filter', as its feed.move.filter (claude language review W12, c-692 msg 71fe7b12, SPL-4203)",
+    "reporting.costs.cloud.box": "the Cloud row's box label keeps each locale's own word 'box' (its settings.keys.use, sidebar.help.boxes; es says 'equipo'): claude language review W1, c-700 msg 15167f79, SPL-4187",
+    "reporting.costs.page.cloud": "the Cloud cost tab: nl, ro and sk write the cloud-computing loanword 'Cloud' as in their own cloud titles, not the sky word: claude language review W4, c-700 msg 15167f79, SPL-4187"
   }
 }

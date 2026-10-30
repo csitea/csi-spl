@@ -3410,7 +3410,7 @@
         "price": "Pris per token",
         "paid": "Betalda poster",
         "cloud": "Moln",
-        "human": "Människor"
+        "human": "Personal"
       },
       "cloud": {
         "title": "Molnkostnader per GCP-projekt",
@@ -3419,7 +3419,7 @@
         "col_project": "GCP-projekt",
         "col_service": "Tjänst",
         "col_day": "Dag",
-        "box": "maskin {box}",
+        "box": "box {box}",
         "services": "Tjänster: {n}",
         "days": "Dagar med kostnad: {n}",
         "empty": "Ingen rad med molnkostnad ännu den här månaden. Faktureringsexporten läses en gång om dagen."

@@ -120,13 +120,15 @@ describe('chunks and strings', () => {
     const en = JSON.parse(read('i18n/locales/en.json')).reporting.costs
     const keys = ['page.cloud', 'page.human', 'page.tokens', ...['cloud', 'tokens', 'human'].flatMap((g) => Object.keys(en[g]).map((k) => g + '.' + k))]
     assert.equal(keys.length, 18)
+    /* a key the allow-list keeps in English (with its reason) may equal en */
+    const keepEnglish = new Set(Object.keys(JSON.parse(read('i18n/i18n-keep-english.json')).keys))
     const dir = join(WUI, 'i18n/locales')
     for (const f of readdirSync(dir).filter((x) => x.endsWith('.json'))) {
       const c = JSON.parse(readFileSync(join(dir, f), 'utf8')).reporting.costs
       for (const k of keys) {
         const v = k.split('.').reduce((o, x) => o?.[x], c)
         assert.equal(typeof v, 'string', f + ': ' + k)
-        if (f !== 'en.json') assert.notEqual(v, k.split('.').reduce((o, x) => o?.[x], en), f + ': ' + k + ' is the English text')
+        if (f !== 'en.json' && !keepEnglish.has('reporting.costs.' + k)) assert.notEqual(v, k.split('.').reduce((o, x) => o?.[x], en), f + ': ' + k + ' is the English text')
       }
     }
   })

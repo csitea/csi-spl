@@ -3410,7 +3410,7 @@
         "price": "Tokenin hinta",
         "paid": "Maksetut erät",
         "cloud": "Pilvi",
-        "human": "Ihmiset"
+        "human": "Henkilöstö"
       },
       "cloud": {
         "title": "Pilvikulut GCP-projekteittain",
@@ -3419,7 +3419,7 @@
         "col_project": "GCP-projekti",
         "col_service": "Palvelu",
         "col_day": "Päivä",
-        "box": "kone {box}",
+        "box": "box {box}",
         "services": "Palveluja: {n}",
         "days": "Päiviä, joilla kuluja: {n}",
         "empty": "Tältä kuukaudelta ei ole vielä pilvikulurivejä. Laskutusvienti luetaan kerran päivässä."

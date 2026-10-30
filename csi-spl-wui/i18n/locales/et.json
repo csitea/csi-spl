@@ -3419,7 +3419,7 @@
         "col_project": "GCP projekt",
         "col_service": "Teenus",
         "col_day": "Päev",
-        "box": "masin {box}",
+        "box": "box {box}",
         "services": "Teenuseid: {n}",
         "days": "Kuluga päevi: {n}",
         "empty": "Selle kuu kohta pole veel ühtegi pilvekulu rida. Arvelduse eksporti loetakse kord päevas."

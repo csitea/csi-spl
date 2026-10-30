@@ -3409,8 +3409,8 @@
         "tokens": "Tokeni AI",
         "price": "Preț pe token",
         "paid": "Elemente plătite",
-        "cloud": "Nor",
-        "human": "Oameni"
+        "cloud": "Cloud",
+        "human": "Personal"
       },
       "cloud": {
         "title": "Costuri cloud pe proiect GCP",
@@ -3419,7 +3419,7 @@
         "col_project": "Proiect GCP",
         "col_service": "Serviciu",
         "col_day": "Zi",
-        "box": "mașină {box}",
+        "box": "box {box}",
         "services": "Servicii: {n}",
         "days": "Zile cu cost: {n}",
         "empty": "Încă nu există nicio linie de cost cloud luna aceasta. Exportul de facturare este citit o dată pe zi."
@@ -3430,8 +3430,8 @@
         "empty": "Încă nu există nicio linie de cost cu tokeni AI luna aceasta."
       },
       "human": {
-        "title": "Costuri cu oameni",
-        "not_tracked": "Încă neurmărit. Costurile cu oameni sunt timp aprobat la prețul propriu al fiecărei persoane, construite de rândurile {rows} din specificația 107; nu se afișează niciun număr până nu sunt gata."
+        "title": "Costuri cu personalul",
+        "not_tracked": "Încă neurmărit. Costurile cu personalul sunt timp aprobat la prețul propriu al fiecărei persoane, construite de rândurile {rows} din specificația 107; nu se afișează niciun număr până nu sunt gata."
       }
     },
     "releases": {

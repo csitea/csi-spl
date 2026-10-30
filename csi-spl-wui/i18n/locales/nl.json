@@ -3409,8 +3409,8 @@
         "tokens": "AI-tokens",
         "price": "Prijs per token",
         "paid": "Betaalde posten",
-        "cloud": "Wolk",
-        "human": "Mensen"
+        "cloud": "Cloud",
+        "human": "Personeel"
       },
       "cloud": {
         "title": "Cloudkosten per GCP-project",
@@ -3419,7 +3419,7 @@
         "col_project": "GCP-project",
         "col_service": "Dienst",
         "col_day": "Dag",
-        "box": "machine {box}",
+        "box": "box {box}",
         "services": "Diensten: {n}",
         "days": "Dagen met kosten: {n}",
         "empty": "Nog geen regel met cloudkosten in deze maand. De facturatie-export wordt eenmaal per dag gelezen."

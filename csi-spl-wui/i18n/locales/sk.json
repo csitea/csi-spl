@@ -3409,7 +3409,7 @@
         "tokens": "Tokeny AI",
         "price": "Cena za token",
         "paid": "Zaplatené položky",
-        "cloud": "Oblak",
+        "cloud": "Cloud",
         "human": "Ľudia"
       },
       "cloud": {
@@ -3419,7 +3419,7 @@
         "col_project": "Projekt GCP",
         "col_service": "Služba",
         "col_day": "Deň",
-        "box": "stroj {box}",
+        "box": "box {box}",
         "services": "Služby: {n}",
         "days": "Dni s nákladmi: {n}",
         "empty": "Tento mesiac zatiaľ nie je žiadny riadok nákladov na cloud. Export fakturácie sa číta raz denne."

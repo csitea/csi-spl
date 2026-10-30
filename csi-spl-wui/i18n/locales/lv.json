@@ -3419,7 +3419,7 @@
         "col_project": "GCP projekts",
         "col_service": "Pakalpojums",
         "col_day": "Diena",
-        "box": "mašīna {box}",
+        "box": "box {box}",
         "services": "Pakalpojumi: {n}",
         "days": "Dienas ar izmaksām: {n}",
         "empty": "Šajā mēnesī vēl nav nevienas mākoņa izmaksu rindas. Norēķinu eksports tiek nolasīts reizi dienā."

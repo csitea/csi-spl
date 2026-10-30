@@ -3410,7 +3410,7 @@
         "price": "Cena za token",
         "paid": "Opłacone pozycje",
         "cloud": "Chmura",
-        "human": "Ludzie"
+        "human": "Personel"
       },
       "cloud": {
         "title": "Koszty chmury według projektu GCP",
@@ -3419,7 +3419,7 @@
         "col_project": "Projekt GCP",
         "col_service": "Usługa",
         "col_day": "Dzień",
-        "box": "maszyna {box}",
+        "box": "box {box}",
         "services": "Usługi: {n}",
         "days": "Dni z kosztem: {n}",
         "empty": "W tym miesiącu nie ma jeszcze żadnej pozycji kosztów chmury. Eksport rozliczeń jest odczytywany raz dziennie."
@@ -3430,8 +3430,8 @@
         "empty": "W tym miesiącu nie ma jeszcze żadnej pozycji kosztów tokenów AI."
       },
       "human": {
-        "title": "Koszty ludzi",
-        "not_tracked": "Jeszcze nie śledzone. Koszty ludzi to zatwierdzony czas według własnej stawki każdej osoby, budowany przez wiersze {rows} specyfikacji 107; żadna liczba nie jest pokazywana, dopóki nie zostaną ukończone."
+        "title": "Koszty osobowe",
+        "not_tracked": "Jeszcze nie śledzone. Koszty osobowe to zatwierdzony czas według własnej stawki każdej osoby, budowany przez wiersze {rows} specyfikacji 107; żadna liczba nie jest pokazywana, dopóki nie zostaną ukończone."
       }
     },
     "releases": {

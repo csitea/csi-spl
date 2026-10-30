@@ -50,7 +50,6 @@ const ALLOW = new Map([
   ['src/utils/hours-calendar.mjs', ['hoursRowCounts']],
   ['src/utils/hours-team-mock.mjs', ['HOURS_TEAM_MOCK_MEMBERS']],
   ['src/utils/human-keys.mjs', ['sshKeyBlob']],
-  ['src/utils/id-links.mjs', ['resolveTyped']],
   ['src/utils/join-tokens.mjs', ['normalizeJoinToken']],
   ['src/utils/msg-kind.mjs', ['KIND_ICONS']],
   ['src/utils/perf-mark.mjs', ['perfCache']],
@@ -69,7 +68,7 @@ const ALLOW = new Map([
   ['src/utils/topic-open.mjs', ['TOPIC_PANE_OWN_CLICK']],
   ['src/utils/tree-drag.ts', ['TREE_DROP_EDGE']],
 ])
-const ALLOW_CAP = 34
+const ALLOW_CAP = 33
 
 function walk(dir, out = []) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {

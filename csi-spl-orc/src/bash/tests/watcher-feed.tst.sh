@@ -4,7 +4,8 @@
 #          an agy watcher reads, and its filter is the data rule's boundary:
 #          a planted secret-kind lane, a planted orchestration-kind lane, the
 #          orch seat (the lease holder, and a role seat) and lanes it cannot
-#          classify (no brief, no Kind:, an unknown kind, a "Data: secret"
+#          classify (no brief, no Kind:, an unknown kind, a later or a second
+#          Kind: line, a "Data: secret"
 #          marker) leave NOTHING in the feed. Each planted lane carries a
 #          unique token in its brief, pane and messages, and the check greps
 #          the whole feed for it: a ban list cannot prove absence (global
@@ -56,6 +57,11 @@ lane c-507 %8 "Kind: frobnicate"
 lane c-508 %9 "Kind: tests
 Data: secret"
 lane c-509 %10 "Kind: **i18n**"
+lane c-511 %12 "Kind: tests
+later text, then
+Kind: secret"
+lane c-512 %13 "Kind: tests
+Kind: simple_coding"
 # an id re-registers: its last row's pane is the one captured
 printf 'c-509\tclaude\t%%11\t/w/c-509\t20261030T010000Z\t-\n' >>"$S/registry.tsv"
 printf 'TOK-c-509-oldpane\n' >"$T/panes/10.txt"; printf 'c-509 new pane\n' >"$T/panes/11.txt"
@@ -66,13 +72,17 @@ msg c-501 inbox c-509 c-501 "c-509 says hi"
 msg c-501 outbox c-501 c-503 "TOK-c-503 kept-to-secret"
 msg c-501 outbox c-501 c-002@box-a "c-501 to dispatch"
 msg c-501 outbox c-502 c-509 "TOK-c-502 forged-from"
+# ids are unique only as <ID>@<box>: c-509@sat is not this box's (box-a) c-509
+msg c-501 inbox c-509@sat c-501 "TOK-SAT other-box-from"
+msg c-501 outbox c-501 c-509@sat "TOK-SAT other-box-to"
+msg c-501 inbox c-509@box-a c-501@box-a "c-509 at this box"
 
 printf '#!/bin/sh\ncat "%s/panes/$(printf %%s "$1" | tr -d %%).txt"\n' "$T" >"$T/cap.sh"; chmod +x "$T/cap.sh"
 
 feed() {
-  env -u WATCHER_FEED_DIR -u WATCHER_FEED_LEASE -u WATCHER_FEED_REGISTRY -u WATCHER_FEED_MSGS \
+  env -u WATCHER_FEED_DIR -u WATCHER_FEED_LEASE -u WATCHER_FEED_BOX -u SPOOL_DESK_BOX -u WATCHER_FEED_REGISTRY -u WATCHER_FEED_MSGS \
     PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" SPOOL_TEST=1 WATCHER_FEED_DIR="$FEED" \
-    WATCHER_FEED_CAPTURE="$T/cap.sh" "$@" bash -c '
+    WATCHER_FEED_CAPTURE="$T/cap.sh" WATCHER_FEED_BOX=box-a "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     do_require_bin() { command -v "$1" >/dev/null; }
@@ -90,7 +100,7 @@ feed DRY_RUN=0; rc=$?
 [[ $rc == 0 && -d "$FEED/lanes" ]] && pass "DRY_RUN=0 writes the feed" || fail "write rc=$rc: $(cat "$T/log")"
 
 # 3. nothing of a dropped lane reaches the feed: its token, its dir, its row
-for id in c-502 c-503 c-504 c-001 c-505 c-506 c-507 c-508; do
+for id in c-502 c-503 c-504 c-001 c-505 c-506 c-507 c-508 c-511 c-512; do
   hit="$(grep -rl "TOK-$id" "$FEED" 2>/dev/null)"
   if [[ -z "$hit" && ! -e "$FEED/lanes/$id" ]] && ! grep -q "^$id"$'\t' "$FEED/registry.tsv" "$FEED/lanes.tsv"; then
     pass "$id ($(grep "^DROP $id:" "$T/log" | sed 's/^DROP [^:]*: //')) is absent from the feed"
@@ -104,6 +114,8 @@ grep -q '^DROP c-505: no readable Kind:$' "$T/log" && grep -q '^DROP c-506: no r
   && grep -q '^DROP c-507: kind frobnicate is not on the feed allow-list$' "$T/log" \
   && grep -q '^DROP c-508: data-rule marker Data: secret$' "$T/log" \
   && pass "fail closed: no Kind:, no brief, unknown kind, Data: secret" || fail "fail-closed reasons: $(grep DROP "$T/log")"
+grep -q '^DROP c-511: secret-class kind secret$' "$T/log" && grep -q '^DROP c-512: several Kind: lines (simple_coding,tests)$' "$T/log" \
+  && pass "every Kind: line counts: a later secret one, two different kinds" || fail "Kind: lines: $(grep DROP "$T/log")"
 
 # 4. the kept lanes are whole
 if [[ "$(cat "$FEED/lanes.tsv")" == $'c-501\tsimple_coding\nc-509\ti18n' ]] \
@@ -116,8 +128,11 @@ grep -q 'c-509 new pane' "$FEED/lanes/c-509/pane.txt" && pass "a re-registered i
 
 # 5. per-message rules: mail from a kept lane and to a role seat stays
 grep -rq 'c-509 says hi' "$FEED/lanes/c-501/inbox" && grep -rq 'c-501 to dispatch' "$FEED/lanes/c-501/outbox" \
-  && pass "kept lane mail: from a kept lane, to a role seat" || fail "kept mail: $(find "$FEED/lanes/c-501" -type f)"
-[[ "$(find "$FEED" -name '*.json' | wc -l)" == 4 ]] && pass "exactly 4 messages in the feed" \
+  && grep -rq 'c-509 at this box' "$FEED/lanes/c-501/inbox" \
+  && pass "kept lane mail: from a kept lane (bare and @this box), to a role seat" || fail "kept mail: $(find "$FEED/lanes/c-501" -type f)"
+hit="$(grep -rl TOK-SAT "$FEED")"
+[[ -z "$hit" ]] && pass "mail from or to the same id on another box is absent" || fail "other-box mail reached the feed: $hit"
+[[ "$(find "$FEED" -name '*.json' | wc -l)" == 5 ]] && pass "exactly 5 messages in the feed" \
   || fail "messages: $(find "$FEED" -name '*.json')"
 
 # 6. a rerun replaces the feed whole: a lane that turns secret disappears

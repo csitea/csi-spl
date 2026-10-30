@@ -267,10 +267,13 @@ As built (B5, `csi-spl-orc/src/bash/run/spl-watcher-feed.func.sh`): the
 kind check is an allow-list (`WATCHER_FEED_KINDS`: the non-secret kinds of
 spec 115 and their aliases), so an unknown kind is dropped too; a brief with
 a data-rule marker (`Data: secret`, `Data rule:`, as the spawn placer reads
-them) is dropped; every role seat `[acgmq]-00[1-3]` is dropped, not only the
-`lease.orch` holder. A kept lane keeps an inbox message only from a kept
-lane, and an outbox message only from itself to a kept lane, a role seat or
-`orchestrator`. The keep/drop lines go to the producer's log, never into the
+them) is dropped; every `Kind:` line of the brief counts, so a later
+secret-class one or two different kinds drop the lane (R7 W1); every role
+seat `[acgmq]-00[1-3]` is dropped, not only the `lease.orch` holder. A kept
+lane keeps an inbox message only from a kept lane, and an outbox message only
+from itself to a kept lane, a role seat or `orchestrator`; an address with an
+`@<box>` other than this box (`WATCHER_FEED_BOX`, default `SPOOL_DESK_BOX`)
+never matches a lane here (R7 W2). The keep/drop lines go to the producer's log, never into the
 feed. The test (`csi-spl-orc/src/bash/tests/watcher-feed.tst.sh`) puts a
 unique token in each dropped lane's brief, pane and messages and greps the
 whole feed for it.

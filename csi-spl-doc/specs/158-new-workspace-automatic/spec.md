@@ -85,11 +85,22 @@ Paths are relative to the repo root. `hub` = `csi-spl-api/src/go/spool-hub-api/i
 
 ### 4.2 Hub (A-fleet)
 
-1. **rdb**: `tenants.fleet_seating boolean NOT NULL DEFAULT false`. The create
-   route sets it to true for every new workspace (`fleet_seating` in the
-   request, default true). The operator can flip it with
+1. **rdb**: `tenants.fleet_seating boolean NOT NULL DEFAULT false`. Every
+   workspace create sets it to true unless told false: the insert itself
+   (`store.CreateTenant`, `Tenant.FleetSeatingOff`) writes it, so the
+   operator route (`fleet_seating` in the request, default true),
+   `spool hub-tenant` / `do_spl_tenant_create` (`--fleet-seating`, default
+   true) and any later create path get it with no second write that could
+   fail on its own. The operator can flip it with
    `PATCH /v1/operator/workspaces/{id}` (audited), as with `box_join_enabled`.
    A workspace's own admin cannot write it.
+
+   What was wrong in the first build of T5 (SPL-4295): only the operator
+   route wrote the switch, in a second write after the insert whose failure
+   was only logged. a prd workspace was created on 2026-10-29 13:54Z by
+   `do_spl_tenant_create`, which inserts through `spool hub-tenant` and never
+   calls that route (no `operator_audit` create row for it on prd), so it
+   kept the column default false.
 2. **rdb**: `fleet_desk_boxes (box_id, added_by, added_at)`. These are the
    desk boxes of the operator workspace that may self-enrol. The operator
    manages them through `PUT/DELETE /v1/operator/fleet-desks/{box}` and the

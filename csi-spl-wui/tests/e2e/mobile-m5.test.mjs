@@ -215,6 +215,8 @@ async function checkDialog(browser, base, vp) {
 
 const shown = (p, sel) => p.$eval(sel, (e) => { const r = e.getBoundingClientRect(); return getComputedStyle(e).display !== 'none' && r.width > 0 && r.height > 0 }).catch(() => false)
 
+/* the nav has one row per section (spec 155 B10 added notes: 8 -> 9) */
+import { SETTINGS_SECTIONS } from '../../src/utils/settings-nav.mjs'
 const settingsQ = (p) => new URL(p.url()).searchParams.get('settings')
 
 /** Read until want() holds on the SAME value for `hold` ms, or `max` runs out;
@@ -253,7 +255,7 @@ async function checkSettings(browser, base, vp) {
     }
     const vw = vp.w
     ok(`${tag} /settings is the list over the lobby, content hidden`, path0.endsWith('/lobby') && q0 === '' && !content0, { path0, q0, content0 })
-    ok(`${tag} 8 rows, each >= 44 px high and near full width`, rows.length === 8 && rows.every((r) => r.h >= 44 && r.w >= vw - 96), rows)
+    ok(`${tag} ${SETTINGS_SECTIONS.length} rows (one per section), each >= 44 px high and near full width`, rows.length === SETTINGS_SECTIONS.length && rows.every((r) => r.h >= 44 && r.w >= vw - 96), rows)
     let x = await noXScroll(p)
     ok(`${tag} list: no horizontal page scroll`, x.ok, x)
 

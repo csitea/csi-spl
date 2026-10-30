@@ -110,11 +110,12 @@ func (s *Server) workspaceLanesView(ctx context.Context, tenant, fleet, reader s
 		rows = append(rows, q.row)
 	}
 	for _, v := range rows {
-		title, mine := titles[v.TopicID]
+		topic, mine := titles[v.TopicID]
 		if !mine {
 			continue
 		}
-		v.TopicTitle, v.Workspace, v.WorkspaceName = title, tenant, cmp.Or(names[tenant], tenant)
+		v.TopicChannel = topic.Channel
+		v.TopicTitle, v.Workspace, v.WorkspaceName = topic.Title, tenant, cmp.Or(names[tenant], tenant)
 		v.Issues = laneIssues("", prefix, true, byTopic[v.TopicID], status)
 		out.Lanes = append(out.Lanes, v)
 	}

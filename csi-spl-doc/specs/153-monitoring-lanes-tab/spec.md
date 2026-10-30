@@ -1,5 +1,11 @@
 # 153 Monitoring: the tab row beside the heading, and a live Lanes tab
 
+Addendum (2026-10-30, SPL-4421): section 3.10 (the Topics tab, one row
+per topic with its lanes and issues, and the `topic_channel` field on the
+two lanes routes), cases C45-C48 and build row B10. Owner HUM-10, t1
+topic `08213e0e`, msg `8caf41ec`. Placed by the dispatch holder as one
+lane brief, not a panel version: v1.3 below is unchanged.
+
 Version v1.3 (2026-10-27): v1.2 plus section 3.8 (every Lanes row names
 its issue, its discussion and its workspace; queued asks show; a rotation
 keeps the lane's topic), cases C36b (narrowed), C38-C44 and build row B8.
@@ -635,6 +641,60 @@ What is built (`csi-spl-wui/src/pages/monitoring/agents/[id].vue`,
   that row selected and in view, an agent with no lane says so; 1400x900
   and 390x844).
 
+### 3.10 The Topics tab: one row per topic, its lanes and issues (row B10, SPL-4421)
+
+The owner's words, verbatim (HUM-10, t1 `08213e0e`, msg `8caf41ec`,
+2026-10-30 17:07Z, with a screenshot of /monitoring/lanes): "we need a new
+topics tab in the monitoring section , which will have the same narrow
+listing like the lanes , but for topics , and outline the issues and lanes
+per discussion /topic".
+
+What is built:
+
+- **The tab.** **Topics**, right after Lanes, at `/monitoring/topics`
+  (`csi-spl-wui/src/utils/monitoring-tabs.mjs`), for the same readers as
+  Lanes: an operator admin, a workspace's owner or admin (3.6). Anyone else
+  sees no tab, and the direct URL shows the Lanes 403 sentence.
+- **The data.** No new route. The page reads the Lanes answer (3.3 / 3.6,
+  `readLanes`) and groups its rows by `topic_id`
+  (`csi-spl-wui/src/utils/monitoring-topics.mjs`). The read, the minute
+  poll, Refresh, the stale marker, the sort engine (`sortRowsBy`, factored
+  out of `sortLanes` with no change to the Lanes order) and the links are
+  `monitoring-lanes.mjs`'s, reused.
+- **One row per topic**, narrow, one line: the title (linked to
+  `/t/<uuid>` when the topic is this workspace's, as 3.2; else the id as
+  text), the workspace, the channel (`#name`), the **last lane activity**,
+  the lanes and the issues. Lanes on no topic share one "No discussion"
+  row. Default order: newest lane activity first.
+- **Last lane activity** is the newest token minute (`last_active`) or row
+  write (`updated_at`) of the topic's lanes. It is lane activity, not the
+  topic's last message: the hub sends no message time, and none is read.
+- **Lanes** are `id@box` chips with the lane's state (Live / Queued), each
+  linking to its row on Monitoring -> Lanes (`?lane=<id@box>`, 3.9).
+- **Issues** are the topic's lanes' issues, each key once, as `SPL-n`
+  chips with their status, linked to `/issues?issue=<KEY>` (a key with no
+  status, another prefix, is text, as 3.2).
+- **Sort and filter**, as the Lanes sheet: each column name sorts (▲, ▼,
+  then the default order); the filter row keeps a topic when one of its
+  lanes is on the box, of the vendor or in the state picked, by the age of
+  its last lane activity, and by text (title, channel, workspace, lane ids,
+  issue keys).
+- **The channel field (hub).** Each lane row of
+  `GET /v1/operator/fleet-lanes` and `GET /v1/view/lanes` carries
+  `topic_channel`, filled from the same `DiscussionStates` read that fills
+  `topic_title` (`fleetLaneLinks`), and only where the title is filled (the
+  same door): `""` for another workspace's topic, a withheld title, a DM
+  or no topic. No new route and no new query (GO: c-002, task
+  `dispatch-08213e0e`, msg `321a1bee`).
+- **Text.** One tab label `monitoring.tab.topics` and ten keys under
+  `monitoring.topics.`, in all 19 locales; agy reviews them (the language
+  rule). The page is its own chunk: nothing on the first screen imports
+  `monitoring-topics.mjs`.
+- **Proof.** Go: `csi-spl-api/src/go/spool-hub-api/internal/hub/lanes_topic_channel_test.go`.
+  Unit: `csi-spl-wui/tests/unit/monitoring-topics.test.mjs`,
+  `monitoring-tabs.test.mjs`. e2e: `csi-spl-wui/tests/e2e/monitoring-costs.test.mjs`
+  (`topicsTab`, C3b with six tabs), 1400x900 and 390x844.
+
 ## 4. Cases
 
 Every case is **planned**: none is built. "Master today" was read on
@@ -702,6 +762,10 @@ rule" twin, named in its control column.
 | C42 | B8 | a live lane on a w1 topic: the operator route | no workspace | `workspace` w1, `workspace_name` its name; a lane with no topic names the operator workspace | Go test |
 | C43 | B8 | the Lanes table, operator and w1 admin | no column | the last `th` is the workspace column, every row's last cell its name; at 360 px the column is still in the DOM | WUI unit (`monitoring-lanes.test.mjs`, `fleetLanesOf` keeps the fields) + e2e |
 | C44 | B8 | a `queued` row in the table | n/a | the agent cell says queued, the wait cell "waiting for room" when `wait` is empty | WUI unit + e2e |
+| C45 | B10 | `MONITORING_TABS` ids, and who sees Topics | no topics | `[..., 'lanes', 'topics', 'file-streams']`; Topics shows exactly when Lanes does | `monitoring-tabs.test.mjs`; e2e C3b (six tabs for an operator admin); control: a plain member has neither |
+| C46 | B10 | the Topics page on the mock fleet with a fourth lane on c-085's topic | page absent | 3 rows for 4 lanes, newest activity first; the shared topic lists c-085@box-a and c-733@box-a (Live), SPL-3075, SPL-3215 and SPL-4421 each once, `#monitoring`, its workspace, "1 min ago"; the no-topic lane in a "No discussion" row | e2e `topicsTab` on the mock bundle + unit `topicsOf`; control: another workspace's topic links nothing and shows no channel |
+| C47 | B10 | initial JS budget | n/a | not raised: no Topics code in the initial download | e2e chunk check + `perf-budget.py` |
+| C48 | B10 | `topic_channel` on both lanes routes | absent | the channel where the title is set; `""` for another workspace's topic and no topic | Go `TestLanesTopicChannel`; red on master (every channel `""`) |
 
 ## 5. Build rows
 
@@ -718,6 +782,7 @@ Disjoint files per row. B1 goes first and alone: it needs no data.
 | B6 workspace lanes (O1 = B, 3.6) | api, wui | `hub/fleet_lanes_view.go` (factor the active rule and the row fill out of `fleetLanesView`; 3.3's behaviour unchanged); new `hub/workspace_lanes_view.go` + `_test.go`; one line in `hub/server.go` beside `routeFleetLanes` (:488); `hub/openapi.json` (the new path); `wui/utils/access.mjs` (`normalizeMe` keeps `roles`) and its unit test; `wui/utils/monitoring-tabs.mjs` (the lanes row and the `staff` rule); `wui/pages/monitoring.vue` (pass `staff`); `wui/pages/monitoring/lanes/index.vue` (pick the route); the hub client's lanes call in `wui/utils/spool-client-lazy.mjs`; `csi-spl-wui/tests/unit/monitoring-tabs.test.mjs`; the B4 lanes e2e file (C27's operator case). No store, rdb or orc file | B2, B3 and B4 on master (B4 owns the tab row, the page and the client call that B6 changes) | C25-C30 |
 | B7 workspace a lane works for (3.7) | api, orc | `hub/box_lane.go` (`laneTopic`, new `laneTopicElsewhere`); `hub/workspace_lanes_view_test.go`; `orc/features/spawn-agents/scripts/spawn-core.inc.sh` (`_spawn_lane_put` only); `orc/features/spawn-agents/tests/test-spawn-dry-run.sh`. No store, rdb or wui file, no new text key | B6 on master | C28b, C31-C37 |
 | B8 rows complete (3.8) | orc, api, wui | `orc/features/spawn-agents/scripts/spawn-core.inc.sh` (`_spawn_lane_put`, new `_spawn_lane_topic`) and `test-spawn-dry-run.sh`; `hub/fleet_lanes_view.go`, `hub/workspace_lanes_view.go`, new `hub/lanes_queued.go` and their tests; `wui/pages/monitoring/lanes/index.vue`, `wui/utils/monitoring-lanes.mjs`, its unit test, the lanes e2e, `csi-spl-wui/i18n/locales/*.json` (new keys only, agy review). No rdb, no store, no placer file | B7 on master | C36b, C38-C44 |
+| B10 Topics tab (3.10) | api, wui | `hub/fleet_lanes_view.go`, `hub/workspace_lanes_view.go` (`topic_channel` only), new `hub/lanes_topic_channel_test.go`, `hub/fleet_lanes_view_test.go` (the decoded field); `wui/utils/monitoring-tabs.mjs`; new `wui/pages/monitoring/topics/index.vue`, new `wui/utils/monitoring-topics.mjs`; `wui/utils/monitoring-lanes.mjs` (`sortRowsBy`, `uniqSorted`, `ageMatches` exported; `topicChannel`; the `topics` mock); `csi-spl-wui/i18n/locales/*.json` (new keys only, agy review); `tests/unit/monitoring-tabs.test.mjs`, new `tests/unit/monitoring-topics.test.mjs`; `tests/e2e/monitoring-costs.test.mjs`. No rdb, store or orc file | B9 on master | C45-C48 |
 | B9 agent card tabs (3.9) | wui | `wui/pages/monitoring/agents/[id].vue`; new `wui/utils/agent-card-tabs.mjs`; `wui/utils/monitoring-lanes.mjs` (`agentLanes`, `laneDeepLink`, `readLanes`); `wui/pages/monitoring/lanes/index.vue` (the `?lane=` deep link); `csi-spl-wui/i18n/locales/*.json` (four new keys, agy review); `tests/unit/monitoring-lanes.test.mjs`; `tests/e2e/monitoring-takeover.test.mjs`. No hub, rdb or orc file | B8 on master | - |
 
 Order: B1, B3 and B5a may run at once (B3's store interface is

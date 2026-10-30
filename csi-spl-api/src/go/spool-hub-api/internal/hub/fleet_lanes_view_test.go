@@ -68,6 +68,7 @@ type lanesView struct {
 		Wait          string `json:"wait"`
 		Workspace     string `json:"workspace"`
 		WorkspaceName string `json:"workspace_name"`
+		TopicChannel  string `json:"topic_channel"`
 	} `json:"lanes"`
 }
 

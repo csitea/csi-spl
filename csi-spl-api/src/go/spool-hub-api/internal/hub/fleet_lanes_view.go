@@ -64,6 +64,9 @@ type fleetLaneViewJSON struct {
 	Wait          string `json:"wait,omitempty"`
 	Workspace     string `json:"workspace"`
 	WorkspaceName string `json:"workspace_name"`
+	// SPL-4421: the topic's channel, set only where the title is (same
+	// door); "" for a DM, another workspace's topic or a withheld title
+	TopicChannel string `json:"topic_channel"`
 }
 
 type fleetLanesViewJSON struct {
@@ -136,9 +139,9 @@ func (s *Server) fleetLanesView(ctx context.Context, tenant, fleet, reader strin
 	}
 	for _, l := range active { // ListFleetLanes order: newest write first
 		v := fleetLaneRow(l, burn)
-		title, mine := titles[l.Topic]
+		topic, mine := titles[l.Topic]
 		if mine {
-			v.TopicTitle = title
+			v.TopicTitle, v.TopicChannel = topic.Title, topic.Channel
 		}
 		v.Issues = laneIssues(l.IssueKey, prefix, mine, byTopic[l.Topic], status)
 		place(&v, l.Topic)
@@ -146,8 +149,8 @@ func (s *Server) fleetLanesView(ctx context.Context, tenant, fleet, reader strin
 	}
 	for _, q := range queued { // the queue's order, after the lanes
 		v := q.row
-		if title, mine := titles[q.topic]; mine {
-			v.TopicTitle = title
+		if topic, mine := titles[q.topic]; mine {
+			v.TopicTitle, v.TopicChannel = topic.Title, topic.Channel
 			v.Issues = laneIssues("", prefix, true, byTopic[q.topic], status)
 		}
 		place(&v, q.topic)
@@ -217,13 +220,13 @@ func (s *Server) fleetLaneBurn(ctx context.Context, now time.Time) (map[[2]strin
 	return out, nil
 }
 
-// fleetLaneLinks reads, for the active lanes, the title of each topic the
-// reader may open in the tenant (absent: not the tenant's, gone, or closed
-// to the reader), the issues each such topic links, every issue's status
+// fleetLaneLinks reads, for the active lanes, the title and channel of each
+// topic the reader may open in the tenant (absent: not the tenant's, gone,
+// or closed to the reader), the issues each such topic links, every issue's status
 // and the tenant's issue key prefix.
 func (s *Server) fleetLaneLinks(ctx context.Context, tenant, reader string, ls []store.FleetLane) (
-	titles map[string]string, byTopic map[string][]int, status map[int]string, prefix string, err error) {
-	titles, byTopic, status = map[string]string{}, map[string][]int{}, map[int]string{}
+	titles map[string]store.DiscussionState, byTopic map[string][]int, status map[int]string, prefix string, err error) {
+	titles, byTopic, status = map[string]store.DiscussionState{}, map[string][]int{}, map[int]string{}
 	topics, numbers := []string{}, []int{}
 	for _, l := range ls {
 		if l.Topic != "" && !slices.Contains(topics, l.Topic) {
@@ -258,7 +261,7 @@ func (s *Server) fleetLaneLinks(ctx context.Context, tenant, reader string, ls [
 			return
 		}
 		if may {
-			titles[t] = st.Title
+			titles[t] = st
 			mine = append(mine, t)
 		}
 	}

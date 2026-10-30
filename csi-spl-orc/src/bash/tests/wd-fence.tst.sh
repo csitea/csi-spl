@@ -73,7 +73,8 @@
 #      <unfence epoch>") for each lane the fence TERMed that is not done, the
 #      marker that keeps its S3 restart out of task_restart_max and the
 #      hourly limit. Controls: the seat and a done lane get none; nothing
-#      while still fenced. RED control: origin/master writes no marker
+#      while still fenced; a DRY_RUN=1 pass writes none (R7 c-773 W1).
+#      RED control: origin/master writes no marker
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -529,6 +530,9 @@ ticks 150 150 ok
   pass "15. control: the seat and the done lane c-050 get no marker" || fail "15. extra markers: $(echo "$T"/wd/fence.restart.*)"
 reset; ticks 0 0 ok; ticks 30 120 silent
 if compgen -G "$T/wd/fence.restart.*" >/dev/null; then fail "15. marker before UNFENCED"; else pass "15. control: no marker while still fenced"; fi
+reset; DRY=1 ticks 0 0 ok; DRY=1 ticks 30 120 silent; DRY=1 ticks 150 150 ok
+if compgen -G "$T/wd/fence.restart.*" >/dev/null; then fail "15. DRY_RUN=1 wrote a marker: $(echo "$T"/wd/fence.restart.*)"
+else pass "15. control: a DRY_RUN=1 pass that sees the fence lift writes no marker"; fi
 
 if (( fails )); then echo "wd-fence: $fails FAILED"; exit 1; fi
 echo "wd-fence: all passed"

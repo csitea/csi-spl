@@ -1832,7 +1832,8 @@ spl_wd_fence_start() {
 # Every other lane the fence TERMed gets <WD_DIR>/fence.restart.<id>
 # ("<fence epoch> <unfence epoch>", SPL-4359): its S3 restart is the box's
 # doing, and do_spl_agent_restart counts it toward neither task_restart_max
-# nor the hourly limit (spl_ars_box_event), then removes the marker.
+# nor the hourly limit (spl_ars_box_event), then removes the marker. A dry
+# run writes no marker.
 spl_wd_unfence() {
   local took id why at now="${1:-$(date +%s)}"
   local -a jp=() ids=() terms=() tl=()
@@ -1853,7 +1854,10 @@ spl_wd_unfence() {
   if (( ${#jp[@]} )); then wait "${jp[@]}" 2>/dev/null || true; fi
   for id in "${terms[@]}"; do
     why="$(spl_wd_unfence_done "$id" "$at")"
-    if [[ -z "$why" ]]; then echo "${at:-0} $now" > "$WD_DIR/fence.restart.$id" 2>/dev/null || true; continue; fi
+    if [[ -z "$why" ]]; then
+      [[ "${DRY_RUN:-1}" != 0 ]] || echo "${at:-0} $now" > "$WD_DIR/fence.restart.$id" 2>/dev/null || true
+      continue
+    fi
     if [[ "${DRY_RUN:-1}" == 0 ]] && ! { mkdir -p "$SPOOL_ROOT/$id/lifetime" && touch "$SPOOL_ROOT/$id/lifetime/done"; } 2>/dev/null; then
       spl_wd_log "UNFENCED $id: done ($why), but lifetime/done could not be written"; continue
     fi

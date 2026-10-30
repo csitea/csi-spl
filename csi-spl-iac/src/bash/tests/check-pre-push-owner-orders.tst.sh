@@ -34,7 +34,8 @@ do_log() { :; }
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 ROOT=$(mktemp -d); trap 'rm -rf "$ROOT"' EXIT
 O_GO=aaaaaaaa-1111-4bbb-8ccc-000000000001 G=d0d0d0d0-2222-4bbb-8ccc-000000000004
-export ORDER_GO_HUB=none OWNER_ORDER_DIR="$ROOT/oo" OOG_ORC_DIR="$REPO/csi-spl-orc"
+# no prd key on this "box": the box default is none (a caller's ORDER_GO_HUB=none alone is ignored, R7 c-718 W1)
+export ORDER_GO_HUB=none GCP_SA_KEY_FILE="$ROOT/no-such-key.json" OWNER_ORDER_DIR="$ROOT/oo" OOG_ORC_DIR="$REPO/csi-spl-orc"
 mkdir -p "$OWNER_ORDER_DIR"
 jq -n -c --arg o "$O_GO" '{op: "add", order: $o, repo: "r", paths: ["docs/**"], text: "synthetic", source: "given",
   gate: "go", ts: "2026-10-29T10:00:00Z", owner: "HUM-10", topic: "", expires: "", note: "", by: "c-900",

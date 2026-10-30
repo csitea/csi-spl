@@ -27,8 +27,11 @@
 # repository: the harness hook (scripts/owner-order-guard-hook.sh) is
 # installed by the owner.
 # Seams: OWNER_ORDER_DIR (default $SPOOL_ROOT/owner-orders), OOG_ORC_DIR (the
-# csi-spl-orc dir whose ./run runs the action, default this file's tree),
-# ORDER_GO_HUB (dev | prd | none, read by the action).
+# csi-spl-orc dir whose ./run runs the action, default this file's tree).
+# ORDER_GO_HUB from the caller's environment is passed on only as dev or prd
+# (R7 c-718 W1): a pusher's own `none` would turn the hub check off, so it is
+# dropped and the action picks the box default (prd when the box holds the
+# prd key, else none); a `none` that stands is printed on every PASS line.
 
 _oog_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -42,21 +45,39 @@ oog_repo_key() {
   basename "$(dirname "$cd")"
 }
 
-# oog_has_ledger <dir>: rc 0 when the repo of <dir> has a ledger file here
+# oog_has_ledger <dir>: rc 0 when the repo of <dir> has a ledger file here,
+# or when the ledger dir exists but cannot be searched (R7 c-718 W2: the
+# action is then asked, and refuses with rc 2, never "no ledger")
 oog_has_ledger() {
-  local k
+  local k d
   k="$(oog_repo_key "$1")" || return 1
-  [ -e "$(oog_ledger_dir)/$k.jsonl" ]
+  d="$(oog_ledger_dir)"
+  oog_dir_blind && return 0
+  [ -e "$d/$k.jsonl" ]
+}
+
+# oog_dir_blind: rc 0 when the ledger dir exists but this user cannot list
+# and search it, so which ledgers it holds is unknown
+oog_dir_blind() {
+  local d
+  d="$(oog_ledger_dir)"
+  [ -e "$d" ] && ! { [ -d "$d" ] && [ -r "$d" ] && [ -x "$d" ]; }
 }
 
 # oog_gate <repo dir> VAR=value...: the action, through ./run (the hub read
 # needs its environment). Prints the gate's own lines; rc = the action's.
 oog_gate() {
   local dir orc="${OOG_ORC_DIR:-$(cd "$_oog_lib_dir/../../../../.." 2>/dev/null && pwd)}" out rc
+  local -a hub=(-u ORDER_GO_HUB)
   dir="$(cd "$1" 2>/dev/null && pwd)" || { echo "owner-orders: REFUSED cannot enter $1"; return 1; }
   shift
   [ -x "$orc/run" ] || { echo "owner-orders: REFUSED the gate action is missing ($orc/run): fail closed"; return 1; }
-  out="$(cd "$orc" && env -u GIT_DIR -u GIT_INDEX_FILE -u GIT_WORK_TREE -u GIT_OBJECT_DIRECTORY \
+  case "${ORDER_GO_HUB:-}" in
+    dev|prd) hub=() ;;
+    '') ;;
+    *) echo "owner-orders: NOTE ORDER_GO_HUB=${ORDER_GO_HUB} from the caller is ignored (only dev or prd is passed on): the box default applies" ;;
+  esac
+  out="$(cd "$orc" && env "${hub[@]}" -u GIT_DIR -u GIT_INDEX_FILE -u GIT_WORK_TREE -u GIT_OBJECT_DIRECTORY \
     -u GIT_ALTERNATE_OBJECT_DIRECTORIES -u GIT_COMMON_DIR -u GIT_PREFIX \
     ORDER_CMD=gate ORDER_REPO_DIR="$dir" OWNER_ORDER_DIR="$(oog_ledger_dir)" "$@" ./run -a do_spl_owner_order 2>&1)"
   rc=$?
@@ -96,6 +117,10 @@ owner_order_guard_check() {
   local cmd="${1-}" cwd="${2:-$PWD}" calls verb dir all gos revs base out rc=0 f
   case "$cmd" in *git*) ;; *) return 0 ;; esac
   case "$cmd" in *commit*|*push*) ;; *) return 0 ;; esac
+  if oog_dir_blind; then
+    echo "owner-order-guard: refused: the ledger dir $(oog_ledger_dir) cannot be listed by $(id -un 2>/dev/null), so it is unknown whether this repository has an owner order (fail closed)" >&2
+    return 2
+  fi
   for f in "$(oog_ledger_dir)"/*.jsonl; do [ -e "$f" ] && break; f=""; done
   [ -n "$f" ] || return 0
   if ! command -v python3 >/dev/null 2>&1; then

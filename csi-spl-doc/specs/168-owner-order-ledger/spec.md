@@ -341,17 +341,28 @@ or as a poll answer counts when it names the order; c-697 W11).
   not the order's own id.
 - **The hub check (N1, N3).** `ORDER_GO_HUB` = `dev`, `prd` or `none`; unset
   is `prd` when the box holds the prd project's SA key (the one
-  `do_spl_db_query` reads), else `none`. With a hub the cited message must be
-  on it, from an owner (`HUM-<n>`), and its body must NAME the order's id8.
+  `do_spl_db_query` reads), else `none`. The pre-push hook, the
+  `owner-orders` part and the harness guard pass a caller's `ORDER_GO_HUB`
+  on only as `dev` or `prd` (R7 c-718 W1): a pusher's own `none` is ignored,
+  said in the output, and the box default applies. With a hub the cited
+  message must be on it, from an owner (`HUM-<n>`), and its body must carry
+  the marker for the order, as whole words, case-insensitive: a go
+  `go <id8>` (also `go for <id8>`, `go: <id8>`) or a lift `lift <id8>`
+  (`lift order <id8>`); a lift counts as a go, a go never lifts. A bare
+  mention ("keep <id8>, do NOT change it") or a negated one ("do not go
+  <id8>") is no go (c-718 N3, c-001 053664e0).
   The same check re-reads every lift of a go or content order: a lift whose
   message fails it does not lift (the gate prints `WARN ... does not hold`),
   whatever the ledger line's `source` says. `ORDER_CMD=lift` with
   `ORDER_FROM_HUB` now refuses a lifting message that does not name the
   order too. Without a hub only the form is checked, and every PASS line
-  says `NOT hub-checked`. A hub read that fails refuses (rc 1); each
+  says `NOT hub-checked`; the pre-push hook prints those lines on a pass too
+  and logs it (`PASS-UNCHECKED` in its pre-push.log). A hub read that fails refuses (rc 1); each
   message is read once per run.
 - **Exit and output.** 0 passed, no ledger, or nothing covered; 3 refused;
-  2 the ledger is unreadable or malformed; 1 refused input or a failed hub
+  2 the ledger is unreadable or malformed, or its dir cannot be searched
+  (c-718 W2: never read as "no ledger"; the harness guard refuses a ledger
+  dir it cannot list); 1 refused input or a failed hub
   read. Every caller refuses on anything but 0. A refusal prints the commit,
   the order's id8, gate, source and the covered paths (at most 5), and the
   line to add; never the order's text.

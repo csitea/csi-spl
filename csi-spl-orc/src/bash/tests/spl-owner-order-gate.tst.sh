@@ -16,7 +16,9 @@
 #      without a hub on form only, said so ("NOT hub-checked"); two commits
 #      citing one go read the hub once
 #   3. N1: a go that names another order's id8, a go from an agent, the
-#      order's own id and a message the hub lacks are refused
+#      order's own id and a message the hub lacks are refused; N3 (R7 c-718,
+#      c-001 053664e0): a bare mention of the id8 ("keep <id8>, do NOT
+#      change it") and a negated go ("do not go <id8>") are refused too
 #   4. an uncovered path passes
 #   5. W5: a move out of a covered folder plus an edit is refused, the old
 #      path named (--no-renames); with gate go a pure move needs the go too
@@ -26,14 +28,19 @@
 #      refuses the same commit
 #   8. N3: a lift is re-read on the hub: one whose message does not name the
 #      order does not lift it (even marked source hub); one that does lifts
-#   9. fail closed: a malformed ledger is rc 2, a failed hub read rc 1;
-#      CONTROL: no ledger passes
+#   9. fail closed: a malformed ledger is rc 2, a failed hub read rc 1,
+#      W2 (R7 c-718): a ledger dir that cannot be searched and a ledger file
+#      that cannot be read are rc 2, never "no ledger"; CONTROL: no ledger
+#      passes
 #  10. the staged change (the commit guard): uncited refused, cited passes
 #  11. the pre-push hook: refused with SPL_PREPUSH_OVERRIDE=1 too; the cited
-#      push passes; a refs/heads/wip/* push is not asked
+#      push passes; a refs/heads/wip/* push is not asked. W1 (R7 c-718): a
+#      caller's ORDER_GO_HUB=none is not passed on (oog_gate), dev is; a pass
+#      on form only (no key on the box) is printed and logged
 #  12. the harness guard (owner_order_guard_check + the hook script): git
 #      commit uncited / cited, a git add earlier in the same command, git
-#      push of an uncited commit, an uncovered change, a repo with no ledger;
+#      push of an uncited commit, an uncovered change, a repo with no ledger,
+#      W2: a ledger dir it cannot list refuses;
 #      claude exit 2, agy exit 0 + deny JSON, a non-shell tool is allowed
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -52,6 +59,7 @@ G_OK=d0d0d0d0-2222-4bbb-8ccc-000000000004 G_OTHER=d1d1d1d1-2222-4bbb-8ccc-000000
 G_AGENT=d2d2d2d2-2222-4bbb-8ccc-000000000006 G_GONE=d3d3d3d3-2222-4bbb-8ccc-000000000007
 G_CT=d4d4d4d4-2222-4bbb-8ccc-000000000008 L_OK=e0e0e0e0-2222-4bbb-8ccc-000000000009
 L_BAD=e1e1e1e1-2222-4bbb-8ccc-00000000000a G_FAIL=e2e2e2e2-2222-4bbb-8ccc-00000000000b
+G_KEEP=f0f0f0f0-2222-4bbb-8ccc-00000000000c G_NEG=f1f1f1f1-2222-4bbb-8ccc-00000000000d
 SECRET='TEXT-OF-THE-ORDER-NEVER-PRINTED'
 b64() { printf '%s' "$1" | base64 -w0; }
 # The hub stub: psql's aligned output of _spl_oo_hub's one-column select.
@@ -61,7 +69,9 @@ STUB='do_spl_db_query() {
   echo "INFO proxy up"; echo "   r"; echo "-----"
   case "$SQL" in
     *'"$G_OK"'*) echo "'"$(row x HUM-10 "go for ${O_GO:0:8}: edit the docs")"'" ;;
-    *'"$G_CT"'*) echo "'"$(row x HUM-10 "yes, change ${O_CT:0:8} contents")"'" ;;
+    *'"$G_CT"'*) echo "'"$(row x HUM-10 "Go: ${O_CT:0:8}, change its contents")"'" ;;
+    *'"$G_KEEP"'*) echo "'"$(row x HUM-10 "keep ${O_GO:0:8}, do NOT change it")"'" ;;
+    *'"$G_NEG"'*) echo "'"$(row x HUM-10 "do not go ${O_GO:0:8}, wait for the review")"'" ;;
     *'"$G_OTHER"'*) echo "'"$(row x HUM-10 "go for ${O_CT:0:8} only")"'" ;;
     *'"$G_AGENT"'*) echo "'"$(row x c-001 "go for ${O_GO:0:8}")"'" ;;
     *'"$L_OK"'*) echo "'"$(row x HUM-10 "lift ${O_GO:0:8}, the docs are done")"'" ;;
@@ -116,6 +126,8 @@ git -C "$R" commit -q --amend -m "docs: edit" -m "Owner-go: $G_GONE"
 gate ORDER_GO_HUB=none
 [[ $RC -eq 0 ]] && grep -q "NOT hub-checked" "$T/o" &&
   pass "2. without a hub the go is checked on form only, and the PASS says so" || fail "2. no hub (rc=$RC): $(out)"
+grep -q "PASS 1 commit(s) of repo-g, .* (NOT hub-checked" "$T/o" &&
+  pass "2. N1 (R7 c-718): the summary PASS line says NOT hub-checked too" || fail "2. summary line: $(out)"
 
 git -C "$R" commit -q --amend -m "docs: edit" -m "Owner-go: $G_OK"
 echo more >>"$R/docs/b.md"; git -C "$R" add -A; git -C "$R" commit -qm "docs: b" -m "Owner-go: $G_OK"
@@ -127,7 +139,9 @@ gate ORDER_REVS='HEAD~2..HEAD'
 # 3. N1 and the other refused gos
 for c in "$G_OTHER|does not name the order's id8 ${O_GO:0:8}|a go naming another order's id8 (N1)" \
          "$G_AGENT|not an owner|a go from an agent" "$O_GO|the order's own id is not a go|the order's own id" \
-         "$G_GONE|is not on the prd hub|a message the hub lacks"; do
+         "$G_GONE|is not on the prd hub|a message the hub lacks" \
+         "$G_KEEP|does not name the order's id8 ${O_GO:0:8} as a go|N3: an owner message that only mentions the id8 ('do NOT change')" \
+         "$G_NEG|does not name the order's id8 ${O_GO:0:8} as a go|N3: a negated go ('do not go <id8>')"; do
   IFS='|' read -r g why what <<<"$c"
   git -C "$R" commit -q --amend -m "docs: edit" -m "Owner-go: $g"
   gate
@@ -192,6 +206,18 @@ git -C "$R" commit -q --amend -m "docs: edit" -m "Owner-go: $G_FAIL"
 gate
 [[ $RC -eq 1 ]] && grep -q "hub read for go $G_FAIL failed" "$T/o" &&
   pass "9. a failed hub read is rc 1, never a pass" || fail "9. hub fail (rc=$RC): $(out)"
+if [[ "$(id -u)" != 0 ]]; then
+  mkdir -p "$T/oo-blind"; cp "$D/repo-g.jsonl" "$T/oo-blind/"; chmod 000 "$T/oo-blind"
+  gate OWNER_ORDER_DIR="$T/oo-blind"
+  [[ $RC -eq 2 ]] && grep -q "cannot be searched" "$T/o" &&
+    pass "9. W2: a ledger dir that cannot be searched is rc 2, never 'no ledger'" || fail "9. W2 dir (rc=$RC): $(out)"
+  chmod 700 "$T/oo-blind"; chmod 000 "$T/oo-blind/repo-g.jsonl"
+  gate OWNER_ORDER_DIR="$T/oo-blind"
+  [[ $RC -eq 2 ]] && pass "9. W2: a ledger file that cannot be read is rc 2 through ORDER_CMD=gate" || fail "9. W2 file (rc=$RC): $(out)"
+  chmod 600 "$T/oo-blind/repo-g.jsonl"
+else
+  echo "SKIP: 9. W2 unreadable ledger dir/file: root reads everything"
+fi
 gate OWNER_ORDER_DIR="$T/none"
 [[ $RC -eq 0 ]] && grep -q "PASS no ledger for repo-g" "$T/o" && pass "9. CONTROL: no ledger passes" || fail "9. no ledger (rc=$RC): $(out)"
 
@@ -205,7 +231,20 @@ gate ORDER_STAGED=1 ORDER_GO_MSGS="$G_OK"
 reset
 
 # 11. the pre-push hook (real ./run; no hub)
-export ORDER_GO_HUB=none OWNER_ORDER_DIR="$D" OOG_ORC_DIR="$PROJ_ROOT" SPL_PREPUSH_LOG_DIR="$T/pplog"
+# W1: oog_gate passes a caller's ORDER_GO_HUB on only as dev or prd (a fake
+# ./run prints what the action would see)
+mkdir -p "$T/fakeorc"
+printf '#!/bin/bash\necho "owner-orders: SEEN ORDER_GO_HUB=${ORDER_GO_HUB-unset}"\n' >"$T/fakeorc/run"; chmod +x "$T/fakeorc/run"
+# shellcheck source=../features/spawn-agents/lib/owner-order-guard.inc.sh
+( source "$SA/lib/owner-order-guard.inc.sh"; ORDER_GO_HUB=none OOG_ORC_DIR="$T/fakeorc" oog_gate "$R" ) >"$T/o" 2>&1
+grep -q "SEEN ORDER_GO_HUB=unset" "$T/o" && grep -q "ORDER_GO_HUB=none from the caller is ignored" "$T/o" &&
+  pass "11. W1: a caller's ORDER_GO_HUB=none is not passed to the gate, and it says so" || fail "11. W1 none: $(out)"
+( source "$SA/lib/owner-order-guard.inc.sh"; ORDER_GO_HUB=dev OOG_ORC_DIR="$T/fakeorc" oog_gate "$R" ) >"$T/o" 2>&1
+grep -q "SEEN ORDER_GO_HUB=dev" "$T/o" && pass "11. W1 CONTROL: ORDER_GO_HUB=dev is passed on" || fail "11. W1 dev: $(out)"
+
+# the hook below: no prd key on this "box" (GCP_SA_KEY_FILE names no file),
+# so the box default is none; the caller's none is ignored either way
+export ORDER_GO_HUB=none GCP_SA_KEY_FILE="$T/no-such-key.json" OWNER_ORDER_DIR="$D" OOG_ORC_DIR="$PROJ_ROOT" SPL_PREPUSH_LOG_DIR="$T/pplog"
 L="$R/csi-spl-orc/src/bash/features/spawn-agents/lib"; mkdir -p "$L" "$T/hooks"
 cp "$SA/lib/owner-order-guard.inc.sh" "$SA/lib/force-push-guard.inc.sh" "$L/"
 printf 'csi-spl-orc/\n' >>"$R/.git/info/exclude"
@@ -224,6 +263,8 @@ git -C "$R" commit -q --amend -m "docs: edit" -m "Owner-go: $G_OK"
 push HEAD:refs/heads/lane
 [[ $RC -eq 0 ]] && git -C "$T/remote.git" rev-parse -q --verify refs/heads/lane >/dev/null &&
   pass "11. pre-push: the cited push passes" || fail "11. hook cited (rc=$RC): $(out)"
+grep -q "NOT hub-checked" "$T/o" && grep -rq "PASS-UNCHECKED .* NOT hub-checked" "$T/pplog" &&
+  pass "11. W1: a pass on form only (box default none) is printed and logged" || fail "11. W1 log: $(out) | $(cat "$T/pplog"/* 2>/dev/null)"
 
 # 12. the harness guard (real ./run; no hub)
 # shellcheck source=../features/spawn-agents/lib/owner-order-guard.inc.sh
@@ -247,6 +288,13 @@ guard "git -C $R commit -m 'other: edit'"
 git init -q "$T/w/no-ledger"; echo x >"$T/w/no-ledger/docs.md"; git -C "$T/w/no-ledger" add -A
 guard "git -C $T/w/no-ledger commit -m x"
 [[ $RC -eq 0 ]] && pass "12. guard: a repo with no ledger is not asked" || fail "12. guard no ledger (rc=$RC): $(out)"
+if [[ "$(id -u)" != 0 ]]; then
+  chmod 000 "$D"
+  guard "git -C $T/w/no-ledger commit -m x"
+  chmod 700 "$D"
+  [[ $RC -eq 2 ]] && grep -q "cannot be listed" "$T/o" &&
+    pass "12. W2: a ledger dir the guard cannot list refuses (fail closed)" || fail "12. W2 guard (rc=$RC): $(out)"
+fi
 reset; echo more >>"$R/docs/a.md"; git -C "$R" add docs/a.md
 hook() { printf '%s' "$2" | bash "$SA/scripts/owner-order-guard-hook.sh" "$1" >"$T/o" 2>"$T/e"; RC=$?; }
 hook claude "$(jq -n -c --arg c "git commit -m x" --arg d "$R" '{tool_name: "Bash", tool_input: {command: $c}, cwd: $d}')"

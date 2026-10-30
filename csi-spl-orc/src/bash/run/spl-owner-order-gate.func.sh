@@ -17,7 +17,11 @@
 # @description   gate none     never gated (parts a and b only)
 # @description The go and every lift of a gating order are verified on the hub
 # @description (ORDER_GO_HUB): the message must be on it, from an owner (HUM-<n>)
-# @description and its body must NAME the order's id8 (N1); a lift that fails it
+# @description and its body must carry the marker for the order (N1, N3): a
+# @description whole-word "go <id8>" (or "go for", "go:"; a lift "lift <id8>",
+# @description "lift order <id8>", which is a go too), not negated ("do not go
+# @description <id8>"); a bare mention of the id8 ("keep <id8>, do NOT change
+# @description it") is no go. A lift that fails it
 # @description does not lift (N3: the ledger's `source: hub` word is not
 # @description trusted). Without a hub only the form is checked, and every PASS
 # @description line says "NOT hub-checked".
@@ -55,6 +59,11 @@ _spl_oo_gate() {
   [[ -n "${ORDER_REPO_DIR:-}" ]] || { do_log "FATAL ORDER_REPO_DIR is required: the checkout to gate"; return 1; }
   repo="$(ORDER_REPO='' _spl_oo_repo)" || return 1
   f="$dir/$repo.jsonl"
+  # W2: a dir the pusher cannot search hides its ledger; it is never "no ledger"
+  [[ ! -e "$dir" || ( -d "$dir" && -x "$dir" ) ]] ||
+    { echo "owner-orders: REFUSED the ledger dir $dir cannot be searched by $(id -un 2>/dev/null): fail closed"; return 2; }
+  [[ ! -e "$f" || -r "$f" ]] ||
+    { echo "owner-orders: REFUSED the $repo ledger $f cannot be read by $(id -un 2>/dev/null): fail closed"; return 2; }
   [[ -e "$f" ]] || { echo "owner-orders: PASS no ledger for $repo"; return 0; }
   all="$(_spl_oo_fold "$f")" || return 2
   all="$(jq -c '[.[] | select(.gate == "go" or .gate == "content") | select(.state != "expired")]' <<<"$all")"
@@ -70,11 +79,12 @@ _spl_oo_gate() {
 # _spl_oo_gate_run <orders> <hub> <repo>: the staged change, or each commit
 # of ORDER_REVS
 _spl_oo_gate_run() {
-  local all="$1" hub="$2" repo="$3" c list rc=0 n=0
+  local all="$1" hub="$2" repo="$3" c list rc=0 n=0 nh=""
   local -a revs=()
+  [[ "$hub" == none ]] && nh=" (NOT hub-checked: no hub on this box)"
   if [[ "${ORDER_STAGED:-0}" == 1 ]]; then
     _spl_oo_gate_unit "$all" "$hub" staged "${ORDER_GO_MSGS:-}" || return $?
-    echo "owner-orders: PASS the staged change of $repo"; return 0
+    echo "owner-orders: PASS the staged change of $repo$nh"; return 0
   fi
   read -r -a revs <<<"${ORDER_REVS:-}"
   ((${#revs[@]} > 0)) || { do_log "FATAL ORDER_REVS (or ORDER_STAGED=1) is required"; return 1; }
@@ -89,7 +99,7 @@ _spl_oo_gate_run() {
     _spl_oo_gate_unit "$all" "$hub" "$c" "$(git -C "$ORDER_REPO_DIR" log -1 --format='%(trailers:key=Owner-go,valueonly,separator=%x2C)' "$c")"
     case $? in 0) ;; 3) rc=3 ;; *) return 1 ;; esac
   done <<<"$list"
-  [[ "$rc" == 0 ]] && echo "owner-orders: PASS $n commit(s) of $repo, none changes a covered path without its owner go"
+  [[ "$rc" == 0 ]] && echo "owner-orders: PASS $n commit(s) of $repo, none changes a covered path without its owner go$nh"
   return "$rc"
 }
 
@@ -161,7 +171,7 @@ _spl_oo_gate_order() {
   IFS=$'\x1f' read -r o gate src st lm paths < <(jq -r '[.order, .gate, .source, .state, .lift_msg, (.paths[:5] | join(", "))] | join("\u001f")' <<<"$5")
   id8="${o:0:8}"
   if [[ "$st" == lifted ]]; then
-    why="$(_spl_oo_go_verdict "$hub" "$lm" "$o")"
+    why="$(_spl_oo_go_verdict "$hub" "$lm" "$o" lift)"
     case $? in
       0) echo "owner-orders: PASS $lbl order $id8 is lifted on ${lm:0:8} ($why)"; return 0 ;;
       1) echo "owner-orders: WARN order $id8: its lift ${lm:0:8} does not hold ($why): the order still applies" ;;
@@ -169,7 +179,7 @@ _spl_oo_gate_order() {
     esac
   fi
   for g in ${gos//,/ }; do
-    why="$(_spl_oo_go_verdict "$hub" "$g" "$o")"
+    why="$(_spl_oo_go_verdict "$hub" "$g" "$o" go)"
     case $? in
       0) echo "owner-orders: PASS $lbl order $id8 (gate $gate) go ${g:0:8} ($why)"; return 0 ;;
       1) echo "owner-orders: $lbl: Owner-go: $g does not count for order $id8 ($why)" ;;
@@ -185,12 +195,12 @@ _spl_oo_gate_order() {
   return 3
 }
 
-# _spl_oo_go_verdict <hub> <msg> <order uuid>: the reason on stdout. rc 0 it
+# _spl_oo_go_verdict <hub> <msg> <order uuid> <go|lift>: the reason on stdout. rc 0 it
 # counts, 1 it does not, 2 the hub read failed (never cached). Cached per
 # (msg, order) for the run in the files of OO_VCACHE (callers run it in a
 # subshell, so a variable would not keep it): one hub read per message.
 _spl_oo_go_verdict() {
-  local f="${OO_VCACHE:-}/${2//[^0-9a-f-]/_}.${3//[^0-9a-f-]/_}" v rc
+  local f="${OO_VCACHE:-}/${2//[^0-9a-f-]/_}.${3//[^0-9a-f-]/_}.${4:-go}" v rc
   if [[ -n "${OO_VCACHE:-}" && -s "$f" ]]; then
     v="$(cat "$f")"; echo "${v#?}"; return "${v:0:1}"
   fi
@@ -199,24 +209,37 @@ _spl_oo_go_verdict() {
   echo "$v"; return "$rc"
 }
 
-_spl_oo_go_check() {  # <hub> <msg> <order uuid>
+_spl_oo_go_check() {  # <hub> <msg> <order uuid> <go|lift>
   [[ "$2" =~ $SPL_OO_UUID_RX ]] || { echo "not a full message uuid"; return 1; }
   [[ "$2" != "$3" ]] || { echo "the order's own id is not a go"; return 1; }
   [[ "$1" != none ]] || { echo "form only, NOT hub-checked: no hub on this box"; return 0; }
   _spl_oo_names_order "$@"
 }
 
-# _spl_oo_names_order <hub> <msg> <order uuid>: rc 0 when the hub holds <msg>,
-# from an owner (HUM-<n>), and its body names the order's id8 (N1: an owner
-# message about something else neither lifts nor passes the order); 1 it
-# does not (the reason on stdout), 2 the hub read failed.
+# _spl_oo_names_order <hub> <msg> <order uuid> [go|lift]: rc 0 when the hub
+# holds <msg>, from an owner (HUM-<n>), and its body carries the marker
+# (_spl_oo_marker) for the order (N1: an owner message about something else
+# neither lifts nor passes the order; N3: nor does one that only mentions it);
+# 1 it does not (the reason on stdout), 2 the hub read failed.
 _spl_oo_names_order() {
-  local hub="$1" m="$2" o="$3" row from body
+  local hub="$1" m="$2" o="$3" kind="${4:-go}" row from body
   row="$(_spl_oo_hub "$hub" "$m" 2>&1)" || { echo "${row##*$'\n'}"; return 2; }
   [[ -n "$row" ]] || { echo "message ${m:0:8} is not on the $hub hub"; return 1; }
   IFS=$'\t' read -r from _ _ body <<<"$row"
   [[ "$from" =~ ^HUM-[0-9]+$ ]] || { echo "message ${m:0:8} is from '$from', not an owner (HUM-<n>)"; return 1; }
   body="$(base64 -d <<<"$body" 2>/dev/null)" || { echo "the hub body of ${m:0:8} did not decode"; return 1; }
-  [[ "$body" == *"${o:0:8}"* ]] || { echo "owner message ${m:0:8} does not name the order's id8 ${o:0:8}"; return 1; }
-  echo "hub-checked on $hub: from $from, names ${o:0:8}"
+  _spl_oo_marker "$body" "${o:0:8}" "$kind" ||
+    { echo "owner message ${m:0:8} does not name the order's id8 ${o:0:8} as a $kind (a whole-word '$kind ${o:0:8}', not negated)"; return 1; }
+  echo "hub-checked on $hub: from $from, names ${o:0:8} as a $kind"
+}
+
+# _spl_oo_marker <body> <id8> <go|lift>: rc 0 when the body says "<verb>
+# <id8>" as whole words, case-insensitive: verb "lift" (a lift), "go" or
+# "lift" (a go); "for", "order" or ":" may stand between. A match preceded
+# by not / no / never / don't does not count (N3: "do not go <id8>").
+_spl_oo_marker() {
+  local verbs=lift neg="(not|no|never|don'?t)" m
+  [[ "$3" == go ]] && verbs="go|lift"
+  m="$(tr '[:upper:]' '[:lower:]' <<<"$1" | grep -oE "(^|[^a-z0-9_'])(${neg}[[:space:]]+)?($verbs)([[:space:]]*:[[:space:]]*|[[:space:]]+(for[[:space:]]+|order[[:space:]]+)?)${2}([^a-z0-9_]|\$)")" || return 1
+  grep -vqE "(^|[^a-z0-9_'])${neg}[[:space:]]+($verbs)" <<<"$m"
 }

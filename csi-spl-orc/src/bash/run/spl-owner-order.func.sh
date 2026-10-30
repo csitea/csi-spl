@@ -240,8 +240,9 @@ _spl_oo_lift() {
 
 # _spl_oo_lift_source <lift msg> <gate> <order uuid>: prints hub or given.
 # Only the owner lifts: with ORDER_FROM_HUB the lifting message must be an
-# owner's and its body must NAME the order's id8 (spec 168 N1: an owner
-# message about something else lifts nothing), and a go or content order is
+# owner's and its body must NAME the order as a lift, "lift <id8>" (spec 168
+# N1, N3: an owner message about something else, or one that only mentions
+# the id8, lifts nothing; _spl_oo_marker), and a go or content order is
 # never lifted without that check.
 _spl_oo_lift_source() {
   local why
@@ -250,7 +251,7 @@ _spl_oo_lift_source() {
     echo given; return 0
   fi
   [[ "$ORDER_FROM_HUB" =~ ^(dev|prd)$ ]] || { do_log "FATAL ORDER_FROM_HUB must be dev or prd" >&2; return 1; }
-  why="$(_spl_oo_names_order "$ORDER_FROM_HUB" "$1" "$3")" ||
+  why="$(_spl_oo_names_order "$ORDER_FROM_HUB" "$1" "$3" lift)" ||
     { do_log "FATAL lifting message $1 does not lift order ${3:0:8}: $why (only the owner lifts an order, by naming it)" >&2; return 1; }
   echo hub
 }

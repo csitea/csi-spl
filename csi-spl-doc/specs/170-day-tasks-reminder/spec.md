@@ -1,6 +1,6 @@
 # 170 Day's tasks: a To-do view in the Calendar, and a signal for what is due today
 
-Version: v1.1 (2026-10-30). Status: **WHAT v1.0 and HOW v1.0, each signed by all four seats**
+Version: v1.2 (2026-10-30). Status: **WHAT v1.0 and HOW v1.0, each signed by all four seats**
 (plan only; nothing below is built). Issue SPL-4396 · Epic SPL-2396 · Class
 feature · Kind specs_and_docs · Task `dispatch-dfe850d9` · Placement slug
 `c001-dfe850d9-panel-editor` · Editor c-864.
@@ -59,6 +59,13 @@ Source: prd csitea topic `dfe850d9-e283-4460-a0ed-223b71d657fa`.
   `5046197f-c140-47cf-819b-a173e753606b`): ONLY tasks (issues by deadline) are
   in the Calendar To-do view; notes stay where they are and are not in it.
   Closed: this spec only names 155 as a neighbour.
+- Poll `9958a8b7` (Q1), answer **A** (HUM-10, msg
+  `dcd7d425-f352-46af-ae11-d08190cda379`): the day signal is the morning
+  reminder with a link to the To-do view (today). The red badge on the Issues
+  icon (5.2, HUM-24's ask) is not built; Q1b is moot.
+- Poll `14caab4c` (Q2), answer **A** (HUM-10, msg
+  `5d1ddf41-aa81-4197-a1b2-65da17d865aa`): only tasks assigned to me, with a
+  switch to the whole workspace.
 
 ### 1.3 Panel defaults
 
@@ -201,7 +208,8 @@ today's list. (For HOW: an unknown `?v=` opens Week today,
 
 ## 5. The day signal: what tells the person, and when
 
-Two candidates are on the table; the owner chooses (Q1):
+The owner chose 5.1, the morning reminder (Q1 = A, section 1.2). 5.2 and
+5.3 stay below as the options weighed; they are not built.
 
 5.1 **Morning reminder with a link** (HUM-24 `1715819f`, HUM-10
 `61878905`). Once a day, in the morning, the person is told how many tasks
@@ -214,7 +222,7 @@ opened the To-do view that day. No reminder on a day with nothing due. (The
 3 titles, once per day and none on an empty day: panel default, 1.3; Q4
 covers the time and the channel.)
 
-5.2 **A red badge on the Issues icon** (HUM-24 `e0fb60bb`). The Issues rail
+5.2 **Not chosen (Q1 = A). A red badge on the Issues icon** (HUM-24 `e0fb60bb`). The Issues rail
 icon, which today shows a red count of new issues (section 3), also signals
 the tasks due today. The open choice inside this candidate: a second,
 separate mark for "due today", or the due-today count replacing the current
@@ -227,7 +235,7 @@ new ones" (SPL-1559,
 separate mark must look different from the red unread count (not a second
 red number).
 
-5.3 **Both**: the badge is always there; the morning reminder links to the
+5.3 **Not chosen (Q1 = A). Both**: the badge is always there; the morning reminder links to the
 view.
 
 5.4 **Turning it off** (panel default, 1.3). Each person can switch the morning reminder off, and
@@ -255,9 +263,10 @@ shared component before it touches one.
 
 ## 7. Out of scope for v1
 
-All but the first line are panel defaults (1.3).
+All but the first two lines are panel defaults (1.3).
 
 - Notes in the view (decided, 1.2).
+- A due-today badge on the Issues icon (owner Q1 = A, 1.2).
 - Calendar events in the To-do view (they have their own views).
 - Editing tasks from the view (4.6): no status change, re-date or reassign.
 - Tasks with no deadline: they belong to Issues, not to a day.
@@ -277,17 +286,14 @@ Each goes to the dispatch lease holder as one poll form on task
 what WHAT assumes until the owner answers.
 
 Posted by c-003 in dfe850d9 at 15:26Z: Q1 msg `9958a8b7`, Q2 msg
-`14caab4c`, Q3 msg `e3b1370c`. Q1b and Q4 follow the Q1 answer.
+`14caab4c`, Q3 msg `e3b1370c`. Q1 and Q2 answered (1.2); Q3 open; Q4 sent
+to the dispatch holder c-002@sat after Q1 (three options: card + 08:00
+alert, the same plus opt-in email, card only).
 
-- **Q1 the day signal.** Morning reminder with a link (5.1), red badge on
-  the Issues icon (5.2), or both (5.3)? Default: both.
-- **Q1b the badge, if chosen.** A separate "due today" mark beside the
-  current new-issues count, or the due-today count in place of it? Default:
-  a separate mark.
-- **Q2 whose tasks.** Only tasks assigned to me, or every task of the
-  workspace? The Calendar's event views show the whole workspace's deadlines
-  today; the Issues count counts mine. Default: mine, with a switch to the
-  whole workspace.
+- **Q1 the day signal.** ANSWERED: A, the morning reminder (1.2).
+- **Q1b the badge.** Moot (Q1 = A); not asked.
+- **Q2 whose tasks.** ANSWERED: A, mine with a switch to the whole
+  workspace (1.2).
 - **Q3 overdue.** Show overdue tasks above today's (and count them in the
   signal), or only tasks due today? Default: list overdue tasks above
   today's in the view, marked overdue; the signal names them apart ("2 due
@@ -332,11 +338,17 @@ Each seat signs a version with its own commit on branch
 | editor | c-864 | HOW v0.2 | ae6765d95 |
 | editor | c-864 | HOW v0.3 | 262d3309a |
 | editor | c-864 | HOW v1.0 = v0.3 text, declared | eea24076d |
+| editor | c-864 | v1.2, owner Q1 = A, Q2 = A folded | (this commit) |
 | user view | c-866 | HOW v0.3 | 262d3309a |
 | calendar / issues expert | c-869 | HOW v0.3 | 262d3309a |
 | reviewer | c-880 | HOW v0.3 | 262d3309a |
 
 ## 10. Changes
+
+- v1.2: owner answers folded: Q1 = A (morning reminder only; 5.2 / 5.3,
+  11.3 and row B4 dropped, the badge out of scope in 7, Q1b moot), Q2 = A
+  (the default, confirmed). Q3 open; Q4 sent. No other text changes, so the
+  seats' v1.0 signatures stand for what remains.
 
 - v1.1 = HOW v1.0: declared by the editor. Text = HOW v0.3 (`262d3309a`),
   signed by c-866 (`8be6a4e8e`), c-869 (`f93d980c9`) and reviewer c-880
@@ -466,7 +478,9 @@ and D (c-869 msg bf9fb184), each re-checked below.
 - **Q2 = "mine with a switch"** (default): the switch is a chip in the view
   header, per session, not a saved preference in v1.
 
-### 11.3 The due-today mark on the Issues icon (WHAT 5.2; only if Q1 = B or C)
+### 11.3 The due-today mark on the Issues icon (WHAT 5.2): DROPPED, Q1 = A
+
+Kept as the design weighed, not built.
 
 - `startMyIssuesCount` already reads the viewer's issues and re-reads them
   live (`my-issues-count.mjs` lines 51, 56, 64); its rows carry `deadline`.
@@ -483,7 +497,7 @@ and D (c-869 msg bf9fb184), each re-checked below.
 - A timer re-computes at local midnight, so the mark moves to the new day
   without a reload.
 
-### 11.4 The morning reminder (WHAT 5.1; only if Q1 = A or C)
+### 11.4 The morning reminder (WHAT 5.1; chosen, Q1 = A)
 
 - **Delivery (Q4 a + b, the default).** A small client plugin, the same
   shape as `plugins/calendar-reminders.client.ts`: on app ready and signed
@@ -526,8 +540,8 @@ and D (c-869 msg bf9fb184), each re-checked below.
 - **The off switch (WHAT 5.4).** A new `auth.ViewPrefs` key
   `day_tasks_reminder` with values `{"on", "off"}` (default first, the shape
   of `PrefLinkPreviews`, `auth/handler.go` line 976), shown in
-  `components/settings/notifications.vue`; and, if the badge is built,
-  `day_tasks_badge` the same way. `day_tasks_reminder = off` stops the card
+  `components/settings/notifications.vue` (no `day_tasks_badge`: the badge
+  is not built, Q1 = A). `day_tasks_reminder = off` stops the card
   and the 08:00 alert; the email has its own opt-in (`day_tasks_email`). Each ViewPrefs key is a humans column read
   in one SELECT (`store/human_settings.go` line 39), so the rdb file lands
   and is applied on dev and prd BEFORE the hub change (11.6, B0).
@@ -556,15 +570,16 @@ prd.
 
 | row | what | depends on | tests |
 |---|---|---|---|
-| B0 | rdb: humans `day_tasks_seen_on date NULL`, `day_tasks_reminder`, `day_tasks_badge` text columns; applied on dev and prd with `do_spl_db_bootstrap` before B4 / B5 land | Q1 | migration lint; `do_spl_db_query` on information_schema, dev and prd |
+| B0 | rdb: humans `day_tasks_seen_on date NULL`, `day_tasks_reminder` text column (plus `day_tasks_email` if Q4 picks the email); applied on dev and prd with `do_spl_db_bootstrap` before B5 lands | Q4 | migration lint; `do_spl_db_query` on information_schema, dev and prd |
 | B1 | `utils/day-tasks.mjs` + `calTodoKind`, with its `declare module` in `csi-spl-wui/src/types/` (as `blocker-settings.d.ts` line 10 declares `my-issues-count.mjs`) | none | unit tests: zone bounds (picked zone vs browser), epic / feature out, `diss` closed, overdue vs due today at 09:00 / 10:00 |
 | B2 | desktop To-do view: tab, `?k=todo`, `CalendarTodoView.vue`, rows, live re-read, i18n | B1 | extend `tests/e2e/calendar-desk-views.test.mjs` (no new e2e file); chunk budget |
 | B3 | phone To-do view, four ranges for the To-do kind, `?k=todo&v=` sets the visit's range | B2 | extend an existing `calendar-phone-*` e2e file; the reminder link opens Day on a phone whose stored range is Week |
-| B4 | due-today mark on the Issues icon + its off switch | B0, B1, Q1b | unit over `my-issues-count.mjs`; e2e on the rail |
+| B4 | DROPPED (Q1 = A): due-today mark on the Issues icon | - | unit over `my-issues-count.mjs`; e2e on the rail |
 | B5 | morning card (+ 08:00 alert), seen-today endpoint, off switch | B0, B1, B2, Q4 | hub test for the endpoint (Postgres tier); e2e: shown once, not after the view was opened |
 | B6 | email at 08:00 local (only if Q4 c) | B5 | hub ticker test with a fake clock and two instances (one mail) |
 
-Order: B1, then B2 and B0 in parallel, then B3, B4, B5; B6 last if chosen.
+Order: B1, then B2 and B0 in parallel, then B3 and B5; B6 last if Q4
+picks the email.
 Out of these rows: the deadline-input zone edge (WHAT 2) and `isOverdue`
 (WHAT 2) each get their own issue.
 

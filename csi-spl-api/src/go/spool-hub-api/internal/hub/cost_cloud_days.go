@@ -16,7 +16,9 @@ import (
 //	GET /v1/tenant/costs/cloud?month=YYYY-MM&project=<project_or_vendor>
 //
 // The GCP projects are the ESTATE's: the operator workspace's admin reads
-// them, as in the month read; every other member reads 403. month is the
+// them, as in the month read; every other member reads 403, and so does a
+// live act-as clone of that admin: it holds its target's roles, but the
+// estate is not the target's to lend (c-504 W1). month is the
 // month read's (default the current UTC month so far, a future one 400).
 // Each day carries usd_micros and eur_micros (what was paid) and
 // second_micros (the USD at that day's rate in the caller's second
@@ -52,6 +54,10 @@ func (s *Server) handleCostCloudDays(w http.ResponseWriter, r *http.Request) {
 	}
 	if op == "" || t.ID != op || !a.Has(rbac.Admin) {
 		writeErr(w, http.StatusForbidden, "forbidden", "the cloud costs are the estate's: the operator workspace's admin only")
+		return
+	}
+	if s.readerIsActAsClone(r.Context(), t.ID, a.HumanID) {
+		writeErr(w, http.StatusForbidden, "person_only", "the estate's cloud costs are not shown under act-as")
 		return
 	}
 	win, why := costWindow(r.URL.Query().Get("month"), s.o.Now())

@@ -159,7 +159,9 @@ func (s *Server) handleCostRead(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusServiceUnavailable, "unavailable", "the operator workspace was not read")
 		return
 	}
-	estate := op != "" && t.ID == op && a.Has(rbac.Admin)
+	// a live act-as clone of the operator admin reads the workspace answer,
+	// never the estate's (SPL-4187, c-504 W1)
+	estate := op != "" && t.ID == op && a.Has(rbac.Admin) && !s.readerIsActAsClone(r.Context(), t.ID, a.HumanID)
 	cur, err := s.secondCurrency(r.Context(), a.HumanID, t.ID)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", t.ID).Msg("cost.read_currency_failed")

@@ -240,7 +240,7 @@ func TestCostCloudDays(t *testing.T) {
 	ctx := context.Background()
 	from, to, day := costTestMonth(t)
 	a := newTenant(t, pg)
-	pov := uid("csi-spl-") + "/box=sat"
+	pov := uid("csi-spl-") + "/box=b1"
 	costSeed(t, pg, "", day(1), "gcp", pov, "compute-engine", "billing_export", 0, 1_000_000, 920_000)
 	costSeed(t, pg, "", day(1), "gcp", pov, "cloud-run", "billing_export", 0, 300_000, 276_000)
 	costSeed(t, pg, "", day(2), "gcp", pov, "compute-engine", "billing_export", 0, 2_000_000, 1_840_000)
@@ -248,6 +248,15 @@ func TestCostCloudDays(t *testing.T) {
 	costSeed(t, pg, a, day(2), "gcp", pov, "compute-engine", "hand", 0, 5_000_000, 5_000_000)
 	costSeed(t, pg, "", day(3), uid("gcp-"), pov, "compute-engine", "billing_export", 0, 4_000_000, 4_000_000)
 	costSeed(t, pg, "", to, "gcp", pov, "compute-engine", "billing_export", 0, 9_000_000, 9_000_000)
+	costSeed(t, pg, "", day(1), "gcp", pov, "cloud-sql", "billing_export", 0, 6_000_000, 6_000_000)
+	if err := pg.asOperator(ctx, func(tx pgx.Tx) error { // the cloud-sql line is replaced by the day-1 compute line
+		_, err := tx.Exec(ctx, `UPDATE cost_lines SET superseded_by = (SELECT id FROM cost_lines WHERE project_or_vendor = $1
+			AND day = $2::date AND kind = 'compute-engine' AND tenant_id IS NULL AND superseded_by IS NULL)
+			WHERE project_or_vendor = $1 AND kind = 'cloud-sql'`, pov, day(1))
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	q := CostCloudDaysQuery{Project: pov, From: from, To: to}
 	got, err := pg.CostCloudDays(ctx, q)

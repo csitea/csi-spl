@@ -1,6 +1,6 @@
 # Spec 123: Cost Tracking
 
-**Status:** v1.4 (2026-10-29: R7 re-review W1: the 13.9 masked-viewer case counts owned hardware in the total, as 13.6 and P03; SPL-4189) · v1.3 (2026-10-29: R7 review W1..W7 folded: owned hardware is the fourth part of the project-cost read, one hand-entered kind only, files disjoint per batch, Q-10 dropped as decided by 107 Q27 A; SPL-4189) · v1.2 (2026-10-29: 13.12, owned hardware written off monthly, monthly and yearly totals first, the untracked-cost list; SPL-4189) · v1.1 (2026-10-29: section 13, the project's cost, plan only, SPL-4189) · v1.0 (draft ff04d3ca3 by a-816, folded by the editor
+**Status:** v1.5 (2026-10-30: 5.5, the Cloud, AI tokens and Human sections, with its R7 folded: an act-as clone of the operator admin reads 403 on the cloud days and the workspace answer of the month read; SPL-4187) · v1.4 (2026-10-29: R7 re-review W1: the 13.9 masked-viewer case counts owned hardware in the total, as 13.6 and P03; SPL-4189) · v1.3 (2026-10-29: R7 review W1..W7 folded: owned hardware is the fourth part of the project-cost read, one hand-entered kind only, files disjoint per batch, Q-10 dropped as decided by 107 Q27 A; SPL-4189) · v1.2 (2026-10-29: 13.12, owned hardware written off monthly, monthly and yearly totals first, the untracked-cost list; SPL-4189) · v1.1 (2026-10-29: section 13, the project's cost, plan only, SPL-4189) · v1.0 (draft ff04d3ca3 by a-816, folded by the editor
 s123-claude from the four seat reviews in `reviews/`; rc1 cc831a665 signed by
 all four seats and the drafter; the owner's answers Q-1..Q-7 folded, section 12)
 
@@ -251,9 +251,14 @@ drill down by service etc."
   (`internal/hub/cost_cloud_days.go`, `store.CostCloudDays`): the estate
   project's live lines per (day, kind), `usd_micros`, `eur_micros` and
   `second_micros` at each day's rate (null with no rate, never a guess);
-  403 for anyone but the operator workspace's admin. The drill-down rides
-  in the query (`?project=`, `&kind=`) beside the header's month and
-  currency. Tests: `TestCostCloudDays` (store, Postgres; hub, both stores).
+  403 for anyone but the operator workspace's admin, a session with no
+  member and a live act-as clone of that admin included (the clone holds
+  the admin's roles, but the estate is not the admin's to lend; the month
+  read gives such a clone the workspace answer, never the estate's). The
+  drill-down rides in the query (`?project=`, `&kind=`) beside the
+  header's month and currency. Tests: `TestCostCloudDays` (store,
+  Postgres, a superseded line seeded; hub, both stores),
+  `TestCostCloudDaysActAsClone` (hub, Postgres).
 - **AI tokens** (`/reporting/costs/tokens`): the month read's token parts
   (`fleet_tokens`, `ai_paid`, `ai_share`), paid money and the list value
   beside it, never added (13.3), plus today's live fleet card for the
@@ -658,3 +663,11 @@ page and e2e file in the same batch (R1).
 - v1.4 (2026-10-29, SPL-4189): R7 re-review (g-844, FAIL on W1 only):
   the 13.9 case "an operator admin without `hours.rates`" now expects the
   total over Cloud + owned hardware + AI tokens, matching 13.6 and P03.
+- v1.5 (2026-10-30, SPL-4187): 5.5 added, the owner's msgs `81217a3f`,
+  `156c8939` and `8c7f4962`: Cloud (project, service, day), AI tokens and
+  Human get a section each; the reader takes every project of the billing
+  export. Its R7 (c-504, FAIL on W1) folded: an act-as clone of the
+  operator admin reads 403 on `GET /v1/tenant/costs/cloud` and the
+  workspace answer of `GET /v1/tenant/costs` (the month read's estate rule
+  had the same gap); tests for a session with no member, a clone and a
+  superseded line.

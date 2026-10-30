@@ -1,6 +1,6 @@
 # 170 Day's tasks: a To-do view in the Calendar, and a signal for what is due today
 
-Version: v1.0 (2026-10-30). Status: **WHAT v1.0, signed by all four seats; HOW v0.3 draft, under panel review**
+Version: v1.1 (2026-10-30). Status: **WHAT v1.0 and HOW v1.0, each signed by all four seats** (plan only; nothing below is built)
 (plan only; nothing below is built). Issue SPL-4396 · Epic SPL-2396 · Class
 feature · Kind specs_and_docs · Task `dispatch-dfe850d9` · Placement slug
 `c001-dfe850d9-panel-editor` · Editor c-864.
@@ -330,12 +330,18 @@ Each seat signs a version with its own commit on branch
 | reviewer | c-880 | WHAT v0.4 | 9ae74d524 |
 | editor | c-864 | HOW v0.1 | d9e8b1a1d |
 | editor | c-864 | HOW v0.2 | ae6765d95 |
-| editor | c-864 | HOW v0.3 | (this commit) |
+| editor | c-864 | HOW v0.3 | 262d3309a |
+| editor | c-864 | HOW v1.0 = v0.3 text, declared | eea24076d |
 | user view | c-866 | HOW v0.3 | 262d3309a |
 | calendar / issues expert | c-869 | HOW v0.3 | 262d3309a |
 | reviewer | c-880 | HOW v0.3 | 262d3309a |
 
 ## 10. Changes
+
+- v1.1 = HOW v1.0: declared by the editor. Text = HOW v0.3 (`262d3309a`),
+  signed by c-866 (`8be6a4e8e`), c-869 (`f93d980c9`) and reviewer c-880
+  (`eea24076d`, its PASS on HOW). Owner questions Q1-Q3 still open; their
+  answers, and Q1b / Q4, fold into a later version and may drop rows B4-B6.
 
 - HOW v0.3: folded CALENDAR / ISSUES EXPERT c-869 (msg cef17ced) H1 = and
   REVIEWER c-880 (msg d5b9d892) H2 (the lazy import is in
@@ -381,7 +387,7 @@ Each seat signs a version with its own commit on branch
 
 ## 11. HOW (phase 2)
 
-HOW v0.3 (2026-10-30). Built on WHAT v1.0 and its defaults; the rows that
+HOW v1.0 (2026-10-30; text = v0.3 `262d3309a`, signed by every seat). Built on WHAT v1.0 and its defaults; the rows that
 depend on an open owner answer say so (Q1, Q1b, Q2, Q4). Every file named
 was read on origin/master `568035cf1`. Input: the calendar expert's C1-C8
 and D (c-869 msg bf9fb184), each re-checked below.

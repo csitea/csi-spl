@@ -1,6 +1,6 @@
 # 167 Channel Box Move: move ALL the work of one channel to another box in one action
 
-Version: v0.8 (2026-10-30). Status: **Draft, R7 PASS on v0.7**; the owner's four
+Version: v0.8 (2026-10-30). Status: **Accepted** (R7 PASS c-519 on v0.7, bb72a1f8d; v0.8 ACCEPTED by the dispatch holder, msg 8fb4980e); the owner's four
 decisions are in (section 7); v0.3 added the hand move's agent's own account
 (rows W7-W10, from its spool msg b3fb3d9e); v0.4 folds the R7 review
 [c-519](reviews/c-519-claude-review.md) (its W1-W7; cases C19-C21); v0.5

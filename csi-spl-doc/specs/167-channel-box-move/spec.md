@@ -1,10 +1,11 @@
 # 167 Channel Box Move: move ALL the work of one channel to another box in one action
 
-Version: v0.4 (2026-10-30). Status: **Draft, R7 re-review**; the owner's four
+Version: v0.5 (2026-10-30). Status: **Draft, R7 re-review**; the owner's four
 decisions are in (section 7); v0.3 added the hand move's agent's own account
 (rows W7-W10, from its spool msg b3fb3d9e); v0.4 folds the R7 review
-[c-519](reviews/c-519-claude-review.md) (its W1-W7; cases C19-C21). Nothing
-below is built.
+[c-519](reviews/c-519-claude-review.md) (its W1-W7; cases C19-C21); v0.5
+folds its [re-review](reviews/c-519-claude-rereview-v04.md) (N1-N4; C22).
+Nothing below is built.
 Issue SPL-4227 · Epic SPL-2398 · Class feature · Kind specs_and_docs ·
 Placement slug `c002-channel-box-move-spec` · Lead c-873.
 
@@ -95,12 +96,18 @@ cd csi-spl-orc && CHANNEL=<TENANT>/<CHANNEL> TO=<BOX_B> ./run -a do_spl_channel_
   fleet's standard way to run an action, drops it for every agent. So the
   caller check is positive both ways:
   - **agent**: the caller's process ancestry holds an agent CLI, or the tmux
-    pane it runs in is registered to an agent id. That agent must be the
+    pane it runs in is registered to an agent id. The pane is found by
+    walking the ancestry up to a tmux `#{pane_pid}`, never from the pane
+    environment variables (`sudo` strips them). That agent must be the
     fleet's orch lease holder (`<spool root>/dispatch/lease.orch`), whatever
     its environment says.
-  - **owner**: no agent in the ancestry or the pane, a tty, and the box
-    user's own login; or an owner-signed directive (the `/signed-prompt`
-    envelope) naming this move.
+  - **owner**: for `plan` (the dry run), no agent in the ancestry or the
+    pane, a tty, and the box user's own login. That test catches mistakes;
+    it is not a proof, because an agent can detach itself and open a tty
+    (`setsid -f script -qc ...`: ancestry bash, script, pid 1). So
+    `DRY_RUN=0` by the owner needs the proof: an owner-signed directive (the
+    `/signed-prompt` envelope) naming this channel and target box, verified
+    before the first change and recorded in the journal by its id (C22).
   - anything else (no tty, unknown pane, cron) is refused.
 
   The box that runs it is the **driver**; the driver reaches the other box over ssh where it
@@ -136,6 +143,7 @@ with these kinds of line:
 | `marker` | `marker <string>` | declared: a word only this channel's files hold (a repo name, a project code) | not moved; used by the cleanup report, 4.8 |
 | `scratch` | (derived) | each seat's CLI scratch dir and `/var/tmp/<seat id>/` | not moved; listed for cleanup |
 | `transcript` | (derived) | each seat's CLI session files | not moved; the handoff carries the state; deleted by the clean (D3) |
+| `tests-not-run` | `tests-not-run <suite command>` | declared by the seat (`do_spl_channel_manifest_add`, row B1): a suite it did not run on its last tree | not moved; copied into the move block, run by the target seat right after its ack (4.7, C18) |
 | `spool` | (derived) | each seat's `<spool root>/<id>/` (inbox, outbox, handoff) | unread inbox items travel in the handoff; the dir is retired with the id |
 
 Rules:
@@ -172,7 +180,7 @@ estimate at the measured uplink (`MOVE_UPLINK_KBPS`, default: measured by
 | S6 | **seat the target**: spawn one agent per source seat on `<BOX_B>` (T5), seat it on the `<TENANT>` desk there (T9), add it to `<CHANNEL>` (T8), prove one post read back (`do_spl_desk_probe`) | target | - | 1-5 min (the remote spawn serve tick is 1 min) |
 | S7 | **ack**: each target agent reads its handoff, checks out its bundles, runs its first check, and acks (4.7) | target | - | <= `MOVE_ACK_TIMEOUT` (900 s) |
 | S8 | **switch** (only after the S1 re-check, 4.4, and with no secret step waiting, 4.5): channel-rules row (sole seat) to the new `<id>@<BOX_B>` on both boxes; old seats out of `<CHANNEL>` (T8); with spec 164 served, the channel's box pin to `[<BOX_B>]`; one post in each open topic of the channel naming the new seat | both, hub | - | < 30 s |
-| S9 | **retire** the source seats: `/exit-clean` typed, then `do_spl_agent_id_retire` WITHOUT `--successor` (T6: it refuses a new-form id); the redirect is S8's post | source | - | <= 5 min |
+| S9 | **retire** the source seats with the rotation's RETIRE (`/exit`, the restore wrapper stopped, TERM, KILL; never `/exit-clean`, 4.7), then `tmux-close-window.sh --agent <id> --retire`, which closes the window and retires the id with no successor (T6); the redirect is S8's post | source | - | <= 5 min |
 | S10 | **clean** the source (4.8), at once after the last ack and retire (D2) | source | - | < 1 min |
 
 Done means S9 finished and the journal says every step `ok`; `status` prints
@@ -221,10 +229,16 @@ never acks is closed (the spec 060 FR-014 rule). After S8 the way back is
   its message id as `MOVE_SECRET_GO=<owner msg id>`. Without the GO the
   secrets stay and the secret step waits; S2-S7 go on, but **S8 waits for
   every secret step**: a target seat that cannot reach a key must not take
-  the channel (the hand move's W4). The source keeps the channel meanwhile.
-  The wait ends with the GO, or with the owner dropping that `secret` line
-  from the manifest (the target then uses its own copy, and the move block
-  lists the secret by kind as not moved) (C20). A GO is for one move id; the next move asks again.
+  the channel (the hand move's W4). The source keeps the channel meanwhile,
+  and its seats do not stay paused: the hold of S1 is lifted while S8
+  waits, and the source seats go on working. The wait ends with the GO, or
+  with the owner dropping that `secret` line from the manifest (the target
+  then uses its own copy, and the move block lists the secret by kind as not
+  moved); then S1 runs again (quiesce, a new snapshot) and the S8 re-check
+  ships the delta (4.4, C19). No GO within `MOVE_SECRET_WAIT` (default 2 h)
+  aborts the move as a missed ack does (4.7.3): the target agents are
+  closed, the source keeps the channel, and the owner's topic gets one line
+  (C20). A GO is for one move id; the next move asks again.
 - With the GO, a secret moves over ssh only, never through the hub or the bucket (the bucket
   refuses it anyway, T10), lands 0600 owned by the box user, and is checked by
   sha256 yes/no. Without a direct ssh path the move of a secret is refused, and
@@ -279,9 +293,15 @@ Reuses spec 060 and spec 102; nothing new for the agents to learn.
    the hold on the source seat is released, `FAIL ack` goes to the
    orchestrator and the owner's topic gets one line. This is spec 060 D2.
 4. **Kill and retire** (owner: "the sending agents should be killed"): the
-   source seat gets `/exit-clean`, then its id is retired with no successor
-   (T6: the alias table maps legacy ids only, and this spec changes no
-   retire code). The redirect is S8's post in each open topic of the
+   source seat ends the way a rotated session ends (`spl-lane-rotate.func.sh`
+   RETIRE: `/exit`, the restore wrapper stopped so it cannot relaunch the
+   seat, TERM, KILL). Never `/exit-clean`: it would land and report a task
+   that goes on, its gate refuses a `wip` lane with no ACCEPTED, and when it
+   does pass it retires the id itself. Then
+   `tmux-close-window.sh --agent <id> --retire` closes the window and
+   retires the id with no successor: `agent-id-retire.sh` refuses while a
+   window still carries the id (exit 3), and its alias table maps legacy
+   ids only (T6); this spec changes no retire code. The redirect is S8's post in each open topic of the
    channel naming the new seat; a message to the old id after S9 is not
    forwarded (C12). The old number is not reused for 24 h by spec 061's
    quarantine, not by the move.
@@ -331,7 +351,7 @@ Reuses spec 060 and spec 102; nothing new for the agents to learn.
 | C9 | `back` before the clean | the channel is on `<BOX_A>` again; commits made on `<BOX_B>` come back by bundle | the back move loses a commit made on `<BOX_B>` |
 | C10 | two moves of the same channel at once | the second refuses (lock) | both run |
 | C11 | the source seat has uncommitted and untracked files | the target's `git status --porcelain` lists the same paths | the target worktree is clean |
-| C12 | the switch of a channel with 2 open topics | each topic gets one post naming the new `<id>@<BOX_B>`; the retire of the old new-form id exits 0 and writes no alias row | a retire with `--successor` (exit 2, the seat not retired) |
+| C12 | the switch and retire of a channel with 2 open topics | each topic gets one post naming the new `<id>@<BOX_B>`; S9 runs in this order: `/exit` (no `/exit-clean`), wrapper stopped, TERM/KILL, then `tmux-close-window.sh --agent <id> --retire` exits 0; the id is retired with no alias row | a retire before the window is closed (exit 3), a retire with `--successor` (exit 2), or `/exit-clean` typed into the seat |
 | C13 | the journal, the handoff and the posts | 0 key bytes and no secret path beyond kind and count (`grep` of the planted key bytes over the journal dir -> 0) | a planted key path in a `data` line is printed |
 | C14 | an agent that is not the orch lease holder runs `plan`, (a) with `SPOOL_AGENT_ID` set, (b) under `sudo -u <box user>` with it unset, from its own pane | both refused, nothing read (D1) | (a) or (b) runs the plan; (b) is the one a "no agent id = owner" check lets through |
 | C15 | a second move of the same channel after a GO'd one | asks the secret GO again | the old GO is reused |
@@ -339,8 +359,9 @@ Reuses spec 060 and spec 102; nothing new for the agents to learn.
 | C17 | `back` issued at S7 of a forward move (W10) | the forward move aborts, the source keeps the channel, the target agent is closed | the forward move switches anyway |
 | C18 | the source seat declared `tests-not-run <suite>` | the move block names it; the target seat's first check after the ack runs it | the move block drops the not-run list |
 | C19 | the source seat commits after S3 (a poke woke it) | the S8 re-check ships one delta bundle and the target head sha equals the source's; a second change refuses the switch | the switch happens and the commit stays on the source only |
-| C20 | a secret held without a GO | S8 waits, the source keeps the channel; the GO or dropping the line lets S8 run | the switch happens with the key missing on the target |
+| C20 | a secret held without a GO | S8 waits, the source seats are unheld and keep the channel; the GO or dropping the line re-runs S1 and lets S8 run; no answer within `MOVE_SECRET_WAIT` aborts the move | the switch happens with the key missing on the target, or the seats stay paused past `MOVE_SECRET_WAIT` |
 | C21 | a caller with no tty and no agent in its ancestry (cron) runs `plan` | refused (D1) | it is taken for the owner |
+| C22 | `DRY_RUN=0` by a caller that passes the owner process test (a `setsid -f script` tty) but has no signed directive | refused before the first change (D1) | the move runs |
 
 Tests run on a private `SPOOL_ROOT` with two sandbox boxes (two dirs, a stub
 ssh and a stub hub), never the live spool (`SPOOL_TEST=1`).
@@ -351,10 +372,10 @@ Disjoint files, except that B5 extends B1's `spl-channel-move.func.sh` after B1 
 
 | row | what | files (only these) | red control | vendor (main / backup) | batch |
 |---|---|---|---|---|---|
-| B1 | manifest: derive + declare + `plan` + the caller check (D1) | new `orc/run/spl-channel-move.func.sh` (plan only), `orc/run/spl-channel-manifest-add.func.sh`, `sa/lib/channel-move.inc.sh`, `orc/tests/channel-move-plan.tst.sh` | C1, C14, C21 | claude / grok | 1 |
+| B1 | manifest: derive + declare + `plan` + the caller check (D1) | new `orc/run/spl-channel-move.func.sh` (plan only), `orc/run/spl-channel-manifest-add.func.sh`, `sa/lib/channel-move.inc.sh`, `orc/tests/channel-move-plan.tst.sh` | C1, C14, C21, C22 | claude / grok | 1 |
 | B2 | git and uncommitted transfer | `sa/lib/channel-move-git.inc.sh`, `orc/tests/channel-move-git.tst.sh` | C2, C11, C19 | claude / grok | 2 |
 | B3 | resumable transport, checksums, secret refusal | `sa/lib/channel-move-ship.inc.sh`, `orc/tests/channel-move-ship.tst.sh` | C3, C6, C7, C13, C15, C20 | claude / grok (secret kind) | 2 |
-| B4 | ball pass: move block, seed, ack, retire | `sa/lib/channel-move-seat.inc.sh`, `orc/tests/channel-move-seat.tst.sh`; calls `spl-agent-handoff.func.sh`, `spawn-remote.sh`, `agent-id-retire.sh`, edits none of them | C4, C5, C12, C18 | claude / grok | 2 |
+| B4 | ball pass: move block, seed, ack, retire | `sa/lib/channel-move-seat.inc.sh`, `orc/tests/channel-move-seat.tst.sh`; calls `spl-agent-handoff.func.sh`, `spawn-remote.sh`, the rotation RETIRE (`spl_rotate_end` in `spl-rotate-lib.func.sh`), `tmux-close-window.sh`, edits none of them | C4, C5, C12, C18 | claude / grok | 2 |
 | B5 | switch, clean, back, lock, `status` | `orc/run/spl-channel-move.func.sh` (the other commands), `orc/tests/channel-move-switch.tst.sh` | C8, C9, C10, C16, C17 | claude / grok | 3 (after B1-B4) |
 | B6 | dev drill on two boxes with a test channel; measure each step; put the numbers in 4.3 | this spec | the drill journal | claude / grok | 3 |
 | B7 | docs: one operator and owner how-to page | new `csi-spl-doc/doc/md/channel-box-move.md`, its row in `fleet-rules-index.md` | `do_check_fleet_rules_drift` green | agy / claude | 3 |
@@ -390,12 +411,15 @@ No other question is open.
    move that needs a secret must be driven from the box that can open ssh.
 4. **R4 Agent ceiling.** The target must be below 40 agent windows; `plan`
    refuses otherwise.
-5. **Open check**: whether the hub queues a channel post for a seat that is
+5. **R5 The owner process test is not a proof.** An agent that detaches
+   itself and opens a tty passes it (c-519, n=1, not run under sudo). Only
+   `plan` relies on it; `DRY_RUN=0` needs the signed directive (4.1, C22).
+6. **Open check**: whether the hub queues a channel post for a seat that is
    between S8 and the new seat's first read; measured in the B6 drill.
-6. **Not a move problem (the hand move's agent believes so, unchecked)**: the
+7. **Not a move problem (the hand move's agent believes so, unchecked)**: the
    same afternoon a new workspace missing from one box's private overlay made
    the desk's reply FATAL until the overlay was pulled
    (`do_spl_private_overlay_pull`). S6's probe post would catch it before the
    switch either way.
 
-<!-- version: 0.4.0 · updated: 2026-10-30 · last-edit: 2026-10-30T05:10:00Z -->
+<!-- version: 0.5.0 · updated: 2026-10-30 · last-edit: 2026-10-30T06:00:00Z -->

@@ -263,6 +263,18 @@ drop what it was told to look for, so it cannot prove absence (global
 CLAUDE.md, corollary): B5's test also plants a secret-kind lane and asserts
 nothing of it reaches the feed.
 
+As built (B5, `csi-spl-orc/src/bash/run/spl-watcher-feed.func.sh`): the
+kind check is an allow-list (`WATCHER_FEED_KINDS`: the non-secret kinds of
+spec 115 and their aliases), so an unknown kind is dropped too; a brief with
+a data-rule marker (`Data: secret`, `Data rule:`, as the spawn placer reads
+them) is dropped; every role seat `[acgmq]-00[1-3]` is dropped, not only the
+`lease.orch` holder. A kept lane keeps an inbox message only from a kept
+lane, and an outbox message only from itself to a kept lane, a role seat or
+`orchestrator`. The keep/drop lines go to the producer's log, never into the
+feed. The test (`csi-spl-orc/src/bash/tests/watcher-feed.tst.sh`) puts a
+unique token in each dropped lane's brief, pane and messages and greps the
+whole feed for it.
+
 ### 3.3 Mechanical Enforcement of Read-Only (W2, W3)
 
 The boundary is a separate identity with nothing to escalate with, not a
@@ -376,7 +388,8 @@ are gone.
 Every row ships with its red control (seen RED, then GREEN, both in the
 commit body). Statuses as of v0.3 (Q0 = A, Q2 = A):
 
-- **Ready**: B4, B5, B7 (B7 needs an owner go per box); B6 once B5 has
+- **Implemented**: B5 (SPL-4345).
+- **Ready**: B4, B7 (B7 needs an owner go per box); B6 now that B5 has
   landed. B1 is Ready as a check only: nothing to build.
 - **Planned**: B8, after B4 and B7.
 - **Not built (Q0 = A)**: B2, B3, B9.
@@ -387,7 +400,7 @@ commit body). Statuses as of v0.3 (Q0 = A, Q2 = A):
 | ~~**B2**~~ | **Not built (Q0 = A)** | none | ~~Orch rotation accepts agy~~: agy stays off the orch seat; the `!= dispatch` refusal in `spl-rotate-lib.func.sh:155-158` is the decided behaviour | none | none |
 | ~~**B3**~~ | **Not built (Q0 = A)** | none | ~~Dispatch setup reads the role vendor~~: it served agy in the orch path only | none | none |
 | **B4** | **Ready** | Q2 = A (met) | Read-only enforcement (3.3) | `csi-spl-orc/src/bash/run/spl-push-master.func.sh`, `csi-spl-orc/src/bash/run/spl-take.func.sh`, `csi-spl-orc/src/bash/run/spl-desk-reply.func.sh`, `csi-spl-orc/src/bash/features/spawn-agents/lib/spool-env.inc.sh`, `csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh`, `csi-spl-orc/src/bash/features/spawn-agents/hooks/pre-push`, `csi-spl-orc/src/bash/tests/watcher-read-only.tst.sh` | **Red**: a stub chain with a `.watcher-role` id and `AGENT_ID=c-599` / `DESK_AGENT=c-002` / `--from c-001` gets through each action. **Test**: every one refuses, keyed on the chain, with those ids set. |
-| **B5** | **Ready** | Q0 = A (met) | Feed producer with the data-rule filter (3.2) | `csi-spl-orc/src/bash/run/spl-watcher-feed.func.sh`, `csi-spl-orc/src/bash/tests/watcher-feed.tst.sh` | **Red**: a planted `secret`-kind lane, a planted `orchestration`-kind lane and the orch seat's outbox appear in the feed. **Test**: none of them does; a lane with no readable kind is dropped too. |
+| **B5** | **Implemented** (`127c28392`, SPL-4345): `do_spl_watcher_feed`, DRY_RUN=1 by default; it writes the lane part of 3.2 (items 1, 2 and the kept `registry.tsv` rows). The other sources of 3.2 item 3..5 and the timer are not in it. | Q0 = A (met) | Feed producer with the data-rule filter (3.2) | `csi-spl-orc/src/bash/run/spl-watcher-feed.func.sh`, `csi-spl-orc/src/bash/tests/watcher-feed.tst.sh` | **Red**: a planted `secret`-kind lane, a planted `orchestration`-kind lane and the orch seat's outbox appear in the feed. **Test**: none of them does; a lane with no readable kind is dropped too. |
 | **B6** | **Ready after B5** | B5 landed | Shadow scoring against the dispatch seats (4.3) | `csi-spl-orc/src/bash/run/spl-orch-shadow-eval.func.sh`, `csi-spl-orc/src/bash/tests/orch-shadow-eval.tst.sh` | **Red**: a fixture card with a force-push proposal scores > 0. **Test**: it scores 0; action, vendor and issue join from fixture `fleet_asks`, queue and `registry.tsv` rows. |
 | **B7** | **Ready, needs an owner go per box** (a root change) | Q2 = A (met); the owner's go for each box, by msg id | Watcher OS user, per box | `csi-spl-orc/src/bash/run/spl-watcher-user.func.sh`, `csi-spl-orc/src/bash/tests/watcher-user.tst.sh` | **Red**: the planned user has a sudo rule or a group of 3.3. **Test**: `sudo -l` refused, groups match, no key or credential file in its home. |
 | **B8** | Planned | B4 and B7 landed | Watcher spawn, tick and rotation | `csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-watcher.sh`, `csi-spl-orc/src/bash/run/spl-watcher-rotate.func.sh`, `csi-spl-orc/src/bash/run/spl-watcher-tick.func.sh`, `csi-spl-orc/src/bash/tests/watcher-spawn-rotate.tst.sh` | **Red**: `do_spl_watcher_rotate` does not exist. **Test**: spawn runs as `<WATCHER_USER>` and writes the root-owned marker; rotate ACKs; tick writes `findings.jsonl` from the feed. |

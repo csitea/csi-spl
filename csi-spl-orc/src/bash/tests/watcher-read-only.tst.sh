@@ -15,9 +15,14 @@
 #          spool-send.sh, the pre-push hook, spool_spawn_gate.
 #   control: a lane's chain (c-777) passes every gate as before, and with no
 #          marker on the box a watcher's chain passes too (nothing to key on).
+#   R7 c-700 W1-W3: a hop named tmux / tmux-sh (real and fake /proc) is
+#          still walked and the caller's own uid is checked first; a caller
+#          adds panes (SPL_WATCHER_PANES_CMD, SPOOL_TMUX_SOCKET), never
+#          removes the box socket's; a marker counts only when root owns it
+#          (a test's own root excepted).
 #   red control: in the CODE, never here: `return 0` as the first line of
 #          spl_watcher_why (spool-env.inc.sh) lets every shape through, and
-#          each refusal below fails.
+#          each refusal below fails; one plant per W1-W3 in the commit body.
 # Hermetic: own spool root, fake /proc, fake pane list, stub reply and send;
 # no hub, no tmux server, no push.
 #------------------------------------------------------------------------------
@@ -156,18 +161,68 @@ eq "uid watcher --from a watcher id (a-902) --kind note --to orchestrator: sent"
 
 # ---- control: a lane passes every gate as before ----------------------------
 act 5000401 "$RUN/spl-push-master.func.sh" do_spl_push_master PUSH_WORKTREE="$T_TMP/not-a-repo"
-hasnt "lane c-777: do_spl_push_master not refused as a watcher" "watcher" "$out"
+hasnt "lane c-777: do_spl_push_master not refused as a watcher" "the caller is watcher" "$out"
 has "…it reaches its own checks" "is not a git checkout" "$out"
 send_as 5000401 --from c-777 --to c-778 --kind result --no-poke --body 'the result'
 eq "lane c-777: spool-send of a result delivered" 0 "$rc"
 gate_as 5000401
-hasnt "lane c-777: spool_spawn_gate not refused as a watcher" "watcher" "$out"
+hasnt "lane c-777: spool_spawn_gate not refused as a watcher" "the caller is watcher" "$out"
 
 # ---- control: no marker on the box, nothing to key on ----------------------
 marks_off
 act 5000102 "$RUN/spl-push-master.func.sh" do_spl_push_master PUSH_WORKTREE="$T_TMP/not-a-repo"
-hasnt "no marker: a-901's chain is not refused as a watcher" "watcher" "$out"
+hasnt "no marker: a-901's chain is not refused as a watcher" "the caller is watcher" "$out"
 send_as 5000201 --from c-777 --to c-778 --kind result --no-poke --body 'the result'
 eq "no marker: the uid chain's send is delivered" 0 "$rc"
+
+# ---- R7 c-700 W1: a process names itself; the walk never stops on a name ---
+LIB="$T_FEAT/lib/spool-env.inc.sh"
+marks_on
+mkproc 5000500 1 'tmux-sh' "$NOBODY"
+mkproc 5000501 5000500 tmux "$NOBODY" AGENT_ID=c-599
+out="$(SPL_WATCHER_PID=5000501 bash -c '. "$1"; spl_watcher_refuse do_x' _ "$LIB" 2>&1)"; rc=$?
+eq "W1 fake chain whose hops call themselves tmux / tmux-sh, uid nobody: refused" 1 "$rc"
+has "…by its uid" "watcher nobody (by its uid)" "$out"
+W1R="$T_TMP/w1root"; mkdir -p "$W1R/a-904"
+printf 'user=%s\n' "$(id -un)" >"$W1R/a-904/.watcher-role"
+out="$(SPOOL_ROOT="$W1R" bash -c 'printf tmux >/proc/$$/comm; . "$1"; spl_watcher_refuse do_x' _ "$LIB" 2>&1)"; rc=$?
+eq "W1 real /proc: this uid is a marker's user, comm set to tmux: refused" 1 "$rc"
+has "…by its uid" "by its uid" "$out"
+cp "$(command -v bash)" "$T_TMP/tmux-sh"
+out="$(SPOOL_ROOT="$W1R" "$T_TMP/tmux-sh" -c '. "$1"; spl_watcher_refuse do_x' _ "$LIB" 2>&1)"; rc=$?
+eq "W1 real /proc: run under a bash copy named tmux-sh: refused" 1 "$rc"
+
+# ---- R7 c-700 W2: a caller adds panes, never removes them -------------------
+eq "W2 the box socket is the spool root owner's, whatever SPOOL_TMUX_SOCKET says" \
+  "/tmp/tmux-$(stat -c %u /var/spool-hub 2>/dev/null)/default" \
+  "$(SPOOL_TMUX_SOCKET=/nonexistent bash -c '. "$1"; _spl_watcher_box_socket' _ "$LIB")"
+t_tmux
+cat >"$T_TMP/probe.sh" <<PROBE
+#!/usr/bin/env bash
+export SPOOL_ROOT='$SPOOL_ROOT' SPOOL_TEST=1 SPOOL_TMUX_SOCKET='$SPOOL_TMUX_SOCKET' SPL_WATCHER_PANES_CMD=true
+unset SPL_WATCHER_PROC SPOOL_AGENT_ID MCP_BOT_AGENT_ID
+. '$LIB'
+spl_watcher_why >'$T_TMP/probe.out' 2>'$T_TMP/probe.err'
+echo done >>'$T_TMP/probe.out'
+sleep 600
+PROBE
+chmod +x "$T_TMP/probe.sh"
+mkdir -p "$SPOOL_ROOT/a-903"; : >"$SPOOL_ROOT/a-903/.watcher-role"
+t_window a-903 "$T_TMP/probe.sh" >/dev/null
+for _ in $(seq 1 100); do grep -q done "$T_TMP/probe.out" 2>/dev/null && break; sleep 0.1; done
+has "W2 a pane in window a-903, SPL_WATCHER_PANES_CMD=true set: still refused by its pane" "a-903 pane" "$(cat "$T_TMP/probe.out" 2>/dev/null)"
+has "…and a marker with no user= line warns" "names no user= line" "$(cat "$T_TMP/probe.err" 2>/dev/null)"
+
+# ---- R7 c-700 W3: a marker counts only when root owns it --------------------
+eq "W3 a marker not owned by root, outside a test root: no watcher" "" \
+  "$(SPOOL_TEST= bash -c '. "$1"; spl_watcher_markers' _ "$LIB")"
+has "W3 …the same marker in this test's own root counts" "a-901 nobody" \
+  "$(bash -c '. "$1"; spl_watcher_markers' _ "$LIB")"
+SPOOL_TEST=1 bash -c '. "$1"; _spl_watcher_marker_ok "$2/a-901/.watcher-role" "$(readlink -m /var/spool-hub)"' _ "$LIB" "$SPOOL_ROOT"
+eq "W3 …under /var/spool-hub a non-root marker never counts, SPOOL_TEST=1 or not" 1 "$?"
+mkdir -p "$SPOOL_ROOT/a-905"; printf 'user=%s\n' "$(id -un)" >"$SPOOL_ROOT/a-905/.watcher-role"
+out="$(SPOOL_TEST= bash -c '. "$1"; spl_watcher_refuse do_spl_take' _ "$LIB" 2>&1)"; rc=$?
+eq "W3 …so a planted non-root marker naming this user (user=$(id -un)) does not stop its take" 0 "$rc"
+rm -f "$SPOOL_ROOT/a-905/.watcher-role"
 
 t_done

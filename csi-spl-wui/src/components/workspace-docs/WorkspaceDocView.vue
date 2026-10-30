@@ -83,7 +83,7 @@
       </button>
     </div>
     <div v-else class="wsdoc__cols">
-      <article class="wsdoc__doc" data-test="ws-doc-doc" @focusin="trackEdit" @focusout="editMode.setEditing(false)">
+      <article class="wsdoc__doc" data-test="ws-doc-doc" @focusin="trackEdit" @focusout="editMode.setEditing(false)" @copy="scrollToNextStep" @click.capture="scrollToNextStep">
         <h2
           ref="docTitleEl"
           class="wsdoc__doctitle"
@@ -161,7 +161,7 @@
             tabindex="0"
             role="group"
             :aria-label="t('ws_doctree.edit_body') + ' ' + it.outline"
-            @click="editPara(it.id)"
+            @click="onCodeTool($event) || editPara(it.id)"
             @keydown.enter.self.prevent="editPara(it.id)"
             @focus.self="editPara(it.id)"
           >
@@ -377,6 +377,7 @@ import { assetRoute, figureNumbers, paraRuns, type ParaRun } from './-doc-pics'
 import { previewLinks } from './-doc-blocks'
 import { branchOf as branchIn } from './-doc-outline'
 import { anchorOf } from './-doc-anchor'
+import { onCodeTool, scrollToNextStep } from './-doc-next-step'
 import { useDocHeadBar } from './-doc-headbar'
 import { useDocInsert } from '~/composables/useDocInsert'
 import { useDocPictures } from '~/composables/useDocPictures'

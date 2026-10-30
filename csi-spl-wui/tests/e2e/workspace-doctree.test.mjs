@@ -1222,6 +1222,79 @@ try {
   ok('spec 138: phone 390x844: the deep link opens the section below the bar, the drawer closed, the hash kept',
     phoneA.gap !== null && Math.abs(phoneA.gap) <= 2 && phoneA.hash === '#ws-doc-' + M.target && phoneA.img === 1400 && !phoneA.toc && !(await lm.$('[data-test=ws-docs-page] [data-test=qto-file-tree]')), phoneA)
   await lm.close()
+
+  /* SPL-4392 (owner t1 d3bb743c, msg 4491ddee): a copiedText code block scrolls the next step's
+     heading to the top, just below the bar; a heading with no code block of its own is
+     skipped; the last block scrolls nothing; the copiedText text is the block's, as before */
+  const cp = await browser.newPage()
+  await cp.setViewport({ width: 1280, height: 800 })
+  await cp.goto(server.base + '/workspace/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await cp.waitForFunction(() => typeof window.__wsDocTreeCall === 'function', { timeout: NAV_TIMEOUT })
+  const C = await cp.evaluate(async () => {
+    const call = window.__wsDocTreeCall
+    const d = await call('POST', '', { title: 'E2E copy next step' })
+    let rev = d.rev
+    const ids = []
+    for (let i = 1; i <= 6; i++) {
+      const code = i === 3 ? '' : '\n\n```bash\necho step-' + i + '\n```\n\n'
+      const r = await call('POST', `/${d.id}/items`, { rev, anchor: d.root, where: 'child', ord: i, title: `Step ${i}`, body: `Run step ${i}. ` + code + `After step ${i}. `.repeat(60) })
+      rev = r.rev
+      ids.push(r.item)
+    }
+    return { doc: d.id, ids }
+  })
+  await openLink(cp, C.doc, '')
+  await cp.evaluate(() => {
+    window.__copied = []
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (t) => { window.__copied.push(t) } } })
+  })
+  const block = (i) => `[data-id="${C.ids[i - 1]}"] [data-test=ws-doc-para] .code-block`
+  const smooth = () => new Promise((r) => setTimeout(r, 1500))
+  /** a normal copy of a selection inside the block's <pre> (as Ctrl+C), not the button */
+  const selectCopy = (i) => cp.evaluate((sel) => {
+    const pre = document.querySelector(sel + ' pre')
+    pre.scrollIntoView({ block: 'center' })
+    const r = document.createRange()
+    r.selectNodeContents(pre)
+    getSelection().removeAllRanges()
+    getSelection().addRange(r)
+    return document.execCommand('copy')
+  }, block(i))
+
+  await cp.waitForSelector(block(1), { visible: true, timeout: STEP }).catch(() => null)
+  await cp.click(block(1) + ' [data-testid=code-copy]')
+  await smooth()
+  const b1 = await landed(cp, C.ids[1])
+  ok('SPL-4392: the copy button under step 1 scrolls step 2\'s heading to the top, below the bar',
+    b1.gap !== null && Math.abs(b1.gap) <= 2 && b1.scroll > 0, b1)
+  const read1 = await cp.evaluate((id) => ({
+    para: Boolean(document.querySelector(`[data-id="${id}"] [data-test=ws-doc-para]`)),
+    box: Boolean(document.querySelector(`[data-id="${id}"] [data-test=ws-doc-text]`)),
+  }), C.ids[0])
+  ok('SPL-4392: the copy button leaves its paragraph read, not opened for editing', read1.para && !read1.box, read1)
+
+  await cp.click(block(2) + ' [data-testid=code-copy]')
+  await smooth()
+  const b2 = await landed(cp, C.ids[3])
+  ok('SPL-4392: step 3 has no code block, so the copy under step 2 lands on step 4',
+    b2.gap !== null && Math.abs(b2.gap) <= 2, b2)
+
+  await selectCopy(4)
+  await smooth()
+  const s4 = await landed(cp, C.ids[4])
+  ok('SPL-4392: a normal copy of a selection inside step 4\'s <pre> lands on step 5',
+    s4.gap !== null && Math.abs(s4.gap) <= 2, s4)
+
+  await selectCopy(6)
+  const before6 = (await landed(cp, C.ids[5])).scroll
+  await smooth()
+  const after6 = (await landed(cp, C.ids[5])).scroll
+  ok('SPL-4392: the last block has no next step: the copy scrolls nothing', before6 === after6, { before6, after6 })
+
+  const copiedText = await cp.evaluate(() => window.__copied)
+  ok('SPL-4392: the copy button still copies its block\'s text, unchanged',
+    copiedText.length === 2 && copiedText[0].trim() === 'echo step-1' && copiedText[1].trim() === 'echo step-2', copiedText)
+  await cp.close()
 } finally {
   await browser.close()
   await server.stop()

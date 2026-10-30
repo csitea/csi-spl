@@ -209,19 +209,19 @@ PROBE
 chmod +x "$T_TMP/probe.sh"
 mkdir -p "$SPOOL_ROOT/a-903"; : >"$SPOOL_ROOT/a-903/.watcher-role"
 t_window a-903 "$T_TMP/probe.sh" >/dev/null
-for _ in $(seq 1 100); do grep -q done "$T_TMP/probe.out" 2>/dev/null && break; sleep 0.1; done
+for _ in $(seq 1 100); do grep -q 'done' "$T_TMP/probe.out" 2>/dev/null && break; sleep 0.1; done
 has "W2 a pane in window a-903, SPL_WATCHER_PANES_CMD=true set: still refused by its pane" "a-903 pane" "$(cat "$T_TMP/probe.out" 2>/dev/null)"
 has "…and a marker with no user= line warns" "names no user= line" "$(cat "$T_TMP/probe.err" 2>/dev/null)"
 
 # ---- R7 c-700 W3: a marker counts only when root owns it --------------------
 eq "W3 a marker not owned by root, outside a test root: no watcher" "" \
-  "$(SPOOL_TEST= bash -c '. "$1"; spl_watcher_markers' _ "$LIB")"
+  "$(SPOOL_TEST='' bash -c '. "$1"; spl_watcher_markers' _ "$LIB")"
 has "W3 …the same marker in this test's own root counts" "a-901 nobody" \
   "$(bash -c '. "$1"; spl_watcher_markers' _ "$LIB")"
 SPOOL_TEST=1 bash -c '. "$1"; _spl_watcher_marker_ok "$2/a-901/.watcher-role" "$(readlink -m /var/spool-hub)"' _ "$LIB" "$SPOOL_ROOT"
 eq "W3 …under /var/spool-hub a non-root marker never counts, SPOOL_TEST=1 or not" 1 "$?"
 mkdir -p "$SPOOL_ROOT/a-905"; printf 'user=%s\n' "$(id -un)" >"$SPOOL_ROOT/a-905/.watcher-role"
-out="$(SPOOL_TEST= bash -c '. "$1"; spl_watcher_refuse do_spl_take' _ "$LIB" 2>&1)"; rc=$?
+out="$(SPOOL_TEST='' bash -c '. "$1"; spl_watcher_refuse do_spl_take' _ "$LIB" 2>&1)"; rc=$?
 eq "W3 …so a planted non-root marker naming this user (user=$(id -un)) does not stop its take" 0 "$rc"
 rm -f "$SPOOL_ROOT/a-905/.watcher-role"
 

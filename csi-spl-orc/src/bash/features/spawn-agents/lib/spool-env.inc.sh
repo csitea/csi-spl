@@ -881,22 +881,38 @@ spool_spawn_gate() {
 
 # ---- a watcher seat is read-only (spec 165 3.3, SPL-4344) -------------------
 # A watcher seat (spec 165 section 3) only reads. What makes an id a watcher
-# is the root-owned marker <spool root>/<ID>/.watcher-role; its `user=<name>`
+# is the ROOT-OWNED marker <spool root>/<ID>/.watcher-role; its `user=<name>`
 # lines name the OS user the watcher runs as. The OS user is the boundary
 # (no sudo, no keys); these gates are the second layer, for a watcher that
 # runs a fleet action from the shared tree.
-# The caller is read from its PROCESS CHAIN, never from AGENT_ID, DESK_AGENT
-# or --from: the caller sets all three. A hop of the chain is a watcher's
-# when its real uid is a marker's user, its environ SPOOL_AGENT_ID /
-# MCP_BOT_AGENT_ID is a marker's id (a child cannot rewrite its ancestors'
-# environ), or the tmux window of its pane is named for one.
-# Markers are read from /var/spool-hub and from $SPOOL_ROOT; no marker on the
-# box = no watcher, and nothing else is read. The real chain from $$ is always
-# walked; under SPOOL_TEST=1 a fake /proc (SPL_WATCHER_PROC, from
-# SPL_WATCHER_PID) is walked too, and SPL_WATCHER_PANES_CMD replaces the
-# tmux pane list. A test can add a refusal that way, never remove one.
+# The caller is read from what it cannot set, never from AGENT_ID,
+# DESK_AGENT or --from:
+#   - its real uid (`id -ru`), checked before any walk, and the real uid of
+#     every process of its chain up to pid 1, against the markers' users;
+#   - the environ SPOOL_AGENT_ID / MCP_BOT_AGENT_ID of every process of the
+#     chain (a child cannot rewrite its ancestors' environ) and the window
+#     of a pane the chain runs in, against the markers' ids.
+# The walk stops at pid 1 only: a process names itself (comm), so a name is
+# never where it stops (R7 c-700 W1).
+# Markers are read from /var/spool-hub and from $SPOOL_ROOT, and count only
+# when root owns them: the spool root is group-writable, and one marker
+# planted by any member would stop every push of its user= on the box (W3).
+# Only a test's own root (SPOOL_TEST=1, not /var/spool-hub) skips that. No
+# marker = no watcher, and nothing else is read.
+# Panes come from the box user's socket (the owner of /var/spool-hub),
+# always; $SPOOL_TMUX_SOCKET and, under SPOOL_TEST=1, SPL_WATCHER_PANES_CMD
+# only ADD to it (W2). Under SPOOL_TEST=1 a fake /proc (SPL_WATCHER_PROC, from
+# SPL_WATCHER_PID) is walked too. A caller can add a refusal, never remove one.
+# A marker with no user= line is matched by environ and pane only, which a
+# detached `env -i` process walks around: spl_watcher_why warns on it.
 
-# "<id> <user>" per marker (user "-" when it names none).
+# 0 when MARKER counts: root-owned, or in a test's own root.
+_spl_watcher_marker_ok() {  # MARKER ROOT
+  [ "$(stat -c %u "$1" 2>/dev/null)" = 0 ] && return 0
+  [ "${SPOOL_TEST:-}" = 1 ] && [ "$2" != "$(readlink -m -- /var/spool-hub)" ]
+}
+
+# "<id> <user>" per marker that counts (user "-" when it names none).
 spl_watcher_markers() {
   local r m u seen=" " found
   for r in /var/spool-hub "${SPOOL_ROOT:-}"; do
@@ -905,7 +921,7 @@ spl_watcher_markers() {
     case "$seen" in *" $r "*) continue ;; esac
     seen+="$r "
     for m in "$r"/*/.watcher-role; do
-      [ -f "$m" ] || continue
+      [ -f "$m" ] && _spl_watcher_marker_ok "$m" "$r" || continue
       m="${m%/.watcher-role}"; m="${m##*/}"
       found=0
       while IFS= read -r u; do
@@ -917,33 +933,56 @@ spl_watcher_markers() {
   done
 }
 
-# The pids of ROOT's chain from PID, itself first, up to (not into) the tmux
-# server or pid 1: spool-send.sh's send_caller_chain walk.
+# The pids of ROOT's chain from PID, itself first, up to (not into) pid 1.
 spl_watcher_chain() {  # ROOT PID
-  local root="$1" pid="$2" n=0 comm
-  while [[ "$pid" =~ ^[0-9]+$ ]] && [ "$pid" -gt 1 ] && [ "$n" -lt 64 ]; do
-    comm="$(cat "$root/$pid/comm" 2>/dev/null)" || break
-    case "$comm" in tmux*) break ;; esac
+  local root="$1" pid="$2" n=0
+  while [[ "$pid" =~ ^[0-9]+$ ]] && [ "$pid" -gt 1 ] && [ "$n" -lt 128 ] && [ -e "$root/$pid/status" ]; do
     echo "$pid"
     pid="$(awk '/^PPid:/ { print $2; exit }' "$root/$pid/status" 2>/dev/null)"
     n=$((n + 1))
   done
 }
 
-# "<pid>\t<window name>" per live tmux pane of the box user, or nothing.
+# The box user's tmux socket: the owner of /var/spool-hub, never an env var.
+_spl_watcher_box_socket() {
+  local owner
+  owner="$(stat -c %u /var/spool-hub 2>/dev/null)" || return 0
+  printf '/tmp/tmux-%s/default' "$owner"
+}
+
+# "<pid>\t<window name>" per live pane of tmux socket SOCK, through the
+# socket's owner (from /tmp/tmux-<uid>/) when this user cannot reach it:
+# sudo -n, never a prompt; a user with no sudo rule lists nothing.
+_spl_watcher_list_panes() {  # SOCK
+  local sock="$1" owner f='#{pane_pid}	#{window_name}'
+  if [ -S "$sock" ]; then
+    timeout 5 tmux -u -S "$sock" list-panes -a -F "$f" 2>/dev/null
+    return 0
+  fi
+  owner="${sock#/tmp/tmux-}"; owner="${owner%%/*}"
+  [[ "$owner" =~ ^[0-9]+$ ]] && [ "$owner" != "$(id -u)" ] || return 0
+  timeout 5 sudo -n -u "#$owner" tmux -u -S "$sock" list-panes -a -F "$f" </dev/null 2>/dev/null
+  return 0
+}
+
+# The panes of the box socket, always; plus $SPOOL_TMUX_SOCKET, plus
+# SPL_WATCHER_PANES_CMD under SPOOL_TEST=1. Each only adds (W2).
 _spl_watcher_panes() {
+  local box
+  box="$(_spl_watcher_box_socket)"
+  [ -z "$box" ] || _spl_watcher_list_panes "$box"
+  [ -z "${SPOOL_TMUX_SOCKET:-}" ] || [ "$SPOOL_TMUX_SOCKET" = "$box" ] || _spl_watcher_list_panes "$SPOOL_TMUX_SOCKET"
   if [ "${SPOOL_TEST:-}" = 1 ] && [ -n "${SPL_WATCHER_PANES_CMD:-}" ]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
-    $SPL_WATCHER_PANES_CMD; return 0
+    $SPL_WATCHER_PANES_CMD
   fi
-  local sock="${SPOOL_TMUX_SOCKET:-}" owner
-  if [ -z "$sock" ]; then
-    owner="$(stat -c %u /var/spool-hub 2>/dev/null)" || return 0
-    sock="/tmp/tmux-${owner}/default"
-  fi
-  [ -S "$sock" ] || return 0
-  timeout 5 tmux -u -S "$sock" list-panes -a -F '#{pane_pid}	#{window_name}' 2>/dev/null
   return 0
+}
+
+# "<user> uid" when UID is a marker's user. UIDS = " <uid> ... ".
+_spl_watcher_uid_hit() {  # UID UIDS
+  [ -n "$1" ] && [[ "$2" == *" $1 "* ]] || return 1
+  echo "$(getent passwd "$1" | cut -d: -f1 | grep . || echo "$1") uid"
 }
 
 # "<who> <how>" of the first hop of ROOT's chain from PID that is a watcher's,
@@ -955,9 +994,7 @@ _spl_watcher_hit() {  # ROOT PID IDS UIDS
   [ -n "$chain" ] || return 0
   for p in $chain; do
     u="$(awk '/^Uid:/ { print $2; exit }' "$root/$p/status" 2>/dev/null)"
-    if [ -n "$u" ] && [[ "$4" == *" $u "* ]]; then
-      echo "$(getent passwd "$u" | cut -d: -f1 | grep . || echo "$u") uid"; return 0
-    fi
+    _spl_watcher_uid_hit "$u" "$4" && return 0
     [ "$(stat -c %u "$root/$p" 2>/dev/null)" = 0 ] || own+=("$p")
   done
   if [ "${#own[@]}" -gt 0 ]; then
@@ -977,18 +1014,22 @@ _spl_watcher_hit() {  # ROOT PID IDS UIDS
   return 0
 }
 
-# "<who> <how>" when a watcher is in the caller's chain (how: uid, environ or
-# pane), else nothing. Always rc 0.
+# "<who> <how>" when the caller is a watcher (how: uid, environ or pane),
+# else nothing. Always rc 0; a WARN on stderr per marker with no user=.
 spl_watcher_why() {
   local marks id user ids=" " uids=" " uid hit
   marks="$(spl_watcher_markers)"
   [ -n "$marks" ] || return 0
   while read -r id user; do
     ids+="$id "
-    [ "$user" = - ] && continue
+    if [ "$user" = - ]; then
+      echo "WARN: watcher marker ${id} names no user= line: only its environ and pane are matched, and a detached env -i process walks around them (spec 165 3.1)" >&2
+      continue
+    fi
     uid="$(id -u "$user" 2>/dev/null)" && uids+="$uid "
   done <<<"$marks"
-  hit="$(_spl_watcher_hit /proc "$$" "$ids" "$uids")"
+  hit="$(_spl_watcher_uid_hit "$(id -ru)" "$uids")"
+  [ -n "$hit" ] || hit="$(_spl_watcher_hit /proc "$$" "$ids" "$uids")"
   if [ -z "$hit" ] && [ "${SPOOL_TEST:-}" = 1 ] && [ -n "${SPL_WATCHER_PROC:-}" ]; then
     hit="$(_spl_watcher_hit "$SPL_WATCHER_PROC" "${SPL_WATCHER_PID:-$$}" "$ids" "$uids")"
   fi

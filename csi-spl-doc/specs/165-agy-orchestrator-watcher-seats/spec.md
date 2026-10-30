@@ -228,6 +228,11 @@ takes no posts, builds nothing, pushes nothing and spawns nothing.
   `/var/spool-hub/<ID>/.watcher-role` that the watcher cannot write or delete.
   Its `user=<WATCHER_USER>` lines name that OS user; the gates of 3.3 key on
   both the id and the user (B4, `spl_watcher_why` in `spool-env.inc.sh`).
+  A marker counts only when root owns it: the spool root is group-writable,
+  and a marker any member could plant would stop that user's pushes. The
+  spawn (B8) always writes a `user=` line: a marker without one is matched by
+  environ and pane only, which a detached `env -i` process walks around, and
+  `spl_watcher_why` warns on it.
 - **Findings route (decided by the fleet, was Q4; W11)**: spool notes to the
   orchestrator only (3.4).
 

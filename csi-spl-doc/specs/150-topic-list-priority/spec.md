@@ -1,6 +1,8 @@
 # 150 Topic-list controls and discussion priority
 
-Version v1.0 (2026-10-23). This is step 2 of the owner rule for a big change
+Version v1.1 (2026-10-30): a topic nobody set has priority 3, not 5 (the
+owner, msg `f5ed1396`, section 1; SPL-4367); issues keep their default 5.
+v1.0 (2026-10-23) is step 2 of the owner rule for a big change
 (HUM-10, quoted in the spec 099 header: "1. The written spec and the run
 tests. 2. The proper spec with the panel discussion. 3. The actual
 implementation."). v0.1 (SPL-3027, `25e1686d6`) was step 1. A panel
@@ -23,13 +25,14 @@ origin/master `25e1686d6`; its code is that of `7ca2732e9`, which v0.1 cites
 
 ## 1. The owner's asks, verbatim
 
-| part | msg | 2026-10-21 (UTC) | text |
+| part | msg | when (UTC) | text |
 |---|---|---|---|
-| 1 | `0c33bce8` | 12:49:20 | "on the same row as the channel name we should have a small forw with more icons ..." |
-| - | `b489f912` | 12:49:26 | a screenshot, no text (g-002, msg `faf76aee`: it shows the three card-clip icons on the channel-name row) |
-| 2 | `f2bb53c9` | 12:50:10 | "there should be the filter for new and all topics , there shuld be a sort-by time of last update , sort by amount of msgs sort by  sort by prio" |
-| 3 | `465b73d7` | 12:52:16 | "where prio shoud be settable from the small control which will apear on ghe bottom or on the top depending on the pre-pending or appending settings for the user ... it should be a radio box chooser wit hthe values from 1..5" |
-| 4 | `2a1c2d12` | 12:52:56 | "and accordingly the orchestrator should be able to queque and give priority to those discussions which priority is closer to 1 than 5" |
+| 1 | `0c33bce8` | 2026-10-21 12:49:20 | "on the same row as the channel name we should have a small forw with more icons ..." |
+| - | `b489f912` | 2026-10-21 12:49:26 | a screenshot, no text (g-002, msg `faf76aee`: it shows the three card-clip icons on the channel-name row) |
+| 2 | `f2bb53c9` | 2026-10-21 12:50:10 | "there should be the filter for new and all topics , there shuld be a sort-by time of last update , sort by amount of msgs sort by  sort by prio" |
+| 3 | `465b73d7` | 2026-10-21 12:52:16 | "where prio shoud be settable from the small control which will apear on ghe bottom or on the top depending on the pre-pending or appending settings for the user ... it should be a radio box chooser wit hthe values from 1..5" |
+| 4 | `2a1c2d12` | 2026-10-21 12:52:56 | "and accordingly the orchestrator should be able to queque and give priority to those discussions which priority is closer to 1 than 5" |
+| D7 | `f5ed1396` | 2026-10-29 | "I would expect some kind of small row of 1..5 radio buttons whith default 3 and one would have to click on 1 to make the prio 1 - aka the most important one" |
 
 Two readings the text alone cannot settle:
 
@@ -118,7 +121,8 @@ holds (panel.md section 1, one row per claim with its command).
   `grep -l priority rdb/*.sql` lists only the issue migrations (0047, 0054,
   0055, 0181) and the issues sort setting in 0078.
 - Issues have one: `store/issues.go:60-66`, 1 the highest, 5 the lowest,
-  **default 5** (rdb 0054, 0055, owner 2026-09-26).
+  **default 5** (rdb 0054, 0055, owner 2026-09-26). A topic's default is
+  3, not the issues' 5 (D7, the owner's msg `f5ed1396`).
 
 ### 2.5 Topic writes, their policy and their live frame
 
@@ -188,7 +192,8 @@ holds (panel.md section 1, one row per claim with its command).
   - Last update: `last_ts` (today's order).
   - Messages: the topic's total count (`channel.repliesFor`, the hub's
     `count`).
-  - Priority: 1 first, 5 last; a topic nobody set is 5 (panel D7).
+  - Priority: 1 first, 5 last; a topic nobody set is 3, between a 2 and a
+    4 (D7).
   - No third sort: poll Q2 was answered A (D12).
 - **Unread stays at the edge after any sort** (panel D9): owner rule
   SPL-2506, "every listing puts the items with unread at the edge"
@@ -209,8 +214,9 @@ holds (panel.md section 1, one row per claim with its command).
   one row per topic someone set: `tenant_id`, `task_id`, `priority`
   (`CHECK (priority BETWEEN 1 AND 5)`), `set_by`, `set_at`; primary key
   `(tenant_id, task_id)`.
-- No row = priority 5 (panel D7). There is no "clear": setting 5 is the
-  default. So every change is an upsert and leaves a `set_at`.
+- No row = priority 3 (D7). There is no "clear": setting 3 is the
+  default, so every change is an upsert and leaves a `set_at`. The default
+  is not stored: changing it rewrote no row (v1.1).
 - RLS and roles as for `topic_heads` (spec 099 section 3.4).
 - **The `change_stamp` trigger** (`rdb/0103:112-149`) goes on the table, so
   a set moves the tenant stamp and a stamped repeat read does not answer 304
@@ -223,7 +229,7 @@ holds (panel.md section 1, one row per claim with its command).
 - `store/topic_priority.go` (interface, validation 1..5),
   `store/topic_priority_postgres.go`, `store/topic_priority_memory.go`.
 - `SetTopicPriority(tenant, taskID, prio, by, at)` and
-  `TopicPriorities(tenant, taskIDs) map[string]int` (absent = 5).
+  `TopicPriorities(tenant, taskIDs) map[string]int` (absent = 3).
 - The list reads a topic's priority inside `summary()`, the row statement
   spec 099 5.2 runs for the page only: one primary-key probe of
   `topic_priorities` per row, into `TopicRow.Priority`. A topic read takes it
@@ -247,7 +253,7 @@ holds (panel.md section 1, one row per claim with its command).
   (`mayArchiveByPolicy`, `hub/topic_archive.go:147-152`) decides who may
   set it: 403 `not_allowed` otherwise (panel D8). No new setting.
 - The rows of `GET /v1/view/topics` and `GET /v1/view/topics/{task_id}`
-  carry `priority` (1..5; 5 when nobody set it).
+  carry `priority` (1..5; 3 when nobody set it).
 - A live frame `topic_priority` (task id, priority), sent through
   `fanoutTopic` (`hub/topic_archive.go:348`) as `topic_archived` is, updates
   every open view of the topic and the list without a refetch.
@@ -264,9 +270,9 @@ holds (panel.md section 1, one row per claim with its command).
   on phones too.
 - `wui/utils/spool-client.mjs` gets `setTopicPriority(taskId, prio)`;
   `wui/utils/spool-client-mock.mjs` its mock.
-- **The topic card shows a small badge** `P1`..`P4` when a priority other
-  than the default 5 is set (panel D11), so a list sorted by priority shows
-  why. `wui/components/MessageCard.vue`.
+- **The topic card shows a small badge** when a priority other than the
+  default 3 is set (panel D11): `P1`, `P2`, `P4`, `P5`, so a list sorted by
+  priority shows why. `wui/components/MessageCard.vue`.
 
 ### 3.4 Part 4: the orchestrator serves priority 1 first
 
@@ -280,12 +286,12 @@ holds (panel.md section 1, one row per claim with its command).
      `TopicsByPrefix(tenant, topic8, 2)`: one match sets it, none or two
      leave it NULL, never guessed (panel F3).
    - `askPositions` reads each queued ask's discussion priority (absent =
-     5). Poll Q5 (`0709b075`) was answered **A, priority first**: the queue
+     3). Poll Q5 (`0709b075`) was answered **A, priority first**: the queue
      ranks by priority, then the class rank, then `EnqueuedAt`, so a
      priority 1 feature goes before a priority 3 bug. Each ask in the hub's
      list carries its `priority`.
-   - Every ask nobody gave a priority ranks at 5, so today's order holds for
-     every row until someone sets one.
+   - Every ask nobody gave a priority ranks at 3: after a set 1 or 2, before
+     a set 4 or 5. With no priority set, today's order holds for every row.
 2. **The unanswered owner posts.** `UnansweredPosts`
    (`store/fallback_postgres.go:111-126`, memory `fallback_memory.go:129`)
    orders by the priority of the post's topic, then `received_at`. The
@@ -350,13 +356,13 @@ language rule, global CLAUDE.md "Spawn an agent"): build row B11.
 | C202 | 2 | filter All | every card, in today's order | the New test applied under All | same |
 | C203 | 2 | sort Last update | the same as `channelView` today | sort by first_ts | same |
 | C204 | 2 | sort Messages | higher count first, ties by last update | ascending sort | same |
-| C205 | 2 | sort Priority | 1 before 5; a topic with no priority sorts as 5 | no priority sorts first | same |
+| C205 | 2 | sort Priority | 1 before 5; a topic with no priority sorts as 3, between a 2 and a 4 | no priority sorts first | same |
 | C206 | 2 | stable ties | equal keys keep last-update order, then task_id | drop the tie-break | same |
 | C207 | 2 | the loaded-topics line | shows under a sort and under New only when an older page exists | always shown | e2e as C101 |
 | C208 | 2 | unread edge with a sort | unread cards stay at the edge; each group in the chosen sort | apply the sort after the unread move | unit as C201 |
 | C209 | 2 | the choice survives a reload | same filter and sort after a reload in the same browser | not stored | e2e as C101 |
 | C210 | 2 | New and the unread edge agree | every card `useUnreadOrder` puts at the edge is kept by New | pass `channel.unreadFor` as `unreadOf` | unit as C201 |
-| C301 | 3 | store set / read | `SetTopicPriority` 3, then read 3; an unset topic reads 5 | skip the write | `store/topic_priority_test.go` (Postgres + memory) |
+| C301 | 3 | store set / read | `SetTopicPriority` 3, then read 3; an unset topic reads 3 | skip the write | `store/topic_priority_test.go` (Postgres + memory) |
 | C302 | 3 | bounds | 0 and 6 refused, 1 and 5 accepted | widen the CHECK | same |
 | C303 | 3 | change stamp | a set moves the tenant stamp; `TestChangeStampTriggerCatalogue` lists the table | drop the trigger | `store/change_stamp_test.go` |
 | C304 | 3 | tenant isolation (RLS) | tenant B reads none of tenant A's rows | drop the RLS policy | `store/topic_priority_test.go`, as spec 099 7.4 |
@@ -367,7 +373,7 @@ language rule, global CLAUDE.md "Spawn an agent"): build row B11.
 | C309 | 3 | live frame | a second client sees the new value without a refetch | no frame | `csi-spl-wui/tests/e2e/topic-priority.test.mjs` |
 | C310 | 3 | top / bottom | the chooser is above the root when newest first, below the last reply when newest last | always on top | same |
 | C311 | 3 | failed save | the old value comes back and the error line shows | keep the clicked value | same |
-| C312 | 3 | card badge | `P2` on a card set to 2; no badge at 5 | badge at 5 too | `csi-spl-wui/tests/e2e/topic-priority-badge.test.mjs` |
+| C312 | 3 | card badge | `P2` on a card set to 2, `P5` at 5; no badge at 3 | badge at 3 too | `csi-spl-wui/tests/e2e/topic-priority-badge.test.mjs` |
 | C313 | 3 | i18n parity + raw text | all 19 locales hold every new key; the raw-text count does not rise | a literal "Priority" in the template | `csi-spl-wui/tests/unit/i18n-parity.test.mjs`, `i18n-no-raw-text.test.mjs` |
 | C401 | 4 | queue order | of two queued asks in one class, the priority 1 ask is position 1 even when queued later | the rank ignores priority | `store/fleet_ask_queue_test.go` |
 | C402 | 4 | no priority = today | asks with no discussion keep the class, EnqueuedAt order | the default ranks first | same |
@@ -398,6 +404,9 @@ before a row that depends on it starts.
 | B12 (Implemented, store half, bfc006e10) | 4 | unanswered posts by priority; C406 | `store/fallback_postgres.go`, `store/fallback_memory.go`, `store/unanswered_test.go`, `csi-spl-orc/src/bash/tests/unanswered-sweep-pg.tst.sh` | B1 |
 
 - Every row runs the module gate of the repo CLAUDE.md before its push.
+- The default 3 (v1.1, SPL-4367) is one constant per side:
+  `store.TopicPriorityDefault` (B1; B3, B9 and B12 read it) and
+  `TOPIC_PRIORITY_DEFAULT` in `wui/utils/topic-list-order.mjs` (B5).
 - B1, B2, B9 and B12 touch the store or a migration: `PRE_PUSH_TIER=full`.
 - B12 landed the store half: `UnansweredPosts` (Postgres and memory) orders
   by the topic's priority, then `received_at`, so the hub's escalation
@@ -431,11 +440,11 @@ is in panel.md section 3.
 | D4 (P4) | issue priority vs discussion priority | separate; nothing copies | two copies of one value drift; the queue reads the discussion's through D3 |
 | D5 (Q1) | what "new" means in the filter | a topic with unread messages | the WUI's existing "new" is unread: `cardNew.unseen` / `openerNew` (`LiveFeed.vue:91-92, 295`) |
 | D6 (Q6) | where the filter / sort choice is kept | per browser | the card-clip control beside it is kept per browser (`CardClipControl.vue:5`); no API, no migration |
-| D7 (Q3) | a discussion nobody set | priority 5, as an issue; no "None", no clear | issues default to 5 (`store/issues.go:63-65`, owner 2026-09-26); every existing row keeps today's order |
+| D7 (Q3) | a discussion nobody set | priority 3; no "None", no clear (v1.1; v1.0 had 5, as an issue) | the owner, msg `f5ed1396` (2026-10-29): "radio buttons whith default 3" (section 1). Issues keep 5 (`store/issues.go:63-65`, owner 2026-09-26) |
 | D8 (Q4) | who may set it | the read door, then the workspace's "Who can archive topics" policy | one existing policy for topic changes (`hub/topic_archive.go:147-152`, CLE-77819); no new setting |
 | D9 (Q7) | unread at the edge after a sort | yes | owner rule SPL-2506: "every listing puts the items with unread at the edge" (`useUnreadOrder.ts:2-5`) |
 | D10 (F5) | where the write route lives | `PUT /v1/topics/{task_id}/priority` | every `/v1/view/` route reads (`hub/view.go:48-62`) |
-| D11 (Q8) | does the card show the priority | a small badge when not 5 | a list sorted by priority with no visible value cannot be read |
+| D11 (Q8) | does the card show the priority | a small badge when not 3 | a list sorted by priority with no visible value cannot be read |
 | D12 (Q2) | the third sort | none: three sorts (last update, messages, priority) | the owner, poll `b4e82851` msg `f6350266`: "Answer: A — There is no third sort: three sorts are enough"; then msg `603d2f64`: "can you proceed now" |
 
 ## 7. Questions for the owner

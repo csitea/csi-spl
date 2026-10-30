@@ -12417,6 +12417,60 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/zombie-topics": {
+      "get": {
+        "operationId": "getOperatorZombieTopics",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "query",
+            "name": "idle_days",
+            "required": false,
+            "schema": {
+              "default": 7,
+              "maximum": 3650,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 5000,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: the operator workspace's idle topic heads (spec 166 3.2 conditions 1, 2 and 6): as_of, idle_days, limit, idle_before and topics, oldest last_at first, each task_id and last_at. Listed: not card-archived, latest line older than idle_days, no DM thread, no topic priority. Read only: it archives nothing"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "501": {
+            "description": "Not implemented: this hub's store keeps no topic heads (the memory store)"
+          }
+        },
+        "summary": "Read the idle topic heads (zombie candidates)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/perf/samples": {
       "post": {
         "operationId": "postPerfSamples",

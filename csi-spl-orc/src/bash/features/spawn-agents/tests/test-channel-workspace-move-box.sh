@@ -7,7 +7,11 @@
 #      and the file mode kept); a re-run changes nothing; a <DST> row already
 #      there beside the <SRC> row is refused (exit 3), the map unchanged
 #   3. probe (C11): a desk whose probe DM fails exits 1 and records nothing;
-#      a good probe records its msg id, and a re-run reuses it, sends nothing
+#      a good probe records its msg id, and a re-run reuses it, sends nothing;
+#      the recipient is an agent (the <DST> orchestrator seat), never a HUM-
+#   5. the REAL default probe path (no CMB_PROBE_CMD; CMB_PROBE_DRY=1 runs
+#      ./run -a do_spl_channel_workspace_move MOVE_CMD=probe with DRY_RUN=1):
+#      an agent recipient passes its argument check
 #   4. lane-notes (C12): one note per lane, old -> new key; a re-run sends none
 # Seams: CMB_PROBE_CMD (the probe DM), CMB_SEND_CMD (spool-send.sh); both
 # record every call (an absent call means "not made", not "not recorded").
@@ -56,8 +60,9 @@ run() { : >"$STUB_LOG"; bash "$S" "$@" >"$T/out" 2>&1; }
 for bad in "nope" "rule-rows --move x --src src1 --dst dst1 --channel proj" \
   "rule-rows --move $MOVE --src SRC --dst dst1 --channel proj" \
   "rule-rows --move $MOVE --src src1 --dst src1 --channel proj" \
-  "probe --move $MOVE --env stg --tenant dst1 --to HUM-1 --agent c-101" \
-  "probe --move $MOVE --env prd --tenant dst1 --to HUM-1 --agent bob"; do
+  "probe --move $MOVE --env stg --tenant dst1 --to c-001 --agent c-101" \
+  "probe --move $MOVE --env prd --tenant dst1 --to c-001 --agent bob" \
+  "probe --move $MOVE --env prd --tenant dst1 --to HUM-10 --agent c-101"; do
   seed_map; cp "$SPOOL_CHANNEL_RULES_MAP" "$T/before"
   # shellcheck disable=SC2086 # the case's words, split on purpose
   run $bad; rc=$?
@@ -95,7 +100,7 @@ run rule-rows --move "$MOVE" --src src1 --dst dst1 --channel proj --apply; rc=$?
   && pass "2. no map on this box: nothing to do, no file made" || fail "2. no map: rc=$rc $(cat "$T/out")"
 
 # --- 3. probe (C11) --------------------------------------------------------------------
-P=(probe --move "$MOVE" --env prd --tenant dst1 --to HUM-10 --agent c-101)
+P=(probe --move "$MOVE" --env prd --tenant dst1 --to c-001 --agent c-101)
 run "${P[@]}"; rc=$?
 [[ $rc -eq 0 && ! -s "$STUB_LOG" ]] && grep -q '^PLAN probe c-101' "$T/out" && pass "3. without --apply: no probe sent" || fail "3. plan: rc=$rc $(cat "$T/out")"
 CMB_PROBE_FAIL=c-101 run "${P[@]}" --apply; rc=$?
@@ -104,8 +109,8 @@ CMB_PROBE_FAIL=c-101 run "${P[@]}" --apply; rc=$?
 run "${P[@]}" --apply; rc=$?
 id1="$(tail -n1 "$T/out")"
 [[ $rc -eq 0 && "$id1" =~ ^[0-9a-f-]{36}$ ]] && grep -q "^probe	c-101	$id1	" "$CHANNEL_MOVE_STATE/$MOVE/box.tsv" \
-  && grep -qx "probe prd dst1 c-101 HUM-10 $MOVE" "$STUB_LOG" \
-  && pass "3. a good probe goes to the caller on the move's task; its msg id is recorded" || fail "3. good: rc=$rc $(cat "$T/out" "$STUB_LOG")"
+  && grep -qx "probe prd dst1 c-101 c-001 $MOVE" "$STUB_LOG" \
+  && pass "3. a good probe goes to the orchestrator seat on the move's task; its msg id is recorded" || fail "3. good: rc=$rc $(cat "$T/out" "$STUB_LOG")"
 run "${P[@]}" --apply; rc=$?
 [[ $rc -eq 0 && ! -s "$STUB_LOG" && "$(tail -n1 "$T/out")" == "$id1" ]] \
   && pass "3. a re-run reuses the recorded probe, sends nothing" || fail "3. rerun: rc=$rc $(cat "$T/out" "$STUB_LOG")"
@@ -129,6 +134,14 @@ run "${L[@]}" --apply; rc=$?
 printf '[{"agent":"c-201","topic":"","old_key":"SRC-7; rm","new_key":"DST-1"}]' >"$T/bad.json"
 run lane-notes --move "$MOVE" --from c-001 --lanes "$T/bad.json" --apply; rc=$?
 [[ $rc -eq 2 && ! -s "$STUB_LOG" ]] && pass "4. a malformed key: refused, nothing sent" || fail "4. bad key: rc=$rc $(cat "$T/out")"
+
+# --- 5. the real default probe path, as far as its argument check ---------------------
+rm -rf "$CHANNEL_MOVE_STATE"
+env -u CMB_PROBE_CMD CMB_PROBE_DRY=1 bash "$S" probe --move "$MOVE" --env prd --tenant dst1 --to c-001@boxb --agent c-101 --apply >"$T/out" 2>&1; rc=$?
+grep -q 'DRY_RUN would send the P2b probe c-101 -> c-001@boxb through its dst1 desk' "$T/out" && ! grep -q 'FATAL PROBE_TO' "$T/out" \
+  && pass "5. the default path (do_spl_channel_workspace_move MOVE_CMD=probe) takes an agent recipient" || fail "5. default: rc=$rc $(cat "$T/out")"
+[[ $rc -eq 1 ]] && ! grep -qs '^probe	' "$CHANNEL_MOVE_STATE/$MOVE/box.tsv" \
+  && pass "5. a dry probe sends nothing, so nothing is recorded (exit 1, no msg id)" || fail "5. dry record: rc=$rc"
 
 echo "channel-workspace-move-box: $fails failure(s)"
 [[ $fails -eq 0 ]]

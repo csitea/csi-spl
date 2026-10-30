@@ -22,6 +22,14 @@
 # @description may be re-run until P4 commits; after that MOVE_FROM may not
 # @description name P1-P4 (exit 3). DRY_RUN=0 is the owner's: it needs his
 # @description (GO) poll answer's msg id, sent with every hub step.
+# @description MOVE_CMD=probe is P2b's send, run by the box script for one
+# @description seat: an agent-to-agent DM from PROBE_AGENT through its <TO>
+# @description desk on THIS machine to PROBE_TO, the <DST> orchestrator seat
+# @description (an agent: the hub's human-post guard refuses a probe DM to a
+# @description person), on the task PROBE_MOVE. A seat whose <DST> desk is on
+# @description another machine fails its probe, and the move stops before P3:
+# @description run the move on the machine of its seats' desks (spec 167
+# @description first, R5). DRY_RUN=1 checks the arguments only.
 # @description NOT WIRED YET: the T7 endpoint does not exist. The hub is
 # @description reached only through the seam CHANNEL_MOVE_HUB_CMD, a command
 # @description that reads one request JSON on stdin ({op, env, src, channel,
@@ -36,16 +44,19 @@
 # @param TO_NAME (optional) - the channel id in <DST> when <channel id> is taken there
 # @param MOVE_FROM (optional) - restart at this step (P1..P7, P2b) instead of the journal's
 # @param MOVE_GO_MSG - required for run with DRY_RUN=0: the owner's GO poll answer msg id
-# @param MOVE_CALLER - required for a move with DRY_RUN=0: HUM-<n> or the agent id the probe DMs go to
+# @param MOVE_CALLER - required for a move with DRY_RUN=0: the <DST> orchestrator seat, <agent id>[@<box>], the probe DMs go to
 # @param AGENT_ID - required for a move with DRY_RUN=0: the agent id the lane key notes come from
 # @param CHANNEL_MOVE_HUB_CMD (optional) - the hub seam above (until T7 is wired)
 # @param CHANNEL_MOVE_STATE (optional) - the box journal dir, default $SPOOL_ROOT/channel-move
+# @param PROBE_AGENT, PROBE_TO, PROBE_MOVE (MOVE_CMD=probe only) - the seat, the recipient <agent id>[@<box>], the move id
+# @param DESK_BOX (optional, MOVE_CMD=probe) - the seat's box id, default box-desk
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd CHANNEL=<SRC>/<channel> TO=<DST> ./run -a do_spl_channel_workspace_move
 # @example ENV=prd CHANNEL=<SRC>/<channel> TO=<DST> MOVE_CMD=run ./run -a do_spl_channel_workspace_move
 #------------------------------------------------------------------------------
 do_spl_channel_workspace_move() {
   do_require_bin jq flock || return 1
+  if [[ "${MOVE_CMD:-}" == probe ]]; then _spl_cwm_probe_send; return $?; fi
   _spl_cwm_args || return $?
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
@@ -94,11 +105,17 @@ _spl_cwm_args_live() {
   }
   [[ "$CWM_MODE" == move ]] || return 0
   declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
-  [[ "${MOVE_CALLER:-}" =~ ^HUM-[0-9]+$ ]] || spl_is_agent_id "${MOVE_CALLER:-}" || {
-    do_log "FATAL MOVE_CALLER must be HUM-<n> or an agent id (the probe DMs of P2b go to it), got: '${MOVE_CALLER:-}'"
+  _spl_cwm_is_seat "${MOVE_CALLER:-}" || {
+    do_log "FATAL MOVE_CALLER must be the $CWM_DST orchestrator seat, <agent id>[@<box>] (the probe DMs of P2b go to it; never a HUM-: the hub refuses a probe DM to a person), got: '${MOVE_CALLER:-}'"
     return 1
   }
   spl_is_agent_id "${AGENT_ID:-}" || { do_log "FATAL AGENT_ID must be an agent id (the lane key notes of P5 come from it), got: '${AGENT_ID:-}'"; return 1; }
+}
+
+# _spl_cwm_is_seat <id>[@<box>]: 0 for an agent id with an optional box.
+_spl_cwm_is_seat() {
+  declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  [[ "$1" != *@* || "${1#*@}" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] && spl_is_agent_id "${1%@*}"
 }
 
 _spl_cwm_steps() {
@@ -201,12 +218,13 @@ _spl_cwm_box() { bash "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/s
 # P2b (W2, C11): every seat's <DST> desk sends its probe DM, or the move stops
 # before P3/P4 with nothing changed.
 _spl_cwm_probe_all() {
-  local j agent box id probes="[]"
+  local j agent box out id probes="[]"
   j="$(_spl_cwm_hub journal)" || return 1
   while IFS=$'\x1f' read -r agent box; do
     [[ -n "$agent" ]] || continue
-    id="$(_spl_cwm_box probe --env "$ENV" --tenant "$CWM_DST" --to "$MOVE_CALLER" --agent "$agent" ${box:+--box "$box"} | tail -n1)" \
+    out="$(_spl_cwm_box probe --env "$ENV" --tenant "$CWM_DST" --to "$MOVE_CALLER" --agent "$agent" ${box:+--box "$box"})" \
       || { do_log "FATAL P2b: the $CWM_DST desk of $agent failed its probe; stopped before P3/P4, no row of the set moved"; return 1; }
+    id="${out##*$'\n'}"
     probes="$(jq -c --arg a "$agent" --arg m "$id" '. + [{agent: $a, msg_id: $m}]' <<<"$probes")"
   done < <(jq -r '.seats // [] | .[] | [.agent // "", .box // ""] | join("\u001f")' <<<"$j")
   _spl_cwm_hub mark P2b "{\"probes\":$probes}" >/dev/null
@@ -224,4 +242,38 @@ _spl_cwm_box_p5() {
   rm -f "$lanes"
   (( rc == 0 )) || { do_log "FATAL P5: a lane key note was not sent; a re-run resumes at P5 and sends only the missing ones"; return 1; }
   _spl_cwm_hub mark P5 '{"box":"rule-rows,lane-notes"}' >/dev/null
+}
+
+# MOVE_CMD=probe (P2b, one seat): the agent-to-agent probe DM through the
+# seat's <TO> desk on this machine. Prints the send result JSON (msg_id).
+_spl_cwm_probe_send() {
+  local tenant="${TO:-}" agent="${PROBE_AGENT:-}" to="${PROBE_TO:-}" task="${PROBE_MOVE:-}" box d sent rc=0 dry=1
+  local u='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' body
+  local -a tobox=()
+  [[ "${ENV:-}" =~ ^(dev|prd)$ ]] || { do_log "FATAL ENV must be dev or prd, got: '${ENV:-}'"; return 1; }
+  box="${DESK_BOX:-$(spl_desk_box_default)}"
+  spl_desk_validate "$tenant" "$box" "$agent" || return 1
+  _spl_cwm_is_seat "$to" || {
+    do_log "FATAL PROBE_TO must be the $tenant orchestrator seat, <agent id>[@<box>] (never a HUM-: the hub refuses a probe DM to a person), got: '$to'"
+    return 1
+  }
+  [[ "$to" != *@* ]] || { tobox=(--to-box "${to#*@}"); to="${to%@*}"; }
+  [[ "$task" =~ $u ]] || { do_log "FATAL PROBE_MOVE must be the move id (uuid), got: '$task'"; return 1; }
+  body="Channel move $task: desk probe of $agent in $tenant (spec 169 P2b). No answer needed."
+  if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
+  if (( dry )); then
+    do_log "OK DRY_RUN would send the P2b probe $agent -> $to${tobox[1]:+@${tobox[1]}} through its $tenant desk on $box, task $task"
+    return 0
+  fi
+  do_spl_desk_cnf || return 1
+  d="$SPL_STATE_DIR/desk/$tenant/$box"
+  [[ -d "$d/spool/$agent" ]] || {
+    do_log "FATAL no $tenant desk for $agent on $box on this machine ($d): P2b probes only the desks of the machine that runs the move"
+    return 1
+  }
+  spl_host_spool || return 1
+  sent="$(spl_desk_spool "$d" "$box" "$tenant" "$SPL_HUB_URL" -- send --from "$agent" --to "$to" "${tobox[@]}" \
+    --task "$task" --kind note --body "$body" 2>&1)" || rc=$?
+  (( rc == 0 )) || { do_log "FATAL P2b probe $agent -> $to in $tenant: $sent"; return 1; }
+  printf '%s\n' "$sent"
 }

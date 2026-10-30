@@ -7,8 +7,10 @@
 # Usage:
 #   channel-workspace-move-box.sh probe --move ID --env ENV --tenant DST
 #       --to CALLER --agent ID [--box BOX] [--apply]
-#     P2b: one probe DM from the agent, through its <DST> desk, to the caller,
-#     on the probe topic (task id = the move id). Prints its msg id last.
+#     P2b: one probe DM from the agent, through its <DST> desk on this
+#     machine, to CALLER, the <DST> orchestrator seat (<agent id>[@<box>];
+#     never a HUM-: the hub refuses a probe DM to a person), on the probe
+#     topic (task id = the move id). Prints its msg id last.
 #   channel-workspace-move-box.sh rule-rows --move ID --src SRC --dst DST
 #       --channel CH [--to-name CH2] [--apply]
 #     P5: the channel's row of the box map ($SPOOL_CHANNEL_RULES_MAP, default
@@ -25,8 +27,9 @@
 # skips what is done: no second probe DM, no second note, no second rewrite.
 #
 # Seams (tests): CMB_PROBE_CMD, run with CMB_ENV, CMB_TENANT, CMB_AGENT,
-# CMB_BOX, CMB_TO, CMB_TASK, CMB_BODY set, prints the sent message's JSON
-# (default: ./run -a do_spl_desk_reply with DESK_TO / DESK_TASK, DRY_RUN=0);
+# CMB_BOX, CMB_TO, CMB_TASK set, prints the sent message's JSON (default:
+# MOVE_CMD=probe ./run -a do_spl_channel_workspace_move, DRY_RUN=0;
+# CMB_PROBE_DRY=1 runs it with DRY_RUN=1, its argument check only);
 # CMB_SEND_CMD (default: spool-send.sh next to this file).
 # Guard: tests/test-channel-workspace-move-box.sh.
 # Exit 0 done (or planned), 1 a step failed, 2 usage, 3 refused (the map
@@ -61,28 +64,28 @@ check_agent() { [[ "$2" =~ ^${SPOOL_AGENT_ID_RX}(@[A-Za-z0-9._-]+)?$ ]] || die "
 
 # --- probe (P2b) ------------------------------------------------------------------------
 _probe_default() {
-  ( cd "$_here/../../../../.." && ENV="$CMB_ENV" TENANT_ID="$CMB_TENANT" DESK_AGENT="$CMB_AGENT" \
-      DESK_BOX="${CMB_BOX:-}" DESK_TO="$CMB_TO" DESK_TASK="$CMB_TASK" DESK_KIND=note \
-      DESK_BODY="$CMB_BODY" DRY_RUN=0 ./run -a do_spl_desk_reply ) </dev/null
+  ( cd "$_here/../../../../.." && ENV="$CMB_ENV" TO="$CMB_TENANT" MOVE_CMD=probe PROBE_AGENT="$CMB_AGENT" \
+      PROBE_TO="$CMB_TO" PROBE_MOVE="$CMB_TASK" DESK_BOX="${CMB_BOX:-}" DRY_RUN="${CMB_PROBE_DRY:-0}" \
+      ./run -a do_spl_channel_workspace_move ) </dev/null
 }
 
 verb_probe() {
   need --env "$ENVN"; need --tenant "$DST"; need --to "$TO"; need --agent "$AGENT"
   [[ "$ENVN" =~ ^(dev|prd)$ ]] || die "--env takes dev or prd, got: $ENVN"
   check_tenant --tenant "$DST"; check_agent --agent "$AGENT"
-  [[ "$TO" =~ ^HUM-[0-9]+$ ]] || check_agent --to "$TO"
+  check_agent --to "$TO"
   [ -z "$BOX" ] || [[ "$BOX" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || die "--box '$BOX' is not a box id"
   local done_id out rc=0 id
   done_id="$(jget probe "$AGENT")"
   if [ -n "$done_id" ]; then echo "OK probe $AGENT already sent"; echo "$done_id"; return 0; fi
   if [ "$APPLY" != 1 ]; then echo "PLAN probe $AGENT -> $TO via its $DST desk ($ENVN), task $MOVE"; return 0; fi
   export CMB_ENV="$ENVN" CMB_TENANT="$DST" CMB_AGENT="$AGENT" CMB_BOX="$BOX" CMB_TO="$TO" CMB_TASK="$MOVE"
-  export CMB_BODY="Channel move $MOVE: desk probe of $AGENT in $DST (spec 169 P2b). No answer needed."
   if [ -n "${CMB_PROBE_CMD:-}" ]; then out="$(bash -c "$CMB_PROBE_CMD" </dev/null)" || rc=$?
   else out="$(_probe_default)" || rc=$?; fi
   id="$(grep -m1 '^{' <<<"$out" | jq -r '.msg_id // empty' 2>/dev/null)"
   if [ "$rc" -ne 0 ] || ! [[ "$id" =~ $UUID_RX ]]; then
-    die "FATAL probe of $AGENT through its $DST desk failed (exit $rc, msg id '${id}'): its desk cannot post in $DST; stop before P4" 1
+    printf '%s\n' "$out" | tail -n 5 >&2
+    die "FATAL probe of $AGENT through its $DST desk failed (exit $rc, msg id '${id}'; its output above): its desk cannot post in $DST; stop before P4" 1
   fi
   jput probe "$AGENT" "$id"
   echo "OK probe $AGENT -> $TO sent"

@@ -17,6 +17,9 @@
 #      before it again, one note per lane in all; MOVE_FROM=P1 after P4
 #      committed is refused, exit 3; a finished move re-run does nothing
 #   7. copy: P1 P2 P3 P4 P7 only, no probe, no box step
+#   8. MOVE_CMD=probe (P2b's send): the recipient must be an agent, never a
+#      HUM-; DRY_RUN=1 checks only; DRY_RUN=0 sends agent -> agent through the
+#      seat's <TO> desk on this machine, and a seat with no desk here fails
 # Every hub op, probe and send is recorded (CONTROL: an absent call means
 # "not made", not "not recorded").
 #------------------------------------------------------------------------------
@@ -97,7 +100,7 @@ in_orc() {
 ops() { grep -oE '^hub (step|mark) P[0-9b]+' "$T/calls.log" | awk '{print $3}' | paste -sd' ' -; }
 
 G=(CHANNEL=src1/proj TO=dst1)
-R=(MOVE_CMD=run DRY_RUN=0 MOVE_GO_MSG="$GO" MOVE_CALLER=HUM-10 AGENT_ID=c-001)
+R=(MOVE_CMD=run DRY_RUN=0 MOVE_GO_MSG="$GO" MOVE_CALLER=c-007@boxb AGENT_ID=c-001)
 
 # --- 1. input -------------------------------------------------------------------------
 reset_state
@@ -125,8 +128,14 @@ cp "$T/plan.ok" "$T/plan.json"
 in_orc do_spl_channel_workspace_move "${G[@]}" MOVE_CMD=run; rc=$?
 [[ $rc -eq 0 && -z "$(ops)" && ! -e "$T/journal.json" ]] && grep -q 'would run P1 P2 P2b P3 P4 P5 P6 P7' "$T/out" \
   && pass "3. run DRY_RUN=1: no step call, prints the steps" || fail "3. dry: rc=$rc $(cat "$T/out" "$T/calls.log")"
-in_orc do_spl_channel_workspace_move "${G[@]}" MOVE_CMD=run DRY_RUN=0 MOVE_CALLER=HUM-10 AGENT_ID=c-001; rc=$?
+in_orc do_spl_channel_workspace_move "${G[@]}" MOVE_CMD=run DRY_RUN=0 MOVE_CALLER=c-007 AGENT_ID=c-001; rc=$?
 [[ $rc -eq 3 && ! -s "$T/calls.log" ]] && grep -q 'MOVE_GO_MSG' "$T/out" && pass "3. DRY_RUN=0 without the owner's GO msg id: exit 3, no call" || fail "3. no GO: rc=$rc $(cat "$T/out")"
+
+for who in HUM-10 '' 'c-007@Box B'; do
+  in_orc do_spl_channel_workspace_move "${G[@]}" "${R[@]}" "MOVE_CALLER=$who"; rc=$?
+  [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && grep -q 'MOVE_CALLER must be the dst1 orchestrator seat' "$T/out" \
+    && pass "3. MOVE_CALLER='$who' refused before any call (an agent seat only)" || fail "3. caller '$who': rc=$rc $(cat "$T/out")"
+done
 
 # --- 4. the whole move ----------------------------------------------------------------
 in_orc do_spl_channel_workspace_move "${G[@]}" "${R[@]}"; rc=$?
@@ -134,7 +143,7 @@ in_orc do_spl_channel_workspace_move "${G[@]}" "${R[@]}"; rc=$?
 n_step="$(grep -c '^hub step' "$T/calls.log")"
 [[ "$n_step" -eq 6 && "$n_step" -eq "$(grep -c "^hub step P[0-9b]* go=$GO\$" "$T/calls.log")" ]] \
   && pass "4. the GO msg id rides on every step" || fail "4. go: $(cat "$T/calls.log")"
-grep -qx "probe dst1 c-101 HUM-10 $MOVE" "$T/calls.log" && grep -qx "probe dst1 c-102 HUM-10 $MOVE" "$T/calls.log" \
+grep -qx "probe dst1 c-101 c-007@boxb $MOVE" "$T/calls.log" && grep -qx "probe dst1 c-102 c-007@boxb $MOVE" "$T/calls.log" \
   && pass "4. P2b probes each seat's dst1 desk on the move's task" || fail "4. probes: $(cat "$T/calls.log")"
 grep -q "^dst1	proj	$DOC	" "$T/spool/channel-rules.tsv" && pass "4. P5 rewrote the box rule row to dst1" || fail "4. rule row: $(cat "$T/spool/channel-rules.tsv")"
 [[ "$(grep -c '^send' "$T/calls.log")" -eq 1 ]] && grep -q 'SRC-7 -> DST-1' "$T/calls.log" \
@@ -169,6 +178,28 @@ reset_state
 in_orc do_spl_channel_workspace_move "${G[@]}" "${R[@]}" MOVE_MODE=copy MOVE_CALLER= AGENT_ID=; rc=$?
 [[ $rc -eq 0 && "$(ops)" == "P1 P2 P3 P4 P7" ]] && ! grep -qE '^(probe|send)' "$T/calls.log" && grep -q "^src1	proj	" "$T/spool/channel-rules.tsv" \
   && pass "7. copy: P1 P2 P3 P4 P7, no probe, no box step" || fail "7. copy: rc=$rc '$(ops)' $(cat "$T/out")"
+
+# --- 8. MOVE_CMD=probe ----------------------------------------------------------------
+PR=(MOVE_CMD=probe TO=dst1 PROBE_AGENT=c-101 PROBE_TO=c-007@boxb PROBE_MOVE="$MOVE")
+# the desk stubs: cnf, the host spool and the desk's spool send are recorded
+DESK_STUBS='do_spl_desk_cnf() { echo desk-cnf >>"$STUB_LOG"; SPL_STATE_DIR="$STUB_DIR/deskstate"; SPL_HUB_URL=https://hub.invalid; }
+spl_host_spool() { echo host-spool >>"$STUB_LOG"; }
+spl_desk_spool() { printf "desk-spool" >>"$STUB_LOG"; printf " [%s]" "$@" >>"$STUB_LOG"; echo >>"$STUB_LOG"; echo "{\"msg_id\":\"$STUB_MOVE\"}"; }'
+in_orc "$DESK_STUBS; do_spl_channel_workspace_move" "${PR[@]}" PROBE_TO=HUM-10 DRY_RUN=0; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls.log" ]] && grep -q 'PROBE_TO must be the dst1 orchestrator seat' "$T/out" \
+  && pass "8. a HUM- recipient: refused before the desk is read" || fail "8. hum: rc=$rc $(cat "$T/out" "$T/calls.log")"
+in_orc "$DESK_STUBS; do_spl_channel_workspace_move" "${PR[@]}"; rc=$?
+[[ $rc -eq 0 && ! -s "$T/calls.log" ]] && grep -q 'DRY_RUN would send the P2b probe c-101 -> c-007@boxb' "$T/out" \
+  && pass "8. DRY_RUN=1: the argument check only, no desk call" || fail "8. dry: rc=$rc $(cat "$T/out")"
+rm -rf "$T/deskstate"
+in_orc "$DESK_STUBS; do_spl_channel_workspace_move" "${PR[@]}" DRY_RUN=0; rc=$?
+[[ $rc -ne 0 ]] && grep -q 'no dst1 desk for c-101 on box-desk on this machine' "$T/out" && ! grep -q '^desk-spool' "$T/calls.log" \
+  && pass "8. a seat with no dst1 desk on this machine: fails, nothing sent" || fail "8. no desk: rc=$rc $(cat "$T/out")"
+mkdir -p "$T/deskstate/desk/dst1/box-desk/spool/c-101"
+in_orc "$DESK_STUBS; do_spl_channel_workspace_move" "${PR[@]}" DRY_RUN=0; rc=$?
+[[ $rc -eq 0 ]] && grep -q "^desk-spool \[$T/deskstate/desk/dst1/box-desk\] \[box-desk\] \[dst1\] \[https://hub.invalid\] \[--\] \[send\] \[--from\] \[c-101\] \[--to\] \[c-007\] \[--to-box\] \[boxb\] \[--task\] \[$MOVE\] \[--kind\] \[note\] \[--body\] \[Channel move $MOVE: desk probe of c-101 in dst1" "$T/calls.log" \
+  && grep -q "\"msg_id\":\"$MOVE\"" "$T/out" \
+  && pass "8. DRY_RUN=0: agent -> agent through the seat's dst1 desk, the body names the move and the seat" || fail "8. send: rc=$rc $(cat "$T/out" "$T/calls.log")"
 
 echo "spl-channel-workspace-move: $fails failure(s)"
 [[ $fails -eq 0 ]]

@@ -10,8 +10,9 @@
 #   2. a brief whose paths match no order: 0 copied, nothing added
 #   3. CONTROL: an empty ledger adds nothing; no ledger at all needs no
 #      action, a ledger with no action to read it refuses
-#   4. a malformed ledger refuses the spawn (exit 15, the claim released);
-#      CONTROL: the same brief with the ledger fixed spawns
+#   4. a malformed ledger refuses the spawn (exit 15, the claim released),
+#      also for a brief with no Repo: line (every ledger is read);
+#      CONTROL: the same briefs with the ledger fixed spawn
 #   5. Repo: with no path = every active order of that repo; no Repo: line =
 #      every ledger's active orders; a lifted order is never copied
 #   6. a real spawn (tmux stub) appends the section to the brief and journals
@@ -109,9 +110,15 @@ has "4. ... REFUSED, naming the ledger" "REFUSED c-904: the owner-order ledger r
 has "4. ... the ledger file is named" "$OD/repo-x.jsonl" "$(cat "$T_TMP/so")"
 check "4. ... the claim is released" test ! -e "$SPOOL_ROOT/c-904"
 check "4. ... the brief is untouched" cmp -s "$T_TMP/b1.md" "$T_TMP/b1.orig"
+brief "$T_TMP/b4.md" "Tidy whatever needs it."
+sw c-904 "$T_TMP/b4.md" SPAWN_DRY_RUN=1
+eq "4. no Repo: line (every ledger is read), one malformed: refused, exit 15" 15 "$(cat "$T_TMP/rc")"
+has "4. ... naming that ledger" "the repo-x ledger ($OD/repo-x.jsonl) refused (list exit 2)" "$(cat "$T_TMP/so")"
 ledgers
 dry c-904 "$T_TMP/b1.md"
 eq "4. CONTROL the same brief, the ledger fixed: exit 0" 0 "$(cat "$T_TMP/rc")"
+dry c-904 "$T_TMP/b4.md"
+eq "4. CONTROL no Repo: line, every ledger fixed: exit 0" 0 "$(cat "$T_TMP/rc")"
 
 # ---- 5. no path, no Repo:, lifted --------------------------------------------
 brief "$T_TMP/b5.md" "Repo: repo-x" "Tidy the repository."

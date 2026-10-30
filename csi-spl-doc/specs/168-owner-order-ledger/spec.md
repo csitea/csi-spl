@@ -1,7 +1,9 @@
 # 168 Owner-order ledger: an explicit owner order is written down, copied into every brief, and gated
 
-Version: v0.1 (2026-10-30). Status: **Draft**, for R7 review. Nothing below
-is built.
+Version: v0.2 (2026-10-30). Status: **Draft**, for R7 re-review. v0.2 folds
+the R7 review of c-697 on v0.1 (FAIL, its W1-W12; its log
+`review-s168-d65c6c7d2.md` in c-697's spool dir) and the dispatch
+holder's fix list (c-002, msg a25f69ef). Built: B1 only (section 6).
 Issue SPL-4343 · Epic SPL-2398 · Spec home of the build:
 [spec 157 dispatch automation](../157-dispatch-automation/spec.md) · Class
 feature · Kind complex_coding · Placement slug `c001-s168-owner-order-ledger`
@@ -40,11 +42,11 @@ The three parts as the poll put them:
 
 ## 2. Why: the case of 2026-10-29
 
-On 10-29 (msg 6f9ae3ad) the owner ordered that the run-books of a
-`<CUSTOMER-REPO>` keep their contents and change only their file
-structure. The order lived only in chat. A sub-lane's brief did not carry
-it, and the sub-lane removed a checkout step from one run-book and changed
-its content after the order (two commits in `<CUSTOMER-REPO>`). Nothing
+On 10-29 (msg 6f9ae3ad) the owner ordered that a run-book folder of a
+`<CUSTOMER-REPO>` keep its contents and change only its file structure. The
+order lived only in chat. A sub-lane's brief did not carry it, and two
+commits in `<CUSTOMER-REPO>` changed a run-book's contents after the
+order. Nothing
 in the fleet held the order where the next agent would meet it: not the
 brief, not the seed, not a gate.
 
@@ -53,9 +55,16 @@ brief, not the seed, not a gate.
 ### 3.1 Home: outside git, per box
 
 The ledger is data, not code: `${OWNER_ORDER_DIR:-$SPOOL_ROOT/owner-orders}/<repo>.jsonl`,
-one file per repository, `<repo>` the basename of the repository's
-top-level directory (`csi-spl`, `<CUSTOMER-REPO>`), mode 660, group
-`spool-agents` like the rest of the spool root.
+one file per repository, mode 660, group `spool-agents` like the rest of
+the spool root.
+
+`<repo>`, the **repo key**, is the basename of the directory that holds the
+repository's git common dir:
+`basename "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"`.
+Every worktree of csi-spl gives `csi-spl`; the top-level directory of a
+worktree would give the worktree's own name (`c-697-rv`) and find no ledger
+(c-697 W3). The action derives it from `ORDER_REPO_DIR=<any checkout>`;
+callers never compute it themselves.
 
 - An order on a customer repository quotes the customer's paths and often
   the customer's words. csi-spl is public, so no ledger file is ever
@@ -81,7 +90,7 @@ order is the fold of its lines.
 | `paths` | the covered paths, repo-relative globs: `*` one path segment, `**` any depth, `?` one character |
 | `text` | the order WORD FOR WORD: the message body, or a contiguous excerpt of it |
 | `source` | `hub` (fetched from the hub and compared), or `given` (typed by the writer; see 3.3) |
-| `gate` | `go` (part c refuses an uncited change to a covered path) or `none` (parts a and b only) |
+| `gate` | `go` (part c refuses any uncited change to a covered path), `content` (a pure rename or move passes; a change to a file's content needs the go; section 5) or `none` (parts a and b only) |
 | `ts` | when the owner sent it (ISO 8601 UTC) |
 | `owner`, `topic` | the owner's id (`HUM-<n>`) and the topic's task id |
 | `expires` | optional ISO time after which the order no longer applies; empty = until lifted |
@@ -89,7 +98,7 @@ order is the fold of its lines.
 | `by`, `at` | the agent that wrote the line, and when |
 
 `lift`, at most one per order: `op`, `order`, `lift_msg` (the owner's
-message that lifts it), `reason`, `by`, `at`.
+message that lifts it), `source` (`hub` or `given`), `reason`, `by`, `at`.
 
 An order is **active** when it has an `add`, no `lift`, and no `expires` in
 the past.
@@ -120,8 +129,12 @@ the past.
 ### 3.4 Lifted, expired, superseded
 
 - Only the owner lifts an order: `ORDER_CMD=lift` needs the owner's lifting
-  message id (`ORDER_LIFT_MSG`) and a reason. No agent lifts an order
-  because it seems done or old.
+  message id (`ORDER_LIFT_MSG`) and a reason. A `go` or `content` order is
+  lifted only with `ORDER_FROM_HUB`: the action reads the lifting message
+  from the hub and refuses one that is not on it or not from an owner
+  (`HUM-<n>`); without a hub it refuses (c-697 W2). A `none` order may be
+  lifted without the hub; its lift line says `source: given`. No agent
+  lifts an order because it seems done or old.
 - An order that is meant for a time ("today", "until the release") is
   added with `expires`; the writer quotes the owner's words that set it in
   `note`.
@@ -136,33 +149,53 @@ One named action, `cd csi-spl-orc && ./run -a do_spl_owner_order`
 
 | `ORDER_CMD` | does | exit |
 |---|---|---|
-| `add` | appends one `add` line; a dry run unless `DRY_RUN=0` | 0 added, 0 the same order already there (idempotent), 3 the id is there with another text, paths or gate, 1 refused input |
-| `list` | the active orders (all repos, or `ORDER_REPO`); `ORDER_ALL=1` adds lifted and expired; `ORDER_JSON=1` prints the folded orders as JSON lines | 0 |
-| `lift` | appends one `lift` line; a dry run unless `DRY_RUN=0` | 0, 3 already lifted, 1 refused |
-| `match` | the active orders of `ORDER_REPO` whose globs match any of `ORDER_PATHS`, JSON lines | 0 none match, 3 one or more match |
+| `add` | appends one `add` line; a dry run unless `DRY_RUN=0` | 0 added, 0 the same order already there (idempotent), 3 the id is there with another text, paths or gate, 2 ledger unreadable, 1 refused input |
+| `list` | the active orders (all repos, or `ORDER_REPO`); `ORDER_ALL=1` adds lifted and expired | 0, 2 a ledger unreadable |
+| `lift` | appends one `lift` line; a dry run unless `DRY_RUN=0` | 0, 3 already lifted, 2 ledger unreadable, 1 refused |
+| `match` | the active orders of the repo whose globs match any of the paths (`ORDER_PATHS` comma-separated, or `ORDER_PATHS_FILE` one per line) | 0 none match, 3 one or more match, 2 ledger unreadable or malformed, 1 refused input |
 
-`match` is the one reader parts (b) and (c) call, so both read the same
-rule of what is covered.
+- `match` is the one reader parts (b) and (c) call, so both read the same
+  rule of what is covered.
+- **Fail closed** (c-697 W1): a ledger that cannot be read, or holds a line
+  that does not parse, is exit 2, never 0. Parts (b) and (c) treat every
+  exit but 0 and 3 as REFUSE: a broken ledger stops the spawn or the push
+  and names the file, it never reads as "no order" (W9: a refused path is
+  exit 1, which also refuses).
+- **No order text in a log** (c-697 W8): `./run` copies stdout to its log
+  under `$HOME/var/log`, so `list`, `match` and a dry-run `add` print the
+  id, state, gate, source, owner, time and paths, never the text. The full
+  orders, text included, go as JSON lines to `ORDER_OUT=<file>` (mode 600)
+  for the program that asked.
+- Exit 3 of `match` makes `./run` print its `ERROR ... status 3` lines; for
+  a caller that is the answer "covered", not a fault (c-697 W10).
 
 ## 4. The brief copy-in (part b)
 
+A brief names every repository the lane works in on a `Repo: <key>` line
+(one per repository; `csi-spl` too). The spawn cannot learn from prose that
+a lane works in `<CUSTOMER-REPO>`, which is the 10-29 case (c-697 W4).
+
 When the spawn starts a lane (`sa/scripts/spawn-window.sh`, next to
 `sw_issue`, which already reads the brief at that point), a new step
-`sw_owner_orders` runs `match` for the lane's repository with every
-repo-relative path the brief names. If the brief names no path, every
-active order of that repository matches: a lane whose scope is unknown
-gets them all. Each match is appended to the brief file, before the seed is
-written, as:
+`sw_owner_orders` runs `match` for each `Repo:` of the brief with every
+repo-relative path the brief names. A repository the brief names with no
+path gets all its active orders. A brief with no `Repo:` line gets the
+active orders of every ledger on the box: a lane whose scope is unknown
+gets them all. A `match` exit that is not 0 or 3 refuses the spawn. Each
+match is appended to the brief file, before the seed is written, as:
 
     ## Owner orders on these paths (copied by the spawn from the ledger; obey them word for word)
 
-    - <msg id> (<ts>, <owner>, gate <go|none>, source <hub|given>), paths <globs>:
+    - <msg id> (<ts>, <owner>, repo <key>, gate <go|content|none>, source <hub|given>), paths <globs>:
       > <text, every line quoted>
 
 - The section is written by code, so no lane, orchestrator or relay has to
   remember the order. A sub-lane goes through the same spawn, so it gets
-  the same section; a lane that hands work on by message only (no spawn)
-  quotes the section into its message.
+  the same section.
+- A hand-off by message only (no spawn) is memory again (c-697 W12), so
+  `spool-send.sh` gets the same step: a `--kind task` message whose body
+  carries a `Repo:` line has the matching orders appended by code before
+  it is sent. B2 builds both.
 - The seed says, in one line, that the brief may carry owner orders and
   that they rank above the rest of the brief.
 - The spawn prints `PLAN owner-orders <n> copied` in its plan, and the
@@ -175,14 +208,30 @@ written, as:
 
 A change to a path covered by an active `gate: go` order is refused unless
 the commit cites the owner's go for that change: a trailer
-`Owner-go: <msg id>` naming an owner message (not the order's own id) in
-the order's topic.
+`Owner-go: <msg id>` naming an owner message (not the order's own id)
+whose body names the order's id8, in any topic (a go given in a lane topic
+or as a poll answer counts when it names the order; c-697 W11).
+
+- **Both sides of a rename** (c-697 W5): the changed paths are read with
+  `git diff --name-status --no-renames` (or both columns of
+  `--name-status`), never `--name-only`, which shows only the new side: a
+  file moved out of a covered folder and edited in the same commit would
+  escape. B3's test carries that case.
+- **`gate: content`** (c-697 W6): the 10-29 order was "contents frozen,
+  structure may change". A change passes when every covered path is a pure
+  rename or move (`R100`, the same blob on both sides); any content hunk on
+  a covered path needs the go. With `gate: go` every rename needs the go
+  too, so the owner would pay for what he allowed.
+- **A section inside a file** ("do not touch section 3") cannot be
+  expressed by paths: such an order is copied into briefs (part b) and its
+  keeping is a review question; the gate covers the whole file or nothing.
 
 - **csi-spl**: a part of the pre-push hook (`sa/hooks/pre-push`): for each
   commit being pushed, `match` its changed paths; a covered path with no
-  `Owner-go:` trailer refuses the push and prints the order word for word
-  and the trailer to add. `SPL_PREPUSH_OVERRIDE` does not pass it (the same
-  rule as the force-push part).
+  `Owner-go:` trailer refuses the push and prints the order's id and the
+  trailer to add. `SPL_PREPUSH_OVERRIDE` does not pass it (the same rule as
+  the force-push part). `git push --no-verify` skips every hook, so the
+  harness guard below covers csi-spl as well.
 - **A repository outside csi-spl**: the fleet does not install hooks in it
   and never edits its `.git/config` (it may travel with the repository to
   another network). The gate is a harness guard instead, the shape of the
@@ -207,15 +256,14 @@ the order's topic.
 
 ## 7. The seed entries (B1)
 
-Written to the ledger of `<CUSTOMER-REPO>` on its box, never to git: the
-five orders the brief lists plus 8618db98, which the channel's relay seat
-named as the second half of f23f4159 (same topic, one minute later). Their
-texts are read from the hub at write time, so this spec quotes none of
-them. msg ids: 6f9ae3ad (`<RUNBOOK-DIR>` contents frozen, gate `go`),
-41c3e63f and 55358cc0 (the release run-book's first-time steps, gate
-`none`), f23f4159 and 8618db98 (every push raises the version, `**`, gate
-`none`: the version rule is a check of its own, not a go), c16f3a1d (an
-earlier test rule on the prd release pages overruled, gate `none`).
+Written to the ledger of `<CUSTOMER-REPO>` on its box, never to git, with
+`ORDER_FROM_HUB=prd`, so their texts come from the hub and this spec quotes
+none of them: the five orders the brief lists (6f9ae3ad, 41c3e63f,
+55358cc0, f23f4159, c16f3a1d) plus 8618db98, which the channel's relay seat
+named as the second half of f23f4159 and the dispatch holder confirmed
+(msg eaa69bc8). Gates: 6f9ae3ad `content` (`<RUNBOOK-DIR>`), every other
+one `none`. Their paths are chosen at write time and shown in the B1
+report, outside git.
 
 ## 8. Risks and open checks
 
@@ -230,5 +278,14 @@ earlier test rule on the prd release pages overruled, gate `none`).
   writer picks the globs; the reviewer of the add (the relay's reply shows
   them) catches a wrong pick.
 - R4: an owner-go trailer can be forged by an agent. The hub check of 5
-  makes the forgery a citation of a real owner message; whether that
-  message was a go for this change stays a review question.
+  makes the forgery a citation of a real owner message that names the
+  order; whether that message was a go for this change stays a review
+  question.
+- R5: no gate on `<CUSTOMER-REPO>` until the owner installs the harness
+  guard of B3 (an owner step, like spec 093's agent hook). Until then that
+  repository has parts (a) and (b) only; B3's report asks for the install
+  and names the window.
+- R6: `git push --no-verify` skips the csi-spl pre-push part; only the
+  harness guard catches it (5), so the same install closes it for csi-spl.
+- R7: the copy-in reads the brief's `Repo:` lines. A brief written without
+  one gets every ledger's orders (4): noisy, never silent.

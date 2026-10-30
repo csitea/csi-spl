@@ -1,7 +1,7 @@
 # 164 Channel Box Pin: Pin a Channel to Chosen Boxes (Default: Any Box of the Fleet)
 
 Version: v1.3 (2026-10-30).
-Status: **Draft v1.3**, Planned, not built (Placement slug `c003-channel-box-pin-spec`, Issue SPL-4171, Epic SPL-2398).
+Status: **Draft v1.3**, row B1 built (SPL-4438), B2..B8 planned (Placement slug `c003-channel-box-pin-spec`, Issue SPL-4171, Epic SPL-2398).
 Class: feature.
 Kind: specs_and_docs.
 
@@ -95,10 +95,10 @@ Three production cases exist today where a channel must be answered only on one 
 ## 3. The Data Model
 
 ### 3.1 Table `channel_box_pins`
-A new forward-only migration. The head on origin/master `dc328aae3` is `rdb/0241_fleet_ask_discussion.sql` (`git ls-tree --name-only origin/master csi-spl-rdb/src/sql/postgres/spool-hub/ | tail -1`), so the file is `rdb/0242_channel_box_pins.sql`; B1 takes the next free number when it lands. The RLS block copies `rdb/0139_calendar_full_edit.sql:72-79` (the 0014 shape): `tenant_scope` on `app.tenant_id` (the key `store/rls.go:19` sets), `operator_scope` on `app.rls_scope = 'operator'` (`store/rls.go:20`), and `FORCE`.
+A new forward-only migration. The head on origin/master `dc328aae3` is `rdb/0241_fleet_ask_discussion.sql` (`git ls-tree --name-only origin/master csi-spl-rdb/src/sql/postgres/spool-hub/ | tail -1`), so the file was planned as `rdb/0242_channel_box_pins.sql`; B1 took the next free number when it was built: `rdb/0246_channel_box_pins.sql` (0242..0245 were taken by then). The RLS block copies `rdb/0139_calendar_full_edit.sql:72-79` (the 0014 shape): `tenant_scope` on `app.tenant_id` (the key `store/rls.go:19` sets), `operator_scope` on `app.rls_scope = 'operator'` (`store/rls.go:20`), and `FORCE`.
 
 ```sql
--- 0242_channel_box_pins.sql: channel-level box pins (spec 164, SPL-4171).
+-- 0246_channel_box_pins.sql: channel-level box pins (spec 164, SPL-4171).
 -- No row for a channel = any pinned box of the workspace (the default).
 CREATE TABLE channel_box_pins (
     tenant_id   text        NOT NULL,
@@ -252,11 +252,11 @@ The backstop (2.4) is the orchestrator lease holder, which may sit on a box outs
 
 ## 8. Build Rows
 
-All rows: **Planned**, not built. Files are disjoint across rows.
+B1 is built (SPL-4438); B2..B8 are **Planned**, not built. Files are disjoint across rows.
 
 | Row | Status | What | Files (only these) | Needs | Tests and red control |
 |---|---|---|---|---|---|
-| **B1** | Planned | Table and store | `rdb/0242_channel_box_pins.sql` (next free number)<br>`csi-spl-rdb/src/sql/postgres/spool-hub-roles/runtime-grants.sql` (only if a grant is missing)<br>`store/store.go`<br>`store/channel_box_pins.go`<br>`store/memory.go`<br>`store/channel_box_pins_test.go` | none | `TestChannelBoxPinsStore`, `TestRLSCoversEveryTenantTable` (it checks FORCE), on PostgreSQL.<br>**Red**: pins written under tenant A, then read through the hub's runtime login in tenant A's scope -> the same rows (a policy on the wrong setting reads 0 and fails this); read in tenant B's scope -> 0 rows; a pin of a box with no `pins` row -> FK error. |
+| **B1** | Built (SPL-4438) | Table and store | `rdb/0246_channel_box_pins.sql`<br>`csi-spl-rdb/src/sql/postgres/spool-hub-roles/runtime-grants.sql` (only if a grant is missing; none was: its `ALL TABLES` grant and the default privileges cover the table)<br>`store/store.go`<br>`store/channel_box_pins.go`<br>`store/memory.go`<br>`store/channel_box_pins_test.go`<br>`store/crosstenant_test.go` (the per-tenant seed every new tenant table needs) | none | `TestChannelBoxPinsStore`, `TestRLSChannelBoxPins`, `TestRLSCoversEveryTenantTable` (it checks FORCE), `TestCrossTenantEveryTable`, on PostgreSQL.<br>**Red**: pins written under tenant A, then read through the hub's runtime login in tenant A's scope -> the same rows (a policy on the wrong setting reads 0 and fails this); read in tenant B's scope -> 0 rows; a pin of a box with no `pins` row -> FK error. |
 | **B2** | Planned | Hub REST routes | `hub/channel_box_pins.go`<br>`hub/channel_box_pins_test.go`<br>`hub/server.go` (route lines)<br>`hub/tenant_settings.go` | B1 on master | `TestChannelBoxPinsAPI` (GET, PUT, operator PUT, `GET /v1/tenant/channels`).<br>**Red**: a member without `TenantSettings` -> 403 (not 200); an unknown or revoked box -> 400 `unknown_box`; `#lobby` -> 400 `channel_default_unpinnable`. |
 | **B3** | Planned | Fan-out, both direct-leg doors, mention, fallback, receive, posting | `hub/channels.go`<br>`hub/ws.go`<br>`hub/dispatch.go`<br>`hub/fallback.go`<br>`hub/channel_box_pins_route_test.go` | B2 on master | `TestRouteChannelBoxPin`, `TestSendChannelBoxPin`, `TestDispatchChannelBoxPin`, `TestRecvChannelBoxPin`, `TestFallbackChannelBoxPin`, `TestAgentInChannelBoxPin`.<br>**Red**: a pinned channel's post is queued for an unlisted member box; an agent on a listed box sends `to_box` = an unlisted box on a pinned channel over the box WebSocket and it is accepted (row stored or queued); the same from the browser is accepted; a row queued for an unlisted box before the pin (its `to_box` = that box) reaches it; a fallback picks an unlisted box; an agent on an unlisted box posts; a lookup error (store stub) delivers or allows. |
 | **B4** | Planned | Box-signed read verb | `api/cmd/spool/channel_pins.go`<br>`api/internal/action/channel_pins.go`<br>`hub/box_channel_pins.go`<br>`hub/box_channel_pins_test.go` | B2 on master | `TestBoxChannelPins` and the CLI test.<br>**Red**: a box of tenant B reads tenant A's pins; the CLI exits 0 when the hub does not answer. |
@@ -309,5 +309,6 @@ Decided in this spec, no owner question (each can be reversed by a later spec):
 | v1.1 | **W1**: citations re-read on `dc328aae3`; `agy_box_hold` is the agy/mistral quota hold at :890-934 (the file moved), the HAND-PINNED header :62-70, `orc/` no longer doubled, `listPins()` named as a new B6 client call, the route quote keeps `seats.filter` and `channelLockSkip`. **W2**: RLS copies 0139/0014 (`app.tenant_id`, `operator_scope`, `FORCE`), `:runtime_role`, the migration is 0242 (0240 and 0241 are taken now), B1's red control reads through the hub login. **W3**: every lookup fails closed (3.3, 5.1, 5.3). **W4**: the hold is its own step for every vendor; the channel comes from the brief's `Channel:` line via `cr_channel_of`; the pins via a new box-signed `spool channel-pins` (4.3, B4); launcher exit 15 (8 and 14 are taken). **W5**: boxes read only through deliveries and humans only through `/v1/view`, so 5.1 is the read door and no metadata endpoint is needed; the browser box is never filtered; `dispatch.go` and `fallback.go` are in B3. **W6**: 5.4 states the 7-day TTL and the 1000-per-box cap, and the banner shows them. **W7**: the hub posts the holding notice (`hub/pin_notice.go`, B7, red control "offline 3 min -> no post"). **W8**: no real orchestrator box or seat id. **W9**: two owner questions in one `poll` form (Q3, Q4 decided in section 9); every row says Planned; B8 (seed) has a red control. |
 | v1.2 | R7 re-review by c-594 (W1-W4, W6-W9 closed). **W5**: the agent direct leg goes `onSend` -> `commitRow` (`hub/ws.go:611`, `:1009`), not `dispatchCheck` (browser only); 2.2 now names both doors, 5.1 refuses in the `onSend` chain before `commitRow` and in `dispatchCheck`, and `recvAgents` drops a pinned channel's rows (own ones too) on an unlisted box; `hub/ws.go` joins B3 with red controls for both. **N1**: 5.2.2 signs `spool channel-pins` with the desk keys of the `Channel:` line's tenant; no desk there -> hold; B5 red controls. |
 | v1.3 | Owner answers folded (HUM-10, msg `1cc5b9bb`, poll `400e5b85`): Q1 = A (default channels stay on every box, 4.1 refusal 3 is final), Q2 = A (the hub posts the holding notice, 6.2.2 is final). Section 9 records both; B2's "(per Q1)" and B7's "Q2 answered" gate are met. |
+| v1.3.1 | Row B1 built (SPL-4438): `rdb/0246_channel_box_pins.sql` (0242..0245 were taken), the store in `store/channel_box_pins.go` with the `ChannelBoxPins` interface embedded in `Store`, tests on PostgreSQL through the runtime login; `store/crosstenant_test.go` seeds the table (the cross-tenant suite fails an unseeded tenant table). |
 
-<!-- version: 1.3.0 · updated: 2026-10-30 -->
+<!-- version: 1.3.1 · updated: 2026-10-30 -->

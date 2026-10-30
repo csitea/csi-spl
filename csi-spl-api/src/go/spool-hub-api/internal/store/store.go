@@ -356,5 +356,9 @@ type Store interface {
 	// Per-tenant host provisioning status (tenant_hosts.go, rdb 0015).
 	TenantHosts
 
+	// The boxes a channel is pinned to; nil = unpinned (channel_box_pins.go,
+	// rdb 0246, spec 164 3.4).
+	ChannelBoxPins
+
 	Close()
 }

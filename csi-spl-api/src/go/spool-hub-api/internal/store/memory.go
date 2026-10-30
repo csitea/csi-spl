@@ -108,6 +108,9 @@ type Memory struct {
 	// dm_agents.go (rdb 0228, spec 151): the agents added to a DM, nil until
 	// the first add; guarded by mu
 	dmAgents map[memDMAgentKey]DMAgent
+	// channel_box_pins.go (rdb 0246, spec 164 B1): (tenant, channel) -> its
+	// sorted boxes, nil until the first pin; guarded by mu
+	chBoxPins map[[2]string][]string
 	// channel_invites.go (rdb 0231, spec 025 section 11): pending channel
 	// rows of an invited address -> added_by, nil until the first add; guarded by mu
 	chInvites map[memChannelInviteKey]string

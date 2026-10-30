@@ -3147,6 +3147,7 @@
       "events": "Olaylar",
       "tokens": "Belirteçler",
       "lanes": "Hatlar",
+      "topics": "Konular",
       "file_streams": "Dosya akışları"
     },
     "alloc": {
@@ -3342,6 +3343,18 @@
       "age_older": "24 sa üstü",
       "no_match": "Filtrelere uyan hat yok",
       "shown": "{n}/{total} hat"
+    },
+    "topics": {
+      "loading": "Konular yükleniyor…",
+      "error": "Konular yüklenemedi.",
+      "empty": "Etkin hattı olan konu yok",
+      "table_label": "Etkin hatları olan konular",
+      "col_channel": "Kanal",
+      "col_active": "Son hat etkinliği",
+      "filter_text": "Konularda ara",
+      "no_match": "Filtrelere uyan konu yok",
+      "shown": "{n} / {total} konu",
+      "no_topic": "Tartışma yok"
     },
     "file_streams": {
       "loading": "Dosya akışları yükleniyor…",

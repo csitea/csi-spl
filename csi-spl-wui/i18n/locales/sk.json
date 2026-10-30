@@ -3147,6 +3147,7 @@
       "events": "Udalosti",
       "tokens": "Tokeny",
       "lanes": "Linky",
+      "topics": "Témy",
       "file_streams": "Súborové toky"
     },
     "alloc": {
@@ -3342,6 +3343,18 @@
       "age_older": "Viac ako 24 h",
       "no_match": "Filtrom nezodpovedá žiadna linka",
       "shown": "{n} z {total} liniek"
+    },
+    "topics": {
+      "loading": "Načítavajú sa témy…",
+      "error": "Témy sa nepodarilo načítať.",
+      "empty": "Žiadna téma nemá aktívnu linku",
+      "table_label": "Témy s aktívnymi linkami",
+      "col_channel": "Kanál",
+      "col_active": "Posledná aktivita linky",
+      "filter_text": "Hľadať témy",
+      "no_match": "Filtrom nezodpovedá žiadna téma",
+      "shown": "{n} z {total} tém",
+      "no_topic": "Bez diskusie"
     },
     "file_streams": {
       "loading": "Načítavajú sa súborové toky…",

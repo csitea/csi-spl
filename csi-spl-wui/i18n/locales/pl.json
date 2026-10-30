@@ -3147,6 +3147,7 @@
       "events": "Zdarzenia",
       "tokens": "Tokeny",
       "lanes": "Linie",
+      "topics": "Tematy",
       "file_streams": "Strumienie plików"
     },
     "alloc": {
@@ -3342,6 +3343,18 @@
       "age_older": "Ponad 24 godz.",
       "no_match": "Żadna linia nie pasuje do filtrów",
       "shown": "{n} z {total} linii"
+    },
+    "topics": {
+      "loading": "Wczytywanie tematów…",
+      "error": "Nie udało się wczytać tematów.",
+      "empty": "Żaden temat nie ma aktywnej linii",
+      "table_label": "Tematy z aktywnymi liniami",
+      "col_channel": "Kanał",
+      "col_active": "Ostatnia aktywność linii",
+      "filter_text": "Szukaj tematów",
+      "no_match": "Żaden temat nie pasuje do filtrów",
+      "shown": "{n} z {total} tematów",
+      "no_topic": "Brak dyskusji"
     },
     "file_streams": {
       "loading": "Wczytywanie strumieni plików…",

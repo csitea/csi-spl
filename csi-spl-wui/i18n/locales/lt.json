@@ -3147,6 +3147,7 @@
       "events": "Įvykiai",
       "tokens": "Žetonai",
       "lanes": "Linijos",
+      "topics": "Temos",
       "file_streams": "Failų srautai"
     },
     "alloc": {
@@ -3342,6 +3343,18 @@
       "age_older": "Daugiau nei 24 val.",
       "no_match": "Jokia linija neatitinka filtrų",
       "shown": "{n} iš {total} linijų"
+    },
+    "topics": {
+      "loading": "Įkeliamos temos…",
+      "error": "Nepavyko įkelti temų.",
+      "empty": "Nė viena tema neturi aktyvios linijos",
+      "table_label": "Temos su aktyviomis linijomis",
+      "col_channel": "Kanalas",
+      "col_active": "Paskutinė linijos veikla",
+      "filter_text": "Ieškoti temų",
+      "no_match": "Jokia tema neatitinka filtrų",
+      "shown": "{n} iš {total} temų",
+      "no_topic": "Be aptarimo"
     },
     "file_streams": {
       "loading": "Įkeliami failų srautai…",

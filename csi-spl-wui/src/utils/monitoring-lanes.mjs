@@ -19,7 +19,8 @@ export const LANES_POLL_MS = 60000
 /** Lag after which the data is amber (1.5x the timer) and red (3x), as Tokens. */
 const LANES_STALE_AMBER_S = 90
 const LANES_STALE_RED_S = 180
-/** e2e opt-in (mock only): '' = three lanes, 'empty' = none active. */
+/** e2e opt-in (mock only): '' = three lanes, 'empty' = none active, 'topics' =
+ *  the three plus a fourth on c-085's topic (Monitoring -> Topics, SPL-4421). */
 export const LANES_MOCK_KEY = 'spool.mock.fleet_lanes'
 /** The mock's operator admin is the Tokens tab's (the same key shows both tabs). */
 export const LANES_MOCK_OPERATOR_KEY = TOKENS_MOCK_OPERATOR_KEY
@@ -46,6 +47,8 @@ export function fleetLanesOf(body) {
     scope: str(l.scope),
     topicId: str(l.topic_id),
     topicTitle: str(l.topic_title),
+    /* SPL-4421: the topic's channel, for Monitoring -> Topics; '' until the hub sends it */
+    topicChannel: str(l.topic_channel),
     issues: (Array.isArray(l.issues) ? l.issues : []).filter((i) => i && typeof i === 'object' && str(i.key))
       .map((i) => ({ key: str(i.key), status: str(i.status) })),
     updatedAt: str(l.updated_at),
@@ -136,24 +139,39 @@ function sortValue(lane, col) {
 }
 
 /**
- * The lanes in a sheet sort ({ col: '', dir: '' } = the hub's order). Text
- * compares as words with numbers (c-9 before c-10); times oldest first when
- * ascending. An empty cell sorts last either way; ties keep the hub's order.
+ * Rows in a sheet sort ({ col: '', dir: '' } = the given order), by
+ * `valueOf(row, col)`: a time in ms, else text; null = empty. Text compares
+ * as words with numbers (c-9 before c-10); times oldest first when
+ * ascending. An empty cell sorts last either way; ties keep the given order.
+ * The Lanes and Topics sheets share it (SPL-4421).
+ * @template T
+ * @param {T[]} rows
+ * @param {{ col: string, dir: string }} sort
+ * @param {string[]} columns the sortable columns
+ * @param {(row: T, col: string) => string | number | null} valueOf
+ * @returns {T[]}
+ */
+export function sortRowsBy(rows, sort, columns, valueOf) {
+  if (!sort || !columns.includes(sort.col)) return rows.slice()
+  const sign = sort.dir === 'desc' ? -1 : 1
+  const keyed = rows.map((r, i) => ({ r, i, v: valueOf(r, sort.col) }))
+  keyed.sort((a, b) => {
+    if (a.v === null || b.v === null) return a.v === b.v ? a.i - b.i : a.v === null ? 1 : -1
+    const c = typeof a.v === 'number' && typeof b.v === 'number' ? a.v - b.v : String(a.v).localeCompare(String(b.v), undefined, { numeric: true, sensitivity: 'base' })
+    return c === 0 ? a.i - b.i : sign * c
+  })
+  return keyed.map((k) => k.r)
+}
+
+/**
+ * The lanes in a sheet sort ({ col: '', dir: '' } = the hub's order).
  * @template T
  * @param {T[]} lanes
  * @param {{ col: string, dir: string }} sort
  * @returns {T[]}
  */
 export function sortLanes(lanes, sort) {
-  if (!sort || !LANE_COLUMNS.includes(sort.col)) return lanes.slice()
-  const sign = sort.dir === 'desc' ? -1 : 1
-  const rows = lanes.map((l, i) => ({ l, i, v: sortValue(l, sort.col) }))
-  rows.sort((a, b) => {
-    if (a.v === null || b.v === null) return a.v === b.v ? a.i - b.i : a.v === null ? 1 : -1
-    const c = typeof a.v === 'number' && typeof b.v === 'number' ? a.v - b.v : String(a.v).localeCompare(String(b.v), undefined, { numeric: true, sensitivity: 'base' })
-    return c === 0 ? a.i - b.i : sign * c
-  })
-  return rows.map((r) => r.l)
+  return sortRowsBy(lanes, sort, LANE_COLUMNS, sortValue)
 }
 
 /** The words a text filter searches: the agent, scope, discussion, issue keys and workspace. */
@@ -162,7 +180,8 @@ function laneWords(lane) {
     .join(' ').toLowerCase()
 }
 
-function ageMatches(lane, age) {
+/** Whether a row's ageS is in an age filter ('' = any); Topics reuses it. */
+export function ageMatches(lane, age) {
   if (!age) return true
   const s = Number(lane.ageS)
   if (age === 'older') return s >= AGE_S['24h']
@@ -191,9 +210,14 @@ export function lanesFiltered(f) {
   return Boolean(str(f.text).trim() || f.box || f.vendor || f.state || f.age)
 }
 
+/** The distinct non-empty values, sorted as words with numbers. */
+export function uniqSorted(vals) {
+  return [...new Set(vals.filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+}
+
 /** Each select's choices: the distinct non-empty values in the answer, sorted. */
 export function laneFilterChoices(lanes) {
-  const uniq = (vals) => [...new Set(vals.filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+  const uniq = uniqSorted
   return { box: uniq(lanes.map((l) => l.box)), vendor: uniq(lanes.map((l) => l.vendor)), state: uniq(lanes.map(laneState)) }
 }
 
@@ -304,6 +328,9 @@ function mockStore() {
 /** The mock's discussion: a topic of the mock workspace (a full uuid). */
 export const LANES_MOCK_TOPIC = '5e7b15c9-2995-427d-8b05-659762fbb9d8'
 
+/** The mock discussion's title. */
+const LANES_MOCK_TOPIC_TITLE = 'Monitoring: the tab row beside the heading, and a live Lanes tab'
+
 /** The mock workspace's name, the rows' last column (3.8). */
 const LANES_MOCK_WORKSPACE = 'Mock workspace'
 
@@ -323,7 +350,7 @@ export function mockFleetLanes(store = mockStore(), now = new Date()) {
   if (get(LANES_MOCK_KEY) === 'empty') return out
   out.lanes = [
     { agent_id: 'c-085', agent_box: 'box-a', vendor: 'claude', scope: 'Spec 153 build row B4: the Lanes tab of Monitoring, its page, its poll and its locale keys',
-      topic_id: LANES_MOCK_TOPIC, topic_title: 'Monitoring: the tab row beside the heading, and a live Lanes tab',
+      topic_id: LANES_MOCK_TOPIC, topic_title: LANES_MOCK_TOPIC_TITLE, topic_channel: 'monitoring',
       issues: [{ key: 'SPL-3075', status: 'wip' }, { key: 'SPL-3215', status: 'wip' }], updated_at: ago(240), age_s: 240, last_active: ago(60),
       workspace: 'mock', workspace_name: LANES_MOCK_WORKSPACE },
     { agent_id: 'a-277', agent_box: 'box-b', vendor: 'agy', scope: 'Review the locale text',
@@ -333,5 +360,11 @@ export function mockFleetLanes(store = mockStore(), now = new Date()) {
     { agent_id: 'm-039', agent_box: 'box-b', vendor: 'mistral', scope: '', topic_id: '', topic_title: '',
       issues: [], updated_at: ago(3000), age_s: 3000, last_active: '', workspace: 'mock', workspace_name: LANES_MOCK_WORKSPACE },
   ]
+  if (get(LANES_MOCK_KEY) === 'topics') {
+    out.lanes.splice(1, 0, { agent_id: 'c-733', agent_box: 'box-a', vendor: 'claude', scope: 'Monitoring -> Topics',
+      topic_id: LANES_MOCK_TOPIC, topic_title: LANES_MOCK_TOPIC_TITLE, topic_channel: 'monitoring',
+      issues: [{ key: 'SPL-3215', status: 'wip' }, { key: 'SPL-4421', status: 'eval' }], updated_at: ago(600), age_s: 600, last_active: '',
+      workspace: 'mock', workspace_name: LANES_MOCK_WORKSPACE })
+  }
   return out
 }

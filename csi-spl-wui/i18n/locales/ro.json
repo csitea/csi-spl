@@ -3147,6 +3147,7 @@
       "events": "Evenimente",
       "tokens": "Tokeni",
       "lanes": "Linii",
+      "topics": "Subiecte",
       "file_streams": "Fluxuri de fișiere"
     },
     "alloc": {
@@ -3342,6 +3343,18 @@
       "age_older": "Peste 24 h",
       "no_match": "Nicio linie nu corespunde filtrelor",
       "shown": "{n} din {total} linii"
+    },
+    "topics": {
+      "loading": "Se încarcă subiectele…",
+      "error": "Subiectele nu au putut fi încărcate.",
+      "empty": "Niciun subiect nu are o linie activă",
+      "table_label": "Subiecte cu linii active",
+      "col_channel": "Canal",
+      "col_active": "Ultima activitate a liniei",
+      "filter_text": "Caută subiecte",
+      "no_match": "Niciun subiect nu corespunde filtrelor",
+      "shown": "{n} din {total} subiecte",
+      "no_topic": "Fără discuție"
     },
     "file_streams": {
       "loading": "Se încarcă fluxurile de fișiere…",

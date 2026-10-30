@@ -27,6 +27,9 @@ export const MONITORING_TABS = Object.freeze([
   /* spec 153 3.2 (SPL-3215, row B4): the fleet's active lanes, refreshed every minute; operator admins see
      every lane, a workspace's owners and admins (`staff`) its own lanes (3.6, row B6, SPL-3229) */
   Object.freeze({ id: 'lanes', path: '/monitoring/lanes', labelKey: 'monitoring.tab.lanes', operatorsOnly: false, staff: true, ready: true }),
+  /* spec 153 3.10 (SPL-4421, row B10; owner HUM-10, t1 08213e0e, msg 8caf41ec): the same lanes, one row per topic
+     with its lanes and issues; the same readers as Lanes (it reads the same routes) */
+  Object.freeze({ id: 'topics', path: '/monitoring/topics', labelKey: 'monitoring.tab.topics', operatorsOnly: false, staff: true, ready: true }),
   /* spec 160 3.5 (SPL-3888, row B5): the box file streams, live; `staffOnly`: the workspace's owner or an admin
      only, no operator bypass (the read routes' gate, 3.4: an operator who is neither gets 403) */
   Object.freeze({ id: 'file-streams', path: '/monitoring/file-streams', labelKey: 'monitoring.tab.file_streams', operatorsOnly: false, staff: true, staffOnly: true, ready: true }),

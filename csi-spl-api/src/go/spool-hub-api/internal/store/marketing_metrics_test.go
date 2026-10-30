@@ -260,3 +260,44 @@ func TestRLSMarketingMetricsNullifControl(t *testing.T) {
 		}
 	}
 }
+
+// TestMarketingMetricsLimitsCountRunes (SPL-4445, R7 W2 on SPL-4250): the
+// object_ref (512) and run_id (128) limits count characters, not bytes, the
+// same as rdb 0244's length() checks. "ä" is 2 bytes, so a byte count
+// refuses the accepted cases. object_ref that is not valid UTF-8 is refused.
+// CONTROL (run by hand, SPL-4445): with either check on len(), its accepted
+// case fails.
+func TestMarketingMetricsLimitsCountRunes(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			now := time.Now().UTC().Truncate(time.Microsecond)
+			mm := s.(MarketingMetrics)
+			a := newTenant(t, s)
+			day := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+			for _, c := range []struct {
+				name string
+				set  func(*MarketingMetricSample)
+				ok   bool
+			}{
+				{"object_ref 512 runes, 1024 bytes", func(m *MarketingMetricSample) { m.ObjectRef = strings.Repeat("ä", 512) }, true},
+				{"object_ref 513 runes", func(m *MarketingMetricSample) { m.ObjectRef = strings.Repeat("ä", 513) }, false},
+				{"object_ref invalid UTF-8", func(m *MarketingMetricSample) { m.ObjectRef = "urn:\xff" }, false},
+				{"run_id 128 runes, 256 bytes", func(m *MarketingMetricSample) { m.RunID = strings.Repeat("ä", 128) }, true},
+				{"run_id 129 runes", func(m *MarketingMetricSample) { m.RunID = strings.Repeat("ä", 129) }, false},
+			} {
+				m := mktSample("impressions", "1", day)
+				c.set(&m)
+				got, err := mm.AddMarketingMetricSample(ctx, a, m, now)
+				switch {
+				case c.ok && err != nil:
+					t.Errorf("%s: refused: %v", c.name, err)
+				case c.ok && (got.ObjectRef != m.ObjectRef || got.RunID != m.RunID):
+					t.Errorf("%s: stored %d/%d bytes, want %d/%d", c.name, len(got.ObjectRef), len(got.RunID), len(m.ObjectRef), len(m.RunID))
+				case !c.ok && err == nil:
+					t.Errorf("%s: stored, want refused", c.name)
+				}
+			}
+		})
+	}
+}

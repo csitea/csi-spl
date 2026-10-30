@@ -464,6 +464,10 @@ The same switch keeps the Notes page out of the Help list
 (`helpPageListed` in `rail-order.ts`, used by `pages/help/[[page]].vue`), so
 Help does not send people to a tab that is not drawn; `/help/notes` still
 opens by URL and its text is unchanged for the day the tab comes back.
+It also keeps the Notes section out of the Settings list and the command
+palette (`settingsSectionListed` in `rail-order.ts`, used by
+`SettingsDialog.vue` and `usePaletteItems.ts`; SPL-4331, B10);
+`?settings=notes` and `/settings/notes` still open it by URL.
 
 ## 9. Review record
 

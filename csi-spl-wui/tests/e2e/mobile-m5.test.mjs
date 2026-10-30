@@ -47,7 +47,7 @@ import { importTs } from '../unit/lib/load-ts.mjs'
 import { EVENT_COLUMNS } from '../../src/utils/event-sheet.mjs'
 /* spec 162 B7: each row also carries its select box, the first cell */
 const EVENT_CELLS = EVENT_COLUMNS.length + 1
-const { wireRailOrder } = await importTs('src/utils/rail-order.ts')
+const { wireRailOrder, settingsSectionListed } = await importTs('src/utils/rail-order.ts')
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const WIDTHS = [
@@ -217,8 +217,10 @@ async function checkDialog(browser, base, vp) {
 
 const shown = (p, sel) => p.$eval(sel, (e) => { const r = e.getBoundingClientRect(); return getComputedStyle(e).display !== 'none' && r.width > 0 && r.height > 0 }).catch(() => false)
 
-/* the nav has one row per section (spec 155 B10 added notes: 8 -> 9) */
+/* the nav has one row per listed section (spec 155 B10 added notes: 8 -> 9;
+   it is left out while its rail tab is off, settingsSectionListed) */
 import { SETTINGS_SECTIONS } from '../../src/utils/settings-nav.mjs'
+const LISTED_SECTIONS = SETTINGS_SECTIONS.filter((s) => settingsSectionListed(s.id))
 const settingsQ = (p) => new URL(p.url()).searchParams.get('settings')
 
 /** Read until want() holds on the SAME value for `hold` ms, or `max` runs out;
@@ -257,7 +259,7 @@ async function checkSettings(browser, base, vp) {
     }
     const vw = vp.w
     ok(`${tag} /settings is the list over the lobby, content hidden`, path0.endsWith('/lobby') && q0 === '' && !content0, { path0, q0, content0 })
-    ok(`${tag} ${SETTINGS_SECTIONS.length} rows (one per section), each >= 44 px high and near full width`, rows.length === SETTINGS_SECTIONS.length && rows.every((r) => r.h >= 44 && r.w >= vw - 96), rows)
+    ok(`${tag} ${LISTED_SECTIONS.length} rows (one per listed section), each >= 44 px high and near full width`, rows.length === LISTED_SECTIONS.length && rows.every((r) => r.h >= 44 && r.w >= vw - 96), rows)
     let x = await noXScroll(p)
     ok(`${tag} list: no horizontal page scroll`, x.ok, x)
 

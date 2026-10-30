@@ -26,7 +26,7 @@
       <div v-if="signedIn" class="settings-layout" :class="{ 'settings-layout--list': !active }">
         <nav class="settings-nav" :aria-label="t('settings.nav_label')" data-test="settings-nav">
           <ul>
-            <li v-for="s in SETTINGS_SECTIONS" :key="s.id">
+            <li v-for="s in LISTED_SECTIONS" :key="s.id">
               <NuxtLink
                 :to="sectionTo(s.id)"
                 replace
@@ -66,6 +66,7 @@ import {
   withoutSettings,
 } from '~/utils/settings-nav.mjs'
 import { fixedTenantOption, tenantSwitchOptions } from '~/utils/tenant-switcher.mjs'
+import { settingsSectionListed } from '~/utils/rail-order'
 /* CLE-77874: each section is its own async chunk. The dialog is mounted in
    app.vue on every page, so static imports put all seven sections (and their
    settings widgets) in the initial JS: ci_initial_gzip_kb went 151 -> 197 KB
@@ -82,6 +83,10 @@ const SECTION_COMPONENTS: Record<string, Component> = {
   'calendar-google': defineAsyncComponent(() => import('~/components/settings/calendar-google.vue')),
   notes: defineAsyncComponent(() => import('~/components/settings/notes.vue')),
 }
+
+/* spec 155 B10: the list leaves out a section whose rail tab is switched off
+   (Notes, NOTES_RAIL_ON); its address still opens it */
+const LISTED_SECTIONS = SETTINGS_SECTIONS.filter((s) => settingsSectionListed(s.id))
 
 const session = useSessionStore()
 const route = useRoute()

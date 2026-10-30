@@ -36,11 +36,14 @@
 #  11. the pre-push hook: refused with SPL_PREPUSH_OVERRIDE=1 too; the cited
 #      push passes; a refs/heads/wip/* push is not asked. W1 (R7 c-718): a
 #      caller's ORDER_GO_HUB=none is not passed on (oog_gate), dev is; a pass
-#      on form only (no key on the box) is printed and logged
+#      on form only (no key on the box) is printed and logged. W3: a pusher's
+#      OWNER_ORDER_DIR or SPOOL_ROOT at an empty dir still reads the box
+#      ledger (hook and oog_range); no ledger in either: printed and logged
 #  12. the harness guard (owner_order_guard_check + the hook script): git
 #      commit uncited / cited, a git add earlier in the same command, git
 #      push of an uncited commit, an uncovered change, a repo with no ledger,
-#      W2: a ledger dir it cannot list refuses;
+#      W2: a ledger dir it cannot list refuses; W3: an empty caller dir
+#      still reads the box ledger;
 #      claude exit 2, agy exit 0 + deny JSON, a non-shell tool is allowed
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -243,8 +246,10 @@ grep -q "SEEN ORDER_GO_HUB=unset" "$T/o" && grep -q "ORDER_GO_HUB=none from the 
 grep -q "SEEN ORDER_GO_HUB=dev" "$T/o" && pass "11. W1 CONTROL: ORDER_GO_HUB=dev is passed on" || fail "11. W1 dev: $(out)"
 
 # the hook below: no prd key on this "box" (GCP_SA_KEY_FILE names no file),
-# so the box default is none; the caller's none is ignored either way
+# so the box default is none; the caller's none is ignored either way. The
+# box ledger dir is a fixture path too (OOG_BOX_LEDGER_DIR), never the box's.
 export ORDER_GO_HUB=none GCP_SA_KEY_FILE="$T/no-such-key.json" OWNER_ORDER_DIR="$D" OOG_ORC_DIR="$PROJ_ROOT" SPL_PREPUSH_LOG_DIR="$T/pplog"
+export OOG_BOX_LEDGER_DIR="$T/no-box-oo"
 L="$R/csi-spl-orc/src/bash/features/spawn-agents/lib"; mkdir -p "$L" "$T/hooks"
 cp "$SA/lib/owner-order-guard.inc.sh" "$SA/lib/force-push-guard.inc.sh" "$L/"
 printf 'csi-spl-orc/\n' >>"$R/.git/info/exclude"
@@ -265,6 +270,24 @@ push HEAD:refs/heads/lane
   pass "11. pre-push: the cited push passes" || fail "11. hook cited (rc=$RC): $(out)"
 grep -q "NOT hub-checked" "$T/o" && grep -rq "PASS-UNCHECKED .* NOT hub-checked" "$T/pplog" &&
   pass "11. W1: a pass on form only (box default none) is printed and logged" || fail "11. W1 log: $(out) | $(cat "$T/pplog"/* 2>/dev/null)"
+# W3 (R7 c-718): the pusher's OWNER_ORDER_DIR / SPOOL_ROOT pointed at an empty
+# dir never hides the box ledger; with no ledger anywhere the pass is printed
+# and logged with the swapped dirs
+mkdir -p "$T/empty-oo" "$T/empty-root"
+echo w3 >>"$R/docs/a.md"; commit "docs: w3"
+OWNER_ORDER_DIR="$T/empty-oo" OOG_BOX_LEDGER_DIR="$D" push HEAD:refs/heads/w3
+[[ $RC -ne 0 ]] && grep -q "owner order ${O_GO:0:8}" "$T/o" && ! git -C "$T/remote.git" rev-parse -q --verify refs/heads/w3 >/dev/null &&
+  pass "11. W3: OWNER_ORDER_DIR=<empty dir> still reads the box ledger: the uncited push is refused" || fail "11. W3 dir (rc=$RC): $(out)"
+( unset OWNER_ORDER_DIR; SPOOL_ROOT="$T/empty-root" OOG_BOX_LEDGER_DIR="$D" push HEAD:refs/heads/w3; exit "$RC" ) && RC=0 || RC=$?
+[[ $RC -ne 0 ]] && grep -q "owner order ${O_GO:0:8}" "$T/o" &&
+  pass "11. W3: SPOOL_ROOT=<empty dir> still reads the box ledger: refused" || fail "11. W3 spool root (rc=$RC): $(out)"
+OWNER_ORDER_DIR="$T/empty-oo" OOG_BOX_LEDGER_DIR="$T/empty-root" push HEAD:refs/heads/w3
+[[ $RC -eq 0 ]] && grep -q "NOTE the caller's ledger dir is $T/empty-oo" "$T/o" && grep -q "NOTE the box ledger dir is $T/empty-root" "$T/o" &&
+  grep -q "NOTE the gate action runs from" "$T/o" && grep -rq "PASS-SEAM .*caller's ledger dir is $T/empty-oo" "$T/pplog" &&
+  pass "11. W3: with no ledger in either dir the pass is printed and logged with the swapped seams" || fail "11. W3 log (rc=$RC): $(out) | $(cat "$T/pplog"/* 2>/dev/null)"
+( source "$SA/lib/owner-order-guard.inc.sh"; OWNER_ORDER_DIR="$T/empty-oo" OOG_BOX_LEDGER_DIR="$D" oog_range "$R" HEAD~1..HEAD ) >"$T/o" 2>&1 && RC=0 || RC=$?
+[[ $RC -ne 0 ]] && grep -q "owner order ${O_GO:0:8}" "$T/o" &&
+  pass "11. W3: the do_check_pre_push part (oog_range) reads the box ledger too" || fail "11. W3 range (rc=$RC): $(out)"
 
 # 12. the harness guard (real ./run; no hub)
 # shellcheck source=../features/spawn-agents/lib/owner-order-guard.inc.sh
@@ -288,6 +311,11 @@ guard "git -C $R commit -m 'other: edit'"
 git init -q "$T/w/no-ledger"; echo x >"$T/w/no-ledger/docs.md"; git -C "$T/w/no-ledger" add -A
 guard "git -C $T/w/no-ledger commit -m x"
 [[ $RC -eq 0 ]] && pass "12. guard: a repo with no ledger is not asked" || fail "12. guard no ledger (rc=$RC): $(out)"
+reset; echo more >>"$R/docs/a.md"; git -C "$R" add docs/a.md
+OWNER_ORDER_DIR="$T/empty-oo" OOG_BOX_LEDGER_DIR="$D" guard "git -C $R commit -m 'docs: edit'"
+[[ $RC -eq 2 ]] && grep -q "${O_GO:0:8}" "$T/o" && grep -q "NOTE the caller's ledger dir is $T/empty-oo" "$T/o" &&
+  pass "12. W3: guard: OWNER_ORDER_DIR=<empty dir> still reads the box ledger: refused" || fail "12. W3 guard (rc=$RC): $(out)"
+reset
 if [[ "$(id -u)" != 0 ]]; then
   chmod 000 "$D"
   guard "git -C $T/w/no-ledger commit -m x"

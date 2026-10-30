@@ -113,7 +113,9 @@ fi
 # ledger covers needs an `Owner-go: <msg uuid>` trailer naming the owner's
 # go for it (its body says "go <id8>"; checked on the hub when this box has
 # the prd key, a caller's ORDER_GO_HUB=none is ignored; a pass on form only
-# is printed and logged). Every ref but a delete and refs/heads/wip/*. The ONE copy is
+# is printed and logged; so is a pass under a caller's OWNER_ORDER_DIR,
+# SPOOL_ROOT or OOG_ORC_DIR, and the box ledger is read either way). Every
+# ref but a delete and refs/heads/wip/*. The ONE copy is
 # oog_pre_push in the pushing tree's owner-order-guard.inc.sh, sourced here;
 # a tree without it, or a repo with no ledger, is not asked.
 _pp_oo="$(git rev-parse --show-toplevel 2>/dev/null)/csi-spl-orc/src/bash/features/spawn-agents/lib/owner-order-guard.inc.sh"
@@ -130,6 +132,12 @@ if [ -r "$_pp_oo" ]; then
   if grep -q 'NOT hub-checked' <<<"$_pp_oomsg"; then
     grep -E 'NOT hub-checked|^owner-orders: NOTE' <<<"$_pp_oomsg" >&2
     _pp_logline "PASS-UNCHECKED $PWD remote=${1:-?} override=$_pp_override -- owner order go NOT hub-checked: $(grep -m1 'NOT hub-checked' <<<"$_pp_oomsg")"
+  fi
+  # A pass under a ledger dir or a gate action the caller swapped, with or
+  # without a ledger found, is said and logged too (R7 c-718 W3)
+  if grep -q '^owner-orders: NOTE' <<<"$_pp_oomsg"; then
+    grep -q 'NOT hub-checked' <<<"$_pp_oomsg" || grep '^owner-orders: NOTE' <<<"$_pp_oomsg" >&2
+    _pp_logline "PASS-SEAM $PWD remote=${1:-?} override=$_pp_override -- owner orders under a caller's seam: $(grep '^owner-orders: NOTE' <<<"$_pp_oomsg" | sed 's/^owner-orders: NOTE //' | paste -sd ';' -)"
   fi
 fi
 

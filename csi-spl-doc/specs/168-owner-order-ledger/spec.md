@@ -374,6 +374,16 @@ or as a poll answer counts when it names the order; c-697 W11).
 - **A repository with no ledger is never asked**: the lib checks for
   `<OWNER_ORDER_DIR>/<repo key>.jsonl` before it starts `./run` (about 1.5 s,
   plus about 4 s per hub read).
+- **A caller's seams never hide the box ledger** (R7 c-718 W3). The pusher's
+  own `OWNER_ORDER_DIR` or `SPOOL_ROOT` picks the caller's ledger dir, so the
+  lib also reads the box ledger dir `/var/spool-hub/owner-orders` whenever
+  the caller's is another one, and runs the gate once per dir that holds the
+  repo's ledger (pre-push hook, `owner-orders` part and harness guard). Every
+  seam not at its default (the caller's ledger dir, `OOG_BOX_LEDGER_DIR`, the
+  tests' stand-in for the box dir, and `OOG_ORC_DIR`, the dir whose `./run`
+  runs the gate) prints an `owner-orders: NOTE` line on every run; the
+  pre-push hook prints it on a pass too and logs it (`PASS-SEAM` in its
+  pre-push.log), with or without a ledger found.
 - **Installing the harness hook is the owner's step** (R5, R6). Nothing in
   the fleet adds it. For claude, one entry in `PreToolUse` of the harness's
   `settings.json`, next to the force-push guard's:

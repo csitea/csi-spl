@@ -32,10 +32,44 @@
 # (R7 c-718 W1): a pusher's own `none` would turn the hub check off, so it is
 # dropped and the action picks the box default (prd when the box holds the
 # prd key, else none); a `none` that stands is printed on every PASS line.
+# The caller's seams never hide the box ledger (R7 c-718 W3): the box ledger
+# dir (/var/spool-hub/owner-orders; OOG_BOX_LEDGER_DIR is the tests' seam) is
+# read too whenever OWNER_ORDER_DIR / SPOOL_ROOT point elsewhere, and every
+# seam that is not at its default is printed as an "owner-orders: NOTE" line
+# on every run (the pre-push hook logs it), so a pass under a swapped ledger
+# dir or a swapped ./run is never silent.
 
 _oog_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+_oog_box_default=/var/spool-hub/owner-orders
 oog_ledger_dir() { printf '%s' "${OWNER_ORDER_DIR:-${SPOOL_ROOT:-/var/spool-hub}/owner-orders}"; }
+oog_box_dir() { printf '%s' "${OOG_BOX_LEDGER_DIR:-$_oog_box_default}"; }
+_oog_orc_default() { cd "$_oog_lib_dir/../../../../.." 2>/dev/null && pwd; }
+
+# oog_ledger_dirs: the ledger dirs to read, one per line: the caller's, then
+# the box dir when it is another one (W3: a swapped dir never hides it)
+oog_ledger_dirs() {
+  local d b
+  d="$(oog_ledger_dir)"; b="$(oog_box_dir)"
+  printf '%s\n' "$d"
+  [ "$b" = "$d" ] || printf '%s\n' "$b"
+}
+
+# oog_seam_notes: one "owner-orders: NOTE" line per seam not at its default
+oog_seam_notes() {
+  local d b o
+  d="$(oog_ledger_dir)"; b="$(oog_box_dir)"
+  [ "$b" = "$_oog_box_default" ] ||
+    echo "owner-orders: NOTE the box ledger dir is $b (OOG_BOX_LEDGER_DIR), not $_oog_box_default"
+  [ "$d" = "$b" ] ||
+    echo "owner-orders: NOTE the caller's ledger dir is $d (OWNER_ORDER_DIR or SPOOL_ROOT); the box ledger dir $b is read too"
+  if [ -n "${OOG_ORC_DIR:-}" ]; then
+    o="$(cd "$OOG_ORC_DIR" 2>/dev/null && pwd || printf '%s' "$OOG_ORC_DIR")"
+    [ "$o" = "$(_oog_orc_default)" ] ||
+      echo "owner-orders: NOTE the gate action runs from $o (OOG_ORC_DIR), not this tree's csi-spl-orc"
+  fi
+  return 0
+}
 
 # oog_repo_key <dir>: the basename of the dir that holds the git common dir
 # (every worktree of a repo gives the repo's name), as the action derives it
@@ -45,29 +79,40 @@ oog_repo_key() {
   basename "$(dirname "$cd")"
 }
 
-# oog_has_ledger <dir>: rc 0 when the repo of <dir> has a ledger file here,
-# or when the ledger dir exists but cannot be searched (R7 c-718 W2: the
-# action is then asked, and refuses with rc 2, never "no ledger")
+# oog_has_ledger <dir> [<ledger dir>]: rc 0 when the repo of <dir> has a
+# ledger file in <ledger dir> (default: the caller's), or when that dir
+# exists but cannot be searched (R7 c-718 W2: the action is then asked, and
+# refuses with rc 2, never "no ledger")
 oog_has_ledger() {
-  local k d
+  local k d="${2:-$(oog_ledger_dir)}"
   k="$(oog_repo_key "$1")" || return 1
-  d="$(oog_ledger_dir)"
-  oog_dir_blind && return 0
+  oog_dir_blind "$d" && return 0
   [ -e "$d/$k.jsonl" ]
 }
 
-# oog_dir_blind: rc 0 when the ledger dir exists but this user cannot list
-# and search it, so which ledgers it holds is unknown
+# oog_ledgers_for <dir>: the ledger dirs (oog_ledger_dirs) that hold a
+# ledger of the repo of <dir>, one per line; rc 1 when none does
+oog_ledgers_for() {
+  local l n=0
+  while IFS= read -r l; do
+    oog_has_ledger "$1" "$l" && { printf '%s\n' "$l"; n=1; }
+  done < <(oog_ledger_dirs)
+  [ "$n" = 1 ]
+}
+
+# oog_dir_blind [<ledger dir>]: rc 0 when the dir exists but this user cannot
+# list and search it, so which ledgers it holds is unknown
 oog_dir_blind() {
-  local d
-  d="$(oog_ledger_dir)"
+  local d="${1:-$(oog_ledger_dir)}"
   [ -e "$d" ] && ! { [ -d "$d" ] && [ -r "$d" ] && [ -x "$d" ]; }
 }
 
 # oog_gate <repo dir> VAR=value...: the action, through ./run (the hub read
-# needs its environment). Prints the gate's own lines; rc = the action's.
+# needs its environment), on the caller's ledger dir unless an
+# OWNER_ORDER_DIR=<dir> argument names another. Prints the gate's own lines;
+# rc = the action's.
 oog_gate() {
-  local dir orc="${OOG_ORC_DIR:-$(cd "$_oog_lib_dir/../../../../.." 2>/dev/null && pwd)}" out rc
+  local dir orc="${OOG_ORC_DIR:-$(_oog_orc_default)}" out rc
   local -a hub=(-u ORDER_GO_HUB)
   dir="$(cd "$1" 2>/dev/null && pwd)" || { echo "owner-orders: REFUSED cannot enter $1"; return 1; }
   shift
@@ -92,37 +137,49 @@ _oog_zero() { case "$1" in *[!0]*) return 1 ;; *) return 0 ;; esac; }
 # 102 5.4): <remote sha>..<local sha>, or for a new ref every commit no
 # remote-tracking ref holds. rc 0 pass, else the gate's lines on stdout.
 oog_pre_push() {
-  local top="$1" lsha r rsha revs rc=0
-  oog_has_ledger "$top" || { cat >/dev/null; return 0; }
+  local top="$1" lsha r rsha revs rc=0 refs led leds
+  refs="$(cat)"
+  oog_seam_notes
+  leds="$(oog_ledgers_for "$top")" || return 0
   while read -r _ lsha r rsha; do
     [ -n "${r:-}" ] || continue
     _oog_zero "$lsha" && continue
     case "$r" in refs/heads/wip/?*) continue ;; esac
     if ! _oog_zero "$rsha" && git -C "$top" cat-file -e "$rsha^{commit}" 2>/dev/null; then revs="$rsha..$lsha"
     else revs="$lsha --not --remotes"; fi
-    oog_gate "$top" ORDER_REVS="$revs" || rc=1
-  done
+    while IFS= read -r led; do
+      oog_gate "$top" OWNER_ORDER_DIR="$led" ORDER_REVS="$revs" || rc=1
+    done <<<"$leds"
+  done <<<"$refs"
   return "$rc"
 }
 
 # oog_range <top> <range>: the do_check_pre_push part (the lane's own run)
 oog_range() {
-  oog_has_ledger "$1" || { echo "owner-orders: PASS no ledger for $(oog_repo_key "$1" 2>/dev/null || echo "$1")"; return 0; }
-  oog_gate "$1" ORDER_REVS="$2"
+  local led leds rc=0
+  oog_seam_notes
+  leds="$(oog_ledgers_for "$1")" ||
+    { echo "owner-orders: PASS no ledger for $(oog_repo_key "$1" 2>/dev/null || echo "$1")"; return 0; }
+  while IFS= read -r led; do
+    oog_gate "$1" OWNER_ORDER_DIR="$led" ORDER_REVS="$2" || rc=$?
+  done <<<"$leds"
+  return "$rc"
 }
 
 # owner_order_guard_check "<command>" [<cwd>]: rc 0 allow, 2 refuse (stderr
 # "owner-order-guard: refused: ..." then the gate's lines)
 owner_order_guard_check() {
-  local cmd="${1-}" cwd="${2:-$PWD}" calls verb dir all gos revs base out rc=0 f
+  local cmd="${1-}" cwd="${2:-$PWD}" calls verb dir all gos revs base out rc=0 f l led leds any=""
   case "$cmd" in *git*) ;; *) return 0 ;; esac
   case "$cmd" in *commit*|*push*) ;; *) return 0 ;; esac
-  if oog_dir_blind; then
-    echo "owner-order-guard: refused: the ledger dir $(oog_ledger_dir) cannot be listed by $(id -un 2>/dev/null), so it is unknown whether this repository has an owner order (fail closed)" >&2
-    return 2
-  fi
-  for f in "$(oog_ledger_dir)"/*.jsonl; do [ -e "$f" ] && break; f=""; done
-  [ -n "$f" ] || return 0
+  while IFS= read -r l; do
+    if oog_dir_blind "$l"; then
+      echo "owner-order-guard: refused: the ledger dir $l cannot be listed by $(id -un 2>/dev/null), so it is unknown whether this repository has an owner order (fail closed)" >&2
+      return 2
+    fi
+    for f in "$l"/*.jsonl; do [ -e "$f" ] && { any=1; break; }; done
+  done < <(oog_ledger_dirs)
+  [ -n "$any" ] || return 0
   if ! command -v python3 >/dev/null 2>&1; then
     echo "owner-order-guard: refused: python3 is missing, the guard cannot read the command (fail closed)" >&2
     return 2
@@ -131,16 +188,19 @@ owner_order_guard_check() {
     { echo "owner-order-guard: refused: cannot read the command (${calls##*$'\n'}; fail closed)" >&2; return 2; }
   while IFS=$'\x1f' read -r verb dir all gos revs base; do
     [ -n "$verb" ] || continue
-    oog_has_ledger "$dir" || continue
-    if [ "$verb" = commit ]; then
-      out="$(oog_gate "$dir" ORDER_STAGED=1 ORDER_STAGED_ALL="$all" ORDER_STAGED_BASE="$base" ORDER_GO_MSGS="$gos")"
-    else
-      out="$(oog_gate "$dir" ORDER_REVS="$revs")"
-    fi || {
-      rc=2
-      echo "owner-order-guard: refused: git $verb in $dir changes a path an owner order covers without the owner's go:" >&2
-      printf '%s\n' "$out" >&2
-    }
+    leds="$(oog_ledgers_for "$dir")" || continue
+    while IFS= read -r led; do
+      if [ "$verb" = commit ]; then
+        out="$(oog_gate "$dir" OWNER_ORDER_DIR="$led" ORDER_STAGED=1 ORDER_STAGED_ALL="$all" ORDER_STAGED_BASE="$base" ORDER_GO_MSGS="$gos")"
+      else
+        out="$(oog_gate "$dir" OWNER_ORDER_DIR="$led" ORDER_REVS="$revs")"
+      fi || {
+        rc=2
+        echo "owner-order-guard: refused: git $verb in $dir changes a path an owner order covers without the owner's go:" >&2
+        oog_seam_notes >&2
+        printf '%s\n' "$out" >&2
+      }
+    done <<<"$leds"
   done <<<"$calls"
   return "$rc"
 }

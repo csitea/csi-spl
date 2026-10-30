@@ -68,16 +68,25 @@ export async function exportNotes(api, notes, now = new Date()) {
   return { blob: await r.blob(), name: notesDownloadName(r.headers.get('content-disposition'), notesExportName(now)) }
 }
 
-/** Erase every note; the store's list is read again after, so it shows none. */
+/**
+ * Erase every note; the store's list is read again after, so it shows none.
+ * A note deleted on the Notes page and still waiting on its Undo toast (the
+ * store's `hidden`, D2) is erased too: the list leaves it out, so on the mock
+ * bundle it is removed by its id; on the hub the DELETE took it, so it is no
+ * longer held. An Undo after the erase brings nothing back (the store's
+ * unhide refuses a note it no longer holds).
+ */
 export async function eraseNotes(api, notes) {
   if (api.mock) {
     await notes.load()
-    for (const row of [...notes.notes]) await notes.remove(row.id)
+    const ids = new Set([...notes.notes.map((row) => row.id), ...(notes.hidden || [])])
+    for (const id of ids) await notes.remove(id)
   } else {
     const r = await fetch(realmUrl(api, ''), {
       method: 'DELETE', credentials: api.credentials, headers: headersOf(api), signal: AbortSignal.timeout(HUB_WRITE_TIMEOUT_MS),
     })
     if (!r.ok) throw await refusal(r, 'notes erase')
+    notes.hidden = []
   }
   await notes.load()
 }

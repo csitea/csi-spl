@@ -312,10 +312,10 @@ export const useNotesStore = defineStore('notes', () => {
     return row
   }
 
-  /** Undo: the note is back where it was; nothing was sent. */
+  /** Undo: the note is back where it was; nothing was sent. A note no longer held (Erase took it) stays gone. */
   function unhide(row: NoteSummary) {
+    if (hidden.value.includes(row.id) && !notes.value.some((n) => n.id === row.id)) notes.value = [...notes.value, row]
     hidden.value = hidden.value.filter((x) => x !== row.id)
-    if (!notes.value.some((n) => n.id === row.id)) notes.value = [...notes.value, row]
   }
 
   /** The DELETE, once the toast ended or the page goes (keepalive); false when it failed. */

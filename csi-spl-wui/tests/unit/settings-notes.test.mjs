@@ -35,16 +35,21 @@ function stubFetch(answer) {
   return calls
 }
 
-/** the notes store's surface the util reads: load, notes, get, remove */
-function fakeStore(rows) {
+/**
+ * the notes store's surface the util reads: load, notes, hidden, get, remove.
+ * `held` are ids deleted on the Notes page and waiting on their Undo toast:
+ * the list leaves them out, as stores/notes.ts does.
+ */
+function fakeStore(rows, held = []) {
   const s = {
     all: rows.map((r) => ({ ...r })),
     notes: [],
+    hidden: [...held],
     loads: 0,
     removed: [],
-    async load() { s.loads++; s.notes = s.all.map((n) => ({ id: n.id, title: n.title })) },
+    async load() { s.loads++; s.notes = s.all.filter((n) => !s.hidden.includes(n.id)).map((n) => ({ id: n.id, title: n.title })) },
     async get(id) { const n = s.all.find((x) => x.id === id); return n ? { note: { ...n } } : { missing: true } },
-    async remove(id) { s.removed.push(id); s.all = s.all.filter((n) => n.id !== id); return true },
+    async remove(id) { s.removed.push(id); s.hidden = s.hidden.filter((x) => x !== id); s.all = s.all.filter((n) => n.id !== id); return true },
   }
   return s
 }
@@ -122,6 +127,14 @@ describe('C31 the hub calls', () => {
     assert.deepEqual(calls.map((c) => `${c.method} ${c.url}`), ['DELETE https://hub.example.com/v1/me/realm/notes'])
     assert.equal(store.loads, 1)
   })
+  it('SPL-4390: a note waiting on its Undo is no longer held after the erase, and no DELETE of its own goes', async () => {
+    const calls = stubFetch(() => new Response(null, { status: 204 }))
+    const store = fakeStore([], ['held'])
+    await eraseNotes(api, store)
+    assert.deepEqual(store.hidden, [])
+    assert.equal(calls.length, 1)
+    assert.deepEqual(store.removed, [])
+  })
   it('a refusal throws its token (notes_off), and the list is not reread', async () => {
     stubFetch(() => new Response('{"error":"notes_off"}', { status: 404 }))
     const store = fakeStore([])
@@ -148,6 +161,13 @@ describe('C31 on the mock bundle', () => {
     await eraseNotes(api, store)
     assert.deepEqual(store.removed, ['a', 'b'])
     assert.equal(store.notes.length, 0)
+  })
+  it('SPL-4390: erase also removes a note waiting on its Undo toast; nothing is left to bring back', async () => {
+    const store = fakeStore([...rows, { id: 'c', title: 'Held', archived: false }], ['c'])
+    await eraseNotes(api, store)
+    assert.deepEqual([...store.removed].sort(), ['a', 'b', 'c'])
+    assert.deepEqual(store.all, [])
+    assert.deepEqual(store.hidden, [])
   })
 })
 

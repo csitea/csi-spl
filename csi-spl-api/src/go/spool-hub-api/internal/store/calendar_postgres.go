@@ -24,10 +24,10 @@ const (
 	// rdb 0156's source_key ends every row, or '' before it.
 	calendarCols0156   = `, COALESCE(source_key, '')`
 	calendarColsAs0156 = `, ''::text`
-	// rdb 0246's owner_id and issue_keys follow source_key, or their
+	// rdb 0247's owner_id and issue_keys follow source_key, or their
 	// defaults before the migration (the hub may roll first).
-	calendarCols0246   = `, COALESCE(owner_id, ''), COALESCE(issue_keys, '{}')`
-	calendarColsAs0246 = `, ''::text, '{}'::text[]`
+	calendarCols0247   = `, COALESCE(owner_id, ''), COALESCE(issue_keys, '{}')`
+	calendarColsAs0247 = `, ''::text, '{}'::text[]`
 )
 
 // calendarPrivateSQL is the private filter with the viewer at $2 (spec 089
@@ -52,7 +52,7 @@ func (s *Postgres) hasCalendar(ctx context.Context) bool {
 type calendarSQL struct {
 	full   bool
 	key    bool   // rdb 0156: source_key is in cols
-	links  bool   // rdb 0246: owner_id and issue_keys are in cols
+	links  bool   // rdb 0247: owner_id and issue_keys are in cols
 	cols   string // the select list scanCalendarEvent reads
 	live   string // " AND deleted_at IS NULL", or ""
 	top    string // not an exception row: a single event or a series
@@ -75,12 +75,12 @@ func (s *Postgres) calendarShape(ctx context.Context) calendarSQL {
 		err = s.pool.QueryRow(ctx, calendarHasOwnerID).Scan(&ok)
 		return ok, err
 	}, s.now())
-	key, links := calendarColsAs0156, calendarColsAs0246
+	key, links := calendarColsAs0156, calendarColsAs0247
 	if hasKey {
 		key = calendarCols0156
 	}
 	if hasLinks {
-		links = calendarCols0246
+		links = calendarCols0247
 	}
 	if !full {
 		return calendarSQL{cols: calendarCols89 + calendarColsAs89 + key + links}
@@ -121,7 +121,7 @@ func scanCalendarEvent(row pgx.Row) (CalendarEvent, error) {
 		e.IssueKeys = []string{}
 	}
 	if e.OwnerID == "" {
-		e.OwnerID = e.CreatorID // a row from before the 0246 backfill
+		e.OwnerID = e.CreatorID // a row from before the 0247 backfill
 	}
 	return e, err
 }
@@ -540,7 +540,7 @@ func writeCalendarSeries(ctx context.Context, tx pgx.Tx, q calendarSQL, tenant s
 	return pl.out, upsertCalendarRows(ctx, tx, tenant, pl.writes, q.links)
 }
 
-// calendarLinkCols appends owner_id and issue_keys when rdb 0246 is present.
+// calendarLinkCols appends owner_id and issue_keys when rdb 0247 is present.
 // Placeholders follow len(args), so the same helper serves a full row and an
 // 089 row.
 func calendarLinkCols(cols, vals string, args []any, owner string, keys []string, on bool) (string, string, []any) {
@@ -553,7 +553,7 @@ func calendarLinkCols(cols, vals string, args []any, owner string, keys []string
 	return cols, vals, append(args, owner, keys)
 }
 
-// calendarLinkAssign appends the 0246 SET clause the same way.
+// calendarLinkAssign appends the 0247 SET clause the same way.
 func calendarLinkAssign(set string, args []any, owner string, keys []string, on bool) (string, []any) {
 	if !on {
 		return set, args
@@ -580,7 +580,7 @@ const calendarUpsertSQL = `INSERT INTO calendar_events (event_id, tenant_id, tit
 		deleted_by = EXCLUDED.deleted_by
 	WHERE calendar_events.tenant_id = EXCLUDED.tenant_id`
 
-// calendarUpsertLinksSQL is calendarUpsertSQL once rdb 0246 is present: a
+// calendarUpsertLinksSQL is calendarUpsertSQL once rdb 0247 is present: a
 // series write must store owner_id and issue_keys or an exception row drops
 // them back to the column default.
 const calendarUpsertLinksSQL = `INSERT INTO calendar_events (event_id, tenant_id, title, description, kind, starts_at,

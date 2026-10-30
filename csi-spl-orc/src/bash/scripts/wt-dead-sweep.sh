@@ -9,7 +9,8 @@
 #   - no process has its cwd inside it;
 #   - it is clean (no change, no untracked file) and its HEAD is contained in
 #     WT_TRUNK (default origin/master, as last fetched: a stale ref only keeps),
-#     or it is a SALVAGED dirty tree (below);
+#     or every commit of WT_TRUNK..HEAD is on WT_TRUNK by patch (git cherry
+#     prints no '+' line, and no merge commit), or it is a SALVAGED dirty tree;
 #   - nothing in it (node_modules aside) changed in the last WT_SWEEP_AGE_H h.
 # The removal is `git worktree remove` (no --force: git refuses a dirty one
 # again) and `git branch -d` (merged branches only). The main checkout and a
@@ -42,6 +43,13 @@
 #   WT_SALVAGE_LOG             default $SPOOL_ROOT/wt-salvage.tsv
 #   WT_SALVAGE_DIR             default $SPOOL_ROOT/wt-salvage (bundles + archives, mode 700)
 #   WT_SALVAGE_RESIDUE_MAX_KB  default 10240
+#
+# Landed by patch (SPL-4287): a lane that rebased before its push leaves its
+# worktree on the pre-rebase shas, which trunk never contains, so the tree
+# was "not-on-trunk" for good: on sat, 2026-10-30, 47 such trees, 32 of them
+# with every commit on trunk by patch-id. Such a tree is removed like a merged
+# one, and its branch with `git branch -D` (its patches are on trunk);
+# PLAN / REMOVE lines name it "landed-by-patch".
 #
 # One PLAN|REMOVE / KEEP / SALVAGE line per worktree, a DONE line.
 # Exit: 0 done; 2 usage or a refusal (nothing removed).
@@ -93,6 +101,16 @@ residue_max_kb="${WT_SALVAGE_RESIDUE_MAX_KB:-10240}"
 # shellcheck source=wt-dirty-salvage.inc.sh
 . "$self_dir/wt-dirty-salvage.inc.sh"
 
+# landed_by_patch <worktree>: 0 when HEAD has commits off trunk, none a merge,
+# and every one of them is on trunk by patch (git cherry: no '+' line)
+landed_by_patch() {
+  local head out
+  head="$(g -C "$1" rev-parse -q --verify HEAD 2>/dev/null)" || return 1
+  [[ -z "$(g -C "$repo" rev-list --merges "$trunk..$head" 2>/dev/null)" ]] || return 1
+  out="$(g -C "$repo" cherry "$trunk" "$head" 2>/dev/null)" || return 1
+  [[ -n "$out" ]] && ! grep -q '^+' <<<"$out"
+}
+
 say "START repo=$repo root=$wt_root trunk=$trunk dry_run=$dry age_h=$age_h salvage=$salvage_on"
 n_rm=0 kb_rm=0 n_keep=0 n_sv=0 kb_sv=0
 
@@ -109,7 +127,7 @@ while IFS= read -r wt; do
   stale=0; [[ "$wt" == "stale "* ]] && { stale=1; wt="${wt#stale }"; }
   wt="$(readlink -f "$wt")"
   [[ "${wt%/*}" == "$wt_root" ]] || continue
-  id="${wt##*/}"; why=""; br=""; sv_sha=""
+  id="${wt##*/}"; why=""; br=""; sv_sha=""; patched=""
   if (( stale )); then id="${id%%.stale-*}"
   else br="$(g -C "$wt" symbolic-ref -q --short HEAD 2>/dev/null)" || br=""
   fi
@@ -123,7 +141,10 @@ while IFS= read -r wt; do
     if [[ "$salvage_on" == 1 ]] && salvage_retired "$id" "$wt"; then salvage "$wt" "$id" "$br"; why="$sv_why"; fi
   fi
   if [[ -n "$why" ]]; then :
-  elif (( ! stale )) && [[ -z "$sv_sha" ]] && ! g -C "$repo" merge-base --is-ancestor "$(g -C "$wt" rev-parse HEAD 2>/dev/null)" "$trunk" 2>/dev/null; then why="not-on-trunk"
+  elif (( ! stale )) && [[ -z "$sv_sha" ]] && ! g -C "$repo" merge-base --is-ancestor "$(g -C "$wt" rev-parse HEAD 2>/dev/null)" "$trunk" 2>/dev/null; then
+    if landed_by_patch "$wt"; then patched=" landed-by-patch"; else why="not-on-trunk"; fi
+  fi
+  if [[ -n "$why" ]]; then :
   elif [[ -n "$(find "$wt" -name node_modules -prune -o -newermt "-${age_h} hours" -print -quit 2>/dev/null)" ]]; then why="recent"
   fi
 
@@ -134,7 +155,7 @@ while IFS= read -r wt; do
   fi
   kb="$(du -sk -- "$wt" 2>/dev/null | cut -f1)"; kb="${kb:-0}"
   if [[ "$dry" == 1 ]]; then
-    say "PLAN remove ${kb}KB $wt${br:+ branch $br}${sv_sha:+ salvaged $sv_sha}"
+    say "PLAN remove ${kb}KB $wt${br:+ branch $br}${sv_sha:+ salvaged $sv_sha}$patched"
   elif [[ -n "$sv_sha" ]]; then
     g -C "$repo" worktree remove --force "$wt" || { say "WARN git refused to remove $wt"; continue; }
     [[ -n "$br" ]] && { g -C "$repo" branch -D "$br" >/dev/null 2>&1 || say "WARN branch $br kept (git branch -D refused)"; }
@@ -144,8 +165,9 @@ while IFS= read -r wt; do
     say "REMOVE ${kb}KB $wt"
   else
     g -C "$repo" worktree remove "$wt" || { say "WARN git refused to remove $wt"; continue; }
-    [[ -n "$br" ]] && { g -C "$repo" branch -d "$br" >/dev/null 2>&1 || say "WARN branch $br kept (git branch -d refused)"; }
-    say "REMOVE ${kb}KB $wt${br:+ branch $br}"
+    bd=-d; [[ -n "$patched" ]] && bd=-D
+    [[ -n "$br" ]] && { g -C "$repo" branch "$bd" "$br" >/dev/null 2>&1 || say "WARN branch $br kept (git branch $bd refused)"; }
+    say "REMOVE ${kb}KB $wt${br:+ branch $br}$patched"
   fi
   n_rm=$((n_rm + 1)); kb_rm=$((kb_rm + kb))
 done < <(list_dirs)

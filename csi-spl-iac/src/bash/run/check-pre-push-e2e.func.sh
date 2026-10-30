@@ -36,7 +36,7 @@
 # @description csi-spl-orc's wui-e2e-mock-serve.sh, as wf 10 runs them. The
 # @description whole part runs under PRE_PUSH_E2E_TIMEOUT. The cache keeps the
 # @description newest 3 bundles; a run holds its bundle (a shared flock on
-# @description <bundle>/.hold) until it ends, and the prune skips a held one.
+# @description <cache>/.locks/<key>) until it ends, and the prune skips a held one.
 # @param PRE_PUSH_E2E (optional) - 0 = never select the part, default 1
 # @param PRE_PUSH_E2E_MAX (optional) - most files run, default 6
 # @param PRE_PUSH_E2E_BUDGET (optional) - CI seconds the files may sum to, default 240
@@ -286,24 +286,37 @@ _ppe_generate() {
 }
 
 # _ppe_bundle_hold <dir> - hold the bundle <dir> for the rest of the calling
-# shell: a shared flock on <dir>/.hold, on an fd the shell keeps open until it
-# exits, so its children (the runner, Chrome) hold it too and a SIGKILL drops
-# it. Also touches <dir>, so a re-used bundle counts as the newest. Fails when
-# <dir> is gone.
+# shell: a shared flock on <cache>/.locks/<key>, on an fd the shell keeps open
+# until it exits, so its children (the runner, Chrome) hold it too and a
+# SIGKILL drops it. The lock lives outside <dir>: a prune's rm -rf of <dir>
+# never unlinks the lock a run is about to take (SPL-4351 R7 W1). Fails, the
+# fd closed, unless the lock is still the file at its path and <dir> still has
+# its index.html (a prune won the race); else touches <dir>, so a re-used
+# bundle counts as the newest.
 _ppe_bundle_hold() {
-  local fd
-  exec {fd}>>"$1/.hold" || return 1
-  flock -s -w 30 "$fd" && touch "$1"
+  local fd lock="${1%/*}/.locks/${1##*/}"
+  mkdir -p "${lock%/*}" && exec {fd}>>"$lock" || return 1
+  if flock -s -w 30 "$fd" && [[ /proc/self/fd/$fd -ef "$lock" && -f "$1/public/index.html" ]]; then
+    touch "$1"
+  else
+    exec {fd}>&-; return 1
+  fi
 }
 
 # _ppe_bundle_prune <cache> - the newest 3 bundles only (~4 MB each); one that
 # a live run holds (_ppe_bundle_hold) stays, whatever its age (SPL-4351: a
-# re-used bundle went under a run that still served it, every page 404).
+# re-used bundle went under a run that still served it, every page 404). The
+# dir goes first, then its lock, both under the exclusive lock: a run waiting
+# on it then finds no index.html, and one that opens the path afresh finds no
+# dir either.
 _ppe_bundle_prune() {
-  local d
+  local d lock
+  mkdir -p "$1/.locks" || return 0
   # shellcheck disable=SC2012 # by mtime; the dirs are 40-hex keys
   ls -1dt "$1"/*/ 2>/dev/null | tail -n +4 | while IFS= read -r d; do
-    ( flock -n -x 9 || { echo "wui-e2e: kept ${d%/}: a run holds it"; exit 0; }; rm -rf "$d" ) 9>>"${d%/}/.hold"
+    d="${d%/}"; lock="$1/.locks/${d##*/}"
+    # shellcheck disable=SC2094 # the lock is removed while held, on purpose (see above)
+    ( flock -n -x 9 || { echo "wui-e2e: kept $d: a run holds it"; exit 0; }; rm -rf "$d"; rm -f "$lock" ) 9>>"$lock"
   done
 }
 
@@ -334,8 +347,7 @@ _pp_part_wui_e2e() {
     cache="${PRE_PUSH_E2E_BUNDLES:-${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/wui-e2e-bundle}"
     _ppe_keep_heal .
     [[ -e .output ]] && mv .output .output.ppe-keep
-    if [[ -n "$key" && -f "$cache/$key/public/index.html" ]] && _ppe_bundle_hold "$cache/$key" \
-       && [[ -f "$cache/$key/public/index.html" ]]; then
+    if [[ -n "$key" && -f "$cache/$key/public/index.html" ]] && _ppe_bundle_hold "$cache/$key"; then
       echo "wui-e2e: bundle re-used ($cache/${key:0:12}): no WUI input changed since it was built"
     else
       echo "wui-e2e: building the mock bundle"
@@ -351,7 +363,8 @@ _pp_part_wui_e2e() {
         comm -13 "$run_dir/before" - | grep -v "^\.output/" | while IFS= read -r p; do rm -rf -- "./$p"; done
       if [[ -n "$key" ]]; then
         mkdir -p "$cache/$key" && rm -rf "$cache/$key/public" && mv .output/public "$cache/$key/public" && rm -rf .output
-        _ppe_bundle_hold "$cache/$key"
+        _ppe_bundle_hold "$cache/$key" ||
+          { echo "FAIL: wui-e2e: the bundle was pruned before this run could hold it ($cache/${key:0:12})"; exit 1; }
         _ppe_bundle_prune "$cache"
       fi
     fi

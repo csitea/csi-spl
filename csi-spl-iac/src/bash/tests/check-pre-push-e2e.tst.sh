@@ -39,6 +39,12 @@
 #      while its run holds it, 3 newer bundles and a build of another tree
 #      do not prune it (the run still finds index.html); an unheld bundle
 #      past the newest 3 is still pruned
+#  16. R7 W1: a run that re-uses a bundle while a prune holds its lock waits,
+#      and when the prune has removed the dir (then its lock) it builds a new
+#      bundle instead of serving the removed one; the lock lives in
+#      <cache>/.locks, outside the dir the prune deletes
+#  17. R7 W2: a hold that fails on the build path is rc 1 with a FAIL line,
+#      and no file runs on a bundle that is gone
 #   CONTROL a. with the users-of step off (_ppe_names prints nothing) check 2
 #              selects nothing: the closure is what finds it
 #   CONTROL b. a dirty WUI source -> no cache key -> 2 builds for 2 runs, so
@@ -203,6 +209,27 @@ fi
 [[ ! -e "$C/x1" && -d "$C/x2" && -d "$C/x3" && "$(ls -1d "$C"/*/ | wc -l)" == 4 ]] \
   && pass "15. the unheld bundle past the newest 3 (x1) is still pruned: 3 + the held one stay" \
   || fail "15. after the prune the cache holds: $(ls -1 "$C" | paste -sd' ' -)"
+
+# --- 16. a re-use during a prune waits, then builds -------------------------------------
+C="$T/bundles16"; rm -f "$T/held" "$T/go" "$T/ran15"; : >"$T/out15"
+part15 "$R" "$T/run"; for K in "$C"/*/; do break; done; K="${K%/}"
+mkdir -p "$C/.locks"; exec {pf}>>"$C/.locks/${K##*/}"; flock -x "$pf"
+part15 "$R" "$T/run15" & pb=$!
+for _ in $(seq 50); do [[ -e "$T/held" ]] && break; sleep 0.1; done
+rm -rf "$K"; rm -f "$C/.locks/${K##*/}"; exec {pf}>&-
+: >"$T/go"; wait "$pb"; rb=$?
+if [[ "$rb" == 0 && "$(cat "$T/ran15" 2>/dev/null)" == ok && "$(grep -c 'building the mock bundle' "$T/out15")" == 2 ]]; then
+  pass "16. a re-use that meets a prune's lock waits; the dir gone, it builds a new bundle (2 builds) and finds index.html"
+else
+  fail "16. re-use during a prune: rc $rb, run saw '$(cat "$T/ran15" 2>/dev/null)', builds $(grep -c 'building the mock bundle' "$T/out15")"
+  sed 's/^/    | /' "$T/out15"
+fi
+# --- 17. a failed hold on the build path fails loudly ---------------------------------------
+C="$T/bundles17"; : >"$T/ran"; : >"$T/out15"
+( _ppe_bundle_hold() { return 1; }; part15 "$R" "$T/run" ); r=$?
+[[ "$r" == 1 && ! -s "$T/ran" ]] && grep -q '^FAIL: wui-e2e: the bundle was pruned before this run could hold it' "$T/out15" \
+  && pass "17. a hold that fails after the build: rc 1, the FAIL line, no file ran" \
+  || { fail "17. failed build-path hold: rc $r, ran '$(cat "$T/ran")'"; sed 's/^/    | /' "$T/out15"; }
 
 # --- 12. the bundle budget ---------------------------------------------------------------
 : >"$T/out"; : >"$T/ran"

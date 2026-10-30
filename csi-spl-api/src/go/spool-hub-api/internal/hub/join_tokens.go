@@ -234,10 +234,24 @@ func (s *Server) handleJoinMint(w http.ResponseWriter, r *http.Request) {
 	}
 	s.o.Log.Info().Str("tenant", t.ID).Str("join_token", jt.ID()).Str("by", a.HumanID).
 		Str("box_id", in.BoxID).Str("for_human", in.ForHuman).Msg("join token minted")
+	s.workspaceEvent(r.Context(), t.ID, boxEvent(store.LogKindJoinMinted, a.HumanID, joinMintedMessage(jt)))
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"id": jt.ID(), "token": token, "expires_at": jt.ExpiresAt, "box_id": in.BoxID, "for_human": in.ForHuman,
 		"join_line": "SPOOL_JOIN_TOKEN=" + token + " spool join " + hubURL(r),
 	})
+}
+
+// joinMintedMessage is the Workspace log text of a mint: the token's id and
+// what it is bound to, never the token or its label (free text).
+func joinMintedMessage(jt store.JoinToken) string {
+	m := "join token " + jt.ID() + " minted"
+	if jt.BoxID != "" {
+		m += " for box " + jt.BoxID
+	}
+	if jt.ForHuman != "" {
+		m += " for " + jt.ForHuman
+	}
+	return m
 }
 
 // GET /v1/tenant/agents/join-tokens
@@ -302,6 +316,7 @@ func (s *Server) handleJoinRevoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.o.Log.Info().Str("tenant", t.ID).Str("join_token", id).Str("by", a.HumanID).Msg("join token revoked")
+	s.workspaceEvent(r.Context(), t.ID, boxEvent(store.LogKindJoinRevoked, a.HumanID, "join token "+id+" revoked"))
 	writeJSON(w, http.StatusOK, map[string]string{"id": id, "state": jt.State()})
 }
 
@@ -338,6 +353,7 @@ func (s *Server) handleSeatRevoke(w http.ResponseWriter, r *http.Request) {
 	}
 	s.closeBoxSessions(t.ID, box)
 	s.o.Log.Info().Str("tenant", t.ID).Str("box_id", box).Str("by", a.HumanID).Msg("seat revoked")
+	s.workspaceEvent(r.Context(), t.ID, boxEvent(store.LogKindPinRevoked, a.HumanID, "pin of box "+box+" revoked"))
 	writeJSON(w, http.StatusOK, map[string]string{"box_id": box, "revoked": "true"})
 }
 

@@ -210,6 +210,7 @@ func (s *Server) handleInviteRevoke(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "internal", "invite not revoked")
 	default:
 		s.o.Log.Info().Str("tenant", t.ID).Str("by", a.HumanID).Msg("member.invite_revoked")
+		s.workspaceEvent(r.Context(), t.ID, memberEvent(store.LogKindMemberInviteRevoked, a.HumanID, "pending invite revoked"))
 		w.WriteHeader(http.StatusNoContent)
 	}
 }

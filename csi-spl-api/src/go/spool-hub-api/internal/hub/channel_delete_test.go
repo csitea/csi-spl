@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/websocket/wsjson"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -172,5 +173,43 @@ func TestArchiveUnarchiveChannel(t *testing.T) {
 	// unarchiving a live channel is a 404 (nothing archived by that name)
 	if code, _ := call(t, e, tid, http.MethodPut, "/v1/channels/keepme/unarchive", creator, nil); code != http.StatusNotFound {
 		t.Errorf("unarchive a live channel: %d, want 404", code)
+	}
+}
+
+// Spec 162 row B6, C22: a channel delete writes one channel.deleted row in
+// the Workspace log, by the creator, origin component channels/<name>; a
+// refused delete (403 to a member who did not create it, 404 to a
+// non-member) and an archive write none. C23: with the log write failing,
+// the delete still answers 204.
+func TestDeleteChannelWorkspaceEvent(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		var mut []func(*hub.Options)
+		if fail {
+			mut = append(mut, failingLog)
+		}
+		e := rbacEnv(t, mut...)
+		tid, _ := e.tenant()
+		creator, boss, outsider := seat(t, e, tid, "developer"), seat(t, e, tid, "biz_owner"), seat(t, e, tid, "developer")
+		for _, ch := range []string{"doomed", "kept"} {
+			if code, out := call(t, e, tid, http.MethodPost, "/v1/channels", creator, map[string]string{"channel": ch, "name": ch}); code != http.StatusCreated {
+				t.Fatalf("create %s: %d %v", ch, code, out)
+			}
+		}
+		if code, out := call(t, e, tid, http.MethodPost, "/v1/channels/doomed/members", creator, map[string]string{"human_id": boss}); code != http.StatusCreated {
+			t.Fatalf("add member: %d %v", code, out)
+		}
+		kind := store.LogKindChannelDeleted
+		if fail {
+			kind = ""
+		}
+		runLogSteps(t, e, tid, []logStep{
+			{"outsider delete", http.MethodDelete, "/v1/channels/doomed", outsider, nil, 404, "", ""},
+			{"not the creator", http.MethodDelete, "/v1/channels/doomed", boss, nil, 403, "", ""},
+			{"archive", http.MethodPut, "/v1/channels/kept/archive", creator, nil, 204, "", ""},
+			{"delete", http.MethodDelete, "/v1/channels/doomed", creator, nil, 204, kind, "channels/doomed"},
+		})
+		if got := wsEvents(t, e, tid); !fail && got[0].Message != "#doomed deleted" {
+			t.Fatalf("message %q", got[0].Message)
+		}
 	}
 }

@@ -540,7 +540,7 @@ func (s *Server) handlePatchChannelInvite(w http.ResponseWriter, r *http.Request
 // read BEFORE the delete - afterwards the channel has none - and each of their
 // sockets gets a channel_deleted frame, so every open sidebar drops it at once.
 func (s *Server) handleDeleteChannel(w http.ResponseWriter, r *http.Request) {
-	s.retireChannel(w, r, "delete", "deleted", s.o.Store.DeleteChannel)
+	s.retireChannel(w, r, "delete", "deleted", s.o.Store.DeleteChannel, store.LogKindChannelDeleted)
 }
 
 // PUT /v1/channels/{channel}/archive — the creator archives the channel
@@ -550,7 +550,7 @@ func (s *Server) handleDeleteChannel(w http.ResponseWriter, r *http.Request) {
 // create it is refused. The members are read before the archive; each open
 // sidebar gets a channel_deleted frame and drops the row.
 func (s *Server) handleArchiveChannel(w http.ResponseWriter, r *http.Request) {
-	s.retireChannel(w, r, "archive", "archived", s.o.Store.ArchiveChannel)
+	s.retireChannel(w, r, "archive", "archived", s.o.Store.ArchiveChannel, "")
 }
 
 // PUT /v1/channels/{channel}/unarchive — bring an archived channel back
@@ -633,7 +633,7 @@ func (s *Server) handleRemoveChannelMember(w http.ResponseWriter, r *http.Reques
 // member's socket so each open sidebar drops the row. verb / past name the
 // operation in the refusals and the log.
 func (s *Server) retireChannel(w http.ResponseWriter, r *http.Request, verb, past string,
-	retire func(ctx context.Context, tenant, channel, by string, at time.Time) error) {
+	retire func(ctx context.Context, tenant, channel, by string, at time.Time) error, logKind string) {
 	t, ch, hum, ok := s.channelDoor(w, r)
 	if !ok {
 		return
@@ -664,5 +664,9 @@ func (s *Server) retireChannel(w http.ResponseWriter, r *http.Request, verb, pas
 	}
 	s.fanoutChannelFrame(r.Context(), t.ID, members, map[string]any{"type": "channel_deleted", "channel": ch})
 	s.o.Log.Info().Str("tenant", t.ID).Str("channel", ch).Str("by", hum).Msg("channel " + past)
+	if logKind != "" {
+		s.workspaceEvent(r.Context(), t.ID, store.LogEvent{Kind: logKind, Actor: hum, Message: "#" + ch + " " + past,
+			OriginKind: store.LogOriginComponent, OriginRef: "channels/" + ch})
+	}
 	w.WriteHeader(http.StatusNoContent)
 }

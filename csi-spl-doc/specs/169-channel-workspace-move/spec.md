@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.4 (2026-10-30). Status: **Draft** (plan only; nothing below is
+Version: v0.5 (2026-10-30). Status: **Draft** (plan only; nothing below is
 built). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -14,6 +14,10 @@ the box's handling of a refusal, the allowed `<SRC>` writes in C13, and L8's
 stub). v0.4 fixes the P2b probe's recipient (a DM from an agent to a
 person on a new topic is refused by the hub's `dm_not_blocker` guard,
 SPL-2584) and drops "re-seat" from T10, both raised by the L8 build lane.
+v0.5 settles the four calls the T1 catalogue lane (L2) asked for, read from
+the DDL: the hours plan, entries and the Google Calendar map (5.1a), invites
+and embed visitors whose parent row does not move (5.1b), labels, fallback
+deliveries and the audit binds; it adds Q8 (hours inside an approved period).
 The owner's answers to section 11 are not in yet; they go into the
 next version as a decisions table.
 
@@ -110,12 +114,13 @@ has not said so (Q7).
 | M3 | posts' children | `message_revisions`, `message_reactions`, `message_kind_changes`, `message_moderation`, `message_answers` (polls and their answers), `deliveries`, `delivery_live_acks` (rdb 0186, FK to `messages` ON DELETE CASCADE), `fallback_deliveries`, `read_marks` on those posts and topics |
 | M4 | attachments | every `file_id` of a `mode: "blob"` item in `messages.files` of M2 -> blob `t/<SRC>/files/<sha256>`. A `mode: "path"` item names an on-box path and has no blob (`api/msg/msg.go` `Attachment`): it travels inside the row and nothing is copied |
 | M5 | members and seats | `channel_humans`, `channel_invites`, `channel_subscriptions`, `dedicated_agents` with `scope_type = 'channel'` and `scope_id = <CHANNEL>`, `tenant_memberships.channel_order` entries |
-| M6 | topic state | `topic_heads`, `topic_head_parts`, `topic_priorities`, `flow_watches`, `flow_events`, `calendar_events.topic_id`, `hours_jobs.task_id` (rdb 0216, a job that names an M2 topic) |
+| M6 | topic state | `topic_heads`, `topic_head_parts`, `topic_priorities`, `flow_watches`, `flow_events`, `calendar_events.topic_id` with their `calendar_guests` (rdb 0139), `hours_jobs.task_id` (rdb 0216, a job that names an M2 topic) with its `hours_plan` rows (FK `ON DELETE CASCADE`) |
+| M6c | hours that name the set | `hours_minutes`, `hours_entries` (+ `hours_entry_spans`, FK to the entry) and `hours_adjustments` whose `target` is `ch:<CHANNEL>`, `t:<M2 task>`, `cal:<moved event>` or `job:<moved job>` (rdb 0151, 0176, 0215, 0218: a text column, no FK, so no cascade finds them) |
 | M6b | move history that points INTO the set | `messages` OUTSIDE M2 (staying in `<SRC>`) whose `moved_from_channel = <CHANNEL>` or whose `moved_from_task` / `moved_from_parent` is an M2 task (rdb 0069: a post spec 045 moved OUT of the channel keeps its home there) |
 | M7 | issues | `issues` whose `task_id` is an M2 topic, or that `issue_discussions` links to an M2 topic; their `issue_events`, `issue_opens`, `issue_discussions` rows, and the `spec_sync_map` rows whose `issue_number` is one of them (rdb 0208; its `spec_task_id` is a tasks.md row id such as `T001`, at most 32 characters, not a topic id) |
 | M8 | Qto docs | the doc in the channel's box rule (F14 column 3) and every doc linked only from M2 posts (a doc linked from another channel too is a shared item, 5.5); their `workspace_doc_*` rows and their objects in `<SRC>`'s docs bucket |
 | M9 | DM links | DMs whose `ref_task_id` is an M2 topic; channel rows with `mirror_of` move with M2 |
-| M10 | usage and budget | `usage_events`, `token_budgets`, `embed_visitors` with `channel_id = <CHANNEL>` |
+| M10 | usage and budget | `usage_events`, `token_budgets`, `embed_visitors` with `channel_id = <CHANNEL>` (an embed visitor's own channel, rdb 0169: one visitor per channel) |
 | M11 | fleet refs | `fleet_lanes.topic` / `issue_key`, `fleet_asks.topic` / `issue_key` pointing at M2 topics or M7 keys |
 | M12 | box state | the F14 rule row, the desk seats of the channel's agents, the spool and dispatch files that name M2 task ids (spec 167 section 4.2 manifest, reused) |
 
@@ -144,20 +149,67 @@ both as "not about spool channels".
 | `channels` | moved | `WHERE tenant_id=<SRC> AND channel_id=<CHANNEL>` |
 | `messages` (M2, incl. `mirror_of` copies) | moved, same `msg_id` and `task_id` | `WHERE tenant_id=<SRC> AND (channel=<CHANNEL> OR task_id=ANY(<tasks>) OR parent_task_id=ANY(<tasks>) OR msg_id=ANY(<msgs>))` |
 | staying `messages` with move history into the set (M6b) | `moved_from_channel`, `moved_from_task`, `moved_from_parent` set to NULL: the post's old home has left `<SRC>`, so it is at home where it is now (the same state a move back home leaves, rdb 0069) | `WHERE tenant_id=<SRC> AND (moved_from_channel=<CHANNEL> OR moved_from_task=ANY(<tasks>) OR moved_from_parent=ANY(<tasks>))` |
-| `hours_jobs` naming an M2 topic | moved | `WHERE tenant_id=<SRC> AND task_id=ANY(<tasks as text>)` |
+| `hours_jobs` naming an M2 topic, with its `hours_plan` rows | moved together: the plan rows are inserted under `<DST>` with the job, before the job's `<SRC>` delete cascades to them (else members' planned slots are lost) | `WHERE tenant_id=<SRC> AND task_id=ANY(<tasks as text>)`; `hours_plan WHERE tenant_id=<SRC> AND job_id=ANY(<jobs>)` |
+| hours rows that name the set (M6c) | see 5.1a | `WHERE tenant_id=<SRC> AND target=ANY(<targets>)` per table |
 | `message_revisions`, `message_reactions`, `message_kind_changes`, `message_moderation`, `message_answers`, `deliveries`, `delivery_live_acks`, `fallback_deliveries` | moved with their post (F5: inserted under `<DST>` before the parent's delete cascades in `<SRC>`) | `WHERE tenant_id=<SRC> AND msg_id=ANY(<msgs>)` (`answers` / `answer_msg_id` for `message_answers`) |
 | `channel_humans`, `channel_invites`, `channel_subscriptions` | moved for members the owner keeps (Q5); deleted for the rest | `WHERE tenant_id=<SRC> AND channel_id=<CHANNEL>` |
 | `dedicated_agents` (channel scope) | moved | `WHERE tenant_id=<SRC> AND scope_type='channel' AND scope_id=<CHANNEL>` |
 | `tenant_memberships.channel_order` | the id is removed from every `<SRC>` array | `WHERE tenant_id=<SRC> AND <CHANNEL> = ANY(channel_order)` |
 | `read_marks` | moved for kept members; deleted for the rest | `WHERE tenant_id=<SRC> AND (msg_id=ANY(<msgs>) OR mark_key LIKE ANY(<channel and task keys>))` |
 | `topic_heads`, `topic_head_parts`, `topic_priorities`, `flow_watches`, `flow_events` | moved | `WHERE tenant_id=<SRC> AND task_id=ANY(<tasks>)` (`topic_head_parts` also `channel=<CHANNEL>`); and, for heads of topics that stay (a DM thread about a moved topic), `last_msg_id` / `dm_last_msg_id` `=ANY(<msgs>)` -> 0, recomputed from the remaining rows |
-| `calendar_events` with an M2 `topic_id` | moved | `WHERE tenant_id=<SRC> AND topic_id=ANY(<tasks as text>)` |
+| `calendar_events` with an M2 `topic_id`, with their `calendar_guests` | moved together (guests are the event's children, FK `ON DELETE CASCADE`); a guest who is not a `<DST>` member follows Q5 | `WHERE tenant_id=<SRC> AND topic_id=ANY(<tasks as text>)`; `calendar_guests WHERE tenant_id=<SRC> AND event_id=ANY(<events>)` |
+| `gcal_event_map` of a moved event | not carried; see 5.1a | `WHERE tenant_id=<SRC> AND event_id=ANY(<events>)` |
 | `issues`, `issue_events`, `issue_opens`, `issue_discussions`, `spec_sync_map` | moved, renumbered under `<DST>`'s prefix (F6); the old key is written into the new issue's first event. A `spec_sync_map` row that a STAYING issue or doc also needs is a shared item (5.5): its FK to `issues` is `ON DELETE SET NULL (issue_number)` (rdb 0208), so deleting the moved issue would null the staying row's link without an error; `plan` lists it and the move refuses until it is resolved (Q6) | `WHERE tenant_id=<SRC> AND number=ANY(<old numbers>)` per table (`issue_number` in `spec_sync_map`) |
 | `workspace_doc`, `_item`, `_node`, `_acl`, `_rev_log` | moved, re-placed in `<DST>`'s tree under a folder named for the channel | `WHERE tenant_id=<SRC> AND (id=ANY(<docs>) OR doc_id=ANY(<docs>))` |
-| `usage_events`, `token_budgets`, `embed_visitors` | moved | `WHERE tenant_id=<SRC> AND channel_id=<CHANNEL>` |
+| `usage_events`, `token_budgets` | moved | `WHERE tenant_id=<SRC> AND channel_id=<CHANNEL>` |
+| `embed_visitors` | see 5.1b: `plan` refuses | `WHERE tenant_id=<SRC> AND channel_id=<CHANNEL>` |
+| `fallback_deliveries` | moved with its post (row above); its `channel_id` column also names the channel, so the proof reads both | `WHERE tenant_id=<SRC> AND (msg_id=ANY(<msgs>) OR channel_id=<CHANNEL>)` |
+| `issue_labels` | not about channels: a workspace's label catalogue. A moved issue's `labels` values are `label_id`s, so T5b creates each missing `label_id` in `<DST>` (name and colour copied) before the issue insert; `<SRC>`'s catalogue is kept | none (C2 records the class) |
 | DMs with `ref_task_id` in M2 (M9) | the DM stays (it is two people's DM, not the channel's); `ref_task_id` set to NULL in `<SRC>`, so the DM no longer points at the channel | `WHERE tenant_id=<SRC> AND ref_task_id=ANY(<tasks>)` |
 | `fleet_lanes`, `fleet_asks` (M11) | issue keys rewritten to the new keys; topic ids unchanged (they live in the fleet's own workspace, not in `<SRC>`, unless `<SRC>` is that workspace) | `WHERE issue_key=ANY(<old keys>)` |
 | aggregate counters (`message_period_counts`, `quota_counts`, `topic_head_tenants`, `tenant_change_stamps`) | recomputed for `<SRC>` and `<DST>` from the rows after the move; change stamps bumped so every cached view refetches | the recompute equals a fresh count (C9) |
+
+#### 5.1a Hours and the Google Calendar map
+
+- **Hours rows (M6c)** are members' time records, not the channel's, but
+  their `target` names it, and the scan (5.2) would find them. They move
+  with the set for kept members (Q5) and are deleted for the rest, with
+  one exception: a row whose `(member_id, day)` falls inside an
+  `hours_periods` row of `<SRC>` in state `frozen` or `approved` belongs to
+  a time sheet already signed off, whose `minutes` total is stored. Moving
+  it would change an approved sheet. `plan` lists those rows and the move
+  refuses them until the owner answers Q8.
+- **`gcal_event_map`** (rdb 0217) ties a moved calendar event to the Google
+  event in a `<SRC>` member's connected calendar. It cannot be carried: its
+  `connection_id` is a `<SRC>` connection. Letting the cascade delete it is
+  NOT enough: the Google event stays in the member's calendar, and the next
+  In half of the sync (`api/hub/gcal_sync_in.go`: "unmapped: imported ... as
+  the member's private event") imports it back into `<SRC>` as a new event,
+  with the moved event's title. So T5 does it in two steps: before P4, for
+  each map row of a moved event, it claims that member's connection
+  (`ClaimGcalMember`, so no sync cycle runs in between) and deletes the
+  Google event the way the Out half deletes one; P4's cascade then removes
+  the map row. A Google call that fails stops the move before P4. In
+  `<DST>`, the normal Out half writes the moved events to the calendars of
+  `<DST>`'s connected members.
+
+#### 5.1b Rows whose parent row does not move
+
+- **`channel_invites`** (rdb 0231) has a FK to `tenant_invites (tenant_id,
+  email)`. A `<DST>` row needs a `<DST>` workspace invite for that email,
+  and writing one invites a person into `<DST>`: that is Q5. With Q5 = A,
+  an invite is moved only for an email the owner keeps (the move first
+  writes its `<DST>` `tenant_invites` row), and deleted otherwise. `<SRC>`'s
+  `tenant_invites` row is kept: it is the workspace's invite, not the
+  channel's.
+- **`embed_visitors`** (rdb 0169) has a FK to `embed_customers (tenant_id,
+  embed_id)`, and `embed_id` is a hub-wide primary key that sits in the
+  customer's iframe URL. `<DST>` cannot hold a second row with the same
+  `embed_id`, and moving the `embed_customers` row moves the customer's
+  website chat for every visitor channel it has. So a channel with an
+  `embed_visitors` row is a shared item (5.5): `plan` lists it and the move
+  refuses (Q6). A copy does not carry `embed_visitors`: the copy is not the
+  visitor's chat.
 
 ### 5.2 Hub database, free text and audit
 
@@ -169,7 +221,11 @@ or a permalink.
 
 - Audit and event rows that are ABOUT the set (their `origin_ref` or `detail`
   names an id of the set) are moved to `<DST>` with it: they are the channel's
-  history.
+  history. The catalogue finds them by binds, not by a channel column:
+  `workspace_events`, `operator_audit`, `demo_post_audit` and
+  `sql_query_audit` by the set's ids (`@ids`) and `LIKE` patterns on them
+  (`@id_likes`). `repo_doc_edits` is not about channels (its `path` is a
+  repo file, its `target_ref` a git ref); the scan (T8) still reads it.
 - The move's own audit row is written in `<DST>`; in `<SRC>` the move writes
   no audit or event row (its other `<SRC>` writes are the deletes and the
   named updates of C13). The hub-wide operator log gets one row with the journal id only,
@@ -334,6 +390,9 @@ now is.
 | C15 | Caller: `DRY_RUN=0` without the owner's GO msg id is refused before any change | run as a lane agent -> refused, exit 3 |
 | C16 | Copy: `<SRC>` row counts unchanged; `<DST>` ids are all new (task, msg, issue number, doc, doc item, doc node; rev log under the new doc id); a link inside a copied post points at the copied topic; a box receiving a copied row files it under the new task id | keep the old `workspace_doc_item.id` -> PK violation; keep the old UUIDs in the links -> the `<DST>` link resolves to nothing |
 | C17 | Re-run after a crash in P5 resumes at the first undone step and finishes | re-run from P1 -> refused: the journal says P4 committed |
+| C18 | Google Calendar: a moved event mapped in a `<SRC>` member's connection; after the move and one sync cycle of that connection, `<SRC>` has no event with that `source_key` and no map row, and the Google event is gone | skip the pre-P4 Google delete -> the In half imports it back into `<SRC>` |
+| C19 | Hours: a job with plan rows and entries `job:<job>`, `t:<task>`, `ch:<CHANNEL>` moves whole; an entry inside an `approved` `<SRC>` period makes `plan` refuse, naming it (Q8 default) | drop the period check -> the approved period's stored total no longer matches its rows |
+| C20 | Rows whose parent does not move: a channel invite for a kept email moves with its new `<DST>` workspace invite; a channel with an `embed_visitors` row makes `plan` refuse | insert the invite without its `<DST>` parent -> the FK refuses and P4 rolls back |
 
 All cases run on PostgreSQL (`PRE_PUSH_TIER=full`), with two test workspaces
 on the hub's test database; none touches dev or prd.
@@ -344,11 +403,11 @@ Each row is one small task; files named are where it lands.
 
 | # | task | files |
 |---|---|---|
-| T1 | Move catalogue: one Go table of every `tenant_id` table with its class and the predicate that finds the set's rows; the gate C2 | `api/channelmove/catalogue.go`, `catalogue_test.go` |
+| T1 | Move catalogue: one Go table of every `tenant_id` table with its class, the predicate that finds the set's rows and the parent rows it `Needs` in `<DST>` (5.1b); the gate C2 | `api/channelmove/catalogue.go`, `catalogue_test.go` |
 | T2 | Migration: the `<DST>` journal table and the hub-wide redirect table (Q2), with RLS and the tenant isolation test | `csi-spl-rdb/src/sql/postgres/spool-hub/<head+1>_channel_move_journal.sql`, an entry in `api/store/rls_test.go` |
 | T3 | Migration: `messages.copied_from` (nullable, catalog-only) for copies | `csi-spl-rdb/src/sql/postgres/spool-hub/<head+2>_messages_copied_from.sql` |
 | T4 | Store: `PlanChannelMove` (read-only set, shared items, mentions) and its tests C1, C7 | `api/store/channel_move_plan.go` (+ `_postgres`, `_memory`, `_test`) |
-| T5 | Store: `ApplyChannelMove` P4 frame: one transaction, insert-then-delete in catalogue order, counters and stamps, the messages family; tests C3a, C4, C5, C9 | `api/store/channel_move_apply_postgres.go`, `_test.go` |
+| T5 | Store: `ApplyChannelMove` P4 frame: one transaction, insert-then-delete in catalogue order, counters and stamps, the messages family, hours, calendar and invites (5.1a, 5.1b) with the pre-P4 Google delete; tests C3a, C4, C5, C9, C18, C19, C20 | `api/store/channel_move_apply_postgres.go`, `_test.go` |
 | T5b | Store: the issues part of P4 (renumber, events, discussions, `spec_sync_map`); test C3b | `api/store/channel_move_issues_postgres.go`, `_test.go` |
 | T5c | Store: the Qto part of P4 (doc, item, node, ACL, rev log, re-placed in `<DST>`'s tree); test C3c | `api/store/channel_move_docs_postgres.go`, `_test.go` |
 | T6 | Blob and Qto object copy/delete P3/P6, the shared-file rule; tests C6, C10 | `api/channelmove/objects.go`, `_test.go` |
@@ -416,6 +475,15 @@ Q6 Things the channel shares with channels that stay (a file, a doc, an issue): 
 Q7 The first move: I recommend A.
 (A) A csitea channel into the new workspace created 2026-10-29: tell us which channel
 (B) Not now: build it first, then you pick
+```
+
+Asked after v0.4, as its own poll, since Q1-Q7 were already out:
+
+```poll
+Q8 Hours that members logged on the moved channel inside a time sheet already approved or frozen in the old workspace: I recommend A.
+(A) The move stops and lists them; you reopen those sheets or tell us to leave the rows
+(B) Move them anyway; the old sheet's approved total no longer matches its rows
+(C) Leave them in the old workspace; they keep naming the channel
 ```
 
 ## 12. Risks and open checks

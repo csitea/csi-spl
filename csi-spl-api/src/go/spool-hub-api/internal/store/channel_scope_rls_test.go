@@ -41,6 +41,7 @@ var channelScopeExempt = map[string]string{
 	"token_budgets":       "the token limits (rdb 0171): the hub's quota check and a member's counter, no visitor route",
 	"delivery_live_acks":  "a box's live poke outcome per agent (rdb 0186): read by the hub's nack sweep, no reader route",
 	"channel_invites":     "a channel's pending invited addresses (rdb 0231): the channel members route behind the member door, no visitor route",
+	"channel_box_pins":    "the boxes a channel is pinned to (rdb 0246, spec 164): the hub's fan-out and the admin pin routes, no visitor route",
 	// rdb 0187 (spec 090): channel_id there is a connected LinkedIn account, not a chat channel
 	"marketing_channels":       "a connected LinkedIn account (rdb 0187): admins' marketing routes, no visitor route",
 	"marketing_channel_tokens": "a connected account's sealed token (rdb 0187): the hub's share sweep only, no route",

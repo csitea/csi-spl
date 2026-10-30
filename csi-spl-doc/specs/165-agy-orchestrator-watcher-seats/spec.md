@@ -226,6 +226,8 @@ takes no posts, builds nothing, pushes nothing and spawns nothing.
   would drop the vendor letter. What makes it a watcher is the OS user it
   runs as (3.3), recorded in a root-owned marker
   `/var/spool-hub/<ID>/.watcher-role` that the watcher cannot write or delete.
+  Its `user=<WATCHER_USER>` lines name that OS user; the gates of 3.3 key on
+  both the id and the user (B4, `spl_watcher_why` in `spool-env.inc.sh`).
 - **Findings route (decided by the fleet, was Q4; W11)**: spool notes to the
   orchestrator only (3.4).
 
@@ -376,7 +378,8 @@ are gone.
 Every row ships with its red control (seen RED, then GREEN, both in the
 commit body). Statuses as of v0.3 (Q0 = A, Q2 = A):
 
-- **Ready**: B4, B5, B7 (B7 needs an owner go per box); B6 once B5 has
+- **Implemented**: B4 (SPL-4344).
+- **Ready**: B5, B7 (B7 needs an owner go per box); B6 once B5 has
   landed. B1 is Ready as a check only: nothing to build.
 - **Planned**: B8, after B4 and B7.
 - **Not built (Q0 = A)**: B2, B3, B9.
@@ -386,7 +389,7 @@ commit body). Statuses as of v0.3 (Q0 = A, Q2 = A):
 | **B1** | **Ready, verify only** (no build lane) | Q0 = A (met) | Validator keeps `orchestration` secret-class; no change to the validator or the cnf row | `csi-spl-cnf/src/python/conf-validator/tests/test_agent_split_by_kind.py` (read only) | **Red** already in the suite: `test_orchestration_outside_claude_grok_and_mistral_is_red` (`:131-140`) is red for `orchestration` with agy non-zero or as the backup. **Check**: it stays green and in the suite; `agent_split.py` and `all.env.yaml:1298` unchanged. |
 | ~~**B2**~~ | **Not built (Q0 = A)** | none | ~~Orch rotation accepts agy~~: agy stays off the orch seat; the `!= dispatch` refusal in `spl-rotate-lib.func.sh:155-158` is the decided behaviour | none | none |
 | ~~**B3**~~ | **Not built (Q0 = A)** | none | ~~Dispatch setup reads the role vendor~~: it served agy in the orch path only | none | none |
-| **B4** | **Ready** | Q2 = A (met) | Read-only enforcement (3.3) | `csi-spl-orc/src/bash/run/spl-push-master.func.sh`, `csi-spl-orc/src/bash/run/spl-take.func.sh`, `csi-spl-orc/src/bash/run/spl-desk-reply.func.sh`, `csi-spl-orc/src/bash/features/spawn-agents/lib/spool-env.inc.sh`, `csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh`, `csi-spl-orc/src/bash/features/spawn-agents/hooks/pre-push`, `csi-spl-orc/src/bash/tests/watcher-read-only.tst.sh` | **Red**: a stub chain with a `.watcher-role` id and `AGENT_ID=c-599` / `DESK_AGENT=c-002` / `--from c-001` gets through each action. **Test**: every one refuses, keyed on the chain, with those ids set. |
+| **B4** | **Implemented** (SPL-4344): gates in `spool-env.inc.sh` (`spl_watcher_why`, `spl_watcher_refuse`, `spool_spawn_gate`); `do_spl_desk_post` is not gated by B4 (not in its files) | Q2 = A (met) | Read-only enforcement (3.3) | `csi-spl-orc/src/bash/run/spl-push-master.func.sh`, `csi-spl-orc/src/bash/run/spl-take.func.sh`, `csi-spl-orc/src/bash/run/spl-desk-reply.func.sh`, `csi-spl-orc/src/bash/features/spawn-agents/lib/spool-env.inc.sh`, `csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh`, `csi-spl-orc/src/bash/features/spawn-agents/hooks/pre-push`, `csi-spl-orc/src/bash/tests/watcher-read-only.tst.sh` | **Red**: a stub chain with a `.watcher-role` id and `AGENT_ID=c-599` / `DESK_AGENT=c-002` / `--from c-001` gets through each action. **Test**: every one refuses, keyed on the chain, with those ids set. |
 | **B5** | **Ready** | Q0 = A (met) | Feed producer with the data-rule filter (3.2) | `csi-spl-orc/src/bash/run/spl-watcher-feed.func.sh`, `csi-spl-orc/src/bash/tests/watcher-feed.tst.sh` | **Red**: a planted `secret`-kind lane, a planted `orchestration`-kind lane and the orch seat's outbox appear in the feed. **Test**: none of them does; a lane with no readable kind is dropped too. |
 | **B6** | **Ready after B5** | B5 landed | Shadow scoring against the dispatch seats (4.3) | `csi-spl-orc/src/bash/run/spl-orch-shadow-eval.func.sh`, `csi-spl-orc/src/bash/tests/orch-shadow-eval.tst.sh` | **Red**: a fixture card with a force-push proposal scores > 0. **Test**: it scores 0; action, vendor and issue join from fixture `fleet_asks`, queue and `registry.tsv` rows. |
 | **B7** | **Ready, needs an owner go per box** (a root change) | Q2 = A (met); the owner's go for each box, by msg id | Watcher OS user, per box | `csi-spl-orc/src/bash/run/spl-watcher-user.func.sh`, `csi-spl-orc/src/bash/tests/watcher-user.tst.sh` | **Red**: the planned user has a sudo rule or a group of 3.3. **Test**: `sudo -l` refused, groups match, no key or credential file in its home. |

@@ -133,6 +133,9 @@
 # @example ENV=dev TENANT_ID=t1 DESK_AGENT=CLE-00 DESK_BODY='Moi! Olen CLE-00.' DRY_RUN=0 ./run -a do_spl_desk_reply
 #------------------------------------------------------------------------------
 do_spl_desk_reply() {
+  # spec 165 3.3 (SPL-4344): a watcher seat is read-only, read from the chain
+  declare -F spl_watcher_refuse >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  spl_watcher_refuse do_spl_desk_reply || return 1
   do_require_bin python3 yq || return 1
   do_spl_desk_cnf || return 1
   local dry=1

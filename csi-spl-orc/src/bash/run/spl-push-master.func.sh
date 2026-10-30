@@ -53,6 +53,9 @@
 #------------------------------------------------------------------------------
 
 do_spl_push_master() {
+  # spec 165 3.3 (SPL-4344): a watcher seat is read-only, read from the chain
+  declare -F spl_watcher_refuse >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  spl_watcher_refuse do_spl_push_master || return 1
   local cmd="${PUSH_CMD:-start}" wt state
   wt="$(git -C "${PUSH_WORKTREE:-$PWD}" rev-parse --show-toplevel 2>/dev/null)" ||
     { echo "FATAL PUSH: ${PUSH_WORKTREE:-$PWD} is not a git checkout"; return 1; }

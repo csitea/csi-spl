@@ -671,3 +671,47 @@ func TestBoxJoinSwitchOperatorOnly(t *testing.T) {
 		t.Fatalf("CONTROL: operator admin PATCH off = %d, switch %v", code, v)
 	}
 }
+
+// Spec 162 row B6, C22: a join token mint, a token revoke and a pin revoke
+// each write one row in the Workspace log, by the admin, origin component
+// boxes; the refused calls (403 to a biz_owner, 404 for no such token) write
+// none, and no row carries the token. C23: with the log write failing, each
+// still answers its 2xx.
+func TestJoinWorkspaceEvents(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		var mut []func(*hub.Options)
+		if fail {
+			mut = append(mut, failingLog)
+		}
+		e := joinEnv(t, mut...)
+		tid, _ := joinTenant(t, e)
+		admin, owner := seat(t, e, tid, rbac.Admin), seat(t, e, tid, rbac.BizOwner)
+		e.pinKey(tid, "box-s", newKey(t).Public().(ed25519.PublicKey))
+		kinds := []string{store.LogKindJoinMinted, store.LogKindJoinRevoked, store.LogKindPinRevoked}
+		if fail {
+			kinds = []string{"", "", ""}
+		}
+		runLogSteps(t, e, tid, []logStep{
+			{"refused mint", http.MethodPost, joinPath, owner, map[string]any{}, 403, "", ""},
+			{"mint", http.MethodPost, joinPath, admin, map[string]any{"box_id": "box-a", "label": "secret-label"}, 201, kinds[0], "boxes"},
+		})
+		toks := wsEvents(t, e, tid)
+		code, out := call(t, e, tid, http.MethodGet, joinPath, admin, nil)
+		list, _ := out["tokens"].([]any)
+		if code != http.StatusOK || len(list) != 1 {
+			t.Fatalf("list: %d %v", code, out)
+		}
+		id := list[0].(map[string]any)["id"].(string)
+		if !fail && (toks[0].Message != "join token "+id+" minted for box box-a" || strings.Contains(toks[0].Message, "secret")) {
+			t.Fatalf("mint message %q", toks[0].Message)
+		}
+		runLogSteps(t, e, tid, []logStep{
+			{"refused revoke", http.MethodDelete, joinPath + "/" + id, owner, nil, 403, "", ""},
+			{"revoke of no token", http.MethodDelete, joinPath + "/deadbeef", admin, nil, 404, "", ""},
+			{"revoke", http.MethodDelete, joinPath + "/" + id, admin, nil, 200, kinds[1], "boxes"},
+			{"refused pin revoke", http.MethodDelete, "/v1/tenant/agents/pins/box-s", owner, nil, 403, "", ""},
+			{"pin revoke of no pin", http.MethodDelete, "/v1/tenant/agents/pins/box-none", admin, nil, 404, "", ""},
+			{"pin revoke", http.MethodDelete, "/v1/tenant/agents/pins/box-s", admin, nil, 200, kinds[2], "boxes"},
+		})
+	}
+}

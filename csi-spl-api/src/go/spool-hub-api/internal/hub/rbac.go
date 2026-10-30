@@ -88,6 +88,33 @@ func (s *Server) permit(w http.ResponseWriter, r *http.Request, tenant, hum, per
 	return false
 }
 
+// workspaceEvent writes one row of tenant's Workspace log (spec 162 3.4, row
+// B6), called by a handler after its store write succeeded. e.Message is a
+// fixed template plus ids: never an address, a body or a secret. Best effort,
+// as opAudit: a store without the log, or a failed write, is logged and the
+// action stands.
+func (s *Server) workspaceEvent(ctx context.Context, tenant string, e store.LogEvent) {
+	es, ok := s.o.Store.(store.LogEvents)
+	if !ok {
+		return
+	}
+	if _, err := es.AddWorkspaceEvent(ctx, tenant, e, s.o.Now().UTC()); err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Str("kind", e.Kind).Msg("workspace.event_not_logged")
+	}
+}
+
+// memberEvent is a Workspace log row of the members component.
+func memberEvent(kind, actor, message string) store.LogEvent {
+	return store.LogEvent{Kind: kind, Actor: actor, Message: message,
+		OriginKind: store.LogOriginComponent, OriginRef: "members"}
+}
+
+// boxEvent is a Workspace log row of the boxes component.
+func boxEvent(kind, actor, message string) store.LogEvent {
+	return store.LogEvent{Kind: kind, Actor: actor, Message: message,
+		OriginKind: store.LogOriginComponent, OriginRef: "boxes"}
+}
+
 // ---- GET /v1/view/me (025 FR-006) --------------------------------------------
 
 type meBody struct {
@@ -372,6 +399,7 @@ func (s *Server) handleMemberInvite(w http.ResponseWriter, r *http.Request) {
 			mailed = s.mailInvite(r, t.ID, email)
 		}
 		s.o.Log.Info().Str("tenant", t.ID).Str("by", a.HumanID).Str("role", role).Str("mail", mailed).Bool("no_mail", body.NoMail).Msg("member.invited")
+		s.workspaceEvent(r.Context(), t.ID, memberEvent(store.LogKindMemberInvited, a.HumanID, "invite as "+role+" (mail "+mailed+")"))
 		writeJSON(w, http.StatusCreated, map[string]any{"tenant_id": t.ID, "email": email,
 			"role": role, "invited_by": a.HumanID, "expires_at": rfc(in.ExpiresAt), "mail": mailed})
 	}
@@ -407,6 +435,7 @@ func (s *Server) handleMemberRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.o.Log.Info().Str("tenant", t.ID).Str("by", a.HumanID).Str("member", target).Str("role", role).Msg("member.role_changed")
+	s.workspaceEvent(r.Context(), t.ID, memberEvent(store.LogKindMemberRoleChanged, a.HumanID, target+": role "+role))
 	// CLE-77799: the durable per-person audit row for the Activity log.
 	s.recordMemberActivity(r.Context(), store.MemberActivity{TenantID: t.ID, SubjectHum: target, ActorHum: a.HumanID, Kind: "role_changed", Detail: role})
 	writeJSON(w, http.StatusOK, map[string]any{"tenant_id": t.ID, "human_id": target, "role": role, "roles": []string{role}})
@@ -459,6 +488,7 @@ func (s *Server) handleMemberRoles(w http.ResponseWriter, r *http.Request) {
 		writeMemberErr(w, err)
 		return
 	}
+	s.workspaceEvent(r.Context(), t.ID, memberEvent(store.LogKindMemberRoleChanged, a.HumanID, target+": roles "+strings.Join(set, ",")))
 	got, err := s.memberRolesAny(r.Context(), h, t.ID, target)
 	if err != nil || len(got) == 0 {
 		s.o.Log.Warn().Err(err).Str("tenant", t.ID).Str("member", target).Msg("member.roles_reread_failed")
@@ -498,6 +528,7 @@ func (s *Server) handleMemberRemove(w http.ResponseWriter, r *http.Request) {
 		detail = "banned"
 	}
 	s.o.Log.Info().Str("tenant", t.ID).Str("by", a.HumanID).Str("member", target).Bool("banned", banned).Msg("member.removed")
+	s.workspaceEvent(r.Context(), t.ID, memberEvent(store.LogKindMemberRemoved, a.HumanID, strings.TrimSpace(target+" removed "+detail)))
 	// CLE-77799: the durable per-person audit row for the Activity log.
 	s.recordMemberActivity(r.Context(), store.MemberActivity{TenantID: t.ID, SubjectHum: target, ActorHum: a.HumanID, Kind: "removed", Detail: detail})
 	w.WriteHeader(http.StatusNoContent)

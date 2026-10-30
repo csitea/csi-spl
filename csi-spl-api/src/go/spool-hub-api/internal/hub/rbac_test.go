@@ -379,3 +379,122 @@ func TestRBACRemovalReceiptFailedKeepsMember(t *testing.T) {
 		t.Fatalf("CONTROL: the real store's removal: %d %v", code, body)
 	}
 }
+
+// ---- spec 162 row B6: the Workspace log producers (cases C22, C23) ----------
+
+// failingLog is a store whose Workspace log write always fails (C23); every
+// other method is the real store's.
+type failingLogMem struct{ *store.Memory }
+type failingLogPG struct{ *store.Postgres }
+
+var errStubLog = errors.New("workspace log: stubbed")
+
+func (failingLogMem) AddWorkspaceEvent(context.Context, string, store.LogEvent, time.Time) (store.LogEvent, error) {
+	return store.LogEvent{}, errStubLog
+}
+func (failingLogPG) AddWorkspaceEvent(context.Context, string, store.LogEvent, time.Time) (store.LogEvent, error) {
+	return store.LogEvent{}, errStubLog
+}
+
+func failingLog(o *hub.Options) {
+	switch st := o.Store.(type) {
+	case *store.Memory:
+		o.Store = failingLogMem{st}
+	case *store.Postgres:
+		o.Store = failingLogPG{st}
+	}
+}
+
+// wsEvents is tid's Workspace log, newest first, read from the real store
+// (e.st, never the failingLog wrapper).
+func wsEvents(t *testing.T, e *env, tid string) []store.LogEvent {
+	t.Helper()
+	list, err := e.st.(store.LogEvents).WorkspaceEventsPage(context.Background(), tid, 0, store.LogEventsDeleteMax)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return list
+}
+
+// logStep is one call of a producer and the Workspace log row it must leave:
+// kind "" = none (a refused call, or failingLog).
+type logStep struct {
+	name, method, path, as string
+	body                   any
+	want                   int
+	kind, ref              string
+}
+
+// runLogSteps runs each step in tid and checks the code and that the log
+// grew by exactly its row (kind, actor = the caller, origin component ref) or
+// not at all. A row's message never carries an address (spec 162 3.1).
+func runLogSteps(t *testing.T, e *env, tid string, steps []logStep) {
+	t.Helper()
+	for _, x := range steps {
+		before := len(wsEvents(t, e, tid))
+		if code, body := call(t, e, tid, x.method, x.path, x.as, x.body); code != x.want {
+			t.Fatalf("%s: %d %v, want %d", x.name, code, body, x.want)
+		}
+		got := wsEvents(t, e, tid)
+		if x.kind == "" {
+			if len(got) != before {
+				t.Fatalf("%s: the log grew %d -> %d, want no row (newest %+v)", x.name, before, len(got), got[0])
+			}
+			continue
+		}
+		if len(got) != before+1 {
+			t.Fatalf("%s: the log grew %d -> %d, want one row", x.name, before, len(got))
+		}
+		ev := got[0]
+		if ev.Kind != x.kind || ev.Actor != x.as || ev.Level != store.LogLevelInfo ||
+			ev.OriginKind != store.LogOriginComponent || ev.OriginRef != x.ref || ev.Message == "" || strings.Contains(ev.Message, "@") {
+			t.Fatalf("%s: row %+v, want kind %s by %s, origin component %s, a message with no address", x.name, ev, x.kind, x.as, x.ref)
+		}
+	}
+}
+
+// C22: each member producer (invite, invite revoke, role, roles, remove)
+// writes its one row after a successful call and none after a refused one
+// (403 to a developer, 404 for a missing invite or member).
+func TestWorkspaceEventsMemberProducers(t *testing.T) {
+	e := rbacEnv(t)
+	tid, _ := e.tenant()
+	admin, dev := seat(t, e, tid, rbac.Admin), seat(t, e, tid, rbac.Developer)
+	target, gone := seat(t, e, tid, rbac.Developer), seat(t, e, tid, rbac.Developer)
+	const inv = "/v1/members/invites"
+	P, D, U := http.MethodPost, http.MethodDelete, http.MethodPut
+	invite := map[string]any{"email": "log-b6@example.com", "role": rbac.Tester, "no_mail": true}
+	runLogSteps(t, e, tid, []logStep{
+		{"refused invite", P, inv, dev, invite, 403, "", ""},
+		{"invite", P, inv, admin, invite, 201, store.LogKindMemberInvited, "members"},
+		{"refused revoke", D, inv + "?email=log-b6@example.com", dev, nil, 403, "", ""},
+		{"revoke of no invite", D, inv + "?email=none-b6@example.com", admin, nil, 404, "", ""},
+		{"revoke", D, inv + "?email=log-b6@example.com", admin, nil, 204, store.LogKindMemberInviteRevoked, "members"},
+		{"refused role", U, "/v1/members/" + target + "/role", dev, map[string]any{"role": rbac.Tester}, 403, "", ""},
+		{"role of no member", U, "/v1/members/HUM-999999/role", admin, map[string]any{"role": rbac.Tester}, 404, "", ""},
+		{"role", U, "/v1/members/" + target + "/role", admin, map[string]any{"role": rbac.Tester}, 200, store.LogKindMemberRoleChanged, "members"},
+		{"refused roles", U, "/v1/members/" + target + "/roles", dev, map[string]any{"roles": []string{rbac.Developer}}, 403, "", ""},
+		{"roles", U, "/v1/members/" + target + "/roles", admin, map[string]any{"roles": []string{rbac.Developer}}, 200, store.LogKindMemberRoleChanged, "members"},
+		{"refused remove", D, "/v1/members/" + gone, dev, nil, 403, "", ""},
+		{"remove", D, "/v1/members/" + gone, admin, nil, 204, store.LogKindMemberRemoved, "members"},
+	})
+	if got := wsEvents(t, e, tid); got[0].Message != gone+" removed" || got[1].Message != target+": roles "+rbac.Developer {
+		t.Fatalf("messages %q, %q", got[0].Message, got[1].Message)
+	}
+}
+
+// C23: a failed log write does not fail the member action: each answers its
+// usual 2xx and the log holds nothing.
+func TestWorkspaceEventsMemberLogFails(t *testing.T) {
+	e := rbacEnv(t, failingLog)
+	tid, _ := e.tenant()
+	admin, target, gone := seat(t, e, tid, rbac.Admin), seat(t, e, tid, rbac.Developer), seat(t, e, tid, rbac.Developer)
+	invite := map[string]any{"email": "fail-b6@example.com", "no_mail": true}
+	runLogSteps(t, e, tid, []logStep{
+		{"invite", http.MethodPost, "/v1/members/invites", admin, invite, 201, "", ""},
+		{"revoke", http.MethodDelete, "/v1/members/invites?email=fail-b6@example.com", admin, nil, 204, "", ""},
+		{"role", http.MethodPut, "/v1/members/" + target + "/role", admin, map[string]any{"role": rbac.Tester}, 200, "", ""},
+		{"roles", http.MethodPut, "/v1/members/" + target + "/roles", admin, map[string]any{"roles": []string{rbac.Developer}}, 200, "", ""},
+		{"remove", http.MethodDelete, "/v1/members/" + gone, admin, nil, 204, "", ""},
+	})
+}

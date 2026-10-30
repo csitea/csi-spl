@@ -1,6 +1,6 @@
 # 170 Day's tasks: a To-do view in the Calendar, and a signal for what is due today
 
-Version: v1.0 (2026-10-30). Status: **WHAT v1.0, signed by all four seats; HOW v0.2 draft, under panel review**
+Version: v1.0 (2026-10-30). Status: **WHAT v1.0, signed by all four seats; HOW v0.3 draft, under panel review**
 (plan only; nothing below is built). Issue SPL-4396 · Epic SPL-2396 · Class
 feature · Kind specs_and_docs · Task `dispatch-dfe850d9` · Placement slug
 `c001-dfe850d9-panel-editor` · Editor c-864.
@@ -311,9 +311,74 @@ Posted by c-003 in dfe850d9 at 15:26Z: Q1 msg `9958a8b7`, Q2 msg
   -> line 15; HOW may record the browser's zone instead). Default: (a) + (b),
   the hour 08:00 local; (c) off until the person turns it on.
 
+## 9. Signatures
+
+Each seat signs a version with its own commit on branch
+`review/c001-spec-day-tasks`: one line, seat id, version, the sha it read.
+
+| seat | id | version | sha read |
+|---|---|---|---|
+| editor | c-864 | WHAT v0.1 | (65e436eb1) |
+| editor | c-864 | WHAT v0.2 | f71652e2c |
+| editor | c-864 | WHAT v0.3 | df5412503 |
+| editor | c-864 | WHAT v0.4 | 9ae74d524 |
+| editor | c-864 | WHAT v1.0 = v0.4 text, declared | 1c1008b30 |
+| user view | c-866 | WHAT v0.2 | f71652e2c |
+| user view | c-866 | WHAT v0.3 | ef9bebc03 |
+| user view | c-866 | WHAT v0.4 | 9ae74d524 |
+| calendar / issues expert | c-869 | WHAT v0.4 | 9ae74d524 |
+| reviewer | c-880 | WHAT v0.4 | 9ae74d524 |
+| editor | c-864 | HOW v0.1 | d9e8b1a1d |
+| editor | c-864 | HOW v0.2 | ae6765d95 |
+| editor | c-864 | HOW v0.3 | (this commit) |
+
+## 10. Changes
+
+- HOW v0.3: folded CALENDAR / ISSUES EXPERT c-869 (msg cef17ced) H1 = and
+  REVIEWER c-880 (msg d5b9d892) H2 (the lazy import is in
+  `useSidebarCounts.ts`, 11.1, 11.3), c-869 H2 (the pop-up has no kinds; B5
+  adds one and keeps 089 T006 green, 11.4), the `[after, before)` window
+  cite (11.2), and c-880 H1 (phone: four ranges for the To-do kind, `?k=todo&v=`
+  sets the visit's range; WHAT 4.7 kept, not amended), H3 (`declare module`,
+  B1), H4 (seen-today per human, the risk in 11.7), H5 (section 11 moved
+  after section 10).
+- HOW v0.2: folded USER VIEW c-866 (msg b91b89c8) U1 (day change and
+  focus re-check, 11.4), U2 (the 08:00 alert respects the bell and
+  permission, 11.4), U3 (one switch for card + alert, 11.4), U4 (the mark's
+  accessible name, 11.3), U5 (assignee on rows under "all", 11.2).
+- HOW v0.1: section 11 drafted from WHAT v1.0 and c-869's C1-C8 / D.
+
+- v1.0: WHAT v1.0 declared by the editor. Text = v0.4 (`9ae74d524`), which
+  all four seats signed (c-866 `0da4216ce`, c-869 `270f79f8a`, c-880
+  `1c1008b30`); only this status line, the editor rows and this entry change.
+  The owner questions Q1-Q3 are posted and open; their answers, and Q1b / Q4
+  after Q1, fold into a v1.x. Next: HOW, phase 2.
+
+- v0.4: folded REVIEWER c-880 (msg a50ab05b): R1 was already in df5412503
+  (the `isOverdue` caller grep); R2 the edge is `done`/`canceled` only, so
+  `diss` reads overdue there (section 2); R3 new 1.3 Panel defaults, each
+  spot tagged; R4 the storage and `?v=` detail of 5.4 and 4.8 moved into
+  "For HOW" notes; R5 the HUM-24 15:00Z post is `e0fb60bb` itself (one
+  bullet, c-003's answer `221bb299`, per c-003 msg e910987e), the wrong id
+  `e5e6fafc` (a spool note, not a post) removed.
+
+- v0.3: folded CALENDAR / ISSUES EXPERT c-869 (msg bf9fb184) B1 (epics and
+  features in the event grid, not in the To-do list, 4.1), B2 (one meaning of
+  overdue, the Issues `isOverdue` as a neighbour and a known edge, section
+  2), B3 (the link's second axis, 4.8), C4 (Q4 c needs the picked zone) and
+  C7 (Google sync out of scope, section 7). C1-C3, C5, C6, C8 and D are
+  input for HOW, kept in the seat's message. Then c-869 msg f0b72e4b: the
+  `isOverdue` caller grep also drops the type declaration.
+
+- v0.2: folded USER VIEW c-866 (msg 5fe949e9) F1-F8: the one time zone
+  (F1), the deadline-input zone edge (F2), email as the closed-browser
+  channel in Q4 (F3), the reminder's shape and once per person per day (F4),
+  the per-person off switch, 5.4 (F5), why the badge mark is separate (F6),
+  overdue named apart in the signal (F7), the address and Back (F8).
+
 ## 11. HOW (phase 2)
 
-HOW v0.2 (2026-10-30). Built on WHAT v1.0 and its defaults; the rows that
+HOW v0.3 (2026-10-30). Built on WHAT v1.0 and its defaults; the rows that
 depend on an open owner answer say so (Q1, Q1b, Q2, Q4). Every file named
 was read on origin/master `568035cf1`. Input: the calendar expert's C1-C8
 and D (c-869 msg bf9fb184), each re-checked below.
@@ -342,7 +407,8 @@ and D (c-869 msg bf9fb184), each re-checked below.
 - **Lazy, never in the initial JS**: the view and the reminder are their own
   chunks, like the calendar reminder timer
   (`plugins/calendar-reminders.client.ts`, dynamic import) and the rail count
-  (`ChannelSidebar` imports `utils/my-issues-count.mjs` dynamically).
+  (`git grep -n "my-issues-count" origin/master -- csi-spl-wui/src/composables/useSidebarCounts.ts`
+  -> line 38 imports `utils/my-issues-count.mjs` dynamically).
 
 ### 11.2 The To-do view (WHAT 4)
 
@@ -364,16 +430,30 @@ and D (c-869 msg bf9fb184), each re-checked below.
   `status=eval,todo,wip,blocked,onhold,qas` and the Q2 assignee rule, then
   `day-tasks.mjs` drops epics / features and groups. Month range: one read,
   no `limit` (the hub answers the whole set without one,
-  `issues_page.go` line 16).
+  `issues_page.go` line 16). The hub's window is exactly `[after, before)`
+  (`git show origin/master:csi-spl-api/src/go/spool-hub-api/internal/hub/issues.go | sed -n 647,651p`:
+  `deadline_before` strict, `deadline_after` inclusive), so a day's
+  `[start, next start)` never counts a task twice. Range moves keep other
+  query keys (`{ ...route.query, v, d }`, `pages/calendar.vue` lines 78,
+  84), so `?k=todo` survives Today / previous / next.
 - **Rows.** Key, title, status, priority, the deadline's time; a row is a
   router link to the issue, built as `CalendarEventPopover.vue` builds
   `issueLink` (line 74), so Back returns to the same `k`, `v`, `d`. With
   the switch on "all" (Q2), each row also shows the assignee.
 - **Live.** It re-reads on the issue frame and on reconnect, as
   `startMyIssuesCount` does (`live?.onIssue`, `my-issues-count.mjs` line 64).
-- **Phone.** `CalendarPhone.vue` gets the same switch and renders the same
-  component in a phone layout (spec 106 shell); one data path for both
-  (C8).
+- **Phone.** `CalendarPhone.vue` gets the same To-do switch and renders
+  `CalendarTodoView.vue` in a phone layout (spec 106 shell); one data path
+  for both (C8). The phone has three ranges today
+  (`git grep -n "CAL_PHONE_VIEWS =" origin/master -- csi-spl-wui/src/utils/calendar-phone-nav.mjs`
+  -> line 17, `['month', 'week', 'day']`) and keeps its range in browser
+  storage, not in `?v=` (`CalendarPhone.vue` lines 255-264, `VIEW_KEY`,
+  `storedView()`; only `?issue=` forces Day). So: the To-do kind on the
+  phone offers all four ranges, Day, 3 days, Week, Month (3 days added for
+  the To-do kind only; the event views keep their three), which keeps WHAT
+  4.2 / 4.7 and the owner's "daily , 3day , weeekly , monthly" as written;
+  and `?k=todo&v=<range>` sets the phone's range for that visit, the way
+  `?issue=` forces Day, without overwriting the stored event-view range.
 - **Q2 = "mine with a switch"** (default): the switch is a chip in the view
   header, per session, not a saved preference in v1.
 
@@ -384,8 +464,9 @@ and D (c-869 msg bf9fb184), each re-checked below.
   The mark is `dueTodayCounts(rows, now, zone)` over the same read: no extra
   request (C2). Q2 = all would need a second read; the mark stays "mine"
   whatever the view's switch shows, unless the owner says otherwise.
-- `ChannelSidebar.vue` renders the mark beside the current count (lines 53
-  and 138); its shape follows Q1b (default: a separate mark that is not a
+- The due-today count is started where the current count is,
+  `composables/useSidebarCounts.ts` (line 38); `ChannelSidebar.vue` renders
+  the mark beside the current count (lines 53 and 138); its shape follows Q1b (default: a separate mark that is not a
   second red number, e.g. an outlined count with a clock glyph). The current
   new-issues count is untouched (SPL-1559). The mark carries an accessible
   name and a tooltip from an i18n key, e.g. "2 due today", so a screen
@@ -399,8 +480,15 @@ and D (c-869 msg bf9fb184), each re-checked below.
   shape as `plugins/calendar-reminders.client.ts`: on app ready and signed
   in, it computes `dueTodayCounts`; if `today + overdue > 0`, the reminder is
   on, and it has not been seen today, it shows one card through the existing
-  reminder pop-up (`CalendarReminderPopup.vue`, C5) as a new item kind
-  `day-tasks`, with the "3 due today · 1 overdue" line, at most 3 titles,
+  reminder pop-up (`CalendarReminderPopup.vue`, C5). That pop-up has no item
+  kinds today: its item is an event
+  (`git show origin/master:csi-spl-wui/src/components/CalendarReminderPopup.vue | sed -n '52p;65p;73,74p'`
+  -> `type Reminder = { id, title, starts_at, ends_at, all_day, remind_at }`,
+  `when()` formats start / end, `open()` pushes `?event=<id>`). B5 adds a
+  `kind` field to that type and branches `when()` and `open()` (a
+  `day-tasks` item opens `/calendar?k=todo&v=day`); the pop-up is shared
+  with the spec 089 T006 event reminders, so B5 keeps their e2e green. The
+  card has the "3 due today · 1 overdue" line, at most 3 titles,
   "+N more" and an Open link to `/calendar?k=todo&v=day`. The check also
   runs when the local day changes in an open tab and when the tab comes back
   to the front (focus / visibilitychange), the way the calendar reminder
@@ -420,6 +508,12 @@ and D (c-869 msg bf9fb184), each re-checked below.
   `PUT /v1/me/day-tasks-seen {date}` (idempotent, rejects a date more than
   one day from the hub's UTC date). The client compares it with its own
   local date. Not browser storage: phone and desktop must agree (WHAT 5.1).
+  Scope: per human, while the picked zone is per workspace membership
+  (`git grep -n "PER TENANT" origin/master -- csi-spl-api/src/go/spool-hub-api/internal/auth/time_zone.go`
+  -> line 10). The date written is the local date in the zone of the
+  workspace the card was shown in; a person in two workspaces with
+  different zones may see the card once, not once per workspace, near
+  midnight (accepted, 11.7).
 - **The off switch (WHAT 5.4).** A new `auth.ViewPrefs` key
   `day_tasks_reminder` with values `{"on", "off"}` (default first, the shape
   of `PrefLinkPreviews`, `auth/handler.go` line 976), shown in
@@ -454,9 +548,9 @@ prd.
 | row | what | depends on | tests |
 |---|---|---|---|
 | B0 | rdb: humans `day_tasks_seen_on date NULL`, `day_tasks_reminder`, `day_tasks_badge` text columns; applied on dev and prd with `do_spl_db_bootstrap` before B4 / B5 land | Q1 | migration lint; `do_spl_db_query` on information_schema, dev and prd |
-| B1 | `utils/day-tasks.mjs` + `calTodoKind` | none | unit tests: zone bounds (picked zone vs browser), epic / feature out, `diss` closed, overdue vs due today at 09:00 / 10:00 |
+| B1 | `utils/day-tasks.mjs` + `calTodoKind`, with its `declare module` in `csi-spl-wui/src/types/` (as `blocker-settings.d.ts` line 10 declares `my-issues-count.mjs`) | none | unit tests: zone bounds (picked zone vs browser), epic / feature out, `diss` closed, overdue vs due today at 09:00 / 10:00 |
 | B2 | desktop To-do view: tab, `?k=todo`, `CalendarTodoView.vue`, rows, live re-read, i18n | B1 | extend `tests/e2e/calendar-desk-views.test.mjs` (no new e2e file); chunk budget |
-| B3 | phone To-do view | B2 | extend an existing `calendar-phone-*` e2e file |
+| B3 | phone To-do view, four ranges for the To-do kind, `?k=todo&v=` sets the visit's range | B2 | extend an existing `calendar-phone-*` e2e file; the reminder link opens Day on a phone whose stored range is Week |
 | B4 | due-today mark on the Issues icon + its off switch | B0, B1, Q1b | unit over `my-issues-count.mjs`; e2e on the rail |
 | B5 | morning card (+ 08:00 alert), seen-today endpoint, off switch | B0, B1, B2, Q4 | hub test for the endpoint (Postgres tier); e2e: shown once, not after the view was opened |
 | B6 | email at 08:00 local (only if Q4 c) | B5 | hub ticker test with a fake clock and two instances (one mail) |
@@ -472,62 +566,8 @@ Out of these rows: the deadline-input zone edge (WHAT 2) and `isOverdue`
   the hub. B4 / B5 check `information_schema` on both envs before they push.
 - **Two clocks.** The client decides "today"; the hub only stores the date it
   is handed. A wrong browser clock shows the wrong day for that person only.
+- **Two workspaces, two zones** (11.4): one seen-today date per human; near
+  midnight the second workspace may skip that day's card. Accepted for v1.
 - **Count drift.** The badge's read is "mine"; if Q2 = all for the view, the
   badge and the view's "all" list differ on purpose, and the view says which
   set it shows.
-
-## 9. Signatures
-
-Each seat signs a version with its own commit on branch
-`review/c001-spec-day-tasks`: one line, seat id, version, the sha it read.
-
-| seat | id | version | sha read |
-|---|---|---|---|
-| editor | c-864 | WHAT v0.1 | (65e436eb1) |
-| editor | c-864 | WHAT v0.2 | f71652e2c |
-| editor | c-864 | WHAT v0.3 | df5412503 |
-| editor | c-864 | WHAT v0.4 | 9ae74d524 |
-| editor | c-864 | WHAT v1.0 = v0.4 text, declared | 1c1008b30 |
-| user view | c-866 | WHAT v0.2 | f71652e2c |
-| user view | c-866 | WHAT v0.3 | ef9bebc03 |
-| user view | c-866 | WHAT v0.4 | 9ae74d524 |
-| calendar / issues expert | c-869 | WHAT v0.4 | 9ae74d524 |
-| reviewer | c-880 | WHAT v0.4 | 9ae74d524 |
-| editor | c-864 | HOW v0.1 | d9e8b1a1d |
-| editor | c-864 | HOW v0.2 | (this commit) |
-
-## 10. Changes
-
-- HOW v0.2: folded USER VIEW c-866 (msg b91b89c8) U1 (day change and
-  focus re-check, 11.4), U2 (the 08:00 alert respects the bell and
-  permission, 11.4), U3 (one switch for card + alert, 11.4), U4 (the mark's
-  accessible name, 11.3), U5 (assignee on rows under "all", 11.2).
-- HOW v0.1: section 11 drafted from WHAT v1.0 and c-869's C1-C8 / D.
-
-- v1.0: WHAT v1.0 declared by the editor. Text = v0.4 (`9ae74d524`), which
-  all four seats signed (c-866 `0da4216ce`, c-869 `270f79f8a`, c-880
-  `1c1008b30`); only this status line, the editor rows and this entry change.
-  The owner questions Q1-Q3 are posted and open; their answers, and Q1b / Q4
-  after Q1, fold into a v1.x. Next: HOW, phase 2.
-
-- v0.4: folded REVIEWER c-880 (msg a50ab05b): R1 was already in df5412503
-  (the `isOverdue` caller grep); R2 the edge is `done`/`canceled` only, so
-  `diss` reads overdue there (section 2); R3 new 1.3 Panel defaults, each
-  spot tagged; R4 the storage and `?v=` detail of 5.4 and 4.8 moved into
-  "For HOW" notes; R5 the HUM-24 15:00Z post is `e0fb60bb` itself (one
-  bullet, c-003's answer `221bb299`, per c-003 msg e910987e), the wrong id
-  `e5e6fafc` (a spool note, not a post) removed.
-
-- v0.3: folded CALENDAR / ISSUES EXPERT c-869 (msg bf9fb184) B1 (epics and
-  features in the event grid, not in the To-do list, 4.1), B2 (one meaning of
-  overdue, the Issues `isOverdue` as a neighbour and a known edge, section
-  2), B3 (the link's second axis, 4.8), C4 (Q4 c needs the picked zone) and
-  C7 (Google sync out of scope, section 7). C1-C3, C5, C6, C8 and D are
-  input for HOW, kept in the seat's message. Then c-869 msg f0b72e4b: the
-  `isOverdue` caller grep also drops the type declaration.
-
-- v0.2: folded USER VIEW c-866 (msg 5fe949e9) F1-F8: the one time zone
-  (F1), the deadline-input zone edge (F2), email as the closed-browser
-  channel in Q4 (F3), the reminder's shape and once per person per day (F4),
-  the per-person off switch, 5.4 (F5), why the badge mark is separate (F6),
-  overdue named apart in the signal (F7), the address and Back (F8).

@@ -460,6 +460,10 @@ a saved order still carries `notes` for the hub (`RAIL_SWITCHED_OFF`,
 `wireRailOrder`), and `/notes` stays reachable by URL. `rail-order.test.mjs`
 runs the Notes cases with the switch on and the shipped module with it off;
 `rail-order-default.test.mjs` follows the shipped value.
+The same switch keeps the Notes page out of the Help list
+(`helpPageListed` in `rail-order.ts`, used by `pages/help/[[page]].vue`), so
+Help does not send people to a tab that is not drawn; `/help/notes` still
+opens by URL and its text is unchanged for the day the tab comes back.
 
 ## 9. Review record
 

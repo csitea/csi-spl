@@ -37,6 +37,7 @@ const {
   dragAxis,
   NOTES_RAIL_ON,
   RAIL_SWITCHED_OFF,
+  helpPageListed,
 } = await importTsPatched('src/utils/rail-order.ts', SWITCH_OFF, SWITCH_ON)
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -315,6 +316,14 @@ describe('spec 155: the Notes rail tab switched off (NOTES_RAIL_ON, as shipped)'
     assert.equal(NOTES_RAIL_ON, true)
     assert.equal(DEFAULT_RAIL_ORDER.indexOf('notes'), DEFAULT_RAIL_ORDER.indexOf('calendar') + 1)
     assert.deepEqual([...RAIL_SWITCHED_OFF], [])
+  })
+  it('Help does not list the Notes page while the tab is off (review W1), and lists it with it on', () => {
+    assert.equal(shipped.helpPageListed('notes'), false)
+    assert.equal(shipped.helpPageListed('reporting'), true)
+    assert.equal(helpPageListed('notes'), true)
+    const pages = JSON.parse(read('src/public/help-md/pages.json')).pages
+    assert.ok(pages.some((p) => p.slug === 'notes'), 'the page stays in pages.json, /help/notes opens')
+    assert.match(read('src/pages/help/[[page]].vue'), /&& helpPageListed\(p\.slug\)\)/, '/help filters its list through helpPageListed')
   })
   it('the /notes route stays reachable by URL', async () => {
     const { tabForPath, routeForTab } = await import('../../src/utils/sidebar-tabs.mjs')

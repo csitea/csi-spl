@@ -29,6 +29,13 @@ export const NOTES_RAIL_ON: boolean = false
 /** Ids the hub admits but a switch keeps off the rail (NOTES_RAIL_ON). */
 export const RAIL_SWITCHED_OFF: readonly RailId[] = Object.freeze(NOTES_RAIL_ON ? [] : ['notes' as const])
 
+/** Whether /help lists the help page `slug` (review W1, SPL-4219): a page
+    named after a switched-off rail tab is left out of the list, so Help does
+    not send people to a tab that is not drawn. /help/<slug> still opens. */
+export function helpPageListed(slug: string): boolean {
+  return !(RAIL_SWITCHED_OFF as readonly string[]).includes(slug)
+}
+
 /** The tabs in the default order, with their icon and catalogue key. */
 export const RAIL_TABS: readonly RailTab[] = Object.freeze([
   /* Owner 2026-09-27 (topic 116646c8): new members start with Channels,

@@ -59,6 +59,7 @@ import { boxHubUrl } from '~/utils/connect-agent'
 import { useTopicStore } from '~/stores/topic'
 import { useLiveFeed } from '~/stores/live'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
+import { helpPageListed } from '~/utils/rail-order'
 
 type HelpPage = { slug: string, title: string }
 
@@ -117,7 +118,7 @@ onMounted(async () => {
   try {
     const list = await getText('/help-md/pages.json')
     const body = list ? JSON.parse(list) : null
-    pages.value = Array.isArray(body?.pages) ? body.pages.filter((p: HelpPage) => validHelpSlug(p?.slug) && typeof p.title === 'string') : []
+    pages.value = Array.isArray(body?.pages) ? body.pages.filter((p: HelpPage) => validHelpSlug(p?.slug) && typeof p.title === 'string' && helpPageListed(p.slug)) : []
   } catch {
     /* no list: the index page still links every page */
   }

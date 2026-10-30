@@ -7,6 +7,10 @@
 #   <runner>/_work/_temp   every regular file under it
 #   <runner>/_diag/*.log   regular files in that directory only
 # Never _work/<repo>, .runner, .credentials*, a symlink, or a symlink target.
+# A runner entry of the root that is a symlink to a runner dir (sat, 2026-10-07:
+# sat-spl-03..06 -> /mnt/data/gh-runner/<runner>) is swept at its target: it is
+# busy when a Runner.Worker names the link OR the target (SPL-4287: find -type d
+# skipped those 4 links, ~650 MB of _diag logs on /mnt/data never swept).
 # A live run removes as the directory owner: sudo -n -u <owner> rm -f.
 # If that sudo fails, the runner is skipped with a WARN and nothing is claimed.
 # Only a file that is gone afterwards counts. One that remains is a WARN, and
@@ -33,14 +37,31 @@ ere_escape() {
   printf '%s' "$out"
 }
 
-# is_idle <dir> - 0 only when pgrep confirms no Runner.Worker names this dir
+# is_idle <dir>... - 0 only when pgrep confirms no Runner.Worker names any dir
 is_idle() {
-  local dir="$1" pat prc
+  local dir pat prc
   command -v pgrep >/dev/null 2>&1 || return 1
-  pat="Runner.Worker.*$(ere_escape "$dir")"
-  pgrep -f "$pat" >/dev/null 2>&1
-  prc=$?
-  [[ "$prc" -eq 1 ]]
+  for dir in "$@"; do
+    pat="Runner.Worker.*$(ere_escape "$dir")"
+    pgrep -f "$pat" >/dev/null 2>&1
+    prc=$?
+    [[ "$prc" -eq 1 ]] || return 1
+  done
+}
+
+# runners - NUL entries "<entry><TAB><dir>": a runner dir of the root, or a
+# symlink of the root whose target is a dir (the dir is then its target)
+runners() {
+  local e real
+  while IFS= read -r -d '' e; do
+    if [[ -L "$e" ]]; then
+      real="$(readlink -f -- "$e" 2>/dev/null)" || continue
+      [[ -n "$real" && -d "$real" ]] || continue
+    else
+      real="$e"
+    fi
+    printf '%s\t%s\0' "$e" "$real"
+  done < <(find "$root" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -print0 2>/dev/null)
 }
 
 # older <file> - 0 when the file is strictly older than $age days
@@ -120,8 +141,10 @@ freed=0
 cleaned=0
 not_removed=0
 sweep_fail=0
-while IFS= read -r -d '' runner; do
-  if ! is_idle "$runner"; then
+while IFS= read -r -d '' entry; do
+  link="${entry%%$'\t'*}"
+  runner="${entry#*$'\t'}"
+  if ! is_idle "$link" "$runner"; then
     say "INFO runner $runner: busy, skipped"
     continue
   fi
@@ -178,7 +201,7 @@ while IFS= read -r -d '' runner; do
     not_removed=$(( not_removed + missed ))
     sweep_fail=1
   fi
-done < <(find "$root" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null)
+done < <(runners)
 
 if (( sweep_fail != 0 )); then
   say "FAIL runner sweep: $cleaned runner(s) cleaned, ${freed}B freed, ${not_removed} file(s) not removed"

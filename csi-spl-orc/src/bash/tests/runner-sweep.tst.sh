@@ -8,6 +8,7 @@
 #   3. a missing runner root skips
 #   4. a file rm cannot remove is not counted as freed
 #   5. a failed sudo -n skips the runner and claims nothing
+#   6. a symlinked runner dir is swept at its target (SPL-4287)
 
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -136,6 +137,41 @@ rc=$?
   && [ -e "$SF/idle/_diag/old.log" ] \
   && pass "5. a failed sudo skips the runner and claims nothing" \
   || fail "5. sudo failure (rc $rc: $out)"
+
+# 6. a runner entry that is a symlink to a runner dir elsewhere (sat:
+# sat-spl-03..06 -> /mnt/data/gh-runner/<runner>, SPL-4287) is swept at its
+# target; a busy one, named by its link, is skipped; a link to a file is not a
+# runner. Red before the fix: find -type d listed no link, "rm 1" never printed.
+cat >"$F/bin/sudo" <<'EOF2'
+#!/bin/bash
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -n) shift ;;
+    -u) shift; [[ $# -gt 0 ]] && shift ;;
+    *) break ;;
+  esac
+done
+exec "$@"
+EOF2
+chmod +x "$F/bin/sudo"
+LR="$T/linkroot" LT="$T/elsewhere"
+mkdir -p "$LR" "$LT/r3/_diag" "$LT/busy/_diag"
+printf 'x\n' >"$LT/r3/_diag/old.log"
+printf 'x\n' >"$LT/busy/_diag/old.log"
+printf 'x\n' >"$LT/afile"
+old "$LT/r3/_diag/old.log" "$LT/busy/_diag/old.log"
+ln -s "$LT/r3" "$LR/r3"
+ln -s "$LT/busy" "$LR/busy"
+ln -s "$LT/afile" "$LR/afile"
+out="$(PATH="$F/bin:$PATH" DRY_RUN=0 BOX_SWEEP_RUNNER_ROOT="$LR" BOX_SWEEP_RUNNER_AGE=2 bash "$RS" 2>&1)"
+rc=$?
+[ "$rc" = 0 ] && grep -q "DONE runner $LT/r3: rm 1 file(s) (2B)" <<<"$out" \
+  && grep -q "INFO runner $LT/busy: busy, skipped" <<<"$out" \
+  && ! grep -q "afile" <<<"$out" \
+  && [ ! -e "$LT/r3/_diag/old.log" ] && [ -e "$LT/busy/_diag/old.log" ] && [ -f "$LT/afile" ] \
+  && [ -L "$LR/r3" ] && [ -d "$LT/r3" ] \
+  && pass "6. a symlinked runner is swept at its target, busy by its link name is kept" \
+  || fail "6. symlinked runner (rc $rc: $out)"
 
 echo "runner-sweep: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

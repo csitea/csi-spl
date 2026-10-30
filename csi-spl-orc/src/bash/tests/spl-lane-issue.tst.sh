@@ -286,6 +286,16 @@ done_run LANE_LANDED_REPO=dvn-web LANE_LANDED_SHA="${LANDED:0:7}" DRY_RUN=0
   pass "done: an unfetched clone is fetched, the sha is on origin/master: done, a comment, issue-end with repo + full sha" ||
   fail "done (rc=$rc): $(cat "$T/o") / $(cat "$T/calls.log")"
 cp "$S/c-123/lifetime/issue-end" "$T/lr/issue-end" 2>/dev/null
+# SPL-4320: the landed form after a retire reads the key and writes issue-end
+# in the newest .retired generation, never <root>/c-123.
+mkdir -p "$S/.retired" && mv "$S/c-123" "$S/.retired/c-123.20261029T203700Z"
+RL="$S/.retired/c-123.20261029T203700Z/lifetime"; rm -f "$RL/issue-end"
+done_run LANE_LANDED_REPO=dvn-web LANE_LANDED_SHA="$LANDED" DRY_RUN=0
+[[ $rc -eq 0 && ! -e "$S/c-123" && "$(cut -f1,4,5 "$RL/issue-end" 2>/dev/null)" == "done"$'\t'"dvn-web"$'\t'"$LANDED" ]] &&
+  grep -qx 'update|--ref|SPL-42|--status|done|' "$T/calls.log" &&
+  pass "done after a retire: the .retired generation's key (SPL-42), issue-end there, <root>/c-123 not recreated" ||
+  fail "done retired (rc=$rc): $(cat "$T/o") / $(cat "$T/calls.log") / $(ls -a "$S")"
+mv "$S/.retired/c-123.20261029T203700Z" "$S/c-123" && rm -rf "$S/.retired"
 done_run LANE_LANDED_REPO=dvn-web LANE_LANDED_SHA="$LANDED" DRY_RUN=0 ARCHIVE_ON_UPDATE=1
 [[ $rc -eq 0 && "$(cut -f1,4,5 "$S/c-123/lifetime/issue-end" 2>/dev/null)" == "done"$'\t'"dvn-web"$'\t'"$LANDED" ]] &&
   [[ "$(grep -E '^(comment|update)\|' "$T/calls.log" | cut -d'|' -f1 | paste -sd,)" == comment,update ]] &&
@@ -543,6 +553,16 @@ ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC" DRY_RUN=0
   pass "applied: owner HUM-10 + ACCEPTED to the lane from c-002 (on the hub): done, one comment naming both ids, issue-end" ||
   fail "applied (rc=$rc): $(cat "$T/calls.log") / $(cat "$T/o")"
 cp "$S/c-123/lifetime/issue-end" "$T/ap/issue-end" 2>/dev/null
+# SPL-4320: the applied form after a retire reads the key and writes
+# issue-end in the newest .retired generation, never <root>/c-123.
+mkdir -p "$S/.retired" && mv "$S/c-123" "$S/.retired/c-123.20261029T203700Z"
+RL="$S/.retired/c-123.20261029T203700Z/lifetime"; rm -f "$RL/issue-end"
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC" DRY_RUN=0
+[[ $rc -eq 0 && ! -e "$S/c-123" && "$(cut -f1,4,5 "$RL/issue-end" 2>/dev/null)" == "done"$'\t'"applied"$'\t'"owner=$OWN accepted=$ACC" ]] &&
+  grep -qx 'update|--ref|SPL-42|--status|done|' "$T/calls.log" &&
+  pass "applied after a retire: the .retired generation's key (SPL-42), issue-end there, <root>/c-123 not recreated" ||
+  fail "applied retired (rc=$rc): $(cat "$T/o") / $(cat "$T/calls.log") / $(ls -a "$S")"
+mv "$S/.retired/c-123.20261029T203700Z" "$S/c-123" && rm -rf "$S/.retired"
 SNIPPET=". \"\$PROJ_PATH/src/bash/features/spawn-agents/lib/lane-issue.inc.sh\"; li_end_record SPL-42 '$T/ap/issue-end' c-123" in_orc >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 ]] && grep -qx "issue gate: SPL-42 applied, no commit: owner go 705a9b08, ACCEPTED 31919e11 (checked)" "$T/o" &&
   pass "applied: li_gate's record check passes that issue-end" || fail "li_end_record applied (rc=$rc): $(cat "$T/o")"

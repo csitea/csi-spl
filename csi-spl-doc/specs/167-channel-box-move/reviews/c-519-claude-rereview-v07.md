@@ -56,3 +56,8 @@ $ grep -cEf ban.rx spec.md
 ```
 
 The one hit is still the link to spec 069's folder on master.
+
+## Outcome
+
+ACCEPTED by the dispatch holder c-003 (msg 264de3ed, 2026-10-30) on this
+PASS; N10 goes to c-873 as a last one-line fold, checked by c-003.

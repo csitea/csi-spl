@@ -24,7 +24,8 @@ cap so it stops sliding back), the unused-exports `ALLOW` list, the gosec,
 eslint-security and shellcheck baselines, and Go coverage floors for the 11
 packages that have none.
 
-**Status: v0.1 DRAFT** (panel review pending).
+**Status: v1.0 SIGNED** (editor c-910 and claude panel reviewer c-955, on the
+v1.0 sha; section 9).
 
 Editor: **c-910** (claude). Panel reviewer: a fresh-session claude seat, placed
 by the dispatch lease holder. Dispatch lease holder: the current holder of
@@ -45,7 +46,8 @@ section 7.
   `git log origin/master --oneline --grep='r42-' | wc -l` -> 0, and no brief
   under the dispatch or spawn-remote brief dirs names `r42-`
   (`grep -rl 'r42-' ... | wc -l` -> 0). The next slug-series cut takes
-  `r43`. **Panel point P1:** confirm the prefix, or name another.
+  `r43`. **Panel point P1:** confirmed `r42` by the panel (c-955: `r42-` on
+  origin/master -> 0).
 - One row = one practice = one lane, at the sites named and nowhere else,
   with a test that shows behaviour kept or, for a gate change, a **red
   control**: the check fails on the bad input before the change and passes
@@ -82,14 +84,14 @@ section 7.
 | # | practice | why | sites file:line (max 5) | n | test or red control (R2 bold: source-text tests) | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
 | 01 `refactor(r42-01-wui-ratchet-unused-exports)` | ratchet, dead-code list | `resolveTyped` gained a caller in `5039f423b` (SPL-4330, `NoteLinks.vue:55`); `ALLOW` still lists it and the cap still allows 34 | `wui:tests/unit/unused-exports.test.mjs:53` (the entry)<br>`wui:tests/unit/unused-exports.test.mjs:72` (`ALLOW_CAP`) | 33 unused, cap 34 | Delete the entry, `ALLOW_CAP` 34 -> 33. Tests: **`node tests/unit/unused-exports.test.mjs`**, `pnpm run typecheck`. **Red control:** cap 33 with the entry still listed fails (`ALLOW lists 34 exports, over ALLOW_CAP 33`); paste the line. | sat | claude | simple_coding | 1 (Lane 1) |
-| 02 `refactor(r42-02-wui-ts-convert-event-delete)` | TypeScript migration, drop a shim block (SPL-2170) | the one leaf `--leaves` finds; 40 lines; added 10-30 in `0eab294c8` (SPL-4216) | `wui:src/utils/event-delete.mjs` -> `.ts`<br>`wui:src/pages/monitoring/events/index.vue:267` (import)<br>`wui:tests/unit/event-log.test.mjs:21` (import)<br>`wui:src/types/mjs-shims.d.ts` (its block) | 103 blocks | Convert with typed exports (`EVENTS_DELETE_MAX`, `deleteEventIds`, `eventsDeleteErrorKey`), update the two importers, drop the block (103 -> 102). Tests: `pnpm run shims:check`, `pnpm run typecheck`, `node tests/unit/event-log.test.mjs`, **`node tests/unit/mjs-shims-exist.test.mjs`**, unit runner. **Red control:** a stale `event-delete.mjs` block left in `mjs-shims.d.ts` makes `shims:check` rc 1. | sat | claude | simple_coding | 1 (Lane 1, after 01) |
+| 02 `refactor(r42-02-wui-ts-convert-event-delete)` | TypeScript migration, drop a shim block (SPL-2170) | the one leaf `--leaves` finds; 40 lines; added 10-30 in `0eab294c8` (SPL-4216) | `wui:src/utils/event-delete.mjs` -> `.ts`<br>`wui:src/pages/monitoring/events/index.vue:21,267` (comment, import)<br>`wui:tests/unit/event-log.test.mjs:21` (import)<br>`wui:src/types/mjs-shims.d.ts` (its block) | 103 blocks | Convert with typed exports (`EVENTS_DELETE_MAX`, `deleteEventIds`, `eventsDeleteErrorKey`), update the two importers and the `index.vue:21` comment that names `utils/event-delete.mjs`, drop the block (103 -> 102). Tests: `pnpm run shims:check`, `pnpm run typecheck`, `node tests/unit/event-log.test.mjs`, **`node tests/unit/mjs-shims-exist.test.mjs`**, unit runner. **Red control:** a stale `event-delete.mjs` block left in `mjs-shims.d.ts` makes `shims:check` rc 1. | sat | claude | simple_coding | 1 (Lane 1, after 01) |
 | 03 `refactor(r42-03-wui-bidi-regex-escapes)` | name the invisible: escapes, not raw control characters | `BIDI` (`mention-autocomplete.mjs:132`) is a character class written with 7 raw bidi controls, so the eslint security rule needs a baseline line for the file that strips them | `wui:src/utils/mention-autocomplete.mjs:132`<br>`/.eslint-security-baseline.txt` (its one row) | 7 findings | Write the class with `\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069` (the same set: `sed -n 132p <file> \| od -An -tx1` reads U+061C, U+200E, U+200F, U+202A-U+202E, U+2066-U+2069 on `7e94dbf54`); delete the baseline row. Tests: **`node tests/unit/mention-autocomplete.test.mjs`**, `node tests/unit/eslint-gate.test.mjs`, the eslint-security lint part (`./run -a do_check_pre_push_lint`). **Red control:** the row removed with the raw characters still in the file fails the eslint-security part; behaviour: a test name with each control stripped stays green before and after. | PC | claude | simple_coding | 1 (Lane 2) |
-| 04 `refactor(r42-04-api-gosec-g115-bounds)` | bounded conversions instead of a baseline | 4 int -> int32/uint32/uint64 conversions kept green only by `.gosec-baseline.txt` | `go:cmd/spool/hub.go:702-703` (`int32(hc.DBMaxConns)`, `int32(hc.DBMinConns)`)<br>`go:internal/sign/pubkey.go:62` (`uint64(len(b)-4)`)<br>`go:internal/sign/pubkey.go:84` (`uint32(len(pub))`)<br>`/.gosec-baseline.txt` (2 G115 rows) | 4 issues | Clamp or check each value before converting (pool sizes to `math.MaxInt32`, lengths against their fixed key size) with no behaviour change for valid input; delete the two G115 rows. Tests: `go test -count=1 ./cmd/spool/ ./internal/sign/`, `cd csi-spl-iac && ./run -a do_sec_gosec`. **Red control:** rows deleted with one conversion restored -> the gosec gate fails on that file. | PC | claude | simple_coding | 1 (Lane 2, after 03) |
+| 04 `refactor(r42-04-api-gosec-g115-bounds)` | bounded conversions instead of a baseline | 4 int -> int32/uint32/uint64 conversions kept green only by `.gosec-baseline.txt` | `go:cmd/spool/hub.go:702-703` (`int32(hc.DBMaxConns)`, `int32(hc.DBMinConns)`)<br>`go:internal/sign/pubkey.go:62` (`uint64(len(b)-4)`)<br>`go:internal/sign/pubkey.go:84` (`uint32(len(pub))`)<br>`/.gosec-baseline.txt` (2 G115 rows) | 4 issues | Clamp or check each value before converting (pool sizes to `math.MaxInt32`, lengths against their fixed key size) with no behaviour change for valid input; delete the two G115 rows. `pubkey.go:62` is already guarded by `len(b) < 4` at `:58`: if gosec still flags a correctly bounded form, the lane stops and reports; a `#nosec` in place of the baseline row is not the fix. Tests: `go test -count=1 ./cmd/spool/ ./internal/sign/`, `cd csi-spl-iac && ./run -a do_sec_gosec`. **Red control:** rows deleted with one conversion restored -> the gosec gate fails on that file. | PC | claude | simple_coding | 1 (Lane 2, after 03) |
 | 05 `refactor(r42-05-orc-shellcheck-sc2010-tests)` | `ls \| grep` -> globs | 5 SC2010 warnings in 4 test files, held by the WARNING baseline | `orc:src/bash/features/spawn-agents/tests/test-fleet-send.sh:51`<br>`orc:src/bash/tests/db-owner-split.tst.sh:95`<br>`orc:src/bash/tests/host-spool-no-rebuild.tst.sh:82,215`<br>`orc:src/bash/tests/repair-spool-keys.tst.sh:48`<br>`/.shellcheck-warning-baseline.txt` (4 SC2010 rows) | 5 warnings | Replace each with a glob or `compgen -G`; delete the 4 rows. Tests: each of the 4 test files green, the shellcheck lint part. **Red control:** the rows deleted with one `ls \| grep` left fails the shellcheck part; the fix with the rows kept fails too (count below its line, r5-05). | sat | claude | simple_coding | 2 (Lane 1) |
-| 06 `test(r42-06-api-coverage-floor-new-packages)` | every Go package has a floor | 11 packages print `NEW` and pass at any coverage; 10 get a floor here (`keyd` in row 08) | `api:src/bash/tests/go-coverage-floor.txt` (10 new lines: `internal/channelmove` 81.1, `enc` 83.6, `gcal` 85.8, `gcpalerts` 91.8, `hygiene` 90.0, `keydesk` 79.1, `keyexec` 79.7, `pollform` 100.0, `secretfile` 100.0, `vendorkey` 82.4) | 10 packages, n=1 each | Measure each n=3, write the floor at the lowest reading, with the header comment naming the go version and sha. Tests: `bash csi-spl-api/src/bash/tests/run-all-tests.sh` (its coverage part prints `ok` for each, no `NEW` left but `keyd` and `gcal/fakegcal`). **Red control:** one floor written 2 points above its reading prints `FAIL - <pkg> ... under its floor`. | PC | claude | tests | 2 (Lane 2) |
-| 07 `refactor(r42-07-orc-shellcheck-sc2155-test-libs)` | declare, then assign | 3 SC2155 warnings mask a failing command substitution in the spawn-agents test library | `orc:src/bash/features/spawn-agents/tests/lib.inc.sh:50` (x2)<br>`orc:src/bash/features/spawn-agents/tests/test-spool-agent.sh:43`<br>`/.shellcheck-warning-baseline.txt` (2 SC2155 rows) | 3 warnings | Split each `local x="$(...)"`; delete the 2 rows. Tests: the spawn-agents tests that source `lib.inc.sh` (`grep -l 'lib.inc.sh' csi-spl-orc/src/bash/features/spawn-agents/tests/*`), `test-spool-agent.sh`, the shellcheck part. **Red control:** as row 05. | sat | claude | simple_coding | 3 (Lane 1, after 05: same baseline file) |
+| 06 `test(r42-06-api-coverage-floor-new-packages)` | every Go package has a floor | 12 packages print `NEW` (`gcal/fakegcal` included) and pass at any coverage; 11 apart from the fake, 10 get a floor here (`keyd` in row 08) | `api:src/bash/tests/go-coverage-floor.txt` (10 new lines: `internal/channelmove` 81.1, `enc` 83.6, `gcal` 85.8, `gcpalerts` 91.8, `hygiene` 90.0, `keydesk` 79.1, `keyexec` 79.7, `pollform` 100.0, `secretfile` 100.0, `vendorkey` 82.4) | 10 packages, n=1 each | Measure each n=3, write the floor at the lowest reading, with the header comment naming the go version and sha. Tests: `bash csi-spl-api/src/bash/tests/run-all-tests.sh` (its coverage part prints `ok` for each, no `NEW` left but `keyd` and `gcal/fakegcal`). **Red control:** one floor written 2 points above its reading prints `FAIL - <pkg> ... under its floor`. | PC | claude | tests | 2 (Lane 2) |
+| 07 `refactor(r42-07-orc-shellcheck-sc2155-test-libs)` | assign, then export | 3 SC2155 warnings mask a failing command substitution in the spawn-agents test library | `orc:src/bash/features/spawn-agents/tests/lib.inc.sh:50` (x2)<br>`orc:src/bash/features/spawn-agents/tests/test-spool-agent.sh:43`<br>`/.shellcheck-warning-baseline.txt` (2 SC2155 rows) | 3 warnings | Assign, then export: split `export SPOOL_BOX_USER="$(id -un)" SPOOL_AGENT_USER="$(id -un)"` (`lib.inc.sh:50`) and `export SPOOL_BOX_USER="$(id -un)"` (`test-spool-agent.sh:43`); delete the 2 rows. Tests: the spawn-agents tests that source `lib.inc.sh` (`grep -l 'lib.inc.sh' csi-spl-orc/src/bash/features/spawn-agents/tests/*`), `test-spool-agent.sh`, the shellcheck part. **Red control:** as row 05. | sat | claude | simple_coding | 3 (Lane 1, after 05: same baseline file) |
 | 08 `test(r42-08-api-coverage-keyd)` | error paths of the key daemon under test | `internal/keyd` 75.6% with no floor; `StateDir` (`store.go:46`) 0.0, `writeNew` (`store.go:516`) 41.2, `readOnce` (`pass.go:128`) 55.6, `InitAgent` (`store.go:79`) 57.1, `writeScrypt` (`store.go:272`) 59.1 | `go:internal/keyd/store.go:46,79,272,516`<br>`go:internal/keyd/pass.go:128`<br>`go:internal/keyd/store_test.go`<br>`go:internal/keyd/pass_test.go`<br>`api:src/bash/tests/go-coverage-floor.txt` (1 new line) | 75.6% | Table tests for the refusals and write errors of those functions (temp dirs, test keys only; no real key, no key path on the box); floor `internal/keyd` at the n=3 reading (target >= 80.0). Tests: `go test -count=1 -race -cover ./internal/keyd/`. **Red control:** drop one error return in `writeNew` -> a new case fails. | PC | claude | tests | 3 (Lane 2, after 06: same floor file) |
-| 09 `test(r42-09-wui-shims-cap)` | a cap that only falls, for the shims | shims went 98 -> 103 in 4 days with nothing to stop it (retro 16, 4.1) | `wui:tests/unit/mjs-shims-exist.test.mjs` (a `SHIMS_CAP` and its check) | 102 after row 02 | `SHIMS_CAP` = the count after row 02 (re-measure), failing when `declare module` blocks exceed it and printing a `NOTE` to lower it when under, in `unused-exports.test.mjs`'s style. Tests: **`node tests/unit/mjs-shims-exist.test.mjs`**, `pnpm run shims:check`. **Red control:** one planted block over the cap fails with the cap in the message. | sat | claude | tests | 4 (Lane 1, after 02) |
+| 09 `test(r42-09-wui-shims-cap)` | a cap that only falls, for the shims | shims went 98 -> 103 in 4 days with nothing to stop it (retro 16, 4.1) | `wui:tests/unit/mjs-shims-exist.test.mjs` (a `SHIMS_CAP` and its check) | 102 after row 02 | `SHIMS_CAP` = the count after row 02 (re-measure), failing when `declare module` blocks exceed it and printing a `NOTE` to lower it when under, in `unused-exports.test.mjs`'s style; the FAIL message names the fix (write the new module as `.ts`, or convert a leaf), since the unit runner runs it in every feature lane (`run-unit-tests.mjs:42`). Tests: **`node tests/unit/mjs-shims-exist.test.mjs`**, `pnpm run shims:check`. **Red control:** one planted block over the cap fails with the cap in the message. | sat | claude | tests | 4 (Lane 1, after 02) |
 | 10 `test(r42-10-api-coverage-cmd-spool-key)` | CLI key commands under test | `cmd/spool` slid to 76.8% (floor 77.1); `key.go` is 48.4% covered: `cmdKeyRotate` (`:316`) 0.0, `childEnv` (`:428`) 0.0, `rekeyTo` (`:272`) 28.6, `cmdKeyInit` (`:63`) 54.1 | `go:cmd/spool/key.go:63,272,316,428`<br>`go:cmd/spool/key_test.go`<br>`api:src/bash/tests/go-coverage-floor.txt` (the `cmd/spool` line) | 76.8% | Flag and refusal cases for those four (no process start: `startKeyd` and `waitUnlocked` stay out); raise the floor to the n=3 reading (target >= 78.0). Tests: `go test -count=1 -cover ./cmd/spool/`. **Red control:** flip one refusal in `cmdKeyRotate` -> a new case fails. | PC | claude | tests | 4 (Lane 2, after 08: same floor file) |
 
 ### 3.1 Lanes and batches
@@ -115,17 +117,23 @@ Their briefs are not readable from this box, so their scopes are **unchecked
 here**: the spawner asks them (or reads their briefs on sat) before placing
 a row, per R3.
 
+Panel note N1 (c-955, later run): `lane-map.sh --check <16 row paths> --agent c-955`
+-> **exit 3**: `cmd/spool/hub.go` is owned by c-951
+(`c-951-c003-s090-t034-meta-publish-dispatch`, SPL-4424, hunks at `hub.go:145`
+and `:308`; row 04 edits `:702-703`). The spawner re-runs lane-map at
+placement; row 04 waits for c-951 to land, or talks to it first.
+
 ## 4. Per row: what the lane does
 
 - **01:** Delete `['src/utils/id-links.mjs', ['resolveTyped']],` from `ALLOW`; `ALLOW_CAP` 34 -> 33. Nothing else.
-- **02:** `git mv` `src/utils/event-delete.mjs` to `.ts` with exact types; update `pages/monitoring/events/index.vue:267` and `tests/unit/event-log.test.mjs:21` (a test may need the repo's `.ts` import helper; follow `tests/unit/pane-focus.test.mjs` as row r16-01 did); drop its block (103 -> 102).
+- **02:** `git mv` `src/utils/event-delete.mjs` to `.ts` with exact types; update `pages/monitoring/events/index.vue:267` (and its `:21` comment) and `tests/unit/event-log.test.mjs:21` (a test may need the repo's `.ts` import helper; follow `tests/unit/pane-focus.test.mjs` as row r16-01 did); drop its block (103 -> 102).
 - **03:** Rewrite `BIDI` with `\u` escapes covering exactly the same code points (prove with a loop over U+0600..U+206F: the same code points match before and after); delete the baseline row. The regex's comment stays true.
-- **04:** Bound the 4 conversions; no new exported name; delete `G115|cmd/spool/hub.go|2` and `G115|internal/sign/pubkey.go|2`; update the triage comment in `.gosec-baseline.txt` (it names G115 x4).
+- **04:** Bound the 4 conversions (`pubkey.go:62` is already guarded at `:58`: a gosec flag on a bounded form = stop and report, no `#nosec`); no new exported name; delete `G115|cmd/spool/hub.go|2` and `G115|internal/sign/pubkey.go|2`; update the triage comment in `.gosec-baseline.txt` (it names G115 x4).
 - **05:** 5 `ls | grep` uses to globs in the 4 test files; delete their 4 baseline rows.
 - **06:** 10 floor lines, measured n=3 each, lowest reading.
-- **07:** Split the 3 `local x="$(...)"`; delete 2 baseline rows.
+- **07:** Assign, then export: split the 2 `export X="$(id -un)"` lines (3 warnings); delete 2 baseline rows.
 - **08:** Tests for the 5 named `keyd` functions' error paths; add the `internal/keyd` floor line.
-- **09:** Add `SHIMS_CAP` to `mjs-shims-exist.test.mjs`, at the count on the row's own `origin/master`.
+- **09:** Add `SHIMS_CAP` to `mjs-shims-exist.test.mjs`, at the count on the row's own `origin/master`; its FAIL message names the fix (`.ts`, or convert a leaf).
 - **10:** Tests for the 4 named `key.go` functions; raise the `cmd/spool` floor.
 
 ## 5. Panel and reviewers (R7)
@@ -139,7 +147,10 @@ a row, per R3.
 - **Panel point P2:** row 09 makes a new `.mjs` module that a `.ts` / `.vue`
   file imports fail the WUI unit tests unless its shim line replaces another.
   That is the point (SPL-2170), but it lands on feature lanes; the panel
-  confirms or drops the row.
+  confirms or drops the row. **Confirmed** by the panel (c-955), on
+  condition the FAIL message names the fix (write the new module as `.ts`,
+  or convert a leaf): `run-unit-tests.mjs:42` runs every
+  `tests/unit/*.test.mjs`, so the cap fires in every feature lane.
 
 ## 6. Left out, measured
 
@@ -165,8 +176,13 @@ a row, per R3.
 ## 8. Changes
 
 - v0.1: first draft (c-910): 10 rows from retro 16 section 7, slug `r42`.
+- v1.0: panel PASS on `c19b76232` (c-955, msg 7b02c992), notes N1-N6 folded
+  as wording: N1 the `hub.go` lane in 3.2, N2 row 07 "assign, then export",
+  N3 row 06 package count, N4 row 02 `index.vue:21` comment, N5 row 04
+  `pubkey.go:62` guard, N6 P2 confirmed with a FAIL message naming the fix;
+  P1 `r42` confirmed. Status v1.0 SIGNED.
 
 ## 9. Consensus
 
 - Editor seat: c-910 (claude), signs on the v1.0 sha.
-- Claude panel reviewer seat: pending.
+- Claude panel reviewer seat: c-955 (claude, fresh session), PASS on c19b76232; signs v1.0 if the diff from c19b76232 is only N1-N6 wording, the status and the changes line.

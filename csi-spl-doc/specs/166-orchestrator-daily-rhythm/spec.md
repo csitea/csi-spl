@@ -79,7 +79,7 @@ safe form, row B1) runs every N minutes and asks `do_spl_rhythm_phase`.
   `csi-spl-api/src/go/spool-hub-api/internal/action/archive.go`, CLE-77869).
 - No reflection job exists. The nearest thing is the round retrospective
   (`rounds-rulebook.md` R8, files `refactor-round-<N>-retro.md`, last
-  `refactor-round-15-retro.md`), written per round, not per day.
+  `refactor-round-16-retro.md`), written per round, not per day.
 
 ## 1. Goals and non-goals
 
@@ -138,7 +138,7 @@ upkeep is in 2.4, one line each.
 | 7 | asks timer, `ASKS STILL OPEN` re-raise | `src/bash/run/spl-asks-tick.func.sh:224`, run by the dispatch lease loop (not cron) | each lease-loop tick | every box with the lease loop | posts to every live DO seat | 24h | **stays** |
 | 8 | placer: spawn queue, bands, supply blocker (`csi-spl:spawn-place`) | install `src/bash/run/spl-spawn-place-install-cron.func.sh:34`; bands `SPL_SPAWN_BANDS` `src/bash/run/spl-spawn-share.func.sh:25`; band pick `spl-spawn-place.func.sh:37-46`, `:263`; supply `:226-248`; rule home `csi-spl-doc/doc/md/fleet-rules-index.md:53` | `* * * * *` | 1, 2 | every lane placed is an agent; refactor 20-30%, bug 20-30%, feature rest, the same at every hour | 24h | **moves**: bands by phase (B2), supply lead (B3) |
 | 9 | idle filler (`csi-spl:spawn-fill`) | install `src/bash/run/spl-spawn-fill-install-cron.func.sh:36`; classes `spl-spawn-fill.func.sh:145-153`; rule `fleet-rules-index.md:54` | `*/10 * * * *` | 1 | queues bug/feature issues when the queue is empty; latest tick: `the spawn queue is not empty (30 queued, 0 placing): nothing to fill` | 24h | **moves**: the night fill takes bug issues only (B4, poll Q2 B) |
-| 10 | refactor / bug rounds (planner, rows, reviewer seats, retro) | `csi-spl-doc/doc/md/rounds-rulebook.md` 1.4 (continuous, no owner go), R8 (retro, then the next planner), R10 (hourly placement check); last plan `refactor-round-16-plan.md` | no clock: started by the dispatcher on the supply blocker or the previous retro | either | round 16: 10 actions, "2 row lanes in parallel" | whenever | **moves**: planner by day, rows at night (B3) |
+| 10 | refactor / bug rounds (planner, rows, reviewer seats, retro) | `csi-spl-doc/doc/md/rounds-rulebook.md` 1.4 (continuous, no owner go), R8 (retro, then the next planner), R10 (hourly placement check); last plan `refactor-round-17-plan.md` | no clock: started by the dispatcher on the supply blocker or the previous retro | either | round 16: 10 actions, "2 row lanes in parallel" | whenever | **moves**: planner by day, rows at night (B3) |
 | 11 | security round queue (`csi-spl:security-round`) | install `src/bash/run/spl-security-round-install-cron.func.sh:36` | `30 * * * *`, acts when `date -u +%u%H` = `505` (Fri 05:30Z) | 1 | one round a week | night in winter; day in summer (05:30Z is after 05:00Z) | **stays weekly**, pinned to the phase (B7) |
 | 12 | owner digest (`box-cron:owner-digest`) | `box-crons.manifest:27`; cnf `csi-spl-cnf/csi-spl/prd.env.yaml:477` (`hour: 9`, `timezone: Europe/Helsinki`) | `7 * * * *`, posts once a day at 09 Helsinki (07:00Z winter) | lease holder's box | script, one post | day | **stays**; links the reflection (row 20) |
 | 13 | topic status cards (`box-cron:topic-status-card`) | `box-crons.manifest:35` | `*/5 * * * *` | 1 (not in box 2's crontab); acts on the lease holder's box | script | 24h | **stays** |

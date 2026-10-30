@@ -1,11 +1,13 @@
 # 167 Channel Box Move: move ALL the work of one channel to another box in one action
 
-Version: v0.6 (2026-10-30). Status: **Draft, R7 re-review**; the owner's four
+Version: v0.7 (2026-10-30). Status: **Draft, R7 re-review**; the owner's four
 decisions are in (section 7); v0.3 added the hand move's agent's own account
 (rows W7-W10, from its spool msg b3fb3d9e); v0.4 folds the R7 review
 [c-519](reviews/c-519-claude-review.md) (its W1-W7; cases C19-C21); v0.5
 folds its [re-review](reviews/c-519-claude-rereview-v04.md) (N1-N4; C22);
-v0.6 folds the [next one](reviews/c-519-claude-rereview-v05.md) (N5-N7).
+v0.6 folds the [next one](reviews/c-519-claude-rereview-v05.md) (N5-N7);
+v0.7 folds [its review of v0.6](reviews/c-519-claude-rereview-v06.md) (N8,
+N9; C23, C24).
 Nothing below is built.
 Issue SPL-4227 · Epic SPL-2398 · Class feature · Kind specs_and_docs ·
 Placement slug `c002-channel-box-move-spec` · Lead c-873.
@@ -92,7 +94,11 @@ cd csi-spl-orc && CHANNEL=<TENANT>/<CHANNEL> TO=<BOX_B> ./run -a do_spl_channel_
 - Dry run unless `DRY_RUN=0`. The dry run is `MOVE_CMD=plan`; it prints the
   whole plan (4.3) and changes nothing.
 - Runs from either box, by the owner or the orchestrator seat only (D1).
-  Any other caller is refused before `plan` reads anything. "No
+  Any other caller is refused before `plan` reads anything, with ONE
+  exception: `MOVE_CMD=ack` is allowed to the agent whose id, resolved from
+  its pane by the ancestry walk below (never from its environment), equals
+  the new seat the journal of that `MOVE_ID` names; it acks only that seat,
+  and no other command is open to it (C23). "No
   `SPOOL_AGENT_ID`" is NOT a proof of the owner: `sudo -u <box user>`, the
   fleet's standard way to run an action, drops it for every agent. So the
   caller check is positive both ways:
@@ -109,11 +115,22 @@ cd csi-spl-orc && CHANNEL=<TENANT>/<CHANNEL> TO=<BOX_B> ./run -a do_spl_channel_
     `DRY_RUN=0` by the owner needs the proof: an owner-signed directive (the
     `/signed-prompt` envelope) naming this channel and target box, verified
     before the first change and recorded in the journal by its id (C22).
-    At the owner's own tty the action makes that envelope itself: it calls
-    `directive-sign.sh <BOX_B> "<the move: channel, target, move id>"`,
-    which asks the passphrase once, so the move stays one shell action
-    (owner c0b1208c). The orchestrator seat cannot sign; it passes as the
-    orch lease holder (the agent branch above).
+    At the owner's own tty the action makes that envelope itself, addressed
+    to the **driver** box (the box it runs on): `directive-verify.sh`
+    refuses an envelope whose `to:` is another box (exit 78, "addressed to
+    '<to>', this box is '<box>'"), so an envelope for `<BOX_B>` would stop
+    an owner driving from `<BOX_A>`. When the other box also acts on the
+    owner's authority (it receives its steps through the hub, not over the
+    driver's ssh), the action signs a second envelope addressed to it in
+    the same signing window (`directive-session.sh`, one passphrase for
+    both); each nonce is spent once per box. Every owner command that
+    changes something (`move`, `resume`, `back`, `clean`) signs fresh
+    envelopes over its own text (command, channel, target, move id): a
+    `resume` or `clean` never reuses the `move`'s envelope, whose nonce is
+    already spent. `plan` and `status` change nothing and sign nothing. So
+    the move stays one shell action (owner c0b1208c). The orchestrator
+    seat cannot sign; it passes as the orch lease holder (the agent branch
+    above) (C24).
   - anything else (no tty, unknown pane, cron) is refused.
 
   The box that runs it is the **driver**; the driver reaches the other box over ssh where it
@@ -379,6 +396,8 @@ Reuses spec 060 and spec 102; nothing new for the agents to learn.
 | C20 | a secret held without a GO | S8 waits, the source seats are unheld and keep the channel; the GO or dropping the line re-runs S1 and lets S8 run; no answer within `MOVE_SECRET_WAIT` aborts the move | the switch happens with the key missing on the target, or the seats stay paused past `MOVE_SECRET_WAIT` |
 | C21 | a caller with no tty and no agent in its ancestry (cron) runs `plan` | refused (D1) | it is taken for the owner |
 | C22 | `DRY_RUN=0` by a caller that passes the owner process test (a `setsid -f script` tty) but has no signed directive | refused before the first change (D1) | the move runs |
+| C23 | `MOVE_CMD=ack` (a) by the target seat the journal names, (b) by another lane agent, (c) by the named seat for another `MOVE_ID`, (d) `MOVE_CMD=clean` by the named seat | (a) accepted; (b), (c), (d) refused | (a) refused (every move then aborts at S7), or (b), (c) or (d) accepted |
+| C24 | the owner drives from `<BOX_A>`: `move`, then `resume`, with the hub path to `<BOX_B>` | `move` signs one envelope `to: <BOX_A>` and one `to: <BOX_B>` in one window, each verifies on its box; `resume` signs fresh ones | an envelope `to: <BOX_B>` verified on `<BOX_A>` (exit 78), or `resume` replaying the `move`'s envelope (nonce spent) runs |
 
 Tests run on a private `SPOOL_ROOT` with two sandbox boxes (two dirs, a stub
 ssh and a stub hub), never the live spool (`SPOOL_TEST=1`).
@@ -389,7 +408,7 @@ Disjoint files, except that B5 extends B1's `spl-channel-move.func.sh` after B1 
 
 | row | what | files (only these) | red control | vendor (main / backup) | batch |
 |---|---|---|---|---|---|
-| B1 | manifest: derive + declare + `plan` + the caller check (D1) | new `orc/run/spl-channel-move.func.sh` (plan only), `orc/run/spl-channel-manifest-add.func.sh`, `sa/lib/channel-move.inc.sh`, `orc/tests/channel-move-plan.tst.sh` | C1, C14, C21, C22 | claude / grok | 1 |
+| B1 | manifest: derive + declare + `plan` + the caller check (D1) | new `orc/run/spl-channel-move.func.sh` (plan only), `orc/run/spl-channel-manifest-add.func.sh`, `sa/lib/channel-move.inc.sh`, `orc/tests/channel-move-plan.tst.sh` | C1, C14, C21, C22, C23, C24 | claude / grok | 1 |
 | B2 | git and uncommitted transfer | `sa/lib/channel-move-git.inc.sh`, `orc/tests/channel-move-git.tst.sh` | C2, C11, C19 | claude / grok | 2 |
 | B3 | resumable transport, checksums, secret refusal | `sa/lib/channel-move-ship.inc.sh`, `orc/tests/channel-move-ship.tst.sh` | C3, C6, C7, C13, C15, C20 | claude / grok (secret kind) | 2 |
 | B4 | ball pass: move block, seed, ack, retire | `sa/lib/channel-move-seat.inc.sh`, `orc/tests/channel-move-seat.tst.sh`; calls `spl-agent-handoff.func.sh`, `spawn-remote.sh`, the rotation RETIRE (`spl_rotate_end` in `spl-rotate-lib.func.sh`, with `ROTATE_PRE_TERM=spl_lane_rotate_unwrap` from `spl-lane-rotate.func.sh` for the wrapper stop), `tmux-close-window.sh`, `agent-id-retire.sh --apply`, edits none of them | C4, C5, C12, C18 | claude / grok | 2 |
@@ -444,4 +463,4 @@ No other question is open.
    (`do_spl_private_overlay_pull`). S6's probe post would catch it before the
    switch either way.
 
-<!-- version: 0.6.0 · updated: 2026-10-30 · last-edit: 2026-10-30T06:30:00Z -->
+<!-- version: 0.7.0 · updated: 2026-10-30 · last-edit: 2026-10-30T07:00:00Z -->

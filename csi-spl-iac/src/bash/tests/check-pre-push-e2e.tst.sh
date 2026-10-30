@@ -214,7 +214,7 @@ fi
 C="$T/bundles16"; rm -f "$T/held" "$T/go" "$T/ran15"; : >"$T/out15"
 part15 "$R" "$T/run"; for K in "$C"/*/; do break; done; K="${K%/}"
 mkdir -p "$C/.locks"; exec {pf}>>"$C/.locks/${K##*/}"; flock -x "$pf"
-part15 "$R" "$T/run15" & pb=$!
+part15 "$R" "$T/run15" {pf}>&- & pb=$!
 for _ in $(seq 50); do [[ -e "$T/held" ]] && break; sleep 0.1; done
 rm -rf "$K"; rm -f "$C/.locks/${K##*/}"; exec {pf}>&-
 : >"$T/go"; wait "$pb"; rb=$?

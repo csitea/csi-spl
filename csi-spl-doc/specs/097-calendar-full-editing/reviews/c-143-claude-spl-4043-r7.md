@@ -79,3 +79,19 @@ Until rdb 0242 is applied, the hub writes neither column, so a member's owner or
 ## Re-review
 
 After the fix lands on the review branch, send the new sha. I will re-run the W1 and W2 probes and the gate on it.
+
+### Re-review of f4be8d8e9: PASS
+
+- Branch `review/c002-calendar-event-discussion-issue-links` = `f4be8d8e979caba568b83aaaa15ebe1ded35c108`, two new commits on 4283ae643's line: 0c32b0ca2 (W1), f4be8d8e9 (W2).
+- Verdict: **PASS**. W1 and W2 are fixed; W3 and W4 stay notes.
+
+**W1, fixed.** `calendar_operator.go` `operatorCalendarTopicOK` resolves an 8-hex id (`store.TopicPrefixRe`) with `TopicsByPrefix(ctx, tenant, prefix, 2)` and writes the full uuid back onto `q.TopicID` before `newEvent`. The member create (`calendar.go:978`), the PATCH (`:1127`) and the operator create (`calendar_operator.go:102`) all call it. One match stores the uuid; none or two are 400 `bad_event`. `TestCalendarEventShortTopic` covers unique, ambiguous, unknown and PATCH. The Postgres `TopicsByPrefix` runs under `queryTenant` with `tenant_id = $1`, so a short id never resolves into another workspace. The WUI was not changed; its short-id input now succeeds.
+
+**W2, fixed.** `operatorOwnerDefault`: with no `owner_id`, the owner is `ordered_by` only when `calendarOwnerKnown` accepts it; otherwise the agent stays owner. A named non-member owner is still 400. `TestOperatorCalendarEvent` is back to `"ordered_by": "HUM-10"` (owner = `c-840`), and `TestOperatorCalendarOwnerDefault` covers a member `ordered_by` and a named non-member owner.
+
+Runs, on a detached worktree at f4be8d8e9:
+
+- `go test -count=1 -run 'TestCalendarEventShortTopic|TestOperatorCalendarEvent$|TestOperatorCalendarOwnerDefault|TestCalendarEventLinks' -v ./internal/hub` (memory store, n=1) -> 4 PASS.
+- `PATH=/usr/local/go/bin:$PATH PRE_PUSH_NO_CACHE=1 PRE_PUSH_TIER=full ./run -a do_check_pre_push` -> `EXIT=0`, `all parts PASSED`: temp Postgres up (postgres:16-alpine), migrate applies 242 files, 44 TestRLS PASS, cross-tenant store 4 / hub 8 PASS, csi-spl-api suite 1057 s, orc suite 1412 s, wui unit + typecheck, e2e `all 6 file(s) passed` (the same 6 calendar files), lint-gosec and the other lint parts PASS, `--- FAIL` count 0. release-note WARN only: 9 of 9 commits lack the note.
+- Docs: spec 097 and the `do_spl_calendar_event_add` header say the short id and the member-only `ORDERED_BY` default.
+- Migration: `git ls-tree --name-only origin/master .../spool-hub/ | tail -1` at bbcb4787a -> `0241_fleet_ask_discussion.sql`, so 0242 is still free.

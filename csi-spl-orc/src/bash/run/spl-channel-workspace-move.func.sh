@@ -79,7 +79,7 @@ do_spl_channel_workspace_move() {
 # CWM_NAME CWM_FROM. Nothing is called before it passes.
 _spl_cwm_args() {
   local ch="${CHANNEL:-}" rx='^[a-z0-9][a-z0-9-]{0,63}$'
-  [[ "${ENV:-}" =~ ^(dev|prd)$ ]] || { do_log "FATAL ENV must be dev or prd, got: '${ENV:-}'"; return 1; }
+  spl_require_cloud_env || return 1
   [[ "$ch" == */* ]] || { do_log "FATAL CHANNEL must be <SRC>/<channel id>, got: '$ch'"; return 1; }
   CWM_SRC="${ch%%/*}"; CWM_CH="${ch#*/}"; CWM_DST="${TO:-}"
   spl_require_tenant_slug "$CWM_SRC" || return 1
@@ -250,7 +250,7 @@ _spl_cwm_probe_send() {
   local tenant="${TO:-}" agent="${PROBE_AGENT:-}" to="${PROBE_TO:-}" task="${PROBE_MOVE:-}" box d sent rc=0 dry=1
   local u='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' body
   local -a tobox=()
-  [[ "${ENV:-}" =~ ^(dev|prd)$ ]] || { do_log "FATAL ENV must be dev or prd, got: '${ENV:-}'"; return 1; }
+  spl_require_cloud_env || return 1
   box="${DESK_BOX:-$(spl_desk_box_default)}"
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   _spl_cwm_is_seat "$to" || {

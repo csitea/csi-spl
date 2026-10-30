@@ -15,17 +15,26 @@
 # @description      has a poll-ack line for its msg_id (a vote seen once is
 # @description      acknowledged once), or another answer in the same topic
 # @description      was acknowledged in this run
-# @description   2. reads the topic from the hub (hub-tail --json) and skips it
-# @description      when the topic cannot be read (a closed or unknown topic),
-# @description      when the topic holds no poll message with that id from an
-# @description      agent (not an active poll), or when an agent posted in the
-# @description      topic after the answer (already answered)
+# @description   2. reads the topic from the hub (hub-tail --with-channel) and
+# @description      skips it when the topic cannot be read (a closed or unknown
+# @description      topic), when the topic holds no poll message with that id
+# @description      from the holder or its role seat (any vendor letter of the
+# @description      holder's seat number): a poll another agent posted is that
+# @description      agent's to answer (SPL-4305), when an agent posted in the
+# @description      topic after the answer (already answered), or when the
+# @description      topic is in a sole-seat channel whose seat is not the
+# @description      holder (the box map channel-rules.tsv column 6, read by
+# @description      cr_sole_seat; owner rule: only that seat posts there).
+# @description      Fail closed: a map that cannot be read, or a map while the
+# @description      spool binary cannot say the topic's channel, acks nothing
 # @description      hub-tail serves only what the holder's desk box holds
 # @description      (measured 2026-10-28, csitea topic 26a21b5a: the box held
 # @description      the owner's answers, not the poll another box posted). So
 # @description      a poll posted from another box's desk fails the poll check
 # @description      (no ack: closed, never a wrong post), and a reply another
-# @description      box posted is not seen by the already-answered check.
+# @description      box posted is not seen by the already-answered check
+# @description      (the sole-seat and author checks above close the case of
+# @description      2026-10-30, a dedicated seat's poll on another box).
 # @description   3. posts `**In progress**: noted (answer <keys>, <HH:MM:SSZ>).`
 # @description      into the topic through do_spl_desk_reply as the holder
 # @description      (how-to-post.md rule 15: noted, never "acting on A"; the
@@ -51,6 +60,7 @@
 # @param POLL_ACK_FROM (optional) - the wake note's sender, default lease.conf LEASE_ORCH, else role seat 1
 # @param POLL_ACK_SEND (optional) - the sender script, default spawn-agents/scripts/spool-send.sh (tests)
 # @param DESK_BOX (optional) - the desk box, default lease.conf LEASE_DESK_BOX, else this machine's desk box
+# @param SPOOL_CHANNEL_RULES_MAP (optional) - default <SPOOL_ROOT>/channel-rules.tsv, the box map whose column 6 is a channel's sole seat
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ./run -a do_spl_desk_poll_ack
 # @example DRY_RUN=0 ./run -a do_spl_desk_poll_ack
@@ -152,16 +162,18 @@ for r in sorted(set(rows)):
 EOF_PY
 }
 
-# _spl_poll_ack_topic <poll id> <answer ts>, the topic's hub-tail NDJSON on
-# stdin: "ok" when an agent posted that poll in the topic and no agent posted
-# after the answer; "nopoll" or "answered" otherwise. A person is HUM-, RSP-
-# or GST-; every other sender is an agent.
+# _spl_poll_ack_topic <poll id> <answer ts> <authors>, the topic's hub-tail
+# NDJSON on stdin: "ok" when one of <authors> (space separated bare ids)
+# posted that poll in the topic and no agent posted after the answer;
+# "answered", "other <id>" (another agent's poll) or "nopoll" otherwise. A
+# person is HUM-, RSP- or GST-; every other sender is an agent.
 _spl_poll_ack_topic() {
   python3 -c '
 import json, sys
-poll, ts = sys.argv[1], sys.argv[2]
+poll, ts, authors = sys.argv[1], sys.argv[2], sys.argv[3].split()
 people = ("HUM-", "RSP-", "GST-")
 found = answered = False
+other = ""
 for line in sys.stdin:
     try:
         m = json.loads(line)
@@ -170,10 +182,73 @@ for line in sys.stdin:
     if not isinstance(m, dict) or str(m.get("from", "")).startswith(people):
         continue
     if m.get("msg_id") == poll and "```poll" in str(m.get("body", "")):
-        found = True
+        frm = str(m.get("from", "")).split("@")[0]
+        if frm in authors:
+            found = True
+        else:
+            other = frm
     if str(m.get("ts", "")) > ts:
         answered = True
-print("answered" if answered else "ok" if found else "nopoll")' "$1" "$2"
+print("answered" if answered else "ok" if found else "other " + other if other else "nopoll")' "$1" "$2" "$3"
+}
+
+# _spl_poll_ack_authors <agent>: the ids whose poll the holder acknowledges,
+# space separated: the holder, and when it is a role seat every vendor letter
+# of that seat (a vendor switch keeps the seat, spl_role_seat_ids).
+_spl_poll_ack_authors() {
+  local ids
+  ids="$(spl_role_seat_ids "$1" 2>/dev/null | tr '\n' ' ')"
+  printf '%s %s' "$1" "$ids"
+}
+
+# _spl_poll_ack_sole <tenant> <agent> <channel known 0|1>, the topic's
+# hub-tail --with-channel NDJSON on stdin: prints why the holder must not
+# post in the topic and returns 0; 1 = no sole seat stands in the way. Every
+# channel the topic touches is checked (cr_sole_seat, the box map column 6).
+# Fail closed: a map that cannot be read, or a map while the channel is not
+# known (a spool binary without --with-channel).
+_spl_poll_ack_sole() {
+  local tenant="$1" agent="$2" known="$3" ch seat rc
+  declare -F cr_sole_seat >/dev/null ||
+    source "$PROJ_PATH/src/bash/features/spawn-agents/lib/channel-rules.inc.sh" ||
+    { echo "the channel rules lib cannot be read"; return 0; }
+  [[ -e "$(cr_map)" ]] || return 1
+  [[ "$known" == 1 ]] || { echo "the spool binary cannot say the topic's channel while $(cr_map) exists"; return 0; }
+  while IFS= read -r ch; do
+    [[ -n "$ch" ]] || continue
+    rc=0; seat="$(cr_sole_seat "$tenant" "$ch" 2>/dev/null)" || rc=$?
+    (( rc == 2 )) && { echo "cannot tell the sole seat of #$ch"; return 0; }
+    (( rc == 0 )) && ! spl_desk_lease_is "$agent" "$seat" "$LEASE_DIR" && { echo "#$ch is a sole-seat channel: only $seat posts there"; return 0; }
+  done < <(python3 -c '
+import json, sys
+seen = set()
+for line in sys.stdin:
+    try:
+        m = json.loads(line)
+    except ValueError:
+        continue
+    c = m.get("channel") if isinstance(m, dict) else None
+    if isinstance(c, str) and c.lstrip("#").lower() and c.lstrip("#").lower() not in seen:
+        seen.add(c.lstrip("#").lower())
+        print(c.lstrip("#").lower())')
+  return 1
+}
+
+# _spl_poll_ack_tail <dir> <box> <tenant> <task>: the topic's NDJSON with each
+# line's channel (hub-tail --with-channel); a spool binary that lacks the flag
+# is asked with plain --json. Sets the caller's tail and known (1 = channels
+# on the lines). 1 when the topic cannot be read.
+_spl_poll_ack_tail() {
+  local out rc=0
+  out="$(spl_desk_spool "$1" "$2" "$3" "$SPL_HUB_URL" -- hub-tail --task "$4" --with-channel 2>&1)" || rc=$?
+  if (( rc != 0 )) && grep -q 'flag provided but not defined: -with-channel' <<<"$out"; then
+    rc=0; known=0
+    out="$(spl_desk_spool "$1" "$2" "$3" "$SPL_HUB_URL" -- hub-tail --task "$4" --json 2>/dev/null)" || rc=$?
+  else
+    known=1
+  fi
+  (( rc == 0 )) && [[ -n "$out" ]] || return 1
+  tail="$out"
 }
 
 # _spl_poll_ack_one <tenant> <box> <agent> <msg> <task> <from> <ts> <poll>
@@ -181,18 +256,22 @@ print("answered" if answered else "ok" if found else "nopoll")' "$1" "$2"
 # 0 when the answer was acknowledged (or, dry, would be); 1 otherwise.
 _spl_poll_ack_one() {
   local tenant="$1" box="$2" agent="$3" msg="$4" task="$5" from="$6" ts="$7" poll="$8" keys="$9" log="${10}" dry="${11}"
-  local d="$SPL_STATE_DIR/desk/$tenant/$box" tail verdict body rc=0 wrc=0 outcome=sent
+  local d="$SPL_STATE_DIR/desk/$tenant/$box" tail="" known=0 verdict why body rc=0 wrc=0 outcome=sent
   # the desk's spool binary, found (or built) once, at the first answer
   [[ -n "${SPL_SPOOL:-}" ]] || spl_host_spool || return 1
-  if ! tail="$(spl_desk_spool "$d" "$box" "$tenant" "$SPL_HUB_URL" -- hub-tail --task "$task" --json 2>/dev/null)" || [[ -z "$tail" ]]; then
+  if ! _spl_poll_ack_tail "$d" "$box" "$tenant" "$task"; then
     do_log "INFO msg $msg: topic $task cannot be read from $box (closed or unknown): not acknowledged"; return 1
   fi
-  verdict="$(_spl_poll_ack_topic "$poll" "$ts" <<<"$tail")"
+  verdict="$(_spl_poll_ack_topic "$poll" "$ts" "$(_spl_poll_ack_authors "$agent")" <<<"$tail")"
   case "$verdict" in
     ok) ;;
     answered) do_log "INFO msg $msg: an agent already posted in topic $task after the answer"; return 1 ;;
+    other*) do_log "INFO msg $msg: poll $poll in topic $task was posted by ${verdict#other }, not by $agent: its poster answers it, not acknowledged"; return 1 ;;
     *) do_log "INFO msg $msg: topic $task holds no poll $poll from an agent: not acknowledged"; return 1 ;;
   esac
+  if why="$(_spl_poll_ack_sole "$tenant" "$agent" "$known" <<<"$tail")"; then
+    do_log "INFO msg $msg: topic $task: $why: not acknowledged"; return 1
+  fi
   body="**In progress**: noted (answer ${keys//\//, }, {{NOW_UTC}})."
   if [[ "$dry" == 1 ]]; then
     echo "PLAN $tenant topic $task: $agent answers $from's vote $msg (poll $poll, answer $keys) with '$body', then wakes $agent"

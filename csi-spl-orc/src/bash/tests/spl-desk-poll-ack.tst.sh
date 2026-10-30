@@ -22,6 +22,13 @@
 #    10. a multi-question answer; two votes in one topic -> one reply
 #    11. a test workspace (e2e) is never read
 #    12. the install cron: dry run, one exact line, idempotent, check, remove
+#    13. RED CONTROL (SPL-4305) a poll another agent posted -> 0 replies; a
+#        poll by the holder's role seat under another vendor letter -> 1
+#    14. RED CONTROL (SPL-4305) a sole-seat channel (channel-rules.tsv
+#        column 6) whose seat is not the holder -> 0 replies, the holder's
+#        own poll included; an ordinary channel with the map -> 1; the
+#        holder as the sole seat -> 1; fail closed: a malformed column 6, or
+#        a spool binary without --with-channel while the map exists -> 0
 #   POLL_ACK_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -62,6 +69,11 @@ tail_line() {
   python3 -c 'import json,sys; print(json.dumps({"from":sys.argv[1],"msg_id":sys.argv[2],"ts":sys.argv[3],"body":sys.argv[4]}))' \
     "$2" "$3" "$4" "$5" >>"$T/s/tails/$1.ndjson"
 }
+# tail_ch <task> <channel> <from> <msg id> <ts> <body>: a hub-tail --with-channel line
+tail_ch() {
+  python3 -c 'import json,sys; print(json.dumps({"channel":sys.argv[1],"from":sys.argv[2],"msg_id":sys.argv[3],"ts":sys.argv[4],"body":sys.argv[5]}))' \
+    "$2" "$3" "$4" "$5" "$6" >>"$T/s/tails/$1.ndjson"
+}
 POLLBODY=$'Pick one\n```poll\n? Which\n- A: one\n- B: two\n```'
 # run [VAR=value]...: the action in a fresh bash; stdout+stderr in $T/out, rc returned
 run() {
@@ -75,7 +87,10 @@ run() {
     for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
     source "$0" || { echo "FATAL cannot source $0"; exit 97; }
     do_spl_desk_cnf() { SPL_HUB_URL=https://hub.invalid; }
-    spl_desk_spool() { local a; for a in "$@"; do [[ "${p:-}" == --task ]] && t="$a"; p="$a"; done; cat "$TAILS/$t.ndjson" 2>/dev/null; }
+    spl_desk_spool() {
+      local a; for a in "$@"; do [[ "${p:-}" == --task ]] && t="$a"; p="$a"
+        [[ "$a" == --with-channel && "${OLD_SPOOL:-}" == 1 ]] && { echo "flag provided but not defined: -with-channel" >&2; return 2; }
+      done; cat "$TAILS/$t.ndjson" 2>/dev/null; }
     do_spl_desk_reply() { echo "REPLY $TENANT_ID $DESK_AGENT $DESK_TASK $DESK_TO $DESK_KIND $DESK_BODY" >>"$REPLY_LOG"; return "${REPLY_RC:-0}"; }
     do_spl_desk_poll_ack' "$FUNC" >"$T/out" 2>&1
 }
@@ -219,6 +234,52 @@ rm -rf "$T/s/state/desk/t1"
 run; rc=$?
 (( rc == 0 )) && [[ $(count "$T/s/replies.log") == 0 ]] && grep -q '0 workspace(s) read' "$T/out" &&
   pass "11. the e2e test workspace is never read" || fail "11. rc=$rc out=$(tail -2 "$T/out")"
+
+# --- 13. whose poll it is (SPL-4305) ----------------------------------------------------------------
+reset c-002@boxa
+tail_line "$TOPIC" c-423 "$POLL" 2026-10-28T11:50:00Z "$POLLBODY"
+vote t1 20261028T115900Z 2026-10-28T11:59:00Z HUM-10 "$TOPIC" $'Poll: '"$POLL"$'\nAnswer: A' 13130000-0000-4000-8000-000000000001
+run; rc=$?
+if (( rc == 0 )) && [[ $(count "$T/s/replies.log") == 0 && $(count "$T/s/wakes.log") == 0 && ! -s "$LOG" ]] && grep -q "posted by c-423, not by c-002" "$T/out"; then
+  pass "13. RED CONTROL: a poll another agent (c-423) posted gets no ack from the holder"
+else fail "13. rc=$rc replies=$(cat "$T/s/replies.log") out=$(tail -3 "$T/out")"; fi
+reset c-002@boxa
+tail_line "$TOPIC" g-002 "$POLL" 2026-10-28T11:50:00Z "$POLLBODY"
+vote t1 20261028T115900Z 2026-10-28T11:59:00Z HUM-10 "$TOPIC" $'Poll: '"$POLL"$'\nAnswer: A' 13130000-0000-4000-8000-000000000002
+run; rc=$?
+(( rc == 0 )) && [[ $(count "$T/s/replies.log") == 1 ]] &&
+  pass "13. a poll by the holder's role seat under another vendor letter (g-002 for c-002) is acknowledged" ||
+  fail "13. role seat rc=$rc out=$(tail -3 "$T/out")"
+
+# --- 14. a sole-seat channel (SPL-4305) ---------------------------------------------------------------
+MAP="$T/s/spool/channel-rules.tsv"
+DOC=cccccccc-dddd-4eee-8fff-000000000000
+# ack14 <case> <want replies> <poller> <channel> <map column 6> [VAR=value]...
+ack14() {
+  local c="$1" want="$2" poller="$3" ch="$4" sole="$5"; shift 5
+  reset c-002@boxa
+  printf 't1\tsole\t%s\tprd\tc-423\t%s\nt1\tgeneral\t%s\tprd\tc-423\n' "$DOC" "$sole" "$DOC" >"$MAP"
+  tail_ch "$TOPIC" "$ch" "$poller" "$POLL" 2026-10-28T11:50:00Z "$POLLBODY"
+  tail_ch "$TOPIC" "$ch" HUM-10 m0 2026-10-28T11:55:00Z "a question"
+  vote t1 20261028T115900Z 2026-10-28T11:59:00Z HUM-10 "$TOPIC" $'Poll: '"$POLL"$'\nAnswer: A' "14140000-0000-4000-8000-00000000000$c"
+  run "$@"; rc=$?
+  if (( rc == 0 )) && [[ $(count "$T/s/replies.log") == "$want" ]]; then return 0; fi
+  echo "rc=$rc replies=$(cat "$T/s/replies.log") out=$(tail -3 "$T/out")"; return 1
+}
+ack14 1 0 c-002 sole c-423@boxb && grep -q '#sole is a sole-seat channel: only c-423@boxb posts there' "$T/out" &&
+  pass "14. RED CONTROL: the holder's own poll in a sole-seat channel of another seat gets no ack" || fail "14. sole holder poll"
+ack14 2 0 c-423 sole c-423@boxb && pass "14. RED CONTROL: the 2026-10-30 shape, the sole seat's poll in its channel: no ack" || fail "14. sole seat poll"
+ack14 3 1 c-002 general c-423@boxb && pass "14. an ordinary channel (no column 6) with the map present: the holder's poll is acknowledged" || fail "14. ordinary channel"
+ack14 4 1 c-002 sole c-002@boxa && pass "14. the holder as the channel's sole seat: acknowledged" || fail "14. holder is sole seat"
+ack14 5 0 c-002 sole c-423 && grep -q 'cannot tell the sole seat of #sole' "$T/out" &&
+  pass "14. fail closed: a column 6 that is not <id>@<box> acks nothing" || fail "14. malformed column 6"
+ack14 6 0 c-002 general c-423@boxb OLD_SPOOL=1 && grep -q "cannot say the topic's channel" "$T/out" &&
+  pass "14. fail closed: a spool binary without --with-channel while the map exists acks nothing" || fail "14. old binary with map"
+reset c-002@boxa; topic_ok "$TOPIC" "$POLL"
+vote t1 20261028T115900Z 2026-10-28T11:59:00Z HUM-10 "$TOPIC" $'Poll: '"$POLL"$'\nAnswer: A' 14140000-0000-4000-8000-000000000008
+run OLD_SPOOL=1; rc=$?
+(( rc == 0 )) && [[ $(count "$T/s/replies.log") == 1 ]] &&
+  pass "14. no map: an old spool binary (plain --json) still acknowledges" || fail "14. old binary no map rc=$rc out=$(tail -3 "$T/out")"
 
 # --- 12. the install cron -------------------------------------------------------------------------
 mkdir -p "$T/bin"

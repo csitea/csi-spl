@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.8 (2026-10-30). Status: **Draft** (plan only; nothing below is
+Version: v0.9 (2026-10-30). Status: **Draft** (plan only; nothing below is
 built). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -35,6 +35,13 @@ repo (SPL-1874, SPL-1910), so the spec writes the overlay placeholder. v0.7
 named the destination "the workspace created 2026-10-29"; the hub's
 `tenants` row for `ws-hidden-17` reads created 2026-10-29 13:54Z, so the date
 matches; the spec now writes the workspace the owner named.
+v0.9 folds the v0.7 review notes by c-971 and the v0.8 notes by c-064:
+the hours stop lines carry the row count and one line per reason (5.1a);
+C21 tests the Q5 hours stop; "kept members (W1, Q5)" in 5.1; the Q5 hours
+stop is marked the lead's choice, not an owner answer; the Q7 cell quotes
+each answer by its msg id; the dev rehearsal before the first prd run is
+its own build row, T13 in L8 (10, 10.1). The "18:03Z" c-971 flagged (N5)
+left the spec with v0.8's Q7 row, which cites the owner's msg ids instead.
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -168,10 +175,10 @@ both as "not about spool channels".
 | `hours_jobs` naming an M2 topic, with its `hours_plan` rows | moved together: the plan rows are inserted under `<DST>` with the job, before the job's `<SRC>` delete cascades to them (else members' planned slots are lost) | `WHERE tenant_id=<SRC> AND task_id=ANY(<tasks as text>)`; `hours_plan WHERE tenant_id=<SRC> AND job_id=ANY(<jobs>)` |
 | hours rows that name the set (M6c) | see 5.1a | `WHERE tenant_id=<SRC> AND target=ANY(<targets>)` per table |
 | `message_revisions`, `message_reactions`, `message_kind_changes`, `message_moderation`, `message_answers`, `deliveries`, `delivery_live_acks`, `fallback_deliveries` | moved with their post (F5: inserted under `<DST>` before the parent's delete cascades in `<SRC>`) | `WHERE tenant_id=<SRC> AND msg_id=ANY(<msgs>)` (`answers` / `answer_msg_id` for `message_answers`) |
-| `channel_humans`, `channel_invites`, `channel_subscriptions` | moved for members the owner keeps (Q5); deleted for the rest | `WHERE tenant_id=<SRC> AND channel_id=<CHANNEL>` |
+| `channel_humans`, `channel_invites`, `channel_subscriptions` | moved for kept members (W1, Q5); deleted for the rest | `WHERE tenant_id=<SRC> AND channel_id=<CHANNEL>` |
 | `dedicated_agents` (channel scope) | moved | `WHERE tenant_id=<SRC> AND scope_type='channel' AND scope_id=<CHANNEL>` |
 | `tenant_memberships.channel_order` | the id is removed from every `<SRC>` array | `WHERE tenant_id=<SRC> AND <CHANNEL> = ANY(channel_order)` |
-| `read_marks` | moved for kept members; deleted for the rest | `WHERE tenant_id=<SRC> AND (msg_id=ANY(<msgs>) OR mark_key LIKE ANY(<channel and task keys>))` |
+| `read_marks` | moved for kept members (W1, Q5); deleted for the rest | `WHERE tenant_id=<SRC> AND (msg_id=ANY(<msgs>) OR mark_key LIKE ANY(<channel and task keys>))` |
 | `topic_heads`, `topic_head_parts`, `topic_priorities`, `flow_watches`, `flow_events` | moved | `WHERE tenant_id=<SRC> AND task_id=ANY(<tasks>)` (`topic_head_parts` also `channel=<CHANNEL>`); and, for heads of topics that stay (a DM thread about a moved topic), `last_msg_id` / `dm_last_msg_id` `=ANY(<msgs>)` -> 0, recomputed from the remaining rows |
 | `calendar_events` with an M2 `topic_id`, with their `calendar_guests` | moved together (guests are the event's children, FK `ON DELETE CASCADE`); a guest who is not a `<DST>` member follows Q5 | `WHERE tenant_id=<SRC> AND topic_id=ANY(<tasks as text>)`; `calendar_guests WHERE tenant_id=<SRC> AND event_id=ANY(<events>)` |
 | `gcal_event_map` of a moved event | not carried; see 5.1a | `WHERE tenant_id=<SRC> AND event_id=ANY(<events>)` |
@@ -202,11 +209,17 @@ both as "not about spool channels".
     approved sheet. Q8 = A: the owner reopens the sheet (the rows then
     move) or tells us to leave the rows.
 
-  `plan` names the reason for each stop, per member and row count:
-  `hours: <member> not coming to <DST> (Q5)` or `hours: <member> inside a
-  frozen or approved sheet (Q8)`. The first is one more stop than the
-  owner's Q5 answer names (his words: they lose access, the move lists
-  them), so the output says why it stops rather than only that it stops.
+  `plan` prints one line per member and reason, with the row count:
+  `hours: <member> <n> rows not coming to <DST> (Q5)` and
+  `hours: <member> <n> rows inside a frozen or approved sheet (Q8)`. A
+  member who hits both cases gets both lines, and each is cleared on its
+  own: adding the member to `<DST>` clears the Q5 line, not the Q8 one.
+  The Q5 stop is the lead's choice, not an owner answer: his Q5 words are
+  "they lose access; the move lists them and you add whom you want", and
+  leaving the rows in `<SRC>` would also fit them. The spec stops because
+  a person's time record is never moved or left without a word (N2); the
+  owner overrides it by saying "leave the rows", and the output says why
+  it stops rather than only that it stops.
 
   Rows left by the owner's word stay in `<SRC>` naming the channel; they
   are a kept item (5.6), and the scan (5.2) reports them as known, not as a
@@ -426,6 +439,7 @@ now is.
 | C18 | Google Calendar: a moved event mapped in a `<SRC>` member's connection; after the move and one sync cycle of that connection, `<SRC>` has no event with that `source_key` and no map row, and the Google event is gone | skip the pre-P4 Google delete -> the In half imports it back into `<SRC>` |
 | C19 | Hours: a job with plan rows and entries `job:<job>`, `t:<task>`, `ch:<CHANNEL>` moves whole; an entry inside an `approved` `<SRC>` period makes `plan` refuse, naming it (Q8 default) | drop the period check -> the approved period's stored total no longer matches its rows |
 | C20 | Rows whose parent does not move: a channel invite for a kept email moves with its new `<DST>` workspace invite; a channel with an `embed_visitors` row makes `plan` refuse | insert the invite without its `<DST>` parent -> the FK refuses and P4 rolls back |
+| C21 | Hours, Q5 stop: a channel member who is not a `<DST>` member and not added by the owner, with entries `t:<task>` and `ch:<CHANNEL>`, makes `plan` refuse with `hours: <member> 2 rows not coming to <DST> (Q5)`; the same member also inside an `approved` period prints the Q8 line too; adding the member clears only the Q5 line | drop the member check -> the move goes on and the member's rows are moved into a workspace they cannot read |
 
 All cases run on PostgreSQL (`PRE_PUSH_TIER=full`), with two test workspaces
 on the hub's test database; none touches dev or prd.
@@ -440,7 +454,7 @@ Each row is one small task; files named are where it lands.
 | T2 | Migration: the `<DST>` journal table and the hub-wide redirect table (Q2), with RLS and the tenant isolation test | `csi-spl-rdb/src/sql/postgres/spool-hub/<head+1>_channel_move_journal.sql`, an entry in `api/store/rls_test.go` |
 | T3 | Migration: `messages.copied_from` (nullable, catalog-only) for copies | `csi-spl-rdb/src/sql/postgres/spool-hub/<head+2>_messages_copied_from.sql` |
 | T4 | Store: `PlanChannelMove` (read-only set, shared items, mentions) and its tests C1, C7 | `api/store/channel_move_plan.go` (+ `_postgres`, `_memory`, `_test`) |
-| T5 | Store: `ApplyChannelMove` P4 frame: one transaction, insert-then-delete in catalogue order, counters and stamps, the messages family, hours, calendar and invites (5.1a, 5.1b) with the pre-P4 Google delete; tests C3a, C4, C5, C9, C18, C19, C20 | `api/store/channel_move_apply_postgres.go`, `_test.go` |
+| T5 | Store: `ApplyChannelMove` P4 frame: one transaction, insert-then-delete in catalogue order, counters and stamps, the messages family, hours, calendar and invites (5.1a, 5.1b) with the pre-P4 Google delete; tests C3a, C4, C5, C9, C18, C19, C20, C21 | `api/store/channel_move_apply_postgres.go`, `_test.go` |
 | T5b | Store: the issues part of P4 (renumber, events, discussions, `spec_sync_map`); test C3b | `api/store/channel_move_issues_postgres.go`, `_test.go` |
 | T5c | Store: the Qto part of P4 (doc, item, node, ACL, rev log, re-placed in `<DST>`'s tree); test C3c | `api/store/channel_move_docs_postgres.go`, `_test.go` |
 | T6 | Blob and Qto object copy/delete P3/P6, the shared-file rule; tests C6, C10 | `api/channelmove/objects.go`, `_test.go` |
@@ -450,10 +464,11 @@ Each row is one small task; files named are where it lands.
 | T10 | Box steps: the P2b probe DMs, the P5 rule-row rewrite (no action writes `channel-rules.tsv` today, so it lives here), lane key notes; no re-seat (the seat rows move in P4); tests C11, C12 | `orc/features/spawn-agents/scripts/channel-workspace-move-box.sh`, its test |
 | T11 | Copy mode: new UUIDs, link rewrite, `copied_from`; test C16 | `api/store/channel_copy_apply_postgres.go`, `_test.go` |
 | T12 | Docs: operator page (how to plan, run and read the kept list) | `csi-spl-doc/doc/md/channel-workspace-move.md` |
+| T13 | Dev rehearsal, the gate before the first prd run: on dev, `plan` then `DRY_RUN=0` of a seeded channel between two dev test workspaces with the owner's GO msg id (C15), P7 prints 0, the journal read back; the record of the run | `csi-spl-doc/specs/169-channel-workspace-move/dev-rehearsal.md` |
 
 Order: T1 first (it is the inventory in code); T2 before T5 (the journal);
 T4 before T5; T5 before T5b and T5c; T3 before T11; T6 and T8 before T7; T7
-before T9.
+before T9; T9, T10 and T7 before T13.
 
 ### 10.1 Lanes
 
@@ -469,7 +484,7 @@ owner's weekend deadline: lanes with no files in common.
 | L5 | T8 |
 | L6 | T5, T5b, T5c, T11 |
 | L7 | T7 |
-| L8 | T9, T10 |
+| L8 | T9, T10, T13 |
 | L9 | T12 |
 
 L8's stub is the plan-only path of T9 (`MOVE_CMD=plan`, journal resume
@@ -477,8 +492,9 @@ skeleton), so it can land before T7; its wiring to the T7 endpoint and T10
 come in wave 4.
 
 Waves: 1 = L1, L2, L3, L8 (stub), L9; 2 = L4, L5; 3 = L6; 4 = L7, then L8's
-wiring. Critical path for the first move: L2 > L4 > L6 > L7 > L8, with L1's
-DDL live on dev and prd first. Copy (T11) is not on the first move's path.
+wiring, then T13 (the dev rehearsal). Critical path for the first move:
+L2 > L4 > L6 > L7 > L8 (T13 last), with L1's DDL live on dev and prd first.
+Copy (T11) is not on the first move's path.
 
 ## 11. Owner questions
 
@@ -494,9 +510,9 @@ Read from the owner's own answers in prd t1 topic
 | Q2 | A, 30 days of redirect, re-route and old issue key map, then 404 | `333aea7b` (poll `502a793f`) | W3-W5, C8 with the redirect on; T2's redirect table expires rows after 30 days |
 | Q3 | A, keep until they expire | `d2c97186` | 5.6 as written; P7 prints the last expiry date |
 | Q4 | A, leave them and list them | `d2c97186` | 5.4: `plan` lists, nothing edited |
-| Q5 | A, they lose access; the move lists them and the owner adds whom he wants | `0c58c916` (poll `dfa0234a`) | W1, 5.1 (`channel_humans`, `channel_invites`, `channel_subscriptions`, `read_marks`), 5.1a hours, 5.1b invites, calendar guests: of the channel's people who are not `<DST>` members, only those the owner adds to `<DST>` come along; existing `<DST>` members keep their access (W1); the move adds no one by itself |
+| Q5 | A, they lose access; the move lists them and the owner adds whom he wants | `0c58c916` (poll `dfa0234a`) | W1, 5.1 (`channel_humans`, `channel_invites`, `channel_subscriptions`, `read_marks`), 5.1a hours, 5.1b invites, calendar guests: of the channel's people who are not `<DST>` members, only those the owner adds to `<DST>` come along; existing `<DST>` members keep their access (W1); the move adds no one by itself; C21 |
 | Q6 | A, stop and list | `d2c97186` | 5.5, C7: `plan` refuses on a shared item |
-| Q7 | J: the csitea channel named like `ws-hidden-17` moves first, then "Move it to the ... workspace" naming `ws-hidden-17` | `f6f94c97` and `e4cc2662` (poll `c5dc7cea`) | the first move: `<SRC>` = csitea, `<CHANNEL>` = the csitea channel named like `ws-hidden-17`, `<DST>` = `ws-hidden-17` (the slug stays in the overlay); the first prd run waits only for the build (10.1 critical path) and a dev rehearsal, no longer for a name |
+| Q7 | J (`f6f94c97`): the csitea channel named like `ws-hidden-17`; destination (`e4cc2662`): `ws-hidden-17` | `f6f94c97` and `e4cc2662` (poll `c5dc7cea`) | the first move: `<SRC>` = csitea, `<CHANNEL>` = the csitea channel named like `ws-hidden-17`, `<DST>` = `ws-hidden-17` (the slug stays in the overlay); the first prd run waits only for the build (10.1 critical path, T13 the dev rehearsal last), no longer for a name |
 | Q8 | A, stop and list | `85eb389c` (poll `53f98bf8`) | 5.1a, C19 |
 
 ### 11.2 The polls as asked

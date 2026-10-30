@@ -2150,7 +2150,7 @@
     "tabs_label": "Agento kortelė",
     "tab_lanes": "Linijos",
     "tab_details": "Išsami informacija",
-    "lanes_none": "Šis agentas nedirba jokioje aktyvioje juostoje."
+    "lanes_none": "Šis agentas nedirba jokioje aktyvioje linijoje."
   },
   "boxes": {
     "none": "Kol kas nėra boxų.",

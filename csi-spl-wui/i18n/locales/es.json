@@ -2150,7 +2150,7 @@
     "tabs_label": "Ficha del agente",
     "tab_lanes": "Líneas",
     "tab_details": "Detalles",
-    "lanes_none": "Este agente no trabaja en ningún carril activo."
+    "lanes_none": "Este agente no trabaja en ninguna línea activa."
   },
   "boxes": {
     "none": "Aún no hay equipos.",

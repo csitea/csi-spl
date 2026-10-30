@@ -2150,7 +2150,7 @@
     "tabs_label": "Aģenta kartīte",
     "tab_lanes": "Līnijas",
     "tab_details": "Detaļas",
-    "lanes_none": "Šis aģents nestrādā nevienā aktīvā joslā."
+    "lanes_none": "Šis aģents nestrādā nevienā aktīvā līnijā."
   },
   "boxes": {
     "none": "Vēl nav neviena box.",

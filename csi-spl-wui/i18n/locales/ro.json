@@ -2150,7 +2150,7 @@
     "tabs_label": "Fișa agentului",
     "tab_lanes": "Linii",
     "tab_details": "Detalii",
-    "lanes_none": "Acest agent nu lucrează pe nicio bandă activă."
+    "lanes_none": "Acest agent nu lucrează pe nicio linie activă."
   },
   "boxes": {
     "none": "Încă niciun box.",

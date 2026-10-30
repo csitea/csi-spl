@@ -2150,7 +2150,7 @@
     "tabs_label": "Ajan kartı",
     "tab_lanes": "Hatlar",
     "tab_details": "Ayrıntılar",
-    "lanes_none": "Bu ajan etkin bir şeritte çalışmıyor."
+    "lanes_none": "Bu ajan hiçbir etkin hatta çalışmıyor."
   },
   "boxes": {
     "none": "Henüz box yok.",

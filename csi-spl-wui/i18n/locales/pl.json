@@ -2150,7 +2150,7 @@
     "tabs_label": "Karta agenta",
     "tab_lanes": "Linie",
     "tab_details": "Szczegóły",
-    "lanes_none": "Ten agent nie pracuje na żadnym aktywnym torze."
+    "lanes_none": "Ten agent nie pracuje w żadnej aktywnej linii."
   },
   "boxes": {
     "none": "Brak boxów.",

@@ -86,38 +86,48 @@ place"* (and later prd). Do not send the secret anywhere.
 
 ## 4. What the agent does next (for your information)
 
-4.1 Commits the env's Client ID (public) to `csi-spl-cnf/csi-spl/<env>.env.yaml` as
+### 4.1 Commit the Client ID
+
+Commits the env's Client ID (public) to `csi-spl-cnf/csi-spl/<env>.env.yaml` as
 `SPOOL_HUB_AUTH_LINKEDIN_CLIENT_ID`.
 
-4.2 Dry run, then the real seed, as the env's project service account (never your account):
+### 4.2 Seed the secret
 
-### 4.2.1 Dry run
+Dry run, then the real seed, as the env's project service account (never your account):
+
+#### 4.2.1 Dry run
 
 ```bash
 IDP=linkedin ENV=dev ./run -a do_spl_auth_idp_secret_seed
 ```
 
-### 4.2.2 The real seed
+#### 4.2.2 The real seed
 
 ```bash
 IDP=linkedin ENV=dev DRY_RUN=0 ./run -a do_spl_auth_idp_secret_seed
 ```
 
-4.3 Adds `linkedin` to `SPOOL_HUB_AUTH_PROVIDERS` for the env, pushes; the CI deploy rolls the hub.
+### 4.3 Turn the provider on
 
-4.4 Verifies:
+Adds `linkedin` to `SPOOL_HUB_AUTH_PROVIDERS` for the env, pushes; the CI deploy rolls the hub.
 
-### 4.4.1 The provider list
+### 4.4 Verify
+
+It checks two endpoints:
+
+#### 4.4.1 The provider list
 
 ```bash
 curl -s https://dev.api.spool-hub.ai/api/v1/auth/providers
 ```
 
-### 4.4.2 The start redirect
+#### 4.4.2 The start redirect
 
 ```bash
 curl -s -i https://dev.api.spool-hub.ai/api/v1/auth/linkedin/start | grep -i '^location'
 ```
+
+### 4.5 Your sign-in
 
 Then asks you to sign in once with LinkedIn on the dev WUI. prd follows the same steps.
 

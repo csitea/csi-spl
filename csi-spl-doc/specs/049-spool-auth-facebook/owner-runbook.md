@@ -65,7 +65,7 @@ asks your password).
 ## 5. Hand over the values
 
 - **App ID**: public. Reply with it in the topic, or write it into the file below.
-- **App Secret**: never in spool, chat, mail or git (the repo is public). Either:
+- **App Secret**: never in spool, chat, mail or git (the repo is public). Hand it over in one of the two ways below, 5.1 or 5.2.
 
 ### 5.1 (a) A file for the agent
 

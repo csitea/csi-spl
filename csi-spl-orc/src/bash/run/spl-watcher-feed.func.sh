@@ -12,7 +12,8 @@
 # @description filter a security boundary, so it FAILS CLOSED: a lane is kept
 # @description only when its brief $SPOOL_ROOT/<ID>/lifetime/brief.md has a
 # @description "Kind:" on the allow-list WATCHER_FEED_KINDS (the non-secret
-# @description kinds of spec 115 and their aliases) and no data-rule marker
+# @description kinds of spec 115 and their aliases), no other Kind: line that
+# @description is secret-class or a different kind, and no data-rule marker
 # @description ("Data: secret", "Data rule:", spl_spawn_place_data_rule).
 # @description Dropped: secret and orchestration (the secret-class kinds,
 # @description agent_split.py SECRET_KINDS), any other or unreadable kind, no
@@ -22,7 +23,8 @@
 # @description inbox message is kept only when its sender is a kept lane; an
 # @description outbox message only when it is from that lane and addressed to
 # @description a kept lane, a role seat or the orchestrator alias (its own
-# @description output; never one to a dropped lane). The keep/drop lines go to
+# @description output; never one to a dropped lane). An address with an
+# @description "@<box>" other than WATCHER_FEED_BOX is never this box's lane. The keep/drop lines go to
 # @description stdout (the producer's log), never into the feed. DRY_RUN=1
 # @description (default) prints them and writes nothing. No timer installs it.
 # @param SPOOL_ROOT (required) - the spool root to read
@@ -31,6 +33,7 @@
 # @param WATCHER_FEED_REGISTRY (optional) - default $SPOOL_ROOT/registry.tsv
 # @param WATCHER_FEED_LEASE (optional) - default $SPOOL_ROOT/dispatch/lease.orch ("<ID>@<box> <epoch>")
 # @param WATCHER_FEED_MSGS (optional) - newest messages per lane and box dir, default 50
+# @param WATCHER_FEED_BOX (optional) - this box's name, default $SPOOL_DESK_BOX; a message from or to "<ID>@<other box>" is dropped (unset: every "@<box>" one is)
 # @param WATCHER_FEED_CAPTURE (optional, tests) - a command run as "<cmd> <pane>" that prints the pane text; default tmux capture-pane -p
 # @example DRY_RUN=1 SPOOL_ROOT=/var/spool-hub ./run -a do_spl_watcher_feed
 # @example DRY_RUN=0 SPOOL_ROOT=/var/spool-hub WATCHER_FEED_DIR=/var/tmp/feed ./run -a do_spl_watcher_feed
@@ -75,7 +78,7 @@ do_spl_watcher_feed() {
 # spl_watcher_feed_drop_why <ID> <ORCH-ID> -> why the lane stays out of the
 # feed, else nothing (kept). Fails closed: anything not proven non-secret is out.
 spl_watcher_feed_drop_why() {
-  local id="$1" orch="$2" brief kind k mark
+  local id="$1" orch="$2" brief kind k mark why
   spl_is_agent_id "$id" 2>/dev/null || { echo "not an agent id of this box"; return 0; }
   spl_is_role_seat "$id" && { echo "role seat"; return 0; }
   [[ -n "$orch" && "$id" == "$orch" ]] && { echo "orch lease holder"; return 0; }
@@ -83,12 +86,37 @@ spl_watcher_feed_drop_why() {
   [[ -r "$brief" ]] || { echo "no readable brief"; return 0; }
   kind="$(spl_lane_mix_brief_kind "$brief")"
   [[ -n "$kind" ]] || { echo "no readable Kind:"; return 0; }
-  case "$kind" in secret|orchestration) echo "secret-class kind $kind"; return 0 ;; esac
+  why="$(_spl_watcher_feed_kinds_why "$brief")"
+  [[ -z "$why" ]] || { echo "$why"; return 0; }
   for k in "${WATCHER_FEED_KINDS[@]}"; do [[ "$kind" == "$k" ]] && break; k=; done
   [[ -n "$k" ]] || { echo "kind $kind is not on the feed allow-list"; return 0; }
   mark="$(spl_spawn_place_data_rule "$brief" "$kind")"
   [[ -z "$mark" ]] || { echo "data-rule marker $mark"; return 0; }
   return 0
+}
+
+# <brief> -> why its Kind: lines keep it out, else nothing. Every Kind: line
+# counts, not only the first (spl_lane_mix_brief_kind, which the placer
+# reads): any secret-class one, or two different kinds, is not proven
+# non-secret.
+_spl_watcher_feed_kinds_why() {
+  local all
+  all="$(grep -oE 'Kind:[*_ ]*[A-Za-z0-9_]+' "$1" | sed -E 's/^Kind:[*_ ]*//' | tr '[:upper:]' '[:lower:]' | sort -u)"
+  if grep -qxE 'secret|orchestration' <<<"$all"; then
+    echo "secret-class kind $(grep -xE 'secret|orchestration' <<<"$all" | paste -sd, -)"
+  elif [[ "$(wc -l <<<"$all")" -gt 1 ]]; then
+    echo "several Kind: lines ($(paste -sd, - <<<"$all"))"
+  fi
+  return 0
+}
+
+# <address> -> its id when it is of this box (no "@<box>", or "@" the
+# WATCHER_FEED_BOX), else nothing and rc 1: ids are unique only as <ID>@<box>
+_spl_watcher_feed_local() {
+  local box="${WATCHER_FEED_BOX:-${SPOOL_DESK_BOX:-}}"
+  [[ "$1" != *@* ]] && { printf '%s' "$1"; return 0; }
+  [[ -n "$box" && "${1#*@}" == "$box" ]] || return 1
+  printf '%s' "${1%%@*}"
 }
 
 # The orch lease holder's id without its box, else nothing. Every role seat is
@@ -140,7 +168,8 @@ _spl_watcher_feed_msgs() {
     while IFS= read -r f; do
       from="$(jq -r '.from // ""' "$f" 2>/dev/null)" || continue
       to="$(jq -r '.to // ""' "$f" 2>/dev/null)" || continue
-      from="${from%%@*}" to="${to%%@*}"
+      from="$(_spl_watcher_feed_local "$from")" || continue
+      to="$(_spl_watcher_feed_local "$to")" || continue
       if [[ "$sub" == outbox ]]; then
         [[ "$from" == "$id" ]] || continue
         [[ -n "$to" && ( -n "${_wm_kinds[$to]+x}" || "$to" == orchestrator ) ]] || spl_is_role_seat "$to" || continue

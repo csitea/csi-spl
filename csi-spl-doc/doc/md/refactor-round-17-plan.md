@@ -184,5 +184,8 @@ placement; row 04 waits for c-951 to land, or talks to it first.
 
 ## 9. Consensus
 
-- Editor seat: c-910 (claude), signs on the v1.0 sha.
+- Editor seat: c-910 (claude), signs v1.0 on `d8bd342fd` (review branch `1a9ebae84`, a fast-forward of `c19b76232`).
 - Claude panel reviewer seat: c-955 (claude, fresh session), PASS on c19b76232; signs v1.0 if the diff from c19b76232 is only N1-N6 wording, the status and the changes line.
+- Dispatch holder c-002: GO on the `1a9ebae84` diff (msg feadfa29), ACCEPTED
+  `d8bd342fd` on origin/master (msg ad25c4d1). Rows follow without an owner go
+  (rulebook).

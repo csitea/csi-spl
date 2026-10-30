@@ -86,14 +86,8 @@ for bad in 24 -1 x; do
   [[ "$rc" -ne 0 && "$out" == *"night_start must be an hour 0..23"* ]] &&
     pass "5. cnf night_start $bad is refused" || fail "5. night_start $bad: rc=$rc '$out'"
 done
-VDIR="$APP_ROOT/csi-spl-cnf/src/python/conf-validator"
-PY="${CONF_VALIDATOR_PYTHON:-python3}"
-if "$PY" -c 'import pydantic, pydantic_yaml' >/dev/null 2>&1; then
-  (cd "$VDIR" && "$PY" -m unittest tests.test_rhythm >"$T/py.out" 2>&1) &&
-    pass "5. conf-validator tests/test_rhythm.py (night_start outside 0..23 refused)" || fail "5. test_rhythm.py: $(tail -5 "$T/py.out")"
-else
-  echo "SKIP: 5. conf-validator python not on hand (CONF_VALIDATOR_PYTHON); tests/test_rhythm.py runs in the cnf CI job"
-fi
+# The conf-validator side (night_start outside 0..23 refused) is tests/test_rhythm.py, run by
+# the cnf CI job; no python call here, so this orc test never prints a SKIP (wf 10 refuses one).
 
 # --- 6. a bad RHYTHM_NOW; a window inside one day -------------------------------------------
 out="$(phase -- not-a-date 2>&1)"; rc=$?

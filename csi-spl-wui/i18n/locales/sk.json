@@ -3534,7 +3534,9 @@
       "erase_hint": "Odstráni všetky vaše poznámky. Nedá sa to vrátiť späť.",
       "erase_confirm": "Na potvrdenie napíšte {word}",
       "erase_word": "vymazať",
-      "erased": "Všetky poznámky sú vymazané."
+      "erased": "Všetky poznámky sú vymazané.",
+      "export_failed": "Export zlyhal. Skúste to znova.",
+      "erase_failed": "Poznámky sa nevymazali. Skúste to znova."
     },
     "add_to_note": "Pridať do poznámky"
   },

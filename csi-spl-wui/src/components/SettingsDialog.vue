@@ -80,6 +80,7 @@ const SECTION_COMPONENTS: Record<string, Component> = {
   security: defineAsyncComponent(() => import('~/components/settings/security.vue')),
   keys: defineAsyncComponent(() => import('~/components/settings/keys.vue')),
   'calendar-google': defineAsyncComponent(() => import('~/components/settings/calendar-google.vue')),
+  notes: defineAsyncComponent(() => import('~/components/settings/notes.vue')),
 }
 
 const session = useSessionStore()

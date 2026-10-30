@@ -3534,7 +3534,9 @@
       "erase_hint": "Deletes every note you have. This cannot be undone.",
       "erase_confirm": "Type {word} to confirm",
       "erase_word": "erase",
-      "erased": "All notes erased."
+      "erased": "All notes erased.",
+      "export_failed": "The export failed. Try again.",
+      "erase_failed": "The notes were not erased. Try again."
     },
     "add_to_note": "Add to note"
   },

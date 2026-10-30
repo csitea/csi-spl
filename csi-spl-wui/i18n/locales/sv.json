@@ -3534,7 +3534,9 @@
       "erase_hint": "Tar bort alla dina anteckningar. Det går inte att ångra.",
       "erase_confirm": "Skriv {word} för att bekräfta",
       "erase_word": "radera",
-      "erased": "Alla anteckningar raderades."
+      "erased": "Alla anteckningar raderades.",
+      "export_failed": "Exporten misslyckades. Försök igen.",
+      "erase_failed": "Anteckningarna raderades inte. Försök igen."
     },
     "add_to_note": "Lägg till i anteckning"
   },

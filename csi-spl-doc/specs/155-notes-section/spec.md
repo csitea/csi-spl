@@ -444,6 +444,8 @@ its docs or a `Docs: none (<why>)` line.
 | B9 | `/note` in the omnibox, the palette's `notes` group | `wui/utils/search.mjs` (`omniboxMode`), `wui/components/TopBar.vue`, `wui/composables/usePaletteItems.ts`, `wui-tests/unit/search.test.mjs`, `wui-tests/unit/palette.test.mjs` | C28-C30 | B7 |
 | B10 | Settings -> Notes: export and erase | `wui/utils/settings-nav.mjs`, `wui/pages/settings/[[section]].vue`, `wui/components/SettingsNotes.vue`, `csi-spl-doc/doc/help/user-settings.md` + its synced copy `wui/public/help-md/user-settings.md` (names `/settings/notes`, v1.1 W4), a new e2e | C31 | B5 |
 
+**B10 Implemented** (SPL-4331, the `feat(wui, SPL-4331)` commit): the files moved with the code. A section is `wui/components/settings/<id>.vue` behind one lazy import in `wui/components/SettingsDialog.vue` (the B8 precedent of spec 149), so `SettingsNotes.vue` is `wui/components/settings/notes.vue`; `pages/settings/[[section]].vue` only keeps the old route and is unchanged. The calls are `wui/utils/notes-data.mjs` (on the mock bundle they go through the notes store's own load / get / remove, so `stores/notes.ts` is untouched). Two new keys, `notes.settings.export_failed` and `notes.settings.erase_failed`, in all 19 locales (drafts for the language review). Tests: `wui-tests/unit/settings-notes.test.mjs`, `wui-tests/e2e/settings-notes.test.mjs` (C31 with its wrong-word twin, 1440 and 390 px).
+
 Only B5 changes locale files: agy reviews them last (2.7). B5 to B10 are
 WUI rows: never placed on mistral (developer guide 4.1). B8 and B9 both
 come after B7 and touch no common file, so they may run side by side.

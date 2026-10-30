@@ -3534,7 +3534,9 @@
       "erase_hint": "Șterge toate notițele tale. Acțiunea nu poate fi anulată.",
       "erase_confirm": "Tastează {word} pentru a confirma",
       "erase_word": "șterge",
-      "erased": "Toate notițele au fost șterse."
+      "erased": "Toate notițele au fost șterse.",
+      "export_failed": "Exportul a eșuat. Încearcă din nou.",
+      "erase_failed": "Notițele nu au fost șterse. Încearcă din nou."
     },
     "add_to_note": "Adaugă la notiță"
   },

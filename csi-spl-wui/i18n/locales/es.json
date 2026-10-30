@@ -3534,7 +3534,9 @@
       "erase_hint": "Elimina todas tus notas. No se puede deshacer.",
       "erase_confirm": "Escribe {word} para confirmar",
       "erase_word": "borrar",
-      "erased": "Todas las notas se han borrado."
+      "erased": "Todas las notas se han borrado.",
+      "export_failed": "La exportación ha fallado. Inténtalo de nuevo.",
+      "erase_failed": "Las notas no se han borrado. Inténtalo de nuevo."
     },
     "add_to_note": "Añadir a una nota"
   },

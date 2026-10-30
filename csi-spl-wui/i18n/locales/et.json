@@ -3534,7 +3534,9 @@
       "erase_hint": "Kustutab kõik sinu märkmed. Seda ei saa tagasi võtta.",
       "erase_confirm": "Kinnitamiseks sisesta {word}",
       "erase_word": "kustuta",
-      "erased": "Kõik märkmed on kustutatud."
+      "erased": "Kõik märkmed on kustutatud.",
+      "export_failed": "Eksport ebaõnnestus. Proovi uuesti.",
+      "erase_failed": "Märkmeid ei kustutatud. Proovi uuesti."
     },
     "add_to_note": "Lisa märkmesse"
   },

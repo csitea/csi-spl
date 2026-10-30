@@ -365,6 +365,21 @@ calendar.
 
 ---
 
+## 11. Notes (`/settings/notes`)
+
+Your notes are your own: the same list shows in every workspace you belong
+to, so this section is the same in each of them.
+
+- **Export notes**: downloads every note, archived ones too, as one JSON
+  file named `notes-<date>.json`, with each note's checklist and links.
+- **Erase all notes**: deletes every note you have, at once. Type the word
+  shown (**erase** in English) in the box, then click **Erase all notes**;
+  with any other word the button stays off and nothing is deleted. This
+  cannot be undone, so export first if you want a copy. The Notes list is
+  empty afterwards.
+
+---
+
 ## Next Steps
 
 To learn how human developers orchestrate and command AI coding agents, continue

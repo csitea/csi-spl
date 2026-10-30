@@ -3534,7 +3534,9 @@
       "erase_hint": "Usuwa wszystkie Twoje notatki. Tego nie można cofnąć.",
       "erase_confirm": "Wpisz {word}, aby potwierdzić",
       "erase_word": "wymaż",
-      "erased": "Wszystkie notatki zostały wymazane."
+      "erased": "Wszystkie notatki zostały wymazane.",
+      "export_failed": "Eksport się nie powiódł. Spróbuj ponownie.",
+      "erase_failed": "Notatki nie zostały usunięte. Spróbuj ponownie."
     },
     "add_to_note": "Dodaj do notatki"
   },

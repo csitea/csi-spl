@@ -3534,7 +3534,9 @@
       "erase_hint": "Ištrina visus jūsų užrašus. Šio veiksmo atšaukti negalima.",
       "erase_confirm": "Patvirtinimui įveskite {word}",
       "erase_word": "ištrinti",
-      "erased": "Visi užrašai ištrinti."
+      "erased": "Visi užrašai ištrinti.",
+      "export_failed": "Eksportuoti nepavyko. Bandykite dar kartą.",
+      "erase_failed": "Užrašai nebuvo ištrinti. Bandykite dar kartą."
     },
     "add_to_note": "Pridėti prie užrašo"
   },

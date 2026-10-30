@@ -3534,7 +3534,9 @@
       "erase_hint": "Verwijdert al je notities. Dit kan niet ongedaan worden gemaakt.",
       "erase_confirm": "Typ {word} om te bevestigen",
       "erase_word": "wissen",
-      "erased": "Alle notities zijn gewist."
+      "erased": "Alle notities zijn gewist.",
+      "export_failed": "Het exporteren is mislukt. Probeer het opnieuw.",
+      "erase_failed": "De notities zijn niet gewist. Probeer het opnieuw."
     },
     "add_to_note": "Aan notitie toevoegen"
   },

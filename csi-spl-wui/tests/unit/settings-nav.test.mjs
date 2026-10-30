@@ -41,10 +41,11 @@ function mockStorage() {
 }
 
 describe('C25 the section list', () => {
-  it('has 8 ids, calendar-google last, with its catalogue label', () => {
-    assert.equal(SETTINGS_SECTIONS.length, 8)
-    assert.equal(SETTINGS_SECTIONS.at(-1).id, 'calendar-google')
-    assert.equal(SETTINGS_SECTIONS.at(-1).label, 'settings.calendar_google')
+  it('has calendar-google after keys, with its catalogue label (spec 155 B10 appends notes)', () => {
+    assert.equal(SETTINGS_SECTIONS.length, 9)
+    const at = SETTINGS_SECTIONS.findIndex((s) => s.id === 'calendar-google')
+    assert.equal(SETTINGS_SECTIONS[at - 1].id, 'keys')
+    assert.equal(SETTINGS_SECTIONS[at].label, 'settings.calendar_google')
     assert.equal(typeof en.settings.calendar_google, 'string')
   })
   it('reads the hyphened id from a query and an old address', () => {

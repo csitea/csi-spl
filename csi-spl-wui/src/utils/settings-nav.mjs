@@ -13,6 +13,8 @@ export const SETTINGS_SECTIONS = [
   { id: 'keys', label: 'settings.keys_title' },
   /* spec 149 B8 (SPL-3227): the member's own Google Calendar connection */
   { id: 'calendar-google', label: 'settings.calendar_google' },
+  /* spec 155 B10 (SPL-4331): export and erase the person's own notes */
+  { id: 'notes', label: 'notes.settings.title' },
 ]
 
 export const DEFAULT_SETTINGS_SECTION = 'profile'

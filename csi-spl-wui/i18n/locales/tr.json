@@ -3534,7 +3534,9 @@
       "erase_hint": "Tüm notlarınızı siler. Bu işlem geri alınamaz.",
       "erase_confirm": "Onaylamak için {word} yazın",
       "erase_word": "sil",
-      "erased": "Tüm notlar silindi."
+      "erased": "Tüm notlar silindi.",
+      "export_failed": "Dışa aktarma başarısız oldu. Tekrar deneyin.",
+      "erase_failed": "Notlar silinmedi. Tekrar deneyin."
     },
     "add_to_note": "Nota ekle"
   },

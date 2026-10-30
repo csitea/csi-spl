@@ -3534,7 +3534,9 @@
       "erase_hint": "Poistaa kaikki muistiinpanosi. Tätä ei voi kumota.",
       "erase_confirm": "Vahvista kirjoittamalla {word}",
       "erase_word": "poista",
-      "erased": "Kaikki muistiinpanot poistettu."
+      "erased": "Kaikki muistiinpanot poistettu.",
+      "export_failed": "Vienti epäonnistui. Yritä uudelleen.",
+      "erase_failed": "Muistiinpanoja ei poistettu. Yritä uudelleen."
     },
     "add_to_note": "Lisää muistiinpanoon"
   },

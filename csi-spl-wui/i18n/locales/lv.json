@@ -3534,7 +3534,9 @@
       "erase_hint": "Izdzēš visas jūsu piezīmes. To nevar atsaukt.",
       "erase_confirm": "Lai apstiprinātu, ierakstiet {word}",
       "erase_word": "dzēst",
-      "erased": "Visas piezīmes izdzēstas."
+      "erased": "Visas piezīmes izdzēstas.",
+      "export_failed": "Eksportēšana neizdevās. Mēģiniet vēlreiz.",
+      "erase_failed": "Piezīmes netika dzēstas. Mēģiniet vēlreiz."
     },
     "add_to_note": "Pievienot piezīmei"
   },

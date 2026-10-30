@@ -55,177 +55,277 @@ Every diagnostic and remediation command is a version-controlled named action. A
 
 ### 4.1 Hub down (Cloud Run / API unreachable)
 
-- **Probe hub HTTP endpoint and TLS certificate**:
-  ```bash
-  cd csi-spl-orc && ./run -a do_spl_probe_hub_host
-  ```
-  Action file: `csi-spl-orc/src/bash/run/spl-probe-hub-host.func.sh`
-- **Inspect Cloud Run instance health and error logs**:
-  ```bash
-  cd csi-spl-iac && ENV=prd ./run -a do_gcp_hub_instance_health
-  ```
-  Action file: `csi-spl-iac/src/bash/run/gcp-hub-instance-health.func.sh`
-- **Check hub deployment status and image tags**:
-  ```bash
-  cd csi-spl-orc && ENV=prd ./run -a do_check_hub_deploy
-  ```
-  Action file: `csi-spl-orc/src/bash/run/check-hub-deploy.func.sh`
-- **Restart Cloud Run hub service (force a fresh revision)**: a prd mutation. Only c-001 (the orchestrator) runs it; any other seat sends c-001 the exact command and waits. Preview first (`DRY_RUN=1` is the default and changes nothing):
-  ```bash
-  cd csi-spl-iac && ENV=prd DRY_RUN=1 ./run -a do_gcp_hub_restart
-  ```
-  Then c-001 alone:
-  ```bash
-  cd csi-spl-iac && ENV=prd DRY_RUN=0 ./run -a do_gcp_hub_restart
-  ```
-  Action file: `csi-spl-iac/src/bash/run/gcp-hub-restart.func.sh`. It refuses while the ready revision was restarted less than `HUB_RESTART_MIN_AGE_S` (600 s) ago, so a second seat acting on the same incident cannot restart prd twice.
-- **Rollback hub to previous release**: a prd mutation. Only c-001 (the orchestrator) runs it; any other seat sends c-001 the exact command and waits. Dev goes first: `ENV=prd` is refused (rc 4) until dev already serves the target commit, unless `ENV_ORDER_OVERRIDE=<owner msg id>` is set, which is for an emergency only. Preview, then roll dev, then preview and roll prd:
-  ```bash
-  cd csi-spl-orc && ENV=dev TO=previous DRY_RUN=1 ./run -a do_hub_rollback
-  ```
-  ```bash
-  cd csi-spl-orc && ENV=dev TO=previous DRY_RUN=0 ./run -a do_hub_rollback
-  ```
-  ```bash
-  cd csi-spl-orc && ENV=prd TO=previous DRY_RUN=1 ./run -a do_hub_rollback
-  ```
-  ```bash
-  cd csi-spl-orc && ENV=prd TO=previous DRY_RUN=0 ./run -a do_hub_rollback
-  ```
-  Action file: `csi-spl-orc/src/bash/run/hub-rollback.func.sh`
-- **Heal stuck Cloud Run deployment**:
-  ```bash
-  cd csi-spl-orc && ENV=prd ./run -a do_heal_hub_deploy
-  ```
-  Action file: `csi-spl-orc/src/bash/run/heal-hub-deploy.func.sh`
+#### 4.1.1 Probe hub HTTP endpoint and TLS certificate
+
+```bash
+cd csi-spl-orc && ./run -a do_spl_probe_hub_host
+```
+
+Action file: `csi-spl-orc/src/bash/run/spl-probe-hub-host.func.sh`
+
+#### 4.1.2 Inspect Cloud Run instance health and error logs
+
+```bash
+cd csi-spl-iac && ENV=prd ./run -a do_gcp_hub_instance_health
+```
+
+Action file: `csi-spl-iac/src/bash/run/gcp-hub-instance-health.func.sh`
+
+#### 4.1.3 Check hub deployment status and image tags
+
+```bash
+cd csi-spl-orc && ENV=prd ./run -a do_check_hub_deploy
+```
+
+Action file: `csi-spl-orc/src/bash/run/check-hub-deploy.func.sh`
+
+#### 4.1.4 Restart Cloud Run hub service (force a fresh revision)
+
+a prd mutation. Only c-001 (the orchestrator) runs it; any other seat sends c-001 the exact command and waits. Preview first (`DRY_RUN=1` is the default and changes nothing):
+
+##### 4.1.4.1 Preview
+
+```bash
+cd csi-spl-iac && ENV=prd DRY_RUN=1 ./run -a do_gcp_hub_restart
+```
+
+##### 4.1.4.2 Run it (c-001 alone)
+
+Then c-001 alone:
+
+```bash
+cd csi-spl-iac && ENV=prd DRY_RUN=0 ./run -a do_gcp_hub_restart
+```
+
+Action file: `csi-spl-iac/src/bash/run/gcp-hub-restart.func.sh`. It refuses while the ready revision was restarted less than `HUB_RESTART_MIN_AGE_S` (600 s) ago, so a second seat acting on the same incident cannot restart prd twice.
+
+#### 4.1.5 Rollback hub to previous release
+
+a prd mutation. Only c-001 (the orchestrator) runs it; any other seat sends c-001 the exact command and waits. Dev goes first: `ENV=prd` is refused (rc 4) until dev already serves the target commit, unless `ENV_ORDER_OVERRIDE=<owner msg id>` is set, which is for an emergency only. Preview, then roll dev, then preview and roll prd:
+
+##### 4.1.5.1 Preview dev
+
+```bash
+cd csi-spl-orc && ENV=dev TO=previous DRY_RUN=1 ./run -a do_hub_rollback
+```
+
+##### 4.1.5.2 Roll dev
+
+```bash
+cd csi-spl-orc && ENV=dev TO=previous DRY_RUN=0 ./run -a do_hub_rollback
+```
+
+##### 4.1.5.3 Preview prd
+
+```bash
+cd csi-spl-orc && ENV=prd TO=previous DRY_RUN=1 ./run -a do_hub_rollback
+```
+
+##### 4.1.5.4 Roll prd
+
+```bash
+cd csi-spl-orc && ENV=prd TO=previous DRY_RUN=0 ./run -a do_hub_rollback
+```
+
+Action file: `csi-spl-orc/src/bash/run/hub-rollback.func.sh`
+
+#### 4.1.6 Heal stuck Cloud Run deployment
+
+```bash
+cd csi-spl-orc && ENV=prd ./run -a do_heal_hub_deploy
+```
+
+Action file: `csi-spl-orc/src/bash/run/heal-hub-deploy.func.sh`
 
 ### 4.2 Box down or partitioned
 
-- **Poll peer boxes across the fleet**:
-  ```bash
-  cd csi-spl-orc && ./run -a do_spl_peer_poll
-  ```
-  Action file: `csi-spl-orc/src/bash/run/spl-peer-poll.func.sh`
-- **Check local desk daemon and agent process health**:
-  ```bash
-  cd csi-spl-orc && ./run -a do_spl_desk_check
-  ```
-  Action file: `csi-spl-orc/src/bash/run/spl-desk-check.func.sh`
-- **Inspect current dispatch lease holder**:
-  ```bash
-  cd csi-spl-orc && LEASE_CMD=show ./run -a do_spl_dispatch_lease
-  ```
-  Action file: `csi-spl-orc/src/bash/run/spl-dispatch-lease.func.sh`
-- **Restart local desk service**: only c-001 (the orchestrator) runs it; agent seeds forbid any other seat to run `do_spl_desk_up`, so they send c-001 the exact command and wait. `ENV`, `TENANT_ID` and `DESK_AGENT` are required (its `@param` block); it is a dry run unless `DRY_RUN=0`:
-  ```bash
-  cd csi-spl-orc && ENV=<env> TENANT_ID=<workspace> DESK_AGENT=<id> DRY_RUN=0 ./run -a do_spl_desk_up
-  ```
-  Action file: `csi-spl-orc/src/bash/run/spl-desk-up.func.sh`
-- **Restart remote peer box or satellite**:
-  ```bash
-  cd csi-spl-orc && BOX=<box> ./run -a do_spl_peer_restart
-  ```
-  Action file: `csi-spl-orc/src/bash/run/spl-peer-restart.func.sh`
-- **Check pending box reboot conditions**:
-  ```bash
-  cd csi-spl-orc && ./run -a do_spl_box_restart_check
-  ```
-  Action file: `csi-spl-orc/src/bash/run/spl-box-restart-check.func.sh`
+#### 4.2.1 Poll peer boxes across the fleet
+
+```bash
+cd csi-spl-orc && ./run -a do_spl_peer_poll
+```
+
+Action file: `csi-spl-orc/src/bash/run/spl-peer-poll.func.sh`
+
+#### 4.2.2 Check local desk daemon and agent process health
+
+```bash
+cd csi-spl-orc && ./run -a do_spl_desk_check
+```
+
+Action file: `csi-spl-orc/src/bash/run/spl-desk-check.func.sh`
+
+#### 4.2.3 Inspect current dispatch lease holder
+
+```bash
+cd csi-spl-orc && LEASE_CMD=show ./run -a do_spl_dispatch_lease
+```
+
+Action file: `csi-spl-orc/src/bash/run/spl-dispatch-lease.func.sh`
+
+#### 4.2.4 Restart local desk service
+
+only c-001 (the orchestrator) runs it; agent seeds forbid any other seat to run `do_spl_desk_up`, so they send c-001 the exact command and wait. `ENV`, `TENANT_ID` and `DESK_AGENT` are required (its `@param` block); it is a dry run unless `DRY_RUN=0`:
+
+```bash
+cd csi-spl-orc && ENV=<env> TENANT_ID=<workspace> DESK_AGENT=<id> DRY_RUN=0 ./run -a do_spl_desk_up
+```
+
+Action file: `csi-spl-orc/src/bash/run/spl-desk-up.func.sh`
+
+#### 4.2.5 Restart remote peer box or satellite
+
+```bash
+cd csi-spl-orc && BOX=<box> ./run -a do_spl_peer_restart
+```
+
+Action file: `csi-spl-orc/src/bash/run/spl-peer-restart.func.sh`
+
+#### 4.2.6 Check pending box reboot conditions
+
+```bash
+cd csi-spl-orc && ./run -a do_spl_box_restart_check
+```
+
+Action file: `csi-spl-orc/src/bash/run/spl-box-restart-check.func.sh`
 
 ### 4.3 Disk full or low headroom
 
-- **Check host disk headroom against thresholds**:
-  ```bash
-  cd csi-spl-orc && ./run -a do_check_disk_headroom
-  ```
-  Action file: `csi-spl-orc/src/bash/run/check-disk-headroom.func.sh`.
-  One note per crossing: WARN at 85% blocks (80% inodes), CRITICAL at 92%.
-  A crossing stays armed until the mount is 5 points under its line
-  (`DISK_HEADROOM_REARM_PCT`, SPL-3198): 85 -> 84 -> 85% is one note, and
-  the WARN re-arms (CLEAR, may warn again) only under 80%, the CRITICAL
-  under 87%.
-- **New lanes already avoid the full box** (SPL-3179): `do_spl_box_pick`
-  never places a lane on a box whose agent data mount (`/mnt/data` where the
-  box has one, else `/`, from its latest hub box_stats sample) is at or over
-  the headroom guard's high mark (`DISK_HEADROOM_BLOCK_PCT`, 85; the one
-  home of the marks is `csi-spl-orc/lib/bash/funcs/spl-box-disk.func.sh`).
-  Its line says `DISK <mount> N% >= 85%: not picked`; every box over the
-  mark -> `pick=hold`, the queued row keeps its place. A sample with no disks
-  is judged as before. Running lanes are not moved: free the disk.
-  ```bash
-  cd csi-spl-orc && ./run -a do_spl_box_pick
-  ```
-- **Run comprehensive box disk sweep (prunes logs, cache, retired trees)**:
-  ```bash
-  cd csi-spl-orc && DRY_RUN=0 ./run -a do_box_disk_sweep
-  ```
-  Action file: `csi-spl-orc/src/bash/run/box-disk-sweep.func.sh`
-- **Clean temporary scratch files**:
-  ```bash
-  cd csi-spl-orc && DRY_RUN=0 ./run -a do_tmp_scratch_sweep
-  ```
-  Action file: `csi-spl-orc/src/bash/run/tmp-scratch-sweep.func.sh`
-- **Clean stale temporary directories**:
-  ```bash
-  cd csi-spl-orc && DRY_RUN=0 ./run -a do_tmp_stale_sweep
-  ```
-  Action file: `csi-spl-orc/src/bash/run/tmp-stale-sweep.func.sh`
-- **Prune dead or retired worktrees**:
-  ```bash
-  cd csi-spl-orc && DRY_RUN=0 ./run -a do_wt_dead_sweep
-  ```
-  Action file: `csi-spl-orc/src/bash/run/wt-dead-sweep.func.sh`
-- **Prune unused docker images**:
-  ```bash
-  cd csi-spl-orc && ./run -a do_prune_docker_images
-  ```
-  Action file: `csi-spl-orc/src/bash/run/prune-docker-images.func.sh`
+#### 4.3.1 Check host disk headroom against thresholds
+
+```bash
+cd csi-spl-orc && ./run -a do_check_disk_headroom
+```
+
+Action file: `csi-spl-orc/src/bash/run/check-disk-headroom.func.sh`.
+One note per crossing: WARN at 85% blocks (80% inodes), CRITICAL at 92%.
+A crossing stays armed until the mount is 5 points under its line
+(`DISK_HEADROOM_REARM_PCT`, SPL-3198): 85 -> 84 -> 85% is one note, and
+the WARN re-arms (CLEAR, may warn again) only under 80%, the CRITICAL
+under 87%.
+
+#### 4.3.2 New lanes already avoid the full box
+
+(SPL-3179): `do_spl_box_pick`
+never places a lane on a box whose agent data mount (`/mnt/data` where the
+box has one, else `/`, from its latest hub box_stats sample) is at or over
+the headroom guard's high mark (`DISK_HEADROOM_BLOCK_PCT`, 85; the one
+home of the marks is `csi-spl-orc/lib/bash/funcs/spl-box-disk.func.sh`).
+Its line says `DISK <mount> N% >= 85%: not picked`; every box over the
+mark -> `pick=hold`, the queued row keeps its place. A sample with no disks
+is judged as before. Running lanes are not moved: free the disk.
+
+```bash
+cd csi-spl-orc && ./run -a do_spl_box_pick
+```
+
+#### 4.3.3 Run comprehensive box disk sweep (prunes logs, cache, retired trees)
+
+```bash
+cd csi-spl-orc && DRY_RUN=0 ./run -a do_box_disk_sweep
+```
+
+Action file: `csi-spl-orc/src/bash/run/box-disk-sweep.func.sh`
+
+#### 4.3.4 Clean temporary scratch files
+
+```bash
+cd csi-spl-orc && DRY_RUN=0 ./run -a do_tmp_scratch_sweep
+```
+
+Action file: `csi-spl-orc/src/bash/run/tmp-scratch-sweep.func.sh`
+
+#### 4.3.5 Clean stale temporary directories
+
+```bash
+cd csi-spl-orc && DRY_RUN=0 ./run -a do_tmp_stale_sweep
+```
+
+Action file: `csi-spl-orc/src/bash/run/tmp-stale-sweep.func.sh`
+
+#### 4.3.6 Prune dead or retired worktrees
+
+```bash
+cd csi-spl-orc && DRY_RUN=0 ./run -a do_wt_dead_sweep
+```
+
+Action file: `csi-spl-orc/src/bash/run/wt-dead-sweep.func.sh`
+
+#### 4.3.7 Prune unused docker images
+
+```bash
+cd csi-spl-orc && ./run -a do_prune_docker_images
+```
+
+Action file: `csi-spl-orc/src/bash/run/prune-docker-images.func.sh`
 
 ### 4.4 CI red on trunk
 
-- **Report failing CI jobs and failure signatures**:
-  ```bash
-  cd csi-spl-iac && CI_GATE_RUNS=50 CI_GATE_SIGNATURES=1 ./run -a do_report_ci_gate
-  ```
-  Action file: `csi-spl-iac/src/bash/run/report-ci-gate.func.sh`
-- **Fetch failed workflow job logs**:
-  ```bash
-  cd csi-spl-iac && RUN_ID=<id> ./run -a do_ci_failed_log
-  ```
-  Action file: `csi-spl-iac/src/bash/run/ci-failed-log.func.sh`
-- **Send CI red alert note to dispatch holder**:
-  ```bash
-  cd csi-spl-iac && ./run -a do_report_ci_red_note
-  ```
-  Action file: `csi-spl-iac/src/bash/run/report-ci-red-note.func.sh`
-- **Rerun flaky CI setup jobs**:
-  ```bash
-  cd csi-spl-orc && RUN_ID=<id> ./run -a do_ci_rerun_setup_flake
-  ```
-  Action file: `csi-spl-orc/src/bash/run/ci-rerun-setup-flake.func.sh`
-- **Validate pre-push lint locally**:
-  ```bash
-  cd csi-spl-iac && ./run -a do_check_pre_push_lint
-  ```
-  Action file: `csi-spl-iac/src/bash/run/check-pre-push-lint.func.sh`
+#### 4.4.1 Report failing CI jobs and failure signatures
+
+```bash
+cd csi-spl-iac && CI_GATE_RUNS=50 CI_GATE_SIGNATURES=1 ./run -a do_report_ci_gate
+```
+
+Action file: `csi-spl-iac/src/bash/run/report-ci-gate.func.sh`
+
+#### 4.4.2 Fetch failed workflow job logs
+
+```bash
+cd csi-spl-iac && RUN_ID=<id> ./run -a do_ci_failed_log
+```
+
+Action file: `csi-spl-iac/src/bash/run/ci-failed-log.func.sh`
+
+#### 4.4.3 Send CI red alert note to dispatch holder
+
+```bash
+cd csi-spl-iac && ./run -a do_report_ci_red_note
+```
+
+Action file: `csi-spl-iac/src/bash/run/report-ci-red-note.func.sh`
+
+#### 4.4.4 Rerun flaky CI setup jobs
+
+```bash
+cd csi-spl-orc && RUN_ID=<id> ./run -a do_ci_rerun_setup_flake
+```
+
+Action file: `csi-spl-orc/src/bash/run/ci-rerun-setup-flake.func.sh`
+
+#### 4.4.5 Validate pre-push lint locally
+
+```bash
+cd csi-spl-iac && ./run -a do_check_pre_push_lint
+```
+
+Action file: `csi-spl-iac/src/bash/run/check-pre-push-lint.func.sh`
 
 ### 4.5 Certificate expiry
 
-- **Check public HTTPS certificate expiry across endpoints**:
-  ```bash
-  cd csi-spl-utl && ./run -a do_net_cert_expiry_check
-  ```
-  Action file: `csi-spl-utl/src/bash/run/net-cert-expiry-check.func.sh`
-- **Inspect endpoint certificate end date and SANs**:
-  ```bash
-  cd csi-spl-orc && ./run -a do_spl_probe_hub_host
-  ```
-  Action file: `csi-spl-orc/src/bash/run/spl-probe-hub-host.func.sh`
-- **Wait for Cloud Run custom domain certificate mapping**:
-  ```bash
-  cd csi-spl-orc && ENV=prd ./run -a do_spl_wait_for_mapping_cert
-  ```
-  Action file: `csi-spl-orc/src/bash/run/spl-wait-for-mapping-cert.func.sh`
+#### 4.5.1 Check public HTTPS certificate expiry across endpoints
+
+```bash
+cd csi-spl-utl && ./run -a do_net_cert_expiry_check
+```
+
+Action file: `csi-spl-utl/src/bash/run/net-cert-expiry-check.func.sh`
+
+#### 4.5.2 Inspect endpoint certificate end date and SANs
+
+```bash
+cd csi-spl-orc && ./run -a do_spl_probe_hub_host
+```
+
+Action file: `csi-spl-orc/src/bash/run/spl-probe-hub-host.func.sh`
+
+#### 4.5.3 Wait for Cloud Run custom domain certificate mapping
+
+```bash
+cd csi-spl-orc && ENV=prd ./run -a do_spl_wait_for_mapping_cert
+```
+
+Action file: `csi-spl-orc/src/bash/run/spl-wait-for-mapping-cert.func.sh`
 
 ## 5. Status page and owner notification procedure
 

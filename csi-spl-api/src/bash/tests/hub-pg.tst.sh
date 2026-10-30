@@ -220,7 +220,9 @@ hub_groups() { # the hub groups one after another; a red group does not stop the
   return "$rc"
 }
 pids=()
-for pkg in store wsdoc hub auth repodocs; do # repodocs: the repo-edit worker (spec 075 T10) on its own queue
+# channelmove: spec 169 T1, TestCatalogueSchemaMatchesPostgres proves the catalogue
+# gate's DDL reader against this migrated schema and EXPLAINs every predicate.
+for pkg in store wsdoc hub auth repodocs channelmove; do # repodocs: the repo-edit worker (spec 075 T10) on its own queue
   db="spool_hub_$pkg" dir="$pkg"
   [ "$pkg" = wsdoc ] && dir=store
   mkdb "$db"

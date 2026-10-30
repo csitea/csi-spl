@@ -193,6 +193,28 @@ run AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_REASON='superseded by c-130' DRY
   fail "end not announced (rc=$rc): as=$(sort -u "$T/calls.log.as" | tr '\n' ' ') / $(cat "$T/calls.log")"
 rm -rf "$S/dispatch/agent-run.tsv" "$T/state/dev/desk/t1/box-a/spool/c-123"
 
+# SPL-4320: a close (tmux-close-window.sh --retire) moved the lane's spool dir
+# to .retired/<id>.<spawned-utc>; the end reads the key from the newest
+# retired generation and writes issue-end there (c-168 on 2026-10-29: FATAL
+# "carries no issue key"). <root>/<id> is never recreated; a live dir wins.
+mkdir -p "$S/.retired/c-123.20261001T000000Z/lifetime" "$S/.retired/c-123.20261029T203700Z.2/lifetime"
+echo SPL-9 >"$S/.retired/c-123.20261001T000000Z/lifetime/issue"
+echo SPL-8 >"$S/.retired/c-123.20261029T203700Z.2/lifetime/issue"
+mv "$S/c-123" "$S/.retired/c-123.20261029T203700Z.10"
+RL="$S/.retired/c-123.20261029T203700Z.10/lifetime"
+rm -f "$RL/issue-end"
+run AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_REASON='closed before its exit-clean' DRY_RUN=0
+[[ $rc -eq 0 && ! -e "$S/c-123" && "$(cut -f1,2 "$RL/issue-end" 2>/dev/null)" == $'diss\tclosed before its exit-clean' ]] &&
+  grep -qx 'update|--ref|SPL-42|--status|diss|' "$T/calls.log" && ! grep -qE 'SPL-(8|9)\|' "$T/calls.log" &&
+  pass "end after a retire: the newest .retired generation's key (SPL-42, not .2's SPL-8), issue-end there, <root>/c-123 not recreated" ||
+  fail "end retired (rc=$rc): $(cat "$T/o") / $(cat "$T/calls.log") / $(ls -a "$S")"
+mkdir -p "$S/c-123"
+run AGENT_ID=c-123 LANE_ISSUE_OP=end LANE_ISSUE_REASON='closed before its exit-clean' DRY_RUN=0
+[[ $rc -ne 0 && ! -s "$T/calls.log" ]] && grep -q "FATAL c-123 carries no issue key ($S/c-123/lifetime/issue)" "$T/o" &&
+  pass "control: a live <root>/c-123 wins over the retired generations (a reused id never ends an old issue)" ||
+  fail "end live wins (rc=$rc): $(cat "$T/o") / $(cat "$T/calls.log")"
+rmdir "$S/c-123" && mv "$S/.retired/c-123.20261029T203700Z.10" "$S/c-123" && rm -rf "$S/.retired"
+
 # SPL-3064: an end that closes its epic's last open issue. The hub's epic
 # auto-close (SPL-1729) archives the issue in the status change's own
 # transaction, and a comment after it answered not_found (prd t1 SPL-3056 and

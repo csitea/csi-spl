@@ -36,7 +36,7 @@ spl_lane_issue_applied() {
   own="${BASH_REMATCH[1]}" acc="${BASH_REMATCH[2]}"
   [[ "$ot" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL LANE_APPLIED_OWNER_TENANT must be a tenant slug, got: '$ot': refused, nothing changed"; return 1; }
   [[ "$own" != "$acc" ]] || { do_log "FATAL the owner msg and the ACCEPTED msg are one message ($own): refused, nothing changed"; return 1; }
-  key="$(li_key_of_agent "$root" "$id")" || { do_log "FATAL $id carries no issue key ($root/$id/lifetime/issue)"; return 1; }
+  key="$(spl_lane_issue_key "$SLI_LIFE")" || { do_log "FATAL $id carries no issue key ($SLI_LIFE/issue)"; return 1; }
   row="$(spl_lane_issue_hub_row "$own" "$ot")" || { do_log "FATAL the owner msg $own is not on the hub of $ENV/$ot (or the read failed): refused, nothing changed"; return 1; }
   from="$(jq -r '.from_id // ""' <<<"$row")"
   [[ "$from" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL the owner msg $own is from '$from', not a human (HUM-<n>): refused, nothing changed"; return 1; }
@@ -47,8 +47,8 @@ spl_lane_issue_applied() {
   spl_lane_issue_actor "$root" "$id"
   spl_lane_issue_close "$key" "done" "Lane $id $why. Owner msg $own, ACCEPTED msg $acc." || return 1
   if (( SLI_DRY )); then do_log "OK DRY_RUN $key -> done ($why); nothing written. Re-run with DRY_RUN=0."; return 0; fi
-  printf 'done\t%s\t%s\tapplied\towner=%s accepted=%s\n' "$why" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$own" "$acc" >"$root/$id/lifetime/issue-end" ||
-    { do_log "FATAL cannot write $root/$id/lifetime/issue-end"; return 1; }
+  printf 'done\t%s\t%s\tapplied\towner=%s accepted=%s\n' "$why" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$own" "$acc" >"$SLI_LIFE/issue-end" ||
+    { do_log "FATAL cannot write $SLI_LIFE/issue-end"; return 1; }
   do_log "OK $key -> done: $why"
 }
 

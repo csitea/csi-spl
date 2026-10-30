@@ -119,22 +119,47 @@ do_spl_lane_issue() {
   [[ "$id" =~ ^[A-Za-z]{1,3}-[0-9]{2,5}$ ]] || { do_log "FATAL AGENT_ID must be a lane's spool id like c-123, got: '$id'"; return 1; }
   [[ "$op" =~ ^(place|discussion|end)$ ]] || { do_log "FATAL LANE_ISSUE_OP must be place, discussion or end, got: '$op'"; return 1; }
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
+  SLI_LIFE="$(spl_lane_issue_life "$root" "$id")"
   spl_lane_issue_ws "$root" "$id" "$op" || return 1
   spl_lane_issue_desk "$root" "$dry" || return 1
   "spl_lane_issue_$op" "$root" "$id" "$dry"
 }
 
+# spl_lane_issue_life ROOT ID -> the lane's lifetime dir, which an end reads
+# its key from and writes issue-end to: <root>/<id>/lifetime while the lane's
+# spool dir exists, else the newest retired generation's
+# <root>/.retired/<id>.<spawned-utc>[.<n>]/lifetime. A close
+# (tmux-close-window.sh --retire, agent-id-retire.sh) moves the dir there, and
+# an end after it found no key (c-168 closed before its exit-clean,
+# 2026-10-29: SPL-4274 was ended through a hand-made spool root; SPL-4320). A
+# live dir always wins, so a reused id never ends an older generation's issue,
+# and <root>/<id> is never recreated.
+spl_lane_issue_life() {
+  local g
+  if [[ ! -d "$1/$2" ]]; then
+    g="$(for g in "$1/.retired/$2".*; do [[ -d "$g/lifetime" ]] && printf '%s\n' "${g##*/}"; done | LC_ALL=C sort -t. -k2,2 -k3,3n | tail -1)"
+    [[ -n "$g" ]] && { printf '%s\n' "$1/.retired/$g/lifetime"; return 0; }
+  fi
+  printf '%s\n' "$1/$2/lifetime"
+}
+
+# spl_lane_issue_key LIFE -> the key of the lane whose lifetime dir is LIFE.
+spl_lane_issue_key() {
+  local d="${1%/lifetime}"
+  li_key_of_agent "${d%/*}" "${d##*/}"
+}
+
 # spl_lane_issue_ws ROOT ID OP: a workspace lane (workspace-repo.inc.sh) acts
 # in its workspace. Place reads the brief's Workspace: line, end the lane's
-# lifetime/issue-tenant; the map row sets ENV, TENANT_ID, DESK_AGENT and
-# DESK_BOX (SLI_WS = the tenant, SLI_WS_ROW = the row). A lane of the lease's
-# tenant sets SLI_WS empty. A workspace without a valid map row: FATAL.
+# lifetime/issue-tenant (in SLI_LIFE); the map row sets ENV, TENANT_ID,
+# DESK_AGENT and DESK_BOX (SLI_WS = the tenant, SLI_WS_ROW = the row). A lane
+# of the lease's tenant sets SLI_WS empty. A workspace without a valid map row: FATAL.
 spl_lane_issue_ws() {
   local root="$1" id="$2" op="$3" t="" row rc=0
   SLI_WS="" SLI_WS_ROW=""
   case "$op" in
     place) t="$(wr_tenant_of_brief "${BRIEF:-$root/$id/lifetime/brief.md}")" ;;
-    end) [[ -s "$root/$id/lifetime/issue-tenant" ]] && t="$(cut -f1 "$root/$id/lifetime/issue-tenant" | sed -n 1p)" ;;
+    end) [[ -s "$SLI_LIFE/issue-tenant" ]] && t="$(cut -f1 "$SLI_LIFE/issue-tenant" | sed -n 1p)" ;;
   esac
   [[ -n "$t" ]] || return 0
   row="$(wr_row "$t")" || rc=$?
@@ -413,12 +438,12 @@ spl_lane_issue_end() {
   why="$(printf '%s' "${LANE_ISSUE_REASON:-}" | tr '\t\n\r' '   ' | sed 's/^ *//; s/ *$//')"
   [[ -n "$why" ]] || { do_log "FATAL LANE_ISSUE_REASON must say why $id ends without landing (dropped by its gate, superseded by ...)"; return 1; }
   [[ "$st" =~ ^(diss|onhold|blocked)$ ]] || { do_log "FATAL LANE_ISSUE_STATUS must be diss, onhold, blocked or done (landed in another repo: LANE_LANDED_REPO + LANE_LANDED_SHA; applied: LANE_APPLIED_EVIDENCE), got: '$st'"; return 1; }
-  key="$(li_key_of_agent "$root" "$id")" || { do_log "FATAL $id carries no issue key ($root/$id/lifetime/issue)"; return 1; }
+  key="$(spl_lane_issue_key "$SLI_LIFE")" || { do_log "FATAL $id carries no issue key ($SLI_LIFE/issue)"; return 1; }
   spl_lane_issue_actor "$root" "$id"
   spl_lane_issue_close "$key" "$st" "Lane $id ended without landing ($st): $why" || return 1
   if (( SLI_DRY )); then do_log "OK DRY_RUN $key -> $st; nothing written. Re-run with DRY_RUN=0."; return 0; fi
-  printf '%s\t%s\t%s\n' "$st" "$why" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$root/$id/lifetime/issue-end" ||
-    { do_log "FATAL cannot write $root/$id/lifetime/issue-end"; return 1; }
+  printf '%s\t%s\t%s\n' "$st" "$why" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$SLI_LIFE/issue-end" ||
+    { do_log "FATAL cannot write $SLI_LIFE/issue-end"; return 1; }
   do_log "OK $key -> $st: $why"
 }
 
@@ -499,7 +524,7 @@ spl_lane_issue_act() {
 # (SPL-2229). The check runs first, also in a dry run; a refusal changes nothing.
 spl_lane_issue_landed() {
   local root="$1" id="$2" repo="${LANE_LANDED_REPO:-}" sha="${LANE_LANDED_SHA:-}" key clone out full trunk why
-  key="$(li_key_of_agent "$root" "$id")" || { do_log "FATAL $id carries no issue key ($root/$id/lifetime/issue)"; return 1; }
+  key="$(spl_lane_issue_key "$SLI_LIFE")" || { do_log "FATAL $id carries no issue key ($SLI_LIFE/issue)"; return 1; }
   if [[ -n "${SLI_WS:-}" && "$repo" == "$(wr_field "$SLI_WS_ROW" 2)" ]]; then
     trunk="$(wr_field "$SLI_WS_ROW" 4)"; [[ "$trunk" == - ]] && trunk=""
     clone="$(wr_field "$SLI_WS_ROW" 3)"$'\t'"$trunk"
@@ -514,8 +539,8 @@ spl_lane_issue_landed() {
   spl_lane_issue_actor "$root" "$id"
   spl_lane_issue_close "$key" "done" "Lane $id $why (another repo, no csi-spl commit). Landed, not live: the dispatcher's ACCEPTED checks the served build." || return 1
   if (( SLI_DRY )); then do_log "OK DRY_RUN $key -> done ($why); nothing written. Re-run with DRY_RUN=0."; return 0; fi
-  printf 'done\t%s\t%s\t%s\t%s\n' "$why" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$repo" "$full" >"$root/$id/lifetime/issue-end" ||
-    { do_log "FATAL cannot write $root/$id/lifetime/issue-end"; return 1; }
+  printf 'done\t%s\t%s\t%s\t%s\n' "$why" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$repo" "$full" >"$SLI_LIFE/issue-end" ||
+    { do_log "FATAL cannot write $SLI_LIFE/issue-end"; return 1; }
   do_log "OK $key -> done: $why"
 }
 

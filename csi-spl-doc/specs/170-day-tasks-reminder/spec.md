@@ -1,6 +1,6 @@
 # 170 Day's tasks: a To-do view in the Calendar, and a signal for what is due today
 
-Version: v0.3 (2026-10-30). Status: **WHAT v0.3 draft, under panel review**
+Version: v0.4 (2026-10-30). Status: **WHAT v0.4 draft, under panel review**
 (plan only; nothing below is built). Issue SPL-4396 · Epic SPL-2396 · Class
 feature · Kind specs_and_docs · Task `dispatch-dfe850d9` · Placement slug
 `c001-dfe850d9-panel-editor` · Editor c-864.
@@ -47,10 +47,9 @@ Source: prd csitea topic `dfe850d9-e283-4460-a0ed-223b71d657fa`.
   ?!". This is the leading direction for WHAT.
 - HUM-24, msg `e0fb60bb-8b9c-4049-9fe8-ab154240d116` (Bulgarian, to HUM-10):
   today the tasks icon shows a red circle with the unread count; could tasks
-  due today be signalled the same way?
-- HUM-24, 2026-10-30 15:00Z (relayed by the dispatch holder c-003, msg
-  `e5e6fafc`): asked again for a red badge with the count of tasks due
-  today, which is Q1 option B; c-003 pointed HUM-24 to Q1.
+  due today be signalled the same way? Posted 2026-10-30 15:00:52Z; it is
+  Q1 option B. The dispatch holder c-003 answered it pointing to Q1 (msg
+  `221bb299-a0cc-4398-8c88-89b977d0d48f`).
 
 ### 1.2 Decided
 
@@ -61,10 +60,19 @@ Source: prd csitea topic `dfe850d9-e283-4460-a0ed-223b71d657fa`.
   in the Calendar To-do view; notes stay where they are and are not in it.
   Closed: this spec only names 155 as a neighbour.
 
+### 1.3 Panel defaults
+
+Not from an owner message; the panel's reading, kept unless the owner
+overrules: a task excludes epics and features (2, 4.1); the row fields and
+empty days (4.3); read-only (4.6); at most 3 titles in the reminder, once
+per person per day, none on an empty day (5.1); the per-person off switch,
+no snooze (5.4); the signal counts what the Day range shows (5); section 7
+except its first line. Each spot is tagged "(panel default, 1.3)".
+
 ## 2. Words
 
-- **Task**: an issue (spec 039) that is open, is not an epic or a feature,
-  and has a deadline. Open = status `eval`, `todo`, `wip`, `blocked`,
+- **Task**: an issue (spec 039) that is open, is not an epic or a feature
+  (panel default, 1.3), and has a deadline. Open = status `eval`, `todo`, `wip`, `blocked`,
   `onhold` or `qas`, the set the Issues rail count already uses
   (`git grep -n "OPEN_ISSUE_STATUSES = " origin/master -- csi-spl-wui/src/utils/my-issues-count.mjs`
   -> `['eval', 'todo', 'wip', 'blocked', 'onhold', 'qas']`).
@@ -95,7 +103,11 @@ Source: prd csitea topic `dfe850d9-e283-4460-a0ed-223b71d657fa`.
   midnight can land on the neighbouring day in the To-do view. HOW names it;
   the fix is its own issue.
 - **Known edge, not fixed here**: that `isOverdue` (line 292) treats
-  `canceled` as closed, a status the store no longer has (closed =
+  only `done` and `canceled` as closed
+  (`git show origin/master:csi-spl-wui/src/utils/issues-view.mjs | sed -n 292,295p`):
+  `canceled` is a status the store no longer has, and `diss` (closed in the
+  store) reads as open, so a dismissed issue with a past deadline counts as
+  overdue there (store closed =
   `done || diss`,
   `git grep -n "func IssueClosed" origin/master -- csi-spl-api/src/go/spool-hub-api/internal/store/issues.go`
   -> line 191), and has no caller outside its file
@@ -143,7 +155,7 @@ filters only closed, no deadline and the range,
 `git grep -n "IssueKindEpic" origin/master -- csi-spl-api/src/go/spool-hub-api/internal/hub/calendar.go`
 -> no output), while the To-do view lists tasks only (section 2): an epic due
 today shows in the Week grid but not in the To-do list, because an epic is
-not finished by hand.
+not finished by hand (panel default, 1.3).
 
 4.2 **The same four ranges.** The To-do view has the ranges the Calendar
 already has: Day, 3 days, Week, Month
@@ -154,7 +166,8 @@ next steps and the same period title.
 4.3 **A list, grouped by day.** Each range shows its days in order; under
 each day, the tasks due that day as a short list. Each row shows at least:
 the issue key, the title, the status, the priority and the deadline's time.
-An empty day says so in one line (Day range) or is left out (longer ranges).
+An empty day says so in one line (Day range) or is left out (longer ranges)
+(panel default, 1.3).
 
 4.4 **Overdue on top of today.** When the range holds today, overdue tasks
 are listed above today's, marked overdue, until they are closed or moved
@@ -166,7 +179,7 @@ Issues, the way the deadline pop-over's "Open issue" already does
 -> line 41). Closing or re-dating the issue there updates the view when the
 person comes back. Back returns to the To-do view on the same range and day.
 
-4.6 **Read-only here.** The To-do view does not edit tasks; status, deadline
+4.6 **Read-only here** (panel default, 1.3). The To-do view does not edit tasks; status, deadline
 and assignee are changed in Issues. (A tick-to-close in the view is a
 possible later step, not in v1; see section 7.)
 
@@ -179,12 +192,12 @@ address, so a reminder or another page can link straight to it (HUM-10
 and day in the address (`?v=` and `?d=`,
 `git grep -nE "route.query.(v|d)" origin/master -- csi-spl-wui/src/pages/calendar.vue`
 -> lines 64 and 73); the To-do view follows that shape, so it can be
-bookmarked. The link names both the To-do view and its range: the To-do view
-is a second axis next to the range, not a fifth range value (today an unknown
-`?v=` silently opens Week,
+bookmarked. The link names the To-do view and its range. A link the app does
+not understand opens the Calendar's default view, never an error. The
+reminder's link carries no fixed day: an old reminder or a bookmark opens
+today's list. (For HOW: an unknown `?v=` opens Week today,
 `git grep -n "CAL_DESK_VIEWS.includes(s) ? s : 'week'" origin/master -- csi-spl-wui/src/utils/calendar-desktop-view.mjs`
--> line 29). An unknown value opens the default, never an error. The reminder's link carries no fixed day: an old reminder or a
-bookmark opens today's list.
+-> line 29, so the To-do view must not be a fifth `?v=` value.)
 
 ## 5. The day signal: what tells the person, and when
 
@@ -197,8 +210,9 @@ reads like "3 due today · 1 overdue" and shows at most 3 titles, then
 "+N more"; the list itself lives in the view. It comes once per person per
 day, not once per tab or device: seen on the phone, it does not appear again
 on the desktop that day, and it does not appear after the person has already
-opened the To-do view that day. No reminder on a day with nothing due (default; Q4 covers the time and
-the channel).
+opened the To-do view that day. No reminder on a day with nothing due. (The
+3 titles, once per day and none on an empty day: panel default, 1.3; Q4
+covers the time and the channel.)
 
 5.2 **A red badge on the Issues icon** (HUM-24 `e0fb60bb`). The Issues rail
 icon, which today shows a red count of new issues (section 3), also signals
@@ -216,21 +230,21 @@ red number).
 5.3 **Both**: the badge is always there; the morning reminder links to the
 view.
 
-5.4 **Turning it off.** Each person can switch the morning reminder off, and
+5.4 **Turning it off** (panel default, 1.3). Each person can switch the morning reminder off, and
 the due-today badge mark if chosen, in Settings, Notifications, where the
 bell switch and the muted channels already live
 (`git grep -n "settings-notifications" origin/master -- csi-spl-wui/src/components/settings/notifications.vue`
--> line 13). The switch belongs to the person, not the device (stored with
-their preferences like the time zone, `setTimeZone`,
-`csi-spl-wui/src/stores/session.ts` line 196), so muting it on the phone
-mutes it on the desktop. Today's muted channels are per device
-(`git grep -n "MUTED_CHANNELS_KEY = " origin/master -- csi-spl-wui/src/utils/notify.mjs`
--> line 73, `'spool.muted-channels'`, browser storage); this switch must not
-copy that. No snooze in v1.
+-> line 13). The switch belongs to the person, not the device: turned off on
+the phone, it is off on the desktop too. No snooze in v1. (For HOW: today's
+muted channels are per device,
+`git grep -n "MUTED_CHANNELS_KEY = " origin/master -- csi-spl-wui/src/utils/notify.mjs`
+-> line 73, browser storage; the time zone is per person, `setTimeZone`,
+`csi-spl-wui/src/stores/session.ts` line 196.)
 
 Whatever is chosen, the signal counts exactly what the To-do view's Day range
 on today shows (same task set, same "mine or all" rule, overdue included or
-not by the same Q3 answer), so the number and the list never disagree.
+not by the same Q3 answer), so the number and the list never disagree
+(panel default, 1.3).
 
 ## 6. How it relates to Notes (spec 155)
 
@@ -240,6 +254,8 @@ Notes section. This spec edits no file of the Notes lanes; HOW names any
 shared component before it touches one.
 
 ## 7. Out of scope for v1
+
+All but the first line are panel defaults (1.3).
 
 - Notes in the view (decided, 1.2).
 - Calendar events in the To-do view (they have their own views).
@@ -304,11 +320,20 @@ Each seat signs a version with its own commit on branch
 |---|---|---|---|
 | editor | c-864 | WHAT v0.1 | (65e436eb1) |
 | editor | c-864 | WHAT v0.2 | f71652e2c |
-| editor | c-864 | WHAT v0.3 | (this commit) |
+| editor | c-864 | WHAT v0.3 | df5412503 |
+| editor | c-864 | WHAT v0.4 | (this commit) |
 | user view | c-866 | WHAT v0.2 | f71652e2c |
 | user view | c-866 | WHAT v0.3 | ef9bebc03 |
 
 ## 10. Changes
+
+- v0.4: folded REVIEWER c-880 (msg a50ab05b): R1 was already in df5412503
+  (the `isOverdue` caller grep); R2 the edge is `done`/`canceled` only, so
+  `diss` reads overdue there (section 2); R3 new 1.3 Panel defaults, each
+  spot tagged; R4 the storage and `?v=` detail of 5.4 and 4.8 moved into
+  "For HOW" notes; R5 the HUM-24 15:00Z post is `e0fb60bb` itself (one
+  bullet, c-003's answer `221bb299`, per c-003 msg e910987e), the wrong id
+  `e5e6fafc` (a spool note, not a post) removed.
 
 - v0.3: folded CALENDAR / ISSUES EXPERT c-869 (msg bf9fb184) B1 (epics and
   features in the event grid, not in the To-do list, 4.1), B2 (one meaning of

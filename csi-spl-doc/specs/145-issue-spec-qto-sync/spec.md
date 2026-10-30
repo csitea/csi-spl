@@ -450,7 +450,7 @@ The four structured decision forms were resolved by Owner HUM-10 in discussion t
 ### Form 4: Handling legacy and ad-hoc issues without specs
 - **Owner Selection**: **Option A — Shared area spec for quick fixes**.
 - **Architectural Directive**: Maintain absolute architectural purity ("no issue without an epic and a git spec") without exemption bypasses (`no-spec`). Quick fixes, operational patches, and infrastructure adjustments are filed against categorized Area Specs (`000-quick-fixes`, `000-operations`).
-- **The one exception (SPL-4443)**: an issue the owner orders directly for work in a workspace with no repo, which can never have a csi-spl spec, is filed with `ISSUE_OWNER_GO=<the owner's message uuid>` (`do_spl_issue_create`): it needs no git spec but keeps its epic, the message must be a HUM-<n>'s in a linked discussion of that workspace, and the description's first line is `Owner order: <uuid>`.
+- **The one exception (SPL-4443)**: an issue the owner orders directly for work in a workspace with no repo, which can never have a csi-spl spec, is filed with `ISSUE_OWNER_GO=<the owner's message uuid>` (`do_spl_issue_create`): it needs no git spec but keeps its epic, it is refused in `t1` (csi-spl's own workspace, where Form 4 holds unchanged), the message must be a HUM-<n>'s in a linked discussion of that workspace, and the description's first line is `Owner order: <uuid>`.
 
 ---
 

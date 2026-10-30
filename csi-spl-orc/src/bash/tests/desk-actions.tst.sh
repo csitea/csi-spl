@@ -788,19 +788,19 @@ echo '{"issue":{"key":"CSI-58","status":"eval"}}'
 FAKE
 chmod +x "$T/fakego"
 GO_TOPIC=0f8fad5b-d9cb-469f-a165-70867728950e GO_HUM=06f343a5-1111-4222-8333-444455556666 GO_AGT=b8d3641e-1111-4222-8333-444455556666
-mkdir -p "$T/tails" "$T/state/dev/desk/t1/box-desk/spool/CLE-00"
+mkdir -p "$T/tails" "$T/state/dev/desk/csitea/box-desk/spool/CLE-00"
 printf '%s\n' '{"v":1,"msg_id":"'"$GO_TOPIC"'","task_id":"'"$GO_TOPIC"'","from":"HUM-10","kind":"msg","body":"opener"}' \
   '{"v":1,"msg_id":"'"$GO_HUM"'","task_id":"'"$GO_TOPIC"'","from":"HUM-10","kind":"msg","body":"file it"}' \
   '{"v":1,"msg_id":"'"$GO_AGT"'","task_id":"'"$GO_TOPIC"'","from":"c-001","kind":"note","body":"me too"}' >"$T/tails/$GO_TOPIC"
 go_create() { : >"$T/issue.log"; SNIPPET="${ISS}do_spl_issue_create" in_orc FAKE="$T/fakego" FAKE_LOG="$T/issue.log" FAKE_TAIL_DIR="$T/tails" \
-  TENANT_ID=t1 DESK_AGENT=CLE-00 ISSUE_TITLE=owner ISSUE_DISCUSSIONS="$GO_TOPIC" DRY_RUN=0 "$@" >"$T/o" 2>&1; rc=$?; }
+  TENANT_ID=csitea SPOOL_WORKSPACE_REPOS_MAP="$T/none.tsv" DESK_AGENT=CLE-00 ISSUE_TITLE=owner ISSUE_DISCUSSIONS="$GO_TOPIC" DRY_RUN=0 "$@" >"$T/o" 2>&1; rc=$?; }
 go_refused() {  # LABEL WANT: refused, one FATAL naming why, no issue create reached spool
   [[ $rc -ne 0 ]] && ! grep -q '^issue|create|' "$T/issue.log" && grep -q "FATAL refused, nothing filed: .*$2" "$T/o" &&
     pass "$1" || fail "$1 (rc=$rc): $(cat "$T/o") / $(cat "$T/issue.log")"
 }
 go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO="$GO_HUM" ISSUE_DESCRIPTION=card
 [[ $rc -eq 0 && "$(sed 1d "$T/issue.log")" == $'issue|create|--as|CLE-00|--title|owner|--description|Owner order: '"$GO_HUM"$'\n\ncard|--epic|CSI-1|--discussions|'"$GO_TOPIC"'|' ]] &&
-  grep -q "^hub-tail|--task|$GO_TOPIC|--json|" "$T/issue.log" && grep -q "INFO owner go $GO_HUM from HUM-10 in t1: the git-spec check is skipped" "$T/o" &&
+  grep -q "^hub-tail|--task|$GO_TOPIC|--json|" "$T/issue.log" && grep -q "INFO owner go $GO_HUM from HUM-10 in csitea: the git-spec check is skipped" "$T/o" &&
   pass "an owner go from a HUM-n in the linked discussion files it with no spec, first line 'Owner order: <uuid>'" ||
   fail "owner go (rc=$rc): $(cat "$T/o") / $(cat "$T/issue.log")"
 go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO="$GO_AGT" ISSUE_DESCRIPTION=card
@@ -813,7 +813,7 @@ go_refused "an upper-case uuid go is refused" "is not a full lowercase message u
 go_create ISSUE_OWNER_GO="$GO_HUM" ISSUE_DESCRIPTION=card
 go_refused "a go with no ISSUE_EPIC is refused: the epic rule stays" "set ISSUE_EPIC=SPL-<n>"
 go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO=aaaaaaaa-1111-4222-8333-444455556666 ISSUE_DESCRIPTION=card
-go_refused "a go that is no message of the linked discussions is refused" "is not a message of the linked discussions ($GO_TOPIC) in t1"
+go_refused "a go that is no message of the linked discussions is refused" "is not a message of the linked discussions ($GO_TOPIC) in csitea"
 go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO="$GO_HUM" ISSUE_DESCRIPTION=$'Owner order: '"$GO_AGT"$'\ncard'
 go_refused "a description whose first line cites another order is refused" "the description's first line cites another order"
 go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO="$GO_HUM" ISSUE_DISCUSSIONS="/t/$GO_TOPIC" ISSUE_DESCRIPTION=$'Owner order: '"$GO_HUM"$'\ncard'
@@ -826,6 +826,27 @@ gofile="$(tail -1 "$T/issue.log" | sed -n 's/.*|--description-file|\([^|]*\)|.*/
   pass "ISSUE_DESCRIPTION_FILE: a copy with the first line is sent, removed after, the file is untouched" || fail "go file (rc=$rc): $(cat "$T/o") / $(cat "$T/issue.log")"
 go_create ISSUE_EPIC=CSI-1 ISSUE_DESCRIPTION=card
 go_refused "CONTROL no go and no spec: refused as before" "no spec folder named"
+# R7 c-126 W1: spool files ISSUE_DESCRIPTION_FILE over ISSUE_DESCRIPTION, so a
+# go with both would check one text and file the other: refused.
+printf 'Owner order: %s\ncard\n' "$GO_AGT" >"$T/go-other.md"
+go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO="$GO_HUM" ISSUE_DESCRIPTION=card ISSUE_DESCRIPTION_FILE="$T/go-other.md"
+go_refused "a go with both ISSUE_DESCRIPTION and ISSUE_DESCRIPTION_FILE is refused" "set ISSUE_DESCRIPTION or ISSUE_DESCRIPTION_FILE, not both"
+[[ ! -s "$T/issue.log" ]] && pass "...before any hub call" || fail "both inputs read the hub: $(cat "$T/issue.log")"
+go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO="$GO_HUM" ISSUE_DESCRIPTION_FILE="$T/go-other.md"
+go_refused "a description file whose first line cites another order is refused" "the description's first line cites another order"
+# W2: t1 is csi-spl's own workspace; its issues keep the git-spec rule.
+go_create ISSUE_EPIC=SPL-1 ISSUE_OWNER_GO="$GO_HUM" ISSUE_DESCRIPTION=card TENANT_ID=t1
+go_refused "a go in t1 is refused: csi-spl's own issues name a git spec" "t1 is csi-spl's own workspace"
+[[ ! -s "$T/issue.log" ]] && pass "...before any hub call" || fail "t1 go read the hub: $(cat "$T/issue.log")"
+# N3: a malformed go is refused at every level, not silently ignored.
+go_create ISSUE_KIND=epic ISSUE_OWNER_GO=bad
+go_refused "an epic with a malformed go is refused" "ISSUE_OWNER_GO 'bad' is not a full lowercase message uuid"
+go_create ISSUE_KIND=epic ISSUE_OWNER_GO="$GO_HUM"
+[[ $rc -eq 0 ]] && grep -q '^issue|create|' "$T/issue.log" && pass "CONTROL an epic with a well-formed go is filed (level 1 needs no spec)" || fail "epic go (rc=$rc): $(cat "$T/o")"
+# N1: a dry run reads nothing and says what DRY_RUN=0 would check.
+go_create ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO="$GO_AGT" ISSUE_DESCRIPTION=card DRY_RUN=1
+[[ $rc -eq 0 && ! -s "$T/issue.log" ]] && grep -q "INFO DRY_RUN owner go $GO_AGT is not read: with DRY_RUN=0 it must be a HUM-<n>'s message" "$T/o" &&
+  ! grep -q "check is skipped" "$T/o" && pass "a dry run reads no hub and says the go would be checked, not that it was" || fail "dry go (rc=$rc): $(cat "$T/o") / $(cat "$T/issue.log")"
 : >"$T/issue.log"
 mkdir -p "$T/state/dev/desk/t1/box-desk/spool/CLE-00"
 out=$(SNIPPET="${ISS}do_spl_issue_create" in_orc FAKE="$T/fakeissue" FAKE_LOG="$T/issue.log" TENANT_ID=t1 DESK_AGENT=CLE-00 \

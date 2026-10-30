@@ -15,8 +15,9 @@
 # @description but the spec lives in that repo: no csi-spl spec is asked for.
 # @description An issue the owner ordered for work with no repo (SPL-4443):
 # @description ISSUE_OWNER_GO=<the owner's message uuid> skips ONLY the git-spec
-# @description check, when that message is in a linked discussion of TENANT_ID
-# @description (read as the desk, hub-tail) from a HUM-<n>; the epic is still
+# @description check, outside t1 (csi-spl's own workspace), when that message
+# @description is in a linked discussion of TENANT_ID (read as the desk,
+# @description hub-tail) from a HUM-<n>, with ONE description source; the epic is still
 # @description needed and the description's first line becomes `Owner order: <uuid>`.
 # @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
 # @param TENANT_ID - required: the tenant the desk is seated in
@@ -24,7 +25,7 @@
 # @param ISSUE_TITLE - required: the title
 # @param ISSUE_DISCUSSIONS - required: the discussions it links, topic ids or /t/<id> links, comma separated (at least one; the hub refuses none: discussion_required). A /t/<id> link in the description stands in for it
 # @param ISSUE_EPIC (required for a level-2 issue) - the level-1 row (epic or feature) above it, e.g. SPL-17; a level-2 issue without it is refused (owner t1 7a98c2d1 msg 5863d0d6)
-# @param ISSUE_OWNER_GO (optional) - the full lowercase uuid of the owner's (HUM-<n>) message that ordered this issue, in one of ISSUE_DISCUSSIONS (or a /t/<id> of the description): a level-2 issue then needs no git spec (SPL-4443); read from the hub only when DRY_RUN=0
+# @param ISSUE_OWNER_GO (optional) - the full lowercase uuid of the owner's (HUM-<n>) message that ordered this issue, in one of ISSUE_DISCUSSIONS (or a /t/<id> of the description): a level-2 issue then needs no git spec (SPL-4443); refused in t1 and with both ISSUE_DESCRIPTION and ISSUE_DESCRIPTION_FILE; read from the hub only when DRY_RUN=0
 # @param ISSUE_PARENT (optional) - a level-2 issue's key: the new issue is its subtask (level 3)
 # @param ISSUE_KIND (optional) - issue (default) | epic | feature (epics and features are level 1)
 # @param ISSUE_DESCRIPTION (required for a level-2 issue: it names the spec, `Spec: csi-spl-doc/specs/NNN-<slug>`) - markdown, no fence needed (csi-spl-doc/doc/help/how-to-post.md); or ISSUE_DESCRIPTION_FILE
@@ -60,6 +61,7 @@ do_spl_issue_create() {
 # feature (level 1) and a child of ISSUE_PARENT pass. ISSUE_OWNER_GO stands in
 # for the spec (spl_issue_owner_go); unset, nothing changes.
 spl_issue_create_epic_spec() {
+  [[ -z "${ISSUE_OWNER_GO+x}" ]] || spl_issue_owner_go_shape || return 1
   [[ "${ISSUE_KIND:-issue}" == issue && -z "${ISSUE_PARENT:-}" ]] || return 0
   # shellcheck source=../features/spawn-agents/lib/lane-issue.inc.sh
   . "$PROJ_PATH/src/bash/features/spawn-agents/lib/lane-issue.inc.sh" || return 1
@@ -74,14 +76,28 @@ spl_issue_create_epic_spec() {
   li_epic_spec "$spec" "$ISSUE_EPIC" >/dev/null
 }
 
-# spl_issue_owner_go: ISSUE_OWNER_GO (SPL-4443) is a full lowercase uuid; the
+# spl_issue_owner_go_shape: a set ISSUE_OWNER_GO is a full lowercase uuid,
+# at every level, never in t1 (csi-spl's own workspace: its issues keep the
+# git-spec rule, spec 145 Form 4), and comes with ONE description source:
+# spool sends the file over ISSUE_DESCRIPTION when both are set, so the
+# first-line checks below would read the text that is not filed.
+spl_issue_owner_go_shape() {
+  local go="$ISSUE_OWNER_GO" no="FATAL refused, nothing filed: ISSUE_OWNER_GO"
+  [[ "${TENANT_ID:-}" != t1 ]] ||
+    { do_log "$no $go: t1 is csi-spl's own workspace, its issues name a git spec (spec 145 Form 4); the go is for a workspace with no repo"; return 1; }
+  [[ "$go" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] ||
+    { do_log "$no '$go' is not a full lowercase message uuid (an id8 is not enough)"; return 1; }
+  [[ -n "${ISSUE_DESCRIPTION+x}" && -n "${ISSUE_DESCRIPTION_FILE:-}" ]] &&
+    { do_log "$no $go: set ISSUE_DESCRIPTION or ISSUE_DESCRIPTION_FILE, not both"; return 1; }
+  return 0
+}
+
+# spl_issue_owner_go: ISSUE_OWNER_GO (SPL-4443, shape checked above): the
 # description's first line is, or becomes, `Owner order: <uuid>`; with
 # DRY_RUN=0 the message is read through the desk (spl_issue_owner_go_from)
 # and must come from a HUM-<n>. One log line names the uuid, pass or refusal.
 spl_issue_owner_go() {
   local go="$ISSUE_OWNER_GO" no="FATAL refused, nothing filed: ISSUE_OWNER_GO" first from
-  [[ "$go" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] ||
-    { do_log "$no '$go' is not a full lowercase message uuid (an id8 is not enough)"; return 1; }
   if [[ -n "${ISSUE_DESCRIPTION+x}" || -z "${ISSUE_DESCRIPTION_FILE:-}" ]]; then
     first="${ISSUE_DESCRIPTION:-}"; first="${first%%$'\n'*}"
   else
@@ -89,13 +105,13 @@ spl_issue_owner_go() {
   fi
   [[ "$first" =~ ^Owner\ order: && "$first" != "Owner order: $go" ]] &&
     { do_log "$no $go: the description's first line cites another order: $first"; return 1; }
-  if [[ "${DRY_RUN:-1}" == 0 ]]; then
-    from="$(spl_issue_owner_go_from "$go")" || return 1
-    [[ "$from" =~ ^HUM-[0-9]+$ ]] ||
-      { do_log "$no $go is from '$from', not a human member (HUM-<n>)"; return 1; }
-  else
-    from="(not read: DRY_RUN)"
+  if [[ "${DRY_RUN:-1}" != 0 ]]; then
+    do_log "INFO DRY_RUN owner go $go is not read: with DRY_RUN=0 it must be a HUM-<n>'s message of a linked discussion in $TENANT_ID, then the git-spec check would be skipped (SPL-4443)"
+    return 0
   fi
+  from="$(spl_issue_owner_go_from "$go")" || return 1
+  [[ "$from" =~ ^HUM-[0-9]+$ ]] ||
+    { do_log "$no $go is from '$from', not a human member (HUM-<n>)"; return 1; }
   [[ "$first" == "Owner order: $go" ]] || spl_issue_owner_go_line "$go" || return 1
   do_log "INFO owner go $go from $from in $TENANT_ID: the git-spec check is skipped (SPL-4443), the epic $ISSUE_EPIC stays"
 }

@@ -101,7 +101,7 @@ Owner HUM-10, t1 topic `cfaa3dce`:
 - **The Gmail-style selection.** `wui/utils/issues-bulk.ts` (pure:
   `toggleKey`, shift-click ranges) and `wui/components/IssuesBulkBar.vue`.
 - **Workspace changes with a handler today**: member invite, invite
-  revoke, role, roles, remove (`hub/rbac.go:552-556`); channel delete
+  revoke, role, roles, remove (routes `hub/rbac.go:586-590`); channel delete
   (`hub/channel_members.go:41`, handler `:542`); join token mint and
   revoke, box pin revoke (`hub/join_tokens.go:67-70`). Issue changes
   already have their own history (`rdb/0181_issue_events.sql`) and are
@@ -212,9 +212,9 @@ action stands, as `opAudit` does (`hub/operator_workspaces.go:115-116`).
 
 | kind | handler | origin |
 |---|---|---|
-| `member.invited`, `member.invite_revoked` | `handleMemberInvite`, `handleInviteRevoke` (`hub/rbac.go:552-553`) | component `members` |
-| `member.role_changed` | `handleMemberRole`, `handleMemberRoles` (`:554-555`) | component `members` |
-| `member.removed` | `handleMemberRemove` (`:556`) | component `members` |
+| `member.invited`, `member.invite_revoked` | `handleMemberInvite` (`hub/rbac.go`), `handleInviteRevoke` (`hub/members_admin.go`); routes `hub/rbac.go:586-587` | component `members` |
+| `member.role_changed` | `handleMemberRole`, `handleMemberRoles` (routes `:588-589`) | component `members` |
+| `member.removed` | `handleMemberRemove` (route `:590`) | component `members` |
 | `channel.deleted` | `handleDeleteChannel` (`hub/channel_members.go:542`) | component `channels/<name>` |
 | `box.join_token_minted`, `box.join_token_revoked`, `box.pin_revoked` | `hub/join_tokens.go:67-70` | component `boxes` |
 
@@ -309,7 +309,7 @@ One small lane each; rows that may run at once have disjoint files.
 | B3 workspace and system store, routes | E3 | rdb, api | new `rdb/<next>_workspace_system_events.sql` (both tables; RLS for the tenant one); new `store/log_events.go`, `log_events_memory.go`, `log_events_postgres.go`, `log_events_test.go`; `store/rls_test.go` (the table list only); new `hub/log_events.go` + `_test.go`; one route line in `hub/server.go`; `hub/openapi.json` (the four paths) | - | C10-C15 (red C11); `PRE_PUSH_TIER=full`; **landed `3820b482c`** (2026-10-29, dev + prd v6.5.1-c3, rdb `0240_workspace_system_events.sql`) |
 | B4 lease reason on the wire; the hub writes it | E4 | api | `api/internal/wire/wire.go` (the frame field); `api/internal/action/lease.go` + new `lease_test.go`; `api/cmd/spool/lease.go` (the flag) + `cli_verbs_test.go`; `hub/box_lease.go` + `box_lease_test.go`; `store/fleet_lease.go`, `fleet_lease_postgres.go`, `fleet_lease_test.go` (CAS answers the previous holder and age); the `hub.started` write in the hub's start path | B3 on master | C16-C19 (red C17); `PRE_PUSH_TIER=full`; **landed `6e799033c`** (2026-10-30, dev + prd v6.6.7-c3; a claim on an empty lease reads `<role>: none -> <new> (claim)`) |
 | B5 the loop names the reason | E4 | orc | `orc/run/spl-dispatch-lease.func.sh` (new `spl_fleet_reason`; `--reason` on the write at `:2163` and on the SPL-2892 write; nothing on `spl_fleet_mirror_out`); new `orc/tests/spl-fleet-reason.tst.sh` | B4 served on dev and prd AND the `spool` binary on every box carries `--reason` (R2) | C20-C21 (red C21) |
-| B6 workspace producers | E3 | api | `hub/rbac.go` (the five handlers of 3.4, one call each; `handleInviteRevoke` lives in `hub/members_admin.go`, its route line in `rbac.go`), `hub/channel_members.go` (`handleDeleteChannel`), `hub/join_tokens.go` (three handlers), and their `_test.go` cases | B3 on master | C22-C23 (red: C22's refused-call case with the write moved before the check) |
+| B6 workspace producers | E3 | api | `hub/rbac.go` (the five handlers of 3.4, one call each; `handleInviteRevoke` lives in `hub/members_admin.go`, its route line in `rbac.go`), `hub/channel_members.go` (`handleDeleteChannel`), `hub/join_tokens.go` (three handlers), and their `_test.go` cases | B3 on master | C22-C23 (red: C22's refused-call case with the write moved before the check); **landed `8b36185cb`** (2026-10-30, dev + prd v6.7.0-c3) |
 | B7 select and delete selected (page, Mine) | E5 | wui | `wui/pages/monitoring/events/index.vue`; new `wui/components/EventsBulkBar.vue`; the events client's `delete` in `wui/utils/event-log.mjs`; locale keys (new only, agy review last); `tests/unit/event-log.test.mjs`; the C24 e2e cases | B1 and B2 on master | C24-C25 (red C25) |
 | B8 scope switch and origin | E3, E6 | wui | `wui/pages/monitoring/events/index.vue`; new `wui/utils/event-log-scope.mjs`, new `wui/utils/event-origin.mjs` + their unit tests; the two view-log calls in `wui/utils/spool-client-lazy.mjs`; locale keys (new only, `events.kind.*` included, agy review last); the C26 e2e | B3, B6 and B7 on master | C26-C27 (red: an origin parser that links `/settings`) |
 

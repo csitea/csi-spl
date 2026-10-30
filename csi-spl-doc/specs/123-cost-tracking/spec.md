@@ -1,6 +1,6 @@
 # Spec 123: Cost Tracking
 
-**Status:** v1.5 (2026-10-30: 5.5, the Cloud, AI tokens and Human sections, with its R7 folded: an act-as clone of the operator admin reads 403 on the cloud days and the workspace answer of the month read; SPL-4187) · v1.4 (2026-10-29: R7 re-review W1: the 13.9 masked-viewer case counts owned hardware in the total, as 13.6 and P03; SPL-4189) · v1.3 (2026-10-29: R7 review W1..W7 folded: owned hardware is the fourth part of the project-cost read, one hand-entered kind only, files disjoint per batch, Q-10 dropped as decided by 107 Q27 A; SPL-4189) · v1.2 (2026-10-29: 13.12, owned hardware written off monthly, monthly and yearly totals first, the untracked-cost list; SPL-4189) · v1.1 (2026-10-29: section 13, the project's cost, plan only, SPL-4189) · v1.0 (draft ff04d3ca3 by a-816, folded by the editor
+**Status:** v1.6 (2026-10-30: the owner's Q-8 A and Q-9 A folded into section 13, msg 4316d471: the project's cost is a fifth Costs page, first and the default; a customer workspace gets its own project cost, its AI share + its own people, no cloud part; SPL-4368) · v1.5 (2026-10-30: 5.5, the Cloud, AI tokens and Human sections, with its R7 folded: an act-as clone of the operator admin reads 403 on the cloud days and the workspace answer of the month read; SPL-4187) · v1.4 (2026-10-29: R7 re-review W1: the 13.9 masked-viewer case counts owned hardware in the total, as 13.6 and P03; SPL-4189) · v1.3 (2026-10-29: R7 review W1..W7 folded: owned hardware is the fourth part of the project-cost read, one hand-entered kind only, files disjoint per batch, Q-10 dropped as decided by 107 Q27 A; SPL-4189) · v1.2 (2026-10-29: 13.12, owned hardware written off monthly, monthly and yearly totals first, the untracked-cost list; SPL-4189) · v1.1 (2026-10-29: section 13, the project's cost, plan only, SPL-4189) · v1.0 (draft ff04d3ca3 by a-816, folded by the editor
 s123-claude from the four seat reviews in `reviews/`; rc1 cc831a665 signed by
 all four seats and the drafter; the owner's answers Q-1..Q-7 folded, section 12)
 
@@ -409,7 +409,7 @@ One list, merged from Q-C1..Q-C5 (s123-claude) and Q-1..Q-7 (s123-claude-2), plu
   - **Panel: A** (claude-2; no seat objected). You asked for "the whole" instance; a marked hand row is honest about its source.
   - **Owner: B, plus a factory.** msg `6078c151`: "7. no supported for now - factory design patterns in the code to support for the future". Section 4.6.
 
-## 13. The project's cost: cloud + AI tokens + human (v1.1..v1.4, plan only)
+## 13. The project's cost: cloud + AI tokens + human (v1.1..v1.6, plan only)
 
 **Status: Planned, not built.** Lane issue SPL-4189, epic SPL-2373. Nothing
 below exists in code. It is the level ABOVE the near-term three-sections
@@ -426,8 +426,11 @@ does not duplicate it.
 
 One view, **"The project's cost"**. Spec 143 3.2 defines four Costs pages,
 Spend the default and first. This view is planned as a **fifth page**,
-`/reporting/costs/project`, placed first and made the default; that changes
-143 3.2 and is owner question Q-9 (13.10). Until he answers, 143 3.2 stands.
+`/reporting/costs/project`, placed **first and the default** (owner Q-9 A,
+13.10). This changes 143 3.2 (`143-reporting-section/costs-redesign.md`
+3.2, "One Costs tab, four pages", Spend the default): that table needs the
+project page as its first row and Spend no longer the default. Spec 143 is
+not edited here; the change is a follow-up for its owner.
 For the picked period it shows one total =
 **cloud + owned hardware + AI tokens + human**, and four parts under it
 (owned hardware is entered by hand, 13.12). Each part has:
@@ -528,10 +531,14 @@ any part is incomplete. The shares are of the priced total.
   Cloud = every GCP project of the billing export (5.5); owned hardware = the assets
   entered in the operator workspace; AI tokens = the fleet's paid items (all
   boxes); Human = approved hours booked in the operator workspace.
-- **Later, per workspace**: a customer workspace's project cost would be its
-  AI share (143 3.3.1) plus its own members' human cost. It has no cloud part
-  of its own until a per-workspace cloud split exists (none is planned).
-  This is owner question Q-8 (13.10).
+- **Per workspace** (owner Q-8 A, 13.10): a customer (non-operator)
+  workspace gets its own project cost = its AI share (143 3.3.1) plus its
+  own members' human cost. It has **no cloud part** and no owned hardware:
+  both are estate parts (13.6), so its page shows two parts, AI tokens and
+  Human, and its total is their sum. P01 answers it in the workspace's own
+  scope; P04 proves it reads no estate part; P05 draws it. The 13.9 case
+  "a non-operator workspace" already expects exactly this (its own parts,
+  no estate cloud, no owned hardware), so the case is unchanged.
 
 ### 13.8 Planned build rows (rounds-rulebook format, at most 10)
 
@@ -540,17 +547,19 @@ Each row names its files; no file is in two rows of one batch (rounds-rulebook
 2.1 R1), and a row that changes an earlier row's file sits in a later batch.
 A cross-vendor reviewer per row (R7). Waits: P02 waits for 107 T071..T072;
 P05 waits for the three-sections build (ask `156c8939`, it owns `costs.vue`).
+No row waits for an owner answer any more (v1.6): Q-9 A fixes P05's place,
+Q-8 A fixes what P01, P04 and P05 show a customer workspace.
 Rows P08..P09 are in 13.12 item 4; P10 (v1.2) is folded into P05 (v1.3).
 Paths: `hub/`, `store/` under `csi-spl-api/src/go/spool-hub-api/internal/`;
 `pages/`, `components/` under `csi-spl-wui/src/`; `tests/` under `csi-spl-wui/`.
 
 | # | slug | what | target & proof | test (red control) | vendor | batch |
 |---|---|---|---|---|---|---|
-| P01 | `feat(api, project-cost-read)` | `GET /v1/tenant/costs/project?month=` (or `year=`), new `hub/cost_project.go` + `store/cost_project.go` + `store/cost_project_test.go`: the four parts (Cloud, Owned hardware from source `hand_asset`, AI tokens, Human), each with amount, share and completeness, over the month read (5.2) | the parts sum to `total.priced`; an unpriced part is `null`, never 0; Human is `not_tracked` until P02 | `TestCostProjectParts` (red: a part with no rate summed as 0 changes the total; a `hand_asset` line left out changes the total) | claude | 1 |
+| P01 | `feat(api, project-cost-read)` | `GET /v1/tenant/costs/project?month=` (or `year=`), new `hub/cost_project.go` + `store/cost_project.go` + `store/cost_project_test.go`: the four parts (Cloud, Owned hardware from source `hand_asset`, AI tokens, Human), each with amount, share and completeness, over the month read (5.2); a customer workspace gets two parts only, its AI share and its own Human (Q-8 A, 13.7) | the parts sum to `total.priced`; an unpriced part is `null`, never 0; Human is `not_tracked` until P02 | `TestCostProjectParts` (red: a part with no rate summed as 0 changes the total; a `hand_asset` line left out changes the total) | claude | 1 |
 | P02 | `feat(api, project-cost-human)` | the human day sum for P01, new `store/cost_project_human.go` + `store/cost_project_human_test.go`, one call added in `store/cost_project.go`: approved minutes x the price in force per day, per currency, no member column | reads 107's tables once T071..T072 land | `TestCostProjectHumanSum` (red: pricing at today's price instead of the day's changes the sum) | claude | 2 |
 | P04 | `test(api, project-cost-rls)` | tenant isolation and estate scope of P01 on Postgres, new `store/cost_project_rls_test.go` only | workspace B reads 0 of A's parts; a non-operator reads no estate part (no cloud, no owned hardware) | `TestCostProjectRLS` (red: the policy dropped reads A's rows) | claude | 2 |
 | P03 | `feat(api, project-cost-mask)` | the human money mask in `hub/cost_project.go` + new `hub/cost_project_mask_test.go`: without `hours.rates` the Human amount is `null` and `total.priced` covers Cloud + owned hardware + AI only, flagged | an operator admin without `hours.rates` gets hours, no money, and no total that holds it | `TestCostProjectHumanMask` (red: removing the mask lets total minus parts reveal the human money) | claude | 3 |
-| P05 | `feat(wui, project-cost-page)` | new page `pages/reporting/costs/project.vue`, its entry first in the Costs bar in `pages/reporting/costs.vue` (Q-9), labels in the locale catalogue (agy reviews the locale text last): the two first figures (month so far, year to date, 13.12 item 2), the table, shares, completeness words, links to the sections and pages | drawn at 1400 and 390 px, no sideways scroll; both first figures equal the sums of their parts | new `tests/e2e/reporting-costs-project.test.mjs` (red: a `null` part drawn as 0.00 fails; the year total without the closed months fails) | claude | 3 |
+| P05 | `feat(wui, project-cost-page)` | new page `pages/reporting/costs/project.vue`, its entry first in the Costs bar in `pages/reporting/costs.vue` and `/reporting/costs` opening on it as the default (Q-9 A, 13.2; Spend is no longer the default), labels in the locale catalogue (agy reviews the locale text last): the two first figures (month so far, year to date, 13.12 item 2), the table, shares, completeness words, links to the sections and pages | drawn at 1400 and 390 px, no sideways scroll; both first figures equal the sums of their parts | new `tests/e2e/reporting-costs-project.test.mjs` (red: a `null` part drawn as 0.00 fails; the year total without the closed months fails) | claude | 3 |
 | P06 | `feat(wui, project-cost-year)` | the year-to-date pick and the month bars split in four parts, new `components/reporting/CostProjectBars.vue` (inline SVG, lazy) + `tests/unit/cost-project.test.mjs`, mounted in `pages/reporting/costs/project.vue` | the bars sum to the year total; the route chunk stays under its ceiling | `tests/unit/cost-project.test.mjs` (red: a static import of the bars into the shell fails the 155 KB initial-size check) | claude | 4 |
 | P07 | `docs(doc, project-cost-help)` | a "The project's cost" section in `csi-spl-doc/doc/help/reporting.md` and its served copy `csi-spl-wui/src/public/help-md/reporting.md` (help is one English page; the page labels' locales are P05's) | the help copy matches its source | `tests/unit/help-sync.test.mjs` (red: the source edited without refreshing the served copy fails) | agy | 4 |
 
@@ -567,16 +576,19 @@ Paths: `hub/`, `store/` under `csi-spl-api/src/go/spool-hub-api/internal/`;
 | a non-operator workspace | its own parts, no estate cloud, no owned hardware | the estate cloud appears |
 | an owned machine entered by hand | its monthly share in the month and year totals, in Owned hardware | left out of the total, or its full price in the purchase month |
 
-### 13.10 Owner questions (only what the words leave open)
+### 13.10 Owner questions: Q-8 and Q-9 decided (v1.6)
 
-```poll
-Q-8 Should a customer workspace later get its own project cost?
-(A) Yes: its AI share + its own people, no cloud part (recommended)
-(B) No: only the spool's own estate
-Q-9 Where does the project-cost view live? Spec 143 3.2 has four Costs pages, Spend first.
-(A) A fifth Costs page, first and the default (recommended)
-(B) A card on top of Spend, 143 3.2 unchanged
-```
+Both answered, decided (owner HUM-10, prd t1 topic `e2c0e6b4`, msg
+`4316d471`, 2026-10-29 16:00Z, poll `3d141fbb`):
+
+- **Q-8 A**: "Yes: its AI share + its own people, no cloud part
+  (recommended)". A customer workspace gets its own project cost (13.7).
+- **Q-9 A**: "A fifth Costs page, first and the default (recommended)". The
+  project's cost is `/reporting/costs/project`, first in the Costs bar and
+  the page `/reporting/costs` opens on (13.2, P05); 143 3.2 needs the
+  matching change, a follow-up outside this spec.
+
+No owner question of section 13 is open.
 
 Q-10 of v1.1 is withdrawn: what an operator admin without `hours.rates`
 sees is decided by spec 107 Q27 A (msg `ce14ad70`), 13.6.
@@ -675,3 +687,13 @@ page and e2e file in the same batch (R1).
   workspace answer of `GET /v1/tenant/costs` (the month read's estate rule
   had the same gap); tests for a session with no member, a clone and a
   superseded line.
+- v1.6 (2026-10-30, SPL-4368): the owner's answers, msg `4316d471` (poll
+  `3d141fbb`), folded. Q-9 A: the project's cost is a fifth Costs page,
+  first and the default (13.2, P05); 143 3.2 (`costs-redesign.md`) needs
+  the matching change, reported as a follow-up. Q-8 A: a customer
+  workspace gets its own project cost, its AI share + its own people, no
+  cloud part (13.7, P01); the 13.9 non-operator case already matched. The
+  13.10 poll is replaced by the two decisions; Q-10 stays withdrawn. No
+  row waits for an owner answer any more: P01, P04 and P05 are unblocked
+  by these answers (P05 still waits for the three-sections build, P02 for
+  107 T071..T072).

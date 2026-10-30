@@ -595,6 +595,39 @@ The complete consensus rationale, weighing of Mistral's P-Q3 vote, and 5 verifie
 
 ---
 
+## 9. Addendum: copy a code block, then scroll to the next step (SPL-4392)
+
+Owner HUM-10, t1 `d3bb743c`, msg `4491ddee` ("Add \"copy, then scroll to
+the next step\" to EVERY html runbook"), and msg `0bd38b1f` ("both in the
+qto docs and in the single html file runbooks"). In the Qto doc view:
+
+- **Trigger**: the copy button of a code block, or a normal copy (Ctrl+C,
+  Cmd+C, right-click Copy) of a selection whose anchor is inside a `<pre>`.
+- **Next step**: the next heading after the copied block, in document order,
+  that is itself followed by a code block before the next heading of the
+  same or a higher level. A heading with prose only is skipped. None (the
+  last block): no scroll. A section's level is its outline depth (every
+  section heading of the view is an `h3`).
+- **Scroll**: `scrollIntoView({ block: 'start', behavior: 'smooth' })` in a
+  `setTimeout(0)`, after the copy, so the copy is never blocked or changed.
+  The heading's `scroll-margin-top` keeps it clear of a sticky bar.
+- **Unchanged**: the text, numbering, commands and copy behaviour.
+- **A code block's own buttons** (Copy, Open) leave its paragraph read: before,
+  their click also opened the paragraph for editing, which moved the next
+  block from under the pointer.
+- **One code block per heading** (owner msg `1bdffa46`): a runbook section
+  with two or more code blocks is split with numbered subheadings, one block
+  each, commands unchanged.
+- **Code**: `csi-spl-wui/src/components/workspace-docs/-doc-next-step.ts`,
+  wired on the doc view's `<article>` (lazy with the view, not in the entry
+  chunk). Tests: `csi-spl-wui/tests/unit/doc-next-step.test.mjs` (the rule)
+  and the SPL-4392 checks in `tests/e2e/workspace-doctree.test.mjs`.
+- **Html runbooks**: on 2026-10-30, `git ls-files '*.html'` -> 4 files, 0
+  of them runbooks, and no `./run` action generates one; there is none to
+  change in this repository. The md runbooks the Qto view shows
+  (`git ls-files 'csi-spl-doc/*runbook*.md'` -> 8) had 17 sections with two
+  or more code blocks; each is split.
+
 ## 10. Addendum: Specs, agent instructions, and our READMEs move to Qto (HUM-10)
 
 Owner order: HUM-10, t1 #refactoring topic `acc0c5d3-ec8f-4968-9ed9-f25e99d16e0e`, poll `c0398592`, answer msg `b0c3bc86` (17:1xZ 2026-10-15): of our docs not in Qto, move **1. specs** (`csi-spl-doc/specs/`, 503 .md in 138 specs) and **6. agent instructions** (~30 files: `csi-spl-orc/src/bash/features/spawn-agents/assets/{commands,skills}/**`, `spool-install/assets/claude/claude-md/*.md`, `spool-install/assets/agy/rules/*.md`, `graft/assets/**`, `gc/gc-prompt.md`, `dispatch/brief-dispatcher.tpl.md`). Then (msg `4454c883`, same topic): **4. our own README.md files** too (21: the root README.md and each part's README.md, e.g. `csi-spl-api/`, `csi-spl-orc/`, `csi-spl-wui/`, `csi-spl-orc/src/bash/features/*/README.md`). NOT third-party ones (`csi-spl-doc/.specify/extensions/git/README.md`) and NOT test fixtures (`csi-spl-orc/src/bash/tests/fixtures/**`).
@@ -823,6 +856,7 @@ Build lanes implementing the migration of specs, agent instructions, and READMEs
 | v0.2.2 | 2026-10-14 | c-526 | §5.3: owner decisions on the Publish button folded (poll 72d2b3da, msg 86c7b888); publish.md v0.2.0. |
 | v0.2.3 | 2026-10-14 | c-526 | §5.3: no review step for Publish (owner msg af133e9c); publish.md v0.3.0. |
 | v0.3.0 | 2026-10-15 | a-577 | Addendum §10: specs (503 files in 138 specs), agent instructions (~29 files), and our 21 README.md files move to Qto as master; authoring, ticking, and export workflow; import plan with gap handling (G1-G7) and pause rule (owner msg ce0eae22); public repo hidden-workspace gate; test requirements (SPL-2030). |
+| v0.3.1 | 2026-10-30 | c-839 | §9: copy a code block, then scroll to the next step, in the Qto doc view (SPL-4392, owner msgs 4491ddee and 0bd38b1f). |
 
-<!-- version: 0.3.0 · updated: 2026-10-15 · last-edit: 2026-10-15T20:30:00Z -->
+<!-- version: 0.3.1 · updated: 2026-10-30 · last-edit: 2026-10-30T15:00:00Z -->
 

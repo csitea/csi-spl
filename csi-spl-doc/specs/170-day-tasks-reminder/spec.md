@@ -48,6 +48,9 @@ Source: prd csitea topic `dfe850d9-e283-4460-a0ed-223b71d657fa`.
 - HUM-24, msg `e0fb60bb-8b9c-4049-9fe8-ab154240d116` (Bulgarian, to HUM-10):
   today the tasks icon shows a red circle with the unread count; could tasks
   due today be signalled the same way?
+- HUM-24, 2026-10-30 15:00Z (relayed by the dispatch holder c-003, msg
+  `e5e6fafc`): asked again for a red badge with the count of tasks due
+  today, which is Q1 option B; c-003 pointed HUM-24 to Q1.
 
 ### 1.2 Decided
 
@@ -228,6 +231,9 @@ shared component before it touches one.
 Each goes to the dispatch lease holder as one poll form on task
 `dispatch-dfe850d9`; the panel never asks the owner directly. The default is
 what WHAT assumes until the owner answers.
+
+Posted by c-003 in dfe850d9 at 15:26Z: Q1 msg `9958a8b7`, Q2 msg
+`14caab4c`, Q3 msg `e3b1370c`. Q1b and Q4 follow the Q1 answer.
 
 - **Q1 the day signal.** Morning reminder with a link (5.1), red badge on
   the Issues icon (5.2), or both (5.3)? Default: both.

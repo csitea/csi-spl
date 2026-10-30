@@ -1,7 +1,7 @@
 # 164 Channel Box Pin: Pin a Channel to Chosen Boxes (Default: Any Box of the Fleet)
 
-Version: v1.1 (2026-10-30).
-Status: **Draft v1.1**, Planned, not built (Placement slug `c003-channel-box-pin-spec`, Issue SPL-4171, Epic SPL-2398).
+Version: v1.2 (2026-10-30).
+Status: **Draft v1.2**, Planned, not built (Placement slug `c003-channel-box-pin-spec`, Issue SPL-4171, Epic SPL-2398).
 Class: feature.
 Kind: specs_and_docs.
 
@@ -16,7 +16,7 @@ Paths used below:
 - `rdb/` = `csi-spl-rdb/src/sql/postgres/spool-hub/`
 - `orc/` = `csi-spl-orc/src/bash/` (so `orc/run/...` is `csi-spl-orc/src/bash/run/...`)
 
-Every `file:line` citation was read on origin/master `dc328aae3` (2026-10-30). Line numbers move; a build row re-reads them before it edits.
+Every `file:line` citation was read on origin/master `dc328aae3` (v1.1) and re-read for v1.2 on `5df9c0ead` (2026-10-30). Line numbers move; a build row re-reads them before it edits.
 
 ---
 
@@ -59,9 +59,12 @@ From owner HUM-10, prd t1 topic `021d4921-a6b9-427b-bf86-4eb0b945c82d`:
    }
    ```
    So a delivery goes to each member box that still has a target after the role-seat filter and the box-lock check, not to every box with members. Spec 058 row H7 (`csi-spl-doc/specs/058-multi-machine-fleet/spec.md:42`): one delivery per member box, by design.
-2. **The direct leg**: a frame with `to_box` goes to that box through `dispatchCheck` (`hub/dispatch.go:125-168`); `routeChannel` skips that box (`box == env.ToBox`) so it is not delivered twice.
+2. **The direct leg** (`to_box`), two doors:
+   - **From an agent's box** (the box WebSocket): `onSend` (`hub/ws.go:611`) runs its refusal chain (`:627-640`: `sendIDRefusal`, `sendSenderRefusal`, `sendRouteRefusal` (`:701`, checks only that `to_box` is pinned to the workspace), `boxSendLockRefusal`, `sendTenantRefusal`), then `commitRow` (`:950`) queues the row for `env.ToBox` (`Store.Enqueue`, `:1009`) and only then calls `routeChannel` (`:1020`).
+   - **From the browser**: `dispatchCheck` (`hub/dispatch.go:125-168`), called only with a browser connection (`grep -n 'dispatchCheck(' hub/*.go` -> `wui.go:744`, `topic_reply.go:39`, `retired_reply.go:75`).
+   - `routeChannel` skips the addressed box (`box == env.ToBox`) so it is not delivered twice. The operator replay of unsigned posts (`hub/replay_unsigned.go:122-157`) re-signs a browser envelope and goes through `routeChannel` only.
 3. **The fallback responder**: `hub/fallback.go` (`fallbackBoxes` :54, `fallbackPick` :85, `fallbackOff` :133) picks an online agent on some box when nobody in the channel answers and the channel's `no_fallback` is off.
-4. **Receiving**: `hub/channels.go:315-339` (`recvAgents`) picks, for a box that receives a queued channel row, the members it hosts (`members[x.box]`, role seats applied).
+4. **Receiving**: `hub/channels.go:315-339` (`recvAgents`) picks, for a box that receives a queued channel row, the members it hosts (`members[x.box]`, role seats applied). The addressed box always gets its row: `own := e.ToBox == x.box` (`:320`) and `return a, own || len(a) > 0` (`:338`), even with no channel target.
 
 Posting: `hub/channels.go:219-231` (`agentInChannel`) lets an agent post to a channel when it is in `members[box]`; others get `404 unknown_channel` (the read door).
 
@@ -192,15 +195,17 @@ The orc scripts talk to the hub only through the box-signed `spool` CLI (`spl_as
       // ... the existing filters, enqueue and push
   }
   ```
-- **Direct leg** (`dispatchCheck`, `hub/dispatch.go:125-168`): a frame on a pinned channel whose `to_box` is not in the list is refused, `403 channel_box_mismatch` (the box is pinned to the workspace; the channel refuses it). A lookup error refuses it too (`503 channel_pins_unavailable`).
-- **Cross-box mention**: a post on a pinned channel that names `@<id>@<box>` for a box outside the list gets the same `403 channel_box_mismatch` at `dispatchCheck`, so it fails fast rather than waiting for a box that will never get it.
+- **Direct leg, both doors** (the same check, one helper `channelBoxRefusal(tenant, channel, toBox)`): a frame on a pinned channel whose `to_box` is not in the list is refused, `403 channel_box_mismatch` (the box is pinned to the workspace; the channel refuses it); a lookup error refuses it too (`503 channel_pins_unavailable`). `to_box = box-wui` is never refused.
+  - **Agent frames**: a new `sendChannelBoxRefusal` in the `onSend` chain right after `sendRouteRefusal` (`hub/ws.go:632`), so the refusal comes before `commitRow` stores or queues anything.
+  - **Browser frames**: the same check in `dispatchCheck` (`hub/dispatch.go:125-168`).
+- **Cross-box mention**: a post on a pinned channel that names `@<id>@<box>` for a box outside the list gets the same `403 channel_box_mismatch` at the same two places, so it fails fast rather than waiting for a box that will never get it.
 - **Fallback** (`hub/fallback.go`): on a pinned channel `fallbackBoxes` keeps only the listed boxes; with none online, no fallback runs.
-- **Receive** (`recvAgents`): a box that receives a queued row of a pinned channel it is not listed for gets no targets. This covers rows queued before the pin was set.
+- **Receive** (`recvAgents`): a box that receives a queued row of a pinned channel it is not listed for gets no targets **and `own` is false**: the row is dropped, also when its `to_box` is that box (`hub/channels.go:320`, `:338`). This covers rows queued before the pin was set and any leg the refusals above miss. A lookup error drops the row too.
 - **The browser box** (`WUIBox = "box-wui"`, `hub/wui.go:42`) is never filtered: it is no delivery target in the fan-out, and a human posting from the WUI is not an agent post. A pin limits machines, not people.
 
 ### 5.2 (b) Lane Placement
 1. **The ask's channel**: the brief's `Channel: <tenant> #<channel>` line, read with the existing `cr_channel_of` (`orc/features/spawn-agents/lib/channel-rules.inc.sh:34-48`) on the file `spl_spawn_place_brief` (`orc/run/spl-spawn-place.func.sh:935`) returns. Ask rows in the hub get no new column. A brief with no `Channel:` line is unpinned.
-2. **Its pins**: `spool channel-pins` (4.3). When the hub does not answer, the ask holds (fail closed), reason `waiting: channel pins unreadable`.
+2. **Its pins**: `spool channel-pins` (4.3), signed with the desk keys of **the `Channel:` line's tenant**, not the orchestrator's: `spl_asks_hub` (`orc/run/spl-asks-open.func.sh:94-98`) signs with `LANE_DESK_DIR="$SPL_STATE_DIR/desk/$LANE_TENANT/$LANE_DESK_BOX"` (`orc/run/spl-lane-map.func.sh:114`), the orchestrator's workspace, and a box of one tenant may not read another tenant's pins (B4's red control). So the placer resolves `$SPL_STATE_DIR/desk/<channel tenant>/<box>` and signs with it. No pinned desk in that tenant (`pinned` file missing), or the hub does not answer -> the ask holds (fail closed), reason `waiting: channel pins unreadable (<why>)`.
 3. **The hold, `spl_spawn_place_channel_hold`**: a new step in the hold chain next to `spl_spawn_place_pin_hold` (`:181`), for every vendor (claude, grok, agy, mistral, qwen). For a pinned channel:
    - a listed box with room -> `spl_spawn_place_launch` (`:948`) launches with `SPAWN_BOX=<that box>` (the first listed box with room, in `do_spl_box_pick` order);
    - every listed box full, degraded, draining or offline -> the ask HOLDS, `.place.wait` reads `waiting: channel #<c> is pinned to <boxes> (<why each>)`;
@@ -253,9 +258,9 @@ All rows: **Planned**, not built. Files are disjoint across rows.
 |---|---|---|---|---|---|
 | **B1** | Planned | Table and store | `rdb/0242_channel_box_pins.sql` (next free number)<br>`csi-spl-rdb/src/sql/postgres/spool-hub-roles/runtime-grants.sql` (only if a grant is missing)<br>`store/store.go`<br>`store/channel_box_pins.go`<br>`store/memory.go`<br>`store/channel_box_pins_test.go` | none | `TestChannelBoxPinsStore`, `TestRLSCoversEveryTenantTable` (it checks FORCE), on PostgreSQL.<br>**Red**: pins written under tenant A, then read through the hub's runtime login in tenant A's scope -> the same rows (a policy on the wrong setting reads 0 and fails this); read in tenant B's scope -> 0 rows; a pin of a box with no `pins` row -> FK error. |
 | **B2** | Planned | Hub REST routes | `hub/channel_box_pins.go`<br>`hub/channel_box_pins_test.go`<br>`hub/server.go` (route lines)<br>`hub/tenant_settings.go` | B1 on master | `TestChannelBoxPinsAPI` (GET, PUT, operator PUT, `GET /v1/tenant/channels`).<br>**Red**: a member without `TenantSettings` -> 403 (not 200); an unknown or revoked box -> 400 `unknown_box`; `#lobby` -> 400 `channel_default_unpinnable` (per Q1). |
-| **B3** | Planned | Fan-out, direct leg, mention, fallback, posting | `hub/channels.go`<br>`hub/dispatch.go`<br>`hub/fallback.go`<br>`hub/channel_box_pins_route_test.go` | B2 on master | `TestRouteChannelBoxPin`, `TestDispatchChannelBoxPin`, `TestFallbackChannelBoxPin`, `TestAgentInChannelBoxPin`.<br>**Red**: a pinned channel's post is queued for an unlisted member box; `to_box` = an unlisted box is accepted; a fallback picks an unlisted box; an agent on an unlisted box posts; a lookup error (store stub) delivers or allows. |
+| **B3** | Planned | Fan-out, both direct-leg doors, mention, fallback, receive, posting | `hub/channels.go`<br>`hub/ws.go`<br>`hub/dispatch.go`<br>`hub/fallback.go`<br>`hub/channel_box_pins_route_test.go` | B2 on master | `TestRouteChannelBoxPin`, `TestSendChannelBoxPin`, `TestDispatchChannelBoxPin`, `TestRecvChannelBoxPin`, `TestFallbackChannelBoxPin`, `TestAgentInChannelBoxPin`.<br>**Red**: a pinned channel's post is queued for an unlisted member box; an agent on a listed box sends `to_box` = an unlisted box on a pinned channel over the box WebSocket and it is accepted (row stored or queued); the same from the browser is accepted; a row queued for an unlisted box before the pin (its `to_box` = that box) reaches it; a fallback picks an unlisted box; an agent on an unlisted box posts; a lookup error (store stub) delivers or allows. |
 | **B4** | Planned | Box-signed read verb | `api/cmd/spool/channel_pins.go`<br>`api/internal/action/channel_pins.go`<br>`hub/box_channel_pins.go`<br>`hub/box_channel_pins_test.go` | B2 on master | `TestBoxChannelPins` and the CLI test.<br>**Red**: a box of tenant B reads tenant A's pins; the CLI exits 0 when the hub does not answer. |
-| **B5** | Planned | Placer and launcher | `orc/run/spl-spawn-place.func.sh`<br>`orc/features/spawn-agents/scripts/spawn-window.sh`<br>`orc/tests/spl-spawn-place-channel-pin.tst.sh` | B4 served | `spl-spawn-place-channel-pin.tst.sh` (a stub `spool channel-pins`).<br>**Red**: a claude ask (not only agy or mistral) for a pinned channel launches on an unlisted box when the listed one is full; an unreadable pin list launches; `spawn-window.sh` with an unlisted `SPAWN_BOX` exits 0 instead of 15. |
+| **B5** | Planned | Placer and launcher | `orc/run/spl-spawn-place.func.sh`<br>`orc/features/spawn-agents/scripts/spawn-window.sh`<br>`orc/tests/spl-spawn-place-channel-pin.tst.sh` | B4 served | `spl-spawn-place-channel-pin.tst.sh` (a stub `spool channel-pins`).<br>**Red**: a claude ask (not only agy or mistral) for a pinned channel launches on an unlisted box when the listed one is full; an unreadable pin list launches; the pins are read with the orchestrator's tenant keys instead of the `Channel:` line's tenant; no desk in that tenant launches instead of holding; `spawn-window.sh` with an unlisted `SPAWN_BOX` exits 0 instead of 15. |
 | **B6** | Planned | WUI | `wui/utils/spool-client-lazy.mjs`<br>`wui/components/ChannelPropertiesDialog.vue`<br>`wui/pages/tenant-settings/channels.vue`<br>`wui/utils/tenant-settings.mjs`<br>`csi-spl-wui/i18n/locales/*.json`<br>`csi-spl-wui/tests/unit/channel-box-pins.test.mjs`<br>`csi-spl-wui/tests/e2e/tenant-channel-box-pins.test.mjs` | B2 served | unit, e2e in Chrome, i18n parity, `pnpm run typecheck`.<br>**Red**: the dialog saves without sending `box_pins`; `listPins()` is missing; the offline banner shows a typed 7 days instead of the hub's value. Text: agy review before land (language rule). |
 | **B7** | Planned | Holding notice, take, sweep | `hub/pin_notice.go`<br>`hub/pin_notice_test.go`<br>`orc/run/spl-take-auto.func.sh`<br>`orc/run/spl-take.func.sh`<br>`orc/run/spl-unanswered-sweep.func.sh`<br>`orc/scripts/unanswered-sweep-classify.py`<br>`orc/tests/spl-unanswered-sweep-channel-pin.tst.sh` | B3 on master, Q2 answered | `TestPinNotice`, `spl-unanswered-sweep-channel-pin.tst.sh`.<br>**Red**: every listed box offline 3 min -> no post in the topic; auto-take on an unlisted box takes the post; the sweep reports it as a dispatcher miss. |
 | **B8** | Planned | Seed the production cases | `orc/run/spl-channel-box-pin-seed.func.sh`<br>`orc/tests/spl-channel-box-pin-seed.tst.sh` | B2..B7 served | `spl-channel-box-pin-seed.tst.sh` on a test hub.<br>**Red**: `DRY_RUN=0` leaves the pins unset; an unknown box exits 0; a second run changes a row; a dry run writes. |
@@ -286,7 +291,7 @@ Decided in this spec, no owner question (each can be reversed by a later spec):
 
 1. **R1: one box, one point of failure.** A channel pinned to one box stops while that box is down. Mitigation: the banner (5.4.3) and the notice (6.2.2); an admin can add a box or clear the pin.
 2. **R2: crowding one box.** Many channels pinned to one box queue their lanes there while other boxes idle. Mitigation: the placer's `.place.wait` names the pin, so the hold is visible in the queue.
-3. **R3: cross-box mentions.** Refused at `dispatchCheck` with `403 channel_box_mismatch` (5.1), built in B3.
+3. **R3: cross-box mentions and direct legs.** Refused in the `onSend` chain and in `dispatchCheck` with `403 channel_box_mismatch`, and dropped on receive (5.1), built in B3.
 4. **R4: queue limits.** A listed box down for more than 7 days, or with more than 1000 queued rows, loses deliveries (5.4.2). The banner says so.
 
 ---
@@ -297,5 +302,6 @@ Decided in this spec, no owner question (each can be reversed by a later spec):
 |---|---|
 | v1.0 | First draft (`c05e273b0`). R7 review by c-594: FAIL, findings W1..W9. |
 | v1.1 | **W1**: citations re-read on `dc328aae3`; `agy_box_hold` is the agy/mistral quota hold at :890-934 (the file moved), the HAND-PINNED header :62-70, `orc/` no longer doubled, `listPins()` named as a new B6 client call, the route quote keeps `seats.filter` and `channelLockSkip`. **W2**: RLS copies 0139/0014 (`app.tenant_id`, `operator_scope`, `FORCE`), `:runtime_role`, the migration is 0242 (0240 and 0241 are taken now), B1's red control reads through the hub login. **W3**: every lookup fails closed (3.3, 5.1, 5.3). **W4**: the hold is its own step for every vendor; the channel comes from the brief's `Channel:` line via `cr_channel_of`; the pins via a new box-signed `spool channel-pins` (4.3, B4); launcher exit 15 (8 and 14 are taken). **W5**: boxes read only through deliveries and humans only through `/v1/view`, so 5.1 is the read door and no metadata endpoint is needed; the browser box is never filtered; `dispatch.go` and `fallback.go` are in B3. **W6**: 5.4 states the 7-day TTL and the 1000-per-box cap, and the banner shows them. **W7**: the hub posts the holding notice (`hub/pin_notice.go`, B7, red control "offline 3 min -> no post"). **W8**: no real orchestrator box or seat id. **W9**: two owner questions in one `poll` form (Q3, Q4 decided in section 9); every row says Planned; B8 (seed) has a red control. |
+| v1.2 | R7 re-review by c-594 (W1-W4, W6-W9 closed). **W5**: the agent direct leg goes `onSend` -> `commitRow` (`hub/ws.go:611`, `:1009`), not `dispatchCheck` (browser only); 2.2 now names both doors, 5.1 refuses in the `onSend` chain before `commitRow` and in `dispatchCheck`, and `recvAgents` drops a pinned channel's rows (own ones too) on an unlisted box; `hub/ws.go` joins B3 with red controls for both. **N1**: 5.2.2 signs `spool channel-pins` with the desk keys of the `Channel:` line's tenant; no desk there -> hold; B5 red controls. |
 
-<!-- version: 1.1.0 · updated: 2026-10-30 -->
+<!-- version: 1.2.0 · updated: 2026-10-30 -->

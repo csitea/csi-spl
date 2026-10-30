@@ -3147,6 +3147,7 @@
       "events": "Events",
       "tokens": "Tokens",
       "lanes": "Lanes",
+      "topics": "Topics",
       "file_streams": "File streams"
     },
     "alloc": {
@@ -3342,6 +3343,18 @@
       "age_older": "Over 24 h",
       "no_match": "No lane matches the filters",
       "shown": "{n} of {total} lanes"
+    },
+    "topics": {
+      "loading": "Loading the topics…",
+      "error": "Could not load the topics.",
+      "empty": "No topic has an active lane",
+      "table_label": "Topics with active lanes",
+      "col_channel": "Channel",
+      "col_active": "Last lane activity",
+      "filter_text": "Search topics",
+      "no_match": "No topic matches the filters",
+      "shown": "{n} of {total} topics",
+      "no_topic": "No discussion"
     },
     "file_streams": {
       "loading": "Loading the file streams…",

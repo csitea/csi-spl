@@ -3147,6 +3147,7 @@
       "events": "Gebeurtenissen",
       "tokens": "Tokens",
       "lanes": "Banen",
+      "topics": "Onderwerpen",
       "file_streams": "Bestandsstromen"
     },
     "alloc": {
@@ -3342,6 +3343,18 @@
       "age_older": "Meer dan 24 u",
       "no_match": "Geen baan past bij de filters",
       "shown": "{n} van {total} banen"
+    },
+    "topics": {
+      "loading": "Onderwerpen laden…",
+      "error": "Kon de onderwerpen niet laden.",
+      "empty": "Geen onderwerp heeft een actieve baan",
+      "table_label": "Onderwerpen met actieve banen",
+      "col_channel": "Kanaal",
+      "col_active": "Laatste baanactiviteit",
+      "filter_text": "Onderwerpen zoeken",
+      "no_match": "Geen onderwerp voldoet aan de filters",
+      "shown": "{n} van {total} onderwerpen",
+      "no_topic": "Geen bespreking"
     },
     "file_streams": {
       "loading": "Bestandsstromen laden…",

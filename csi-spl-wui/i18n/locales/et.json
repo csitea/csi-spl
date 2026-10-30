@@ -3147,6 +3147,7 @@
       "events": "Sündmused",
       "tokens": "Tokenid",
       "lanes": "Rajad",
+      "topics": "Teemad",
       "file_streams": "Failivood"
     },
     "alloc": {
@@ -3342,6 +3343,18 @@
       "age_older": "Üle 24 h",
       "no_match": "Ükski rada ei vasta filtritele",
       "shown": "{n}/{total} rada"
+    },
+    "topics": {
+      "loading": "Teemade laadimine…",
+      "error": "Teemasid ei õnnestunud laadida.",
+      "empty": "Ühelgi teemal pole aktiivset rada",
+      "table_label": "Aktiivsete radadega teemad",
+      "col_channel": "Kanal",
+      "col_active": "Raja viimane tegevus",
+      "filter_text": "Otsi teemasid",
+      "no_match": "Ükski teema ei vasta filtritele",
+      "shown": "{n} / {total} teemat",
+      "no_topic": "Arutelu puudub"
     },
     "file_streams": {
       "loading": "Laadin failivooge…",

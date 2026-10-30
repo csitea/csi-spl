@@ -3147,6 +3147,7 @@
       "events": "Tapahtumat",
       "tokens": "Tokenit",
       "lanes": "Kaistat",
+      "topics": "Aiheet",
       "file_streams": "Tiedostovirrat"
     },
     "alloc": {
@@ -3342,6 +3343,18 @@
       "age_older": "Yli 24 h",
       "no_match": "Mikään kaista ei vastaa suodattimia",
       "shown": "{n}/{total} kaistaa"
+    },
+    "topics": {
+      "loading": "Ladataan aiheita…",
+      "error": "Aiheita ei voitu ladata.",
+      "empty": "Millään aiheella ei ole aktiivista kaistaa",
+      "table_label": "Aiheet, joilla on aktiivisia kaistoja",
+      "col_channel": "Kanava",
+      "col_active": "Kaistan viimeisin toiminta",
+      "filter_text": "Hae aiheita",
+      "no_match": "Mikään aihe ei vastaa suodattimia",
+      "shown": "{n} / {total} aihetta",
+      "no_topic": "Ei keskustelua"
     },
     "file_streams": {
       "loading": "Ladataan tiedostovirtoja…",

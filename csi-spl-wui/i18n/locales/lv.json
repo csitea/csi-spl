@@ -3147,6 +3147,7 @@
       "events": "Notikumi",
       "tokens": "Tokeni",
       "lanes": "Līnijas",
+      "topics": "Tēmas",
       "file_streams": "Failu plūsmas"
     },
     "alloc": {
@@ -3342,6 +3343,18 @@
       "age_older": "Vairāk par 24 h",
       "no_match": "Neviena līnija neatbilst filtriem",
       "shown": "{n} no {total} līnijām"
+    },
+    "topics": {
+      "loading": "Ielādē tēmas…",
+      "error": "Neizdevās ielādēt tēmas.",
+      "empty": "Nevienai tēmai nav aktīvas līnijas",
+      "table_label": "Tēmas ar aktīvām līnijām",
+      "col_channel": "Kanāls",
+      "col_active": "Pēdējā līnijas darbība",
+      "filter_text": "Meklēt tēmas",
+      "no_match": "Neviena tēma neatbilst filtriem",
+      "shown": "{n} no {total} tēmām",
+      "no_topic": "Nav diskusijas"
     },
     "file_streams": {
       "loading": "Ielādē failu plūsmas…",

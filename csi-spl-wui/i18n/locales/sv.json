@@ -3147,6 +3147,7 @@
       "events": "Händelser",
       "tokens": "Token",
       "lanes": "Banor",
+      "topics": "Ämnen",
       "file_streams": "Filströmmar"
     },
     "alloc": {
@@ -3342,6 +3343,18 @@
       "age_older": "Över 24 h",
       "no_match": "Ingen bana matchar filtren",
       "shown": "{n} av {total} banor"
+    },
+    "topics": {
+      "loading": "Läser in ämnena…",
+      "error": "Det gick inte att läsa in ämnena.",
+      "empty": "Inget ämne har en aktiv bana",
+      "table_label": "Ämnen med aktiva banor",
+      "col_channel": "Kanal",
+      "col_active": "Senaste banaktivitet",
+      "filter_text": "Sök ämnen",
+      "no_match": "Inget ämne matchar filtren",
+      "shown": "{n} av {total} ämnen",
+      "no_topic": "Ingen diskussion"
     },
     "file_streams": {
       "loading": "Läser in filströmmarna…",

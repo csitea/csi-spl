@@ -106,7 +106,7 @@ do_spl_agent_restart() {
   now="$(spl_lease_now)"
   ts="$(date -u -d "@$now" +%Y%m%dT%H%MZ)"
   rid="$ts-rs-$id"
-  ARS_SEAT="" ARS_CONSUMED=""
+  ARS_SEAT="" ARS_CONSUMED="" ARS_BOX=""
   if spl_ars_is_seat "$id"; then ARS_SEAT=1; fi
   mkdir -p "$PEER_DIR" || { do_log "FATAL cannot create $PEER_DIR"; return 1; }
   spl_ars_slot "$id" || return
@@ -322,15 +322,38 @@ spl_ars_limits() {
     ARS_RESTARTS="$(jq -r '.restarts // 0' "$sj" 2>/dev/null || echo 0)"
     ARS_BRIEF="$(jq -r '.brief // ""' "$sj" 2>/dev/null || true)"
   fi
-  if [[ -z "$ARS_SEAT" ]]; then
+  ARS_BOX="$(spl_ars_box_event "$id" "$now")"
+  if [[ -z "$ARS_SEAT" && -z "$ARS_BOX" ]]; then
     if [[ "$ARS_CAUSE" == rebirth ]] && (( ARS_REBIRTHS >= REBIRTH_MAX )); then cap="rebirth_max $ARS_REBIRTHS"
     elif (( ARS_RESTARTS >= TASK_RESTART_MAX )); then cap="task_restart_max $ARS_RESTARTS"; fi
     if [[ -n "$cap" ]]; then spl_ars_task_cap "$id" "$now" "$cap"; return; fi
   fi
   if [[ "${DRY_RUN:-1}" != 1 ]]; then
-    mkdir -p "${f%/*}" && echo "$now $ARS_CAUSE" >> "$f"
+    mkdir -p "${f%/*}" && echo "$now $ARS_CAUSE${ARS_BOX:+ box-event}" >> "$f"
   fi
   return 0
+}
+
+# spl_ars_box_event ID NOW: why this restart is the box's doing, not the
+# agent's; nothing when it is the agent's (SPL-4359). Cause reboot or
+# box-down; or S3 with the fence's marker <WD_DIR>/fence.restart.<id>
+# ("<fence epoch> <unfence epoch>", written at UNFENCED for each lane the
+# fence TERMed) no older than WD_FENCE_RESTART_TTL (3600) s after the
+# unfence. Such a restart is not counted toward task_restart_max (the
+# session.json restarts stay) nor in the hourly limit (its lifetime/restarts
+# line carries box-event); the marker goes once the restart is DONE OK, so
+# the next S3 with no fence between counts again. one box 2026-10-30: a DNS
+# outage fenced 16 lanes and held c-423 at task_restart_max (12).
+spl_ars_box_event() {
+  local at="" un=""
+  case "$ARS_CAUSE" in
+    reboot|box-down) echo "cause $ARS_CAUSE"; return 0 ;;
+    S3) ;;
+    *) return 0 ;;
+  esac
+  read -r at un < "$WD_DIR/fence.restart.$1" 2>/dev/null || true
+  [[ "$at" =~ ^[0-9]+$ && "$un" =~ ^[0-9]+$ ]] && (( $2 >= un && $2 - un < ${WD_FENCE_RESTART_TTL:-3600} )) || return 0
+  echo "fenced $(date -u -d "@$at" +%FT%TZ) to $(date -u -d "@$un" +%FT%TZ)"
 }
 
 # The spawn time of the id's FIRST open registry row: it tells this task from
@@ -391,7 +414,7 @@ spl_ars_run() {
     echo "---- DRY_RUN: nothing was touched. Re-run with DRY_RUN=0."
     return 0
   fi
-  spl_peer_rlog "$rid" RS-GATE OK "$id ($PEER_HARNESS${ARS_SEAT:+, seat}) cause=$ARS_CAUSE $ARS_CODE $ARS_EV; slot $ARS_SLOT; ${ARS_PID:+pid $ARS_PID }pane ${ARS_PANE:-none}"
+  spl_peer_rlog "$rid" RS-GATE OK "$id ($PEER_HARNESS${ARS_SEAT:+, seat}) cause=$ARS_CAUSE $ARS_CODE $ARS_EV;${ARS_BOX:+ box event ($ARS_BOX): not counted;} slot $ARS_SLOT; ${ARS_PID:+pid $ARS_PID }pane ${ARS_PANE:-none}"
   if [[ -n "$role" ]]; then
     printf '%s %s %s\n' "$id" "$now" "$rid" > "$LEASE_DIR/rotate.hold.tmp.$$" && mv -f "$LEASE_DIR/rotate.hold.tmp.$$" "$LEASE_DIR/rotate.hold"
     spl_peer_rlog "$rid" RS-HOLD OK "rotate.hold = $id"
@@ -406,6 +429,7 @@ spl_ars_run() {
     spl_peer_rlog "$rid" DONE OK "$id@$ROTATE_BOX restarted ($ARS_CAUSE): session #$ARS_N pid $ROTATE_NEW_PID in $ROTATE_NEW_PANE"
     spl_peer_with_lib spl_rotate_recovered "$id" "$rid" "do_spl_agent_restart $rid ($ARS_CAUSE)" "$ROTATE_NEW_PID"
     spl_ars_event "$id" "$rid" ok
+    [[ -z "$ARS_BOX" ]] || rm -f "$WD_DIR/fence.restart.$id"
   else
     spl_peer_rlog "$rid" DONE FAIL "$id@$ROTATE_BOX not restarted ($ARS_CAUSE): ${ROTATE_ERR:-see above}"
     spl_ars_event "$id" "$rid" fail
@@ -615,7 +639,8 @@ spl_ars_unconsume() {
 spl_ars_seed() {
   local id="$1" rid="$2" ts="$3" hand="$4" seed="$5" lt="$SPOOL_ROOT/$1/lifetime" brief rb rs
   brief="$(spl_ars_brief "$id")"
-  rb="$ARS_REBIRTHS"; rs=$(( ARS_RESTARTS + 1 ))
+  rb="$ARS_REBIRTHS"; rs="$ARS_RESTARTS"
+  [[ -n "$ARS_BOX" ]] || rs=$(( rs + 1 ))
   if [[ "$ARS_CAUSE" == rebirth ]]; then rb=$(( rb + 1 )); fi
   if ! spl_ars_seed_text "$id" "$rid" "$ts" "$hand" "$brief" "$rb" "$rs" 2>/dev/null > "$seed" || [[ ! -s "$seed" ]]; then
     ROTATE_ERR="cannot write the seed $seed"; spl_peer_rlog "$rid" RS-SEED FAIL "$ROTATE_ERR"; return 1

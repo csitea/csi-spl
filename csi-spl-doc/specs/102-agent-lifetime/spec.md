@@ -415,6 +415,11 @@ it does after 3600 s, `spl-watchdog.func.sh:474`, claude-2 H7); the admin's
 An S2 hit right after a "login reset" restart re-arms the S2 hold and does
 not count (agy-2): the login, not the agent, is what failed.
 
+A restart the box caused does not count either (SPL-4359): cause `reboot` or
+`box-down`, or the S3 restart of a lane the fence TERMed (10.2). Its
+`lifetime/restarts` line is kept, marked `box-event`, and the hourly count
+skips it.
+
 ### 6.2 Per task (R12)
 
 | cap | default | counts | applies to |
@@ -426,6 +431,11 @@ The counts live in `lifetime/` and in the fleet lane row. At either cap the
 restart does not start a new session: it pushes the wip ref, sends the
 orchestrator `TASK CAP <id> <cap> <n> wip=<sha>`, puts one message to the
 admin (11.2), and holds the id out until the admin acts.
+
+A restart the box caused (6.1, SPL-4359) neither counts toward
+`task_restart_max` nor is refused by it: `session.json` keeps its `restarts`.
+one box 2026-10-30 (n=2 seats): a DNS outage fenced the box, and the S3 restarts
+after the unfence held c-423 at 12 until an admin cleared it by hand.
 
 ## 7. Out of quota and login screens (W6, R8)
 
@@ -579,6 +589,13 @@ automatic paths are the R-b race again). 093 6.2's suspend guard stays.
   restart (4.3) skip it, logged `UNFENCED <id>: skipped, done (<why>)`:
   retired, or its session had stopped (heartbeat `idle`) before the fence
   and it holds an ACCEPTED. A lane busy at the fence restarts as before.
+- **The fence's restart is not counted** (SPL-4359): at the unfence every
+  other lane the fence TERMed gets `<wd>/fence.restart.<id>` (`<fence epoch>
+  <unfence epoch>`). An S3 restart of that id within `WD_FENCE_RESTART_TTL`
+  (3600 s) of the unfence is the box's doing: not counted toward
+  `task_restart_max` nor the hourly limit (6.1, 6.2), logged `RS-GATE OK ...
+  box event (fenced <from> to <to>): not counted`. The marker goes when that
+  restart is DONE OK, so the next S3 with no fence between counts again.
 - **The FENCED note is not lost** (SPL-3774): an orchestrator on another
   box is reached through the hub relay, as dead as the beat when the uplink
   is gone. A FENCED note that is not delivered is logged and kept in

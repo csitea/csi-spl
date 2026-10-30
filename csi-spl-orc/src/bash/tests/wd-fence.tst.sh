@@ -69,6 +69,11 @@
 #      A send that fails at UNFENCED too keeps the file. A send that worked
 #      at the fence -> no second note at UNFENCED. RED control: the code
 #      before sends nothing at UNFENCED (the commit body has the run)
+#  15. SPL-4359: UNFENCED writes <wd>/fence.restart.<id> ("<fence epoch>
+#      <unfence epoch>") for each lane the fence TERMed that is not done, the
+#      marker that keeps its S3 restart out of task_restart_max and the
+#      hourly limit. Controls: the seat and a done lane get none; nothing
+#      while still fenced. RED control: origin/master writes no marker
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -502,6 +507,28 @@ ticks 0 0 ok; ticks 30 120 silent; ticks 150 150 ok
 [[ "$(n sent .)" == 1 && "$(n sent FENCED)" == 1 && "$(n sent UNFENCED)" == 0 && ! -e "$T/wd/fence.notice.pending" ]] &&
   pass "14. control: the FENCED note was delivered -> no second note at UNFENCED" || fail "14. control: $(cat "$T/sent" 2>/dev/null)"
 unset LEASE_DIR
+
+# ---- 15. UNFENCED marks each lane it TERMed for an uncounted restart (SPL-4359) ----
+# one box 2026-10-30 (n=2 seats): the S3 restarts after UNFENCED counted toward
+# task_restart_max and held c-423 out. UNFENCED writes fence.restart.<id>
+# ("<fence epoch> <unfence epoch>") for each lane the fence TERMed and that is
+# not done; do_spl_agent_restart reads it (agent-restart.tst.sh case 22). The
+# seat (never TERMed) and a done lane get none. RED control: origin/master
+# writes no marker
+reset
+mkdir -p "$T/spool/c-050/lifetime" "$T/spool/c-050/archive"
+printf '{"state":"idle","ts":"%s"}\n' "$(date -u -d "@$(( T0 + 60 ))" +%FT%TZ)" > "$T/spool/c-050/heartbeat.json"
+echo '{"v":1,"kind":"result","body":"ACCEPTED c-050: landed"}' > "$T/spool/c-050/archive/m1.json"
+ticks 0 0 ok
+ticks 30 120 silent
+ticks 150 150 ok
+[[ "$(cat "$T/wd/fence.restart.c-051" 2>/dev/null)" == "$(( T0 + 120 )) $(( T0 + 150 ))" ]] &&
+  pass "15. UNFENCED: the TERMed lane c-051 gets fence.restart.c-051 (fence and unfence epochs)" ||
+  fail "15. marker: $(cat "$T/wd/fence.restart.c-051" 2>&1)"
+[[ ! -e "$T/wd/fence.restart.c-001" && ! -e "$T/wd/fence.restart.c-050" ]] &&
+  pass "15. control: the seat and the done lane c-050 get no marker" || fail "15. extra markers: $(echo "$T"/wd/fence.restart.*)"
+reset; ticks 0 0 ok; ticks 30 120 silent
+if compgen -G "$T/wd/fence.restart.*" >/dev/null; then fail "15. marker before UNFENCED"; else pass "15. control: no marker while still fenced"; fi
 
 if (( fails )); then echo "wd-fence: $fails FAILED"; exit 1; fi
 echo "wd-fence: all passed"

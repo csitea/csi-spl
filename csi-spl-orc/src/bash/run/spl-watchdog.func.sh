@@ -1632,12 +1632,15 @@ spl_wd_boot_pending() {
 
 # spl_wd_restarts_n ID NOW: the restarts of <id> in the rolling hour, from the
 # ONE counter <id>/lifetime/restarts ("<epoch> <cause>" per restart, written
-# by do_spl_agent_restart); older lines are pruned.
+# by do_spl_agent_restart); older lines are pruned. A restart the box caused
+# (cause reboot or box-down, or a third field box-event: the S3 restart of a
+# lane the fence TERMed, SPL-4359) is kept in the file but not counted: the
+# agent did nothing wrong (one box 2026-10-30, one DNS outage held c-423 out).
 spl_wd_restarts_n() {
   local f="$SPOOL_ROOT/$1/lifetime/restarts"
   [[ -f "$f" ]] || { echo 0; return 0; }
   awk -v n="$2" '$1 + 3600 > n' "$f" > "$f.tmp.$$" 2>/dev/null && mv -f "$f.tmp.$$" "$f" 2>/dev/null || true
-  awk -v n="$2" '$1 + 3600 > n' "$f" 2>/dev/null | grep -c . || true
+  awk -v n="$2" '$1 + 3600 > n && $2 != "reboot" && $2 != "box-down" && $3 != "box-event"' "$f" 2>/dev/null | grep -c . || true
 }
 
 # spl_wd_hold_out ID NOW WHY: the hold of 6.1, <id>/lifetime/heldout. It does
@@ -1826,6 +1829,10 @@ spl_wd_fence_start() {
 # lifetime/done, so S3 and do_spl_agent_restart's done check (spec 102 4.3)
 # never revive it (SPL-3669: one box 2026-10-26, a lane ACCEPTED and idle
 # since 02:49Z, TERMed by the 02:58Z fence, restarted after the unfence).
+# Every other lane the fence TERMed gets <WD_DIR>/fence.restart.<id>
+# ("<fence epoch> <unfence epoch>", SPL-4359): its S3 restart is the box's
+# doing, and do_spl_agent_restart counts it toward neither task_restart_max
+# nor the hourly limit (spl_ars_box_event), then removes the marker.
 spl_wd_unfence() {
   local took id why at now="${1:-$(date +%s)}"
   local -a jp=() ids=() terms=() tl=()
@@ -1846,7 +1853,7 @@ spl_wd_unfence() {
   if (( ${#jp[@]} )); then wait "${jp[@]}" 2>/dev/null || true; fi
   for id in "${terms[@]}"; do
     why="$(spl_wd_unfence_done "$id" "$at")"
-    [[ -n "$why" ]] || continue
+    if [[ -z "$why" ]]; then echo "${at:-0} $now" > "$WD_DIR/fence.restart.$id" 2>/dev/null || true; continue; fi
     if [[ "${DRY_RUN:-1}" == 0 ]] && ! { mkdir -p "$SPOOL_ROOT/$id/lifetime" && touch "$SPOOL_ROOT/$id/lifetime/done"; } 2>/dev/null; then
       spl_wd_log "UNFENCED $id: done ($why), but lifetime/done could not be written"; continue
     fi

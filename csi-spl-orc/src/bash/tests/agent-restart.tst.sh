@@ -97,6 +97,14 @@
 #      live grok runs in a second pane: exit 3 no S3 hit, nothing spawned,
 #      the grok kept (origin/master: a second grok). Control: no live
 #      harness anywhere -> restarted
+#  22. a restart the box caused is not counted (SPL-4359; one box 2026-10-30,
+#      n=2 seats, a DNS outage fenced 16 lanes, c-423 held at 12): a lane at
+#      task_restart_max (12) with the fence's marker <wd>/fence.restart.<id>
+#      is restarted on S3, not held, its restarts stay 12, its hourly line
+#      says box-event, the marker is consumed. Controls: the next S3 with no
+#      fence between is held; 12 plain S3 restarts are held; a marker past
+#      WD_FENCE_RESTART_TTL counts. Cause reboot at 12 is restarted; 3
+#      box-event lines in the hour do not hold the next S3
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -703,6 +711,44 @@ rc="$(go ID=c-966 CAUSE=rebirth DRY_RUN=0 ROTATE_CLAUDE_BIN="$T/bin/claude")"
 [[ "$rc" == 4 && ! -s "$T/spawn.log" ]] && grep -q 'RS-GATE SKIP vendor limit: claude cannot act (c-966 S2 kind=limit 10m ago: usage limit reached)' "$D/rotate.log" 2>/dev/null &&
   pass "20. SPL-3276: the seat's own limit verdict refuses, another seat's newer 0-byte out.s2 does not open the gate" ||
   fail "20. own limit rc=$rc $(tail -3 "$T/o") $(grep -a c-966 "$D/rotate.log" 2>/dev/null | cut -d' ' -f3- | tr '\n' ';')"
+
+# --- 22. a restart the box caused is not counted (SPL-4359) -----------------------------------
+# one box 2026-10-30 (n=2 seats): a DNS outage fenced the box, the fence TERMed 16
+# lanes, UNFENCED wrote fence.restart.<id>, the S3 restarts followed; c-423 at
+# session.json restarts 12 was held at task_restart_max. Red on origin/master:
+# 22a is held (task cap), 22d holds the 4th (3 box events counted)
+sj22() { jq -n --arg id "$1" --argjson r "$2" '{v: 1, id: $id, n: $r, rebirths: 0, restarts: $r, spawned: "20270115T0600Z"}' > "$S/$1/lifetime/session.json"; }
+world; lane c-972 %73 -; sj22 c-972 12; mkdir -p "$D/wd"; echo "$((T0 - 2000)) $((T0 - 60))" > "$D/wd/fence.restart.c-972"
+rc="$(go ID=c-972 CAUSE=S3 DRY_RUN=0 WD_EVIDENCE=dead)"
+bad=""
+[[ "$rc" == 0 ]] || bad+=" rc=$rc"
+grep -q '^spawn claude c-972 ' "$T/spawn.log" 2>/dev/null || bad+=" not-spawned"
+[[ ! -e "$S/c-972/lifetime/heldout" ]] || bad+=" heldout:$(cat "$S/c-972/lifetime/heldout")"
+[[ "$(jq -r '"\(.n) \(.restarts)"' "$S/c-972/lifetime/session.json")" == "13 12" ]] || bad+=" session.json=$(cat "$S/c-972/lifetime/session.json")"
+[[ "$(cat "$S/c-972/lifetime/restarts")" == "$T0 S3 box-event" ]] || bad+=" restarts=$(cat "$S/c-972/lifetime/restarts")"
+[[ ! -e "$D/wd/fence.restart.c-972" ]] || bad+=" marker-kept"
+grep -q "RS-GATE OK .*box event (fenced $(iso $((T0 - 2000))) to $(iso $((T0 - 60)))): not counted" "$D/rotate.log" || bad+=" no-gate-line"
+[[ -z "$bad" ]] && pass "22. a lane at task_restart_max (12), fence + unfence: restarted, not held, restarts stay 12, the marker consumed" ||
+  fail "22. fence restart:$bad -- $(tail -3 "$T/o")"
+crash c-972; win c-972 %3972 -
+rc="$(go ID=c-972 CAUSE=S3 DRY_RUN=0 WD_EVIDENCE=dead LEASE_NOW=$((T0 + 600)))"
+[[ "$rc" == 4 && -s "$S/c-972/lifetime/heldout" ]] && grep -q 'task cap task_restart_max reached (12)' "$S/c-972/lifetime/heldout" &&
+  pass "22. control: the next S3 with no fence between is held at the task cap" || fail "22. after the marker rc=$rc: $(tail -3 "$T/o")"
+world; lane c-973 %74 -; sj22 c-973 12
+rc="$(go ID=c-973 CAUSE=S3 DRY_RUN=0 WD_EVIDENCE=dead)"
+[[ "$rc" == 4 && ! -s "$T/spawn.log" ]] && grep -q 'task cap task_restart_max reached (12)' "$S/c-973/lifetime/heldout" 2>/dev/null &&
+  pass "22. control: 12 plain S3 restarts, no fence: held at the task cap, nothing spawned" || fail "22. plain S3 rc=$rc: $(tail -3 "$T/o")"
+world; lane c-974 %75 -; sj22 c-974 12; mkdir -p "$D/wd"; echo "$((T0 - 9000)) $((T0 - 3700))" > "$D/wd/fence.restart.c-974"
+rc="$(go ID=c-974 CAUSE=S3 DRY_RUN=0 WD_EVIDENCE=dead)"
+[[ "$rc" == 4 && ! -s "$T/spawn.log" ]] && pass "22. control: a marker older than WD_FENCE_RESTART_TTL counts again (held)" || fail "22. stale marker rc=$rc: $(tail -3 "$T/o")"
+world; lane c-975 %76 -; sj22 c-975 12
+rc="$(go ID=c-975 CAUSE=reboot DRY_RUN=0)"
+[[ "$rc" == 0 && "$(jq -r .restarts "$S/c-975/lifetime/session.json")" == 12 ]] && grep -q '^spawn claude c-975 ' "$T/spawn.log" &&
+  pass "22. cause reboot at task_restart_max: restarted, not counted" || fail "22. reboot rc=$rc: $(tail -3 "$T/o")"
+world; lane c-976 %77 -; printf '%s S3 box-event\n' $((T0 - 1800)) $((T0 - 1200)) $((T0 - 600)) > "$S/c-976/lifetime/restarts"
+rc="$(go ID=c-976 CAUSE=S3 DRY_RUN=0 WD_EVIDENCE=dead)"
+[[ "$rc" == 0 && "$(grep -c . "$S/c-976/lifetime/restarts")" == 4 ]] &&
+  pass "22. 3 box-event restarts in the hour do not count: the next S3 runs (hourly limit 3)" || fail "22. hourly rc=$rc: $(tail -3 "$T/o")"
 
 echo "agent-restart: $fails failure(s)"
 exit $(( fails > 0 ))

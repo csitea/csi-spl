@@ -82,6 +82,8 @@ type Memory struct {
 	contacts    *memContacts  // rdb 0226 (spec 154 B2, SPL-3447): see personal_contacts_memory.go
 	// file_streams_memory.go (rdb 0237, spec 160 B2, SPL-3888), guarded by mu
 	fileStreams *memFileStreams
+	// file_stream_globs_memory.go (rdb 0242, spec 160 B9, SPL-4294), guarded by mu
+	fileStreamGlobs *memFileStreamGlobs
 	// log_events_memory.go (rdb 0240, spec 162 B3, SPL-4167), guarded by mu
 	logEvents *memLogEvents
 	// box_join_switch.go (rdb 0170): spec 108 joins turned on, guarded by mu. Missing = off.

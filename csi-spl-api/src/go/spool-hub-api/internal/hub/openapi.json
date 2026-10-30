@@ -4306,6 +4306,118 @@
         ]
       }
     },
+    "/v1/file-streams/globs": {
+      "post": {
+        "operationId": "postFileStreamsGlobs",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "description": "a glob PATTERN for one box of the workspace (spec 160 3.8.3); the hub checks its syntax and stores it, the box expands it under its own allowed folders",
+                "properties": {
+                  "box_id": {
+                    "description": "a box that announced file streams or folders in this workspace; any other answers 404",
+                    "type": "string"
+                  },
+                  "glob": {
+                    "description": "one line of 1..512 bytes, absolute or $HOME/; '*' and '?' only, in the last segment only; no '[', '{', '**', '.' or '..' segment",
+                    "maxLength": 512,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "key": {
+                    "description": "^[a-z0-9][a-z0-9-]{0,23}$, unique among the box's live globs",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "box_id",
+                  "key",
+                  "glob"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created: the glob {id, box_id, key, glob, created_by, created_at, state (pending until the box reports it), reason, matched, followed, over_cap, reported_at}; one add audit row is written (spec 160 3.8.9)"
+          },
+          "400": {
+            "description": "bad_glob (the syntax of 3.8.3), bad_key, or outside_folders (the glob's directory is under none of the box's announced allowed folders; advisory, the box is the gate); bad_glob and outside_folders write a refused audit row"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "forbidden: not a member session of an owner or admin, or an act-as clone; box_locked: the box is under an owner lock and the caller is not one of its owners (audited)"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "glob_key_taken: a live glob of the box has that key; too_many_globs: the box holds its cap of live globs (default 8); both audited"
+          },
+          "415": {
+            "description": "Content-Type must be application/json"
+          },
+          "501": {
+            "description": "this hub's store keeps no file globs"
+          }
+        },
+        "summary": "Add a file glob for one box (owner or admin, member session, not act-as)",
+        "tags": [
+          "view"
+        ]
+      }
+    },
+    "/v1/file-streams/globs/{id}": {
+      "delete": {
+        "operationId": "deleteFileStreamsGlobsById",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content: the glob is removed (removed_at set) and one remove audit row is written; the box stops following its matches after its next pull (spec 160 3.8.8)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "no live glob of this workspace has that id (another workspace's, or removed already: no audit row)"
+          },
+          "501": {
+            "description": "this hub's store keeps no file globs"
+          }
+        },
+        "summary": "Remove a file glob (owner or admin, member session, not act-as)",
+        "tags": [
+          "view"
+        ]
+      }
+    },
     "/v1/files": {
       "post": {
         "operationId": "postFiles",
@@ -15334,6 +15446,86 @@
           }
         },
         "summary": "List the workspace's file streams (owner or admin, member session, not act-as)",
+        "tags": [
+          "view"
+        ]
+      }
+    },
+    "/v1/view/file-streams/globs": {
+      "get": {
+        "operationId": "getViewFileStreamsGlobs",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {globs, folders}: the workspace's live globs, by box then key, each with the box's last reported state (pending, following, partial, none, refused), reason, matched, followed and over_cap; and each box's announced allowed folders {box_id, path, state (allowed or refused), reason, reported_at} (spec 160 3.8.3)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "501": {
+            "description": "this hub's store keeps no file globs"
+          }
+        },
+        "summary": "List the workspace's file globs and the boxes' allowed folders (owner or admin, member session, not act-as)",
+        "tags": [
+          "view"
+        ]
+      }
+    },
+    "/v1/view/file-streams/globs/audit": {
+      "get": {
+        "operationId": "getViewFileStreamsGlobsAudit",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the rows before this RFC 3339 time (the previous page's next_before)",
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "rows per page, default 50, at most 500",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 500,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {audit, next_before}: the audit rows, newest first, each {id, glob_id, box_id, action (add, remove, refused), key, glob, actor, reason, at}; next_before when the page is full (spec 160 3.8.9)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "501": {
+            "description": "this hub's store keeps no file globs"
+          }
+        },
+        "summary": "Read the file glob audit (owner or admin, member session, not act-as)",
         "tags": [
           "view"
         ]

@@ -21,6 +21,8 @@ import (
 //	                               -> wire.FileStreamsAckFrame {type: ack, streams: [{stream_key, state, reason}]}
 //	lane_op file_streams_push      {stream_key, lines, dropped, redactions}
 //	                               -> wire.FileStreamsAckFrame {type: ack, stream_key, inserted, acked_seq, pruned}
+//	lane_op file_streams_globs     {} (spec 160 3.8.5, row B9: the box's pull)
+//	                               -> wire.FileStreamsAckFrame {type: ack, globs: [{id, key, glob}]}
 //
 // A refused push stores nothing (spec 160 C23): 413 too_large over 1000
 // lines or the byte cap, 429 rate_limited over twice the line rate, 409
@@ -65,8 +67,11 @@ func (s *Server) fileStreamsLane(ctx context.Context, x *session, f wire.Frame) 
 		return s.fileStreamsAnnounce(ctx, fs, x, f, now)
 	case wire.FileStreamsPushOp:
 		return s.fileStreamsPush(ctx, fs, x, f, now)
+	case wire.FileStreamsGlobsOp:
+		return s.fileStreamsGlobsPull(ctx, x, f, now) // file_stream_globs.go
 	}
-	return nil, &issueErr{http.StatusBadRequest, "bad_frame", "lane_op must be " + wire.FileStreamsAnnounceOp + " or " + wire.FileStreamsPushOp}
+	return nil, &issueErr{http.StatusBadRequest, "bad_frame", "lane_op must be " + wire.FileStreamsAnnounceOp + ", " +
+		wire.FileStreamsPushOp + " or " + wire.FileStreamsGlobsOp}
 }
 
 func (s *Server) fileStreamsAnnounce(ctx context.Context, fs store.FileStreamStore, x *session, f wire.Frame, now time.Time) (*wire.FileStreamsAckFrame, *issueErr) {
@@ -78,6 +83,10 @@ func (s *Server) fileStreamsAnnounce(ctx context.Context, fs store.FileStreamSto
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", x.tenant).Str("box", x.box).Msg("file streams announce")
 		return nil, &issueErr{http.StatusInternalServerError, "internal", "file streams announce not stored"}
+	}
+	if err := s.fileStreamsReport(ctx, x, a, now); err != nil { // 3.8.5: the folders and glob states, row B9
+		s.o.Log.Error().Err(err).Str("tenant", x.tenant).Str("box", x.box).Msg("file streams glob report")
+		return nil, &issueErr{http.StatusInternalServerError, "internal", "file streams glob report not stored"}
 	}
 	return &wire.FileStreamsAckFrame{Type: "ack", LaneOp: wire.FileStreamsAnnounceOp, Streams: got, At: now.Format(time.RFC3339)}, nil
 }
@@ -107,8 +116,10 @@ func (s *Server) fileStreamsPush(ctx context.Context, fs store.FileStreamStore, 
 }
 
 // sweepFileStreams is the file streams retention pass (spec 160 3.7, row
-// B6): 7 days of lines, then each workspace within its caps.
+// B6): 7 days of lines, then each workspace within its caps; and the web
+// globs' audit rows past 365 days (3.8.9, row B9).
 func (s *Server) sweepFileStreams(ctx context.Context) {
+	s.sweepFileStreamGlobAudit(ctx)
 	fs, ok := s.o.Store.(store.FileStreamStore)
 	if !ok {
 		return

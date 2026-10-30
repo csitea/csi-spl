@@ -551,6 +551,10 @@ type Hub struct {
 	FileStreamsMaxBytesPerWorkspace int64         `env:"SPOOL_HUB_FILE_STREAMS_MAX_BYTES_PER_WORKSPACE" envDefault:"268435456"`
 	FileStreamsRatePerMin           int           `env:"SPOOL_HUB_FILE_STREAMS_RATE_PER_MIN" envDefault:"600"`
 	FileStreamsRetention            time.Duration `env:"SPOOL_HUB_FILE_STREAMS_RETENTION" envDefault:"168h"`
+	// Web file globs (spec 160 3.8.3 and 3.8.9, row B9): live globs a box
+	// (one per stream slot) and the days an audit row is kept.
+	FileStreamsGlobsPerBox        int           `env:"SPOOL_HUB_FILE_STREAMS_GLOBS_PER_BOX" envDefault:"8"`
+	FileStreamsGlobAuditRetention time.Duration `env:"SPOOL_HUB_FILE_STREAMS_GLOB_AUDIT_RETENTION" envDefault:"8760h"`
 	// #general lobby task id (specs/003 contracts/wui-live-ws.md §1); "" = off.
 	LobbyTaskID string `env:"SPOOL_HUB_LOBBY_TASK_ID"`
 	// AuthBootstrapOwner: the first human to sign in to a tenant with zero
@@ -884,7 +888,7 @@ func (h *Hub) checkFileStreams() error {
 		{"PER_BOX", int64(h.FileStreamsPerBox)}, {"MAX_WORKSPACES", int64(h.FileStreamsMaxWorkspaces)},
 		{"MAX_LINES_PER_WORKSPACE", h.FileStreamsMaxLinesPerWorkspace},
 		{"MAX_BYTES_PER_WORKSPACE", h.FileStreamsMaxBytesPerWorkspace},
-		{"RATE_PER_MIN", int64(h.FileStreamsRatePerMin)},
+		{"RATE_PER_MIN", int64(h.FileStreamsRatePerMin)}, {"GLOBS_PER_BOX", int64(h.FileStreamsGlobsPerBox)},
 	} {
 		if l.v < 1 {
 			return fmt.Errorf("SPOOL_HUB_FILE_STREAMS_%s %d must be at least 1", l.name, l.v)
@@ -892,6 +896,9 @@ func (h *Hub) checkFileStreams() error {
 	}
 	if h.FileStreamsRetention < time.Hour {
 		return fmt.Errorf("SPOOL_HUB_FILE_STREAMS_RETENTION %v must be at least 1h", h.FileStreamsRetention)
+	}
+	if h.FileStreamsGlobAuditRetention < time.Hour {
+		return fmt.Errorf("SPOOL_HUB_FILE_STREAMS_GLOB_AUDIT_RETENTION %v must be at least 1h", h.FileStreamsGlobAuditRetention)
 	}
 	return nil
 }

@@ -1190,9 +1190,9 @@ Monitoring help page and B4 the syntax to the search help
   [data-test=fs-row][data-stream=cron] [data-test=fs-tail]`; the unit file
   cannot import `fileStreamGroupsOf`.
 
-### 5.9 Rows for answer B: web globs and the security files (planned)
+### 5.9 Rows for answer B: web globs and the security files
 
-Planned, not built yet. The format of the rounds rulebook
+B9 is built (5.10); the rest planned, not built yet. The format of the rounds rulebook
 (`csi-spl-doc/doc/md/rounds-rulebook.md` 3.1). Every site was read on
 origin/master `bf6991ecf`. Vendor: the data rule (a stream carries box
 logs: claude, grok or mistral, never agy or qwen) and the owner's rule of
@@ -1210,6 +1210,48 @@ row is one lane and one issue, after the owner's answers to Q5..Q7.
 Docs: B9 adds the routes to `hub/openapi.json`; B12 adds the glob form to
 the Monitoring help page (`csi-spl-doc/doc/help/`); each row ticks its
 status line here.
+
+Status: B9 built (SPL-4294, section 5.10). B10, B11, B12 planned.
+
+### 5.10 Row B9 as built (SPL-4294)
+
+- `rdb/0242_file_stream_globs.sql`: `file_stream_globs` and
+  `file_stream_glob_audit` as 3.8.4, plus `file_stream_folders`
+  `(tenant_id, box_id, path, state allowed|refused, reason, reported_at)`:
+  the folders a box last announced, which 3.8.3's `outside_folders` check
+  and the page read (3.8.4 named no home for them). A glob's `box_state` is
+  `pending` until the box first reports it. All three FORCE RLS with the
+  NULLIF tenant policy (`TestFileStreamGlobRLSTenantless`, seeded in
+  `crosstenant_test.go`).
+- `wire/file_stream_globs.go`: the op `file_streams_globs` (payload `{}`
+  only; a field, `null` or a second value is `bad_file_stream`), its ack
+  `globs: [{id, key, glob}]` (always a list), the syntax check of 3.8.3
+  (`CheckFileStreamGlob`) and the string folder check
+  (`FileStreamGlobUnder`). The announce gains `folders`, `globs` and a
+  stream's `glob_id`, all optional: an announce without them (a box before
+  B10) decodes as before and changes no glob or folder row; `folders: []`
+  clears the box's folders.
+- `hub/file_stream_globs.go`: the four routes of 3.8.3 behind
+  `fileStreamsCaller` (the read routes' gate, now shared). A POST checks, in
+  order: the box announced in W (else 404), the box lock (403 `box_locked`),
+  the syntax (400 `bad_glob`), the key (400 `bad_key`, not audited: a
+  malformed request), the announced folders (400 `outside_folders`), then
+  in the store under a per-box advisory lock a taken key (409
+  `glob_key_taken`) and the cap (409 `too_many_globs`,
+  `SPOOL_HUB_FILE_STREAMS_GLOBS_PER_BOX`, default 8). The audit list is
+  newest first, `limit` 1..500 (default 50), `before` an RFC 3339 time
+  (`next_before` on a full page). Audit rows past
+  `SPOOL_HUB_FILE_STREAMS_GLOB_AUDIT_RETENTION` (8760h) are pruned by the
+  file streams sweep. The two keys are hub env with their defaults; the cnf
+  `env.hub.file_streams` does not set them yet.
+- Tests: `go test ./internal/hub/ ./internal/store/ ./internal/wire/ -run
+  'FileStreamGlob'`, memory and Postgres 16. C41 `TestFileStreamGlobRBAC`,
+  `TestFileStreamGlobOperatorSA`, `TestFileStreamGlobActAsClone`; C42
+  `TestFileStreamGlobCrossTenant`; C43 `TestFileStreamGlobRefusals`,
+  `TestFileStreamGlobSyntax`; C44 `TestFileStreamGlobBoxLock`; C45
+  `TestFileStreamGlobAudit`; C46 `TestFileStreamGlobPull`,
+  `TestFileStreamGlobPullFrame`. Each case's planted defect and its red run
+  are in the commit body.
 
 ## 6. Decisions (this draft; the reviewer may challenge each)
 

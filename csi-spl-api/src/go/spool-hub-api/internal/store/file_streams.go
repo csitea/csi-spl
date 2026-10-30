@@ -60,6 +60,10 @@ type FileStreamLimits struct {
 	MaxBytes      int64
 	RatePerMin    int
 	Retention     time.Duration
+	// GlobsPerBox and GlobAuditRetention are the web globs' (spec 160
+	// 3.8.3 and 3.8.9, row B9).
+	GlobsPerBox        int
+	GlobAuditRetention time.Duration
 }
 
 // Norm fills every zero field with its default.
@@ -81,6 +85,12 @@ func (l FileStreamLimits) Norm() FileStreamLimits {
 	}
 	if l.Retention <= 0 {
 		l.Retention = FileStreamsRetention
+	}
+	if l.GlobsPerBox <= 0 {
+		l.GlobsPerBox = wire.FileStreamGlobsPerBox
+	}
+	if l.GlobAuditRetention <= 0 {
+		l.GlobAuditRetention = FileStreamGlobAuditRetention
 	}
 	return l
 }

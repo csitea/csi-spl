@@ -379,7 +379,8 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 		ContactsWorkspaces: hc.ContactsWorkspaces, // spec 154 2.9 B3
 		FileStreamLimits: store.FileStreamLimits{PerBox: hc.FileStreamsPerBox, MaxWorkspaces: hc.FileStreamsMaxWorkspaces, // spec 160 3.7
 			MaxLines: hc.FileStreamsMaxLinesPerWorkspace, MaxBytes: hc.FileStreamsMaxBytesPerWorkspace,
-			RatePerMin: hc.FileStreamsRatePerMin, Retention: hc.FileStreamsRetention},
+			RatePerMin: hc.FileStreamsRatePerMin, Retention: hc.FileStreamsRetention,
+			GlobsPerBox: hc.FileStreamsGlobsPerBox, GlobAuditRetention: hc.FileStreamsGlobAuditRetention}, // spec 160 3.8, B9
 		Edge: edge.Limits{TrustedProxyHops: hc.TrustedProxyHops, Window: hc.EdgeWindow,
 			WSConnsPerIP: hc.EdgeWSConnsPerIP, WSConnsTotal: hc.EdgeWSConnsTotal,
 			WSHandshakesPerIP: hc.EdgeWSHandshakesPerIP, AuthPerIP: hc.EdgeAuthPerIP},

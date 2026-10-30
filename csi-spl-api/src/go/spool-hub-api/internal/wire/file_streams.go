@@ -27,7 +27,8 @@ import (
 // its queue only on it). The box and the workspace are the session's, never
 // the frame's: a frame naming either is refused as an unknown field.
 
-// The lane ops.
+// The lane ops; the third, the box's pull of its web globs, is
+// FileStreamsGlobsOp (file_stream_globs.go, 3.8.5).
 const (
 	FileStreamsAnnounceOp = "file_streams_announce"
 	FileStreamsPushOp     = "file_streams_push"
@@ -61,15 +62,23 @@ const (
 var FileStreamKeyRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
 
 // FileStreamAnnounced is one entry of the box's allow-list as it stands.
+// GlobID names the web glob (3.8) whose match the stream is, "" for a cnf
+// entry.
 type FileStreamAnnounced struct {
 	StreamKey string `json:"stream_key"`
 	Path      string `json:"path"`
 	State     string `json:"state"`
+	GlobID    string `json:"glob_id,omitempty"`
 }
 
-// FileStreamsAnnounceFrame is the lane payload of an announce.
+// FileStreamsAnnounceFrame is the lane payload of an announce. Folders and
+// Globs are the box's allowed folders and its report on each web glob it
+// pulled (spec 160 3.8.5, row B10 sends them); nil = not reported, which
+// leaves the hub's last copy as it is.
 type FileStreamsAnnounceFrame struct {
-	Streams []FileStreamAnnounced `json:"streams"`
+	Streams []FileStreamAnnounced    `json:"streams"`
+	Folders []FileStreamFolderReport `json:"folders,omitempty"`
+	Globs   []FileStreamGlobReport   `json:"globs,omitempty"`
 }
 
 // FileStreamLine is one masked line. Seq is per stream, strictly
@@ -97,19 +106,21 @@ type FileStreamAckState struct {
 	Reason    string `json:"reason,omitempty"`
 }
 
-// FileStreamsAckFrame is the hub's answer to either op. An announce's ack
+// FileStreamsAckFrame is the hub's answer to each op. An announce's ack
 // lists every key with the state the hub keeps (refused over a limit); a
 // push's ack names the stream, the lines written (a re-sent seq is acked
-// and not written twice) and the highest seq it acked.
+// and not written twice) and the highest seq it acked; a globs pull's ack
+// is the box's live globs (always a list, [] for none).
 type FileStreamsAckFrame struct {
-	Type      string               `json:"type"`
-	LaneOp    string               `json:"lane_op"`
-	Streams   []FileStreamAckState `json:"streams,omitempty"`
-	StreamKey string               `json:"stream_key,omitempty"`
-	Inserted  int                  `json:"inserted"`
-	AckedSeq  int64                `json:"acked_seq,omitempty"`
-	Pruned    int                  `json:"pruned,omitempty"`
-	At        string               `json:"at"`
+	Type      string                `json:"type"`
+	LaneOp    string                `json:"lane_op"`
+	Streams   []FileStreamAckState  `json:"streams,omitempty"`
+	Globs     *[]FileStreamGlobLive `json:"globs,omitempty"`
+	StreamKey string                `json:"stream_key,omitempty"`
+	Inserted  int                   `json:"inserted"`
+	AckedSeq  int64                 `json:"acked_seq,omitempty"`
+	Pruned    int                   `json:"pruned,omitempty"`
+	At        string                `json:"at"`
 }
 
 // ErrBadFileStream wraps every refusal of the two decoders.
@@ -128,7 +139,8 @@ func strictDecode(raw json.RawMessage, v any) error {
 // DecodeFileStreamsAnnounce reads and checks an announce: at most
 // FileStreamsPerBox*4 entries (the hub refuses the keys past
 // FileStreamsPerBox, it does not refuse the frame), each key once, a known
-// state, one-line path.
+// state, one-line path, a glob_id a UUID; then its folders and globs
+// (file_stream_globs.go).
 func DecodeFileStreamsAnnounce(raw json.RawMessage) (FileStreamsAnnounceFrame, error) {
 	var in FileStreamsAnnounceFrame
 	if err := strictDecode(raw, &in); err != nil {
@@ -148,10 +160,15 @@ func DecodeFileStreamsAnnounce(raw json.RawMessage) (FileStreamsAnnounceFrame, e
 			return in, fmt.Errorf("%w: stream %d: state must be following, missing or refused", ErrBadFileStream, i)
 		case s.Path == "" || len(s.Path) > fileStreamPathMax || !utf8.ValidString(s.Path) || hasCtl(s.Path):
 			return in, fmt.Errorf("%w: stream %d: path must be one line of 1..%d bytes", ErrBadFileStream, i, fileStreamPathMax)
+		case s.GlobID != "" && !fileStreamUUIDRe.MatchString(s.GlobID):
+			return in, fmt.Errorf("%w: stream %d: glob_id must be a glob's id", ErrBadFileStream, i)
 		}
 		seen[s.StreamKey] = true
 	}
-	return in, nil
+	if err := checkFileStreamFolders(in.Folders); err != nil {
+		return in, err
+	}
+	return in, checkFileStreamGlobReports(in.Globs)
 }
 
 // DecodeFileStreamsPush reads and checks a push: a stream key, 1..1000

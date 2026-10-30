@@ -544,15 +544,24 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 }
 
 // seedFileStreams announces stream "app" of box-a in tenant and records one
-// line of text there.
+// line of text there; then box-a's folder and one web glob (rdb 0242).
 func seedFileStreams(ctx context.Context, pg *Postgres, tenant, text string, now time.Time) error {
 	lim := FileStreamLimits{MaxWorkspaces: 1 << 20} // the test database keeps other runs' streams
 	in := []wire.FileStreamAnnounced{{StreamKey: "app", Path: "/var/log/app.log", State: wire.FileStreamFollowing}}
 	if _, err := pg.AnnounceFileStreams(ctx, tenant, "box-a", in, lim, now); err != nil {
 		return err
 	}
-	_, err := pg.RecordFileStreamLines(ctx, tenant, "box-a", wire.FileStreamsPushFrame{StreamKey: "app",
-		Lines: []wire.FileStreamLine{{Seq: 1, At: now, Text: "file line " + text}}}, lim, now)
+	if _, err := pg.RecordFileStreamLines(ctx, tenant, "box-a", wire.FileStreamsPushFrame{StreamKey: "app",
+		Lines: []wire.FileStreamLine{{Seq: 1, At: now, Text: "file line " + text}}}, lim, now); err != nil {
+		return err
+	}
+	// file_stream_globs, file_stream_glob_audit, file_stream_folders (rdb
+	// 0242, spec 160 B9, SPL-4294): box-a's folder, one glob and its add row.
+	folders := []wire.FileStreamFolderReport{{Path: "/var/log", State: wire.FileStreamFolderAllowed}}
+	if err := pg.ReportFileStreamGlobs(ctx, tenant, "box-a", folders, nil, now); err != nil {
+		return err
+	}
+	_, err := pg.AddFileStreamGlob(ctx, tenant, FileStreamGlobAdd{Box: "box-a", Key: "app", Glob: "/var/log/app*.log", Actor: "HUM-1", Max: 8}, now)
 	return err
 }
 

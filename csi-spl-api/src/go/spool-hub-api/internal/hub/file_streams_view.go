@@ -36,19 +36,30 @@ const (
 func (s *Server) routeFileStreams(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/view/file-streams", s.handleFileStreams)
 	mux.HandleFunc("GET /v1/view/file-streams/{id}/lines", s.handleFileStreamLines)
+	s.routeFileStreamGlobs(mux) // spec 160 3.8.3, row B9: the web globs, file_stream_globs.go
 }
 
-// fileStreamsStaff is the caller's workspace when it is a member session of
-// an owner or admin who is not an act-as clone; false after the answer.
-func (s *Server) fileStreamsStaff(w http.ResponseWriter, r *http.Request) (store.FileStreamStore, string, bool) {
+// fileStreamsCaller is the caller's workspace and human id when it is a
+// member session of an owner or admin who is not an act-as clone; false
+// after the answer. The one gate of the read routes and of the web globs.
+func (s *Server) fileStreamsCaller(w http.ResponseWriter, r *http.Request) (string, string, bool) {
 	s.allowOrigin(w, r)
 	w.Header().Set("Cache-Control", "no-store")
 	t, hum, ok := s.humanTenant(w, r)
 	if !ok {
-		return nil, "", false
+		return "", "", false
 	}
 	if why := s.fileStreamsStaffRefusal(r.Context(), t.ID, hum); why != "" {
 		writeForbidden(w, permFileStreams, why)
+		return "", "", false
+	}
+	return t.ID, hum, true
+}
+
+// fileStreamsStaff is fileStreamsCaller plus the file stream store.
+func (s *Server) fileStreamsStaff(w http.ResponseWriter, r *http.Request) (store.FileStreamStore, string, bool) {
+	tenant, _, ok := s.fileStreamsCaller(w, r)
+	if !ok {
 		return nil, "", false
 	}
 	fs, ok := s.o.Store.(store.FileStreamStore)
@@ -56,7 +67,7 @@ func (s *Server) fileStreamsStaff(w http.ResponseWriter, r *http.Request) (store
 		writeErr(w, http.StatusNotImplemented, "unsupported", "this hub's store keeps no file streams")
 		return nil, "", false
 	}
-	return fs, t.ID, true
+	return fs, tenant, true
 }
 
 // fileStreamsStaffRefusal is why hum may not read tenant's file streams, ""

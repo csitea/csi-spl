@@ -12,9 +12,13 @@ Recommended (spec OQ-F1): **one app for dev and prd**.
 Meta checks these URLs when you switch the app to Live. They must answer 200 (T020 ships
 them):
 
+### 1.1 The privacy page
+
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' https://spool-hub.ai/privacy
 ```
+
+### 1.2 The terms page
 
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' https://spool-hub.ai/terms
@@ -62,35 +66,50 @@ asks your password).
 
 - **App ID**: public. Reply with it in the topic, or write it into the file below.
 - **App Secret**: never in spool, chat, mail or git (the repo is public). Either:
-  - **(a) a file for the agent** (the agent seeds Secret Manager with a named action and
-    never prints it): on the box, as the box user, create both files with the same
-    content, mode `0600`:
 
-    ```text
-    $HOME/.gcp/.csi/.spl/facebook-client-dev.json
-    $HOME/.gcp/.csi/.spl/facebook-client-prd.json
-    ```
+### 5.1 (a) A file for the agent
 
-    ```json
-    {"client_id": "<App ID>", "client_secret": "<App Secret>"}
-    ```
+**(a) a file for the agent** (the agent seeds Secret Manager with a named action and
+never prints it): on the box, as the box user, create both files with the same
+content, mode `0600`:
 
-    ```bash
-    chmod 600 $HOME/.gcp/.csi/.spl/facebook-client-dev.json $HOME/.gcp/.csi/.spl/facebook-client-prd.json
-    ```
+#### 5.1.1 The two paths
 
-  - **(b) Secret Manager yourself**, once per project (the value comes from stdin, so it
-    stays out of your shell history):
+```text
+$HOME/.gcp/.csi/.spl/facebook-client-dev.json
+$HOME/.gcp/.csi/.spl/facebook-client-prd.json
+```
 
-    ```bash
-    gcloud secrets versions add csi-spl-hub-auth-facebook-client-secret --project=csi-spl-dev --data-file=-
-    ```
+#### 5.1.2 Their content
 
-    ```bash
-    gcloud secrets versions add csi-spl-hub-auth-facebook-client-secret --project=csi-spl-prd --data-file=-
-    ```
+```json
+{"client_id": "<App ID>", "client_secret": "<App Secret>"}
+```
 
-    Paste the secret, press Enter, then Ctrl-D.
+#### 5.1.3 Set the mode
+
+```bash
+chmod 600 $HOME/.gcp/.csi/.spl/facebook-client-dev.json $HOME/.gcp/.csi/.spl/facebook-client-prd.json
+```
+
+### 5.2 (b) Secret Manager yourself
+
+**(b) Secret Manager yourself**, once per project (the value comes from stdin, so it
+stays out of your shell history):
+
+#### 5.2.1 dev
+
+```bash
+gcloud secrets versions add csi-spl-hub-auth-facebook-client-secret --project=csi-spl-dev --data-file=-
+```
+
+#### 5.2.2 prd
+
+```bash
+gcloud secrets versions add csi-spl-hub-auth-facebook-client-secret --project=csi-spl-prd --data-file=-
+```
+
+Paste the secret, press Enter, then Ctrl-D.
 
 ## 6. Go Live
 

@@ -55,9 +55,13 @@ Then, on the same app:
 - **client secret**: never in spool, chat, mail or git (the repo is public).
   Write it on the box, as the box user, mode 0600:
 
+### 3.1 Create the empty file
+
 ```bash
 install -m 600 /dev/null "$HOME/.gcp/.csi/.spl/microsoft-client-dev.json"
 ```
+
+### 3.2 Its content
 
 ```json
 {"client_id":"<Application (client) ID>","client_secret":"<the secret Value>"}

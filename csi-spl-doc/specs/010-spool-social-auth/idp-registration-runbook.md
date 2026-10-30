@@ -19,9 +19,13 @@ The callback host is the WUI host; Firebase Hosting rewrites `/api/v1/auth/**` t
 (FR-010, as csi-rel). The WUI's other auth calls go to the API host (`env.dns.api_fqdn`)
 cross-origin. The values live in cnf; print them rather than copy from here:
 
+#### 1.1.1 dev
+
 ```bash
 yq '.env.auth.social.env | with_entries(select(.key | test("REDIRECT_URI")))' csi-spl-cnf/csi-spl/dev.env.json
 ```
+
+#### 1.1.2 prd
 
 ```bash
 yq '.env.auth.social.env | with_entries(select(.key | test("REDIRECT_URI")))' csi-spl-cnf/csi-spl/prd.env.json
@@ -118,11 +122,15 @@ applied first so the empty slots exist.
 
 ### 3.1 Secret versions (never into git)
 
+#### 3.1.1 The session key
+
 Session key, once per env, 48 random bytes:
 
 ```bash
 head -c 48 /dev/urandom | base64 | tr -d '\n' | gcloud secrets versions add csi-spl-hub-auth-session-key --data-file=- --project=csi-spl-dev --account="$GCP_ACCOUNT"
 ```
+
+#### 3.1.2 A provider's client secret
 
 A provider's client secret: paste it on stdin, then Ctrl-D (replace `google` with the
 provider's slug from §1.2):
@@ -130,6 +138,8 @@ provider's slug from §1.2):
 ```bash
 gcloud secrets versions add csi-spl-hub-auth-google-client-secret --data-file=- --project=csi-spl-dev --account="$GCP_ACCOUNT"
 ```
+
+#### 3.1.3 Confirm the version
 
 Confirm the version exists:
 
@@ -139,6 +149,8 @@ gcloud secrets versions list csi-spl-hub-auth-google-client-secret --project=csi
 
 ### 3.2 cnf
 
+#### 3.2.1 Set the client id and render
+
 In `csi-spl-cnf/csi-spl/<env>.env.yaml` under `env.auth.social.env`: set the provider's
 `SPOOL_HUB_AUTH_<P>_CLIENT_ID`, and add its slug to `SPOOL_HUB_AUTH_PROVIDERS`
 (e.g. `google,facebook`). Re-render, from `csi-spl-iac`:
@@ -147,11 +159,15 @@ In `csi-spl-cnf/csi-spl/<env>.env.yaml` under `env.auth.social.env`: set the pro
 ENV=dev ./run -a do_tpl_gen
 ```
 
+#### 3.2.2 Check the injected secrets
+
 The 030 tfvars now inject the session key and exactly the listed providers' secrets:
 
 ```bash
 grep '^secret_environment_variables' csi-spl-cnf/csi-spl/dev/tf/030-cloud-run-hub.vars.tfvars
 ```
+
+#### 3.2.3 No placeholder left
 
 No placeholder may remain on a listed provider (must print nothing for its keys):
 
@@ -163,11 +179,17 @@ Commit, push, then 030 plan + apply / deploy by the DEPLOY path (spec 008).
 
 ## 4. Verify (T034, SC-003)
 
+### 4.1 The provider list
+
 ```bash
 curl -s https://dev.api.spool-hub.ai/api/v1/auth/providers
 ```
 
-Expect the listed slugs. Then the start redirect must carry the real client id and the
+Expect the listed slugs.
+
+### 4.2 The start redirect
+
+Then the start redirect must carry the real client id and the
 registered redirect URI:
 
 ```bash

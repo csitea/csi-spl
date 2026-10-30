@@ -97,21 +97,29 @@ Personal accounts still work.
 
 ### 2.7 Write the file
 
+#### 2.7.1 Create the empty file
+
 On the box, as the box user. The editor writes the file without echoing the secret to a terminal log:
 
 ```bash
 install -m 600 /dev/null "$HOME/.gcp/.csi/.spl/microsoft-client-dev.json"
 ```
 
+#### 2.7.2 Edit it
+
 ```bash
 ${EDITOR:-vi} "$HOME/.gcp/.csi/.spl/microsoft-client-dev.json"
 ```
+
+#### 2.7.3 Its contents
 
 Contents (one line is fine):
 
 ```json
 {"client_id":"00000000-0000-0000-0000-000000000000","client_secret":"<the Value from 2.3>"}
 ```
+
+#### 2.7.4 Check the mode
 
 Check that the mode is `-rw-------`:
 
@@ -129,9 +137,13 @@ is 0600, that `client_id` equals cnf, and that the secret is not a Secret ID.
 It adds a version only when the value changed, and the value travels on stdin
 only. Dry run first, from `csi-spl-orc`:
 
+### 3.1 Dry run
+
 ```bash
 IDP=microsoft ENV=dev ./run -a do_spl_auth_idp_secret_seed
 ```
+
+### 3.2 The real seed
 
 ```bash
 IDP=microsoft ENV=dev DRY_RUN=0 ./run -a do_spl_auth_idp_secret_seed
@@ -143,11 +155,15 @@ The cnf client id comes first (the action refuses a placeholder). In
 
 ## 4. Turn it on for dev and verify (T042–T043)
 
+### 4.1 List it and render
+
 1. `dev.env.yaml`: `SPOOL_HUB_AUTH_PROVIDERS: google,microsoft`. Then render, from `csi-spl-iac`:
 
 ```bash
 ENV=dev ./run -a do_tpl_gen
 ```
+
+### 4.2 Deploy and check the provider list
 
 2. Commit, push, and have the deploy lane apply 030. The hub image must already contain spec 018's code (`/version` sha ⊇ the 018 commits).
 3. Verify:
@@ -157,6 +173,8 @@ curl -s https://dev.spool-hub.ai/api/v1/auth/providers
 ```
 
 This must list `microsoft`.
+
+### 4.3 Check the start redirect
 
 ```bash
 curl -s -i https://dev.spool-hub.ai/api/v1/auth/microsoft/start | grep -i '^location'

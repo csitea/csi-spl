@@ -9,7 +9,7 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import type { Rollup } from "vite"
 import type { NuxtPage } from "@nuxt/schema"
-import { addTemplate, addTypeTemplate, addVitePlugin } from "@nuxt/kit"
+import { addTemplate, addTypeTemplate, addVitePlugin, extendViteConfig } from "@nuxt/kit"
 import { buildRootLocaleRedirectScript } from "./src/utils/rootLocaleRedirect.mjs"
 import { buildEarlySessionScript } from "./src/utils/early-session-script.mjs"
 import { buildEarlyConfigScript } from "./src/utils/runtime-config.mjs"
@@ -289,6 +289,24 @@ function i18nSplitModule(_options: unknown, nuxt: { hook: (name: "build:manifest
     for (const [src, chunk] of Object.entries(manifest)) {
       if (src.includes("i18n/.split/more/")) chunk.prefetch = false
     }
+  })
+}
+/**
+ * The app loads its catalogues from its own precompiled chunks, never from the
+ * i18n module's /_i18n/<hash>/<locale>/messages.json (SPL-4356). @nuxtjs/i18n
+ * 10 fetches that route whenever every locale file is static JSON
+ * (`__I18N_FULL_STATIC__`), and the route serves the raw source strings,
+ * which only a message compiler turns into text: this vue-i18n has none
+ * (bundle.dropMessageCompiler), so "#{name}" reached the screen. With the
+ * flag false a generated build takes the module's client loaders, as v9 did.
+ * The module adds its defines in its modules:done hook; this module is listed
+ * after it, so its own modules:done hook runs later and this define wins.
+ */
+function i18nClientMessagesModule(_: unknown, nuxt: import("@nuxt/schema").Nuxt) {
+  nuxt.hook("modules:done", () => {
+    extendViteConfig((config) => {
+      config.define = { ...config.define, __I18N_FULL_STATIC__: "false" }
+    })
   })
 }
 // Locale preference cookie (strictly necessary). Written by
@@ -595,7 +613,7 @@ export default defineNuxtConfig({
 
   css: ["@/assets/css/main.css", "@/assets/css/tap-anim.css"],
 
-  modules: ["@nuxtjs/i18n", "@pinia/nuxt", localeRouteCopiesModule, i18nSplitModule, firstScreenHintsModule, entitiesBrowserModule, blogDocumentsModule, publicCalendarModule, publicSeoModule],
+  modules: ["@nuxtjs/i18n", "@pinia/nuxt", localeRouteCopiesModule, i18nClientMessagesModule, i18nSplitModule, firstScreenHintsModule, entitiesBrowserModule, blogDocumentsModule, publicCalendarModule, publicSeoModule],
 
   hooks: {
     // Nuxt hints EVERY lazy chunk as <link rel="prefetch">, and Chrome fetches
@@ -613,7 +631,7 @@ export default defineNuxtConfig({
   },
 
   // Donor i18n, copied (spec 021): 19 locales, prefix_except_default, lazy
-  // catalogues, browser detection done by the blocking root redirect script
+  // catalogues (always lazy in v10), browser detection done by the root redirect script
   // (cookie -> Accept-Language -> default) instead of the module, so the
   // prerendered `/` never hydrates with a mismatch.
   i18n: {
@@ -623,15 +641,13 @@ export default defineNuxtConfig({
     strategy: "prefix_except_default",
     defaultLocale: DEFAULT_LOCALE,
     locales: I18N_MODULE_LOCALES,
-    lazy: true,
     detectBrowserLanguage: false,
     // Runtime-only vue-i18n, no message compiler (CLE-35075): the catalogues
     // are JSON the build precompiles, so the ~5 KB gzip compiler never ran in
     // the browser. tests/unit/i18n-runtime-only.test.mjs refuses runtime messages.
-    bundle: { optimizeTranslationDirective: false, runtimeOnly: true, dropMessageCompiler: true },
-    // Default "absolute" embeds the CI workspace path in shipped
-    // __NUXT__.config locales[].files[].path (e.g. /home/runner/work/...).
-    experimental: { generatedLocaleFilePathFormat: "off" },
+    // @nuxtjs/i18n 10 always sets optimizeTranslationDirective: false and
+    // dropped experimental.generatedLocaleFilePathFormat, so neither is set.
+    bundle: { runtimeOnly: true, dropMessageCompiler: true },
   },
 
   runtimeConfig: {

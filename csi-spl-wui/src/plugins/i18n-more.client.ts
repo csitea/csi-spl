@@ -43,6 +43,8 @@ export default defineNuxtPlugin({
     const i18n = nuxtApp.$i18n as {
       locale: { value: string }
       mergeLocaleMessage: (locale: string, messages: Catalogue) => void
+      getLocaleMessage: (locale: string) => Catalogue
+      setLocaleMessage: (locale: string, messages: Catalogue) => void
     }
     const loads = new Map<string, Promise<void>>()
     let wanted = false
@@ -59,6 +61,12 @@ export default defineNuxtPlugin({
               // a failed chunk can come back as undefined (Vite's preload wrapper)
               if (!m?.default) throw new Error('no module')
               i18n.mergeLocaleMessage(code, m.default)
+              // vue-i18n 11 checks each key segment with hasOwnProperty before
+              // it reads it, which Vue does not track: a view that rendered a
+              // key before this merge never learns the key arrived. Setting
+              // the locale's root again (a new top object over the same tree)
+              // is a tracked write every t() of this locale read (SPL-4356).
+              i18n.setLocaleMessage(code, { ...i18n.getLocaleMessage(code) })
             } catch (e) {
               // a failed chunk is retried on the next need; keys show meanwhile
               loads.delete(code)

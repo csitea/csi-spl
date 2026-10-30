@@ -37,6 +37,20 @@ describe('vue-i18n runtime-only', () => {
     assert.match(bundle[1], /\bdropMessageCompiler:\s*true\b/)
   })
 
+  // SPL-4356: @nuxtjs/i18n 10 fetches /_i18n/<hash>/<locale>/messages.json
+  // (raw source strings) when every locale file is static JSON; without a
+  // compiler "#{name}" reached the screen. The app takes its precompiled
+  // chunks instead, through this define, set after the module's own.
+  it('nuxt.config keeps the client on its precompiled catalogues, not the messages.json route', () => {
+    const cfg = readFileSync(join(WUI, 'nuxt.config.ts'), 'utf8')
+    const mod = /function i18nClientMessagesModule\b[^{]*\{\n  nuxt\.hook\("modules:done", \(\) => \{\n    extendViteConfig\(\(config\) => \{\n      config\.define = \{ \.\.\.config\.define, __I18N_FULL_STATIC__: "false" \}/
+    assert.match(cfg, mod)
+    const modules = /\bmodules: \[([^\]]*)\]/.exec(cfg)
+    assert.ok(modules, 'modules list not found in nuxt.config.ts')
+    const list = modules[1].split(',').map((m) => m.trim())
+    assert.ok(list.indexOf('i18nClientMessagesModule') > list.indexOf('"@nuxtjs/i18n"'), 'i18nClientMessagesModule must follow @nuxtjs/i18n')
+  })
+
   it('no source adds a message at runtime (it would need the compiler)', () => {
     const bad = []
     for (const f of files(join(WUI, 'src'))) {
@@ -59,5 +73,24 @@ describe('vue-i18n runtime-only', () => {
     }
     const split = readFileSync(join(WUI, 'src/node/i18n/split-catalogue.mjs'), 'utf8')
     assert.match(split, /generateJSON\(/)
+  })
+
+  // SPL-4356: vue-i18n 11's resolver returns on a failed hasOwnProperty before
+  // it reads the key, so a view that rendered a key holds no dependency on it
+  // and a later merge does not render it again ("demo.intro.limit" stayed on
+  // the sign-in page). The browser loader sets the locale root again after
+  // its merge. The first case pins the cause, the second the fix.
+  it('a key merged after a render reaches the view only through a new locale root', async () => {
+    const { reactive, effect } = await import('vue')
+    const { resolveValue } = await import('@intlify/core-base')
+    const messages = reactive({ en: { demo: { intro: { title: 'Try the demo' } } } })
+    const seen = []
+    effect(() => { seen.push(resolveValue(messages.en, 'demo.intro.limit')) })
+    Object.assign(messages.en.demo.intro, { limit: 'At most {n}' })
+    assert.deepEqual(seen, [null], 'CONTROL: the merge alone re-ran the view; the re-set below is no longer needed')
+    messages.en = { ...messages.en }
+    assert.deepEqual(seen, [null, 'At most {n}'])
+    const src = readFileSync(join(WUI, 'src/plugins/i18n-more.client.ts'), 'utf8')
+    assert.match(src, /mergeLocaleMessage\(code, m\.default\)\n(?:\s*\/\/.*\n)*\s*i18n\.setLocaleMessage\(code, \{ \.\.\.i18n\.getLocaleMessage\(code\) \}\)/)
   })
 })

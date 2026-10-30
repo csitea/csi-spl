@@ -13,12 +13,18 @@
 # @description In a workspace of the box map $SPOOL_ROOT/workspace-repos.tsv
 # @description (its own repo, workspace-repo.inc.sh) the epic is still needed,
 # @description but the spec lives in that repo: no csi-spl spec is asked for.
+# @description An issue the owner ordered for work with no repo (SPL-4443):
+# @description ISSUE_OWNER_GO=<the owner's message uuid> skips ONLY the git-spec
+# @description check, when that message is in a linked discussion of TENANT_ID
+# @description (read as the desk, hub-tail) from a HUM-<n>; the epic is still
+# @description needed and the description's first line becomes `Owner order: <uuid>`.
 # @param ENV - required: dev or prd, or self (a self-hosted hub: do_spl_desk_cnf)
 # @param TENANT_ID - required: the tenant the desk is seated in
 # @param DESK_AGENT - required: the agent filing it (the pane's id)
 # @param ISSUE_TITLE - required: the title
 # @param ISSUE_DISCUSSIONS - required: the discussions it links, topic ids or /t/<id> links, comma separated (at least one; the hub refuses none: discussion_required). A /t/<id> link in the description stands in for it
 # @param ISSUE_EPIC (required for a level-2 issue) - the level-1 row (epic or feature) above it, e.g. SPL-17; a level-2 issue without it is refused (owner t1 7a98c2d1 msg 5863d0d6)
+# @param ISSUE_OWNER_GO (optional) - the full lowercase uuid of the owner's (HUM-<n>) message that ordered this issue, in one of ISSUE_DISCUSSIONS (or a /t/<id> of the description): a level-2 issue then needs no git spec (SPL-4443); read from the hub only when DRY_RUN=0
 # @param ISSUE_PARENT (optional) - a level-2 issue's key: the new issue is its subtask (level 3)
 # @param ISSUE_KIND (optional) - issue (default) | epic | feature (epics and features are level 1)
 # @param ISSUE_DESCRIPTION (required for a level-2 issue: it names the spec, `Spec: csi-spl-doc/specs/NNN-<slug>`) - markdown, no fence needed (csi-spl-doc/doc/help/how-to-post.md); or ISSUE_DESCRIPTION_FILE
@@ -32,33 +38,102 @@
 # @param DESK_BOX (optional) - default box-desk
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 DESK_AGENT=CLE-00 ISSUE_TITLE='Rotate the relay key' ISSUE_DISCUSSIONS=<topic id> ISSUE_EPIC=SPL-17 ISSUE_DESCRIPTION='Spec: csi-spl-doc/specs/135-work-process' ISSUE_PRIORITY=2 ISSUE_ASSIGNEE=CLE-00 DRY_RUN=0 ./run -a do_spl_issue_create
+# @example ENV=prd TENANT_ID=csitea DESK_AGENT=c-001 ISSUE_TITLE='Invoice run' ISSUE_DISCUSSIONS=<topic uuid> ISSUE_EPIC=CSI-1 ISSUE_OWNER_GO=<owner msg uuid> ISSUE_DESCRIPTION='card' DRY_RUN=0 ./run -a do_spl_issue_create
 #------------------------------------------------------------------------------
 do_spl_issue_create() {
   [[ -n "${ISSUE_TITLE:-}" ]] || { do_log "FATAL ISSUE_TITLE must carry the issue title"; return 1; }
   spl_issue_check_fields || return 1
   spl_issue_check_discussions || return 1
   spl_issue_qas_guard create || return 1
-  spl_issue_create_epic_spec || return 1
+  local SPL_ISSUE_GO_TMP=""
+  spl_issue_create_epic_spec || { rm -f "$SPL_ISSUE_GO_TMP"; return 1; }
   local args=()
   mapfile -d '' -t args < <(spl_issue_field_args create)
-  spl_desk_issue create "${args[@]}" || return 1
+  spl_desk_issue create "${args[@]}" || { rm -f "$SPL_ISSUE_GO_TMP"; return 1; }
+  rm -f "$SPL_ISSUE_GO_TMP"
   [[ "${DRY_RUN:-1}" == 0 ]] && do_log "OK ${DESK_AGENT} filed an issue in ${TENANT_ID}"
   return 0
 }
 
 # spl_issue_create_epic_spec: a level-2 issue has an epic and names a spec
 # folder on origin/master (li_epic_spec, lane-issue.inc.sh). An epic or
-# feature (level 1) and a child of ISSUE_PARENT pass.
+# feature (level 1) and a child of ISSUE_PARENT pass. ISSUE_OWNER_GO stands in
+# for the spec (spl_issue_owner_go); unset, nothing changes.
 spl_issue_create_epic_spec() {
   [[ "${ISSUE_KIND:-issue}" == issue && -z "${ISSUE_PARENT:-}" ]] || return 0
   # shellcheck source=../features/spawn-agents/lib/lane-issue.inc.sh
   . "$PROJ_PATH/src/bash/features/spawn-agents/lib/lane-issue.inc.sh" || return 1
   [[ -n "${ISSUE_EPIC:-}" ]] ||
     { do_log "FATAL refused, nothing filed: $LI_EPIC_SPEC_RULE: set ISSUE_EPIC=SPL-<n>, the level-1 epic above it"; return 1; }
+  [[ -n "${ISSUE_OWNER_GO+x}" ]] && { spl_issue_owner_go; return; }
   wr_row "${TENANT_ID:-}" >/dev/null 2>&1 && return 0
   local d spec
   d="$(mktemp)" || return 1
   { printf '%s\n' "${ISSUE_DESCRIPTION:-}"; cat "${ISSUE_DESCRIPTION_FILE:-/dev/null}" 2>/dev/null; } >"$d"
   spec="$(li_spec_from_file "$d")"; rm -f "$d"
   li_epic_spec "$spec" "$ISSUE_EPIC" >/dev/null
+}
+
+# spl_issue_owner_go: ISSUE_OWNER_GO (SPL-4443) is a full lowercase uuid; the
+# description's first line is, or becomes, `Owner order: <uuid>`; with
+# DRY_RUN=0 the message is read through the desk (spl_issue_owner_go_from)
+# and must come from a HUM-<n>. One log line names the uuid, pass or refusal.
+spl_issue_owner_go() {
+  local go="$ISSUE_OWNER_GO" no="FATAL refused, nothing filed: ISSUE_OWNER_GO" first from
+  [[ "$go" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] ||
+    { do_log "$no '$go' is not a full lowercase message uuid (an id8 is not enough)"; return 1; }
+  if [[ -n "${ISSUE_DESCRIPTION+x}" || -z "${ISSUE_DESCRIPTION_FILE:-}" ]]; then
+    first="${ISSUE_DESCRIPTION:-}"; first="${first%%$'\n'*}"
+  else
+    first="$(head -n1 "$ISSUE_DESCRIPTION_FILE")"
+  fi
+  [[ "$first" =~ ^Owner\ order: && "$first" != "Owner order: $go" ]] &&
+    { do_log "$no $go: the description's first line cites another order: $first"; return 1; }
+  if [[ "${DRY_RUN:-1}" == 0 ]]; then
+    from="$(spl_issue_owner_go_from "$go")" || return 1
+    [[ "$from" =~ ^HUM-[0-9]+$ ]] ||
+      { do_log "$no $go is from '$from', not a human member (HUM-<n>)"; return 1; }
+  else
+    from="(not read: DRY_RUN)"
+  fi
+  [[ "$first" == "Owner order: $go" ]] || spl_issue_owner_go_line "$go" || return 1
+  do_log "INFO owner go $go from $from in $TENANT_ID: the git-spec check is skipped (SPL-4443), the epic $ISSUE_EPIC stays"
+}
+
+# spl_issue_owner_go_line <uuid>: put `Owner order: <uuid>` on top of the
+# description that is sent: ISSUE_DESCRIPTION, else a copy of the file
+# (SPL_ISSUE_GO_TMP, removed by do_spl_issue_create).
+spl_issue_owner_go_line() {
+  local line="Owner order: $1"
+  if [[ -n "${ISSUE_DESCRIPTION+x}" || -z "${ISSUE_DESCRIPTION_FILE:-}" ]]; then
+    ISSUE_DESCRIPTION="$line${ISSUE_DESCRIPTION:+$'\n\n'$ISSUE_DESCRIPTION}"
+    return 0
+  fi
+  SPL_ISSUE_GO_TMP="$(mktemp)" || return 1
+  { printf '%s\n\n' "$line"; cat "$ISSUE_DESCRIPTION_FILE"; } >"$SPL_ISSUE_GO_TMP" || return 1
+  ISSUE_DESCRIPTION_FILE="$SPL_ISSUE_GO_TMP"
+}
+
+# spl_issue_owner_go_from <uuid>: the `from` of that message, read as the desk
+# of TENANT_ID (`spool hub-tail --task <topic> --json`; the hub scopes the
+# read to the desk's tenant) in each discussion the issue links:
+# ISSUE_DISCUSSIONS and the /t/<id> links of the description. Not found: one
+# FATAL line naming the topics read.
+spl_issue_owner_go_from() {
+  local go="$1" tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" t tail from topics=()
+  spl_desk_issue_once >&2 || return 1
+  mapfile -t topics < <({ printf '%s\n' "${ISSUE_DISCUSSIONS:-}" | sed -E 's/[, ]+/\n/g' | sed 's#^.*/t/##'
+    { printf '%s\n' "${ISSUE_DESCRIPTION:-}"; cat "${ISSUE_DESCRIPTION_FILE:-/dev/null}" 2>/dev/null; } |
+      grep -oE '/t/[0-9A-Za-z-]+' | sed 's#^/t/##'; } | awk 'NF && !seen[$0]++')
+  for t in "${topics[@]}"; do
+    tail="$(spl_desk_spool "$SPL_STATE_DIR/desk/$tenant/$box" "$box" "$tenant" "$SPL_HUB_URL" -- hub-tail --task "$t" --json 2>/dev/null)" || continue
+    from="$(printf '%s\n' "$tail" | python3 -c 'import json, sys
+for l in sys.stdin:
+    try: m = json.loads(l)
+    except ValueError: continue
+    if isinstance(m, dict) and m.get("msg_id") == sys.argv[1]: print(m.get("from") or "-"); break' "$go")"
+    [[ -n "$from" ]] && { printf '%s\n' "$from"; return 0; }
+  done
+  do_log "FATAL refused, nothing filed: ISSUE_OWNER_GO $go is not a message of the linked discussions (${topics[*]:-none}) in $tenant" >&2
+  return 1
 }

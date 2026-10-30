@@ -6,7 +6,8 @@
 // the header's one month and one currency, carried in the query so every
 // page and the back button keep them; the old links that land here. One
 // list for the page bar (pages/reporting/costs.vue) and the tests. No costs
-// code here: the Spend, Cloud and AI tokens pages load utils/tenant-costs.mjs.
+// code here: the Spend, Cloud and AI tokens pages load utils/tenant-costs.mjs. SPL-4382:
+// the Paid items page left for Expenses -> AI costs (utils/expenses-tabs.mjs).
 
 import { productPath } from './signed-out-redirect.mjs'
 
@@ -21,7 +22,6 @@ export const COSTS_PAGES = Object.freeze([
   Object.freeze({ id: 'tokens', path: '/reporting/costs/tokens', labelKey: 'reporting.costs.page.tokens', operatorsOnly: false }),
   Object.freeze({ id: 'human', path: '/reporting/costs/human', labelKey: 'reporting.costs.page.human', operatorsOnly: false }),
   Object.freeze({ id: 'price', path: '/reporting/costs/price', labelKey: 'reporting.costs.page.price', operatorsOnly: true }),
-  Object.freeze({ id: 'paid', path: '/reporting/costs/paid', labelKey: 'reporting.costs.page.paid', operatorsOnly: true }),
 ])
 
 export const COSTS_DEFAULT_PATH = COSTS_PAGES[0].path
@@ -46,6 +46,9 @@ export const COSTS_REDIRECTS = Object.freeze({
   '/monitoring/costs': '/reporting/costs/spend',
   '/reporting/tokens': '/reporting/costs/tokens',
   '/reporting/costs': '/reporting/costs/spend',
+  /* SPL-4382 (spec 143 costs-redesign.md 3.8): the paid items are entered
+     under Expenses, Costs only reports them */
+  '/reporting/costs/paid': '/expenses/ai',
 })
 
 /** The Costs page an old link lands on, with or without a locale prefix or a

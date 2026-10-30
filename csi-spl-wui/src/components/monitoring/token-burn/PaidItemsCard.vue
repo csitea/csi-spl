@@ -3,8 +3,9 @@
      per token"): the Tokens page's Paid card. The operator's paid items
      (GET/POST/PATCH/DELETE /v1/operator/fleet-tokens/paid) with add, edit
      and delete, and the effective price per token per vendor beside the
-     list price (GET .../effective). The Tokens page mounts it only for an
-     admin of the operator workspace; a 403 here too draws nothing. Read
+     list price (GET .../effective). Expenses -> AI costs mounts it (SPL-4382;
+     the Tokens page did before) only for an admin of the operator
+     workspace; a 403 here too draws nothing. Read
      once on open and after each change, never polled (the hub's read spans
      whole paid periods). -->
 <template>

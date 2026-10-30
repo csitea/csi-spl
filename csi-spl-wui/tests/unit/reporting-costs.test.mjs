@@ -21,10 +21,10 @@ const read = (p) => readFileSync(join(WUI, p), 'utf8')
 const ids = (pages) => pages.map((p) => p.id)
 
 describe('the pages (section 3.2; SPL-4187 the three sections)', () => {
-  it('Spend (default), Cloud, AI tokens, Human, Price per token, Paid items, each its own path and page file (its own chunk)', () => {
+  it('Spend (default), Cloud, AI tokens, Human, Price per token, each its own path and page file (its own chunk); no Paid items (SPL-4382: Expenses)', () => {
     assert.deepEqual(COSTS_PAGES.map((p) => [p.id, p.path]), [
       ['spend', '/reporting/costs/spend'], ['cloud', '/reporting/costs/cloud'], ['tokens', '/reporting/costs/tokens'],
-      ['human', '/reporting/costs/human'], ['price', '/reporting/costs/price'], ['paid', '/reporting/costs/paid'],
+      ['human', '/reporting/costs/human'], ['price', '/reporting/costs/price'],
     ])
     assert.equal(COSTS_DEFAULT_PATH, '/reporting/costs/spend')
     for (const p of COSTS_PAGES) {
@@ -34,14 +34,16 @@ describe('the pages (section 3.2; SPL-4187 the three sections)', () => {
     /* no page is imported by hand: Nuxt makes each route its own chunk */
     for (const f of walk('src')) assert.doesNotMatch(read(f), /import [^\n]*pages\/reporting\/costs\//, f)
   })
-  it('Cloud (the estate), Price per token and Paid items for an operator admin only; Spend, AI tokens and Human for every costs reader', () => {
-    assert.deepEqual(ids(visibleCostsPages({ operator: true })), ['spend', 'cloud', 'tokens', 'human', 'price', 'paid'])
+  it('Cloud (the estate) and Price per token for an operator admin only; Spend, AI tokens and Human for every costs reader', () => {
+    assert.deepEqual(ids(visibleCostsPages({ operator: true })), ['spend', 'cloud', 'tokens', 'human', 'price'])
     /* CONTROL: anyone else, or not known yet */
     for (const who of [undefined, {}, { operator: false }]) assert.deepEqual(ids(visibleCostsPages(who)), ['spend', 'tokens', 'human'], JSON.stringify(who))
   })
   it('costsPageFor: the page a route is on, locale prefix or not; the Reporting tab is Costs', () => {
     assert.equal(costsPageFor('/reporting/costs/spend'), 'spend')
-    assert.equal(costsPageFor('/fi/reporting/costs/paid'), 'paid')
+    assert.equal(costsPageFor('/fi/reporting/costs/price'), 'price')
+    /* SPL-4382: Paid items left for Expenses, its old path is no Costs page */
+    assert.equal(costsPageFor('/reporting/costs/paid'), null)
     assert.equal(costsPageFor('/reporting/costs'), null)
     assert.equal(costsPageFor('/reporting/costs/spendx'), null)
     for (const p of ['/reporting/costs', '/reporting/costs/price', '/sv/reporting/costs/tokens']) assert.equal(reportingTabFor(p), 'costs', p)
@@ -49,11 +51,12 @@ describe('the pages (section 3.2; SPL-4187 the three sections)', () => {
 })
 
 describe('the redirect table (section 5 "Links")', () => {
-  it('three old paths, each to its Costs page', () => {
+  it('four old paths, each to its Costs page or (SPL-4382) Paid items to Expenses -> AI costs', () => {
     assert.deepEqual({ ...COSTS_REDIRECTS }, {
       '/monitoring/costs': '/reporting/costs/spend',
       '/reporting/tokens': '/reporting/costs/tokens',
       '/reporting/costs': '/reporting/costs/spend',
+      '/reporting/costs/paid': '/expenses/ai',
     })
     for (const [from, to] of Object.entries(COSTS_REDIRECTS)) {
       assert.equal(legacyCostsPath(from), to, from)

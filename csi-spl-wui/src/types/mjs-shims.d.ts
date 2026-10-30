@@ -307,7 +307,8 @@ declare module '~/utils/sidebar-tabs.mjs' {
   export const MONITORING_TAB: 'monitoring'
   export const REPORTING_TAB: 'reporting'
   export const NOTES_TAB: 'notes'
-  export function tabForPath(path: string): 'dm' | 'channels' | 'flow' | 'users' | 'issues' | 'archive' | 'people' | 'calendar' | 'monitoring' | 'reporting' | 'notes' | null
+  export const EXPENSES_TAB: 'expenses'
+  export function tabForPath(path: string): 'dm' | 'channels' | 'flow' | 'users' | 'issues' | 'archive' | 'people' | 'calendar' | 'monitoring' | 'reporting' | 'notes' | 'expenses' | null
   export function isSearchPage(path: string): boolean
   export function switchPaneOf(text: string): 'dm' | 'channels' | 'flow' | '' | null
 }
@@ -2191,7 +2192,7 @@ declare module '~/utils/unread-model.mjs' {
 
 // 081 T003: the forward of tabForPath (merges with its first declare block).
 declare module '~/utils/sidebar-tabs.mjs' {
-  export function routeForTab(id: string): '/issues' | '/users' | '/archive' | '/people' | '/calendar' | '/monitoring' | '/reporting' | '/notes' | null
+  export function routeForTab(id: string): '/issues' | '/users' | '/archive' | '/people' | '/calendar' | '/monitoring' | '/reporting' | '/notes' | '/expenses' | null
 }
 
 // 078 T004: the proportional topic default (merges with its first declare block).

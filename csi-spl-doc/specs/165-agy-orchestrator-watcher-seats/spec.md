@@ -1,13 +1,27 @@
 # Spec 165: Antigravity as an Orchestrator/Dispatcher Vendor and Read-Only Watcher Seats
 
-Version **v0.2** (2026-10-30). v0.1 by seat `a-591` (Antigravity, `7350c51bb`;
+Version **v0.3** (2026-10-30). v0.1 by seat `a-591` (Antigravity, `7350c51bb`;
 its header said v1.0 by mistake: it was never signed). v0.2 by `c-672`
 (claude, the backup vendor while a-591 is on its usage limit), fixing the R7
-FAIL of `c-599` (findings W1..W11, change log in section 8).
-Epic: **SPL-1308** (Orchestration across boxes). Issue: **SPL-4172**.
+FAIL of `c-599` (findings W1..W11). v0.3 by `c-637` (claude, the backup
+vendor) folds the owner's answers to poll fda1ec04: **Q0 = A, Q1 = A (not in
+force), Q2 = A** (section 6), and re-gates the build rows (section 5).
+Change log in section 8.
+Epic: **SPL-1308** (Orchestration across boxes). Issue: **SPL-4172**; v0.3:
+**SPL-4334** (epic SPL-2398).
 Kind: **specs_and_docs**. Reports to the dispatch lease holder on task
 `dispatch-6aeebb4d`.
-Every `file:line` cite below is read at `origin/master` `5df9c0ead`.
+Every `file:line` cite below is read at `origin/master` `5df9c0ead`. v0.3
+re-read the cites it leans on at `3946afc21`: `all.env.yaml:1298`
+(`orchestration:  { claude: 65, grok: 35, backup: grok }`),
+`agent_split.py:21-22` (`SECRET_KINDS`, `SECRET_VENDORS`) and
+`test_agent_split_by_kind.py:131-140`; the others are not re-read.
+
+**Scope after Q0 = A.** agy stays on the dispatch seats. This spec builds the
+read-only watcher seats (section 3) and shadow scoring against the dispatch
+seats (section 4). agy in the orchestrator seat (v0.2's section A paths for
+Q0 B or C) is **out of scope**; it would need a new owner answer and a new
+version of this spec.
 
 ---
 
@@ -21,11 +35,14 @@ From prd topic `6aeebb4d-5dca-4a49-8257-bf1122133147` (#refactoring), msg `5c628
 
 Three parts follow from it:
 1. **Antigravity (agy) in the role seats**: agy already holds the dispatch
-   seats (0.2); the order asks for the orchestrator seat too.
+   seats (0.2); the order asks for the orchestrator seat too. The owner's Q0
+   answer A keeps orchestration secret-class, so agy stays on the dispatch
+   seats only (section 6).
 2. **Watcher seats ("watcher seeds")**: a new seat kind that only reads,
    with read-only enforced by the OS, not by the prompt.
-3. **Shadow training**: a watcher that shadows the live orchestrator is how
-   agy learns the role before it holds the orch lease.
+3. **Shadow training**: a watcher shadows the live seats and scores what it
+   would have done. Under Q0 = A it shadows the dispatch seats and non-secret
+   lanes, never the orch seat.
 
 ### 0.2 Baseline Facts on `origin/master` (measured 2026-10-30)
 
@@ -64,19 +81,23 @@ Three parts follow from it:
 
 | ID | Goal | Measured By |
 |---|---|---|
-| **G1** | **agy in the orchestrator seat**, under the owner's answer to Q0. agy already rotates into the dispatch seats `a-002`/`a-003` (0.2), so G1 adds only the orch seat `a-001`. | `orch-rotate.tst.sh` plans and ACKs `a-001` with `ROTATE_ROLE_VENDOR=agy`, only after the owner's go for B2. |
-| **G2** | **cnf follows Q0**: the validator encodes the owner's Q0 answer (keep, lift for agy, or split). | `test_agent_split_by_kind.py` green on the Q0 answer; `secret` still refuses agy. |
-| **G3** | **Read-only enforced by the OS**: a watcher cannot write a repo, push, take, post to a desk, spawn, or send as another seat. The boundary is the OS user (or container, Q2), and the tool gates key on the process chain, never on an id the caller sets. | `watcher-read-only.tst.sh`: every mutation attempt fails, including with `AGENT_ID`, `DESK_AGENT` or `--from` set to another seat's id. |
-| **G4** | **Observation feed that obeys the data rule**: the watcher reads a snapshot written by a privileged producer, filtered so no secret-class lane reaches an agy watcher. | Feed test: a secret-kind lane's pane and outbox are absent from the feed. |
-| **G5** | **Shadow scoring with one pass line**: the O2 line (90% right), on measured sources, with a safety violation scoring 0. | `orch-shadow-eval.tst.sh` on fixtures; `/var/spool-hub/watchers/shadow-decisions.jsonl`. |
+| ~~**G1**~~ | **Out of scope (Q0 = A)**: agy in the orchestrator seat `a-001`. agy keeps the dispatch seats `a-002`/`a-003` it already rotates into (0.2). | none |
+| **G2** | **cnf keeps Q0 = A**: `orchestration` stays secret-class; the validator and the cnf row do not change. | `test_agent_split_by_kind.py:131-140` (`test_orchestration_outside_claude_grok_and_mistral_is_red`) stays green: `orchestration` with agy non-zero or as backup is red; `secret` still refuses agy. |
+| **G3** | **Read-only enforced by the OS**: a watcher cannot write a repo, push, take, post to a desk, spawn, or send as another seat. The boundary is a dedicated OS user (Q2 = A), and the tool gates key on the process chain, never on an id the caller sets. | `watcher-read-only.tst.sh`: every mutation attempt fails, including with `AGENT_ID`, `DESK_AGENT` or `--from` set to another seat's id. |
+| **G4** | **Observation feed that obeys the data rule**: the watcher reads a snapshot written by a privileged producer, filtered so no secret-class lane and no orch seat output reaches an agy watcher. | Feed test: a secret-kind lane's pane and outbox, and the orch seat's, are absent from the feed. |
+| **G5** | **Shadow scoring with one pass line**: the O2 line (90% right), on measured sources, with a safety violation scoring 0, against the dispatch seats. | `orch-shadow-eval.tst.sh` on fixtures; `/var/spool-hub/watchers/shadow-decisions.jsonl`. |
 
 ### 1.2 Non-Goals
 
 - **agy never gets a key or a key path**: no GCP SA key, no `CLOUDSDK_CONFIG`,
-  no `do_spl_db_query` (it runs with the env SA key). This holds whatever the
-  answer to Q0.
-- No secret-kind work for agy (`secret` stays claude|grok|mistral).
-- Claude and Grok stay in the role seats.
+  no `do_spl_db_query` (it runs with the env SA key).
+- No secret-class work for agy (`secret` and `orchestration` stay
+  claude|grok|mistral in the validator).
+- **agy in the orch seat** (Q0 = A): no orch rotation, drill or cnf share for
+  agy is built here.
+- The orch seat stays with its current vendors. grok is off fleet-wide by
+  the later owner order 0d5b1e8a (section 6, Q1); this spec changes no role
+  seat's vendor.
 - A watcher never posts into an owner-facing or customer-facing WUI topic.
 
 ---
@@ -102,17 +123,24 @@ desk, route work to lanes, fail over on a dropped lease, escalate prd ops.
 
 ### 2.2 The Data Rule Decides Section A First (W1)
 
-Making `orchestration` non-secret reverses an owner order (a1e5c678,
-ff1baf01). The spec does not do that by itself: **owner question Q0
-(section 6) comes before any section A build row.** What each answer means:
+Making `orchestration` non-secret would reverse an owner order (a1e5c678,
+ff1baf01), so owner question Q0 (section 6) came before any section A build
+row. **The owner answered A** (msg 8da780d7, poll fda1ec04):
 
-| Q0 answer | What agy may do | Rows it unlocks |
+| Q0 answer | What agy may do | Rows |
 |---|---|---|
-| **A. Keep** orchestration secret-class | agy stays on the dispatch seats only (as today). A watcher may shadow the dispatch seats and non-secret lanes, never the orch seat. | B4..B8 (watchers); B1..B3 and B9 not built. |
-| **B. Lift** it for agy | agy may hold `a-001` after the drill and the owner's go (section 4.4). | All rows, each behind its gate. |
-| **C. Split** orchestration into a non-secret part (placement, routing and lane lifecycle on non-secret kinds) and a secret part (prd go, keys, finance, `secret`-kind lanes, the owner desk) | agy may hold the non-secret part; the secret part stays with claude or grok, which needs a second seat or a hand-off rule. | B1 as a two-row split; B2 only once that hand-off rule is specified (a v0.3 of this spec). |
+| **A. Keep** orchestration secret-class (**decided**) | agy stays on the dispatch seats only (as today). A watcher may shadow the dispatch seats and non-secret lanes, never the orch seat. | B1 verify only; B4..B8 built; B2, B3 and B9 not built. |
+| ~~B. Lift it for agy~~ | Out of scope: not chosen. | none |
+| ~~C. Split orchestration~~ | Out of scope: not chosen. | none |
 
 ### 2.3 Today's Gaps (with `file:line` at `5df9c0ead`)
+
+Kept as the record of v0.2's analysis. Under Q0 = A, **none of A1..A5 is a
+gap to close**: A1 and A2 are the data rule working as decided, and A3..A5
+only matter for agy in the orch seat, which is out of scope. A6, A8 and A9
+are not measured here (row B9 is not built). They also describe agy on the
+dispatch seats it already holds. If they need measuring there, that belongs
+to a dispatch-seat lane outside this spec.
 
 #### Gap A1: The validator keeps agy out of orchestration
 `agent_split.py:21-22, 95-103`: `orchestration` is in `SECRET_KINDS`; a
@@ -133,8 +161,9 @@ comment `:1270-1279`.
 #### Gap A4: The agy guard tests a proxy kind
 `spl-rotate-lib.func.sh:208-211`: `spl_rotate_agy_why` runs lane-mix with
 `LANE_MIX_KIND=specs_and_docs`. `spl_role_failover_guard` already uses
-`LANE_MIX_KIND=orchestration` for agy (`spl-role-failover.func.sh:172-180`);
-the rotation guard should match it once Q0 is B or C.
+`LANE_MIX_KIND=orchestration` for agy (`spl-role-failover.func.sh:172-180`).
+v0.2 would have matched the rotation guard to it under Q0 B or C; under
+Q0 = A the rotation guard stays as it is.
 
 #### Gap A5: Cold dispatch setup spawns claude
 `spl-dispatch-setup.func.sh:444-446` passes the literal `claude` to
@@ -169,21 +198,17 @@ and its relative `Resets in ...` (SPL-3022, `:1309`).
 seat triggers `do_spl_role_failover` without a person is **unmeasured**; row
 B9 runs it as a drill on dev.
 
-### 2.4 Steps to Close the Gaps (each behind its gate, section 5)
+### 2.4 Steps for Section A under Q0 = A (section 5)
 
-1. **Validator follows Q0** (B1): A: no change. B: drop `orchestration` from
-   `SECRET_KINDS`, add agy to the vendors it allows. C: two kinds,
-   `orchestration` (secret) and `orchestration_ops` (non-secret, agy allowed).
-   In every case B1 lands the cnf row with **`agy: 0`**; the owner's Q1
-   share goes in only at Phase 4 (section 4.4).
-2. **Orch rotation accepts agy** (B2, owner go): remove the
-   `!= dispatch` refusal at `spl-rotate-lib.func.sh:156-158`; add `agy` to
-   the picks at `spl-orch-rotate.func.sh:299`; switch `spl_rotate_agy_why`
-   to `LANE_MIX_KIND=orchestration`.
-3. **Dispatch setup reads the role vendor** (B3): `spl-dispatch-setup.func.sh:444-446`
-   spawns `ROTATE_ROLE_VENDOR` (default claude), not a literal.
-4. **agy seat behaviour** (B9): measure A6, A8, A9 and fix only what the
-   measurement shows.
+1. **Validator keeps orchestration secret-class** (B1, verify only): no
+   change to `agent_split.py` or the cnf row. The red control already exists:
+   `test_orchestration_outside_claude_grok_and_mistral_is_red`
+   (`test_agent_split_by_kind.py:131-140`) is red for agy non-zero and for an
+   agy backup. B1 checks that it stays green and in the suite. It needs no
+   build lane.
+2. ~~Orch rotation accepts agy (B2)~~: not built (Q0 = A).
+3. ~~Dispatch setup reads the role vendor (B3)~~: not built (Q0 = A).
+4. ~~agy seat behaviour (B9)~~: not built (Q0 = A); see the note in 2.3.
 
 ---
 
@@ -230,8 +255,9 @@ by a producer that runs as the repo user on a timer, B5):
 5. `git log origin/master` and the worktree status of `/opt/csi/csi-spl-wt/*`.
 
 **The producer drops** every lane, pane, message and ask whose kind is
-`secret`, plus, while Q0 is A, the orch seat's pane and outbox (or, under
-Q0 C, the secret part). The filter reads the lane's `Kind:` from its brief,
+secret-class (`secret` or `orchestration`, the validator's `SECRET_KINDS`,
+`agent_split.py:21`), plus the orch seat's pane, inbox and outbox (Q0 = A).
+The filter reads the lane's `Kind:` from its brief,
 and a lane with no readable kind is dropped (fail closed). A filter can only
 drop what it was told to look for, so it cannot prove absence (global
 CLAUDE.md, corollary): B5's test also plants a secret-kind lane and asserts
@@ -242,8 +268,9 @@ nothing of it reaches the feed.
 The boundary is a separate identity with nothing to escalate with, not a
 file mode and not an id the caller sets.
 
-1. **OS user (Q2 A, recommended) or container (Q2 B)**: the watcher runs as
-   a dedicated OS user `<WATCHER_USER>`:
+1. **A dedicated OS user per box (Q2 = A, decided; the container of Q2 B is
+   out of scope)**: the watcher runs as `<WATCHER_USER>`. Creating it is a
+   root change on each box and needs the owner's go per box (row B7):
    - no sudo rule (`sudo -l -U <WATCHER_USER>` -> not allowed);
    - not in the repo user's group, not in `docker`, not in `spool-agents`
      (the group that may write `/var/spool-hub/<id>/inbox`);
@@ -288,14 +315,15 @@ file mode and not an id the caller sets.
 
 ---
 
-## 4. Section C: Teaching agy the Orchestrator Role (Shadowing)
+## 4. Section C: Shadowing the Dispatch Seats
 
 ### 4.1 Architecture
 
-For each fleet event (an ask, a lane result, a human post), the live
-orchestrator acts and the watcher writes a **shadow decision card** of what
-it would have done. An evaluator compares the two. Under Q0 A the watcher
-shadows the dispatch seats only (2.2).
+For each fleet event a dispatch seat handles (an ask, a lane result, a human
+post), the live dispatch seat acts and the watcher writes a **shadow decision
+card** of what it would have done. An evaluator compares the two. Under
+Q0 = A the watcher shadows the dispatch seats only, never the orch seat
+(2.2), and sees only events of non-secret lanes (3.2).
 
 ### 4.2 The Shadow Decision Card
 
@@ -337,34 +365,58 @@ are gone.
 | Phase | What runs | Exit criterion | Gate to the next phase |
 |---|---|---|---|
 | 1 Observation | Watcher reads the feed, writes findings. | B4, B5, B7, B8 landed and green. | none (read-only) |
-| 2 Shadowing | Watcher writes cards; B6 scores them. | >= 90% right (4.3), n >= 50 cards, 0 safety zeros. | owner go to start Phase 3 |
-| 3 Drill | `do_spl_orch_drill` (row O2 of `orch-panel-plan.md`; **not built**: Phase 3 cannot start before O2 lands) on dev, agy vs claude. | The O2 line, plus: agy answers a human post within 3 min (the take rule), and runs no prd op without a go (a planted prd ask must be escalated). | owner go, by msg id, for B2 |
-| 4 Active | B2 lands; the owner's Q1 share goes into the cnf row (B1 had `agy: 0`); agy takes `a-001` in rotation. | none | the owner's go for Phase 4 is its own msg id, separate from the B2 go |
+| 2 Shadowing | Watcher writes cards; B6 scores them. | >= 90% right (4.3), n >= 50 cards, 0 safety zeros. | none: Phase 2 is the last phase. Its scores are reported to the dispatch lease holder. |
+| ~~3 Drill~~ | Out of scope (Q0 = A): the orch drill was the gate for agy in the orch seat. | none | none |
+| ~~4 Active~~ | Out of scope (Q0 = A): no B2, no agy share in the `orchestration` cnf row. | none | none |
 
 ---
 
 ## 5. Build Rows
 
 Every row ships with its red control (seen RED, then GREEN, both in the
-commit body). Status of every row today: **Planned**.
+commit body). Statuses as of v0.3 (Q0 = A, Q2 = A):
+
+- **Ready**: B4, B5, B7 (B7 needs an owner go per box); B6 once B5 has
+  landed. B1 is Ready as a check only: nothing to build.
+- **Planned**: B8, after B4 and B7.
+- **Not built (Q0 = A)**: B2, B3, B9.
 
 | Row | Status | Gate | Focus | Touched files | Red control & test |
 |---|---|---|---|---|---|
-| **B1** | Planned | Q0 answered (A: not built) | Validator follows Q0; cnf `agy: 0` | `csi-spl-cnf/src/python/conf-validator/EnvModels/agent_split.py`, `csi-spl-cnf/csi-spl/all.env.yaml`, `csi-spl-cnf/src/python/conf-validator/tests/test_agent_split_by_kind.py` | **Red**: today `orchestration` with `agy: 20` fails with `"orchestration: only claude, grok and mistral may be non-zero or the backup"`. **Test**: under B, `agy: 20` validates; `secret` with agy still fails; the landed cnf row has `agy: 0`. |
-| **B2** | Planned | owner go (msg id), after Phase 3 | Orch rotation accepts agy | `csi-spl-orc/src/bash/run/spl-rotate-lib.func.sh`, `csi-spl-orc/src/bash/run/spl-orch-rotate.func.sh`, `csi-spl-orc/src/bash/tests/orch-rotate.tst.sh` | **Red**: `ROTATE_ROLE_VENDOR=agy` for the orch logs `ROTATE_ROLE_VENDOR=agy is for the dispatch seats only, not the orch seat: claude`. **Test**: the plan picks agy for `a-001`; the agy guard runs lane-mix with `LANE_MIX_KIND=orchestration`. |
-| **B3** | Planned | Q0 B or C | Dispatch setup reads the role vendor | `csi-spl-orc/src/bash/run/spl-dispatch-setup.func.sh`, `csi-spl-orc/src/bash/tests/dispatch-setup-check.tst.sh` | **Red**: `ROTATE_ROLE_VENDOR=agy` still spawns `claude` (`:444-446`). **Test**: the dry-run spawn line names `agy`. |
-| **B4** | Planned | Q2 answered | Read-only enforcement (3.3) | `csi-spl-orc/src/bash/run/spl-push-master.func.sh`, `csi-spl-orc/src/bash/run/spl-take.func.sh`, `csi-spl-orc/src/bash/run/spl-desk-reply.func.sh`, `csi-spl-orc/src/bash/features/spawn-agents/lib/spool-env.inc.sh`, `csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh`, `csi-spl-orc/src/bash/features/spawn-agents/hooks/pre-push`, `csi-spl-orc/src/bash/tests/watcher-read-only.tst.sh` | **Red**: a stub chain with a `.watcher-role` id and `AGENT_ID=c-599` / `DESK_AGENT=c-002` / `--from c-001` gets through each action. **Test**: every one refuses, keyed on the chain, with those ids set. |
-| **B5** | Planned | Q0 answered | Feed producer with the data-rule filter (3.2) | `csi-spl-orc/src/bash/run/spl-watcher-feed.func.sh`, `csi-spl-orc/src/bash/tests/watcher-feed.tst.sh` | **Red**: a planted `secret`-kind lane appears in the feed. **Test**: it does not; a lane with no readable kind is dropped too. |
-| **B6** | Planned | B5 | Shadow scoring (4.3) | `csi-spl-orc/src/bash/run/spl-orch-shadow-eval.func.sh`, `csi-spl-orc/src/bash/tests/orch-shadow-eval.tst.sh` | **Red**: a fixture card with a force-push proposal scores > 0. **Test**: it scores 0; action, vendor and issue join from fixture `fleet_asks`, queue and `registry.tsv` rows. |
-| **B7** | Planned | Q2 answered; root on each box = owner go per box | Watcher OS user or container, per box | `csi-spl-orc/src/bash/run/spl-watcher-user.func.sh`, `csi-spl-orc/src/bash/tests/watcher-user.tst.sh` | **Red**: the planned user has a sudo rule or a group of 3.3. **Test**: `sudo -l` refused, groups match, no key or credential file in its home. |
-| **B8** | Planned | B4, B7 | Watcher spawn, tick and rotation | `csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-watcher.sh`, `csi-spl-orc/src/bash/run/spl-watcher-rotate.func.sh`, `csi-spl-orc/src/bash/run/spl-watcher-tick.func.sh`, `csi-spl-orc/src/bash/tests/watcher-spawn-rotate.tst.sh` | **Red**: `do_spl_watcher_rotate` does not exist. **Test**: spawn runs as `<WATCHER_USER>` and writes the root-owned marker; rotate ACKs; tick writes `findings.jsonl` from the feed. |
-| **B9** | Planned | Q0 B or C | Measure, then fix, agy seat gaps A6, A8, A9 | `csi-spl-orc/src/bash/features/spawn-agents/lib/spool-notify.inc.sh`, `csi-spl-orc/src/bash/run/spl-dispatch-setup.func.sh` (only if the measurement shows a gap) | **First**: an idle and a typing agy pane capture (A8), an agy take on dev with no approval stop (A6), a limit drill with `do_spl_role_failover` on dev (A9). A fix lands only for a gap the capture shows, with that capture as its red control. |
+| **B1** | **Ready, verify only** (no build lane) | Q0 = A (met) | Validator keeps `orchestration` secret-class; no change to the validator or the cnf row | `csi-spl-cnf/src/python/conf-validator/tests/test_agent_split_by_kind.py` (read only) | **Red** already in the suite: `test_orchestration_outside_claude_grok_and_mistral_is_red` (`:131-140`) is red for `orchestration` with agy non-zero or as the backup. **Check**: it stays green and in the suite; `agent_split.py` and `all.env.yaml:1298` unchanged. |
+| ~~**B2**~~ | **Not built (Q0 = A)** | none | ~~Orch rotation accepts agy~~: agy stays off the orch seat; the `!= dispatch` refusal in `spl-rotate-lib.func.sh:155-158` is the decided behaviour | none | none |
+| ~~**B3**~~ | **Not built (Q0 = A)** | none | ~~Dispatch setup reads the role vendor~~: it served agy in the orch path only | none | none |
+| **B4** | **Ready** | Q2 = A (met) | Read-only enforcement (3.3) | `csi-spl-orc/src/bash/run/spl-push-master.func.sh`, `csi-spl-orc/src/bash/run/spl-take.func.sh`, `csi-spl-orc/src/bash/run/spl-desk-reply.func.sh`, `csi-spl-orc/src/bash/features/spawn-agents/lib/spool-env.inc.sh`, `csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-send.sh`, `csi-spl-orc/src/bash/features/spawn-agents/hooks/pre-push`, `csi-spl-orc/src/bash/tests/watcher-read-only.tst.sh` | **Red**: a stub chain with a `.watcher-role` id and `AGENT_ID=c-599` / `DESK_AGENT=c-002` / `--from c-001` gets through each action. **Test**: every one refuses, keyed on the chain, with those ids set. |
+| **B5** | **Ready** | Q0 = A (met) | Feed producer with the data-rule filter (3.2) | `csi-spl-orc/src/bash/run/spl-watcher-feed.func.sh`, `csi-spl-orc/src/bash/tests/watcher-feed.tst.sh` | **Red**: a planted `secret`-kind lane, a planted `orchestration`-kind lane and the orch seat's outbox appear in the feed. **Test**: none of them does; a lane with no readable kind is dropped too. |
+| **B6** | **Ready after B5** | B5 landed | Shadow scoring against the dispatch seats (4.3) | `csi-spl-orc/src/bash/run/spl-orch-shadow-eval.func.sh`, `csi-spl-orc/src/bash/tests/orch-shadow-eval.tst.sh` | **Red**: a fixture card with a force-push proposal scores > 0. **Test**: it scores 0; action, vendor and issue join from fixture `fleet_asks`, queue and `registry.tsv` rows. |
+| **B7** | **Ready, needs an owner go per box** (a root change) | Q2 = A (met); the owner's go for each box, by msg id | Watcher OS user, per box | `csi-spl-orc/src/bash/run/spl-watcher-user.func.sh`, `csi-spl-orc/src/bash/tests/watcher-user.tst.sh` | **Red**: the planned user has a sudo rule or a group of 3.3. **Test**: `sudo -l` refused, groups match, no key or credential file in its home. |
+| **B8** | Planned | B4 and B7 landed | Watcher spawn, tick and rotation | `csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-watcher.sh`, `csi-spl-orc/src/bash/run/spl-watcher-rotate.func.sh`, `csi-spl-orc/src/bash/run/spl-watcher-tick.func.sh`, `csi-spl-orc/src/bash/tests/watcher-spawn-rotate.tst.sh` | **Red**: `do_spl_watcher_rotate` does not exist. **Test**: spawn runs as `<WATCHER_USER>` and writes the root-owned marker; rotate ACKs; tick writes `findings.jsonl` from the feed. |
+| ~~**B9**~~ | **Not built (Q0 = A)** | none | ~~Measure, then fix, agy seat gaps A6, A8, A9~~: gated on agy in the orch seat. A6, A8 and A9 also touch agy's existing dispatch seats; a measurement there is a dispatch-seat lane outside this spec (2.3). | none | none |
 
 ---
 
 ## 6. Owner Questions (at most three; W11)
 
-Asked as one poll each, by the dispatcher.
+Asked in one poll, fda1ec04, whose Answer 1/2/3 are Q0/Q1/Q2 in order.
+**Answered** by HUM-10 in prd t1 topic
+`6aeebb4d-5dca-4a49-8257-bf1122133147`, msg `8da780d7`, 2026-10-30 06:32Z:
+
+| Question | Answer | Owner's words | In force |
+|---|---|---|---|
+| **Q0** | **A** | "Answer 1: A — Keep it: agy stays on the dispatch seats; watchers shadow dispatch seats and non-secret lanes only" | yes |
+| **Q1** | **A** | "Answer 2: A — claude 50, grok 30, agy 20, backup grok" | **no**: Q1 was asked "only if Q0 is B or C", and Q0 = A makes it moot. Its grok 30 share is also blocked by the later grok-off order (below). Nothing goes into the cnf from it. |
+| **Q2** | **A** | "Answer 3: A — A dedicated OS user per box with no sudo, no keys, no writes outside its own folder, plus tool gates; needs a root change on each box (your go per box)" | yes |
+
+**Later owner order**: HUM-10, t1 topic `933990dd`, msg `0d5b1e8a`
+(06:32:46Z, 39 s after the poll answer): no more work to grok. grok is off
+fleet-wide; the dispatch brief of this version records prd agent kinds off
+as `[grok, qwen]` (not read here: no kinds-off key in `csi-spl-cnf/csi-spl/*.yaml`,
+`grep -rn -i kinds_off` -> 0 lines, so it is not a cnf value). The cnf
+`orchestration` row still carries `grok: 35, backup: grok`
+(`all.env.yaml:1298`). This spec does not change it; that row is a cnf
+lane's to reconcile.
+
+The question texts below are kept as asked.
 
 ### Q0: The data rule for orchestration
 Orchestration is secret-class by your order (a1e5c678, ff1baf01): agy never
@@ -411,3 +463,4 @@ users and boxes are `<HARNESS_USER>`, `<REPO_USER>`, `<WATCHER_USER>`,
 |---|---|
 | v0.1 (`7350c51bb`, a-591) | First draft (header said v1.0 by mistake). R7 c-599 FAIL, W1..W11. |
 | v0.2 (c-672) | **W1**: owner question Q0 added (keep / lift for agy / split); 2.2 says what each answer unlocks; non-goals no longer contradict the data rule. **W2**: gates key on the process chain (as `send_caller_id` does) and the OS uid, never `AGENT_ID`/`DESK_AGENT`/`--from` (3.3). **W3**: the boundary is a dedicated OS user without sudo, or a container; `chmod` dropped (3.3, Q2). **W4**: the watcher reads a filtered snapshot made by a privileged producer; no tmux socket, no DB key, no secret-kind lane (3.2, B5). **W5**: cites re-read at `5df9c0ead` (cnf row `:1298`, comment `:1270-1279`; the lease watcher is `spl-dispatch-lease.func.sh:805,982` under csi-spl-orc). **W6**: A7 dropped as not a gap; A8 and A9 marked unmeasured, row B9 measures first. **W7**: agy's existing dispatch seats stated as the baseline; `do_spl_orch_drill` stated as planned (O2), Phase 3 waits for it; one pass line, O2's. **W8**: B1 lands `agy: 0`; B2 and Phase 4 each need an owner go by msg id; drill criteria add the 3-min answer and no prd op without a go. **W9**: one source per scoring dimension; a safety violation scores 0; "narrow scope" dropped. **W10**: B1 tests `test_agent_split_by_kind.py`; B4 lists `spool-send.sh` and the hook; rows B7 (OS user), B8 (spawn, rotate, tick), B9 (A6, A8, A9) added; a Status column; B2's red text quotes the code. **W11**: `w-` prefix dropped (letter = vendor); id and findings route decided by the fleet; owner asked at most Q0, Q1, Q2 (was Q3). |
+| v0.3 (c-637, SPL-4334) | Owner poll fda1ec04 folded (msg 8da780d7): Q0 = A, Q1 = A (recorded, not in force: moot under Q0 = A, and its grok share blocked by the grok-off order 0d5b1e8a), Q2 = A (section 6). Header states the scope: agy stays on the dispatch seats; agy in the orch seat is out of scope. G1 out of scope; G2 = no cnf change; G3 = OS user only (1.1). Non-goals name the orch seat and the grok-off order (1.2). 2.2 records A as decided, B and C out of scope; 2.3 says no A1..A5 gap is closed and A6/A8/A9 belong to a dispatch-seat lane if measured; 2.4 rewritten for A. The feed filter drops both secret-class kinds (`secret`, `orchestration`) and the orch seat's inbox too (3.2). 3.3 drops the container. Section 4 shadows the dispatch seats; Phases 3 and 4 out of scope (4.4). Section 5 re-gated: B4, B5, B7 Ready (B7 needs an owner go per box), B6 Ready after B5, B1 Ready as a check only, B8 Planned, B2, B3, B9 Not built (Q0 = A). |

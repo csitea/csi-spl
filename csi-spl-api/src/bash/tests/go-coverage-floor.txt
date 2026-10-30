@@ -38,6 +38,13 @@ internal/billing 80.8
 internal/blob 71.9
 internal/calquick 97.6
 internal/calrecur 98.8
+# r42-06 (refactor round 17): ten packages that printed NEW get a floor at
+# the lowest of n=3 readings; go test -count=1 -cover, go1.26.10, on
+# 676ad7862 each read: channelmove 83.3, enc 83.6, gcal 85.8, gcpalerts 91.8,
+# hygiene 90.0, keydesk 79.1, keyexec 79.7, pollform 100.0, secretfile 100.0,
+# vendorkey 82.4. internal/keyd gets its floor in r42-08; gcal/fakegcal (a test
+# fake, 0.0) has none.
+internal/channelmove 83.3
 # internal/cicdlogs: 89.0 with r16-02's github_test.go (scrub 0 -> 100%, the
 # FetchLogs error paths, hasRealToken, runIDOK, writeVersion/now), 81.5
 # without on 593f2e41d; go test -count=1 -cover ./internal/cicdlogs/,
@@ -49,7 +56,10 @@ internal/cloud 95.8
 # -cover ./internal/config/, go1.26.9, n=3 read 89.7 each.
 internal/config 89.7
 internal/edge 98.9
+internal/enc 83.6
 internal/files 82.9
+internal/gcal 85.8
+internal/gcpalerts 91.8
 internal/github 82.9
 internal/github/githubtest 20.0
 internal/hours 98.0
@@ -59,8 +69,11 @@ internal/hours 98.0
 # -cover ./internal/hubclient, go1.26.9, load 14..38, plain and -race, n=10
 # read 82.2 every run; without that file n=5 read 81.5..81.7, which fails.
 internal/hubclient 83.0
+internal/hygiene 90.0
 internal/i18n 97.2
 internal/invitemail 85.3
+internal/keydesk 79.1
+internal/keyexec 79.7
 # internal/lockkey: 76.4 on its first commit (spec 025 row B4, SPL-2956);
 # go test -count=1 -cover ./internal/lockkey/, go1.26.10, n=3 read 76.4 each.
 internal/lockkey 76.4
@@ -75,8 +88,10 @@ internal/notify 94.8
 # of 880); go test -count=1 -cover ./internal/payments/, go1.26.10, n=3 read
 # 80.9 each.
 internal/payments 80.9
+internal/pollform 100.0
 internal/rbac 89.3
 internal/search 95.6
+internal/secretfile 100.0
 internal/sign 82.9
 internal/spool 86.4
 internal/testkit 77.0
@@ -87,6 +102,7 @@ internal/testkit 77.0
 internal/testkit/fakehub 83.5
 internal/trace 95.0
 internal/uid 100.0
+internal/vendorkey 82.4
 internal/wire 81.7
 internal/xlsx 91.2
 internal/auth 82.9 pg

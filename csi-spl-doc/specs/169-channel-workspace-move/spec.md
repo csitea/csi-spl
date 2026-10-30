@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.6 (2026-10-30). Status: **Draft** (plan only; nothing below is
+Version: v0.7 (2026-10-30). Status: **Draft** (plan only; nothing below is
 built). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -23,6 +23,11 @@ with the channel not named yet), the v0.5 review notes by
 c-907 (N1: P2 refuses without a `<DST>` orchestrator seat; N2: members'
 hours rows are never deleted silently) and the catalogue's fifth class,
 Refuse, in C2 (from the T1 lane).
+v0.7 folds the v0.6 review notes by c-907: the Q5 row says it is the
+channel's people who are not `<DST>` members that come along only when the
+owner adds them (W1 keeps existing `<DST>` members), and `plan` names the
+reason for each hours stop (5.1a). Q7 stays open: the channel is asked
+again as a poll (11.1).
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -188,6 +193,12 @@ both as "not about spool channels".
     signed off, whose `minutes` total is stored; moving it would change an
     approved sheet. Q8 = A: the owner reopens the sheet (the rows then
     move) or tells us to leave the rows.
+
+  `plan` names the reason for each stop, per member and row count:
+  `hours: <member> not coming to <DST> (Q5)` or `hours: <member> inside a
+  frozen or approved sheet (Q8)`. The first is one more stop than the
+  owner's Q5 answer names (his words: they lose access, the move lists
+  them), so the output says why it stops rather than only that it stops.
 
   Rows left by the owner's word stay in `<SRC>` naming the channel; they
   are a kept item (5.6), and the scan (5.2) reports them as known, not as a
@@ -475,9 +486,9 @@ Read from the owner's own answers in prd t1 topic
 | Q2 | A, 30 days of redirect, re-route and old issue key map, then 404 | `333aea7b` (poll `502a793f`) | W3-W5, C8 with the redirect on; T2's redirect table expires rows after 30 days |
 | Q3 | A, keep until they expire | `d2c97186` | 5.6 as written; P7 prints the last expiry date |
 | Q4 | A, leave them and list them | `d2c97186` | 5.4: `plan` lists, nothing edited |
-| Q5 | A, they lose access; the move lists them and the owner adds whom he wants | `0c58c916` (poll `dfa0234a`) | W1, 5.1 (`channel_humans`, `channel_invites`, `channel_subscriptions`, `read_marks`), 5.1a hours, 5.1b invites, calendar guests: only members the owner adds to `<DST>` come along; the move adds no one by itself |
+| Q5 | A, they lose access; the move lists them and the owner adds whom he wants | `0c58c916` (poll `dfa0234a`) | W1, 5.1 (`channel_humans`, `channel_invites`, `channel_subscriptions`, `read_marks`), 5.1a hours, 5.1b invites, calendar guests: of the channel's people who are not `<DST>` members, only those the owner adds to `<DST>` come along; existing `<DST>` members keep their access (W1); the move adds no one by itself |
 | Q6 | A, stop and list | `d2c97186` | 5.5, C7: `plan` refuses on a shared item |
-| Q7 | A, a csitea channel into the workspace created 2026-10-29; **the channel is not named yet** | `d2c97186` | the first prd run waits for the channel's name |
+| Q7 | A, a csitea channel into the workspace created 2026-10-29; **the channel is not named yet** | `d2c97186` | the first prd run waits for the channel's name; asked again on 2026-10-30 18:03Z as a poll of the workspace's open channels plus "Not now" (msg `c5dc7cea`); **open** |
 | Q8 | A, stop and list | `85eb389c` (poll `53f98bf8`) | 5.1a, C19 |
 
 ### 11.2 The polls as asked

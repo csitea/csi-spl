@@ -3460,6 +3460,8 @@
       "day_commits": "Commity: {n}",
       "deploys_none": "Nasadenia: nezaznamenané",
       "deploy_chip": "{env} {component}: {version} o {time} UTC",
+      "commit_time": "{time} UTC",
+      "commit_time_title": "Čas commitu: {time} UTC. Čas pushu sa nezaznamenáva.",
       "notes_show": "Zobraziť poznámky",
       "notes_hide": "Skryť poznámky",
       "lay_title": "Jednoduchými slovami",

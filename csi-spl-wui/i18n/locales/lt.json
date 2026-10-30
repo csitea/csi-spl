@@ -3460,6 +3460,8 @@
       "day_commits": "Fiksavimai: {n}",
       "deploys_none": "Diegimai: neužregistruoti",
       "deploy_chip": "{env} {component}: {version} {time} UTC laiku",
+      "commit_time": "{time} UTC",
+      "commit_time_title": "Fiksavimo laikas: {time} UTC. Išsiuntimo (push) laikas neįrašomas.",
       "notes_show": "Rodyti pastabas",
       "notes_hide": "Slėpti pastabas",
       "lay_title": "Paprastais žodžiais",

@@ -3460,6 +3460,8 @@
       "day_commits": "Commits: {n}",
       "deploys_none": "Deploys: not recorded",
       "deploy_chip": "{env} {component}: {version} at {time} UTC",
+      "commit_time": "{time} UTC",
+      "commit_time_title": "Commit time: {time} UTC. The push time is not recorded.",
       "notes_show": "Show notes",
       "notes_hide": "Hide notes",
       "lay_title": "In plain words",

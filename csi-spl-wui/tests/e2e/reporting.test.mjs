@@ -96,8 +96,13 @@ async function releases(p, base, tag) {
     shaHref: e.querySelector('[data-test=releases-commit-sha]')?.getAttribute('href') || '',
     version: e.querySelector('[data-test=releases-commit-version]')?.textContent.trim() || '',
     versionHref: e.querySelector('[data-test=releases-commit-version]')?.getAttribute('href') || '',
+    time: e.querySelector('[data-test=releases-commit-time]')?.textContent.trim() || '',
+    datetime: e.querySelector('[data-test=releases-commit-time]')?.getAttribute('datetime') || '',
   })))
   ok(`${tag}: there are commit rows`, rows.length > 0, { rows: rows.length })
+  // SPL-4417 (owner, t1 6c689c19): every row shows its time, HH:MM UTC of its datetime
+  const badT = rows.filter((r) => !/^\d\d:\d\d UTC$/.test(r.time) || new Date(r.datetime).toISOString().slice(11, 16) + ' UTC' !== r.time)
+  ok(`${tag}: every commit row carries its HH:MM UTC time`, rows.length > 0 && badT.length === 0, badT.slice(0, 2))
   const bad = rows.filter((r) => !r.sha || !r.shaHref.endsWith('/releases/' + r.sha) || r.shaText !== r.sha.slice(0, 7))
   ok(`${tag}: every row's short sha links to /releases/<sha>`, rows.length > 0 && bad.length === 0, bad.slice(0, 2))
   const versioned = rows.filter((r) => r.version)

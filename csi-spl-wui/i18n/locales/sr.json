@@ -3460,6 +3460,8 @@
       "day_commits": "Комити: {n}",
       "deploys_none": "Постављања: нису забележена",
       "deploy_chip": "{env} {component}: {version} у {time} UTC",
+      "commit_time": "{time} UTC",
+      "commit_time_title": "Време комита: {time} UTC. Време пуша се не бележи.",
       "notes_show": "Прикажи белешке",
       "notes_hide": "Сакриј белешке",
       "lay_title": "Једноставним речима",

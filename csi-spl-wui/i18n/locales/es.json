@@ -3460,6 +3460,8 @@
       "day_commits": "Confirmaciones: {n}",
       "deploys_none": "Despliegues: sin registrar",
       "deploy_chip": "{env} {component}: {version} a las {time} UTC",
+      "commit_time": "{time} UTC",
+      "commit_time_title": "Hora de la confirmación: {time} UTC. La hora del push no se registra.",
       "notes_show": "Mostrar notas",
       "notes_hide": "Ocultar notas",
       "lay_title": "En palabras sencillas",

@@ -157,8 +157,13 @@ export function utcDay(iso: unknown): string {
   return Number.isFinite(ms) ? new Date(ms).toISOString().slice(0, 10) : ''
 }
 
-/** HH:MM of an RFC3339 time in UTC. */
-function utcTime(iso: unknown): string {
+/**
+ * HH:MM of an RFC3339 time in UTC ('' when it is none). A commit row shows
+ * its committed_at with it: the git committer time, the closest time the hub
+ * stores to the push (the lanes rebase right before they push); no push time
+ * is recorded.
+ */
+export function utcTime(iso: unknown): string {
   const ms = Date.parse(String(iso || ''))
   return Number.isFinite(ms) ? new Date(ms).toISOString().slice(11, 16) : ''
 }

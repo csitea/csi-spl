@@ -174,6 +174,14 @@ describe('reporting-releases helpers', () => {
     assert.deepEqual(R.deployChips(undefined), [])
   })
 
+  it('utcTime: HH:MM of a time in UTC, an offset folded in; nothing for no time (SPL-4417)', () => {
+    assert.equal(R.utcTime('2026-10-17T14:05:09Z'), '14:05')
+    assert.equal(R.utcTime('2026-10-17T16:05:09+02:00'), '14:05')
+    assert.equal(R.utcTime(''), '')
+    assert.equal(R.utcTime(undefined), '')
+    assert.equal(R.utcTime('not a time'), '')
+  })
+
   it('the mock answers like the hub: the daily totals match the commits list under each filter', () => {
     const NOW2 = Date.UTC(2026, 9, 21, 15, 0, 0)
     const w = R.releaseWindow('7d', NOW2)
@@ -350,6 +358,12 @@ describe('T024 ReleasesDailyList', () => {
     assert.equal(ver.props.href, '/releases/v1.7.1-c3')
     assert.equal(textOf(ver), 'v1.7.1')
     assert.equal(textOf(byTest(row, 'releases-commit-area')[0]), 'wui')
+    /* SPL-4417: the row starts with its commit time, HH:MM UTC, titled as the commit (not push) time */
+    const time = byTest(row, 'releases-commit-time')[0]
+    assert.equal(textOf(time), '12:00 UTC')
+    assert.equal(time.props.datetime, '2026-10-17T12:00:00Z')
+    assert.equal(time.props.title, 'Commit time: 12:00 UTC. The push time is not recorded.')
+    assert.deepEqual(byTest(root, 'releases-commit').map((r) => textOf(byTest(r, 'releases-commit-time')[0])), ['12:00 UTC', '08:00 UTC', '09:00 UTC'])
     const toggle = byTest(row, 'releases-commit-toggle')[0]
     assert.equal(toggle.props['aria-expanded'], 'false')
     assert.equal(byTest(row, 'releases-commit-notes').length, 0)

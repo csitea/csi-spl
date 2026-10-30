@@ -3460,6 +3460,8 @@
       "day_commits": "Commitit: {n}",
       "deploys_none": "Käyttöönotot: ei kirjattu",
       "deploy_chip": "{env} {component}: {version} klo {time} UTC",
+      "commit_time": "{time} UTC",
+      "commit_time_title": "Commitin aika: {time} UTC. Pushin aikaa ei tallenneta.",
       "notes_show": "Näytä muistiinpanot",
       "notes_hide": "Piilota muistiinpanot",
       "lay_title": "Selkokielellä",

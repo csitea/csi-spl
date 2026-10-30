@@ -3460,6 +3460,8 @@
       "day_commits": "Commiti: {n}",
       "deploys_none": "Izvietojumi: nav reģistrēti",
       "deploy_chip": "{env} {component}: {version} plkst. {time} UTC",
+      "commit_time": "{time} UTC",
+      "commit_time_title": "Commita laiks: {time} UTC. Push laiks netiek reģistrēts.",
       "notes_show": "Rādīt piezīmes",
       "notes_hide": "Slēpt piezīmes",
       "lay_title": "Vienkāršiem vārdiem",

@@ -3460,6 +3460,8 @@
       "day_commits": "Commity: {n}",
       "deploys_none": "Wdrożenia: nie zarejestrowano",
       "deploy_chip": "{env} {component}: {version} o {time} UTC",
+      "commit_time": "{time} UTC",
+      "commit_time_title": "Czas commita: {time} UTC. Czas wypchnięcia nie jest zapisywany.",
       "notes_show": "Pokaż notatki",
       "notes_hide": "Ukryj notatki",
       "lay_title": "Prostymi słowami",

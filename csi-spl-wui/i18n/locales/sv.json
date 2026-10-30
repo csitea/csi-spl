@@ -3460,6 +3460,8 @@
       "day_commits": "Ändringar: {n}",
       "deploys_none": "Driftsättningar: inte registrerade",
       "deploy_chip": "{env} {component}: {version} kl. {time} UTC",
+      "commit_time": "{time} UTC",
+      "commit_time_title": "Tid för ändringen: {time} UTC. Tiden för pushen registreras inte.",
       "notes_show": "Visa anteckningar",
       "notes_hide": "Dölj anteckningar",
       "lay_title": "Med enkla ord",

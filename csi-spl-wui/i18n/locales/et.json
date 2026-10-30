@@ -3460,6 +3460,8 @@
       "day_commits": "Commitid: {n}",
       "deploys_none": "Paigaldused: pole salvestatud",
       "deploy_chip": "{env} {component}: {version} kell {time} UTC",
+      "commit_time": "{time} UTC",
+      "commit_time_title": "Commiti aeg: {time} UTC. Pushi aega ei salvestata.",
       "notes_show": "Näita märkmeid",
       "notes_hide": "Peida märkmed",
       "lay_title": "Lihtsate sõnadega",

@@ -3460,6 +3460,8 @@
       "day_commits": "Коммиты: {n}",
       "deploys_none": "Развёртывания: не записаны",
       "deploy_chip": "{env} {component}: {version} в {time} UTC",
+      "commit_time": "{time} UTC",
+      "commit_time_title": "Время коммита: {time} UTC. Время пуша не записывается.",
       "notes_show": "Показать заметки",
       "notes_hide": "Скрыть заметки",
       "lay_title": "Простыми словами",

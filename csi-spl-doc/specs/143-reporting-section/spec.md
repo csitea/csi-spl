@@ -202,6 +202,7 @@ The Releases tab features three integrated UI sections:
    - Days rendered newest first.
    - Each day header displays: UTC Date, total commits, pill breakdown by kind (`feat: 3`, `fix: 2`, `docs: 5`), deploy badges (e.g. `[dev: v1.7.0 14:22 UTC]`, `[prd: v1.7.0 14:35 UTC]`). If deploy data is absent, a neutral `[Deploys: not recorded]` badge is shown.
    - Under each day: an interactive list of commit rows. Each row displays:
+     - Its time, `HH:MM UTC` of `release_notes.committed_at` (SPL-4417, owner t1 6c689c19 msg 7e1ad6e3): the git committer time (`%cI`), which the mandatory rebase before every push re-stamps. The hub stores no push time (the push ranges sit only in each lane's box-local `pushes.log`, §8), so the tooltip says it is the commit time.
      - 7-character short SHA linking to `/releases/<sha>`.
      - Version badge (e.g. `v1.7.0`) linking to `/releases/<version>`.
      - Area chip and Kind chip.

@@ -3460,6 +3460,8 @@
       "day_commits": "Commit'ler: {n}",
       "deploys_none": "Dağıtımlar: kaydedilmedi",
       "deploy_chip": "{env} {component}: {version}, saat {time} UTC",
+      "commit_time": "{time} UTC",
+      "commit_time_title": "Commit saati: {time} UTC. Push saati kaydedilmez.",
       "notes_show": "Notları göster",
       "notes_hide": "Notları gizle",
       "lay_title": "Sade bir dille",

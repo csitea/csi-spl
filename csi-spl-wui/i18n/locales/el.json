@@ -3460,6 +3460,8 @@
       "day_commits": "Υποβολές: {n}",
       "deploys_none": "Αναπτύξεις: δεν έχουν καταγραφεί",
       "deploy_chip": "{env} {component}: {version} στις {time} UTC",
+      "commit_time": "{time} UTC",
+      "commit_time_title": "Ώρα υποβολής: {time} UTC. Η ώρα του push δεν καταγράφεται.",
       "notes_show": "Εμφάνιση σημειώσεων",
       "notes_hide": "Απόκρυψη σημειώσεων",
       "lay_title": "Με απλά λόγια",

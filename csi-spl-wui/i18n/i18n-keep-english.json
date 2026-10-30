@@ -33,6 +33,7 @@
     "feed.topic_list.filter": "the topic list filter control: sk writes the word the same, 'Filter', as its feed.move.filter (claude language review W12, c-692 msg 71fe7b12, SPL-4203)",
     "reporting.costs.cloud.box": "the Cloud row's box label keeps each locale's own word 'box' (its settings.keys.use, sidebar.help.boxes; es says 'equipo'): claude language review W1, c-700 msg 15167f79, SPL-4187",
     "reporting.costs.page.cloud": "the Cloud cost tab: nl, ro and sk write the cloud-computing loanword 'Cloud' as in their own cloud titles, not the sky word: claude language review W4, c-700 msg 15167f79, SPL-4187",
-    "reporting.tab.marketing": "the loanword 'Marketing' is the standard term in es, pl, ro and sk (as tenant_settings.marketing_title already is in pl, ro, sk); spec 163 B1, SPL-4250, agy language review before land"
+    "reporting.tab.marketing": "the loanword 'Marketing' is the standard term in es, pl, ro and sk (as tenant_settings.marketing_title already is in pl, ro, sk); spec 163 B1, SPL-4250, agy language review before land",
+    "reporting.releases.commit_time": "a commit row's HH:MM and the zone code UTC, the same in every locale (as the deploy chips' UTC): SPL-4417, language review before land"
   }
 }

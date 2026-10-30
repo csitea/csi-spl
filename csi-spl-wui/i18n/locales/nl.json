@@ -3460,6 +3460,8 @@
       "day_commits": "Wijzigingen: {n}",
       "deploys_none": "Uitrollen: niet vastgelegd",
       "deploy_chip": "{env} {component}: {version} om {time} UTC",
+      "commit_time": "{time} UTC",
+      "commit_time_title": "Tijd van de wijziging: {time} UTC. De pushtijd wordt niet vastgelegd.",
       "notes_show": "Notities tonen",
       "notes_hide": "Notities verbergen",
       "lay_title": "In gewone woorden",

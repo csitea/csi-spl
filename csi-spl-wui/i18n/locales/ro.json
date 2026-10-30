@@ -3460,6 +3460,8 @@
       "day_commits": "Commituri: {n}",
       "deploys_none": "Implementări: neînregistrate",
       "deploy_chip": "{env} {component}: {version} la {time} UTC",
+      "commit_time": "{time} UTC",
+      "commit_time_title": "Ora commitului: {time} UTC. Ora push-ului nu este înregistrată.",
       "notes_show": "Arată notele",
       "notes_hide": "Ascunde notele",
       "lay_title": "Pe înțelesul tuturor",

@@ -3,7 +3,8 @@
      the newest deploy per env and component (prd first), or a neutral
      "Deploys: not recorded" when none is recorded (estate_deploys stays
      empty until spec 143 row 4 lands). Under it the day's commits, newest
-     first: the short sha and the version link to /releases/<ref> (the
+     first: the commit time (HH:MM UTC, the git committer time: the hub
+     records no push time), the short sha and the version link to /releases/<ref> (the
      release notes dialog), the area and kind chips, the subject, and a
      toggle that shows the Lay and Tech What/How/Why lines. -->
 <template>
@@ -27,6 +28,13 @@
       <ul class="rd-rows">
         <li v-for="n in g.notes" :key="n.sha" class="rd-row" :data-sha="n.sha" data-test="releases-commit">
           <div class="rd-line">
+            <time
+              v-if="utcTime(n.committed_at)"
+              class="rd-time"
+              :datetime="n.committed_at"
+              :title="t('reporting.releases.commit_time_title', { time: utcTime(n.committed_at) })"
+              data-test="releases-commit-time"
+            >{{ t('reporting.releases.commit_time', { time: utcTime(n.committed_at) }) }}</time>
             <NuxtLink
               class="rd-sha"
               :to="localePath('/releases/' + n.sha)"
@@ -75,7 +83,7 @@
 </template>
 
 <script setup lang="ts">
-import { deployChips, displayVersion, hasTrailers, kindBreakdown, type ReleaseCommit, type ReleaseDay } from '~/utils/reporting-releases'
+import { deployChips, displayVersion, hasTrailers, kindBreakdown, utcTime, type ReleaseCommit, type ReleaseDay } from '~/utils/reporting-releases'
 
 defineProps<{ groups: { day: ReleaseDay, notes: ReleaseCommit[] }[] }>()
 const { t } = useI18n({ useScope: 'global' })
@@ -111,6 +119,7 @@ const areaOf = (a: string) => String(a || '').split(',')[0].trim().toLowerCase()
 .rd-chip--version { text-decoration: none; }
 .rd-row { padding: 6px 0; border-bottom: 1px solid var(--color-border); }
 .rd-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; min-width: 0; }
+.rd-time { font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.8125rem; font-variant-numeric: tabular-nums; color: var(--color-muted); white-space: nowrap; }
 .rd-sha { font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.8125rem; }
 .rd-subject { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; }
 .rd-toggle { border: 0; background: none; color: var(--color-accent); font: inherit; font-size: 0.8125rem; cursor: pointer; padding: 0 2px; }

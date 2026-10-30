@@ -4562,6 +4562,194 @@
         ]
       }
     },
+    "/v1/fleet/enrol": {
+      "post": {
+        "description": "Signed by a fleet desk box (rdb 0230 fleet_desk_boxes) with the key it holds in the operator workspace; no session. 400 bad_box; 401 bad_sig (ts outside the hello skew, no live operator-workspace pin, or a bad signature); 403 fleet_box_not_listed; 404 when the hub names no operator workspace. Spec 158 section 4.2. Pins pubkey in tenant as box_id with box_mode fleet; needs neither box_join_enabled nor an agents.join holder (spec 158 4.5). Further refusals: 401 bad_sig (sig_new); 403 workspace suspended or archived, fleet_seating_off, box_locked, fleet_pin_revoked (revoked since the box was listed; the operator lists it again first). A new pin writes one operator_audit row on the workspace.",
+        "operationId": "postFleetEnrol",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "box_id": {
+                    "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+                    "type": "string"
+                  },
+                  "pubkey": {
+                    "description": "base64 raw 32-byte Ed25519 key, fresh for this workspace",
+                    "type": "string"
+                  },
+                  "sig_new": {
+                    "description": "the new key over the same payload: proves possession",
+                    "type": "string"
+                  },
+                  "sig_op": {
+                    "description": "the operator-workspace box key over jq -cS '{box_id,op:\"fleet_enrol\",pubkey,tenant,ts}'",
+                    "type": "string"
+                  },
+                  "tenant": {
+                    "description": "the workspace to enrol into",
+                    "type": "string"
+                  },
+                  "ts": {
+                    "description": "later than the pin's last op, within the hello skew",
+                    "format": "date-time",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "tenant",
+                  "box_id",
+                  "pubkey",
+                  "ts",
+                  "sig_op",
+                  "sig_new"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The same key was already live; its op ts moved"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "box_id": {
+                      "type": "string"
+                    },
+                    "box_mode": {
+                      "enum": [
+                        "fleet"
+                      ],
+                      "type": "string"
+                    },
+                    "pubkey": {
+                      "type": "string"
+                    },
+                    "tenant": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Pinned with box_mode fleet"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Conflict: stale_pin_op (ts not later than the pin's last op: a replay) or pin_conflict (the box id holds another live key in the workspace, or the key is live on another box)"
+          }
+        },
+        "summary": "A fleet desk box enrols a fresh key into a fleet-seated workspace (spec 158 row T7)",
+        "tags": [
+          "fleet"
+        ]
+      }
+    },
+    "/v1/fleet/workspaces": {
+      "get": {
+        "description": "Signed by a fleet desk box (rdb 0230 fleet_desk_boxes) with the key it holds in the operator workspace; no session. 400 bad_box; 401 bad_sig (ts outside the hello skew, no live operator-workspace pin, or a bad signature); 403 fleet_box_not_listed; 404 when the hub names no operator workspace. Spec 158 section 4.2.",
+        "operationId": "getFleetWorkspaces",
+        "parameters": [
+          {
+            "description": "the box id, as listed in fleet_desk_boxes and pinned in the operator workspace",
+            "in": "header",
+            "name": "X-Spool-Fleet-Box",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "RFC 3339 time, within the hello skew",
+            "in": "header",
+            "name": "X-Spool-Fleet-Ts",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "the operator-workspace box key over jq -cS '{box_id,op:\"fleet_workspaces\",ts}'",
+            "in": "header",
+            "name": "X-Spool-Fleet-Sig",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "properties": {
+                          "pinned": {
+                            "type": "boolean"
+                          },
+                          "tenant": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "tenant",
+                          "pinned"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Every workspace with fleet_seating true that is not suspended or archived, and whether this box holds a live pin in it"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "The workspaces a fleet desk box may seat (spec 158 row T7)",
+        "tags": [
+          "fleet"
+        ]
+      }
+    },
     "/v1/health": {
       "get": {
         "operationId": "getHealth",

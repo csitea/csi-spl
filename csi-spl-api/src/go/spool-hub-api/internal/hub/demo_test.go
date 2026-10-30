@@ -184,6 +184,8 @@ var demoOutOfReach = map[string]bool{
 	"POST /v1/pins":            true,
 	"DELETE /v1/pins/{box_id}": true,
 	"POST /v1/cicd-logs":       true,
+	// spec 158 T7: a fleet desk box's two signatures, never a session
+	"POST /v1/fleet/enrol": true,
 	// specs/121 T104: the embed visitor's bearer token, never a session; a
 	// session there is no visitor (embed_visitor_test.go)
 	"POST /v1/embed/{embed_id}/visitor":   true,

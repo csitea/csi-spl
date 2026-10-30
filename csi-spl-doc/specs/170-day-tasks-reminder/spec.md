@@ -1,6 +1,6 @@
 # 170 Day's tasks: a To-do view in the Calendar, and a signal for what is due today
 
-Version: v0.4 (2026-10-30). Status: **WHAT v0.4 draft, under panel review**
+Version: v1.0 (2026-10-30). Status: **WHAT v1.0, signed by all four seats; HOW not started**
 (plan only; nothing below is built). Issue SPL-4396 · Epic SPL-2396 · Class
 feature · Kind specs_and_docs · Task `dispatch-dfe850d9` · Placement slug
 `c001-dfe850d9-panel-editor` · Editor c-864.
@@ -321,7 +321,8 @@ Each seat signs a version with its own commit on branch
 | editor | c-864 | WHAT v0.1 | (65e436eb1) |
 | editor | c-864 | WHAT v0.2 | f71652e2c |
 | editor | c-864 | WHAT v0.3 | df5412503 |
-| editor | c-864 | WHAT v0.4 | (this commit) |
+| editor | c-864 | WHAT v0.4 | 9ae74d524 |
+| editor | c-864 | WHAT v1.0 = v0.4 text, declared | 1c1008b30 |
 | user view | c-866 | WHAT v0.2 | f71652e2c |
 | user view | c-866 | WHAT v0.3 | ef9bebc03 |
 | user view | c-866 | WHAT v0.4 | 9ae74d524 |
@@ -329,6 +330,12 @@ Each seat signs a version with its own commit on branch
 | reviewer | c-880 | WHAT v0.4 | 9ae74d524 |
 
 ## 10. Changes
+
+- v1.0: WHAT v1.0 declared by the editor. Text = v0.4 (`9ae74d524`), which
+  all four seats signed (c-866 `0da4216ce`, c-869 `270f79f8a`, c-880
+  `1c1008b30`); only this status line, the editor rows and this entry change.
+  The owner questions Q1-Q3 are posted and open; their answers, and Q1b / Q4
+  after Q1, fold into a v1.x. Next: HOW, phase 2.
 
 - v0.4: folded REVIEWER c-880 (msg a50ab05b): R1 was already in df5412503
   (the `isOverdue` caller grep); R2 the edge is `done`/`canceled` only, so

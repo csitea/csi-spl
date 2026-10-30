@@ -18,8 +18,8 @@ v0.5 settles the four calls the T1 catalogue lane (L2) asked for, read from
 the DDL: the hours plan, entries and the Google Calendar map (5.1a), invites
 and embed visitors whose parent row does not move (5.1b), labels, fallback
 deliveries and the audit binds; it adds Q8 (hours inside an approved period).
-v0.6 folds the owner's answers (section 11.1: Q1-Q4, Q6, Q8 = A; Q7 = A
-with the channel not named yet; Q5 still open), the v0.5 review notes by
+v0.6 folds the owner's answers (section 11.1: Q1-Q6, Q8 = A; Q7 = A
+with the channel not named yet), the v0.5 review notes by
 c-907 (N1: P2 refuses without a `<DST>` orchestrator seat; N2: members'
 hours rows are never deleted silently) and the catalogue's fifth class,
 Refuse, in C2 (from the T1 lane).
@@ -475,7 +475,7 @@ Read from the owner's own answers in prd t1 topic
 | Q2 | A, 30 days of redirect, re-route and old issue key map, then 404 | `333aea7b` (poll `502a793f`) | W3-W5, C8 with the redirect on; T2's redirect table expires rows after 30 days |
 | Q3 | A, keep until they expire | `d2c97186` | 5.6 as written; P7 prints the last expiry date |
 | Q4 | A, leave them and list them | `d2c97186` | 5.4: `plan` lists, nothing edited |
-| Q5 | **open**: not answered; the dispatch holder has asked again | - | W1 and 5.1a-b keep the "kept members" rule; the default adds no one |
+| Q5 | A, they lose access; the move lists them and the owner adds whom he wants | `0c58c916` (poll `dfa0234a`) | W1, 5.1 (`channel_humans`, `channel_invites`, `channel_subscriptions`, `read_marks`), 5.1a hours, 5.1b invites, calendar guests: only members the owner adds to `<DST>` come along; the move adds no one by itself |
 | Q6 | A, stop and list | `d2c97186` | 5.5, C7: `plan` refuses on a shared item |
 | Q7 | A, a csitea channel into the workspace created 2026-10-29; **the channel is not named yet** | `d2c97186` | the first prd run waits for the channel's name |
 | Q8 | A, stop and list | `85eb389c` (poll `53f98bf8`) | 5.1a, C19 |

@@ -1,9 +1,14 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.1 (2026-10-30). Status: **v0.1 draft, under R7 (ask 56bdf687)** (plan only; nothing below is
+Version: v0.2 (2026-10-30). Status: **Draft** (plan only; nothing below is
 built). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
+
+History: v0.1 `568035cf1` (landed as a draft before its R7). v0.2 folds the
+R7 review by c-882 (FAIL on v0.1: W1 missed tables, W2 copy ids; notes N3-N9)
+and adds the build lane split (10.1). The owner's answers to section 11 are
+not in yet; they go into v0.3 as a decisions table.
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -95,11 +100,12 @@ has not said so (Q7).
 |---|---|---|
 | M1 | the channel | `channels (tenant_id, channel_id)` |
 | M2 | its topics and posts | `messages WHERE channel = <CHANNEL>`, then every row whose `task_id` or `parent_task_id` is one of those tasks (threads, sub-tasks; the same walk as `store.walkTopic`, spec 045) |
-| M3 | posts' children | `message_revisions`, `message_reactions`, `message_kind_changes`, `message_moderation`, `message_answers` (polls and their answers), `deliveries`, `fallback_deliveries`, `read_marks` on those posts and topics |
-| M4 | attachments | every `file_id` in `messages.files` of M2 -> blob `t/<SRC>/files/<sha256>` |
+| M3 | posts' children | `message_revisions`, `message_reactions`, `message_kind_changes`, `message_moderation`, `message_answers` (polls and their answers), `deliveries`, `delivery_live_acks` (rdb 0186, FK to `messages` ON DELETE CASCADE), `fallback_deliveries`, `read_marks` on those posts and topics |
+| M4 | attachments | every `file_id` of a `mode: "blob"` item in `messages.files` of M2 -> blob `t/<SRC>/files/<sha256>`. A `mode: "path"` item names an on-box path and has no blob (`api/msg/msg.go` `Attachment`): it travels inside the row and nothing is copied |
 | M5 | members and seats | `channel_humans`, `channel_invites`, `channel_subscriptions`, `dedicated_agents` with `scope_type = 'channel'` and `scope_id = <CHANNEL>`, `tenant_memberships.channel_order` entries |
-| M6 | topic state | `topic_heads`, `topic_head_parts`, `topic_priorities`, `flow_watches`, `flow_events`, `calendar_events.topic_id` |
-| M7 | issues | `issues` whose `task_id` is an M2 topic, or that `issue_discussions` links to an M2 topic; their `issue_events`, `issue_opens`, `issue_discussions`, `spec_sync_map` rows |
+| M6 | topic state | `topic_heads`, `topic_head_parts`, `topic_priorities`, `flow_watches`, `flow_events`, `calendar_events.topic_id`, `hours_jobs.task_id` (rdb 0216, a job that names an M2 topic) |
+| M6b | move history that points INTO the set | `messages` OUTSIDE M2 (staying in `<SRC>`) whose `moved_from_channel = <CHANNEL>` or whose `moved_from_task` / `moved_from_parent` is an M2 task (rdb 0069: a post spec 045 moved OUT of the channel keeps its home there) |
+| M7 | issues | `issues` whose `task_id` is an M2 topic, or that `issue_discussions` links to an M2 topic; their `issue_events`, `issue_opens`, `issue_discussions` rows, and the `spec_sync_map` rows whose `issue_number` is one of them (rdb 0208; its `spec_task_id` is a tasks.md row id such as `T001`, at most 32 characters, not a topic id) |
 | M8 | Qto docs | the doc in the channel's box rule (F14 column 3) and every doc linked only from M2 posts (a doc linked from another channel too is a shared item, 5.5); their `workspace_doc_*` rows and their objects in `<SRC>`'s docs bucket |
 | M9 | DM links | DMs whose `ref_task_id` is an M2 topic; channel rows with `mirror_of` move with M2 |
 | M10 | usage and budget | `usage_events`, `token_budgets`, `embed_visitors` with `channel_id = <CHANNEL>` |
@@ -115,9 +121,14 @@ Every store that can name the channel or a row of its set, what the move does
 with it, and the proof that `<SRC>` holds zero after. `<ids>` = the frozen id
 lists from the journal (channel id, task ids, msg ids, file ids, old issue
 numbers, doc ids). Every proof runs in `<SRC>` asOperator and must print 0.
-Tables not named here hold no channel, topic or message reference (their
-columns were listed from `information_schema` on prd); the catalogue gate
-(C2) keeps that true for every table added later.
+This list is the v0.2 reading of the DDL, not a proof that nothing else
+names the set: v0.1 claimed so and the R7 review found four tables it missed.
+What makes it complete is the catalogue gate C2 (T1): every `tenant_id` table
+is classified there, the build fails on an unclassified one, and that holds
+for every table added later. Columns that look related but are not:
+`marketing_*.channel_id` (a social-media channel, rdb 0187) and
+`gcal_connections.watch_channel_id` (a calendar push channel); C2 records
+both as "not about spool channels".
 
 ### 5.1 Hub database, rows of the set
 
@@ -125,14 +136,16 @@ columns were listed from `information_schema` on prd); the catalogue gate
 |---|---|---|
 | `channels` | moved | `WHERE tenant_id=<SRC> AND channel_id=<CHANNEL>` |
 | `messages` (M2, incl. `mirror_of` copies) | moved, same `msg_id` and `task_id` | `WHERE tenant_id=<SRC> AND (channel=<CHANNEL> OR task_id=ANY(<tasks>) OR parent_task_id=ANY(<tasks>) OR msg_id=ANY(<msgs>))` |
-| `message_revisions`, `message_reactions`, `message_kind_changes`, `message_moderation`, `message_answers`, `deliveries`, `fallback_deliveries` | moved with their post (F5: inserted under `<DST>` before the parent's delete cascades in `<SRC>`) | `WHERE tenant_id=<SRC> AND msg_id=ANY(<msgs>)` (`answers` / `answer_msg_id` for `message_answers`) |
+| staying `messages` with move history into the set (M6b) | `moved_from_channel`, `moved_from_task`, `moved_from_parent` set to NULL: the post's old home has left `<SRC>`, so it is at home where it is now (the same state a move back home leaves, rdb 0069) | `WHERE tenant_id=<SRC> AND (moved_from_channel=<CHANNEL> OR moved_from_task=ANY(<tasks>) OR moved_from_parent=ANY(<tasks>))` |
+| `hours_jobs` naming an M2 topic | moved | `WHERE tenant_id=<SRC> AND task_id=ANY(<tasks as text>)` |
+| `message_revisions`, `message_reactions`, `message_kind_changes`, `message_moderation`, `message_answers`, `deliveries`, `delivery_live_acks`, `fallback_deliveries` | moved with their post (F5: inserted under `<DST>` before the parent's delete cascades in `<SRC>`) | `WHERE tenant_id=<SRC> AND msg_id=ANY(<msgs>)` (`answers` / `answer_msg_id` for `message_answers`) |
 | `channel_humans`, `channel_invites`, `channel_subscriptions` | moved for members the owner keeps (Q5); deleted for the rest | `WHERE tenant_id=<SRC> AND channel_id=<CHANNEL>` |
 | `dedicated_agents` (channel scope) | moved | `WHERE tenant_id=<SRC> AND scope_type='channel' AND scope_id=<CHANNEL>` |
 | `tenant_memberships.channel_order` | the id is removed from every `<SRC>` array | `WHERE tenant_id=<SRC> AND <CHANNEL> = ANY(channel_order)` |
 | `read_marks` | moved for kept members; deleted for the rest | `WHERE tenant_id=<SRC> AND (msg_id=ANY(<msgs>) OR mark_key LIKE ANY(<channel and task keys>))` |
-| `topic_heads`, `topic_head_parts`, `topic_priorities`, `flow_watches`, `flow_events` | moved | `WHERE tenant_id=<SRC> AND task_id=ANY(<tasks>)` (`topic_head_parts` also `channel=<CHANNEL>`) |
+| `topic_heads`, `topic_head_parts`, `topic_priorities`, `flow_watches`, `flow_events` | moved | `WHERE tenant_id=<SRC> AND task_id=ANY(<tasks>)` (`topic_head_parts` also `channel=<CHANNEL>`); and, for heads of topics that stay (a DM thread about a moved topic), `last_msg_id` / `dm_last_msg_id` `=ANY(<msgs>)` -> 0, recomputed from the remaining rows |
 | `calendar_events` with an M2 `topic_id` | moved | `WHERE tenant_id=<SRC> AND topic_id=ANY(<tasks as text>)` |
-| `issues`, `issue_events`, `issue_opens`, `issue_discussions`, `spec_sync_map` | moved, renumbered under `<DST>`'s prefix (F6); the old key is written into the new issue's first event | `WHERE tenant_id=<SRC> AND number=ANY(<old numbers>)` per table (`issue_number` in `spec_sync_map`) |
+| `issues`, `issue_events`, `issue_opens`, `issue_discussions`, `spec_sync_map` | moved, renumbered under `<DST>`'s prefix (F6); the old key is written into the new issue's first event. A `spec_sync_map` row that a STAYING issue or doc also needs is a shared item (5.5): its FK to `issues` is `ON DELETE SET NULL (issue_number)` (rdb 0208), so deleting the moved issue would null the staying row's link without an error; `plan` lists it and the move refuses until it is resolved (Q6) | `WHERE tenant_id=<SRC> AND number=ANY(<old numbers>)` per table (`issue_number` in `spec_sync_map`) |
 | `workspace_doc`, `_item`, `_node`, `_acl`, `_rev_log` | moved, re-placed in `<DST>`'s tree under a folder named for the channel | `WHERE tenant_id=<SRC> AND (id=ANY(<docs>) OR doc_id=ANY(<docs>))` |
 | `usage_events`, `token_budgets`, `embed_visitors` | moved | `WHERE tenant_id=<SRC> AND channel_id=<CHANNEL>` |
 | DMs with `ref_task_id` in M2 (M9) | the DM stays (it is two people's DM, not the channel's); `ref_task_id` set to NULL in `<SRC>`, so the DM no longer points at the channel | `WHERE tenant_id=<SRC> AND ref_task_id=ANY(<tasks>)` |
@@ -153,8 +166,13 @@ or a permalink.
 - The move's own audit row is written in `<DST>`; in `<SRC>` the move writes
   nothing. The hub-wide operator log gets one row with the journal id only,
   no channel id, name or tenant slug of `<SRC>` (C13).
-- Proof: a scan of every text and jsonb column of every `<SRC>` table for the
-  channel id, the channel name, every task UUID and every msg UUID.
+- Proof: a scan of every `text`, `jsonb`, `uuid` and `uuid[]` (and `text[]`)
+  column of every `<SRC>` table for the channel id, the channel name, every
+  task UUID and every msg UUID. The uuid columns matter: `moved_from_task`,
+  `ref_task_id`, `answer_msg_id`, `topic_heads.last_msg_id` and
+  `dm_last_msg_id` (rdb 0144) are uuid, and a text-only scan never reads them.
+  The column list is read from `information_schema` at run time, not
+  hard-coded.
 
 This scan proves only that those exact strings are absent. It cannot prove
 that nobody paraphrased the channel ("the project chat") in a post, and the
@@ -202,9 +220,9 @@ A file, Qto doc, issue or epic that the set uses AND something staying in
 | # | what | how |
 |---|---|---|
 | W1 | Members | Humans of the channel who are members of `<DST>` keep their channel membership, read state and order. Others are listed by `plan`; the owner adds them to `<DST>` or not (Q5). The new workspace today is owner-only (msg f81b2742), so the default adds no one. |
-| W2 | Agent seats | Each agent seated in the channel (M5, F14) needs a desk in `<DST>` on its box before the switch: `plan` checks `roster` / `agent_seats` in `<DST>` and refuses with the missing desks named. The move then rewrites the box rule row's tenant column and re-seats the agent (`do_spl_channel_agent_add_op` in `<DST>`, `do_spl_channel_agent_remove_op` in `<SRC>`), and proves one post (spec 167 W3: prove a post BEFORE the switch). |
+| W2 | Agent seats | Each agent seated in the channel (M5, F14) needs a desk in `<DST>` on its box before the switch: `plan` checks `roster` / `agent_seats` in `<DST>` and refuses with the missing desks named. The `<DST>` seat is added (`do_spl_channel_agent_add_op`) and proved in P2b, BEFORE the P4 commit (spec 167 W3): the agent posts one probe through its `<DST>` desk into the journal's own topic. After P4 the move rewrites the box rule row's tenant column and removes the `<SRC>` seat (`do_spl_channel_agent_remove_op`, P5). Window: between the P4 commit and P5, a post from a lane through its `<SRC>` desk into a moved task is refused (C8) and the box retries it; P5 follows P4 at once, in the same run. |
 | W3 | Lanes and spool task ids | Task UUIDs and msg UUIDs do not change (F4, F10), so a lane's `--task <uuid>`, its brief and its dispatch files stay valid; only the desk the post goes through changes (W2). A post into a moved task at `<SRC>` must not create a new `<SRC>` topic with that id: the hub refuses it (Q2 decides whether it also re-routes it). |
-| W4 | Issue keys | Each moved issue gets a new `<DST>` key (F6). The move posts every lane whose `fleet_lanes.issue_key` changed a note with old -> new key; its commits cite the new key. The closer maps an old key to the new one while the redirect lives (Q2); after that an old key closes nothing. |
+| W4 | Issue keys | Each moved issue gets a new `<DST>` key (F6). The move posts every lane whose `fleet_lanes.issue_key` changed a note with old -> new key; its commits cite the new key. The closer maps an old key to the new one while the redirect lives (Q2, which covers issue keys too); after that an old key closes nothing. |
 | W5 | Permalinks | A moved topic's link is `https://<DST_HOST>/t/<uuid>` (same uuid). An old `https://<SRC_HOST>/t/<uuid>` link: Q2. |
 | W6 | Open polls, claims, parked rows | Columns travel with the row (`responsible`, `locked_until`, `claim_state`, `parked_until`, `wait_token`; polls in `message_answers`): an open poll can be answered in `<DST>` the minute after the move. |
 | W7 | Live clients | Bumped change stamps (5.1) make every open WUI refetch; a `<SRC>` client drops the channel, a `<DST>` client shows it. A browser that is offline keeps its local cache of `<SRC>` until it next loads (kept: other people's devices). |
@@ -219,8 +237,13 @@ snapshot; a sync would be its own spec.
 - New identities in `<DST>`: new task and msg UUIDs (a map old -> new in the
   journal), so a lane's `--task` can never be ambiguous between the two, and
   links inside the copied posts that point at copied topics are rewritten to
-  the new UUIDs. New issue numbers, new Qto doc ids (F7: the doc id is unique
-  hub-wide, so a copy must take a new one).
+  the new UUIDs. New issue numbers. New Qto ids for the doc AND every row
+  under it: `workspace_doc.id` (F7), `workspace_doc_item.id` (rdb 0157) and
+  `workspace_doc_node.id` (rdb 0165) are hub-wide uuid primary keys, and
+  `workspace_doc_rev_log` is keyed `(doc_id, rev)` with no tenant, so each is
+  re-keyed through the journal's old -> new map (item `parent_id`, node
+  `parent_id` and the rev log under the new doc id). Keeping any old id is a
+  primary-key violation in `<DST>`.
 - Files: the blob is copied to `t/<DST>/files/<sha256>` (the same name; the
   content address does not change). `<DST>`'s file quota counts it.
 - Members, seats and lanes are NOT copied: the copy starts with the owner as
@@ -229,6 +252,11 @@ snapshot; a sync would be its own spec.
   keeps the original `env` / `env_sig` as provenance and the hub marks the row
   `copied_from` (new column, T3); the copied row's own ids are hub metadata,
   the same way spec 045 keeps a move beside the envelope.
+- What a box sees: a box that receives a copied row must file it under the
+  row's NEW task id, not the envelope's old one, or the copy lands in the
+  source topic on that box. Not checked on master which id the delivery path
+  uses today; T11 reads it and, if it is the envelope's, sends the hub's ids
+  beside the envelope. C16 asserts it on a box spool, not only in hub rows.
 
 ## 8. The action
 
@@ -258,13 +286,14 @@ cd csi-spl-orc && CHANNEL=<SRC>/<CHANNEL> TO=<DST> MOVE_MODE=copy ./run -a do_sp
 |---|---|---|
 | P1 | `plan`, freeze the set in the journal (in `<DST>`) | drop the journal |
 | P2 | Check: `<DST>` exists, the caller is allowed, no channel `<CHANNEL>` in `<DST>` (else `TO_NAME=<new id>`), quotas fit, every seat has a `<DST>` desk, shared items resolved (5.5) | nothing changed |
+| P2b | Add each agent's `<DST>` seat and prove one post through its `<DST>` desk into the journal topic (W2) | remove the `<DST>` seats |
 | P3 | Copy blobs and Qto objects to `<DST>` (idempotent) | delete the `<DST>` copies |
 | P4 | **One database transaction**, asOperator: insert every row of the set under `<DST>` (parents first), rewrite `channel_order`, NULL the DM `ref_task_id`s, write the redirect rows (Q2); for a move, delete the set in `<SRC>` (children first, F5); recompute counters; bump change stamps. 3,650 posts (F13) is the largest set today (timing: R3). | the transaction rolls back as a whole |
-| P5 | Box steps: rule rows, desk seats, proof post from each seat in `<DST>` (W2), lane notes for new keys (W4) | journal-driven: a re-run resumes at the first step not marked done |
+| P5 | Box steps, at once after P4: rule rows, remove the `<SRC>` seats, lane notes for new keys (W4) | journal-driven: a re-run resumes at the first step not marked done |
 | P6 | Move only: delete `<SRC>` blobs and Qto objects no `<SRC>` row lists | none: by now `<DST>` is the only home |
 | P7 | Run every proof of section 5 and write the results into the journal; print the kept list (5.6) with the date each copy expires | n/a |
 
-P1-P4 can be re-run until P4 commits; P5-P7 resume from the journal.
+P1-P4 (with P2b) can be re-run until P4 commits; P5-P7 resume from the journal.
 
 ### 8.3 The journal
 
@@ -280,20 +309,22 @@ now is.
 |---|---|---|
 | C1 | `plan` changes nothing: a row count of every tenant table before and after is equal | a `plan` that writes the journal in `<SRC>` -> the count differs |
 | C2 | Catalogue gate: every table with `tenant_id` is classified in the move catalogue (moved / rewritten / recomputed / not about channels, with its reason), like `TestRLSCoversEveryTenantTable` | add a test table with `tenant_id` and no entry -> red |
-| C3 | Move of a seeded channel (topics, threads, a poll with answers, reactions, revisions, files, issues with an epic in the set, a Qto doc, read marks, a DM about a topic): every proof of section 5 is 0 in `<SRC>`, and every row is in `<DST>` with equal counts | skip the `message_reactions` copy -> the `<DST>` count differs and the cascaded `<SRC>` delete has lost them |
+| C3a | Move, messages family: a seeded channel with topics, threads, a poll with answers, reactions, revisions, live acks, read marks, a `path` attachment, a DM about a topic, and a post spec 045 moved out of it into a staying channel: every 5.1 messages proof is 0 in `<SRC>`, every row is in `<DST>` with equal counts, the staying post's `moved_from_*` is NULL | skip the `delivery_live_acks` copy -> the `<DST>` count differs and the cascaded `<SRC>` delete has lost them |
+| C3b | Move, issues: issues with an epic in the set, their events, discussions and `spec_sync_map` rows; a `spec_sync_map` row a staying issue also needs makes `plan` refuse | drop the shared check -> the staying row's `issue_number` is NULL after the move |
+| C3c | Move, Qto docs: doc, items, nodes, ACL and rev log in `<DST>`'s tree; 0 in `<SRC>` | skip the rev-log copy -> the `<DST>` rev count differs |
 | C4 | F5 order: the move never does `UPDATE ... SET tenant_id` on a parent | swap to an UPDATE -> the FK refuses, the transaction rolls back, `<SRC>` unchanged |
 | C5 | A failure in P4 leaves both workspaces exactly as before | inject an error after half the inserts -> counts equal to C1's before |
 | C6 | Shared file: a blob also attached in a staying channel is copied, not deleted in `<SRC>` | delete it anyway -> the staying post's file 404s |
 | C7 | Shared item rule (Q6): with the default, an issue linked to topics in two channels refuses the move, naming it | remove the check -> the other channel loses its issue link |
-| C8 | Old permalink and a lane post to a moved task at `<SRC>`: behave as Q2 decides, and never create a `<SRC>` row | post to the moved task id at `<SRC>` -> a new `<SRC>` topic appears |
+| C8 | Old permalink and a lane post to a moved task at `<SRC>`: never create a `<SRC>` row. Both Q2 variants are tested (redirect on: redirect and re-route; off: 404 and refused), so the case does not wait for Q2 | post to the moved task id at `<SRC>` -> a new `<SRC>` topic appears |
 | C9 | Counters equal a fresh count after the move, in both workspaces | skip the recompute -> `<SRC>` counts still include the channel |
 | C10 | A moved file read from `<SRC>` -> 404; from `<DST>` -> the bytes | serve from the LRU without the DB check -> 200 |
 | C11 | Seats: a channel agent without a `<DST>` desk makes `plan` refuse, naming it | drop the check -> the agent cannot post after the move (spec 167 W3) |
 | C12 | Issue keys: the new issue carries the old key in its first event; a lane gets one note old -> new | skip the note -> the lane's next commit cites a dead key |
 | C13 | No `<SRC>` audit row and no hub-wide row naming the channel; one `<DST>` audit row | the default audit writer -> a `<SRC>` row names the channel |
-| C14 | Free-text scan (5.2) prints 0 for the channel id, name and every UUID | plant the channel id in a `<SRC>` `workspace_events.message` -> the scan prints 1 |
+| C14 | Free-text scan (5.2) prints 0 for the channel id, name and every UUID, over text, jsonb, uuid and array columns | plant the channel id in a `<SRC>` `workspace_events.message` -> 1; plant a moved task id in a staying post's `moved_from_task` (uuid) -> 1 |
 | C15 | Caller: `DRY_RUN=0` without the owner's GO msg id is refused before any change | run as a lane agent -> refused, exit 3 |
-| C16 | Copy: `<SRC>` row counts unchanged; `<DST>` ids are all new; a link inside a copied post points at the copied topic | keep the old UUIDs in the links -> the `<DST>` link resolves to nothing |
+| C16 | Copy: `<SRC>` row counts unchanged; `<DST>` ids are all new (task, msg, issue number, doc, doc item, doc node; rev log under the new doc id); a link inside a copied post points at the copied topic; a box receiving a copied row files it under the new task id | keep the old `workspace_doc_item.id` -> PK violation; keep the old UUIDs in the links -> the `<DST>` link resolves to nothing |
 | C17 | Re-run after a crash in P5 resumes at the first undone step and finishes | re-run from P1 -> refused: the journal says P4 committed |
 
 All cases run on PostgreSQL (`PRE_PUSH_TIER=full`), with two test workspaces
@@ -309,7 +340,9 @@ Each row is one small task; files named are where it lands.
 | T2 | Migration: the `<DST>` journal table and the hub-wide redirect table (Q2), with RLS and the tenant isolation test | `csi-spl-rdb/src/sql/postgres/spool-hub/<head+1>_channel_move_journal.sql`, an entry in `api/store/rls_test.go` |
 | T3 | Migration: `messages.copied_from` (nullable, catalog-only) for copies | `csi-spl-rdb/src/sql/postgres/spool-hub/<head+2>_messages_copied_from.sql` |
 | T4 | Store: `PlanChannelMove` (read-only set, shared items, mentions) and its tests C1, C7 | `api/store/channel_move_plan.go` (+ `_postgres`, `_memory`, `_test`) |
-| T5 | Store: `ApplyChannelMove` P4, one transaction, insert-then-delete in catalogue order; tests C3, C4, C5, C9 | `api/store/channel_move_apply_postgres.go`, `_test.go` |
+| T5 | Store: `ApplyChannelMove` P4 frame: one transaction, insert-then-delete in catalogue order, counters and stamps, the messages family; tests C3a, C4, C5, C9 | `api/store/channel_move_apply_postgres.go`, `_test.go` |
+| T5b | Store: the issues part of P4 (renumber, events, discussions, `spec_sync_map`); test C3b | `api/store/channel_move_issues_postgres.go`, `_test.go` |
+| T5c | Store: the Qto part of P4 (doc, item, node, ACL, rev log, re-placed in `<DST>`'s tree); test C3c | `api/store/channel_move_docs_postgres.go`, `_test.go` |
 | T6 | Blob and Qto object copy/delete P3/P6, the shared-file rule; tests C6, C10 | `api/channelmove/objects.go`, `_test.go` |
 | T7 | Hub operator endpoint (owner GO msg id required) and the moved-task refusal / redirect; tests C8, C15 | `api/hub/channel_move.go`, `_test.go` |
 | T8 | Proofs P7 and the free-text scan; tests C13, C14 | `api/channelmove/proof.go`, `_test.go` |
@@ -318,7 +351,30 @@ Each row is one small task; files named are where it lands.
 | T11 | Copy mode: new UUIDs, link rewrite, `copied_from`; test C16 | `api/store/channel_copy_apply_postgres.go`, `_test.go` |
 | T12 | Docs: operator page (how to plan, run and read the kept list) | `csi-spl-doc/doc/md/channel-workspace-move.md` |
 
-T1 first (it is the inventory in code); T4 before T5; T9 needs T7.
+Order: T1 first (it is the inventory in code); T2 before T5 (the journal);
+T4 before T5; T5 before T5b and T5c; T3 before T11; T6 and T8 before T7; T7
+before T9.
+
+### 10.1 Lanes
+
+The split sent to the dispatch holder on 2026-10-30 (msg 25f67404), for the
+owner's weekend deadline: lanes with no files in common.
+
+| lane | rows |
+|---|---|
+| L1 | T2, T3 (rdb; one lane, so two lanes never race for a migration number) |
+| L2 | T1 |
+| L3 | T6 |
+| L4 | T4 |
+| L5 | T8 |
+| L6 | T5, T5b, T5c, T11 |
+| L7 | T7 |
+| L8 | T9, T10 |
+| L9 | T12 |
+
+Waves: 1 = L1, L2, L3, L8 (stub), L9; 2 = L4, L5; 3 = L6; 4 = L7, then L8's
+wiring. Critical path for the first move: L2 > L4 > L6 > L7 > L8, with L1's
+DDL live on dev and prd first. Copy (T11) is not on the first move's path.
 
 ## 11. Owner questions
 
@@ -328,8 +384,8 @@ Asked as one poll, recommended option first in each:
 Q1 Copy: what should a copied channel be? I recommend A.
 (A) A snapshot: it lives on by itself after the copy
 (B) Kept in sync: new posts in the source keep arriving in the copy
-Q2 After a move, an old link or a post to a moved topic in the old workspace: I recommend A.
-(A) For 30 days a hub-wide note (topic ids only, no names) redirects the link and re-routes the post; then nothing, 404
+Q2 After a move, an old link, a post to a moved topic, or an old issue key, in the old workspace: I recommend A.
+(A) For 30 days a hub-wide note (ids only, no names) redirects the link, re-routes the post and maps the old issue key to the new one; then nothing, 404
 (B) Nothing at once: 404, and a post there is refused
 (C) Redirect forever
 Q3 Backups, logs and copies that already hold the channel (section 5.6): I recommend A.

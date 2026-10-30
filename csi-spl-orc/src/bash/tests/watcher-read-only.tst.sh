@@ -193,8 +193,11 @@ out="$(SPOOL_ROOT="$W1R" "$T_TMP/tmux-sh" -c '. "$1"; spl_watcher_refuse do_x' _
 eq "W1 real /proc: run under a bash copy named tmux-sh: refused" 1 "$rc"
 
 # ---- R7 c-700 W2: a caller adds panes, never removes them -------------------
+# A box with no /var/spool-hub (a CI runner) has no box socket: nothing.
+want_sock=""
+box_uid="$(stat -c %u /var/spool-hub 2>/dev/null)" && want_sock="/tmp/tmux-$box_uid/default"
 eq "W2 the box socket is the spool root owner's, whatever SPOOL_TMUX_SOCKET says" \
-  "/tmp/tmux-$(stat -c %u /var/spool-hub 2>/dev/null)/default" \
+  "$want_sock" \
   "$(SPOOL_TMUX_SOCKET=/nonexistent bash -c '. "$1"; _spl_watcher_box_socket' _ "$LIB")"
 t_tmux
 cat >"$T_TMP/probe.sh" <<PROBE

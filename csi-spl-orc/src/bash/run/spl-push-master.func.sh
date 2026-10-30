@@ -8,7 +8,8 @@
 # @description checks the tree, detaches one worker (setsid, its own log) and
 # @description returns at once; PUSH_CMD=status prints the verdict, for short polls.
 # @description The worker loops: FETCH (git-fetch-fresh.sh, --force on a retry)
-# @description -> `git -c user.name -c user.email rebase origin/<branch>` -> the
+# @description -> `git -c user.name -c user.email rebase origin/<branch>` (origin/master
+# @description when <branch> is not on origin yet: the push creates it, SPL-4317) -> the
 # @description identity check (%ae and %ce, --no-mailmap) -> the R7 review-line
 # @description check (a round row `<type>(rNN-NN-...`, or bNN-NN / pNN-NN for a bug / perf round, needs a `review: ... PASS
 # @description <40-hex sha> ... | log: <id>@<box>:<path>` body line whose sha
@@ -319,11 +320,13 @@ _spl_push_master_marked() {
 # push of <sha>, never HEAD (a branch switch after the sha was logged pushed
 # origin's own head, SPL-2574), marked for the hook; the token lives only as
 # long as the push. <sha> defaults to HEAD only for callers that test the hook.
+# The destination is a full refname: git refuses a sha pushed to a short name
+# that is not on the remote yet ("not a full refname", SPL-4317).
 _spl_push_master_git_push() {
   local tok rc
   tok="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
   printf '%s\n' "$tok" >"$PUSH_STATE/push.token"
-  SPL_PUSH_MASTER_TOKEN="$tok" SPL_PUSH_MASTER_STATE="$PUSH_STATE" git push "$1" "${4:-HEAD}:$2" >"$3" 2>&1; rc=$?
+  SPL_PUSH_MASTER_TOKEN="$tok" SPL_PUSH_MASTER_STATE="$PUSH_STATE" git push "$1" "${4:-HEAD}:refs/heads/${2#refs/heads/}" >"$3" 2>&1; rc=$?
   rm -f "$PUSH_STATE/push.token"
   return "$rc"
 }
@@ -337,9 +340,24 @@ _spl_push_master_head_moved() {
   echo "$(date -u +%TZ) HEAD moved during the push: $1 -> ${head:-unknown}"
 }
 
+# _spl_push_master_fetch <remote> <branch> [--force] - fetches the ref the
+# rebase goes onto and prints it: <remote>/<branch>, or <remote>/master when
+# <branch> is not on <remote> yet (`ls-remote --exit-code` rc 2: the first push
+# of a review/ ref always gave up on that fetch, c-954 msg 3d6597dd, SPL-4317).
+# The push then creates <branch>, with no force. Master never asks ls-remote.
+_spl_push_master_fetch() {
+  local remote="$1" branch="$2"; shift 2
+  if [[ "$branch" != master ]]; then
+    git ls-remote --exit-code --heads "$remote" "$branch" >/dev/null 2>&1
+    (( $? == 2 )) && { echo "$(date -u +%TZ) $branch is not on $remote yet: rebase onto $remote/master" >&2; branch=master; }
+  fi
+  bash "$PUSH_FETCH" -C "$PUSH_WT" --remote "$remote" --branch "$branch" "$@" >&2 || return 1
+  echo "$remote/$branch"
+}
+
 _spl_push_master_worker() {
   local remote="${PUSH_REMOTE:-origin}" branch="${PUSH_BRANCH:-master}" max="${PUSH_RETRIES:-4}"
-  local try=0 out="$PUSH_STATE/push.out" sha base bad landed_rc moved
+  local try=0 out="$PUSH_STATE/push.out" sha base bad landed_rc moved onto
   local -a G=(-c "user.name=$PUSH_NAME" -c "user.email=$PUSH_EMAIL") force
   # The hook must see the env of a hand push: no override, and no AGENT_ID
   # (SPL-1583: the lane's id leaked into the orc tests the hook runs). The
@@ -353,31 +371,31 @@ _spl_push_master_worker() {
     try=$((try + 1)); force=(); _spl_push_master_follow
     (( try > 1 )) && force=(--force)
     echo "$(date -u +%TZ) try $try/$max: fetch"
-    if ! bash "$PUSH_FETCH" -C "$PUSH_WT" --remote "$remote" --branch "$branch" "${force[@]}"; then
+    if ! onto="$(_spl_push_master_fetch "$remote" "$branch" "${force[@]}")"; then
       _spl_push_master_end "GAVE-UP the fetch of $remote/$branch failed"; return 1
     fi
-    echo "$(date -u +%TZ) try $try/$max: rebase onto $remote/$branch"
-    if ! git "${G[@]}" rebase "$remote/$branch" >"$out" 2>&1; then
+    echo "$(date -u +%TZ) try $try/$max: rebase onto $onto"
+    if ! git "${G[@]}" rebase "$onto" >"$out" 2>&1; then
       git rebase --abort >/dev/null 2>&1
-      _spl_push_master_end "REFUSED rebase onto $remote/$branch conflicts (aborted; resolve by hand)" "$out"; return 1
+      _spl_push_master_end "REFUSED rebase onto $onto conflicts (aborted; resolve by hand)" "$out"; return 1
     fi
-    bad="$(git log --no-mailmap --format='%h %ae %ce' "$remote/$branch..HEAD" | awk -v e="$PUSH_EMAIL" '$2 != e || $3 != e')"
+    bad="$(git log --no-mailmap --format='%h %ae %ce' "$onto..HEAD" | awk -v e="$PUSH_EMAIL" '$2 != e || $3 != e')"
     if [[ -n "$bad" ]]; then
       printf '%s\n' "$bad" >"$out"
       _spl_push_master_end "REFUSED WRONG-IDENTITY-DO-NOT-PUSH (want $PUSH_EMAIL as author and committer)" "$out"; return 1
     fi
-    bad="$(_spl_push_master_unreviewed "$remote/$branch..HEAD" "$remote")"
+    bad="$(_spl_push_master_unreviewed "$onto..HEAD" "$remote")"
     if [[ -n "$bad" ]]; then
       printf '%s\n' "$bad" >"$out"
       _spl_push_master_end "REFUSED round row $(head -n 1 <<<"$bad")" "$out"; return 1
     fi
     sha="$(git rev-parse HEAD)"
-    if [[ "$(git rev-list --count "$remote/$branch..HEAD")" == 0 ]]; then
+    if [[ "$(git rev-list --count "$onto..HEAD")" == 0 ]]; then
       _spl_push_master_end "NOTHING-TO-PUSH $sha
-0 commits ahead of $remote/$branch after the rebase: nothing landed (SPL-2312). Are your commits on this branch, in this worktree?"; return 0
+0 commits ahead of $onto after the rebase: nothing landed (SPL-2312). Are your commits on this branch, in this worktree?"; return 0
     fi
     echo "$(date -u +%TZ) try $try/$max: push $sha -> $remote $branch"
-    base="$(git rev-parse "$remote/$branch")"
+    base="$(git rev-parse "$onto")"
     if _spl_push_master_git_push "$remote" "$branch" "$out" "$sha"; then
       _spl_push_master_follow
       cat "$out"

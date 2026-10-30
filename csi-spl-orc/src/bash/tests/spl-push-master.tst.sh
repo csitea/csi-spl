@@ -55,6 +55,13 @@
 #      control: `git@github.com:x/y.git` and `ssh://git@github.com/x/y.git`
 #      push. url.<temp origin>.insteadOf maps each URL onto the temp origin:
 #      no network, and without the guard the creds URL lands (the red)
+#  14. PUSH_BRANCH names a branch that is not on origin yet (the first push of
+#      a review/ ref, c-954 msg 3d6597dd, SPL-4317): origin master moved first
+#      -> the worker fetches master, rebases onto origin/master and pushes the
+#      new ref with no force: PUSHED <sha>, tries=1, the sha on the new ref with
+#      origin master below it, master itself unchanged; the red before the fix
+#      was `GAVE-UP the fetch of origin/<branch> failed`. Then a second commit
+#      to the same, now existing, branch -> PUSHED on today's path
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -337,6 +344,28 @@ ssh13() {
 }
 ssh13 'git@github.com:x/y.git'
 ssh13 'ssh://git@github.com/x/y.git'
+
+# 14 a PUSH_BRANCH that is not on origin yet: fetch master, rebase onto it, push the new ref
+NB=review/c-999-s14-new
+echo ok >"$T/hook.mode"; git -C "$L" switch -q lane-branch
+git -C "$O" switch -q master && git -C "$O" pull -q --rebase origin master 2>/dev/null
+printf '14\n' >"$O/o-14.txt"; git -C "$O" add o-14.txt && git -C "$O" "${G[@]}" commit -qm 'other 14' && git -C "$O" push -q origin HEAD:master
+m14="$(git --git-dir="$B" rev-parse master)"
+commit fourteen
+run PUSH_BRANCH="$NB" >/dev/null; v="$(verdict)"; vrc=$?
+sha="$(git -C "$L" rev-parse HEAD)"
+[ "$vrc" -eq 0 ] && grep -qx "PUSHED $sha" <<<"$v" && grep -qx 'tries=1' <<<"$v" \
+  && [ "$(git --git-dir="$B" rev-parse "refs/heads/$NB" 2>/dev/null)" = "$sha" ] \
+  && git --git-dir="$B" merge-base --is-ancestor "$m14" "$sha" && [ "$(git --git-dir="$B" rev-parse master)" = "$m14" ] \
+  && pass "14. a PUSH_BRANCH not on origin -> rebased onto origin/master, the new ref pushed: PUSHED, master unchanged" \
+  || fail "14. new branch (rc $vrc: $v | log: $(tail -n 6 "$S/log"))"
+commit fourteen-b
+run PUSH_BRANCH="$NB" >/dev/null; v="$(verdict)"; vrc=$?
+sha="$(git -C "$L" rev-parse HEAD)"
+[ "$vrc" -eq 0 ] && grep -qx "PUSHED $sha" <<<"$v" && [ "$(git --git-dir="$B" rev-parse "refs/heads/$NB")" = "$sha" ] \
+  && ! grep -q "not on origin yet" "$S/log" && [ "$(git --git-dir="$B" rev-parse master)" = "$m14" ] \
+  && pass "14. the same branch, now on origin -> today's path: PUSHED on it, master unchanged" \
+  || fail "14. existing branch (rc $vrc: $v | log: $(tail -n 6 "$S/log"))"
 
 echo "spl-push-master: $fails failure(s)"
 [ "$fails" -eq 0 ]

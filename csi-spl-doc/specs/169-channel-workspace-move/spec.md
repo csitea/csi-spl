@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.7 (2026-10-30). Status: **Draft** (plan only; nothing below is
+Version: v0.8 (2026-10-30). Status: **Draft** (plan only; nothing below is
 built). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -26,8 +26,15 @@ Refuse, in C2 (from the T1 lane).
 v0.7 folds the v0.6 review notes by c-907: the Q5 row says it is the
 channel's people who are not `<DST>` members that come along only when the
 owner adds them (W1 keeps existing `<DST>` members), and `plan` names the
-reason for each hours stop (5.1a). Q7 stays open: the channel is asked
+reason for each hours stop (5.1a). Q7 stayed open: the channel was asked
 again as a poll (11.1).
+v0.8 folds the owner's Q7: the csitea channel named like the hidden
+workspace `ws-hidden-17` moves first, into `ws-hidden-17` (11.1). Both names
+are that workspace's slug, which the hygiene sweep keeps out of this public
+repo (SPL-1874, SPL-1910), so the spec writes the overlay placeholder. v0.7
+named the destination "the workspace created 2026-10-29"; the hub's
+`tenants` row for `ws-hidden-17` reads created 2026-10-29 13:54Z, so the date
+matches; the spec now writes the workspace the owner named.
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -75,7 +82,8 @@ admin of this workspace") and (f81b2742) "nobody else should have access to
 this workspace than me - from the humans , and it should have at least 4
 dedicated agents + the orchestrators and the dispatchers". The likely first
 move is one channel of the csitea workspace into that new workspace; the owner
-has not said so (Q7).
+has since said which (Q7, 11.1): the csitea channel named like
+`ws-hidden-17`, into `ws-hidden-17`.
 
 ## 2. Words
 
@@ -488,7 +496,7 @@ Read from the owner's own answers in prd t1 topic
 | Q4 | A, leave them and list them | `d2c97186` | 5.4: `plan` lists, nothing edited |
 | Q5 | A, they lose access; the move lists them and the owner adds whom he wants | `0c58c916` (poll `dfa0234a`) | W1, 5.1 (`channel_humans`, `channel_invites`, `channel_subscriptions`, `read_marks`), 5.1a hours, 5.1b invites, calendar guests: of the channel's people who are not `<DST>` members, only those the owner adds to `<DST>` come along; existing `<DST>` members keep their access (W1); the move adds no one by itself |
 | Q6 | A, stop and list | `d2c97186` | 5.5, C7: `plan` refuses on a shared item |
-| Q7 | A, a csitea channel into the workspace created 2026-10-29; **the channel is not named yet** | `d2c97186` | the first prd run waits for the channel's name; asked again on 2026-10-30 18:03Z as a poll of the workspace's open channels plus "Not now" (msg `c5dc7cea`); **open** |
+| Q7 | J: the csitea channel named like `ws-hidden-17` moves first, then "Move it to the ... workspace" naming `ws-hidden-17` | `f6f94c97` and `e4cc2662` (poll `c5dc7cea`) | the first move: `<SRC>` = csitea, `<CHANNEL>` = the csitea channel named like `ws-hidden-17`, `<DST>` = `ws-hidden-17` (the slug stays in the overlay); the first prd run waits only for the build (10.1 critical path) and a dev rehearsal, no longer for a name |
 | Q8 | A, stop and list | `85eb389c` (poll `53f98bf8`) | 5.1a, C19 |
 
 ### 11.2 The polls as asked

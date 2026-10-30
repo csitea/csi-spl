@@ -20,6 +20,9 @@ const (
 	Rewritten Class = "rewritten"
 	// Recomputed: an aggregate, recomputed for both workspaces after P4.
 	Recomputed Class = "recomputed"
+	// Refuse: a row Set finds is a shared item the move cannot carry, so
+	// plan refuses the move while one exists (spec 169 5.1b, Q6).
+	Refuse Class = "refuse"
 	// NotChannel: holds nothing about spool channels; the move leaves it.
 	NotChannel Class = "not-channel"
 )
@@ -30,7 +33,7 @@ const (
 type Entry struct {
 	Table  string
 	Class  Class
-	Set    string   // Moved: the rows of the set
+	Set    string   // Moved: the rows of the set; Refuse: the rows that stop the move
 	Refs   string   // rows outside the set that point into it (applied with NOT (Set))
 	Needs  []string // Moved: tables the move does not carry whose matching <DST> row must exist first (an FK)
 	Reason string   // the spec row it follows, or why the table is left
@@ -40,23 +43,25 @@ type Entry struct {
 // name as @<bind>, with their Postgres types. `plan` (T4) computes them in
 // <SRC> in one read transaction.
 var Binds = map[string]string{
-	"channel":    "text",   // M1 the channel id
-	"tasks":      "uuid[]", // M2 every task id of the set (topics, threads, sub-tasks)
-	"msgs":       "uuid[]", // M2 every msg id of the set
-	"mark_keys":  "text[]", // read_marks keys of the set: 'ch:<channel>' and 't:<task>' per task
-	"events":     "uuid[]", // calendar_events.event_id of rows whose topic_id is an M2 task
-	"jobs":       "text[]", // hours_jobs.job_id of jobs whose task_id is an M2 task
-	"numbers":    "int[]",  // M7 the <SRC> issue numbers of the set
-	"issue_keys": "text[]", // M7 their <SRC> keys (<prefix>-<number>)
-	"docs":       "uuid[]", // M8 workspace_doc ids of the set
-	"nodes":      "uuid[]", // workspace_doc_node ids of those docs
-	"ids":        "text[]", // every id above as text: audit rows whose ref names one (5.2)
-	"id_likes":   "text[]", // '%<id>%' for each of @ids: audit rows whose free text quotes one (5.2)
+	"channel":       "text",   // M1 the channel id
+	"tasks":         "uuid[]", // M2 every task id of the set (topics, threads, sub-tasks)
+	"msgs":          "uuid[]", // M2 every msg id of the set
+	"mark_keys":     "text[]", // read_marks keys of the set: 'ch:<channel>' and 't:<task>' per task
+	"events":        "uuid[]", // calendar_events.event_id of rows whose topic_id is an M2 task
+	"jobs":          "text[]", // hours_jobs.job_id of jobs whose task_id is an M2 task
+	"hours_targets": "text[]", // M6c hours targets: 'ch:<channel>', 't:<task>', 'cal:<event>', 'job:<job>'
+	"numbers":       "int[]",  // M7 the <SRC> issue numbers of the set
+	"issue_keys":    "text[]", // M7 their <SRC> keys (<prefix>-<number>)
+	"docs":          "uuid[]", // M8 workspace_doc ids of the set
+	"nodes":         "uuid[]", // workspace_doc_node ids of those docs
+	"ids":           "text[]", // every id above as text: audit rows whose ref names one (5.2)
+	"id_likes":      "text[]", // '%<id>%' for each of @ids: audit rows whose free text quotes one (5.2)
 }
 
 // Catalogue is every tenant_id table, Moved entries in insert order (a parent
 // before the rows that reference it). The gate holds it to the migrations.
-var Catalogue = concat(movedTables, rewrittenTables, recomputedTables, notChannelTables)
+// Spec 169 v0.5 (79e135594) settled the calls the spec text left open.
+var Catalogue = concat(movedTables, rewrittenTables, recomputedTables, refuseTables, notChannelTables)
 
 var movedTables = []Entry{
 	{Table: "channels", Class: Moved, Set: `channel_id = @channel`, Reason: "M1"},
@@ -76,7 +81,7 @@ var movedTables = []Entry{
 		Reason: "M3; carried for kept members, deleted for the rest (Q5)"},
 	{Table: "channel_humans", Class: Moved, Set: `channel_id = @channel`, Reason: "M5; kept members only, the rest deleted (Q5)"},
 	{Table: "channel_invites", Class: Moved, Set: `channel_id = @channel`, Needs: []string{"tenant_invites"},
-		Reason: "M5; kept members only (Q5); its FK needs the <DST> tenant invite"},
+		Reason: "M5 (5.1b): kept emails only, after their <DST> tenant invite is written (Q5); deleted otherwise"},
 	{Table: "channel_subscriptions", Class: Moved, Set: `channel_id = @channel`, Reason: "M5"},
 	{Table: "dedicated_agents", Class: Moved, Set: `scope_type = 'channel' AND scope_id = @channel`, Reason: "M5 channel seats, moved in P4 (W2)"},
 	{Table: "topic_heads", Class: Moved, Set: `task_id = ANY(@tasks)`,
@@ -91,6 +96,11 @@ var movedTables = []Entry{
 	{Table: "calendar_guests", Class: Moved, Set: `event_id = ANY(@events)`, Reason: "child of calendar_events (FK, cascade)"},
 	{Table: "hours_jobs", Class: Moved, Set: `job_id = ANY(@jobs)`, Reason: "M6 (rdb 0216) jobs that name an M2 topic"},
 	{Table: "hours_plan", Class: Moved, Set: `job_id = ANY(@jobs)`, Reason: "child of hours_jobs (FK, cascade): plan slots follow their job"},
+	{Table: "hours_minutes", Class: Moved, Set: `target = ANY(@hours_targets)`,
+		Reason: "M6c (5.1a): kept members only; a row in a frozen or approved <SRC> period makes plan refuse (Q8)"},
+	{Table: "hours_entries", Class: Moved, Set: `target = ANY(@hours_targets)`, Reason: "M6c (5.1a), as hours_minutes"},
+	{Table: "hours_entry_spans", Class: Moved, Set: `target = ANY(@hours_targets)`, Reason: "M6c (5.1a), child of hours_entries (FK)"},
+	{Table: "hours_adjustments", Class: Moved, Set: `target = ANY(@hours_targets)`, Reason: "M6c (5.1a), as hours_minutes"},
 	{Table: "issues", Class: Moved, Set: `number = ANY(@numbers)`, Reason: "M7, renumbered under <DST>'s prefix (F6)"},
 	{Table: "issue_events", Class: Moved, Set: `number = ANY(@numbers)`, Reason: "M7"},
 	{Table: "issue_opens", Class: Moved, Set: `number = ANY(@numbers)`, Reason: "M7"},
@@ -104,8 +114,6 @@ var movedTables = []Entry{
 		Reason: "M7 (rdb 0208); a row a staying issue or doc also needs is a shared item: plan refuses (5.5, Q6)"},
 	{Table: "usage_events", Class: Moved, Set: `channel_id = @channel`, Reason: "M10"},
 	{Table: "token_budgets", Class: Moved, Set: `channel_id = @channel`, Reason: "M10"},
-	{Table: "embed_visitors", Class: Moved, Set: `channel_id = @channel`, Needs: []string{"embed_customers"},
-		Reason: "M10; its FK needs the embed in <DST>"},
 	{Table: "workspace_events", Class: Moved, Set: `origin_ref = ANY(@ids) OR message LIKE ANY(@id_likes)`, Reason: "5.2 events about the set"},
 	{Table: "operator_audit", Class: Moved, Set: `detail::text LIKE ANY(@id_likes)`, Reason: "5.2 audit rows about the set"},
 	{Table: "demo_post_audit", Class: Moved,
@@ -121,7 +129,7 @@ var rewrittenTables = []Entry{
 	{Table: "fleet_lanes", Class: Rewritten, Refs: `issue_key = ANY(@issue_keys)`, Reason: "M11: old issue keys rewritten to the new ones"},
 	{Table: "fleet_asks", Class: Rewritten, Refs: `issue_key = ANY(@issue_keys)`, Reason: "M11: old issue keys rewritten to the new ones"},
 	{Table: "gcal_event_map", Class: Rewritten, Refs: `event_id = ANY(@events)`,
-		Reason: "deleted in <SRC> with its moved calendar event (FK cascade); its Google connection belongs to a <SRC> member"},
+		Reason: "5.1a: not carried (its connection is a <SRC> member's); before P4, T5 claims the connection and deletes the Google event, then P4's cascade drops the row"},
 }
 
 var recomputedTables = []Entry{
@@ -130,6 +138,11 @@ var recomputedTables = []Entry{
 	{Table: "topic_head_tenants", Class: Recomputed, Reason: "5.1 aggregate counter (C9)"},
 	{Table: "tenant_change_stamps", Class: Recomputed, Reason: "5.1 change stamps bumped so cached views refetch"},
 	{Table: "issue_counters", Class: Recomputed, Reason: "F6: <DST>'s counter advances by the renumbered issues"},
+}
+
+var refuseTables = []Entry{
+	{Table: "embed_visitors", Class: Refuse, Set: `channel_id = @channel`,
+		Reason: "5.1b: embed_customers.embed_id is hub-wide and in the iframe URL, so <DST> cannot hold the parent; plan refuses (Q6), a copy does not carry it"},
 }
 
 var notChannelTables = concat(
@@ -150,13 +163,12 @@ var notChannelTables = concat(
 	notChannel("fleet state keyed by fleet, agent and box; lanes and asks are rewritten above",
 		"fleet_leases", "od_pool", "agent_lifecycle_events", "shared_memory_lessons"),
 	notChannel("costs keyed by agent, model and day", "cost_lines"),
-	notChannel("hours of members, keyed by member and day; only jobs naming an M2 topic move (hours_jobs)",
-		"hours_adjustments", "hours_changes", "hours_crew_members", "hours_crews", "hours_days", "hours_entries",
-		"hours_entry_spans", "hours_holidays", "hours_member_pins", "hours_minutes", "hours_ops", "hours_periods",
-		"hours_standard_days", "hours_terminals"),
+	notChannel("hours of members, keyed by member and day; rows that name the set move (M6c, hours_jobs)",
+		"hours_changes", "hours_crew_members", "hours_crews", "hours_days", "hours_holidays", "hours_member_pins",
+		"hours_ops", "hours_periods", "hours_standard_days", "hours_terminals"),
 	notChannel("a member's Google link; watch_channel_id is a calendar push channel, not a spool channel",
 		"gcal_connections", "contacts_sync"),
-	notChannel("workspace issue labels, matched by name for a moved issue (T5b)", "issue_labels"),
+	notChannel("the workspace's label catalogue; T5b creates each missing label_id of a moved issue in <DST>", "issue_labels"),
 	notChannel("marketing_*.channel_id is a social-media channel (rdb 0187), not a spool channel",
 		"marketing_channel_tokens", "marketing_channels", "marketing_metric_definitions",
 		"marketing_metric_samples", "marketing_post_events", "marketing_posts"),

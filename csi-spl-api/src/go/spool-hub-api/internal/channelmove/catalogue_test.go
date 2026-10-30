@@ -446,7 +446,7 @@ func coverageGaps(s schema, cat []Entry) []string {
 // shapeIssues: each class carries exactly the predicates it needs.
 func shapeIssues(e Entry) []string {
 	var out []string
-	want := map[Class][2]bool{Moved: {true, false}, Rewritten: {false, true}, Recomputed: {false, false}, NotChannel: {false, false}}
+	want := map[Class][2]bool{Moved: {true, false}, Rewritten: {false, true}, Recomputed: {false, false}, Refuse: {true, false}, NotChannel: {false, false}}
 	w, ok := want[e.Class]
 	switch {
 	case !ok:
@@ -499,8 +499,8 @@ func predicateIssues(table string, pred string, cols map[string]bool) []string {
 // orderIssues: a moved table comes after every tenant table it references
 // (the inserts run in catalogue order, the deletes in reverse, F5), unless
 // that parent is the workspace itself or listed in Needs; and a staying
-// table that references a moved one must be Rewritten, since the <SRC>
-// delete reaches it through the FK.
+// table that references a moved one must be Rewritten (or Refuse, whose
+// rows stop the move), since the <SRC> delete reaches it through the FK.
 func orderIssues(s schema, cat []Entry) []string {
 	pos, byName := map[string]int{}, map[string]Entry{}
 	for k, e := range cat {
@@ -531,7 +531,7 @@ func edgeIssue(ce, pe Entry, pos map[string]int) []string {
 		return []string{fmt.Sprintf("%s references %s: move %s before it in the catalogue", ce.Table, pe.Table, pe.Table)}
 	case ce.Class == Moved && pe.Class != Moved && !needs[pe.Table]:
 		return []string{fmt.Sprintf("%s references %s, which does not move: list it in %s's Needs", ce.Table, pe.Table, ce.Table)}
-	case ce.Class != Moved && ce.Class != Rewritten && pe.Class == Moved:
+	case ce.Class != Moved && ce.Class != Rewritten && ce.Class != Refuse && pe.Class == Moved:
 		return []string{fmt.Sprintf("%s references the moved %s: the <SRC> delete reaches it; class it moved or rewritten", ce.Table, pe.Table)}
 	}
 	return nil
@@ -598,8 +598,10 @@ func TestCatalogueGateRedControls(t *testing.T) {
 			"never names tenant_id"},
 		{"child before its parent", "", func() []Entry { return swap("messages", "deliveries") },
 			"deliveries references messages: move messages before it"},
-		{"moved child of a staying parent", "", func() []Entry { return edit("embed_visitors", func(e *Entry) { e.Needs = nil }) },
-			"embed_visitors references embed_customers, which does not move"},
+		{"moved child of a staying parent", "", func() []Entry { return edit("channel_invites", func(e *Entry) { e.Needs = nil }) },
+			"channel_invites references tenant_invites, which does not move"},
+		{"refuse without a predicate", "", func() []Entry { return edit("embed_visitors", func(e *Entry) { e.Set = "" }) },
+			"embed_visitors: class refuse wants Set=true"},
 		{"cascade into an unclassified stayer", "", func() []Entry {
 			return edit("gcal_event_map", func(e *Entry) { e.Class, e.Refs = NotChannel, "" })
 		}, "gcal_event_map references the moved calendar_events"},
@@ -668,7 +670,8 @@ func copySchema(s schema) schema {
 	return out
 }
 
-// TestCatalogueFollowsSpec pins the classes spec 169 sections 4 and 5.1 name.
+// TestCatalogueFollowsSpec pins the classes spec 169 sections 4 and 5.1
+// name (v0.5 for 5.1a, 5.1b and M6c).
 func TestCatalogueFollowsSpec(t *testing.T) {
 	want := map[Class][]string{
 		Moved: {"channels", "messages", "hours_jobs", "message_revisions", "message_reactions", "message_kind_changes",
@@ -677,10 +680,12 @@ func TestCatalogueFollowsSpec(t *testing.T) {
 			"topic_heads", "topic_head_parts", "topic_priorities", "flow_watches", "flow_events", "calendar_events",
 			"issues", "issue_events", "issue_opens", "issue_discussions", "spec_sync_map", "workspace_doc",
 			"workspace_doc_item", "workspace_doc_node", "workspace_doc_acl", "workspace_doc_rev_log",
-			"usage_events", "token_budgets", "embed_visitors"},
-		Rewritten:  {"tenant_memberships", "fleet_lanes", "fleet_asks"},
+			"usage_events", "token_budgets", "hours_plan", "hours_minutes", "hours_entries", "hours_entry_spans",
+			"hours_adjustments", "calendar_guests"},
+		Refuse:     {"embed_visitors"},
+		Rewritten:  {"tenant_memberships", "fleet_lanes", "fleet_asks", "gcal_event_map"},
 		Recomputed: {"message_period_counts", "quota_counts", "topic_head_tenants", "tenant_change_stamps"},
-		NotChannel: {"marketing_channels", "marketing_posts", "gcal_connections"},
+		NotChannel: {"marketing_channels", "marketing_posts", "gcal_connections", "issue_labels", "repo_doc_edits"},
 	}
 	for class, tables := range want {
 		for _, tb := range tables {

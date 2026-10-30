@@ -263,6 +263,10 @@ func TestFleetWorkspaces(t *testing.T) {
 	if err := r.e.st.(store.OperatorWorkspaces).SetWorkspaceState(ctx, sus, true, false, time.Now()); err != nil {
 		t.Fatal(err)
 	}
+	// every create sets fleet_seating true (SPL-4295): opt other out
+	if err := r.e.st.(store.FleetSeating).SetFleetSeating(ctx, r.other, false); err != nil {
+		t.Fatal(err)
+	}
 	code, got := r.workspaces(t, r.opBox.id, r.ts(0), opKey)
 	if pinned, ok := got[r.ws]; code != http.StatusOK || !ok || pinned {
 		t.Fatalf("list: %d %v, want %s unpinned", code, got, r.ws)

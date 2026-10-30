@@ -28,6 +28,10 @@ func TestFleetEnrolStore(t *testing.T) {
 			if err := st.(FleetSeating).SetFleetSeating(ctx, ws, true); err != nil {
 				t.Fatal(err)
 			}
+			// every create sets fleet_seating true (SPL-4295): opt off out
+			if err := st.(FleetSeating).SetFleetSeating(ctx, off, false); err != nil {
+				t.Fatal(err)
+			}
 			listed := time.Now().UTC().Add(-time.Minute)
 			base := time.Now().UTC().Truncate(time.Second)
 			pub, _, _ := ed25519.GenerateKey(nil)

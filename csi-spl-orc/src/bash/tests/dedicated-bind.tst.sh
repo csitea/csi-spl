@@ -173,7 +173,9 @@ pg_up() {
     PG_CTR="spool-orc-dedicated-bind-test-$$"
     docker run -d --rm --label "csi-spl.lane=${AGENT_ID:-${SPOOL_AGENT_ID:-}}" --pull never --name "$PG_CTR" \
       -e POSTGRES_USER=spool -e POSTGRES_PASSWORD=spool -e POSTGRES_DB=spool -p 127.0.0.1::5432 "$PG_IMAGE" >/dev/null || return 1
-    PGPORT="$(docker port "$PG_CTR" 5432 | sed -n 1p | sed 's/.*://')"
+    # shellcheck source=pg-throwaway.inc.sh
+    source "$TEST_DIR/pg-throwaway.inc.sh"
+    PGPORT="$(pg_throwaway_port "$PG_CTR")" || exit 1
     local _
     for _ in $(seq 1 60); do
       PGPASSWORD=spool psql -X -q -h 127.0.0.1 -p "$PGPORT" -U spool -d spool -c 'SELECT 1' >/dev/null 2>&1 && return 0

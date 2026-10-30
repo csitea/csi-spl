@@ -136,6 +136,14 @@
 # id: a dry run and a respawn (SPAWN_REUSE_ID=1) skip it. A probe that cannot
 # judge (no host in the cnf, the action failed) never refuses: a WARN. Seam:
 # SPAWN_HUB_DNS_CMD replaces the action (prints its `uplink-dns` line).
+#
+# CORDON (SPL-4318): a box cordoned by do_spl_box_cordon (a live
+# <spool root>/dispatch/cordon/<box>, read by spl_box_cordon_active, the
+# reader do_spl_box_pick uses) gets no lane on the three paths that place
+# without the pick: the busy count (no pick line) skips cordoned boxes and
+# holds (exit 10) when none is left; the orch lease held on another box and a
+# failed remote spawn hold (exit 10) instead of starting on a cordoned box
+# here. SPAWN_BOX still wins.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -177,6 +185,16 @@ export SPAWN_REQUESTER
 [ ! -e "${SPOOL_ROOT}/dispatch/box.leave" ] || { echo "spawn-window: this machine is draining ($(head -c 200 "${SPOOL_ROOT}/dispatch/box.leave")): spawn on another box, or run ./run -a do_spl_box_join here" >&2; exit 6; }
 # shellcheck source=../lib/spool-fleet.inc.sh
 . "$HERE/../lib/spool-fleet.inc.sh"
+# shellcheck source=../../../run/spl-box-cordon.func.sh
+. "$HERE/../../../run/spl-box-cordon.func.sh"
+# 0 when BOX has a live cordon (CORDON above).
+sw_cordoned() {  # BOX
+  jq -e --arg b "$1" 'has($b)' >/dev/null 2>&1 <<<"$(spl_box_cordon_active)"
+}
+sw_hold_cordon() {  # BOX WHY
+  echo "spawn-window: HOLD ${TITLE}: $1 is CORDONED (do_spl_box_cordon) and $2. Queue it; nothing was spawned." >&2
+  return 10
+}
 # Withdraw a remote request this process filed and will not use. OUT is
 # spawn-remote's stdout (`task <id>` once the request is filed and no agent
 # line came back). A SPAWN_REMOTE_CMD stub filed nothing here. HOLD calls
@@ -237,21 +255,25 @@ sw_refuse_kind() {  # BOX WHY
 }
 # The busy count (PLACEMENT above) over the boxes that can start $KIND.
 sw_place_by_busy() {  # HERE
-  local here="$1" floor best
+  local here="$1" floor best cordon
   sw_load_map
   jq -e '.load | type == "array"' >/dev/null 2>&1 <<<"${SW_MAP:-}" || {
     ! sw_lacks_kind "$here" || { sw_refuse_kind "$here" "no lane map load and this box has no ${KIND} CLI"; return; }
+    ! sw_cordoned "$here" || { sw_hold_cordon "$here" "there is no lane map load to place elsewhere"; return; }
     echo "spawn-window: WARN no lane map load (hub or lane map down): starting here" >&2; return 0; }
   floor="${SPAWN_MEM_FLOOR_MB:-4096}"
   [[ "$floor" =~ ^[0-9]+$ ]] || { echo "spawn-window: SPAWN_MEM_FLOOR_MB must be a number of MB, got '$floor'" >&2; return 2; }
-  best="$(jq -r --arg here "$here" --argjson floor "$((floor * 1024))" --arg kind "$KIND" '
+  cordon="$(spl_box_cordon_active)"
+  best="$(jq -r --arg here "$here" --argjson floor "$((floor * 1024))" --arg kind "$KIND" --argjson cordon "${cordon:-null}" '
     [.load[] | select((.live or .box == $here) and (.mem_kb == null or .mem_kb >= $floor)
-                      and (.clis == null or (.clis | index($kind)) != null))]
+                      and (.clis == null or (.clis | index($kind)) != null)
+                      and (.box as $b | $cordon // {} | has($b) | not))]
     | sort_by([.busy, -(.mem_kb // -1), (if .box == $here then 0 else 1 end)])
     | .[0].box // "-"' <<<"$SW_MAP")"
   case "$best" in
     "$here") return 0 ;;
     -) ! sw_lacks_kind "$here" || { sw_refuse_kind "$here" "no fleet box with room has a ${KIND} CLI and this one has none"; return; }
+       ! sw_cordoned "$here" || { sw_hold_cordon "$here" "no other fleet box has room"; return; }
        return 0 ;;
   esac
   printf '%s' "$best"
@@ -273,7 +295,10 @@ place_box() {
   fleet="${LANE_FLEET:-$(_spool_fleet_conf LEASE_FLEET)}"
   [ -n "$fleet" ] || return 0
   [ -r "$SPOOL_ROOT/dispatch/lease.orch" ] && read -r holder _ <"$SPOOL_ROOT/dispatch/lease.orch"
-  case "$holder" in ""|*@"$here") ;; *) return 0 ;; esac
+  case "$holder" in ""|*@"$here") ;;
+    *) ! sw_cordoned "$here" || { sw_hold_cordon "$here" "the orch lease is held on another box ($holder)"; return; }
+       return 0 ;;
+  esac
   if [ "${SPAWN_BOX_PICK:-1}" != 0 ]; then
     local out pick k pick_hop=()
     export BOX_PICK_KIND="$KIND"
@@ -343,6 +368,7 @@ if [ -n "$TARGET" ]; then
     printf '%s -\n' "$dup"; SW_JOURNAL_ID="$dup"; exit 0
   fi
   ! sw_lacks_kind "$(spool_fleet_box)" || { sw_refuse_kind "$(spool_fleet_box)" "the spawn on ${TARGET} did not start (spawn-remote exit ${rc}) and this box has no ${KIND} CLI"; exit 13; }
+  ! sw_cordoned "$(spool_fleet_box)" || { sw_hold_cordon "$(spool_fleet_box)" "the spawn on ${TARGET} did not start (spawn-remote exit ${rc})"; exit 10; }
   echo "spawn-window: WARN the spawn on ${TARGET} did not start (spawn-remote exit ${rc}: 3 not sent, 4 refused, 5 no answer within ${SPAWN_REMOTE_WAIT:-300}s): starting here instead" >&2
 fi
 if [ -f "${SPOOL_ROOT}/peer/seats" ]; then

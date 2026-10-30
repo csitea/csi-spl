@@ -51,6 +51,12 @@
 #      slug is live in the lane map -> its "<ID>@<box> -", exit 0, nothing
 #      starts here; CONTROL no such slug in the map -> the fallback still
 #      starts here; a done row or another slug does not block it
+#  16. CORDON (SPL-4318, found by c-177): the three paths that place without
+#      the load target pick honour do_spl_box_cordon. 1) no pick line: the
+#      busy count skips a cordoned box, every box cordoned = exit 10; 2) the
+#      orch lease on another box and this box cordoned = exit 10; 3) a failed
+#      remote spawn does not fall back to a cordoned box here (exit 10);
+#      CONTROL each path without the cordon, and an expired cordon is none
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
 t_sandbox
@@ -365,5 +371,43 @@ rm -f "$T_TMP/remote.calls"
 OUT="$(REMOTE_RC=5 bash "$SW" claude auto "$T_TMP/wd" "$T_TMP/brief.md" 2>&1)"; RC=$?
 check "15. CONTROL no slug given: nothing to match, starts here" \
   bash -c '[ "$1" = 5 ] && [[ "$2" == *"no tmux session"* ]]' _ "$RC" "$OUT"
+
+# 16. the cordon on the paths without the pick (SPL-4318)
+cordon() {  # BOX [SECONDS from now, default 3600]
+  mkdir -p "$SPOOL_ROOT/dispatch/cordon"
+  printf 'until=%s at=t by=test min=60\n' "$(( $(date +%s) + ${2:-3600} ))" > "$SPOOL_ROOT/dispatch/cordon/$1"
+}
+uncordon() { rm -rf "$SPOOL_ROOT/dispatch/cordon"; }
+held() { [ "$RC" = 10 ] && [[ "$OUT" == *"HOLD auto: $1 is CORDONED"* ]] && [[ "$OUT" != *"no tmux session"* ]]; }
+nopick=(SPAWN_BOX_PICK=1 "SPAWN_BOX_PICK_CMD=echo hub timeout")
+{ rows "$HERE_BOX" 8 100; echo "c-002 $OTHER"; } | set_rows
+spawn_k claude "${nopick[@]}"
+check "16. CONTROL no pick line, no cordon: the busy count starts there" went_there
+cordon "$OTHER"
+spawn_k claude "${nopick[@]}"
+check "16. path 1: no pick line, the lighter box cordoned: the busy count skips it, stays here" went_here
+cordon "$HERE_BOX"
+spawn_k claude "${nopick[@]}"
+check "16. path 1: every box cordoned: exit 10, nothing spawned, no remote request" \
+  bash -c '[ "$1" = 10 ] && [[ "$2" == *"is CORDONED"* ]] && [[ "$2" != *"no tmux session"* ]] && [ ! -e "$3" ]' _ "$RC" "$OUT" "$T_TMP/remote.calls"
+uncordon
+echo "c-001@$OTHER 1" > "$SPOOL_ROOT/dispatch/lease.orch"
+spawn; check "16. CONTROL path 2: the orch lease on another box, no cordon: stays here" went_here
+cordon "$HERE_BOX" -60
+spawn; check "16. CONTROL path 2: an expired cordon is none: stays here" went_here
+cordon "$HERE_BOX"
+spawn; check "16. path 2: the orch lease on another box, this box cordoned: exit 10, nothing spawned" held "$HERE_BOX"
+uncordon
+echo "c-001@$HERE_BOX 1" > "$SPOOL_ROOT/dispatch/lease.orch"
+rm -f "$T_TMP/remote.calls"
+OUT="$(REMOTE_RC=5 bash "$SW" claude auto "$T_TMP/wd" 2>&1)"; RC=$?
+check "16. CONTROL path 3: the remote spawn fails, no cordon: falls back here" \
+  bash -c '[ "$1" = 5 ] && [[ "$2" == *"no tmux session"* ]]' _ "$RC" "$OUT"
+cordon "$HERE_BOX"
+rm -f "$T_TMP/remote.calls"
+OUT="$(REMOTE_RC=5 bash "$SW" claude auto "$T_TMP/wd" 2>&1)"; RC=$?
+check "16. path 3: the remote spawn fails, this box cordoned: exit 10, not started here" \
+  bash -c '[ "$1" = 10 ] && [[ "$2" == *"HOLD auto: '"$HERE_BOX"' is CORDONED"* ]] && [[ "$2" != *"no tmux session"* ]] && [ -e "$3" ]' _ "$RC" "$OUT" "$T_TMP/remote.calls"
+uncordon
 
 t_done

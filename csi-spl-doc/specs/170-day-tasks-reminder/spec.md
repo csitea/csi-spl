@@ -1,6 +1,6 @@
 # 170 Day's tasks: a To-do view in the Calendar, and a signal for what is due today
 
-Version: v0.2 (2026-10-30). Status: **WHAT v0.2 draft, under panel review**
+Version: v0.3 (2026-10-30). Status: **WHAT v0.3 draft, under panel review**
 (plan only; nothing below is built). Issue SPL-4396 · Epic SPL-2396 · Class
 feature · Kind specs_and_docs · Task `dispatch-dfe850d9` · Placement slug
 `c001-dfe850d9-panel-editor` · Editor c-864.
@@ -76,7 +76,12 @@ Source: prd csitea topic `dfe850d9-e283-4460-a0ed-223b71d657fa`.
   (`git grep -n "deadline " origin/master -- csi-spl-rdb/src/sql/postgres/spool-hub/0047_issues.sql`
   -> `deadline timestamptz NULL`). The reminder, the badge and the view all
   use this one zone, so the phone and the desktop agree on what "today" is.
-- **Overdue**: an open task whose deadline is before the start of today.
+- **Overdue**: an open task whose deadline is before the start of today. A
+  task due today at 09:00 is still "due today" at 10:00, listed under today
+  with its time shown, never "overdue". Issues already has a different
+  meaning under the same word (neighbour, not this spec's):
+  `git grep -n "export function isOverdue" origin/master -- csi-spl-wui/src/utils/issues-view.mjs`
+  -> line 292, `d < now`, so it turns overdue the minute the time passes.
 - **My tasks**: tasks assigned to the viewer. Whether the view shows only
   mine or the whole workspace's is owner question Q2.
 - **To-do view**: the new Calendar view of section 4.
@@ -89,6 +94,13 @@ Source: prd csitea topic `dfe850d9-e283-4460-a0ed-223b71d657fa`.
   person whose picked zone differs from the browser's, a deadline set near
   midnight can land on the neighbouring day in the To-do view. HOW names it;
   the fix is its own issue.
+- **Known edge, not fixed here**: that `isOverdue` (line 292) treats
+  `canceled` as closed, a status the store no longer has (closed =
+  `done || diss`,
+  `git grep -n "func IssueClosed" origin/master -- csi-spl-api/src/go/spool-hub-api/internal/store/issues.go`
+  -> line 191), and has no caller outside its file
+  (`git grep -n "isOverdue" origin/master -- csi-spl-wui/src | grep -v issues-view.mjs`
+  -> no output). HOW does not reuse it as it is.
 
 ## 3. The problem, and who has it
 
@@ -123,7 +135,14 @@ scope as readers (section 7): they read issues through the spool and CLI.
 4.1 **A separate view.** The Calendar gets a To-do view next to its event
 views. It shows tasks only, never events, official days or notes (owner
 decision 1.2). The event views keep drawing deadlines as they do today; the
-To-do view does not change them.
+To-do view does not change them. The two differ on purpose: the event views
+draw every open issue deadline, epics and features included (`deadlinesIn`
+filters only closed, no deadline and the range,
+`git show origin/master:csi-spl-api/src/go/spool-hub-api/internal/hub/calendar.go | sed -n 625,628p`;
+`git grep -n "IssueKindEpic" origin/master -- csi-spl-api/src/go/spool-hub-api/internal/hub/calendar.go`
+-> no output), while the To-do view lists tasks only (section 2): an epic due
+today shows in the Week grid but not in the To-do list, because an epic is
+not finished by hand.
 
 4.2 **The same four ranges.** The To-do view has the ranges the Calendar
 already has: Day, 3 days, Week, Month
@@ -159,7 +178,11 @@ address, so a reminder or another page can link straight to it (HUM-10
 and day in the address (`?v=` and `?d=`,
 `git grep -nE "route.query.(v|d)" origin/master -- csi-spl-wui/src/pages/calendar.vue`
 -> lines 64 and 73); the To-do view follows that shape, so it can be
-bookmarked. The reminder's link carries no fixed day: an old reminder or a
+bookmarked. The link names both the To-do view and its range: the To-do view
+is a second axis next to the range, not a fifth range value (today an unknown
+`?v=` silently opens Week,
+`git grep -n "CAL_DESK_VIEWS.includes(s) ? s : 'week'" origin/master -- csi-spl-wui/src/utils/calendar-desktop-view.mjs`
+-> line 29). An unknown value opens the default, never an error. The reminder's link carries no fixed day: an old reminder or a
 bookmark opens today's list.
 
 ## 5. The day signal: what tells the person, and when
@@ -224,6 +247,10 @@ shared component before it touches one.
 - Agents as readers of the view or the signal.
 - An email reminder on by default (Q4 option c is opt-in).
 - A reminder sent as a chat message.
+- Tasks due today in a connected Google calendar: the sync (spec 149)
+  carries events only
+  (`git grep -ciE "deadline|issue" origin/master -- csi-spl-api/src/go/spool-hub-api/internal/hub/gcal_sync.go`
+  -> no output).
 - A new task store: tasks are issues; nothing new is created to hold them.
 
 ## 8. Owner questions
@@ -260,8 +287,12 @@ Posted by c-003 in dfe850d9 at 15:26Z: Q1 msg `9958a8b7`, Q2 msg
   (`git grep -n "Package mail sends" origin/master -- csi-spl-api/src/go/spool-hub-api/internal/mail/mail.go`
   -> line 1, spec 015). Options: (a) an in-app notice on the first visit of
   the day, (b) plus a browser alert at a fixed local hour if a tab is open,
-  (c) plus an email at that hour, opt-in per person. Default: (a) + (b), the
-  hour 08:00 local; (c) off until the person turns it on.
+  (c) plus an email at that hour, opt-in per person; the email needs the
+  person's time zone set in Settings, because the hub does not know the zone
+  of a person who never picked one (it keeps only the picked override,
+  `git grep -n "the hub never converts a time" origin/master -- csi-spl-api/src/go/spool-hub-api/internal/auth/time_zone.go`
+  -> line 15; HOW may record the browser's zone instead). Default: (a) + (b),
+  the hour 08:00 local; (c) off until the person turns it on.
 
 ## 9. Signatures
 
@@ -271,10 +302,18 @@ Each seat signs a version with its own commit on branch
 | seat | id | version | sha read |
 |---|---|---|---|
 | editor | c-864 | WHAT v0.1 | (65e436eb1) |
-| editor | c-864 | WHAT v0.2 | (this commit) |
+| editor | c-864 | WHAT v0.2 | f71652e2c |
+| editor | c-864 | WHAT v0.3 | (this commit) |
 | user view | c-866 | WHAT v0.2 | f71652e2c |
 
 ## 10. Changes
+
+- v0.3: folded CALENDAR / ISSUES EXPERT c-869 (msg bf9fb184) B1 (epics and
+  features in the event grid, not in the To-do list, 4.1), B2 (one meaning of
+  overdue, the Issues `isOverdue` as a neighbour and a known edge, section
+  2), B3 (the link's second axis, 4.8), C4 (Q4 c needs the picked zone) and
+  C7 (Google sync out of scope, section 7). C1-C3, C5, C6, C8 and D are
+  input for HOW, kept in the seat's message.
 
 - v0.2: folded USER VIEW c-866 (msg 5fe949e9) F1-F8: the one time zone
   (F1), the deadline-input zone edge (F2), email as the closed-browser

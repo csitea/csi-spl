@@ -47,6 +47,13 @@ describe('note-links: parseNoteLink (C23)', () => {
     }
   })
 
+  it('a look-alike host is a url link, never a typed ref of a workspace', () => {
+    for (const host of ['spool.example.com.evil.example', 'w2.spool.example.com.evil.example', 'evilspool.example.com', 'w2.evilspool.example.com']) {
+      assert.deepEqual(parseNoteLink(`https://${host}/t/${UUID}`, W1), { link: { kind: 'url', ref: `https://${host}/t/${UUID}` } }, host)
+    }
+    assert.deepEqual(parseNoteLink(`https://spool.example.com@evil.example/t/${UUID}`, W1), { error: 'not_a_link' }, 'the site as a user name')
+  })
+
   it('refuses another prefix, a credential URL, data: and text with spaces', () => {
     for (const s of ['ABC-12', 'https://u:p@example.com/', 'data:text/html,x', 'see https://example.com', '', '   ']) {
       assert.deepEqual(parseNoteLink(s, W1), { error: 'not_a_link' }, s)

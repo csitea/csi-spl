@@ -1351,7 +1351,7 @@
     "title": "Jurnal de evenimente",
     "empty": "Nicio eroare înregistrată.",
     "clear": "Golește jurnalul",
-    "clear_confirm_title": "Ștergeți toate intrările din jurnalul dvs.?",
+    "clear_confirm_title": "Ștergi toate intrările din jurnalul tău?",
     "clear_confirm_body": "Intrări afișate: {n}. Acțiunea nu poate fi anulată.",
     "clear_confirm_older": "Sunt șterse și intrările mai vechi care nu sunt afișate.",
     "load_more": "Încarcă mai vechi",

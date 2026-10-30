@@ -1351,7 +1351,7 @@
     "title": "Sündmuste logi",
     "empty": "Vigu pole salvestatud.",
     "clear": "Tühjenda logi",
-    "clear_confirm_title": "Kas kustutada kõik teie logi kirjed?",
+    "clear_confirm_title": "Kas kustutada kõik oma logi kirjed?",
     "clear_confirm_body": "Näidatud kirjeid: {n}. Seda ei saa tagasi võtta.",
     "clear_confirm_older": "Kustutatakse ka vanemad kirjed, mida ei näidata.",
     "load_more": "Laadi vanemad",

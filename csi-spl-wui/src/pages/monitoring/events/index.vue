@@ -267,7 +267,7 @@ const sortWords = computed(() => {
 /* CLE-77908 (owner, 07b84fd7): stored UTC, shown in the person's own zone for
    this workspace (Settings -> Appearance, else the browser's); the hover and
    the <time datetime> keep the exact UTC instant, ISO 8601 with Z. Spec 162
-   E7: the cell carries seconds and the offset, so it sorts as text. */
+   E7: the cell carries seconds and the offset; When sorts by eventInstant. */
 function whenOf(r: EventRow) {
   const raw = r.at || r.received_at || ''
   return isoDateTimeOffset(raw) || raw

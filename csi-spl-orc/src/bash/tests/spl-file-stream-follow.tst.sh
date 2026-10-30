@@ -446,7 +446,8 @@ SECURITY_PATHS=(/etc/passwd /etc/passwd- /etc/group /etc/group- /etc/shadow- /et
   /var/log/btmp /var/log/btmp.1 /var/log/wtmp /var/log/wtmp.db /var/log/lastlog /var/log/faillog /var/log/tallylog
   /var/log/sudo.log /var/log/sudo-io/00/00/01/log /var/log/fail2ban.log /var/log/pacct /var/log/account/pacct
   /var/log/audit/audit.log /var/log/journal/x/system.journal /var/log/private/x.log /var/log/installer/cdebconf/questions.dat
-  /var/log/sssd/sssd.log)
+  /var/log/sssd/sssd.log
+  //etc//passwd ///var/log/auth.log /var/log/../log/btmp /etc/./ssh/x/../sshd_config)
 
 c53() {
   local d k out bad=""
@@ -463,6 +464,9 @@ c53() {
   done
   [[ -z "$bad" ]] || { echo "  C53: not refused:$bad"; return 1; }
   nolines "$d" "root:x:0:0" "root:x:0:" || return 1
+  for k in //etc/shadow //proc/self/environ; do
+    HOME="$d/home" python3 "$1" --denied "$k" >/dev/null || { echo "  C53: $k not denied"; return 1; }
+  done
   for k in /var/log/syslog /var/log/dpkg.log /var/log/csi-spl/x.log /var/csi/csi-spl/token-burn/cron.log; do
     HOME="$d/home" python3 "$1" --denied "$k" >/dev/null && { echo "  C53: $k denied"; return 1; }
   done
@@ -568,7 +572,8 @@ check C33 "a hardlink to a key file is refused" c33 \
 check C34 "\$HOME/.config, another home, .env, *_history, a host key: denied" c34 \
   named-list-only 'if p != h and rel.startswith("."):' 'if False:'
 check C53 "every security file of 3.8.10 is denied, syslog and the cron log are not" c53 \
-  no-security-class 'if security_file(p):  # ctl:security-file' 'if False:'
+  no-security-class 'if security_file(p):  # ctl:security-file' 'if False:' \
+  keep-leading-slashes 'p = "/" + p.lstrip("/")  # ctl:leading-slashes (normpath keeps a leading //)' 'pass'
 check C35 "no SPOOL_ROOT: the default root denied; not a dir: no start" c35 \
   root-from-env-only 'roots = (DEFAULT_SPOOL_ROOT, spool_root())' 'roots = (os.environ.get("SPOOL_ROOT", "/nonexistent"),)'
 check C36 "a fifo or a device behind a symlink: refused, the tick not blocked" c36 \

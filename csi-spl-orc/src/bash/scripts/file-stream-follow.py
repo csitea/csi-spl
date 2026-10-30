@@ -287,6 +287,7 @@ def security_file(p):
 def spl_file_stream_denied(path, ctx):
     """The deny list of spec 160 3.2: the reason `path` is refused, or ""."""
     p = os.path.normpath(path if path.startswith("/") else os.path.abspath(path))
+    p = "/" + p.lstrip("/")  # ctl:leading-slashes (normpath keeps a leading //)
     if any(under(p, r) for r in SYSTEM_ROOTS):
         return "system path"
     if p in SYSTEM_FILES or fnmatch.fnmatch(p, "/etc/ssh/ssh_host_*_key"):

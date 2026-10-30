@@ -1293,6 +1293,11 @@ Status: B9 built (SPL-4294, section 5.10). B11 built (SPL-4321, section
   control `no-security-class` (the class switched off): red. On the
   follower before B11 C53 is red: `--denied /etc/passwd` exits 1 and an
   `/etc/passwd` cnf entry is `following`.
+- Fix forward (R7 pre-check): `os.path.normpath` keeps a leading `//`
+  (POSIX), so `--denied //etc//passwd` and `//etc/shadow` read as not
+  denied by name. The opened fd's real path was still refused, so nothing was
+  followed. The check now folds leading slashes to one. C53 adds `//`, `///`,
+  `.` and `..` spellings; control `keep-leading-slashes`: red.
 
 ## 6. Decisions (this draft; the reviewer may challenge each)
 

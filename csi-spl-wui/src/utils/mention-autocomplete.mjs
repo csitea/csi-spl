@@ -129,7 +129,7 @@ export function mentionCandidates({ peers = [], names = null, owners = [], selfI
    reader (notify, poke, the renderer) keeps parsing ids. */
 
 // bidi controls must not reorder the field around a name
-const BIDI = /[؜‎‏‪-‮⁦-⁩]/g
+const BIDI = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g
 const NAME_END = '(?![\\p{L}\\p{N}_-])'
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 

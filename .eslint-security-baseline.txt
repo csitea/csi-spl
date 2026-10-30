@@ -8,9 +8,6 @@
 # A count BELOW its line fails too (r5-05): the commit that fixes it lowers it.
 # Counts, not line numbers, so ordinary edits do not churn.
 #
-# Triage: the only remaining finding under the curated ruleset is
-# detect-bidi-characters in mention-autocomplete.mjs, which is a DELIBERATE
-# bidi-control character class in a regex that STRIPS bidi controls from names
-# (the WUI's own anti-trojan-source defense: "bidi controls must not reorder the
-# field around a name") -- the code defends against bidi, it is not vulnerable.
-security/detect-bidi-characters|csi-spl-wui/src/utils/mention-autocomplete.mjs|7
+# Triage: no finding remains under the curated ruleset. The last one,
+# detect-bidi-characters in mention-autocomplete.mjs (a regex that STRIPS bidi
+# controls from names), now names those controls with \u escapes (r42-03).

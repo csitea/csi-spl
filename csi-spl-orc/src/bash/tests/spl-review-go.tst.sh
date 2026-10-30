@@ -53,8 +53,9 @@
 #        no brief anywhere -> rc 3 / rc 7 naming the boxes; the real line
 #        (log on boxb) -> [6]
 #        RED CONTROL (R7 c-972 N1) a rotated author whose current lane brief
-#        names neither the review branch, the sha nor the task -> rc 7;
-#        controls: it names the branch, the sha -> GO
+#        names neither the review branch nor the sha -> rc 7, nor when it
+#        names only the shared task (W1); controls: it names the branch,
+#        the sha -> GO
 #   REVIEW_GO_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -551,6 +552,9 @@ run18 REVIEW_GO_MSG="$f"; go18 "18. control (N1): the rotated author's lane brie
 reset18n1 "Do: another fix on top of ${SHA:0:9}."
 f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-00000000000e)
 run18 REVIEW_GO_MSG="$f"; go18 "18. control (N1): the rotated author's lane brief names the sha -> GO" 18000000-0000-4000-8000-00000000000e $? boxb
+reset18n1 "Do: another fix in topic $TASK."
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-00000000000f)
+run18 REVIEW_GO_MSG="$f"; refused "18. RED CONTROL (R7 c-972 W1): the rotated author's new brief names only the shared task holds" $? 7 "author box boxb"
 
 echo "spl-review-go: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

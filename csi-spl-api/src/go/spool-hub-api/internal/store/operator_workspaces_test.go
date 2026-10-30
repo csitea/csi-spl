@@ -7,11 +7,11 @@ import (
 )
 
 // TestFleetSeatingSwitch (spec 158 T5, rdb 0230): a workspace starts with
-// fleet_seating false (the column default; the create ROUTE sets it), the
-// switch writes true and back to false, and a missing workspace is
-// ErrNotFound on both calls. On Postgres it runs in the tenant scope as the
+// fleet_seating true (CreateTenant sets it, SPL-4295), the switch writes
+// false and back to true, and a missing workspace is ErrNotFound on both
+// calls. On Postgres it runs in the tenant scope as the
 // test role, which must not bypass RLS (printed). CONTROL: the second
-// workspace keeps false while the first flips, so the read is per workspace.
+// workspace keeps true while the first flips, so the read is per workspace.
 func TestFleetSeatingSwitch(t *testing.T) {
 	ctx := context.Background()
 	for name, st := range drivers(t) {
@@ -27,18 +27,18 @@ func TestFleetSeatingSwitch(t *testing.T) {
 			}
 			fs := st.(FleetSeating)
 			a, b := newTenant(t, st), newTenant(t, st)
-			if on, err := fs.FleetSeating(ctx, a); err != nil || on {
-				t.Fatalf("new workspace reads %v %v, want the default false", on, err)
+			if on, err := fs.FleetSeating(ctx, a); err != nil || !on {
+				t.Fatalf("new workspace reads %v %v, want true (CreateTenant's default)", on, err)
 			}
-			for _, want := range []bool{true, false, true} {
+			for _, want := range []bool{false, true, false} {
 				if err := fs.SetFleetSeating(ctx, a, want); err != nil {
 					t.Fatalf("set %v: %v", want, err)
 				}
 				if on, err := fs.FleetSeating(ctx, a); err != nil || on != want {
 					t.Fatalf("read after set %v: %v %v", want, on, err)
 				}
-				if on, err := fs.FleetSeating(ctx, b); err != nil || on {
-					t.Fatalf("CONTROL: untouched workspace reads %v %v, want false", on, err)
+				if on, err := fs.FleetSeating(ctx, b); err != nil || !on {
+					t.Fatalf("CONTROL: untouched workspace reads %v %v, want true", on, err)
 				}
 			}
 			missing := uid("t-")

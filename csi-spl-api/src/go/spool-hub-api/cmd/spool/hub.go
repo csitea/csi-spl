@@ -764,6 +764,7 @@ func cmdHubTenant(args []string) int {
 	tenant := fs.String("tenant", "", "tenant id")
 	root := fs.String("root-pubkey", "", "base64 tenant root public key")
 	billing := fs.String("billing-status", "", "active|grace|unpaid|internal|manual (default internal)")
+	fleet := fs.Bool("fleet-seating", true, "spec 158 fleet seating switch of a NEW tenant (false = off)")
 	dsn := fs.String("db", os.Getenv("SPOOL_HUB_DB_DSN"), "postgres DSN (default $SPOOL_HUB_DB_DSN)")
 	if err := fs.Parse(args); err != nil {
 		return 1
@@ -779,7 +780,7 @@ func cmdHubTenant(args []string) int {
 		return fail(err)
 	}
 	defer st.Close()
-	row := store.Tenant{ID: *tenant, RootPubKey: pub, BillingStatus: *billing}
+	row := store.Tenant{ID: *tenant, RootPubKey: pub, BillingStatus: *billing, FleetSeatingOff: !*fleet}
 	if err := st.CreateTenant(ctx, row); err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			return fail(fmt.Errorf("tenant %s exists with a different root key: %w", *tenant, sign.ErrVerify))

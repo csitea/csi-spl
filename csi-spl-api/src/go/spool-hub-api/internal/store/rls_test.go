@@ -270,7 +270,7 @@ func TestRLSScopeIsTransactionLocal(t *testing.T) {
 // TestRLSFleetDeskBoxesOperatorOnly (rdb 0230, spec 158 T4): the fleet desk
 // list is the estate's, not a workspace's. Only the operator scope reads or
 // writes it; a tenant scope and no scope see no row and insert none. A new
-// workspace starts with fleet_seating false.
+// workspace starts with fleet_seating true (CreateTenant, SPL-4295).
 func TestRLSFleetDeskBoxesOperatorOnly(t *testing.T) {
 	pg := rlsStore(t)
 	ctx := context.Background()
@@ -309,8 +309,8 @@ func TestRLSFleetDeskBoxesOperatorOnly(t *testing.T) {
 		if err := tx.QueryRow(ctx, `SELECT fleet_seating FROM tenants WHERE tenant_id = $1`, a).Scan(&on); err != nil {
 			return err
 		}
-		if on {
-			t.Errorf("new tenant %s has fleet_seating true, want the default false", a)
+		if !on {
+			t.Errorf("new tenant %s has fleet_seating false, want true (CreateTenant's default)", a)
 		}
 		return nil
 	})

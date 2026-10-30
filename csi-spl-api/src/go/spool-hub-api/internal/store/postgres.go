@@ -158,11 +158,11 @@ func (s *Postgres) CreateTenant(ctx context.Context, t Tenant) error {
 		return err
 	}
 	tag, err := s.execTenant(ctx, t.ID, `INSERT INTO tenants (tenant_id, root_pubkey, billing_status, plan_id,
-		org, app, project_id, bought_at, seats_users, seats_bots)
-		VALUES ($1, $2, $3, $4, NULLIF($5, ''), NULLIF($6, ''), NULLIF($7, ''), $8, $9, $10)
+		org, app, project_id, bought_at, seats_users, seats_bots, fleet_seating)
+		VALUES ($1, $2, $3, $4, NULLIF($5, ''), NULLIF($6, ''), NULLIF($7, ''), $8, $9, $10, $11)
 		ON CONFLICT (tenant_id) DO NOTHING`,
 		t.ID, []byte(t.RootPubKey), t.BillingStatus, t.PlanID,
-		t.Org, t.App, t.ProjectID, nullTime(t.BoughtAt), t.SeatsUsers, t.SeatsBots)
+		t.Org, t.App, t.ProjectID, nullTime(t.BoughtAt), t.SeatsUsers, t.SeatsBots, !t.FleetSeatingOff)
 	if isUniqueViolation(err) {
 		return ErrConflict // project_id held by another tenant (0012 partial index)
 	}

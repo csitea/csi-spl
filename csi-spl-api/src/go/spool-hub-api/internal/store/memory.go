@@ -180,6 +180,12 @@ func (s *Memory) CreateTenant(_ context.Context, t Tenant) error {
 	}
 	t.BoughtAt = t.BoughtAt.UTC()
 	s.tenants[t.ID] = t
+	if !t.FleetSeatingOff {
+		if s.fleetSeating == nil {
+			s.fleetSeating = map[string]bool{}
+		}
+		s.fleetSeating[t.ID] = true
+	}
 	s.ch.seedLocked(t.ID, s.now().UTC())
 	return nil
 }

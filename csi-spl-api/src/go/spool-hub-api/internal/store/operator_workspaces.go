@@ -267,10 +267,10 @@ func (s *Memory) OperatorAuditOf(_ context.Context, tenant string, limit int) ([
 
 // FleetSeating is spec 158's per-workspace switch (4.2.1, rdb 0230
 // tenants.fleet_seating): true lets the fleet desk boxes enrol a key into
-// the workspace and seat the role seats in it. The create route sets it
-// (true unless the request says false); only the operator workspace writes
-// it after that (PATCH /v1/operator/workspaces/{id}, audited), never the
-// workspace's own admin.
+// the workspace and seat the role seats in it. CreateTenant sets it for
+// every create path (true unless Tenant.FleetSeatingOff); only the operator
+// workspace writes it after that (PATCH /v1/operator/workspaces/{id},
+// audited), never the workspace's own admin.
 type FleetSeating interface {
 	// FleetSeating reads the switch; ErrNotFound when no such tenant.
 	FleetSeating(ctx context.Context, tenant string) (bool, error)

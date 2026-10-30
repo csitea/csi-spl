@@ -318,8 +318,8 @@ func fleetSeatingOf(t *testing.T, e *env, id string) bool {
 func TestOperatorWorkspaceFleetSeating(t *testing.T) {
 	e, op, other, who, whoOther := operatorEnv(t, func(op, _ string) string { return op })
 	admin := who[rbac.Admin]
-	if fleetSeatingOf(t, e, other) {
-		t.Fatalf("CONTROL: a workspace not made by the route reads fleet_seating true, want the default false")
+	if !fleetSeatingOf(t, e, other) {
+		t.Fatalf("a workspace not made by the route reads fleet_seating false, want true (CreateTenant's default, SPL-4295)")
 	}
 	dflt, off := newTenantID("nw"), newTenantID("nw")
 	for _, c := range []struct {

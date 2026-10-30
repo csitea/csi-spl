@@ -81,6 +81,12 @@ type Tenant struct {
 	// decoded once per cache fill. Read-only; read a key with
 	// Settings.Bool/Int/String, which fall back to the registered default.
 	Settings TenantSettingValues
+	// FleetSeatingOff is read by CreateTenant only (spec 158 4.2.1, rdb
+	// 0230): the zero value creates the workspace with fleet_seating true,
+	// true creates it off. Every create path (the operator route, `spool
+	// hub-tenant`, the demo) inserts through CreateTenant, so the default
+	// lives here once. After the create only the operator writes the switch.
+	FleetSeatingOff bool
 }
 
 func normalizeTenant(t *Tenant) error {

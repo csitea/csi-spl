@@ -286,7 +286,10 @@ func (s *Server) handleOperatorWorkspaceCreate(w http.ResponseWriter, r *http.Re
 		writeErr(w, http.StatusConflict, "exists", "a workspace with that id exists")
 		return
 	}
-	if err := s.o.Store.CreateTenant(r.Context(), store.Tenant{ID: req.ID, RootPubKey: pub, BillingStatus: req.BillingStatus}); err != nil {
+	// fleet_seating rides the insert (spec 158 T5, SPL-4295): a failed write
+	// fails the create, never only a log line.
+	if err := s.o.Store.CreateTenant(r.Context(), store.Tenant{ID: req.ID, RootPubKey: pub,
+		BillingStatus: req.BillingStatus, FleetSeatingOff: !req.fleetSeating()}); err != nil {
 		code, tk := http.StatusInternalServerError, "internal"
 		if errors.Is(err, store.ErrConflict) {
 			code, tk = http.StatusConflict, "exists"
@@ -296,11 +299,6 @@ func (s *Server) handleOperatorWorkspaceCreate(w http.ResponseWriter, r *http.Re
 	}
 	if _, err := s.postPublicNotice(r.Context(), req.ID); err != nil { // rdb 0173; the sweep retries
 		s.o.Log.Error().Err(err).Str("tenant", req.ID).Msg("public notice")
-	}
-	// The 201 stands as with the display name; putWorkspace reads the switch
-	// back into the body, so a failed write shows there as false, never hidden.
-	if err := s.writeFleetSeating(r.Context(), req.ID, req.fleetSeating()); err != nil {
-		s.o.Log.Error().Err(err).Str("tenant", req.ID).Msg("operator.workspace_fleet_seating")
 	}
 	out := map[string]any{}
 	if req.DisplayName != "" {

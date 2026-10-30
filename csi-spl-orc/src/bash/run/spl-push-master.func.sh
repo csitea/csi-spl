@@ -348,14 +348,17 @@ _spl_push_master_head_moved() {
 # <branch> is not on <remote> yet (`ls-remote --exit-code` rc 2: the first push
 # of a review/ ref always gave up on that fetch, c-954 msg 3d6597dd, SPL-4317).
 # The push then creates <branch>, with no force. Master never asks ls-remote.
+# The full refs/heads/<branch>: a bare pattern also matches other/<branch>
+# (SPL-4378). Any other ls-remote failure keeps <branch>. It prints the ref it
+# fetched even when the fetch fails, so a GAVE-UP names that ref.
 _spl_push_master_fetch() {
   local remote="$1" branch="$2"; shift 2
   if [[ "$branch" != master ]]; then
-    git ls-remote --exit-code --heads "$remote" "$branch" >/dev/null 2>&1
+    git ls-remote --exit-code "$remote" "refs/heads/$branch" >/dev/null 2>&1
     (( $? == 2 )) && { echo "$(date -u +%TZ) $branch is not on $remote yet: rebase onto $remote/master" >&2; branch=master; }
   fi
-  bash "$PUSH_FETCH" -C "$PUSH_WT" --remote "$remote" --branch "$branch" "$@" >&2 || return 1
   echo "$remote/$branch"
+  bash "$PUSH_FETCH" -C "$PUSH_WT" --remote "$remote" --branch "$branch" "$@" >&2
 }
 
 _spl_push_master_worker() {
@@ -375,7 +378,7 @@ _spl_push_master_worker() {
     (( try > 1 )) && force=(--force)
     echo "$(date -u +%TZ) try $try/$max: fetch"
     if ! onto="$(_spl_push_master_fetch "$remote" "$branch" "${force[@]}")"; then
-      _spl_push_master_end "GAVE-UP the fetch of $remote/$branch failed"; return 1
+      _spl_push_master_end "GAVE-UP the fetch of ${onto:-$remote/$branch} failed"; return 1
     fi
     echo "$(date -u +%TZ) try $try/$max: rebase onto $onto"
     if ! git "${G[@]}" rebase "$onto" >"$out" 2>&1; then

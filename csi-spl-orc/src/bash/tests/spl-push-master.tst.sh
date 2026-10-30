@@ -62,6 +62,14 @@
 #      origin master below it, master itself unchanged; the red before the fix
 #      was `GAVE-UP the fetch of origin/<branch> failed`. Then a second commit
 #      to the same, now existing, branch -> PUSHED on today's path
+#  15. the new-branch check asks for the exact ref (SPL-4378, R7 c-662 W1-W3):
+#      origin holds only `other/<branch>` -> <branch> still counts as new:
+#      PUSHED on a created ref, master unchanged (the red: `ls-remote --heads
+#      origin <branch>` matched the suffix, GAVE-UP); an unreachable origin
+#      (ls-remote rc 128, not 2) -> no switch to master, `GAVE-UP the fetch of
+#      origin/<branch> failed` (not origin/master); a new branch whose
+#      fetch of master fails (a stub PUSH_FETCH_SCRIPT) -> the GAVE-UP names
+#      origin/master, the ref actually fetched (the red named origin/<branch>)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -366,6 +374,31 @@ sha="$(git -C "$L" rev-parse HEAD)"
   && ! grep -q "not on origin yet" "$S/log" && [ "$(git --git-dir="$B" rev-parse master)" = "$m14" ] \
   && pass "14. the same branch, now on origin -> today's path: PUSHED on it, master unchanged" \
   || fail "14. existing branch (rc $vrc: $v | log: $(tail -n 6 "$S/log"))"
+
+# 15 the new-branch check asks for refs/heads/<branch>, not a suffix
+NB=review/c-999-s15
+git -C "$O" push -q origin "HEAD:refs/heads/other/$NB"
+commit fifteen
+run PUSH_BRANCH="$NB" >/dev/null; v="$(verdict)"; vrc=$?
+sha="$(git -C "$L" rev-parse HEAD)"
+[ "$vrc" -eq 0 ] && grep -qx "PUSHED $sha" <<<"$v" && [ "$(git --git-dir="$B" rev-parse "refs/heads/$NB" 2>/dev/null)" = "$sha" ] \
+  && [ "$(git --git-dir="$B" rev-parse master)" = "$m14" ] \
+  && pass "15. origin holds only other/$NB -> $NB counts as new: PUSHED on the created ref" \
+  || fail "15. suffix ref (rc $vrc: $v | log: $(tail -n 6 "$S/log"))"
+NB=review/c-999-s15-gone
+git -C "$L" remote set-url origin "$T/gone.git"
+commit fifteen-b
+run PUSH_BRANCH="$NB" >/dev/null; v="$(verdict)"; vrc=$?
+git -C "$L" remote set-url origin "$B"
+[ "$vrc" -eq 1 ] && grep -qx "GAVE-UP the fetch of origin/$NB failed" <<<"$v" \
+  && pass "15. an unreachable origin -> no switch to master, GAVE-UP names origin/$NB" \
+  || fail "15. unreachable (rc $vrc: $v | log: $(tail -n 6 "$S/log"))"
+NB=review/c-999-s15-nomaster
+printf '#!/bin/bash\n[[ " $* " == *" --branch master "* ]] && { echo "STUB: master fetch failed"; exit 1; }\nexit 0\n' >"$T/fetch-stub.sh"
+run PUSH_BRANCH="$NB" PUSH_FETCH_SCRIPT="$T/fetch-stub.sh" >/dev/null; v="$(verdict)"; vrc=$?
+[ "$vrc" -eq 1 ] && grep -qx "GAVE-UP the fetch of origin/master failed" <<<"$v" \
+  && pass "15. a new branch whose master fetch fails -> GAVE-UP names origin/master, the ref fetched" \
+  || fail "15. master fetch (rc $vrc: $v | log: $(tail -n 6 "$S/log"))"
 
 echo "spl-push-master: $fails failure(s)"
 [ "$fails" -eq 0 ]

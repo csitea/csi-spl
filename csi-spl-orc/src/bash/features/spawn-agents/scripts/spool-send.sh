@@ -93,6 +93,10 @@
 #       e.g. "Shall I proceed?" (lib/go-ask-guard.inc.sh, SPL-2280): just do
 #       the step, or ask with a ```poll form, or name the owner gate.
 #       SPOOL_GO_ASK_OK=1 sends it anyway, with a WARN.
+#       Also refused: a --kind task body with a `Repo:` line whose owner-
+#       order ledger refuses (unreadable, malformed; spec 168 B2). When it
+#       answers, the owner's orders on the body's paths are appended to the
+#       body word for word (lib/owner-orders.inc.sh) before it is sent.
 #   9   refused (nothing written, no poke): SPOOL_ROOT is a workspace desk's
 #       spool root (.../desk/<tenant>/<box>/spool) and --from is not one of
 #       its seats (a role seat, or the id a desk alias links to), SPL-3959.
@@ -360,6 +364,25 @@ send_accept_via_hub() {
   return "$rc"
 }
 
+# send_owner_orders: appends the owner orders a task BODY with a `Repo:` line
+# gets; 0 (also: no Repo: line, or the body carries them already), 1 refused
+send_owner_orders() {
+  local bf sec
+  [[ "$BODY" =~ (^|$'\n')[*_\ ]*Repo: ]] || return 0
+  # shellcheck source=../lib/owner-orders.inc.sh
+  . "$_here/../lib/owner-orders.inc.sh"
+  bf="$(mktemp)" && sec="$(mktemp)" || return 1
+  printf '%s\n' "$BODY" >"$bf"
+  if ! oo_section "$bf" "$sec"; then
+    rm -f "$bf" "$sec"
+    echo "ERROR: the owner-order ledger refused (above): a task is not handed over without the owner's orders on its paths. Nothing was sent." >&2
+    return 1
+  fi
+  [ "$OO_COUNT" -eq 0 ] || BODY="${BODY}"$'\n'"$(cat "$sec")"
+  rm -f "$bf" "$sec"
+  echo "owner-orders: ${OO_COUNT} copied into the task body" >&2
+}
+
 FROM=""; TO=""; KIND=""; TASK=""; MSGID=""; BODY=""; BODY_SET=0; POKE=1; POKE_ONLY=0; RELAY=0
 ASK_KIND=""; NO_ASK=0; ASK_DEADLINE=""; ACCEPT=""
 EXTRA=()
@@ -471,6 +494,14 @@ if [ "$POKE_ONLY" -eq 0 ]; then
         exit 3
       fi
     fi
+  fi
+  # ---- owner orders ride a task hand-off (spec 168 section 4, B2) -----------
+  # A task handed over by message only, with no spawn, gets the same copy-in
+  # as a brief: a body with a `Repo:` line has the owner's orders on its paths
+  # appended by code (lib/owner-orders.inc.sh). A ledger that refuses refuses
+  # the send (exit 3, nothing sent).
+  if [ "$KIND" = task ]; then
+    send_owner_orders || exit 3
   fi
   if [ "${#BODY}" -gt "$SEND_BODY_WARN" ]; then
     echo "body: WARN ${#BODY} chars > ${SEND_BODY_WARN}: put the detail in a file and send the path" >&2

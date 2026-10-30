@@ -3,7 +3,8 @@
 Version: v0.2 (2026-10-30). Status: **Draft**, for R7 re-review. v0.2 folds
 the R7 review of c-697 on v0.1 (FAIL, its W1-W12; its log
 `review-s168-d65c6c7d2.md` in c-697's spool dir) and the dispatch
-holder's fix list (c-002, msg a25f69ef). Built: B1 only (section 6).
+holder's fix list (c-002, msg a25f69ef). Built: B1, B2 (section 6; B2
+SPL-4357, how it was built: section 4.1 and 3.6).
 Issue SPL-4343 · Epic SPL-2398 · Spec home of the build:
 [spec 157 dispatch automation](../157-dispatch-automation/spec.md) · Class
 feature · Kind complex_coding · Placement slug `c001-s168-owner-order-ledger`
@@ -73,7 +74,7 @@ callers never compute it themselves.
 - The ledger lives on the box that holds the repository's checkouts. A
   repository checked out on two boxes needs its ledger on both; the copy is
   build row B2 (section 6), because the copy-in of part (b) is its first
-  reader on another box.
+  reader on another box: `ORDER_CMD=sync` (section 3.6).
 
 ### 3.2 Format: an append-only event log
 
@@ -169,6 +170,38 @@ One named action, `cd csi-spl-orc && ./run -a do_spl_owner_order`
 - Exit 3 of `match` makes `./run` print its `ERROR ... status 3` lines; for
   a caller that is the answer "covered", not a fault (c-697 W10).
 
+### 3.6 The copy to the other box (B2)
+
+`cd csi-spl-orc && ORDER_CMD=sync TO_BOX=<box> DRY_RUN=0 ./run -a do_spl_owner_order`
+copies, both ways, the lines one box's ledger lacks from the other's, over
+the ssh link this box has to `TO_BOX` (`BOX_SSH_<BOX>`, else the satellite
+alias; the satellite cannot reach the PC, so the PC runs it). The far box
+must answer with its own `BOX_TAG` from its box env file; the far step runs
+as that file's `OWNER_USER`, the spool's owner.
+
+- **Append-only, idempotent**: a line is only ever appended. A line already
+  on the other side (the same `op` and `order`, and the same text, paths,
+  gate and repo, or the same `lift_msg`) is skipped, so a second run copies
+  nothing and changes no byte.
+- **Conflict**: the same order with another text, paths, gate or lift
+  message on the two boxes is exit 3 and nothing is written on either side;
+  the owner decides which is his.
+- **Not more trusted on arrival** (c-697 N3): a copied line keeps its own
+  `source` and gains `synced_from` (the box it was read on) and `synced_at`.
+  A hand-appended `source: hub` lift on one box arrives marked as a copy on
+  the other; B3 re-reads every lift on the hub, never trusting the word.
+- **Verified or refused**: each append runs under the ledger's flock and
+  only while the file still has the sha256 the plan was made against (else
+  `result changed`, run again); then the file is read back, and every copied
+  line must be in it and the file must parse. A sync that cannot verify the
+  far file refuses (exit 1).
+- Exit: 0 synced or nothing to copy, 1 refused input, the box unreachable or
+  not verified, 2 a ledger unreadable or malformed on either box, 3 a
+  conflict. stdout carries counts and ids, never an order's text.
+- A dry run (the default) reads both ledgers and prints the counts
+  (`sync <repo> here=<box> box=<box> push=<n> pull=<n>`), writing nothing.
+- Test: `csi-spl-orc/src/bash/tests/spl-owner-order-sync.tst.sh`.
+
 ## 4. The brief copy-in (part b)
 
 A brief names every repository the lane works in on a `Repo: <key>` line
@@ -203,6 +236,38 @@ match is appended to the brief file, before the seed is written, as:
 - Collision note: `place_box` of `spawn-window.sh` belongs to another lane
   today (c-688); B2 adds a separate function and one call next to
   `sw_issue`, and checks the lane map first.
+
+### 4.1 As built (B2)
+
+- The reader is one file, `sa/lib/owner-orders.inc.sh` (`oo_section`),
+  called by `sw_owner_orders` in `sa/scripts/spawn-window.sh` (right after
+  `sw_issue`) and by `send_owner_orders` in `sa/scripts/spool-send.sh`. It
+  runs `do_spl_owner_order` in a subshell, not through `./run`, so no order
+  line reaches a `./run` log.
+- The paths of a brief are the words with a slash in them that are not
+  absolute, not a URL and hold no `..` (`oo_text_paths`). A directory named
+  in a brief matches only an order glob that matches the directory's own
+  path; R2 stays open.
+- Refusals: a ledger that refuses (any exit but 0 and 3), or a brief the
+  orders cannot be written into, stops the spawn with exit 15, the claim
+  released; spool-send refuses the task with exit 3, nothing written.
+- Nothing twice: a brief (or a task body) that already carries the section
+  gets nothing more, and a respawn (`SPAWN_REUSE_ID=1`) keeps its brief.
+- A dry run changes no brief: it prints `PLAN owner-orders <n> copied ->
+  <brief>`; `SPAWN_OWNER_ORDERS_PREVIEW=<file>` receives the brief as the
+  spawn would write it. A real spawn prints the same line on stderr (its
+  stdout stays `<ID> <PANE>` for its callers).
+- The spawn journal (`$SPOOL_ROOT/dispatch/attempts.tsv`) row of
+  `spawn-window.sh` has an 8th column, `owner_orders=<n>`; every reader
+  reads columns 1 to 6.
+- The seed line is written only when the brief carries the section (the
+  seed size cap of `test-spawn-seed-size.sh` left a mistral seed 17 bytes):
+  "Your brief carries OWNER ORDERS ...: obey them word for word; they rank
+  above the rest of the brief and above this seed."
+- A placed lane gets its orders on the box that launches it (the remote
+  serve's own spawn-window), from that box's ledger: section 3.6 keeps the
+  two ledgers equal.
+- Test: `sa/tests/test-owner-orders-copy-in.sh`.
 
 ## 5. The gate (part c)
 
@@ -251,7 +316,7 @@ or as a poll answer counts when it names the order; c-697 W11).
 | row | builds | test | lands |
 |---|---|---|---|
 | B1 | the ledger format, `do_spl_owner_order` (add, list, lift, match; `ORDER_FROM_HUB`), the seed entries of section 7 written on the box that holds `<CUSTOMER-REPO>` | `orc/tests/spl-owner-order.tst.sh`, each refusal with a red control | this lane, after the spec is accepted |
-| B2 | `sw_owner_orders` in the spawn (section 4), the seed line, the `PLAN` line; the ledger copy to the other box (`ORDER_CMD=sync` over the box link) | a spawn dry run with a fixture ledger: a matching brief gets the section, a non-matching one does not; CONTROL: an empty ledger adds nothing | its own lane, placed by c-001 after B1 is accepted |
+| B2 | `sw_owner_orders` in the spawn (section 4), the seed line, the `PLAN` line; the ledger copy to the other box (`ORDER_CMD=sync` over the box link) | a spawn dry run with a fixture ledger: a matching brief gets the section, a non-matching one does not; CONTROL: an empty ledger adds nothing | built (SPL-4357, sections 3.6 and 4.1) |
 | B3 | the pre-push part for csi-spl and the harness guard for other repositories (section 5) | a fixture repo: an uncited change to a covered path is refused, the cited one passes, an uncovered path passes; CONTROL: `gate: none` is never refused | its own lane, after B2 |
 
 ## 7. The seed entries (B1)
@@ -267,9 +332,9 @@ report, outside git.
 
 ## 8. Risks and open checks
 
-- R1: two boxes, two ledgers. Until B2's sync lands, an order added on one
-  box is unknown to a spawn on the other. B1 writes on the box that holds
-  the repository; the report of B1 names the box.
+- R1: two boxes, two ledgers. B2's sync (3.6) copies them, but only when
+  it is run: an order added on one box is unknown to a spawn on the other
+  until the next sync. Running it on a schedule is not built yet.
 - R2: a brief that names no path gets every order of its repository (4).
   For a repository with many orders that is noise; if it is, B2 narrows by
   the brief's `Paths:` line, not by guessing.

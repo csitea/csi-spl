@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
 # Purpose: spec 115 ORC-2, spawn-window.sh writes the tries journal row:
-#          ONE row `task_id kind vendor id start_epoch outcome source` (7
-#          tab-separated columns) in $SPOOL_ROOT/dispatch/attempts.tsv.
+#          ONE row `task_id kind vendor id start_epoch outcome source
+#          owner_orders=<n>` (8 tab-separated columns; the 8th is spec 168
+#          B2's count) in $SPOOL_ROOT/dispatch/attempts.tsv.
 #          No live agent, no tmux, no claude: a tmux stub on PATH answers
 #          list-sessions and new-window, so the launcher never runs.
 #   1. a started lane writes outcome `run`, task from LANE_MIX_TASK, kind
@@ -56,10 +57,10 @@ sw() {
 fresh() { rm -rf "$T/spool" "$T/no-pane" "$T/no-session"; mkdir -p "$T/spool/dispatch"; }
 J="$T/spool/dispatch/attempts.tsv"
 rows() { [ -f "$J" ] && grep -c . "$J" || echo 0; }
-# row_ok <task> <kind> <id> <outcome>: the journal is exactly one 7-column row
+# row_ok <task> <kind> <id> <outcome>: the journal is exactly one 8-column row
 row_ok() {
   [ "$(rows)" = 1 ] && awk -F'\t' -v t="$1" -v k="$2" -v i="$3" -v o="$4" '
-    NF == 7 && $1 == t && $2 == k && $3 == "claude" && $4 == i && $5 ~ /^[0-9]+$/ && $6 == o && $7 == "spawn-window" { ok = 1 }
+    NF == 8 && $1 == t && $2 == k && $3 == "claude" && $4 == i && $5 ~ /^[0-9]+$/ && $6 == o && $7 == "spawn-window" && $8 ~ /^owner_orders=[0-9]+$/ { ok = 1 }
     END { exit !ok }' "$J"
 }
 journal() {
@@ -72,7 +73,7 @@ journal() {
 fresh
 sw "$SW" c-901 LANE_MIX_TASK="$TASK" LANE_MIX_KIND=complex_coding
 [ "$(cat "$T/rc")" = 0 ] && grep -qx 'c-901 %42' "$T/so" && row_ok "$TASK" complex_coding c-901 run &&
-  pass "1. a started lane: exit 0, 'c-901 %42' printed, one 7-column row outcome run" ||
+  pass "1. a started lane: exit 0, 'c-901 %42' printed, one 8-column row outcome run" ||
   fail "1. rc=$(cat "$T/rc") $(cat "$T/so") journal: $(cat "$J" 2>/dev/null)"
 grep -qx 'claude  tries=1 failed=0' <<<"$(journal)" &&
   pass "1. do_spl_lane_mix_journal reads it: claude tries=1 failed=0" || fail "1. reader: $(journal)"
@@ -117,13 +118,13 @@ for i in 1 2 3 4 5 6 7 8; do
       SPOOL_SHOW_PANE=0 SPAWN_BOX_PICK=0 LANE_MIX_TASK="$TASK" bash "$SW" claude "c-90$i" "$T" >/dev/null 2>&1 ) &
 done
 wait
-[ "$(rows)" = 8 ] && [ "$(awk -F'\t' 'NF == 7' "$J" | cut -f4 | sort -u | wc -l)" = 8 ] &&
-  pass "5. 8 concurrent spawns: 8 whole 7-column rows" || fail "5. rows=$(rows): $(cat "$J")"
+[ "$(rows)" = 8 ] && [ "$(awk -F'\t' 'NF == 8' "$J" | cut -f4 | sort -u | wc -l)" = 8 ] &&
+  pass "5. 8 concurrent spawns: 8 whole 8-column rows" || fail "5. rows=$(rows): $(cat "$J")"
 
 # ---- 6. control: drop the outcome field -------------------------------------
 mkdir -p "$T/fa"
 cp -r "$PROJ_ROOT/src/bash/features/spawn-agents/lib" "$PROJ_ROOT/src/bash/features/spawn-agents/scripts" "$T/fa/"
-sed -i 's/ "\$SW_START" "\$outcome" spawn-window/ "$SW_START" spawn-window/; s/%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n/%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n/' "$T/fa/scripts/spawn-window.sh"
+sed -i 's/ "\$SW_START" "\$outcome" spawn-window/ "$SW_START" spawn-window/; s/%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n/%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n/' "$T/fa/scripts/spawn-window.sh"
 if grep -q '"\$outcome"' "$T/fa/scripts/spawn-window.sh"; then
   fail "6. control: the outcome field was not dropped from the copy"
 else

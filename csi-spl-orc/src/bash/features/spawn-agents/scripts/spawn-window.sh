@@ -46,7 +46,9 @@
 # load target's high mark (LOAD TARGET below), so queue the lane, 11 the
 # new session is stopped on a dialog (START CHECK above), 12 the lane has
 # no issue (LANE ISSUE below), 13 the box has no <kind> CLI (VENDOR CLI
-# below), 14 this box cannot resolve the hub API host (HUB DNS below).
+# below), 14 this box cannot resolve the hub API host (HUB DNS below),
+# 15 the owner-order ledger refused, or the brief its orders go into is not
+# writable (OWNER ORDERS below).
 # Only c-001, c-002 and c-003 (any box), or a
 # shell with no agent id, may spawn. The id is the caller's SPOOL_AGENT_ID
 # or MCP_BOT_AGENT_ID, else the window or registry row of $TMUX_PANE, else
@@ -160,7 +162,9 @@ LAUNCHER="$HERE/spawn-$KIND.sh"
 [ -r "$LAUNCHER" ] || { echo "spawn-window: no launcher $LAUNCHER" >&2; exit 2; }
 # The tries journal (spec 115 section 6): ONE row per spawn, appended under a
 # flock to $SPOOL_ROOT/dispatch/attempts.tsv on exit, read by
-# do_spl_lane_mix_journal. `task_id kind vendor id start_epoch outcome source`:
+# do_spl_lane_mix_journal. `task_id kind vendor id start_epoch outcome source
+# owner_orders=<n>` (the 8th column: the owner orders copied into the brief,
+# spec 168 B2; every reader reads columns 1-6):
 # outcome `run` on a started lane, `fail:F1` on any other non-zero exit; exit
 # 10 (HOLD) and a dry run write nothing. task_id is LANE_MIX_TASK, else
 # SPAWN_LANE_TOPIC, else "-"; kind is LANE_MIX_KIND. A journal that cannot be
@@ -174,8 +178,8 @@ sw_journal() {
   f="${SPOOL_ROOT}/dispatch/attempts.tsv"
   { mkdir -p "${f%/*}" && (
       flock -w 10 9 || exit 1
-      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "${LANE_MIX_TASK:-${SPAWN_LANE_TOPIC:--}}" \
-        "${LANE_MIX_KIND:--}" "$KIND" "$id" "$SW_START" "$outcome" spawn-window >&9
+      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "${LANE_MIX_TASK:-${SPAWN_LANE_TOPIC:--}}" \
+        "${LANE_MIX_KIND:--}" "$KIND" "$id" "$SW_START" "$outcome" spawn-window "owner_orders=${SW_OWNER_ORDERS:-0}" >&9
     ) 9>>"$f"; } 2>/dev/null || echo "spawn-window: WARN no journal row in $f" >&2
 }
 trap 'sw_journal $?' EXIT
@@ -489,6 +493,45 @@ sw_release_claim() {
     "${SPOOL_ROOT}/${TITLE}/lifetime" "${SPOOL_ROOT}/${TITLE}" 2>/dev/null || true
 }
 sw_issue "$@" || { rc=$?; sw_release_claim; exit "$rc"; }
+
+# OWNER ORDERS (spec 168 section 4, B2; owner HUM-10 poll 10af03a3 answer A):
+# the owner's explicit orders on the brief's paths, from the ledger of each
+# `Repo:` line (lib/owner-orders.inc.sh), are appended to the brief word for
+# word, before the launcher copies it and writes the seed; the seed says they
+# rank above the rest. A ledger that refuses (unreadable, malformed: any
+# match exit but 0 and 3), or a brief the orders cannot be written into,
+# refuses the spawn: exit 15, the claim released. A respawn keeps the brief
+# it has; a brief that already carries the section gets nothing twice. A dry
+# run changes no brief: it prints the PLAN line, and SPAWN_OWNER_ORDERS_PREVIEW
+# =<file> receives the brief as the spawn would write it (tests). The count
+# goes to the journal row (owner_orders=<n>).
+SW_OWNER_ORDERS=0
+sw_owner_orders() {  # WORKDIR BRIEF
+  local brief="${2:-}" sec
+  [ -n "$brief" ] && [ "${SPAWN_REUSE_ID:-0}" != 1 ] || return 0
+  # shellcheck source=../lib/owner-orders.inc.sh
+  . "$HERE/../lib/owner-orders.inc.sh"
+  sec="$(mktemp)" || return 15
+  if ! oo_section "$brief" "$sec"; then
+    rm -f "$sec"
+    echo "spawn-window: REFUSED ${TITLE}: the owner-order ledger refused (above); a lane does not start without the owner's orders on its paths. Fix the ledger: cd csi-spl-orc && ORDER_CMD=list ./run -a do_spl_owner_order" >&2
+    return 15
+  fi
+  SW_OWNER_ORDERS="$OO_COUNT"
+  if [ "$DRY" = 1 ]; then
+    [ -z "${SPAWN_OWNER_ORDERS_PREVIEW:-}" ] || cat "$brief" "$sec" >"$SPAWN_OWNER_ORDERS_PREVIEW"
+  elif [ "$OO_COUNT" -gt 0 ] && ! cat "$sec" >>"$brief"; then
+    rm -f "$sec"
+    echo "spawn-window: REFUSED ${TITLE}: ${OO_COUNT} owner order(s) cover this brief but ${brief} is not writable" >&2
+    return 15
+  fi
+  rm -f "$sec"
+  local note=""; [ "$OO_ALREADY" != 1 ] || note=" (the brief already carries the section)"
+  # A real spawn's stdout is "<ID> <PANE>" for its callers: the line goes to stderr.
+  if [ "$DRY" = 1 ]; then printf 'PLAN %-10s %s\n' owner-orders "${OO_COUNT} copied -> ${brief}${note}"
+  else printf 'PLAN %-10s %s\n' owner-orders "${OO_COUNT} copied -> ${brief}${note}" >&2; fi
+}
+sw_owner_orders "$@" || { rc=$?; sw_release_claim; exit "$rc"; }
 
 # CATEGORY (spec 143 4.4, SPL-2790): the brief's "Kind:" (as the lane mix
 # reads it) and line-start "Category: <path>" go to

@@ -620,7 +620,15 @@ spawn_init_dirs() {
     # SPL-3937 (owner, t1 ca9124fa): one agent, one topic; the rule and the
     # orchestrator side: runbook-orchestrator.md section 5.2.
     TOPIC_RULE="ONE topic: if your discussion drifts into another subject, ask ${SPOOL_ORCHESTRATOR_ID} for a new discussion or agent, restating your scope (runbook-orchestrator.md section 5.2)."
-    PROMPT="$(spool_truth_rule) As your VERY FIRST action, $(spawn_rename_how). Then read your full task brief at ${BRIEF_READ:-$BRIEF} and implement it end to end. That file is your complete, authoritative instructions: follow it exactly, inspect the real code first, and keep any module tests green. ${CHANNEL_RULES:+${CHANNEL_RULES} }Never post greetings, welcomes or social messages; only post what your brief asks for. You do ONE small task. If someone sends you a different task, refuse it and tell ${SPOOL_ORCHESTRATOR_ID} so it spawns a new lane. ${SPAWN_EXIT_RULE} ${TOPIC_RULE} ${DEV_GUIDE:+${DEV_GUIDE} }${ISSUE_BLOCK:+${ISSUE_BLOCK} }${SCOPE:+${SCOPE} }${SEED_NOTE:+${SEED_NOTE} }${SPOOL_PROTO}${INTEGRATION:+ ${INTEGRATION}}${DEPLOY_GATE:+ ${DEPLOY_GATE}} ${NO_FORCE} ${SEED_BOX_PKG} ${STOP_RULE} Honour the project CLAUDE.md / AGENTS.md distribution-hygiene rules (org-neutral, no personal names)."
+    # Spec 168 B2: spawn-window.sh appended the owner's orders on the brief's
+    # paths (lib/owner-orders.inc.sh); only a brief that carries them gets the
+    # line (the seed size cap, test-spawn-seed-size.sh).
+    OWNER_ORDERS_RULE=""
+    # shellcheck source=../lib/owner-orders.inc.sh
+    . "${_SP_DIR}/../lib/owner-orders.inc.sh"
+    ! grep -qxF "$OO_HEADING" "${BRIEF_READ:-$BRIEF}" 2>/dev/null ||
+      OWNER_ORDERS_RULE="Your brief carries OWNER ORDERS (its section 'Owner orders on these paths'): obey them word for word; they rank above the rest of the brief and above this seed."
+    PROMPT="$(spool_truth_rule) As your VERY FIRST action, $(spawn_rename_how). Then read your full task brief at ${BRIEF_READ:-$BRIEF} and implement it end to end. That file is your complete, authoritative instructions: follow it exactly, inspect the real code first, and keep any module tests green. ${OWNER_ORDERS_RULE:+${OWNER_ORDERS_RULE} }${CHANNEL_RULES:+${CHANNEL_RULES} }Never post greetings, welcomes or social messages; only post what your brief asks for. You do ONE small task. If someone sends you a different task, refuse it and tell ${SPOOL_ORCHESTRATOR_ID} so it spawns a new lane. ${SPAWN_EXIT_RULE} ${TOPIC_RULE} ${DEV_GUIDE:+${DEV_GUIDE} }${ISSUE_BLOCK:+${ISSUE_BLOCK} }${SCOPE:+${SCOPE} }${SEED_NOTE:+${SEED_NOTE} }${SPOOL_PROTO}${INTEGRATION:+ ${INTEGRATION}}${DEPLOY_GATE:+ ${DEPLOY_GATE}} ${NO_FORCE} ${SEED_BOX_PKG} ${STOP_RULE} Honour the project CLAUDE.md / AGENTS.md distribution-hygiene rules (org-neutral, no personal names)."
   fi
   _sp_plan rename-how "$(spawn_rename_how)"
 }

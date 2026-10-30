@@ -75,15 +75,17 @@ describe('C204 sort Messages', () => {
 })
 
 describe('C205 sort Priority', () => {
-  it('1 before 5; a topic with no priority sorts as 5 (red: no priority sorts first)', () => {
-    const rows = [card('none', at(9), 1, undefined), card('p5', at(8), 1, 5), card('p1', at(7), 1, 1), card('p3', at(6), 1, 3)]
-    assert.deepEqual(ids(topicListView(rows, { sort: 'priority' })), ['p1', 'p3', 'none', 'p5'])
+  // the owner, prd t1 0344254d msg f5ed1396: "radio buttons whith default 3" (SPL-4367)
+  it('1 before 5; a topic with no priority sorts as 3, between a 2 and a 4 (red: no priority sorts first, or as 5)', () => {
+    const rows = [card('none', at(9), 1, undefined), card('p5', at(8), 1, 5), card('p1', at(7), 1, 1), card('p4', at(6), 1, 4), card('p2', at(5), 1, 2)]
+    assert.deepEqual(ids(topicListView(rows, { sort: 'priority' })), ['p1', 'p2', 'none', 'p4', 'p5'])
   })
-  it('anything outside 1..5 is 5', () => {
-    for (const p of [undefined, null, '', 0, 6, 2.5, 'x', -1]) assert.equal(topicPriority(p), TOPIC_PRIORITY_DEFAULT, String(p))
+  it('anything outside 1..5 is 3', () => {
+    assert.equal(TOPIC_PRIORITY_DEFAULT, 3)
+    for (const p of [undefined, null, '', 0, 6, 2.5, 'x', -1]) assert.equal(topicPriority(p), 3, String(p))
     assert.equal(topicPriority('2'), 2)
-    const rows = [card('zero', at(9), 1, 0), card('p4', at(8), 1, 4)]
-    assert.deepEqual(ids(topicListView(rows, { sort: 'priority' })), ['p4', 'zero'])
+    const rows = [card('p4', at(9), 1, 4), card('zero', at(8), 1, 0)]
+    assert.deepEqual(ids(topicListView(rows, { sort: 'priority' })), ['zero', 'p4'])
   })
   it('there is no third sort (owner Q2 answer A)', () => {
     assert.deepEqual([...TOPIC_LIST_SORTS], ['last', 'messages', 'priority'])

@@ -9,7 +9,7 @@
  * - Sort, owner poll Q2 answer A ("There is no third sort: three sorts are
  *   enough"): `last` (last update, today's order), `messages` (the topic's
  *   total count, more first), `priority` (1 first, 5 last; a topic nobody
- *   set is 5, panel D7). Ties go by last update, then `task_id`, so the
+ *   set is 3, between a 2 and a 4: spec 150 v1.1 D7). Ties go by last update, then `task_id`, so the
  *   order is stable (C206).
  * - Unread stays at the edge after any sort (panel D9, owner rule SPL-2506):
  *   the unread group comes first, the read group after it, each in the
@@ -25,8 +25,8 @@ export const TOPIC_LIST_FILTERS = Object.freeze(['all', 'new'])
 export const TOPIC_LIST_SORTS = Object.freeze(['last', 'messages', 'priority'])
 export const TOPIC_LIST_FILTER_DEFAULT = 'all'
 export const TOPIC_LIST_SORT_DEFAULT = 'last'
-/** a discussion nobody set (panel D7, as an issue) */
-export const TOPIC_PRIORITY_DEFAULT = 5
+/** a discussion nobody set: the owner's "default 3" (msg f5ed1396, spec 150 v1.1 D7, SPL-4367); issues keep 5 */
+export const TOPIC_PRIORITY_DEFAULT = 3
 
 /** @param {unknown} raw @returns {'all' | 'new'} */
 export function parseTopicListFilter(raw) {
@@ -50,7 +50,7 @@ export function topicUnreadCount(n) {
   return Math.floor(Number(n)) || 0
 }
 
-/** 1..5; anything else (unset, out of range, not a whole number) is 5 */
+/** 1..5; anything else (unset, out of range, not a whole number) is TOPIC_PRIORITY_DEFAULT */
 export function topicPriority(p) {
   const n = Number(p)
   return p !== null && p !== '' && Number.isInteger(n) && n >= 1 && n <= 5 ? n : TOPIC_PRIORITY_DEFAULT

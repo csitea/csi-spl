@@ -127,7 +127,8 @@ func TestZombieTopicsListsIdleHeads(t *testing.T) {
 	}
 }
 
-// TestZombieTopicsRefusals: bad numbers, and a member who is no admin.
+// TestZombieTopicsRefusals: bad numbers; the operator developer, an admin of
+// another workspace and an anonymous caller (R7 W1).
 func TestZombieTopicsRefusals(t *testing.T) {
 	r := newFleetTokensRig(t)
 	for _, q := range []string{"?idle_days=0", "?idle_days=x", "?idle_days=3651", "?limit=0", "?limit=5001", "?limit=-1"} {
@@ -135,7 +136,9 @@ func TestZombieTopicsRefusals(t *testing.T) {
 			t.Errorf("GET %s%s: %d, want 400", zombiePath, q, code)
 		}
 	}
-	if code, _ := call(t, r.e, r.op, http.MethodGet, zombiePath, r.dev, nil); code != http.StatusForbidden {
-		t.Errorf("GET %s as a developer: %d, want 403", zombiePath, code)
+	for name, who := range map[string][2]string{"operator developer": {r.op, r.dev}, "other workspace admin": {r.other, r.otherA}, "anonymous": {r.op, ""}} {
+		if code, body := call(t, r.e, who[0], http.MethodGet, zombiePath, who[1], nil); code != http.StatusForbidden || body["permission"] != "operator.workspaces" {
+			t.Errorf("GET %s as %s: %d %v, want 403 operator.workspaces", zombiePath, name, code, body)
+		}
 	}
 }

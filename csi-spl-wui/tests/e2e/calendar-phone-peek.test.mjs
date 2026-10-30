@@ -155,8 +155,10 @@ const row = (id) => `${ROOT} [data-test=calphone-page][data-dir="0"] [data-test=
    left to el.tap(), whose scroll slid the bars away (SPL-4264, a 0.2 s
    margin-top transition) under the finger: the row went 423 -> 304 between
    the aim and the click, and the click at y=445 opened Dup source (16:00)
-   (SPL-4435, 4 of 6 runs at load 20-34). The slide starts a few frames after
-   the scroll, so stillness alone passed before it began. */
+   (SPL-4435; 4 nice-19 burners, the old file red in 1 of 6 runs at load
+   20-53 and in 2 of 6 at load 18-44, a traced copy in 8 of 15). The slide
+   starts a few frames after the scroll, so stillness alone passed before it
+   began. */
 async function tap(p, sel) {
   const el = await p.$(sel)
   if (!el) return false

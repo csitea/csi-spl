@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.5 (2026-10-30). Status: **Draft** (plan only; nothing below is
+Version: v0.6 (2026-10-30). Status: **Draft** (plan only; nothing below is
 built). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -18,8 +18,11 @@ v0.5 settles the four calls the T1 catalogue lane (L2) asked for, read from
 the DDL: the hours plan, entries and the Google Calendar map (5.1a), invites
 and embed visitors whose parent row does not move (5.1b), labels, fallback
 deliveries and the audit binds; it adds Q8 (hours inside an approved period).
-The owner's answers to section 11 are not in yet; they go into the
-next version as a decisions table.
+v0.6 folds the owner's answers (section 11.1: Q1-Q4, Q6, Q8 = A; Q7 = A
+with the channel not named yet; Q5 still open), the v0.5 review notes by
+c-907 (N1: P2 refuses without a `<DST>` orchestrator seat; N2: members'
+hours rows are never deleted silently) and the catalogue's fifth class,
+Refuse, in C2 (from the T1 lane).
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -173,12 +176,22 @@ both as "not about spool channels".
 
 - **Hours rows (M6c)** are members' time records, not the channel's, but
   their `target` names it, and the scan (5.2) would find them. They move
-  with the set for kept members (Q5) and are deleted for the rest, with
-  one exception: a row whose `(member_id, day)` falls inside an
-  `hours_periods` row of `<SRC>` in state `frozen` or `approved` belongs to
-  a time sheet already signed off, whose `minutes` total is stored. Moving
-  it would change an approved sheet. `plan` lists those rows and the move
-  refuses them until the owner answers Q8.
+  with the set for members who come along to `<DST>` (Q5). They are never
+  deleted silently (N2): a person's time record is theirs, not the
+  channel's. Two cases make `plan` list the rows and the move stop until
+  the owner says, per member, what happens to them:
+  - the member does not come along to `<DST>` (Q5): the owner adds the
+    member to `<DST>` (the rows then move) or tells us to leave the rows in
+    `<SRC>`;
+  - a row whose `(member_id, day)` falls inside an `hours_periods` row of
+    `<SRC>` in state `frozen` or `approved` belongs to a time sheet already
+    signed off, whose `minutes` total is stored; moving it would change an
+    approved sheet. Q8 = A: the owner reopens the sheet (the rows then
+    move) or tells us to leave the rows.
+
+  Rows left by the owner's word stay in `<SRC>` naming the channel; they
+  are a kept item (5.6), and the scan (5.2) reports them as known, not as a
+  failure.
 - **`gcal_event_map`** (rdb 0217) ties a moved calendar event to the Google
   event in a `<SRC>` member's connected calendar. It cannot be carried: its
   `connection_id` is a `<SRC>` connection. Letting the cascade delete it is
@@ -277,6 +290,7 @@ A file, Qto doc, issue or epic that the set uses AND something staying in
 | hub logs (Cloud Logging) | request lines with ids | logs are append-only by design | the log bucket's retention (not checked: open check R4) |
 | mail and notifications already sent | text sent to people | outside the system | never |
 | git history of this repo | commit subjects, specs and dispatch notes that cite a task id or an issue key | history is forward-only; no force-push (developer guide 4) | never |
+| hours rows the owner said to leave (5.1a) | a member's time record that names the channel | it is the member's signed or kept time sheet, and the owner chose to leave it (Q8 = A, or a member not brought along under Q5) | never, unless the owner deletes it |
 | box spool archives, transcripts, worktrees | copies of the channel's posts on the boxes | they are the agents' working memory, and "the whole work should be possible to continue" needs them; they name no workspace (F10) | spec 167's cleanup if the channel also leaves its box |
 
 ## 6. "The whole work should be possible to continue"
@@ -349,7 +363,7 @@ cd csi-spl-orc && CHANNEL=<SRC>/<CHANNEL> TO=<DST> MOVE_MODE=copy ./run -a do_sp
 | step | what | undo |
 |---|---|---|
 | P1 | `plan`, freeze the set in the journal (in `<DST>`) | drop the journal |
-| P2 | Check: `<DST>` exists, the caller is allowed, no channel `<CHANNEL>` in `<DST>` (else `TO_NAME=<new id>`), quotas fit, every seat has a `<DST>` desk, shared items resolved (5.5) | nothing changed |
+| P2 | Check: `<DST>` exists, the caller is allowed, no channel `<CHANNEL>` in `<DST>` (else `TO_NAME=<new id>`), quotas fit, every seat has a `<DST>` desk, `<DST>` has an orchestrator seat (W2, the P2b probe's recipient), shared items resolved (5.5), no unresolved hours rows (5.1a) | nothing changed |
 | P2b | Prove each agent's `<DST>` desk: one probe DM to the `<DST>` orchestrator seat on the probe topic (task id = `move_id`), msg id recorded in the journal (W2). No seat is added here | nothing to undo but the probe DMs, which stay in `<DST>` as part of the journal's record |
 | P3 | Copy blobs and Qto objects to `<DST>` (idempotent) | delete the `<DST>` copies |
 | P4 | **One database transaction**, asOperator: insert every row of the set under `<DST>` (parents first), rewrite `channel_order`, NULL the DM `ref_task_id`s, write the redirect rows (Q2); for a move, delete the set in `<SRC>` (children first, F5); recompute counters; bump change stamps. 3,650 posts (F13) is the largest set today (timing: R3). | the transaction rolls back as a whole |
@@ -372,7 +386,7 @@ now is.
 | # | case | red control |
 |---|---|---|
 | C1 | `plan` changes nothing: a row count of every tenant table before and after is equal | a `plan` that writes the journal in `<SRC>` -> the count differs |
-| C2 | Catalogue gate: every table with `tenant_id` is classified in the move catalogue (moved / rewritten / recomputed / not about channels, with its reason), like `TestRLSCoversEveryTenantTable` | add a test table with `tenant_id` and no entry -> red |
+| C2 | Catalogue gate: every table with `tenant_id` is classified in the move catalogue (moved / rewritten / recomputed / not about channels / refuse, with its reason; refuse = a row of the set makes `plan` stop, e.g. `embed_visitors`, 5.1b), like `TestRLSCoversEveryTenantTable` | add a test table with `tenant_id` and no entry -> red |
 | C3a | Move, messages family: a seeded channel with topics, threads, a poll with answers, reactions, revisions, live acks, read marks, a `path` attachment, a DM about a topic, and a post spec 045 moved out of it into a staying channel: every 5.1 messages proof is 0 in `<SRC>`, every row is in `<DST>` with equal counts, the staying post's `moved_from_*` is NULL | skip the `delivery_live_acks` copy -> the `<DST>` count differs and the cascaded `<SRC>` delete has lost them |
 | C3b | Move, issues: issues with an epic in the set, their events, discussions and `spec_sync_map` rows; a `spec_sync_map` row a staying issue also needs makes `plan` refuse | drop the shared check -> the staying row's `issue_number` is NULL after the move |
 | C3c | Move, Qto docs: doc, items, nodes, ACL and rev log in `<DST>`'s tree; 0 in `<SRC>` | skip the rev-log copy -> the `<DST>` rev count differs |
@@ -448,6 +462,25 @@ wiring. Critical path for the first move: L2 > L4 > L6 > L7 > L8, with L1's
 DDL live on dev and prd first. Copy (T11) is not on the first move's path.
 
 ## 11. Owner questions
+
+### 11.1 Decisions
+
+Read from the owner's own answers in prd t1 topic
+`3a618e79-8ecc-4154-9ec8-58ed6261b1e8` on 2026-10-30
+(`do_spl_db_query`, `from_id='HUM-10'`).
+
+| Q | answer | owner msg | what the spec does |
+|---|---|---|---|
+| Q1 | A, a snapshot | `d2c97186` (poll `0d78f4d9`) | section 7 as written; no sync |
+| Q2 | A, 30 days of redirect, re-route and old issue key map, then 404 | `333aea7b` (poll `502a793f`) | W3-W5, C8 with the redirect on; T2's redirect table expires rows after 30 days |
+| Q3 | A, keep until they expire | `d2c97186` | 5.6 as written; P7 prints the last expiry date |
+| Q4 | A, leave them and list them | `d2c97186` | 5.4: `plan` lists, nothing edited |
+| Q5 | **open**: not answered; the dispatch holder has asked again | - | W1 and 5.1a-b keep the "kept members" rule; the default adds no one |
+| Q6 | A, stop and list | `d2c97186` | 5.5, C7: `plan` refuses on a shared item |
+| Q7 | A, a csitea channel into the workspace created 2026-10-29; **the channel is not named yet** | `d2c97186` | the first prd run waits for the channel's name |
+| Q8 | A, stop and list | `85eb389c` (poll `53f98bf8`) | 5.1a, C19 |
+
+### 11.2 The polls as asked
 
 Asked as one poll, recommended option first in each:
 

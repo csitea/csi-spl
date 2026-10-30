@@ -53,7 +53,8 @@
 #      starts here; a done row or another slug does not block it
 #  16. CORDON (SPL-4318, found by c-177): the three paths that place without
 #      the load target pick honour do_spl_box_cordon. 1) no pick line: the
-#      busy count skips a cordoned box, every box cordoned = exit 10; 2) the
+#      busy count skips a cordoned box, every box cordoned = exit 10, no lane
+#      map load and this box cordoned = exit 10; 2) the
 #      orch lease on another box and this box cordoned = exit 10; 3) a failed
 #      remote spawn does not fall back to a cordoned box here (exit 10);
 #      CONTROL each path without the cordon, and an expired cordon is none
@@ -390,6 +391,13 @@ cordon "$HERE_BOX"
 spawn_k claude "${nopick[@]}"
 check "16. path 1: every box cordoned: exit 10, nothing spawned, no remote request" \
   bash -c '[ "$1" = 10 ] && [[ "$2" == *"is CORDONED"* ]] && [[ "$2" != *"no tmux session"* ]] && [ ! -e "$3" ]' _ "$RC" "$OUT" "$T_TMP/remote.calls"
+uncordon
+spawn_k claude "${nopick[@]}" "SPAWN_PLACE_MAP_CMD=echo {}"
+check "16. CONTROL path 1: no lane map load, no cordon: starts here with a WARN" \
+  bash -c '[ "$1" = 5 ] && [[ "$2" == *"WARN no lane map load"* ]]' _ "$RC" "$OUT"
+cordon "$HERE_BOX"
+spawn_k claude "${nopick[@]}" "SPAWN_PLACE_MAP_CMD=echo {}"
+check "16. path 1: no lane map load, this box cordoned: exit 10, not started here" held "$HERE_BOX"
 uncordon
 echo "c-001@$OTHER 1" > "$SPOOL_ROOT/dispatch/lease.orch"
 spawn; check "16. CONTROL path 2: the orch lease on another box, no cordon: stays here" went_here

@@ -326,6 +326,7 @@ Each seat signs a version with its own commit on branch
 | user view | c-866 | WHAT v0.3 | ef9bebc03 |
 | user view | c-866 | WHAT v0.4 | 9ae74d524 |
 | calendar / issues expert | c-869 | WHAT v0.4 | 9ae74d524 |
+| reviewer | c-880 | WHAT v0.4 | 9ae74d524 |
 
 ## 10. Changes
 

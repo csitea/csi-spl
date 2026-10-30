@@ -42,6 +42,9 @@ stop is marked the lead's choice, not an owner answer; the Q7 cell quotes
 each answer by its msg id; the dev rehearsal before the first prd run is
 its own build row, T13 in L8 (10, 10.1). The "18:03Z" c-971 flagged (N5)
 left the spec with v0.8's Q7 row, which cites the owner's msg ids instead.
+The R7 notes on v0.9 by c-073 are folded too: 5.1a quotes the Q5 poll
+option the owner chose, not words he wrote; the Q5 row marks C21 as the
+lead's hours stop; T13 records R3's timing.
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -214,9 +217,9 @@ both as "not about spool channels".
   `hours: <member> <n> rows inside a frozen or approved sheet (Q8)`. A
   member who hits both cases gets both lines, and each is cleared on its
   own: adding the member to `<DST>` clears the Q5 line, not the Q8 one.
-  The Q5 stop is the lead's choice, not an owner answer: his Q5 words are
-  "they lose access; the move lists them and you add whom you want", and
-  leaving the rows in `<SRC>` would also fit them. The spec stops because
+  The Q5 stop is the lead's choice, not an owner answer: the Q5 option he chose
+  reads "They lose access; the move lists them and you add whom you
+  want", and leaving the rows in `<SRC>` would also fit it. The spec stops because
   a person's time record is never moved or left without a word (N2); the
   owner overrides it by saying "leave the rows", and the output says why
   it stops rather than only that it stops.
@@ -464,7 +467,7 @@ Each row is one small task; files named are where it lands.
 | T10 | Box steps: the P2b probe DMs, the P5 rule-row rewrite (no action writes `channel-rules.tsv` today, so it lives here), lane key notes; no re-seat (the seat rows move in P4); tests C11, C12 | `orc/features/spawn-agents/scripts/channel-workspace-move-box.sh`, its test |
 | T11 | Copy mode: new UUIDs, link rewrite, `copied_from`; test C16 | `api/store/channel_copy_apply_postgres.go`, `_test.go` |
 | T12 | Docs: operator page (how to plan, run and read the kept list) | `csi-spl-doc/doc/md/channel-workspace-move.md` |
-| T13 | Dev rehearsal, the gate before the first prd run: on dev, `plan` then `DRY_RUN=0` of a seeded channel between two dev test workspaces with the owner's GO msg id (C15), P7 prints 0, the journal read back; the record of the run | `csi-spl-doc/specs/169-channel-workspace-move/dev-rehearsal.md` |
+| T13 | Dev rehearsal, the gate before the first prd run: on dev, `plan` then `DRY_RUN=0` of a seeded channel between two dev test workspaces with the owner's GO msg id (C15), P7 prints 0, the journal read back; it also records R3's T5 timing on the 3,650-post seeded channel (12); the record of the run | `csi-spl-doc/specs/169-channel-workspace-move/dev-rehearsal.md` |
 
 Order: T1 first (it is the inventory in code); T2 before T5 (the journal);
 T4 before T5; T5 before T5b and T5c; T3 before T11; T6 and T8 before T7; T7
@@ -510,7 +513,7 @@ Read from the owner's own answers in prd t1 topic
 | Q2 | A, 30 days of redirect, re-route and old issue key map, then 404 | `333aea7b` (poll `502a793f`) | W3-W5, C8 with the redirect on; T2's redirect table expires rows after 30 days |
 | Q3 | A, keep until they expire | `d2c97186` | 5.6 as written; P7 prints the last expiry date |
 | Q4 | A, leave them and list them | `d2c97186` | 5.4: `plan` lists, nothing edited |
-| Q5 | A, they lose access; the move lists them and the owner adds whom he wants | `0c58c916` (poll `dfa0234a`) | W1, 5.1 (`channel_humans`, `channel_invites`, `channel_subscriptions`, `read_marks`), 5.1a hours, 5.1b invites, calendar guests: of the channel's people who are not `<DST>` members, only those the owner adds to `<DST>` come along; existing `<DST>` members keep their access (W1); the move adds no one by itself; C21 |
+| Q5 | A, they lose access; the move lists them and the owner adds whom he wants | `0c58c916` (poll `dfa0234a`) | W1, 5.1 (`channel_humans`, `channel_invites`, `channel_subscriptions`, `read_marks`), 5.1a hours, 5.1b invites, calendar guests: of the channel's people who are not `<DST>` members, only those the owner adds to `<DST>` come along; existing `<DST>` members keep their access (W1); the move adds no one by itself; C21 (the lead's hours stop, 5.1a) |
 | Q6 | A, stop and list | `d2c97186` | 5.5, C7: `plan` refuses on a shared item |
 | Q7 | J (`f6f94c97`): the csitea channel named like `ws-hidden-17`; destination (`e4cc2662`): `ws-hidden-17` | `f6f94c97` and `e4cc2662` (poll `c5dc7cea`) | the first move: `<SRC>` = csitea, `<CHANNEL>` = the csitea channel named like `ws-hidden-17`, `<DST>` = `ws-hidden-17` (the slug stays in the overlay); the first prd run waits only for the build (10.1 critical path, T13 the dev rehearsal last), no longer for a name |
 | Q8 | A, stop and list | `85eb389c` (poll `53f98bf8`) | 5.1a, C19 |
@@ -560,7 +563,7 @@ Q8 Hours that members logged on the moved channel inside a time sheet already ap
 |---|---|---|
 | R1 | The pins (`pins`, per workspace) hold the box keys that signed and encrypted the posts (F10). A row moved to a workspace where its box is not pinned can be stored but not re-verified. | `plan` checks each `from_box` is pinned in `<DST>` and lists the missing ones (T4) |
 | R2 | Encrypted posts (`enc`, `for`) are readable only by the boxes named in `for`; a move does not change that. | stated in the operator page (T12) |
-| R3 | A move of the largest channel inside one transaction locks its rows for the length of P4. Not measured. | a T5 timing test on a 3,650-post seeded channel before the first prd run |
+| R3 | A move of the largest channel inside one transaction locks its rows for the length of P4. Not measured. | a T5 timing test on a 3,650-post seeded channel before the first prd run, recorded by T13 (10) |
 | R4 | Not checked here: Cloud SQL backup retention and the hub log bucket's retention (5.6). | `plan` reads both and prints them |
 | R5 | Spec 167 moves a channel's work between boxes; a move between workspaces that is also a move between boxes runs 167 first, then this. | operator page (T12) |
 | R6 | The free-text scan (5.2) proves absence of exact strings only. | stated; not claimed further |

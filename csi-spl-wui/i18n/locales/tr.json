@@ -3422,7 +3422,7 @@
         "col_day": "Gün",
         "box": "box {box}",
         "services": "Hizmet sayısı: {n}",
-        "days": "Maliyetli gün sayısı: {n}",
+        "days": "Maliyet oluşan gün sayısı: {n}",
         "empty": "Bu ay henüz bulut maliyeti satırı yok. Faturalama dışa aktarımı günde bir kez okunur."
       },
       "tokens": {

@@ -318,6 +318,9 @@ func TestNotesExportErase(t *testing.T) {
 	if code != http.StatusOK || !strings.HasPrefix(hdr.Get("Content-Disposition"), `attachment; filename="notes-`) {
 		t.Fatalf("export = %d %v %q", code, out, hdr.Get("Content-Disposition"))
 	}
+	if got := hdr.Get("Access-Control-Expose-Headers"); !strings.Contains(got, "Content-Disposition") {
+		t.Errorf("export Access-Control-Expose-Headers = %q, want it to name Content-Disposition (the realm routes are cross-origin)", got)
+	}
 	got := map[string]map[string]any{}
 	for _, x := range out["notes"].([]any) {
 		m := x.(map[string]any)

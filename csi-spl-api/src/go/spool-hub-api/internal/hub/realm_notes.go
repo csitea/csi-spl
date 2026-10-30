@@ -321,6 +321,7 @@ func (s *Server) handleExportNotes(w http.ResponseWriter, r *http.Request) {
 	}
 	now := s.o.Now().UTC()
 	w.Header().Set("Content-Disposition", `attachment; filename="notes-`+now.Format(time.DateOnly)+`.json"`)
+	w.Header().Set("Access-Control-Expose-Headers", "Content-Disposition") // the WUI saves under the hub's name
 	s.notesLog("notes_export", c, "", "exported")
 	writeJSON(w, http.StatusOK, map[string]any{"exported_at": notesTime(now), "notes": out})
 }

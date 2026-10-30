@@ -841,9 +841,14 @@ automatic paths are the R-b race again). 093 6.2's suspend guard stays.
     (`try=<n>` in `update.state`); a green self-check tick that ran past its
     bound checks again on its next tick. Up to `WD_UPD_STEP_TRIES` windows
     (default 2, one retry), then the sha is quarantined as before. Every
-    timeout line names the box load (`load <1 min>/<n> cpus`). A self-check
-    that fails (a script error, the wrong sha, no heartbeat) is quarantined at
-    once, never retried. `WD_UPD_TIMEOUT_TRIES` (default 5) is a different
+    timeout line names the box load (`load <1 min>/<n> cpus`). The instance
+    in its check and its peers time the step by the same test, the current
+    window from `since` in `update.state` (`now - since > WD_UPD_STEP_MAX`),
+    so the two never disagree on one state. A self-check that fails (a
+    script error, the wrong sha, no heartbeat) is quarantined at once, never
+    retried, and so is an instance that crashed in its check and is not
+    restarted (its pid is gone). A garbled `update.state` number (`try=08`)
+    is no rollout, never an arithmetic error. `WD_UPD_TIMEOUT_TRIES` (default 5) is a different
     count: pre-flight proof ticks that time out in a row.
 - **Crontab starter interaction**: Crontab starter executes from checkout but
   only calls `spl_wd_inst_start`, which launches `code/good`.

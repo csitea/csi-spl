@@ -163,9 +163,11 @@ spl_wd_upd_snapshot() {
 
 # update.state: one line "sha=<sha> next=<inst> stage=<exec|wait> pid=<pid>
 # since=<epoch> start=<epoch> try=<n>" (try: the step's timed-out windows so
-# far; a line without it, from an older code, reads try 0)
+# far; a line without it, from an older code, reads try 0). A number is
+# decimal with no leading zero: "try=08" passed ^[0-9]+$ and then broke the
+# arithmetic ("value too great for base"), so every peer tick stalled on it.
 spl_wd_upd_state_read() {
-  local line kv
+  local line kv n='^(0|[1-9][0-9]*)$'
   U_SHA="" U_NEXT="" U_STAGE="" U_PID="" U_SINCE="" U_START="" U_TRY=0
   line="$(cat "$WD_DIR/update.state" 2>/dev/null || true)"
   [[ -n "$line" ]] || return 1
@@ -180,7 +182,7 @@ spl_wd_upd_state_read() {
       try=*) U_TRY="${kv#try=}" ;;
     esac
   done
-  [[ "$U_SHA" =~ ^[0-9a-f]{40}$ && "$U_NEXT" =~ ^[1-3]$ && "$U_STAGE" =~ ^(exec|wait)$ && "$U_SINCE" =~ ^[0-9]+$ && "$U_START" =~ ^[0-9]+$ && "$U_TRY" =~ ^[0-9]+$ ]] || return 1
+  [[ "$U_SHA" =~ ^[0-9a-f]{40}$ && "$U_NEXT" =~ ^[1-3]$ && "$U_STAGE" =~ ^(exec|wait)$ && "$U_PID" =~ $n && "$U_SINCE" =~ $n && "$U_START" =~ $n && "$U_TRY" =~ $n ]] || return 1
   return 0
 }
 
@@ -239,6 +241,12 @@ spl_wd_upd_baton() {
   local now="$1"
   if [[ "$U_STAGE" == exec && "$U_NEXT" == "$WD_INST" && "$U_PID" != "$$" ]]; then
     spl_wd_upd_fail "$U_SHA" "$now" "instance $WD_INST died during its self-check (pid $U_PID; now pid $$, started on good)"
+    return 0
+  fi
+  # a crash with no restart yet: no heartbeat, quarantined at once, never a
+  # timeout retry (/proc, not kill -0: that is EPERM for another user's pid)
+  if [[ "$U_STAGE" == exec && ! -d "/proc/$U_PID" ]]; then
+    spl_wd_upd_fail "$U_SHA" "$now" "instance $U_NEXT died during its self-check (pid $U_PID is gone)"
     return 0
   fi
   if (( now - U_SINCE > WD_UPD_STEP_MAX )); then
@@ -487,8 +495,9 @@ spl_wd_upd_close_fds() {
 }
 
 # spl_wd_upd_checked TICK [START]: the end of the first tick after an exec
-# (START: that tick's own start, timed from there and not from the exec's
-# WD_UPD_T0, which a pre-flight in an older exec code can push back): the
+# (START: that tick's own start, the time the log names, not the exec's
+# WD_UPD_T0, which a pre-flight in an older exec code can push back; the
+# hang bound is the step's window from update.state since): the
 # self-check. Green -> baton to the next instance (or code/good after 3);
 # red -> quarantine and back to good.
 spl_wd_upd_checked() {
@@ -511,9 +520,12 @@ spl_wd_upd_checked() {
     spl_wd_upd_log "self-check of ${sha:0:9} done (${why:-green in ${took}s}), but the rollout is no longer this instance's step"
     return 0
   fi
-  # the hang bound: the windows the step has had, WD_UPD_STEP_MAX s each
-  if [[ -z "$why" ]] && (( took > WD_UPD_STEP_MAX * (U_TRY + 1) )); then
-    why="self-check tick took ${took}s (hang bound $(( WD_UPD_STEP_MAX * (U_TRY + 1) ))s, $(spl_wd_upd_load))"
+  # the hang bound: the peers' own test (spl_wd_upd_baton), the step's
+  # current window from since, so the two never disagree on the same state
+  # (a tick bound from its own start let a re-armed tick end green at 60 s
+  # while a peer at 46 s quarantined it: a race for update.lock)
+  if [[ -z "$why" ]] && (( now - U_SINCE > WD_UPD_STEP_MAX )); then
+    why="self-check step ran $(( now - U_SINCE ))s of its ${WD_UPD_STEP_MAX}s window (tick ${took}s, $(spl_wd_upd_load))"
     if (( U_TRY + 1 < WD_UPD_STEP_TRIES )); then
       spl_wd_upd_check_again "$sha" "$now" "$why"
       exec 5>&-

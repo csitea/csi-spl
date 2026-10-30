@@ -1,6 +1,10 @@
 # 160 File streams: follow a box file live in Monitoring, and search it
 
-Version v0.5 (2026-10-29): fixes review W1-W3 of v0.4 (grok g-746 FAIL on
+Version v0.6 (2026-10-30): folds the owner's answers to Q5..Q7 (poll
+`900699dd`, msg `369e7bfa`, 7.1): Q5 B, the default folders are the fleet's
+box log folder and `/var/log`, minus the security files (3.8.2); Q6 A, every
+match its own stream (3.8.7); Q7 A, no cnf key lifts a security file
+(3.8.10). v0.5 (2026-10-29) fixed review W1-W3 of v0.4 (grok g-746 FAIL on
 `7814f50a4`). v0.4 (2026-10-29) added 3.8, file globs typed in the web page by a
 workspace owner or admin (owner answer B, poll `376e9435`) and a deny class
 for security-related system files; rows B9..B12 planned
@@ -587,8 +591,15 @@ the set of files a cnf commit could add, minus nothing and plus nothing.
   sibling under `/var/csi/csi-spl/` without that review (on one box,
   `find /var/csi/csi-spl -maxdepth 3 -type f | wc -l` -> 241: the box crons'
   `cron.log` and `cron.out` files, and their state tables and locks). A
-  folder root is a wider grant than a file, so it is a new key, and it ships
-  with what the owner picks in Q5.
+  folder root is a wider grant than a file, so it is a new key.
+- The default, the owner's answer Q5 B (msg `369e7bfa`, 7.1): two folders,
+  the fleet's box log folder `/var/csi/csi-spl` (`BOX_CRONS_STATE_DIR`'s
+  default, `orc/run/install-box-crons.func.sh:31`) and `/var/log`, minus the
+  security files of 3.8.10. The "minus" needs no second list: every open of
+  a match runs `spl_file_stream_denied` (3.2), whose `security file` class
+  names the `/var/log` ones (`auth.log*`, `btmp*`, `wtmp*`, `audit/`,
+  `journal/`, ...), so a glob `/var/log/*` follows `syslog` and is refused
+  `auth.log`. Both folders have two segments, so the rule below keeps them.
 - The box refuses a folder entry, and announces it `refused`, when it is `/`
   or has fewer than two segments (`/etc`, `/var`), holds a glob, or is
   denied itself or lies under a denied root (`$HOME/.config`, `/proc/x`,
@@ -708,9 +719,8 @@ glob itself, with its reason).
 
 #### 3.8.7 Over the 8-stream cap
 
-If Q6 = A (3.8.11; the poll is open, this paragraph is the design only for
-that answer; on Q6 = B a glob follows only its newest match, as a cnf
-entry's `*` does today, and takes one slot). The cap stays 8 streams a box, cnf and web globs together
+Q6 A, decided (msg `369e7bfa`, 7.1): every match is its own stream. The
+cap stays 8 streams a box, cnf and web globs together
 (`FILE_STREAMS_MAX`, `file-stream-follow.py:151-170`; the hub's
 `streams_per_box`, 3.7). Slots go, in order: the cnf entries, in cnf order;
 then the globs, oldest glob first; inside a glob, the newest match by mtime
@@ -772,8 +782,9 @@ entries, web-glob matches and folder roots alike:
 | under `/var/log/`: `auth.log*`, `secure*`, `btmp*`, `wtmp*`, `lastlog*`, `faillog*`, `audit/` | who logged in, from where, and failed logins, where a password typed at the user prompt is logged as the user name |
 | `/var/log/journal/`, `/var/log/private/` | the binary journal (it holds the auth messages too) and the logs of services that run as a dynamic user |
 
-- Exceptions only in code, each with its reason; v0.4 names none (as the
-  dot-entry rule of 3.2). Whether a cnf key may ever lift one is Q7.
+- Q7 A, decided (msg `369e7bfa`, 7.1): no cnf key, `box.env` value or hub
+  field lifts a security file. An exception lives only in code, each with
+  its reason (as the dot-entry rule of 3.2), and none exists today.
 - The class is a list of paths, and a list catches only what it names: a
   copy of `/etc/passwd` written into an allowed folder is a new file, and
   this class does not see it (`spool_redact` masks secrets in it, not
@@ -782,6 +793,9 @@ entries, web-glob matches and folder roots alike:
   entry, is in none of these and stays followed (C53).
 
 #### 3.8.11 Owner questions
+
+Answered (v0.6): Q5 B, Q6 A, Q7 A, HUM-10 msg `369e7bfa` on poll
+`900699dd` (7.1), folded into 3.8.2, 3.8.7 and 3.8.10.
 
 Only what answer B leaves open. The dispatch holder posts them in
 `c168784c` as one form; the recommended answer is first.
@@ -861,7 +875,7 @@ lands.
 | C47 | B10 | folders `[<tmp>/a]`: a glob `<tmp>/a/*.log` follows its matches; a glob `<tmp>/b/*.log`, relayed by a stub hub that accepts anything, is refused `outside allowed folders` on the box | the box trusts the hub's check: `<tmp>/b/x.log` is followed |
 | C48 | B10 | inside folder `<tmp>/a`, a dir `out -> <tmp>/b` and a glob `<tmp>/a/out/*.log`: refused; a match `<tmp>/a/y.log -> <tmp>/b/y.log`: refused `outside allowed folders` | the folder check on the glob's text, not on the fd: both are followed |
 | C49 | B10 | C8, C31, C32, C33, C34 and C36 re-run with the entry made by a glob match, not a cnf entry: a match that is a symlink to a synthetic `$HOME/.ssh/id_x`, a hardlink to a key file, a fifo, a device, a `.env`, another home: each refused with 3.2's reason, nothing read | a match opened with a plain open, skipping `open_checked`: the key's lines reach the queue file |
-| C50 | B10 | If Q6 = A (on Q6 = B: the glob follows only its newest match, `followed 1`): 2 cnf entries and a glob matching 12 files: 6 matches followed, newest mtime first; the glob reports `matched 12, followed 6, over_cap 6`; touching an older unfollowed file does not take a followed one's slot | no cap: 12 announced, the hub refuses 6 as `streams_per_box` and the newest may be among them |
+| C50 | B10 | 2 cnf entries and a glob matching 12 files: 6 matches followed, newest mtime first; the glob reports `matched 12, followed 6, over_cap 6`; touching an older unfollowed file does not take a followed one's slot | no cap: 12 announced, the hub refuses 6 as `streams_per_box` and the newest may be among them |
 | C51 | B10 | the glob removed on the stub hub: within `globs_s` + 1 tick its streams leave the announce; the stub hub down past `globs_stale_s`: each web-glob stream stops with one `glob list stale` marker while the cnf stream keeps pushing | keep the last list for good: a removed glob is followed while the hub is down |
 | C52 | B10 | a matched dir of 50 000 entries: one scan reads at most 10 000, no tick takes more than 1 s; `x.log.2.gz` under a `*.log*` glob is skipped `compressed` | `glob.glob` over the whole dir: the tick blocks, and the `.gz` is followed as text |
 | C53 | B11 | `--denied` prints `security file` for each path of 3.8.10's table (`/etc/passwd`, `/etc/group`, `/etc/sudoers.d/x`, `/etc/security/opasswd`, `/etc/ssh/sshd_config`, `/var/log/auth.log.1`, `/var/log/btmp`, `/var/spool/cron/crontabs/x`, ...); as cnf entries each is announced `refused` (`denied path`); `/var/log/syslog` and `/var/csi/csi-spl/token-burn/cron.log` are not denied | today's list: `--denied /etc/passwd` exits 1 (measured on `bf6991ecf`, 3.8.10), so `/etc/passwd` is followed |
@@ -1328,7 +1342,7 @@ Q4 GO to build rows B1..B7 in the order of section 5?
 
 ### 7.1 The owner's answers
 
-Three answers, all from HUM-10 in `c168784c`, read on prd with
+Four answers, all from HUM-10 in `c168784c`, read on prd with
 `do_spl_db_query` (`messages.received_at`, n = 1 read each):
 
 | msg | poll | at (UTC) | answers |
@@ -1336,6 +1350,7 @@ Three answers, all from HUM-10 in `c168784c`, read on prd with
 | `44ec2e44` | `a1ada7ba` (the v0.3 form) | 2026-10-27 10:02 | GO; Q1 A the token-burn cron log; Q2 A; Q3 A |
 | `5c6686f2` | `75d8db39` (the v0.1 form) | 2026-10-27 16:26 | GO; Q1 A "The box desk's own log"; Q2 A; Q3 A |
 | `1a5ce9f1` | `f5bc82a1` (the Q1 poll) | 2026-10-28 13:26 | Q1 A: keep the token-burn cron log, as built; the key-folder rule stays with no exception |
+| `369e7bfa` | `900699dd` (the Q5..Q7 form, 3.8.11) | 2026-10-29 11:40 | Q5 B "That folder and /var/log, minus the security files of 3.8.10"; Q6 A; Q7 A |
 
 Folded:
 
@@ -1354,6 +1369,12 @@ Folded:
   **Decided A** (`1a5ce9f1`, poll `f5bc82a1`): the token-burn cron log
   stays, as built; the key-folder rule keeps no exception, so B1 does not
   change and the desk log stays refused.
+- **Q5 B, Q6 A, Q7 A** (`369e7bfa`; its two partial copies `e99036b6`
+  and `6194b133`, 11:39:56 and 11:40:00, carry Q5 B and Q6 A, the same
+  answers): the default folders are `/var/csi/csi-spl` and `/var/log`
+  (3.8.2), every glob match is its own stream (3.8.7), and no cnf key lifts
+  a security file (3.8.10). With `/var/log` reachable, row B11's
+  `security file` class must name every security file under it.
 
 ## 8. Review record
 
@@ -1409,3 +1430,4 @@ v0.3, by c-319, folds c-317's N1-N4 on v0.2 (line numbers are v0.3's):
 | v0.3 | 2026-10-26 | c-319 | folds review N1-N4; reviewed PASS |
 | v0.4 | 2026-10-29 | c-601 | 3.8: web-typed file globs under allowed folders (owner answer B, poll `376e9435`, msg `d925f9a3`) and the `security file` deny class (owner msg `7f673aef`); 3.1, 3.2, 3.5 and section 9 say what changed; cases C41-C56; rows B9-B12 (5.9); D6, D7; owner questions Q5-Q7 (3.8.11) |
 | v0.5 | 2026-10-29 | c-601 | review of v0.4 (grok g-746 FAIL on `7814f50a4`): W1 3.8.5 and row B9 cite the announce frame at `wire/file_streams.go:71-73` (`folders`, `globs`), the stream entry at `:64-68` (`glob_id`), the strict decoder at `:132` / `:122-126`; W2 section 1's asks-list sentence points at 3.8; W3 the 32-character key bound is 3.2's, not 3.3's; note: 3.8.7 and C50 say they hold only if Q6 = A |
+| v0.6 | 2026-10-30 | c-563 | folds the owner's answers to Q5..Q7 (poll `900699dd`, msg `369e7bfa`, 7.1): 3.8.2 sets the default folders, `/var/csi/csi-spl` and `/var/log` minus the 3.8.10 security files (Q5 B); 3.8.7 and C50 drop the "if Q6 = A" condition (Q6 A); 3.8.10 states Q7 A; 3.8.11 answered |

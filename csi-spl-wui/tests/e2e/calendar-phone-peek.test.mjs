@@ -148,26 +148,37 @@ const row = (id) => `${ROOT} [data-test=calphone-page][data-dir="0"] [data-test=
 /* el.tap() scrolls a row below the fold into view and aims at once, but the
    week still moves after that scroll: on a loaded box (load 59) Lunch sat at
    387-431 and the tap landed at y=445, on Same clock. So scroll it into view
-   here (only when it is off screen), and aim once its box held still for 3
-   frames. */
+   here, and aim once its box held still for 3 frames with no CSS transition
+   running. "Off screen" is what el.tap() itself tests: not wholly visible
+   through the view's clip (an IntersectionObserver ratio < 1), not the window.
+   With the window, Same clock (724-768, under the view's bottom edge) was
+   left to el.tap(), whose scroll slid the bars away (SPL-4264, a 0.2 s
+   margin-top transition) under the finger: the row went 423 -> 304 between
+   the aim and the click, and the click at y=445 opened Dup source (16:00)
+   (SPL-4435, 4 of 6 runs at load 20-34). The slide starts a few frames after
+   the scroll, so stillness alone passed before it began. */
 async function tap(p, sel) {
   const el = await p.$(sel)
   if (!el) return false
   await el.evaluate((x) => new Promise((done) => {
-    const b = x.getBoundingClientRect()
-    if (b.top < 0 || b.bottom > window.innerHeight) x.scrollIntoView({ block: 'center' })
-    let last = ''
-    let still = 0
-    let n = 0
-    const step = () => {
-      const r = x.getBoundingClientRect()
-      const at = `${r.top},${r.left}`
-      still = at === last ? still + 1 : 0
-      last = at
-      if (still >= 3 || ++n > 120) done()
-      else requestAnimationFrame(step)
-    }
-    requestAnimationFrame(step)
+    const seen = new IntersectionObserver(([e]) => {
+      seen.disconnect()
+      if (e.intersectionRatio < 1) x.scrollIntoView({ block: 'center' })
+      let last = ''
+      let still = 0
+      let n = 0
+      const step = () => {
+        const r = x.getBoundingClientRect()
+        const at = `${r.top},${r.left}`
+        const sliding = document.getAnimations().some((a) => a instanceof CSSTransition && a.playState === 'running')
+        still = at === last && !sliding ? still + 1 : 0
+        last = at
+        if (still >= 3 || ++n > 120) done()
+        else requestAnimationFrame(step)
+      }
+      requestAnimationFrame(step)
+    })
+    seen.observe(x)
   })).catch(() => {})
   await el.tap()
   return true

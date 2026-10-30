@@ -1,6 +1,6 @@
 # 170 Day's tasks: a To-do view in the Calendar, and a signal for what is due today
 
-Version: v1.1 (2026-10-30). Status: **WHAT v1.0 and HOW v1.0, each signed by all four seats** (plan only; nothing below is built)
+Version: v1.1 (2026-10-30). Status: **WHAT v1.0 and HOW v1.0, each signed by all four seats**
 (plan only; nothing below is built). Issue SPL-4396 · Epic SPL-2396 · Class
 feature · Kind specs_and_docs · Task `dispatch-dfe850d9` · Placement slug
 `c001-dfe850d9-panel-editor` · Editor c-864.

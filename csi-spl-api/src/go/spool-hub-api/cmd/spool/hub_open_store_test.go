@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"math"
 	"net"
 	"strings"
 	"sync/atomic"
@@ -178,6 +179,15 @@ func TestHubOpenStoreDeadlineEnv(t *testing.T) {
 		got, err := openStoreWithin()
 		if (err != nil) != c.bad || (!c.bad && got != c.want) {
 			t.Errorf("SPOOL_HUB_DB_OPEN_WITHIN=%q: got %s err %v, want %s bad=%v", c.val, got, err, c.want, c.bad)
+		}
+	}
+}
+
+// r42-04: a valid pool size passes as is; out of int32 range it is clamped.
+func TestHubPoolSizeBounds(t *testing.T) {
+	for in, want := range map[int]int32{0: 0, 2: 2, 8: 8, -1: 0, math.MaxInt32: math.MaxInt32, math.MaxInt32 + 1: math.MaxInt32} {
+		if got := poolSize(in); got != want {
+			t.Errorf("poolSize(%d) = %d, want %d", in, got, want)
 		}
 	}
 }

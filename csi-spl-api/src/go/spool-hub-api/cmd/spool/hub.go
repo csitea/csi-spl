@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"os"
@@ -700,8 +701,20 @@ func openHubStore(ctx context.Context, dsn string, hc *config.Hub, log zerolog.L
 	if err != nil {
 		return nil, err
 	}
-	return openStore(ctx, dsn, store.PoolLimits{MaxConns: int32(hc.DBMaxConns),
-		MinConns: int32(hc.DBMinConns), MaxConnIdleTime: hc.DBMaxConnIdleTime}, within, log)
+	return openStore(ctx, dsn, store.PoolLimits{MaxConns: poolSize(hc.DBMaxConns),
+		MinConns: poolSize(hc.DBMinConns), MaxConnIdleTime: hc.DBMaxConnIdleTime}, within, log)
+}
+
+// poolSize is a pool limit as pgxpool's int32, clamped to [0, math.MaxInt32];
+// config.Hub already refuses a negative one, so a valid value passes as is.
+func poolSize(n int) int32 {
+	if n < 0 {
+		return 0
+	}
+	if n > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	return int32(n)
 }
 
 // openStoreBackoff is the wait after the first failed open; it doubles per

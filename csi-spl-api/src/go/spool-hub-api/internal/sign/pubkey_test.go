@@ -57,3 +57,14 @@ func TestFingerprintOpenSSHVector(t *testing.T) {
 		t.Fatalf("fingerprint %q", fp)
 	}
 }
+
+// r42-04: the SSH string length is len(b) for a key; only past
+// math.MaxUint32 bytes is it clamped.
+func TestBlobLenBounds(t *testing.T) {
+	if got := blobLen(make([]byte, ed25519.PublicKeySize)); got != ed25519.PublicKeySize {
+		t.Fatalf("blobLen(32 bytes) = %d", got)
+	}
+	if got := blobLen(nil); got != 0 {
+		t.Fatalf("blobLen(nil) = %d", got)
+	}
+}

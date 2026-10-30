@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
+	"math"
 	"strings"
 )
 
@@ -59,7 +60,7 @@ func parseSSHBlob(b []byte) (ed25519.PublicKey, error) {
 			return nil, false
 		}
 		n := binary.BigEndian.Uint32(b)
-		if uint64(len(b)-4) < uint64(n) {
+		if int64(len(b))-4 < int64(n) {
 			return nil, false
 		}
 		v := b[4 : 4+n]
@@ -81,8 +82,18 @@ func sshBlob(pub ed25519.PublicKey) []byte {
 	b := make([]byte, 0, 4+len(sshEd25519)+4+len(pub))
 	b = binary.BigEndian.AppendUint32(b, uint32(len(sshEd25519)))
 	b = append(b, sshEd25519...)
-	b = binary.BigEndian.AppendUint32(b, uint32(len(pub)))
+	b = binary.BigEndian.AppendUint32(b, blobLen(pub))
 	return append(b, pub...)
+}
+
+// blobLen is len(b) as the uint32 an SSH string length is; a slice past
+// math.MaxUint32 bytes (never a key) is clamped, so the conversion is bounded.
+func blobLen(b []byte) uint32 {
+	n := len(b)
+	if n > math.MaxUint32 {
+		return math.MaxUint32
+	}
+	return uint32(n)
 }
 
 // PinForm is the base64 of the raw 32 bytes (what Pin writes).

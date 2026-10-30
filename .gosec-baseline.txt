@@ -15,13 +15,10 @@
 # edit csi-spl-api; fixing/annotating these is a hub-lane follow-up):
 #   G101 x4 (idp/native/oidc/wire): entropy false positives on OAuth/field-name
 #         string constants ("token"/"secret"/URL paths), not real credentials.
-#   G115 x4 (hub/pubkey): int->uintNN conversions on bounded values
-#         (key sizes, lengths); gosec's integer-overflow rule is FP-prone.
+#   G115: none left; r42-04 bounded the 4 hub/pubkey conversions in code.
 # A NEW occurrence of ANY of these rules (or any other gosec rule) anywhere not
 # already counted here fails the gate.
 G101|internal/auth/idp.go|1
 G101|internal/auth/native.go|1
 G101|internal/auth/oidc.go|1
 G101|internal/wire/wire.go|1
-G115|cmd/spool/hub.go|2
-G115|internal/sign/pubkey.go|2

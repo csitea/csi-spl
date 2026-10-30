@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/marketing"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -38,8 +40,29 @@ import (
 type MarketingMeta struct {
 	Meta   *marketing.Meta
 	Sealer *marketing.Sealer
-	// AppURL is the WUI origin: the page the callback points back to.
+	// AppURL is the WUI origin: the page the callback points back to, the
+	// blog index and the post links (T034).
 	AppURL string
+	// APIURL is the hub's public origin: the re-connect link mailed after
+	// Meta refuses a token (T034). "" = the mail names the settings page.
+	APIURL string
+	// Mail tells the channel holder of a failure or a refused token (T034);
+	// nil = no mail relay (log only).
+	Mail func(ctx context.Context, to, subject, body string) error
+	// ContainerWait is the pause between reads of an Instagram container's
+	// status (T034); 0 = metaContainerWait.
+	ContainerWait time.Duration
+	// DailyCap is the most API posts a channel makes in 24 h (T034); 0 =
+	// metaDailyCap. Instagram's own 100 still bounds it.
+	DailyCap int
+}
+
+// ConnectLink is the one-click Facebook (re-)connect link for workspace.
+func (m *MarketingMeta) ConnectLink(workspace string) string {
+	if m.APIURL == "" {
+		return m.AppURL + " (Tenant settings, Marketing: connect Facebook)"
+	}
+	return m.APIURL + "/v1/marketing/facebook/connect?" + url.Values{"workspace": {workspace}}.Encode()
 }
 
 // MetaCallbackPath is the callback as registered in the Meta app

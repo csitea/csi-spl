@@ -277,3 +277,29 @@ func checkHTTPS(what, raw string) error {
 	}
 	return nil
 }
+
+// The permalink fields: a Page post's is permalink_url, an Instagram
+// media's is permalink.
+const (
+	PermalinkFacebook  = "permalink_url"
+	PermalinkInstagram = "permalink"
+)
+
+// Permalink reads the public link of a published Page post or Instagram
+// media (field PermalinkFacebook or PermalinkInstagram). A read, so it is
+// retried on a transient failure; "" with no error when Meta gives none.
+func (m *Meta) Permalink(ctx context.Context, pageAccessToken Plaintext, id, field string) (string, error) {
+	if err := checkGraphID("post id", id); err != nil {
+		return "", err
+	}
+	if field != PermalinkFacebook && field != PermalinkInstagram {
+		return "", fmt.Errorf("meta: permalink field %q is not known", field)
+	}
+	var out map[string]any
+	c := metaCall{method: http.MethodGet, path: "/" + id, query: url.Values{"fields": {field}}, tok: pageAccessToken, safe: true}
+	if err := m.do(ctx, c, &out); err != nil {
+		return "", fmt.Errorf("meta permalink: %w", err)
+	}
+	link, _ := out[field].(string)
+	return link, nil
+}

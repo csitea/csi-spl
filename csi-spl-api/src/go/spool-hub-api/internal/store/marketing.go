@@ -118,10 +118,12 @@ type MarketingMediaAsset struct {
 }
 
 // MarketingOutcome is how a dispatching post ends: Published (with the
-// platform's id), Retry at RetryAt, or failed with Error.
+// platform's id and, when the platform gave one, the public Permalink, kept
+// in the post_published event), Retry at RetryAt, or failed with Error.
 type MarketingOutcome struct {
 	Published      bool
 	PlatformPostID string
+	Permalink      string
 	Retry          bool
 	RetryAt        time.Time
 	Error          string
@@ -160,6 +162,9 @@ func outcomeDetails(out MarketingOutcome) map[string]any {
 	d := map[string]any{}
 	if out.PlatformPostID != "" {
 		d["platform_post_id"] = out.PlatformPostID
+	}
+	if out.Permalink != "" {
+		d["permalink"] = out.Permalink
 	}
 	if out.Error != "" {
 		d["error"] = out.Error

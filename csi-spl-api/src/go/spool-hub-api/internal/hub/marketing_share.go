@@ -56,6 +56,8 @@ const (
 // MarketingShareResult counts what one sweep did.
 type MarketingShareResult struct {
 	Baselined, Scheduled, Published, Retried, Failed, Reminded, Expired int
+	// Deferred: Meta posts that wait for their channel's cap (T034).
+	Deferred int
 }
 
 // RunMarketingShare runs SweepMarketingShare every marketingShareEvery until
@@ -322,12 +324,25 @@ func (s *Server) ownerChannels(ctx context.Context, mk store.Marketing, tenant, 
 	return out, nil
 }
 
-// POST /v1/marketing/posts/{id}/publish: the owner shares one live blog post.
+// POST /v1/marketing/posts/{id}/publish: the owner shares one live blog
+// post; with ?channel=<id> on that Facebook Page or Instagram account (T034).
 func (s *Server) handleMarketingPublish(w http.ResponseWriter, r *http.Request, tenant string) {
 	w.Header().Set("Cache-Control", "no-store")
 	hum, _ := s.memberID(r, tenant)
-	res, err := s.PublishMarketingPost(r.Context(), tenant, hum, r.PathValue("id"))
+	res, err := s.publishOn(r, tenant, hum, "")
 	writeMarketingPublish(w, r, res, err)
+}
+
+// publishOn is the LinkedIn publish, or the Meta one when ?channel names a
+// channel (spec 090 T034).
+func (s *Server) publishOn(r *http.Request, tenant, hum, seat string) (MarketingShareResult, error) {
+	if ch := r.URL.Query().Get("channel"); ch != "" {
+		return s.publishMetaPost(r.Context(), tenant, hum, seat, r.PathValue("id"), ch)
+	}
+	if seat != "" {
+		return s.AgentPublishMarketingPost(r.Context(), tenant, seat, hum, r.PathValue("id"))
+	}
+	return s.PublishMarketingPost(r.Context(), tenant, hum, r.PathValue("id"))
 }
 
 // The same route called with a box upload token: an agent publishes for the
@@ -340,7 +355,11 @@ func (s *Server) handleAgentMarketingPublish(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	hum := strings.TrimSpace(r.Header.Get(RequesterHeader))
-	res, err := s.AgentPublishMarketingPost(r.Context(), t.ID, seat, hum, r.PathValue("id"))
+	if seat == "" {
+		writeMarketingPublish(w, r, MarketingShareResult{}, ErrMarketingNotOwner)
+		return
+	}
+	res, err := s.publishOn(r, t.ID, hum, seat)
 	writeMarketingPublish(w, r, res, err)
 }
 
@@ -348,17 +367,22 @@ func writeMarketingPublish(w http.ResponseWriter, r *http.Request, res Marketing
 	switch {
 	case errors.Is(err, ErrMarketingNotOwner), errors.Is(err, ErrMarketingSeatOther):
 		writeForbidden(w, permTenantOwner, err.Error())
-	case errors.Is(err, ErrMarketingNoChannel), errors.Is(err, ErrMarketingNoPost), errors.Is(err, ErrMarketingOff):
+	case errors.Is(err, ErrMarketingNoChannel), errors.Is(err, ErrMarketingNoPost), errors.Is(err, ErrMarketingOff),
+		errors.Is(err, ErrMarketingNoMetaPage):
 		writeErr(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, ErrMarketingRecorded):
 		writeErr(w, http.StatusConflict, "already_recorded", err.Error())
+	case errors.Is(err, ErrMarketingNeedsJPEG):
+		writeErr(w, http.StatusUnprocessableEntity, "instagram_needs_jpeg", err.Error())
 	case errors.Is(err, ErrMarketingNoLinked):
 		writeErr(w, http.StatusServiceUnavailable, "linkedin_off", err.Error())
+	case errors.Is(err, ErrMarketingNoMeta):
+		writeErr(w, http.StatusServiceUnavailable, "not_configured", err.Error())
 	case err != nil:
-		writeErr(w, http.StatusInternalServerError, "internal", "the publish failed before LinkedIn was called")
+		writeErr(w, http.StatusInternalServerError, "internal", "the publish failed before the platform was called")
 	default:
 		writeJSON(w, http.StatusOK, map[string]any{"post": r.PathValue("id"), "scheduled": res.Scheduled,
-			"published": res.Published, "retried": res.Retried, "failed": res.Failed})
+			"published": res.Published, "retried": res.Retried, "failed": res.Failed, "deferred": res.Deferred})
 	}
 }
 
@@ -483,7 +507,9 @@ func (s *Server) reportShareFailure(ctx context.Context, m *MarketingLinkedIn, t
 		return
 	}
 	for _, ch := range chs {
-		if ch.ID == channelID {
+		if ch.ID == channelID && isMetaPlatform(ch.Platform) {
+			s.metaReportFailure(ctx, s.o.MarketingMeta, ch, postRef, why)
+		} else if ch.ID == channelID && m != nil {
 			s.mailHolder(ctx, m, tenant, ch.DelegatedBy, "A blog post was not shared on LinkedIn",
 				"spool-hub could not share the blog post "+marketing.BlogPostURL(m.AppURL, postRef)+" on LinkedIn, and will not retry it, so it is never posted twice.\n\nReason: "+why+"\n\nShare it by hand if you want it on your profile.\n")
 		}
@@ -493,7 +519,12 @@ func (s *Server) reportShareFailure(ctx context.Context, m *MarketingLinkedIn, t
 // mailHolder mails the member who connected the channel; a missing relay or
 // address is a log line, never a failure of the sweep.
 func (s *Server) mailHolder(ctx context.Context, m *MarketingLinkedIn, tenant, hum, subject, body string) {
-	if m.Mail == nil {
+	s.mailMember(ctx, m.Mail, tenant, hum, subject, body)
+}
+
+// mailMember mails member hum of tenant with send (LinkedIn's or Meta's relay).
+func (s *Server) mailMember(ctx context.Context, send func(ctx context.Context, to, subject, body string) error, tenant, hum, subject, body string) {
+	if send == nil {
 		s.o.Log.Warn().Str("tenant", tenant).Str("member", hum).Str("subject", subject).Msg("marketing: no mail relay, holder not mailed")
 		return
 	}
@@ -507,7 +538,7 @@ func (s *Server) mailHolder(ctx context.Context, m *MarketingLinkedIn, tenant, h
 	}
 	for _, mem := range members {
 		if mem.HumanID == hum && mem.Email != "" {
-			if err := m.Mail(ctx, mem.Email, subject, body); err != nil {
+			if err := send(ctx, mem.Email, subject, body); err != nil {
 				s.o.Log.Error().Err(err).Str("member", hum).Msg("marketing: holder mail failed")
 			}
 			return

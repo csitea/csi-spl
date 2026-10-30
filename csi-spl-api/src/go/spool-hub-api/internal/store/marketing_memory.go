@@ -19,8 +19,9 @@ type memMarketing struct {
 
 type memMktPost struct {
 	MarketingPost
-	next    time.Time
-	claimed time.Time
+	next      time.Time
+	claimed   time.Time
+	published time.Time // published_at (MarketingPublishedTimes)
 }
 
 type memMktEvent struct {
@@ -269,7 +270,7 @@ func (s *Memory) ClaimMarketingPosts(_ context.Context, tenant, channelID string
 }
 
 // FinishMarketingPost implements Marketing on the Memory store (rdb 0187).
-func (s *Memory) FinishMarketingPost(_ context.Context, tenant, postID string, out MarketingOutcome, _ time.Time) error {
+func (s *Memory) FinishMarketingPost(_ context.Context, tenant, postID string, out MarketingOutcome, now time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	m := s.mkt()
@@ -282,6 +283,9 @@ func (s *Memory) FinishMarketingPost(_ context.Context, tenant, postID string, o
 	p.next = time.Time{}
 	if next != nil {
 		p.next = *next
+	}
+	if out.Published {
+		p.published = now
 	}
 	m.event(tenant, p.ChannelID, postID, event)
 	return nil

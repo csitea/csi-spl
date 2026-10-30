@@ -57,8 +57,9 @@ func marketingLinkedIn(ctx context.Context, hc *config.Hub, log zerolog.Logger, 
 // WUI origin is not set (cnf marketing.facebook.inject "false"): then every
 // /v1/marketing/facebook route answers 503 not_configured. The redirect URI
 // is the WUI origin's callback, registered in the Meta app (meta-app-setup.md
-// step 3).
-func marketingMeta(ctx context.Context, hc *config.Hub, log zerolog.Logger, appURL string) *hub.MarketingMeta {
+// step 3). The dispatcher (T034) mails a failure or a refused token through
+// the mail relay, with the re-connect link on the hub's public origin.
+func marketingMeta(ctx context.Context, hc *config.Hub, log zerolog.Logger, pmc *mail.Config, appURL string) *hub.MarketingMeta {
 	id, secret, key := strings.TrimSpace(hc.MarketingFacebookAppID), strings.TrimSpace(hc.MarketingFacebookClientSecret), strings.TrimSpace(hc.MarketingKMSKey)
 	appURL = strings.TrimRight(strings.TrimSpace(appURL), "/")
 	if id == "" || secret == "" || key == "" || appURL == "" {
@@ -82,6 +83,14 @@ func marketingMeta(ctx context.Context, hc *config.Hub, log zerolog.Logger, appU
 		log.Error().Err(err).Msg("marketing: meta off, connect answers 503")
 		return nil
 	}
-	log.Info().Str("redirect_uri", meta.RedirectURI).Msg("marketing: meta on")
-	return &hub.MarketingMeta{Meta: meta, Sealer: sealer, AppURL: appURL}
+	m := &hub.MarketingMeta{Meta: meta, Sealer: sealer, AppURL: appURL,
+		APIURL: strings.TrimRight(strings.TrimSpace(os.Getenv("SPOOL_HUB_OPERATOR_AUDIENCE")), "/")}
+	if pmc != nil && pmc.Transport != mail.TransportNone {
+		sender := pmc.Sender(log)
+		m.Mail = func(ctx context.Context, to, subject, body string) error {
+			return sender.Send(ctx, mail.Message{To: to, Subject: subject, TextBody: body, Template: "marketing_reconnect", Locale: "en"})
+		}
+	}
+	log.Info().Str("redirect_uri", meta.RedirectURI).Bool("mail", m.Mail != nil).Msg("marketing: meta on")
+	return m
 }

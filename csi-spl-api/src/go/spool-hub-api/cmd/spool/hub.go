@@ -144,8 +144,9 @@ func cmdServe() int {
 	go hub.Supervise(ctx, log, "relay", func(ctx context.Context) { srv.RunRelay(ctx, hc.QueueRelay) }) // SPL-1004
 	go hub.Supervise(ctx, log, "wake", srv.RunWake)                                                     // spec 059 S1 + S3
 	go hub.Supervise(ctx, log, "blocker-issues", func(ctx context.Context) { srv.RunBlockerIssues(ctx, BlockerInterval) })
-	go hub.Supervise(ctx, log, "marketing-share", srv.RunMarketingShare)   // spec 090 T015, SPL-1634
-	go hub.Supervise(ctx, log, "deploy-reconcile", srv.RunDeployReconcile) // spec 143 T027, SPL-2788
+	go hub.Supervise(ctx, log, "marketing-share", srv.RunMarketingShare)       // spec 090 T015, SPL-1634
+	go hub.Supervise(ctx, log, "marketing-meta", srv.RunMarketingMetaDispatch) // spec 090 T034, SPL-4424
+	go hub.Supervise(ctx, log, "deploy-reconcile", srv.RunDeployReconcile)     // spec 143 T027, SPL-2788
 	return serveUntilDone(ctx, hc, log, srv)
 }
 
@@ -307,7 +308,7 @@ func mailOptions(ctx context.Context, opts *hub.Options, hc *config.Hub, log zer
 	// spec 090 (SPL-1634): connect LinkedIn, share the blog
 	opts.MarketingLinkedIn = marketingLinkedIn(ctx, hc, log, pmc, ac.AppURL)
 	// spec 090 T033 (SPL-4254): connect Facebook Pages + Instagram
-	opts.MarketingMeta = marketingMeta(ctx, hc, log, ac.AppURL)
+	opts.MarketingMeta = marketingMeta(ctx, hc, log, pmc, ac.AppURL)
 	opts.Gcal = gcalConnect(ctx, hc, ac, log)            // spec 149 B5: a member's Google Calendar
 	opts.EmbedRelinkMail = embedRelinkMailer(log, pmc)   // specs/121 T206
 	opts.VendorKeySealer = vendorKeySealer(ctx, hc, log) // spec 127 H1 + spec 159 T1: a workspace's own vendor keys

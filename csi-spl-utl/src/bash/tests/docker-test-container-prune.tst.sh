@@ -25,6 +25,9 @@
 #  15. the four call sites label what they start with csi-spl.lane
 #  16. CreatedAt in docker's own format (offset + zone name) is read
 #  17. LIVE GUARD: no call reached a docker, tmux or spool-send outside $T
+#  18. report only (a long-lived non-test container, e.g. another project's
+#      tf-runner): exit 0, one note per set, never repeated by the throttle;
+#      a changed set notes once more; a failed removal next to it still exits 1
 #------------------------------------------------------------------------------
 set -uo pipefail
 
@@ -234,6 +237,30 @@ printf '%s\n' "id-tz${FS}tz-pg${FS}$when${FS}c-300${FS}${FS}csi-spl.lane=c-300" 
 DRY_RUN=1 run_fn
 if has "PLAN remove tz-pg (lane c-300 gone, 200 min old)"; then pass "16. CreatedAt '$when' read as 200 min"
 else fail "16. $(cat "$T/out")"; fi
+
+# 18. report only: a long-lived container of another project, no lane label
+row id-other other-proj-tf-runner-con 9000 - >"$LIST"
+rm -f "$T/state/alert.stamp"; : >"$RM_LOG"; : >"$SENT"
+DRY_RUN=1 run_fn
+r1="$(rc)"
+DRY_RUN=0 run_fn
+r2="$(rc)"; n2="$(wc -l <"$SENT")"
+DRY_RUN=0 DOCKER_PRUNE_THROTTLE_S=0 run_fn
+r3="$(rc)"; n3="$(wc -l <"$SENT")"
+if [[ "$r1" == 0 && "$r2" == 0 && "$r3" == 0 && "$n2" == 1 && "$n3" == 1 && ! -s "$RM_LOG" ]] &&
+  grep -q 'other-proj-tf-runner-con (9000 min, no csi-spl.lane label)' "$SENT" &&
+  has "WARN unlabelled, report only: other-proj-tf-runner-con"; then
+  pass "18. report only: exit 0, one note, not repeated after the throttle"
+else fail "18. r1=$r1 r2=$r2 r3=$r3 notes=$n2/$n3 rm=$(cat "$RM_LOG") $(cat "$T/out")"; fi
+row id-nolab c999-pg 4000 - >>"$LIST"
+DRY_RUN=0 run_fn
+if [[ "$(rc)" == 0 && "$(wc -l <"$SENT")" == 2 ]]; then pass "18b. a changed report set notes once more, exit 0"
+else fail "18b. rc=$(rc) sent=$(cat "$SENT")"; fi
+row id-retired c300-pg 180 c-300 >>"$LIST"; touch "$T/rm.fail"
+DRY_RUN=0 run_fn
+rm -f "$T/rm.fail"
+if [[ "$(rc)" == 1 ]] && has "failed 1"; then pass "18c. a failed removal next to the report-only rows still exits 1"
+else fail "18c. rc=$(rc) $(cat "$T/out")"; fi
 
 # 17. live guard
 if [[ ! -s "$LIVE" ]]; then pass "17. LIVE GUARD: no real docker, tmux or spool reached"

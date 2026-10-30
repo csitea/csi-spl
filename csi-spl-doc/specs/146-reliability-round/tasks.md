@@ -52,7 +52,7 @@ Eleven checks are box crons: rows `rel-*` of `csi-spl-orc/cnf/box-crons/box-cron
 | 04 | `do_net_external_api_check` | `* * * * *` (the uplink probe's) | box cron `rel-external-api` | report only: TSV next to the uplink probe |
 | 05 | `do_fleet_tmux_health_guard` | `* * * * *` | box cron `rel-tmux-health` | note on HUNG / DOWN; never restarts tmux |
 | 06 | `do_fleet_orphan_process_reap` | `11,41 * * * *` | box cron `rel-orphan-process` | note, throttled 30 min; never kills |
-| 07 | `do_docker_test_container_prune` | `29 * * * *` | box cron `rel-docker-prune` | removes labelled test containers of a gone lane older than 2 h (T007); unlabelled reported only |
+| 07 | `do_docker_test_container_prune` | `29 * * * *` | box cron `rel-docker-prune` | removes labelled test containers of a gone lane older than 2 h (T007); unlabelled reported only, exit 0, one note per new set (SPL-4285) |
 | 08 | `do_gh_runner_health_check` | `3,18,33,48 * * * *` | box cron `rel-gh-runner` | note on offline runner, job > 45 min or API error |
 | 09 | `do_os_clock_sync_check` | `*/5 * * * *` | box cron `rel-clock-sync` | note on drift > 1 s or sync lost > 30 min |
 | 10 | `do_cloud_sql_backup_verify` | daily, 03:17 UTC | workflow `45_db-backup.yml` | the red step is the alert |

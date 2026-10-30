@@ -23,11 +23,14 @@
 #
 # Report: with DRY_RUN=0, one spool note to the orchestrator when the set of
 # reported or removed containers changes, or after DOCKER_PRUNE_THROTTLE_S
-# (default 6 h) for the same set. DRY_RUN=1 (default) plans the note and the
-# removals and changes nothing.
+# (default 6 h) for the same set. A set that is ONLY reported (no removal, no
+# failure) is noted once and never re-sent by the throttle: a long-lived
+# container of another project stays reported every hour, and a repeated note
+# and a red cron would only hide a real failure (SPL-4285). DRY_RUN=1
+# (default) plans the note and the removals and changes nothing.
 #
-# Exit: 0 nothing to remove or report; 1 a container was (or would be) removed,
-# or an unlabelled one was reported, or a removal failed; 2 docker unusable.
+# Exit: 0 nothing to remove, or only reported (unlabelled) containers; 1 a
+# container was (or would be) removed, or a removal failed; 2 docker unusable.
 #
 # Environment variables:
 #   DRY_RUN: 1 (default) plans only; 0 removes and sends the note.
@@ -115,10 +118,11 @@ _dtcp_box() {
   echo "$box"
 }
 
-# _dtcp_note <dry> <signature> <body>: send (or plan) the orchestrator note,
-# once per new signature or per throttle interval.
+# _dtcp_note <dry> <signature> <body> [once]: send (or plan) the orchestrator
+# note, once per new signature or per throttle interval; with "once", once per
+# new signature only.
 _dtcp_note() {
-  local dry="$1" sig="$2" body="$3" stamp prev_sig="" prev_t=0 now from
+  local dry="$1" sig="$2" body="$3" once="${4:-}" stamp prev_sig="" prev_t=0 now from
   local to="${DOCKER_PRUNE_ALERT_TO:-orchestrator}" task="${DOCKER_PRUNE_ALERT_TASK:-docker-test-container-prune}"
   local -a send
   stamp="$(_dtcp_stamp)"
@@ -130,7 +134,7 @@ _dtcp_note() {
   fi
   if [[ -f "$stamp" ]]; then read -r prev_sig prev_t <"$stamp" 2>/dev/null || true; fi
   [[ "$prev_t" =~ ^[0-9]+$ ]] || prev_t=0
-  if [[ "$prev_sig" == "$sig" ]] && ((now - prev_t < ${DOCKER_PRUNE_THROTTLE_S:-21600})); then
+  if [[ "$prev_sig" == "$sig" ]] && { [[ -n "$once" ]] || ((now - prev_t < ${DOCKER_PRUNE_THROTTLE_S:-21600})); }; then
     do_log "INFO docker-test-container-prune note throttled by $stamp"
     return 0
   fi
@@ -228,7 +232,8 @@ _dtcp_remove() {
   for row in "${report[@]}"; do do_log "WARN unlabelled, report only: $row"; done
 }
 
-# _dtcp_report: the summary line, then the all-clear (0) or the note (1).
+# _dtcp_report: the summary line, then the all-clear (0), the report-only
+# note (0) or the note (1).
 _dtcp_report() {
   local verb="removed"
   [[ "$dry" != 0 ]] && verb="would remove"
@@ -244,6 +249,10 @@ _dtcp_report() {
   ((failed)) && body+=". $failed removal(s) FAILED, see the run log"
   ((${#report[@]})) && body+=". ${#report[@]} unlabelled container(s) older than ${min_age} min, NOT removed (a human decides): $(IFS=';'; echo "${report[*]}")"
   sig="$(printf '%s\n' "${done_names[@]%% *}" "${report[@]%% *}" "$failed" | sort | md5sum | cut -c1-16)"
+  if ((${#done_names[@]} == 0 && failed == 0)); then
+    _dtcp_note "$dry" "$sig" "$body" once
+    return 0
+  fi
   _dtcp_note "$dry" "$sig" "$body"
   return 1
 }

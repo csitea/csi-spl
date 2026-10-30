@@ -22,7 +22,10 @@
 #        reviewer the line names, only within REVIEW_GO_MAX_AGE
 #    11. the lease held elsewhere, stale, none -> nothing; never written
 #    12. the dry run prints PLAN, sends and logs nothing
-#    13. the install cron: dry run, one exact line, idempotent, check, remove
+#    13. the install cron: dry run, one exact line, idempotent, check, remove;
+#        RED CONTROL the installed line run as cron runs it, SPOOL_ROOT unset,
+#        under run.sh's set -u: on the default spool root, no unbound
+#        variable (both live ticks died on line 96, SPL-4316)
 #    14. a retired reviewer: its brief is dispatch/briefs/<title of its newest
 #        retired identity record>.md, the author in prose (one author, the
 #        sha or task named), the author brief from its Author brief: line
@@ -36,6 +39,11 @@
 #        author and sha -> rc 10, no GO, WAIT in automation.log; the agy PASS
 #        then -> one GO, one PASS line; both in one tick -> one GO; controls:
 #        a sibling brief of another sha or another author holds nothing
+#    17. a re-placed seat (SPL-4316, m-874 -> g-636): RED CONTROL the sibling
+#        seat retired with no review line for the sha -> GO (was rc 10 WAIT
+#        forever); controls: a sibling placed but not yet spawned, live, or
+#        retired with its PASS or FAIL in the holder's spool still holds (rc
+#        10); the retired seat's PASS in one tick -> one GO
 #   REVIEW_GO_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -271,7 +279,23 @@ if [ "${1:-}" = -l ]; then cat "$FAKE_CRONTAB" 2>/dev/null; exit 0; fi
 cp "$1" "$FAKE_CRONTAB"
 EOF
 chmod +x "$T/bin/crontab"
-SRC="$T/shared"; mkdir -p "$SRC/csi-spl-orc"; printf '#!/bin/sh\n' >"$SRC/csi-spl-orc/run"; chmod +x "$SRC/csi-spl-orc/run"
+SRC="$T/shared"; mkdir -p "$SRC/csi-spl-orc"
+# the shared checkout's ./run: run.sh's set -u, the action under test, the
+# lease and the spool read stubbed (it never reads the live root it defaults to)
+cat >"$SRC/csi-spl-orc/run" <<'EOF'
+#!/bin/bash
+set -u -o pipefail
+do_log() { echo "$*"; }
+do_require_bin() { return 0; }
+for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
+source "$STUB_FUNC"
+spl_lease_init() { LEASE_DIR="$STUB_DIR"; LEASE_STALE=180; }
+spl_lease_conf() { :; }
+_spl_review_go_holder() { echo c-002; }
+_spl_review_go_scan() { echo "SCAN $2" >>"$STUB_DIR/scan.log"; }
+"$2"
+EOF
+chmod +x "$SRC/csi-spl-orc/run"
 printf '*/3 * * * * other job # csi-spl:desk-reconcile\n* * * * * x # csi-spl:review-go-not-this\n' >"$T/crontab"
 cron() {
   # shellcheck disable=SC2016 # the script is single-quoted on purpose
@@ -292,6 +316,12 @@ cron DRY_RUN=0; rc=$?
 want="* * * * * cd $SRC/csi-spl-orc && PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:\$HOME/.local/bin flock -n $T/log/review-go.cron.lock env DRY_RUN=0 ./run -a do_spl_review_go >> $T/log/cron.out 2>&1 # csi-spl:review-go"
 [[ $rc -eq 0 ]] && grep -qxF "$want" "$T/crontab" && grep -q 'desk-reconcile$' "$T/crontab" && grep -q 'review-go-not-this$' "$T/crontab" &&
   pass "13. DRY_RUN=0: one exact every-minute line, the other lines kept" || fail "13. install rc=$rc: $(cat "$T/crontab") $(cat "$T/o")"
+mkdir -p "$T/stub"
+# shellcheck disable=SC2016 # the line is run by a fresh shell, as cron does
+env -u SPOOL_ROOT PROJ_PATH="$PROJ_ROOT" STUB_FUNC="$FUNC" STUB_DIR="$T/stub" bash -c "$(grep '# csi-spl:review-go$' "$T/crontab" | cut -d' ' -f6-)"; rc=$?
+if (( rc == 0 )) && grep -qxF 'SCAN /var/spool-hub/c-002' "$T/stub/scan.log" && ! grep -q 'unbound variable' "$T/log/cron.out"; then
+  pass "13. RED CONTROL: the installed line, SPOOL_ROOT unset, set -u: reads the default spool root"
+else fail "13. installed line rc=$rc scan=$(cat "$T/stub/scan.log" 2>/dev/null) out=$(tail -3 "$T/log/cron.out" 2>/dev/null)"; fi
 cp "$T/crontab" "$T/ct.1"; cron DRY_RUN=0
 cmp -s "$T/crontab" "$T/ct.1" && [[ $(grep -c '# csi-spl:review-go$' "$T/crontab") == 1 ]] && pass "13. a second install changes nothing" || fail "13. idempotent: $(cat "$T/crontab")"
 cron REVIEW_GO_CRON_ACTION=check && grep -q 'OK the review GO is installed' "$T/o" && pass "13. check passes once installed" || fail "13. check: $(cat "$T/o")"
@@ -357,13 +387,15 @@ reset16() {
   reset14; retire a-333 20261028T100000Z c002-x-agy-strings; rlog a-333 "bash csi-spl-orc/src/bash/tests/foo.tst.sh"
   pbrief c002-x-agy-strings "Author c-222@boxa (claude). Author brief: $S/dispatch/briefs/c002-x.md; Branch \`review/c002-x\` at \`${SHA:0:12}\`. Strings only."
 }
-reset16
+# live <id> <slug>: the seat is up; its live identity record has the slug as title
+live() { mkdir -p "$S/agents"; printf '{"id":"%s","title":"%s","v":1}\n' "$1" "$2" >"$S/agents/$1.json"; }
+reset16; live a-333 c002-x-agy-strings
 f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 16000000-0000-4000-8000-000000000001)
 run REVIEW_GO_MSG="$f"; rc=$?
 if (( rc == 10 )) && [[ $(gos) == 0 && $(holds) == 1 && $(waits) == 1 ]] && ! grep -q '^PASS ' "$LOG" &&
   grep -qE "^WAIT [^ ]+ 16000000-0000-4000-8000-000000000001 $TASK c-222 g-111 $SHA c002-x-grok-reviewer$" "$LOG" &&
   grep -q 'c002-x-agy-strings' "$T/s/sent.log"; then
-  pass "16. RED CONTROL: the grok PASS waits for the agy seat of the same author and sha (rc 10, no GO, WAIT logged, holder told)"
+  pass "16. RED CONTROL: the grok PASS waits for the live agy seat of the same author and sha (rc 10, no GO, WAIT logged, holder told)"
 else fail "16. wait rc=$rc gos=$(gos) holds=$(holds) log=$(cat "$LOG" 2>/dev/null) out=$(tail -3 "$T/out")"; fi
 run REVIEW_GO_MSG="$f"; [[ $(gos) == 0 && $(holds) == 1 ]] && pass "16. the waiting message is not checked again" || fail "16. rechecked holds=$(holds)"
 f=$(msg 20261028T115930Z a-333@boxa "$(line a-333 agy PASS)" 16000000-0000-4000-8000-000000000002)
@@ -378,7 +410,7 @@ msg 20261028T115930Z g-111@boxa "$(line g-111 grok PASS)" 16000000-0000-4000-800
 run; run; rc=$?
 (( rc == 0 )) && [[ $(gos) == 1 && $(waits) == 1 && $(count "$LOG" '^PASS ') == 1 ]] && grep -q "^PASS .* 16000000-0000-4000-8000-000000000004 " "$LOG" &&
   pass "16. both PASS in one tick (agy first): one WAIT, one GO, the next tick nothing" || fail "16. one tick gos=$(gos) log=$(cat "$LOG") out=$(tail -3 "$T/out")"
-reset16
+reset16; live a-333 c002-x-agy-strings
 msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 16000000-0000-4000-8000-000000000005 >/dev/null
 run DRY_RUN=1; rc=$?
 (( rc == 0 )) && grep -q '^PLAN WAIT msg 16000000-0000-4000-8000-000000000005 (rc 10): .*c002-x-agy-strings' "$T/out" && [[ ! -s "$T/s/sent.log" && ! -e "$LOG" ]] &&
@@ -390,6 +422,38 @@ for other in "another sha|Author c-222@boxa (claude). Branch \`review/c002-x\` a
   run REVIEW_GO_MSG="$f"; rc=$?
   (( rc == 0 && $(gos) == 1 && $(waits) == 0 )) && pass "16. control: a brief of ${other%%|*} holds nothing" || fail "16. ${other%%|*} rc=$rc out=$(tail -3 "$T/out")"
 done
+
+# --- 17. a re-placed seat: the sibling retired with no review line -----------------------------------------
+# the sat case (msg 7f1bd557): m-874 (c002-x-mistral-reviewer) failed 2 tries, retired, re-placed by g-111
+reset17() {
+  reset16; rm -f "$S/dispatch/briefs/c002-x-agy-strings.md"; retire m-874 20261028T090000Z c002-x-mistral-reviewer
+  pbrief c002-x-mistral-reviewer "Author c-222@boxa (claude). Author brief: $S/dispatch/briefs/c002-x.md; Branch \`review/c002-x\` at \`${SHA:0:12}\`."
+}
+reset17
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 17000000-0000-4000-8000-000000000001)
+run REVIEW_GO_MSG="$f"; rc=$?
+if (( rc == 0 )) && [[ $(gos) == 1 && $(waits) == 0 ]] && grep -qxF "SEND --from c-002 --to c-222@boxa --kind task --task $TASK --body GO $SHA" "$T/s/sent.log" &&
+  grep -qE "^PASS [^ ]+ 17000000-0000-4000-8000-000000000001 $TASK c-222 g-111 $SHA$" "$LOG" &&
+  grep -q 'review seat c002-x-mistral-reviewer (m-874) retired with no review line' "$T/out"; then
+  pass "17. RED CONTROL: a sibling seat retired with no review line (re-placed) holds nothing: rc 0, one GO"
+else fail "17. re-placed rc=$rc gos=$(gos) log=$(cat "$LOG" 2>/dev/null) out=$(tail -3 "$T/out")"; fi
+for held in "placed, not yet spawned|rm -f $S/agents/retired/m-874.*.json" \
+            "live again under the same slug|live m-875 c002-x-mistral-reviewer" \
+            "retired, its PASS in the holder's spool|msg 20261028T115800Z m-874@boxa \"\$(line m-874 mistral PASS)\" 17000000-0000-4000-8000-000000000010 result archive" \
+            "retired, its FAIL in the holder's spool|msg 20261028T115800Z m-874@boxa \"\$(line m-874 mistral FAIL)\" 17000000-0000-4000-8000-000000000011 result archive"; do
+  reset17; eval "${held#*|}" >/dev/null
+  f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 17000000-0000-4000-8000-000000000002)
+  run REVIEW_GO_MSG="$f"; rc=$?
+  (( rc == 10 && $(gos) == 0 && $(waits) == 1 )) && grep -q 'c002-x-mistral-reviewer' "$T/s/sent.log" &&
+    pass "17. control: a sibling seat ${held%%|*} still holds the GO (rc 10)" || fail "17. ${held%%|*} rc=$rc gos=$(gos) out=$(tail -3 "$T/out")"
+done
+reset17
+msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 17000000-0000-4000-8000-000000000003 >/dev/null
+msg 20261028T115930Z m-874@boxa "$(line m-874 mistral PASS)" 17000000-0000-4000-8000-000000000004 >/dev/null
+rlog m-874 "bash csi-spl-orc/src/bash/tests/foo.tst.sh"
+run; rc=$?
+(( rc == 0 )) && [[ $(gos) == 1 && $(waits) == 1 && $(count "$LOG" '^PASS ') == 1 ]] && grep -q "^PASS .* 17000000-0000-4000-8000-000000000004 " "$LOG" &&
+  pass "17. the retired seat's PASS in the same tick (grok first): one WAIT, one GO" || fail "17. one tick rc=$rc gos=$(gos) log=$(cat "$LOG" 2>/dev/null) out=$(tail -3 "$T/out")"
 
 echo "spl-review-go: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

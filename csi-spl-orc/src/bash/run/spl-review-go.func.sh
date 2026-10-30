@@ -46,7 +46,10 @@
 # @description       <task_id> <author_id> <reviewer_id> <sha> <slug>`; while
 # @description       one has none, this PASS is logged as such a WAIT line
 # @description       (the holder told once) and the GO waits for the last
-# @description       seat's PASS
+# @description       seat's PASS; a seat retired (every identity record
+# @description       titled <slug> is in agents/retired/, none live) that
+# @description       sent the holder no review line for the sha waits for
+# @description       nothing (it was re-placed, SPL-4316)
 # @description All pass: `GO <sha>` goes to the author (spool-send, kind task,
 # @description the row's task, from the holder), then the line (bare ids; the
 # @description task_id is the review message's, the author the brief row's)
@@ -67,6 +70,7 @@
 # @param REVIEW_GO_REPO (optional) - the repo whose origin holds the branch, default this checkout
 # @param REVIEW_GO_FROM (optional) - the hold note's sender, default lease.conf LEASE_ORCH, else role seat 1
 # @param REVIEW_GO_SEND (optional) - the sender script, default spawn-agents/scripts/spool-send.sh (tests)
+# @param SPOOL_ROOT (optional) - the spool root, default /var/spool-hub (the cron line sets none)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ./run -a do_spl_review_go
 # @example DRY_RUN=0 ./run -a do_spl_review_go
@@ -77,6 +81,9 @@ do_spl_review_go() {
   local max="${REVIEW_GO_MAX_AGE:-60}" dry="${DRY_RUN:-1}" holder log rows n=0 msg task line rc
   [[ "$max" =~ ^[1-9][0-9]*$ ]] || { do_log "FATAL REVIEW_GO_MAX_AGE must be minutes (a positive integer), got: '$max'"; return 1; }
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
+  # The cron line exports no SPOOL_ROOT: spl_lease_init's default, set before
+  # its first use (SPL-4316; under set -u both cron ticks died on line 96).
+  SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"
   spl_lease_init ro || return 1
   spl_lease_conf
   holder="$(_spl_review_go_holder)" || return 0
@@ -203,22 +210,62 @@ _spl_review_go_slug() {
   echo "${t:--}"
 }
 
-# _spl_review_go_siblings <reviewer> <its brief> <author> <sha> <log>: the
-# slugs of the OTHER review seats for the same author and sha still without a
-# WAIT line, space-separated; nothing when none waits. A sibling is a
-# dispatch/briefs/<slug>.md, not the reviewer's own (by slug or content), whose
-# row (_spl_review_go_row, matched by the sha only) names the author.
+# _spl_review_go_siblings <reviewer> <its brief> <author> <sha> <log> <holder>:
+# the slugs of the OTHER review seats for the same author and sha still
+# without a WAIT line, space-separated; nothing when none waits. A sibling is
+# a dispatch/briefs/<slug>.md, not the reviewer's own (by slug or content),
+# whose row (_spl_review_go_row, matched by the sha only) names the author,
+# and whose seat is not gone (_spl_review_go_gone).
 _spl_review_go_siblings() {
-  local own f slug miss=()
+  local own f slug gone miss=()
   own="$(_spl_review_go_slug "$1" "$2")"
   while IFS= read -r f; do
     slug="${f##*/}" && slug="${slug%.md}"
     [[ "$slug" == "$own" ]] || cmp -s "$f" "$2" && continue
     [[ "$(_spl_review_go_row "$f" "$4" '@@no-task@@' | cut -f1)" == "$3" ]] || continue
     grep -qE "^WAIT [^ ]+ [^ ]+ [^ ]+ $3 [^ ]+ $4 $slug\$" "$5" 2>/dev/null && continue
+    gone="$(_spl_review_go_gone "$slug" "$4" "$6")" &&
+      { do_log "INFO review seat $slug ($gone) retired with no review line for ${4:0:12}: re-placed, not waited for" >&2; continue; }
     miss+=("$slug")
   done < <(grep -lF -- "${4:0:7}" "$SPOOL_ROOT"/dispatch/briefs/*.md 2>/dev/null)
   echo "${miss[*]}"
+}
+
+# _spl_review_go_gone <slug> <sha> <holder>: 0 (the retired ids on stdout)
+# when the seat placed under <slug> is gone: every identity record titled
+# <slug> is a retired one (agents/retired/<id>.<spawned>.json, written by
+# agent-id-retire.sh), none is live (agents/<id>.json), and none of those ids
+# sent the holder (inbox/, archive/) a review line for <sha>. A seat not yet
+# spawned (no record), live, or whose PASS or FAIL is in the spool: rc 1.
+_spl_review_go_gone() {
+  python3 - "$SPOOL_ROOT" "$1" "$2" "$3" <<'EOF_PY'
+import glob, json, os, re, sys
+root, slug, sha, holder = sys.argv[1:5]
+def ids(pat):
+    out = set()
+    for f in glob.glob(os.path.join(root, "agents", pat)):
+        try:
+            r = json.load(open(f))
+        except (OSError, ValueError):
+            continue
+        if isinstance(r, dict) and r.get("title") == slug and re.fullmatch(r"[acgmq]-[0-9]{3,}", str(r.get("id", ""))):
+            out.add(r["id"])
+    return out
+gone = set() if ids("*.json") else ids(os.path.join("retired", "*.json"))
+if not gone:
+    sys.exit(1)
+line = re.compile(r"review: (?:%s)@\S+ [a-z]+ [A-Z]+ %s" % ("|".join(map(re.escape, sorted(gone))), sha))
+for sub in ("inbox", "archive"):
+    for f in glob.glob(os.path.join(root, holder, sub, "*.json")):
+        try:
+            with open(f) as fh:
+                txt = fh.read()
+            if sha in txt and line.search(str(json.loads(txt).get("body", ""))):
+                sys.exit(1)
+        except (OSError, ValueError, AttributeError):
+            continue
+print(" ".join(sorted(gone)))
+EOF_PY
 }
 
 # _spl_review_go_abrief <author> <reviewer brief>: the path of the author's
@@ -336,7 +383,7 @@ _spl_review_go_one() {
   (( rc == 0 )) || { _spl_review_go_hold "$@" 8 "review line check failed (rc $rc): $(tail -n2 <<<"$why" | paste -sd' ')"; return 8; }
   why="$(_spl_review_go_tip "$branch")"
   [[ "$why" == "$sha" ]] || { _spl_review_go_hold "$@" 5 "branch '${branch:-none}' on origin is ${why:-missing}, not the reviewed ${sha:0:12}: re-review"; return 5; }
-  why="$(_spl_review_go_siblings "$rid" "$brief" "$author" "$sha" "$log")"
+  why="$(_spl_review_go_siblings "$rid" "$brief" "$author" "$sha" "$log" "$holder")"
   [[ -z "$why" ]] || { _spl_review_go_wait "$@" "$author" "$rid" "$sha" "$(_spl_review_go_slug "$rid" "$brief")" "$why"; return 10; }
   _spl_review_go_send "$holder" "$msg" "$task" "$author" "$abox" "$rid" "$sha" "$log" "$dry" "${rtask:-$task}"
 }

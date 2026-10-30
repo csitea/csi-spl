@@ -1392,7 +1392,7 @@
     "selected_count": "Selected: {n}",
     "delete_selected": "Delete selected",
     "clear_selection": "Clear selection",
-    "delete_confirm_title": "Delete {n} entries?",
+    "delete_confirm_title": "Delete the selected entries ({n})?",
     "delete_confirm_body": "This cannot be undone.",
     "delete_failed": "The selected entries could not be deleted."
   },

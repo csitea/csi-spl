@@ -1389,7 +1389,7 @@
     "select_row": "Valitse merkintä {id}",
     "select_page": "Valitse kaikki näytetyt",
     "bulk_label": "Valitut merkinnät",
-    "selected_count": "Valittu: {n}",
+    "selected_count": "Valittuja: {n}",
     "delete_selected": "Poista valitut",
     "clear_selection": "Tyhjennä valinta",
     "delete_confirm_title": "Poistetaanko valitut merkinnät ({n})?",

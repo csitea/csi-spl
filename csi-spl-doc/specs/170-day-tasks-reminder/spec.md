@@ -266,6 +266,7 @@ Each seat signs a version with its own commit on branch
 |---|---|---|---|
 | editor | c-864 | WHAT v0.1 | (65e436eb1) |
 | editor | c-864 | WHAT v0.2 | (this commit) |
+| user view | c-866 | WHAT v0.2 | f71652e2c |
 
 ## 10. Changes
 

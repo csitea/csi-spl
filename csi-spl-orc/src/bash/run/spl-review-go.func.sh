@@ -15,19 +15,32 @@
 # @description       and the read: part does not say FAIL as a verdict
 # @description       (`JUDGMENT|VERDICT|OVERALL|REVIEW FAIL`, `FAIL W<n>`;
 # @description       a count such as `red control 2 FAIL` is no verdict)
-# @description   [3] the reviewer was placed for it: its brief ($SPOOL_ROOT/
-# @description       <reviewer>/lifetime/brief.md, else, the seat retired,
-# @description       dispatch/briefs/<title of its identity record>.md) has a
+# @description   [3] the reviewer was placed for it: its brief has a
 # @description       `| author | ... |` table row whose sha / head / commits
 # @description       cell abbreviates the reviewed sha, or whose task cell is
 # @description       the message's task; no such row: it names one author in
-# @description       prose (`Author <id>@<box>`) and the sha or the task
+# @description       prose (`Author <id>@<box>`) and the sha or the task.
+# @description       The reviewer is <id>@<box> of the message's from (a bare
+# @description       from is this box: LEASE_MACHINE, else the desk box). On
+# @description       this box its brief is $SPOOL_ROOT/<reviewer>/lifetime/
+# @description       brief.md, else (the seat retired) dispatch/briefs/<title
+# @description       of its identity record>.md; a seat of another box is
+# @description       never judged on this box's records of the same id (one
+# @description       id can be two seats, c-700@<box-a> and c-700@<box-b>, SPL-4427).
+# @description       Then, either box, the fleet lane map's rows of <id>@<box>
+# @description       (the hub, read as do_spl_lane_map reads it): dispatch/
+# @description       briefs/<slug of the row's <id>-<slug> branch>.md, else
+# @description       the briefs whose first heading the row's scope opens;
+# @description       the first whose row matches. None: rc 3 naming both
+# @description       boxes
 # @description   [2] the reviewer's vendor differs from the author's
 # @description       (rounds-rulebook 2.7.2; the vendor is the id letter)
 # @description   [7] the author's own brief ($SPOOL_ROOT/<author>/lifetime/
-# @description       brief.md, else the dispatch/briefs/<slug>.md the reviewer
-# @description       brief names on its `Author brief:` line) is on this box
-# @description       (unread = not verified)
+# @description       brief.md when the row's author box is this box or none,
+# @description       else the dispatch/briefs/<slug>.md the reviewer brief
+# @description       names on its `Author brief:` line, else the lane map's
+# @description       as in [3], a scope match only when it is one brief) is
+# @description       on this box (unread = not verified)
 # @description   [4] that brief names no owner-go keyword (apply, do-provision,
 # @description       do-tf-apply, PROBE_PRD_GO, DRY_RUN=0, ENV=prd, IAM,
 # @description       billing, service account key, /etc/; spec 7.1.2), or it
@@ -78,7 +91,7 @@
 #------------------------------------------------------------------------------
 do_spl_review_go() {
   do_require_bin python3 || return 1
-  local max="${REVIEW_GO_MAX_AGE:-60}" dry="${DRY_RUN:-1}" holder log rows n=0 msg task line rc
+  local max="${REVIEW_GO_MAX_AGE:-60}" dry="${DRY_RUN:-1}" holder log rows n=0 msg task from line rc
   [[ "$max" =~ ^[1-9][0-9]*$ ]] || { do_log "FATAL REVIEW_GO_MAX_AGE must be minutes (a positive integer), got: '$max'"; return 1; }
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
   # The cron line exports no SPOOL_ROOT: spl_lease_init's default, set before
@@ -96,15 +109,15 @@ do_spl_review_go() {
   if [[ -n "${REVIEW_GO_MSG:-}" ]]; then
     rows="$(_spl_review_go_scan "$max" "$REVIEW_GO_MSG")" || return 1
     [[ -n "$rows" ]] || { do_log "FATAL $REVIEW_GO_MSG holds no review line from its reviewer"; return 1; }
-    IFS=$'\t' read -r msg task _ line <<<"$rows"
+    IFS=$'\t' read -r msg task from line <<<"$rows"
     _spl_review_go_seen "$msg" "$log" && { do_log "INFO msg $msg is in $log already: not checked again"; return 0; }
-    _spl_review_go_one "$holder" "$msg" "$task" "$line" "$log" "$dry"; return
+    _spl_review_go_one "$holder" "$msg" "$task" "$line" "$log" "$dry" "$from"; return
   fi
   rows="$(_spl_review_go_scan "$max" "$SPOOL_ROOT/$holder")" || { do_log "WARN could not read $SPOOL_ROOT/$holder"; return 1; }
-  while IFS=$'\t' read -r msg task _ line; do
+  while IFS=$'\t' read -r msg task from line; do
     [[ -n "$msg" ]] || continue
     _spl_review_go_seen "$msg" "$log" && continue
-    rc=0; _spl_review_go_one "$holder" "$msg" "$task" "$line" "$log" "$dry" || rc=$?
+    rc=0; _spl_review_go_one "$holder" "$msg" "$task" "$line" "$log" "$dry" "$from" || rc=$?
     (( rc == 0 )) && n=$((n + 1))
   done <<<"$rows"
   do_log "OK review GO: holder $holder, $n GO(s) sent$([[ "$dry" == 1 ]] && echo ' (DRY_RUN: planned, nothing sent)')"
@@ -178,15 +191,95 @@ for r in sorted(set(rows)):
 EOF_PY
 }
 
-# _spl_review_go_brief <reviewer>: the path of the reviewer's placed brief: its
-# lifetime copy, else (a retired seat's lifetime dir is gone)
-# dispatch/briefs/<slug>.md, the slug being the title of its live identity
-# record or of its newest retired one (agents/retired/<id>.<spawned>.json).
+# _spl_review_go_here: this box, as spl_lease_remote names it.
+_spl_review_go_here() { echo "${LEASE_MACHINE:-$(spl_desk_box_default)}"; }
+
+# _spl_review_go_brief <reviewer> <its box> <sha> <task>: the path of the
+# reviewer's placed brief. On this box: its lifetime copy, else (a retired
+# seat's lifetime dir is gone) dispatch/briefs/<slug>.md, the slug being the
+# title of its live identity record or of its newest retired one
+# (agents/retired/<id>.<spawned>.json). A seat of another box is never read
+# from this box's records: the same id here may be another seat (SPL-4427).
+# Then the lane map's briefs (_spl_review_go_lane_briefs): the first whose
+# row matches the sha or task, else the first. A seat of another box with
+# none: nothing printed, rc 1.
 _spl_review_go_brief() {
-  local b="$SPOOL_ROOT/$1/lifetime/brief.md" slug
-  [[ -s "$b" ]] && { echo "$b"; return 0; }
-  slug="$(_spl_review_go_title "$1")"
-  if [[ -n "$slug" ]]; then echo "$SPOOL_ROOT/dispatch/briefs/$slug.md"; else echo "$b"; fi
+  local b="$SPOOL_ROOT/$1/lifetime/brief.md" here slug c first=""
+  here="$(_spl_review_go_here)"
+  if [[ "$2" == "$here" ]]; then
+    [[ -s "$b" ]] && { echo "$b"; return 0; }
+    slug="$(_spl_review_go_title "$1")"
+    [[ -n "$slug" ]] && { echo "$SPOOL_ROOT/dispatch/briefs/$slug.md"; return 0; }
+  fi
+  while IFS= read -r c; do
+    [[ -n "$c" ]] || continue
+    first="${first:-$c}"
+    _spl_review_go_row "$c" "$3" "$4" >/dev/null && { echo "$c"; return 0; }
+  done < <(_spl_review_go_lane_briefs "$1" "$2" all)
+  [[ -n "$first" ]] && { echo "$first"; return 0; }
+  [[ "$2" == "$here" ]] || return 1
+  echo "$b"
+}
+
+# _spl_review_go_lanes: the fleet lane map's hub rows (JSON, `.lanes`), read
+# as do_spl_lane_map reads them (spl_lane_init, spl_lane_hub_read), in a
+# subshell; rc 1 with no fleet or no hub answer.
+_spl_review_go_lanes() {
+  (
+    { spl_lane_init && [[ "$LANE_MODE" == hub ]] && spl_lane_hub_read; } >/dev/null 2>&1 || exit 1
+    printf '%s' "$LANE_HUB_JSON"
+  )
+}
+
+# _spl_review_go_lane_briefs <id> <box> <all|one>: the dispatch/briefs/<slug>.md
+# copies of the seat <id>@<box> by its lane map rows, newest row first, one
+# per line: the slug of an <id>-<slug> branch (a rotated seat's branch is
+# <id>-rotate: no brief), then the briefs whose first heading (`#`s and
+# `Brief:` dropped, as the spawn writes the scope; cut to 120 or 500) the
+# row's scope opens. With `one` a scope match counts only when the matches
+# are one brief's content (the author check reads the one it gets).
+_spl_review_go_lane_briefs() {
+  local f
+  f="$(mktemp)" || return 0
+  _spl_review_go_lanes >"$f" || { rm -f "$f"; return 0; }
+  python3 - "$1" "$2" "$3" "$SPOOL_ROOT/dispatch/briefs" "$f" <<'EOF_PY'
+import glob, json, os, re, sys
+rid, box, mode, bdir, src = sys.argv[1:6]
+try:
+    rows = [r for r in json.load(open(src)).get("lanes", []) if isinstance(r, dict) and r.get("agent_id") == rid and r.get("agent_box") == box]
+except (OSError, ValueError, AttributeError):
+    sys.exit(0)
+rows.sort(key=lambda r: str(r.get("updated_at", "")), reverse=True)
+heads = None
+def head(f):
+    try:
+        with open(f, encoding="utf-8", errors="replace") as fh:
+            for l in fh:
+                if re.match(r"#+ ", l):
+                    return re.sub(r"^Brief: *", "", re.sub(r"^#+ +", "", l.strip()))
+    except OSError:
+        pass
+    return ""
+out = []
+for r in rows:
+    br = str(r.get("branch") or "")
+    slug = br[len(rid) + 1:] if br.startswith(rid + "-") else ""
+    p = os.path.join(bdir, slug + ".md")
+    if re.fullmatch(r"[A-Za-z0-9._-]+", slug) and os.path.isfile(p) and os.path.getsize(p):
+        out.append(p)
+    sc = str(r.get("scope") or "").strip()
+    if len(sc) < 12:
+        continue
+    if heads is None:
+        heads = {f: head(f) for f in sorted(glob.glob(os.path.join(bdir, "*.md")))}
+    hit = [f for f, h in heads.items() if h.startswith(sc) or (len(sc) >= 120 and h.startswith(sc[:-1]))]
+    if mode == "one" and len({open(f, "rb").read() for f in hit}) != 1:
+        continue
+    out += hit
+for p in dict.fromkeys(out):
+    print(p)
+EOF_PY
+  rm -f "$f"
 }
 
 # _spl_review_go_title <id>: the title (placement slug) of the seat's live
@@ -268,16 +361,22 @@ print(" ".join(sorted(gone)))
 EOF_PY
 }
 
-# _spl_review_go_abrief <author> <reviewer brief>: the path of the author's
-# brief on this box: its lifetime copy, else the dispatch/briefs/<slug>.md the
-# reviewer brief names on its `Author brief:` line (an author on another
-# box). rc 1 when neither is here.
+# _spl_review_go_abrief <author> <reviewer brief> <author box>: the path of
+# the author's brief on this box: its lifetime copy when the author box is
+# this box or none (another box's seat may share the id, SPL-4427), else the
+# dispatch/briefs/<slug>.md the reviewer brief names on its `Author brief:`
+# line, else the first of the lane map's (_spl_review_go_lane_briefs, a scope
+# match only when it is one brief). rc 1 when none is here.
 _spl_review_go_abrief() {
-  local b="$SPOOL_ROOT/$1/lifetime/brief.md" p
-  [[ -s "$b" ]] && { echo "$b"; return 0; }
+  local b="$SPOOL_ROOT/$1/lifetime/brief.md" here p
+  here="$(_spl_review_go_here)"
+  [[ ( -z "$3" || "$3" == "$here" ) && -s "$b" ]] && { echo "$b"; return 0; }
   p="$(sed -nE 's/.*Author brief:[[:space:]]*([^[:space:];,]+\.md).*/\1/p' "$2" 2>/dev/null)"
   p="${p%%$'\n'*}"
-  [[ "$p" == "$SPOOL_ROOT/dispatch/briefs/${p##*/}" && "${p##*/}" =~ ^[A-Za-z0-9._-]+\.md$ && -s "$p" ]] || return 1
+  if [[ "$p" == "$SPOOL_ROOT/dispatch/briefs/${p##*/}" && "${p##*/}" =~ ^[A-Za-z0-9._-]+\.md$ && -s "$p" ]]; then echo "$p"; return 0; fi
+  p="$(_spl_review_go_lane_briefs "$1" "${3:-$here}" one)"
+  p="${p%%$'\n'*}"
+  [[ -n "$p" ]] || return 1
   echo "$p"
 }
 
@@ -359,23 +458,28 @@ EOF_PY
   return 1
 }
 
-# _spl_review_go_one <holder> <msg> <task> <line> <log> <dry>: every check of
-# one review message; GO and the PASS record on success, else the hold note
-# and the refusal line. Returns the check's exit code (see the header).
+# _spl_review_go_one <holder> <msg> <task> <line> <log> <dry> <from>: every
+# check of one review message (<from>: its sender, <id> or <id>@<box>); GO and
+# the PASS record on success, else the hold note and the refusal line.
+# Returns the check's exit code (see the header).
 _spl_review_go_one() {
-  local holder="$1" msg="$2" task="$3" line="$4" log="$5" dry="$6" rx why rc
+  local holder="$1" msg="$2" task="$3" line="$4" log="$5" dry="$6" from="${7:-}" rx why rc here mbox
   local rid rbox rven verdict sha author abox branch rtask brief abrief
+  set -- "${@:1:6}"
+  here="$(_spl_review_go_here)" mbox="${from##*@}"
+  [[ "$from" == *@* ]] || mbox="$here"
   rx='^review: ([acgmq]-[0-9]{3,})@([A-Za-z0-9._-]+) ([a-z]+) ([A-Z]+) ([0-9a-f]{40}) '
   [[ "$line" =~ $rx ]] || { _spl_review_go_hold "$@" 1 "not an R7 line with a 40-hex sha"; return 1; }
   rid="${BASH_REMATCH[1]}" rbox="${BASH_REMATCH[2]}" rven="${BASH_REMATCH[3]}" verdict="${BASH_REMATCH[4]}" sha="${BASH_REMATCH[5]}"
   [[ "$verdict" == PASS ]] || { _spl_review_go_hold "$@" 1 "REVIEW $verdict from $rid@$rbox for ${sha:0:12}"; return 1; }
   ! _spl_review_go_read_fail "$line" || { _spl_review_go_hold "$@" 1 "PASS header but its read: says FAIL from $rid@$rbox for ${sha:0:12}"; return 1; }
-  brief="$(_spl_review_go_brief "$rid")"
+  brief="$(_spl_review_go_brief "$rid" "$mbox" "$sha" "$task")" ||
+    { _spl_review_go_hold "$@" 3 "reviewer $rid@$mbox runs on box $mbox: no brief for it on this box $here (its records here are not read for another box's seat; the lane map names no dispatch/briefs copy): brief on another box, not judged"; return 3; }
   IFS=$'\t' read -r author abox branch rtask < <(_spl_review_go_row "$brief" "$sha" "$task")
   [[ -n "${author:-}" ]] || { _spl_review_go_hold "$@" 3 "unplaced reviewer or author not assigned in $brief"; return 3; }
   [[ "${author%%-*}" != "${rid%%-*}" ]] || { _spl_review_go_hold "$@" 2 "reviewer $rid ($rven) shares the vendor of author $author"; return 2; }
-  abrief="$(_spl_review_go_abrief "$author" "$brief")" ||
-    { _spl_review_go_hold "$@" 7 "author $author has no brief on this box ($SPOOL_ROOT/$author/lifetime/brief.md, nor an Author brief: line in $brief): not verified"; return 7; }
+  abrief="$(_spl_review_go_abrief "$author" "$brief" "$abox")" ||
+    { _spl_review_go_hold "$@" 7 "author $author has no brief on this box $here (author box ${abox:-not named}; not $SPOOL_ROOT/$author/lifetime/brief.md, an Author brief: line in $brief or the lane map): not verified"; return 7; }
   why="$(_spl_review_go_owner_go "$abrief" "$holder")" ||
     { _spl_review_go_hold "$@" 4 "task touches owner-go scope: $why"; return 4; }
   why="$(REVIEW_LINE="$line" REVIEW_LINE_REPO="${REVIEW_GO_REPO:-}" do_spl_review_line_check 2>&1)"; rc=$?

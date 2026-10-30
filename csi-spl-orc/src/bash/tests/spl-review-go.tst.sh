@@ -44,6 +44,14 @@
 #        forever); controls: a sibling placed but not yet spawned, live, or
 #        retired with its PASS or FAIL in the holder's spool still holds (rc
 #        10); the retired seat's PASS in one tick -> one GO
+#    18. a seat placed on another box (SPL-4427), the lane map read through a
+#        hub stub: RED CONTROLS a reviewer on boxb with no records here -> its
+#        brief by the lane row's branch slug, or (rotated) its scope -> GO;
+#        the same id here as another seat -> not judged on it (rc 3, or GO
+#        on boxb's own brief); an author on boxb -> its lane map brief, not
+#        the same id's here; a scope matching two different briefs -> rc 7;
+#        no brief anywhere -> rc 3 / rc 7 naming the boxes; the real line
+#        (log on boxb) -> [6]
 #   REVIEW_GO_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -454,6 +462,76 @@ rlog m-874 "bash csi-spl-orc/src/bash/tests/foo.tst.sh"
 run; rc=$?
 (( rc == 0 )) && [[ $(gos) == 1 && $(waits) == 1 && $(count "$LOG" '^PASS ') == 1 ]] && grep -q "^PASS .* 17000000-0000-4000-8000-000000000004 " "$LOG" &&
   pass "17. the retired seat's PASS in the same tick (grok first): one WAIT, one GO" || fail "17. one tick rc=$rc gos=$(gos) log=$(cat "$LOG" 2>/dev/null) out=$(tail -3 "$T/out")"
+
+# --- 18. a seat placed on another box (SPL-4427) ----------------------------------------------------------
+# the hub stub prints the lane map rows of $LANES_JSON; the lane read is do_spl_lane_map's (spl_lane_hub_read)
+printf '#!/bin/sh\ncat "$LANES_JSON"\n' >"$T/hub.sh" && chmod +x "$T/hub.sh"
+# lanes <id@box|branch|scope>...: the lane map's rows
+lanes() {
+  local r rows=() id box br sc
+  for r in "$@"; do
+    IFS='|' read -r id br sc <<<"$r"; box="${id#*@}" id="${id%@*}"
+    rows+=("$(jq -cn --arg i "$id" --arg b "$box" --arg br "$br" --arg s "$sc" \
+      '{agent_id: $i, agent_box: $b, branch: $br, scope: $s, state: "done", updated_at: "2026-10-28T11:00:00Z"}')")
+  done
+  printf '{"lanes":[%s]}\n' "$(IFS=,; echo "${rows[*]}")" >"$T/s/lanes.json"
+}
+# dbrief <slug> <author cell> <heading>: a reviewer brief (the table row) in dispatch/briefs
+dbrief() {
+  mkdir -p "$S/dispatch/briefs"
+  printf '# %s\n\n| author | review branch | sha | base | task |\n|---|---|---|---|---|\n| %s | review/c002-x | %s | origin/master | %s |\n' \
+    "$3" "$2" "${SHA:0:12}" "$TASK" >"$S/dispatch/briefs/$1.md"
+}
+# reset18: the reviewer g-111 runs on boxb: no lifetime dir, no identity record here
+reset18() {
+  reset; rm -rf "${S:?}/g-111"; : >"$T/s/lanes.json"
+  dbrief c002-x-grok-reviewer "c-222@boxa (claude)" "Seat brief: R7 review of the c002-x orc fix"
+}
+run18() { run LANE_FLEET=main LANE_BOX=boxa LANE_HUB_CMD="$T/hub.sh" LANES_JSON="$T/s/lanes.json" "$@"; }
+# go18 <case> <msg id> <rc>: a GO to c-222@<box> and its PASS line
+go18() {
+  (( $3 == 0 )) && grep -qxF "SEND --from c-002 --to c-222@${4:-boxa} --kind task --task $TASK --body GO $SHA" "$T/s/sent.log" &&
+    grep -qE "^PASS [^ ]+ $2 $TASK c-222 g-111 $SHA$" "$LOG" && pass "$1" ||
+    fail "$1: rc=$3 sent=$(cat "$T/s/sent.log") out=$(tail -3 "$T/out")"
+}
+reset18; lanes "g-111@boxb|g-111-c002-x-grok-reviewer|Seat brief: R7 review of the c002-x orc fix"
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-000000000001)
+run18 REVIEW_GO_MSG="$f"; go18 "18. RED CONTROL: a reviewer on boxb (no lifetime dir, no identity record here): its brief from the lane map's branch slug -> GO" 18000000-0000-4000-8000-000000000001 $?
+reset18; lanes "g-111@boxb|g-111-rotate|Seat brief: R7 review of the c002-x orc fix"
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-000000000002)
+run18 REVIEW_GO_MSG="$f"; go18 "18. a rotated reviewer (branch g-111-rotate): its brief by the lane row's scope = the brief's heading -> GO" 18000000-0000-4000-8000-000000000002 $?
+reset18; lanes "g-111@boxb|g-111-c002-x-grok-reviewer|Seat brief: R7 review of the c002-x orc fix"
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS "" boxb | sed 's/@boxa /@boxb /')" 18000000-0000-4000-8000-000000000003)
+run18 REVIEW_GO_MSG="$f"; refused "18. the real cross-box line (log on boxb): [3] and [7] pass, the hold is [6]" $? 6 "log is on box boxb"
+reset18; lanes "g-111@boxb|g-111-c002-x-grok-reviewer|Seat brief: R7 review of the c002-x orc fix"
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-000000000004)
+run REVIEW_GO_MSG="$f"; refused "18. no fleet (no lane map): a reviewer on boxb holds, both boxes named" $? 3 "reviewer g-111@boxb runs on box boxb: no brief for it on this box boxa"
+reset18; lanes "g-111@boxc|g-111-c002-x-grok-reviewer|Seat brief: R7 review of the c002-x orc fix"
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-000000000005)
+run18 REVIEW_GO_MSG="$f"; refused "18. RED CONTROL: a brief nowhere (the lane row is g-111@boxc's) holds, both boxes named" $? 3 "brief on another box, not judged"
+reset; lanes
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-000000000006)
+run18 REVIEW_GO_MSG="$f"; refused "18. RED CONTROL: g-111 here is another seat (its brief assigns c-222): g-111@boxb is not judged on it" $? 3 "reviewer g-111@boxb runs on box boxb"
+reset18; rbrief g-111 "c-333@boxa (claude)" 0123456789ab 0f0f0f0f-0000-4000-8000-000000000000
+lanes "g-111@boxb|g-111-c002-x-grok-reviewer|Seat brief: R7 review of the c002-x orc fix"
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-000000000007)
+run18 REVIEW_GO_MSG="$f"; go18 "18. RED CONTROL: g-111 here is another seat (one id, two seats on two boxes): g-111@boxb's own brief -> GO" 18000000-0000-4000-8000-000000000007 $?
+# the author on boxb: c-222 here is another seat whose brief needs an owner go
+reset18; dbrief c002-x-grok-reviewer "c-222@boxb (claude)" "Seat brief: R7 review of the c002-x orc fix"
+abrief c-222 "Do: then ENV=prd ./run -a do_x."; printf '# Lane brief: the c002-x orc fix\n\nDo: a small orc fix.\n' >"$S/dispatch/briefs/c002-x.md"
+lanes "g-111@boxb|g-111-c002-x-grok-reviewer|Seat brief: R7 review of the c002-x orc fix" "c-222@boxb|c-222-c002-x|Lane brief: the c002-x orc fix"
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-000000000008)
+run18 REVIEW_GO_MSG="$f"; go18 "18. RED CONTROL: the author on boxb: its brief from the lane map, not c-222's here (ENV=prd) -> GO" 18000000-0000-4000-8000-000000000008 $? boxb
+lanes "g-111@boxb|g-111-c002-x-grok-reviewer|Seat brief: R7 review of the c002-x orc fix" "c-222@boxb|c-222-rotate|Lane brief: the c002-x orc fix"
+cp "$S/dispatch/briefs/c002-x.md" "$S/dispatch/briefs/c002-x-2.md"; : >"$T/s/sent.log"; : >"$LOG"
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-000000000009)
+run18 REVIEW_GO_MSG="$f"; go18 "18. the author by its scope: two copies of one brief (a re-placement) count as one" 18000000-0000-4000-8000-000000000009 $? boxb
+printf '# Lane brief: the c002-x orc fix\n\nDo: then ENV=prd ./run -a do_x.\n' >"$S/dispatch/briefs/c002-x-2.md"; : >"$T/s/sent.log"; : >"$LOG"
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-00000000000a)
+run18 REVIEW_GO_MSG="$f"; refused "18. RED CONTROL: the author's scope matches two different briefs: none is read" $? 7 "author box boxb"
+lanes "g-111@boxb|g-111-c002-x-grok-reviewer|Seat brief: R7 review of the c002-x orc fix"; : >"$T/s/sent.log"; : >"$LOG"
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-00000000000b)
+run18 REVIEW_GO_MSG="$f"; refused "18. the author on boxb with no brief here holds, its box named" $? 7 "author c-222 has no brief on this box boxa (author box boxb"
 
 echo "spl-review-go: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

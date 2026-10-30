@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.3 (2026-10-30). Status: **Draft** (plan only; nothing below is
+Version: v0.4 (2026-10-30). Status: **Draft** (plan only; nothing below is
 built). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -11,7 +11,10 @@ and adds the build lane split (10.1). v0.3 folds the re-review of v0.2
 (FAIL: P2b seated agents before the channel exists in `<DST>`; now P2b
 proves only the desk with a probe DM, and the seat rows move in P4; notes on
 the box's handling of a refusal, the allowed `<SRC>` writes in C13, and L8's
-stub). The owner's answers to section 11 are not in yet; they go into the
+stub). v0.4 fixes the P2b probe's recipient (a DM from an agent to a
+person on a new topic is refused by the hub's `dm_not_blocker` guard,
+SPL-2584) and drops "re-seat" from T10, both raised by the L8 build lane.
+The owner's answers to section 11 are not in yet; they go into the
 next version as a decisions table.
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
@@ -225,7 +228,7 @@ A file, Qto doc, issue or epic that the set uses AND something staying in
 | # | what | how |
 |---|---|---|
 | W1 | Members | Humans of the channel who are members of `<DST>` keep their channel membership, read state and order. Others are listed by `plan`; the owner adds them to `<DST>` or not (Q5). The new workspace today is owner-only (msg f81b2742), so the default adds no one. |
-| W2 | Agent seats | Each agent seated in the channel (M5, F14) needs a desk in `<DST>` on its box before the switch: `plan` checks `roster` / `agent_seats` in `<DST>` and refuses with the missing desks named. The `<DST>` DESK is proved in P2b, BEFORE the P4 commit (spec 167 W3): the agent sends one probe DM through its `<DST>` desk to the caller, on the probe topic (task id = the journal's `move_id`; a DM needs no channel, so it works while `<CHANNEL>` does not yet exist in `<DST>`), and the journal records its msg id. The channel SEAT is not added by `do_spl_channel_agent_add_op` before P4: that action needs the channel to exist (`orc/run/spl-channel-agent-add-op.func.sh`). The seat rows (`dedicated_agents`, `channel_humans`, `channel_invites`, M5) move inside the P4 transaction like every other row of the set. After P4, P5 rewrites the box rule row's tenant column, so the box posts through the `<DST>` desk. Window: between the P4 commit and P5, a post from a lane through its `<SRC>` desk into a moved task is refused by the hub (C8); whether the box retries a refusal or files it as rejected is not checked on master, and T10 tests it and the operator page (T12) says which. P5 follows P4 at once, in the same run. |
+| W2 | Agent seats | Each agent seated in the channel (M5, F14) needs a desk in `<DST>` on its box before the switch: `plan` checks `roster` / `agent_seats` in `<DST>` and refuses with the missing desks named. The `<DST>` DESK is proved in P2b, BEFORE the P4 commit (spec 167 W3): the agent sends one probe DM through its `<DST>` desk to the `<DST>` orchestrator seat (an agent, not a person: the hub's human post guard refuses an agent's DM to a person on a topic the person did not start unless it is a blocker, `dm_not_blocker`, `api/hub/human_post_guard.go`, SPL-2584), on the probe topic (task id = the journal's `move_id`; a DM needs no channel, so it works while `<CHANNEL>` does not yet exist in `<DST>`), and the journal records its msg id. The body names the `move_id` and the agent, so no two probes are equal. P2 refuses when `<DST>` has no orchestrator seat. The channel SEAT is not added by `do_spl_channel_agent_add_op` before P4: that action needs the channel to exist (`orc/run/spl-channel-agent-add-op.func.sh`). The seat rows (`dedicated_agents`, `channel_humans`, `channel_invites`, M5) move inside the P4 transaction like every other row of the set. After P4, P5 rewrites the box rule row's tenant column, so the box posts through the `<DST>` desk. Window: between the P4 commit and P5, a post from a lane through its `<SRC>` desk into a moved task is refused by the hub (C8); whether the box retries a refusal or files it as rejected is not checked on master, and T10 tests it and the operator page (T12) says which. P5 follows P4 at once, in the same run. |
 | W3 | Lanes and spool task ids | Task UUIDs and msg UUIDs do not change (F4, F10), so a lane's `--task <uuid>`, its brief and its dispatch files stay valid; only the desk the post goes through changes (W2). A post into a moved task at `<SRC>` must not create a new `<SRC>` topic with that id: the hub refuses it (Q2 decides whether it also re-routes it). |
 | W4 | Issue keys | Each moved issue gets a new `<DST>` key (F6). The move posts every lane whose `fleet_lanes.issue_key` changed a note with old -> new key; its commits cite the new key. The closer maps an old key to the new one while the redirect lives (Q2, which covers issue keys too); after that an old key closes nothing. |
 | W5 | Permalinks | A moved topic's link is `https://<DST_HOST>/t/<uuid>` (same uuid). An old `https://<SRC_HOST>/t/<uuid>` link: Q2. |
@@ -291,7 +294,7 @@ cd csi-spl-orc && CHANNEL=<SRC>/<CHANNEL> TO=<DST> MOVE_MODE=copy ./run -a do_sp
 |---|---|---|
 | P1 | `plan`, freeze the set in the journal (in `<DST>`) | drop the journal |
 | P2 | Check: `<DST>` exists, the caller is allowed, no channel `<CHANNEL>` in `<DST>` (else `TO_NAME=<new id>`), quotas fit, every seat has a `<DST>` desk, shared items resolved (5.5) | nothing changed |
-| P2b | Prove each agent's `<DST>` desk: one probe DM to the caller on the probe topic (task id = `move_id`), msg id recorded in the journal (W2). No seat is added here | nothing to undo but the probe DMs, which stay in `<DST>` as part of the journal's record |
+| P2b | Prove each agent's `<DST>` desk: one probe DM to the `<DST>` orchestrator seat on the probe topic (task id = `move_id`), msg id recorded in the journal (W2). No seat is added here | nothing to undo but the probe DMs, which stay in `<DST>` as part of the journal's record |
 | P3 | Copy blobs and Qto objects to `<DST>` (idempotent) | delete the `<DST>` copies |
 | P4 | **One database transaction**, asOperator: insert every row of the set under `<DST>` (parents first), rewrite `channel_order`, NULL the DM `ref_task_id`s, write the redirect rows (Q2); for a move, delete the set in `<SRC>` (children first, F5); recompute counters; bump change stamps. 3,650 posts (F13) is the largest set today (timing: R3). | the transaction rolls back as a whole |
 | P5 | Box steps, at once after P4: rewrite the rule rows' tenant column, lane notes for new keys (W4). The seat rows already moved in P4 | journal-driven: a re-run resumes at the first step not marked done |
@@ -352,7 +355,7 @@ Each row is one small task; files named are where it lands.
 | T7 | Hub operator endpoint (owner GO msg id required) and the moved-task refusal / redirect; tests C8, C15 | `api/hub/channel_move.go`, `_test.go` |
 | T8 | Proofs P7 and the free-text scan; tests C13, C14 | `api/channelmove/proof.go`, `_test.go` |
 | T9 | Shell action `do_spl_channel_workspace_move` (plan, DRY_RUN, journal resume) and its test C17 | `orc/run/spl-channel-workspace-move.func.sh`, `orc/tests/spl-channel-workspace-move.tst.sh` |
-| T10 | Box steps: rule-row rewrite, re-seat, proof post, lane key notes; tests C11, C12 | `orc/features/spawn-agents/scripts/channel-workspace-move-box.sh`, its test |
+| T10 | Box steps: the P2b probe DMs, the P5 rule-row rewrite (no action writes `channel-rules.tsv` today, so it lives here), lane key notes; no re-seat (the seat rows move in P4); tests C11, C12 | `orc/features/spawn-agents/scripts/channel-workspace-move-box.sh`, its test |
 | T11 | Copy mode: new UUIDs, link rewrite, `copied_from`; test C16 | `api/store/channel_copy_apply_postgres.go`, `_test.go` |
 | T12 | Docs: operator page (how to plan, run and read the kept list) | `csi-spl-doc/doc/md/channel-workspace-move.md` |
 

@@ -35,6 +35,10 @@
 #  14. the shell's attribute keys leave out Vue's scoped data-v-* and the
 #      data-test-* family, and one-word names (data-state): app.vue naming
 #      all of them selects only the test reading data-mobile-level
+#  15. the bundle cache (SPL-4351): a re-used bundle is touched (newest), and
+#      while its run holds it, 3 newer bundles and a build of another tree
+#      do not prune it (the run still finds index.html); an unheld bundle
+#      past the newest 3 is still pruned
 #   CONTROL a. with the users-of step off (_ppe_names prints nothing) check 2
 #              selects nothing: the closure is what finds it
 #   CONTROL b. a dirty WUI source -> no cache key -> 2 builds for 2 runs, so
@@ -164,6 +168,41 @@ rm -rf "$W/.output"
 # --- 8. the time cap ------------------------------------------------------------------------
 PPE_SLEEP=20 PRE_PUSH_E2E_TIMEOUT=2 part; r=$?
 [[ "$r" == 124 ]] && pass "8. a run past PRE_PUSH_E2E_TIMEOUT stops with rc 124" || fail "8. time cap: rc $r"
+
+# --- 15. a held bundle survives the prune ----------------------------------------------
+C="$T/bundles15"; R2="$T/repo2"; cp -a "$R" "$R2"
+echo '<!-- r2 -->' >>"$R2/csi-spl-wui/src/components/FooBar.vue"
+git -c user.name=t -c user.email=t@example.com -C "$R2" commit -qam r2
+cat >"$T/run15" <<'EOF'
+#!/bin/bash
+: >"$PPE_T/held"; for _ in $(seq 300); do [[ -e "$PPE_T/go" ]] && break; sleep 0.1; done
+[[ -f .output/public/index.html ]] && echo ok >>"$PPE_T/ran15" || echo 404 >>"$PPE_T/ran15"
+EOF
+chmod +x "$T/run15"
+part15() {
+  ( export PPE_T="$T" PRE_PUSH_E2E_GENERATE="$T/gen" PRE_PUSH_E2E_RUNNER="$2" PRE_PUSH_E2E_BUNDLES="$C" \
+      CHROME_PATH=/bin/true TMPDIR="$T"
+    _ppe_plan "csi-spl-wui/src/components/FooBar.vue" "$1" && _pp_part_wui_e2e "$1" ) >>"$T/out15" 2>&1
+}
+part15 "$R" "$T/run"; for K in "$C"/*/; do break; done; K="${K%/}"
+touch -d '2 hours ago' "$K"; t0="$(stat -c %Y "$K")"
+part15 "$R" "$T/run15" & pa=$!
+for _ in $(seq 300); do [[ -e "$T/held" ]] && break; sleep 0.1; done
+[[ -e "$T/held" && "$(stat -c %Y "$K")" -gt "$t0" ]] && pass "15. a re-used bundle is touched: it counts as the newest" \
+  || fail "15. the re-used bundle kept its old mtime (or the run never started)"
+touch -d '2 hours ago' "$K"
+for n in 1 2 3; do mkdir -p "$C/x$n/public"; echo x >"$C/x$n/public/index.html"; touch -d "$((4 - n)) min ago" "$C/x$n"; done
+part15 "$R2" "$T/run"; : >"$T/go"; wait "$pa"; ra=$?
+if [[ "$ra" == 0 && "$(cat "$T/ran15" 2>/dev/null)" == ok && -f "$K/public/index.html" ]] \
+   && grep -q "wui-e2e: kept $K: a run holds it" "$T/out15"; then
+  pass "15. a held bundle older than 3 newer ones survives the prune; its run still finds index.html"
+else
+  fail "15. held bundle: rc $ra, run saw '$(cat "$T/ran15" 2>/dev/null)', bundle $([[ -d "$K" ]] && echo kept || echo pruned)"
+  sed 's/^/    | /' "$T/out15"
+fi
+[[ ! -e "$C/x1" && -d "$C/x2" && -d "$C/x3" && "$(ls -1d "$C"/*/ | wc -l)" == 4 ]] \
+  && pass "15. the unheld bundle past the newest 3 (x1) is still pruned: 3 + the held one stay" \
+  || fail "15. after the prune the cache holds: $(ls -1 "$C" | paste -sd' ' -)"
 
 # --- 12. the bundle budget ---------------------------------------------------------------
 : >"$T/out"; : >"$T/ran"

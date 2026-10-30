@@ -34,7 +34,9 @@
 # @description WUI tree without e2e/bench contents, so an e2e-only edit and a
 # @description rebase over non-WUI commits reuse it; the files run through
 # @description csi-spl-orc's wui-e2e-mock-serve.sh, as wf 10 runs them. The
-# @description whole part runs under PRE_PUSH_E2E_TIMEOUT.
+# @description whole part runs under PRE_PUSH_E2E_TIMEOUT. The cache keeps the
+# @description newest 3 bundles; a run holds its bundle (a shared flock on
+# @description <bundle>/.hold) until it ends, and the prune skips a held one.
 # @param PRE_PUSH_E2E (optional) - 0 = never select the part, default 1
 # @param PRE_PUSH_E2E_MAX (optional) - most files run, default 6
 # @param PRE_PUSH_E2E_BUDGET (optional) - CI seconds the files may sum to, default 240
@@ -283,6 +285,28 @@ _ppe_generate() {
     "$(_pp_pnpm)" run generate
 }
 
+# _ppe_bundle_hold <dir> - hold the bundle <dir> for the rest of the calling
+# shell: a shared flock on <dir>/.hold, on an fd the shell keeps open until it
+# exits, so its children (the runner, Chrome) hold it too and a SIGKILL drops
+# it. Also touches <dir>, so a re-used bundle counts as the newest. Fails when
+# <dir> is gone.
+_ppe_bundle_hold() {
+  local fd
+  exec {fd}>>"$1/.hold" || return 1
+  flock -s -w 30 "$fd" && touch "$1"
+}
+
+# _ppe_bundle_prune <cache> - the newest 3 bundles only (~4 MB each); one that
+# a live run holds (_ppe_bundle_hold) stays, whatever its age (SPL-4351: a
+# re-used bundle went under a run that still served it, every page 404).
+_ppe_bundle_prune() {
+  local d
+  # shellcheck disable=SC2012 # by mtime; the dirs are 40-hex keys
+  ls -1dt "$1"/*/ 2>/dev/null | tail -n +4 | while IFS= read -r d; do
+    ( flock -n -x 9 || { echo "wui-e2e: kept ${d%/}: a run holds it"; exit 0; }; rm -rf "$d" ) 9>>"${d%/}/.hold"
+  done
+}
+
 # _pp_part_wui_e2e <tree> - build or reuse the bundle, run the files.
 _pp_part_wui_e2e() {
   local tree="$1"
@@ -292,7 +316,7 @@ _pp_part_wui_e2e() {
   local files="$_PPE_FILES" t missing=""
   for t in $files; do [[ -f "$tree/csi-spl-wui/$t" ]] || missing+=" $t"; done
   [[ -z "$missing" ]] || echo "wui-e2e: not in this tree (new in the push?):$missing"
-  export -f _pp_pnpm _pp_wui_tree_id _ppe_bundle_key _ppe_generate _ppe_keep_heal
+  export -f _pp_pnpm _pp_wui_tree_id _ppe_bundle_key _ppe_generate _ppe_keep_heal _ppe_bundle_hold _ppe_bundle_prune
   timeout -k 10 "${PRE_PUSH_E2E_TIMEOUT:-600}" bash -c '
     set -uo pipefail
     tree="$1" files="$2"
@@ -310,7 +334,8 @@ _pp_part_wui_e2e() {
     cache="${PRE_PUSH_E2E_BUNDLES:-${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/wui-e2e-bundle}"
     _ppe_keep_heal .
     [[ -e .output ]] && mv .output .output.ppe-keep
-    if [[ -n "$key" && -f "$cache/$key/public/index.html" ]]; then
+    if [[ -n "$key" && -f "$cache/$key/public/index.html" ]] && _ppe_bundle_hold "$cache/$key" \
+       && [[ -f "$cache/$key/public/index.html" ]]; then
       echo "wui-e2e: bundle re-used ($cache/${key:0:12}): no WUI input changed since it was built"
     else
       echo "wui-e2e: building the mock bundle"
@@ -326,8 +351,8 @@ _pp_part_wui_e2e() {
         comm -13 "$run_dir/before" - | grep -v "^\.output/" | while IFS= read -r p; do rm -rf -- "./$p"; done
       if [[ -n "$key" ]]; then
         mkdir -p "$cache/$key" && rm -rf "$cache/$key/public" && mv .output/public "$cache/$key/public" && rm -rf .output
-        # the newest 3 bundles only (~4 MB each)
-        ls -1dt "$cache"/*/ 2>/dev/null | tail -n +4 | xargs -r rm -rf
+        _ppe_bundle_hold "$cache/$key"
+        _ppe_bundle_prune "$cache"
       fi
     fi
     if [[ -n "$key" ]]; then mkdir -p .output && ln -s "$cache/$key/public" .output/public; fi

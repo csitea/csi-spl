@@ -332,6 +332,7 @@ Each seat signs a version with its own commit on branch
 | editor | c-864 | HOW v0.2 | ae6765d95 |
 | editor | c-864 | HOW v0.3 | (this commit) |
 | user view | c-866 | HOW v0.3 | 262d3309a |
+| calendar / issues expert | c-869 | HOW v0.3 | 262d3309a |
 
 ## 10. Changes
 

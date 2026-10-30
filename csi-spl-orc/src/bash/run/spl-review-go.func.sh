@@ -39,7 +39,10 @@
 # @description       brief.md when the row's author box is this box or none,
 # @description       else the dispatch/briefs/<slug>.md the reviewer brief
 # @description       names on its `Author brief:` line, else the lane map's
-# @description       as in [3], a scope match only when it is one brief) is
+# @description       as in [3], a scope match only when it is one brief,
+# @description       and only a brief tied to the work: named <slug> of the
+# @description       row's review/<slug> branch, or naming that branch, the
+# @description       sha or the task) is
 # @description       on this box (unread = not verified)
 # @description   [4] that brief names no owner-go keyword (apply, do-provision,
 # @description       do-tf-apply, PROBE_PRD_GO, DRY_RUN=0, ENV=prd, IAM,
@@ -361,23 +364,40 @@ print(" ".join(sorted(gone)))
 EOF_PY
 }
 
-# _spl_review_go_abrief <author> <reviewer brief> <author box>: the path of
-# the author's brief on this box: its lifetime copy when the author box is
-# this box or none (another box's seat may share the id, SPL-4427), else the
-# dispatch/briefs/<slug>.md the reviewer brief names on its `Author brief:`
-# line, else the first of the lane map's (_spl_review_go_lane_briefs, a scope
-# match only when it is one brief). rc 1 when none is here.
+# _spl_review_go_abrief <author> <reviewer brief> <author box> <review
+# branch> <sha> <task>: the path of the author's brief on this box: its
+# lifetime copy when the author box is this box or none (another box's seat
+# may share the id, SPL-4427), else the dispatch/briefs/<slug>.md the reviewer
+# brief names on its `Author brief:` line, else the first of the lane map's
+# (_spl_review_go_lane_briefs, a scope match only when it is one brief) tied
+# to the reviewed work (_spl_review_go_tied): a re-tasked or rotated seat's
+# new lane brief is never read for it (R7 c-972 N1). rc 1 when none is here.
 _spl_review_go_abrief() {
-  local b="$SPOOL_ROOT/$1/lifetime/brief.md" here p
+  local b="$SPOOL_ROOT/$1/lifetime/brief.md" here p c
   here="$(_spl_review_go_here)"
   [[ ( -z "$3" || "$3" == "$here" ) && -s "$b" ]] && { echo "$b"; return 0; }
   p="$(sed -nE 's/.*Author brief:[[:space:]]*([^[:space:];,]+\.md).*/\1/p' "$2" 2>/dev/null)"
   p="${p%%$'\n'*}"
   if [[ "$p" == "$SPOOL_ROOT/dispatch/briefs/${p##*/}" && "${p##*/}" =~ ^[A-Za-z0-9._-]+\.md$ && -s "$p" ]]; then echo "$p"; return 0; fi
-  p="$(_spl_review_go_lane_briefs "$1" "${3:-$here}" one)"
-  p="${p%%$'\n'*}"
-  [[ -n "$p" ]] || return 1
-  echo "$p"
+  while IFS= read -r c; do
+    _spl_review_go_tied "$c" "$4" "$5" "$6" && { echo "$c"; return 0; }
+  done < <(_spl_review_go_lane_briefs "$1" "${3:-$here}" one)
+  return 1
+}
+
+# _spl_review_go_tied <brief> <review branch> <sha> <task>: 0 when the brief
+# is the review branch's own (dispatch/briefs/<slug>.md of review/<slug>) or
+# names the review branch, an abbreviation (7+ hex) of the sha, or the task
+# (8+ characters, so no short generic name matches).
+_spl_review_go_tied() {
+  local h
+  [[ "$2" == review/?* && "$1" == "$SPOOL_ROOT/dispatch/briefs/${2#review/}.md" ]] && return 0
+  [[ -n "$2" ]] && grep -qF -- "$2" "$1" && return 0
+  (( ${#4} >= 8 )) && grep -qF -- "$4" "$1" && return 0
+  while IFS= read -r h; do
+    [[ -n "$h" && "$3" == "$h"* ]] && return 0
+  done < <(grep -oE '\b[0-9a-f]{7,40}\b' "$1")
+  return 1
 }
 
 # _spl_review_go_row <brief> <sha> <task>: author_id author_box branch task of
@@ -478,7 +498,7 @@ _spl_review_go_one() {
   IFS=$'\t' read -r author abox branch rtask < <(_spl_review_go_row "$brief" "$sha" "$task")
   [[ -n "${author:-}" ]] || { _spl_review_go_hold "$@" 3 "unplaced reviewer or author not assigned in $brief"; return 3; }
   [[ "${author%%-*}" != "${rid%%-*}" ]] || { _spl_review_go_hold "$@" 2 "reviewer $rid ($rven) shares the vendor of author $author"; return 2; }
-  abrief="$(_spl_review_go_abrief "$author" "$brief" "$abox")" ||
+  abrief="$(_spl_review_go_abrief "$author" "$brief" "$abox" "$branch" "$sha" "${rtask:-$task}")" ||
     { _spl_review_go_hold "$@" 7 "author $author has no brief on this box $here (author box ${abox:-not named}; not $SPOOL_ROOT/$author/lifetime/brief.md, an Author brief: line in $brief or the lane map): not verified"; return 7; }
   why="$(_spl_review_go_owner_go "$abrief" "$holder")" ||
     { _spl_review_go_hold "$@" 4 "task touches owner-go scope: $why"; return 4; }

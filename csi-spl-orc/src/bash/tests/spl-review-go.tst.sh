@@ -52,6 +52,9 @@
 #        the same id's here; a scope matching two different briefs -> rc 7;
 #        no brief anywhere -> rc 3 / rc 7 naming the boxes; the real line
 #        (log on boxb) -> [6]
+#        RED CONTROL (R7 c-972 N1) a rotated author whose current lane brief
+#        names neither the review branch, the sha nor the task -> rc 7;
+#        controls: it names the branch, the sha -> GO
 #   REVIEW_GO_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -532,6 +535,22 @@ run18 REVIEW_GO_MSG="$f"; refused "18. RED CONTROL: the author's scope matches t
 lanes "g-111@boxb|g-111-c002-x-grok-reviewer|Seat brief: R7 review of the c002-x orc fix"; : >"$T/s/sent.log"; : >"$LOG"
 f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-00000000000b)
 run18 REVIEW_GO_MSG="$f"; refused "18. the author on boxb with no brief here holds, its box named" $? 7 "author c-222 has no brief on this box boxa (author box boxb"
+# the author re-tasked or rotated (R7 c-972 N1): its current lane brief must be tied to the reviewed work
+# reset18n1 <text>: the author c-222 on boxb, rotated (branch c-222-rotate), its current lane's brief holds <text>
+reset18n1() {
+  reset18; rm -rf "${S:?}/c-222"; dbrief c002-x-grok-reviewer "c-222@boxb (claude)" "Seat brief: R7 review of the c002-x orc fix"
+  printf '# Lane brief: a later c-222 task\n\n%s\n' "$1" >"$S/dispatch/briefs/c222-later.md"
+  lanes "g-111@boxb|g-111-c002-x-grok-reviewer|Seat brief: R7 review of the c002-x orc fix" "c-222@boxb|c-222-rotate|Lane brief: a later c-222 task"
+}
+reset18n1 "Do: another fix."
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-00000000000c)
+run18 REVIEW_GO_MSG="$f"; refused "18. RED CONTROL (N1): a rotated author whose lane brief names neither the branch, the sha nor the task holds" $? 7 "author box boxb"
+reset18n1 "Do: another fix, after review/c002-x."
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-00000000000d)
+run18 REVIEW_GO_MSG="$f"; go18 "18. control (N1): the rotated author's lane brief names the review branch -> GO" 18000000-0000-4000-8000-00000000000d $? boxb
+reset18n1 "Do: another fix on top of ${SHA:0:9}."
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-00000000000e)
+run18 REVIEW_GO_MSG="$f"; go18 "18. control (N1): the rotated author's lane brief names the sha -> GO" 18000000-0000-4000-8000-00000000000e $? boxb
 
 echo "spl-review-go: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

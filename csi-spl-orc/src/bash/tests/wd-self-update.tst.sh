@@ -20,10 +20,15 @@
 #      tick's result: a correct tick past WD_UPD_CHECK_MAX (a loaded box)
 #      passes, a tick with a script error fails (control), the first tick
 #      after an exec measures its gap from the exec, so a slow pre-flight is
-#      no resume (control: an ordinary tick from its last), a tick past the
-#      hang bound WD_UPD_STEP_MAX fails, a check is timed from its own tick
-#      start (an older exec's T0 before its pre-flight is ignored), and a check that never ends is
-#      failed by a peer at WD_UPD_STEP_MAX; a boot pass (the pre-flight
+#      no resume (control: an ordinary tick from its last), a check is timed
+#      from its own tick start (an older exec's T0 before its pre-flight is
+#      ignored); a step TIMEOUT is retried (SPL-4434), a failed check is not:
+#      a green tick past the hang bound WD_UPD_STEP_MAX checks again on the
+#      next tick and passes there; past it on every try (WD_UPD_STEP_TRIES)
+#      it is quarantined; a script error on a slow tick is quarantined at
+#      once; a check that never ends gets a second window from a peer, the
+#      load in its line, and is quarantined by a peer after the last; a tick
+#      a peer gave a second window ends green inside it; a boot pass (the pre-flight
 #      proof tick after a boot) reads the expected seats and stats the
 #      verdicts once (control: the old helpers, per registry id; SPL-1992)
 #   2. bootstrap: no code/good -> instance 1 snapshots the sha it runs, good
@@ -279,7 +284,7 @@ out="$(lib "$gap" LEASE_NOW=2000000000 WD_UPD_T0=1999999999)"
 # verdict read 'green in 6s' for 5 (gate 10 run 37975966358)
 X=9999999999999999999999999999999999999999
 chk='export LEASE_NOW="${LEASE_NOW:-$(date +%s)}"; mkdir -p "$WD_DIR/tick.u"; echo "${ERRLINE:-}" > "$WD_DIR/tick.u/err"; echo "c-901 ok" > "$WD_DIR/tick.u/out.c-901"
-  WD_INST=1; WD_CODE_SHA=$X; n=$(spl_lease_now); echo "sha=$X next=1 stage=exec pid=$$ since=$n start=$n" > "$WD_DIR/update.state"
+  WD_INST=1; WD_CODE_SHA=$X; n=$(spl_lease_now); echo "sha=$X next=1 stage=exec pid=$$ since=$n start=$n${TRY:+ try=$TRY}" > "$WD_DIR/update.state"
   WD_UPD_EXEC=$X WD_UPD_ROLE=forward WD_UPD_T0=$(( n - AGO )); spl_wd_upd_checked "$WD_DIR/tick.u" ${TSTART:+$(( n - TSTART ))}
   echo "STATE $(cat "$WD_DIR/update.state" 2>/dev/null || true)"; echo "BAD $(cat "$WD_DIR/code/$X.bad" 2>/dev/null || true)"; rm -f "$WD_DIR/code/$X.bad" "$WD_DIR/update.state"'
 out="$(lib "$chk" X=$X AGO=30 DRY_RUN=1 WD_UPD_CHECK_MAX=20 WD_UPD_STEP_MAX=45)"
@@ -288,19 +293,54 @@ out="$(lib "$chk" X=$X AGO=30 DRY_RUN=1 WD_UPD_CHECK_MAX=20 WD_UPD_STEP_MAX=45)"
 out="$(lib "$chk" X=$X AGO=1 ERRLINE="s1.sh: line 3: nosuchcmd: command not found" DRY_RUN=1)"
 [[ "$out" == *"BAD instance 1 failed its self-check tick: script errors"* ]] && grep -qx 'STATE ' <<<"$out" &&
   pass "1 control: a fast tick with a script error is red, quarantined" || fail "1 broken: $out"
-out="$(lib "$chk" X=$X AGO=60 DRY_RUN=1 WD_UPD_STEP_MAX=45)"
-[[ "$out" == *"BAD instance 1 failed its self-check tick: self-check tick took 60s (hang bound 45s)"* ]] &&
-  pass "1 a correct tick that ends past the hang bound is red, quarantined" || fail "1 hang verdict: $out"
+# SPL-4434 (a desk box 2026-10-24..30: 4 commits quarantined at the 45 s
+# step bound, one touching no watchdog code, load 49 on 16 cpus): a step
+# that only TIMES OUT is retried; a failed check is not. chk2: the first
+# check tick ends AGO s after its tick start, the next one (re-armed by the
+# code, not by the test) AGO2 s after its own.
+chk2='export LEASE_NOW="${LEASE_NOW:-$(date +%s)}"; mkdir -p "$WD_DIR/tick.u"; echo "${ERRLINE:-}" > "$WD_DIR/tick.u/err"; echo "c-901 ok" > "$WD_DIR/tick.u/out.c-901"
+  WD_INST=1; WD_CODE_SHA=$X; n=$(spl_lease_now); echo "sha=$X next=1 stage=exec pid=$$ since=$n start=$n" > "$WD_DIR/update.state"
+  WD_UPD_EXEC=$X WD_UPD_ROLE=forward; spl_wd_upd_checked "$WD_DIR/tick.u" $(( n - AGO ))
+  echo "STATE1 $(cat "$WD_DIR/update.state" 2>/dev/null || true)"; echo "BAD1 $(cat "$WD_DIR/code/$X.bad" 2>/dev/null || true)"; echo "REARMED ${WD_UPD_EXEC:-none}"
+  [[ -n "${WD_UPD_EXEC:-}" ]] && spl_wd_upd_checked "$WD_DIR/tick.u" $(( n - AGO2 ))
+  echo "STATE2 $(cat "$WD_DIR/update.state" 2>/dev/null || true)"; echo "BAD2 $(cat "$WD_DIR/code/$X.bad" 2>/dev/null || true)"; rm -f "$WD_DIR/code/$X.bad" "$WD_DIR/update.state"'
+: > "$LOG"
+out="$(lib "$chk2" X=$X AGO=60 AGO2=5 LEASE_NOW=2000000000 DRY_RUN=1 WD_UPD_STEP_MAX=45 WD_TICK=30 WD_UPD_LOAD1=49 WD_UPD_NPROC=16)"
+[[ "$out" == *"STATE1 sha=$X next=1 stage=exec pid="*" since=2000000030 start=2000000000 try=1"* && "$out" == *"REARMED $X"* ]] && grep -qx 'BAD1 ' <<<"$out" &&
+  [[ "$out" == *"STATE2 sha=$X next=2 stage=wait"* ]] && grep -qx 'BAD2 ' <<<"$out" &&
+  grep -q "RETRY ${X:0:9}: instance 1: self-check tick took 60s (hang bound 45s, load 49/16 cpus), try 1 of 2" "$LOG" &&
+  grep -q "on ${X:0:9}: self-check tick green in 5s" "$LOG" &&
+  pass "1 a step that times out once (60 s, bound 45) is checked again, then passes: baton -> 2, no quarantine" || fail "1 timeout once: $out / $(grep UPDATE "$LOG")"
+out="$(lib "$chk2" X=$X AGO=60 AGO2=100 DRY_RUN=1 WD_UPD_STEP_MAX=45 WD_UPD_LOAD1=49 WD_UPD_NPROC=16)"
+[[ "$out" == *"BAD2 instance 1 failed its self-check tick: self-check tick took 100s (hang bound 90s, load 49/16 cpus), try 2 of 2"* ]] && grep -qx 'STATE2 ' <<<"$out" &&
+  pass "1 a step that times out on every try is quarantined, as before" || fail "1 timeout every try: $out"
+out="$(lib "$chk2" X=$X AGO=60 AGO2=5 DRY_RUN=1 WD_UPD_STEP_MAX=45 WD_UPD_STEP_TRIES=1)"
+[[ "$out" == *"BAD1 instance 1 failed its self-check tick: self-check tick took 60s (hang bound 45s, load "*"try 1 of 1"* && "$out" == *"REARMED none"* ]] &&
+  pass "1 control: WD_UPD_STEP_TRIES=1 -> the first timeout quarantines (the old rule)" || fail "1 tries 1: $out"
+out="$(lib "$chk2" X=$X AGO=60 AGO2=5 ERRLINE="s1.sh: line 3: nosuchcmd: command not found" DRY_RUN=1 WD_UPD_STEP_MAX=45)"
+[[ "$out" == *"BAD1 instance 1 failed its self-check tick: script errors"* && "$out" == *"REARMED none"* ]] &&
+  pass "1 a slow tick with a script error is quarantined at once, never retried" || fail "1 slow broken: $out"
+# a tick a peer already gave a second window (try=1): 60 s is inside 2 x 45 s, green
+out="$(lib "$chk" X=$X AGO=60 TRY=1 DRY_RUN=1 WD_UPD_STEP_MAX=45)"
+[[ "$out" == *"STATE sha=$X next=2 stage=wait"* ]] && grep -qx 'BAD ' <<<"$out" &&
+  pass "1 a check tick a peer gave a second window ends green inside it (60 s of 2 x 45 s)" || fail "1 try=1 green: $out"
 # an older code's exec set T0 before its pre-flight (60 s back): the check
 # is timed from its own tick start (5 s), green
 out="$(lib "$chk" X=$X AGO=60 TSTART=5 DRY_RUN=1 WD_UPD_STEP_MAX=45)"
 [[ "$out" == *"STATE sha=$X next=2 stage=wait"* ]] && grep -qx 'BAD ' <<<"$out" && grep -q "on ${X:0:9}: self-check tick green in 5s" "$LOG" &&
   pass "1 timed from the check tick's start, not a stale exec T0 (60 s back -> green in 5 s)" || fail "1 tick start: $out"
-# a check that never ends: a peer fails it at WD_UPD_STEP_MAX (spl_wd_upd_baton)
+# a check that never ends: a peer gives it a second WD_UPD_STEP_MAX window
+# (the load in the line), and quarantines the sha when that one ends too
+# (spl_wd_upd_baton). Updated for SPL-4434: one window used to quarantine.
 out="$(lib 'n=$(spl_lease_now); echo "sha=$X next=1 stage=exec pid=1 since=$(( n - 60 )) start=$(( n - 60 ))" > "$WD_DIR/update.state"
-  WD_INST=2; spl_wd_self_update "$n"; echo "BAD $(cat "$WD_DIR/code/$X.bad" 2>/dev/null || true)"; rm -f "$WD_DIR/code/$X.bad" "$WD_DIR/update.state"' X=$X DRY_RUN=1 WD_UPD_STEP_MAX=45)"
-[[ "$out" == *"BAD instance 1 did not finish its self-check in 45s"* ]] &&
-  pass "1 a hung check tick: a peer quarantines the sha at the step bound" || fail "1 hang peer: $out"
+  WD_INST=2; spl_wd_self_update "$n"; echo "BAD1 $(cat "$WD_DIR/code/$X.bad" 2>/dev/null || true)"; echo "STATE1 $(cat "$WD_DIR/update.state" 2>/dev/null || true)"
+  sed -i "s/ since=[0-9]* / since=$(( n - 50 )) /" "$WD_DIR/update.state"
+  WD_INST=3; spl_wd_self_update "$n"; echo "BAD2 $(cat "$WD_DIR/code/$X.bad" 2>/dev/null || true)"; rm -f "$WD_DIR/code/$X.bad" "$WD_DIR/update.state"' X=$X LEASE_NOW=2000000000 DRY_RUN=1 WD_UPD_STEP_MAX=45 WD_UPD_LOAD1=49 WD_UPD_NPROC=16)"
+grep -qx 'BAD1 ' <<<"$out" && [[ "$out" == *"STATE1 sha=$X next=1 stage=exec pid=1 since=2000000000 start=1999999940 try=1"* ]] &&
+  grep -q "RETRY ${X:0:9}: instance 1 did not finish its self-check in 45s (load 49/16 cpus), try 1 of 2" "$LOG" &&
+  pass "1 a check past the step bound: a peer gives it a second window, the load logged, no quarantine" || fail "1 hang peer retry: $out / $(grep UPDATE "$LOG" | tail -n 2)"
+[[ "$out" == *"BAD2 instance 1 did not finish its self-check in 45s (load 49/16 cpus), try 2 of 2"* ]] &&
+  pass "1 a hung check tick: a peer quarantines the sha after its last window" || fail "1 hang peer: $out"
 rm -rf "$W" "$LOG" "$T/sent"; dc reset -q --hard "$SHA_A"
 
 # SPL-1992 (a desk box 2026-10-15): the boot pass of the pre-flight's proof tick (a

@@ -834,6 +834,17 @@ automatic paths are the R-b race again). 093 6.2's suspend guard stays.
     - An admin alert is dispatched naming the failed commit and error output.
     - Instances 2 and 3 remain alive on `good`. Bad code never runs on more than
       1 instance; active watchdog monitoring never drops below 2.
+  - A self-check step that only **times out** is retried, not quarantined
+    (SPL-4434: a desk box 2026-10-24..30, 4 commits quarantined at the 45 s
+    step bound `WD_UPD_STEP_MAX`, one touching no watchdog code, load 49 on
+    16 cpus). A peer that sees the step run past its window gives it one more
+    (`try=<n>` in `update.state`); a green self-check tick that ran past its
+    bound checks again on its next tick. Up to `WD_UPD_STEP_TRIES` windows
+    (default 2, one retry), then the sha is quarantined as before. Every
+    timeout line names the box load (`load <1 min>/<n> cpus`). A self-check
+    that fails (a script error, the wrong sha, no heartbeat) is quarantined at
+    once, never retried. `WD_UPD_TIMEOUT_TRIES` (default 5) is a different
+    count: pre-flight proof ticks that time out in a row.
 - **Crontab starter interaction**: Crontab starter executes from checkout but
   only calls `spl_wd_inst_start`, which launches `code/good`.
 

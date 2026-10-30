@@ -20,8 +20,12 @@
 # @description never quarantines a sha),
 # @description and the baton (update.state) goes to 2, then 3, which wait in
 # @description WD_UPD_SLICE s sleep slices; after 3, candidate becomes good.
+# @description A self-check step that only runs past WD_UPD_STEP_MAX s (no
+# @description script error: a loaded box) is retried, up to
+# @description WD_UPD_STEP_TRIES windows of WD_UPD_STEP_MAX s in all, and its
+# @description line names the box load; a self-check that fails is not.
 # @description Stop rule: a failed pre-flight or self-check, an instance that
-# @description dies in its check, or a step past WD_UPD_STEP_MAX s halts the
+# @description dies in its check, or a step past its last try halts the
 # @description rollout, quarantines the sha (code/<sha>.bad: never rolled
 # @description again), alerts the orchestrator, and every instance on that
 # @description sha execs back into code/good. A pre-flight proof tick that
@@ -42,6 +46,7 @@
 # @param WD_UPD_NPROC (optional) - tests only: the cpu count instead of nproc
 # @param WD_UPD_TIMEOUT_TRIES (optional) - pre-flight proof ticks that time out in a row before the sha is quarantined, default 5
 # @param WD_UPD_STEP_MAX (optional) - seconds one step (exec + check, or a baton wait) may take, default 45; the self-check tick's hang bound
+# @param WD_UPD_STEP_TRIES (optional) - windows of WD_UPD_STEP_MAX s a self-check step that only times out gets before the sha is quarantined, default 2 (one retry); not WD_UPD_TIMEOUT_TRIES, which counts pre-flight timeouts
 # @param WD_UPD_KEEP (optional) - snapshots kept besides the ones in use, default 3
 # @param WD_UPD_PREFLIGHT (optional) - 1 (default): pre-flight the candidate; 0 skips it (tests only)
 # @example ./run -a do_spl_wd_self_update
@@ -78,11 +83,12 @@ spl_wd_upd_conf() {
     WD_SELF_UPDATE=1
     [[ "${SPOOL_TEST:-}" == 1 ]] && WD_SELF_UPDATE=0
   fi
-  : "${WD_UPD_SLICE:=5}" "${WD_UPD_CHECK_MAX:=20}" "${WD_UPD_CHECK_CAP:=60}" "${WD_UPD_STEP_MAX:=45}" "${WD_UPD_KEEP:=3}" "${WD_UPD_PREFLIGHT:=1}" "${WD_UPD_TIMEOUT_TRIES:=5}"
-  for k in WD_SELF_UPDATE WD_UPD_SLICE WD_UPD_CHECK_MAX WD_UPD_CHECK_CAP WD_UPD_STEP_MAX WD_UPD_KEEP WD_UPD_PREFLIGHT WD_UPD_TIMEOUT_TRIES; do
+  : "${WD_UPD_SLICE:=5}" "${WD_UPD_CHECK_MAX:=20}" "${WD_UPD_CHECK_CAP:=60}" "${WD_UPD_STEP_MAX:=45}" "${WD_UPD_KEEP:=3}" "${WD_UPD_PREFLIGHT:=1}" "${WD_UPD_TIMEOUT_TRIES:=5}" "${WD_UPD_STEP_TRIES:=2}"
+  for k in WD_SELF_UPDATE WD_UPD_SLICE WD_UPD_CHECK_MAX WD_UPD_CHECK_CAP WD_UPD_STEP_MAX WD_UPD_KEEP WD_UPD_PREFLIGHT WD_UPD_TIMEOUT_TRIES WD_UPD_STEP_TRIES; do
     [[ "${!k}" =~ ^[0-9]+$ ]] || { do_log "FATAL $k must be a whole number, got: '${!k}'"; return 1; }
   done
   (( WD_UPD_SLICE > 0 )) || { do_log "FATAL WD_UPD_SLICE must be at least 1"; return 1; }
+  (( WD_UPD_STEP_TRIES > 0 )) || { do_log "FATAL WD_UPD_STEP_TRIES must be at least 1"; return 1; }
   return 0
 }
 
@@ -155,10 +161,12 @@ spl_wd_upd_snapshot() {
   return 0
 }
 
-# update.state: one line "sha=<sha> next=<inst> stage=<exec|wait> pid=<pid> since=<epoch> start=<epoch>"
+# update.state: one line "sha=<sha> next=<inst> stage=<exec|wait> pid=<pid>
+# since=<epoch> start=<epoch> try=<n>" (try: the step's timed-out windows so
+# far; a line without it, from an older code, reads try 0)
 spl_wd_upd_state_read() {
   local line kv
-  U_SHA="" U_NEXT="" U_STAGE="" U_PID="" U_SINCE="" U_START=""
+  U_SHA="" U_NEXT="" U_STAGE="" U_PID="" U_SINCE="" U_START="" U_TRY=0
   line="$(cat "$WD_DIR/update.state" 2>/dev/null || true)"
   [[ -n "$line" ]] || return 1
   for kv in $line; do
@@ -169,15 +177,24 @@ spl_wd_upd_state_read() {
       pid=*) U_PID="${kv#pid=}" ;;
       since=*) U_SINCE="${kv#since=}" ;;
       start=*) U_START="${kv#start=}" ;;
+      try=*) U_TRY="${kv#try=}" ;;
     esac
   done
-  [[ "$U_SHA" =~ ^[0-9a-f]{40}$ && "$U_NEXT" =~ ^[1-3]$ && "$U_STAGE" =~ ^(exec|wait)$ && "$U_SINCE" =~ ^[0-9]+$ && "$U_START" =~ ^[0-9]+$ ]] || return 1
+  [[ "$U_SHA" =~ ^[0-9a-f]{40}$ && "$U_NEXT" =~ ^[1-3]$ && "$U_STAGE" =~ ^(exec|wait)$ && "$U_SINCE" =~ ^[0-9]+$ && "$U_START" =~ ^[0-9]+$ && "$U_TRY" =~ ^[0-9]+$ ]] || return 1
   return 0
 }
 
 spl_wd_upd_state_write() {
   local f="$WD_DIR/update.state"
-  echo "sha=$1 next=$2 stage=$3 pid=$4 since=$5 start=$6" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
+  echo "sha=$1 next=$2 stage=$3 pid=$4 since=$5 start=$6 try=${7:-0}" > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
+}
+
+# spl_wd_upd_load: the box load for a timeout line, "load <1 min>/<n> cpus"
+spl_wd_upd_load() {
+  local l1 np
+  l1="${WD_UPD_LOAD1:-$(cut -d' ' -f1 /proc/loadavg 2>/dev/null || true)}"
+  np="${WD_UPD_NPROC:-$(nproc 2>/dev/null || true)}"
+  echo "load ${l1:-?}/${np:-?} cpus"
 }
 
 spl_wd_upd_log() {
@@ -226,11 +243,11 @@ spl_wd_upd_baton() {
   fi
   if (( now - U_SINCE > WD_UPD_STEP_MAX )); then
     if [[ "$U_STAGE" == exec ]]; then
-      spl_wd_upd_fail "$U_SHA" "$now" "instance $U_NEXT did not finish its self-check in ${WD_UPD_STEP_MAX}s"
+      spl_wd_upd_step_timeout "$now" "instance $U_NEXT did not finish its self-check in ${WD_UPD_STEP_MAX}s"
     else
       # a peer that is down cannot take the baton: not the code's fault, no quarantine
       rm -f "$WD_DIR/update.state" "$WD_DIR/code/candidate"
-      spl_wd_upd_log "HALT ${U_SHA:0:9}: instance $U_NEXT did not take the baton in ${WD_UPD_STEP_MAX}s; retried when all 3 run"
+      spl_wd_upd_log "HALT ${U_SHA:0:9}: instance $U_NEXT did not take the baton in ${WD_UPD_STEP_MAX}s ($(spl_wd_upd_load)); retried when all 3 run"
       spl_wd_peer_alert "update_${U_SHA:0:9}" "$now" \
         "WATCHDOG (102 10.4.4): the rollout of ${U_SHA:0:9} on box $(spl_wd_peer_box) halted: instance $U_NEXT did not take the baton in ${WD_UPD_STEP_MAX}s. The sha is not quarantined; it is retried when all 3 instances run."
     fi
@@ -241,6 +258,24 @@ spl_wd_upd_baton() {
   exec 5>&-
   spl_wd_upd_exec "$U_SHA" forward "$now" "baton from instance $(( WD_INST - 1 ))"
   # the exec failed: the step times out and halts the rollout
+  return 0
+}
+
+# spl_wd_upd_step_timeout NOW WHY: a peer saw the self-check step (U_*) run
+# past its WD_UPD_STEP_MAX s window. A timeout alone is the box's load, not
+# the commit's fault (a desk box 2026-10-24..30: 4 commits quarantined at
+# 45 s, one touching no watchdog code, load 49 on 16 cpus): the step gets a
+# new window, up to WD_UPD_STEP_TRIES in all, then the sha is quarantined.
+# The instance in its check keeps its tick; a failed check never comes here.
+spl_wd_upd_step_timeout() {
+  local now="$1" why try=$(( U_TRY + 1 ))
+  why="$2 ($(spl_wd_upd_load))"
+  if (( try >= WD_UPD_STEP_TRIES )); then
+    spl_wd_upd_fail "$U_SHA" "$now" "$why, try $try of $WD_UPD_STEP_TRIES"
+    return 0
+  fi
+  spl_wd_upd_state_write "$U_SHA" "$U_NEXT" exec "$U_PID" "$now" "$U_START" "$try"
+  spl_wd_upd_log "RETRY ${U_SHA:0:9}: $why, try $try of $WD_UPD_STEP_TRIES; not quarantined, another ${WD_UPD_STEP_MAX}s"
   return 0
 }
 
@@ -468,13 +503,23 @@ spl_wd_upd_checked() {
     spl_wd_upd_log "back on ${sha:0:9} ($role): tick green in ${took}s, ${n:-0} agent(s)"
     return 0
   fi
-  why="$(spl_wd_upd_verdict "$tick" "$sha" "$took")"
+  why="$(spl_wd_upd_verdict "$tick" "$sha")"
   exec 5>>"$WD_DIR/update.lock"
   flock -w 10 5 || true
   if ! spl_wd_upd_state_read || [[ "$U_SHA" != "$sha" || "$U_NEXT" != "$WD_INST" || "$U_STAGE" != exec ]]; then
     exec 5>&-
-    spl_wd_upd_log "self-check of ${sha:0:9} done (${why:-green}), but the rollout is no longer this instance's step"
+    spl_wd_upd_log "self-check of ${sha:0:9} done (${why:-green in ${took}s}), but the rollout is no longer this instance's step"
     return 0
+  fi
+  # the hang bound: the windows the step has had, WD_UPD_STEP_MAX s each
+  if [[ -z "$why" ]] && (( took > WD_UPD_STEP_MAX * (U_TRY + 1) )); then
+    why="self-check tick took ${took}s (hang bound $(( WD_UPD_STEP_MAX * (U_TRY + 1) ))s, $(spl_wd_upd_load))"
+    if (( U_TRY + 1 < WD_UPD_STEP_TRIES )); then
+      spl_wd_upd_check_again "$sha" "$now" "$why"
+      exec 5>&-
+      return 0
+    fi
+    why+=", try $(( U_TRY + 1 )) of $WD_UPD_STEP_TRIES"
   fi
   if [[ -n "$why" ]]; then
     spl_wd_upd_fail "$sha" "$now" "instance $WD_INST failed its self-check tick: $why"
@@ -503,21 +548,33 @@ spl_wd_upd_last() {
   fi
 }
 
-# spl_wd_upd_verdict TICK SHA TOOK: why the self-check tick is red, or empty.
+# spl_wd_upd_check_again SHA NOW WHY: a green self-check tick that only ran
+# past its hang bound (a loaded box, not the commit) is checked again: the
+# next tick of this instance is the self-check once more, a try later. Its
+# window starts at that tick (now + WD_TICK), not now: the loop's sleep
+# between the two is no part of the step. Under update.lock (fd 5).
+spl_wd_upd_check_again() {
+  local sha="$1" now="$2" why="$3" try=$(( U_TRY + 1 ))
+  spl_wd_upd_state_write "$sha" "$WD_INST" exec "$$" "$(( now + ${WD_TICK:-30} ))" "$U_START" "$try"
+  export WD_UPD_EXEC="$sha" WD_UPD_ROLE=forward WD_UPD_T0="$now"
+  spl_wd_upd_log "RETRY ${sha:0:9}: instance $WD_INST: $why, try $try of $WD_UPD_STEP_TRIES; not quarantined, its next tick checks again"
+  return 0
+}
+
+# spl_wd_upd_verdict TICK SHA: why the self-check tick is red, or empty.
 # By its result, not its wall time: on a loaded box a correct tick took 24
 # and 26 s (a desk box, 2026-10-08: two harmless commits quarantined at a 20 s
-# limit). The only time bound is the hang bound WD_UPD_STEP_MAX, the one the
-# peers already fail an unfinished check at (spl_wd_upd_baton).
+# limit). The only time bound is the hang bound, WD_UPD_STEP_MAX s per try,
+# the one the peers already time an unfinished check by (spl_wd_upd_baton);
+# spl_wd_upd_checked applies it.
 spl_wd_upd_verdict() {
-  local tick="$1" sha="$2" took="$3"
+  local tick="$1" sha="$2"
   if grep -qE "$SPL_WD_UPD_ERR_RE" "$tick/err" 2>/dev/null; then
     echo "script errors: $(grep -E "$SPL_WD_UPD_ERR_RE" "$tick/err" | tail -n 3 | tr '\n' ' ')"
   elif [[ "$sha" != "$WD_CODE_SHA" ]]; then
     echo "runs ${WD_CODE_SHA:0:9}, not ${sha:0:9}"
   elif [[ "${WD_HB_OK:-1}" != 1 ]]; then
     echo "cannot write its heartbeat"
-  elif (( took > WD_UPD_STEP_MAX )); then
-    echo "self-check tick took ${took}s (hang bound ${WD_UPD_STEP_MAX}s)"
   fi
   return 0
 }

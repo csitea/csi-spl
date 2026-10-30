@@ -54,7 +54,13 @@
       "shell-quote": "^1.11.0",
       "source-map-js": "^1.2.2",
       "vite": "^7.3.7",
-      "launch-editor": "^2.14.2"
+      "launch-editor": "^2.14.2",
+      "seroval": "~1.6.11",
+      "vue-i18n": "^11.4.14",
+      "@intlify/core": "^11.4.14",
+      "@intlify/core-base": "^11.4.14",
+      "@intlify/shared": "^11.4.14",
+      "@intlify/message-compiler": "^11.4.14"
     },
     "auditConfig": {
       "ignoreGhsas": [

@@ -1,6 +1,6 @@
 # 170 Day's tasks: a To-do view in the Calendar, and a signal for what is due today
 
-Version: v1.3 (2026-10-30). Status: **WHAT v1.0 and HOW v1.0, each signed by all four seats**
+Version: v1.4 (2026-10-30). Status: **WHAT v1.0 and HOW v1.0, each signed by all four seats**
 (plan only; nothing below is built). Issue SPL-4396 · Epic SPL-2396 · Class
 feature · Kind specs_and_docs · Task `dispatch-dfe850d9` · Placement slug
 `c001-dfe850d9-panel-editor` · Editor c-864.
@@ -66,6 +66,9 @@ Source: prd csitea topic `dfe850d9-e283-4460-a0ed-223b71d657fa`.
 - Poll `14caab4c` (Q2), answer **A** (HUM-10, msg
   `5d1ddf41-aa81-4197-a1b2-65da17d865aa`): only tasks assigned to me, with a
   switch to the whole workspace.
+- Poll `0f351a9b` (Q4), answer **C** (HUM-10, msg
+  `e5b92eaa-c70e-41eb-a508-84eb7d26fb63`): "Only the card in the app on your
+  first visit of the day". No browser alert at a fixed hour, no email.
 
 ### 1.3 Panel defaults
 
@@ -219,8 +222,9 @@ reads like "3 due today · 1 overdue" and shows at most 3 titles, then
 day, not once per tab or device: seen on the phone, it does not appear again
 on the desktop that day, and it does not appear after the person has already
 opened the To-do view that day. No reminder on a day with nothing due. (The
-3 titles, once per day and none on an empty day: panel default, 1.3; Q4
-covers the time and the channel.)
+3 titles, once per day and none on an empty day: panel default, 1.3. The
+channel is the owner's Q4 = C, 1.2: a card in the app on the first visit of
+the day, nothing else.)
 
 5.2 **Not chosen (Q1 = A). A red badge on the Issues icon** (HUM-24 `e0fb60bb`). The Issues rail
 icon, which today shows a red count of new issues (section 3), also signals
@@ -271,7 +275,7 @@ All but the first two lines are panel defaults (1.3).
 - Editing tasks from the view (4.6): no status change, re-date or reassign.
 - Tasks with no deadline: they belong to Issues, not to a day.
 - Agents as readers of the view or the signal.
-- An email reminder on by default (Q4 option c is opt-in).
+- An email reminder, and a browser alert at a fixed hour (owner Q4 = C, 1.2).
 - A reminder sent as a chat message.
 - Tasks due today in a connected Google calendar: the sync (spec 149)
   carries events only
@@ -286,9 +290,9 @@ Each goes to the dispatch lease holder as one poll form on task
 what WHAT assumes until the owner answers.
 
 Posted by c-003 in dfe850d9 at 15:26Z: Q1 msg `9958a8b7`, Q2 msg
-`14caab4c`, Q3 msg `e3b1370c`. Q1 and Q2 answered (1.2); Q3 open; Q4 sent
-to the dispatch holder c-002@sat after Q1 (three options: card + 08:00
-alert, the same plus opt-in email, card only).
+`14caab4c`, Q3 msg `e3b1370c`; Q4 posted by c-002@sat as msg `0f351a9b`
+(three options: card + 08:00 alert, the same plus opt-in email, card only).
+Q1, Q2 and Q4 answered (1.2); Q3 open.
 
 - **Q1 the day signal.** ANSWERED: A, the morning reminder (1.2).
 - **Q1b the badge.** Moot (Q1 = A); not asked.
@@ -298,7 +302,8 @@ alert, the same plus opt-in email, card only).
   signal), or only tasks due today? Default: list overdue tasks above
   today's in the view, marked overdue; the signal names them apart ("2 due
   today · 5 overdue"), so an old overdue pile never hides what is due today.
-- **Q4 the morning reminder's time and channel** (only if 5.1 is chosen).
+- **Q4 the morning reminder's time and channel.** ANSWERED: poll option C,
+  the card only = option (a) below (1.2). The text as asked:
   When (a fixed hour, or the person's first visit of the day) and how (an
   in-app pop-up when the person opens the app, a browser alert while a tab is
   open, or a notice that reaches a closed browser)? No web push exists
@@ -339,12 +344,18 @@ Each seat signs a version with its own commit on branch
 | editor | c-864 | HOW v0.3 | 262d3309a |
 | editor | c-864 | HOW v1.0 = v0.3 text, declared | eea24076d |
 | editor | c-864 | v1.2, owner Q1 = A, Q2 = A folded | eeb16778b |
-| editor | c-864 | v1.3, badge leftovers removed | (this commit) |
+| editor | c-864 | v1.3, badge leftovers removed | b876dc423 |
+| editor | c-864 | v1.4, owner Q4 = C folded | (this commit) |
 | user view | c-866 | HOW v0.3 | 262d3309a |
 | calendar / issues expert | c-869 | HOW v0.3 | 262d3309a |
 | reviewer | c-880 | HOW v0.3 | 262d3309a |
 
 ## 10. Changes
+
+- v1.4: owner Q4 = C folded (poll option C = the card in the app on the first
+  visit of the day only): the 08:00 browser alert and the email (11.4, row
+  B6, the `day_tasks_email` column) dropped; both listed out of scope in 7.
+  Removals only. Q3 still open.
 
 - v1.3: the badge leftovers removed after Q1 = A (sections 2, 5.4, 11.1,
   11.7, the "Count drift" risk), and B0 depends on nothing but its email
@@ -504,7 +515,7 @@ Kept as the design weighed, not built.
 
 ### 11.4 The morning reminder (WHAT 5.1; chosen, Q1 = A)
 
-- **Delivery (Q4 a + b, the default).** A small client plugin, the same
+- **Delivery (owner Q4 = C: the in-app card only).** A small client plugin, the same
   shape as `plugins/calendar-reminders.client.ts`: on app ready and signed
   in, it computes `dueTodayCounts`; if `today + overdue > 0`, the reminder is
   on, and it has not been seen today, it shows one card through the existing
@@ -523,13 +534,8 @@ Kept as the design weighed, not built.
   timer re-reads
   (`git show origin/master:csi-spl-wui/src/utils/calendar-reminder-timer.ts | grep -n visibilitychange`
   -> line 95), so a tab kept open overnight shows the card on the person's
-  first look of the new day. (b) adds a timer for 08:00 local in an open
-  tab, raising a browser alert through `showAlert`
-  (`git grep -n "export async function showAlert" origin/master -- csi-spl-wui/src/utils/notify.mjs`
-  -> line 252) only when this device's bell is on (`alertsEnabled`,
-  `stores/notification.ts` line 518) and the browser granted permission;
-  the alert is the same reminder, so it counts as seen-today and is gated
-  by `day_tasks_reminder` too.
+  first look of the new day. No 08:00 browser alert and no email (Q4 = C);
+  the card is shown only inside the app.
 - **Seen today, per person, on the hub (D).** New humans column
   `day_tasks_seen_on date NULL`, the viewer's local date of the last time the
   card was shown or the To-do view's today was opened; written by a new
@@ -546,11 +552,12 @@ Kept as the design weighed, not built.
   `day_tasks_reminder` with values `{"on", "off"}` (default first, the shape
   of `PrefLinkPreviews`, `auth/handler.go` line 976), shown in
   `components/settings/notifications.vue` (no `day_tasks_badge`: the badge
-  is not built, Q1 = A). `day_tasks_reminder = off` stops the card
-  and the 08:00 alert; the email has its own opt-in (`day_tasks_email`). Each ViewPrefs key is a humans column read
+  is not built, Q1 = A). `day_tasks_reminder = off` stops the card.
+  Each ViewPrefs key is a humans column read
   in one SELECT (`store/human_settings.go` line 39), so the rdb file lands
   and is applied on dev and prd BEFORE the hub change (11.6, B0).
-- **Email (Q4 c, only if the owner picks it).** A hub ticker like the gcal
+- **Email: DROPPED (owner Q4 = C).** Kept as the design weighed, not
+  built. A hub ticker like the gcal
   sync (`hub/gcal_sync.go` lines 20-26: claim by lease, so two instances do
   not both send), on a hub that keeps CPU and one instance
   (`04-cloud-run-service.tf` line 129, `cpu_idle = false`). Per opted-in
@@ -575,16 +582,15 @@ prd.
 
 | row | what | depends on | tests |
 |---|---|---|---|
-| B0 | rdb: humans `day_tasks_seen_on date NULL`, `day_tasks_reminder` text column (plus `day_tasks_email` if Q4 picks the email); applied on dev and prd with `do_spl_db_bootstrap` before B5 lands | none (the email column: Q4) | migration lint; `do_spl_db_query` on information_schema, dev and prd |
+| B0 | rdb: humans `day_tasks_seen_on date NULL`, `day_tasks_reminder` text column; applied on dev and prd with `do_spl_db_bootstrap` before B5 lands | none | migration lint; `do_spl_db_query` on information_schema, dev and prd |
 | B1 | `utils/day-tasks.mjs` + `calTodoKind`, with its `declare module` in `csi-spl-wui/src/types/` (as `blocker-settings.d.ts` line 10 declares `my-issues-count.mjs`) | none | unit tests: zone bounds (picked zone vs browser), epic / feature out, `diss` closed, overdue vs due today at 09:00 / 10:00 |
 | B2 | desktop To-do view: tab, `?k=todo`, `CalendarTodoView.vue`, rows, live re-read, i18n | B1 | extend `tests/e2e/calendar-desk-views.test.mjs` (no new e2e file); chunk budget |
 | B3 | phone To-do view, four ranges for the To-do kind, `?k=todo&v=` sets the visit's range | B2 | extend an existing `calendar-phone-*` e2e file; the reminder link opens Day on a phone whose stored range is Week |
 | B4 | DROPPED (Q1 = A): due-today mark on the Issues icon | - | unit over `my-issues-count.mjs`; e2e on the rail |
-| B5 | morning card (+ 08:00 alert), seen-today endpoint, off switch | B0, B1, B2, Q4 | hub test for the endpoint (Postgres tier); e2e: shown once, not after the view was opened |
-| B6 | email at 08:00 local (only if Q4 c) | B5 | hub ticker test with a fake clock and two instances (one mail) |
+| B5 | morning card, seen-today endpoint, off switch | B0, B1, B2 | hub test for the endpoint (Postgres tier); e2e: shown once, not after the view was opened |
+| B6 | DROPPED (owner Q4 = C): email at 08:00 local | - | - |
 
-Order: B1, then B2 and B0 in parallel, then B3 and B5; B6 last if Q4
-picks the email.
+Order: B1, then B2 and B0 in parallel, then B3 and B5.
 Out of these rows: the deadline-input zone edge (WHAT 2) and `isOverdue`
 (WHAT 2) each get their own issue.
 

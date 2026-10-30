@@ -10977,6 +10977,172 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/cost-entries": {
+      "get": {
+        "operationId": "getOperatorCostEntries",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "only this type; absent = every type",
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "enum": [
+                "cloud",
+                "hr"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "only this month YYYY-MM; absent = every month",
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "pattern": "^[0-9]{4}-[0-9]{2}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {entries}, the cost entries (SPL-4383, rdb 0245), period then created_at order"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "List the operator's Cloud infra and HR cost entries",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      },
+      "post": {
+        "operationId": "postOperatorCostEntries",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "One cost the operator entered (SPL-4383, rdb 0245): amount of currency paid for the month period. AI costs are the paid items of /v1/operator/fleet-tokens/paid. Checked by the hub (400 bad_cost_entry).",
+                "properties": {
+                  "amount": {
+                    "description": "above 0",
+                    "type": "number"
+                  },
+                  "currency": {
+                    "description": "an ISO 4217 code such as USD or EUR",
+                    "pattern": "^[A-Z]{3}$",
+                    "type": "string"
+                  },
+                  "label": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "note": {
+                    "maxLength": 2000,
+                    "type": "string"
+                  },
+                  "period": {
+                    "description": "the month YYYY-MM",
+                    "pattern": "^[0-9]{4}-[0-9]{2}$",
+                    "type": "string"
+                  },
+                  "type": {
+                    "enum": [
+                      "cloud",
+                      "hr"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "label",
+                  "amount",
+                  "currency",
+                  "period"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created: the stored entry with its id, created_by and created_at"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Enter a Cloud infra or HR cost entry",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/cost-entries/{id}": {
+      "delete": {
+        "operationId": "deleteOperatorCostEntriesById",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content: deleted"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Delete a Cloud infra or HR cost entry",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/cost/day": {
       "post": {
         "operationId": "postOperatorCostDay",

@@ -519,6 +519,7 @@ func (s *Server) routeSections(mux *http.ServeMux) {
 	s.routeLogEvents(mux)     // spec 162 3.2, B3: the Workspace and System logs, log_events.go
 	s.routeFileStreams(mux)   // spec 160 3.4, B3: GET /v1/view/file-streams, file_streams_view.go
 	s.routeFleetPaid(mux)     // SPL-2342, rdb 0205: paid items + effective price, fleet_token_paid.go
+	s.routeCostEntries(mux)   // SPL-4383, rdb 0245: Cloud infra + HR cost entries, cost_entries.go
 	s.routeFleetDesks(mux)    // spec 158 4.2.2, rdb 0230: PUT/DELETE /v1/operator/fleet-desks/{box}, operator_fleet_desks.go
 	s.routeFleet(mux)         // spec 158 4.2.3-4, rdb 0243: GET /v1/fleet/workspaces, POST /v1/fleet/enrol, fleet_workspaces.go
 	s.routeReportingSQL(mux)  // spec 143 3: POST /v1/reporting/sql, workspace admins, reporting_sql.go

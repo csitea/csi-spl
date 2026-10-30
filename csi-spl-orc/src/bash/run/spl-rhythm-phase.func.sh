@@ -38,12 +38,16 @@ spl_rhythm_is_night() {
 }
 
 # spl_rhythm_conf: SPL_RHYTHM_TZ / _START / _END from cnf env.rhythm; the
-# spec's value when the cnf or the key is absent, a refusal when it is wrong.
+# spec's value when the default cnf file or the key is absent, a refusal when
+# a value is wrong or a cnf that should be read cannot be: an explicit
+# RHYTHM_CNF absent or unreadable, or no yq (SPL-4366).
 spl_rhythm_conf() {
   local oa="${SPL_ORG_APP:-$(basename "${PROJ_PATH:-csi-spl-orc}")}" cnf k v
   oa="${oa%-orc}"; cnf="${RHYTHM_CNF:-${APP_PATH:-.}/$oa-cnf/$oa/all.env.yaml}"
   SPL_RHYTHM_TZ=Europe/Berlin SPL_RHYTHM_START=20 SPL_RHYTHM_END=7
-  if [[ -f "$cnf" ]] && command -v yq >/dev/null 2>&1; then
+  if [[ -n "${RHYTHM_CNF:-}" || -e "$cnf" ]]; then
+    [[ -f "$cnf" && -r "$cnf" ]] || { do_log "FATAL rhythm cnf '$cnf' is absent or unreadable"; return 1; }
+    command -v yq >/dev/null 2>&1 || { do_log "FATAL no yq on PATH to read the rhythm cnf '$cnf'"; return 1; }
     v="$(yq -r '.env.rhythm.timezone // ""' "$cnf" 2>/dev/null)"; [[ -n "$v" ]] && SPL_RHYTHM_TZ="$v"
     v="$(yq -r '.env.rhythm.night_start // ""' "$cnf" 2>/dev/null)"; [[ -n "$v" ]] && SPL_RHYTHM_START="$v"
     v="$(yq -r '.env.rhythm.night_end // ""' "$cnf" 2>/dev/null)"; [[ -n "$v" ]] && SPL_RHYTHM_END="$v"

@@ -11,6 +11,9 @@
 #      python is on hand)
 #   6. a RHYTHM_NOW that is not a date is refused; the window may sit inside
 #      one day (night_start < night_end)
+#   7. a cnf that cannot be read (an explicit RHYTHM_CNF absent or
+#      unreadable, or no yq) is refused; no cnf file on the default path
+#      keeps the spec's values
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -95,6 +98,33 @@ out="$(phase -- not-a-date 2>&1)"; rc=$?
 printf 'env:\n  rhythm:\n    night_start: 1\n    night_end: 5\n' >"$T/inday.yaml"
 got="$(phase RHYTHM_CNF="$T/inday.yaml" -- 2026-01-15T00:00Z) $(phase RHYTHM_CNF="$T/inday.yaml" -- 2026-01-15T04:00Z)"
 [[ "$got" == "night day" ]] && pass "6. window 1 to 5: 01:00 CET night, 05:00 CET day" || fail "6. window 1 to 5: got '$got'"
+
+# --- 7. a cnf it cannot read is refused, never the built-in values (SPL-4366) -----------------
+# want_refused LABEL PATH OUT RC: rc != 0 and exactly one FATAL line, naming PATH.
+want_refused() {
+  local n; n="$(grep -c FATAL <<<"$3")"
+  [[ "$4" -ne 0 && "$n" -eq 1 && "$3" == *"FATAL"*"$2"* ]] && pass "7. $1 is refused (rc=$4)" ||
+    fail "7. $1: want rc!=0 and one FATAL naming $2, rc=$4 '$3'"
+}
+out="$(phase RHYTHM_CNF="$T/nonexistent.yaml" -- 2026-01-15T12:00Z 2>&1)"; rc=$?
+want_refused "an absent RHYTHM_CNF" "$T/nonexistent.yaml" "$out" "$rc"
+# unreadable: mode 000, or a directory where root reads any mode
+printf 'env:\n  rhythm:\n    night_start: 20\n' >"$T/noread.yaml"; chmod 000 "$T/noread.yaml"
+noread="$T/noread.yaml"; [[ -r "$noread" ]] && { noread="$T/dir.yaml"; mkdir -p "$noread"; }
+out="$(phase RHYTHM_CNF="$noread" -- 2026-01-15T12:00Z 2>&1)"; rc=$?
+want_refused "an unreadable RHYTHM_CNF" "$noread" "$out" "$rc"
+# no yq: a PATH holding only what the action calls besides yq
+mkdir -p "$T/noyq"
+for b in bash env date basename; do ln -sf "$(command -v "$b")" "$T/noyq/$b"; done
+out="$(PATH="$T/noyq" phase -- 2026-01-15T12:00Z 2>&1)"; rc=$?
+want_refused "the cnf present with no yq" "csi-spl-cnf/csi-spl/all.env.yaml" "$out" "$rc"
+out="$(PATH="$T/noyq" phase RHYTHM_CNF="$T/inday.yaml" -- 2026-01-15T12:00Z 2>&1)"; rc=$?
+want_refused "an explicit RHYTHM_CNF with no yq" "$T/inday.yaml" "$out" "$rc"
+# the default path with no cnf file keeps the spec's values, rc 0
+mkdir -p "$T/empty/csi-spl-orc"
+got="$(phase APP_PATH="$T/empty" PROJ_PATH="$T/empty/csi-spl-orc" -- 2026-01-15T19:00Z 2>&1; echo "rc=$?")"
+[[ "$got" == $'night\nrc=0' ]] && pass "7. no RHYTHM_CNF and no cnf file -> the spec's 20 to 7 Europe/Berlin, rc 0" ||
+  fail "7. default path, no cnf file: got '$got'"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

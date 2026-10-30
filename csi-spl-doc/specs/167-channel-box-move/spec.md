@@ -1,13 +1,14 @@
 # 167 Channel Box Move: move ALL the work of one channel to another box in one action
 
-Version: v0.7 (2026-10-30). Status: **Draft, R7 re-review**; the owner's four
+Version: v0.8 (2026-10-30). Status: **Draft, R7 PASS on v0.7**; the owner's four
 decisions are in (section 7); v0.3 added the hand move's agent's own account
 (rows W7-W10, from its spool msg b3fb3d9e); v0.4 folds the R7 review
 [c-519](reviews/c-519-claude-review.md) (its W1-W7; cases C19-C21); v0.5
 folds its [re-review](reviews/c-519-claude-rereview-v04.md) (N1-N4; C22);
 v0.6 folds the [next one](reviews/c-519-claude-rereview-v05.md) (N5-N7);
 v0.7 folds [its review of v0.6](reviews/c-519-claude-rereview-v06.md) (N8,
-N9; C23, C24).
+N9; C23, C24); v0.8 folds the non-blocking N10 of [the PASS on
+v0.7](reviews/c-519-claude-rereview-v07.md) (a short signing window).
 Nothing below is built.
 Issue SPL-4227 · Epic SPL-2398 · Class feature · Kind specs_and_docs ·
 Placement slug `c002-channel-box-move-spec` · Lead c-873.
@@ -123,7 +124,11 @@ cd csi-spl-orc && CHANNEL=<TENANT>/<CHANNEL> TO=<BOX_B> ./run -a do_spl_channel_
     owner's authority (it receives its steps through the hub, not over the
     driver's ssh), the action signs a second envelope addressed to it in
     the same signing window (`directive-session.sh`, one passphrase for
-    both); each nonce is spent once per box. Every owner command that
+    both); each nonce is spent once per box. The window is short: the
+    action opens one with `directive-session.sh --minutes 5` (not the
+    60-minute default, inside which an agent can sign, R5), signs, then
+    shuts it with `--close`; when `--status` shows a window the owner had
+    already opened, the action signs in it and leaves it open. Every owner command that
     changes something (`move`, `resume`, `back`, `clean`) signs fresh
     envelopes over its own text (command, channel, target, move id): a
     `resume` or `clean` never reuses the `move`'s envelope, whose nonce is
@@ -397,7 +402,7 @@ Reuses spec 060 and spec 102; nothing new for the agents to learn.
 | C21 | a caller with no tty and no agent in its ancestry (cron) runs `plan` | refused (D1) | it is taken for the owner |
 | C22 | `DRY_RUN=0` by a caller that passes the owner process test (a `setsid -f script` tty) but has no signed directive | refused before the first change (D1) | the move runs |
 | C23 | `MOVE_CMD=ack` (a) by the target seat the journal names, (b) by another lane agent, (c) by the named seat for another `MOVE_ID`, (d) `MOVE_CMD=clean` by the named seat | (a) accepted; (b), (c), (d) refused | (a) refused (every move then aborts at S7), or (b), (c) or (d) accepted |
-| C24 | the owner drives from `<BOX_A>`: `move`, then `resume`, with the hub path to `<BOX_B>` | `move` signs one envelope `to: <BOX_A>` and one `to: <BOX_B>` in one window, each verifies on its box; `resume` signs fresh ones | an envelope `to: <BOX_B>` verified on `<BOX_A>` (exit 78), or `resume` replaying the `move`'s envelope (nonce spent) runs |
+| C24 | the owner drives from `<BOX_A>`: `move`, then `resume`, with the hub path to `<BOX_B>` | `move` signs one envelope `to: <BOX_A>` and one `to: <BOX_B>` in one window, each verifies on its box; `resume` signs fresh ones; after each command `--status` shows no window the action opened, and a window the owner opened before is still open | an envelope `to: <BOX_B>` verified on `<BOX_A>` (exit 78), `resume` replaying the `move`'s envelope (nonce spent) runs, the action's window still open after it returns, or the owner's own window closed by it |
 
 Tests run on a private `SPOOL_ROOT` with two sandbox boxes (two dirs, a stub
 ssh and a stub hub), never the live spool (`SPOOL_TEST=1`).
@@ -463,4 +468,4 @@ No other question is open.
    (`do_spl_private_overlay_pull`). S6's probe post would catch it before the
    switch either way.
 
-<!-- version: 0.7.0 · updated: 2026-10-30 · last-edit: 2026-10-30T07:00:00Z -->
+<!-- version: 0.8.0 · updated: 2026-10-30 · last-edit: 2026-10-30T07:20:00Z -->

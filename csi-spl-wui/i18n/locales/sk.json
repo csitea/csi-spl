@@ -985,14 +985,14 @@
     },
     "topic_list": {
       "label": "Zoznam tém",
-      "filter": "Filtrovanie",
+      "filter": "Filter",
       "filter_new": "Nové",
       "filter_all": "Všetky",
       "sort": "Zoradiť podľa",
       "sort_last": "Posledná aktualizácia",
       "sort_count": "Počet správ",
       "sort_prio": "Priorita",
-      "window": "Zoradené medzi načítanými témami: {n}",
+      "window": "Zoradené načítané témy: {n}",
       "window_new": "Nové medzi načítanými témami: {n}",
       "empty_new": "Žiadne nové témy."
     }

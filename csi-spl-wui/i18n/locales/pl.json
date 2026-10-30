@@ -992,7 +992,7 @@
       "sort_last": "Ostatnia aktualizacja",
       "sort_count": "Liczba wiadomości",
       "sort_prio": "Priorytet",
-      "window": "Posortowano spośród wczytanych tematów: {n}",
+      "window": "Posortowano wczytane tematy: {n}",
       "window_new": "Nowe spośród wczytanych tematów: {n}",
       "empty_new": "Brak nowych tematów."
     }

@@ -992,7 +992,7 @@
       "sort_last": "Viimane uuendus",
       "sort_count": "Sõnumite arv",
       "sort_prio": "Prioriteet",
-      "window": "Sorditud laaditud teemade seas: {n}",
+      "window": "Laaditud teemad sorditud: {n}",
       "window_new": "Uued laaditud teemade seas: {n}",
       "empty_new": "Uusi teemasid pole."
     }

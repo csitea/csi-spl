@@ -992,8 +992,8 @@
       "sort_last": "Ultima actualizare",
       "sort_count": "Număr de mesaje",
       "sort_prio": "Prioritate",
-      "window": "Sortate: cele {n} subiecte încărcate",
-      "window_new": "Noi dintre cele {n} subiecte încărcate",
+      "window": "Sortate: subiectele încărcate ({n})",
+      "window_new": "Noi dintre subiectele încărcate ({n})",
       "empty_new": "Nu există subiecte noi."
     }
   },

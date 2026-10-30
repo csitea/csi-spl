@@ -992,7 +992,7 @@
       "sort_last": "Pēdējā atjaunināšana",
       "sort_count": "Ziņojumu skaits",
       "sort_prio": "Prioritāte",
-      "window": "Sakārtots starp ielādētajām tēmām: {n}",
+      "window": "Sakārtotas ielādētās tēmas: {n}",
       "window_new": "Jaunās starp ielādētajām tēmām: {n}",
       "empty_new": "Nav jaunu tēmu."
     }

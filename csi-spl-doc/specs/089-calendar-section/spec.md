@@ -316,6 +316,7 @@ Every refusal is the hub's usual body `{"error": "<token>", "detail": "<plain En
 - **FR-008**: Data stored in `calendar_events` with PostgreSQL `FORCE ROW LEVEL SECURITY`.
 - **FR-009**: On viewports <= 820px, layout opens on Day view with year strip behind a button.
 - **FR-010**: Only the event's owner can set or clear `private`, by an explicit action; the hub refuses anyone else with `403`.
+- **FR-011**: A visitor who never signed in on this tab and opens `/calendar` is sent to `/public-calendar` (HUM-10 t1 `ef57739c`). A member who signs out while on the Calendar lands on the sign-in page `/login`, never on `/public-calendar`; a session that ends there without a sign-out by hand goes to `/login?ended=1` (HUM-24 `71e852ab`, SPL-4400; `signedOutCalendarTarget` in `csi-spl-wui/src/utils/public-calendar.mjs`).
 
 ### 8.2 Acceptance Scenarios
 - **AC-01 (Rail Navigation)**: Click Calendar icon -> `/calendar` opens as single sheet with left rail; Week view renders.
@@ -327,6 +328,7 @@ Every refusal is the hub's usual body `{"error": "<token>", "detail": "<plain En
 - **AC-07 (Tenant Isolation)**: Workspace `t1` member cannot access or view workspace `t2` calendar events.
 - **AC-08 (Phone Responsiveness)**: At 390x844 viewport, opens on Day view; Week displays as grouped list.
 - **AC-09 (Public by Default)**: Create an event without an audience -> it is `public`. A non-owner who sets `private` gets `403`; the owner who sets it explicitly succeeds, and a member who is not mentioned then cannot read the event.
+- **AC-10 (Sign-out on Calendar)**: Sign in, open `/calendar`, Sign out from the user menu -> the address is `/login` and never passed through `/public-calendar`. Control: a fresh browser opening `/calendar` lands on `/public-calendar`. Proven live by `csi-spl-wui/tests/e2e/signout-calendar-live.proof.mjs` (the mock bundle never signs out); the decision by `tests/unit/public-calendar.test.mjs`.
 
 ---
 
@@ -398,5 +400,6 @@ Owner HUM-10 on topic `819d8610`, msgs `f23094d6` and `69fc0cbc`, verbatim:
 | v0.3.0 | 2026-10-05 | a-270 | Full consensus specification harmonized with grok peer `g-288` (opinion `63300b4cd`): simplified structure per owner msg `2a9ce886`, updated 155 KB budget ceiling, `tenants(tenant_id)` foreign key, custom Vue 36-month strip, Schedule-X / FullCalendar fallback, spool message reminders, single audience model, dialog event modal, and formal Consensus section. |
 | v0.4.0 | 2026-10-05 | c-275 | Owner decisions 2026-10-05 (section 1.1): audience `public` by default, `private` only by the owner explicitly (4.2); reminders are app-timer pop-ups with no agent, AI or spool message (4.3); schema `audience` + `mentions` replace `for_type`/`for_id`, `reminded` dropped, RLS policy back to the workspace-only form (no `app.human_id`/`app.agent_id` setting exists; the private filter moves to the store); questions answered; future scheduled-deploy item (11.1, msgs `f23094d6`, `69fc0cbc`); `tasks.md` added. |
 | v0.5.0 | 2026-10-05 | c-326 | Section 6.1 wire format: the one event object (`source` event / issue / official_day), the marks and reminders answers, the request body, and the refusal tokens (`private_owner_only`, `demo_read_only`). |
+| v0.6.0 | 2026-10-30 | c-887 | FR-011 / AC-10: a sign-out on the Calendar lands on `/login`, not `/public-calendar` (HUM-24 `71e852ab`, SPL-4400). |
 
-<!-- version: 0.5.0 · updated: 2026-10-05 · last-edit: 2026-10-05T19:58:00Z -->
+<!-- version: 0.6.0 · updated: 2026-10-30 · last-edit: 2026-10-30T17:00:00Z -->

@@ -13,15 +13,18 @@
 //     the month read is the month's days and one either side; the mock
 //     answers its web events only
 //   - signedOutCalendarTarget (pages/calendar.vue): a settled signed-out
-//     /calendar goes to /public-calendar; signed in, mock and loading stay
+//     /calendar goes to /public-calendar; signed in, mock and loading stay.
+//     HUM-24 71e852ab: once the tab was signed in, a sign-out by hand stays
+//     (logout() lands on /login) and an ended session goes to /login
 //
 // Run: node tests/unit/public-calendar.test.mjs
 import { featureRows, mockReleaseRows, publicCalendarData, releaseRows } from '../../src/node/pubcal/public-calendar-data.mjs'
 import {
-  PUBLIC_CALENDAR_PATH, PUBLIC_CALENDAR_SOURCES, mergePublicCalendar, signedOutCalendarTarget, pubCalAddMonths, pubCalMonthDays, pubCalShownMonth, publicCalendarEvent,
+  PUBLIC_CALENDAR_PATH, PUBLIC_CALENDAR_SOURCES, SIGNED_OUT_LOGIN_PATH, mergePublicCalendar, signedOutCalendarTarget, pubCalAddMonths, pubCalMonthDays, pubCalShownMonth, publicCalendarEvent,
 } from '../../src/utils/public-calendar.mjs'
 import { fetchWebCalendar, pubCalWebRange, webCalendarRows } from '../../src/utils/public-calendar-web.mjs'
 import { setTimeZoneSource } from '../../src/utils/date-iso.mjs'
+import { readFileSync } from 'node:fs'
 
 let failed = 0
 const ok = (name, cond, why = '') => { if (cond) console.log(`  OK   ${name}`); else { failed++; console.log(`  FAIL ${name} ${why}`) } }
@@ -150,6 +153,13 @@ ok('signed out on /calendar -> the public calendar', signedOutCalendarTarget('ou
 ok('signed in stays', signedOutCalendarTarget('in') === null)
 ok('loading and unknown stay', signedOutCalendarTarget('loading') === null && signedOutCalendarTarget('unknown') === null)
 ok('the mock tenant stays', signedOutCalendarTarget('out', true) === null)
+/* HUM-24 71e852ab: signing out while on Calendar landed on /public-calendar */
+ok('never signed in this tab -> the public calendar', signedOutCalendarTarget('out', false, { hadSession: false, ended: true }) === PUBLIC_CALENDAR_PATH)
+ok('signed out by hand on /calendar -> stays (logout() lands on /login)', signedOutCalendarTarget('out', false, { hadSession: true, ended: false }) === null)
+ok('session ended on /calendar -> /login', signedOutCalendarTarget('out', false, { hadSession: true, ended: true }) === SIGNED_OUT_LOGIN_PATH && SIGNED_OUT_LOGIN_PATH === '/login')
+ok('signed in with a session seen stays', signedOutCalendarTarget('in', false, { hadSession: true, ended: true }) === null)
+const calVue = readFileSync(new URL('../../src/pages/calendar.vue', import.meta.url), 'utf8')
+ok('pages/calendar.vue marks the session seen and passes it', /if \(s === 'in'\) hadSession = true/.test(calVue) && /signedOutCalendarTarget\(s, spoolApi\.mock, \{ hadSession, ended: wasSignedIn\(\) \}\)/.test(calVue))
 
 console.log(failed ? `\n${failed} FAILED` : '\nall passed')
 process.exit(failed ? 1 : 0)

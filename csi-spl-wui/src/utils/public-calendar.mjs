@@ -22,17 +22,30 @@ import { isSignedOutVisitor } from './shell-bootstrap.mjs'
 export const PUBLIC_CALENDAR_PATH = '/public-calendar'
 
 /**
- * Where /calendar sends a settled signed-out visitor (the public calendar),
- * or null: signed in, 'loading', 'unknown' and the mock tenant stay. Read by
- * pages/calendar.vue, a lazy chunk, so the signed-out door adds nothing to
- * the initial download (ci_initial_gzip_kb, c-002 17f99072).
+ * Where /calendar sends a settled signed-out visitor, or null: signed in,
+ * 'loading', 'unknown' and the mock tenant stay. Read by pages/calendar.vue,
+ * a lazy chunk, so the signed-out door adds nothing to the initial download
+ * (ci_initial_gzip_kb, c-002 17f99072).
+ *
+ * `hadSession`: this tab saw 'in' on /calendar, so 'out' is a sign-out, not a
+ * visitor (HUM-24 71e852ab: sign-out on Calendar landed on the public
+ * calendar). A sign-out by hand stays (null): logout() lands on /login
+ * itself. `ended`: the session ended without a sign-out by hand
+ * (utils/session-recover.mjs wasSignedIn), so /login, which says so.
+ * A visitor who never signed in this tab still gets the public calendar.
  * @param {unknown} sessionState
  * @param {boolean} [mock]
+ * @param {{ hadSession?: boolean, ended?: boolean }} [seen]
  * @returns {string | null}
  */
-export function signedOutCalendarTarget(sessionState, mock = false) {
-  return isSignedOutVisitor(sessionState, mock) ? PUBLIC_CALENDAR_PATH : null
+export function signedOutCalendarTarget(sessionState, mock = false, seen = {}) {
+  if (!isSignedOutVisitor(sessionState, mock)) return null
+  if (!seen.hadSession) return PUBLIC_CALENDAR_PATH
+  return seen.ended ? SIGNED_OUT_LOGIN_PATH : null
 }
+
+/** Where /calendar sends a session that ended under it (signedOutCalendarTarget). */
+export const SIGNED_OUT_LOGIN_PATH = '/login'
 
 /** Where each source's rows come from, in merge order. */
 export const PUBLIC_CALENDAR_SOURCES = Object.freeze([

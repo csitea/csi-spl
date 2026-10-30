@@ -145,7 +145,8 @@ func (s *Server) contactsFail(w http.ResponseWriter, op string, c contactsMe, co
 
 // contactOut is one contact as every route answers it. Email and phone are
 // null when unset; google = linked to Google; member_id is the member match
-// of the session's workspace (B6), null until that row lands.
+// of the session's workspace (B6, contacts_match.go) on the list and the
+// card, null on the other routes and when nothing matches.
 type contactOut struct {
 	ID        string  `json:"contact_id"`
 	FirstName string  `json:"first_name"`
@@ -199,6 +200,10 @@ func (s *Server) handleListContacts(w http.ResponseWriter, r *http.Request) {
 	for _, ct := range page.Contacts {
 		out = append(out, contactJSON(ct))
 	}
+	if err := s.contactsMatch(r.Context(), c.tenant, out); err != nil {
+		s.contactsFail(w, "contacts_match", c, "", err)
+		return
+	}
 	var next *string
 	if page.Next != "" {
 		next = &page.Next
@@ -244,7 +249,12 @@ func (s *Server) handleGetContact(w http.ResponseWriter, r *http.Request) {
 		s.contactsFail(w, "contacts_get", c, id, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, contactJSON(ct))
+	out := []contactOut{contactJSON(ct)}
+	if err := s.contactsMatch(r.Context(), c.tenant, out); err != nil {
+		s.contactsFail(w, "contacts_match", c, id, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, out[0])
 }
 
 // PATCH /v1/me/contacts/{id}: the fields sent; "" clears one.

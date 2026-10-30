@@ -46,6 +46,7 @@ type contactsCloneStore struct {
 	store.ContactsSyncs
 	store.Gcal
 	store.MembershipLister
+	store.ContactMembers
 	mu    sync.Mutex
 	clone string
 }
@@ -118,6 +119,7 @@ func newContactsRig(t *testing.T, on func(w1, w2 string) []string) *contactsRig 
 		c.cs.Store, c.cs.Humans = o.Store, o.Store.(store.Humans)
 		c.cs.PersonalContacts, c.cs.ContactsSyncs, c.cs.Gcal = o.Store.(store.PersonalContacts), o.Store.(store.ContactsSyncs), o.Store.(store.Gcal)
 		c.cs.MembershipLister = o.Store.(store.MembershipLister)
+		c.cs.ContactMembers = o.Store.(store.ContactMembers)
 		o.Store = c.cs
 	})
 	for _, id := range []string{c.w1, c.w2} {
@@ -597,6 +599,7 @@ func TestContactsRigKeepsStores(t *testing.T) {
 		"Gcal":             func() bool { _, ok := s.(store.Gcal); return ok }(),
 		"Humans":           func() bool { _, ok := s.(store.Humans); return ok }(),
 		"MembershipLister": func() bool { _, ok := s.(store.MembershipLister); return ok }(),
+		"ContactMembers":   func() bool { _, ok := s.(store.ContactMembers); return ok }(),
 	} {
 		if !ok {
 			t.Errorf("contactsCloneStore hides store.%s", name)

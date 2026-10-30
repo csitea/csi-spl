@@ -1,6 +1,6 @@
 # 170 Day's tasks: a To-do view in the Calendar, and a signal for what is due today
 
-Version: v1.2 (2026-10-30). Status: **WHAT v1.0 and HOW v1.0, each signed by all four seats**
+Version: v1.3 (2026-10-30). Status: **WHAT v1.0 and HOW v1.0, each signed by all four seats**
 (plan only; nothing below is built). Issue SPL-4396 · Epic SPL-2396 · Class
 feature · Kind specs_and_docs · Task `dispatch-dfe850d9` · Placement slug
 `c001-dfe850d9-panel-editor` · Editor c-864.
@@ -89,7 +89,7 @@ except its first line. Each spot is tagged "(panel default, 1.3)".
   (`git grep -n "export function viewerTimeZone" origin/master -- csi-spl-wui/src/utils/date-iso.mjs`
   -> line 77). The deadline is a point in time, not a date
   (`git grep -n "deadline " origin/master -- csi-spl-rdb/src/sql/postgres/spool-hub/0047_issues.sql`
-  -> `deadline timestamptz NULL`). The reminder, the badge and the view all
+  -> `deadline timestamptz NULL`). The reminder and the view both
   use this one zone, so the phone and the desktop agree on what "today" is.
 - **Overdue**: an open task whose deadline is before the start of today. A
   task due today at 09:00 is still "due today" at 10:00, listed under today
@@ -238,8 +238,8 @@ red number).
 5.3 **Not chosen (Q1 = A). Both**: the badge is always there; the morning reminder links to the
 view.
 
-5.4 **Turning it off** (panel default, 1.3). Each person can switch the morning reminder off, and
-the due-today badge mark if chosen, in Settings, Notifications, where the
+5.4 **Turning it off** (panel default, 1.3). Each person can switch the morning reminder off in
+Settings, Notifications, where the
 bell switch and the muted channels already live
 (`git grep -n "settings-notifications" origin/master -- csi-spl-wui/src/components/settings/notifications.vue`
 -> line 13). The switch belongs to the person, not the device: turned off on
@@ -338,12 +338,17 @@ Each seat signs a version with its own commit on branch
 | editor | c-864 | HOW v0.2 | ae6765d95 |
 | editor | c-864 | HOW v0.3 | 262d3309a |
 | editor | c-864 | HOW v1.0 = v0.3 text, declared | eea24076d |
-| editor | c-864 | v1.2, owner Q1 = A, Q2 = A folded | (this commit) |
+| editor | c-864 | v1.2, owner Q1 = A, Q2 = A folded | eeb16778b |
+| editor | c-864 | v1.3, badge leftovers removed | (this commit) |
 | user view | c-866 | HOW v0.3 | 262d3309a |
 | calendar / issues expert | c-869 | HOW v0.3 | 262d3309a |
 | reviewer | c-880 | HOW v0.3 | 262d3309a |
 
 ## 10. Changes
+
+- v1.3: the badge leftovers removed after Q1 = A (sections 2, 5.4, 11.1,
+  11.7, the "Count drift" risk), and B0 depends on nothing but its email
+  column (Q4); from c-866 msg 9944ba69 and c-869 msg f5f92d42. Removals only.
 
 - v1.2: owner answers folded: Q1 = A (morning reminder only; 5.2 / 5.3,
   11.3 and row B4 dropped, the badge out of scope in 7, Q1b moot), Q2 = A
@@ -416,7 +421,7 @@ and D (c-869 msg bf9fb184), each re-checked below.
   the client turns the day's local bounds into RFC 3339 instants and asks
   the hub for that window. The hub never converts a time with the zone
   (`auth/time_zone.go` line 15), so nothing changes there for the view.
-- **One pure module holds the task rules**, so the view, the badge and the
+- **One pure module holds the task rules**, so the view and the
   reminder cannot disagree (WHAT 5, last paragraph): new
   `csi-spl-wui/src/utils/day-tasks.mjs` (Node-testable like
   `my-issues-count.mjs`): `isTask(issue)` (open status from
@@ -570,7 +575,7 @@ prd.
 
 | row | what | depends on | tests |
 |---|---|---|---|
-| B0 | rdb: humans `day_tasks_seen_on date NULL`, `day_tasks_reminder` text column (plus `day_tasks_email` if Q4 picks the email); applied on dev and prd with `do_spl_db_bootstrap` before B5 lands | Q4 | migration lint; `do_spl_db_query` on information_schema, dev and prd |
+| B0 | rdb: humans `day_tasks_seen_on date NULL`, `day_tasks_reminder` text column (plus `day_tasks_email` if Q4 picks the email); applied on dev and prd with `do_spl_db_bootstrap` before B5 lands | none (the email column: Q4) | migration lint; `do_spl_db_query` on information_schema, dev and prd |
 | B1 | `utils/day-tasks.mjs` + `calTodoKind`, with its `declare module` in `csi-spl-wui/src/types/` (as `blocker-settings.d.ts` line 10 declares `my-issues-count.mjs`) | none | unit tests: zone bounds (picked zone vs browser), epic / feature out, `diss` closed, overdue vs due today at 09:00 / 10:00 |
 | B2 | desktop To-do view: tab, `?k=todo`, `CalendarTodoView.vue`, rows, live re-read, i18n | B1 | extend `tests/e2e/calendar-desk-views.test.mjs` (no new e2e file); chunk budget |
 | B3 | phone To-do view, four ranges for the To-do kind, `?k=todo&v=` sets the visit's range | B2 | extend an existing `calendar-phone-*` e2e file; the reminder link opens Day on a phone whose stored range is Week |
@@ -587,11 +592,8 @@ Out of these rows: the deadline-input zone edge (WHAT 2) and `isOverdue`
 
 - **A settings column the hub reads before it exists** nulls every setting
   of `GET /session` (one SELECT over every ViewPrefs column): B0 first, then
-  the hub. B4 / B5 check `information_schema` on both envs before they push.
+  the hub. B5 checks `information_schema` on both envs before they push.
 - **Two clocks.** The client decides "today"; the hub only stores the date it
   is handed. A wrong browser clock shows the wrong day for that person only.
 - **Two workspaces, two zones** (11.4): one seen-today date per human; near
   midnight the second workspace may skip that day's card. Accepted for v1.
-- **Count drift.** The badge's read is "mine"; if Q2 = all for the view, the
-  badge and the view's "all" list differ on purpose, and the view says which
-  set it shows.

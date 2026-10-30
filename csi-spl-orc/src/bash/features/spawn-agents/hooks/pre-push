@@ -42,6 +42,23 @@ _pp_secs() { echo "$(( $(date +%s 2>/dev/null || echo 0) - _pp_t0 ))s"; }
 _pp_override="${SPL_PREPUSH_OVERRIDE:-0}"
 _pp_refs="$(cat)"  # git's ref lines, read once: the non-ff guard and the wip skip both use them
 
+# A watcher seat pushes nothing (spec 165 3.3 (3), SPL-4344) -- FIRST, any
+# ref, SPL_PREPUSH_OVERRIDE included. The caller is read from the process
+# chain (its uid, environ or pane: spl_watcher_refuse in the pushing tree's
+# spool-env.inc.sh), never from an id the pusher sets. A tree without it is
+# not asked.
+_pp_wl="$(git rev-parse --show-toplevel 2>/dev/null)/csi-spl-orc/src/bash/features/spawn-agents/lib/spool-env.inc.sh"
+if [ -r "$_pp_wl" ]; then
+  # shellcheck source=/dev/null
+  . "$_pp_wl"
+  if ! _pp_wmsg="$(spl_watcher_refuse "git push" 2>&1)"; then
+    _pp_logline "REFUSE $PWD remote=${1:-?} override=$_pp_override -- $_pp_wmsg"
+    echo "$_pp_wmsg" >&2
+    echo "pre-push: REFUSED -- a watcher seat is read-only; SPL_PREPUSH_OVERRIDE=1 does not skip this." >&2
+    exit 1
+  fi
+fi
+
 # Non-fast-forward guard on trunk -- FIRST, before every override branch:
 # SPL_PREPUSH_OVERRIDE=1 never skips it. master has no server-side protection,
 # and m- lanes force-pushed it 4x (latest 2026-10-10 06:26Z, --force-with-lease

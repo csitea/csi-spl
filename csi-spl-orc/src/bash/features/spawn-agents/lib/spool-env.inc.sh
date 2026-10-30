@@ -848,12 +848,14 @@ spool_spawn_is_seat() {  # ID
   spl_is_role_seat "$1"
 }
 
-# Allow a seat or a shell with no agent id. A lane is exit 9 and one line on
-# stderr naming it. SPAWN_ALLOW_LANE=1 with a non-empty SPAWN_ALLOW_REASON
+# Allow a seat or a shell with no agent id. A lane, and any caller with a
+# watcher in its chain (spl_watcher_refuse, spec 165 3.3), is exit 9 and one
+# line on stderr naming it. SPAWN_ALLOW_LANE=1 with a non-empty SPAWN_ALLOW_REASON
 # allows the lane and appends one line to $SPOOL_ROOT/spawn-allow.log.
 # Prints the requester token ("-" when there is no agent id).
 spool_spawn_gate() {
   local req reason root
+  spl_watcher_refuse spawn || return 9
   req="$(spool_spawn_requester)"
   [ -n "$req" ] || req="-"
   if [ "$req" = "-" ] || spool_spawn_is_seat "$req"; then
@@ -875,4 +877,130 @@ spool_spawn_gate() {
     echo "spawn: refused: requester ${req} is a lane; only a role seat (001-003, any vendor letter), or a shell with no agent id, may spawn" >&2
   fi
   return 9
+}
+
+# ---- a watcher seat is read-only (spec 165 3.3, SPL-4344) -------------------
+# A watcher seat (spec 165 section 3) only reads. What makes an id a watcher
+# is the root-owned marker <spool root>/<ID>/.watcher-role; its `user=<name>`
+# lines name the OS user the watcher runs as. The OS user is the boundary
+# (no sudo, no keys); these gates are the second layer, for a watcher that
+# runs a fleet action from the shared tree.
+# The caller is read from its PROCESS CHAIN, never from AGENT_ID, DESK_AGENT
+# or --from: the caller sets all three. A hop of the chain is a watcher's
+# when its real uid is a marker's user, its environ SPOOL_AGENT_ID /
+# MCP_BOT_AGENT_ID is a marker's id (a child cannot rewrite its ancestors'
+# environ), or the tmux window of its pane is named for one.
+# Markers are read from /var/spool-hub and from $SPOOL_ROOT; no marker on the
+# box = no watcher, and nothing else is read. The real chain from $$ is always
+# walked; under SPOOL_TEST=1 a fake /proc (SPL_WATCHER_PROC, from
+# SPL_WATCHER_PID) is walked too, and SPL_WATCHER_PANES_CMD replaces the
+# tmux pane list. A test can add a refusal that way, never remove one.
+
+# "<id> <user>" per marker (user "-" when it names none).
+spl_watcher_markers() {
+  local r m u seen=" " found
+  for r in /var/spool-hub "${SPOOL_ROOT:-}"; do
+    [ -n "$r" ] && [ -d "$r" ] || continue
+    r="$(readlink -m -- "$r")"
+    case "$seen" in *" $r "*) continue ;; esac
+    seen+="$r "
+    for m in "$r"/*/.watcher-role; do
+      [ -f "$m" ] || continue
+      m="${m%/.watcher-role}"; m="${m##*/}"
+      found=0
+      while IFS= read -r u; do
+        [[ "$u" =~ ^user=([a-z_][a-z0-9_-]*)$ ]] || continue
+        echo "$m ${BASH_REMATCH[1]}"; found=1
+      done <"$r/$m/.watcher-role"
+      [ "$found" = 1 ] || echo "$m -"
+    done
+  done
+}
+
+# The pids of ROOT's chain from PID, itself first, up to (not into) the tmux
+# server or pid 1: spool-send.sh's send_caller_chain walk.
+spl_watcher_chain() {  # ROOT PID
+  local root="$1" pid="$2" n=0 comm
+  while [[ "$pid" =~ ^[0-9]+$ ]] && [ "$pid" -gt 1 ] && [ "$n" -lt 64 ]; do
+    comm="$(cat "$root/$pid/comm" 2>/dev/null)" || break
+    case "$comm" in tmux*) break ;; esac
+    echo "$pid"
+    pid="$(awk '/^PPid:/ { print $2; exit }' "$root/$pid/status" 2>/dev/null)"
+    n=$((n + 1))
+  done
+}
+
+# "<pid>\t<window name>" per live tmux pane of the box user, or nothing.
+_spl_watcher_panes() {
+  if [ "${SPOOL_TEST:-}" = 1 ] && [ -n "${SPL_WATCHER_PANES_CMD:-}" ]; then
+    # shellcheck disable=SC2086 # a command line, split on purpose
+    $SPL_WATCHER_PANES_CMD; return 0
+  fi
+  local sock="${SPOOL_TMUX_SOCKET:-}" owner
+  if [ -z "$sock" ]; then
+    owner="$(stat -c %u /var/spool-hub 2>/dev/null)" || return 0
+    sock="/tmp/tmux-${owner}/default"
+  fi
+  [ -S "$sock" ] || return 0
+  timeout 5 tmux -u -S "$sock" list-panes -a -F '#{pane_pid}	#{window_name}' 2>/dev/null
+  return 0
+}
+
+# "<who> <how>" of the first hop of ROOT's chain from PID that is a watcher's,
+# or nothing. IDS = " <id> ... " of the markers, UIDS = " <uid> ... ".
+_spl_watcher_hit() {  # ROOT PID IDS UIDS
+  local root="$1" chain p u v pid w
+  local -a own=()
+  chain="$(spl_watcher_chain "$root" "$2")"
+  [ -n "$chain" ] || return 0
+  for p in $chain; do
+    u="$(awk '/^Uid:/ { print $2; exit }' "$root/$p/status" 2>/dev/null)"
+    if [ -n "$u" ] && [[ "$4" == *" $u "* ]]; then
+      echo "$(getent passwd "$u" | cut -d: -f1 | grep . || echo "$u") uid"; return 0
+    fi
+    [ "$(stat -c %u "$root/$p" 2>/dev/null)" = 0 ] || own+=("$p")
+  done
+  if [ "${#own[@]}" -gt 0 ]; then
+    # shellcheck source=proc-owner.inc.sh
+    declare -F spool_proc_env_get >/dev/null || . "${_SPOOL_ENV_LIB_DIR}/proc-owner.inc.sh"
+    while read -r p v; do
+      v="$(_spool_bare_agent_id "$v")"
+      [ -n "$v" ] && [[ "$3" == *" $v "* ]] && { echo "$v environ"; return 0; }
+    done < <(spool_proc_env_get "$root" SPOOL_AGENT_ID "${own[@]}" 2>/dev/null
+             spool_proc_env_get "$root" MCP_BOT_AGENT_ID "${own[@]}" 2>/dev/null)
+  fi
+  while IFS=$'\t' read -r pid w; do
+    [ -n "$pid" ] && [[ $'\n'"$chain"$'\n' == *$'\n'"$pid"$'\n'* ]] || continue
+    v="$(spool_id_of_window "$w")"
+    [ -n "$v" ] && [[ "$3" == *" $v "* ]] && { echo "$v pane"; return 0; }
+  done < <(_spl_watcher_panes)
+  return 0
+}
+
+# "<who> <how>" when a watcher is in the caller's chain (how: uid, environ or
+# pane), else nothing. Always rc 0.
+spl_watcher_why() {
+  local marks id user ids=" " uids=" " uid hit
+  marks="$(spl_watcher_markers)"
+  [ -n "$marks" ] || return 0
+  while read -r id user; do
+    ids+="$id "
+    [ "$user" = - ] && continue
+    uid="$(id -u "$user" 2>/dev/null)" && uids+="$uid "
+  done <<<"$marks"
+  hit="$(_spl_watcher_hit /proc "$$" "$ids" "$uids")"
+  if [ -z "$hit" ] && [ "${SPOOL_TEST:-}" = 1 ] && [ -n "${SPL_WATCHER_PROC:-}" ]; then
+    hit="$(_spl_watcher_hit "$SPL_WATCHER_PROC" "${SPL_WATCHER_PID:-$$}" "$ids" "$uids")"
+  fi
+  [ -z "$hit" ] || echo "$hit"
+  return 0
+}
+
+# 0 = the caller is no watcher. 1 = refused: one line on stderr naming ACTION.
+spl_watcher_refuse() {  # ACTION
+  local who="" how=""
+  read -r who how < <(spl_watcher_why)
+  [ -n "$who" ] || return 0
+  echo "ERROR: ${1:-this action} refused: the caller is watcher ${who} (by its ${how}); a watcher seat is read-only (spec 165 3.3, SPL-4344). Nothing was done." >&2
+  return 1
 }

@@ -98,7 +98,9 @@
 #       its seats (a role seat, or the id a desk alias links to), SPL-3959.
 #   10  refused (nothing written, no poke): --from names a role seat (001-003,
 #       lease.conf) and the caller is an agent that is not a seat (SPL-3654,
-#       send_from_guard below). `10 + 0` never comes from the line below.
+#       send_from_guard below); or the caller is a watcher seat and this is
+#       not a --kind note --to orchestrator from its own id (spec 165,
+#       send_watcher_guard below). `10 + 0` never comes from the line below.
 #   10+ `spool send` failed: 10 + its exit code (nothing delivered); 13 = <to>
 #       is on neither this machine nor any box the hub knows (or no fleet desk)
 set -uo pipefail
@@ -219,6 +221,23 @@ send_from_guard() {  # FROM
   [ "$caller" = "$from" ] && return 0
   send_role_seat "$caller" && return 0
   echo "ERROR: --from ${from} is a role seat and this caller is ${caller} (by its ${how}), not a seat: only a seat sends as a seat (SPL-3654). Send --from ${caller}. Nothing was sent." >&2
+  return 1
+}
+
+# ---- a watcher sends one thing only (spec 165 3.3 (4), SPL-4344) ----------
+# A caller with a watcher in its process chain (spl_watcher_why: the chain's
+# uid, environ or pane, never --from) may send only --kind note to
+# orchestrator, as its own id; a uid-only match may send as any watcher id
+# (a marker). Anything else, a poke included, is refused, nothing written.
+send_watcher_guard() {  # FROM TO KIND POKE_ONLY
+  local who="" how="" from="${1%%@*}"
+  read -r who how < <(spl_watcher_why)
+  [ -n "$who" ] || return 0
+  if [ "$4" -eq 0 ] && [ "$3" = note ] && [ "$2" = orchestrator ]; then
+    [ "$from" = "$who" ] && return 0
+    [ "$how" = uid ] && [[ $'\n'"$(spl_watcher_markers)" == *$'\n'"$from "* ]] && return 0
+  fi
+  echo "ERROR: the caller is watcher ${who} (by its ${how}): a watcher sends only --kind note --to orchestrator --from its own id, got --from ${1:-none} --to ${2:-none} --kind ${3:-none} (spec 165 3.3, SPL-4344). Nothing was sent." >&2
   return 1
 }
 
@@ -371,6 +390,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 [ -n "$TO" ] || { echo "ERROR: --to is required" >&2; usage; }
+send_watcher_guard "$FROM" "$TO" "$KIND" "$POKE_ONLY" || exit 10
 send_lane_ask_warn "$FROM" "$TO" "$KIND" "$BODY"
 PEERS=0
 if [ "$TO" = orchestrator ] || [ "$TO" = peers ]; then

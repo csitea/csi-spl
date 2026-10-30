@@ -35,6 +35,9 @@
 # @example ENV=prd TENANT_ID=csitea DESK_AGENT=c-002 DESK_TO=HUM-10 DESK_TASK=<full topic uuid> TAKE_PLAN='I read the hub logs' DRY_RUN=0 ./run -a do_spl_take
 #------------------------------------------------------------------------------
 do_spl_take() {
+  # spec 165 3.3 (SPL-4344): a watcher seat is read-only, read from the chain
+  declare -F spl_watcher_refuse >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
+  spl_watcher_refuse do_spl_take || return 1
   spl_lease_init || return 1
   local agent="${DESK_AGENT:-}" to="${DESK_TO:-}" task="${DESK_TASK:-}" plan="${TAKE_PLAN:-}"
   local box="${TAKE_BOX:-$(spl_desk_box_default)}" f="$LEASE_DIR/take.log"

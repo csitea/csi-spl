@@ -1,7 +1,7 @@
 # 170 Day's tasks: a To-do view in the Calendar, and a signal for what is due today
 
-Version: v1.4 (2026-10-30). Status: **WHAT v1.0 and HOW v1.0, each signed by all four seats**
-(plan only; nothing below is built). Issue SPL-4396 · Epic SPL-2396 · Class
+Version: v1.4 (2026-10-30). Status: **WHAT v1.0 and HOW v1.0, each signed by all four seats**;
+owner Q1, Q2, Q4 answered, Q3 open (plan only; nothing below is built). Issue SPL-4396 · Epic SPL-2396 · Class
 feature · Kind specs_and_docs · Task `dispatch-dfe850d9` · Placement slug
 `c001-dfe850d9-panel-editor` · Editor c-864.
 
@@ -298,7 +298,8 @@ Q1, Q2 and Q4 answered (1.2); Q3 open.
 - **Q1b the badge.** Moot (Q1 = A); not asked.
 - **Q2 whose tasks.** ANSWERED: A, mine with a switch to the whole
   workspace (1.2).
-- **Q3 overdue.** Show overdue tasks above today's (and count them in the
+- **Q3 overdue.** OPEN (poll `e3b1370c` unanswered; the default below
+  stands until the owner answers). Show overdue tasks above today's (and count them in the
   signal), or only tasks due today? Default: list overdue tasks above
   today's in the view, marked overdue; the signal names them apart ("2 due
   today · 5 overdue"), so an old overdue pile never hides what is due today.

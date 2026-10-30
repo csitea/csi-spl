@@ -99,8 +99,9 @@ Source: prd csitea topic `dfe850d9-e283-4460-a0ed-223b71d657fa`.
   `done || diss`,
   `git grep -n "func IssueClosed" origin/master -- csi-spl-api/src/go/spool-hub-api/internal/store/issues.go`
   -> line 191), and has no caller outside its file
-  (`git grep -n "isOverdue" origin/master -- csi-spl-wui/src | grep -v issues-view.mjs`
-  -> no output). HOW does not reuse it as it is.
+  (`git grep -n "isOverdue" origin/master -- csi-spl-wui/src | grep -v issues-view.mjs | grep -v mjs-shims.d.ts`
+  -> no output; without the last filter it prints only the type declaration,
+  `types/mjs-shims.d.ts` line 1838). HOW does not reuse it as it is.
 
 ## 3. The problem, and who has it
 
@@ -314,7 +315,8 @@ Each seat signs a version with its own commit on branch
   overdue, the Issues `isOverdue` as a neighbour and a known edge, section
   2), B3 (the link's second axis, 4.8), C4 (Q4 c needs the picked zone) and
   C7 (Google sync out of scope, section 7). C1-C3, C5, C6, C8 and D are
-  input for HOW, kept in the seat's message.
+  input for HOW, kept in the seat's message. Then c-869 msg f0b72e4b: the
+  `isOverdue` caller grep also drops the type declaration.
 
 - v0.2: folded USER VIEW c-866 (msg 5fe949e9) F1-F8: the one time zone
   (F1), the deadline-input zone edge (F2), email as the closed-browser

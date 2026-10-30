@@ -3536,7 +3536,7 @@
       "erase_word": "wymaż",
       "erased": "Wszystkie notatki zostały wymazane.",
       "export_failed": "Eksport się nie powiódł. Spróbuj ponownie.",
-      "erase_failed": "Notatki nie zostały usunięte. Spróbuj ponownie."
+      "erase_failed": "Notatki nie zostały wymazane. Spróbuj ponownie."
     },
     "add_to_note": "Dodaj do notatki"
   },

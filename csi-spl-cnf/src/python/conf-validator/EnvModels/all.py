@@ -2,7 +2,7 @@
 # UNDER <env>.env.yaml by do_spl_merged_cnf). It holds THE domain and the hub
 # env-var names; everything env-specific is in <env>.env.yaml.
 from typing import Any, Literal
-from pydantic import BaseModel, root_validator
+from pydantic import BaseModel, conint, root_validator
 from pydantic_yaml import YamlModel
 
 from .agent_split import Box
@@ -33,6 +33,18 @@ class I18n(BaseModel):
         return values
 
 
+class Rhythm(BaseModel):
+    """spec 166 row B1: day and night for do_spl_rhythm_phase (night is
+    night_start:00 up to night_end:00 in timezone), and the zombie sweep's
+    limits (section 3.2)."""
+
+    timezone: str = "Europe/Berlin"
+    night_start: conint(ge=0, le=23) = 20
+    night_end: conint(ge=0, le=23) = 7
+    zombie_idle_days: conint(ge=1) = 7
+    zombie_max: conint(ge=0) = 500
+
+
 class Env(YamlModel):
     dns: Dns
     cloud: Cloud = Cloud()
@@ -41,6 +53,7 @@ class Env(YamlModel):
     i18n: I18n
     mail: Any
     box: Box
+    rhythm: Rhythm = Rhythm()
 
 
 class CnfModel(YamlModel):

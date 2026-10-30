@@ -10,9 +10,9 @@
 //         the box erases nothing (the list still holds 4 notes)
 //   C31-4 the word "erase" turns Erase on; Erase says "All notes erased."
 //   C31-5 the Notes list is empty after Erase (notes-empty, 0 rows)
-//   U     SPL-4390: a note deleted on the Notes page and waiting on its Undo
-//         toast is erased too: after Erase its Undo brings nothing back and
-//         the mock memory no longer holds it
+//   U     SPL-4390: a note deleted on the Notes page and waiting on its real
+//         Undo toast is erased too (the mock memory no longer holds it), and
+//         when the toast then ends no note is DELETEd twice (one remove() per id)
 //   P     390 px phone: the section opens full width, no sideways scroll,
 //         every button and the word box >= 44 px tall, Erase works by touch
 // Red control: on origin/master before B10 there is no such section: C31-1
@@ -134,13 +134,22 @@ try {
   const kept = await store()
   ok('C31-3 CONTROL: Enter with a wrong word erases nothing', kept && kept.n === 4 && !(await has('snotes-result')), kept)
 
-  /* U: one note is deleted and waiting on its Undo toast (the page's D2 path) */
-  const heldId = await p.evaluate(() => {
+  /* U: a note is deleted on the Notes page and waits on its real Undo toast
+     (pages/notes.vue D2); Settings -> Notes opens over that page */
+  await toNotes()
+  await p.waitForSelector('[data-test=notes-row]', { visible: true, timeout: 15000 })
+  const heldId = await p.$eval('[data-test=notes-row]', (e) => e.getAttribute('data-note-id')).catch(() => '')
+  await p.evaluate(() => {
     const s = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('notes')
-    const id = s.notes[0] && s.notes[0].id
-    window.__heldRow = id ? s.hide(id) : null
-    return id || ''
+    window.__removes = {}
+    s.$onAction(({ name, args }) => { if (name === 'remove') window.__removes[args[0]] = (window.__removes[args[0]] || 0) + 1 })
   })
+  await p.click(`[data-note-id="${heldId}"] [data-test=notes-open]`)
+  await p.waitForSelector(`[data-test=note-detail][data-note-id="${heldId}"][data-state=ready]`, { visible: true, timeout: 15000 })
+  await p.click('[data-test=note-delete]')
+  const toast = await p.waitForSelector('[data-testid=notes-delete-toast]', { visible: true, timeout: 5000 }).then(() => true, () => false)
+  await p.evaluate(() => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push('/notes?settings=notes'))
+  ok('U Delete on /notes holds the note on its Undo toast, Settings -> Notes opens over it', Boolean(heldId) && toast && await shown(), { heldId, toast })
 
   /* C31-4 */
   await typeWord('erase')
@@ -148,13 +157,16 @@ try {
   await p.click(`${SECTION} [data-test=snotes-erase]`)
   const said = await result()
   ok('C31-4 Erase says all notes are erased', said === 'All notes erased.', { said })
+  /* the toast ends (its Close; the dialog sits over it) */
+  await p.evaluate(() => document.querySelector('[data-testid=notes-delete-toast-close]')?.click())
+  await sleep(400)
   const undone = await p.evaluate(async (id) => {
     const s = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('notes')
-    if (window.__heldRow) s.unhide(window.__heldRow)
     const got = await s.get(id)
-    return { held: s.hidden.length, n: s.notes.length, missing: Boolean(got && got.missing) }
+    return { held: s.hidden.length, n: s.notes.length, missing: Boolean(got && got.missing), removes: window.__removes }
   }, heldId)
-  ok('U the note held for Undo is erased too: Undo brings nothing back', Boolean(heldId) && undone.held === 0 && undone.n === 0 && undone.missing, { heldId, undone })
+  ok('U the note held for Undo is erased too', Boolean(heldId) && undone.held === 0 && undone.n === 0 && undone.missing, { heldId, undone })
+  ok('U no note is DELETEd twice: the toast ending after Erase sends nothing', Object.keys(undone.removes).length === 4 && Object.values(undone.removes).every((c) => c === 1), undone.removes)
   ok('C31-4 the box is cleared, Erase off again', (await p.$eval(`${SECTION} [data-test=snotes-erase-word]`, (e) => e.value)) === '' && (await off('snotes-erase')) === true)
 
   /* C31-5 */

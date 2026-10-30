@@ -194,10 +194,11 @@ function undoDelete() {
   if (deleted.value) store.unhide(deleted.value)
   deleted.value = null
 }
+/* only while the store still holds it: Erase (Settings -> Notes) already sent it */
 function sendDelete(keepalive = false) {
   const row = deleted.value
   deleted.value = null
-  if (row) void store.remove(row.id, keepalive)
+  if (row && store.hidden.includes(row.id)) void store.remove(row.id, keepalive)
 }
 /* the page goes (reload, tab closed): the DELETE still goes */
 const onPageHide = () => sendDelete(true)

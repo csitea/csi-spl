@@ -1,6 +1,6 @@
 # 170 Day's tasks: a To-do view in the Calendar, and a signal for what is due today
 
-Version: v1.0 (2026-10-30). Status: **WHAT v1.0, signed by all four seats; HOW v0.1 draft, under panel review**
+Version: v1.0 (2026-10-30). Status: **WHAT v1.0, signed by all four seats; HOW v0.2 draft, under panel review**
 (plan only; nothing below is built). Issue SPL-4396 · Epic SPL-2396 · Class
 feature · Kind specs_and_docs · Task `dispatch-dfe850d9` · Placement slug
 `c001-dfe850d9-panel-editor` · Editor c-864.
@@ -313,7 +313,7 @@ Posted by c-003 in dfe850d9 at 15:26Z: Q1 msg `9958a8b7`, Q2 msg
 
 ## 11. HOW (phase 2)
 
-HOW v0.1 (2026-10-30). Built on WHAT v1.0 and its defaults; the rows that
+HOW v0.2 (2026-10-30). Built on WHAT v1.0 and its defaults; the rows that
 depend on an open owner answer say so (Q1, Q1b, Q2, Q4). Every file named
 was read on origin/master `568035cf1`. Input: the calendar expert's C1-C8
 and D (c-869 msg bf9fb184), each re-checked below.
@@ -367,7 +367,8 @@ and D (c-869 msg bf9fb184), each re-checked below.
   `issues_page.go` line 16).
 - **Rows.** Key, title, status, priority, the deadline's time; a row is a
   router link to the issue, built as `CalendarEventPopover.vue` builds
-  `issueLink` (line 74), so Back returns to the same `k`, `v`, `d`.
+  `issueLink` (line 74), so Back returns to the same `k`, `v`, `d`. With
+  the switch on "all" (Q2), each row also shows the assignee.
 - **Live.** It re-reads on the issue frame and on reconnect, as
   `startMyIssuesCount` does (`live?.onIssue`, `my-issues-count.mjs` line 64).
 - **Phone.** `CalendarPhone.vue` gets the same switch and renders the same
@@ -386,7 +387,9 @@ and D (c-869 msg bf9fb184), each re-checked below.
 - `ChannelSidebar.vue` renders the mark beside the current count (lines 53
   and 138); its shape follows Q1b (default: a separate mark that is not a
   second red number, e.g. an outlined count with a clock glyph). The current
-  new-issues count is untouched (SPL-1559).
+  new-issues count is untouched (SPL-1559). The mark carries an accessible
+  name and a tooltip from an i18n key, e.g. "2 due today", so a screen
+  reader and a hover tell it apart from the new-issues count.
 - A timer re-computes at local midnight, so the mark moves to the new day
   without a reload.
 
@@ -398,9 +401,19 @@ and D (c-869 msg bf9fb184), each re-checked below.
   on, and it has not been seen today, it shows one card through the existing
   reminder pop-up (`CalendarReminderPopup.vue`, C5) as a new item kind
   `day-tasks`, with the "3 due today · 1 overdue" line, at most 3 titles,
-  "+N more" and an Open link to `/calendar?k=todo&v=day`. (b) adds a timer
-  for 08:00 local in an open tab, raising a browser alert through
-  `utils/notify.mjs` ("Raise one browser alert").
+  "+N more" and an Open link to `/calendar?k=todo&v=day`. The check also
+  runs when the local day changes in an open tab and when the tab comes back
+  to the front (focus / visibilitychange), the way the calendar reminder
+  timer re-reads
+  (`git show origin/master:csi-spl-wui/src/utils/calendar-reminder-timer.ts | grep -n visibilitychange`
+  -> line 95), so a tab kept open overnight shows the card on the person's
+  first look of the new day. (b) adds a timer for 08:00 local in an open
+  tab, raising a browser alert through `showAlert`
+  (`git grep -n "export async function showAlert" origin/master -- csi-spl-wui/src/utils/notify.mjs`
+  -> line 252) only when this device's bell is on (`alertsEnabled`,
+  `stores/notification.ts` line 518) and the browser granted permission;
+  the alert is the same reminder, so it counts as seen-today and is gated
+  by `day_tasks_reminder` too.
 - **Seen today, per person, on the hub (D).** New humans column
   `day_tasks_seen_on date NULL`, the viewer's local date of the last time the
   card was shown or the To-do view's today was opened; written by a new
@@ -411,7 +424,8 @@ and D (c-869 msg bf9fb184), each re-checked below.
   `day_tasks_reminder` with values `{"on", "off"}` (default first, the shape
   of `PrefLinkPreviews`, `auth/handler.go` line 976), shown in
   `components/settings/notifications.vue`; and, if the badge is built,
-  `day_tasks_badge` the same way. Each ViewPrefs key is a humans column read
+  `day_tasks_badge` the same way. `day_tasks_reminder = off` stops the card
+  and the 08:00 alert; the email has its own opt-in (`day_tasks_email`). Each ViewPrefs key is a humans column read
   in one SELECT (`store/human_settings.go` line 39), so the rdb file lands
   and is applied on dev and prd BEFORE the hub change (11.6, B0).
 - **Email (Q4 c, only if the owner picks it).** A hub ticker like the gcal
@@ -479,10 +493,15 @@ Each seat signs a version with its own commit on branch
 | user view | c-866 | WHAT v0.4 | 9ae74d524 |
 | calendar / issues expert | c-869 | WHAT v0.4 | 9ae74d524 |
 | reviewer | c-880 | WHAT v0.4 | 9ae74d524 |
-| editor | c-864 | HOW v0.1 | (this commit) |
+| editor | c-864 | HOW v0.1 | d9e8b1a1d |
+| editor | c-864 | HOW v0.2 | (this commit) |
 
 ## 10. Changes
 
+- HOW v0.2: folded USER VIEW c-866 (msg b91b89c8) U1 (day change and
+  focus re-check, 11.4), U2 (the 08:00 alert respects the bell and
+  permission, 11.4), U3 (one switch for card + alert, 11.4), U4 (the mark's
+  accessible name, 11.3), U5 (assignee on rows under "all", 11.2).
 - HOW v0.1: section 11 drafted from WHAT v1.0 and c-869's C1-C8 / D.
 
 - v1.0: WHAT v1.0 declared by the editor. Text = v0.4 (`9ae74d524`), which

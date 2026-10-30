@@ -235,20 +235,27 @@ spl_rotate_agy_why() {
 #   renewed it for more than LEASE_STALE s (180): no claude seat of the box,
 #   the failover included, keeps it fresh.
 spl_rotate_claude_out() {
-  local wd="${LANE_MIX_WD_DIR:-$SPOOL_ROOT/dispatch/wd}" bin f id t now hit hitt=-1 hitl="" clean=-1 age
+  local wd="${LANE_MIX_WD_DIR:-$SPOOL_ROOT/dispatch/wd}" bin f id k t now hit hitt=-1 hitl="" clean=-1 age
   local -A newest=() newf=()
   bin="${ROTATE_CLAUDE_BIN:-${CLAUDE_BIN:-${ROTATE_AGENT_HOME:-$HOME}/.local/bin/claude}}"
   [[ "$bin" == /* ]] || bin="$(command -v "$bin" 2>/dev/null || true)"
   [[ -n "$bin" ]] && { [[ -x "$bin" ]] || spl_rotate_as_agent test -x "$bin" 2>/dev/null; } ||
     { echo "no claude cli${bin:+ at $bin}"; return 0; }
+  local -A rk=()
+  local -a cand=()
+  _spl_rotate_kinds_load
   for f in "$wd"/ctx*/*/out.s2; do
     [[ -f "$f" ]] || continue
-    id="$(basename "$(dirname "$f")")"
-    [[ "$(spl_rotate_id_kind "$id")" == claude ]] || continue
-    t="$(stat -c %Y "$f" 2>/dev/null)" || continue
+    id="${f%/out.s2}"; id="${id##*/}"
+    k="${rk[$id]:-}"
+    [[ "$k" == claude || ( -z "$k" && "$id" =~ ^(c|CLE)- ) ]] || continue
+    cand+=("$f")
+  done
+  while read -r t f; do
+    id="${f%/out.s2}"; id="${id##*/}"
     (( t > ${newest[$id]:--1} )) || continue
     newest[$id]="$t" newf[$id]="$f"
-  done
+  done < <(_spl_rotate_mtimes "${cand[@]}")
   now="$(date +%s)"
   for id in "${!newest[@]}"; do
     t="${newest[$id]}"
@@ -283,6 +290,25 @@ spl_rotate_id_kind() {
   return 0
 }
 
+# The wd scans of spl_rotate_claude_out and spl_rotate_grok_out read every
+# verdict file of the box (3,222 on 2026-10-30): one registry read and one
+# stat for the whole scan, not an awk, a stat and two subshells per file
+# (SPL-4358: 63 s a call at load 14, paid once per lane by the lane tick).
+# _spl_rotate_kinds_load [REGISTRY]: each id's registry kind into the
+# caller's assoc array rk (the last row wins, as spl_rotate_id_kind reads it).
+_spl_rotate_kinds_load() {
+  local reg="${1:-$SPOOL_ROOT/registry.tsv}" i k _r
+  [[ -r "$reg" ]] || return 0
+  while IFS=$'\t' read -r i k _r; do [[ -n "$i" ]] && rk[$i]="$k"; done < "$reg"
+  return 0
+}
+
+# _spl_rotate_mtimes FILE...: "<mtime> <file>" per file, in argument order.
+_spl_rotate_mtimes() {
+  (( $# )) || return 0
+  stat -c '%Y %n' -- "$@" 2>/dev/null || true
+}
+
 # spl_rotate_grok_out: "<id> S2 kind=limit <age>m ago: <evidence>" when the
 # NEWEST watchdog verdict (any instance, ctx*/<id>/out.s2) of ALL grok seats
 # of this box (registry kind grok, else a g- id) is S2 kind=limit within
@@ -299,17 +325,22 @@ spl_rotate_id_kind() {
 spl_rotate_grok_out() {
   local root="${SPOOL_ROOT:-/var/spool-hub}" f id k t hit best=-1 bestf="" besthit=""
   local wd="${LANE_MIX_WD_DIR:-$root/dispatch/wd}"
+  local -A rk=()
+  local -a cand=()
+  _spl_rotate_kinds_load "$root/registry.tsv"
   for f in "$wd"/ctx*/*/out.s2; do
     [[ -f "$f" ]] || continue
-    id="$(basename "$(dirname "$f")")"
-    k="$(awk -F'\t' -v i="$id" '$1 == i {k = $2} END {print k}' "$root/registry.tsv" 2>/dev/null || true)"
+    id="${f%/out.s2}"; id="${id##*/}"
+    k="${rk[$id]:-}"
     [[ "$k" == grok || ( -z "$k" && "$id" == g-* ) ]] || continue
-    t="$(stat -c %Y "$f" 2>/dev/null)" || continue
+    cand+=("$f")
+  done
+  while read -r t f; do
     (( t >= best )) || continue
     hit="$(grep -m1 -E '^HIT S2 kind=limit( |$)' "$f" 2>/dev/null || true)"
     (( t > best )) || [[ -n "$hit" && -z "$besthit" ]] || continue
     best="$t" bestf="$f" besthit="$hit"
-  done
+  done < <(_spl_rotate_mtimes "${cand[@]}")
   [[ -n "$besthit" ]] || return 0
   t="$(( $(date +%s) - best ))"
   (( t <= ${ROTATE_GROK_LIMIT_FRESH:-604800} )) || return 0

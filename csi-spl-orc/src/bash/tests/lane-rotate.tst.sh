@@ -55,6 +55,9 @@
 #  26. SPL-3982: another session of the id starts after GATE in its own pane
 #      (a hand restore): retired by its own pid, its window closed; control:
 #      a process of the id in the NEW pane is left and counted
+#  27. SPL-4358: one tick reads each vendor's limit once (a slow fake read,
+#      8 claude lanes = 1 read, the tick under 8 x the read); the wd scan of
+#      300 verdict files runs no awk and one stat, and still finds the limit
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc and M are read inside the check strings (eval)
 set -uo pipefail
@@ -535,6 +538,50 @@ tick
 check "26. control: a process of the id inside the NEW pane is left, the check counts it" 'grep -q "lane-c-253 RETIRE WAIT pid 5253 also carries c-253, in %3000: left" "$D/rotate.log" && [ -d "$T/proc/5253" ] && [ -d "$T/proc/3000" ] && grep -q "lane-c-253 CLOSE WAIT .*processes=2" "$D/rotate.log"'
 check "26. no ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
 rm -f "$T/at-spawn.extra"
+
+# --- 27. SPL-4358: one tick reads each vendor's limit once, not once per lane ------------
+# sat 2026-10-30: one tick held tick.lock from <=05:56Z to ~06:58Z; the
+# claude limit read took 63..90 s a lane on a loaded box (n=1, a box at load 14),
+# so 3 starts an hour and lanes at 177 min. A slow fake read (2 s, counted):
+# 8 claude lanes past WARN = ONE read and a tick far under 8 x 2 s.
+cat >"$T/bin/act-slow" <<'SLOW'
+#!/usr/bin/env bash
+set -E
+trap 'echo "ERRTRAP: $BASH_COMMAND (line $LINENO)"; exit 99' ERR
+do_log() { echo "$*"; }
+source "$PROJ_PATH/src/bash/run/spl-lane-rotate.func.sh"
+# the readers it sources by its own path, before it is renamed below
+source "$PROJ_PATH/src/bash/run/spl-lane-mix.func.sh"
+source "$PROJ_PATH/src/bash/run/spl-spawn-place.func.sh"
+eval "$(declare -f spl_lane_rotate_limit | sed '1s/^spl_lane_rotate_limit/_lr_limit_real/')"
+spl_lane_rotate_limit() { echo "$2" >>"$T/limit.calls"; sleep 2; _lr_limit_real "$@"; }
+do_spl_lane_rotate
+SLOW
+chmod +x "$T/bin/act-slow"
+reset; rm -f "$T/limit.calls"
+for i in 1 2 3 4 5 6 7 8; do lane "c-27$i" 50; done
+lane m-279 50 mistral
+t0=$(date +%s); DRY_RUN=1 ROTATE_CLAUDE_BIN=/bin/true "$T/bin/act-slow" >>"$T/tick.out" 2>&1; t1=$(date +%s)
+check "27. 8 claude lanes + 1 mistral: the limit read once per kind (claude 1, mistral 1)" '[ "$(n "$T/limit.calls" "^claude$")" = 1 ] && [ "$(n "$T/limit.calls" "^mistral$")" = 1 ]'
+check "27. the slow read does not scale with the lanes: tick $((t1 - t0)) s < 16 s (8 x 2 s)" '(( t1 - t0 < 16 ))'
+check "27. every lane still judged: 3 claude PLAN rotate + 5 DEFER cap" '[ "$(grep -cE "c-27[1-8] PLAN rotate" "$T/tick.out")" = 3 ] && [ "$(grep -cE "c-27[1-8] DEFER cap" "$T/tick.out")" = 5 ]'
+check "27. no ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
+# the scan itself: 300 verdict files = no awk and one stat per call (it was an
+# awk + a stat per file: 3,222 files = 63 s); a limit in the newest still found
+rm -rf "$T/wd27"; mkdir -p "$T/cnt"
+for i in $(seq 100 399); do mkdir -p "$T/wd27/ctx.1/c-$i"; : >"$T/wd27/ctx.1/c-$i/out.s2"; touch -d '2 hours ago' "$T/wd27/ctx.1/c-$i/out.s2"; done
+mkdir -p "$T/wd27/ctx.1/g-400"; echo 'HIT S2 kind=limit pane: weekly limit' >"$T/wd27/ctx.1/g-400/out.s2"
+echo 'HIT S2 kind=limit pane: You have hit your limit' >"$T/wd27/ctx.1/c-399/out.s2"
+for t in awk stat; do printf '#!/usr/bin/env bash\necho x >>"%s/cnt/%s"\nexec %s "$@"\n' "$T" "$t" "$(command -v $t)" >"$T/cnt/$t.sh"; done
+mkdir -p "$T/cntbin"; mv "$T/cnt/awk.sh" "$T/cntbin/awk"; mv "$T/cnt/stat.sh" "$T/cntbin/stat"; chmod +x "$T/cntbin/"*
+scan27() { ( export SPOOL_ROOT="$S" LANE_MIX_WD_DIR="$T/wd27" ROTATE_CLAUDE_BIN=/bin/true PATH="$T/cntbin:$PATH"
+  source "$PROJ_ROOT/src/bash/run/spl-rotate-lib.func.sh"; "$1" ); }
+rm -f "$T/cnt/awk" "$T/cnt/stat"; o27c="$(scan27 spl_rotate_claude_out)"; c27a="$(n "$T/cnt/awk")"; c27s="$(n "$T/cnt/stat")"
+check "27. claude scan of 300 files: 0 awk, 1 stat (got awk=$c27a stat=$c27s)" '[ "$c27a" = 0 ] && [ "$c27s" = 1 ]'
+check "27. claude scan still finds the newest limit verdict" '[[ "$o27c" == "c-399 S2 kind=limit 0m ago: pane: You have hit your limit" ]]'
+rm -f "$T/cnt/awk" "$T/cnt/stat"; o27g="$(scan27 spl_rotate_grok_out)"; c27a="$(n "$T/cnt/awk")"; c27s="$(n "$T/cnt/stat")"
+check "27. grok scan of 301 files: 0 awk, 1 stat (got awk=$c27a stat=$c27s)" '[ "$c27a" = 0 ] && [ "$c27s" = 1 ]'
+check "27. grok scan still finds its limit verdict" '[[ "$o27g" == "g-400 S2 kind=limit 0m ago: pane: weekly limit" ]]'
 
 # --- 12. the cron row ----------------------------------------------------------------------------
 M="$PROJ_ROOT/cnf/box-crons/box-crons.manifest"

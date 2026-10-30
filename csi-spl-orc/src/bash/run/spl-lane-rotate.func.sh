@@ -125,6 +125,7 @@ spl_lane_rotate_tick() {
     echo "lane-rotate: boot ($(spl_rotate_uptime)s < ${ROTATE_BOOT_GRACE}s) - skipped"; exec 6>&-; return 0
   fi
   local scan rows id kind pid age pane n
+  local -A LR_LIMIT=()
   scan="$(spl_lane_rotate_scan)"
   LR_ROLES=" $(spl_lane_rotate_role_ids | tr '\n' ' ') " LR_INFLIGHT=" $(spl_lane_rotate_inflight | tr '\n' ' ') "
   LR_SLOTS=$(( ROTATE_LANE_CAP - $(wc -w <<<"$LR_INFLIGHT") )) LR_K=0 LR_STARTED=0 LR_STARTED_IDS=" " LR_DEFER=0 LR_LOGIN="" LR_LOGIN_HELD=""
@@ -155,8 +156,12 @@ spl_lane_rotate_consider() {
   (( age >= ROTATE_LANE_WARN_AGE )) || return 0
   (( n == 1 )) || { spl_lane_rotate_say "$id" "DEFER duplicate: $n live processes carry $id"; return 0; }
   # its vendor on its limit: a new session would only show the limit banner
-  # and time out its ack (SPL-3779); no warning, no failure, re-judged each tick
-  why="$(spl_lane_rotate_limit "$id" "$kind")"
+  # and time out its ack (SPL-3779); no warning, no failure, re-judged each
+  # tick. Read once per kind a tick (LR_LIMIT): the verdict is the vendor's,
+  # not the lane's, and one read took 54..90 s on a loaded box, so a read per
+  # lane held tick.lock for an hour (SPL-4358).
+  [[ -n "${LR_LIMIT[$kind]+x}" ]] || LR_LIMIT[$kind]="$(spl_lane_rotate_limit "$id" "$kind")"
+  why="${LR_LIMIT[$kind]}"
   [[ -z "$why" ]] || { spl_lane_rotate_say "$id" "SKIP $id: $why"; return 0; }
   spl_lane_rotate_warn "$id" "$pid" "$age"
   why="$(spl_lane_rotate_recent "$id")"
@@ -485,7 +490,7 @@ spl_lane_rotate_start() {
 
 # ROTATE_CMD=one: rotate ID (resume first when its last rotation was left mid-way).
 spl_lane_rotate_one() {
-  local id="${ID:-}" rid pid age pane idl=0
+  local id="${ID:-}" rid pid age pane idl=0 why
   spl_lane_rotate_seat "$id" || return 1
   [[ "${DRY_RUN:-1}" == 1 ]] && { spl_rotate_log "lane-$id" GATE SKIP "DRY_RUN=1: no rotation"; return 0; }
   echo "$BASHPID" > "$ROTATE_LANE_DIR/run.$id" 2>/dev/null || true
@@ -504,7 +509,8 @@ spl_lane_rotate_one() {
   age="$(spl_rotate_age "$pid")"; age="${age:-0}"
   (( age >= ROTATE_LANE_WARN_AGE )) || { spl_rotate_log "$rid" GATE SKIP "young: pid $pid is ${age}s old"; return 0; }
   [[ -z "$(spl_lane_rotate_recent "$id")" ]] || { spl_rotate_log "$rid" GATE SKIP "$(spl_lane_rotate_recent "$id")"; return 0; }
-  [[ -z "$(spl_lane_rotate_limit "$id" "$ROTATE_KIND")" ]] || { spl_rotate_log "$rid" GATE SKIP "$(spl_lane_rotate_limit "$id" "$ROTATE_KIND")"; return 0; }
+  why="$(spl_lane_rotate_limit "$id" "$ROTATE_KIND")"
+  [[ -z "$why" ]] || { spl_rotate_log "$rid" GATE SKIP "$why"; return 0; }
   pane="$(spl_rotate_pane_of_pid "$pid")"
   [[ -n "$pane" ]] || { spl_rotate_log "$rid" GATE SKIP "pid $pid is in no tmux pane"; return 0; }
   if spl_lane_rotate_brief_is_seed "$id"; then

@@ -1,11 +1,11 @@
 # 164 Channel Box Pin: Pin a Channel to Chosen Boxes (Default: Any Box of the Fleet)
 
-Version: v1.2 (2026-10-30).
-Status: **Draft v1.2**, Planned, not built (Placement slug `c003-channel-box-pin-spec`, Issue SPL-4171, Epic SPL-2398).
+Version: v1.3 (2026-10-30).
+Status: **Draft v1.3**, Planned, not built (Placement slug `c003-channel-box-pin-spec`, Issue SPL-4171, Epic SPL-2398).
 Class: feature.
 Kind: specs_and_docs.
 
-Source: owner HUM-10, prd t1 topic `021d4921-a6b9-427b-bf86-4eb0b945c82d` (msgs `f9234b11`, `6b6d092c`).
+Source: owner HUM-10, prd t1 topic `021d4921-a6b9-427b-bf86-4eb0b945c82d` (msgs `f9234b11`, `6b6d092c`; Q1 and Q2 answered in msg `1cc5b9bb`).
 Authority: this file for the behaviour and specification. Each build row in section 8 gets its own issue when scheduled.
 
 Paths used below:
@@ -157,7 +157,7 @@ In `store/channel_box_pins.go` (Postgres, inside the tenant scope; the operator 
 - The hub refuses:
   1. a channel that does not exist or is archived: `404 unknown_channel`;
   2. a box that is not pinned to the workspace, or is revoked (`store.GetPin`): `400 unknown_box`;
-  3. a default channel (`#lobby`, `#alerts`, `#feedback`, `#public`; `store/channels.go:16-25`): `400 channel_default_unpinnable`, unless the owner answers Q1 (section 9) the other way.
+  3. a default channel (`#lobby`, `#alerts`, `#feedback`, `#public`; `store/channels.go:16-25`): `400 channel_default_unpinnable` (owner, Q1 = A, msg `1cc5b9bb`).
 
 ### 4.2 REST Routes (human session, the WUI)
 1. `GET /v1/channels/{channel}/box-pins` -> `{"channel": "<c>", "box_pins": ["box-x"], "is_pinned": true}`; unpinned: `"box_pins": [], "is_pinned": false`.
@@ -233,7 +233,7 @@ The backstop (2.4) is the orchestrator lease holder, which may sit on a box outs
 
 ### 6.2 The Rule
 1. **No take from outside the list**: `spl_take_auto_skip` (`orc/run/spl-take-auto.func.sh:74`) skips a post on a channel pinned to boxes that do not include `SPOOL_BOX_ID` (`skip: channel pinned to <boxes>`). `do_spl_take` refuses it the same way.
-2. **The hub posts the holding notice** (if the owner picks Q2 = A): a check in `hub/pin_notice.go` on its own ticker (like `hub/presence.go:41`). A human post on a pinned channel with no agent reply after 120 s, while no listed box has a live session (`s.boxSession(tenant, box) == nil` for each), gets one notice from the hub's system sender in its topic: "This channel runs only on <boxes>, which are offline. Your post waits and will be handled when one reconnects." One notice per topic per outage; a reconnect resets it. Nothing outside the list takes or spawns.
+2. **The hub posts the holding notice** (owner, Q2 = A, msg `1cc5b9bb`): a check in `hub/pin_notice.go` on its own ticker (like `hub/presence.go:41`). A human post on a pinned channel with no agent reply after 120 s, while no listed box has a live session (`s.boxSession(tenant, box) == nil` for each), gets one notice from the hub's system sender in its topic: "This channel runs only on <boxes>, which are offline. Your post waits and will be handled when one reconnects." One notice per topic per outage; a reconnect resets it. Nothing outside the list takes or spawns.
 3. **The sweep**: `orc/scripts/unanswered-sweep-classify.py` classifies such a post as `pinned-box-offline` (it reads `channel_box_pins` and the box's last seen time with its rows), listed under "waiting on a pinned box", not as a dispatcher miss. Once a listed box is back, the post is a normal unanswered post again.
 
 ---
@@ -257,19 +257,24 @@ All rows: **Planned**, not built. Files are disjoint across rows.
 | Row | Status | What | Files (only these) | Needs | Tests and red control |
 |---|---|---|---|---|---|
 | **B1** | Planned | Table and store | `rdb/0242_channel_box_pins.sql` (next free number)<br>`csi-spl-rdb/src/sql/postgres/spool-hub-roles/runtime-grants.sql` (only if a grant is missing)<br>`store/store.go`<br>`store/channel_box_pins.go`<br>`store/memory.go`<br>`store/channel_box_pins_test.go` | none | `TestChannelBoxPinsStore`, `TestRLSCoversEveryTenantTable` (it checks FORCE), on PostgreSQL.<br>**Red**: pins written under tenant A, then read through the hub's runtime login in tenant A's scope -> the same rows (a policy on the wrong setting reads 0 and fails this); read in tenant B's scope -> 0 rows; a pin of a box with no `pins` row -> FK error. |
-| **B2** | Planned | Hub REST routes | `hub/channel_box_pins.go`<br>`hub/channel_box_pins_test.go`<br>`hub/server.go` (route lines)<br>`hub/tenant_settings.go` | B1 on master | `TestChannelBoxPinsAPI` (GET, PUT, operator PUT, `GET /v1/tenant/channels`).<br>**Red**: a member without `TenantSettings` -> 403 (not 200); an unknown or revoked box -> 400 `unknown_box`; `#lobby` -> 400 `channel_default_unpinnable` (per Q1). |
+| **B2** | Planned | Hub REST routes | `hub/channel_box_pins.go`<br>`hub/channel_box_pins_test.go`<br>`hub/server.go` (route lines)<br>`hub/tenant_settings.go` | B1 on master | `TestChannelBoxPinsAPI` (GET, PUT, operator PUT, `GET /v1/tenant/channels`).<br>**Red**: a member without `TenantSettings` -> 403 (not 200); an unknown or revoked box -> 400 `unknown_box`; `#lobby` -> 400 `channel_default_unpinnable`. |
 | **B3** | Planned | Fan-out, both direct-leg doors, mention, fallback, receive, posting | `hub/channels.go`<br>`hub/ws.go`<br>`hub/dispatch.go`<br>`hub/fallback.go`<br>`hub/channel_box_pins_route_test.go` | B2 on master | `TestRouteChannelBoxPin`, `TestSendChannelBoxPin`, `TestDispatchChannelBoxPin`, `TestRecvChannelBoxPin`, `TestFallbackChannelBoxPin`, `TestAgentInChannelBoxPin`.<br>**Red**: a pinned channel's post is queued for an unlisted member box; an agent on a listed box sends `to_box` = an unlisted box on a pinned channel over the box WebSocket and it is accepted (row stored or queued); the same from the browser is accepted; a row queued for an unlisted box before the pin (its `to_box` = that box) reaches it; a fallback picks an unlisted box; an agent on an unlisted box posts; a lookup error (store stub) delivers or allows. |
 | **B4** | Planned | Box-signed read verb | `api/cmd/spool/channel_pins.go`<br>`api/internal/action/channel_pins.go`<br>`hub/box_channel_pins.go`<br>`hub/box_channel_pins_test.go` | B2 on master | `TestBoxChannelPins` and the CLI test.<br>**Red**: a box of tenant B reads tenant A's pins; the CLI exits 0 when the hub does not answer. |
 | **B5** | Planned | Placer and launcher | `orc/run/spl-spawn-place.func.sh`<br>`orc/features/spawn-agents/scripts/spawn-window.sh`<br>`orc/tests/spl-spawn-place-channel-pin.tst.sh` | B4 served | `spl-spawn-place-channel-pin.tst.sh` (a stub `spool channel-pins`).<br>**Red**: a claude ask (not only agy or mistral) for a pinned channel launches on an unlisted box when the listed one is full; an unreadable pin list launches; the pins are read with the orchestrator's tenant keys instead of the `Channel:` line's tenant; no desk in that tenant launches instead of holding; `spawn-window.sh` with an unlisted `SPAWN_BOX` exits 0 instead of 15. |
 | **B6** | Planned | WUI | `wui/utils/spool-client-lazy.mjs`<br>`wui/components/ChannelPropertiesDialog.vue`<br>`wui/pages/tenant-settings/channels.vue`<br>`wui/utils/tenant-settings.mjs`<br>`csi-spl-wui/i18n/locales/*.json`<br>`csi-spl-wui/tests/unit/channel-box-pins.test.mjs`<br>`csi-spl-wui/tests/e2e/tenant-channel-box-pins.test.mjs` | B2 served | unit, e2e in Chrome, i18n parity, `pnpm run typecheck`.<br>**Red**: the dialog saves without sending `box_pins`; `listPins()` is missing; the offline banner shows a typed 7 days instead of the hub's value. Text: agy review before land (language rule). |
-| **B7** | Planned | Holding notice, take, sweep | `hub/pin_notice.go`<br>`hub/pin_notice_test.go`<br>`orc/run/spl-take-auto.func.sh`<br>`orc/run/spl-take.func.sh`<br>`orc/run/spl-unanswered-sweep.func.sh`<br>`orc/scripts/unanswered-sweep-classify.py`<br>`orc/tests/spl-unanswered-sweep-channel-pin.tst.sh` | B3 on master, Q2 answered | `TestPinNotice`, `spl-unanswered-sweep-channel-pin.tst.sh`.<br>**Red**: every listed box offline 3 min -> no post in the topic; auto-take on an unlisted box takes the post; the sweep reports it as a dispatcher miss. |
+| **B7** | Planned | Holding notice, take, sweep | `hub/pin_notice.go`<br>`hub/pin_notice_test.go`<br>`orc/run/spl-take-auto.func.sh`<br>`orc/run/spl-take.func.sh`<br>`orc/run/spl-unanswered-sweep.func.sh`<br>`orc/scripts/unanswered-sweep-classify.py`<br>`orc/tests/spl-unanswered-sweep-channel-pin.tst.sh` | B3 on master (Q2 answered: A, msg `1cc5b9bb`) | `TestPinNotice`, `spl-unanswered-sweep-channel-pin.tst.sh`.<br>**Red**: every listed box offline 3 min -> no post in the topic; auto-take on an unlisted box takes the post; the sweep reports it as a dispatcher miss. |
 | **B8** | Planned | Seed the production cases | `orc/run/spl-channel-box-pin-seed.func.sh`<br>`orc/tests/spl-channel-box-pin-seed.tst.sh` | B2..B7 served | `spl-channel-box-pin-seed.tst.sh` on a test hub.<br>**Red**: `DRY_RUN=0` leaves the pins unset; an unknown box exits 0; a second run changes a row; a dry run writes. |
 
 ---
 
 ## 9. Owner Questions
 
-Two questions for the owner, sent as one form (one form per post). I recommend **A** for both.
+Two questions went to the owner as one form (poll `400e5b85`). The owner answered both **A** (HUM-10, prd t1 topic `021d4921-a6b9-427b-bf86-4eb0b945c82d`, msg `1cc5b9bb`, 2026-10-30 06:31Z):
+
+1. **Q1 = A**: *"No: the default channels stay on every box; the hub refuses with channel_default_unpinnable"*. A workspace admin may not pin `#lobby`, `#alerts`, `#feedback` or `#public` (4.1 refusal 3, built in B2).
+2. **Q2 = A**: *"The hub posts one notice after 2 minutes: the channel runs only on those boxes, they are offline, the post waits"*. A human post on a pinned channel whose listed boxes are all offline gets the hub's holding notice (6.2.2, built in B7).
+
+The form as it was sent:
 
 ```poll
 Q1. May a workspace admin pin a default channel (#lobby, #alerts, #feedback, #public) to chosen boxes?
@@ -303,5 +308,6 @@ Decided in this spec, no owner question (each can be reversed by a later spec):
 | v1.0 | First draft (`c05e273b0`). R7 review by c-594: FAIL, findings W1..W9. |
 | v1.1 | **W1**: citations re-read on `dc328aae3`; `agy_box_hold` is the agy/mistral quota hold at :890-934 (the file moved), the HAND-PINNED header :62-70, `orc/` no longer doubled, `listPins()` named as a new B6 client call, the route quote keeps `seats.filter` and `channelLockSkip`. **W2**: RLS copies 0139/0014 (`app.tenant_id`, `operator_scope`, `FORCE`), `:runtime_role`, the migration is 0242 (0240 and 0241 are taken now), B1's red control reads through the hub login. **W3**: every lookup fails closed (3.3, 5.1, 5.3). **W4**: the hold is its own step for every vendor; the channel comes from the brief's `Channel:` line via `cr_channel_of`; the pins via a new box-signed `spool channel-pins` (4.3, B4); launcher exit 15 (8 and 14 are taken). **W5**: boxes read only through deliveries and humans only through `/v1/view`, so 5.1 is the read door and no metadata endpoint is needed; the browser box is never filtered; `dispatch.go` and `fallback.go` are in B3. **W6**: 5.4 states the 7-day TTL and the 1000-per-box cap, and the banner shows them. **W7**: the hub posts the holding notice (`hub/pin_notice.go`, B7, red control "offline 3 min -> no post"). **W8**: no real orchestrator box or seat id. **W9**: two owner questions in one `poll` form (Q3, Q4 decided in section 9); every row says Planned; B8 (seed) has a red control. |
 | v1.2 | R7 re-review by c-594 (W1-W4, W6-W9 closed). **W5**: the agent direct leg goes `onSend` -> `commitRow` (`hub/ws.go:611`, `:1009`), not `dispatchCheck` (browser only); 2.2 now names both doors, 5.1 refuses in the `onSend` chain before `commitRow` and in `dispatchCheck`, and `recvAgents` drops a pinned channel's rows (own ones too) on an unlisted box; `hub/ws.go` joins B3 with red controls for both. **N1**: 5.2.2 signs `spool channel-pins` with the desk keys of the `Channel:` line's tenant; no desk there -> hold; B5 red controls. |
+| v1.3 | Owner answers folded (HUM-10, msg `1cc5b9bb`, poll `400e5b85`): Q1 = A (default channels stay on every box, 4.1 refusal 3 is final), Q2 = A (the hub posts the holding notice, 6.2.2 is final). Section 9 records both; B2's "(per Q1)" and B7's "Q2 answered" gate are met. |
 
-<!-- version: 1.2.0 · updated: 2026-10-30 -->
+<!-- version: 1.3.0 · updated: 2026-10-30 -->

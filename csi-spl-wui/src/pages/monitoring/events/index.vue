@@ -18,7 +18,7 @@
      Issues list's pure selection (utils/issues-bulk.ts). The selection holds
      row ids, survives sort and filter, and drops ids no longer held. With a
      row checked EventsBulkBar takes the head actions' place; Delete selected
-     asks first, one POST /delete per 200 ids (utils/event-delete.mjs). -->
+     asks first, one POST /delete per 200 ids (utils/event-delete.ts). -->
 <template>
   <div class="monitoring-events" data-test="events-page">
     <!-- a desktop's Clear log sits in the Monitoring header row, top right,
@@ -264,7 +264,7 @@
 <script setup lang="ts">
 import { useSessionStore } from '~/stores/session'
 import { createEventsClient, eventsErrorKey } from '~/utils/event-log.mjs'
-import { deleteEventIds, eventsDeleteErrorKey } from '~/utils/event-delete.mjs'
+import { deleteEventIds, eventsDeleteErrorKey } from '~/utils/event-delete'
 import { keepShown, pageState, rangeSelect, toggleAll, toggleKey } from '~/utils/issues-bulk'
 import { isoDateTimeOffset } from '~/utils/date-iso-offset.mjs'
 import { formatIsoTs } from '~/utils/channel-feed.mjs'

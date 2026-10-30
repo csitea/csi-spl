@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { importTs } from './lib/load-ts.mjs'
 
 import {
   EVENT_BATCH_MAX,
@@ -18,7 +19,7 @@ import {
   eventsErrorKey,
   toEventPayload,
 } from '../../src/utils/event-log.mjs'
-import { EVENTS_DELETE_MAX, deleteEventIds, eventsDeleteErrorKey } from '../../src/utils/event-delete.mjs'
+const { EVENTS_DELETE_MAX, deleteEventIds, eventsDeleteErrorKey } = await importTs('src/utils/event-delete.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 

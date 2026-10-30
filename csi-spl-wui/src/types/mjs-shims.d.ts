@@ -1677,16 +1677,6 @@ declare module '~/utils/event-log.mjs' {
   export function eventsErrorKey(error: string): string
 }
 
-declare module '~/utils/event-delete.mjs' {
-  /** Spec 162 B7: Delete selected, one POST /delete per EVENTS_DELETE_MAX ids. */
-  export const EVENTS_DELETE_MAX: number
-  export function deleteEventIds(
-    client: { delete: (ids: number[]) => Promise<{ ok: boolean, error: string }> },
-    ids: Array<number | string>,
-  ): Promise<{ ok: boolean, done: number[], error: string }>
-  export function eventsDeleteErrorKey(error: string): string
-}
-
 declare module '~/utils/issue-discussions.mjs' {
   /** SPL-1593 (issues-v1 §2.2): one discussion an issue links to. */
   export interface IssueDiscussion {

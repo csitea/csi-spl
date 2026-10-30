@@ -13,13 +13,19 @@ import (
 // returns the hub's answer {fleet, role, holder, box, gen, age_s, won}; a
 // lost race is won=false, not an error. A refusal is a *HubError.
 func (c *Client) Lease(ctx context.Context, op, fleet, role, holder string, ifGen int64) (json.RawMessage, error) {
+	return c.LeaseFor(ctx, op, fleet, role, holder, ifGen, "")
+}
+
+// LeaseFor is Lease with the cas's lease_reason, why the loop moves the row
+// ("" = none, spec 162 3.3).
+func (c *Client) LeaseFor(ctx context.Context, op, fleet, role, holder string, ifGen int64, reason string) (json.RawMessage, error) {
 	sess, err := c.Dial(ctx, wire.RoleCLI)
 	if err != nil {
 		return nil, err
 	}
 	defer sess.Close()
 	id := uid.New()
-	f, err := sess.request(ctx, wire.Frame{Type: wire.TLease, MsgID: id, LeaseOp: op, Fleet: fleet, LeaseRole: role, Holder: holder, IfGen: ifGen}, wire.TLease,
+	f, err := sess.request(ctx, wire.Frame{Type: wire.TLease, MsgID: id, LeaseOp: op, Fleet: fleet, LeaseRole: role, Holder: holder, IfGen: ifGen, LeaseReason: reason}, wire.TLease,
 		func(f wire.Frame) bool { return f.MsgID == id || (f.Type == wire.TError && f.MsgID == "") })
 	if err != nil {
 		return nil, err

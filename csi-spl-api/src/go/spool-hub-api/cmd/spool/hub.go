@@ -138,6 +138,7 @@ func cmdServe() int {
 	}
 	store.CommittedRetention = hc.CommittedRetention // spec 059 S4, read by Sweep
 	claimOperatorWorkspace(ctx, log, srv)
+	srv.LogHubStarted(ctx) // spec 162 3.3: each start shows in the System log
 	// SPL-2128: each loop runs supervised; a panic restarts that loop, the hub serves on.
 	go hub.Supervise(ctx, log, "sweeper", func(ctx context.Context) { srv.RunSweeper(ctx, SweepInterval) })
 	go hub.Supervise(ctx, log, "relay", func(ctx context.Context) { srv.RunRelay(ctx, hc.QueueRelay) }) // SPL-1004

@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
@@ -26,6 +28,11 @@ import (
 // tenant (the hello proved its key); the writing box is recorded from the
 // session, never from the frame. Which holder wins is the loops' rule
 // (priority list, silence threshold); the hub only makes the write atomic.
+//
+// A cas may name why the loop moves the row (lease_reason, spec 162 3.3). A
+// won cas with a reason that changes the holder writes one System log row,
+// lease.<reason>; the hub never guesses a reason, so a cas without one (an
+// old CLI, the tenant mirror) and a renew by the same holder log nothing.
 
 // leaseAnswer is the reply object.
 type leaseAnswer struct {
@@ -84,6 +91,9 @@ func (s *Server) boxLease(ctx context.Context, x *session, f wire.Frame) (leaseA
 		if f.IfGen < 0 {
 			return leaseAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", "if_gen must be the gen read (0 = no row yet)"}
 		}
+		if !wire.ValidLeaseReason(f.LeaseReason) {
+			return leaseAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", "lease_reason must be one of " + strings.Join(wire.LeaseReasons, ", ")}
+		}
 		l, err = s.o.Store.CASFleetLease(ctx, x.tenant, f.Fleet, f.LeaseRole, f.Holder, x.box, f.IfGen, now)
 		won = err == nil
 		if errors.Is(err, store.ErrConflict) {
@@ -102,7 +112,59 @@ func (s *Server) boxLease(ctx context.Context, x *session, f wire.Frame) (leaseA
 	}
 	if f.LeaseOp == "cas" {
 		s.o.Log.Info().Str("tenant", x.tenant).Str("box", x.box).Str("fleet", f.Fleet).Str("role", f.LeaseRole).
-			Str("holder", l.Holder).Int64("gen", l.Gen).Bool("won", won).Msg("fleet lease cas")
+			Str("holder", l.Holder).Int64("gen", l.Gen).Bool("won", won).Str("reason", f.LeaseReason).Msg("fleet lease cas")
+		if won {
+			s.logLeaseHandover(ctx, f.LeaseReason, l)
+		}
 	}
 	return leaseAnswer{Fleet: l.Fleet, Role: l.Role, Holder: l.Holder, Box: l.Box, Gen: l.Gen, AgeS: age, Won: won}, nil
+}
+
+// leaseHandoverEvent is the System log row of a won cas (spec 162 3.3), and
+// false when it logs nothing: no reason named, or the holder did not change.
+func leaseHandoverEvent(reason string, l store.FleetLease) (store.LogEvent, bool) {
+	if reason == "" || l.PrevHolder == l.Holder {
+		return store.LogEvent{}, false
+	}
+	level := store.LogLevelInfo
+	if reason == "failover" || reason == "limit" {
+		level = store.LogLevelWarn
+	}
+	msg := fmt.Sprintf("%s: %s -> %s (%s, silent %ds)", l.Role, l.PrevHolder, l.Holder, reason, int64(l.PrevAge.Seconds()))
+	if l.PrevHolder == "" {
+		msg = fmt.Sprintf("%s: none -> %s (%s)", l.Role, l.Holder, reason)
+	}
+	return store.LogEvent{Kind: "lease." + reason, Level: level, Actor: l.Holder, Message: msg,
+		OriginKind: store.LogOriginComponent, OriginRef: "lease/" + l.Fleet + "/" + l.Role}, true
+}
+
+// logLeaseHandover writes leaseHandoverEvent's row, best effort: a failed
+// log write is logged and the lease write stands.
+func (s *Server) logLeaseHandover(ctx context.Context, reason string, l store.FleetLease) {
+	e, ok := leaseHandoverEvent(reason, l)
+	if !ok {
+		return
+	}
+	es, ok := s.o.Store.(store.LogEvents)
+	if !ok {
+		return
+	}
+	if _, err := es.AddSystemEvent(ctx, e, s.o.Now()); err != nil {
+		s.o.Log.Error().Err(err).Str("kind", e.Kind).Msg("system event not written")
+	}
+}
+
+// LogHubStarted writes the System log row hub.started, actor hub, message the
+// version /version answers (spec 162 3.3): once per process start, so each
+// deploy roll shows in the log. Best effort, like logLeaseHandover.
+func (s *Server) LogHubStarted(ctx context.Context) {
+	es, ok := s.o.Store.(store.LogEvents)
+	if !ok {
+		return
+	}
+	e := store.LogEvent{Kind: store.LogKindHubStarted, Actor: "hub", Message: s.o.Version,
+		OriginKind: store.LogOriginComponent, OriginRef: "hub"}
+	if _, err := es.AddSystemEvent(ctx, e, s.o.Now()); err != nil {
+		s.o.Log.Error().Err(err).Msg("hub.started not written")
+	}
 }

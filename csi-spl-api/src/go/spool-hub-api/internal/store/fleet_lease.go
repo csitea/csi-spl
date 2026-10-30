@@ -20,6 +20,11 @@ type FleetLease struct {
 	Gen       int64
 	RenewedAt time.Time
 	Age       time.Duration
+	// PrevHolder and PrevAge are set by a WON CASFleetLease only (spec 162
+	// 3.3): the holder the write replaced ("" when there was no row) and how
+	// long that row had been silent, on the hub's clock.
+	PrevHolder string
+	PrevAge    time.Duration
 }
 
 // The shapes 0094/0095's CHECKs accept, so a refusal is a 400, not a 500.
@@ -38,7 +43,8 @@ type FleetLeases interface {
 	// CASFleetLease writes holder (by box) only while the row's gen is still
 	// ifGen (0 = no row yet), stamps renewed_at = now and bumps gen. A lost
 	// race is ErrConflict with the CURRENT row, so the caller decides again
-	// without a second read.
+	// without a second read. A won write also answers the row it replaced
+	// (PrevHolder, PrevAge).
 	CASFleetLease(ctx context.Context, tenantID, fleet, role, holder, box string, ifGen int64, now time.Time) (FleetLease, error)
 	// FleetLeases reads every lease row of the tenant, all fleets and roles
 	// (spec 059 S5: a channel post for a role goes to its holder's box).
@@ -89,5 +95,9 @@ func (s *Memory) CASFleetLease(_ context.Context, tenant, fleet, role, holder, b
 		s.leases = map[[3]string]memLease{}
 	}
 	s.leases[k] = memLease{holder: holder, box: box, gen: ifGen + 1, at: now}
-	return s.fleetLeaseLocked(tenant, fleet, role, now), nil
+	l := s.fleetLeaseLocked(tenant, fleet, role, now)
+	if cur.gen > 0 {
+		l.PrevHolder, l.PrevAge = cur.holder, now.Sub(cur.at)
+	}
+	return l, nil
 }

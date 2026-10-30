@@ -224,10 +224,15 @@ func TestLeaseVerb(t *testing.T) {
 	runVerbCases(t, func(a []string) int { return cmdLease(cfg, a) }, []verbCase{
 		{"get", []string{"--fleet", "csi", "--role", "dispatch"}, 0, `"won":false`},
 		{"cas", []string{"--fleet", "csi", "--role", "dispatch", "--holder", "c-007@box-a", "--if-gen", "4"}, 0, `"gen":5`},
+		{"cas reason", []string{"--fleet", "csi", "--role", "dispatch", "--holder", "c-007@box-a", "--if-gen", "5", "--reason", "rotation"}, 0, `"gen":6`},
 	})
 	fr := h.Frames()
-	if len(fr) != 2 || fr[0].LeaseOp != "get" || fr[1].LeaseOp != "cas" || fr[1].Holder != "c-007@box-a" || fr[1].IfGen != 4 {
+	if len(fr) != 3 || fr[0].LeaseOp != "get" || fr[1].LeaseOp != "cas" || fr[1].Holder != "c-007@box-a" || fr[1].IfGen != 4 {
 		t.Fatalf("lease frames = %+v", fr)
+	}
+	// spec 162 C19: --reason rides as lease_reason; without it the frame has none
+	if fr[1].LeaseReason != "" || fr[2].LeaseReason != "rotation" {
+		t.Fatalf("lease_reason = %q, %q; want \"\", rotation", fr[1].LeaseReason, fr[2].LeaseReason)
 	}
 }
 
@@ -243,6 +248,8 @@ func TestLeaseVerbRefusals(t *testing.T) {
 		{"bad role", []string{"--fleet", "csi", "--role", "Orch"}, 1, "lowercase slugs"},
 		{"holder without box", []string{"--fleet", "csi", "--role", "orch", "--holder", "c-007"}, 1, "<agent id>@<box>"},
 		{"cas without gen", []string{"--fleet", "csi", "--role", "orch", "--holder", "c-007@box-a"}, 1, "--if-gen"},
+		{"bogus reason", []string{"--fleet", "csi", "--role", "orch", "--holder", "c-007@box-a", "--if-gen", "1", "--reason", "bogus"}, 1,
+			"--reason must be one of claim, rotation, seat_move, failover, handback, vendor, limit"},
 	})
 	if fr := h.Frames(); len(fr) != 0 {
 		t.Fatalf("bad input reached the hub: %+v", fr)

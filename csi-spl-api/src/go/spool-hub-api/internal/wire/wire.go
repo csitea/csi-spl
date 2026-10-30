@@ -144,6 +144,14 @@ const (
 // AckOutcomes is every outcome a TAck may carry.
 var AckOutcomes = []string{AckShown, AckNoWindow, AckRefused, AckExited}
 
+// LeaseReasons is every lease_reason a lease cas may name (spec 162 3.3):
+// why the lease loop moves the row. The hub logs a won handover as the
+// System log kind lease.<reason>.
+var LeaseReasons = []string{"claim", "rotation", "seat_move", "failover", "handback", "vendor", "limit"}
+
+// ValidLeaseReason is r one of LeaseReasons ("" is none, and valid).
+func ValidLeaseReason(r string) bool { return r == "" || slices.Contains(LeaseReasons, r) }
+
 // Hello roles (http-v1.md §2.2).
 const (
 	RoleBox = "box" // the session socket: recv frames, roster, last hello wins
@@ -364,13 +372,16 @@ type Frame struct {
 	// lease (CLE-77911): LeaseOp get | cas, Fleet + LeaseRole name the lease;
 	// cas also carries Holder ("<agent id>@<box>") and IfGen (the gen it
 	// read, 0 = no row yet). Lease is the answer object on the reply
-	// {fleet, role, holder, box, gen, age_s, won}.
-	LeaseOp   string          `json:"lease_op,omitempty"`
-	Fleet     string          `json:"fleet,omitempty"`
-	LeaseRole string          `json:"lease_role,omitempty"`
-	Holder    string          `json:"holder,omitempty"`
-	IfGen     int64           `json:"if_gen,omitempty"`
-	Lease     json.RawMessage `json:"lease,omitempty"`
+	// {fleet, role, holder, box, gen, age_s, won}. A cas may name why the
+	// loop moves the row, LeaseReason (one of LeaseReasons, spec 162 3.3);
+	// a won cas that changes the holder then writes one System log row.
+	LeaseOp     string          `json:"lease_op,omitempty"`
+	Fleet       string          `json:"fleet,omitempty"`
+	LeaseRole   string          `json:"lease_role,omitempty"`
+	Holder      string          `json:"holder,omitempty"`
+	IfGen       int64           `json:"if_gen,omitempty"`
+	LeaseReason string          `json:"lease_reason,omitempty"`
+	Lease       json.RawMessage `json:"lease,omitempty"`
 
 	// lane (CLE-77920): LaneOp put | list, Fleet names the map. A put carries
 	// the row in Lane {agent_id, agent_box, repo, branch, scope, files, topic,

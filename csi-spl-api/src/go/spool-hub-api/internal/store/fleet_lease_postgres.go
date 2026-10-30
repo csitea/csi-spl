@@ -62,9 +62,17 @@ func readFleetLease(ctx context.Context, tx pgx.Tx, tenant, fleet, role string, 
 }
 
 func (s *Postgres) CASFleetLease(ctx context.Context, tenant, fleet, role, holder, box string, ifGen int64, now time.Time) (FleetLease, error) {
-	var l FleetLease
+	var l, prev FleetLease
 	won := false
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		var err error
+		if ifGen > 0 {
+			// the row this write replaces, locked so it cannot move before
+			// the UPDATE below compares its gen (spec 162 3.3)
+			if prev, err = lockFleetLease(ctx, tx, tenant, fleet, role, now); err != nil {
+				return err
+			}
+		}
 		var q string
 		args := []any{tenant, fleet, role, holder, box, now}
 		if ifGen == 0 {
@@ -89,5 +97,23 @@ func (s *Postgres) CASFleetLease(ctx context.Context, tenant, fleet, role, holde
 	if !won {
 		return l, ErrConflict
 	}
+	if prev.Gen > 0 {
+		l.PrevHolder, l.PrevAge = prev.Holder, prev.Age
+	}
+	return l, nil
+}
+
+// lockFleetLease reads (fleet, role) FOR UPDATE inside the CAS transaction.
+func lockFleetLease(ctx context.Context, tx pgx.Tx, tenant, fleet, role string, now time.Time) (FleetLease, error) {
+	l := FleetLease{Fleet: fleet, Role: role}
+	err := tx.QueryRow(ctx, `SELECT holder, gen, renewed_at FROM fleet_leases
+		WHERE tenant_id = $1 AND fleet = $2 AND role = $3 FOR UPDATE`, tenant, fleet, role).Scan(&l.Holder, &l.Gen, &l.RenewedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return l, nil
+	}
+	if err != nil {
+		return l, err
+	}
+	l.Age = now.Sub(l.RenewedAt.UTC())
 	return l, nil
 }

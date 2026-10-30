@@ -11,7 +11,9 @@ import (
 // CLE-77911 (rdb 0094): the fleet-wide lease is a compare-and-set on gen, with
 // the age read from the hub's clock. Run on Memory and Postgres. Each step is
 // a control: drop the gen condition in CASFleetLease and the stale write, the
-// second first-write and the race all turn red.
+// second first-write and the race all turn red. A won write answers the row
+// it replaced, PrevHolder and PrevAge (spec 162 3.3, row B4): the hub's
+// handover log reads them.
 func TestFleetLeaseCAS(t *testing.T) {
 	ctx := context.Background()
 	t0 := time.Date(2026, 10, 1, 19, 0, 0, 0, time.UTC)
@@ -26,7 +28,7 @@ func TestFleetLeaseCAS(t *testing.T) {
 			}
 			// first write: if_gen 0
 			l, err = st.CASFleetLease(ctx, tid, "main", "dispatch", "CLE-002@pc", "box-desk", 0, t0)
-			if err != nil || l.Gen != 1 || l.Holder != "CLE-002@pc" || l.Box != "box-desk" {
+			if err != nil || l.Gen != 1 || l.Holder != "CLE-002@pc" || l.Box != "box-desk" || l.PrevHolder != "" || l.PrevAge != 0 {
 				t.Fatalf("first write: %+v %v", l, err)
 			}
 			// a second first-write loses and gets the current row back
@@ -36,7 +38,7 @@ func TestFleetLeaseCAS(t *testing.T) {
 			}
 			// renew on the gen read
 			l, err = st.CASFleetLease(ctx, tid, "main", "dispatch", "CLE-002@pc", "box-desk", 1, t0.Add(60*time.Second))
-			if err != nil || l.Gen != 2 {
+			if err != nil || l.Gen != 2 || l.PrevHolder != "CLE-002@pc" || l.PrevAge != 60*time.Second {
 				t.Fatalf("renew: %+v %v", l, err)
 			}
 			// age on the given (hub) clock
@@ -45,12 +47,13 @@ func TestFleetLeaseCAS(t *testing.T) {
 				t.Fatalf("age: %+v %v", l, err)
 			}
 			// a stale gen loses
-			if _, err = st.CASFleetLease(ctx, tid, "main", "dispatch", "CLE-102@sat", "box-sat", 1, t0.Add(300*time.Second)); !errors.Is(err, ErrConflict) {
-				t.Fatalf("stale gen: %v", err)
+			if l, err = st.CASFleetLease(ctx, tid, "main", "dispatch", "CLE-102@sat", "box-sat", 1, t0.Add(300*time.Second)); !errors.Is(err, ErrConflict) || l.PrevHolder != "" {
+				t.Fatalf("stale gen: %+v %v", l, err)
 			}
 			// takeover on the current gen
 			l, err = st.CASFleetLease(ctx, tid, "main", "dispatch", "CLE-102@sat", "box-sat", 2, t0.Add(300*time.Second))
-			if err != nil || l.Gen != 3 || l.Holder != "CLE-102@sat" || l.Box != "box-sat" || l.Age != 0 {
+			if err != nil || l.Gen != 3 || l.Holder != "CLE-102@sat" || l.Box != "box-sat" || l.Age != 0 ||
+				l.PrevHolder != "CLE-002@pc" || l.PrevAge != 240*time.Second {
 				t.Fatalf("takeover: %+v %v", l, err)
 			}
 			// roles and tenants are separate leases

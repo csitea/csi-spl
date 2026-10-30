@@ -20,6 +20,11 @@
 #      top-level file and a file over WIP_UNTRACKED_MAX_BYTES (logged) do not;
 #      red control: on the tracked-only code the new file is missing
 #      (runs before 5, which needs a clean tree)
+#  10. SPL-4296: a generated build dir (.output.ppe-keep/, node_modules/,
+#      .nuxt/) and an untracked tree over WIP_UNTRACKED_TREE_MAX_BYTES stay
+#      out, each logged once; a small new source dir rides; the repo's
+#      .gitignore ignores .output.ppe-keep/; red control: on the per-file-cap
+#      code the build output rides
 #   9. DRY_RUN=1 plans and pushes nothing; a noreply author is refused; a
 #      clean tree pushes HEAD itself, no wip commit (runs before 7, in this
 #      order: under a broken dry run G would read red too)
@@ -118,6 +123,35 @@ out="$(run ID=c-901 WIP_UNTRACKED_MAX_BYTES=1x)"; rc=$?
 [ "$rc" -eq 1 ] && grep -q 'must be a byte count' <<<"$out" && pass "8. control: a malformed cap is refused" || fail "8. bad cap (rc $rc: $out)"
 git -C "$L" checkout -q -- csi-spl-iac/run
 rm -rf "$I/sub dir" "$I/STATE-c-901.md" "$I/.lane-state-c-901.md" "$I/shot.PNG" "$I/build.log" "$I/big.bin" "$L/top-scratch.txt"
+
+# 10. SPL-4296: a fence's wip push of c-954 (4a54d616f, 2026-10-29) carried a
+# left-behind csi-spl-wui/.output.ppe-keep/ (1961 files, 93 MB, every file
+# under the 1 MB file cap). A generated build dir never rides, nor does any
+# untracked tree over WIP_UNTRACKED_TREE_MAX_BYTES; both are logged once per
+# dir, and a small new source dir still rides (in the fixture's tracked
+# csi-spl-iac/, as csi-spl-wui/ is tracked in the repo)
+W="$L/csi-spl-iac"
+mkdir -p "$W/.output.ppe-keep/public/_nuxt" "$W/node_modules/x" "$W/.nuxt" "$W/bulk" "$W/src/new"
+for i in 1 2 3; do printf 'chunk %s\n' "$i" >"$W/.output.ppe-keep/public/_nuxt/c$i.js"; done
+printf 'm\n' >"$W/node_modules/x/i.js"; printf 'n\n' >"$W/.nuxt/app.js"
+for i in 1 2 3 4; do head -c 60 /dev/zero >"$W/bulk/b$i.dat"; done
+printf 'export const a = 1\n' >"$W/src/new/a.ts"; printf 'export const b = 2\n' >"$W/src/new/b.ts"
+out="$(run ID=c-901 WIP_UNTRACKED_MAX_BYTES=100 WIP_UNTRACKED_TREE_MAX_BYTES=200)"; rc=$?
+files="$(git --git-dir="$B" ls-tree -r --name-only "$(wip)" 2>/dev/null | grep '^csi-spl-iac/' | tr '\n' '|')"
+[ "$rc" -eq 0 ] && [ "$files" = 'csi-spl-iac/run|csi-spl-iac/src/new/a.ts|csi-spl-iac/src/new/b.ts|' ] \
+  && pass "10. .output.ppe-keep/, node_modules/, .nuxt/ and a tree over the tree cap stay out; the new source dir rides" || fail "10. build output rode (rc $rc: $out; files $files)"
+grep -q 'SKIP WIP c-901: build dir csi-spl-iac/.output.ppe-keep/ (3 files)' <<<"$out" \
+  && grep -q 'SKIP WIP c-901: new tree csi-spl-iac/bulk/ is 240 bytes in 4 files, over the 200 tree cap' <<<"$out" \
+  && [ "$(grep -c 'SKIP WIP c-901: build dir' <<<"$out")" -eq 3 ] \
+  && pass "10. each skipped dir is logged once, with its count" || fail "10. skip log ($out)"
+out="$(run ID=c-901 WIP_UNTRACKED_TREE_MAX_BYTES=2x)"; rc=$?
+[ "$rc" -eq 1 ] && grep -q 'WIP_UNTRACKED_TREE_MAX_BYTES must be a byte count' <<<"$out" \
+  && pass "10. control: a malformed tree cap is refused" || fail "10. bad tree cap (rc $rc: $out)"
+REPO="$(cd "$PROJ_ROOT/.." && pwd)"
+git -C "$REPO" check-ignore -q --no-index csi-spl-wui/.output.ppe-keep/public/x.js \
+  && git -C "$REPO" check-ignore -q --no-index csi-spl-wui/.output/public/x.js \
+  && pass "10. the repo's .gitignore ignores csi-spl-wui/.output.ppe-keep/ next to .output/" || fail "10. .output.ppe-keep is not ignored by the repo"
+rm -rf "$W/.output.ppe-keep" "$W/node_modules" "$W/.nuxt" "$W/bulk" "$W/src"
 
 # 5. mid-rebase: the branch and master both change f.txt, the rebase stops
 printf 'lane\n' >"$L/f.txt"; git -C "$L" "${G[@]}" commit -qam lane

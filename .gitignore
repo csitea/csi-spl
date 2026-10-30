@@ -47,6 +47,8 @@ __pycache__/
 **/node_modules/
 **/.nuxt/
 **/.output/
+# SPL-4296: the pre-push e2e part parks .output here; a killed run leaves it
+**/.output.ppe-keep/
 **/.pnpm-store/
 *.log
 

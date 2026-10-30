@@ -349,6 +349,14 @@ after the agent is done.
   tree, except the lane's scratch (`STATE-*.md`, `.lane-state-*.md`,
   screenshots) and a file over `WIP_UNTRACKED_MAX_BYTES` (1 MB, skipped and
   logged). Test: `lane-wip-push.tst.sh` case 8.
+- **No build output** (SPL-4296, 2026-10-29): a box fence pushed c-954's wip
+  with a left-behind `csi-spl-wui/.output.ppe-keep/` (1961 files, 93 MB, each
+  under the file cap), which the pre-push e2e part parks while it runs.
+  `.output.ppe-keep/` is now git-ignored next to `.output/`, and the wip tree
+  skips anything under a generated build dir (`node_modules`, `.nuxt`,
+  `.output`, `.output.*`, `.pnpm-store`, `.cache`) and any untracked dir whose
+  kept files sum over `WIP_UNTRACKED_TREE_MAX_BYTES` (5 MB), each logged once
+  with its count. Test: `lane-wip-push.tst.sh` case 10.
   The handover's `refs/heads/wip/handover/<id>` (`do_spl_lane_handover_wip`)
   builds its tree the same way (SPL-2276, 2026-10-17).
 - **The pre-push gate**: the hook skips refs that are all

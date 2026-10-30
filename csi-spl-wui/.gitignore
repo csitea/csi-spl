@@ -1,6 +1,7 @@
 node_modules
 .nuxt
 .output
+.output.ppe-keep
 .data
 .cache
 dist

@@ -5,7 +5,9 @@
 # @description (the lane's index plus `git add -u`, plus its NEW source files:
 # @description untracked, not ignored, under a csi-spl-*/ tree, SPL-2513; never
 # @description its scratch: STATE-*.md, .lane-state-*.md, screenshots, SPL-2191;
-# @description a new file over WIP_UNTRACKED_MAX_BYTES is skipped and logged) is
+# @description a new file over WIP_UNTRACKED_MAX_BYTES, a generated build dir such as
+# @description .output.ppe-keep/ and an untracked dir over WIP_UNTRACKED_TREE_MAX_BYTES
+# @description are skipped and logged, SPL-4296) is
 # @description committed on top of HEAD in a TEMPORARY index, so the lane's own
 # @description index, HEAD and working tree are
 # @description never touched (no git stash), under the repo's canonical author,
@@ -24,6 +26,7 @@
 # @param WIP_REMOTE (optional) - default origin
 # @param WIP_GIT_NAME, WIP_GIT_EMAIL (optional) - default the repo's user.name / user.email, else the last commit's author
 # @param WIP_UNTRACKED_MAX_BYTES (optional) - a new untracked file larger than this stays out, logged; default 1048576 (1 MB)
+# @param WIP_UNTRACKED_TREE_MAX_BYTES (optional) - a new untracked dir whose files sum over this stays out, logged once; default 5242880 (5 MB)
 # @param DRY_RUN (optional) - 1 prints the plan and writes nothing; default 0 (the watchdog's job)
 # @example ID=c-050 ./run -a do_spl_lane_wip_push
 # @example ID=c-050 DRY_RUN=1 ./run -a do_spl_lane_wip_push
@@ -149,26 +152,57 @@ spl_lane_wip_send() {
 # the lane's NEW source files (SPL-2513: c-999's WIP of 2026-10-18 carried its
 # 6 edits but not its 6 new files, so install.sh on it called a missing step):
 # untracked and not ignored, under a top-level csi-spl-*/ tree, except the
-# lane's scratch (SPL-2191: STATE-*.md, .lane-state-*.md, screenshots) and a
-# file over WIP_UNTRACKED_MAX_BYTES (logged, on stdout: the caller sends it to
-# stderr, its stdout is the tree sha). Paths are repo-root relative.
+# lane's scratch (SPL-2191: STATE-*.md, .lane-state-*.md, screenshots), a file
+# over WIP_UNTRACKED_MAX_BYTES, anything under a generated build dir
+# (SPL_LANE_WIP_BUILD_DIR_RX: c-954's fence wip of 2026-10-29 carried a
+# left-behind .output.ppe-keep/, 1961 files, 93 MB, SPL-4296) and a whole
+# untracked dir whose kept files sum over WIP_UNTRACKED_TREE_MAX_BYTES. Each
+# skip is logged on stdout (the caller sends it to stderr, its stdout is the
+# tree sha), once per dir. Paths are repo-root relative.
+SPL_LANE_WIP_BUILD_DIR_RX='^(node_modules|\.nuxt|\.output(\..+)?|\.pnpm-store|\.cache)$'
 spl_lane_wip_add_untracked() {
-  local id="$1" cap="${WIP_UNTRACKED_MAX_BYTES:-1048576}" top p base size
+  local id="$1" cap="${WIP_UNTRACKED_MAX_BYTES:-1048576}" tcap="${WIP_UNTRACKED_TREE_MAX_BYTES:-5242880}" top p base size d
   [[ "$cap" =~ ^[0-9]+$ ]] || { do_log "FATAL WIP $id: WIP_UNTRACKED_MAX_BYTES must be a byte count, got '$cap'"; return 1; }
+  [[ "$tcap" =~ ^[0-9]+$ ]] || { do_log "FATAL WIP $id: WIP_UNTRACKED_TREE_MAX_BYTES must be a byte count, got '$tcap'"; return 1; }
   top="$(git rev-parse --show-toplevel)" || return 1
-  local -a add=()
+  local -a add=() dirs=() keep=()
+  local -A build=() tsum=() tcnt=() of=()
+  mapfile -d '' dirs < <(git -C "$top" ls-files -z --others --exclude-standard --directory)
   while IFS= read -r -d '' p; do
     base="${p##*/}"
     [[ "$p" == csi-spl-*/* ]] || continue
     [[ "$base" == STATE-*.md || "$base" == .lane-state-*.md ]] && continue
     [[ "${base,,}" =~ \.(png|jpe?g|gif|webp|bmp)$ ]] && continue
+    d="$(spl_lane_wip_build_dir "$p")"
+    if [[ -n "$d" ]]; then build[$d]=$((${build[$d]:-0} + 1)); continue; fi
     size="$(stat -c %s -- "$top/$p" 2>/dev/null)" || continue
     if ((size > cap)); then
       do_log "SKIP WIP $id: new file $p is $size bytes, over the $cap cap; not in the wip commit"; continue
     fi
-    add+=("$p")
+    d=""
+    for base in "${dirs[@]}"; do [[ "$base" == */ && "$p" == "$base"* ]] && { d="$base"; break; }; done
+    [[ -z "$d" ]] || { tsum[$d]=$((${tsum[$d]:-0} + size)); tcnt[$d]=$((${tcnt[$d]:-0} + 1)); }
+    keep+=("$p") of[$p]="$d"
   done < <(git -C "$top" ls-files -z --others --exclude-standard)
+  for d in "${!build[@]}"; do do_log "SKIP WIP $id: build dir $d (${build[$d]} files) is generated; not in the wip commit"; done
+  for d in "${!tsum[@]}"; do
+    ((${tsum[$d]} > tcap)) && do_log "SKIP WIP $id: new tree $d is ${tsum[$d]} bytes in ${tcnt[$d]} files, over the $tcap tree cap; not in the wip commit"
+  done
+  for p in "${keep[@]}"; do d="${of[$p]}"; [[ -n "$d" ]] && ((${tsum[$d]} > tcap)) && continue; add+=("$p"); done
   ((${#add[@]} == 0)) || printf '%s\0' "${add[@]}" | git --literal-pathspecs -C "$top" add --pathspec-from-file=- --pathspec-file-nul
+}
+
+# spl_lane_wip_build_dir PATH: print the PATH prefix up to and including its
+# first component that is a generated build dir (SPL_LANE_WIP_BUILD_DIR_RX),
+# with a trailing slash; print nothing when there is none.
+spl_lane_wip_build_dir() {
+  local p="$1" pre="" c
+  local -a parts
+  IFS=/ read -r -a parts <<<"$p"
+  for c in "${parts[@]:0:${#parts[@]}-1}"; do
+    pre+="$c/"
+    [[ "$c" =~ $SPL_LANE_WIP_BUILD_DIR_RX ]] && { printf '%s' "$pre"; return 0; }
+  done
 }
 
 # spl_lane_wip_ref_ok REF: the push wrapper's assertion: refs/heads/wip/<name>

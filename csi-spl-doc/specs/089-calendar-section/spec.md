@@ -329,6 +329,7 @@ Every refusal is the hub's usual body `{"error": "<token>", "detail": "<plain En
 - **AC-08 (Phone Responsiveness)**: At 390x844 viewport, opens on Day view; Week displays as grouped list.
 - **AC-09 (Public by Default)**: Create an event without an audience -> it is `public`. A non-owner who sets `private` gets `403`; the owner who sets it explicitly succeeds, and a member who is not mentioned then cannot read the event.
 - **AC-10 (Sign-out on Calendar)**: Sign in, open `/calendar`, Sign out from the user menu -> the address is `/login` and never passed through `/public-calendar`. Control: a fresh browser opening `/calendar` lands on `/public-calendar`. Proven live by `csi-spl-wui/tests/e2e/signout-calendar-live.proof.mjs` (the mock bundle never signs out); the decision by `tests/unit/public-calendar.test.mjs`.
+- **AC-10b (Sign-out from every page)**: The same holds from every other section and tab, not only the Calendar (HUM-10 `19d559a5`, SPL-4423): signed in, open lobby, channel, a topic, DMs, issues, docs, monitoring, reporting, settings (Security, its own Sign out), calendar, people, notes, archive, search, tenant settings, roadmap, and lobby, channel, issues and calendar at 390 px phone width, Sign out -> each ends on `/login` and never passes through `/public-calendar`. Proven live on dev by `csi-spl-wui/tests/e2e/signout-every-page-live.proof.mjs` (20 of 20 PASS on build `167b687d5` v6.9.8, 2026-10-30). Audit: only `pages/calendar.vue` had its own signed-out redirect (fixed in SPL-4400); every other `out` reaction goes to `/login` or only clears state.
 
 ---
 
@@ -401,5 +402,6 @@ Owner HUM-10 on topic `819d8610`, msgs `f23094d6` and `69fc0cbc`, verbatim:
 | v0.4.0 | 2026-10-05 | c-275 | Owner decisions 2026-10-05 (section 1.1): audience `public` by default, `private` only by the owner explicitly (4.2); reminders are app-timer pop-ups with no agent, AI or spool message (4.3); schema `audience` + `mentions` replace `for_type`/`for_id`, `reminded` dropped, RLS policy back to the workspace-only form (no `app.human_id`/`app.agent_id` setting exists; the private filter moves to the store); questions answered; future scheduled-deploy item (11.1, msgs `f23094d6`, `69fc0cbc`); `tasks.md` added. |
 | v0.5.0 | 2026-10-05 | c-326 | Section 6.1 wire format: the one event object (`source` event / issue / official_day), the marks and reminders answers, the request body, and the refusal tokens (`private_owner_only`, `demo_read_only`). |
 | v0.6.0 | 2026-10-30 | c-887 | FR-011 / AC-10: a sign-out on the Calendar lands on `/login`, not `/public-calendar` (HUM-24 `71e852ab`, SPL-4400). |
+| v0.6.1 | 2026-10-30 | c-947 | AC-10b: sign-out from every section and tab lands on `/login`, proven live page by page (HUM-10 `19d559a5`, SPL-4423). |
 
-<!-- version: 0.6.0 · updated: 2026-10-30 · last-edit: 2026-10-30T17:00:00Z -->
+<!-- version: 0.6.1 · updated: 2026-10-30 · last-edit: 2026-10-30T18:45:00Z -->

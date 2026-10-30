@@ -771,16 +771,18 @@ entries, web-glob matches and folder roots alike:
 |---|---|
 | `/etc/passwd`, `/etc/group`, `/etc/passwd-`, `/etc/group-` | every account, uid, group membership, home and shell: the first map an intruder reads; the `-` files are their backups |
 | `/etc/shadow-`, `/etc/gshadow-` | the backups of the hash files already denied |
-| `/etc/subuid`, `/etc/subgid` | the user namespace maps, by account name |
+| `/etc/subuid`, `/etc/subgid` (and their `-` backups) | the user namespace maps, by account name |
 | `/etc/sudoers`, `/etc/sudoers.d/` | who may become root, and with which commands |
 | `/etc/pam.d/`, `/etc/security/` | the login and auth policy; `/etc/security/opasswd` holds old password hashes |
 | `/etc/ssh/` (the whole dir; today only the host keys) | `sshd_config` names who may log in and how |
 | `/etc/ssl/private/`, `/etc/letsencrypt/` | TLS private keys (a `*.pem` is denied by name already; the dirs are denied whatever the name) |
 | `/etc/krb5.keytab`, `/etc/sssd/`, `/var/lib/sss/` | domain credentials and their caches |
 | `/etc/wireguard/`, `/etc/openvpn/`, `/etc/NetworkManager/system-connections/` | VPN keys and Wi-Fi passwords |
-| `/etc/environment`, `/etc/cron.d/`, `/var/spool/cron/` | system env and crontabs, which often carry a token in an env line |
+| `/etc/environment`, `/etc/crontab`, `/etc/cron.d/`, `/var/spool/cron/` | system env and crontabs, which often carry a token in an env line |
 | under `/var/log/`: `auth.log*`, `secure*`, `btmp*`, `wtmp*`, `lastlog*`, `faillog*`, `audit/` | who logged in, from where, and failed logins, where a password typed at the user prompt is logged as the user name |
 | `/var/log/journal/`, `/var/log/private/` | the binary journal (it holds the auth messages too) and the logs of services that run as a dynamic user |
+| under `/var/log/`: `tallylog*`, `sudo.log*`, `sudo-io/`, `fail2ban.log*`, `sssd/` (v0.6, Q5 B opens `/var/log`) | failed-login counts, who ran what as root, sudo's session recordings (every keystroke, a typed password included), banned login sources, the domain auth daemon's log |
+| under `/var/log/`: `pacct*`, `account/`, `installer/` (v0.6) | process accounting (every command of every user); the installer's answers (`cdebconf/questions.dat` may hold a password hash) |
 
 - Q7 A, decided (msg `369e7bfa`, 7.1): no cnf key, `box.env` value or hub
   field lifts a security file. An exception lives only in code, each with
@@ -1206,7 +1208,7 @@ Monitoring help page and B4 the syntax to the search help
 
 ### 5.9 Rows for answer B: web globs and the security files
 
-B9 is built (5.10); the rest planned, not built yet. The format of the rounds rulebook
+B9 is built (5.10), B11 is built (5.11); the rest planned, not built yet. The format of the rounds rulebook
 (`csi-spl-doc/doc/md/rounds-rulebook.md` 3.1). Every site was read on
 origin/master `bf6991ecf`. Vendor: the data rule (a stream carries box
 logs: claude, grok or mistral, never agy or qwen) and the owner's rule of
@@ -1225,7 +1227,8 @@ Docs: B9 adds the routes to `hub/openapi.json`; B12 adds the glob form to
 the Monitoring help page (`csi-spl-doc/doc/help/`); each row ticks its
 status line here.
 
-Status: B9 built (SPL-4294, section 5.10). B10, B11, B12 planned.
+Status: B9 built (SPL-4294, section 5.10). B11 built (SPL-4321, section
+5.11). B10, B12 planned.
 
 ### 5.10 Row B9 as built (SPL-4294)
 
@@ -1266,6 +1269,30 @@ Status: B9 built (SPL-4294, section 5.10). B10, B11, B12 planned.
   `TestFileStreamGlobAudit`; C46 `TestFileStreamGlobPull`,
   `TestFileStreamGlobPullFrame`. Each case's planted defect and its red run
   are in the commit body.
+
+### 5.11 Row B11 as built (SPL-4321)
+
+- `orc/scripts/file-stream-follow.py`: `SECURITY_FILES` (exact paths),
+  `SECURITY_ROOTS` (dirs, denied with everything under them) and
+  `SECURITY_LOGS` (names matched with `fnmatch` against the first segment
+  under `/var/log`, so `auth.log.2.gz`, `wtmp.db` and `journal/x/...` are
+  caught), read by `security_file()`. `spl_file_stream_denied` returns
+  `security file` right after `system secret`, so `/etc/shadow` and the ssh
+  host keys keep their reason. Every open runs it (3.2), so a cnf entry and,
+  from B10, a glob match are both refused `denied path`.
+- The 3.8.10 table gained `/etc/subuid-`, `/etc/subgid-`, `/etc/crontab` and
+  the `/var/log` names Q5 B makes reachable (`tallylog*`, `sudo.log*`,
+  `sudo-io/`, `fail2ban.log*`, `sssd/`, `pacct*`, `account/`, `installer/`).
+  A list names only what it names (3.8.10): a security file under another
+  name is not seen.
+- Test C53 in `orc/tests/spl-file-stream-follow.tst.sh`: `--denied` prints
+  `security file` for 46 paths, one or more per table row; `/etc/passwd`
+  and `/etc/group` as cnf entries are `refused denied path` and no line of
+  them is pushed or queued; `/var/log/syslog`, `/var/log/dpkg.log`,
+  `/var/log/csi-spl/x.log` and the token-burn cron log are not denied. Red
+  control `no-security-class` (the class switched off): red. On the
+  follower before B11 C53 is red: `--denied /etc/passwd` exits 1 and an
+  `/etc/passwd` cnf entry is `following`.
 
 ## 6. Decisions (this draft; the reviewer may challenge each)
 

@@ -32,6 +32,9 @@
 #   C36 a symlink to a fifo or a device: refused, the tick not blocked, only
 #       an O_PATH open of it (strace, when the box allows it)
 #   C37 a whole key on one line: masked, the next lines followed unchanged
+#   C53 every row of 3.8.10's table (and each /var/log security file) is a
+#       `security file`; /etc/passwd and /etc/group as cnf entries: refused;
+#       /var/log/syslog and the token-burn cron log: not denied
 # And: the line cut and the rate limit (3.7), the action (cnf off = nothing
 # followed; on = the cnf allow-list reaches the follower), the cron wrapper
 # (refuses a worktree; off logs one line), the manifest row, and the shipped
@@ -433,6 +436,39 @@ c34() {
   nolines "$d" "$s"
 }
 
+# 3.8.10's table, one path per row and every /var/log name (Q5 B opens /var/log)
+SECURITY_PATHS=(/etc/passwd /etc/passwd- /etc/group /etc/group- /etc/shadow- /etc/gshadow- /etc/subuid /etc/subgid
+  /etc/sudoers /etc/sudoers.d/x /etc/pam.d/sshd /etc/security/opasswd /etc/ssh/sshd_config /etc/ssl/private/x.crt
+  /etc/letsencrypt/live/x/cert.txt /etc/krb5.keytab /etc/sssd/sssd.conf /var/lib/sss/db/x.ldb /etc/wireguard/wg0.conf
+  /etc/openvpn/x.conf /etc/NetworkManager/system-connections/x.nmconnection /etc/environment /etc/crontab
+  /etc/cron.d/x /var/spool/cron/crontabs/x
+  /var/log/auth.log /var/log/auth.log.1 /var/log/auth.log.2.gz /var/log/secure /var/log/secure-20261001
+  /var/log/btmp /var/log/btmp.1 /var/log/wtmp /var/log/wtmp.db /var/log/lastlog /var/log/faillog /var/log/tallylog
+  /var/log/sudo.log /var/log/sudo-io/00/00/01/log /var/log/fail2ban.log /var/log/pacct /var/log/account/pacct
+  /var/log/audit/audit.log /var/log/journal/x/system.journal /var/log/private/x.log /var/log/installer/cdebconf/questions.dat
+  /var/log/sssd/sssd.log)
+
+c53() {
+  local d k out bad=""
+  d="$(newcase)"
+  for k in "${SECURITY_PATHS[@]}"; do
+    out="$(HOME="$d/home" python3 "$1" --denied "$k")"
+    [[ "$out" == "security file" ]] || bad+=" $k=${out:-not-denied}"
+  done
+  [[ -z "$bad" ]] || { echo "  C53: not a security file:$bad"; return 1; }
+  allow "$d" a /etc/passwd b /etc/group
+  fs "$1" "$d"
+  for k in a b; do
+    [[ "$(status "$d" "$k")" == "refused denied path" ]] || bad+=" $k=$(status "$d" "$k")"
+  done
+  [[ -z "$bad" ]] || { echo "  C53: not refused:$bad"; return 1; }
+  nolines "$d" "root:x:0:0" "root:x:0:" || return 1
+  for k in /var/log/syslog /var/log/dpkg.log /var/log/csi-spl/x.log /var/csi/csi-spl/token-burn/cron.log; do
+    HOME="$d/home" python3 "$1" --denied "$k" >/dev/null && { echo "  C53: $k denied"; return 1; }
+  done
+  return 0
+}
+
 c35() {
   local d out rc
   d="$(newcase)"
@@ -531,6 +567,8 @@ check C33 "a hardlink to a key file is refused" c33 \
   realpath-only 'if st.st_nlink != 1:' 'if False:'
 check C34 "\$HOME/.config, another home, .env, *_history, a host key: denied" c34 \
   named-list-only 'if p != h and rel.startswith("."):' 'if False:'
+check C53 "every security file of 3.8.10 is denied, syslog and the cron log are not" c53 \
+  no-security-class 'if security_file(p):  # ctl:security-file' 'if False:'
 check C35 "no SPOOL_ROOT: the default root denied; not a dir: no start" c35 \
   root-from-env-only 'roots = (DEFAULT_SPOOL_ROOT, spool_root())' 'roots = (os.environ.get("SPOOL_ROOT", "/nonexistent"),)'
 check C36 "a fifo or a device behind a symlink: refused, the tick not blocked" c36 \

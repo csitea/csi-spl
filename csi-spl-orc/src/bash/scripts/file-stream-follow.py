@@ -103,6 +103,59 @@ DENIED_NAMES = (
 DENIED_SEGMENTS = ("keys", "inbox", "outbox")
 SYSTEM_ROOTS = ("/proc", "/sys", "/dev")
 SYSTEM_FILES = ("/etc/shadow", "/etc/gshadow")
+# The security files of spec 160 3.8.10 (owner msg 7f673aef; Q7 A: no cnf
+# key lifts one, an exception only here with its reason, none today).
+SECURITY_FILES = (
+    "/etc/passwd",
+    "/etc/passwd-",
+    "/etc/group",
+    "/etc/group-",
+    "/etc/shadow-",
+    "/etc/gshadow-",
+    "/etc/subuid",
+    "/etc/subuid-",
+    "/etc/subgid",
+    "/etc/subgid-",
+    "/etc/sudoers",
+    "/etc/krb5.keytab",
+    "/etc/environment",
+    "/etc/crontab",
+)
+SECURITY_ROOTS = (
+    "/etc/sudoers.d",
+    "/etc/pam.d",
+    "/etc/security",
+    "/etc/ssh",
+    "/etc/ssl/private",
+    "/etc/letsencrypt",
+    "/etc/sssd",
+    "/var/lib/sss",
+    "/etc/wireguard",
+    "/etc/openvpn",
+    "/etc/NetworkManager/system-connections",
+    "/etc/cron.d",
+    "/var/spool/cron",
+)
+# matched against the first segment under /var/log (a file or a dir)
+SECURITY_LOGS = (
+    "auth.log*",
+    "secure*",
+    "btmp*",
+    "wtmp*",
+    "lastlog*",
+    "faillog*",
+    "tallylog*",
+    "sudo.log*",
+    "fail2ban.log*",
+    "pacct*",
+    "audit",
+    "journal",
+    "private",
+    "sudo-io",
+    "installer",
+    "account",
+    "sssd",
+)
 
 
 def env_int(name, default):
@@ -221,6 +274,16 @@ class DenyContext:
         self.state_dir = os.path.normpath(state_dir())
 
 
+def security_file(p):
+    """3.8.10's class: is the normalised path `p` a security file?"""
+    if p in SECURITY_FILES or any(under(p, r) for r in SECURITY_ROOTS):
+        return True
+    if not under(p, "/var/log") or p == "/var/log":
+        return False
+    first = p[len("/var/log/") :].split("/")[0]
+    return any(fnmatch.fnmatch(first, g) for g in SECURITY_LOGS)
+
+
 def spl_file_stream_denied(path, ctx):
     """The deny list of spec 160 3.2: the reason `path` is refused, or ""."""
     p = os.path.normpath(path if path.startswith("/") else os.path.abspath(path))
@@ -228,6 +291,8 @@ def spl_file_stream_denied(path, ctx):
         return "system path"
     if p in SYSTEM_FILES or fnmatch.fnmatch(p, "/etc/ssh/ssh_host_*_key"):
         return "system secret"
+    if security_file(p):  # ctl:security-file
+        return "security file"
     mine = [h for h in ctx.agent_homes if under(p, h)]
     for h in mine:
         rel = p[len(h.rstrip("/")) + 1 :]

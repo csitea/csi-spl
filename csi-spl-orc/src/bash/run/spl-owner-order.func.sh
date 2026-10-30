@@ -11,6 +11,8 @@
 # @description hub for a gating order), match (the active orders covering any
 # @description of the paths), sync (B2: the ledgers copied both ways with
 # @description another box over its ssh link, append-only; see _spl_oo_sync).
+# @description gate (B3: a change to a path a go or content order covers needs
+# @description the owner's go; spl-owner-order-gate.func.sh).
 # @description add, lift and sync are a dry run unless DRY_RUN=0.
 # @description The order TEXT never goes to stdout (./run copies stdout to its
 # @description log): list and match print id, state, gate and paths, and write
@@ -19,7 +21,7 @@
 # @description (match) or already there, 2 the ledger is unreadable or
 # @description malformed, 1 refused input. The spawn copy-in and the gate
 # @description treat every code but 0 and 3 as REFUSE (fail closed).
-# @param ORDER_CMD (required) - add | list | lift | match | sync
+# @param ORDER_CMD (required) - add | list | lift | match | sync | gate (its params: spl-owner-order-gate.func.sh)
 # @param ORDER_REPO (add, lift, match; or ORDER_REPO_DIR) - the repo key: the basename of the directory that holds the repo's git common dir, e.g. csi-spl for every worktree of csi-spl
 # @param ORDER_REPO_DIR (optional) - a checkout or worktree of the repo; its key is derived as above, never from the worktree's own dir name
 # @param ORDER_MSG (add) - the owner's message id, the full uuid
@@ -74,7 +76,8 @@ do_spl_owner_order() {
     lift) _spl_oo_lift "$dir" ;;
     match) _spl_oo_match "$dir" ;;
     sync) _spl_oo_sync "$dir" ;;
-    *) do_log "FATAL ORDER_CMD must be add, list, lift, match or sync (got '$cmd')"; return 1 ;;
+    gate) _spl_oo_gate "$dir" ;;
+    *) do_log "FATAL ORDER_CMD must be add, list, lift, match, sync or gate (got '$cmd')"; return 1 ;;
   esac
 }
 
@@ -228,27 +231,27 @@ _spl_oo_lift() {
   [[ "$n" == 1 ]] || { do_log "FATAL ORDER_ID $id matches $n orders in the $repo ledger (want 1)"; return 1; }
   cur="$(jq -c '.[0]' <<<"$hits")"
   [[ "$(jq -r .state <<<"$cur")" != lifted ]] || { do_log "WARN order ${id:0:8} is already lifted ($(jq -r '.lift.reason' <<<"$cur"))"; return 3; }
-  src="$(_spl_oo_lift_source "$lmsg" "$(jq -r .gate <<<"$cur")")" || return 1
+  src="$(_spl_oo_lift_source "$lmsg" "$(jq -r .gate <<<"$cur")" "$(jq -r .order <<<"$cur")")" || return 1
   line="$(jq -n -c --arg o "$(jq -r .order <<<"$cur")" --arg l "$lmsg" --arg r "$why" --arg s "$src" --arg b "$by" \
     --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{op: "lift", order: $o, lift_msg: $l, source: $s, reason: $r, by: $b, at: $at}')"
   _spl_oo_append "$dir" "$repo" "$line" || return 1
   [[ "${DRY_RUN:-1}" != 0 ]] || do_log "OK order ${id:0:8} lifted in the $repo ledger on ${lmsg:0:8} (source $src)"
 }
 
-# _spl_oo_lift_source <lift msg> <gate>: prints hub or given. Only the owner
-# lifts: with ORDER_FROM_HUB the lifting message must be an owner's, and a
-# go or content order is never lifted without that check.
+# _spl_oo_lift_source <lift msg> <gate> <order uuid>: prints hub or given.
+# Only the owner lifts: with ORDER_FROM_HUB the lifting message must be an
+# owner's and its body must NAME the order's id8 (spec 168 N1: an owner
+# message about something else lifts nothing), and a go or content order is
+# never lifted without that check.
 _spl_oo_lift_source() {
-  local row from
+  local why
   if [[ -z "${ORDER_FROM_HUB:-}" ]]; then
     [[ "$2" == none ]] || { do_log "FATAL the order's gate is $2: its lift needs ORDER_FROM_HUB, so the hub proves the owner sent $1" >&2; return 1; }
     echo given; return 0
   fi
   [[ "$ORDER_FROM_HUB" =~ ^(dev|prd)$ ]] || { do_log "FATAL ORDER_FROM_HUB must be dev or prd" >&2; return 1; }
-  row="$(_spl_oo_hub "$ORDER_FROM_HUB" "$1")" || return 1
-  [[ -n "$row" ]] || { do_log "FATAL lifting message $1 is not on the $ORDER_FROM_HUB hub" >&2; return 1; }
-  from="${row%%$'\t'*}"
-  [[ "$from" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL lifting message $1 is from '$from', not an owner (HUM-<n>): only the owner lifts an order" >&2; return 1; }
+  why="$(_spl_oo_names_order "$ORDER_FROM_HUB" "$1" "$3")" ||
+    { do_log "FATAL lifting message $1 does not lift order ${3:0:8}: $why (only the owner lifts an order, by naming it)" >&2; return 1; }
   echo hub
 }
 

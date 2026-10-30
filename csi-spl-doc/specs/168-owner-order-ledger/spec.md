@@ -4,7 +4,7 @@ Version: v0.2 (2026-10-30). Status: **Draft**, for R7 re-review. v0.2 folds
 the R7 review of c-697 on v0.1 (FAIL, its W1-W12; its log
 `review-s168-d65c6c7d2.md` in c-697's spool dir) and the dispatch
 holder's fix list (c-002, msg a25f69ef). Built: B1, B2 (section 6; B2
-SPL-4357, how it was built: section 4.1 and 3.6).
+SPL-4357, how it was built: section 4.1 and 3.6), B3 (SPL-4372, section 5.1).
 Issue SPL-4343 · Epic SPL-2398 · Spec home of the build:
 [spec 157 dispatch automation](../157-dispatch-automation/spec.md) · Class
 feature · Kind complex_coding · Placement slug `c001-s168-owner-order-ledger`
@@ -311,13 +311,76 @@ or as a poll answer counts when it names the order; c-697 W11).
   form and says so.
 - Orders with `gate: none` are never gated: parts (a) and (b) only.
 
+### 5.1 As built (B3)
+
+- **One decision, three callers.** `ORDER_CMD=gate` of `do_spl_owner_order`
+  (`orc/run/spl-owner-order-gate.func.sh`) reads the ledger, the paths, the
+  trailers and the hub. Its callers only find the commits, all through
+  `sa/lib/owner-order-guard.inc.sh`:
+  - the pre-push hook (`sa/hooks/pre-push`, `oog_pre_push`): every pushed
+    ref but a delete and `refs/heads/wip/*` (the watchdog's backup of
+    unfinished work, spec 102 5.4), `<remote sha>..<local sha>`, or for a
+    new ref every commit no remote-tracking ref holds. It runs before every
+    override branch: `SPL_PREPUSH_OVERRIDE=1` does not pass it;
+  - the `owner-orders` part of `do_check_pre_push`
+    (`csi-spl-iac/src/bash/run/check-pre-push.func.sh`): `PRE_PUSH_BASE..HEAD`,
+    every tier and mode, right after `stale-tree`, never cached;
+  - the harness guard `owner_order_guard_check "<command>" [<cwd>]` and its
+    hook `sa/scripts/owner-order-guard-hook.sh <claude|grok|agy|qwen>`.
+- **Which paths (N2).** `gate: go` reads `git diff --name-status
+  --no-renames`: both sides of a move, so a file moved out of a covered
+  folder is covered, edited or not. `gate: content` reads rename detection at
+  100% (`-M100%`): an `R100` pair (the same blob) passes on both sides, every
+  other change of a covered path needs the go. Merge commits are not read
+  (their first-parent diff is the other side's work); the commits they bring
+  are, one by one.
+- **The go.** A trailer `Owner-go: <msg uuid>` on the commit (`git log
+  --format=%(trailers:key=Owner-go)`); for a commit not made yet, every
+  `Owner-go: <uuid>` (or `--trailer Owner-go=<uuid>`) in the command text,
+  heredoc bodies included, and in a `-F` file. It must be a full uuid and
+  not the order's own id.
+- **The hub check (N1, N3).** `ORDER_GO_HUB` = `dev`, `prd` or `none`; unset
+  is `prd` when the box holds the prd project's SA key (the one
+  `do_spl_db_query` reads), else `none`. With a hub the cited message must be
+  on it, from an owner (`HUM-<n>`), and its body must NAME the order's id8.
+  The same check re-reads every lift of a go or content order: a lift whose
+  message fails it does not lift (the gate prints `WARN ... does not hold`),
+  whatever the ledger line's `source` says. `ORDER_CMD=lift` with
+  `ORDER_FROM_HUB` now refuses a lifting message that does not name the
+  order too. Without a hub only the form is checked, and every PASS line
+  says `NOT hub-checked`. A hub read that fails refuses (rc 1); each
+  message is read once per run.
+- **Exit and output.** 0 passed, no ledger, or nothing covered; 3 refused;
+  2 the ledger is unreadable or malformed; 1 refused input or a failed hub
+  read. Every caller refuses on anything but 0. A refusal prints the commit,
+  the order's id8, gate, source and the covered paths (at most 5), and the
+  line to add; never the order's text.
+- **The commit guard reads the index**, which the harness hook sees before
+  the command runs: a `git add` / `rm` / `mv` earlier in the same command,
+  `commit -a`, a pathspec, `--include` or `--only` make it read every
+  tracked change plus the untracked files instead (a superset, fail closed).
+  `--amend` reads against `HEAD^`.
+- **A repository with no ledger is never asked**: the lib checks for
+  `<OWNER_ORDER_DIR>/<repo key>.jsonl` before it starts `./run` (about 1.5 s,
+  plus about 4 s per hub read).
+- **Installing the harness hook is the owner's step** (R5, R6). Nothing in
+  the fleet adds it. For claude, one entry in `PreToolUse` of the harness's
+  `settings.json`, next to the force-push guard's:
+  `{"matcher": "Bash", "hooks": [{"type": "command", "command": "bash <csi-spl checkout>/csi-spl-orc/src/bash/features/spawn-agents/scripts/owner-order-guard-hook.sh claude"}]}`
+  (grok, agy and qwen: the same script with their name, in their own hook
+  config, as for `force-push-guard-hook.sh`).
+- Tests: `orc/tests/spl-owner-order-gate.tst.sh` (the decision, the hook and
+  the guard on a fixture repo, synthetic orders, a hub stub),
+  `csi-spl-iac/src/bash/tests/check-pre-push-owner-orders.tst.sh` (the
+  part), `orc/tests/spl-owner-order.tst.sh` (N1 for lift).
+
 ## 6. Build rows
 
 | row | builds | test | lands |
 |---|---|---|---|
 | B1 | the ledger format, `do_spl_owner_order` (add, list, lift, match; `ORDER_FROM_HUB`), the seed entries of section 7 written on the box that holds `<CUSTOMER-REPO>` | `orc/tests/spl-owner-order.tst.sh`, each refusal with a red control | this lane, after the spec is accepted |
 | B2 | `sw_owner_orders` in the spawn (section 4), the seed line, the `PLAN` line; the ledger copy to the other box (`ORDER_CMD=sync` over the box link) | a spawn dry run with a fixture ledger: a matching brief gets the section, a non-matching one does not; CONTROL: an empty ledger adds nothing | built (SPL-4357, sections 3.6 and 4.1) |
-| B3 | the pre-push part for csi-spl and the harness guard for other repositories (section 5) | a fixture repo: an uncited change to a covered path is refused, the cited one passes, an uncovered path passes; CONTROL: `gate: none` is never refused | its own lane, after B2 |
+| B3 | the pre-push part for csi-spl and the harness guard for other repositories (section 5) | a fixture repo: an uncited change to a covered path is refused, the cited one passes, an uncovered path passes; CONTROL: `gate: none` is never refused | built (SPL-4372, section 5.1); the harness hook install is the owner's |
 
 ## 7. The seed entries (B1)
 

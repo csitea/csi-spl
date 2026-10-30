@@ -14,7 +14,8 @@
 #   4. match: a covered path exits 3 and prints the order, an uncovered one
 #      exits 0 (CONTROL: the glob is anchored, a near-miss path is not
 #      covered)
-#   5. lift: needs the owner's lifting message; afterwards match no longer
+#   5. lift: needs the owner's lifting message, and (N1, B3) one whose body
+#      names the order's id8; afterwards match no longer
 #      covers it and list hides it (ORDER_ALL=1 shows it lifted); a second
 #      lift is rc 3
 #   6. expires: active before, expired after (list and match)
@@ -39,16 +40,19 @@ command -v jq >/dev/null || { echo "FAIL: jq is required"; exit 1; }
 D="$T/oo" F="$T/oo/repo-x.jsonl"
 M1=11111111-aaaa-4bbb-8ccc-000000000001 M2=22222222-aaaa-4bbb-8ccc-000000000002
 M3=33333333-aaaa-4bbb-8ccc-000000000003 L1=44444444-aaaa-4bbb-8ccc-000000000004
-TOPIC=55555555-aaaa-4bbb-8ccc-000000000005
+TOPIC=55555555-aaaa-4bbb-8ccc-000000000005 L2=66666666-aaaa-4bbb-8ccc-000000000006
 BODY=$'Poll: x\n> a question\n\ndo not change the contents of the docs, only the file structure'
 B64=$(printf '%s' "$BODY" | base64 -w0)
+L2B64=$(printf 'lift order %s, the docs are done' "${M1:0:8}" | base64 -w0)
 # The hub stub: psql's aligned output of the action's one-column select,
-# for M2 (an owner) and M3 (an agent); any other id is 0 rows.
+# for M2 (an owner), M3 (an agent) and L2 (an owner, naming M1's id8); any
+# other id is 0 rows.
 STUB='do_spl_db_query() {
   echo "INFO proxy up"; echo "   r"; echo "-----"
   case "$SQL" in
     *'"$M2"'*) echo " OO|HUM-10|'"$TOPIC"'|2026-10-29T15:46:10Z|'"$B64"'"; echo "(1 row)" ;;
     *'"$M3"'*) echo " OO|c-001|'"$TOPIC"'|2026-10-29T15:47:00Z|'"$B64"'"; echo "(1 row)" ;;
+    *'"$L2"'*) echo " OO|HUM-10|'"$TOPIC"'|2026-10-29T16:00:00Z|'"$L2B64"'"; echo "(1 row)" ;;
     *) echo "(0 rows)" ;;
   esac
 }
@@ -131,8 +135,11 @@ oo ORDER_CMD=match ORDER_REPO=other ORDER_PATHS='docs/a.md'
 oo ORDER_CMD=lift ORDER_REPO=repo-x ORDER_ID=${M1:0:8} ORDER_REASON='owner lifted it' DRY_RUN=0
 [[ $RC -eq 1 && "$(lines)" == 1 ]] && pass "lift without the owner's lifting message is refused" || fail "lift no msg (rc=$RC): $(cat "$T/o")"
 oo ORDER_CMD=lift ORDER_REPO=repo-x ORDER_ID=${M1:0:8} ORDER_LIFT_MSG=$M2 ORDER_FROM_HUB=prd ORDER_REASON='owner lifted it' DRY_RUN=0
+[[ $RC -eq 1 && "$(lines)" == 1 ]] && grep -q "does not name the order's id8" "$T/o" &&
+  pass "N1: a lift citing an owner message that does not name the order's id8 is refused" || fail "N1 lift (rc=$RC): $(cat "$T/o")"
+oo ORDER_CMD=lift ORDER_REPO=repo-x ORDER_ID=${M1:0:8} ORDER_LIFT_MSG=$L2 ORDER_FROM_HUB=prd ORDER_REASON='owner lifted it' DRY_RUN=0
 [[ $RC -eq 0 && "$(lines)" == 2 ]] && jq -e -s '.[-1].op == "lift" and .[-1].source == "hub"' "$F" >/dev/null &&
-  pass "lift on the owner's message (read from the hub) appends one lift line, source hub" || fail "lift (rc=$RC): $(cat "$T/o")"
+  pass "CONTROL: lift on the owner's message naming the order (read from the hub) appends one lift line, source hub" || fail "lift (rc=$RC): $(cat "$T/o")"
 oo ORDER_CMD=match ORDER_REPO=repo-x ORDER_PATHS='docs/a.md'
 [[ $RC -eq 0 ]] && pass "a lifted order no longer covers its paths" || fail "match lifted (rc=$RC): $(cat "$T/o")"
 oo ORDER_CMD=list
@@ -140,7 +147,7 @@ oo ORDER_CMD=list
 oo ORDER_CMD=list ORDER_ALL=1
 [[ $RC -eq 0 ]] && grep -q "^$M1 repo-x lifted gate=go" "$T/o" &&
   pass "ORDER_ALL=1 lists it as lifted" || fail "list all (rc=$RC): $(cat "$T/o")"
-oo ORDER_CMD=lift ORDER_REPO=repo-x ORDER_ID=${M1:0:8} ORDER_LIFT_MSG=$M2 ORDER_FROM_HUB=prd ORDER_REASON='again' DRY_RUN=0
+oo ORDER_CMD=lift ORDER_REPO=repo-x ORDER_ID=${M1:0:8} ORDER_LIFT_MSG=$L2 ORDER_FROM_HUB=prd ORDER_REASON='again' DRY_RUN=0
 [[ $RC -eq 3 && "$(lines)" == 2 ]] && pass "a second lift is rc 3, nothing written" || fail "re-lift (rc=$RC): $(cat "$T/o")"
 
 # 6. expires
@@ -158,7 +165,7 @@ rm -f "$F"; add1 DRY_RUN=0
 oo ORDER_CMD=match ORDER_REPO=repo-x ORDER_PATHS='docs/a.md'
 [[ $RC -eq 3 ]] && pass "CONTROL: the sound ledger covers docs/a.md (rc 3)" || fail "W1 control (rc=$RC): $(cat "$T/o")"
 cp "$F" "$T/good.jsonl"; echo '{"op":"add",' >>"$F"
-for c in "ORDER_CMD=match ORDER_PATHS=docs/a.md" "ORDER_CMD=list" "ORDER_CMD=lift ORDER_ID=${M1:0:8} ORDER_LIFT_MSG=$M2 ORDER_FROM_HUB=prd ORDER_REASON=x DRY_RUN=0"; do
+for c in "ORDER_CMD=match ORDER_PATHS=docs/a.md" "ORDER_CMD=list" "ORDER_CMD=lift ORDER_ID=${M1:0:8} ORDER_LIFT_MSG=$L2 ORDER_FROM_HUB=prd ORDER_REASON=x DRY_RUN=0"; do
   # shellcheck disable=SC2086
   oo ORDER_REPO=repo-x $c
   [[ $RC -eq 2 ]] && grep -q 'is malformed' "$T/o" && pass "malformed line: ${c%% *} is rc 2, not 0" || fail "W1 malformed ${c%% *} (rc=$RC): $(cat "$T/o")"

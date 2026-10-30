@@ -107,6 +107,26 @@ if [ -r "$_pp_rl" ]; then
   done <<<"$_pp_refs"
 fi
 
+# Owner orders (spec 168 part c, B3, SPL-4372) -- before every override
+# branch: SPL_PREPUSH_OVERRIDE=1 never skips it. A pushed commit that changes
+# a path an active `gate: go` / `gate: content` order of the owner-order
+# ledger covers needs an `Owner-go: <msg uuid>` trailer naming the owner's
+# go for it (its body names the order's id8; checked on the hub when this box
+# has one). Every ref but a delete and refs/heads/wip/*. The ONE copy is
+# oog_pre_push in the pushing tree's owner-order-guard.inc.sh, sourced here;
+# a tree without it, or a repo with no ledger, is not asked.
+_pp_oo="$(git rev-parse --show-toplevel 2>/dev/null)/csi-spl-orc/src/bash/features/spawn-agents/lib/owner-order-guard.inc.sh"
+if [ -r "$_pp_oo" ]; then
+  # shellcheck source=/dev/null
+  . "$_pp_oo"
+  if ! _pp_oomsg="$(oog_pre_push "$(git rev-parse --show-toplevel 2>/dev/null)" "${1:-origin}" <<<"$_pp_refs")"; then
+    _pp_logline "REFUSE $PWD remote=${1:-?} override=$_pp_override -- owner order: $(grep -m1 REFUSED <<<"$_pp_oomsg")"
+    printf '%s\n' "$_pp_oomsg" >&2
+    echo "pre-push: REFUSED -- a pushed commit changes a path an owner order covers, with no Owner-go trailer for it (spec 168 section 5). SPL_PREPUSH_OVERRIDE=1 does not skip this." >&2
+    exit 1
+  fi
+fi
+
 # A lane's hand push to master (SPL-2211) -- after the two guards above, before
 # the gate, override included: a foreground `git push` ran the gate for 15+ min
 # and tripped the watchdog's cap (n=3, 2026-10-16). A lane lands only through

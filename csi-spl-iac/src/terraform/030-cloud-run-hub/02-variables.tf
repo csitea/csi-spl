@@ -176,3 +176,12 @@ variable "github_app_key_secret_id" {
     error_message = "github_app_key_secret_id must be a Secret Manager secret id."
   }
 }
+
+# SPL-4298: 04 reads the live service to pick the revision name. The data
+# source fails on a service that does not exist, so the very first create of
+# an estate sets this false (TF_VAR_service_exists=false) for that one apply.
+variable "service_exists" {
+  type        = bool
+  description = "The hub service already exists in the project (every apply but an estate's first create)."
+  default     = true
+}

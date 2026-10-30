@@ -27,6 +27,49 @@ locals {
     "internal-and-cloud-load-balancing" = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
   }
   cloud_sql_connection_name = "${var.gcp_project}:${var.gcp_region}:${var.cloud_sql_instance_name}"
+
+  # SPL-4298: every template input terraform owns (the image is the 20
+  # pipeline's), this file included so a changed constant counts too. It rides
+  # the template as a label; a mismatch with the live label means "changed".
+  template_hash = substr(sha1(jsonencode({
+    file           = filesha1("${path.module}/04-cloud-run-service.tf")
+    sa             = google_service_account.hub.email
+    timeout        = var.timeout_seconds
+    concurrency    = var.concurrency
+    min            = var.min_instances
+    max            = var.max_instances
+    sql            = local.cloud_sql_connection_name
+    port           = var.container_port
+    cpu            = var.cpu
+    memory         = var.memory
+    env            = var.environment_variables
+    secret_env     = var.secret_environment_variables
+    secret_version = var.secret_versions
+    health         = var.health_path
+  })), 0, 16)
+  live = var.service_exists ? data.google_cloud_run_v2_service.live[0].template[0] : null
+  live_env = local.live == null ? {} : {
+    for e in local.live.containers[0].env : e.name => (e.value == null ? "" : e.value) if try(length(e.value_source), 0) == 0
+  }
+}
+
+# SPL-4298: the live template (its revision name, label and env) decides the
+# revision name below. Read-only; the hub SA already reads it on refresh.
+data "google_cloud_run_v2_service" "live" {
+  count    = var.service_exists ? 1 : 0
+  name     = var.service_name
+  project  = var.gcp_project
+  location = var.gcp_region
+}
+
+module "revision" {
+  source             = "./revision-name"
+  service_name       = var.service_name
+  template_hash      = local.template_hash
+  live_revision      = try(local.live.revision, null) == null ? "" : local.live.revision
+  live_template_hash = try(local.live.labels["tf-template"], null) == null ? "" : local.live.labels["tf-template"]
+  live_env           = local.live_env
+  want_env           = var.environment_variables
 }
 
 resource "google_cloud_run_v2_service" "hub" {
@@ -50,6 +93,10 @@ resource "google_cloud_run_v2_service" "hub" {
   }
 
   template {
+    # SPL-4298: the live name while nothing changed, a fresh one when it did
+    revision = module.revision.revision
+    labels   = { (module.revision.label_key) = local.template_hash }
+
     service_account                  = google_service_account.hub.email
     timeout                          = "${var.timeout_seconds}s"
     max_instance_request_concurrency = var.concurrency
@@ -163,16 +210,20 @@ resource "google_cloud_run_v2_service" "hub" {
     # deploy (do_canary_hub_deploy) tags the new revision, sends it a share,
     # then promotes it to latest 100 % or pins the old revision back. That
     # split belongs to the 20 pipeline too; an apply mid-canary must never
-    # snap it to latest, nor un-pin a rolled-back service. And the revision
-    # name (SPL-3997): the 20 pipeline names each revision it deploys, so dev
-    # planned `template.revision -> null` after every deploy and the
-    # dev-leads-prd gate refused the prd apply.
+    # snap it to latest, nor un-pin a rolled-back service.
+    #
+    # The revision name is NOT ignored. The 20 pipeline names each revision
+    # it deploys (SPL-3997: dev planned `template.revision -> null` after
+    # every deploy and the dev-leads-prd gate refused the prd apply). Ignoring
+    # it (a8ffb12c3) made every template change re-send the deployed name, and
+    # Cloud Run refused it with 409 (SPL-4298). template.revision is set by
+    # module.revision instead: the live name while nothing changed, a fresh
+    # one when it did.
     ignore_changes = [
       client,
       client_version,
       scaling,
       template[0].containers[0].image,
-      template[0].revision,
       traffic,
     ]
   }

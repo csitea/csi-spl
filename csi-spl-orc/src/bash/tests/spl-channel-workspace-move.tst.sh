@@ -19,7 +19,9 @@
 #   7. copy: P1 P2 P3 P4 P7 only, no probe, no box step
 #   8. MOVE_CMD=probe (P2b's send): the recipient must be an agent, never a
 #      HUM-; DRY_RUN=1 checks only; DRY_RUN=0 sends agent -> agent through the
-#      seat's <TO> desk on this machine, and a seat with no desk here fails
+#      seat's <TO> desk on this machine, and a seat with no desk here fails;
+#      on a box claimed by the <DST> workspace (spec 108) the desk cnf's guard
+#      gets TENANT_ID=<DST> and the probe uses that workspace's desk
 # Every hub op, probe and send is recorded (CONTROL: an absent call means
 # "not made", not "not recorded").
 #------------------------------------------------------------------------------
@@ -200,6 +202,15 @@ in_orc "$DESK_STUBS; do_spl_channel_workspace_move" "${PR[@]}" DRY_RUN=0; rc=$?
 [[ $rc -eq 0 ]] && grep -q "^desk-spool \[$T/deskstate/desk/dst1/box-desk\] \[box-desk\] \[dst1\] \[https://hub.invalid\] \[--\] \[send\] \[--from\] \[c-101\] \[--to\] \[c-007\] \[--to-box\] \[boxb\] \[--task\] \[$MOVE\] \[--kind\] \[note\] \[--body\] \[Channel move $MOVE: desk probe of c-101 in dst1" "$T/calls.log" \
   && grep -q "\"msg_id\":\"$MOVE\"" "$T/out" \
   && pass "8. DRY_RUN=0: agent -> agent through the seat's dst1 desk, the body names the move and the seat" || fail "8. send: rc=$rc $(cat "$T/out" "$T/calls.log")"
+
+# a box claimed by dst1: the real guard (spl_box_ws_guard) in the cnf stub
+mkdir -p "$T/ws/dst1/state/prd/desk/dst1/box-desk/spool/c-101"; echo dst1 >"$T/ws/claim"
+CLAIM_STUBS='do_spl_desk_cnf() { echo "desk-cnf tenant=${TENANT_ID:-}" >>"$STUB_LOG"; spl_box_ws_guard "${TENANT_ID:-}" || return 1; SPL_HUB_URL=https://hub.invalid; }
+spl_host_spool() { :; }
+spl_desk_spool() { printf "desk-spool [%s]\n" "$1" >>"$STUB_LOG"; echo "{\"msg_id\":\"$STUB_MOVE\"}"; }'
+in_orc "$CLAIM_STUBS; do_spl_channel_workspace_move" "${PR[@]}" DRY_RUN=0 SPL_WS_BASE="$T/ws"; rc=$?
+[[ $rc -eq 0 ]] && grep -qx "desk-cnf tenant=dst1" "$T/calls.log" && grep -qx "desk-spool \[$T/ws/dst1/state/prd/desk/dst1/box-desk\]" "$T/calls.log" \
+  && pass "8. a box claimed by dst1: the guard gets TENANT_ID=dst1, the probe uses the workspace's desk" || fail "8. claim: rc=$rc $(cat "$T/out" "$T/calls.log")"
 
 echo "spl-channel-workspace-move: $fails failure(s)"
 [[ $fails -eq 0 ]]

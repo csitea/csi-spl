@@ -265,7 +265,9 @@ _spl_cwm_probe_send() {
     do_log "OK DRY_RUN would send the P2b probe $agent -> $to${tobox[1]:+@${tobox[1]}} through its $tenant desk on $box, task $task"
     return 0
   fi
-  do_spl_desk_cnf || return 1
+  # TENANT_ID: on a box claimed by a workspace (spec 108 3.5) the desk cnf's
+  # guard checks it and picks that workspace's state dir
+  TENANT_ID="$tenant" do_spl_desk_cnf || return 1
   d="$SPL_STATE_DIR/desk/$tenant/$box"
   [[ -d "$d/spool/$agent" ]] || {
     do_log "FATAL no $tenant desk for $agent on $box on this machine ($d): P2b probes only the desks of the machine that runs the move"

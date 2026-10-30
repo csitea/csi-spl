@@ -1,6 +1,6 @@
 # 170 Day's tasks: a To-do view in the Calendar, and a signal for what is due today
 
-Version: v0.1 (2026-10-30). Status: **WHAT v0.1 draft, under panel review**
+Version: v0.2 (2026-10-30). Status: **WHAT v0.2 draft, under panel review**
 (plan only; nothing below is built). Issue SPL-4396 · Epic SPL-2396 · Class
 feature · Kind specs_and_docs · Task `dispatch-dfe850d9` · Placement slug
 `c001-dfe850d9-panel-editor` · Editor c-864.
@@ -66,15 +66,26 @@ Source: prd csitea topic `dfe850d9-e283-4460-a0ed-223b71d657fa`.
   (`git grep -n "OPEN_ISSUE_STATUSES = " origin/master -- csi-spl-wui/src/utils/my-issues-count.mjs`
   -> `['eval', 'todo', 'wip', 'blocked', 'onhold', 'qas']`).
 - **Due on a day**: the task's deadline falls inside that calendar day in the
-  viewer's time zone. The deadline is a point in time, not a date
+  viewer's time zone: the zone picked in Settings, Time zone, else the
+  browser's, the zone every date in the app is printed in
+  (`git grep -n "export function viewerTimeZone" origin/master -- csi-spl-wui/src/utils/date-iso.mjs`
+  -> line 77). The deadline is a point in time, not a date
   (`git grep -n "deadline " origin/master -- csi-spl-rdb/src/sql/postgres/spool-hub/0047_issues.sql`
-  -> `deadline timestamptz NULL`).
+  -> `deadline timestamptz NULL`). The reminder, the badge and the view all
+  use this one zone, so the phone and the desktop agree on what "today" is.
 - **Overdue**: an open task whose deadline is before the start of today.
 - **My tasks**: tasks assigned to the viewer. Whether the view shows only
   mine or the whole workspace's is owner question Q2.
 - **To-do view**: the new Calendar view of section 4.
 - **Day signal**: what tells a person, without opening anything, that tasks
   are due today (section 5; which one is Q1).
+- **Known edge, not fixed here**: the deadline input converts with the
+  browser's offset, not the picked zone (`localInputToDeadline(local)` with
+  no offset, `git grep -n "localInputToDeadline(local)" origin/master -- csi-spl-wui/src/composables/`
+  -> `useIssueDetailForm.ts` line 150, `useIssueCells.ts` line 106). For a
+  person whose picked zone differs from the browser's, a deadline set near
+  midnight can land on the neighbouring day in the To-do view. HOW names it;
+  the fix is its own issue.
 
 ## 3. The problem, and who has it
 
@@ -130,7 +141,7 @@ are listed above today's, marked overdue, until they are closed or moved
 Issues, the way the deadline pop-over's "Open issue" already does
 (`git grep -n "calendar-popover-open-issue" origin/master -- csi-spl-wui/src/components/CalendarEventPopover.vue`
 -> line 41). Closing or re-dating the issue there updates the view when the
-person comes back.
+person comes back. Back returns to the To-do view on the same range and day.
 
 4.6 **Read-only here.** The To-do view does not edit tasks; status, deadline
 and assignee are changed in Issues. (A tick-to-close in the view is a
@@ -141,7 +152,12 @@ phone Calendar of spec 106, with the same ranges.
 
 4.8 **A link to it.** The Day range of the To-do view, on today, has its own
 address, so a reminder or another page can link straight to it (HUM-10
-`61878905`: the reminder is only a link).
+`61878905`: the reminder is only a link). The Calendar already keeps its view
+and day in the address (`?v=` and `?d=`,
+`git grep -nE "route.query.(v|d)" origin/master -- csi-spl-wui/src/pages/calendar.vue`
+-> lines 64 and 73); the To-do view follows that shape, so it can be
+bookmarked. The reminder's link carries no fixed day: an old reminder or a
+bookmark opens today's list.
 
 ## 5. The day signal: what tells the person, and when
 
@@ -150,8 +166,11 @@ Two candidates are on the table; the owner chooses (Q1):
 5.1 **Morning reminder with a link** (HUM-24 `1715819f`, HUM-10
 `61878905`). Once a day, in the morning, the person is told how many tasks
 are due today, with a link to the To-do view's Day range (4.8). The reminder
-carries the count and at most a few titles; the list itself lives in the
-view. No reminder on a day with nothing due (default; Q4 covers the time and
+reads like "3 due today · 1 overdue" and shows at most 3 titles, then
+"+N more"; the list itself lives in the view. It comes once per person per
+day, not once per tab or device: seen on the phone, it does not appear again
+on the desktop that day, and it does not appear after the person has already
+opened the To-do view that day. No reminder on a day with nothing due (default; Q4 covers the time and
 the channel).
 
 5.2 **A red badge on the Issues icon** (HUM-24 `e0fb60bb`). The Issues rail
@@ -159,10 +178,28 @@ icon, which today shows a red count of new issues (section 3), also signals
 the tasks due today. The open choice inside this candidate: a second,
 separate mark for "due today", or the due-today count replacing the current
 count. Two different red numbers on one icon would be read wrong, so WHAT
-asks the owner (Q1b).
+asks the owner (Q1b). The current count is itself an owner fix: it counted
+every open issue until HUM-10 said "I cannot distinguish which issues are the
+new ones" (SPL-1559,
+`git grep -n "I cannot distinguish" origin/master -- csi-spl-wui/src/utils/my-issues-count.mjs`
+-> line 22). Replacing it with a due-today count would undo that fix, so a
+separate mark must look different from the red unread count (not a second
+red number).
 
 5.3 **Both**: the badge is always there; the morning reminder links to the
 view.
+
+5.4 **Turning it off.** Each person can switch the morning reminder off, and
+the due-today badge mark if chosen, in Settings, Notifications, where the
+bell switch and the muted channels already live
+(`git grep -n "settings-notifications" origin/master -- csi-spl-wui/src/components/settings/notifications.vue`
+-> line 13). The switch belongs to the person, not the device (stored with
+their preferences like the time zone, `setTimeZone`,
+`csi-spl-wui/src/stores/session.ts` line 196), so muting it on the phone
+mutes it on the desktop. Today's muted channels are per device
+(`git grep -n "MUTED_CHANNELS_KEY = " origin/master -- csi-spl-wui/src/utils/notify.mjs`
+-> line 73, `'spool.muted-channels'`, browser storage); this switch must not
+copy that. No snooze in v1.
 
 Whatever is chosen, the signal counts exactly what the To-do view's Day range
 on today shows (same task set, same "mine or all" rule, overdue included or
@@ -182,7 +219,8 @@ shared component before it touches one.
 - Editing tasks from the view (4.6): no status change, re-date or reassign.
 - Tasks with no deadline: they belong to Issues, not to a day.
 - Agents as readers of the view or the signal.
-- A reminder sent by email or chat message, unless the owner picks it in Q4.
+- An email reminder on by default (Q4 option c is opt-in).
+- A reminder sent as a chat message.
 - A new task store: tasks are issues; nothing new is created to hold them.
 
 ## 8. Owner questions
@@ -201,16 +239,23 @@ what WHAT assumes until the owner answers.
   today; the Issues count counts mine. Default: mine, with a switch to the
   whole workspace.
 - **Q3 overdue.** Show overdue tasks above today's (and count them in the
-  signal), or only tasks due today? Default: show and count them.
+  signal), or only tasks due today? Default: list overdue tasks above
+  today's in the view, marked overdue; the signal names them apart ("2 due
+  today · 5 overdue"), so an old overdue pile never hides what is due today.
 - **Q4 the morning reminder's time and channel** (only if 5.1 is chosen).
   When (a fixed hour, or the person's first visit of the day) and how (an
   in-app pop-up when the person opens the app, a browser alert while a tab is
-  open, or a notice that reaches a closed browser)? A closed browser is not
-  reachable today: `git grep -cE "vapid|PushSubscription" origin/master -- csi-spl-api csi-spl-wui/src`
-  -> no output (no web push), while browser alerts exist only from an open
-  tab (`wui/utils/notify.mjs`, "Raise one browser alert"). Default: an in-app
-  notice on the person's first visit after 06:00 local, plus a browser alert
-  at 08:00 local if a tab is open.
+  open, or a notice that reaches a closed browser)? No web push exists
+  (`git grep -cE "vapid|PushSubscription" origin/master -- csi-spl-api csi-spl-wui/src`
+  -> no output), and browser alerts come only from an open tab
+  (`wui/utils/notify.mjs`, "Raise one browser alert"). The one channel that
+  reaches a person whose browser is closed is email: the hub already sends
+  transactional mail
+  (`git grep -n "Package mail sends" origin/master -- csi-spl-api/src/go/spool-hub-api/internal/mail/mail.go`
+  -> line 1, spec 015). Options: (a) an in-app notice on the first visit of
+  the day, (b) plus a browser alert at a fixed local hour if a tab is open,
+  (c) plus an email at that hour, opt-in per person. Default: (a) + (b), the
+  hour 08:00 local; (c) off until the person turns it on.
 
 ## 9. Signatures
 
@@ -219,4 +264,13 @@ Each seat signs a version with its own commit on branch
 
 | seat | id | version | sha read |
 |---|---|---|---|
-| editor | c-864 | WHAT v0.1 | (this commit) |
+| editor | c-864 | WHAT v0.1 | (65e436eb1) |
+| editor | c-864 | WHAT v0.2 | (this commit) |
+
+## 10. Changes
+
+- v0.2: folded USER VIEW c-866 (msg 5fe949e9) F1-F8: the one time zone
+  (F1), the deadline-input zone edge (F2), email as the closed-browser
+  channel in Q4 (F3), the reminder's shape and once per person per day (F4),
+  the per-person off switch, 5.4 (F5), why the badge mark is separate (F6),
+  overdue named apart in the signal (F7), the address and Back (F8).

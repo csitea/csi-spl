@@ -30,7 +30,7 @@
 # @param ORDER_EXPIRES ORDER_NOTE (optional, add) - ISO UTC end of the order; the writer's one line
 # @param ORDER_ID ORDER_LIFT_MSG ORDER_REASON (lift) - the order (8+ hex digits of its id), the owner's lifting message uuid, why
 # @param ORDER_ALL (optional, list) - 1: lifted and expired too
-# @param ORDER_OUT (optional, list, match) - a file to append the full orders (text included) to as JSON lines, mode 600
+# @param ORDER_OUT (optional, list, match) - a file to append the full orders (text included) to as JSON lines, mode 600; keep it outside OWNER_ORDER_DIR (list reads every *.jsonl there)
 # @param AGENT_ID (required for add, lift) - the writer
 # @param OWNER_ORDER_DIR (optional) - default $SPOOL_ROOT/owner-orders
 # @param DRY_RUN (optional) - default 1

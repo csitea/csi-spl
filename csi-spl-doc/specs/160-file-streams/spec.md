@@ -793,6 +793,9 @@ entries, web-glob matches and folder roots alike:
   account names). It narrows what is followed; it proves nothing absent.
 - `token-burn-cron` (`/var/csi/csi-spl/token-burn/cron.log`), the one cnf
   entry, is in none of these and stays followed (C53).
+- `--denied <path>` checks the name it is given only; the open checks the
+  resolved real path too, so a link with a harmless name into a security
+  file is refused at the open (C53).
 
 #### 3.8.11 Owner questions
 

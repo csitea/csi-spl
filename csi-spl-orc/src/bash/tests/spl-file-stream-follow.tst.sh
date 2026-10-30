@@ -34,7 +34,9 @@
 #   C37 a whole key on one line: masked, the next lines followed unchanged
 #   C53 every row of 3.8.10's table (and each /var/log security file) is a
 #       `security file`; /etc/passwd and /etc/group as cnf entries: refused;
-#       /var/log/syslog and the token-burn cron log: not denied
+#       /var/log/syslog and the token-burn cron log: not denied; a symlink
+#       with a harmless name into /etc/passwd or /etc/group: refused at the
+#       open, which checks the real path (--denied checks the name only)
 # And: the line cut and the rate limit (3.7), the action (cnf off = nothing
 # followed; on = the cnf allow-list reaches the follower), the cron wrapper
 # (refuses a worktree; off logs one line), the manifest row, and the shipped
@@ -438,6 +440,7 @@ c34() {
 
 # 3.8.10's table, one path per row and every /var/log name (Q5 B opens /var/log)
 SECURITY_PATHS=(/etc/passwd /etc/passwd- /etc/group /etc/group- /etc/shadow- /etc/gshadow- /etc/subuid /etc/subgid
+  /etc/subuid- /etc/subgid-
   /etc/sudoers /etc/sudoers.d/x /etc/pam.d/sshd /etc/security/opasswd /etc/ssh/sshd_config /etc/ssl/private/x.crt
   /etc/letsencrypt/live/x/cert.txt /etc/krb5.keytab /etc/sssd/sssd.conf /var/lib/sss/db/x.ldb /etc/wireguard/wg0.conf
   /etc/openvpn/x.conf /etc/NetworkManager/system-connections/x.nmconnection /etc/environment /etc/crontab
@@ -463,6 +466,21 @@ c53() {
     [[ "$(status "$d" "$k")" == "refused denied path" ]] || bad+=" $k=$(status "$d" "$k")"
   done
   [[ -z "$bad" ]] || { echo "  C53: not refused:$bad"; return 1; }
+  nolines "$d" "root:x:0:0" "root:x:0:" || return 1
+  # a harmless name, a security file behind it: --denied passes the name, the
+  # open refuses the real path (one absolute link, one relative)
+  d="$(newcase)"
+  ln -s /etc/passwd "$d/logs/users.log"
+  ln -s "$(python3 -c 'import os, sys; print(os.path.relpath("/etc/group", sys.argv[1]))' "$d/logs")" "$d/logs/groups.log"
+  for k in users groups; do
+    HOME="$d/home" python3 "$1" --denied "$d/logs/$k.log" >/dev/null && { echo "  C53: --denied $k.log refused by name"; return 1; }
+  done
+  allow "$d" a "$d/logs/users.log" b "$d/logs/groups.log"
+  fs "$1" "$d"
+  for k in a b; do
+    [[ "$(status "$d" "$k")" == "refused denied path" ]] || bad+=" $k=$(status "$d" "$k")"
+  done
+  [[ -z "$bad" ]] || { echo "  C53: a symlink into a security file not refused:$bad"; return 1; }
   nolines "$d" "root:x:0:0" "root:x:0:" || return 1
   for k in //etc/shadow //proc/self/environ; do
     HOME="$d/home" python3 "$1" --denied "$k" >/dev/null || { echo "  C53: $k not denied"; return 1; }
@@ -573,7 +591,10 @@ check C34 "\$HOME/.config, another home, .env, *_history, a host key: denied" c3
   named-list-only 'if p != h and rel.startswith("."):' 'if False:'
 check C53 "every security file of 3.8.10 is denied, syslog and the cron log are not" c53 \
   no-security-class 'if security_file(p):  # ctl:security-file' 'if False:' \
-  keep-leading-slashes 'p = "/" + p.lstrip("/")  # ctl:leading-slashes (normpath keeps a leading //)' 'pass'
+  keep-leading-slashes 'p = "/" + p.lstrip("/")  # ctl:leading-slashes (normpath keeps a leading //)' 'pass' \
+  no-subuid-backup '"/etc/subuid-",' '' \
+  no-subgid-backup '"/etc/subgid-",' '' \
+  deny-on-name 'why = spl_file_stream_denied(real, ctx)' 'why = ""'
 check C35 "no SPOOL_ROOT: the default root denied; not a dir: no start" c35 \
   root-from-env-only 'roots = (DEFAULT_SPOOL_ROOT, spool_root())' 'roots = (os.environ.get("SPOOL_ROOT", "/nonexistent"),)'
 check C36 "a fifo or a device behind a symlink: refused, the tick not blocked" c36 \

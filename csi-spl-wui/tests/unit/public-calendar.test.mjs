@@ -149,17 +149,19 @@ const mockRows = await fetchWebCalendar({ mock: true }, '2026-10', '2026-10-09')
 ok('mock read: the web event, not the workspace one', mockRows.length === 1 && mockRows[0].title === 'Mock open day', JSON.stringify(mockRows))
 delete globalThis.localStorage
 
-ok('signed out on /calendar -> the public calendar', signedOutCalendarTarget('out') === PUBLIC_CALENDAR_PATH)
+ok('signed out on /calendar -> the public calendar', signedOutCalendarTarget('out')?.path === PUBLIC_CALENDAR_PATH)
 ok('signed in stays', signedOutCalendarTarget('in') === null)
 ok('loading and unknown stay', signedOutCalendarTarget('loading') === null && signedOutCalendarTarget('unknown') === null)
 ok('the mock tenant stays', signedOutCalendarTarget('out', true) === null)
 /* HUM-24 71e852ab: signing out while on Calendar landed on /public-calendar */
-ok('never signed in this tab -> the public calendar', signedOutCalendarTarget('out', false, { hadSession: false, ended: true }) === PUBLIC_CALENDAR_PATH)
+ok('never signed in this tab -> the public calendar', signedOutCalendarTarget('out', false, { hadSession: false, ended: true })?.path === PUBLIC_CALENDAR_PATH)
 ok('signed out by hand on /calendar -> stays (logout() lands on /login)', signedOutCalendarTarget('out', false, { hadSession: true, ended: false }) === null)
-ok('session ended on /calendar -> /login', signedOutCalendarTarget('out', false, { hadSession: true, ended: true }) === SIGNED_OUT_LOGIN_PATH && SIGNED_OUT_LOGIN_PATH === '/login')
+const endedTo = signedOutCalendarTarget('out', false, { hadSession: true, ended: true, from: '/calendar?d=2026-10-30' })
+ok('session ended on /calendar -> /login?redirect=<page>&ended=1', SIGNED_OUT_LOGIN_PATH === '/login' && JSON.stringify(endedTo) === JSON.stringify({ path: '/login', query: { redirect: '/calendar?d=2026-10-30', ended: '1' } }), JSON.stringify(endedTo))
+ok('session ended: an unsafe from redirects to /', signedOutCalendarTarget('out', false, { hadSession: true, ended: true, from: '//evil.example' })?.query?.redirect === '/')
 ok('signed in with a session seen stays', signedOutCalendarTarget('in', false, { hadSession: true, ended: true }) === null)
 const calVue = readFileSync(new URL('../../src/pages/calendar.vue', import.meta.url), 'utf8')
-ok('pages/calendar.vue marks the session seen and passes it', /if \(s === 'in'\) hadSession = true/.test(calVue) && /signedOutCalendarTarget\(s, spoolApi\.mock, \{ hadSession, ended: wasSignedIn\(\) \}\)/.test(calVue))
+ok('pages/calendar.vue marks the session seen and passes it', /if \(s === 'in'\) hadSession = true/.test(calVue) && /signedOutCalendarTarget\(s, spoolApi\.mock, \{ hadSession, ended: wasSignedIn\(\), from: route\.fullPath \}\)/.test(calVue) && /query: to\.query/.test(calVue))
 
 console.log(failed ? `\n${failed} FAILED` : '\nall passed')
 process.exit(failed ? 1 : 0)

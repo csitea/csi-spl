@@ -44,8 +44,7 @@ import { useMobileStack } from '~/composables/useMobileStack'
 import { useSessionStore } from '~/stores/session'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { PUBLIC_CALENDAR_PATH, signedOutCalendarTarget } from '~/utils/public-calendar.mjs'
-import { ENDED_QUERY, wasSignedIn } from '~/utils/session-recover.mjs'
-import { safeRedirect } from '~/utils/auth-client-core.mjs'
+import { wasSignedIn } from '~/utils/session-recover.mjs'
 import { calDeskView } from '~/utils/calendar-desktop-view.mjs'
 
 /* the main view is its own chunk, fetched on route entry (spec 3, AC-02) */
@@ -129,9 +128,9 @@ onMounted(() => {
   if (session.state === 'loading') void session.probe()
   watch(() => session.state, (s) => {
     if (s === 'in') hadSession = true
-    const to = signedOutCalendarTarget(s, spoolApi.mock, { hadSession, ended: wasSignedIn() })
-    if (to === PUBLIC_CALENDAR_PATH) window.location.replace(localePath(to))
-    else if (to) void navigateTo({ path: localePath(to), query: { redirect: safeRedirect(route.fullPath), [ENDED_QUERY]: '1' } }, { replace: true })
+    const to = signedOutCalendarTarget(s, spoolApi.mock, { hadSession, ended: wasSignedIn(), from: route.fullPath })
+    if (to?.path === PUBLIC_CALENDAR_PATH) window.location.replace(localePath(to.path))
+    else if (to) void navigateTo({ path: localePath(to.path), query: to.query }, { replace: true })
   }, { immediate: true })
 })
 useHead(() => ({ title: t('calendar.title') }))

@@ -6,7 +6,8 @@
 //      /public-calendar (HUM-10 t1 ef57739c, kept)
 //   2. native sign-in, /calendar, Sign out from the user menu: the address
 //      settles on /login, never /public-calendar
-// It reads only: no row is written.
+// It writes no row, but it signs in and out (a session is made and ended),
+// so it refuses any BASE whose host is not a dev host (a `dev` label).
 //
 //   BASE=https://dev.<domain> EMAIL=<member> PW_FILE=<0600 file> OUT=<dir> \
 //     [TENANT=t1] [SETTLE_MS=4000] [CHROME_PATH=...] [PUPPETEER_CORE=<path>] \
@@ -17,6 +18,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { loadPuppeteer, need, sleep } from './lib/proof.mjs'
 
 const BASE = need('BASE').replace(/\/+$/, '')
+if (!new URL(BASE).hostname.split('.').includes('dev')) { console.error(`FATAL BASE=${BASE} is not a dev host: this proof signs in and out, dev only`); process.exit(2) }
 const OUT = need('OUT')
 const email = need('EMAIL')
 const pw = readFileSync(need('PW_FILE'), 'utf8').trim()

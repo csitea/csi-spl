@@ -17,6 +17,8 @@
  */
 
 import { isSignedOutVisitor } from './shell-bootstrap.mjs'
+import { safeRedirect } from './auth-client-core.mjs'
+import { ENDED_QUERY } from './session-recover.mjs'
 
 /** pages/public-calendar.vue */
 export const PUBLIC_CALENDAR_PATH = '/public-calendar'
@@ -31,17 +33,19 @@ export const PUBLIC_CALENDAR_PATH = '/public-calendar'
  * visitor (HUM-24 71e852ab: sign-out on Calendar landed on the public
  * calendar). A sign-out by hand stays (null): logout() lands on /login
  * itself. `ended`: the session ended without a sign-out by hand
- * (utils/session-recover.mjs wasSignedIn), so /login, which says so.
+ * (utils/session-recover.mjs wasSignedIn), so /login with `ended=1`, which
+ * says so, and `redirect` back to `from` (the page's fullPath).
  * A visitor who never signed in this tab still gets the public calendar.
  * @param {unknown} sessionState
  * @param {boolean} [mock]
- * @param {{ hadSession?: boolean, ended?: boolean }} [seen]
- * @returns {string | null}
+ * @param {{ hadSession?: boolean, ended?: boolean, from?: string }} [seen]
+ * @returns {{ path: string, query?: Record<string, string> } | null}
  */
 export function signedOutCalendarTarget(sessionState, mock = false, seen = {}) {
   if (!isSignedOutVisitor(sessionState, mock)) return null
-  if (!seen.hadSession) return PUBLIC_CALENDAR_PATH
-  return seen.ended ? SIGNED_OUT_LOGIN_PATH : null
+  if (!seen.hadSession) return { path: PUBLIC_CALENDAR_PATH }
+  if (!seen.ended) return null
+  return { path: SIGNED_OUT_LOGIN_PATH, query: { redirect: safeRedirect(String(seen.from || '/')), [ENDED_QUERY]: '1' } }
 }
 
 /** Where /calendar sends a session that ended under it (signedOutCalendarTarget). */

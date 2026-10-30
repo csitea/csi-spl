@@ -12,6 +12,12 @@
 # @description               lane's last 24 h, is REFUSED unless its subject
 # @description               names a restore or its body 'Undoes: <sha>' --
 # @description               check-pre-push-stale-tree.func.sh
+# @description   owner-orders always, every tier (no ledger: ~ms): an outgoing
+# @description               commit (PRE_PUSH_BASE..HEAD) that changes a path an
+# @description               active go / content order of the owner-order ledger
+# @description               covers, with no Owner-go trailer for it, is REFUSED
+# @description               (spec 168 part c, SPL-4372; the orc action
+# @description               ORDER_CMD=gate do_spl_owner_order)
 # @description   iac         csi-spl-iac/ csi-spl-cnf/ .github/ .zap/ root scanner configs
 # @description   wui-vendor  csi-spl-wui/ (the api's payment-vendor grep over WUI)
 # @description   wui         csi-spl-wui/ minus edits to e2e/bench files, plus the
@@ -219,6 +225,7 @@ _pp_label() {  # <part>
   case "$1" in
     hygiene)    echo "distribution-hygiene" ;;
     stale-tree) echo "stale-tree (outgoing commits that set paths back)" ;;
+    owner-orders) echo "owner-orders (outgoing commits on paths an owner order covers)" ;;
     iac)        echo "csi-spl-iac suite" ;;
     iac-cross)  echo "csi-spl-iac tests that read the touched files of other parts" ;;
     wui-vendor) echo "csi-spl-wui payment-vendor gate" ;;
@@ -761,12 +768,28 @@ _pp_part_cnf() {  # <tree>
   _pp_cnf_entry_check "$tree" || rc=1
   return "$rc"
 }
-# stale-tree has no _pp_paths: it reads the outgoing commits, not paths, so it
-# is selected on every tier and mode, right after hygiene, and never cached.
+# The owner-orders part (spec 168 part c, SPL-4372): the commits this push
+# carries, PRE_PUSH_BASE..HEAD, through the ONE gate (oog_range in the tree's
+# owner-order-guard.inc.sh, which runs ORDER_CMD=gate of do_spl_owner_order).
+# A tree without that lib, or a repo with no ledger, passes and says so; the
+# pre-push hook runs the same gate per pushed ref, before every override.
+_pp_part_owner_orders() {  # <tree>
+  local tree="$1" base="${PRE_PUSH_BASE:-origin/master}"
+  local lib="$tree/csi-spl-orc/src/bash/features/spawn-agents/lib/owner-order-guard.inc.sh"
+  [[ -r "$lib" ]] || { echo "owner-orders: PASS no gate in this tree ($lib)"; return 0; }
+  git -C "$tree" rev-parse -q --verify "$base^{commit}" >/dev/null 2>&1 ||
+    { echo "owner-orders: WARN unknown base '$base' -- no outgoing commits to check"; return 0; }
+  ( # shellcheck source=/dev/null
+    . "$lib" && OOG_ORC_DIR="${OOG_ORC_DIR:-$tree/csi-spl-orc}" oog_range "$tree" "$base..HEAD" )
+}
+
+# stale-tree and owner-orders have no _pp_paths: they read the outgoing
+# commits, not paths, so they are selected on every tier and mode, right after
+# hygiene, and never cached.
 _pp_fn() {  # <part>
   case "$1" in
     hygiene) echo _pp_part_hygiene ;; iac) echo _pp_part_iac ;; api) echo _pp_part_api ;; cnf) echo _pp_part_cnf ;;
-    orc) echo _pp_part_orc ;; stale-tree) echo _pp_part_stale_tree ;;
+    orc) echo _pp_part_orc ;; stale-tree) echo _pp_part_stale_tree ;; owner-orders) echo _pp_part_owner_orders ;;
     wui) echo _pp_part_wui ;; wui-vendor) echo _pp_part_wui_vendor ;; blog) echo _pp_part_blog ;;
     wui-e2e) echo _pp_part_wui_e2e ;; orc-features) echo _pp_part_orc_features ;;
     iac-cross) echo _pp_part_iac_cross ;;
@@ -1162,8 +1185,8 @@ _pp_plan_parts() {  # <tree> <base> <only>
   else
     _ppl_plan "$changed" "$mode" "$_PP_TIER" "$tree"; lint="$_PPL_SELECTED"
     lint_all="$_PPL_FAST"; [[ "$_PP_TIER" == full ]] && lint_all+=" $_PPL_SLOW"
-    all="hygiene stale-tree $lint_all blog cnf iac iac-cross orc orc-features wui-vendor wui wui-e2e api"
-    parts="${parts/hygiene/hygiene stale-tree${lint:+ $lint}}"
+    all="hygiene stale-tree owner-orders $lint_all blog cnf iac iac-cross orc orc-features wui-vendor wui wui-e2e api"
+    parts="${parts/hygiene/hygiene stale-tree owner-orders${lint:+ $lint}}"
     [[ "$only" == lint ]] && { parts="$lint"; all="$lint_all"; }
   fi
   return 0

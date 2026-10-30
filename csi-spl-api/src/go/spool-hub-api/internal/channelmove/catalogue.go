@@ -130,6 +130,8 @@ var rewrittenTables = []Entry{
 	{Table: "fleet_asks", Class: Rewritten, Refs: `issue_key = ANY(@issue_keys)`, Reason: "M11: old issue keys rewritten to the new ones"},
 	{Table: "gcal_event_map", Class: Rewritten, Refs: `event_id = ANY(@events)`,
 		Reason: "5.1a: not carried (its connection is a <SRC> member's); before P4, T5 claims the connection and deletes the Google event, then P4's cascade drops the row"},
+	{Table: "channel_box_pins", Class: Rewritten, Refs: `channel_id = @channel`,
+		Reason: "spec 164 B1 (rdb 0246): not carried, its boxes are <SRC> pins; the <DST> channel starts unpinned (any box, 164 3.3) and the <SRC> rows go with the channel's delete (FK cascade)"},
 }
 
 var recomputedTables = []Entry{

@@ -5,7 +5,8 @@
      confirm). Default channels cannot be archived. tenant.settings. -->
 <template>
   <SettingsSection id="tenant-channels" :title="t('tenant_settings.channels_title')" data-test="tenant-settings-channels">
-    <p v-if="loading" class="muted">{{ t('common.loading') }}</p>
+    <p v-if="denied" class="muted" role="alert" data-test="tenant-section-forbidden">{{ t('tenant_settings.forbidden') }}</p>
+    <p v-else-if="loading" class="muted">{{ t('common.loading') }}</p>
     <p v-else-if="loadError" class="ts-error" role="alert">{{ loadError }}</p>
     <div v-else class="ts-table-wrap">
       <table class="ts-table" data-test="tenant-channels-table">
@@ -79,13 +80,12 @@
 import SettingsSection from '~/components/SettingsSection.vue'
 import UiDialog from '~/components/UiDialog.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { useSessionStore } from '~/stores/session'
+import { useTenantSectionGate } from '~/composables/useTenantSectionGate'
 import { normalizeTenantChannels, tenantSettingsErrorKey } from '~/utils/tenant-settings.mjs'
 import type { TenantChannel } from '~/utils/tenant-settings.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()
-const session = useSessionStore()
 
 const rows = ref<TenantChannel[]>([])
 const loading = ref(true)
@@ -132,9 +132,7 @@ function archive() {
   if (c) void act(c, () => api.archiveTenantChannel(c.channel), t('tenant_settings.archived', { name: c.name }))
 }
 
-watch(() => session.state, (st) => {
-  if (st === 'in' || api.mock) void load()
-}, { immediate: true })
+const { denied } = useTenantSectionGate('channels', () => { void load() })
 </script>
 
 <style scoped>

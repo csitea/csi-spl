@@ -78,6 +78,9 @@ included. The WUI hiding the entry is convenience only.
 - Phones: the avatar (user) menu has a "Tenant settings" row under the same rule.
 - `/tenant-settings` is the Settings layout (`023` §3.4, SPL-993): a section list on the left, the
   section on the right; on a phone (<= 820 px) the list is level 2 and a section opens at level 3.
+- A section opened by URL reads its route only after `/v1/view/me` lists the section's
+  permission; without it the section shows the one no-access line and sends no request, so a
+  member gets no 403 and no console line (SPL-4452, `composables/useTenantSectionGate.ts`).
 - Sections: **Members**, **Agents**, **Channels**, **General**. A section the caller has no
   permission for is not listed.
 

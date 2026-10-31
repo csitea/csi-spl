@@ -575,6 +575,43 @@ try {
   await e.evaluate(() => localStorage.removeItem('spool.mock.me'))
   await e.close()
   ok('18h no page errors on /embed', errors.length === 0, errors)
+
+  // 9. SPL-4452 (row 4 of SPL-4422): a member without the section's
+  // permission opens each section by URL. The hub answers its reader 403
+  // and the browser logged one console line per read (n=20, dev crawl).
+  // Each section now waits for /v1/view/me and shows the no-access line
+  // with no read: the mock records every read the hub would refuse
+  // (SPOOL_MOCK_403) and the count must be 0. /users lands on Members.
+  // RED: the sections before the gate read first (the parent commit).
+  const DEV = { role: 'developer', permissions: ['topics.read', 'notes.send', 'agents.command', 'channels.manage', 'docs.read', 'docs.write'] }
+  const mctx = await browser.createBrowserContext()
+  const m = await mctx.newPage()
+  await pinAgentIdClock(m)
+  const mErrors = []
+  m.on('pageerror', (x) => mErrors.push(String(x && x.message)))
+  await m.evaluateOnNewDocument((dev) => {
+    try {
+      localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', name: 'Member', email: 'member@example.com', t: 'mock' }))
+      localStorage.setItem('spool.mock.me', JSON.stringify(dev))
+    } catch { /* about:blank */ }
+  }, DEV)
+  const refused = {}
+  const noAccess = {}
+  for (const where of ['members', 'agents', 'split', 'agent-keys', 'takeover', 'channels', 'general', 'hours', 'performance', '/users']) {
+    const url = where.startsWith('/') ? where : '/tenant-settings/' + where
+    await m.goto(server.base + url, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    // takeover reads GET /v1/takeover-ladder, open to any member (SPL-2115)
+    const line = where === 'agent-keys' ? '[data-test=vk-forbidden]' : '[data-test=tenant-section-forbidden]'
+    if (where !== 'takeover') noAccess[where] = Boolean(await m.waitForSelector(line, { visible: true, timeout: 10000 }).catch(() => null))
+    await sleep(300)
+    refused[where] = await m.evaluate(() => globalThis.SPOOL_MOCK_403 || [])
+  }
+  const reads = Object.values(refused).flat()
+  ok('19a a member opening the 9 sections and /users by URL makes 0 reads the hub answers 403', reads.length === 0, refused)
+  const shut = Object.entries(noAccess).filter(([, v]) => !v).map(([w]) => w)
+  ok('19b each refused section shows its no-access line instead of a load error', shut.length === 0, noAccess)
+  ok('19c no page errors as a member', mErrors.length === 0, mErrors)
+  await mctx.close()
 } finally {
   await browser.close()
   await server.stop()

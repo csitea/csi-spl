@@ -43,9 +43,8 @@
 import SettingsSection from '~/components/SettingsSection.vue'
 import VendorKeyControls from '~/components/VendorKeyControls.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { useSessionStore } from '~/stores/session'
-import { useAccessStore } from '~/stores/access'
-import { normalizeVendorKeys, vendorKeyState, vendorKeysErrorKey, VENDOR_KEYS_PERM } from '~/utils/vendor-keys.mjs'
+import { useTenantSectionGate } from '~/composables/useTenantSectionGate'
+import { normalizeVendorKeys, vendorKeyState, vendorKeysErrorKey } from '~/utils/vendor-keys.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 
 type VendorKeyRow = ReturnType<typeof normalizeVendorKeys>['rows'][number]
@@ -54,8 +53,6 @@ type VendorKeysApi = { vendorKeys: (op: 'list' | 'put' | 'delete' | 'retry', kin
 
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi() as unknown as VendorKeysApi & { mock?: boolean }
-const session = useSessionStore()
-const access = useAccessStore()
 
 const rows = ref<VendorKeyRow[]>([])
 const confirmed = ref(true)
@@ -64,8 +61,6 @@ const loadError = ref('')
 const busy = ref('')
 const errors = reactive<Record<string, string>>({})
 const notices = reactive<Record<string, string>>({})
-const accessReady = ref(false)
-const forbidden = computed(() => accessReady.value && !access.can(VENDOR_KEYS_PERM))
 
 const stateOf = (row: VendorKeyRow) => vendorKeyState(row)
 
@@ -124,11 +119,8 @@ function retry(kind: string) {
   void write(kind, () => api.vendorKeys('retry', kind), 'tenant_settings.agent_keys.retried')
 }
 
-watch(() => session.state, (st) => {
-  if (st !== 'in' && !api.mock) return
-  void access.load().finally(() => { accessReady.value = true })
-  void load()
-}, { immediate: true })
+/* SPL-4452: the keys are read only once me() says vendor_keys.manage */
+const { denied: forbidden } = useTenantSectionGate('agent-keys', () => { void load() })
 </script>
 
 <style scoped>

@@ -69,7 +69,7 @@ ok('the specs_and_docs default is agy 60 / mistral 30 / claude 10', DEFAULT_SPLI
 // --- the page wiring --------------------------------------------------------
 const page = readFileSync(new URL('../../src/pages/tenant-settings/split.vue', import.meta.url), 'utf8')
 const comp = readFileSync(new URL('../../src/components/AgentSplitKinds.vue', import.meta.url), 'utf8')
-ok('the split page mounts the per-kind table', page.includes('<AgentSplitKinds />'))
+ok('the split page mounts the per-kind table', /<AgentSplitKinds\b[^>]*\/>/.test(page))
 ok('the table reads and writes /v1/agent-split', comp.includes('api.getAgentSplit()') && comp.includes('api.patchAgentSplit('))
 ok('Save is blocked while a changed row breaks a rule', /:disabled="busy \|\| !dirty \|\| !valid"/.test(comp))
 const en = JSON.parse(readFileSync(new URL('../../i18n/locales/en.json', import.meta.url), 'utf8')).tenant_settings

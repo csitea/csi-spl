@@ -358,12 +358,29 @@ async function removeMember(ctx, humanId) {
 }
 
 /**
+ * SPL-4452: the hub answers 403 to a reader without the route's permission
+ * (specs/046 section 3). The mock still answers, as for its admin, but when
+ * an e2e plays a role (spool.mock.me) without `perm` it records the read the
+ * hub would refuse in `globalThis.SPOOL_MOCK_403`, one 'GET <path>' each, so
+ * an e2e can count them.
+ */
+function mockRecord403(perm, path) {
+  const me = mockMeGet()
+  if (!me || me.permissions.includes(perm)) return
+  const g = /** @type {{ SPOOL_MOCK_403?: string[] }} */ (globalThis)
+  g.SPOOL_MOCK_403 = [...(g.SPOOL_MOCK_403 || []), 'GET ' + path]
+}
+
+/**
  * GET /v1/members: the tenant's members, pending invites and
  * the roles the caller may grant. members.invite (admin) only.
  */
 async function listTenantUsers(ctx) {
   const { live, mock, dir } = ctx
-  if (mock) return (await dir()).list()
+  if (mock) {
+    mockRecord403('members.invite', '/v1/members')
+    return (await dir()).list()
+  }
   return live('/v1/members')
 }
 
@@ -476,7 +493,10 @@ async function patchTenantUser(ctx, humanId, patch = {}) {
 /** GET /v1/tenant/settings (specs/046, tenant.settings): name, default locale, responders. */
 async function getTenantSettings(ctx) {
   const { live, mock, tenantMock } = ctx
-  if (mock) return (await tenantMock()).settings()
+  if (mock) {
+    mockRecord403('tenant.settings', '/v1/tenant/settings')
+    return (await tenantMock()).settings()
+  }
   return live('/v1/tenant/settings')
 }
 
@@ -494,7 +514,10 @@ async function patchTenantSettings(ctx, patch = {}) {
 /** GET /v1/agent-split (spec 115 HUB-1, tenant.settings): the vendor split per task kind. */
 async function getAgentSplit(ctx) {
   const { live, mock, tenantMock } = ctx
-  if (mock) return (await tenantMock()).splitKinds()
+  if (mock) {
+    mockRecord403('tenant.settings', '/v1/agent-split')
+    return (await tenantMock()).splitKinds()
+  }
   return live('/v1/agent-split')
 }
 
@@ -710,7 +733,10 @@ async function publishMarketingPost(ctx, postId) {
 /** GET /v1/tenant/channels: every channel of the tenant (private ones too), admin view. */
 async function listTenantChannels(ctx) {
   const { live, mock, tenantMock } = ctx
-  if (mock) return (await tenantMock()).channels()
+  if (mock) {
+    mockRecord403('tenant.settings', '/v1/tenant/channels')
+    return (await tenantMock()).channels()
+  }
   return live('/v1/tenant/channels')
 }
 
@@ -742,7 +768,10 @@ async function archiveTenantChannel(ctx, channel) {
 async function getPerfSummary(ctx, opts = {}) {
   const { live, mock } = ctx
   const ps = await import('./perf-summary.mjs')
-  if (mock) return ps.mockPerfSummary(opts)
+  if (mock) {
+    mockRecord403('tenant.settings', '/v1/admin/perf/summary')
+    return ps.mockPerfSummary(opts)
+  }
   return live(`/v1/admin/perf/summary?${ps.perfSummaryQuery(opts)}`)
 }
 
@@ -1992,7 +2021,10 @@ async function vendorKeys(ctx, op, kind, body) {
   const { live, mock } = ctx
   if (mock) {
     const m = await import('./vendor-keys.mjs')
-    if (op === 'list') return m.mockVendorKeys()
+    if (op === 'list') {
+      mockRecord403('vendor_keys.manage', '/v1/vendor-keys')
+      return m.mockVendorKeys()
+    }
     if (op === 'put') return m.mockPutVendorKey(kind, body)
     if (op === 'delete') return m.mockDeleteVendorKey(kind)
     if (op === 'retry') return m.mockRetryVendorKey(kind)

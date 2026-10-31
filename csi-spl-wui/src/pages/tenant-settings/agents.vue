@@ -15,7 +15,8 @@
      operator console. Hidden when the hub does not answer the route. -->
 <template>
   <SettingsSection id="tenant-agents" :title="t('tenant_settings.agents_title')" data-test="tenant-settings-agents">
-    <p v-if="loading" class="muted">{{ t('common.loading') }}</p>
+    <p v-if="denied" class="muted" role="alert" data-test="tenant-section-forbidden">{{ t('tenant_settings.forbidden') }}</p>
+    <p v-else-if="loading" class="muted">{{ t('common.loading') }}</p>
     <p v-else-if="loadError" class="ts-error" role="alert">{{ loadError }}</p>
     <template v-else>
       <p v-if="!seats.length" class="muted" data-test="tenant-agents-empty">{{ t('tenant_settings.agents_empty') }}</p>
@@ -137,10 +138,10 @@ import SettingsSection from '~/components/SettingsSection.vue'
 import ConnectAgentGuide from '~/components/ConnectAgentGuide.vue'
 import { boxHubUrl } from '~/utils/connect-agent'
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { useSessionStore } from '~/stores/session'
 import { moveItem, normalizeTenantSettings, tenantSettingsErrorKey, validResponderId } from '~/utils/tenant-settings.mjs'
 import { normalizeId } from '~/utils/agent-id.mjs'
 import { useAccessStore } from '~/stores/access'
+import { useTenantSectionGate } from '~/composables/useTenantSectionGate'
 import { canJoinAgents } from '~/utils/join-tokens.mjs'
 import { agentCapRows, normalizeAgentCaps } from '~/utils/agent-caps.mjs'
 
@@ -149,7 +150,6 @@ const AgentSenders = defineAsyncComponent(() => import('~/components/AgentSender
 
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()
-const session = useSessionStore()
 const access = useAccessStore()
 /* hidden until /v1/view/me answered, so a biz_owner never sees it flash */
 const accessReady = ref(false)
@@ -263,13 +263,12 @@ async function save() {
   }
 }
 
-watch(() => session.state, (st) => {
-  if (st === 'in' || api.mock) {
-    void load()
-    void loadCaps()
-    void access.load().finally(() => { accessReady.value = true })
-  }
-}, { immediate: true })
+/* SPL-4452: nothing is read before me() says tenant.settings */
+const { denied } = useTenantSectionGate('agents', () => {
+  accessReady.value = true
+  void load()
+  void loadCaps()
+})
 </script>
 
 <style scoped>

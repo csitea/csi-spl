@@ -6,9 +6,10 @@
      numbers sum to 100. They are a guideline, not a quota: nothing in the
      hub refuses a spawn that drifts. tenant.settings. -->
 <template>
-  <AgentSplitKinds />
+  <AgentSplitKinds v-if="allowed" />
   <SettingsSection id="tenant-split" :title="t('tenant_settings.split_title')" data-test="tenant-settings-split">
-    <p v-if="loading" class="muted">{{ t('common.loading') }}</p>
+    <p v-if="denied" class="muted" role="alert" data-test="tenant-section-forbidden">{{ t('tenant_settings.forbidden') }}</p>
+    <p v-else-if="loading" class="muted">{{ t('common.loading') }}</p>
     <p v-else-if="loadError" class="ts-error" role="alert">{{ loadError }}</p>
     <form v-else class="ts-form" @submit.prevent="save">
       <p class="muted ts-hint" data-test="tenant-split-note">{{ t('tenant_settings.split_note') }}</p>
@@ -49,13 +50,12 @@
 import AgentSplitKinds from '~/components/AgentSplitKinds.vue'
 import SettingsSection from '~/components/SettingsSection.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { useSessionStore } from '~/stores/session'
+import { useTenantSectionGate } from '~/composables/useTenantSectionGate'
 import { normalizeTenantSettings, tenantSettingsErrorKey } from '~/utils/tenant-settings.mjs'
 import type { TenantSettings } from '~/utils/tenant-settings.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()
-const session = useSessionStore()
 
 const stored = ref<TenantSettings | null>(null)
 const claude = ref<number | string>(40)
@@ -140,9 +140,7 @@ async function save() {
   }
 }
 
-watch(() => session.state, (st) => {
-  if (st === 'in' || api.mock) void load()
-}, { immediate: true })
+const { allowed, denied } = useTenantSectionGate('split', () => { void load() })
 </script>
 
 <style scoped>

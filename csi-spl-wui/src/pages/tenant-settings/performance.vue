@@ -6,71 +6,74 @@
      and p95 shows from n = 50 (section 8). tenant.settings. -->
 <template>
   <SettingsSection id="tenant-performance" :title="t('tenant_settings.performance_title')" data-test="tenant-settings-performance">
-    <p class="muted pf-hint">{{ t('tenant_settings.performance_hint') }}</p>
-    <form class="pf-form" data-test="tenant-perf-form" @submit.prevent="load">
-      <label class="pf-field">
-        <span>{{ t('tenant_settings.performance_window') }}</span>
-        <select v-model.number="days" data-test="tenant-perf-days" @change="load">
-          <option v-for="d in PERF_DAYS_OPTIONS" :key="d" :value="d">{{ t('tenant_settings.performance_days', { n: d }) }}</option>
-        </select>
-      </label>
-      <label class="pf-field">
-        <span>{{ t('tenant_settings.performance_build') }}</span>
-        <input v-model="build" type="text" maxlength="40" spellcheck="false" autocomplete="off" data-test="tenant-perf-build">
-      </label>
-      <label class="pf-field">
-        <span>{{ t('tenant_settings.performance_build_b') }}</span>
-        <input v-model="buildB" type="text" maxlength="40" spellcheck="false" autocomplete="off" data-test="tenant-perf-build-b">
-      </label>
-      <button type="submit" class="btn" :disabled="loading" data-test="tenant-perf-apply">{{ t('tenant_settings.performance_apply') }}</button>
-    </form>
-    <p class="muted pf-hint">{{ t('tenant_settings.performance_build_hint') }}</p>
+    <p v-if="denied" class="muted" role="alert" data-test="tenant-section-forbidden">{{ t('tenant_settings.forbidden') }}</p>
+    <template v-else>
+      <p class="muted pf-hint">{{ t('tenant_settings.performance_hint') }}</p>
+      <form class="pf-form" data-test="tenant-perf-form" @submit.prevent="load">
+        <label class="pf-field">
+          <span>{{ t('tenant_settings.performance_window') }}</span>
+          <select v-model.number="days" data-test="tenant-perf-days" @change="load">
+            <option v-for="d in PERF_DAYS_OPTIONS" :key="d" :value="d">{{ t('tenant_settings.performance_days', { n: d }) }}</option>
+          </select>
+        </label>
+        <label class="pf-field">
+          <span>{{ t('tenant_settings.performance_build') }}</span>
+          <input v-model="build" type="text" maxlength="40" spellcheck="false" autocomplete="off" data-test="tenant-perf-build">
+        </label>
+        <label class="pf-field">
+          <span>{{ t('tenant_settings.performance_build_b') }}</span>
+          <input v-model="buildB" type="text" maxlength="40" spellcheck="false" autocomplete="off" data-test="tenant-perf-build-b">
+        </label>
+        <button type="submit" class="btn" :disabled="loading" data-test="tenant-perf-apply">{{ t('tenant_settings.performance_apply') }}</button>
+      </form>
+      <p class="muted pf-hint">{{ t('tenant_settings.performance_build_hint') }}</p>
 
-    <p v-if="loading" class="muted">{{ t('common.loading') }}</p>
-    <p v-else-if="loadError" class="pf-error" role="alert" data-test="tenant-perf-error">{{ loadError }}</p>
-    <p v-else-if="summary && summary.off" class="muted" data-test="tenant-perf-off">{{ t('tenant_settings.performance_off') }}</p>
-    <p v-else-if="!rows.length" class="muted" data-test="tenant-perf-empty">{{ t('tenant_settings.performance_empty') }}</p>
-    <div v-else class="pf-table-wrap">
-      <table class="pf-table" data-test="tenant-perf-table" :data-compare="compare ? '1' : '0'">
-        <thead>
-          <tr>
-            <th scope="col">{{ t('tenant_settings.performance_col_metric') }}</th>
-            <th scope="col">{{ t('tenant_settings.performance_col_device') }}</th>
-            <th scope="col">{{ t('tenant_settings.performance_col_view') }}</th>
-            <th scope="col" class="pf-num">n</th>
-            <th scope="col" class="pf-num">p50</th>
-            <th scope="col" class="pf-num">p75</th>
-            <th v-if="!compare" scope="col" class="pf-num">p95</th>
-            <th v-if="!compare" scope="col" class="pf-num">{{ t('tenant_settings.performance_col_failed') }}</th>
-            <th v-if="compare" scope="col" class="pf-num">n B</th>
-            <th v-if="compare" scope="col" class="pf-num">p75 B</th>
-            <th v-if="compare" scope="col" class="pf-num">{{ t('tenant_settings.performance_col_change') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="r in rows" :key="r.key" data-test="tenant-perf-row" :data-metric="r.row.metric" :data-device="r.row.device" :data-view="r.row.view">
-            <td class="pf-metric" data-test="tenant-perf-metric">{{ t('tenant_settings.performance_metric_' + r.row.metric) }}</td>
-            <td :data-label="t('tenant_settings.performance_col_device')">{{ t('tenant_settings.performance_device_' + r.row.device) }}</td>
-            <td :data-label="t('tenant_settings.performance_col_view')">{{ t('tenant_settings.performance_view_' + (r.row.view || 'any')) }}</td>
-            <td class="pf-num" data-label="n" data-test="tenant-perf-n">{{ r.a ? r.a.n : '—' }}</td>
-            <td class="pf-num" data-label="p50">{{ ms(r.a && r.a.p50) }}</td>
-            <td class="pf-num" data-label="p75" data-test="tenant-perf-p75">{{ ms(r.a && r.a.p75) }}</td>
-            <td v-if="!compare" class="pf-num" data-label="p95" data-test="tenant-perf-p95">{{ ms(r.a && r.a.p95) }}</td>
-            <td v-if="!compare" class="pf-num" :data-label="t('tenant_settings.performance_col_failed')">{{ r.a ? r.a.failed : '—' }}</td>
-            <td v-if="compare" class="pf-num" data-label="n B">{{ r.b ? r.b.n : '—' }}</td>
-            <td v-if="compare" class="pf-num" data-label="p75 B" data-test="tenant-perf-p75-b">{{ ms(r.b && r.b.p75) }}</td>
-            <td v-if="compare" class="pf-num" :class="deltaClass(r.delta)" :data-label="t('tenant_settings.performance_col_change')" data-test="tenant-perf-change">{{ deltaText(r.delta) }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+      <p v-if="loading" class="muted">{{ t('common.loading') }}</p>
+      <p v-else-if="loadError" class="pf-error" role="alert" data-test="tenant-perf-error">{{ loadError }}</p>
+      <p v-else-if="summary && summary.off" class="muted" data-test="tenant-perf-off">{{ t('tenant_settings.performance_off') }}</p>
+      <p v-else-if="!rows.length" class="muted" data-test="tenant-perf-empty">{{ t('tenant_settings.performance_empty') }}</p>
+      <div v-else class="pf-table-wrap">
+        <table class="pf-table" data-test="tenant-perf-table" :data-compare="compare ? '1' : '0'">
+          <thead>
+            <tr>
+              <th scope="col">{{ t('tenant_settings.performance_col_metric') }}</th>
+              <th scope="col">{{ t('tenant_settings.performance_col_device') }}</th>
+              <th scope="col">{{ t('tenant_settings.performance_col_view') }}</th>
+              <th scope="col" class="pf-num">n</th>
+              <th scope="col" class="pf-num">p50</th>
+              <th scope="col" class="pf-num">p75</th>
+              <th v-if="!compare" scope="col" class="pf-num">p95</th>
+              <th v-if="!compare" scope="col" class="pf-num">{{ t('tenant_settings.performance_col_failed') }}</th>
+              <th v-if="compare" scope="col" class="pf-num">n B</th>
+              <th v-if="compare" scope="col" class="pf-num">p75 B</th>
+              <th v-if="compare" scope="col" class="pf-num">{{ t('tenant_settings.performance_col_change') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in rows" :key="r.key" data-test="tenant-perf-row" :data-metric="r.row.metric" :data-device="r.row.device" :data-view="r.row.view">
+              <td class="pf-metric" data-test="tenant-perf-metric">{{ t('tenant_settings.performance_metric_' + r.row.metric) }}</td>
+              <td :data-label="t('tenant_settings.performance_col_device')">{{ t('tenant_settings.performance_device_' + r.row.device) }}</td>
+              <td :data-label="t('tenant_settings.performance_col_view')">{{ t('tenant_settings.performance_view_' + (r.row.view || 'any')) }}</td>
+              <td class="pf-num" data-label="n" data-test="tenant-perf-n">{{ r.a ? r.a.n : '—' }}</td>
+              <td class="pf-num" data-label="p50">{{ ms(r.a && r.a.p50) }}</td>
+              <td class="pf-num" data-label="p75" data-test="tenant-perf-p75">{{ ms(r.a && r.a.p75) }}</td>
+              <td v-if="!compare" class="pf-num" data-label="p95" data-test="tenant-perf-p95">{{ ms(r.a && r.a.p95) }}</td>
+              <td v-if="!compare" class="pf-num" :data-label="t('tenant_settings.performance_col_failed')">{{ r.a ? r.a.failed : '—' }}</td>
+              <td v-if="compare" class="pf-num" data-label="n B">{{ r.b ? r.b.n : '—' }}</td>
+              <td v-if="compare" class="pf-num" data-label="p75 B" data-test="tenant-perf-p75-b">{{ ms(r.b && r.b.p75) }}</td>
+              <td v-if="compare" class="pf-num" :class="deltaClass(r.delta)" :data-label="t('tenant_settings.performance_col_change')" data-test="tenant-perf-change">{{ deltaText(r.delta) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </template>
   </SettingsSection>
 </template>
 
 <script setup lang="ts">
 import SettingsSection from '~/components/SettingsSection.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { useSessionStore } from '~/stores/session'
+import { useTenantSectionGate } from '~/composables/useTenantSectionGate'
 import { tenantSettingsErrorKey } from '~/utils/tenant-settings.mjs'
 import { normalizePerfSummary, perfBuildOf, perfCompareRows, perfMs, perfRowKey, PERF_DAYS_OPTIONS } from '~/utils/perf-summary.mjs'
 
@@ -80,7 +83,6 @@ interface PerfLine { key: string, row: PerfRow, a: PerfRow | null, b: PerfRow | 
 
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()
-const session = useSessionStore()
 
 const days = ref(7)
 const build = ref('')
@@ -129,9 +131,7 @@ async function load() {
   }
 }
 
-watch(() => session.state, (st) => {
-  if (st === 'in' || api.mock) void load()
-}, { immediate: true })
+const { denied } = useTenantSectionGate('performance', () => { void load() })
 </script>
 
 <style scoped>

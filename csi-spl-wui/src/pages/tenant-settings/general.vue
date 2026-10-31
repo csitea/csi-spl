@@ -10,7 +10,8 @@
      tenant.settings. -->
 <template>
   <SettingsSection id="tenant-general" :title="t('tenant_settings.general_title')" data-test="tenant-settings-general">
-    <p v-if="loading" class="muted">{{ t('common.loading') }}</p>
+    <p v-if="denied" class="muted" role="alert" data-test="tenant-section-forbidden">{{ t('tenant_settings.forbidden') }}</p>
+    <p v-else-if="loading" class="muted">{{ t('common.loading') }}</p>
     <p v-else-if="loadError" class="ts-error" role="alert">{{ loadError }}</p>
     <form v-else class="ts-form" @submit.prevent="save">
       <label class="ts-field">
@@ -74,13 +75,12 @@ import MarketingSwitch from '~/components/MarketingSwitch.vue'
 import MarketingPublish from '~/components/MarketingPublish.vue'
 import BlockerIssueSetting from '~/components/BlockerIssueSetting.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { useSessionStore } from '~/stores/session'
+import { useTenantSectionGate } from '~/composables/useTenantSectionGate'
 import { issuePrefixOf, normalizeTenantSettings, tenantSettingsErrorKey, TOPIC_ARCHIVE_POLICY_OPTIONS } from '~/utils/tenant-settings.mjs'
 import type { TenantSettings } from '~/utils/tenant-settings.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()
-const session = useSessionStore()
 
 const stored = ref<TenantSettings | null>(null)
 const tenantId = computed(() => stored.value?.tenantId || '')
@@ -150,9 +150,7 @@ async function save() {
   }
 }
 
-watch(() => session.state, (st) => {
-  if (st === 'in' || api.mock) void load()
-}, { immediate: true })
+const { denied } = useTenantSectionGate('general', () => { void load() })
 </script>
 
 <style scoped>

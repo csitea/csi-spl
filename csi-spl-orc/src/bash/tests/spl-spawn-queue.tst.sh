@@ -553,6 +553,16 @@ if grep -q "^c-001 c-002 blocker spawn-share \*\*SPAWN SHARE: bug share 18% < 20
 else fail "supply: $out | $(sends)"; fi
 on pc do_spl_spawn_place WINDOWS=40 SPAWN_SHARE_SUPPLY_MIN=60 >/dev/null 2>&1
 [[ "$(grep -c "SPAWN SHARE" "$T/send.log")" == 1 ]] && pass "supply: no second blocker within SPAWN_SHARE_SUPPLY_MIN" || fail "supply repeat: $(sends)"
+# spec 166 B2: the supply blocker keeps the owner's 24 h floor (20%) at any
+# phase, never the phase band (by day bug 15%, at night 30%); no band pin here
+for ph in "day 2026-01-15T12:00Z" "night 2026-01-15T22:00Z"; do
+  rm -f "$T/pc/spool/asks/.share.bug.last" "$T/pc/spool/asks/.share.refactor.last"; : >"$T/send.log"
+  out="$(on pc do_spl_spawn_place WINDOWS=40 SPAWN_SHARE_SUPPLY_MIN=60 SPAWN_SHARE_BANDS= RHYTHM_NOW="${ph#* }" 2>&1)"
+  if grep -q "^c-001 c-002 blocker spawn-share \*\*SPAWN SHARE: bug share 18% < 20% (2 of 11 live lanes with a class)" "$T/send.log" &&
+     [[ "$(grep -c "SPAWN SHARE" "$T/send.log")" == 1 ]]; then
+    pass "supply by ${ph%% *}: bug 18% under the owner's 20% -> ONE blocker naming 20%, not the ${ph%% *} band"
+  else fail "supply by ${ph%% *}: $out | $(sends)"; fi
+done
 # a CI-red fix and an owner bypass are taken as they are, ci first
 C1=f4f4f4f4-0000-4000-8000-000000000004; X1=f5f5f5f5-0000-4000-8000-000000000005
 put "$C1" c-002@box-desk dispatch-3209f8b8-c "SPAWN REQUEST trunk is red"

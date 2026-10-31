@@ -252,7 +252,8 @@ spl_spawn_place_line() {  # MARKED ROWS
     | sort_by(.position)' <<<"$1"
 }
 
-# 0. The supply blocker: refactor or bug under its band, nothing of it
+# 0. The supply blocker: refactor or bug under the owner's 24 h band floor
+# (SPL_SPAWN_BANDS, the share's .h24; not the phase band), nothing of it
 # queued -> ONE blocker to the dispatch lease holder per class per
 # SPAWN_SHARE_SUPPLY_MIN. Leaves the share it read in SPAWN_PLACE_SHARE.
 spl_spawn_place_supply() {  # HOLDER ROWS
@@ -268,8 +269,9 @@ spl_spawn_place_supply() {  # HOLDER ROWS
   for c in "${due[@]}"; do
     line="$(jq -r --arg c "$c" --slurpfile rows <(printf '%s' "$2") '
       def cls: (.class // "") | if . == "" or . == "ci" then "bug" else . end;
-      .by[$c] as $b | select($b.pct < $b.lo and ([$rows[0][] | select(.state == "queued" and cls == $c)] | length) == 0)
-      | "\($c) share \($b.pct)% < \($b.lo)% (\($b.n) of \(.known) live lanes with a class) and no \($c) row is queued"' <<<"$share")"
+      .by[$c] as $b | (.h24.by[$c].lo // $b.lo) as $lo
+      | select($b.pct < $lo and ([$rows[0][] | select(.state == "queued" and cls == $c)] | length) == 0)
+      | "\($c) share \($b.pct)% < \($lo)% (\($b.n) of \(.known) live lanes with a class) and no \($c) row is queued"' <<<"$share")"
     [[ -n "$line" ]] || continue
     to="$(spl_spawn_place_dispatch)"
     [[ -n "$to" ]] || { do_log "WARN $line, and nobody holds the dispatch lease: not told"; continue; }

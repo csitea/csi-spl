@@ -72,12 +72,13 @@ spl_spawn_share() {
   return "$rc"
 }
 
-# The phase (do_spl_rhythm_phase) and its bands: "<day|night> <bands JSON>".
-# A phase that cannot be read is day, with a WARN.
+# The phase (do_spl_rhythm_phase) and its bands: "<day|night|unknown> <bands
+# JSON>". A phase that cannot be read is unknown, judged by the day bands, with
+# a WARN.
 spl_spawn_share_phase() {
   local p b
   p="$(do_spl_rhythm_phase 2>/dev/null)"
-  [[ "$p" == day || "$p" == night ]] || { do_log "WARN the rhythm phase could not be read: the day bands" >&2; p=day; }
+  [[ "$p" == day || "$p" == night ]] || { do_log "WARN the rhythm phase could not be read: the day bands" >&2; p=unknown; }
   if [[ "$p" == night ]]; then b="$SPL_SPAWN_BANDS_NIGHT"; else b="$SPL_SPAWN_BANDS_DAY"; fi
   printf '%s %s' "$p" "$(jq -c . <<<"${SPAWN_SHARE_BANDS:-$b}")"
 }
@@ -111,7 +112,7 @@ spl_spawn_share_sample() {  # SHARE_FILE
   line="$(jq -r --arg t "$now" 'select(.known > 0)
     | [$t, .phase, .known, .by.refactor.n, .by.bug.n, .by.feature.n] | map(tostring) | join("\t")' "$1" 2>/dev/null)"
   [[ -n "$line" ]] || return 0
-  if { awk -F'\t' -v s="$((now - 86400))" '$1 > s' "$f" 2>/dev/null; printf '%s\n' "$line"; } >"$f.$$"; then
+  if { awk -F'\t' -v s="$((now - 86400))" '$1 ~ /^[0-9]+$/ && $1 > s' "$f" 2>/dev/null; printf '%s\n' "$line"; } >"$f.$$"; then
     mv -f "$f.$$" "$f"
   else rm -f "$f.$$"; fi
   return 0
@@ -223,7 +224,7 @@ spl_spawn_share_line() {  # SHARE
 spl_spawn_share_md() {  # SHARE
   jq -r '
     def band: "\(.lo)-\(if .hi >= 100 then "" else "\(.hi)" end)%";
-    "**Work share of the live lanes** (\(.known) with a class, \(.unknown) placed before the class existed, left out; phase **\(.phase // "day")**, its bands; rule: fleet-rules-index.md, owner msg 8cb6cc7d, spec 166)\n",
+    "**Work share of the live lanes** (\(.known) with a class, \(.unknown) placed before the class existed, left out; phase **\(.phase // "day")**\(if .phase == "unknown" then " (unread: the day bands)" else ", its bands" end); rule: fleet-rules-index.md, owner msg 8cb6cc7d, spec 166)\n",
     "| class | live lanes | share | band | verdict |", "|---|---|---|---|---|",
     (.by | to_entries[] | "| \(.key) | \(.value.n) | \(.value.pct)% | \(.value | band) | \(.value.verdict)\(if .value.capped then ", 24 h top reached: not preferred tonight" else "" end) |"),
     "",

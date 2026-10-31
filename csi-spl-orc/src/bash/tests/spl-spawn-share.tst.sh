@@ -23,6 +23,9 @@
 #  10. the line and the markdown report print the phase, the 24 h share and
 #      a capped class
 #  11. SPAWN_SHARE_BANDS: one band set for every phase
+#  12. a phase that cannot be read: phase unknown, the day bands, a WARN, and
+#      the report says so (never a plain day)
+#  13. a sample's trim drops lines whose time is not a number
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -124,6 +127,16 @@ grep -q "phase \*\*night\*\*" <<<"$md" && grep -qE "^\| refactor \| 3 \| 30% \| 
 
 check "11 SPAWN_SHARE_BANDS: the owner's set at night" "night 20 30 20 30 40" \
   "$(shr "$NIGHT" 'jq -r "$B" <<<"$SHARE"' B="$bands" SPAWN_SHARE_BANDS='{"refactor": [20, 30], "bug": [20, 30], "feature": [40, 100]}')"
+
+check "12 unreadable phase: unknown, the day bands" "unknown 10 20 15 20 60" "$(shr not-a-date 'jq -r "$B" <<<"$SHARE"' B="$bands")"
+grep -q "WARN the rhythm phase could not be read: the day bands" "$T/err" && pass "12 unreadable phase: a WARN" || fail "12 WARN: $(cat "$T/err")"
+md="$(shr not-a-date 'spl_spawn_share_md "$SHARE"')"
+grep -q "phase \*\*unknown\*\* (unread: the day bands)" <<<"$md" && pass "12 the report says unknown (the day bands)" || fail "12 md: $md"
+
+printf 'garbage line\nzzz\tx\n' >>"$T/asks/share.24h.tsv"
+shr "$(date -u -d "@$((n + 1200))" +%FT%TZ)" 'spl_spawn_share_sample "$T/s.json"' T="$T"
+check "13 the trim drops the lines whose time is not a number" "3 0" \
+  "$(wc -l <"$T/asks/share.24h.tsv") $(grep -cvE '^[0-9]+'$'\t' "$T/asks/share.24h.tsv")"
 
 echo "$fails failure(s)"
 ((fails == 0))

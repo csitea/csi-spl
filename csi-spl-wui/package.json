@@ -55,14 +55,17 @@
       "source-map-js": "^1.2.2",
       "vite": "^7.3.7",
       "launch-editor": "^2.14.2",
-      "seroval": "~1.6.11"
+      "seroval": "~1.6.11",
+      "node-forge": "^1.4.1"
     },
     "auditConfig": {
       "ignoreGhsas": [
-        "GHSA-86w9-cpqp-85rv",
         "GHSA-vfj7-8cjw-p6xm",
         "GHSA-vjh5-4x84-xrqp",
-        "GHSA-xfq5-w38q-pc2x"
+        "GHSA-xfq5-w38q-pc2x",
+        "GHSA-g3hv-75wg-m249",
+        "GHSA-3g3m-2fjr-6pw4",
+        "GHSA-648h-gw55-m2g7"
       ]
     }
   }

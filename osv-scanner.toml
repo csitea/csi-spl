@@ -9,15 +9,11 @@
 #    not import x/crypto/openpgp; osv-scanner rates it unimportant (shown only
 #    with --all-vulns). GO-2026-6354/6355/6443 (x/crypto, grpc) were dropped
 #    once the toolchain reached go 1.26.9: osv-scanner 2.6.0 named them unused.
-#  - node-forge 1.4.0 (npm, GHSA-86w9-cpqp-85rv): no fixed release exists; it is
-#    pulled only by listhen 1.10.1 (latest, still node-forge ^1.4.0) under
-#    @nuxt/cli + nitropack, for the dev server's self-signed HTTPS cert. It is
-#    not in the generated static bundle. devalue 5.9.2 -> 5.9.4 (7 GHSAs) was
-#    fixed by the lockfile instead (CLE-77971). The pnpm audit leg (workflow 15)
-#    carries the SAME single exception, csi-spl-wui/package.json
-#    pnpm.auditConfig.ignoreGhsas (JSON has no comments, so its reason and its
-#    2026-11-01 expiry live here): remove both together once a fixed
-#    node-forge or a listhen without it ships.
+#  - node-forge (npm, GHSA-86w9-cpqp-85rv): dropped 2026-10-31 (SPL-4508), the
+#    pnpm.overrides pin node-forge ^1.4.1 (1.4.2 in the lockfile) fixes it and
+#    the 11 node-forge GHSAs that reddened workflows 15 + 70 on 2026-10-31;
+#    osv-scanner 2.6.0 then named the ignore unused. Removed from
+#    package.json pnpm.auditConfig.ignoreGhsas too.
 #  - braces 3.0.3 (npm, GHSA-vfj7-8cjw-p6xm): dropped 2026-10-25, osv-scanner
 #    named the ignore unused (workflow 70 run 40209390726). The pnpm audit leg
 #    (workflow 15) still lists it in csi-spl-wui/package.json
@@ -59,11 +55,6 @@ id = "GO-2026-5932"
 ignoreUntil = 2026-11-01
 reason = "golang.org/x/crypto/openpgp is deprecated: the advisory covers every x/crypto release (no fixed version); we do not import openpgp; osv-scanner rates it unimportant; not reachable (govulncheck green)."
 
-[[IgnoredVulns]]
-id = "GHSA-86w9-cpqp-85rv"
-ignoreUntil = 2026-11-01
-reason = "node-forge 1.4.0: no fixed version upstream; only listhen (nuxt dev server self-signed HTTPS, via @nuxt/cli + nitropack) pulls it and its latest 1.10.1 still needs ^1.4.0; not shipped in the generated WUI bundle. Re-check for a node-forge or listhen release by the expiry."
-
 # SPL-2908: the three nuxt 3.21.11 advisories that reddened workflow 70 on 2026-10-22.
 [[IgnoredVulns]]
 id = "GHSA-vjh5-4x84-xrqp" # SPL-2908
@@ -85,3 +76,25 @@ reason = "nuxt 3.21.11: fixed only in 4.6.0, no fixed 3.x; needs pages disabled,
 id = "GHSA-gcqx-w48m-w2h4" # SPL-3972
 ignoreUntil = 2026-11-27
 reason = "deepmerge 4.3.1: no fixed version upstream; only @rollup/plugin-node-resolve 16.0.3 pulls it, at build time; not shipped in the generated WUI bundle. Re-check for a fixed release by the expiry."
+
+# SPL-4508: three moderate npm advisories that reddened workflows 15 and 70 on
+# 2026-10-31 (run 41207686407) with no lockfile change. Each is fixed only in a
+# new major that its dependents do not accept, so a pnpm override would force a
+# major under them; the real fix is the nuxt 4 migration. None reaches the
+# shipped WUI, which is `nuxt generate` static output on Firebase Hosting. The
+# pnpm audit leg (workflow 15) carries the same three ids in
+# csi-spl-wui/package.json pnpm.auditConfig.ignoreGhsas: remove them together.
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249" # SPL-4508
+ignoreUntil = 2026-11-30
+reason = "minimatch 5.1.9/9.0.9/10.2.6: fixed only in 11.0.1, no fixed 5.x/9.x/10.x; every path is build or lint tooling (eslint, typescript-estree, nitropack via @vercel/nft and archiver) matching patterns from our own config, never user input; not in the generated WUI bundle."
+
+[[IgnoredVulns]]
+id = "GHSA-3g3m-2fjr-6pw4" # SPL-4508
+ignoreUntil = 2026-11-30
+reason = "glob 10.5.0/13.0.6: fixed only in 14.0.2, no fixed 10.x/13.x; pulled only at build time by nitropack (@vercel/nft, archiver), and the bug needs a caller that bounds an untrusted walk with an AbortSignal; not in the generated WUI bundle."
+
+[[IgnoredVulns]]
+id = "GHSA-648h-gw55-m2g7" # SPL-4508
+ignoreUntil = 2026-11-30
+reason = "@nuxt/vite-builder 3.21.11: fixed only in 4.6.3, no fixed 3.x; affects only `nuxt dev`, whose Nitro dev bundle inlines private runtimeConfig, and csi-spl-wui/nuxt.config.ts runtimeConfig has public keys only; we ship nuxt generate output. Real fix: nuxt 4 migration."

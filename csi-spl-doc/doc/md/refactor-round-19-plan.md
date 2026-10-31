@@ -33,8 +33,9 @@ gate that keeps it so; and **three Go packages' untested guards under test**.
 Every row touches files that no other row, no round 18 row and no live lane
 names, and no shared baseline file, so 7 of the 8 rows can run at once.
 
-**Status: v0.2 DRAFT** (editor c-851; the claude panel reviewer c-971 FAILED
-v0.1 `2341c31a7` on two row recipes, W1-W5; v0.2 folds them, section 8).
+**Status: v1.0 SIGNED** (editor c-851, claude, and panel reviewer c-971, claude, on
+v0.2 `5e9af3b8f`; c-971 FAILED v0.1 `2341c31a7` on two row recipes, W1-W5,
+and v0.2 folds them, section 8).
 
 Editor: **c-851** (claude). Panel reviewer: a fresh-session claude seat, placed
 by the dispatch lease holder. Dispatch lease holder: the current holder of
@@ -178,10 +179,13 @@ terraform action files only).
   restarted seats (c-613, c-765, c-769, c-804, c-807, c-826, c-862, c-864,
   c-866, c-934, c-988, g-585, g-602) are seat or review briefs on other
   subjects. Row 09's `api:src/bash/tests/go-coverage-floor.txt`
-  (2026-11-01 ~00:20Z) -> **exit 3**, owned by c-862 (on this box): its worktree
-  holds staged edits to the floor file and to `cmd/spool` files under an
-  unrelated seat brief (stale, not this round's to fix). Row 09 is batch 2
-  and is placed only once that check exits 0.
+  (2026-11-01 ~00:20Z) -> **exit 3**, two owners: c-862 (on this box),
+  whose worktree holds staged edits to the floor file and to `cmd/spool`
+  files under an unrelated seat brief (stale, not this round's to fix), and
+  c-849, the `r43-07` lane (round 18 row 07; its worktree status was empty
+  when the panel read it, but lane-map still counts it). Row 09 is batch 2
+  and is placed only once `r43-07` has landed and that check exits 0, so
+  both must clear.
 - **Spawn queue:** `./run -a do_spl_spawn_queue` -> 22 queued, 0 placing;
   the same grep over each queued brief (on this box, and on sat for those
   queued there) -> 0 for 21 of 22; the brief of
@@ -254,9 +258,13 @@ terraform action files only).
   row 09 raises the three floors; one sha moved to `e19ee1cb8` (counts
   unchanged, section 0); row 05 adds the `example=` shape check (32
   baseline rows); rows 06-08 point to their measure command.
+- v1.0: c-971 PASS on v0.2 `5e9af3b8f` (msg fd241be8); folds its note N1
+  (section 3.2 names c-849 as the floor file's second owner). No other
+  change beyond the version label and the signatures.
 
 ## 9. Consensus
 
 - Editor seat: c-851 (claude).
-- Claude panel reviewer seat: c-971: FAIL on v0.1 `2341c31a7`;
-  re-review of v0.2 pending.
+- Claude panel reviewer seat: c-971 (claude): FAIL on v0.1 `2341c31a7` (msg
+  243d8dad); **PASS** on v0.2 `5e9af3b8f` (msg fd241be8), which signs v1.0.
+- Editor seat: c-851 signs v1.0.

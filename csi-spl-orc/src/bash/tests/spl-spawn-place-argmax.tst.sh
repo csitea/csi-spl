@@ -59,7 +59,7 @@ rows() {
 # $T/err. An ARG "@FILE" is FILE's content, read inside: a big list cannot
 # reach the test shell as an argument either.
 run() {
-  env SPOOL_ROOT="$T/spool" SPOOL_ASKS_DIR="$T/asks" PROJ_PATH="$PROJ_ROOT" SPAWN_SHARE_DISPATCH=c-002@sat \
+  env SPOOL_ROOT="$T/spool" SPOOL_ASKS_DIR="$T/asks" PROJ_PATH="$PROJ_ROOT" SPAWN_SHARE_DISPATCH=c-002@sat RHYTHM_NOW=2026-01-15T12:00Z \
     SPL_SPAWN_REVIEW_SEAT_GO="$GO" BIG_SHARE="$T/share.json" SEND_LOG="$T/send.log" bash -c '
     do_log() { printf "%s\n" "$*"; }
     source "$1/src/bash/features/spawn-agents/lib/spool-asks.inc.sh"

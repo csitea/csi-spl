@@ -34,7 +34,13 @@
 # @description   0. SUPPLY (SPL-1817) - at most once an hour per class: when the
 # @description      live share of refactor or bug is under its band and no row of
 # @description      that class is queued, the dispatch lease holder gets ONE
-# @description      blocker asking for the next rows of that class
+# @description      blocker asking for the next rows of that class. Supply
+# @description      lead (spec 166 row B3): while do_spl_rhythm_phase says day
+# @description      now and night SPAWN_SUPPLY_LEAD_MIN (120) from now, and
+# @description      fewer than twice the night's refactor lanes (its band's
+# @description      floor of the live lanes) are queued, the refactor blocker
+# @description      names the night instead, once per night, so the day's
+# @description      planner has rows ready at its start
 # @description   3b. BANDS (SPL-1817) - a ci head (CI-red on trunk) or a flagged
 # @description      one (urgent bug, owner bypass feature) is taken as it is;
 # @description      then a review seat queued on the owner's review-seat GO
@@ -149,6 +155,7 @@
 # @param SPAWN_PLACE_TMUX_SOCKET (optional) - the box user's tmux socket, default /tmp/tmux-<uid>/default
 # @param SPAWN_PLACE_WINDOWS_CMD SPAWN_PLACE_PICK_CMD SPAWN_PLACE_LAUNCH_CMD (optional, tests) - print the window count / the box pick / run the launch
 # @param SPAWN_SHARE_SUPPLY_MIN (optional) - minutes between two supply blockers of one class, default 60
+# @param SPAWN_SUPPLY_LEAD_MIN (optional) - minutes before the night the supply lead asks for its refactor rows, default 120; 0 = no lead
 # @param SPAWN_SHARE_DISPATCH (optional) - the dispatch lease holder <ID>@<box>; default the lease file <spool root>/dispatch/lease
 # @param SPAWN_SHARE_LANES_CMD (optional, tests) - as do_spl_spawn_share
 # @param SPAWN_PLACE_LOAD_CMD (optional, tests) - prints the lane map's JSON ({load: [...]}) the other box's agy limit reads liveness from, instead of do_spl_lane_map
@@ -255,9 +262,11 @@ spl_spawn_place_line() {  # MARKED ROWS
 # 0. The supply blocker: refactor or bug under the owner's 24 h band floor
 # (SPL_SPAWN_BANDS, the share's .h24; not the phase band), nothing of it
 # queued -> ONE blocker to the dispatch lease holder per class per
-# SPAWN_SHARE_SUPPLY_MIN. Leaves the share it read in SPAWN_PLACE_SHARE.
+# SPAWN_SHARE_SUPPLY_MIN. In the supply lead the refactor blocker is the
+# lead's (spl_spawn_place_supply_lead). Leaves the share it read in
+# SPAWN_PLACE_SHARE.
 spl_spawn_place_supply() {  # HOLDER ROWS
-  local d c due=() gap=$(( ${SPAWN_SHARE_SUPPLY_MIN:-60} * 60 )) now share to line
+  local d c due=() gap=$(( ${SPAWN_SHARE_SUPPLY_MIN:-60} * 60 )) now share to line night
   d="$(spool_asks_dir)"; now="$(date +%s)"
   for c in refactor bug; do
     (( now - $(stat -c %Y "$d/.share.$c.last" 2>/dev/null || echo 0) >= gap )) && due+=("$c")
@@ -267,6 +276,9 @@ spl_spawn_place_supply() {  # HOLDER ROWS
   SPAWN_PLACE_SHARE="$share"
   (( $(jq '.known' <<<"$share") > 0 )) || return 0
   for c in "${due[@]}"; do
+    if [[ "$c" == refactor ]] && night="$(spl_spawn_place_supply_lead "$d")"; then
+      spl_spawn_place_supply_lead_send "$1" "$2" "$share" "$night" && continue
+    fi
     line="$(jq -r --arg c "$c" --slurpfile rows <(printf '%s' "$2") '
       def cls: (.class // "") | if . == "" or . == "ci" then "bug" else . end;
       .by[$c] as $b | (.h24.by[$c].lo // $b.lo) as $lo
@@ -280,6 +292,45 @@ spl_spawn_place_supply() {  # HOLDER ROWS
       do_log "OK supply: $line; $to told"
     fi
   done
+}
+
+# 0b. The supply lead (spec 166 row B3, section 4.3): prints the night's
+# date (UTC, of its start) and returns 0 when do_spl_rhythm_phase says day
+# at RHYTHM_NOW and night SPAWN_SUPPLY_LEAD_MIN later, and DIR's
+# .share.refactor.lead does not already name that night. No hour arithmetic
+# here: the phase decides.
+spl_spawn_place_supply_lead() {  # ASKS_DIR
+  local lead="${SPAWN_SUPPLY_LEAD_MIN:-120}" t later night
+  [[ "$lead" =~ ^[0-9]+$ ]] && (( lead > 0 )) || return 1
+  t="$(spl_spawn_share_now)"; later=$(( t + lead * 60 ))
+  night="$(date -u -d "@$later" +%F)" || return 1
+  [[ "$(cat "$1/.share.refactor.lead" 2>/dev/null)" != "$night" ]] || return 1
+  [[ "$(RHYTHM_NOW="@$t" do_spl_rhythm_phase 2>/dev/null)" == day ]] || return 1
+  [[ "$(RHYTHM_NOW="@$later" do_spl_rhythm_phase 2>/dev/null)" == night ]] || return 1
+  printf '%s' "$night"
+}
+
+# The supply lead's blocker: fewer than twice the night's refactor lanes
+# (the night band's floor, SPL_SPAWN_BANDS_NIGHT, of the known live lanes,
+# at least 1) queued -> ONE blocker naming NIGHT, stamped for the night and
+# as the hourly refactor blocker. Returns 1 when enough rows are queued (the
+# hourly check then runs as by day) or the blocker could not be sent.
+spl_spawn_place_supply_lead_send() {  # HOLDER ROWS SHARE NIGHT
+  local d line to
+  d="$(spool_asks_dir)"
+  line="$(jq -r --argjson nb "$SPL_SPAWN_BANDS_NIGHT" --slurpfile rows <(printf '%s' "$2") '
+      def cls: (.class // "") | if . == "" or . == "ci" then "bug" else . end;
+      ((.known * $nb.refactor[0] + 99) / 100 | floor | if . < 1 then 1 else . end) as $m
+      | ([$rows[0][] | select(.state == "queued" and cls == "refactor")] | length) as $q
+      | select($q < 2 * $m)
+      | "\($q) refactor row(s) queued, fewer than 2 x \($m) (the night band floor \($nb.refactor[0])% of \(.known) live lanes with a class)"' <<<"$3")"
+  [[ -n "$line" ]] || return 1
+  to="$(spl_spawn_place_dispatch)"
+  [[ -n "$to" ]] || { do_log "WARN supply lead: the night of $4 starts within ${SPAWN_SUPPLY_LEAD_MIN:-120} min, $line, and nobody holds the dispatch lease: not told"; return 0; }
+  spl_spawn_q_send "$1" "$to" blocker spawn-share "**SPAWN SUPPLY LEAD: the night of $4 starts within ${SPAWN_SUPPLY_LEAD_MIN:-120} min (do_spl_rhythm_phase) and $line.** Request the next refactor rows now (a round's planner runs by day, its rows at night: rounds-rulebook.md 1.4) and queue them with \`SPAWN_CLASS=refactor ./run -a do_spl_spawn_enqueue\`, so they are ready when the night starts. The night bands: spec 166 section 3.1; the report: \`./run -a do_spl_spawn_share\`." || return 1
+  touch "$d/.share.refactor.last"
+  printf '%s\n' "$4" >"$d/.share.refactor.lead"
+  do_log "OK supply lead: the night of $4, $line; $to told"
 }
 
 # The dispatch lease holder as <ID>@<box>, or nothing.

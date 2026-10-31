@@ -46,6 +46,7 @@ Carried over from [SPEC-spool-fleet-roles.md](SPEC-spool-fleet-roles.md) section
 - No owner go-ahead is needed for a round, its panel, or its row lanes.
 - When round `<N>`'s actions are served (R5), the dispatcher holding the lease requests round `<N+1>`'s planner at once (`c-001` places it).
 - The planner drafts the plan, places panel seats across vendors, and once the panel signs the plan sha, row lanes follow without waiting for owner approval.
+- Planner by day, rows by night ([spec 166](../../specs/166-orchestrator-daily-rhythm/spec.md) section 3.1, row B3; owner HUM-10, t1 c0b0d572 msg 421e479a): the round's planner and its panel run by day, its row lanes, reviewer seats and retro at night (20:00 to 07:00 CET/CEST, `do_spl_rhythm_phase`). From `SPAWN_SUPPLY_LEAD_MIN` (120) minutes before the night, while fewer than twice the night's refactor lanes (the night band's 40% floor of the live lanes) are queued, the placer sends the dispatch lease holder one `SPAWN SUPPLY LEAD` blocker naming the night (once per night, in place of that hour's refactor supply blocker); the holder requests the planner's rows at once, so they are queued when the night starts.
 - An individual row action that requires a production mutation, a `terraform apply`, or GCP secret access still requires the owner's explicit go for that specific call (repo [CLAUDE.md](../../../CLAUDE.md)); the round itself does not.
 
 <a id="ws-doc-dd1932e6-d7d8-4314-a081-f1216334ca1a"></a>

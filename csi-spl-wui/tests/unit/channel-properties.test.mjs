@@ -600,3 +600,58 @@ describe('the agent pick', async () => {
     assert.deepEqual(r.agents.value, [{ id: 'CLE-2', box: 'box-b' }])
   })
 })
+
+// r40-01: the people pick (useChannelPersonPick), driven with a fake api. A
+// member who may not add can still leave; a member's address joins at once; a
+// refused add keeps the choice so the person can try again.
+describe('the people pick', async () => {
+  const { useChannelPersonPick } = await importTs('src/composables/useChannelPersonPick.ts')
+  const setup = (over = {}) => {
+    const calls = []
+    const api = {
+      addChannelMember: async (...a) => { calls.push(['add', ...a]) },
+      removeChannelMember: async (...a) => { calls.push(['remove', ...a]) },
+      addChannelInvitee: async (...a) => {
+        calls.push(['invite', ...a])
+        return { human_id: 'HUM-7' }
+      },
+      ...over,
+    }
+    const r = {
+      busy: ref(false), canAdd: ref(true), error: ref(''), selfId: ref('HUM-1'),
+      localMembers: ref(['HUM-1', 'HUM-2']), localInvited: ref([]), chosenPerson: ref(null), personQuery: ref(''),
+    }
+    const fn = useChannelPersonPick({ api, props: { channelId: 'one' }, people: { label: (id) => id }, ...r })
+    return { calls, r, fn }
+  }
+
+  it('a member who may not add can still leave, and removes nobody else', async () => {
+    const { calls, r, fn } = setup()
+    r.canAdd.value = false
+    await fn.removePerson('HUM-2')
+    await fn.removePerson('HUM-1')
+    assert.deepEqual(calls, [['remove', 'one', 'HUM-1']])
+    assert.deepEqual(r.localMembers.value, ['HUM-2'])
+  })
+
+  it('a member\'s address joins at once and is not left pending', async () => {
+    const { calls, r, fn } = setup()
+    r.chosenPerson.value = 'a@example.com'
+    await fn.addChosen()
+    assert.deepEqual(calls, [['invite', 'one', 'a@example.com']])
+    assert.deepEqual(r.localMembers.value, ['HUM-1', 'HUM-2', 'HUM-7'])
+    assert.deepEqual(r.localInvited.value, [])
+  })
+
+  it('a refused add keeps the chosen person and the query', async () => {
+    const { r, fn } = setup({
+      addChannelMember: async () => { throw Object.assign(new Error('x'), { token: 'not_allowed' }) },
+    })
+    r.chosenPerson.value = 'HUM-9'
+    r.personQuery.value = 'hu'
+    await fn.addChosen()
+    assert.equal(r.chosenPerson.value, 'HUM-9')
+    assert.equal(r.personQuery.value, 'hu')
+    assert.equal(r.error.value, 'not_allowed')
+  })
+})

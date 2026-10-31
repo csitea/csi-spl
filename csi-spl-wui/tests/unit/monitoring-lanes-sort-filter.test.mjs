@@ -147,6 +147,18 @@ describe('the Box column', () => {
   it('is the second column of the sheet', () => {
     assert.deepEqual(LANE_COLUMNS.slice(0, 3), ['agent', 'box', 'vendor'])
   })
+  it('a lane with no box sorts last both ways, ties keep the hub order', () => {
+    const noBox = fleetLanesOf({ as_of: '2026-10-27T12:00:00Z', fleet: 'main', lanes: [
+      { agent_id: 'c-1', agent_box: '', vendor: 'claude', updated_at: '2026-10-27T11:00:00Z' },
+      { agent_id: 'c-2', agent_box: 'box-b', vendor: 'claude', updated_at: '2026-10-27T11:00:00Z' },
+      { agent_id: 'c-3', vendor: 'claude', updated_at: '2026-10-27T11:00:00Z' },
+      { agent_id: 'c-4', agent_box: 'box-a', vendor: 'claude', updated_at: '2026-10-27T11:00:00Z' },
+    ] }).lanes
+    assert.equal(noBox[0].box, '')
+    assert.equal(noBox[2].box, '')
+    assert.equal(ids(sortLanes(noBox, { col: 'box', dir: 'asc' })), 'c-4,c-2,c-1,c-3')
+    assert.equal(ids(sortLanes(noBox, { col: 'box', dir: 'desc' })), 'c-2,c-4,c-1,c-3')
+  })
   it('each row renders the box the hub sent, a dash when none', () => {
     assert.match(lanes, /<td class="ln-box" data-test="lanes-box">\{\{ l\.box \|\| DASH \}\}<\/td>/)
     assert.match(lanes, /box: \{ key: 'monitoring\.lanes\.col_box'/)

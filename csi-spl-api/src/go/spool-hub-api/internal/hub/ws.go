@@ -1080,8 +1080,8 @@ func (s *Server) onTail(ctx context.Context, x *session, f wire.Frame) {
 		x.fail(ctx, "", "internal", http.StatusInternalServerError, "tail read failed")
 		return
 	}
-	if f.RSPCount && !f.Follow {
-		s.onTailRSPCount(ctx, x, f.TaskID, len(envs) > 0)
+	if (f.RSPCount || f.AgentCount) && !f.Follow {
+		s.onTailCount(ctx, x, f, len(envs) > 0)
 		return
 	}
 	for _, e := range envs {
@@ -1093,14 +1093,25 @@ func (s *Server) onTail(ctx context.Context, x *session, f wire.Frame) {
 	x.write(ctx, wire.Frame{Type: wire.TTailEnd, TaskID: f.TaskID, Count: len(envs)}) //nolint:errcheck
 }
 
-// onTailRSPCount answers a rsp_count tail (c-082): how many of the task's
-// messages the responder (agentid.IsResponder: c-684, or a stored RSP-*) sent, from ANY box - the one fact a box may
-// learn about envelopes it does not hold, and only for a task it holds
-// something of (holds=false reads 0, like an unknown task_id).
-func (s *Server) onTailRSPCount(ctx context.Context, x *session, taskID string, holds bool) {
+// onTailCount answers a rsp_count tail (c-082) or an agent_count tail
+// (SPL-4444): how many of the task's messages the responder
+// (agentid.IsResponder: c-684, or a stored RSP-*) or an agent (isAgent, not
+// a responder) sent, from ANY box - the one fact a box may learn about
+// envelopes it does not hold, and only for a task it holds something of
+// (holds=false reads 0, like an unknown task_id). A frame asking both counts
+// is refused: one Count cannot carry two.
+func (s *Server) onTailCount(ctx context.Context, x *session, f wire.Frame, holds bool) {
+	if f.RSPCount && f.AgentCount {
+		x.fail(ctx, "", "bad_frame", http.StatusBadRequest, "a tail asks rsp_count or agent_count, not both")
+		return
+	}
+	counted := agentid.IsResponder
+	if f.AgentCount {
+		counted = func(id string) bool { return isAgent(id) && !agentid.IsResponder(id) }
+	}
 	n := 0
 	if holds {
-		envs, err := s.o.Store.TaskEnvelopes(ctx, x.tenant, taskID)
+		envs, err := s.o.Store.TaskEnvelopes(ctx, x.tenant, f.TaskID)
 		if err != nil {
 			x.fail(ctx, "", "internal", http.StatusInternalServerError, "tail read failed")
 			return
@@ -1110,12 +1121,12 @@ func (s *Server) onTailRSPCount(ctx context.Context, x *session, taskID string, 
 			if err != nil {
 				continue
 			}
-			if m, err := e.Inner(); err == nil && agentid.IsResponder(m.From) {
+			if m, err := e.Inner(); err == nil && counted(m.From) {
 				n++
 			}
 		}
 	}
-	x.write(ctx, wire.Frame{Type: wire.TTailEnd, TaskID: taskID, Count: n, RSPCount: true}) //nolint:errcheck
+	x.write(ctx, wire.Frame{Type: wire.TTailEnd, TaskID: f.TaskID, Count: n, RSPCount: f.RSPCount, AgentCount: f.AgentCount}) //nolint:errcheck
 }
 
 // notifyTail sends a newly stored envelope to every follower of its task in

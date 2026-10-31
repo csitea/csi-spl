@@ -301,6 +301,12 @@ type Frame struct {
 	// number in Count. A task the box holds nothing of reads 0 (the tail
 	// door). An older hub ignores the flag and its tail_end lacks it.
 	RSPCount bool `json:"rsp_count,omitempty"`
+	// AgentCount (SPL-4444) is RSPCount's twin for agents: how many of the
+	// task's messages an agent sent (not a HUM-* person, not a responder,
+	// not a guest), from ANY box, so the desk's first-reply lease gate on one
+	// machine sees a first reply made from another. Same door, same echo
+	// (tail_end AgentCount + Count); a tail asks one of the two counts.
+	AgentCount bool `json:"agent_count,omitempty"`
 
 	// recv / backfill_end (SPL-987, specs/038 FR-020..): the channel whose
 	// earlier posts a newly seated agent is being back-filled with. On recv

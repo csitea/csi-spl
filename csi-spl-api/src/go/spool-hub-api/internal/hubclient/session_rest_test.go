@@ -128,6 +128,41 @@ func TestRSPCount(t *testing.T) {
 	}
 }
 
+// SPL-4444: AgentCount asks agent_count and accepts only a tail_end that
+// echoes it; an rsp_count echo is not an answer.
+func TestAgentCount(t *testing.T) {
+	cases := []struct {
+		name  string
+		reply wire.Frame
+		n     int
+		want  string // "" = success
+	}{
+		{"answered", wire.Frame{Type: wire.TTailEnd, AgentCount: true, Count: 4}, 4, ""},
+		{"older hub, no echo", wire.Frame{Type: wire.TTailEnd, Count: 5}, 0, "does not answer agent_count"},
+		{"the other count", wire.Frame{Type: wire.TTailEnd, RSPCount: true, Count: 1}, 0, "does not answer agent_count"},
+		{"older hub streams", wire.Frame{Type: wire.TTailMsg}, 0, "streamed the tail"},
+		{"refused", wire.Frame{Type: wire.TError, Error: "forbidden", Status: 403}, 0, "forbidden"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := &opsHub{reply: func(f wire.Frame) []wire.Frame {
+				if f.Type != wire.TTail || !f.AgentCount || f.RSPCount {
+					return nil
+				}
+				return []wire.Frame{tc.reply}
+			}}
+			_, s := dialOps(t, h, wire.RoleCLI)
+			n, err := s.AgentCount(context.Background(), "task-1")
+			if tc.want == "" && (err != nil || n != tc.n) {
+				t.Fatalf("n %d err %v", n, err)
+			}
+			if tc.want != "" && (err == nil || !strings.Contains(err.Error(), tc.want)) {
+				t.Fatalf("got %d %v, want %q", n, err, tc.want)
+			}
+		})
+	}
+}
+
 func TestRSPCountNoReply(t *testing.T) {
 	h := &opsHub{reply: func(wire.Frame) []wire.Frame { return nil }}
 	c, s := dialOps(t, h, wire.RoleCLI)

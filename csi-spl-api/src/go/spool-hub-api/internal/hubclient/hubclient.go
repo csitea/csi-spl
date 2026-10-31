@@ -784,8 +784,25 @@ func (s *Session) fromNotYetAnnounced(err error, from string) bool {
 // most one Seen per topic". An error when the hub cannot answer, including an
 // older hub whose tail_end does not echo rsp_count - never a guessed 0.
 func (s *Session) RSPCount(ctx context.Context, taskID string) (int, error) {
+	return s.tailCount(ctx, wire.Frame{Type: wire.TTail, TaskID: taskID, RSPCount: true}, "rsp_count",
+		func(r wire.Frame) bool { return r.RSPCount })
+}
+
+// AgentCount asks the hub how many of a task's messages an agent (not a
+// HUM-* person, not a responder) sent, from any box (SPL-4444): the desk's
+// first-reply lease gate reads it when its own box's tail holds no agent
+// post. An error when the hub cannot answer, including an older hub whose
+// tail_end does not echo agent_count - never a guessed 0.
+func (s *Session) AgentCount(ctx context.Context, taskID string) (int, error) {
+	return s.tailCount(ctx, wire.Frame{Type: wire.TTail, TaskID: taskID, AgentCount: true}, "agent_count",
+		func(r wire.Frame) bool { return r.AgentCount })
+}
+
+// tailCount sends a count-only tail frame f and waits for the tail_end that
+// echoes it (echoed); name is the count in the errors.
+func (s *Session) tailCount(ctx context.Context, f wire.Frame, name string, echoed func(wire.Frame) bool) (int, error) {
 	wctx, cancel := context.WithTimeout(ctx, s.c.timeout())
-	err := wsjson.Write(wctx, s.conn, wire.Frame{Type: wire.TTail, TaskID: taskID, RSPCount: true})
+	err := wsjson.Write(wctx, s.conn, f)
 	cancel()
 	if err != nil {
 		return 0, fmt.Errorf("%w: %w", ErrUnreachable, err)
@@ -796,10 +813,10 @@ func (s *Session) RSPCount(ctx context.Context, taskID string) (int, error) {
 		case r := <-s.replies:
 			switch r.Type {
 			case wire.TTailMsg:
-				return 0, errors.New("the hub streamed the tail: it does not answer rsp_count")
+				return 0, errors.New("the hub streamed the tail: it does not answer " + name)
 			case wire.TTailEnd:
-				if !r.RSPCount {
-					return 0, errors.New("the hub does not answer rsp_count")
+				if !echoed(r) {
+					return 0, errors.New("the hub does not answer " + name)
 				}
 				return r.Count, nil
 			case wire.TError:

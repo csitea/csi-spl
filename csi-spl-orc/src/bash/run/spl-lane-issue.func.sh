@@ -55,7 +55,14 @@
 # @description     it is fetched (as its owner, or SPOOL_BOX_USER), then the
 # @description     sha must pass `git merge-base --is-ancestor <sha>
 # @description     origin/<trunk>` (the cnf's trunk, else origin/HEAD, else
-# @description     master, else main). Then: status done, a comment naming
+# @description     master, else main). A `github: <owner>/<repo>` row with
+# @description     no src_dir (SPL-4471: a clone no git may touch) is read
+# @description     on GitHub only, from any box: `gh api` commits/<sha> and
+# @description     compare/<trunk>...<sha> "behind" or "identical". Rows
+# @description     also come from the box-side SPOOL_LANDED_REPOS_FILE
+# @description     (default $SPOOL_ROOT/landed-repos.yaml, never in git,
+# @description     the cnf's shape): a repo whose name stays out of the tree.
+# @description     Then: status done, a comment naming
 # @description     repo + sha, and lifetime/issue-end with both, which li_gate
 # @description     passes. Anything else is refused in one line, nothing changed.
 # @description     Landed is not live: the dispatcher's ACCEPTED still checks the
@@ -550,22 +557,30 @@ spl_lane_issue_landed() {
 # map with an absolute `src_dir` (a hosted site, named by its basename), from
 # all.env.yaml then <ENV>.env.yaml (a later row wins), after the rows of the
 # workspace box map (spl_landed_repo_map_rows), so a public row wins a name. A
-# test sandbox (SPOOL_TEST=1) reads LANE_LANDED_CNF only, else no cnf: never
-# the live clones.
+# landed_repos row with `github: <owner>/<repo>` and no src_dir (SPL-4471) is
+# "<name>\tgh:<owner>/<repo>\t<trunk>\t<box>\tgh": read on GitHub only, its
+# clone never touched. Last, the box-side SPOOL_LANDED_REPOS_FILE (default
+# $SPOOL_ROOT/landed-repos.yaml; never in git, the cnf's env.box.landed_repos
+# shape): a repo whose name the tree must not carry. A test sandbox
+# (SPOOL_TEST=1) reads LANE_LANDED_CNF and a set SPOOL_LANDED_REPOS_FILE only,
+# else no cnf: never the live clones.
 spl_landed_repo_rows() {
   local d f
   local -a cnfs=()
   d="${APP_PATH:-$PROJ_PATH/..}/csi-spl-cnf/csi-spl"
-  if [[ "${SPOOL_TEST:-}" == 1 ]]; then cnfs=("${LANE_LANDED_CNF:-}")
-  else cnfs=("$d/all.env.yaml" "$d/${ENV:-none}.env.yaml"); fi
+  if [[ "${SPOOL_TEST:-}" == 1 ]]; then cnfs=("${LANE_LANDED_CNF:-}" "${SPOOL_LANDED_REPOS_FILE:-}")
+  else cnfs=("$d/all.env.yaml" "$d/${ENV:-none}.env.yaml" "${SPOOL_LANDED_REPOS_FILE:-${SPOOL_ROOT:-/var/spool-hub}/landed-repos.yaml}"); fi
   {
     spl_landed_repo_map_rows
     for f in "${cnfs[@]}"; do
       [[ -r "$f" ]] || continue
       yq -r '.. | select(tag == "!!map" and has("src_dir")) |
         [(.name // (.src_dir | split("/") | .[-1])), .src_dir, (.trunk // ""), (.box // ""), "cnf"] | @tsv' "$f" 2>/dev/null
+      yq -r '.env.box.landed_repos[]? | select(has("github") and (has("src_dir") | not)) |
+        [(.name // ""), "gh:" + .github, (.trunk // ""), (.box // ""), "gh"] | @tsv' "$f" 2>/dev/null
     done
-  } | awk -F'\t' -v OFS='\t' '$2 ~ /^\// && $1 ~ /^[A-Za-z0-9][A-Za-z0-9._-]*$/ && $1 !~ /\.\./ {
+  } | awk -F'\t' -v OFS='\t' '($2 ~ /^\// || ($5 == "gh" && $2 ~ /^gh:[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/)) &&
+    $1 ~ /^[A-Za-z0-9][A-Za-z0-9._-]*$/ && $1 !~ /\.\./ && $2 !~ /\.\./ {
     if ($3 == "") $3 = "-"; if ($4 == "") $4 = "-"; print }'
 }
 
@@ -611,7 +626,7 @@ spl_landed_repo_box() {
 
 # spl_landed_repo NAME -> "<clone>\t<trunk>" of a repo the cnf or the
 # workspace box map knows, its clone on THIS box (trunk empty = found on the
-# clone). The one resolver of do_spl_lane_issue (end done), spl_desk_live_proof
+# clone); a GitHub-only row gives "gh:<owner>/<repo>\t<trunk>" on any box. The one resolver of do_spl_lane_issue (end done), spl_desk_live_proof
 # (LIVE_REPO) and do_spl_done_claim_check. A path, a URL, an unknown name and
 # a clone that is not on this box are refused, one FATAL line on stderr: a
 # lane must not point the check at a repo it controls. The refusal lists the
@@ -628,6 +643,7 @@ spl_landed_repo() {
   [[ -n "$hit" ]] || { do_log "FATAL LANE_LANDED_REPO '$name' is no repo the cnf knows (src_dir names:${known:- none}): refused, nothing changed" >&2; return 1; }
   IFS=$'\t' read -r p t b s <<<"$hit"
   [[ "$t" == - ]] && t=""
+  [[ "$s" == gh ]] && { printf '%s\t%s\n' "$p" "$t"; return 0; }
   if [[ ! -d "$p/.git" ]]; then
     if [[ "$s" == map ]]; then
       do_log "FATAL the workspace box map's clone of that repo is not a git repo on this box ($(spl_landed_repo_box)); its desk is on box $b: run it there: refused, nothing changed" >&2
@@ -659,6 +675,7 @@ spl_landed_repo_git() {
 # else origin/HEAD, master, main. A failed fetch or a missing trunk: one FATAL.
 spl_landed_repo_trunk() {
   local name="$1" c="$2" t="${3:-}" b
+  [[ "$c" == gh:* ]] && { spl_landed_repo_gh_trunk "$name" "${c#gh:}" "$t"; return; }
   [[ "${SLR_NO_FETCH:-}" == 1 ]] ||
     SLR_TIMEOUT="${LANE_LANDED_FETCH_TIMEOUT:-120}" spl_landed_repo_git "$c" fetch -q origin </dev/null >&2 ||
     { do_log "FATAL cannot fetch $(spl_landed_repo_shown "$name" "$c" clone) as ${SPOOL_BOX_USER:-$(stat -c %U "$c")}: not checked, refused, nothing changed" >&2; return 1; }
@@ -672,13 +689,53 @@ spl_landed_repo_trunk() {
   printf '%s\n' "$t"
 }
 
+# spl_landed_repo_gh REPO PATH JQ: `gh api repos/<REPO>[/PATH] --jq JQ` as
+# the caller, capped by LANE_LANDED_FETCH_TIMEOUT (120 s).
+spl_landed_repo_gh() {
+  timeout "${LANE_LANDED_FETCH_TIMEOUT:-120}" gh api "repos/$1${2:+/$2}" --jq "$3" </dev/null 2>/dev/null
+}
+
+# spl_landed_repo_gh_trunk NAME REPO [TRUNK] -> the trunk of a GitHub-only row
+# (SPL-4471): TRUNK, else the repo's default branch; it must exist on GitHub.
+spl_landed_repo_gh_trunk() {
+  local t="${3:-}"
+  [[ -n "$t" ]] || t="$(spl_landed_repo_gh "$2" "" .default_branch)"
+  [[ -n "$t" ]] ||
+    { do_log "FATAL cannot read $1 on GitHub (gh api repos/$2): not checked, refused, nothing changed" >&2; return 1; }
+  [[ "$(spl_landed_repo_gh "$2" "branches/$t" .name)" == "$t" ]] ||
+    { do_log "FATAL $1 has no origin/$t on GitHub ($2): refused, nothing changed" >&2; return 1; }
+  printf '%s\n' "$t"
+}
+
+# spl_landed_repo_gh_commit REPO SHA -> the full sha of a commit of REPO on
+# GitHub, else false.
+spl_landed_repo_gh_commit() {
+  local full
+  full="$(spl_landed_repo_gh "$1" "commits/$2" .sha)" && [[ "$full" =~ ^[0-9a-f]{40}$ && "$full" == "$2"* ]] && printf '%s\n' "$full"
+}
+
+# spl_landed_repo_gh_on REPO FULL TRUNK: true when TRUNK contains FULL. The
+# compare is base=TRUNK, head=FULL: "behind" (head is an ancestor of base) or
+# "identical" is landed; "ahead" or "diverged" is not (a-371, 2026-10-14,
+# read "behind" the other way round).
+spl_landed_repo_gh_on() {
+  [[ "$(spl_landed_repo_gh "$1" "compare/$3...$2" .status)" =~ ^(behind|identical)$ ]]
+}
+
 # spl_lane_issue_on_trunk NAME CLONE SHA [TRUNK] -> "<full sha>\t<trunk>":
-# fetched first (spl_landed_repo_trunk), then an ancestor of origin/<trunk>.
-# Never gh compare: its "behind" means trunk LACKS the commit (a-371,
-# 2026-10-14).
+# fetched first (spl_landed_repo_trunk), then an ancestor of origin/<trunk>;
+# a GitHub-only row (CLONE gh:<owner>/<repo>) is read on GitHub instead.
 spl_lane_issue_on_trunk() {
   local name="$1" c="$2" sha="$3" t full
   t="$(spl_landed_repo_trunk "$name" "$c" "${4:-}")" || return 1
+  if [[ "$c" == gh:* ]]; then
+    full="$(spl_landed_repo_gh_commit "${c#gh:}" "$sha")" ||
+      { do_log "FATAL $sha is no commit of $name on GitHub (${c#gh:}): refused, nothing changed" >&2; return 1; }
+    spl_landed_repo_gh_on "${c#gh:}" "$full" "$t" ||
+      { do_log "FATAL $name ${full:0:12} is not on origin/$t (a branch only?): not landed, refused, nothing changed" >&2; return 1; }
+    printf '%s\t%s\n' "$full" "$t"
+    return 0
+  fi
   full="$(spl_landed_repo_git "$c" rev-parse -q --verify "$sha^{commit}" 2>/dev/null)" ||
     { do_log "FATAL $sha is no commit of $(spl_landed_repo_shown "$name" "$c"), even after a fetch: refused, nothing changed" >&2; return 1; }
   spl_landed_repo_git "$c" merge-base --is-ancestor "$full" "refs/remotes/origin/$t" ||

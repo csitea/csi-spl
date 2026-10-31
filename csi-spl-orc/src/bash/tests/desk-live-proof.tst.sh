@@ -213,6 +213,49 @@ send do_spl_desk_reply "$B" "${CUST[@]}" "${WS[@]}" LIVE_REPO=other-rel; rc=$?
 one_line "10. an unknown LIVE_REPO with a box map: the list counts the map's repos, naming none" "(src_dir names: cust-rel far-rel and 1 workspace repo(s))"
 ! grep -qE "site-alpha|$T/wsc" "$T/o" && pass "10. ... no map repo or clone in the refusal" || fail "10. map leak: $(cat "$T/o")"
 
+# SPL-4471: LIVE_REPO of a GitHub-only row (its clone takes no git command) is
+# proven on GitHub (stubbed), from any box; the row may come from the box-side
+# SPOOL_LANDED_REPOS_FILE.
+# gh_landed_stub: a GitHub stub on PATH for a GitHub-only landed_repos row
+# (SPL-4471): repo $GH_REPO, trunk master, $GH_ON on it, $GH_OFF on a branch
+# only, anything else a 404; each call logged to $GH_LOG.
+gh_landed_stub() {
+  mkdir -p "$T/stub"
+  cat >"$T/stub/gh" <<'GHSTUB'
+#!/bin/bash
+echo "gh $*" >>"$GH_LOG"
+r="repos/$GH_REPO"
+[[ "$1" == api ]] || exit 1
+case "$2" in
+  "$r" | "$r/branches/master") echo master ;;
+  "$r/commits/"*) for f in $GH_ON $GH_OFF; do [[ "$f" == "${2##*/}"* ]] && { echo "$f"; exit 0; }; done; echo 'HTTP 404' >&2; exit 1 ;;
+  "$r/compare/master..."*) [[ " $GH_ON " == *" ${2##*...} "* ]] && echo behind || echo diverged ;;
+  *) echo 'HTTP 404' >&2; exit 1 ;;
+esac
+GHSTUB
+  chmod +x "$T/stub/gh"
+}
+GH_ON=1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d
+GH_OFF=9f8e7d6c9f8e7d6c9f8e7d6c9f8e7d6c9f8e7d6c
+printf 'env:\n  box:\n    landed_repos:\n      - {name: far-hub, github: example-org/far-hub, trunk: master}\n' >"$T/gh.yaml"
+GH=(LIVE_REPO=far-hub LANE_LANDED_CNF="$T/gh.yaml" GH_LOG="$T/gh.log" GH_REPO=example-org/far-hub GH_ON="$GH_ON" GH_OFF="$GH_OFF" SPOOL_BOX_TAG=box-z)
+gh_landed_stub
+B="**Live** far-hub ${GH_ON:0:9} on master, running on its hub box"$'\n'"$PROOF"
+send do_spl_desk_reply "$B" "${CUST[@]}" "${GH[@]}"; rc=$?
+sent "10. LIVE_REPO=<a GitHub-only row>: a sha on its GitHub trunk is Live on any box (box-z)" "$B"
+B="**Live** far-hub ${GH_OFF:0:9}"$'\n'"$PROOF"
+send do_spl_desk_reply "$B" "${CUST[@]}" "${GH[@]}"; rc=$?
+refused "10. RED CONTROL a GitHub-only row's sha on a branch only is refused" "far-hub sha ${GH_OFF:0:9} on origin/master (it is not"
+B="**Live** far-hub ${CON:0:9}"$'\n'"$PROOF"
+send do_spl_desk_reply "$B" "${CUST[@]}" "${GH[@]}"; rc=$?
+refused "10. a hex word GitHub does not have is no far-hub sha" "a commit sha of far-hub on origin/master"
+B="**Live** far-hub ${GH_ON:0:9}"$'\n'"$PROOF"
+send do_spl_desk_reply "$B" "${CUST[@]}" "${GH[@]}" LANE_LANDED_CNF="$T/cust.yaml"; rc=$?
+one_line "10. RED CONTROL a cnf with no far-hub row refuses LIVE_REPO=far-hub" "'far-hub' is no repo the cnf knows (src_dir names: cust-rel far-rel)"
+send do_spl_desk_reply "$B" "${CUST[@]}" "${GH[@]}" LANE_LANDED_CNF="$T/cust.yaml" SPOOL_LANDED_REPOS_FILE="$T/gh.yaml"; rc=$?
+sent "10. the box-side SPOOL_LANDED_REPOS_FILE's GitHub-only row beside the cnf's: Live" "$B"
+rm -f "$T/stub/gh"
+
 # --- 11. an all-digit short sha (SPL-2706) ----------------------------------------
 # digit_word <msg>: an empty commit on master whose 9-char prefix is all digits
 # (~1.5% of hashes: amend until it is), pushed to origin.

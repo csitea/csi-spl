@@ -151,6 +151,15 @@ a486355b0 was an ancestor of that repo's `origin/master`; c-189 lands in its
 own customer repo). The check read only the tree holding it plus cnf
 `env.box.landed_repos`.
 
+A `landed_repos` row with `github: <owner>/<repo>` in place of `src_dir`
+(SPL-4471: a live service runs from that clone, so no git command may run
+there) has no clone to read: this check skips it, and `do_spl_lane_issue`
+(end done) and the **Live** proof (`LIVE_REPO`) read its sha on GitHub
+instead (`gh api` commits and compare, "behind" or "identical" = on the
+trunk), from any box. A repo whose name must stay out of this tree is such a
+row in the box-side `$SPOOL_ROOT/landed-repos.yaml` (`SPOOL_LANDED_REPOS_FILE`,
+never in git, the cnf's `env.box.landed_repos` shape), read after the cnf.
+
 - The repos read for a result also include the sender lane's OWN repo:
   its worktree from `registry.tsv` (column 4), else its newest
   `workdirs.tsv` worktree row that still exists, then

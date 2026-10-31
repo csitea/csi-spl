@@ -467,11 +467,13 @@ spl_done_claim_stale() {
 # on another box is that box's (skipped); a failed fetch warns and keeps the
 # clone's last fetched trunk (an "R" row in [unchecked file], SPL-3020), a
 # missing trunk is a FATAL; a local-trunk clone is its local branch, unfetched.
+# A GitHub-only row (gh:<owner>/<repo>, SPL-4471) has no clone to read: skipped.
 spl_done_claim_landed_repos() {
   local n row clone trunk shown rc=0 skip=" ${1:-}"
   while IFS=$'\t' read -r n _; do
     row="$(spl_landed_repo "$n" 2>/dev/null)" || continue
     clone="${row%%$'\t'*}"
+    [[ "$clone" == gh:* ]] && continue
     [[ "$skip" == *" $clone "* ]] && continue
     skip+="$clone "
     if trunk="$(spl_done_claim_local_trunk "$clone")"; then echo "$clone $trunk"; continue; fi

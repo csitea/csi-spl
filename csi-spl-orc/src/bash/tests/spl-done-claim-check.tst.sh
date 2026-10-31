@@ -261,6 +261,16 @@ v="$(for k in cust custno; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
 [ "$rc" = 0 ] && [ "$v" = "cust=landed custno=would-alert " ] && [ "$(verdict quoted)" = landed ] && [ "$(verdict unl)" = would-alert ] &&
   pass "10. a sha on a cnf customer repo's fetched trunk is landed; a sha in no known repo's trunk still alerts; the csi-spl verdicts stand; a clone on another box is skipped" ||
   fail "10. cnf customer repo (rc $rc) got '$v': $(cat "$T/o")"
+# SPL-4471: a GitHub-only row (no src_dir: its clone takes no git) has
+# no clone to read: skipped, no gh call, the other verdicts stand.
+cp "$T/cust.yaml" "$T/cust-gh.yaml" && printf '      - {name: far-hub, github: example-org/far-hub, trunk: master}\n' >>"$T/cust-gh.yaml"
+mkdir -p "$T/stub" && printf '#!/bin/sh\necho "gh $*" >>"%s"\nexit 1\n' "$T/gh10.log" >"$T/stub/gh" && chmod +x "$T/stub/gh"
+run DONE_CLAIM_STATE_DIR="$T/st10" SPOOL_BOX_USER= LANE_LANDED_CNF="$T/cust-gh.yaml"; rc=$?
+v="$(for k in cust custno; do printf '%s=%s ' "$k" "$(verdict $k)"; done)"
+[ "$rc" = 0 ] && [ "$v" = "cust=landed custno=would-alert " ] && [ ! -s "$T/gh10.log" ] &&
+  pass "10. a GitHub-only cnf row is skipped (no gh call), the customer verdicts stand" ||
+  fail "10. GitHub-only row (rc $rc) got '$v', gh calls: $(cat "$T/gh10.log" 2>/dev/null): $(cat "$T/o")"
+rm -f "$T/stub/gh"
 
 # 11. SPL-2560 (c-461's result 05089b84, synthetic): a body with no sha line
 # quotes the refs/notes/release-notes commit next to its code sha. A second

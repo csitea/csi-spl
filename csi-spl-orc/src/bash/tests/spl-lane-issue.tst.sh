@@ -353,6 +353,56 @@ for r in doc-hub csi-web; do
     pass "landed_repos: the repo cnf knows $r (clone, trunk, no box)" || fail "landed_repos: cnf has no $r row: $(cat "$T/o")"
 done
 
+# SPL-4471: a GitHub-only row (`github: <owner>/<repo>`, no src_dir) for a repo
+# whose clone takes no git command (a live service runs from it). The sha is
+# read on GitHub (stubbed), from any box; no clone is resolved or touched. A
+# repo whose name stays out of the tree is a row of the box-side file.
+# gh_landed_stub: a GitHub stub on PATH for a GitHub-only landed_repos row
+# (SPL-4471): repo $GH_REPO, trunk master, $GH_ON on it, $GH_OFF on a branch
+# only, anything else a 404; each call logged to $GH_LOG.
+gh_landed_stub() {
+  mkdir -p "$T/stub"
+  cat >"$T/stub/gh" <<'GHSTUB'
+#!/bin/bash
+echo "gh $*" >>"$GH_LOG"
+r="repos/$GH_REPO"
+[[ "$1" == api ]] || exit 1
+case "$2" in
+  "$r" | "$r/branches/master") echo master ;;
+  "$r/commits/"*) for f in $GH_ON $GH_OFF; do [[ "$f" == "${2##*/}"* ]] && { echo "$f"; exit 0; }; done; echo 'HTTP 404' >&2; exit 1 ;;
+  "$r/compare/master..."*) [[ " $GH_ON " == *" ${2##*...} "* ]] && echo behind || echo diverged ;;
+  *) echo 'HTTP 404' >&2; exit 1 ;;
+esac
+GHSTUB
+  chmod +x "$T/stub/gh"
+}
+GH_ON=1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d
+GH_OFF=9f8e7d6c9f8e7d6c9f8e7d6c9f8e7d6c9f8e7d6c
+GH=(GH_LOG="$T/gh.log" GH_REPO=example-org/far-hub GH_ON="$GH_ON" GH_OFF="$GH_OFF" SPOOL_BOX_TAG=box-z)
+gh_landed_stub
+printf 'env:\n  box:\n    landed_repos:\n      - {name: far-hub, github: example-org/far-hub, trunk: master}\n      - {name: bad-rel, github: "https://example.com/x/y"}\n' >"$T/lr/gh.yaml"
+: >"$T/gh.log"
+done_run LANE_LANDED_REPO=far-hub LANE_LANDED_SHA="${GH_ON:0:7}" LANE_LANDED_CNF="$T/lr/gh.yaml" "${GH[@]}" DRY_RUN=0
+[[ $rc -eq 0 ]] && grep -qx 'update|--ref|SPL-42|--status|done|' "$T/calls.log" &&
+  [[ "$(cut -f1,4,5 "$S/c-123/lifetime/issue-end")" == "done"$'\t'"far-hub"$'\t'"$GH_ON" ]] &&
+  grep -qx "gh api repos/example-org/far-hub/compare/master...$GH_ON --jq .status" "$T/gh.log" &&
+  pass "landed_repos github row: a sha on its GitHub trunk is done on any box (box-z), issue-end names it" ||
+  fail "github row done (rc=$rc): $(cat "$T/o") / $(cat "$T/gh.log")"
+done_run LANE_LANDED_REPO=far-hub LANE_LANDED_SHA="$GH_OFF" LANE_LANDED_CNF="$T/lr/gh.yaml" "${GH[@]}" DRY_RUN=0
+refused "landed_repos github row: RED CONTROL a sha on a GitHub branch only (compare diverged) is refused" "far-hub ${GH_OFF:0:12} is not on origin/master (a branch only?)"
+done_run LANE_LANDED_REPO=far-hub LANE_LANDED_SHA=0123456789abcdef LANE_LANDED_CNF="$T/lr/gh.yaml" "${GH[@]}" DRY_RUN=0
+refused "landed_repos github row: a sha GitHub does not have is refused" "is no commit of far-hub on GitHub (example-org/far-hub)"
+done_run LANE_LANDED_REPO=bad-rel LANE_LANDED_SHA="$GH_ON" LANE_LANDED_CNF="$T/lr/gh.yaml" "${GH[@]}" DRY_RUN=0
+refused "landed_repos github row: a github value that is not <owner>/<repo> makes no row" "'bad-rel' is no repo the cnf knows (src_dir names: far-hub)"
+done_run LANE_LANDED_REPO=far-hub LANE_LANDED_SHA="$GH_ON" LANE_LANDED_CNF="$T/lr/cust.yaml" "${GH[@]}" DRY_RUN=0
+refused "landed_repos github row: RED CONTROL a cnf with no far-hub row refuses far-hub" "'far-hub' is no repo the cnf knows (src_dir names: cust-rel far-rel lost-rel)"
+printf 'env:\n  box:\n    landed_repos:\n      - {name: far-hub, github: example-org/far-hub, trunk: master}\n' >"$T/lr/box-landed.yaml"
+done_run LANE_LANDED_REPO=far-hub LANE_LANDED_SHA="$GH_ON" LANE_LANDED_CNF="$T/lr/cust.yaml" SPOOL_LANDED_REPOS_FILE="$T/lr/box-landed.yaml" "${GH[@]}" DRY_RUN=0
+[[ $rc -eq 0 && "$(cut -f1,4,5 "$S/c-123/lifetime/issue-end" 2>/dev/null)" == "done"$'\t'"far-hub"$'\t'"$GH_ON" ]] &&
+  pass "landed_repos: the box-side SPOOL_LANDED_REPOS_FILE adds a GitHub-only row to the cnf's: done" ||
+  fail "landed_repos: box-side file row refused (rc=$rc): $(cat "$T/o")"
+rm -f "$T/stub/gh"
+
 # SPL-3794: a workspace's own repo is a landed repo through the workspace box
 # map (workspace-repo.inc.sh, box-side, never in git): name = repo, clone,
 # trunk ("-" = found on the clone), box = desk_box. A sandbox reads only

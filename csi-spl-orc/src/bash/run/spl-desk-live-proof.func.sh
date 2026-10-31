@@ -28,6 +28,11 @@
 # (else one FATAL naming this box and the cnf's), fetched, every sha an
 # ancestor of origin/<its trunk>; rule 2 is skipped (no hub or wui build of
 # csi-spl serves another repo). Never gh compare (its "behind" = trunk lacks it).
+# SPL-4471: a GitHub-only row (`github: <owner>/<repo>`, no src_dir: a clone
+# a live service runs from takes no git command) is proven on GitHub
+# from any box: each hex word a commit there, on its trunk
+# (spl_landed_repo_gh_on). Where that repo runs is not read: the post's
+# `checked:` line names how it was measured.
 # Reads only: one fetch, local git, the deploy-lag probes. Nothing is mutated.
 # Env: LIVE_REPO (default none: this checkout),
 #      LANE_WT (default APP_PATH), LANE_FETCH_SCRIPT (default git-fetch-fresh.sh),
@@ -127,12 +132,23 @@ spl_desk_live_repo_proof() {
   rm -f "$err"
   while read -r tok; do
     [[ -n "$tok" ]] || continue
-    full="$(spl_landed_repo_git "$clone" rev-parse --verify -q "$tok^{commit}" 2>/dev/null)" || continue
+    if [[ "$clone" == gh:* ]]; then
+      full="$(spl_landed_repo_gh_commit "${clone#gh:}" "$tok")" || continue
+    else
+      full="$(spl_landed_repo_git "$clone" rev-parse --verify -q "$tok^{commit}" 2>/dev/null)" || continue
+    fi
     [[ "$seen" == *" $full "* ]] && continue
     seen+="$full "; n=$((n + 1))
-    spl_landed_repo_git "$clone" merge-base --is-ancestor "$full" "refs/remotes/origin/$trunk" 2>/dev/null ||
+    spl_desk_live_repo_on "$clone" "$full" "$trunk" ||
       miss+=("$name sha ${full:0:9} on origin/$trunk (it is not: say **Landed, not live yet** only once it is, rule 14)")
   done < <(sed -E 's/[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}//g' <<<"$body" | grep -oE '\b[0-9a-f]{7,40}\b')
   (( n )) || miss+=("a commit sha of $name on origin/$trunk (none of the body's hex words is a commit of $clone)")
   spl_desk_live_verdict "${miss[@]}"
+}
+
+# spl_desk_live_repo_on CLONE FULL TRUNK: true when FULL is on TRUNK, in the
+# fetched clone or, for a GitHub-only row (gh:<owner>/<repo>), on GitHub.
+spl_desk_live_repo_on() {
+  if [[ "$1" == gh:* ]]; then spl_landed_repo_gh_on "${1#gh:}" "$2" "$3"
+  else spl_landed_repo_git "$1" merge-base --is-ancestor "$2" "refs/remotes/origin/$3" 2>/dev/null; fi
 }

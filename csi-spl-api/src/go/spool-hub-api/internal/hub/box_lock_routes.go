@@ -547,10 +547,12 @@ func (s *Server) lockStatementOK(w http.ResponseWriter, r *http.Request, c boxLo
 }
 
 // GET /v1/boxes/{box}/lock: the lock, its audit and a fresh nonce, to an
-// owner only. An open box, and a lock the caller does not own (one refused
-// audit row), both answer 204 with no body: the same answer, so a non-owner
-// still cannot tell them apart (SPL-4516: the 404 it was put a console error
-// on every box card load). A box the workspace never pinned stays 404.
+// owner only. Any valid box id the caller owns no lock on answers 204 with no
+// body: an open box, a lock the caller does not own (one refused audit row)
+// and a box never pinned read the same, so a non-owner cannot tell a hidden
+// locked box from one that does not exist (spec 025; SPL-4516: the 404 put a
+// console error on every box card load). Only an invalid box id is 404
+// (boxLockActor).
 func (s *Server) handleGetBoxLock(w http.ResponseWriter, r *http.Request) {
 	c, ok := s.boxLockActor(w, r)
 	if !ok {
@@ -560,8 +562,6 @@ func (s *Server) handleGetBoxLock(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err != nil:
 		writeErrCause(w, http.StatusInternalServerError, "internal", "box lock unavailable", err)
-	case l == nil && !s.toBoxKnown(r.Context(), c.tenant, c.box):
-		writeErr(w, http.StatusNotFound, "not_found", "no such box")
 	case l == nil:
 		w.WriteHeader(http.StatusNoContent)
 	case !l.IsOwner(c.hum):

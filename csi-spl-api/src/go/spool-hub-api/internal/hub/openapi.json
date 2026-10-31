@@ -1722,7 +1722,7 @@
             "description": "OK: the lock, its audit and a nonce"
           },
           "204": {
-            "description": "no lock you own: the box is open, or its lock is not yours (the same answer, SPL-4516), no body"
+            "description": "no lock you own: the box is open, its lock is not yours, or it was never pinned (the same answer, spec 025, SPL-4516), no body"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1731,7 +1731,7 @@
             "$ref": "#/components/responses/Forbidden"
           },
           "404": {
-            "description": "no such box: the workspace never pinned it"
+            "description": "not a valid box id"
           },
           "501": {
             "description": "this hub's store keeps no box locks"

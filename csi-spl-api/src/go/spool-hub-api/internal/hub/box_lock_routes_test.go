@@ -378,9 +378,10 @@ func TestLockedHello(t *testing.T) {
 // SPL-4516 (console errors round 2, row 9): the box card asks
 // GET /v1/boxes/{box}/lock on every load, and a 404 for an unlocked box was
 // a console error each time. An open box, or a lock the caller may not see,
-// is an answer: 204, no body; the two read the same, so a non-owner still
-// cannot tell a locked box from an open one. An owner reads the lock as
-// before; a box the workspace has never pinned keeps its 404. Memory, and
+// is an answer: 204, no body. A box never pinned reads the same 204, so a
+// non-owner cannot tell a hidden locked box from an open one or from one that
+// does not exist (spec 025). An owner reads the lock as before; only an
+// invalid box id keeps its 404. Memory, and
 // Postgres under SPOOL_TEST_PG_DSN (PRE_PUSH_TIER=full). RED CONTROL
 // (master): "unlocked box: 404, want 204".
 func TestBoxLockGetAnswersOpen(t *testing.T) {
@@ -400,8 +401,11 @@ func TestBoxLockGetAnswersOpen(t *testing.T) {
 	if code, n := get(r.owner, r.path()); code != http.StatusNoContent || n != 0 {
 		t.Fatalf("unlocked box: %d, %d bytes, want 204 and none", code, n)
 	}
-	if code, _ := get(r.owner, "/v1/boxes/box-nobody/lock"); code != http.StatusNotFound {
-		t.Fatalf("a box never pinned: %d, want 404", code)
+	if code, n := get(r.owner, "/v1/boxes/box-nobody/lock"); code != http.StatusNoContent || n != 0 {
+		t.Fatalf("a box never pinned: %d, %d bytes, want 204 and none (as an open box)", code, n)
+	}
+	if code, _ := get(r.owner, "/v1/boxes/"+hub.WUIBox+"/lock"); code != http.StatusNotFound {
+		t.Fatalf("an invalid box id: %d, want 404", code)
 	}
 	if code, v := r.call(t, http.MethodPost, r.owner, r.createReq(r.body(1), r.kbox)); code != http.StatusCreated {
 		t.Fatalf("create as the owner: %d %v", code, v)

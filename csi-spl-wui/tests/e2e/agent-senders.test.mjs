@@ -20,11 +20,10 @@
 //
 // SPL-4516 (console errors round 2, row 9): every box card page here also
 // counts lock 404s (a 404 response on /v1/boxes/<box>/lock, or a console
-// error naming that route) and wants 0. The mock answers the lock in the
-// page, as the hub now does: an open box or a lock the viewer does not own
-// reads null (the hub's 204), and the pane reads "no lock you own". The
-// hub's 204 is proved by TestBoxLockGetAnswersOpen (Postgres), the pane's
-// null reading by tests/unit/box-lock.test.mjs.
+// error naming that route) and wants 0. This is a guard, NOT a red control:
+// the mock answers the lock in the page and makes no request, so it passed
+// on master too. The proof is TestBoxLockGetAnswersOpen (the hub's 204, on
+// Postgres) and tests/unit/box-lock.test.mjs (the pane reads 204 as open).
 //
 // Run:
 //   pnpm run test:e2e agent-senders

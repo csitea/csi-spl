@@ -222,6 +222,46 @@ describe('pagehide beacon', () => {
   })
 })
 
+describe('credentials after a sign-in (SPL-4517)', () => {
+  /* the plugin starts on the login page (door unset: 'omit'); the sign-in then
+     sets the session door, and the next POST must carry the cookie */
+  it('a credentials getter is read at each send, not once at start', async () => {
+    const calls = []
+    const realFetch = globalThis.fetch
+    globalThis.fetch = (url, init) => { calls.push(init.credentials); return Promise.resolve({ ok: true, status: 204 }) }
+    try {
+      let creds = 'omit'
+      const c = startPerfRum({ url: 'https://api.example.com/v1/perf/samples', credentials: () => creds, win: { addEventListener: () => {} } })
+      assert.ok(c)
+      perfMark('send_ack', 40)
+      await c.flush()
+      creds = 'include'
+      perfMark('send_ack', 41)
+      await c.flush()
+      assert.deepEqual(calls, ['omit', 'include'])
+    } finally {
+      globalThis.fetch = realFetch
+    }
+  })
+  it('a throwing or empty getter falls back to include', async () => {
+    const calls = []
+    const realFetch = globalThis.fetch
+    globalThis.fetch = (url, init) => { calls.push(init.credentials); return Promise.resolve({ ok: true, status: 204 }) }
+    try {
+      let get = () => { throw new Error('no client') }
+      const c = startPerfRum({ url: 'https://api.example.com/v1/perf/samples', credentials: () => get(), win: { addEventListener: () => {} } })
+      perfMark('send_ack', 40)
+      await c.flush()
+      get = () => ''
+      perfMark('send_ack', 41)
+      await c.flush()
+      assert.deepEqual(calls, ['include', 'include'])
+    } finally {
+      globalThis.fetch = realFetch
+    }
+  })
+})
+
 describe('no personal data (spec 4.2)', () => {
   const ctx = { sessionId: SID, device: 'phone', net: '4g', build: 'v1.3.7' }
   it('only the wire fields leave the page, whatever the caller passes', () => {
@@ -274,5 +314,8 @@ describe('wiring', () => {
     assert.match(plugin, /pub\.perfRum\) !== '1'\) return/)
     assert.match(plugin, /\.catch\(/)
     assert.ok(plugin.indexOf('onNuxtReady(') < plugin.indexOf("import('~/utils/perf-rum.mjs')"))
+  })
+  it('the plugin hands a credentials getter, not the value at start (SPL-4517)', () => {
+    assert.match(plugin, /credentials: \(\) => api\.credentials/)
   })
 })

@@ -140,9 +140,22 @@ export function perfSample(metric, valueMs, fields, ctx) {
   return s
 }
 
+/**
+ * The credentials of one send: a getter is read at send time (SPL-4517: the
+ * plugin starts on the login page, and the sign-in sets the session door
+ * later); a throwing or empty one means 'include'.
+ */
+function perfCredentials(credentials) {
+  try {
+    return (typeof credentials === 'function' ? credentials() : credentials) || 'include'
+  } catch {
+    return 'include'
+  }
+}
+
 /** POST one body with fetch, keepalive, text/plain (CORS-safelisted). */
 function perfFetchSender(url, { credentials = 'include', fetchFn = globalThis.fetch } = {}) {
-  return (body, signal) => fetchFn(url, { method: 'POST', body, credentials, keepalive: true, cache: 'no-store', headers: { 'content-type': 'text/plain' }, signal })
+  return (body, signal) => fetchFn(url, { method: 'POST', body, credentials: perfCredentials(credentials), keepalive: true, cache: 'no-store', headers: { 'content-type': 'text/plain' }, signal })
 }
 
 /** The final beacon; false when the browser has none or refuses it. */
@@ -354,7 +367,7 @@ export function createPerfCollector(opts) {
 /**
  * Start the tab's collector and wire its page events. One per tab; a second
  * call answers the first. Never throws: null when it does not start.
- * @param {{ url: string, credentials?: 'include'|'omit', build?: string, sampleRate?: number|string, ready?: () => boolean, random?: () => number, win?: any }} opts
+ * @param {{ url: string, credentials?: 'include'|'omit'|(() => string), build?: string, sampleRate?: number|string, ready?: () => boolean, random?: () => number, win?: any }} opts
  */
 export function startPerfRum(opts) {
   try {

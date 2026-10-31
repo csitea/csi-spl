@@ -53,7 +53,7 @@ awk -F'|' '!/^[[:space:]]*(#|$)/ {gsub(/[[:space:]]/, "", $3); print $3}' "$O/cn
 inst() { SNIPPET="PROJ_PATH=$O; do_install_box_crons" in_orc BOX_CRONS_CRONTAB="$T/fake-crontab" BOX_CRONS_STATE_DIR="$T/state" "$@" 2>&1; }
 
 out="$(SNIPPET='do_install_box_crons' in_orc BOX_CRONS_CRONTAB="$T/fake-crontab" BOX_CRONS_ALLOW_WORKTREE=1 2>&1)"; rc=$?
-[ "$rc" -eq 0 ] && [ "$(grep -c '^  +.* # csi-spl:box-cron:[a-z0-9-]*$' <<<"$out")" = 38 ] \
+[ "$rc" -eq 0 ] && [ "$(grep -c '^  +.* # csi-spl:box-cron:[a-z0-9-]*$' <<<"$out")" = 39 ] \
   && grep -q "^  +@reboot i=0; until .* BOOT start csi-spl:box-cron:box-sessions-boot .*/bin/bash '$PROJ_ROOT/src/bash/features/box-sessions/scripts/sessions-boot.sh' >> '/var/csi/csi-spl/box-sessions/boot.log' 2>&1 # csi-spl:box-cron:box-sessions-boot$" <<<"$out" \
   && grep -q "^  +17 7 \* \* \* $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/msg-unreadable/msg-unreadable.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/msg-unreadable-cron.sh' >> '/var/csi/csi-spl/msg-unreadable/cron.log' 2>&1 # csi-spl:box-cron:msg-unreadable$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/msg-unreadable-cron.sh" ] \
@@ -99,15 +99,17 @@ out="$(SNIPPET='do_install_box_crons' in_orc BOX_CRONS_CRONTAB="$T/fake-crontab"
   && [ -x "$PROJ_ROOT/src/bash/scripts/archived-seats-free-cron.sh" ] \
   && grep -q "^  +17 4 1 \* \* $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/vendor-terms-check/vendor-terms-check.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/vendor-terms-check-cron.sh' >> '/var/csi/csi-spl/vendor-terms-check/cron.log' 2>&1 # csi-spl:box-cron:vendor-terms-check$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/vendor-terms-check-cron.sh" ] \
-  && pass "1. the real manifest plans C1..C4, the daily msg-unreadable run, the nightly box state backup, the CI red note, the login self-heal, the every-agent rotation, the uplink probe, the hourly qas CI accept, the hourly owner digest, the hourly landed-fix close, the weekly issue key rate, the GC agent start, the reverse tunnel, the token burn collector, the 5-min topic status card, the daily exchange rates fetch and the every-minute push orphan check, the half-hourly restore drill red note and the 5-min second login sync and the every-minute box file follower (spec 160 B1) and the 5-min weekly limit alert (SPL-3849) and the 5-min archived-discussion seat free (SPL-3983) from this checkout (the reliability round rows: reliability-checks-cron.tst.sh)" || fail "1. real manifest (rc $rc: $out)"
+  && grep -q "^  +\*/15 \* \* \* \* $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/zombie-topics/zombie-topics.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/zombie-topics-cron.sh' >> '/var/csi/csi-spl/zombie-topics/cron.log' 2>&1 # csi-spl:box-cron:zombie-topics$" <<<"$out" \
+  && [ -x "$PROJ_ROOT/src/bash/scripts/zombie-topics-cron.sh" ] \
+  && pass "1. the real manifest plans C1..C4, the daily msg-unreadable run, the nightly box state backup, the CI red note, the login self-heal, the every-agent rotation, the uplink probe, the hourly qas CI accept, the hourly owner digest, the hourly landed-fix close, the weekly issue key rate, the GC agent start, the reverse tunnel, the token burn collector, the 5-min topic status card, the daily exchange rates fetch and the every-minute push orphan check, the half-hourly restore drill red note and the 5-min second login sync and the every-minute box file follower (spec 160 B1) and the 5-min weekly limit alert (SPL-3849) and the 5-min archived-discussion seat free (SPL-3983) and the 15-min night zombie-topic sweep (spec 166 B6) from this checkout (the reliability round rows: reliability-checks-cron.tst.sh)" || fail "1. real manifest (rc $rc: $out)"
 
 out="$(inst)"; rc=$?
-[ "$rc" -eq 0 ] && [ "$(grep -c '^  +' <<<"$out")" = 39 ] && [ "$(grep -c "^  -.*$E" <<<"$out")" = 6 ] \
-  && pass "2. the dry run prints the diff: +38 tagged, -6 engine lines" || fail "2. dry-run diff (rc $rc: $out)"
+[ "$rc" -eq 0 ] && [ "$(grep -c '^  +' <<<"$out")" = 40 ] && [ "$(grep -c "^  -.*$E" <<<"$out")" = 6 ] \
+  && pass "2. the dry run prints the diff: +39 tagged, -6 engine lines" || fail "2. dry-run diff (rc $rc: $out)"
 cmp -s "$CT" "$T/crontab.orig" && pass "2. ...and changes nothing" || fail "2. the dry run wrote the crontab"
 
 out="$(inst DRY_RUN=0)"; rc=$?
-[ "$rc" -eq 0 ] && [ "$(grep -c ' # csi-spl:box-cron:[a-z0-9-]*$' "$CT")" = 38 ] && pass "3. DRY_RUN=0 adds thirty-eight tagged lines" || fail "3. tagged ($out; $(cat "$CT"))"
+[ "$rc" -eq 0 ] && [ "$(grep -c ' # csi-spl:box-cron:[a-z0-9-]*$' "$CT")" = 39 ] && pass "3. DRY_RUN=0 adds thirty-nine tagged lines" || fail "3. tagged ($out; $(cat "$CT"))"
 [ "$(grep -v ' # csi-spl:box-cron:[a-z0-9-]*$' "$CT" | grep -c "$E/" )" = 1 ] && grep -q 'dotfiles/scripts/wifi-up.sh' "$CT" \
   && pass "3. ...no engine job left but the unlisted one" || fail "3. engine lines left: $(grep "$E/" "$CT")"
 cmp -s <(grep -v ' # csi-spl:box-cron:[a-z0-9-]*$' "$CT") "$T/crontab.kept" && pass "3. ...every other line kept, in order" || fail "3. other lines changed"

@@ -8,8 +8,9 @@
  *
  * The mock hook `spool.mock.box-lock` = { box, owners, peer_boxes? } stands
  * in for a hub with that lock: the mock refuses a non-owner's send to an
- * agent of that box, and answers its lock to an owner only. With no hook
- * every box is open, as on a hub with no lock row. Loaded lazily, with the
+ * agent of that box, and answers its lock to an owner only (anyone else, as
+ * on an open box, reads null: the hub's 204, SPL-4516). With no hook every
+ * box is open, as on a hub with no lock row. Loaded lazily, with the
  * pane and the mock: none of it rides the initial JS.
  */
 import { storageGetJson } from './prefs.mjs'
@@ -91,6 +92,22 @@ export function lockViewOf(row) {
 }
 
 /**
+ * The lock pane's state from GET /v1/boxes/{box}/lock: its answer `row`, or
+ * the error `err` it threw. The hub answers 204 (the client reads null) for
+ * an open box and for a lock the viewer does not own, so null is "no lock
+ * you own" (SPL-4516: it was a 404, a console error on every box card load);
+ * a 404 from an older hub reads the same.
+ * @returns {{ state: 'locked' | 'none' | 'unsupported' | 'failed', lock: ReturnType<typeof lockViewOf> | null }}
+ */
+export function lockLoadOf(row, err) {
+  if (err) {
+    const status = err && typeof err === 'object' ? err.status : 0
+    return { state: status === 404 ? 'none' : status === 501 ? 'unsupported' : 'failed', lock: null }
+  }
+  return row ? { state: 'locked', lock: lockViewOf(row) } : { state: 'none', lock: null }
+}
+
+/**
  * The mock lock routes. `me` is the mock viewer's HUM id. GET answers the
  * hooked or created lock to an owner and 404 to anyone else, as the hub
  * does; POST takes the pasted output as the hub's create does (B2).
@@ -111,8 +128,7 @@ export function createMockBoxLock() {
   return {
     get(box, me) {
       const l = lockOf(box)
-      if (!l || !l.owners.includes(me)) throw refused(404, 'not_found', 'no such box lock')
-      return l
+      return l && l.owners.includes(me) ? l : null
     },
     create(box, req, me) {
       const p = parseLockCreate(JSON.stringify(req || {}), box)

@@ -625,7 +625,7 @@ async function revokeSeat(ctx, boxId) {
 let boxLockMock = null
 const boxLockMockOf = async () => (boxLockMock ||= (await import('./box-lock.mjs')).createMockBoxLock())
 
-/** GET /v1/boxes/{box}/lock (spec 025 box owner lock, B2): the lock, its audit and a nonce, to an owner; 404 to anyone else. */
+/** GET /v1/boxes/{box}/lock (spec 025 box owner lock, B2): the lock, its audit and a nonce, to an owner; null (204) for an open box or anyone else (SPL-4516); 404 only for a box never pinned. */
 async function getBoxLock(ctx, box) {
   const { live, mock, state } = ctx
   if (mock) return (await boxLockMockOf()).get(String(box || ''), state.me.id)

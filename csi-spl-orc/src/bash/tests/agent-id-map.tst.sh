@@ -17,7 +17,10 @@ TEST_DIR=$(cd "$(dirname "$0")" && pwd)
 source "$TEST_DIR/test-lib.inc.sh"
 fails=0
 
-R="$T/spool"; ST="$T/state/dev"
+# The root's name holds "t3": the action's output names it, so a check for the
+# t3 tenant must match the tenant line, not a bare "t3" (a random mktemp name
+# held one on e7c655f27, SPL-4474).
+R="$T/spool-t3"; ST="$T/state/dev"
 mkdir -p "$R/agents" "$R/CLE-77/inbox" "$ST/desk/t1/box-t/spool/CLE-77" "$ST/desk/t2/box-t/spool/CLE-001" "$ST/desk/t3/box-t/spool/c-099"
 printf '{"id":"CLE-77","alive":true}\n' >"$R/agents/CLE-77.json"
 SOCK="$T/tmux.sock"
@@ -46,7 +49,7 @@ out="$(run do_spl_agent_id_map DRY_RUN=0)"; rc=$?
 out="$(run do_spl_agent_id_map HUB_ENV=dev)"; rc=$?
 grep -q 'INFO dev t1: CLE-77 -> c-004' <<<"$out" && grep -q 'INFO dev t2: CLE-001 -> c-001' <<<"$out" \
   && grep -q 'would write 2 alias row' <<<"$out" && pass "2. the hub dry run plans the tenants whose desk seats each id" || fail "2. hub plan (rc $rc: $out)"
-grep -q 't3' <<<"$out" && fail "2. a desk seating no mapped id got a row" || pass "2. ...and no other tenant"
+grep -q 'INFO dev t3:' <<<"$out" && fail "2. a desk seating no mapped id got a row" || pass "2. ...and no other tenant"
 [ ! -s "$T/calls.log" ] && pass "2. ...and calls no proxy" || fail "2. the dry run called $(cat "$T/calls.log")"
 out="$(run do_spl_agent_id_map HUB_ENV=stage)"; [ $? -ne 0 ] && pass "2. HUB_ENV other than dev/prd is refused" || fail "2. HUB_ENV=stage accepted"
 

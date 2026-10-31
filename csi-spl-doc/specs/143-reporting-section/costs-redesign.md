@@ -99,20 +99,26 @@ each have their own source, unit and period.
    `costs/index.vue:233-242`); the page bar becomes a select when it does
    not fit.
 
-### 3.2 One Costs tab, four pages
+### 3.2 One Costs tab, five pages
 
 The reserved Reporting tab `tokens` (`reporting-tabs.mjs:22`, `ready: false`)
 becomes **Costs**, `/reporting/costs`, after Releases and SQL. It has its own
-page bar (one path per page, each its own chunk, as Monitoring's tabs):
+page bar (one path per page, each its own chunk, as Monitoring's tabs).
+**The project's cost** is the first page and the default: `/reporting/costs`
+opens on it (owner HUM-10, t1 topic `e2c0e6b4`, msg `4316d471`, poll
+`3d141fbb`, Q-9 A: "A fifth Costs page, first and the default"). Spend is no
+longer the default. That page is defined in
+[spec 123 13.2](../123-cost-tracking/spec.md) and built by its row P05:
 
 | page | path | its one question | who sees it |
 |---|---|---|---|
-| **Spend** (default) | `/reporting/costs/spend` | What did we pay this month, and for what? | `costs.read`: its workspace's rows and its share of the AI paid items (3.3.1); the operator admin: the estate |
+| **The project's cost** (default) | `/reporting/costs/project` | What did the whole project cost this month and this year so far: cloud + owned hardware + AI tokens + human? | `costs.read` (spec 123 13.6): the operator workspace the estate; a customer workspace its AI share and its own people, no cloud part (Q-8 A, 13.7); the Human money only with `hours.rates` |
+| **Spend** | `/reporting/costs/spend` | What did we pay this month, and for what? | `costs.read`: its workspace's rows and its share of the AI paid items (3.3.1); the operator admin: the estate |
 | **Tokens** | `/reporting/costs/tokens` | How many tokens did we use this month, by whom, and what is their list value? | owner Q1 (recommended: every member, its own workspace; operator admin, all) |
 | **Price per token** | `/reporting/costs/price` | What does 1M tokens really cost us per agent type, against the list price? | operator admin |
 | **Paid items** | `/reporting/costs/paid` | What subscriptions and top-ups (later: invoices) did we pay, for which days? Enter and correct them. | operator admin |
 
-### 3.3 Spend (default)
+### 3.3 Spend
 
 Rows grouped by what was bought, never by stored source, a subtotal each:
 **Cloud** (one row per GCP project and its parts), **AI agents** (one row per
@@ -129,7 +135,7 @@ Desktop (made-up figures):
 ```
 Reporting  [Releases] [SQL] [Costs]
 Costs   Month [Oct 2026 (so far) v]  1-26 Oct, UTC   Currency (USD) ( EUR )
-        (Spend)  Tokens  Price per token  Paid items
+        The project's cost  (Spend)  Tokens  Price per token  Paid items
 +------------------------------------+----------+--------+     .----.
 | Part                               |      USD | % of   |    / AI   \
 |                                    |          | month  |   |  71 %  |
@@ -252,7 +258,7 @@ are the estate's, and the estate's money is its admin's (spec 140 3.10,
 ```
 Customer workspace (made-up figures)
 Costs   Month [Oct 2026 (so far) v]  1-26 Oct, UTC   Currency (USD) ( EUR )
-        (Spend)  Tokens
+        The project's cost  (Spend)  Tokens
 | Part                              |    USD | % of month |
 | AI agents (your share)            |  42.00 |   84 %     |
 |   agent type A                    |  30.00 |   60 %     |
@@ -435,7 +441,8 @@ answer. Which rule is meant is the owner's to say.
 **Links** (the `legacyMonitoringPath` pattern in `monitoring-tabs.mjs`):
 `/monitoring/costs` -> `/reporting/costs/spend` (`?month=` kept);
 `/reporting/tokens` -> `/reporting/costs/tokens`; `/reporting/costs` ->
-`/reporting/costs/spend`. `/monitoring/tokens` stays (live burn).
+`/reporting/costs/project`, the default page (3.2, spec 123 13.2).
+`/monitoring/tokens` stays (live burn).
 
 **Moves and removals**:
 
@@ -457,7 +464,7 @@ first so the pages read real data):
 
 | # | area | slice | test |
 |---|---|---|---|
-| S1 | wui | Reporting tab `costs`, its page bar and the 4 routes (Tokens, Price, Paid as shells), month picker (months from the first cost line) and currency pick in the header, `?month=` shared; the redirects | unit `reporting-tabs.test.mjs` (visibility per role; red: a reader without `costs.read` sees the tab), redirect table; e2e `/monitoring/costs?month=2026-09` -> `/reporting/costs/spend?month=2026-09` |
+| S1 | wui | Reporting tab `costs`, its page bar and the 4 routes (Tokens, Price, Paid as shells; the fifth, the project page, is spec 123 P05), month picker (months from the first cost line) and currency pick in the header, `?month=` shared; the redirects | unit `reporting-tabs.test.mjs` (visibility per role; red: a reader without `costs.read` sees the tab), redirect table; e2e `/monitoring/costs?month=2026-09` -> `/reporting/costs/spend?month=2026-09` |
 | S2 | wui | Spend from today's month read: one money column, grouping, no token or hours row, the days-read line; the Monitoring Costs tab removed | unit grouping; e2e 1400 + 390 px; red: a `fleet_tokens` part in the mock shows in no Spend row |
 | S3 | api | the month read adds `ai_paid` parts from `fleet_token_paid` (estate scope, the full amounts) and, for a customer workspace, `ai_share` parts by the rule of 3.3.1 (the per-day, per-agent-type, per-`work_tenant` burn read of section 4) | store test on Postgres: a 30-day item in a 31-day month gives the right estate share; a workspace with 25 % of an agent type's tokens on a day gets 25 % of that day's amount (micros, rounded down); a day with no tokens of the type and NULL-stamped tokens give no share; the estate total is unchanged by any share. RED: a workspace's answer carries another workspace's share or any `ai_paid` part, or the shares of one item on one day sum above its daily amount |
 | S4 | wui | Spend's AI agents group from S3: the estate's per agent type and plan, a customer's "AI agents (your share)" per agent type with no plan, price or item, and the "counted from <day>" line | unit + e2e with the mock's `ai_paid` and `ai_share`, 1400 + 390 px; red: a customer view in the mock shows a plan label or an `ai_paid` row |

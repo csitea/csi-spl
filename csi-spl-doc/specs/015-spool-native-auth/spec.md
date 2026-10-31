@@ -173,6 +173,7 @@ Already built: `POST /api/v1/auth/logout` (010).
 | rate limits (both layers) | `TestNativeLoginRateLimited`, `TestNativeForgotAccountFloor` |
 | debug tokens refused in prd | `TestNativeConfigFailFast` |
 | no STARTTLS → no credentials sent | `TestSMTPRefusesAuthWithoutTLS` |
+| SMTP dials IPv4 first, any address only if that fails (SPL-4491: an IPv6 STARTTLS timeout failed the prd preflight); Send and the preflight share the dial | `TestPreflightAndSendPreferIPv4`, `TestDialFallsBackWithoutIPv4` |
 
 ## 5. Open questions (owner)
 

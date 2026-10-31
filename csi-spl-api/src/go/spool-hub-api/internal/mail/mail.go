@@ -184,12 +184,31 @@ func (s *SMTP) tlsConfig() *tls.Config {
 	return cfg
 }
 
+// dialSMTP opens the TCP connection to the relay; tests swap it.
+var dialSMTP = (&net.Dialer{}).DialContext
+
+// dialRelay dials over IPv4 first and falls back to any address only when
+// that fails (a relay with no A record, a loopback ::1). SPL-4491: on prd
+// (10-27 04:45Z) an IPv6 connection to the relay opened and STARTTLS then
+// timed out, so the preflight logged CRITICAL. A happy-eyeballs dial cannot
+// catch that, the connect itself worked. Send and Probe both come here.
+func dialRelay(ctx context.Context, addr string) (net.Conn, error) {
+	conn, err := dialSMTP(ctx, "tcp4", addr)
+	if err == nil {
+		return conn, nil
+	}
+	conn, err2 := dialSMTP(ctx, "tcp", addr)
+	if err2 != nil {
+		return nil, fmt.Errorf("ipv4: %w; any address: %w", err, err2)
+	}
+	return conn, nil
+}
+
 // dial connects within ctx's deadline; in implicit mode it completes the TLS
 // handshake first and answers secure.
 func (s *SMTP) dial(ctx context.Context, addr string) (net.Conn, bool, error) {
 	deadline, _ := ctx.Deadline()
-	d := net.Dialer{Deadline: deadline}
-	conn, err := d.DialContext(ctx, "tcp", addr)
+	conn, err := dialRelay(ctx, addr)
 	if err != nil {
 		return nil, false, fmt.Errorf("mail: dial %s: %w", addr, err)
 	}

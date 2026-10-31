@@ -8,8 +8,8 @@
      task (metadata.tasks of GET /v1/marketing/channels) shows a permission
      banner instead of Publish. Publish opens MarketingPublish.vue for that
      account. Disconnect asks first and says how to revoke the app on
-     Meta too; until the hub's DELETE route lands (SPL-4496) only the mock
-     offers it (metaCanDisconnect).
+     Meta too; it calls the hub's DELETE /v1/marketing/channels/{id}
+     (SPL-4496) on the live client and the mock alike (metaCanDisconnect).
      While the hub has no Meta app (cnf marketing.facebook.inject "false")
      every Meta route answers 503 not_configured: the section says so in one
      line, with no button and no retry. A 404 (marketing off) hides it: the

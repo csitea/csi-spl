@@ -113,11 +113,11 @@ export function metaPublishErrorKey(err) {
 }
 
 /**
- * The hub's DELETE /v1/marketing/channels/{id} is lane SPL-4496's and not on
- * master yet: until it lands only the mock offers Disconnect. Flip to true
- * in the commit that wires the WUI to the landed route.
+ * The hub's DELETE /v1/marketing/channels/{id} (SPL-4496, e8e02f87e) and its
+ * OPTIONS preflight are served on dev and prd: the live client offers
+ * Disconnect too (SPL-4520). False takes it back to the mock only.
  */
-export const META_DISCONNECT_LIVE = false
+export const META_DISCONNECT_LIVE = true
 
 /** Does this client offer Disconnect? */
 export function metaCanDisconnect(isMock) {

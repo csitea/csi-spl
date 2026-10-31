@@ -84,11 +84,12 @@ function mockSplitKinds() {
 
 /**
  * spec 090 T035: the mock's connected Facebook Pages and Instagram accounts
- * (T033 routes; DELETE /v1/marketing/channels/{id} is lane SPL-4496's).
+ * (T033 routes; DELETE /v1/marketing/channels/{id} is SPL-4496's).
  * One Page with its Instagram account is connected; Connect adds a second
  * Page. localStorage spool.mock.marketing.meta=not_configured plays a hub
  * without the Meta app (every Meta route 503), =no_admin a Page whose
- * connecting member holds no posting task (Meta's Page roles).
+ * connecting member holds no posting task (Meta's Page roles),
+ * =disconnect_refused a hub that refuses the DELETE (403).
  */
 function mockMarketingMeta(unshared) {
   const flag = () => {
@@ -121,6 +122,7 @@ function mockMarketingMeta(unshared) {
       return { authorize_url: '' }
     },
     disconnect(id) {
+      if (flag() === 'disconnect_refused') throw mockErr(403, 'forbidden')
       const i = pages.findIndex((p) => p.channel_id === id)
       if (i >= 0) pages.splice(i, 1)
       else if (find(id)) find(id).instagram = null

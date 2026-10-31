@@ -6,7 +6,7 @@
 // Red controls (each planted defect fails a line below):
 //   - metaPageCanPost returning true always -> "a Page without a posting task cannot post"
 //   - metaRowsWithout dropping only the id  -> "a Page takes its Instagram account with it"
-//   - META_DISCONNECT_LIVE = true           -> "the live client offers no Disconnect yet"
+//   - META_DISCONNECT_LIVE = false          -> "the live client offers Disconnect (SPL-4496 route served)"
 //   - a static `import MarketingAccounts` in general.vue -> "Tenant settings > General loads the accounts lazily"
 //   - the mock post's /mock-first.jpg removed -> "every mock post picture is in src/public"
 //
@@ -75,8 +75,8 @@ ok('no pages answer = no rows', metaAccountRows(undefined, undefined).length ===
 ok('a Page takes its Instagram account with it', metaRowsWithout(rows, 'p1').map((r) => r.id).join(',') === 'p2')
 ok('an Instagram account goes alone', metaRowsWithout(rows, 'i1').map((r) => r.id).join(',') === 'p1,p2')
 
-// RED CONTROL: Disconnect stays off a live client until the hub route lands (SPL-4496)
-ok('the live client offers no Disconnect yet', metaCanDisconnect(false) === false)
+// RED CONTROL: the hub route is served (SPL-4496), so the live client offers Disconnect (SPL-4520)
+ok('the live client offers Disconnect (SPL-4496 route served)', metaCanDisconnect(false) === true)
 ok('the mock offers Disconnect', metaCanDisconnect(true) === true)
 
 // the load and publish answers

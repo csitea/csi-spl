@@ -15,14 +15,18 @@
 //   5. RED CONTROL: Disconnect asks first (the linked Instagram line, how to
 //      revoke on Meta), then the Page AND its Instagram account leave the
 //      list;
+//   5c. a refused Disconnect (spool.mock.marketing.meta=disconnect_refused,
+//      the hub's 403) keeps the dialog open with its error line and both
+//      rows in the list;
 //   6. a hub without the Meta app (503 not_configured) shows ONE line, no
 //      Connect button and no retry (no error loop).
-// The live client hides Disconnect until the hub route lands (SPL-4496):
-// tests/unit/marketing-meta.test.mjs holds that.
+// The live client offers Disconnect too since the hub route is served
+// (SPL-4496, SPL-4520): tests/unit/marketing-meta.test.mjs holds that.
 //
 // Plant the defect and watch it go red:
 //   PROVE_RED=admin node tests/e2e/marketing-meta-accounts.test.mjs       (step 4: the flag is not set)
 //   PROVE_RED=configured node tests/e2e/marketing-meta-accounts.test.mjs  (step 6: the flag is not set)
+//   PROVE_RED=refused node tests/e2e/marketing-meta-accounts.test.mjs     (step 5c: the flag is not set)
 //
 // Run:
 //   BASE_URL=<generated bundle> pnpm run test:e2e marketing-meta-accounts
@@ -137,6 +141,22 @@ async function connectNoAdminSteps(p, w) {
   await setFlag(p, '')
 }
 
+// A refused DELETE: the dialog stays open with its error line, nothing leaves the list
+async function disconnectRefusedSteps(p, w) {
+  if (RED !== 'refused') await setFlag(p, 'disconnect_refused')
+  await tap(p, `${acct('mch-fb-1')} [data-test=marketing-meta-disconnect]`)
+  await p.waitForSelector('[data-testid=marketing-meta-disconnect-dialog-confirm]', { visible: true, timeout: 5000 }).catch(() => null)
+  await tap(p, '[data-testid=marketing-meta-disconnect-dialog-confirm]')
+  await p.waitForSelector('[data-testid=marketing-meta-disconnect-dialog-error]', { visible: true, timeout: 5000 }).catch(() => null)
+  const err = await text(p, '[data-testid=marketing-meta-disconnect-dialog-error]')
+  const ids = (await accounts(p)).map((a) => a.id)
+  ok(`5c ${w}px: a refused Disconnect keeps the dialog open with its error line and every row`,
+    err === 'The disconnect failed. Try again later.' && ids.join() === 'mch-fb-1,mch-ig-1,mch-fb-2', { err, ids })
+  await tap(p, '[data-testid=marketing-meta-disconnect-dialog-cancel]')
+  await p.waitForFunction(() => !document.querySelector('[data-testid=marketing-meta-disconnect-dialog-confirm]'), { timeout: 5000 }).catch(() => null)
+  await setFlag(p, '')
+}
+
 // RED CONTROL: Disconnect asks, then purges the Page and its Instagram account
 async function disconnectSteps(p, w) {
   await tap(p, `${acct('mch-fb-1')} [data-test=marketing-meta-disconnect]`)
@@ -200,6 +220,7 @@ async function run(browser, base, w) {
     await p.screenshot({ path: `${SHOT_DIR}/marketing-meta-accounts-${w}.png`, fullPage: true })
     await tap(p, `${acct('mch-fb-1')} [data-test=marketing-meta-publish-open]`)
   }
+  await disconnectRefusedSteps(p, w)
   await disconnectSteps(p, w)
   await notConfiguredSteps(p, w)
   ok(`7 ${w}px: no page errors`, errors.length === 0, errors)

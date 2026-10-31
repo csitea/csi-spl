@@ -559,17 +559,20 @@ spl_lane_issue_landed() {
 # workspace box map (spl_landed_repo_map_rows), so a public row wins a name. A
 # landed_repos row with `github: <owner>/<repo>` and no src_dir (SPL-4471) is
 # "<name>\tgh:<owner>/<repo>\t<trunk>\t<box>\tgh": read on GitHub only, its
-# clone never touched. Last, the box-side SPOOL_LANDED_REPOS_FILE (default
-# $SPOOL_ROOT/landed-repos.yaml; never in git, the cnf's env.box.landed_repos
-# shape): a repo whose name the tree must not carry. A test sandbox
+# clone never touched. Last, the GitHub-only rows of the box-side
+# SPOOL_LANDED_REPOS_FILE (default $SPOOL_ROOT/landed-repos.yaml; never in
+# git, the cnf's env.box.landed_repos shape): a repo whose name the tree must
+# not carry. That file is read only when spl_landed_repo_box_file_ok, and a
+# row of it never takes a name an earlier row has (one WARN, row dropped): a
+# lane must not point a known name at a repo it controls. A test sandbox
 # (SPOOL_TEST=1) reads LANE_LANDED_CNF and a set SPOOL_LANDED_REPOS_FILE only,
 # else no cnf: never the live clones.
 spl_landed_repo_rows() {
-  local d f
+  local d f bf
   local -a cnfs=()
   d="${APP_PATH:-$PROJ_PATH/..}/csi-spl-cnf/csi-spl"
-  if [[ "${SPOOL_TEST:-}" == 1 ]]; then cnfs=("${LANE_LANDED_CNF:-}" "${SPOOL_LANDED_REPOS_FILE:-}")
-  else cnfs=("$d/all.env.yaml" "$d/${ENV:-none}.env.yaml" "${SPOOL_LANDED_REPOS_FILE:-${SPOOL_ROOT:-/var/spool-hub}/landed-repos.yaml}"); fi
+  if [[ "${SPOOL_TEST:-}" == 1 ]]; then cnfs=("${LANE_LANDED_CNF:-}"); bf="${SPOOL_LANDED_REPOS_FILE:-}"
+  else cnfs=("$d/all.env.yaml" "$d/${ENV:-none}.env.yaml"); bf="${SPOOL_LANDED_REPOS_FILE:-${SPOOL_ROOT:-/var/spool-hub}/landed-repos.yaml}"; fi
   {
     spl_landed_repo_map_rows
     for f in "${cnfs[@]}"; do
@@ -579,9 +582,31 @@ spl_landed_repo_rows() {
       yq -r '.env.box.landed_repos[]? | select(has("github") and (has("src_dir") | not)) |
         [(.name // ""), "gh:" + .github, (.trunk // ""), (.box // ""), "gh"] | @tsv' "$f" 2>/dev/null
     done
-  } | awk -F'\t' -v OFS='\t' '($2 ~ /^\// || ($5 == "gh" && $2 ~ /^gh:[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/)) &&
+    if [[ -n "$bf" && -r "$bf" ]] && spl_landed_repo_box_file_ok "$bf"; then
+      yq -r '.env.box.landed_repos[]? | select(has("github") and (has("src_dir") | not)) |
+        [(.name // ""), "gh:" + .github, (.trunk // ""), (.box // ""), "box"] | @tsv' "$bf" 2>/dev/null
+    fi
+  } | awk -F'\t' -v OFS='\t' '($2 ~ /^\// || ($5 ~ /^(gh|box)$/ && $2 ~ /^gh:[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/)) &&
     $1 ~ /^[A-Za-z0-9][A-Za-z0-9._-]*$/ && $1 !~ /\.\./ && $2 !~ /\.\./ {
+    if ($5 == "box") {
+      if ($1 in seen) { print "WARN a row of the box-side landed-repos file takes a name an earlier row has: dropped" > "/dev/stderr"; next }
+      $5 = "gh"
+    }
+    seen[$1] = 1
     if ($3 == "") $3 = "-"; if ($4 == "") $4 = "-"; print }'
+}
+
+# spl_landed_repo_box_file_ok FILE: true when FILE is owned by root or by the
+# owner of SPOOL_ROOT and is neither group- nor other-writable (SPOOL_ROOT is
+# group-writable for every agent: a file any lane can write must not name the
+# repo a check reads). Else one WARN on stderr, and FILE adds no rows.
+spl_landed_repo_box_file_ok() {
+  local own mode root_own
+  own="$(stat -L -c %u "$1" 2>/dev/null)" && mode="$(stat -L -c %a "$1" 2>/dev/null)" || return 1
+  root_own="$(stat -L -c %u "${SPOOL_ROOT:-/var/spool-hub}" 2>/dev/null)"
+  if [[ "$own" == 0 || "$own" == "$root_own" ]] && (( (8#$mode & 8#022) == 0 )); then return 0; fi
+  do_log "WARN the box-side landed-repos file $1 is not owned by root or the spool root's owner, or is group/other-writable (mode $mode): ignored, it adds no landed repo" >&2
+  return 1
 }
 
 # spl_landed_repo_map_rows -> one spl_landed_repo_rows row ("map") per row of
@@ -703,7 +728,7 @@ spl_landed_repo_gh_trunk() {
   [[ -n "$t" ]] ||
     { do_log "FATAL cannot read $1 on GitHub (gh api repos/$2): not checked, refused, nothing changed" >&2; return 1; }
   [[ "$(spl_landed_repo_gh "$2" "branches/$t" .name)" == "$t" ]] ||
-    { do_log "FATAL $1 has no origin/$t on GitHub ($2): refused, nothing changed" >&2; return 1; }
+    { do_log "FATAL cannot read origin/$t of $1 on GitHub ($2): no such branch, or gh refused (auth, rate limit): refused, nothing changed" >&2; return 1; }
   printf '%s\n' "$t"
 }
 

@@ -159,6 +159,11 @@ instead (`gh api` commits and compare, "behind" or "identical" = on the
 trunk), from any box. A repo whose name must stay out of this tree is such a
 row in the box-side `$SPOOL_ROOT/landed-repos.yaml` (`SPOOL_LANDED_REPOS_FILE`,
 never in git, the cnf's `env.box.landed_repos` shape), read after the cnf.
+Only its GitHub-only rows count, and only when the file is owned by root or
+by the spool root's owner and is neither group- nor other-writable (the
+spool root is group-writable for every agent); else one WARN and no rows. A
+row of it never takes a name the cnf or the workspace box map already has
+(one WARN, row dropped), so no lane can point a known repo at a fork.
 
 - The repos read for a result also include the sender lane's OWN repo:
   its worktree from `registry.tsv` (column 4), else its newest

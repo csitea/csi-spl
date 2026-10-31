@@ -238,6 +238,7 @@ GHSTUB
 GH_ON=1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d
 GH_OFF=9f8e7d6c9f8e7d6c9f8e7d6c9f8e7d6c9f8e7d6c
 printf 'env:\n  box:\n    landed_repos:\n      - {name: far-hub, github: example-org/far-hub, trunk: master}\n' >"$T/gh.yaml"
+chmod 644 "$T/gh.yaml"
 GH=(LIVE_REPO=far-hub LANE_LANDED_CNF="$T/gh.yaml" GH_LOG="$T/gh.log" GH_REPO=example-org/far-hub GH_ON="$GH_ON" GH_OFF="$GH_OFF" SPOOL_BOX_TAG=box-z)
 gh_landed_stub
 B="**Live** far-hub ${GH_ON:0:9} on master, running on its hub box"$'\n'"$PROOF"

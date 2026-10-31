@@ -359,7 +359,9 @@ done
 # repo whose name stays out of the tree is a row of the box-side file.
 # gh_landed_stub: a GitHub stub on PATH for a GitHub-only landed_repos row
 # (SPL-4471): repo $GH_REPO, trunk master, $GH_ON on it, $GH_OFF on a branch
-# only, anything else a 404; each call logged to $GH_LOG.
+# only, compare "identical" for $GH_SAME and "ahead" for $GH_AHEAD, the
+# commit $GH_ODD answered with $GH_ON's full sha, anything else a 404; each
+# call logged to $GH_LOG.
 gh_landed_stub() {
   mkdir -p "$T/stub"
   cat >"$T/stub/gh" <<'GHSTUB'
@@ -369,7 +371,10 @@ r="repos/$GH_REPO"
 [[ "$1" == api ]] || exit 1
 case "$2" in
   "$r" | "$r/branches/master") echo master ;;
-  "$r/commits/"*) for f in $GH_ON $GH_OFF; do [[ "$f" == "${2##*/}"* ]] && { echo "$f"; exit 0; }; done; echo 'HTTP 404' >&2; exit 1 ;;
+  "$r/commits/$GH_ODD") echo "$GH_ON" ;;
+  "$r/commits/"*) for f in $GH_ON $GH_OFF $GH_SAME $GH_AHEAD; do [[ "$f" == "${2##*/}"* ]] && { echo "$f"; exit 0; }; done; echo 'HTTP 404' >&2; exit 1 ;;
+  "$r/compare/master...$GH_SAME") echo identical ;;
+  "$r/compare/master...$GH_AHEAD") echo ahead ;;
   "$r/compare/master..."*) [[ " $GH_ON " == *" ${2##*...} "* ]] && echo behind || echo diverged ;;
   *) echo 'HTTP 404' >&2; exit 1 ;;
 esac
@@ -378,7 +383,10 @@ GHSTUB
 }
 GH_ON=1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d1a2b3c4d
 GH_OFF=9f8e7d6c9f8e7d6c9f8e7d6c9f8e7d6c9f8e7d6c
-GH=(GH_LOG="$T/gh.log" GH_REPO=example-org/far-hub GH_ON="$GH_ON" GH_OFF="$GH_OFF" SPOOL_BOX_TAG=box-z)
+GH_SAME=5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e
+GH_AHEAD=a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4
+GH_ODD=0dd0dd0dd0dd0dd0dd0dd0dd0dd0dd0dd0dd0dd0
+GH=(GH_LOG="$T/gh.log" GH_REPO=example-org/far-hub GH_ON="$GH_ON" GH_OFF="$GH_OFF" GH_SAME="$GH_SAME" GH_AHEAD="$GH_AHEAD" GH_ODD="$GH_ODD" SPOOL_BOX_TAG=box-z)
 gh_landed_stub
 printf 'env:\n  box:\n    landed_repos:\n      - {name: far-hub, github: example-org/far-hub, trunk: master}\n      - {name: bad-rel, github: "https://example.com/x/y"}\n' >"$T/lr/gh.yaml"
 : >"$T/gh.log"
@@ -392,15 +400,36 @@ done_run LANE_LANDED_REPO=far-hub LANE_LANDED_SHA="$GH_OFF" LANE_LANDED_CNF="$T/
 refused "landed_repos github row: RED CONTROL a sha on a GitHub branch only (compare diverged) is refused" "far-hub ${GH_OFF:0:12} is not on origin/master (a branch only?)"
 done_run LANE_LANDED_REPO=far-hub LANE_LANDED_SHA=0123456789abcdef LANE_LANDED_CNF="$T/lr/gh.yaml" "${GH[@]}" DRY_RUN=0
 refused "landed_repos github row: a sha GitHub does not have is refused" "is no commit of far-hub on GitHub (example-org/far-hub)"
+done_run LANE_LANDED_REPO=far-hub LANE_LANDED_SHA="$GH_ODD" LANE_LANDED_CNF="$T/lr/gh.yaml" "${GH[@]}" DRY_RUN=0
+refused "landed_repos github row: RED CONTROL GitHub answering another commit's sha (on the trunk) is refused" "is no commit of far-hub on GitHub (example-org/far-hub)"
+done_run LANE_LANDED_REPO=far-hub LANE_LANDED_SHA="$GH_SAME" LANE_LANDED_CNF="$T/lr/gh.yaml" "${GH[@]}" DRY_RUN=0
+[[ $rc -eq 0 && "$(cut -f1,4,5 "$S/c-123/lifetime/issue-end" 2>/dev/null)" == "done"$'\t'"far-hub"$'\t'"$GH_SAME" ]] &&
+  pass "landed_repos github row: compare 'identical' (the trunk tip) is done" || fail "github row identical (rc=$rc): $(cat "$T/o")"
+done_run LANE_LANDED_REPO=far-hub LANE_LANDED_SHA="$GH_AHEAD" LANE_LANDED_CNF="$T/lr/gh.yaml" "${GH[@]}" DRY_RUN=0
+refused "landed_repos github row: RED CONTROL compare 'ahead' (a commit past the trunk) is refused" "far-hub ${GH_AHEAD:0:12} is not on origin/master (a branch only?)"
 done_run LANE_LANDED_REPO=bad-rel LANE_LANDED_SHA="$GH_ON" LANE_LANDED_CNF="$T/lr/gh.yaml" "${GH[@]}" DRY_RUN=0
 refused "landed_repos github row: a github value that is not <owner>/<repo> makes no row" "'bad-rel' is no repo the cnf knows (src_dir names: far-hub)"
 done_run LANE_LANDED_REPO=far-hub LANE_LANDED_SHA="$GH_ON" LANE_LANDED_CNF="$T/lr/cust.yaml" "${GH[@]}" DRY_RUN=0
 refused "landed_repos github row: RED CONTROL a cnf with no far-hub row refuses far-hub" "'far-hub' is no repo the cnf knows (src_dir names: cust-rel far-rel lost-rel)"
 printf 'env:\n  box:\n    landed_repos:\n      - {name: far-hub, github: example-org/far-hub, trunk: master}\n' >"$T/lr/box-landed.yaml"
+chmod 644 "$T/lr/box-landed.yaml"
 done_run LANE_LANDED_REPO=far-hub LANE_LANDED_SHA="$GH_ON" LANE_LANDED_CNF="$T/lr/cust.yaml" SPOOL_LANDED_REPOS_FILE="$T/lr/box-landed.yaml" "${GH[@]}" DRY_RUN=0
 [[ $rc -eq 0 && "$(cut -f1,4,5 "$S/c-123/lifetime/issue-end" 2>/dev/null)" == "done"$'\t'"far-hub"$'\t'"$GH_ON" ]] &&
   pass "landed_repos: the box-side SPOOL_LANDED_REPOS_FILE adds a GitHub-only row to the cnf's: done" ||
   fail "landed_repos: box-side file row refused (rc=$rc): $(cat "$T/o")"
+chmod 664 "$T/lr/box-landed.yaml"
+done_run LANE_LANDED_REPO=far-hub LANE_LANDED_SHA="$GH_ON" LANE_LANDED_CNF="$T/lr/cust.yaml" SPOOL_LANDED_REPOS_FILE="$T/lr/box-landed.yaml" "${GH[@]}" DRY_RUN=0
+refused "landed_repos: RED CONTROL a group-writable box-side file adds no row" "'far-hub' is no repo the cnf knows (src_dir names: cust-rel far-rel lost-rel)"
+grep -q "is group/other-writable (mode 664): ignored" "$T/o" && pass "landed_repos: ... one WARN names the mode" || fail "box file mode WARN: $(cat "$T/o")"
+chmod 644 "$T/lr/box-landed.yaml"
+# A box-side row never takes a name an earlier row has: the fork it names is
+# what GitHub answers (GH_REPO), so the shadow alone would make it done.
+printf 'env:\n  box:\n    landed_repos:\n      - {name: far-hub, github: example-org/fork-hub, trunk: master}\n      - {name: cust-rel, github: example-org/fork-hub, trunk: master}\n' >"$T/lr/box-shadow.yaml"
+chmod 644 "$T/lr/box-shadow.yaml"
+for r in far-hub:gh.yaml cust-rel:cust.yaml; do
+  done_run LANE_LANDED_REPO="${r%%:*}" LANE_LANDED_SHA="$GH_ON" LANE_LANDED_CNF="$T/lr/${r#*:}" SPOOL_LANDED_REPOS_FILE="$T/lr/box-shadow.yaml" "${GH[@]}" GH_REPO=example-org/fork-hub DRY_RUN=0
+  refused "landed_repos: RED CONTROL a box-side row naming the cnf's ${r%%:*} at a fork is dropped, not done" "takes a name an earlier row has: dropped"
+done
 rm -f "$T/stub/gh"
 
 # SPL-3794: a workspace's own repo is a landed repo through the workspace box

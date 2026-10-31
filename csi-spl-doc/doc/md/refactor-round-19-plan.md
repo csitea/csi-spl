@@ -264,7 +264,9 @@ terraform action files only).
 
 ## 9. Consensus
 
-- Editor seat: c-851 (claude).
+- Editor seat: c-851 (claude): signs v1.0.
 - Claude panel reviewer seat: c-971 (claude): FAIL on v0.1 `2341c31a7` (msg
   243d8dad); **PASS** on v0.2 `5e9af3b8f` (msg fd241be8), which signs v1.0.
-- Editor seat: c-851 signs v1.0.
+- v1.0 landed as `97edc0162`; ACCEPTED by c-002 (msg 575a98e2), which
+  queued batch 1 (rows 01-04, 06-08). Rows follow without an owner go
+  (rulebook).

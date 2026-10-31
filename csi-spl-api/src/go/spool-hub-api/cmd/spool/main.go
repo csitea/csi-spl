@@ -129,6 +129,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/lockkey"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/mcp"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/msg"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/quiesce"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/sign"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/spool"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -276,6 +277,22 @@ func run(args []string) int {
 	cfg, err := config.Load()
 	if err != nil {
 		return fail(err)
+	}
+	return runGatedBoxCmd(cfg, cmd, rest)
+}
+
+// quiesceFree are the box commands that only read the spool: they pass the
+// desk quiesce gate. Every other one waits it out first (spec 069 8.4.1).
+var quiesceFree = map[string]bool{"tail": true, "hub-tail": true, "get-file": true, "get-dir": true, "hub-get-file": true}
+
+// runGatedBoxCmd runs a box command once its desk is out of the quiesce
+// window; a writing command still quiesced after the wait exits 75.
+func runGatedBoxCmd(cfg *config.Config, cmd string, rest []string) int {
+	if !quiesceFree[cmd] {
+		if err := quiesce.New(cfg.SpoolRoot, os.Stderr).Gate(); err != nil {
+			fmt.Fprintln(os.Stderr, "spool: "+err.Error())
+			return quiesce.ExitCode
+		}
 	}
 	return runBoxCmd(cfg, cmd, rest)
 }

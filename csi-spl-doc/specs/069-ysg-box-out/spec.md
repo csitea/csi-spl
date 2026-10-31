@@ -712,6 +712,58 @@ check), then clears `SPOOL_DESK_USER` and moves the cron lines back. A desk
 whose step 3 fails is rolled back at once by the action, and the box stops
 there.
 
+#### 8.4.1 The quiesce window (SPL-4534)
+
+Measured on sat (SPL-4531, desk-cron `5675aa1c3`): 11 of 12 prd desks moved;
+the fleet desk failed its verify (`1 file(s) missing in the copy`, `12 file(s)
+not in the source`) and rolled back. It is the one desk with local writers
+while its sidecar is down, so its spool changed between the copy and the
+verify. The verify stays exact (equal lists, equal key digest, modes);
+instead the move quiesces the desk for its copy.
+
+- **The marker.** From just before the copy until the source is renamed
+  aside (or rolled back), `do_spl_desk_move` keeps `<desk dir>.quiesce`
+  beside the desk dir, written as the desk's owner. It is outside the tree
+  the move copies, so the verify never sees it. It is removed on success, on
+  every rollback and on INT/TERM/HUP; a `kill -9` leaves it, and then it is
+  ignored once older than `DESK_QUIESCE_MAX_SECS` (default 300 s), so a
+  crashed move cannot freeze the desk.
+- **How long.** The copy starts `DESK_QUIESCE_SETTLE_SECS` (default 2 s)
+  after the marker, so a write already under way ends first. The window is
+  then the copy, the verify and the rename: seconds for a desk, never more
+  than the move's own `MOVE_MAX_SECS` limit plus the settle in practice, and
+  at most 300 s for a writer however long the move takes.
+- **What a writer sees.** It waits, polling each second, up to
+  `DESK_QUIESCE_WAIT_SECS` (default 120 s), and writes once the marker goes.
+  Still held after that: it writes nothing and refuses, exit 75, with
+  `... is still held after 120 s (do_spl_desk_move <from> -> <to> <stamp>);
+  nothing was written, retry when the move is done` (the spool CLI prints
+  the same as `spool: desk quiesced: ...`). One line on stderr says it is
+  waiting.
+
+The local writers of a desk's spool while its sidecar is down, and which of
+them honour the marker (sha of this change's parent `5675aa1c3`):
+
+| writer | writes | honours |
+|---|---|---|
+| every `spool` box command (`recv` / `recv --ack`, `send`, `edit`, `delete`, `move`, `put-file`, `hub-sync`, ...), so `spl-desk-reply.sh`, `spool-send.sh`, `do_spl_take_auto`, the asks, lane-map and token-burn pushes, the probes; the Store writes are `internal/spool/spool.go:395,425,505` | inbox, outbox, archive, `.hub/` | yes: `runBoxCmd` (`cmd/spool/main.go`) waits before every box command but `tail`, `hub-tail`, `get-file`, `get-dir`, `hub-get-file` |
+| the MCP server (`spool mcp`, one per agent session, long-lived) | outbox, archive, files | yes: `spool_send`, `spool_recv`, `spool_put_file` wait (`internal/mcp/mcp.go`, `tools.gate`); `spool_reply` writes a workspace desk it resolves itself and does not |
+| `spool-mirror.py` (the claude / grok / agy / qwen / vibe hooks) | `<seat>/.mirror/{seen,turn,topic,last-answer,mirror.log}` | yes: `post_one` waits (`quiesce_clear`), and skips that post when still held |
+| `spool_notify_mark_trigger` (`spool-notify.inc.sh`) | `<seat>/.mirror/trigger/*` | yes: it never waits (the notice's latency budget), it writes no trigger while the marker is live |
+| the poke log (`spool-poke-queue.inc.sh`) | appends to `<seat>/.pokes/notices.log` | no: an append changes no file list; the lines after the copy stay in the source, kept in `desk.moved-*` |
+| `up-all.lock` (`spl-desk-agent-rename.func.sh:90`, the desk up-all) | opens an existing lock file | no: no file is created |
+| the seat retire and drop (`agent-id-retire.sh`, `desk-seat-drop.sh`) | move a seat dir to `.retired/` | no: rare, by hand; a race fails the exact verify and rolls back |
+| the hub sidecar `hub-run` | inbox, `.hub/` | stopped by the move before the marker |
+
+A writer that does not honour the marker still cannot make the move lose a
+file: the exact verify fails and the desk rolls back, as on sat. A spool
+binary built before this change does not honour it either: refresh the box's
+binaries (`do_spl_spool_refresh`) before the fleet desk's retry.
+Test: `csi-spl-orc/src/bash/tests/desk-move.tst.sh` case 12 (a writer that
+adds a file every 0.1 s during a slowed copy: FAIL verify without the
+quiesce, a clean move with it), `internal/quiesce/quiesce_test.go`,
+`cmd/spool/quiesce_gate_test.go`.
+
 ### 8.5 Build rows
 
 Rounds-rulebook rows. Disjoint files; batch 1 lands first, batch 2 rows in

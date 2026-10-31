@@ -753,8 +753,41 @@ def first_sighting(adir, session, event, text, now):
         return False
 
 
+def _env_secs(key, default):
+    try:
+        return max(0, int(os.environ.get(key, "")))
+    except ValueError:
+        return default
+
+
+def quiesce_clear(seat, sleep=time.sleep):
+    """The desk quiesce window (spec 069 8.4.1): False while <seat>.quiesce,
+    younger than DESK_QUIESCE_MAX_SECS (300), is still there after
+    DESK_QUIESCE_WAIT_SECS (120); True at once when there is none."""
+    marker = seat.rstrip("/") + ".quiesce"
+    max_age = _env_secs("DESK_QUIESCE_MAX_SECS", 300)
+    wait = _env_secs("DESK_QUIESCE_WAIT_SECS", 120)
+
+    def live():
+        try:
+            return time.time() - os.path.getmtime(marker) < max_age
+        except OSError:
+            return False
+
+    waited = 0
+    while live():
+        if waited >= wait:
+            return False
+        sleep(1)
+        waited += 1
+    return True
+
+
 def post_one(seat, agent, event, text, session):
     adir = os.path.join(seat, "spool", agent)
+    if not quiesce_clear(seat):
+        print(f"desk quiesced: {seat}.quiesce held; nothing written", file=sys.stderr)
+        return "skipped"
     now = time.time()
     if event == "prompt":
         # Never posted (spec 067: the echo kinds A-D). It only says what

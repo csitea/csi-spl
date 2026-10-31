@@ -632,6 +632,10 @@ spool_notify_mark_trigger() {  # TO FROM TASK MSGID LINE
     v="${v//\\/\\\\}"; v="${v//\"/\\\"}"; v="${v//[$'\001'-$'\037']/}"
     j="${j:+$j,}\"$k\":\"$v\""
   done
+  # A desk in its move window (spec 069 8.4.1) takes no trigger: the notice
+  # never waits, so this line goes unattributed rather than late.
+  declare -F desk_quiesce_live >/dev/null || source "${BASH_SOURCE[0]%/*}/desk-quiesce.inc.sh"
+  desk_quiesce_live "$SPOOL_ROOT" && return 0
   d="$SPOOL_ROOT/$to/.mirror/trigger"
   mkdir -p "$d" 2>/dev/null && printf '{%s}\n' "$j" >"$d/$(date +%s%N)-$$" 2>/dev/null
   return 0

@@ -30,6 +30,15 @@
 #      forward and the rollback FAIL lines name the proof and the live pid,
 #      never "its sidecar did not come up"; a sidecar that really died after
 #      its start is named as not up. RED CONTROL: the old wording fails it
+#  12. the quiesce window (spec 069 8.4.1): a local writer that keeps adding
+#      files to the desk's spool while the copy runs. It honours
+#      desk-quiesce.inc.sh, so it waits on the marker <desk>.quiesce and the
+#      exact verify passes; the marker is gone after the move and after a
+#      forced rollback; a marker older than DESK_QUIESCE_MAX_SECS is ignored;
+#      a live one refuses a writer after DESK_QUIESCE_WAIT_SECS (75);
+#      spool-mirror.py waits on it the same way. RED CONTROL: on a tree with
+#      no quiesce (origin/master 5675aa1c3) the same writer makes the move
+#      FAIL verify ("file(s) missing in the copy")
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -55,6 +64,7 @@ cat >"$T/stub/sudo" <<EOF
 u=""
 while [ \$# -gt 0 ]; do case "\$1" in -n|-H) shift ;; -u) u="\$2"; shift 2 ;; --) shift; break ;; *) break ;; esac; done
 echo "sudo \$u \${1##*/}" >>"$T/sudo.log"
+[ "\${1##*/}" = tar ] && [ -e "$T/tar-slow" ] && sleep 1.5
 exec "\$@"
 EOF
 chmod +x "$T/stub/getent" "$T/stub/sudo"
@@ -113,7 +123,7 @@ chmod +x "$T/orc/run"
 mv_run() {
   env -u SPOOL_DESK_USER -u SPL_STATE_DIR PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" HOME="$BH" \
     PATH="$T/stub:$PATH" SPOOL_ROOT="$T/spool" SPOOL_BOX_ENV="$T/box.env" SPL_ORG_APP="$OA" \
-    MOVE_RUN="$T/orc" MOVE_CHECK_SECS=2 MOVE_CHECK_EVERY=1 "$@" bash -c '
+    MOVE_RUN="$T/orc" MOVE_CHECK_SECS=2 MOVE_CHECK_EVERY=1 DESK_QUIESCE_SETTLE_SECS=0 "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     do_require_bin() { return 0; }
@@ -283,6 +293,57 @@ hasnt "11. no false 'sidecar did not come up'" "did not come up" "$out"
 reset_box; echo none >"$T/verdict"; : >"$T/start-dies.${BH##*/}"
 out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" DRY_RUN=0)"
 has "11. a sidecar that died after its start is named as not up" "is back on disk as $ME, but its sidecar is not up (no live hub-run behind its pid file)" "$out"
+
+# --- 12. the quiesce window -------------------------------------------------------------
+QLIB="$PROJ_ROOT/src/bash/features/spawn-agents/lib/desk-quiesce.inc.sh"
+QR="$SRC_P/desk/ws-a/box-a/spool" QM="$SRC_P/desk/ws-a/box-a.quiesce"
+# writer: a local writer of the desk ws-a/box-a; one new inbox file per 0.1 s
+# for 4 s. It honours the quiesce lib when the tree has one: a wait ends it.
+writer() {
+  # shellcheck source=../features/spawn-agents/lib/desk-quiesce.inc.sh
+  ( [[ -f "$QLIB" ]] && source "$QLIB"
+    for i in $(seq 40); do
+      if declare -F desk_quiesce_wait >/dev/null; then
+        o="$(DESK_QUIESCE_WAIT_SECS=20 desk_quiesce_wait "$QR" 2>&1)" || { echo "refused $o" >>"$T/writer.log"; exit 0; }
+        [[ -n "$o" ]] && { echo "waited $o" >>"$T/writer.log"; exit 0; }
+      fi
+      [[ -d "$QR/c-101/inbox" ]] || exit 0
+      echo w >"$QR/c-101/inbox/w$i.json"; sleep 0.1
+    done ) &
+  WPID=$!
+}
+reset_box; rm -f "$T/writer.log"; : >"$T/tar-slow"
+writer; sleep 0.3
+out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS="prd/ws-a/box-a" DESK_QUIESCE_SETTLE_SECS=0.5 DRY_RUN=0)"; rc=$?
+wait "$WPID" 2>/dev/null; rm -f "$T/tar-slow"
+[[ $rc -eq 0 ]] && pass "12. a desk with a live local writer moves (exact verify ok)" || fail "12. move with a writer rc=$rc: $(grep -E 'FAIL' <<<"$out" | tr '\n' '|')"
+grep -q '^waited desk-quiesce: the desk of .* is quiesced (do_spl_desk_move ' "$T/writer.log" 2>/dev/null && pass "12. the writer waited on the marker" || fail "12. writer: $(cat "$T/writer.log" 2>/dev/null)"
+has "12. the move names the quiesce window" "INFO quiesce $QM" "$out"
+[[ ! -e "$QM" ]] && pass "12. the marker is gone after the move" || fail "12. marker left after the move"
+reset_box; rm -f "$T/writer.log"; : >"$T/tar-slow"; chmod 0644 "$SRC_P/desk/ws-a/box-a/keys/box-box-a.key"
+writer; sleep 0.3
+out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS="prd/ws-a/box-a" DESK_QUIESCE_SETTLE_SECS=0.5 DRY_RUN=0)"; rc=$?
+wait "$WPID" 2>/dev/null; rm -f "$T/tar-slow"
+[[ $rc -ne 0 && -d "$QR" && ! -e "$DST_P/desk/ws-a/box-a" ]] && pass "12. a forced rollback (key 0644) still rolls back" || fail "12. rollback rc=$rc"
+[[ ! -e "$QM" ]] && pass "12. the marker is gone after the rollback" || fail "12. marker left after the rollback"
+hasnt "12. the rollback is not a list race" "missing in the copy" "$out"
+# shellcheck source=../features/spawn-agents/lib/desk-quiesce.inc.sh
+source "$QLIB"
+echo old >"$QM"; touch -d '-10 minutes' "$QM"
+o="$(DESK_QUIESCE_WAIT_SECS=5 desk_quiesce_wait "$QR" 2>&1)"; rc=$?
+[[ $rc -eq 0 && -z "$o" ]] && pass "12. a marker older than DESK_QUIESCE_MAX_SECS is ignored" || fail "12. stale marker: rc=$rc $o"
+echo live >"$QM"
+o="$(DESK_QUIESCE_WAIT_SECS=1 desk_quiesce_wait "$QR" 2>&1)"; rc=$?
+[[ $rc -eq 75 ]] && grep -q 'nothing was written' <<<"$o" && pass "12. a live marker refuses after the wait (75)" || fail "12. live marker: rc=$rc $o"
+o="$(DESK_QUIESCE_WAIT_SECS=1 python3 -I - "$PROJ_ROOT/src/bash/features/spawn-agents/scripts/spool-mirror.py" "${QR%/spool}" <<'PY' 2>&1
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("mirror", sys.argv[1]); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+live = m.quiesce_clear(sys.argv[2], sleep=lambda s: None)
+import os; os.remove(sys.argv[2] + ".quiesce")
+print("live", live, "clear", m.quiesce_clear(sys.argv[2], sleep=lambda s: None))
+PY
+)"
+[[ "$o" == "live False clear True" ]] && pass "12. spool-mirror.py waits on the marker, then writes" || fail "12. mirror: $o"
 
 echo "--- 4. move output (the measure) ---"; grep -E '^(PLAN|OK moved|INFO)' <<<"$out4" | sed -n 1,12p
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"

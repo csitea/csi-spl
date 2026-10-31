@@ -38,6 +38,16 @@
 # @description runs through `sudo -n -u <desk user>` (files) and its ./run
 # @description (the sidecar steps); nothing is chowned, nothing needs root.
 # @description Downtime per desk = stop to proof, in seconds.
+# @description The quiesce window (spec 069 8.4.1): from the copy to the
+# @description source's rename aside (or its rollback) the desk carries the
+# @description marker <desk dir>.quiesce, written as the desk's owner and
+# @description removed on success, on rollback and on INT/TERM/HUP. Every
+# @description local writer of the desk's spool waits for it (the spool CLI,
+# @description the MCP server, spool-mirror.py, desk-quiesce.inc.sh) up to
+# @description DESK_QUIESCE_WAIT_SECS (120), then refuses (exit 75); a marker
+# @description older than DESK_QUIESCE_MAX_SECS (300) is ignored. The copy
+# @description starts DESK_QUIESCE_SETTLE_SECS (2) after the marker, so a
+# @description write already under way ends first. The verify stays exact.
 # @description Dry run unless DRY_RUN=0 (plan always is one).
 # @param MOVE_CMD (optional) - plan (default) | move | back | prune
 # @param MOVE_DESK_USER (optional) - the desk user (<agent-user>); default
@@ -53,6 +63,8 @@
 # @param MOVE_PRUNE_DAYS (optional) - default 7
 # @param PROBE_EMAIL / PROBE_PW_FILE / DESK_ROSTER_JSON (optional) - the roster
 # @param   read of the proof, as do_spl_desk_check documents them
+# @param DESK_QUIESCE_SETTLE_SECS (optional) - pause between the marker and the copy, default 2
+# @param DESK_QUIESCE_MAX_SECS / DESK_QUIESCE_WAIT_SECS (optional) - the writers' side, see above
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example MOVE_DESK_USER=<agent-user> ./run -a do_spl_desk_move
 # @example MOVE_CMD=move MOVE_DESK_USER=<agent-user> DRY_RUN=0 ./run -a do_spl_desk_move
@@ -173,8 +185,10 @@ _spl_dm_plan() {
 # _spl_dm_run <cmd> <desk>...: move (or back) every desk; the box stops at the
 # first desk that fails or that runs past DM_MAX.
 _spl_dm_run() {
-  local cmd="$1" x e ws id rc=0 secs moved=() json=""; shift
+  local cmd="$1" x e ws id rc=0 secs moved=() json="" old_traps; shift
   _spl_dm_pause || return 1
+  old_traps="$(trap -p INT TERM HUP)"
+  trap '_spl_dm_quiesce_off; exit 130' INT TERM HUP
   for x in "$@"; do
     read -r e ws id <<<"$x"
     _spl_dm_pause || return 1
@@ -184,6 +198,8 @@ _spl_dm_run() {
     json+="${json:+, }{\"desk\": \"$e/$ws/$id\", \"downtime_secs\": $secs}"
     (( secs <= DM_MAX )) || { do_log "FAIL $e $ws/$id was down ${secs} s (> MOVE_MAX_SECS $DM_MAX): the box stops here"; rc=4; break; }
   done
+  _spl_dm_quiesce_off
+  trap - INT TERM HUP; eval "$old_traps"
   (( rc == 0 )) && _spl_dm_finish "$cmd" "${#moved[@]}" "$#"
   printf '{"cmd": "%s", "from": "%s", "to": "%s", "stamp": "%s", "desks": %s, "done": [%s], "ok": %s}\n' \
     "$cmd" "$DM_FROM" "$DM_TO" "$DM_STAMP" "$#" "$json" "$([[ $rc == 0 ]] && echo true || echo false)"
@@ -198,6 +214,26 @@ _spl_dm_pause() {
     printf 'do_spl_desk_move %s -> %s %s\n' "$DM_FROM" "$DM_TO" "$DM_STAMP" >"$f" ||
       { do_log "FATAL cannot write the reconcile pause $f"; return 1; }
   done
+}
+
+# _spl_dm_quiesce_on <desk dir>: the quiesce marker of the desk, written as
+# DM_FROM (its owner) beside it, then DESK_QUIESCE_SETTLE_SECS for a write
+# already under way. DM_QUIESCED names it for _spl_dm_quiesce_off.
+_spl_dm_quiesce_on() {
+  local m="$1.quiesce"
+  printf 'do_spl_desk_move %s -> %s %s pid %s\n' "$DM_FROM" "$DM_TO" "$DM_STAMP" "$$" |
+    _spl_dm_as "$DM_FROM" tee "$m" >/dev/null || { do_log "FAIL cannot write the quiesce marker $m"; return 1; }
+  DM_QUIESCED="$m"
+  do_log "INFO quiesce $m: the desk's local writers wait (DESK_QUIESCE_WAIT_SECS, default 120 s)"
+  sleep "${DESK_QUIESCE_SETTLE_SECS:-2}"
+}
+
+# _spl_dm_quiesce_off: remove the marker _spl_dm_quiesce_on wrote, if any.
+_spl_dm_quiesce_off() {
+  [[ -n "${DM_QUIESCED:-}" ]] || return 0
+  _spl_dm_as "$DM_FROM" rm -f -- "$DM_QUIESCED" || { do_log "WARN cannot remove $DM_QUIESCED: it is ignored after DESK_QUIESCE_MAX_SECS (300 s)"; return 1; }
+  do_log "INFO quiesce off: $DM_QUIESCED removed"
+  DM_QUIESCED=""
 }
 
 # _spl_dm_finish <cmd> <done> <all>: every desk done and no MOVE_DESKS filter:
@@ -230,15 +266,17 @@ _spl_dm_one() {
   if [[ -n "$pid" ]]; then
     _spl_dm_side_as "$DM_FROM" stop "$e" "$ws" "$id" "$froot" || { do_log "FAIL cannot stop the sidecar of $e $ws/$id (pid $pid)"; return 1; }
   fi
-  if ! _spl_dm_copy "$src" "$dst" "$troot" "$base" || ! _spl_dm_verify "$src" "$dst" "$base"; then
+  if ! _spl_dm_quiesce_on "$src" || ! _spl_dm_copy "$src" "$dst" "$troot" "$base" || ! _spl_dm_verify "$src" "$dst" "$base"; then
     _spl_dm_undo_copy "$dst" "$base"
+    _spl_dm_quiesce_off
     [[ -n "$pid" ]] && _spl_dm_side_as "$DM_FROM" start "$e" "$ws" "$id" "$froot"
     do_log "FAIL $e $ws/$id rolled back: the source is in place$([[ -n "$pid" ]] && echo ", its sidecar restarted as $DM_FROM")"
     return 1
   fi
   if ! { _spl_dm_as "$DM_FROM" mkdir -p "${aside%/*}" && _spl_dm_as "$DM_FROM" mv "$src" "$aside"; }; then
-    _spl_dm_undo_copy "$dst" "$base"; do_log "FAIL cannot rename $src aside"; return 1
+    _spl_dm_undo_copy "$dst" "$base"; _spl_dm_quiesce_off; do_log "FAIL cannot rename $src aside"; return 1
   fi
+  _spl_dm_quiesce_off
   if [[ -n "$pid" ]] && ! _spl_dm_up "$DM_TO" "$e" "$ws" "$id" "$troot" "$dst"; then
     _spl_dm_undo_all "$e" "$ws" "$id" "$src" "$dst" "$aside" "$froot" "$troot"; return 1
   fi

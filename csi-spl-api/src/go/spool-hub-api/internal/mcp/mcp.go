@@ -28,6 +28,7 @@ import (
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/action"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/quiesce"
 )
 
 // PutFileIn is the input of spool_put_file.
@@ -186,7 +187,19 @@ type tools struct {
 	o   Options
 }
 
+// gate waits out the desk quiesce window of this server's spool root before
+// a tool writes into it (spec 069 8.4.1), and refuses after the bounded wait.
+func (t tools) gate() error {
+	if err := quiesce.New(t.cfg.SpoolRoot, nil).Gate(); err != nil {
+		return toolErr(err)
+	}
+	return nil
+}
+
 func (t tools) putFile(_ context.Context, _ *sdk.CallToolRequest, in PutFileIn) (*sdk.CallToolResult, action.PutResult, error) {
+	if err := t.gate(); err != nil {
+		return nil, action.PutResult{}, err
+	}
 	out, err := action.Put(t.cfg, in.Path, false)
 	if err != nil {
 		return nil, out, toolErr(err)
@@ -200,6 +213,9 @@ func (t tools) send(ctx context.Context, _ *sdk.CallToolRequest, in SendIn) (*sd
 		return nil, action.SendResult{}, err
 	}
 	if err := t.deskRootGuard(from, in); err != nil {
+		return nil, action.SendResult{}, err
+	}
+	if err := t.gate(); err != nil {
 		return nil, action.SendResult{}, err
 	}
 	if t.o.Seat != "" && in.ToBox == "" && in.Channel == "" && t.cfg.HubURL != "" && strings.HasPrefix(in.To, "HUM-") {
@@ -218,6 +234,9 @@ func (t tools) send(ctx context.Context, _ *sdk.CallToolRequest, in SendIn) (*sd
 func (t tools) recv(_ context.Context, _ *sdk.CallToolRequest, in RecvIn) (*sdk.CallToolResult, any, error) {
 	as, err := t.o.who("as", in.As)
 	if err != nil {
+		return nil, nil, err
+	}
+	if err := t.gate(); err != nil {
 		return nil, nil, err
 	}
 	msgs, err := action.Recv(t.cfg, as, in.Ack)

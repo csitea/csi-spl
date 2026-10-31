@@ -68,18 +68,64 @@ func (s *Server) UnsharedMarketingPosts(ctx context.Context, tenant, hum string)
 	return out, nil
 }
 
-// GET /v1/marketing/posts: the owner's unshared live blog posts.
+// UnsharedMetaPosts is the live posts that hum, the workspace owner, can
+// still publish on the Facebook Page or Instagram account channelID: those
+// with no row on it (spec 090 T035, SPL-4496). Same gates as the Meta
+// publish (publishMetaPost); a Meta channel has no baseline, so the whole
+// live index counts.
+func (s *Server) UnsharedMetaPosts(ctx context.Context, tenant, hum, channelID string) ([]marketing.BlogPost, error) {
+	mm, st, ok := s.metaReady()
+	if !ok {
+		return nil, ErrMarketingNoMeta
+	}
+	if !s.marketingSweepable(ctx, tenant) {
+		return nil, ErrMarketingOff
+	}
+	if a, err := s.access(ctx, hum, tenant); hum == "" || err != nil || !a.TenantOwner {
+		return nil, ErrMarketingNotOwner
+	}
+	ch, err := metaChannel(ctx, st, tenant, channelID)
+	if err != nil {
+		return nil, err
+	}
+	refs, err := st.MarketingPostRefs(ctx, tenant, ch.ID)
+	if err != nil {
+		return nil, err
+	}
+	posts, err := marketing.FetchBlogIndex(ctx, metaHTTP(mm), mm.AppURL)
+	if err != nil {
+		return nil, err
+	}
+	out := []marketing.BlogPost{}
+	for _, p := range posts {
+		if !refs[p.ID] {
+			out = append(out, p)
+		}
+	}
+	return out, nil
+}
+
+// GET /v1/marketing/posts: the owner's unshared live blog posts; with
+// ?channel=<id> those of that Facebook Page or Instagram account.
 func (s *Server) handleMarketingPosts(w http.ResponseWriter, r *http.Request, tenant string) {
 	w.Header().Set("Cache-Control", "no-store")
 	hum, _ := s.memberID(r, tenant)
-	posts, err := s.UnsharedMarketingPosts(r.Context(), tenant, hum)
+	var posts []marketing.BlogPost
+	var err error
+	if ch := r.URL.Query().Get("channel"); ch != "" {
+		posts, err = s.UnsharedMetaPosts(r.Context(), tenant, hum, ch)
+	} else {
+		posts, err = s.UnsharedMarketingPosts(r.Context(), tenant, hum)
+	}
 	switch {
 	case errors.Is(err, ErrMarketingNotOwner):
 		writeForbidden(w, permTenantOwner, err.Error())
-	case errors.Is(err, ErrMarketingNoChannel), errors.Is(err, ErrMarketingOff):
+	case errors.Is(err, ErrMarketingNoChannel), errors.Is(err, ErrMarketingOff), errors.Is(err, ErrMarketingNoMetaPage):
 		writeErr(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.Is(err, ErrMarketingNoLinked):
 		writeErr(w, http.StatusServiceUnavailable, "linkedin_off", err.Error())
+	case errors.Is(err, ErrMarketingNoMeta):
+		writeErr(w, http.StatusServiceUnavailable, "not_configured", err.Error())
 	case err != nil:
 		writeErr(w, http.StatusInternalServerError, "internal", "the unshared blog posts are unavailable")
 	default:

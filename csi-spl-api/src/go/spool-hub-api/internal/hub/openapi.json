@@ -5557,6 +5557,42 @@
         ]
       }
     },
+    "/v1/marketing/channels/{channel_id}": {
+      "delete": {
+        "operationId": "deleteMarketingChannelsByChannelId",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "channel_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "disconnected: the channel, its sealed token and its posts are gone; a Facebook Page takes its linked Instagram account with it (spec 090 T035, SPL-4496)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Disconnect a connected marketing account (workspace admin)",
+        "tags": [
+          "marketing"
+        ]
+      }
+    },
     "/v1/marketing/facebook/callback": {
       "get": {
         "operationId": "getMarketingFacebookCallback",
@@ -5838,11 +5874,20 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "a Facebook Page or Instagram channel id: list the live posts with no row on that channel instead (SPL-4496)",
+            "in": "query",
+            "name": "channel",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK: {posts: [{id, title, summary, image}]}; the live blog posts the workspace owner can still publish on their LinkedIn channel, newest first (SPL-1698)"
+            "description": "OK: {posts: [{id, title, summary, image}]}; the live blog posts the workspace owner can still publish on their LinkedIn channel, newest first (SPL-1698); with ?channel=<id>, those with no row on that Facebook Page or Instagram account (SPL-4496)"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -5854,7 +5899,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "503": {
-            "description": "the LinkedIn app is not configured on this hub"
+            "description": "the LinkedIn app (or, with ?channel, the Meta app) is not configured on this hub"
           }
         },
         "summary": "List the live blog posts not shared on LinkedIn yet (workspace owner only)",

@@ -28,6 +28,12 @@ type Marketing interface {
 	// AutoMarketingChannels lists every active auto_publish channel, all
 	// tenants (the share sweep; operator scope).
 	AutoMarketingChannels(ctx context.Context) ([]MarketingChannel, error)
+	// DisconnectMarketingChannel deletes tenant's channel channelID with its
+	// sealed token and its posts; a facebook_page takes its linked
+	// instagram_business channels (metadata page_id = the Page's id, the same
+	// Page token) with it. It returns the deleted channel ids; ErrNotFound
+	// when tenant has no such channel. The events stay (append-only).
+	DisconnectMarketingChannel(ctx context.Context, tenant, channelID string) ([]string, error)
 	// MarketingToken reads a channel's sealed token; ErrNotFound when none.
 	MarketingToken(ctx context.Context, tenant, channelID string) (MarketingToken, error)
 	// ExpireMarketingChannel sets an active channel expired (+ event).
@@ -282,6 +288,46 @@ func (s *Postgres) MarketingChannels(ctx context.Context, tenant string) ([]Mark
 			return err
 		})
 	return out, err
+}
+
+// DisconnectMarketingChannel implements Marketing on the Postgres store
+// (rdb 0187, 0236). The token and post rows go first, named, rather than
+// left to the FK cascade.
+func (s *Postgres) DisconnectMarketingChannel(ctx context.Context, tenant, channelID string) ([]string, error) {
+	var ids []string
+	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `SELECT c.channel_id::text FROM marketing_channels c, marketing_channels t
+			WHERE t.tenant_id = $1 AND t.channel_id = $2::uuid AND c.tenant_id = $1
+				AND (c.channel_id = t.channel_id OR (t.platform = 'facebook_page' AND c.platform = 'instagram_business'
+					AND c.metadata->>'page_id' = t.account_ref))
+			ORDER BY c.channel_id = t.channel_id DESC, c.created_at FOR UPDATE OF c`, tenant, channelID)
+		if err != nil {
+			return err
+		}
+		if err := scanRows(rows, func(r pgx.Rows) error {
+			var id string
+			err := r.Scan(&id)
+			ids = append(ids, id)
+			return err
+		}); err != nil {
+			return err
+		}
+		if len(ids) == 0 {
+			return ErrNotFound
+		}
+		for _, q := range []string{`DELETE FROM marketing_channel_tokens WHERE tenant_id = $1 AND channel_id = ANY($2::uuid[])`,
+			`DELETE FROM marketing_posts WHERE tenant_id = $1 AND channel_id = ANY($2::uuid[])`,
+			`DELETE FROM marketing_channels WHERE tenant_id = $1 AND channel_id = ANY($2::uuid[])`} {
+			if _, err := tx.Exec(ctx, q, tenant, ids); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 // AutoMarketingChannels implements Marketing on the Postgres store (rdb 0187).

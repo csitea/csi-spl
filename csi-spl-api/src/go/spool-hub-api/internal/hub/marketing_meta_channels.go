@@ -289,4 +289,6 @@ func (s *Server) routeMarketingMeta(mux *http.ServeMux) {
 	// calls it by the constant, so the two cannot drift apart
 	mux.HandleFunc("GET /api/v1/marketing/facebook/callback", s.handleMetaCallback)
 	s.marketingRoute(mux, "GET /v1/marketing/facebook/pages", s.handleMetaPages)
+	mux.HandleFunc("OPTIONS /v1/marketing/facebook/pages", s.marketingPreflightFor("GET"))         // SPL-4496
+	mux.HandleFunc("OPTIONS /v1/marketing/facebook/connect", s.marketingPreflightFor("GET, POST")) // SPL-4496
 }

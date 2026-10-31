@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"slices"
 	"sort"
 	"time"
 )
@@ -92,6 +93,35 @@ func (s *Memory) MarketingChannels(_ context.Context, tenant string) ([]Marketin
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
 	return out, nil
+}
+
+// DisconnectMarketingChannel implements Marketing on the Memory store (rdb 0187).
+func (s *Memory) DisconnectMarketingChannel(_ context.Context, tenant, channelID string) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m := s.mkt()
+	t, ok := m.channels[channelID]
+	if !ok || t.Tenant != tenant {
+		return nil, ErrNotFound
+	}
+	ids := []string{t.ID}
+	if t.Platform == MarketingPlatformFacebook {
+		for _, c := range m.channels {
+			if page, _ := c.Metadata["page_id"].(string); c.Tenant == tenant && c.Platform == MarketingPlatformIG && page == t.AccountRef {
+				ids = append(ids, c.ID)
+			}
+		}
+	}
+	for _, id := range ids {
+		delete(m.channels, id)
+		delete(m.tokens, id)
+	}
+	for pid, p := range m.posts {
+		if slices.Contains(ids, p.ChannelID) {
+			delete(m.posts, pid)
+		}
+	}
+	return ids, nil
 }
 
 // AutoMarketingChannels implements Marketing on the Memory store (rdb 0187).

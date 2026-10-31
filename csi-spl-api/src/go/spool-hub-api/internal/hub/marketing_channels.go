@@ -24,6 +24,11 @@ import (
 //	     also at LinkedInCallbackPath, the path the WUI host's rewrite keeps
 //	GET  /v1/marketing/channels                         the workspace's
 //	     connected accounts, never a token (marketingRoute)
+//	DELETE /v1/marketing/channels/{channel_id}          disconnects one
+//	     (spec 090 T035, SPL-4496): 204, the channel, its sealed token and
+//	     its posts gone; a Facebook Page takes its linked Instagram account
+//	     with it (one Page token). Who may: the connect rule. 404 for a
+//	     channel the workspace has not.
 //
 // Only an admin (rbac.TenantSettings) of an allow-listed workspace with
 // marketing switched on may connect. The callback reaches the hub through
@@ -267,6 +272,45 @@ func (s *Server) handleMarketingChannels(w http.ResponseWriter, r *http.Request,
 	writeJSON(w, http.StatusOK, map[string]any{"channels": chs})
 }
 
+// DELETE /v1/marketing/channels/{channel_id}: the workspace disconnects an
+// account (SPL-4496).
+func (s *Server) handleMarketingChannelDelete(w http.ResponseWriter, r *http.Request) {
+	tenant, hum, ok := s.marketingConnectMember(w, r)
+	if !ok || !s.marketingStoreOK(w) {
+		return
+	}
+	id := r.PathValue("channel_id")
+	if !uuidRe.MatchString(id) {
+		writeErr(w, http.StatusNotFound, "not_found", "no such channel in this workspace")
+		return
+	}
+	gone, err := s.o.Store.(store.Marketing).DisconnectMarketingChannel(r.Context(), tenant, id)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		writeErr(w, http.StatusNotFound, "not_found", "no such channel in this workspace")
+		return
+	case err != nil:
+		writeErr(w, http.StatusInternalServerError, "internal", "the channel could not be disconnected")
+		return
+	}
+	s.o.Log.Info().Str("tenant", tenant).Str("channel", id).Str("member", hum).Strs("removed", gone).Msg("marketing: channel disconnected")
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// marketingPreflightFor answers the browser's CORS preflight of a marketing
+// route the WUI calls cross-origin with a bearer token.
+func (s *Server) marketingPreflightFor(methods string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.allowOrigin(w, r) {
+			h := w.Header()
+			h.Set("Access-Control-Allow-Methods", methods)
+			h.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Locale")
+			h.Set("Access-Control-Max-Age", corsMaxAge)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
 // routeMarketingChannels registers the connect routes (from routeMarketing).
 func (s *Server) routeMarketingChannels(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/marketing/linkedin/connect", s.handleLinkedInConnectGo)
@@ -276,4 +320,7 @@ func (s *Server) routeMarketingChannels(mux *http.ServeMux) {
 	// connect test calls it by the constant, so the two cannot drift apart
 	mux.HandleFunc("GET /api/v1/marketing/linkedin/callback", s.handleLinkedInCallback)
 	s.marketingRoute(mux, "GET /v1/marketing/channels", s.handleMarketingChannels)
+	mux.HandleFunc("OPTIONS /v1/marketing/channels", s.marketingPreflightFor("GET"))
+	mux.HandleFunc("DELETE /v1/marketing/channels/{channel_id}", s.handleMarketingChannelDelete)
+	mux.HandleFunc("OPTIONS /v1/marketing/channels/{channel_id}", s.marketingPreflightFor("DELETE"))
 }

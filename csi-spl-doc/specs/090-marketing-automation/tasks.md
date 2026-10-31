@@ -303,6 +303,11 @@ Added 2026-10-26 (v0.2.2 tasks, SPL-3553) for Facebook Pages and Instagram Profe
     - Connect button triggering OAuth popup / redirect.
     - Disconnect button with confirmation dialog and revocation instructions.
     - Publish queue displaying platform-specific character counters (2,200 for IG, 63,206 for FB) and media previews.
+  - **Hub routes it calls** (c-628, SPL-4496, landed in `hub/marketing_channels.go`, `marketing_posts.go`, `marketing_meta_channels.go`):
+    - `DELETE /v1/marketing/channels/{channel_id}` -> `204`: the channel, its sealed token and its posts gone; a Facebook Page takes its linked Instagram account. Who may: the connect rule; another workspace's channel or none is `404`; a member without `tenant.settings` is `403`.
+    - `GET /v1/marketing/posts?channel=<channel id>`: the live blog posts with no row on that Facebook Page or Instagram account, in the blog index's order. Same gates as the Meta publish (the workspace owner; `404` for a channel that is not an active Meta channel of the workspace; `503 not_configured` without the Meta app). Without `channel=` the LinkedIn list is unchanged.
+    - CORS preflights (`OPTIONS`, `204` with the WUI origin) for `GET /v1/marketing/channels`, `GET /v1/marketing/facebook/pages`, `POST /v1/marketing/facebook/connect` and the `DELETE`.
+    - Tests `hub/marketing_disconnect_test.go` (memory store) and `store/marketing_disconnect_test.go` (Postgres, RLS); red controls: the Instagram cascade dropped, the `channel=` branch dropped, one `OPTIONS` dropped, each fails a test.
   - **Owns**: `csi-spl-wui/src/components/MarketingAccounts.vue` (new), `MarketingPublish.vue` (update), `tests/e2e/marketing-meta-accounts.test.mjs`.
   - **Tests**: `pnpm run test:unit`, `pnpm run typecheck`, E2E test verifying account listing and disconnect flow.
   - **Red Control**: Connecting account without Page Admin task displays permission error banner; disconnect purges channel from UI state.

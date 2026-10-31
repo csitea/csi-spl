@@ -505,6 +505,7 @@ Mirroring the LinkedIn personal settings pattern (spec 019 / spec 090 T006):
    - Ciphertext and KMS Key ID are stored in `marketing_channel_tokens` table under PostgreSQL `FORCE ROW LEVEL SECURITY`.
    - Channel records are created in `marketing_channels` (`platform='facebook_page'` or `platform='instagram_business'`).
    - Disconnecting an account immediately deletes the database row and its encrypted token, and attempts a revocation call to `DELETE https://graph.facebook.com/v26.0/{user-id}/permissions`.
+   - Built (SPL-4496): `DELETE /v1/marketing/channels/{channel_id}` answers `204` and deletes the channel, its sealed token and its posts in one transaction under RLS; a `facebook_page` takes the `instagram_business` channel linked to it (metadata `page_id`, the same Page token) with it. Who may: the connect rule (`marketingConnectMember`). A channel the workspace does not have is `404`. The `marketing_post_events` rows stay (append-only). No revocation call is made: the hub keeps no user token (T033), so the WUI tells the member how to remove the app in Meta (T035).
 
 ### 16.3 Publishing Lifecycle & Explicit Human Approval Hold
 

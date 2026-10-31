@@ -13,7 +13,9 @@
 # @description      SPAWN_FILL_MAX per tick (default 1)
 # @description   3. CLASS - bug or feature by the live share (do_spl_spawn_share):
 # @description      a class OVER its band is never queued; the one furthest UNDER
-# @description      comes first (ties bug > feature, as the placer)
+# @description      comes first (ties bug > feature, as the placer). At night
+# @description      (do_spl_rhythm_phase, spec 166 row B4, owner poll Q2 B) bug
+# @description      only: features wait for the day
 # @description   4. ISSUES - open issues (SPAWN_FILL_STATUS, default todo,eval) of
 # @description      kind issue labelled bug or feature (the label is the class,
 # @description      never guessed); skipped: labels needs-owner / blocker / epic,
@@ -41,6 +43,7 @@
 # @param SPAWN_FILL_CORES_PER_LANE (optional) - cores one lane is counted for, default 1
 # @param SPAWN_FILL_STATUS (optional) - the issue statuses taken, todo / eval / both (comma list), default todo,eval
 # @param SPAWN_FILL_KIND (optional) - the do_spl_lane_mix kind, default complex_coding
+# @param RHYTHM_NOW RHYTHM_CNF (optional) - as do_spl_rhythm_phase: the moment whose phase picks the classes (tests), the cnf with env.rhythm
 # @param SPAWN_FILL_CNF (optional) - default <checkout>/csi-spl-cnf/csi-spl/all.env.yaml
 # @param SPAWN_PLACE_BRIEF_DIR (optional) - where the briefs go, default <spool root>/dispatch/briefs
 # @param ENV TENANT_ID DESK_AGENT DESK_BOX (optional) - the issue desk, default the lease's (as do_spl_lane_issue)
@@ -50,7 +53,7 @@
 # @example SPAWN_FILL=on DRY_RUN=0 ./run -a do_spl_spawn_fill
 
 do_spl_spawn_fill() {
-  local dry="${DRY_RUN:-1}" on holder rows pick n share classes issues chosen
+  local dry="${DRY_RUN:-1}" on holder rows pick n share phase classes issues chosen
   spl_spawn_fill_check || return 1
   spl_spawn_fill_epic_stall
   on="$(spl_spawn_fill_switch)"
@@ -70,9 +73,10 @@ do_spl_spawn_fill() {
   pick="$(spl_spawn_fill_pick)" || return 0
   n="$(spl_spawn_fill_count "$pick")"
   share="$(spl_spawn_share)" || { do_log "WARN the live share could not be read: no fill this tick"; return 0; }
-  classes="$(spl_spawn_fill_classes "$share")"
-  [[ -n "$classes" ]] || { do_log "INFO every class the filler takes is over its band ($(spl_spawn_share_line "$share")): nothing to fill"; return 0; }
-  do_log "INFO $(jq -r '.why' <<<"$pick"): $n lane(s) this tick (${SPAWN_FILL_CORES_PER_LANE:-1} core(s) a lane, at most $(spl_spawn_fill_max)); classes in order: $classes ($(spl_spawn_share_line "$share"))"
+  phase="$(spl_spawn_fill_phase)" || { do_log "WARN the rhythm phase could not be read ($phase): no fill this tick"; return 0; }
+  classes="$(spl_spawn_fill_classes "$share" "$phase")"
+  [[ -n "$classes" ]] || { do_log "INFO every class the filler takes by $phase ($(spl_spawn_fill_phase_classes "$phase")) is over its band ($(spl_spawn_share_line "$share")): nothing to fill"; return 0; }
+  do_log "INFO $(jq -r '.why' <<<"$pick"): $n lane(s) this tick (${SPAWN_FILL_CORES_PER_LANE:-1} core(s) a lane, at most $(spl_spawn_fill_max)); $phase, classes in order: $classes ($(spl_spawn_share_line "$share"))"
   issues="$(spl_spawn_fill_issues)" || { do_log "WARN the open issues could not be read: no fill this tick"; return 0; }
   chosen="$(spl_spawn_fill_choose "$issues" "$classes" "$(spl_spawn_fill_held "$share")" "$n")"
   [[ "$(jq 'length' <<<"$chosen")" -gt 0 ]] ||
@@ -142,11 +146,28 @@ spl_spawn_fill_count() {  # PICK
     (((.low * .cpus / 100) - .load5) / $per | ceil) as $n | [([$n, $max] | min), 1] | max' <<<"$1"
 }
 
-# The classes the filler may queue, furthest under its band first: "bug
-# feature", "feature", ... A class OVER its band is left out.
-spl_spawn_fill_classes() {  # SHARE
-  jq -r '
-    [.by | to_entries[] | select(.key == "bug" or .key == "feature") | .key as $c | .value as $b
+# day | night (do_spl_rhythm_phase, spec 166 row B1; no hour arithmetic
+# here), or 1 with the reason on stdout.
+spl_spawn_fill_phase() {
+  local p
+  declare -F do_spl_rhythm_phase >/dev/null || . "$PROJ_PATH/src/bash/run/spl-rhythm-phase.func.sh" ||
+    { printf 'do_spl_rhythm_phase not found'; return 1; }
+  p="$(do_spl_rhythm_phase 2>&1)" && [[ "$p" =~ ^(day|night)$ ]] || { printf '%s' "$(tail -1 <<<"$p")"; return 1; }
+  printf '%s' "$p"
+}
+
+# The classes the filler takes in PHASE (spec 166 section 3.1, poll Q2 B):
+# bug and feature by day, bug only at night.
+spl_spawn_fill_phase_classes() {  # PHASE
+  if [[ "$1" == night ]]; then printf 'bug'; else printf 'bug feature'; fi
+}
+
+# The classes the filler may queue in PHASE, furthest under its band first:
+# "bug feature", "feature", ... A class OVER its band is left out.
+spl_spawn_fill_classes() {  # SHARE PHASE
+  jq -r --arg take "$(spl_spawn_fill_phase_classes "${2:-day}")" '
+    ($take | split(" ")) as $take
+    | [.by | to_entries[] | select(.key as $k | $take | index($k)) | .key as $c | .value as $b
      | select($b.verdict != "OVER")
      | {c: $c, t: (if $b.pct < $b.lo then 0 else 1 end),
         s: (if $b.pct < $b.lo then ($b.lo - $b.pct) / $b.lo elif $c == "bug" then ($b.hi - $b.pct) / $b.hi else 0 end),

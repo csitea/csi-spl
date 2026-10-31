@@ -21,6 +21,11 @@
 #      queue and fills nothing; the closed ask still holds its key
 #   7. do_spl_spawn_fill_install_cron: one line with DRY_RUN=0, PATH with
 #      /usr/local/bin, flock -n; idempotent; remove takes only its line
+#   8. fill by phase (spec 166 row B4, poll Q2 B): at night (winter and
+#      summer, do_spl_rhythm_phase on RHYTHM_NOW) one feature and one bug
+#      issue todo -> only the bug is planned and queued; by day both; a night
+#      with bug over its band fills nothing; an unreadable phase fills nothing
+#      (every other case runs at a fixed day moment)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -32,7 +37,7 @@ command -v jq >/dev/null || { echo "FAIL: jq is required"; exit 1; }
 command -v python3 >/dev/null || { echo "FAIL: python3 is required"; exit 1; }
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
-mkdir -p "$T/bin" "$T/hub" "$T/briefs" "$T/spool/dispatch"
+mkdir -p "$T/bin" "$T/hub" "$T/hub-b4" "$T/briefs" "$T/spool/dispatch"
 export SPOOL_TEST=1
 
 # The hub stub: `spool ask` list / put / queue / done over one JSON file.
@@ -109,6 +114,7 @@ lanebrief() { mkdir -p "$T/spool/$1/lifetime"; printf 'Class: %s\n' "$2" >"$T/sp
 lanebrief c-200 bug; lanebrief c-201 bug; lanebrief c-202 bug; lanebrief c-203 refactor; lanebrief c-204 feature
 echo SPL-11 >"$T/spool/c-201/lifetime/issue"
 LANES_OVER='[{"agent_id":"c-200","agent_box":"box-desk","state":"live"},{"agent_id":"c-201","agent_box":"box-desk","state":"live"},{"agent_id":"c-202","agent_box":"box-desk","state":"live"},{"agent_id":"c-203","agent_box":"box-desk","state":"live"},{"agent_id":"c-204","agent_box":"box-desk","state":"live"}]'
+LANES_BUG_OVER="$LANES_OVER"
 put() { HUB_DIR="$T/hub" "$T/bin/hub" ask put --fleet main --id "$1" --kind task --role orch --from c-002@box-desk --topic x --summary "$2" >/dev/null; }
 put 99999999-0000-4000-8000-000000000009 "SPAWN REQUEST fix SPL-9 by hand"
 HUB_DIR="$T/hub" "$T/bin/hub" ask "done" --fleet main --id 99999999-0000-4000-8000-000000000009 --by c-001@box-desk >/dev/null
@@ -119,7 +125,8 @@ fill() {  # [env...]
     SPOOL_FLEET_RELAY=0 ASKS_HOLDER=c-001@box-desk SPAWN_QUEUE_SEND="$T/bin/send" SEND_LOG="$T/send.log" SPOOL_AGENT_ID= \
     SPAWN_SHARE_LANES_CMD="$T/bin/lanes" SPAWN_SHARE_DISPATCH=c-002@box-desk SPAWN_FILL_PICK_CMD="$T/bin/pick" \
     SPAWN_FILL_ISSUES_CMD="$T/bin/issues" SPAWN_FILL_MIX_CMD="$T/bin/mix" MIX_LOG="$T/mix.log" SPAWN_PLACE_BRIEF_DIR="$T/briefs" \
-    SPAWN_FILL_CNF="$T/none.yaml" EPIC_STALL=off LANES="$LANES_OVER" PROJ_PATH="$PROJ_ROOT" APP_PATH="$T" "$@" bash -c '
+    SPAWN_FILL_CNF="$T/none.yaml" EPIC_STALL=off LANES="$LANES_OVER" PROJ_PATH="$PROJ_ROOT" APP_PATH="$T" \
+    RHYTHM_NOW="$DAY" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     for f in spl-lane-map spl-asks-open spl-asks-tick spl-spawn-queue spl-spawn-share spl-spawn-enqueue spl-spawn-place spl-spawn-fill; do
@@ -128,6 +135,7 @@ fill() {  # [env...]
     do_spl_spawn_fill' 2>&1
 }
 asks() { jq -c '[.[] | select(.state != "done")] | length' "$T/hub/main.json"; }
+DAY=2026-01-15T12:00Z
 
 # 1. the switch ------------------------------------------------------------------
 out="$(fill DRY_RUN=0)"
@@ -198,6 +206,33 @@ for kv in SPAWN_FILL=yes SPAWN_FILL_MAX=0 SPAWN_FILL_MAX=11 SPAWN_FILL_CORES_PER
   fill "$kv" >/dev/null && fail "$kv was taken"
 done
 pass "knobs: a bad switch, max, cores, status or DRY_RUN is refused"
+
+# 8. fill by phase (spec 166 row B4) ------------------------------------------------
+{ iss SPL-20 todo 2 '["feature"]'; iss SPL-21 todo 2 '["bug"]'; } | jq -s '{result: {issues: .}}' >"$T/issues-b4.json"
+printf '#!/usr/bin/env bash\ncat "%s/issues-b4.json"\n' "$T" >"$T/bin/issues-b4"; chmod +x "$T/bin/issues-b4"
+LANES_B4='[{"agent_id":"c-203","agent_box":"box-desk","state":"live"},{"agent_id":"c-204","agent_box":"box-desk","state":"live"}]'
+b4() { fill SPAWN_FILL_MAX=10 SPAWN_FILL_ISSUES_CMD="$T/bin/issues-b4" LANES="$LANES_B4" "$@"; }
+b4plans() { grep -oE '^PLAN would queue SPL-[0-9]+' <<<"$1" | awk '{print $4}' | tr '\n' ' '; }
+for now in 2026-01-15T19:00Z 2026-01-16T02:00Z 2026-07-15T18:00Z; do
+  out="$(b4 RHYTHM_NOW="$now")"
+  [[ "$(b4plans "$out")" == "SPL-21 " ]] && grep -q 'night, classes in order: bug (' <<<"$out" &&
+    pass "phase: night at $now -> only the bug (SPL-21) is planned, the feature waits" || fail "night $now: '$(b4plans "$out")' $out"
+done
+for now in 2026-01-15T18:59Z 2026-01-15T06:00Z 2026-07-15T05:00Z; do
+  out="$(b4 RHYTHM_NOW="$now")"
+  [[ "$(b4plans "$out")" == "SPL-21 SPL-20 " ]] && grep -q 'day, classes in order: bug feature (' <<<"$out" &&
+    pass "phase: day at $now -> bug and feature, as before" || fail "day $now: '$(b4plans "$out")' $out"
+done
+out="$(b4 RHYTHM_NOW=2026-01-15T19:00Z SPAWN_FILL=on DRY_RUN=0 HUB_DIR="$T/hub-b4")"
+q="$(jq -r '[.[] | select(.state == "queued") | .class + ":" + (.summary | split(" ")[2])] | join(" ")' "$T/hub-b4/main.json" 2>/dev/null)"
+[[ "$q" == "bug:SPL-21" ]] && grep -q 'OK 1 row(s) queued' <<<"$out" &&
+  pass "phase: a live night tick queues the bug ask only ($q)" || fail "night live: '$q' $out"
+out="$(b4 RHYTHM_NOW=2026-01-15T19:00Z LANES="$LANES_BUG_OVER")"
+grep -q 'every class the filler takes by night (bug) is over its band' <<<"$out" && ! grep -q '^PLAN' <<<"$out" &&
+  pass "phase: at night with bug over its band nothing is filled (no feature fallback)" || fail "night over: $out"
+out="$(b4 RHYTHM_NOW=not-a-date)"
+grep -q 'WARN the rhythm phase could not be read' <<<"$out" && ! grep -q '^PLAN' <<<"$out" &&
+  pass "phase: an unreadable phase fills nothing" || fail "bad phase: $out"
 
 # 7. the cron installer ------------------------------------------------------------
 SRC="$T/shared"; mkdir -p "$SRC/csi-spl-orc"; printf '#!/bin/sh\n' >"$SRC/csi-spl-orc/run"; chmod +x "$SRC/csi-spl-orc/run"

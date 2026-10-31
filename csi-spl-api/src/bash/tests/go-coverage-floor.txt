@@ -83,9 +83,11 @@ internal/invitemail 85.3
 internal/keyd 82.2
 internal/keydesk 79.1
 internal/keyexec 79.7
-# internal/lockkey: 76.4 on its first commit (spec 025 row B4, SPL-2956);
-# go test -count=1 -cover ./internal/lockkey/, go1.26.10, n=3 read 76.4 each.
-internal/lockkey 76.4
+# internal/lockkey: 78.7 with r43-06's lockkey_test.go (HolderAlive, readPID,
+# pidAlive on each pid file; writeFile errors), 76.7 without on e8e02f87e;
+# go test -count=1 -cover ./internal/lockkey/, go1.26.10, n=3 read 78.7 each.
+# Before: 76.4 on its first commit (spec 025 row B4, SPL-2956); n=3 read 76.4.
+internal/lockkey 78.7
 internal/logging 99.0
 internal/mail 85.0
 internal/marketing 63.6

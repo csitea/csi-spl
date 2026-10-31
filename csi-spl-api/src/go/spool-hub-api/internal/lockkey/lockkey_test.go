@@ -7,7 +7,9 @@ import (
 	"encoding/base64"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -366,4 +368,98 @@ func waitSock(t *testing.T, dir string) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("lockd socket did not appear")
+}
+
+// deadPID starts this test binary with no test to run and waits for it, so
+// its pid names a process that has exited.
+func deadPID(t *testing.T) int {
+	t.Helper()
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := exec.Command(exe, "-test.run=^$")
+	if err := c.Run(); err != nil {
+		t.Fatal(err)
+	}
+	return c.Process.Pid
+}
+
+func strPtr(s string) *string { return &s }
+
+// Row r43-06: HolderAlive, readPID and pidAlive on each pid file a keys dir
+// can hold.
+func TestHolderAlivePIDFile(t *testing.T) {
+	dead, own := deadPID(t), os.Getpid()
+	cases := []struct {
+		name  string
+		file  *string
+		pid   int
+		alive bool
+	}{
+		{"no pid file", nil, 0, false},
+		{"garbage", strPtr("not-a-pid\n"), 0, false},
+		{"zero", strPtr("0\n"), 0, false},
+		{"negative", strPtr("-7\n"), 0, false},
+		{"dead pid", strPtr(strconv.Itoa(dead) + "\n"), dead, false},
+		{"own pid", strPtr(" " + strconv.Itoa(own) + "\n"), own, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(LockDir(dir), pidName)
+			if c.file != nil {
+				if err := writeFile(path, []byte(*c.file)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if got := readPID(path); got != c.pid {
+				t.Fatalf("readPID: got %d, want %d", got, c.pid)
+			}
+			if got := HolderAlive(dir); got != c.alive {
+				t.Fatalf("HolderAlive: got %v, want %v", got, c.alive)
+			}
+		})
+	}
+	if pidAlive(0) || pidAlive(-1) {
+		t.Fatal("pidAlive took a pid <= 0 for alive")
+	}
+}
+
+// Row r43-06: writeFile leaves a 0600 file and no temp file on success, and
+// fails where it cannot write.
+func TestWriteFileErrors(t *testing.T) {
+	dir := t.TempDir()
+	ok := filepath.Join(dir, "sub", "f")
+	if err := writeFile(ok, []byte("x")); err != nil {
+		t.Fatal(err)
+	}
+	if st, err := os.Stat(ok); err != nil || st.Mode().Perm() != 0o600 {
+		t.Fatalf("written file: %v %v", st, err)
+	}
+	if _, err := os.Stat(ok + ".tmp"); !os.IsNotExist(err) {
+		t.Fatalf("temp file left after a write: %v", err)
+	}
+
+	plain := filepath.Join(dir, "plain")
+	if err := os.WriteFile(plain, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeFile(filepath.Join(plain, "f"), []byte("x")); err == nil {
+		t.Fatal("writeFile under a regular file did not fail")
+	}
+
+	if os.Geteuid() == 0 {
+		t.Skip("root writes into a read-only dir")
+	}
+	ro := filepath.Join(dir, "ro")
+	if err := os.Mkdir(ro, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeFile(filepath.Join(ro, "f"), []byte("x")); err == nil {
+		t.Fatal("writeFile into a read-only dir did not fail")
+	}
+	if _, err := os.Stat(filepath.Join(ro, "f.tmp")); !os.IsNotExist(err) {
+		t.Fatalf("temp file left in a read-only dir: %v", err)
+	}
 }

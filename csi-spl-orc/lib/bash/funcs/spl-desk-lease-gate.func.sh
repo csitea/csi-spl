@@ -29,8 +29,12 @@
 #      or names it (@<id>)
 # A reply that is not the first (an agent already answered in the topic; the
 # topic's owner answering again) is never refused here. The topic is read
-# from this desk box (hub-tail): a reply from another machine's box may not
-# be visible, which can only refuse, never let a second first reply through.
+# from this desk box (hub-tail), which holds only what this box sent or was
+# sent: a reply made from another machine's box is not in it (topic
+# 63674838, 2026-10-30: the routed seat refused twice). So when this box's
+# tail reads "first", the hub counts the topic's agent posts from EVERY box
+# (hub-tail --agent-count, SPL-4444); one or more = not first. A count that
+# cannot be read (hub down, an older binary or hub): first, refused, a WARN.
 # The topic is read with hub-tail --with-channel (its envelope channel, "" = a
 # DM), and with plain --json by a spool binary that lacks the flag: then the
 # sole-seat rule cannot be checked (a WARN) and rule 3 matches the tenant.
@@ -82,7 +86,7 @@ spl_desk_lease_gate() {
     [[ "$ch_known" == 1 ]] || return 0
     [[ "$seat_ch" == "$tenant $topic_ch" ]] && return 0
   fi
-  [[ "$(spl_desk_lease_topic_verdict "$agent" <<<"$tail")" == first ]] || return 0
+  _spl_desk_lease_first || return 0
   do_log "FATAL nothing was sent: this would be the first agent reply in topic $task, and a new topic is the dispatch lease holder's ($holder), not $agent's (SPEC-spool-fleet-roles.md 3, SPL-3520). Leave it to $holder, or send it your answer: spool-send.sh --to $holder"
   return 8
 }
@@ -126,9 +130,31 @@ _spl_desk_lease_sole() {
     return 8
   fi
   spl_desk_lease_is "$agent" "$sole" "$dir" && return 0
-  [[ "$(spl_desk_lease_topic_verdict "$agent" <<<"$tail")" == first ]] || return 0
+  _spl_desk_lease_first || return 0
   do_log "FATAL nothing was sent: $tenant #$topic_ch has a sole seat, $sole, and this would be the first agent reply in topic $task; only $sole answers there, the lease holders included (SPL-3542, SPL-3520). Send it your answer: spool-send.sh --to $sole"
   return 8
+}
+
+# _spl_desk_lease_first: 0 when <agent>'s reply would be the topic's first
+# agent reply. The caller's tail decides when it holds an agent post or a
+# person addressing <agent>; when it reads "first", the hub's count of the
+# topic's agent posts from any box does (SPL-4444): 0 = first. A count that
+# cannot be read is a first reply (fail closed), with a WARN saying why.
+_spl_desk_lease_first() {
+  local out n=""
+  [[ "$(spl_desk_lease_topic_verdict "$agent" <<<"$tail")" == first ]] || return 1
+  out="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- hub-tail --task "$task" --agent-count 2>&1)" &&
+    n="$(python3 -c '
+import json, sys
+v = json.load(sys.stdin).get("agents")
+if type(v) is not int or v < 0:
+    sys.exit(1)
+print(v)' <<<"$out" 2>/dev/null)"
+  if [[ -z "$n" ]]; then
+    do_log "WARN topic $task holds no agent post on this box, and the hub's count of agent posts from every box cannot be read, so this is a first reply: $(head -c 200 <<<"$out") (SPL-4444)"
+    return 0
+  fi
+  (( n == 0 ))
 }
 
 # spl_desk_lease_topic_channel, hub-tail --with-channel NDJSON on stdin: the

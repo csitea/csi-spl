@@ -43,9 +43,19 @@ owner answering again, and anyone after an agent has already answered.
 
 ## 3. Edges
 
-- The topic is read from the seat's own desk box (`spool hub-tail`). A reply
-  sent from another machine's box may not show there. That can only refuse a
-  first reply. It can never let a second one through.
+- The topic is read from the seat's own desk box (`spool hub-tail`), and the
+  hub gives a box only the messages it sent or was sent. A reply made from
+  another machine's box is not in that read. On 2026-10-30 (topic
+  63674838) this refused the routed seat twice: the dispatch holder had taken
+  the topic from the other box. So when the box's own read shows no agent
+  post and no human addressing the seat, the gate asks the hub for one more
+  number, `spool hub-tail --task <id> --agent-count` (SPL-4444). It is the
+  count of the topic's agent posts from every box: not a person's, not the
+  responder's, not a guest's. One or more means the reply is not the first.
+  The hub answers it only for a topic the box holds something of, as it does
+  for `hub-rsp`. It sends a count, never the posts. A count that cannot be
+  read means the reply is treated as the first, and it is refused with a
+  WARN. That covers a hub down, an older hub and an older spool binary.
 - A `RSP-*` responder post is not an agent reply.
 - No lease file (a box without dispatchers): no gate. A lease that names no
   holder: no gate, with a WARN.
@@ -59,7 +69,14 @@ owner answering again, and anyone after an agent has already answered.
 - Gate: `csi-spl-orc/lib/bash/funcs/spl-desk-lease-gate.func.sh`
   (`spl_desk_lease_gate`), one call in `do_spl_desk_reply` right after the
   conversation is chosen.
-- Test: `csi-spl-orc/src/bash/tests/desk-reply-lease-gate.tst.sh`. 27 cases.
+- Test: `csi-spl-orc/src/bash/tests/desk-reply-lease-gate.tst.sh`. 34 cases.
   With the gate call removed, 7 of the first 16 fail. With the sole-seat
   block removed, 6 of the 11 SPL-3542 cases fail. With the old tenant-only
-  channel match, 1 of them fails.
+  channel match, 1 of them fails. With the old gate (no hub count), 5 of the
+  7 SPL-4444 cases fail.
+- The hub count: `onTailCount` in `csi-spl-api/src/go/spool-hub-api/internal/hub/ws.go`
+  (an `agent_count` tail frame), the client's `Session.AgentCount`, and the
+  `hub-tail --agent-count` flag. Its test is `internal/hub/agent_count_test.go`.
+  Another box's agent post is counted, the box's own tail still holds only its
+  share, and `rsp_count` is unchanged. A box that holds nothing of the topic
+  reads 0, and a frame asking both counts is refused.

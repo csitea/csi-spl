@@ -1339,11 +1339,15 @@ func cmdHubTail(cfg *config.Config, args []string) int {
 	follow := fs.Bool("follow", false, "keep streaming new messages")
 	asJSON := fs.Bool("json", false, "emit the inner v:1 objects as NDJSON")
 	withChannel := fs.Bool("with-channel", false, `--json plus the envelope's "channel" on each line ("" = a DM)`)
+	agentCount := fs.Bool("agent-count", false, `print only {"task_id","agents"}: how many of the task's messages an agent sent, from ANY box (SPL-4444)`)
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
 	if *task == "" {
 		return fail(fmt.Errorf("--task is required"))
+	}
+	if *agentCount && (*follow || *asJSON || *withChannel) {
+		return fail(fmt.Errorf("--agent-count prints a count: no --follow, --json or --with-channel"))
 	}
 	c, err := boxClient(cfg)
 	if err != nil {
@@ -1357,6 +1361,14 @@ func cmdHubTail(cfg *config.Config, args []string) int {
 		return fail(err)
 	}
 	defer sess.Close()
+	if *agentCount {
+		n, err := sess.AgentCount(ctx, *task)
+		if err != nil {
+			return fail(err)
+		}
+		fmt.Println(action.JSON(map[string]any{"task_id": *task, "agents": n}))
+		return 0
+	}
 	_, err = sess.Tail(ctx, *task, *follow, func(e *wire.Envelope) {
 		m, err := e.Inner()
 		if err != nil {

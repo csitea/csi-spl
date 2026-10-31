@@ -25,6 +25,13 @@
 #      and orch lease holders refused; a malformed column 6 refuses; not a
 #      first reply, or another channel: the holder still posts; a spool
 #      without --with-channel: the rule is not checked (WARN)
+#   9. SPL-4444 (topic 63674838): this box's tail holds no agent post
+#      but the hub counts one from another box (hub-tail --agent-count) ->
+#      sent, in a sole-seat channel too; a count of 0 -> refused; a count
+#      that cannot be read (hub, old binary) -> refused, a WARN; a tail that
+#      already shows an agent post asks no count
+# With --agent-count the stub prints {"agents":$AGENT_COUNT} (default 0;
+# "fail" = the hub cannot answer, "old" = a binary without the flag).
 # The stub's hub-tail prints $TAIL; with --with-channel and NO_WITH_CH=1 it
 # fails as an old binary does. Until cr_sole_seat is on the tree (c-834,
 # SPL-3542) the snippet defines a stand-in with its contract (column 6).
@@ -33,7 +40,10 @@
 # fails) and 7 (the picker). Without rule 0 (the sole-seat block in
 # spl_desk_lease_gate) 6 of 8 fail: holder, orch, other machine, malformed,
 # unread topic, old binary. Matching the tenant only (the old rule 3): 1 of 8
-# fails (another channel's topic).
+# fails (another channel's topic). Without the hub count (SPL-4444, the
+# _spl_desk_lease_first fallback, the old gate) 5 of 7 in section 9 fail:
+# the cross-box reply and the sole-seat follow-up are refused, and the count
+# of 0, the unread count and the old binary refuse without asking the count.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -78,6 +88,13 @@ spl_desk_spool() {
   case "$1" in
     recv) cat "$INBOX" ;;
     hub-tail) [[ "${TAIL_FAIL:-0}" == 1 ]] && { echo "spool: hub unreachable"; return 1; }
+      if [[ "$*" == *--agent-count* ]]; then
+        case "${AGENT_COUNT:-0}" in
+          fail) echo "spool: the hub does not answer agent_count"; return 1 ;;
+          old) echo "flag provided but not defined: -agent-count"; return 2 ;;
+          *) echo "{\"agents\":${AGENT_COUNT:-0},\"task_id\":\"x\"}"; return 0 ;;
+        esac
+      fi
       [[ "${NO_WITH_CH:-0}" == 1 && "$*" == *--with-channel* ]] && { echo "flag provided but not defined: -with-channel"; return 1; }
       printf "%s\n" "$TAIL" ;;
     topics) echo "spool: no such channel"; return 1 ;;
@@ -199,6 +216,30 @@ refused && grep -q 'cannot read topic' "$T/o" && pass "a map and a topic that ca
 reply c-002 SPOOL_CHANNEL_RULES_MAP="$MAP" TAIL="$HUMPOST" NO_WITH_CH=1
 ok_sent && grep -q 'sole-seat rule is not checked' "$T/o" && grep -q 'hub-tail|--task|'"$TK"'|--json' "$T/calls" &&
   pass "a spool without --with-channel: plain --json, the rule not checked, a WARN" || fail "old binary path: $(show)"
+
+# --- 9. a first reply made from another box (SPL-4444) ------------------------------
+lease c-002@box-a c-001@box-b
+reply g-001 AGENT_COUNT=1
+ok_sent && grep -q '^hub-tail|--task|'"$TK"'|--agent-count$' "$T/calls" &&
+  pass "this box's tail holds no agent post, the hub counts one from another box: not a first reply, sent" ||
+  fail "cross-box first reply not seen: $(show)"
+reply g-001 AGENT_COUNT=0
+refused && grep -q '^hub-tail|--task|'"$TK"'|--agent-count$' "$T/calls" &&
+  pass "CONTROL: the hub counts no agent post either: still refused" || fail "a count of 0 passed: $(show)"
+reply g-001 AGENT_COUNT=fail
+refused && grep -q 'cannot be read' "$T/o" && grep -q 'SPL-4444' "$T/o" &&
+  pass "a hub count that cannot be read refuses (fail closed), a WARN" || fail "unread count passed: $(show)"
+reply g-001 AGENT_COUNT=old
+refused && grep -q 'cannot be read' "$T/o" && pass "a spool without --agent-count refuses (fail closed)" || fail "old binary passed: $(show)"
+reply g-001 AGENT_COUNT=-1
+refused && pass "a malformed count (negative) refuses" || fail "a negative count passed: $(show)"
+reply g-001 AGENT_COUNT=0 TAIL="$HUMPOST"$'\n''{"v":1,"msg_id":"a-3","task_id":"'"$TK"'","ts":"2026-10-26T08:01:00Z","from":"c-002","to":"HUM-10","kind":"note","body":"Taken","files":[]}'
+ok_sent && ! grep -q -- '--agent-count' "$T/calls" &&
+  pass "a tail that shows an agent post asks the hub no count" || fail "count asked though the tail answered: $(show)"
+printf 't1\tsolo\t%s\tprd\tc-423\tc-423@box-a\n' "$DOC" >"$MAP"
+reply c-002 SPOOL_CHANNEL_RULES_MAP="$MAP" TAIL="$(chtail solo)" AGENT_COUNT=2
+ok_sent && pass "a sole-seat channel: the sole seat answered from another box, the holder's follow-up is not refused" ||
+  fail "sole-seat follow-up across boxes refused: $(show)"
 
 echo
 if (( fails > 0 )); then echo "FAILED: $fails"; exit 1; fi

@@ -200,6 +200,9 @@ func TestHubTailAndRSP(t *testing.T) {
 		if f.RSPCount {
 			return []wire.Frame{{Type: wire.TTailEnd, TaskID: f.TaskID, RSPCount: true, Count: 3}}
 		}
+		if f.AgentCount {
+			return []wire.Frame{{Type: wire.TTailEnd, TaskID: f.TaskID, AgentCount: true, Count: 2}}
+		}
 		return []wire.Frame{{Type: wire.TTailMsg, Env: good}, {Type: wire.TTailMsg, Env: bad}, {Type: wire.TTailEnd, TaskID: f.TaskID}}
 	}, nil)
 	cfg := hubCfg(t, h.URL)
@@ -223,6 +226,17 @@ func TestHubTailAndRSP(t *testing.T) {
 	}
 	if rc != 0 || !strings.HasPrefix(out, `{"channel":"",`) || json.Unmarshal([]byte(out), &wc) != nil || wc.Channel == nil || wc.Body != "hello" {
 		t.Fatalf("hub-tail --with-channel: rc %d %q err %q", rc, out, errOut)
+	}
+	// --agent-count (SPL-4444): the count alone, from the agent_count echo
+	rc, out, errOut = capture(t, "", func() int { return cmdHubTail(cfg, []string{"--task", task, "--agent-count"}) })
+	if want := `{"agents":2,"task_id":"` + task + `"}` + "\n"; rc != 0 || out != want {
+		t.Fatalf("hub-tail --agent-count: rc %d %q err %q, want %q", rc, out, errOut, want)
+	}
+	if rc, _, errOut := capture(t, "", func() int { return cmdHubTail(cfg, []string{"--task", "refused", "--agent-count"}) }); rc == 0 || !strings.Contains(errOut, "not_found") {
+		t.Errorf("hub-tail --agent-count refused: rc %d %q", rc, errOut)
+	}
+	if rc, _, errOut := capture(t, "", func() int { return cmdHubTail(cfg, []string{"--task", task, "--agent-count", "--json"}) }); rc == 0 || !strings.Contains(errOut, "prints a count") {
+		t.Errorf("hub-tail --agent-count --json: rc %d %q, want a refusal", rc, errOut)
 	}
 	rc, out, errOut = capture(t, "", func() int { return cmdHubRSP(cfg, []string{"--task", task}) })
 	if want := `{"rsp":3,"task_id":"` + task + `"}` + "\n"; rc != 0 || out != want {

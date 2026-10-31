@@ -3353,7 +3353,7 @@
       "col_active": "Kaistan viimeisin toiminta",
       "filter_text": "Hae aiheita",
       "no_match": "Mikään aihe ei vastaa suodattimia",
-      "shown": "{n} / {total} aihetta",
+      "shown": "{n}/{total} aihetta",
       "no_topic": "Ei keskustelua"
     },
     "file_streams": {

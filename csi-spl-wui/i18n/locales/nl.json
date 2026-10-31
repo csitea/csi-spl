@@ -3346,13 +3346,13 @@
     },
     "topics": {
       "loading": "Onderwerpen laden…",
-      "error": "Kon de onderwerpen niet laden.",
+      "error": "De onderwerpen konden niet worden geladen.",
       "empty": "Geen onderwerp heeft een actieve baan",
       "table_label": "Onderwerpen met actieve banen",
       "col_channel": "Kanaal",
       "col_active": "Laatste baanactiviteit",
       "filter_text": "Onderwerpen zoeken",
-      "no_match": "Geen onderwerp voldoet aan de filters",
+      "no_match": "Geen onderwerp past bij de filters",
       "shown": "{n} van {total} onderwerpen",
       "no_topic": "Geen bespreking"
     },

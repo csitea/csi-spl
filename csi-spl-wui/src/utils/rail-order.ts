@@ -13,7 +13,7 @@
 
 import type { UiIconName } from '~/utils/uiIcons'
 
-export type RailId = 'dm' | 'channels' | 'issues' | 'flow' | 'archive' | 'people' | 'calendar' | 'monitoring' | 'reporting' | 'notes'
+export type RailId = 'dm' | 'channels' | 'issues' | 'flow' | 'archive' | 'people' | 'calendar' | 'monitoring' | 'reporting' | 'notes' | 'expenses'
 type RailTab = { readonly id: RailId, readonly icon: UiIconName, readonly labelKey: string, readonly phoneLabelKey?: string }
 
 /**
@@ -93,6 +93,14 @@ export const RAIL_TABS: readonly RailTab[] = Object.freeze([
      the default order puts it after Calendar (D5, DEFAULT_RAIL_ORDER). The
      hub admits it since spec 155 B1 (auth.RailTabs, rdb human_rail_order_notes). */
   Object.freeze({ id: 'notes', icon: 'notes', labelKey: 'sidebar.notes' }),
+  /* spec 143 costs-redesign.md 3.8 (SPL-4382; owner HUM-10, t1 4f48f878,
+     msg 4cea9710: "a separate costs section 0 level"; name poll 9fbea87a A):
+     Expenses opens /expenses, where costs are entered (AI, cloud infra, HR);
+     Reporting -> Costs only reports them. Last here, so a stored order from
+     before it is drawn with Expenses appended before Archive
+     (parseRailOrder). The hub admits it since SPL-4382 (auth.RailTabs, rdb
+     0248). */
+  Object.freeze({ id: 'expenses', icon: 'receipt', labelKey: 'sidebar.expenses' }),
 ].filter((t) => !RAIL_SWITCHED_OFF.includes(t.id)))
 
 /** Every drawn rail id - a set, not the drawn order. */

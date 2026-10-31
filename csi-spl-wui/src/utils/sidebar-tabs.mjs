@@ -44,6 +44,11 @@ export const REPORTING_TAB = 'reporting'
  *  of the sidebar lists. */
 export const NOTES_TAB = 'notes'
 
+/** Expenses (spec 143 costs-redesign.md 3.8, SPL-4382): /expenses, its tabs
+ *  AI costs, Cloud infra costs and HR costs as paths (/expenses/ai, ...),
+ *  where costs are entered. A page, so not one of the sidebar lists. */
+export const EXPENSES_TAB = 'expenses'
+
 /** Names accepted after `/switch-pane:`. `messages` is the direct-message pane.
  *  `topic` and `topics` still parse (the Topics pane is gone, t1 e4bfddb1)
  *  and open Channels. */
@@ -60,7 +65,7 @@ const SWITCH_PANE_NAMES = {
  * Search and settings return null so the reader's own choice stays.
  * The call site starts on direct messages.
  * @param {string} path vue-router path, no query
- * @returns {'dm' | 'channels' | 'flow' | 'users' | 'issues' | 'archive' | 'people' | 'calendar' | 'monitoring' | 'reporting' | 'notes' | null}
+ * @returns {'dm' | 'channels' | 'flow' | 'users' | 'issues' | 'archive' | 'people' | 'calendar' | 'monitoring' | 'reporting' | 'notes' | 'expenses' | null}
  */
 export function tabForPath(path) {
   const p = productPath(path)
@@ -81,6 +86,7 @@ export function tabForPath(path) {
   if (p === '/events') return MONITORING_TAB
   if (p === '/reporting' || p.startsWith('/reporting/')) return REPORTING_TAB
   if (p === '/notes') return NOTES_TAB
+  if (p === '/expenses' || p.startsWith('/expenses/')) return EXPENSES_TAB
   return null
 }
 
@@ -94,6 +100,7 @@ const TAB_ROUTES = {
   [MONITORING_TAB]: '/monitoring',
   [REPORTING_TAB]: '/reporting',
   [NOTES_TAB]: '/notes',
+  [EXPENSES_TAB]: '/expenses',
 }
 
 /** SPL-3785: the pages the page-backed tabs open (isSectionPage reads them). */

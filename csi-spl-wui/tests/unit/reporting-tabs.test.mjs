@@ -32,7 +32,8 @@ describe('T010 the Reporting rail entry', () => {
     assert.deepEqual({ ...tab }, { id: 'reporting', icon: 'chart-column', labelKey: 'sidebar.reporting' })
     /* CONTROL: without the entry neither holds */
     assert.equal(RAIL_IDS.indexOf('reporting'), RAIL_IDS.indexOf('monitoring') + 1)
-    assert.deepEqual(DEFAULT_RAIL_ORDER.slice(-3), ['monitoring', 'reporting', 'archive'])
+    /* SPL-4382: Expenses comes after it, before Archive */
+    assert.deepEqual(DEFAULT_RAIL_ORDER.slice(-4), ['monitoring', 'reporting', 'expenses', 'archive'])
     assert.match(read('src/utils/uiIcons.ts'), /\n {2}"chart-column": \[/)
   })
   it('opens /reporting and selects itself on every Reporting path', () => {

@@ -105,6 +105,10 @@
       "title": "Set the Mistral key on a box"
     },
     {
+      "slug": "expenses",
+      "title": "Expenses"
+    },
+    {
       "slug": "notes",
       "title": "Notes"
     }

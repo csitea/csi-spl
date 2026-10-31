@@ -71,6 +71,21 @@ export function isSignedOutVisitor(sessionState, mock = false) {
 }
 
 /**
+ * SPL-4513: what useLive's ensure() hands back while the session is 'out'.
+ * A visitor gets no socket (null, and the tab marks itself signed out). A
+ * socket a member opened before signing out comes back as it is, never
+ * connect()ed again, so stopHubSocket can still close it.
+ * @template T
+ * @param {T | null} client
+ * @param {() => void} markSignedOut
+ * @returns {T | null}
+ */
+export function clientWhileSignedOut(client, markSignedOut) {
+  if (!client) markSignedOut()
+  return client || null
+}
+
+/**
  * Close the hub socket if one is already up. Must not call ensure() from idle:
  * ensure() constructs and connect()s a client, which is the signed-out leak.
  * @param {{ state?: { value?: unknown }, ensure?: () => { close?: () => void } | null }} live

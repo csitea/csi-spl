@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url'
 import { isProductScreen, signedOutLoginTarget, SIGNED_OUT_LOCALE_CODES } from '../../src/utils/signed-out-redirect.mjs'
 import { earlyLoginHref } from '../../src/utils/signed-out-redirect-script.mjs'
 import { SIGNED_OUT_HINT_COOKIE } from '../../src/utils/signed-out-hint.mjs'
+import { clientWhileSignedOut, stopHubSocket } from '../../src/utils/shell-bootstrap.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -74,11 +75,37 @@ describe("no member read while the session is 'out'", () => {
   it('useLive.ensure() opens no socket when signed out', () => {
     const s = src('src/composables/useLive.ts')
     assert.match(s, /useSessionStore/)
-    assert.match(s, /function signedOutTab\(sessionState: string\): boolean \{\n  if \(sessionState !== 'out'\) return false/)
     const ensureAt = s.indexOf('function ensure()')
-    const guard = s.indexOf('if (signedOutTab(session.state)) return null', ensureAt)
+    const guard = s.indexOf("if (session.state === 'out') return clientWhileSignedOut(live,", ensureAt)
     const dialAt = s.indexOf('live = dial(', ensureAt)
     const reconnect = s.indexOf("live.state === 'signed_out'", ensureAt)
     assert.ok(ensureAt >= 0 && guard > ensureAt && guard < dialAt && guard < reconnect, 'the out guard comes before any connect')
+  })
+
+  it("a visitor gets no client and the tab is marked signed out", () => {
+    let marked = 0
+    assert.equal(clientWhileSignedOut(null, () => { marked++ }), null)
+    assert.equal(marked, 1)
+  })
+
+  // R7 W1: a sign-out turns the state 'out' while the member's socket is up;
+  // stopHubSocket gets it through ensure() and must still close it.
+  it("a socket opened while 'in' is closed after the state turns 'out'", () => {
+    const client = {
+      state: 'open', connectCalls: 0, closeCalls: 0,
+      connect() { this.connectCalls++; this.state = 'connecting' },
+      close() { this.closeCalls++; this.state = 'closed' },
+    }
+    let session = 'in'
+    let marked = 0
+    const live = {
+      state: { value: 'open' },
+      ensure() { return session === 'out' ? clientWhileSignedOut(client, () => { marked++ }) : client },
+    }
+    session = 'out'
+    stopHubSocket(live)
+    assert.equal(client.closeCalls, 1, 'the open socket is closed')
+    assert.equal(client.connectCalls, 0, 'and never re-dialled')
+    assert.equal(marked, 0, 'a member tab with a socket is not re-marked')
   })
 })

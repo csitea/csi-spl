@@ -3,6 +3,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
 import { authOrigin, createAuthClient } from '~/utils/auth-client-core.mjs'
 import { MOCK_LOBBY_TASK_ID } from '~/utils/mock-ids'
+import { clientWhileSignedOut } from '~/utils/shell-bootstrap.mjs'
 import { REVISION_FETCH_MS } from '~/utils/fetch-timeouts.mjs'
 
 /**
@@ -144,16 +145,6 @@ function subscriber<T>(set: Set<T>) {
 }
 
 /**
- * SPL-4513: a settled signed-out visitor gets no socket (the hub refuses it
- * and the console logs the failed dial); a page asks again after sign-in.
- */
-function signedOutTab(sessionState: string): boolean {
-  if (sessionState !== 'out') return false
-  if (!live) state.value = 'signed_out'
-  return true
-}
-
-/**
  * One hub WUI socket per tab (003 wui-live-ws.md) on the TENANT host.
  * Mock mode has no socket: sends are applied locally by the live store.
  */
@@ -172,7 +163,10 @@ export function useLive() {
       state.value = 'mock'
       return null
     }
-    if (signedOutTab(session.state)) return null
+    // SPL-4513: a settled signed-out visitor gets no socket (the hub refuses
+    // it and the console logs the failed dial); an open one is still handed
+    // back, never re-dialled, so a sign-out can close it
+    if (session.state === 'out') return clientWhileSignedOut(live, () => { state.value = 'signed_out' })
     if (live) {
       // parked after the hub refused a signed-out tab: a page asking again
       // (after a sign-in, say) dials again

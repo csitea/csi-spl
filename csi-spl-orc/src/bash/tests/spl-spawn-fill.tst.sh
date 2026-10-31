@@ -25,7 +25,8 @@
 #      summer, do_spl_rhythm_phase on RHYTHM_NOW) one feature and one bug
 #      issue todo -> only the bug is planned and queued; by day both; a night
 #      with bug over its band fills nothing; an unreadable phase fills nothing
-#      (every other case runs at a fixed day moment)
+#      (every other case runs at a fixed day moment, with no inherited
+#      RHYTHM_CNF); the class pick with no phase takes no class
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -126,7 +127,7 @@ fill() {  # [env...]
     SPAWN_SHARE_LANES_CMD="$T/bin/lanes" SPAWN_SHARE_DISPATCH=c-002@box-desk SPAWN_FILL_PICK_CMD="$T/bin/pick" \
     SPAWN_FILL_ISSUES_CMD="$T/bin/issues" SPAWN_FILL_MIX_CMD="$T/bin/mix" MIX_LOG="$T/mix.log" SPAWN_PLACE_BRIEF_DIR="$T/briefs" \
     SPAWN_FILL_CNF="$T/none.yaml" EPIC_STALL=off LANES="$LANES_OVER" PROJ_PATH="$PROJ_ROOT" APP_PATH="$T" \
-    RHYTHM_NOW="$DAY" "$@" bash -c '
+    RHYTHM_NOW="$DAY" RHYTHM_CNF= "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     for f in spl-lane-map spl-asks-open spl-asks-tick spl-spawn-queue spl-spawn-share spl-spawn-enqueue spl-spawn-place spl-spawn-fill; do
@@ -233,6 +234,11 @@ grep -q 'every class the filler takes by night (bug) is over its band' <<<"$out"
 out="$(b4 RHYTHM_NOW=not-a-date)"
 grep -q 'WARN the rhythm phase could not be read' <<<"$out" && ! grep -q '^PLAN' <<<"$out" &&
   pass "phase: an unreadable phase fills nothing" || fail "bad phase: $out"
+share='{"by":{"bug":{"verdict":"UNDER","pct":0,"lo":20,"hi":30},"feature":{"verdict":"ok","pct":50,"lo":40,"hi":100}}}'
+got="$(PROJ_PATH="$PROJ_ROOT" bash -c 'source "$PROJ_PATH/src/bash/run/spl-spawn-fill.func.sh"
+  for p in day night "" dusk; do printf "%s=[%s] " "${p:-none}" "$(spl_spawn_fill_classes "$1" "$p")"; done' _ "$share")"
+[[ "$got" == "day=[bug feature] night=[bug] none=[] dusk=[] " ]] &&
+  pass "phase: the class pick with no or an unknown phase takes no class ($got)" || fail "classes by phase: $got"
 
 # 7. the cron installer ------------------------------------------------------------
 SRC="$T/shared"; mkdir -p "$SRC/csi-spl-orc"; printf '#!/bin/sh\n' >"$SRC/csi-spl-orc/run"; chmod +x "$SRC/csi-spl-orc/run"

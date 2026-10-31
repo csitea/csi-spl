@@ -157,15 +157,19 @@ spl_spawn_fill_phase() {
 }
 
 # The classes the filler takes in PHASE (spec 166 section 3.1, poll Q2 B):
-# bug and feature by day, bug only at night.
+# bug and feature by day, bug only at night, none for any other PHASE (a
+# missing phase fails closed: nothing is filled).
 spl_spawn_fill_phase_classes() {  # PHASE
-  if [[ "$1" == night ]]; then printf 'bug'; else printf 'bug feature'; fi
+  case "${1:-}" in
+    day) printf 'bug feature' ;;
+    night) printf 'bug' ;;
+  esac
 }
 
 # The classes the filler may queue in PHASE, furthest under its band first:
 # "bug feature", "feature", ... A class OVER its band is left out.
 spl_spawn_fill_classes() {  # SHARE PHASE
-  jq -r --arg take "$(spl_spawn_fill_phase_classes "${2:-day}")" '
+  jq -r --arg take "$(spl_spawn_fill_phase_classes "${2:-}")" '
     ($take | split(" ")) as $take
     | [.by | to_entries[] | select(.key as $k | $take | index($k)) | .key as $c | .value as $b
      | select($b.verdict != "OVER")

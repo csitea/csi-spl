@@ -119,6 +119,9 @@ hold_lock() {
 printf '#!/bin/sh\necho "$*" >>%q\n' "$T/alerts" >"$T/fake-send"
 : >"$T/alerts"
 export CRON_NO_STACK_ALERT_SEND_BIN="$T/fake-send"
+# the sender and the spool root are the test's own: the host's SPOOL_AGENT_ID or
+# live lease.conf must not decide a verdict (CI has neither: wf 10 red on 5b0ead29a)
+export SPOOL_ROOT="$T/spool" CRON_NO_STACK_ALERT_FROM=c-001
 
 # 6. the SKIP line names the holder
 hold_lock "$T/h.lock" 5 sleep
@@ -153,12 +156,12 @@ EOF
 mkdir -p "$T/spool/dispatch"; echo 'LEASE_ORCH=c-001' >"$T/spool/dispatch/lease.conf"
 : >"$T/sent"; : >"$T/refused"
 hold_lock "$T/f.lock" 4000 git
-out="$(env -u SPOOL_AGENT_ID -u CRON_NO_STACK_ALERT_FROM SPOOL_ROOT="$T/spool" CRON_NO_STACK_ALERT_SEND_BIN="$T/check-send" "$W" "$T/f.lock" true 2>&1)"; rc=$?
+out="$(env -u SPOOL_AGENT_ID -u CRON_NO_STACK_ALERT_FROM CRON_NO_STACK_ALERT_SEND_BIN="$T/check-send" "$W" "$T/f.lock" true 2>&1)"; rc=$?
 [[ $rc -eq 3 && "$(cat "$T/sent")" == from=c-001 && ! -s "$T/refused" && -e "$T/f.lock.stuck" && "$out" == *"stuck alert sent"* ]] &&
   pass "8. no sender set: the note goes from LEASE_ORCH (c-001), spool_valid_id takes it" ||
   fail "8. rc=$rc sent=$(cat "$T/sent") refused=$(cat "$T/refused") out=$out"
 rm -f "$T/spool/dispatch/lease.conf" "$T/f.lock.stuck"; : >"$T/sent"
-out="$(env -u SPOOL_AGENT_ID -u CRON_NO_STACK_ALERT_FROM SPOOL_ROOT="$T/spool" CRON_NO_STACK_ALERT_SEND_BIN="$T/check-send" "$W" "$T/f.lock" true 2>&1)"; rc=$?
+out="$(env -u SPOOL_AGENT_ID -u CRON_NO_STACK_ALERT_FROM CRON_NO_STACK_ALERT_SEND_BIN="$T/check-send" "$W" "$T/f.lock" true 2>&1)"; rc=$?
 [[ $rc -eq 3 && ! -s "$T/sent" && "$out" == *"WARN no agent id to send the stuck alert from"* ]] &&
   pass "8. no LEASE_ORCH either: one WARN naming the gap, no note" || fail "8. no orch: rc=$rc sent=$(cat "$T/sent") out=$out"
 kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null

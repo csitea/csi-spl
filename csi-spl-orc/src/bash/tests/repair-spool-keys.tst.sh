@@ -45,7 +45,7 @@ n="$T/home/.spool/keys/box-a.key"
 [[ "$(stat -c %a "$n" 2>/dev/null)" == 600 && "$(stat -c %a "$T/home/.spool/keys")" == 700 ]] \
   && pass "DRY_RUN=0: key 0600 in a 0700 dir" || fail "modes: $(stat -c %a "$n" 2>/dev/null) $(stat -c %a "$T/home/.spool/keys" 2>/dev/null)"
 grep -q 'unset SPOOL_KEYS_DIR' "$T/out.log" && pass "DRY_RUN=0: says how to point the box at the new dir" || fail "no follow-up hint"
-! ls -A "$T/home/.spool/keys" | grep '\.tmp$' >/dev/null && pass "no temp file left behind" || fail "temp file left"
+[[ -z "$(compgen -G "$T/home/.spool/keys/*.tmp"; compgen -G "$T/home/.spool/keys/.*.tmp")" ]] && pass "no temp file left behind" || fail "temp file left"
 
 # --- 3. CONTROLs ------------------------------------------------------------------
 fixture; mkdir -p "$T/home/.spool/keys"; echo other >"$T/home/.spool/keys/box-a.key"

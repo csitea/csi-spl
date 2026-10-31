@@ -87,7 +87,6 @@ SC2034|csi-spl-orc/src/bash/features/spawn-agents/tests/test-agent-identity-reco
 SC2034|csi-spl-orc/src/bash/features/spawn-agents/tests/test-agent-identity-restore.sh|1
 SC2034|csi-spl-orc/src/bash/features/spawn-agents/tests/test-agent-top.sh|1
 SC2034|csi-spl-orc/src/bash/features/spawn-agents/tests/test-agent-watch.sh|5
-SC2010|csi-spl-orc/src/bash/features/spawn-agents/tests/test-fleet-send.sh|1
 SC1090|csi-spl-orc/src/bash/features/spawn-agents/tests/test-poke-ghost.sh|1
 SC2155|csi-spl-orc/src/bash/features/spawn-agents/tests/test-spool-agent.sh|1
 SC2154|csi-spl-orc/src/bash/features/spawn-agents/tests/test-spool-notify.sh|2
@@ -107,14 +106,11 @@ SC2034|csi-spl-orc/src/bash/run/spl-spec-import-issues.func.sh|4
 SC2128|csi-spl-orc/src/bash/run/spl-tenant-test-purge.func.sh|1
 SC2178|csi-spl-orc/src/bash/run/spl-tenant-test-purge.func.sh|2
 SC2179|csi-spl-orc/src/bash/run/spl-tenant-test-purge.func.sh|1
-SC2010|csi-spl-orc/src/bash/tests/db-owner-split.tst.sh|1
 SC2100|csi-spl-orc/src/bash/tests/dispatch-inbound-pg.tst.sh|1
 SC2034|csi-spl-orc/src/bash/tests/dispatch-lease.tst.sh|1
 SC2120|csi-spl-orc/src/bash/tests/fleet-lease.tst.sh|1
-SC2010|csi-spl-orc/src/bash/tests/host-spool-no-rebuild.tst.sh|2
 SC1010|csi-spl-orc/src/bash/tests/lane-map.tst.sh|1
 SC2034|csi-spl-orc/src/bash/tests/release-stable.tst.sh|4
-SC2010|csi-spl-orc/src/bash/tests/repair-spool-keys.tst.sh|1
 SC2115|csi-spl-orc/src/bash/tests/repair-spool-keys.tst.sh|1
 SC2120|csi-spl-orc/src/bash/tests/report-unheard.tst.sh|1
 SC2034|csi-spl-orc/src/bash/tests/responder-run.tst.sh|1

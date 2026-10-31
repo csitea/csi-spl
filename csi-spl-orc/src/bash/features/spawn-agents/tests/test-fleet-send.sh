@@ -48,7 +48,7 @@ echo '{"delivery":"sent","msg_id":"m","task_id":"t","ts":"x"}'
 EOF
 chmod +x "$T_TMP/fake-hub"
 on() { local root="$1"; shift; env SPOOL_ROOT="$root" SPOOL_FLEET_RELAY_CMD="$T_TMP/fake-hub" "$@"; }
-n_in() { ls "$1" 2>/dev/null | grep -c '\.json$'; }
+n_in() { compgen -G "$1/*.json" | wc -l; }
 
 # ---- 1. both ways ----------------------------------------------------------------
 out="$(on "$B" bash "$SS" --from CLE-100004 --to CLE-77913 --kind note --body 'sat -> home' 2>&1)"; rc=$?

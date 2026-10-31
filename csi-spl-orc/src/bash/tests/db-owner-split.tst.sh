@@ -92,7 +92,7 @@ in_orc() {
     eval "$SNIPPET"' >"$T/out" 2>&1 </dev/null
 }
 seed() { rm -rf "$T/sec"; mkdir -p "$T/sec/csi-spl-hub-db-dsn"; printf '%s' "$OWNER_DSN" >"$T/sec/csi-spl-hub-db-dsn/1"; }
-newest() { local s="$T/sec/$1" n; n=$(ls "$s" 2>/dev/null | grep -E '^[0-9]+$' | sort -n | tail -1); [[ -n "$n" ]] && cat "$s/$n"; }
+newest() { local s="$T/sec/$1" n; n=$(compgen -G "$s/*" | sed -n 's|.*/\([0-9][0-9]*\)$|\1|p' | sort -n | tail -1); [[ -n "$n" ]] && cat "$s/$n"; }
 user_of() { SPL_DSN_IN="$1" python3 -c 'import os,urllib.parse as u; print(u.urlsplit(os.environ["SPL_DSN_IN"]).username or "")'; }
 line() { grep -n -m1 -F "$1" "$T/calls.log" | cut -d: -f1; }
 no_leak() { # <label>: no owner or runtime password in output, stdout of calls, argv

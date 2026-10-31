@@ -79,7 +79,7 @@ out="$(in_orc 'spl_host_spool && echo "SPOOL=$SPL_SPOOL"')"
 eq "1 no binary: one build" 1 "$(builds)"
 eq "1 SPL_SPOOL is the state-dir binary" "SPOOL=$S/bin/spool" "$(grep '^SPOOL=' <<<"$out")"
 eq "1 the stamp names HEAD and a clean module" "$H1 clean" "$(cat "$S/bin/spool.src")"
-ls "$S/bin" | grep '\.build\.' >/dev/null && fail "1 a build tmp was left behind" || pass "1 no build tmp left behind"
+compgen -G "$S/bin/*.build.*" >/dev/null && fail "1 a build tmp was left behind" || pass "1 no build tmp left behind"
 
 # --- 2. unchanged tree: no build; the old function builds every time ----------
 in_orc 'spl_host_spool; spl_host_spool; spl_host_spool' >/dev/null
@@ -212,7 +212,7 @@ ok=1; for i in 1 2 3 4 5 6; do
   ok=0; echo "  run $i: $(sed -n 2,3p "$T/par.$i" | tr '\n' ' ')"; sed 's/^/  run '"$i"' stderr: /' "$T/par.$i.err"
 done
 eq "8 six PARALLEL fresh merges all read whole, equal values" 1 "$ok"
-ls "$T/cnfstate" "$T/cnfstate/cnf" | grep '\.tmp\.' >/dev/null && fail "8 a tmp was left behind" || pass "8 no tmp left behind"
+[[ -n "$(compgen -G "$T/cnfstate/*.tmp.*"; compgen -G "$T/cnfstate/cnf/*.tmp.*")" ]] && fail "8 a tmp was left behind" || pass "8 no tmp left behind"
 # A parallel merge renames a new cache over the path while another action
 # copies it. GNU cp refused that ("replaced while being copied") and the
 # action FATALed (CI run 38599627586, n=1 per ~600 locally). A loop renames

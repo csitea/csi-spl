@@ -205,6 +205,26 @@ printf '# Brief: you are CLE-88 again (hourly rotation)\n1. Your task brief, unc
 out="$(bash "$T_SCRIPTS/spawn-claude.sh" CLE-88 "$T_TMP/repo" "$T_TMP/brief-c39.md" "fix it" 2>&1)"
 has "C39: a rotation seed keeps the task brief's topic" "--topic '${U1}'" "$out"
 rm -rf "${SPOOL_ROOT:?}/CLE-88"
+# 3.11 C52 (SPL-4457, owner t1 0acd4eaa msg 69522885): a reviewer's brief
+# names its report task only as a full spool task uuid (`on task `<uuid>``,
+# `--task <uuid>`); that task is the lane's discussion, the last source.
+# A bare uuid with no "task" before it still sets nothing (C6b). Master: ''.
+printf '# C52
+One message to the holder on task `%s`, cc c-108@box-b.
+Issue: SPL-4444
+' "$UA" > "$T_TMP/brief-c47.md"
+out="$(bash "$T_SCRIPTS/spawn-claude.sh" CLE-89 "$T_TMP/repo" "$T_TMP/brief-c47.md" "fix it" 2>&1)"
+has "C52: the report task's full uuid fills the row's topic" "--topic '${UA}' --issue 'SPL-4444'" "$out"
+printf '# C52b
+Report with spool-send.sh --task %s --kind result.
+' "$UA" > "$T_TMP/brief-c47b.md"
+out="$(bash "$T_SCRIPTS/spawn-claude.sh" CLE-90 "$T_TMP/repo" "$T_TMP/brief-c47b.md" "fix it" 2>&1)"
+has "C52b: ... also as --task <uuid>" "--topic '${UA}'" "$out"
+printf '# C52c
+Spool uuid %s, no task named.
+' "$UA" > "$T_TMP/brief-c47c.md"
+out="$(bash "$T_SCRIPTS/spawn-claude.sh" CLE-91 "$T_TMP/repo" "$T_TMP/brief-c47c.md" "fix it" 2>&1)"
+has "C52c: a bare uuid still sets no topic" "--topic '' --issue ''" "$out"
 has "git: leak gate quotes the identity" "dev@example.com dev@example.com" "$prompt"
 has "git: red-run owners are told via spool-send" "tell them with spool-send.sh" "$prompt"
 # spec 065 L8: the report carries sha + note link per released commit.

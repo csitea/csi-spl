@@ -100,14 +100,21 @@ spl_zombie_gate() {
   echo "$night"
 }
 
-# spl_zombie_night: the night's date, the date in the rhythm zone of the
-# moment night_end hours before now (a night 20 -> 7 is one date from 20:00 to
-# 06:59). The phase itself is do_spl_rhythm_phase's; this only names it.
+# spl_zombie_night: the night's date in the rhythm zone: the day before when
+# the window wraps midnight and the zone's hour is before night_end, else the
+# day itself (a night 20 -> 7 is one date from 20:00 to 06:59, also on the
+# fall-back morning, which an epoch minus night_end hours named one day late).
+# The phase itself is do_spl_rhythm_phase's; this only names it.
 spl_zombie_night() {
-  local e
+  local day hour
   spl_rhythm_conf || return 1
-  e="$(date -d "${RHYTHM_NOW:-now}" +%s)" || return 1
-  TZ="$SPL_RHYTHM_TZ" date -d "@$((e - SPL_RHYTHM_END * 3600))" +%F
+  day="$(TZ="$SPL_RHYTHM_TZ" date -d "${RHYTHM_NOW:-now}" +%F)" || return 1
+  hour="$(spl_rhythm_hour "${RHYTHM_NOW:-now}" "$SPL_RHYTHM_TZ")" || return 1
+  if ((SPL_RHYTHM_START > SPL_RHYTHM_END && 10#$hour < SPL_RHYTHM_END)); then
+    date -u -d "$day 12:00Z yesterday" +%F
+  else
+    echo "$day"
+  fi
 }
 
 # spl_zombie_conf: ZOMBIE_MAX / ZOMBIE_IDLE_DAYS / ZOMBIE_LIST_LIMIT, from the
@@ -133,8 +140,9 @@ spl_zombie_conf() {
 spl_zombie_run() {
   local work="$1" dry="$2" root="$3" holder="$4" night="$5" topic last ok=0 bad=0 n
   spl_zombie_read "$work" || return 1
-  spl_zombie_judge "$work" "$ZOMBIE_MAX" >"$work/verdict.tsv" || { do_log "FATAL zombie-topics: the lists could not be judged"; return 1; }
+  spl_zombie_judge "$work" "$ZOMBIE_MAX" "$root" >"$work/verdict.tsv" || { do_log "FATAL zombie-topics: the lists could not be judged"; return 1; }
   grep '^keep' "$work/verdict.tsv" | sed 's/^/zombie-topics: /'
+  grep '^unread' "$work/verdict.tsv" | awk -F'\t' '$2 > 0 { print "zombie-topics: WARN " $2 " live lane(s) with no brief on this box (judged by their hub row only): " $3 }'
   n="$(grep -c '^archive' "$work/verdict.tsv")"
   while IFS=$'\t' read -r _ topic last; do
     if ((dry)); then
@@ -162,14 +170,14 @@ spl_zombie_read() {
   jq -e '.topics | type == "array"' <<<"$out" >/dev/null 2>&1 || { do_log "FATAL zombie-topics: the hub's answer has no topics list"; return 1; }
   printf '%s\n' "$out" >"$w/cands.json"
   out="$(ASKS_ALL=1 ASKS_FORMAT=json RUN_STDOUT_IS_DATA=1 do_spl_asks_open 2>/dev/null | grep '^{' | tail -1)"
-  jq -e '(.asks | type == "array") and .hub != "unreachable"' <<<"$out" >/dev/null 2>&1 ||
+  jq -e '(.asks | type == "array") and (.hub == "ok" or .hub == "partial")' <<<"$out" >/dev/null 2>&1 ||
     { do_log "FATAL zombie-topics: the ask book was not read from the hub (do_spl_asks_open)"; return 1; }
   printf '%s\n' "$out" >"$w/asks.json"
   out="$(LANE_FORMAT=json RUN_STDOUT_IS_DATA=1 do_spl_lane_map 2>/dev/null | grep '^{' | tail -1)"
-  jq -e '(.lanes | type == "array") and .hub != "unreachable"' <<<"$out" >/dev/null 2>&1 ||
+  jq -e '(.lanes | type == "array") and .hub == "ok"' <<<"$out" >/dev/null 2>&1 ||
     { do_log "FATAL zombie-topics: the fleet lane map was not read (do_spl_lane_map; LOCAL-ONLY is not read)"; return 1; }
   printf '%s\n' "$out" >"$w/lanes.json"
-  spl_issue_list_fetch --status eval,todo,wip,blocked --limit 500 >"$w/issues.json" 2>/dev/null &&
+  spl_issue_list_fetch --status eval,todo,wip,blocked,onhold,qas --limit 500 >"$w/issues.json" 2>/dev/null &&
     jq -e '(.result // .) | .issues | type == "array"' "$w/issues.json" >/dev/null 2>&1 ||
     { do_log "FATAL zombie-topics: the open issues were not read (spl_issue_list_fetch)"; return 1; }
 }
@@ -187,29 +195,62 @@ spl_zombie_hub_list() {
   )
 }
 
-# spl_zombie_judge <work> <max>: one line per candidate, oldest first:
-# `archive<TAB><uuid><TAB><last_at>` (at most <max>) or
-# `keep<TAB><uuid><TAB><reason>` (ask <id> | lane <id> | issue <key> | cap).
+# spl_zombie_judge <work> <max> <spool root>: one line per candidate, oldest
+# first: `archive<TAB><uuid><TAB><last_at>` (at most <max>) or
+# `keep<TAB><uuid><TAB><reason>` (ask <id> | lane <id> | issue <key> | cap),
+# then one `unread<TAB><n><TAB><ids>` line: the live lanes with no brief on
+# this box. A topic is named by its full uuid or by its first 8 hex digits as
+# a whole token (the relay task `dispatch-<topic8>`, a bare `<topic8>`): a
+# collision can only keep a topic, never archive one. A lane's brief is
+# <root>/dispatch/briefs/<slug>.md (slug = branch less `<id>-`), its seed
+# <root>/<id>/lifetime/prompt.txt and every brief file under <root> the seed names.
 spl_zombie_judge() {
-  python3 - "$1" "$2" <<'PY'
-import json, re, sys
-w, cap = sys.argv[1], int(sys.argv[2])
+  python3 - "$1" "$2" "$3" <<'PY'
+import json, os, re, sys
+w, cap, root = sys.argv[1], int(sys.argv[2]), sys.argv[3]
 load = lambda n: json.load(open(f"{w}/{n}.json", encoding="utf-8"))
 cands = sorted(load("cands").get("topics") or [], key=lambda t: t.get("last_at") or "")
 live = {"open", "acked", "queued", "placing", "needs_owner"}
 asks = [a for a in load("asks").get("asks") or [] if a.get("state") in live]
 lanes = [l for l in load("lanes").get("lanes") or [] if l.get("state", "live") == "live"]
 iss = load("issues"); iss = iss.get("result", iss) if isinstance(iss, dict) else {}
-issues = [i for i in iss.get("issues") or [] if i.get("status") in ("eval", "todo", "wip", "blocked")]
+issues = [i for i in iss.get("issues") or [] if i.get("status") in ("eval", "todo", "wip", "blocked", "onhold", "qas")]
+def names(text, u):
+    text = (text or "").lower()
+    rx8 = re.compile(r"(?<![0-9a-f])" + u[:8] + r"(?![0-9a-f])")
+    return u in text or bool(rx8.search(text))
+def read(path):
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            return f.read()
+    except OSError:
+        return None
+def brief(l):
+    aid = (l.get("agent_id") or "").split("@")[0]
+    slug = (l.get("branch") or "")[len(aid) + 1:] if (l.get("branch") or "").startswith(aid + "-") else ""
+    parts = [read(f"{root}/dispatch/briefs/{slug}.md") if slug else None]
+    seed = read(f"{root}/{aid}/lifetime/prompt.txt") if aid else None
+    parts.append(seed)
+    for p in sorted(set(re.findall(re.escape(root) + r"/[A-Za-z0-9._/-]+\.md", seed or ""))):
+        if ".." not in p:
+            parts.append(read(p))
+    got = [x for x in parts if x is not None]
+    return "\n".join(got) if got else None
+lane_text, unread = [], []
+for l in lanes:
+    b = brief(l)
+    if b is None:
+        unread.append(f"{l.get('agent_id', '?')}@{l.get('agent_box', '?')}")
+    text = " ".join([l.get("topic") or "", l.get("scope") or ""] + list(l.get("files") or []) + [b or ""])
+    lane_text.append((f"{l.get('agent_id', '?')}@{l.get('agent_box', '?')}", text))
 def ask_on(u):
     for a in asks:
-        if a.get("topic") == u or u in (a.get("summary") or ""):
+        if names(a.get("topic"), u) or names(a.get("summary"), u):
             return f"ask {a.get('ask_id', '?')}"
 def lane_on(u):
-    for l in lanes:
-        text = " ".join([l.get("topic") or "", l.get("scope") or ""] + list(l.get("files") or []))
-        if u in text:
-            return f"lane {l.get('agent_id', '?')}@{l.get('agent_box', '?')}"
+    for who, text in lane_text:
+        if names(text, u):
+            return f"lane {who}"
 def issue_on(u):
     rx = re.compile(r"Source: \S*/t/" + re.escape(u))
     for i in issues:
@@ -228,13 +269,15 @@ for t in cands:
     else:
         n += 1
         print(f"archive\t{u}\t{t.get('last_at', '')}")
+print(f"unread\t{len(unread)}\t{','.join(unread[:20])}")
 PY
 }
 
-# spl_zombie_counts <verdict.tsv>: "N candidates, kept: ask a, lane b, issue c, cap d".
+# spl_zombie_counts <verdict.tsv>: "N candidates, kept: ask a, lane b, issue c,
+# cap d; lanes with no brief here e".
 spl_zombie_counts() {
-  awk -F'\t' '{ n++ } $1 == "keep" { split($3, r, " "); k[r[1]]++ }
-    END { printf "%d candidate(s), kept: ask %d, lane %d, issue %d, over the cap %d", n, k["ask"], k["lane"], k["issue"], k["cap"] }' "$1"
+  awk -F'\t' '$1 != "unread" { n++ } $1 == "unread" { u = $2 } $1 == "keep" { split($3, r, " "); k[r[1]]++ }
+    END { printf "%d candidate(s), kept: ask %d, lane %d, issue %d, over the cap %d; lanes with no brief here %d", n, k["ask"], k["lane"], k["issue"], k["cap"], u }' "$1"
 }
 
 # spl_zombie_report <root> <holder> <text>: one note to the dispatch holder,

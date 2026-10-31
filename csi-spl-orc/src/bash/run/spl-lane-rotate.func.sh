@@ -8,7 +8,8 @@
 # @description spool id (c-, g-, m-, a-, q-), except the role seats the role
 # @description rotations of THIS box own (do_spl_orch_rotate while this box
 # @description holds the orch lease, do_spl_dispatch_rotate while it holds the
-# @description dispatch lease), gets a fresh session under the same id by the
+# @description dispatch lease; also every id a role rotation in flight acts
+# @description on, spec 060 FR-010d), gets a fresh session under the same id by the
 # @description spec 060 flow of spl-rotate-lib.func.sh: QUIESCE, HANDOFF (from
 # @description files, /proc and tmux), SPAWN (a new window beside the old one,
 # @description seeded with the lane's brief + the handoff + the ACK command),
@@ -127,6 +128,7 @@ spl_lane_rotate_tick() {
   local scan rows id kind pid age pane n
   local -A LR_LIMIT=()
   scan="$(spl_lane_rotate_scan)"
+  LR_ROLE_ROT="$(spl_lane_rotate_role_inflight)"
   LR_ROLES=" $(spl_lane_rotate_role_ids | tr '\n' ' ') " LR_INFLIGHT=" $(spl_lane_rotate_inflight | tr '\n' ' ') "
   LR_SLOTS=$(( ROTATE_LANE_CAP - $(wc -w <<<"$LR_INFLIGHT") )) LR_K=0 LR_STARTED=0 LR_STARTED_IDS=" " LR_DEFER=0 LR_LOGIN="" LR_LOGIN_HELD=""
   # one row per id, the oldest first: "<id> <kind> <pid> <age> <pane> <processes>"
@@ -145,6 +147,8 @@ spl_lane_rotate_tick() {
 # spl_lane_rotate_consider ID KIND PID AGE PANE N: one agent's decision.
 spl_lane_rotate_consider() {
   local id="$1" kind="$2" pid="$3" age="$4" pane="$5" n="$6" why forced=0 at
+  why="$(awk -v i="$id" '$1 == i {print $2; exit}' <<<"$LR_ROLE_ROT")"
+  [[ -z "$why" ]] || { spl_lane_rotate_say "$id" "SKIP role seat: the role rotation $why acts on $id"; return 0; }
   [[ "$LR_ROLES" == *" $id "* || "$LR_INFLIGHT" == *" $id "* ]] && return 0
   # a human hold (do_spl_wd_hold): hands off, before any quiesce or kill (SPL-2431)
   why="$(spl_rotate_human_hold "$id")"
@@ -265,9 +269,44 @@ spl_lane_rotate_scan() {
 # The role seats (lease.conf LEASE_ORCH, LEASE_MASTER, LEASE_FAILOVER): spec
 # 060's own rotations (do_spl_orch_rotate, do_spl_dispatch_rotate) own them,
 # holder or standby, so this rotation never touches them (c-001, 2026-10-11:
-# two rotations must not race on one seat).
+# two rotations must not race on one seat). Each also as its live seat
+# (spl_fleet_seat_id), the orch and dispatch lease holders on this box, and
+# every id a role rotation in flight acts on (spl_lane_rotate_role_inflight).
 spl_lane_rotate_role_ids() {
-  printf '%s\n' "${LEASE_ORCH:-}" "${LEASE_MASTER:-}" "${LEASE_FAILOVER:-}"
+  local k f h
+  for k in LEASE_ORCH LEASE_MASTER LEASE_FAILOVER; do
+    [[ -n "${!k:-}" ]] && printf '%s\n' "${!k}" "$(spl_fleet_seat_id "${!k}")"
+  done
+  for f in "$LEASE_FILE" "$LEASE_FILE.orch"; do
+    h=""; [[ -s "$f" ]] && read -r h _ < "$f"
+    [[ "$h" == *@"$ROTATE_BOX" ]] && echo "${h%@*}"
+  done
+  spl_lane_rotate_role_inflight | cut -d' ' -f1
+  return 0
+}
+
+# spl_lane_rotate_role_inflight: "<id> <rid>" per id a role rotation of this
+# box acts on now: its ctx (orch, dispatch, role failover) not final and
+# saved within ROTATE_HOLD_MAX; the ids are its seat (the handoff file's
+# name) and both ends of its seat switch. SPL-4501: the master rotation
+# 20261031T1115Z-master flipped lease.conf LEASE_MASTER g-002 -> c-002 at
+# 11:16:00Z; the tick at 11:16:15Z read g-002, still running, as a lane and
+# started a second rotation on it; both failed their ack and rolled back.
+spl_lane_rotate_role_inflight() {
+  local f ph rid hf id now
+  now="$(date +%s)"
+  for f in "$LEASE_DIR"/rotate.orch.ctx "$LEASE_DIR"/rotate.dispatch.ctx "$LEASE_DIR"/role-failover/rotate.failover-*.ctx; do
+    [[ -s "$f" ]] || continue
+    (( now - $(stat -c %Y "$f" 2>/dev/null || echo 0) <= ${ROTATE_HOLD_MAX:-1800} )) || continue
+    ph="$(sed -n 's/^ROTATE_PHASE=//p' "$f")"
+    [[ -n "$ph" && ! "$ph" =~ ^(DONE|FAIL|ABORT|ALERT)$ ]] || continue
+    rid="$(sed -n 's/^ROTATE_RID=//p' "$f")" hf="$(sed -n 's/^ROTATE_HANDOFF=//p' "$f")"
+    hf="${hf##*/}" hf="${hf%.md}"
+    for id in "${hf#"$rid"-}" $(sed -n 's/^ROTATE_SWITCH_\(FROM\|TO\)=//p' "$f"); do
+      spl_is_agent_id "$id" && echo "$id ${rid:--}"
+    done
+  done
+  return 0
 }
 
 # The orch lease holder to tell, "<id>@<box>" (bare id when it is on this
@@ -498,6 +537,11 @@ spl_lane_rotate_one() {
   spl_agent_id_lock "$id" do_spl_lane_rotate "$rid" || idl=$?
   (( idl == 0 )) || { spl_rotate_log "$rid" GATE SKIP "id lock: $SPL_ID_LOCK_WHY"; return 0; }
   [[ -z "$(spl_rotate_human_hold "$id")" ]] || { spl_rotate_log "$rid" GATE SKIP "$(spl_rotate_human_hold "$id")"; return 0; }
+  # a role seat, or one a role rotation took since the tick (SPL-4501)
+  if grep -xF -- "$id" <<<"$(spl_lane_rotate_role_ids)" >/dev/null; then
+    why="$(awk -v i="$id" '$1 == i {print " (" $2 ")"; exit}' <<<"$(spl_lane_rotate_role_inflight)")"
+    spl_rotate_log "$rid" GATE SKIP "role seat: $id is a role seat or a role rotation acts on it$why"; return 0
+  fi
   if spl_rotate_ctx_load lane && [[ -n "$ROTATE_PHASE" && ! "$ROTATE_PHASE" =~ ^(DONE|FAIL|ABORT)$ ]]; then
     spl_lane_rotate_resume "$id"; return 0
   fi

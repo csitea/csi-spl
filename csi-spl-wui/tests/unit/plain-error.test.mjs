@@ -57,7 +57,8 @@ describe('screens', () => {
   })
   it('the snackbar row is the compact plain notice; no raw text or id of its own', () => {
     const src = read('src/components/common/ErrorSnackbar.vue')
-    assert.match(src, /<LazyPlainErrorNotice\s+compact/)
+    /* static, not Lazy: SPL-4524, error-snackbar-ui.test.mjs */
+    assert.match(src, /<PlainErrorNotice\s+compact/)
     assert.equal(/\{\{\s*item\.(text|errorId)\s*\}\}/.test(src), false)
   })
   it('ErrorNotice shows its reference only with the Debug pane', () => {

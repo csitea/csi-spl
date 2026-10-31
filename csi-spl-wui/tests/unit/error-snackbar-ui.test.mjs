@@ -47,6 +47,17 @@ describe('ErrorSnackbar.vue', () => {
     assert.match(src, /queue\.dismiss\(/)
     assert.match(src, /queue\.hold\(/)
   })
+
+  /* SPL-4524 (SPL-4419 row 2, n=7 in prd human_events): on a tab older than
+     the last deploy, the first chunk error opens the snackbar, and a Lazy*
+     child's chunk is gone too ("Failed to fetch dynamically imported module",
+     trail ClientOnly/ErrorSnackbar/AsyncComponentWrapper). Every child it
+     renders is a static import, the same reason as ArchiveUndoToast. */
+  it('renders no Lazy* child: PlainErrorNotice is a static import', () => {
+    assert.equal(/<Lazy[A-Z]/.test(src), false)
+    assert.match(src, /import PlainErrorNotice from '@\/components\/PlainErrorNotice\.vue'/)
+    assert.match(src, /<PlainErrorNotice\s+compact/)
+  })
 })
 
 describe('layouts/default.vue mounts the snackbar next to DebugPanel', () => {

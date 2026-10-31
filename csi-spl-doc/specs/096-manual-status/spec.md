@@ -236,7 +236,10 @@ A **new frame type** carries status, so no old client misreads it:
   with the same fields. Loaded lazily (initial-chunk budget).
 - **Store**: a `statusByPeer` map next to the presence map, filled by the
   roster read and the `status` frame; the client also re-checks expiry every
-  minute, so a tab that missed the clearing frame stops showing it.
+  minute, so a tab that missed the clearing frame stops showing it. The store
+  reads the roster only while the session is `in`, and again each time it
+  turns `in`: signed out or still probing, the read is only a 401 in the
+  console (SPL-4450, `utils/when-signed-in.mjs`).
 - **Rendering**: one dot component gains the ring and is used by every place
   in section 5, plus the composer line of 5.1.
 - **i18n**: every new string through the existing i18n files (English and

@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useLive } from '~/composables/useLive'
 import { useRosterStore, type HumanStatus, type StatusLabel } from '~/stores/roster'
+import { useSessionStore } from '~/stores/session'
+import { whenSignedIn } from '~/utils/when-signed-in.mjs'
 
 type Translate = (key: string, params?: Record<string, string>) => string
 interface StatusController {
@@ -46,7 +48,10 @@ export const useHumanStatusStore = defineStore('human-status', () => {
     /* the lde mock has no hub: its members, with the statuses it keeps in localStorage */
     watch(() => roster.humansDetail, (d) => fill(Object.keys(d).map((human_id) => ({ human_id }))), { immediate: true })
   } else if (import.meta.client) {
-    void api.rosterView().then((body) => fill(((body as { humans?: [] } | null)?.humans) || []), () => {})
+    /* SPL-4450: the roster needs a member session (as useHumanNames); signed
+       out or still probing, a read is only a 401 in the console */
+    const session = useSessionStore()
+    whenSignedIn(() => session.state, watch, () => api.rosterView().then((body) => fill(((body as { humans?: [] } | null)?.humans) || []), () => {}))
     live.onReconnected(() => { statusByPeer.value = {} })
     /* T005 (Q1): the reader's own pause box (notify.mjs shouldPing) is only
        in GET /v1/me/status, never the roster or a frame: read it whenever

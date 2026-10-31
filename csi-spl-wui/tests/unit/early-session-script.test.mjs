@@ -21,9 +21,9 @@ const eq = (got, want, n) => (got === want ? pass(n) : fail(n, `got ${JSON.strin
 
 const BASE = 'https://api.example.com'
 const URL_ = sessionProbeUrl(BASE)
-eq(URL_, 'https://api.example.com/api/v1/auth/session', 'sessionProbeUrl joins the auth origin and the §4 path')
-eq(sessionProbeUrl(''), '/api/v1/auth/session', "sessionProbeUrl('') is same-origin (lde)")
-eq(sessionProbeUrl('javascript:alert(1)'), '/api/v1/auth/session', 'a non-origin base is refused, as authOrigin does')
+eq(URL_, 'https://api.example.com/api/v1/auth/session?signed_out=ok', 'sessionProbeUrl joins the auth origin and the §4 path')
+eq(sessionProbeUrl(''), '/api/v1/auth/session?signed_out=ok', "sessionProbeUrl('') is same-origin (lde)")
+eq(sessionProbeUrl('javascript:alert(1)'), '/api/v1/auth/session?signed_out=ok', 'a non-origin base is refused, as authOrigin does')
 
 function run(script, fetchImpl) {
   const calls = []

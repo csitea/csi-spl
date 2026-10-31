@@ -63,8 +63,8 @@ function record(scope, kind, text) {
  * Browser-logged resource failures that are the CONTRACT working, each named
  * narrowly. Returns the reason (printed as a note) or '' for a real problem.
  *
- *  - GET /api/v1/auth/session -> 401: auth-v1 §4, "401 = signed out"; this
- *    gate browses anonymously, and Chrome logs every 4xx fetch.
+ *  (GET /api/v1/auth/session is not here: the probe asks ?signed_out=ok and
+ *  a signed-out answer is 200 since SPL-4456, so a 401 from it is a problem.)
  *  - GET /v1/view/topics/<fixture> -> 404: the mock fixture topic does not
  *    exist on a real hub; the page shows its ErrorNotice.
  *  - /api/v1/auth/* on a harness-started `nuxi dev`: no hub and no auth proxy
@@ -74,7 +74,6 @@ function record(scope, kind, text) {
  */
 function expectedFailure(text, url) {
   const u = url || ''
-  if (/\/api\/v1\/auth\/session(\?|$)/.test(u) && /status of 401\b/.test(text)) return 'signed out (auth-v1 §4)'
   if (u.includes(`/v1/view/topics/${FIXTURE_TOPIC}`) && /status of 404\b/.test(text)) return 'fixture topic absent on a real hub'
   if (/\/v1\/demo(\?|$)/.test(u) && /status of 404\b/.test(text)) return 'the demo is off (077)'
   if (serverStarted && !process.env.NUXT_DEV_AUTH_PROXY && /\/api\/v1\/auth\//.test(u)) return 'no hub behind nuxi dev'

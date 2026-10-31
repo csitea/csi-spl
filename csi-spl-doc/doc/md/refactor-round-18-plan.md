@@ -211,6 +211,7 @@ touches their files.
   `2ba756a05` (W1-W6; P1 and P2 confirmed); PASS on `bb269f965` (msg
   eafe8039); signs v1.0 if the diff from `bb269f965` is only N1, N2, the
   status and these lines.
-- Editor c-771 signs v1.0 on its sha. Landed after the dispatch holder's GO.
-- Dispatch holder: GO on the review diff, then ACCEPTED on origin/master.
-  Rows follow without an owner go (rulebook).
+- Editor c-771 signs v1.0 on `7719f593b` (c-779 OK, msg d713d07e).
+- Dispatch holder: GO from c-003 (msg 00e53d06); landed on origin/master as
+  `3d0785d0a`; ACCEPTED by c-002 (msg 94d79fc2), which queued r43-01 and
+  r43-06 as the two lane heads. Rows follow without an owner go (rulebook).

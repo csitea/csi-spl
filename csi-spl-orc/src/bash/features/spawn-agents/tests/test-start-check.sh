@@ -55,6 +55,17 @@ limit="$R
 ❯
 $R
   Claude usage limit reached · resets 7:20am"
+# claude's usage-limit menu, as the rotation's SPAWN WAIT line read it
+# (box 1 2026-10-24 16:08:46Z, SPL-4507); the banner above it is the weekly one
+limit_menu=" You've hit your weekly limit · resets Oct 28, 6pm (Europe/Amsterdam)
+
+ What do you want to do?
+
+ ❯ 1. Stop and wait for limit to reset
+   2. Wait here, then continue automatically at Oct 28, 6pm
+   3. Switch to usage credits
+
+ Enter to confirm · Esc to cancel"
 plain="$R
 ❯ $(printf '\302\240\033[2m')Try \"refactor this\"$(printf '\033[0m')
 $R
@@ -67,6 +78,7 @@ has "the trust prompt hint names grok's main checkout key" "main checkout" "$(sp
 eq "auto-mode offer named" "auto-mode offer" "$(spool_start_dialog <<<"$automode")"
 eq "not logged in (box drawn, login footer) named auth/login" "auth/login" "$(spool_start_dialog <<<"$nologin")"
 eq "usage limit named" "usage limit" "$(spool_start_dialog <<<"$limit")"
+eq "usage-limit menu named usage limit (SPL-4507)" "usage limit" "$(spool_start_dialog <<<"$limit_menu")"
 eq "control: the plain input box is no dialog" "" "$(spool_start_dialog <<<"$plain")"
 check "control: the plain input box is a box (ghost text cut)" spool_screen_input_box <<<"$plain"
 eq "...and it reads empty" "" "$(spool_screen_input_box <<<"$plain")"

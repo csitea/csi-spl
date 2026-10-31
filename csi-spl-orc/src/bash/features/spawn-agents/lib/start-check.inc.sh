@@ -51,6 +51,14 @@
 # proceed  y" / "No, quit  n". Unmatched, the agent restart logged RS-SPAWN OK
 # over it. For a linked worktree <dir> is the MAIN checkout: grok keys trust
 # there (trust-workdir.sh writes that key too).
+# claude's usage-limit menu (SPL-4507; box 1 2026-10-24 16:08Z failover
+# 20261024T1601Z-failover, box 2 15:19Z master 20261024T1515Z-master, n=2):
+# "What do you want to do?" / "❯ 1. Stop and wait for limit to reset" /
+# "2. Wait here, then continue automatically at Oct 28, 6pm" / "3. Switch to
+# usage credits". Its banner ("You've hit your weekly limit · resets Oct 28,
+# 6pm") matches none of the texts below, so both rotations logged SPAWN OK
+# over it and failed "no ack within 600s" ten minutes later. Matched on the
+# menu's own words; never answered ("Switch to usage credits" spends money).
 
 # The known dialogs, "<name>|<extended regex>"; the first match wins.
 SPOOL_START_DIALOGS=(
@@ -60,7 +68,7 @@ SPOOL_START_DIALOGS=(
   'auto-mode offer|Make auto mode your default permission mode'
   'bypass-permissions confirm|Yes, I accept'
   'auth/login|Not logged in|Select login method|[Pp]lease run /login|Invalid API key|OAuth token (has )?expired'
-  'usage limit|[Uu]sage limit reached|limit reached[[:space:]]*·|limit resets'
+  'usage limit|[Uu]sage limit reached|limit reached[[:space:]]*·|limit resets|Stop and wait for limit to reset|Switch to usage credits'
   'grok weekly limit|[Yy]ou hit your weekly limit|Buy more credits'
   'session ended|session .+ ended\. Pane kept open'
 )

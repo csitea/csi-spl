@@ -26,8 +26,8 @@ func TestIsRailOrderMonitoring(t *testing.T) {
 			t.Errorf("%s: IsRailOrder = %v, want %v", c.name, got, c.want)
 		}
 	}
-	if !isPermutation(append([]string{"notes", "reporting", "monitoring"}, eleven...), RailTabs) {
-		t.Errorf("RailTabs = %v, want the eleven plus monitoring, reporting and notes", RailTabs)
+	if !isPermutation(append([]string{"expenses", "notes", "reporting", "monitoring"}, eleven...), RailTabs) {
+		t.Errorf("RailTabs = %v, want the eleven plus monitoring, reporting, notes and expenses", RailTabs)
 	}
 }
 
@@ -54,8 +54,8 @@ func TestIsRailOrderReporting(t *testing.T) {
 			t.Errorf("%s: IsRailOrder = %v, want %v", c.name, got, c.want)
 		}
 	}
-	if !isPermutation(append([]string{"notes", "reporting"}, twelve...), RailTabs) {
-		t.Errorf("RailTabs = %v, want the twelve plus reporting and notes", RailTabs)
+	if !isPermutation(append([]string{"expenses", "notes", "reporting"}, twelve...), RailTabs) {
+		t.Errorf("RailTabs = %v, want the twelve plus reporting, notes and expenses", RailTabs)
 	}
 }
 
@@ -82,7 +82,35 @@ func TestIsRailOrderNotes(t *testing.T) {
 			t.Errorf("%s: IsRailOrder = %v, want %v", c.name, got, c.want)
 		}
 	}
-	if RailTabs[len(RailTabs)-1] != "notes" {
-		t.Errorf("RailTabs ends with %q, want notes last", RailTabs[len(RailTabs)-1])
+	if !isPermutation(append([]string{"expenses", "notes"}, thirteen...), RailTabs) {
+		t.Errorf("RailTabs = %v, want the thirteen plus notes and expenses", RailTabs)
+	}
+}
+
+// SPL-4382 (spec 143 costs-redesign.md 3.8): Expenses is a rail entry. A
+// 15-id order holding it is admitted, every order stored before it still is,
+// and a set the DB check (rdb 0248) refuses is refused here too. Red control:
+// on the RailTabs before SPL-4382 the "fifteen with expenses" row fails.
+func TestIsRailOrderExpenses(t *testing.T) {
+	fourteen := []string{"notes", "reporting", "monitoring", "calendar", "boxes", "agents", "people", "events", "archive", "flow", "topics", "issues", "channels", "dm"}
+	for _, c := range []struct {
+		name  string
+		order []string
+		want  bool
+	}{
+		{"fifteen with expenses", append([]string{"expenses"}, fourteen...), true},
+		{"fourteen, stored before expenses", fourteen, true},
+		{"thirteen, stored before notes", fourteen[1:], true},
+		{"expenses without notes", append([]string{"expenses"}, fourteen[1:]...), false},
+		{"expenses twice", append([]string{"expenses", "expenses"}, fourteen...), false},
+		{"fifteen with an unknown", append([]string{"gauges"}, fourteen...), false},
+		{"sixteen with expenses and an unknown", append([]string{"gauges", "expenses"}, fourteen...), false},
+	} {
+		if got := IsRailOrder(c.order); got != c.want {
+			t.Errorf("%s: IsRailOrder = %v, want %v", c.name, got, c.want)
+		}
+	}
+	if RailTabs[len(RailTabs)-1] != "expenses" {
+		t.Errorf("RailTabs ends with %q, want expenses last", RailTabs[len(RailTabs)-1])
 	}
 }

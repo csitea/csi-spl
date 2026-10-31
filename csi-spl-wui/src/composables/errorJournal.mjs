@@ -302,12 +302,7 @@ export function buildErrorRecord(input) {
     input.code ?? (envelope && typeof envelope === 'object' ? envelope.code : token),
     120,
   )
-  const message = redactText(
-    input.message
-      ?? (envelope && typeof envelope === 'object' ? envelope.message : null)
-      ?? (err ? err.message : null),
-    MAX_MESSAGE_CHARS,
-  )
+  const message = recordMessage(input)
   const name = redactText(input.name ?? (err ? err.name : ''), 80)
 
   // The reference a human quotes. The server's own id when the response
@@ -338,6 +333,18 @@ export function buildErrorRecord(input) {
     route: input.route === undefined ? currentRoute() : redactPath(input.route, 200),
     ...(input.inline === true ? { inline: true } : {}),
   }
+}
+
+/** The redacted message a record keeps for this input (envelope message first). */
+function recordMessage(input) {
+  const err = input.error && typeof input.error === 'object' ? input.error : null
+  const envelope = err && err.data && typeof err.data === 'object' ? err.data.error : null
+  return redactText(
+    input.message
+      ?? (envelope && typeof envelope === 'object' ? envelope.message : null)
+      ?? (err ? err.message : null),
+    MAX_MESSAGE_CHARS,
+  )
 }
 
 // ── capture ────────────────────────────────────────────────────────────────
@@ -382,15 +389,18 @@ function mergeSameFailure(input, nowMs) {
     if (hit) return hit
   }
   if (!isTransportInput(input)) return null
-  return mergeRecord((r) => isTransportRecord(r)
+  // Same drop text only: fetch() also throws a status-less TypeError for a
+  // code bug (invalid header name, invalid URL), which must keep its own record.
+  const message = recordMessage(input)
+  return mergeRecord((r) => isTransportRecord(r) && r.message === message
     && nowMs - Date.parse(String(r.lastAt || r.at)) <= TRANSPORT_COALESCE_MS, bump)
 }
 
 /**
  * Record one failure. No-op on the server. Never throws. Returns the stored
  * record (so a caller can quote its reference id) or null. A failure the
- * buffer already holds (same error id, or a transport drop within
- * TRANSPORT_COALESCE_MS of the last one) is merged into that record.
+ * buffer already holds (same error id, or a transport drop with the same
+ * message within TRANSPORT_COALESCE_MS of the last one) is merged into that record.
  *
  * @param {object} input see buildErrorRecord
  * @param {{ isClient?: boolean, now?: number }} [opts] `now`: ms, for tests

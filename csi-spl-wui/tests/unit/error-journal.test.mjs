@@ -335,6 +335,17 @@ describe('errorJournal: one failure is recorded once', () => {
     assert.deepEqual(getErrors().map((r) => r.count), [5, 1])
   })
 
+  it('a status-less TypeError with a different message after a drop keeps its own record', () => {
+    for (let i = 0; i < 10; i++) noteError({ source: 'api', method: 'GET', url: `/v1/view/p${i}`, error: drop() }, { ...CLIENT, now: T0 + i * 100 })
+    const bug = new TypeError("Failed to execute 'fetch' on 'Window': Invalid name")
+    noteError({ source: 'api', method: 'POST', url: '/v1/send', error: bug }, { ...CLIENT, now: T0 + 1_100 })
+    const all = getErrors()
+    assert.equal(all.length, 2)
+    assert.deepEqual(all.map((r) => r.count), [10, 1])
+    assert.equal(all[1].path, '/v1/send')
+    assert.match(all[1].message, /Invalid name/)
+  })
+
   it('a merged drop keeps the first seq (the shipper and the snackbar take it once) and quotes its id', () => {
     const first = noteError({ source: 'api', url: '/a', error: drop() }, { ...CLIENT, now: T0 })
     const e2 = drop()

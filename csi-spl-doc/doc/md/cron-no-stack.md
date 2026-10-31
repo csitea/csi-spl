@@ -17,9 +17,19 @@ its own:
 * * * * * <self-update prefix>VAR=v <orc>/src/bash/scripts/cron-no-stack.sh <logdir>/cron.lock <job> >> <logdir>/cron.out 2>&1 # <tag>
 ```
 
-- The wrapper takes `flock -n` on the lock. While an earlier run of the same
-  line still holds it, the new start exits 0 at once and writes one line to
-  the line's own log: `SKIP an earlier run of <job> still holds <lock>`.
+- The wrapper takes `flock -n` on the lock and writes the holder into it
+  (`pid=<p> start=<epoch> job=<job>`). While an earlier run of the same line
+  still holds it, the new start exits 0 at once and writes one line to the
+  line's own log: `SKIP an earlier run of <holder job> (pid <p>) still holds
+  <lock>`.
+- A holder older than `CRON_NO_STACK_MAX_S` (default 1800 s) is stuck: each
+  start writes `STUCK <job> held <n> s by pid <p> on <box> (max <m> s)` and
+  exits 3, and the first such start sends one spool note to
+  `CRON_NO_STACK_ALERT_TO` (default `orchestrator`, task `cron-no-stack`).
+  The `<lock>.stuck` mark keeps it to one note per stuck holder; the next run
+  that gets the lock clears it. Why: a SKIP line keeps the log fresh, so the
+  cron heartbeat snitch (log age) would read a hung job as healthy. The
+  wrapper kills nothing: the box owner decides about the stuck pid.
 - The job runs with the lock's fd closed, so a daemon it leaves behind never
   holds the lock; the lock goes when the job returns.
 - The installer writes the wrapper, so a re-install keeps it. Never add it by

@@ -12,6 +12,9 @@
 #   3. the wrapper passes the job's exit code through; a usage error is rc 2
 #   4. a daemon the job leaves behind holds no lock: the next start runs
 #   5. a re-install keeps the lock (the installer writes it, not a hand edit)
+#   6. the SKIP line names the holder's job, not the new start's
+#   7. a holder older than CRON_NO_STACK_MAX_S is stuck: STUCK line, rc 3,
+#      one spool note per stuck holder; red control: a young holder sends none
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -64,7 +67,7 @@ ms=$(( ($(date +%s%N) - t0) / 1000000 ))
 running="$(grep -c '^start' "$T/jobs")"
 wait "$first"; frc=$?
 [[ $rc -eq 0 && $ms -lt 2000 ]] && pass "1. the second start exits at once, rc 0 (${ms} ms)" || fail "1. second start rc=$rc after ${ms} ms"
-[[ "$(grep -c ' SKIP an earlier run of bash still holds ' "$log")" -eq 1 ]] &&
+[[ "$(grep -c ' SKIP an earlier run of bash (pid [0-9]*) still holds ' "$log")" -eq 1 ]] &&
   pass "1. ...with one SKIP line in the line's log" || fail "1. SKIP lines: $(cat "$log")"
 [[ $frc -eq 0 && "$running" -eq 1 && "$(grep -c '^start' "$T/jobs")" -eq 1 && "$(grep -c '^end' "$T/jobs")" -eq 1 ]] &&
   pass "1. the first run finished, one job ran" || fail "1. first rc=$frc, jobs: $(cat "$T/jobs")"
@@ -102,6 +105,37 @@ out="$("$W" "$T/d.lock" echo ran 2>&1)"; rc=$?
 out="$(inst)"; rc=$?
 [[ $rc -eq 0 && "$(grep -cxF "$line" "$T/crontab")" -eq 1 && "$(grep -c 'csi-spl:box-cron:' "$T/crontab")" -eq 1 ]] &&
   pass "5. a re-install keeps the locked line" || fail "5. reinstall rc=$rc: $(cat "$T/crontab")"
+# hold_lock <lock> <age s> <job>: a fake holder of <lock>, started <age> s ago,
+# for 5 s; its pid in $holder
+hold_lock() {
+  ( exec 9>>"$1"; flock 9
+    printf 'pid=%s start=%s job=%s\n' "$BASHPID" "$(( $(date +%s) - $2 ))" "$3" >"$1"
+    : >"$1.held"; sleep 5 ) & holder=$!
+  local n=0; while [ ! -e "$1.held" ] && [ "$n" -lt 50 ]; do sleep 0.1; n=$((n + 1)); done
+}
+printf '#!/bin/sh\necho "$*" >>%q\n' "$T/alerts" >"$T/fake-send"
+: >"$T/alerts"
+export CRON_NO_STACK_ALERT_SEND_BIN="$T/fake-send"
+
+# 6. the SKIP line names the holder
+hold_lock "$T/h.lock" 5 sleep
+out="$("$W" "$T/h.lock" true 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"SKIP an earlier run of sleep (pid $holder) still holds"* && ! -s "$T/alerts" ]] &&
+  pass "6. a young holder: SKIP names its job and pid, rc 0, no alert" || fail "6. rc=$rc out=$out alerts=$(cat "$T/alerts")"
+kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null
+
+# 7. a stuck holder
+hold_lock "$T/s.lock" 4000 git
+out="$(CRON_NO_STACK_MAX_S=1800 "$W" "$T/s.lock" true 2>&1)"; rc=$?
+out2="$(CRON_NO_STACK_MAX_S=1800 "$W" "$T/s.lock" true 2>&1)"; rc2=$?
+[[ $rc -eq 3 && "$out" == *"STUCK git held 400"?" s by pid $holder"*"(max 1800 s)"* ]] &&
+  pass "7. a holder past CRON_NO_STACK_MAX_S: STUCK line naming job, age and pid, rc 3" || fail "7. rc=$rc out=$out"
+[[ $rc2 -eq 3 && "$(grep -c -- '--kind note --task cron-no-stack --body STUCK git' "$T/alerts")" -eq 1 ]] &&
+  pass "7. ...one spool note for that holder, not one per start" || fail "7. rc2=$rc2 alerts: $(cat "$T/alerts")"
+kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null
+out="$("$W" "$T/s.lock" echo ran 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == ran && ! -e "$T/s.lock.stuck" ]] &&
+  pass "7. once the holder is gone the next start runs and clears the stuck mark" || fail "7. after: rc=$rc out=$out"
 
 echo
 if [ "$fails" -eq 0 ]; then echo "cron-no-stack: all passed"; exit 0; fi

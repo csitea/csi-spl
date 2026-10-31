@@ -50,11 +50,11 @@ ROOT=$(mktemp -d)
 mk_root "$ROOT"
 
 # --- SEC_SCAN is required ----------------------------------------------------
-out=$(SEC_SCAN= SEC_SCAN_ROOT="$ROOT" do_sec_scan 2>&1) || rc=$?
+out=$(SEC_SCAN='' SEC_SCAN_ROOT="$ROOT" do_sec_scan 2>&1) || rc=$?
 rc=${rc:-0}
 # the command substitution resets rc if we are not careful. Re-run:
 set +e
-out=$(SEC_SCAN= SEC_SCAN_ROOT="$ROOT" do_sec_scan 2>&1)
+out=$(SEC_SCAN='' SEC_SCAN_ROOT="$ROOT" do_sec_scan 2>&1)
 rc=$?
 set -e
 set +e

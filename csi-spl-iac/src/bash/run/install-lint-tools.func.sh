@@ -191,7 +191,7 @@ _ilt_govulncheck() {
     do_log "INFO govulncheck $ver already installed"; return 0
   fi
   root="$(cd "$_ILT_WF/../.." && pwd)"
-  ( export GOTOOLCHAIN=local GOFLAGS= GOPROXY=https://proxy.golang.org GOBIN="$_ILT_BIN"
+  ( export GOTOOLCHAIN=local GOFLAGS='' GOPROXY=https://proxy.golang.org GOBIN="$_ILT_BIN"
     # shellcheck source=/dev/null
     source "$root/csi-spl-api/src/bash/use-go-toolchain.sh" && spl_export_go_path \
       && go install "golang.org/x/vuln/cmd/govulncheck@$ver" ) \

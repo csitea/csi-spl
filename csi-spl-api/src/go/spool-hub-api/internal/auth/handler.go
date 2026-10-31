@@ -593,10 +593,23 @@ type sessionResp struct {
 	Tenants      []TenantRole `json:"tenants"`
 }
 
-// session answers who the cookie belongs to: 200 + claims, or 401.
+// signedOutQuery is the WUI probe's opt-in to a 200 signed-out answer
+// (SPL-4456): Chrome logs every 4xx fetch as a red console line, and the
+// probe runs on every signed-out page. Without it the answer stays 401, which
+// the CLI scripts, the e2e helpers and an open tab on an older WUI bundle
+// (it reads any 200 as signed in) all rely on.
+const signedOutQuery = "signed_out"
+
+// session answers who the cookie belongs to: 200 + claims, or 401 — or, when
+// the request asks ?signed_out=ok, 200 {"signed_in":false} for no session.
 func (h *Handler) session(w http.ResponseWriter, r *http.Request) {
 	s, ok := h.SessionFromRequest(r)
 	if !ok {
+		if r.URL.Query().Get(signedOutQuery) == "ok" {
+			w.Header().Set("Cache-Control", "no-store")
+			writeJSON(w, http.StatusOK, map[string]bool{"signed_in": false})
+			return
+		}
 		writeErr(w, http.StatusUnauthorized, "unauthenticated", "no valid session")
 		return
 	}

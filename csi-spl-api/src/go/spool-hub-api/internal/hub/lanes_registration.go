@@ -2,6 +2,7 @@ package hub
 
 import (
 	"context"
+	"regexp"
 	"strings"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
@@ -22,13 +23,15 @@ import (
 //     row the role rotation wrote, scope "role <id> (rotation ...)") carries
 //     role_seat, so the page says "role seat" in place of an empty cell.
 
-// laneRoleScope starts the scope the role rotation writes for a seat
-// (csi-spl-orc spl-rotate-lib.func.sh, spl_rotate_spawn).
-const laneRoleScope = "role "
+// laneRoleScope is the scope the role rotation writes for a seat, `role
+// <id> (rotation <rid>)` (csi-spl-orc spl-rotate-lib.func.sh,
+// spl_rotate_spawn); a lane whose brief heading merely starts with "role "
+// is no seat (R7 c-287 W2).
+var laneRoleScope = regexp.MustCompile(`^role [acgmq]-[0-9]{3} \(rotation `)
 
 // laneIsRoleSeat is a role seat's row: no discussion and no issue by design.
 func laneIsRoleSeat(l store.FleetLane) bool {
-	return agentid.IsRoleSeat(l.AgentID) || strings.HasPrefix(l.Scope, laneRoleScope)
+	return agentid.IsRoleSeat(l.AgentID) || laneRoleScope.MatchString(l.Scope)
 }
 
 // laneTopicsFromIssues fills, in place, the topic of each lane that has none

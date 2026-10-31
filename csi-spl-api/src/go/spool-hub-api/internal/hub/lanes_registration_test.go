@@ -93,8 +93,13 @@ func TestFleetLanesRoleSeat(t *testing.T) {
 	if _, err := r.e.st.PutFleetLane(context.Background(), r.op, seat, box, now.Add(-4*time.Minute)); err != nil {
 		t.Fatal(err)
 	}
+	// R7 c-287 W2: a lane whose brief heading starts with "role " is no seat.
+	lane := store.FleetLane{Fleet: "main", AgentID: "c-463", AgentBox: box, Scope: "role seats: claude active, grok only when claude is silent", State: "live", Files: []string{}}
+	if _, err := r.e.st.PutFleetLane(context.Background(), r.op, lane, box, now.Add(-5*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
 	rows := laneRegRows(t, r)
-	for id, want := range map[string]bool{"c-001": true, "g-002": true, "c-462": true, "c-461": false} {
+	for id, want := range map[string]bool{"c-001": true, "g-002": true, "c-462": true, "c-461": false, "c-463": false} {
 		if got := rows[id].RoleSeat; got != want {
 			t.Errorf("C51 %s role_seat %v, want %v", id, got, want)
 		}

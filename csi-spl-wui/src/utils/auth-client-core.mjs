@@ -44,13 +44,20 @@ export function authOrigin(base) {
 }
 
 /**
+ * The §4 probe's path. `signed_out=ok` (SPL-4456) asks the hub to answer a
+ * signed-out visitor 200 {"signed_in":false} instead of 401: Chrome logs
+ * every 4xx fetch as a red console line, and the probe runs on every page.
+ */
+const SESSION_PROBE_PATH = '/session?signed_out=ok'
+
+/**
  * The §4 session probe's address. One source for the client below and the
  * document-head script that starts the same probe at parse time (P3-03,
  * utils/early-session-script.mjs): the app adopts the parked answer only when
  * the two addresses agree.
  */
 export function sessionProbeUrl(base) {
-  return `${authOrigin(base)}${AUTH_PREFIX}/session`
+  return `${authOrigin(base)}${AUTH_PREFIX}${SESSION_PROBE_PATH}`
 }
 
 
@@ -190,8 +197,10 @@ function authPost(call) {
 }
 
 /**
- * §4 signed-in probe: 200 → 'in', 401 → 'out', anything else (5xx, network,
- * bad JSON) → 'unknown' — keep state, never treat as signed out.
+ * §4 signed-in probe: 200 → 'in', 200 {"signed_in":false} or 401 → 'out'
+ * (SPL-4456: the hub answers the first to SESSION_PROBE_PATH, the second
+ * without it), anything else (5xx, network, bad JSON) → 'unknown' — keep
+ * state, never treat as signed out.
  * `pending` is the same GET already in flight (the head script's, P3-03):
  * its answer is read instead; if it failed, the probe is sent again here.
  * `mock` (specs/054 e2e) reads the mock's answer instead.
@@ -204,18 +213,21 @@ async function probeSession(call, mock, pending) {
   }
   let res
   try {
-    const ask = () => call('/session', { cache: 'no-store' })
+    const ask = () => call(SESSION_PROBE_PATH, { cache: 'no-store' })
     res = await (pending ? Promise.resolve(pending).catch(ask) : ask())
   } catch {
     return { state: 'unknown', claims: null }
   }
   if (res.status === 401) return { state: 'out', claims: null }
   if (res.status !== 200) return { state: 'unknown', claims: null }
+  let data
   try {
-    return { state: 'in', claims: await res.json() }
+    data = await res.json()
   } catch {
     return { state: 'unknown', claims: null }
   }
+  if (data && data.signed_in === false) return { state: 'out', claims: null }
+  return { state: 'in', claims: data }
 }
 
 /**

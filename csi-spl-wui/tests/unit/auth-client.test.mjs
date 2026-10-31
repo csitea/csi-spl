@@ -206,7 +206,7 @@ describe('cross-origin auth base (A7: the WUI host is not the hub host)', () => 
     await c.resetPassword({ token: 't', password: 'p' })
     await c.logout()
     assert.deepEqual(s.calls.map((x) => x.url), [
-      `${API}/api/v1/auth/providers`, `${API}/api/v1/auth/session`, `${API}/api/v1/auth/login`,
+      `${API}/api/v1/auth/providers`, `${API}/api/v1/auth/session?signed_out=ok`, `${API}/api/v1/auth/login`,
       `${API}/api/v1/auth/email/verify`, `${API}/api/v1/auth/password/reset`, `${API}/api/v1/auth/logout`,
     ])
     for (const x of s.calls) assert.equal(x.opts.credentials, 'include', x.url)

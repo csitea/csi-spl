@@ -3327,6 +3327,7 @@
       "empty": "No hay líneas activas",
       "stale_red": "Datos obsoletos: hub inaccesible",
       "table_label": "Líneas activas",
+      "col_box": "Máquina",
       "col_scope": "Alcance",
       "col_updated": "Actualizado",
       "min_ago": "hace {n} min",

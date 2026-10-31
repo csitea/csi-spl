@@ -3327,6 +3327,7 @@
       "empty": "Nicio linie activă",
       "stale_red": "Date învechite: hub inaccesibil",
       "table_label": "Linii active",
+      "col_box": "Mașină",
       "col_scope": "Domeniu",
       "col_updated": "Actualizat",
       "min_ago": "acum {n} min",

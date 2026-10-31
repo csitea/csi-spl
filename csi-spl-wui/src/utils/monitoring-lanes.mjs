@@ -106,7 +106,7 @@ export function lanesStaleLevel(lagS) {
    cycle utils/sheet-sort.mjs); no sort = the hub's order, newest write first. */
 
 /** The sortable columns, in the table's order. */
-export const LANE_COLUMNS = ['agent', 'vendor', 'state', 'scope', 'topic', 'issues', 'updated', 'active', 'workspace']
+export const LANE_COLUMNS = ['agent', 'box', 'vendor', 'state', 'scope', 'topic', 'issues', 'updated', 'active', 'workspace']
 
 /** The age filter: written within 1 h, within 24 h, or longer ago. */
 export const LANE_AGES = ['1h', '24h', 'older']

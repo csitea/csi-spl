@@ -3327,6 +3327,7 @@
       "empty": "Nav aktīvu līniju",
       "stale_red": "Novecojuši dati: centrs nav sasniedzams",
       "table_label": "Aktīvās līnijas",
+      "col_box": "Mašīna",
       "col_scope": "Tvērums",
       "col_updated": "Atjaunināts",
       "min_ago": "pirms {n} min",

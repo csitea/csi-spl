@@ -431,7 +431,7 @@ async function lanesSortFilter(browser, base, size) {
   const until = (want) => p.waitForFunction((w) => [...document.querySelectorAll('[data-test=lanes-row]')].map((e) => e.getAttribute('data-agent')).join(',') === w, { timeout: 5000 }, want).then(() => true, () => false)
   ok('3887 lanes: three rows in the hub order', await until('c-085,a-277,m-039'), await order())
   const names = await p.$$eval('[data-test=lanes-table] thead tr:first-child th', (els) => els.map((th) => (th.querySelector('button.issues-sort-h') ? 'b' : '-')).join(''))
-  ok('3887 lanes: every column name is the Issues sheet\'s sort button', names === 'bbbbbbbbb', names)
+  ok('3887 lanes: every column name is the Issues sheet\'s sort button', names === 'bbbbbbbbbb', names)
   const aria = () => p.$eval('[data-test=lanes-sort-agent]', (b) => b.closest('th').getAttribute('aria-sort') + ':' + b.querySelector('.issues-sort-mark').textContent)
   await p.click('[data-test=lanes-sort-agent]')
   ok('3887 lanes: a name click sorts ascending, ▲', (await until('a-277,c-085,m-039')) && (await aria()) === 'ascending:▲', [await order(), await aria()])
@@ -443,6 +443,11 @@ async function lanesSortFilter(browser, base, size) {
   ok('3887 lanes: Updated ascending = oldest write first', await until('m-039,a-277,c-085'), await order())
   await p.click('[data-test=lanes-sort-updated]')
   await p.click('[data-test=lanes-sort-updated]')
+  /* SPL-4458: the Box column sorts too; descending puts box-b first */
+  await p.click('[data-test=lanes-sort-box]')
+  await p.click('[data-test=lanes-sort-box]')
+  ok('SPL-4458 lanes: Box descending = box-b lanes first', await until('a-277,m-039,c-085'), await order())
+  await p.click('[data-test=lanes-sort-box]')
   await p.select('[data-test=lanes-filter-vendor]', 'agy')
   ok('3887 lanes: the vendor filter keeps the agy lane', await until('a-277'), await order())
   ok('3887 lanes: the line says how many of all show', (await text(p, '[data-test=lanes-shown]')) === '1 of 3 lanes', await text(p, '[data-test=lanes-shown]'))
@@ -546,6 +551,9 @@ async function lanesTab(browser, base, size) {
     const issues = await row('c-085', '[data-test=lanes-issue-link]')
     ok('C17 lanes: the issue keys link /issues?issue=<KEY>', issues.map((i) => i.href).join(' ') === '/issues?issue=SPL-3075 /issues?issue=SPL-3215', issues)
     ok('C17 lanes: the agent shows as id@box', (await text(p, '[data-test=lanes-row][data-agent="c-085"] [data-test=lanes-agent]')) === 'c-085@box-a')
+    /* SPL-4458: the box is its own column, after the agent */
+    ok('lanes: the Box column shows each row\'s box', (await p.$$eval('[data-test=lanes-row] [data-test=lanes-box]', (els) => els.map((e) => e.textContent.trim()).join(','))) === 'box-a,box-b,box-b'
+      && (await p.$$eval('[data-test=lanes-table] thead tr:first-child th', (els) => els.map((e) => e.getAttribute('data-test') || '').indexOf('lanes-col-box'))) === 1)
     /* C27 (spec 153 3.6, row B6, SPL-3229): an operator admin's tab still reads the fleet route: every lane, with its box */
     ok('C27 lanes: the operator admin reads the fleet route, the other workspace\'s lane and the box names included', (await text(p, '[data-test=lanes-row][data-agent="a-277"] [data-test=lanes-agent]')) === 'a-277@box-b')
     ok('C17 control: another workspace\'s topic links nothing, its id shown as text', (await row('a-277', '[data-test=lanes-topic-link]')).length === 0
@@ -582,6 +590,7 @@ async function lanesTab(browser, base, size) {
     const one = await p.waitForFunction(() => document.querySelectorAll('[data-test=lanes-row]').length === 1, { timeout: 20000 }).then(() => true, () => false)
     ok('3.6 lanes: the workspace\'s own lane only (its topic), no box name', one
       && (await text(p, '[data-test=lanes-row] [data-test=lanes-agent]')) === 'c-085', await count(p, '[data-test=lanes-row]'))
+    ok('SPL-4458 lanes: the workspace route sends no box, the Box cell is a dash', (await text(p, '[data-test=lanes-row] [data-test=lanes-box]')) === '\u2014')
     ok('C43 lanes: inside the workspace too, the workspace is the right-most column', (await p.evaluate(() =>
       [...document.querySelectorAll('[data-test=lanes-row]')].map((tr) => tr.lastElementChild && tr.lastElementChild.textContent.trim()).join('|'))) === 'Mock workspace')
     await ctx.close()

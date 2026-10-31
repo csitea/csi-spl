@@ -3327,6 +3327,7 @@
       "empty": "Aktiivseid radu pole",
       "stale_red": "Andmed on aegunud: jaotur pole kättesaadav",
       "table_label": "Aktiivsed rajad",
+      "col_box": "Masin",
       "col_scope": "Ulatus",
       "col_updated": "Uuendatud",
       "min_ago": "{n} min tagasi",

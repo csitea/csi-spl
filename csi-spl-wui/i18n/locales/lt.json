@@ -3327,6 +3327,7 @@
       "empty": "Aktyvių linijų nėra",
       "stale_red": "Pasenę duomenys: centras nepasiekiamas",
       "table_label": "Aktyvios linijos",
+      "col_box": "Mašina",
       "col_scope": "Apimtis",
       "col_updated": "Atnaujinta",
       "min_ago": "prieš {n} min.",

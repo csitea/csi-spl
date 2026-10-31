@@ -20,6 +20,9 @@
      column (▲, ▼, then back to the hub's order; components/SheetSortButton.vue),
      the row under the names filters by box, vendor, state, age and text, and
      Clear filters resets them. Both survive the minute's refresh.
+     Box (SPL-4458; owner HUM-10, t1 0acd4eaa, msg 97453531): the box a lane
+     works on is its own column after the agent, sortable, its select under
+     it; the workspace route sends no box, so the cell is a dash there.
      Deep link (3.9, SPL-4206; owner HUM-10, t1 fb9b6e4b, msg 470ae116): a
      lane on the agent card opens this page at ?lane=<id@box>; that row is
      marked selected and scrolled into view once it is in the answer. -->
@@ -60,6 +63,7 @@
               </th>
             </tr>
             <tr class="ln-frow" data-test="lanes-filters">
+              <th />
               <th>
                 <select v-model="filters.box" data-test="lanes-filter-box" :aria-label="t('monitoring.lanes.filter_box')">
                   <option value="">{{ t('issues.filter_all') }}</option>
@@ -105,6 +109,7 @@
               :aria-current="laneName(l) === selectedLane ? 'true' : undefined"
             >
               <th scope="row" class="ln-id" data-test="lanes-agent">{{ laneName(l) }}</th>
+              <td class="ln-box" data-test="lanes-box">{{ l.box || DASH }}</td>
               <td data-test="lanes-vendor">{{ l.vendor || DASH }}</td>
               <td data-test="lanes-state" :data-state="l.state">{{ stateLabel(l.state) }}</td>
               <td class="ln-cut" :title="l.scope || undefined" data-test="lanes-scope">{{ l.scope || DASH }}</td>
@@ -162,6 +167,7 @@ const stale = computed(() => lanesStaleLevel(lag.value))
 /* the sheet's columns, the sort (none = the hub's order) and the filter row (SPL-3887) */
 const COLUMN_NAMES: Record<string, { key: string, cls?: string, test?: string }> = {
   agent: { key: 'monitoring.tokens.col_agent' },
+  box: { key: 'monitoring.lanes.col_box', test: 'lanes-col-box' },
   vendor: { key: 'monitoring.tokens.col_vendor' },
   state: { key: 'monitoring.lanes.col_state' },
   scope: { key: 'monitoring.lanes.col_scope' },
@@ -293,6 +299,8 @@ onBeforeUnmount(() => {
 .ln-row[data-selected="1"] > * { background: var(--color-selected); }
 .ln-id { font-family: var(--font-mono); font-weight: 600; white-space: nowrap; }
 .ln-mono { font-family: var(--font-mono); }
+/* the box name is short: one line, never dropped (phone too) */
+.ln-box { font-family: var(--font-mono); white-space: nowrap; }
 /* a long scope or topic stays on one line, its full text in the title (3.2) */
 .ln-cut { max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ln-issue { margin-inline-end: 6px; white-space: nowrap; font-family: var(--font-mono); }

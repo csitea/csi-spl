@@ -3327,6 +3327,7 @@
       "empty": "No active lanes",
       "stale_red": "Data stale: hub unreachable",
       "table_label": "Active lanes",
+      "col_box": "Box",
       "col_scope": "Scope",
       "col_updated": "Updated",
       "min_ago": "{n} min ago",

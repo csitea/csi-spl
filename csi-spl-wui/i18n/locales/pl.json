@@ -3327,6 +3327,7 @@
       "empty": "Brak aktywnych linii",
       "stale_red": "Nieaktualne dane: hub nieosiągalny",
       "table_label": "Aktywne linie",
+      "col_box": "Maszyna",
       "col_scope": "Zakres",
       "col_updated": "Zaktualizowano",
       "min_ago": "{n} min temu",

@@ -43,7 +43,7 @@ describe('one sort cycle for both sheets', () => {
     s = cycleSort('vendor', s, LANE_COLUMNS); assert.deepEqual(s, { col: 'vendor', dir: 'asc' })
     s = cycleSort('vendor', s, LANE_COLUMNS); assert.deepEqual(s, { col: 'vendor', dir: 'desc' })
     s = cycleSort('vendor', s, LANE_COLUMNS); assert.deepEqual(s, { col: '', dir: '' })
-    assert.deepEqual(cycleSort('box', { col: 'vendor', dir: 'asc' }, LANE_COLUMNS), { col: '', dir: '' })
+    assert.deepEqual(cycleSort('nope', { col: 'vendor', dir: 'asc' }, LANE_COLUMNS), { col: '', dir: '' })
   })
   it('the Issues sheet\'s nextSort is the same cycle over its columns', () => {
     for (const col of [...SHEET_COLUMNS, 'nope']) {
@@ -59,6 +59,7 @@ describe('the lanes sort by every column', () => {
   it('every column of the table sorts', () => {
     const want = {
       agent: ['a-277,c-9,c-10,m-039', 'm-039,c-10,c-9,a-277'],
+      box: ['c-9,a-277,c-10,m-039', 'c-10,m-039,c-9,a-277'],
       vendor: ['a-277,c-10,c-9,m-039', 'm-039,c-10,c-9,a-277'],
       state: ['c-10,c-9,a-277,m-039', 'm-039,c-10,c-9,a-277'],
       scope: ['c-9,c-10,m-039,a-277', 'a-277,m-039,c-10,c-9'],
@@ -135,5 +136,30 @@ describe('one control, not a copy', () => {
     assert.match(lanes, /cycleSort\(col, sort\.value, LANE_COLUMNS\)/)
     assert.match(lanes, /:aria-sort=/)
     for (const f of ['box', 'vendor', 'state', 'age', 'text']) assert.match(lanes, new RegExp(`data-test="lanes-filter-${f}"`), f)
+  })
+})
+
+/* SPL-4458 (owner HUM-10, t1 0acd4eaa, msg 97453531): "the lanes should get
+   also a box attribute on the listing - aka on which box the lane is
+   working". The box is its own sortable column, right after the agent. */
+describe('the Box column', () => {
+  const lanes = read('src/pages/monitoring/lanes/index.vue')
+  it('is the second column of the sheet', () => {
+    assert.deepEqual(LANE_COLUMNS.slice(0, 3), ['agent', 'box', 'vendor'])
+  })
+  it('each row renders the box the hub sent, a dash when none', () => {
+    assert.match(lanes, /<td class="ln-box" data-test="lanes-box">\{\{ l\.box \|\| DASH \}\}<\/td>/)
+    assert.match(lanes, /box: \{ key: 'monitoring\.lanes\.col_box'/)
+  })
+  it('the box select sits under the Box name, not under the agent', () => {
+    const frow = lanes.slice(lanes.indexOf('data-test="lanes-filters"'))
+    assert.match(frow, /^data-test="lanes-filters">\s*<th \/>\s*<th>\s*<select v-model="filters\.box"/)
+  })
+  it('the header word is in all 19 locales', () => {
+    for (const loc of ['bg', 'el', 'en', 'es', 'et', 'fi', 'he', 'lt', 'lv', 'mk', 'nl', 'pl', 'ro', 'ru', 'sk', 'sr', 'sv', 'tr', 'uk']) {
+      const word = JSON.parse(read('i18n/locales/' + loc + '.json')).monitoring?.lanes?.col_box
+      assert.equal(typeof word, 'string', loc)
+      assert.ok(word.length > 0 && word.length <= 12, loc + ': ' + word)
+    }
   })
 })

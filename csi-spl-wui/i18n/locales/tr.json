@@ -3327,6 +3327,7 @@
       "empty": "Etkin hat yok",
       "stale_red": "Veriler eski: merkeze ulaşılamıyor",
       "table_label": "Etkin hatlar",
+      "col_box": "Makine",
       "col_scope": "Kapsam",
       "col_updated": "Güncellendi",
       "min_ago": "{n} dk önce",

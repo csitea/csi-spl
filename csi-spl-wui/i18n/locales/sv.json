@@ -3327,6 +3327,7 @@
       "empty": "Inga aktiva banor",
       "stale_red": "Inaktuella data: navet nås inte",
       "table_label": "Aktiva banor",
+      "col_box": "Maskin",
       "col_scope": "Omfattning",
       "col_updated": "Uppdaterad",
       "min_ago": "för {n} min sedan",

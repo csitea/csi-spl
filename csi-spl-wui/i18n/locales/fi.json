@@ -3327,6 +3327,7 @@
       "empty": "Ei aktiivisia kaistoja",
       "stale_red": "Vanhentunutta tietoa: keskus ei vastaa",
       "table_label": "Aktiiviset kaistat",
+      "col_box": "Kone",
       "col_scope": "Laajuus",
       "col_updated": "Päivitetty",
       "min_ago": "{n} min sitten",

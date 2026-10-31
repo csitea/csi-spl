@@ -290,6 +290,16 @@ section 3.3 serves the live list only (decision P6).
 - One row per ACTIVE lane: agent `id@box`, vendor, the scope (the brief's
   title), the discussion (topic title, linked), the issue key(s) (linked),
   the time since the row was written, and the last token activity.
+- Box (SPL-4458; owner HUM-10, t1 `0acd4eaa`, msg `97453531`: "the lanes
+  should get also a box attribute on the listing - aka on which box the
+  lane is working"): the box is its own column right after the agent,
+  header `monitoring.lanes.col_box` (each locale's `filter_box` word),
+  sortable like the others, the box select of the filter row under it,
+  one line on a phone too. The operator route always sends it:
+  `fleet_lanes.agent_box` is `NOT NULL` with a name check
+  (`rdb/0096_fleet_lanes.sql:19`); prd 2026-10-31, n = 2143 rows, 0
+  without a box. The workspace route (3.6) blanks it on purpose, so there
+  the cell is a dash; a queued ask (3.8) has no box yet.
 - **Active** (decision P1) = `fleet_lanes.state = 'live'` AND the agent is
   a lane id (`^[acgmq]-[0-9]{3}$`, the form of `rdb/0155:35`; the `BOX-0`
   box row and old upper-case ids are left out) AND either the agent's

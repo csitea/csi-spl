@@ -3327,6 +3327,7 @@
       "empty": "Geen actieve banen",
       "stale_red": "Verouderde gegevens: hub onbereikbaar",
       "table_label": "Actieve banen",
+      "col_box": "Machine",
       "col_scope": "Reikwijdte",
       "col_updated": "Bijgewerkt",
       "min_ago": "{n} min geleden",

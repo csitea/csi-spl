@@ -1,0 +1,6 @@
+Lay-What: Opening the help pages while signed out no longer shows a sign-in error in the background.
+Lay-How: The page now checks first that you are signed out and then reads only the public help list.
+Lay-Why: Every signed-out visit logged an error for a list it was never allowed to read, which looked broken.
+Tech-What: WUI doc-path linker reads only PUBLIC_DOCS_DIR/index.json when the session store has settled out.
+Tech-How: utils/doc-path-install.ts probes the session once if loading and skips GET /v1/docs/tree.json when the state is out.
+Tech-Why: The linker always asked for the member docs tree and fell back to the public index only after its 401.

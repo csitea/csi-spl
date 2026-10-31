@@ -13,7 +13,13 @@
 
      SPL-1839 (owner HUM-10, t1 659e3927, msg 4de3b04e): a row says ONE plain
      sentence (PlainErrorNotice, compact); its text (item.text), HTTP status
-     and error id show under it only with the Debug pane setting on. -->
+     and error id show under it only with the Debug pane setting on.
+
+     SPL-4524 (SPL-4419 row 2): PlainErrorNotice is a STATIC import, never
+     its Lazy-prefixed form. On a tab older than the last deploy the first
+     chunk error opens this snackbar, and a lazy child's chunk is gone too
+     ("Failed to fetch dynamically imported module", 7 of 100 prd events), so
+     the snackbar could not say anything. Same reason as ArchiveUndoToast. -->
 <template>
   <div
     v-if="items.length"
@@ -37,7 +43,7 @@
     >
       <UiIcon class="error-snackbar__icon" name="alert-triangle" :size="18" />
       <div class="error-snackbar__body">
-        <LazyPlainErrorNotice
+        <PlainErrorNotice
           compact
           what="other"
           :message="item.text"
@@ -66,6 +72,7 @@
 </template>
 
 <script setup lang="ts">
+import PlainErrorNotice from '@/components/PlainErrorNotice.vue'
 import UiIcon from '@/components/UiIcon.vue'
 import { getErrors, subscribeErrors } from '@/composables/errorJournal.mjs'
 import {

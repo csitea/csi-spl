@@ -279,8 +279,9 @@ _spawn_worktree() {
 # task), which the hub resolves in the workspace that holds it; never a
 # `dispatch-orc-<topic8>` relay task; else (3.11, SPL-4457) the full uuid of
 # the first report task it names, `task `<uuid>`` or `--task <uuid>` (a
-# reviewer's brief names only that): the spool task is the lane's
-# discussion. Nothing for no file.
+# reviewer's brief names only that), never a version-5 one: that is a relay
+# task's hash of its name (spool-fleet-relay.sh, uuid5 "spool-task:<name>"),
+# not a discussion (R7 c-287 W1). Nothing for no file.
 _spawn_lane_topic() {
   local f="${1:-}" t
   [ -n "$f" ] && [ -r "$f" ] || return 0
@@ -288,7 +289,7 @@ _spawn_lane_topic() {
     head -1 | grep -oE '[0-9a-f]{8}(-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?' | head -1)"
   [ -n "$t" ] || t="$(grep -oE '(^|[^0-9A-Za-z-])dispatch-[0-9a-f]{8}([^0-9A-Za-z-]|$)' "$f" 2>/dev/null | head -1 | grep -oE '[0-9a-f]{8}' | head -1)"
   [ -n "$t" ] || t="$(grep -oE '(^|[^0-9A-Za-z])-?-?task[ =]+`?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}([^0-9A-Za-z-]|$)' "$f" 2>/dev/null |
-    head -1 | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)"
+    grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | grep -vE '^[0-9a-f]{8}-[0-9a-f]{4}-5' | head -1)"
   printf '%s' "$t"
 }
 

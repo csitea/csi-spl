@@ -11,6 +11,9 @@
 #   2. DRY_RUN=0: the filled rows are written with their repo, branch, scope
 #      and files kept; a lane whose brief names nothing stays as it was
 #   3. a second run finds only the lane that names nothing
+#   4. (R7 c-287 N2) a live row whose agent has no pane on this box is left
+#      out: a write would bump updated_at and bring a dead lane back onto
+#      the page (the 3.2 active rule). RED on 5a5a1b955: c-507 was filled.
 #   RED CONTROL (master 4cd5b29d2): the action did not exist.
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -57,7 +60,8 @@ row() {  # ID BOX TOPIC ISSUE STATE
   row c-001 sat "" "" live; printf ','
   row c-504 box-b "" "" live; printf ','
   row c-505 sat "$U2" SPL-9 live; printf ','
-  row c-506 sat "" "" "done"
+  row c-506 sat "" "" "done"; printf ','
+  row c-507 sat "" "" live
   printf ']}\n'; } >"$T/hub/main.json"
 brief() { mkdir -p "$T/spool/$1/lifetime"; printf '%b' "$2" >"$T/spool/$1/lifetime/brief.md"; }
 brief c-501 "# Lane brief\nSource: owner topic \`topic:$U1\`.\n"
@@ -66,10 +70,12 @@ brief c-502 "# Lane brief\nIssue: SPL-6\n"
 brief c-503 "# Lane brief\nReport on --task dispatch-r42.\n"
 brief c-001 "# Brief: orchestrator\nIssue: SPL-1\n"
 brief c-504 "# Lane brief\ntopic:$U1\nIssue: SPL-7\n"
+brief c-507 "# Lane brief\ntopic:$U1\nIssue: SPL-8\n"
 
 run() {
   env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$T/spool" LANE_FLEET=main LANE_BOX=sat SPOOL_DESK_BOX=sat \
-    LANE_HUB_CMD="$T/bin/hub" HUB_DIR="$T/hub" LANE_HUB_BACKOFF=0 "$@" bash -c '
+    LANE_HUB_CMD="$T/bin/hub" HUB_DIR="$T/hub" LANE_HUB_BACKOFF=0 \
+    LANE_BACKFILL_LIVE_IDS="c-501 c-502 c-503 c-001 c-504 c-505 c-506" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     source "'"$PROJ_ROOT"'/src/bash/run/spl-lane-backfill-links.func.sh"
@@ -85,8 +91,8 @@ if [[ $rc -eq 0 && "$out" == *"BEFORE c-501@sat topic=- issue=-"* && "$out" == *
 else fail "dry run (rc=$rc): $out"; fi
 [[ "$out" == *"3 live lane row(s) lacked a topic or an issue; 2 can be filled"*"missing after: 1 (was 3)"* ]] &&
   pass "dry run: the counts" || fail "dry run counts: $out"
-bad=""; for id in c-001 c-504 c-505 c-506; do [[ "$out" == *"$id@"* ]] && bad+=" $id"; done
-[[ -z "$bad" ]] && pass "a role seat, another box's row, a complete row and a done row are left out" || fail "rows looked at:$bad"
+bad=""; for id in c-001 c-504 c-505 c-506 c-507; do [[ "$out" == *"$id@"* ]] && bad+=" $id"; done
+[[ -z "$bad" ]] && pass "a role seat, another box's row, a complete row, a done row and a row with no pane are left out" || fail "rows looked at:$bad"
 [[ ! -e "$T/hub/writes" ]] && pass "dry run writes nothing" || fail "dry run wrote: $(cat "$T/hub/writes")"
 
 # 2. DRY_RUN=0

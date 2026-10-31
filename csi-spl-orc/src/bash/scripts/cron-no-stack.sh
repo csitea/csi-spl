@@ -23,8 +23,8 @@
 # Env:
 #   CRON_NO_STACK_MAX_S: holder age that counts as stuck (default 1800).
 #   CRON_NO_STACK_ALERT_TO: spool recipient (default "orchestrator").
-#   CRON_NO_STACK_ALERT_FROM: spool sender (default $SPOOL_AGENT_ID or
-#     cron-no-stack@<box>, the box name from the config).
+#   CRON_NO_STACK_ALERT_FROM: spool sender, an agent id (default $SPOOL_AGENT_ID,
+#     else LEASE_ORCH of $SPOOL_ROOT/dispatch/lease.conf).
 #   CRON_NO_STACK_ALERT_TASK: spool task id (default "cron-no-stack").
 #   CRON_NO_STACK_ALERT_SEND_BIN: spool-send.sh or a compatible tool (default
 #     the orc spool-send.sh next to this script); "none" sends nothing.
@@ -39,7 +39,22 @@ _box_lib="$(dirname "$0")/../../../lib/bash/funcs/spl-desk-box.func.sh"
 [ -r "$_box_lib" ] && source "$_box_lib"
 box() { if declare -F spl_box_name >/dev/null; then spl_box_name; else hostname -s; fi; }
 
+SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}"; export SPOOL_ROOT
+
 say() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
+
+# alert_from: the sender of the stuck note. spool-send.sh takes only an agent
+# id, so a <job>@<box> default is refused (R7 W2). As reliability-check-cron.sh:
+# CRON_NO_STACK_ALERT_FROM, else SPOOL_AGENT_ID, else this box's orchestrator
+# seat, LEASE_ORCH of the lease conf. rc 1 when none is an agent id.
+alert_from() {
+  local id
+  for id in "${CRON_NO_STACK_ALERT_FROM:-}" "${SPOOL_AGENT_ID:-}" \
+    "$(sed -n 's/^LEASE_ORCH=//p' "$SPOOL_ROOT/dispatch/lease.conf" 2>/dev/null | tail -1)"; do
+    [[ "$id" =~ ^([acgmq]-[0-9]{3}|[A-Z]{2,4}-[0-9]+)$ ]] && { printf '%s' "$id"; return 0; }
+  done
+  return 1
+}
 
 # alert_stuck <body>: one spool note per stuck holder; the marker
 # <lock>.stuck keeps the holder record it was sent for.
@@ -49,8 +64,9 @@ alert_stuck() {
   local send="${CRON_NO_STACK_ALERT_SEND_BIN:-$(dirname "$0")/../features/spawn-agents/scripts/spool-send.sh}"
   [ "$send" = none ] && return 0
   [ -f "$send" ] || { say "WARN no spool-send.sh at $send: stuck alert not sent"; return 0; }
-  if SPOOL_ROOT="${SPOOL_ROOT:-/var/spool-hub}" bash "$send" \
-    --from "${CRON_NO_STACK_ALERT_FROM:-${SPOOL_AGENT_ID:-cron-no-stack@$(box)}}" \
+  local from; from="$(alert_from)" || { say "WARN no agent id to send the stuck alert from (CRON_NO_STACK_ALERT_FROM, SPOOL_AGENT_ID, LEASE_ORCH of $SPOOL_ROOT/dispatch/lease.conf): not sent"; return 0; }
+  if bash "$send" \
+    --from "$from" \
     --to "${CRON_NO_STACK_ALERT_TO:-orchestrator}" --kind note \
     --task "${CRON_NO_STACK_ALERT_TASK:-cron-no-stack}" --body "$body" >/dev/null 2>&1; then
     printf '%s\n' "$rec" >"$marker"

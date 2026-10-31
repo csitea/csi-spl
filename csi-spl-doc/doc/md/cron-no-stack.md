@@ -26,6 +26,13 @@ its own:
   start writes `STUCK <job> held <n> s by pid <p> on <box> (max <m> s)` and
   exits 3, and the first such start sends one spool note to
   `CRON_NO_STACK_ALERT_TO` (default `orchestrator`, task `cron-no-stack`).
+  It is sent from an agent id, as `spool-send.sh` takes no other:
+  `CRON_NO_STACK_ALERT_FROM`, else `SPOOL_AGENT_ID`, else this box's
+  orchestrator seat (`LEASE_ORCH` of `$SPOOL_ROOT/dispatch/lease.conf`). No
+  installer sets the first two, so on a cron line it is `LEASE_ORCH`; with
+  none of them the start writes one WARN and sends nothing. This note is the
+  only signal: the line's `>> log 2>&1` keeps cron mail empty, and the STUCK
+  line keeps the log fresh for the heartbeat snitch.
   The `<lock>.stuck` mark keeps it to one note per stuck holder; the next run
   that gets the lock clears it. Why: a SKIP line keeps the log fresh, so the
   cron heartbeat snitch (log age) would read a hung job as healthy. The

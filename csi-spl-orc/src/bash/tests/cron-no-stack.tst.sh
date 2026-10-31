@@ -15,6 +15,9 @@
 #   6. the SKIP line names the holder's job, not the new start's
 #   7. a holder older than CRON_NO_STACK_MAX_S is stuck: STUCK line, rc 3,
 #      one spool note per stuck holder; red control: a young holder sends none
+#   8. with no sender set, as on a real cron line, the note goes from the
+#      box's orchestrator seat (LEASE_ORCH), an id spool-send.sh's own check
+#      (spool_valid_id) takes; no LEASE_ORCH -> one WARN, no note
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -136,6 +139,29 @@ kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null
 out="$("$W" "$T/s.lock" echo ran 2>&1)"; rc=$?
 [[ $rc -eq 0 && "$out" == ran && ! -e "$T/s.lock.stuck" ]] &&
   pass "7. once the holder is gone the next start runs and clears the stuck mark" || fail "7. after: rc=$rc out=$out"
+# 8. the default sender, as a real cron line has it: no CRON_NO_STACK_ALERT_FROM
+# and no SPOOL_AGENT_ID. The fake send runs spool-send.sh's own id check on
+# --from and refuses as spool-send.sh does (rc 2).
+SPL_ENV="$PROJ_ROOT/src/bash/features/spawn-agents/lib/spool-env.inc.sh"
+cat >"$T/check-send" <<EOF
+#!/usr/bin/env bash
+source '$SPL_ENV' >/dev/null 2>&1
+while [ \$# -gt 0 ]; do [ "\$1" = --from ] && from="\$2"; shift; done
+spool_valid_id "\$from" 2>>'$T/refused' || exit 2
+echo "from=\$from" >>'$T/sent'
+EOF
+mkdir -p "$T/spool/dispatch"; echo 'LEASE_ORCH=c-001' >"$T/spool/dispatch/lease.conf"
+: >"$T/sent"; : >"$T/refused"
+hold_lock "$T/f.lock" 4000 git
+out="$(env -u SPOOL_AGENT_ID -u CRON_NO_STACK_ALERT_FROM SPOOL_ROOT="$T/spool" CRON_NO_STACK_ALERT_SEND_BIN="$T/check-send" "$W" "$T/f.lock" true 2>&1)"; rc=$?
+[[ $rc -eq 3 && "$(cat "$T/sent")" == from=c-001 && ! -s "$T/refused" && -e "$T/f.lock.stuck" && "$out" == *"stuck alert sent"* ]] &&
+  pass "8. no sender set: the note goes from LEASE_ORCH (c-001), spool_valid_id takes it" ||
+  fail "8. rc=$rc sent=$(cat "$T/sent") refused=$(cat "$T/refused") out=$out"
+rm -f "$T/spool/dispatch/lease.conf" "$T/f.lock.stuck"; : >"$T/sent"
+out="$(env -u SPOOL_AGENT_ID -u CRON_NO_STACK_ALERT_FROM SPOOL_ROOT="$T/spool" CRON_NO_STACK_ALERT_SEND_BIN="$T/check-send" "$W" "$T/f.lock" true 2>&1)"; rc=$?
+[[ $rc -eq 3 && ! -s "$T/sent" && "$out" == *"WARN no agent id to send the stuck alert from"* ]] &&
+  pass "8. no LEASE_ORCH either: one WARN naming the gap, no note" || fail "8. no orch: rc=$rc sent=$(cat "$T/sent") out=$out"
+kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null
 
 echo
 if [ "$fails" -eq 0 ]; then echo "cron-no-stack: all passed"; exit 0; fi

@@ -3147,7 +3147,7 @@
       "events": "Olaylar",
       "tokens": "Belirteçler",
       "lanes": "Hatlar",
-      "topics": "Konular",
+      "topics": "Tartışmalar",
       "file_streams": "Dosya akışları"
     },
     "alloc": {
@@ -3345,15 +3345,15 @@
       "shown": "{n}/{total} hat"
     },
     "topics": {
-      "loading": "Konular yükleniyor…",
-      "error": "Konular yüklenemedi.",
-      "empty": "Etkin hattı olan konu yok",
-      "table_label": "Etkin hatları olan konular",
+      "loading": "Tartışmalar yükleniyor…",
+      "error": "Tartışmalar yüklenemedi.",
+      "empty": "Etkin hattı olan tartışma yok",
+      "table_label": "Etkin hatları olan tartışmalar",
       "col_channel": "Kanal",
       "col_active": "Son hat etkinliği",
-      "filter_text": "Konularda ara",
-      "no_match": "Filtrelere uyan konu yok",
-      "shown": "{n} / {total} konu",
+      "filter_text": "Tartışmalarda ara",
+      "no_match": "Filtrelere uyan tartışma yok",
+      "shown": "{n}/{total} tartışma",
       "no_topic": "Tartışma yok"
     },
     "file_streams": {

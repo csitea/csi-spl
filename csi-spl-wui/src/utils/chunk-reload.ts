@@ -21,6 +21,32 @@ export function shouldReload(last: number, now = Date.now()): boolean {
 }
 
 /**
+ * chunk-reload's decision for THIS page load, read by the error journal's
+ * chunk note (SPL-4525): a chunk failure is an app update only when
+ * chunk-reload reloads for it. True once the plugin has reloaded; before that,
+ * what the plugin would decide now from the state it read at page load. Never
+ * from the stored key read later: the reload itself writes it, and would turn
+ * its own failure into an error. A reload starts a new module instance.
+ */
+const page = { reloaded: false, wouldReload: (): boolean => false }
+
+/** The plugin, at setup: how it would decide a chunk failure now. */
+export function armChunkReloadDecision(wouldReload: () => boolean): void {
+  page.reloaded = false
+  page.wouldReload = wouldReload
+}
+
+/** The plugin, right before it reloads. */
+export function markChunkReloaded(): void {
+  page.reloaded = true
+}
+
+/** Does chunk-reload reload this page load for a chunk failure now? */
+export function chunkReloadsThisLoad(): boolean {
+  return page.reloaded || page.wouldReload()
+}
+
+/**
  * The vite:preloadError listener. Vite's preload helper reads preventDefault()
  * as "this import is handled": `baseModule().catch(handle)` then RESOLVES to
  * undefined, and every `import(x).then((m) => m.fn())` becomes a TypeError

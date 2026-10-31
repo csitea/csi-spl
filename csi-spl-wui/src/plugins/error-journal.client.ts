@@ -14,6 +14,7 @@
 // build-time failure must never be baked into a static page.
 import { noteError } from '@/composables/errorJournal.mjs'
 import { APP_UPDATED_NOTE, createChunkNoteFilter } from '~/utils/chunk-note'
+import { chunkReloadsThisLoad } from '~/utils/chunk-reload'
 
 /** Browser notices that arrive as window errors but are not defects. */
 const BENIGN_WINDOW_ERRORS = [
@@ -49,8 +50,10 @@ export default defineNuxtPlugin((nuxtApp) => {
   // The trail helper is its own chunk (the initial JS is at its ceiling): the
   // record waits for it, and is written without the trail if it cannot load.
   // A stale chunk after a deploy is not a defect: chunk-reload reloads the
-  // tab, and the journal keeps one info note per page load (SPL-4525).
-  const chunkNote = createChunkNoteFilter(() => navigator.onLine !== false)
+  // tab, and the journal keeps one info note per page load (SPL-4525). Only
+  // when chunk-reload reloads: offline or inside its 10 s guard the failure
+  // stays an error, so chunk-reload's own decision is asked.
+  const chunkNote = createChunkNoteFilter(chunkReloadsThisLoad)
   nuxtApp.hook('vue:error', (err, instance, info) => {
     const kind = chunkNote(err)
     if (kind === 'skip') return

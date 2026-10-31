@@ -1415,10 +1415,15 @@ spl_rotate_ack_wait() {
 # A role seat's ack may come from any of its ids (SPL-1685): the new session
 # acks as the lease.conf id, still the old letter until the switch flips it.
 # A switched seat keeps no letter link (SPL-4031): every id's outbox is read.
+# Only the outboxes that exist go to find (SPL-4507): a missing one made find
+# exit 1, and under the ./run pipefail that hid every ack of a seat with no
+# letter link (box 1 2026-10-31 11:16:07Z: c-002's ack sat in its outbox, the
+# master rotation failed "no ack within 600s").
 spl_rotate_ack_seen() {  # ID TASK
   local ids i dirs=()
   ids="$(spl_role_seat_ids "$1" 2>/dev/null || echo "$1")"
-  for i in $ids; do dirs+=("$SPOOL_ROOT/$i/outbox"); done
+  for i in $ids; do [[ -d "$SPOOL_ROOT/$i/outbox" ]] && dirs+=("$SPOOL_ROOT/$i/outbox"); done
+  (( ${#dirs[@]} )) || return 1
   find "${dirs[@]}" -maxdepth 1 -name '*.json' -mmin -120 -print0 2>/dev/null |
     xargs -0 -r jq -r --arg ids "$ids" --arg t "$2" 'select(.kind == "result" and .task_id == $t and (((.from // "") | sub("@.*"; "")) as $f | $ids | split("\n") | any(. == $f))) | .msg_id' 2>/dev/null |
     grep . >/dev/null

@@ -77,7 +77,7 @@ do_spl_desk_rebox() {
     pin | copy | drain | seat | resume | verify | retire) ;;
     *) do_log "FATAL REBOX_STEP must be pin | copy | drain | seat | resume | verify | retire, got: '$step'"; return 1 ;;
   esac
-  SPL_REBOX_FROM="$SPL_STATE_DIR/desk/$tenant/$from" SPL_REBOX_TO="$SPL_STATE_DIR/desk/$tenant/$to"
+  SPL_REBOX_FROM="$(spl_desk_dir "$tenant" "$from")" SPL_REBOX_TO="$(spl_desk_dir "$tenant" "$to")"
   SPL_REBOX_PAUSE="${SPOOL_ROOT:-/var/spool-hub}/.desk-reconcile.$ENV.pause"
   if (( dry )) && [[ "$step" != verify ]]; then
     do_log "INFO DRY_RUN would run step $step for $tenant on $ENV: $from -> $to (desk state $SPL_REBOX_FROM -> $SPL_REBOX_TO)"
@@ -91,14 +91,14 @@ do_spl_desk_rebox() {
 # desk is pinned on this machine, in name order, stopping at the first failure.
 _spl_rebox_all() {
   local p t n=0
-  for p in "$SPL_STATE_DIR"/desk/*/"$1"/pinned; do
+  while IFS= read -r -u 9 p; do
     [[ -s "$p" ]] || continue
     t="${p%/"$1"/pinned}"; t="${t##*/}"
     do_log "INFO TENANT_ID=all: $t"
     ( TENANT_ID="$t" do_spl_desk_rebox ) || { do_log "FATAL TENANT_ID=all stopped at $t (the tenants before it are done)"; return 1; }
     n=$((n + 1))
-  done
-  (( n > 0 )) || { do_log "FATAL TENANT_ID=all: no $1 desk is pinned under $SPL_STATE_DIR/desk"; return 1; }
+  done 9< <(spl_desk_glob "*/$1/pinned")
+  (( n > 0 )) || { do_log "FATAL TENANT_ID=all: no $1 desk is pinned under any desk root readable here ($(spl_desk_roots | cut -f2 | paste -sd' '))"; return 1; }
   do_log "OK TENANT_ID=all: $n tenant(s)"
 }
 

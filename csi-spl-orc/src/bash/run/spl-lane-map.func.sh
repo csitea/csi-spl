@@ -113,7 +113,7 @@ spl_lane_init() {
   [[ "$LANE_ENV" =~ ^(dev|prd|self)$ ]] || { do_log "FATAL LANE_ENV must be dev, prd or self (env, or LEASE_ENV in lease.conf)"; return 1; }
   ENV="$LANE_ENV" do_spl_desk_cnf || return 1
   spl_host_spool || return 1
-  LANE_DESK_DIR="$SPL_STATE_DIR/desk/$LANE_TENANT/$LANE_DESK_BOX"
+  LANE_DESK_DIR="$(spl_desk_dir "$LANE_TENANT" "$LANE_DESK_BOX")"
   [[ -s "$LANE_DESK_DIR/pinned" ]] ||
     { do_log "FATAL $LANE_DESK_BOX is not pinned in $LANE_TENANT ($LANE_DESK_DIR): seat a desk there first (do_spl_desk_up)"; return 1; }
 }

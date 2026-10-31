@@ -329,6 +329,14 @@ spl_dispatch_silence_win() {
   echo "$win"
 }
 
+# spl_dispatch_desk <t>: the desk dir of workspace <t>: under
+# DISPATCH_STATE_DIR, else wherever spl_desk_dir finds it (a moved desk).
+spl_dispatch_desk() {
+  local d="$DISPATCH_STATE_DIR/desk/$1/$DISPATCH_DESK_BOX"
+  [[ -d "$d" ]] || ! declare -F spl_desk_dir >/dev/null || d="$(SPL_STATE_DIR="$DISPATCH_STATE_DIR" spl_desk_dir "$1" "$DISPATCH_DESK_BOX" 2>/dev/null)"
+  printf '%s' "$d"
+}
+
 # spl_dispatch_inbound <tenant> <data>: the SILENT / UNSIGNED lines of one
 # workspace (none when it is healthy, a test workspace, or not seated here).
 # Inbound = files the dispatchers' desk spools received (inbox + archive,
@@ -344,7 +352,7 @@ spl_dispatch_inbound() {
   spl_dispatch_seated "$DISPATCH_MASTER" "$t" || spl_dispatch_seated "$DISPATCH_FAILOVER" "$t" || return 0
   since=$(( ${DISPATCH_NOW:-$(date +%s)} - win * 60 ))
   for a in "$DISPATCH_MASTER" "$DISPATCH_FAILOVER"; do
-    d="$DISPATCH_STATE_DIR/desk/$t/$DISPATCH_DESK_BOX/spool/$a"
+    d="$(spl_dispatch_desk "$t")/spool/$a"
     n=$(( n + $(find "$d/inbox" "$d/archive" -maxdepth 1 -type f -newermt "@$since" 2>/dev/null | wc -l) ))
   done
   (( n == 0 )) && echo "SILENT $t $posts human posts in $win min, 0 inbound files on the dispatchers' desk: the workspace receives nothing"

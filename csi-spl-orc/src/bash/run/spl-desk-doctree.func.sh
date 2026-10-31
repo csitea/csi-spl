@@ -71,7 +71,8 @@ do_spl_desk_doctree() {
   _spl_desk_doctree_in in || return 1
   _spl_desk_doctree_file_flags args "$in" || return 1
 
-  local d="$SPL_STATE_DIR/desk/$tenant/$box"
+  local d
+  d="$(spl_desk_dir "$tenant" "$box")"
   _spl_desk_doctree_seated "$d" "$box" "$agent" "$tenant" || return 1
 
   local dry=0

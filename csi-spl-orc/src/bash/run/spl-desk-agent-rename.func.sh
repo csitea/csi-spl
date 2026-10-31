@@ -47,21 +47,18 @@ do_spl_desk_agent_rename() {
     [[ "$old" =~ ^[A-Z]{2,4}-[0-9]+$ && "$new" =~ ^[acgmq]-[0-9]{3}$ && "${new#?-}" != 00[0-3] ]] ||
       { do_log "FATAL DESK_RENAME takes <legacy id>:<new id> pairs (c-684), got: '$p'"; return 1; }
   done
-  local tdir bdir t b rc=0 n=0
+  local bdir t b rc=0 n=0
   SPL_DESK_RENAMED=0
-  for tdir in "$SPL_STATE_DIR"/desk/*/; do
-    t="${tdir%/}"; t="${t##*/}"
+  while IFS= read -r -u 9 bdir; do
+    bdir="${bdir%/spool}"; b="${bdir##*/}"; t="${bdir%/*}"; t="${t##*/}"
     [[ "$t" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || continue
     [[ -z "${TENANT_ID:-}" || "$t" == "$TENANT_ID" ]] || continue
-    for bdir in "$tdir"*/; do
-      b="${bdir%/}"; b="${b##*/}"
-      [[ "$b" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && -d "$bdir/spool" ]] || continue
-      for p in $pairs; do
-        spl_desk_agent_rename_one "${bdir%/}" "$t" "$b" "${p%%:*}" "${p#*:}" "$dry" || rc=1
-      done
-      n=$((n + 1))
+    [[ "$b" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && -d "$bdir/spool" ]] || continue
+    for p in $pairs; do
+      spl_desk_agent_rename_one "$bdir" "$t" "$b" "${p%%:*}" "${p#*:}" "$dry" || rc=1
     done
-  done
+    n=$((n + 1))
+  done 9< <(spl_desk_glob "*/*/spool")
   if (( dry )); then
     do_log "OK DRY_RUN $ENV: $SPL_DESK_RENAMED desk seat(s) of $n desk(s) would move ($pairs); nothing was touched. Re-run with DRY_RUN=0."
   else

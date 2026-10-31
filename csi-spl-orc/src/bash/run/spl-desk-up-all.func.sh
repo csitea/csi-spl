@@ -94,7 +94,8 @@ do_spl_desk_up_all() {
   local hubcheck="${DESK_HUB_CHECK:-1}"
   _spl_desk_up_all_check_args "$tenant" "$box" "$retire" "$hubcheck" || return 1
 
-  local d="$SPL_STATE_DIR/desk/$tenant/$box"
+  local d
+  d="$(spl_desk_dir "$tenant" "$box")"
   local -a live=() seat=() seated=() failed=() retired=()
   mapfile -t live < <(spl_desk_live_agents)
   if [[ ${#live[@]} -eq 0 ]]; then
@@ -189,7 +190,7 @@ _spl_desk_up_all_rsp() {
   declare -F spl_rsp_box_default >/dev/null || return 0
   rsp="$(spl_rsp_box_default)"
   [[ "$rsp" != box-rsp && "$rsp" != "$box" ]] || return 0
-  dr="$SPL_STATE_DIR/desk/$tenant/$rsp"
+  dr="$(spl_desk_dir "$tenant" "$rsp")"
   [[ -s "$dr/pinned" ]] && return 0
   do_spl_desk_cnf && spl_host_spool || return 0
   if spl_desk_pin_check "$dr" "$rsp" "$tenant" "$SPL_HUB_URL" >/dev/null; then

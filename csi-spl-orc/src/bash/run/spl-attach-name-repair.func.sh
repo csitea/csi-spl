@@ -36,14 +36,15 @@ do_spl_attach_name_repair() {
   do_spl_desk_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
-  local box="${DESK_BOX:-$(spl_desk_box_default)}" tenants t rc=0
+  local box="${DESK_BOX:-$(spl_desk_box_default)}" tenants t d rc=0
   [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$box" != box-wui ]] || { do_log "FATAL DESK_BOX '$box' is not a box id"; return 1; }
   tenants="$(tr ',' ' ' <<<"${TENANT_IDS:-}" | xargs)"
   [[ -n "$tenants" ]] || tenants="$(_spl_anr_tenants "$box")"
-  [[ -n "$tenants" ]] || { do_log "FATAL no desk of $box is pinned in $SPL_STATE_DIR/desk: nothing to repair here"; return 1; }
+  [[ -n "$tenants" ]] || { do_log "FATAL no desk of $box is pinned under any desk root readable here: nothing to repair here"; return 1; }
   for t in $tenants; do
     spl_require_tenant_slug "$t" || return 1
-    [[ -s "$SPL_STATE_DIR/desk/$t/$box/pinned" ]] || { do_log "FATAL no pinned desk for $box in $t ($SPL_STATE_DIR/desk/$t/$box)"; return 1; }
+    d="$(spl_desk_dir "$t" "$box")"
+    [[ -s "$d/pinned" ]] || { do_log "FATAL no pinned desk for $box in $t ($d)"; return 1; }
   done
   do_gcp_pin_account "$SPL_CNF" || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
@@ -58,14 +59,15 @@ do_spl_attach_name_repair() {
 # _spl_anr_tenants <box>: every workspace whose <box> desk is pinned here.
 _spl_anr_tenants() {
   local p
-  for p in "$SPL_STATE_DIR"/desk/*/"$1"/pinned; do
+  spl_desk_glob "*/$1/pinned" | while IFS= read -r p; do
     [[ -s "$p" ]] && basename "$(dirname "$(dirname "$p")")"
   done | sort -u | xargs
 }
 
 # _spl_anr_tenant <tenant> <box> <dry>: one workspace, end to end.
 _spl_anr_tenant() {
-  local tenant="$1" box="$2" dry="$3" d="$SPL_STATE_DIR/desk/$1/$2" rows id out res left="" flag=()
+  local tenant="$1" box="$2" dry="$3" d rows id out res left="" flag=()
+  d="$(spl_desk_dir "$1" "$2")"
   (( dry )) && flag=(--dry-run)
   rows="$(spl_via_proxy _spl_anr_candidates_run "$tenant" "$box")" ||
     { do_log "FATAL listing the hash-named files of $box in $tenant failed"; return 1; }

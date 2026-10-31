@@ -34,7 +34,8 @@ do_spl_topic_list() {
   do_spl_desk_cnf || return 1
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" agent="${DESK_AGENT:-}"
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
-  local d="$SPL_STATE_DIR/desk/$tenant/$box"
+  local d
+  d="$(spl_desk_dir "$tenant" "$box")"
   if (( dry )); then
     do_log "INFO DRY_RUN would: spool topics --as $agent --channel $channel --limit $lim (box $box, tenant $tenant, $SPL_HUB_URL)"
     [[ -d "$d/spool/$agent" ]] || do_log "INFO DRY_RUN there is no desk for $agent on $box in $tenant yet ($d): do_spl_desk_up seats one"

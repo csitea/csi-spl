@@ -51,7 +51,7 @@ spl_agent_id_map_hub() {
       && "$b" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] \
       || { do_log "FATAL $table has a malformed row: $old $new $kind $b $at"; return 1; }
     [[ "$b" == "$box" ]] || continue
-    for d in "$SPL_STATE_DIR"/desk/*/"$box"/spool; do
+    while IFS= read -r -u 9 d; do
       [[ -e "$d/$old" || -L "$d/$old" || -e "$d/$new" ]] || continue
       t="${d%/"$box"/spool}"; t="${t##*/}"
       [[ "$t" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || continue
@@ -59,7 +59,7 @@ spl_agent_id_map_hub() {
       values+="${values:+,}('$t','$old','$new','$kind','$b','$at')"
       n=$((n + 1))
       do_log "INFO $ENV $t: $old -> $new ($kind, $b)"
-    done
+    done 9< <(spl_desk_glob "*/$box/spool")
   done <"$table"
   (( n > 0 )) || { do_log "WARN no desk of $ENV on $box seats any id of $table: no hub row to write"; return 0; }
   if (( dry )); then

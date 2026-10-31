@@ -33,10 +33,9 @@ do_spl_desk_check_mutes() {
   local state="${DESK_MUTE_ALARM_STATE_DIR:-${SPOOL_ROOT:-/var/spool-hub}/dispatch/desk-mutes}"
   local now m rel tenant box seat mt age n=0
   now="$(date +%s)"
-  for m in "$SPL_STATE_DIR"/desk/*/*/spool/*/.no-poke; do
+  while IFS= read -r -u 9 m; do
     [[ -e "$m" ]] || continue
-    rel="${m#"$SPL_STATE_DIR"/desk/}"
-    tenant="${rel%%/*}"; rel="${rel#*/}"; box="${rel%%/*}"
+    rel="${m%/spool/*/.no-poke}"; box="${rel##*/}"; tenant="${rel%/*}"; tenant="${tenant##*/}"
     seat="${m%/.no-poke}"; seat="${seat##*/}"
     [[ "$seat" == "${DESK_AGENT:-}" ]] && continue
     mt="$(stat -c %Y "$m" 2>/dev/null)" || continue
@@ -44,8 +43,8 @@ do_spl_desk_check_mutes() {
     printf '%s MUTED seat %s tenant %s box %s age %s since %s\n' "$(date -u +%FT%TZ)" \
       "$seat" "$tenant" "$box" "$(spl_desk_mute_age "$age")" "$(date -u -d "@$mt" +%FT%TZ)"
     (( raise && age > max )) && spl_desk_mute_raise "$tenant" "$box" "$seat" "$mt" "$age" "$state"
-  done
-  (( n )) || printf '%s OK no muted seat under %s/desk\n' "$(date -u +%FT%TZ)" "$SPL_STATE_DIR"
+  done 9< <(spl_desk_glob "*/*/spool/*/.no-poke")
+  (( n )) || printf '%s OK no muted seat under %s\n' "$(date -u +%FT%TZ)" "$(spl_desk_roots | cut -f2 | sed 's|$|/desk|' | paste -sd' ')"
   return 0
 }
 

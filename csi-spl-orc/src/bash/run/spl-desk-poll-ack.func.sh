@@ -86,9 +86,9 @@ do_spl_desk_poll_ack() {
     flock -n 7 || { do_log "INFO another poll ack run holds $LEASE_DIR/poll-ack.lock - skipped"; return 0; }
   fi
   local spool tenant rows tenant_n=0 seen=" " n=0 msg task from ts poll keys
-  for spool in "$SPL_STATE_DIR"/desk/*/"$box"/spool/"$agent"; do
+  while IFS= read -r -u 9 spool; do
     [[ -d "$spool" ]] || continue
-    tenant="${spool#"$SPL_STATE_DIR"/desk/}"; tenant="${tenant%%/*}"
+    tenant="${spool%/"$box"/spool/"$agent"}"; tenant="${tenant##*/}"
     spl_test_workspace "$tenant" && continue
     tenant_n=$((tenant_n + 1))
     rows="$(_spl_poll_ack_scan "$spool" "$max")" || { do_log "WARN could not read $spool"; continue; }
@@ -99,7 +99,7 @@ do_spl_desk_poll_ack() {
       _spl_poll_ack_one "$tenant" "$box" "$agent" "$msg" "$task" "$from" "$ts" "$poll" "$keys" "$log" "$dry" &&
         { seen+="$tenant/$task "; n=$((n + 1)); }
     done <<<"$rows"
-  done
+  done 9< <(spl_desk_glob "*/$box/spool/$agent")
   do_log "OK poll ack: holder $agent on $box, $tenant_n workspace(s) read, $n answer(s) acknowledged$([[ "$dry" == 1 ]] && echo ' (DRY_RUN: planned, nothing sent)')"
 }
 
@@ -256,7 +256,8 @@ _spl_poll_ack_tail() {
 # 0 when the answer was acknowledged (or, dry, would be); 1 otherwise.
 _spl_poll_ack_one() {
   local tenant="$1" box="$2" agent="$3" msg="$4" task="$5" from="$6" ts="$7" poll="$8" keys="$9" log="${10}" dry="${11}"
-  local d="$SPL_STATE_DIR/desk/$tenant/$box" tail="" known=0 verdict why body rc=0 wrc=0 outcome=sent
+  local d tail="" known=0 verdict why body rc=0 wrc=0 outcome=sent
+  d="$(spl_desk_dir "$tenant" "$box")"
   # the desk's spool binary, found (or built) once, at the first answer
   [[ -n "${SPL_SPOOL:-}" ]] || spl_host_spool || return 1
   if ! _spl_poll_ack_tail "$d" "$box" "$tenant" "$task"; then

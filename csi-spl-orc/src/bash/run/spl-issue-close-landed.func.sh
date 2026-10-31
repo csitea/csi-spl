@@ -183,7 +183,7 @@ spl_icl_ws_announced() {
   if [[ -z "${SPL_STATE_DIR:-}" ]]; then
     declare -F do_spl_desk_cnf >/dev/null && do_spl_desk_cnf >&2 || return 0
   fi
-  roster="$SPL_STATE_DIR/desk/$TENANT_ID/$box/spool"
+  roster="$(spl_desk_dir "$TENANT_ID" "$box")/spool"
   ids="$(python3 -c 'import json, sys; print("\n".join(json.load(open(sys.argv[1]))[sys.argv[2]]))' \
     "$roster/.hub/roster.json" "$box" 2>/dev/null)" || return 0
   grep -qx -- "$DESK_AGENT" <<<"$ids" && return 0

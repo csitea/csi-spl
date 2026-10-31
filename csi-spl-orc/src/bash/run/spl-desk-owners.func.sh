@@ -24,7 +24,8 @@ do_spl_desk_owners() {
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" dry="${DRY_RUN:-1}"
   spl_desk_validate "$tenant" "$box" none || return 1
   do_spl_cloud_cnf || return 1
-  local d="$SPL_STATE_DIR/desk/$tenant/$box" f ids="" id
+  local d f ids="" id
+  d="$(spl_desk_dir "$tenant" "$box")"
   [[ -d "$d" ]] || { do_log "FATAL no desk $box in $tenant on ${ENV:-?} ($d): run do_spl_desk_up first"; return 1; }
 
   for f in mirror-to operator owners; do

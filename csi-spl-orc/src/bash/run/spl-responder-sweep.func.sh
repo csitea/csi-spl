@@ -39,7 +39,7 @@ do_spl_responder_sweep() {
   do_require_bin python3 || return 1
   do_spl_cloud_cnf || return 1
   local box="${DESK_BOX:-$(spl_rsp_box_default)}" agent="${DESK_AGENT:-$SPL_RSP_AGENT}"
-  local deskroot="$SPL_STATE_DIR/desk" role dry=1
+  local role dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   spl_lease_init ro || return 1
   spl_lease_conf
@@ -49,15 +49,13 @@ do_spl_responder_sweep() {
     unknown) do_log "WARN the dispatch lease reads '$LH' (unreachable or stale): no $box sidecar is seated or taken down this tick" ;;
     standby) do_log "INFO the fleet's dispatch lease is held by $LH: this machine's responder sends nothing" ;;
   esac
-  [[ -d "$deskroot" ]] || { do_log "OK responder sweep ($ENV): no desks on this box ($deskroot)"; return 0; }
 
   # Every tenant with a seated box-rsp spool is in scope. The reconcile seats
   # them; we only drain and answer (and, in fleet mode, keep the sidecar on
   # the lease holder only).
-  local seated=0 swept=0 fails=0 tdir tenant d
-  for tdir in "$deskroot"/*/; do
-    tenant="$(basename "$tdir")"
-    d="$tdir$box"
+  local seated=0 swept=0 fails=0 tenant d
+  while IFS= read -r -u 9 d; do
+    d="${d%/spool}"; tenant="${d%/*}"; tenant="${tenant##*/}"
     [[ -d "$d/spool" ]] || continue
     seated=$((seated + 1))
     if [[ "$role" == standby ]]; then
@@ -73,7 +71,7 @@ do_spl_responder_sweep() {
       do_log "FAIL responder run for $agent in $tenant ($box)"
       fails=$((fails + 1))
     fi
-  done
+  done 9< <(spl_desk_glob "*/$box/spool")
 
   if (( seated == 0 )); then
     do_log "OK responder sweep ($ENV): no $box desk seated on this box yet (the reconcile seats it)"

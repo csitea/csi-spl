@@ -277,12 +277,12 @@ spl_dispatch_cnf() {
   DISPATCH_DESK_BOX="${DESK_BOX:-$(spl_desk_box_default)}"
   if [[ -z "${DISPATCH_TENANTS:-}" ]]; then
     local d
-    for d in "$DISPATCH_STATE_DIR"/desk/*/"$DISPATCH_DESK_BOX"/pinned; do
+    while IFS= read -r -u 9 d; do
       [[ -e "$d" ]] || continue
       d="${d%/"$DISPATCH_DESK_BOX"/pinned}"; d="${d##*/}"
       if [[ " ${DISPATCH_SKIP_TENANTS-} " == *" $d "* ]] || spl_test_workspace "$d"; then continue; fi
       DISPATCH_TENANTS+="${DISPATCH_TENANTS:+ }$d"
-    done
+    done 9< <(SPL_STATE_DIR="$DISPATCH_STATE_DIR" spl_desk_glob "*/$DISPATCH_DESK_BOX/pinned")
   fi
   [[ -n "${DISPATCH_TENANTS:-}" ]] || { do_log "FATAL no workspace: set DISPATCH_TENANTS (none pinned under $DISPATCH_STATE_DIR/desk)"; return 1; }
   SPL_DISPATCH_TMP="$(mktemp -d)" || return 1
@@ -448,15 +448,16 @@ spl_dispatch_spawn() {
 
 # 0 when <id> has a seat in workspace <t> on this box.
 spl_dispatch_seated() {
-  [[ -d "$DISPATCH_STATE_DIR/desk/$2/$DISPATCH_DESK_BOX/spool/$1" ]]
+  [[ -d "$(spl_dispatch_desk "$2")/spool/$1" ]]
 }
+
 
 spl_dispatch_desks() {
   local id="$1" t key
   for t in $DISPATCH_TENANTS; do
     if spl_dispatch_seated "$id" "$t"; then spl_dispatch_ok desk "$id in $t"; continue; fi
     key=""
-    [[ ! -e "$DISPATCH_STATE_DIR/desk/$t/$DISPATCH_DESK_BOX/pinned" && -n "${DISPATCH_ROOT_KEY_DIR:-}" ]] &&
+    [[ ! -e "$(spl_dispatch_desk "$t")/pinned" && -n "${DISPATCH_ROOT_KEY_DIR:-}" ]] &&
       key="$DISPATCH_ROOT_KEY_DIR/$t.json"
     spl_dispatch_do desk "do_spl_desk_up ENV=$ENV TENANT_ID=$t DESK_AGENT=$id${key:+ ROOT_KEY_JSON=$key}" \
       env TENANT_ID="$t" DESK_AGENT="$id" DESK_BOX="$DISPATCH_DESK_BOX" ${key:+ROOT_KEY_JSON="$key"} DRY_RUN=0 \

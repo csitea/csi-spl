@@ -142,7 +142,7 @@ spl_issue_owner_go_from() {
     { printf '%s\n' "${ISSUE_DESCRIPTION:-}"; cat "${ISSUE_DESCRIPTION_FILE:-/dev/null}" 2>/dev/null; } |
       grep -oE '/t/[0-9A-Za-z-]+' | sed 's#^/t/##'; } | awk 'NF && !seen[$0]++')
   for t in "${topics[@]}"; do
-    tail="$(spl_desk_spool "$SPL_STATE_DIR/desk/$tenant/$box" "$box" "$tenant" "$SPL_HUB_URL" -- hub-tail --task "$t" --json 2>/dev/null)" || continue
+    tail="$(spl_desk_spool "$(spl_desk_dir "$tenant" "$box")" "$box" "$tenant" "$SPL_HUB_URL" -- hub-tail --task "$t" --json 2>/dev/null)" || continue
     from="$(printf '%s\n' "$tail" | python3 -c 'import json, sys
 for l in sys.stdin:
     try: m = json.loads(l)

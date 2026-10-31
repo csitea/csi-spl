@@ -682,6 +682,43 @@ dirs 0700 as today, `desk/` and `<workspace>/` 0700 (today 0775).
   sessions (`SPL-2112` minted ids) hop the other way:
   `SPOOL_MCP_BOX_USER` becomes the desk user, `<agent-user>`.
 
+#### 8.3.1 Where a `./run` caller looks for a desk (SPL-4536)
+
+`SPL_STATE_DIR` is the CALLER's state root (`$HOME/...`): the operator state
+stays there, the desks do not. Every `./run` reader and writer of a desk takes
+its path from ONE resolver, `spl_desk_dir <workspace> <desk id> [env]`
+(`csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh`), never from
+`$SPL_STATE_DIR/desk`. A walker over many desks uses `spl_desk_glob '<glob>'`,
+the same roots in the same order. The roots (`spl_desk_roots`), first hit wins:
+
+1. `SPL_STATE_DIR` (this `ENV`), else the caller's own root: every desk that
+   has not moved is found exactly as before.
+2. the desk user's root (`SPOOL_DESK_USER`, `spl_desk_state_root`).
+3. the agent user's and the box user's (`SPOOL_AGENT_USER` of `box.env`,
+   `SPOOL_BOX_USER`, else the checkout's owner): `do_spl_desk_move` moves desk
+   by desk and writes `SPOOL_DESK_USER` only once all moved, so a half-moved
+   box holds desks under both users, either way round.
+
+Not found: it prints the caller's path (where `do_spl_desk_up` seats a new
+desk) and returns 1, and the caller keeps its own `run do_spl_desk_up` FATAL.
+A root of another user that the caller cannot enter (`drwx------`, never
+loosened) may hold the desk: it returns 3 with a refusal that names that user
+and the fix, `run this ./run action as <agent-user> (sudo -n -u <agent-user>
+env HOME=<its home> ./run -a <action>)`; `do_spl_desk_up` then refuses too,
+so no twin desk is seated under the caller.
+
+So a desk under `<agent-user>` is **readable only by `<agent-user>`**: a
+`<box-user>` cron that reads or posts through a moved desk keeps failing,
+now with that refusal instead of a bare `no desk for`, until it runs as the
+desk user. Rows of `cnf/box-crons/box-crons.manifest` that reach a desk
+(SPL-4536 inventory, first desk access): `issue-close-landed`, `qas-ci-accept`,
+`owner-digest`, `topic-status-card`, `vendor-terms-check` (the desk issue
+leg, `spl-desk-issue.func.sh`), `archived-seats-free`, `weekly-limit-alert`,
+`zombie-topics`, `token-burn` (`spl_lane_init`, `spl-lane-map.func.sh`),
+`file-streams` (when enabled). Moving those lines to the desk user's crontab,
+or hopping them with `sudo -n -u <agent-user>`, is a separate row and an
+owner decision; this row moves no crontab.
+
 ### 8.4 Per-box cutover (sat first, then `<pc box>`)
 
 Each box needs the **owner's go** for that box (G-sat, then G-pc). G-pc is
@@ -818,6 +855,8 @@ B1 `50941490a`, B2 `f2e2af405`, B3 `74a335452`, B4 `ec95d0f96`, B5
 reply and take commands and its allow rules hop to the desk user
 (`spl_dispatch_desk_hop` in `spl-dispatch-setup.func.sh`), with no `sudo` when
 the seat runs as the desk user; test `csi-spl-orc/src/bash/tests/dispatch-desk-user.tst.sh`.
+B9 (SPL-4536): every `./run` desk path through `spl_desk_dir` /
+`spl_desk_glob` (8.3.1); test `csi-spl-orc/src/bash/tests/desk-dir-follows-desk-user.tst.sh`.
 B8 docs still open: the three `sudo -u "$BOX_USER" ... do_spl_desk_reply`
 lines are in the Qto exports `isg/claude-agent-setup.ISG.md` and
 `isg/antigravity-agent-setup.ISG.md`; they change in their Qto docs, not here.

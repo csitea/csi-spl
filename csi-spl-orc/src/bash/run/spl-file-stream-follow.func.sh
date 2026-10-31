@@ -202,6 +202,10 @@ spl_file_stream_env() {
     [[ -n "$r" ]] && extra+="${extra:+:}$r"
   done
   [[ -n "${SPL_STATE_DIR:-}" ]] && extra+="${extra:+:}$SPL_STATE_DIR/desk"
+  # every root a desk may live in (spl_desk_roots: the desk user's too)
+  while IFS=$'\t' read -r _ r; do
+    [[ -n "$r" && "$r" != "${SPL_STATE_DIR:-}" ]] && extra+="${extra:+:}$r/desk"
+  done < <(spl_desk_roots 2>/dev/null)
   envs+=("FILE_STREAMS_DENY_EXTRA=$extra")
   [[ -n "${FILE_STREAMS_STATE_DIR:-}" ]] && envs+=("FILE_STREAMS_STATE_DIR=$FILE_STREAMS_STATE_DIR")
   # cron sets no SPOOL_ROOT: end on success, not on that test's status

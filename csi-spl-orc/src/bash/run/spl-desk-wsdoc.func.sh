@@ -59,7 +59,8 @@ do_spl_desk_wsdoc() {
     do_log "FATAL WSDOC_IN is for write only"; return 1
   fi
 
-  local d="$SPL_STATE_DIR/desk/$tenant/$box"
+  local d
+  d="$(spl_desk_dir "$tenant" "$box")"
   declare -F _spl_desk_doctree_seated >/dev/null ||
     source "$(dirname "${BASH_SOURCE[0]}")/spl-desk-doctree.func.sh"
   _spl_desk_doctree_seated "$d" "$box" "$agent" "$tenant" || return 1

@@ -92,7 +92,7 @@ do_spl_topic_copy_cross() {
 _spl_tcc_run() {
   local b d
   for b in "${src_boxes[@]}"; do
-    d="$SPL_STATE_DIR/desk/$src_t/$b"
+    d="$(spl_desk_dir "$src_t" "$b")"
     [[ -d "$d/spool" ]] || { do_log "FATAL no desk box $b in $src_t to read the source with ($d): do_spl_desk_up seats one"; return 1; }
   done
   spl_host_spool || return 1
@@ -112,7 +112,8 @@ _spl_tcc_run() {
     _spl_tcc_dry_report
     return 0
   fi
-  local dd="$SPL_STATE_DIR/desk/$dst_t/$dst_box"
+  local dd
+  dd="$(spl_desk_dir "$dst_t" "$dst_box")"
   [[ -d "$dd/spool/$dst_a" ]] || { do_log "FATAL no desk for $dst_a on $dst_box in $dst_t: run do_spl_desk_up first ($dd)"; return 1; }
   local have posted=0
   have="$(_spl_tcc_resume "$dd" "$dst_task")" || return 1
@@ -157,7 +158,7 @@ _spl_tcc_read_source() {
   local b d out
   : >"$work/src.ndjson"
   for b in "${src_boxes[@]}"; do
-    d="$SPL_STATE_DIR/desk/$src_t/$b"
+    d="$(spl_desk_dir "$src_t" "$b")"
     out="$(spl_desk_spool "$d" "$b" "$src_t" "$hub" -- hub-tail --task "$topic" --json 2>&1)" ||
       { do_log "FATAL hub-tail $topic on $b in $src_t: $out"; return 1; }
     grep '^{' <<<"$out" >>"$work/src.ndjson"
@@ -299,7 +300,7 @@ for i, p in enumerate(plan):
                                     "root" if i == 0 else "reply", p.get("head", "")))
 ' "$work/plan.json")
   do_log "INFO DRY_RUN target: #$channel in $dst_t as $dst_a on $dst_box, topic $dst_task ($link); then link-back=$link_back archive=$archive in $topic"
-  [[ -d "$SPL_STATE_DIR/desk/$dst_t/$dst_box/spool/$dst_a" ]] ||
+  [[ -d "$(spl_desk_dir "$dst_t" "$dst_box")/spool/$dst_a" ]] ||
     do_log "INFO DRY_RUN there is no desk for $dst_a on $dst_box in $dst_t yet: do_spl_desk_up seats one"
   _spl_tcc_summary 0 0 "$dst_task" "$link" 1
   do_log "OK DRY_RUN nothing was sent. Re-run with DRY_RUN=0 to copy."
@@ -393,7 +394,8 @@ _spl_tcc_after() {
 # put-file + --file-id each.
 _spl_tcc_reput() {
   local dd="$1" idx="$2" sb="${src_boxes[0]}" fid name out put dir rows cnt
-  local sd="$SPL_STATE_DIR/desk/$src_t/$sb"
+  local sd
+  sd="$(spl_desk_dir "$src_t" "$sb")"
   ids=()
   rows="$(_spl_tcc_jq "$work/plan.json" "'\n'.join(f['file_id'] + '\t' + f['name'] for f in d[$idx]['files'])")"
   [[ -n "$rows" ]] || return 0

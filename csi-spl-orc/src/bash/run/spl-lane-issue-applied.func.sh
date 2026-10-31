@@ -107,7 +107,7 @@ spl_lane_issue_hub_row() {
 spl_lane_issue_hub_body() {
   local out
   spl_desk_issue_once >&2 || return 1
-  out="$(spl_desk_spool "$SPL_STATE_DIR/desk/$TENANT_ID/$SLI_BOX" "$SLI_BOX" "$TENANT_ID" "$SPL_HUB_URL" -- hub-tail --task "$1" --json 2>/dev/null)" || return 1
+  out="$(spl_desk_spool "$(spl_desk_dir "$TENANT_ID" "$SLI_BOX")" "$SLI_BOX" "$TENANT_ID" "$SPL_HUB_URL" -- hub-tail --task "$1" --json 2>/dev/null)" || return 1
   python3 -c 'import json, sys
 for l in sys.stdin:
     try:

@@ -31,7 +31,7 @@ do_spl_responder_reboot_test() {
   do_require_bin python3 crontab || return 1
   do_spl_cloud_cnf || return 1
   local box="${DESK_BOX:-box-rsp}" require_rsp="${RSP_REQUIRE_SEATED:-0}"
-  local deskroot="$SPL_STATE_DIR/desk" fails=0 warns=0
+  local fails=0 warns=0
 
   # 1. the reboot-proof driver: a desk-reconcile crontab line this box owns,
   #    whose script is executable. Match on the tag, env-scoped or not.
@@ -60,20 +60,18 @@ do_spl_responder_reboot_test() {
 
   # 3. every seated desk has a live sidecar; the responder box gets its own say.
   local alive=0 dead=0 rsp_seated=0 pidf bdir tenant bname
-  if [[ -d "$deskroot" ]]; then
-    for pidf in "$deskroot"/*/*/spool/.hub/hub-run.pid; do
-      [[ -e "$pidf" ]] || continue
-      bdir="${pidf%/spool/.hub/hub-run.pid}"; bname="$(basename "$bdir")"
-      tenant="$(basename "$(dirname "$bdir")")"
-      if spl_desk_alive "$pidf"; then
-        alive=$((alive + 1))
-        [[ "$bname" == "$box" ]] && rsp_seated=1
-      else
-        do_log "FAIL 3/4 a seated desk did not come back: $tenant/$bname sidecar is dead ($pidf)"
-        dead=$((dead + 1)); fails=$((fails + 1))
-      fi
-    done
-  fi
+  while IFS= read -r -u 9 pidf; do
+    [[ -e "$pidf" ]] || continue
+    bdir="${pidf%/spool/.hub/hub-run.pid}"; bname="$(basename "$bdir")"
+    tenant="$(basename "$(dirname "$bdir")")"
+    if spl_desk_alive "$pidf"; then
+      alive=$((alive + 1))
+      [[ "$bname" == "$box" ]] && rsp_seated=1
+    else
+      do_log "FAIL 3/4 a seated desk did not come back: $tenant/$bname sidecar is dead ($pidf)"
+      dead=$((dead + 1)); fails=$((fails + 1))
+    fi
+  done 9< <(spl_desk_glob "*/*/spool/.hub/hub-run.pid")
   (( dead == 0 )) && do_log "OK 3/4 all $alive seated desk sidecar(s) are live after the reboot"
   if (( rsp_seated )); then
     do_log "OK the responder desk $box is seated and live"

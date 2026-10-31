@@ -49,7 +49,8 @@ do_spl_marketing_publish() {
     { do_log "FATAL $line"; return 1; }
   local title url commentary
   { IFS= read -r title; IFS= read -r url; commentary="$(cat)"; } <<<"$line"
-  local hub="$SPL_HUB_URL" d="$SPL_STATE_DIR/desk/$tenant/$box" desk=present
+  local hub="$SPL_HUB_URL" d desk=present
+  d="$(spl_desk_dir "$tenant" "$box")"
   [[ -d "$d/spool/$agent" ]] || desk=missing
   do_log "INFO post $post \"$title\" is live: $url"
   do_log "INFO LinkedIn commentary: ${commentary//$'\n\n'/ | }"

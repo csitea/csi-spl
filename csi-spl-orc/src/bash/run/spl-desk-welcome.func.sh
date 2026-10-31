@@ -175,9 +175,9 @@ _spl_desk_welcome_tenants() {
   if [[ -n "${TENANT_ID:-}" ]]; then
     read -r -a tenants <<<"$TENANT_ID"
   else
-    for t in "$SPL_STATE_DIR"/desk/*/"$box"/pinned; do
+    while IFS= read -r -u 9 t; do
       [[ -s "$t" ]] && tenants+=("$(basename "$(dirname "$(dirname "$t")")")")
-    done
+    done 9< <(spl_desk_glob "*/$box/pinned")
   fi
   for t in "${tenants[@]}"; do
     [[ "$t" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { do_log "FATAL TENANT_ID entry '$t' is not a tenant slug"; return 1; }
@@ -215,7 +215,7 @@ _spl_desk_welcome_ensure_plan() {
     return 1
   fi
   mkdir -p "$D" || return 2
-  spl_desk_welcome_plan "$SPL_STATE_DIR/desk/$tenant/$box/spool" "$greeter" "$@" >"$D/plan.tmp" &&
+  spl_desk_welcome_plan "$(spl_desk_dir "$tenant" "$box")/spool" "$greeter" "$@" >"$D/plan.tmp" &&
     mv -f "$D/plan.tmp" "$D/plan"
   if [[ ! -s "$D/plan" ]]; then
     rm -f "$D/plan" "$D/plan.tmp"
@@ -262,7 +262,7 @@ for l in sys.stdin:
 # seated bot", which is the pile-on CLE-77896 removed.
 spl_desk_greeter() {
   local g
-  g="$(head -n 1 "$SPL_STATE_DIR/desk/$1/$2/greeter" 2>/dev/null | tr -d '[:space:]')"
+  g="$(head -n 1 "$(spl_desk_dir "$1" "$2" 2>/dev/null)/greeter" 2>/dev/null | tr -d '[:space:]')"
   declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   [[ "$g" =~ ^${SPOOL_PARTICIPANT_RX}$ && "${g%%-*}" != HUM && "${g%%-*}" != BOX ]] && printf '%s\n' "$g"
   return 0

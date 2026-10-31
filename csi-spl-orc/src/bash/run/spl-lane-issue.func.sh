@@ -191,7 +191,8 @@ spl_lane_issue_desk() {
   if [[ -z "${DESK_AGENT:-}" ]]; then
     do_spl_desk_cnf >/dev/null || return 1
     box="$SLI_BOX"
-    local d="$SPL_STATE_DIR/desk/$TENANT_ID/$box/spool" first=""
+    local d first=""
+    d="$(spl_desk_dir "$TENANT_ID" "$box")/spool"
     # The lease's seats first, then any other agent of the desk: the first
     # one the desk sidecar announces (SPL-1707), else the first seated.
     for a in $(_sli_conf LEASE_MASTER) $(_sli_conf LEASE_ORCH) $(_sli_conf LEASE_FAILOVER) \

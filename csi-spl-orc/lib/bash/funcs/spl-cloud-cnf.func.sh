@@ -94,22 +94,26 @@ spl_cloud_cnf_locate() {
   source "$iac_lib/gcp-require-live-account.func.sh"
 }
 
-# spl_desk_user: the OS user that owns the desks (spec 069 section 8.3):
-# SPOOL_DESK_USER, else that key in the box config ($SPOOL_BOX_ENV, else
-# <live spool root>/box.env; under SPOOL_TEST=1 only a named SPOOL_BOX_ENV),
-# else empty: the desks stay in the caller's own state root, as before.
-spl_desk_user() {
-  local v="${SPOOL_DESK_USER:-}" f="${SPOOL_BOX_ENV:-${SPOOL_LIVE_ROOT:-/var/spool-hub}/box.env}" k val
+# spl_box_key <key>: a key of the box config: the environment, else that key
+# in $SPOOL_BOX_ENV, else <live spool root>/box.env (under SPOOL_TEST=1 only a
+# named SPOOL_BOX_ENV), else empty. KEY=VALUE lines, never sourced.
+spl_box_key() {
+  local v="${!1:-}" f="${SPOOL_BOX_ENV:-${SPOOL_LIVE_ROOT:-/var/spool-hub}/box.env}" k val
   [[ "${SPOOL_TEST:-}" == 1 && -z "${SPOOL_BOX_ENV:-}" ]] && f=""
   if [[ -z "$v" && -r "$f" ]]; then
     while IFS='=' read -r k val || [[ -n "$k" ]]; do
-      [[ "$k" == SPOOL_DESK_USER ]] || continue
+      [[ "$k" == "$1" ]] || continue
       val="${val%$'\r'}"; val="${val#\"}"; val="${val%\"}"; val="${val#\'}"; val="${val%\'}"
       v="$val"
     done <"$f"
   fi
   printf '%s' "$v"
 }
+
+# spl_desk_user: the OS user that owns the desks (spec 069 section 8.3):
+# SPOOL_DESK_USER of the box config (spl_box_key), else empty: the desks stay
+# in the caller's own state root, as before.
+spl_desk_user() { spl_box_key SPOOL_DESK_USER; }
 
 # spl_desk_state_root [env]: the cloud state root that holds env's desks
 # (default $ENV), <root>/desk/<workspace>/<desk id>. No desk user: today's
@@ -129,6 +133,89 @@ spl_desk_state_root() {
   h="$(getent passwd "$u" 2>/dev/null | cut -d: -f6)"
   [[ -n "$h" ]] || { do_log "FATAL desk user '$u' has no home (getent passwd)" >&2; return 1; }
   printf '%s' "$h/.local/share/$oa/cloud/$e"
+}
+
+# spl_desk_dir <workspace> <desk id> [env]: THE desk directory,
+# <root>/desk/<workspace>/<desk id>, wherever it lives (spec 069 section 8.3.1).
+# Every ./run reader and writer of a desk takes its path from here, never from
+# $SPL_STATE_DIR/desk: SPL_STATE_DIR is the CALLER's state, and a moved desk
+# lives under the desk user's home. The roots are tried in this order, the
+# first that holds the desk wins (spl_desk_roots):
+#   1. SPL_STATE_DIR (env = $ENV), else the caller's own root: every desk
+#      found before the move is found the same way
+#   2. the desk user's root (SPOOL_DESK_USER, spl_desk_state_root)
+#   3. the agent user's and the box user's (SPOOL_AGENT_USER, SPOOL_BOX_USER,
+#      else the owner of this checkout):
+#      do_spl_desk_move moves desk by desk and writes SPOOL_DESK_USER only
+#      once every desk moved, so a half-moved box holds desks under both
+# Found: prints it, 0. Not found: prints where a new desk is seated (root 1),
+# returns 1, and the caller keeps its own "run do_spl_desk_up" FATAL. A root
+# of another user the caller cannot enter (drwx------) may hold it: the
+# refusal names that user and the fix on stderr, returns 3. Nothing is chmod-ed.
+spl_desk_dir() {
+  local ws="$1" box="$2" e="${3:-${ENV:-}}" me u r first="" deny=""
+  [[ -n "$ws" && -n "$box" && -n "$e" ]] || { do_log "FATAL spl_desk_dir: workspace, desk id and env are required" >&2; return 1; }
+  me="$(id -un)"
+  while IFS=$'\t' read -r u r; do
+    [[ -n "$r" ]] || continue
+    [[ -n "$first" ]] || first="$r/desk/$ws/$box"
+    [[ -d "$r/desk/$ws/$box" ]] && { printf '%s' "$r/desk/$ws/$box"; return 0; }
+    [[ "$u" != "$me" && -z "$deny" ]] && ! spl_desk_root_enterable "$r/desk/$ws/$box" && deny="$u"$'\t'"$r"
+  done < <(spl_desk_roots "$e")
+  printf '%s' "$first"
+  [[ -n "$deny" ]] || return 1
+  u="${deny%%$'\t'*}" r="${deny#*$'\t'}"
+  do_log "FATAL the desk $e/$ws/$box is not under $me's state root, and $u's state root $r is not readable by $me (drwx------, not loosened): run this ./run action as $u (sudo -n -u $u env HOME=$(getent passwd "$u" 2>/dev/null | cut -d: -f6) ./run -a <action>); the desk dirs stay 0700" >&2
+  return 3
+}
+
+# spl_desk_roots [env]: "<user>\t<cloud state root>" per root that may hold
+# env's desks, in spl_desk_dir's lookup order, each root once.
+spl_desk_roots() {
+  local e="${1:-${ENV:-}}" me oa u r seen=" "
+  me="$(id -un)"
+  oa="${SPL_ORG_APP:-$(basename "${PROJ_PATH:?PROJ_PATH unset}")}"; oa="${oa%-orc}"
+  {
+    if [[ "$e" == "${ENV:-}" && -n "${SPL_STATE_DIR:-}" ]]; then printf '%s\t%s\n' "$me" "$SPL_STATE_DIR"
+    else printf '%s\t%s\n' "$me" "$HOME/.local/share/$oa/cloud/$e"; fi
+    for u in "$(spl_desk_user)" "$(spl_box_key SPOOL_AGENT_USER)" "${SPOOL_BOX_USER:-$(stat -c %U "$PROJ_PATH" 2>/dev/null)}"; do
+      [[ -n "$u" && "$u" != "$me" ]] || continue
+      r="$(SPOOL_DESK_USER="$u" spl_desk_state_root "$e" 2>/dev/null)" && printf '%s\t%s\n' "$u" "$r"
+    done
+  } | while IFS=$'\t' read -r u r; do
+    [[ "$seen" == *" $r "* ]] && continue
+    seen+="$r "; printf '%s\t%s\n' "$u" "$r"
+  done
+}
+
+# spl_desk_glob <glob> [env]: every existing path that <glob>, taken under
+# <root>/desk/ (e.g. '*/box-a/pinned'), matches in the roots of spl_desk_roots
+# the caller can enter, one per line. A <workspace>/<desk id> found in an
+# earlier root hides the same one in a later root, as in spl_desk_dir. The
+# walker of every ./run action that visits all desks (of a box, of a box id).
+spl_desk_glob() {
+  local u r p k seen=" "
+  while IFS=$'\t' read -r u r; do
+    [[ -d "$r/desk" && -x "$r/desk" ]] || continue
+    for p in "$r/desk/"$1; do
+      [[ -e "$p" ]] || continue
+      k="${p#"$r/desk/"}"; k="${k%%/*}/$(cut -d/ -f2 <<<"${p#"$r/desk/"}")"
+      [[ "$seen" == *" $u:$k "* ]] && { printf '%s\n' "$p"; continue; }
+      [[ "$seen" == *":$k "* ]] && continue
+      seen+="$u:$k "; printf '%s\n' "$p"
+    done
+  done < <(spl_desk_roots "${2:-${ENV:-}}")
+}
+
+# spl_desk_root_enterable <path>: the deepest existing ancestor of path (or
+# path) is a dir the caller can enter and list; false = another user's 0700.
+spl_desk_root_enterable() {
+  local p="$1"
+  while [[ "$p" == /* && "$p" != / ]]; do
+    [[ -e "$p" ]] && { [[ -d "$p" && -x "$p" && -r "$p" ]]; return; }
+    p="$(dirname "$p")"
+  done
+  return 0
 }
 
 # spl_cloud_cnf_write: SPL_STATE_DIR and SPL_CNF, the merged cnf of $ENV.

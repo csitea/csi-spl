@@ -80,9 +80,11 @@ do_spl_workspace_delivery_probe() {
   WDP_ASK_TO="${PROBE_ASK_TO:-${LEASE_ORCH:-$(spl_role_seat 1)}}"
   WDP_FROM="${PROBE_FROM:-$WDP_TO}"
   WDP_ALERT_T="${PROBE_ALERT_TENANT:-${LEASE_TENANT:-t1}}"
-  WDP_DESK="${PROBE_DESK_DIR:-$SPL_STATE_DIR/desk}"
   WDP_LOGIN="${PROBE_LOGIN_DIR:-$SPL_STATE_DIR/m3-e2e}"
   WDP_BOX="${PROBE_BOX:-$(spl_desk_box_default)}"
+  # The desk root of the alert workspace's desk (spl_desk_dir): a moved desk
+  # lives under the desk user's home, not under SPL_STATE_DIR.
+  WDP_DESK="${PROBE_DESK_DIR:-$(dirname "$(dirname "$(spl_desk_dir "$WDP_ALERT_T" "$WDP_BOX")")")}"
   for v in "$WDP_TO" "$WDP_ASK_TO" "$WDP_FROM"; do
     [[ "$v" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { do_log "FATAL '$v' is not an agent id"; return 1; }
   done

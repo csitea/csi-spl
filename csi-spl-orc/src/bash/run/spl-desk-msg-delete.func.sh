@@ -40,7 +40,8 @@ do_spl_desk_msg_delete() {
   for id in $sel; do
     [[ "$id" =~ ^[0-9a-f]{8}[0-9a-f-]{0,28}$ ]] || { do_log "FATAL MSG_IDS entry must be a msg id or a prefix of 8+ hex, got: '$id'"; return 1; }
   done
-  local hub="$SPL_HUB_URL" d="$SPL_STATE_DIR/desk/$tenant/$box"
+  local hub="$SPL_HUB_URL" d
+  d="$(spl_desk_dir "$tenant" "$box")"
   [[ -d "$d/spool/$agent" ]] || { do_log "FATAL no desk for $agent on $box in $tenant: run do_spl_desk_up first ($d)"; return 1; }
   spl_host_spool || return 1
 

@@ -62,7 +62,8 @@ do_spl_desk_down() {
   declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   [[ -z "$agent" ]] || spl_is_participant_id "$agent" || { do_log "FATAL DESK_AGENT '$agent' is not an agent id (e.g. CLE-00)"; return 1; }
 
-  local d="$SPL_STATE_DIR/desk/$tenant/$box" pidf pid="" was=0 rel=0 stop=0
+  local d pidf pid="" was=0 rel=0 stop=0
+  d="$(spl_desk_dir "$tenant" "$box")"
   pidf="$d/spool/.hub/hub-run.pid"
   if spl_desk_alive "$pidf"; then was=1; stop=1; pid="$(cat "$pidf")"; fi
   [[ -n "$agent" && -d "$d/spool/$agent" ]] && ! spl_desk_is_od "$agent" &&

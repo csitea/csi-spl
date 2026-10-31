@@ -20,7 +20,8 @@ do_spl_agent_caps() {
   do_spl_desk_cnf || return 1
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}"
   spl_desk_validate "$tenant" "$box" none || return 1
-  local d="$SPL_STATE_DIR/desk/$tenant/$box"
+  local d
+  d="$(spl_desk_dir "$tenant" "$box")"
   [[ -s "$d/pinned" ]] || {
     do_log "FATAL $box is not pinned in $tenant on this machine ($d/pinned): seat a desk there first (do_spl_desk_up)"; return 1; }
   spl_host_spool || return 1

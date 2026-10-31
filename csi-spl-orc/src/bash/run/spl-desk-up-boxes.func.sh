@@ -33,34 +33,32 @@ do_spl_desk_up_boxes() {
   do_spl_cloud_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
-  local main="${DESK_BOX:-$(spl_desk_box_default)}" tdir bdir t b d rc=0 n=0 r=0 why agent
-  for tdir in "$SPL_STATE_DIR"/desk/*/; do
-    t="${tdir%/}"; t="${t##*/}"
+  local main="${DESK_BOX:-$(spl_desk_box_default)}" t b d rc=0 n=0 r=0 why agent
+  while IFS= read -r -u 9 d; do
+    [[ -d "$d" ]] || continue
+    b="${d##*/}"; t="${d%/*}"; t="${t##*/}"
     [[ "$t" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || continue
-    for bdir in "$tdir"*/; do
-      d="${bdir%/}"; b="${d##*/}"
-      [[ "$b" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$b" != box-wui && "$b" != "$main" ]] || continue
-      [[ -e "$d/rebox-seated.txt" || -d "$d/rebox-retired" ]] && continue
-      [[ -e "$d/spool/.hub/hub-run.pid" ]] || continue
-      agent="$(spl_desk_box_agents "$d" | sed -n 1p)"
-      [[ -n "$agent" ]] || continue
-      n=$((n + 1))
-      why="$(spl_desk_box_state "$d")"
-      if [[ "$why" == up ]]; then
-        do_log "INFO desk box $b of $t: in the reconcile set, sidecar up on the current binary"
-        continue
-      fi
-      if (( dry )); then
-        do_log "INFO DRY_RUN would: restart the sidecar of desk box $b of $t ($why) by seating $agent"
-        continue
-      fi
-      if spl_desk_box_restart "$d" "$t" "$b" "$agent"; then
-        r=$((r + 1)); do_log "INFO desk box $b of $t: restarted ($why) for $agent"
-      else
-        rc=1; do_log "FAIL desk box $b of $t: the restart ($why) for $agent failed: see $d/spool/.hub/hub-run.log"
-      fi
-    done
-  done
+    [[ "$b" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$b" != box-wui && "$b" != "$main" ]] || continue
+    [[ -e "$d/rebox-seated.txt" || -d "$d/rebox-retired" ]] && continue
+    [[ -e "$d/spool/.hub/hub-run.pid" ]] || continue
+    agent="$(spl_desk_box_agents "$d" | sed -n 1p)"
+    [[ -n "$agent" ]] || continue
+    n=$((n + 1))
+    why="$(spl_desk_box_state "$d")"
+    if [[ "$why" == up ]]; then
+      do_log "INFO desk box $b of $t: in the reconcile set, sidecar up on the current binary"
+      continue
+    fi
+    if (( dry )); then
+      do_log "INFO DRY_RUN would: restart the sidecar of desk box $b of $t ($why) by seating $agent"
+      continue
+    fi
+    if spl_desk_box_restart "$d" "$t" "$b" "$agent"; then
+      r=$((r + 1)); do_log "INFO desk box $b of $t: restarted ($why) for $agent"
+    else
+      rc=1; do_log "FAIL desk box $b of $t: the restart ($why) for $agent failed: see $d/spool/.hub/hub-run.log"
+    fi
+  done 9< <(spl_desk_glob "*/*")
   if (( dry )); then
     do_log "OK DRY_RUN $n desk box(es) other than $main in the reconcile set; nothing was touched"
   else

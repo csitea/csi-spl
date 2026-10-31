@@ -33,8 +33,8 @@ do_spl_desk_up_tenants() {
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local box="${DESK_BOX:-$(spl_desk_box_default)}" skip=" ${DESK_SKIP_TENANTS:-} " t dir rc=0 n=0
   [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$box" != box-wui ]] || { do_log "FATAL DESK_BOX '$box' is not a box id (box-wui is reserved)"; return 1; }
-  for dir in "$SPL_STATE_DIR"/desk/*/; do
-    t="${dir%/}"; t="${t##*/}"
+  while IFS= read -r -u 9 dir; do
+    dir="${dir%"$box"/spool}"; t="${dir%/}"; t="${t##*/}"
     [[ "$t" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && -d "$dir$box/spool" ]] || continue
     [[ "$skip" == *" $t "* ]] && continue
     n=$((n + 1))
@@ -44,7 +44,7 @@ do_spl_desk_up_tenants() {
     else
       rc=1; do_log "FAIL desk of $t: do_spl_desk_up_all failed"
     fi
-  done
+  done 9< <(spl_desk_glob "*/$box/spool")
   do_log "OK reconciled the desks of $n tenant(s) other than:${skip% }"
   return "$rc"
 }

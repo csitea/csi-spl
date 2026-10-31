@@ -30,7 +30,7 @@
 // against a re-implementation of it.
 import { isAbortError, statusFrom } from './apiHealth.mjs'
 import { redactPath, redactText, redactUrl } from '../utils/error-journal-format.mjs'
-import { pushRecord } from '../utils/error-journal-store.mjs'
+import { mergeRecord, pushRecord } from '../utils/error-journal-store.mjs'
 
 export {
   ageParts,
@@ -349,24 +349,69 @@ function isClient(opts) {
   return typeof window !== 'undefined'
 }
 
+// ── one failure, one record (SPL-4523) ─────────────────────────────────────
+//
+// prd human_events, n=100 (SPL-4419): 73 rows were `api ... TypeError Failed
+// to fetch`, because one network drop journaled one record per request (up to
+// 14 a minute), and 3 rows inside 1 ms carried ONE error_id, because channel,
+// topic and promise each re-journaled the same stamped Error. Both now merge
+// into the record already in the buffer (count + lastAt) instead of pushing a
+// new one. The merged record keeps its `seq`, so the event shipper and the
+// snackbar, which take each seq once, do not see it again.
+
+/** A transport drop joins the open drop record while drops keep coming this close together. */
+export const TRANSPORT_COALESCE_MS = 30_000
+
+/** A fetch that never got an answer: the browser's TypeError, no HTTP status. */
+function isTransportInput(input) {
+  const err = input.error && typeof input.error === 'object' ? input.error : null
+  return input.source === 'api' && !!err && err.name === 'TypeError' && !(Number(statusFrom(input)) > 0)
+}
+
+function isTransportRecord(r) {
+  return r.source === 'api' && r.name === 'TypeError' && !r.status
+}
+
+/** The record this failure belongs to, merged; null when it is a new one. */
+function mergeSameFailure(input, nowMs) {
+  const lastAt = new Date(nowMs).toISOString()
+  const bump = (r) => ({ ...r, count: (Number(r.count) || 1) + 1, lastAt })
+  const known = extractErrorId(input)
+  if (known) {
+    const hit = mergeRecord((r) => r.errorId === known, bump)
+    if (hit) return hit
+  }
+  if (!isTransportInput(input)) return null
+  return mergeRecord((r) => isTransportRecord(r)
+    && nowMs - Date.parse(String(r.lastAt || r.at)) <= TRANSPORT_COALESCE_MS, bump)
+}
+
 /**
  * Record one failure. No-op on the server. Never throws. Returns the stored
- * record (so a caller can quote its reference id) or null.
+ * record (so a caller can quote its reference id) or null. A failure the
+ * buffer already holds (same error id, or a transport drop within
+ * TRANSPORT_COALESCE_MS of the last one) is merged into that record.
  *
  * @param {object} input see buildErrorRecord
- * @param {{ isClient?: boolean }} [opts]
+ * @param {{ isClient?: boolean, now?: number }} [opts] `now`: ms, for tests
  * @returns {object | null}
  */
 export function noteError(input, opts) {
   try {
     if (!isClient(opts)) return null
+    if (!input || typeof input !== 'object') return null
     // A cancelled in-flight request (locale switch, navigation) is not a
     // failure — same rule the outage banner already applies.
-    if (input && isAbortError(input.error)) return null
-    const rec = buildErrorRecord(input)
+    if (isAbortError(input.error)) return null
+    const nowMs = opts && Number.isFinite(opts.now) ? Number(opts.now) : Date.now()
+    const merged = mergeSameFailure(input, nowMs)
+    const rec = merged || buildErrorRecord(input)
     if (!rec) return null
     // The UI shows what the journal recorded — one failure, one id.
-    stampErrorId(input && input.error, rec.errorId)
+    stampErrorId(input.error, rec.errorId)
+    if (merged) return merged
+    rec.count = 1
+    rec.lastAt = new Date(nowMs).toISOString()
     pushRecord(rec)
     return rec
   } catch {

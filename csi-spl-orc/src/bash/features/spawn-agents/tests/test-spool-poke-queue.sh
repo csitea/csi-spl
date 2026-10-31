@@ -234,6 +234,34 @@ eq "…leaving nothing to offer" 0 "$(ls -1 "$q92"/*.poke 2>/dev/null | wc -l)"
 out="$(bash "$T_SCRIPTS/spool-poke-retry.sh" --to CLE-92 --once 2>&1)"
 has "an empty queue ends a new one at once" "queue is empty" "$out"
 
+# The desk quiesce window (spec 069 8.4.1, R7 W2): while do_spl_desk_move
+# holds <desk>.quiesce (the desk of this spool root), the daemon removes no
+# entry and does not exit, so the move's copy and its exact verify see one
+# file list. CLE-97 has no window: its entry is never delivered, the daemon
+# keeps sweeping, and an entry made stale meanwhile is only dropped once the
+# marker goes.
+qm="${SPOOL_ROOT%/}"; qm="${qm%/*}.quiesce"
+q97="$(spool_poke_queue_dir CLE-97)"
+e97="$(spool_poke_queue_add CLE-97 "a poke for a seat with no window")"
+SPOOL_POKE_RETRY_EVERY=0.2 SPOOL_POKE_RETRY_SECS=30 bash "$T_SCRIPTS/spool-poke-retry.sh" --to CLE-97 >"$T_TMP/retry97.log" 2>&1 &
+r97=$!
+for i in $(seq 1 20); do [ -s "$q97/retry.pid" ] && break; sleep 0.2; done
+echo "do_spl_desk_move test" >"$qm"
+sleep 0.5; touch -d '2 hours ago' "$e97"; sleep 1
+check "a quiesced desk: the daemon drops no entry" test -e "$e97"
+check "…and does not exit" test -e "/proc/$r97"
+rm -f "$qm"
+for i in $(seq 1 25); do [ -e "/proc/$r97" ] || break; sleep 0.2; done
+check "the marker gone, the stale entry is dropped" test ! -e "$e97"
+check "…and the drained daemon exits" test ! -e "/proc/$r97"
+kill "$r97" 2>/dev/null; wait "$r97" 2>/dev/null
+echo "do_spl_desk_move test" >"$qm"
+spool_poke_queue_add CLE-98 "queued in the window" >/dev/null
+DESK_QUIESCE_WAIT_SECS=1 bash "$T_SCRIPTS/spool-poke-retry.sh" --to CLE-98 --once >/dev/null 2>&1
+eq "a daemon started in the window refuses after the wait (75)" 75 "$?"
+check "…before it makes its lock" test ! -e "$(spool_poke_queue_dir CLE-98)/retry.lock"
+rm -f "$qm"
+
 # ── the four acceptance tests for the notice pane (CLE-3434 / ORC) ─────────
 # Stated as the owner experiences them, against a throwaway agent pane. The
 # real orchestrator pane is not touched by any of this.

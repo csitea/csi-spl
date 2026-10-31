@@ -28,11 +28,18 @@
 #   SPOOL_POKE              0 makes this daemon exit at once and clear the
 #                           queue: the seat has said its prompt is off limits
 #
+# The desk quiesce window (spec 069 8.4.1, lib/desk-quiesce.inc.sh): while
+# do_spl_desk_move copies a desk, this daemon changes nothing under its spool.
+# It waits before its first file (75 when still held, or the desk moved
+# away), and a sweep is skipped (no entry removed, no exit) while the marker
+# is live, so its file list stays still from the copy to the verify.
+#
 # Exit codes:
 #   0   the queue is empty, or the deadline passed with entries left (they stay
 #       on disk, and the messages themselves are in the inbox either way)
 #   2   usage
 #   73  the queue dir is not usable
+#   75  the desk stayed quiesced past DESK_QUIESCE_WAIT_SECS, or moved away
 set -uo pipefail
 
 _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -42,6 +49,8 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 . "$_here/../lib/spool-notify.inc.sh"
 # shellcheck source=../lib/spool-poke-queue.inc.sh
 . "$_here/../lib/spool-poke-queue.inc.sh"
+# shellcheck source=../lib/desk-quiesce.inc.sh
+. "$_here/../lib/desk-quiesce.inc.sh"
 spool_env_resolve
 
 TO="" ONCE=0
@@ -56,6 +65,7 @@ done
 [ -n "$TO" ] || { echo "spool-poke-retry: --to <ID> is required" >&2; exit 2; }
 spool_valid_id "$TO" || exit 2
 
+desk_quiesce_wait "$SPOOL_ROOT" || exit 75
 DIR="$(spool_poke_queue_dir "$TO")"
 mkdir -p "$DIR" 2>/dev/null || { echo "spool-poke-retry: cannot create $DIR" >&2; exit 73; }
 
@@ -79,12 +89,14 @@ deadline=$(( $(date +%s) + ${SPOOL_POKE_RETRY_SECS:-1800} ))
 echo "spool-poke-retry: watching ${TO}'s queue ($DIR) until $(date -u -d "@$deadline" +%Y-%m-%dT%H:%M:%SZ)"
 
 while :; do
+  desk_quiesce_live "$SPOOL_ROOT" && { sleep "$every"; continue; }
   entries=()
   while IFS= read -r f; do [ -n "$f" ] && entries+=("$f"); done < <(ls -1 "$DIR"/*.poke 2>/dev/null | sort)
   [ "${#entries[@]}" -eq 0 ] && { echo "spool-poke-retry: ${TO}'s queue is empty"; exit 0; }
 
   now="$(date +%s)"
   for f in "${entries[@]}"; do
+    desk_quiesce_live "$SPOOL_ROOT" && break
     # Stale entries are dropped, never offered: see SPOOL_POKE_MAX_AGE above.
     age_of="$(stat -c %Y "$f" 2>/dev/null)" || age_of="$now"
     if [ "$(( now - age_of ))" -gt "${SPOOL_POKE_MAX_AGE:-300}" ]; then

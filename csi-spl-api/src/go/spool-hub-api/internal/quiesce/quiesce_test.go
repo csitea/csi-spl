@@ -74,6 +74,26 @@ func TestGateWaitsUntilMarkerGoes(t *testing.T) {
 	}
 }
 
+// A writer that waited and finds the desk renamed aside refuses: its root
+// is stale, and a write there would re-create an orphan desk (R7 W1).
+func TestGateRefusesWhenDeskMovedDuringWait(t *testing.T) {
+	w, desk, now := fake(t)
+	m := plant(t, desk, *now)
+	w.Sleep = func(d time.Duration) {
+		*now = now.Add(d)
+		if err := os.Rename(desk, desk+".moved"); err == nil {
+			os.Remove(m)
+		}
+	}
+	err := w.Gate()
+	if !errors.Is(err, ErrQuiesced) || !strings.Contains(err.Error(), "moved "+desk+" away") || !strings.Contains(err.Error(), "do_spl_desk_move") {
+		t.Fatalf("Gate = %v, want ErrQuiesced naming the move", err)
+	}
+	if _, err := os.Stat(desk); !os.IsNotExist(err) {
+		t.Fatalf("the gate re-created %s: %v", desk, err)
+	}
+}
+
 func TestGateRefusesAfterWait(t *testing.T) {
 	w, desk, now := fake(t)
 	plant(t, desk, *now)

@@ -8,7 +8,10 @@
 // spool /var/spool-hub) simply has no marker. The marker counts while its
 // mtime is younger than DESK_QUIESCE_MAX_SECS (default 300): a move that
 // crashed cannot freeze the desk. A writer waits up to DESK_QUIESCE_WAIT_SECS
-// (default 120), then refuses with ErrQuiesced.
+// (default 120), then refuses with ErrQuiesced. A writer that waited also
+// refuses when the desk dir is gone once the marker goes: the move renamed
+// it aside, so the root it resolved before the wait is stale and a write
+// would re-create an orphan desk there (re-run to resolve the new root).
 package quiesce
 
 import (
@@ -96,11 +99,21 @@ func (w *Waiter) Gate() error {
 	}
 	for start := w.Now(); w.Now().Sub(start) < w.Wait; {
 		w.Sleep(w.Every)
-		if live, who = w.Live(); !live {
-			return nil
+		if still, _ := w.Live(); !still {
+			return w.stillThere(who)
 		}
 	}
 	return fmt.Errorf("%w: %s holds %s for more than %s; nothing was written, retry when the move is done", ErrQuiesced, who, Marker(w.Root), w.Wait)
+}
+
+// stillThere is nil when the desk dir of w.Root is still on disk after the
+// wait, else ErrQuiesced: the desk moved away while this writer waited.
+func (w *Waiter) stillThere(who string) error {
+	desk := filepath.Dir(strings.TrimRight(w.Root, "/"))
+	if st, err := os.Stat(desk); err == nil && st.IsDir() {
+		return nil
+	}
+	return fmt.Errorf("%w: %s moved %s away while this writer waited; nothing was written, re-run to resolve the desk's new root", ErrQuiesced, who, desk)
 }
 
 // envSecs reads whole seconds from env key, else def.

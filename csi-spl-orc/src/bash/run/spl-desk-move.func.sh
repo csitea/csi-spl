@@ -191,7 +191,7 @@ _spl_dm_run() {
   trap '_spl_dm_quiesce_off; exit 130' INT TERM HUP
   for x in "$@"; do
     read -r e ws id <<<"$x"
-    _spl_dm_pause || return 1
+    _spl_dm_pause || { rc=1; break; }
     _spl_dm_one "$e" "$ws" "$id"; rc=$?
     (( rc == 0 )) || { do_log "FAIL $cmd stopped at $e $ws/$id; the desks before it are done, the rest are untouched"; break; }
     secs="$DM_SECS"; moved+=("$e/$ws/$id")
@@ -226,6 +226,13 @@ _spl_dm_quiesce_on() {
   DM_QUIESCED="$m"
   do_log "INFO quiesce $m: the desk's local writers wait (DESK_QUIESCE_WAIT_SECS, default 120 s)"
   sleep "${DESK_QUIESCE_SETTLE_SECS:-2}"
+}
+
+# _spl_dm_quiesce_touch: renew the marker's mtime, so DESK_QUIESCE_MAX_SECS
+# counts from the start and the proof, not from the copy.
+_spl_dm_quiesce_touch() {
+  [[ -n "${DM_QUIESCED:-}" ]] || return 0
+  _spl_dm_as "$DM_FROM" touch -- "$DM_QUIESCED" || do_log "WARN cannot renew $DM_QUIESCED"
 }
 
 # _spl_dm_quiesce_off: remove the marker _spl_dm_quiesce_on wrote, if any.
@@ -276,10 +283,14 @@ _spl_dm_one() {
   if ! { _spl_dm_as "$DM_FROM" mkdir -p "${aside%/*}" && _spl_dm_as "$DM_FROM" mv "$src" "$aside"; }; then
     _spl_dm_undo_copy "$dst" "$base"; _spl_dm_quiesce_off; do_log "FAIL cannot rename $src aside"; return 1
   fi
-  _spl_dm_quiesce_off
+  # The marker stays until the proof passes or the rollback has the source
+  # back: a writer held by it re-checks the desk dir after its wait (75 when
+  # the desk is gone), so none re-creates <src> under the aside (R7 W1).
+  _spl_dm_quiesce_touch
   if [[ -n "$pid" ]] && ! _spl_dm_up "$DM_TO" "$e" "$ws" "$id" "$troot" "$dst"; then
     _spl_dm_undo_all "$e" "$ws" "$id" "$src" "$dst" "$aside" "$froot" "$troot"; return 1
   fi
+  _spl_dm_quiesce_off
   _spl_dm_as "$DM_FROM" find "$froot/desk" -mindepth 0 -maxdepth 1 -type d -empty -delete 2>/dev/null
   DM_SECS=$(( $(date +%s) - t0 ))
   do_log "OK moved $e $ws/$id to $DM_TO ($dst; source kept at $aside); downtime $DM_SECS s$([[ -z "$pid" ]] && echo ' (no sidecar was live: none started)')"
@@ -355,15 +366,23 @@ _spl_dm_up() {
 
 # _spl_dm_undo_all <env> <ws> <id> <src> <dst> <aside> <from root> <to root>:
 # the start or its proof failed (DM_WHY says which). Stop DM_TO's sidecar, copy dst over the
-# aside source (messages since are kept), rename it back, set dst aside in
-# DM_TO's own desk.moved-<stamp>, start as DM_FROM.
+# aside source (messages since are kept), rename it back (refused when
+# something re-created <src>: the aside would nest inside it), lift the
+# quiesce marker, set dst aside in DM_TO's own desk.moved-<stamp>, start as
+# DM_FROM.
 _spl_dm_undo_all() {
   local e="$1" ws="$2" id="$3" src="$4" dst="$5" aside="$6" froot="$7" troot="$8" tas
   tas="$troot/desk.moved-$DM_STAMP/$ws/$id"
   do_log "FAIL the desk $e $ws/$id failed as $DM_TO: $DM_WHY; rolling it back"
   _spl_dm_side_as "$DM_TO" stop "$e" "$ws" "$id" "$troot"
   _spl_dm_as "$DM_TO" tar -C "$dst" -cf - . 2>/dev/null | _spl_dm_as "$DM_FROM" tar -C "$aside" -xpf - 2>/dev/null
-  _spl_dm_as "$DM_FROM" mv "$aside" "$src" || { do_log "FATAL cannot rename $aside back to $src: put it back by hand, then MOVE_CMD=back"; return 1; }
+  if _spl_dm_as "$DM_FROM" test -e "$src"; then
+    _spl_dm_quiesce_off
+    do_log "FATAL $src exists again (a writer that ignores the quiesce re-created it): $aside is NOT renamed back into it; merge the two by hand, then MOVE_CMD=back"
+    return 1
+  fi
+  _spl_dm_as "$DM_FROM" mv "$aside" "$src" || { _spl_dm_quiesce_off; do_log "FATAL cannot rename $aside back to $src: put it back by hand, then MOVE_CMD=back"; return 1; }
+  _spl_dm_quiesce_off
   _spl_dm_as "$DM_TO" mkdir -p "${tas%/*}" && _spl_dm_as "$DM_TO" mv "$dst" "$tas"
   if _spl_dm_up "$DM_FROM" "$e" "$ws" "$id" "$froot" "$src"; then
     do_log "OK $e $ws/$id is back as $DM_FROM"

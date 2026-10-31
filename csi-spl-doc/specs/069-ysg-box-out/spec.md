@@ -721,16 +721,21 @@ while its sidecar is down, so its spool changed between the copy and the
 verify. The verify stays exact (equal lists, equal key digest, modes);
 instead the move quiesces the desk for its copy.
 
-- **The marker.** From just before the copy until the source is renamed
-  aside (or rolled back), `do_spl_desk_move` keeps `<desk dir>.quiesce`
-  beside the desk dir, written as the desk's owner. It is outside the tree
+- **The marker.** From just before the copy until the new desk's proof
+  passes, or the rollback has renamed the source back (R7 W1, below),
+  `do_spl_desk_move` keeps `<desk dir>.quiesce` beside the desk dir,
+  written as the desk's owner and renewed (mtime) before the start and
+  proof. It is outside the tree
   the move copies, so the verify never sees it. It is removed on success, on
   every rollback and on INT/TERM/HUP; a `kill -9` leaves it, and then it is
   ignored once older than `DESK_QUIESCE_MAX_SECS` (default 300 s), so a
-  crashed move cannot freeze the desk.
+  crashed move cannot freeze the desk. The same limit reopens the writers
+  of a copy and verify that run past 300 s: safe (the exact verify then
+  fails and the desk rolls back), but that move fails; split it with
+  `MOVE_DESKS` or raise the limit for it.
 - **How long.** The copy starts `DESK_QUIESCE_SETTLE_SECS` (default 2 s)
   after the marker, so a write already under way ends first. The window is
-  then the copy, the verify and the rename: seconds for a desk, never more
+  then the copy, the verify, the rename, the start and the proof: seconds for a desk, never more
   than the move's own `MOVE_MAX_SECS` limit plus the settle in practice, and
   at most 300 s for a writer however long the move takes.
 - **What a writer sees.** It waits, polling each second, up to
@@ -740,6 +745,21 @@ instead the move quiesces the desk for its copy.
   nothing was written, retry when the move is done` (the spool CLI prints
   the same as `spool: desk quiesced: ...`). One line on stderr says it is
   waiting.
+- **A writer that outlives the move** (R7 W1). A writer resolves its spool
+  root before it waits, so after a move the root it holds is the old,
+  renamed-aside desk; the Store's `MkdirAll` would re-create an orphan desk
+  there (and a later `MOVE_CMD=back` refuses: `already exists`). So a writer
+  that waited re-checks the desk dir once the marker goes: gone, it writes
+  nothing and refuses, exit 75, `... moved <desk> away while this writer
+  waited; nothing was written, re-run to resolve the desk's new root` (Go
+  `quiesce.Gate`, bash `desk_quiesce_wait`, `spool-mirror.py`
+  `quiesce_clear`). After a rollback the desk is back before the marker
+  goes, and the writer writes into it. A writer that ignores the marker and
+  re-creates the source (an old binary) makes the rollback refuse its rename
+  back with `FATAL <src> exists again ...`, the desk kept aside with its
+  keys, rather than nest the desk inside it. Not covered: a writer that
+  starts after a successful move but before `box.env` names the desk user
+  still resolves the old root (as before this change).
 
 The local writers of a desk's spool while its sidecar is down, and which of
 them honour the marker (sha of this change's parent `5675aa1c3`):
@@ -750,7 +770,8 @@ them honour the marker (sha of this change's parent `5675aa1c3`):
 | the MCP server (`spool mcp`, one per agent session, long-lived) | outbox, archive, files | yes: `spool_send`, `spool_recv`, `spool_put_file` wait (`internal/mcp/mcp.go`, `tools.gate`); `spool_reply` writes a workspace desk it resolves itself and does not |
 | `spool-mirror.py` (the claude / grok / agy / qwen / vibe hooks) | `<seat>/.mirror/{seen,turn,topic,last-answer,mirror.log}` | yes: `post_one` waits (`quiesce_clear`), and skips that post when still held |
 | `spool_notify_mark_trigger` (`spool-notify.inc.sh`) | `<seat>/.mirror/trigger/*` | yes: it never waits (the notice's latency budget), it writes no trigger while the marker is live |
-| the poke log (`spool-poke-queue.inc.sh`) | appends to `<seat>/.pokes/notices.log` | no: an append changes no file list; the lines after the copy stay in the source, kept in `desk.moved-*` |
+| the poke retry daemon `spool-poke-retry.sh` (detached, up to `SPOOL_POKE_RETRY_SECS` 1800 s) | removes `<seat>/.pokes/*.poke`, makes `retry.lock` / `retry.pid`, removes `retry.pid` on exit | yes (R7 W2): it waits before its first file (75 when still held), and a sweep is skipped (no entry removed, no exit) while the marker is live |
+| the poke log (`spool-poke-queue.inc.sh`, `spool_notice_record`, `spool_show_notice_pane`) | creates `<seat>/.pokes/` and `notices.log` on a seat's FIRST notice, appends after | no: an append changes no file list, its lines after the copy stay in `desk.moved-*`; a seat's first notice in the window adds a file, the verify fails and the desk rolls back |
 | `up-all.lock` (`spl-desk-agent-rename.func.sh:90`, the desk up-all) | opens an existing lock file | no: no file is created |
 | the seat retire and drop (`agent-id-retire.sh`, `desk-seat-drop.sh`) | move a seat dir to `.retired/` | no: rare, by hand; a race fails the exact verify and rolls back |
 | the hub sidecar `hub-run` | inbox, `.hub/` | stopped by the move before the marker |
@@ -761,8 +782,13 @@ binary built before this change does not honour it either: refresh the box's
 binaries (`do_spl_spool_refresh`) before the fleet desk's retry.
 Test: `csi-spl-orc/src/bash/tests/desk-move.tst.sh` case 12 (a writer that
 adds a file every 0.1 s during a slowed copy: FAIL verify without the
-quiesce, a clean move with it), `internal/quiesce/quiesce_test.go`,
-`cmd/spool/quiesce_gate_test.go`.
+quiesce, a clean move with it) and case 13 (a writer that arrives in the
+window and writes after it: refused after a clean move, written into the
+restored desk after a failed proof, and a re-created source refuses the
+rollback's rename; red on d91a4ebea), `internal/quiesce/quiesce_test.go`,
+`cmd/spool/quiesce_gate_test.go`, and
+`features/spawn-agents/tests/test-spool-poke-queue.sh` (the daemon in the
+window; red on origin/master's daemon).
 
 ### 8.5 Build rows
 

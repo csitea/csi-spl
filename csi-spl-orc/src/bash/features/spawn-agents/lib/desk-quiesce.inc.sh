@@ -29,6 +29,8 @@ desk_quiesce_live() {
 # desk_quiesce_wait <spool root>: 0 at once when the desk is not quiesced;
 # else one line on stderr, then 0 when the marker goes, 75 (and a line that
 # says nothing was written) when it is still live after DESK_QUIESCE_WAIT_SECS.
+# Also 75 when the desk dir is gone once the marker goes: the move renamed it
+# aside, so the root resolved before the wait is stale (re-run to resolve it).
 desk_quiesce_wait() {
   local m who waited=0 wait="${DESK_QUIESCE_WAIT_SECS:-120}"
   desk_quiesce_live "$1" || return 0
@@ -42,5 +44,9 @@ desk_quiesce_wait() {
     }
     sleep 1; waited=$((waited + 1))
   done
+  [[ -d "${m%.quiesce}" ]] || {
+    echo "desk-quiesce: ${who:-?} moved ${m%.quiesce} away while this writer waited; nothing was written, re-run to resolve the desk's new root" >&2
+    return 75
+  }
   return 0
 }

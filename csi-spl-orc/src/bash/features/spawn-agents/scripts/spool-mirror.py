@@ -763,7 +763,9 @@ def _env_secs(key, default):
 def quiesce_clear(seat, sleep=time.sleep):
     """The desk quiesce window (spec 069 8.4.1): False while <seat>.quiesce,
     younger than DESK_QUIESCE_MAX_SECS (300), is still there after
-    DESK_QUIESCE_WAIT_SECS (120); True at once when there is none."""
+    DESK_QUIESCE_WAIT_SECS (120), or when the seat dir is gone once it goes
+    (the move renamed it aside: the post would re-create an orphan seat);
+    True at once when there is none."""
     marker = seat.rstrip("/") + ".quiesce"
     max_age = _env_secs("DESK_QUIESCE_MAX_SECS", 300)
     wait = _env_secs("DESK_QUIESCE_WAIT_SECS", 120)
@@ -780,7 +782,7 @@ def quiesce_clear(seat, sleep=time.sleep):
             return False
         sleep(1)
         waited += 1
-    return True
+    return waited == 0 or os.path.isdir(seat)
 
 
 def post_one(seat, agent, event, text, session):

@@ -39,6 +39,15 @@
 #      spool-mirror.py waits on it the same way. RED CONTROL: on a tree with
 #      no quiesce (origin/master 5675aa1c3) the same writer makes the move
 #      FAIL verify ("file(s) missing in the copy")
+#  13. a writer that arrives in the quiesce window and writes after it, the
+#      way the Store does (mkdir -p, then the file) into the root it resolved
+#      before its wait (R7 W1): a clean move refuses it (75, the desk moved
+#      away) and leaves no orphan source; a proof that fails keeps the marker
+#      until the rollback has the source back, so the writer lands in the
+#      restored desk and nothing nests; a writer that ignores the marker and
+#      re-creates the source makes the rollback refuse its rename (FATAL),
+#      never nest the desk into it. RED CONTROL: d91a4ebea's
+#      spl-desk-move.func.sh and desk-quiesce.inc.sh fail A and B
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -317,7 +326,7 @@ writer; sleep 0.3
 out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS="prd/ws-a/box-a" DESK_QUIESCE_SETTLE_SECS=0.5 DRY_RUN=0)"; rc=$?
 wait "$WPID" 2>/dev/null; rm -f "$T/tar-slow"
 [[ $rc -eq 0 ]] && pass "12. a desk with a live local writer moves (exact verify ok)" || fail "12. move with a writer rc=$rc: $(grep -E 'FAIL' <<<"$out" | tr '\n' '|')"
-grep -q '^waited desk-quiesce: the desk of .* is quiesced (do_spl_desk_move ' "$T/writer.log" 2>/dev/null && pass "12. the writer waited on the marker" || fail "12. writer: $(cat "$T/writer.log" 2>/dev/null)"
+grep -Eq '^(waited|refused) desk-quiesce: the desk of .* is quiesced \(do_spl_desk_move ' "$T/writer.log" 2>/dev/null && pass "12. the writer waited on the marker" || fail "12. writer: $(cat "$T/writer.log" 2>/dev/null)"
 has "12. the move names the quiesce window" "INFO quiesce $QM" "$out"
 [[ ! -e "$QM" ]] && pass "12. the marker is gone after the move" || fail "12. marker left after the move"
 reset_box; rm -f "$T/writer.log"; : >"$T/tar-slow"; chmod 0644 "$SRC_P/desk/ws-a/box-a/keys/box-box-a.key"
@@ -344,6 +353,48 @@ print("live", live, "clear", m.quiesce_clear(sys.argv[2], sleep=lambda s: None))
 PY
 )"
 [[ "$o" == "live False clear True" ]] && pass "12. spool-mirror.py waits on the marker, then writes" || fail "12. mirror: $o"
+
+# --- 13. a writer that waits out the window, then writes ------------------------------
+# late_writer <honour|ignore>: waits for the marker; honour = desk_quiesce_wait,
+# ignore = waits for the rename aside (an old binary). Then the Store's write.
+late_writer() {
+  ( for i in $(seq 200); do [[ -e "$QM" ]] && break; sleep 0.05; done
+    [[ -e "$QM" ]] || { echo "no marker seen" >>"$T/writer.log"; exit 0; }
+    if [[ "$1" == honour ]]; then
+      o="$(DESK_QUIESCE_WAIT_SECS=30 desk_quiesce_wait "$QR" 2>&1)" || { echo "refused $o" >>"$T/writer.log"; exit 0; }
+    else
+      for i in $(seq 200); do [[ -e "${QR%/spool}" ]] || break; sleep 0.05; done
+    fi
+    mkdir -p "$QR/c-101/inbox" && echo late >"$QR/c-101/inbox/late.json" && echo "wrote" >>"$T/writer.log" ) &
+  WPID=$!
+}
+QD="${QR%/spool}"
+reset_box; rm -f "$T/writer.log"; : >"$T/tar-slow"
+late_writer honour
+out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS="prd/ws-a/box-a" DRY_RUN=0)"; rc=$?
+wait "$WPID" 2>/dev/null; rm -f "$T/tar-slow"
+[[ $rc -eq 0 ]] && pass "13A. the move with a late writer exits 0" || fail "13A. rc=$rc: $(grep FAIL <<<"$out" | tr '
+' '|')"
+grep -q "^refused desk-quiesce: " "$T/writer.log" 2>/dev/null && grep -qF "moved $QD away while this writer waited; nothing was written" "$T/writer.log" 2>/dev/null &&
+  pass "13A. the writer is refused: the desk moved away while it waited" || fail "13A. writer: $(cat "$T/writer.log" 2>/dev/null)"
+[[ ! -e "$QD" ]] && pass "13A. no orphan desk at the source path" || fail "13A. orphan at $QD: $(find "$QD" -type f -printf '%P ' 2>/dev/null)"
+[[ ! -e "$QM" ]] && pass "13A. the marker is gone after the move" || fail "13A. marker left"
+reset_box; rm -f "$T/writer.log"; : >"$T/tar-slow"; echo none >"$T/verdict"
+late_writer honour
+out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS="prd/ws-a/box-a" DRY_RUN=0)"; rc=$?
+wait "$WPID" 2>/dev/null; rm -f "$T/tar-slow"
+[[ $rc -ne 0 ]] && has "13B. a failed proof rolls back" "is back on disk as $ME" "$out" || fail "13B. rc=$rc"
+[[ ! -e "$QD/box-a" && -f "$QD/keys/box-box-a.key" ]] && pass "13B. the desk is back in place, not nested" || fail "13B. nested: $(find "$QD" -maxdepth 1 -printf '%P ' 2>/dev/null)"
+[[ "$(cat "$T/writer.log" 2>/dev/null)" == wrote && -f "$QR/c-101/inbox/late.json" ]] && pass "13B. the writer wrote into the restored desk" || fail "13B. writer: $(cat "$T/writer.log" 2>/dev/null)"
+[[ ! -e "$QM" ]] && pass "13B. the marker is gone after the rollback" || fail "13B. marker left"
+reset_box; rm -f "$T/writer.log"; : >"$T/tar-slow"; echo none >"$T/verdict"
+late_writer ignore
+out="$(mv_run MOVE_CMD=move MOVE_DESK_USER="$DU" MOVE_DESKS="prd/ws-a/box-a" DRY_RUN=0)"; rc=$?
+wait "$WPID" 2>/dev/null; rm -f "$T/tar-slow"
+[[ $rc -ne 0 ]] && has "13C. a re-created source refuses the rename back" "FATAL $QD exists again" "$out" || fail "13C. rc=$rc"
+[[ ! -e "$QD/box-a" ]] && ls "$SRC_P"/desk.moved-*/ws-a/box-a/keys/box-box-a.key >/dev/null 2>&1 &&
+  pass "13C. nothing nests: the desk stays aside with its keys" || fail "13C. nested or lost: $(find "$SRC_P" -name 'box-box-a.key' | tr '\n' ' ')"
+[[ ! -e "$QM" ]] && pass "13C. the marker is gone after the refusal" || fail "13C. marker left"
 
 echo "--- 4. move output (the measure) ---"; grep -E '^(PLAN|OK moved|INFO)' <<<"$out4" | sed -n 1,12p
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"

@@ -81,7 +81,11 @@ internal/invitemail 85.3
 # b3f12e352; go test -count=1 -cover ./internal/keyd/, go1.26.10, n=3 read
 # 82.2 each.
 internal/keyd 82.2
-internal/keydesk 79.1
+# internal/keydesk: 88.1 with r43-07's keydesk_test.go (Refused.Error, Run on a
+# cancelled context, DefaultPeerOK on this process and another uid, procGroups,
+# ParseStatusGroups edges, IdentityPath), 79.1 without on 8160bf9ec; go test
+# -count=1 -cover ./internal/keydesk/, go1.26.10, n=3 read 88.1 each.
+internal/keydesk 88.1
 internal/keyexec 79.7
 # internal/lockkey: 78.7 with r43-06's lockkey_test.go (HolderAlive, readPID,
 # pidAlive on each pid file; writeFile errors), 76.7 without on e8e02f87e;

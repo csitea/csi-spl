@@ -426,3 +426,164 @@ func TestExhaustedPassesTheTask(t *testing.T) {
 		t.Fatalf("hub told %d times, task %v; want once, 7c1f2a9e-task", hub.exhausted.Load(), hub.task.Load())
 	}
 }
+
+// TestRefusedNamesTheToken: a hub refusal reads as its token alone, never
+// vendor text, and stays a *Refused through errors.As.
+func TestRefusedNamesTheToken(t *testing.T) {
+	var err error = &Refused{Token: "box_not_approved"}
+	if got := err.Error(); got != "hub refused: box_not_approved" {
+		t.Fatalf("Error() = %q", got)
+	}
+	var r *Refused
+	if !errors.As(err, &r) || r.Token != "box_not_approved" {
+		t.Fatalf("errors.As: %v %+v", err, r)
+	}
+}
+
+// TestRunStopsOnCancelledContext: Run serves until its context ends, then
+// returns nil and the socket goes; a seat root or socket it cannot use
+// fails Run at once.
+func TestRunStopsOnCancelledContext(t *testing.T) {
+	d := shortDir(t)
+	s := &Server{Path: SockPath(filepath.Join(d, ".hub")), SeatRoot: filepath.Join(d, "spool-seat"),
+		Box: "box-1", PeerOK: OwnUID}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- s.Run(ctx, 5*time.Millisecond) }()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if c, err := net.Dial("unix", s.Path); err == nil {
+			c.Close()
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("Run never listened")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	time.Sleep(20 * time.Millisecond) // a few ticks: Expire and Sweep run
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Run on a cancelled context: %v, want nil", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run did not stop on a cancelled context")
+	}
+	for i := 0; ; i++ {
+		if _, err := os.Stat(s.Path); errors.Is(err, os.ErrNotExist) {
+			break
+		}
+		if i > 500 {
+			t.Fatal("socket left behind after Run stopped")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if err := (&Server{Path: s.Path}).Run(context.Background(), time.Second); err == nil {
+		t.Fatal("Run with no seat root returned nil")
+	}
+	if err := (&Server{SeatRoot: filepath.Join(d, "seat2")}).Run(context.Background(), time.Second); err == nil {
+		t.Fatal("Run with no socket path returned nil")
+	}
+}
+
+// ownPeer is this test process as SO_PEERCRED would report it.
+func ownPeer() Peer {
+	return Peer{PID: int32(os.Getpid()), UID: uint32(os.Geteuid()), GID: uint32(os.Getegid())}
+}
+
+// TestDefaultPeerOK: this process is admitted iff it is in no
+// root-equivalent group, the expectation computed from the same inputs (this
+// box's /etc/group and this process's own groups); another uid and an
+// unreadable pid are refused.
+// RED CONTROL: DefaultPeerOK accepting any uid -> the other-uid case fails.
+func TestDefaultPeerOK(t *testing.T) {
+	status, err := os.ReadFile("/proc/self/status")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gids, err := ParseStatusGroups(string(status))
+	if err != nil {
+		t.Fatal(err)
+	}
+	group, err := os.ReadFile("/etc/group")
+	if err != nil {
+		t.Fatal(err)
+	}
+	me := ownPeer()
+	want := RootEquivalentIn(string(group), append(gids, me.GID))
+	err = DefaultPeerOK(me)
+	switch {
+	case want == "" && err != nil:
+		t.Fatalf("own process, in no root-equivalent group: %v", err)
+	case want != "" && (err == nil || !strings.Contains(err.Error(), "root-equivalent group "+want)):
+		t.Fatalf("own process, in %s: %v, want refused", want, err)
+	}
+
+	cases := []struct {
+		name, want string
+		p          Peer
+		over       int64 // deskUIDOver; 0 = the desk is this uid
+	}{
+		{"other uid", "is not the desk's uid", me, int64(os.Geteuid()) + 4242 + 1},
+		{"no such pid", "groups unreadable", Peer{PID: -1, UID: me.UID, GID: me.GID}, 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			deskUIDOver.Store(c.over)
+			t.Cleanup(func() { deskUIDOver.Store(0) })
+			err := DefaultPeerOK(c.p)
+			if err == nil || !strings.Contains(err.Error(), c.want) {
+				t.Fatalf("DefaultPeerOK(%+v) = %v, want an error with %q", c.p, err, c.want)
+			}
+		})
+	}
+}
+
+// TestProcGroups: procGroups reads this process's Groups: line as
+// ParseStatusGroups reads the same file; fixed input covers the edges.
+func TestProcGroups(t *testing.T) {
+	status, err := os.ReadFile("/proc/self/status")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := ParseStatusGroups(string(status))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := procGroups(int32(os.Getpid()))
+	if err != nil || len(got) != len(want) {
+		t.Fatalf("procGroups(own) = %v %v, want %v", got, err, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("procGroups(own) = %v, want %v", got, want)
+		}
+	}
+	if _, err := procGroups(-1); err == nil {
+		t.Fatal("procGroups(-1) read a status file")
+	}
+	for _, c := range []struct {
+		name, in string
+		n        int
+		bad      bool
+	}{
+		{"empty line", "Name:\tx\nGroups:\t\n", 0, false},
+		{"two gids", "Groups:\t4 24 \n", 2, false},
+		{"bad gid", "Groups:\t4 x\n", 0, true},
+		{"gid past uint32", "Groups:\t4294967296\n", 0, true},
+		{"no line", "Name:\tx\n", 0, true},
+	} {
+		got, err := ParseStatusGroups(c.in)
+		if (err != nil) != c.bad || len(got) != c.n {
+			t.Fatalf("%s: ParseStatusGroups = %v %v", c.name, got, err)
+		}
+	}
+}
+
+func TestIdentityPath(t *testing.T) {
+	if got := IdentityPath("/r/.hub"); got != "/r/.hub/"+IdentityName {
+		t.Fatalf("IdentityPath = %q", got)
+	}
+}

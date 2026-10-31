@@ -562,6 +562,9 @@ func (s *Server) routeClientIPProbe(mux *http.ServeMux) {
 
 // Shutdown closes every live socket with 1001 (graceful drain); the caller
 // shuts the http.Server down separately (hijacked sockets are not tracked there).
+// All sockets close together: a peer that never answers the close frame holds
+// its Close for up to the library's 5 s handshake wait, so one after another a
+// few such browsers outlasted Cloud Run's 10 s SIGTERM grace (SPL-4522).
 func (s *Server) Shutdown() {
 	s.mu.Lock()
 	s.closing = true
@@ -574,10 +577,14 @@ func (s *Server) Shutdown() {
 		browsers = append(browsers, c)
 	}
 	s.mu.Unlock()
-	for _, c := range browsers {
-		c.close(websocket.StatusGoingAway, "shutdown")
-	}
 	var wg sync.WaitGroup
+	for _, c := range browsers {
+		wg.Add(1)
+		go func(c *wuiConn) {
+			defer wg.Done()
+			c.close(websocket.StatusGoingAway, "shutdown")
+		}(c)
+	}
 	for _, x := range all {
 		wg.Add(1)
 		go func(x *session) {

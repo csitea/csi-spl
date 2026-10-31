@@ -5,11 +5,11 @@
 // 390 px against the mock bundle; the hub's three routes are answered here.
 //
 // CONTROLS (each next to a passing case):
-//   - with no picture (GET 404) there is no "Remove picture" item;
+//   - with no picture (GET 204, SPL-4455; it was 404) there is no "Remove picture" item;
 //   - a gif is refused before any request (no PUT), with a message;
 //   - the hub's 413 is shown as "too big" and the avatar is unchanged;
 //   - a reload after the upload still fetches it (dev, 2026-10-07: the
-//     pre-upload 404 was remembered in localStorage, so after a reload the
+//     pre-upload miss was remembered in localStorage, so after a reload the
 //     menu had no picture and no "Remove picture");
 //   - the items stay put while the menu's late chunk (the language control)
 //     lands: it pushed them 44 px down ~40 ms after the open on the desktop,
@@ -84,7 +84,7 @@ async function launch() {
   throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
 }
 
-/** The hub's avatar routes: GET serves `hub.pic` (404 when null), PUT stores, DELETE clears.
+/** The hub's avatar routes: GET serves `hub.pic` (204 when null, SPL-4455), PUT stores, DELETE clears.
     `hub.holdJs` ms delays every script chunk (a late lazy part). */
 function fakeHub(p, hub) {
   p.on('request', async (req) => {
@@ -94,7 +94,7 @@ function fakeHub(p, hub) {
     const m = req.method()
     if (m === 'OPTIONS') return req.respond({ status: 204 })
     if (m === 'GET') {
-      return hub.pic ? req.respond({ status: 200, contentType: 'image/png', body: hub.pic }) : req.respond({ status: 404, body: '' })
+      return hub.pic ? req.respond({ status: 200, contentType: 'image/png', body: hub.pic }) : req.respond({ status: 204, body: '' })
     }
     if (m === 'PUT') {
       hub.puts.push({ type: req.headers()['content-type'] })

@@ -17,9 +17,10 @@ import (
 // the top-right avatar is the person's own IdP picture, read from
 // GET /api/v1/auth/avatar with the session alone. Claim -> stored picture ->
 // session route, for a member AND a not-yet-member (no tenant), refreshed
-// on the next sign-in. CONTROLS: no picture claim -> 404 (the WUI draws the
-// identicon); no session -> 401; a picture stored only under a tenant (before
-// this change) -> 404 until the next sign-in.
+// on the next sign-in. CONTROLS: no picture claim -> 204, no body (the WUI
+// draws the identicon; SPL-4455: a 404 was a console error on every sign-in);
+// no session -> 401; a picture stored only under a tenant (before this
+// change) -> 204 until the next sign-in.
 func TestOwnAvatarRoute(t *testing.T) {
 	ctx := context.Background()
 	st := store.NewMemory()
@@ -70,12 +71,12 @@ func TestOwnAvatarRoute(t *testing.T) {
 		t.Fatalf("after a changed picture: %d, old bytes still served", code)
 	}
 
-	// CONTROL: no picture claim -> 404, never someone else's picture.
+	// CONTROL: no picture claim -> 204 with no body, never someone else's picture.
 	r.fake.Set(fakeidp.Person{Subject: "nopic-own", Email: "nopic-own@example.com", EmailVerified: true, NoPicture: true}, false)
 	np := browser(t)
 	signIn(t, np, r, "google", "")
-	if code, _, _ := ownAvatar(t, np, r, ""); code != http.StatusNotFound {
-		t.Fatalf("no picture claim: %d, want 404", code)
+	if code, body, _ := ownAvatar(t, np, r, ""); code != http.StatusNoContent || len(body) != 0 {
+		t.Fatalf("no picture claim: %d, %d bytes, want 204 and none", code, len(body))
 	}
 
 	// CONTROL: a picture that exists only as a tenant file (stored before the
@@ -90,18 +91,18 @@ func TestOwnAvatarRoute(t *testing.T) {
 	if err := st.SetAvatar(ctx, s.HumanID, fid); err != nil {
 		t.Fatal(err)
 	}
-	if code, _, _ := ownAvatar(t, np, r, ""); code != http.StatusNotFound {
-		t.Fatalf("tenant-only picture: %d, want 404", code)
+	if code, _, _ := ownAvatar(t, np, r, ""); code != http.StatusNoContent {
+		t.Fatalf("tenant-only picture: %d, want 204", code)
 	}
 }
 
-// CONTROL: a hub without an AvatarSource answers 404, not 500.
+// CONTROL: a hub without an AvatarSource answers 204 (no picture), not 500.
 func TestOwnAvatarRouteUnwired(t *testing.T) {
 	r := newRigWith(t, auth.Options{Registrar: registrar{}})
 	c := browser(t)
 	signIn(t, c, r, "google", "")
-	if code, _, _ := ownAvatar(t, c, r, ""); code != http.StatusNotFound {
-		t.Fatalf("unwired: %d, want 404", code)
+	if code, _, _ := ownAvatar(t, c, r, ""); code != http.StatusNoContent {
+		t.Fatalf("unwired: %d, want 204", code)
 	}
 }
 

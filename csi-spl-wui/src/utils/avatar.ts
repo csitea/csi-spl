@@ -315,7 +315,9 @@ export function bytesToDataUri(bytes: ArrayBuffer | Uint8Array, type: string): s
  * the own-picture route answers 404 to a member with no stored picture on
  * every page load (124 times for one member in 6 h on prd). Its
  * URL carries the session's iat, so the next sign-in asks again. Only a 404
- * is remembered; a network error or a 5xx is asked again next time.
+ * or a 204 is remembered; a network error or a 5xx is asked again next time.
+ * SPL-4455: the hub answers 204 (no body) to a person with no picture, so
+ * no console line; a 404 still counts the same for an older hub.
  */
 export const AVATAR_MISS_KEY = 'spool.avatar.miss'
 /** A picture fetch that has not answered by then is given up (and asked again on the next mount). */
@@ -331,7 +333,7 @@ export function loadAvatarImageUrl(url: string, { credentials = 'omit', fetchFn 
   if (held) return held
   const readMiss = () => { try { return missStore ? missStore.getItem(AVATAR_MISS_KEY) : null } catch { return null } }
   if (readMiss() === url) return Promise.resolve('')
-  /* A 404 or a non-image answer is final for the page; a network error, a
+  /* A 404, a 204 or a non-image answer is final for the page; a network error, a
      5xx or a timeout is not kept, so the next avatar that mounts asks again
      instead of showing the default until a reload. */
   let transient = false
@@ -340,11 +342,12 @@ export function loadAvatarImageUrl(url: string, { credentials = 'omit', fetchFn 
     const timer = ctl ? setTimeout(() => ctl.abort(), timeoutMs) : null
     try {
       const res = await fetchFn(url, { credentials, signal: ctl?.signal })
-      if (res && res.status === 404 && missStore) {
+      const none = !!res && (res.status === 404 || res.status === 204)
+      if (none && missStore) {
         try { missStore.setItem(AVATAR_MISS_KEY, url) } catch { /* storage full or blocked */ }
       }
-      if (!res || !res.ok) {
-        transient = !res || res.status !== 404
+      if (none || !res || !res.ok) {
+        transient = !none
         return ''
       }
       const bytes = new Uint8Array(await res.arrayBuffer())

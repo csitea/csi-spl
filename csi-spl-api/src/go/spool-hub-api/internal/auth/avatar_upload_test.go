@@ -122,7 +122,7 @@ func TestOwnAvatarUpload(t *testing.T) {
 	}
 }
 
-// A person with no IdP picture uploads one; DELETE goes back to none (404,
+// A person with no IdP picture uploads one; DELETE goes back to none (204,
 // the WUI draws the identicon).
 func TestOwnAvatarUploadNoIdPPicture(t *testing.T) {
 	st := store.NewMemory()
@@ -141,8 +141,8 @@ func TestOwnAvatarUploadNoIdPPicture(t *testing.T) {
 	if code := deleteAvatar(t, c, r); code != http.StatusNoContent {
 		t.Fatalf("DELETE: %d", code)
 	}
-	if code, _, _ := ownAvatar(t, c, r, ""); code != http.StatusNotFound {
-		t.Fatalf("after DELETE: %d, want 404", code)
+	if code, _, _ := ownAvatar(t, c, r, ""); code != http.StatusNoContent {
+		t.Fatalf("after DELETE: %d, want 204", code)
 	}
 }
 

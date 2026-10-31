@@ -854,8 +854,18 @@ func ValidInterests(raw string) (string, bool) {
 	return s, true
 }
 
+// noOwnAvatar is the answer for a person with no stored picture: 204, no
+// body, not kept by any cache (an upload must show at once).
+func noOwnAvatar(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "private, no-cache")
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // avatar answers the signed-in human's own stored IdP picture:
-// 200 + the image, 401 without a session, 404 when there is none. The type
+// 200 + the image, 401 without a session, 204 with no body when there is
+// none (SPL-4455: a 404 put a console error in every password-only
+// member's browser on each sign-in; no picture is an answer, not an error,
+// and the WUI draws the initials or identicon either way). The type
 // comes from the bytes (fetchAvatar admitted only png/jpeg/gif/webp), the
 // ETag is the content address, and nothing is cached by a shared cache.
 func (h *Handler) avatar(w http.ResponseWriter, r *http.Request) {
@@ -865,12 +875,12 @@ func (h *Handler) avatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.HumanID == "" || h.avatars == nil {
-		writeErr(w, http.StatusNotFound, "not_found", "no stored picture")
+		noOwnAvatar(w)
 		return
 	}
 	pic, err := h.avatars.OwnAvatar(r.Context(), s.HumanID)
 	if errors.Is(err, ErrNoAvatar) {
-		writeErr(w, http.StatusNotFound, "not_found", "no stored picture")
+		noOwnAvatar(w)
 		return
 	}
 	if err != nil {
@@ -880,7 +890,7 @@ func (h *Handler) avatar(w http.ResponseWriter, r *http.Request) {
 	}
 	ct := sniffImage(pic)
 	if ct == "" {
-		writeErr(w, http.StatusNotFound, "not_found", "no stored picture")
+		noOwnAvatar(w)
 		return
 	}
 	sum := sha256.Sum256(pic)

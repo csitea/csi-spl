@@ -242,6 +242,24 @@ describe('stored IdP avatars (gap A5, view-v1 §4.1 humans)', () => {
     resetAvatarFiles()
   })
 
+  it('SPL-4455: the hub answers 204 for no picture (a 404 was a console error per sign-in); it is remembered like a 404 and no body is read', async () => {
+    resetAvatarFiles()
+    const calls = []
+    const fetchFn = async (url) => {
+      calls.push(url)
+      return { ok: true, status: 204, arrayBuffer: async () => { throw new Error('a 204 has no body to read') } }
+    }
+    const mem = new Map()
+    const missStore = { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)) }
+    const u = 'http://api.test/api/v1/auth/avatar?at=7'
+    assert.equal(await loadAvatarImageUrl(u, { fetchFn, missStore }), '')
+    assert.equal(mem.get(AVATAR_MISS_KEY), u)
+    resetAvatarFiles() // a reload: the in-page cache is gone, the store is not
+    assert.equal(await loadAvatarImageUrl(u, { fetchFn, missStore }), '')
+    assert.equal(calls.length, 1, 'the remembered 204 is not asked again')
+    resetAvatarFiles()
+  })
+
   it('owner 177db6cf: a picture that failed on a 5xx / network error is asked again by the next avatar, not kept as the default', async () => {
     resetAvatarFiles()
     const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10])

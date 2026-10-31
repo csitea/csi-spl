@@ -70,8 +70,12 @@ our `file_id` only. No PII required (photo is optional).
   the file the roster names. A picture changed at the IdP shows after the
   next sign-in.
 - The top-right corner reads `GET /api/v1/auth/avatar` (auth-v1 §1). It needs
-  the session only, no membership. A `404` falls back to the identicon for a
-  member HUM-*, or to initials otherwise.
+  the session only, no membership. With no stored picture the hub answers
+  `204` with no body (SPL-4455; it was `404`, a console error on every
+  sign-in of a password-only member), and the WUI falls back to the
+  identicon for a member HUM-*, or to initials otherwise. A `204` (or a
+  `404` from an older hub) is remembered for that sign-in's URL, so it is
+  asked once per sign-in, not on every page load.
 - Every picture renders as a `data:` URL. Each deployed CSP is
   `img-src 'self' data:`, which blocks `blob:`, so the WUI never makes one.
   `tests/unit/feed-avatar.test.mjs` pins that.

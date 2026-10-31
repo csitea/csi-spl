@@ -4,7 +4,9 @@
      issue key prefix (W16, spec 047), and who can archive topics (CLE-77819,
      owner 2026-09-30: a per-workspace setting, default everyone), and the
      marketing switch (spec 090 §15, MarketingSwitch.vue), the owner's
-     Publish to LinkedIn list (SPL-1698, MarketingPublish.vue), and "blocker to
+     Publish to LinkedIn list (SPL-1698, MarketingPublish.vue), the
+     Facebook Pages and Instagram accounts (spec 090 T035,
+     MarketingAccounts.vue), and "blocker to
      issue after N minutes" (BlockerIssueSetting.vue). The hours keys
      (spec 107) are their own section, hours.vue.
      tenant.settings. -->
@@ -64,6 +66,10 @@
     </form>
     <MarketingSwitch v-if="!loading && !loadError" @changed="mktKey++" />
     <MarketingPublish v-if="!loading && !loadError" :key="mktKey" />
+    <!-- spec 090 T035: its own chunk; the wrapper keeps the async component off a bare v-if -->
+    <div class="ts-contents">
+      <MarketingAccounts v-if="!loading && !loadError" :key="mktKey" />
+    </div>
     <BlockerIssueSetting v-if="!loading && !loadError" />
   </SettingsSection>
 </template>
@@ -79,6 +85,7 @@ import { useTenantSectionGate } from '~/composables/useTenantSectionGate'
 import { issuePrefixOf, normalizeTenantSettings, tenantSettingsErrorKey, TOPIC_ARCHIVE_POLICY_OPTIONS } from '~/utils/tenant-settings.mjs'
 import type { TenantSettings } from '~/utils/tenant-settings.mjs'
 
+const MarketingAccounts = defineAsyncComponent(() => import('~/components/MarketingAccounts.vue'))
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()
 
@@ -154,6 +161,7 @@ const { denied } = useTenantSectionGate('general', () => { void load() })
 </script>
 
 <style scoped>
+.ts-contents { display: contents; }
 .ts-form { display: flex; flex-direction: column; gap: 14px; }
 .ts-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .ts-field input {

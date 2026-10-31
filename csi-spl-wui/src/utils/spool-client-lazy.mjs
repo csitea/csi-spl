@@ -712,10 +712,12 @@ async function patchMarketingSwitch(ctx, enabled) {
  * summary, image }] }. 403 for anyone but the owner, 404 while marketing is
  * off or the owner connected no LinkedIn account: the WUI then hides the list.
  */
-async function listMarketingPosts(ctx) {
+async function listMarketingPosts(ctx, channel) {
   const { live, mock, tenantMock } = ctx
-  if (mock) return (await tenantMock()).marketingPosts()
-  return live('/v1/marketing/posts')
+  const ch = String(channel || '')
+  if (mock) return (await tenantMock()).marketingPosts(ch)
+  // spec 090 T035: ?channel=<id> = the posts not shared on that Meta channel
+  return live(ch ? `/v1/marketing/posts?channel=${encodeURIComponent(ch)}` : '/v1/marketing/posts')
 }
 
 /**
@@ -723,11 +725,52 @@ async function listMarketingPosts(ctx) {
  * on LinkedIn, { post, scheduled, published, retried, failed }; 403 for
  * anyone but the owner, 409 once it is published or recorded.
  */
-async function publishMarketingPost(ctx, postId) {
+async function publishMarketingPost(ctx, postId, channel) {
   const { live, mock, tenantMock } = ctx
   const id = String(postId || '')
-  if (mock) return (await tenantMock()).publishMarketingPost(id)
-  return live(`/v1/marketing/posts/${encodeURIComponent(id)}/publish`, { method: 'POST' })
+  const ch = String(channel || '')
+  if (mock) return (await tenantMock()).publishMarketingPost(id, ch)
+  // T034: ?channel=<id> publishes on that Facebook Page or Instagram account
+  const q = ch ? `?channel=${encodeURIComponent(ch)}` : ''
+  return live(`/v1/marketing/posts/${encodeURIComponent(id)}/publish${q}`, { method: 'POST' })
+}
+
+/**
+ * GET /v1/marketing/facebook/pages (spec 090 T033): the workspace's connected
+ * Facebook Pages, each with its Instagram account, { pages: [{ channel_id,
+ * page_id, name, status, instagram: { channel_id, username, status } | null }] }.
+ * 503 not_configured while the Meta app is not wired on the hub.
+ */
+async function listMetaPages(ctx) {
+  const { live, mock, tenantMock } = ctx
+  if (mock) return (await tenantMock()).metaPages()
+  return live('/v1/marketing/facebook/pages')
+}
+
+/** GET /v1/marketing/channels: every connected account, with its metadata (a Page's tasks). */
+async function listMarketingChannels(ctx) {
+  const { live, mock, tenantMock } = ctx
+  if (mock) return (await tenantMock()).marketingChannels()
+  return live('/v1/marketing/channels')
+}
+
+/** POST /v1/marketing/facebook/connect → { authorize_url }: Meta's consent page to open. */
+async function connectFacebook(ctx) {
+  const { live, mock, tenantMock } = ctx
+  if (mock) return (await tenantMock()).connectFacebook()
+  return live('/v1/marketing/facebook/connect', { method: 'POST' })
+}
+
+/**
+ * DELETE /v1/marketing/channels/{channel_id} → 204 (lane SPL-4496): the
+ * channel and its sealed token go; a Page takes its Instagram account along.
+ * Not on the hub yet: metaDisconnectLive() keeps the button off a live client.
+ */
+async function disconnectMarketingChannel(ctx, channelId) {
+  const { live, mock, tenantMock } = ctx
+  const id = String(channelId || '')
+  if (mock) return (await tenantMock()).disconnectMarketingChannel(id)
+  return live(`/v1/marketing/channels/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
 /** GET /v1/tenant/channels: every channel of the tenant (private ones too), admin view. */
@@ -2112,6 +2155,10 @@ export const lazySpoolMethods = {
   patchMarketingSwitch,
   listMarketingPosts,
   publishMarketingPost,
+  listMetaPages,
+  listMarketingChannels,
+  connectFacebook,
+  disconnectMarketingChannel,
   mintJoinToken,
   listJoinTokens,
   revokeJoinToken,

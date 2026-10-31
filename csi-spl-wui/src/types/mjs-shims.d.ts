@@ -107,8 +107,13 @@ declare module '~/utils/spool-client.mjs' {
     createBoxLock(box: string, req: { signed_body: string, signature: string, box_signature: string }): Promise<unknown>
     getMarketingSwitch(): Promise<{ tenant_id?: string, enabled?: boolean }>
     patchMarketingSwitch(enabled: boolean): Promise<{ tenant_id?: string, enabled?: boolean }>
-    listMarketingPosts(): Promise<{ posts?: Array<{ id: string, title?: string, summary?: string, image?: string }> }>
-    publishMarketingPost(postId: string): Promise<{ post?: string, scheduled?: number, published?: number, retried?: number, failed?: number }>
+    listMarketingPosts(channel?: string): Promise<{ posts?: Array<{ id: string, title?: string, summary?: string, image?: string }> }>
+    publishMarketingPost(postId: string, channel?: string): Promise<{ post?: string, scheduled?: number, published?: number, retried?: number, failed?: number, deferred?: number }>
+    /* spec 090 T035: Facebook Pages + Instagram accounts */
+    listMetaPages(): Promise<{ pages?: Array<{ channel_id: string, page_id?: string, name?: string, status?: string, instagram?: { channel_id: string, ig_user_id?: string, username?: string, status?: string } | null }> }>
+    listMarketingChannels(): Promise<{ channels?: Array<{ channel_id: string, platform?: string, metadata?: Record<string, unknown> }> }>
+    connectFacebook(): Promise<{ authorize_url?: string }>
+    disconnectMarketingChannel(channelId: string): Promise<null>
     listTenantChannels(): Promise<unknown>
     setTenantChannelNoFallback(channel: string, off: boolean): Promise<unknown>
     archiveTenantChannel(channel: string): Promise<null>

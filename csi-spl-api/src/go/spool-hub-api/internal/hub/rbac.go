@@ -140,6 +140,22 @@ type meBody struct {
 	// Contacts is the contacts switch for this workspace (spec 154 2.9,
 	// W5): a cnf lookup, no query (TestRoundTripsPerRequest).
 	Contacts bool `json:"contacts"`
+	// OperatorAdmin is true when the caller may use the operator routes as a
+	// member (operatorActor: an admin whose active workspace is the operator
+	// workspace), so the WUI reads GET /v1/operator/fleet-load only then
+	// instead of probing it into a 403 (SPL-4451). Only an admin pays the
+	// cached operator lookup (TestRoundTripsPerRequest).
+	OperatorAdmin bool `json:"operator_admin"`
+}
+
+// operatorAdminOf is operatorActor's rule as a flag: a's role is admin and
+// tenant is the operator workspace in force. A failed lookup reads false.
+func (s *Server) operatorAdminOf(ctx context.Context, tenant string, a rbac.Access) bool {
+	if a.Role != rbac.Admin {
+		return false
+	}
+	op, err := s.operatorTenant(ctx)
+	return err == nil && op != "" && op == tenant
 }
 
 // actAsMe is the act-as state of a clone session (specs/054).
@@ -168,6 +184,7 @@ func (s *Server) handleViewMe(w http.ResponseWriter, r *http.Request) {
 		out.Roles = append([]string{}, a.Roles...)
 		out.TopicArchivePolicy = s.archivePolicy(t)
 		out.ChannelOrder = s.channelOrder(r.Context(), t.ID, hum)
+		out.OperatorAdmin = s.operatorAdminOf(r.Context(), t.ID, a)
 		// Only an act-as session pays the clone lookup (its Provider marks it);
 		// a normal /v1/view/me adds no round trip (TestRoundTripsPerRequest).
 		if s.o.Auth != nil {

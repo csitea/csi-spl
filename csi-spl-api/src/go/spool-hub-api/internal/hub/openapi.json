@@ -16637,6 +16637,10 @@
                       "nullable": true,
                       "type": "string"
                     },
+                    "operator_admin": {
+                      "description": "true when the reader is an admin of the operator workspace (its active one), the caller GET /v1/operator/fleet-load answers 200 (SPL-4451)",
+                      "type": "boolean"
+                    },
                     "permissions": {
                       "items": {
                         "type": "string"

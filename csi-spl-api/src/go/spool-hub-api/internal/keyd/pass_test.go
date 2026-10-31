@@ -403,3 +403,44 @@ func writeKey(t *testing.T, path string, b []byte, mode os.FileMode) {
 		t.Fatal(err)
 	}
 }
+
+// TestReadOnceRefusals: a refused context, a tty that does not open, a
+// failed read and a short entry each return ErrPassphrase and no secret;
+// a long enough entry is returned as typed.
+func TestReadOnceRefusals(t *testing.T) {
+	prevOpen, prevRead := openTTY, readPassword
+	t.Cleanup(func() { openTTY, readPassword = prevOpen, prevRead })
+	devNull := func() (*os.File, error) { return os.OpenFile(os.DevNull, os.O_RDWR, 0) }
+	answer := func(b []byte, err error) func(int) ([]byte, error) {
+		return func(int) ([]byte, error) { return append([]byte{}, b...), err }
+	}
+	long := bytes.Repeat([]byte("a"), minPassphrase)
+	cases := []struct {
+		name     string
+		stdinTTY bool
+		open     func() (*os.File, error)
+		read     func(int) ([]byte, error)
+		want     []byte
+	}{
+		{name: "pipe", open: devNull, read: answer(long, nil)},
+		{name: "no tty", stdinTTY: true, open: func() (*os.File, error) { return nil, errors.New("no tty") }, read: answer(long, nil)},
+		{name: "read fails", stdinTTY: true, open: devNull, read: answer(nil, errors.New("eof"))},
+		{name: "short", stdinTTY: true, open: devNull, read: answer([]byte("too-short"), nil)},
+		{name: "ok", stdinTTY: true, open: devNull, read: answer(long, nil), want: long},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			openTTY, readPassword = tc.open, tc.read
+			got, err := readOnce(nil, tc.stdinTTY, true)
+			if tc.want != nil {
+				if err != nil || !bytes.Equal(got, tc.want) {
+					t.Fatalf("got %v, want the typed entry", err)
+				}
+				return
+			}
+			if !errors.Is(err, ErrPassphrase) || got != nil {
+				t.Fatalf("got %d bytes, %v; want passphrase refused", len(got), err)
+			}
+		})
+	}
+}

@@ -72,6 +72,11 @@ internal/hubclient 83.0
 internal/hygiene 90.0
 internal/i18n 97.2
 internal/invitemail 85.3
+# internal/keyd: 82.2 with r42-08's store_test.go (StateDir, InitAgent refusals,
+# writeScrypt, writeNew errors) and pass_test.go (readOnce), 75.6 without on
+# b3f12e352; go test -count=1 -cover ./internal/keyd/, go1.26.10, n=3 read
+# 82.2 each.
+internal/keyd 82.2
 internal/keydesk 79.1
 internal/keyexec 79.7
 # internal/lockkey: 76.4 on its first commit (spec 025 row B4, SPL-2956);

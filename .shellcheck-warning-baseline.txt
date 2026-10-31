@@ -77,7 +77,6 @@ SC2034|csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-grok-chain.sh|1
 SC2034|csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-grok-task.sh|1
 SC2034|csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-grok.sh|8
 SC2034|csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-qwen.sh|8
-SC2206|csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-agent.sh|1
 SC2154|csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-notify.sh|2
 SC2034|csi-spl-orc/src/bash/features/spawn-agents/scripts/trust-workdir.sh|2
 SC2034|csi-spl-orc/src/bash/features/spawn-agents/tests/lib.inc.sh|1
@@ -106,7 +105,6 @@ SC2179|csi-spl-orc/src/bash/run/spl-tenant-test-purge.func.sh|1
 SC2034|csi-spl-orc/src/bash/tests/dispatch-lease.tst.sh|1
 SC2120|csi-spl-orc/src/bash/tests/fleet-lease.tst.sh|1
 SC2034|csi-spl-orc/src/bash/tests/release-stable.tst.sh|4
-SC2115|csi-spl-orc/src/bash/tests/repair-spool-keys.tst.sh|1
 SC2120|csi-spl-orc/src/bash/tests/report-unheard.tst.sh|1
 SC2034|csi-spl-orc/src/bash/tests/responder-run.tst.sh|1
 SC2120|csi-spl-orc/src/bash/tests/responder-run.tst.sh|1

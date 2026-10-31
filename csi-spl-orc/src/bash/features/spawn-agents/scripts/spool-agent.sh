@@ -132,7 +132,7 @@ if [ -z "$ENVN" ]; then
   done
   ENVN="${ENVN:-dev}"
 fi
-ENVS=(${ENVN//,/ })
+IFS=, read -ra ENVS <<<"$ENVN"
 SEAT_ROOT="$(seat_root_of "${ENVS[0]}")"
 TMUX_SOCK="${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u "$BOX_USER")/default}"
 say() { echo "spool-agent: $*" >&2; }

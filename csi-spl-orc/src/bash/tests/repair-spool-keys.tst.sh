@@ -23,7 +23,7 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 KEY='c2VjcmV0LWtleS1ieXRlcy1ub3QtYS1yZWFsLWtleQ=='
 # fixture: a spool root holding a legacy keys dir with box-a's key, as keygen wrote it before dab3161
 fixture() {
-  rm -rf "$T/root" "$T/home"; mkdir -p "$T/root/keys" "$T/home"
+  rm -rf "${T:?}/root" "${T:?}/home"; mkdir -p "$T/root/keys" "$T/home"
   (umask 077; echo "$KEY" >"$T/root/keys/box-a.key")
 }
 run_action() {

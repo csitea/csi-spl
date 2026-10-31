@@ -3332,6 +3332,7 @@
       "col_state": "Estado",
       "state_live": "Activa",
       "state_queued": "En cola",
+      "role_seat": "Puesto de rol",
       "filter_box": "Máquina",
       "filter_vendor": "Proveedor",
       "filter_state": "Estado",

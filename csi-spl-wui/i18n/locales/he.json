@@ -3332,6 +3332,7 @@
       "col_state": "מצב",
       "state_live": "פעיל",
       "state_queued": "בתור",
+      "role_seat": "מושב תפקיד",
       "filter_box": "מכונה",
       "filter_vendor": "ספק",
       "filter_state": "מצב",

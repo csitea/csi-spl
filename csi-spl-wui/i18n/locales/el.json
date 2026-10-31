@@ -3332,6 +3332,7 @@
       "col_state": "Κατάσταση",
       "state_live": "Ενεργή",
       "state_queued": "Σε αναμονή",
+      "role_seat": "Θέση ρόλου",
       "filter_box": "Μηχάνημα",
       "filter_vendor": "Πάροχος",
       "filter_state": "Κατάσταση",

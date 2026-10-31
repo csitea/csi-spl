@@ -3332,6 +3332,7 @@
       "col_state": "Tila",
       "state_live": "Käynnissä",
       "state_queued": "Jonossa",
+      "role_seat": "Roolipaikka",
       "filter_box": "Kone",
       "filter_vendor": "Toimittaja",
       "filter_state": "Tila",

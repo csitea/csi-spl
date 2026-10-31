@@ -3332,6 +3332,7 @@
       "col_state": "Status",
       "state_live": "Actief",
       "state_queued": "In wachtrij",
+      "role_seat": "Rolplek",
       "filter_box": "Machine",
       "filter_vendor": "Leverancier",
       "filter_state": "Status",

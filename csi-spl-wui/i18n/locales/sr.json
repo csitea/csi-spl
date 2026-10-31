@@ -3332,6 +3332,7 @@
       "col_state": "Стање",
       "state_live": "Активна",
       "state_queued": "На чекању",
+      "role_seat": "Место улоге",
       "filter_box": "Машина",
       "filter_vendor": "Добављач",
       "filter_state": "Стање",

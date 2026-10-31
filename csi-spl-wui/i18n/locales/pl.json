@@ -3332,6 +3332,7 @@
       "col_state": "Stan",
       "state_live": "Aktywna",
       "state_queued": "W kolejce",
+      "role_seat": "Stanowisko roli",
       "filter_box": "Maszyna",
       "filter_vendor": "Dostawca",
       "filter_state": "Stan",

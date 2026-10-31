@@ -98,7 +98,7 @@ then `git merge-base --is-ancestor <row> <head>`; rows 01-08 on 178 runs of
 | 07 | 41169446261 (`14d12980e`) | success | **pass** |
 | 08 | 41175642223 (`921ea34d5`) | success | **pass** |
 | 09 | 41192245061 (`bd893cc8a`) | failure: `orc: hermetic action tests 2/3` (`FAIL: 10. the box-side SPOOL_LANDED_REPOS_FILE's GitHub-only row ...`, `FAILED: desk-live-proof.tst.sh`); the hub job stopped by gate fail-fast | **pass**: `wui: unit tests + typecheck` and all 8 e2e shards success; the red is SPL-4471's test (`4a50ffdb7`), fixed by `c6fce8dd5`; the row touched no `desk-live` file (`git show --name-only --format= bd893cc8a 7544ccfb0 \| grep -c desk-live` -> 0) |
-| 10 | 41194669862 (`7544ccfb0`) | failure: the same `desk-live-proof.tst.sh` case 10; `hub: gofmt, go vet, go test` stopped by fail-fast | **open**: the job that runs the row's own tests did not finish. The next run holding the fix (41196575380, `c6fce8dd5`) was in progress when this was written |
+| 10 | 41194669862 (`7544ccfb0`) | failure: the same `desk-live-proof.tst.sh` case 10; `hub: gofmt, go vet, go test` stopped by fail-fast | **pass**: the job that runs the row's own tests did not finish here; the next run, 41196575380 (`c6fce8dd5`, which holds the row and the SPL-4471 fix), is success, its `hub: gofmt, go vet, go test` job reads `ok ... cmd/spool ... coverage: 77.8%` and `ok   - cmd/spool 77.8% (floor 77.8)` |
 
 ## 4. What went wrong and what we learned
 
@@ -128,7 +128,8 @@ The first runs holding rows 09 and 10 are red from one test of SPL-4471
 `5a5819f08`. The 8 master runs `41182926135` (`4a50ffdb7`) ..
 `41194669862` (`7544ccfb0`) all concluded failure; the failing test is read
 from the logs of the two row runs only. Gate fail-fast then stopped the hub
-job, so row 10's own Go tests have no CI verdict yet.
+job, so row 10's own Go tests got their verdict only on the next run
+(41196575380, `c6fce8dd5`: success, `cmd/spool 77.8% (floor 77.8)`).
 *Lesson:* under fail-fast a foreign red hides a row's own result; the R11
 verdict waits for the first green run, it is not read off the red one.
 
@@ -142,8 +143,8 @@ only the 4 G101 false positives.
 ### 4.5 What worked
 
 - 10 of 10 rows landed, one commit each, C7 held, 0 reverts.
-- 9 of 10 R11 verdicts pass (8 green first runs; row 09 passes on its own
-  parts); row 10 open (4.3).
+- 10 of 10 R11 verdicts pass (8 green first runs; row 09 on its own
+  parts; row 10 on the next run, 4.3).
 - Served on dev and prd where a deploy is due (section 1).
 
 ## 5. Branches and seats (R8)
@@ -160,7 +161,7 @@ c-955 are not checked here.
 | commits on master per row | 1 |
 | review lines | 10, all claude reviewer on a claude author (4.1) |
 | C7 | 10 of 10 hold |
-| R11 verdict | 9 pass, 1 open (row 10) |
+| R11 verdict | 10 pass (row 10 on the run after the SPL-4471 fix) |
 | served dev + prd | all rows that deploy (section 1) |
 
 ## 7. Round 18 inputs (measured on `7ef011cd8`)

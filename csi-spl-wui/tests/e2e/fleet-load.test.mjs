@@ -107,6 +107,11 @@ try {
   for (const [path, sel] of probePages) memberReads[path] = await reads(path, sel)
   ok('2b a non-operator member reads GET /v1/operator/fleet-load 0 times on settings, users and boxes',
     Object.values(memberReads).every((n) => n === 0), memberReads)
+  // SPL-4514 (round 2 of the console errors): the card itself, opened by its
+  // URL, shows the forbidden state with no read either.
+  const cardReads = await reads('/tenant-settings/fleet-load', '[data-test=tenant-fleet-root][data-state=forbidden]')
+  ok('2f a non-operator member on /tenant-settings/fleet-load reads it 0 times and sees no card',
+    cardReads === 0 && !(await p.$('[data-test=tenant-settings-fleet-load]')), cardReads)
   // GET /v1/tenant/box-stats is audit.read on the hub: this member lacks it,
   // so the Boxes list reads no stats and box-desk's disk line stays empty.
   const diskOf = async () => {
@@ -127,6 +132,7 @@ try {
   const opReads = {}
   for (const [path, sel] of probePages.slice(0, 3)) opReads[path] = await reads(path, sel)
   opReads['/monitoring/boxes/box-desk'] = await reads('/monitoring/boxes/box-desk', '[data-test=box-band]')
+  opReads['/tenant-settings/fleet-load'] = await reads('/tenant-settings/fleet-load', '[data-test=tenant-fleet-root][data-state=ready]')
   ok('2c CONTROL: the operator admin reads it on each of those pages', Object.values(opReads).every((n) => n >= 1), opReads)
   await p.evaluate((op, me) => { localStorage.removeItem(op); localStorage.removeItem(me) }, FLEET_OPERATOR_KEY, MOCK_ME_KEY)
 

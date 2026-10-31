@@ -596,7 +596,8 @@
     "your_status_offline": "Tilasi: offline",
     "monitoring": "Valvonta",
     "reporting": "Raportit",
-    "notes": "Muistiinpanot"
+    "notes": "Muistiinpanot",
+    "expenses": "Kulut"
   },
   "composer": {
     "biz_owner": "yrityksen omistaja",
@@ -3722,5 +3723,16 @@
     "notice_connected": "Google-kalenteri on yhdistetty.",
     "notice_error": "Google-kalenteria ei yhdistetty. Yritä uudelleen.",
     "untitled_event": "(Ei otsikkoa)"
+  },
+  "expenses": {
+    "tabs_label": "Kulujen välilehdet",
+    "tab": {
+      "ai": "Tekoälykulut",
+      "cloud": "Pilvi-infrastruktuurin kulut",
+      "hr": "Henkilöstökulut"
+    },
+    "coming": "Näiden kulujen kirjaaminen tulee myöhemmässä vaiheessa.",
+    "operators_only": "Kulut ovat vain operaattorin ylläpitäjille.",
+    "tokens_link": "Maksetut tilaukset ja lisäostot kirjataan kohdassa Kulut → Tekoälykulut."
   }
 }

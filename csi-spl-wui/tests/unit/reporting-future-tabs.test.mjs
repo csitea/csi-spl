@@ -5,7 +5,8 @@
 // became Reporting -> Costs; /reporting/tokens redirects to its Tokens page,
 // and its Tokens, Price per token and Paid items pages are shells: Price and
 // Paid render for an operator admin only, Tokens for every member (owner
-// HUM-10, t1 1be0e370, msg 3f1c7128, answer 1 A).
+// HUM-10, t1 1be0e370, msg 3f1c7128, answer 1 A). SPL-4382: Paid items left
+// Costs for Expenses -> AI costs; /reporting/costs/paid only redirects.
 //
 // The pages' templates are the SHIPPED ones, rendered with Vue's own
 // compiler + server renderer for each role, so a page that drops the gate
@@ -25,7 +26,7 @@ import { REPORTING_TABS, visibleReportingTabs, reportingTabShows } from '../../s
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (p) => readFileSync(join(WUI, p), 'utf8')
 const FUTURE = ['issues', 'posts', 'lanes']
-const OPERATOR_ONLY = ['lanes', 'costs/price', 'costs/paid']
+const OPERATOR_ONLY = ['lanes', 'costs/price']
 const tab = (id) => REPORTING_TABS.find((x) => x.id === id)
 const page = (id) => 'src/pages/reporting/' + id + '.vue'
 
@@ -69,7 +70,7 @@ describe('T051-T053 each reserved tab has its page and stays hidden', () => {
   })
 })
 
-describe('S1 Costs pages (SPL-3798; SPL-4187): AI tokens and Human for every member; Cloud, Price per token and Paid items for an operator admin', () => {
+describe('S1 Costs pages (SPL-3798; SPL-4187): AI tokens and Human for every member; Cloud and Price per token for an operator admin; Paid items moved to Expenses (SPL-4382)', () => {
   it('/reporting/tokens is a redirect now, no page of its own', () => {
     const src = read(page('tokens'))
     assert.match(src, /<LegacyMonitoringRedirect \/>/)
@@ -96,8 +97,13 @@ describe('S1 Costs pages (SPL-3798; SPL-4187): AI tokens and Human for every mem
       assert.ok(html.includes(t('reporting.future.operators_only')), role)
     }
   })
-  it('the Price and Paid shells: the coming line for an operator admin; anyone else the operators-only line', async () => {
-    for (const id of ['price', 'paid']) {
+  it('SPL-4382: /reporting/costs/paid is a redirect (to Expenses -> AI costs), no shell of its own', () => {
+    const src = read(page('costs/paid'))
+    assert.match(src, /<LegacyMonitoringRedirect \/>/)
+    assert.doesNotMatch(src, /costs-shell-paid|reporting\.costs\.coming/)
+  })
+  it('the Price shell: the coming line for an operator admin; anyone else the operators-only line', async () => {
+    for (const id of ['price']) {
       const op = await render('costs/' + id, 'operator admin')
       assert.ok(op.includes(t('reporting.costs.page.' + id)) && op.includes(t('reporting.costs.coming')), id)
       for (const role of ['workspace admin', 'member']) {

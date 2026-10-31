@@ -596,7 +596,8 @@
     "your_status_offline": "Váš stav: offline",
     "monitoring": "Monitorovanie",
     "reporting": "Prehľady",
-    "notes": "Poznámky"
+    "notes": "Poznámky",
+    "expenses": "Výdavky"
   },
   "composer": {
     "biz_owner": "majiteľ firmy",
@@ -3722,5 +3723,16 @@
     "notice_connected": "Kalendár Google je pripojený.",
     "notice_error": "Kalendár Google nebol pripojený. Skúste to znova.",
     "untitled_event": "(Bez názvu)"
+  },
+  "expenses": {
+    "tabs_label": "Karty výdavkov",
+    "tab": {
+      "ai": "Náklady na AI",
+      "cloud": "Náklady na cloudovú infraštruktúru",
+      "hr": "Personálne náklady"
+    },
+    "coming": "Zadávanie týchto nákladov príde v neskoršom kroku.",
+    "operators_only": "Výdavky sú len pre administrátorov operátora.",
+    "tokens_link": "Zaplatené predplatné a dobitia sa zadávajú v časti Výdavky → Náklady na AI."
   }
 }

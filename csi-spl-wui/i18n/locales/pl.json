@@ -596,7 +596,8 @@
     "your_status_offline": "Twój status: offline",
     "monitoring": "Monitorowanie",
     "reporting": "Raporty",
-    "notes": "Notatki"
+    "notes": "Notatki",
+    "expenses": "Wydatki"
   },
   "composer": {
     "biz_owner": "właściciel firmy",
@@ -3722,5 +3723,16 @@
     "notice_connected": "Kalendarz Google jest połączony.",
     "notice_error": "Kalendarz Google nie został połączony. Spróbuj ponownie.",
     "untitled_event": "(Bez tytułu)"
+  },
+  "expenses": {
+    "tabs_label": "Karty wydatków",
+    "tab": {
+      "ai": "Koszty AI",
+      "cloud": "Koszty infrastruktury chmurowej",
+      "hr": "Koszty personelu"
+    },
+    "coming": "Wprowadzanie tych kosztów pojawi się w późniejszym kroku.",
+    "operators_only": "Wydatki są tylko dla administratorów operatora.",
+    "tokens_link": "Opłacone subskrypcje i doładowania wprowadza się w Wydatki → Koszty AI."
   }
 }

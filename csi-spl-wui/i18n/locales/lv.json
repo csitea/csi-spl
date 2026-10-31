@@ -596,7 +596,8 @@
     "your_status_offline": "Jūsu statuss: bezsaistē",
     "monitoring": "Pārraudzība",
     "reporting": "Pārskati",
-    "notes": "Piezīmes"
+    "notes": "Piezīmes",
+    "expenses": "Izdevumi"
   },
   "composer": {
     "biz_owner": "uzņēmuma īpašnieks",
@@ -3722,5 +3723,16 @@
     "notice_connected": "Google kalendārs ir savienots.",
     "notice_error": "Google kalendārs netika savienots. Mēģiniet vēlreiz.",
     "untitled_event": "(Bez nosaukuma)"
+  },
+  "expenses": {
+    "tabs_label": "Izdevumu cilnes",
+    "tab": {
+      "ai": "MI izmaksas",
+      "cloud": "Mākoņinfrastruktūras izmaksas",
+      "hr": "Personāla izmaksas"
+    },
+    "coming": "Šo izmaksu ievadīšana nāks vēlākā solī.",
+    "operators_only": "Izdevumi ir tikai operatora administratoriem.",
+    "tokens_link": "Apmaksātie abonementi un papildinājumi tiek ievadīti sadaļā Izdevumi → MI izmaksas."
   }
 }

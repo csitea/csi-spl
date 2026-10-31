@@ -306,6 +306,10 @@ func TestCalendarEventLinks(t *testing.T) {
 	}
 	refuse("missing issue", calBody("x", map[string]any{"issue_keys": []string{"SPL-99999"}}))
 	refuse("foreign prefix", calBody("x", map[string]any{"issue_keys": []string{"HUM-10"}}))
+	// The number is this workspace's issue, the prefix another's: only the
+	// prefix check refuses it (GetIssue would find the number).
+	refuse("foreign prefix, own number", calBody("x", map[string]any{
+		"issue_keys": []string{"ACME" + key[strings.LastIndexByte(key, '-'):]}}))
 	refuse("other tenant", calBody("x", map[string]any{"owner_id": outsider}))
 	refuse("no such member", calBody("x", map[string]any{"owner_id": "HUM-99999"}))
 	refuse("unknown topic", calBody("x", map[string]any{"topic_id": "no-such-topic"}))

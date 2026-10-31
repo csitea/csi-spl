@@ -3,13 +3,14 @@
 // after it (the route middleware's session probe, the frame's chunks) used to
 // wait for that download too.
 //   1. the session probe (utils/early-session.mjs; the session store takes it).
+//      An 'in' answer guesses the view door at once (guessDoorWhenIn).
 //      P3-03: the document's head script already sent it; adopt that fetch.
 //   2. on a product screen, the default layout and the top bar's language
 //      switcher, which the frame imports as soon as it renders
 import { useAuthBase, useAuthClient } from '~/composables/useAuthClient'
 import { sessionProbeUrl } from '~/utils/auth-client-core.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { startEarlySession, takeParkedSession } from '~/utils/early-session.mjs'
+import { guessDoorWhenIn, startEarlySession, takeParkedSession } from '~/utils/early-session.mjs'
 import { isProductScreen } from '~/utils/signed-out-redirect.mjs'
 
 export default defineNuxtPlugin({
@@ -23,7 +24,8 @@ export default defineNuxtPlugin({
     if (/^\/(\w\w\/)?blog(\/|$)/.test(location.pathname)) return
     const auth = useAuthClient()
     const parked = takeParkedSession(window, sessionProbeUrl(useAuthBase()))
-    startEarlySession(() => auth.session(parked))
+    // SPL-4422: an 'in' answer guesses the view door before any page reads
+    startEarlySession(() => guessDoorWhenIn(useSpoolApi(), auth.session(parked)))
     if (isProductScreen(window.location.pathname + window.location.search)) {
       // Warm-up only: the real import on render retries and triggers chunk-reload,
       // which is why a stale chunk here does not reload the tab.

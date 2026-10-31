@@ -122,6 +122,19 @@ async function armSessionDoor(api, prev, read) {
 }
 
 /**
+ * SPL-4447: a read the hub answered (any HTTP status) under a guessed session
+ * door proves the guess: the hub's CORS took the credentials. Without this the
+ * guess stayed unproven for the tab's life, and its first network drop reset
+ * the door, so the next reads went out without the cookie (a 401 view_door
+ * burst on a signed-in tab, prd 10-29). setDoor clears doorGuessed.
+ * @param {{ door: string, setDoor: (d: string) => void, doorGuessed?: boolean }} api
+ * @param {boolean} guessed  the door was a guess when the read went out
+ */
+function proveGuess(api, guessed) {
+  if (guessed && api.door === 'session' && api.doorGuessed === true) api.setDoor('session')
+}
+
+/**
  * view-v1 §2 / 010 FR-009: a door that takes a member session needs the
  * sign-in cookie (credentials 'include'). On a 401 whose detail offers a
  * session, switch the client to door 'session' once and retry. The 401 detail
@@ -146,9 +159,12 @@ export async function withSessionRetry(api, read) {
   const door = api.door
   const guessed = door === 'session' && api.doorGuessed === true
   try {
-    return await read()
+    const out = await read()
+    proveGuess(api, guessed)
+    return out
   } catch (e) {
     const err = /** @type {{ status?: number, detail?: string }} */ (e || {})
+    if (err.status) proveGuess(api, guessed)
     /* the door was guessed from a signed-in probe (guessDoor), not
        proven. A read under it that fails WITHOUT an HTTP status is a token
        door's CORS refusing credentials: take the guess back and discover the

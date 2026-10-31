@@ -47,6 +47,23 @@ export function startEarlySession(probe) {
   return early
 }
 
+/**
+ * SPL-4422: guess the client's view door from the early probe as soon as it
+ * answers 'in', not when the session store takes the answer. Off the product
+ * screens the route middleware does not wait for the probe, so a page's
+ * first reads used to leave with the door unset (credentials omit, one 401
+ * each). The guess only fills an unset door; withSessionRetry takes a wrong
+ * one back. Resolves and rejects as `p` does.
+ * @param {{ guessDoor: (d: string) => void }} api
+ * @param {Promise<{ state?: string }>} p
+ */
+export function guessDoorWhenIn(api, p) {
+  return p.then((out) => {
+    if (out && out.state === 'in') api.guessDoor('session')
+    return out
+  })
+}
+
 /** The early probe's promise, once; null when none was started or it was taken. */
 export function takeEarlySession() {
   const p = early

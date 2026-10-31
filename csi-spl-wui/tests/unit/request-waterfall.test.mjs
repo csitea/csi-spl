@@ -10,6 +10,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createSpoolClient, TOPIC_READS_IN_FLIGHT, FIRST_SCREEN_MS } from '../../src/utils/spool-client.mjs'
 import { withSessionRetry } from '../../src/utils/live-follow.mjs'
+import { guessDoorWhenIn } from '../../src/utils/early-session.mjs'
 import { createReadSync } from '../../src/utils/read-sync.mjs'
 import { loadCursors } from '../../src/utils/read-cursor.mjs'
 import { dmReadParams } from '../../src/utils/channel-feed.mjs'
@@ -269,6 +270,71 @@ describe('the session door is guessed from a signed-in probe (guessDoor)', () =>
     const api = { door: 'session', doorGuessed: false, setDoor(d) { this.door = d } }
     await assert.rejects(withSessionRetry(api, async () => { throw new TypeError('Failed to fetch') }))
     assert.equal(api.door, 'session')
+  })
+
+  /* SPL-4447 (prd 10-29 09:35..09:53Z, row 6 of SPL-4419): a signed-in tab
+     went 401, 200, 401, 200 on its view reads, the 401s without the cookie
+     (each request ~1 KB smaller than the same tab's 200s seconds before).
+     The guess was never marked proven, so any later network drop reset the
+     door and the reads after it went out without credentials until the
+     arming round. */
+  it('an answered read proves the guessed door: a later network drop keeps it', async () => {
+    let drop = false
+    const creds = []
+    const fn = async (url, opts) => {
+      creds.push(opts.credentials)
+      if (drop) throw new TypeError('Failed to fetch')
+      return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({ messages: [] }) }
+    }
+    const c = createSpoolClient({ mock: false, base: 'https://h', fetchFn: fn })
+    const T = (n) => `00000000-0000-4000-8000-00000000000${n}`
+    c.guessDoor('session')
+    await withSessionRetry(c, () => c.getTopic(T(1), { limit: 1 }))
+    assert.equal(c.doorGuessed, false, 'an answered read proves the guess')
+    drop = true
+    await assert.rejects(withSessionRetry(c, () => c.getTopic(T(2), { limit: 1 })))
+    assert.equal(c.door, 'session')
+    drop = false
+    await withSessionRetry(c, () => c.getTopic(T(3), { limit: 1 }))
+    /* the client retries a dropped fetch once on its own: count is not the point */
+    assert.ok(creds.length >= 3 && creds.every((x) => x === 'include'), JSON.stringify(creds))
+  })
+
+  it('an answered refusal (an HTTP status) proves the guess as well', async () => {
+    const api = { door: 'session', doorGuessed: true, setDoor(d) { this.door = d; this.doorGuessed = false } }
+    await assert.rejects(withSessionRetry(api, async () => { throw Object.assign(new Error('x'), { status: 500 }) }))
+    assert.equal(api.door, 'session')
+    assert.equal(api.doorGuessed, false)
+  })
+
+  it('control: an unanswered first read under the guess still takes it back', async () => {
+    const api = { door: 'session', doorGuessed: true, setDoor(d) { this.door = d; this.doorGuessed = false } }
+    const seen = []
+    await assert.rejects(withSessionRetry(api, async () => { seen.push(api.door); throw new TypeError('Failed to fetch') }))
+    assert.deepEqual(seen, ['session', ''])
+  })
+
+  /* SPL-4422 lead (c-734, dev n=1): off the product screens the middleware
+     does not await the probe, so a page's first reads left with the door
+     unset (cred=omit -> 401) although the early probe had answered 'in'
+     at ~0.1 s. The early probe guesses the door itself. */
+  it('the early probe guesses the session door as soon as it answers in', async () => {
+    const api = { door: '', guesses: [], guessDoor(d) { this.guesses.push(d); if (!this.door) this.door = d } }
+    const out = await guessDoorWhenIn(api, Promise.resolve({ state: 'in', claims: {} }))
+    assert.equal(out.state, 'in')
+    assert.deepEqual(api.guesses, ['session'])
+  })
+
+  it('control: an out or unknown probe guesses nothing, a failed one still rejects', async () => {
+    const api = { door: '', guesses: [], guessDoor(d) { this.guesses.push(d) } }
+    await guessDoorWhenIn(api, Promise.resolve({ state: 'out', claims: null }))
+    await guessDoorWhenIn(api, Promise.resolve({ state: 'unknown', claims: null }))
+    await assert.rejects(guessDoorWhenIn(api, Promise.reject(new Error('net'))))
+    assert.deepEqual(api.guesses, [])
+  })
+
+  it('plugins/0.boot-early hands its probe through guessDoorWhenIn', () => {
+    assert.match(src('src/plugins/0.boot-early.client.ts'), /startEarlySession\(\(\) => guessDoorWhenIn\(useSpoolApi\(\), auth\.session\(parked\)\)\)/)
   })
 
   it('the session store guesses the door before it flips to in', () => {

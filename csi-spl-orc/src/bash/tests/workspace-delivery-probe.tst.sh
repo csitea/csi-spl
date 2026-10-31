@@ -199,7 +199,7 @@ cron >"$T/o" 2>&1; rc=$?
   pass "8. dry run: the diff, nothing written" || fail "8. dry: rc=$rc $(cat "$T/o")"
 cron PROBE_CRON_ACTION=check >/dev/null 2>&1 && fail "8. check passed with no line" || pass "8. check fails while not installed"
 cron DRY_RUN=0 >"$T/o" 2>&1; rc=$?
-want="4-59/10 * * * * ENV=dev $SRC/csi-spl-orc/src/bash/scripts/workspace-delivery-probe-cron.sh >> $T/log/cron-dev.out 2>&1 # csi-spl:delivery-probe-dev"
+want="4-59/10 * * * * ENV=dev $SRC/csi-spl-orc/src/bash/scripts/cron-no-stack.sh $T/log/cron-dev.lock $SRC/csi-spl-orc/src/bash/scripts/workspace-delivery-probe-cron.sh >> $T/log/cron-dev.out 2>&1 # csi-spl:delivery-probe-dev"
 [[ $rc -eq 0 && "$(grep -c 'delivery-probe-dev$' "$T/crontab")" == 1 ]] && grep -qxF "$want" "$T/crontab" && grep -q 'desk-reconcile' "$T/crontab" &&
   pass "8. DRY_RUN=0: one exact tagged dev line, the other line kept" || fail "8. install rc=$rc: $(cat "$T/crontab") $(cat "$T/o")"
 cron DRY_RUN=0 >/dev/null 2>&1

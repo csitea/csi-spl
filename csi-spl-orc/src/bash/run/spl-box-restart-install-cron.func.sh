@@ -83,7 +83,7 @@ spl_brx_cron_slot() {
 
 # spl_brx_cron_build TAG: SPL_BRX_CRON_LINE / _SCRIPT / _LOGDIR.
 spl_brx_cron_build() {
-  local tag="$1" pre="" trunk="${DESK_CRON_TRUNK:-master}"
+  local tag="$1" pre="" ns trunk="${DESK_CRON_TRUNK:-master}"
   [[ "$trunk" =~ ^[A-Za-z0-9._/-]+$ ]] || { do_log "FATAL DESK_CRON_TRUNK is not a branch name: '$trunk'"; return 1; }
   spl_brx_cron_slot || return 1
   spl_desk_cron_src || return 1
@@ -91,7 +91,8 @@ spl_brx_cron_build() {
   SPL_BRX_CRON_LOGDIR="${BOX_RESTART_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/box-restart}"
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
     pre="$(spl_desk_cron_update_pre "$SPL_DESK_CRON_SRC" "$trunk")"
-  SPL_BRX_CRON_LINE="*/5 * * * * $pre$SPL_BRX_CRON_SCRIPT --at '$SPL_BRX_CRON_AT' >> $SPL_BRX_CRON_LOGDIR/box-restart.out 2>&1 # $tag"
+  ns="$(spl_cron_no_stack_pre "$SPL_DESK_CRON_SRC/$SPL_ORG_APP-orc" "$SPL_BRX_CRON_LOGDIR/box-restart.lock")" || return 1
+  SPL_BRX_CRON_LINE="*/5 * * * * $pre$ns$SPL_BRX_CRON_SCRIPT --at '$SPL_BRX_CRON_AT' >> $SPL_BRX_CRON_LOGDIR/box-restart.out 2>&1 # $tag"
 }
 
 # spl_brx_cron_apply TAG: write the line and read it back.

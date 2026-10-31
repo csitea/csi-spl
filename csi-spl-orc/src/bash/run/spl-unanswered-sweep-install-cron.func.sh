@@ -49,7 +49,7 @@ do_spl_unanswered_sweep_install_cron() {
   [[ "${DRY_RUN:-1}" == 0 || "${DRY_RUN:-1}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
   SPL_ORG_APP="${SPL_ORG_APP:-$(basename "$PROJ_PATH")}"; SPL_ORG_APP="${SPL_ORG_APP%-orc}"
 
-  local tag src script logdir line current sched pre="" out="cron.out" trunk="${DESK_CRON_TRUNK:-master}"
+  local tag src script logdir line ns lock current sched pre="" out="cron.out" trunk="${DESK_CRON_TRUNK:-master}"
   tag="$SPL_ORG_APP:unanswered-sweep$([[ "$env_name" == prd ]] || printf -- '-%s' "$env_name")"
   spl_desk_cron_src || return 1
   src="$SPL_DESK_CRON_SRC"
@@ -60,8 +60,10 @@ do_spl_unanswered_sweep_install_cron() {
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
     pre="$(spl_desk_cron_update_pre "$src" "$trunk")"
   [[ "$env_name" == prd ]] || out="cron-$env_name.out"
-  line="$(printf '%s * * * * %sENV=%s SWEEP_MIN_AGE=%s SWEEP_ESCALATE_AGE=%s %s >> %s/%s 2>&1 # %s' \
-    "$sched" "$pre" "$env_name" "$min_age" "$esc_age" "$script" "$logdir" "$out" "$tag")"
+  lock="$logdir/${out%.out}.lock"
+  ns="$(spl_cron_no_stack_pre "$src/$SPL_ORG_APP-orc" "$lock")" || return 1
+  line="$(printf '%s * * * * %sENV=%s SWEEP_MIN_AGE=%s SWEEP_ESCALATE_AGE=%s %s%s >> %s/%s 2>&1 # %s' \
+    "$sched" "$pre" "$env_name" "$min_age" "$esc_age" "$ns" "$script" "$logdir" "$out" "$tag")"
   current="$(spl_desk_cron_line "$tag")"
 
   if [[ "$act" == check ]]; then

@@ -47,3 +47,22 @@ spl_desk_cron_lock_path() {
   gd="$(git -C "$1" rev-parse --absolute-git-dir 2>/dev/null)" && [[ -n "$gd" ]] || return 1
   printf '%s/%s\n' "$gd" "$SPL_DESK_CRON_LOCK_NAME"
 }
+
+#------------------------------------------------------------------------------
+# @description Print the crontab words that run one line's job under its own
+# @description non-blocking lock (SPL-4495): "<orc>/src/bash/scripts/
+# @description cron-no-stack.sh <lock> ", to put right before the job. A second
+# @description start while the first still runs exits 0 at once with one SKIP
+# @description line, so a job slower than its period never stacks. Every
+# @description every-minute and every-few-minute installer writes it.
+# @param orc (required) - the <org>-<app>-orc dir of the checkout the line runs
+# @param lock (required) - the line's own lock file, an absolute path
+# @return 0 printed, 1 a relative lock path or one with a blank or quote
+# @example ns="$(spl_cron_no_stack_pre "$src/$SPL_ORG_APP-orc" "$logdir/cron.lock")" || return 1
+#------------------------------------------------------------------------------
+spl_cron_no_stack_pre() {
+  local orc="$1" lock="$2"
+  [[ "$lock" == /* && "$lock" =~ ^[^[:space:]\'\"]+$ ]] ||
+    { echo "FATAL spl_cron_no_stack_pre: the lock must be an absolute path with no blank or quote, got: '$lock'" >&2; return 1; }
+  printf '%s/src/bash/scripts/cron-no-stack.sh %s ' "$orc" "$lock"
+}

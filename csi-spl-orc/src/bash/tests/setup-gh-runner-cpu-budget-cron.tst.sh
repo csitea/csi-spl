@@ -3,7 +3,8 @@
 # Purpose: do_setup_gh_runner_cpu_budget_cron writes the gate CPU floor
 #   (CPU_BUDGET_GATE_FLOOR_PCT, owner HUM-10 2026-10-10: 500 = 5 cores) into
 #   the cron line it builds, so a re-run keeps it.
-#   1. default: the rendered line carries CPU_BUDGET_GATE_FLOOR_PCT=500
+#   1. default: the rendered line carries CPU_BUDGET_GATE_FLOOR_PCT=500 and
+#      runs the job behind cron-no-stack.sh on <logdir>/cron.lock (SPL-4495)
 #   2. a second install keeps exactly one tagged line and the same floor
 #   3. CPU_BUDGET_GATE_FLOOR_PCT=0 renders the floor off; a bad value is refused
 #   4. red control: the action without the floor (git HEAD~ copy or a copy with
@@ -42,7 +43,8 @@ setup() {
     do_setup_gh_runner_cpu_budget_cron'
 }
 script="$SH/csi-spl-orc/src/bash/scripts/gh-runner-cpu-budget-cron.sh"
-want() { printf '* * * * * CPU_BUDGET_GATE_FLOOR_PCT=%s CPU_BUDGET_CI_RESERVE_PCT=950 CPU_BUDGET_CI_WEIGHT=400 %s >> %s/log/cron.out 2>&1 # csi-spl:gh-runner-cpu-budget' "$1" "$script" "$T"; }
+# the job runs behind its own no-stack lock (SPL-4495)
+want() { printf '* * * * * CPU_BUDGET_GATE_FLOOR_PCT=%s CPU_BUDGET_CI_RESERVE_PCT=950 CPU_BUDGET_CI_WEIGHT=400 %s/csi-spl-orc/src/bash/scripts/cron-no-stack.sh %s/log/cron.lock %s >> %s/log/cron.out 2>&1 # csi-spl:gh-runner-cpu-budget' "$1" "$SH" "$T" "$script" "$T"; }
 tagged() { grep -c 'csi-spl:gh-runner-cpu-budget$' "$T/crontab"; }
 
 # check_default <func file>: 0 when the default install writes the 500 floor

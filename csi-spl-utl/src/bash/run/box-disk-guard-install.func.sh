@@ -6,7 +6,11 @@
 # @description   disk-headroom  - csi-spl-orc check-disk-headroom.sh every 15 min
 # @description                    (7-59/15), from the self-updating desk checkout,
 # @description                    moved to origin/<trunk> under the desk-cron
-# @description                    checkout lock (spl_desk_cron_update_pre, SPL-2672)
+# @description                    checkout lock (spl_desk_cron_update_pre, SPL-2672),
+# @description                    the job behind its own no-stack lock
+# @description                    (cron-no-stack.sh, <var>/disk-headroom/cron.lock,
+# @description                    SPL-4495), the same line as
+# @description                    do_check_disk_headroom_install_cron writes
 # @description   box-disk-sweep - csi-spl-orc box-disk-sweep.sh every 15 min
 # @description                    (11-59/15), gated and locked (SPL-2053)
 # @description   disk-growth    - this module's do_box_disk_inventory once a day
@@ -40,7 +44,7 @@ declare -F spl_desk_cron_update_pre >/dev/null || {
 disk_guard_lines() {
   local app="$1" src="$2" desk="$3" var="$4" trunk="$5"
   printf '%s\n' \
-    "7-59/15 * * * * $(spl_desk_cron_update_pre "$desk" "$trunk")DRY_RUN=0 $desk/$app-orc/src/bash/scripts/check-disk-headroom.sh >> $var/disk-headroom/cron.out 2>&1 # $app:disk-headroom" \
+    "7-59/15 * * * * $(spl_desk_cron_update_pre "$desk" "$trunk")DRY_RUN=0 $(spl_cron_no_stack_pre "$desk/$app-orc" "$var/disk-headroom/cron.lock")$desk/$app-orc/src/bash/scripts/check-disk-headroom.sh >> $var/disk-headroom/cron.out 2>&1 # $app:disk-headroom" \
     "11-59/15 * * * * DRY_RUN=0 BOX_SWEEP_GATE=1 BOX_SWEEP_LOCK=$var/box-disk-sweep/box-disk-sweep.lock bash $src/$app-orc/src/bash/scripts/box-disk-sweep.sh >> $var/box-disk-sweep/box-disk-sweep.log 2>&1 # $app:box-disk-sweep" \
     "23 3 * * * cd $desk/$app-utl && DRY_RUN=0 ./run -a do_box_disk_inventory >> $var/box-disk-sweep/growth.cron.out 2>&1 # $app:disk-growth"
 }

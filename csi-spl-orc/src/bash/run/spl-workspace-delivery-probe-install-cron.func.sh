@@ -45,7 +45,7 @@ do_spl_workspace_delivery_probe_install_cron() {
   fi
   SPL_ORG_APP="${SPL_ORG_APP:-$(basename "$PROJ_PATH")}"; SPL_ORG_APP="${SPL_ORG_APP%-orc}"
 
-  local tag src script logdir line current sched pre="" trunk="${DESK_CRON_TRUNK:-master}"
+  local tag src script logdir line ns current sched pre="" trunk="${DESK_CRON_TRUNK:-master}"
   tag="$SPL_ORG_APP:delivery-probe-$env_name"
   spl_desk_cron_src || return 1
   src="$SPL_DESK_CRON_SRC"
@@ -55,7 +55,8 @@ do_spl_workspace_delivery_probe_install_cron() {
   if (( off == 0 )); then sched="*/$every"; else sched="$off-59/$every"; fi
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
     pre="$(spl_desk_cron_update_pre "$src" "$trunk")"
-  line="$(printf '%s * * * * %sENV=%s %s >> %s/cron-%s.out 2>&1 # %s' "$sched" "$pre" "$env_name" "$script" "$logdir" "$env_name" "$tag")"
+  ns="$(spl_cron_no_stack_pre "$src/$SPL_ORG_APP-orc" "$logdir/cron-$env_name.lock")" || return 1
+  line="$(printf '%s * * * * %sENV=%s %s%s >> %s/cron-%s.out 2>&1 # %s' "$sched" "$pre" "$env_name" "$ns" "$script" "$logdir" "$env_name" "$tag")"
   current="$(spl_desk_cron_line "$tag")"
 
   if [[ "$act" == check ]]; then

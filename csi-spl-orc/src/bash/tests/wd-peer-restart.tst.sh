@@ -265,7 +265,7 @@ out="$(judge 1)"
 reset_box; fake_peer 2 10; fake_peer 3 10
 # the boot gate every @reboot line starts with (boot-cron-gate.tst.sh covers it)
 gate() { bash -c 'do_log() { echo "$*"; }; source "$1"; shift; spl_cron_boot_gate "$@"' _ "$PROJ_ROOT/src/bash/run/spl-desk-install-service.func.sh" "$@"; }
-start_line="* * * * * PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin $SH/csi-spl-orc/run -a do_spl_wd_inst_start >> $T/log/wd/starter.out 2>&1 # csi-spl:wd-start"
+start_line="* * * * * PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin $SH/csi-spl-orc/src/bash/scripts/cron-no-stack.sh $T/log/wd/starter.lock $SH/csi-spl-orc/run -a do_spl_wd_inst_start >> $T/log/wd/starter.out 2>&1 # csi-spl:wd-start"
 boot_line="@reboot $(gate $T/log/wd/starter.out $SH/csi-spl-orc/run csi-spl:wd-start-boot)PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin $SH/csi-spl-orc/run -a do_spl_wd_inst_start >> $T/log/wd/starter.out 2>&1 # csi-spl:wd-start-boot"
 printf '# keep me\n0 1 * * * %s/csi-spl-orc/run -a do_x # csi-spl:x\n* * * * * %s/csi-spl-orc/run -a do_spl_wd_ensure # csi-spl:wd-ensure\n' "$SH" "$SH" > "$T/crontab"
 cp "$T/crontab" "$T/crontab.0"
@@ -313,7 +313,7 @@ out="$(inst DRY_RUN=0 CRON_REMOVE=1)"; rc=$?
 out="$(inst WD_CRON_ACTION=check)"; rc=$?
 [[ $rc -eq 1 && "$out" == *"NOT installed"* ]] && pass "10 check after remove: FAIL, exit 1" || fail "10 check none rc=$rc: $out"
 out="$(inst WD_ENSURE_WATCH_DRY=1)"
-[[ "$out" == *"+* * * * * PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin WD_INST_DRY=1 $SH/csi-spl-orc/run -a do_spl_wd_inst_start"* ]] &&
+[[ "$out" == *"+* * * * * PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin WD_INST_DRY=1 $SH/csi-spl-orc/src/bash/scripts/cron-no-stack.sh $T/log/wd/starter.lock $SH/csi-spl-orc/run -a do_spl_wd_inst_start"* ]] &&
   pass "10 observe-only: the starter lines carry WD_INST_DRY=1" || fail "10 observe: $out"
 out="$(inst WD_CRON_KIND=nope)"; rc=$?
 [[ $rc -eq 1 && "$out" == *"WD_CRON_KIND must be start or ensure"* ]] && pass "10 an unknown WD_CRON_KIND is refused" || fail "10 kind rc=$rc: $out"

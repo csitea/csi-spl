@@ -130,14 +130,15 @@ spl_peer_cron_sched() {
 # ensure does not: a fetch every minute buys nothing the desk reconcile's
 # five-minute one does not already.
 spl_peer_cron_build() {
-  local name="$1" sched pre="" trunk="${DESK_CRON_TRUNK:-master}"
+  local name="$1" sched pre="" ns trunk="${DESK_CRON_TRUNK:-master}"
   sched="$(spl_peer_cron_sched "$name")" || { do_log "FATAL no peer cron named '$name'"; return 1; }
   SPL_PEER_CRON_TAG="$SPL_ORG_APP:peer-$name"
   SPL_PEER_CRON_SCRIPT="$SPL_DESK_CRON_SRC/$SPL_ORG_APP-orc/src/bash/scripts/peer-$name-cron.sh"
   SPL_PEER_CRON_LOGDIR="${PEER_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/peer}"
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 && "$name" != ensure ]] &&
     pre="$(spl_desk_cron_update_pre "$SPL_DESK_CRON_SRC" "$trunk")"
-  SPL_PEER_CRON_LINE="$sched $pre$SPL_PEER_CRON_SCRIPT >> $SPL_PEER_CRON_LOGDIR/$name.out 2>&1 # $SPL_PEER_CRON_TAG"
+  ns="$(spl_cron_no_stack_pre "$SPL_DESK_CRON_SRC/$SPL_ORG_APP-orc" "$SPL_PEER_CRON_LOGDIR/$name.lock")" || return 1
+  SPL_PEER_CRON_LINE="$sched $pre$ns$SPL_PEER_CRON_SCRIPT >> $SPL_PEER_CRON_LOGDIR/$name.out 2>&1 # $SPL_PEER_CRON_TAG"
 }
 
 # spl_peer_cron_install NAME: the body of do_spl_peer_<name>_install_cron.
@@ -190,7 +191,8 @@ spl_peer_cron_install() {
 # ---- spec 068 section 8.1: every OD script is in the project source ---------------
 
 # spl_peer_cron_script_of LINE: the script a crontab line runs: the first
-# absolute *.sh / *.bash / *.py (quotes dropped), else a ./x after a `cd <dir>`
+# absolute *.sh / *.bash / *.py (quotes dropped) that is not the
+# cron-no-stack.sh lock wrapper (SPL-4495), else a ./x after a `cd <dir>`
 # resolved against that dir, else the first absolute path that is no
 # directory; nothing when there is none.
 spl_peer_cron_script_of() {
@@ -198,6 +200,11 @@ spl_peer_cron_script_of() {
   set -f
   for t in $1; do
     t="${t//\'/}"; t="${t//\"/}"
+    case "$t" in
+      */cron-no-stack.sh) prev="$t"; continue ;;
+    esac
+    # the wrapper's lock file is no script
+    [[ "$prev" == */cron-no-stack.sh ]] && { prev="$t"; continue; }
     case "$t" in
       /*.sh|/*.bash|/*.py) set +f; printf '%s' "$t"; return 0 ;;
     esac

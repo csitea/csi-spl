@@ -267,7 +267,7 @@ cp "$T/crontab.before" "$T/crontab"
 # the 093 keeper line (WD_CRON_KIND=ensure); the 102 starter lines: wd-peer-restart.tst.sh
 export FAKE_CRONTAB="$T/crontab" DESK_CRON_SRC="$SH" WD_CRON_LOG_DIR="$T/log/wd" SPL_ORG_APP=csi-spl WD_CRON_KIND=ensure
 unset DRY_RUN WD_CRON_ACTION CRON_REMOVE
-want="* * * * * PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin $SH/csi-spl-orc/run -a do_spl_wd_ensure >> $T/log/wd/ensure.out 2>&1 # csi-spl:wd-ensure"
+want="* * * * * PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin $SH/csi-spl-orc/src/bash/scripts/cron-no-stack.sh $T/log/wd/ensure.lock $SH/csi-spl-orc/run -a do_spl_wd_ensure >> $T/log/wd/ensure.out 2>&1 # csi-spl:wd-ensure"
 
 out="$(run_act do_spl_wd_ensure_install_cron)"; rc=$?
 grep -F -q "+$want" <<<"$out" && has_want=1 || has_want=0
@@ -303,7 +303,7 @@ cmp -s "$T/crontab" "$T/crontab.before" && [[ $rc -eq 0 ]] &&
   pass "6. CRON_REMOVE=1 takes only its own line" ||
   fail "6. remove rc=$rc crontab=$(cat "$T/crontab")"
 
-want_obs="* * * * * PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin WD_ENSURE_WATCH_DRY=1 $SH/csi-spl-orc/run -a do_spl_wd_ensure >> $T/log/wd/ensure.out 2>&1 # csi-spl:wd-ensure"
+want_obs="* * * * * PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin WD_ENSURE_WATCH_DRY=1 $SH/csi-spl-orc/src/bash/scripts/cron-no-stack.sh $T/log/wd/ensure.lock $SH/csi-spl-orc/run -a do_spl_wd_ensure >> $T/log/wd/ensure.out 2>&1 # csi-spl:wd-ensure"
 out="$(WD_ENSURE_WATCH_DRY=1 run_act do_spl_wd_ensure_install_cron)"; rc=$?
 grep -F -q "+$want_obs" <<<"$out" && has_obs=1 || has_obs=0
 [[ $rc -eq 0 && "$has_obs" == 1 ]] && cmp -s "$T/crontab" "$T/crontab.before" &&

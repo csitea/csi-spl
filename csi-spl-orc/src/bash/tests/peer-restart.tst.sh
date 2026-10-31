@@ -360,9 +360,9 @@ crons APPLY=1 "$T/bin/act" do_spl_peer_crons > "$T/o" 2>&1; rc=$?
 mv "$S/peer/seats.off" "$S/peer/seats"
 crons APPLY=1 "$T/bin/act" do_spl_peer_crons > "$T/o" 2>&1; rc=$?
 { grep -vE '# csi-spl:(orch-rotate|dispatch-rotate|unanswered-sweep)$' "$T/crontab.before"
-  echo "0,15,30,45 * * * * $SC/peer-restart-cron.sh >> $L/peer/restart.out 2>&1 # csi-spl:peer-restart"
-  echo "10,25,40,55 * * * * $SC/peer-distill-cron.sh >> $L/peer/distill.out 2>&1 # csi-spl:peer-distill"
-  echo "* * * * * $SC/peer-ensure-cron.sh >> $L/peer/ensure.out 2>&1 # csi-spl:peer-ensure"; } > "$T/crontab.want"
+  echo "0,15,30,45 * * * * $SC/cron-no-stack.sh $L/peer/restart.lock $SC/peer-restart-cron.sh >> $L/peer/restart.out 2>&1 # csi-spl:peer-restart"
+  echo "10,25,40,55 * * * * $SC/cron-no-stack.sh $L/peer/distill.lock $SC/peer-distill-cron.sh >> $L/peer/distill.out 2>&1 # csi-spl:peer-distill"
+  echo "* * * * * $SC/cron-no-stack.sh $L/peer/ensure.lock $SC/peer-ensure-cron.sh >> $L/peer/ensure.out 2>&1 # csi-spl:peer-ensure"; } > "$T/crontab.want"
 [[ $rc == 0 ]] && cmp -s "$T/crontab" "$T/crontab.want" && grep -q '^applied ' "$S/peer/crons.applied" && [[ -d "$L/peer" ]] &&
   pass "8. APPLY=1: the crontab after = before - 3 old tags + 3 peer tags, every other line byte for byte ($(grep -c . "$T/crontab") lines), the desk-reconcile marker written" ||
   fail "8. apply rc=$rc: $(diff "$T/crontab.want" "$T/crontab") $(cat "$T/o")"

@@ -74,11 +74,15 @@ spl_wd_cron_prep() {
   spl_desk_cron_src || return 1
   SPL_WD_CRON_SCRIPT="$SPL_DESK_CRON_SRC/$SPL_ORG_APP-orc/run"
   SPL_WD_CRON_LOGDIR="${WD_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/wd}"
+  # each line runs behind its own no-stack lock (SPL-4495)
+  local ns_ensure ns_start
+  ns_ensure="$(spl_cron_no_stack_pre "$SPL_DESK_CRON_SRC/$SPL_ORG_APP-orc" "$SPL_WD_CRON_LOGDIR/ensure.lock")" || return 1
+  ns_start="$(spl_cron_no_stack_pre "$SPL_DESK_CRON_SRC/$SPL_ORG_APP-orc" "$SPL_WD_CRON_LOGDIR/starter.lock")" || return 1
   if [[ "$kind" == ensure ]]; then
     [[ -n "${WD_ENSURE_WATCH_DRY:-}" ]] && watch="WD_ENSURE_WATCH_DRY=$WD_ENSURE_WATCH_DRY "
     SPL_WD_CRON_NAME=wd-ensure
     SPL_WD_CRON_TAG="$SPL_ORG_APP:wd-ensure"
-    SPL_WD_CRON_LINE="* * * * * $path ${watch}$SPL_WD_CRON_SCRIPT -a do_spl_wd_ensure >> $SPL_WD_CRON_LOGDIR/ensure.out 2>&1 # $SPL_WD_CRON_TAG"
+    SPL_WD_CRON_LINE="* * * * * $path ${watch}$ns_ensure$SPL_WD_CRON_SCRIPT -a do_spl_wd_ensure >> $SPL_WD_CRON_LOGDIR/ensure.out 2>&1 # $SPL_WD_CRON_TAG"
     SPL_WD_CRON_TAGS=("$SPL_WD_CRON_TAG")
     SPL_WD_CRON_LINES=("$SPL_WD_CRON_LINE")
     return 0
@@ -87,7 +91,7 @@ spl_wd_cron_prep() {
   local cmd="$path ${watch}$SPL_WD_CRON_SCRIPT -a do_spl_wd_inst_start >> $SPL_WD_CRON_LOGDIR/starter.out 2>&1"
   SPL_WD_CRON_NAME=wd-start
   SPL_WD_CRON_TAG="$SPL_ORG_APP:wd-start"
-  SPL_WD_CRON_LINE="* * * * * $cmd # $SPL_WD_CRON_TAG"
+  SPL_WD_CRON_LINE="* * * * * $path ${watch}$ns_start${cmd#"$path ${watch}"} # $SPL_WD_CRON_TAG"
   # the hand-installed T023b pair (WD_INST_START="1 2 3" do_spl_watchdog,
   # no installer, an @reboot with no boot gate) starts the same instances:
   # out with the keeper line, the gated wd-start-boot does its job

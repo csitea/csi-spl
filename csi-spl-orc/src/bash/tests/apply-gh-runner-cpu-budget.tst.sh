@@ -467,7 +467,7 @@ setup() {
     source "'"$PROJ_ROOT"'/src/bash/run/setup-gh-runner-cpu-budget-cron.func.sh"
     do_setup_gh_runner_cpu_budget_cron'
 }
-want="* * * * * CPU_BUDGET_GATE_FLOOR_PCT=500 CPU_BUDGET_CI_RESERVE_PCT=950 CPU_BUDGET_CI_WEIGHT=400 $SH/csi-spl-orc/src/bash/scripts/gh-runner-cpu-budget-cron.sh >> $T/log/cron.out 2>&1 # csi-spl:gh-runner-cpu-budget"
+want="* * * * * CPU_BUDGET_GATE_FLOOR_PCT=500 CPU_BUDGET_CI_RESERVE_PCT=950 CPU_BUDGET_CI_WEIGHT=400 $SH/csi-spl-orc/src/bash/scripts/cron-no-stack.sh $T/log/cron.lock $SH/csi-spl-orc/src/bash/scripts/gh-runner-cpu-budget-cron.sh >> $T/log/cron.out 2>&1 # csi-spl:gh-runner-cpu-budget"
 out="$(setup)"; rc=$?
 [[ $rc -eq 0 && "$out" == *'DRY_RUN nothing was touched'* && "$out" == *"+$want"* ]] && cmp -s "$T/crontab" "$T/crontab.orig" &&
   pass "dry run: prints the every-minute line, writes nothing" || fail "install dry (rc=$rc): $out"

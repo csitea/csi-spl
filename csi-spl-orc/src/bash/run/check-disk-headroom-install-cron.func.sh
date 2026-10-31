@@ -38,7 +38,7 @@ do_check_disk_headroom_install_cron() {
   [[ "${DRY_RUN:-1}" == 0 || "${DRY_RUN:-1}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
   SPL_ORG_APP="${SPL_ORG_APP:-$(basename "$PROJ_PATH")}"; SPL_ORG_APP="${SPL_ORG_APP%-orc}"
 
-  local tag src script logdir line current sched pre="" trunk="${DESK_CRON_TRUNK:-master}"
+  local tag src script logdir line ns current sched pre="" trunk="${DESK_CRON_TRUNK:-master}"
   tag="$SPL_ORG_APP:disk-headroom"
   spl_desk_cron_src || return 1
   src="$SPL_DESK_CRON_SRC"
@@ -48,7 +48,8 @@ do_check_disk_headroom_install_cron() {
   if (( off == 0 )); then sched="*/$every"; else sched="$off-59/$every"; fi
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
     pre="$(spl_desk_cron_update_pre "$src" "$trunk")"
-  line="$(printf '%s * * * * %sDRY_RUN=0 %s >> %s/cron.out 2>&1 # %s' "$sched" "$pre" "$script" "$logdir" "$tag")"
+  ns="$(spl_cron_no_stack_pre "$src/$SPL_ORG_APP-orc" "$logdir/cron.lock")" || return 1
+  line="$(printf '%s * * * * %sDRY_RUN=0 %s%s >> %s/cron.out 2>&1 # %s' "$sched" "$pre" "$ns" "$script" "$logdir" "$tag")"
   current="$(spl_desk_cron_line "$tag")"
 
   if [[ "$act" == check ]]; then

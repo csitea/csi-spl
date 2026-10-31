@@ -44,7 +44,7 @@ cron >"$T/o" 2>&1; rc=$?
   pass "1. dry run: the diff, nothing written" || fail "1. dry: rc=$rc $(cat "$T/o")"
 cron SPAWN_REMOTE_CRON_ACTION=check >"$T/o" 2>&1 && fail "2. check passed with no line" || pass "2. check fails while not installed"
 cron DRY_RUN=0 >"$T/o" 2>&1; rc=$?
-want="* * * * * $S/spawn-remote.sh --serve >> $T/log/cron.out 2>&1 # csi-spl:spawn-remote"
+want="* * * * * $SRC/csi-spl-orc/src/bash/scripts/cron-no-stack.sh $T/log/cron.lock $S/spawn-remote.sh --serve >> $T/log/cron.out 2>&1 # csi-spl:spawn-remote"
 [[ $rc -eq 0 ]] && grep -qxF "$want" "$T/crontab" && grep -q 'desk-reconcile' "$T/crontab" &&
   pass "3. DRY_RUN=0: one exact line, the other line kept" || fail "3. install rc=$rc: $(cat "$T/crontab") $(cat "$T/o")"
 cron DRY_RUN=0 >/dev/null 2>&1

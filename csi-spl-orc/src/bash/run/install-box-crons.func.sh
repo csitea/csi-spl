@@ -13,7 +13,10 @@
 # @description refused unless BOX_CRONS_ONLY leaves it out. From a linked
 # @description worktree the install is refused (its paths vanish with it).
 # @description An @reboot row waits for its script and log dir first
-# @description (spl_cron_boot_gate, BOOT_CRON_WAIT).
+# @description (spl_cron_boot_gate, BOOT_CRON_WAIT). Every scheduled row runs
+# @description under its own lock (cron-no-stack.sh, <log dir>/<name>.cron.lock,
+# @description SPL-4495): a start while the last run still goes exits 0 with
+# @description one SKIP line, so a slow job never stacks.
 # @description Dry run unless DRY_RUN=0 (prints the crontab diff).
 # @param BOX_CRONS_ACTION (optional) - install (default) | remove (drops the
 # @param   tagged lines only; it never puts an engine line back)
@@ -79,13 +82,18 @@ do_install_box_crons() {
 
 # box_crons_line <index> - the crontab line of one row. An @reboot row runs
 # behind the boot gate (spl_cron_boot_gate): cron's @reboot pass comes before
-# the nofail binds that hold the script and the log (drill 8, 2026-10-09)
+# the nofail binds that hold the script and the log (drill 8, 2026-10-09).
+# Every other row runs behind cron-no-stack.sh on its own lock (SPL-4495)
 box_crons_line() {
   local i="$1" pre="" tag="csi-spl:box-cron:${names[$1]}"
   if [[ "${scheds[$i]}" == @reboot ]]; then
     declare -F spl_cron_boot_gate >/dev/null ||
       source "$(dirname "${BASH_SOURCE[0]}")/spl-desk-install-service.func.sh"
     pre="$(spl_cron_boot_gate "$state/${logs[$i]}" "$PROJ_PATH/${scripts[$i]}" "$tag")" || return 1
+  else
+    declare -F spl_cron_no_stack_pre >/dev/null ||
+      source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-cron-lock.func.sh"
+    pre="$(spl_cron_no_stack_pre "$PROJ_PATH" "$state/$(dirname "${logs[$i]}")/${names[$i]}.cron.lock")" || return 1
   fi
   printf "%s %s/bin/bash '%s' >> '%s' 2>&1 # %s\n" \
     "${scheds[$i]}" "$pre" "$PROJ_PATH/${scripts[$i]}" "$state/${logs[$i]}" "$tag"

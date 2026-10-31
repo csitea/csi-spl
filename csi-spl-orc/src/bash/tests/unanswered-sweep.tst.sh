@@ -273,7 +273,7 @@ cron >"$T/o" 2>&1; rc=$?
   pass "10. dry run: the diff, nothing written" || fail "10. dry: rc=$rc $(cat "$T/o")"
 cron SWEEP_CRON_ACTION=check >"$T/o" 2>&1 && fail "10. check passed with no line" || pass "10. check fails while not installed"
 cron DRY_RUN=0 >"$T/o" 2>&1; rc=$?
-want="* * * * * ENV=prd SWEEP_MIN_AGE=3 SWEEP_ESCALATE_AGE=5 $SRC/csi-spl-orc/src/bash/scripts/unanswered-sweep-cron.sh >> $T/log/cron.out 2>&1 # csi-spl:unanswered-sweep"
+want="* * * * * ENV=prd SWEEP_MIN_AGE=3 SWEEP_ESCALATE_AGE=5 $SRC/csi-spl-orc/src/bash/scripts/cron-no-stack.sh $T/log/cron.lock $SRC/csi-spl-orc/src/bash/scripts/unanswered-sweep-cron.sh >> $T/log/cron.out 2>&1 # csi-spl:unanswered-sweep"
 [[ $rc -eq 0 && "$(grep -c 'unanswered-sweep$' "$T/crontab")" == 1 ]] && grep -qxF "$want" "$T/crontab" && grep -q 'desk-reconcile' "$T/crontab" &&
   pass "10. DRY_RUN=0: one exact tagged line (every minute, min age 3, escalation 5), the other line kept" || fail "10. install rc=$rc: $(cat "$T/crontab") $(cat "$T/o")"
 cron SWEEP_CRON_EVERY=10 >"$T/o" 2>&1

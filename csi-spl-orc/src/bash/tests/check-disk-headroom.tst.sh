@@ -152,7 +152,7 @@ inst() {
     source "'"$PROJ_ROOT"'/src/bash/run/check-disk-headroom-install-cron.func.sh"
     do_check_disk_headroom_install_cron' 2>&1
 }
-want="7-59/15 * * * * DRY_RUN=0 $SH/csi-spl-orc/src/bash/scripts/check-disk-headroom.sh >> $T/log/cron.out 2>&1 # csi-spl:disk-headroom"
+want="7-59/15 * * * * DRY_RUN=0 $SH/csi-spl-orc/src/bash/scripts/cron-no-stack.sh $T/log/cron.lock $SH/csi-spl-orc/src/bash/scripts/check-disk-headroom.sh >> $T/log/cron.out 2>&1 # csi-spl:disk-headroom"
 out="$(inst)"; rc=$?
 [[ $rc -eq 0 && "$out" == *'DRY_RUN nothing was touched'* && "$out" == *"+$want"* ]] && cmp -s "$T/crontab" "$T/crontab.orig" \
   && pass "2. the dry run prints the every-15-min line and writes nothing" || fail "2. dry (rc=$rc): $out"

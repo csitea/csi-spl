@@ -27,7 +27,11 @@ do_spl_agent_identity_install() {
   source "$PROJ_PATH/src/bash/features/spawn-agents/lib/agent-identity.inc.sh" || return 1
   local script="$PROJ_PATH/src/bash/features/spawn-agents/scripts/agent-identity-reconcile.sh"
   local log="${SPOOL_ROOT:-/var/spool-hub}/agents/reconcile.log"
-  local want="* * * * * bash $script --apply >> $log 2>&1 # $AI_CRON_TAG"
+  # the every-minute line runs behind its own no-stack lock (SPL-4495)
+  declare -F spl_cron_no_stack_pre >/dev/null ||
+    source "$PROJ_PATH/lib/bash/funcs/spl-desk-cron-lock.func.sh" || return 1
+  local ns; ns="$(spl_cron_no_stack_pre "$PROJ_PATH" "${log%/*}/reconcile.cron.lock")" || return 1
+  local want="* * * * * ${ns}bash $script --apply >> $log 2>&1 # $AI_CRON_TAG"
   local ct="${IDENTITY_CRONTAB:-crontab}" before after hook h cmd rc=0 gd cd
   # The cron line and the hooks name THIS checkout's script: from a linked
   # worktree (torn down when its lane closes) they would point at nothing.

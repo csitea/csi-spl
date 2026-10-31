@@ -47,7 +47,7 @@ do_spl_dispatch_rotate_install_cron() {
   [[ "${DRY_RUN:-1}" == 0 || "${DRY_RUN:-1}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
   SPL_ORG_APP="${SPL_ORG_APP:-$(basename "$PROJ_PATH")}"; SPL_ORG_APP="${SPL_ORG_APP%-orc}"
 
-  local tag htag src script logdir line hline="" current hcurrent pre="" trunk="${DESK_CRON_TRUNK:-master}"
+  local tag htag src script logdir line hline="" ns current hcurrent pre="" trunk="${DESK_CRON_TRUNK:-master}"
   tag="$SPL_ORG_APP:dispatch-rotate"; htag="$SPL_ORG_APP:dispatch-heal"
   spl_desk_cron_src || return 1
   src="$SPL_DESK_CRON_SRC"
@@ -57,9 +57,11 @@ do_spl_dispatch_rotate_install_cron() {
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
     pre="$(spl_desk_cron_update_pre "$src" "$trunk")"
   line="$(printf '%s * * * * %s%s >> %s/cron.out 2>&1 # %s' "$min" "$pre" "$script" "$logdir" "$tag")"
-  # minutes o, o+every, ... never the rotation's own minute
-  (( every )) && hline="$(printf '%s-59/%s * * * * %s%s --heal >> %s/heal.out 2>&1 # %s' \
-    "$(( (min % every + 1) % every ))" "$every" "$pre" "$script" "$logdir" "$htag")"
+  # minutes o, o+every, ... never the rotation's own minute; the heal runs
+  # behind its own no-stack lock (SPL-4495)
+  ns="$(spl_cron_no_stack_pre "$src/$SPL_ORG_APP-orc" "$logdir/heal.lock")" || return 1
+  (( every )) && hline="$(printf '%s-59/%s * * * * %s%s%s --heal >> %s/heal.out 2>&1 # %s' \
+    "$(( (min % every + 1) % every ))" "$every" "$pre" "$ns" "$script" "$logdir" "$htag")"
   current="$(spl_desk_cron_line "$tag")"; hcurrent="$(spl_desk_cron_line "$htag")"
 
   if [[ "$act" == check ]]; then

@@ -55,49 +55,49 @@ inst() { SNIPPET="PROJ_PATH=$O; do_install_box_crons" in_orc BOX_CRONS_CRONTAB="
 out="$(SNIPPET='do_install_box_crons' in_orc BOX_CRONS_CRONTAB="$T/fake-crontab" BOX_CRONS_ALLOW_WORKTREE=1 2>&1)"; rc=$?
 [ "$rc" -eq 0 ] && [ "$(grep -c '^  +.* # csi-spl:box-cron:[a-z0-9-]*$' <<<"$out")" = 38 ] \
   && grep -q "^  +@reboot i=0; until .* BOOT start csi-spl:box-cron:box-sessions-boot .*/bin/bash '$PROJ_ROOT/src/bash/features/box-sessions/scripts/sessions-boot.sh' >> '/var/csi/csi-spl/box-sessions/boot.log' 2>&1 # csi-spl:box-cron:box-sessions-boot$" <<<"$out" \
-  && grep -q "^  +17 7 \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/msg-unreadable-cron.sh' >> '/var/csi/csi-spl/msg-unreadable/cron.log' 2>&1 # csi-spl:box-cron:msg-unreadable$" <<<"$out" \
+  && grep -q "^  +17 7 \* \* \* $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/msg-unreadable/msg-unreadable.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/msg-unreadable-cron.sh' >> '/var/csi/csi-spl/msg-unreadable/cron.log' 2>&1 # csi-spl:box-cron:msg-unreadable$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/msg-unreadable-cron.sh" ] \
-  && grep -q "^  +41 2 \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/box-state-backup-cron.sh' >> '/var/csi/csi-spl/box-state/backup.log' 2>&1 # csi-spl:box-cron:box-state-backup$" <<<"$out" \
+  && grep -q "^  +41 2 \* \* \* $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/box-state/box-state-backup.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/box-state-backup-cron.sh' >> '/var/csi/csi-spl/box-state/backup.log' 2>&1 # csi-spl:box-cron:box-state-backup$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/box-state-backup-cron.sh" ] \
-  && grep -q "^  +\*/10 \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/ci-red-note-cron.sh' >> '/var/csi/csi-spl/ci-red-note/cron.log' 2>&1 # csi-spl:box-cron:ci-red-note$" <<<"$out" \
+  && grep -q "^  +\*/10 \* \* \* \* $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/ci-red-note/ci-red-note.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/ci-red-note-cron.sh' >> '/var/csi/csi-spl/ci-red-note/cron.log' 2>&1 # csi-spl:box-cron:ci-red-note$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/ci-red-note-cron.sh" ] \
-  && grep -q "^  +\* \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/agent-login-check-cron.sh' >> '/var/csi/csi-spl/agent-login-check/cron.log' 2>&1 # csi-spl:box-cron:agent-login-check$" <<<"$out" \
+  && grep -q "^  +\* \* \* \* \* $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/agent-login-check/agent-login-check.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/agent-login-check-cron.sh' >> '/var/csi/csi-spl/agent-login-check/cron.log' 2>&1 # csi-spl:box-cron:agent-login-check$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/agent-login-check-cron.sh" ] \
-  && grep -q "^  +\* \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/lane-rotate-cron.sh' >> '/var/csi/csi-spl/lane-rotate/cron.log' 2>&1 # csi-spl:box-cron:lane-rotate$" <<<"$out" \
+  && grep -q "^  +\* \* \* \* \* $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/lane-rotate/lane-rotate.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/lane-rotate-cron.sh' >> '/var/csi/csi-spl/lane-rotate/cron.log' 2>&1 # csi-spl:box-cron:lane-rotate$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/lane-rotate-cron.sh" ] \
-  && grep -q "^  +\* \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/uplink-probe-cron.sh' >> '/var/csi/csi-spl/uplink-probe/cron.log' 2>&1 # csi-spl:box-cron:uplink-probe$" <<<"$out" \
+  && grep -q "^  +\* \* \* \* \* $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/uplink-probe/uplink-probe.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/uplink-probe-cron.sh' >> '/var/csi/csi-spl/uplink-probe/cron.log' 2>&1 # csi-spl:box-cron:uplink-probe$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/uplink-probe-cron.sh" ] \
-  && grep -q "^  +23 \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/qas-ci-accept-cron.sh' >> '/var/csi/csi-spl/qas-ci-accept/cron.log' 2>&1 # csi-spl:box-cron:qas-ci-accept$" <<<"$out" \
+  && grep -q "^  +23 \* \* \* \* $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/qas-ci-accept/qas-ci-accept.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/qas-ci-accept-cron.sh' >> '/var/csi/csi-spl/qas-ci-accept/cron.log' 2>&1 # csi-spl:box-cron:qas-ci-accept$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/qas-ci-accept-cron.sh" ] \
-  && grep -q "^  +7 \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/owner-digest-cron.sh' >> '/var/csi/csi-spl/owner-digest/cron.log' 2>&1 # csi-spl:box-cron:owner-digest$" <<<"$out" \
+  && grep -q "^  +7 \* \* \* \* $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/owner-digest/owner-digest.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/owner-digest-cron.sh' >> '/var/csi/csi-spl/owner-digest/cron.log' 2>&1 # csi-spl:box-cron:owner-digest$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/owner-digest-cron.sh" ] \
-  && grep -q "^  +\*/5 \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/issue-close-landed-cron.sh' >> '/var/csi/csi-spl/issue-close-landed/cron.log' 2>&1 # csi-spl:box-cron:issue-close-landed$" <<<"$out" \
+  && grep -q "^  +\*/5 \* \* \* \* $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/issue-close-landed/issue-close-landed.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/issue-close-landed-cron.sh' >> '/var/csi/csi-spl/issue-close-landed/cron.log' 2>&1 # csi-spl:box-cron:issue-close-landed$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/issue-close-landed-cron.sh" ] \
-  && grep -q "^  +53 6 \* \* 1 /bin/bash '$PROJ_ROOT/src/bash/scripts/issue-key-rate-cron.sh' >> '/var/csi/csi-spl/issue-key-rate/cron.log' 2>&1 # csi-spl:box-cron:issue-key-rate$" <<<"$out" \
+  && grep -q "^  +53 6 \* \* 1 $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/issue-key-rate/issue-key-rate.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/issue-key-rate-cron.sh' >> '/var/csi/csi-spl/issue-key-rate/cron.log' 2>&1 # csi-spl:box-cron:issue-key-rate$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/issue-key-rate-cron.sh" ] \
-  && grep -q "^  +\* \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/gc-cron.sh' >> '/var/csi/csi-spl/gc/cron.log' 2>&1 # csi-spl:box-cron:gc$" <<<"$out" \
+  && grep -q "^  +\* \* \* \* \* $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/gc/gc.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/gc-cron.sh' >> '/var/csi/csi-spl/gc/cron.log' 2>&1 # csi-spl:box-cron:gc$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/gc-cron.sh" ] \
-  && grep -q "^  +\* \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/reverse-tunnel-cron.sh' >> '/var/csi/csi-spl/reverse-tunnel/cron.log' 2>&1 # csi-spl:box-cron:reverse-tunnel$" <<<"$out" \
+  && grep -q "^  +\* \* \* \* \* $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/reverse-tunnel/reverse-tunnel.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/reverse-tunnel-cron.sh' >> '/var/csi/csi-spl/reverse-tunnel/cron.log' 2>&1 # csi-spl:box-cron:reverse-tunnel$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/reverse-tunnel-cron.sh" ] \
-  && grep -q "^  +\* \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/token-burn-collect-cron.sh' >> '/var/csi/csi-spl/token-burn/cron.log' 2>&1 # csi-spl:box-cron:token-burn$" <<<"$out" \
+  && grep -q "^  +\* \* \* \* \* $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/token-burn/token-burn.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/token-burn-collect-cron.sh' >> '/var/csi/csi-spl/token-burn/cron.log' 2>&1 # csi-spl:box-cron:token-burn$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/token-burn-collect-cron.sh" ] \
-  && grep -q "^  +\* \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/file-stream-follow-cron.sh' >> '/var/csi/csi-spl/file-streams/cron.log' 2>&1 # csi-spl:box-cron:file-streams$" <<<"$out" \
+  && grep -q "^  +\* \* \* \* \* $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/file-streams/file-streams.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/file-stream-follow-cron.sh' >> '/var/csi/csi-spl/file-streams/cron.log' 2>&1 # csi-spl:box-cron:file-streams$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/file-stream-follow-cron.sh" ] \
-  && grep -q "^  +\*/5 \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/topic-status-card-cron.sh' >> '/var/csi/csi-spl/topic-status-card/cron.log' 2>&1 # csi-spl:box-cron:topic-status-card$" <<<"$out" \
+  && grep -q "^  +\*/5 \* \* \* \* $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/topic-status-card/topic-status-card.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/topic-status-card-cron.sh' >> '/var/csi/csi-spl/topic-status-card/cron.log' 2>&1 # csi-spl:box-cron:topic-status-card$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/topic-status-card-cron.sh" ] \
-  && grep -q "^  +37 16 \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/fx-rates-fetch-cron.sh' >> '/var/csi/csi-spl/fx-rates-fetch/cron.log' 2>&1 # csi-spl:box-cron:fx-rates-fetch$" <<<"$out" \
+  && grep -q "^  +37 16 \* \* \* $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/fx-rates-fetch/fx-rates-fetch.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/fx-rates-fetch-cron.sh' >> '/var/csi/csi-spl/fx-rates-fetch/cron.log' 2>&1 # csi-spl:box-cron:fx-rates-fetch$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/fx-rates-fetch-cron.sh" ] \
-  && grep -q "^  +\* \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/push-orphan-check-cron.sh' >> '/var/csi/csi-spl/push-orphan-check/cron.log' 2>&1 # csi-spl:box-cron:push-orphan-check$" <<<"$out" \
+  && grep -q "^  +\* \* \* \* \* $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/push-orphan-check/push-orphan-check.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/push-orphan-check-cron.sh' >> '/var/csi/csi-spl/push-orphan-check/cron.log' 2>&1 # csi-spl:box-cron:push-orphan-check$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/push-orphan-check-cron.sh" ] \
-  && grep -q "^  +7,37 \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/restore-drill-red-note-cron.sh' >> '/var/csi/csi-spl/restore-drill-red-note/cron.log' 2>&1 # csi-spl:box-cron:restore-drill-red-note$" <<<"$out" \
+  && grep -q "^  +7,37 \* \* \* \* $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/restore-drill-red-note/restore-drill-red-note.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/restore-drill-red-note-cron.sh' >> '/var/csi/csi-spl/restore-drill-red-note/cron.log' 2>&1 # csi-spl:box-cron:restore-drill-red-note$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/restore-drill-red-note-cron.sh" ] \
-  && grep -q "^  +\*/5 \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/login2-sync-cron.sh' >> '/var/csi/csi-spl/login2-sync/cron.log' 2>&1 # csi-spl:box-cron:login2-sync$" <<<"$out" \
+  && grep -q "^  +\*/5 \* \* \* \* $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/login2-sync/login2-sync.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/login2-sync-cron.sh' >> '/var/csi/csi-spl/login2-sync/cron.log' 2>&1 # csi-spl:box-cron:login2-sync$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/login2-sync-cron.sh" ] \
-  && grep -q "^  +\*/5 \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/weekly-limit-alert-cron.sh' >> '/var/csi/csi-spl/weekly-limit-alert/cron.log' 2>&1 # csi-spl:box-cron:weekly-limit-alert$" <<<"$out" \
+  && grep -q "^  +\*/5 \* \* \* \* $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/weekly-limit-alert/weekly-limit-alert.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/weekly-limit-alert-cron.sh' >> '/var/csi/csi-spl/weekly-limit-alert/cron.log' 2>&1 # csi-spl:box-cron:weekly-limit-alert$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/weekly-limit-alert-cron.sh" ] \
-  && grep -q "^  +\*/5 \* \* \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/archived-seats-free-cron.sh' >> '/var/csi/csi-spl/archived-seats-free/cron.log' 2>&1 # csi-spl:box-cron:archived-seats-free$" <<<"$out" \
+  && grep -q "^  +\*/5 \* \* \* \* $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/archived-seats-free/archived-seats-free.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/archived-seats-free-cron.sh' >> '/var/csi/csi-spl/archived-seats-free/cron.log' 2>&1 # csi-spl:box-cron:archived-seats-free$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/archived-seats-free-cron.sh" ] \
-  && grep -q "^  +17 4 1 \* \* /bin/bash '$PROJ_ROOT/src/bash/scripts/vendor-terms-check-cron.sh' >> '/var/csi/csi-spl/vendor-terms-check/cron.log' 2>&1 # csi-spl:box-cron:vendor-terms-check$" <<<"$out" \
+  && grep -q "^  +17 4 1 \* \* $PROJ_ROOT/src/bash/scripts/cron-no-stack.sh /var/csi/csi-spl/vendor-terms-check/vendor-terms-check.cron.lock /bin/bash '$PROJ_ROOT/src/bash/scripts/vendor-terms-check-cron.sh' >> '/var/csi/csi-spl/vendor-terms-check/cron.log' 2>&1 # csi-spl:box-cron:vendor-terms-check$" <<<"$out" \
   && [ -x "$PROJ_ROOT/src/bash/scripts/vendor-terms-check-cron.sh" ] \
   && pass "1. the real manifest plans C1..C4, the daily msg-unreadable run, the nightly box state backup, the CI red note, the login self-heal, the every-agent rotation, the uplink probe, the hourly qas CI accept, the hourly owner digest, the hourly landed-fix close, the weekly issue key rate, the GC agent start, the reverse tunnel, the token burn collector, the 5-min topic status card, the daily exchange rates fetch and the every-minute push orphan check, the half-hourly restore drill red note and the 5-min second login sync and the every-minute box file follower (spec 160 B1) and the 5-min weekly limit alert (SPL-3849) and the 5-min archived-discussion seat free (SPL-3983) from this checkout (the reliability round rows: reliability-checks-cron.tst.sh)" || fail "1. real manifest (rc $rc: $out)"
 
@@ -111,7 +111,7 @@ out="$(inst DRY_RUN=0)"; rc=$?
 [ "$(grep -v ' # csi-spl:box-cron:[a-z0-9-]*$' "$CT" | grep -c "$E/" )" = 1 ] && grep -q 'dotfiles/scripts/wifi-up.sh' "$CT" \
   && pass "3. ...no engine job left but the unlisted one" || fail "3. engine lines left: $(grep "$E/" "$CT")"
 cmp -s <(grep -v ' # csi-spl:box-cron:[a-z0-9-]*$' "$CT") "$T/crontab.kept" && pass "3. ...every other line kept, in order" || fail "3. other lines changed"
-grep -q "^\*/15 8-19 \* \* \* /bin/bash '$O/src/bash/features/graft/scripts/graft-cron.sh' >> '$T/state/graft/cron.log' 2>&1 # csi-spl:box-cron:graft-index-refresh$" "$CT" \
+grep -q "^\*/15 8-19 \* \* \* $O/src/bash/scripts/cron-no-stack.sh $T/state/graft/graft-index-refresh.cron.lock /bin/bash '$O/src/bash/features/graft/scripts/graft-cron.sh' >> '$T/state/graft/cron.log' 2>&1 # csi-spl:box-cron:graft-index-refresh$" "$CT" \
   && [ -d "$T/state/box-sessions" ] && pass "3. ...run from csi-spl, logs under the state dir" || fail "3. line shape ($(cat "$CT"))"
 out="$(inst DRY_RUN=0)"
 grep -q 'OK cron: nothing to change' <<<"$out" && pass "3. a second install is a no-op" || fail "3. second install ($out)"

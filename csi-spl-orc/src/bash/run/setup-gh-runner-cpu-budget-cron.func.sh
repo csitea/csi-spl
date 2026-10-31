@@ -10,6 +10,9 @@
 # @description It points at the self-updating checkout the desk reconcile uses
 # @description (<shared checkout>-desk-cron). An agent worktree is refused.
 # @description Install it only on a box that carries runners.
+# @description The job runs under its own lock (cron-no-stack.sh,
+# @description <logdir>/cron.lock, SPL-4495): a start while the last run still
+# @description goes exits 0 with one SKIP line, so slow runs never stack.
 # @description The line carries CPU_BUDGET_GATE_FLOOR_PCT (default 500, owner
 # @description HUM-10 2026-10-10: 5 cores while gate 10 has had no verdict for
 # @description CPU_BUDGET_GATE_STALE_MIN and a run waits), so a re-run keeps it,
@@ -39,7 +42,7 @@ declare -F spl_desk_cron_checkout >/dev/null ||
 do_setup_gh_runner_cpu_budget_cron() {
   do_require_bin crontab || return 1
   local act="${CPU_BUDGET_CRON_ACTION:-install}" trunk="${DESK_CRON_TRUNK:-master}"
-  local tag src script logdir line current pre="" floor="${CPU_BUDGET_GATE_FLOOR_PCT:-500}"
+  local tag src script logdir line current pre="" ns floor="${CPU_BUDGET_GATE_FLOOR_PCT:-500}"
   local reserve="${CPU_BUDGET_CI_RESERVE_PCT:-950}" weight="${CPU_BUDGET_CI_WEIGHT:-400}"
   case "$act" in install|remove|check) ;; *) do_log "FATAL CPU_BUDGET_CRON_ACTION must be install, remove or check, got: '$act'"; return 1 ;; esac
   [[ "${DRY_RUN:-1}" == 0 || "${DRY_RUN:-1}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
@@ -55,8 +58,9 @@ do_setup_gh_runner_cpu_budget_cron() {
   logdir="${CPU_BUDGET_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/gh-runner-cpu-budget}"
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
     pre="$(spl_desk_cron_update_pre "$src" "$trunk")"
-  line="$(printf '* * * * * %sCPU_BUDGET_GATE_FLOOR_PCT=%s CPU_BUDGET_CI_RESERVE_PCT=%s CPU_BUDGET_CI_WEIGHT=%s %s >> %s/cron.out 2>&1 # %s' \
-    "$pre" "$floor" "$reserve" "$weight" "$script" "$logdir" "$tag")"
+  ns="$(spl_cron_no_stack_pre "$src/$SPL_ORG_APP-orc" "$logdir/cron.lock")" || return 1
+  line="$(printf '* * * * * %sCPU_BUDGET_GATE_FLOOR_PCT=%s CPU_BUDGET_CI_RESERVE_PCT=%s CPU_BUDGET_CI_WEIGHT=%s %s%s >> %s/cron.out 2>&1 # %s' \
+    "$pre" "$floor" "$reserve" "$weight" "$ns" "$script" "$logdir" "$tag")"
   current="$(spl_desk_cron_line "$tag")"
 
   if [[ "$act" == check ]]; then

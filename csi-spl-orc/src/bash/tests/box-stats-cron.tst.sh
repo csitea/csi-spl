@@ -185,7 +185,7 @@ setup() {
     source "'"$PROJ_ROOT"'/src/bash/run/setup-box-stats-cron.func.sh"
     do_setup_box_stats_cron'
 }
-want="*/5 * * * * $SH/csi-spl-orc/src/bash/scripts/box-stats-cron.sh >> $T/log/cron.out 2>&1 # csi-spl:box-stats"
+want="*/5 * * * * $SH/csi-spl-orc/src/bash/scripts/cron-no-stack.sh $T/log/cron.lock $SH/csi-spl-orc/src/bash/scripts/box-stats-cron.sh >> $T/log/cron.out 2>&1 # csi-spl:box-stats"
 out="$(setup)"; rc=$?
 [[ $rc -eq 0 && "$out" == *"DRY_RUN nothing was touched"* && "$out" == *"+$want"* ]] && cmp -s "$T/crontab" "$T/crontab.orig" &&
   pass "dry run: prints the diff with the */5 line, writes nothing" || fail "dry run (rc=$rc): $out"

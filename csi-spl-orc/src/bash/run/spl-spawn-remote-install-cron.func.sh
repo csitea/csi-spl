@@ -40,7 +40,7 @@ do_spl_spawn_remote_install_cron() {
   [[ "${DRY_RUN:-1}" == 0 || "${DRY_RUN:-1}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
   SPL_ORG_APP="${SPL_ORG_APP:-$(basename "$PROJ_PATH")}"; SPL_ORG_APP="${SPL_ORG_APP%-orc}"
 
-  local tag src script logdir line current pre="" trunk="${DESK_CRON_TRUNK:-master}"
+  local tag src script logdir line ns current pre="" trunk="${DESK_CRON_TRUNK:-master}"
   tag="$SPL_ORG_APP:spawn-remote"
   DESK_CRON_SELF_UPDATE="${DESK_CRON_SELF_UPDATE:-0}" spl_desk_cron_src || return 1
   src="$SPL_DESK_CRON_SRC"
@@ -49,7 +49,8 @@ do_spl_spawn_remote_install_cron() {
   [[ "$trunk" =~ ^[A-Za-z0-9._/-]+$ ]] || { do_log "FATAL DESK_CRON_TRUNK is not a branch name: '$trunk'"; return 1; }
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
     pre="$(spl_desk_cron_update_pre "$src" "$trunk")"
-  line="$(printf '* * * * * %s%s --serve >> %s/cron.out 2>&1 # %s' "$pre" "$script" "$logdir" "$tag")"
+  ns="$(spl_cron_no_stack_pre "$src/$SPL_ORG_APP-orc" "$logdir/cron.lock")" || return 1
+  line="$(printf '* * * * * %s%s%s --serve >> %s/cron.out 2>&1 # %s' "$pre" "$ns" "$script" "$logdir" "$tag")"
   current="$(spl_desk_cron_line "$tag")"
 
   if [[ "$act" == check ]]; then

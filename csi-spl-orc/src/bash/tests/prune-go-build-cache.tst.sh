@@ -298,7 +298,7 @@ setup() {
     source "'"$PROJ_ROOT"'/src/bash/run/setup-go-cache-prune-cron.func.sh"
     do_setup_go_cache_prune_cron'
 }
-want="*/5 * * * * $SH/csi-spl-orc/src/bash/scripts/prune-go-build-cache-cron.sh >> $T/log/cron.out 2>&1 # csi-spl:go-cache-prune"
+want="*/5 * * * * $SH/csi-spl-orc/src/bash/scripts/cron-no-stack.sh $T/log/cron.lock $SH/csi-spl-orc/src/bash/scripts/prune-go-build-cache-cron.sh >> $T/log/cron.out 2>&1 # csi-spl:go-cache-prune"
 out="$(setup)"; rc=$?
 [[ $rc -eq 0 && "$out" == *'DRY_RUN nothing was touched'* && "$out" == *"+$want"* ]] && cmp -s "$T/crontab" "$T/crontab.orig" &&
   pass "dry run: prints the */5 line, writes nothing" ||

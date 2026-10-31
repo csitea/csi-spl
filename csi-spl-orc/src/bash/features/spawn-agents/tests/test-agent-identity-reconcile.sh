@@ -145,7 +145,7 @@ inst() {
     source "$PROJ_PATH/src/bash/run/spl-agent-identity-install.func.sh"; do_spl_agent_identity_install'
 }
 out="$(inst)"
-has "6. dry run prints the crontab diff: our line added" "+* * * * * bash" "$out"
+has "6. dry run prints the crontab diff: our line added" "+* * * * * $T_REPO/csi-spl-orc/src/bash/scripts/cron-no-stack.sh $SPOOL_ROOT/agents/reconcile.cron.lock bash " "$out"
 eq "6. ... exactly one line added, none removed" "1 0" "$(printf '%s\n' "$out" | grep -cE '^  \+[^+]') $(printf '%s\n' "$out" | grep -cE '^  -[^-]')"
 has "6. ... and prints the hook commands" "PLAN hook: set-hook -g pane-exited[1]" "$out"
 check "6. ... and changes nothing" cmp -s "$CT" "$T_TMP/crontab.orig"

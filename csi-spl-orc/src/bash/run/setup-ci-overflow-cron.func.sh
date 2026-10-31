@@ -29,7 +29,7 @@ declare -F spl_desk_cron_checkout >/dev/null ||
 do_setup_ci_overflow_cron() {
   do_require_bin crontab || return 1
   local act="${CI_OVERFLOW_CRON_ACTION:-install}" trunk="${DESK_CRON_TRUNK:-master}"
-  local tag src script logdir line current pre=""
+  local tag src script logdir line ns current pre=""
   case "$act" in install|remove|check) ;; *) do_log "FATAL CI_OVERFLOW_CRON_ACTION must be install, remove or check, got: '$act'"; return 1 ;; esac
   [[ "${DRY_RUN:-1}" == 0 || "${DRY_RUN:-1}" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1"; return 1; }
   [[ "$trunk" =~ ^[A-Za-z0-9._/-]+$ ]] || { do_log "FATAL DESK_CRON_TRUNK is not a branch name: '$trunk'"; return 1; }
@@ -41,7 +41,8 @@ do_setup_ci_overflow_cron() {
   logdir="${CI_OVERFLOW_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/ci-overflow}"
   [[ "$SPL_DESK_CRON_SELF_UPDATE" == 1 ]] &&
     pre="$(spl_desk_cron_update_pre "$src" "$trunk")"
-  line="$(printf '*/5 * * * * %s%s >> %s/cron.out 2>&1 # %s' "$pre" "$script" "$logdir" "$tag")"
+  ns="$(spl_cron_no_stack_pre "$src/$SPL_ORG_APP-orc" "$logdir/cron.lock")" || return 1
+  line="$(printf '*/5 * * * * %s%s%s >> %s/cron.out 2>&1 # %s' "$pre" "$ns" "$script" "$logdir" "$tag")"
   current="$(spl_desk_cron_line "$tag")"
 
   if [[ "$act" == check ]]; then

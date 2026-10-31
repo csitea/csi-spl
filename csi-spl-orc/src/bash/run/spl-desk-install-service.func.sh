@@ -421,12 +421,13 @@ spl_desk_cron_say() {
 # spl_desk_cron_script <crontab line>: the script path that line runs, or
 # nothing. The line is "<schedule> [cd <src> && git ...;] <VAR=v ...> <script>
 # >> <log> 2>&1 # <tag>", so the script is the first absolute path ending .sh
-# (not the `cd <dir>` of the self-update step, which is a directory).
+# (not the `cd <dir>` of the self-update step, which is a directory, nor the
+# cron-no-stack.sh lock wrapper in front of the job, SPL-4495).
 spl_desk_cron_script() {
   local f
   set -f
   for f in $1; do
-    case "$f" in /*.sh) printf '%s' "$f"; set +f; return 0 ;; esac
+    case "$f" in */cron-no-stack.sh) ;; /*.sh) printf '%s' "$f"; set +f; return 0 ;; esac
   done
   set +f
   return 1

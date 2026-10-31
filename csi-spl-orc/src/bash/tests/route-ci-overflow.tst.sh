@@ -194,7 +194,7 @@ setup() {
     source "'"$PROJ_ROOT"'/src/bash/run/setup-ci-overflow-cron.func.sh"
     do_setup_ci_overflow_cron'
 }
-want="*/5 * * * * $SH/csi-spl-orc/src/bash/scripts/ci-overflow-cron.sh >> $T/log/cron.out 2>&1 # csi-spl:ci-overflow"
+want="*/5 * * * * $SH/csi-spl-orc/src/bash/scripts/cron-no-stack.sh $T/log/cron.lock $SH/csi-spl-orc/src/bash/scripts/ci-overflow-cron.sh >> $T/log/cron.out 2>&1 # csi-spl:ci-overflow"
 out="$(setup)"; rc=$?
 [[ $rc -eq 0 && "$out" == *'DRY_RUN nothing was touched'* && "$out" == *"+$want"* ]] && cmp -s "$T/crontab" "$T/crontab.orig" &&
   pass "dry run: prints the every-5-minutes line, writes nothing" || fail "install dry (rc=$rc): $out"

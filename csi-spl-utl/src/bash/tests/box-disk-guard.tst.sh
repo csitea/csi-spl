@@ -83,9 +83,9 @@ source "$UTL_ROOT/../csi-spl-orc/lib/bash/funcs/spl-desk-cron-lock.func.sh"
 inst DRY_RUN=0 >/dev/null
 hl="$(grep ' # csi-spl:disk-headroom$' "$CT")"
 pre="$(spl_desk_cron_update_pre "$T/src-desk-cron" master)"
-[ "$hl" = "7-59/15 * * * * ${pre}DRY_RUN=0 $T/src-desk-cron/csi-spl-orc/src/bash/scripts/check-disk-headroom.sh >> $T/var/disk-headroom/cron.out 2>&1 # csi-spl:disk-headroom" ] \
+[ "$hl" = "7-59/15 * * * * ${pre}DRY_RUN=0 $T/src-desk-cron/csi-spl-orc/src/bash/scripts/cron-no-stack.sh $T/var/disk-headroom/cron.lock $T/src-desk-cron/csi-spl-orc/src/bash/scripts/check-disk-headroom.sh >> $T/var/disk-headroom/cron.out 2>&1 # csi-spl:disk-headroom" ] \
   && grep -q "^7-59/15 \* \* \* \* cd $T/src-desk-cron && flock -w " <<<"$hl" \
-  && pass "1. CONTROL: the disk-headroom line fetches + checks out under the desk-cron flock" || fail "1. headroom lock: $hl"
+  && pass "1. CONTROL: the disk-headroom line fetches + checks out under the desk-cron flock, the job behind cron-no-stack.sh (SPL-4495)" || fail "1. headroom lock: $hl"
 out="$(inst DESK_CRON_TRUNK=main)"
 grep -q "^> 7-59/15 .*git fetch -q origin main && git checkout -q --detach origin/main'" <<<"$out" \
   && pass "1. DESK_CRON_TRUNK sets the trunk the line follows" || fail "1. trunk: $out"

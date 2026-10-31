@@ -535,7 +535,7 @@ cron ROTATE_CRON_ACTION=check >"$T/o" 2>&1 && pass "10. check passes once instal
 cron CRON_REMOVE=1 DRY_RUN=0 >/dev/null 2>&1
 ! grep -q 'dispatch-rotate' "$T/crontab" && grep -q 'orch-rotate' "$T/crontab" && pass "10. CRON_REMOVE=1 takes only its line (FR-092)" || fail "10. remove: $(cat "$T/crontab")"
 cron DRY_RUN=0 >/dev/null 2>&1
-hwant="1-59/3 * * * * $SRC/csi-spl-orc/src/bash/scripts/dispatch-rotate-cron.sh --heal >> $T/log/heal.out 2>&1 # csi-spl:dispatch-heal"
+hwant="1-59/3 * * * * $SRC/csi-spl-orc/src/bash/scripts/cron-no-stack.sh $T/log/heal.lock $SRC/csi-spl-orc/src/bash/scripts/dispatch-rotate-cron.sh --heal >> $T/log/heal.out 2>&1 # csi-spl:dispatch-heal"
 grep -qxF "$hwant" "$T/crontab" && [[ "$(grep -c '# csi-spl:dispatch-heal$' "$T/crontab")" == 1 ]] &&
   pass "10. the heal line: every 3 min, never at :15 (one lock), idempotent" || fail "10. heal line: $(cat "$T/crontab")"
 cron DRY_RUN=0 ROTATE_CRON_MINUTE=0 ROTATE_HEAL_CRON_EVERY=5 >/dev/null 2>&1

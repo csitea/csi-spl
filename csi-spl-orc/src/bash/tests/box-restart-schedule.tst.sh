@@ -209,7 +209,7 @@ cmp -s "$T/crontab" <(printf '17 * * * * keep-me # mine\n') && grep -q 'PLAN\|cr
 inst BOX_RESTART_SLOT=0 DRY_RUN=0 >/dev/null; c1="$(cat "$T/crontab")"; inst BOX_RESTART_SLOT=0 DRY_RUN=0 >/dev/null
 [ "$c1" = "$(cat "$T/crontab")" ] && [ "$(grep -c '# csi-spl:box-restart$' "$T/crontab")" = 1 ] && grep -q 'keep-me # mine' "$T/crontab" \
   && pass "6. installed twice = one tagged line, the same crontab, the other line kept" || fail "6. idempotent ($(cat "$T/crontab"))"
-grep -qx "\*/5 \* \* \* \* $SRC/csi-spl-orc/src/bash/scripts/box-restart-cron.sh --at '0 04:00 Europe/Helsinki' >> $T/log/box-restart.out 2>&1 # csi-spl:box-restart" "$T/crontab" \
+grep -qx "\*/5 \* \* \* \* $SRC/csi-spl-orc/src/bash/scripts/cron-no-stack.sh $T/log/box-restart.lock $SRC/csi-spl-orc/src/bash/scripts/box-restart-cron.sh --at '0 04:00 Europe/Helsinki' >> $T/log/box-restart.out 2>&1 # csi-spl:box-restart" "$T/crontab" \
   && pass "6. the line: every 5 min, the script, slot 0 from cnf, the log" || fail "6. line ($(cat "$T/crontab"))"
 printf '0 0 * * * first # x\n%s\n9 9 * * * last # y\n' "$(grep box-restart "$T/crontab")" >"$T/crontab"
 inst BOX_RESTART_SLOT=1 DRY_RUN=0 >/dev/null

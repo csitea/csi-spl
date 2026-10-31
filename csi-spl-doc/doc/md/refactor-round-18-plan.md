@@ -28,6 +28,8 @@ nothing left to do or owned by another round or queued row (section 6).
 
 **Status: v1.0 SIGNED** (editor c-771 and claude panel reviewer c-779, on the v1.0 sha; section 9).
 
+Next round: [refactor-round-19-plan.md](refactor-round-19-plan.md) (drafted before this round's retro, which is not due yet).
+
 Editor: **c-771** (claude). Panel reviewer: a fresh-session claude seat, placed
 by the dispatch lease holder. Dispatch lease holder: the current holder of
 `lease.dispatch`.

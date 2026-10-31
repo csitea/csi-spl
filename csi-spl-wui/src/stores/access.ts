@@ -32,8 +32,15 @@ export const useAccessStore = defineStore('access', () => {
     return run
   }
 
+  /* the answer this page life already has, else one load (SPL-4451: the
+     fleet-load readers ask before they read, without a second me() each) */
+  async function ensure() {
+    if (!me.value) await load()
+    return me.value
+  }
+
   const can = (perm: string) => accessAllows(me.value, perm)
   const roleKey = computed(() => roleLabelKey(me.value?.role ?? null))
 
-  return { me, load, can, roleKey }
+  return { me, load, ensure, can, roleKey }
 })

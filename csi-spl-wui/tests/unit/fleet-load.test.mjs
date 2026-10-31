@@ -8,6 +8,7 @@ import {
   FLEET_BAD_SETTING,
   FLEET_BOX_MAX,
   FLEET_OPERATOR_KEY,
+  FLEET_READS_KEY,
   applyFleetPatch,
   boxLoadPct,
   fleetBandList,
@@ -20,9 +21,11 @@ import {
   fleetKindsOk,
   fleetPauseList,
   fleetLoadForbidden,
+  fleetLoadReadable,
   fleetLoadPatchBody,
   fleetLoadStatusDetail,
   fleetStoredOk,
+  mockFleetOperator,
   mockFleetRead,
   mockFleetWrite,
   normalizeFleetLoad,
@@ -106,6 +109,17 @@ ok('mock: a workspace admin is 403 operator.workspaces', threw)
 const op = mem({ [FLEET_OPERATOR_KEY]: '1' })
 const opened = normalizeFleetLoad(mockFleetRead(op))
 ok('mock: the operator admin reads the defaults', opened.low === 50 && opened.stored.low === null && opened.source === 'hub')
+ok('mock: every read is counted, the refused one too (SPL-4451)', guest.getItem(FLEET_READS_KEY) === '1' && op.getItem(FLEET_READS_KEY) === '1')
+ok('mock: operator_admin follows the operator opt-in', mockFleetOperator(op) === true && mockFleetOperator(guest) === false)
+
+// SPL-4451: /v1/view/me operator_admin decides whether the page reads
+// GET /v1/operator/fleet-load; only an explicit false skips it.
+ok('me: operator_admin true / false pass through, absent is null',
+  normalizeMe({ operator_admin: true }).operatorAdmin === true && normalizeMe({ operator_admin: false }).operatorAdmin === false &&
+  normalizeMe({}).operatorAdmin === null && normalizeMe({ operator_admin: 'yes' }).operatorAdmin === null)
+ok('gate: a member me names no operator admin is not read', fleetLoadReadable(normalizeMe({ role: 'admin', operator_admin: false })) === false)
+ok('CONTROL: the operator admin, an older hub (no flag) and no me are read',
+  fleetLoadReadable(normalizeMe({ role: 'admin', operator_admin: true })) && fleetLoadReadable(normalizeMe({ role: 'admin' })) && fleetLoadReadable(null))
 let bad = ''
 try { mockFleetWrite({ low: 90, high: 60 }, op) } catch (e) { bad = fleetLoadStatusDetail(e) }
 ok('mock: a bad band is 400 bad_setting with the hub sentence', bad === FLEET_BAD_SETTING && normalizeFleetLoad(mockFleetRead(op)).low === 50)

@@ -25,6 +25,8 @@ import { storageGetJson } from './prefs.mjs'
 
 export const FLEET_OPERATOR_KEY = 'spool.mock.fleet_operator'
 export const FLEET_STORE_KEY = 'spool.mock.fleet_load'
+/* SPL-4451 (mock only): how many GET /v1/operator/fleet-load the mock answered, for the e2e */
+export const FLEET_READS_KEY = 'spool.mock.fleet_reads'
 export const FLEET_BOX_MAX = 32
 export const FLEET_BOX_RE = /^[a-z0-9][a-z0-9-]{0,31}$/
 export const FLEET_DEFAULT_LOW = 50
@@ -43,6 +45,17 @@ export const FLEET_BAD_SETTING = 'low is 1..99 and high 2..100 (% of cores) with
 
 export function validFleetBox(id) {
   return FLEET_BOX_RE.test(String(id || ''))
+}
+
+/**
+ * SPL-4451: whether to read GET /v1/operator/fleet-load for this reader.
+ * Not when /v1/view/me says operator_admin false: the hub would answer 403,
+ * a red line in every non-operator's console. An unknown reader (no me, a
+ * hub that sends no flag yet, the mock's default null me) reads as before,
+ * and the hub's 403 stays the gate.
+ */
+export function fleetLoadReadable(me) {
+  return !(me && me.operatorAdmin === false)
 }
 
 /** True when this caller is not an admin of the operator workspace. */
@@ -525,6 +538,16 @@ function readStored(store) {
   }
 }
 
+function countRead(store) {
+  try { store.setItem(FLEET_READS_KEY, String((Number(store.getItem(FLEET_READS_KEY)) || 0) + 1)) } catch { /* no count */ }
+}
+
+/** The mock's operator_admin on /v1/view/me: the e2e's operator opt-in. */
+export function mockFleetOperator(store) {
+  const st = store || browserStore()
+  return Boolean(st) && isOperator(st)
+}
+
 function isOperator(store) {
   try { return store.getItem(FLEET_OPERATOR_KEY) === '1' } catch { return false }
 }
@@ -532,6 +555,7 @@ function isOperator(store) {
 /** Mock GET. 403 operator.workspaces unless the e2e opted into the operator admin. */
 export function mockFleetRead(store) {
   const st = store || browserStore()
+  if (st) countRead(st)
   if (!st || !isOperator(st)) throw forbidden()
   return fleetBody(readStored(st))
 }

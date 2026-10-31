@@ -70,10 +70,11 @@
 
 <script setup lang="ts">
 import { useRosterStore } from '~/stores/roster'
+import { useAccessStore } from '~/stores/access'
 import { boxRows, filterBoxes } from '~/utils/box-rows.mjs'
 import { boxStatsOf, latestBoxStat } from '~/utils/box-resources.mjs'
 import type { BoxStat } from '~/utils/box-resources.mjs'
-import { normalizeFleetLoad } from '~/utils/fleet-load.mjs'
+import { fleetLoadReadable, normalizeFleetLoad } from '~/utils/fleet-load.mjs'
 import type { FleetLoadView } from '~/utils/fleet-load.mjs'
 import { normalizeTenantSettings } from '~/utils/tenant-settings.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
@@ -139,20 +140,26 @@ onUnmounted(() => {
 
 const fleet = ref<FleetLoadView | null>(null)
 const split = ref<Record<string, number> | null>(null)
+const access = useAccessStore()
 const stats = ref<BoxStat[]>([])
 
 /* three reads, each on its own: a 403 or a hub without the route hides
    only its part (the hub's 403 is the gate, as on the settings pages) */
 onMounted(() => {
   const api = useSpoolApi() as unknown as MonitoringApi
-  void api.getFleetLoad().then(async (body) => {
-    fleet.value = normalizeFleetLoad(body)
+  /* SPL-4451: only a reader /v1/view/me may name the operator admin */
+  void access.ensure().then(async (me) => {
+    if (!fleetLoadReadable(me)) return
+    fleet.value = normalizeFleetLoad(await api.getFleetLoad())
     try {
       split.value = { ...normalizeTenantSettings(await api.getTenantSettings()).agentSplit }
     } catch { split.value = null }
   }).catch(() => { fleet.value = null })
-  void api.boxStats({ since: '1h' }).then((body) => {
-    stats.value = boxStatsOf(body as { rows?: unknown[] } | null).rows
+  /* SPL-4451 (row 5's box-stats lines): the hub reads box stats for
+     audit.read only; a reader /v1/view/me names without it is not read */
+  void access.ensure().then(async () => {
+    if (!access.can('audit.read')) return
+    stats.value = boxStatsOf(await api.boxStats({ since: '1h' }) as { rows?: unknown[] } | null).rows
   }).catch(() => { stats.value = [] })
 })
 </script>

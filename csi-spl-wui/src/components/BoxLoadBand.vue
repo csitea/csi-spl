@@ -70,6 +70,7 @@
 
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { useAccessStore } from '~/stores/access'
 import {
   boxLoadPct,
   fleetBandOk,
@@ -77,6 +78,7 @@ import {
   fleetBoxBandPatch,
   fleetBoxCpuOf,
   fleetLoadForbidden,
+  fleetLoadReadable,
   fleetLoadStatusDetail,
   normalizeFleetLoad,
 } from '~/utils/fleet-load.mjs'
@@ -91,6 +93,7 @@ type FleetApi = {
 
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi() as unknown as FleetApi
+const access = useAccessStore()
 
 const state = ref<'loading' | 'hidden' | 'ready'>('loading')
 const view = ref<FleetLoadView | null>(null)
@@ -166,6 +169,11 @@ async function load() {
   notice.value = ''
   error.value = ''
   try {
+    /* SPL-4451: a reader /v1/view/me names no operator admin is not read */
+    if (!fleetLoadReadable(await access.ensure())) {
+      if (mine === seq) state.value = 'hidden'
+      return
+    }
     const next = normalizeFleetLoad(await api.getFleetLoad())
     if (mine !== seq) return
     take(next)

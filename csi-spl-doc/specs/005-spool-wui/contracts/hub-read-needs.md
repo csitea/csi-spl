@@ -16,6 +16,7 @@ parameters, shapes or error tokens; on any doubt view-v1 wins.
 | US5 door | §2 view token (PROPOSED, 003 OQ-16); social session as the M3 successor door | token held in memory / `sessionStorage`, never `localStorage`, never in a URL |
 | roster / DMs | §4.1 `GET /v1/view/roster` | Implemented (`view.go:40`); spec §5 G4 closed |
 | channels (later) | §4.2 `GET /v1/view/channels` | empty in M1 (no `channel` in `v:1`, spec §5 G3) |
+| who may read what | `GET /v1/view/me` (`internal/hub/rbac.go` `meBody`) | SPL-4451: a page skips a read the hub would refuse into a console 403. `GET /v1/operator/fleet-load` only when `operator_admin` is not `false` (`fleetLoadReadable`, `utils/fleet-load.mjs`; absent = an older hub, read as before); `GET /v1/tenant/box-stats` on `/monitoring/boxes` only with `audit.read`. Test: `tests/e2e/fleet-load.test.mjs` 2b-2e |
 | cross-origin | §3 CORS from cnf `hub.view_cors_origins` | bearer header for a view token; `credentials: 'include'` for the session door (`credentialsFor` in `spool-client.mjs`) |
 
 ## 2. Status (measured 2026-09-18)

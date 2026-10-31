@@ -47,6 +47,7 @@ import { useMobileStack } from '~/composables/useMobileStack'
 import { useAccessStore } from '~/stores/access'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { tenantSettingsSections, tenantSettingsSectionOf } from '~/utils/tenant-settings-nav'
+import { fleetLoadReadable } from '~/utils/fleet-load.mjs'
 
 const session = useSessionStore()
 const route = useRoute()
@@ -58,8 +59,14 @@ const signedIn = computed(() => (session.state === 'in' && !!session.claims) || 
 const accessReady = ref(false)
 const fleetOn = ref(false)
 let fleetSeq = 0
+/* SPL-4451: a reader /v1/view/me names no operator admin is not probed
+   (the hub would 403 into the console); the section stays off */
 async function probeFleet() {
   const mine = ++fleetSeq
+  if (!fleetLoadReadable(access.me)) {
+    fleetOn.value = false
+    return
+  }
   try {
     await (api as unknown as { getFleetLoad: () => Promise<unknown> }).getFleetLoad()
     if (mine === fleetSeq) fleetOn.value = true
@@ -69,8 +76,10 @@ async function probeFleet() {
 }
 watch(signedIn, (v) => {
   if (!v) return
-  void access.load().finally(() => { accessReady.value = true })
-  void probeFleet()
+  void access.load().finally(() => {
+    accessReady.value = true
+    void probeFleet()
+  })
 }, { immediate: true })
 const sections = computed(() => {
   const opts = { mock: api.mock, fleetLoad: fleetOn.value }

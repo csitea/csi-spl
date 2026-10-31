@@ -2,6 +2,8 @@
 declare module '~/utils/fleet-load.mjs' {
   export const FLEET_OPERATOR_KEY: string
   export const FLEET_STORE_KEY: string
+  export const FLEET_READS_KEY: string
+  export function mockFleetOperator(store?: Storage | null): boolean
   export const FLEET_BOX_MAX: number
   export const FLEET_BAD_SETTING: string
   export const FLEET_DEFAULT_LOW: number
@@ -82,6 +84,7 @@ declare module '~/utils/fleet-load.mjs' {
   export function fleetKindList(v: unknown): string[]
   export function fleetPauseList(v: unknown): FleetKindPause[]
   export function fleetKindsOk(kindsOff: unknown): boolean
+  export function fleetLoadReadable(me: { operatorAdmin?: boolean | null } | null | undefined): boolean
   export function fleetLoadForbidden(err: unknown): boolean
   export function fleetLoadStatusDetail(err: unknown): string
   export function normalizeFleetLoad(body: unknown): FleetLoadView

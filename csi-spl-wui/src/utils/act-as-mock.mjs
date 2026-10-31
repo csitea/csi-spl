@@ -7,6 +7,7 @@
  * act-as and this is inert. It is never consulted in a live build.
  */
 import { storageGetJson, storageSetJson } from './prefs.mjs'
+import { mockFleetOperator } from './fleet-load.mjs'
 
 const MOCK_ACT_AS_KEY = 'spool.mock.act_as'
 
@@ -133,7 +134,8 @@ function mockRole() {
 export async function mockMe(dir) {
   const a = mockActAsGet()
   const meMock = mockMeGet()
-  if (meMock && (!a || !a.target_hum)) return meMock
+  /* SPL-4451: an opted-in member also says operator_admin, as the hub does */
+  if (meMock && (!a || !a.target_hum)) return { ...meMock, operator_admin: mockFleetOperator() }
   const policy = mockArchivePolicy()
   if (policy && (!a || !a.target_hum)) return { role: mockRole(), tenant_owner: false, topic_archive_policy: policy }
   if (!a || !a.target_hum) return null

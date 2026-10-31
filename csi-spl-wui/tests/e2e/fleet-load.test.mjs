@@ -18,7 +18,8 @@ import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
-import { FLEET_BAD_SETTING, FLEET_OPERATOR_KEY, FLEET_STORE_KEY } from '../../src/utils/fleet-load.mjs'
+import { FLEET_BAD_SETTING, FLEET_OPERATOR_KEY, FLEET_READS_KEY, FLEET_STORE_KEY } from '../../src/utils/fleet-load.mjs'
+import { MOCK_ME_KEY } from '../../src/utils/act-as-mock.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const results = []
@@ -82,6 +83,52 @@ try {
   await p.goto(server.base + '/tenant-settings/fleet-load', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector('[data-test=tenant-fleet-root][data-state=forbidden]', { timeout: NAV_TIMEOUT })
   ok('2 a workspace admin does not see the Fleet load card', !(await p.$('[data-test=tenant-settings-fleet-load]')))
+
+  // SPL-4451 (row 3 of SPL-4422): a member /v1/view/me names no operator
+  // admin (operator_admin false) is never read GET /v1/operator/fleet-load
+  // on the pages that probed it into a 403 console line. The mock counts its
+  // answers under FLEET_READS_KEY. CONTROL: the operator admin's same pages
+  // read it, so the zeros are the gate, not a counter that never counts.
+  const reads = async (path, sel) => {
+    await p.evaluate((k) => localStorage.setItem(k, '0'), FLEET_READS_KEY)
+    await p.goto(server.base + path, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await p.waitForSelector(sel, { timeout: NAV_TIMEOUT })
+    await new Promise((r) => setTimeout(r, 300))
+    return p.evaluate((k) => Number(localStorage.getItem(k)) || 0, FLEET_READS_KEY)
+  }
+  const probePages = [
+    ['/tenant-settings/members', '[data-test=tenant-settings-nav]'],
+    ['/users', '[data-test=tenant-settings-nav]'],
+    ['/monitoring/boxes', '[data-test=monitoring-boxes]'],
+    ['/monitoring/boxes/box-desk', '[data-test=box-band-hidden]'],
+  ]
+  await p.evaluate((k) => localStorage.setItem(k, JSON.stringify({ role: 'admin', permissions: ['tenant.settings', 'members.invite', 'members.roles', 'topics.read'] })), MOCK_ME_KEY)
+  const memberReads = {}
+  for (const [path, sel] of probePages) memberReads[path] = await reads(path, sel)
+  ok('2b a non-operator member reads GET /v1/operator/fleet-load 0 times on settings, users and boxes',
+    Object.values(memberReads).every((n) => n === 0), memberReads)
+  // GET /v1/tenant/box-stats is audit.read on the hub: this member lacks it,
+  // so the Boxes list reads no stats and box-desk's disk line stays empty.
+  const diskOf = async () => {
+    await p.goto(server.base + '/monitoring/boxes', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await p.waitForSelector('[data-test=monitoring-box-facts][data-box=box-desk] [data-test=mbf-disk]', { timeout: NAV_TIMEOUT })
+    await new Promise((r) => setTimeout(r, 300))
+    return text(p, '[data-test=monitoring-box-facts][data-box=box-desk] [data-test=mbf-disk]')
+  }
+  const noAudit = await diskOf()
+  ok('2d a member without audit.read reads no box stats on /monitoring/boxes (no disk line)', noAudit === '—', noAudit)
+  await p.evaluate((k) => {
+    const me = JSON.parse(localStorage.getItem(k))
+    localStorage.setItem(k, JSON.stringify({ ...me, permissions: me.permissions.concat('audit.read') }))
+  }, MOCK_ME_KEY)
+  const withAudit = await diskOf()
+  ok('2e CONTROL: with audit.read the same page reads them (box-desk shows its disk)', withAudit !== '—' && withAudit !== '', withAudit)
+  await p.evaluate((op) => localStorage.setItem(op, '1'), FLEET_OPERATOR_KEY)
+  const opReads = {}
+  for (const [path, sel] of probePages.slice(0, 3)) opReads[path] = await reads(path, sel)
+  opReads['/monitoring/boxes/box-desk'] = await reads('/monitoring/boxes/box-desk', '[data-test=box-band]')
+  ok('2c CONTROL: the operator admin reads it on each of those pages', Object.values(opReads).every((n) => n >= 1), opReads)
+  await p.evaluate((op, me) => { localStorage.removeItem(op); localStorage.removeItem(me) }, FLEET_OPERATOR_KEY, MOCK_ME_KEY)
 
   await p.evaluate((op) => localStorage.setItem(op, '1'), FLEET_OPERATOR_KEY)
   await p.goto(server.base + '/tenant-settings/members', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })

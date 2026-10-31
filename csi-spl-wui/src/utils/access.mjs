@@ -27,10 +27,11 @@ export function archivePolicyOf(v) {
 
 /**
  * A /v1/view/me body → { humanId, role, roles, tenantOwner, permissions,
- * channelOrder, topicArchivePolicy } (roles = the whole role set, the primary
- * first, [] when not sent: spec 153 3.6 reads `admin` in it; permissions null
- * = unrestricted; channelOrder null = never set, SPL-1034;
- * topicArchivePolicy = the workspace archive setting).
+ * channelOrder, topicArchivePolicy, operatorAdmin } (roles = the whole role
+ * set, the primary first, [] when not sent: spec 153 3.6 reads `admin` in it;
+ * permissions null = unrestricted; channelOrder null = never set, SPL-1034;
+ * topicArchivePolicy = the workspace archive setting; operatorAdmin =
+ * operator_admin, SPL-4451: true / false as the hub says, null = not sent).
  */
 export function normalizeMe(body) {
   const b = body && typeof body === 'object' ? body : {}
@@ -43,6 +44,7 @@ export function normalizeMe(body) {
     channelOrder: Array.isArray(b.channel_order) ? normalizeChannelOrder(b.channel_order) : null,
     actAs: normalizeActAs(b.act_as),
     topicArchivePolicy: archivePolicyOf(b.topic_archive_policy),
+    operatorAdmin: typeof b.operator_admin === 'boolean' ? b.operator_admin : null,
   }
 }
 

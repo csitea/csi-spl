@@ -74,11 +74,14 @@ type metaStore interface {
 }
 
 // metaPass is one channel's dispatch: its wiring and the result it counts.
+// post, when set, is the one post a publish just approved: only it is
+// claimed, waiting on a racing lock rather than skipping it (SPL-4477).
 type metaPass struct {
-	mm  *MarketingMeta
-	st  metaStore
-	ch  store.MarketingChannel
-	res *MarketingShareResult
+	mm   *MarketingMeta
+	st   metaStore
+	ch   store.MarketingChannel
+	res  *MarketingShareResult
+	post string
 }
 
 func isMetaPlatform(p string) bool {
@@ -159,7 +162,7 @@ func (s *Server) metaDispatchChannel(ctx context.Context, ps *metaPass) time.Tim
 	if room <= 0 {
 		return freeAt
 	}
-	due, err := ps.st.ClaimMarketingPosts(ctx, ps.ch.Tenant, ps.ch.ID, now)
+	due, err := ps.claim(ctx, now)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("channel", ps.ch.ID).Msg("marketing: meta claim")
 		return time.Time{}
@@ -168,6 +171,15 @@ func (s *Server) metaDispatchChannel(ctx context.Context, ps *metaPass) time.Tim
 		s.dispatchMeta(ctx, ps, due, room, freeAt)
 	}
 	return time.Time{}
+}
+
+// claim claims the pass's one approved post, else the channel's due posts
+// (FOR UPDATE SKIP LOCKED, the sweep).
+func (ps *metaPass) claim(ctx context.Context, now time.Time) ([]store.MarketingPost, error) {
+	if ps.post != "" {
+		return ps.st.ClaimMarketingPost(ctx, ps.ch.Tenant, ps.post, now)
+	}
+	return ps.st.ClaimMarketingPosts(ctx, ps.ch.Tenant, ps.ch.ID, now)
 }
 
 // metaLimit is the most API posts a channel makes in a rolling metaWindow.
@@ -426,12 +438,13 @@ func (s *Server) publishMetaPost(ctx context.Context, tenant, hum, seat, postID,
 	if !live {
 		return res, ErrMarketingNoPost
 	}
-	if err := s.metaApprove(ctx, mm, st, ch, bp, hum); err != nil {
+	pid, err := s.metaApprove(ctx, mm, st, ch, bp, hum)
+	if err != nil {
 		return res, err
 	}
 	res.Scheduled++
 	s.o.Log.Info().Str("tenant", tenant).Str("channel", ch.ID).Str("platform", ch.Platform).Str("post", postID).Str("by", hum).Str("agent", seat).Msg("marketing: a blog post is approved for Meta")
-	if at := s.metaDispatchChannel(ctx, &metaPass{mm: mm, st: st, ch: ch, res: &res}); !at.IsZero() {
+	if at := s.metaDispatchChannel(ctx, &metaPass{mm: mm, st: st, ch: ch, res: &res, post: pid}); !at.IsZero() {
 		res.Deferred++
 		s.o.Log.Info().Str("channel", ch.ID).Time("at", at).Msg("marketing: meta post waits for the channel's cap")
 	}
@@ -453,31 +466,32 @@ func metaChannel(ctx context.Context, st metaStore, tenant, channelID string) (s
 }
 
 // metaApprove records bp on ch held (awaiting_approval) and approves it:
-// scheduled, due now. A row that is already past the hold is 409.
-func (s *Server) metaApprove(ctx context.Context, mm *MarketingMeta, st metaStore, ch store.MarketingChannel, bp marketing.BlogPost, actor string) error {
+// scheduled, due now; it returns the post's id. A row that is already past
+// the hold is 409.
+func (s *Server) metaApprove(ctx context.Context, mm *MarketingMeta, st metaStore, ch store.MarketingChannel, bp marketing.BlogPost, actor string) (string, error) {
 	media := metaMedia(mm.AppURL, bp)
 	if ch.Platform == store.MarketingPlatformIG && !isJPEG(selectedMedia(media)) {
-		return ErrMarketingNeedsJPEG
+		return "", ErrMarketingNeedsJPEG
 	}
 	now := s.o.Now()
 	if _, err := st.ScheduleMarketingPost(ctx, store.MarketingPost{Tenant: ch.Tenant, ChannelID: ch.ID,
 		SourceType: store.MarketingSourceBlog, SourceRef: bp.ID, ContentText: metaCaption(mm.AppURL, ch.Platform, bp),
 		Status: store.MarketingAwaitingApproval, MediaAssets: media}, now); err != nil {
-		return err
+		return "", err
 	}
 	p, err := st.MarketingPostByRef(ctx, ch.Tenant, ch.ID, store.MarketingSourceBlog, bp.ID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if p.Status != store.MarketingAwaitingApproval {
-		return ErrMarketingRecorded
+		return "", ErrMarketingRecorded
 	}
 	if err := st.ApproveMarketingPost(ctx, ch.Tenant, p.ID, actor, now); errors.Is(err, store.ErrNotFound) {
-		return ErrMarketingRecorded // a racing publish approved it first
+		return "", ErrMarketingRecorded // a racing publish approved it first
 	} else if err != nil {
-		return err
+		return "", err
 	}
-	return nil
+	return p.ID, nil
 }
 
 func metaHTTP(mm *MarketingMeta) *http.Client {

@@ -24,6 +24,12 @@ type MarketingMetaDispatch interface {
 	// published through the API since `since` went out; a post handed over
 	// by hand (platform_post_id 'manual') is not counted.
 	MarketingPublishedTimes(ctx context.Context, tenant, channelID string, since time.Time) ([]time.Time, error)
+	// ClaimMarketingPost claims the one post postID as ClaimMarketingPosts
+	// would (scheduled and due -> dispatching), but waits for a row lock
+	// instead of skipping it, so the publish that approved it claims it
+	// unless another claim got it first (SPL-4477). Nil when it was not
+	// claimable.
+	ClaimMarketingPost(ctx context.Context, tenant, postID string, now time.Time) ([]MarketingPost, error)
 }
 
 // ---- Postgres ---------------------------------------------------------------
@@ -75,6 +81,17 @@ func (s *Postgres) MarketingPublishedTimes(ctx context.Context, tenant, channelI
 	return out, err
 }
 
+// ClaimMarketingPost implements MarketingMetaDispatch on the Postgres store:
+// a plain UPDATE waits for a lock a racing transaction holds on the row,
+// then re-reads its status, so the post is claimed exactly once.
+func (s *Postgres) ClaimMarketingPost(ctx context.Context, tenant, postID string, now time.Time) ([]MarketingPost, error) {
+	return s.mktClaim(ctx, tenant, `UPDATE marketing_posts SET status = 'dispatching', attempts = attempts + 1,
+			claimed_at = $3, updated_at = $3
+		WHERE tenant_id = $1 AND post_id = $2::uuid AND status = 'scheduled'
+			AND (next_attempt_at IS NULL OR next_attempt_at <= $3)
+		RETURNING `+mktPostCols, postID, now)
+}
+
 // ---- Memory -----------------------------------------------------------------
 
 // MetaMarketingChannels implements MarketingMetaDispatch on the Memory store.
@@ -116,4 +133,18 @@ func (s *Memory) MarketingPublishedTimes(_ context.Context, tenant, channelID st
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Before(out[j]) })
 	return out, nil
+}
+
+// ClaimMarketingPost implements MarketingMetaDispatch on the Memory store.
+func (s *Memory) ClaimMarketingPost(_ context.Context, tenant, postID string, now time.Time) ([]MarketingPost, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	m := s.mkt()
+	p, ok := m.posts[postID]
+	if !ok || p.Tenant != tenant || p.Status != MarketingScheduled || p.next.After(now) {
+		return nil, nil
+	}
+	p.Status, p.Attempts, p.claimed = MarketingDispatching, p.Attempts+1, now
+	m.event(tenant, p.ChannelID, p.ID, "post_dispatched")
+	return []MarketingPost{p.MarketingPost}, nil
 }

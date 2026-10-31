@@ -435,14 +435,20 @@ func (s *Postgres) HandOverMarketingPost(ctx context.Context, tenant, postID, ac
 
 // ClaimMarketingPosts implements Marketing on the Postgres store (rdb 0187).
 func (s *Postgres) ClaimMarketingPosts(ctx context.Context, tenant, channelID string, now time.Time) ([]MarketingPost, error) {
+	return s.mktClaim(ctx, tenant, `UPDATE marketing_posts SET status = 'dispatching', attempts = attempts + 1,
+			claimed_at = $3, updated_at = $3
+		WHERE post_id IN (SELECT post_id FROM marketing_posts WHERE tenant_id = $1 AND channel_id = $2::uuid
+			AND status = 'scheduled' AND (next_attempt_at IS NULL OR next_attempt_at <= $3)
+			ORDER BY created_at FOR UPDATE SKIP LOCKED)
+		RETURNING `+mktPostCols, channelID, now)
+}
+
+// mktClaim runs one claiming UPDATE ($1 tenant, then args) and writes a
+// post_dispatched event for each post it moved to dispatching.
+func (s *Postgres) mktClaim(ctx context.Context, tenant, query string, args ...any) ([]MarketingPost, error) {
 	var out []MarketingPost
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, `UPDATE marketing_posts SET status = 'dispatching', attempts = attempts + 1,
-				claimed_at = $3, updated_at = $3
-			WHERE post_id IN (SELECT post_id FROM marketing_posts WHERE tenant_id = $1 AND channel_id = $2::uuid
-				AND status = 'scheduled' AND (next_attempt_at IS NULL OR next_attempt_at <= $3)
-				ORDER BY created_at FOR UPDATE SKIP LOCKED)
-			RETURNING `+mktPostCols, tenant, channelID, now)
+		rows, err := tx.Query(ctx, query, append([]any{tenant}, args...)...)
 		if err != nil {
 			return err
 		}
@@ -454,7 +460,7 @@ func (s *Postgres) ClaimMarketingPosts(ctx context.Context, tenant, channelID st
 			return err
 		}
 		for _, p := range out {
-			if err := mktEvent(ctx, tx, mktEv{Tenant: tenant, Channel: channelID, Post: p.ID, Type: "post_dispatched", Details: map[string]any{"attempt": p.Attempts}}); err != nil {
+			if err := mktEvent(ctx, tx, mktEv{Tenant: tenant, Channel: p.ChannelID, Post: p.ID, Type: "post_dispatched", Details: map[string]any{"attempt": p.Attempts}}); err != nil {
 				return err
 			}
 		}

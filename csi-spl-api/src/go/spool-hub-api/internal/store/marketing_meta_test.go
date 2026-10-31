@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -143,6 +144,95 @@ func TestMarketingMetaHandOver(t *testing.T) {
 		t.Fatalf("handed over row = %s %s, %v", status, ppid, err)
 	}
 	assertMktEvents(t, pg, tn, id, "post_held", "post_handed_over")
+}
+
+// SPL-4477: the publish that approved a post claims it even while a racing
+// transaction (a losing approve) holds the row's lock; the sweep's claim
+// (SKIP LOCKED) skips it then, and on the old code so did the publish, which
+// answered 200 and posted nothing until the next sweep.
+func TestMarketingMetaClaimOneWaitsForLock(t *testing.T) {
+	pg := rlsStore(t)
+	ctx := context.Background()
+	tn := mktTenant(t, pg)
+	ch, err := connectMeta(ctx, pg, tn, MarketingPlatformFacebook, "page")
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	if _, err := pg.ScheduleMarketingPost(ctx, MarketingPost{Tenant: tn, ChannelID: ch.ID, SourceType: MarketingSourceBlog,
+		SourceRef: "2026-10-31-race", Status: MarketingAwaitingApproval}, now); err != nil {
+		t.Fatal(err)
+	}
+	p, err := pg.MarketingPostByRef(ctx, tn, ch.ID, MarketingSourceBlog, "2026-10-31-race")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pg.ApproveMarketingPost(ctx, tn, p.ID, "HUM-1", now); err != nil {
+		t.Fatal(err)
+	}
+	locked, release, held := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+	var unlock sync.Once
+	free := func() { unlock.Do(func() { close(release) }) }
+	t.Cleanup(free) // a failed case still ends the lock holder's transaction
+	go func() {
+		held <- pg.inTenant(ctx, tn, func(tx pgx.Tx) error {
+			if _, err := tx.Exec(ctx, `SELECT 1 FROM marketing_posts WHERE post_id = $1::uuid FOR UPDATE`, p.ID); err != nil {
+				return err
+			}
+			close(locked)
+			<-release
+			return nil
+		})
+	}()
+	<-locked
+	if ps, err := pg.ClaimMarketingPosts(ctx, tn, ch.ID, now); err != nil || len(ps) != 0 {
+		t.Fatalf("the sweep's claim took a locked row: %+v, %v", ps, err)
+	}
+	type claimed struct {
+		ps  []MarketingPost
+		err error
+	}
+	done := make(chan claimed, 1)
+	go func() {
+		ps, err := pg.ClaimMarketingPost(ctx, tn, p.ID, now)
+		done <- claimed{ps, err}
+	}()
+	waitLockWaiter(t, pg, done)
+	free()
+	if err := <-held; err != nil {
+		t.Fatal(err)
+	}
+	if c := <-done; c.err != nil || len(c.ps) != 1 || c.ps[0].ID != p.ID || c.ps[0].Status != MarketingDispatching || c.ps[0].Attempts != 1 {
+		t.Fatalf("claim after the lock = %+v, %v; want the post once", c.ps, c.err)
+	}
+	if ps, err := pg.ClaimMarketingPost(ctx, tn, p.ID, now); err != nil || len(ps) != 0 {
+		t.Fatalf("second claim = %+v, %v; want none", ps, err)
+	}
+	assertMktEvents(t, pg, tn, p.ID, "post_held", "post_approved", "post_dispatched")
+}
+
+// waitLockWaiter returns once a ClaimMarketingPost waits on a row lock; it
+// fails when the claim returns first (it skipped the locked row).
+func waitLockWaiter[T any](t *testing.T, pg *Postgres, done chan T) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		select {
+		case c := <-done:
+			t.Fatalf("the claim returned while the row was locked: %+v", c)
+		default:
+		}
+		var n int
+		if err := pg.Pool().QueryRow(context.Background(), `SELECT count(*) FROM pg_stat_activity
+			WHERE wait_event_type = 'Lock' AND query LIKE '%post_id = $2::uuid AND status = ''scheduled''%'`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n > 0 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("the claim never waited on the row lock")
 }
 
 func TestMarketingMetaChecksRefuse(t *testing.T) {

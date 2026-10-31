@@ -99,6 +99,21 @@ The viewer sends a door credential on every read: first the view token
 session (`SPEC-spool-social-auth.md`, 006) as view-v1's successor door. No door, no
 data (`401 view_door`).
 
+A settled signed-out visitor on a member-only page goes to `/login` and reads
+nothing (SPL-4513, round 2 of the console errors, SPL-4509 rows 1-6). The
+product screens are `/`, `/lobby`, `/search` and every path under
+`PRODUCT_ROOTS` (`csi-spl-wui/src/utils/signed-out-redirect.mjs`): channel, dm,
+t, settings, monitoring (all tabs), reporting (all tabs), notes, issues,
+archive, workspace/docs, agents, boxes and events; the early head script
+(`signed-out-redirect-script.mjs`) lists the same roots. Public, checked:
+`/releases` (row 7 waits for the owner), `/docs` (its own door), `/login`,
+`/reset-password`, `/verify-email`, `/checkout`, `/embed`, `/blog`, `/help`,
+`/roadmap`, `/public-calendar`, `/m/<id>`. While the session is `'out'`,
+`access.load()` reads no `/v1/view/me` and `useLive` opens no hub socket.
+Tests: `tests/unit/signed-out-member-pages.test.mjs`,
+`tests/e2e/signed-out-member-pages.test.mjs` (0 `view/me`, 0
+`webSocketCreated` on /monitoring and /issues).
+
 ### US6 — Thread verbosity (P5) — Partial
 
 The selector was removed in `d1648dd0` (2026-09-23); `src/utils/verbosity.mjs` is kept
@@ -315,4 +330,4 @@ Named here, not specified.
   `localStorage` (aligns with 003 OQ-CH2 (a) client-held); **(b)** hub-synced
   per-human cursors (needs HUMANS 0006; later).
 
-<!-- version: 1.11.0 · updated: 2026-09-25 · last-edit: 2026-09-25T19:45:00Z -->
+<!-- version: 1.12.0 · updated: 2026-10-31 · last-edit: 2026-10-31T17:30:00Z -->

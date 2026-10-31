@@ -48,18 +48,27 @@ export function isExemptScreen(input) {
   return EXEMPT.some((re) => re.test(p))
 }
 
+/**
+ * Roots of the product screens, each with everything below it. The member-only
+ * pages (SPL-4513) used to mount for a visitor and read member endpoints (401
+ * /v1/view/me, reporting, notes, archive, the hub socket). Keep in step with
+ * the early script's roots (utils/signed-out-redirect-script.mjs).
+ * /docs is not here: a doc marked public is read signed out, so the docs page
+ * is its own door (pages/docs.vue, owner HUM-10 e3ce4c34). /releases waits for
+ * the owner (SPL-4509 row 7).
+ */
+export const PRODUCT_ROOTS = Object.freeze([
+  '/channel', '/dm', '/t', '/settings',
+  '/monitoring', '/reporting', '/notes', '/issues', '/archive', '/workspace/docs',
+  '/agents', '/boxes', '/events',
+])
+
 /** Product screens that replace themselves with /login once the session is 'out'. */
 export function isProductScreen(input) {
   const p = productPath(input)
   if (isExemptScreen(p)) return false
   if (p === '/' || p === '/lobby' || p === '/search') return true
-  if (p === '/channel' || p.startsWith('/channel/')) return true
-  if (p === '/dm' || p.startsWith('/dm/')) return true
-  if (p === '/t' || p.startsWith('/t/')) return true
-  if (p === '/settings' || p.startsWith('/settings/')) return true
-  /* /docs is not here: a doc marked public is read signed out, so the docs
-     page is its own door (pages/docs.vue, owner HUM-10 e3ce4c34) */
-  return false
+  return PRODUCT_ROOTS.some((root) => p === root || p.startsWith(`${root}/`))
 }
 
 /**

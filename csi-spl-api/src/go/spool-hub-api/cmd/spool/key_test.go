@@ -874,3 +874,183 @@ func procAlive(pid int) bool {
 	i := bytes.LastIndexByte(b, ')')
 	return i > 0 && i+2 < len(b) && b[i+2] != 'Z'
 }
+
+// noTTYStdin points os.Stdin at a pipe for the test, so a passphrase read
+// is refused for want of a terminal whatever terminal ran go test.
+func noTTYStdin(t *testing.T) {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stdin
+	os.Stdin = r
+	t.Cleanup(func() {
+		os.Stdin = old
+		w.Close()
+		r.Close()
+	})
+}
+
+type keyRefusal struct {
+	name string
+	args []string
+	env  map[string]string
+	rc   int
+	want string
+}
+
+// setEnvFor sets env for one case; the returned func puts each variable
+// back as it was, so a case never leaks into the next one.
+func setEnvFor(t *testing.T, env map[string]string) func() {
+	t.Helper()
+	type prev struct {
+		v  string
+		ok bool
+	}
+	saved := map[string]prev{}
+	for k, v := range env {
+		old, ok := os.LookupEnv(k)
+		saved[k] = prev{old, ok}
+		t.Setenv(k, v)
+	}
+	return func() {
+		for k, p := range saved {
+			if p.ok {
+				os.Setenv(k, p.v)
+			} else {
+				os.Unsetenv(k)
+			}
+		}
+	}
+}
+
+// runKeyRefusals runs each case through the CLI and checks its exit code
+// and that stderr names the refusal and holds no secret.
+func runKeyRefusals(t *testing.T, cases []keyRefusal, secret []byte) {
+	t.Helper()
+	for _, c := range cases {
+		restore := setEnvFor(t, c.env)
+		var rc int
+		errOut := captureFD(t, &os.Stderr, func() { rc = run(c.args) })
+		restore()
+		if rc != c.rc || !bytes.Contains(errOut, []byte(c.want)) {
+			t.Fatalf("%s: rc %d (want %d), stderr %q (want %q)", c.name, rc, c.rc, errOut, c.want)
+		}
+		if len(secret) > 0 && bytes.Contains(errOut, secret) {
+			t.Fatalf("%s: stderr holds the secret", c.name)
+		}
+	}
+}
+
+// TestCmdKeyInitRefusals: every refusal before the passphrase read exits
+// with one reason and writes no key.
+func TestCmdKeyInitRefusals(t *testing.T) {
+	dir := shortState(t)
+	t.Setenv("SPOOL_ENC_STATE", dir)
+	noTTYStdin(t)
+	ws := randWS(t)
+	if err := os.MkdirAll(filepath.Join(dir, "keys"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "keys", "workspace"), []byte(ws+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	other := randWS(t)
+	runKeyRefusals(t, []keyRefusal{
+		{"unknown flag", []string{"key", "init", "--nope"}, nil, 1, "flag provided but not defined"},
+		{"extra arg", []string{"key", "init", "--as", "c-101", "--workspace", ws, "x"}, nil, 1, "usage:"},
+		{"as and owner", []string{"key", "init", "--as", "c-101", "--owner", "--workspace", ws}, nil, 1, "usage:"},
+		{"neither as nor owner", []string{"key", "init", "--workspace", ws}, nil, 1, "usage:"},
+		{"bad workspace", []string{"key", "init", "--as", "c-101", "--workspace", "not-a-uuid"}, nil, 1, "workspace id is not a uuid"},
+		{"bad agent id", []string{"key", "init", "--as", "nope", "--workspace", ws}, nil, 1, "agent id is not valid"},
+		{"relative state", []string{"key", "init", "--as", "c-101", "--workspace", ws}, map[string]string{"SPOOL_ENC_STATE": "rel/enc"}, 1, "SPOOL_ENC_STATE must be absolute"},
+		{"workspace mismatch", []string{"key", "init", "--as", "c-101", "--workspace", other}, nil, 1, "workspace mismatch"},
+		{"agent no tty", []string{"key", "init", "--as", "c-101", "--workspace", ws}, nil, keyd.ExitPassphrase, "must both be a terminal"},
+		{"owner no tty", []string{"key", "init", "--owner", "--workspace", ws}, nil, keyd.ExitPassphrase, "must both be a terminal"},
+	}, nil)
+	for _, f := range []string{"c-101.pub", "owner.age", "agents.age"} {
+		if _, err := os.Lstat(filepath.Join(dir, "keys", f)); !os.IsNotExist(err) {
+			t.Fatalf("a refused init wrote keys/%s", f)
+		}
+	}
+}
+
+// TestRekeyToTypedRefusedNoTTY: rekeyTo with no key file reads a new
+// passphrase; with no terminal it is refused and the bundle keeps its key.
+func TestRekeyToTypedRefusedNoTTY(t *testing.T) {
+	dir, _, _, key := keyFileState(t)
+	noTTYStdin(t)
+	err := rekeyTo(dir, key, "")
+	if !errors.Is(err, keyd.ErrPassphrase) {
+		t.Fatalf("rekeyTo with no terminal: %v, want ErrPassphrase", err)
+	}
+	if _, err := keyd.LoadAgents(dir, key); err != nil {
+		t.Fatal("a refused rekey changed the bundle key")
+	}
+}
+
+// TestCmdKeyRotateRefusals: each refusal of `key rotate` exits with its
+// reason and the agent's public key stays the same.
+func TestCmdKeyRotateRefusals(t *testing.T) {
+	dir, _, _, key := keyFileState(t)
+	noTTYStdin(t)
+	pubPath := filepath.Join(dir, "keys", "c-101.pub")
+	pub, err := os.ReadFile(pubPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	empty := shortState(t)
+	runKeyRefusals(t, []keyRefusal{
+		{"passphrase flag", []string{"key", "rotate", "--as", "c-101", "--passphrase=" + string(key)}, nil, keyd.ExitPassphrase, "--passphrase"},
+		{"unknown flag", []string{"key", "rotate", "--nope"}, nil, 1, "flag provided but not defined"},
+		{"no agent id", []string{"key", "rotate"}, nil, 1, "agent id is not valid"},
+		{"bad agent id", []string{"key", "rotate", "--as", "nope"}, nil, 1, "agent id is not valid"},
+		{"extra arg", []string{"key", "rotate", "--as", "c-101", "x"}, nil, 1, "agent id is not valid"},
+		{"relative state", []string{"key", "rotate", "--as", "c-101"}, map[string]string{"SPOOL_ENC_STATE": "rel/enc"}, 1, "SPOOL_ENC_STATE must be absolute"},
+		{"not initialised", []string{"key", "rotate", "--as", "c-101"}, map[string]string{"SPOOL_ENC_STATE": empty}, 1, "workspace is not initialised"},
+		{"passphrase env", []string{"key", "rotate", "--as", "c-101"}, map[string]string{"SPOOL_KEY_PASSPHRASE": string(key)}, keyd.ExitPassphrase, "SPOOL_KEY_PASSPHRASE is set"},
+		{"no tty", []string{"key", "rotate", "--as", "c-101"}, nil, keyd.ExitPassphrase, "must both be a terminal"},
+	}, key)
+	after, err := os.ReadFile(pubPath)
+	if err != nil || !bytes.Equal(after, pub) {
+		t.Fatal("a refused rotate changed the agent's public key")
+	}
+}
+
+// TestChildEnvDropsPassphrases: keyd's environment carries none of the
+// passphrase variables and exactly one SPOOL_ENC_STATE, the given dir.
+func TestChildEnvDropsPassphrases(t *testing.T) {
+	val := randHex(t)
+	for _, k := range []string{"SPOOL_KEY_PASSPHRASE", "PASSPHRASE", "AGE_PASSPHRASE"} {
+		t.Setenv(k, val)
+	}
+	t.Setenv("SPOOL_ENC_STATE", "/elsewhere")
+	t.Setenv("SPOOL_CHILD_ENV_KEEP", "kept")
+	dir := t.TempDir()
+	env := childEnv(dir)
+	state, kept := 0, false
+	for _, e := range env {
+		k, v, _ := strings.Cut(e, "=")
+		switch k {
+		case "SPOOL_KEY_PASSPHRASE", "PASSPHRASE", "AGE_PASSPHRASE":
+			t.Fatalf("childEnv kept %s", k)
+		case "SPOOL_ENC_STATE":
+			state++
+			if v != dir {
+				t.Fatalf("SPOOL_ENC_STATE=%q, want the given dir", v)
+			}
+		case "SPOOL_CHILD_ENV_KEEP":
+			kept = v == "kept"
+		}
+		if strings.Contains(v, val) {
+			t.Fatalf("childEnv carries the passphrase value in %s", k)
+		}
+	}
+	if state != 1 || !kept {
+		t.Fatalf("SPOOL_ENC_STATE count %d, other vars kept %v", state, kept)
+	}
+	if env[len(env)-1] != "SPOOL_ENC_STATE="+dir {
+		t.Fatal("SPOOL_ENC_STATE is not the last entry")
+	}
+}

@@ -5,7 +5,11 @@
 # raises its package's line by hand in the same commit.
 # Measured on eb7c8b962, go1.25.14: go test ./... (no DSN) for the plain
 # packages, hub-pg.tst.sh's docker postgres:16-alpine suites for pg ones.
-# cmd/spool: 77.1 with gcp_alerts_test.go cmdMCPGCPAlerts guards + hub_gcal_test.go
+# cmd/spool: 77.8 with key_test.go cmdKeyInit/rekeyTo/cmdKeyRotate refusals +
+# childEnv (r42-10), 76.7 without on 35afb65e3; go test -count=1 -cover
+# ./cmd/spool/, go1.26.10, n=3 read 77.8 each. The 78.0 target is not reached:
+# the rest of those four is the success path after a typed passphrase (a tty).
+# Before: 77.1 with gcp_alerts_test.go cmdMCPGCPAlerts guards + hub_gcal_test.go
 # gcalConnect/errText (r16-10), 75.6 without on caac5fb1e; go test -count=1 -cover
 # ./cmd/spool/, go1.26.10, n=3 read 77.1 each.
 # Before: 76.4 with caps_test.go cmdCaps/capsCheck + doc flag parsing (r15-04),
@@ -16,7 +20,7 @@
 # Before: 74.3 with cli_verbs_test.go (r10-01), 69.1 without; go test -count=1
 # -cover ./cmd/spool/, go1.26.9, tree f007a54d6, n=3 read 74.3 each (r9-02's
 # cli_inspect_test.go took it 63.6 -> 68.5, r9-01's cli_fs_test.go 60.7 -> 63.6).
-cmd/spool 77.1
+cmd/spool 77.8
 # internal/action: 80.8 with r15-06's edit_test.go and issue_test.go (edit.go
 # and issue.go 0 -> 100%), 75.6 without on ef6adfcf3; go test -count=1 -cover
 # ./internal/action/, go1.26.9, n=3 read 80.8 each.

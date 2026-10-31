@@ -596,7 +596,8 @@
     "your_status_offline": "Jouw status: offline",
     "monitoring": "Systeembewaking",
     "reporting": "Rapportage",
-    "notes": "Notities"
+    "notes": "Notities",
+    "expenses": "Uitgaven"
   },
   "composer": {
     "biz_owner": "bedrijfseigenaar",
@@ -3688,5 +3689,16 @@
     "notice_connected": "Google Agenda is gekoppeld.",
     "notice_error": "Google Agenda is niet gekoppeld. Probeer het opnieuw.",
     "untitled_event": "(Geen titel)"
+  },
+  "expenses": {
+    "tabs_label": "Uitgaventabbladen",
+    "tab": {
+      "ai": "AI-kosten",
+      "cloud": "Kosten cloudinfrastructuur",
+      "hr": "Personeelskosten"
+    },
+    "coming": "Het invoeren van deze kosten komt in een latere stap.",
+    "operators_only": "Uitgaven zijn alleen voor beheerders van de operator.",
+    "tokens_link": "Betaalde abonnementen en opwaarderingen voer je in onder Uitgaven → AI-kosten."
   }
 }

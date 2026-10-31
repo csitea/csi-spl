@@ -5,7 +5,7 @@
 import type { Ref } from 'vue'
 import type { RouteLocationNormalizedLoaded } from 'vue-router'
 import { railLinkSection } from '~/utils/section-strip.mjs'
-import { CALENDAR_TAB, MONITORING_TAB, NOTES_TAB, REPORTING_TAB } from '~/utils/sidebar-tabs.mjs'
+import { CALENDAR_TAB, EXPENSES_TAB, MONITORING_TAB, NOTES_TAB, REPORTING_TAB } from '~/utils/sidebar-tabs.mjs'
 
 export function useSidebarRailOnly(tab: Ref<string>, isMobile: Ref<boolean>, route: RouteLocationNormalizedLoaded) {
   /* No "All issues" row. With no epic rows the panel is empty, so the
@@ -23,6 +23,8 @@ export function useSidebarRailOnly(tab: Ref<string>, isMobile: Ref<boolean>, rou
   const reportingRailOnly = computed(() => tab.value === REPORTING_TAB)
   /* spec 155 2.6 (B5): and /notes, the list is the page */
   const notesRailOnly = computed(() => tab.value === NOTES_TAB)
+  /* spec 143 costs-redesign.md 3.8 (SPL-4382): and /expenses, its tab bar the page's */
+  const expensesRailOnly = computed(() => tab.value === EXPENSES_TAB)
   /* t1 67f91532 (owner: "the help section should have only 2 panes"): on
      /help the sidebar keeps the icon rail only; the help page itself is the
      two panes, its page list left and the document right. A phone keeps its
@@ -33,6 +35,6 @@ export function useSidebarRailOnly(tab: Ref<string>, isMobile: Ref<boolean>, rou
      A phone keeps its one-pane stack. */
   const docsRailOnly = computed(() => !isMobile.value && railLinkSection(route.path) === 'docs')
   /* any of the above: the sidebar is the icon rail alone (.sidebar--rail) */
-  const railOnly = computed(() => issuesRailOnly.value || calendarRailOnly.value || monitoringRailOnly.value || reportingRailOnly.value || notesRailOnly.value || helpRailOnly.value || docsRailOnly.value)
-  return { issueEpics, issuesRailOnly, calendarRailOnly, monitoringRailOnly, reportingRailOnly, notesRailOnly, helpRailOnly, docsRailOnly, railOnly }
+  const railOnly = computed(() => issuesRailOnly.value || calendarRailOnly.value || monitoringRailOnly.value || reportingRailOnly.value || notesRailOnly.value || expensesRailOnly.value || helpRailOnly.value || docsRailOnly.value)
+  return { issueEpics, issuesRailOnly, calendarRailOnly, monitoringRailOnly, reportingRailOnly, notesRailOnly, expensesRailOnly, helpRailOnly, docsRailOnly, railOnly }
 }

@@ -8,8 +8,9 @@
      visible (a hidden tab makes no call; it catches up when shown), plus a
      Refresh button. The age of the last answer: amber after 45 s, the red
      "Data stale" badge after 90 s (a failed poll keeps the last rows).
-     SPL-2567: under the tables, the Paid card (the operator's paid items and
-     the effective price per token), read once, never polled. -->
+     SPL-2567: the Paid card (the operator's paid items and the effective
+     price per token) moved to Expenses -> AI costs (SPL-4382, spec 143
+     costs-redesign.md 3.8); under the tables a link leads there. -->
 <template>
   <div class="monitoring-tokens" data-test="tokens-page">
     <div class="tk-head">
@@ -40,8 +41,10 @@
       <MonitoringTokensSummary :summary="view.summary" :currency="view.currency" />
       <VendorBurnTable :vendors="view.vendors" :currency="view.currency" />
       <AgentBurnTable :agents="view.agents" :currency="view.currency" :as-of="view.asOf" />
-      <!-- SPL-2567: the paid items and the effective price, its own chunk; the wrapper keeps the async component off a bare v-if -->
-      <div class="tk-lazy"><PaidItemsCard /></div>
+      <!-- SPL-4382: the paid items are entered under Expenses -> AI costs -->
+      <p class="muted" data-test="tokens-paid-moved">
+        <NuxtLink :to="localePath(EXPENSES_DEFAULT_PATH)" data-test="tokens-paid-link">{{ t('expenses.tokens_link') }}</NuxtLink>
+      </p>
     </template>
   </div>
 </template>
@@ -54,14 +57,13 @@ import { fleetTokensOf, lagSeconds, staleLevel, tokensShouldPoll, TOKENS_DEFAULT
 import MonitoringTokensSummary from '~/components/monitoring/token-burn/MonitoringTokensSummary.vue'
 import VendorBurnTable from '~/components/monitoring/token-burn/VendorBurnTable.vue'
 import AgentBurnTable from '~/components/monitoring/token-burn/AgentBurnTable.vue'
-
-/* SPL-2567: the Paid card is its own chunk, fetched once the burn has loaded */
-const PaidItemsCard = defineAsyncComponent(() => import('~/components/monitoring/token-burn/PaidItemsCard.vue'))
+import { EXPENSES_DEFAULT_PATH } from '~/utils/expenses-tabs.mjs'
 
 type TokensApi = { getFleetTokens: (window?: string) => Promise<unknown> }
 type TokensView = ReturnType<typeof fleetTokensOf>
 
 const { t } = useI18n({ useScope: 'global' })
+const localePath = useLocalePath()
 const win = ref(TOKENS_DEFAULT_WINDOW)
 const view = ref<TokensView | null>(null)
 const state = ref<'loading' | 'ok' | 'forbidden' | 'error'>('loading')
@@ -144,6 +146,5 @@ onBeforeUnmount(() => {
 .tk-age[data-stale="amber"] { color: var(--color-warn); }
 .tk-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--color-warn); }
 .tk-stale { padding: 0 8px; border-radius: var(--radius-pill); background: var(--color-danger); color: var(--color-danger-fg); font-size: 0.8125rem; font-weight: 600; }
-.tk-lazy { display: contents; }
 .tk-error { color: var(--color-danger); display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 </style>

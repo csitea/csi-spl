@@ -43,6 +43,7 @@ const RAIL_HELP = {
   monitoring: { slug: 'monitoring', word: 'monitoring' },
   reporting: { slug: 'reporting', word: 'reporting' },
   notes: { slug: 'notes', word: 'notes' },
+  expenses: { slug: 'expenses', word: 'expenses' },
 }
 
 let failed = 0

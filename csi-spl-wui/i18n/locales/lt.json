@@ -596,7 +596,8 @@
     "your_status_offline": "Jūsų būsena: neprisijungęs",
     "monitoring": "Stebėsena",
     "reporting": "Ataskaitos",
-    "notes": "Užrašai"
+    "notes": "Užrašai",
+    "expenses": "Išlaidos"
   },
   "composer": {
     "biz_owner": "verslo savininkas",
@@ -3688,5 +3689,16 @@
     "notice_connected": "Google kalendorius prijungtas.",
     "notice_error": "Google kalendorius nebuvo prijungtas. Bandykite dar kartą.",
     "untitled_event": "(Be pavadinimo)"
+  },
+  "expenses": {
+    "tabs_label": "Išlaidų skirtukai",
+    "tab": {
+      "ai": "DI išlaidos",
+      "cloud": "Debesijos infrastruktūros išlaidos",
+      "hr": "Personalo išlaidos"
+    },
+    "coming": "Šių išlaidų įvedimas bus vėlesniame žingsnyje.",
+    "operators_only": "Išlaidos skirtos tik operatoriaus administratoriams.",
+    "tokens_link": "Apmokėtos prenumeratos ir papildymai įvedami skiltyje Išlaidos → DI išlaidos."
   }
 }

@@ -9,7 +9,8 @@
      page stays this empty line, never a redirect loop.
      Spec 143 costs-redesign.md 5 (SPL-3798): the Costs links too,
      /monitoring/costs and /reporting/tokens (utils/reporting-costs.mjs
-     legacyCostsPath), `?month=` kept. -->
+     legacyCostsPath), `?month=` kept. SPL-4382: and /reporting/costs/paid,
+     to Expenses -> AI costs. -->
 <template>
   <div class="feed-col" data-test="legacy-redirect" />
 </template>

@@ -596,7 +596,8 @@
     "your_status_offline": "Durumunuz: çevrimdışı",
     "monitoring": "İzleme",
     "reporting": "Raporlama",
-    "notes": "Notlar"
+    "notes": "Notlar",
+    "expenses": "Giderler"
   },
   "composer": {
     "biz_owner": "işletme sahibi",
@@ -3688,5 +3689,16 @@
     "notice_connected": "Google Takvim bağlandı.",
     "notice_error": "Google Takvim bağlanmadı. Tekrar deneyin.",
     "untitled_event": "(Başlıksız)"
+  },
+  "expenses": {
+    "tabs_label": "Gider sekmeleri",
+    "tab": {
+      "ai": "Yapay zekâ maliyetleri",
+      "cloud": "Bulut altyapı maliyetleri",
+      "hr": "Personel maliyetleri"
+    },
+    "coming": "Bu maliyetlerin girişi sonraki bir adımda geliyor.",
+    "operators_only": "Giderler yalnızca operatör yöneticileri içindir.",
+    "tokens_link": "Ödenen abonelikler ve yüklemeler Giderler → Yapay zekâ maliyetleri altında girilir."
   }
 }

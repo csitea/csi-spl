@@ -596,7 +596,8 @@
     "your_status_offline": "Starea ta: offline",
     "monitoring": "Monitorizare",
     "reporting": "Rapoarte",
-    "notes": "Notițe"
+    "notes": "Notițe",
+    "expenses": "Cheltuieli"
   },
   "composer": {
     "biz_owner": "proprietarul afacerii",
@@ -3688,5 +3689,16 @@
     "notice_connected": "Calendarul Google este conectat.",
     "notice_error": "Calendarul Google nu a fost conectat. Încearcă din nou.",
     "untitled_event": "(Fără titlu)"
+  },
+  "expenses": {
+    "tabs_label": "File de cheltuieli",
+    "tab": {
+      "ai": "Costuri IA",
+      "cloud": "Costuri de infrastructură cloud",
+      "hr": "Costuri de personal"
+    },
+    "coming": "Introducerea acestor costuri vine într-un pas ulterior.",
+    "operators_only": "Cheltuielile sunt doar pentru administratorii operatorului.",
+    "tokens_link": "Abonamentele și reîncărcările plătite se introduc la Cheltuieli → Costuri IA."
   }
 }

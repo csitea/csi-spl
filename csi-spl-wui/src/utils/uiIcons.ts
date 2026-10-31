@@ -392,6 +392,9 @@ export const UI_ICON_PATHS = {
   // Notes (spec 155 2.6, B5 SPL-4123): a sheet with a folded corner (lucide
   // sticky-note), the rail's one notes glyph.
   notes: ["M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8Z", "M15 3v4a2 2 0 0 0 2 2h4"],
+  // Expenses (spec 143 costs-redesign.md 3.8, SPL-4382): a torn-off bill
+  // with its lines (lucide receipt), the rail's one expenses glyph.
+  receipt: ["M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z", "M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8", "M12 17.5v-11"],
 } as const
 
 export type UiIconName = keyof typeof UI_ICON_PATHS

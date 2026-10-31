@@ -112,6 +112,12 @@ page bar (one path per page, each its own chunk, as Monitoring's tabs):
 | **Price per token** | `/reporting/costs/price` | What does 1M tokens really cost us per agent type, against the list price? | operator admin |
 | **Paid items** | `/reporting/costs/paid` | What subscriptions and top-ups (later: invoices) did we pay, for which days? Enter and correct them. | operator admin |
 
+**As built (SPL-4187, SPL-4382)**: the bar is **Spend**, **Cloud** (operator
+admin), **AI tokens**, **Human**, **Price per token** (operator admin). The
+Paid items page left Costs for the **Expenses** section (3.8): Costs only
+reports costs, it enters none (owner HUM-10, t1 4f48f878, msg baa43948), and
+`/reporting/costs/paid` redirects to `/expenses/ai`, the query kept.
+
 ### 3.3 Spend (default)
 
 Rows grouped by what was bought, never by stored source, a subtotal each:
@@ -349,6 +355,34 @@ picker, which today only filters the lane list (item 4), becomes a plain
 sees the 403 sentence with no controls above it. The Costs tab leaves
 Monitoring.
 
+### 3.8 Expenses: a level-0 section where costs are entered (SPL-4382)
+
+Owner HUM-10, t1 4f48f878: "the Paid subscriptions and top-ups must become a
+separate costs section 0 level - aka the left most pane accessible page" (msg
+4cea9710); "different types for the INSERTION Of at least the following type
+of costs - AI costs , cloud infra cost , HR costs" (msg b0ccc0aa); "so at
+least 3 different tabs on this page" (msg 50d84663). Name: **Expenses** (poll
+9fbea87a, answer A), one i18n key, `sidebar.expenses`, for the rail and the
+heading.
+
+| part | as built |
+|---|---|
+| rail entry | `expenses` (`wui/utils/rail-order.ts` RAIL_TABS, icon `receipt`), after Reporting, before Archive by default; a stored order from before it gets it appended before Archive. The hub admits it in a saved order: `auth.RailTabs`, rdb `0248_human_rail_order_expenses.sql` (15 ids) |
+| page | `/expenses` (`wui/pages/expenses.vue`): the sidebar keeps the icon rail only, the page is a tab bar (the Reporting bar's look) and the open tab; `/expenses` itself lands on AI costs |
+| who | operator admins only (the operator pane's probe; hiding only, the hub's 403 on `/v1/operator/*` is the control), as the Paid card was; anyone else reads the operators-only line and no tab |
+
+| tab | path | holds |
+|---|---|---|
+| **AI costs** (default) | `/expenses/ai` | the paid subscriptions and top-ups (`PaidItemsCard.vue`, spec 140 3.8, rdb 0205), moved from Monitoring -> Tokens: list, add, edit, delete, the effective price per token; Monitoring -> Tokens links here |
+| **Cloud infra costs** | `/expenses/cloud` | the `cost_entries` rows of type `cloud` (step B, SPL-4383, [expenses-cost-entries.md](expenses-cost-entries.md)); until its form lands, the "coming" line |
+| **HR costs** | `/expenses/hr` | the `cost_entries` rows of type `hr` (step B); until its form lands, the "coming" line |
+
+The tab list is `wui/utils/expenses-tabs.mjs` (`entry: false` marks a tab
+whose form has not landed). Paid subscriptions and top-ups are AI vendor
+items, so they sit in AI costs, not in a tab of their own. Tests:
+`tests/unit/expenses-tabs.test.mjs`, the Expenses part of
+`tests/e2e/monitoring-costs.test.mjs` (1400 + 390 px).
+
 ## 4. Data: what feeds each figure
 
 | figure | read from | exists? |
@@ -436,6 +470,7 @@ answer. Which rule is meant is the owner's to say.
 `/monitoring/costs` -> `/reporting/costs/spend` (`?month=` kept);
 `/reporting/tokens` -> `/reporting/costs/tokens`; `/reporting/costs` ->
 `/reporting/costs/spend`. `/monitoring/tokens` stays (live burn).
+SPL-4382: `/reporting/costs/paid` -> `/expenses/ai` (3.8), the query kept.
 
 **Moves and removals**:
 

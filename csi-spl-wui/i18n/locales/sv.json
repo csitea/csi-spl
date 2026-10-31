@@ -596,7 +596,8 @@
     "your_status_offline": "Din status: offline",
     "monitoring": "Övervakning",
     "reporting": "Rapporter",
-    "notes": "Anteckningar"
+    "notes": "Anteckningar",
+    "expenses": "Utgifter"
   },
   "composer": {
     "biz_owner": "företagsägare",
@@ -3688,5 +3689,16 @@
     "notice_connected": "Google Kalender är ansluten.",
     "notice_error": "Google Kalender anslöts inte. Försök igen.",
     "untitled_event": "(Ingen titel)"
+  },
+  "expenses": {
+    "tabs_label": "Utgiftsflikar",
+    "tab": {
+      "ai": "AI-kostnader",
+      "cloud": "Kostnader för molninfrastruktur",
+      "hr": "Personalkostnader"
+    },
+    "coming": "Att föra in de här kostnaderna kommer i ett senare steg.",
+    "operators_only": "Utgifter är bara för operatörens administratörer.",
+    "tokens_link": "Betalda abonnemang och påfyllningar förs in under Utgifter → AI-kostnader."
   }
 }

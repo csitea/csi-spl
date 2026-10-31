@@ -390,6 +390,7 @@
 import SettingsSection from '~/components/SettingsSection.vue'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useSessionStore } from '~/stores/session'
+import { useAccessStore } from '~/stores/access'
 import { useSettingSave } from '~/composables/useSettingSave'
 import { useFleetLoadBoxes } from '~/composables/useFleetLoadBoxes'
 import { useFleetLoadDefaults } from '~/composables/useFleetLoadDefaults'
@@ -403,6 +404,7 @@ import {
   fleetCpusOk,
   fleetKindsOk,
   fleetLoadForbidden,
+  fleetLoadReadable,
   fleetLoadPatchBody,
   fleetLoadStatusDetail,
   normalizeFleetLoad,
@@ -420,6 +422,7 @@ type FleetApi = {
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi() as unknown as FleetApi
 const session = useSessionStore()
+const access = useAccessStore()
 const { saving, status, run } = useSettingSave()
 
 const state = ref<'loading' | 'forbidden' | 'error' | 'ready'>('loading')
@@ -591,6 +594,13 @@ async function load() {
   const mine = ++seq
   state.value = 'loading'
   try {
+    /* SPL-4514: a reader /v1/view/me names no operator admin is not read */
+    if (!fleetLoadReadable(await access.ensure())) {
+      if (mine !== seq) return
+      state.value = 'forbidden'
+      view.value = null
+      return
+    }
     const body = normalizeFleetLoad(await api.getFleetLoad())
     if (mine !== seq) return
     take(body)

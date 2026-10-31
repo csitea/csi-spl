@@ -56,7 +56,6 @@ SC1007|csi-spl-iac/src/bash/tests/sec-scan.tst.sh|2
 SC2034|csi-spl-iac/src/bash/tests/workflow-tool-checksums.tst.sh|1
 SC2120|csi-spl-orc/lib/bash/funcs/gcp-account-pin.func.sh|1
 SC2120|csi-spl-orc/lib/bash/funcs/spl-cloud-cnf.func.sh|1
-SC2209|csi-spl-orc/lib/bash/funcs/spl-stripe.func.sh|1
 SC2034|csi-spl-orc/src/bash/features/spawn-agents/lib/spool-env.inc.sh|2
 SC2034|csi-spl-orc/src/bash/features/spawn-agents/lib/spool-mirror-hooks.inc.sh|2
 SC2088|csi-spl-orc/src/bash/features/spawn-agents/lib/spool-mirror-hooks.inc.sh|2
@@ -104,14 +103,11 @@ SC2034|csi-spl-orc/src/bash/run/spl-spec-import-issues.func.sh|4
 SC2128|csi-spl-orc/src/bash/run/spl-tenant-test-purge.func.sh|1
 SC2178|csi-spl-orc/src/bash/run/spl-tenant-test-purge.func.sh|2
 SC2179|csi-spl-orc/src/bash/run/spl-tenant-test-purge.func.sh|1
-SC2100|csi-spl-orc/src/bash/tests/dispatch-inbound-pg.tst.sh|1
 SC2034|csi-spl-orc/src/bash/tests/dispatch-lease.tst.sh|1
 SC2120|csi-spl-orc/src/bash/tests/fleet-lease.tst.sh|1
-SC1010|csi-spl-orc/src/bash/tests/lane-map.tst.sh|1
 SC2034|csi-spl-orc/src/bash/tests/release-stable.tst.sh|4
 SC2115|csi-spl-orc/src/bash/tests/repair-spool-keys.tst.sh|1
 SC2120|csi-spl-orc/src/bash/tests/report-unheard.tst.sh|1
 SC2034|csi-spl-orc/src/bash/tests/responder-run.tst.sh|1
 SC2120|csi-spl-orc/src/bash/tests/responder-run.tst.sh|1
-SC1010|csi-spl-orc/src/bash/tests/spec-import-issues.tst.sh|1
 SC2034|csi-spl-orc/src/bash/tests/spec-import-issues.tst.sh|3

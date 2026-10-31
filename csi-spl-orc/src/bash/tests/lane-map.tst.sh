@@ -246,7 +246,7 @@ mv "$T/hub/main.json.keep" "$T/hub/main.json"
 # 5. exit-clean
 on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-920 LANE_STATE=done >/dev/null
 row="$(jq -c '.lanes[] | select(.agent_id == "c-920")' "$T/hub/main.json")"
-[[ "$(jq -r .state <<<"$row")" == done && "$(jq -r .branch <<<"$row")" == c-920-lane-map && "$(jq -r '.files | length' <<<"$row")" == 2 && "$(jq -r .topic <<<"$row")" == t-77920 ]] &&
+[[ "$(jq -r .state <<<"$row")" == 'done' && "$(jq -r .branch <<<"$row")" == c-920-lane-map && "$(jq -r '.files | length' <<<"$row")" == 2 && "$(jq -r .topic <<<"$row")" == t-77920 ]] &&
   pass "done keeps the row's branch, files and topic" || fail "done row: $row"
 git -C "$T/pc/csi-spl" worktree remove --force "$T/pc/csi-spl-wt/c-920"
 out="$(on sat do_spl_lane_map "${F[@]}")"

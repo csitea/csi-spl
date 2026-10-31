@@ -68,7 +68,7 @@ n=0
 m() {
   n=$((n + 1))
   local ch="NULL" box=box-desk id; [[ -n "$2" ]] && ch="'$2'"
-  [[ "$3" == HUM-* ]] && box=box-wui
+  [[ "$3" == HUM-* ]] && box='box-wui'
   id="$(printf '10000000-0000-4000-8000-%012d' "$n")"
   psql_owner -c "INSERT INTO messages (tenant_id, msg_id, task_id, channel, ts, from_box, from_id, to_box, to_id, kind, body, msg, env_sig, env, received_at, expires_at)
     VALUES ('$1', '$id', '$id', $ch, now(), '$box', '$3', 'box-wui', 'ALL-0', 'note', 'x',

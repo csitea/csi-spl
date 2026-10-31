@@ -68,7 +68,7 @@ spl_stripe_load_secret_key() {
   fi
   SPL_STRIPE_MODE=""
   case "$(head -c 8 "$out")" in
-    sk_test_|rk_test_) SPL_STRIPE_MODE=test ;;
+    sk_test_|rk_test_) SPL_STRIPE_MODE='test' ;;
     sk_live_|rk_live_) SPL_STRIPE_MODE=live ;;
   esac
   [[ -n "$SPL_STRIPE_MODE" && "$(wc -c <"$out")" -gt 8 ]] ||

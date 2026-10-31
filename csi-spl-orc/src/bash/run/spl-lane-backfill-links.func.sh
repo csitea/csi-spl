@@ -7,11 +7,14 @@
 # @description spawn path reads it, _spawn_lane_topic); a row with no issue
 # @description takes lifetime/issue, else the brief's `Issue:` line. Role
 # @description seats (001-003, lease.conf ids) name neither by design and are
-# @description left out. Prints every row it looks at before and after, then
+# @description left out, and so is a row whose agent has no pane on this box:
+# @description a write would bump updated_at and bring a dead lane back onto
+# @description the page (spec 153 3.2). Prints every row it looks at before and after, then
 # @description the counts. A dry run unless DRY_RUN=0, which writes each
 # @description filled row with all its other fields kept (do_spl_lane_put).
 # @param DRY_RUN (optional) - 1 (default) prints only; 0 writes the filled rows
 # @param SPOOL_ROOT (optional) - default /var/spool-hub
+# @param LANE_BACKFILL_LIVE_IDS (optional) - the ids with a pane, space-separated; default read from tmux (spool_pane_of)
 # @param LANE_FLEET LANE_ENV LANE_TENANT LANE_DESK_BOX LANE_BOX LANE_HUB_CMD (optional) - as do_spl_lane_map
 # @example ./run -a do_spl_lane_backfill_links
 # @example DRY_RUN=0 ./run -a do_spl_lane_backfill_links
@@ -24,12 +27,14 @@ declare -F do_spl_lane_put >/dev/null ||
 
 do_spl_lane_backfill_links() {
   local dry="${DRY_RUN:-1}" sa="$PROJ_PATH/src/bash/features/spawn-agents" rows row id topic issue t i life
-  local seen=0 before=0 after=0 filled=0 failed=0
+  local seen=0 before=0 after=0 filled=0 failed=0 nopane=0
   [[ "$dry" =~ ^[01]$ ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got '$dry'"; return 1; }
   declare -F spl_is_role_seat >/dev/null || source "$sa/lib/spool-env.inc.sh"
   declare -F _spawn_lane_topic >/dev/null || source "$sa/scripts/spawn-core.inc.sh"
   declare -F li_key_from_brief >/dev/null || source "$sa/lib/lane-issue.inc.sh"
   spl_lane_init || return 1
+  # the box's tmux socket and user, for the pane check (spool_pane_of)
+  [[ -n "${LANE_BACKFILL_LIVE_IDS+x}" ]] || SPOOL_ENV_NO_BINS=1 spool_env_resolve
   [[ "$LANE_MODE" == hub ]] || { do_log "FATAL no fleet (LANE_FLEET / LEASE_FLEET in lease.conf): no hub lane rows to fill"; return 1; }
   rows="$(spl_lane_hub --fleet "$LANE_FLEET" 2>&1)" || { do_log "FATAL the hub lane map did not answer: $(tail -1 <<<"$rows")"; return 2; }
   rows="$(jq -c --arg b "$LANE_BOX" '.lanes[]? | select(.agent_box == $b and .state == "live")' <<<"$rows" 2>/dev/null)"
@@ -40,6 +45,7 @@ do_spl_lane_backfill_links() {
     lane_backfill_role_seat "$id" && continue
     topic="$(jq -r '.topic // ""' <<<"$row")" issue="$(jq -r '.issue_key // ""' <<<"$row")"
     [[ -n "$topic" && -n "$issue" ]] && continue
+    lane_backfill_has_pane "$id" || { nopane=$((nopane + 1)); continue; }
     seen=$((seen + 1)) before=$((before + 1))
     life="${SPOOL_ROOT:-/var/spool-hub}/$id/lifetime"
     t="${topic:-$(_spawn_lane_topic "$life/brief.md")}"
@@ -58,7 +64,7 @@ do_spl_lane_backfill_links() {
       LANE_SCOPE="$(jq -r '.scope // ""' <<<"$row")" LANE_FILES="$(jq -r '.files // [] | join(",")' <<<"$row")" \
       do_spl_lane_put || failed=$((failed + 1))
   done <<<"$rows"
-  do_log "INFO $LANE_BOX: $seen live lane row(s) lacked a topic or an issue; $filled can be filled from their briefs; missing after: $after (was $before)"
+  do_log "INFO $LANE_BOX: $seen live lane row(s) lacked a topic or an issue; $filled can be filled from their briefs; missing after: $after (was $before); $nopane more lack one but have no pane on this box, left out"
   (( failed == 0 )) || do_log "WARN $failed row(s) not written (the hub refused or did not answer)"
   [[ "$dry" == 1 ]] && do_log "INFO DRY_RUN=1: nothing written; DRY_RUN=0 writes the $filled filled row(s)"
   (( failed == 0 )) || return 2
@@ -70,4 +76,14 @@ do_spl_lane_backfill_links() {
 lane_backfill_role_seat() {
   spl_is_role_seat "$1" && return 0
   grep -qxE "LEASE_(MASTER|FAILOVER|ORCH)=$1" "${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease.conf" 2>/dev/null
+}
+
+# lane_backfill_has_pane ID: the agent runs in a pane on this box. A row whose
+# state is live but whose lane is gone is no live lane (R7 c-287 N2).
+lane_backfill_has_pane() {
+  if [[ -n "${LANE_BACKFILL_LIVE_IDS+x}" ]]; then
+    [[ " $LANE_BACKFILL_LIVE_IDS " == *" $1 "* ]]
+    return
+  fi
+  [[ -n "$(spool_pane_of "$1")" ]]
 }

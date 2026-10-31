@@ -28,7 +28,7 @@ on `<APP_URL><redirect>`, and APP_URL is the WUI origin. Code:
 | `GET /api/v1/auth/providers` | `200 {"providers":["google","facebook"]}` — the enabled list, in cnf order; `[]` when auth is off. Render one button per entry, in this order. |
 | `GET /api/v1/auth/{provider}/start?redirect=<path>&tenant=<id>` | `302` to the IdP; sets `spool_oauth_state` (HttpOnly, Path `/api/v1/auth/`, SameSite=Lax, Max-Age = state TTL). `redirect` = same-site path to land on (anything else → `/`). `tenant` optional, DNS-label, else dropped. Unknown/disabled provider → `404 not_found`. |
 | `GET /api/v1/auth/{provider}/callback?code&state` (IdP only) | success: sets `spool_session`, `302 <APP_URL><redirect>`. failure: no session, `302 <APP_URL>/login?auth_error=<code>&redirect=<path>`. Unknown provider → `404`. |
-| `GET /api/v1/auth/session` | `200` session claims (§3) or `401 unauthenticated`. `Cache-Control: no-store`. |
+| `GET /api/v1/auth/session` | `200` session claims (§3) or `401 unauthenticated`. With `?signed_out=ok` (SPL-4456, the WUI probe) a request with no valid session (none, expired, tampered) gets `200 {"signed_in":false}` instead of the `401`; a signed-in answer is the same with or without it. `Cache-Control: no-store`. |
 | `GET /api/v1/auth/avatar` | CLE-3406: the signed-in human's own stored IdP picture (010 T044), membership NOT required. `200` image bytes (`Content-Type` sniffed: png/jpeg/gif/webp), `ETag` = sha256, `Cache-Control: private, no-cache`, `304` on a matching `If-None-Match`; `401 unauthenticated` without a session; `204` with no body when there is none (SPL-4455, was `404 not_found`: no picture is an answer, not a browser console error; the WUI then draws the identicon or initials and remembers it for that sign-in). The picture is re-fetched and stored hub-wide (`avatars/<sha256>`) on every sign-in, with or without a tenant; a tenant sign-in also puts the tenant file the roster names. |
 | `POST /api/v1/auth/logout` | `204`, `spool_session` cleared. |
 | `POST /api/v1/auth/tenant` `{"tenant":"<id>"}` | 026 §6 workspace switch (hub 0.5.8): the session cookie is re-issued with `t=<id>` (same expiry) when the human is a member of `<id>`, and the membership's `last_active_at` (rdb 0044) is stamped; `200` = the GET session answer for the new cookie. `401 unauthenticated`, `400 bad_tenant` / `bad_request`, `415` without JSON, `409 no_human`, `403 not_member` (also for an unknown tenant), `503 unavailable`. Idempotent. |
@@ -158,8 +158,10 @@ second probe. Code: `internal/auth/handler.go` (`diagnosticsGrant`,
   (plus `&tenant=<id>` when the page knows it). No provider SDK or script.
 - Empty list → a neutral "Sign-in is not available yet" (auth off in that env).
 - `?auth_error=` present → §2 message above the buttons, keep `redirect`.
-- Signed-in probe: `GET /api/v1/auth/session` — `200` signed in; `401` signed
-  out; anything else = unknown (keep state, show "session unavailable"; the
+- Signed-in probe: `GET /api/v1/auth/session?signed_out=ok` — `200` claims
+  signed in; `200 {"signed_in":false}` or `401` signed out (SPL-4456: Chrome
+  logs every 4xx fetch as a console error, so the signed-out answer is a 200;
+  the 401 still reads as signed out from a hub without it); anything else = unknown (keep state, show "session unavailable"; the
   csi-rel 052 runbook incident is exactly this case).
 - Sign out: `POST /api/v1/auth/logout`, then route to `/login`.
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 #------------------------------------------------------------------------------
+# @example cd csi-spl-orc && ENV=dev STEP=030-cloud-run-hub make do-provision
 # @description Provision.
 #------------------------------------------------------------------------------
 

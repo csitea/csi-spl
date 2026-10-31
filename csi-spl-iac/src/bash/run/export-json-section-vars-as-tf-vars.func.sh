@@ -2,6 +2,7 @@
 
 #------------------------------------------------------------------------------
 # @description usage example: clear ; source lib/bash/funcs/export-json-section-vars.func.sh do_export_json_section_vars $org/dev.env.json '.env.steps."004-aws-iam"' dependencies: jq
+# @example do_export_json_section_vars_as_tf_vars "$ENV_CONF_JSON_FLE" '.env.gcp'
 #------------------------------------------------------------------------------
 do_export_json_section_vars_as_tf_vars(){
 

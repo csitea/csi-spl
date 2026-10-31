@@ -190,7 +190,9 @@ case "$a" in
   do_spl_dispatch_setup) sleep "${SETUP_SLEEP:-0}"; [ -d "$T/proc/203" ] || "$T/bin/proc" 203 c-903 0 ;;
   do_spl_ask_put|do_spl_desk_reply|do_spl_fleet_notice) exit 0 ;;
   do_spl_ask_close) exit "$(cat "$T/askclose.rc" 2>/dev/null || echo 0)" ;;
-  do_spl_lane_mix) echo "LANE_MIX_KIND=${LANE_MIX_KIND:-} LANE_MIX_SPLIT_KIND=${LANE_MIX_SPLIT_KIND:-}" >>"$T/mix.log"; cat "$T/mix.out" 2>/dev/null ;;
+  do_spl_lane_mix) echo "LANE_MIX_KIND=${LANE_MIX_KIND:-} LANE_MIX_SPLIT_KIND=${LANE_MIX_SPLIT_KIND:-}" >>"$T/mix.log"
+    # mix.then: the answer of every call after the first (a lane-mix that changes its mind)
+    if [[ -e "$T/mix.then" && -e "$T/mix.asked" ]]; then cat "$T/mix.then"; else : >"$T/mix.asked"; cat "$T/mix.out" 2>/dev/null; fi ;;
   *) exit 1 ;;
 esac
 EOF
@@ -875,6 +877,18 @@ sbc; act "${V18[@]}" ROTATE_ROLE_VENDOR=claude ROTATE_CLAUDE_BIN="$T/bin/claude-
 [[ $rc -eq 0 && ! -e "$T/spawn.log" ]] && grep -qx 'LEASE_MASTER=c-002' "$D/lease.conf" &&
   grep -q -- '-master STANDBY SKIP c-002 (claude) is out (S2 kind=limit .*), but its successor would be claude too (ROTATE_ROLE_VENDOR=claude, ROTATE_GROK_STANDBY=0: claude): no replacement' "$T/o" &&
   pass "19. SPL-1869 control: ROTATE_GROK_STANDBY=0 -> claude again, no replacement" || fail "19. standby off rc=$rc: $(cat "$T/o")"
+# SPL-4507 (box 1 2026-10-24 23:16Z): the swap decides grok, and a second
+# lane-mix call during the run would say grok cannot act. The run spawns
+# the vendor the swap decided, and asks lane-mix once.
+sbc; rm -f "$T/mix.asked"; printf 'grok      100%%        0%%     0%%     0 no   skip (grok limit); share to claude\npick=claude reason=claude under\n' >"$T/mix.then"
+act DRY_RUN=0 "${V18[@]}" ROTATE_ROLE_VENDOR=claude ROTATE_CLAUDE_BIN="$T/bin/claude-cli" >"$T/o" 2>&1; rc=$?
+rid="$(awk '$3 == "STANDBY" && $4 == "OK" {print $2}' "$D/rotate.log" | sed -n 1p)"
+[[ $rc -eq 0 ]] && grep -q "^spawn grok g-002 " "$T/spawn.log" && ! grep -q "^spawn claude " "$T/spawn.log" &&
+  grep -q " $rid STANDBY OK c-002 .*: grok replaces it, no hold" "$T/o" && grep -qx 'LEASE_MASTER=g-002' "$D/lease.conf" &&
+  [[ "$(grep -c 'LANE_MIX_SPLIT_KIND=claude=0 grok=100' "$T/mix.log")" == 1 ]] &&
+  pass "19. SPL-4507 the swap's vendor (grok) is the one spawned; lane-mix asked once" ||
+  fail "19. SPL-4507 rc=$rc mix calls $(grep -c . "$T/mix.log" 2>/dev/null): $(cat "$T/spawn.log" 2>/dev/null) $(cat "$T/o")"
+rm -f "$T/mix.then" "$T/mix.asked"
 rm -rf "$S"/[acgmq]-00[23] "$D/briefs/brief-dispatcher-"[acgmq]-00* "$D/wd"
 
 # --- 20. SPL-1837 (1): a run started INSIDE a dispatcher pane re-runs itself detached ------------

@@ -360,7 +360,10 @@ spl_disp_standby_one() {
   spl_disp_id_lock "$id" "$rid" || { spl_disp_standby_say "$rid" "id lock: $SPL_ID_LOCK_WHY"; return "$DISP_IDL"; }
   spl_disp_begin "$role" "$rid" "$pid" "$pane"
   spl_disp_step STANDBY OK "$id ($was, pid $pid, pane $pane) is out ($why); the dispatch lease is $LH: $ROTATE_KIND replaces it, no hold"
-  if spl_disp_run; then
+  # the vendor just decided is the one spawned (SPL-4507: box 1 2026-10-24
+  # 23:19Z "grok replaces it", then a second decision spawned claude onto
+  # the limit the swap was for)
+  if ROTATE_VENDOR_FIXED=1 spl_disp_run; then
     new="$(spl_rotate_role_id "$role")"
     spl_disp_step DONE OK "standby $role seat: $new ($ROTATE_KIND, pid $ROTATE_NEW_PID) replaces $id; the dispatch lease stays $LH"
     spl_rotate_note "$LEASE_ORCH" "$(spl_rotate_ack_task "$rid")" \
@@ -558,7 +561,10 @@ spl_disp_run() {
   fi
   chmod 0640 "$seed" 2>/dev/null || true
   spl_disp_step HANDOFF OK "$ROTATE_HANDOFF ($(wc -l < "$ROTATE_HANDOFF") lines)"
-  spl_disp_vendor "$id"
+  # a standby swap decided its vendor already (spl_disp_standby_one): asked
+  # again a minute later, lane-mix may answer otherwise, and a swap meant to
+  # leave a vendor on its limit started that vendor again (SPL-4507)
+  [[ "${ROTATE_VENDOR_FIXED:-0}" == 1 ]] || spl_disp_vendor "$id"
   local new
   if new="$(spl_rotate_vendor_id "$id")" && [[ -n "$new" ]]; then
     # SPL-1685: the dirs move BEFORE the spawn (it reuses <spool>/<new>);

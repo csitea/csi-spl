@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"errors"
+	"io"
 	"net/http"
 	"testing"
 	"time"
@@ -133,8 +134,8 @@ func TestBoxLockRoutes(t *testing.T) {
 		t.Fatalf("second create: %d %v", code, v)
 	}
 
-	// GET: 404 to anyone but an owner, whatever their role.
-	if code, _ := r.call(t, http.MethodGet, r.admin, nil); code != http.StatusNotFound {
+	// GET: 204, as an open box, to anyone but an owner, whatever their role (SPL-4516).
+	if code, _ := r.call(t, http.MethodGet, r.admin, nil); code != http.StatusNoContent {
 		t.Fatalf("GET as another admin: %d", code)
 	}
 	nonce := r.nonce(t)
@@ -205,8 +206,8 @@ func TestBoxLockRoutes(t *testing.T) {
 	if code, _ := r.call(t, http.MethodDelete, r.owner, r.liftReq(3, nonce, r.klock)); code != http.StatusNoContent {
 		t.Fatalf("DELETE as the owner: %d", code)
 	}
-	if code, _ := r.call(t, http.MethodGet, r.owner, nil); code != http.StatusNotFound {
-		t.Fatalf("GET after the lift: %d", code)
+	if code, _ := r.call(t, http.MethodGet, r.owner, nil); code != http.StatusNoContent {
+		t.Fatalf("GET after the lift: %d, want 204 (open)", code)
 	}
 	// One row per refusal path, and the store's rows of the three writes.
 	got := r.audits(t)
@@ -371,5 +372,48 @@ func TestLockedHello(t *testing.T) {
 		if _, why := r.helloAs(t, role, signPinned); why != "locked_box_key" {
 			t.Fatalf("%s: pinned key is not the lock's: %q", role, why)
 		}
+	}
+}
+
+// SPL-4516 (console errors round 2, row 9): the box card asks
+// GET /v1/boxes/{box}/lock on every load, and a 404 for an unlocked box was
+// a console error each time. An open box, or a lock the caller may not see,
+// is an answer: 204, no body; the two read the same, so a non-owner still
+// cannot tell a locked box from an open one. An owner reads the lock as
+// before; a box the workspace has never pinned keeps its 404. Memory, and
+// Postgres under SPOOL_TEST_PG_DSN (PRE_PUSH_TIER=full). RED CONTROL
+// (master): "unlocked box: 404, want 204".
+func TestBoxLockGetAnswersOpen(t *testing.T) {
+	r := newLockRig(t)
+	get := func(as, path string) (int, int) {
+		t.Helper()
+		req, _ := http.NewRequest(http.MethodGet, r.e.url(r.tid)+path, nil)
+		req.Header.Set(memberHeader, as)
+		resp, err := r.e.client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		n, _ := io.Copy(io.Discard, resp.Body)
+		return resp.StatusCode, int(n)
+	}
+	if code, n := get(r.owner, r.path()); code != http.StatusNoContent || n != 0 {
+		t.Fatalf("unlocked box: %d, %d bytes, want 204 and none", code, n)
+	}
+	if code, _ := get(r.owner, "/v1/boxes/box-nobody/lock"); code != http.StatusNotFound {
+		t.Fatalf("a box never pinned: %d, want 404", code)
+	}
+	if code, v := r.call(t, http.MethodPost, r.owner, r.createReq(r.body(1), r.kbox)); code != http.StatusCreated {
+		t.Fatalf("create as the owner: %d %v", code, v)
+	}
+	if code, v := r.call(t, http.MethodGet, r.owner, nil); code != http.StatusOK || v["version"] != 1.0 {
+		t.Fatalf("locked box, the owner: %d %v", code, v)
+	}
+	before := r.audits(t)["lock_get/refused"]
+	if code, n := get(r.admin, r.path()); code != http.StatusNoContent || n != 0 {
+		t.Fatalf("locked box, another admin: %d, %d bytes, want 204 and none (as an open box)", code, n)
+	}
+	if got := r.audits(t)["lock_get/refused"]; got != before+1 {
+		t.Fatalf("lock_get/refused %d -> %d, want one more", before, got)
 	}
 }

@@ -407,7 +407,7 @@ hub then treats the box as **locked to nobody**: every human refused, the box re
 | `POST /v1/boxes/{box}/lock` | a box session of that box (the request is signed by `K_box`) **and** confirmed by an owner's WUI session | `signed_body` + `signature` by `K_lock` | creates the lock; refused if the confirming human is not in `owners` |
 | `PUT /v1/boxes/{box}/lock` | an owner's session | new `signed_body` (version + 1) signed by `K_lock`, over a hub nonce no older than 300 s | changes owners, `peer_boxes`, `hide_posts`, or `box_pubkey` (`rebind`) |
 | `DELETE /v1/boxes/{box}/lock` | an owner's session | a lift statement signed by `K_lock` over a hub nonce | lifts the lock |
-| `GET /v1/boxes/{box}/lock` | an owner's session | — | the lock and its audit; any other caller gets 404 |
+| `GET /v1/boxes/{box}/lock` | an owner's session | — | the lock and its audit; any other caller, and an open box, gets 204 (SPL-4516); a box never pinned gets 404 |
 
 No other route, role, permission or operator scope writes `box_locks`. The `K_lock` signature is made on
 `<OWNER_BOX>` by `spool lock sign` (terminal + secret); the WUI only carries it. A stolen owner session
@@ -435,7 +435,9 @@ cookie therefore cannot change a lock, and neither can `K_lock` alone without an
   pinned in the same call (force) and the box's live session closed.
 - `DELETE` body: `nonce`, `signature` = K_lock over `spool-lock-lift-v1|<tenant>|<box>|<stored
   version>|<nonce>`; 204.
-- `GET`: the row, its audit rows (newest first, at most 200) and a nonce; 404 to anyone else.
+- `GET`: the row, its audit rows (newest first, at most 200) and a nonce, to an owner. Anyone else, and an
+  unlocked box, gets 204 with no body: the same answer, so a non-owner cannot tell them apart (SPL-4516: it
+  was 404, a console error on every box card load). A box the workspace never pinned gets 404.
 - Audit: each refusal bumps one `refused` row per human and path (`lock_create`, `lock_change`,
   `lock_lift`, `lock_get`): `not_owner`, `box_locked`, `bad_box_sig`, `bad_sig`, `stale_nonce` and
   `stale_version` all do (`TestBoxLockRefusalsAudited`). A malformed request (415, 400 `bad_json` /
@@ -503,8 +505,8 @@ box lock cases in `tests/e2e/agent-senders.test.mjs`.
   owners, and only they can message its agents. Your text is still here." next to the composer, with the
   text kept. The line names no owner (5.2).
 - The pane: an owner sees the owners, the peer boxes, the version and the audit rows `GET` answers. Anyone
-  else, and an unlocked box, reads "This box has no lock you own." (the hub answers both 404, so the WUI
-  cannot tell them apart). A hub with no lock store (501) shows no pane.
+  else, and an unlocked box, reads "This box has no lock you own." (the hub answers both 204, so the WUI
+  cannot tell them apart; a 404 from an older hub reads the same). A hub with no lock store (501) shows no pane.
 - The confirm dialog takes `spool lock create`'s printed output as is, refuses text that is not that output
   or names another box before anything is sent, shows the owners it names, and `POST`s it. Each refusal of
   6.2 (`not_owner`, `bad_box_sig`, `bad_sig`, `box_locked` 409, `bad_body`, `not_found`) has its own line.

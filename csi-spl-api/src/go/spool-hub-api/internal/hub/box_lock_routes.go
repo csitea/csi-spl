@@ -304,10 +304,11 @@ func (s *Server) boxLockActor(w http.ResponseWriter, r *http.Request) (boxLockCa
 	return boxLockCall{tenant: t.ID, hum: hum, box: box, ls: ls}, true
 }
 
-// ownedLock reads the box's lock and answers it only to an owner. An
-// unlocked box is 404; a non-owner (a tampered lock has none) gets
-// notOwner and one refused audit row. ok=false: it answered.
-func (s *Server) ownedLock(w http.ResponseWriter, r *http.Request, c boxLockCall, path string, notOwner int) (*store.BoxLock, bool) {
+// ownedLock reads the box's lock for a write (change, lift) and answers it
+// only to an owner. An unlocked box is 404; a non-owner (a tampered lock has
+// none) gets 403 and one refused audit row. GET answers on its own
+// (handleGetBoxLock). ok=false: it answered.
+func (s *Server) ownedLock(w http.ResponseWriter, r *http.Request, c boxLockCall, path string) (*store.BoxLock, bool) {
 	l, err := c.ls.BoxLock(r.Context(), c.tenant, c.box)
 	if err != nil {
 		writeErrCause(w, http.StatusInternalServerError, "internal", "box lock unavailable", err)
@@ -319,11 +320,7 @@ func (s *Server) ownedLock(w http.ResponseWriter, r *http.Request, c boxLockCall
 	}
 	if !l.IsOwner(c.hum) {
 		s.refuseLock(r.Context(), c, path)
-		if notOwner == http.StatusNotFound {
-			writeErr(w, http.StatusNotFound, "not_found", "no such box lock")
-		} else {
-			writeErr(w, http.StatusForbidden, "box_locked", "only an owner of this box's lock may do this")
-		}
+		writeErr(w, http.StatusForbidden, "box_locked", "only an owner of this box's lock may do this")
 		return nil, false
 	}
 	return l, true
@@ -468,7 +465,7 @@ func (s *Server) handleChangeBoxLock(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	prev, ok := s.ownedLock(w, r, c, boxLockPathChange, http.StatusForbidden)
+	prev, ok := s.ownedLock(w, r, c, boxLockPathChange)
 	if !ok {
 		return
 	}
@@ -511,7 +508,7 @@ func (s *Server) handleLiftBoxLock(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	prev, ok := s.ownedLock(w, r, c, boxLockPathLift, http.StatusForbidden)
+	prev, ok := s.ownedLock(w, r, c, boxLockPathLift)
 	if !ok {
 		return
 	}
@@ -550,17 +547,29 @@ func (s *Server) lockStatementOK(w http.ResponseWriter, r *http.Request, c boxLo
 }
 
 // GET /v1/boxes/{box}/lock: the lock, its audit and a fresh nonce, to an
-// owner only; anyone else gets 404 (and a refused audit row when locked).
+// owner only. An open box, and a lock the caller does not own (one refused
+// audit row), both answer 204 with no body: the same answer, so a non-owner
+// still cannot tell them apart (SPL-4516: the 404 it was put a console error
+// on every box card load). A box the workspace never pinned stays 404.
 func (s *Server) handleGetBoxLock(w http.ResponseWriter, r *http.Request) {
 	c, ok := s.boxLockActor(w, r)
 	if !ok {
 		return
 	}
-	l, ok := s.ownedLock(w, r, c, boxLockPathGet, http.StatusNotFound)
-	if !ok {
-		return
+	l, err := c.ls.BoxLock(r.Context(), c.tenant, c.box)
+	switch {
+	case err != nil:
+		writeErrCause(w, http.StatusInternalServerError, "internal", "box lock unavailable", err)
+	case l == nil && !s.toBoxKnown(r.Context(), c.tenant, c.box):
+		writeErr(w, http.StatusNotFound, "not_found", "no such box")
+	case l == nil:
+		w.WriteHeader(http.StatusNoContent)
+	case !l.IsOwner(c.hum):
+		s.refuseLock(r.Context(), c, boxLockPathGet)
+		w.WriteHeader(http.StatusNoContent)
+	default:
+		writeJSON(w, http.StatusOK, s.lockView(r.Context(), c, l, true))
 	}
-	writeJSON(w, http.StatusOK, s.lockView(r.Context(), c, l, true))
 }
 
 // boxLockView is a lock route's answer.

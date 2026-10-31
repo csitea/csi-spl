@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { useSessionStore } from '~/stores/session'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { accessAllows, normalizeMe, roleLabelKey } from '~/utils/access.mjs'
 
@@ -10,11 +11,18 @@ import { accessAllows, normalizeMe, roleLabelKey } from '~/utils/access.mjs'
  */
 export const useAccessStore = defineStore('access', () => {
   const api = useSpoolApi()
+  const session = useSessionStore()
   const me = ref<ReturnType<typeof normalizeMe> | null>(null)
   let pending: Promise<void> | null = null
 
   function load(force = false) {
     if (pending && !force) return pending
+    /* SPL-4513: a settled signed-out visitor has no role to read; the read
+       was a 401 logged twice (withSessionRetry). A later load after sign-in reads. */
+    if (!api.mock && session.state === 'out') {
+      me.value = null
+      return Promise.resolve()
+    }
     let run!: Promise<void>
     run = (async () => {
       try {

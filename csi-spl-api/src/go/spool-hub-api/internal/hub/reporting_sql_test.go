@@ -121,8 +121,12 @@ func TestReportingSQLRedControls(t *testing.T) {
 		if store.ReportingSQLTimeout != 10*time.Second {
 			t.Fatalf("ReportingSQLTimeout = %v, spec 143 3.2 says 10 s", store.ReportingSQLTimeout)
 		}
+		// A cross join of two small series burns CPU and writes no temp
+		// file. One big generate_series is materialised to disk first
+		// (~240 MB/s, 1.8 GB by 8 s): a runner short of temp space ended
+		// it at 5.1 s with a temp-space error, a 500 (SPL-4535).
 		start := time.Now()
-		x.sqlRefused(t, admin, "SELECT count(*) FROM generate_series(1, 2000000000::int8)", http.StatusRequestTimeout, "query_timeout")
+		x.sqlRefused(t, admin, "SELECT count(*) FROM generate_series(1, 100000) a, generate_series(1, 100000) b", http.StatusRequestTimeout, "query_timeout")
 		if d := time.Since(start); d < 9*time.Second || d > 30*time.Second {
 			t.Errorf("cancelled after %v, want about the 10 s budget", d)
 		}

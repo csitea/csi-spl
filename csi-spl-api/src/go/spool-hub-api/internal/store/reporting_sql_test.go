@@ -131,7 +131,9 @@ func TestSQLExecutorTimeout(t *testing.T) {
 	defer func(d time.Duration) { reportingSQLBudget = d }(reportingSQLBudget)
 	reportingSQLBudget = 300 * time.Millisecond
 	start := time.Now()
-	_, err := runSQL(t, pg, a, `SELECT count(*) FROM generate_series(1, 2000000000::int8)`)
+	// CPU-bound, no temp file (SPL-4535): one big generate_series is
+	// materialised to disk before count reads it.
+	_, err := runSQL(t, pg, a, `SELECT count(*) FROM generate_series(1, 100000) a, generate_series(1, 100000) b`)
 	if !errors.Is(err, ErrReportingSQLTimeout) {
 		t.Fatalf("slow query: %v, want the timeout", err)
 	}

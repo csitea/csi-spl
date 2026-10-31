@@ -187,10 +187,12 @@ const docPath = computed(() => {
   return s || DOCS_HOME
 })
 const route = (p: string) => localePath('/docs/' + p)
-/* SPL-1882: /docs alone is Docs (Qto); nothing below loads for it. A watch,
-   as the page is reused when a doc's link leads to /docs alone */
-const home = docsHomeTarget(current.path)
-watch(() => current.path, (p) => { if (docsHomeTarget(p)) void navigateTo(docsHomeTarget(p), { replace: true }) }, { immediate: true })
+/* SPL-1882: /docs alone is Docs (Qto) for a member; nothing below loads for
+   it (home). SPL-4454: a signed-out visitor stays, as /docs is their door
+   to the public docs (README and the public list); Qto's member tree would
+   only answer 401. Settled in goHome, below. */
+const home = ref(Boolean(docsHomeTarget(current.path)))
+let mounted = false
 const pub = useRuntimeConfig().public
 /* the doc on the repository (cnf repo_web_url + repo_help_path's branch) */
 const repoUrl = computed(() => docsRepoUrl(docPath.value, pub.repoWebUrl, pub.repoHelpPath))
@@ -227,6 +229,22 @@ function toggle(path: string) {
 }
 
 const { reader, whoReads, hubDoc, publicDocs, publicDoc, toLogin } = useDocsReader({ api, current, localePath })
+
+/* /docs alone: a member goes on to Docs (Qto); a signed-out visitor reads
+   README here. A watch, as the page is reused when a doc's link leads to
+   /docs alone */
+async function goHome(p: string) {
+  const to = docsHomeTarget(p)
+  if (!to || import.meta.server) return
+  if ((await whoReads()) !== 'out') {
+    if (current.path === p) void navigateTo(to, { replace: true })
+    return
+  }
+  if (!home.value) return
+  home.value = false
+  if (mounted) { void loadTree(); void load() }
+}
+watch(() => current.path, (p) => { void goHome(p) }, { immediate: true })
 
 let seq = 0
 async function load() {
@@ -311,8 +329,11 @@ function onResolved(md: string) {
   onSaved(md)
 }
 
-watch(docPath, () => { if (import.meta.client && !home) void load() })
-onMounted(() => { if (!home) { void loadTree(); void load() } })
+watch(docPath, () => { if (import.meta.client && !home.value) void load() })
+onMounted(() => {
+  mounted = true
+  if (!home.value) { void loadTree(); void load() }
+})
 /* t1 c13e8023 (owner): a topic panel open beside the channel the reader
    came from closes when Docs opens. No third pane, whichever store holds it. */
 const topic = useTopicStore()

@@ -102,7 +102,10 @@ describe('wiring', () => {
     assert.match(s, /data-testid="qto-open"/)
     assert.equal(/'page:docs'|to: '\/docs'/.test(read('src/composables/usePaletteItems.ts')), false)
     assert.equal(/localePath\('\/docs'\)/.test(read('src/components/LoginLinks.vue') + read('src/pages/login.vue')), false)
-    assert.match(read('src/pages/docs.vue'), /watch\(\(\) => current\.path, \(p\) => \{ if \(docsHomeTarget\(p\)\) void navigateTo\(docsHomeTarget\(p\), \{ replace: true \}\) \}, \{ immediate: true \}\)/)
+    /* SPL-4454: /docs alone sends a member on to Qto; a signed-out visitor stays (tests/e2e/docs.test.mjs) */
+    const page = read('src/pages/docs.vue')
+    assert.match(page, /watch\(\(\) => current\.path, \(p\) => \{ void goHome\(p\) \}, \{ immediate: true \}\)/)
+    assert.match(page, /const to = docsHomeTarget\(p\)[\s\S]*?if \(\(await whoReads\(\)\) !== 'out'\) \{\s*if \(current\.path === p\) void navigateTo\(to, \{ replace: true \}\)/)
   })
   it('every locale names the section', () => {
     for (const loc of ['en', 'fi', 'he', 'ru', 'uk', 'bg']) {

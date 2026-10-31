@@ -453,6 +453,27 @@ try {
     if (a) await a.click()
     ok(`signed-out: ${doc} opens from the list`, Boolean(a) && await page(o, doc) && (await h1(o)) === title, await h1(o).catch(() => ''))
   }
+
+  /* SPL-4454 (row 7 of SPL-4422, n=8 on dev + prd): signed out, /docs alone
+     sent the visitor on to Docs (Qto), whose member tree read
+     /v1/workspace/doctree and /doctree/nodes and logged two 401s. Now /docs
+     stays the public-doc door: README, the public list, no Qto page, no
+     doctree read (the mock answers doctree in-page, so the page checks are
+     the red ones). Control: on 370cea46c /docs lands on /workspace/docs and
+     the stays / no-Qto / lists checks FAIL. */
+  const doctree = []
+  const onReq = (r) => { if (/\/v1\/workspace\/doctree/.test(r.url())) doctree.push(r.url()) }
+  o.on('request', onReq)
+  await o.goto(server.base + '/docs', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  ok('SPL-4454: signed-out: /docs stays on /docs, README first', await page(o, 'README.md') && new URL(o.url()).pathname === '/docs' && (await h1(o)) === 'spool-hub', o.url())
+  ok('SPL-4454: signed-out: /docs mounts no Docs (Qto) page', !(await o.$('[data-test=ws-docs-page]')) && !(await o.$('[data-test=qto-file-tree]')))
+  const home = await o.$$eval('[data-test=docs-tree] a', (as) => as.map((a) => a.getAttribute('href') || '')).catch(() => [])
+  ok('SPL-4454: signed-out: /docs lists the public docs only', ['README.md', 'DEPLOY.md'].every((d) => home.some((h) => h.endsWith('/docs/' + d))) && !home.some((h) => h.endsWith(FEATURE) || h.endsWith('/docs/api')), home)
+  const pub = await o.$('[data-test=docs-tree] a[href$="/docs/DEPLOY.md"]')
+  if (pub) await pub.click()
+  ok('SPL-4454: signed-out: a public doc opens from /docs', Boolean(pub) && await page(o, 'DEPLOY.md') && (await h1(o)) === 'Deploying spool: choose your path', await h1(o).catch(() => ''))
+  ok('SPL-4454: signed-out: /docs made 0 doctree requests', doctree.length === 0, doctree)
+  o.off('request', onReq)
   await o.close()
 
   /* t1 28155201: the Qto doc's print and TOC buttons are one tight row at

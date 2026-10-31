@@ -47,6 +47,38 @@ declare -F spl_rotate_conf >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-rotate-lib.func.sh"
 
 do_spl_lane_restart() {
+  spl_lane_restart_args || return 1
+  # the detached second half of a lane restarting itself: it takes the id
+  # lock over from the first half, which ends right after starting it
+  if [[ "${LANE_RESTART_PHASE:-}" == spawn ]]; then spl_lane_restart_id_lock "$ID" "$LANE_RESTART_RID" 15 || return; spl_lane_restart_spawn; return; fi
+  local rid id="$ID" wt pid pane task brief split n tr ctx
+  rid="$(date -u +%Y%m%dT%H%M%SZ)-$id"
+  spl_lane_restart_id_lock "$id" "$rid" || return
+  spl_lane_restart_gate "$rid" || return
+  LANE_DISTIL="$ROTATE_HOLD_DIR/$task/$id.md"
+  spl_lane_restart_rules "$id" "$rid" "$brief" || return 1
+  ctx="$(spl_lane_restart_ctx_k "$tr")"
+  spl_lane_restart_log "$rid" GATE OK "$id pid $pid, pane $pane, $wt clean, task $task restart $((n + 1)) of $split, ctx ${ctx:-?}k"
+  if [[ "${DRY_RUN:-1}" == 1 ]]; then
+    spl_lane_restart_plan "$id" "$rid" "$task" "$brief" "$wt" "$tr" "$ctx" "$pane"; return 0
+  fi
+  spl_lane_restart_write "$rid" || return 1
+  export LANE_RESTART_PHASE=spawn LANE_RESTART_RID="$rid" LANE_RESTART_PID="$pid" LANE_RESTART_PANE="$pane" \
+    LANE_RESTART_WT="$wt" LANE_RESTART_TASK="$task" LANE_RESTART_CTX="$ctx" LANE_DISTIL ID="$id"
+  # respawn-pane -k ends every process of the pane: a lane restarting itself
+  # would kill this script with it, so its second half runs detached
+  if [[ "$(spl_rotate_claude_ancestor)" == "$pid" ]]; then
+    spl_lane_restart_log "$rid" SPAWN OK "self-restart: detached, follow $LANE_RESTART_LOG"
+    setsid -f env DRY_RUN=0 timeout $((LANE_START_WAIT + 300)) "$ROTATE_RUN" -a do_spl_lane_restart \
+      >> "$LANE_RESTART_LOG.out" 2>&1 < /dev/null 7>&- 8>&- 9>&- || true
+    return 0
+  fi
+  spl_lane_restart_spawn
+}
+
+# The env checks: the lifecycle conf, ID, LANE_START_WAIT, LANE_RESTART_REASON
+# and SEAT_FAIL_ACTION; sets LANE_RESTART_LOG. 1 = refused, FATAL logged.
+spl_lane_restart_args() {
   spl_rotate_conf || return 1
   spl_is_agent_id "${ID:-}" || { do_log "FATAL ID must be a lane id like c-050, got '${ID:-}'"; return 1; }
   : "${LANE_START_WAIT:=120}"
@@ -55,12 +87,14 @@ do_spl_lane_restart() {
   LANE_RESTART_LOG="$LEASE_DIR/lane-restart.log"
   [[ -z "${SEAT_FAIL_ACTION:-}" || "$SEAT_FAIL_ACTION" =~ ^(compact|respawn)$ ]] ||
     { do_log "FATAL SEAT_FAIL_ACTION must be compact or respawn"; return 1; }
-  # the detached second half of a lane restarting itself: it takes the id
-  # lock over from the first half, which ends right after starting it
-  if [[ "${LANE_RESTART_PHASE:-}" == spawn ]]; then spl_lane_restart_id_lock "$ID" "$LANE_RESTART_RID" 15 || return; spl_lane_restart_spawn; return; fi
-  local rid id="$ID" wt pid pane task brief split n tr ctx
-  rid="$(date -u +%Y%m%dT%H%M%SZ)-$id"
-  spl_lane_restart_id_lock "$id" "$rid" || return
+}
+
+# spl_lane_restart_gate RID: the GATE - a live pid, its pane, the worktree
+# clean, the task, the R-L2 split count. It fills do_spl_lane_restart's locals
+# (id pid pane wt tr brief task split n) by bash's dynamic scope. 1 = GATE
+# FAIL, 3 = R-L2 split.
+spl_lane_restart_gate() {
+  local rid="$1"
   pid="$(spl_rotate_pids "$id" | sed -n 1p)"
   [[ -n "$pid" ]] || { spl_lane_restart_log "$rid" GATE FAIL "no live claude carries $id"; return 1; }
   pane="$(spl_rotate_pane_of_pid "$pid")"
@@ -79,25 +113,29 @@ do_spl_lane_restart() {
   LANE_RESTART_TASK="$task"
   split="$(spl_lane_restart_split_at)"
   n="$(spl_lane_restart_count "$task")"
-  if (( n >= split )); then
-    spl_lane_restart_log "$rid" GATE FAIL "task $task restarted $n time(s), lane_restarts_before_split=$split: split this task"
-    if [[ "${DRY_RUN:-1}" == 0 ]]; then
-      spl_rotate_note "${LEASE_ORCH:-orchestrator}" "$task" \
-        "split this task: lane $id@$ROTATE_BOX hit $n restarts of $task (lane_restarts_before_split=$split, spec 063 R-L2); not restarted again. Hold: $ROTATE_HOLD_DIR/$task/" note
-      spl_lane_restart_event "$rid" split fail "restarts $n >= $split"
-      # the try fails as F2 stuck (spec 115 section 6), the watchdog's writer
-      declare -F spl_wd_journal_f2 >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-watchdog.func.sh"
-      spl_wd_journal_f2 "$id" lane-restart "$task"
-    fi
-    return 3
-  fi
-  LANE_DISTIL="$ROTATE_HOLD_DIR/$task/$id.md"
-  spl_lane_restart_rules "$id" "$rid" "$brief" || return 1
-  ctx="$(spl_lane_restart_ctx_k "$tr")"
-  spl_lane_restart_log "$rid" GATE OK "$id pid $pid, pane $pane, $wt clean, task $task restart $((n + 1)) of $split, ctx ${ctx:-?}k"
-  if [[ "${DRY_RUN:-1}" == 1 ]]; then
-    spl_lane_restart_plan "$id" "$rid" "$task" "$brief" "$wt" "$tr" "$ctx" "$pane"; return 0
-  fi
+  (( n < split )) || { spl_lane_restart_split "$rid" "$id" "$task" "$n" "$split"; return 3; }
+}
+
+# spl_lane_restart_split RID ID TASK N SPLIT: R-L2 - the task hit
+# lane_restarts_before_split: GATE FAIL; in a run, the orchestrator's "split
+# this task" note, the split event and the F2 tries-journal row.
+spl_lane_restart_split() {
+  local rid="$1" id="$2" task="$3" n="$4" split="$5"
+  spl_lane_restart_log "$rid" GATE FAIL "task $task restarted $n time(s), lane_restarts_before_split=$split: split this task"
+  [[ "${DRY_RUN:-1}" == 0 ]] || return 0
+  spl_rotate_note "${LEASE_ORCH:-orchestrator}" "$task" \
+    "split this task: lane $id@$ROTATE_BOX hit $n restarts of $task (lane_restarts_before_split=$split, spec 063 R-L2); not restarted again. Hold: $ROTATE_HOLD_DIR/$task/" note
+  spl_lane_restart_event "$rid" split fail "restarts $n >= $split"
+  # the try fails as F2 stuck (spec 115 section 6), the watchdog's writer
+  declare -F spl_wd_journal_f2 >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-watchdog.func.sh"
+  spl_wd_journal_f2 "$id" lane-restart "$task"
+}
+
+# spl_lane_restart_write RID: the DISTIL step of a run - the distil (0640) at
+# LANE_DISTIL, the raw pane capture beside it and one restarts.tsv row; it reads
+# do_spl_lane_restart's locals (id pane task brief wt tr ctx). 1 = DISTIL FAIL.
+spl_lane_restart_write() {
+  local rid="$1"
   if ! { [[ -d "$ROTATE_HOLD_DIR/$task" ]] || mkdir -p "$ROTATE_HOLD_DIR/$task"; }; then
     spl_lane_restart_log "$rid" DISTIL FAIL "cannot create $ROTATE_HOLD_DIR/$task"; return 1
   fi
@@ -110,17 +148,6 @@ do_spl_lane_restart() {
   printf '%s\t%s\t%s\t%s\n' "$(date -u +%FT%TZ)" "$id" "$rid" "${ctx:-}" >> "$ROTATE_HOLD_DIR/$task/restarts.tsv"
   spl_lane_restart_log "$rid" DISTIL OK "$LANE_DISTIL $(wc -l < "$LANE_DISTIL") lines"
   spl_lane_restart_event "$rid" handoff ok "$(wc -l < "$LANE_DISTIL") lines" "$ctx"
-  export LANE_RESTART_PHASE=spawn LANE_RESTART_RID="$rid" LANE_RESTART_PID="$pid" LANE_RESTART_PANE="$pane" \
-    LANE_RESTART_WT="$wt" LANE_RESTART_TASK="$task" LANE_RESTART_CTX="$ctx" LANE_DISTIL ID="$id"
-  # respawn-pane -k ends every process of the pane: a lane restarting itself
-  # would kill this script with it, so its second half runs detached
-  if [[ "$(spl_rotate_claude_ancestor)" == "$pid" ]]; then
-    spl_lane_restart_log "$rid" SPAWN OK "self-restart: detached, follow $LANE_RESTART_LOG"
-    setsid -f env DRY_RUN=0 timeout $((LANE_START_WAIT + 300)) "$ROTATE_RUN" -a do_spl_lane_restart \
-      >> "$LANE_RESTART_LOG.out" 2>&1 < /dev/null 7>&- 8>&- 9>&- || true
-    return 0
-  fi
-  spl_lane_restart_spawn
 }
 
 # spl_lane_restart_plan ID RID TASK BRIEF WT TRANSCRIPT CTX PANE: the dry

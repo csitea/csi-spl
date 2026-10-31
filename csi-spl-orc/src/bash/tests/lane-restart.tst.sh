@@ -10,7 +10,8 @@
 #      NOTES, 1c tried and failed = "none recorded", 2 git + spool state and
 #      NO pane scrape, 4 outbox, 5 inbox, 8 session tail); nothing written,
 #      no respawn
-#   2. the gate: a tracked change, an unpushed commit, no process, no task
+#   2. the gate: a tracked change, an unpushed commit, no process, no task,
+#      a bad ID, a bad LANE_RESTART_REASON, a live claude in no tmux pane
 #   3. happy: distil 0640 in <hold>/<task>/<ID>.md, respawn-pane -k in the SAME
 #      pane as the agent user, never --resume, the seed names the distil, the
 #      perm flags, the map adopts the new pid, HUMAN OK, one restart counted,
@@ -189,6 +190,18 @@ act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 world
 act DRY_RUN=0 ROTATE_TRANSCRIPT="$T/none.jsonl" >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 1 ]] && grep -q ' GATE FAIL no task: set LANE_TASK' "$T/o" && pass "2. no brief and no LANE_TASK: refused" || fail "2. task: $(cat "$T/o")"
+world
+act DRY_RUN=0 ID=bogus >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 1 ]] && grep -q "FATAL ID must be a lane id like c-050, got 'bogus'" "$T/o" && [[ ! -e "$T/tmux/log" ]] &&
+  pass "2. a bad ID: refused before the gate" || fail "2. bad ID: rc=$rc $(cat "$T/o")"
+world
+act DRY_RUN=0 LANE_RESTART_REASON=bogus >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 1 ]] && grep -q 'FATAL LANE_RESTART_REASON must be size or manual' "$T/o" && [[ ! -e "$T/tmux/log" ]] &&
+  pass "2. a bad LANE_RESTART_REASON: refused" || fail "2. bad reason: rc=$rc $(cat "$T/o")"
+world; printf '%%9\t5555\n' >"$T/tmux/panes"
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 1 ]] && grep -q ' GATE FAIL c-900 pid 1001 sits in no tmux pane' "$T/o" && [[ ! -e "$T/tmux/log" ]] &&
+  pass "2. a live claude in no tmux pane: refused" || fail "2. no pane: rc=$rc $(cat "$T/o")"
 
 # --- 3. happy -------------------------------------------------------------------
 world; printf '2026-10-03T03:05Z tried a sed-only patch\n2026-10-03T03:06Z failed the sed patch: quoting broke the seed\n' >>"$S/c-900/NOTES.md"

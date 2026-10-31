@@ -82,13 +82,11 @@ SC2206|csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-agent.sh|1
 SC2154|csi-spl-orc/src/bash/features/spawn-agents/scripts/spool-notify.sh|2
 SC2034|csi-spl-orc/src/bash/features/spawn-agents/scripts/trust-workdir.sh|2
 SC2034|csi-spl-orc/src/bash/features/spawn-agents/tests/lib.inc.sh|1
-SC2155|csi-spl-orc/src/bash/features/spawn-agents/tests/lib.inc.sh|2
 SC2034|csi-spl-orc/src/bash/features/spawn-agents/tests/test-agent-identity-reconcile.sh|2
 SC2034|csi-spl-orc/src/bash/features/spawn-agents/tests/test-agent-identity-restore.sh|1
 SC2034|csi-spl-orc/src/bash/features/spawn-agents/tests/test-agent-top.sh|1
 SC2034|csi-spl-orc/src/bash/features/spawn-agents/tests/test-agent-watch.sh|5
 SC1090|csi-spl-orc/src/bash/features/spawn-agents/tests/test-poke-ghost.sh|1
-SC2155|csi-spl-orc/src/bash/features/spawn-agents/tests/test-spool-agent.sh|1
 SC2154|csi-spl-orc/src/bash/features/spawn-agents/tests/test-spool-notify.sh|2
 SC2034|csi-spl-orc/src/bash/features/spawn-agents/tests/test-spool-poke-queue.sh|2
 SC2034|csi-spl-orc/src/bash/features/spawn-agents/tests/test-strip-agy-optin.sh|2

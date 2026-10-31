@@ -47,7 +47,8 @@ t_sandbox() {
   T_TMP="$(mktemp -d)"
   export SPOOL_ROOT="$T_TMP/spool"
   export SPOOL_TMUX_SOCKET="$T_TMP/tmux.sock"
-  export SPOOL_BOX_USER="$(id -un)" SPOOL_AGENT_USER="$(id -un)"
+  SPOOL_BOX_USER="$(id -un)" SPOOL_AGENT_USER="$(id -un)"
+  export SPOOL_BOX_USER SPOOL_AGENT_USER
   export SPOOL_BOX_TAG=""
   export SPAWN_TEST_SANDBOX=1
   # CLE-77923: the send/notify path refuses the live spool root under this.

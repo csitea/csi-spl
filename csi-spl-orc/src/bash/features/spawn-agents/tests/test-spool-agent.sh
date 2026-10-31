@@ -40,7 +40,8 @@ export HOME="$T_TMP/home"; mkdir -p "$HOME"
 # Hermetic: an agent session running this suite carries its OWN pane ids,
 # agent id and CLI paths (measured: CLAUDE_BIN set in a claude session of the agent user).
 unset CLE_TMUX_PANE GRK_TMUX_PANE AGY_TMUX_PANE QWN_TMUX_PANE MISTRAL_TMUX_PANE MCP_BOT_AGENT_ID SPOOL_AGENT_ID CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN MISTRAL_BIN
-export SPOOL_BOX_USER="$(id -un)"
+SPOOL_BOX_USER="$(id -un)"
+export SPOOL_BOX_USER
 export SPOOL_AGENT_DESK_ROOT="$T_TMP/desk"
 export SPOOL_AGENT_REGISTRY_DIR="$T_TMP/reg"
 export SPOOL_AGENT_HOOKS_DIR="$T_TMP/hooks"

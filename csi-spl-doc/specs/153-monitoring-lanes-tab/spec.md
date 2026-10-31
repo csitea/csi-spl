@@ -635,6 +635,67 @@ What is built (`csi-spl-wui/src/pages/monitoring/agents/[id].vue`,
   that row selected and in view, an agent with no lane says so; 1400x900
   and 390x844).
 
+### 3.11 No empty discussion or issue cell without a reason (SPL-4457)
+
+The owner's words, verbatim (HUM-10, prd t1 `0acd4eaa`, msg `69522885`,
+2026-10-30T23:33Z): "the registration of the lanes should improve - chk
+https://spool-hub.ai/monitoring/lanes there are still lanes without proper
+links fo rthe discussions and empty discussions or issues values".
+
+Measured on prd 2026-10-31 00:20Z (`ENV=prd ./run -a do_spl_db_query`,
+csi-spl-orc; the 3.2 active rule in SQL; n = 1 read; tree `4cd5b29d2`):
+39 active rows (t1, fleet `main`), 30 with a topic, 36 with an issue key.
+
+| class | rows | why the cell is empty or not a link | fix |
+|---|---|---|---|
+| role seat | 3 (c-001, c-002, c-003) | no topic and no issue by design | the row carries `role_seat`; the page says "Role seat" in both cells (C51) |
+| the topic is another workspace's | 10 (csitea 9, one customer workspace 1) | the title is read in the operator workspace only, so the cell shows the uuid as text, no link (3.3) | not in this row: a cross-workspace link needs the target workspace's host (`tenantHostUrl`); named for its own row |
+| no topic, the issue links one | 1 (c-131: SPL-4438 links `021d4921`) | the brief named the topic in no form the spawn path reads | the view takes the first discussion the lane's own issue links, never the tenant's default one (C50) |
+| no topic, the brief names only its report task's uuid | 1 (c-749: on task `e15a3002-...`) | `_spawn_lane_topic` reads no bare uuid | the spawn path also reads `task `<uuid>`` / `--task <uuid>` as the last source (C52) |
+| no topic anywhere | 4 (c-739, c-145, c-097: refactor round 17 rows, report task `dispatch-r42`; c-988: an R7 seat) | the brief names no discussion (read for c-739; the other three are the second box's, not read from this one, classed by their scope), and the issue links only the default one (`fcf09921`, which 2823 t1 issues link; read for all four) | upstream: `do_spl_spawn_enqueue` should refuse a brief with no topic, as it refuses one with no `Epic:`; that file is another lane's, named here, not built |
+
+Queued asks (3.8): 32 on prd, none with `issue_key`, and the page never
+shows them: `fleetLanesOf` drops a row with no `agent_id`, and a queued
+row has none. Named for its own row, not built here.
+
+What changes:
+
+- **Hub** (`hub/lanes_registration.go`): `laneTopicsFromIssues` fills the
+  topic of an active lane with none from `IssueDiscussionLinks` of its own
+  key (the tenant's prefix only), skipping `store.IssueDiscussionDefault`;
+  `laneIsRoleSeat` (`agentid.IsRoleSeat`, or the role rotation's scope
+  `role <id> (rotation ...)`) sets `role_seat` on the row. Both routes
+  (3.3, 3.6) share it through `activeFleetLanes`.
+- **Spawn path** (`_spawn_lane_topic`, spawn-core.inc.sh): after the
+  `dispatch-<topic8>` task, the full uuid of the first report task the
+  brief names. A bare uuid still sets nothing (C6b, C52c).
+- **Page** (`pages/monitoring/lanes/index.vue`): a role seat's empty topic
+  and issue cells read `monitoring.lanes.role_seat`; a lane's still read a
+  dash. One key, 19 locales (agy reviews them, the language rule).
+- **Backfill** (`cd csi-spl-orc && ./run -a do_spl_lane_backfill_links`,
+  a dry run unless `DRY_RUN=0`): this box's live rows with no topic or no
+  issue, role seats aside, filled from `<spool root>/<ID>/lifetime/brief.md`
+  and `lifetime/issue`; prints each row before and after and the counts,
+  and writes a filled row with its other fields kept. It runs per box: the
+  briefs live on the box that started the lane.
+
+Cases:
+
+- **C50** an active lane with no topic whose own issue links a topic shows
+  that topic, titled; **C50b** one whose issue links only the default
+  discussion, or a key of another prefix, shows none; **C50c** a stored
+  topic is kept. (`hub/lanes_registration_test.go`)
+- **C51** c-001, g-002 and a row with scope `role <id> (rotation ...)` carry
+  `role_seat`; a lane does not; the page shows the key in the topic and
+  issues cells. (same file; `tests/unit/monitoring-lanes.test.mjs`)
+- **C52** a brief naming its report task as `on task `<uuid>`` or
+  `--task <uuid>` puts that uuid as the topic; **C52c** a bare uuid puts
+  none. (`spawn-agents/tests/test-spawn-dry-run.sh`)
+- **C53** the backfill: dry run lists and writes nothing; `DRY_RUN=0`
+  writes only the filled rows, every other field kept; a role seat, another
+  box's row, a done row and a complete row are left out.
+  (`csi-spl-orc/src/bash/tests/lane-backfill-links.tst.sh`)
+
 ## 4. Cases
 
 Every case is **planned**: none is built. "Master today" was read on

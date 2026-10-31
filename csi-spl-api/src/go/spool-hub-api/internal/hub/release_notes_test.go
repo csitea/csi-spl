@@ -2,22 +2,26 @@ package hub_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
 // Spec 065 L4: the operator ingest and the member reads of the release notes.
 
 // releaseEnv is rbacEnv with the operator seam ("good" = the env SA), a tenant
 // and a seated member.
-func releaseEnv(t *testing.T) (*env, string, string) {
+func releaseEnv(t *testing.T, mut ...func(*hub.Options)) (*env, string, string) {
 	t.Helper()
-	e := rbacEnv(t, func(o *hub.Options) {
+	e := rbacEnv(t, append([]func(*hub.Options){func(o *hub.Options) {
 		o.OperatorEmails = []string{operatorSA}
 		o.OperatorAudience = "https://api.dev.example"
 		o.OperatorVerify = func(_ context.Context, token, _ string) (string, error) {
@@ -26,7 +30,7 @@ func releaseEnv(t *testing.T) (*env, string, string) {
 			}
 			return "", errors.New("token rejected")
 		}
-	})
+	}}, mut...)...)
 	tid, _ := e.tenant()
 	return e, tid, seat(t, e, tid, rbac.Developer)
 }
@@ -207,12 +211,86 @@ func TestReleaseNotesHygieneFilterDropsBannedName(t *testing.T) {
 	}
 }
 
-// CONTROLS: a read needs a member session, the ingest an operator token.
+// visitorGet is a GET with no session on host, Origin origin ("" = none).
+func visitorGet(t *testing.T, e *env, host, origin, path string) (int, map[string]any) {
+	t.Helper()
+	req, _ := http.NewRequest(http.MethodGet, "http://"+host+path, nil)
+	if origin != "" {
+		req.Header.Set("Origin", origin)
+	}
+	resp, err := e.client.Do(req)
+	if err != nil {
+		t.Fatalf("GET %s: %v", path, err)
+	}
+	defer resp.Body.Close()
+	out := map[string]any{}
+	json.NewDecoder(resp.Body).Decode(&out) //nolint:errcheck
+	return resp.StatusCode, out
+}
+
+// SPL-4530 (owner, t1 2e46fcb6 msg daf6efcf: "Release notes are public"): a
+// visitor with no session reads a note, and the list the same page's dialog
+// goes back to, exactly as a member reads them, on a host (or page Origin)
+// that names a known workspace. CONTROLS: no workspace named, an unknown one
+// and a suspended one stay refused; the ingest still needs the operator.
+func TestReleaseNotesVisitorRead(t *testing.T) {
+	e, tid, hum := releaseEnv(t, func(o *hub.Options) { o.OriginTenant = hub.NewOriginTenant("{tenant}"+domain, "") })
+	if code, out := ingest(t, e, tid, releaseRow(releaseSHA("a"), "v7.4.1", releaseFullMsg)); code != http.StatusOK {
+		t.Fatalf("ingest: %d %v", code, out)
+	}
+	for _, path := range []string{"/v1/release-notes/" + releaseSHA("a")[:7], "/v1/release-notes/v7.4.1", "/v1/release-notes?limit=5"} {
+		mc, member := call(t, e, tid, http.MethodGet, path, hum, nil)
+		if mc != http.StatusOK {
+			t.Fatalf("member %s: %d %v", path, mc, member)
+		}
+		for _, v := range []struct{ host, origin string }{{tid + domain, ""}, {"api" + domain, "https://" + tid + domain}} {
+			code, got := visitorGet(t, e, v.host, v.origin, path)
+			if code != http.StatusOK || !reflect.DeepEqual(got, member) {
+				t.Fatalf("visitor %s on %s (Origin %q) = %d %v, want 200 and the member's %v", path, v.host, v.origin, code, got, member)
+			}
+		}
+	}
+	sus, _ := e.tenant()
+	if err := e.st.(store.OperatorWorkspaces).SetWorkspaceState(context.Background(), sus, true, false, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	for name, v := range map[string]struct{ host, origin string }{
+		"no workspace named": {"api" + domain, ""},
+		"unknown workspace":  {"tnosuch00" + domain, ""},
+		"unknown Origin":     {"api" + domain, "https://tnosuch00" + domain},
+		"suspended":          {sus + domain, ""},
+	} {
+		if code, out := visitorGet(t, e, v.host, v.origin, "/v1/release-notes/"+releaseSHA("a")); code < 400 {
+			t.Fatalf("%s: visitor read = %d %v, want refused", name, code, out)
+		}
+	}
+	if code, _ := opCall(t, e, tid, http.MethodPost, "/v1/operator/release-notes", "", map[string]any{"notes": []any{}}); code != http.StatusUnauthorized {
+		t.Fatalf("ingest with no token: %d", code)
+	}
+}
+
+// The prd shape: the view door on, no session at all (the 401 SPL-4509 row
+// 7 measured). A visitor on the workspace's page still reads.
+func TestReleaseNotesVisitorReadDoorOn(t *testing.T) {
+	e, tid, _ := releaseEnv(t, func(o *hub.Options) {
+		o.ViewDoor = ""
+		o.OriginTenant = hub.NewOriginTenant("{tenant}"+domain, "")
+	})
+	if code, out := ingest(t, e, tid, releaseRow(releaseSHA("a"), "v7.4.1", releaseFullMsg)); code != http.StatusOK {
+		t.Fatalf("ingest: %d %v", code, out)
+	}
+	code, got := visitorGet(t, e, "api"+domain, "https://"+tid+domain, "/v1/release-notes/"+releaseSHA("a"))
+	if n, _ := got["note"].(map[string]any); code != http.StatusOK || n["lay_what"] != "The red dot now disappears once you have read a channel." {
+		t.Fatalf("door on, visitor read = %d %v, want 200 and the note", code, got)
+	}
+	if code, out := visitorGet(t, e, "api"+domain, "", "/v1/release-notes/"+releaseSHA("a")); code != http.StatusUnauthorized {
+		t.Fatalf("door on, no workspace named, no session = %d %v, want 401", code, out)
+	}
+}
+
+// CONTROLS: the ingest needs an operator token.
 func TestReleaseNotesAuth(t *testing.T) {
 	e, tid, hum := releaseEnv(t)
-	if code, _ := call(t, e, tid, http.MethodGet, "/v1/release-notes", "", nil); code != http.StatusForbidden && code != http.StatusUnauthorized {
-		t.Fatalf("anonymous list: %d", code)
-	}
 	if code, _ := opCall(t, e, tid, http.MethodPost, "/v1/operator/release-notes", "", map[string]any{"notes": []any{}}); code != http.StatusUnauthorized {
 		t.Fatalf("no token: %d", code)
 	}

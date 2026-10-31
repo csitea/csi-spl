@@ -224,9 +224,29 @@ reading path):
    `GET /v1/release-notes/<sha>`.
 5. "c.version" in the owner's text is read as the version shown in that
    pop-up; the modal is reachable by EVERY signed-in user, not only admins
-   (Q11).
+   (Q11). The notes themselves are public since 2026-10-31 (owner, t1
+   `2e46fcb6` msg `daf6efcf`, SPL-4530): a `/releases/<ref>` link opened
+   signed out shows the note, see 7.2.
 
 ### 7.2 A stable link per note
+
+Public (owner, t1 `2e46fcb6` msg `daf6efcf`, answering poll `85db75eb` row
+7, SPL-4530: "A — Release notes are public: the page shows the note without
+signing in"). Both reads, `GET /v1/release-notes/{ref}` and the list
+`GET /v1/release-notes`, answer a visitor with no session when the page
+Origin (or a legacy tenant Host) names a known, live workspace; a request
+that names none still needs a member session, and an unknown or suspended
+workspace is refused. The list opens too: the page's dialog goes "Back to
+the list", and every version in it is already readable one by one by its
+`v<X.Y.Z>` ref, so the list adds no data. A visitor gets exactly the
+member's answer, every field (sha, version, committed_at, kind, area,
+subject, the six Lay-* / Tech-* trailers, state, reverts, link,
+ingested_at, seq); nothing is withheld because nothing in a row is
+private: the rows are estate-wide, built from the public trunk's commit
+messages, with the hygiene filter's `[redacted]` applied at ingest, and hold
+no workspace's data, so a visitor of one workspace learns nothing of
+another. The operator ingest (`POST /v1/operator/release-notes`) keeps its
+operator auth; the version pop-up stays signed-in UI.
 
 Every note has one link, built from the WUI host in cnf (no literal host):
 
@@ -325,7 +345,7 @@ the order they arrived.
 | Q1 | "On one, yes." | option C: six trailers in the commit message, shown from a hub DB table in the WUI (section 3) |
 | Q2 | "Onto yes" | read as "On two, yes" (dictated): the six fields Lay-What/How/Why + Tech-What/How/Why, one line each (4.1) |
 | Q3 | "#3, yes." | the pre-push gate refuses a commit without the note, CI is the backstop, and a deploy is never blocked by it (5.1) |
-| Q11 | "On number 11 yes." | every signed-in user can open the notes, not only admins (7.1 item 5); relayed by c-002, reached its desk ~04:39Z |
+| Q11 | "On number 11 yes." | every signed-in user can open the notes, not only admins (7.1 item 5); relayed by c-002, reached its desk ~04:39Z. Widened 2026-10-31 (t1 `2e46fcb6` msg `daf6efcf`, SPL-4530): "Release notes are public: the page shows the note without signing in" (7.2) |
 | Q4 | "On the 4th explain" | not an answer yet: the owner asked for Q4 to be explained. The five-line explanation (recommendation: yes, one week of warnings) was posted to the owner ~04:47Z |
 | Q4 | "for q4 2. - one week of warnnings thna refuses" | answered ~05:36Z: option 2 of the ~04:47Z explanation (msg `26a61af8`) = YES, one week of warnings, then refuse (reading by c-001) |
 | Q7 | "On number 7 yes." | ONE modal from the bottom version pop-up, desktop footer and phone strip, every version with its hashes, a click on a hash shows the note (7.1) |
@@ -355,7 +375,7 @@ so the migration was `0106` or the next free number at build time; 0106 and
 | L1 | the trailer rule as one help page (4.1 example, 5.2 special commits) | `csi-spl-doc/doc/help/release-notes.md` (new) | `./run -a do_check_dist_hygiene`; `./run -a do_check_pre_push_lint` (md links) | none |
 | L2 | pre-push part `release-note`, WARNING mode: checks the six trailers (or the 5.2 forms) on every commit in the pushed range | `csi-spl-iac/src/bash/run/check-release-note.func.sh` (new), the one part line in `csi-spl-iac/src/bash/run/check-pre-push.func.sh`, `csi-spl-iac/src/bash/tests/check-release-note.tst.sh` (new) | the new `.tst.sh`: full note passes, missing / empty trailer warns, doc-only and `Release-Note: skip` pass; `check-pre-push.tst.sh` stays green | L1 (the rule it checks) |
 | L3 | migration + store for `release_note` (4.2 columns, `state`) | `csi-spl-rdb/src/sql/postgres/spool-hub/0108_release_note.sql` (new), `csi-spl-api/src/go/spool-hub-api/internal/store/release_note*.go` (new) | store test on POSTGRES: `PRE_PUSH_TIER=full ./run -a do_check_pre_push` | none |
-| L4 | hub endpoints: ingest (trailers + hygiene filter, `state` incl. `backfill`), `GET /v1/release-notes?before=&limit=50`, `GET /v1/release-notes/<sha>` | `csi-spl-api/src/go/spool-hub-api/internal/hub/release_notes*.go` (new) and its route line | Go tests incl. the hygiene filter dropping a banned name; `bash csi-spl-api/src/bash/tests/run-all-tests.sh` | L3; every signed-in user may read (Q11 yes) |
+| L4 | hub endpoints: ingest (trailers + hygiene filter, `state` incl. `backfill`), `GET /v1/release-notes?before=&limit=50`, `GET /v1/release-notes/<sha>` | `csi-spl-api/src/go/spool-hub-api/internal/hub/release_notes*.go` (new) and its route line | Go tests incl. the hygiene filter dropping a banned name; `bash csi-spl-api/src/bash/tests/run-all-tests.sh` | L3; every signed-in user may read (Q11 yes); public since msg `daf6efcf` (7.2, SPL-4530) |
 | L5 | deploy-time ingest: the deploy parses the new commits' trailers and calls the L4 ingest with the minted version | `csi-spl-orc/src/bash/run/release-note-ingest.func.sh` (new), one step in `.github/workflows/20_hub-build-deploy.yml`, `csi-spl-orc/src/bash/tests/release-note-ingest.tst.sh` (new) | the `.tst.sh` (trailer parse, `state` ok / missing / skip / revert); `do_check_pre_push_lint` (actionlint) | L4 |
 | L6 | `ReleaseNotesDialog` from both version cards + the `/releases/<ref>` route (Q7 yes); `state=backfill` rows say "written after the fact" | `csi-spl-wui/src/components/ReleaseNotesDialog.vue` (new), `ChannelSidebar.vue` and `MobileStatusStrip.vue` (button only), `csi-spl-wui/src/pages/releases/[ref].vue` (new), `csi-spl-wui/tests/e2e/release-notes.spec.ts` (new) | `pnpm run typecheck`; e2e on desktop AND phone width against a generated bundle | L4 contract (may mock it) |
 | L7 | `do_release_note_link SHA= ENV=` prints `<sha> v<X.Y.Z> <link>`, host from cnf | `csi-spl-orc/src/bash/run/release-note-link.func.sh` (new), `csi-spl-orc/src/bash/tests/release-note-link.tst.sh` (new) | the `.tst.sh` (no literal host; unknown sha fails) | none |

@@ -31,8 +31,15 @@ import (
 // 9.9.9 the mint starts over at 1.0.1 as tag v1.0.1-c2, so the two cycles'
 // v1.0.1 stay two groups. `display` is what a reader sees, the plain v1.0.1.
 //
-// Every signed-in member reads (Q11 yes); the rows are estate-wide, so the
-// tenant only gates the session. A store without ReleaseNotes answers as off.
+// The reads are public (owner, t1 2e46fcb6 msg daf6efcf, SPL-4530: "Release
+// notes are public: the page shows the note without signing in"; it replaced
+// Q11's "every signed-in member"). A request whose page Origin or legacy Host
+// names a known, live workspace reads with no session; one that names none is
+// the session's, as before. The rows are estate-wide: built from the public
+// trunk's commit messages, hygiene-filtered at ingest, they hold no
+// workspace's data, so a visitor of one workspace learns nothing of another;
+// the workspace only binds the read to a host this hub serves. A store
+// without ReleaseNotes answers as off.
 
 // Release note ingest limits.
 const (
@@ -137,11 +144,22 @@ func (rn *releaseNotes) buildRows(in []releaseNoteIn) ([]store.ReleaseNote, rele
 	return rows, res
 }
 
-// releaseReader admits every signed-in member of the host's tenant (Q11).
+// releaseReader admits anyone on a known workspace's page (SPL-4530): the
+// page Origin, else the legacy Host, names it, and no session is read. A
+// request that names no workspace needs a member session, as before. A
+// visitor gets the member's answer, every field: nothing in a note is
+// withheld (see the header).
 func (rn *releaseNotes) releaseReader(w http.ResponseWriter, r *http.Request) (store.ReleaseNotes, bool) {
 	s := rn.s
 	s.allowOrigin(w, r)
 	w.Header().Set("Cache-Control", "no-store")
+	if id := s.webCalendarTenant(r); id != "" {
+		if _, ok := s.loadTenant(w, r, id); !ok {
+			return nil, false
+		}
+		rs, _ := s.o.Store.(store.ReleaseNotes)
+		return rs, true
+	}
 	_, hum, ok := s.humanTenant(w, r)
 	if !ok {
 		return nil, false

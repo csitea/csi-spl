@@ -186,6 +186,9 @@ async function nonAdmin(p, base, tag) {
   await p.goto(base + '/reporting/marketing', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   ok(`${tag}: a member on /reporting/marketing gets the refusal line`, await waitFor(p, '[data-test=reporting-marketing-forbidden]'))
   ok(`${tag}: and no card`, (await p.$$('[data-test^=reporting-marketing-card-]')).length === 0)
+  /* SPL-4453 (row 9 of SPL-4422): the page reads /v1/view/me first and sends no report read the hub refuses. CONTROL: before it, 'GET /v1/reporting/marketing' lands here */
+  const refused = await p.evaluate(() => globalThis.SPOOL_MOCK_403 || [])
+  ok(`${tag}: a member on /reporting/marketing sends 0 refused reads`, refused.length === 0, refused)
 }
 
 const STAGES = ['reach', 'engagement', 'acquisition', 'conversion', 'revenue', 'retention', 'content_seo']

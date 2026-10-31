@@ -48,6 +48,8 @@
 
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { useAccessStore } from '~/stores/access'
+import { countedRead, gateMe, operatorReadable } from '~/utils/read-gates.mjs'
 import { fleetTokensOf, lagSeconds, staleLevel, tokensShouldPoll, TOKENS_DEFAULT_WINDOW, TOKENS_POLL_MS, TOKENS_WINDOWS } from '~/utils/monitoring-tokens.mjs'
 import MonitoringTokensSummary from '~/components/monitoring/token-burn/MonitoringTokensSummary.vue'
 import VendorBurnTable from '~/components/monitoring/token-burn/VendorBurnTable.vue'
@@ -70,12 +72,22 @@ const now = ref(Date.now())
 const lag = computed(() => (fetchedAt.value ? lagSeconds(fetchedAt.value, now.value) : 0))
 const stale = computed(() => staleLevel(lag.value))
 
+const access = useAccessStore()
 let seq = 0
 async function load() {
   const mine = ++seq
   busy.value = true
   try {
-    const body = await (useSpoolApi() as unknown as TokensApi).getFleetTokens(win.value)
+    /* SPL-4453: only a reader /v1/view/me may name the operator admin sends the read */
+    const readable = operatorReadable(await gateMe(access))
+    if (mine !== seq) return
+    if (!readable) {
+      view.value = null
+      state.value = 'forbidden'
+      return
+    }
+    const api = useSpoolApi() as unknown as TokensApi & { mock?: boolean }
+    const body = await countedRead(api, '/v1/operator/fleet-tokens', () => api.getFleetTokens(win.value))
     if (mine !== seq) return
     view.value = fleetTokensOf(body)
     fetchedAt.value = Date.now()

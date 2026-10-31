@@ -79,6 +79,8 @@
 
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { useAccessStore } from '~/stores/access'
+import { countedRead, gateMe, staffReadable } from '~/utils/read-gates.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import {
   FS_FIRST, FS_PAGE, atBottom, fileStreamGroupsOf, fileStreamLinesOf, fileStreamOpenOf, fileStreamQuery, fileStreamsOf,
@@ -119,10 +121,16 @@ function failed(e: unknown) {
   state.value = (e as { status?: number })?.status === 403 ? 'forbidden' : 'error'
 }
 
+const access = useAccessStore()
 async function loadStreams() {
   state.value = 'loading'
   try {
-    streams.value = fileStreamsOf(await api().getFileStreams())
+    /* SPL-4453: a reader /v1/view/me names neither owner nor admin gets the line, no request */
+    if (!staffReadable(await gateMe(access))) {
+      state.value = 'forbidden'
+      return
+    }
+    streams.value = fileStreamsOf(await countedRead(api() as { mock?: boolean }, '/v1/view/file-streams', () => api().getFileStreams()))
     state.value = 'ok'
     await openPick(fileStreamOpenOf(route.query, streams.value))
   } catch (e) {

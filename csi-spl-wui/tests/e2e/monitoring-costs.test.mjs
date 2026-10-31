@@ -535,6 +535,29 @@ async function lanesTab(browser, base, size) {
   }
 }
 
+/** SPL-4453 (rows 5 and 9 of SPL-4422): a plain member opens each admin or operator Monitoring page by URL; the page decides
+ *  from /v1/view/me and sends no read the hub refuses (globalThis.SPOOL_MOCK_403 stays empty), and shows its no-access line.
+ *  CONTROL: on master before SPL-4453 each page reads first and the mock hub's 403 lands in the list. */
+const MEMBER_ME = { role: 'member', permissions: ['topics.read', 'notes.send'] }
+async function memberGates(browser, base, size) {
+  const { ctx, p } = await costsPage(browser, base, size, { me: MEMBER_ME })
+  const refused = () => p.evaluate(() => globalThis.SPOOL_MOCK_403 || [])
+  for (const [path, line] of [
+    ['/monitoring/lanes', 'lanes-forbidden'],
+    ['/monitoring/tokens', 'tokens-forbidden'],
+    ['/monitoring/file-streams', 'fs-forbidden'],
+    ['/monitoring/agents/CLE-07@box-a', 'agent-lanes-forbidden'],
+  ]) {
+    await open(p, base, path)
+    const shown = await waitFor(p, `[data-test=${line}]`)
+    await new Promise((r) => setTimeout(r, 500))
+    const got = await refused()
+    ok(`SPL-4453 member ${path}: 0 refused reads`, got.length === 0, got)
+    ok(`SPL-4453 member ${path}: the no-access line`, shown)
+  }
+  await ctx.close()
+}
+
 const server = await startServer()
 const browser = await launch()
 try {
@@ -565,6 +588,7 @@ try {
   for (const [label, size] of [['desktop', { width: 1400, height: 900 }], ['phone', { width: 390, height: 844 }]]) {
     console.log(`-- ${label} ${size.width}x${size.height}`)
     await lanesTab(browser, server.base, size)
+    await memberGates(browser, server.base, size)
     await lanesSortFilter(browser, server.base, size)
     await costsS1(browser, server.base, size)
     await costsSections(browser, server.base, size)

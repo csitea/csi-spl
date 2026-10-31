@@ -204,6 +204,8 @@ import {
 import type { BoxStat, BoxStatHour } from '~/utils/box-resources.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { useAccessStore } from '~/stores/access'
+import { countedRead, gateMe, permReadable } from '~/utils/read-gates.mjs'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useTopicStore } from '~/stores/topic'
 import { useLiveFeed } from '~/stores/live'
@@ -235,6 +237,7 @@ const resource = computed(() => boxResourceOf(route.query.r))
    the right pane's history. 404 / 501 (a hub without box stats) = no history. */
 type BoxStatsState = { state: 'loading' | 'ready' | 'empty' | 'forbidden' | 'failed', rows: BoxStat[], hours: BoxStatHour[] }
 const stats = ref<BoxStatsState>({ state: 'loading', rows: [], hours: [] })
+const access = useAccessStore()
 let seq = 0
 async function loadStats(quiet = false) {
   const mine = ++seq
@@ -243,7 +246,11 @@ async function loadStats(quiet = false) {
   if (!quiet) stats.value = { state: 'loading', rows: [], hours: [] }
   if (!id || isBrowserBox(id)) { stats.value = { state: 'empty', rows: [], hours: [] }; return }
   try {
-    const { rows, hours } = boxStatsOf(await useSpoolApi().boxStats({ box: id, since: '24h' }) as { rows?: unknown[], hours?: unknown[] } | null)
+    /* SPL-4453: the hub reads box stats under audit.read; without it, no request */
+    const readable = permReadable(await gateMe(access), 'audit.read')
+    if (mine !== seq) return
+    if (!readable) { stats.value = { state: 'forbidden', rows: [], hours: [] }; return }
+    const { rows, hours } = boxStatsOf(await countedRead(useSpoolApi() as { mock?: boolean }, '/v1/tenant/box-stats', () => useSpoolApi().boxStats({ box: id, since: '24h' })) as { rows?: unknown[], hours?: unknown[] } | null)
     if (mine !== seq) return
     stats.value = { state: rows.length || hours.length ? 'ready' : 'empty', rows, hours }
   } catch (e) {

@@ -90,6 +90,8 @@ import { agentKindLabelKey } from '~/utils/agent-kind.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useOperatorPane } from '~/stores/operator-pane'
+import { useAccessStore } from '~/stores/access'
+import { countedRead, gateMe, lanesReadPlan } from '~/utils/read-gates.mjs'
 import { AGENT_CARD_TABS, agentCardTab, agentCardTabQuery } from '~/utils/agent-card-tabs.mjs'
 import { agentLanes, fleetLanesOf, laneDeepLink, laneName, readLanes } from '~/utils/monitoring-lanes.mjs'
 
@@ -138,10 +140,19 @@ const allLanes = ref<Lane[]>([])
 const lanesState = ref<'loading' | 'ok' | 'forbidden' | 'error'>('loading')
 const lanes = computed(() => agentLanes(allLanes.value, agentId.value, box.value))
 const lanesRead = { own: false, operatorVisible: false }
+const access = useAccessStore()
 async function loadLanes() {
   lanesRead.operatorVisible = operator.visible
   try {
-    allLanes.value = fleetLanesOf(await readLanes(useSpoolApi() as unknown as LanesApi, lanesRead)).lanes
+    /* SPL-4453: /v1/view/me picks the read; a member sends none */
+    const plan = lanesReadPlan(await gateMe(access))
+    if (plan === 'none') {
+      lanesState.value = 'forbidden'
+      return
+    }
+    if (plan === 'own') lanesRead.own = true
+    const api = useSpoolApi() as unknown as LanesApi & { mock?: boolean }
+    allLanes.value = fleetLanesOf(await countedRead(api, () => (lanesRead.own ? '/v1/view/lanes' : '/v1/operator/fleet-lanes'), () => readLanes(api, lanesRead))).lanes
     lanesState.value = 'ok'
   } catch (e) {
     lanesState.value = (e as { status?: number })?.status === 403 ? 'forbidden' : 'error'

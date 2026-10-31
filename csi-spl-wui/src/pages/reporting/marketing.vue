@@ -28,6 +28,8 @@
 
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { useAccessStore } from '~/stores/access'
+import { countedRead, gateMe, staffReadable } from '~/utils/read-gates.mjs'
 import { marketingAttribution, marketingReportRead, marketingStageCards } from '~/utils/reporting-marketing.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
@@ -40,9 +42,15 @@ const cards = computed(() => marketingStageCards(report.value))
 const attribution = computed(() => marketingAttribution(report.value))
 
 /* in the browser only: the prerendered page is the loading line */
+const access = useAccessStore()
 onMounted(async () => {
   try {
-    report.value = await marketingReportRead(api)
+    /* SPL-4453: a reader /v1/view/me names neither owner nor admin gets the line, no request */
+    if (!staffReadable(await gateMe(access))) {
+      state.value = 'forbidden'
+      return
+    }
+    report.value = await countedRead(api, '/v1/reporting/marketing', () => marketingReportRead(api))
     state.value = 'ready'
   } catch (e) {
     state.value = (e as { status?: number })?.status === 403 ? 'forbidden' : 'error'

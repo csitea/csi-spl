@@ -39,6 +39,8 @@ restore-drill-red-note | 7,37 * * * *  | src/bash/scripts/restore-drill-red-note
 login2-sync       | */5 * * * *     | src/bash/scripts/login2-sync-cron.sh                    | login2-sync/cron.log  |
 file-streams      | * * * * *       | src/bash/scripts/file-stream-follow-cron.sh             | file-streams/cron.log |
 weekly-limit-alert | */5 * * * *    | src/bash/scripts/weekly-limit-alert-cron.sh             | weekly-limit-alert/cron.log |
+# spec 166 row B6: the night zombie-topic sweep; acts once a night on the dispatch holder's box
+zombie-topics     | */15 * * * *    | src/bash/scripts/zombie-topics-cron.sh                  | zombie-topics/cron.log |
 # reliability round (spec 146, SPL-4064): one row per box check; row 10 runs
 # in workflow 45_db-backup.yml. Cadences: csi-spl-doc/specs/146-reliability-round/tasks.md section 4.
 rel-systemd-unit    | */5 * * * *        | src/bash/scripts/rel-systemd-unit-cron.sh | rel/systemd-unit.log |

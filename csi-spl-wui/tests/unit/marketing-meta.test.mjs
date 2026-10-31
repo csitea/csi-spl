@@ -7,9 +7,11 @@
 //   - metaPageCanPost returning true always -> "a Page without a posting task cannot post"
 //   - metaRowsWithout dropping only the id  -> "a Page takes its Instagram account with it"
 //   - META_DISCONNECT_LIVE = true           -> "the live client offers no Disconnect yet"
+//   - a static `import MarketingAccounts` in general.vue -> "Tenant settings > General loads the accounts lazily"
+//   - the mock post's /mock-first.jpg removed -> "every mock post picture is in src/public"
 //
 // Run: node tests/unit/marketing-meta.test.mjs
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -103,6 +105,18 @@ const named = [...new Set([...src.matchAll(/marketing_meta_[a-z_]+(?![a-z_.])/g)
 const missing = named.filter((k) => !(k in en))
 ok('every marketing_meta_* key named in the code is in en.json', named.length > 20 && missing.length === 0, JSON.stringify(missing))
 ok('both platform labels exist', 'marketing_meta_platform_facebook_page' in en && 'marketing_meta_platform_instagram_business' in en)
+
+// the section stays a lazy chunk: the bundle budget cannot see it, general.vue is a route chunk already
+const general = readFileSync(join(WUI, 'src/pages/tenant-settings/general.vue'), 'utf8')
+ok('Tenant settings > General loads the accounts lazily',
+  /defineAsyncComponent\(\s*\(\)\s*=>\s*import\(\s*['"]~\/components\/MarketingAccounts\.vue['"]\s*\)\s*\)/.test(general) &&
+  !/import\s+MarketingAccounts\s+from/.test(general))
+
+// the mock's post pictures load (a missing one 404s into the broken-frame fallback)
+const mock = readFileSync(join(WUI, 'src/utils/tenant-settings-mock.mjs'), 'utf8')
+const pics = [...mock.matchAll(/image:\s*'(\/[^']+)'/g)].map((m) => m[1])
+const absent = pics.filter((f) => !existsSync(join(WUI, 'src/public', f)))
+ok('every mock post picture is in src/public', pics.includes('/mock-first.jpg') && absent.length === 0, JSON.stringify(absent))
 
 const suite = runsInUnitSuite(import.meta.url)
 ok('pnpm test runs marketing-meta.test.mjs', suite.ok, suite.why)

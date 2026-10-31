@@ -85,9 +85,16 @@ Body `{}` (any field = `400`). Deletes every row of the caller.
   change and shipped on the next load once signed in; signed out, it is
   dropped there too. A batch leaves the store only when the hub answered, so
   a reload mid-POST sends it again (at least once). No storage = memory only.
+- **A stale chunk is an app update, not an error** (SPL-4525): when a tab
+  older than a WUI deploy asks for a removed `/_nuxt/<hash>.js`,
+  chunk-reload reloads it, and the Vue error hook journals ONE note per page
+  load, `source: app-update`, `name: Info`, `code: info.app_updated`,
+  "app updated, reloaded", kept out of the snackbar (`src/utils/chunk-note.ts`).
+  The hub stores it with `kind: error`, the only kind today. Offline the tab
+  does not reload, so the failure stays an error.
 - **Snackbar**: slides down from the top, newest first, ≤ 3 rows; an identical
   error within 5 s bumps a ×N count; 8 s on screen after its last occurrence,
   paused while hovered or focused; close button; `role="alert"`.
 - **Event log page**: `/events`, from the left rail's icon directly after Flow.
 
-<!-- version: 1.1.0 · updated: 2026-10-13 · last-edit: 2026-10-13T00:00:00Z -->
+<!-- version: 1.2.0 · updated: 2026-10-31 · last-edit: 2026-10-31T00:00:00Z -->

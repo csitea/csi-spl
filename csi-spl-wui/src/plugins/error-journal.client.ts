@@ -13,6 +13,7 @@
 // Client-only (`.client.ts`): there is no window on the server, and a
 // build-time failure must never be baked into a static page.
 import { noteError } from '@/composables/errorJournal.mjs'
+import { APP_UPDATED_NOTE, createChunkNoteFilter } from '~/utils/chunk-note'
 
 /** Browser notices that arrive as window errors but are not defects. */
 const BENIGN_WINDOW_ERRORS = [
@@ -47,7 +48,13 @@ export default defineNuxtPlugin((nuxtApp) => {
   // ERR-CLIENT-20261011-071556-99F1's insertBefore says nothing about where.
   // The trail helper is its own chunk (the initial JS is at its ceiling): the
   // record waits for it, and is written without the trail if it cannot load.
+  // A stale chunk after a deploy is not a defect: chunk-reload reloads the
+  // tab, and the journal keeps one info note per page load (SPL-4525).
+  const chunkNote = createChunkNoteFilter(() => navigator.onLine !== false)
   nuxtApp.hook('vue:error', (err, instance, info) => {
+    const kind = chunkNote(err)
+    if (kind === 'skip') return
+    if (kind === 'note') return record('app-update', undefined, APP_UPDATED_NOTE)
     void import('~/utils/vue-error-trail.mjs').then(
       (m) => record('vue', err, { trail: m.vueComponentTrail(instance), code: m.vueErrorInfo(info) || undefined }),
       () => record('vue', err),

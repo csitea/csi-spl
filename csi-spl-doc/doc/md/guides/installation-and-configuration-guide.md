@@ -707,8 +707,66 @@ The box restart, spawn-remote, watchdog, /tmp sweep and disk headroom crons (9.4
 
 The workspace root keys are held only out of band; no action lists which workspaces a new box must be seated in or checks that a key for each is at hand.
 
+# 15 Gmail access from Claude through the claude.ai connector
+
+This is how Claude reads the workspace's Gmail mailbox (a mailbox on the csitea.net Google Workspace) programmatically. The route is the claude.ai Gmail connector. The connector belongs to the **Claude account**, not to the box: connect it once, and every Claude Code session that is logged in to that Claude account gets the Gmail tools, on any machine.
+
+Placeholders: `<CLAUDE_ACCOUNT>` is the Claude account the agent seats log in with, `<GOOGLE_ACCOUNT>` is the workspace's Google account that owns the mailbox, `<AGENT_USER>` is the agent OS user and `<BOX>` is the box.
+
+## 15.1 Connect the Gmail connector to the Claude account
+
+A human does this once, in a browser:
+
+1. Open claude.ai and sign in as `<CLAUDE_ACCOUNT>`, the account the seats use.
+2. Go to Settings, then Connectors, then Gmail, then Connect.
+3. Sign in with `<GOOGLE_ACCOUNT>` and allow the access. It may be a different Google account from the one behind the Claude login; that works.
+
+From then on every Claude Code session logged in to `<CLAUDE_ACCOUNT>` gets the `mcp__claude_ai_Gmail__*` tools after the session starts or restarts.
+
+## 15.2 A running session loads connectors only when it starts
+
+A session started before the connect does not get the tools. Restart it: let the seat exit, then resume it with its current flags from `csi-spl-orc`:
+
+```bash
+cd /opt/csi/csi-spl/csi-spl-orc && IDENTITY_RESTORE_IDS=<AGENT_ID> DRY_RUN=0 ./run -a do_spl_agent_identity_restore
+```
+
+## 15.3 Who can read the mailbox
+
+Every session on `<CLAUDE_ACCOUNT>` can read the mailbox, on every box and for every agent that logs in with that account. Connect only a mailbox that all of them may read.
+
+## 15.4 Limit: no attachment download
+
+The connector has no tool that downloads an attachment. It reads messages and threads; an attachment's content is not reachable through it.
+
+## 15.5 The route not chosen: Google's hosted Gmail MCP server
+
+Google's hosted Gmail MCP endpoint can be added with `claude mcp add --transport http`. Without a Google OAuth client made in advance it fails with "Incompatible auth server: does not support dynamic client registration". It works only with `--client-id`, `--client-secret` and `--callback-port`, which need a Google Cloud project with the Gmail API enabled, an OAuth consent screen and a Desktop OAuth client. The owner chose the claude.ai connector instead, so this guide does not set it up.
+
+## 15.6 For agent seats
+
+### 15.6.1 The seat's OS user holds the connector
+
+The seat runs as `<AGENT_USER>` on `<BOX>`, and that user's Claude Code login must be `<CLAUDE_ACCOUNT>`, the account that holds the connector. A seat logged in to another Claude account has no Gmail tools.
+
+### 15.6.2 The tools
+
+The tools are named `mcp__claude_ai_Gmail__*`: `search_threads`, `get_thread`, `get_message`, `list_labels`, `list_drafts` and more. The set also holds writing tools: `send_message`, `reply`, `forward`, `create_draft`, `trash_message`, `trash_thread` and the label changes. Use them read-only unless the owner asks for a write.
+
+### 15.6.3 Load the tools
+
+The tools are deferred: load them with ToolSearch, query `claude_ai_Gmail`, before the first call. A seat started before the connect has none to load; restart it as in 15.2.
+
+### 15.6.4 Data rule: mail is personal and finance data
+
+Mail content is personal and finance data. Only claude seats read it (grok is off for this work). Put the results only in the topic that asked for them, never in git and never in a spool message body.
+
+### 15.6.5 No attachment download
+
+As in 15.4: a seat cannot download an attachment through the connector. Say so in the asking topic; do not look for a workaround.
+
 <a id="ws-doc-c05522d6-2353-42e9-a559-d5330860b5bc"></a>
-# 15 Docs this guide replaces
+# 16 Docs this guide replaces
 
 Once this guide is exported to the repo (`csi-spl-doc/doc/md/guides/installation-and-configuration-guide.md`), the install parts of these docs become pointers to it, so each fact keeps one home:
 

@@ -3332,6 +3332,7 @@
       "col_state": "Състояние",
       "state_live": "Активна",
       "state_queued": "На опашка",
+      "role_seat": "Ролево място",
       "filter_box": "Машина",
       "filter_vendor": "Доставчик",
       "filter_state": "Състояние",

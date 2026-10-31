@@ -33,7 +33,8 @@ const int = (v) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Math.trunc(Nu
 /**
  * The hub's answer as the page's view, in the hub's order. A row without an
  * agent id is dropped; an issue without a key is dropped. Every row keeps
- * the workspace it belongs to (spec 153 3.8: name, else id).
+ * the workspace it belongs to (spec 153 3.8: name, else id) and whether it
+ * is a role seat (3.11).
  * @param {unknown} body
  */
 export function fleetLanesOf(body) {
@@ -53,6 +54,8 @@ export function fleetLanesOf(body) {
     ageS: int(l.age_s),
     lastActive: str(l.last_active),
     state: str(l.state) || 'live',
+    /* spec 153 3.11: a role seat names no topic and no issue by design */
+    roleSeat: l.role_seat === true,
   }))
   return { asOf: str(b.as_of), fleet: str(b.fleet), lanes }
 }

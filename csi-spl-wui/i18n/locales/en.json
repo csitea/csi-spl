@@ -3332,6 +3332,7 @@
       "col_state": "State",
       "state_live": "Live",
       "state_queued": "Queued",
+      "role_seat": "Role seat",
       "filter_box": "Box",
       "filter_vendor": "Vendor",
       "filter_state": "State",

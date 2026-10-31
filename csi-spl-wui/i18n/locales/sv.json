@@ -3332,6 +3332,7 @@
       "col_state": "Status",
       "state_live": "Aktiv",
       "state_queued": "I kö",
+      "role_seat": "Rollplats",
       "filter_box": "Maskin",
       "filter_vendor": "Leverantör",
       "filter_state": "Status",

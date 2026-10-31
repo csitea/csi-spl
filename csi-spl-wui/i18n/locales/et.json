@@ -3332,6 +3332,7 @@
       "col_state": "Olek",
       "state_live": "Töös",
       "state_queued": "Järjekorras",
+      "role_seat": "Rolli koht",
       "filter_box": "Masin",
       "filter_vendor": "Tarnija",
       "filter_state": "Olek",

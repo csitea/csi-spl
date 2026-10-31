@@ -3332,6 +3332,7 @@
       "col_state": "Stav",
       "state_live": "Aktívna",
       "state_queued": "V poradí",
+      "role_seat": "Rolové miesto",
       "filter_box": "Stroj",
       "filter_vendor": "Dodávateľ",
       "filter_state": "Stav",

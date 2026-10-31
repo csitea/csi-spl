@@ -3332,6 +3332,7 @@
       "col_state": "Стан",
       "state_live": "Активна",
       "state_queued": "У черзі",
+      "role_seat": "Рольове місце",
       "filter_box": "Машина",
       "filter_vendor": "Постачальник",
       "filter_state": "Стан",

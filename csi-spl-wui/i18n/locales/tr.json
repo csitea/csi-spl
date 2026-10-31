@@ -3332,6 +3332,7 @@
       "col_state": "Durum",
       "state_live": "Etkin",
       "state_queued": "Kuyrukta",
+      "role_seat": "Rol koltuğu",
       "filter_box": "Makine",
       "filter_vendor": "Sağlayıcı",
       "filter_state": "Durum",

@@ -111,10 +111,12 @@
               <td class="ln-cut" :title="l.topicTitle || l.topicId || undefined" data-test="lanes-topic">
                 <NuxtLink v-if="laneTopicPath(l)" :to="localePath(laneTopicPath(l))" data-test="lanes-topic-link">{{ l.topicTitle }}</NuxtLink>
                 <span v-else-if="l.topicId" class="ln-mono">{{ l.topicId }}</span>
+                <span v-else-if="l.roleSeat" class="muted" data-test="lanes-role-seat">{{ t('monitoring.lanes.role_seat') }}</span>
                 <span v-else class="muted">{{ DASH }}</span>
               </td>
               <td data-test="lanes-issues">
-                <span v-if="l.issues.length === 0" class="muted">{{ DASH }}</span>
+                <span v-if="l.issues.length === 0 && l.roleSeat" class="muted" data-test="lanes-role-seat">{{ t('monitoring.lanes.role_seat') }}</span>
+                <span v-else-if="l.issues.length === 0" class="muted">{{ DASH }}</span>
                 <template v-for="i in l.issues" :key="i.key">
                   <NuxtLink v-if="laneIssuePath(i)" class="ln-issue" :to="localePath(laneIssuePath(i))" :title="i.status" data-test="lanes-issue-link">{{ i.key }}</NuxtLink>
                   <span v-else class="ln-issue" data-test="lanes-issue">{{ i.key }}</span>

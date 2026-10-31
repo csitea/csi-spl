@@ -3332,6 +3332,7 @@
       "col_state": "Būsena",
       "state_live": "Veikia",
       "state_queued": "Eilėje",
+      "role_seat": "Vaidmens vieta",
       "filter_box": "Mašina",
       "filter_vendor": "Tiekėjas",
       "filter_state": "Būsena",

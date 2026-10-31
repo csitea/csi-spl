@@ -652,4 +652,92 @@ Live proofs on the home box after landing, run by the implementing lanes
 - An agent adding `--dangerously-skip-permissions` (FR-062).
 - The satellite trio's first seating (CLE-77911, 057).
 
+## 10. Rotation failures 2026-10-24..2026-10-31: the causes (SPL-4507)
+
+Owner HUM-10, t1 5c1b2926 (msg 8c72779d, 2026-10-31): the rotations fail
+"at least several times per day ... there must be some kind of root cause".
+Every role run of both boxes was read, not only the hub alerts. The earlier
+round, 10-15..10-22: [rotation-failures-2026-10-22.md](rotation-failures-2026-10-22.md).
+
+### 10.1 Sources and runs
+
+- Box 1: `dispatch/rotate.log`, rows from 2026-10-24 to 2026-10-31T14:47Z
+  whose run id ends `-orch`, `-master`, `-failover`, `-failover-orch` or
+  `-failover-dispatch` (794 rows); the new sessions' transcripts
+  (`~/.claude/projects/<cwd>/<sid>.jsonl` of the agent user); the spool dirs.
+- Box 2: the same rows (4,150), read over ssh, read-only.
+- A run is OK when it logs `DONE OK` (the failover rotation of box 2 ends
+  at `CLOSE OK`) and failed when it logs a `FAIL`.
+
+| box | role | runs past GATE | OK | failed |
+|---|---|---|---|---|
+| 1 | orch | 15 | 14 | 1 |
+| 1 | master | 5 | 2 | 3 |
+| 1 | failover | 3 | 2 | 1 |
+| 1 | in-place vendor failover (orch / dispatch) | 8 | 6 | 2 |
+| 2 | orch | 121 | 120 | 1 |
+| 2 | master | 81 | 78 | 3 |
+| 2 | failover | 77 | 77 | 0 |
+
+On box 1 most hourly runs end `GATE SKIP standby` (the dispatch and orch
+leases sat on box 2): 157 orch, 169 master.
+
+The new session's first ack, from the spawn to `ACK OK sent by pid`: n=295
+runs, median 14..15 s, 90th percentile 18..22 s, max 173 s. The ack window
+(600 s, orch 900 s) is not what fails: no failure below is a slow model.
+
+### 10.2 The role rotation failures, one cause each
+
+| # | run (box) | step | cause | evidence | state |
+|---|---|---|---|---|---|
+| 1 | 20261024T1515Z-master (2) | ACK 600 s | the successor stopped on claude's usage-limit menu, which the start check did not know: it logged SPAWN OK over it | `SPAWN WAIT %3838: no input box within 45s and no known dialog; screen: ❯ 1. Stop and wait for limit to reset\|2. Wait here, then continue automatically at Oct 28, 7pm\|3. Switch to usage credits` | **fixed** (C2) |
+| 2 | 20261024T1601Z-failover (1) | ACK 600 s | the same menu; and the swap spawned claude while both vendors were known out | `SPAWN WAIT %1263: ... ❯ 1. Stop and wait for limit to reset`; `SPAWN OK ... claude cannot act (...), but the grok standby cannot either (...): claude` | **fixed** (C2), the spawn on two out vendors open |
+| 3 | 20261024T2305Z-orch (2) | ACK 900 s | not proven: the new session (pid 254853) left no transcript in that window | `SPAWN OK new pid 254853`; no `*.jsonl` of the agent user written 23:08..00:30Z | open |
+| 4 | 20261024T2316Z-master (1) | SPAWN | the standby swap decided its vendor twice: `grok replaces it` at 23:19:01Z, then `spl_disp_run` asked lane-mix again (about 70 s) and spawned claude onto the limit the swap was for | `STANDBY OK c-002 ... is out (S2 kind=limit ...): grok replaces it`; no seat switch line; `FAIL SPAWN: ... 'usage limit' dialog` | **fixed** (C3) |
+| 5 | 20261025T0115Z-master (1) | SPAWN | the handback to claude: a clean watchdog verdict newer than the limit one read as "claude can act again" while the login was still on its limit (the reset "2:50am (Europe/Amsterdam)" fell in the night the clocks went back) | `HANDOFF OK seat switch g-002 -> c-002`; `FAIL SPAWN: ... %1501 ... 'usage limit' dialog` | open (10.3) |
+| 6 | 20261025T0205Z-orch (1) | SPAWN | not proven: claude ended at once in `/opt`; its transcript has no turn | `no claude carrying c-001 started in %1547 within 120s ... claude --continue` | open |
+| 7 | 20261025T1415Z-master (2) | SPAWN | the claude login on its limit, no limit verdict on the box yet (`ROTATE_ROLE_VENDOR=claude: claude`) | `FAIL SPAWN: the new session in %509 is stopped on a 'usage limit' dialog` | open (10.3) |
+| 8 | 20261030T1515Z-master (2) | RELEASE | the lease loop kept the new master "held: rotation" 4 min 11 s after the release removed the hold; RELEASE gave up at 240 s, 8 s earlier, then LEASE_HOLDDOWN kept the failover | lease.log `15:20:29Z release c-002`, `15:24:40Z ABLE c-002: able (was: held: rotation since 253s)`; rotate.log `15:24:32Z RELEASE FAIL` | open, n=1 |
+| 9 | 20261031T1115Z-master (1) | ACK 600 s | the ack scan was blind: the new c-002 acked 9 s after its start, its result sat in its outbox, and `spl_rotate_ack_seen` returned 1 for 600 s | transcript: ack command 11:16:04Z; rotate.log `11:16:07Z ACK OK sent by pid 504671`; outbox `20261031T111607Z--c-002--ack-rotation-...json` | **fixed** (C1) |
+
+By cause, n=9: the successor's vendor on its usage limit 5 (#1, #2, #4, #5,
+#7); a blind ack scan 1 (#9); RELEASE against the lease loop 1 (#8); not
+proven 2 (#3, #6).
+
+Two crons on one seat: during #9 the lane rotation also rotated g-002
+(`20261031T1116Z-lane-g-002`, SPL-4501, not this lane's) and failed the same
+way, its ack in the same outbox. No run of the window followed the wrong pid
+after a switch.
+
+### 10.3 The fixes
+
+- **C1 the ack scan** (`spl_rotate_ack_seen`, rotate-lib). Since SPL-4031
+  (2026-10-28 19:20Z) a seat switch leaves one real spool dir and no
+  a-/c-/g-/m-/q-00N link. The scan handed all five outboxes to one `find`;
+  the missing ones made `find` exit 1, and under the `./run` pipefail the
+  pipeline failed though `grep` matched. Measured on the live outbox, the
+  same function and data: rc 0 without pipefail, rc 1 with it. Only the
+  outboxes that exist are read now. Box 1's seat 002 has no letter link
+  (its last switch 2026-10-31 12:26Z), so every master rotation and lane,
+  restart or vendor-failover ack of that seat failed this way; seats 001
+  and 003 and all of box 2 still had their old links. Test:
+  `csi-spl-orc/src/bash/tests/rotate-ack-seen.tst.sh`.
+- **C2 the usage-limit menu** (`SPOOL_START_DIALOGS`, start-check). "Stop
+  and wait for limit to reset" and "Switch to usage credits" now name the
+  `usage limit` dialog: the run fails in seconds as SPAWN, the old session
+  keeps the role, and the alert names the limit instead of a missing ack.
+  Test: `spawn-agents/tests/test-start-check.sh`.
+- **C3 one vendor decision per standby swap** (`spl_disp_standby_one`,
+  `spl_disp_run`). The swap's decision is the one spawned
+  (`ROTATE_VENDOR_FIXED=1`); lane-mix is asked once. Test:
+  `dispatch-rotate.tst.sh` case 19, SPL-4507.
+
+Open, not built here (each n=1..2): #5 and #7, claude judged able while its
+login is on a limit. The watchdog's `<id>.limit` reset epoch is no guard: on
+2026-10-31 box 1 held claude seats on a limit until 2026-11-05T09:00Z while
+claude seats worked, so a newer clean verdict must keep clearing it. With C2
+such a start ends in seconds instead of 600 s. #8, the RELEASE wait against
+the lease loop's able refresh of the new pid. The swap that spawns although
+both vendors are out (#2).
+
 <!-- last-edit: 2026-10-02T04:40:00Z — CLE-77941 -->

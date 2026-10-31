@@ -267,6 +267,7 @@ menv() {
     "SPAWN_PLACE_WINDOWS_CMD=$T/bin/windows" "SPAWN_PLACE_PICK_CMD=$T/bin/pick" "SPAWN_PLACE_LAUNCH_CMD=$T/bin/launch" \
     "LAUNCH_LOG=$T/launch.log" "SPAWN_PLACE_BRIEF_DIR=$T/briefs" "SPAWN_PLACE_WORKDIR=$T" "SPAWN_PLACE_GAP_MIN=0" "SPOOL_AGENT_ID=" \
     "SPAWN_SHARE_LANES_CMD=$T/bin/lanes" "SPAWN_SHARE_DISPATCH=c-002@box-desk" \
+    "SPAWN_SHARE_BANDS={\"refactor\": [20, 30], \"bug\": [20, 30], \"feature\": [40, 100]}" "RHYTHM_NOW=2026-01-15T12:00Z" \
     "TOKEN_BURN_STATE_DIR=$T/burn" "SPAWN_PLACE_BURN_CMD=$T/bin/burn" "BURN_JSON=$T/burn.json"
 }
 on() {  # <machine> <action> [env...]

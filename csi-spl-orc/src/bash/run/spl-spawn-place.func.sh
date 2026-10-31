@@ -42,8 +42,13 @@
 # @description      otherwise the queued row of the class furthest under its band
 # @description      of the live lanes (do_spl_spawn_share) is taken, a class over
 # @description      its band only when no other class waits; ties refactor > bug
-# @description      > feature, then the queue's order. The rule's one home:
-# @description      csi-spl-doc/doc/md/fleet-rules-index.md
+# @description      > feature, then the queue's order. The bands are the rhythm
+# @description      phase's (spec 166 row B2, do_spl_spawn_share): at night a
+# @description      refactor or bug class whose last 24 h share reached its 24 h
+# @description      top (capped) waits behind the feature rows, before the
+# @description      classes over their band. A 24 h sample is taken when one is
+# @description      due (SPAWN_SHARE_SAMPLE_MIN), queue or not. The rule's one
+# @description      home: csi-spl-doc/doc/md/fleet-rules-index.md
 # @description   4. TAKE - the row is acked by the orch holder (placing), then
 # @description      a. with a placement <vendor>:<slug> and its brief file: the
 # @description         existing launcher, `spawn-window.sh <vendor> auto
@@ -181,6 +186,7 @@ do_spl_spawn_place() {
   rows="$(spl_spawn_place_pin_hold "$rows")"
   rows="$(spl_spawn_place_agy_box_hold "$rows")"
   rows="$(spl_spawn_place_line "$rows")"
+  spl_spawn_place_band_sample
   head="$(jq -c '.[0] // empty' <<<"$rows")"
   [[ -n "$head" ]] || { do_log "INFO the spawn queue is empty, or holds only asks for the holder while one is with it"; return 0; }
   if why="$(spl_spawn_place_no_room)"; then
@@ -300,13 +306,22 @@ spl_spawn_place_band() {  # HEAD ROWS
   pick="$(jq -c --slurpfile share <(printf '%s' "$share") '
     def cls: (.class // "") | if . == "" or . == "ci" then "bug" else . end;
     $share[0] as $share | [.[] | select(.state == "queued") | cls as $c | $share.by[$c] as $b
-     | (if $b.pct < $b.lo then 0 elif $c == "feature" or $b.pct < $b.hi then 1 else 3 end) as $t
+     | (if $b.pct < $b.lo then 0 elif $c == "feature" or $b.pct < $b.hi then 1 else 3 end) as $t0
+     | (if ($b.capped // false) and $t0 < 2 then 2 else $t0 end) as $t
      | . + {_t: $t, _o: ({"refactor": 0, "bug": 1, "feature": 2}[$c]), _c: $c, _p: $b.pct,
             _s: (if $t == 0 then ($b.lo - $b.pct) / $b.lo elif $t == 1 and $c != "feature" then ($b.hi - $b.pct) / $b.hi else 0 end)}]
     | sort_by(._t, -._s, ._o, .position) | .[0] // empty' <<<"$2")"
   [[ -n "$pick" ]] || { printf '%s' "$1"; return 0; }
   do_log "INFO band pick: ask $(jq -r '"\(.ask_id[0:8]) (\(._c) at \(._p)%, queue position \(.position))"' <<<"$pick") of $(spl_spawn_share_line "$share")" >&2
   jq -c 'del(._t, ._o, ._c, ._p, ._s)' <<<"$pick"
+}
+
+# 3b. A 24 h sample of the live share when one is due, so the samples do not
+# depend on a row waiting; the share is kept for the band pick.
+spl_spawn_place_band_sample() {
+  [[ -z "${SPAWN_PLACE_SHARE:-}" ]] && spl_spawn_share_sample_due || return 0
+  SPAWN_PLACE_SHARE="$(spl_spawn_share)" || { SPAWN_PLACE_SHARE=""; do_log "WARN the live share could not be read: no 24 h sample this tick"; }
+  return 0
 }
 
 # 3b. The queued review seat (placement slug ending in -reviewer) whose ask the

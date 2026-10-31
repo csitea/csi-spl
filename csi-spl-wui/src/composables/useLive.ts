@@ -1,5 +1,6 @@
 import { cleanAs, createLiveClient, tokenStale, watchLive, wsUrl } from '~/utils/live-ws.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
+import { useSessionStore } from '~/stores/session'
 import { authOrigin, createAuthClient } from '~/utils/auth-client-core.mjs'
 import { MOCK_LOBBY_TASK_ID } from '~/utils/mock-ids'
 import { REVISION_FETCH_MS } from '~/utils/fetch-timeouts.mjs'
@@ -143,11 +144,22 @@ function subscriber<T>(set: Set<T>) {
 }
 
 /**
+ * SPL-4513: a settled signed-out visitor gets no socket (the hub refuses it
+ * and the console logs the failed dial); a page asks again after sign-in.
+ */
+function signedOutTab(sessionState: string): boolean {
+  if (sessionState !== 'out') return false
+  if (!live) state.value = 'signed_out'
+  return true
+}
+
+/**
  * One hub WUI socket per tab (003 wui-live-ws.md) on the TENANT host.
  * Mock mode has no socket: sends are applied locally by the live store.
  */
 export function useLive() {
   const api = useSpoolApi()
+  const session = useSessionStore()
   const config = useRuntimeConfig()
   const lobbyTaskId = computed(() => lobbyFromHub.value || String(config.public.lobbyTaskId || '')
     || (api.mock ? MOCK_LOBBY_TASK_ID : ''))
@@ -160,6 +172,7 @@ export function useLive() {
       state.value = 'mock'
       return null
     }
+    if (signedOutTab(session.state)) return null
     if (live) {
       // parked after the hub refused a signed-out tab: a page asking again
       // (after a sign-in, say) dials again

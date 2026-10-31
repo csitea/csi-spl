@@ -63,8 +63,10 @@ export function earlyLoginHref(input) {
     if (p.length > 1 && p.charAt(p.length - 1) === '/') p = p.slice(0, -1)
   }
   var product = p === '/' || p === '/lobby' || p === '/search'
-  // no /docs: the docs page is its own door (a public doc reads signed out)
-  var roots = ['/channel', '/dm', '/t', '/settings']
+  // no /docs: the docs page is its own door (a public doc reads signed out);
+  // the same roots as PRODUCT_ROOTS in signed-out-redirect.mjs (SPL-4513)
+  var roots = ['/channel', '/dm', '/t', '/settings', '/monitoring', '/reporting', '/notes', '/issues',
+    '/archive', '/workspace/docs', '/agents', '/boxes', '/events']
   for (var r = 0; r < roots.length; r++) {
     if (p === roots[r] || p.indexOf(roots[r] + '/') === 0) product = true
   }

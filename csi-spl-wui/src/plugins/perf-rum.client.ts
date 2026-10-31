@@ -27,7 +27,8 @@ export default defineNuxtPlugin(() => {
       void import('~/utils/perf-rum.mjs').then(({ startPerfRum }) => {
         perfWhenIdle(() => startPerfRum({
           url: `${api.base}/v1/perf/samples`,
-          credentials: api.credentials,
+          /* read at each send: the sign-in sets the session door after start (SPL-4517) */
+          credentials: () => api.credentials,
           build: String(pub.appVersion || ''),
           sampleRate: String(pub.perfSampleRate ?? ''),
           ready: () => session.state === 'in',

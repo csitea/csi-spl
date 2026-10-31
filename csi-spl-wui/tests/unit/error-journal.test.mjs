@@ -24,6 +24,7 @@ import {
   shouldCollapseOnRouteChange,
   summariseRecord,
   ERROR_JOURNAL_LIMIT,
+  TRANSPORT_COALESCE_MS,
 } from '../../src/composables/errorJournal.mjs'
 import {
   canSeeDebugPanel,
@@ -303,5 +304,84 @@ describe('wiring', () => {
     const index = read('src/pages/index.vue')
     assert.ok(index.includes("useSettledQuery('topic')"))
     assert.equal(index.includes('route.query.topic'), false)
+  })
+})
+
+/* SPL-4523 (rows 1 + 4 of SPL-4419): prd human_events n=100 held 73 rows of
+   `api ... TypeError Failed to fetch` (one network drop = one row per request,
+   up to 14 a minute) and 3 rows inside 1 ms carrying ONE error_id (the same
+   Error re-journaled by channel, topic and promise). One failure, one record. */
+describe('errorJournal: one failure is recorded once', () => {
+  beforeEach(() => resetErrorJournal())
+  const drop = () => new TypeError('Failed to fetch')
+  const T0 = Date.parse('2026-10-29T09:35:08Z')
+
+  it('ten transport TypeErrors within 1 s give 1 record with count 10', () => {
+    for (let i = 0; i < 10; i++) {
+      noteError({ source: 'api', method: 'GET', url: `/v1/view/p${i}`, error: drop() }, { ...CLIENT, now: T0 + i * 100 })
+    }
+    const all = getErrors()
+    assert.equal(all.length, 1)
+    assert.equal(all[0].count, 10)
+    assert.equal(all[0].path, '/v1/view/p0')
+  })
+
+  it('a drop still unanswered keeps one record; one after a 30 s quiet starts a new one', () => {
+    assert.equal(TRANSPORT_COALESCE_MS, 30_000)
+    for (let i = 0; i < 5; i++) noteError({ source: 'api', url: '/v1/view/topics', error: drop() }, { ...CLIENT, now: T0 + i * 20_000 })
+    assert.equal(getErrors().length, 1)
+    assert.equal(getErrors()[0].count, 5)
+    noteError({ source: 'api', url: '/v1/view/topics', error: drop() }, { ...CLIENT, now: T0 + 4 * 20_000 + TRANSPORT_COALESCE_MS + 1 })
+    assert.deepEqual(getErrors().map((r) => r.count), [5, 1])
+  })
+
+  it('a merged drop keeps the first seq (the shipper and the snackbar take it once) and quotes its id', () => {
+    const first = noteError({ source: 'api', url: '/a', error: drop() }, { ...CLIENT, now: T0 })
+    const e2 = drop()
+    const again = noteError({ source: 'api', url: '/b', error: e2 }, { ...CLIENT, now: T0 + 10 })
+    assert.equal(again.seq, first.seq)
+    assert.equal(again.errorId, first.errorId)
+    assert.equal(extractErrorId(e2), first.errorId)
+  })
+
+  it('noteError twice with one Error object gives 1 record (count 2)', () => {
+    const err = Object.assign(new Error('a view token or a member session is required'), { status: 401 })
+    noteError({ source: 'channel', error: err }, CLIENT)
+    noteError({ source: 'topic', error: err }, CLIENT)
+    const all = getErrors()
+    assert.equal(all.length, 1)
+    assert.equal(all[0].count, 2)
+    assert.equal(all[0].source, 'channel')
+  })
+
+  it('distinct real errors are each recorded', () => {
+    const a = Object.assign(new Error('topic load failed'), { status: 401 })
+    const b = Object.assign(new Error('topic load failed'), { status: 401 })
+    noteError({ source: 'topic', error: a }, CLIENT)
+    noteError({ source: 'topic', error: b }, CLIENT)
+    noteError({ source: 'api', method: 'GET', url: '/v1/view/topics', status: 502 }, CLIENT)
+    noteError({ source: 'api', method: 'GET', url: '/v1/view/topics', status: 502 }, CLIENT)
+    noteError({ source: 'viewer', message: 'm1' }, CLIENT)
+    noteError({ source: 'viewer', message: 'm2' }, CLIENT)
+    noteError({ source: 'omnibox-send', error: new TypeError('x is not a function') }, CLIENT)
+    noteError({ source: 'api', url: '/v1/view/topics', error: drop() }, CLIENT)
+    const all = getErrors()
+    assert.equal(all.length, 8)
+    assert.equal(new Set(all.map((r) => r.errorId)).size, 8)
+    assert.deepEqual(all.map((r) => r.count), [1, 1, 1, 1, 1, 1, 1, 1])
+  })
+
+  it('after Clear the same stamped error is recorded again', () => {
+    const err = new Error('hub down')
+    noteError({ source: 'viewer', error: err }, CLIENT)
+    clearErrors()
+    noteError({ source: 'viewer', error: err }, CLIENT)
+    assert.equal(getErrors().length, 1)
+    assert.equal(getErrors()[0].count, 1)
+  })
+
+  it('the clipboard text says how many times a record was seen', () => {
+    for (let i = 0; i < 3; i++) noteError({ source: 'api', url: '/v1/view/topics', error: drop() }, { ...CLIENT, now: T0 + i })
+    assert.match(formatRecords(getErrors()), /\n {2}count: {2}3 \(last /)
   })
 })

@@ -339,6 +339,7 @@ export function formatRecords(recs, ctx) {
     if (r.source) lines.push(`  source: ${r.source}`)
     if (r.route) lines.push(`  route:  ${r.route}`)
     if (r.message) lines.push(`  detail: ${r.message}`)
+    if (r.count > 1) lines.push(`  count:  ${r.count} (last ${r.lastAt || r.at})`)
     return lines.join('\n')
   }).join('\n')
   return body ? `${head}\n${body}` : head

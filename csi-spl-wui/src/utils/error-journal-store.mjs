@@ -32,6 +32,26 @@ export function pushRecord(rec) {
   emit()
 }
 
+/**
+ * Replace the NEWEST record that `match` accepts with `merge(record)`, in
+ * place: same position, so its `seq` (what the shipper and the snackbar key
+ * on) is not seen again. Returns the merged record, or null when none matched.
+ *
+ * @param {(r: object) => boolean} match
+ * @param {(r: object) => object} merge
+ * @returns {object | null}
+ */
+export function mergeRecord(match, merge) {
+  for (let i = records.length - 1; i >= 0; i--) {
+    if (!match(records[i])) continue
+    const next = merge(records[i])
+    records[i] = next
+    emit()
+    return next
+  }
+  return null
+}
+
 /** @returns {object[]} newest LAST (insertion order) */
 export function getErrors() {
   return records.slice()

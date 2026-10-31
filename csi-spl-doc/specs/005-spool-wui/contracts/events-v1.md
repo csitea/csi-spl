@@ -22,6 +22,15 @@ subscribers read it; neither opens a second error channel:
 - the **snackbar** (`error-snackbar.mjs`) shows it, and
 - the **shipper** (`event-log.mjs`) POSTs it to the signed-in human's log.
 
+**One failure, one record** (SPL-4523). `noteError` merges a failure the
+buffer already holds into that record (`count` + 1, `lastAt`) instead of
+pushing a new one: an error whose id is already in the buffer (the same
+Error re-journaled by several layers), and a transport drop (`api`,
+`TypeError`, no HTTP status) within 30 s of the last one, so one network
+outage is one record however many requests it failed. The merged record
+keeps its `seq`, so both subscribers take it once. Distinct failures are
+still one record each.
+
 The log is **per human** (HUM-*), hub-wide like `human_keys` (rdb 0018): no
 tenant, outside RLS. The only access path is the session's own HUM-*.
 

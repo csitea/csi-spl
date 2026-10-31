@@ -235,6 +235,15 @@ cd csi-spl-orc && DRY_RUN=0 ./run -a do_tmp_scratch_sweep
 
 Action file: `csi-spl-orc/src/bash/run/tmp-scratch-sweep.func.sh`
 
+It removes a dead session's scratch dir (no live pid or `--resume` command
+line claims it) once it has been idle 2 hours (`SCRATCH_SWEEP_AGE_H`). When
+`/tmp` runs short of inodes (`df -i /tmp`, free below
+`SCRATCH_INODE_MIN_FREE_PCT`, default 10 %), it also removes dead dirs idle
+30 minutes (`SCRATCH_PRESSURE_AGE_M`), oldest first, until the threshold is
+met; its `PRESSURE` lines say so. A live session's dir is never removed.
+Why 2 hours: on 2026-10-31 a day of hourly-rotating lanes left dead dirs of
+up to 100k inodes each, and `/tmp` ran out of inodes at 54 % bytes used.
+
 #### 4.3.5 Clean stale temporary directories
 
 ```bash

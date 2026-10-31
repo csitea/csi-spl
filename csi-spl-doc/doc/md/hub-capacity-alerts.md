@@ -124,3 +124,23 @@ SPL-3963 its `duration` was `"0s"`: one window over the threshold paged.
   fail the rule, and on a modelled series (300 s sums one point a minute) a
   5-minute error burst stays quiet at 600 s where 12 minutes pages and the
   old `0s` paged the burst.
+
+### 6.1 A relay loop and a dropped DB connection (SPL-4490)
+
+The hub's own loops keep their ERROR count down, so a short outage does not
+reach the threshold above. Measured on prd (c-732's api top-10, SPL-4420):
+96 `write: broken pipe` ERROR lines from the relay loops, 92 of them one
+burst on 2026-10-22T22:38Z where every loop logged once per workspace, and
+4 a pooled connection the server had dropped, which pgx reused.
+
+- A relay-loop or back-fill sweep read that fails before anything reached
+  the server (`pgconn.SafeToRetry`) runs once more, on another connection;
+  a read that may have reached the server is never retried.
+- A pass in which a site fails for every workspace logs one line for that
+  site (`all_failed`, `workspaces`, `calls`): ERROR the first pass, WARN
+  while it keeps failing. A pass where only some fail still logs each one,
+  with the ERROR once, WARN, recovered INFO of SPL-3194.
+- Code: `csi-spl-api/src/go/spool-hub-api/internal/hub/relay_loops.go`.
+  Test: `internal/hub/relay_retry_test.go` (a safe broken pipe is retried
+  once and logs nothing; an unsafe one is read once; 3 failing workspaces
+  log 1 line per site per pass).

@@ -74,11 +74,12 @@ func (s *Server) backfillBox(ctx context.Context, tenant, box string) {
 	if x == nil || !x.has(FeatureBackfill) {
 		return
 	}
-	seats, err := bf.PendingBackfills(ctx, tenant, box)
+	seats, err := retryRead(func() ([]store.BackfillSeat, error) { return bf.PendingBackfills(ctx, tenant, box) })
 	if err != nil {
-		s.o.Log.Error().Err(err).Str("tenant", tenant).Str("box", box).Msg("pending back-fills")
+		s.relayDue.backfills.fail(&s.o.Log, "pending back-fills", tenant, box, err)
 		return
 	}
+	s.relayDue.backfills.ok(&s.o.Log, "pending back-fills", tenant, box)
 	for _, seat := range seats {
 		s.backfillSeat(ctx, bf, x, seat)
 	}
@@ -158,6 +159,8 @@ func (s *Server) backfillable(x *session, seat store.BackfillSeat, r store.Backf
 // backfillLive runs the pending back-fills of every connected box (the
 // sweeper's pass).
 func (s *Server) backfillLive(ctx context.Context) {
+	s.relayDue.backfills.begin() // SPL-4490: failing for every box logs once
+	defer s.relayDue.backfills.end(&s.o.Log)
 	s.mu.Lock()
 	keys := make([][2]string, 0, len(s.boxes))
 	for k := range s.boxes {

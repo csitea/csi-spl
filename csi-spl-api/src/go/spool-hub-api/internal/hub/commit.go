@@ -54,7 +54,7 @@ func (s *Server) pushUnacked(ctx context.Context, x *session, sentBefore time.Ti
 		return 0
 	}
 	now := s.o.Now()
-	q, err := a.UnackedFor(ctx, x.tenant, x.box, now, sentBefore)
+	q, err := retryRead(func() ([]store.Queued, error) { return a.UnackedFor(ctx, x.tenant, x.box, now, sentBefore) })
 	if err != nil {
 		s.relayDue.loops.fail(&s.o.Log, "unacked rows", x.tenant, x.box, err)
 		return 0

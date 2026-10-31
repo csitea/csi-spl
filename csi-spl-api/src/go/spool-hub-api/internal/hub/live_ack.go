@@ -63,7 +63,9 @@ func (s *Server) escalateNacked(ctx context.Context, tenants []string, now time.
 		return
 	}
 	for _, tenant := range tenants {
-		posts, err := la.NackedPosts(ctx, tenant, now.Add(-relaySweepWindow), now.Add(-nackSettle), relaySweepMax)
+		posts, err := retryRead(func() ([]store.Queued, error) {
+			return la.NackedPosts(ctx, tenant, now.Add(-relaySweepWindow), now.Add(-nackSettle), relaySweepMax)
+		})
 		if err != nil {
 			s.relayDue.loops.fail(&s.o.Log, "relay nacked posts", tenant, "", err)
 			continue

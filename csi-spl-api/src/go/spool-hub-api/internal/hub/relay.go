@@ -52,11 +52,12 @@ const (
 )
 
 // relayCadence is when this process last ran each slow sweep, and which
-// relay-loop calls are failing (loop_log.go).
+// relay-loop and back-fill sweep calls are failing (loop_log.go,
+// relay_loops.go).
 type relayCadence struct {
 	mu                sync.Mutex
 	unacked, escalate time.Time
-	loops             loopLog
+	loops, backfills  relayLoops
 }
 
 // due reports whether the sweep last run at *last is due again at now, once
@@ -92,6 +93,8 @@ func (s *Server) RunRelay(ctx context.Context, interval time.Duration) {
 
 // Relay is one relay tick (exported for the tests' clock).
 func (s *Server) Relay(ctx context.Context) {
+	s.relayDue.loops.begin() // SPL-4490: a site failing for every workspace logs once
+	defer s.relayDue.loops.end(&s.o.Log)
 	s.sweepHumanStatus(ctx) // spec 096: expired statuses, at most once a minute per tenant
 	now := s.o.Now()
 	// spec 059 S2: a row a committing box has held unacked past the
@@ -127,7 +130,9 @@ func (s *Server) Relay(ctx context.Context) {
 		return
 	}
 	for _, tenant := range ids {
-		posts, err := fb.UnheardPosts(ctx, tenant, now.Add(-relaySweepWindow), now.Add(-relaySweepGrace), relaySweepMax)
+		posts, err := retryRead(func() ([]store.Queued, error) {
+			return fb.UnheardPosts(ctx, tenant, now.Add(-relaySweepWindow), now.Add(-relaySweepGrace), relaySweepMax)
+		})
 		if err != nil {
 			s.relayDue.loops.fail(&s.o.Log, "relay unheard posts", tenant, "", err)
 			continue
@@ -177,7 +182,9 @@ func (s *Server) escalateUnanswered(ctx context.Context, fb store.Fallbacks, ten
 		return
 	}
 	for _, tenant := range tenants {
-		posts, err := fb.UnansweredPosts(ctx, tenant, now.Add(-unansweredWindow), now.Add(-s.o.UnansweredGrace), relaySweepMax)
+		posts, err := retryRead(func() ([]store.Queued, error) {
+			return fb.UnansweredPosts(ctx, tenant, now.Add(-unansweredWindow), now.Add(-s.o.UnansweredGrace), relaySweepMax)
+		})
 		if err != nil {
 			s.relayDue.loops.fail(&s.o.Log, "relay unanswered posts", tenant, "", err)
 			continue
@@ -208,7 +215,9 @@ func (s *Server) reescalate(ctx context.Context, fb store.Fallbacks, tenants []s
 		return
 	}
 	for _, tenant := range tenants {
-		posts, err := fb.ReescalatablePosts(ctx, tenant, now.Add(-unansweredWindow), now.Add(-s.o.ReescalateEvery), now.Add(-s.o.UnansweredGrace), s.o.ReescalateMax, relaySweepMax)
+		posts, err := retryRead(func() ([]store.Queued, error) {
+			return fb.ReescalatablePosts(ctx, tenant, now.Add(-unansweredWindow), now.Add(-s.o.ReescalateEvery), now.Add(-s.o.UnansweredGrace), s.o.ReescalateMax, relaySweepMax)
+		})
 		if err != nil {
 			s.relayDue.loops.fail(&s.o.Log, "relay reescalatable posts", tenant, "", err)
 			continue
@@ -231,7 +240,7 @@ func (s *Server) reescalate(ctx context.Context, fb store.Fallbacks, tenants []s
 // pushQueued pushes every queued row of a box socket this process holds and
 // returns how many it sent (the wake-up, wake.go).
 func (s *Server) pushQueued(ctx context.Context, x *session) int {
-	q, err := s.o.Store.QueuedFor(ctx, x.tenant, x.box, s.o.Now())
+	q, err := retryRead(func() ([]store.Queued, error) { return s.o.Store.QueuedFor(ctx, x.tenant, x.box, s.o.Now()) })
 	if err != nil {
 		s.relayDue.loops.fail(&s.o.Log, "relay queue", x.tenant, x.box, err)
 		return 0
@@ -255,7 +264,7 @@ func (s *Server) pushQueuedSet(ctx context.Context, tenant string, xs []*session
 	for i, x := range xs {
 		boxes[i] = x.box
 	}
-	rows, err := qs.QueuedForBoxes(ctx, tenant, boxes, s.o.Now())
+	rows, err := retryRead(func() (map[string][]store.Queued, error) { return qs.QueuedForBoxes(ctx, tenant, boxes, s.o.Now()) })
 	if err != nil {
 		s.relayDue.loops.fail(&s.o.Log, "relay queue", tenant, "", err)
 		return sent

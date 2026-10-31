@@ -15,8 +15,9 @@
 # line exactly, each through its named install action:
 #   dev desk reconcile  box user, */3, ENV=dev TENANT_ID=t1 DESK_MUTE=CLE-00
 #                       (do_spl_desk_install_service, tag csi-spl:desk-reconcile)
-#   weekly full scan    box user, Fri 17:00 box time (Europe/Helsinki, as on the
-#                       PC). SAT-ONLY, not holder-gated: sat is the always-on
+#   weekly full scan    box user, Fri 21:00 box time (Europe/Helsinki: 20:00
+#                       CET/CEST, the night of spec 166 row B7; the PC had Fri
+#                       17:00; the hour is the action's). SAT-ONLY, not holder-gated: sat is the always-on
 #                       home (064 Q1), the script posts to #spool-hub-ops so two
 #                       machines = two posts, its flock is per box, and a gate
 #                       would live in the script, outside this role. The PC's

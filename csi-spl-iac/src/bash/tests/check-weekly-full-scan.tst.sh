@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
-# Purpose: the weekly full scan (owner 2026-10-01: Friday 17:00) and its cron.
+# Purpose: the weekly full scan (Friday 21:00 box time, spec 166 row B7) and its cron.
 #   1. install, DRY_RUN=1: prints the crontab diff, leaves the crontab alone
-#   2. install, DRY_RUN=0: ONE tagged line, Friday 17:00, from the desk-cron
+#   2. install, DRY_RUN=0: ONE tagged line, Friday 21:00, from the desk-cron
 #      checkout with DRY_RUN=0; every other line untouched
 #   3. a line whose tag only STARTS like ours (…weekly-full-scan-prd) survives
 #      install and remove: the tag is matched exactly at the end of the line
@@ -43,15 +43,15 @@ SRC="$T/fake-desk-cron"
 inst() { WEEKLY_SCAN_CRONTAB="$CT" WEEKLY_SCAN_CRON_SRC="$SRC" WEEKLY_SCAN_LOG_DIR="$T/log" do_install_weekly_full_scan_cron 2>&1; }
 
 out="$(DRY_RUN=1 inst)"
-cmp -s "$CT" "$T/orig" && grep -q '^+0 17 \* \* 5 ' <<<"$out" \
+cmp -s "$CT" "$T/orig" && grep -q '^+0 21 \* \* 5 ' <<<"$out" \
   && pass "1. DRY_RUN=1 prints the crontab diff and changes nothing" || fail "1. dry run" "$out"
 
 DRY_RUN=0 inst >/dev/null
 n="$(grep -c ' # csi-spl:weekly-full-scan$' "$CT")"
 line="$(grep ' # csi-spl:weekly-full-scan$' "$CT")"
-{ [[ "$n" == 1 ]] && [[ "$line" == "0 17 * * 5 "* ]] && [[ "$line" == *"cd $SRC && flock -w 300 \"\$(git rev-parse --absolute-git-dir)/desk-cron-checkout.lock\" sh -c 'git fetch -q origin master && git checkout -q --detach origin/master';"* ]] \
+{ [[ "$n" == 1 ]] && [[ "$line" == "0 21 * * 5 "* ]] && [[ "$line" == *"cd $SRC && flock -w 300 \"\$(git rev-parse --absolute-git-dir)/desk-cron-checkout.lock\" sh -c 'git fetch -q origin master && git checkout -q --detach origin/master';"* ]] \
   && [[ "$line" == *"DRY_RUN=0 $SRC/csi-spl-iac/src/bash/scripts/weekly-full-scan-cron.sh"* ]]; } \
-  && pass "2. one tagged line: Friday 17:00, self-updating desk-cron checkout, DRY_RUN=0" || fail "2. install" "n=$n line=$line"
+  && pass "2. one tagged line: Friday 21:00 (night, not 17:00 by day), self-updating desk-cron checkout, DRY_RUN=0" || fail "2. install" "n=$n line=$line"
 grep -qx '\*/3 \* \* \* \* echo desk # csi-spl:desk-reconcile' "$CT" && grep -qx '0 8 \* \* \* echo unrelated' "$CT" \
   && pass "2. ... every other line is untouched" || fail "2. others" "$(cat "$CT")"
 grep -q 'weekly-full-scan-prd$' "$CT" && pass "3. a line tagged ...weekly-full-scan-prd survives install (exact match)" || fail "3. exact tag" "$(cat "$CT")"

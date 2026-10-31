@@ -205,7 +205,7 @@ import type { BoxStat, BoxStatHour } from '~/utils/box-resources.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useAccessStore } from '~/stores/access'
-import { countedRead, gateMe, permReadable } from '~/utils/read-gates.mjs'
+import { gateMe, permReadable } from '~/utils/read-gates.mjs'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useTopicStore } from '~/stores/topic'
 import { useLiveFeed } from '~/stores/live'
@@ -250,7 +250,7 @@ async function loadStats(quiet = false) {
     const readable = permReadable(await gateMe(access), 'audit.read')
     if (mine !== seq) return
     if (!readable) { stats.value = { state: 'forbidden', rows: [], hours: [] }; return }
-    const { rows, hours } = boxStatsOf(await countedRead(useSpoolApi() as { mock?: boolean }, '/v1/tenant/box-stats', () => useSpoolApi().boxStats({ box: id, since: '24h' })) as { rows?: unknown[], hours?: unknown[] } | null)
+    const { rows, hours } = boxStatsOf(await useSpoolApi().boxStats({ box: id, since: '24h' }) as { rows?: unknown[], hours?: unknown[] } | null)
     if (mine !== seq) return
     stats.value = { state: rows.length || hours.length ? 'ready' : 'empty', rows, hours }
   } catch (e) {

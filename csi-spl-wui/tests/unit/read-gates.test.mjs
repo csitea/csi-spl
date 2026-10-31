@@ -3,8 +3,12 @@
 // a member sends none, an unknown reader still reads (the hub's 403 is the control).
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { countedRead, gateMe, lanesReadPlan, operatorReadable, permReadable, staffReadable } from '../../src/utils/read-gates.mjs'
+import { gateMe, lanesReadPlan, operatorReadable, permReadable, staffReadable } from '../../src/utils/read-gates.mjs'
 import { normalizeMe } from '../../src/utils/access.mjs'
+import { mockFleetTokens } from '../../src/utils/monitoring-tokens.mjs'
+import { mockFleetLanes } from '../../src/utils/monitoring-lanes.mjs'
+import { mockMarketingReport } from '../../src/utils/reporting-marketing.mjs'
+import { MOCK_ME_KEY } from '../../src/utils/act-as-mock.mjs'
 
 const me = (body) => normalizeMe(body)
 const MEMBER = me({ role: 'member', roles: ['member'], tenant_owner: false, permissions: ['topics.read'] })
@@ -58,17 +62,15 @@ describe('read gates (SPL-4453)', () => {
     assert.equal(loads, 1)
   })
 
-  it('countedRead records a mock 403 by its path and rethrows; a live build or another status records nothing', async () => {
+  it('the mock hub records each read it refuses where it refuses it, so a page that sends one is counted whatever its own code', () => {
     const g = /** @type {{ SPOOL_MOCK_403?: string[] }} */ (globalThis)
     delete g.SPOOL_MOCK_403
-    const refuse = (status) => async () => { throw Object.assign(new Error('x'), { status }) }
-    await assert.rejects(countedRead({ mock: true }, '/v1/view/lanes', refuse(403)))
-    await assert.rejects(countedRead({ mock: false }, '/v1/view/file-streams', refuse(403)))
-    await assert.rejects(countedRead({ mock: true }, '/v1/operator/fleet-tokens', refuse(500)))
-    let route = '/v1/operator/fleet-lanes'
-    await assert.rejects(countedRead({ mock: true }, () => route, async () => { route = '/v1/view/lanes'; throw Object.assign(new Error('x'), { status: 403 }) }))
-    assert.deepEqual(g.SPOOL_MOCK_403, ['GET /v1/view/lanes', 'GET /v1/view/lanes'])
-    assert.equal(await countedRead({ mock: true }, '/v1/reporting/marketing', async () => 7), 7)
+    const empty = { getItem: () => null }
+    const member = { getItem: (k) => (k === MOCK_ME_KEY ? JSON.stringify({ role: 'member', permissions: ['topics.read'] }) : null) }
+    assert.throws(() => mockFleetTokens('1h', empty), { status: 403 })
+    assert.throws(() => mockFleetLanes(empty), { status: 403 })
+    assert.throws(() => mockMarketingReport(Date.now(), member), { status: 403 })
+    assert.deepEqual(g.SPOOL_MOCK_403, ['GET /v1/operator/fleet-tokens', 'GET /v1/operator/fleet-lanes', 'GET /v1/reporting/marketing'])
     delete g.SPOOL_MOCK_403
   })
 })

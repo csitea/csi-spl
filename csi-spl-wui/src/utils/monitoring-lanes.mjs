@@ -11,6 +11,7 @@
  * it rides the initial JS (ci_initial_gzip_kb, case C20). Node tests import it.
  */
 
+import { mockRefused } from './act-as-mock.mjs'
 import { isoSeconds } from './iso-seconds.mjs'
 import { lagSeconds, TOKENS_MOCK_OPERATOR_KEY } from './monitoring-tokens.mjs'
 
@@ -316,7 +317,7 @@ const LANES_MOCK_WORKSPACE = 'Mock workspace'
  */
 export function mockFleetLanes(store = mockStore(), now = new Date()) {
   const get = (k) => { try { return store ? store.getItem(k) : null } catch { return null } }
-  if (get(LANES_MOCK_OPERATOR_KEY) !== '1') throw mockForbidden()
+  if (get(LANES_MOCK_OPERATOR_KEY) !== '1') throw mockRefused('/v1/operator/fleet-lanes', mockForbidden())
   const asOf = new Date(Math.floor(now.getTime() / 1000) * 1000)
   const ago = (s) => isoSeconds(new Date(asOf.getTime() - s * 1000))
   const out = { as_of: isoSeconds(asOf), fleet: 'main', lanes: /** @type {any[]} */ ([]) }

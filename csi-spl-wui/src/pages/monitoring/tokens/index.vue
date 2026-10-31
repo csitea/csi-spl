@@ -49,7 +49,7 @@
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useAccessStore } from '~/stores/access'
-import { countedRead, gateMe, operatorReadable } from '~/utils/read-gates.mjs'
+import { gateMe, operatorReadable } from '~/utils/read-gates.mjs'
 import { fleetTokensOf, lagSeconds, staleLevel, tokensShouldPoll, TOKENS_DEFAULT_WINDOW, TOKENS_POLL_MS, TOKENS_WINDOWS } from '~/utils/monitoring-tokens.mjs'
 import MonitoringTokensSummary from '~/components/monitoring/token-burn/MonitoringTokensSummary.vue'
 import VendorBurnTable from '~/components/monitoring/token-burn/VendorBurnTable.vue'
@@ -86,8 +86,7 @@ async function load() {
       state.value = 'forbidden'
       return
     }
-    const api = useSpoolApi() as unknown as TokensApi & { mock?: boolean }
-    const body = await countedRead(api, '/v1/operator/fleet-tokens', () => api.getFleetTokens(win.value))
+    const body = await (useSpoolApi() as unknown as TokensApi).getFleetTokens(win.value)
     if (mine !== seq) return
     view.value = fleetTokensOf(body)
     fetchedAt.value = Date.now()

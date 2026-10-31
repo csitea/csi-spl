@@ -91,7 +91,7 @@ import { isoDateTime } from '~/utils/date-iso.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useOperatorPane } from '~/stores/operator-pane'
 import { useAccessStore } from '~/stores/access'
-import { countedRead, gateMe, lanesReadPlan } from '~/utils/read-gates.mjs'
+import { gateMe, lanesReadPlan } from '~/utils/read-gates.mjs'
 import { AGENT_CARD_TABS, agentCardTab, agentCardTabQuery } from '~/utils/agent-card-tabs.mjs'
 import { agentLanes, fleetLanesOf, laneDeepLink, laneName, readLanes } from '~/utils/monitoring-lanes.mjs'
 
@@ -151,8 +151,7 @@ async function loadLanes() {
       return
     }
     if (plan === 'own') lanesRead.own = true
-    const api = useSpoolApi() as unknown as LanesApi & { mock?: boolean }
-    allLanes.value = fleetLanesOf(await countedRead(api, () => (lanesRead.own ? '/v1/view/lanes' : '/v1/operator/fleet-lanes'), () => readLanes(api, lanesRead))).lanes
+    allLanes.value = fleetLanesOf(await readLanes(useSpoolApi() as unknown as LanesApi, lanesRead)).lanes
     lanesState.value = 'ok'
   } catch (e) {
     lanesState.value = (e as { status?: number })?.status === 403 ? 'forbidden' : 'error'

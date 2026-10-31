@@ -29,7 +29,7 @@
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useAccessStore } from '~/stores/access'
-import { countedRead, gateMe, staffReadable } from '~/utils/read-gates.mjs'
+import { gateMe, staffReadable } from '~/utils/read-gates.mjs'
 import { marketingAttribution, marketingReportRead, marketingStageCards } from '~/utils/reporting-marketing.mjs'
 
 const { t } = useI18n({ useScope: 'global' })
@@ -50,7 +50,7 @@ onMounted(async () => {
       state.value = 'forbidden'
       return
     }
-    report.value = await countedRead(api, '/v1/reporting/marketing', () => marketingReportRead(api))
+    report.value = await marketingReportRead(api)
     state.value = 'ready'
   } catch (e) {
     state.value = (e as { status?: number })?.status === 403 ? 'forbidden' : 'error'

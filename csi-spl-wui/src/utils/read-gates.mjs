@@ -73,26 +73,3 @@ export async function gateMe(access) {
   if (!access.me) await access.load()
   return access.me
 }
-
-/**
- * One gated read, counted for the e2e: in a mock build (api.mock) a 403 the
- * mock hub answers is recorded as 'GET <path>' in globalThis.SPOOL_MOCK_403
- * (the list SPL-4452's settings e2e counts too), then rethrown. A live build
- * records nothing.
- * @template T
- * @param {{ mock?: boolean } | null | undefined} api
- * @param {string | (() => string)} path a function when the read picks its route as it goes (readLanes)
- * @param {() => Promise<T>} read
- * @returns {Promise<T>}
- */
-export async function countedRead(api, path, read) {
-  try {
-    return await read()
-  } catch (e) {
-    if (api?.mock && /** @type {{ status?: number }} */ (e)?.status === 403) {
-      const g = /** @type {{ SPOOL_MOCK_403?: string[] }} */ (globalThis)
-      g.SPOOL_MOCK_403 = [...(g.SPOOL_MOCK_403 || []), 'GET ' + (typeof path === 'function' ? path() : path)]
-    }
-    throw e
-  }
-}

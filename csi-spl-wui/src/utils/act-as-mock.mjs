@@ -65,6 +65,22 @@ export function mockMeGet(store) {
   return v && Array.isArray(v.permissions) ? { role: String(v.role || ''), permissions: v.permissions.map(String) } : null
 }
 
+/**
+ * SPL-4453: the mock hub refuses a read where the live hub would answer 403.
+ * It records that read as 'GET <path>' in globalThis.SPOOL_MOCK_403 (the list
+ * SPL-4452's settings e2e counts too) at the refusal itself, so a page that
+ * sends the read is counted whatever its own code does, and returns `err`.
+ * @template {Error} E
+ * @param {string} path
+ * @param {E} err
+ * @returns {E}
+ */
+export function mockRefused(path, err) {
+  const g = /** @type {{ SPOOL_MOCK_403?: string[] }} */ (globalThis)
+  g.SPOOL_MOCK_403 = [...(g.SPOOL_MOCK_403 || []), 'GET ' + path]
+  return err
+}
+
 /** The stored mock act-as ({ target_hum, expires_at }), or null. */
 function mockActAsGet(store) {
   return storageGetJson(MOCK_ACT_AS_KEY, null, store)

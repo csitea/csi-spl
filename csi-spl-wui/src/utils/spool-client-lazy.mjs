@@ -17,7 +17,7 @@ import { credentialsFor, isPublicChannel, normalizeChannelId, rosterHumanIds, sh
 import { FLOW_SEEN_KEY, flowEventKind, mockFlowCounts, mockFlowEvents, mockFlowKeys, parseFlowCounts, parseFlowKeys } from './flow-badge.mjs'
 import { MOCK_RELEASES, flowByNewest, foldFlowEvents, foldReleases, parseFlowLines } from './flow-fold.mjs'
 import { loadCursors } from './read-cursor.mjs'
-import { mockArchivePolicy, mockMeGet } from './act-as-mock.mjs'
+import { mockArchivePolicy, mockMeGet, mockRefused } from './act-as-mock.mjs'
 import { mockLookupIds } from './id-lookup.mjs'
 import { mockFleetRead, mockFleetWrite } from './fleet-load.mjs'
 import { mockPreviews } from './link-preview-lookup.mjs'
@@ -1807,7 +1807,7 @@ async function getFleetLanes(ctx, own = false) {
 async function getFileStreams(ctx) {
   const { live, mock } = ctx
   if (mock) {
-    mockFileStreamsStaff()
+    mockFileStreamsStaff('/v1/view/file-streams')
     return (await import('./monitoring-file-streams.mjs')).mockFileStreams()
   }
   return live('/v1/view/file-streams')
@@ -1822,7 +1822,7 @@ async function getFileStreams(ctx) {
 async function getFileStreamLines(ctx, id, q = {}) {
   const { live, mock } = ctx
   if (mock) {
-    mockFileStreamsStaff()
+    mockFileStreamsStaff(`/v1/view/file-streams/${encodeURIComponent(String(id))}/lines`)
     return (await import('./monitoring-file-streams.mjs')).mockFileStreamLines(String(id), q)
   }
   const p = new URLSearchParams()
@@ -1833,11 +1833,14 @@ async function getFileStreamLines(ctx, id, q = {}) {
   return live(`/v1/view/file-streams/${encodeURIComponent(String(id))}/lines${qs ? '?' + qs : ''}`)
 }
 
-/** The mock's gate of 3.4: a mock owner or admin (spool.mock.me), else the hub's 403. */
-function mockFileStreamsStaff() {
+/**
+ * The mock's gate of 3.4: a mock owner or admin (spool.mock.me), else the hub's 403, recorded for `path` (SPL-4453).
+ * @param {string} path
+ */
+function mockFileStreamsStaff(path) {
   const me = mockMeGet()
   if (!me || !['admin', 'biz_owner'].includes(me.role)) {
-    throw Object.assign(new Error('only the workspace owner or an admin reads file streams'), { status: 403, token: 'forbidden', permission: 'file_streams.staff' })
+    throw mockRefused(path, Object.assign(new Error('only the workspace owner or an admin reads file streams'), { status: 403, token: 'forbidden', permission: 'file_streams.staff' }))
   }
 }
 
@@ -1850,7 +1853,7 @@ function mockFileStreamsStaff() {
 function mockOwnLanes(ml) {
   const me = mockMeGet()
   if (!me || !['admin', 'biz_owner'].includes(me.role)) {
-    throw Object.assign(new Error('only the workspace owner or an admin sees its lanes'), { status: 403, token: 'forbidden', permission: 'workspace.lanes' })
+    throw mockRefused('/v1/view/lanes', Object.assign(new Error('only the workspace owner or an admin sees its lanes'), { status: 403, token: 'forbidden', permission: 'workspace.lanes' }))
   }
   const store = { getItem: (k) => (k === ml.LANES_MOCK_OPERATOR_KEY ? '1' : globalThis.localStorage?.getItem(k) ?? null) }
   const all = ml.mockFleetLanes(store)

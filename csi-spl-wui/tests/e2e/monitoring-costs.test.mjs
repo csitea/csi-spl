@@ -537,7 +537,8 @@ async function lanesTab(browser, base, size) {
 
 /** SPL-4453 (rows 5 and 9 of SPL-4422): a plain member opens each admin or operator Monitoring page by URL; the page decides
  *  from /v1/view/me and sends no read the hub refuses (globalThis.SPOOL_MOCK_403 stays empty), and shows its no-access line.
- *  CONTROL: on master before SPL-4453 each page reads first and the mock hub's 403 lands in the list. */
+ *  The mock hub writes the list where it refuses (act-as-mock.mjs mockRefused), not the page.
+ *  CONTROL: the pages before SPL-4453 (7adacb96e) read first and each refused read lands in the list. */
 const MEMBER_ME = { role: 'member', permissions: ['topics.read', 'notes.send'] }
 async function memberGates(browser, base, size) {
   const { ctx, p } = await costsPage(browser, base, size, { me: MEMBER_ME })

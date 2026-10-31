@@ -8,7 +8,7 @@
 // but the workspace's owner or an admin. B1 draws one empty card per stage;
 // the connector rows (B3..B16) fill them.
 
-import { mockMeGet } from './act-as-mock.mjs'
+import { mockMeGet, mockRefused } from './act-as-mock.mjs'
 import { HUB_READ_TIMEOUT_MS } from './fetch-timeouts.mjs'
 import { withSessionRetry } from './live-follow.mjs'
 
@@ -30,7 +30,7 @@ const MOCK_STAFF_ROLES = Object.freeze(['admin', 'biz_owner'])
 export function mockMarketingReport(now, store) {
   const me = mockMeGet(store)
   if (me && !MOCK_STAFF_ROLES.includes(me.role)) {
-    throw Object.assign(new Error('only the workspace owner or an admin sees the marketing numbers'), { status: 403 })
+    throw mockRefused(MARKETING_REPORT_PATH, Object.assign(new Error('only the workspace owner or an admin sees the marketing numbers'), { status: 403 }))
   }
   return {
     as_of: new Date(now).toISOString().slice(0, 19) + 'Z',

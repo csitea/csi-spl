@@ -253,8 +253,14 @@ refused "10. a hex word GitHub does not have is no far-hub sha" "a commit sha of
 B="**Live** far-hub ${GH_ON:0:9}"$'\n'"$PROOF"
 send do_spl_desk_reply "$B" "${CUST[@]}" "${GH[@]}" LANE_LANDED_CNF="$T/cust.yaml"; rc=$?
 one_line "10. RED CONTROL a cnf with no far-hub row refuses LIVE_REPO=far-hub" "'far-hub' is no repo the cnf knows (src_dir names: cust-rel far-rel)"
-send do_spl_desk_reply "$B" "${CUST[@]}" "${GH[@]}" LANE_LANDED_CNF="$T/cust.yaml" SPOOL_LANDED_REPOS_FILE="$T/gh.yaml"; rc=$?
+# The file counts only when the spool root's owner (or root) owns it: the test's
+# own SPOOL_ROOT, owned by the test user. The box's /var/spool-hub is owned by
+# another user, or missing on a CI runner (wf 10 run 41182926135).
+mkdir -p "$T/spool"
+send do_spl_desk_reply "$B" "${CUST[@]}" "${GH[@]}" LANE_LANDED_CNF="$T/cust.yaml" SPOOL_LANDED_REPOS_FILE="$T/gh.yaml" SPOOL_ROOT="$T/spool"; rc=$?
 sent "10. the box-side SPOOL_LANDED_REPOS_FILE's GitHub-only row beside the cnf's: Live" "$B"
+send do_spl_desk_reply "$B" "${CUST[@]}" "${GH[@]}" LANE_LANDED_CNF="$T/cust.yaml" SPOOL_LANDED_REPOS_FILE="$T/gh.yaml" SPOOL_ROOT="$T/no-spool"; rc=$?
+one_line "10. RED CONTROL the same file under a missing SPOOL_ROOT (no owner to match) adds no row" "'far-hub' is no repo the cnf knows (src_dir names: cust-rel far-rel)"
 rm -f "$T/stub/gh"
 
 # --- 11. an all-digit short sha (SPL-2706) ----------------------------------------

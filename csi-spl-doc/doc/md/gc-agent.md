@@ -59,6 +59,11 @@ shell after the CLI: when the pass ends, the window is gone. The GC carries
 no agent id: it is not counted against the 40-window ceiling and the
 watchdog does not judge it.
 
+<a id="ws-doc-e714280c-d137-43f3-ac2e-da30d6ae28a3"></a>
+### 1.4 Not the GC: the night zombie sweep
+
+The GC does not archive discussions. The night sweep of zombie discussions (spec 166 row B6, SPL-4519) is its own box cron row `zombie-topics` (`csi-spl-orc/src/bash/scripts/zombie-topics-cron.sh`, `*/15`, `csi-spl-orc/src/bash/run/spl-zombie-topics.func.sh`): at night only, on the dispatch holder's box, it archives idle topics that no open ask, live lane, lane brief or open issue names, at most `ZOMBIE_MAX` a night. It runs `DRY_RUN=1` until the orch holder sets `ZOMBIE_DRY_RUN=0` in the dispatch `lease.conf` after reading a night's planned list.
+
 <a id="ws-doc-4c8572a8-021b-4ee6-a7e6-54b8a8f5d1ab"></a>
 ## 2. One pass
 

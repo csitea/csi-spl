@@ -16,8 +16,14 @@
 #      from the date and seat adds asks (the check above can fail)
 #   5. a live run off the orch holder's machine queues nothing; a held mix
 #      queues nothing; bad knobs are refused
-#   6. do_spl_security_round_install_cron: one line, Friday 05:30 UTC gate,
-#      DRY_RUN=0, flock -n; idempotent; remove takes only its line
+#   6. do_spl_security_round_install_cron: one line, gated on UTC Friday and
+#      do_spl_rhythm_phase night (spec 166 row B7), DRY_RUN=0, flock -n;
+#      idempotent; remove takes only its line
+#   7. the installed line, RUN at a fake clock (a date shim, the real
+#      do_spl_rhythm_phase): it queues on Friday 02:00Z in July (night) and
+#      Friday 05:30Z in January (night), not on Friday 05:30Z in July (day),
+#      not on Thursday 23:30Z (night, not Friday). CONTROL: the 505 line of
+#      the tree before B7, run the same way, queues at Friday 05:30Z in July
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -228,13 +234,10 @@ cron() {
 cron DRY_RUN=0 >"$T/o" 2>&1; rc=$?
 line="$(grep '# csi-spl:security-round$' "$T/crontab")"
 # shellcheck disable=SC2016 # $HOME and $(date) stay literal in the cron line
-want='30 * * * * [ "$(date -u +\%u\%H)" = 505 ] && cd '"$SRC"'/csi-spl-orc && PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$HOME/.local/bin DRY_RUN=0 flock -n '"$T"'/cronlog/security-round.lock ./run -a do_spl_security_round_queue >> '"$T"'/cronlog/cron.out 2>&1 # csi-spl:security-round'
+want='30 * * * * [ "$(date -u +\%u)" = 5 ] && cd '"$SRC"'/csi-spl-orc && PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$HOME/.local/bin && [ "$(./run -a do_spl_rhythm_phase 2>/dev/null)" = night ] && DRY_RUN=0 flock -n '"$T"'/cronlog/security-round.lock ./run -a do_spl_security_round_queue >> '"$T"'/cronlog/cron.out 2>&1 # csi-spl:security-round'
 [[ $rc -eq 0 && "$line" == "$want" ]] && grep -q 'spawn-place' "$T/crontab" &&
-  pass "cron: one line, :30 hourly gated on UTC Friday 05 (date -u +%u%H = 505), DRY_RUN=0, flock -n, other lines kept" ||
+  pass "cron: one line, :30 hourly gated on UTC Friday and do_spl_rhythm_phase night, DRY_RUN=0, flock -n, other lines kept" ||
   fail "cron install rc=$rc: got '$line' want '$want' $(cat "$T/o")"
-gate="$(sed -E 's/^30 \* \* \* \* \[ "\$\(date -u \+\\%u\\%H\)" = 505 \].*/ok/' <<<"$line")"
-[[ "$gate" == ok && "$(date -u -d 2026-10-16T05:30:00Z +%u%H)" == 505 && "$(date -u -d 2026-10-16T06:30:00Z +%u%H)" != 505 ]] &&
-  pass "cron: the gate reads 505 on Friday 2026-10-16 05:30Z only" || fail "cron gate: $line"
 cron DRY_RUN=0 >/dev/null 2>&1
 [[ "$(grep -c '# csi-spl:security-round$' "$T/crontab")" == 1 ]] && pass "cron: a second install is a no-op" || fail "cron lines: $(cat "$T/crontab")"
 cron SECURITY_ROUND_CRON_ACTION=check >"$T/o" 2>&1 && grep -q 'OK the weekly security round is installed' "$T/o" &&
@@ -242,6 +245,54 @@ cron SECURITY_ROUND_CRON_ACTION=check >"$T/o" 2>&1 && grep -q 'OK the weekly sec
 cron DRY_RUN=0 SECURITY_ROUND_CRON_ACTION=remove >/dev/null 2>&1
 ! grep -q 'security-round' "$T/crontab" && grep -q 'spawn-place' "$T/crontab" && pass "cron: remove takes only its line" || fail "cron remove: $(cat "$T/crontab")"
 cron SECURITY_ROUND_CRON_ACTION=nuke >/dev/null 2>&1 && fail "cron: a bad action was taken" || pass "cron: a bad action is refused"
+
+# 7. the installed line at a fake clock ------------------------------------------
+# The date shim answers for FAKE_NOW (`date -d now` and a bare `date`) up to
+# the line's own PATH=; the fake ./run runs the REAL do_spl_rhythm_phase at
+# RHYTHM_NOW=FAKE_NOW (spec defaults, the box's tz database) and records every
+# other action it is asked for.
+mkdir -p "$T/clock"
+cat >"$T/clock/date" <<'EOF2'
+#!/usr/bin/env bash
+args=(); d=0; prev=
+for a in "$@"; do [[ "$prev" == -d && "$a" == now ]] && a="$FAKE_NOW"; [[ "$a" == -d ]] && d=1; args+=("$a"); prev="$a"; done
+((d)) || args=(-d "$FAKE_NOW" "${args[@]}")
+exec "$REAL_DATE" "${args[@]}"
+EOF2
+cat >"$SRC/csi-spl-orc/run" <<EOF2
+#!/usr/bin/env bash
+if [ "\$2" = do_spl_rhythm_phase ]; then
+  do_log() { echo "\$*" >&2; }
+  APP_PATH="$T/no-cnf" PROJ_PATH="$PROJ_ROOT" source "$PROJ_ROOT/src/bash/run/spl-rhythm-phase.func.sh"
+  RHYTHM_NOW="\$FAKE_NOW" APP_PATH="$T/no-cnf" PROJ_PATH="$PROJ_ROOT" do_spl_rhythm_phase
+else
+  echo "RAN \$* DRY_RUN=\${DRY_RUN:-} AT \$FAKE_NOW" >>"$T/ran.log"
+fi
+EOF2
+chmod +x "$T/clock/date" "$SRC/csi-spl-orc/run"
+mkdir -p "$T/cronlog"
+REAL_DATE="$(command -v date)"
+# at LINE NOW: run LINE's command (cron's \% unescaped) at NOW; prints the actions it ran.
+at() {
+  local cmd="${1#30 \* \* \* \* }"; cmd="${cmd//\\%/%}"; : >"$T/ran.log"
+  env PATH="$T/clock:$PATH" REAL_DATE="$REAL_DATE" FAKE_NOW="$2" HOME="$T" bash -c "$cmd" >/dev/null 2>&1
+  cat "$T/ran.log"
+}
+cron DRY_RUN=0 >/dev/null 2>&1
+line="$(grep '# csi-spl:security-round$' "$T/crontab")"
+[[ "$(at "$line" 2026-07-17T02:00:00Z)" == "RAN -a do_spl_security_round_queue DRY_RUN=0 AT 2026-07-17T02:00:00Z" ]] &&
+  pass "clock: Friday 02:00Z in July (night) queues the round" || fail "clock Fri 02:00Z July: '$(at "$line" 2026-07-17T02:00:00Z)'"
+[[ -z "$(at "$line" 2026-07-17T05:30:00Z)" ]] &&
+  pass "clock: Friday 05:30Z in July (07:30 CEST, day) queues nothing" || fail "clock Fri 05:30Z July: '$(at "$line" 2026-07-17T05:30:00Z)'"
+[[ -n "$(at "$line" 2026-01-16T05:30:00Z)" ]] &&
+  pass "clock: Friday 05:30Z in January (06:30 CET, night) queues the round" || fail "clock Fri 05:30Z January: nothing ran"
+[[ -n "$(at "$line" 2026-07-17T20:30:00Z)" && -z "$(at "$line" 2026-07-16T23:30:00Z)" && -z "$(at "$line" 2026-07-18T02:00:00Z)" ]] &&
+  pass "clock: Friday 20:30Z queues; Thursday 23:30Z and Saturday 02:00Z (night, not Friday) do not" || fail "clock: the weekday gate"
+# CONTROL: the line before B7 (Friday 05 UTC) run the same way acts by day in July.
+old='30 * * * * [ "$(date -u +\%u\%H)" = 505 ] && cd '"$SRC"'/csi-spl-orc && PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$HOME/.local/bin DRY_RUN=0 flock -n '"$T"'/cronlog/security-round.lock ./run -a do_spl_security_round_queue >> '"$T"'/cronlog/cron.out 2>&1 # csi-spl:security-round'
+[[ -n "$(at "$old" 2026-07-17T05:30:00Z)" && -z "$(at "$old" 2026-07-17T02:00:00Z)" ]] &&
+  pass "CONTROL: the 505 line queues at Friday 05:30Z in July (day) and not at 02:00Z (the clock check can fail)" ||
+  fail "CONTROL: the 505 line did not behave as before B7"
 
 echo
 (( fails == 0 )) && { echo "PASS: all"; exit 0; }

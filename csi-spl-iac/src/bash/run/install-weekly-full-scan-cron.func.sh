@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
 # @description Install (or remove) the box cron line of the weekly full scan:
-# @description Friday 17:00 BOX LOCAL time (cron follows the box timezone, so
-# @description EEST/EET), running weekly-full-scan-cron.sh from the
+# @description Friday 21:00 BOX LOCAL time (cron follows the box timezone, so
+# @description EEST/EET: 20:00 CET/CEST, the start of the night of spec 166
+# @description row B7; owner 2026-10-01 had Friday 17:00, by day), running weekly-full-scan-cron.sh from the
 # @description self-updating <shared checkout>-desk-cron checkout (each run first
 # @description moves it to origin/<trunk>), log in WEEKLY_SCAN_LOG_DIR.
 # @description ONE line, tagged `# <app>:weekly-full-scan` and matched EXACTLY at
@@ -46,7 +47,7 @@ do_install_weekly_full_scan_cron() {
   case "$src" in */*-wt/*) do_log "FATAL $src is an agent worktree: it is deleted when its agent finishes, and the job would stop silently"; return 1 ;; esac
   logdir="${WEEKLY_SCAN_LOG_DIR:-/var/$org/$app/weekly-scan}"
   tag="# $app:weekly-full-scan"
-  line="0 17 * * 5 $(spl_desk_cron_update_pre "$src" "$trunk")DRY_RUN=0 $src/csi-spl-iac/src/bash/scripts/weekly-full-scan-cron.sh >> $logdir/cron.out 2>&1 $tag"
+  line="0 21 * * 5 $(spl_desk_cron_update_pre "$src" "$trunk")DRY_RUN=0 $src/csi-spl-iac/src/bash/scripts/weekly-full-scan-cron.sh >> $logdir/cron.out 2>&1 $tag"
 
   local old new
   old="$(mktemp)"; new="$(mktemp)"

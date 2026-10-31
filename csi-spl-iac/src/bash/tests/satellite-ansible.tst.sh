@@ -464,7 +464,7 @@ cat >"$PB17/run" <<'RUN'
 case "$2" in
   do_spl_desk_install_service) t=desk-reconcile; [ "${ENV:-dev}" = dev ] || t=desk-reconcile-$ENV
     l="*/${DESK_CRON_EVERY:-5} * * * * ENV=$ENV TENANT_ID=$TENANT_ID DESK_MUTE=$DESK_MUTE x/desk-reconcile-cron.sh # csi-spl:$t" ;;
-  do_install_weekly_full_scan_cron) t=weekly-full-scan; l="0 17 * * 5 x/weekly-full-scan-cron.sh # csi-spl:$t" ;;
+  do_install_weekly_full_scan_cron) t=weekly-full-scan; l="0 21 * * 5 x/weekly-full-scan-cron.sh # csi-spl:$t" ;;
   do_tmp_scratch_sweep_install_cron) t=tmp-scratch-sweep; l="$SCRATCH_CRON_MINUTE * * * * DRY_RUN=$SCRATCH_CRON_DRY_RUN x/tmp-scratch-sweep.sh # csi-spl:$t" ;;
   *) exit 2 ;;
 esac
@@ -484,7 +484,7 @@ for t in yaml.safe_load(open('$r10')):
         print(s.replace('{{ spool_root }}', '$PB17/spool').replace('{{ repo_dir }}', '$PB17/repo'))" "$1")
   env FAKE_CRON="$PB17/cron" PATH="$PB17/bin:$PATH" STUB_FAIL="${2:-}" bash -c "$body" 2>&1; }
 p1=$(run_pc desk-reconcile); p2=$(run_pc weekly-full-scan); p3=$(run_pc tmp-scratch-sweep); p4=$(run_pc desk-reconcile); p5=$(run_pc tmp-scratch-sweep)
-[[ "$p1" == "CHANGED */3 * * * * ENV=dev TENANT_ID=t1 DESK_MUTE=CLE-00 "*"# csi-spl:desk-reconcile" && "$p2" == "CHANGED 0 17 * * 5 "*"# csi-spl:weekly-full-scan" \
+[[ "$p1" == "CHANGED */3 * * * * ENV=dev TENANT_ID=t1 DESK_MUTE=CLE-00 "*"# csi-spl:desk-reconcile" && "$p2" == "CHANGED 0 21 * * 5 "*"# csi-spl:weekly-full-scan" \
    && "$p3" == "CHANGED 17 * * * * DRY_RUN=0 "*"# csi-spl:tmp-scratch-sweep" && "$p4" == "OK */3 "* && "$p5" == "OK 17 "* ]] \
   && [[ "$(grep -c 'csi-spl:desk-reconcile$' "$PB17/cron")" == 1 && "$(grep -c 'csi-spl:desk-reconcile-prd$' "$PB17/cron")" == 1 \
      && "$(grep -c 'csi-spl:weekly-full-scan$' "$PB17/cron")" == 1 && "$(grep -c 'csi-spl:tmp-scratch-sweep$' "$PB17/cron")" == 1 \

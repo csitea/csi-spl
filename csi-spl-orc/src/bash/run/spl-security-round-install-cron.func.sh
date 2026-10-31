@@ -4,9 +4,13 @@
 # @description (do_spl_security_round_queue; owner HUM-10, t1 3d0675ba msgs
 # @description 7ec35e69 and 3271f95a): ONE line in the box user's crontab
 # @description running `DRY_RUN=0 ./run -a do_spl_security_round_queue` on
-# @description Friday at 05:30 UTC, whatever the box's own zone: the line fires
-# @description at :30 every hour and runs only when `date -u` says Friday 05,
-# @description with a PATH that has /usr/local/bin (yq) and under flock -n. The
+# @description Friday in the night phase (spec 166 row B7), whatever the box's
+# @description own zone: the line fires at :30 every hour and runs only when
+# @description `date -u` says Friday AND `./run -a do_spl_rhythm_phase` says
+# @description night (20:00-07:00 Europe/Berlin; no hour arithmetic in the
+# @description line), with a PATH that has /usr/local/bin (yq) and under
+# @description flock -n. Several ticks of one Friday queue one round: the queue
+# @description is idempotent per date (SECURITY_ROUND_DATE, UTC). The
 # @description round acts only on the orch holder's machine and only while its
 # @description switch is on (SECURITY_ROUND / cnf env.box.security_round.enabled,
 # @description absent = off), so the line can sit on every machine. Tagged
@@ -39,7 +43,7 @@ do_spl_security_round_install_cron() {
   run="$src/$SPL_ORG_APP-orc/run"
   logdir="${SECURITY_ROUND_CRON_LOG_DIR:-/var/${SPL_ORG_APP%%-*}/$SPL_ORG_APP/security-round}"
   # shellcheck disable=SC2016 # $HOME and $(date) are for the cron shell; \% is cron's escape for %
-  line="$(printf '30 * * * * [ "$(date -u +\\%%u\\%%H)" = 505 ] && cd %s && PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$HOME/.local/bin DRY_RUN=0 flock -n %s/security-round.lock ./run -a do_spl_security_round_queue >> %s/cron.out 2>&1 # %s' "${run%/run}" "$logdir" "$logdir" "$tag")"
+  line="$(printf '30 * * * * [ "$(date -u +\\%%u)" = 5 ] && cd %s && PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$HOME/.local/bin && [ "$(./run -a do_spl_rhythm_phase 2>/dev/null)" = night ] && DRY_RUN=0 flock -n %s/security-round.lock ./run -a do_spl_security_round_queue >> %s/cron.out 2>&1 # %s' "${run%/run}" "$logdir" "$logdir" "$tag")"
   current="$(spl_desk_cron_line "$tag")"
   [[ "$act" == check ]] && { spl_security_round_cron_check "$tag" "$current" "$line" "$run"; return; }
   if [[ "${DRY_RUN:-1}" == 1 ]]; then
@@ -58,7 +62,7 @@ do_spl_security_round_install_cron() {
   mkdir -p "$logdir" 2>/dev/null || { do_log "FATAL cannot create $logdir"; return 1; }
   spl_desk_cron_write "$tag" "$line" || return 1
   [[ "$(spl_desk_cron_line "$tag")" == "$line" ]] || { do_log "FATAL the crontab does not read back what was written"; return 1; }
-  do_log "OK the weekly security round runs Friday 05:30 UTC as the box user (it queues only on the orch holder's machine, while its switch is on):"
+  do_log "OK the weekly security round runs Friday at :30 in the night phase (UTC Friday, do_spl_rhythm_phase night) as the box user (it queues only on the orch holder's machine, while its switch is on):"
   spl_desk_cron_say "$line"
 }
 

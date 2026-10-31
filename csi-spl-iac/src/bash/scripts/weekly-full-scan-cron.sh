@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # weekly-full-scan-cron.sh -- the box cron of the weekly full scan (owner
-# 2026-10-01: "use 1, but make it friday at 17:00"). It runs
+# 2026-10-01: "use 1, but make it friday at 17:00"; moved to Friday 21:00 box
+# time, the night, by spec 166 row B7). It runs
 # do_check_weekly_full_scan (every scanner, whole scope, csi-spl + csi-web) and
 # posts the short summary to #spool-hub-ops as the seated CI ops desk, only so
 # the result is visible: no triage, no issues.

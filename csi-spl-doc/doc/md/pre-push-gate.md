@@ -229,7 +229,9 @@ command that reproduces it.
 | `lint-checkov` / `lint-gosec` | 65 / 62 | the action over its whole scope (65 s / >300 s) | `PRE_PUSH_TIER=full` + CI |
 | CodeQL / DAST | 60 / 68 | need the whole repo / a live host | CI only |
 
-**Weekly full scan** (owner 2026-10-01: Friday 17:00 box time): every one
+**Weekly full scan** (Friday 21:00 box time, the night of
+[spec 166](../../specs/166-orchestrator-daily-rhythm/spec.md) row B7; owner
+2026-10-01 had Friday 17:00): every one
 of those scanners over the WHOLE scope, plus checkov, gosec, semgrep,
 govulncheck, trivy, OSV, gitleaks history and pnpm audit, for csi-spl and
 csi-web: `./run -a do_check_weekly_full_scan` (DRY_RUN=1 prints the plan).

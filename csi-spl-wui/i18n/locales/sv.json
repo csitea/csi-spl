@@ -1799,7 +1799,7 @@
     "marketing_meta_disconnect_title": "Koppla från {name}?",
     "marketing_meta_disconnect_body": "Inget mer publiceras där från den här arbetsytan, och den sparade åtkomsttoken raderas.",
     "marketing_meta_disconnect_page_ig": "Det länkade Instagram-kontot kopplas också från.",
-    "marketing_meta_revoke_hint": "För att även ta bort appens åtkomst hos Meta: öppna Inställningar och integritet, Inställningar, Affärsintegrationer på Facebook och ta bort appen.",
+    "marketing_meta_revoke_hint": "För att även ta bort appens åtkomst hos Meta: öppna Inställningar och integritet, Inställningar, Företagsintegrationer på Facebook och ta bort appen.",
     "marketing_meta_disconnected": "Frånkopplad.",
     "marketing_meta_disconnect_failed": "Frånkopplingen misslyckades. Försök igen senare.",
     "marketing_meta_publish_title": "Publicera på {name}",

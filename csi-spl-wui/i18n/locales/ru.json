@@ -1802,7 +1802,7 @@
     "marketing_meta_revoke_hint": "Чтобы убрать и доступ приложения в Meta: в Facebook откройте Настройки и конфиденциальность, Настройки, Бизнес-интеграции и удалите приложение.",
     "marketing_meta_disconnected": "Отключено.",
     "marketing_meta_disconnect_failed": "Не удалось отключить. Повторите попытку позже.",
-    "marketing_meta_publish_title": "Публикация в {name}",
+    "marketing_meta_publish_title": "Опубликовать в {name}",
     "marketing_meta_publish_hint": "Опубликованные записи блога, которые ещё не размещены в этом аккаунте. Каждая уходит только после нажатия «Опубликовать».",
     "marketing_meta_publish_button": "Опубликовать",
     "marketing_meta_chars": "{count} / {limit} символов",

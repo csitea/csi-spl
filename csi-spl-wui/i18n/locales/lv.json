@@ -1803,7 +1803,7 @@
     "marketing_meta_disconnected": "Atvienots.",
     "marketing_meta_disconnect_failed": "Atvienošana neizdevās. Mēģiniet vēlāk vēlreiz.",
     "marketing_meta_publish_title": "Publicēt kontā {name}",
-    "marketing_meta_publish_hint": "Publicēti emuāra ieraksti, kas šajā kontā vēl nav kopīgoti. Katrs tiek nosūtīts tikai tad, kad nospiežat Publicēt.",
+    "marketing_meta_publish_hint": "Publicēti bloga ieraksti, kas šajā kontā vēl nav kopīgoti. Katrs tiek nosūtīts tikai tad, kad nospiežat Publicēt.",
     "marketing_meta_publish_button": "Publicēt",
     "marketing_meta_chars": "{count} / {limit} rakstzīmes",
     "marketing_meta_shortened": "Pārāk garš: kopsavilkums tiek saīsināts, lai ietilptu.",

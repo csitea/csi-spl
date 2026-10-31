@@ -1799,7 +1799,7 @@
     "marketing_meta_disconnect_title": "¿Desconectar {name}?",
     "marketing_meta_disconnect_body": "Desde este espacio de trabajo ya no se publicará nada en ella y se borra su token de acceso guardado.",
     "marketing_meta_disconnect_page_ig": "Su cuenta de Instagram vinculada también se desconecta.",
-    "marketing_meta_revoke_hint": "Para quitar también el acceso de la app en Meta: en Facebook abre Configuración y privacidad, Configuración, Integraciones comerciales y elimina la app.",
+    "marketing_meta_revoke_hint": "Para quitar también el acceso de la app en Meta: en Facebook abre Configuración y privacidad, Configuración, Integraciones empresariales y elimina la app.",
     "marketing_meta_disconnected": "Desconectada.",
     "marketing_meta_disconnect_failed": "La desconexión ha fallado. Inténtalo más tarde.",
     "marketing_meta_publish_title": "Publicar en {name}",

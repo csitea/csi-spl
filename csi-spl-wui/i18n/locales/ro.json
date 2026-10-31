@@ -1799,7 +1799,7 @@
     "marketing_meta_disconnect_title": "Deconectați {name}?",
     "marketing_meta_disconnect_body": "Din acest spațiu de lucru nu se mai publică nimic acolo, iar tokenul de acces stocat este șters.",
     "marketing_meta_disconnect_page_ig": "Contul de Instagram legat este deconectat și el.",
-    "marketing_meta_revoke_hint": "Pentru a elimina și accesul aplicației la Meta: pe Facebook deschideți Setări și confidențialitate, Setări, Integrări comerciale și eliminați aplicația.",
+    "marketing_meta_revoke_hint": "Pentru a elimina și accesul aplicației la Meta: pe Facebook deschideți Setări și confidențialitate, Setări, Integrări de afaceri și eliminați aplicația.",
     "marketing_meta_disconnected": "Deconectat.",
     "marketing_meta_disconnect_failed": "Deconectarea a eșuat. Încercați din nou mai târziu.",
     "marketing_meta_publish_title": "Publică pe {name}",

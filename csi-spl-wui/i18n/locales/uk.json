@@ -1802,7 +1802,7 @@
     "marketing_meta_revoke_hint": "Щоб прибрати й доступ застосунку в Meta: у Facebook відкрийте Налаштування та конфіденційність, Налаштування, Бізнес-інтеграції та видаліть застосунок.",
     "marketing_meta_disconnected": "Відключено.",
     "marketing_meta_disconnect_failed": "Не вдалося відключити. Спробуйте пізніше.",
-    "marketing_meta_publish_title": "Публікація в {name}",
+    "marketing_meta_publish_title": "Опублікувати в {name}",
     "marketing_meta_publish_hint": "Опубліковані дописи блогу, які ще не поширено в цьому акаунті. Кожен виходить лише після натискання «Опублікувати».",
     "marketing_meta_publish_button": "Опублікувати",
     "marketing_meta_chars": "{count} / {limit} символів",

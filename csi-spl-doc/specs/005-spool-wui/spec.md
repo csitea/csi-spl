@@ -109,8 +109,11 @@ archive, workspace/docs, agents, boxes and events; the early head script
 `/releases` (row 7 waits for the owner), `/docs` (its own door), `/login`,
 `/reset-password`, `/verify-email`, `/checkout`, `/embed`, `/blog`, `/help`,
 `/roadmap`, `/public-calendar`, `/m/<id>`. While the session is `'out'`,
-`access.load()` reads no `/v1/view/me` and `useLive` opens no hub socket.
+`access.load()` reads no `/v1/view/me` and `useLive` opens no hub socket;
+a socket a member opened before signing out is still handed back by
+`ensure()` (never re-dialled), so the sign-out closes it.
 Tests: `tests/unit/signed-out-member-pages.test.mjs`,
+`tests/unit/signed-out-socket-close.test.mjs` (the sign-out close path),
 `tests/e2e/signed-out-member-pages.test.mjs` (0 `view/me`, 0
 `webSocketCreated` on /monitoring and /issues).
 

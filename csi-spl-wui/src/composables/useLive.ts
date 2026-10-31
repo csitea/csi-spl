@@ -146,6 +146,9 @@ function subscriber<T>(set: Set<T>) {
 /**
  * SPL-4513: a settled signed-out visitor gets no socket (the hub refuses it
  * and the console logs the failed dial); a page asks again after sign-in.
+ * Only creating or re-dialling is blocked: a socket opened while signed in
+ * is still handed back, so the sign-out close path (stopHubSocket) can close
+ * it (R7 W1).
  */
 function signedOutTab(sessionState: string): boolean {
   if (sessionState !== 'out') return false
@@ -172,7 +175,7 @@ export function useLive() {
       state.value = 'mock'
       return null
     }
-    if (signedOutTab(session.state)) return null
+    if (signedOutTab(session.state)) return live
     if (live) {
       // parked after the hub refused a signed-out tab: a page asking again
       // (after a sign-in, say) dials again

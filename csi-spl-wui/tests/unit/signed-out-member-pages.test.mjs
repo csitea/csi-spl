@@ -71,12 +71,13 @@ describe("no member read while the session is 'out'", () => {
     assert.ok(guard >= 0 && read > guard, 'the out guard comes before the me() read')
   })
 
+  // its behaviour (a sign-out still closes an open socket): signed-out-socket-close.test.mjs
   it('useLive.ensure() opens no socket when signed out', () => {
     const s = src('src/composables/useLive.ts')
     assert.match(s, /useSessionStore/)
     assert.match(s, /function signedOutTab\(sessionState: string\): boolean \{\n  if \(sessionState !== 'out'\) return false/)
     const ensureAt = s.indexOf('function ensure()')
-    const guard = s.indexOf('if (signedOutTab(session.state)) return null', ensureAt)
+    const guard = s.indexOf('if (signedOutTab(session.state)) return live', ensureAt)
     const dialAt = s.indexOf('live = dial(', ensureAt)
     const reconnect = s.indexOf("live.state === 'signed_out'", ensureAt)
     assert.ok(ensureAt >= 0 && guard > ensureAt && guard < dialAt && guard < reconnect, 'the out guard comes before any connect')

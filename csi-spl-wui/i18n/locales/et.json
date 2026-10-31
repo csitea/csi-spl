@@ -596,7 +596,8 @@
     "your_status_offline": "Sinu olek: võrguühenduseta",
     "monitoring": "Seire",
     "reporting": "Aruanded",
-    "notes": "Märkmed"
+    "notes": "Märkmed",
+    "expenses": "Kulud"
   },
   "composer": {
     "biz_owner": "ettevõtte omanik",
@@ -3675,5 +3676,16 @@
     "notice_connected": "Google'i kalender on ühendatud.",
     "notice_error": "Google'i kalendrit ei ühendatud. Proovige uuesti.",
     "untitled_event": "(Pealkirjata)"
+  },
+  "expenses": {
+    "tabs_label": "Kulude vahelehed",
+    "tab": {
+      "ai": "Tehisintellekti kulud",
+      "cloud": "Pilveinfrastruktuuri kulud",
+      "hr": "Personalikulud"
+    },
+    "coming": "Nende kulude sisestamine tuleb hilisemas sammus.",
+    "operators_only": "Kulud on ainult operaatori administraatoritele.",
+    "tokens_link": "Makstud tellimused ja laadimised sisestatakse jaotises Kulud → Tehisintellekti kulud."
   }
 }

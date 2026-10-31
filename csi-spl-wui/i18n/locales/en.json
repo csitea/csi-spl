@@ -596,7 +596,8 @@
     "your_status_offline": "Your status: offline",
     "monitoring": "Monitoring",
     "reporting": "Reporting",
-    "notes": "Notes"
+    "notes": "Notes",
+    "expenses": "Expenses"
   },
   "composer": {
     "biz_owner": "business owner",
@@ -3675,5 +3676,16 @@
     "notice_connected": "Google Calendar is connected.",
     "notice_error": "Google Calendar was not connected. Try again.",
     "untitled_event": "(No title)"
+  },
+  "expenses": {
+    "tabs_label": "Expenses tabs",
+    "tab": {
+      "ai": "AI costs",
+      "cloud": "Cloud infra costs",
+      "hr": "HR costs"
+    },
+    "coming": "Entering these costs comes in a later step.",
+    "operators_only": "Expenses are for operator admins only.",
+    "tokens_link": "Paid subscriptions and top-ups are entered under Expenses → AI costs."
   }
 }

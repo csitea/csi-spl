@@ -596,7 +596,8 @@
     "your_status_offline": "Tu estado: sin conexión",
     "monitoring": "Monitorización",
     "reporting": "Informes",
-    "notes": "Notas"
+    "notes": "Notas",
+    "expenses": "Gastos"
   },
   "composer": {
     "biz_owner": "propietario del negocio",
@@ -3675,5 +3676,16 @@
     "notice_connected": "Calendario de Google está conectado.",
     "notice_error": "Calendario de Google no se conectó. Inténtalo de nuevo.",
     "untitled_event": "(Sin título)"
+  },
+  "expenses": {
+    "tabs_label": "Pestañas de gastos",
+    "tab": {
+      "ai": "Costes de IA",
+      "cloud": "Costes de infraestructura en la nube",
+      "hr": "Costes de personal"
+    },
+    "coming": "La introducción de estos costes llega en un paso posterior.",
+    "operators_only": "Los gastos son solo para administradores del operador.",
+    "tokens_link": "Las suscripciones y recargas pagadas se introducen en Gastos → Costes de IA."
   }
 }

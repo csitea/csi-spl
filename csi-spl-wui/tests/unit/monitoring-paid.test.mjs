@@ -223,11 +223,17 @@ describe('monitoring-paid: the mock hub', () => {
 })
 
 describe('monitoring-paid: the page wiring', () => {
-  it('the Tokens page loads the Paid card as its own chunk, wrapped off a bare v-if', () => {
-    const page = src('src/pages/monitoring/tokens/index.vue')
+  it('Expenses -> AI costs loads the Paid card as its own chunk, wrapped off a bare v-if (SPL-4382)', () => {
+    const page = src('src/pages/expenses/ai.vue')
     assert.match(page, /defineAsyncComponent\(\(\) => import\('~\/components\/monitoring\/token-burn\/PaidItemsCard\.vue'\)\)/)
     assert.match(page, /<div class="tk-lazy"><PaidItemsCard \/><\/div>/)
     assert.doesNotMatch(page, /^import PaidItemsCard/m)
+  })
+
+  it('the Tokens page no longer mounts the card; it links to Expenses -> AI costs (SPL-4382)', () => {
+    const page = src('src/pages/monitoring/tokens/index.vue')
+    assert.doesNotMatch(page, /PaidItemsCard/)
+    assert.match(page, /<NuxtLink :to="localePath\(EXPENSES_DEFAULT_PATH\)" data-test="tokens-paid-link">\{\{ t\('expenses\.tokens_link'\) \}\}<\/NuxtLink>/)
   })
 
   it('no inline :style in the paid components (CSP)', () => {

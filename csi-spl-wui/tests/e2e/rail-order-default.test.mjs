@@ -258,7 +258,7 @@ async function noTopicsView(browser, base) {
    strip is unchanged: no divider, its names always shown, the same boxes
    whether the setting is on or off. CONTROL: with the feature reverted the
    divider and labels-on asserts fail. */
-const WORKSPACE = new Set(['events', 'people', 'agents', 'boxes', 'monitoring', 'reporting', 'archive'])
+const WORKSPACE = new Set(['events', 'people', 'agents', 'boxes', 'monitoring', 'reporting', 'expenses', 'archive'])
 /* the divider is a ::before line on the tab below the boundary (main.css):
    a drawn one has content and a top border */
 const railSeq = (p) => p.$$eval('[data-testid=sidebar-rail] [data-reorder-id]', (els) => els.flatMap((e) => {
@@ -319,7 +319,7 @@ async function railDividerLabels(browser, base) {
   }
   /* a saved mixed order is drawn as saved (no reordering to group the tabs),
      so it keeps every line its own order makes: STORED is drawn
-     channels issues dm flow | people | calendar | monitoring reporting archive
+     channels issues dm flow | people | calendar | monitoring reporting expenses archive
      (topics and events, which STORED still names, are not drawn: t1 e4bfddb1,
      SPL-3250) */
   const p = await browser.newPage()
@@ -358,7 +358,7 @@ async function monitoringSection(browser, base) {
     await sleep(400)
     const rail = await railOf(p)
     /* SPL-2075 (owner fd5a2bf4): Agents and Boxes went into Monitoring, their icons gone */
-    check(`${tag}: the rail has Monitoring before Reporting and Archive, and no Agents or Boxes icon`, !rail.includes('agents') && !rail.includes('boxes') && rail.indexOf('monitoring') === rail.length - 3 && !(await p.$('[data-testid=sidebar-tab-agents], [data-testid=sidebar-tab-boxes]')), { rail })
+    check(`${tag}: the rail has Monitoring before Reporting, Expenses (SPL-4382) and Archive, and no Agents or Boxes icon`, !rail.includes('agents') && !rail.includes('boxes') && rail.indexOf('monitoring') === rail.length - 4 && !(await p.$('[data-testid=sidebar-tab-agents], [data-testid=sidebar-tab-boxes]')), { rail })
     await p.evaluate(() => document.querySelector('[data-testid=sidebar-tab-monitoring]')?.click())
     check(`${tag}: the rail tab lands on /monitoring/agents`, await at(p, '/monitoring/agents'), path(p))
     await p.waitForSelector('[data-test=monitoring-agents]', { visible: true, timeout: NAV }).catch(() => null)

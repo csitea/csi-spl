@@ -58,6 +58,8 @@ type fleetLaneViewJSON struct {
 	UpdatedAt  string               `json:"updated_at"`
 	AgeS       int64                `json:"age_s"`
 	LastActive string               `json:"last_active"`
+	// spec 153 3.11: a role seat names no topic and no issue by design
+	RoleSeat bool `json:"role_seat,omitempty"`
 	// spec 153 v1.3 3.8: live | queued; a queued row's wait reason ("" =
 	// waiting for room); the workspace the row belongs to, the last column
 	State         string `json:"state"`
@@ -180,13 +182,16 @@ func (s *Server) activeFleetLanes(ctx context.Context, tenant, fleet string) (
 			active = append(active, l)
 		}
 	}
+	if err := s.laneTopicsFromIssues(ctx, tenant, active); err != nil {
+		return out, nil, nil, err
+	}
 	return out, active, burn, nil
 }
 
 // fleetLaneRow is one active lane's row before its links: no title, no issues.
 func fleetLaneRow(l store.FleetLane, burn map[[2]string]store.FleetTokenBucket) fleetLaneViewJSON {
 	v := fleetLaneViewJSON{AgentID: l.AgentID, AgentBox: l.AgentBox, Vendor: agentid.Kind(l.AgentID), Scope: l.Scope,
-		State: "live", TopicID: l.Topic, Issues: []fleetLaneIssueJSON{}, UpdatedAt: l.UpdatedAt.UTC().Format(time.RFC3339), AgeS: int64(l.Age.Seconds())}
+		State: "live", TopicID: l.Topic, Issues: []fleetLaneIssueJSON{}, UpdatedAt: l.UpdatedAt.UTC().Format(time.RFC3339), AgeS: int64(l.Age.Seconds()), RoleSeat: laneIsRoleSeat(l)}
 	if b, ok := burn[[2]string{l.AgentBox, l.AgentID}]; ok {
 		v.LastActive = b.Minute.UTC().Format(time.RFC3339)
 		if b.Vendor != "" {

@@ -244,6 +244,13 @@ func (s *Server) handleGcalCallback(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, back+"gcal_error=scope_missing", http.StatusFound)
 		return
 	}
+	// an expired or already used code (a reload of this page): the member
+	// connects again, nothing is wrong with the hub (SPL-4492)
+	if errors.Is(err, gcal.ErrInvalidGrant) {
+		s.o.Log.Warn().Str("tenant", st.Tenant).Str("member", st.Member).Str("err", err.Error()).Msg("gcal: connect refused, the code expired or was used")
+		http.Redirect(w, r, back+"gcal_error=code_expired", http.StatusFound)
+		return
+	}
 	if err != nil {
 		s.o.Log.Error().Str("tenant", st.Tenant).Str("member", st.Member).Str("err", err.Error()).Msg("gcal: connect failed")
 		http.Redirect(w, r, back+"gcal_error=exchange_failed", http.StatusFound)

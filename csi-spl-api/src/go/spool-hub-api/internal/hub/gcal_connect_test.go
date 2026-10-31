@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"sync"
@@ -464,6 +465,58 @@ func TestGcalCallbackRefusesAMissingCalendarScope(t *testing.T) {
 	}
 	if n := e.fake.Calls("revoke"); n != 1 {
 		t.Fatalf("revoke calls %d, want 1: the useless grant stays at Google", n)
+	}
+}
+
+// SPL-4492: a code Google refuses as invalid_grant (expired, or used once
+// already: a reload of the callback) is the member's to fix by connecting
+// again, not a hub fault: the way back names code_expired and the log line
+// is a warn, never an error.
+func TestGcalCallbackExpiredCodeIsAWarn(t *testing.T) {
+	ids := mktIDs(1)
+	e := gcalEnvOf(t, ids, ids...)
+	hum := seat(t, e.env, ids[0], rbac.Developer)
+	state, nonce := gcalStart(t, e, ids[0], hum)
+	resp := gcalCallback(t, e, ids[0], "expired-code", state, nonce)
+	if loc := resp.Header.Get("Location"); resp.StatusCode != http.StatusFound ||
+		!strings.HasSuffix(loc, "/?settings=calendar-google&gcal_error=code_expired") {
+		t.Fatalf("expired code: %d %q, want gcal_error=code_expired", resp.StatusCode, loc)
+	}
+	if _, err := gcalRow(t, e, ids[0], hum); err != store.ErrNotFound {
+		t.Fatalf("an expired code stored a row: %v", err)
+	}
+	if e.log.contains(`"level":"error"`) || !e.log.contains(`"level":"warn"`) || !e.log.contains("invalid_grant") {
+		t.Fatalf("an expired code must log one warn naming invalid_grant, no error:\n%s", e.log)
+	}
+}
+
+// SPL-4492: any other exchange failure (Google answering 5xx) is still the
+// hub's error, and the way back stays exchange_failed.
+func TestGcalCallbackExchange5xxStaysAnError(t *testing.T) {
+	ids := mktIDs(1)
+	e := gcalEnvOf(t, ids, ids...)
+	hum := seat(t, e.env, ids[0], rbac.Developer)
+	down := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(`{"error":"backend_error"}`))
+	}))
+	t.Cleanup(down.Close)
+	cfg := e.fake.Config(gcalApp+hub.GcalCallbackPath, gcalTestScopes)
+	cfg.TokenURL = down.URL + "/token"
+	google, err := gcal.New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.gc.Google = google
+	state, nonce := gcalStart(t, e, ids[0], hum)
+	resp := gcalCallback(t, e, ids[0], e.fake.IssueCode(fakegcal.DefaultEmail), state, nonce)
+	if loc := resp.Header.Get("Location"); resp.StatusCode != http.StatusFound ||
+		!strings.HasSuffix(loc, "/?settings=calendar-google&gcal_error=exchange_failed") {
+		t.Fatalf("token endpoint 503: %d %q, want gcal_error=exchange_failed", resp.StatusCode, loc)
+	}
+	if !e.log.contains(`"level":"error"`) || !e.log.contains("gcal: connect failed") {
+		t.Fatalf("a 5xx exchange must stay an error:\n%s", e.log)
 	}
 }
 

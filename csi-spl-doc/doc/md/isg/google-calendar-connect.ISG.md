@@ -223,7 +223,8 @@ connection.
 | Google "Error 400: redirect_uri_mismatch" | 5 not done for this env, or not applied yet |
 | Google "access blocked" / app not verified for this user | 6.2: the account is not a test user |
 | back on Settings with `gcal_error=cancelled` | the member declined the consent screen |
-| back on Settings with `gcal_error=exchange_failed`; hub log `gcal: connect failed` | the code exchange failed; the log line carries the error |
+| back on Settings with `gcal_error=exchange_failed`; hub log `gcal: connect failed` | the code exchange failed (Google 5xx, network, or another refusal); an error-level line; the log line carries the error |
+| back on Settings with `gcal_error=code_expired`; hub log (warn) `gcal: connect refused, the code expired or was used` | Google answered `invalid_grant`: the code expired or the callback page was reloaded. Nothing is wrong with the hub and nothing was stored (SPL-4492). Connect again |
 | back on Settings with `gcal_error=scope_missing`; hub log `gcal: connect refused, calendar permission not granted` | the member left the calendar box unticked on Google's consent page; the hub revoked that grant and stored nothing (SPL-3815). Connect again and tick it |
 | hub page `invalid_state` (400) | the connect link expired or was opened in another browser; start again |
 | hub 404 `google calendar is not available in this workspace` | cnf `gcal.workspaces` does not list the workspace |

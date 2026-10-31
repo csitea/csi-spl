@@ -51,9 +51,12 @@ A `DRY_RUN=0` run without a `MOVE_GO_MSG` uuid is refused before anything
 is called, exit 3 (spec case C15). An agent never runs `DRY_RUN=0` on its
 own judgement; it sends the plan's output to the owner and waits.
 
-The first prd move is a channel of the csitea workspace into the workspace
-created on 2026-10-29 (owner, Q7 = A); it waits until the owner names the
-channel.
+The first prd move (owner, Q7, spec 11.1): `<SRC>` = csitea, `<CHANNEL>` =
+the csitea channel named like the workspace `ws-hidden-17`, `<DST>` =
+`ws-hidden-17`. It runs only after the dev rehearsal (spec T13): on dev,
+`plan` then `DRY_RUN=0` of a seeded channel between two dev test
+workspaces, with the owner's GO msg id, P7 printing 0 and the journal read
+back.
 
 ## 2. Plan
 

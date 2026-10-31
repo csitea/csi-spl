@@ -12,7 +12,7 @@ import { test } from 'node:test'
 
 import { sendFailureKey } from '../../src/utils/send-failure.mjs'
 import {
-  BOX_LOCK_MOCK_KEY, createMockBoxLock, lockRefusalKey, lockViewOf, mockBoxSendRefusal, parseLockCreate,
+  BOX_LOCK_MOCK_KEY, createMockBoxLock, lockLoadOf, lockRefusalKey, lockViewOf, mockBoxSendRefusal, parseLockCreate,
 } from '../../src/utils/box-lock.mjs'
 
 const mem = new Map()
@@ -78,13 +78,31 @@ test('the mock lock routes answer an owner only, as the hub does', () => {
   const v = lockViewOf(m.get('box-desk', 'HUM-1'))
   assert.deepEqual(v.owners, ['HUM-1'])
   assert.equal(v.audit[0].verdict, 'refused')
-  assert.throws(() => m.get('box-desk', 'HUM-2'), (e) => e.status === 404)
-  assert.throws(() => m.get('box-a', 'HUM-1'), (e) => e.status === 404)
+  /* SPL-4516: a lock the viewer does not own and an open box both read 204 (null), never a 404 */
+  assert.equal(m.get('box-desk', 'HUM-2'), null)
+  assert.equal(m.get('box-a', 'HUM-1'), null)
   assert.throws(() => m.create('box-desk', JSON.parse(created('box-desk', ['HUM-1'])), 'HUM-1'), (e) => e.token === 'box_locked')
   hook(null)
   assert.throws(() => m.create('box-a', JSON.parse(created('box-a', ['HUM-9'])), 'HUM-1'), (e) => e.token === 'not_owner')
   assert.equal(m.create('box-a', JSON.parse(created('box-a', ['HUM-1'])), 'HUM-1').version, 1)
   assert.deepEqual(lockViewOf(m.get('box-a', 'HUM-1')).owners, ['HUM-1'])
+})
+
+// SPL-4516 (console errors round 2, row 9): the hub answers GET .../lock
+// with 204 (the client reads null) for an open box or a lock the viewer does
+// not own; the pane reads that as open, never as a lock with no owners. A
+// 404 (an older hub) still reads open. RED CONTROL (master): no lockLoadOf.
+test('the pane reads a 204 (null) lock answer as an open box', () => {
+  assert.equal(typeof lockLoadOf, 'function')
+  assert.deepEqual(lockLoadOf(null), { state: 'none', lock: null })
+  assert.deepEqual(lockLoadOf(undefined), { state: 'none', lock: null })
+  const l = lockLoadOf({ owners: ['HUM-1'], peer_boxes: [], version: 2, audit: [] })
+  assert.equal(l.state, 'locked')
+  assert.deepEqual(l.lock.owners, ['HUM-1'])
+  assert.equal(lockLoadOf(null, { status: 404 }).state, 'none')
+  assert.equal(lockLoadOf(null, { status: 501 }).state, 'unsupported')
+  assert.equal(lockLoadOf(null, { status: 500 }).state, 'failed')
+  assert.equal(lockLoadOf(null, new Error('offline')).state, 'failed')
 })
 
 test('every locale carries every box lock string', () => {

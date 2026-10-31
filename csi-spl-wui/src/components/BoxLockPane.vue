@@ -2,7 +2,7 @@
      its Monitoring card. The hub answers the lock (GET /v1/boxes/{box}/lock,
      B2) to its owners only: an owner sees who owns it, its peer boxes and its
      audit; anyone else, and an unlocked box, reads "no lock you own" (the hub
-     answers both 404, so the WUI cannot tell them apart and never says which).
+     answers both 204, SPL-4516, so the WUI cannot tell them apart and never says which).
 
      Locking is the owner's act on the box: `spool lock create` signs the lock
      with the lock key and the box key, and this dialog only carries its
@@ -95,7 +95,7 @@
 
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
-import { BOX_LOCK_CREATE_CMD, lockRefusalKey, lockViewOf, parseLockCreate } from '~/utils/box-lock.mjs'
+import { BOX_LOCK_CREATE_CMD, lockLoadOf, lockRefusalKey, lockViewOf, parseLockCreate } from '~/utils/box-lock.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 
 const props = defineProps<{ box: string }>()
@@ -110,17 +110,15 @@ let seq = 0
 async function load() {
   const mine = ++seq
   state.value = 'loading'
+  let got: ReturnType<typeof lockLoadOf>
   try {
-    const row = await useSpoolApi().getBoxLock(props.box)
-    if (mine !== seq) return
-    lock.value = lockViewOf(row)
-    state.value = 'locked'
+    got = lockLoadOf(await useSpoolApi().getBoxLock(props.box))
   } catch (e) {
-    if (mine !== seq) return
-    const status = (e as { status?: number } | null)?.status
-    lock.value = null
-    state.value = status === 404 ? 'none' : status === 501 ? 'unsupported' : 'failed'
+    got = lockLoadOf(null, e || new Error('box lock'))
   }
+  if (mine !== seq) return
+  lock.value = got.lock
+  state.value = got.state
 }
 
 const confirmOpen = ref(false)

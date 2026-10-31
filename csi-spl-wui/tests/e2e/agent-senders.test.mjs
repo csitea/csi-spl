@@ -18,6 +18,14 @@
 // audit; on an unlocked box it takes `spool lock create`'s output, refuses
 // another box's, and confirms it into a lock.
 //
+// SPL-4516 (console errors round 2, row 9): every box card page here also
+// counts lock 404s (a 404 response on /v1/boxes/<box>/lock, or a console
+// error naming that route) and wants 0. The mock answers the lock in the
+// page, as the hub now does: an open box or a lock the viewer does not own
+// reads null (the hub's 204), and the pane reads "no lock you own". The
+// hub's 204 is proved by TestBoxLockGetAnswersOpen (Postgres), the pane's
+// null reading by tests/unit/box-lock.test.mjs.
+//
 // Run:
 //   pnpm run test:e2e agent-senders
 //   BASE_URL=<generated bundle> pnpm run test:e2e agent-senders
@@ -71,9 +79,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const LOCK_KEY = 'spool.mock.box-lock'
 const LOCKED_TEXT = "Not sent — this agent's box is locked to its owners, and only they can message its agents. Your text is still here."
 
+/* SPL-4516: every lock 404 seen on a box lock page, response or console line */
+const LOCK_ROUTE = /\/v1\/boxes\/[^/?#]+\/lock(?:[?#]|$)/
+const lock404s = []
+
 /** a page with the mock lock hook set (or cleared) on every navigation */
 async function lockPage(lock) {
   const p = await browser.newPage()
+  p.on('response', (r) => { if (r.status() === 404 && LOCK_ROUTE.test(r.url())) lock404s.push(`response ${r.url()}`) })
+  p.on('console', (m) => { if (m.type() === 'error' && /\/v1\/boxes\/[^/\s]+\/lock/.test(m.text())) lock404s.push(`console ${m.text().slice(0, 200)}`) })
   await pinAgentIdClock(p)
   await p.evaluateOnNewDocument((k, v) => {
     try { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k) } catch { /* about:blank */ }
@@ -166,6 +180,7 @@ async function boxLockCases() {
   const sw = await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)
   ok('box lock: no sideways scroll', sw)
   await p.close()
+  ok('SPL-4516: no lock 404 on any box card page (response or console)', lock404s.length === 0, lock404s.slice(0, 3))
 }
 
 const server = await startServer()

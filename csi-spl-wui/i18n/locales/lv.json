@@ -3367,6 +3367,7 @@
       "col_state": "Stāvoklis",
       "state_live": "Darbojas",
       "state_queued": "Rindā",
+      "role_seat": "Lomas vieta",
       "filter_box": "Mašīna",
       "filter_vendor": "Piegādātājs",
       "filter_state": "Stāvoklis",

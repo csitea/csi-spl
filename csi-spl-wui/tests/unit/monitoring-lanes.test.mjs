@@ -49,6 +49,13 @@ describe('the fleet-lanes body as a view', () => {
     const v = fleetLanesOf({ lanes: [{ agent_id: 'c-002', workspace: 'w1', workspace_name: 'W one' }, { agent_id: 'c-003', workspace: 'w2' }] })
     assert.deepEqual(v.lanes.map((l) => [l.workspace, l.workspaceName]), [['w1', 'W one'], ['w2', 'w2']])
   })
+  it('spec 153 3.11 (C51): a role seat says so in its topic and issue cells, never a dash', () => {
+    const v = fleetLanesOf({ lanes: [{ agent_id: 'c-001', role_seat: true }, { agent_id: 'c-461' }, { agent_id: 'c-462', role_seat: 'yes' }] })
+    assert.deepEqual(v.lanes.map((l) => l.roleSeat), [true, false, false], 'only a JSON true is a role seat')
+    const page = read('src/pages/monitoring/lanes/index.vue')
+    const cells = [...page.matchAll(/v-(?:else-)?if="([^"]*l\.roleSeat[^"]*)"[^>]*data-test="lanes-role-seat">\{\{ t\('monitoring\.lanes\.role_seat'\) \}\}/g)].map((m) => m[1])
+    assert.deepEqual(cells, ['l.roleSeat', 'l.issues.length === 0 && l.roleSeat'], 'the topic cell and the issues cell')
+  })
   it('names the agent id@box', () => {
     assert.equal(laneName({ agentId: 'c-002', box: 'box-a' }), 'c-002@box-a')
     assert.equal(laneName({ agentId: 'c-002', box: '' }), 'c-002')

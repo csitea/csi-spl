@@ -52,7 +52,8 @@ for (const [, rel, body] of modules) {
 const capCheck = (n) => n > SHIMS_CAP
   ? { fail: `${n} \`declare module\` blocks in src/types/mjs-shims.d.ts, over SHIMS_CAP ${SHIMS_CAP}: it may only fall. Write the new module as .ts, or convert a leaf (node src/node/generate-mjs-shims.mjs --leaves)` }
   : n < SHIMS_CAP ? { note: `NOTE SHIMS_CAP: ${n} blocks, under SHIMS_CAP ${SHIMS_CAP} - lower SHIMS_CAP to ${n}` } : {}
-const blocks = (shim.match(/^declare module /gm) || []).length
+const countBlocks = (text) => (text.match(/^\s*declare\s+module\b/gm) || []).length
+const blocks = countBlocks(shim)
 const cap = capCheck(blocks)
 if (cap.fail) {
   console.log(`  FAIL ${cap.fail}`)
@@ -61,7 +62,11 @@ if (cap.fail) {
 if (cap.note) console.log(`  ${cap.note}`)
 
 // Control: one block over the cap fails with the cap in the message; at the
-// cap passes clean; one under prints the NOTE.
+// cap passes clean; one under prints the NOTE; an indented block counts.
+if (countBlocks("declare module 'a' {\n}\n  declare module \"b\" {\n}\n// declare module c\n") !== 2) {
+  console.log('  FAIL control: countBlocks missed an indented or double-quoted block, or counted a comment')
+  failed++
+}
 if (!capCheck(SHIMS_CAP + 1).fail?.includes(`SHIMS_CAP ${SHIMS_CAP}`) || capCheck(SHIMS_CAP).fail
   || !capCheck(SHIMS_CAP - 1).note) {
   console.log('  FAIL control: the SHIMS_CAP check is broken')

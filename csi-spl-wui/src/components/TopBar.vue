@@ -1,7 +1,8 @@
 <!-- 022 FR-001..003: the persistent top strip. Tenant drop box + theme
      (owner 2026-09-27: no brand text) | the Omnibox (the one
      MessageComposer, so the ``` code-block composer works in it; plain text
-     goes to the page's send target, `/search <q>` opens /search?q=) | the
+     goes to the page's send target, `/search <q>` opens /search?q=,
+     `/note <text>` makes a note, spec 155 2.5) | the
      user menu (the former .app-corner, CLE-3402 / spec 021). Spec 109
      FR-008: the language switcher left this bar for the avatar menu and
      Settings -> Language; its 171 px are the 107 timer's room.
@@ -54,6 +55,7 @@
       :class="{ 'top-bar__omnibox--bottom': atBottom }"
       data-test="top-bar-omnibox"
       :data-position="atBottom ? 'bottom' : undefined"
+      @input="onBoxInput"
     >
       <MessageComposer
         ref="composer"
@@ -61,7 +63,7 @@
         global
         :placeholder="placeholder"
         :busy="busy"
-        :send-blocked="!omnibox.target"
+        :send-blocked="!omnibox.target && !noteLine"
         :dock-target="dockTarget"
         :bottom="atBottom"
         :operators="search.operators"
@@ -108,6 +110,19 @@
       </template>
       <UserMenu />
     </div>
+    <!-- spec 155 2.5 (B9): "Note created" with Open, after a `/note` line -->
+    <LazyUndoSnackbar
+      v-if="noteMade"
+      :key="noteMade.id"
+      icon="notes"
+      testid="omnibox-note-toast"
+      :text="t('notes.created')"
+      :undo-label="t('notes.open')"
+      :close-label="t('common.close')"
+      :duration="NOTE_TOAST_MS"
+      @undo="openNote"
+      @dismiss="noteMade = null"
+    />
   </header>
 </template>
 
@@ -117,7 +132,7 @@ import ThemeToggle from '@/components/ThemeToggle.vue'
 import { useOmniboxStore } from '~/stores/omnibox'
 import { useSearchStore } from '~/stores/search'
 import { useEditModeStore } from '~/stores/editMode'
-import { searchPath, shouldLoadOperators } from '~/utils/search.mjs'
+import { noteTitleOf, omniboxMode, pageNoteLink, searchPath, shouldLoadOperators } from '~/utils/search.mjs'
 import { slashFocusAction, slashFocusContext } from '~/utils/slash-focus.mjs'
 import { sendFailureKey, sendFailureParams } from '~/utils/send-failure.mjs'
 import { retryWith } from '~/utils/offline-queue.mjs'
@@ -212,6 +227,7 @@ function msgIdOf(err: unknown) {
 }
 
 async function onSend(text: string, parent?: string, files?: File[], channelId?: string) {
+  if (omniboxMode(text) === 'note') return sendNote(text)
   const target = omnibox.target
   if (!target) return
   const sent = files || []
@@ -223,6 +239,61 @@ async function onSend(text: string, parent?: string, files?: File[], channelId?:
     sendError.value = { key: sendFailureKey(err), err, text, files: sent, topicId: parent, channelId, msgId: msgIdOf(err) }
     composer.value?.restore(text, sent)
   }
+}
+
+/* spec 155 2.5 (B9): a `/note <text>` line is no post. It makes a note titled
+   <text> whose first link is the object the page shows (an open topic, issue
+   or calendar entry), then says "Note created" with Open. It needs no send
+   target, so on a page with none (/issues) the box sends while it holds a
+   `/note` line (noteLine, read from what is typed). The notes store loads
+   only here, so it stays out of the first paint. */
+const NOTE_TOAST_MS = 8000
+const noteLine = ref(false)
+const noteMade = ref<{ id: string } | null>(null)
+function onBoxInput(ev: Event) {
+  if (ev.target instanceof HTMLTextAreaElement) noteLine.value = omniboxMode(ev.target.value) === 'note'
+}
+
+/** The new note's id; a refusal is thrown, and a half-made note is deleted. */
+async function createNote(title: string): Promise<string> {
+  const { useNotesStore } = await import('~/stores/notes')
+  const store = useNotesStore()
+  const id = await store.create()
+  if (!id) throw new Error('notes create')
+  /* the address, not the route: a phone writes ?issue= with replaceState (useIssueOpen) */
+  const here = new URL(window.location.href)
+  const link = pageNoteLink(here.pathname, Object.fromEntries(here.searchParams))
+  try {
+    await store.patch(id, { title })
+    if (link) await store.addLink(id, { ...link, workspace_id: hostTenant() || String(api.tenant || '') || String(session.claims?.t || ''), label: '' })
+  } catch (err) {
+    void store.remove(id)
+    throw err
+  }
+  return id
+}
+
+async function sendNote(text: string) {
+  sendError.value = null
+  noteMade.value = null
+  const title = noteTitleOf(text)
+  if (!title) {
+    composer.value?.restore(text, [])
+    return
+  }
+  try {
+    noteMade.value = { id: await createNote(title) }
+    noteLine.value = false
+  } catch (err) {
+    sendError.value = { key: 'notes.create_failed', err, text, files: [] }
+    composer.value?.restore(text, [])
+  }
+}
+
+function openNote() {
+  const id = noteMade.value?.id
+  noteMade.value = null
+  if (id) void router.push(localePath('/notes?note=' + encodeURIComponent(id)))
 }
 
 /* 080 T006 (FR-009): Retry sends the SAME msg_id, so a first copy that did

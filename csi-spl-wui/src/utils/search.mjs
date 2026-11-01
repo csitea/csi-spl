@@ -20,6 +20,12 @@ const FROM_ROSTER_CAP = 8
 /** `/search` or `/s`, then a colon, whitespace, or end of line (case-insensitive). */
 const SEARCH_CMD_RE = /^\/(?:search|s)(?::|\s|$)/i
 
+/** spec 155 2.5 (B9): `/note` or `/n`, then a colon, whitespace, or end of line (case-insensitive). */
+const NOTE_CMD_RE = /^\/(?:note|n)(?::|\s|$)/i
+
+/** spec 155 2.5: a note's title is the first 200 characters of the `/note` line. */
+export const NOTE_TITLE_MAX = 200
+
 /**
  * Built-in operator catalogue — the offline fallback of search-v1 §6
  * (`GET /v1/view/search/operators`, which the WUI prefers: normalizeOperators).
@@ -132,9 +138,61 @@ export function shouldLoadOperators({ mock, sessionState } = {}) {
   return Boolean(mock) || String(sessionState) === 'in'
 }
 
-/** Omnibox mode of a line: 'search' for `/search …`, `/search:…`, `/s …`, else 'send'. */
+/**
+ * Omnibox mode of a line: 'search' for `/search …`, `/search:…`, `/s …`;
+ * 'note' for `/note …`, `/note:…`, `/n …` (spec 155 2.5, B9); else 'send'.
+ */
 export function omniboxMode(text) {
-  return SEARCH_CMD_RE.test(String(text || '')) ? 'search' : 'send'
+  const s = String(text || '')
+  if (SEARCH_CMD_RE.test(s)) return 'search'
+  return NOTE_CMD_RE.test(s) ? 'note' : 'send'
+}
+
+/** The title a `/note` line gives its note: the rest, on one line, trimmed, <= 200 characters; '' for any other line. */
+export function noteTitleOf(text) {
+  const s = String(text || '')
+  const m = s.match(NOTE_CMD_RE)
+  if (!m) return ''
+  return s.slice(m[0].length).replace(/\s+/gu, ' ').trim().slice(0, NOTE_TITLE_MAX)
+}
+
+const NOTE_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const NOTE_KEY_RE = /^[A-Z][A-Z0-9]{0,9}-[1-9][0-9]{0,8}$/
+const NOTE_DAY_RE = /^\d{4}-\d{2}-\d{2}$/
+const NOTE_EVENT_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/
+
+/** One query value as a trimmed string ('' for a list or none). */
+function queryOne(query, name) {
+  const v = query && typeof query === 'object' ? query[name] : ''
+  return typeof v === 'string' ? v.trim() : ''
+}
+
+/**
+ * spec 155 2.5 (B9): the object the page shows, as a `/note`'s first link
+ * (note-links.mjs kinds): an open topic (`/t/<id>`, or `?topic=<id>` over a
+ * feed), an open issue (`/issues?issue=<KEY>`) or a calendar entry
+ * (`/calendar?d=<day>&event=<id>`); null on any other page. No workspace:
+ * the caller adds the page's own.
+ * @param {string} path the route path, a locale prefix allowed
+ * @param {Record<string, unknown> | null | undefined} query the route query
+ * @returns {{ kind: 'topic' | 'issue' | 'event', ref: string, day?: string } | null}
+ */
+export function pageNoteLink(path, query) {
+  const segs = String(path || '').split('/').filter(Boolean)
+  if (segs.length >= 2 && /^[a-z]{2}$/i.test(segs[0]) && ['t', 'issues', 'calendar'].includes(segs[1])) segs.shift()
+  const head = segs[0] || ''
+  if (head === 't' && segs.length === 2 && NOTE_UUID_RE.test(segs[1])) return { kind: 'topic', ref: segs[1].toLowerCase() }
+  if (head === 'issues' && segs.length === 1) {
+    const key = queryOne(query, 'issue')
+    return NOTE_KEY_RE.test(key) ? { kind: 'issue', ref: key } : null
+  }
+  if (head === 'calendar' && segs.length === 1) {
+    const ev = queryOne(query, 'event')
+    const day = queryOne(query, 'd')
+    return NOTE_EVENT_RE.test(ev) && NOTE_DAY_RE.test(day) ? { kind: 'event', ref: ev, day } : null
+  }
+  const topic = queryOne(query, 'topic')
+  return NOTE_UUID_RE.test(topic) ? { kind: 'topic', ref: topic.toLowerCase() } : null
 }
 
 /** A one-word `#name` or `/name` line (letters, digits, `.`, `_`, `-`). */
@@ -150,7 +208,7 @@ const CHANNEL_LOOKUP_RE = /^([#/])([\p{L}\p{N}][\p{L}\p{N}._-]*)$/u
 export function channelLookupOf(text) {
   const s = String(text || '').trim()
   const m = s.match(CHANNEL_LOOKUP_RE)
-  if (!m || SEARCH_CMD_RE.test(s)) return null
+  if (!m || SEARCH_CMD_RE.test(s) || NOTE_CMD_RE.test(s)) return null
   return m[1] === '#' ? s : m[2]
 }
 

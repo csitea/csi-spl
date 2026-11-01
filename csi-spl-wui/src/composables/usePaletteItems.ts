@@ -1,8 +1,8 @@
 // 081 T003 (FR-002): the command palette's go-to rows, built from the stores
 // the app already holds: the rail tabs, Help, Docs and Workspace settings;
 // the channels and the people (a person opens their DM); the viewer's
-// recent topics; the docs (075's trees, repo and workspace); the Settings
-// pages. No second index: every row reads the list its own section shows,
+// recent topics; the docs (075's trees, repo and workspace); the person's
+// notes (spec 155 2.5, B9: while the Notes tab is drawn); the Settings pages. No second index: every row reads the list its own section shows,
 // behind the same gates (the DM tab while acting as a member, specs/054;
 // Workspace settings for its admins only). The ranking is
 // utils/palette.mjs's; the dialog (T004) shows the rows and calls go().
@@ -15,14 +15,15 @@ import { useChannelStore } from '~/stores/channel'
 import { useRosterStore } from '~/stores/roster'
 import { useViewerStore } from '~/stores/viewer'
 import { useAccessStore } from '~/stores/access'
-import { RAIL_TABS, settingsSectionListed } from '~/utils/rail-order'
+import { useNotesStore } from '~/stores/notes'
+import { NOTES_RAIL_ON, RAIL_TABS, settingsSectionListed } from '~/utils/rail-order'
 import { routeForTab } from '~/utils/sidebar-tabs.mjs'
 import { SETTINGS_QUERY, SETTINGS_SECTIONS } from '~/utils/settings-nav.mjs'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 import { tenantSettingsVisible } from '~/utils/tenant-settings-nav'
 import { docsRoute, validDocsPath } from '~/utils/docs.mjs'
 import { wsDocsRoute } from '~/utils/ws-docs.mjs'
-import { pushRecent, type PaletteItem } from '~/utils/palette.mjs'
+import { noteRows, pushRecent, type PaletteItem } from '~/utils/palette.mjs'
 import type { UiIconName } from '~/utils/uiIcons'
 import type { TopicRow } from '~/types/spool'
 import { useTheme } from '~/composables/useTheme'
@@ -37,7 +38,7 @@ import { queryWithTopic } from '~/utils/topic-open.mjs'
 import { THEMES, saveThemeToAccount, type SpoolTheme } from '~/utils/theme.mjs'
 
 /** The palette's groups, in the order the dialog draws them (spec 3.1). */
-export const PALETTE_GROUPS = ['sections', 'channels', 'people', 'topics', 'docs', 'settings'] as const
+export const PALETTE_GROUPS = ['sections', 'channels', 'people', 'topics', 'docs', 'notes', 'settings'] as const
 export type PaletteGroup = typeof PALETTE_GROUPS[number]
 
 /** One go-to row: a route (no locale yet) or a sidebar list to show. */
@@ -140,6 +141,7 @@ export function usePaletteItems() {
   const roster = useRosterStore()
   const viewer = useViewerStore()
   const access = useAccessStore()
+  const notesStore = useNotesStore()
   const acting = computed(() => Boolean(access.me?.actAs))
 
   const sections = computed(() => sectionRows(t, { acting: acting.value, tenantSettings: tenantSettingsVisible(access.me, { mock: api.mock }) }))
@@ -147,11 +149,13 @@ export function usePaletteItems() {
   const people = computed(() => (acting.value ? [] : personRows(roster.peers, names.label)))
   const topics = computed(() => topicRows(viewer.topics))
   const docs = computed(() => docRows(wsDocs.files.value, repoDocs.value))
+  /* spec 155 2.5: off with the Notes tab (NOTES_RAIL_ON), as its Settings section is */
+  const notes = computed<PaletteGoItem[]>(() => (NOTES_RAIL_ON ? noteRows(notesStore.notes, t('notes.untitled')) : []))
   const settings = computed(() => settingsRows(t, { path: route.path, query: route.query }))
 
   /** Every go-to row, group by group; rankItems orders them for a query. */
   const items = computed<PaletteGoItem[]>(() => [
-    ...sections.value, ...channels.value, ...people.value, ...topics.value, ...docs.value, ...settings.value,
+    ...sections.value, ...channels.value, ...people.value, ...topics.value, ...docs.value, ...notes.value, ...settings.value,
   ])
 
   /**
@@ -161,6 +165,7 @@ export function usePaletteItems() {
   function load(): void {
     if (viewer.topics.length === 0 && !viewer.loading) void viewer.loadTopics()
     if (wsDocs.files.value.length === 0 && wsDocs.treeState.value !== 'off') void wsDocs.loadTree()
+    if (NOTES_RAIL_ON && (notesStore.state === 'idle' || notesStore.state === 'failed')) void notesStore.load()
     repoLoad ||= readRepoDocs(api).then((files) => { repoDocs.value = files }, () => { repoLoad = null })
   }
 
@@ -173,7 +178,7 @@ export function usePaletteItems() {
     else if (item.to) await navigateTo(typeof item.to === 'string' ? localePath(item.to) : item.to)
   }
 
-  return { items, sections, channels, people, topics, docs, settings, load, go }
+  return { items, sections, channels, people, topics, docs, notes, settings, load, go }
 }
 
 // 081 T005 (FR-004): the actions mode ('>'). The message menu's items for the

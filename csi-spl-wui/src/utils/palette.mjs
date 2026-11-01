@@ -140,3 +140,22 @@ export function pushRecent(store, id) {
   storageSetJson(PALETTE_RECENT_KEY, next, store)
   return next
 }
+
+/**
+ * spec 155 2.5 (B9): the palette's `notes` group, one row per note the notes
+ * store holds (its summaries); a hit opens the note (`/notes?note=<id>`).
+ * Archived notes are left out, as the list leaves them out without its
+ * Archived filter. `untitled` is the label of a note with no title.
+ * @param {ReadonlyArray<{ id: string, title?: string, archived?: boolean }> | null | undefined} list
+ * @param {string} untitled
+ */
+export function noteRows(list, untitled) {
+  if (!Array.isArray(list)) return []
+  return list.filter((n) => n && n.id && !n.archived).map((n) => ({
+    id: 'note:' + n.id,
+    group: 'notes',
+    label: String(n.title || '').trim() || untitled,
+    icon: 'notes',
+    to: '/notes?note=' + encodeURIComponent(n.id),
+  }))
+}

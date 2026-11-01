@@ -1336,7 +1336,10 @@ declare module '~/utils/search.mjs' {
   export function ensureSearchOperators(catalogue?: SearchOperator[]): SearchOperator[]
   export function operatorHelpRows(catalogue?: SearchOperator[]): { op: string, example: string, values: string[], hintKey: string }[]
   export function shouldLoadOperators(o?: { mock?: boolean, sessionState?: string }): boolean
-  export function omniboxMode(text: string): 'search' | 'send'
+  export function omniboxMode(text: string): 'search' | 'note' | 'send'
+  export const NOTE_TITLE_MAX: 200
+  export function noteTitleOf(text: string): string
+  export function pageNoteLink(path: string, query?: Record<string, unknown> | null): { kind: 'topic' | 'issue' | 'event', ref: string, day?: string } | null
   export function omniboxTextLeavingSearch(text: string): string
   export function searchQueryOf(text: string): string
   export function channelLookupOf(text: string): string | null
@@ -1634,6 +1637,7 @@ declare module '~/utils/palette.mjs' {
   export function matchTier(item: { label?: unknown, keywords?: unknown } | null | undefined, query: unknown): number
   export function rankItems<T extends PaletteItem>(items: readonly T[] | null | undefined, query: unknown, recent?: readonly string[] | null): T[]
   export function loadRecent(store: Storage | undefined): string[]
+  export function noteRows(list: ReadonlyArray<{ id: string, title?: string, archived?: boolean }> | null | undefined, untitled: string): { id: string, group: 'notes', label: string, icon: 'notes', to: string }[]
   export function pushRecent(store: Storage | undefined, id: unknown): string[]
 }
 

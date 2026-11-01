@@ -21,6 +21,13 @@
 // that open in this tab (C23); "hello" is "Not a link"; a remove takes one
 // link off and the list row's count follows.
 //
+// Row B9 (SPL-4579), C29: `/note Plan` typed in the Omnibox over an open
+// issue (390 px, the dock under the issue) makes a note "Plan" whose one link
+// is that issue; at 1440 px an open issue is a modal over the Omnibox, so the
+// same line runs over an open topic (?topic=<id>) and links that topic. The
+// toast says "Note created" and its Open opens the note. Twin: the same line
+// on a page that shows no object (/notes) makes a note with no link.
+//
 // Run:
 //   node tests/e2e/notes-open.test.mjs
 //   BASE_URL=http://127.0.0.1:3000 node tests/e2e/notes-open.test.mjs
@@ -168,6 +175,94 @@ async function links(browser, base, width, touch) {
   await p.close()
 }
 
+/* B9: the Omnibox, docked at the bottom on a phone, is the same form */
+const OMNI = 'form.composer.omnibox--global'
+async function omniNote(p, text) {
+  await p.focus(`${OMNI} textarea`)
+  await p.type(`${OMNI} textarea`, text)
+  await p.click(`${OMNI} [data-testid=send]`)
+  const toast = await p.waitForSelector('[data-testid=omnibox-note-toast]', { visible: true, timeout: 10000 }).then(() => true, () => false)
+  const said = toast ? await p.$eval('[data-testid=omnibox-note-toast-text]', (e) => e.textContent.trim()) : ''
+  const box = await p.$eval(`${OMNI} textarea`, (e) => e.value)
+  return { toast, said, box }
+}
+
+/* the mock tenant has no issues: make one and leave it open (?issue=<KEY>) */
+async function openNewIssue(p, title) {
+  await p.click('[data-test=issues-new]')
+  let key
+  if (await p.evaluate(() => window.innerWidth > 820)) {
+    await p.waitForSelector('[data-test=issues-newrow-title]', { visible: true, timeout: 5000 })
+    await p.type('[data-test=issues-newrow-title]', title)
+    await p.keyboard.press('Enter')
+    key = await p.waitForFunction((want) => {
+      const r = [...document.querySelectorAll('[data-test=issues-row]')].find((x) => x.querySelector('.issues-title')?.textContent.trim() === want)
+      return r ? r.getAttribute('data-key') : false
+    }, { timeout: 5000 }, title).then((h) => h.jsonValue())
+    await p.click(`[data-test=issues-row][data-key="${key}"] .issues-c-key`)
+  } else {
+    await p.waitForSelector('[data-test=issues-detail-title]', { visible: true, timeout: 5000 })
+    await p.type('[data-test=issues-detail-title]', title)
+    await p.click('[data-test=issues-create]')
+    await p.waitForFunction(() => /^SPL-\d+$/.test(document.querySelector('[data-test=issues-detail-key]')?.textContent.trim() || ''), { timeout: 8000 })
+    key = await p.$eval('[data-test=issues-detail-key]', (e) => e.textContent.trim())
+  }
+  await p.waitForFunction((k) => new URL(location.href).searchParams.get('issue') === k, { timeout: 8000 }, key).catch(() => {})
+  await sleep(400)
+  return key
+}
+
+/* the page's object: a new open issue on a phone, the first card's topic above 820 px */
+async function openObject(p, touch) {
+  if (touch) {
+    await go(p, '/issues')
+    await p.waitForSelector('[data-test=issues-page]', { visible: true, timeout: NAV })
+    await p.evaluate(() => document.getElementById('nuxt-devtools-container')?.remove())
+    const key = await openNewIssue(p, 'B9 issue')
+    return { kind: 'issue', tail: `/issues?issue=${key}` }
+  }
+  await p.waitForSelector('article.msg', { visible: true, timeout: NAV })
+  await p.click('article.msg')
+  const topic = await p.waitForFunction(() => new URL(location.href).searchParams.get('topic'), { timeout: 10000 }).then((h) => h.jsonValue())
+  return { kind: 'topic', tail: `/t/${topic}` }
+}
+
+/* B9 C29: /note Plan over the page's object; twin: over /notes, no link */
+async function omnibox(browser, base, width, touch) {
+  const tag = `${width}px B9`
+  const p = await browser.newPage()
+  await p.setViewport({ width, height: touch ? 844 : 900, isMobile: touch, hasTouch: touch })
+  await p.goto(`${base}/`, { waitUntil: 'networkidle2', timeout: NAV })
+  await p.waitForSelector('[data-test=top-bar]', { timeout: NAV })
+  if (!(await signIn(p))) throw new Error('no session store')
+  const obj = await openObject(p, touch)
+  const made = await omniNote(p, '/note Plan')
+  check(`${tag} C29: /note Plan says "Note created"`, made.toast && made.said === 'Note created', made)
+  check(`${tag}: the Omnibox is empty after it`, made.box === '', made.box)
+  check(`${tag}: nothing was posted`, !(await p.$$eval('[data-test=issues-comment], article.msg', (els) => els.some((e) => e.innerText.includes('/note')))))
+  if (touch) {
+    const tap = await p.$eval('[data-testid=omnibox-note-toast-undo]', (e) => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)] })
+    check(`${tag}: Open is a 44 px tap target`, tap[0] >= 44 && tap[1] >= 44, tap)
+    check(`${tag}: no sideways scroll`, await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
+    if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/notes-omnibox-390.png` })
+  }
+  await p.click('[data-testid=omnibox-note-toast-undo]')
+  const id = await p.waitForFunction(() => location.pathname.endsWith('/notes') && new URL(location.href).searchParams.get('note'), { timeout: 10000 }).then((h) => h.jsonValue(), () => '')
+  check(`${tag} C29: Open opens the new note`, Boolean(id) && (await waitDetail(p, id)), id)
+  check(`${tag} C29: its title is "Plan"`, (await p.$eval('[data-test=note-title]', (e) => e.value).catch(() => '')) === 'Plan')
+  const ls = await linkRows(p)
+  check(`${tag} C29: its one link is the open ${obj.kind}`, ls.length === 1 && ls[0].kind === obj.kind && ls[0].href.endsWith(obj.tail), { obj, ls })
+  if (touch) await p.click('[data-test=note-detail] [data-testid=mobile-back]')
+  else await p.keyboard.press('Escape')
+  await waitGone(p)
+  const twin = await omniNote(p, '/note Loose')
+  await p.click('[data-testid=omnibox-note-toast-undo]').catch(() => {})
+  const id2 = await p.waitForFunction((was) => { const n = new URL(location.href).searchParams.get('note'); return n && n !== was ? n : false }, { timeout: 10000 }, id).then((h) => h.jsonValue(), () => '')
+  const twinOk = twin.toast && Boolean(id2) && (await waitDetail(p, id2)) && (await p.$eval('[data-test=note-title]', (e) => e.value)) === 'Loose'
+  check(`${tag} C29 twin: on /notes (no object) the note has no link`, twinOk && (await linkRows(p)).length === 0, { twin, id2 })
+  await p.close()
+}
+
 async function desktopActions(browser, base) {
   const tag = '1440px'
   const p = await openPage(browser, base, 1440, false)
@@ -262,6 +357,8 @@ try {
   await phone(browser, server.base)
   await links(browser, server.base, 1440, false)
   await links(browser, server.base, 390, true)
+  await omnibox(browser, server.base, 1440, false)
+  await omnibox(browser, server.base, 390, true)
 } catch (e) {
   console.error(e)
   code = 1

@@ -60,11 +60,21 @@ or the phone's Back) takes you back to the list.
   **Undo** for 10 seconds. Undo brings it back as it was. When the message
   goes away, the note is deleted for good; there is no trash.
 
+## From the top bar and the command palette
+
+- Type `/note <text>` (or `/n <text>`) in the top bar and send it: it makes a
+  note titled `<text>` (its first 200 characters) and posts nothing. When the
+  page shows a topic, an issue or a calendar entry, the note's first link is
+  that page. **Note created** shows with **Open**, which opens the new note.
+  A `/note` with no text makes nothing and stays in the box.
+- In the command palette (**Ctrl + K** / **Cmd + K**, not on a phone), type a note's title: the note is a
+  **Note** hit, and choosing it opens the note. Archived notes are not
+  listed there.
+
 ## Coming next
 
 Spec 155 adds the rest in the next steps: **Add to note** on messages,
-issues and rows; `/note <text>` in the top bar; and Settings -> Notes to
-export or erase all your notes.
+issues and rows; and Settings -> Notes to export or erase all your notes.
 
 If an administrator turns Notes off for the whole Spool, the page says so and
 your notes are kept.

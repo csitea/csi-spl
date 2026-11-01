@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { memoryStore } from '../../src/utils/prefs.mjs'
 import {
   PALETTE_RECENT_KEY, PALETTE_RECENT_MAX, TIER_EXACT, TIER_PREFIX, TIER_WORD, TIER_SUBSTRING,
-  parseQuery, matchTier, rankItems, loadRecent, pushRecent,
+  parseQuery, matchTier, rankItems, loadRecent, pushRecent, noteRows,
 } from '../../src/utils/palette.mjs'
 
 const item = (id, label = id, keywords) => (keywords ? { id, label, keywords } : { id, label })
@@ -95,5 +95,29 @@ describe('pushRecent / loadRecent', () => {
     assert.deepEqual(pushRecent(store, ''), ['a', 'b'])
     assert.deepEqual(loadRecent(memoryStore({ [PALETTE_RECENT_KEY]: '{oops' })), [])
     assert.deepEqual(loadRecent(memoryStore({ [PALETTE_RECENT_KEY]: '{"a":1}' })), [])
+  })
+})
+
+// spec 155 2.5, C30 (B9): the palette's notes group, over the notes store.
+describe('C30: a note is a palette hit that opens it', () => {
+  const list = [
+    { id: 'n1', title: 'Buy milk', archived: false },
+    { id: 'n2', title: '', archived: false },
+    { id: 'n3', title: 'Old plan', archived: true },
+  ]
+  it('typing a note title gives a notes hit that opens /notes?note=<id> (go() adds the locale)', () => {
+    const hits = rankItems(noteRows(list, 'Untitled note'), 'milk', [])
+    assert.deepEqual(ids(hits), ['note:n1'])
+    assert.equal(hits[0].group, 'notes')
+    assert.equal(hits[0].label, 'Buy milk')
+    assert.equal(hits[0].to, '/notes?note=n1')
+  })
+  it('an untitled note shows the untitled label; an archived one is left out', () => {
+    assert.deepEqual(noteRows(list, 'Untitled note').map((r) => r.label), ['Buy milk', 'Untitled note'])
+    assert.deepEqual(ids(rankItems(noteRows(list, 'U'), 'old', [])), [])
+  })
+  it('CONTROL: no notes is no hit for the same title', () => {
+    assert.deepEqual(ids(rankItems(noteRows([], 'U'), 'milk', [])), [])
+    assert.deepEqual(noteRows(null, 'U'), [])
   })
 })

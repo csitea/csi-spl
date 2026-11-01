@@ -2428,6 +2428,7 @@
       "people": "Person",
       "topics": "Topic",
       "docs": "Doc",
+      "notes": "Note",
       "settings": "Setting",
       "actions": "Action"
     },

@@ -14,6 +14,9 @@ import {
   searchQueryOf,
   channelLookupOf,
   channelNamedIn,
+  noteTitleOf,
+  pageNoteLink,
+  NOTE_TITLE_MAX,
   ensureSearchOperators,
   OP_PICKER_CAP,
   operatorHelpRows,
@@ -60,6 +63,66 @@ describe('omnibox mode switch', () => {
     assert.equal(searchQueryOf('/search:from:EZB-1 is:task'), 'from:EZB-1 is:task')
     assert.equal(searchQueryOf('/search:'), '')
     assert.equal(searchQueryOf('hello'), '')
+  })
+})
+
+// spec 155 2.5, C28 (B9): `/note <text>` is a third omnibox mode.
+describe('C28: /note, /n and /note: are the note mode', () => {
+  it('/note buy milk, /n x and /note:x are note; /notes sends', () => {
+    assert.equal(omniboxMode('/note buy milk'), 'note')
+    assert.equal(omniboxMode('/n x'), 'note')
+    assert.equal(omniboxMode('/notes'), 'send')
+  })
+  it('a space, a colon or the end of the line ends the command, any case', () => {
+    for (const s of ['/note', '/note ', '/n', '/note:x', '/n:x', '/NOTE Plan', '/N x', '/note\nx']) {
+      assert.equal(omniboxMode(s), 'note', s)
+    }
+  })
+  it('CONTROL: a word that only starts like it, or /note later in the line, sends', () => {
+    for (const s of ['/notes', '/nx', '/notebook x', ' /note x', 'a /note x', 'note x', '```\n/note x\n```']) {
+      assert.equal(omniboxMode(s), 'send', s)
+    }
+  })
+  it('the title is the rest of the line, trimmed, one line, the first 200 characters', () => {
+    assert.equal(noteTitleOf('/note buy milk'), 'buy milk')
+    assert.equal(noteTitleOf('/n   x  '), 'x')
+    assert.equal(noteTitleOf('/note:Plan'), 'Plan')
+    assert.equal(noteTitleOf('/note a\nb'), 'a b')
+    assert.equal(noteTitleOf('/note'), '')
+    assert.equal(noteTitleOf('/note ' + 'x'.repeat(250)).length, NOTE_TITLE_MAX)
+    assert.equal(NOTE_TITLE_MAX, 200)
+    assert.equal(noteTitleOf('hello'), '')
+  })
+  it('a bare /note or /n is no channel lookup (it is the note command)', () => {
+    assert.equal(channelLookupOf('/note'), null)
+    assert.equal(channelLookupOf('/n'), null)
+    assert.equal(channelLookupOf('/notes'), 'notes')
+  })
+})
+
+// spec 155 2.5 (B9): the object the page shows is the new note's first link.
+describe('pageNoteLink: the open topic, issue or calendar entry', () => {
+  const T = '0b3c0a6e-1f2d-4c5b-9a8e-7d6c5b4a3f21'
+  it('an open topic: /t/<id>, or ?topic=<id> on a feed page, in any locale', () => {
+    assert.deepEqual(pageNoteLink('/t/' + T, {}), { kind: 'topic', ref: T })
+    assert.deepEqual(pageNoteLink('/fi/t/' + T.toUpperCase(), {}), { kind: 'topic', ref: T })
+    assert.deepEqual(pageNoteLink('/channel/lobby', { topic: T }), { kind: 'topic', ref: T })
+  })
+  it('an open issue: /issues?issue=<KEY>', () => {
+    assert.deepEqual(pageNoteLink('/issues', { issue: 'SPL-12' }), { kind: 'issue', ref: 'SPL-12' })
+    assert.deepEqual(pageNoteLink('/de/issues', { issue: 'SPL-12' }), { kind: 'issue', ref: 'SPL-12' })
+  })
+  it('a calendar entry: /calendar?d=<day>&event=<id>', () => {
+    assert.deepEqual(pageNoteLink('/calendar', { d: '2026-11-01', event: 'ev-1' }), { kind: 'event', ref: 'ev-1', day: '2026-11-01' })
+  })
+  it('CONTROL: a page that shows no object, or a bad id, gives no link', () => {
+    assert.equal(pageNoteLink('/issues', {}), null)
+    assert.equal(pageNoteLink('/issues', { issue: 'not a key' }), null)
+    assert.equal(pageNoteLink('/t/not-a-uuid', {}), null)
+    assert.equal(pageNoteLink('/calendar', { event: 'ev-1' }), null)
+    assert.equal(pageNoteLink('/channel/lobby', {}), null)
+    assert.equal(pageNoteLink('/notes', { note: 'x' }), null)
+    assert.equal(pageNoteLink('', null), null)
   })
 })
 

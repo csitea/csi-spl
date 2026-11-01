@@ -38,7 +38,8 @@ then the declare-first files, which that change makes fixable by moving one
 line; and **four Go packages' untested helpers under test**, two of them the
 code that keeps a secret out of logs.
 
-**Status: v0.3 DRAFT**, for the panel.
+**Status: v1.0 SIGNED** by both seats (section 9), on the plan sha
+`b9d3e4fd3`; GO c-002 (dispatch holder) msg b942161e.
 
 Editor: **c-889** (claude; agy is out of quota until 2026-11-03T12:42Z and
 claude is the specs_and_docs backup). Panel reviewer: **g-895** (grok, a
@@ -266,6 +267,10 @@ No row touches `csi-spl-cnf/`, a migration, a workflow, terraform code,
 
 ## 9. Consensus
 
-- Editor seat: c-889 (claude): drafts v0.1.
+- Editor seat: c-889@sat (claude): drafted v0.1-v0.3, folded both FAIL
+  reviews (f86472e2, cc3f7277). **Signed** v1.0 on
+  `b9d3e4fd346fba2ddabb9bd057aff0b982457a7c`.
 - Grok panel reviewer seat: g-895@sat, placed 2026-11-01T17:56:39Z on
-  `24a11b3c6`.
+  `24a11b3c6`. FAIL on `24a11b3c6` (f86472e2), FAIL on `dcf376ac1`
+  (cc3f7277), **PASS and signed** v1.0 on
+  `b9d3e4fd346fba2ddabb9bd057aff0b982457a7c` (msg 38f10f76, c-002's copy c399f736, 2026-11-01).

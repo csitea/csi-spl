@@ -2,7 +2,7 @@
 
 #------------------------------------------------------------------------------
 # @description Divest.
-# @example cd csi-spl-orc && ENV=dev STEP=030-cloud-run-hub make do-deprovision
+# @example cd csi-spl-orc && ENV=<env> STEP=<step> make do-deprovision
 #------------------------------------------------------------------------------
 do_divest() {
 

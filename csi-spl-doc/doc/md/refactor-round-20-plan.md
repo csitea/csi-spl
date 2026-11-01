@@ -28,7 +28,7 @@ blocker d5028446 (task spawn-share, 2026-11-01T07:1xZ): refactor 12%, 1 of
 commits: 01 `fe75c7304`, 02 `2975facfa`, 03 `f3097c224`, 04 `3ccda94f6`, 05
 `99fa6c6d4`, 06 `44ca5f516`, 08 `80f8844ad`). Since then row 07 landed as
 `27b31ed58` (`git log origin/master -E --grep='r44-0[679]' --oneline` -> 06
-and 07, 2026-11-01T18:4xZ); row 09 is not on master. **No round 19 retro
+and 07, 2026-11-01T18:3xZ); row 09 is not on master. **No round 19 retro
 yet**: it is not due while 09 is open (rulebook 2.8). This plan takes round 19's section 6 inputs, above all
 its 37 declare-first files, and re-measures each (section 2).
 
@@ -58,7 +58,7 @@ command unless stated. Go: go1.26.10. Box: sat.
   `c002-api-err-r45-shutdown-drain.md`, as round 19 section 1 said).
   `git log ffd36e3e5 --oneline --grep='r46-' | wc -l` -> 0, and
   `grep -rl 'r46-' /var/spool-hub/dispatch/briefs /var/spool-hub/spawn-remote | wc -l`
-  -> 0 at 2026-11-01T17:32Z and 1 at 18:4xZ: the one hit is this round's
+  -> 0 at 2026-11-01T17:32Z and 1 at 18:3xZ: the one hit is this round's
   panel reviewer brief, which quotes the search (g-895). No r46 lane. The
   next planner proves its prefix free the same way, and discounts briefs
   that only quote the search.
@@ -168,7 +168,7 @@ No row touches `csi-spl-cnf/`, a migration, a workflow, terraform code,
   `meta_publish.go`, `wire.go`, `fleet_enrol.go`, `move.go`, `topics.go`,
   `flow.go`, `backoff.go`, `handler.go`) -> exit 0 each (sat,
   2026-11-01 ~17:35Z, the exit code read from the command itself, never
-  through a pipe). **Re-measured at v0.2 (2026-11-01T18:4xZ): exit 4**,
+  through a pipe). **Re-measured at v0.2 (2026-11-01T18:3xZ): exit 4**,
   `unknown:` for 7 live lanes that record no files (g-895 saw g-585, a
   read-only grok language review of SPL-4043 WUI strings; c-889 saw
   c-894, c-934 and c-988 among them, all on the other box). No path is printed as owned,

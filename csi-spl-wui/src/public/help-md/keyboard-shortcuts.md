@@ -100,6 +100,7 @@ These keys act on the **selected message**. They work on a desktop. Turn them of
 | **`Shift + U`** | Selected message, desktop | Back to the reply |
 | **`Shift + L`** | Selected message, desktop | Copy link |
 | **`Shift + C`** | Selected message, desktop | Copy text |
+| **`Shift + N`** | Selected message, desktop | Add to note |
 | **`Shift + K`** | Selected message, desktop | Change kind |
 | **`Shift + X`** | Selected message, desktop | Make it a task |
 | **`Shift + T`** | Selected message, desktop | Make it a topic |

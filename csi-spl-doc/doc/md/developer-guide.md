@@ -261,7 +261,12 @@ Each action opens with its header comment: `@description`, one `@param`
 per env var it reads (required or optional, with its default) and at least
 one `@example`.
 
-Enforced by: review only.
+Enforced by: `csi-spl-iac/src/bash/tests/action-header-tags.tst.sh` (run by
+`run-all-tests.sh`): every `do_*()` action file of iac, orc and utl
+`src/bash/run/` carries `description=` and `example=`, with `example=` at
+most 200 characters; today's exceptions are listed in
+`action-header-tags-baseline.txt` (sections `missing`, `long-example`), and
+that list only shrinks.
 
 <a id="ws-doc-252415a0-f93b-44a4-a7ca-f8fe6c78b3ef"></a>
 #### 2.4.3 Bash that fails safely

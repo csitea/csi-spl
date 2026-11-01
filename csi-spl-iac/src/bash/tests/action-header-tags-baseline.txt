@@ -1,12 +1,12 @@
 # The action header tags baseline, read by action-header-tags.tst.sh (r44-05,
 # developer guide 2.4.2). One repo-relative path per line, under its section.
 #   [missing]       the parsed header has no description= or no example=
-#   [long-example]  an example= value is over 200 characters (prose after the
-#                   closing #--- is read as part of the last @example)
+#   [long-example]  an example= value is over 200 characters (the header ends
+#                   at its closing #---, so this is a long @example itself)
 # The list only shrinks: a new file fails, and a listed file that now passes
 # fails too, so the commit that fixes a header deletes its line here.
-# Measured on 6d35b9b18 (2026-11-01, SPL-4552): 765 action files, 55 missing,
-# 31 long-example.
+# Measured on 4a863a155 (2026-11-01, SPL-4572): 765 action files, 55 missing,
+# 4 long-example.
 [missing]
 csi-spl-iac/src/bash/run/gcp-002-delete-project-service-account.func.sh
 csi-spl-iac/src/bash/run/gcp-alert-snooze.func.sh
@@ -64,34 +64,7 @@ csi-spl-orc/src/bash/run/spl-spawn-placed.func.sh
 csi-spl-orc/src/bash/run/spl-spawn-queue.func.sh
 csi-spl-orc/src/bash/run/spl-spawn-share.func.sh
 [long-example]
-csi-spl-iac/src/bash/run/check-pre-push-cross.func.sh
-csi-spl-iac/src/bash/run/check-pre-push-e2e.func.sh
-csi-spl-iac/src/bash/run/check-pre-push-features.func.sh
-csi-spl-iac/src/bash/run/check-pre-push-stale-tree.func.sh
-csi-spl-iac/src/bash/run/gcp-001-create-project.func.sh
-csi-spl-iac/src/bash/run/gcp-002-create-project-service-account.func.sh
 csi-spl-iac/src/bash/run/provision-firebase-dns.func.sh
-csi-spl-iac/src/bash/run/sec-scan.func.sh
-csi-spl-orc/src/bash/run/gh-runner-add.func.sh
-csi-spl-orc/src/bash/run/gh-runner-remove.func.sh
-csi-spl-orc/src/bash/run/git-prune-round-branches.func.sh
-csi-spl-orc/src/bash/run/oss-export.func.sh
-csi-spl-orc/src/bash/run/oss-public-settings.func.sh
-csi-spl-orc/src/bash/run/spl-box-restart-prepare.func.sh
-csi-spl-orc/src/bash/run/spl-box-restart-run.func.sh
-csi-spl-orc/src/bash/run/spl-db-bootstrap.func.sh
-csi-spl-orc/src/bash/run/spl-deploy-failure-post.func.sh
-csi-spl-orc/src/bash/run/spl-desk-down.func.sh
-csi-spl-orc/src/bash/run/spl-dispatch-setup.func.sh
-csi-spl-orc/src/bash/run/spl-docs-box.func.sh
 csi-spl-orc/src/bash/run/spl-issue-create.func.sh
-csi-spl-orc/src/bash/run/spl-lease-rank.func.sh
-csi-spl-orc/src/bash/run/spl-local-hub-agent-join.func.sh
-csi-spl-orc/src/bash/run/spl-local-hub-harden-check.func.sh
-csi-spl-orc/src/bash/run/spl-local-hub-ports-gate.func.sh
-csi-spl-orc/src/bash/run/spl-search-sig-check.func.sh
 csi-spl-orc/src/bash/run/spl-tenant-member-add.func.sh
 csi-spl-orc/src/bash/run/spl-topic-copy-cross.func.sh
-csi-spl-orc/src/bash/run/spl-watcher-feed.func.sh
-csi-spl-orc/src/bash/run/spl-zombie-topics.func.sh
-csi-spl-orc/src/bash/run/tf-import-existing.func.sh

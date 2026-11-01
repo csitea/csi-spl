@@ -26,8 +26,8 @@ do_parse_metadata() {
   while IFS= read -r line; do
     # Skip shebang
     [[ "$line" =~ ^#!/ ]] && continue
-    # Skip separator lines
-    [[ "$line" =~ ^#-+$ ]] && { in_header=1; continue; }
+    # A separator opens the header; the next one, once it has text, closes it
+    [[ "$line" =~ ^#-+$ ]] && { [[ $in_header -eq 1 && -n "$header" ]] && break; in_header=1; continue; }
     # Stop at non-comment line (but allow blank lines within header)
     if [[ ! "$line" =~ ^# ]] && [[ -n "$line" ]]; then
       break

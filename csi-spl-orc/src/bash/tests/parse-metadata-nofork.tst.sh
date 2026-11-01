@@ -12,6 +12,8 @@
 #      and passes when it is set
 #   4. do_require_var X '' exits 1. The line it prints is [FATAL] (that is
 #      the level word in the function), and the text names the variable.
+#   5. a closing #--- ends the header (r46-01): a comment below it is not
+#      read into the last tag, in the iac, orc and utl copies.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -127,6 +129,15 @@ req_out="$(bash -c 'source "$1"; do_require_var X ""' _ \
   && "$req_out" == *'[INFO]'*'export X=your-X-value'* ]] \
   && pass "4 do_require_var X '' exits 1 and prints [FATAL] naming X" \
   || fail "4 do_require_var rc=$req_rc out=$req_out"
+
+# 5. The header ends at its closing separator: the prose below is not read.
+printf '#!/bin/bash\n#---\n# @example x\n#---\n# prose\nf() { :; }\n' >"$T/closed.func.sh"
+for which in iac orc utl; do
+  out="$(bash -c 'source "$1"; do_parse_metadata "$2"' _ \
+    "$APP_ROOT/csi-spl-$which/lib/bash/funcs/parse-metadata.func.sh" "$T/closed.func.sh")"
+  [[ "$out" == "example=x" ]] && pass "5 $which: a closing #--- ends the header (example=x)" \
+    || fail "5 $which: the comment below the closing #--- was read: [$out]"
+done
 
 echo "--- $fails failure(s)"
 [[ "$fails" -eq 0 ]]

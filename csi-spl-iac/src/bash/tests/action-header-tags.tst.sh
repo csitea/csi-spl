@@ -7,12 +7,12 @@
 #   1. a description= and an example= line, unless the baseline's [missing]
 #      section lists the file;
 #   2. no example= value over MAX_EXAMPLE (200) characters, unless the
-#      [long-example] section lists it: prose after the closing #--- of the
-#      header is read as a continuation of the last @example;
+#      [long-example] section lists it: the header ends at its closing #---
+#      (r46-01), so only an @example and its continuation lines are read;
 #   3. a listed file that now passes FAILS: the baseline only shrinks, like
 #      .shellcheck-warning-baseline.txt. Fix a header, delete its line.
-# Red controls in a mktemp tree: a file without @example, a file whose closing
-# #--- is followed by prose, a listed file that now has both tags.
+# Red controls in a mktemp tree: a file without @example, a file with one
+# @example line over 200 characters, a listed file that now has both tags.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -68,7 +68,7 @@ check_tree() {
     fi
     if has_long_example "$meta"; then
       long[$rel]=1; nl=$((nl + 1))
-      [[ -n "${llong[$rel]:-}" ]] || echo "FAIL: $rel: an example= over $MAX_EXAMPLE characters (prose after the closing #---? end the header there)"
+      [[ -n "${llong[$rel]:-}" ]] || echo "FAIL: $rel: an example= over $MAX_EXAMPLE characters (shorten the @example, or split it into two)"
     fi
   done < <(action_files "$root")
   for rel in "${!lmiss[@]}"; do
@@ -109,10 +109,10 @@ printf '%s\n' "$good" | sed '/@example/d' >"$T/csi-spl-orc/src/bash/run/no-examp
 control "an action without @example"
 rm "$T/csi-spl-orc/src/bash/run/no-example.func.sh"
 
-prose='# This prose follows the closing separator, so the parser reads it as part of the last example: the parsed example line grows past two hundred characters and the help shows a paragraph where one command was meant.'
-printf '%s\n' "$good" | sed '/^$/d' | sed "/^do_say_hello/i $prose" >"$T/csi-spl-utl/src/bash/run/prose.func.sh"
-control "an action whose closing #--- is followed by prose"
-rm "$T/csi-spl-utl/src/bash/run/prose.func.sh"
+long="# @example ./run -a do_say_hello $(printf 'x%.0s' {1..200})"
+printf '%s\n' "$good" | sed "s|^# @example .*|$long|" >"$T/csi-spl-utl/src/bash/run/long.func.sh"
+control "an action with one @example line over 200 characters"
+rm "$T/csi-spl-utl/src/bash/run/long.func.sh"
 
 printf '%s\n' "$good" >"$T/csi-spl-orc/src/bash/run/fixed.func.sh"
 printf '[missing]\ncsi-spl-orc/src/bash/run/fixed.func.sh\n[long-example]\n' >"$T/base.txt"

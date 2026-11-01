@@ -319,7 +319,8 @@ export function createSpoolClient({
   const hubFetch = stampedFetch(fetchFn)
   const live = liveReader(conn, root, configError, hubFetch, firstScreenMs, now)
   const api = sessionMethods(tenant, mock, root, configError, conn, live)
-  Object.assign(api, topicList(mock, mk, live), topicReads(mock, mk, conn, live), feedReads(api, mock, mk),
+  const prio = topicPriorities(mock, mk, live)
+  Object.assign(api, topicList(mock, mk, live, prio.note), topicReads(mock, mk, conn, live, prio.note), prio.methods, feedReads(api, mock, mk),
     shellReads(mock, mk, live), sendMethods(mock, mk, conn), fileMethods(root))
   api.bindIssuesMock = mk.bindIssuesMock
   /* SPL-2115: uploadFile / downloadFile (lazy half) read these */
@@ -563,7 +564,7 @@ function installLazy(api, ctx) {
 }
 
 /** The topic list (view-v1 §4.3). */
-function topicList(mock, mk, live) {
+function topicList(mock, mk, live, notePriority) {
   return {
     /**
      * view-v1 §4.3. `perTopic` (1..PER_TOPIC_MAX) asks the hub to inline each
@@ -573,7 +574,11 @@ function topicList(mock, mk, live) {
      * `inline` (callers read those topics one by one, as before).
      */
     async listTopics({ limit = 50, before, channel, dm, peer, agent, roots, perTopic = 0, dmCounts = false, dmRead = [], since, rx = [] } = {}) {
-      if (mock) return (await mk.answers()).mockListTopics(mk.state, { limit, channel, dm, peer })
+      if (mock) {
+        const page = (await mk.answers()).mockListTopics(mk.state, { limit, channel, dm, peer })
+        for (const row of page.topics) notePriority(row.task_id, row.priority)
+        return page
+      }
       const q = new URLSearchParams()
       if (limit) q.set('limit', String(limit))
       if (before) q.set('before', before)
@@ -600,6 +605,8 @@ function topicList(mock, mk, live) {
         topics: rows.map((raw) => {
           const row = normalizeTopicRow(raw)
           if (raw && raw.dm && typeof raw.dm === 'object') row.dm = raw.dm
+          /* spec 150 B3: 1..5, 3 when nobody set it */
+          if (raw && raw.priority !== undefined) row.priority = notePriority(row.task_id, raw.priority)
           if (inlineN && raw && Array.isArray(raw.messages)) {
             row.inline = { task_id: row.task_id, messages: raw.messages.map((m) => normalizeViewMessage(m, row.task_id)), next: raw.messages_next || null }
           }
@@ -619,7 +626,7 @@ function topicList(mock, mk, live) {
 }
 
 /** One topic (view-v1 §4.4) and the caller's role. */
-function topicReads(mock, mk, conn, live) {
+function topicReads(mock, mk, conn, live, notePriority) {
   return {
     /**
      * view-v1 §4.4. Default: oldest first, `after=` for catch-up. With
@@ -629,7 +636,11 @@ function topicReads(mock, mk, conn, live) {
     async getTopic(taskId, { limit = 200, after, order, before } = {}) {
       const id = String(taskId || '')
       if (!id) throw new Error('task_id required')
-      if (mock) return (await mk.answers()).mockGetTopic(mk.state, id, { limit, after, order, before, viewToken: conn.token })
+      if (mock) {
+        const page = (await mk.answers()).mockGetTopic(mk.state, id, { limit, after, order, before, viewToken: conn.token })
+        notePriority(id, page.priority)
+        return page
+      }
       const q = new URLSearchParams()
       if (order === 'desc') q.set('order', 'desc')
       if (limit) q.set('limit', String(limit))
@@ -650,6 +661,8 @@ function topicReads(mock, mk, conn, live) {
       const out = { task_id: id, messages: rows.map((m) => normalizeViewMessage(m, id)), next: (data && data.next) || null }
       /* t1 8fb802cd: a topic read by its id answers while archived; the stamp marks it */
       if (data && data.archived_at) Object.assign(out, { archived_at: String(data.archived_at), archived_by: String(data.archived_by || '') })
+      /* spec 150 B3: the read carries the topic's priority (3 when nobody set it) */
+      if (data && data.priority !== undefined) out.priority = notePriority(id, data.priority)
       return out
     },
     /**
@@ -669,6 +682,57 @@ function topicReads(mock, mk, conn, live) {
         if (e && e.status === 404) return null
         throw e
       }
+    },
+  }
+}
+
+/**
+ * Spec 150 row B7: a discussion's priority, 1 (most urgent) .. 5. The client
+ * keeps the last value a topic read, a set or a live `topic_priority` frame
+ * gave each topic, and tells its listeners (TopicPriorityChooser), so the
+ * chooser needs no read of its own. The mock's frames reach the other tabs
+ * of the browser (spool-client-mock.mjs mockOnTopicPriority).
+ */
+function topicPriorities(mock, mk, live) {
+  const known = new Map()
+  const subs = new Set()
+  let mockBound = false
+  /** Keep one value; anything outside 1..5 is ignored. Returns the kept value or undefined. */
+  function note(taskId, p) {
+    const id = String(taskId || '')
+    const n = Number(p)
+    if (!id || !Number.isInteger(n) || n < 1 || n > 5) return undefined
+    known.set(id, n)
+    for (const fn of subs) fn(id, n)
+    return n
+  }
+  return {
+    note,
+    methods: {
+      topicPriorityOf: (taskId) => known.get(String(taskId || '')),
+      noteTopicPriority: note,
+      onTopicPriority(fn) {
+        subs.add(fn)
+        if (mock && !mockBound) {
+          mockBound = true
+          void mk.answers().then((m) => m.mockOnTopicPriority(note))
+        }
+        return () => { subs.delete(fn) }
+      },
+      /** PUT /v1/topics/{task_id}/priority (spec 150 3.3): 404 off the read door, 403 not_allowed by the archive policy. */
+      async setTopicPriority(taskId, priority) {
+        const id = String(taskId || '')
+        if (!id) throw Object.assign(new Error('task_id required'), { status: 400, token: 'bad_json' })
+        const out = mock
+          ? (await mk.answers()).mockSetTopicPriority(mk.state, id, priority)
+          : await live(`/v1/topics/${encodeURIComponent(id)}/priority`, {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ priority }),
+          })
+        note(id, out && out.priority)
+        return out
+      },
     },
   }
 }
@@ -735,7 +799,12 @@ function feedReads(api, mock, mk) {
       /* SPL-1008: the cut drops an older topic's middle replies, so the card
          count comes from the hub's row (topicReplies), not from held lines. */
       const totals = {}
-      for (const t of list.topics) if (t.task_id) totals[t.task_id] = { count: Number(t.count) || 0, last_ts: String(t.last_ts || '') }
+      for (const t of list.topics) {
+        if (!t.task_id) continue
+        totals[t.task_id] = { count: Number(t.count) || 0, last_ts: String(t.last_ts || '') }
+        /* spec 150: the hub's priority rides along for the topic list's sort (row B6) */
+        if (t.priority !== undefined) totals[t.task_id].priority = t.priority
+      }
       return { messages: out.filter((m, i) => i >= cut || opener.has(m)), next: list.next || null, totals,
         delta: list.delta, goneTasks: list.goneTasks, goneMsgs: list.goneMsgs, sync: list.sync }
     },

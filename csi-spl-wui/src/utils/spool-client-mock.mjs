@@ -15,6 +15,7 @@ import { mockReadFault } from './plain-error.mjs'
 import { isPublicChannel, normalizeChannelId } from './spool-client.mjs'
 import { mentionedIds } from './notify.mjs'
 import { mockBoxSendRefusal } from './box-lock.mjs'
+import { TOPIC_PRIORITY_DEFAULT } from './topic-list-order.mjs'
 
 /** view-v1 §4.3 over the mock messages: one row per topic, no server pages. */
 export function mockListTopics(state, { limit = 50, channel, dm, peer } = {}) {
@@ -25,7 +26,10 @@ export function mockListTopics(state, { limit = 50, channel, dm, peer } = {}) {
     const [id] = String(peer).split('@')
     rows = rows.filter((m) => m.from === id || m.to === id)
   }
-  return { topics: topicsFromMessages(rows).slice(0, limit), next: null }
+  /* spec 150 B3: each row carries its priority, 3 when nobody set it */
+  const prio = state.priorities || {}
+  const topics = topicsFromMessages(rows).slice(0, limit).map((t) => ({ ...t, priority: prio[t.task_id] || TOPIC_PRIORITY_DEFAULT }))
+  return { topics, next: null }
 }
 
 /** view-v1 §4.4 over the mock messages, `order: 'desc'` paged by `before`. */
@@ -42,6 +46,8 @@ export function mockGetTopic(state, id, { limit = 200, after, order, before, vie
   /* t1 8fb802cd: the hub's archive stamp, as its own rule reads it */
   const arch = (state.archived || []).find((m) => m.archived_at && (m.msg_id === id || m.task_id === id))
   const stamp = arch && !after ? { archived_at: arch.archived_at, archived_by: arch.archived_by } : {}
+  /* spec 150 B3: the hub's topic read carries its priority, 3 when nobody set it */
+  stamp.priority = (state.priorities || {})[id] || TOPIC_PRIORITY_DEFAULT
   if (order !== 'desc') return { task_id: id, messages: all, next: null, ...stamp }
   const desc = all.slice().reverse()
   const start = before ? desc.findIndex((m) => m.msg_id === before) + 1 : 0
@@ -164,4 +170,42 @@ export function mockNoteNonMembers(state, row) {
   }
   state.messages.push(note)
   return note
+}
+
+/** The mock hub's fanout: a BroadcastChannel, so another tab of this browser gets the frame (spec 150 C309). */
+const MOCK_LIVE_CHANNEL = 'spool.mock.live'
+
+function mockLive() {
+  return typeof BroadcastChannel === 'function' ? new BroadcastChannel(MOCK_LIVE_CHANNEL) : null
+}
+
+/**
+ * Spec 150 row B7, the mock twin of PUT /v1/topics/{task_id}/priority: 400
+ * outside 1..5; e2e hook `spool.mock.priority-fault` = a token (e.g.
+ * not_allowed) answers 403 with it, as the hub refuses by the archive
+ * policy. Sends the `topic_priority` frame to the browser's other tabs.
+ */
+export function mockSetTopicPriority(state, id, priority) {
+  const fault = storageGetJson('spool.mock.priority-fault', null)
+  if (fault) throw Object.assign(new Error(`spool 403 ${fault}`), { status: 403, token: String(fault) })
+  const n = Number(priority)
+  if (!Number.isInteger(n) || n < 1 || n > 5) throw Object.assign(new Error('priority must be 1..5'), { status: 400, token: 'bad_json' })
+  state.priorities = { ...(state.priorities || {}), [id]: n }
+  const out = { task_id: id, priority: n, set_by: state.me.id, set_at: new Date().toISOString() }
+  const bc = mockLive()
+  if (bc) {
+    bc.postMessage({ type: 'topic_priority', task_id: id, priority: n })
+    bc.close()
+  }
+  return out
+}
+
+/** The receiving side: fn(task_id, priority) for each frame another tab sends. */
+export function mockOnTopicPriority(fn) {
+  const bc = mockLive()
+  if (!bc) return
+  bc.onmessage = (e) => {
+    const f = e && e.data
+    if (f && f.type === 'topic_priority') fn(f.task_id, f.priority)
+  }
 }

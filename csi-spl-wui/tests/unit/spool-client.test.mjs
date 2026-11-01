@@ -221,3 +221,85 @@ describe('spool-client live A1 (005 FR-005, channels-v1 §5, 010 FR-009)', () =>
     await assert.rejects(c.listTopics(), (e) => e.token === 'view_door' && e.detail === 'session required')
   })
 })
+
+/* Spec 150 row B7: the priority the hub serves (B3) rides the client's
+   topic rows, the listMessages totals (row B6 sorts by them), the topic
+   read, and the client's own memo the chooser reads; a set is one PUT. */
+describe('spool-client topic priority (spec 150 B7)', () => {
+  const rows = [{ task_id: T1, channel: 'lobby', first_ts: 'a', last_ts: 'a', subject: 'a', count: 2, priority: 1 }, { task_id: T2, channel: 'lobby', first_ts: 'b', last_ts: 'b', subject: 'b', count: 1 }]
+
+  it('listTopics rows and listMessages totals carry the priority, only when the row has it', async () => {
+    const { fn } = stubFetch([
+      [(u) => u.startsWith('/v1/view/topics?'), [200, { topics: rows, next: null }]],
+      [(u) => u.startsWith('/v1/view/topics/'), [200, { messages: [], next: null }]],
+    ])
+    const c = createSpoolClient({ fetchFn: fn, mock: false })
+    const { topics } = await c.listTopics({ channel: 'lobby' })
+    assert.equal(topics[0].priority, 1)
+    assert.equal('priority' in topics[1], false)
+    const { totals } = await c.listMessages({ channel: 'lobby' })
+    assert.deepEqual(totals[T1], { count: 2, last_ts: 'a', priority: 1 })
+    assert.deepEqual(totals[T2], { count: 1, last_ts: 'b' })
+    assert.equal(c.topicPriorityOf(T1), 1)
+    assert.equal(c.topicPriorityOf(T2), undefined)
+  })
+
+  it('getTopic keeps the read priority and tells the listeners; outside 1..5 is ignored', async () => {
+    const { fn } = stubFetch([[(u) => u.startsWith(`/v1/view/topics/${T1}?`), [200, { task_id: T1, messages: [], next: null, priority: 4 }]]])
+    const c = createSpoolClient({ fetchFn: fn, mock: false })
+    const heard = []
+    const off = c.onTopicPriority((id, p) => heard.push([id, p]))
+    assert.equal((await c.getTopic(T1)).priority, 4)
+    assert.equal(c.noteTopicPriority(T1, 6), undefined)
+    assert.equal(c.noteTopicPriority(T1, '2'), 2)
+    off()
+    c.noteTopicPriority(T1, 5)
+    assert.deepEqual(heard, [[T1, 4], [T1, 2]])
+    assert.equal(c.topicPriorityOf(T1), 5)
+  })
+
+  it('setTopicPriority is PUT /v1/topics/{task_id}/priority {priority}', async () => {
+    const { fn, calls } = stubFetch([[(u, o) => u === `/v1/topics/${T1}/priority` && o.method === 'PUT', [200, { task_id: T1, priority: 2, set_by: 'HUM-1', set_at: 'x' }]]])
+    const c = createSpoolClient({ fetchFn: fn, mock: false })
+    assert.equal((await c.setTopicPriority(T1, 2)).priority, 2)
+    assert.deepEqual(JSON.parse(calls[0].opts.body), { priority: 2 })
+    assert.equal(c.topicPriorityOf(T1), 2)
+  })
+
+  it('a refused set rejects with the hub token and keeps the old value', async () => {
+    const { fn } = stubFetch([[(u) => u.endsWith('/priority'), [403, { error: 'not_allowed' }]]])
+    const c = createSpoolClient({ fetchFn: fn, mock: false })
+    c.noteTopicPriority(T1, 3)
+    await assert.rejects(c.setTopicPriority(T1, 1), (e) => e.status === 403)
+    assert.equal(c.topicPriorityOf(T1), 3)
+  })
+
+  it('the socket client hands a topic_priority frame to onTopic (the chooser listens there)', async () => {
+    const { createLiveClient } = await import('../../src/utils/live-ws.mjs')
+    const sockets = []
+    class FakeWS {
+      constructor() { sockets.push(this) }
+      send() {}
+      close() { if (this.onclose) this.onclose({}) }
+    }
+    const heard = []
+    const c = createLiveClient({ url: 'ws://x', WebSocketImpl: FakeWS, onTopic: (f) => heard.push(f) })
+    c.connect()
+    sockets[0].onopen({})
+    sockets[0].onmessage({ data: JSON.stringify({ type: 'welcome' }) })
+    sockets[0].onmessage({ data: JSON.stringify({ type: 'topic_priority', task_id: T1, priority: 2 }) })
+    assert.deepEqual(heard.map((f) => [f.type, f.task_id, f.priority]), [['topic_priority', T1, 2]])
+    c.close()
+  })
+
+  it('mock: a set shows on the topic read and the list row; 0 and 6 are refused', async () => {
+    const c = createSpoolClient({ mock: true })
+    const { topics } = await c.listTopics({ channel: 'lobby' })
+    const id = topics[0].task_id
+    assert.equal(topics[0].priority, 3, 'nobody set it: 3 (spec 150 D7)')
+    await c.setTopicPriority(id, 1)
+    assert.equal((await c.getTopic(id)).priority, 1)
+    assert.equal((await c.listTopics({ channel: 'lobby' })).topics.find((t) => t.task_id === id).priority, 1)
+    for (const bad of [0, 6]) await assert.rejects(c.setTopicPriority(id, bad), (e) => e.status === 400)
+  })
+})

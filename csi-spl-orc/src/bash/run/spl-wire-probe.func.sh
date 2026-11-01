@@ -31,9 +31,10 @@
 # @description It sends real messages into the tenant, so it is a dry run
 # @description unless DRY_RUN=0.
 # @description TEARDOWN: the box is pinned ONCE and reused by every later run, so
-# @description nothing here removes it. When the rig is finished with, run
-# @description   ENV=<env> TENANT_ID=<t> BOX_IDS=box-wire-probe DRY_RUN=0 ./run -a do_spl_box_purge
-# @description (pin-semantics.md 6: a signed revoke would NOT take it out of
+# @description nothing here removes it. When the rig is finished with, a
+# @description clean-up purge follows: do_spl_box_purge with BOX_IDS naming the
+# @description probe box, for the same ENV and TENANT_ID; it is a dry run
+# @description unless DRY_RUN=0 (pin-semantics.md 6: a signed revoke would NOT take it out of
 # @description GET /v1/view/roster - only removing the pin row does). The purge
 # @description refuses a box that said hello in the last 24 h; PURGE_MIN_IDLE_HOURS=0
 # @description overrides that when the rig is finished rather than merely idle.

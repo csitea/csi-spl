@@ -29,8 +29,9 @@
 # @description Dry run unless DRY_RUN=0.
 # @description TEARDOWN: the box is pinned ONCE and reused by every later
 # @description run, so nothing here removes it and the roster keeps it
-# @description forever. When the rig is finished with, run
-# @description   ENV=<env> TENANT_ID=<t> BOX_IDS=<box> DRY_RUN=0 ./run -a do_spl_box_purge
+# @description forever. When the rig is finished with, a clean-up purge
+# @description follows: do_spl_box_purge with BOX_IDS naming the probe box, for
+# @description the same ENV and TENANT_ID; it is a dry run unless DRY_RUN=0
 # @description (pin-semantics.md 6: a signed revoke would NOT take it out of
 # @description GET /v1/view/roster - only removing the pin row does).
 # @param ENV - required: dev or prd

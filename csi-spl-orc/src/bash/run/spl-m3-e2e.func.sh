@@ -60,8 +60,9 @@
 # @description     M3_HUMAN_ROLE; dev keeps member)
 # @description TEARDOWN: box-e2e-a / box-e2e-b stay pinned after the run (this
 # @description re-pins them with --force every time, so purging them is safe and
-# @description self-healing). Take them out of the tenant roster with
-# @description   ENV=<env> TENANT_ID=<t> BOX_IDS='box-e2e-a box-e2e-b' DRY_RUN=0 ./run -a do_spl_box_purge
+# @description self-healing). A clean-up purge takes them out of the tenant
+# @description roster: do_spl_box_purge with BOX_IDS naming both boxes, for
+# @description the same ENV and TENANT_ID; it is a dry run unless DRY_RUN=0
 # @description (pin-semantics.md 6). box-wui is NOT a rig: leave it pinned.
 # @param ENV - required: dev or prd
 # @param TENANT_ID - dev: required (t1). prd: a test tenant ^e2e(-[a-z0-9]+)?$, default e2e

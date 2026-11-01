@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 )
 
 type fakeSetter struct {
@@ -88,5 +89,38 @@ func TestQuotaOver(t *testing.T) {
 	unlimited := Quota{}
 	if tok := unlimited.Over(Usage{MessagesThisPeriod: 1e6, Pins: 1e6, FileBytes: 1 << 40}, 1, 1, 1); tok != "" {
 		t.Fatalf("zero quota is unlimited: %q", tok)
+	}
+}
+
+func TestValidStatus(t *testing.T) {
+	for _, s := range []string{StatusActive, StatusGrace, StatusUnpaid, StatusInternal, StatusManual} {
+		if !ValidStatus(s) {
+			t.Errorf("ValidStatus(%q) = false, want true", s)
+		}
+	}
+	for _, s := range []string{"x", "", "Active"} {
+		if ValidStatus(s) {
+			t.Errorf("ValidStatus(%q) = true, want false", s)
+		}
+	}
+}
+
+func TestPeriodStart(t *testing.T) {
+	plus3 := time.FixedZone("UTC+3", 3*60*60)
+	cases := []struct {
+		name string
+		now  time.Time
+		want time.Time
+	}{
+		{"month end", time.Date(2026, 1, 31, 23, 59, 59, 0, time.UTC), time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)},
+		{"month start", time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)},
+		// 1 Mar 01:30 at UTC+3 is still 28 Feb in UTC: the period is February.
+		{"non-UTC zone", time.Date(2026, 3, 1, 1, 30, 0, 0, plus3), time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)},
+	}
+	for _, c := range cases {
+		got := PeriodStart(c.now)
+		if !got.Equal(c.want) || got.Location() != time.UTC {
+			t.Errorf("%s: PeriodStart(%v) = %v, want %v in UTC", c.name, c.now, got, c.want)
+		}
 	}
 }

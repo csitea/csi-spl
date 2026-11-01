@@ -210,3 +210,22 @@ func TestSockDeskExhaustedTask(t *testing.T) {
 		t.Fatalf("reports = %+v, want task-9 then no task", d.reports)
 	}
 }
+
+func TestLeaseStringHidesKey(t *testing.T) {
+	l := Lease{Key: fakeKey, BaseURL: "https://example.com"}
+	out := fmt.Sprintf("%v %+v %s", l, l, l)
+	if strings.Contains(out, fakeKey) {
+		t.Fatalf("Lease printed its key: %q", out)
+	}
+	if want := "<VENDOR_KEY> <VENDOR_KEY> <VENDOR_KEY>"; out != want {
+		t.Fatalf("Lease printed %q, want %q", out, want)
+	}
+}
+
+func TestVerdictString(t *testing.T) {
+	for v, want := range map[Verdict]string{Other: "other", Exhausted: "key_exhausted"} {
+		if got := v.String(); got != want {
+			t.Errorf("Verdict(%d).String() = %q, want %q", int(v), got, want)
+		}
+	}
+}

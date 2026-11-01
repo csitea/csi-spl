@@ -56,6 +56,12 @@
 #        names neither the review branch nor the sha -> rc 7, nor when it
 #        names only the shared task (W1); controls: it names the branch,
 #        the sha -> GO
+#    19. the desk pinned under another user than the cron's (SPL-4563, sat:
+#        the agent user runs the cron, the box user holds the t1 pin): RED
+#        CONTROL the lane map read as the pin's user (sudo stub) -> GO; no
+#        pin under any user -> rc 3 / rc 7 saying "lane map unreadable" with
+#        the init's FATAL, not "names no copy"; the pin user's hub read
+#        failing -> rc 3 naming that user
 #   REVIEW_GO_FUNC points the test at another copy of the action: the red
 #   controls run it against a mutant (see the commit that added this file).
 #------------------------------------------------------------------------------
@@ -133,6 +139,7 @@ run() {
     do_require_bin() { return 0; }
     for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
     source "$0" || { echo "FATAL cannot source $0"; exit 97; }
+    eval "${RUN_PRE:-}"
     do_spl_review_go' "$FUNC" >"$T/out" 2>&1
 }
 count() { local n; n=$(grep -c -- "${2:-.}" "$1" 2>/dev/null); echo "${n:-0}"; }
@@ -555,6 +562,48 @@ run18 REVIEW_GO_MSG="$f"; go18 "18. control (N1): the rotated author's lane brie
 reset18n1 "Do: another fix in topic $TASK."
 f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 18000000-0000-4000-8000-00000000000f)
 run18 REVIEW_GO_MSG="$f"; refused "18. RED CONTROL (R7 c-972 W1): the rotated author's new brief names only the shared task holds" $? 7 "author box boxb"
+
+# --- 19. the desk pinned under another user than the cron's (SPL-4563) ----------------------------------
+# spl_lane_init refuses as it does for the cron user on sat; the sudo stub: `test` is true for $PIN_USERS,
+# the lane map read prints $LANES_JSON with hub $SUDO_HUB; every call logged
+# shellcheck disable=SC2016 # the init runs in the action's shell
+INIT19='spl_lane_init() { LANE_MODE=hub LANE_FLEET=main LANE_ENV=prd LANE_TENANT=t1 LANE_DESK_BOX=boxa LANE_BOX=boxa
+  do_log "FATAL boxa is not pinned in t1 (/x/desk/t1/boxa): seat a desk there first (do_spl_desk_up)"; return 1; }'
+cat >"$T/sudo.sh" <<'EOF_SUDO'
+#!/bin/bash
+[[ "$1" == -u ]] || exit 9
+u="$2"; shift 2; echo "SUDO $u $*" >>"$SUDO_LOG"
+if [[ "$1" == test ]]; then [[ " $PIN_USERS " == *" $u "* && "$3" == */desk/t1/boxa/pinned ]]; exit; fi
+echo "INFO a log line"; jq -c --arg h "$SUDO_HUB" '{fleet: "main", hub: $h, lanes: .lanes}' "$LANES_JSON"
+EOF_SUDO
+chmod +x "$T/sudo.sh"; printf 'SPOOL_AGENT_USER=nobody\n' >"$T/box.env"
+run19() {
+  : >"$T/s/sudo.log"
+  run RUN_PRE="$INIT19" REVIEW_GO_SUDO="$T/sudo.sh" SUDO_LOG="$T/s/sudo.log" SPOOL_BOX_ENV="$T/box.env" SPOOL_BOX_USER=nobody \
+    LANES_JSON="$T/s/lanes.json" "$@"
+}
+reset18; lanes "g-111@boxb|g-111-c002-x-grok-reviewer|Seat brief: R7 review of the c002-x orc fix"
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 19000000-0000-4000-8000-000000000001)
+run19 PIN_USERS=nobody SUDO_HUB=ok REVIEW_GO_MSG="$f"; rc=$?
+go18 "19. RED CONTROL: the t1 pin under another user: the lane map read as that user -> GO" 19000000-0000-4000-8000-000000000001 $rc
+grep -q '^SUDO nobody env HOME=.* LANE_TENANT=t1 LANE_DESK_BOX=boxa .*LANE_FORMAT=json LANE_ALL=1 bash .*/run -a do_spl_lane_map$' "$T/s/sudo.log" &&
+  pass "19. the read runs do_spl_lane_map (json, all rows) as the pin's user" || fail "19. sudo calls: $(cat "$T/s/sudo.log")"
+reset18; lanes "g-111@boxb|g-111-c002-x-grok-reviewer|Seat brief: R7 review of the c002-x orc fix"
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 19000000-0000-4000-8000-000000000002)
+run19 PIN_USERS= SUDO_HUB=ok REVIEW_GO_MSG="$f"
+refused "19. RED CONTROL: no pin under any user: the hold says the lane map is unreadable and why" $? 3 \
+  "no brief for it on this box boxa, and the lane map unreadable: FATAL boxa is not pinned in t1 (/x/desk/t1/boxa): seat a desk there first (do_spl_desk_up) (no pin under nobody either): not judged"
+! grep -q 'names no dispatch/briefs copy' "$LOG" && ! grep -q 'do_spl_lane_map' "$T/s/sudo.log" &&
+  pass "19. no pin: not 'names no copy', no lane map read" || fail "19. no pin: log=$(cat "$LOG") sudo=$(cat "$T/s/sudo.log")"
+reset18; lanes "g-111@boxb|g-111-c002-x-grok-reviewer|Seat brief: R7 review of the c002-x orc fix"
+f=$(msg 20261028T115900Z g-111@boxb "$(line g-111 grok PASS)" 19000000-0000-4000-8000-000000000003)
+run19 PIN_USERS=nobody SUDO_HUB=unreachable REVIEW_GO_MSG="$f"
+refused "19. the pin user's hub read fails: lane map unreadable, read as that user" $? 3 "lane map unreadable: .*read as nobody, who holds the pin: hub unreachable: not judged"
+reset; rbrief g-111 "c-222@boxb (claude)" "${SHA:0:12}"
+f=$(msg 20261028T115900Z g-111@boxa "$(line g-111 grok PASS)" 19000000-0000-4000-8000-000000000004)
+run19 PIN_USERS= SUDO_HUB=ok REVIEW_GO_MSG="$f"
+refused "19. RED CONTROL: the author on boxb, no pin: rc 7 says the lane map is unreadable" $? 7 \
+  "author c-222 has no brief on this box boxa (author box boxb), and the lane map unreadable: FATAL boxa is not pinned in t1"
 
 echo "spl-review-go: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

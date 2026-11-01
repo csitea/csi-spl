@@ -86,6 +86,7 @@
 # @param REVIEW_GO_REPO (optional) - the repo whose origin holds the branch, default this checkout
 # @param REVIEW_GO_FROM (optional) - the hold note's sender, default lease.conf LEASE_ORCH, else role seat 1
 # @param REVIEW_GO_SEND (optional) - the sender script, default spawn-agents/scripts/spool-send.sh (tests)
+# @param REVIEW_GO_SUDO (optional) - how the lane map is read as the user that holds the desk pin when the running user has none (SPL-4563), default `sudo -n`
 # @param SPOOL_ROOT (optional) - the spool root, default /var/spool-hub (the cron line sets none)
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ./run -a do_spl_review_go
@@ -205,33 +206,70 @@ _spl_review_go_here() { echo "${LEASE_MACHINE:-$(spl_desk_box_default)}"; }
 # from this box's records: the same id here may be another seat (SPL-4427).
 # Then the lane map's briefs (_spl_review_go_lane_briefs): the first whose
 # row matches the sha or task, else the first. A seat of another box with
-# none: nothing printed, rc 1.
+# none: nothing printed, rc 1; the lane map unreadable: its reason printed,
+# rc 2 (SPL-4563: it read as "names no copy").
 _spl_review_go_brief() {
-  local b="$SPOOL_ROOT/$1/lifetime/brief.md" here slug c first=""
+  local b="$SPOOL_ROOT/$1/lifetime/brief.md" here slug c first="" lb lrc=0
   here="$(_spl_review_go_here)"
   if [[ "$2" == "$here" ]]; then
     [[ -s "$b" ]] && { echo "$b"; return 0; }
     slug="$(_spl_review_go_title "$1")"
     [[ -n "$slug" ]] && { echo "$SPOOL_ROOT/dispatch/briefs/$slug.md"; return 0; }
   fi
-  while IFS= read -r c; do
+  lb="$(_spl_review_go_lane_briefs "$1" "$2" all)" || lrc=$?
+  (( lrc == 2 )) || while IFS= read -r c; do
     [[ -n "$c" ]] || continue
     first="${first:-$c}"
     _spl_review_go_row "$c" "$3" "$4" >/dev/null && { echo "$c"; return 0; }
-  done < <(_spl_review_go_lane_briefs "$1" "$2" all)
+  done <<<"$lb"
   [[ -n "$first" ]] && { echo "$first"; return 0; }
-  [[ "$2" == "$here" ]] || return 1
+  [[ "$2" == "$here" ]] || { (( lrc == 2 )) && { echo "$lb"; return 2; }; return 1; }
   echo "$b"
 }
 
 # _spl_review_go_lanes: the fleet lane map's hub rows (JSON, `.lanes`), read
 # as do_spl_lane_map reads them (spl_lane_init, spl_lane_hub_read), in a
-# subshell; rc 1 with no fleet or no hub answer.
+# subshell. rc 1: no fleet (no lane map). rc 2: the lane map is unreadable,
+# its reason on stderr. The desk that signs the read may be pinned under
+# another user (SPL-4563: on sat the cron runs as the agent user, which reads
+# the reviewers' 0700 session logs, and the t1 desk is the box user's, 0700):
+# then it is read as that user (_spl_review_go_lanes_as).
 _spl_review_go_lanes() {
   (
-    { spl_lane_init && [[ "$LANE_MODE" == hub ]] && spl_lane_hub_read; } >/dev/null 2>&1 || exit 1
+    e="$(mktemp)" || exit 2
+    trap 'rm -f "$e"' EXIT
+    spl_lane_init >"$e" 2>&1 || { _spl_review_go_lanes_as "$(grep -m1 FATAL "$e" || tail -n1 "$e")"; exit; }
+    [[ "$LANE_MODE" == hub ]] || exit 1
+    spl_lane_hub_read >/dev/null 2>&1 || { echo "the hub did not answer (${LANE_HUB_TRIED:-0} tries)" >&2; exit 2; }
     printf '%s' "$LANE_HUB_JSON"
   )
+}
+
+# _spl_review_go_lanes_as <why>: spl_lane_init refused (<why>); the lane rows
+# read as the first other user of spl_desk_roots whose state root holds the
+# pin of LANE_TENANT/LANE_DESK_BOX, through `$REVIEW_GO_SUDO -u <user>`
+# (default `sudo -n`), as `LANE_FORMAT=json LANE_ALL=1 do_spl_lane_map`
+# (its hub must answer). None, or its read fails: rc 2, the reason on stderr.
+_spl_review_go_lanes_as() {
+  local me u r h out tried="" sudo
+  read -r -a sudo <<<"${REVIEW_GO_SUDO:-sudo -n}"
+  me="$(id -un)"
+  if [[ -n "${LANE_TENANT:-}" && -n "${LANE_DESK_BOX:-}" && "${LANE_ENV:-}" =~ ^(dev|prd|self)$ ]]; then
+    while IFS=$'\t' read -r u r; do
+      [[ -n "$u" && "$u" != "$me" ]] || continue
+      tried+=" $u"
+      "${sudo[@]}" -u "$u" test -s "$r/desk/$LANE_TENANT/$LANE_DESK_BOX/pinned" 2>/dev/null || continue
+      h="$(getent passwd "$u" | cut -d: -f6)"
+      out="$("${sudo[@]}" -u "$u" env HOME="$h" SPOOL_ROOT="$SPOOL_ROOT" LANE_FLEET="$LANE_FLEET" LANE_ENV="$LANE_ENV" \
+        LANE_TENANT="$LANE_TENANT" LANE_DESK_BOX="$LANE_DESK_BOX" LANE_BOX="$LANE_BOX" LANE_FORMAT=json LANE_ALL=1 \
+        bash "$PROJ_PATH/run" -a do_spl_lane_map 2>/dev/null | grep -E '^\{' | tail -n1)"
+      jq -ce 'select(.hub == "ok" and (.lanes | type) == "array") | {lanes}' <<<"$out" 2>/dev/null && return 0
+      echo "$1; read as $u, who holds the pin: hub $(jq -r '.hub // "no answer"' <<<"$out" 2>/dev/null || echo 'no answer')" >&2
+      return 2
+    done < <(spl_desk_roots "$LANE_ENV" 2>/dev/null)
+  fi
+  echo "$1${tried:+ (no pin under$tried either)}" >&2
+  return 2
 }
 
 # _spl_review_go_lane_briefs <id> <box> <all|one>: the dispatch/briefs/<slug>.md
@@ -240,11 +278,13 @@ _spl_review_go_lanes() {
 # <id>-rotate: no brief), then the briefs whose first heading (`#`s and
 # `Brief:` dropped, as the spawn writes the scope; cut to 120 or 500) the
 # row's scope opens. With `one` a scope match counts only when the matches
-# are one brief's content (the author check reads the one it gets).
+# are one brief's content (the author check reads the one it gets). The lane
+# map unreadable: `lane map unreadable: <reason>` printed, rc 2.
 _spl_review_go_lane_briefs() {
-  local f
+  local f why rc=0
   f="$(mktemp)" || return 0
-  _spl_review_go_lanes >"$f" || { rm -f "$f"; return 0; }
+  why="$(_spl_review_go_lanes 2>&1 >"$f")" || rc=$?
+  (( rc == 0 )) || { rm -f "$f"; (( rc == 2 )) && { echo "lane map unreadable: ${why:-no reason given}"; return 2; }; return 0; }
   python3 - "$1" "$2" "$3" "$SPOOL_ROOT/dispatch/briefs" "$f" <<'EOF_PY'
 import glob, json, os, re, sys
 rid, box, mode, bdir, src = sys.argv[1:6]
@@ -371,7 +411,8 @@ EOF_PY
 # brief names on its `Author brief:` line, else the first of the lane map's
 # (_spl_review_go_lane_briefs, a scope match only when it is one brief) tied
 # to the reviewed work (_spl_review_go_tied): a re-tasked or rotated seat's
-# new lane brief is never read for it (R7 c-972 N1). rc 1 when none is here.
+# new lane brief is never read for it (R7 c-972 N1). rc 1 when none is here;
+# rc 2, the reason printed, when the lane map is unreadable (SPL-4563).
 _spl_review_go_abrief() {
   local b="$SPOOL_ROOT/$1/lifetime/brief.md" here p c
   here="$(_spl_review_go_here)"
@@ -379,9 +420,10 @@ _spl_review_go_abrief() {
   p="$(sed -nE 's/.*Author brief:[[:space:]]*([^[:space:];,]+\.md).*/\1/p' "$2" 2>/dev/null)"
   p="${p%%$'\n'*}"
   if [[ "$p" == "$SPOOL_ROOT/dispatch/briefs/${p##*/}" && "${p##*/}" =~ ^[A-Za-z0-9._-]+\.md$ && -s "$p" ]]; then echo "$p"; return 0; fi
-  while IFS= read -r c; do
-    _spl_review_go_tied "$c" "$4" "$5" && { echo "$c"; return 0; }
-  done < <(_spl_review_go_lane_briefs "$1" "${3:-$here}" one)
+  c="$(_spl_review_go_lane_briefs "$1" "${3:-$here}" one)" || { [[ $? == 2 ]] && { echo "$c"; return 2; }; }
+  while IFS= read -r p; do
+    [[ -n "$p" ]] && _spl_review_go_tied "$p" "$4" "$5" && { echo "$p"; return 0; }
+  done <<<"$c"
   return 1
 }
 
@@ -493,12 +535,16 @@ _spl_review_go_one() {
   rid="${BASH_REMATCH[1]}" rbox="${BASH_REMATCH[2]}" rven="${BASH_REMATCH[3]}" verdict="${BASH_REMATCH[4]}" sha="${BASH_REMATCH[5]}"
   [[ "$verdict" == PASS ]] || { _spl_review_go_hold "$@" 1 "REVIEW $verdict from $rid@$rbox for ${sha:0:12}"; return 1; }
   ! _spl_review_go_read_fail "$line" || { _spl_review_go_hold "$@" 1 "PASS header but its read: says FAIL from $rid@$rbox for ${sha:0:12}"; return 1; }
-  brief="$(_spl_review_go_brief "$rid" "$mbox" "$sha" "$task")" ||
+  brief="$(_spl_review_go_brief "$rid" "$mbox" "$sha" "$task")"; rc=$?
+  (( rc == 2 )) && { _spl_review_go_hold "$@" 3 "reviewer $rid@$mbox runs on box $mbox: no brief for it on this box $here, and the $brief: not judged"; return 3; }
+  (( rc == 0 )) ||
     { _spl_review_go_hold "$@" 3 "reviewer $rid@$mbox runs on box $mbox: no brief for it on this box $here (its records here are not read for another box's seat; the lane map names no dispatch/briefs copy): brief on another box, not judged"; return 3; }
   IFS=$'\t' read -r author abox branch rtask < <(_spl_review_go_row "$brief" "$sha" "$task")
   [[ -n "${author:-}" ]] || { _spl_review_go_hold "$@" 3 "unplaced reviewer or author not assigned in $brief"; return 3; }
   [[ "${author%%-*}" != "${rid%%-*}" ]] || { _spl_review_go_hold "$@" 2 "reviewer $rid ($rven) shares the vendor of author $author"; return 2; }
-  abrief="$(_spl_review_go_abrief "$author" "$brief" "$abox" "$branch" "$sha")" ||
+  abrief="$(_spl_review_go_abrief "$author" "$brief" "$abox" "$branch" "$sha")"; rc=$?
+  (( rc == 2 )) && { _spl_review_go_hold "$@" 7 "author $author has no brief on this box $here (author box ${abox:-not named}), and the $abrief: not verified"; return 7; }
+  (( rc == 0 )) ||
     { _spl_review_go_hold "$@" 7 "author $author has no brief on this box $here (author box ${abox:-not named}; not $SPOOL_ROOT/$author/lifetime/brief.md, an Author brief: line in $brief or the lane map): not verified"; return 7; }
   why="$(_spl_review_go_owner_go "$abrief" "$holder")" ||
     { _spl_review_go_hold "$@" 4 "task touches owner-go scope: $why"; return 4; }

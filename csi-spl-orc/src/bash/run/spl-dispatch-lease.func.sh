@@ -79,6 +79,9 @@
 # this machine's desk box id (specs/058), also when sourced on its own
 declare -F spl_desk_box_default >/dev/null ||
   source "${BASH_SOURCE[0]%/*}/../../../lib/bash/funcs/spl-desk-box.func.sh"
+# the desk paths (spl_desk_dir, spl_desk_glob) follow the desk user, also when sourced on its own
+declare -F spl_desk_glob >/dev/null ||
+  source "${BASH_SOURCE[0]%/*}/../../../lib/bash/funcs/spl-cloud-cnf.func.sh"
 # the role seat list (SPL_ROLE_SEAT_RX), its one home
 [[ -n "${SPL_ROLE_SEAT_RX:-}" ]] ||
   source "${BASH_SOURCE[0]%/*}/../features/spawn-agents/lib/spool-env.inc.sh"

@@ -11,7 +11,7 @@
 //     POSTs /clear and empties it
 //   4 the deep link /events lands on /monitoring/events, and /events#<id>
 //     keeps the hash: that row is the focused one
-//   5 no sideways scroll; the Monitoring tabs and Clear log are >= 44 px tall
+//   5 no sideways scroll; the Monitoring tabs' tap area and Clear log are >= 44 px tall
 //     on the phone
 //   6 SPL-3366: each column sorts and filters, on the phone and on the desktop.
 //     A filter that matches nothing keeps the controls. /events#5 stays visible
@@ -159,7 +159,13 @@ const seen = (p) => p.evaluate(() => {
     clear: vis(document.querySelector('[data-test=events-clear]')),
     logs: document.querySelectorAll('[data-test=events-page]').length,
     sideways: se.scrollWidth - innerWidth,
-    tabH: h('.monitoring-tab'),
+    // SPL-4551: a phone tab is 0.8x (37-40 px), its tap area stays 44 px (a
+    // ::before up into the bar): a tap 43 px above its bottom still hits it
+    tabH: [...document.querySelectorAll('.monitoring-tab')].filter(vis).map((e) => {
+      const r = e.getBoundingClientRect()
+      const u = document.elementFromPoint(r.left + r.width / 2, r.bottom - 43)
+      return Math.round(u === e || e.contains(u) ? Math.max(44, r.height) : r.height)
+    }),
     clearH: h('[data-test=events-clear]'),
   }
 })

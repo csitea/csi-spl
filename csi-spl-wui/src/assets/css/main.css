@@ -1051,7 +1051,7 @@ html.pane-dragging * {
   .topic header > .topic-close { display: none; }
   .topic header { padding: 4px 8px 4px 4px; }
   .feed-header { padding: 4px 12px 4px 4px; gap: 6px; min-height: calc(var(--tap) + 8px); }
-  .spool-shell[data-mobile-section-page="1"] .monitoring-tabs { flex: none; margin: 0; padding: 0 16px; box-shadow: inset 0 -1px 0 var(--color-border); } /* spec 153 (SPL-3157): the header dissolves here (CLE-77886 above, no heading), so the bar is its own row again, its own bottom line under the underline */
+  .spool-shell[data-mobile-section-page="1"] .monitoring-tabs { flex: none; margin: 0; padding: 4px 16px 0; box-shadow: inset 0 -1px 0 var(--color-border); } /* spec 153 (SPL-3157): the header dissolves here (CLE-77886 above, no heading), so the bar is its own row again, its own bottom line under the underline */
   .feed-header__who--status { flex-direction: column; align-items: flex-start; gap: 0; line-height: 1.25; }
   .feed-header__who--status .feed-header__title,
   .feed-header__who--status .feed-header__status { max-width: 100%; }
@@ -1674,6 +1674,19 @@ html.pane-dragging * {
 .reporting-tab { padding: 8px 12px; color: var(--color-muted); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .reporting-tab:hover, .reporting-tab--active { color: var(--color-fg); }
 .reporting-tab--active { border-bottom-color: var(--color-accent); }
+/* SPL-4551 (owner HUM-10, t1 6cfd0257, msg 3207d42c): on a phone the
+   Monitoring and Reporting sub-tabs are 20% smaller, font, padding and height
+   (0.8x the rules above); desktop keeps them. The visible tab is shorter than
+   --tap, so a ::before keeps the tap area --tap tall, anchored to the tab's
+   bottom and growing up into the bar's top padding, never past the bar. */
+@media (max-width: 820px) {
+  .monitoring-tab, .reporting-tab { position: relative; font-size: 0.8rem; }
+  .monitoring-tab::before, .reporting-tab::before { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: var(--tap); }
+  .monitoring-tab { padding: 6.4px 8.8px 7.2px; }
+  .monitoring-tab--active { padding-top: 9.6px; }
+  .reporting-tab { padding: 6.4px 9.6px; }
+  .reporting-tabs { padding-top: 8px; }
+}
 .reporting-soon { padding: 16px; margin: 0; }
 /* spec 143 costs-redesign.md 3.2 (SPL-3798): Reporting -> Costs, its page
    bar and header (pages/reporting/costs.vue, CostsHeader.vue); the bar wraps

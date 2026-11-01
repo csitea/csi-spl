@@ -23,12 +23,13 @@ Owner HUM-10 directives and fleet rules, by pointer:
 **Why now.** The fleet's refactor share is under its band: c-001@sat
 blocker d5028446 (task spawn-share, 2026-11-01T07:1xZ): refactor 12%, 1 of
 8 classed live lanes, and no refactor row queued. Round 19
-([plan](refactor-round-19-plan.md), v1.0) has rows 01-06 and 08 on master
-(`git log ffd36e3e5 -E --grep='r44-[0-9]{2}' --oneline` -> 7 row commits: 01
-`fe75c7304`, 02 `2975facfa`, 03 `f3097c224`, 04 `3ccda94f6`, 05 `99fa6c6d4`,
-06 `44ca5f516`, 08 `80f8844ad`); row 07 sits with a lane on the other box, and row 09
-waits for 07. **No round 19 retro yet**: it is not due while 07 and 09 are
-open (rulebook 2.8). This plan takes round 19's section 6 inputs, above all
+([plan](refactor-round-19-plan.md), v1.0) had rows 01-06 and 08 on master at
+`ffd36e3e5` (`git log ffd36e3e5 -E --grep='r44-[0-9]{2}' --oneline` -> 7 row
+commits: 01 `fe75c7304`, 02 `2975facfa`, 03 `f3097c224`, 04 `3ccda94f6`, 05
+`99fa6c6d4`, 06 `44ca5f516`, 08 `80f8844ad`). Since then row 07 landed as
+`27b31ed58` (`git log origin/master -E --grep='r44-0[679]' --oneline` -> 06
+and 07, 2026-11-01T18:4xZ); row 09 is not on master. **No round 19 retro
+yet**: it is not due while 09 is open (rulebook 2.8). This plan takes round 19's section 6 inputs, above all
 its 37 declare-first files, and re-measures each (section 2).
 
 Round 20 focus: **a closing `#---` ends an action's header**, so prose
@@ -37,11 +38,13 @@ then the declare-first files, which that change makes fixable by moving one
 line; and **four Go packages' untested helpers under test**, two of them the
 code that keeps a secret out of logs.
 
-**Status: v0.1 DRAFT**, for the panel.
+**Status: v0.2 DRAFT**, for the panel.
 
 Editor: **c-889** (claude; agy is out of quota until 2026-11-03T12:42Z and
-claude is the specs_and_docs backup). Panel reviewer: a fresh-session claude
-seat, placed by the dispatch lease holder. Dispatch lease holder: the
+claude is the specs_and_docs backup). Panel reviewer: **g-895** (grok, a
+fresh-session cross-vendor seat; c-002 msg 8d17d549: the claude-only
+waiver this brief was written under has lapsed), placed by the dispatch
+lease holder. Dispatch lease holder: the
 current holder of `lease.dispatch`.
 
 **One sha:** every count is measured on **`ffd36e3e5`** (`origin/master`
@@ -55,8 +58,10 @@ command unless stated. Go: go1.26.10. Box: sat.
   `c002-api-err-r45-shutdown-drain.md`, as round 19 section 1 said).
   `git log ffd36e3e5 --oneline --grep='r46-' | wc -l` -> 0, and
   `grep -rl 'r46-' /var/spool-hub/dispatch/briefs /var/spool-hub/spawn-remote | wc -l`
-  -> 0 (sat, 2026-11-01T17:32Z). The next planner proves its prefix free
-  the same way.
+  -> 0 at 2026-11-01T17:32Z and 1 at 18:4xZ: the one hit is this round's
+  panel reviewer brief, which quotes the search (g-895). No r46 lane. The
+  next planner proves its prefix free the same way, and discounts briefs
+  that only quote the search.
 - One row = one practice = one lane, at the sites named and nowhere else,
   with a test that shows behaviour kept or, for a gate change, a **red
   control**: the check fails on the bad input before the change and passes
@@ -118,15 +123,15 @@ command unless stated. Go: go1.26.10. Box: sat.
 | round 19 6 | WUI raw-text ratchet | `cd csi-spl-wui && node src/node/i18n/i18n-gates.mjs raw` | 14 in 12 files: reproduces | **Left out**: codes and brand words |
 | round 19 6 | gosec G101, semgrep | `grep -v '^#' <baseline> \| grep -c .` | `.gosec-baseline.txt` 4, `.semgrep-baseline.txt` 1: reproduces | **Left out**: as retro 17 section 7.7 |
 | round 19 6 | shellcheck WARNING baseline | `git log ffd36e3e5 -E --grep='r43-0[45]' --oneline \| wc -l` -> 0 | round 18 rows 04, 05 not landed | **Left out**: still theirs |
-| round 19 | `internal/action`, `go-coverage-floor.txt` | round 19 rows 07, 09 | | **Excluded**: open round 19 rows (brief rule) |
+| round 19 | `internal/action`, `go-coverage-floor.txt` | round 19 row 09 (07 landed `27b31ed58`) | | **Excluded**: open round 19 rows (brief rule) |
 
 ## 3. The 9 rows
 
 | # | practice | why | sites file:line (max 5) | n | test or red control (R2) | box | vendor | kind | batch |
 |---|---|---|---|---|---|---|---|---|---|
-| 01 `refactor(r46-01-lib-header-ends-at-closing-separator)` | a closing `#---` ends an action's header | today every comment below the closing separator is read into the last tag: 31 files show prose as their `@example` in `./run`, and no file can put a command with its `# shellcheck source=` directive below its header | `iac:lib/parse-metadata.func.sh:30`<br>`orc:lib/parse-metadata.func.sh:30`<br>`utl:lib/parse-metadata.func.sh:30`<br>`iac:t/action-header-tags.tst.sh:9-11,71` (its header comment, its FAIL hint, and the red control "closing `#---` followed by prose")<br>`iac:t/action-header-tags-baseline.txt` (`[long-example]` and its "Measured on" comment) | 3 copies, 31 -> 4 long-example | The same edit in the three copies: on a `^#-+$` line, `break` when `in_header` is 1 and `header` is not empty, else set `in_header=1` (the function is 72 lines today, so it stays under the bash 80-line cap of `iac:t/bash-cleancode.tst.sh`). In the tags test, the red control becomes **one `@example` line over 200 characters -> FAIL**, and its comments and hint say what is read now; delete the 27 `[long-example]` lines that now pass and re-measure the comment. Before the commit, the lane runs section 2's old-vs-new comparison on its start sha and quotes it: tag names, `(required)` params and `arg=` lines unchanged in every action file. Tests: `orc:t/parse-metadata-nofork.tst.sh` (add a case: `#---`, `@example x`, `#---`, `# prose`, a command -> `example=x`), `iac:t/action-header-tags.tst.sh`, `iac:t/comment-refs-exist.tst.sh`, `iac:t/run-log-nofork.tst.sh`, `iac:t/bash-cleancode.tst.sh`, then `bash iac:t/run-all-tests.sh` and the orc and utl suites. R9 (a gate's input): run under `PRE_PUSH_TIER=full` and once with every `PRE_PUSH_*` unset. **Red control:** the new nofork case FAILS on the parent sha (`example=x prose`) and passes after. Docs: `Docs: none (./run help text only; developer guide 2.4.2 names the gate, not the parser)`. | sat | claude | complex_coding | 1 |
-| 02 `refactor(r46-02-orc-asks-header-parsed)` | the two ask actions' header is one the loader reads | `spl-asks-open` and `spl-asks-tick` have their tags but no `#---`, so `./run` shows no description and no example for them, and checks none of their `@param` lines | `orc:run/spl-asks-open.func.sh:2,29`<br>`orc:run/spl-asks-tick.func.sh:2,68`<br>`iac:t/action-header-tags-baseline.txt` (`[missing]`, 2 lines) | 2 files | Per file: a `#---` line after the shebang, and a closing `#---` above the first comment that is not a tag (`:29` and `:68`, the `# spl_role_seat:` line), right above the `declare -F spl_role_seat` command. Comments only, no tag text changes. Both declare `@param` lines, none `(required)` (`grep -ciE '^# *@param .*\(required\)'` -> 0 each), so `do_validate_params` refuses nothing new; the lane shows `do_parse_metadata <f> param` after. Delete the two `[missing]` lines. Simulated on copies of `ffd36e3e5`: 19 / 48 `description=`, 2 `example=` each, longest line 190 / 179. Tests: `iac:t/action-header-tags.tst.sh`, `orc:t/parse-metadata-nofork.tst.sh`, `orc:t/asks.tst.sh`, `agent-restart.tst.sh`, `dispatch-rotate.tst.sh`, `orch-rotate.tst.sh`, `peer-restart.tst.sh`, `wd-takeover.tst.sh`, `tests-hermetic.tst.sh`, `desk-dir-follows-desk-user.tst.sh`, `spl-epic-stall-check.tst.sh`, `spl-security-round-queue.tst.sh`, `spl-spawn-fill.tst.sh`, `spl-spawn-group.tst.sh`, `spl-spawn-queue.tst.sh`, `spl-zombie-topics.tst.sh`, `orc:src/bash/features/spawn-agents/tests/test-role-seat-vendor-param.sh`. **Red control:** `do_parse_metadata <f> \| grep -c '^example='` -> 0 on the parent sha, 2 after, per file. | sat | claude | simple_coding | 2 (after 01) |
-| 03 `refactor(r46-03-iac-header-declare-below-gcp-sync)` | an action's first command sits below its header | these 5 gcp actions open with `# shellcheck source=` + `declare -F spl_gcp_temp_sdk_config ... \|\| source ...` above the separator, so the loader stops before their header | `iac:run/gcp-s3-download-all.func.sh:2`<br>`iac:run/gcp-sync-local-to-s3.func.sh:2`<br>`iac:run/gcp-sync-s3-to-local.func.sh:2`<br>`iac:run/gcp-sync-src-bucket-data-to-tgt-bucket.func.sh:2`<br>`iac:run/gcp-sync-src-s3-to-tgt-s3.func.sh:2` (+ their 5 `[missing]` lines) | 5 files | Per file: move the lines between the shebang and the first `#---` (the directive, the `declare` line and a blank after it) unchanged to just below the closing `#---`, above any other line. Nothing else moves: the `declare` still runs before every function definition. Delete the 5 `[missing]` lines. Simulated on copies with row 01's loader: each gets `description=` and 1-2 `example=`, longest line 58-152, no `(required)`. Needs row 01: with today's loader the moved directive is read into the last tag. Tests: `iac:t/action-header-tags.tst.sh`, `orc:t/parse-metadata-nofork.tst.sh`, `iac:t/gcp-actions-isolated-config.tst.sh`, `gcp-exit-status-checks.tst.sh`, `gcp-key-path-no-eval.tst.sh`, `gcp-misc-actions.tst.sh`, `gcp-project-delete.tst.sh`, `gcp-s3-download-all-mkdir.tst.sh`, `gcp-temp-sdk-config.tst.sh`; `do_check_pre_push_lint` (shellcheck still follows the directive). **Red control:** `do_parse_metadata <f> \| grep -c '^description='` and `'^example='` -> 0 on the parent sha, at least 1 after, per file. | sat | claude | simple_coding | 3 (after 02) |
+| 01 `refactor(r46-01-lib-header-ends-at-closing-separator)` | a closing `#---` ends an action's header | today every comment below the closing separator is read into the last tag: 31 files show prose as their `@example` in `./run`, and no file can put a command with its `# shellcheck source=` directive below its header | `iac:lib/parse-metadata.func.sh:30`<br>`orc:lib/parse-metadata.func.sh:30`<br>`utl:lib/parse-metadata.func.sh:30`<br>`orc:t/parse-metadata-nofork.tst.sh` (the new case below)<br>`iac:t/action-header-tags.tst.sh:9-11,71` (its header comment, its FAIL hint, and the red control "closing `#---` followed by prose")<br>`iac:t/action-header-tags-baseline.txt` (`[long-example]` and its "Measured on" comment) | 3 copies, 31 -> 4 long-example | The same edit in the three copies: on a `^#-+$` line, `break` when `in_header` is 1 and `header` is not empty, else set `in_header=1`, **as one line**: `[[ "$line" =~ ^#-+$ ]] && { [[ $in_header -eq 1 && -n "$header" ]] && break; in_header=1; continue; }`. The cap of `iac:t/bash-cleancode.tst.sh` is `MAX_LINES=75` (`:20`, SPL-3725 80 -> 75) and `do_parse_metadata` is not in its ceiling list (`grep -c parse_metadata` -> 0), so the function must stay at or under 75 lines: 72 today and 72 with the one-line edit, but 76 with a 5-line `if` and 78 with a 7-line one, both red (g-895, the test's own awk on the iac copy). A multi-line `if` fails the gate. In the tags test, the red control becomes **one `@example` line over 200 characters -> FAIL**, and its comments and hint say what is read now; delete the 27 `[long-example]` lines that now pass and re-measure the comment. Before the commit, the lane runs section 2's old-vs-new comparison on its start sha and quotes it: tag names, `(required)` params and `arg=` lines unchanged in every action file. Tests: `orc:t/parse-metadata-nofork.tst.sh` (add a case: `#---`, `@example x`, `#---`, `# prose`, a command -> `example=x`), `iac:t/action-header-tags.tst.sh`, `iac:t/comment-refs-exist.tst.sh`, `iac:t/run-log-nofork.tst.sh`, `iac:t/bash-cleancode.tst.sh`, then `bash iac:t/run-all-tests.sh` and the orc and utl suites. R9 (a gate's input): run under `PRE_PUSH_TIER=full` and once with every `PRE_PUSH_*` unset. **Red control:** the new nofork case FAILS on the parent sha (`example=x prose`) and passes after. Docs: `Docs: none (./run help text only; developer guide 2.4.2 names the gate, not the parser)`. | sat | claude | complex_coding | 1 |
+| 02 `refactor(r46-02-orc-asks-header-parsed)` | the two ask actions' header is one the loader reads | `spl-asks-open` and `spl-asks-tick` have their tags but no `#---`, so `./run` shows no description and no example for them, and checks none of their `@param` lines | `orc:run/spl-asks-open.func.sh:2,29`<br>`orc:run/spl-asks-tick.func.sh:2,68`<br>`iac:t/action-header-tags-baseline.txt` (`[missing]`, 2 lines) | 2 files | Per file: a `#---` line after the shebang, and a closing `#---` above the first comment that is not a tag (`:29` and `:68`, the `# spl_role_seat:` line), right above the `declare -F spl_role_seat` command. Comments only, no tag text changes. Both declare `@param` lines, none `(required)` (`grep -ciE '^# *@param .*\(required\)'` -> 0 each), so `do_validate_params` refuses nothing new; the lane shows `do_parse_metadata <f> param` after. Delete the two `[missing]` lines. Simulated on copies of `ffd36e3e5`: 19 / 48 `description=`, 2 `example=` each, longest line 190 / 179. Under today's loader the `# spl_role_seat:` comment is appended to the last `example=` (so the text differs from row 01's loader, the counts and the longest line do not); 190 and 179 stay under 200, so the tags gate does not need row 01. The row waits only for the shared baseline. Tests: `iac:t/action-header-tags.tst.sh`, `orc:t/parse-metadata-nofork.tst.sh`, `orc:t/asks.tst.sh`, `agent-restart.tst.sh`, `dispatch-rotate.tst.sh`, `orch-rotate.tst.sh`, `peer-restart.tst.sh`, `wd-takeover.tst.sh`, `tests-hermetic.tst.sh`, `desk-dir-follows-desk-user.tst.sh`, `spl-epic-stall-check.tst.sh`, `spl-security-round-queue.tst.sh`, `spl-spawn-fill.tst.sh`, `spl-spawn-group.tst.sh`, `spl-spawn-queue.tst.sh`, `spl-zombie-topics.tst.sh`, `orc:src/bash/features/spawn-agents/tests/test-role-seat-vendor-param.sh`. **Red control:** `do_parse_metadata <f> \| grep -c '^example='` -> 0 on the parent sha, 2 after, per file. | sat | claude | simple_coding | 2 (after 01) |
+| 03 `refactor(r46-03-iac-header-declare-below-gcp-sync)` | an action's first command sits below its header | these 5 gcp actions open with `# shellcheck source=` + `declare -F spl_gcp_temp_sdk_config ... \|\| source ...` above the separator, so the loader stops before their header | `iac:run/gcp-s3-download-all.func.sh:2`<br>`iac:run/gcp-sync-local-to-s3.func.sh:2`<br>`iac:run/gcp-sync-s3-to-local.func.sh:2`<br>`iac:run/gcp-sync-src-bucket-data-to-tgt-bucket.func.sh:2`<br>`iac:run/gcp-sync-src-s3-to-tgt-s3.func.sh:2` (+ their 5 `[missing]` lines; the baseline is shared by rows 01-05, which is why each is its own batch) | 5 files | Per file: move the lines between the shebang and the first `#---` (the directive, the `declare` line and a blank after it) unchanged to just below the closing `#---`, above any other line. Nothing else moves: the `declare` still runs before every function definition. Delete the 5 `[missing]` lines. Simulated on copies with row 01's loader: each gets `description=` and 1-2 `example=`, longest line 58-152, no `(required)`. Needs row 01: with today's loader the moved directive is read into the last tag. Tests: `iac:t/action-header-tags.tst.sh`, `orc:t/parse-metadata-nofork.tst.sh`, `iac:t/gcp-actions-isolated-config.tst.sh`, `gcp-exit-status-checks.tst.sh`, `gcp-key-path-no-eval.tst.sh`, `gcp-misc-actions.tst.sh`, `gcp-project-delete.tst.sh`, `gcp-s3-download-all-mkdir.tst.sh`, `gcp-temp-sdk-config.tst.sh`; `do_check_pre_push_lint` (shellcheck still follows the directive). **Red control:** `do_parse_metadata <f> \| grep -c '^description='` and `'^example='` -> 0 on the parent sha, at least 1 after, per file. | sat | claude | simple_coding | 3 (after 02) |
 | 04 `refactor(r46-04-iac-header-declare-below-gcp-data)` | as row 03 | the same, 5 gcp secret, dns and data actions | `iac:run/gcp-copy-secret.func.sh:2`<br>`iac:run/gcp-fetch-secrets.func.sh:2`<br>`iac:run/gcp-export-dns.func.sh:2`<br>`iac:run/gcp-import-to-cloudsql.func.sh:2`<br>`iac:run/gcp-backup-env.func.sh:2` (+ their 5 `[missing]` lines) | 5 files | As row 03. Simulated: both tags each, longest line 80-182, no `(required)`. `gcp-import-to-cloudsql` carries 2 `# @arg` lines (`:93`, `:182`) inside functions, below the first command, so never read (`do_parse_metadata <f> arg` -> empty before and after; the lane shows it). Tests: `iac:t/action-header-tags.tst.sh`, `orc:t/parse-metadata-nofork.tst.sh`, `iac:t/adhoc-harvest-gcp-actions.tst.sh`, `gcp-exit-status-checks.tst.sh`, `gcp-misc-actions.tst.sh`, `return-not-exit-gcp.tst.sh`, `gcp-actions-isolated-config.tst.sh`, `gcp-temp-sdk-config.tst.sh`; `do_check_pre_push_lint`. **Red control:** as row 03. | sat | claude | simple_coding | 4 (after 03) |
 | 05 `refactor(r46-05-iac-header-declare-below-spl-secret)` | as row 03 | the same, 5 spl secret and kms actions | `iac:run/spl-secret-age-report.func.sh:2`<br>`iac:run/spl-secret-rotate.func.sh:2`<br>`iac:run/spl-secret-scan-alert-triage.func.sh:2`<br>`iac:run/spl-secret-version-disable-old.func.sh:2`<br>`iac:run/spl-kms-check.func.sh:2` (+ their 5 `[missing]` lines) | 5 files | As row 03. Simulated: both tags each, longest line 76-105, no `(required)`. `spl-secret-unused-list` (7 lines above its separator, 3 `declare` commands) sources `spl-secret-age-report` and is **not** a site. Tests: `iac:t/action-header-tags.tst.sh`, `orc:t/parse-metadata-nofork.tst.sh`, `iac:t/spl-secret-age-report.tst.sh`, `spl-secret-rotate.tst.sh`, `spl-secret-scan-alert-triage.tst.sh`, `spl-secret-version-disable-old.tst.sh`, `spl-secret-unused-list.tst.sh`, `spl-kms-check.tst.sh`, `gcp-temp-sdk-config.tst.sh`; `do_check_pre_push_lint`. **Red control:** as row 03. | sat | claude | simple_coding | 5 (after 04) |
 | 06 `test(r46-06-api-marketing-plaintext-redaction)` | the secret wrapper's redaction under test, every encoder | `marketing.Plaintext` keeps a token out of logs and payloads; its `GoString` (`%#v`) and `MarshalText` (map keys, text encoders) are 0.0 | `go:internal/marketing/seal.go:61`<br>`go:internal/marketing/seal.go:70`<br>`go:internal/marketing/plaintext_redact_test.go` (new) | 2 functions at 0.0 | With a fake token: `fmt.Sprintf("%#v", p)`, `%#v` of a struct holding it, `p.MarshalText()` and `json.Marshal(map[marketing.Plaintext]int{p: 1})` each hold the redaction text and never the token; `Reveal()` still returns it. A new test file; define no helper whose name another test file of the package defines. Fake tokens only. No floor change (round 19 row 09 holds `go-coverage-floor.txt`). Tests: `go test -count=1 -race -cover ./internal/marketing/`; `bash api:src/bash/tests/run-all-tests.sh` (coverage part `ok`, floors unchanged). **Red control:** `GoString` returning `p.s` -> the new case fails. | sat | claude | tests | 1 |
@@ -152,7 +157,7 @@ then the next Go row as each lands. Once rows 06-09 are on master the
 header track runs alone, one lane at a time.
 
 No row touches `csi-spl-cnf/`, a migration, a workflow, terraform code,
-`go-coverage-floor.txt` or `internal/action/` (round 19 rows 07, 09).
+`go-coverage-floor.txt` or `internal/action/` (round 19 row 09).
 
 ### 3.2 Off every live lane and every queued row (R3)
 
@@ -163,7 +168,12 @@ No row touches `csi-spl-cnf/`, a migration, a workflow, terraform code,
   `meta_publish.go`, `wire.go`, `fleet_enrol.go`, `move.go`, `topics.go`,
   `flow.go`, `backoff.go`, `handler.go`) -> exit 0 each (sat,
   2026-11-01 ~17:35Z, the exit code read from the command itself, never
-  through a pipe). SPL-4555 (c-851, the 11 `spl_desk_dir` callers) owns
+  through a pipe). **Re-measured at v0.2 (2026-11-01T18:4xZ): exit 4**,
+  `unknown:` for 7 live lanes that record no files (g-895 saw g-585, a
+  read-only grok language review of SPL-4043 WUI strings; c-889 saw
+  c-894, c-934 and c-988 among them, all on the other box). No path is printed as owned,
+  but exit 4 is not free: the dispatch holder re-runs the check before each
+  row's spawn and asks any `unknown:` lane first. SPL-4555 (c-851, the 11 `spl_desk_dir` callers) owns
   `spl-issue-create` and `spl-topic-copy-cross`: both stay among the 4
   long-example files after row 01, and no row edits them. SPL-4536 (c-823,
   desk paths) and the queued box-crons row (ask 5c4a5a8f) name no file
@@ -196,8 +206,8 @@ No row touches `csi-spl-cnf/`, a migration, a workflow, terraform code,
 
 ## 5. Panel and reviewers (R7)
 
-- Editor: c-889 (claude). Panel reviewer: a fresh-session claude seat, named
-  by the dispatch lease holder. Both sign the plan sha (rulebook 3.2).
+- Editor: c-889 (claude). Panel reviewer: g-895 (grok, fresh session),
+  named by the dispatch lease holder (c-002 msg 8d17d549). Both sign the plan sha (rulebook 3.2).
 - Row reviewers: a cross-vendor seat per row (section 1); lines checked
   with `do_spl_review_line_check`. A row with no reviewer for 15 minutes
   reports a blocker (2.7.3).
@@ -209,7 +219,7 @@ No row touches `csi-spl-cnf/`, a migration, a workflow, terraform code,
   of one shared baseline. The editor kept it so, rather than let a row
   leave a stale baseline line for a later row: that would turn the tags
   test red on master in between.
-- **P3, for the panel:** no round 19 retro yet (rows 07, 09 open); allowed
+- **P3, for the panel:** no round 19 retro yet (row 09 open); allowed
   as in round 19 (rulebook 2.8 R8 and 1.4).
 
 ## 6. Left out, measured
@@ -220,6 +230,7 @@ No row touches `csi-spl-cnf/`, a migration, a workflow, terraform code,
 | `gcp-002-delete-project-service-account`, `gcp-export-dns-settings` | the move gives a `description=` but no `example=`: each also needs a real `@example`; **input for round 21** | the same simulation |
 | `gcp-project-delete`, `gcp-tail-logs` (declare-first, `(required)` `@param`) and the 7 orc `(required)` files | a readable header turns on `do_validate_params`, which then refuses a call that runs today: a behaviour change with every caller checked, **for the next bug round** | `grep -ciE '^# *@param .*\(required\)'` on the 55 -> 9 |
 | the 4 long-example files left after row 01: `provision-firebase-dns` (two examples joined by a `\` continuation), `spl-tenant-member-add` (one long real example), `spl-issue-create`, `spl-topic-copy-cross` | the last two belong to SPL-4555 (c-851); the first two are one-line edits, input for round 21 | section 2, the patched copy |
+| floor raises for `internal/marketing`, `wire`, `hubclient`, `payments` (`go-coverage-floor.txt`) after rows 06-09 | rows 06-09 share batch 1, so none may edit the floor file (rulebook 2.1); round 19 row 09 holds it. `payments` sits at its floor (80.9), so a new test there that lowers coverage fails the floor gate | **input for round 21**: one row raises the four lines after r44-09 lands | g-895, `go test -coverprofile` on the four packages, go1.26.10 |
 | `internal/keydesk` `logf` 50.0, `cmd/spool` `hub.go`, `store` / `repodocs` / `auth` | section 2 | `go tool cover -func` on `ffd36e3e5` |
 | `internal/gcal` `ListCalendars`, `internal/mail` `encodeWord`, `Send`, `Messages`, `EmbedRelink` | api-err series briefs name both areas (`c002-api-err-r7-smtp-ipv4`, `c002-api-err-r8-gcal-invalid-grant`); taken once that series is closed | `ls /var/spool-hub/dispatch/briefs \| grep api-err` |
 | clean-code ratchets, WUI raw text, gosec / semgrep, shellcheck WARNING baseline | section 2 | section 2 |
@@ -240,8 +251,16 @@ No row touches `csi-spl-cnf/`, a migration, a workflow, terraform code,
 ## 8. Changes
 
 - v0.1: first draft (c-889): 9 rows, slug `r46`; no round 19 retro (not due).
+- v0.2 (c-889, on g-895 FAIL f86472e2 and c-002 1b58fd45): W1 row 01 cap is
+  75, not 80, and the separator edit is one line; N2 panel reviewer is
+  g-895 (grok); N4 lane-map now exit 4 (`unknown:` lanes); N5 floor raises
+  to round 21 (section 6); N6 row 01 names the nofork test as a site; N7
+  rows 03-05 say why they are serial; N9 row 02 under today's loader; P1
+  the r46 brief grep is 1 (the reviewer brief); P4 r44-07 landed
+  `27b31ed58`, only 09 open.
 
 ## 9. Consensus
 
 - Editor seat: c-889 (claude): drafts v0.1.
-- Claude panel reviewer seat: to be placed by the dispatch lease holder.
+- Grok panel reviewer seat: g-895@sat, placed 2026-11-01T17:56:39Z on
+  `24a11b3c6`.

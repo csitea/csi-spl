@@ -225,17 +225,74 @@ li_desk_user() {
   printf '%s' "${u:-${SPOOL_BOX_USER:-}}"
 }
 
-# li_desk_hop ARRAY: set ARRAY to the prefix that runs a command as the desk
-# user with its HOME (`sudo -n -u <desk user> env HOME=<its home>`), or to
-# nothing when the caller is the desk user or none is known. The hop of every
-# ./run action here that signs to the hub with the desk.
+# li_desk_hop ARRAY [ENV WS BOX]: set ARRAY to the prefix that runs a command
+# as the desk user with its HOME (`sudo -n -u <desk user> env HOME=<its home>`),
+# or to nothing when the caller is the desk user or none is known. The hop of
+# every ./run action here that signs to the hub with the desk. Given the desk
+# (env, workspace, desk box) and no SPOOL_DESK_USER, the hop goes to the owner
+# of the root that holds it (li_desk_root_user): a half-moved box (spec 069
+# section 8.3.1) holds desks under the agent user before box.env names a desk
+# user (SPL-4560). No root holds it: the hop is the one before.
 li_desk_hop() {
   local -n _li_hop="$1"
-  local u
+  local u r
   _li_hop=()
   u="$(li_desk_user)"
+  if [ $# -ge 4 ] && [ -z "$(li_box_key SPOOL_DESK_USER)" ] && r="$(li_desk_root_user "$2" "$3" "$4")"; then u="$r"; fi
   [ -n "$u" ] && [ "$(id -un)" != "$u" ] || return 0
   _li_hop=(sudo -n -u "$u" env HOME="$(getent passwd "$u" | cut -d: -f6)")
+}
+
+# li_cnf_lib: the desk resolvers (spl_box_key, spl_desk_roots) defined, from
+# this tree's orc lib when the caller (spawn-window.sh) did not source them.
+li_cnf_lib() {
+  declare -F spl_desk_roots >/dev/null && return 0
+  # shellcheck source=../../../../../lib/bash/funcs/spl-cloud-cnf.func.sh
+  . "$LI_ORC/lib/bash/funcs/spl-cloud-cnf.func.sh" 2>/dev/null && declare -F spl_desk_roots >/dev/null
+}
+
+# li_box_key KEY -> the box config's KEY (spl_box_key: the environment, else
+# the box env file); nothing when the resolvers cannot be loaded.
+li_box_key() {
+  li_cnf_lib || return 0
+  spl_box_key "$1"
+}
+
+# li_desk_root_user ENV WS BOX -> the user whose root holds <env>/desk/<ws>/<box>,
+# in spl_desk_dir's order (spl_desk_roots: the caller's, the desk user's, the
+# agent user's, the box user's). A root the caller cannot enter (the agent
+# user's 0700 desk dir) is asked through `sudo -n -u <its user> test -d`.
+# rc 1, nothing printed: no root holds it.
+li_desk_root_user() {
+  local e="$1" ws="$2" box="$3" u r me
+  [ -n "$e" ] && [ -n "$ws" ] && [ -n "$box" ] && li_cnf_lib || return 1
+  me="$(id -un)"
+  while IFS=$'\t' read -r u r; do
+    [ -n "$r" ] || continue
+    if [ -d "$r/desk/$ws/$box" ] || { [ "$u" != "$me" ] && sudo -n -u "$u" test -d "$r/desk/$ws/$box" 2>/dev/null </dev/null; }; then
+      printf '%s' "$u"; return 0
+    fi
+  done < <(PROJ_PATH="${PROJ_PATH:-$LI_ORC}" spl_desk_roots "$e" 2>/dev/null)
+  return 1
+}
+
+# li_desk_where BRIEF -> "<env> <workspace> <desk box>" of the desk
+# do_spl_lane_issue places with: the brief's `Workspace:` map row (its env,
+# tenant and desk box; spl_lane_issue_ws), else ENV / TENANT_ID or the lease's
+# LEASE_ENV / LEASE_TENANT, and DESK_BOX or this box's desk box
+# (spl_lane_issue_desk). Nothing when one of them is unknown.
+li_desk_where() {
+  local t row conf="${SPOOL_ROOT:-/var/spool-hub}/dispatch/lease.conf" e ws box
+  if t="$(wr_tenant_of_brief "${1:-}")"; then
+    row="$(wr_row "$t" 2>/dev/null)" || return 0
+    e="$(wr_field "$row" 1)" ws="$t" box="$(wr_field "$row" 7)"
+  else
+    e="${ENV:-$(sed -n 's/^LEASE_ENV=\([A-Za-z0-9_.-]*\)$/\1/p' "$conf" 2>/dev/null | tail -1)}"
+    ws="${TENANT_ID:-$(sed -n 's/^LEASE_TENANT=\([A-Za-z0-9_.-]*\)$/\1/p' "$conf" 2>/dev/null | tail -1)}"
+    box="${DESK_BOX:-$( . "$LI_ORC/lib/bash/funcs/spl-desk-box.func.sh" 2>/dev/null && spl_desk_box_default)}"
+  fi
+  [ -n "$e" ] && [ -n "$ws" ] && [ -n "$box" ] && printf '%s %s %s' "$e" "$ws" "$box"
+  return 0
 }
 
 # li_status_of KEY < ANSWER -> the status on its `issue-status` line, or nothing.

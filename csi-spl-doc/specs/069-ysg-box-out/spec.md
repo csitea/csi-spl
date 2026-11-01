@@ -718,6 +718,19 @@ box user's roots are best-effort: one the caller cannot enter is skipped and a
 missing desk still returns 1 (the box user's `.local` is 0700 on a moved box,
 and the desk user must still seat new desks).
 
+The lane issue step of `spawn-window.sh` hops before it calls
+`do_spl_lane_issue`, so it must pick the user first (SPL-4560). With no
+`SPOOL_DESK_USER`, `li_desk_hop` (`lane-issue.inc.sh`) takes the desk the
+action will use (`li_desk_where`: the brief's `Workspace:` map row, else the
+lease's env and tenant and this box's desk box) and hops to the owner of the
+first root in `spl_desk_roots` order that holds it, asking a root it cannot
+enter with `sudo -n -u <its user> test -d`. No root holds it: the hop to the
+box user, as before. With `SPOOL_DESK_USER` set nothing changes. On
+2026-11-01 a `Workspace: csi-rel` brief failed launch exit 12 three times
+(`FATAL no desk for c-002 on <box> in csi-rel`): its desk sat under
+`<agent-user>`, the action ran as `<box-user>`. Test:
+`csi-spl-orc/src/bash/tests/desk-user-hops.tst.sh` case 5.
+
 So a desk under `<agent-user>` is **readable only by `<agent-user>`**: a
 `<box-user>` cron that reads or posts through a moved desk keeps failing,
 now with that refusal instead of a bare `no desk for`, until it runs as the

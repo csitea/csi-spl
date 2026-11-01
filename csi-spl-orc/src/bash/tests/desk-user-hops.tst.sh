@@ -14,6 +14,13 @@
 #      to that user with THAT user's HOME, not the box user's
 #   4. lane-issue.inc.sh in a ./run action (no spool-env): spl_desk_user's box
 #      env read decides; the printed end/landed commands name the desk user
+#   5. a half-moved box (SPL-4560): no SPOOL_DESK_USER, the desk only under
+#      the agent user's root (SPOOL_AGENT_USER of the box env): spawn-window's
+#      issue hop (li_desk_hop with li_desk_where's env, workspace, desk box)
+#      goes to the agent user, also when only `sudo -n -u <it> test -d` sees
+#      the desk. RED CONTROL: before SPL-4560 the hop went to SPOOL_BOX_USER,
+#      whose root has no such desk (do_spl_lane_issue "FATAL no desk for").
+#      The desk nowhere, or SPOOL_DESK_USER set: the hop as before
 # The scripts run from a sandbox copy of the feature tree, so their default
 # orc (<copy>/run, a stub that logs its user and HOME) is the one called and
 # the hop is the real one. sudo is a stub that logs its arguments and exits 99;
@@ -137,6 +144,52 @@ has "4. the printed end command names the desk user" "sudo -u $DU env AGENT_ID=c
 has "4. the printed landed command names the desk user" "sudo -u $DU env AGENT_ID=c-1 LANE_ISSUE_OP=end LANE_ISSUE_STATUS=done" "$(rn "$T/box.env.desk" 'li_landed_cmd c-1')"
 has "1. the printed end command, no key: SPOOL_BOX_USER as before" "sudo -u $BU env AGENT_ID=c-1" "$(rn "$T/box.env.none" 'li_end_cmd c-1')"
 has "1. no user known: the placeholder as before" "sudo -u <box user> env" "$(env -u SPOOL_DESK_USER -u SPOOL_BOX_USER bash -c '. "$1"; li_end_cmd c-1' _ "$LI")"
+
+# 5. a half-moved box: the desk under the agent user's root only (SPL-4560).
+# LI_UNDER_TEST replaces the lib (the red control runs the one before the fix).
+LIH="${LI_UNDER_TEST:-$LI}"
+printf 'SPOOL_AGENT_USER=%s\n' "$DU" >"$T/box.env.agent"
+DESK5="$DH/.local/share/t-app/cloud/prd/desk/ws-a/box-x"
+mkdir -p "$DESK5"
+hop5() {  # <box env file> <extra env...> -- <li code>
+  local benv="$1"; shift
+  local -a ex=()
+  while [ "$1" != -- ]; do ex+=("$1"); shift; done; shift
+  env -u SPOOL_DESK_USER -u ENV -u TENANT_ID -u DESK_BOX -u PROJ_PATH PATH="$T/stub:$PATH" SPOOL_TEST=1 \
+    SPOOL_ROOT="$T/spool" SPOOL_BOX_ENV="$benv" SPOOL_BOX_USER="$BU" SPL_ORG_APP=t-app HOME="$MH" "${ex[@]}" \
+    bash -c '. "$1"; eval "$2"; [ ${#h[@]} -eq 0 ] || printf "%s|" "${h[@]}"' _ "$LIH" "$1" 2>/dev/null
+}
+eq "5. half-moved: the desk only under the agent user's root -> the hop names the agent user (RED before SPL-4560: $BU)" \
+  "sudo|-n|-u|$DU|env|HOME=$DH|" "$(hop5 "$T/box.env.agent" -- 'li_desk_hop h prd ws-a box-x')"
+eq "5. control: the desk under no root -> the hop as before, to SPOOL_BOX_USER" \
+  "sudo|-n|-u|$BU|env|HOME=$BH|" "$(hop5 "$T/box.env.agent" -- 'li_desk_hop h prd ws-b box-x')"
+eq "5. SPOOL_DESK_USER set: unchanged, the desk user wins over the found root" \
+  "" "$(hop5 "$T/box.env.agent" SPOOL_DESK_USER="$ME" -- 'li_desk_hop h prd ws-a box-x')"
+# li_desk_where: the brief's Workspace: row, else the lease's env and tenant
+printf 'ws-a\tprd\trepo-a\t/abs/clone\t-\thttps://example.com\tc-002\tbox-x\n' >"$T/spool/workspace-repos.tsv"
+printf 'Workspace: ws-a\nIssue: SPL-1\n' >"$T/brief-ws.md"
+printf 'Issue: SPL-1\n' >"$T/brief-t1.md"
+mkdir -p "$T/spool/dispatch"; printf 'LEASE_ENV=dev\nLEASE_TENANT=t1\n' >"$T/spool/dispatch/lease.conf"
+eq "5. li_desk_where: a Workspace: brief -> its map row's env, tenant, desk box" \
+  "prd ws-a box-x|" "$(hop5 "$T/box.env.agent" -- 'h=("$(li_desk_where "'"$T/brief-ws.md"'")")')"
+eq "5. li_desk_where: no Workspace: line -> the lease's env and tenant, DESK_BOX" \
+  "dev t1 box-y|" "$(hop5 "$T/box.env.agent" DESK_BOX=box-y -- 'h=("$(li_desk_where "'"$T/brief-t1.md"'")")')"
+eq "5. spawn-window's call: li_desk_hop on li_desk_where of a Workspace: brief -> the agent user" \
+  "sudo|-n|-u|$DU|env|HOME=$DH|" "$(hop5 "$T/box.env.agent" -- 'li_desk_hop h $(li_desk_where "'"$T/brief-ws.md"'")')"
+# the agent user's root the caller cannot enter: only its sudo test -d sees it
+mkdir -p "$T/stub2"
+cat >"$T/stub2/sudo" <<EOF2
+#!/usr/bin/env bash
+[ "\$4" = test ] && [ "\$6" = "$T/hidden/.local/share/t-app/cloud/prd/desk/ws-a/box-x" ] && exit 0
+exit 99
+EOF2
+cat >"$T/stub2/getent" <<EOF2
+#!/bin/sh
+case "\$2" in $DU) echo "$DU:x:5002:5002::$T/hidden:/bin/sh" ;; *) exec "$T/stub/getent" "\$@" ;; esac
+EOF2
+chmod +x "$T/stub2/sudo" "$T/stub2/getent"
+eq "5. the agent user's root not enterable: its sudo test -d finds the desk -> the agent user" \
+  "sudo|-n|-u|$DU|env|HOME=$T/hidden|" "$(hop5 "$T/box.env.agent" PATH="$T/stub2:$T/stub:$PATH" -- 'li_desk_hop h prd ws-a box-x')"
 
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"
 exit $((fails > 0))

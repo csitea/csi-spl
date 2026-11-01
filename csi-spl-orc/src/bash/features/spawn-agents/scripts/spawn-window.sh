@@ -492,7 +492,8 @@ sw_issue() {  # WORKDIR BRIEF
     printf 'PLAN %-10s %s\n' issue "${key:+link ${key} -> wip, assignee ${TITLE}}${key:-file one from ${brief} (wip, assignee ${TITLE})} -> ${SPOOL_ROOT}/${TITLE}/lifetime/issue"
     return 0
   fi
-  [ -n "${SPAWN_ISSUE_CMD:-}" ] || li_desk_hop hop
+  # shellcheck disable=SC2046 # env, workspace, desk box: three words on purpose
+  [ -n "${SPAWN_ISSUE_CMD:-}" ] || li_desk_hop hop $(li_desk_where "$brief")
   if [ -n "${SPAWN_ISSUE_CMD:-}" ]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
     out="$(AGENT_ID="$TITLE" BRIEF="$brief" LANE_ISSUE_KEY="$key" LANE_ISSUE_TOPIC="${SPAWN_LANE_TOPIC:-}" $SPAWN_ISSUE_CMD 2>&1)" || rc=$?

@@ -194,8 +194,8 @@ func TestMarketingMetaClaimOneWaitsForLock(t *testing.T) {
 	}
 	done := make(chan claimed, 1)
 	go func() {
-		ps, err := pg.ClaimMarketingPost(ctx, tn, p.ID, now)
-		done <- claimed{ps, err}
+		c, err := pg.ClaimMetaMarketingPosts(ctx, MetaClaim{Tenant: tn, ChannelID: ch.ID, PostID: p.ID, Limit: 1, Window: 24 * time.Hour, Now: now})
+		done <- claimed{c.Posts, err}
 	}()
 	waitLockWaiter(t, pg, done)
 	free()
@@ -205,13 +205,13 @@ func TestMarketingMetaClaimOneWaitsForLock(t *testing.T) {
 	if c := <-done; c.err != nil || len(c.ps) != 1 || c.ps[0].ID != p.ID || c.ps[0].Status != MarketingDispatching || c.ps[0].Attempts != 1 {
 		t.Fatalf("claim after the lock = %+v, %v; want the post once", c.ps, c.err)
 	}
-	if ps, err := pg.ClaimMarketingPost(ctx, tn, p.ID, now); err != nil || len(ps) != 0 {
-		t.Fatalf("second claim = %+v, %v; want none", ps, err)
+	if c, err := pg.ClaimMetaMarketingPosts(ctx, MetaClaim{Tenant: tn, ChannelID: ch.ID, PostID: p.ID, Limit: 9, Window: 24 * time.Hour, Now: now}); err != nil || len(c.Posts) != 0 {
+		t.Fatalf("second claim = %+v, %v; want none", c.Posts, err)
 	}
 	assertMktEvents(t, pg, tn, p.ID, "post_held", "post_approved", "post_dispatched")
 }
 
-// waitLockWaiter returns once a ClaimMarketingPost waits on a row lock; it
+// waitLockWaiter returns once a ClaimMetaMarketingPosts waits on a row lock; it
 // fails when the claim returns first (it skipped the locked row).
 func waitLockWaiter[T any](t *testing.T, pg *Postgres, done chan T) {
 	t.Helper()
@@ -224,7 +224,7 @@ func waitLockWaiter[T any](t *testing.T, pg *Postgres, done chan T) {
 		}
 		var n int
 		if err := pg.Pool().QueryRow(context.Background(), `SELECT count(*) FROM pg_stat_activity
-			WHERE wait_event_type = 'Lock' AND query LIKE '%post_id = $2::uuid AND status = ''scheduled''%'`).Scan(&n); err != nil {
+			WHERE wait_event_type = 'Lock' AND query LIKE '%post_id = $4::uuid AND status = ''scheduled''%'`).Scan(&n); err != nil {
 			t.Fatal(err)
 		}
 		if n > 0 {

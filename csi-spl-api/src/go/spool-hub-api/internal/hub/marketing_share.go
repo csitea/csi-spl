@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/marketing"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -51,6 +52,10 @@ const (
 	marketingRetryBase    = 10 * time.Minute
 	marketingStuckAfter   = 15 * time.Minute
 	marketingRemindBefore = 7 * 24 * time.Hour
+	// marketingPublishTimeout bounds a publish detached from its request
+	// (SPL-4564 N6): blog index, token, the platform calls, the Instagram
+	// container polls.
+	marketingPublishTimeout = 3 * time.Minute
 )
 
 // MarketingShareResult counts what one sweep did.
@@ -334,15 +339,20 @@ func (s *Server) handleMarketingPublish(w http.ResponseWriter, r *http.Request, 
 }
 
 // publishOn is the LinkedIn publish, or the Meta one when ?channel names a
-// channel (spec 090 T034).
+// channel (spec 090 T034). It runs detached from the request, bounded by
+// marketingPublishTimeout: a client that goes away mid-call does not cut
+// the platform call off and leave the row dispatching for the stuck sweep
+// to fail after the post went out (SPL-4564 N6). Nothing is resent.
 func (s *Server) publishOn(r *http.Request, tenant, hum, seat string) (MarketingShareResult, error) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), marketingPublishTimeout)
+	defer cancel()
 	if ch := r.URL.Query().Get("channel"); ch != "" {
-		return s.publishMetaPost(r.Context(), tenant, hum, seat, r.PathValue("id"), ch)
+		return s.publishMetaPost(ctx, tenant, hum, seat, r.PathValue("id"), ch)
 	}
 	if seat != "" {
-		return s.AgentPublishMarketingPost(r.Context(), tenant, seat, hum, r.PathValue("id"))
+		return s.AgentPublishMarketingPost(ctx, tenant, seat, hum, r.PathValue("id"))
 	}
-	return s.PublishMarketingPost(r.Context(), tenant, hum, r.PathValue("id"))
+	return s.PublishMarketingPost(ctx, tenant, hum, r.PathValue("id"))
 }
 
 // The same route called with a box upload token: an agent publishes for the
@@ -367,6 +377,8 @@ func writeMarketingPublish(w http.ResponseWriter, r *http.Request, res Marketing
 	switch {
 	case errors.Is(err, ErrMarketingNotOwner), errors.Is(err, ErrMarketingSeatOther):
 		writeForbidden(w, permTenantOwner, err.Error())
+	case errors.Is(err, ErrMarketingNotApprover):
+		writeForbidden(w, rbac.TenantSettings, err.Error())
 	case errors.Is(err, ErrMarketingNoChannel), errors.Is(err, ErrMarketingNoPost), errors.Is(err, ErrMarketingOff),
 		errors.Is(err, ErrMarketingNoMetaPage):
 		writeErr(w, http.StatusNotFound, "not_found", err.Error())

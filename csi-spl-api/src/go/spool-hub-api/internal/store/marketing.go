@@ -25,7 +25,8 @@ type Marketing interface {
 	ConnectMarketingChannel(ctx context.Context, ch MarketingChannel, tok MarketingToken, now time.Time) (MarketingChannel, error)
 	// MarketingChannels lists tenant's channels (never a token).
 	MarketingChannels(ctx context.Context, tenant string) ([]MarketingChannel, error)
-	// AutoMarketingChannels lists every active auto_publish channel, all
+	// AutoMarketingChannels lists every active auto_publish LinkedIn
+	// channel (never a Meta one, SPL-4564 N7: the LinkedIn sweep reads it), all
 	// tenants (the share sweep; operator scope).
 	AutoMarketingChannels(ctx context.Context) ([]MarketingChannel, error)
 	// DisconnectMarketingChannel deletes tenant's channel channelID with its
@@ -334,7 +335,7 @@ func (s *Postgres) DisconnectMarketingChannel(ctx context.Context, tenant, chann
 func (s *Postgres) AutoMarketingChannels(ctx context.Context) ([]MarketingChannel, error) {
 	out := []MarketingChannel{}
 	err := s.asOperatorQuery(ctx, `SELECT `+mktChannelCols+` FROM marketing_channels
-		WHERE status = 'active' AND auto_publish ORDER BY tenant_id, created_at`, nil, func(r pgx.Rows) error {
+		WHERE status = 'active' AND auto_publish AND platform = 'linkedin' ORDER BY tenant_id, created_at`, nil, func(r pgx.Rows) error {
 		c, err := scanMktChannel(r)
 		out = append(out, c)
 		return err
@@ -494,25 +495,34 @@ func (s *Postgres) ClaimMarketingPosts(ctx context.Context, tenant, channelID st
 func (s *Postgres) mktClaim(ctx context.Context, tenant, query string, args ...any) ([]MarketingPost, error) {
 	var out []MarketingPost
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, query, append([]any{tenant}, args...)...)
-		if err != nil {
-			return err
-		}
-		if err := scanRows(rows, func(r pgx.Rows) error {
-			p, err := scanMktPost(r)
-			out = append(out, p)
-			return err
-		}); err != nil {
-			return err
-		}
-		for _, p := range out {
-			if err := mktEvent(ctx, tx, mktEv{Tenant: tenant, Channel: p.ChannelID, Post: p.ID, Type: "post_dispatched", Details: map[string]any{"attempt": p.Attempts}}); err != nil {
-				return err
-			}
-		}
-		return nil
+		var err error
+		out, err = mktClaimTx(ctx, tx, tenant, query, append([]any{tenant}, args...))
+		return err
 	})
 	return out, err
+}
+
+// mktClaimTx runs one claiming UPDATE inside tx and writes a
+// post_dispatched event for each post it moved to dispatching.
+func mktClaimTx(ctx context.Context, tx pgx.Tx, tenant, query string, args []any) ([]MarketingPost, error) {
+	var out []MarketingPost
+	rows, err := tx.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	if err := scanRows(rows, func(r pgx.Rows) error {
+		p, err := scanMktPost(r)
+		out = append(out, p)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	for _, p := range out {
+		if err := mktEvent(ctx, tx, mktEv{Tenant: tenant, Channel: p.ChannelID, Post: p.ID, Type: "post_dispatched", Details: map[string]any{"attempt": p.Attempts}}); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
 }
 
 // FinishMarketingPost implements Marketing on the Postgres store (rdb 0187).
@@ -535,27 +545,52 @@ func (s *Postgres) FinishMarketingPost(ctx context.Context, tenant, postID strin
 	})
 }
 
-// StuckMarketingPosts implements Marketing on the Postgres store (rdb 0187).
+// mktPlatforms are the platforms a channel may have (rdb 0187, 0236), with
+// the name a failure text gives each.
+var mktPlatforms = []struct{ ID, Name string }{
+	{MarketingPlatformLinkedIn, "LinkedIn"}, {MarketingPlatformFacebook, "Facebook"}, {MarketingPlatformIG, "Instagram"},
+}
+
+// mktStuckWhy is the failure text of a post stuck in dispatching on a
+// channel of platform (SPL-4564 N5: it reaches the holder's mail).
+func mktStuckWhy(platform string) string {
+	name := "platform"
+	for _, p := range mktPlatforms {
+		if p.ID == platform {
+			name = p.Name
+		}
+	}
+	return "the hub stopped during the " + name + " call; the outcome is unknown, so it is not retried"
+}
+
+// StuckMarketingPosts implements Marketing on the Postgres store (rdb 0187):
+// one guarded UPDATE per platform, so each failure text names its own.
 func (s *Postgres) StuckMarketingPosts(ctx context.Context, before, now time.Time) ([]MarketingPost, error) {
 	var out []MarketingPost
-	const why = "the hub stopped during the LinkedIn call; the outcome is unknown, so it is not retried"
 	err := s.asOperator(ctx, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, `UPDATE marketing_posts SET status = 'failed', last_error = $3, updated_at = $2
-			WHERE status = 'dispatching' AND claimed_at < $1 RETURNING `+mktPostCols, before, now, why)
-		if err != nil {
-			return err
-		}
-		if err := scanRows(rows, func(r pgx.Rows) error {
-			p, err := scanMktPost(r)
-			out = append(out, p)
-			return err
-		}); err != nil {
-			return err
-		}
-		for _, p := range out {
-			if err := mktEvent(ctx, tx, mktEv{Tenant: p.Tenant, Channel: p.ChannelID, Post: p.ID, Type: "post_failed", Details: map[string]any{"error": why}}); err != nil {
+		for _, pl := range mktPlatforms {
+			why := mktStuckWhy(pl.ID)
+			rows, err := tx.Query(ctx, `UPDATE marketing_posts SET status = 'failed', last_error = $3, updated_at = $2
+				WHERE status = 'dispatching' AND claimed_at < $1
+					AND channel_id IN (SELECT channel_id FROM marketing_channels WHERE platform = $4)
+				RETURNING `+mktPostCols, before, now, why, pl.ID)
+			if err != nil {
 				return err
 			}
+			var stuck []MarketingPost
+			if err := scanRows(rows, func(r pgx.Rows) error {
+				p, err := scanMktPost(r)
+				stuck = append(stuck, p)
+				return err
+			}); err != nil {
+				return err
+			}
+			for _, p := range stuck {
+				if err := mktEvent(ctx, tx, mktEv{Tenant: p.Tenant, Channel: p.ChannelID, Post: p.ID, Type: "post_failed", Details: map[string]any{"error": why}}); err != nil {
+					return err
+				}
+			}
+			out = append(out, stuck...)
 		}
 		return nil
 	})

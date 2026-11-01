@@ -439,11 +439,12 @@ func TestMarketingMetaRateLimitRetriesAnd500NeverResent(t *testing.T) {
 	}
 }
 
-// The gates of the LinkedIn publish hold on the Meta one.
+// The gates of the Meta publish: who may approve (SPL-4564 N4), the
+// channel, the live post, the switch, the wiring.
 func TestMarketingMetaPublishGates(t *testing.T) {
 	e := newMetaPubEnv(t)
-	if code, _ := e.publish(t, e.admin, "2026-10-30-hello", e.page); code != http.StatusForbidden {
-		t.Fatalf("admin publish: %d, want 403", code)
+	if code, _ := e.publish(t, seat(t, e.env, e.tid, rbac.Developer), "2026-10-30-hello", e.page); code != http.StatusForbidden {
+		t.Fatalf("publish by a member who neither connected the channel nor holds tenant.settings: %d, want 403", code)
 	}
 	if code, _ := call(t, e.env, e.tid, http.MethodPost, "/v1/marketing/posts/2026-10-30-hello/publish?channel=00000000-0000-4000-8000-000000000000", e.owner, nil); code != http.StatusNotFound {
 		t.Fatalf("unknown channel: %d, want 404", code)

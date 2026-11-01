@@ -5,12 +5,12 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/marketing"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -21,9 +21,10 @@ import (
 //
 //   - POST /v1/marketing/posts/{id}/publish?channel=<channel id> approves
 //     the live blog post {id} for one Meta channel of the workspace: the
-//     workspace owner, or an agent for them (the SPL-1855 door), every gate
-//     of the LinkedIn publish holding. The post's row is made held
-//     (awaiting_approval) and moved to scheduled, due now
+//     member who connected the channel, or a member holding tenant.settings
+//     (spec.md §16.3; SPL-4564 N4), or an agent for one of them (the
+//     SPL-1855 door), the allow-list and the switch holding. The post's
+//     row is made held (awaiting_approval) and moved to scheduled, due now
 //     (ApproveMarketingPost), then claimed and dispatched at once. A second
 //     publish of the same post on the same channel is 409. Without
 //     ?channel the route is the LinkedIn publish, unchanged.
@@ -37,8 +38,11 @@ import (
 //     media_publish. It stores the post id, and the permalink in the
 //     post_published event.
 //   - Caps: at most metaDailyCap API posts per channel in a rolling 24 h
-//     (spec.md FR-007), never above Instagram's 100 (§21.1). A channel at
-//     its cap is not claimed; a post over it waits until the window frees.
+//     (spec.md FR-007), never above Instagram's 100 (§21.1). The cap is read
+//     and the posts claimed in one transaction under the channel's row lock,
+//     a post in flight counting (SPL-4564 N2); only as many posts as there
+//     is room for are claimed, so a post over the cap stays scheduled,
+//     spends no attempt, and waits until the window frees (N3).
 //   - Failures (§21.2): a rate limit, a 503, a container not finished yet
 //     or a connection that failed before sending is retried (at most
 //     marketingMaxAttempts tries). A call that may have posted (sent, then
@@ -63,6 +67,7 @@ var (
 	ErrMarketingNoMeta      = errors.New("Facebook and Instagram are not configured on this hub")
 	ErrMarketingNoMetaPage  = errors.New("the channel is no connected Facebook Page or Instagram account of this workspace")
 	ErrMarketingNeedsJPEG   = errors.New("instagram takes only a JPEG picture, and this post has none")
+	ErrMarketingNotApprover = errors.New("only the member who connected the channel, or a member holding tenant.settings, approves a post on it, or an agent for them")
 	errMetaNoPicture        = errors.New("instagram needs a picture, and the post has none")
 	errMetaTokenUnavailable = errors.New("token unavailable")
 )
@@ -149,37 +154,24 @@ func (s *Server) SweepMarketingMeta(ctx context.Context) MarketingShareResult {
 	return res
 }
 
-// metaDispatchChannel claims and dispatches the channel's due posts, unless
-// the channel is at its cap: then nothing is claimed and the time its window
-// frees is returned (zero when it was not at the cap).
+// metaDispatchChannel claims, under the channel's cap, the pass's one
+// approved post, else the channel's due posts, and dispatches them. When the
+// cap held back a due post it returns the time the window frees a place
+// (zero otherwise).
 func (s *Server) metaDispatchChannel(ctx context.Context, ps *metaPass) time.Time {
-	now := s.o.Now()
-	room, freeAt, err := s.metaRoom(ctx, ps, now)
+	c, err := ps.st.ClaimMetaMarketingPosts(ctx, store.MetaClaim{Tenant: ps.ch.Tenant, ChannelID: ps.ch.ID, PostID: ps.post,
+		Limit: ps.mm.metaLimit(ps.ch.Platform), Window: metaWindow, Now: s.o.Now()})
 	if err != nil {
-		s.o.Log.Error().Err(err).Str("channel", ps.ch.ID).Msg("marketing: meta cap unreadable, nothing dispatched")
+		s.o.Log.Error().Err(err).Str("channel", ps.ch.ID).Msg("marketing: meta claim, nothing dispatched")
 		return time.Time{}
 	}
-	if room <= 0 {
-		return freeAt
+	if len(c.Posts) > 0 {
+		s.dispatchMeta(ctx, ps, c.Posts)
 	}
-	due, err := ps.claim(ctx, now)
-	if err != nil {
-		s.o.Log.Error().Err(err).Str("channel", ps.ch.ID).Msg("marketing: meta claim")
+	if !c.Held {
 		return time.Time{}
 	}
-	if len(due) > 0 {
-		s.dispatchMeta(ctx, ps, due, room, freeAt)
-	}
-	return time.Time{}
-}
-
-// claim claims the pass's one approved post, else the channel's due posts
-// (FOR UPDATE SKIP LOCKED, the sweep).
-func (ps *metaPass) claim(ctx context.Context, now time.Time) ([]store.MarketingPost, error) {
-	if ps.post != "" {
-		return ps.st.ClaimMarketingPost(ctx, ps.ch.Tenant, ps.post, now)
-	}
-	return ps.st.ClaimMarketingPosts(ctx, ps.ch.Tenant, ps.ch.ID, now)
+	return c.FreeAt
 }
 
 // metaLimit is the most API posts a channel makes in a rolling metaWindow.
@@ -194,43 +186,23 @@ func (mm *MarketingMeta) metaLimit(platform string) int {
 	return limit
 }
 
-// metaRoom is how many posts the channel may still make now, and when its
-// window next frees a place (meaningful when room <= 0).
-func (s *Server) metaRoom(ctx context.Context, ps *metaPass, now time.Time) (room int, freeAt time.Time, err error) {
-	times, err := ps.st.MarketingPublishedTimes(ctx, ps.ch.Tenant, ps.ch.ID, now.Add(-metaWindow))
-	if err != nil {
-		return 0, time.Time{}, err
-	}
-	limit := ps.mm.metaLimit(ps.ch.Platform)
-	room = limit - len(times)
-	if room <= 0 {
-		freeAt = times[len(times)-limit].Add(metaWindow)
-	}
-	return room, freeAt, nil
-}
-
-// dispatchMeta opens the Page token once and posts each claimed post; a
-// post beyond the room left waits for freeAt, unsent.
-func (s *Server) dispatchMeta(ctx context.Context, ps *metaPass, due []store.MarketingPost, room int, freeAt time.Time) {
+// dispatchMeta opens the Page token once and posts each claimed post (the
+// claim took only as many as the cap has room for).
+func (s *Server) dispatchMeta(ctx context.Context, ps *metaPass, due []store.MarketingPost) {
 	tok, terr := s.openMetaToken(ctx, ps)
 	refused := false
 	for _, p := range due {
 		var out store.MarketingOutcome
-		invalid, deferred := false, false
+		invalid := false
 		switch {
 		case refused: // Meta refused the token: the rest wait for the re-connect, unsent
 			out = store.MarketingOutcome{Retry: true, RetryAt: s.o.Now(), Error: "waiting for the Facebook re-connect"}
 		case terr != nil: // nothing was sent: a KMS or store failure is retried
 			out = retryOrFail(p.Attempts, errors.Join(errMetaTokenUnavailable, terr), s.o.Now())
-		case room <= 0:
-			deferred = true
-			out = store.MarketingOutcome{Retry: true, RetryAt: freeAt,
-				Error: "the channel's cap of " + strconv.Itoa(ps.mm.metaLimit(ps.ch.Platform)) + " post(s) in 24 h is reached"}
 		default:
-			room--
 			out, invalid = s.publishMetaOne(ctx, ps, tok, p)
 		}
-		s.settleMeta(ctx, ps, p, out, deferred)
+		s.settleMeta(ctx, ps, p, out)
 		if invalid && !refused {
 			refused = true
 			s.metaRefused(ctx, ps)
@@ -356,7 +328,7 @@ func metaSafeToRetry(err error) bool {
 }
 
 // settleMeta records the outcome, then counts, logs and reports it.
-func (s *Server) settleMeta(ctx context.Context, ps *metaPass, p store.MarketingPost, out store.MarketingOutcome, deferred bool) {
+func (s *Server) settleMeta(ctx context.Context, ps *metaPass, p store.MarketingPost, out store.MarketingOutcome) {
 	if err := ps.st.FinishMarketingPost(ctx, ps.ch.Tenant, p.ID, out, s.o.Now()); err != nil {
 		s.o.Log.Error().Err(err).Str("post", p.SourceRef).Msg("marketing: settle meta post")
 		return
@@ -366,9 +338,6 @@ func (s *Server) settleMeta(ctx context.Context, ps *metaPass, p store.Marketing
 	case out.Published:
 		ps.res.Published++
 		lg.Info().Str("platform_post_id", out.PlatformPostID).Str("permalink", out.Permalink).Msg("marketing: blog post published on Meta")
-	case deferred:
-		ps.res.Deferred++
-		lg.Info().Time("at", out.RetryAt).Msg("marketing: meta post waits for the channel's cap")
 	case out.Retry:
 		ps.res.Retried++
 		lg.Warn().Int("attempt", p.Attempts).Str("err", out.Error).Msg("marketing: meta post will be retried")
@@ -409,8 +378,9 @@ func (s *Server) PublishMetaPost(ctx context.Context, tenant, hum, postID, chann
 
 // publishMetaPost approves the live blog post postID for the Meta channel
 // channelID and dispatches it at once (or when the channel's cap allows).
-// Same gates as the LinkedIn publish: the workspace allow-listed and
-// switched on, hum its owner, an agent seat only for its own member.
+// The workspace allow-listed and switched on, hum the member who connected
+// the channel or one holding tenant.settings (metaApprover), an agent seat
+// only for its own member.
 func (s *Server) publishMetaPost(ctx context.Context, tenant, hum, seat, postID, channelID string) (MarketingShareResult, error) {
 	var res MarketingShareResult
 	mm, st, ok := s.metaReady()
@@ -420,8 +390,8 @@ func (s *Server) publishMetaPost(ctx context.Context, tenant, hum, seat, postID,
 	if !s.marketingSweepable(ctx, tenant) {
 		return res, ErrMarketingOff
 	}
-	if a, err := s.access(ctx, hum, tenant); hum == "" || err != nil || !a.TenantOwner {
-		return res, ErrMarketingNotOwner
+	if _, err := s.access(ctx, hum, tenant); hum == "" || err != nil {
+		return res, ErrMarketingNotApprover
 	}
 	if err := s.seatActsFor(ctx, tenant, seat, hum); err != nil {
 		return res, err
@@ -429,6 +399,9 @@ func (s *Server) publishMetaPost(ctx context.Context, tenant, hum, seat, postID,
 	ch, err := metaChannel(ctx, st, tenant, channelID)
 	if err != nil {
 		return res, err
+	}
+	if !s.metaApprover(ctx, tenant, hum, ch) {
+		return res, ErrMarketingNotApprover
 	}
 	posts, err := marketing.FetchBlogIndex(ctx, metaHTTP(mm), mm.AppURL)
 	if err != nil {
@@ -449,6 +422,15 @@ func (s *Server) publishMetaPost(ctx context.Context, tenant, hum, seat, postID,
 		s.o.Log.Info().Str("channel", ch.ID).Time("at", at).Msg("marketing: meta post waits for the channel's cap")
 	}
 	return res, nil
+}
+
+// metaApprover: hum, a member of tenant, may approve a post on ch: the
+// member who connected it, or one holding tenant.settings, the permission
+// of the other Workspace settings (spec.md §16.3 item 2; SPL-4564 N4,
+// dispatch ruling msg b76d61e2). By the default roles biz_owner and admin
+// hold tenant.settings.
+func (s *Server) metaApprover(ctx context.Context, tenant, hum string, ch store.MarketingChannel) bool {
+	return hum != "" && (ch.DelegatedBy == hum || s.allowed(ctx, hum, tenant, rbac.TenantSettings))
 }
 
 // metaChannel is tenant's active Meta channel channelID.

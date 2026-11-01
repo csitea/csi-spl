@@ -22,7 +22,7 @@ type memMktPost struct {
 	MarketingPost
 	next      time.Time
 	claimed   time.Time
-	published time.Time // published_at (MarketingPublishedTimes)
+	published time.Time // published_at (ClaimMetaMarketingPosts)
 }
 
 type memMktEvent struct {
@@ -130,7 +130,7 @@ func (s *Memory) AutoMarketingChannels(_ context.Context) ([]MarketingChannel, e
 	defer s.mu.Unlock()
 	out := []MarketingChannel{}
 	for _, c := range s.mkt().channels {
-		if c.Status == MarketingActive && c.AutoPublish {
+		if c.Status == MarketingActive && c.AutoPublish && c.Platform == MarketingPlatformLinkedIn {
 			out = append(out, *c)
 		}
 	}
@@ -329,7 +329,11 @@ func (s *Memory) StuckMarketingPosts(_ context.Context, before, _ time.Time) ([]
 	var out []MarketingPost
 	for _, p := range m.posts {
 		if p.Status == MarketingDispatching && p.claimed.Before(before) {
-			p.Status, p.LastError = MarketingFailed, "the hub stopped during the LinkedIn call; the outcome is unknown, so it is not retried"
+			platform := ""
+			if c, ok := m.channels[p.ChannelID]; ok {
+				platform = c.Platform
+			}
+			p.Status, p.LastError = MarketingFailed, mktStuckWhy(platform)
 			out = append(out, p.MarketingPost)
 			m.event(p.Tenant, p.ChannelID, p.ID, "post_failed")
 		}

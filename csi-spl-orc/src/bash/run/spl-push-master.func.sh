@@ -15,7 +15,9 @@
 # @description <40-hex sha> ... | log: <id>@<box>:<path>` body line whose sha
 # @description resolves after fetching `review/rNN-NN`, and that do_spl_review_line_check's
 # @description syntax path (REVIEW_LINE_SYNTAX=1) passes, so `ran:` names a test, SPL-4066;
-# @description rounds-rulebook.md 2.7.4) -> `git push <remote>
+# @description rounds-rulebook.md 2.7.4; skipped only when <branch> is review/*, where the R7
+# @description review happens, so no line can exist yet: master and any other branch keep it,
+# @description c-090 msg c51c7243, SPL-4570) -> `git push <remote>
 # @description <sha>:<branch>`, the sha it logged, never HEAD (a lane rotation switched
 # @description c-462's tree mid-push: HEAD was origin's head, read PUSHED; SPL-2574);
 # @description a push refused because the branch moved is retried
@@ -45,7 +47,7 @@
 # @param PUSH_STATE_DIR (optional) - default <SPOOL_ROOT>/<AGENT_ID>/lifetime/push-master when that lifetime dir exists, else <git-dir>/spl-push-master
 # @param AGENT_ID (optional) - the lane id: picks the default state dir; a lane id must push from its own worktree
 # @param PUSH_REMOTE (optional) - default origin
-# @param PUSH_BRANCH (optional) - default master
+# @param PUSH_BRANCH (optional) - default master; a review/* branch skips the R7 review-line check only
 # @param PUSH_RETRIES (optional) - pushes refused because the branch moved, retried; default 4
 # @param PUSH_GIT_NAME, PUSH_GIT_EMAIL (optional) - the identity for the rebase and the check; default HEAD's author
 # @example AGENT_ID=c-050 ./run -a do_spl_push_master
@@ -397,7 +399,8 @@ _spl_push_master_worker() {
       printf '%s\n' "$bad" >"$out"
       _spl_push_master_end "REFUSED WRONG-IDENTITY-DO-NOT-PUSH (want $PUSH_EMAIL as author and committer)" "$out"; return 1
     fi
-    bad="$(_spl_push_master_unreviewed "$onto..HEAD" "$remote")"
+    # A review/ branch is where the R7 review happens: no line can exist yet (SPL-4570).
+    bad=""; [[ "$branch" == review/* ]] || bad="$(_spl_push_master_unreviewed "$onto..HEAD" "$remote")"
     if [[ -n "$bad" ]]; then
       printf '%s\n' "$bad" >"$out"
       _spl_push_master_end "REFUSED round row $(head -n 1 <<<"$bad")" "$out"; return 1

@@ -79,6 +79,12 @@
 #      fails when one is set -> PUSHED
 #      on review/c-999-s17; the red: a review/ push sent the orc tests the hook
 #      runs to review/<x> on their temp origins (12 FAILs)
+#  18. the R7 review-line check skips a review/ target only (SPL-4570, c-090
+#      msg c51c7243): a round row with no review line, PUSH_BRANCH=review/<x>
+#      -> PUSHED on that ref, master unchanged (the red: `REFUSED round row
+#      <sha> review line: none ...`, so round authors pushed review/ by hand);
+#      the same commit to master and to a non-review branch -> still REFUSED
+#      with the same reason, neither ref moved
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -432,6 +438,23 @@ sha="$(git -C "$L" rev-parse HEAD)"
   && pass "17. the caller's PUSH_* knobs never reach the hook -> PUSHED" \
   || fail "17. knobs reached the hook (rc $vrc: $v)"
 echo ok >"$T/hook.mode"
+
+# 18 a review/ target skips only the review-line check; master and any other branch keep it
+git -C "$L" reset -q --hard "$(git --git-dir="$B" rev-parse master)"
+rcommit eighteen 'refactor(r99-02-x): a round row with no review line'
+sha="$(git -C "$L" rev-parse HEAD)" short="$(git -C "$L" rev-parse --short HEAD)" m18="$(git --git-dir="$B" rev-parse master)"
+run PUSH_BRANCH=review/c-999-s18 >/dev/null; v="$(verdict)"; vrc=$?
+[ "$vrc" -eq 0 ] && grep -qx "PUSHED $sha" <<<"$v" && [ "$(git --git-dir="$B" rev-parse refs/heads/review/c-999-s18 2>/dev/null)" = "$sha" ] \
+  && [ "$(git --git-dir="$B" rev-parse master)" = "$m18" ] \
+  && pass "18. a round row with no review line to review/c-999-s18 -> PUSHED, master unchanged" \
+  || fail "18. review/ target (rc $vrc: $v)"
+NOLINE="REFUSED round row $short review line: none of the form 'review: <id>@<box> <vendor> PASS <sha> ...'"
+for tgt in master feat-s18; do
+  run PUSH_BRANCH="$tgt" >/dev/null; v="$(verdict)"; vrc=$?
+  [ "$vrc" -eq 1 ] && grep -qxF "$NOLINE" <<<"$v" && [ "$(git --git-dir="$B" rev-parse master)" = "$m18" ] \
+    && { [ "$tgt" = master ] || ! git --git-dir="$B" rev-parse -q --verify "refs/heads/$tgt" >/dev/null; } \
+    && pass "18. the same commit to $tgt -> still REFUSED, review line: none" || fail "18. $tgt target (rc $vrc: $v)"
+done
 
 echo "spl-push-master: $fails failure(s)"
 [ "$fails" -eq 0 ]

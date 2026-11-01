@@ -239,9 +239,11 @@ export function topicRepliesIn(index, taskId, total) {
  * into those already held (SPL-1008). Per topic the read with the later
  * last_ts wins: a count and its last_ts are one snapshot, so either pair is
  * consistent for topicReplies; the later one leans on fewer held lines.
+ * A priority set moves no last_ts, so a read with the same last_ts replaces
+ * the held entry and brings the new priority (spec 150 B6).
  *
- * @param {Record<string, { count: number, last_ts: string }> | null | undefined} held
- * @param {Record<string, { count: number, last_ts: string }> | null | undefined} incoming
+ * @param {Record<string, { count: number, last_ts: string, priority?: number }> | null | undefined} held
+ * @param {Record<string, { count: number, last_ts: string, priority?: number }> | null | undefined} incoming
  */
 export function mergeTopicTotals(held, incoming) {
   const out = { ...(held || {}) }
@@ -249,7 +251,11 @@ export function mergeTopicTotals(held, incoming) {
     if (!id || !t) continue
     const was = out[id]
     if (was && Date.parse(String(was.last_ts || '')) > Date.parse(String(t.last_ts || ''))) continue
-    out[id] = { count: Number(t.count) || 0, last_ts: String(t.last_ts || '') }
+    const n = Number(t.priority)
+    /* spec 150 B6: the hub's priority 1..5 rides along; absent stays absent (the list reads 3) */
+    out[id] = Number.isInteger(n) && n >= 1 && n <= 5
+      ? { count: Number(t.count) || 0, last_ts: String(t.last_ts || ''), priority: n }
+      : { count: Number(t.count) || 0, last_ts: String(t.last_ts || '') }
   }
   return out
 }

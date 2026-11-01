@@ -66,8 +66,10 @@ function fill(path) {
 const walked = pageRoutes(PAGES_DIR).filter((r) => r.layout === 'default').map((r) => fill(r.path))
 const ROUTES = [...new Set([...walked, `/channel/lobby?topic=${TOPIC}`, `/t/${TOPIC}?in=${MSG}`, '/help/getting-started'])]
 
-/* the strip, the shell's flag, and the pane that scrolls most (marked data-e2e-scroller) */
-const read = (p) => p.evaluate(() => {
+/* the strip, the shell's flag, and the pane that scrolls most (marked data-e2e-scroller);
+   keep = measure the pane marked before: the bars away give it their room, so
+   its scroll range shrinks and a re-pick by the 200 px floor can lose it */
+const read = (p, keep = false) => p.evaluate((keep) => {
   /* the element's middle is painted by it (or by what it sits in) */
   const paints = (el) => {
     if (!el) return false
@@ -99,8 +101,9 @@ const read = (p) => p.evaluate(() => {
     const oy = getComputedStyle(e).overflowY
     return (oy === 'auto' || oy === 'scroll') && e.scrollHeight - e.clientHeight >= 200 && e.clientHeight >= 150
   })
+  const kept = keep ? document.querySelector('[data-e2e-scroller]') : null
   document.querySelectorAll('[data-e2e-scroller]').forEach((e) => e.removeAttribute('data-e2e-scroller'))
-  const pane = panes.sort((a, b) => b.clientHeight - a.clientHeight)[0]
+  const pane = kept?.isConnected && kept.getClientRects().length ? kept : panes.sort((a, b) => b.clientHeight - a.clientHeight)[0]
   pane?.setAttribute('data-e2e-scroller', '1')
   const pr = pane?.getBoundingClientRect()
   return {
@@ -120,7 +123,7 @@ const read = (p) => p.evaluate(() => {
     top,
     pane: pane ? { x: Math.round(pr.left + pr.width / 2), y: Math.round(pr.top + pr.height / 2), top: Math.round(pr.top), sy: Math.round(pane.scrollTop) } : null,
   }
-})
+}, keep)
 
 async function settle(p, max = 8000) {
   const end = Date.now() + max
@@ -181,9 +184,9 @@ try {
       await p.evaluate(() => { document.querySelector('[data-e2e-scroller]').scrollTop = 0 })
       await sleep(500)
       await wheel(p, s0.pane, 600)
-      const down = await read(p)
+      const down = await read(p, true)
       await wheel(p, s0.pane, -200)
-      const up = await read(p)
+      const up = await read(p, true)
       ok(`${tag} ${route}: a scroll by script leaves the strip painted`, byScript.painted && byScript.hidden === null, byScript)
       ok(`${tag} ${route}: wheel down: strip away (hidden=1, not painted, inert), the pane takes its room${motion === 'reduce' ? ', no slide' : ''}`,
         down.hidden === '1' && !down.painted && down.inert && down.pane && down.pane.top < s0.pane.top - 30 && slideOk(down), { before: s0.pane.top, ...down })

@@ -41,6 +41,8 @@ code that keeps a secret out of logs.
 **Status: v1.0 SIGNED** by both seats (section 9), on the plan sha
 `b9d3e4fd3`; GO c-002 (dispatch holder) msg b942161e.
 
+Next round: [refactor-round-21-plan.md](refactor-round-21-plan.md) (drafted before this round's retro, which is not due yet).
+
 Editor: **c-889** (claude; agy is out of quota until 2026-11-03T12:42Z and
 claude is the specs_and_docs backup). Panel reviewer: **g-895** (grok, a
 fresh-session cross-vendor seat; c-002 msg 8d17d549: the claude-only

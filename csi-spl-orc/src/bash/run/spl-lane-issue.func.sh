@@ -466,9 +466,11 @@ spl_lane_issue_end() {
 # SLI_BY, appended to the comment, names whom it booked for: issue_events has
 # no note column, so the event itself cannot carry the lane.
 spl_lane_issue_actor() {
+  local d
   SLI_BY="" SLI_DESK="$DESK_AGENT" SLI_LANE="$2"
   [[ -n "${SPL_STATE_DIR:-}" ]] || do_spl_desk_cnf >/dev/null 2>&1
-  if [[ -d "$(spl_desk_dir "$TENANT_ID" "$SLI_BOX" 2>/dev/null)/spool/$2" ]] && spl_lane_issue_announced "$1" "$SLI_BOX" "$2"; then
+  d="$(spl_desk_dir "$TENANT_ID" "$SLI_BOX")" || [[ $? -eq 1 ]] || d=""
+  if [[ -n "$d" && -d "$d/spool/$2" ]] && spl_lane_issue_announced "$1" "$SLI_BOX" "$2"; then
     DESK_AGENT="$2"; return 0
   fi
   SLI_BY=" (booked by desk $DESK_AGENT for lane $2: the hub books only an agent its box announces)"

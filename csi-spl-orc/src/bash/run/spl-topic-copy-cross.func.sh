@@ -300,7 +300,9 @@ for i, p in enumerate(plan):
                                     "root" if i == 0 else "reply", p.get("head", "")))
 ' "$work/plan.json")
   do_log "INFO DRY_RUN target: #$channel in $dst_t as $dst_a on $dst_box, topic $dst_task ($link); then link-back=$link_back archive=$archive in $topic"
-  [[ -d "$(spl_desk_dir "$dst_t" "$dst_box")/spool/$dst_a" ]] ||
+  local dd
+  dd="$(spl_desk_dir "$dst_t" "$dst_box")" || [[ $? -eq 1 ]] || return 1
+  [[ -d "$dd/spool/$dst_a" ]] ||
     do_log "INFO DRY_RUN there is no desk for $dst_a on $dst_box in $dst_t yet: do_spl_desk_up seats one"
   _spl_tcc_summary 0 0 "$dst_task" "$link" 1
   do_log "OK DRY_RUN nothing was sent. Re-run with DRY_RUN=0 to copy."

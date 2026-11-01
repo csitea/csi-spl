@@ -358,7 +358,7 @@ box_deploy_drop_retired() {
   while read -r r; do
     [[ -n "$r" ]] || continue
     if [[ "$r" =~ ^desk:([a-z0-9-]+)/([a-z0-9-]+)$ ]]; then
-      d="$(spl_desk_dir "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" 2>/dev/null)"
+      d="$(spl_desk_dir "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}")" || [[ $? -eq 1 ]] || { echo "$r"; continue; }
       [[ -e "$d/rebox-seated.txt" || -d "$d/rebox-retired" ]] && { echo "INFO pool status: $r is retired (do_spl_desk_rebox), left stopped" >&2; continue; }
     fi
     echo "$r"

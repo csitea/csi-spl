@@ -331,9 +331,12 @@ spl_dispatch_silence_win() {
 
 # spl_dispatch_desk <t>: the desk dir of workspace <t>: under
 # DISPATCH_STATE_DIR, else wherever spl_desk_dir finds it (a moved desk).
+# Under a desk user's root this user cannot read: spl_desk_dir's refusal, no
+# path, rc 3.
 spl_dispatch_desk() {
   local d="$DISPATCH_STATE_DIR/desk/$1/$DISPATCH_DESK_BOX"
-  [[ -d "$d" ]] || ! declare -F spl_desk_dir >/dev/null || d="$(SPL_STATE_DIR="$DISPATCH_STATE_DIR" spl_desk_dir "$1" "$DISPATCH_DESK_BOX" 2>/dev/null)"
+  [[ -d "$d" ]] || ! declare -F spl_desk_dir >/dev/null || d="$(SPL_STATE_DIR="$DISPATCH_STATE_DIR" spl_desk_dir "$1" "$DISPATCH_DESK_BOX")" ||
+    [[ $? -eq 1 ]] || return 3
   printf '%s' "$d"
 }
 

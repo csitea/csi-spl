@@ -87,7 +87,9 @@ do_spl_owner_acceptance() {
 
   [[ -f "$proof_js" ]] || { do_log "FATAL no acceptance bot at $proof_js"; return 1; }
   [[ -s "$pwf" ]] || { do_log "FATAL no password for $email at $pwf: run do_spl_m3_e2e once for $ENV/$tenant to seat and verify that member"; return 1; }
-  [[ -d "$(spl_desk_dir "$tenant" "$box")/spool/$agent" ]] ||
+  local d
+  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
+  [[ -d "$d/spool/$agent" ]] ||
     { do_log "FATAL no desk for $agent on $box in $tenant: run do_spl_desk_up first"; return 1; }
 
   local chrome="${CHROME_PATH:-/usr/bin/google-chrome}"

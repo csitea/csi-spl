@@ -175,7 +175,8 @@ spl_icl_ws() {
 # "c-001 is not an agent announced by <box>". The desk sidecar's roster cache
 # (<desk>/spool/.hub/roster.json, box -> ids) says what the box announces; an
 # unannounced DESK_AGENT is replaced by the first seated id the box announces.
-# No cache (or no desk state dir) checks nothing: the hub call says.
+# No cache (or no desk state dir, or the desk under a desk user's root this
+# user cannot read: spl_desk_dir's refusal) checks nothing: the hub call says.
 spl_icl_ws_announced() {
   local box="${DESK_BOX:-}" roster ids id
   [[ -n "$box" ]] || { declare -F spl_desk_box_default >/dev/null && box="$(spl_desk_box_default)"; }
@@ -183,7 +184,8 @@ spl_icl_ws_announced() {
   if [[ -z "${SPL_STATE_DIR:-}" ]]; then
     declare -F do_spl_desk_cnf >/dev/null && do_spl_desk_cnf >&2 || return 0
   fi
-  roster="$(spl_desk_dir "$TENANT_ID" "$box")/spool"
+  roster="$(spl_desk_dir "$TENANT_ID" "$box")" || [[ $? -eq 1 ]] || return 0
+  roster+=/spool
   ids="$(python3 -c 'import json, sys; print("\n".join(json.load(open(sys.argv[1]))[sys.argv[2]]))' \
     "$roster/.hub/roster.json" "$box" 2>/dev/null)" || return 0
   grep -qx -- "$DESK_AGENT" <<<"$ids" && return 0

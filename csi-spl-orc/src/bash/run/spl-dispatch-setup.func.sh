@@ -446,17 +446,20 @@ spl_dispatch_spawn() {
     claude "$id" "$DISPATCH_REPO" "$brief" "dispatcher-$role"
 }
 
-# 0 when <id> has a seat in workspace <t> on this box.
+# 0 when <id> has a seat in workspace <t> on this box; a desk under a root
+# this user cannot read (spl_dispatch_desk rc 3) is no seat here.
 spl_dispatch_seated() {
-  [[ -d "$(spl_dispatch_desk "$2")/spool/$1" ]]
+  local d
+  d="$(spl_dispatch_desk "$2" 2>/dev/null)" && [[ -d "$d/spool/$1" ]]
 }
 
 spl_dispatch_desks() {
-  local id="$1" t key
+  local id="$1" t key d
   for t in $DISPATCH_TENANTS; do
     if spl_dispatch_seated "$id" "$t"; then spl_dispatch_ok desk "$id in $t"; continue; fi
+    d="$(spl_dispatch_desk "$t")" || return 1
     key=""
-    [[ ! -e "$(spl_dispatch_desk "$t")/pinned" && -n "${DISPATCH_ROOT_KEY_DIR:-}" ]] &&
+    [[ ! -e "$d/pinned" && -n "${DISPATCH_ROOT_KEY_DIR:-}" ]] &&
       key="$DISPATCH_ROOT_KEY_DIR/$t.json"
     spl_dispatch_do desk "do_spl_desk_up ENV=$ENV TENANT_ID=$t DESK_AGENT=$id${key:+ ROOT_KEY_JSON=$key}" \
       env TENANT_ID="$t" DESK_AGENT="$id" DESK_BOX="$DISPATCH_DESK_BOX" ${key:+ROOT_KEY_JSON="$key"} DRY_RUN=0 \

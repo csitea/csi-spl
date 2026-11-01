@@ -201,12 +201,13 @@ _spl_desk_welcome_baselines() {
 
 # _spl_desk_welcome_ensure_plan <ledger dir of the person> <tenant> <box>
 # <human> <live...>: 0 when <dir>/plan names the bot that greets; 1 when this
-# person is skipped (no greeter: decided for good; greeter not live: the next
-# tick tries again); 2 when the ledger dir cannot be made.
+# person is skipped (no greeter: decided for good; greeter not live, or the
+# desk under a root this user cannot read: the next tick tries again); 2 when
+# the ledger dir cannot be made.
 _spl_desk_welcome_ensure_plan() {
-  local D="$1" tenant="$2" box="$3" human="$4" greeter; shift 4
+  local D="$1" tenant="$2" box="$3" human="$4" greeter d; shift 4
   [[ -s "$D/plan" ]] && return 0
-  greeter="$(spl_desk_greeter "$tenant" "$box")"
+  greeter="$(spl_desk_greeter "$tenant" "$box")" || return 1
   if [[ -z "$greeter" ]]; then
     # Decided, not deferred: configuring a greeter later never greets
     # the people admitted before it.
@@ -215,7 +216,8 @@ _spl_desk_welcome_ensure_plan() {
     return 1
   fi
   mkdir -p "$D" || return 2
-  spl_desk_welcome_plan "$(spl_desk_dir "$tenant" "$box")/spool" "$greeter" "$@" >"$D/plan.tmp" &&
+  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
+  spl_desk_welcome_plan "$d/spool" "$greeter" "$@" >"$D/plan.tmp" &&
     mv -f "$D/plan.tmp" "$D/plan"
   if [[ ! -s "$D/plan" ]]; then
     rm -f "$D/plan" "$D/plan.tmp"
@@ -259,10 +261,13 @@ for l in sys.stdin:
 # spl_desk_greeter <tenant> <box>: the tenant's configured greeter (one agent
 # id, do_spl_desk_set_greeter), or nothing when none is configured. A
 # malformed file reads as none: a wrong greeter must never fall back to "any
-# seated bot", which is the pile-on CLE-77896 removed.
+# seated bot", which is the pile-on CLE-77896 removed. The desk under a desk
+# user's root this user cannot read: spl_desk_dir's refusal, rc 3, never
+# "none" (that would decide "no greeter" for good).
 spl_desk_greeter() {
-  local g
-  g="$(head -n 1 "$(spl_desk_dir "$1" "$2" 2>/dev/null)/greeter" 2>/dev/null | tr -d '[:space:]')"
+  local g d
+  d="$(spl_desk_dir "$1" "$2")" || [[ $? -eq 1 ]] || return 3
+  g="$(head -n 1 "$d/greeter" 2>/dev/null | tr -d '[:space:]')"
   declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   [[ "$g" =~ ^${SPOOL_PARTICIPANT_RX}$ && "${g%%-*}" != HUM && "${g%%-*}" != BOX ]] && printf '%s\n' "$g"
   return 0

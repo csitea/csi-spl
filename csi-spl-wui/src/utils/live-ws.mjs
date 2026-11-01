@@ -60,6 +60,8 @@ export const FRAMES = {
   /* 714c7028: a whole topic folded into another topic, and its undo. */
   topicMerged: 'topic_merged',
   topicUnmerged: 'topic_unmerged',
+  /* spec 150 B3: a topic's priority was set (task_id, priority) */
+  topicPriority: 'topic_priority',
   /* An emoji was added or removed. Not a `message` frame: mergeById would keep the old row. */
   reaction: 'message_reaction',
   /* issues-v1 §5: pushed to every browser of the tenant. Not a message frame. */
@@ -574,6 +576,7 @@ function handle(c, f) {
     case FRAMES.messageMoved:
     case FRAMES.topicMerged:
     case FRAMES.topicUnmerged:
+    case FRAMES.topicPriority:
       onTopic(f)
       return
     case FRAMES.reaction:

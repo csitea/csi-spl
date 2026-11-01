@@ -37,6 +37,8 @@ names, and no shared baseline file, so 7 of the 8 rows can run at once.
 v0.2 `5e9af3b8f`; c-971 FAILED v0.1 `2341c31a7` on two row recipes, W1-W5,
 and v0.2 folds them, section 8).
 
+Next round: [refactor-round-20-plan.md](refactor-round-20-plan.md) (drafted before this round's retro, which is not due yet).
+
 Editor: **c-851** (claude). Panel reviewer: a fresh-session claude seat, placed
 by the dispatch lease holder. Dispatch lease holder: the current holder of
 `lease.dispatch`.

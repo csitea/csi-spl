@@ -25,8 +25,11 @@ import { useAiMenuGroup } from '~/composables/useAiMenuGroup'
 import { useChannelStore } from '~/stores/channel'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import type { TopicMenuLocks } from '~/utils/topic-menu.mjs'
+import type { SpoolMessage } from '~/types/spool'
 import { useMsgShortcutsOn } from '~/composables/useMsgShortcuts'
 import { shortcutHint } from '~/utils/msg-shortcuts.mjs'
+import { useAddToNote } from '~/composables/useAddToNote'
+import { msgNoteLink } from '~/utils/add-to-note.mjs'
 
 const props = defineProps<{
   open: boolean
@@ -65,7 +68,8 @@ const props = defineProps<{
   hide?: boolean
   /** CLE-77891: a topic card's entries the viewer may not use, shown disabled with the reason */
   locks?: Partial<TopicMenuLocks>
-  /** t1 b6c742f0: the message, for the AI actions group (a person's message only) */
+  /** t1 b6c742f0: the message, for the AI actions group (a person's message only);
+      spec 155 B8: also the one Add to note links */
   aiMsg?: unknown
   /** t1 b6c742f0: told the i18n key when an AI action fails (the menu is closed by then, so no emit) */
   aiFail?: (key: string) => void
@@ -116,6 +120,10 @@ async function runAi(id: string) {
   const key = await runAiAction(id, props.aiMsg, aiDeps)
   if (key) props.aiFail?.(key)
 }
+/* spec 155 B8 (SPL-4578): Add to note while the person's notes are on; the
+   menu mounts on open, so the one notes read happens here, never at boot */
+const note = useAddToNote()
+note.probe()
 const items = computed(() => withKeys(ai.items(topicItems.value)))
 const topicItems = computed(() => msgMenuItems({
   touch: sheet.value,
@@ -136,6 +144,7 @@ const topicItems = computed(() => msgMenuItems({
   makeIssue: props.makeIssue,
   toTask: props.toTask,
   hide: props.hide,
+  note: note.offered.value,
   locks: props.locks,
 }))
 function withKeys<T extends { id: string }>(list: T[]): (T & { keyHint?: string })[] {
@@ -163,6 +172,8 @@ function choose(id: string) {
   else if (id === 'make-task') emit('make-task')
   else if (id === 'make-issue') emit('make-issue')
   else if (id === 'hide-flow') emit('hide-flow')
+  /* a topic card (its menu carries the topic locks) adds its topic, any other line the message */
+  else if (id === 'add-to-note') note.open(msgNoteLink(props.aiMsg as SpoolMessage, { topic: Boolean(props.locks), workspace: note.workspace() }))
   else if (ai.more(id)) { /* the sheet now shows the seven actions */ }
   else if (id.startsWith('ai-')) void runAi(id)
 }

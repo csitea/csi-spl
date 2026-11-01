@@ -2,7 +2,10 @@
      [to] separate buttons, but at the end of the existing right side
      controls". The open issue's Copy link / Archive / Delete are three icon
      buttons in the dialog header (and the phone's top bar), no ☰ menu. The
-     page owns the actions; this only draws the buttons. -->
+     page owns the actions; this only draws the buttons.
+     Spec 155 B8 (SPL-4578): Add to note, right before Archive, when the page
+     hands the issue in (`note`) and the person's notes are on. It opens the
+     note picker itself (composables/useAddToNote.ts); the page sees nothing. -->
 <template>
   <div class="issue-actions" data-test="issues-detail-actions" role="group" :aria-label="t('issues_menu.label')">
     <button
@@ -16,7 +19,7 @@
       :data-copied="b.id === 'copy' && copied ? 'true' : undefined"
       :aria-label="t(label(b))"
       :title="t(label(b))"
-      @click="emit(b.id)"
+      @click="b.id === 'note' ? addToNote() : emit(b.id)"
     >
       <UiIcon :name="b.id === 'copy' && copied ? 'check' : b.icon" :size="tap ? 20 : 18" />
     </button>
@@ -26,24 +29,35 @@
 <script setup lang="ts">
 import type { UiIconName } from '@/utils/uiIcons'
 import { playTapAnim } from '~/composables/useTapAnim'
+import { useAddToNote } from '~/composables/useAddToNote'
+import { issueNoteLink } from '~/utils/add-to-note.mjs'
 
 const props = defineProps<{
   /** the phone's top bar: 44 px tap targets */
   tap?: boolean
   /** the link was just copied: the copy button shows a check and says so */
   copied?: boolean
+  /** spec 155 B8: the open issue, for Add to note */
+  note?: { key: string, title: string } | null
 }>()
 const emit = defineEmits<{ (e: 'copy' | 'archive' | 'delete'): void }>()
 const { t } = useI18n({ useScope: 'global' })
 
 /* the order the owner's menu had: Copy link, Archive, Delete (the destructive
    one last, nearest the edge) */
-type ActionButton = { id: 'copy' | 'archive' | 'delete', icon: UiIconName, labelKey: string, danger?: boolean }
-const buttons: ActionButton[] = [
+type ActionButton = { id: 'copy' | 'note' | 'archive' | 'delete', icon: UiIconName, labelKey: string, danger?: boolean }
+const ALL: ActionButton[] = [
   { id: 'copy', icon: 'copy', labelKey: 'issues_menu.copy_link' },
+  { id: 'note', icon: 'notes', labelKey: 'issues_menu.add_to_note' },
   { id: 'archive', icon: 'archive', labelKey: 'issues_menu.archive' },
   { id: 'delete', icon: 'delete', labelKey: 'issues_menu.delete', danger: true },
 ]
+const note = useAddToNote()
+onMounted(() => { if (props.note) note.probe() })
+const buttons = computed(() => ALL.filter((b) => b.id !== 'note' || (Boolean(props.note?.key) && note.offered.value)))
+function addToNote() {
+  note.open(issueNoteLink(props.note, note.workspace()))
+}
 function label(b: ActionButton) {
   return b.id === 'copy' && props.copied ? 'common.copied' : b.labelKey
 }

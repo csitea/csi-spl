@@ -64,8 +64,13 @@ import { queryWithTopic, topicTargetFor } from './topic-open.mjs'
  * a task, desktop and phone, right before Make an issue. It runs what Kind ->
  * Task runs, in one step.
  *
- * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, parentKind?: 'dm' | 'channel' | 'issue' | '', topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, makeIssue?: boolean, toTask?: boolean, paneArchive?: boolean, hide?: boolean, locks?: { edit?: string, move?: string, merge?: string, archive?: string, delete?: string } }} [opts]
- * @returns {{ id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'make-task' | 'make-issue' | 'hide-flow' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'issues' | 'merge' | 'move' | 'trash' | 'archive' | 'delete' | 'eye-off', labelKey: string, disabled?: boolean, hintKey?: string }[]}
+ * Spec 155 B8 (SPL-4578): `note` (the person's notes are on, composables/
+ * useAddToNote.ts) adds Add to note, desktop and phone, right after Copy link
+ * (and Hide from flow). It opens the note picker (AddToNotePicker.vue); a
+ * topic card adds its topic, any other line the message. Shift + N runs it.
+ *
+ * @param {{ editable?: boolean, mergePrev?: boolean, mergeNext?: boolean, parent?: boolean, parentKind?: 'dm' | 'channel' | 'issue' | '', topic?: boolean, topicArchive?: boolean, topicDelete?: boolean, touch?: boolean, kind?: boolean, moveChannel?: boolean, moveTopic?: boolean, mergeTopic?: boolean, promoteTopic?: boolean, makeIssue?: boolean, toTask?: boolean, paneArchive?: boolean, hide?: boolean, note?: boolean, locks?: { edit?: string, move?: string, merge?: string, archive?: string, delete?: string } }} [opts]
+ * @returns {{ id: 'reply' | 'react' | 'open' | 'parent' | 'edit' | 'copy' | 'copy-text' | 'kind' | 'merge-prev' | 'merge-next' | 'move-channel' | 'move-topic' | 'merge-topic' | 'promote-topic' | 'make-task' | 'make-issue' | 'hide-flow' | 'add-to-note' | 'delete' | 'archive' | 'delete-topic', icon: 'reply' | 'smile' | 'open' | 'parent' | 'pencil' | 'copy' | 'tag' | 'issues' | 'merge' | 'move' | 'trash' | 'archive' | 'delete' | 'eye-off' | 'notes', labelKey: string, disabled?: boolean, hintKey?: string }[]}
  */
 /** HUM-10 (topic c15b557e): the parent item's words per place */
 const PARENT_LABEL = { dm: 'feed.msg_menu.open_in_dm', channel: 'feed.msg_menu.open_in_channels' }
@@ -92,6 +97,7 @@ export function msgMenuItems(opts = {}) {
   if (touch) items.push({ id: 'copy-text', icon: 'copy', labelKey: 'feed.msg_menu.copy_text' })
   items.push(copy)
   if (o.hide) items.push({ id: 'hide-flow', icon: 'eye-off', labelKey: 'feed.msg_menu.hide_flow' })
+  if (o.note) items.push({ id: 'add-to-note', icon: 'notes', labelKey: 'feed.msg_menu.add_to_note' })
   gated(editable, edit, locks.edit)
   // CLE-77819: Archive and Delete are gated apart - a member the card is
   // addressed to may archive but not delete. `topic` stays the both-shorthand.

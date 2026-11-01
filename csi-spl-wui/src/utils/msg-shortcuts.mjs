@@ -24,6 +24,9 @@
 // Shift + X (SPL-3344, HUM-10 t1 2a9e18c7) runs Make it a task: a blocker
 // becomes a task in one step, only where Kind -> Task is offered.
 //
+// Shift + N (spec 155 B8, SPL-4578) runs Add to note: the note picker, only
+// while the person's notes are on (the menu's `note` flag).
+//
 // ArrowUp / ArrowDown and j / k move the selection; Shift + ? lists the keys.
 // The key map and the matching rules live here so node can test them; the
 // listener is composables/useMsgShortcuts.ts.
@@ -46,6 +49,7 @@ export const MSG_SHORTCUTS = Object.freeze([
   { key: 'U', items: [], labelKey: 'feed.shortcuts.back_to_reply' },
   { key: 'L', items: ['copy'], labelKey: 'feed.msg_menu.copy_link' },
   { key: 'C', items: ['copy-text'], labelKey: 'feed.msg_menu.copy_text' },
+  { key: 'N', items: ['add-to-note'], labelKey: 'feed.msg_menu.add_to_note' },
   { key: 'K', items: ['kind'], labelKey: 'feed.msg_menu.kind' },
   { key: 'X', items: ['make-task'], labelKey: 'feed.msg_menu.make_task' },
   { key: 'T', items: ['promote-topic'], labelKey: 'feed.msg_menu.promote_topic' },

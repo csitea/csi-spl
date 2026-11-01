@@ -13,7 +13,10 @@
      add / edit sheet is T008's.
      SPL-2034 (design B, t1 edc177bc): an issue deadline peeks read-only -
      key and title, due time, status, assignee - with "Open issue" full width
-     in the bottom row (it navigates) and Copy link; no Edit, no Delete. -->
+     in the bottom row (it navigates) and Copy link; no Edit, no Delete.
+     Spec 155 B8 (SPL-4578): the phone's Add to note for an entry (the
+     desktop's is in CalendarEventDialog): below the bottom row while the
+     person's notes are on; it closes the peek and opens the note picker. -->
 <template>
   <div v-if="event" class="calpeek" data-test="calpeek-layer">
     <div class="calpeek__scrim" data-test="calpeek-scrim" aria-hidden="true" @click="close" />
@@ -113,6 +116,9 @@
           {{ t('calendar_event.delete') }}
         </button>
       </div>
+      <button v-if="event && !asking && note.offered.value" type="button" class="calpeek__btn calpeek__btn--wide calpeek__btn--quiet" data-test="calpeek-add-to-note" @click="addToNote(event)">
+        <UiIcon name="notes" :size="16" />{{ t('notes.add_to_note') }}
+      </button>
     </section>
   </div>
   <UndoSnackbar
@@ -142,6 +148,9 @@ import { calDeadline, calDiscussionRef, calEditable } from '~/utils/calendar-eve
 import { issuePageHref } from '~/utils/issue-calendar-link.mjs'
 import { statusLabel } from '~/utils/issues-view.mjs'
 import { useCalendarEventLink } from '~/composables/useCalendarEventLink'
+import { useAddToNote } from '~/composables/useAddToNote'
+import { eventNoteLink } from '~/utils/add-to-note.mjs'
+import { calEventDay } from '~/utils/calendar-drag.mjs'
 import { HUB_WRITE_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 import { calendarDelete, calendarRestore } from '~/utils/calendar-events-api.mjs'
 import { CALENDAR_CHANGED_EVENT } from '~/utils/calendar-reminders.mjs'
@@ -167,6 +176,13 @@ const deadline = computed(() => calDeadline(props.event))
 const localePath = useLocalePath()
 const router = useRouter()
 const { copied, copyLink } = useCalendarEventLink()
+const note = useAddToNote()
+watch(() => Boolean(props.event), (on) => { if (on) note.probe() }, { immediate: true })
+function addToNote(ev: CalendarItem) {
+  const link = eventNoteLink(ev, note.workspace(), ev.starts_at ? calEventDay(ev) : '')
+  emit('close')
+  note.open(link)
+}
 /* a real link; a plain tap goes through the shell (CalendarPhone), which
    drops issue= first so Back returns to the day with the peek closed */
 const issueTo = computed(() => localePath(issuePageHref(props.event?.issue_key || props.event?.id || '')))

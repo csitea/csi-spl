@@ -85,7 +85,7 @@ import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
 import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
-import { COSTS_MOCK_KEY } from '../../src/utils/tenant-costs.mjs'
+import { COSTS_MOCK_KEY, costMonthOptions } from '../../src/utils/tenant-costs.mjs'
 import { TOKENS_MOCK_KEY, TOKENS_MOCK_OPERATOR_KEY } from '../../src/utils/monitoring-tokens.mjs'
 import { PAID_MOCK_REFUSE_KEY } from '../../src/utils/monitoring-paid.mjs'
 import { LANES_MOCK_TOPIC } from '../../src/utils/monitoring-lanes.mjs'
@@ -802,8 +802,10 @@ try {
 
     /* spec 143 3.3.1 (SPL-3891): a customer workspace's share of the AI subscriptions */
     {
+      /* last month, always ended: the share counts from the 3rd day, so the
+         current month has none on days 1-2 (master red on 2026-11-01, SPL-4542) */
       const { ctx, p } = await costsPage(browser, server.base, size, { scenario: 'share' })
-      await open(p, server.base, SPEND)
+      await open(p, server.base, SPEND + '?month=' + costMonthOptions(new Date(), 2)[1])
       ok('share: the table renders', await waitFor(p, '[data-test=costs-table]'))
       const rows = await p.$$eval('[data-test=costs-row][data-source=ai_share] .costs-part', (els) => els.map((e) => e.textContent.trim()))
       ok('share: one row per agent type, named as the workspace\'s share', rows.join('|') === 'AI subscriptions (your share) · agy|AI subscriptions (your share) · claude', rows)

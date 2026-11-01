@@ -2,7 +2,7 @@
 
 #------------------------------------------------------------------------------
 # @description add all template files for including a new terraform step
-# @example cd csi-spl-orc && STEP=014-step-name make tf-new-step
+# @example cd csi-spl-iac && STEP=<NNN-step-name> ./run -a do_tf_new_step
 #------------------------------------------------------------------------------
 do_tf_new_step() {
   # $1 : step_name in the form 014-step-name

@@ -11,7 +11,10 @@
      t1 404cd808 (owner: "it must be a clear indication in this view if
      somethign is archived"): a DM opened on an ARCHIVED topic (?topic=)
      names that topic here, muted, beside the same ArchivedBadge the topic
-     pane and the Topics rows carry; a live topic adds nothing. -->
+     pane and the Topics rows carry; a live topic adds nothing.
+     Spec 150 B6: the topic list's filter and sort sit just before the card
+     height control; lazy, in a slot that holds its box from the first frame,
+     so the shell's initial chunk does not grow and the title does not jump. -->
 <template>
   <header class="feed-header feed-header--pane" data-test="feed-header" :aria-label="t('pane.msgs')">
     <MobileBack />
@@ -37,6 +40,7 @@
       <span v-if="topicTitle" class="feed-header__topic-title">{{ topicTitle }}</span>
       <ArchivedBadge :at="archivedAt" :task-id="topicId" @unarchived="emit('unarchived')" />
     </span>
+    <span class="topic-list-slot"><LazyTopicListControl /></span>
     <CardClipControl />
   </header>
 </template>
@@ -68,6 +72,21 @@ const { t } = useI18n({ useScope: 'global' })
 </script>
 
 <style scoped>
+/* spec 150 B6: the slot takes the right edge; the card height control follows it */
+.topic-list-slot {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-inline-start: auto;
+  min-width: calc(2 * (0.875rem + 18px) + 2px);
+  min-height: calc(0.875rem + 10px);
+}
+.topic-list-slot + .card-clip-ctl { margin-inline-start: 0; }
+@media (max-width: 820px) {
+  .topic-list-slot {
+    min-width: calc(2 * max(var(--tap), 0.875rem + 22px) + 2px);
+    min-height: max(var(--tap), 0.875rem + 10px);
+  }
+}
 /* gives way (ellipsis) before the name does; the badge never shrinks */
 .feed-header__topic {
   display: inline-flex;

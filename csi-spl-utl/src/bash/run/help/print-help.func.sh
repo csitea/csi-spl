@@ -33,14 +33,12 @@ EOF_USAGE
   col2=$(( term_width - col1 - 12 ))        # 12 = tab(8) + leading-space(1) + col1 + sep(2) + margin(1)
   [[ $col2 -lt 30 ]] && col2=30            # hard minimum
 
-  while read -r fnc_file; do
-    # Skip pre/post hooks from the main actions list
-    [[ "$fnc_file" == *".pre.func.sh" || "$fnc_file" == *".post.func.sh" ]] && continue
-
-    local action_name
-    action_name=$(basename "$fnc_file" .func.sh)
-    action_name="do_${action_name//-/_}"
-
+  # One line per name ./run dispatches, not per file: the names are the keys
+  # of run.sh's _func_to_file map (its filename rule plus the extra names a
+  # file registers itself, e.g. do_os_reboot_required_check), so every line
+  # printed here runs (SPL-4549, print-help.tst.sh)
+  local fnc_file action_name
+  while IFS=$'\t' read -r fnc_file action_name; do
     # Try to extract @description from structured metadata
     local desc=""
     if type do_get_description &>/dev/null; then
@@ -63,20 +61,27 @@ EOF_USAGE
     else
       printf "\t ./run -a %s;\n" "$action_name"
     fi
-  done < <(find "$proj/src/bash/run/" -name "*.func.sh" 2>/dev/null | sort)
+  done < <(_print_help_actions "$proj")
 
-  echo ""
-  echo "   Actions support named arguments (--flags):"
-  echo "     ./run -a do_help_with --search zip"
-  echo ""
-  echo "   Environment variables still work (backward compatible):"
-  echo "     SRCH=zip ./run -a do_help_with"
+  # No do_help_with here: utl, iac and orc define none, so the lines naming
+  # it ended in "NOT found"; utl has no run-all-tests.sh either
   echo ""
   echo "   Run all tests:"
-  echo "     bash src/bash/tests/run-all-tests.sh"
-  echo ""
-  echo "   Tip: Use ./run -a do_help_with --search <keyword> for detailed help."
+  echo "     bash ../csi-spl-iac/src/bash/tests/utl-suite.tst.sh"
   echo ""
   export EXIT_CODE=0
+}
+
+# _print_help_actions <proj>: "<file>\t<action>" for each dispatched name
+# whose file is under <proj>/src/bash/run/ (pre/post hooks left out), sorted
+_print_help_actions() {
+  local proj="$1" fn f
+  declare -p _func_to_file &>/dev/null || return 0
+  for fn in "${!_func_to_file[@]}"; do
+    f="${_func_to_file[$fn]}"
+    [[ "$f" == "$proj/src/bash/run/"* ]] || continue
+    [[ "$f" == *".pre.func.sh" || "$f" == *".post.func.sh" ]] && continue
+    printf '%s\t%s\n' "$f" "$fn"
+  done | sort -t $'\t' -k1,1 -k2,2
 }
 # csi-spl ::: copied from sibling-prj-utl

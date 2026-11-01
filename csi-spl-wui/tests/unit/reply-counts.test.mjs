@@ -98,6 +98,17 @@ describe('SPL-1008 reply counts', () => {
     assert.deepEqual(mergeTopicTotals(totals, page.totals)[TOLD], totals[TOLD])
   })
 
+  it('spec 150 B6: the hub priority rides through the merge; absent stays absent', () => {
+    const at = '2026-11-01T10:00:00Z'
+    const held = mergeTopicTotals({}, { [TOLD]: { count: 3, last_ts: at, priority: 1 }, [TNEW]: { count: 2, last_ts: at } })
+    assert.equal(held[TOLD].priority, 1)
+    assert.equal('priority' in held[TNEW], false)
+    /* a set moves no last_ts: the same last_ts read brings the new value */
+    assert.equal(mergeTopicTotals(held, { [TOLD]: { count: 3, last_ts: at, priority: 4 } })[TOLD].priority, 4)
+    /* outside 1..5 is not carried (the list reads the default 3) */
+    assert.equal('priority' in mergeTopicTotals({}, { [TOLD]: { count: 1, last_ts: at, priority: 9 } })[TOLD], false)
+  })
+
   it('an own pending send counts at once, whatever its clock says', async () => {
     const page = await client(oldTopic()).listMessages({ channel: 'mobile', limit: 4 })
     const rows = [...page.messages, { msg_id: 'p1', task_id: TOLD, ts: '2020-01-01T00:00:00Z', pending: true }]

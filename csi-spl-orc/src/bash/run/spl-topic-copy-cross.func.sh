@@ -92,7 +92,7 @@ do_spl_topic_copy_cross() {
 _spl_tcc_run() {
   local b d
   for b in "${src_boxes[@]}"; do
-    d="$(spl_desk_dir "$src_t" "$b")"
+    d="$(spl_desk_dir "$src_t" "$b")" || [[ $? -eq 1 ]] || return 1
     [[ -d "$d/spool" ]] || { do_log "FATAL no desk box $b in $src_t to read the source with ($d): do_spl_desk_up seats one"; return 1; }
   done
   spl_host_spool || return 1
@@ -113,7 +113,7 @@ _spl_tcc_run() {
     return 0
   fi
   local dd
-  dd="$(spl_desk_dir "$dst_t" "$dst_box")"
+  dd="$(spl_desk_dir "$dst_t" "$dst_box")" || [[ $? -eq 1 ]] || return 1
   [[ -d "$dd/spool/$dst_a" ]] || { do_log "FATAL no desk for $dst_a on $dst_box in $dst_t: run do_spl_desk_up first ($dd)"; return 1; }
   local have posted=0
   have="$(_spl_tcc_resume "$dd" "$dst_task")" || return 1
@@ -158,7 +158,7 @@ _spl_tcc_read_source() {
   local b d out
   : >"$work/src.ndjson"
   for b in "${src_boxes[@]}"; do
-    d="$(spl_desk_dir "$src_t" "$b")"
+    d="$(spl_desk_dir "$src_t" "$b")" || [[ $? -eq 1 ]] || return 1
     out="$(spl_desk_spool "$d" "$b" "$src_t" "$hub" -- hub-tail --task "$topic" --json 2>&1)" ||
       { do_log "FATAL hub-tail $topic on $b in $src_t: $out"; return 1; }
     grep '^{' <<<"$out" >>"$work/src.ndjson"
@@ -395,7 +395,7 @@ _spl_tcc_after() {
 _spl_tcc_reput() {
   local dd="$1" idx="$2" sb="${src_boxes[0]}" fid name out put dir rows cnt
   local sd
-  sd="$(spl_desk_dir "$src_t" "$sb")"
+  sd="$(spl_desk_dir "$src_t" "$sb")" || [[ $? -eq 1 ]] || return 1
   ids=()
   rows="$(_spl_tcc_jq "$work/plan.json" "'\n'.join(f['file_id'] + '\t' + f['name'] for f in d[$idx]['files'])")"
   [[ -n "$rows" ]] || return 0

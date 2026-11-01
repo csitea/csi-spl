@@ -63,7 +63,7 @@ do_spl_desk_down() {
   [[ -z "$agent" ]] || spl_is_participant_id "$agent" || { do_log "FATAL DESK_AGENT '$agent' is not an agent id (e.g. CLE-00)"; return 1; }
 
   local d pidf pid="" was=0 rel=0 stop=0
-  d="$(spl_desk_dir "$tenant" "$box")"
+  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
   pidf="$d/spool/.hub/hub-run.pid"
   if spl_desk_alive "$pidf"; then was=1; stop=1; pid="$(cat "$pidf")"; fi
   [[ -n "$agent" && -d "$d/spool/$agent" ]] && ! spl_desk_is_od "$agent" &&

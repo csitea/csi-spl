@@ -701,11 +701,16 @@ the same roots in the same order. The roots (`spl_desk_roots`), first hit wins:
 
 Not found: it prints the caller's path (where `do_spl_desk_up` seats a new
 desk) and returns 1, and the caller keeps its own `run do_spl_desk_up` FATAL.
-A root of another user that the caller cannot enter (`drwx------`, never
-loosened) may hold the desk: it returns 3 with a refusal that names that user
-and the fix, `run this ./run action as <agent-user> (sudo -n -u <agent-user>
-env HOME=<its home> ./run -a <action>)`; `do_spl_desk_up` then refuses too,
-so no twin desk is seated under the caller.
+The desk user's root, when the caller cannot enter it (`drwx------`, never
+loosened), may hold the desk: it returns 3, prints no path, and the refusal
+names that user and the fix, `run this ./run action as <agent-user> (sudo -n
+-u <agent-user> env HOME=<its home> ./run -a <action>)`. Every caller returns
+on 3, the creators (`do_spl_desk_up`, `do_spl_desk_up_all`, `do_spl_desk_pin`,
+`do_spl_desk_rebox`) included, so no twin desk is seated under the caller and
+no second `no desk for` line points at the wrong fix. The agent user's and the
+box user's roots are best-effort: one the caller cannot enter is skipped and a
+missing desk still returns 1 (the box user's `.local` is 0700 on a moved box,
+and the desk user must still seat new desks).
 
 So a desk under `<agent-user>` is **readable only by `<agent-user>`**: a
 `<box-user>` cron that reads or posts through a moved desk keeps failing,

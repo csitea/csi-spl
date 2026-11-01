@@ -257,7 +257,7 @@ _spl_poll_ack_tail() {
 _spl_poll_ack_one() {
   local tenant="$1" box="$2" agent="$3" msg="$4" task="$5" from="$6" ts="$7" poll="$8" keys="$9" log="${10}" dry="${11}"
   local d tail="" known=0 verdict why body rc=0 wrc=0 outcome=sent
-  d="$(spl_desk_dir "$tenant" "$box")"
+  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
   # the desk's spool binary, found (or built) once, at the first answer
   [[ -n "${SPL_SPOOL:-}" ]] || spl_host_spool || return 1
   if ! _spl_poll_ack_tail "$d" "$box" "$tenant" "$task"; then

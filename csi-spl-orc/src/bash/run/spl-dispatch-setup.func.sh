@@ -451,7 +451,6 @@ spl_dispatch_seated() {
   [[ -d "$(spl_dispatch_desk "$2")/spool/$1" ]]
 }
 
-
 spl_dispatch_desks() {
   local id="$1" t key
   for t in $DISPATCH_TENANTS; do

@@ -55,7 +55,7 @@ do_spl_desk_check() {
   [[ "$repair" == 0 || "$repair" == 1 ]] || { do_log "FATAL DESK_REPAIR must be 0 or 1, got: '$repair'"; return 1; }
 
   local d pidf pid="" alive=0
-  d="$(spl_desk_dir "$tenant" "$box")"
+  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
   pidf="$d/spool/.hub/hub-run.pid"
   if spl_desk_alive "$pidf"; then alive=1; pid="$(cat "$pidf")"; fi
 

@@ -77,7 +77,8 @@ do_spl_desk_rebox() {
     pin | copy | drain | seat | resume | verify | retire) ;;
     *) do_log "FATAL REBOX_STEP must be pin | copy | drain | seat | resume | verify | retire, got: '$step'"; return 1 ;;
   esac
-  SPL_REBOX_FROM="$(spl_desk_dir "$tenant" "$from")" SPL_REBOX_TO="$(spl_desk_dir "$tenant" "$to")"
+  SPL_REBOX_FROM="$(spl_desk_dir "$tenant" "$from")" || [[ $? -eq 1 ]] || return 1
+  SPL_REBOX_TO="$(spl_desk_dir "$tenant" "$to")" || [[ $? -eq 1 ]] || return 1
   SPL_REBOX_PAUSE="${SPOOL_ROOT:-/var/spool-hub}/.desk-reconcile.$ENV.pause"
   if (( dry )) && [[ "$step" != verify ]]; then
     do_log "INFO DRY_RUN would run step $step for $tenant on $ENV: $from -> $to (desk state $SPL_REBOX_FROM -> $SPL_REBOX_TO)"

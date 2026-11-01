@@ -50,7 +50,7 @@ do_spl_desk_probe() {
   local api_fqdn hub d
   spl_cnf_api_fqdn api_fqdn || return 1
   hub="https://$api_fqdn"
-  d="$(spl_desk_dir "$tenant" "$box")"
+  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
   if (( dry )); then
     if [[ -n "$ch" ]]; then
       do_log "INFO DRY_RUN would: sign a member in, post a topic into #$ch on $hub and a thread reply under it, assert the reply in $agent@$box's inbox and pane, and answer with do_spl_desk_reply"

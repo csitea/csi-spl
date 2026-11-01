@@ -78,7 +78,7 @@ do_spl_desk_up() {
 
   local hub d
   hub="$SPL_HUB_URL"
-  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1 # 3 = unreadable user: no twin
+  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
   local notify="${DESK_NOTIFY_CMD-$APP_PATH/$SPL_ORG_APP-orc/src/bash/features/spawn-agents/scripts/spool-notify.sh}"
   [[ "$notify" == off || -x "$notify" ]] || { do_log "FATAL DESK_NOTIFY_CMD '$notify' is not executable (use 'off' for no terminal leg)"; return 1; }
   local poke="${DESK_POKE:-1}" boxpoke="${DESK_BOX_POKE:-1}"

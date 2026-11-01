@@ -72,7 +72,7 @@ do_spl_desk_doctree() {
   _spl_desk_doctree_file_flags args "$in" || return 1
 
   local d
-  d="$(spl_desk_dir "$tenant" "$box")"
+  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
   _spl_desk_doctree_seated "$d" "$box" "$agent" "$tenant" || return 1
 
   local dry=0

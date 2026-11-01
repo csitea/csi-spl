@@ -1066,7 +1066,7 @@ spl_fleet_hub_init() {
   ENV="$LEASE_ENV" do_spl_desk_cnf || return 1
   spl_host_spool || return 1
   local d
-  d="$(spl_desk_dir "$LEASE_TENANT" "$LEASE_DESK_BOX")"
+  d="$(spl_desk_dir "$LEASE_TENANT" "$LEASE_DESK_BOX")" || [[ $? -eq 1 ]] || return 1
   [[ -s "$d/pinned" ]] ||
     { do_log "FATAL $LEASE_DESK_BOX is not pinned in $LEASE_TENANT ($d): seat a desk there first (do_spl_desk_up)"; return 1; }
 }
@@ -1103,7 +1103,7 @@ spl_fleet_hub_once() {
   local t="${LEASE_AT_TENANT:-${LEASE_TENANT:-}}"
   if [[ -n "${LEASE_HUB_CMD:-}" ]]; then LEASE_HUB_TENANT="${LEASE_AT_TENANT:-}" "$LEASE_HUB_CMD" lease "$@"; return; fi
   local d
-  d="$(spl_desk_dir "$t" "$LEASE_DESK_BOX")"
+  d="$(spl_desk_dir "$t" "$LEASE_DESK_BOX")" || [[ $? -eq 1 ]] || return 1
   # spl_desk_spool's environment, under a timeout: a hung dial must not stall the tick
   SPOOL_ROOT="$d/spool" SPOOL_KEYS_DIR="$d/keys" SPOOL_BOX_ID="$LEASE_DESK_BOX" \
     SPOOL_HUB_URL="$SPL_HUB_URL" SPOOL_TENANT="$t" timeout "${LEASE_HUB_TIMEOUT:-12}" "$SPL_SPOOL" lease "$@"
@@ -1296,7 +1296,7 @@ spl_fleet_beats() {
   # shellcheck disable=SC2086 # a command line, split on purpose
   if [[ -n "${LEASE_BEATS_CMD:-}" ]]; then $LEASE_BEATS_CMD box-beat list "$@"; return; fi
   local d
-  d="$(spl_desk_dir "$LEASE_TENANT" "$LEASE_DESK_BOX")"
+  d="$(spl_desk_dir "$LEASE_TENANT" "$LEASE_DESK_BOX")" || [[ $? -eq 1 ]] || return 1
   SPOOL_ROOT="$d/spool" SPOOL_KEYS_DIR="$d/keys" SPOOL_BOX_ID="$LEASE_DESK_BOX" \
     SPOOL_HUB_URL="$SPL_HUB_URL" SPOOL_TENANT="$LEASE_TENANT" timeout "${LEASE_HUB_TIMEOUT:-30}" "$SPL_SPOOL" box-beat list "$@"
 }

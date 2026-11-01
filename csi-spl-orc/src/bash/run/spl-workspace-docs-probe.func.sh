@@ -34,7 +34,7 @@ do_spl_workspace_docs_probe() {
   local api_fqdn hub d
   spl_cnf_api_fqdn api_fqdn || return 1
   hub="https://$api_fqdn"
-  d="$(spl_desk_dir "$tenant" "$box")"
+  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
   if (( dry )); then
     do_log "INFO DRY_RUN would: GET $hub/v1/workspace/docs/tree.json anonymously (want not workspace_docs_off), then as seat $box of $tenant doc-list, doc-write + doc-read a probe/ doc, doc-delete it"
     do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0 to probe."

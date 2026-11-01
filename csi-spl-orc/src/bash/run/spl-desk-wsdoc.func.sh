@@ -60,7 +60,7 @@ do_spl_desk_wsdoc() {
   fi
 
   local d
-  d="$(spl_desk_dir "$tenant" "$box")"
+  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
   declare -F _spl_desk_doctree_seated >/dev/null ||
     source "$(dirname "${BASH_SOURCE[0]}")/spl-desk-doctree.func.sh"
   _spl_desk_doctree_seated "$d" "$box" "$agent" "$tenant" || return 1

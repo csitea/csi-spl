@@ -53,7 +53,7 @@ do_spl_desk_edit() {
 
   local hub d
   hub="$SPL_HUB_URL"
-  d="$(spl_desk_dir "$tenant" "$box")"
+  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
   if (( dry )); then
     do_log "INFO DRY_RUN would: edit $id (written by $agent) on $box in $tenant with a new body${body_file:+ from $body_file}"
     [[ -d "$d/spool/$agent" ]] || do_log "INFO DRY_RUN there is no desk for $agent on $box in $tenant yet ($d): do_spl_desk_up seats one"

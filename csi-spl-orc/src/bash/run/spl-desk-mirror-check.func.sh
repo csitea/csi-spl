@@ -28,7 +28,7 @@ do_spl_desk_mirror_check() {
   local auser="${SESSION_AGENT_USER:-${SPOOL_AGENT_USER:-$(id -un)}}"
   spl_desk_validate "$tenant" "$box" "${agent:-none}" || return 1
   local d ahome
-  d="$(spl_desk_dir "$tenant" "$box")"
+  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
   [[ -d "$d/spool" ]] || { do_log "FATAL no desk $box in $tenant ($d)"; return 1; }
   ahome="$(getent passwd "$auser" | cut -d: -f6)"
   SPL_ID_RX="$SPOOL_PARTICIPANT_RX" python3 - "$d" "$agent" "${ahome:-/nonexistent}/.claude/settings.json" <<'EOF_PY'

@@ -192,7 +192,8 @@ spl_lane_issue_desk() {
     do_spl_desk_cnf >/dev/null || return 1
     box="$SLI_BOX"
     local d first=""
-    d="$(spl_desk_dir "$TENANT_ID" "$box")/spool"
+    d="$(spl_desk_dir "$TENANT_ID" "$box")" || [[ $? -eq 1 ]] || return 1
+    d+=/spool
     # The lease's seats first, then any other agent of the desk: the first
     # one the desk sidecar announces (SPL-1707), else the first seated.
     for a in $(_sli_conf LEASE_MASTER) $(_sli_conf LEASE_ORCH) $(_sli_conf LEASE_FAILOVER) \
@@ -467,7 +468,7 @@ spl_lane_issue_end() {
 spl_lane_issue_actor() {
   SLI_BY="" SLI_DESK="$DESK_AGENT" SLI_LANE="$2"
   [[ -n "${SPL_STATE_DIR:-}" ]] || do_spl_desk_cnf >/dev/null 2>&1
-  if [[ -d "${SPL_STATE_DIR:-}/desk/$TENANT_ID/$SLI_BOX/spool/$2" ]] && spl_lane_issue_announced "$1" "$SLI_BOX" "$2"; then
+  if [[ -d "$(spl_desk_dir "$TENANT_ID" "$SLI_BOX" 2>/dev/null)/spool/$2" ]] && spl_lane_issue_announced "$1" "$SLI_BOX" "$2"; then
     DESK_AGENT="$2"; return 0
   fi
   SLI_BY=" (booked by desk $DESK_AGENT for lane $2: the hub books only an agent its box announces)"

@@ -149,21 +149,25 @@ spl_desk_state_root() {
 #      do_spl_desk_move moves desk by desk and writes SPOOL_DESK_USER only
 #      once every desk moved, so a half-moved box holds desks under both
 # Found: prints it, 0. Not found: prints where a new desk is seated (root 1),
-# returns 1, and the caller keeps its own "run do_spl_desk_up" FATAL. A root
-# of another user the caller cannot enter (drwx------) may hold it: the
-# refusal names that user and the fix on stderr, returns 3. Nothing is chmod-ed.
+# returns 1, and the caller keeps its own "run do_spl_desk_up" FATAL. The
+# DESK USER's root (SPOOL_DESK_USER, not the caller) that the caller cannot
+# enter (drwx------) may hold it: the refusal names that user and the fix on
+# stderr, prints NOTHING (no path a caller could mkdir into a twin desk) and
+# returns 3; every caller returns on 3. The agent and box user roots are
+# best-effort: one the caller cannot enter is skipped, rc 1 (the box user's
+# .local is 0700 on a moved box: the desk user must still seat new desks).
+# Nothing is chmod-ed.
 spl_desk_dir() {
-  local ws="$1" box="$2" e="${3:-${ENV:-}}" me u r first="" deny=""
+  local ws="$1" box="$2" e="${3:-${ENV:-}}" me du u r first="" deny=""
   [[ -n "$ws" && -n "$box" && -n "$e" ]] || { do_log "FATAL spl_desk_dir: workspace, desk id and env are required" >&2; return 1; }
-  me="$(id -un)"
+  me="$(id -un)" du="$(spl_desk_user)"
   while IFS=$'\t' read -r u r; do
     [[ -n "$r" ]] || continue
     [[ -n "$first" ]] || first="$r/desk/$ws/$box"
     [[ -d "$r/desk/$ws/$box" ]] && { printf '%s' "$r/desk/$ws/$box"; return 0; }
-    [[ "$u" != "$me" && -z "$deny" ]] && ! spl_desk_root_enterable "$r/desk/$ws/$box" && deny="$u"$'\t'"$r"
+    [[ "$u" == "$du" && "$u" != "$me" && -z "$deny" ]] && ! spl_desk_root_enterable "$r/desk/$ws/$box" && deny="$u"$'\t'"$r"
   done < <(spl_desk_roots "$e")
-  printf '%s' "$first"
-  [[ -n "$deny" ]] || return 1
+  [[ -n "$deny" ]] || { printf '%s' "$first"; return 1; }
   u="${deny%%$'\t'*}" r="${deny#*$'\t'}"
   do_log "FATAL the desk $e/$ws/$box is not under $me's state root, and $u's state root $r is not readable by $me (drwx------, not loosened): run this ./run action as $u (sudo -n -u $u env HOME=$(getent passwd "$u" 2>/dev/null | cut -d: -f6) ./run -a <action>); the desk dirs stay 0700" >&2
   return 3

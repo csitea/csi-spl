@@ -268,7 +268,7 @@ _spl_cwm_probe_send() {
   # TENANT_ID: on a box claimed by a workspace (spec 108 3.5) the desk cnf's
   # guard checks it and picks that workspace's state dir
   TENANT_ID="$tenant" do_spl_desk_cnf || return 1
-  d="$(spl_desk_dir "$tenant" "$box")"
+  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
   [[ -d "$d/spool/$agent" ]] || {
     do_log "FATAL no $tenant desk for $agent on $box on this machine ($d): P2b probes only the desks of the machine that runs the move"
     return 1

@@ -42,7 +42,7 @@ do_spl_move_notice_probe() {
   fi
   do_spl_desk_cnf || return 1
   local d pw="${PROBE_PW_FILE:-$SPL_STATE_DIR/m3-e2e/$tenant/pw-human}"
-  d="$(spl_desk_dir "$tenant" "$box")"
+  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
   [[ -d "$d/spool" ]] || { do_log "FATAL no desk $box in $tenant on $ENV ($d): DESK_BOX names the desk that reads hub-tail"; return 1; }
   [[ -r "$pw" ]] || { do_log "FATAL no readable password file $pw (set PROBE_PW_FILE)"; return 1; }
   local api email email_file="$SPL_STATE_DIR/m3-e2e/$tenant/human-email" out rc=0 ids=()

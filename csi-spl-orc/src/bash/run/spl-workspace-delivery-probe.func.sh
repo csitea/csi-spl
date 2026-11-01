@@ -84,7 +84,8 @@ do_spl_workspace_delivery_probe() {
   WDP_BOX="${PROBE_BOX:-$(spl_desk_box_default)}"
   # The desk root of the alert workspace's desk (spl_desk_dir): a moved desk
   # lives under the desk user's home, not under SPL_STATE_DIR.
-  WDP_DESK="${PROBE_DESK_DIR:-$(dirname "$(dirname "$(spl_desk_dir "$WDP_ALERT_T" "$WDP_BOX")")")}"
+  WDP_DESK="${PROBE_DESK_DIR:-}"
+  [[ -n "$WDP_DESK" ]] || { WDP_DESK="$(spl_desk_dir "$WDP_ALERT_T" "$WDP_BOX")" || [[ $? -eq 1 ]] || return 1; WDP_DESK="$(dirname "$(dirname "$WDP_DESK")")"; }
   for v in "$WDP_TO" "$WDP_ASK_TO" "$WDP_FROM"; do
     [[ "$v" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { do_log "FATAL '$v' is not an agent id"; return 1; }
   done

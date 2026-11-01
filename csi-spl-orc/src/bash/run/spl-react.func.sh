@@ -55,7 +55,7 @@ do_spl_react() {
 
   local hub d target
   hub="$SPL_HUB_URL"
-  d="$(spl_desk_dir "$tenant" "$box")"
+  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
   target="${msg:-the opening message}${topic:+ of topic $topic}"
   if (( dry )) && [[ "$mode" != check ]]; then
     do_log "INFO DRY_RUN would: $mode $emoji on $target as $agent on $box in $tenant ($hub)"

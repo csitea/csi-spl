@@ -76,7 +76,7 @@ do_spl_responder_run() {
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local d api_fqdn hub
-  d="$(spl_desk_dir "$tenant" "$box")"
+  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
   spl_cnf_api_fqdn api_fqdn || return 1
   hub="https://$api_fqdn"
   [[ -d "$d/spool" ]] || { do_log "FATAL responder $agent on $box in $tenant is not seated ($d); seat it with do_spl_desk_up"; return 1; }

@@ -35,7 +35,7 @@ do_spl_desk_unseat() {
   declare -F spl_is_agent_id >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/spool-env.inc.sh"
   spl_is_participant_id "$a" || { do_log "FATAL DESK_AGENT '$a' is not an agent id (e.g. a-175): name the ONE agent to unseat"; return 1; }
   local d
-  d="$(spl_desk_dir "$tenant" "$box")"
+  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
   if [[ ! -d "$d/spool/$a" ]]; then
     do_log "FATAL $a is not seated on $box in $tenant ($ENV): no dir $d/spool/$a. Seated: $(spl_desk_seated "$d" | tr '\n' ' ')"
     return 1

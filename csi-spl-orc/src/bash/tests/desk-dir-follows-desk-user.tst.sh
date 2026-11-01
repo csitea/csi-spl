@@ -8,7 +8,9 @@
 #   1. spl_desk_dir: a half-moved box (no SPOOL_DESK_USER yet, B is the box's
 #      SPOOL_AGENT_USER) finds B's desk; SPOOL_DESK_USER=B finds it; a desk
 #      that has not moved is found under A first; a missing desk returns 1
-#      and the caller's path; B's root unreadable returns 3 and names B
+#      and the caller's path; B's root unreadable returns 3, names B and
+#      prints no path (W1/W3 of the R7). B only the agent or box user, not the
+#      desk user, and unreadable: best-effort, a missing desk is still rc 1
 #   2. spl_desk_glob: walks A's and B's roots, A hides the same desk in B
 #   3. spl_desk_issue_once (do_spl_desk_issue, the closer's leg): RED on
 #      master, the desk under B only was "no desk for"; now found. Not moved:
@@ -17,6 +19,9 @@
 #   4. spl_icl_ws_announced (do_spl_issue_close_landed): reads the roster
 #      cache of the desk under B (RED on master: under A only, nothing read)
 #   5. spl_desk_post (do_spl_desk_post): the same desk lookup, found under B
+#   6. the creators refuse on 3 (R7 W3): do_spl_desk_up_all and do_spl_desk_pin
+#      against B's root drwx------ make no twin desk under A
+#   7. spl_lane_issue_actor (R7 W2): a lane seated on the desk under B acts
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -80,7 +85,14 @@ if [[ "$(id -u)" != 0 ]]; then
   has "1f. B's root drwx------ to A: rc 3" "rc=3" "$out"
   has "1f. the refusal names B" "is not readable by $ME" "$out"
   has "1f. the refusal names the fix" "sudo -n -u $DU" "$out"
-  chmod 700 "$RB"
+  out="$(in_orc "$T/box.env.moved" 'spl_desk_dir t1 sat-rsp 2>/dev/null; echo "rc=$?"')"
+  eq "1f. rc 3 prints no path a caller could mkdir into a twin" "rc=3" "$out"
+  fresh; chmod 000 "$HB"
+  out="$(in_orc "$T/box.env.half" 'spl_desk_dir t1 sat-rsp; echo " rc=$?"')"
+  eq "1g. agent user B (not the desk user) unreadable, desk nowhere: rc 1, the caller's path" "$RA/desk/t1/sat-rsp rc=1" "$out"
+  out="$(in_orc "$T/box.env.none" 'SPOOL_BOX_USER='"$DU"' spl_desk_dir t1 sat-rsp; echo " rc=$?"')"
+  eq "1h. box user B unreadable, desk nowhere: rc 1, the caller's path" "$RA/desk/t1/sat-rsp rc=1" "$out"
+  chmod 700 "$HB"
 fi
 
 # --- 2. spl_desk_glob ------------------------------------------------------------
@@ -107,6 +119,7 @@ if [[ "$(id -u)" != 0 ]]; then
   out="$(in_orc "$T/box.env.moved" 'spl_desk_issue_once && echo READY')"
   has "3e. B's root unreadable: the refusal names B and the fix" "run this ./run action as $DU (sudo -n -u $DU" "$out"
   hasnt "3e. not ready" "READY" "$out"
+  hasnt "3e. no second, wrong 'run do_spl_desk_up' FATAL (R7 N1)" "no desk for" "$out"
   chmod 700 "$RB"
 fi
 
@@ -120,6 +133,32 @@ has "4. the roster cache under B is read: c-684 is not announced, acting as c-77
 fresh; desk "$RB"
 out="$(in_orc "$T/box.env.half" 'd="$(spl_desk_dir "$TENANT_ID" "$DESK_BOX")"; [[ -d "$d/spool/$DESK_AGENT" ]] && echo FOUND')"
 has "5. the same lookup every converted call site makes" "FOUND" "$out"
+
+# --- 6. the creators refuse on 3: no twin desk under A (R7 W3) -----------------
+# The stubs carry each creator past its preflight to its mkdir, so a creator
+# that ignored rc 3 would create the desk under A (as on 3661dc5c1).
+if [[ "$(id -u)" != 0 ]]; then
+  fresh; desk "$RB"; chmod 000 "$RB"
+  out="$(in_orc "$T/box.env.moved" 'do_spl_cloud_cnf() { return 0; }
+    spl_desk_live_agents() { echo c-684; }; _spl_desk_up_all_pick() { seat=(c-684); }
+    spl_desk_dead_agents() { :; }; do_spl_desk_up() { echo UP; }
+    DRY_RUN=0 do_spl_desk_up_all; echo "rc=$?"')"
+  has "6a. do_spl_desk_up_all: refuses, names B" "run this ./run action as $DU" "$out"
+  [[ ! -e "$RA/desk/t1/sat-rsp" ]] && pass "6a. do_spl_desk_up_all: no twin under A" || fail "6a. twin desk under A: $(ls -R "$RA/desk" 2>&1 | sed -n 1,5p)"
+  fresh; desk "$RB"; chmod 000 "$RB"
+  out="$(in_orc "$T/box.env.moved" 'spl_box_ws_guard() { return 0; }; SPL_HUB_URL=https://hub.invalid
+    spl_desk_pin_check() { mkdir -p "$1/keys"; echo PINCHECK; }
+    DRY_RUN=0 do_spl_desk_pin; echo "rc=$?"')"
+  has "6b. do_spl_desk_pin: refuses, names B" "run this ./run action as $DU" "$out"
+  [[ ! -e "$RA/desk/t1/sat-rsp" ]] && pass "6b. do_spl_desk_pin: no twin under A" || fail "6b. twin desk under A: $(ls -R "$RA/desk" 2>&1 | sed -n 1,5p)"
+  chmod 700 "$RB"
+fi
+
+# --- 7. the lane-issue actor: a lane seated on the moved desk acts (R7 W2) ----
+fresh; desk "$RB"
+out="$(in_orc "$T/box.env.half" 'spl_lane_issue_announced() { return 0; }; SLI_BOX=sat-rsp DESK_AGENT=c-001
+  spl_lane_issue_actor /dev/null c-684; echo "AGENT=$DESK_AGENT"')"
+has "7. the lane seated under B acts itself (RED on 3661dc5c1: the desk booked it)" "AGENT=c-684" "$out"
 
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"
 exit $((fails > 0))

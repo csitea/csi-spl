@@ -73,7 +73,7 @@ do_spl_desk_pin() {
     [[ -z "$rkj" && -z "$other" ]] || { do_log "FATAL SPOOL_JOIN_TOKEN (join mode) takes no ROOT_KEY_JSON or BOX_PUBKEY"; return 1; }
     spl_desk_join_token_ok "$tenant" || return 1
   fi
-  d="$(spl_desk_dir "$tenant" "$box")"
+  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
   local mode=check
   [[ -n "$rkj" ]] && mode=self
   [[ -n "${SPOOL_JOIN_TOKEN:-}" ]] && mode='join'

@@ -15,7 +15,7 @@ spl_desk_issue() {
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   local hub d
   hub="$SPL_HUB_URL"
-  d="$(spl_desk_dir "$tenant" "$box")"
+  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
   if (( dry )); then
     do_log "INFO DRY_RUN would: spool issue $op --as $agent $* (box $box, tenant $tenant, $hub)"
     [[ -d "$d/spool/$agent" ]] || do_log "INFO DRY_RUN there is no desk for $agent on $box in $tenant yet ($d): do_spl_desk_up seats one"
@@ -36,7 +36,7 @@ spl_desk_issue_once() {
   local tenant="${TENANT_ID:-}" box="${DESK_BOX:-$(spl_desk_box_default)}" agent="${DESK_AGENT:-}"
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   local d
-  d="$(spl_desk_dir "$tenant" "$box")"
+  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
   [[ -d "$d/spool/$agent" ]] || { do_log "FATAL no desk for $agent on $box in $tenant: run do_spl_desk_up first ($d)"; return 1; }
   spl_host_spool || return 1
   SPL_DESK_ISSUE_READY=1
@@ -55,7 +55,7 @@ spl_desk_issue_run() {
   spl_desk_validate "$tenant" "$box" "$agent" >&2 || return 1
   local hub d
   hub="$SPL_HUB_URL"
-  d="$(spl_desk_dir "$tenant" "$box")"
+  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
   [[ -d "$d/spool/$agent" ]] || { do_log "FATAL no desk for $agent on $box in $tenant: run do_spl_desk_up first ($d)" >&2; return 1; }
   local out rc=0
   out="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- issue "$op" --as "$agent" "$@" 2>&1)" || rc=$?

@@ -56,7 +56,7 @@ do_spl_latency_probe() {
   local api_fqdn hub d
   spl_cnf_api_fqdn api_fqdn || return 1
   hub="https://$api_fqdn"
-  d="$(spl_desk_dir "$tenant" "$box")"
+  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
   if (( dry )); then
     do_log "INFO DRY_RUN would: sign a member in and DM $agent@$box on $hub ${LAT_N:-12} times, then price each hop from \$SPOOL_TRACE"
     do_log "OK DRY_RUN nothing was sent. Re-run with DRY_RUN=0 to measure."

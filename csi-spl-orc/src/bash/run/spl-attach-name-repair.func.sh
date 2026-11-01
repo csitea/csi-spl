@@ -43,7 +43,7 @@ do_spl_attach_name_repair() {
   [[ -n "$tenants" ]] || { do_log "FATAL no desk of $box is pinned under any desk root readable here: nothing to repair here"; return 1; }
   for t in $tenants; do
     spl_require_tenant_slug "$t" || return 1
-    d="$(spl_desk_dir "$t" "$box")"
+    d="$(spl_desk_dir "$t" "$box")" || [[ $? -eq 1 ]] || return 1
     [[ -s "$d/pinned" ]] || { do_log "FATAL no pinned desk for $box in $t ($d)"; return 1; }
   done
   do_gcp_pin_account "$SPL_CNF" || return 1
@@ -67,7 +67,7 @@ _spl_anr_tenants() {
 # _spl_anr_tenant <tenant> <box> <dry>: one workspace, end to end.
 _spl_anr_tenant() {
   local tenant="$1" box="$2" dry="$3" d rows id out res left="" flag=()
-  d="$(spl_desk_dir "$1" "$2")"
+  d="$(spl_desk_dir "$1" "$2")" || [[ $? -eq 1 ]] || return 1
   (( dry )) && flag=(--dry-run)
   rows="$(spl_via_proxy _spl_anr_candidates_run "$tenant" "$box")" ||
     { do_log "FATAL listing the hash-named files of $box in $tenant failed"; return 1; }

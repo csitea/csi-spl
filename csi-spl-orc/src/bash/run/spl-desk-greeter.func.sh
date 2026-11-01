@@ -23,7 +23,7 @@ do_spl_desk_greeter() {
   spl_desk_validate "$tenant" "$box" none || return 1
   do_spl_cloud_cnf || return 1
   local d
-  d="$(spl_desk_dir "$tenant" "$box")"
+  d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
   [[ -d "$d" ]] || { do_log "FATAL no desk $box in $tenant on ${ENV:-?} ($d): run do_spl_desk_up first"; return 1; }
 
   local cur

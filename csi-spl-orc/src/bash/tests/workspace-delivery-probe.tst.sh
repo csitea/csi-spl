@@ -73,10 +73,12 @@ EOF
 chmod +x "$T/post.sh" "$T/send.sh"
 
 probe() {
-  env PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" ENV=dev SPL_STATE_DIR="$ST" DESK_DIR="$D" MODE_DIR="$T" \
+  env -u SPOOL_DESK_USER -u SPOOL_AGENT_USER SPOOL_BOX_ENV=/dev/null SPOOL_BOX_USER="$(id -un)" \
+    PROJ_PATH="$PROJ_ROOT" SPOOL_ROOT="$S" ENV=dev SPL_STATE_DIR="$ST" DESK_DIR="$D" MODE_DIR="$T" \
     POST_LOG="$T/posts" SEND_LOG="$T/sent" PROBE_POST_CMD="$T/post.sh" PROBE_SEND="$T/send.sh" \
     PROBE_API=https://hub.example.com PROBE_BOX=sat PROBE_WAIT=2 PROBE_POLL=1 HOME="$T/home" "$@" bash -c '
     set -uo pipefail
+    source "$PROJ_PATH/lib/bash/funcs/spl-cloud-cnf.func.sh"
     do_log() { echo "$*"; }
     do_spl_cloud_cnf() { return 0; }
     spl_desk_alive() { [[ -e "$(dirname "$1")/alive" ]]; }

@@ -725,8 +725,13 @@ function countSteps(s: ChannelState) {
   function unreadFor(taskId: string) {
     return useNotificationStore().topicUnread(taskId, repliesFor(taskId))
   }
+  /* spec 150 B6: the hub's priority 1..5 from the topic totals; undefined when
+     the hub sent none (the topic list reads 3) */
+  function priorityFor(taskId: string): number | undefined {
+    return (totals.value[taskId] as { priority?: number } | undefined)?.priority
+  }
 
-  return { repliesFor, unreadFor }
+  return { repliesFor, unreadFor, priorityFor }
 }
 
 export const useChannelStore = defineStore('channel', () => {

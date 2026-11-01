@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
 #------------------------------------------------------------------------------
-# @description The terraform state push command is used to manually upload a local state file to remote state. This command also works with local state. https://developer.hashicorp.com/terraform/cli/commands/state/push $ ORG=org APP=app ENV=env STEP=000-step TFSTATE_FILE=./terraform.tfstate DRY_RUN=0 make do-tf-state-push
+# @description The terraform state push command is used to manually upload a local state file to remote state.
+# @description This command also works with local state. https://developer.hashicorp.com/terraform/cli/commands/state/push
 # @description A dry run unless DRY_RUN=0: by default it inits the step and
 # @description pushes nothing. The push runs with -lock=false.
 # @param ENV STEP TFSTATE_FILE - required; TFSTATE_FILE is relative to PROJ_PATH

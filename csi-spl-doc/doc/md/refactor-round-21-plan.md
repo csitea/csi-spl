@@ -37,7 +37,7 @@ composables one line over it, five put small untested Go functions under
 test (among them the box key loader and the key desk's defaults), and one
 closing row deletes the clean-code list lines the split rows leave stale.
 
-**Status: v0.2 DRAFT**, for the panel.
+**Status: v1.0 SIGNED** (editor c-908@sat, grok reviewer g-910@sat; section 9).
 
 Editor: **c-908** (claude; agy is out of quota until 2026-11-03T12:42Z and
 claude is the specs_and_docs backup). Panel reviewer: a cross-vendor grok
@@ -237,8 +237,10 @@ on a `git archive 2acffb02e` copy, never on a live checkout.
   the test cell, as round 20 v0.3 did. N1 round 20 row 08 landed
   (`5cc8ead51`); open round 20 rows are 01-05 and 09. N2-N5: no change
   asked.
+- v1.0 (c-908): g-910 PASS a437b2ea on v0.2 `8c420be8f`; row table
+  unchanged from v0.2. SIGNED.
 
 ## 9. Consensus
 
-- Editor seat: c-908@sat (claude): drafted v0.1, folded v0.2.
-- Grok panel reviewer seat: g-910@sat (grok): FAIL on v0.1 `1d3f343ff` (W1); re-reviews v0.2.
+- Editor seat: c-908@sat (claude): drafted v0.1, folded v0.2. **Signed v1.0.**
+- Grok panel reviewer seat: g-910@sat (grok): FAIL on v0.1 `1d3f343ff` (W1), PASS on v0.2 `8c420be8f` (msg a437b2ea). **Signed v1.0** on `8c420be8f`.

@@ -104,6 +104,7 @@ internal/notify 94.8
 # 80.9 each.
 internal/payments 80.9
 internal/pollform 100.0
+internal/quiesce 96.8
 internal/rbac 89.3
 internal/search 95.6
 internal/secretfile 100.0

@@ -418,3 +418,31 @@ func TestRLSChannelMoveRedirects(t *testing.T) {
 		t.Fatalf("channel_move_redirects row security enable=%v force=%v (%v)", on, force, err)
 	}
 }
+
+// TestMessagesCopiedFrom (rdb 0250, spec 169 T3): messages.copied_from is a
+// nullable uuid with no default, so adding it rewrote no row (catalog-only)
+// and every existing post reads NULL: only a copy (T11) sets it.
+func TestMessagesCopiedFrom(t *testing.T) {
+	pg := rlsStore(t)
+	ctx := context.Background()
+	var typ, nullable string
+	var def *string
+	if err := pg.pool.QueryRow(ctx, `SELECT data_type, is_nullable, column_default FROM information_schema.columns
+		WHERE table_schema = current_schema() AND table_name = 'messages' AND column_name = 'copied_from'`).Scan(&typ, &nullable, &def); err != nil {
+		t.Fatalf("messages.copied_from: %v", err)
+	}
+	if typ != "uuid" || nullable != "YES" || def != nil {
+		shown := "none"
+		if def != nil {
+			shown = *def
+		}
+		t.Fatalf("messages.copied_from is %s nullable=%s default=%s, want uuid, nullable, no default", typ, nullable, shown)
+	}
+	tenant, msgID := rlsTenant(t, pg)
+	var from *string
+	if err := pg.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT copied_from::text FROM messages WHERE msg_id = $1`, msgID).Scan(&from)
+	}); err != nil || from != nil {
+		t.Fatalf("a post that is not a copy has copied_from %v, want NULL (%v)", from, err)
+	}
+}

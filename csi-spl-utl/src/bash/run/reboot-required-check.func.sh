@@ -40,6 +40,8 @@
 #   REBOOT_CHECK_ALERT_TASK: spool task id (default "reboot-required-check").
 #   REBOOT_CHECK_ALERT_SEND_BIN: spool-send.sh or a compatible tool.
 #
+#------------------------------------------------------------------------------
+# @description Advise when a box runs an outdated kernel or services on outdated libraries after Debian upgrades.
 # @example ./run -a do_os_reboot_required_check
 # @example DRY_RUN=0 ./run -a do_os_reboot_required_check
 #------------------------------------------------------------------------------

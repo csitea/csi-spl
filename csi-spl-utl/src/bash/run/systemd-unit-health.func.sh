@@ -27,6 +27,8 @@
 #   SYSTEMCTL_BIN: path to systemctl binary (default "systemctl").
 #   JOURNALCTL_BIN: path to journalctl binary (default "journalctl").
 #
+#------------------------------------------------------------------------------
+# @description Monitor systemd units, detect failures, extract crash logs and emit spool notes to the orchestrator.
 # @example ./run -a do_os_systemd_unit_check
 # @example DRY_RUN=0 ./run -a do_os_systemd_unit_check
 #------------------------------------------------------------------------------

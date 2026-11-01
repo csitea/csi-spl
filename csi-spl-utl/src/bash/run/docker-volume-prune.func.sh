@@ -36,6 +36,8 @@
 #     the age limit (default 0).
 #   DOCKER_VOLUME_PRUNE_NOW: current epoch override (tests).
 #
+#------------------------------------------------------------------------------
+# @description Remove the anonymous docker volumes the test containers left behind, and optionally the old build cache.
 # @example cd csi-spl-utl && DRY_RUN=1 ./run -a do_docker_volume_prune
 # @example cd csi-spl-utl && DRY_RUN=0 ./run -a do_docker_volume_prune
 #------------------------------------------------------------------------------

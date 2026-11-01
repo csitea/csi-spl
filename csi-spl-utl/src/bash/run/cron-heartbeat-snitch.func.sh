@@ -57,6 +57,8 @@
 #   CRON_HB_ALERT_TASK: spool task id (default "cron-heartbeat-snitch").
 #   CRON_HB_ALERT_SEND_BIN: spool-send.sh or a compatible tool.
 #
+#------------------------------------------------------------------------------
+# @description Dead-man's snitch for the box's tagged cron jobs: report and alert only.
 # @example ./run -a do_cron_heartbeat_snitch
 # @example DRY_RUN=0 ./run -a do_cron_heartbeat_snitch
 #------------------------------------------------------------------------------

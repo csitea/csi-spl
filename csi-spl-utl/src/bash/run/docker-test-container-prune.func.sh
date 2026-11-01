@@ -51,6 +51,8 @@
 #     docker-test-container-prune).
 #   DOCKER_PRUNE_SEND_CMD: sender override (default the repo's spool-send.sh).
 #
+#------------------------------------------------------------------------------
+# @description Remove the ephemeral test containers a gone lane left behind, and report the unlabelled ones.
 # @example cd csi-spl-utl && DRY_RUN=1 ./run -a do_docker_test_container_prune
 # @example cd csi-spl-utl && DRY_RUN=0 ./run -a do_docker_test_container_prune
 #------------------------------------------------------------------------------

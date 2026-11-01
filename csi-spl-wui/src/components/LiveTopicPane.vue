@@ -27,6 +27,9 @@
     </header>
     <!-- Topic c6994436: newest last puts the new-topic cards under the feed,
          at the newest end of the pane. -->
+    <!-- spec 150 B7: the topic's priority 1..5 at the pane's newest end (Message
+         order); the wrapper takes the v-if, never the lazy component itself -->
+    <div v-if="!newestLast && pane.taskId" class="prio-slot"><LazyTopicPriorityChooser :task-id="pane.taskId" /></div>
     <BornTopics v-if="!newestLast" />
     <div class="pinned-root feed-body" data-test="topic-root">
       <ViewTokenForm v-if="pane.door" :detail="pane.door.detail" @saved="pane.taskId && pane.open(pane.taskId)" />
@@ -60,6 +63,7 @@
       />
     </div>
     <BornTopics v-if="newestLast" />
+    <div v-if="newestLast && pane.taskId" class="prio-slot"><LazyTopicPriorityChooser :task-id="pane.taskId" /></div>
     <!-- 050: the thread panel's collapse triangle, bottom corner (see
          TopicPane.vue). A DIRECT child of .topic for the collapse CSS. -->
     <PaneCollapseToggle pane="threads" />

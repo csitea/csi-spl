@@ -55,6 +55,8 @@ declare module '~/utils/spool-client.mjs' {
       topics: Array<import('./spool').TopicRow & {
         inline?: { task_id: string, messages: import('./spool').SpoolMessage[], next: string | null }
         dm?: { unread: Record<string, number>, total: Record<string, number> }
+        /** spec 150 B3: 1..5, 3 when nobody set it */
+        priority?: number
       }>
       next: string | null
       delta: boolean
@@ -69,7 +71,17 @@ declare module '~/utils/spool-client.mjs' {
       /** t1 8fb802cd: the topic's archive stamp (a first read only); absent = live */
       archived_at?: string
       archived_by?: string
+      /** spec 150 B3: 1..5, 3 when nobody set it */
+      priority?: number
     }>
+    /** spec 150 B7: the topic's priority as the last read, set or frame gave it; undefined = not seen */
+    topicPriorityOf(taskId: string): number | undefined
+    /** spec 150 B7: keep a value (a live `topic_priority` frame); outside 1..5 is ignored */
+    noteTopicPriority(taskId: string, priority: unknown): number | undefined
+    /** spec 150 B7: fn(task_id, priority) on each kept value; returns the unsubscribe */
+    onTopicPriority(fn: (taskId: string, priority: number) => void): () => void
+    /** spec 150 B7: PUT /v1/topics/{task_id}/priority */
+    setTopicPriority(taskId: string, priority: number): Promise<{ task_id: string, priority: number, set_by: string, set_at: string }>
     me(): Promise<Record<string, unknown> | null>
     mockChannelOrder(): string[] | null
     setChannelOrder(ids: string[]): Promise<{ channel_order: string[] | null }>
@@ -130,7 +142,7 @@ declare module '~/utils/spool-client.mjs' {
       before?: string
       changedSince?: string
       rx?: string[]
-    }): Promise<{ messages: import('./spool').SpoolMessage[], next: string | null, totals?: Record<string, { count: number, last_ts: string }>,
+    }): Promise<{ messages: import('./spool').SpoolMessage[], next: string | null, totals?: Record<string, { count: number, last_ts: string, priority?: number }>,
       delta?: boolean, goneTasks?: string[], goneMsgs?: string[], sync?: string }>
     listRoster(): Promise<unknown>
     sendMessage(opts: {

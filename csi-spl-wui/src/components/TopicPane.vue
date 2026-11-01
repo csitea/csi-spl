@@ -27,6 +27,9 @@
     </header>
     <!-- Topic c6994436: newest last puts the new-topic cards under the feed,
          at the newest end of the pane. -->
+    <!-- spec 150 B7: the topic's priority 1..5 at the pane's newest end (Message
+         order); the wrapper takes the v-if, never the lazy component itself -->
+    <div v-if="!newestLast && topic.parentTaskId" class="prio-slot"><LazyTopicPriorityChooser :task-id="topic.parentTaskId" /></div>
     <BornTopics v-if="!newestLast" />
     <div class="pinned-root feed-body" data-test="topic-root">
       <!-- SPL-1839: one plain sentence + Try again; the technical part only with the Debug pane on (own box: a bare lazy v-if threw insertBefore in #lobby) -->
@@ -59,6 +62,7 @@
       />
     </div>
     <BornTopics v-if="newestLast" />
+    <div v-if="newestLast && topic.parentTaskId" class="prio-slot"><LazyTopicPriorityChooser :task-id="topic.parentTaskId" /></div>
     <!-- 050: the thread panel's collapse triangle, bottom corner. Distinct from
          the header X: the X closes the topic, this collapses it to a strip and
          keeps it loaded. A DIRECT child of .topic so the collapse CSS hides its

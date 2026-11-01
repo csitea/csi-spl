@@ -132,7 +132,7 @@ type metaPubEnv struct {
 // newMetaPubEnv: an allow-listed, switched-on workspace with an owner, an
 // admin, a live blog of a JPEG post and a WEBP post, and one Page with its
 // Instagram account connected (auto_publish off, as T033 connects them).
-func newMetaPubEnv(t *testing.T) *metaPubEnv {
+func newMetaPubEnv(t *testing.T, mut ...func(*hub.Options)) *metaPubEnv {
 	t.Helper()
 	fake := newMetaPubFake(t)
 	fake.posts = []marketing.BlogPost{
@@ -164,6 +164,9 @@ func newMetaPubEnv(t *testing.T) *metaPubEnv {
 		o.MarketingMeta = m
 		o.Log = zerolog.New(buf)
 		o.Now = clock.Now
+		for _, m := range mut {
+			m(o)
+		}
 	}, tid)
 	admin := seat(t, e, tid, rbac.Admin)
 	mktOn(t, e, tid, admin)

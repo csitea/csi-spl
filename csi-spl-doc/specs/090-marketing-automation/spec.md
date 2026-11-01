@@ -515,12 +515,12 @@ Mirroring the LinkedIn personal settings pattern (spec 019 / spec 090 T006):
 2. **Explicit Approval Hold (`awaiting_approval`)**:
    - In accordance with owner rules and customer input (HUM-23), automated publishing is strictly opt-in per channel (`marketing_channels.auto_publish = false` by default).
    - When a marketing post is generated for a channel where `auto_publish = false`, it is inserted with status `'awaiting_approval'`.
-   - The live background dispatcher claim predicate in `ClaimMarketingPosts` (`internal/store/marketing.go:334`) specifically queries `status = 'scheduled' AND (next_attempt_at IS NULL OR next_attempt_at <= $3)`. Because `status = 'awaiting_approval'` is never selected by the claim query, unapproved posts remain strictly held and cannot be dispatched accidentally.
+   - The live background dispatcher claim predicate in `ClaimMarketingPosts` (`internal/store/marketing.go:488`) specifically queries `status = 'scheduled' AND (next_attempt_at IS NULL OR next_attempt_at <= $3)`. Because `status = 'awaiting_approval'` is never selected by the claim query, unapproved posts remain strictly held and cannot be dispatched accidentally.
    - Clicking "Approve & Publish" in WUI triggers `POST /v1/marketing/posts/{id}/publish`, which transitions the post from `'awaiting_approval'` to `'scheduled'` and sets `next_attempt_at = now()`, immediately unlocking it for background dispatch.
    - For multi-tenant workspaces, only the user who connected the channel (or an administrator holding `tenant.settings`) may approve publishing.
    - Built (SPL-4564, dispatch ruling c-002 msg b76d61e2): for a Facebook Page or Instagram channel the hub lets the member who connected it (`delegated_by`), or a member holding `tenant.settings`, approve; anyone else gets `403` naming `tenant.settings`, and an agent publishes only for one of them.
 3. **Atomic Single-Flight Dispatcher**:
-   - The background dispatcher claims due posts using atomic Postgres updates with `FOR UPDATE SKIP LOCKED` and `RETURNING` (matching `internal/store/marketing.go:331-336`):
+   - The background dispatcher claims due posts using atomic Postgres updates with `FOR UPDATE SKIP LOCKED` and `RETURNING` (matching `internal/store/marketing.go:485-490`):
      ```sql
      UPDATE marketing_posts SET status = 'dispatching', attempts = attempts + 1,
          claimed_at = $3, updated_at = $3
@@ -756,7 +756,7 @@ The single-flight background dispatcher enforces strict failure handling to prot
 
 1. **Idempotency & Claim Mechanism**:
    - Under the schema (`0187_marketing.sql:74`), uniqueness is enforced by `UNIQUE (channel_id, source_type, source_ref)`, ensuring that the same blog post is created and shared at most once per connected channel across all hub instances.
-   - Due posts are claimed atomically via `ClaimMarketingPosts` (`internal/store/marketing.go:331-336`):
+   - Due posts are claimed atomically via `ClaimMarketingPosts` (`internal/store/marketing.go:485-490`):
      ```sql
      UPDATE marketing_posts SET status = 'dispatching', attempts = attempts + 1,
          claimed_at = $3, updated_at = $3

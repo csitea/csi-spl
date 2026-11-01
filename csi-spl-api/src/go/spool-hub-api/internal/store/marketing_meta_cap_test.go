@@ -2,10 +2,13 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // SPL-4564 (spec 090 T034 follow-ups, review notes N2, N3, N5, N7): the
@@ -105,7 +108,11 @@ func TestMarketingMetaCapCountsInFlight(t *testing.T) {
 }
 
 // N2: racing capped claims of different posts on one channel take one
-// place between them, never two.
+// place between them, never two. On Postgres the race is forced: a gate
+// transaction holds both posts' rows until both claims wait on a lock, so
+// without the channel row's FOR UPDATE both read an empty cap before either
+// claims (drop it from ClaimMetaMarketingPosts and this test fails every
+// run, commit body). On Memory the claims race on goroutines.
 func TestMarketingMetaCapClaimRace(t *testing.T) {
 	for name, open := range mktCapStores(t) {
 		t.Run(name, func(t *testing.T) {
@@ -116,31 +123,78 @@ func TestMarketingMetaCapClaimRace(t *testing.T) {
 			for _, ref := range []string{"r1", "r2", "r3", "r4", "r5", "r6"} {
 				ids = append(ids, mktCapPost(t, st, ch, ref, now).ID)
 			}
+			pg, _ := st.(*Postgres)
+			if pg != nil {
+				ids = ids[:2]
+			}
 			var wg sync.WaitGroup
 			var mu sync.Mutex
 			claimed := 0
-			for i, id := range ids {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					c := MetaClaim{Tenant: tn, ChannelID: ch.ID, PostID: id, Limit: 1, Window: 24 * time.Hour, Now: now}
-					if i%2 == 1 {
-						c.PostID = "" // the sweep's claim races the publishes
-					}
-					got, err := st.ClaimMetaMarketingPosts(context.Background(), c)
-					if err != nil {
-						t.Error(err)
-					}
-					mu.Lock()
-					claimed += len(got.Posts)
-					mu.Unlock()
-				}()
+			start := func() {
+				for i, id := range ids {
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						c := MetaClaim{Tenant: tn, ChannelID: ch.ID, PostID: id, Limit: 1, Window: 24 * time.Hour, Now: now}
+						if pg == nil && i%2 == 1 {
+							c.PostID = "" // the sweep's claim races the publishes
+						}
+						got, err := st.ClaimMetaMarketingPosts(context.Background(), c)
+						if err != nil {
+							t.Error(err)
+						}
+						mu.Lock()
+						claimed += len(got.Posts)
+						mu.Unlock()
+					}()
+				}
+			}
+			if pg != nil {
+				mktCapGate(t, pg, tn, ids, start)
+			} else {
+				start()
 			}
 			wg.Wait()
 			if claimed != 1 {
 				t.Fatalf("racing claims took %d places, want 1 (cap 1)", claimed)
 			}
 		})
+	}
+}
+
+// mktCapGate locks the posts ids in a transaction of its own, runs start,
+// waits until len(ids) backends wait behind the gate (on its rows, or on a
+// backend that does), then commits.
+func mktCapGate(t *testing.T, pg *Postgres, tenant string, ids []string, start func()) {
+	t.Helper()
+	ctx := context.Background()
+	err := pg.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		var gate int
+		if err := tx.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&gate); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `SELECT 1 FROM marketing_posts WHERE tenant_id = $1 AND post_id = ANY($2::uuid[]) FOR UPDATE`,
+			tenant, ids); err != nil {
+			return err
+		}
+		start()
+		for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+			var n int
+			if err := pg.Pool().QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity a WHERE a.wait_event_type = 'Lock'
+				AND EXISTS (SELECT 1 FROM unnest(pg_blocking_pids(a.pid)) b WHERE b = $1 OR $1 = ANY(pg_blocking_pids(b)))`,
+				gate).Scan(&n); err != nil {
+				return err
+			}
+			if n >= len(ids) {
+				return nil
+			}
+			if time.Now().After(deadline) {
+				return fmt.Errorf("only %d of %d claims waited behind the gate", n, len(ids))
+			}
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 

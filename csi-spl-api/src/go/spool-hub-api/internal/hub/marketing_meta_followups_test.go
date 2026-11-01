@@ -3,6 +3,7 @@ package hub_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -110,11 +111,18 @@ func TestMarketingMetaCapHoldsBackWithoutAttempt(t *testing.T) {
 
 // N4 (dispatch ruling msg b76d61e2, spec.md §16.3 item 2): the member who
 // connected the channel, or a member holding tenant.settings, approves;
-// anyone else is 403.
+// anyone else is 403, a tenant owner whose roles lack tenant.settings
+// included (widen metaApprover with || TenantOwner and this test fails,
+// commit body).
 func TestMarketingMetaApprover(t *testing.T) {
-	e := newMetaPubEnv(t)
+	strip := &ownerNoSettings{}
+	e := newMetaPubEnv(t, func(o *hub.Options) {
+		strip.inner = &rbac.Authorizer{Src: store.RBACSource{H: o.Store.(store.Humans)}}
+		o.Authorizer = strip
+	})
 	dev := seat(t, e.env, e.tid, rbac.Developer)
 	other := seat(t, e.env, e.tid, rbac.Developer)
+	strip.hum = seat(t, e.env, e.tid, rbac.BizOwner)
 	for i, tc := range []struct {
 		name, as string
 		want     int
@@ -123,6 +131,7 @@ func TestMarketingMetaApprover(t *testing.T) {
 		{"admin (tenant.settings), not the connector", e.admin, http.StatusOK},
 		{"biz_owner (holds tenant.settings), not the connector", e.owner, http.StatusOK},
 		{"member with neither", other, http.StatusForbidden},
+		{"tenant owner without tenant.settings", strip.hum, http.StatusForbidden},
 	} {
 		ch := e.metaConnect(t, strconv.Itoa(2001+i), dev) // a Page id is digits
 		code, body := e.publish(t, tc.as, "2026-10-30-hello", ch)
@@ -133,6 +142,33 @@ func TestMarketingMetaApprover(t *testing.T) {
 	if feeds, _, _ := e.fake.counts(); feeds != 3 {
 		t.Fatalf("%d Page posts, want 3 (the three approvals)", feeds)
 	}
+}
+
+// ownerNoSettings is the store's authorizer, but hum (a biz_owner, so a
+// tenant owner) holds no tenant.settings: a workspace that took that grant
+// off its owner role (spec 152 role grants).
+type ownerNoSettings struct {
+	inner hub.Authorizer
+	hum   string
+}
+
+func (a *ownerNoSettings) Access(ctx context.Context, hum, tenant string) (rbac.Access, error) {
+	acc, err := a.inner.Access(ctx, hum, tenant)
+	if err == nil && hum == a.hum {
+		if !acc.TenantOwner {
+			return acc, errors.New("ownerNoSettings: the stripped seat is no tenant owner")
+		}
+		perms := map[string]bool{}
+		for p, ok := range acc.Perms {
+			perms[p] = ok && p != rbac.TenantSettings
+		}
+		acc.Perms = perms
+	}
+	return acc, err
+}
+
+func (a *ownerNoSettings) Roles(ctx context.Context, tenant string) (map[string]rbac.Role, error) {
+	return a.inner.Roles(ctx, tenant)
 }
 
 // N5: a Meta post stuck in dispatching fails with a text, and a mail, that

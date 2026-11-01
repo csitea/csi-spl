@@ -4,9 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // events-v1 store (rdb 0045) on memory and, with SPOOL_TEST_PG_DSN,
@@ -173,5 +178,82 @@ func TestHumanEventsResendStoredOnce(t *testing.T) {
 				t.Fatalf("bob rows: %+v, want 1", bob)
 			}
 		})
+	}
+}
+
+// SPL-4559 rdb 0248 on stored duplicates: prd already held a re-sent pair
+// (events 1195 + 1197), and the file deletes rows. Seeded with the index
+// dropped (one rolled-back transaction), 0248 applied twice keeps the lowest
+// event_id of each (human, error_id, occurred_at), every row with an empty error_id
+// or no occurred_at, the other human's copy, and leaves the index in place.
+func TestHumanEventsResendOnceMigration(t *testing.T) {
+	pg, ok := drivers(t)["postgres"].(*Postgres)
+	if !ok {
+		t.Skip("SPOOL_TEST_PG_DSN unset")
+	}
+	ctx := context.Background()
+	raw, err := os.ReadFile(filepath.Join(sqlDir(t), "0248_human_events_resend_once.sql"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	a, err := pg.Admit(ctx, Identity{Provider: "google", Subject: uid("evm-a-")}, "", AdmitPolicy{}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := pg.Admit(ctx, Identity{Provider: "google", Subject: uid("evm-b-")}, "", AdmitPolicy{}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := now.Add(-22 * time.Second)
+	const errID = "ERR-CLIENT-20261031-120000-AB12"
+	var keep, gone, blank []int64
+	err = pgx.BeginFunc(ctx, pg.Pool(), func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `DROP INDEX human_events_resend_once`); err != nil {
+			return err
+		}
+		add := func(human, errorID string, occurred *time.Time) int64 {
+			t.Helper()
+			var id int64
+			if err := tx.QueryRow(ctx, `INSERT INTO human_events (human_id, kind, error_id, occurred_at, received_at)
+				VALUES ($1, 'error', $2, $3, $4) RETURNING event_id`, human, errorID, occurred, now).Scan(&id); err != nil {
+				t.Fatal(err)
+			}
+			return id
+		}
+		keep = append(keep, add(a, errID, &at))
+		gone = append(gone, add(a, errID, &at), add(a, errID, &at))
+		keep = append(keep, add(b, errID, &at))
+		blank = append(blank, add(a, "", &at), add(a, "", &at), add(a, errID, nil), add(a, errID, nil))
+		for i := 0; i < 2; i++ {
+			if _, err := tx.Exec(ctx, string(raw)); err != nil {
+				return fmt.Errorf("apply %d: %w", i+1, err)
+			}
+		}
+		var idx int
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM pg_indexes WHERE tablename = 'human_events'
+			AND indexname = 'human_events_resend_once'`).Scan(&idx); err != nil {
+			return err
+		}
+		if idx != 1 {
+			t.Errorf("index human_events_resend_once: %d, want 1", idx)
+		}
+		rows, err := tx.Query(ctx, `SELECT event_id FROM human_events WHERE human_id = ANY($1) ORDER BY event_id`, []string{a, b})
+		if err != nil {
+			return err
+		}
+		got, err := pgx.CollectRows(rows, pgx.RowTo[int64])
+		if err != nil {
+			return err
+		}
+		want := append(append([]int64{}, keep...), blank...)
+		slices.Sort(want)
+		if !slices.Equal(got, want) {
+			t.Errorf("rows after 0248 x2: %v, want %v (lowest kept; deleted %v)", got, want, gone)
+		}
+		return errRollback
+	})
+	if !errors.Is(err, errRollback) {
+		t.Fatal(err)
 	}
 }

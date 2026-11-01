@@ -16,8 +16,13 @@
 -- event_id, so the index build cannot fail on them. The lock keeps an insert
 -- from adding one between the delete and the build (this file runs in one
 -- transaction). human_events is hub-wide, outside RLS (0045).
--- DEPLOY ORDER: either. The hub's ON CONFLICT names no target, so before
--- this file it is a plain insert and after it the index drops the copy.
+-- DEPLOY ORDER: run 20 migrates before it rolls the new hub, so for that
+-- window the old hub (a plain INSERT) runs on this index: a batch holding a
+-- re-sent event fails as a whole (unique violation, 503, hub/events.go). The
+-- first copy is already stored; the client retries the batch (3, 6, 12 s,
+-- EVENT_RETRY_MAX 3) and then drops it, so the other events of that one batch
+-- can be lost, only for a re-send inside the roll. The new hub works on
+-- either schema: its ON CONFLICT names no target.
 
 LOCK TABLE human_events IN SHARE ROW EXCLUSIVE MODE;
 

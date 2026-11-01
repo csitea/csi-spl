@@ -17,6 +17,7 @@ func TestCardKeyModeNeverShowsKey(t *testing.T) {
 		{"test-shaped", "sk_" + "test_" + "fakeEntryKey01", "test"},
 		{"restricted test-shaped", "rk_" + "test_" + "fakeEntryKey02", "test"},
 		{"live-shaped", "sk_" + "live_" + "fakeEntryKey03", "live"},
+		{"restricted live-shaped", "rk_" + "live_" + "fakeEntryKey06", "live"},
 		{"malformed", "pk_live_fakeEntryKey04", ""},
 		{"empty", "", ""},
 	}
@@ -57,8 +58,12 @@ func TestLoadEqualsLoadFrom(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadFrom: %v", err)
 	}
+	// A mismatch prints both with the key blanked: a red run logs no key.
 	if !reflect.DeepEqual(fromEnv, fromMap) {
-		t.Fatalf("Load = %+v\nLoadFrom = %+v", *fromEnv, *fromMap)
+		e, m := *fromEnv, *fromMap
+		keyEqual := e.StripeSecretKey == m.StripeSecretKey
+		e.StripeSecretKey, m.StripeSecretKey = "", ""
+		t.Fatalf("Load = %+v\nLoadFrom = %+v\nStripeSecretKey equal: %v", e, m, keyEqual)
 	}
 	if fromEnv.Env != "lde" || fromEnv.Currency != "eur" || fromEnv.PlanCents != 2000 {
 		t.Fatalf("Load did not read the env: Env=%q Currency=%q PlanCents=%d", fromEnv.Env, fromEnv.Currency, fromEnv.PlanCents)

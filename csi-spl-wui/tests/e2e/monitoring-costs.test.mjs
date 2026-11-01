@@ -369,7 +369,12 @@ const tabRowGeometry = (p) => p.evaluate(() => {
     h2Shown: getComputedStyle(h2).display !== 'none',
     /* SPL-3397: the selected folder tab stands taller, so one row is one BOTTOM line */
     tabBottoms: Math.round((Math.max(...tabs.map((r) => r.bottom)) - Math.min(...tabs.map((r) => r.bottom))) * 10) / 10,
-    barOverTab: Math.round(nav.getBoundingClientRect().height - Math.max(...tabs.map((r) => r.height))),
+    /* SPL-4556: a phone tab is shorter than --tap since SPL-4551 (0.8x), and its
+       ::before tap area (--tap tall) rises into the bar's top padding, so the bar
+       is as tall as its tallest tab or that tap area, whichever is taller; a
+       second row of tabs would add a whole tab */
+    barOverTab: Math.round(nav.getBoundingClientRect().height - Math.max(...tabs.map((r) => r.height),
+      ...[...nav.querySelectorAll('a')].map((a) => parseFloat(getComputedStyle(a, '::before').height) || 0))),
     pageWide: document.documentElement.scrollWidth - window.innerWidth,
     navOverflows: nav.scrollWidth > nav.clientWidth,
     navScrollbar: nav.offsetHeight - nav.clientHeight,
@@ -403,7 +408,7 @@ async function tabRow(browser, base) {
       ok(`C3 ${label}: no heading on a phone section page (CLE-77886)`, Boolean(g && !g.h2Shown), g)
       ok(`C3 ${label}: the tabs on one row`, Boolean(g && g.tabBottoms <= 1), g && g.tabBottoms)
       ok(`C3 ${label}: the tabs overflow the row (the case is real)`, Boolean(g && g.navOverflows), g)
-      ok(`C3 ${label}: the bar scrolls inside itself, never taller than a tab`, Boolean(g && g.navOverflows && g.barOverTab === 0), g && g.barOverTab)
+      ok(`C3 ${label}: the bar scrolls inside itself, never taller than a tab or its tap area`, Boolean(g && g.navOverflows && g.barOverTab === 0), g && g.barOverTab)
       ok(`C3 ${label}: the active underline on the bar's bottom line`, Boolean(g && g.activeToBar !== null && Math.abs(g.activeToBar) <= 1), g && g.activeToBar)
       ok(`C3 ${label}: no sideways page scroll`, Boolean(g && g.pageWide <= 0), g && g.pageWide)
       ok(`C3 ${label}: no scrollbar drawn under the tabs`, Boolean(g && g.navScrollbar === 0), g && g.navScrollbar)

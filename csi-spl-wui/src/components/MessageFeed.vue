@@ -15,12 +15,14 @@
     <div v-if="channel.error" class="plain-err-slot">
       <LazyPlainErrorNotice :message="channel.error" retry source="channel" test-id="channel-error" @retry="channel.refresh()" />
     </div>
+    <!-- spec 150 B6 (panel D1): a sort or New covers the loaded pages only; the line says so while an older page exists -->
+    <p v-if="windowLine" class="topic-list-window" data-testid="topic-list-window">{{ windowLine }}</p>
     <!-- SPL-2146: `virtual` - from 120 rows on, only the rows near the
          viewport are drawn; a ?topic= card or the unread divider is drawn
          when asked for (useFeedWindow). -->
     <LiveFeed
       :label="label"
-      :rows="channel.newestFirst"
+      :rows="listRows"
       :has-older="channel.hasOlder"
       :loading="channel.loading"
       :failed="!!channel.error"
@@ -45,7 +47,10 @@
       <!-- SPL-2141: a channel with no messages (or none matching its filter)
            invites the first post; a DM keeps its own Message button. The div
            holds the lazy component (a bare lazy v-if threw insertBefore). -->
-      <template v-if="!channel.peer" #empty="{ search }">
+      <template v-if="newEmpty" #empty>
+        <p class="topic-list-empty-new" data-testid="topic-list-empty-new">{{ t('feed.topic_list.empty_new') }}</p>
+      </template>
+      <template v-else-if="!channel.peer" #empty="{ search }">
         <div class="feed-empty-slot"><LazyFeedEmpty :channel="channel.active || ''" :search="search" /></div>
       </template>
     </LiveFeed>
@@ -63,6 +68,9 @@ import { useViewPrefs } from '~/composables/useViewPrefs'
 import { useChannelAwait } from '~/composables/useAwaitReply'
 import { useMessageEdit } from '~/composables/useMessageEdit'
 import { useMove } from '~/composables/useMove'
+import { useTopicListChoice } from '~/composables/useTopicListChoice'
+import { useTopicCardNew } from '~/composables/useTopicCardNew'
+import { topicListView } from '~/utils/topic-list-order.mjs'
 import { isPromoteDropTarget, moveBlocked } from '~/utils/move.mjs'
 import type { SpoolMessage } from '~/types/spool'
 
@@ -71,8 +79,9 @@ import type { SpoolMessage } from '~/types/spool'
    it) and passes it here so LiveFeed can draw the New-messages divider. */
 /* Spec 061 3.6 (lane L10): a DM with a reused agent id passes the current
    holder's seat time, for LiveFeed's "new holder since" divider. */
-defineProps<{ label: string, boundary?: { ts: string, id: string } | null, seatedAt?: string }>()
+const props = defineProps<{ label: string, boundary?: { ts: string, id: string } | null, seatedAt?: string }>()
 const channel = useChannelStore()
+const { t } = useI18n({ useScope: 'global' })
 const topic = useTopicStore()
 /* SPL-1994: a topic row waits (hourglass) while its topic does */
 const awaitFor = useChannelAwait()
@@ -86,7 +95,32 @@ const promoteDrag = computed(() => isPromoteDropTarget(move.drag.value))
 
 /* the same message can be on screen in the feed AND as the pinned
    root of the 3rd panel, so every store that may hold it is told. */
-const { applyEverywhere } = useMessageEdit()
+const { applyEverywhere, viewerId } = useMessageEdit()
+
+/* Spec 150 B6: the header's filter and sort (useTopicListChoice) over the
+   loaded topic cards. New keeps the cards LiveFeed's unread order ranks by
+   (cardNew.unseen, C210); the defaults (All, Last update) hand LiveFeed
+   today's rows untouched. The priority is the hub's, on the topic totals. */
+const choice = useTopicListChoice()
+const cardNew = useTopicCardNew(() => props.boundary, viewerId, { countFor: channel.repliesFor, unreadFor: channel.unreadFor })
+const listRows = computed(() => {
+  const rows = channel.newestFirst
+  if (!choice.filtered.value && !choice.sorted.value) return rows
+  return topicListView(rows, {
+    filter: choice.filter.value,
+    sort: choice.sort.value,
+    unreadOf: (m: SpoolMessage) => cardNew.unseen(m),
+    countOf: (m: SpoolMessage) => channel.repliesFor(String(m.task_id || '')),
+    priorityOf: (m: SpoolMessage) => channel.priorityFor(String(m.task_id || '')),
+  })
+})
+const windowLine = computed(() => {
+  if (!channel.hasOlder) return ''
+  const n = channel.newestFirst.length
+  if (choice.filtered.value) return t('feed.topic_list.window_new', { n })
+  return choice.sorted.value ? t('feed.topic_list.window', { n }) : ''
+})
+const newEmpty = computed(() => choice.filtered.value && channel.newestFirst.length > 0)
 
 function onEdited(row: SpoolMessage) {
   applyEverywhere(row)
@@ -155,3 +189,12 @@ if (import.meta.client) {
   }, () => { void landTopic() }, { immediate: true })
 }
 </script>
+
+<style scoped>
+.topic-list-window,
+.topic-list-empty-new {
+  margin: 4px 12px;
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+}
+</style>

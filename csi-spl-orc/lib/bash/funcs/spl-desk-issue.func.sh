@@ -1,4 +1,8 @@
 #!/bin/bash
+# the desk path (spl_desk_dir) follows the desk user, also when sourced on its own
+declare -F spl_desk_dir >/dev/null ||
+  source "${BASH_SOURCE[0]%/*}/spl-cloud-cnf.func.sh"
+
 # spl_desk_issue <op> <spool issue args...>: the shared leg of the desk issue
 # actions (specs/039 FR-008, issues-v1 §6). A seated desk agent files and
 # advances its work as issues: `spool issue <op> --as <agent> ...` through the

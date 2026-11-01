@@ -2,6 +2,7 @@
 
 #------------------------------------------------------------------------------
 # @description Tf apply.
+# @example cd csi-spl-orc && ENV=dev STEP=030-cloud-run-hub make do-provision
 #------------------------------------------------------------------------------
 declare -F env_order_gate >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/check-dev-leads-prd.func.sh"

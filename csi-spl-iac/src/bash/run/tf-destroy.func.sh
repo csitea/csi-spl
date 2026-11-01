@@ -2,6 +2,7 @@
 
 #------------------------------------------------------------------------------
 # @description The terraform destroy command is a convenient way to destroy all remote objects managed by a particular Terraform configuration. https://developer.hashicorp.com/terraform/cli/commands/destroy
+# @example cd csi-spl-orc && ENV=<env> STEP=<step> make do-deprovision
 #------------------------------------------------------------------------------
 do_tf_destroy() {
 

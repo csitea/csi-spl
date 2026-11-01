@@ -1904,12 +1904,15 @@ spl_fleet_tier() {
 # AND its current session's last word is `hub session up`: the last session
 # line of hub-run.log, stamped no earlier than the pid file (an `up` of the
 # sidecar before a restart is not this session's). The gate is off with
-# LEASE_DESK_GATE=0 or when no desk dir is known (the tests' stub hub).
+# LEASE_DESK_GATE=0 or when no desk dir is known (the tests' stub hub); a desk
+# under the desk user's root this user cannot read (spl_desk_dir rc 3) is not
+# able: it fails closed, never "no desk dir known" (SPL-4536).
 spl_fleet_desk_able() {
   [[ "${LEASE_DESK_GATE:-1}" == 0 ]] && return 0
   local d="${LEASE_DESK_DIR:-}" h pid line ts at started
   [[ -z "$d" && -n "${SPL_STATE_DIR:-}" && -n "${LEASE_TENANT:-}" && -n "${LEASE_DESK_BOX:-}" ]] &&
-    d="$(spl_desk_dir "$LEASE_TENANT" "$LEASE_DESK_BOX")"
+    { d="$(spl_desk_dir "$LEASE_TENANT" "$LEASE_DESK_BOX")" || [[ $? -eq 1 ]] ||
+      { echo "desk: $LEASE_DESK_BOX of $LEASE_TENANT is under a desk root this user cannot read"; return 1; }; }
   [[ -n "$d" ]] || return 0
   h="$d/spool/.hub"
   pid="$(cat "$h/hub-run.pid" 2>/dev/null)"

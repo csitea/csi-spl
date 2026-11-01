@@ -22,6 +22,8 @@
 #   6. the creators refuse on 3 (R7 W3): do_spl_desk_up_all and do_spl_desk_pin
 #      against B's root drwx------ make no twin desk under A
 #   7. spl_lane_issue_actor (R7 W2): a lane seated on the desk under B acts
+#   8. spl_fleet_desk_able (R7 c-835 W1): the desk under B's unreadable root
+#      fails the dispatch desk gate closed (rc 1), never "no desk dir known"
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -159,6 +161,16 @@ fresh; desk "$RB"
 out="$(in_orc "$T/box.env.half" 'spl_lane_issue_announced() { return 0; }; SLI_BOX=sat-rsp DESK_AGENT=c-001
   spl_lane_issue_actor /dev/null c-684; echo "AGENT=$DESK_AGENT"')"
 has "7. the lane seated under B acts itself (RED on 3661dc5c1: the desk booked it)" "AGENT=c-684" "$out"
+
+# --- 8. the dispatch desk gate fails closed on 3 (R7 c-835 W1) ---------------
+if [[ "$(id -u)" != 0 ]]; then
+  fresh; desk "$RB"; chmod 000 "$RB"
+  out="$(in_orc "$T/box.env.moved" 'unset LEASE_DESK_DIR; LEASE_TENANT=t1 LEASE_DESK_BOX=sat-rsp
+    spl_fleet_desk_able; echo "able_rc=$?"')"
+  has "8. B's root unreadable: the desk gate is not able (RED on d94794677: able_rc=0)" "able_rc=1" "$out"
+  has "8. the gate says why" "desk: sat-rsp of t1 is under a desk root this user cannot read" "$out"
+  chmod 700 "$RB"
+fi
 
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"
 exit $((fails > 0))

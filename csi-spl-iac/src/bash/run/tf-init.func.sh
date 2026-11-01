@@ -2,6 +2,7 @@
 
 #------------------------------------------------------------------------------
 # @description init terraform for the current step , copy the modules and the step folder to the run path and export the required vars
+# @example ENV=dev STEP=030-cloud-run-hub ./run -a do_tf_init (in the tf-runner container)
 #------------------------------------------------------------------------------
 do_tf_init() {
 

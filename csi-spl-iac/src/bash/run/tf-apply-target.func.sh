@@ -2,6 +2,7 @@
 
 #------------------------------------------------------------------------------
 # @description Tf apply target.
+# @example cd csi-spl-orc && ENV=dev STEP=030-cloud-run-hub TARGET='<address>' make do-tf-apply-target
 #------------------------------------------------------------------------------
 declare -F env_order_gate >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/check-dev-leads-prd.func.sh"

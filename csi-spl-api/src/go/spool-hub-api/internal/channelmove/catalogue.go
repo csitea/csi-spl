@@ -121,6 +121,10 @@ var movedTables = []Entry{
 		Reason: "5.2 audit rows about the set"},
 	{Table: "sql_query_audit", Class: Moved, Set: `query_text LIKE ANY(@id_likes) OR error_message LIKE ANY(@id_likes)`,
 		Reason: "5.2 audit rows about the set"},
+	{Table: "channel_move_journal", Class: Moved, Set: `channel_id = @channel`,
+		Reason: "8.3 (rdb 0249, T2): the journals of earlier moves of this channel into <SRC> are its history and follow it"},
+	{Table: "channel_move_steps", Class: Moved, Set: `channel_id = @channel`,
+		Reason: "8.3 (rdb 0249, T2): the steps of those journals (FK to channel_move_journal)"},
 }
 
 var rewrittenTables = []Entry{

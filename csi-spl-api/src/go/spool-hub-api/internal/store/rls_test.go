@@ -72,6 +72,8 @@ var rlsTables = []string{
 	"workspace_events", // rdb 0240, spec 162 B3
 	// rdb 0244, spec 163 B1
 	"marketing_metric_samples", "marketing_metric_definitions",
+	// rdb 0249, spec 169 T2
+	"channel_move_journal", "channel_move_steps",
 }
 
 // TestRLSCoversEveryTenantTable: a table that gains a tenant_id column must
@@ -338,5 +340,81 @@ func TestRLSFleetDeskBoxesOperatorOnly(t *testing.T) {
 	if err := pg.pool.QueryRow(ctx, `SELECT relrowsecurity, relforcerowsecurity FROM pg_class
 		WHERE oid = 'fleet_desk_boxes'::regclass`).Scan(&on, &force); err != nil || !on || !force {
 		t.Fatalf("fleet_desk_boxes row security enable=%v force=%v (%v)", on, force, err)
+	}
+}
+
+// TestRLSChannelMoveRedirects (rdb 0249, spec 169 T2, Q2 = A): the
+// redirect table is hub-wide, ids only. The operator writes it; the <SRC>
+// tenant scope reads only the rows of its own src_tenant_id; <DST>, any
+// other tenant and no scope read none; no tenant scope writes one. A row
+// expires 30 days after it is written unless the writer says otherwise.
+func TestRLSChannelMoveRedirects(t *testing.T) {
+	pg := rlsStore(t)
+	ctx := context.Background()
+	src, dst, other := newTenant(t, pg), newTenant(t, pg), newTenant(t, pg)
+	task := uuid4()
+	if err := pg.asOperator(ctx, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO channel_move_redirects (src_tenant_id, kind, old_ref, dst_tenant_id, new_ref, move_id)
+			VALUES ($1, 'task', $2, $3, $2, $4)`, src, task, dst, uuid4())
+		return err
+	}); err != nil {
+		t.Fatalf("operator writing a redirect: %v", err)
+	}
+	var days float64
+	if err := pg.asOperator(ctx, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT extract(epoch FROM expires_at - created_at) / 86400 FROM channel_move_redirects
+			WHERE src_tenant_id = $1 AND kind = 'task' AND old_ref = $2`, src, task).Scan(&days)
+	}); err != nil || days != 30 {
+		t.Fatalf("the redirect lives %v day(s), want 30 (Q2) (%v)", days, err)
+	}
+	seen := func(tenant string) int {
+		t.Helper()
+		var n int
+		if err := pg.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+			return tx.QueryRow(ctx, `SELECT count(*) FROM channel_move_redirects WHERE old_ref = $1`, task).Scan(&n)
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if n := seen(src); n != 1 {
+		t.Errorf("<SRC> scope reads %d of its 1 redirect (control)", n)
+	}
+	for name, tenant := range map[string]string{"<DST>": dst, "another tenant": other} {
+		if n := seen(tenant); n != 0 {
+			t.Errorf("%s scope reads %d redirect(s) of <SRC>, want 0", name, n)
+		}
+	}
+	var none int
+	if err := pg.pool.QueryRow(ctx, `SELECT count(*) FROM channel_move_redirects`).Scan(&none); err != nil || none != 0 {
+		t.Fatalf("a statement with no scope sees %d redirect(s), want 0 (%v)", none, err)
+	}
+	var reached int64
+	err := pg.inTenant(ctx, src, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, `UPDATE channel_move_redirects SET expires_at = expires_at + interval '1 day'`)
+		reached = tag.RowsAffected()
+		if err != nil {
+			return err
+		}
+		tag, err = tx.Exec(ctx, `DELETE FROM channel_move_redirects`)
+		reached += tag.RowsAffected()
+		return err
+	})
+	if err != nil || reached != 0 {
+		t.Errorf("<SRC> scope UPDATE / DELETE reached %d redirect(s), want 0 (operator-written) (%v)", reached, err)
+	}
+	err = pg.inTenant(ctx, src, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO channel_move_redirects (src_tenant_id, kind, old_ref, dst_tenant_id, new_ref, move_id)
+			VALUES ($1, 'issue', 'SPL-1', $2, 'NEW-1', $3)`, src, dst, uuid4())
+		return err
+	})
+	var pe *pgconn.PgError
+	if !errors.As(err, &pe) || pe.Code != "42501" {
+		t.Fatalf("<SRC> scope writing a redirect: want 42501 row-level security violation, got %v", err)
+	}
+	var on, force bool
+	if err := pg.pool.QueryRow(ctx, `SELECT relrowsecurity, relforcerowsecurity FROM pg_class
+		WHERE oid = 'channel_move_redirects'::regclass`).Scan(&on, &force); err != nil || !on || !force {
+		t.Fatalf("channel_move_redirects row security enable=%v force=%v (%v)", on, force, err)
 	}
 }

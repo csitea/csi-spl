@@ -94,9 +94,14 @@ box_crons_desk_user() {
 # this run owns (box_crons_filter), append the given rows, print the diff; with
 # DRY_RUN=0 create their log dirs and write it. Uses the caller's locals.
 box_crons_apply() {
-  local c="$1" lbl="$2" before after i; shift 2
+  local c="$1" lbl="$2" before after i err; shift 2
   before="$(mktemp)"; after="$(mktemp)"
-  $c -l 2>/dev/null >"$before"
+  # an empty crontab lists as "no crontab for <user>"; any other failed list
+  # would write the new crontab from an empty "before" and drop its other lines
+  if ! err="$($c -l 2>&1 >"$before")"; then
+    [[ "$err" == *"no crontab for"* ]] || { rm -f "$before" "$after"; do_log "FATAL crontab$lbl refused to list (${err:-no message}) - nothing changed"; return 1; }
+    : >"$before"
+  fi
   box_crons_filter <"$before" >"$after"
   if [[ "$act" == install ]]; then
     for i in "$@"; do

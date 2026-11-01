@@ -20,7 +20,8 @@
 #   8. with a desk user (SPOOL_DESK_USER of box.env), the desk rows move from
 #      the box user's crontab to the desk user's: the box user's no longer
 #      carries issue-close-landed; idempotent; remove clears both; a refused
-#      desk crontab leaves the box user's untouched; the running user as desk
+#      desk crontab leaves the box user's untouched; a failed list (other than
+#      "no crontab for") writes neither; the running user as desk
 #      user keeps one crontab; a bad `as` is refused
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -185,10 +186,20 @@ grep -q "^OK cron ($me): nothing to change" <<<"$out" && [ "$(grep -c ' # csi-sp
   && grep -q ' # csi-spl:box-cron:issue-close-landed$' "$DCT" && ! grep -q 'csi-spl:box-cron:issue-close-landed$' "$CT" \
   && pass "8. BOX_CRONS_ONLY of a desk row reinstalls it in the desk user's crontab only" || fail "8. only ($out)"
 cp "$T/crontab.orig" "$CT"; inst DRY_RUN=0 >/dev/null; : >"$DCT"; cp "$CT" "$T/ct.all"
-printf '#!/bin/sh\n[ "$1" = -l ] && exit 1; exit 1\n' >"$T/no-crontab"; chmod +x "$T/no-crontab"
+printf '#!/bin/sh\n[ "$1" = -l ] && exit 0; exit 1\n' >"$T/no-crontab"; chmod +x "$T/no-crontab"
 out="$(inst SPOOL_BOX_ENV="$T/box.env" BOX_CRONS_DESK_CRONTAB="$T/no-crontab" DRY_RUN=0)"; rc=$?
-[ "$rc" -ne 0 ] && grep -q "FATAL crontab ($DU) refused" <<<"$out" && cmp -s "$CT" "$T/ct.all" \
+[ "$rc" -ne 0 ] && grep -q "FATAL crontab ($DU) refused the new file" <<<"$out" && cmp -s "$CT" "$T/ct.all" \
   && pass "8. a refused desk crontab leaves the box user's untouched" || fail "8. refused (rc $rc: $out)"
+echo '7 7 * * * keep-me' >"$DCT"
+printf '#!/bin/sh\nif [ "$1" = -l ]; then echo "crontab: permission denied" >&2; exit 1; fi\ncp "$1" %q\n' "$DCT" >"$T/no-list-crontab"; chmod +x "$T/no-list-crontab"
+out="$(inst SPOOL_BOX_ENV="$T/box.env" BOX_CRONS_DESK_CRONTAB="$T/no-list-crontab" DRY_RUN=0)"; rc=$?
+[ "$rc" -ne 0 ] && grep -q "FATAL crontab ($DU) refused to list (crontab: permission denied)" <<<"$out" \
+  && [ "$(cat "$DCT")" = '7 7 * * * keep-me' ] && cmp -s "$CT" "$T/ct.all" \
+  && pass "8. a failed list of the desk crontab writes neither crontab (no write from an empty before)" || fail "8. no list (rc $rc: $out; desk: $(cat "$DCT"))"
+printf '#!/bin/sh\nif [ "$1" = -l ]; then [ -s %q ] && cat %q && exit 0; echo "no crontab for x" >&2; exit 1; fi\ncp "$1" %q\n' "$DCT" "$DCT" "$DCT" >"$T/empty-crontab"; chmod +x "$T/empty-crontab"
+: >"$DCT"; out="$(inst SPOOL_BOX_ENV="$T/box.env" BOX_CRONS_DESK_CRONTAB="$T/empty-crontab" DRY_RUN=0)"; rc=$?
+[ "$rc" -eq 0 ] && [ "$(grep -c ' # csi-spl:box-cron:' "$DCT")" = "$ndesk" ] \
+  && pass "8. an empty desk crontab (no crontab for) installs the desk rows" || fail "8. empty (rc $rc: $out)"
 dinst DRY_RUN=0 >/dev/null
 out="$(dinst DRY_RUN=0 BOX_CRONS_ACTION=remove)"; rc=$?
 [ "$rc" -eq 0 ] && ! grep -q ' # csi-spl:box-cron:' "$CT" "$DCT" && pass "8. remove clears both crontabs" || fail "8. remove ($out)"

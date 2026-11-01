@@ -169,15 +169,20 @@ spl_desk_state_root() {
 # .local is 0700 on a moved box: the desk user must still seat new desks).
 # Nothing is chmod-ed.
 spl_desk_dir() {
-  local ws="$1" box="$2" e="${3:-$(spl_desk_env)}" me du u r first="" deny=""
+  local ws="$1" box="$2" e="${3:-$(spl_desk_env)}" me du u r l first="" deny="" roots=()
   [[ -n "$ws" && -n "$box" && -n "$e" ]] || { do_log "FATAL spl_desk_dir: workspace, desk id and env are required" >&2; return 1; }
   me="$(id -un)" du="$(spl_desk_user)"
-  while IFS=$'\t' read -r u r; do
+  # every root read first: a return on the first hit with spl_desk_roots still
+  # writing is EPIPE, and with SIGPIPE ignored (a CI runner) its "printf:
+  # write error" lands in the caller's output (wf10 41296160182, case 1d)
+  mapfile -t roots < <(spl_desk_roots "$e")
+  for l in "${roots[@]}"; do
+    u="${l%%$'\t'*}" r="${l#*$'\t'}"
     [[ -n "$r" ]] || continue
     [[ -n "$first" ]] || first="$r/desk/$ws/$box"
     [[ -d "$r/desk/$ws/$box" ]] && { printf '%s' "$r/desk/$ws/$box"; return 0; }
     [[ "$u" == "$du" && "$u" != "$me" && -z "$deny" ]] && ! spl_desk_root_enterable "$r/desk/$ws/$box" && deny="$u"$'\t'"$r"
-  done < <(spl_desk_roots "$e")
+  done
   [[ -n "$deny" ]] || { printf '%s' "$first"; return 1; }
   u="${deny%%$'\t'*}" r="${deny#*$'\t'}"
   do_log "FATAL the desk $e/$ws/$box is not under $me's state root, and $u's state root $r is not readable by $me (drwx------, not loosened): run this ./run action as $u (sudo -n -u $u env HOME=$(getent passwd "$u" 2>/dev/null | cut -d: -f6) ./run -a <action>); the desk dirs stay 0700" >&2

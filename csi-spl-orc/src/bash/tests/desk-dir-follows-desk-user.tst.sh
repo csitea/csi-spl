@@ -24,6 +24,8 @@
 #   7. spl_lane_issue_actor (R7 W2): a lane seated on the desk under B acts
 #   8. spl_fleet_desk_able (R7 c-835 W1): the desk under B's unreadable root
 #      fails the dispatch desk gate closed (rc 1), never "no desk dir known"
+#   9. no ENV in the caller's shell: the env is SPL_STATE_DIR's
+#  10. spl_desk_dir drains the roots feed: no "printf: write error" in its output
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -187,6 +189,17 @@ out="$(in_orc "$T/box.env.half" 'unset ENV; LANE_FLEET=fleet LANE_TENANT=t1 LANE
 has "9c. spl_lane_init (do_spl_asks_open): the moved desk is pinned (RED on d5cd7dd30: not pinned in t1 ())" "rc=0 dir=$RB/desk/t1/sat-rsp" "$out"
 out="$(in_orc "$T/box.env.half" 'unset ENV SPL_STATE_DIR; spl_desk_dir t1 sat-rsp; echo " rc=$?"')"
 has "9d. no ENV and no SPL_STATE_DIR: still refused" "env are required" "$out"
+
+# --- 10. the roots feed is drained (CI wf10 41296160182, 1d red) ----------------
+# spl_desk_dir found A's desk and returned while spl_desk_roots was still
+# writing B's root: with SIGPIPE ignored (a CI runner) that printf failed and
+# "printf: write error" landed in the caller's output. A slow later root and
+# SIGPIPE ignored make the race certain.
+fresh; desk "$RA"; desk "$RB"
+out="$(in_orc "$T/box.env.moved" 'trap "" PIPE
+  eval "orig_$(declare -f spl_desk_state_root)"; spl_desk_state_root() { sleep 0.2; orig_spl_desk_state_root "$@"; }
+  spl_desk_dir t1 sat-rsp; echo " rc=$?"')"
+eq "10. SIGPIPE ignored, B's root slow: A's desk and nothing else (RED on 93be19e8d: printf: write error)" "$RA/desk/t1/sat-rsp rc=0" "$out"
 
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"
 exit $((fails > 0))

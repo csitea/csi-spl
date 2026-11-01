@@ -6,6 +6,7 @@
 # @description pushes nothing. The push runs with -lock=false.
 # @param ENV STEP TFSTATE_FILE - required; TFSTATE_FILE is relative to PROJ_PATH
 # @param DRY_RUN 1 (default) pushes nothing, 0 pushes
+# @example cd csi-spl-orc && ENV=<env> STEP=<step> TFSTATE_FILE=<file> make do-tf-state-push
 #------------------------------------------------------------------------------
 do_tf_state_push() {
 

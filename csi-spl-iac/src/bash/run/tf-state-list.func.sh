@@ -2,6 +2,7 @@
 
 #------------------------------------------------------------------------------
 # @description The terraform state list command is used to list resources within a Terraform state. https://developer.hashicorp.com/terraform/cli/commands/state/list $ ORG=org APP=app ENV=env STEP=000-step make do-tf-state-list aws_instance.foo aws_instance.bar[0] aws_instance.bar[1] module.elb.aws_elb.main
+# @example cd csi-spl-orc && ENV=dev STEP=030-cloud-run-hub make do-tf-state-list
 #------------------------------------------------------------------------------
 do_tf_state_list() {
 

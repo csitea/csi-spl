@@ -1,11 +1,13 @@
 #!/bin/bash
-# do_spl_hub_run_metrics: the Cloud Run side of the same window (SPL-1981),
+#------------------------------------------------------------------------------
+# @description do_spl_hub_run_metrics: the Cloud Run side of the same window (SPL-1981),
 # per minute: instances by state, the p99 / max of requests in flight per
 # instance (a WebSocket holds one for its life), and the p99 CPU. Read-only:
 # the Monitoring v3 timeSeries REST endpoint (gcloud has no verb for it, see
 # spl_db_health_metrics) with an access token for the env SA in a 0600 -K file.
 # @param ENV, REQ_SINCE, REQ_MINUTES as do_spl_hub_request_minutes
 # @example ENV=prd REQ_SINCE=2026-10-15T07:15:00Z REQ_MINUTES=25 ./run -a do_spl_hub_run_metrics
+#------------------------------------------------------------------------------
 do_spl_hub_run_metrics() {
   local since="${REQ_SINCE:-}" minutes="${REQ_MINUTES:-30}"
   spl_hub_request_minutes_check_args "$since" "$minutes" 1 1 || return 1

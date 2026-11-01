@@ -5,6 +5,7 @@
 # @description Read-only (it writes only the local copy under dat/tmp), so it
 # @description has no DRY_RUN gate.
 # @param ENV STEP - required
+# @example cd csi-spl-orc && ENV=dev STEP=030-cloud-run-hub make do-tf-state-pull
 #------------------------------------------------------------------------------
 do_tf_state_pull() {
 

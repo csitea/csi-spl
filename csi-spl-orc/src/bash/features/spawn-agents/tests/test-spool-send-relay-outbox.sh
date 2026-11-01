@@ -68,4 +68,82 @@ eq "4. an unwritable outbox never fails the send: exit 0" 0 "$rc"
 has "4. ... it WARNs on stderr" "outbox: WARN" "$err"
 rm -f "$OB"
 
+# ---- 5. the peers hub leg (RELAY=1, spec 068 L4): one copy, to peers -------
+# N3 of the SPL-4430 review: the hub leg of a peers send left no sender copy;
+# only the hub-down leg (send_peers_local) wrote one.
+rm -rf "$OB"; mkdir -p "$OB"
+PMID="8e9f0a1b-2c3d-4e4f-9a5b-6c7d8e9f0a1b"; PTID="9f0a1b2c-3d4e-4f5a-8b6c-7d8e9f0a1b2c"
+cat >"$T_TMP/hub-peers" <<SH
+#!/usr/bin/env bash
+echo '{"delivery":"sent","msg_id":"${PMID}","task_id":"${PTID}","ts":"2026-11-01T08:00:00Z"}'
+SH
+chmod +x "$T_TMP/hub-peers"
+SPOOL_TO_PEERS=1 SPOOL_FLEET_RELAY_CMD="$T_TMP/hub-peers" bash "$SS" --from CLE-70 --to peers \
+  --kind result --body 'report to the peers' >/dev/null 2>&1; rc=$?
+eq "5. peers hub leg: exit 0" 0 "$rc"
+eq "5. peers hub leg: exactly one outbox file" 1 "$(n_out)"
+f="$(find "$OB" -maxdepth 1 -name '*--relayed-*.json' 2>/dev/null | sed -n 1p)"
+eq "5. peers hub leg: the copy holds the relay's ids, to peers" "${PMID}|${PTID}|peers" \
+  "$(jq -r '[.msg_id, .task_id, .to] | join("|")' "${f:-/dev/null}" 2>/dev/null)"
+eq "5. peers hub leg: no local peers inbox file (the hub holds it)" 0 \
+  "$(find "$SPOOL_ROOT/peers/inbox" -name '*.json' 2>/dev/null | wc -l)"
+eq "5. peers hub leg: the copy is never read as inbound" "[]" \
+  "$(SPOOL_ROOT="$SPOOL_ROOT" "$SPOOL_BIN" recv --as CLE-70 2>/dev/null | jq -c . 2>/dev/null)"
+eq "5. peers hub leg: spool tail shows it once" 1 \
+  "$(SPOOL_ROOT="$SPOOL_ROOT" "$SPOOL_BIN" tail --task "$PTID" 2>/dev/null | grep -c "report to the peers")"
+SPOOL_TO_PEERS=1 SPOOL_FLEET_RELAY_CMD="$T_TMP/hub-fail" bash "$SS" --from CLE-70 --to peers \
+  --kind note --body 'hub down' >/dev/null 2>&1
+eq "5. control: the hub-down leg still leaves its one local copy, no relayed one" "1 0" \
+  "$(grep -l 'hub down' "$OB"/*.json 2>/dev/null | wc -l) $(grep -l 'hub down' "$OB"/*--relayed-*.json 2>/dev/null | wc -l)"
+rm -rf "$SPOOL_ROOT/peers"
+
+# ---- 6. the accept-via-hub leg (RELAY=2, spec 130 L3): one copy ------------
+# A same-machine acceptance goes through the hub to this machine's desk box;
+# the hub delivers it, nothing local was written for the sender.
+rm -rf "$OB"; mkdir -p "$OB" "$SPOOL_ROOT/CLE-71/inbox"
+RES="0e1f2a3b-4c5d-4e6f-8a7b-9c0d1e2f3a4b"
+AMID="a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"; ATID="b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e"
+cat >"$T_TMP/hub-accept" <<SH
+#!/usr/bin/env bash
+echo '{"delivery":"sent","msg_id":"${AMID}","task_id":"${ATID}","ts":"2026-11-01T08:01:00Z"}'
+SH
+chmod +x "$T_TMP/hub-accept"
+SPOOL_FLEET_RELAY_CMD="$T_TMP/hub-accept" bash "$SS" --from CLE-70 --to CLE-71 --kind result \
+  --accept "$RES" --body 'ACCEPTED' --no-poke >/dev/null 2>&1; rc=$?
+eq "6. accept via hub: exit 0" 0 "$rc"
+eq "6. accept via hub: exactly one outbox file" 1 "$(n_out)"
+f="$(find "$OB" -maxdepth 1 -name '*--relayed-*.json' 2>/dev/null | sed -n 1p)"
+eq "6. accept via hub: the copy holds the relay's ids, the bare id, accepts" "${AMID}|${ATID}|CLE-71|${RES}" \
+  "$(jq -r '[.msg_id, .task_id, .to, .accepts] | join("|")' "${f:-/dev/null}" 2>/dev/null)"
+eq "6. accept via hub: no local inbox copy (the hub delivers)" 0 \
+  "$(find "$SPOOL_ROOT/CLE-71/inbox" -name '*.json' | wc -l)"
+eq "6. accept via hub: the copy is never read as inbound" "[]" \
+  "$(SPOOL_ROOT="$SPOOL_ROOT" "$SPOOL_BIN" recv --as CLE-70 2>/dev/null | jq -c . 2>/dev/null)"
+eq "6. accept via hub: spool tail shows it once" 1 \
+  "$(SPOOL_ROOT="$SPOOL_ROOT" "$SPOOL_BIN" tail --task "$ATID" 2>/dev/null | grep -c "CLE-70 -> CLE-71")"
+SPOOL_FLEET_RELAY_CMD="$T_TMP/hub-fail" bash "$SS" --from CLE-70 --to CLE-71 --kind result \
+  --accept "$RES" --body 'ACCEPTED, hub down' --no-poke >/dev/null 2>&1
+eq "6. control: a failed hub leg delivers locally, one outbox file, no relayed copy" "1 0" \
+  "$(grep -l 'hub down' "$OB"/*.json 2>/dev/null | wc -l) $(grep -l 'hub down' "$OB"/*--relayed-*.json 2>/dev/null | wc -l)"
+
+# ---- 7. a local send leaves exactly one outbox file --------------------------
+rm -rf "$OB"; mkdir -p "$OB"
+bash "$SS" --from CLE-70 --to CLE-71 --kind note --body 'local only' --no-poke >/dev/null 2>&1; rc=$?
+eq "7. local send: exit 0" 0 "$rc"
+eq "7. local send: exactly one outbox file, none relayed" "1 0" \
+  "$(n_out) $(find "$OB" -maxdepth 1 -name '*--relayed-*.json' | wc -l)"
+
+# ---- 8. N2: a relay reply whose msg_id is no uuid names no file -------------
+rm -rf "$OB"; mkdir -p "$OB"
+cat >"$T_TMP/hub-badid" <<'SH'
+#!/usr/bin/env bash
+echo '{"delivery":"sent","msg_id":"not-a-uuid-at-all","task_id":"6c7d8e9f-0a1b-4c2d-9e3f-4a5b6c7d8e9f","ts":"2026-11-01T08:02:00Z"}'
+SH
+chmod +x "$T_TMP/hub-badid"
+err="$(SPOOL_FLEET_RELAY_CMD="$T_TMP/hub-badid" bash "$SS" --from CLE-70 --to c-500@box-far \
+  --kind note --body 'bad id' 2>&1 >/dev/null)"; rc=$?
+eq "8. a bad relay msg_id: the send still exits 0" 0 "$rc"
+eq "8. ... writes no outbox file" 0 "$(n_out)"
+has "8. ... and WARNs" "outbox: WARN" "$err"
+
 t_done

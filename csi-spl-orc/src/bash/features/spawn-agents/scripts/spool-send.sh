@@ -348,18 +348,22 @@ send_peers_local() {
 # <id>@<box> when --to named the box, else the bare id (the hub placed it).
 # The "relayed" marker is in the file name, not a key: msg.Parse refuses an
 # unknown key, so `spool tail` would drop the copy. A failed copy WARNs only.
+# Every hub leg calls it after its send succeeded: the cross-box relay, the
+# peers hub leg and the accept-via-hub leg (SPL-4565); an acceptance keeps its
+# accepts key. A msg_id that is no uuid names no file: WARN, nothing written.
 send_relay_outbox() {  # OUT
-  local id task ts to d f
+  local id task ts to d f uuid='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
   id="$(printf '%s' "$1" | sed -n 's/.*"msg_id" *: *"\([^"]*\)".*/\1/p')"
   task="$(printf '%s' "$1" | sed -n 's/.*"task_id" *: *"\([^"]*\)".*/\1/p')"
   ts="$(printf '%s' "$1" | sed -n 's/.*"ts" *: *"\([^"]*\)".*/\1/p')"
   to="$TO"; [ -n "$TO_BOX" ] && to="$TO@$TO_BOX"
   d="$SPOOL_ROOT/$FROM/outbox"
   f="$(date -u +%Y%m%dT%H%M%SZ)--${FROM}--relayed-${id:0:8}.json"
-  if [ -n "$id" ] && [ -n "$task" ] && { mkdir -p "$d" &&
+  if [[ "$id" =~ $uuid ]] && [ -n "$task" ] && { mkdir -p "$d" &&
        jq -n -c --arg id "$id" --arg t "$task" --arg ts "${ts:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" \
-         --arg f "$FROM" --arg to "$to" --arg k "$KIND" --arg b "$BODY" \
-         '{v: 1, msg_id: $id, task_id: $t, ts: $ts, from: $f, to: $to, kind: $k, body: $b, files: []}' \
+         --arg f "$FROM" --arg to "$to" --arg k "$KIND" --arg b "$BODY" --arg acc "${ACCEPT:-}" \
+         '{v: 1, msg_id: $id, task_id: $t, ts: $ts, from: $f, to: $to, kind: $k, body: $b, files: []}
+          + (if $acc == "" then {} else {accepts: $acc} end)' \
          >"$d/.$f.tmp" && mv -f "$d/.$f.tmp" "$d/$f"; } 2>/dev/null; then
     return 0
   fi
@@ -558,6 +562,7 @@ if [ "$POKE_ONLY" -eq 0 ]; then
     [ -n "$TASK" ] && rargs+=(--task "$TASK")
     if out="$(export SPOOL_SEND_MSG_ID="$PEERS_MSGID"; spool_fleet_relay "${rargs[@]}")"; then
       RELAY=1
+      send_relay_outbox "$out"
     else
       rc=$?
       echo "peers: the hub leg failed (rc=${rc}); written to ${SPOOL_ROOT}/peers/inbox for this machine's seats (local lock)" >&2
@@ -581,6 +586,7 @@ if [ "$POKE_ONLY" -eq 0 ]; then
   elif [ -n "$ACCEPT" ] && [ "${#EXTRA[@]}" -eq 0 ] && ! spool_fleet_retired "$TO" &&
        out="$(send_accept_via_hub)"; then
     RELAY=2
+    send_relay_outbox "$out"
   else
     # specs/028 FR-008: the binary's own notify hook is OFF for this send. This
     # script rings the pane itself, below, so it can report the outcome as its

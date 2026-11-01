@@ -76,6 +76,7 @@ EOF_USAGE
 # whose file is under <proj>/src/bash/run/ (pre/post hooks left out), sorted
 _print_help_actions() {
   local proj="$1" fn f
+  # shellcheck disable=SC2154 # built by run.sh do_load_functions
   declare -p _func_to_file &>/dev/null || return 0
   for fn in "${!_func_to_file[@]}"; do
     f="${_func_to_file[$fn]}"

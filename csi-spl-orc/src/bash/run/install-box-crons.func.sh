@@ -18,10 +18,16 @@
 # @description SPL-4495): a start while the last run still goes exits 0 with
 # @description one SKIP line, so a slow job never stacks.
 # @description A row marked `desk` (its job reaches a desk, SPL-4558) goes to
-# @description the desk user's crontab instead (spl_desk_user, spec 069 section
-# @description 8.3.1: a moved desk is 0700 under that user) and leaves the
-# @description running user's; no desk user, or the running user is it: one
-# @description crontab, as before. The desk user's crontab is written first.
+# @description the crontab of the user whose state root holds the desk it
+# @description reaches (spec 069 section 8.3.1: a moved desk is 0700 under
+# @description that user): the running user or the desk user (spl_desk_user).
+# @description The desk is <SPOOL_FLEET_TENANT>/<spl_desk_box_default> for
+# @description `desk`, <SPOOL_FLEET_TENANT>/<SPOOL_RSP_BOX> for `desk:rsp`, in
+# @description env SPOOL_FLEET_ENV; it is held where its `pinned` file is. No
+# @description pin under either user, or `desk:any` (reads no one desk): the
+# @description row stays in the crontab that holds it (a WARN names it). No
+# @description desk user, or the running user is it: one crontab, as before.
+# @description The desk user's crontab is written first.
 # @description Dry run unless DRY_RUN=0 (prints the crontab diff).
 # @param BOX_CRONS_ACTION (optional) - install (default) | remove (drops the
 # @param   tagged lines only; it never puts an engine line back)
@@ -31,6 +37,10 @@
 # @param BOX_CRONS_MANIFEST (optional) - default cnf/box-crons/box-crons.manifest
 # @param BOX_CRONS_DESK_USER (optional) - the desk user, default spl_desk_user
 # @param BOX_CRONS_DESK_CRONTAB (optional) - default `sudo -n crontab -u <desk user>`
+# @param BOX_CRONS_DESK_ROOTS (optional) - `<user>=<cloud state root> ...`, the
+# @param   roots the pins are looked up in; default each user's from
+# @param   spl_desk_state_root (<home>/.local/share/<org>-<app>/cloud/<env>)
+# @param BOX_CRONS_SUDO (optional) - default `sudo -n`: looks up the desk user's pin
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ./run -a do_install_box_crons
 # @example BOX_CRONS_ONLY=graft-index-refresh,graft-index-final ./run -a do_install_box_crons
@@ -64,8 +74,8 @@ do_install_box_crons() {
   du="$(box_crons_desk_user)" || return 1
   bsel=("${sel[@]}")
   if [[ -n "$du" ]]; then
-    bsel=(); for i in "${sel[@]}"; do if [[ "${ases[$i]}" == desk ]]; then dsel+=("$i"); else bsel+=("$i"); fi; done
     dct="${BOX_CRONS_DESK_CRONTAB:-sudo -n crontab -u $du}"
+    box_crons_split "$du" "$dct" || return 1
     # the desk user's first: refused, the box user's still holds every row
     box_crons_apply "$dct" " ($du)" "${dsel[@]}" || return 1
   fi
@@ -90,11 +100,67 @@ box_crons_desk_user() {
   printf '%s' "$u"
 }
 
+# box_crons_split <desk user> <desk crontab cmd> - splits the caller's sel into
+# bsel (the running user's crontab) and dsel (the desk user's): a desk row goes
+# to the user that holds its desk's pin (box_crons_desk_owner); remove acts on
+# both crontabs alike
+box_crons_split() {
+  local du="$1" i o held
+  bsel=(); dsel=()
+  [[ "$act" == remove ]] && { bsel=("${sel[@]}"); dsel=("${sel[@]}"); return 0; }
+  held="$($2 -l 2>/dev/null)"
+  for i in "${sel[@]}"; do
+    [[ "${ases[$i]}" == desk* ]] || { bsel+=("$i"); continue; }
+    o="$(box_crons_desk_owner "$i" "$du" "$held")" || return 1
+    if [[ "$o" == "$du" ]]; then dsel+=("$i"); else bsel+=("$i"); fi
+  done
+}
+
+# box_crons_desk_owner <index> <desk user> <desk crontab text> - prints the user
+# whose crontab takes this desk row: the first of the running user and the
+# desk user that holds the pin of the desk it reaches; no pin, or `desk:any`:
+# the user whose crontab holds the row now (the running user's when neither)
+box_crons_desk_owner() {
+  local i="$1" du="$2" me ws e id="" u now
+  me="$(id -un)"
+  declare -F spl_desk_box_default >/dev/null ||
+    source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-box.func.sh"
+  ws="$(spl_box_key SPOOL_FLEET_TENANT)" e="$(spl_box_key SPOOL_FLEET_ENV)"
+  case "${ases[$i]}" in
+    desk) id="$(spl_desk_box_default)" ;;
+    desk:rsp) id="$(spl_box_key SPOOL_RSP_BOX)" ;;
+  esac
+  if [[ -n "$id" && -n "$ws" && -n "$e" ]]; then
+    for u in "$me" "$du"; do box_crons_pinned "$u" "$e" "$ws/$id" && { printf '%s' "$u"; return 0; }; done
+  fi
+  now="$me"; grep -q " # csi-spl:box-cron:${names[$i]}\$" <<<"$3" && now="$du"
+  echo "WARN ${names[$i]} (${ases[$i]}): $([[ -n "$id" ]] && echo "no pin of ${e:-<no SPOOL_FLEET_ENV>}/${ws:-<no SPOOL_FLEET_TENANT>}/$id under $me or $du" || echo "reaches no one desk"): kept in $now's crontab" >&2
+  printf '%s' "$now"
+}
+
+# box_crons_pinned <user> <env> <workspace>/<desk id> - true when that desk's
+# pinned file is in the user's cloud state root (BOX_CRONS_DESK_ROOTS, else
+# spl_desk_state_root); another user's root is looked into as that user
+box_crons_pinned() {
+  local u="$1" e="$2" w r=""
+  for w in ${BOX_CRONS_DESK_ROOTS:-}; do [[ "${w%%=*}" == "$u" ]] && r="${w#*=}"; done
+  [[ -n "$r" ]] || r="$(SPOOL_DESK_USER="$u" spl_desk_state_root "$e" 2>/dev/null)" || return 1
+  [[ -n "$r" ]] || return 1
+  if [[ "$u" == "$(id -un)" ]]; then [[ -e "$r/desk/$3/pinned" ]]
+  else ${BOX_CRONS_SUDO:-sudo -n} -u "$u" test -e "$r/desk/$3/pinned" 2>/dev/null; fi
+}
+
 # box_crons_apply <crontab cmd> <label> [index...] - one crontab: drop the lines
 # this run owns (box_crons_filter), append the given rows, print the diff; with
-# DRY_RUN=0 create their log dirs and write it. Uses the caller's locals.
+# DRY_RUN=0 create their log dirs and write it. A row whose line is already
+# there, unchanged, keeps its place: a re-run on a crontab in another order
+# plans nothing (SPL-4558). Uses the caller's locals.
 box_crons_apply() {
-  local c="$1" lbl="$2" before after i err; shift 2
+  local c="$1" lbl="$2" before after i l err; shift 2
+  local -a want=()
+  if [[ "$act" == install ]]; then
+    for i in "$@"; do l="$(box_crons_line "$i")" || return 1; want+=("$l"); done
+  fi
   before="$(mktemp)"; after="$(mktemp)"
   # an empty crontab lists as "no crontab for <user>"; any other failed list
   # would write the new crontab from an empty "before" and drop its other lines
@@ -102,12 +168,8 @@ box_crons_apply() {
     [[ "$err" == *"no crontab for"* ]] || { rm -f "$before" "$after"; do_log "FATAL crontab$lbl refused to list (${err:-no message}) - nothing changed"; return 1; }
     : >"$before"
   fi
-  box_crons_filter <"$before" >"$after"
-  if [[ "$act" == install ]]; then
-    for i in "$@"; do
-      box_crons_line "$i" >>"$after" || { rm -f "$before" "$after"; return 1; }
-    done
-  fi
+  box_crons_filter "${want[@]}" <"$before" >"$after"
+  for l in "${want[@]}"; do grep -qxF -- "$l" "$after" || printf '%s\n' "$l" >>"$after"; done
   if cmp -s "$before" "$after"; then
     echo "OK cron$lbl: nothing to change"; rm -f "$before" "$after"; return 0
   fi
@@ -153,7 +215,7 @@ box_crons_read_manifest() {
     IFS='|' read -r name sched script log repl as <<<"$line"
     name="$(box_crons_trim "$name")"; sched="$(box_crons_trim "$sched")"; script="$(box_crons_trim "$script")"
     log="$(box_crons_trim "$log")"; repl="$(box_crons_trim "$repl")"; as="$(box_crons_trim "$as")"
-    [[ -z "$as" || "$as" == desk ]] || { do_log "FATAL manifest line $n: as must be empty or desk, got '$as'"; return 1; }
+    [[ -z "$as" || "$as" =~ ^desk(:rsp|:any)?$ ]] || { do_log "FATAL manifest line $n: as must be empty, desk, desk:rsp or desk:any, got '$as'"; return 1; }
     [[ "$name" =~ ^[a-z0-9-]+$ ]] || { do_log "FATAL manifest line $n: bad name '$name'"; return 1; }
     [[ "$sched" == @reboot || "$sched" =~ ^[^[:space:]]+([[:space:]]+[^[:space:]]+){4}$ ]] \
       || { do_log "FATAL manifest line $n: schedule must be 5 cron fields or @reboot, got '$sched'"; return 1; }
@@ -181,12 +243,14 @@ box_crons_select() {
   done
 }
 
-# box_crons_filter - stdin crontab -> stdout without the lines this run owns:
-# the tagged lines of the selected rows (every tagged line when no ONLY), and
-# on install the engine lines the selected rows replace
+# box_crons_filter [wanted line...] - stdin crontab -> stdout without the lines
+# this run owns: the tagged lines of the selected rows (every tagged line when
+# no ONLY), and on install the engine lines the selected rows replace. The
+# first copy of a wanted line stays where it is
 box_crons_filter() {
   local line tag i p
   local -a drop=() parts=()
+  local -A seen=()
   for i in "${sel[@]}"; do
     [[ "$act" == install && -n "${repls[$i]}" ]] || continue
     IFS=',' read -r -a parts <<<"${repls[$i]}"
@@ -195,6 +259,9 @@ box_crons_filter() {
   while IFS= read -r line || [[ -n "$line" ]]; do
     if [[ "$line" =~ \ \#\ csi-spl:box-cron:([a-z0-9-]+)$ ]]; then
       tag="${BASH_REMATCH[1]}"
+      for p in "$@"; do
+        [[ "$line" == "$p" && -z "${seen[$tag]:-}" ]] && { seen[$tag]=1; printf '%s\n' "$line"; continue 2; }
+      done
       [[ -z "$only" ]] && continue
       for i in "${sel[@]}"; do [[ "${names[$i]}" == "$tag" ]] && continue 2; done
     else

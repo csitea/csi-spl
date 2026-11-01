@@ -733,27 +733,38 @@ owner decision; this row moves no crontab.
 #### 8.3.2 Desk rows run in the desk user's crontab (SPL-4558)
 
 A row of `cnf/box-crons/box-crons.manifest` carries a sixth field, `as`:
-empty for the box user's crontab, `desk` for the desk user's. A row is `desk`
-when its job reaches a desk: a call path from its cron script ends in
-`spl_desk_dir`, `spl_desk_glob` or `spl_desk_roots`.
+empty for the box user's crontab, else the desk the job reaches: `desk` (the
+box's own desk, `<SPOOL_FLEET_TENANT>/<SPOOL_DESK_BOX>`), `desk:rsp` (the
+responder desk, `<SPOOL_FLEET_TENANT>/<SPOOL_RSP_BOX>`) or `desk:any` (the desk
+roots only, no one desk). A row is marked when its job reaches a desk: a call
+path from its cron script ends in `spl_desk_dir`, `spl_desk_glob` or
+`spl_desk_roots`.
 `csi-spl-orc/src/bash/tests/box-crons-desk-reach.py` measures it from the code
 and prints the path; `install-box-crons.tst.sh` (case 7) fails when a mark and
 the measurement disagree. On 2026-11-01 it marks the 10 rows of 8.3.1.
 
-`do_install_box_crons` puts the `desk` rows into the crontab of the desk user
-(`BOX_CRONS_DESK_USER`, else `spl_desk_user`, the `SPOOL_DESK_USER` of
-`box.env`), through `sudo -n crontab -u <desk user>`, and drops them from the
-running (box) user's crontab; the other rows stay where they are. It writes
-the desk user's crontab first: refused, the box user's still holds every row.
-No desk user, or the running user is the desk user: one crontab, as before.
+`do_install_box_crons` puts a marked row into the crontab of the user whose
+state root holds the `pinned` file of the desk it reaches: the running (box)
+user or the desk user (`BOX_CRONS_DESK_USER`, else `spl_desk_user`, the
+`SPOOL_DESK_USER` of `box.env`), whose crontab it writes through
+`sudo -n crontab -u <desk user>`. The desk user alone never moves a row: on
+sat on 2026-11-01 `t1/sat` was still under the box user and `t1/sat-rsp`
+under the desk user, and an install by the desk user alone (14:55Z) moved the
+`t1/sat` rows away from their desk (weekly-limit-alert, archived-seats-free,
+topic-status-card went rc=1; token-burn pushed nothing). No pin under either
+user, or `desk:any`: the row stays in the crontab that holds it, with a
+`WARN`. A row whose line is already there, unchanged, keeps its place, so a
+re-run plans nothing. It writes the desk user's crontab first: refused, the
+box user's still holds every row. No desk user, or the running user is the
+desk user: one crontab, as before.
 The desk roots stay 0700. The logs and locks stay under `/var/csi/csi-spl`,
 whose dirs are group `<box-user>` and setgid, so the desk user (a member of
 that group) writes them.
 
 A box where `do_spl_desk_move` has not written `SPOOL_DESK_USER` yet (a
 half-moved box) has no desk user for this action: pass
-`BOX_CRONS_DESK_USER=<agent-user>` to move the rows anyway, or wait for the
-move to finish.
+`BOX_CRONS_DESK_USER=<agent-user>`; each row then follows its desk's pin, so
+the rows of a desk not moved yet stay with the box user.
 
 ### 8.4 Per-box cutover (sat first, then `<pc box>`)
 

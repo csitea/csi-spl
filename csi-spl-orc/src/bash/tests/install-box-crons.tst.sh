@@ -23,6 +23,10 @@
 #      desk crontab leaves the box user's untouched; a failed list (other than
 #      "no crontab for") writes neither; the running user as desk
 #      user keeps one crontab; a bad `as` is refused
+#   9. a desk row goes to the user that holds its desk's pin: the box desk
+#      pinned under the running user keeps its rows there while the rsp row
+#      moves (sat 2026-11-01 15:00Z); desk:any and a row with no pin stay
+#      where they are; a re-run on that state is a no-op, in any row order
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -148,7 +152,7 @@ out="$(inst BOX_CRONS_ONLY=nope)"; rc=$?
 
 # --- 7. the desk marks are measured from the code (SPL-4558) ------------------
 MAN="$PROJ_ROOT/cnf/box-crons/box-crons.manifest"
-marked="$(awk -F'|' '!/^[[:space:]]*(#|$)/ { n=$1; a=$6; gsub(/[[:space:]]/, "", n); gsub(/[[:space:]]/, "", a); if (a == "desk") print n }' "$MAN" | sort)"
+marked="$(awk -F'|' '!/^[[:space:]]*(#|$)/ { n=$1; a=$6; gsub(/[[:space:]]/, "", n); gsub(/[[:space:]]/, "", a); if (a ~ /^desk(:rsp|:any)?$/) print n }' "$MAN" | sort)"
 reach="$(python3 "$TEST_DIR/box-crons-desk-reach.py" "$PROJ_ROOT" "$MAN")"; rc=$?
 measured="$(cut -d' ' -f1 <<<"$reach" | sort)"
 [ "$rc" -eq 0 ] && [ -n "$measured" ] && [ "$marked" = "$measured" ] && grep -qx issue-close-landed <<<"$marked" \
@@ -163,8 +167,13 @@ for u in nobody daemon root; do [ "$u" != "$me" ] && getent passwd "$u" >/dev/nu
 touch "$O/src/bash/features/graft/scripts/graft-cron.sh"   # case 4 removed it
 DCT="$T/desk-crontab"; : >"$DCT"
 printf '#!/bin/sh\nif [ "$1" = -l ]; then cat %q; else cp "$1" %q; fi\n' "$DCT" "$DCT" >"$T/fake-desk-crontab"; chmod +x "$T/fake-desk-crontab"
-printf 'SPOOL_DESK_USER=%s\n' "$DU" >"$T/box.env"
-ndesk="$(grep -c '| desk$' "$O/cnf/box-crons/box-crons.manifest")"; nall="$(grep -cvE '^[[:space:]]*(#|$)' "$O/cnf/box-crons/box-crons.manifest")"
+printf 'SPOOL_DESK_USER=%s\nSPOOL_FLEET_TENANT=t1\nSPOOL_FLEET_ENV=prd\nSPOOL_DESK_BOX=boxa\nSPOOL_RSP_BOX=boxa-rsp\n' "$DU" >"$T/box.env"
+# the pins: under the desk user, every desk row's desk; a fake sudo runs the lookup as us
+mkdir -p "$T/roots/du/desk/t1/boxa" "$T/roots/du/desk/t1/boxa-rsp" "$T/roots/me"
+touch "$T/roots/du/desk/t1/boxa/pinned" "$T/roots/du/desk/t1/boxa-rsp/pinned"
+printf '#!/bin/sh\nshift 2; exec "$@"\n' >"$T/fake-sudo"; chmod +x "$T/fake-sudo"
+export BOX_CRONS_SUDO="$T/fake-sudo" BOX_CRONS_DESK_ROOTS="$me=$T/roots/me $DU=$T/roots/du"
+ndesk="$(grep -cE '\| desk(:rsp)?$' "$O/cnf/box-crons/box-crons.manifest")"; nall="$(grep -cvE '^[[:space:]]*(#|$)' "$O/cnf/box-crons/box-crons.manifest")"
 cp "$T/crontab.orig" "$CT"; inst DRY_RUN=0 >/dev/null   # today: every row in the box user's crontab
 grep -q ' # csi-spl:box-cron:issue-close-landed$' "$CT" && pass "8. before: the box user's crontab carries issue-close-landed" || fail "8. setup ($(cat "$CT"))"
 dinst() { inst SPOOL_BOX_ENV="$T/box.env" BOX_CRONS_DESK_CRONTAB="$T/fake-desk-crontab" "$@"; }
@@ -211,7 +220,40 @@ out="$(inst BOX_CRONS_DESK_USER=no-such-user-4558 DRY_RUN=0)"; rc=$?
 [ "$rc" -ne 0 ] && grep -q "desk user 'no-such-user-4558' has no passwd entry" <<<"$out" && pass "8. an unknown desk user is refused" || fail "8. unknown (rc $rc: $out)"
 printf 'x | * * * * * | x.sh | x.log | | root\n' >"$T/bad-as.manifest"
 out="$(inst BOX_CRONS_MANIFEST="$T/bad-as.manifest")"; rc=$?
-[ "$rc" -ne 0 ] && grep -q "as must be empty or desk, got 'root'" <<<"$out" && pass "8. a bad as is refused" || fail "8. bad as (rc $rc: $out)"
+[ "$rc" -ne 0 ] && grep -q "as must be empty, desk, desk:rsp or desk:any, got 'root'" <<<"$out" && pass "8. a bad as is refused" || fail "8. bad as (rc $rc: $out)"
+
+# --- 9. a desk row follows its desk's pin, not the desk user alone ------------
+# sat on 2026-11-01: t1/sat pinned under the box user, t1/sat-rsp under the
+# desk user; 14:55Z a BOX_CRONS_DESK_USER install moved the t1/sat rows too and
+# weekly-limit-alert, archived-seats-free, topic-status-card went rc=1
+rm -f "$T/roots/du/desk/t1/boxa/pinned"; mkdir -p "$T/roots/me/desk/t1/boxa"; touch "$T/roots/me/desk/t1/boxa/pinned"
+cp "$T/crontab.orig" "$CT"; inst DRY_RUN=0 >/dev/null; : >"$DCT"
+out="$(dinst DRY_RUN=0 BOX_CRONS_DESK_USER="$DU")"; rc=$?
+[ "$rc" -eq 0 ] && grep -q ' # csi-spl:box-cron:weekly-limit-alert$' "$CT" && ! grep -q 'csi-spl:box-cron:weekly-limit-alert$' "$DCT" \
+  && grep -q ' # csi-spl:box-cron:issue-close-landed$' "$DCT" && ! grep -q 'csi-spl:box-cron:issue-close-landed$' "$CT" \
+  && [ "$(grep -c ' # csi-spl:box-cron:' "$DCT")" = 1 ] \
+  && pass "9. the box desk pinned under the running user: its rows stay there; the rsp row moves to the desk user's" || fail "9. pin (rc $rc: $out; desk: $(cat "$DCT"))"
+grep -q ' # csi-spl:box-cron:file-streams$' "$CT" && grep -q "WARN file-streams (desk:any): reaches no one desk: kept in $me's crontab" <<<"$out" \
+  && pass "9. a desk:any row stays where it is, with a WARN" || fail "9. any ($out)"
+out="$(dinst BOX_CRONS_DESK_USER="$DU")"
+[ "$(grep -c 'nothing to change' <<<"$out")" = 2 ] && pass "9. a re-run on that state plans nothing" || fail "9. re-run ($out)"
+# sat after the 15:02Z revert: the rows put back from a backup, out of manifest order
+{ grep -v ' # csi-spl:box-cron:' "$CT"; grep ' # csi-spl:box-cron:' "$CT" | tac; } >"$T/ct.tmp"; cp "$T/ct.tmp" "$CT"
+out="$(dinst BOX_CRONS_DESK_USER="$DU")"
+[ "$(grep -c 'nothing to change' <<<"$out")" = 2 ] && pass "9. ...and on the same rows in another order: an unchanged line keeps its place" || fail "9. order ($out)"
+# today's sat after the 15:02Z revert: token-burn (box desk) and file-streams in the desk user's
+grep -E ' # csi-spl:box-cron:(token-burn|file-streams)$' "$CT" >>"$DCT"; grep -vE ' # csi-spl:box-cron:(token-burn|file-streams)$' "$CT" >"$T/ct.tmp"; cp "$T/ct.tmp" "$CT"
+out="$(dinst DRY_RUN=0 BOX_CRONS_DESK_USER="$DU")"; rc=$?
+[ "$rc" -eq 0 ] && grep -q ' # csi-spl:box-cron:token-burn$' "$CT" && ! grep -q 'csi-spl:box-cron:token-burn$' "$DCT" \
+  && grep -q ' # csi-spl:box-cron:file-streams$' "$DCT" && ! grep -q 'csi-spl:box-cron:file-streams$' "$CT" \
+  && pass "9. a box-desk row in the desk user's crontab goes back to the pin's user; desk:any stays in the desk user's" || fail "9. back (rc $rc: $out)"
+rm -f "$T/roots/me/desk/t1/boxa/pinned" "$T/roots/du/desk/t1/boxa-rsp/pinned"
+out="$(dinst DRY_RUN=0 BOX_CRONS_DESK_USER="$DU")"; rc=$?
+[ "$rc" -eq 0 ] && grep -q ' # csi-spl:box-cron:issue-close-landed$' "$DCT" && grep -q ' # csi-spl:box-cron:weekly-limit-alert$' "$CT" \
+  && grep -q "WARN weekly-limit-alert (desk): no pin of prd/t1/boxa under $me or $DU: kept in $me's crontab" <<<"$out" \
+  && [ "$(grep -c 'nothing to change' <<<"$out")" = 2 ] \
+  && pass "9. no pin under either user: every desk row stays where it is" || fail "9. no pin (rc $rc: $out)"
+unset BOX_CRONS_SUDO BOX_CRONS_DESK_ROOTS
 
 echo "install-box-crons: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

@@ -11,12 +11,16 @@
 #   replaces - comma-separated paths below an engine checkout (`ysg-box/`) of
 #              the engine jobs this row takes over: a crontab line naming one
 #              of them (commented or not) is removed when this row installs
-#   as       - empty: the box user's crontab (the user running the install);
-#              `desk`: the desk user's crontab (spl_desk_user, spec 069
-#              section 8.3.1, SPL-4558). A row whose job reads or writes a
-#              desk (spl_desk_dir, spl_desk_glob, spl_desk_roots) is `desk`: a
-#              moved desk is 0700 under the desk user, the box user cannot
-#              reach it. tests/box-crons-desk-reach.py measures it from the
+#   as       - empty: the box user's crontab (the user running the install).
+#              A row whose job reads or writes a desk (spl_desk_dir,
+#              spl_desk_glob, spl_desk_roots) is marked with the desk it
+#              reaches, and goes to the crontab of the user (the running one
+#              or spl_desk_user) whose state root holds that desk's pin: a
+#              moved desk is 0700 under its user (spec 069 section 8.3.1,
+#              SPL-4558). `desk`: <SPOOL_FLEET_TENANT>/<the box's desk id>;
+#              `desk:rsp`: <SPOOL_FLEET_TENANT>/<SPOOL_RSP_BOX>; `desk:any`:
+#              reads no one desk (the roots only), stays where it is.
+#              tests/box-crons-desk-reach.py measures the marked set from the
 #              code; install-box-crons.tst.sh fails when a mark disagrees.
 #
 # name              | schedule        | script                                                  | log                   | replaces | as
@@ -32,7 +36,7 @@ lane-rotate       | * * * * *       | src/bash/scripts/lane-rotate-cron.sh      
 uplink-probe      | * * * * *       | src/bash/scripts/uplink-probe-cron.sh                   | uplink-probe/cron.log |
 qas-ci-accept     | 23 * * * *      | src/bash/scripts/qas-ci-accept-cron.sh                  | qas-ci-accept/cron.log | | desk
 owner-digest      | 7 * * * *       | src/bash/scripts/owner-digest-cron.sh                   | owner-digest/cron.log | | desk
-issue-close-landed | */5 * * * *     | src/bash/scripts/issue-close-landed-cron.sh             | issue-close-landed/cron.log | | desk
+issue-close-landed | */5 * * * *     | src/bash/scripts/issue-close-landed-cron.sh             | issue-close-landed/cron.log | | desk:rsp
 done-claim-check  | */5 * * * *     | src/bash/scripts/done-claim-check-cron.sh               | done-claim-check/cron.log |
 archived-seats-free | */5 * * * *   | src/bash/scripts/archived-seats-free-cron.sh            | archived-seats-free/cron.log | | desk
 issue-key-rate    | 53 6 * * 1      | src/bash/scripts/issue-key-rate-cron.sh                 | issue-key-rate/cron.log |
@@ -44,7 +48,7 @@ fx-rates-fetch    | 37 16 * * *     | src/bash/scripts/fx-rates-fetch-cron.sh   
 push-orphan-check | * * * * *       | src/bash/scripts/push-orphan-check-cron.sh              | push-orphan-check/cron.log |
 restore-drill-red-note | 7,37 * * * *  | src/bash/scripts/restore-drill-red-note-cron.sh         | restore-drill-red-note/cron.log |
 login2-sync       | */5 * * * *     | src/bash/scripts/login2-sync-cron.sh                    | login2-sync/cron.log  |
-file-streams      | * * * * *       | src/bash/scripts/file-stream-follow-cron.sh             | file-streams/cron.log | | desk
+file-streams      | * * * * *       | src/bash/scripts/file-stream-follow-cron.sh             | file-streams/cron.log | | desk:any
 weekly-limit-alert | */5 * * * *    | src/bash/scripts/weekly-limit-alert-cron.sh             | weekly-limit-alert/cron.log | | desk
 # spec 166 row B6: the night zombie-topic sweep; acts once a night on the dispatch holder's box
 zombie-topics     | */15 * * * *    | src/bash/scripts/zombie-topics-cron.sh                  | zombie-topics/cron.log | | desk

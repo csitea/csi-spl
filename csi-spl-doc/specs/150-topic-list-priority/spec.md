@@ -395,7 +395,7 @@ before a row that depends on it starts.
 | B3 (Implemented, e0ca5a3c4) | 3 | `PUT /v1/topics/{task_id}/priority` (door, policy), `priority` on the view rows, the `topic_priority` frame, openapi; C305-C307 | `hub/topic_priority.go`, `hub/topic_priority_test.go`, `hub/view.go` (the row field only), `hub/openapi.json`; widened by the dispatch holder (c-002 msg `b29b98fe`) so the priority rides the reads it is on with no round trip of its own (`TestRoundTripsPerRequest` budgets unchanged): `store/view.go` (`TopicRow.Priority`, the memory twin), `store/view_postgres.go` (`summary()`), `store/channel_humans.go` (`TopicAccess.Priority`), `store/channels_postgres.go` (the topic door read) | B1 |
 | B4 (Implemented, SPL-4203) | 2-3 | the i18n keys of 3.5 in all 19 locales, one commit | `csi-spl-wui/i18n/locales/*.json` | Q2 answered |
 | B5 (Implemented, d7e5d1ae8) | 2 | the `topicListView` pure function; C201-C206, C208, C210 | `wui/utils/topic-list-order.mjs`, `wui/types/mjs-shims.d.ts` (its declaration), `csi-spl-wui/tests/unit/topic-list-order.test.mjs` | Q2 answered |
-| B6 | 1-2 | `TopicListControl` in FeedHeader, the MessageFeed wiring, the per-browser choice; C101-C104, C207, C209 | `wui/components/TopicListControl.vue`, `wui/components/FeedHeader.vue`, `wui/components/MessageFeed.vue`, `wui/composables/useTopicListChoice.ts`, `csi-spl-wui/tests/e2e/topic-list-control.test.mjs` | B4, B5 |
+| B6 (Implemented, 14fbb2b7b) | 1-2 | `TopicListControl` in FeedHeader, the MessageFeed wiring, the per-browser choice; C101-C104, C207, C209 | `wui/components/TopicListControl.vue`, `wui/components/FeedHeader.vue`, `wui/components/MessageFeed.vue`, `wui/composables/useTopicListChoice.ts`, `csi-spl-wui/tests/e2e/topic-list-control.test.mjs`; widened by the dispatch holder (c-002, msgs 6888e9b6, 11df38b3) so the hub's priority reaches the sort: `wui/utils/channel-feed-core.mjs` (`mergeTopicTotals` keeps it, `e6dbae4f9`, its case in `tests/unit/reply-counts.test.mjs`), `wui/stores/channel.ts` (`priorityFor`, `7b76e5aca`) | B4, B5 |
 | B7 (Implemented, 1cb90a7bf) | 3 | `TopicPriorityChooser` in both topic panes, the client call and the mock; C309-C311 | `wui/components/TopicPriorityChooser.vue`, `wui/components/TopicPane.vue`, `wui/components/LiveTopicPane.vue`, `wui/utils/spool-client.mjs`, `wui/utils/spool-client-mock.mjs`, `csi-spl-wui/tests/e2e/topic-priority.test.mjs`; at build also `wui/utils/live-ws.mjs` (the `topic_priority` frame reached no listener, 4be2503fd), `wui/types/mjs-shims.d.ts` (the client's declarations) and `csi-spl-wui/tests/unit/spool-client.test.mjs`. The client keeps one priority per topic from every source (`topicPriorityOf`); `listMessages` `totals[id].priority` carries the hub's value for B6 (holder c-002 msg `b51d924f`) | B3, B4 |
 | B8 | 3 | the card badge; C312 | `wui/components/MessageCard.vue`, `csi-spl-wui/tests/e2e/topic-priority-badge.test.mjs` | B3, B4 |
 | B9 (Implemented, 2ab66feb2) | 4 | `fleet_asks.discussion`, the hub resolve, priority in `askPositions`; C401-C404 | `rdb/0241_fleet_ask_discussion.sql` (planned as 0215), `store/fleet_ask.go` (it also holds the memory store), `store/fleet_ask_postgres.go`, `store/fleet_ask_queue_test.go`, `hub/box_ask.go`, `hub/box_ask_test.go` | B1, Q5 answered |
@@ -425,6 +425,14 @@ before a row that depends on it starts.
   only after B4, B6, B7 and B8 have landed.
 - B6, B7 and B8 run the WUI e2e on the generated bundle (repo CLAUDE.md),
   not only `pnpm run typecheck`.
+- B6 as built: the priority sort reads `channel.priorityFor`, the hub's
+  value on the topic totals, which B7's `listMessages` copies onto
+  `totals[id].priority` (`spool-client.mjs`); a topic with none reads 3. LiveFeed still orders the unread group by its unread
+  count (`useUnreadOrder`, SPL-2506), so under a sort the unread cards stay
+  at the edge most unread first and the read group follows the sort. C104's
+  planted control (a static import in FeedHeader) did not move
+  `ci_initial_gzip_kb` (153.8 KB both, n=1): FeedHeader is in the channel
+  route's chunk, so that budget cannot see this defect.
 
 ## 6. Panel decisions
 

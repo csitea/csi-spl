@@ -24,9 +24,10 @@ blocker 1a7cff23 (task spawn-share, 2026-11-01T22:2xZ): refactor 16%, 4 of
 24 classed live lanes, and no refactor row queued. Round 20
 ([plan](refactor-round-20-plan.md), v1.0) has rows 06 and 07 on master
 (`git log 2acffb02e -E --grep='r46-0[0-9]' --format='%h %s'` -> 2:
-`a012b7a71` r46-07, `bc2a481da` r46-06); rows 01, 08, 09 run on the other box (lanes
-c-171, c-180, c-186), and rows 02-05 wait behind row 01 (one shared
-baseline). **No round 20 retro yet**: not due while rows are open
+`a012b7a71` r46-07, `bc2a481da` r46-06); since then row 08 landed too
+(`5cc8ead51` on `b4cefd7b4`, same command). Rows 01 and 09 run on the other
+box (lanes c-171, c-186), and rows 02-05 wait behind row 01 (one shared
+baseline): open round 20 rows are 01-05 and 09. **No round 20 retro yet**: not due while rows are open
 (rulebook 2.8). This plan re-measures round 20's section 6 inputs (section
 2) and takes only what does **not** wait on an open round 20 row.
 
@@ -36,7 +37,7 @@ composables one line over it, five put small untested Go functions under
 test (among them the box key loader and the key desk's defaults), and one
 closing row deletes the clean-code list lines the split rows leave stale.
 
-**Status: v0.1 DRAFT**, for the panel.
+**Status: v0.2 DRAFT**, for the panel.
 
 Editor: **c-908** (claude; agy is out of quota until 2026-11-03T12:42Z and
 claude is the specs_and_docs backup). Panel reviewer: a cross-vendor grok
@@ -120,7 +121,7 @@ on a `git archive 2acffb02e` copy, never on a live checkout.
 | 07 `test(r47-07-api-sign-load-private-errors)` | the box key loader's refusals under test | `LoadPrivate` reads the key a box signs with; its missing, undecodable and wrong-size branches are untested (54.5), and `sign` sits 0.3 under its floor 82.9 (82.6, inside the gate's 1.0 slack) | `go:internal/sign/sign.go:52` (`LoadPrivate`)<br>`go:internal/sign/load_private_test.go` (new) | 1 function at 54.5 | In `t.TempDir()` only, keys generated in the test: no file -> `errors.Is(err, ErrUnpinned)`; non-base64 -> a decode error naming the id; base64 of 10 bytes -> the wrong-size error; a key the package writes itself -> loads and signs what the matching public key verifies. Never a real key path. Helper names prefixed `lp`. No floor change. Tests: `go test -count=1 -race -cover ./internal/sign/`; `run-all-tests.sh`. **Red control:** delete the size check -> the wrong-size case fails. | either | claude | tests | 1 |
 | 08 `test(r47-08-api-keydesk-server-defaults)` | the key desk's nil defaults under test | `Server.logf` with no `Log` (50.0) and `peerOK` with no `PeerOK` (66.7, falls back to `DefaultPeerOK`) are the paths a desk runs when its caller sets neither; round 20 named `logf` as round 21 input | `go:internal/keydesk/keydesk.go:164` (`logf`)<br>`go:internal/keydesk/keydesk.go:235` (`peerOK`)<br>`go:internal/keydesk/server_defaults_test.go` (new) | 2 functions under 70 | `logf` on a `Server` with `Log == nil` -> no panic, and with a `Log` -> the formatted line once; `peerOK` with `PeerOK == nil` -> the same answer as `DefaultPeerOK` for the same `Peer` (the lane picks a `Peer` `DefaultPeerOK` refuses, e.g. another uid, and states it), with `PeerOK` set -> its answer. No socket, no real secret. Helper names prefixed `sd`. Tests: `go test -count=1 -race -cover ./internal/keydesk/`; `run-all-tests.sh`. **Red control:** `peerOK` returning `nil` when `PeerOK` is nil -> the refused case fails. | either | claude | tests | 1 |
 | 09 `test(r47-09-api-config-operator-workspace)` | the bootstrap workspace getters under test | `OperatorWorkspace` names the operator workspace until the database flags one (0.0); `DemoTenant` names the demo one, `""` while off (66.7) | `go:internal/config/config.go:651` (`OperatorWorkspace`)<br>`go:internal/config/config.go:659` (`DemoTenant`)<br>`go:internal/config/operator_workspace_test.go` (new) | 2 functions under 70 | `OperatorWorkspace`: `OperatorTenant` set -> it, even with an apex; unset -> `WUIApexTenant`; both unset -> `""`. `DemoTenant`: off -> `""` even with a name; on -> the name. Struct literals only, no env. Helper names prefixed `ow`. Tests: `go test -count=1 -race -cover ./internal/config/`; `run-all-tests.sh`. **Red control:** `OperatorWorkspace` checking the apex first -> the "both set" case fails. | either | claude | tests | 1 |
-| 10 `test(r47-10-gates-drop-stale-long-lines)` | a clean-code list holds only what is still over the cap | the lists "may only shrink", but a stale line lets a function grow back up to its old ceiling unnoticed; `spl_desk_sidecar` is stale today | `iac:t/bash-cleancode.tst.sh:38` (`spl_desk_sidecar`) and the `LONG` lines of rows 01-03 that landed (`:30`, `:34`, `:35`, `:43`, `:46`, `:47` on `2acffb02e`)<br>`wui:tests/unit/cleancode.test.mjs:44,50` (row 04's two lines) and its count comment `:37-38` | up to 9 lines | Delete exactly the lines whose `NOTE LONG ... no longer over` the gates print on the lane's start sha, no other line; a row of 01-04 not landed yet leaves its lines for the next round. Tests: `bash iac:t/bash-cleancode.tst.sh` and `node wui:tests/unit/cleancode.test.mjs` print no `NOTE LONG ... no longer over` after; `bash iac:t/run-all-tests.sh`; `cd wui: && pnpm run test:unit` if the WUI file changed. R9 (a gate's list): run under `PRE_PUSH_TIER=full` and once with every `PRE_PUSH_*` unset. **Control:** the NOTE lines before (quoted), none after; FAIL count 0 both times. | either | claude | tests | 2 (after 01-04) |
+| 10 `test(r47-10-gates-drop-stale-long-lines)` | a clean-code list holds only what is still over the cap | the lists "may only shrink", but a stale line lets a function grow back up to its old ceiling unnoticed; `spl_desk_sidecar` is stale today | `iac:t/bash-cleancode.tst.sh:38` (`spl_desk_sidecar`, the one stale line today)<br>`wui:tests/unit/cleancode.test.mjs:37` (the count comment, only if a WUI line goes) | 1 line today, up to 9 once rows 01-04 land | The other lines are the `LONG` lines rows 01-04 leave stale, named here, not as sites (as round 20 v0.3 row 01): `bash-cleancode.tst.sh` `:30`, `:34`, `:35`, `:43`, `:46`, `:47` and `cleancode.test.mjs` `:44`, `:50` on `2acffb02e` (same on `b4cefd7b4`). Delete exactly the lines whose `NOTE LONG ... no longer over` the gates print on the lane's start sha, no other line; a row of 01-04 not landed yet leaves its lines for the next round. Tests: `bash iac:t/bash-cleancode.tst.sh` and `node wui:tests/unit/cleancode.test.mjs` print no `NOTE LONG ... no longer over` after; `bash iac:t/run-all-tests.sh`; `cd wui: && pnpm run test:unit` if the WUI file changed. R9 (a gate's list): run under `PRE_PUSH_TIER=full` and once with every `PRE_PUSH_*` unset. **Control:** the NOTE lines before (quoted), none after; FAIL count 0 both times. | either | claude | tests | 2 (after 01-04) |
 
 ### 3.1 Lanes and batches
 
@@ -230,8 +231,14 @@ on a `git archive 2acffb02e` copy, never on a live checkout.
 
 - v0.1: first draft (c-908): 10 rows, slug `r47`; no round 20 retro (not
   due).
+- v0.2 (c-908, on g-910 FAIL 09cc77a4 and c-002 dffa4ea6): W1 row 10 back
+  to at most 5 sites (rulebook 3.1): the sites cell names the one stale line
+  and the WUI count comment; the `LONG` lines rows 01-04 leave stale move to
+  the test cell, as round 20 v0.3 did. N1 round 20 row 08 landed
+  (`5cc8ead51`); open round 20 rows are 01-05 and 09. N2-N5: no change
+  asked.
 
 ## 9. Consensus
 
-- Editor seat: c-908@sat (claude): drafted v0.1.
-- Grok panel reviewer seat: to be placed by the dispatch lease holder.
+- Editor seat: c-908@sat (claude): drafted v0.1, folded v0.2.
+- Grok panel reviewer seat: g-910@sat (grok): FAIL on v0.1 `1d3f343ff` (W1); re-reviews v0.2.

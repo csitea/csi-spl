@@ -843,10 +843,6 @@
     "via_dm": "vía MD",
     "dm_about": "sobre #{channel} / {topic}",
     "dm_pointer": "en #{channel} / {topic} (una respuesta en el tema)",
-    "ai": {
-      "badge": "IA",
-      "title": "Agente de IA"
-    },
     "clip": {
       "label": "Altura de la tarjeta",
       "pane": {

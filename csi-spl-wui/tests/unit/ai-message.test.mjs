@@ -39,10 +39,10 @@ describe('isAiMessage', () => {
 })
 
 describe('wiring', () => {
-  it('MessageCard marks and badges the AI row', () => {
+  it('MessageCard marks the AI row and carries no AI badge (HUM-10 3559f15e)', () => {
     const card = messageCardSrc()
     assert.match(card, /'msg--ai': ai/)
-    assert.match(card, /data-testid="msg-ai-badge"/)
+    assert.doesNotMatch(card, /msg-ai-badge/)
     assert.match(card, /const ai = computed\(\(\) => isAiMessage\(props\.msg\)\)/)
   })
   it('SPL-2173: no agent item paints a left bar or a tint, and the shading sits UNDER hover', () => {
@@ -64,13 +64,10 @@ describe('wiring', () => {
     const store = src('src/stores/notification.ts')
     assert.match(store, /isAiMessage\(m\) \? `\\u\{1F916\} \$\{who\}`/)
   })
-  it('every locale names the badge and its tooltip', () => {
-    const en = json('i18n/locales/en.json').feed.ai
-    assert.deepEqual(en, { badge: 'AI', title: 'AI agent' })
-    for (const loc of ['bg', 'el', 'es', 'et', 'fi', 'he', 'lt', 'lv', 'mk', 'nl', 'pl', 'ro', 'ru', 'sk', 'sr', 'sv', 'tr', 'uk']) {
-      const ai = json(`i18n/locales/${loc}.json`).feed.ai
-      assert.ok(ai && ai.badge && ai.title, loc)
+  it('no locale keeps the dropped badge text (HUM-10 3559f15e)', () => {
+    for (const loc of ['en', 'bg', 'el', 'es', 'et', 'fi', 'he', 'lt', 'lv', 'mk', 'nl', 'pl', 'ro', 'ru', 'sk', 'sr', 'sv', 'tr', 'uk']) {
+      const ai = json(`i18n/locales/${loc}.json`).feed.ai || {}
+      assert.ok(!('badge' in ai) && !('title' in ai), loc)
     }
-    assert.deepEqual(json('i18n/locales/bg.json').feed.ai, { badge: 'ИИ', title: 'ИИ агент' })
   })
 })

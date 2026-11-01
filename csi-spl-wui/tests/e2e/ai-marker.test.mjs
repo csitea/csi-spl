@@ -2,9 +2,14 @@
 // 1c268bf0, 68dd229e, 948febcd) + SPL-2173 (owner HUM-10, t1 57adfdd4 msg
 // b0ef4dc4), proved in a REAL browser.
 //
-// HUM-24: an agent's card carries an "AI" badge (tooltip "AI agent") beside
-// the name; a line the owner TYPED at an agent's terminal (specs/036) is the
-// human's, so it is NOT marked.
+// HUM-24: an agent's card is marked AI (data-ai); a line the owner TYPED at
+// an agent's terminal (specs/036) is the human's, so it is NOT marked.
+// SPL-4562 (owner HUM-10, t1 ddebe7b0 msg 3559f15e: "We don't need thd ai
+// labels anymore"): no card carries the "AI" badge beside the name any more,
+// and at 1440 px the agent's name is shown whole. At 390 px the sender and
+// the recipient still share one row with the kind, time, emoji and menu, so
+// both names stay cut (49 px of 108 px for CLE-07@box-a; 34 px with the
+// badge): the check logs the width there and does not claim a whole name.
 //
 // SPL-2120: "in all of the listings ... a lighter, dark, or darker change in
 // the background colors" and "something different if it is posted by an
@@ -25,7 +30,7 @@
 // typed by HUM-1 (8888...); #alerts holds GRK-03's topic card (6666...). The events log reads 6 stubbed events; the issues
 // list seeds 3 issues HUM-1 filed and 2 an agent filed (spool.mock.issues-seed
 // / spool.mock.issues-agent); the Flow shows every entry (spool.flow-scope).
-// CONTROL: the person's items have no badge, and three rows of one shade fail
+// CONTROL: the person's items are not marked, and three rows of one shade fail
 // the "1 and 2 differ" check, so a list with no alternation reads red. The
 // bar check reads red on ee7a49523 (SPL-2120), which drew the bar as an inset
 // box-shadow.
@@ -180,7 +185,7 @@ function judge(tag, list, f, authors) {
   ok(`${tag} ${list}: no person's item has a left bar`, f.people.length > 0 && f.people.every((s) => !s), { people: f.people })
 }
 
-/** One feed row: the AI flag and the badge (text, tooltip, shown). */
+/** One feed row: the AI flag, the badge (SPL-4562: none), the sender name, its width and whether it is cut. */
 function rowFacts(page, id) {
   return page.evaluate((msgId) => {
     const row = document.querySelector(`article.msg[data-msg-id="${msgId}"]`)
@@ -192,6 +197,9 @@ function rowFacts(page, id) {
       badge: badge ? badge.textContent.trim() : null,
       title: badge ? badge.getAttribute('title') : null,
       shown: Boolean(r && r.width > 0 && r.height > 0),
+      name: row.querySelector('.msg-meta > .msg-author')?.textContent.trim() ?? null,
+      nameW: (() => { const n = row.querySelector('.msg-meta > .msg-author'); return n ? Math.round(n.getBoundingClientRect().width) : null })(),
+      cut: (() => { const n = row.querySelector('.msg-meta > .msg-author'); return n ? n.scrollWidth > n.clientWidth : null })(),
     }
   }, id)
 }
@@ -250,8 +258,8 @@ try {
       await paint(theme)
       const agent = await rowFacts(p, AGENT)
       const human = await rowFacts(p, OPENER)
-      ok(`${tag} ${theme}: the agent card carries the "AI" badge with the "AI agent" tooltip`,
-        agent?.ai === 'true' && agent.badge === 'AI' && agent.title === 'AI agent' && agent.shown, agent)
+      ok(`${tag} ${theme}: SPL-4562 the agent card is marked AI but carries no "AI" badge${phone ? '' : ', its name not cut'}`,
+        agent?.ai === 'true' && agent.badge === null && Boolean(agent.name) && (phone || agent.cut === false), agent)
       ok(`${tag} ${theme}: CONTROL a person's card has no marker`, human?.ai === null && human.badge === null, human)
       judge(`${tag} ${theme}`, 'topic feed', await listFacts(p, FEED), true)
       await shot(`${tag}-${theme}-topic`)

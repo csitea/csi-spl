@@ -843,10 +843,6 @@
     "via_dm": "через ЛС",
     "dm_about": "о #{channel} / {topic}",
     "dm_pointer": "в #{channel} / {topic} (ответ в теме)",
-    "ai": {
-      "badge": "ИИ",
-      "title": "ИИ-агент"
-    },
     "clip": {
       "label": "Высота карточки",
       "pane": {

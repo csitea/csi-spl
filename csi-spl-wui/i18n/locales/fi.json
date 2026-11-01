@@ -843,10 +843,6 @@
     "via_dm": "yksityisviestin kautta",
     "dm_about": "aiheesta #{channel} / {topic}",
     "dm_pointer": "kanavalla #{channel} / {topic} (vastaus aiheessa)",
-    "ai": {
-      "badge": "TA",
-      "title": "Tekoälyagentti"
-    },
     "clip": {
       "label": "Kortin korkeus",
       "pane": {

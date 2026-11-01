@@ -843,10 +843,6 @@
     "via_dm": "преку ДП",
     "dm_about": "за #{channel} / {topic}",
     "dm_pointer": "во #{channel} / {topic} (одговор во темата)",
-    "ai": {
-      "badge": "ВИ",
-      "title": "ВИ агент"
-    },
     "clip": {
       "label": "Висина на картичката",
       "pane": {

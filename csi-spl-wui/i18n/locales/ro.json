@@ -843,10 +843,6 @@
     "via_dm": "prin MD",
     "dm_about": "despre #{channel} / {topic}",
     "dm_pointer": "în #{channel} / {topic} (un răspuns în subiect)",
-    "ai": {
-      "badge": "IA",
-      "title": "Agent IA"
-    },
     "clip": {
       "label": "Înălțimea cardului",
       "pane": {

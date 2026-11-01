@@ -843,10 +843,6 @@
     "via_dm": "via direktmeddelande",
     "dm_about": "om #{channel} / {topic}",
     "dm_pointer": "i #{channel} / {topic} (ett svar i ämnet)",
-    "ai": {
-      "badge": "AI",
-      "title": "AI-agent"
-    },
     "clip": {
       "label": "Korthöjd",
       "pane": {

@@ -843,10 +843,6 @@
     "via_dm": "via privébericht",
     "dm_about": "over #{channel} / {topic}",
     "dm_pointer": "in #{channel} / {topic} (een antwoord in het onderwerp)",
-    "ai": {
-      "badge": "AI",
-      "title": "AI-agent"
-    },
     "clip": {
       "label": "Kaarthoogte",
       "pane": {

@@ -80,13 +80,6 @@
       -->
       <div class="msg-meta">
         <AgentBadge :id="author.id" :box="author.box || undefined" />
-        <!-- HUM-24 (csitea ba4696c1): an AI agent's row says so beside the name -->
-        <span
-          v-if="ai"
-          class="msg-ai-badge"
-          data-testid="msg-ai-badge"
-          :title="t('feed.ai.title')"
-        >{{ t('feed.ai.badge') }}</span>
         <!-- specs/036 FR-011: the human typed this at the agent's terminal -->
         <span
           v-if="author.via"
@@ -756,22 +749,9 @@ onMounted(() => {
  * then breaks the day someone drops the inline style.
  *
  * `.msg-meta` is `align-items: baseline` (shared, other rows rely on it), so
- * both inline marks centre themselves rather than sitting on the text baseline.
+ * the inline avatar centres itself rather than sitting on the text baseline.
  */
 .avatar--to { align-self: center; }
-.msg-ai-badge {
-  align-self: center;
-  flex: 0 0 auto;
-  padding: 0 5px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--color-accent);
-  color: var(--color-fg);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  line-height: 1.4;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-}
 /* spec 067: the DM-ref line is the moved line, its link in the same muted ink */
 .msg-dm-ref a { color: inherit; }
 /* spec 068 L8: the responsible seat gives way like the time (ellipsis, title) */

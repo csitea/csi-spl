@@ -843,10 +843,6 @@
     "via_dm": "через ПП",
     "dm_about": "щодо #{channel} / {topic}",
     "dm_pointer": "у #{channel} / {topic} (відповідь у темі)",
-    "ai": {
-      "badge": "ШІ",
-      "title": "ШІ-агент"
-    },
     "clip": {
       "label": "Висота картки",
       "pane": {

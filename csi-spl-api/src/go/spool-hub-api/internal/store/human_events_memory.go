@@ -23,7 +23,12 @@ func (s *Memory) AddHumanEvents(_ context.Context, humanID string, evs []HumanEv
 	if _, ok := s.hum.humans[humanID]; !ok {
 		return 0, ErrNotFound
 	}
+	stored := 0
 	for _, e := range evs {
+		if s.events.resent(humanID, e) {
+			continue
+		}
+		stored++
 		s.events.seq++
 		e.ID, e.HumanID, e.Kind, e.ReceivedAt = s.events.seq, humanID, HumanEventKindError, now
 		s.events.rows = append(s.events.rows, e)
@@ -46,7 +51,21 @@ func (s *Memory) AddHumanEvents(_ context.Context, humanID string, evs []HumanEv
 		}
 		s.events.rows = kept
 	}
-	return len(evs), nil
+	return stored, nil
+}
+
+// resent reports a stored row of humanID with e's error_id and occurred_at:
+// rdb 0248's unique index (an empty error_id or no occurred_at never match).
+func (m *memEvents) resent(humanID string, e HumanEvent) bool {
+	if e.ErrorID == "" || e.OccurredAt == nil {
+		return false
+	}
+	for _, r := range m.rows {
+		if r.HumanID == humanID && r.ErrorID == e.ErrorID && r.OccurredAt != nil && r.OccurredAt.Equal(*e.OccurredAt) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Memory) HumanEventsPage(_ context.Context, humanID string, before int64, limit int) ([]HumanEvent, error) {

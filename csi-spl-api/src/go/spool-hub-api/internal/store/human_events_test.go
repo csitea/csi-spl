@@ -129,3 +129,49 @@ func TestHumanEventsDeleteOwnOnly(t *testing.T) {
 		})
 	}
 }
+
+// SPL-4559: the WUI re-sends a batch whose answer it lost (event-log.mjs), so
+// the same event (human, error_id, occurred_at) arrives twice; it is stored
+// once (rdb 0248). An event with no error_id or no occurred_at is never a
+// re-send match and is stored every time.
+func TestHumanEventsResendStoredOnce(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			now := time.Now().UTC().Truncate(time.Microsecond)
+			es := s.(HumanEvents)
+			a, err := s.(Humans).Admit(ctx, Identity{Provider: "google", Subject: uid("evr-a-")}, "", AdmitPolicy{}, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			b, err := s.(Humans).Admit(ctx, Identity{Provider: "google", Subject: uid("evr-b-")}, "", AdmitPolicy{}, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			at := now.Add(-22 * time.Second)
+			ev := HumanEvent{ErrorID: "ERR-CLIENT-20261031-120000-AB12", OccurredAt: &at, Source: "omnibox-send", Code: "hub_down"}
+			if n, err := es.AddHumanEvents(ctx, a, []HumanEvent{ev, ev}, now); err != nil || n != 1 {
+				t.Fatalf("first send: %d %v, want 1 stored", n, err)
+			}
+			if n, err := es.AddHumanEvents(ctx, a, []HumanEvent{ev}, now.Add(22*time.Second)); err != nil || n != 0 {
+				t.Fatalf("re-send: %d %v, want 0 stored", n, err)
+			}
+			if n, err := es.AddHumanEvents(ctx, b, []HumanEvent{ev}, now); err != nil || n != 1 {
+				t.Fatalf("other human, same event: %d %v, want 1 stored", n, err)
+			}
+			later := at.Add(time.Millisecond)
+			blank := []HumanEvent{{Message: "no id", OccurredAt: &at}, {Message: "no id", OccurredAt: &at},
+				{ErrorID: ev.ErrorID}, {ErrorID: ev.ErrorID}, {ErrorID: ev.ErrorID, OccurredAt: &later}}
+			if n, err := es.AddHumanEvents(ctx, a, blank, now); err != nil || n != len(blank) {
+				t.Fatalf("non-matching rows: %d %v, want %d stored", n, err, len(blank))
+			}
+			got, err := es.HumanEventsPage(ctx, a, 0, 20)
+			if err != nil || len(got) != 1+len(blank) {
+				t.Fatalf("rows: %d %v, want %d: the re-sent event was stored twice", len(got), err, 1+len(blank))
+			}
+			if bob, _ := es.HumanEventsPage(ctx, b, 0, 10); len(bob) != 1 {
+				t.Fatalf("bob rows: %+v, want 1", bob)
+			}
+		})
+	}
+}

@@ -71,8 +71,12 @@ all optional; **any other field is refused** (`400`, `DisallowUnknownFields`):
 | `status` | 0..999 |
 | `source` ≤80, `method` ≤12, `origin` ≤120, `path` ≤200, `code` ≤120, `message` ≤800, `name` ≤80, `route` ≤200 | characters (runes), valid UTF-8 |
 
-`201 {"added": n}`. The hub stamps `received_at` and keeps the newest **500**
-rows per human, deleting older ones in the same transaction.
+`201 {"added": n}`, n the rows stored. The hub stamps `received_at` and keeps
+the newest **500** rows per human, deleting older ones in the same transaction.
+One event is (human, `error_id`, `at`): an entry that matches a stored row is
+a re-send and adds nothing, so a retried batch stores each event once
+(SPL-4559, rdb 0248's unique index). An entry with `error_id` `''` or no `at`
+never matches and is stored every time.
 Per-human write window: 240 POSTs an hour (`Options.EventsWriteLimit`);
 above it `429 rate_limited` with `Retry-After`.
 

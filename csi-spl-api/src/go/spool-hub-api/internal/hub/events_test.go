@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -49,9 +50,13 @@ type eventsPage struct {
 	NextBefore int64 `json:"next_before"`
 }
 
+// eventSeq gives each test event its own error_id: one error_id and at is
+// one event, and a re-sent one is stored once (SPL-4559, rdb 0248).
+var eventSeq atomic.Uint32
+
 func oneEvent(msg string) string {
 	b, _ := json.Marshal(map[string]any{
-		"error_id": "ERR-CLIENT-20260925-190000-ABCD", "at": "2026-09-25T19:00:00.123Z",
+		"error_id": fmt.Sprintf("ERR-CLIENT-20260925-190000-%04X", eventSeq.Add(1)&0xffff), "at": "2026-09-25T19:00:00.123Z",
 		"source": "api", "method": "GET", "origin": "https://api.example.test", "path": "/v1/view/roster",
 		"status": 502, "code": "", "message": msg, "name": "FetchError", "route": "/lobby",
 	})
@@ -86,7 +91,7 @@ func TestEvents_AddListOwnOnlyNewestFirst(t *testing.T) {
 		t.Fatalf("alice sees %+v", p.Events)
 	}
 	e := p.Events[0]
-	if e.Kind != "error" || e.ErrorID != "ERR-CLIENT-20260925-190000-ABCD" || e.Status != 502 || e.Route != "/lobby" ||
+	if e.Kind != "error" || !strings.HasPrefix(e.ErrorID, "ERR-CLIENT-20260925-190000-") || e.Status != 502 || e.Route != "/lobby" ||
 		!strings.HasPrefix(e.At, "2026-09-25T19:00:00.123") || e.ReceivedAt == "" {
 		t.Fatalf("row = %+v", e)
 	}
@@ -296,5 +301,23 @@ func TestEvents_DeleteSelectedRefusals(t *testing.T) {
 	}
 	if c, b := k.ev(t, k.alice, "POST", "/delete", `{"ids":[`+strings.Join(many[:200], ",")+`]}`); c != http.StatusOK {
 		t.Fatalf("200 ids = %d %s, want 200", c, b)
+	}
+}
+
+// SPL-4559: the WUI re-sends a batch whose answer it lost; the hub answers it
+// as stored and keeps one row (events 1195 + 1197 on prd were one event).
+func TestEvents_ResentBatchStoredOnce(t *testing.T) {
+	k := newKeysRig(t, 0)
+	one := `{"events":[` + oneEvent("hub_down") + `]}`
+	if c, b := k.ev(t, k.alice, "POST", "", one); c != http.StatusCreated || !strings.Contains(b, `"added":1`) {
+		t.Fatalf("send = %d %s", c, b)
+	}
+	if c, b := k.ev(t, k.alice, "POST", "", one); c != http.StatusCreated || !strings.Contains(b, `"added":0`) {
+		t.Fatalf("re-send = %d %s, want 201 added 0", c, b)
+	}
+	_, b := k.ev(t, k.alice, "GET", "", "")
+	var p eventsPage
+	if err := json.Unmarshal([]byte(b), &p); err != nil || len(p.Events) != 1 {
+		t.Fatalf("rows after re-send: %v %s, want 1", err, b)
 	}
 }

@@ -42,10 +42,13 @@ func (s *Postgres) AddHumanEvents(ctx context.Context, humanID string, evs []Hum
 	b := &pgx.Batch{}
 	for _, e := range evs {
 		b.Queue(`INSERT INTO human_events (human_id, kind, error_id, occurred_at, received_at, source, method, origin, path, status, code, message, name, route)
-			VALUES ($1, 'error', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+			VALUES ($1, 'error', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			ON CONFLICT DO NOTHING`,
 			humanID, e.ErrorID, e.OccurredAt, now, e.Source, e.Method, e.Origin, e.Path, e.Status, e.Code, e.Message, e.Name, e.Route)
 	}
-	if err := tx.SendBatch(ctx, b).Close(); err != nil {
+	// A re-sent event (same error_id and occurred_at, rdb 0248) adds no row.
+	stored, err := sendCountBatch(ctx, tx, b)
+	if err != nil {
 		return 0, err
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM human_events WHERE human_id = $1 AND event_id < (
@@ -53,7 +56,22 @@ func (s *Postgres) AddHumanEvents(ctx context.Context, humanID string, evs []Hum
 		humanID, HumanEventsKeep-1); err != nil {
 		return 0, err
 	}
-	return len(evs), tx.Commit(ctx)
+	return stored, tx.Commit(ctx)
+}
+
+// sendCountBatch runs b and sums the rows its statements affected.
+func sendCountBatch(ctx context.Context, tx pgx.Tx, b *pgx.Batch) (int, error) {
+	br := tx.SendBatch(ctx, b)
+	n := 0
+	for i := 0; i < b.Len(); i++ {
+		tag, err := br.Exec()
+		if err != nil {
+			br.Close() //nolint:errcheck
+			return 0, err
+		}
+		n += int(tag.RowsAffected())
+	}
+	return n, br.Close()
 }
 
 func (s *Postgres) HumanEventsPage(ctx context.Context, humanID string, before int64, limit int) ([]HumanEvent, error) {

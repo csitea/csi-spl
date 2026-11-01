@@ -115,18 +115,29 @@ spl_box_key() {
 # in the caller's own state root, as before.
 spl_desk_user() { spl_box_key SPOOL_DESK_USER; }
 
+# spl_desk_env: the env the desk resolvers default to: $ENV, else the env of
+# the SPL_STATE_DIR that do_spl_desk_cnf set (<root>/cloud/<env>). lane-map and
+# the lease run `ENV=x do_spl_desk_cnf`, so their shell keeps SPL_STATE_DIR but
+# no ENV (prd 2026-11-01, c-001 6caf4ec3: do_spl_asks_open read hub: off).
+spl_desk_env() {
+  local s="${SPL_STATE_DIR:-}"
+  [[ -n "${ENV:-}" ]] && { printf "%s" "$ENV"; return 0; }
+  [[ "${s%/*}" == */cloud && "${s##*/}" =~ ^[a-z0-9-]+$ ]] && printf "%s" "${s##*/}"
+  return 0
+}
+
 # spl_desk_state_root [env]: the cloud state root that holds env's desks
 # (default $ENV), <root>/desk/<workspace>/<desk id>. No desk user: today's
 # root, SPL_STATE_DIR when env is $ENV, else SPL_STATE_DIR's default under
 # $HOME. A desk user: <its home from getent>/.local/share/<org>-<app>/cloud/<env>.
 # SPL_STATE_DIR itself keeps the operator state and does not follow the desks.
 spl_desk_state_root() {
-  local e="${1:-${ENV:-}}" u h oa
+  local e="${1:-$(spl_desk_env)}" u h oa
   [[ -n "$e" ]] || { do_log "FATAL spl_desk_state_root: no env" >&2; return 1; }
   oa="${SPL_ORG_APP:-$(basename "${PROJ_PATH:?PROJ_PATH unset}")}"; oa="${oa%-orc}"
   u="$(spl_desk_user)"
   if [[ -z "$u" ]]; then
-    if [[ "$e" == "${ENV:-}" && -n "${SPL_STATE_DIR:-}" ]]; then printf '%s' "$SPL_STATE_DIR"
+    if [[ "$e" == "$(spl_desk_env)" && -n "${SPL_STATE_DIR:-}" ]]; then printf '%s' "$SPL_STATE_DIR"
     else printf '%s' "$HOME/.local/share/$oa/cloud/$e"; fi
     return 0
   fi
@@ -141,7 +152,7 @@ spl_desk_state_root() {
 # $SPL_STATE_DIR/desk: SPL_STATE_DIR is the CALLER's state, and a moved desk
 # lives under the desk user's home. The roots are tried in this order, the
 # first that holds the desk wins (spl_desk_roots):
-#   1. SPL_STATE_DIR (env = $ENV), else the caller's own root: every desk
+#   1. SPL_STATE_DIR (env = spl_desk_env), else the caller's own root: every desk
 #      found before the move is found the same way
 #   2. the desk user's root (SPOOL_DESK_USER, spl_desk_state_root)
 #   3. the agent user's and the box user's (SPOOL_AGENT_USER, SPOOL_BOX_USER,
@@ -158,7 +169,7 @@ spl_desk_state_root() {
 # .local is 0700 on a moved box: the desk user must still seat new desks).
 # Nothing is chmod-ed.
 spl_desk_dir() {
-  local ws="$1" box="$2" e="${3:-${ENV:-}}" me du u r first="" deny=""
+  local ws="$1" box="$2" e="${3:-$(spl_desk_env)}" me du u r first="" deny=""
   [[ -n "$ws" && -n "$box" && -n "$e" ]] || { do_log "FATAL spl_desk_dir: workspace, desk id and env are required" >&2; return 1; }
   me="$(id -un)" du="$(spl_desk_user)"
   while IFS=$'\t' read -r u r; do
@@ -176,11 +187,11 @@ spl_desk_dir() {
 # spl_desk_roots [env]: "<user>\t<cloud state root>" per root that may hold
 # env's desks, in spl_desk_dir's lookup order, each root once.
 spl_desk_roots() {
-  local e="${1:-${ENV:-}}" me oa u r seen=" "
+  local e="${1:-$(spl_desk_env)}" me oa u r seen=" "
   me="$(id -un)"
   oa="${SPL_ORG_APP:-$(basename "${PROJ_PATH:?PROJ_PATH unset}")}"; oa="${oa%-orc}"
   {
-    if [[ "$e" == "${ENV:-}" && -n "${SPL_STATE_DIR:-}" ]]; then printf '%s\t%s\n' "$me" "$SPL_STATE_DIR"
+    if [[ "$e" == "$(spl_desk_env)" && -n "${SPL_STATE_DIR:-}" ]]; then printf '%s\t%s\n' "$me" "$SPL_STATE_DIR"
     else printf '%s\t%s\n' "$me" "$HOME/.local/share/$oa/cloud/$e"; fi
     for u in "$(spl_desk_user)" "$(spl_box_key SPOOL_AGENT_USER)" "${SPOOL_BOX_USER:-$(stat -c %U "$PROJ_PATH" 2>/dev/null)}"; do
       [[ -n "$u" && "$u" != "$me" ]] || continue
@@ -208,7 +219,7 @@ spl_desk_glob() {
       [[ "$seen" == *":$k "* ]] && continue
       seen+="$u:$k "; printf '%s\n' "$p"
     done
-  done < <(spl_desk_roots "${2:-${ENV:-}}")
+  done < <(spl_desk_roots "${2:-$(spl_desk_env)}")
 }
 
 # spl_desk_root_enterable <path>: the deepest existing ancestor of path (or

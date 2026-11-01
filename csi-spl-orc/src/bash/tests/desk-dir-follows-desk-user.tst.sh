@@ -172,5 +172,21 @@ if [[ "$(id -u)" != 0 ]]; then
   chmod 700 "$RB"
 fi
 
+# --- 9. no ENV in the caller's shell (c-001 6caf4ec3, prd 2026-11-01) ---------
+# lane-map and the lease set ENV only for do_spl_desk_cnf (`ENV=x f`), so the
+# shell that then calls spl_desk_dir has SPL_STATE_DIR but no ENV.
+fresh; desk "$RB"
+out="$(in_orc "$T/box.env.half" 'unset ENV; spl_desk_dir t1 sat-rsp; echo " rc=$?"')"
+eq "9a. no ENV: the env is SPL_STATE_DIR's, B's desk found (RED on d5cd7dd30: env required)" "$RB/desk/t1/sat-rsp rc=0" "$out"
+desk "$RA"
+out="$(in_orc "$T/box.env.half" 'unset ENV; spl_desk_dir t1 sat-rsp; echo " rc=$?"')"
+eq "9b. no ENV, not moved: A's desk (SPL_STATE_DIR) first" "$RA/desk/t1/sat-rsp rc=0" "$out"
+fresh; desk "$RB"; echo x >"$RB/desk/t1/sat-rsp/pinned"
+out="$(in_orc "$T/box.env.half" 'unset ENV; LANE_FLEET=fleet LANE_TENANT=t1 LANE_ENV=prd LANE_DESK_BOX=sat-rsp
+  LANE_BOX=sat SPOOL_ROOT=/nonexistent spl_lane_init; echo "rc=$? dir=$LANE_DESK_DIR"')"
+has "9c. spl_lane_init (do_spl_asks_open): the moved desk is pinned (RED on d5cd7dd30: not pinned in t1 ())" "rc=0 dir=$RB/desk/t1/sat-rsp" "$out"
+out="$(in_orc "$T/box.env.half" 'unset ENV SPL_STATE_DIR; spl_desk_dir t1 sat-rsp; echo " rc=$?"')"
+has "9d. no ENV and no SPL_STATE_DIR: still refused" "env are required" "$out"
+
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"
 exit $((fails > 0))

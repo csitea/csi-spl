@@ -699,6 +699,12 @@ the same roots in the same order. The roots (`spl_desk_roots`), first hit wins:
    by desk and writes `SPOOL_DESK_USER` only once all moved, so a half-moved
    box holds desks under both users, either way round.
 
+With no `[env]` argument the env is `spl_desk_env`: `ENV`, else the env of the
+`SPL_STATE_DIR` that `do_spl_desk_cnf` set (`<root>/cloud/<env>`). Lane-map and
+the dispatch lease run `ENV=<env> do_spl_desk_cnf`, so their shell has no `ENV`.
+On 2026-11-01 the ask book read `hub: off` on prd for that reason
+(`FATAL spl_desk_dir: ... env are required`).
+
 Not found: it prints the caller's path (where `do_spl_desk_up` seats a new
 desk) and returns 1, and the caller keeps its own `run do_spl_desk_up` FATAL.
 The desk user's root, when the caller cannot enter it (`drwx------`, never

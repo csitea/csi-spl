@@ -27,7 +27,7 @@
 #      SPAWN_PLACE_LOCK_MIN it goes back to position 1; do_spl_spawn_placed
 #      closes it and tells the sender
 #   7. the launcher's HOLD (exit 10) puts it back at position 1
-#   8. do_spl_spawn_queue lists POS, sender and summary
+#   8. do_spl_spawn_queue lists POS, PRIO, sender and summary
 #  10. SPL-1817 (rdb 0195, owner t1 3209f8b8 msg 8cb6cc7d): an enqueue with
 #      no class, a bad one, an urgent feature or a bypass of a bug is refused;
 #      the queue orders by class; the placer takes the class furthest under
@@ -112,6 +112,9 @@
 #      SPL-3762: a -reviewer placement queued with no SPAWN_BYPASS gets the
 #      standing GO at enqueue (logged, one INFO line) and is placed first;
 #      SPAWN_URGENT on a seat and a non-reviewer slug are unchanged
+#  20. spec 150 C405: do_spl_spawn_queue prints PRIO, the hub's discussion
+#      priority 1..5 (3 without one), next to POS; the json view carries it
+#      (RED CONTROL: the column dropped)
 #   9. do_spl_spawn_place_install_cron writes ONE line whose PATH has
 #      /usr/local/bin (yq lives there; cron's own PATH is /usr/bin:/bin) and
 #      runs under flock -n; idempotent; remove takes only its line
@@ -154,14 +157,16 @@ iso = lambda t: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(t)) if t else ""
 OPEN = ("open", "acked", "queued")
 RANK = {"ci": 0, "refactor": 2, "bug": 3, "feature": 4}
 def rank(r): return 1 if r.get("flag") and r.get("class") != "ci" else RANK.get(r.get("class", ""), 5)
+# rdb 0241 + spec 150 B9: the discussion's priority (HUB_PRIOS, {uuid: 1..5}), 3 without one, ranks first
+def prio(r): return json.loads(os.environ.get("HUB_PRIOS") or "{}").get(r.get("discussion") or "", 3)
 def positions():
     for role in set(r["role"] for r in rows):
-        q = sorted([r for r in rows if r["role"] == role and r["state"] == "queued"], key=lambda r: (rank(r), r["q"], r["ask_id"]))
+        q = sorted([r for r in rows if r["role"] == role and r["state"] == "queued"], key=lambda r: (prio(r), rank(r), r["q"], r["ask_id"]))
         for n, r in enumerate(q): r["position"], r["queue_len"] = n + 1, len(q)
     for r in rows:
         if r["state"] != "queued": r["position"], r["queue_len"] = 0, 0
 def out(r):
-    o = dict(r); o["age_s"] = int(now - r["c"]); o["quiet_s"] = int(now - max(r["u"], r.get("r") or 0))
+    o = dict(r); o["priority"] = prio(r); o["age_s"] = int(now - r["c"]); o["quiet_s"] = int(now - max(r["u"], r.get("r") or 0))
     o["created_at"], o["updated_at"], o["raised_at"], o["escalated_at"], o["enqueued_at"] = iso(r["c"]), iso(r["u"]), iso(r.get("r")), iso(r.get("e")), iso(r.get("q"))
     for k in ("c", "u", "r", "e", "q"): o.pop(k, None)
     for k in ("acked_by", "closed_by", "reason", "raised_at", "escalated_at", "enqueued_at", "placement", "position", "queue_len"):
@@ -178,7 +183,7 @@ if op == "put":
     for r in rows:
         if r["ask_id"] == kv["id"]: answer([r])
     r = {"ask_id": kv["id"], "role": kv.get("role") or "orch", "kind": kv["kind"], "from": kv["from"], "topic": kv.get("topic", ""),
-         "summary": kv.get("summary", ""), "state": "open", "acked_by": "", "closed_by": "", "reason": "", "raised_n": 0,
+         "summary": kv.get("summary", ""), "discussion": kv.get("discussion", ""), "state": "open", "acked_by": "", "closed_by": "", "reason": "", "raised_n": 0,
          "placement": "", "writer_box": os.environ.get("SPOOL_DESK_BOX", "box-desk"), "c": now, "u": now}
     rows.append(r); save(); answer([r], True)
 for r in rows:
@@ -488,8 +493,8 @@ r4="$(listrow "$A4")"
 
 # 8. the queue view --------------------------------------------------------------------
 out="$(on pc do_spl_spawn_queue 2>&1)"
-grep -qE "^1/1 +bug +${A4:0:8} +c-002@box-desk .*claude:hub-pg-split .*SPAWN REQUEST perf5" <<<"$out" &&
-  pass "do_spl_spawn_queue: POS, CLASS, ask, sender, placement and summary" || fail "queue view: $out"
+grep -qE "^1/1 +3 +bug +${A4:0:8} +c-002@box-desk .*claude:hub-pg-split .*SPAWN REQUEST perf5" <<<"$out" &&
+  pass "do_spl_spawn_queue: POS, PRIO, CLASS, ask, sender, placement and summary" || fail "queue view: $out"
 grep -qE "^WAIT ${A4:0:8} waiting: claude weekly >= 90% on box-a, box-b \(held 0m ago\)$" <<<"$out" &&
   pass "do_spl_spawn_queue: the held ask shows why it waits (SPL-2035)" || fail "queue wait: $out"
 [[ "$(on pc do_spl_spawn_queue SPAWN_QUEUE_FORMAT=json 2>/dev/null | jq -r '.queue[0].position')" == 1 ]] &&
@@ -1408,6 +1413,25 @@ out="$(on pc do_spl_spawn_place LAUNCH_ID=c-523 LANES="$SEAT_LANES" 2>&1)"
   grep -q "band pick: ask ${FE:0:8} (feature at 25%" <<<"$out" &&
   pass "19e. control: a non-reviewer bug queued without the GO waits; the band pick places the feature (bug 50% OVER, feature 25% UNDER)" ||
   fail "19e. control: $out | $(hubrow "$FE") | $(cat "$T/launch.log")"
+
+# 20. spec 150 C405: the PRIO column ------------------------------------------------
+# The hub's list carries each ask's discussion priority (1..5, 3 without one,
+# B9); the table prints it next to POS (RED CONTROL: the column dropped).
+D1=15050001-0000-4000-8000-000000000001; D5=15050005-0000-4000-8000-000000000005
+P1=c4050001-0000-4000-8000-000000000001; P3=c4050003-0000-4000-8000-000000000003; P5=c4050005-0000-4000-8000-000000000005
+for id in "$P1" "$P3" "$P5"; do put "$id" c-002@box-desk "dispatch-c405" "SPAWN REQUEST ${id:0:8}"; done
+jq --arg a "$P1" --arg b "$P5" --arg d1 "$D1" --arg d5 "$D5" \
+  'map(if .ask_id == $a then .discussion = $d1 elif .ask_id == $b then .discussion = $d5 else . end)' "$T/hub/main.json" >"$T/hub/main.json.new" &&
+  mv "$T/hub/main.json.new" "$T/hub/main.json"
+for id in "$P5" "$P3" "$P1"; do on pc do_spl_spawn_enqueue ASK_ID="$id" SPAWN_CLASS=bug >/dev/null 2>&1; done
+out="$(on pc do_spl_spawn_queue SPAWN_QUEUE_SHARE=0 HUB_PRIOS="{\"$D1\": 1, \"$D5\": 5}" 2>&1)"
+qpos() { grep -E "^[0-9]+/[0-9]+ +$2 +bug +${1:0:8} " <<<"$out" | cut -d/ -f1; }
+[[ "$(head -1 <<<"$out")" =~ ^POS\ +PRIO\ +CLASS\ +ASK ]] && [[ -n "$(qpos "$P1" 1)" && -n "$(qpos "$P3" 3)" && -n "$(qpos "$P5" 5)" ]] &&
+  (( $(qpos "$P1" 1) < $(qpos "$P3" 3) && $(qpos "$P3" 3) < $(qpos "$P5" 5) )) &&
+  pass "20. C405: the PRIO column shows 1, 3 (no discussion) and 5, in the hub's priority-first order" || fail "20. C405 PRIO column: $out"
+[[ "$(on pc do_spl_spawn_queue SPAWN_QUEUE_FORMAT=json HUB_PRIOS="{\"$D1\": 1}" 2>/dev/null | jq -r --arg a "$P1" '.queue[] | select(.ask_id == $a) | .priority')" == 1 ]] &&
+  pass "20. C405: the json view carries priority" || fail "20. C405 json priority"
+for id in "$P1" "$P3" "$P5"; do HUB_DIR="$T/hub" "$T/bin/hub" ask dead --fleet main --id "$id" --by c-001@box-desk --reason c405 >/dev/null; done
 
 # 9. the cron line ----------------------------------------------------------------------
 cat >"$T/bin/crontab" <<'EOF'

@@ -11,8 +11,15 @@
 #   replaces - comma-separated paths below an engine checkout (`ysg-box/`) of
 #              the engine jobs this row takes over: a crontab line naming one
 #              of them (commented or not) is removed when this row installs
+#   as       - empty: the box user's crontab (the user running the install);
+#              `desk`: the desk user's crontab (spl_desk_user, spec 069
+#              section 8.3.1, SPL-4558). A row whose job reads or writes a
+#              desk (spl_desk_dir, spl_desk_glob, spl_desk_roots) is `desk`: a
+#              moved desk is 0700 under the desk user, the box user cannot
+#              reach it. tests/box-crons-desk-reach.py measures it from the
+#              code; install-box-crons.tst.sh fails when a mark disagrees.
 #
-# name              | schedule        | script                                                  | log                   | replaces
+# name              | schedule        | script                                                  | log                   | replaces | as
 box-save-sessions   | * * * * *       | src/bash/features/box-sessions/scripts/save-sessions.sh | box-sessions/save.log | ysg-box-orc/src/bash/features/claude-sessions/scripts/claude-save-sessions.sh,src/bash/scripts/agent-save-sessions.sh
 box-sessions-boot   | @reboot         | src/bash/features/box-sessions/scripts/sessions-boot.sh | box-sessions/boot.log | ysg-box-orc/src/bash/features/claude-sessions/scripts/claude-sessions-boot.sh,src/bash/scripts/agent-tmux-boot.sh
 graft-index-refresh | */15 8-19 * * * | src/bash/features/graft/scripts/graft-cron.sh           | graft/cron.log        | ysg-box-orc/src/bash/features/graft/scripts/graft-cron.sh
@@ -23,24 +30,24 @@ ci-red-note       | */10 * * * *    | src/bash/scripts/ci-red-note-cron.sh      
 agent-login-check | * * * * *       | src/bash/scripts/agent-login-check-cron.sh               | agent-login-check/cron.log |
 lane-rotate       | * * * * *       | src/bash/scripts/lane-rotate-cron.sh                    | lane-rotate/cron.log  |
 uplink-probe      | * * * * *       | src/bash/scripts/uplink-probe-cron.sh                   | uplink-probe/cron.log |
-qas-ci-accept     | 23 * * * *      | src/bash/scripts/qas-ci-accept-cron.sh                  | qas-ci-accept/cron.log |
-owner-digest      | 7 * * * *       | src/bash/scripts/owner-digest-cron.sh                   | owner-digest/cron.log |
-issue-close-landed | */5 * * * *     | src/bash/scripts/issue-close-landed-cron.sh             | issue-close-landed/cron.log |
+qas-ci-accept     | 23 * * * *      | src/bash/scripts/qas-ci-accept-cron.sh                  | qas-ci-accept/cron.log | | desk
+owner-digest      | 7 * * * *       | src/bash/scripts/owner-digest-cron.sh                   | owner-digest/cron.log | | desk
+issue-close-landed | */5 * * * *     | src/bash/scripts/issue-close-landed-cron.sh             | issue-close-landed/cron.log | | desk
 done-claim-check  | */5 * * * *     | src/bash/scripts/done-claim-check-cron.sh               | done-claim-check/cron.log |
-archived-seats-free | */5 * * * *   | src/bash/scripts/archived-seats-free-cron.sh            | archived-seats-free/cron.log |
+archived-seats-free | */5 * * * *   | src/bash/scripts/archived-seats-free-cron.sh            | archived-seats-free/cron.log | | desk
 issue-key-rate    | 53 6 * * 1      | src/bash/scripts/issue-key-rate-cron.sh                 | issue-key-rate/cron.log |
 gc                | * * * * *       | src/bash/scripts/gc-cron.sh                             | gc/cron.log           |
 reverse-tunnel    | * * * * *       | src/bash/scripts/reverse-tunnel-cron.sh                 | reverse-tunnel/cron.log |
-token-burn        | * * * * *       | src/bash/scripts/token-burn-collect-cron.sh             | token-burn/cron.log   |
-topic-status-card | */5 * * * *    | src/bash/scripts/topic-status-card-cron.sh             | topic-status-card/cron.log |
+token-burn        | * * * * *       | src/bash/scripts/token-burn-collect-cron.sh             | token-burn/cron.log   | | desk
+topic-status-card | */5 * * * *    | src/bash/scripts/topic-status-card-cron.sh             | topic-status-card/cron.log | | desk
 fx-rates-fetch    | 37 16 * * *     | src/bash/scripts/fx-rates-fetch-cron.sh                 | fx-rates-fetch/cron.log |
 push-orphan-check | * * * * *       | src/bash/scripts/push-orphan-check-cron.sh              | push-orphan-check/cron.log |
 restore-drill-red-note | 7,37 * * * *  | src/bash/scripts/restore-drill-red-note-cron.sh         | restore-drill-red-note/cron.log |
 login2-sync       | */5 * * * *     | src/bash/scripts/login2-sync-cron.sh                    | login2-sync/cron.log  |
-file-streams      | * * * * *       | src/bash/scripts/file-stream-follow-cron.sh             | file-streams/cron.log |
-weekly-limit-alert | */5 * * * *    | src/bash/scripts/weekly-limit-alert-cron.sh             | weekly-limit-alert/cron.log |
+file-streams      | * * * * *       | src/bash/scripts/file-stream-follow-cron.sh             | file-streams/cron.log | | desk
+weekly-limit-alert | */5 * * * *    | src/bash/scripts/weekly-limit-alert-cron.sh             | weekly-limit-alert/cron.log | | desk
 # spec 166 row B6: the night zombie-topic sweep; acts once a night on the dispatch holder's box
-zombie-topics     | */15 * * * *    | src/bash/scripts/zombie-topics-cron.sh                  | zombie-topics/cron.log |
+zombie-topics     | */15 * * * *    | src/bash/scripts/zombie-topics-cron.sh                  | zombie-topics/cron.log | | desk
 # reliability round (spec 146, SPL-4064): one row per box check; row 10 runs
 # in workflow 45_db-backup.yml. Cadences: csi-spl-doc/specs/146-reliability-round/tasks.md section 4.
 rel-systemd-unit    | */5 * * * *        | src/bash/scripts/rel-systemd-unit-cron.sh | rel/systemd-unit.log |
@@ -54,4 +61,4 @@ rel-gh-runner       | 3,18,33,48 * * * * | src/bash/scripts/rel-gh-runner-cron.s
 rel-clock-sync      | */5 * * * *        | src/bash/scripts/rel-clock-sync-cron.sh | rel/clock-sync.log |
 rel-cron-snitch     | */5 * * * *        | src/bash/scripts/rel-cron-snitch-cron.sh | rel/cron-snitch.log |
 rel-box-beat        | * * * * *          | src/bash/scripts/rel-box-beat-cron.sh | rel/box-beat.log |
-vendor-terms-check | 17 4 1 * *         | src/bash/scripts/vendor-terms-check-cron.sh | vendor-terms-check/cron.log |
+vendor-terms-check | 17 4 1 * *         | src/bash/scripts/vendor-terms-check-cron.sh | vendor-terms-check/cron.log | | desk

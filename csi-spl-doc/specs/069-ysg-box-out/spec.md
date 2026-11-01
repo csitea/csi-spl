@@ -730,6 +730,31 @@ leg, `spl-desk-issue.func.sh`), `archived-seats-free`, `weekly-limit-alert`,
 or hopping them with `sudo -n -u <agent-user>`, is a separate row and an
 owner decision; this row moves no crontab.
 
+#### 8.3.2 Desk rows run in the desk user's crontab (SPL-4558)
+
+A row of `cnf/box-crons/box-crons.manifest` carries a sixth field, `as`:
+empty for the box user's crontab, `desk` for the desk user's. A row is `desk`
+when its job reaches a desk: a call path from its cron script ends in
+`spl_desk_dir`, `spl_desk_glob` or `spl_desk_roots`.
+`csi-spl-orc/src/bash/tests/box-crons-desk-reach.py` measures it from the code
+and prints the path; `install-box-crons.tst.sh` (case 7) fails when a mark and
+the measurement disagree. On 2026-11-01 it marks the 10 rows of 8.3.1.
+
+`do_install_box_crons` puts the `desk` rows into the crontab of the desk user
+(`BOX_CRONS_DESK_USER`, else `spl_desk_user`, the `SPOOL_DESK_USER` of
+`box.env`), through `sudo -n crontab -u <desk user>`, and drops them from the
+running (box) user's crontab; the other rows stay where they are. It writes
+the desk user's crontab first: refused, the box user's still holds every row.
+No desk user, or the running user is the desk user: one crontab, as before.
+The desk roots stay 0700. The logs and locks stay under `/var/csi/csi-spl`,
+whose dirs are group `<box-user>` and setgid, so the desk user (a member of
+that group) writes them.
+
+A box where `do_spl_desk_move` has not written `SPOOL_DESK_USER` yet (a
+half-moved box) has no desk user for this action: pass
+`BOX_CRONS_DESK_USER=<agent-user>` to move the rows anyway, or wait for the
+move to finish.
+
 ### 8.4 Per-box cutover (sat first, then `<pc box>`)
 
 Each box needs the **owner's go** for that box (G-sat, then G-pc). G-pc is

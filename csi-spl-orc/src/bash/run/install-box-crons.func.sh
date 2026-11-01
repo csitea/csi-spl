@@ -17,6 +17,11 @@
 # @description under its own lock (cron-no-stack.sh, <log dir>/<name>.cron.lock,
 # @description SPL-4495): a start while the last run still goes exits 0 with
 # @description one SKIP line, so a slow job never stacks.
+# @description A row marked `desk` (its job reaches a desk, SPL-4558) goes to
+# @description the desk user's crontab instead (spl_desk_user, spec 069 section
+# @description 8.3.1: a moved desk is 0700 under that user) and leaves the
+# @description running user's; no desk user, or the running user is it: one
+# @description crontab, as before. The desk user's crontab is written first.
 # @description Dry run unless DRY_RUN=0 (prints the crontab diff).
 # @param BOX_CRONS_ACTION (optional) - install (default) | remove (drops the
 # @param   tagged lines only; it never puts an engine line back)
@@ -24,6 +29,8 @@
 # @param   every row (and any stale `csi-spl:box-cron:` line is dropped)
 # @param BOX_CRONS_STATE_DIR (optional) - the logs' root, default /var/csi/csi-spl
 # @param BOX_CRONS_MANIFEST (optional) - default cnf/box-crons/box-crons.manifest
+# @param BOX_CRONS_DESK_USER (optional) - the desk user, default spl_desk_user
+# @param BOX_CRONS_DESK_CRONTAB (optional) - default `sudo -n crontab -u <desk user>`
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ./run -a do_install_box_crons
 # @example BOX_CRONS_ONLY=graft-index-refresh,graft-index-final ./run -a do_install_box_crons
@@ -33,8 +40,8 @@ do_install_box_crons() {
   local dry="${DRY_RUN:-1}" act="${BOX_CRONS_ACTION:-install}" only="${BOX_CRONS_ONLY:-}"
   local state="${BOX_CRONS_STATE_DIR:-/var/csi/csi-spl}" ct="${BOX_CRONS_CRONTAB:-crontab}"
   local man="${BOX_CRONS_MANIFEST:-$PROJ_PATH/cnf/box-crons/box-crons.manifest}"
-  local -a names=() scheds=() scripts=() logs=() repls=() sel=()
-  local before after i missing="" gd cd
+  local -a names=() scheds=() scripts=() logs=() repls=() ases=() sel=() bsel=() dsel=()
+  local i missing="" gd cd du dct
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   case "$act" in install|remove) ;; *) do_log "FATAL BOX_CRONS_ACTION must be install or remove, got: '$act'"; return 1 ;; esac
   box_crons_read_manifest "$man" || return 1
@@ -54,30 +61,61 @@ do_install_box_crons() {
       echo "WARN the script of row(s)$missing is not in $PROJ_PATH yet: a DRY_RUN=0 install refuses them"
     fi
   fi
+  du="$(box_crons_desk_user)" || return 1
+  bsel=("${sel[@]}")
+  if [[ -n "$du" ]]; then
+    bsel=(); for i in "${sel[@]}"; do if [[ "${ases[$i]}" == desk ]]; then dsel+=("$i"); else bsel+=("$i"); fi; done
+    dct="${BOX_CRONS_DESK_CRONTAB:-sudo -n crontab -u $du}"
+    # the desk user's first: refused, the box user's still holds every row
+    box_crons_apply "$dct" " ($du)" "${dsel[@]}" || return 1
+  fi
+  box_crons_apply "$ct" "${du:+ ($(id -un))}" "${bsel[@]}" || return 1
+  [[ "$dry" == 1 ]] && { do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."; return 0; }
+  do_log "OK the box crons are $([[ "$act" == install ]] && echo "installed (${#sel[@]} row(s)${du:+, ${#dsel[@]} as $du})" || echo removed)"
+}
+
+# box_crons_desk_user - the user whose crontab takes the `desk` rows:
+# BOX_CRONS_DESK_USER, else spl_desk_user (SPOOL_DESK_USER of box.env); empty
+# when none or when it is the running user (one crontab). A user with no
+# passwd entry is refused.
+box_crons_desk_user() {
+  local u="${BOX_CRONS_DESK_USER:-}"
+  if [[ -z "$u" ]]; then
+    declare -F spl_desk_user >/dev/null ||
+      source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-cloud-cnf.func.sh"
+    u="$(spl_desk_user)"
+  fi
+  [[ -z "$u" || "$u" == "$(id -un)" ]] && return 0
+  getent passwd "$u" >/dev/null || { do_log "FATAL the desk user '$u' has no passwd entry - nothing changed" >&2; return 1; }
+  printf '%s' "$u"
+}
+
+# box_crons_apply <crontab cmd> <label> [index...] - one crontab: drop the lines
+# this run owns (box_crons_filter), append the given rows, print the diff; with
+# DRY_RUN=0 create their log dirs and write it. Uses the caller's locals.
+box_crons_apply() {
+  local c="$1" lbl="$2" before after i; shift 2
   before="$(mktemp)"; after="$(mktemp)"
-  $ct -l 2>/dev/null >"$before"
+  $c -l 2>/dev/null >"$before"
   box_crons_filter <"$before" >"$after"
   if [[ "$act" == install ]]; then
-    for i in "${sel[@]}"; do
+    for i in "$@"; do
       box_crons_line "$i" >>"$after" || { rm -f "$before" "$after"; return 1; }
     done
   fi
   if cmp -s "$before" "$after"; then
-    echo "OK cron: nothing to change"; rm -f "$before" "$after"; return 0
+    echo "OK cron$lbl: nothing to change"; rm -f "$before" "$after"; return 0
   fi
-  echo "$([[ "$dry" == 1 ]] && echo PLAN || echo DO) cron: the crontab before -> after"
+  echo "$([[ "$dry" == 1 ]] && echo PLAN || echo DO) cron$lbl: the crontab before -> after"
   diff -u --label before --label after "$before" "$after" | sed 's/^/  /'
-  if [[ "$dry" == 1 ]]; then
-    rm -f "$before" "$after"; do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0."; return 0
-  fi
+  [[ "$dry" == 1 ]] && { rm -f "$before" "$after"; return 0; }
   if [[ "$act" == install ]]; then
-    for i in "${sel[@]}"; do
+    for i in "$@"; do
       mkdir -p "$(dirname "$state/${logs[$i]}")" || { rm -f "$before" "$after"; do_log "FATAL cannot create the log dir of ${names[$i]} under $state"; return 1; }
     done
   fi
-  $ct "$after" || { rm -f "$before" "$after"; do_log "FATAL crontab refused the new file"; return 1; }
+  $c "$after" || { rm -f "$before" "$after"; do_log "FATAL crontab$lbl refused the new file"; return 1; }
   rm -f "$before" "$after"
-  do_log "OK the box crons are $([[ "$act" == install ]] && echo "installed (${#sel[@]} row(s))" || echo removed)"
 }
 
 # box_crons_line <index> - the crontab line of one row. An @reboot row runs
@@ -99,17 +137,18 @@ box_crons_line() {
     "${scheds[$i]}" "$pre" "$PROJ_PATH/${scripts[$i]}" "$state/${logs[$i]}" "$tag"
 }
 
-# box_crons_read_manifest <file> - fills names/scheds/scripts/logs/repls of the
-# caller; one malformed row refuses the whole manifest
+# box_crons_read_manifest <file> - fills names/scheds/scripts/logs/repls/ases
+# of the caller; one malformed row refuses the whole manifest
 box_crons_read_manifest() {
-  local f="$1" line n=0 name sched script log repl j
+  local f="$1" line n=0 name sched script log repl as j
   [[ -r "$f" ]] || { do_log "FATAL cannot read the manifest $f"; return 1; }
   while IFS= read -r line || [[ -n "$line" ]]; do
     n=$((n + 1))
     [[ "$line" =~ ^[[:space:]]*(#|$) ]] && continue
-    IFS='|' read -r name sched script log repl <<<"$line"
+    IFS='|' read -r name sched script log repl as <<<"$line"
     name="$(box_crons_trim "$name")"; sched="$(box_crons_trim "$sched")"; script="$(box_crons_trim "$script")"
-    log="$(box_crons_trim "$log")"; repl="$(box_crons_trim "$repl")"
+    log="$(box_crons_trim "$log")"; repl="$(box_crons_trim "$repl")"; as="$(box_crons_trim "$as")"
+    [[ -z "$as" || "$as" == desk ]] || { do_log "FATAL manifest line $n: as must be empty or desk, got '$as'"; return 1; }
     [[ "$name" =~ ^[a-z0-9-]+$ ]] || { do_log "FATAL manifest line $n: bad name '$name'"; return 1; }
     [[ "$sched" == @reboot || "$sched" =~ ^[^[:space:]]+([[:space:]]+[^[:space:]]+){4}$ ]] \
       || { do_log "FATAL manifest line $n: schedule must be 5 cron fields or @reboot, got '$sched'"; return 1; }
@@ -118,7 +157,7 @@ box_crons_read_manifest() {
         || { do_log "FATAL manifest line $n: '$j' must be a relative path with no blank, quote or .."; return 1; }
     done
     for j in "${names[@]}"; do [[ "$j" == "$name" ]] && { do_log "FATAL manifest line $n: duplicate name $name"; return 1; }; done
-    names+=("$name"); scheds+=("$sched"); scripts+=("$script"); logs+=("$log"); repls+=("$repl")
+    names+=("$name"); scheds+=("$sched"); scripts+=("$script"); logs+=("$log"); repls+=("$repl"); ases+=("$as")
   done <"$f"
   (( ${#names[@]} )) || { do_log "FATAL the manifest $f has no row"; return 1; }
 }

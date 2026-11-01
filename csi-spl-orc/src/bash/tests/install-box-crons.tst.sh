@@ -15,6 +15,13 @@
 #      rest and leaves the refused row's engine lines alone
 #   5. remove drops the tagged lines only
 #   6. a malformed manifest and an unknown BOX_CRONS_ONLY name are refused
+#   7. SPL-4558: the rows marked `desk` are the rows whose job reaches a desk,
+#      measured from the code (box-crons-desk-reach.py)
+#   8. with a desk user (SPOOL_DESK_USER of box.env), the desk rows move from
+#      the box user's crontab to the desk user's: the box user's no longer
+#      carries issue-close-landed; idempotent; remove clears both; a refused
+#      desk crontab leaves the box user's untouched; the running user as desk
+#      user keeps one crontab; a bad `as` is refused
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -137,6 +144,63 @@ out="$(inst DRY_RUN=0 BOX_CRONS_MANIFEST="$T/bad.manifest")"; rc=$?
 out="$(inst BOX_CRONS_ONLY=nope)"; rc=$?
 [ "$rc" -ne 0 ] && grep -q "names 'nope'" <<<"$out" && cmp -s "$CT" "$T/crontab.orig" \
   && pass "6. an unknown BOX_CRONS_ONLY name is refused" || fail "6. bad only (rc $rc: $out)"
+
+# --- 7. the desk marks are measured from the code (SPL-4558) ------------------
+MAN="$PROJ_ROOT/cnf/box-crons/box-crons.manifest"
+marked="$(awk -F'|' '!/^[[:space:]]*(#|$)/ { n=$1; a=$6; gsub(/[[:space:]]/, "", n); gsub(/[[:space:]]/, "", a); if (a == "desk") print n }' "$MAN" | sort)"
+reach="$(python3 "$TEST_DIR/box-crons-desk-reach.py" "$PROJ_ROOT" "$MAN")"; rc=$?
+measured="$(cut -d' ' -f1 <<<"$reach" | sort)"
+[ "$rc" -eq 0 ] && [ -n "$measured" ] && [ "$marked" = "$measured" ] && grep -qx issue-close-landed <<<"$marked" \
+  && pass "7. the $(wc -l <<<"$marked") rows marked desk are the rows whose job reaches a desk" \
+  || fail "7. desk marks != code (rc $rc); marked only: $(comm -23 <(echo "$marked") <(echo "$measured") | tr '\n' ' ')measured only: $(comm -13 <(echo "$marked") <(echo "$measured") | tr '\n' ' ')($reach)"
+grep -q '^issue-close-landed do_spl_issue_close_landed > .* > spl_desk_dir$' <<<"$reach" \
+  && pass "7. ...each with the call path that reaches it" || fail "7. no call path for issue-close-landed ($reach)"
+
+# --- 8. the desk rows run as the desk user (SPL-4558) ----------------------------
+me="$(id -un)"; DU=""
+for u in nobody daemon root; do [ "$u" != "$me" ] && getent passwd "$u" >/dev/null && { DU="$u"; break; }; done
+touch "$O/src/bash/features/graft/scripts/graft-cron.sh"   # case 4 removed it
+DCT="$T/desk-crontab"; : >"$DCT"
+printf '#!/bin/sh\nif [ "$1" = -l ]; then cat %q; else cp "$1" %q; fi\n' "$DCT" "$DCT" >"$T/fake-desk-crontab"; chmod +x "$T/fake-desk-crontab"
+printf 'SPOOL_DESK_USER=%s\n' "$DU" >"$T/box.env"
+ndesk="$(grep -c '| desk$' "$O/cnf/box-crons/box-crons.manifest")"; nall="$(grep -cvE '^[[:space:]]*(#|$)' "$O/cnf/box-crons/box-crons.manifest")"
+cp "$T/crontab.orig" "$CT"; inst DRY_RUN=0 >/dev/null   # today: every row in the box user's crontab
+grep -q ' # csi-spl:box-cron:issue-close-landed$' "$CT" && pass "8. before: the box user's crontab carries issue-close-landed" || fail "8. setup ($(cat "$CT"))"
+dinst() { inst SPOOL_BOX_ENV="$T/box.env" BOX_CRONS_DESK_CRONTAB="$T/fake-desk-crontab" "$@"; }
+out="$(dinst)"; rc=$?
+[ "$rc" -eq 0 ] && grep -q "^PLAN cron ($DU): " <<<"$out" && grep -q "^PLAN cron ($me): " <<<"$out" && [ ! -s "$DCT" ] \
+  && pass "8. the dry run plans both crontabs and writes neither" || fail "8. dry run (rc $rc: $out)"
+out="$(dinst DRY_RUN=0)"; rc=$?
+[ "$rc" -eq 0 ] && [ -n "$DU" ] && ! grep -q 'csi-spl:box-cron:issue-close-landed$' "$CT" \
+  && grep -q "^\*/5 \* \* \* \* .*issue-close-landed-cron.sh' >> '$T/state/issue-close-landed/cron.log' 2>&1 # csi-spl:box-cron:issue-close-landed$" "$DCT" \
+  && pass "8. DRY_RUN=0: issue-close-landed left the box user's crontab for the desk user's ($DU)" || fail "8. move (rc $rc: $out; box: $(grep -c box-cron "$CT"); desk: $(cat "$DCT"))"
+[ "$(grep -c ' # csi-spl:box-cron:' "$DCT")" = "$ndesk" ] && [ "$(grep -c ' # csi-spl:box-cron:' "$CT")" = $((nall - ndesk)) ] \
+  && [ "$(grep -vc ' # csi-spl:box-cron:' "$DCT")" = 0 ] && grep -q "installed ($nall row(s), $ndesk as $DU)" <<<"$out" \
+  && pass "8. ...the $ndesk desk rows in the desk user's, the other $((nall - ndesk)) in the box user's" || fail "8. split ($out)"
+cmp -s <(grep -v ' # csi-spl:box-cron:' "$CT") "$T/crontab.kept" && pass "8. ...every other line kept" || fail "8. other lines changed"
+out="$(dinst DRY_RUN=0)"
+[ "$(grep -c 'nothing to change' <<<"$out")" = 2 ] && pass "8. a second install is a no-op on both" || fail "8. second ($out)"
+out="$(dinst DRY_RUN=0 BOX_CRONS_ONLY=issue-close-landed)"
+grep -q "^OK cron ($me): nothing to change" <<<"$out" && [ "$(grep -c ' # csi-spl:box-cron:' "$DCT")" = "$ndesk" ] \
+  && grep -q ' # csi-spl:box-cron:issue-close-landed$' "$DCT" && ! grep -q 'csi-spl:box-cron:issue-close-landed$' "$CT" \
+  && pass "8. BOX_CRONS_ONLY of a desk row reinstalls it in the desk user's crontab only" || fail "8. only ($out)"
+cp "$T/crontab.orig" "$CT"; inst DRY_RUN=0 >/dev/null; : >"$DCT"; cp "$CT" "$T/ct.all"
+printf '#!/bin/sh\n[ "$1" = -l ] && exit 1; exit 1\n' >"$T/no-crontab"; chmod +x "$T/no-crontab"
+out="$(inst SPOOL_BOX_ENV="$T/box.env" BOX_CRONS_DESK_CRONTAB="$T/no-crontab" DRY_RUN=0)"; rc=$?
+[ "$rc" -ne 0 ] && grep -q "FATAL crontab ($DU) refused" <<<"$out" && cmp -s "$CT" "$T/ct.all" \
+  && pass "8. a refused desk crontab leaves the box user's untouched" || fail "8. refused (rc $rc: $out)"
+dinst DRY_RUN=0 >/dev/null
+out="$(dinst DRY_RUN=0 BOX_CRONS_ACTION=remove)"; rc=$?
+[ "$rc" -eq 0 ] && ! grep -q ' # csi-spl:box-cron:' "$CT" "$DCT" && pass "8. remove clears both crontabs" || fail "8. remove ($out)"
+printf 'SPOOL_DESK_USER=%s\n' "$me" >"$T/box-me.env"
+out="$(inst SPOOL_BOX_ENV="$T/box-me.env" BOX_CRONS_DESK_CRONTAB="$T/no-crontab" DRY_RUN=0)"; rc=$?
+[ "$rc" -eq 0 ] && grep -q ' # csi-spl:box-cron:issue-close-landed$' "$CT" && [ "$(grep -c ' # csi-spl:box-cron:' "$CT")" = "$nall" ] \
+  && pass "8. the running user as desk user: one crontab, every row" || fail "8. self (rc $rc: $out)"
+out="$(inst BOX_CRONS_DESK_USER=no-such-user-4558 DRY_RUN=0)"; rc=$?
+[ "$rc" -ne 0 ] && grep -q "desk user 'no-such-user-4558' has no passwd entry" <<<"$out" && pass "8. an unknown desk user is refused" || fail "8. unknown (rc $rc: $out)"
+printf 'x | * * * * * | x.sh | x.log | | root\n' >"$T/bad-as.manifest"
+out="$(inst BOX_CRONS_MANIFEST="$T/bad-as.manifest")"; rc=$?
+[ "$rc" -ne 0 ] && grep -q "as must be empty or desk, got 'root'" <<<"$out" && pass "8. a bad as is refused" || fail "8. bad as (rc $rc: $out)"
 
 echo "install-box-crons: ${fails} failure(s)"
 [ "$fails" -eq 0 ]

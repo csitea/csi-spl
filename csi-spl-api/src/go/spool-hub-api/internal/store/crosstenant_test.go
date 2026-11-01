@@ -551,7 +551,30 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, err := pg.AddMarketingMetricDefinition(ctx, s.tenant, MarketingMetricDefinition{Metric: "ctr", Formula: s.marker}, now); err != nil {
 		t.Fatal(err)
 	}
+	// channel_move_journal, channel_move_steps (rdb 0248, spec 169 T2,
+	// SPL-4580): one journal row and its P1 step. No store API yet (T5),
+	// so raw rows under inTenant.
+	if err := seedChannelMove(ctx, pg, s.tenant, s.channelID, s.marker); err != nil {
+		t.Fatal(err)
+	}
 	return s
+}
+
+// seedChannelMove writes one move journal for channel into tenant (the
+// <DST>), its frozen ids carrying marker, and the journal's P1 step.
+func seedChannelMove(ctx context.Context, pg *Postgres, tenant, channel, marker string) error {
+	return pg.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		move := uuid4()
+		if _, err := tx.Exec(ctx, `INSERT INTO channel_move_journal
+			(tenant_id, move_id, mode, src_tenant_id, src_channel_id, channel_id, frozen, go_msg_id, started_by)
+			VALUES ($1, $2, 'move', 't-src', $3, $3, jsonb_build_object('channel', $4::text), $5, 'HUM-10')`,
+			tenant, move, channel, marker, uuid4()); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO channel_move_steps (tenant_id, move_id, channel_id, step) VALUES ($1, $2, $3, 'P1')`,
+			tenant, move, channel)
+		return err
+	})
 }
 
 // seedFileStreams announces stream "app" of box-a in tenant and records one

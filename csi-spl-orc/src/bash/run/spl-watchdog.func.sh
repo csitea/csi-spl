@@ -107,6 +107,8 @@ do_spl_watchdog() {
   fi
   echo "$$" > "$WD_DIR/run$WD_SFX.pid"
   while :; do
+    # SPL-4566: a loop a test started ends with that test
+    spl_test_owner_gone && { do_log "INFO watchdog${WD_INST:+ instance $WD_INST}: its test is gone (SPL_TEST_OWNER=$SPL_TEST_OWNER) - stop"; break; }
     t0="$(date +%s)"
     spl_wd_keeper_lock
     spl_wd_tick

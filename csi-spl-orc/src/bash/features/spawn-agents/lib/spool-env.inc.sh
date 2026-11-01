@@ -381,6 +381,22 @@ spool_test_guard() {
   return 0
 }
 
+# SPL-4566: a loop a test started ends with that test. test-lib.inc.sh exports
+# SPL_TEST_OWNER=<pid>:<start time> (field 22 of /proc/<pid>/stat) of the test
+# shell; the lease and watchdog loops call this every tick and end when it
+# returns 0. On sat on 2026-10-30, 4 loops of two killed tests ran 5 days with
+# ppid 1: the EXIT trap that stops them never runs on a SIGKILL. Unset (every
+# live loop) -> 1, never gone. A dead pid, a reused pid (another start time)
+# or a garbled value -> 0. /proc/<pid>/stat is readable for any user's process.
+spl_test_owner_gone() {
+  local o="${SPL_TEST_OWNER:-}" pid st
+  [ -n "$o" ] || return 1
+  pid="${o%%:*}"; st="${o#*:}"
+  case "$pid" in ''|*[!0-9]*) return 0 ;; esac
+  [ "$st" = "$(awk '{ sub(/^.*\) /, ""); print $20 }' "/proc/$pid/stat" 2>/dev/null)" ] && return 1
+  return 0
+}
+
 # SPL-1713: the live spool root, reached from a test or a hand-typed shell.
 # On 2026-10-13 a lane pasted test lines into `sudo -u <box user> bash -c '.
 # <worktree>/.../spool-env.inc.sh; spool_env_resolve; printf ... >

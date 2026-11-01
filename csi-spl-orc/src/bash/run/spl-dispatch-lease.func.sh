@@ -886,6 +886,8 @@ spl_lease_loop() {
   spl_lease_code_ver > "$LEASE_DIR/$verb.ver"
   spl_lease_log "$verb start master=$LEASE_MASTER${LEASE_FAILOVER:+ failover=$LEASE_FAILOVER} pid=$$"
   while :; do
+    # SPL-4566: a loop a test started ends with that test
+    spl_test_owner_gone && { spl_lease_log "$verb stop: its test is gone (SPL_TEST_OWNER=$SPL_TEST_OWNER)"; break; }
     "spl_lease_${verb}_tick"
     [[ -n "${LEASE_TICKS:-}" ]] && { LEASE_TICKS=$((LEASE_TICKS - 1)); (( LEASE_TICKS > 0 )) || break; }
     sleep "$(spl_lease_pause "$verb")"

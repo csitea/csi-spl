@@ -64,6 +64,10 @@ pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 T=$(mktemp -d)
 trap 'LEASE_CMD=stop lease >/dev/null 2>&1; rm -rf "$T"' EXIT
+# SPL-4566: the loops of 10..16 end with this shell, also when it is killed
+# and the trap above never runs (test-lib.inc.sh does the same for its tests)
+SPL_TEST_OWNER="$$:$(awk '{ sub(/^.*\) /, ""); print $20 }' "/proc/$$/stat")"
+export SPL_TEST_OWNER
 
 P="$T/proc" D="$T/spool/dispatch"
 mkdir -p "$P" "$T/bin"

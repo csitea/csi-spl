@@ -38,6 +38,11 @@ export SPOOL_BOX_ENV
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+# SPL-4566: the loops a test starts (lease, watchdog) end once this shell is
+# gone (spl_test_owner_gone, spool-env.inc.sh): a SIGKILLed test runs no EXIT
+# trap, and on 2026-10-30 its loops ran on for 5 days. <pid>:<start time>.
+SPL_TEST_OWNER="$$:$(awk '{ sub(/^.*\) /, ""); print $20 }' "/proc/$$/stat")"
+export SPL_TEST_OWNER
 
 # orc_stub <exit-code> <bin>... - a stub per bin in $T/stub that appends
 # "<bin> <args>" to $STUB_LOG and exits <exit-code>: the test's proof of which

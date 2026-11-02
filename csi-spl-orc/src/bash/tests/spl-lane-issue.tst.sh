@@ -616,8 +616,8 @@ spl_desk_issue_once() { SPL_HUB_URL=https://hub.invalid; return 0; }
 spl_desk_spool() { [[ " $* " == *" hub-tail --task t-acc --json "* ]] && cat "$T_AP/tail"; return 0; }
 '
 ap_rows() {  # OWNER_FROM ACC_FROM ACC_TO
-  printf '{"msg_id": "%s", "task_id": "t-own", "from_box": "box-wui", "from_id": "%s", "to_box": "box-b", "to_id": "c-123", "kind": "msg"}\n' "$OWN" "$1" >"$T/ap/rows"
-  printf '{"msg_id": "%s", "task_id": "t-acc", "from_box": "box-b", "from_id": "%s", "to_box": "box-a", "to_id": "%s", "kind": "result"}\n' "$ACC" "$2" "$3" >>"$T/ap/rows"
+  printf '{"msg_id": "%s", "task_id": "t-own", "from_box": "box-wui", "from_id": "%s", "to_box": "box-b", "to_id": "c-123", "kind": "msg", "copied_from": null}\n' "$OWN" "$1" >"$T/ap/rows"
+  printf '{"msg_id": "%s", "task_id": "t-acc", "from_box": "box-b", "from_id": "%s", "to_box": "box-a", "to_id": "%s", "kind": "result", "copied_from": null}\n' "$ACC" "$2" "$3" >>"$T/ap/rows"
 }
 ap_tail() {  # BODY of ACC as the hub serves it (a cross-box msg: from_agent line first)
   python3 -c 'import json, sys; print(json.dumps({"v": 1, "msg_id": "00000000-0000-4000-8000-000000000000", "body": "other"})); print(json.dumps({"v": 1, "msg_id": sys.argv[1], "body": sys.argv[2]}))' "$ACC" "$1" >"$T/ap/tail"
@@ -648,6 +648,21 @@ SNIPPET=". \"\$PROJ_PATH/src/bash/features/spawn-agents/lib/lane-issue.inc.sh\";
 ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC"
 [[ $rc -eq 0 && ! -s "$T/calls.log" && ! -e "$S/c-123/lifetime/issue-end" ]] && grep -q "OK DRY_RUN SPL-42 -> done (applied, no commit" "$T/o" &&
   pass "applied, dry run: both ids checked, no hub write, nothing written" || fail "applied dry (rc=$rc): $(cat "$T/o")"
+# Spec 169: a copied post is nobody's word. The row says so, or the read refuses.
+ap_rows HUM-10 c-002 c-123
+sed -i "/\"$OWN\"/s/\"copied_from\": null/\"copied_from\": \"$LOC\"/" "$T/ap/rows"
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC" DRY_RUN=0
+refused "applied: an owner msg that is a copy is refused" "the owner msg $OWN is not on the hub"
+ap_rows HUM-10 c-002 c-123
+sed -i "/\"$ACC\"/s/\"copied_from\": null/\"copied_from\": \"$LOC\"/" "$T/ap/rows"
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC" DRY_RUN=0
+refused "applied: an ACCEPTED that is a copy is refused" "$ACC"
+ap_rows HUM-10 c-002 c-123
+sed -i "/\"$OWN\"/s/, \"copied_from\": null//" "$T/ap/rows"
+ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC" DRY_RUN=0
+refused "applied: a row that does not say whether it is a copy is refused" "the owner msg $OWN is not on the hub"
+# The stubbed rows above cannot see the real output: the SELECT must name the key.
+grep -q "'copied_from', r\.copied_from" "$TEST_DIR/../run/spl-db-message-show.func.sh" && pass "do_spl_db_message_show returns copied_from" || fail "do_spl_db_message_show has no copied_from"
 ap_rows c-001 c-002 c-123
 ap_run LANE_APPLIED_EVIDENCE="owner=$OWN accepted=$ACC" DRY_RUN=0
 refused "applied: an owner msg not from a human (c-001) is refused" "the owner msg $OWN is from 'c-001', not a human"

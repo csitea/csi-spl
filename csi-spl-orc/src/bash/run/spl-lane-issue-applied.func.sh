@@ -92,13 +92,16 @@ sys.exit(0 if b.startswith("ACCEPTED") else 1)' "$1"
 
 # spl_lane_issue_hub_row MSG [TENANT] -> the hub's messages row of MSG in
 # TENANT (default TENANT_ID; one JSON line, no body); rc 2 = the hub has no
-# such message, 1 = the read failed.
+# such message, or a spec 169 copy, which is nobody's word; 1 = the read failed
+# or the row does not say whether it is a copy.
 spl_lane_issue_hub_row() {
   local out rc=0
   out="$(TENANT_ID="${2:-$TENANT_ID}" MSG_ID="$1" RUN_STDOUT_IS_DATA=1 do_spl_db_message_show 2>/dev/null)" || rc=$?
   (( rc == 0 )) || return "$(( rc == 2 ? 2 : 1 ))"
   out="$(grep -m1 '^{' <<<"$out")"
   [[ -n "$out" ]] || return 1
+  jq -e 'has("copied_from")' <<<"$out" >/dev/null 2>&1 || return 1
+  jq -e '.copied_from == null' <<<"$out" >/dev/null 2>&1 || return 2
   printf '%s\n' "$out"
 }
 

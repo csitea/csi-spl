@@ -77,14 +77,14 @@ spl_db_message_sql() {
 SELECT json_build_object(
   'tenant_id', r.tenant_id, 'msg_id', r.msg_id, 'task_id', r.task_id, 'channel', r.channel,
   'kind', r.kind, 'from_box', r.from_box, 'from_id', r.from_id, 'to_box', r.to_box, 'to_id', r.to_id,
-  'ts', r.ts, 'created_at', r.received_at, 'expires_at', r.expires_at,
+  'ts', r.ts, 'created_at', r.received_at, 'expires_at', r.expires_at, 'copied_from', r.copied_from,
   'body_len', r.body_len, 'body_sha256_16', r.body_sha,
   'files_n', r.files_n, 'files', r.files,
   'deliveries', COALESCE((SELECT json_agg(json_build_object('to_box', d.to_box, 'state', d.state,
                            'received_at', d.received_at, 'sent_at', d.sent_at) ORDER BY d.to_box)
                           FROM deliveries d WHERE d.tenant_id = r.tenant_id AND d.msg_id = r.msg_id), '[]'::json))
 FROM (SELECT m.tenant_id, m.msg_id, m.task_id, m.channel, m.kind, m.from_box, m.from_id, m.to_box, m.to_id,
-             m.ts, m.received_at, m.expires_at, length(m.body) AS body_len,
+             m.ts, m.received_at, m.expires_at, m.copied_from, length(m.body) AS body_len,
              left(encode(sha256(convert_to(m.body, 'UTF8')), 'hex'), 16) AS body_sha,
              COALESCE(jsonb_array_length(m.files), 0) AS files_n,
              COALESCE((SELECT json_agg(json_build_object('name', f->>'name', 'bytes', f->'bytes', 'file_id', f->>'file_id'))

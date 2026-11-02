@@ -30,8 +30,9 @@ do_spl_wine_box_tester_tf() {
   [[ "${kenv}" == dev || "${kenv}" == prd ]] || { do_log "FATAL KEY_ENV must be dev or prd, got: ${kenv}"; return 1; }
   do_require_bin jq || return 1
 
-  # Two marked rows (psql expands a tab): KEY <body>, then MAIL <address>.
-  out=$(ENV="${kenv}" SQL="select r from messages m join humans h on h.human_id = m.from_id join tenant_memberships tm on tm.human_id = m.from_id and tm.tenant_id = m.tenant_id cross join lateral (values (1, 'KEY ' || btrim(m.body)), (2, 'MAIL ' || coalesce(h.email, ''))) v(n, r) where m.msg_id = '${msg}' and h.disabled_at is null order by v.n" \
+  # Two marked rows (psql expands a tab): KEY <body>, then MAIL <address>. A
+  # spec 169 copy reads as no row: it holds their key, but they never posted it there.
+  out=$(ENV="${kenv}" SQL="select r from messages m join humans h on h.human_id = m.from_id join tenant_memberships tm on tm.human_id = m.from_id and tm.tenant_id = m.tenant_id cross join lateral (values (1, 'KEY ' || btrim(m.body)), (2, 'MAIL ' || coalesce(h.email, ''))) v(n, r) where m.msg_id = '${msg}' and m.copied_from is null and h.disabled_at is null order by v.n" \
     do_spl_db_query 2>&1)
   rc=$?
   key=$(_spl_wine_box_tester_field KEY "${out}")

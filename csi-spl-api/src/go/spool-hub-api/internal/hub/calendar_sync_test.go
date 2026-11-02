@@ -16,6 +16,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
+	"github.com/jackc/pgx/v5"
 )
 
 // specs/112 HUB-1, HUB-2: PUT /v1/calendar/sync. The deploy identity alone
@@ -66,15 +67,33 @@ func syncWorkspace(t *testing.T, e *env) string {
 // (box-wui, unsigned), or by a box when box is set.
 func approvalMsg(t *testing.T, e *env, tid, from, box string) string {
 	t.Helper()
+	return approvalRow(t, e, tid, from, box, "")
+}
+
+// approvalRow is approvalMsg with messages.copied_from set (spec 169 T11).
+func approvalRow(t *testing.T, e *env, tid, from, box, copiedFrom string) string {
+	t.Helper()
 	id, at := uuidV4(), time.Now().UTC().Truncate(time.Microsecond)
 	m := store.Message{TenantID: tid, MsgID: id, TaskID: uuidV4(), IsParent: 1, TS: at, FromBox: hub.WUIBox, FromID: from,
 		ToBox: hub.WUIBox, ToID: "ALL-0", Kind: "note", Body: "approved", Files: []byte(`[]`), Msg: []byte(`{"v":1}`),
-		Env: []byte(`{"id":"` + id + `"}`), ReceivedAt: at, ExpiresAt: at.Add(30 * 24 * time.Hour)}
+		Env: []byte(`{"id":"` + id + `"}`), ReceivedAt: at, ExpiresAt: at.Add(30 * 24 * time.Hour), CopiedFrom: copiedFrom}
 	if box != "" {
 		m.FromBox, m.EnvSig = box, "sig"
 	}
 	if _, err := e.st.InsertMessage(context.Background(), m); err != nil {
 		t.Fatal(err)
+	}
+	if pg, ok := e.st.(*store.Postgres); ok && copiedFrom != "" { // only the copy's own SQL writes the column there
+		ctx := context.Background()
+		if err := pgx.BeginFunc(ctx, pg.Pool(), func(tx pgx.Tx) error {
+			if _, err := tx.Exec(ctx, `SELECT set_config('app.tenant_id', $1, true)`, tid); err != nil {
+				return err
+			}
+			_, err := tx.Exec(ctx, `UPDATE messages SET copied_from = $1::uuid WHERE tenant_id = $2 AND msg_id = $3::uuid`, copiedFrom, tid, id)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return id
 }
@@ -199,6 +218,9 @@ func TestCalendarSyncApproval(t *testing.T) {
 		syncGoal(tid, "G07-elsewhere", approvalMsg(t, e, other, elsewhere, "")),
 		syncGoal(tid, "G08-stranger", approvalMsg(t, e, tid, elsewhere, "")),
 		syncGoal(tid, "G09-short", "5a9aab48"),
+		// CONTROL: an admin's post copied in from another workspace (spec 169)
+		// looks like a member session's, and was never written here
+		syncGoal(tid, "G10-copied", approvalRow(t, e, tid, admin, "", uuidV4())),
 	}
 	var events []map[string]any
 	for _, g := range goals {
@@ -220,7 +242,7 @@ func TestCalendarSyncApproval(t *testing.T) {
 		}
 		ids = append(ids, m["id"].(string))
 	}
-	if strings.Join(ids, ",") != "G03-developer,G04-user,G05-draft,G06-boxed,G07-elsewhere,G08-stranger,G09-short" {
+	if strings.Join(ids, ",") != "G03-developer,G04-user,G05-draft,G06-boxed,G07-elsewhere,G08-stranger,G09-short,G10-copied" {
 		t.Fatalf("unapproved: %v", un)
 	}
 	if got := liveKeys(t, e, other); got != "" {

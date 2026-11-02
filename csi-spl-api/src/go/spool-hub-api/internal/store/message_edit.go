@@ -48,8 +48,12 @@ type EditableMessage struct {
 	Msg          []byte // the inner v:1/v:2 object as stored
 	Env          []byte // the canonical envelope as stored
 	EnvSig       string // "" = browser-authored; anything else is box-signed
-	TS           time.Time
-	ReceivedAt   time.Time
+	// CopiedFrom is the source msg_id of a spec 169 copy (rdb 0250), "" = not a
+	// copy. A copy is unsigned too, and no one wrote it in this workspace: a
+	// reader that takes the row as someone's word checks this first.
+	CopiedFrom string
+	TS         time.Time
+	ReceivedAt time.Time
 	// EditedAt / EditedBy describe the LATEST edit; zero / "" = never edited.
 	EditedAt time.Time
 	EditedBy string
@@ -121,7 +125,7 @@ func (s *Memory) GetEditable(_ context.Context, tenant, msgID string, now time.T
 		FromBox: m.FromBox, FromID: m.FromID, ToBox: m.ToBox, ToID: m.ToID, Kind: m.Kind,
 		Body: m.Body, Msg: m.Msg, Env: m.Env, EnvSig: m.EnvSig, TS: m.TS, ReceivedAt: m.ReceivedAt,
 		EditedAt: m.EditedAt, EditedBy: m.EditedBy, Deliveries: []ViewDelivery{},
-		KindSetAt: m.KindSetAt, KindSetBy: m.KindSetBy, Move: viewMove(m),
+		KindSetAt: m.KindSetAt, KindSetBy: m.KindSetBy, Move: viewMove(m), CopiedFrom: m.CopiedFrom,
 	}
 	if revs := s.revisions[[2]string{tenant, msgID}]; len(revs) > 0 {
 		out.Revision = revs[len(revs)-1].Revision

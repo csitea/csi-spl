@@ -397,8 +397,9 @@ func (c *pgCopy) rewriteText(table, col, typ, where string) error {
 // without one (gcal_sync.go push); the key also keeps a synced event's own key
 // free in <DST>. remind_at and the stored reminders are gone, so nothing fires.
 // No send reads calendar_guests: an invite goes out from the handler that adds
-// the guest, so the guests who are <DST> members come along. An exception whose
-// series is outside the set has nothing to be an exception of.
+// the guest, so the people who are <DST> members come along, and no agent guest:
+// a copy carries no seat. An exception whose series is outside the set has nothing
+// to be an exception of.
 func (c *pgCopy) copyCalendar() error {
 	if len(c.b.Events) == 0 {
 		return nil
@@ -411,7 +412,7 @@ func (c *pgCopy) copyCalendar() error {
 		return err
 	}
 	if err := c.cpInsert("calendar_guests", map[string]string{"event_id": "a.new"}, `JOIN cp_ids a ON a.old = x.event_id
-		JOIN calendar_events e ON e.tenant_id = $1 AND e.event_id = a.new`, `(x.guest_type <> 'human' OR x.guest_id = ANY($3::text[]))`, mpNonNil(c.kept)); err != nil {
+		JOIN calendar_events e ON e.tenant_id = $1 AND e.event_id = a.new`, `x.guest_type = 'human' AND x.guest_id = ANY($3::text[])`, mpNonNil(c.kept)); err != nil {
 		return err
 	}
 	return c.rewriteText("calendar_events", "description", "text", `event_id IN (SELECT new FROM cp_ids)`)

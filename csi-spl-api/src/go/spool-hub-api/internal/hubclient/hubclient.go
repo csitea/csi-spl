@@ -80,6 +80,10 @@ type Client struct {
 	HTTP *http.Client
 	Log  zerolog.Logger
 	Now  func() time.Time
+	// MovedDesk is this box's desk in a workspace, for the re-route of a post
+	// to a moved topic (spec 169 T7b, reroute.go). nil = none: such a post is
+	// refused and reported.
+	MovedDesk func(tenant string) (*config.Config, error)
 	// PinRefresh is the daemon's authorized_keys refresh interval.
 	PinRefresh time.Duration
 	// ReadyTimeout bounds each wait for a hub reply.
@@ -724,6 +728,9 @@ type Claims struct {
 	// without Usage is metered as "unmetered" by the hub.
 	TurnID string
 	Usage  *wire.UsageReport
+	// Rerouted is the workspace that refused this post as moved (spec 169
+	// T7b); set, a second topic_moved stops here. Box-local, never on the frame.
+	Rerouted string
 }
 
 // SendClaims is Send with cl on the frame.

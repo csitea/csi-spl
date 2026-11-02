@@ -7612,7 +7612,7 @@
         ]
       },
       "get": {
-        "description": "Every note of the person, archived ones too: pinned first, then by position. Spec 155 B4. Human session only: 403 person_only under act-as, for an agent and a box token; 400 tenant_named on X-Spool-Tenant; 404 notes_off while SPOOL_HUB_NOTES_ENABLED is false.",
+        "description": "Every note of the person, archived ones too: pinned first, then by priority (1 first), then by position. Spec 155 B4. Human session only: 403 person_only under act-as, for an agent and a box token; 400 tenant_named on X-Spool-Tenant; 404 notes_off while SPOOL_HUB_NOTES_ENABLED is false.",
         "operationId": "listMeRealmNotes",
         "responses": {
           "200": {
@@ -7631,7 +7631,7 @@
                 }
               }
             },
-            "description": "OK: {notes: [{id, title, snippet, pinned, position, archived, archived_at, updated_at, items_done, items_total, link_count}]}. Contract: csi-spl-doc/specs/155-notes-section/spec.md section 5."
+            "description": "OK: {notes: [{id, title, snippet, pinned, priority, position, archived, archived_at, updated_at, items_done, items_total, link_count}]}. Contract: csi-spl-doc/specs/155-notes-section/spec.md section 5."
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -7850,7 +7850,7 @@
         ]
       },
       "patch": {
-        "description": "The fields sent (title, body, pinned, archived, position); a write erases the stored label of each link into a workspace the person left (D4). Spec 155 B4. Human session only: 403 person_only under act-as, for an agent and a box token; 400 tenant_named on X-Spool-Tenant; 404 notes_off while SPOOL_HUB_NOTES_ENABLED is false.",
+        "description": "The fields sent (title, body, pinned, archived, position, priority: 1 is the highest, 5 the default, anything else 400 bad_note); a write erases the stored label of each link into a workspace the person left (D4). Spec 155 B4. Human session only: 403 person_only under act-as, for an agent and a box token; 400 tenant_named on X-Spool-Tenant; 404 notes_off while SPOOL_HUB_NOTES_ENABLED is false.",
         "operationId": "patchMeRealmNote",
         "parameters": [
           {
@@ -7880,6 +7880,11 @@
                   },
                   "position": {
                     "type": "number"
+                  },
+                  "priority": {
+                    "maximum": 5,
+                    "minimum": 1,
+                    "type": "integer"
                   },
                   "title": {
                     "type": "string"

@@ -13,14 +13,18 @@ are erased with it.
 
 ## The list
 
-- **New note** on top starts an empty note at the top of the list.
+- **New note** on top starts an empty note with priority 5, above your other
+  notes of that priority.
 - The **filter box** narrows the list to the notes whose title or text holds
   what you type.
 - **Archived** switches to the notes you archived; press it again to go back.
 - **Pinned** notes come first, in their own group; the other notes follow.
 - Each row is one line: the title, or the first line of the text when there
-  is no title. A long title is cut with an ellipsis; open the note to read it
-  all, with its text, checklist and links.
+  is no title, with the note's priority beside it (**P1** to **P5**). A long
+  title is cut with an ellipsis; open the note to read it all, with its text,
+  checklist and links.
+- Within a group the notes with priority 1 come first, then 2, and so on down
+  to 5. Notes of the same priority keep the order you gave them.
 
 Each note has its own address, `/notes?note=<id>`, so a bookmark or the
 browser's Back button finds it again. The list is read again when you come
@@ -50,12 +54,16 @@ or the phone's Back) takes you back to the list.
   address opens in a new tab. The **x** removes a link. A link into a
   workspace you have left shows **Link to a workspace you left** and opens
   nothing.
+- **Priority**: pick 1 to 5 in the open note; 1 is the highest and a new note
+  has 5. It is saved at once and the note moves to its place in the list.
 - **Pin** puts the note in the Pinned group; **Unpin** takes it out.
 - **Archive** hides the note from the list and closes it. Find it again with
   **Archived**, open it and press **Unarchive**.
 - **Move up** / **Move down** change the note's place in its group. In the
   list, **Alt+Up** / **Alt+Down** on a row does the same, and on a wide screen
-  you can drag a row.
+  you can drag a row. A move stays among the notes of the same priority: a
+  drop on a note of another priority moves nothing. To change a note's
+  priority, use **Priority** in the open note.
 - **Delete** removes the note at once and shows **Note deleted** with
   **Undo** for 10 seconds. Undo brings it back as it was. When the message
   goes away, the note is deleted for good; there is no trash.

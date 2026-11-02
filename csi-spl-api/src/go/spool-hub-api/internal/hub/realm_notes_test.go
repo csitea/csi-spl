@@ -394,3 +394,38 @@ func TestNotesLogHoldsIDsOnly(t *testing.T) {
 		}
 	}
 }
+
+// TestNotesPriority (spec 155 2.9, SPL-4652): the wire. A new note and the
+// list read 5; PATCH sets it; outside 1..5 is 400 bad_note, a fraction 400;
+// another person is 404 and P1's value stays.
+func TestNotesPriority(t *testing.T) {
+	n := newNotesRig(t, true)
+	id := n.create(t, map[string]any{"title": "mine"})
+	path := notesBase + "/" + id
+	if code, out, _ := n.do(t, nil, http.MethodGet, path, nil, nil); code != http.StatusOK || out["priority"] != float64(5) {
+		t.Fatalf("a new note = %d %v, want priority 5", code, out)
+	}
+	if code, out, _ := n.do(t, nil, http.MethodPatch, path, map[string]any{"priority": 2}, nil); code != http.StatusOK || out["priority"] != float64(2) {
+		t.Fatalf("PATCH priority 2 = %d %v", code, out)
+	}
+	code, out, _ := n.do(t, nil, http.MethodGet, notesBase, nil, nil)
+	rows, _ := out["notes"].([]any)
+	if code != http.StatusOK || len(rows) != 1 || rows[0].(map[string]any)["priority"] != float64(2) {
+		t.Errorf("the list = %d %v, want the row at priority 2", code, out)
+	}
+	for _, bad := range []int{0, 6} {
+		if code, out, _ := n.do(t, nil, http.MethodPatch, path, map[string]any{"priority": bad}, nil); code != http.StatusBadRequest || realmToken(out) != "bad_note" {
+			t.Errorf("PATCH priority %d = %d %v, want 400 bad_note", bad, code, out)
+		}
+	}
+	if code, out, _ := n.do(t, nil, http.MethodPatch, path, map[string]any{"priority": 1.5}, nil); code != http.StatusBadRequest {
+		t.Errorf("PATCH priority 1.5 = %d %v, want 400", code, out)
+	}
+	stranger, _ := n.browserAs(t, "", "")
+	if code, out, _ := n.do(t, stranger, http.MethodPatch, path, map[string]any{"priority": 1}, nil); code != http.StatusNotFound || realmToken(out) != "not_found" {
+		t.Errorf("P2 PATCH P1's priority = %d %v, want 404 not_found", code, out)
+	}
+	if code, out, _ := n.do(t, nil, http.MethodGet, path, nil, nil); code != http.StatusOK || out["priority"] != float64(2) {
+		t.Errorf("after the refusals = %d %v, want priority 2", code, out)
+	}
+}

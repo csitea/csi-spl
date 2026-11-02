@@ -3,7 +3,7 @@
 // the pinned ones only (2.6).
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { dropPosition, moveChecklistLine, movePosition, noteGroup, positionAt } from '../../src/utils/note-order.mjs'
+import { compareNotes, dropPosition, moveChecklistLine, movePosition, noteGroup, notePriority, positionAt } from '../../src/utils/note-order.mjs'
 
 const n = (id, position, extra = {}) => ({ id, position, pinned: false, archived: false, updated_at: '2026-10-29T00:00:00Z', ...extra })
 const LIST = [n('p1', 1, { pinned: true }), n('p2', 2, { pinned: true }), n('a', 3), n('b', 4), n('c', 6), n('x', 5, { archived: true })]
@@ -50,6 +50,33 @@ describe('note-order: drag and drop', () => {
     assert.equal(positionAt(rows, 1), 3)
     assert.equal(positionAt(rows, 2), 5)
     assert.equal(positionAt([], 0), 0)
+  })
+})
+
+describe('note-order: priority (spec 155 2.9, SPL-4652)', () => {
+  const P = [n('u', 9, { priority: 1 }), n('a', 1), n('b', 2, { priority: 5 }), n('c', 3, { priority: 2 }), n('d', 4, { priority: 2 }), n('pin', 20, { pinned: true })]
+  const drawn = (list) => [...list].sort(compareNotes).map((r) => r.id)
+  it('reads 1..5, and 5 for anything else', () => {
+    for (const p of [1, 2, 3, 4, 5]) assert.equal(notePriority({ priority: p }), p)
+    for (const p of [undefined, null, 0, 6, 1.5, 'x']) assert.equal(notePriority({ priority: p }), 5, String(p))
+  })
+  it('draws pinned first, then priority 1 first, then the own order', () => {
+    assert.deepEqual(drawn(P), ['pin', 'u', 'c', 'd', 'a', 'b'])
+  })
+  it('a pinned 5 stays above an unpinned 1', () => {
+    assert.deepEqual(drawn([n('x', 1, { priority: 1 }), n('y', 2, { pinned: true, priority: 5 })]), ['y', 'x'])
+  })
+  it('Move stays among the notes of the same priority', () => {
+    assert.equal(movePosition(P, 'c', -1), null, 'the first at 2 does not jump above the 1')
+    assert.equal(movePosition(P, 'd', 1), null, 'the last at 2 does not fall into the 5s')
+    assert.equal(movePosition(P, 'u', 1), null, 'alone at 1')
+    assert.equal(movePosition(P, 'd', -1), 2, 'd goes above c')
+  })
+  it('a drop on another priority moves nothing', () => {
+    assert.equal(dropPosition(P, 'a', 'u'), null)
+    assert.equal(dropPosition(P, 'u', 'a'), null)
+    assert.equal(dropPosition(P, 'd', 'b', true), null)
+    assert.equal(dropPosition(P, 'd', 'c'), 2, 'twin: the same priority still moves')
   })
 })
 

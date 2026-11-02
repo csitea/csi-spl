@@ -42,6 +42,13 @@ const (
 	NoteSnippetChars = 200 // the list's first characters of the body (spec 5)
 )
 
+// A note's priority (rdb 0254, spec 155 2.9): the scale of the discussions
+// and the issues, 1 the highest; a new note and every older one read 5.
+const (
+	NotePriorityHighest = 1
+	NotePriorityDefault = 5
+)
+
 // ErrNotesFull: the person already holds NotesPerPerson notes (spec 2.4
 // notes_full). A value outside the other limits is ErrRealmBad.
 var ErrNotesFull = errors.New("store: the person holds the most notes allowed")
@@ -91,6 +98,7 @@ type Note struct {
 	Title      string
 	Body       string
 	Pinned     bool
+	Priority   int
 	Position   float64
 	ArchivedAt *time.Time
 	CreatedAt  time.Time
@@ -106,6 +114,7 @@ type NoteSummary struct {
 	Title      string
 	Snippet    string
 	Pinned     bool
+	Priority   int
 	Position   float64
 	ArchivedAt *time.Time
 	UpdatedAt  time.Time
@@ -122,6 +131,7 @@ type NotePatch struct {
 	Pinned   *bool
 	Archived *bool
 	Position *float64
+	Priority *int
 }
 
 // NoteLinkPatch is a PATCH of a link: nil fields are kept.
@@ -135,10 +145,11 @@ type NoteLinkPatch struct {
 // note (or link) of this person. ws is the person's current workspaces (D4).
 type Notes interface {
 	// ListNotes is every note of the person, archived ones too: pinned
-	// first, then by position, the newest first on a tie.
+	// first, then by priority (1 first), then by position, the newest first
+	// on a tie.
 	ListNotes(ctx context.Context, person string) ([]NoteSummary, error)
 	// CreateNote adds n (title, body, pinned, items, links) on top of the
-	// person's order. ErrNotesFull at NotesPerPerson; ErrNotFound: no such
+	// person's order, at the default priority. ErrNotesFull at NotesPerPerson; ErrNotFound: no such
 	// human.
 	CreateNote(ctx context.Context, person string, n Note, now time.Time) (Note, error)
 	// NoteOf is one note with its items and links.
@@ -280,6 +291,9 @@ func checkNotePatch(p NotePatch) error {
 			return err
 		}
 	}
+	if p.Priority != nil && (*p.Priority < NotePriorityHighest || *p.Priority > NotePriorityDefault) {
+		return fmt.Errorf("%w: priority must be %d to %d", ErrRealmBad, NotePriorityHighest, NotePriorityDefault)
+	}
 	if p.Position != nil {
 		return checkNotePosition(*p.Position)
 	}
@@ -335,13 +349,13 @@ func noteWorkspaces(ws []string) []string {
 
 // ---- Postgres ----
 
-const noteCols = `note_id::text, title, body, pinned, position, archived_at, created_at, updated_at`
+const noteCols = `note_id::text, title, body, pinned, priority, position, archived_at, created_at, updated_at`
 
 const noteLinkCols = `link_id::text, kind, COALESCE(workspace_id, ''), ref, COALESCE(day::text, ''), label, position, created_at`
 
 func scanNote(r pgx.Row) (Note, error) {
 	var n Note
-	err := r.Scan(&n.ID, &n.Title, &n.Body, &n.Pinned, &n.Position, &n.ArchivedAt, &n.CreatedAt, &n.UpdatedAt)
+	err := r.Scan(&n.ID, &n.Title, &n.Body, &n.Pinned, &n.Priority, &n.Position, &n.ArchivedAt, &n.CreatedAt, &n.UpdatedAt)
 	return n, err
 }
 
@@ -476,15 +490,15 @@ func (s *Postgres) ListNotes(ctx context.Context, person string) ([]NoteSummary,
 	var out []NoteSummary
 	err := s.inPerson(ctx, person, func(tx pgx.Tx) error {
 		return eachRow(ctx, tx, `
-			SELECT n.note_id::text, n.title, left(n.body, $2), n.pinned, n.position, n.archived_at, n.updated_at,
+			SELECT n.note_id::text, n.title, left(n.body, $2), n.pinned, n.priority, n.position, n.archived_at, n.updated_at,
 			       (SELECT count(*) FILTER (WHERE i.done) FROM personal.note_items i
 			         WHERE i.person_id = n.person_id AND i.note_id = n.note_id),
 			       (SELECT count(*) FROM personal.note_items i WHERE i.person_id = n.person_id AND i.note_id = n.note_id),
 			       (SELECT count(*) FROM personal.note_links l WHERE l.person_id = n.person_id AND l.note_id = n.note_id)
 			FROM personal.notes n WHERE n.person_id = $1
-			ORDER BY n.pinned DESC, n.position, n.created_at DESC`, []any{person, NoteSnippetChars}, func(r pgx.Rows) error {
+			ORDER BY n.pinned DESC, n.priority, n.position, n.created_at DESC`, []any{person, NoteSnippetChars}, func(r pgx.Rows) error {
 			var m NoteSummary
-			err := r.Scan(&m.ID, &m.Title, &m.Snippet, &m.Pinned, &m.Position, &m.ArchivedAt, &m.UpdatedAt,
+			err := r.Scan(&m.ID, &m.Title, &m.Snippet, &m.Pinned, &m.Priority, &m.Position, &m.ArchivedAt, &m.UpdatedAt,
 				&m.ItemsDone, &m.ItemsTotal, &m.LinkCount)
 			out = append(out, m)
 			return err
@@ -562,11 +576,12 @@ func (s *Postgres) PatchNote(ctx context.Context, person, noteID string, p NoteP
 		tag, err := tx.Exec(ctx, `
 			UPDATE personal.notes SET title = COALESCE($3, title), body = COALESCE($4, body),
 			       pinned = COALESCE($5, pinned), position = COALESCE($6, position),
+			       priority = COALESCE($9::smallint, priority),
 			       archived_at = CASE WHEN $7::boolean IS NULL THEN archived_at
 			                          WHEN $7::boolean THEN COALESCE(archived_at, $8) END,
 			       updated_at = $8
 			WHERE person_id = $1 AND note_id = $2::uuid`,
-			person, noteID, p.Title, p.Body, p.Pinned, p.Position, p.Archived, now.UTC())
+			person, noteID, p.Title, p.Body, p.Pinned, p.Position, p.Archived, now.UTC(), p.Priority)
 		if err == nil && tag.RowsAffected() == 0 {
 			err = ErrNotFound
 		}
@@ -727,7 +742,7 @@ func (s *Postgres) ExportNotes(ctx context.Context, person string) ([]Note, erro
 	err := s.inPerson(ctx, person, func(tx pgx.Tx) error {
 		out = nil
 		err := eachRow(ctx, tx, `SELECT `+noteCols+` FROM personal.notes WHERE person_id = $1
-			ORDER BY pinned DESC, position, created_at DESC`, []any{person}, func(r pgx.Rows) error {
+			ORDER BY pinned DESC, priority, position, created_at DESC`, []any{person}, func(r pgx.Rows) error {
 			n, err := scanNote(r)
 			out = append(out, n)
 			return err

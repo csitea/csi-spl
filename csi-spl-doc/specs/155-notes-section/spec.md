@@ -1,6 +1,8 @@
 # 155 Notes section, with quick links to anything
 
-Version v1.1, 2026-10-24, by c-005@sat (claude). v1.0 (`471c55f24`) was
+Version v1.2, 2026-11-02, by c-705 (claude): adds section 2.9, a note's
+priority (SPL-4652), with its lines in sections 4 and 5. v1.1, 2026-10-24, by
+c-005@sat (claude). v1.0 (`471c55f24`) was
 reviewed by the agy seat a-089: NOT SIGNED, four defects W1-W4
 (`fafbb86d0`, `seat-agy.md`). v1.1 folds all four (section 9); it waits
 for that seat's re-check.
@@ -215,10 +217,11 @@ and ref <= 2 048, <= 2 000 notes per person (`notes_full`).
   Pinned group, then the rest. Each row is one line, cut with an ellipsis
   at every width: the title (or the first line of the text when there is no
   title), nothing more (owner HUM-10, t1 2a0b4d9e, msg a4c630a8, SPL-4651: "only
-  the titles should be visible in the listings"). At 820 px and below a row
-  stays at least 44 px tall at every font size. Order: pinned first,
-  each group by the person's own order (drag, or Alt+Up/Down for the
-  keyboard); a new note goes on top. A filter "Archived" shows the
+  the titles should be visible in the listings"), but for the priority beside
+  it (2.9). At 820 px and below a row stays at least 44 px tall at every font
+  size. Order: pinned first, each group by priority (2.9), then by the
+  person's own order (drag, or Alt+Up/Down for the keyboard); a new note goes
+  on top of the notes of its priority. A filter "Archived" shows the
   archived ones.
 - **Open**: a click (or Enter) opens the note above 820 px as a modal like
   an issue (1.2 row 6), on a phone as a level-3 full screen (1.2 row 7).
@@ -257,6 +260,35 @@ none. agy reviews the locale files as the last step before B5 ships
 - Logs: a route logs the person id, the note id and the outcome, never a
   title, text, label or URL.
 
+### 2.9 Priority (SPL-4652)
+
+Owner HUM-10, t1 2a0b4d9e, msg a4c630a8: "notes should have priority, issues
+and discussions-wise". The scale of the issues: 1..5, 1 the highest, 5 the
+default. Every existing note reads 5. The WUI's discussion default is 3
+(`TOPIC_PRIORITY_DEFAULT`, SPL-4367); a note uses 5, as the lane's brief says.
+
+- **Stored** in a column `personal.notes.priority` (`0254_note_priority.sql`),
+  not a table as `topic_priorities`. A topic has its own table because only the
+  head trigger writes `topic_heads`. A note is one row with one reader, and the
+  list reads the priority of every note it shows, so a table would add a join
+  and a second policy for nothing. The `person_scope` policy already binds the
+  column: a person reads and sets only their own, and another person's note
+  answers 404.
+- **Set** in the open note (`NotePriorityChooser.vue`, the pattern of
+  `TopicPriorityChooser.vue`): a click saves at once; a failed save puts the old
+  value back and says why. Out of range is 400 `bad_note`, and the column's
+  CHECK refuses it too.
+- **Shown** on the list row as `P<n>` beside the title (the key of the message
+  badge, `topic.priority.badge`), for every note, 5 too. The row stays one line;
+  the title gives way, the chip does not.
+- **Order**: within each group (Pinned, the rest, Archived), priority ascending,
+  then `position`. A pinned 5 stays above an unpinned 1, as pinning already wins.
+- **Drag and Move across priorities**, chosen here and the owner has not decided
+  it (default D8): Move and drag stay within the same group and the same
+  priority. A drop on a note of another priority moves nothing and changes no
+  priority; the priority changes only in the chooser. A drag that also rewrote
+  the priority would change a value the person did not point at.
+
 ## 3. Defaults (owner may change)
 
 The owner asked to start building without a question round. Each default
@@ -285,6 +317,8 @@ named.
   how-to-post rule 11, extended with the kinds `issue`, `event`, `doc`,
   `channel` and `url` (2.3). Rule 11 itself is not changed by this spec.
   Changes B2, B7.
+- **D8.** Default (owner may change): Move and drag stay within the same group
+  and the same priority (2.9). Changes `utils/note-order.mjs`.
 
 ## 4. Data
 
@@ -297,6 +331,7 @@ CREATE TABLE personal.notes (
     title       text        NOT NULL DEFAULT '' CHECK (length(title) <= 200),
     body        text        NOT NULL DEFAULT '' CHECK (length(body) <= 20000),
     pinned      boolean     NOT NULL DEFAULT false,
+    priority    smallint    NOT NULL DEFAULT 5 CHECK (priority BETWEEN 1 AND 5), -- 2.9, rdb 0254
     position    double precision NOT NULL,
     archived_at timestamptz NULL,
     created_at  timestamptz NOT NULL DEFAULT now(),
@@ -344,7 +379,7 @@ store in the insert's transaction, not by a trigger.
 **Built** (B4, SPL-3636): every route below is in `hub/realm_notes.go`,
 registered by `routeRealmNotes` from `routeMe` (`hub/channel_order.go`),
 cases C10-C16 in `hub/realm_notes_test.go` (memory and Postgres). Wire
-names: a list row is `id, title, snippet, pinned, position, archived,
+names: a list row is `id, title, snippet, pinned, priority, position, archived,
 archived_at, updated_at, items_done, items_total, link_count`; a link is
 `id, kind, workspace_id, ref, day, label, left, position, created_at`. A
 store refusal is 400 `bad_note` (a limit of 2.4), 400 `notes_full` at
@@ -355,10 +390,10 @@ is applied with it still answers `notes_off` (the binary default is off).
 
 | route | does | answer |
 |---|---|---|
-| `GET /v1/me/realm/notes` | the list: id, title, the first 200 characters of the body, pinned, position, archived, updated_at, item counts (done/total), link count | 200 |
+| `GET /v1/me/realm/notes` | the list: id, title, the first 200 characters of the body, pinned, priority, position, archived, updated_at, item counts (done/total), link count | 200 |
 | `POST /v1/me/realm/notes` | a new note; the body may hold title, body, items, links | 201, the note |
 | `GET /v1/me/realm/notes/{id}` | one note with items and links (2.4 for labels) | 200, 404 |
-| `PATCH /v1/me/realm/notes/{id}` | title, body, pinned, archived, position | 200, 404 |
+| `PATCH /v1/me/realm/notes/{id}` | title, body, pinned, priority, archived, position | 200, 404 |
 | `DELETE /v1/me/realm/notes/{id}` | deletes it; items and links cascade | 204, 404 |
 | `PUT /v1/me/realm/notes/{id}/items` | replaces the checklist | 200 |
 | `POST /v1/me/realm/notes/{id}/links` | adds one link | 201 |
@@ -424,6 +459,7 @@ workspaces.
 | C29 | B9 | `/note Plan` on an open issue | n/a | a note "Plan" with that issue as its link | e2e on the mock bundle |
 | C30 | B9 | palette, type a note's title | no hit | a `notes` hit that opens it | `palette.test.mjs` |
 | C31 | B10 | Settings -> Notes: Export, Erase with the typed confirmation | n/a | a `notes-<date>.json` download; the list empty after Erase | e2e on the mock bundle; twin: a wrong confirmation word erases nothing |
+| C32 | SPL-4652 | set a priority in the open note; a new note; 0 or 6; another person; the list order | n/a | reads back; 5; 400 `bad_note`; 404; pinned, then 1..5, then `position`, and a drop on another priority moves nothing | `store/personal_notes_test.go` (memory and Postgres), `hub/realm_notes_test.go`, `wui-tests/unit/note-order.test.mjs`, `wui-tests/e2e/notes-open.test.mjs` (1440 and 390 px) |
 
 ## 8. Build rows
 

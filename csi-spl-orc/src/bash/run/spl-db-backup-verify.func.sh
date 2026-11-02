@@ -94,16 +94,9 @@ spl_db_backup_newest() {
   printf '%s' "$u"
 }
 
-# spl_db_backup_restore_counts <dump.sql> -> "<table> <count>" per line, from a
-# THROWAWAY postgres container that is removed whatever happens. The container
-# is the scratch database: nothing local and nothing in the cloud is touched.
-spl_db_backup_restore_counts() {
-  local dump="$1" img="${SPL_RESTORE_IMAGE:-postgres:16-alpine}" con i
-  con="spl-restorecheck-$ENV-$$"
-  docker run -d --rm --label "csi-spl.lane=${AGENT_ID:-${SPOOL_AGENT_ID:-}}" --name "$con" -e POSTGRES_PASSWORD=restorecheck -e POSTGRES_DB=restorecheck \
-    "$img" >/dev/null 2>&1 || { do_log "FATAL cannot start $img for the restore check"; return 1; }
-  # shellcheck disable=SC2064
-  trap "docker rm -fv '$con' >/dev/null 2>&1 || true; trap - RETURN" RETURN
+# spl_db_backup_restore_wait_ready <container>: wait up to 120 s for the restore
+# check's postgres to accept TCP. Exit 1, with its last log lines, when it never does.
+spl_db_backup_restore_wait_ready() {
   # READINESS OVER TCP, NOT THE UNIX SOCKET. The postgres image runs a
   # TEMPORARY server during initdb that listens on the unix socket only, so
   # `pg_isready -U postgres` answers YES while the real server has not started
@@ -114,7 +107,7 @@ spl_db_backup_restore_counts() {
   # and a real `select 1` over TCP is the proof the door is open for good.
   # `if` and not `probe && break`: a bare failing probe as the last command of
   # a loop body is one errexit away from killing the run.
-  local ready=0
+  local con="$1" ready=0 i
   for i in {1..120}; do
     if docker exec "$con" psql -U postgres -h 127.0.0.1 -d restorecheck -XAtc 'SELECT 1' >/dev/null 2>&1; then
       ready=1; break
@@ -127,6 +120,20 @@ spl_db_backup_restore_counts() {
     return 1
   fi
   do_log "INFO restore-check container accepted TCP after ${i}s"
+  return 0
+}
+
+# spl_db_backup_restore_counts <dump.sql> -> "<table> <count>" per line, from a
+# THROWAWAY postgres container that is removed whatever happens. The container
+# is the scratch database: nothing local and nothing in the cloud is touched.
+spl_db_backup_restore_counts() {
+  local dump="$1" img="${SPL_RESTORE_IMAGE:-postgres:16-alpine}" con
+  con="spl-restorecheck-$ENV-$$"
+  docker run -d --rm --label "csi-spl.lane=${AGENT_ID:-${SPOOL_AGENT_ID:-}}" --name "$con" -e POSTGRES_PASSWORD=restorecheck -e POSTGRES_DB=restorecheck \
+    "$img" >/dev/null 2>&1 || { do_log "FATAL cannot start $img for the restore check"; return 1; }
+  # shellcheck disable=SC2064
+  trap "docker rm -fv '$con' >/dev/null 2>&1 || true; trap - RETURN" RETURN
+  spl_db_backup_restore_wait_ready "$con" || return $?
   # SPL_RESTORE_PREP: a caller's setup of the empty cluster BEFORE the restore
   # (SPL-3173: the drill's group roles), as SPL_RESTORE_CHECK below.
   if [[ -n "${SPL_RESTORE_PREP:-}" ]]; then

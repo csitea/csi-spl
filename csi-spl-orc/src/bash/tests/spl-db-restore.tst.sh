@@ -182,6 +182,15 @@ awk '/^check /{c=NR} /^docker rm /{r=NR} END{exit !(c && r > c)}' "$T/calls.log"
   pass "the hook runs before the container is removed" || fail "hook order: $(cat "$T/calls.log")"
 SNIPPET="$DOCKER $CHK spl_db_backup_restore_counts $T/dump.sql" in_orc SPL_RESTORE_CHECK=mycheck STUB_CHECK_RC=1 >/dev/null 2>&1 &&
   fail "a failing restore check passed" || pass "a failing restore check fails the restore"
+# the readiness wait: a container that never accepts TCP fails the check after
+# 120 probes, names its log lines, restores nothing and is still removed
+NREADY='docker(){ echo "docker $*" >>"$STUB_LOG"; case "$1" in run|rm) return 0 ;; logs) echo "pg boom"; return 0 ;; esac
+  case "$*" in *"SELECT 1"*) return 2 ;; esac; }; sleep(){ :; };'
+: >"$T/calls.log"
+o=$(SNIPPET="$NREADY spl_db_backup_restore_counts $T/dump.sql" in_orc 2>&1); rc=$?
+(( rc == 1 )) && grep -q 'FATAL the restore-check container was not ready after 120 s' <<<"$o" && grep -q 'FATAL   pg boom' <<<"$o" &&
+  [[ "$(grep -c 'SELECT 1' "$T/calls.log")" == 120 ]] && ! grep -q 'ON_ERROR_STOP' "$T/calls.log" && grep -q '^docker rm ' "$T/calls.log" &&
+  pass "a container that is never ready fails the check: 120 probes, no restore, removed" || fail "never ready: rc=$rc $o $(tail -3 "$T/calls.log")"
 # the verify itself: the do_spl_topic_head_verify read over the bridge address
 VDOCK='docker(){ case "$1" in exec) echo "${STUB_HAS:-1}" ;; inspect) echo 172.17.0.9 ;; esac; };
 spl_pg_env(){ echo "pg $1" >>"$STUB_LOG"; cat >/dev/null; printf "%b" "$STUB_PG"; };'

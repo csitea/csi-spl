@@ -91,11 +91,11 @@ spl_bpl_plan() {
   return "${PIPESTATUS[0]}"
 }
 
-# spl_bpl_edit <file> <service> <port> <working dir> <out file or ""> -> the
-# "change <file>:<line>: <old>  ->  <new>" row; with an out file, writes the
-# edited compose file there. Exit 1 when the item is not found or ambiguous.
-spl_bpl_edit() {
-  python3 - "$@" <<'PY'
+# spl_bpl_edit_find_py -> the head of spl_bpl_edit's python: read the compose file
+# and the project's .env, find the service block and collect in hits the ports
+# items that publish the host port.
+spl_bpl_edit_find_py() {
+  cat <<'PY'
 import os, re, sys
 path, svc, port, wd, out = sys.argv[1:6]
 try:
@@ -153,6 +153,16 @@ for i in range(sv + 1, end):
         hits.append((i, m))
     elif len(parts) == 3 and parts[1] == port and parts[0] not in ("127.0.0.1", "[::1]"):
         hits.append((i, m))
+PY
+}
+
+# spl_bpl_edit <file> <service> <port> <working dir> <out file or ""> -> the
+# "change <file>:<line>: <old>  ->  <new>" row; with an out file, writes the
+# edited compose file there. Exit 1 when the item is not found or ambiguous.
+spl_bpl_edit() {
+  {
+    spl_bpl_edit_find_py
+    cat <<'PY'
 if len(hits) != 1:
     print(f"REFUSED: {len(hits)} ports items of service {svc} publish host port {port} (want exactly 1): edit by hand"); sys.exit(1)
 i, m = hits[0]
@@ -171,6 +181,7 @@ if out:
     lines[i] = new
     open(out, "w").write("\n".join(lines))
 PY
+  } | python3 - "$@"
 }
 
 # spl_bpl_same <docker> <container> <file> <wd> <project> <service> <port>:

@@ -11,7 +11,7 @@
 # system half, one JSON file per ask under <spool root>/asks/:
 #
 #   <spool root>/asks/<ask id>.json   the record: ask_id role kind from to topic
-#                                     summary deadline_at state acked_by
+#                                     summary deadline_at discussion state acked_by
 #                                     closed_by reason raised_n created_at
 #                                     updated_at synced (false = the hub has
 #                                     not got this version yet)
@@ -29,7 +29,7 @@
 #                                     ask (blocker/task to the orchestrator, or
 #                                     --ask <kind>); prints nothing otherwise
 #   spool_ask_summary <body>          the body's first line, cleaned, <= 200 bytes
-#   spool_ask_journal_open <id> <kind> <from> <to> <topic> <summary> [<deadline>]
+#   spool_ask_journal_open <id> <kind> <from> <to> <topic> <summary> [<deadline>] [<discussion>]
 #                                     record a NEW open ask (an existing id is
 #                                     left alone: a replay changes nothing)
 #   spool_ask_journal_set <id> <jq object> <op> <by>
@@ -92,7 +92,7 @@ _spool_ask_write() {  # ID
   ( umask 002; cat >"$tmp" ) && mv -f "$tmp" "$f"
 }
 
-spool_ask_journal_open() {  # ID KIND FROM TO TOPIC SUMMARY [DEADLINE]
+spool_ask_journal_open() {  # ID KIND FROM TO TOPIC SUMMARY [DEADLINE] [DISCUSSION]
   local id="$1" f now
   [[ "$id" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || { echo "spool-asks: bad ask id '$id'" >&2; return 2; }
   command -v jq >/dev/null || { echo "spool-asks: jq is missing; ask $id not journaled" >&2; return 3; }
@@ -100,8 +100,8 @@ spool_ask_journal_open() {  # ID KIND FROM TO TOPIC SUMMARY [DEADLINE]
   f="$(_spool_ask_file "$id")"
   [ -e "$f" ] && return 0
   now="$(spool_asks_now)"
-  jq -n -c --arg id "$id" --arg k "$2" --arg f "$3" --arg to "$4" --arg t "$5" --arg s "$6" --arg d "${7:-}" --arg now "$now" \
-    --arg r "${SPOOL_ASK_ROLE:-orch}" '{ask_id:$id, role:$r, kind:$k, from:$f, to:$to, topic:$t, summary:$s, deadline_at:$d, state:"open",
+  jq -n -c --arg id "$id" --arg k "$2" --arg f "$3" --arg to "$4" --arg t "$5" --arg s "$6" --arg d "${7:-}" --arg disc "${8:-}" --arg now "$now" \
+    --arg r "${SPOOL_ASK_ROLE:-orch}" '{ask_id:$id, role:$r, kind:$k, from:$f, to:$to, topic:$t, summary:$s, deadline_at:$d, discussion:$disc, state:"open",
       acked_by:"", closed_by:"", reason:"", raised_n:0, created_at:$now, updated_at:$now, synced:false}' |
     _spool_ask_write "$id" || return 3
   _spool_ask_log open "$id" "$3" open

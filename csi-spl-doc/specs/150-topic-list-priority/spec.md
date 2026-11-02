@@ -400,7 +400,7 @@ before a row that depends on it starts.
 | B8 (Implemented, e0f2a6ff5) | 3 | the card badge; C312 | `wui/components/MessageCard.vue`, `csi-spl-wui/tests/e2e/topic-priority-badge.test.mjs`. The card reads `topicPriorityOf` (B7), else `channel.priorityFor` (B6), and re-reads on `onTopicPriority` | B3, B4 |
 | B9 (Implemented, 2ab66feb2) | 4 | `fleet_asks.discussion`, the hub resolve, priority in `askPositions`; C401-C404 | `rdb/0241_fleet_ask_discussion.sql` (planned as 0215), `store/fleet_ask.go` (it also holds the memory store), `store/fleet_ask_postgres.go`, `store/fleet_ask_queue_test.go`, `hub/box_ask.go`, `hub/box_ask_test.go` | B1, Q5 answered |
 | B10 (Implemented, 758cd4114, without the `ASK_DISCUSSION` pass-through: B10b) | 4 | the `PRIO` column, the rules-index row; C405 | `orc/spl-spawn-queue.func.sh`, `csi-spl-orc/src/bash/tests/spl-spawn-queue.tst.sh`, `csi-spl-doc/doc/md/fleet-rules-index.md` | B9 |
-| B10b | 4 | `ASK_DISCUSSION` from `do_spl_ask_put` and `do_spl_spawn_enqueue` through the journal and its sync to `spool ask put --discussion` | `api/cmd/spool/ask.go`, `api/internal/action/ask.go`, `csi-spl-orc/src/bash/features/spawn-agents/lib/spool-asks.inc.sh`, `orc/spl-asks-open.func.sh`, `orc/spl-ask-put.func.sh`, `orc/spl-spawn-enqueue.func.sh`, and their tests | B10 |
+| B10b | 4 | `ASK_DISCUSSION` from `do_spl_ask_put` and `do_spl_spawn_enqueue` through the journal and its sync to `spool ask put --discussion` | `api/cmd/spool/ask.go`, `api/internal/action/ask.go`, `csi-spl-orc/src/bash/features/spawn-agents/lib/spool-asks.inc.sh`, `orc/spl-asks-open.func.sh`, `orc/spl-ask-put.func.sh`, `orc/spl-spawn-enqueue.func.sh`, and their tests; widened by the dispatch holder (c-002 msg `e9ef352f`) so enqueue reaches an ask already on the hub: `store/fleet_ask.go`, `store/fleet_ask_postgres.go`, `store/fleet_ask_queue_test.go`. A put on an existing row fills `discussion` only while it is NULL, never overwrites, `created` stays false | B10 |
 | B11 | 2-3 | agy's language review of the 19 locales, the last step before the text ships | `csi-spl-wui/i18n/locales/*.json` (after B4, B6, B7 and B8 have landed) | B6, B7, B8 |
 | B12 (Implemented, store half, bfc006e10) | 4 | unanswered posts by priority; C406 | `store/fallback_postgres.go`, `store/fallback_memory.go`, `store/unanswered_test.go`, `csi-spl-orc/src/bash/tests/unanswered-sweep-pg.tst.sh` | B1 |
 
@@ -430,6 +430,17 @@ before a row that depends on it starts.
   (`spl-asks-open.func.sh`); it is row B10b. Until then an ask whose topic is
   `dispatch-<topic8>` already gets its discussion, and so its priority, from
   the hub's resolve (B9, C404); an ask with any other topic ranks at 3.
+- B10b as built (SPL-4654): `ASK_DISCUSSION` on `do_spl_ask_put` goes into the
+  journal record and, through the sync, to `spool ask put --discussion`; no
+  discussion sends no flag, so a box with an older spool binary keeps syncing.
+  `do_spl_spawn_enqueue` runs a direct put of the journal record, not the
+  sync's replay, because a queued ask has no op to replay; a failed put or a
+  discussion already set is one WARN and the ask still queues. The journal
+  mirror carries `discussion`. The group path (`spl-spawn-group-put.func.sh`)
+  is not in the row and takes no `ASK_DISCUSSION`. Tests:
+  `TestFleetAskPutFillsDiscussion` (Memory and Postgres), `TestAsk`,
+  `TestAskVerbDiscussion`, section 17 of `asks.tst.sh`, section 21 of
+  `spl-spawn-queue.tst.sh`.
 - B3 and B9 ship the hub (run 20); B6, B7, B8 and B11 ship the WUI (run
   30). A row is done when it is served on dev and prd.
 - B4 and B11 both edit the locale files, never at the same time: B11 starts

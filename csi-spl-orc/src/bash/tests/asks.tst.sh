@@ -57,6 +57,10 @@
 #      hub row mirrors exactly that row
 #  16. the two ask actions' header ends at its closing #--- (r46-02): the
 #      "# spl_role_seat:" comment below it is in no parsed tag line
+#  17. spec 150 row B10b: ASK_DISCUSSION on do_spl_ask_put reaches the journal
+#      and `spool ask put --discussion`, also when the hub was down at the put;
+#      a bad id is refused; no discussion = no flag (CONTROL), so a box with an
+#      older spool binary keeps syncing; another machine's mirror keeps it
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -92,7 +96,7 @@ def out(r):
     o = dict(r); o["age_s"] = int(now - r["c"]); o["quiet_s"] = int(now - max(r["u"], r.get("r") or 0))
     o["created_at"], o["updated_at"], o["raised_at"], o["escalated_at"] = iso(r["c"]), iso(r["u"]), iso(r.get("r")), iso(r.get("e"))
     for k in ("c", "u", "r", "e"): o.pop(k, None)
-    for k in ("deadline_at", "acked_by", "closed_by", "reason", "raised_at", "escalated_at"):  # the hub's omitempty
+    for k in ("deadline_at", "acked_by", "closed_by", "reason", "raised_at", "escalated_at", "discussion"):  # the hub's omitempty
         if o.get(k) == "": o.pop(k)
     return o
 def save(): json.dump(rows, open(path, "w"))
@@ -102,11 +106,13 @@ if op == "list":
     sel.sort(key=lambda r: (r["state"] not in ("open", "acked"), r["c"]))
     print(json.dumps({"fleet": kv["fleet"], "created": False, "asks": [out(r) for r in sel]})); sys.exit(0)
 if op == "put":
+    open(os.path.join(os.environ["HUB_DIR"], "put-args.log"), "a").write(" ".join(a[2:]) + "\n")
     for r in rows:
         if r["ask_id"] == kv["id"]:
+            if kv.get("discussion") and not r.get("discussion"): r["discussion"] = kv["discussion"]; save()  # fills NULL, never overwrites (spec 150 B10b)
             print(json.dumps({"fleet": kv["fleet"], "created": False, "asks": [out(r)]})); sys.exit(0)
     r = {"ask_id": kv["id"], "role": kv.get("role") or "orch", "kind": kv["kind"], "from": kv["from"], "topic": kv.get("topic", ""), "summary": kv.get("summary", ""),
-         "deadline_at": kv.get("deadline", ""), "state": "open", "acked_by": "", "closed_by": "", "reason": "",
+         "deadline_at": kv.get("deadline", ""), "discussion": kv.get("discussion", ""), "state": "open", "acked_by": "", "closed_by": "", "reason": "",
          "raised_n": 0, "writer_box": box, "c": now, "u": now}
     rows.append(r); save()
     print(json.dumps({"fleet": kv["fleet"], "created": True, "asks": [out(r)]})); sys.exit(0)
@@ -786,6 +792,40 @@ for f in spl-asks-open spl-asks-tick; do
     pass "$f: the parsed header has its example= and no spl_role_seat text" ||
     fail "$f: no example= or the comment below the closing #--- was read (is the closer gone?): $(grep -m1 spl_role_seat <<<"$meta")"
 done
+
+# 17. spec 150 row B10b: the discussion through the journal and its sync ---------
+for m in dm dn; do
+  mkdir -p "$T/$m/spool/dispatch"; printf 'LEASE_ORCH=c-001\nLEASE_FLEET=disc\n' >"$T/$m/spool/dispatch/lease.conf"
+done
+DISC=59f725e4-08ca-4e6e-8490-1902a708eba3
+Q1=b10b0001-0000-4000-8000-000000000001; Q2=b10b0002-0000-4000-8000-000000000002; Q3=b10b0003-0000-4000-8000-000000000003; Q4=b10b0004-0000-4000-8000-000000000004
+dputs() { grep -F -- "--id $1 " "$T/hub/put-args.log" 2>/dev/null; }
+disc_row() { jq -r --arg i "$1" '.[] | select(.ask_id == $i) | .discussion' "$T/hub/disc.json" 2>/dev/null; }
+
+on dm do_spl_ask_put ASK_ID="$Q1" ASK_KIND=task ASK_FROM=c-929 ASK_TOPIC=spawn-x ASK_SUMMARY=one ASK_DISCUSSION="$DISC" >/dev/null 2>&1
+[[ "$(jrn dm "$Q1" | jq -r .discussion)" == "$DISC" && "$(disc_row "$Q1")" == "$DISC" && "$(dputs "$Q1")" == *"--discussion $DISC"* ]] &&
+  pass "17. ASK_DISCUSSION is in the journal record and on the hub through put --discussion" ||
+  fail "17. discussion lost: journal $(jrn dm "$Q1") hub $(disc_row "$Q1") args $(dputs "$Q1")"
+
+on dm do_spl_ask_put ASK_ID="$Q2" ASK_KIND=task ASK_FROM=c-929 ASK_TOPIC=spawn-x ASK_SUMMARY=two >/dev/null 2>&1
+[[ -n "$(dputs "$Q2")" && "$(dputs "$Q2")" != *--discussion* && "$(jrn dm "$Q2" | jq -r .discussion)" == "" ]] &&
+  pass "17. CONTROL: no ASK_DISCUSSION sends no --discussion flag (an older spool binary keeps syncing)" ||
+  fail "17. a put with no discussion: args $(dputs "$Q2") journal $(jrn dm "$Q2")"
+
+rc=0; out="$(on dm do_spl_ask_put ASK_ID="$Q4" ASK_KIND=task ASK_FROM=c-929 ASK_DISCUSSION=59f725e4 2>&1)" || rc=$?
+[[ $rc != 0 && "$out" == *"ASK_DISCUSSION must be"* && -z "$(jrn dm "$Q4")" ]] &&
+  pass "17. a bad ASK_DISCUSSION is refused before the journal" || fail "17. bad discussion: rc $rc, $out, journal $(jrn dm "$Q4")"
+
+on dm do_spl_ask_put ASK_ID="$Q3" ASK_KIND=task ASK_FROM=c-929 ASK_TOPIC=spawn-x ASK_SUMMARY=three ASK_DISCUSSION="$DISC" HUB_DOWN=1 >/dev/null 2>&1
+held="$(jrn dm "$Q3" | jq -r '[.discussion, .synced] | @tsv')"
+on dm do_spl_asks_sync >/dev/null 2>&1
+[[ "$held" == "$DISC"$'\t'false && "$(disc_row "$Q3")" == "$DISC" && "$(jrn dm "$Q3" | jq -r .synced)" == true ]] &&
+  pass "17. hub down at the put: the journal holds the discussion, the next sync puts it" ||
+  fail "17. hub-down replay: held $held hub $(disc_row "$Q3") journal $(jrn dm "$Q3")"
+
+on dn do_spl_asks_open >/dev/null 2>&1
+[[ "$(jrn dn "$Q1" | jq -r .discussion)" == "$DISC" && "$(jrn dn "$Q2" | jq -r .discussion)" == "" ]] &&
+  pass "17. another machine's mirror keeps the hub's discussion" || fail "17. mirror: $(jrn dn "$Q1")"
 
 echo
 if (( fails > 0 )); then echo "asks.tst.sh: $fails FAILED"; exit 1; fi

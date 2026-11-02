@@ -107,6 +107,22 @@ spl_asks_hub_list() {
   jq -e -c '.asks | if type == "array" then . else error("no asks") end' <<<"$out" 2>/dev/null
 }
 
+# ASK_DISCUSSION, when set, is the owner topic id the hub stores (rdb 0241).
+spl_asks_discussion_ok() {
+  [[ -z "${ASK_DISCUSSION:-}" || "$ASK_DISCUSSION" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] ||
+    { do_log "FATAL ASK_DISCUSSION must be the owner topic id (a full lowercase UUID), got '$ASK_DISCUSSION'" >&2; return 1; }
+}
+
+# `spool ask put` of one journal record, the hub's answer on stdout. No
+# discussion sends no flag: a box whose spool binary predates it keeps syncing.
+spl_asks_put_rec() {  # RECORD-JSON
+  local disc
+  disc="$(jq -r '.discussion // ""' <<<"$1")"
+  spl_asks_hub put --fleet "$LANE_FLEET" --id "$(jq -r '.ask_id' <<<"$1")" --kind "$(jq -r '.kind' <<<"$1")" \
+    --role "$(jq -r '.role // "orch"' <<<"$1")" --from "$(jq -r '.from' <<<"$1")" --topic "$(jq -r '.topic' <<<"$1")" \
+    --summary "$(jq -r '.summary' <<<"$1")" --deadline "$(jq -r '.deadline_at // ""' <<<"$1")" ${disc:+--discussion "$disc"}
+}
+
 # Push every journal entry the hub has not got (synced false): a new ask is
 # put, a later state is replayed as its op. A 409 (closed elsewhere) takes the
 # hub's row. Best effort: what fails stays unsynced for the next tick.
@@ -116,9 +132,7 @@ spl_asks_sync_pending() {
   while IFS= read -r rec; do
     [[ -n "$rec" ]] || continue
     id="$(jq -r '.ask_id' <<<"$rec")"; state="$(jq -r '.state' <<<"$rec")"
-    if ! out="$(spl_asks_hub put --fleet "$LANE_FLEET" --id "$id" --kind "$(jq -r '.kind' <<<"$rec")" \
-      --role "$(jq -r '.role // "orch"' <<<"$rec")" --from "$(jq -r '.from' <<<"$rec")" --topic "$(jq -r '.topic' <<<"$rec")" \
-      --summary "$(jq -r '.summary' <<<"$rec")" --deadline "$(jq -r '.deadline_at // ""' <<<"$rec")" 2>&1)"; then
+    if ! out="$(spl_asks_put_rec "$rec" 2>&1)"; then
       bad=$((bad + 1)); continue
     fi
     if [[ "$state" != open ]]; then
@@ -189,11 +203,11 @@ spl_asks_mirror() {
       _spool_ask_log mirror "$id" hub "$(jq -r '.state' <<<"$rec")"
   done < <(jq -r --slurpfile loc <(spool_ask_journal_list) '
     # the hub omits empty fields: compare them as "" so an unchanged row is not rewritten
-    def key: [.state, (.raised_n // 0), (.acked_by // ""), (.closed_by // ""), (.escalated_at // "")];
+    def key: [.state, (.raised_n // 0), (.acked_by // ""), (.closed_by // ""), (.escalated_at // ""), (.discussion // "")];
     ($loc | map(select(type == "object" and (.ask_id | type) == "string") | {key: .ask_id, value: .}) | from_entries) as $j
     | .[] | select((.ask_id | type) == "string") | . as $row | $j[$row.ask_id] as $cur
     | select($cur == null or ($cur.synced != false and ($cur | key) != ($row | key)))
-    | "\($row.ask_id) \($row | {ask_id, role: (.role // "orch"), kind, from, to: "", topic, summary, deadline_at: (.deadline_at // ""), state,
+    | "\($row.ask_id) \($row | {ask_id, role: (.role // "orch"), kind, from, to: "", topic, summary, deadline_at: (.deadline_at // ""), discussion: (.discussion // ""), state,
             acked_by: (.acked_by // ""), closed_by: (.closed_by // ""), reason: (.reason // ""),
             raised_n, raised_at: (.raised_at // ""), escalated_at: (.escalated_at // ""),
             created_at, updated_at, synced: true} | tojson)"' <<<"$1")

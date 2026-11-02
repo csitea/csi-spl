@@ -29,6 +29,8 @@
 #      closes it and tells the sender
 #   7. the launcher's HOLD (exit 10) puts it back at position 1
 #   8. do_spl_spawn_queue lists POS, PRIO, sender and summary
+#  21. spec 150 row B10b: ASK_DISCUSSION at enqueue fills the row's discussion
+#      while NULL, never overwrites; a bad id is refused
 #  10. SPL-1817 (rdb 0195, owner t1 3209f8b8 msg 8cb6cc7d): an enqueue with
 #      no class, a bad one, an urgent feature or a bypass of a bug is refused;
 #      the queue orders by class; the placer takes the class furthest under
@@ -182,7 +184,9 @@ if op == "list":
     answer(sel)
 if op == "put":
     for r in rows:
-        if r["ask_id"] == kv["id"]: answer([r])
+        if r["ask_id"] == kv["id"]:
+            if kv.get("discussion") and not r.get("discussion"): r["discussion"] = kv["discussion"]; save()  # fills NULL, never overwrites (spec 150 B10b)
+            answer([r])
     r = {"ask_id": kv["id"], "role": kv.get("role") or "orch", "kind": kv["kind"], "from": kv["from"], "topic": kv.get("topic", ""),
          "summary": kv.get("summary", ""), "discussion": kv.get("discussion", ""), "state": "open", "acked_by": "", "closed_by": "", "reason": "", "raised_n": 0,
          "placement": "", "writer_box": os.environ.get("SPOOL_DESK_BOX", "box-desk"), "c": now, "u": now}
@@ -1441,6 +1445,30 @@ qpos() { grep -E "^[0-9]+/[0-9]+ +$2 +$3 +${1:0:8} " <<<"$out" | cut -d/ -f1; }
 [[ "$(on pc do_spl_spawn_queue SPAWN_QUEUE_FORMAT=json HUB_PRIOS="{\"$D1\": 1}" 2>/dev/null | jq -r --arg a "$P1" '.queue[] | select(.ask_id == $a) | .priority')" == 1 ]] &&
   pass "20. C405: the json view carries priority" || fail "20. C405 json priority"
 for id in "$P1" "$P3" "$P5"; do HUB_DIR="$T/hub" "$T/bin/hub" ask dead --fleet main --id "$id" --by c-001@box-desk --reason c405 >/dev/null; done
+
+# 21. spec 150 row B10b: ASK_DISCUSSION at enqueue, the ask already on the hub ----------
+# The request is on the hub before the enqueue, so the put fills discussion while
+# it is NULL. RED CONTROL: no pass-through leaves the row's discussion empty.
+DA=59f725e4-08ca-4e6e-8490-1902a708eba3; DB=59f725e4-08ca-4e6e-8490-1902a708eba4
+K1=b10b0001-0000-4000-8000-000000000001; K2=b10b0002-0000-4000-8000-000000000002; K3=b10b0003-0000-4000-8000-000000000003
+for id in "$K1" "$K2" "$K3"; do put "$id" c-002@box-desk "spawn-b10b" "SPAWN REQUEST ${id:0:8}"; done
+kdisc() { jq -r --arg i "$1" '.[] | select(.ask_id == $i) | "\(.discussion // "")/\(.state)"' "$T/hub/main.json"; }
+out="$(on pc do_spl_spawn_enqueue ASK_ID="${K1:0:8}" SPAWN_CLASS=bug ASK_DISCUSSION="$DA" 2>&1)"
+[[ "$(kdisc "$K1")" == "$DA/queued" && "$(jq -r .discussion "$T/pc/spool/asks/$K1.json")" == "$DA" ]] &&
+  pass "21. B10b: ASK_DISCUSSION reaches an ask already on the hub, and the journal; the ask is queued" ||
+  fail "21. B10b discussion at enqueue: hub $(kdisc "$K1"), journal $(cat "$T/pc/spool/asks/$K1.json"): $out"
+out="$(on pc do_spl_spawn_enqueue ASK_ID="$K1" SPAWN_CLASS=bug ASK_DISCUSSION="$DB" 2>&1)"
+[[ "$(kdisc "$K1")" == "$DA/queued" && "$out" == *"keeps its discussion ${DA:0:8}"* ]] &&
+  pass "21. B10b: a second discussion never overwrites, and says so (the ask stays queued)" || fail "21. B10b overwrite: $(kdisc "$K1"): $out"
+on pc do_spl_spawn_enqueue ASK_ID="$K2" SPAWN_CLASS=bug >/dev/null 2>&1
+on pc do_spl_spawn_enqueue ASK_ID="$K2" SPAWN_CLASS=bug ASK_DISCUSSION="$DA" >/dev/null 2>&1
+[[ "$(kdisc "$K2")" == "$DA/queued" ]] && pass "21. B10b: an ask already queued gets it too, still queued" || fail "21. B10b queued ask: $(kdisc "$K2")"
+rc=0; out="$(on pc do_spl_spawn_enqueue ASK_ID="$K3" SPAWN_CLASS=bug ASK_DISCUSSION=59f725e4 2>&1)" || rc=$?
+[[ $rc != 0 && "$out" == *"ASK_DISCUSSION must be"* && "$(kdisc "$K3")" == /open ]] &&
+  pass "21. B10b: a bad ASK_DISCUSSION is refused, the ask not queued" || fail "21. B10b bad id: rc $rc $(kdisc "$K3"): $out"
+on pc do_spl_spawn_enqueue ASK_ID="$K3" SPAWN_CLASS=bug >/dev/null 2>&1
+[[ "$(kdisc "$K3")" == /queued ]] && pass "21. B10b CONTROL: no ASK_DISCUSSION leaves the row's empty" || fail "21. B10b control: $(kdisc "$K3")"
+for id in "$K1" "$K2" "$K3"; do HUB_DIR="$T/hub" "$T/bin/hub" ask dead --fleet main --id "$id" --by c-001@box-desk --reason b10b >/dev/null; done
 
 # 9. the cron line ----------------------------------------------------------------------
 cat >"$T/bin/crontab" <<'EOF'

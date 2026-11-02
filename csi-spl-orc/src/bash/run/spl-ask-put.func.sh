@@ -15,6 +15,7 @@
 # @param ASK_TOPIC (optional) - the topic (task id)
 # @param ASK_TO (optional) - the orchestrator it went to, for the record
 # @param ASK_DEADLINE (optional) - when it is due, RFC 3339 UTC (2026-10-02T06:00:00Z)
+# @param ASK_DISCUSSION (optional) - the owner topic the ask works for, a lowercase UUID (spec 150 row B10b: the queue ranks by its priority); unset, the hub resolves a topic dispatch-<topic8>
 # @param ASKS_FLEET ASKS_ENV ASKS_TENANT ASKS_DESK_BOX ASKS_HUB_CMD (optional) - as do_spl_asks_open
 # @example ASK_ID=39451306-8830-4e8e-878c-eb29f2803839 ASK_KIND=escalation ASK_FROM=CLE-002 ASK_TOPIC=692aefe8 ASK_SUMMARY='no lane for 6 h' ./run -a do_spl_ask_put
 
@@ -23,11 +24,12 @@ do_spl_ask_put() {
   [[ "${ASK_KIND:-}" =~ ^(blocker|task|escalation)$ ]] || { do_log "FATAL ASK_KIND must be blocker, task or escalation"; return 1; }
   [[ -z "${ASK_DEADLINE:-}" || "$ASK_DEADLINE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || { do_log "FATAL ASK_DEADLINE must be RFC 3339 UTC, e.g. 2026-10-02T06:00:00Z"; return 1; }
   spl_asks_init || return 1
+  spl_asks_discussion_ok || return 1
   local from="${ASK_FROM:-}"
   [[ "$from" =~ ^${SPOOL_PARTICIPANT_RX}$ ]] && from="$from@$ASKS_BOX"
   { spl_is_participant_id "${from%@*}" && [[ "$from" =~ @[a-z0-9][a-z0-9-]{0,31}$ ]]; } || { do_log "FATAL ASK_FROM must be <ID> or <ID>@<box>, got '${ASK_FROM:-}'"; return 1; }
   spool_ask_journal_open "$ASK_ID" "$ASK_KIND" "$from" "${ASK_TO:-}" "${ASK_TOPIC:-}" \
-    "$(spool_ask_summary "${ASK_SUMMARY:-}")" "${ASK_DEADLINE:-}" || { do_log "FATAL the journal did not take ask $ASK_ID"; return 1; }
+    "$(spool_ask_summary "${ASK_SUMMARY:-}")" "${ASK_DEADLINE:-}" "${ASK_DISCUSSION:-}" || { do_log "FATAL the journal did not take ask $ASK_ID"; return 1; }
   do_log "OK ask ${ASK_ID:0:8} journaled ($ASK_KIND from $from)"
   spl_asks_sync_pending
 }

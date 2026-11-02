@@ -27,18 +27,23 @@
 # @param ASK_ID (required) - the ask id, or its first 8 hex digits (do_spl_asks_open prints them)
 # @param SPAWN_PLACE (optional) - <vendor>:<slug>: the placer launches it itself, `spawn-window.sh <vendor> auto <workdir> <brief> <slug>`, with the brief file <slug>.md under SPAWN_PLACE_BRIEF_DIR on the orch box. Unset: the placer hands it to the orchestrator when it is next
 # @param SPAWN_KIND (optional) - the lane's task kind (spec 115); unset reads the "Kind:" of the brief <slug>.md. A mistral placement of any kind but specs_and_docs or i18n is refused (owner HUM-10, t1 b61851fb, msg 91bf8278: mistral does docs and reviews only) while cnf env.box.agent_split.mistral_coding_allowed is not true
+# @param ASK_DISCUSSION (optional) - the owner topic the ask works for, a lowercase UUID (spec 150 row B10b): the queue ranks by its priority. The hub fills it while the ask has none, never overwrites; unset, the hub's resolve of a topic dispatch-<topic8> stands
 # @param ASK_BY (optional) - the acting agent, <ID>@<box>; default this machine's orchestrator
 # @param ASKS_FLEET ASKS_ENV ASKS_TENANT ASKS_DESK_BOX ASKS_HUB_CMD (optional) - as do_spl_asks_open
 # @example ASK_ID=8a70dfd7 SPAWN_CLASS=refactor ./run -a do_spl_spawn_enqueue
 # @example ASK_ID=8a70dfd7 SPAWN_CLASS=bug SPAWN_PLACE=claude:hub-pg-split ./run -a do_spl_spawn_enqueue
+# @example ASK_ID=8a70dfd7 SPAWN_CLASS=bug ASK_DISCUSSION=59f725e4-08ca-4e6e-8490-1902a708eba3 ./run -a do_spl_spawn_enqueue
 # @example ASK_ID=8a70dfd7 SPAWN_CLASS=feature SPAWN_BYPASS=8cb6cc7d-7628-4ac3-be00-86e427bb3487 ./run -a do_spl_spawn_enqueue
 # @example ASK_ID=de5714db SPAWN_CLASS=bug SPAWN_BYPASS=994f2257-8ad1-4010-88c8-4f0a16230937 SPAWN_PLACE=agy:c002-ar1-05-agy-r7-reviewer ./run -a do_spl_spawn_enqueue
 
 do_spl_spawn_enqueue() {
   local by id row pos len rc=0
   spl_spawn_q_init || return 1
+  spl_asks_discussion_ok || return 1
   by="$(spl_asks_by)" || return 1
   id="$(spl_spawn_q_resolve)" || return 1
+  # before the queue op: the position it answers ranks by this discussion's priority
+  spl_spawn_q_discussion "$id"
   row="$(spl_spawn_q_enqueue "$id" "$by" "${SPAWN_PLACE:-}" "${SPAWN_CLASS:-}" "${SPAWN_URGENT:-0}" "${SPAWN_BYPASS:-}")" || rc=$?
   (( rc == 0 )) || return "$rc"
   pos="$(jq -r '.position // 0' <<<"$row")"
@@ -46,6 +51,27 @@ do_spl_spawn_enqueue() {
   if ! spl_spawn_q_reply "$row" "$by" "queued, position $pos of $len, placed when the box has room (ask ${id:0:8}; the queue: \`./run -a do_spl_spawn_queue\`)"; then
     do_log "WARN ask ${id:0:8} is queued but its sender was not told"
   fi
+}
+
+# ASK_DISCUSSION onto an ask the hub already has (spec 150 row B10b): the put
+# fills it while the row has none, and the answer goes to the journal (a direct
+# put, not the sync's replay: a queued ask has no op to replay). Never fails the
+# enqueue: the ask is queued at the priority it has, and the WARN says so.
+spl_spawn_q_discussion() {  # ID
+  [[ -n "${ASK_DISCUSSION:-}" ]] || return 0
+  local rec out row got
+  rec="$(spool_ask_journal_get "$1")" || { do_log "WARN ask ${1:0:8} is not in this machine's journal: discussion not set" >&2; return 0; }
+  rec="$(jq -c --arg d "$ASK_DISCUSSION" '. + {discussion: $d}' <<<"$rec")"
+  if ! out="$(spl_asks_put_rec "$rec" 2>&1)"; then
+    do_log "WARN the hub did not take the discussion of ask ${1:0:8} (run this enqueue again): $(tail -1 <<<"$out" | cut -c1-200)" >&2
+    return 0
+  fi
+  row="$(jq -c '.asks[0] // empty' <<<"$out" 2>/dev/null)"
+  [[ -n "$row" ]] || { do_log "WARN the hub's put answer of ask ${1:0:8} has no row" >&2; return 0; }
+  spl_asks_mirror "[$row]" >&2
+  got="$(jq -r '.discussion // ""' <<<"$row")"
+  [[ "$got" == "$ASK_DISCUSSION" ]] || do_log "WARN ask ${1:0:8} keeps its discussion ${got:0:8}: a set one is never overwritten" >&2
+  return 0
 }
 
 # One ask into the queue: the checks, the hub's queue op, the bypass record;

@@ -1,6 +1,6 @@
 # 107 Hours tracking: suggested, approved, frozen
 
-**Feature ID**: `107-hours-tracking` · **Milestone**: M3 · **Status**: **v2.5** (2026-10-29: owner answers Q26..Q28 = A, A, A folded into section 21, msg `ce14ad70`; spec only, rows T071..T077 Planned) · v2.4 (2026-10-29: section 21, a human time counter per discussion, per issue and per object, and the member's own hourly price, for the Releases page) · v2.3 (2026-10-11: start and end times in `hours_entry_spans` and the database member guard, section 3.4, for spec 118 v1.1, owner msg `23d782e1`) · v2.2 (2026-10-10: owner answers Q9..Q25 folded into the FRs and design points) · v2.1 (2026-10-10: owner principle P0 at the top of section 0, msgs `4d6d200c` and `4fd07875`; owner rows R12, R13; the points that push toward exact tracing and the timer, keyword and UI-direction questions as owner questions Q9..Q25 in section 20; no FR changed) · v2.0 (2026-10-10: the business-needs gaps, sections 14..17, FR-14..FR-40; v2 panel consensus of four seats in section 18; owner Q8 = C) · v1.2 (v1.0 unanimous consensus: seats s107-1..4 agree with changes, section 12; owner questions Q1..Q7 in section 13; **v1.2: the owner moved the member UI into the calendar**, R8 and R9 in section 0, section 5)
+**Feature ID**: `107-hours-tracking` · **Milestone**: M3 · **Status**: **v2.6** (2026-11-02: the biz owner sets each person's hourly price, per workspace, in a tab of Expenses; the member's own price is dropped, owner poll `e47404d1`, msg `a7ec216c`; section 21.5 rewritten, 21.6..21.9 follow; spec only, nothing built) · v2.5 (2026-10-29: owner answers Q26..Q28 = A, A, A folded into section 21, msg `ce14ad70`; spec only, rows T071..T077 Planned) · v2.4 (2026-10-29: section 21, a human time counter per discussion, per issue and per object, and the member's own hourly price, for the Releases page) · v2.3 (2026-10-11: start and end times in `hours_entry_spans` and the database member guard, section 3.4, for spec 118 v1.1, owner msg `23d782e1`) · v2.2 (2026-10-10: owner answers Q9..Q25 folded into the FRs and design points) · v2.1 (2026-10-10: owner principle P0 at the top of section 0, msgs `4d6d200c` and `4fd07875`; owner rows R12, R13; the points that push toward exact tracing and the timer, keyword and UI-direction questions as owner questions Q9..Q25 in section 20; no FR changed) · v2.0 (2026-10-10: the business-needs gaps, sections 14..17, FR-14..FR-40; v2 panel consensus of four seats in section 18; owner Q8 = C) · v1.2 (v1.0 unanimous consensus: seats s107-1..4 agree with changes, section 12; owner questions Q1..Q7 in section 13; **v1.2: the owner moved the member UI into the calendar**, R8 and R9 in section 0, section 5)
 **Created**: 2026-10-07 · **Drafter / folder**: c-522 (seat s107-1) · **Topic**: t1 `ef217164-daaa-43bb-8343-f55ddb2f53a8` · lane dispatch `dispatch-ef217164`
 **Authority**: this file for behaviour; [tasks.md](tasks.md) for what is built. Docs only: this spec builds nothing (`../README.md` §2.4). v2 input: [business-needs.md](business-needs.md) (consensus `2c6c36732`) and its seats [bn-agy](reviews/bn-agy.md) · [bn-mistral](reviews/bn-mistral.md) · [bn-claude](reviews/bn-claude.md) · [bn-claude-2](reviews/bn-claude-2.md). Status vocabulary: `../README.md` §2.3; every FR below is **Planned**.
 
@@ -484,7 +484,7 @@ v1.2: the calendar's own two layouts at 820 px. Desktop: the line in the week's 
 
 ## 11. Not in v1
 
-v2.0-draft takes in, from this list: overtime and the other rate categories as labels (FR-28), leave as absence types without balances (FR-30), holidays (FR-29), the foreman entering a crew member's minutes before the freeze (FR-23), and a push nudge (FR-36). **Money stays out of hours tracking** (FR-19): rates live in a separate accounting view, seen only by the time-accountant role (FR-20).
+v2.0-draft takes in, from this list: overtime and the other rate categories as labels (FR-28), leave as absence types without balances (FR-30), holidays (FR-29), the foreman entering a crew member's minutes before the freeze (FR-23), and a push nudge (FR-36). **Money stays out of hours tracking** (FR-19): rates live in a separate accounting view, seen only by the time-accountant role (FR-20). v2.6: the biz owner also sets and reads them, 21.5.
 
 - **Money**: rates, invoices, overtime, leave and holidays.
 - **Agents' hours** (roster ids), box or agent runtime as cost.
@@ -640,13 +640,13 @@ O5 is corrected by O6: visibility is per **role**, not per person. Roles combine
 | id | requirement | cites |
 |---|---|---|
 | **FR-18** | **Job, a new target.** A job (`job:<job_id>`) has a name, a site (free text, e.g. an address), an optional linked topic, a **quote in hours** (`quote_minutes`) and a state (`open`, `closed`). Created and closed by the office (workspace-wide `hours.approve`), in the setup screen (FR-38). The target CHECK of `hours_entries` (3.2) widens to `job:`, a constraint redefinition in the 0148 pattern (3.3); `hours_minutes` and its CHECK stay as v1. A site worker's day defaults to their planned job (FR-17); an office member's to tracked activity; the worker changes it only on a day that differed. A post in the job's linked topic is suggested against the job, not the topic: mapped **at read time** from `t:<task_id>`, no extra lookup on the post write path. A closed job is no longer offered in pickers; its rows stay. | BN-2, BN-15 |
-| **FR-19** | **No money in hours tracking (owner `5105fdf7`).** Hours tracking has **no rate editor and no rate field**. A person's rate lives in a future **accounting view**, a separate spec (not written; a dependency of 107 v2, out of its scope). Hours tracking only **reads** a rate from it to compare a job's labour cost (approved hours x the person's rate on that day) with the job's quote; a quote in money, if any, lives there too. Until the accounting view exists, a job compares approved hours with `quote_minutes` only. | BN-15, BN-10, O4 |
+| **FR-19** | **No money in hours tracking (owner `5105fdf7`).** Hours tracking has **no rate editor and no rate field**. A person's rate lives in a future **accounting view**, a separate spec (not written; a dependency of 107 v2, out of its scope). Hours tracking only **reads** a rate from it to compare a job's labour cost (approved hours x the person's rate on that day) with the job's quote; a quote in money, if any, lives there too. Until the accounting view exists, a job compares approved hours with `quote_minutes` only. **v2.6:** the rate is the hourly price the biz owner sets in Expenses (21.5), stored outside the `hours_*` tables, so this row's "no rate field" holds for those tables. | BN-15, BN-10, O4 |
 
 ### 14.4 Roles: the time-accountant, the external accountant (owner O5..O7)
 
 | id | requirement | cites |
 |---|---|---|
-| **FR-20** | **The time-accountant role.** A new system role `time_accountant` holds `hours.read` and a new permission **`hours.rates`** ("see rates and labour cost; compute approved hours x rate"). Every rate, money amount, labour cost and the BN-15 cost-against-quote comparison is served only to **holders of `hours.rates`**, by route (as 1.7). `hours.rates` is pinned to `time_accountant`: it is in no other default role, the biz owner's included, and the role editor cannot add it to another role. A biz owner who needs rates assigns themself the role, which is logged (FR-33): this is a separation of duties, not a boundary against the biz owner. Workers, foremen and approvers without that role see hours, never money. **Roles combine**: one person may hold, e.g., a foreman's crew leadership (FR-22) and the time-accountant role at once. This needs **several roles per member** (025 section 9, phase 2: `tenant_member_roles`, the authorizer takes the union), not built yet: a dependency of 107 v2. Until the accounting view (FR-19) exists, `hours.rates` has nothing to show; build the hours-only half of FR-20 and FR-21 first. | BN-15, O5, O6 |
+| **FR-20** | **The time-accountant role.** A new system role `time_accountant` holds `hours.read` and a new permission **`hours.rates`** ("see rates and labour cost; compute approved hours x rate"). Every rate, money amount, labour cost and the BN-15 cost-against-quote comparison is served only to **holders of `hours.rates`**, by route (as 1.7). `hours.rates` is pinned to `time_accountant`: it is in no other default role, the biz owner's included, and the role editor cannot add it to another role. A biz owner who needs rates assigns themself the role, which is logged (FR-33): this is a separation of duties, not a boundary against the biz owner. Workers, foremen and approvers without that role see hours, never money. **Roles combine**: one person may hold, e.g., a foreman's crew leadership (FR-22) and the time-accountant role at once. This needs **several roles per member** (025 section 9, phase 2: `tenant_member_roles`, the authorizer takes the union), not built yet: a dependency of 107 v2. Until the accounting view (FR-19) exists, `hours.rates` has nothing to show; build the hours-only half of FR-20 and FR-21 first. **v2.6 (owner poll `e47404d1`, 21.5):** one narrowing. The biz owner sets and reads each person's hourly price through the new permission `hours.prices`, and `hours.rates` holders read it. Every computed amount (hours x price, labour cost, cost against quote) stays with `hours.rates`, still pinned to `time_accountant`. | BN-15, O5, O6, R16 |
 | **FR-21** | **The external accountant seat.** A time-accountant may be a foreman (combined roles), an internal accountant, or an **accountant outside the organisation**. The external seat: **invite**: a holder of `members.invite` invites an e-mail with the role `time_accountant` as the membership's **only** role and a **required** end date (`access_until`, rdb 0113, the 072 guest rule R1, A27: scoped, revocable, expiring); **visibility**: read only (`hours.read`, `hours.rates`; no Approve, no Return): the Team and Download tabs and the job cost view, member names as they appear on hours rows; **no** `topics.read` (no WUI socket, no topics, channels, docs, files, roster or calendar events), none of the four permissions every member role holds today (`rbac.go` `withMember`); the WUI opens the calendar's hours panel (5.4) full width with no events: no `/hours` page, but `/hours` in chat is added as a cheap extra, so R8 and R9 stand. Absence types show as "absent" (FR-30). The seat gets no period row (the sweep, 4.2, skips a membership whose only role is `time_accountant`, as it skips agents). **Removal**: a holder of `members.invite` removes the seat, or `access_until` passes; access ends at once; the downloads it made stay in the change log (FR-33). An accountant serving several firms holds one seat per workspace (FR-37). Whether the seat is billed is the billing spec's call, not 107's. | O7, BN-15 |
 
 ### 14.5 Crews and the foreman (BN-6, BN-14, BN-5)
@@ -907,6 +907,7 @@ Each seat signs the v2.0 sha below on the same lane.
 | 2.3 | 2026-10-11 | c-164 | section 3.4: `hours_entry_spans` (start and end times, written by the timer and the approval; plan and clock when built) and the `member_scope` guard on `hours_entries`, `hours_entry_spans`, `hours_minutes`, rdb 0176; spec 118 v1.1 Q1 A, Q2 A, Q3 A (owner msg `23d782e1`) |
 | 2.4 | 2026-10-29 | c-410 | section 21 (owner R14 msg `54d01e8c`, R15 msg `cfea214c`): a human time counter per discussion, issue and object from approved entries only (P0); the member's own hourly price; a commit's human time and money for the Releases page (spec 143 section 8); owner questions Q26..Q28; build rows T071..T077 in `tasks.md` |
 | 2.5 | 2026-10-29 | c-600 | owner answers Q26 A, Q27 A, Q28 A (HUM-10, t1 `9815e592`, poll `e9523b1f`, msg `ce14ad70`) folded into section 21: 21.4 steps 4 and 7, 21.6, 21.8 routes, 21.9 now a decided table; `tasks.md` T073..T076 cite the answers; no rule changed, every answer was the recommendation |
+| 2.6 | 2026-11-02 | c-715 | owner R16 (HUM-10, topic `36cc7f3b`, msgs `da9a06a5`, `b2fe53b7`; poll `e47404d1`, answer A, msg `a7ec216c`) replaces R15: 21.5 rewritten (the biz owner writes, per workspace, in a tab of Expenses; the member's price and screen dropped), 21.6, 21.7, 21.8, 21.8.1, 21.9, FR-19 and FR-20 follow; Q29 listed; `tasks.md`: T071, T072, T074, T077 amended, T078..T080 added (SPL-4655) |
 
 ---
 
@@ -964,16 +965,17 @@ These mirror the questions the dispatcher c-002 already put to the owner on `dis
 
 ---
 
-## 21. Addendum v2.4: a human time counter per discussion, per issue and per object, and the member's hourly price
+## 21. Addendum v2.4: a human time counter per discussion, per issue and per object, and each person's hourly price
 
-**Status: Planned, spec only.** Written on `db3ec550e` (origin/master at the start of this lane, lane issue SPL-4163, epic SPL-3036). v2.5: the owner decided Q26..Q28, all three on the recommendation (21.9, msg `ce14ad70`). Nothing here is built; the build rows are T071..T077 in [tasks.md](tasks.md). The data model below is a sketch: no migration file comes with this section.
+**Status: Planned, spec only.** Written on `db3ec550e` (origin/master at the start of this lane, lane issue SPL-4163, epic SPL-3036). v2.5: the owner decided Q26..Q28, all three on the recommendation (21.9, msg `ce14ad70`). v2.6: the owner moved the price from the member to the biz owner (21.5). Nothing here is built; the build rows are T071..T080 in [tasks.md](tasks.md). The data model below is a sketch: no migration file comes with this section.
 
 ### 21.0 The owner's words (verbatim) and what binds them
 
 | # | where | text |
 |---|---|---|
 | R14 | HUM-10, t1 `7adb4163`, msg `54d01e8c` | "We should implement a human time counter per discussion, per issue, and per object, but there should be a separate issue for this one because it's so complex." |
-| R15 | HUM-10, t1 `9815e592` (this addendum's discussion), msg `cfea214c` | "Each human should be able to set an hourly price for himself." |
+| R15 | HUM-10, t1 `9815e592` (this addendum's discussion), msg `cfea214c` | "Each human should be able to set an hourly price for himself." **Replaced by R16.** |
+| R16 | HUM-10, workspace csitea, topic `36cc7f3b`, msgs `da9a06a5`, `b2fe53b7`, `a7ec216c` (poll `e47404d1`) | "it should be possible per workspaces in spool-hub one to set the price of people per hour"; "ak afor each person participating in the work for workspace - the biz_owner role should have a tab in the epenses section should have a possibility to add the costs person"; his choice: "A — The biz owner, in the Expenses tab; the member's own price is dropped (recommended: one place, one owner)" |
 
 Context: the Releases page (spec 143 section 8) prices a commit from the agent tokens of the lane that landed it (`commit_token_burn`, 143 section 8.7). A commit with no lane telemetry shows `[ — · untracked ]` (143 section 8.6). Human work on the same issue has no record there. Every commit carries the same real git identity (repo `CLAUDE.md`, "Commits:"), so git cannot tell a human commit from an agent one. This addendum gives every commit its human part as well, read from approved hours.
 
@@ -1045,7 +1047,7 @@ $$\text{commit} \longrightarrow \text{issue (subject scope or } \texttt{Closes:}
 2. **Which time.** The approved minutes of every human member on the issue's topic, and on its source discussion. Both are cut to the **open window**: from the day the issue was created (`issues.created_at`, in the member's zone, 1.6) to the landing day of its last closing commit. Time on the discussion before the issue existed, or after it closed, stays on the discussion's own counter. It is not credited to the commit.
 3. **A discussion behind several issues.** If k issues name the same source discussion and their windows overlap, each overlapping day's discussion minutes are split evenly across those k issues. The issue's own topic is never split.
 4. **Several commits for one issue: day slices** (owner Q28 A, decided, msg `ce14ad70`). Spec 143 cuts a lane's tokens into time slices between its landings (143 section 8.3.1, owner Q2 msg `51f2fff5`, which rejected the equal split). Human time has no minute stamp to cut, and P0 wants none: an entry carries only its day. So the slice is a **day**. Commit $c_j$ takes the issue's approved minutes from the day after the landing day of the previous closing commit, up to and including its own landing day. The first commit starts at the issue's creation day. Minutes after the last landing, while the window is still open, go to the last commit. Two commits that land on the same day split that day's minutes evenly. Every approved minute lands on exactly one commit, so the issue's minutes are conserved, as 143's tokens are. Kind and area labels each take the commit's full share (143's conservation rule).
-5. **Money.** For each approved entry: minutes / 60 x the member's **price in force on the entry's day** (21.5). The result is summed per commit and per day, in the price's currency. The amount is converted at that day's ECB rate (rdb 0200) to USD and to the viewer's second currency, exactly as the Costs page and 143 section 8.4 do. A day with no rate, or a member with no price, leaves that part **unpriced** (`null`), never a guess. The minutes still count.
+5. **Money.** For each approved entry: minutes / 60 x the person's **price in force on the entry's day** (21.5). The result is summed per commit and per day, in the price's currency. The amount is converted at that day's ECB rate (rdb 0200) to USD and to the viewer's second currency, exactly as the Costs page and 143 section 8.4 do. A day with no rate, or a member with no price, leaves that part **unpriced** (`null`), never a guess. The minutes still count.
 6. **When it is written.** A ledger row for a commit is written by the hours sweep once **every period that holds the counted days is frozen or final** for every member who booked time to the issue. Until then the commit shows `human: pending approval`. A number that could still move is never shown as final.
 7. **What the page shows** (operator view; 143 section 8.7 audience):
    - Each commit row gains a human part beside the agent part, e.g. `[ 350k tok · $0.54 | 3:15 h · €210 ]`.
@@ -1054,28 +1056,49 @@ $$\text{commit} \longrightarrow \text{issue (subject scope or } \texttt{Closes:}
    - The coverage tooltip counts a commit as tracked when it has either part.
    - Money columns: only an operator admin who also holds `hours.rates` (the time-accountant role) sees the money; other operator admins see the human hours without money (owner Q27 A, decided, msg `ce14ad70`).
 
-### 21.5 The member's hourly price (R15)
+### 21.5 Each person's hourly price: the biz owner sets it, in Expenses (R16, replaces R15)
 
-1. **Set by the member, for themself only.** Each member sets one hourly price in their own settings: an amount and a currency. Nobody else writes it: not the biz owner, the time-accountant or the operator. A member who sets none has no price, and their time stays unpriced (21.4 step 5).
-2. **Dated, never retroactive.** A change applies from a chosen day onward (default: tomorrow in the member's zone). It never reprices a day inside a frozen or final period. The old prices are kept, because a past commit's money reads the price of its day.
-3. **Currency.** The currency is the member's pick among those the Costs page converts (USD plus any second currency with an rdb 0200 rate). It is stored with the amount. Conversion happens on read, per day (21.4 step 5).
-4. **Per workspace.** The price lives in one workspace, like all hours data (FR-37). A person in several workspaces sets one price in each; the cross-workspace view is spec 118's.
-5. **What this changes in v2.** FR-19 said a person's rate lives in "a future accounting view, a separate spec (not written)", and T063 is blocked on it. R15 settles the first part of that view: the price is the member's own setting, stored outside the `hours_*` tables, so FR-19's "hours tracking has no rate field" still holds for those tables. T063's job-cost half (approved hours x price against a quote) reads this price once T072 lands. The FR-20 rule stays as written: money is served only to `hours.rates` holders. The one new reader is the member, who sees their own price.
+**What is built and live today** (`origin/master` at `0c8a7f389`; `ENV=dev|prd ./run -a do_check_deploy_lag` -> hub served `52437315`, WUI served `7328eae9`, both `current`):
+
+| thing | state | where |
+|---|---|---|
+| the price table and its routes | **not built** | `git grep -l member_hourly_prices origin/master -- csi-spl-rdb` -> 0 files; the same grep with `me/hours/price`, `hours/prices`, `HoursPriceSettings` over api, wui, iac and orc -> 0 files |
+| a rate or price column of a person | **none** | `git grep -inE '^\s+[a-z_]*(rate\|price)[a-z_]*\s+(integer\|bigint\|numeric\|text)'` over the migrations -> 1 hit, `0200_fx_rates.sql:25`, an exchange rate |
+| `hours.rates` | catalogued, no route asks it | `rbac/rbac.go:57`, `:255`; pinned by `0222_hours_v2_terminals.sql:90-91` and `0223_tenant_role_grants.sql:108`; `git grep HoursRates` under `internal/hub`, non-test -> 0 hits |
+| Expenses, the hub half | live | rail id, `e883d7080` (`0245_human_rail_order_expenses.sql`); `cost_entries` (`0245_cost_entries.sql`) and `/v1/operator/cost-entries` (`hub/cost_entries.go:43`), behind the operator door (`:51`), no `tenant_id` |
+| Expenses, the page | **not on master** | SPL-4382, lane c-630: `git merge-base --is-ancestor e3e567779 origin/master` -> no; `git ls-tree -r --name-only origin/master csi-spl-wui/src \| grep -i expens` -> 0 files. Its branch `wip/c-630-c002-costs-paid-subs-section-r2-rebased3` has `/expenses/ai\|cloud\|hr`, all three `operatorsOnly: true` |
+| text that still says "own price" | live on dev and prd | Reporting -> Costs -> Human: `pages/reporting/costs/human.vue:10`, key `reporting.costs.human.not_tracked` (`i18n/locales/en.json:3524`), rows named in `utils/costs-sections.mjs:17`. It is the only served trace of R15 |
+
+**Stored member prices: none.** The table has no migration on master, so dev and prd hold 0 rows and there is nothing to migrate. This comes from the tree; no database was queried. **Built member screens: none.** `HoursPriceSettings.vue` (T074) was never written, so nothing is removed, the row just drops it.
+
+The rules:
+
+1. **Who writes: the biz owner only.** A new permission, **`hours.prices`** ("set and read each person's hourly price"), held by `biz_owner` alone and pinned there by a CHECK on `rbac_role_permissions` and on `tenant_role_grants`, as `hours.rates` is (`0222:90-91`, `0223:108`), so the role editor cannot hand it on. Nobody else writes a price: not the member, an admin, a foreman, the time-accountant or the operator. A biz owner sets their own price the same way. A workspace with two biz owners has two writers; `set_by` says which one wrote (rule 6).
+2. **Per workspace.** The price lives in one workspace, like all hours data (FR-37). A person in several workspaces has one price in each, set by that workspace's biz owner. A biz owner writes and reads only their own workspace.
+3. **Where: a tab of Expenses.** `/expenses/people`, label "Hourly cost", a tab beside AI costs, Cloud infra costs and HR costs. It is not the HR tab: HR rows are the operator's monthly cost lines (`0245_cost_entries.sql`, no `tenant_id`, "not a person's record"), and this tab is per workspace and per person. So Expenses stops being operator-only in one respect: the section opens for an operator admin **or** a holder of `hours.prices`. A biz owner of any workspace sees this tab alone unless they are also an operator admin, and `/expenses` lands on the first tab the reader may see. The other three tabs stay operator-only.
+4. **Who is listed.** Every human member of the workspace (`realmPersonRe`, `HUM-*`) except a seat whose every role is a not-a-person role (`realmNotPerson`, `hub/realm.go:53`: `pure_agent`, `time_accountant`). A person with no price shows "no price" and their time stays unpriced (21.4 step 5). A former member who has a price row stays listed, marked former, because their approved hours still read it.
+5. **Dated, never retroactive.** A price applies from a chosen day onward, in the priced person's zone (default: tomorrow there). A start day that falls in a period of that person in state `frozen` or `approved` (`0151_hours.sql:65`; `returned` is open again) is refused, 409 `period_frozen`, so a frozen period is never repriced. For the same reason, a price set late leaves the frozen days before it unpriced.
+6. **History.** The old prices stay, because a past commit's money reads the price of its day. One row per start day, carrying `set_by` and `set_at`. Writing the same start day again corrects it, and removing a start day is allowed, both only while rule 5 allows that day. No other trail is kept: a day that money can already read cannot be changed.
+7. **Currency.** The biz owner picks it per person, among those the Costs page converts: USD plus any currency with an rdb 0200 rate (`fx_rates.quote`), else 400 `bad_currency`. It is stored with the amount. Conversion happens on read, per day (21.4 step 5).
+8. **What a member sees: no price, no screen, no route** (recommended reading of "the member's own price is dropped"; Q29, 21.9). Their own approved time stays theirs (21.6). `GET|PUT /v1/me/hours/price` of v2.4 are dropped.
+9. **What this changes in v2.** FR-19 said a person's rate lives in "a future accounting view, a separate spec (not written)", and T063 is blocked on it. R16 settles the first part of that view: the price is entered in Expenses and stored outside the `hours_*` tables, so FR-19's "hours tracking has no rate field" still holds for those tables. T063's job-cost half (approved hours x price against a quote) reads this price once T072 lands. FR-20 narrows in one point: the biz owner reads the prices they set. **Computed money stays with `hours.rates`** (Q27 A stands, spec 123 13.6 stands): the biz owner holds both inputs, a price and `hours.read`, and FR-20 already says this is "a separation of duties, not a boundary against the biz owner", who may assign themself the role, logged.
+10. **Not added up with the HR lines.** Spec 123's Human part reads this price. `cost_entries` type `hr` is a separate monthly line typed by the operator, and no report reads it today (`git grep -l cost_entries origin/master -- csi-spl-api csi-spl-wui csi-spl-orc csi-spl-iac` -> 4 files: `store/cost_entries*.go`, its test, and `hub/server.go`). A report that later adds both would count one person twice: that report must say which one it takes.
 
 ### 21.6 Who sees what (spec 025 RBAC, section 6.1)
 
 | who | discussion / issue / object counter | prices | a commit's human part (Releases) |
 |---|---|---|---|
-| the member | their own approved minutes on each target, plus "to approve" | their own price and history; set it | as their role allows below |
-| `hours.read` (default `biz_owner`, 6.1), a foreman for their crew (FR-22) | the total summed over people; per member one click away (Q18) | no | no (Releases is an operator page) |
-| `hours.rates` (pinned to `time_accountant`, FR-20) | as `hours.read` | every member's price in the workspace, read only | no |
+| the member | their own approved minutes on each target, plus "to approve" | no (21.5 rule 8, Q29) | as their role allows below |
+| `hours.prices` (`biz_owner` only, pinned, 21.5 rule 1) | as `hours.read` | every person's price and history in the workspace; **sets them** | no (Releases is an operator page) |
+| `hours.read` without `hours.prices` (a foreman for their crew, FR-22) | the total summed over people; per member one click away (Q18) | no | no (Releases is an operator page) |
+| `hours.rates` (pinned to `time_accountant`, FR-20) | as `hours.read` | every person's price in the workspace, read only; computed money | no |
 | every other member | **nothing of others**: only their own time (owner Q26 A, decided, msg `ce14ad70`; a total on a one-person topic would show that person's hours) | no | no |
 | operator admin (operator workspace, 143 section 8.7) | no | no | human minutes per commit and label; money only when they also hold `hours.rates` (the time-accountant role), otherwise hours without money (owner Q27 A, decided, msg `ce14ad70`) |
 
 Enforced by route, as 1.7 is, and in the database:
 
-- `member_hourly_prices` carries the 3.4 `member_scope` guard: a per-member call reads and writes only that member's rows.
-- The read of every member's price is the `hours.rates` route alone.
+- `member_hourly_prices` has the 3.2 RLS shape: a second workspace reads and writes 0 rows. It carries no 3.4 `member_scope` guard, because no per-member call reads it.
+- The write is `hours.prices` alone. The read is `hours.prices` or `hours.rates`, and no other route returns a price.
 - The commit ledger is operator-only RLS, as `commit_token_burn` is.
 
 ### 21.7 What it never stores (P0)
@@ -1083,7 +1106,7 @@ Enforced by route, as 1.7 is, and in the database:
 - **No per-person row in the commit ledger.** The ledger keeps minutes and an amount per (commit, day, currency) only. Who worked on a commit is not stored there.
 - **No new raw signal.** No minute-level row, clock time, keystroke, typing or reading sequence. `hours_minutes` is unchanged and still pruned at the freeze (1.7).
 - **No open suggestion in a counter**, and no counter on a person's DMs (`dm:` folds into `ws`, Q13).
-- **No price shown to someone other than its owner** outside `hours.rates`. A price is never written into an export line unless the caller holds `hours.rates`.
+- **No price shown** outside `hours.prices` and `hours.rates`, the priced person included (Q29). A price is never written into an export line unless the caller holds `hours.rates`.
 - **No money in the `hours_*` tables**: the price and the commit ledger are their own tables (FR-19).
 - **No retention beyond 107's:**
   - The commit ledger follows the approved-period totals (`hours.retention_years`, Q22). After that the commit keeps its agent part and shows `human: expired`.
@@ -1091,16 +1114,17 @@ Enforced by route, as 1.7 is, and in the database:
 
 ### 21.8 Data model (sketch; no migration file)
 
-Two new tables, one index, no CHECK widening:
+Two new tables, one index, no CHECK widening; one new permission, `hours.prices`, with its pin (21.5 rule 1):
 
 ```sql
--- per workspace, the 3.2 RLS shape (tenant_scope with the NULLIF guard, operator_scope) plus member_scope (3.4)
+-- per workspace, the 3.2 RLS shape (tenant_scope with the NULLIF guard, operator_scope); no member_scope (21.6)
 member_hourly_prices (
   tenant_id     text   FK tenants, cascade,
   member_id     text,                       -- HUM-*
-  valid_from    date,                       -- the member's local day the price starts
+  valid_from    date,                       -- the priced person's local day the price starts
   amount_micros bigint CHECK (amount_micros > 0),
   currency      char(3),                    -- ISO 4217, one the Costs page converts
+  set_by        text,                       -- the biz owner who wrote it
   set_at        timestamptz,
   PRIMARY KEY (tenant_id, member_id, valid_from)
 )
@@ -1125,8 +1149,9 @@ Routes, in the style of 6.3:
 
 | route | who | what |
 |---|---|---|
-| `GET /v1/me/hours/price`, `PUT /v1/me/hours/price` | member | the member's own price and its history; a change from a day onward, never into a frozen period (409 `period_frozen`) |
-| `GET /v1/hours/prices` | `hours.rates` | every member's price, read only |
+| `GET /v1/hours/prices` | `hours.prices` or `hours.rates` | the listed people (21.5 rule 4), each with their price in force and history |
+| `PUT /v1/hours/prices/{member_id}` `{amount, currency, valid_from}` | `hours.prices` | a price from a day onward, never into a frozen period (409 `period_frozen`); 400 `bad_currency`; 404 for a person who is not listed |
+| `DELETE /v1/hours/prices/{member_id}/{valid_from}` | `hours.prices` | removes one start day, under the same 409 |
 | `GET /v1/me/hours/targets?target=&from=&to=` | member | own approved minutes (and "to approve") per target |
 | `GET /v1/hours/targets?target=&from=&to=&by=member` | `hours.read` / foreman scope | the total over people; per member with `by=member` |
 | 143's `GET /v1/reporting/releases/daily` and `/commits` | operator admin | gain `human_minutes`, `human_amount_micros` (masked unless the caller also holds `hours.rates`, Q27 A), `human_pending`, `human_unpriced` |
@@ -1135,7 +1160,7 @@ Routes, in the style of 6.3:
 
 The seeded scenario:
 
-- Two members book time on an issue's topic and on its source discussion over two weeks. One member has a price; the other has none.
+- Two members book time on an issue's topic and on its source discussion over two weeks. The biz owner has set a price for one of them in the Expenses tab; the other has none.
 - Two commits close the issue in week 2.
 
 Then:
@@ -1144,10 +1169,10 @@ Then:
 - After the freeze, each commit shows the issue's approved minutes of its own day slice (21.4 step 4), with the in-window discussion minutes included and the out-of-window ones excluded.
 - Each commit's money is the priced member's minutes in that commit's day slice x their price. The other member's minutes show as unpriced.
 - The label pill sums the commits.
-- A biz owner sees the issue's counter but no price.
-- A `time_accountant` sees both prices.
-- A plain member sees only their own time and their own price.
-- A second workspace reads nothing.
+- A biz owner sees the issue's counter and sets and reads every price in Expenses, and sees no computed money.
+- A `time_accountant` reads the prices and cannot change one.
+- A plain member sees only their own time, no price and no Expenses tab; an admin who is not a biz owner has no price either.
+- A second workspace, its biz owner included, reads and writes nothing.
 - No ledger row names a member.
 
 ### 21.9 Owner answers (decided)
@@ -1161,5 +1186,15 @@ The owner answered all three questions on 2026-10-29 at 05:34Z (HUM-10, t1 topic
 | Q28 When several commits close one issue, how is the issue's human time divided among them? | "A — Day slices: each commit takes the time booked from the day after the previous closing commit landed up to its own landing day (recommended: the day-sized version of the time slices you chose for agent tokens)" | `ce14ad70` | T075 (how an issue's time is divided among its commits); 21.4 step 4 |
 
 What a commit is credited with (the closed issue's topic plus its source discussion, inside the issue's open window, 21.4 steps 1..3) was not asked: the brief of this addendum fixes it as "the issue and discussion the commit closes".
+
+Decided since (v2.6): who sets the price. Poll `e47404d1`, answer A, msg `a7ec216c`, quoted in 21.0 R16; rows T071, T072, T074, T078, T079, T080.
+
+#### 21.9.1 Open for the holder (Q29)
+
+The code cannot answer this one, and the build starts on the first option:
+
+| question | options | if it changes |
+|---|---|---|
+| Q29 May a member see the price set for them, read only? The owner's answer drops "the member's own price"; it does not say whether that covers reading it. | **A: no, nothing (recommended: one place, one owner; 21.5 rule 8; adding a read later is one route and one line).** B: yes, read only, in their own settings, with no way to change it. | B adds a row: `GET /v1/me/hours/price` and a line in settings, its text under the review step of T079; 21.6 and 21.7 change one line each. No migration. |
 
 <!-- version: 2.0.0 · updated: 2026-10-10 -->

@@ -204,34 +204,40 @@ From a domain expert's answers and suggestions in csitea topic `55a2d6c2` (2026-
 
 ---
 
-## v2.4: the human time counter and the hourly price (spec section 21)
+## v2.4, amended v2.6: the human time counter and the hourly price (spec section 21)
+
+**v2.6 (SPL-4655, owner poll `e47404d1`, msg `a7ec216c`):** the biz owner sets the price in a tab of Expenses and the member's own price is dropped (spec 21.5). T071, T072, T074 and T077 are amended below and T078..T080 are new. **Order of the price rows: T078, T071, T072, then T079 (which waits for SPL-4382), then T080.** Migrations: T078 and T071, one forward-only file each, the next free number at the push; no other row has one.
 
 **Status: Planned, not built.** Rows written by c-410 on `db3ec550e` (lane issue SPL-4163, epic SPL-3036; owner R14 msg `54d01e8c`, R15 msg `cfea214c`). Each row is one lane. The ids continue this file: 107's T071..T077 are not spec 143's T070..T076. The owner answered Q26..Q28 with A, the recommendation, on 2026-10-29 (spec 21.9, msg `ce14ad70`), so the rows below stand as written and cite the answer they follow.
 
 Every row follows the v1 and v2 rules above, plus these:
 
 - **Approved time only** (spec 21.0 rules 1..5, P0). No row reads `hours_minutes`, `hours_entry_spans` or an open suggestion for a counter. A test asserts it.
-- **Money only through `hours.rates`** (FR-20, spec 21.6). The member's own price is the one exception.
+- **Computed money only through `hours.rates`** (FR-20, spec 21.6). The price itself: `hours.prices` writes and reads, `hours.rates` reads, nobody else.
 - **Ledger rows name no member** (spec 21.7).
 - **Rows that touch spec 143's files** (T075, T076) wait for 143's T070..T075 to land, and edit only the lines they add.
 
 - [ ] T071 **prices and the commit ledger, rdb** (spec 21.5, 21.8). One forward-only migration (the next free number at its push):
-  - `member_hourly_prices`: per workspace, the 3.2 RLS shape plus the 3.4 `member_scope` guard.
+  - `member_hourly_prices`: per workspace, the 3.2 RLS shape, with `set_by`; no `member_scope` guard (spec 21.6).
   - `commit_human_time`: operator-only RLS as `commit_token_burn`, no member column, FK `release_notes`.
   - The partial index `hours_entries (tenant_id, target) WHERE state = 'approved'`.
   - Both tables seeded in `store/crosstenant_test.go`'s `seedTenantAll`: the v2 rule; `commit_human_time` is operator-only, like 143's ledger.
 
-  **Gate**: `PRE_PUSH_TIER=full ./run -a do_check_pre_push`; `TestRLSCoversEveryTenantTable`; `lint-migration`. **Red control**: on master, a store test that writes a price for member A, then reads it under member B's `inMember` scope, fails to compile (no table). After the row it reads 0 rows. A second-workspace read of the price also reads 0 rows. Vendor: claude. Depends: none.
-- [ ] T072 **the member's price, store and routes** (spec 21.5, 21.6). `store/hours_price.go` (+ `_postgres`, `_memory`) and `hub/hours_price.go`, appended to the route hook (T033):
-  - `GET|PUT /v1/me/hours/price` (the member's own, from a day onward; a day in a frozen or final period is 409 `period_frozen`).
-  - `GET /v1/hours/prices` (`hours.rates` only).
-  - A currency without an rdb 0200 rate is 400 `bad_currency`.
+  **Gate**: `PRE_PUSH_TIER=full ./run -a do_check_pre_push`; `TestRLSCoversEveryTenantTable`; `lint-migration`. **Red control**: on master, a store test that writes a price in workspace A, then reads it in workspace B's scope, fails to compile (no table). After the row it reads 0 rows and a write into B's scope is refused. A planted policy without the NULLIF guard fails `TestRLSCoversEveryTenantTable`. `amount_micros = 0` is refused by the CHECK. Vendor: claude. Depends: T078 (the migration order only).
+- [ ] T072 **the price, store and routes** (spec 21.5, 21.6, 21.8). `store/hours_price.go` (+ `_postgres`, `_memory`) and `hub/hours_price.go`, appended to the route hook (T033), operations in `hub/openapi.json`:
+  - `GET /v1/hours/prices` (`hours.prices` or `hours.rates`): the listed people (rule 4) with price in force and history.
+  - `PUT /v1/hours/prices/{member_id}` (`hours.prices` only). A start day in a `frozen` or `approved` period is 409 `period_frozen`. A currency without an rdb 0200 rate is 400 `bad_currency`. A person who is not listed (an agent id, a seat of `realmNotPerson` only, a member of another workspace) is 404.
+  - `DELETE /v1/hours/prices/{member_id}/{valid_from}` (`hours.prices` only), the same 409.
+  - No `/v1/me/hours/price` route.
 
   **Gate**: `bash csi-spl-api/src/bash/tests/run-all-tests.sh`; route tests on Postgres. **Red control**:
-  - A biz owner (`hours.read`, `hours.approve`, no `hours.rates`) calling `GET /v1/hours/prices` must get 403. The planted defect, the route gated on `hours.read`, returns 200 and fails the test.
-  - A `PUT` by member A naming member B must be refused.
+  - A `time_accountant` (`hours.read`, `hours.rates`) calling `PUT` must get 403. The planted defect, the write gated on `hours.read`, returns 200 and fails the test.
+  - An admin and a plain member get 403 on `GET`, `PUT` and `DELETE`; a member's `PUT` naming themself is 403 too.
+  - `GET /v1/me/hours/price` is 404, so the dropped route cannot come back unnoticed.
+  - A biz owner of workspace B naming a member of workspace A gets 404 and A's row is unchanged.
+  - A start day inside a frozen period is 409 and the row is unchanged; the same day after the period is 200.
 
-  Vendor: claude. Depends: T071, T033.
+  Vendor: claude. Depends: T071, T078, T033.
 - [ ] T073 **the counters, store and routes** (spec 21.2, 21.3, 21.6; Q26 A, msg `ce14ad70`). `hub/hours_targets.go`:
   - `GET /v1/me/hours/targets?target=&from=&to=`: own approved minutes plus "to approve".
   - `GET /v1/hours/targets?target=&from=&to=&by=member`: `hours.read`, or the foreman for their crew through T033's scope.
@@ -243,16 +249,15 @@ Every row follows the v1 and v2 rules above, plus these:
   - A grep test names `hours_minutes` only in the files 1.7 allows.
 
   Vendor: claude. Depends: T071 (the index), T033.
-- [ ] T074 **the counter and the price in the WUI** (spec 21.2, 21.5, 21.6; Q26 A, msg `ce14ad70`).
+- [ ] T074 **the counter in the WUI** (spec 21.2, 21.6; Q26 A, msg `ce14ad70`). v2.6: the price part, `HoursPriceSettings.vue`, is dropped and never built; the price is T079.
   - A lazy `TopicHoursCounter.vue` in the topic and issue header, the I1 hook ("Booked 12:30"). It shows the member's own time plus "to approve" (a link to the day's Working hours dialog), and the total for `hours.read`.
-  - A lazy `HoursPriceSettings.vue` in the member's settings: the amount, the currency and the start day.
   - Locale keys in all 19 files (drafts for the agy review, as T064).
 
   **Gate**: `pnpm run test:unit`, `pnpm run typecheck`, e2e on the mock bundle at 390 and 1440 px, `perf-budget.py` <= 155 KB. **Red control**:
   - An e2e as a plain member must not find the total's testid. The planted defect, rendering the total for every member, fails it.
   - The e2e asserts a non-empty value, so a missing testid cannot pass vacuously.
 
-  Vendor: claude. Depends: T072, T073.
+  Vendor: claude. Depends: T073.
 - [ ] T075 **the commit ledger writer and the Releases fields** (spec 21.4; Q27 A, Q28 A, msg `ce14ad70`).
   - **Writer.** The hours sweep (`hub/hours_sweep.go`, one call to a new `store/commit_human_time.go`) writes a commit's rows once every period holding its counted days is frozen or final. It follows the 21.4 chain: closing commits, the issue topic plus the source discussion inside the open window, an even split for a discussion shared by several issues, day slices across the commits, and the price in force per day.
   - **Reads.** 143's `GET /v1/reporting/releases/daily` and `/commits` gain `human_minutes`, `human_amount_micros`, `human_pending` and `human_unpriced`. The money is masked unless the caller is an operator admin holding `hours.rates` (Q27 A, decided).
@@ -274,8 +279,28 @@ Every row follows the v1 and v2 rules above, plus these:
   - An operator admin without `hours.rates` must see hours and no money.
 
   Vendor: claude. Depends: T075; spec 143 T074, T075.
-- [ ] T077 **live proof on dev and prd** (spec 21.8.1): the seeded scenario end to end at 390 and 1440 px, then `do_check_deploy_lag` and the release-note links for both envs. **Gate**: the proof script `wui/tests/e2e/hours-107-v24-live.proof.mjs` green on dev, then prd. **Red control**: run before T075 lands, the proof fails on `human: pending approval` never turning into minutes. Vendor: claude. Depends: T071..T076.
+- [ ] T077 **live proof on dev and prd** (spec 21.8.1): the seeded scenario end to end at 390 and 1440 px, then `do_check_deploy_lag` and the release-note links for both envs. **Gate**: the proof script `wui/tests/e2e/hours-107-v24-live.proof.mjs` green on dev, then prd. **Red control**: run before T075 lands, the proof fails on `human: pending approval` never turning into minutes. Vendor: claude. Depends: T071..T076, T078, T079.
+- [ ] T078 **the `hours.prices` permission, rdb + rbac** (spec 21.5 rule 1). **Migration.** One forward-only file (the next free number at its push): the `rbac_permissions` row, the grant to `biz_owner`, a CHECK `permission_id <> 'hours.prices' OR role_id = 'biz_owner'` on `rbac_role_permissions` and on `tenant_role_grants`, as rdb 0222 and 0223 pin `hours.rates`. `api/internal/rbac/rbac.go` (the constant, the catalogue, `biz_owner`'s list), `rbac_test.go`, `rbac_list_roles_test.go`, `store/hours_terminals_rls_test.go`. Must not touch: `store/tenant_role_grants*` while lane c-966 (spec 152 B3) holds them; check `lane-map.sh --check` first.
 
-The FR map for this addendum: R14 T071, T073, T074, T075 · R15 T071, T072, T074 · Releases T075, T076 · proof T077.
+  **Gate**: `PRE_PUSH_TIER=full ./run -a do_check_pre_push`; `TestRBACSeedMatchesDefaults`; `lint-migration`. **Red control**:
+  - A new test: `biz_owner` holds `hours.prices`, every other role does not, `biz_owner` still lacks `hours.rates`, `time_accountant` still holds exactly `hours.read` and `hours.rates`. On master it fails to compile; a planted grant to `admin` fails it.
+  - On Postgres, `INSERT` of `('admin', 'hours.prices')` into `rbac_role_permissions`, and of a `tenant_role_grants` row for `admin`, must each fail on the CHECK. With the CHECK dropped they succeed and the test fails.
+
+  Vendor: claude. Depends: none.
+- [ ] T079 **the Hourly cost tab in Expenses, WUI** (spec 21.5 rules 3..7). **Waits for SPL-4382** (the page is not on master, lane c-630). `utils/expenses-tabs.mjs` (a `people` tab with `perm: 'hours.prices'`, `visibleExpensesTabs` reads the perm, `/expenses` lands on the first visible tab), `pages/expenses.vue` (the operator gate opens for that perm), new lazy `pages/expenses/people.vue` and `utils/expenses-people.mjs`, `public/help-md/expenses.md`, `csi-spl-doc/doc/help/expenses.md`. One row per listed person: price in force, currency, start day, the history, "no price", "former"; a form to set, correct or remove.
+  - **New user-facing text, in all 19 locale files:** the tab label "Hourly cost", the column heads, "no price", "former", the form's labels, the `period_frozen` and `bad_currency` messages, the empty state, and the help page.
+  - **Review step, last before it lands:** agy has the final word on the text (`LANE_MIX_KIND=i18n`); grok while agy is out of quota (owner 10-31, `24ae9600`). The row stays on its review branch until that review passes.
+
+  **Gate**: `pnpm run test:unit`, `pnpm run typecheck`, `BASE_URL=<generated bundle> pnpm run test:e2e` at 390 and 1440 px, `perf-budget.py` <= 155 KB, the i18n parity and untranslated gates. **Red control**:
+  - An e2e as a biz owner of a non-operator workspace sets a price and reads it back, asserting a non-empty value, so a missing testid cannot pass vacuously. On the SPL-4382 page alone it fails, because the section reads "operator admins only".
+  - An e2e as a plain member and as an admin must not find the tab's testid; the planted defect, a tab with no `perm`, fails it.
+  - A unit test: the biz owner of a non-operator workspace gets only `people` from `visibleExpensesTabs`, an operator admin without the perm gets the old three.
+
+  Vendor: claude. Depends: T072, SPL-4382.
+- [ ] T080 **the text that still says "own price"** (spec 21.5, the live table). `reporting.costs.human.not_tracked` in all 19 locale files: "each person's own price" becomes the price the biz owner sets in Expenses. `HUMAN_ROWS` to `T071..T080` in `utils/costs-sections.mjs`, with `tests/unit/costs-sections.test.mjs:102`. `csi-spl-doc/specs/123-cost-tracking/spec.md` section 13.3, the Human row ("each person's own price", "the member's own hourly price"). **Review step:** the same as T079, agy final, grok while agy is out of quota.
+
+  **Gate**: `pnpm run test:unit`, the i18n gates. **Red control**: a test that the en value no longer holds "own price"; on master it fails, and the served page stays "not tracked" with no number. Vendor: claude. Depends: none; it may land first, because the text is wrong today.
+
+The FR map for this addendum: R14 T071, T073, T074, T075 · R16 (replaces R15) T078, T071, T072, T079, T080 · Releases T075, T076 · proof T077.
 
 <!-- version: 2.0.4 · updated: 2026-10-23 · last-edit: 2026-10-23T17:45:00Z -->

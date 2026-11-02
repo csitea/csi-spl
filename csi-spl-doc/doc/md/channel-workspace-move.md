@@ -309,10 +309,13 @@ probe DM, no second note and no second rewrite.
 ### 3.6 When P5 refuses the rule row
 
 P5 rewrites only the channel's `<SRC>` row of the box map. If the map
-already has a `<DST>` row for the same channel name beside it, P5 stops,
-exit 3, and changes nothing: resolve the two rows by hand, then re-run (it
-resumes at P5). A box with no map, or with no row for the channel, is not
-an error: P5 says so and goes on.
+already has a `<DST>` row for the same channel name beside it, P5 stops and
+changes nothing. The box script says `FATAL <map> already has a row for <DST>
+#<name> beside <SRC> #<CHANNEL>: resolve it by hand` and exits 3; the action then
+says `FATAL P5: the box rule row of <SRC>/<CHANNEL> was not rewritten; a re-run
+resumes at P5` and exits 1. Resolve the two rows by hand, then re-run (it resumes
+at P5). A box with no map, or with no row for the channel, is not an error: P5
+says so and goes on.
 
 ### 3.7 The short window after P4
 

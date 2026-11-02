@@ -445,6 +445,11 @@ snapshot; a sync would be its own spec.
     `workspace_events`, `operator_audit`, `demo_post_audit`, `sql_query_audit`.
     The audit door (rdb 0251) stays shut. `<DST>` gets one `channel.copied` event.
   - not carried, a link a snapshot must not follow: `spec_sync_map`.
+  - sections 5 and 6 list `hours_plan`, `flow_events` and `spec_sync_map` as
+    moved. That is the move. A copy leaves all three in `<SRC>` and writes none
+    in `<DST>`.
+  - `search_tsv` keeps the source row's value, so a search in `<DST>` for an old
+    id can still find the copied post. A search hit is not authority.
   - a copied post's claim is done, so no later seat is offered it.
 
 ## 8. The action
@@ -550,7 +555,7 @@ yet.
 | C13 | No `<SRC>` audit row and no hub-wide row naming the channel; one `<DST>` audit row. The only `<SRC>` writes besides the deletes of the set are the named NULL / removal updates: M6b `moved_from_*`, M9 `ref_task_id`, the `channel_order` entry, the shared-item resolutions the owner chose (5.5), the topic-head recompute and the counters and change stamps (5.1); a diff of `<SRC>` before and after shows no other changed row | the default audit writer -> a `<SRC>` row names the channel; an extra `<SRC>` UPDATE -> the diff names it |
 | C14 | Free-text scan (5.2) prints 0 for the channel id, name and every UUID, over text, jsonb, uuid and array columns; the one exception is the fleet topic ids of 5.2, reported as known with their count | plant the channel id in a `<SRC>` `workspace_events.message` -> 1; plant a moved task id in a staying post's `moved_from_task` (uuid) -> 1 |
 | C15 | Caller: `DRY_RUN=0` without the owner's GO msg id is refused before any change | run as a lane agent -> refused, exit 3 |
-| C16 | Copy: `<SRC>` row counts unchanged; `<DST>` ids are all new (task, msg, issue number, doc, doc item, doc node; rev log under the new doc id); a link inside a copied post points at the copied topic; a box gets a copied row only with the new ids, or not at all | keep the old `workspace_doc_item.id` -> PK violation; keep the old UUIDs in the links -> the `<DST>` link resolves to nothing |
+| C16 | Copy: `<SRC>` row counts unchanged; `<DST>` ids are all new (task, msg, issue number, doc, doc item, doc node; rev log under the new doc id); a link inside a copied post points at the copied topic; a box gets a copied row only with the new ids, or not at all; a copied event with a guest makes 0 Google writes and 0 reminders (counted, with a control that a normal event makes 1 of each) | keep the old `workspace_doc_item.id` -> PK violation; keep the old UUIDs in the links -> the `<DST>` link resolves to nothing |
 | C17 | Re-run after a crash in P5 resumes at the first undone step and finishes | re-run from P1 -> refused: the journal says P4 committed |
 | C18 | Google Calendar: a moved event mapped in a `<SRC>` member's connection; after the move and one sync cycle of that connection, `<SRC>` has no event with that `source_key` and no map row, and the Google event is gone | skip the pre-P4 Google delete -> the In half imports it back into `<SRC>` |
 | C19 | Hours: a job with plan rows and entries `job:<job>`, `t:<task>`, `ch:<CHANNEL>` moves whole; an entry inside an `approved` `<SRC>` period makes `plan` refuse, naming it (Q8 default) | drop the period check -> the approved period's stored total no longer matches its rows |

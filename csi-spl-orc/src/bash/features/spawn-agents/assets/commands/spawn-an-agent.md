@@ -76,6 +76,10 @@ The backup vendor is tried next, and if it is also unavailable, the work falls t
   it must NOT touch.
 - Pass the paths it will own as `SPAWN_LANE_FILES=<path,...>` (and its topic as
   `SPAWN_LANE_TOPIC`) to the launcher: the spawn writes them into its lane row.
+- A lane that comes from an issue says so in its brief: an `Origin-Issue: <KEY>`
+  line, or `row N of <KEY>` / `review of <KEY>` in the heading; a lane placed on an
+  existing issue (`Issue: <KEY>`) came from that one. Monitoring -> Lanes and the
+  lane's own issue link it; a brief with none shows none (spec 153 3.12).
 - Where it starts: a new lane goes where the fleet load target puts it
   (`./run -a do_spl_box_pick`: the first box in the hub's fill order below its
   high mark, load5 / cpus, default band 50..75 %). `pick=hold` means every box

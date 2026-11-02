@@ -59,7 +59,7 @@ do_spl_lane_backfill_links() {
     [[ "$t" == "$topic" && "$i" == "$issue" ]] && continue
     filled=$((filled + 1))
     [[ "$dry" == 1 ]] && continue
-    LANE_AGENT="$id" LANE_STATE=live LANE_TOPIC="$t" LANE_ISSUE="$i" \
+    LANE_AGENT="$id" LANE_STATE=live LANE_TOPIC="$t" LANE_ISSUE="$i" LANE_ORIGIN_ISSUE="$(jq -r '.origin_issue // ""' <<<"$row")" \
       LANE_REPO="$(jq -r '.repo // ""' <<<"$row")" LANE_BRANCH="$(jq -r '.branch // ""' <<<"$row")" \
       LANE_SCOPE="$(jq -r '.scope // ""' <<<"$row")" LANE_FILES="$(jq -r '.files // [] | join(",")' <<<"$row")" \
       do_spl_lane_put || failed=$((failed + 1))

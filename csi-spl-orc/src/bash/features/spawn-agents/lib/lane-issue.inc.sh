@@ -47,6 +47,27 @@ li_key_of_agent() {
   [ -n "$k" ] && printf '%s\n' "$k"
 }
 
+# li_origin_from_brief FILE [PLACED_KEY] -> the issue the lane came from (spec
+# 153 3.12, owner HUM-10, t1 4e9f7153 msg 9a89d1e1), the placer's words only,
+# never a guess: an `Origin-Issue: <KEY>` line; else `row N of <KEY>` or
+# `review of <KEY>` in the brief's heading; else PLACED_KEY, the existing issue
+# the lane is placed on (never one it files itself). Nothing for none.
+li_origin_from_brief() {
+  local k=""
+  if [ -r "${1:-}" ]; then
+    k="$(sed -nE "s/^[-*_ >]*Origin[- ]Issue[*_ ]*:[*_\` ]*(${LI_KEY_RE})([^0-9].*)?\$/\1/Ip" "$1" | sed -n 1p)"
+    [ -n "$k" ] || k="$(grep -m1 -E '^#+ ' "$1" | grep -oiE "(row [0-9]+ of|review of) \`?${LI_KEY_RE}" | sed -n 1p | grep -oE "${LI_KEY_RE}\$")"
+  fi
+  k="${k:-${2:-}}"
+  [ -n "$k" ] && printf '%s\n' "$k"
+}
+
+# li_origin_of_agent SPOOL_ROOT ID -> lifetime/origin-issue, written once at
+# placement: a rotation's brief carries the key the lane filed, no origin.
+li_origin_of_agent() {
+  [ -r "$1/$2/lifetime/origin-issue" ] && grep -m1 -oE "^${LI_KEY_RE}\$" "$1/$2/lifetime/origin-issue"
+}
+
 # No issue without an epic and a git spec (owner HUM-10, t1 7a98c2d1 msgs
 # ef77b762, 5863d0d6, 2026-10-17: "You shouldn't be creating issues without
 # epics, nor issues without a git spec"). A level-2 issue names a spec folder

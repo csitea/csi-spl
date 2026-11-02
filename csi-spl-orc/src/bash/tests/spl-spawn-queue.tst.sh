@@ -365,7 +365,9 @@ if [[ "$(jq -r .state <<<"$r1")" == "done" && "$(jq -r .reason <<<"$r1")" == "pl
 else fail "place: $out | $r1 | $(cat "$T/launch.log") | $(sends)"; fi
 # spec 153 C6c: an ask whose topic is a full uuid launches with
 # SPAWN_LANE_TOPIC=<uuid> (the twin, a dispatch-<topic8> alias, is the
-# hand-sat-qto-gap launch below); master set none
+# hand-sat-qto-gap launch below); master set none. Spec 153 3.12: a
+# dispatch-<topic8> ask sets its 8 hex, which the hub resolves (the sathand-
+# launch below); RED on 06c1fa804: it set none
 grep -qx "hub-pg-split SPAWN_LANE_TOPIC=$OWNER_TOPIC" "$T/launch.log.env" &&
   pass "C6c: the ask's full-uuid topic is SPAWN_LANE_TOPIC in the launch env" || fail "C6c: $(cat "$T/launch.log.env" 2>&1)"
 r2="$(listrow "$A2")"
@@ -678,13 +680,15 @@ out="$(on pc do_spl_spawn_place "PICK_BOXES=$SAT_BUSY" LAUNCH_ID=c-501 2>&1)"
   fail "pin launch: $out | $(hubrow "$P1") | $(cat "$T/launch.log")"
 grep -qx "qto-gap SPAWN_LANE_TOPIC=<unset>" "$T/launch.log.env" &&
   pass "C6c twin: an ask topic dispatch-88982c94-p (an alias) sets no SPAWN_LANE_TOPIC" || fail "C6c twin: $(cat "$T/launch.log.env" 2>&1)"
-put "$P2" c-002@box-desk dispatch-88982c94-q "SPAWN REQUEST sathand"
+put "$P2" c-002@box-desk dispatch-88982c94 "SPAWN REQUEST sathand"
 on pc do_spl_spawn_enqueue ASK_ID="$P2" SPAWN_CLASS=bug SPAWN_PLACE=claude:sathand-qto-gap >/dev/null 2>&1
 : >"$T/launch.log"
 out="$(on pc do_spl_spawn_place LAUNCH_ID=c-502 2>&1)"
 [[ "$(jq -r .reason <<<"$(hubrow "$P2")")" == "placed: c-502@box-desk" ]] &&
   grep -q "^claude auto $T $T/briefs/qto-gap.md qto-gap SPAWN_BOX=sat$" "$T/launch.log" &&
   pass "sathand-qto-gap: same brief, SPAWN_BOX=sat" || fail "sathand: $out | $(cat "$T/launch.log")"
+grep -qx "qto-gap SPAWN_LANE_TOPIC=88982c94" "$T/launch.log.env" &&
+  pass "spec 153 3.12: an ask topic dispatch-88982c94 launches with its 8 hex for the hub to resolve" || fail "3.12 ask topic: $(cat "$T/launch.log.env" 2>&1)"
 put "$P3" c-002@box-desk dispatch-88982c94-r "SPAWN REQUEST needs judgement"
 on pc do_spl_spawn_enqueue ASK_ID="$P3" SPAWN_CLASS=bug >/dev/null 2>&1
 rm -f "$T/pc/spool/asks/.place.last"; : >"$T/send.log"

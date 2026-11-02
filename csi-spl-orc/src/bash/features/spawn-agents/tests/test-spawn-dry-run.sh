@@ -225,15 +225,21 @@ Spool uuid %s, no task named.
 ' "$UA" > "$T_TMP/brief-c47c.md"
 out="$(bash "$T_SCRIPTS/spawn-claude.sh" CLE-91 "$T_TMP/repo" "$T_TMP/brief-c47c.md" "fix it" 2>&1)"
 has "C52c: a bare uuid still sets no topic" "--topic '' --issue ''" "$out"
-# C52d (R7 c-287 W1): a version-5 uuid is a relay task's hash of its name
-# (spool-fleet-relay.sh, uuid5 "spool-task:<name>"), not a discussion: it
-# sets no topic, so the hub's issue fallback (C50) fills the row. RED on
-# 5a5a1b955: the hash became the topic.
+# C52d (R7 c-287 W1, spec 153 3.12): a version-5 uuid is a relay task's hash of
+# its name (spool-fleet-relay.sh, uuid5 "spool-task:<name>"), not a discussion:
+# _spawn_lane_topic reads none, and the put sends it last, for the hub to turn
+# the hash of dispatch-<topic8> into its topic and store nothing for any other
+# (hub TestLanePutRelayHashResolves C56b).
 printf '# C52d
 One message to the holder on task `e15a3002-096a-5c73-80a2-58ba8d235e86`.
 ' > "$T_TMP/brief-c47d.md"
 out="$(bash "$T_SCRIPTS/spawn-claude.sh" CLE-92 "$T_TMP/repo" "$T_TMP/brief-c47d.md" "fix it" 2>&1)"
-has "C52d: a version-5 task uuid sets no topic" "--topic '' --issue ''" "$out"
+has "C52d: a version-5 task uuid goes to the hub as the last source" "--topic 'e15a3002-096a-5c73-80a2-58ba8d235e86' --issue ''" "$out"
+out="$(. "$T_SCRIPTS/spawn-core.inc.sh" 2>/dev/null; printf 'topic=[%s]' "$(_spawn_lane_topic "$T_TMP/brief-c47d.md")")"
+has "C52d: _spawn_lane_topic itself still reads no version-5 uuid" "topic=[]" "$out"
+printf '# C52e\nReport on `dispatch-1be0e370` and on task `e15a3002-096a-5c73-80a2-58ba8d235e86`.\n' > "$T_TMP/brief-c47e.md"
+out="$(bash "$T_SCRIPTS/spawn-claude.sh" CLE-92 "$T_TMP/repo" "$T_TMP/brief-c47e.md" "fix it" 2>&1)"
+has "C52e: a named dispatch-<topic8> beats the hash" "--topic '1be0e370' --issue ''" "$out"
 has "git: leak gate quotes the identity" "dev@example.com dev@example.com" "$prompt"
 has "git: red-run owners are told via spool-send" "tell them with spool-send.sh" "$prompt"
 # spec 065 L8: the report carries sha + note link per released commit.

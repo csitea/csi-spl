@@ -293,6 +293,18 @@ _spawn_lane_topic() {
   printf '%s' "$t"
 }
 
+# _spawn_lane_relay_hash FILE: the version-5 uuid of the first report task
+# FILE names (`task `<uuid>`` / `--task <uuid>`), a relay task's hash of its
+# name. It is sent as the row's topic only when nothing else names one: the hub
+# turns the hash of dispatch-<topic8> into that topic and stores nothing for
+# any other (spec 153 3.12, laneTopicOfRelayHash), never the hash itself.
+_spawn_lane_relay_hash() {
+  local f="${1:-}"
+  [ -n "$f" ] && [ -r "$f" ] || return 0
+  grep -oE '(^|[^0-9A-Za-z])-?-?task[ =]+`?[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}([^0-9A-Za-z-]|$)' "$f" 2>/dev/null |
+    grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}' | sed -n 1p
+}
+
 # The agent's row in the fleet-wide lane map (CLE-77920, specs/058 N2):
 # <TITLE>@<box>, repo, branch, scope, files, topic, state live. Best effort and
 # in the background: a spawn never waits on, or fails for, the hub. Without a
@@ -306,17 +318,23 @@ _spawn_lane_topic() {
 # restart starts the lane again on a seed that names no topic, and its put
 # would blank the row (spec 153 v1.3 3.8). The issue is lifetime/issue (written
 # before this put), else SPAWN_ISSUE, else the brief's `Issue:` line; a key
-# the hub would refuse is left out so the row still lands.
+# the hub would refuse is left out so the row still lands. Last for the topic,
+# a report task's relay hash (_spawn_lane_relay_hash). The origin issue is
+# lifetime/origin-issue (spec 153 3.12, do_spl_lane_issue wrote it).
 _spawn_lane_put() {
   local scope="${SPAWN_LANE_SCOPE:-}" repo="" log
-  local topic="${SPAWN_LANE_TOPIC:-${LANE_ISSUE_TOPIC:-}}" issue=""
+  local topic="${SPAWN_LANE_TOPIC:-${LANE_ISSUE_TOPIC:-}}" issue="" origin=""
   [ -n "$topic" ] || topic="$(_spawn_lane_topic "$BRIEF")"
   [ -n "$topic" ] || topic="$(_spawn_lane_topic "${SPOOL_ROOT:-}/${TITLE:-}/lifetime/brief.md")"
+  [ -n "$topic" ] || topic="$(_spawn_lane_relay_hash "$BRIEF")"
+  [ -n "$topic" ] || topic="$(_spawn_lane_relay_hash "${SPOOL_ROOT:-}/${TITLE:-}/lifetime/brief.md")"
   if [ -n "$BRIEF" ] && . "${_SP_DIR}/../lib/lane-issue.inc.sh" 2>/dev/null; then
     issue="$(li_key_of_agent "$SPOOL_ROOT" "$TITLE")"
     [ -n "$issue" ] || issue="${SPAWN_ISSUE:-$(li_key_from_brief "$BRIEF")}"
+    origin="$(li_origin_of_agent "$SPOOL_ROOT" "$TITLE")"
   fi
   [[ "$issue" =~ ^[A-Z][A-Z0-9]{1,9}-[0-9]{1,9}$ ]] || issue=""
+  [[ "$origin" =~ ^[A-Z][A-Z0-9]{1,9}-[0-9]{1,9}$ ]] || origin=""
   if [ -z "$scope" ] && [ -n "$BRIEF" ] && [ -r "$BRIEF" ]; then
     scope="$(grep -m1 -E '^#+ ' "$BRIEF" 2>/dev/null | sed -E 's/^#+ +//; s/^Brief: *//')"
   fi
@@ -326,11 +344,11 @@ _spawn_lane_put() {
   fi
   scope="${scope:-$SLUG}"
   [ -n "$REPO" ] && repo="$(basename "$REPO")"
-  _sp_plan lane "lane-map.sh put --agent ${TITLE} --repo ${repo:-<none>} --branch ${BRANCH:-<none>} --scope '${scope}' --files '${SPAWN_LANE_FILES:-}' --topic '${topic}' --issue '${issue}'"
+  _sp_plan lane "lane-map.sh put --agent ${TITLE} --repo ${repo:-<none>} --branch ${BRANCH:-<none>} --scope '${scope}' --files '${SPAWN_LANE_FILES:-}' --topic '${topic}' --issue '${issue}' --origin-issue '${origin}'"
   _sp_live || return 0
   log="${SPOOL_ROOT}/${TITLE}/lane.log"
   ( timeout 60 bash "${_SP_DIR}/lane-map.sh" put --agent "$TITLE" --repo "$repo" --branch "$BRANCH" \
-      --scope "$scope" --files "${SPAWN_LANE_FILES:-}" --topic "$topic" --issue "$issue" >"$log" 2>&1 & ) 2>/dev/null
+      --scope "$scope" --files "${SPAWN_LANE_FILES:-}" --topic "$topic" --issue "$issue" --origin-issue "$origin" >"$log" 2>&1 & ) 2>/dev/null
 }
 
 # SCOPE INTEGRATION SPOOL_PROTO — the seed-prompt blocks every kind receives.

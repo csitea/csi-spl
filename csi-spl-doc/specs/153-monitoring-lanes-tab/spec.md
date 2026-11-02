@@ -1,5 +1,10 @@
 # 153 Monitoring: the tab row beside the heading, and a live Lanes tab
 
+Addendum (2026-11-02, SPL-4620): section 3.12 (a lane row names the issue
+it came from, a dispatch task and its relay hash resolve to the discussion),
+cases C54-C57. Owner HUM-10, t1 topic `4e9f7153`, msg `9a89d1e1`. Placed by
+the dispatch holder as one lane brief, not a panel version.
+
 Addendum (2026-10-30, SPL-4421): section 3.10 (the Topics tab, one row
 per topic with its lanes and issues, and the `topic_channel` field on the
 two lanes routes), cases C45-C48 and build row B10. Owner HUM-10, t1
@@ -776,6 +781,75 @@ Cases:
   writes only the filled rows, every other field kept; a role seat, another
   box's row, a done row, a complete row and a row with no pane are left out.
   (`csi-spl-orc/src/bash/tests/lane-backfill-links.tst.sh`)
+
+### 3.12 Every new lane links the discussion and the issue it came from (SPL-4620)
+
+The owner's words, verbatim (HUM-10, t1 `4e9f7153`, msg `9a89d1e1`): "Once a
+lane is created it it should add a link to both the discussions from where it
+originated and to the issue from where it originated ..".
+
+Measured on prd 2026-11-02 (`ENV=prd ./run -a do_spl_db_query`, csi-spl-orc;
+t1, fleet `main`, role seats aside, rows written in the last 7 days; n = 1
+read; tree `06c1fa804`): 1703 rows, 546 with a discussion, none with an origin
+issue, because no column held one. Rows written since 2026-11-01 (after the 3.11
+fix), each row's brief read on the box that started it (one box only, the other
+box's 76 rows, 47 with a discussion, were not classed):
+
+| class, n = 103 rows of that box | rows | discussion | what this section does |
+|---|---|---|---|
+| the brief names a topic | 36 | yes | nothing |
+| the report task is a relay hash of `dispatch-<topic8>` | 7 | no | the hub resolves it |
+| the report task is a relay hash of another name (`dispatch-r47`) | 31 | no | none exists: shows nothing |
+| the report task is a name (`dispatch-r47`) | 28 | no | none exists: shows nothing |
+| no brief left on the box | 1 | no | nothing |
+
+Origin issue, the same 103 rows, by the rule below: 50 placed on an existing
+issue, 53 name none and show nothing until their placer writes the line. Over
+the 7 days, of 193 lanes whose brief names only a relay hash, 92 hash a real
+`dispatch-<topic8>`.
+
+What changes:
+
+- **The column.** `fleet_lanes.origin_issue` (rdb 0252), next to `issue_key`,
+  which stays the lane's own issue. No closed lane is backfilled.
+- **Which issue**, the placer's words only (`li_origin_from_brief`,
+  `lane-issue.inc.sh`): a brief line `Origin-Issue: <KEY>`; else `row N of
+  <KEY>` or `review of <KEY>` in the brief's heading; else the existing issue the
+  lane is placed on (an `Issue:` line or `SPAWN_ISSUE`). Never an epic, a key in
+  the body or a key the lane files itself. `do_spl_lane_issue` writes it once to
+  `lifetime/origin-issue`, because a rotation's brief carries the filed key too.
+- **Which discussion.** An ask's `dispatch-<topic8>` topic launches with its 8
+  hex, which the hub resolves as any short id (it set nothing before). Last
+  source, a report task's relay hash: the hub stores the topic whose
+  `dispatch-<topic8>` hashes to it (`laneTopicOfRelayHash`, one scan of the
+  tenant's topics, 111 ms on prd, only on such a put), and nothing for any other
+  hash or for two matches, so a lane's topic is still never a relay task's hash
+  (3.11). `_spawn_lane_topic` is unchanged.
+- **The page.** A column after Issues, `monitoring.lanes.col_origin_issue`, in
+  all 19 locales, linked as 3.2 links an issue; another prefix is text; none
+  leaves the cell empty, not a dash: nothing was lost. The workspace route (3.6)
+  sends none: it numbers operator issues.
+- **The issue.** Both links under the card's `## Source` (spec 135 7.1). A lane
+  placed on an existing issue adds what its `## Source` lacks; an issue is no
+  origin of itself. Not built: a lane whose only discussion source is a relay
+  hash has that discussion on its row, not in its issue, whose Source is read
+  before the lane's put.
+
+Cases:
+
+- **C54** a put carries `origin_issue` next to `issue_key`; none stores none; a
+  bad key is refused. **C55** the view sends it with its status, absent for
+  none, a key of another prefix with no status.
+  (`hub/lanes_origin_test.go`)
+- **C56** a short id and the relay hash of `dispatch-<topic8>` both store the
+  full uuid; **C56b** the hash of any other name stores nothing; **C56c** a
+  full topic uuid stays. (same file)
+- **C57** the Origin cell links; another prefix is text; none is empty.
+  (`tests/unit/monitoring-lanes.test.mjs`, `tests/e2e/monitoring-costs.test.mjs`)
+- The brief rule, the card and a placed key's description:
+  `csi-spl-orc/src/bash/tests/spl-lane-issue.tst.sh`; the put, done keeping it,
+  and a box binary without the flag: `lane-map.tst.sh`; the ask's topic:
+  `spl-spawn-queue.tst.sh`; the hash as last source: `test-spawn-dry-run.sh` C52d.
 
 ## 4. Cases
 

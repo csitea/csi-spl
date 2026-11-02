@@ -2,8 +2,11 @@ package hub
 
 import (
 	"context"
+	"net/http"
 	"regexp"
 	"strings"
+
+	"github.com/google/uuid"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/agentid"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -72,4 +75,35 @@ func (s *Server) laneTopicsFromIssues(ctx context.Context, tenant string, ls []s
 		}
 	}
 	return nil
+}
+
+// relayTaskHash is what spool-fleet-relay.sh makes of a task name.
+func relayTaskHash(name string) string {
+	return uuid.NewSHA1(uuid.NameSpaceURL, []byte("spool-task:"+name)).String()
+}
+
+// laneTopicOfRelayHash is the one topic of the tenant whose dispatch-<topic8>
+// task hashes to hash, or "" for none or two: a report task relayed by name
+// reaches a brief as its hash, and the hash of a name like dispatch-r47 names
+// no discussion (spec 153 3.12; of 193 such lanes in 7 days, 92 had a topic).
+func (s *Server) laneTopicOfRelayHash(ctx context.Context, tenant, hash string) (string, *issueErr) {
+	d, ok := s.issueDiscussionStore()
+	if !ok {
+		return "", nil
+	}
+	ids, err := d.TopicIDs(ctx, tenant)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("fleet lane relay hash")
+		return "", &issueErr{http.StatusInternalServerError, "internal", "lane map unavailable"}
+	}
+	found := ""
+	for _, id := range ids {
+		if relayTaskHash("dispatch-"+id[:8]) == hash {
+			if found != "" {
+				return "", nil
+			}
+			found = id
+		}
+	}
+	return found, nil
 }

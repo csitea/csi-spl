@@ -282,7 +282,7 @@ func (f mvFix) deliveriesReq() ChannelMoveApplyRequest {
 // C28: after the move no agent row the addressee's box cannot verify stays
 // queued. Run through asOperator with the real pins policies: the spared row is
 // the proof that the <SRC> pin is visible, else this is option (a).
-func TestApplyChannelMoveC27Deliveries(t *testing.T) {
+func TestApplyChannelMoveC28Deliveries(t *testing.T) {
 	f, want := seedMoveDeliveries(t)
 	res := f.apply(t, f.deliveriesReq())
 	for box, state := range want {
@@ -307,7 +307,7 @@ func TestApplyChannelMoveC27Deliveries(t *testing.T) {
 
 // CONTROL: with the expiry skipped the same rows stay undelivered, so the case
 // above can see the difference.
-func TestApplyChannelMoveC27Control(t *testing.T) {
+func TestApplyChannelMoveC28Control(t *testing.T) {
 	f, _ := seedMoveDeliveries(t)
 	req := f.deliveriesReq()
 	req.keepQueue = true

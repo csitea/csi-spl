@@ -593,7 +593,7 @@ key-box approval are 127 H2's.
 | the kinds that take a key today: `claude` and `qwen` (qwen with an https `base_url`, the others none); `grok`, `mistral` (4.2, O2 and O3) and `agy` (127 R5.2, B0c) answer 409 `kind_not_available` | `VendorKeyAvailable` in `vendor_keys.go` |
 | each set, replace and remove mails every `admin` and `biz_owner` who is not disabled or suspended, last4 only; a relay failure is logged as `mail.Digest`, the change stays. The mail is `vendor_key_changed` (19 locales, agy reviews the text last): workspace, agent kind, the change, last4, who and when, no link; with no relay the hub logs `vendor_key.mail_off` and mails nobody | `mailVendorKeyNotice`; `internal/mail/templates/vendor_key_changed/`; `vendorKeyMailer` in `cmd/spool/hub_vendor_keys.go` |
 | no body is logged: the handlers log tenant, kind, actor and last4 | test `TestVendorKeysNeverLogTheKey` (127 L4, hub half) |
-| off until configured: `SPOOL_HUB_VENDOR_KEYS_KMS_KEY` and `SPOOL_HUB_VENDOR_KEYS_PEPPER` unset -> every route 503 `vendor_keys_off`, never an unsealed write | `cmd/spool/hub_vendor_keys.go` |
+| off until configured: `SPOOL_HUB_VENDOR_KEYS_KMS_KEY` or `SPOOL_HUB_VENDOR_KEYS_PEPPER_FILE` unset, or a pepper file of any size but 32 bytes -> every route 503 `vendor_keys_off`, never an unsealed write | `cmd/spool/hub_vendor_keys.go` |
 
 Tests (`internal/hub/vendor_keys_test.go`, Memory and Postgres;
 `internal/vendorkey/vendorkey_test.go`; the store shape test gains the
@@ -605,9 +605,14 @@ answers; 1 with a planted log line).
 
 Not done here, each its own lane:
 
-- **The hub's environment.** Step 030 does not yet inject the two variables
-  above, so the routes answer 503 on dev and prd until an iac lane adds them
-  from cnf `vendor_keys` (the KMS key name and the pepper secret of step 057).
+- **The hub's environment.** SPL-4623: step 030 renders the two variables
+  above from cnf `vendor_keys` (`inject` "true"; the KMS key name of step 057,
+  and the pepper file: step 057's secret mounted as a Cloud Run secret volume at
+  `vendor_keys.pepper_file`, at its pin in `hub.secret_versions`). The pepper is
+  32 raw bytes, which an env value would cut at a NUL (R7 g-968, SPL-4623), so
+  the hub reads the file and refuses any other length.
+  The routes answer 503 on an env until its step 030 apply; test
+  `csi-spl-iac/src/bash/tests/hub-vendor-keys-030.tst.sh`.
 - **The key-box list in GET** and the box approval routes: 127 H2.
 - **One path the 127 Q-4 A rule makes slow, as written:** a workspace whose
   only managers the operator invited can set its first key, and then every

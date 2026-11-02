@@ -39,6 +39,10 @@ var ErrOpen = errors.New("vendorkey: sealed key does not open")
 // MinPepper is the shortest pepper NewSealer takes, in bytes.
 const MinPepper = 16
 
+// PepperBytes is the size of the pepper do_spl_vendor_key_pepper_put writes;
+// the hub refuses a pepper file of any other length (spec 159 section 11).
+const PepperBytes = 32
+
 // Sealed is what the workspace_vendor_keys row stores (rdb 0174).
 type Sealed struct {
 	Ciphertext    []byte // nonce || AES-256-GCM sealed key

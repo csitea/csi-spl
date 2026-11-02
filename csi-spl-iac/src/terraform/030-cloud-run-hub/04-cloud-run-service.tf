@@ -45,6 +45,8 @@ locals {
     env            = var.environment_variables
     secret_env     = var.secret_environment_variables
     secret_version = var.secret_versions
+    pepper_secret  = var.vendor_keys_pepper_secret_id
+    pepper_version = var.vendor_keys_pepper_version
     health         = var.health_path
   })), 0, 16)
   live = var.service_exists ? data.google_cloud_run_v2_service.live[0].template[0] : null
@@ -114,6 +116,22 @@ resource "google_cloud_run_v2_service" "hub" {
       }
     }
 
+    # spec 159 (SPL-4623): the pepper is 32 raw bytes, so a file and not an env
+    # value: a NUL would cut it. The hub refuses any other length.
+    dynamic "volumes" {
+      for_each = var.vendor_keys_pepper_version == "" ? [] : [var.vendor_keys_pepper_version]
+      content {
+        name = "vendor-keys-pepper"
+        secret {
+          secret = var.vendor_keys_pepper_secret_id
+          items {
+            version = volumes.value
+            path    = basename(var.environment_variables["SPOOL_HUB_VENDOR_KEYS_PEPPER_FILE"])
+          }
+        }
+      }
+    }
+
     containers {
       image = var.image
 
@@ -133,6 +151,14 @@ resource "google_cloud_run_v2_service" "hub" {
       volume_mounts {
         name       = "cloudsql"
         mount_path = "/cloudsql"
+      }
+
+      dynamic "volume_mounts" {
+        for_each = var.vendor_keys_pepper_version == "" ? [] : [var.vendor_keys_pepper_version]
+        content {
+          name       = "vendor-keys-pepper"
+          mount_path = dirname(var.environment_variables["SPOOL_HUB_VENDOR_KEYS_PEPPER_FILE"])
+        }
       }
 
       dynamic "env" {

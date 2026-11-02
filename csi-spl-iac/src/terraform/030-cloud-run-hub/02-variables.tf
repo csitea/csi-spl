@@ -177,6 +177,27 @@ variable "github_app_key_secret_id" {
   }
 }
 
+variable "vendor_keys_pepper_version" {
+  type        = string
+  default     = ""
+  description = "Pinned version of the vendor key pepper (cnf hub.secret_versions), mounted at the path in env SPOOL_HUB_VENDOR_KEYS_PEPPER_FILE. Empty while cnf vendor_keys.inject is not true: no volume."
+
+  validation {
+    condition     = can(regex("^([1-9][0-9]*)?$", var.vendor_keys_pepper_version))
+    error_message = "vendor_keys_pepper_version must be a version number or empty."
+  }
+}
+
+variable "vendor_keys_pepper_secret_id" {
+  type        = string
+  description = "Secret Manager id of the vendor key fingerprint pepper (cnf env.vendor_keys.pepper_secret, spec 159). Step 057 owns the slot and the runtime SA's read on it. 04 mounts it as a file while vendor_keys_pepper_version is set."
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_-]+$", var.vendor_keys_pepper_secret_id))
+    error_message = "vendor_keys_pepper_secret_id must be a Secret Manager secret id."
+  }
+}
+
 # SPL-4298: 04 reads the live service to pick the revision name. The data
 # source fails on a service that does not exist, so the very first create of
 # an estate sets this false (TF_VAR_service_exists=false) for that one apply.

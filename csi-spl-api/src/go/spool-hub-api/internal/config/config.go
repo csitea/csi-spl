@@ -490,11 +490,12 @@ type Hub struct {
 	ContactsScopes     string   `env:"SPOOL_HUB_CONTACTS_SCOPES"`
 	// A workspace's own vendor keys (spec 127 H1, spec 159 T1): the KMS key
 	// that wraps each key's data key (cnf vendor_keys.kms_key, the full
-	// CryptoKey resource name of step 057) and the fingerprint HMAC pepper
-	// (Secret Manager cnf vendor_keys.pepper_secret; never logged). Both
-	// unset = every /v1/vendor-keys route answers 503 vendor_keys_off.
-	VendorKeysKMSKey string `env:"SPOOL_HUB_VENDOR_KEYS_KMS_KEY"`
-	VendorKeysPepper string `env:"SPOOL_HUB_VENDOR_KEYS_PEPPER"`
+	// CryptoKey resource name of step 057) and the file holding the fingerprint
+	// HMAC pepper (Secret Manager cnf vendor_keys.pepper_secret, mounted as a
+	// volume because it is raw bytes; never logged). Either unset = every
+	// /v1/vendor-keys route answers 503 vendor_keys_off.
+	VendorKeysKMSKey     string `env:"SPOOL_HUB_VENDOR_KEYS_KMS_KEY"`
+	VendorKeysPepperFile string `env:"SPOOL_HUB_VENDOR_KEYS_PEPPER_FILE"`
 	// DemoMaxLive caps the live demo_user seats (cnf demo.max_live,
 	// specs/077 FR-006); the next visitor is refused demo_full.
 	DemoMaxLive int `env:"SPOOL_HUB_DEMO_MAX_LIVE" envDefault:"9"`

@@ -134,6 +134,18 @@ files_bucket_name            = {{ steps["050-gcs-files"]["files_bucket_name"] | 
 {%- if (gh_app.get("inject", "false") | string | lower) == "true" %}
 {%- set _ = run_sec.update(gh_sec) %}
 {%- endif %}
+{#- spec 159 (SPL-4623): the vendor key seal, only while vendor_keys.inject is
+    "true" (057 applied, a pepper version exists and is pinned): step 057's key
+    as its full CryptoKey name, the pepper as a secret volume file at its pin: it
+    is raw bytes, never an env value. Either missing, every /v1/vendor-keys route
+    answers 503 vendor_keys_off #}
+{%- set vk = vendor_keys if vendor_keys is defined else {} %}
+{%- set vk_pepper_version = "" %}
+{%- if (vk.get("inject", "false") | string | lower) == "true" %}
+{%- set _ = run_env.update({"SPOOL_HUB_VENDOR_KEYS_KMS_KEY": "projects/" ~ gcp["gcp_project"] ~ "/locations/" ~ gcp["gcp_region"] ~ "/keyRings/" ~ vk["kms_key"]["key_ring"] ~ "/cryptoKeys/" ~ vk["kms_key"]["crypto_key"]}) %}
+{%- set _ = run_env.update({"SPOOL_HUB_VENDOR_KEYS_PEPPER_FILE": vk["pepper_file"]}) %}
+{%- set vk_pepper_version = hub["secret_versions"][vk["pepper_secret"]] | string %}
+{%- endif %}
 {%- set slot_ids =(auth_sec.values() | list) + (mail_sec.values() | list) + (wui_sec.values() | list) + (pay_sec.values() | list) + (rnb_sec.values() | list) + (mkt_sec.values() | list) %}
 {%- if listed %}
 {%- set _ = run_sec.update({"SPOOL_HUB_AUTH_SESSION_KEY": auth_sec["SPOOL_HUB_AUTH_SESSION_KEY"]}) %}
@@ -155,3 +167,5 @@ secret_environment_variables = {{ run_sec | tojson }}
 secret_versions              = {{ run_ver | tojson }}
 auth_secret_ids              = {{ slot_ids | tojson }}
 github_app_key_secret_id     = {{ gh_sec["SPOOL_GITHUB_APP_KEY"] | tojson }}
+vendor_keys_pepper_secret_id = {{ vendor_keys["pepper_secret"] | tojson }}
+vendor_keys_pepper_version   = {{ vk_pepper_version | tojson }}

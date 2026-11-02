@@ -105,61 +105,69 @@ func (s *Server) channelOf(ctx context.Context, tenant, channel, taskID string) 
 // task with no root to inherit from, so its send keeps the round-trip budget
 // (TestRoundTripsPerRequest), and an untagged reply makes the one lookup
 // channelOf would have made anyway.
-func (s *Server) wuiChannel(ctx context.Context, tenant, channel, taskID string, isParent int) string {
+//
+// The bool says a root was found: the task has rows here, so it did not move
+// (spec 169 C8); only false makes wuiRoute read the redirect.
+func (s *Server) wuiChannel(ctx context.Context, tenant, channel, taskID string, isParent int) (string, bool) {
 	if isParent != 0 {
-		return s.channelOf(ctx, tenant, channel, taskID)
+		return s.channelOf(ctx, tenant, channel, taskID), false
 	}
 	c, err := s.o.Store.TopicChannel(ctx, tenant, taskID)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("task_id", taskID).Msg("topic channel")
-		return s.tagChannel(channel, taskID)
+		return s.tagChannel(channel, taskID), false
 	}
 	if c != "" {
-		return c
+		return c, true
 	}
-	return s.tagChannel(channel, taskID)
+	return s.tagChannel(channel, taskID), false
 }
 
-// boxLevel is the is_parent a box send is stored with. A box frame carries
-// no level, so every agent line used to be stored as 1 - an agent's answer in
-// a channel thread then sat in the channel feed as a new post, while the
-// same answer typed in the WUI reply pane was a reply (measured
-// 2026-09-25: every non-root box row under a channel topic was 1, dev 8 prd
-// 23; every browser one 0). A line on a task whose topic root is in a channel
-// is a reply; a new task, a DM and the legacy lobby task stay 1. A lookup
-// error keeps the old answer rather than failing the send.
-//
-// The channel test is the earliest is_parent 1 row (TopicChannel) AND, when
-// that is empty, the task's earliest row of ANY level (TaskFirstChannel): a
-// channel topic whose opening card is missing has an is_parent 0 channel row
-// as its oldest, so TopicChannel alone read it as a DM and turned every agent
-// answer into a card (prd t1 e802196b, 2026-09-29 - an untagged desk reply put
-// under a human's channel post). Only a genuine DM (no channel row at all) or
-// a not-yet-stored new task stays 1.
-func (s *Server) boxLevel(ctx context.Context, tenant, taskID string) int {
+// boxTopicFacts is what a box send learns of its task: level is the is_parent
+// to store it with, moved the redirect of a task that left this workspace, err
+// a failed read. A failed read says neither "moved" nor "not moved", so it is
+// never read as moved == nil: the caller refuses the post (spec 169 C8).
+type boxTopicFacts struct {
+	level int
+	moved *store.ChannelMoveRedirect
+	err   error
+}
+
+// boxTopic reads level and moved. A box frame carries no level, so every
+// agent line used to be stored as 1 - an agent's answer in a channel thread
+// then sat in the channel feed as a new post, while the same answer typed in
+// the WUI reply pane was a reply (measured 2026-09-25: every non-root box row
+// under a channel topic was 1, dev 8 prd 23; every browser one 0). A line on a
+// task whose topic root is in a channel is a reply; a new task, a DM and the
+// legacy lobby task stay 1. A lookup error keeps level 1 and is returned in
+// err. The legacy lobby task never moves (a default channel stays), and a
+// non-uuid id is no task: the redirect table holds uuids only (rdb 0249). A
+// root found means rows here, so only a task with no channel row reads the
+// redirect, in the one read that replaces TaskFirstChannel.
+func (s *Server) boxTopic(ctx context.Context, tenant, taskID string) boxTopicFacts {
 	if s.o.LobbyTaskID != "" && taskID == s.o.LobbyTaskID {
-		return 1
+		return boxTopicFacts{level: 1}
 	}
 	if !msg.IsUUID(taskID) { // SPL-3195: no channel, and no ERROR line for a client's bad id
-		return 1
+		return boxTopicFacts{level: 1}
 	}
 	c, err := s.o.Store.TopicChannel(ctx, tenant, taskID)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("task_id", taskID).Msg("topic channel")
-		return 1
+		return boxTopicFacts{level: 1, err: err}
 	}
 	if c != "" {
-		return 0
+		return boxTopicFacts{level: 0}
 	}
-	first, err := s.o.Store.TaskFirstChannel(ctx, tenant, taskID)
+	first, moved, err := s.taskFirstOrMoved(ctx, tenant, taskID)
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("task_id", taskID).Msg("task first channel")
-		return 1
+		return boxTopicFacts{level: 1, err: err}
 	}
 	if first != "" {
-		return 0
+		return boxTopicFacts{level: 0}
 	}
-	return 1
+	return boxTopicFacts{level: 1, moved: moved}
 }
 
 // followMoved is specs/045 §3.7 for a BOX reply: a channel tag on a task

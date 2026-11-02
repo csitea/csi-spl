@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.11 (2026-11-02). Status: **Draft** (plan only; nothing below is
+Version: v0.12 (2026-11-02). Status: **Draft** (plan only; nothing below is
 built). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -49,6 +49,10 @@ v0.10 gives the two checks no row owned their own rows (c-001, 2026-11-02,
 reply to c-002 msg 8d5be6ce): T4b takes R1 and W2's plan check off T4, and
 T9b prints R4's two retention values from the shell plan path, because the
 store cannot read them and a hub endpoint would need new IAM. Cases C22-C24.
+v0.12 adds row T7b and widens T7's file list (c-001, SPL-4598): T7 refuses a post to a
+moved task with the destination, the box client re-routes it, and expired
+redirect rows stay until a sweep is decided.
+
 v0.11 names the one exception to the free-text scan printing 0 (c-001,
 2026-11-02, msg b42a543c, its decision as orchestrator, on the T8 lane's
 question): the fleet topic ids of 5.1 when `<SRC>` holds the fleet rows
@@ -444,7 +448,7 @@ now is.
 | C5 | A failure in P4 leaves both workspaces exactly as before | inject an error after half the inserts -> counts equal to C1's before |
 | C6 | Shared file: a blob also attached in a staying channel is copied, not deleted in `<SRC>` | delete it anyway -> the staying post's file 404s |
 | C7 | Shared item rule (Q6): with the default, an issue linked to topics in two channels refuses the move, naming it | remove the check -> the other channel loses its issue link |
-| C8 | Old permalink and a lane post to a moved task at `<SRC>`: never create a `<SRC>` row. Both Q2 variants are tested (redirect on: redirect and re-route; off: 404 and refused), so the case does not wait for Q2 | post to the moved task id at `<SRC>` -> a new `<SRC>` topic appears |
+| C8 | Old permalink and a lane post to a moved task at `<SRC>`: never create a `<SRC>` row. Both Q2 variants are tested (redirect on: a box post and a browser post are refused with the destination, no row in `<SRC>` or `<DST>`, and the permalink answers the link; off: 404 and refused), so the case does not wait for Q2; the re-route is T7b's | post to the moved task id at `<SRC>` -> a new `<SRC>` topic appears |
 | C9 | Counters equal a fresh count after the move, in both workspaces | skip the recompute -> `<SRC>` counts still include the channel |
 | C10 | A moved file read from `<SRC>` -> 404; from `<DST>` -> the bytes | serve from the LRU without the DB check -> 200 |
 | C11 | Seats: a channel agent without a `<DST>` desk makes `plan` refuse, naming it; a desk whose P2b probe DM fails stops the move before P4, nothing changed; after P4 the seat rows are in `<DST>` and none in `<SRC>` | drop the check -> the agent cannot post after the move (spec 167 W3); skip the probe -> a dead `<DST>` desk passes P2b |
@@ -481,7 +485,8 @@ Each row is one small task; files named are where it lands.
 | T5b | Store: the issues part of P4 (renumber, events, discussions, `spec_sync_map`); test C3b | `api/store/channel_move_issues_postgres.go`, `_test.go` |
 | T5c | Store: the Qto part of P4 (doc, item, node, ACL, rev log, re-placed in `<DST>`'s tree); test C3c | `api/store/channel_move_docs_postgres.go`, `_test.go` |
 | T6 | Blob and Qto object copy/delete P3/P6, the shared-file rule; tests C6, C10 | `api/channelmove/objects.go`, `_test.go` |
-| T7 | Hub operator endpoint (owner GO msg id required) and the moved-task refusal / redirect; tests C8, C15 | `api/hub/channel_move.go`, `_test.go` |
+| T7 | Hub operator endpoint (owner GO msg id required) and the moved-task refusal / redirect; tests C8, C15 | `api/hub/channel_move.go`, `_test.go`, `openapi.json`; the refusal lines in `api/hub/channels.go`, `ws.go`, `wui.go`, `view.go`; `api/store/channel_move_journal*.go` and one field in `memory.go`; `api/wire/topic_moved.go` |
+| T7b | Box client: on the `topic_moved` refusal, send the post through the agent's `<DST>` desk key (W2, W3), the re-route of Q2. A prerequisite of the first prd move | the box CLI; a lane of its own |
 | T8 | Proofs P7 and the free-text scan; tests C13, C14 | `api/channelmove/proof.go`, `_test.go` |
 | T9 | Shell action `do_spl_channel_workspace_move` (plan, DRY_RUN, journal resume) and its test C17 | `orc/run/spl-channel-workspace-move.func.sh`, `orc/tests/spl-channel-workspace-move.tst.sh` |
 | T9b | The shell plan path reads and prints the Cloud SQL backup retention and the hub log bucket's retention (R4, 5.6): it only prints and refuses nothing; it prints every log bucket of the project, because the cnf names none; test C24 | `orc/run/spl-channel-workspace-move.func.sh`, `orc/tests/spl-channel-workspace-move.tst.sh` |
@@ -533,7 +538,7 @@ Read from the owner's own answers in prd t1 topic
 | Q | answer | owner msg | what the spec does |
 |---|---|---|---|
 | Q1 | A, a snapshot | `d2c97186` (poll `0d78f4d9`) | section 7 as written; no sync |
-| Q2 | A, 30 days of redirect, re-route and old issue key map, then 404 | `333aea7b` (poll `502a793f`) | W3-W5, C8 with the redirect on; T2's redirect table expires rows after 30 days |
+| Q2 | A, 30 days of redirect, re-route and old issue key map, then 404 | `333aea7b` (poll `502a793f`) | W3-W5, C8 with the redirect on; T2's redirect table expires rows after 30 days. T7 refuses with the destination (token `topic_moved`; `wire.MovedDetail` gives the workspace and the link, never the channel); the re-route itself is the box client's, T7b, because a box key is live in one workspace only (rdb 0154). Expired rows refuse and stay until a sweep is decided; deleting them reopens C8's red, so a sweep needs the owner's answer first |
 | Q3 | A, keep until they expire | `d2c97186` | 5.6 as written; P7 prints the last expiry date |
 | Q4 | A, leave them and list them | `d2c97186` | 5.4: `plan` lists, nothing edited |
 | Q5 | A, they lose access; the move lists them and the owner adds whom he wants | `0c58c916` (poll `dfa0234a`) | W1, 5.1 (`channel_humans`, `channel_invites`, `channel_subscriptions`, `read_marks`), 5.1a hours, 5.1b invites, calendar guests: of the channel's people who are not `<DST>` members, only those the owner adds to `<DST>` come along; existing `<DST>` members keep their access (W1); the move adds no one by itself; C21 (the lead's hours stop, 5.1a) |

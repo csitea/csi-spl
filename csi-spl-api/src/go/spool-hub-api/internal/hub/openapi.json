@@ -10942,6 +10942,40 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/channel-moves": {
+      "post": {
+        "operationId": "postOperatorChannelMoves",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "op plan: {counts, seats, mentions, members_lost, kept, refuse, shared_files}; it changes nothing"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "501": {
+            "description": "not_built: op journal, step or mark, or mode copy"
+          }
+        },
+        "summary": "Plan or drive a move of a channel into another workspace (spec 169)",
+        "tags": [
+          "operator"
+        ]
+      }
+    },
     "/v1/operator/channels": {
       "post": {
         "operationId": "postOperatorChannels",

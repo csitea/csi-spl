@@ -167,7 +167,11 @@ func TestRoundTripsPerRequest(t *testing.T) {
 		// (ChannelKnown) and the post door's channel_humans read; the live
 		// fan-out's second channel_humans read is the frame memo's (it was 5,
 		// measured 5/5 -> 4/4, n=5 x2).
-		{"WS wui send (#perf-room) -> ack", 4, func() error {
+		//
+		// Spec 169 C8: 5. This frame opens a NEW topic, and only that reads the
+		// redirect (channel_move_redirects): a task that left has no root here.
+		// A reply into a rooted topic reads none (TestChannelMoveSendReadsCounted).
+		{"WS wui send (#perf-room) -> ack", 5, func() error {
 			channelFrame(t, c, uuid4(), uuid4(), "perf-room", "probe")
 			return nil
 		}},

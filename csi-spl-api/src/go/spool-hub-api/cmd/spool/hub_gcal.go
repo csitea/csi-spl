@@ -25,10 +25,7 @@ func gcalConnect(ctx context.Context, hc *config.Hub, ac *auth.Config, log zerol
 		return nil
 	}
 	appURL := strings.TrimRight(strings.TrimSpace(ac.AppURL), "/")
-	apex := ""
-	if hc.WUITenantHosts {
-		apex = hc.WUIApexTenant
-	}
+	apex := hubWUIApex(hc)
 	g := &hub.GcalConnect{
 		Workspaces: hc.GcalWorkspaces,
 		CookieName: ac.StateCookieName, CookieDomain: ac.CookieDomain, CookieSecure: ac.CookieSecure,
@@ -69,4 +66,12 @@ func errText(err error) string {
 		return ""
 	}
 	return err.Error()
+}
+
+// hubWUIApex is the workspace at the bare fqdn, when workspaces have hosts.
+func hubWUIApex(hc *config.Hub) string {
+	if hc.WUITenantHosts {
+		return hc.WUIApexTenant
+	}
+	return ""
 }

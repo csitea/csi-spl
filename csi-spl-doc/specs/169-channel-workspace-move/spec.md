@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.15 (2026-11-02). Status: **Draft** (plan only; nothing below is
+Version: v0.16 (2026-11-02). Status: **Draft** (plan only; nothing below is
 built). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -69,7 +69,7 @@ stays in `<SRC>`. It also says what T4b means for T5: the plan under the lock
 checks R1 and W2 again, so C28's sender branch (no live `<DST>` pin) cannot be
 reached by a full move while R1 holds, and stays as a defence.
 
-v0.12 corrects R1, F10 and C22 to what T4c measured (SPL-4599, c-001 msgs
+v0.16 corrects R1, F10 and C22 to what T4c measured (SPL-4599, c-001 msgs
 5b72f83c and c8953637): a pinned box does not make a moved row verify.
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`

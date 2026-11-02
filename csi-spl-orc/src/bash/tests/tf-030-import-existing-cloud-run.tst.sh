@@ -12,7 +12,7 @@
 #   5. never calls terraform apply / destroy / plan (CONTROL: stub logs calls)
 #   6. missing tfvars -> exit 1
 #   action (do_tf_030_import_existing_cloud_run), with docker stubbed:
-#   7. ENV unset / inf / qa -> refused, docker never called
+#   7. ENV unset / inf / qa -> refused by its FATAL, docker never called
 #   8. no project key under $HOME/.gcp/.<org>/ -> refused, docker never called
 #   9. a work dir without tf-030 in its name -> refused
 #  10. happy path: init with the step's backend-config, then the importer with
@@ -150,9 +150,10 @@ mkdir -p "$T/home-nokey" "$T/home/.gcp/.csi"
 echo '{}' >"$T/home/.gcp/.csi/key-csi-spl-dev.json"
 
 # 7.
-for bad in "" inf qa; do
-  out=$(run_action HOME="$T/home" ENV="$bad" TF_030_WORK="$T/tf-030-x"); rc=$?
-  [[ $rc -ne 0 && ! -s "$T/docker.log" ]] && pass "ENV='$bad' refused, no docker" || fail "ENV='$bad': rc=$rc"
+for bad in ":ENV is required" "inf:ENV=inf is decommissioned" "qa:ENV must be one of dev|prd (got 'qa')"; do
+  val="${bad%%:*}"; want="FATAL ${bad#*:}"
+  out=$(run_action HOME="$T/home" ENV="$val" TF_030_WORK="$T/tf-030-x"); rc=$?
+  [[ $rc -ne 0 && "$out" == *"$want"* && ! -s "$T/docker.log" ]] && pass "ENV='$val' refused, no docker" || fail "ENV='$val': rc=$rc $out"
 done
 # 8.
 out=$(run_action HOME="$T/home-nokey" ENV=dev TF_030_WORK="$T/tf-030-dev"); rc=$?

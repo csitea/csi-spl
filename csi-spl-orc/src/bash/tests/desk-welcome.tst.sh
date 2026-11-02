@@ -25,6 +25,8 @@
 #  11. a test/proof account is skipped unless WELCOME_INCLUDE_TEST=1
 #  12. the provenance footer rides the greeter's post
 #  13. do_spl_desk_greeter: show, dry run, set, refuse a non-agent id, clear
+#  14. a malformed DESK_BOX, WELCOME_MAX_AGE_H, WELCOME_TRIES or
+#      WELCOME_INCLUDE_TEST is refused by its FATAL and posts nothing
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -206,5 +208,21 @@ gset DESK_GREETER=HUM-3 DRY_RUN=0; [[ $? -ne 0 && "$(cat "$SEATS/greeter")" == c
   pass "13. a human id is refused" || fail "13. refuse: $(cat "$T/o")"
 gset DESK_GREETER=none DRY_RUN=0; [[ $? -eq 0 && ! -e "$SEATS/greeter" ]] &&
   pass "13. none clears it: nobody greets" || fail "13. clear: $(cat "$T/o")"
+
+# 14. the argument refusals
+ADMITS="$T/a14"; : >"$POSTS"
+admit t1 HUM-50 5000 'Not Reached' '' >"$ADMITS"
+refused() {  # the FATAL it must print, then the one bad VAR=val
+  run DRY_RUN=0 "$2"; rc=$?
+  [[ $rc -ne 0 && ! -s "$POSTS" ]] && grep -qF "FATAL $1" "$T/o" &&
+    pass "14. $2 is refused" || fail "14. $2 ($rc): $(cat "$T/o") $(cat "$POSTS")"
+}
+refused "DESK_BOX 'BAD' is not a box id" DESK_BOX=BAD
+refused "DESK_BOX 'box-wui' is not a box id" DESK_BOX=box-wui
+refused "WELCOME_MAX_AGE_H must be 1..9999 hours, got: '0'" WELCOME_MAX_AGE_H=0
+refused "WELCOME_TRIES must be 1..9, got: '0'" WELCOME_TRIES=0
+refused "WELCOME_TRIES must be 1..9, got: '10'" WELCOME_TRIES=10
+refused "WELCOME_INCLUDE_TEST must be 0 or 1, got: '2'" WELCOME_INCLUDE_TEST=2
+refused "WELCOME_INCLUDE_TEST must be 0 or 1, got: 'no'" WELCOME_INCLUDE_TEST=no
 
 (( fails == 0 )) && echo "=== all desk-welcome.tst.sh assertions" || { echo "FAIL: $fails assertion(s)"; exit 1; }

@@ -156,6 +156,16 @@ expect "4 git missing + docker down -> git only" 2 '^ERROR: Git' 'Docker engine'
 n=$(grep -c '^ERROR' <<<"$OUT")
 if [ "$n" -eq 1 ]; then pass "4b exactly one ERROR line"; else fail "4b $n ERROR lines"; fi
 
+# whole_port <a|b> - regex for these ports as whole numbers: a kernel-picked
+# port may hold one as a substring (54327 went red, wf 10 run 41436295621).
+whole_port() { printf '(^|[^0-9])(%s)([^0-9]|$)' "$1"; }
+# mk_compose_ports <file> <port>... - a compose file publishing these host ports
+mk_compose_ports() {
+  local f="$1" p; shift
+  { printf 'services:\n  web:\n    ports:\n'
+    for p in "$@"; do printf '      - "127.0.0.1:${SPOOL_P:-%s}:80"\n' "$p"; done; } > "$f"
+}
+
 # 5. the default list is the compose file's published host ports
 #    (8080 8443 1025 8025). 5432 and 9000 are not host ports. An explicit
 #    DEV_PREFLIGHT_PORTS still wins, including over a compose file.
@@ -176,13 +186,24 @@ services:
       SPOOL_PUBLIC_URL: http://127.0.0.1:\${SPOOL_HTTP_PORT:-9999}
 EOF
 run_pf_def "$GOOD" DEV_PREFLIGHT_PRINT_PORTS=1 DEV_PREFLIGHT_COMPOSE="$T/no-such-compose.yml"
-expect "5 missing compose falls back to 8080 8443 1025 8025" 0 '^8080 8443 1025 8025$' '5432|9000'
+expect "5 missing compose falls back to 8080 8443 1025 8025" 0 '^8080 8443 1025 8025$' "$(whole_port '5432|9000')"
 run_pf_def "$GOOD" DEV_PREFLIGHT_COMPOSE="$T/compose-ports.yml"
-expect "5b reads the published host ports from the compose file" 0 "OK 7/7 ports: $Q1 $Q2 $Q3 $Q4 free" '5432|9000'
+expect "5b reads the published host ports from the compose file" 0 "OK 7/7 ports: $Q1 $Q2 $Q3 $Q4 free" "$(whole_port '5432|9000')"
 run_pf_def "$GOOD" DEV_PREFLIGHT_PRINT_PORTS=1 DEV_PREFLIGHT_COMPOSE="$APP_ROOT/docker-compose.yml"
-expect "5c repo compose publishes 8080 8443 1025 8025" 0 '^8080 8443 1025 8025$' '5432|9000|587'
+expect "5c repo compose publishes 8080 8443 1025 8025" 0 '^8080 8443 1025 8025$' "$(whole_port '5432|9000|587')"
 run_pf "$GOOD" DEV_PREFLIGHT_COMPOSE="$T/compose-ports.yml"
 expect "5d DEV_PREFLIGHT_PORTS overrides the compose file" 0 "OK 7/7 ports: $P1 $P2 free"
+# 5e/5f. the ban itself: a substring stays green, a whole port is seen wherever
+#    it stands in the list. Printed, not probed, so 5432 may be bound on the box.
+mk_compose_ports "$T/compose-sub.yml" 54327 15432 19000 39000
+run_pf_def "$GOOD" DEV_PREFLIGHT_PRINT_PORTS=1 DEV_PREFLIGHT_COMPOSE="$T/compose-sub.yml"
+expect "5e a port holding 5432 or 9000 as a substring is not banned" 0 '^54327 15432 19000 39000$' "$(whole_port '5432|9000')"
+for list in "5432 8443" "8080 5432 8025" "8080 9000"; do
+  # shellcheck disable=SC2086 # the list splits into the ports on purpose
+  mk_compose_ports "$T/compose-real.yml" $list
+  run_pf_def "$GOOD" DEV_PREFLIGHT_PRINT_PORTS=1 DEV_PREFLIGHT_COMPOSE="$T/compose-real.yml"
+  expect "5f the ban sees a whole port in '$list'" 0 "$(whole_port '5432|9000')"
+done
 
 echo
 [ "$fails" -eq 0 ] && { echo "ALL PASS: test-dev-preflight"; exit 0; }

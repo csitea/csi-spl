@@ -26,21 +26,42 @@
 # @param DRY_RUN (optional) - 1 (default): check the endpoint only. 0: emit the event.
 # @example ENV=prd STRIPE_API_BASE=<stripe rest base> DRY_RUN=0 ./run -a do_spl_stripe_webhook_probe
 #------------------------------------------------------------------------------
-do_spl_stripe_webhook_probe() {
+# Checks the action's env vars and sets the caller's dry, sbase, amount, wait and pm.
+_spl_stripe_probe_read_input() {
   do_require_bin yq jq curl python3 sha256sum || return 1
   [[ "${ENV:-}" == dev || "${ENV:-}" == prd ]] || { do_log "FATAL ENV must be dev or prd"; return 1; }
-  local dry="${DRY_RUN:-1}"
+  dry="${DRY_RUN:-1}"
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: $dry"; return 2; }
   : "${STRIPE_API_BASE:?STRIPE_API_BASE must be set (no default) - the Stripe REST base URL, or a local mock}"
-  local sbase="${STRIPE_API_BASE%/}"
+  sbase="${STRIPE_API_BASE%/}"
   case "$sbase" in
     https://?*) ;;
     http://127.0.0.1*|http://localhost*) do_log "WARN non-TLS Stripe base: only valid against a local mock" ;;
     *) do_log "FATAL STRIPE_API_BASE must be an https:// URL (got '$sbase')"; return 1 ;;
   esac
-  local amount="${PROBE_AMOUNT:-100}" wait="${PROBE_WAIT:-90}" pm="${PROBE_PAYMENT_METHOD:-pm_card_chargeDeclined}"
+  amount="${PROBE_AMOUNT:-100}" wait="${PROBE_WAIT:-90}" pm="${PROBE_PAYMENT_METHOD:-pm_card_chargeDeclined}"
   [[ "$amount" =~ ^[1-9][0-9]{1,5}$ ]] || { do_log "FATAL PROBE_AMOUNT must be 10..999999 minor units"; return 1; }
   [[ "$pm" == pm_card_* ]] || { do_log "FATAL PROBE_PAYMENT_METHOD must be a vendor test payment method (pm_card_*)"; return 1; }
+}
+
+# Polls Stripe for the intent's failed-payment event, until every endpoint answered
+# or the wait runs out. Sets the caller's waited, evt and pending.
+_spl_stripe_probe_await_event() {
+  local sbase="$1" sk="$2" pi="$3" t0="$4" wait="$5" out body
+  while :; do
+    out="$(_spl_stripe_api GET "/v1/events?type=payment_intent.payment_failed&limit=20&created%5Bgte%5D=$((t0 - 60))" "$sbase" "$sk")"
+    body="${out%$'\n'*}"
+    evt="$(jq -r --arg p "$pi" '[.data[]? | select(.data.object.id == $p)] | first // empty | "\(.id) \(.pending_webhooks)"' <<<"$body" 2>/dev/null)"
+    pending="${evt#* }" evt="${evt%% *}"
+    [[ -n "$evt" && "$pending" == 0 ]] && break
+    (( waited >= wait )) && break
+    sleep 5; waited=$((waited + 5))
+  done
+}
+
+do_spl_stripe_webhook_probe() {
+  local dry sbase amount wait pm
+  _spl_stripe_probe_read_input || return $?
   do_spl_cloud_cnf || return 1
 
   local org="${SPL_ORG_APP%%-*}" app="${SPL_ORG_APP#*-}" slug="$SPL_ORG_APP"
@@ -87,15 +108,7 @@ do_spl_stripe_webhook_probe() {
   do_log "INFO $pi declined (HTTP $status, $(jq -r '.error.decline_code // .error.code // "-"' <<<"$body")): nothing charged; waiting for its event"
 
   local waited=0 evt="" pending=""
-  while :; do
-    out="$(_spl_stripe_api GET "/v1/events?type=payment_intent.payment_failed&limit=20&created%5Bgte%5D=$((t0 - 60))" "$sbase" "$h/sk")"
-    body="${out%$'\n'*}"
-    evt="$(jq -r --arg p "$pi" '[.data[]? | select(.data.object.id == $p)] | first // empty | "\(.id) \(.pending_webhooks)"' <<<"$body" 2>/dev/null)"
-    pending="${evt#* }" evt="${evt%% *}"
-    [[ -n "$evt" && "$pending" == 0 ]] && break
-    (( waited >= wait )) && break
-    sleep 5; waited=$((waited + 5))
-  done
+  _spl_stripe_probe_await_event "$sbase" "$h/sk" "$pi" "$t0" "$wait"
   _spl_stripe_api POST "/v1/payment_intents/$pi/cancel" "$sbase" "$h/sk" >/dev/null ||
     do_log "WARN could not cancel $pi (it stays requires_payment_method, uncharged)"
   jq -nc --arg env "$ENV" --argjson ep "$ep" --arg pi "$pi" --arg e "$evt" --arg p "$pending" --arg w "$waited" \

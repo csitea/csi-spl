@@ -4,11 +4,13 @@
 #          against a stub curl that plays the Stripe REST API:
 #          - refused: no STRIPE_API_BASE, a bad ENV, a non-test payment method,
 #            no tagged hub endpoint, a disabled endpoint
+#          - DRY_RUN other than 0|1 is rc 2; a non-TLS base and a bad amount rc 1
 #          - the default is a dry run: endpoint list only, no PaymentIntent
 #          - DRY_RUN=0 confirms ONE intent with the decline method, finds its
 #            payment_intent.payment_failed event, reports pending_webhooks 0
 #            and cancels the intent
 #          - CONTROL: an event still pending after PROBE_WAIT fails the run
+#          - CONTROL: no event at all fails the run after the full PROBE_WAIT
 #          - the secret key is in no output and no argv (curl gets it on stdin)
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -57,7 +59,7 @@ elif method == "POST" and path == "v1/payment_intents":
 elif method == "GET" and path.startswith("v1/events"):
     ev = {"id": "evt_probe1", "type": "payment_intent.payment_failed", "pending_webhooks": int(env.get("PENDING", "0")),
           "data": {"object": {"id": "pi_probe1"}}}
-    print(json.dumps({"data": [ev]})); print("200", end="")
+    print(json.dumps({"data": [] if env.get("NO_EVENT") == "1" else [ev]})); print("200", end="")
 elif method == "POST" and path == "v1/payment_intents/pi_probe1/cancel":
     open(os.path.join(api, "cancelled"), "w").write("1")
     print('{"id":"pi_probe1","status":"canceled"}'); print("200", end="")
@@ -93,6 +95,12 @@ out=$(run_act ENV=stg DRY_RUN=0); rc=$?
 [[ $rc -ne 0 && ! -s "$T/api/argv" ]] && pass "refused: ENV other than dev|prd" || fail "env: rc=$rc $out"
 out=$(run_act DRY_RUN=0 PROBE_PAYMENT_METHOD=pm_real123); rc=$?
 [[ $rc -ne 0 && ! -s "$T/api/argv" ]] && pass "refused: a payment method that is not a vendor test one" || fail "pm: rc=$rc $out"
+out=$(run_act DRY_RUN=7); rc=$?
+[[ $rc -eq 2 && ! -s "$T/api/argv" ]] && pass "refused: DRY_RUN other than 0|1 is rc 2" || fail "dry value: rc=$rc $out"
+out=$(run_act DRY_RUN=0 STRIPE_API_BASE=http://stripe-mock.example.com); rc=$?
+[[ $rc -eq 1 && ! -s "$T/api/argv" ]] && pass "refused: a non-TLS base that is not a local mock" || fail "base: rc=$rc $out"
+out=$(run_act DRY_RUN=0 PROBE_AMOUNT=5); rc=$?
+[[ $rc -eq 1 && ! -s "$T/api/argv" ]] && pass "refused: an amount under 10 minor units" || fail "amount: rc=$rc $out"
 out=$(run_act DRY_RUN=0 NO_EP=1); rc=$?
 [[ $rc -ne 0 && ! -f "$T/api/pi_form" ]] && pass "refused: no tagged hub endpoint, no intent created" || fail "no ep: rc=$rc $out"
 out=$(run_act DRY_RUN=0 EP_STATUS=disabled); rc=$?
@@ -112,6 +120,11 @@ grep -qx 'payment_method=pm_card_chargeDeclined' "$T/api/pi_form" && grep -qx 'c
 out=$(run_act DRY_RUN=0 PENDING=1); rc=$?
 [[ $rc -ne 0 && -f "$T/api/cancelled" ]] && grep -q "pending webhook" <<<"$out" &&
   pass "CONTROL: an undelivered event fails the run (intent still cancelled)" || fail "pending: rc=$rc $out"
+
+out=$(run_act DRY_RUN=0 NO_EVENT=1); rc=$?
+[[ $rc -eq 1 && -f "$T/api/cancelled" ]] && grep -q "no payment_intent.payment_failed event for pi_probe1 after 10s" <<<"$out" &&
+  [[ "$(grep '^{"env"' <<<"$out" | jq -r .waited_s)" == 10 ]] &&
+  pass "CONTROL: no event fails the run after the full wait (intent still cancelled)" || fail "no event: rc=$rc $out"
 
 ! grep -qF "$SK_TEST" "$T/allout" "$T/api/argv" 2>/dev/null && pass "the secret key is in no output and no argv" || fail "key leaked"
 

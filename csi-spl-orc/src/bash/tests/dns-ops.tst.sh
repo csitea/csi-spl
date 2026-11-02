@@ -10,6 +10,7 @@
 #   3. do_export_all_dns_settings DRY_RUN (default) makes no gcloud call
 #   4. DRY_RUN=0 with stubbed gcloud writes zones + records JSON, --account
 #      on every call, never config set
+#      and a failed record-sets list stops it: rc 1, ENV restored, no OK line
 #   5. do_flush_dns DRY_RUN (default) makes no sudo call
 #   6. ENV=dev export dry-run names the cnf project in its log
 #------------------------------------------------------------------------------
@@ -47,7 +48,7 @@ case " $* " in
   *" auth print-access-token "*) printf 'dummy-token-0123456789abcdef\n'; exit 0 ;;
   *" dns managed-zones list "*"--format=json"*) printf '[{"name":"zone-a"}]\n'; exit 0 ;;
   *" dns managed-zones list "*) printf 'zone-a\n'; exit 0 ;;
-  *" dns record-sets list "*) printf '[{"name":"example.test.","type":"A"}]\n'; exit 0 ;;
+  *" dns record-sets list "*) [ -z "${RECORDS_FAIL:-}" ] || exit 1; printf '[{"name":"example.test.","type":"A"}]\n'; exit 0 ;;
 esac
 echo "gcloud unexpected: $*" >&2
 exit 1
@@ -106,6 +107,15 @@ if [[ "$n_acct" -ge 2 && "$n_acct" -eq "$n_gcloud" ]]; then
   pass "every gcloud call carries --account ($n_gcloud calls)"
 else
   fail "--account on $n_acct of $n_gcloud gcloud calls: $(tr '\n' ';' <"$STUB_LOG")"
+fi
+
+out=$(SNIPPET='unset ENV; do_export_all_dns_settings; rc=$?; echo "ENV_AFTER=[${ENV:-}]"; exit $rc' \
+  in_orc RECORDS_FAIL=1 DRY_RUN=0 GCP_ACCOUNT=op@example.com DNS_EXPORT_DIR="$export_dir" 2>&1); rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'FATAL gcloud dns record-sets list failed for zone zone-a' <<<"$out" \
+  && grep -qxF 'ENV_AFTER=[]' <<<"$out" && ! grep -q 'export completed' <<<"$out"; then
+  pass "a failed record-sets list stops the export: rc 1, ENV restored, no OK line"
+else
+  fail "record-sets failure: rc=$rc $(tail -5 <<<"$out" | tr '\n' ' ')"
 fi
 
 # The 031-era do_wait_for_cert is retired (007 T090); it must not come back.

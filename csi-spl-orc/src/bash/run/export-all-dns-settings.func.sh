@@ -24,6 +24,21 @@
 # @arg --gcp-account GCP_ACCOUNT
 # @arg --dns-export-dir DNS_EXPORT_DIR
 #------------------------------------------------------------------------------
+# Writes one <project>_<zone>_dns_records.json per zone named in zones_file.
+_export_dns_zone_records() {
+  local project="$1" outdir="$2" zones_file="$3" zone rec_file managed_zones
+  managed_zones=$(yq -r '.[].name // ""' "$zones_file" 2>/dev/null || true)
+  for zone in $managed_zones; do
+    [[ -n "$zone" ]] || continue
+    rec_file="$outdir/${project}_${zone}_dns_records.json"
+    do_log "INFO exporting DNS records for zone $zone in $project -> $rec_file"
+    gcloud dns record-sets list --zone="$zone" --format=json --account="$GCP_ACCOUNT" --project="$project" >"$rec_file" || {
+      do_log "FATAL gcloud dns record-sets list failed for zone $zone in $project"
+      return 1
+    }
+  done
+}
+
 do_export_all_dns_settings() {
   local dry=1 rc=0
   if declare -f spl_dry_run >/dev/null; then
@@ -43,7 +58,7 @@ do_export_all_dns_settings() {
     envs=(dev prd)
   fi
 
-  local env project outdir zones_file zone rec_file managed_zones
+  local env project outdir zones_file
   local caller_account="${GCP_ACCOUNT:-}"
   local saved_env="${ENV:-}"
   for env in "${envs[@]}"; do
@@ -81,17 +96,7 @@ do_export_all_dns_settings() {
       return 1
     }
 
-    managed_zones=$(yq -r '.[].name // ""' "$zones_file" 2>/dev/null || true)
-    for zone in $managed_zones; do
-      [[ -n "$zone" ]] || continue
-      rec_file="$outdir/${project}_${zone}_dns_records.json"
-      do_log "INFO exporting DNS records for zone $zone in $project -> $rec_file"
-      gcloud dns record-sets list --zone="$zone" --format=json --account="$GCP_ACCOUNT" --project="$project" >"$rec_file" || {
-        do_log "FATAL gcloud dns record-sets list failed for zone $zone in $project"
-        ENV="$saved_env"
-        return 1
-      }
-    done
+    _export_dns_zone_records "$project" "$outdir" "$zones_file" || { ENV="$saved_env"; return 1; }
   done
   ENV="$saved_env"
 

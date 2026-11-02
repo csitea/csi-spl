@@ -165,7 +165,7 @@ func (s *Server) boxMoverReads(ctx context.Context, x *session, m store.Editable
 // boxMayMove is spec 041 §3.3 for an agent: it started the topic, or it acts
 // for (typed_by, already verified bound) the tenant owner or an admin.
 func (s *Server) boxMayMove(ctx context.Context, x *session, m store.EditableMessage, as, hum string) bool {
-	if m.FromBox == x.box && m.FromID == as {
+	if m.FromBox == x.box && m.FromID == as && s.boxSignedRow(ctx, x.tenant, x.box, m) {
 		return true
 	}
 	return hum != "" && s.mayChangeTopic(ctx, x.tenant, hum, "", "")

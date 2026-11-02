@@ -236,6 +236,9 @@ type Store interface {
 	// GetPin returns an active pin, or ErrNotFound when absent or revoked.
 	GetPin(ctx context.Context, tenantID, boxID string) (ed25519.PublicKey, error)
 	ListPins(ctx context.Context, tenantID string) ([]Pin, error)
+	// PinHistoryKeys returns every key this workspace ever pinned for the box,
+	// each once (pins_history; a channel move does not carry it, spec 169).
+	PinHistoryKeys(ctx context.Context, tenantID, boxID string) ([]ed25519.PublicKey, error)
 
 	// TouchBox records a verified hello (creates the boxes row).
 	TouchBox(ctx context.Context, tenantID, boxID string, now time.Time) error

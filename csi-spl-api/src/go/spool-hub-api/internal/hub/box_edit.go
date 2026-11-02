@@ -3,10 +3,12 @@ package hub
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"path"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -156,7 +158,38 @@ func (s *Server) boxOwnMessage(ctx context.Context, x *session, f wire.Frame, wr
 		x.fail(ctx, id, "not_author", http.StatusForbidden, "only the box that sent a message may "+f.Type+" it")
 		return "", store.EditableMessage{}, false
 	}
+	if write && !s.boxSignedRow(ctx, x.tenant, x.box, m) {
+		x.fail(ctx, id, "not_author", http.StatusForbidden, "only the box that sent a message may "+f.Type+" it")
+		return "", store.EditableMessage{}, false
+	}
 	return id, m, true
+}
+
+// boxSignedRow is the proof behind a write authorised by box name (spec 169
+// T4c): a same-named box in another workspace can be someone else's. The stored
+// signature must verify against the box's current pin here, or a key in this
+// workspace's pins_history, so a re-keyed box keeps its rows and a row moved in
+// from another workspace does not (a move does not carry the history). An old
+// key only proves who wrote the old row: a new envelope is still checked against
+// the current pin. A row with no stored signature has nothing to prove and is
+// left as it was.
+func (s *Server) boxSignedRow(ctx context.Context, tenant, box string, m store.EditableMessage) bool {
+	if m.EnvSig == "" {
+		return true
+	}
+	e, err := wire.ParseEnvelope(m.Env)
+	if err != nil {
+		return false
+	}
+	if pub, err := s.o.Store.GetPin(ctx, tenant, box); err == nil && e.Verify(pub) == nil {
+		return true
+	}
+	keys, err := s.o.Store.PinHistoryKeys(ctx, tenant, box)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Str("box", box).Msg("pin history read")
+		return false
+	}
+	return slices.ContainsFunc(keys, func(k ed25519.PublicKey) bool { return e.Verify(k) == nil })
 }
 
 // verifyBoxEdit is §10 rules 5-8 on the new envelope: signed by this box and

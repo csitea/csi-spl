@@ -230,4 +230,3 @@ func TestBackfillWithheldRowByTail(t *testing.T) {
 		t.Fatalf("tail own %d other %d, want 1 and 0", nOwn, nOther)
 	}
 }
-

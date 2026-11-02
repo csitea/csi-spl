@@ -314,6 +314,21 @@ func (s *Postgres) GetPin(ctx context.Context, tenant, box string) (ed25519.Publ
 	return pub, err
 }
 
+// PinHistoryKeys implements Store.
+func (s *Postgres) PinHistoryKeys(ctx context.Context, tenant, box string) ([]ed25519.PublicKey, error) {
+	var out []ed25519.PublicKey
+	err := s.queryTenant(ctx, tenant, `SELECT DISTINCT pubkey FROM pins_history
+		WHERE tenant_id = $1 AND box_id = $2`, []any{tenant, box}, func(rows pgx.Rows) error {
+		var pub []byte
+		if err := rows.Scan(&pub); err != nil {
+			return err
+		}
+		out = append(out, ed25519.PublicKey(pub))
+		return nil
+	})
+	return out, err
+}
+
 func (s *Postgres) getPin(ctx context.Context, tenant, box string) (ed25519.PublicKey, error) {
 	var pub []byte
 	err := s.queryRowTenant(ctx, tenant, `SELECT pubkey FROM pins

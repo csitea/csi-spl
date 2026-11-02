@@ -3375,6 +3375,7 @@
       "table_label": "נתיבים פעילים",
       "col_box": "מכונה",
       "col_scope": "היקף",
+      "col_origin_issue": "סוגיית מקור",
       "col_updated": "עודכן",
       "min_ago": "לפני {n} דקות",
       "col_state": "מצב",

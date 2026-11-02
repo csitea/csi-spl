@@ -3375,6 +3375,7 @@
       "table_label": "Aktiva banor",
       "col_box": "Maskin",
       "col_scope": "Omfattning",
+      "col_origin_issue": "Ursprungsärende",
       "col_updated": "Uppdaterad",
       "min_ago": "för {n} min sedan",
       "col_state": "Status",

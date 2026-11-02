@@ -3375,6 +3375,7 @@
       "table_label": "Активни линии",
       "col_box": "Машина",
       "col_scope": "Обхват",
+      "col_origin_issue": "Изходно дело",
       "col_updated": "Обновено",
       "min_ago": "преди {n} мин",
       "col_state": "Състояние",

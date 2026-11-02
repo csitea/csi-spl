@@ -3375,6 +3375,7 @@
       "table_label": "Linii active",
       "col_box": "Mașină",
       "col_scope": "Domeniu",
+      "col_origin_issue": "Problemă de origine",
       "col_updated": "Actualizat",
       "min_ago": "acum {n} min",
       "col_state": "Stare",

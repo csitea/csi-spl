@@ -436,7 +436,7 @@ async function lanesSortFilter(browser, base, size) {
   const until = (want) => p.waitForFunction((w) => [...document.querySelectorAll('[data-test=lanes-row]')].map((e) => e.getAttribute('data-agent')).join(',') === w, { timeout: 5000 }, want).then(() => true, () => false)
   ok('3887 lanes: three rows in the hub order', await until('c-085,a-277,m-039'), await order())
   const names = await p.$$eval('[data-test=lanes-table] thead tr:first-child th', (els) => els.map((th) => (th.querySelector('button.issues-sort-h') ? 'b' : '-')).join(''))
-  ok('3887 lanes: every column name is the Issues sheet\'s sort button', names === 'bbbbbbbbbb', names)
+  ok('3887 lanes: every column name is the Issues sheet\'s sort button', names === 'bbbbbbbbbbb', names)
   const aria = () => p.$eval('[data-test=lanes-sort-agent]', (b) => b.closest('th').getAttribute('aria-sort') + ':' + b.querySelector('.issues-sort-mark').textContent)
   await p.click('[data-test=lanes-sort-agent]')
   ok('3887 lanes: a name click sorts ascending, ▲', (await until('a-277,c-085,m-039')) && (await aria()) === 'ascending:▲', [await order(), await aria()])
@@ -555,6 +555,13 @@ async function lanesTab(browser, base, size) {
     ok('C17 lanes: the discussion link is /t/<uuid>', topic.length === 1 && topic[0].href === '/t/' + LANES_MOCK_TOPIC, topic)
     const issues = await row('c-085', '[data-test=lanes-issue-link]')
     ok('C17 lanes: the issue keys link /issues?issue=<KEY>', issues.map((i) => i.href).join(' ') === '/issues?issue=SPL-3075 /issues?issue=SPL-3215', issues)
+    /* C57 (spec 153 3.12, SPL-4620): the issue the lane came from links; another prefix is text; none shows nothing */
+    const origin = await row('c-085', '[data-test=lanes-origin-link]')
+    ok('C57 lanes: the origin issue links /issues?issue=<KEY>', origin.length === 1 && origin[0].href === '/issues?issue=SPL-3158' && origin[0].text === 'SPL-3158', origin)
+    ok('C57 control: an origin of another prefix is text, not a link', (await row('a-277', '[data-test=lanes-origin-link]')).length === 0
+      && (await text(p, '[data-test=lanes-row][data-agent="a-277"] [data-test=lanes-origin]')) === 'OPS-7')
+    ok('C57 control: no origin issue shows nothing, not a guess', (await text(p, '[data-test=lanes-row][data-agent="m-039"] [data-test=lanes-origin]')) === '')
+    ok('C57 lanes: the Origin column sits right after Issues', (await p.$$eval('[data-test=lanes-table] thead tr:first-child th', (els) => els.map((e) => e.getAttribute('data-test') || '').indexOf('lanes-col-origin'))) === 7)
     ok('C17 lanes: the agent shows as id@box', (await text(p, '[data-test=lanes-row][data-agent="c-085"] [data-test=lanes-agent]')) === 'c-085@box-a')
     /* SPL-4458: the box is its own column, after the agent */
     ok('lanes: the Box column shows each row\'s box', (await p.$$eval('[data-test=lanes-row] [data-test=lanes-box]', (els) => els.map((e) => e.textContent.trim()).join(','))) === 'box-a,box-b,box-b'

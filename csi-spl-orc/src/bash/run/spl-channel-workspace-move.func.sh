@@ -131,7 +131,8 @@ _spl_cwm_steps() {
 }
 
 # _spl_cwm_hub <op> [step] [detail json]: one call through the seam; the
-# answer JSON on stdout. A refusal: FATAL with the hub's answer, 1.
+# answer JSON on stdout. A refusal: FATAL with the hub's answer on stderr (every
+# caller captures stdout), 1.
 _spl_cwm_hub() {
   local req out rc=0
   req="$(jq -cn --arg op "$1" --arg env "$ENV" --arg src "$CWM_SRC" --arg ch "$CWM_CH" --arg dst "$CWM_DST" \
@@ -142,7 +143,7 @@ _spl_cwm_hub() {
       step:($step | if . == "" then null else . end), detail:$detail}')" || return 1
   out="$(bash -c "$CHANNEL_MOVE_HUB_CMD" <<<"$req")" || rc=$?
   if (( rc != 0 )) || ! jq -e 'type == "object"' >/dev/null 2>&1 <<<"$out"; then
-    do_log "FATAL the hub refused $1${2:+ $2} for $CWM_SRC/$CWM_CH -> $CWM_DST (exit $rc): $out"
+    do_log "FATAL the hub refused $1${2:+ $2} for $CWM_SRC/$CWM_CH -> $CWM_DST (exit $rc): $out" >&2
     return 1
   fi
   printf '%s\n' "$out"

@@ -31,6 +31,8 @@
 #      unreadable map or a malformed row refuses too. No row, no map, a row of
 #      another env and a copy pass; plan says which box and file it read and
 #      names the seats' other boxes; the rule file stays byte-equal
+#  11. a hub refusal prints its reason (the FATAL is not captured with the
+#      answer): plan, a refused step of run, an answer that is not JSON
 # Every hub op, probe and send is recorded (CONTROL: an absent call means
 # "not made", not "not recorded").
 #------------------------------------------------------------------------------
@@ -334,6 +336,19 @@ if [[ "$(id -u)" != 0 ]]; then
   chmod 644 "$RULES"
   [[ $rc -eq 3 ]] && grep -q "REFUSE box rule: src1/proj cannot tell: $RULES exists but cannot be read" "$T/out" && pass "10. C25 an unreadable map refuses: unread is not no row" || fail "10. C25 unreadable: rc=$rc $(cat "$T/out")"
 fi
+
+# --- 11. a hub refusal prints its reason --------------------------------------------------
+reset_state; rm -f "$RULES"
+in_orc do_spl_channel_workspace_move "${G[@]}" CHANNEL_MOVE_HUB_CMD=/bin/false; rc=$?
+[[ $rc -eq 1 ]] && grep -q 'FATAL the hub refused plan for src1/proj -> dst1 (exit 1)' "$T/out" \
+  && pass "11. a hub that refuses plan: the FATAL is printed, exit 1" || fail "11. plan: rc=$rc $(cat "$T/out")"
+in_orc do_spl_channel_workspace_move "${G[@]}" 'CHANNEL_MOVE_HUB_CMD=echo "{\"error\":\"no_such_tenant\"}"; exit 1'; rc=$?
+[[ $rc -eq 1 ]] && grep -q 'no_such_tenant' "$T/out" && pass "11. the hub's answer is in the FATAL" || fail "11. answer: rc=$rc $(cat "$T/out")"
+in_orc do_spl_channel_workspace_move "${G[@]}" 'CHANNEL_MOVE_HUB_CMD=echo not json'; rc=$?
+[[ $rc -eq 1 ]] && grep -q 'the hub refused plan .*(exit 0): not json' "$T/out" && pass "11. an answer that is not JSON: said, with the answer" || fail "11. not json: rc=$rc $(cat "$T/out")"
+in_orc do_spl_channel_workspace_move "${G[@]}" "${R[@]}" STUB_FAIL_STEP=P3; rc=$?
+[[ $rc -ne 0 && "$(ops)" == "P1 P2 P2b P3" ]] && grep -q 'FATAL the hub refused step P3 .*injected' "$T/out" \
+  && pass "11. a refused step of run: its FATAL and the hub's answer, no later step" || fail "11. step: rc=$rc '$(ops)' $(cat "$T/out")"
 
 echo "spl-channel-workspace-move: $fails failure(s)"
 [[ $fails -eq 0 ]]

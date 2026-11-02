@@ -485,8 +485,8 @@ sign-in (`useAddToNote.probe`), and `railOrderDrawn` leaves Notes out of the
 rail and the Settings order list while the hub answers `notes_off`; a drag
 meanwhile saves it back (`parseRailOrder`), so the hub's CHECK still sees
 every id. Until that read answers the tab shows. Not hidden on `notes_off`:
-the palette's section row and the Settings section, which open a page that
-says Notes are turned off. e2e `wui-tests/e2e/notes-rail-on.test.mjs` (1440 and
+the palette's section row, which opens a page that says Notes are turned off,
+and the Settings section, which says so only when an export or erase fails. e2e `wui-tests/e2e/notes-rail-on.test.mjs` (1440 and
 390 px) and `wui-tests/e2e/notes-link-click.test.mjs`, a saved topic link
 clicked through to its topic.
 

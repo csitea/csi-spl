@@ -7,13 +7,12 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { importTs, importTsPatched } from './lib/load-ts.mjs'
 import { channelSidebarSrc } from './lib/channel-sidebar-src.mjs'
-/* Spec 155 (owner HUM-10, t1 cb9d7bdc, msg cdf216a0): the Notes rail tab is
-   off until its CRUD is live (NOTES_RAIL_ON). Every check below but the
-   'switched off' block runs with the switch on, so the Notes coverage stays;
-   that block runs the module as shipped. */
+/* Spec 155 (owner HUM-10, t1 cb9d7bdc, msg b75fb3d3): the Notes rail tab is on
+   (NOTES_RAIL_ON). Every check below runs the module as shipped; `off` is the
+   module with the one line turned off, so the switch stays covered. */
 const SWITCH_OFF = 'export const NOTES_RAIL_ON: boolean = false'
 const SWITCH_ON = 'export const NOTES_RAIL_ON: boolean = true'
-const shipped = await importTs('src/utils/rail-order.ts')
+const off = await importTsPatched('src/utils/rail-order.ts', SWITCH_ON, SWITCH_OFF)
 const {
   RAIL_TABS,
   RAIL_IDS,
@@ -39,7 +38,8 @@ const {
   RAIL_SWITCHED_OFF,
   helpPageListed,
   settingsSectionListed,
-} = await importTsPatched('src/utils/rail-order.ts', SWITCH_OFF, SWITCH_ON)
+  railOrderDrawn,
+} = await importTs('src/utils/rail-order.ts')
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const read = (rel) => readFileSync(join(WUI, rel), 'utf8')
@@ -283,33 +283,46 @@ describe('spec 155 B5: the Notes tab', () => {
   })
 })
 
-describe('spec 155: the Notes rail tab switched off (NOTES_RAIL_ON, as shipped)', () => {
-  /* CONTROL: with the switch flipped back to true (or the filter removed)
-     every assertion naming Notes here fails */
-  it('the shipped switch is off and is the one line that turns it back on', () => {
-    assert.equal(shipped.NOTES_RAIL_ON, false)
-    assert.ok(read('src/utils/rail-order.ts').includes(SWITCH_OFF))
-    assert.deepEqual([...shipped.RAIL_SWITCHED_OFF], ['notes'])
+describe('spec 155: the Notes rail tab, on as shipped (msg b75fb3d3), and the one line that turns it off', () => {
+  /* CONTROL: with the filter removed every assertion naming Notes on `off`
+     here fails */
+  it('the shipped switch is on, and the one line turns it off', () => {
+    assert.equal(NOTES_RAIL_ON, true)
+    assert.ok(read('src/utils/rail-order.ts').includes(SWITCH_ON))
+    assert.equal(off.NOTES_RAIL_ON, false)
+    assert.deepEqual([...off.RAIL_SWITCHED_OFF], ['notes'])
+  })
+  it('section 6: notes_off draws no Notes; the order is untouched and a save gets it back', () => {
+    const stored = ['channels', 'dm', 'issues', 'flow', 'calendar', 'notes', 'people', 'monitoring', 'reporting', 'archive']
+    assert.deepEqual(railOrderDrawn(stored, true), stored)
+    const hidden = railOrderDrawn(stored, false)
+    assert.equal(hidden.includes('notes'), false)
+    assert.equal(hidden.at(-1), 'archive')
+    assert.equal(stored.includes('notes'), true, 'the stored order is not changed')
+    const saved = wireRailOrder(parseRailOrder(hidden))
+    assert.equal(saved.length, 14, 'the hub CHECK admits fourteen ids')
+    assert.equal(saved.filter((id) => id === 'notes').length, 1)
+    assert.equal(saved.at(-1), 'archive')
   })
   it('no rail tab, no default place and no Settings row for Notes', () => {
-    assert.equal(shipped.RAIL_IDS.includes('notes'), false)
-    assert.equal(shipped.RAIL_TABS.some((t) => t.id === 'notes'), false)
-    assert.deepEqual([...shipped.DEFAULT_RAIL_ORDER], ['channels', 'dm', 'issues', 'flow', 'calendar', 'people', 'monitoring', 'reporting', 'archive'])
+    assert.equal(off.RAIL_IDS.includes('notes'), false)
+    assert.equal(off.RAIL_TABS.some((t) => t.id === 'notes'), false)
+    assert.deepEqual([...off.DEFAULT_RAIL_ORDER], ['channels', 'dm', 'issues', 'flow', 'calendar', 'people', 'monitoring', 'reporting', 'archive'])
   })
   it('a stored order that lists Notes is drawn without it', () => {
     const stored = ['channels', 'dm', 'issues', 'flow', 'calendar', 'notes', 'people', 'monitoring', 'reporting', 'topics', 'agents', 'boxes', 'events', 'archive']
-    assert.deepEqual(shipped.parseRailOrder(stored), ['channels', 'dm', 'issues', 'flow', 'calendar', 'people', 'monitoring', 'reporting', 'archive'])
-    assert.deepEqual(shipped.parseRailOrder(['notes']), [...shipped.DEFAULT_RAIL_ORDER])
+    assert.deepEqual(off.parseRailOrder(stored), ['channels', 'dm', 'issues', 'flow', 'calendar', 'people', 'monitoring', 'reporting', 'archive'])
+    assert.deepEqual(off.parseRailOrder(['notes']), [...off.DEFAULT_RAIL_ORDER])
   })
   it('a save still carries Notes for the hub (fourteen ids), once, and reads back without it', async () => {
     const drawn = ['calendar', 'people', 'flow', 'issues', 'channels', 'dm', 'monitoring', 'reporting', 'archive']
-    const wire = shipped.wireRailOrder(drawn)
+    const wire = off.wireRailOrder(drawn)
     assert.equal(wire.length, 14, 'the hub CHECK admits fourteen ids')
     assert.equal(wire.filter((id) => id === 'notes').length, 1)
     assert.equal(wire.at(-1), 'archive')
-    assert.deepEqual(shipped.wireRailOrder(wire), wire, 'idempotent')
-    assert.deepEqual(shipped.parseRailOrder(wire), drawn)
-    const out = await shipped.applyRailOrder(drawn, { current: null, apply: () => {}, save: async () => ({ ok: true }) })
+    assert.deepEqual(off.wireRailOrder(wire), wire, 'idempotent')
+    assert.deepEqual(off.parseRailOrder(wire), drawn)
+    const out = await off.applyRailOrder(drawn, { current: null, apply: () => {}, save: async () => ({ ok: true }) })
     assert.equal(out.ok, true)
     assert.deepEqual(out.value, wire)
   })
@@ -319,16 +332,16 @@ describe('spec 155: the Notes rail tab switched off (NOTES_RAIL_ON, as shipped)'
     assert.deepEqual([...RAIL_SWITCHED_OFF], [])
   })
   it('Help does not list the Notes page while the tab is off (review W1), and lists it with it on', () => {
-    assert.equal(shipped.helpPageListed('notes'), false)
-    assert.equal(shipped.helpPageListed('reporting'), true)
+    assert.equal(off.helpPageListed('notes'), false)
+    assert.equal(off.helpPageListed('reporting'), true)
     assert.equal(helpPageListed('notes'), true)
     const pages = JSON.parse(read('src/public/help-md/pages.json')).pages
     assert.ok(pages.some((p) => p.slug === 'notes'), 'the page stays in pages.json, /help/notes opens')
     assert.match(read('src/pages/help/[[page]].vue'), /&& helpPageListed\(p\.slug\)\)/, '/help filters its list through helpPageListed')
   })
   it('Settings and the palette leave the Notes section out while the tab is off (SPL-4331), and list it with it on', async () => {
-    assert.equal(shipped.settingsSectionListed('notes'), false)
-    assert.equal(shipped.settingsSectionListed('keys'), true)
+    assert.equal(off.settingsSectionListed('notes'), false)
+    assert.equal(off.settingsSectionListed('keys'), true)
     assert.equal(settingsSectionListed('notes'), true)
     const { SETTINGS_SECTIONS, settingsQuerySection } = await import('../../src/utils/settings-nav.mjs')
     assert.ok(SETTINGS_SECTIONS.some((s) => s.id === 'notes'), 'the section stays defined')

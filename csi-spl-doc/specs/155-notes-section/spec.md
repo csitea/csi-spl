@@ -380,6 +380,7 @@ in `csi-spl-cnf/csi-spl/all.env.yaml` like `SPOOL_HUB_AUTH_NATIVE_ENABLED`
 "Notes are turned off" on `/notes` only; hiding the rail tab and the items
 lands with B8, since it needs a notes read at boot that the first screen's
 budget (`ci_initial_gzip_kb` 154.9 <= 155 at B5) has little room for.
+B8 built the items only; the tab's hide landed with SPL-4615 (section 8).
 
 ## 7. Cases
 
@@ -472,6 +473,22 @@ It also keeps the Notes section out of the Settings list and the command
 palette (`settingsSectionListed` in `rail-order.ts`, used by
 `SettingsDialog.vue` and `usePaletteItems.ts`; SPL-4331, B10);
 `?settings=notes` and `/settings/notes` still open it by URL.
+
+**The tab is on** (owner HUM-10, t1 `cb9d7bdc`, msg `b75fb3d3`, poll `9fa2bf79`:
+"Turn the Notes tab back on"; SPL-4615): `NOTES_RAIL_ON` is `true`, which
+lifts msg `cdf216a0`. The rail draws Notes right after Calendar, Help and the
+Settings list name it again, and the palette lists the notes. The off state
+above stays as the one line's other value (`rail-order.test.mjs` runs it
+patched). The rail tab's `notes_off` hide that B8 left out is built here
+(section 6): `useRailOrder` reads the notes once in an idle slot after
+sign-in (`useAddToNote.probe`), and `railOrderDrawn` leaves Notes out of the
+rail and the Settings order list while the hub answers `notes_off`; a drag
+meanwhile saves it back (`parseRailOrder`), so the hub's CHECK still sees
+every id. Until that read answers the tab shows. Not hidden on `notes_off`:
+the palette's section row and the Settings section, which open a page that
+says Notes are turned off. e2e `wui-tests/e2e/notes-rail-on.test.mjs` (1440 and
+390 px) and `wui-tests/e2e/notes-link-click.test.mjs`, a saved topic link
+clicked through to its topic.
 
 ## 9. Review record
 

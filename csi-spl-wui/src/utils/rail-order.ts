@@ -22,9 +22,11 @@ type RailTab = { readonly id: RailId, readonly icon: UiIconName, readonly labelK
  * the Notes rail tab (spec 155). Off, Notes is drawn for nobody, a stored
  * order that lists it included (parseRailOrder drops it, nothing is written
  * back), and a saved order still carries it for the hub (wireRailOrder). The
- * /notes page stays reachable by URL. Turn it back on: set this to true.
+ * /notes page stays reachable by URL. Owner HUM-10 (same topic, msg b75fb3d3,
+ * poll 9fa2bf79, "Turn the Notes tab back on"): it is on. The hub's own switch
+ * (404 notes_off, spec 155 section 6) still hides it: railOrderDrawn.
  */
-export const NOTES_RAIL_ON: boolean = false
+export const NOTES_RAIL_ON: boolean = true
 
 /** Ids the hub admits but a switch keeps off the rail (NOTES_RAIL_ON). */
 export const RAIL_SWITCHED_OFF: readonly RailId[] = Object.freeze(NOTES_RAIL_ON ? [] : ['notes' as const])
@@ -41,6 +43,14 @@ export function helpPageListed(slug: string): boolean {
     leave it out while the tab is off. ?settings=notes still opens it. */
 export function settingsSectionListed(id: string): boolean {
   return !(RAIL_SWITCHED_OFF as readonly string[]).includes(id)
+}
+
+/** The order as the rail and the Settings list draw it (spec 155 section 6):
+    no Notes while the hub answers notes_off. It stays in the stored order,
+    and parseRailOrder puts it back into a save, so the hub's CHECK still
+    sees every id. */
+export function railOrderDrawn(order: readonly RailId[], notesOn: boolean): RailId[] {
+  return notesOn ? [...order] : order.filter((id) => id !== 'notes')
 }
 
 /** The tabs in the default order, with their icon and catalogue key. */

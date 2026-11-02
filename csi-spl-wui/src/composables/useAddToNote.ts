@@ -1,12 +1,16 @@
 /*
  * Spec 155 2.3 (B8, SPL-4578): "Add to note" from anywhere. Every menu that
  * offers the item (MessageMenu, IssueRowMenu, IssueDetailActions,
- * SidebarRowMenu, CalendarEventDialog) calls this:
+ * SidebarRowMenu, CalendarEventDialog) calls this, and useRailOrder for the
+ * Notes rail tab (section 6, SPL-4615):
  *
  *   offered  false once the hub answered 404 `notes_off` (section 6): the
- *            items hide. Unknown until the first read, and then offered.
- *   probe()  that read, once, when a menu with the item opens; never at boot,
- *            so the first screen pays nothing for it (ci_initial_gzip_kb).
+ *            items and the tab hide. Unknown until the first read, and then
+ *            offered.
+ *   probe()  that read, once, in an idle slot after sign-in (useRailOrder) or
+ *            when a menu with the item opens; the store's chunk is fetched
+ *            then, so the first screen pays nothing for it (ci_initial_gzip_kb).
+ *            From then on the items follow the store's every later read.
  *   open(l)  the note picker (AddToNotePicker.vue) for link `l`; its chunk is
  *            fetched on the first open and mounted once, into its own node
  *            with the app's context (the calendar reminder pop-up's way).
@@ -24,6 +28,7 @@ type NotesState = 'unknown' | 'on' | 'off'
 
 const notesState = ref<NotesState>('unknown')
 let probing = false
+let following = false
 let picker: Promise<Picker> | null = null
 
 /** The store's state as the items read it: off on `notes_off`, on once a list came back. */
@@ -50,6 +55,10 @@ export function useAddToNote() {
         const store = await nuxt.runWithContext(() => m.useNotesStore())
         if (store.state === 'idle' || store.state === 'failed') await store.load()
         noteNotesState(store.state)
+        if (!following) {
+          following = true
+          watch(() => store.state, (s) => noteNotesState(s))
+        }
       })
       .catch(() => { /* unknown: the next menu asks again */ })
       .finally(() => { probing = false })

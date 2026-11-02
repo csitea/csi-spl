@@ -3,21 +3,31 @@
 // claim (kept on the hub), so a drop in either place redraws both at once.
 import { useSessionStore } from '~/stores/session'
 import { useAuthClient } from '~/composables/useAuthClient'
-import { applyRailOrder, parseRailOrder, pinRailOrder, type RailId } from '~/utils/rail-order'
+import { useAddToNote } from '~/composables/useAddToNote'
+import { perfWhenIdle } from '~/utils/perf-idle.mjs'
+import { applyRailOrder, parseRailOrder, pinRailOrder, railOrderDrawn, type RailId } from '~/utils/rail-order'
 
 export function useRailOrder() {
   const session = useSessionStore()
   const auth = useAuthClient()
-  const order = computed<RailId[]>(() => parseRailOrder(session.claims?.rail_order))
+  const notes = useAddToNote()
+  const order = computed<RailId[]>(() => railOrderDrawn(parseRailOrder(session.claims?.rail_order), notes.offered.value))
   const custom = computed(() => Array.isArray(session.claims?.rail_order) && session.claims.rail_order.length > 0)
   const saving = ref(false)
+
+  /* spec 155 section 6: the read that hides the Notes tab on notes_off, in an
+     idle slot once signed in, so the first paint pays nothing for it */
+  if (import.meta.client) {
+    watch(() => session.state, (s) => { if (s === 'in') perfWhenIdle(() => notes.probe()) }, { immediate: true })
+  }
 
   /** Store `next` (null = the default order). Resolves the save's outcome. */
   async function save(next: string[] | null) {
     if (session.state !== 'in') return { ok: false, value: null as string[] | null }
     saving.value = true
     try {
-      return await applyRailOrder(next, {
+      /* a drag while Notes is hidden: parseRailOrder puts it back for the hub */
+      return await applyRailOrder(next && parseRailOrder(next), {
         current: session.claims?.rail_order,
         apply: (o) => session.setRailOrder(o),
         save: (o) => auth.saveRailOrder(o),

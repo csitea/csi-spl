@@ -42,7 +42,7 @@
 # mint of spool-mcp starts it (--apply) in the background.
 #
 # The hub lane row (SPL-4650). A close the retire could not make is queued in
-# .reap/lane-close.tsv; every tick retries the queue, and one that fails again
+# .reap/lane-close.tsv; every tick retries REAP_LANE_RETRY_MAX of it, and one that fails again
 # alerts the dispatch lease holder (at most once per REAP_ALERT_GAP_S), so a
 # retired id's row cannot stay live unseen. --close-lanes puts ids on that queue
 # by hand and drains it: rows an old reap left live. A reaped seat whose live row
@@ -60,13 +60,18 @@
 # Env: SPOOL_ROOT, SPOOL_TMUX_SOCKET, SPOOL_NOW (the clock), SPOOL_ID_REAP_H,
 # SPOOL_ID_REAP_GAP_MIN, DRY_RUN=0|1 (0 = --apply), RETIRE_LANE (passed on;
 # --minted defaults it to 0: a minted id has no hub lane row), AI_PROC_ROOT,
-# REAP_ALERT_GAP_S (default 3600), REAP_LANE_RETRY_MAX (closes retried a tick,
-# default 20), REAP_SEND_CMD and REAP_TOPIC_KIND_CMD (tests).
+# REAP_ALERT_GAP_S (default 3600), REAP_LANE_RETRY_MAX (closes tried a tick,
+# default 20; the ones that fail go to the back of the queue), REAP_SEND_CMD and
+# REAP_TOPIC_KIND_CMD (tests).
 # One line per decision on stdout: PLAN|REAP / KEEP / SKIP, each with its reason.
 # Exit 0 done (a refused retire is a SKIP line, not a failure), 1 tmux could
 # not be asked or another reap holds the lock, 2 usage.
 set -uo pipefail
-export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${HOME:-}/.local/bin:$PATH"
+_missing=""
+for _d in /usr/local/sbin /usr/local/bin /usr/sbin /usr/bin /sbin /bin "${HOME:-}/.local/bin"; do
+  case ":$PATH:" in *":$_d:"*) ;; *) _missing+="$_d:" ;; esac
+done
+export PATH="$_missing$PATH"
 
 _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 # shellcheck source=../lib/spool-env.inc.sh

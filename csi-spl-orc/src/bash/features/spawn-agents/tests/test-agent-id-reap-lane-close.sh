@@ -157,5 +157,48 @@ TMUXBIN="$(dirname "$(command -v tmux)")"
 out="$(SPOOL_NOW=2026-10-02T15:30:00Z env PATH="/usr/bin:/bin:$TMUXBIN" bash "$REAP" --apply 2>&1)"
 has "from cron's PATH c-017 is reaped" "REAP c-017" "$out"
 has "...and the hub call sees /usr/local/bin" "/usr/local/bin" "$(grep -m1 -- '--agent c-017' "$HUBLOG")"
+has "...and the hub call keeps the system dirs in their usual order" "/usr/local/bin:/usr/sbin:/sbin" "$(grep -m1 -- '--agent c-017' "$HUBLOG")"
+
+# --- a caller's dir stays first: only the missing dirs go in front of PATH --------------
+mkdir -p "$T_TMP/early"
+cat >"$T_TMP/early/flock" <<EOS
+#!/usr/bin/env bash
+touch "$T_TMP/early-fired"
+exec "$(command -v flock)" "\$@"
+EOS
+chmod +x "$T_TMP/early/flock"
+agent c-018; : >"$HUBLOG"
+out="$(SPOOL_NOW=2026-10-02T15:45:00Z env PATH="$T_TMP/early:$PATH" bash "$REAP" --apply 2>&1)"
+has "a dir ahead of the system dirs is reaped through" "REAP c-018" "$out"
+check "...and its command is the one that runs" test -e "$T_TMP/early-fired"
+
+# --- more rows than a tick tries: none is starved, none goes unnamed --------------------
+queue() { rm -f "$Q"; local i; for i in "$@"; do printf 'c-%s\t2026-10-02T00:00:00Z\tplanted\n' "$i" >>"$Q"; done; }
+ids() { cut -f1 "$Q" | tr '\n' ' '; }
+touch "$T_TMP/refuse"; queue 101 102 103 104 105; : >"$SENDS"; rm -f "$R/.reap/lane-close.alerted"
+out="$(REAP_LANE_RETRY_MAX=2 reap 2026-10-02T16:00:00Z --apply)"
+has "the cap tries the first ids" "WARN lane-close c-102: not closed" "$out"
+hasnt "...and not the ones past it" "lane-close c-103" "$out"
+has "...the log counts those that wait" "INFO lane-close: 3 more wait for a later tick (REAP_LANE_RETRY_MAX=2)" "$out"
+eq "...the failed ids go to the back" "c-103 c-104 c-105 c-101 c-102 " "$(ids)"
+has "...the alert counts them too" "3 more in the queue were not tried this tick" "$(grep ALERT "$SENDS")"
+has "...and says the true rate" "retries 2 a tick" "$(grep ALERT "$SENDS")"
+out="$(REAP_LANE_RETRY_MAX=2 reap 2026-10-02T16:15:00Z --apply)"
+has "the next tick reaches the tail" "WARN lane-close c-103: not closed" "$out"
+hasnt "...and leaves the failed ones for later" "lane-close c-101" "$out"
+out="$(REAP_LANE_RETRY_MAX=2 reap 2026-10-02T16:30:00Z --apply)"
+has "every id gets its turn" "WARN lane-close c-105: not closed" "$out"
+has "...and the first come round again" "WARN lane-close c-101: not closed" "$out"
+eq "...the queue loses nothing" 5 "$(wc -l <"$Q")"
+
+rm -f "$T_TMP/refuse"; queue {201..221}
+out="$(reap 2026-10-02T16:45:00Z)"
+eq "the default cap plans 20 of 21" 20 "$(grep -c 'PLAN lane-close' <<<"$out")"
+has "...and names the one that waits" "INFO lane-close: 1 more wait for a later tick (REAP_LANE_RETRY_MAX=20)" "$out"
+eq "...and a dry run moves nothing" c-201 "$(cut -f1 "$Q" | sed -n 1p)"
+queue 301 302 303; out="$(REAP_LANE_RETRY_MAX=2 reap 2026-10-02T17:00:00Z --apply)"
+eq "CONTROL closed ids leave, the waiting one stays" c-303 "$(ids | tr -d ' ')"
+hasnt "CONTROL with no failure there is no alert" ALERT "$out"
+rm -f "$Q"
 
 t_done

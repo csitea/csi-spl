@@ -6,7 +6,8 @@
 #
 #   $SPOOL_ROOT/.reap/lane-close.tsv      id<TAB>first failed (UTC)<TAB>why: a
 #                                         close the hub did not take; the reaper
-#                                         retries it every tick
+#                                         retries REAP_LANE_RETRY_MAX (20) a tick,
+#                                         a failed one goes to the back
 #   $SPOOL_ROOT/.reap/lane-close.alerted  epoch of the last alert
 #   $SPOOL_ROOT/.reap/topic-tell.tsv      id<TAB>topic: a note the send did not take
 #
@@ -42,6 +43,17 @@ rlc_drop() {
   local q ids; q="$(rlc_queue)"; ids="$(printf '%s\n' "$@")"
   ( flock -w 30 9 || exit 1
     grep -vFf <(sed 's/$/\t/' <<<"$ids") "$q" >"$q.tmp"
+    cat "$q.tmp" >"$q" && rm -f "$q.tmp"
+  ) 9>>"$q.lock"
+}
+
+# rlc_back ID...: move the ids to the back of the queue, under its lock, so ids
+# that keep failing cannot starve the ones behind them.
+rlc_back() {
+  [ "$#" -gt 0 ] || return 0
+  local q ids; q="$(rlc_queue)"; ids="$(printf '%s\n' "$@")"
+  ( flock -w 30 9 || exit 1
+    { grep -vFf <(sed 's/$/\t/' <<<"$ids") "$q"; grep -Ff <(sed 's/$/\t/' <<<"$ids") "$q"; } >"$q.tmp"
     cat "$q.tmp" >"$q" && rm -f "$q.tmp"
   ) 9>>"$q.lock"
 }
@@ -129,17 +141,19 @@ rlc_tell_retry() {
   printf '%s' "$keep" >"$f"
 }
 
-# rlc_alert IDS WHY: tell the holder the rows stay live, at most once per
-# REAP_ALERT_GAP_S (default 1 h). A send that fails tries again next tick.
+# rlc_alert IDS WHY WAITING: tell the holder the rows stay live, and how many
+# more wait untried, at most once per REAP_ALERT_GAP_S (default 1 h). A send
+# that fails tries again next tick.
 rlc_alert() {
-  local stamp="$SPOOL_ROOT/.reap/lane-close.alerted" gap="${REAP_ALERT_GAP_S:-3600}" last=0
+  local stamp="$SPOOL_ROOT/.reap/lane-close.alerted" gap="${REAP_ALERT_GAP_S:-3600}" last=0 more=""
+  [ "${3:-0}" -gt 0 ] && more=" ${3} more in the queue were not tried this tick."
   [ -r "$stamp" ] && read -r last <"$stamp"
   [[ "$last" =~ ^[0-9]+$ ]] || last=0
   if [ $((now_s - last)) -lt "$gap" ]; then
     say "INFO the lane-close alert was raised $(( (now_s - last) / 60 )) min ago: no second one inside ${gap} s"
     return 0
   fi
-  if rlc_tell dispatch-reap-live "ALERT the hub lane rows of $1 on $(spl_desk_box_default) stay live though their ids are retired: the close failed again ($2). The reaper retries every tick from $(rlc_queue). Until then those seats read live on the lane map."; then
+  if rlc_tell dispatch-reap-live "ALERT the hub lane rows of $1 on $(spl_desk_box_default) stay live though their ids are retired: the close failed again ($2). The reaper retries ${REAP_LANE_RETRY_MAX:-20} a tick from $(rlc_queue), the failed ones last.${more} Until then those seats read live on the lane map."; then
     say "ALERT told $(rlc_holder): hub lane rows not closed: $1"
     printf '%s\n' "$now_s" >"$stamp"
   else
@@ -147,11 +161,12 @@ rlc_alert() {
   fi
 }
 
-# rlc_drain: retry the queued closes, at most REAP_LANE_RETRY_MAX (20) a tick.
+# rlc_drain: retry the queued closes, at most REAP_LANE_RETRY_MAX (20) a tick;
+# the rest are counted and wait, and the failed ones go behind them.
 # An id in use again (re-issued after its quarantine) leaves the queue unclosed:
 # its row is a new lane's now.
 rlc_drain() {
-  local q n=0 max="${REAP_LANE_RETRY_MAX:-20}" id first why out rc last_why=""
+  local q n=0 waiting=0 max="${REAP_LANE_RETRY_MAX:-20}" id first why out rc last_why=""
   local -a gone=() failed=()
   q="$(rlc_queue)"
   [ -s "$q" ] || return 0
@@ -161,7 +176,7 @@ rlc_drain() {
       say "INFO lane-close ${id}: the id is in use again, the row is not the retired seat's; off the queue"
       gone+=("$id"); continue
     fi
-    n=$((n + 1)); [ "$n" -le "$max" ] || continue
+    n=$((n + 1)); [ "$n" -le "$max" ] || { waiting=$((waiting + 1)); continue; }
     if [ "$APPLY" != 1 ]; then say "PLAN lane-close ${id}: lane-map.sh done (failing since ${first}: ${why})"; continue; fi
     rc=0; out="$(timeout 60 bash "$_here/lane-map.sh" "done" --agent "$id" 2>&1 </dev/null)" || rc=$?
     if [ "$rc" = 0 ]; then
@@ -173,6 +188,7 @@ rlc_drain() {
       failed+=("$id")
     fi
   done <"$q"
-  [ "$APPLY" = 1 ] && rlc_drop "${gone[@]}"
-  [ "${#failed[@]}" -eq 0 ] || rlc_alert "${failed[*]}" "$last_why"
+  [ "$APPLY" = 1 ] && { rlc_drop "${gone[@]}"; rlc_back "${failed[@]}"; }
+  [ "$waiting" -eq 0 ] || say "INFO lane-close: ${waiting} more wait for a later tick (REAP_LANE_RETRY_MAX=${max})"
+  [ "${#failed[@]}" -eq 0 ] || rlc_alert "${failed[*]}" "$last_why" "$waiting"
 }

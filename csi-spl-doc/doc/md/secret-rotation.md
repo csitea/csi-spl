@@ -99,14 +99,15 @@ equal to the secrets pinned in dev and prd.
 Secret Manager's own rotation schedule (`rotation` + `topics` on a secret)
 only publishes a message to a Pub/Sub topic when a rotation is due; a
 rotator subscribed to it would still have to add the version, and the pin
-move is a 030 apply that waits for the owner's go. Nine of the twelve
+move is a 030 apply that waits for the owner's go. Nine of the thirteen
 secrets are made at a third party (IdPs, LinkedIn, Stripe, the mail
 provider, GitHub), where no rotator can reach. So the schedule lives in cnf and the age report
 reads it; no Pub/Sub topic, service agent or rotator is built, and the
 project has no Pub/Sub API enabled (cnf `steps.001-enable-gcp-services`).
-The three made here (DB DSN, session key, box-wui key) could get a rotator
-later; each needs a seed action that adds a version first, and the box-wui
-key a box rollout too.
+The four made here (DB DSN, session key, box-wui key, vendor key pepper)
+could get a rotator later; each needs a seed action that adds a version
+first, the box-wui key a box rollout too, and the pepper changes every stored
+fingerprint.
 
 ## 5. SPL-1945 build order
 

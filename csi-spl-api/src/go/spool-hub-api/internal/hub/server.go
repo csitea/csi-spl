@@ -54,8 +54,10 @@ type Options struct {
 	RepoEdit          *RepoEdit
 	Log               zerolog.Logger
 	TenantHostPattern string // "{tenant}.<fqdn>"
-	HelloSkew         time.Duration
-	HelloTimeout      time.Duration
+	// WUIApexTenant is the workspace served at the bare <fqdn>; "" = none.
+	WUIApexTenant string
+	HelloSkew     time.Duration
+	HelloTimeout  time.Duration
 	// HelloStoreTimeout bounds a hello's store work, pin check to welcome
 	// (SPL-2238); 0 = helloStoreTimeoutDefault.
 	HelloStoreTimeout time.Duration

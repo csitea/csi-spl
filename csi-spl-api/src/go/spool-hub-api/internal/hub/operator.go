@@ -294,6 +294,7 @@ func (s *Server) routeOperator(mux *http.ServeMux) {
 	s.routeFleetLoad(mux)           // rdb 0118: the instance's fleet load target, same rule
 	s.routeOperatorCalendar(mux)    // HUM-10 b13c164c: an agent's event, calendar_operator.go
 	s.routeOperatorChannels(mux)    // HUM-10 5c7a9202: a channel by order, channel_operator.go
+	s.routeChannelMove(mux)         // spec 169 T7: a channel into another workspace, channel_move.go
 	s.routeCostIngest(mux)          // spec 123 lane 4: the box feed of cost lines, cost_ingest.go
 	s.routeOperatorHumanEmails(mux) // HUM-10 1ee61a2b: a pending sign-in email, human_email_operator.go
 }

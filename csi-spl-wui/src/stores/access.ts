@@ -13,6 +13,8 @@ export const useAccessStore = defineStore('access', () => {
   const api = useSpoolApi()
   const session = useSessionStore()
   const me = ref<ReturnType<typeof normalizeMe> | null>(null)
+  /* spec 154 2.9 (W5): the contacts kill switch for this workspace, off until the hub says on */
+  const contacts = ref(false)
   let pending: Promise<void> | null = null
 
   function load(force = false) {
@@ -21,6 +23,7 @@ export const useAccessStore = defineStore('access', () => {
        was a 401 logged twice (withSessionRetry). A later load after sign-in reads. */
     if (!api.mock && session.state === 'out') {
       me.value = null
+      contacts.value = false
       return Promise.resolve()
     }
     let run!: Promise<void>
@@ -30,8 +33,10 @@ export const useAccessStore = defineStore('access', () => {
         // A bare me() 401 used to stick, and the invite plus stayed disabled.
         const body = await withSessionRetry(api, () => api.me())
         me.value = body ? normalizeMe(body) : null
+        contacts.value = (body as { contacts?: unknown } | null)?.contacts === true
       } catch {
         me.value = null
+        contacts.value = false
       } finally {
         if (pending === run) pending = null
       }
@@ -50,5 +55,5 @@ export const useAccessStore = defineStore('access', () => {
   const can = (perm: string) => accessAllows(me.value, perm)
   const roleKey = computed(() => roleLabelKey(me.value?.role ?? null))
 
-  return { me, load, ensure, can, roleKey }
+  return { me, contacts, load, ensure, can, roleKey }
 })

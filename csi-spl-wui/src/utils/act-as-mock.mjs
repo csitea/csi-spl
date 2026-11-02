@@ -63,7 +63,8 @@ export const MOCK_ME_KEY = 'spool.mock.me'
 /** The opt-in mock { role, permissions }, or null. */
 export function mockMeGet(store) {
   const v = storageGetJson(MOCK_ME_KEY, null, store)
-  return v && Array.isArray(v.permissions) ? { role: String(v.role || ''), permissions: v.permissions.map(String) } : null
+  /* spec 154 C24f: an e2e plays the contacts switch of GET /v1/view/me */
+  return v && Array.isArray(v.permissions) ? { role: String(v.role || ''), permissions: v.permissions.map(String), ...(typeof v.contacts === 'boolean' ? { contacts: v.contacts } : {}) } : null
 }
 
 /**

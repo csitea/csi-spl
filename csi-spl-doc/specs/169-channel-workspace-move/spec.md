@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.10 (2026-11-02). Status: **Draft** (plan only; nothing below is
+Version: v0.11 (2026-11-02). Status: **Draft** (plan only; nothing below is
 built). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -49,6 +49,10 @@ v0.10 gives the two checks no row owned their own rows (c-001, 2026-11-02,
 reply to c-002 msg 8d5be6ce): T4b takes R1 and W2's plan check off T4, and
 T9b prints R4's two retention values from the shell plan path, because the
 store cannot read them and a hub endpoint would need new IAM. Cases C22-C24.
+v0.11 names the one exception to the free-text scan printing 0 (c-001,
+2026-11-02, msg b42a543c, its decision as orchestrator, on the T8 lane's
+question): the fleet topic ids of 5.1 when `<SRC>` holds the fleet rows
+(5.2, C14).
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -289,6 +293,13 @@ or a permalink.
   `dm_last_msg_id` (rdb 0144) are uuid, and a text-only scan never reads them.
   The column list is read from `information_schema` at run time, not
   hard-coded.
+- One exception to that scan printing 0: when `<SRC>` is the workspace holding
+  the fleet rows, hits on `fleet_lanes.topic` and `fleet_asks.topic` are
+  reported as known with their count, never as a failure, the same way 5.1a
+  treats rows left by the owner's word; 5.1 keeps those topic ids unchanged.
+  Any other column stays a failure, `issue_key` on those two tables included.
+  The scan's caller (T7) counts those rows in `<SRC>` by the set's task ids and
+  passes the two counts as known; with none passed, the hits fail.
 
 This scan proves only that those exact strings are absent. It cannot prove
 that nobody paraphrased the channel ("the project chat") in a post, and the
@@ -439,7 +450,7 @@ now is.
 | C11 | Seats: a channel agent without a `<DST>` desk makes `plan` refuse, naming it; a desk whose P2b probe DM fails stops the move before P4, nothing changed; after P4 the seat rows are in `<DST>` and none in `<SRC>` | drop the check -> the agent cannot post after the move (spec 167 W3); skip the probe -> a dead `<DST>` desk passes P2b |
 | C12 | Issue keys: the new issue carries the old key in its first event; a lane gets one note old -> new | skip the note -> the lane's next commit cites a dead key |
 | C13 | No `<SRC>` audit row and no hub-wide row naming the channel; one `<DST>` audit row. The only `<SRC>` writes besides the deletes of the set are the named NULL / removal updates: M6b `moved_from_*`, M9 `ref_task_id`, the `channel_order` entry, the shared-item resolutions the owner chose (5.5), the topic-head recompute and the counters and change stamps (5.1); a diff of `<SRC>` before and after shows no other changed row | the default audit writer -> a `<SRC>` row names the channel; an extra `<SRC>` UPDATE -> the diff names it |
-| C14 | Free-text scan (5.2) prints 0 for the channel id, name and every UUID, over text, jsonb, uuid and array columns | plant the channel id in a `<SRC>` `workspace_events.message` -> 1; plant a moved task id in a staying post's `moved_from_task` (uuid) -> 1 |
+| C14 | Free-text scan (5.2) prints 0 for the channel id, name and every UUID, over text, jsonb, uuid and array columns; the one exception is the fleet topic ids of 5.2, reported as known with their count | plant the channel id in a `<SRC>` `workspace_events.message` -> 1; plant a moved task id in a staying post's `moved_from_task` (uuid) -> 1 |
 | C15 | Caller: `DRY_RUN=0` without the owner's GO msg id is refused before any change | run as a lane agent -> refused, exit 3 |
 | C16 | Copy: `<SRC>` row counts unchanged; `<DST>` ids are all new (task, msg, issue number, doc, doc item, doc node; rev log under the new doc id); a link inside a copied post points at the copied topic; a box receiving a copied row files it under the new task id | keep the old `workspace_doc_item.id` -> PK violation; keep the old UUIDs in the links -> the `<DST>` link resolves to nothing |
 | C17 | Re-run after a crash in P5 resumes at the first undone step and finishes | re-run from P1 -> refused: the journal says P4 committed |

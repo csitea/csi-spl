@@ -53,7 +53,7 @@ type ProofSet struct {
 	Channel string           // the channel id
 	Name    string           // the channel name
 	Binds   pgx.NamedArgs    // the Binds lists by name; a missing one is empty
-	Known   map[string]int64 // proof name -> rows the owner chose to keep (5.6, 5.1a)
+	Known   map[string]int64 // proof name -> rows kept: by the owner's word (5.6, 5.1a), or the fleet topic ids when <SRC> holds the fleet rows (5.2)
 	Skip    []string         // tables the scan does not read (by design they hold the ids, e.g. the redirect table)
 }
 

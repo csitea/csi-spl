@@ -185,6 +185,19 @@ func TestDiffAllowsOnlyTheMovesOwnWrites(t *testing.T) {
 	}
 }
 
+// <SRC> is the fleet's own workspace: M11's rewrite is a named <SRC> write.
+func TestDiffFleetRewriteInSrc(t *testing.T) {
+	before := Snapshot{"fleet_lanes": tenantSnap(map[string]snapRow{keyA: {json: `{"issue_key":"OLD-1","scope":"a"}`, inRefs: true}})}
+	after := Snapshot{"fleet_lanes": tenantSnap(map[string]snapRow{keyA: {json: `{"issue_key":"NEW-1","scope":"a"}`}})}
+	if cs := Diff(before, after, ProofSet{Src: "s"}, Rules{}); len(cs) != 0 {
+		t.Errorf("the key rewrite was named: %s", diffWhy(cs))
+	}
+	after["fleet_lanes"].rows[keyA] = snapRow{json: `{"issue_key":"NEW-1","scope":"b"}`}
+	if got := diffWhy(Diff(before, after, ProofSet{Src: "s"}, Rules{})); !strings.Contains(got, "a column no rewrite names") {
+		t.Errorf("RED CONTROL: an edit of the lane's scope was not named: %q", got)
+	}
+}
+
 func copySnap(s Snapshot) Snapshot {
 	out := Snapshot{}
 	for t, tb := range s {
@@ -247,6 +260,9 @@ func (r *fakeRows) Scan(dest ...any) error {
 type fakeDB struct {
 	sqls []string
 	fail string // a statement containing this fails
+	// fleetRows are old issue keys in the fleet's own workspace, not in <SRC>:
+	// a count of fleet_lanes or fleet_asks finds them only with no tenant filter.
+	fleetRows int64
 }
 
 func (f *fakeDB) Query(_ context.Context, sql string, _ ...any) (pgx.Rows, error) {
@@ -261,7 +277,11 @@ func (f *fakeDB) Query(_ context.Context, sql string, _ ...any) (pgx.Rows, error
 	case sql == pgPrimaryKeysSQL:
 		return &fakeRows{rows: [][]any{{"messages", "tenant_id"}, {"messages", "msg_id"}, {"gone", "x"}}}, nil
 	case strings.HasPrefix(sql, "SELECT count(*) FROM"):
-		return &fakeRows{rows: [][]any{{int64(0)}}}, nil
+		n := int64(0)
+		if (strings.Contains(sql, `"fleet_lanes"`) || strings.Contains(sql, `"fleet_asks"`)) && !strings.Contains(sql, "tenant_id") {
+			n = f.fleetRows
+		}
+		return &fakeRows{rows: [][]any{{n}}}, nil
 	case strings.HasPrefix(sql, "SELECT count(*) FILTER") && strings.Contains(sql, `"moved_from_task"`):
 		return &fakeRows{rows: [][]any{{int64(0), int64(1)}}}, nil
 	case strings.HasPrefix(sql, "SELECT count(*) FILTER"):
@@ -292,6 +312,25 @@ func TestSetProofsCountEveryPredicate(t *testing.T) {
 	}
 	if _, err := SetProofs(context.Background(), &fakeDB{fail: `"messages"`}, ProofSet{Src: "s"}); err == nil || !strings.Contains(err.Error(), "proof messages set") {
 		t.Errorf("a failed count must name its proof, got %v", err)
+	}
+}
+
+// M11's rows live in the fleet's own workspace (5.1): their proof must see
+// them from any <SRC>, and no other proof may leave <SRC>.
+func TestSetProofsFleetRowsOutsideSrc(t *testing.T) {
+	db := &fakeDB{fleetRows: 3}
+	ps, err := SetProofs(context.Background(), db, ProofSet{Src: "s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := proofNames(ps); got != "fleet_lanes refs=3 fleet_asks refs=3" {
+		t.Errorf("RED CONTROL: old keys in the fleet's workspace must fail the proof, got %q", got)
+	}
+	for _, sql := range db.sqls {
+		fleet := strings.Contains(sql, `"fleet_lanes"`) || strings.Contains(sql, `"fleet_asks"`)
+		if has := strings.Contains(sql, "tenant_id = @src"); has == fleet {
+			t.Errorf("fleet table %v, <SRC> filter %v: %s", fleet, has, sql)
+		}
 	}
 }
 
@@ -339,6 +378,9 @@ func TestTakeSnapshotReadsEveryTable(t *testing.T) {
 
 const (
 	pfSrc, pfDst    = "t-src-169", "t-dst-169"
+	pfFleet         = "t-fleet-169"
+	pfOldKey        = "OLD-169"
+	pfNewKey        = "NEW-169"
 	pfMove, pfStay  = "c-move-169", "c-stay-169"
 	pfName          = "Move Room 169"
 	pfTask, pfReply = "16900000-0000-4000-8000-000000000001", "16900000-0000-4000-8000-000000000002"
@@ -390,10 +432,11 @@ const pfMsgSQL = `INSERT INTO messages (tenant_id, msg_id, task_id, parent_task_
 // seedSource writes a <SRC> with the channel to move (a topic and a reply),
 // a staying channel whose post spec 045 moved out of the channel (M6b), a DM
 // about the moved topic (M9), a member whose channel_order names it, an
-// event about the set, and a <DST>.
+// event about the set, a <DST>, and a fleet workspace whose lane and ask name
+// the moved topic and its old issue key (M11).
 func seedSource(t *testing.T, ctx context.Context, tx pgx.Tx) {
 	t.Helper()
-	for _, ten := range []string{pfSrc, pfDst} {
+	for _, ten := range []string{pfSrc, pfDst, pfFleet} {
 		mustExec(t, ctx, tx, `INSERT INTO tenants (tenant_id, root_pubkey) VALUES ($1, $2)`, ten, make([]byte, 32))
 	}
 	mustExec(t, ctx, tx, `INSERT INTO humans (human_id) VALUES ('HUM-169')`)
@@ -412,11 +455,16 @@ func seedSource(t *testing.T, ctx context.Context, tx pgx.Tx) {
 	mustExec(t, ctx, tx, `INSERT INTO workspace_events (tenant_id, kind, message, origin_kind, origin_ref)
 		VALUES ($1, 'topic.created', 'opened', 'topic', $2)`, pfSrc, pfTask)
 	mustExec(t, ctx, tx, `INSERT INTO workspace_events (tenant_id, kind, message) VALUES ($1, 'tenant.note', 'a staying event')`, pfSrc)
+	mustExec(t, ctx, tx, `INSERT INTO fleet_lanes (tenant_id, fleet, agent_id, agent_box, state, writer_box, topic, issue_key)
+		VALUES ($1, 'fleet-169', 'c-169', 'box-1', 'live', 'box-1', $2, $3)`, pfFleet, pfTask, pfOldKey)
+	mustExec(t, ctx, tx, `INSERT INTO fleet_asks (tenant_id, fleet, ask_id, kind, from_agent, state, writer_box, topic, issue_key)
+		VALUES ($1, 'fleet-169', $2, 'spawn', 'c-169', 'open', 'box-1', $3, $4)`, pfFleet, pfStayTask, pfTask, pfOldKey)
 }
 
 // runMove does the <SRC> half of a move with only the writes C13 allows:
 // the set deleted, M6b and M9 nulled, the channel_order entry removed; the
-// move's audit row goes to <DST>.
+// move's audit row goes to <DST>. M11 rewrites the keys in the fleet's own
+// workspace, which is not a <SRC> write.
 func runMove(t *testing.T, ctx context.Context, tx pgx.Tx) {
 	t.Helper()
 	mustExec(t, ctx, tx, `DELETE FROM messages WHERE tenant_id = $1 AND (channel = $2 OR task_id = $3 OR parent_task_id = $3)`, pfSrc, pfMove, pfTask)
@@ -427,6 +475,9 @@ func runMove(t *testing.T, ctx context.Context, tx pgx.Tx) {
 	mustExec(t, ctx, tx, `UPDATE tenant_memberships SET channel_order = array_remove(channel_order, $2) WHERE tenant_id = $1`, pfSrc, pfMove)
 	mustExec(t, ctx, tx, `INSERT INTO operator_audit (at, tenant_id, actor_tenant, actor_hum, action, detail)
 		VALUES (now(), $1, $1, 'HUM-169', 'update', '{"move_id": "m-169"}')`, pfDst)
+	for _, table := range []string{"fleet_lanes", "fleet_asks"} {
+		mustExec(t, ctx, tx, `UPDATE `+table+` SET issue_key = $1 WHERE issue_key = $2`, pfNewKey, pfOldKey)
+	}
 }
 
 func pfSet() ProofSet {
@@ -437,7 +488,8 @@ func pfSet() ProofSet {
 	}
 	return ProofSet{Src: pfSrc, Channel: pfMove, Name: pfName, Binds: pgx.NamedArgs{
 		"tasks": []string{pfTask, pfReply}, "msgs": []string{pfMsg1, pfMsg2},
-		"mark_keys": []string{"ch:" + pfMove, "t:" + pfTask, "t:" + pfReply}, "ids": ids, "id_likes": likes}}
+		"mark_keys": []string{"ch:" + pfMove, "t:" + pfTask, "t:" + pfReply}, "ids": ids, "id_likes": likes,
+		"issue_keys": []string{pfOldKey}}}
 }
 
 func proofNames(ps []Proof) string {
@@ -469,7 +521,7 @@ func TestC14FreeTextScanPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := proofNames(setBefore); !strings.Contains(got, "messages set=2 ") || !strings.Contains(got, "messages refs=2") ||
-		!strings.Contains(got, "tenant_memberships refs=1") {
+		!strings.Contains(got, "tenant_memberships refs=1") || !strings.Contains(got, "fleet_lanes refs=1") || !strings.Contains(got, "fleet_asks refs=1") {
 		t.Errorf("CONTROL: before the move the 5.1 proofs must count the set; got %s", got)
 	}
 	runMove(t, ctx, tx)
@@ -482,6 +534,22 @@ func TestC14FreeTextScanPostgres(t *testing.T) {
 	}
 	if got := proofNames(after); got != "" {
 		t.Fatalf("after the move every 5.1 proof must print 0, got %s", got)
+	}
+	// RED CONTROL, M11: an old key left in the fleet's workspace, <SRC> being
+	// another workspace, fails its proof
+	for _, table := range []string{"fleet_lanes", "fleet_asks"} {
+		t.Run("an old issue key left in "+table, func(t *testing.T) {
+			mustExec(t, ctx, tx, `SAVEPOINT plant`)
+			defer mustExec(t, ctx, tx, `ROLLBACK TO SAVEPOINT plant`)
+			mustExec(t, ctx, tx, `UPDATE `+table+` SET issue_key = '`+pfOldKey+`' WHERE tenant_id = '`+pfFleet+`'`)
+			ps, err := SetProofs(ctx, tx, s)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, want := proofNames(ps), table+" refs=1"; got != want {
+				t.Errorf("RED CONTROL: proofs = %q, want %q", got, want)
+			}
+		})
 	}
 	plants := []struct{ name, sql, want string }{
 		{"the channel id in a staying event", `UPDATE workspace_events SET message = 'see #` + pfMove + `' WHERE tenant_id = '` + pfSrc + `'`, "scan workspace_events.message=1"},
@@ -519,9 +587,9 @@ func scanFailures(t *testing.T, ctx context.Context, tx pgx.Tx, s ProofSet) stri
 	return proofNames(ps)
 }
 
-// TestC13SourceDiffPostgres: the move's own writes leave an empty diff;
-// a <SRC> audit row, an extra <SRC> UPDATE and a hub row naming the channel
-// are each named.
+// TestC13SourceDiffPostgres: the move's own writes leave an empty diff, M11's
+// rewrite in the fleet's workspace among them; a <SRC> audit row, an extra
+// <SRC> UPDATE and a hub row naming the channel are each named.
 func TestC13SourceDiffPostgres(t *testing.T) {
 	ctx, tx := pgTx(t)
 	seedSource(t, ctx, tx)

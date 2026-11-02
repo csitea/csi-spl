@@ -6,7 +6,8 @@ package channelmove
 //
 //   - SetProofs counts, in <SRC>, the rows every catalogue predicate still
 //     finds: a Moved or Refuse entry's Set, a Moved or Rewritten entry's
-//     Refs. After a move each must print 0 (section 5.1).
+//     Refs. After a move each must print 0 (section 5.1). M11's tables are
+//     counted in every workspace: their rows live in the fleet's own.
 //   - Scan is the free-text scan (5.2, case C14): every text, varchar, json,
 //     jsonb, uuid and array column of every table, read from
 //     information_schema at run time, is counted for the channel id, the
@@ -22,8 +23,11 @@ package channelmove
 //     a quiet workspace, not for a busy prd one.
 //
 // Every function reads through a Querier the caller scopes: a transaction
-// asOperator (the store's rls.go) sees every tenant; each statement here
-// names `tenant_id = @src` itself. The scan proves only that those exact
+// asOperator (the store's rls.go) sees every tenant; each statement on a
+// tenant table names `tenant_id = @src` itself, but for the fleetWide proofs.
+// Scan and the diff stay in <SRC> on the fleet tables too: 5.2 and C13 read
+// <SRC>, the fleet rows keep their topic ids (5.1), and M11's old keys are
+// what the fleetWide proofs count. The scan proves only that those exact
 // strings are absent, not that nobody paraphrased the channel (5.2).
 
 import (
@@ -126,14 +130,25 @@ func (s ProofSet) proof(name string, n int64) Proof {
 	return Proof{Name: name, Count: n, Known: s.Known[name]}
 }
 
-// SetProofs is section 5.1: one count per catalogue predicate in <SRC>.
+// fleetWide are the tables whose 5.1 proof has no <SRC> filter (M11): their
+// rows live in the fleet's own workspace, not in <SRC>, unless <SRC> is it.
+var fleetWide = map[string]bool{"fleet_lanes": true, "fleet_asks": true}
+
+// proofSQL counts the rows of table that pred still finds.
+func proofSQL(table, pred string) string {
+	where := "tenant_id = @src AND (" + Typed(pred) + ")"
+	if fleetWide[table] {
+		where = Typed(pred)
+	}
+	return "SELECT count(*) FROM " + pgx.Identifier{table}.Sanitize() + " WHERE " + where
+}
+
+// SetProofs is section 5.1: one count per catalogue predicate.
 func SetProofs(ctx context.Context, q Querier, s ProofSet) ([]Proof, error) {
 	var out []Proof
 	for _, e := range Catalogue {
 		for _, pp := range proofPredicates(e) {
-			sql := "SELECT count(*) FROM " + pgx.Identifier{e.Table}.Sanitize() +
-				" WHERE tenant_id = @src AND (" + Typed(pp[1]) + ")"
-			n, err := countOne(ctx, q, sql, s.args())
+			n, err := countOne(ctx, q, proofSQL(e.Table, pp[1]), s.args())
 			if err != nil {
 				return nil, fmt.Errorf("proof %s %s: %w", e.Table, pp[0], err)
 			}

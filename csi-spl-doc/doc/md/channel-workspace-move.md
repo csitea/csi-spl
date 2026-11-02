@@ -1,21 +1,27 @@
 # Channel workspace move: plan, run, and read the kept list
 
 SPL-4405, [spec 169](../../specs/169-channel-workspace-move/spec.md) (row
-T12; written from spec v0.12 and the code on master at `380eb19ab`). The
+T12; written from spec v0.17 and the code on master at `15789e9ea`). The
 operator page for moving or copying a
 whole channel from one workspace into another.
 
-> **Partly built.** The hub answers the plan of a move, checks the owner's
-> GO and refuses a post into a moved topic (T7 step 1). No move can run yet:
+> **Built on master, not yet run.** The hub answers the plan of a move, every
+> step P1 to P7, the journal, the owner's GO check and the refusal of a post into
+> a moved topic (T7), and a box re-routes that post (T7b). The spec folder holds
+> no dev rehearsal record yet (T13). What still waits:
 >
-> - **Steps and journal:** the hub answers `op` `journal`, `step` and `mark`
->   with 501 `not_built`, after the GO check for `step` and `mark` (T7 step 2,
->   which waits for T5).
-> - **Copy:** even its plan answers 501 `not_built` (T11).
 > - **The action's seam:** the action reaches the hub only through
->   `CHANNEL_MOVE_HUB_CMD`, and nothing on master sets it (section 2.2).
+>   `CHANNEL_MOVE_HUB_CMD`, and nothing on master sets it for a real hub (section
+>   2.2, T9).
+> - **Copy:** every `op` of a copy answers 501 `not_built` (T11).
+> - **The owner's exceptions:** a step reads no `detail`, so "leave these hours
+>   rows" and "keep this invite" have no input (section 2.4).
+> - **What the action prints:** not P4's or P7's report, nor P7's kept list
+>   (section 3.4).
+> - **Gaps no row owns:** no proof of the bucket objects (section 5.1), the old
+>   issue key map and the web app's redirect (section 5.2).
 >
-> Every part below that waits says **[pending <row>]**.
+> Every part below that waits says **[pending <row>]**, or says no row owns it.
 
 The `OK` and `FATAL` lines quoted below are the action's log text; `./run`
 shows them with its own level prefix (`[OK]`, `[FATAL]`).
@@ -66,16 +72,20 @@ and `mark` and refuses with 403 `go_required` unless all of these hold:
   `<SRC>/<CHANNEL>` and `<DST>` as whole slugs. **Write both into the form**,
   or the answer does not open this move.
 
-The hub does not check whether the owner answered again later. An agent never runs `DRY_RUN=0` on its
-own judgement; it sends the plan's output to the owner and waits.
+The hub does not check whether the owner answered again later. P1 stores the GO
+in the journal: every later call of that move carries the same msg id, and
+another one is refused with 409 `move_refused`. A journal read needs no GO. An
+agent never runs `DRY_RUN=0` on its own judgement; it sends the plan's output to
+the owner and waits.
 
 The first prd move (owner, Q7, spec 11.1): `<SRC>` = csitea, `<CHANNEL>` =
 the csitea channel named like the workspace `ws-hidden-17`, `<DST>` =
 `ws-hidden-17`. It runs only after the dev rehearsal (spec T13): on dev,
 `plan` then `DRY_RUN=0` of a seeded channel between two dev test
 workspaces, with the owner's GO msg id, P7 printing 0 and the journal read
-back. The box re-route (T7b) is also a prerequisite of that move (spec row
-T7b) **[pending T7b]**.
+back. The calendar half of case C18 comes before both the rehearsal and that
+move (spec row T7c) **[pending T7c]**. The box re-route (T7b), also a prerequisite,
+is on master.
 
 ## 2. Plan
 
@@ -144,7 +154,7 @@ CHANNEL_MOVE_HUB_CMD`, exit 2. It is a command that reads one request JSON on
 stdin, sends it as `POST /v1/operator/channel-moves` with a Bearer Google ID
 token of an account on the hub's operator allow-list, prints the answer JSON,
 and exits non-zero on a refusal. Nothing on master sets it for a real hub: only
-the tests do. **[pending: the row that wires it]**
+the tests do. **[pending T9: its wiring to the endpoint]**
 
 The action prints a refusal of the hub as `FATAL the hub refused <op> ...` with
 the hub's answer, exit 1. The plan of a copy ends there today **[pending
@@ -157,14 +167,14 @@ The plan prints one line per item, in this order:
 | line | what |
 |---|---|
 | `PLAN count <table> <n>` | the set, one count per table of the move catalogue; `<table> refs` counts rows that refer to the set without being in it (spec section 4, M1-M12) |
-| `PLAN seat <agent> on <box>` | an agent seated in the channel and the box of its desk. **Prints nothing today:** the hub's `.seats` is empty, so neither this line nor the P2b probes have seats yet **[pending the row that fills `.seats`]** |
+| `PLAN seat <agent> on <box>` | an agent seated in the channel and the box of its seat, with a `<DST>` desk or without one (case C27). P2b probes these seats |
 | `PLAN mention outside the set: ...` | one JSON object per post in another `<SRC>` channel, another person's DM or a staying Qto doc that links a moved topic or names the channel (spec 5.4). They are left as they are and only listed (owner, Q4 = A) |
 | `PLAN member not in the target: ...` | a person of the channel who is not a member of `<DST>`. They lose access; only the members the owner adds to `<DST>` come along, with their read state, hours rows and calendar guest rows (owner, Q5 = A) |
 | `PLAN kept <store> until <what ends it>` | the kept list (section 4 of this page) |
 | `PLAN retention Cloud SQL backups: ...`, `PLAN retention log bucket <name>: ...` | how long those two copies live, read as the per-env service account (spec R4). A value it cannot read prints as `not read: <reason>`; it never refuses |
-| `PLAN box rule: ...` | a move only: what this box's `channel-rules.tsv` says about the channel. A box reads only its own file: **run the plan on every box that works the channel** |
+| `PLAN box rule: ...` | a move only: what this box's `channel-rules.tsv` says about the channel. A box reads only its own file: **run the plan on every box that works the channel**. It names each other box that holds a seat: `run this plan on box <box> too` |
 | `REFUSE seat <agent> on <box> has no desk in <DST> (W2)` | the agent needs a desk in `<DST>` first (spec case C11; seat it with [spec 158](../../specs/158-new-workspace-automatic/spec.md)), or, if it is not meant to move, leaves the channel (section 2.1) |
-| `REFUSE box <box> is not pinned in <DST> (R1)` | a box that posted in the channel has no pin in `<DST>`, so its posts could not be verified there |
+| `REFUSE box <box> is not pinned in <DST> (R1)` | a box that posted in the channel has no pin in `<DST>`. Pinning it clears the line; it does not make that box's old rows verify there (section 5.2) |
 | `REFUSE box rule: ...` | this box's rule row names a desk agent with no `<DST>` desk on this box, or the plan cannot tell (spec case C25). A `<DST>` desk for that agent clears it |
 | `REFUSE shared <kind> <id>: <why>` | a Qto doc, issue, epic or spec sync row the channel uses that something staying in `<SRC>` also uses (spec 5.5). The move stops; the owner decides each one (owner, Q6 = A). Kind `table` is a row the move cannot carry: `embed_visitors` is a channel with a website-chat visitor (spec 5.1b) |
 | `REFUSE hours: <member> <n> rows ...` | hours rows of a member who does not come along (Q5), or inside a frozen or approved time sheet (spec 5.1a, owner Q8 = A) |
@@ -172,9 +182,11 @@ The plan prints one line per item, in this order:
 
 The plan does not print files shared with a staying post. The hub sends them in
 `.shared_files` and they do not refuse the move: they are copied and not deleted
-in `<SRC>` (spec case C6), but the action reads no such field. The checks of
-P2 that are not in the plan's answer, the `<DST>` orchestrator seat and quotas,
-come with the steps **[pending T7 step 2]**.
+in `<SRC>` (spec case C6), but the action reads no such field.
+
+A clean plan can still stop at P2. Two of its checks are not in the plan's answer:
+an agent with the orchestrator number on `<DST>`'s roster, and the channel's
+attachment total against `<DST>`'s file quota (Qto pictures are not counted).
 
 With no `REFUSE` line the plan ends with
 `OK plan of <SRC>/<CHANNEL> -> <DST> (move): nothing changed. Run it: MOVE_CMD=run`.
@@ -184,14 +196,24 @@ exit 3.
 ### 2.4 Clear the plan before a run
 
 A run is ready when the plan prints no `REFUSE` line and the owner has read
-the members, the mentions and the kept list. For hours rows the owner
-either reopens the time sheet or adds the member to `<DST>` (the rows then
-move), or says to leave the rows in `<SRC>` (they become a kept item). A
-channel named `<CHANNEL>` that already exists in `<DST>`, archived or not,
-blocks the run. `TO_NAME=<new id>` makes the plan check that name instead, but a
-step carrying it is refused today with 501 `not_built`, so a move keeps the
-channel's id: free the name in `<DST>` **[pending: a row that builds
-`TO_NAME`]**.
+the members, the mentions and the kept list.
+
+- **Hours rows:** adding the member to `<DST>` clears the Q5 line and the rows
+  move. Reopening the time sheet clears the Q8 line. Each line clears on its own.
+- **Leaving hours rows in `<SRC>`:** the store can do it (the rows become a kept
+  item), but a step reads no `detail`, so the owner's "leave them" has no input
+  and the stop stands **[pending: no row owns it yet]**.
+- **Channel invites:** the same gap. Nothing can name an email to keep, so P4
+  deletes every invite of the channel; invite the people to `<DST>` afterwards
+  **[pending: no row owns it yet]**.
+- **The doc of the box rule row:** the hub's plan is not told column 3 of the rule
+  row, so a Qto doc reached only through it is not in the set and stays in `<SRC>`
+  **[pending: no row owns it yet]**.
+- **The name:** a channel named `<CHANNEL>` that already exists in `<DST>`,
+  archived or not, blocks the run. `TO_NAME=<new id>` makes the plan check that
+  name instead, but a step carrying it is refused with 501 `not_built`, so a move
+  keeps the channel's id: free the name in `<DST>` **[pending: a row that builds
+  `TO_NAME`]**.
 
 ## 3. Run
 
@@ -205,9 +227,8 @@ cd csi-spl-orc && ENV=<ENV> CHANNEL=<SRC>/<CHANNEL> TO=<DST> MOVE_CMD=run ./run 
 ```
 
 It ends with `OK DRY_RUN move <move id> ... would run P1 P2 P2b P3 P4 P5 P6 P7`
-(`<new>` in place of the move id before P1 has run). Today the hub answers the
-journal read with 501 `not_built`, so this stops at `FATAL the hub refused
-journal` **[pending T7 step 2]**.
+(`<new>` in place of the move id before P1 has run). Before P1 it also reads the
+plan, so a `REFUSE` line stops it, exit 3.
 
 ### 3.2 The owner's run of a move
 
@@ -225,9 +246,14 @@ Run it on the machine that holds the desks of the channel's seats: P2b
 probes only the desks on the machine that runs the move, and a seat whose
 `<DST>` desk is elsewhere fails its probe, which stops the move before P3.
 
+The hub is not told who `MOVE_CALLER` is. P2 only checks that `<DST>`'s roster has
+an agent with the orchestrator number, so naming the right seat is yours.
+
 ### 3.3 The owner's run of a copy
 
-A copy has no P2b and no P5, so it needs only `MOVE_GO_MSG`:
+A copy has no P2b and no P5, so it needs only `MOVE_GO_MSG`. Today the hub answers
+the first call with 501 `not_built`, so this stops at `FATAL the hub refused
+journal` **[pending T11]**:
 
 ```bash
 cd csi-spl-orc && ENV=<ENV> CHANNEL=<SRC>/<CHANNEL> TO=<DST> MOVE_MODE=copy MOVE_CMD=run DRY_RUN=0 MOVE_GO_MSG=<GO msg id> ./run -a do_spl_channel_workspace_move
@@ -240,27 +266,37 @@ journal. A move runs P1 P2 P2b P3 P4 P5 P6 P7; a copy P1 P2 P3 P4 P7.
 
 | step | where | what | if it fails |
 |---|---|---|---|
-| P1 | hub | freeze the set in the journal (kept in `<DST>`); returns the move id | nothing changed |
-| P2 | hub | check `<DST>`, the caller, the name, quotas, desks, the orchestrator seat, shared items, hours | nothing changed |
-| P2b | box | each seat sends one probe DM through its `<DST>` desk to `MOVE_CALLER`, on the task = the move id; a dead desk stops the run here | nothing changed but the probe DMs, which stay in `<DST>` as part of the journal |
+| P1 | hub | freeze the set in the journal (kept in `<DST>`); returns the move id. A stop is P2's to refuse | nothing changed but the journal row |
+| P2 | hub | refuse on the plan's stops, a name taken in `<DST>`, an attachment total over `<DST>`'s file quota, or no orchestrator seat; list the seats for P2b | 409 `move_refused` with the reason; nothing of the set moved |
+| P2b | box | each seat sends one probe DM through its `<DST>` desk to `MOVE_CALLER`, on the task = the move id; a dead desk stops the run here. The hub's mark needs a stored probe per seat | nothing changed but the probe DMs, which stay in `<DST>` as part of the journal |
 | P3 | hub | copy blobs and Qto objects to `<DST>` | re-run; the copy is idempotent |
-| P4 | hub | one database transaction: insert the set under `<DST>`, delete it in `<SRC>` (a move), recompute counters, bump change stamps | the transaction rolls back as a whole; both workspaces are as before (spec case C5) |
+| P4 | hub | one database transaction: re-read the plan under the channel lock (that is the set moved), insert it under `<DST>`, delete it in `<SRC>` (a move), recompute counters, bump change stamps, expire deliveries no box can verify. A stop found here refuses, and so does a seat with no probe | the transaction rolls back as a whole; both workspaces are as before (spec case C5) |
 | P5 | box | the channel's row of the box map `$SPOOL_ROOT/channel-rules.tsv` gets `<DST>` (and `TO_NAME`) in columns 1-2; one spool note per lane whose issue key changed | re-run; it resumes at P5 and sends only the missing notes |
-| P6 | hub | a move only: delete the `<SRC>` blobs and Qto objects no staying row lists | re-run; it resumes from the journal |
-| P7 | hub | run every proof and write the results into the journal; prints `proof <name> <count>` per proof | a proof that is not 0 is a `FATAL`, exit 1 (section 5.1) |
+| P6 | hub | a move only: copy again what P4 moved (a post can land between P3 and P4), then delete the `<SRC>` blobs and Qto objects no staying row lists | re-run; it resumes from the journal |
+| P7 | hub | run the database proofs and write the results into the journal; prints `proof <name> <count>` per proof | a proof that is not 0 is a `FATAL`, exit 1, and P7 stays not done (section 5.1) |
 
-Every hub step is **[pending T7 step 2]**; the transaction P4 is **[pending
-T5]**, the proofs of P7 are on master (T8) but not reachable through the
-endpoint yet. Each step done prints `OK <step> of move <move id> done`;
-the run ends with `OK move <move id> of <SRC>/<CHANNEL> -> <DST> (move) done`.
+Each hub step needs the step before it done, the journal's move id and the same GO.
+A refusal prints as `FATAL the hub refused step <step> ...` with the hub's answer,
+exit 1. Each step done prints `OK <step> of move <move id> done`; the run ends with
+`OK move <move id> of <SRC>/<CHANNEL> -> <DST> (move) done`.
+
+The hub answers more than the action prints **[pending T9]**: P4's `.lost`,
+`.new_keys` and `.report` (the deliveries line, section 5.2), P6's `.counts` and
+`.kept_objects`, P7's `.kept` and `.report`. Until then the step counts are in
+`channel_move_steps` in `<DST>`, readable with `do_spl_db_query`.
 
 ### 3.5 Resume after a stop
 
 A re-run with the same `CHANNEL` and `TO` reads the journal and starts at
 the first step not marked done. `MOVE_FROM=<step>` starts at that step
 instead, but only P5, P6 or P7 once P4 has committed: a `MOVE_FROM` of P1
-to P4 then is refused, exit 3 (spec case C17). A re-run of a fully done
-move prints `OK move <move id> ... is done: nothing to do`.
+to P4 then is refused, exit 3 (spec case C17). The hub still wants the step before
+it done, so `MOVE_FROM=P6` with P5 not done is refused with 409. A re-run of a fully
+done move prints `OK move <move id> ... is done: nothing to do`.
+
+A re-run carries the same `MOVE_GO_MSG` as the first run. Before P4, a re-run of P1
+freezes the set again in the same journal row. If a re-run of P2 finds a new seat,
+P4 refuses it with `seat <agent> has no probe from P2b`: run `MOVE_FROM=P2b`.
 
 Two runs of the same channel never overlap: the second one stops with
 `FATAL another move of <SRC>/<CHANNEL> runs`, exit 3 (lock
@@ -280,27 +316,29 @@ an error: P5 says so and goes on.
 
 ### 3.7 The short window after P4
 
-Between the P4 commit and the end of P5, a lane that posts into a moved
-topic through its `<SRC>` desk is refused by the hub (spec W2, case C8).
-P5 follows P4 at once in the same run, so the window is short.
-
-The hub's refusal (T7 step 1), for a box post and a browser post alike:
+Between the P4 commit and the end of P5, a lane that posts into a moved topic
+through its `<SRC>` desk is refused by the hub (spec W2, case C8), and the box client
+re-routes the post (T7b). P5 follows P4 at once in the same run, so the window is
+short. The re-route itself lasts as long as the redirect, 30 days.
 
 | answer | when | what the post does on a box |
 |---|---|---|
-| 409 `topic_moved`, detail `topic moved: tenant=<DST> link=<link>` | the redirect is live | refused, see below |
-| 404 `topic_moved` | the redirect has expired | refused, see below |
+| 409 `topic_moved`, detail `topic moved: tenant=<DST> link=<link>` | the redirect is live | sent once through the sending agent's own `<DST>` desk on this box, same msg id and task id, under that desk's key |
+| 404 `topic_moved` | the redirect has expired | not sent, see below |
 | 503 `moved_check_failed` | the hub could not read the redirect | stays pending and is retried on the next flush |
 
-The refusal never opens a new `<SRC>` topic and never names the channel (spec
-case C13). The hub does not carry the post over: a box key is live in one
-workspace only, so the re-route is the box client's (row T7b) **[pending T7b]**.
+The refusal never opens a new `<SRC>` topic and never names the channel (spec case
+C13). The hub does not carry the post over, because a box key is live in one workspace
+only. A browser post gets the same refusal and no re-route.
 
-Until T7b lands, a 4xx answer is not retried (`hubclient/flush.go`): the post
-moves to the desk's `spool/.hub/rejected/` with a `<file>.reason` beside it (the
-hub's status, token and detail) and one `ERROR` log line. After the run, look in
-the `<SRC>` desks' `rejected/` for posts of that window and send them again
-through the `<DST>` desk (same `--task`: the topic id did not change).
+**When there is no re-route:** the agent has no desk or no seat in `<DST>` on this
+box (a desk of another OS user counts as none), `<DST>` cannot place the recipient,
+the redirect has expired, the refusal names no destination, or `<DST>` refuses with
+`topic_moved` too (one hop only). The post is not sent. It moves to the desk's
+`spool/.hub/rejected/` with a `<file>.reason` beside it, and the agent's inbox gets a
+`reject` naming the msg id and the reason. An answer is never queued, so its caller
+gets the error instead. To recover one, send it again through the `<DST>` desk (same
+`--task`: the topic id did not change).
 
 ## 4. Read the kept list
 
@@ -310,9 +348,10 @@ through the `<DST>` desk (same `--task`: the topic id did not change).
 hold the channel and cannot be edited row by row; the move does not touch
 them. The plan prints most of them as `PLAN kept <store> until <what ends it>`.
 Two rows of the table below print no such line: the soft-deleted bucket objects,
-and the hours rows, which the plan lists as stops (section 2.3). P7 is to print
-each copy's expiry date (spec 8.2) **[pending T7 step 2]**. They are kept until they
-expire on their own (owner, Q3 = A).
+and the hours rows, which the plan lists as stops (section 2.3). P7's answer carries
+the same list in `.kept`, still in words, and the action does not print it **[pending
+T9]**. The date each copy expires, which spec 8.2 asks of P7, is not built **[pending:
+no row owns it yet]**. They are kept until they expire on their own (owner, Q3 = A).
 
 | copy | holds | why it stays | gone by |
 |---|---|---|---|
@@ -325,7 +364,7 @@ expire on their own (owner, Q3 = A).
 | hub logs (Cloud Logging) | request lines with ids | append-only by design | the log bucket's retention: the plan's `PLAN retention log bucket` lines, one per bucket of the project (spec R4) |
 | mail and notifications already sent | text sent to people | outside the system | never |
 | git history of this repository | commit subjects, specs and dispatch notes citing a task id or an issue key | history is forward-only; no force-push | never |
-| hours rows the owner said to leave (spec 5.1a) | a member's time record that names the channel | it is the member's signed or kept time sheet | never, unless the owner deletes it |
+| hours rows the owner said to leave (spec 5.1a; no input yet, section 2.4) | a member's time record that names the channel | it is the member's signed or kept time sheet | never, unless the owner deletes it |
 | box spool archives, transcripts, worktrees | the agents' copies of the channel's posts | the agents need them to continue the work; they name no workspace | spec 167's cleanup, if the channel also leaves its box |
 
 ### 4.2 Read the dates
@@ -341,18 +380,20 @@ already sent, git history, the hours rows the owner left and the boxes' copies.
 ### 5.1 Read the proofs
 
 P7 prints one `proof <name> <count>` line per proof and writes them into
-the journal. Every proof runs in `<SRC>` and must print 0: the database
-rows of the set (spec 5.1), a scan of every text, jsonb, uuid and array
-column of every `<SRC>` table for the channel id, its name and every task
-and msg UUID (spec 5.2), and each moved bucket object (spec 5.3). A count
-that is not 0 stops the run with `FATAL P7: a proof of section 5 is not 0`,
-exit 1: the move is not done; send the move id and the proof lines to the
-orchestrator. **[pending T7 step 2: the proofs (T8) are on master, the endpoint
-does not run them yet.]**
+the journal. Every proof runs in `<SRC>` and must print 0: the database rows of the
+set (spec 5.1), and a scan of every text, jsonb, uuid and array column of every
+`<SRC>` table for the channel id, its name and every task and msg UUID (spec 5.2). A
+count that is not 0 stops the run with `FATAL P7: a proof of section 5 is not 0`, exit
+1: the move is not done and P7 stays not done, so a re-run runs the proofs again. Send
+the move id and the proof lines to the orchestrator.
 
 The one exception to the scan's 0: when `<SRC>` holds the fleet rows, hits on
-`fleet_lanes.topic` and `fleet_asks.topic` are reported as known with their
-count, never as a failure (spec 5.2).
+`fleet_lanes.topic` and `fleet_asks.topic` are known. They print as
+`proof <name> (known <n> of <m>, kept: 5.2) 0`, never as a failure (spec 5.2).
+
+P7 does not prove the bucket objects of spec 5.3: it runs only the database proofs
+(`p7` in `channel_move_steps.go`). P6's counts are the record that the objects left
+`<SRC>` (section 3.4) **[pending: no row owns it yet]**.
 
 The free-text scan proves only that those exact strings are absent. It
 cannot prove that nobody described the channel in other words in a post,
@@ -366,15 +407,21 @@ and this page does not claim it (spec R6).
 - **Issue keys change**: each moved issue gets a new `<DST>` key; its first
   event holds the old key, and each lane whose issue key changed gets one
   note: `Channel move <move id>: your issue key changed, <old> -> <new>`.
-  Cite the new key from then on. For 30 days an old key maps to the new one,
-  then it closes nothing (owner, Q2 = A).
+  Cite the new key from then on. A lane filed on a moved key after P1 gets no
+  note. A moved issue whose number was free keeps its key.
+- **The old key map:** P4 writes the 30-day map (owner, Q2 = A), but nothing reads
+  it yet: `grep -c channel_move_redirects csi-spl-orc/src/bash/scripts/issue-close-landed.py`
+  -> 0. So an old key closes nothing from the day of the move **[pending: no row
+  owns it yet]**.
 - **Links**: a moved topic's link is `https://<DST_HOST>/t/<uuid>`. For 30
   days the hub answers a read of the topic at `<SRC>` with 404 `topic_moved`
-  and the new link in `moved_to`; then a plain 404 (owner, Q2 = A). That the web
-  app follows `moved_to` to the other workspace is not proven **[pending T13]**.
+  and the new link in `moved_to`; then 404 `topic_moved` with no link (owner, Q2 =
+  A). The web app does not follow it: `git grep -c moved_to -- csi-spl-wui` finds
+  nothing, so someone opening an old link has to be given the new one **[pending:
+  no row owns it yet]**.
 - **Posts**: for those 30 days a post to a moved topic at `<SRC>` is refused
-  with the new workspace and link (section 3.7); the box client sends it on
-  through the `<DST>` desk **[pending T7b]**. Then it is a 404.
+  with the new workspace and link, and the box client sends it on through the `<DST>`
+  desk (section 3.7). Then it is refused with a 404 and reported.
 - **Members**: only the people the owner added to `<DST>` keep the channel;
   the others lose access (owner, Q5 = A).
 - **Open polls, claims and parked rows** travel with their rows and can be
@@ -384,6 +431,18 @@ and this page does not claim it (spec R6).
   keeps its local copy until it next loads.
 - **Encrypted posts** stay readable only by the boxes they were encrypted
   for; a move does not change that (spec R2).
+- **Old agent posts in `<DST>`**: a moved row keeps the signature of its `<SRC>` key,
+  and the same-named box in `<DST>` normally holds another key, so the row does not
+  verify there, pinned or not (spec F10). Back-fill withholds such rows from a new
+  seat and counts them in its summary. A box reads them only by tail, and tail shows
+  it only rows it sent, was addressed by or had delivered; people read them in the
+  browser. No box can edit, delete or move them, except an agent's issue comment,
+  which is unsigned by design, so a same-named box there still can. Posts by people
+  are not affected.
+- **Queued deliveries**: P4 expires a queued or unacked delivery of a moved row when
+  the sender's pin is missing or different in `<DST>`, or the addressee's box has no
+  pin there. Nobody receives those. P4's report line counts them, but a row signed
+  before its box re-keyed is refused by the box and lost, uncounted (spec case C28).
 
 ### 5.3 The journals
 
@@ -391,10 +450,12 @@ The hub's journal lives in `<DST>` on purpose: it is the record that the
 channel came from somewhere, kept where the channel now is. It holds the
 mode, the `<SRC>` slug, the channel id, the frozen id lists, the owner's GO
 msg id, the P2b probe msg ids and one row per step with its times, counts
-and proof results. `<SRC>` gets no audit row for the move. The action reads
-it through the hub at the start of every run; to see where a move stands,
-run section 3.1 (it prints the steps still to do). **[pending T7 step 2: the
-table (T2) is on master, the endpoint that reads it is not.]**
+and proof results. `<SRC>` gets no audit row for the move.
+
+The action reads it through the hub at the start of every run; to see where a move
+stands, run section 3.1 (it prints the steps still to do). The hub's answer carries
+`.move_id`, `.done`, `.steps`, `.seats` and `.lanes`, not the counts or the proofs:
+those are in `channel_move_steps` (section 3.4).
 
 The box journal is `$SPOOL_ROOT/channel-move/<move id>/box.tsv`, one row
 per step done on this box: `<kind> TAB <key> TAB <value> TAB <utc>`, with
@@ -410,6 +471,11 @@ kind `probe` (agent, msg id), `rule-row` (`<SRC>/<CHANNEL>`,
 - The box steps (T10):
   `csi-spl-orc/src/bash/features/spawn-agents/scripts/channel-workspace-move-box.sh`,
   its test `csi-spl-orc/src/bash/features/spawn-agents/tests/test-channel-workspace-move-box.sh`.
-- The hub endpoint (T7 step 1):
-  `csi-spl-api/src/go/spool-hub-api/internal/hub/channel_move.go`, the moved
-  refusal's wire text `csi-spl-api/src/go/spool-hub-api/internal/wire/topic_moved.go`.
+- The hub endpoint and its steps (T7):
+  `csi-spl-api/src/go/spool-hub-api/internal/hub/channel_move.go`,
+  `channel_move_steps.go`, the moved refusal's wire text
+  `csi-spl-api/src/go/spool-hub-api/internal/wire/topic_moved.go`.
+- The transaction P4 (T5, T5b, T5c):
+  `csi-spl-api/src/go/spool-hub-api/internal/store/channel_move_apply_postgres.go`.
+- The box client's re-route (T7b):
+  `csi-spl-api/src/go/spool-hub-api/internal/hubclient/reroute.go`.

@@ -10,12 +10,21 @@ import (
 )
 
 // TenantRoles reads the roles visible to tenant under its RLS scope: the
-// system rows (tenant_id NULL) and the tenant's own (phase 2).
+// system rows (tenant_id NULL) and the tenant's own (phase 2). Each role's
+// grants are the system grants, minus the tenant's tenant_role_grants rows
+// with granted = false, plus its rows with granted = true (spec 152 3.4); with
+// no row the join matches nothing and the answer is the system grants (3.6).
 func (s *Postgres) TenantRoles(ctx context.Context, tenant string) (map[string]rbac.Role, error) {
 	out := map[string]rbac.Role{}
 	err := s.queryTenant(ctx, tenant, `SELECT r.role_id, r.tenant_owner,
 			COALESCE(array_agg(g.permission_id ORDER BY g.permission_id) FILTER (WHERE g.permission_id IS NOT NULL), '{}')
-		FROM rbac_roles r LEFT JOIN rbac_role_permissions g ON g.role_id = r.role_id
+		FROM rbac_roles r LEFT JOIN (
+			SELECT p.role_id, p.permission_id FROM rbac_role_permissions p
+			WHERE NOT EXISTS (SELECT 1 FROM tenant_role_grants o
+				WHERE o.tenant_id = $1 AND o.role_id = p.role_id AND o.permission_id = p.permission_id AND NOT o.granted)
+			UNION
+			SELECT o.role_id, o.permission_id FROM tenant_role_grants o WHERE o.tenant_id = $1 AND o.granted
+		) g ON g.role_id = r.role_id
 		WHERE r.tenant_id IS NULL OR r.tenant_id = $1
 		GROUP BY r.role_id, r.tenant_owner`, []any{tenant}, func(rows pgx.Rows) error {
 		var r rbac.Role

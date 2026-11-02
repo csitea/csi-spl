@@ -26,12 +26,7 @@ csi-spl-iac/src/bash/run/gcp-import-to-cloudsql.func.sh
 csi-spl-iac/src/bash/run/gcp-project-delete.func.sh
 csi-spl-iac/src/bash/run/gcp-purge-wsdoc-prefix.func.sh
 csi-spl-iac/src/bash/run/gcp-report-sa-usage.func.sh
-csi-spl-iac/src/bash/run/gcp-s3-download-all.func.sh
-csi-spl-iac/src/bash/run/gcp-sync-local-to-s3.func.sh
-csi-spl-iac/src/bash/run/gcp-sync-s3-to-local.func.sh
-csi-spl-iac/src/bash/run/gcp-sync-src-bucket-data-to-tgt-bucket.func.sh
 csi-spl-iac/src/bash/run/gcp-sync-src-s3-to-tgt-s3-silent.func.sh
-csi-spl-iac/src/bash/run/gcp-sync-src-s3-to-tgt-s3.func.sh
 csi-spl-iac/src/bash/run/gcp-tail-logs.func.sh
 csi-spl-iac/src/bash/run/spl-compute-sa-editor-drop.func.sh
 csi-spl-iac/src/bash/run/spl-gh-app-key-put.func.sh

@@ -83,15 +83,16 @@ export function useIssueListUrl(o: IssueListUrlOpts) {
       view, sort: st.sort.value, unread: st.unread.value, status: st.status.value, priority: st.priority.value, level: st.level.value,
       assignee: st.assignee.value, label: st.label.value, deadline: st.deadline.value, fold: st.folded.value,
     }, base, o.meId())
-    if (!writing && epicNext === null && sameQuery(next, base)) return
+    if (!writing && epicNext === null && sameQuery(next, base)) { owed = false; return }
     writing++
-    /* a pick that also closes its phone sheet: the sheet's history.back cancels
-       this replace. Not repeated here (it would cancel that move in turn, for
-       ever): follow() sends it once, when the route has landed */
+    /* a pick that also closes its phone sheet: the sheet's history.back, or the
+       move queued behind it, cancels this replace. Not repeated here (it would
+       cancel that navigation in turn, for ever): it stays owed, and follow() or
+       the refusal sends it when that navigation has ended */
     const landed = (failure?: unknown) => {
       writing--
       if (writing) return
-      if (!owed && isNavigationFailure(failure, NavigationFailureType.cancelled)) {
+      if (isNavigationFailure(failure, NavigationFailureType.cancelled)) {
         owed = true
         return
       }
@@ -117,7 +118,10 @@ export function useIssueListUrl(o: IssueListUrlOpts) {
   readListState(o)
   if (import.meta.client) {
     /* the move was refused: the address is still owed what changed meanwhile */
-    onBeforeUnmount(o.router.afterEach((_to, _from, failure) => { if (held && failure) setTimeout(write, 0) }))
+    onBeforeUnmount(o.router.afterEach((_to, _from, failure) => {
+      /* writing: a replace the move cancelled can report after the refusal */
+      if (failure && (held || ((owed || writing) && isNavigationFailure(failure, NavigationFailureType.aborted)))) setTimeout(write, 0)
+    }))
     watch(() => o.router.currentRoute.value.query, follow)
     watch(o.known, follow)
     watch([st.view, st.sort, st.unread, st.status, st.priority, st.level, st.assignee, st.label, st.deadline, st.folded, o.meId], write)

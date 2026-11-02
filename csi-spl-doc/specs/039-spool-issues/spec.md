@@ -193,7 +193,9 @@ Refined the same morning (binding where it differs from the first request):
   - A pick that also closes its phone sheet lands too: the sheet's Back
     cancels the replace, which is sent once more when the route has landed.
   - No replace starts while a move to another page is on its way: it would
-    cancel that move. If the move is refused, the address then catches up.
+    cancel that move. If the move is refused, the address then catches up,
+    also when the move cancelled a replace already sent or a phone sheet closed
+    on the way.
   - Clear filters clears the sort and the filters; `view`, `epic` and `fold`
     are not filters and stay.
   - Left out, on purpose: column widths (personal layout, stored per person),

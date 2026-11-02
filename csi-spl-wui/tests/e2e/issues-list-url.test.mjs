@@ -17,6 +17,7 @@
 //  10  the copied URL, a second member in a fresh browser: the same rows
 //  11  a move to another page on its way is not cancelled by the list's own replace
 //  11b that move refused: the address catches up with the filter
+//  11c a pick that closes its phone sheet during a move that is refused: the address catches up too
 //
 //   BASE_URL=<generated mock bundle> pnpm run test:e2e issues-list-url
 import { createRequire } from 'node:module'
@@ -268,6 +269,41 @@ try {
       const caught = await urlHas(r.p, 'priority', '2')
       ok(`11b ${tag}: that move refused: the page stays and the address catches up with the filter`, caught && new URL(r.p.url()).pathname === '/issues', r.p.url())
       await r.ctx.close()
+    }
+
+    if (phone) {
+      /* the tap and the move in one task; the guard answers the move after 800 ms */
+      const tapAndMove = (pg, sel, moveFirst, refuse = true) => pg.evaluate((tap, first, no) => {
+        const r = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router
+        r.beforeEach((to) => (to.path === '/issues' ? undefined : new Promise((res) => setTimeout(() => res(no ? false : undefined), 800))))
+        const steps = [() => [tap].flat().forEach((t) => document.querySelector(t).click()), () => void r.push('/channel/lobby')]
+        for (const step of first ? steps.reverse() : steps) step()
+      }, sel, moveFirst, refuse)
+      const SORT_KEY = '[data-test=issues-sort-opt][data-value="key"]'
+      for (const moveFirst of [false, true]) {
+        const m = await open(browser, vp, '/issues?view=list&epic=SPL-1')
+        await m.p.click('[data-test=issues-sort-open]')
+        await m.p.waitForSelector(SORT_KEY, { visible: true, timeout: 8000 })
+        await tapAndMove(m.p, SORT_KEY, moveFirst)
+        const caught = await urlHas(m.p, 'sort', 'key')
+        const q = await params(m.p)
+        ok(`11c ${tag}: a sort picked in its sheet, ${moveFirst ? 'just after' : 'just before'} a move that is refused: the address catches up`, caught && q.dir === 'asc' && q.epic === 'SPL-1' && new URL(m.p.url()).pathname === '/issues', m.p.url())
+        await m.ctx.close()
+      }
+      const g = await open(browser, vp, '/issues?view=list&epic=SPL-1')
+      await g.p.click('[data-test=issues-sort-open]')
+      await g.p.waitForSelector(SORT_KEY, { visible: true, timeout: 8000 })
+      await tapAndMove(g.p, SORT_KEY, false, false)
+      const went = await g.p.waitForFunction(() => window.location.pathname.endsWith('/channel/lobby'), { timeout: 8000 }).then(() => true, () => false)
+      ok(`11c ${tag}: the same pick during a move that is not refused: the move lands`, went, g.p.url())
+      await g.ctx.close()
+      const d = await open(browser, vp, '/issues?view=list&epic=SPL-1')
+      await d.p.click('[data-test=issues-filters-open]')
+      await d.p.waitForSelector('[data-test=issues-filter-sheet-done]', { visible: true, timeout: 8000 })
+      await tapAndMove(d.p, ['[data-test=issues-filter-status-m-opt][data-value=wip]', '[data-test=issues-filter-sheet-done]'], false)
+      const caught = await urlHas(d.p, 'status', 'wip')
+      ok(`11c ${tag}: a filter changed, its sheet closed with Done during a move that is refused: the address catches up`, caught && new URL(d.p.url()).pathname === '/issues', d.p.url())
+      await d.ctx.close()
     }
 
     const first = await open(browser, vp, FULL.replace('&fold=eval', ''))

@@ -1,5 +1,5 @@
 #!/bin/bash
-# @description The spawn queue, oldest first (owner HUM-10, t1 c9beaa77 msg
+# @description The spawn queue, priority first (owner HUM-10, t1 c9beaa77 msg
 # @description ca668844: "you are in line ... some kind scheduling structure in
 # @description the db, where once resources are free they will be just taken").
 # @description A spawn request is an ask to the orchestrator; the orchestrator
@@ -11,7 +11,9 @@
 # @description only open and acked asks, so a queued one is never re-raised,
 # @description never told to the owner and never dead-lettered, whatever its age.
 # @description One row per waiting request: POS (1 = placed next; "placing" =
-# @description the placer took it), its CLASS (rdb 0195, SPL-1817; "+urgent" /
+# @description the placer took it), PRIO (the priority 1..5 of the discussion
+# @description it works for, 3 without one; spec 150 B9, "-" from a hub that
+# @description sends none), its CLASS (rdb 0195, SPL-1817; "+urgent" /
 # @description "+bypass" when flagged), the ask, the sender, its age, how long
 # @description it has been in line, the placement and the summary; then one
 # @description line with the live share per class against the bands
@@ -19,7 +21,8 @@
 # @description ask the launcher held gets one WAIT line with its reason
 # @description (do_spl_spawn_place's .place.wait, e.g. "waiting: claude weekly
 # @description >= 90% on box-a, box-b", SPL-2035).
-# @description The order is the hub's (class, then time in line); the placer
+# @description The order is the hub's (priority, then class, then time in
+# @description line: spec 150 3.4, poll Q5 A); the placer
 # @description may take a lower row to keep the bands (do_spl_spawn_place).
 # @param SPAWN_QUEUE_FORMAT (optional) - table (default) or json
 # @param SPAWN_QUEUE_SHARE (optional) - 0 skips the share line (it reads the lane map)
@@ -41,8 +44,9 @@ do_spl_spawn_queue() {
   jq -r '
     def cut($n): if length > $n then .[0:$n-1] + "~" else . end;
     def dur: if . == null then "-" elif . < 3600 then "\(. / 60 | floor)m" elif . < 172800 then "\(. / 3600 | floor)h" else "\(. / 86400 | floor)d" end;
-    (["POS", "CLASS", "ASK", "FROM", "AGE", "IN LINE", "PLACEMENT", "TOPIC", "SUMMARY"] | @tsv),
+    (["POS", "PRIO", "CLASS", "ASK", "FROM", "AGE", "IN LINE", "PLACEMENT", "TOPIC", "SUMMARY"] | @tsv),
     (.[] | [ (if .state == "acked" then "placing" else "\(.position)/\(.queue_len)" end),
+             (.priority // null | if type == "number" and . >= 1 and . <= 5 then tostring else "-" end),
              ((.class // "" | if . == "" then "?" else . end) + (if (.flag // "") != "" then "+" + .flag else "" end)), .ask_id[0:8], .from,
              (.age_s | dur), (.wait_s | dur), (.placement // "" | if . == "" then "-" else . end),
              (.topic | cut(12)), (.summary | cut(70)) ] | @tsv)' <<<"$rows" | column -t -s $'\t' -c 1000

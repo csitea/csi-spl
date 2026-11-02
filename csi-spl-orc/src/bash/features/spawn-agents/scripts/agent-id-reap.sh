@@ -173,7 +173,8 @@ if [ -n "$CLOSE_LANES" ]; then
     fi
   done
   [ "$APPLY" = 1 ] && rlc_drain
-  say "STOP lane-close (${mode}): $(wc -l <"$(rlc_queue)" 2>/dev/null || echo 0) still queued"
+  left=0; [ -r "$(rlc_queue)" ] && left="$(wc -l <"$(rlc_queue)")"
+  say "STOP lane-close (${mode}): ${left} still queued"
   exit 0
 fi
 

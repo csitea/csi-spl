@@ -111,7 +111,7 @@ func BackfillSummary(f wire.Frame, to string) *msg.Message {
 		if f.Count > 0 {
 			body += "; "
 		}
-		body += fmt.Sprintf("%d earlier %s not sent: signed by a key this workspace does not pin for the sender's box; newest in topic %s",
+		body += fmt.Sprintf("%d earlier %s not sent: signed by a key this workspace does not pin for the sender's box; newest in topic %s; spool may not show them here, a person can read them in the browser: ask in the channel",
 			f.Withheld, plural(f.Withheld, "message", "messages"), f.WithheldTask)
 	}
 	return &msg.Message{V: msg.V1, MsgID: f.MsgID, TaskID: f.TaskID, From: from, To: to, Kind: "note", Body: body}

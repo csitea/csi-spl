@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.11 (2026-11-02). Status: **Draft** (plan only; nothing below is
+Version: v0.12 (2026-11-02). Status: **Draft** (plan only; nothing below is
 built). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -53,6 +53,9 @@ v0.11 names the one exception to the free-text scan printing 0 (c-001,
 2026-11-02, msg b42a543c, its decision as orchestrator, on the T8 lane's
 question): the fleet topic ids of 5.1 when `<SRC>` holds the fleet rows
 (5.2, C14).
+v0.12 adds T4d (owner HUM-10, t1 537d51e9, msg a36bb9cd): `plan` returns the
+channel's full seat list, the source T9c's "run this plan on box X too" line
+and T7's probes read; it had only the seats with no desk. Case C27.
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -463,6 +466,7 @@ now is.
 | C24 | Retention (R4): `plan` prints the Cloud SQL backup retention and the hub log bucket's retention, as the per-env service account; a value it cannot read prints as `not read: <reason>`, and the plan finishes with its usual exit code. Shell test with a stubbed `gcloud` | remove the read -> the line is missing |
 | C25 | Box rule (W2, F14): a move whose `<SRC>` rule row on this box names a desk agent with no `<DST>` desk on this box makes `plan` and `MOVE_CMD=run` refuse, exit 3, naming the agent and the box; seating the desk clears it. A map that exists but cannot be read, or a malformed row, also refuses: unread is not "no row". Shell test on a sandboxed `SPOOL_ROOT` | drop the check -> `plan` passes and the move stops only at P2b, or goes on with a row whose agent has no `<DST>` desk |
 | C26 | Box rule, what does not refuse and what is said: no row, no map, a row for another env, and a copy (no seat moves, section 7) each pass; every `plan` prints the box and the file it read and that other boxes are not read, and names the seats' other boxes; `plan` leaves the rule file byte-equal with no lock or temp file beside it. Shell test | refuse on an absent row -> a channel with no rule row can never move; drop the printed box -> a clean `plan` on the wrong box reads as a clean move |
+| C27 | Seats: `plan` lists a seat that HAS its `<DST>` desk and it refuses nothing; a seat by invite and as a dedicated agent is one seat; the list is sorted; a removed seat and a seat of a staying channel are not listed; an old `announce` row on a default channel is no seat, on a created channel it is one; it marshals as `.seats[].agent` and `.seats[].box`, and as `[]` on a channel with no seat; `plan` has no mode (a copy lists them too) | list only the seats with no desk -> T9c's line never prints and T7 probes no desk; drop the announce predicate -> the default channel lists the old row; drop every announce row -> the created channel loses its seat; drop the json tags -> jq reads no seat; a mode field on the request -> the no-mode test fails until a copy's seats are decided |
 
 All cases run on PostgreSQL (`PRE_PUSH_TIER=full`), with two test workspaces
 on the hub's test database; none touches dev or prd. C24, C25 and C26 are the
@@ -479,6 +483,7 @@ Each row is one small task; files named are where it lands.
 | T3 | Migration: `messages.copied_from` (nullable, catalog-only) for copies | `csi-spl-rdb/src/sql/postgres/spool-hub/<head+2>_messages_copied_from.sql` |
 | T4 | Store: `PlanChannelMove` (read-only set, shared items, mentions) and its tests C1, C7 | `api/store/channel_move_plan.go` (+ `_postgres`, `_memory`, `_test`) |
 | T4b | Store: `PlanChannelMove` checks each `from_box` is pinned in `<DST>` (R1) and refuses naming the missing desks (W2); tests C22, C23 | `api/store/channel_move_plan*.go` |
+| T4d | Store: `ChannelMovePlan.Seats` lists every seat `plan` reads, sorted and once each, with a `<DST>` desk or without one; `MissingDesks` and `Refused` do not change. `plan` takes no mode, so it lists them for a copy too (section 7: a copy carries no seat; the caller decides, and T11 decides W2 for a copy). T7 wires the field into `.seats` and `ChannelMoveApplyRequest.Seats`; test C27 | `api/store/channel_move_plan*.go` |
 | T5 | Store: `ApplyChannelMove` P4 frame: one transaction, insert-then-delete in catalogue order, counters and stamps, the messages family, hours, calendar and invites (5.1a, 5.1b) with the pre-P4 Google delete; tests C3a, C4, C5, C9, C18, C19, C20, C21 | `api/store/channel_move_apply_postgres.go`, `_test.go` |
 | T5b | Store: the issues part of P4 (renumber, events, discussions, `spec_sync_map`); test C3b | `api/store/channel_move_issues_postgres.go`, `_test.go` |
 | T5c | Store: the Qto part of P4 (doc, item, node, ACL, rev log, re-placed in `<DST>`'s tree); test C3c | `api/store/channel_move_docs_postgres.go`, `_test.go` |
@@ -494,8 +499,8 @@ Each row is one small task; files named are where it lands.
 | T13 | Dev rehearsal, the gate before the first prd run: on dev, `plan` then `DRY_RUN=0` of a seeded channel between two dev test workspaces with the owner's GO msg id (C15), P7 prints 0, the journal read back; it also records R3's T5 timing on the 3,650-post seeded channel (12); the record of the run | `csi-spl-doc/specs/169-channel-workspace-move/dev-rehearsal.md` |
 
 Order: T1 first (it is the inventory in code); T2 before T5 (the journal);
-T4 before T5; T4 before T4b; T5 before T5b and T5c; T3 before T11; T6 and T8
-before T7; T7 before T9; T9, T10 and T7 before T13; T4b, T9b and T9c before T13.
+T4 before T5; T4 before T4b; T4b before T4d; T4d before T7's seat wiring; T5 before T5b and T5c; T3 before T11; T6 and T8
+before T7; T7 before T9; T9, T10 and T7 before T13; T4b, T4d, T9b and T9c before T13.
 
 ### 10.1 Lanes
 
@@ -516,6 +521,7 @@ owner's weekend deadline: lanes with no files in common.
 | L10 | T4b (queued after T4 lands) |
 | L11 | T9b |
 | L12 | T9c |
+| L13 | T4d |
 
 L8's stub is the plan-only path of T9 (`MOVE_CMD=plan`, journal resume
 skeleton), so it can land before T7; its wiring to the T7 endpoint and T10

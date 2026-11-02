@@ -62,8 +62,9 @@ func (s *Memory) PlanChannelMove(_ context.Context, req ChannelMovePlanRequest) 
 	if !req.noPinCheck {
 		plan.MissingPins = s.planMissingPinsLocked(req, inMsg)
 	}
+	plan.Seats = mpSeats(s.planSeatsLocked(req))
 	if !req.noDeskCheck {
-		plan.MissingDesks = mpMissingDesks(s.planSeatsLocked(req), func(seat MoveSeat) bool {
+		plan.MissingDesks = mpMissingDesks(plan.Seats, func(seat MoveSeat) bool {
 			return slices.Contains(s.roster[[2]string{req.Dst, seat.Box}], seat.Agent)
 		})
 	}

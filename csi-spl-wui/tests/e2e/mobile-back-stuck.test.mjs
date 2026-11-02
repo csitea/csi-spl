@@ -22,6 +22,11 @@
 // Desktop (1440) is the control: no chevron, no dock Back, and Back / Forward
 // over a `?topic=` link keep their URLs byte for byte.
 //
+// SPL-4624, one more job per width: Back while the landing of a `?topic=` link
+// still waits for its card, the card drawn before the route drops `?topic=`.
+// The landing opened the topic again and the stack pushed level 3 over the
+// same page, so the next Back looked dead (`landingRace`).
+//
 // Run: BASE_URL=<generated mock bundle> node tests/e2e/mobile-back-stuck.test.mjs
 // (starts `nuxi dev` with the mock tenant when BASE_URL is unset)
 //
@@ -269,12 +274,92 @@ async function desktop(browser, base, ok) {
   }
 }
 
+/* Keeps the ?topic= card out of the landing's reach, as a feed still loading does. */
+const holdCard = (p) => p.evaluate((id) => {
+  const strip = () => {
+    for (const e of document.querySelectorAll(`.spool-main article.msg[data-task-id="${id}"]`)) {
+      e.setAttribute('data-held', id)
+      e.removeAttribute('data-task-id')
+    }
+    for (const e of document.querySelectorAll('.spool-main [role="feed"]')) {
+      e.setAttribute('data-held-role', 'feed')
+      e.removeAttribute('role')
+    }
+  }
+  strip()
+  const obs = new MutationObserver(strip)
+  obs.observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['role', 'data-task-id'] })
+  window.__releaseCard = () => {
+    obs.disconnect()
+    for (const e of document.querySelectorAll('[data-held]')) {
+      e.setAttribute('data-task-id', e.getAttribute('data-held'))
+      e.removeAttribute('data-held')
+    }
+    for (const e of document.querySelectorAll('[data-held-role]')) {
+      e.setAttribute('role', e.getAttribute('data-held-role'))
+      e.removeAttribute('data-held-role')
+    }
+  }
+}, TASK)
+
+/* Holds every navigation for ms, so the route's drop of ?topic= stays in flight. */
+const slowRoutes = (p, ms) => p.evaluate((wait) => {
+  const router = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router
+  window.__fastRoutes = router.beforeEach(() => new Promise((r) => setTimeout(r, wait)))
+}, ms)
+
+/** SPL-4624: the reader's Back beats the landing of the ?topic= link. */
+async function landingRace(browser, base, width, ok) {
+  const ctx = await browser.createBrowserContext()
+  try {
+    const page = await ctx.newPage()
+    page.setDefaultNavigationTimeout(NAV_TIMEOUT)
+    await page.setViewport({ width, height: 844, isMobile: true, hasTouch: true })
+    const at = `${width}px landing`
+    await page.goto(`${base}/`, { waitUntil: 'networkidle2' })
+    await page.waitForSelector('.spool-shell')
+    await signIn(page)
+    const st = (want, hold) => until(() => state(page), want, hold)
+    await channel(page, 'lobby')
+    let want = (x) => x.level === '2' && x.path === '/channel/lobby'
+    let s = await st(want)
+    ok(`${at} setup: #lobby on level 2`, want(s), s)
+    await holdCard(page)
+    /* ?topic= on the page's own entry: the one history a deep link has */
+    await page.evaluate((id) => {
+      const router = document.querySelector('#__nuxt')?.__vue_app__?.config?.globalProperties?.$router
+      void router?.replace({ query: { topic: id } })
+    }, TASK)
+    want = (x) => x.level === '3' && x.topic
+    s = await st(want)
+    ok(`${at} setup: ?topic= opens level 3, the landing waits for its card`, want(s), s)
+    await slowRoutes(page, 1500)
+    await press(page, 'mobile-back')
+    await page.evaluate(() => window.__releaseCard())
+    /* the landing polls every 100 ms; the route commits at 1500 ms */
+    want = (x) => x.level === '2' && !x.topic
+    s = await until(() => state(page), (x) => x.path === '/channel/lobby' || x.topic, 0, 4000)
+    ok(`${at} Back: the landing does not open the topic again`, want(s), s)
+    await page.evaluate(() => window.__fastRoutes())
+    want = (x) => x.level === '2' && !x.topic && x.path === '/channel/lobby'
+    s = await st(want, BACK_HOLD)
+    ok(`${at} 3 -> 2, the topic stays closed`, want(s), s)
+    await press(page, 'mobile-back')
+    want = (x) => x.level === '1'
+    s = await st(want, BACK_HOLD)
+    ok(`${at} the next Back works: 2 -> 1`, want(s), s)
+  } finally {
+    await ctx.close().catch(() => {})
+  }
+}
+
 /* Each job keeps its own lines, so jobs run ROUND_JOBS at a time and still print in order. */
 const jobs = [
   ...WIDTHS.flatMap((width) => Array.from({ length: ROUNDS }, (_, i) => ({
     label: `${width}px #${i + 1}`,
     run: (b, base, ok) => round(b, base, width, i + 1, ok),
   }))),
+  ...WIDTHS.map((width) => ({ label: `${width}px landing`, run: (b, base, ok) => landingRace(b, base, width, ok) })),
   { label: '1440px', run: desktop },
 ]
 const done = jobs.map(() => ({ lines: [], results: [] }))

@@ -187,6 +187,11 @@ if (import.meta.client) {
     const id = Array.isArray(raw) ? raw[0] : raw
     return String(id || '')
   }, () => { void landTopic() }, { immediate: true })
+  /* SPL-4624: a topic closed while its landing waits for the card stays closed.
+     The route's drop of ?topic= is still in flight, so the watch above moves
+     too late: the landing opened it again and level 3 was pushed over the same
+     page, and the next phone Back looked dead. */
+  watch(() => topic.open, (open) => { if (!open) landGen++ }, { flush: 'sync' })
 }
 </script>
 

@@ -46,9 +46,7 @@ csi-spl-iac/src/bash/run/spl-vendor-key-pepper-put.func.sh
 csi-spl-orc/src/bash/run/spl-ask-ack.func.sh
 csi-spl-orc/src/bash/run/spl-ask-close.func.sh
 csi-spl-orc/src/bash/run/spl-ask-put.func.sh
-csi-spl-orc/src/bash/run/spl-asks-open.func.sh
 csi-spl-orc/src/bash/run/spl-asks-sync.func.sh
-csi-spl-orc/src/bash/run/spl-asks-tick.func.sh
 csi-spl-orc/src/bash/run/spl-epic-stall-check.func.sh
 csi-spl-orc/src/bash/run/spl-export-constitution-coding-standards.func.sh
 csi-spl-orc/src/bash/run/spl-lane-map.func.sh

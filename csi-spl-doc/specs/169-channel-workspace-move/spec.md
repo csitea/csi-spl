@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.14 (2026-11-02). Status: **Draft** (plan only; nothing below is
+Version: v0.15 (2026-11-02). Status: **Draft** (plan only; nothing below is
 built). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -62,7 +62,7 @@ v0.13 adds T4d (owner HUM-10, t1 537d51e9, msg a36bb9cd): `plan` returns the
 channel's full seat list, the source T9c's "run this plan on box X too" line
 and T7's probes read; it had only the seats with no desk. Case C27.
 
-v0.14 folds the T5 review rulings (c-001, 2026-11-02, msgs e635838b and
+v0.15 folds the T5 review rulings (c-001, 2026-11-02, msgs e635838b and
 9712f542): the audit door's limit is named in P4, C18's sync-cycle half gets
 its own row T7c, T13 runs P4 under the real runtime role, and `quota_counts`
 stays in `<SRC>`. It also says what T4b means for T5: the plan under the lock

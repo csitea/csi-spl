@@ -62,11 +62,11 @@ v0.13 adds T4d (owner HUM-10, t1 537d51e9, msg a36bb9cd): `plan` returns the
 channel's full seat list, the source T9c's "run this plan on box X too" line
 and T7's probes read; it had only the seats with no desk. Case C27.
 
-v0.13 folds the T5 review rulings (c-001, 2026-11-02, msgs e635838b and
+v0.14 folds the T5 review rulings (c-001, 2026-11-02, msgs e635838b and
 9712f542): the audit door's limit is named in P4, C18's sync-cycle half gets
 its own row T7c, T13 runs P4 under the real runtime role, and `quota_counts`
 stays in `<SRC>`. It also says what T4b means for T5: the plan under the lock
-checks R1 and W2 again, so C27's sender branch (no live `<DST>` pin) cannot be
+checks R1 and W2 again, so C28's sender branch (no live `<DST>` pin) cannot be
 reached by a full move while R1 holds, and stays as a defence.
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
@@ -480,7 +480,7 @@ and moved size; after P4 commits nothing replaces them.
 | C19 | Hours: a job with plan rows and entries `job:<job>`, `t:<task>`, `ch:<CHANNEL>` moves whole; an entry inside an `approved` `<SRC>` period makes `plan` refuse, naming it (Q8 default) | drop the period check -> the approved period's stored total no longer matches its rows |
 | C20 | Rows whose parent does not move: a channel invite for a kept email moves with its new `<DST>` workspace invite; a channel with an `embed_visitors` row makes `plan` refuse | insert the invite without its `<DST>` parent -> the FK refuses and P4 rolls back |
 | C21 | Hours, Q5 stop: a channel member who is not a `<DST>` member and not added by the owner, with entries `t:<task>` and `ch:<CHANNEL>`, makes `plan` refuse with `hours: <member> 2 rows not coming to <DST> (Q5)`; the same member also inside an `approved` period prints the Q8 line too; adding the member clears only the Q5 line | drop the member check -> the move goes on and the member's rows are moved into a workspace they cannot read |
-| C27 | Deliveries (c-001 650d3fff, bc05e46a): after P4 no agent row the addressee's box cannot verify stays queued. A queued or unacked delivery of a moved row is `expired` when the live `<DST>` pin of `from_box` is missing or differs from its `<SRC>` pin (`deliveries_expired`), or when `to_box` has no live `<DST>` pin, whoever wrote it (`deliveries_expired_no_pin`). It keeps its state when `to_box` is `box-wui`, when the row is a person's from `box-wui`, and when the sender's key is the one live in `<DST>` (its `<SRC>` pin revoked). Both counts are in the P4 step and the operator's move report. Limit: current pins only, so a row signed before its box re-keyed is refused by the box and lost, uncounted. | `TestApplyChannelMoveC27Deliveries`; control: the same rows with the expiry skipped stay queued |
+| C28 | Deliveries (c-001 650d3fff, bc05e46a): after P4 no agent row the addressee's box cannot verify stays queued. A queued or unacked delivery of a moved row is `expired` when the live `<DST>` pin of `from_box` is missing or differs from its `<SRC>` pin (`deliveries_expired`), or when `to_box` has no live `<DST>` pin, whoever wrote it (`deliveries_expired_no_pin`). It keeps its state when `to_box` is `box-wui`, when the row is a person's from `box-wui`, and when the sender's key is the one live in `<DST>` (its `<SRC>` pin revoked). Both counts are in the P4 step and the operator's move report. Limit: current pins only, so a row signed before its box re-keyed is refused by the box and lost, uncounted. | `TestApplyChannelMoveC27Deliveries`; control: the same rows with the expiry skipped stay queued |
 | C22 | Pins (R1): a set row whose `from_box` is not pinned in `<DST>` makes `plan` refuse, naming the box; pinning it clears the line | drop the pin check -> the row moves and cannot be re-verified in `<DST>` |
 | C23 | Desks (W2): a seat with no `<DST>` desk on its box makes `plan` refuse, naming the seat and the box | drop the desk check -> `plan` passes and the move stops only at P2b |
 | C24 | Retention (R4): `plan` prints the Cloud SQL backup retention and the hub log bucket's retention, as the per-env service account; a value it cannot read prints as `not read: <reason>`, and the plan finishes with its usual exit code. Shell test with a stubbed `gcloud` | remove the read -> the line is missing |

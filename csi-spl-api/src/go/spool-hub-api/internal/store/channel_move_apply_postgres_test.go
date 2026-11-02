@@ -279,7 +279,7 @@ func (f mvFix) deliveriesReq() ChannelMoveApplyRequest {
 	return req
 }
 
-// C27: after the move no agent row the addressee's box cannot verify stays
+// C28: after the move no agent row the addressee's box cannot verify stays
 // queued. Run through asOperator with the real pins policies: the spared row is
 // the proof that the <SRC> pin is visible, else this is option (a).
 func TestApplyChannelMoveC27Deliveries(t *testing.T) {

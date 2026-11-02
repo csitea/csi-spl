@@ -40,7 +40,7 @@ certificate URL boundary), and two closing rows raise the coverage floors
 deferred since round 19 and delete the clean-code list lines the split rows
 leave stale.
 
-**Status: v0.2 DRAFT**, for the panel (v0.1 `88d36bb62`: g-960 FAIL, folded; section 8).
+**Status: v1.0 SIGNED** (editor c-952@sat, grok reviewer g-960@sat; section 9).
 
 Editor: **c-952** (claude; agy is out of quota and claude is the
 specs_and_docs backup). Panel reviewer: a cross-vendor grok seat placed by the
@@ -97,7 +97,7 @@ another worktree's `node_modules`, read only.
 | round 21 6 | round 20's 16 + 2 declare-first iac files | the `awk` of round 21 section 2 over `iac:run/`, `orc:run/`, `utl:run/` | **35** (37 on `2acffb02e`): reproduces | **Deferred**: round 21 said "once r46-05 lands". `git log 7f3da5f69 -E --grep='r46-0[345]' --oneline \| wc -l` -> 0. r46-03 is now a live lane (c-963@sat), 04 and 05 follow one at a time (section 3.2) |
 | round 21 6 | the 4 long-example files | `bash iac:t/action-header-tags.tst.sh` | `measured 765 files: 53 missing, 4 long-example`: reproduces | **Deferred**: their fix deletes `[long-example]` lines of `iac:t/action-header-tags-baseline.txt`, which r46-03..05 hold in turn |
 | round 21 6 | the 9 `(required)` header files | `grep -ciE '^# *@param .*\(required\)'` over the 53 `[missing]` lines | **9**: reproduces | **Left out**: a bug-round input, as rounds 20 and 21 said |
-| round 21 6 | floor raises for `marketing`, `wire`, `hubclient`, `payments`, `msg`, `rbac`, `sign`, `keydesk`, `config` | `cd go: && go test -count=1 -coverprofile=c.out ./...` (no DSN); floors from `grep -v '^#' api:src/bash/tests/go-coverage-floor.txt` | all reproduce (table in row 09); `git log 7f3da5f69 --grep='r44-09' --oneline \| wc -l` -> 0; `ls /var/spool-hub/dispatch/briefs \| grep -c r44-09` -> 0 | **Row 09**. Round 21 deferred it because r44-09 held the file; no r44-09 lane, brief or queue row exists, so this row takes r44-09's three lines too (`action`, `billing`, `keyexec`). See P1 |
+| round 21 6 | floor raises for `marketing`, `wire`, `hubclient`, `payments`, `msg`, `rbac`, `sign`, `keydesk`, `config` | `cd go: && go test -count=1 -coverprofile=c.out ./...` (no DSN); floors from `grep -v '^#' api:src/bash/tests/go-coverage-floor.txt` | all reproduce (table in row 09); `git log 7f3da5f69 --grep='r44-09' --oneline \| wc -l` -> 1, and that one is `6df23dac9`, the round 21 plan naming it, not a landed row; `ls /var/spool-hub/dispatch/briefs \| grep -c r44-09` -> 0 | **Row 09**. Round 21 deferred it because r44-09 held the file; no r44-09 lane, brief or queue row exists, so this row takes r44-09's three lines too (`action`, `billing`, `keyexec`). See P1 |
 | round 21 6 | the other 15 bash `LONG` functions | `bash iac:t/bash-cleancode.tst.sh` | `(15 listed)`, no stale NOTE: reproduces | **Rows 01-03** take 6; the other 9 below |
 | round 21 6 | `spl_secret_unused_table` (76), `do_provision_firebase_dns` (169) | the same | reproduces | **Deferred**: both files are round 20 header inputs (baseline lines) |
 | round 21 6 | `do_secrets_seed_gcp` (77) | `git grep -l -F -e spl-secrets-seed-all -e do_secrets_seed_gcp 7f3da5f69 -- <R2 globs>` | 2 files: the gate and `run-loader-convention.tst.sh`, no dedicated test | **Left out**: a split with nothing to prove behaviour kept; a test row first |
@@ -165,7 +165,7 @@ another worktree's `node_modules`, read only.
   read), `c-862`, `c-934` (seats on other repos' topics by their lane-map scope, briefs
   not read). Exit 4 is not free: the dispatch holder re-runs the check before each
   row's spawn and asks any `unknown:` lane it cannot place this way.
-- **Spawn queue:** `./run -a do_spl_spawn_queue` -> 53 queued, 0 placing. For
+- **Spawn queue, v0.1's reading (before 12:45Z):** `./run -a do_spl_spawn_queue` -> 53 queued, 0 placing. For
   each queued brief, `grep -qi` for the site basenames and functions,
   `paypal`, `jwt.go`, `wire.go`, `mail.go`, `internal/mail`, `internal/github`,
   `go-coverage`, `cleancode.test` -> no hit in the 52 briefs on this box;
@@ -190,7 +190,8 @@ another worktree's `node_modules`, read only.
   `c-401`, `c-577`, `c-579`, `c-587`, `c-615`, `c-862`, `c-894`, `c-934`,
   `g-625`. Six of them (`c-401`, `c-587`, `c-615`, `c-862`, `c-934`, `g-625`)
   have no brief on this box, **unread**, so the holder's check before each spawn
-  still stands.
+  still stands. g-960's read on v0.2 (msg f4ae2cdd): exit 4, no path owned, 13
+  `unknown:` lanes, 58 queued, 0 placing. The set moves; the check is per spawn.
 
 ### 3.3 Row 09's lines (reading n=1 on `7f3da5f69`; the lane takes its own n=3)
 
@@ -284,8 +285,11 @@ another worktree's `node_modules`, read only.
   section 7 said 8 at 0.0 and 5 under 72; the row cells give 7 and 4. P1 and P3
   closed, P2 and P4 as the holder ruled. No row added, dropped or re-batched, and
   every count stays on `7f3da5f69`; only the times stated in 3.2 are newer.
+- v1.0 (c-952): g-960 PASS on v0.2 `35bc34b94` (msg f4ae2cdd). Row table unchanged
+  from v0.2. Its two text notes folded: the r44-09 count in section 2 reads 1 (the
+  round 21 plan), not 0, and 3.2's queue reading is dated. SIGNED.
 
 ## 9. Consensus
 
-- Editor seat: c-952@sat (claude): drafted v0.1, folded v0.2.
-- Grok panel reviewer seat: g-960@sat (grok): FAIL on v0.1 `88d36bb62` (W1, W2; msg cef83054).
+- Editor seat: c-952@sat (claude): drafted v0.1, folded v0.2. **Signed v1.0.**
+- Grok panel reviewer seat: g-960@sat (grok): FAIL on v0.1 `88d36bb62` (W1, W2; msg cef83054), PASS on v0.2 `35bc34b94` (msg f4ae2cdd). **Signed v1.0** on `35bc34b94`.

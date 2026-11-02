@@ -41,7 +41,9 @@
 //
 // Two more cells, always run (SPL-4624). `no-bfcache`: a login cell with bfcache
 // off, as when Chrome evicts a page: Back onto /login reloads it and the card
-// must not paint (stale-login-hide-script.mjs). `detached`: The node under the finger
+// must not paint (stale-login-hide-script.mjs): the document must already be
+// hidden when its <body> appears, and a walk that never re-parsed /login fails
+// too, because it proved nothing. `detached`: The node under the finger
 // leaves the DOM mid-swipe, as TopicPaneWait does when TopicPane replaces it:
 // touchend fires on the detached node, and the swipe must still step Back.
 //
@@ -134,6 +136,23 @@ function boot(member) {
   }
   new MutationObserver(mark).observe(document, { childList: true, subtree: true })
   mark()
+}
+
+/* The no-bfcache cell, on every document: an unload handler keeps it out of
+   bfcache, and each /login that Back re-parses reports what its head script
+   left at the moment <body> appears. DOMContentLoaded would be too late: the
+   guard's module scripts run before it and hide the page themselves. */
+const LOGIN_REPARSE = 'e2e.loginReparse:'
+function noBfcacheProbe(prefix) {
+  addEventListener('unload', () => {})
+  const watch = new MutationObserver(() => {
+    if (!document.body) return
+    watch.disconnect()
+    const nav = performance.getEntriesByType('navigation')[0]
+    if (nav?.type !== 'back_forward' || !/(^|\/)login\/?$/.test(location.pathname)) return
+    console.log(prefix + (document.documentElement.style.visibility || 'visible'))
+  })
+  watch.observe(document, { childList: true, subtree: true })
 }
 
 const state = (p) => p.evaluate(() => {
@@ -244,11 +263,12 @@ async function cell(browser, base, width, entry, method, noBfcache = false) {
   p.setDefaultNavigationTimeout(NAV_TIMEOUT)
   const steps = []
   const fails = []
+  const reparsed = []
+  p.on('console', (m) => { if (m.text().startsWith(LOGIN_REPARSE)) reparsed.push(m.text().slice(LOGIN_REPARSE.length)) })
   try {
     await p.setViewport({ width, height: SIZES[width], isMobile: true, hasTouch: true })
     await p.evaluateOnNewDocument(boot, MEMBER)
-    /* an unload handler keeps a document out of bfcache */
-    if (noBfcache) await p.evaluateOnNewDocument(() => addEventListener('unload', () => {}))
+    if (noBfcache) await p.evaluateOnNewDocument(noBfcacheProbe, LOGIN_REPARSE)
     await slowDown(p)
     const want = entry === 'channel' ? 2 : 3
     const start = await enter(p, base, entry)
@@ -294,6 +314,11 @@ async function cell(browser, base, width, entry, method, noBfcache = false) {
       steps.push(s.login ? 'LOGIN' : `L${s.level}`)
       if (s.login || s.painted) fails.push(`Back from level 1 showed the sign-in page (${s.path}, painted=${s.painted})`)
       else if (i === 3) fails.push(`still in the app after 4 Backs from level 1 (${s.path})`)
+    }
+    if (noBfcache && !fails.length) {
+      if (!reparsed.length) fails.push('Back never re-parsed /login: this cell proved nothing')
+      else if (reparsed.some((v) => v !== 'hidden')) fails.push(`/login was not hidden when its <body> appeared: ${reparsed.join(',')}`)
+      else steps.push(`login:${reparsed.join(',')}`)
     }
   } catch (e) {
     fails.push(`error: ${e.message}`)

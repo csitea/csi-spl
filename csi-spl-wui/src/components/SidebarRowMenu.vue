@@ -9,7 +9,10 @@
      of every rail tab has one of these, and the closed panels - an item list
      with an icon per item - were 60 % of the whole page's DOM (3 172 of 5 304
      nodes on /lobby, 5 422 of 8 550 on /, prd e2e). focusItem() waits a tick
-     before it places and focuses, so the panel is there by then. -->
+     before it places and focuses, so the panel is there by then.
+     Spec 155 B8 (SPL-4578): a channel row adds Add to note right after Copy
+     link while the person's notes are on; it opens the note picker with that
+     channel (its route id, labelled by its name). -->
 <template>
   <div
     ref="root"
@@ -72,6 +75,8 @@ import { nextMenuIndex } from '~/utils/user-menu'
 import { applyPopover, focusWithoutScroll, readViewport } from '~/utils/place-popover'
 import { usePhone } from '~/composables/useTouchUi'
 import type { UiIconName } from '~/utils/uiIcons'
+import { useAddToNote } from '~/composables/useAddToNote'
+import { ADD_TO_NOTE_ID, channelNoteLink } from '~/utils/add-to-note.mjs'
 
 const props = defineProps<{
   menuId: string
@@ -136,7 +141,17 @@ const baseItems = computed(() => rowMenuItems(!!props.unread, {
   moveDown: props.moveDown,
 }))
 type RowItem = { id: string, icon: UiIconName, labelKey: string, groupKey?: string }
-const items = computed<RowItem[]>(() => baseItems.value)
+/* spec 155 B8: the row's channel id is its menu id after 'ch:' (ChannelSidebar) */
+const note = useAddToNote()
+const channelId = computed(() => (props.channel && props.menuId.startsWith('ch:') ? props.menuId.slice(3) : ''))
+const items = computed<RowItem[]>(() => {
+  const list: RowItem[] = [...baseItems.value]
+  if (!channelId.value || !note.offered.value) return list
+  const at = list.findIndex((i) => i.id === 'copy')
+  list.splice(at + 1, 0, { id: ADD_TO_NOTE_ID, icon: 'notes', labelKey: 'notes.add_to_note' })
+  return list
+})
+watch(() => props.open, (v) => { if (v && channelId.value) note.probe() })
 
 function itemEls(): HTMLElement[] {
   const host = panel.value || root.value
@@ -252,6 +267,8 @@ function choose(id: string) {
     emit('moveUp')
   } else if (id === 'move-down') {
     emit('moveDown')
+  } else if (id === ADD_TO_NOTE_ID) {
+    note.open(channelNoteLink({ id: channelId.value, name: props.name }, note.workspace()))
   } else {
     emit('open')
   }

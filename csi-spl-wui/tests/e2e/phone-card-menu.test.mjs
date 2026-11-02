@@ -25,7 +25,9 @@ const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const OUT = process.env.OUT || ''
 const CH = 'phone-card-menu'
 const OTHER = '66666666-6666-4666-8666-666666666666' // #alerts card by GRK-03 (mock-data)
-const SIZES = [{ width: 390, height: 844 }, { width: 390, height: 664 }]
+const SIZES = [{ width: 390, height: 844 }, { width: 390, height: 664 }, { width: 360, height: 740 }, { width: 360, height: 640 }]
+/* SPL-4578: dimmed page a finger can tap to close the sheet (the top of a 44 px target) */
+const STRIP = 44
 if (OUT) mkdirSync(OUT, { recursive: true })
 
 const results = []
@@ -96,6 +98,7 @@ const measure = (p) => p.evaluate(() => {
   return {
     vh: Math.round(bottom - top),
     scrolls: sheet ? sheet.scrollHeight - sheet.clientHeight > 1 : null,
+    sheetTop: sheet ? Math.round(sheet.getBoundingClientRect().top) : null,
     sheetBottom: sheet ? Math.round(sheet.getBoundingClientRect().bottom) : null,
     items,
   }
@@ -130,6 +133,7 @@ function check(tag, m, { archiveMax }) {
   ok(`${tag}: every entry inside the visual viewport (${m.vh}px)`, ids.length > 0 && out.length === 0, { out, ids })
   ok(`${tag}: every entry is what a finger at its centre hits (no dock over it)`, ids.length > 0 && hidden.length === 0, { hidden })
   ok(`${tag}: no scrolling inside the sheet to reach an entry`, m.scrolls === false, { scrolls: m.scrolls })
+  ok(`${tag}: at least ${STRIP}px of dimmed page above the sheet`, m.sheetTop >= STRIP, { sheetTop: m.sheetTop })
   const ai = ids.indexOf('archive')
   ok(`${tag}: Archive at index <= ${archiveMax} (moved up)`, ai >= 0 && ai <= archiveMax, { ai, ids })
 }

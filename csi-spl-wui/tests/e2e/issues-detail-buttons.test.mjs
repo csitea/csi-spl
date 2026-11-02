@@ -23,7 +23,7 @@ import { CHROME_LAUNCH_ARGS, setPageViewport, applyViewport } from './lib/viewpo
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const WIDTHS = [1440, 390]
-const BUTTONS = ['issues-detail-copy', 'issues-detail-archive', 'issues-detail-delete']
+const BUTTONS = ['issues-detail-copy', 'issues-detail-note', 'issues-detail-archive', 'issues-detail-delete']
 const results = []
 const ok = (name, pass, ev) => {
   results.push({ name, ok: pass })
@@ -214,10 +214,10 @@ try {
     await openIssue(p, W, a)
     const h = await header(p)
     await p.screenshot({ path: `${shot}/CLE-77854-issue-buttons-${W}.png` })
-    ok(`1 ${W}: Copy link / Archive / Delete are header buttons, in order, at the end; no ☰ menu; no x-scroll`,
+    ok(`1 ${W}: Copy link / Add to note / Archive / Delete are header buttons, in order, at the end; no ☰ menu; no x-scroll`,
       Boolean(h) && JSON.stringify(h.ids) === JSON.stringify(BUTTONS) && h.inHeader && h.atEnd && !h.hamburger && !h.xScroll && h.allVisible, h)
     ok(`2 ${W}: each button has a tooltip and an aria-label`,
-      Boolean(h) && JSON.stringify(h.labels.map(([l, t]) => l === t && l.length > 0)) === '[true,true,true]', h && h.labels)
+      Boolean(h) && JSON.stringify(h.labels.map(([l, t]) => l === t && l.length > 0)) === '[true,true,true,true]', h && h.labels)
 
     // 3) Copy link copies the issue's link and says so (a check + "Copied")
     await p.evaluate(() => {
@@ -259,7 +259,7 @@ try {
     const set = await setMe(p, { humanId: 'HUM-1', role: 'regular_user', tenantOwner: false, permissions: ['topics.read'], channelOrder: null })
     await openIssue(p, W, c)
     const hm = await header(p)
-    ok(`6 ${W}: a regular member sees Copy link / Archive / Delete`, set && Boolean(hm) && JSON.stringify(hm.ids) === JSON.stringify(BUTTONS), hm && hm.ids)
+    ok(`6 ${W}: a regular member sees Copy link / Add to note / Archive / Delete`, set && Boolean(hm) && JSON.stringify(hm.ids) === JSON.stringify(BUTTONS), hm && hm.ids)
     await closeIssue(p, W)
 
     // 8) Archive of an issue with a live sub-issue: the confirm states it and

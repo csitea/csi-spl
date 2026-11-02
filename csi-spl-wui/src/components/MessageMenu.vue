@@ -25,8 +25,11 @@ import { useAiMenuGroup } from '~/composables/useAiMenuGroup'
 import { useChannelStore } from '~/stores/channel'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import type { TopicMenuLocks } from '~/utils/topic-menu.mjs'
+import type { SpoolMessage } from '~/types/spool'
 import { useMsgShortcutsOn } from '~/composables/useMsgShortcuts'
 import { shortcutHint } from '~/utils/msg-shortcuts.mjs'
+import { useAddToNote } from '~/composables/useAddToNote'
+import { msgNoteLink } from '~/utils/add-to-note.mjs'
 
 const props = defineProps<{
   open: boolean
@@ -65,7 +68,8 @@ const props = defineProps<{
   hide?: boolean
   /** CLE-77891: a topic card's entries the viewer may not use, shown disabled with the reason */
   locks?: Partial<TopicMenuLocks>
-  /** t1 b6c742f0: the message, for the AI actions group (a person's message only) */
+  /** t1 b6c742f0: the message, for the AI actions group (a person's message only);
+      spec 155 B8: also the one Add to note links */
   aiMsg?: unknown
   /** t1 b6c742f0: told the i18n key when an AI action fails (the menu is closed by then, so no emit) */
   aiFail?: (key: string) => void
@@ -116,6 +120,10 @@ async function runAi(id: string) {
   const key = await runAiAction(id, props.aiMsg, aiDeps)
   if (key) props.aiFail?.(key)
 }
+/* spec 155 B8 (SPL-4578): Add to note while the person's notes are on; the
+   menu mounts on open, so the one notes read happens here, never at boot */
+const note = useAddToNote()
+note.probe()
 const items = computed(() => withKeys(ai.items(topicItems.value)))
 const topicItems = computed(() => msgMenuItems({
   touch: sheet.value,
@@ -136,6 +144,7 @@ const topicItems = computed(() => msgMenuItems({
   makeIssue: props.makeIssue,
   toTask: props.toTask,
   hide: props.hide,
+  note: note.offered.value,
   locks: props.locks,
 }))
 function withKeys<T extends { id: string }>(list: T[]): (T & { keyHint?: string })[] {
@@ -163,6 +172,8 @@ function choose(id: string) {
   else if (id === 'make-task') emit('make-task')
   else if (id === 'make-issue') emit('make-issue')
   else if (id === 'hide-flow') emit('hide-flow')
+  /* a topic card (its menu carries the topic locks) adds its topic, any other line the message */
+  else if (id === 'add-to-note') note.open(msgNoteLink(props.aiMsg as SpoolMessage, { topic: Boolean(props.locks), workspace: note.workspace() }))
   else if (ai.more(id)) { /* the sheet now shows the seven actions */ }
   else if (id.startsWith('ai-')) void runAi(id)
 }
@@ -175,12 +186,19 @@ function choose(id: string) {
    last rows sat under the fold. This sheet may use the whole visual viewport
    above the keyboard bar (the sheet still grows only as tall as its rows);
    on a short screen the rows tighten so it fits without scrolling.
-   (0,4,0) beats SheetBackdrop's :root .touch-sheet.touch-sheet (0,3,0). */
+   (0,4,0) beats SheetBackdrop's :root .touch-sheet.touch-sheet (0,3,0).
+   SPL-4578: with Add to note a locked card's sheet is 12 rows; up to 760 px the
+   rows keep 44 px and tighten, and up to 700 px a reason keeps one line (cut
+   with an ellipsis), so it still fits and leaves dimmed page to tap on. */
 :root .msg-menu.touch-sheet.touch-sheet {
   max-height: calc(100dvh - var(--kb-inset, 0px) - 8px);
 }
+@media (max-height: 760px) {
+  :root .msg-menu.touch-sheet.touch-sheet [role="menuitem"] { padding-block: 4px; }
+}
 @media (max-height: 700px) {
   :root .msg-menu.touch-sheet.touch-sheet { padding-top: 6px; }
+  :root .msg-menu.touch-sheet.touch-sheet .point-menu__why { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   :root .msg-menu.touch-sheet.touch-sheet::before { margin-bottom: 4px; }
   :root .msg-menu.touch-sheet.touch-sheet [role="menuitem"] { min-height: 40px; padding-block: 4px; }
 }

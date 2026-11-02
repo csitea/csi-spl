@@ -101,7 +101,7 @@ async function withPolicy(p, policy, path, role = 'developer') {
   await sleep(800)
 }
 
-const SHAPE = ['msg-menu-open', 'msg-menu-copy', 'msg-menu-edit', 'msg-menu-move-channel', 'msg-menu-merge-topic', 'msg-menu-archive', 'msg-menu-delete-topic']
+const SHAPE = ['msg-menu-open', 'msg-menu-copy', 'msg-menu-add-to-note', 'msg-menu-edit', 'msg-menu-move-channel', 'msg-menu-merge-topic', 'msg-menu-archive', 'msg-menu-delete-topic']
 /* t1 b6c742f0: a PERSON's card also ends with the AI actions group (never an
    agent's, by the owner's order) - the topic entries are what stays the same */
 const bare = (ids) => ids.filter((i) => !i.startsWith('msg-menu-ai-')).map((i) => i.replace(/:off$/, ''))

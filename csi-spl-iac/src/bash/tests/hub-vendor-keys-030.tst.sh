@@ -72,6 +72,26 @@ grep -q 'resource "google_secret_manager_secret_version"' "$TFD"/*.tf && fail "0
 grep -q 'vendor_keys_pepper' "$TFD/03-runtime-sa.tf" && fail "03 names the pepper: 057 holds the only binding" || pass "03 does not bind the pepper (bound once, in 057)"
 grep -q 'secret = var.vendor_keys_pepper_secret_id' "$TFD/04-cloud-run-service.tf" && grep -q 'version = volumes.value' "$TFD/04-cloud-run-service.tf" \
   && pass "04 mounts the pepper as a secret volume at its pin" || fail "04 does not mount the pepper at its pin"
+# Run API v2 reads cloudsql back last: the config must list it last too, or dev plans
+# a swap forever and the dev-leads-prd gate refuses every prd apply of 030.
+pepper_before_cloudsql() {
+  awk -v block="$1" '
+    index($0, "\"" block "\"") && /dynamic/ { p = NR }
+    $0 ~ "^ *" block " \\{" { s = NR }
+    END { exit !(p && s && p < s) }' "$2"
+}
+for b in volumes volume_mounts; do
+  pepper_before_cloudsql "$b" "$TFD/04-cloud-run-service.tf" \
+    && pass "04 lists the pepper's $b before cloudsql" || fail "04 lists cloudsql's $b first: the plan swaps them forever"
+  bad="$(mktemp)"
+  awk -v block="$b" '
+    index($0, "dynamic \"" block "\"") { held = $0; next }
+    { print }
+    END { print held }' "$TFD/04-cloud-run-service.tf" >"$bad"
+  pepper_before_cloudsql "$b" "$bad" \
+    && fail "control: $b with cloudsql first stays green" || pass "control: $b with cloudsql first goes red"
+  rm -f "$bad"
+done
 grep -q 'hub_pepper_accessor' "$PROJ_ROOT/src/terraform/057-gcp-kms-vendor-keys/04-hub-grants.tf" \
   && pass "057 holds the runtime SA's read on the pepper" || fail "057 no longer grants the pepper read"
 

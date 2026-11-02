@@ -109,15 +109,11 @@ resource "google_cloud_run_v2_service" "hub" {
       max_instance_count = var.max_instances
     }
 
-    volumes {
-      name = "cloudsql"
-      cloud_sql_instance {
-        instances = [local.cloud_sql_connection_name]
-      }
-    }
-
     # spec 159 (SPL-4623): the pepper is 32 raw bytes, so a file and not an env
     # value: a NUL would cut it. The hub refuses any other length.
+    # Before cloudsql, here and in volume_mounts: Run API v2 reads the cloudsql
+    # entry back last, on every revision, so the other order plans a swap forever
+    # and the dev-leads-prd gate refuses every prd apply of this step (SPL-4623).
     dynamic "volumes" {
       for_each = var.vendor_keys_pepper_version == "" ? [] : [var.vendor_keys_pepper_version]
       content {
@@ -129,6 +125,13 @@ resource "google_cloud_run_v2_service" "hub" {
             path    = basename(var.environment_variables["SPOOL_HUB_VENDOR_KEYS_PEPPER_FILE"])
           }
         }
+      }
+    }
+
+    volumes {
+      name = "cloudsql"
+      cloud_sql_instance {
+        instances = [local.cloud_sql_connection_name]
       }
     }
 
@@ -148,17 +151,17 @@ resource "google_cloud_run_v2_service" "hub" {
         startup_cpu_boost = true
       }
 
-      volume_mounts {
-        name       = "cloudsql"
-        mount_path = "/cloudsql"
-      }
-
       dynamic "volume_mounts" {
         for_each = var.vendor_keys_pepper_version == "" ? [] : [var.vendor_keys_pepper_version]
         content {
           name       = "vendor-keys-pepper"
           mount_path = dirname(var.environment_variables["SPOOL_HUB_VENDOR_KEYS_PEPPER_FILE"])
         }
+      }
+
+      volume_mounts {
+        name       = "cloudsql"
+        mount_path = "/cloudsql"
       }
 
       dynamic "env" {

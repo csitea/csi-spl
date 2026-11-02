@@ -23,6 +23,12 @@
 #   2. CONTROL: a prune that removes an infra stack image is a loud FAIL -
 #      and the same run with the stack pattern switched off is not, so the
 #      KEEP check (not luck) is what catches it
+#   4. the images the gates need (do_pull_test_images' list, read, not copied):
+#      a planted unused old one survives a live prune, held by a stopped
+#      container for the prune's length only, while another unused old image
+#      is deleted and named in the log. CONTROL: a list without it, and it goes.
+#      An absent one is not pulled; a hold that fails is a WARN and the prune
+#      still frees the disk; a held image gone after the prune is a FAIL
 #   3. the install: the dry run prints the line and changes nothing; DRY_RUN=0
 #      adds ONE tagged weekly line, every other line kept; a second install
 #      is a no-op; remove restores the crontab byte for byte
@@ -55,14 +61,30 @@ case "\$1 \$2" in
   "image inspect")
     [ "\$4" = "{{len .RepoTags}}" ] && { case "\$5" in sha256:bbb*) echo 0 ;; *) echo 1 ;; esac; exit 0; }
     [ "\$4" = "{{.Size}}" ] && { shift 4; for a in "\$@"; do echo 1000; done; exit 0; }
+    [ "\$4" = "{{.Id}}" ] && { awk -v r="\$5" '\$1 == r { print \$2 }' "\$T/planted" 2>/dev/null; exit 0; }
     [ -f "\$T/gone.\$3" ] && exit 1; exit 0 ;;
   "image prune")
     [ -f "\$T/eat" ] && touch "\$T/gone.sha256:aaa1111111111111"
+    # what prune -a does: every planted image no container holds goes; the eat
+    # flag is a daemon that ignores the hold
+    if [ -f "\$T/planted" ]; then
+      echo 'Deleted Images:'
+      while read -r ref id; do
+        if [ ! -f "\$T/eatheld" ] && cat "\$T"/hold.* 2>/dev/null | grep -qxF "\$ref"; then continue; fi
+        touch "\$T/gone.\$id"; printf 'untagged: %s\ndeleted: %s\n' "\$ref" "\$id"
+      done <"\$T/planted"
+      printf '\nTotal reclaimed space: 54.16MB\n'; exit 0
+    fi
     printf 'Deleted Images:\ndeleted: sha256:ccc3333333333333\n\nTotal reclaimed space: 1.5GB\n' ;;
   "builder prune")
     [ "\$3" = --help ] && { [ -f "\$T/oldbuildx" ] && echo '  --keep-storage bytes' || echo '  --max-used-space bytes'; exit 0; }
     touch "\$T/reclaimed"; printf 'ID\t\t\t\t\tRECLAIMABLE\tSIZE\nx\ttrue\t250MB\nTotal:\t250MB\n' ;;
   "system df") printf 'Images|3GB|1GB\nBuild Cache|9.4GB|9.4GB\n' ;;
+  "rm -f") rm -f "\$T/hold.\$3" ;;
+  create\ *)
+    [ -f "\$T/nocreate" ] && exit 1
+    prev=""; for a in "\$@"; do [ "\$prev" = --name ] && n="\$a"; prev="\$a"; done
+    echo "\$*" | awk '{ print \$(NF-1) }' >"\$T/hold.\$n" ;;
   *) exit 0 ;;
 esac
 EOF
@@ -185,6 +207,61 @@ out="$(prune DRY_RUN=0 PRUNE_PROTECT_RE='^nothing-matches$')"; rc=$?
 [ "$rc" = 0 ] && ! grep -q 'FAIL' <<<"$out" \
   && pass "2. CONTROL: with the stack pattern off the same run passes, so KEEP is the catch" || fail "2. control (rc $rc: $out)"
 rm -f "$T/eat" "$T"/gone.*
+
+# 4. the images the gates need: the list is the one do_pull_test_images reads
+do_log() { echo "$*" >&2; }
+source "$PROJ_ROOT/../csi-spl-iac/src/bash/run/pull-test-images.func.sh"
+mapfile -t gate_imgs < <(_pull_test_images_list "$PROJ_ROOT/../csi-spl-api/src/bash/tests")
+[ "${#gate_imgs[@]}" -ge 2 ] && pass "4. the list reads ${#gate_imgs[@]} images (${gate_imgs[*]})" || fail "4. the list: ${gate_imgs[*]:-empty}"
+gcs="${gate_imgs[0]}"
+gcs_id=sha256:ddd4444444444444 other=old/unused-image:1 other_id=sha256:eee5555555555555
+plant() { rm -f "$T"/gone.* "$T"/hold.* "$T/nocreate" "$T/eatheld"; printf '%s %s\n' "$gcs" "$gcs_id" "$other" "$other_id" >"$T/planted"; }
+gone() { [ -f "$T/gone.$1" ]; }
+
+plant; out="$(prune DRY_RUN=0)"; rc=$?
+[ "$rc" = 0 ] && ! gone "$gcs_id" && gone "$other_id" \
+  && pass "4. the gate's unused old image survives the prune, another unused old image is deleted" \
+  || fail "4. survive (rc $rc, gcs gone: $(gone "$gcs_id" && echo yes || echo no), other gone: $(gone "$other_id" && echo yes || echo no): $out)"
+grep -q "KEEP test image $gcs image=ddd444444444 " <<<"$out" && pass "4. the log says which test image is kept" || fail "4. KEEP line ($out)"
+grep -q "PRUNE image untagged: $other\$" <<<"$out" && grep -q "PRUNE image deleted: $other_id\$" <<<"$out" \
+  && ! grep -q "PRUNE image .*$gcs" <<<"$out" \
+  && pass "4. the log names each image the prune deleted, and only those" || fail "4. named ($out)"
+create_n="$(grep -n "^docker create .* $gcs " "$STUB_LOG" | cut -d: -f1)"
+prune_n="$(grep -n '^docker image prune' "$STUB_LOG" | cut -d: -f1)"
+rm_n="$(grep -n '^docker rm -f csi-spl-prune-hold-' "$STUB_LOG" | tail -1 | cut -d: -f1)"
+[ -n "$create_n" ] && [ "$create_n" -lt "$prune_n" ] && [ "$prune_n" -lt "$rm_n" ] && ! ls "$T"/hold.* >/dev/null 2>&1 \
+  && pass "4. the hold is made before the prune and gone after it" || fail "4. hold order ($(cat "$STUB_LOG"); $(ls "$T"))"
+grep -q "^docker create --pull=never .* $gcs " "$STUB_LOG" && ! grep -q '^docker pull' "$STUB_LOG" \
+  && pass "4. the hold can never pull" || fail "4. pull ($(cat "$STUB_LOG"))"
+grep -vE '^docker rm -f csi-spl-prune-hold-' "$STUB_LOG" | grep -E 'volume|system prune|container prune|rmi| rm ' >/dev/null \
+  && fail "4. touched more than its holds ($(cat "$STUB_LOG"))" || pass "4. the only container it removes is its own hold"
+
+plant; mkdir -p "$T/apitests"; printf 'X_IMAGE="${SPOOL_TEST_X_IMAGE:-%s}"\n' "$other" >"$T/apitests/x.tst.sh"
+out="$(prune DRY_RUN=0 PRUNE_API_TESTS_DIR="$T/apitests")"
+gone "$gcs_id" && ! gone "$other_id" \
+  && pass "4. CONTROL: the list decides, a list naming the other image keeps that one and the gate's goes" || fail "4. control list ($out)"
+
+plant; mkdir -p "$T/apiempty"; out="$(prune DRY_RUN=0 PRUNE_API_TESTS_DIR="$T/apiempty")"; rc=$?
+[ "$rc" = 0 ] && grep -q 'WARN cannot read the test image list' <<<"$out" && gone "$other_id" && grep -q 'cannot read the test image list' "$T/sent" \
+  && pass "4. an unreadable list is a WARN + note and the disk is still reclaimed" || fail "4. no list (rc $rc: $out)"
+
+plant; printf '%s %s\n' "$other" "$other_id" >"$T/planted"; out="$(prune DRY_RUN=0)"; rc=$?
+[ "$rc" = 0 ] && grep -q "KEEP test image $gcs not on this box" <<<"$out" && ! grep -qE '^docker (create|pull)' "$STUB_LOG" && gone "$other_id" \
+  && pass "4. an absent test image is reported, not pulled and not held" || fail "4. absent (rc $rc: $out)"
+
+plant; touch "$T/nocreate"; out="$(prune DRY_RUN=0)"; rc=$?
+[ "$rc" = 0 ] && grep -q "WARN cannot hold the test image $gcs" <<<"$out" && gone "$other_id" && [ "$(pruned)" = 3 ] && grep -q 'cannot hold the test image' "$T/sent" \
+  && pass "4. a hold that fails is a WARN + note, and the prune still frees the disk" || fail "4. nocreate (rc $rc: $out)"
+
+plant; touch "$T/eatheld"; out="$(prune DRY_RUN=0)"; rc=$?
+[ "$rc" = 1 ] && grep -q "FAIL test image(s) gone after the prune despite the hold: .*$gcs" <<<"$out" && ! ls "$T"/hold.* >/dev/null 2>&1 \
+  && pass "4. a held image gone after the prune is a FAIL + note, and the hold is still removed" || fail "4. eaten (rc $rc: $out)"
+
+plant; cp "$T/old" "$T/old.keep"; echo "$gcs_id" >>"$T/old"; out="$(prune)"; rc=$?
+grep -q 'PLAN docker image prune -a --filter until=168h: 1 unused image(s)' <<<"$out" && grep -q "KEEP test image $gcs " <<<"$out" \
+  && ! grep -qE '^docker (create|rm)' "$STUB_LOG" && ! gone "$gcs_id" \
+  && pass "4. the dry run does not count the test image, and makes no hold" || fail "4. dry run ($out)"
+mv "$T/old.keep" "$T/old"; rm -f "$T/planted" "$T"/gone.* "$T"/hold.*
 
 out="$(SNIPPET='do_prune_docker_images' in_orc DOCKER_HOST="unix://$T/sock" PRUNE_BOX=testbox PRUNE_LOCK="$T/lock" PRUNE_SEND="$T/stub/send" 2>&1)"; rc=$?
 [ "$rc" = 0 ] && grep -q 'RESULT box=testbox .*dry_run=1 nothing removed' <<<"$out" \

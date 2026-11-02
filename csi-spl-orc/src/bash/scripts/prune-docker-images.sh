@@ -2,8 +2,9 @@
 #------------------------------------------------------------------------------
 # Purpose: the weekly docker prune of THIS box's docker daemon (the one the
 # running user's `docker` reaches): unused images and build cache older than
-# PRUNE_UNTIL (168h). Never a container, never a volume, never an image a
-# container (running or stopped) uses. Run by do_prune_docker_images and by
+# PRUNE_UNTIL (168h). Never a container but its own holds (KEEP test image),
+# never a volume, never an image a container (running or stopped) uses, never
+# an image the gates need. Run by do_prune_docker_images and by
 # the cron line do_prune_docker_images_install_cron writes. Then a size cap
 # on the build cache, whatever its age: PRUNE_BUILDER_CAP_PCT (10) % of the
 # size of the disk under docker's root dir (2026-10-11, sat: 25 GB of cache,
@@ -25,10 +26,18 @@
 #   KEEP   each infra stack container (PRUNE_PROTECT_RE, con-csi-csi-spl-*):
 #          its image must exist BEFORE (else a WARN: it was gone already)
 #          and AFTER the prune (else a FAIL)
+#   KEEP test image  each image the api gates run, the one list
+#          do_pull_test_images reads: until= goes by the image's CREATED time,
+#          so a 20-month-old fake-gcs was eligible the moment it was pulled and
+#          the gate skipped (SPL-4625). prune has no filter by name, so a
+#          stopped container holds the image for the prune's length only. No
+#          list or no hold is a WARN and the prune goes on: the disk comes
+#          first, and a lost image is one pull away. An absent one is not pulled
 #   PLAN   (dry run) the images and build cache a live run would remove
 #   PRUNE  docker image prune -a / docker builder prune, --filter until=,
 #          then docker builder prune --max-used-space <cap> (the least
-#          recently used cache first; --keep-storage on an older buildx)
+#          recently used cache first; --keep-storage on an older buildx).
+#          One "PRUNE image untagged: <ref>" / "deleted: <id>" line each
 #   RESULT box=<box> reclaimed_bytes=<n> (docker's count: `docker image
 #          prune` prints "Total reclaimed space:", `docker builder prune`
 #          (buildx) prints "Total:") and freed_bytes=<n>, the disk's free
@@ -43,7 +52,8 @@
 # PRUNE_SEND (spool-send.sh; tests: a stub), PRUNE_FROM (the note's sender,
 # default LEASE_ORCH or c-001), PRUNE_NOTE=0 (no spool note),
 # PRUNE_BUILDER_CAP_PCT (10; 0 = no cap), PRUNE_BUILDER_CAP_BYTES (a fixed
-# cap in bytes, beats the %).
+# cap in bytes, beats the %), PRUNE_API_TESTS_DIR (the tests the test image
+# list is read from; default the api module's).
 #------------------------------------------------------------------------------
 # spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
 declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
@@ -130,6 +140,37 @@ busy() {
   echo "${why%; }"
 }
 
+# test_images - the images the api gates run: do_pull_test_images' own list
+test_images() {
+  ( do_log() { echo "$*" >&2; }
+    # shellcheck source=/dev/null
+    source "$ORC/../csi-spl-iac/src/bash/run/pull-test-images.func.sh" \
+      && _pull_test_images_list "${PRUNE_API_TESTS_DIR:-$ORC/../csi-spl-api/src/bash/tests}" ) 2>/dev/null
+}
+
+# hold_test_images - a stopped container on each present test image, so prune -a
+# skips it; one that cannot be made leaves test_img: its loss is not a surprise
+holds=()
+hold_test_images() {
+  local ref h
+  for ref in "${!test_img[@]}"; do
+    h="csi-spl-prune-hold-${ref//[^a-zA-Z0-9_.-]/-}"
+    docker rm -f "$h" >/dev/null 2>&1 # a killed run's leftover
+    if docker create --pull=never --network=none --name "$h" "$ref" /csi-spl-prune-hold >/dev/null 2>&1; then
+      holds+=("$h")
+    else
+      loud WARN "cannot hold the test image $ref - the prune goes on and may delete it (do_pull_test_images brings it back)"
+      unset 'test_img[$ref]'
+    fi
+  done
+}
+
+release_holds() {
+  local h
+  for h in "${holds[@]}"; do docker rm -f "$h" >/dev/null 2>&1; done
+  holds=()
+}
+
 [[ "$DRY_RUN" == 0 || "$DRY_RUN" == 1 ]] || { say "FAIL DRY_RUN must be 0 or 1, got: '$DRY_RUN'"; exit 2; }
 [[ "$UNTIL" =~ ^[0-9]+h$ ]] || { say "FAIL PRUNE_UNTIL must be <hours>h, got: '$UNTIL'"; exit 2; }
 [[ "$CAP_PCT" =~ ^[0-9]+$ ]] && (( CAP_PCT <= 100 )) || { say "FAIL PRUNE_BUILDER_CAP_PCT must be 0..100, got: '$CAP_PCT'"; exit 2; }
@@ -203,9 +244,24 @@ while read -r name; do
 done < <(docker ps -a --format '{{.Names}}' 2>/dev/null | grep -E "$PROTECT_RE" | sort)
 (( ${#keep[@]} )) || say "KEEP no present infra stack image matches $PROTECT_RE on this daemon"
 
+# 5b. KEEP test image - what the gates need survives the prune; the disk still
+# reclaims everything else
+declare -A test_img=()
+if test_list="$(test_images)"; then
+  while read -r ref; do
+    [[ -n "$ref" ]] || continue
+    id="$(docker image inspect --format '{{.Id}}' "$ref" 2>/dev/null || true)"
+    if [[ -z "$id" ]]; then say "KEEP test image $ref not on this box: nothing to hold, not pulled here"; continue; fi
+    test_img[$ref]="$id"
+    say "KEEP test image $ref image=${id:7:12} (a gate runs it, held through the prune)"
+  done <<<"$test_list"
+else
+  loud WARN "cannot read the test image list (do_pull_test_images) - the prune goes on and may delete the images the gates need"
+fi
+
 # 6. PLAN - the dry run counts what a live run would remove
 if [[ "$DRY_RUN" == 1 ]]; then
-  used="$(docker ps -aq 2>/dev/null | xargs -r docker inspect --format '{{.Image}}' 2>/dev/null | sort -u)"
+  used="$( { docker ps -aq 2>/dev/null | xargs -r docker inspect --format '{{.Image}}' 2>/dev/null; printf '%s\n' "${test_img[@]}"; } | sort -u)"
   cand="$(docker image ls -a --no-trunc --filter "until=$UNTIL" --format '{{.ID}}' 2>/dev/null | sort -u | grep -vxF -f <(echo "${used:-none}") || true)"
   n="$(grep -c . <<<"$cand" || true)"
   b="$(grep . <<<"$cand" | xargs -r docker image inspect --format '{{.Size}}' 2>/dev/null | awk '{ t += $1 } END { printf "%.0f\n", t }')"
@@ -218,9 +274,14 @@ if [[ "$DRY_RUN" == 1 ]]; then
   exit 0
 fi
 
-# 7. PRUNE - images, then build cache; never volumes, never containers
+# 7. PRUNE - images, then build cache; never volumes, never a container but
+# its own holds, gone again the moment the image prune returns
+trap release_holds EXIT
+hold_test_images
 out_i="$(docker image prune -a -f --filter "until=$UNTIL" 2>&1)"; rc_i=$?
+release_holds
 ri="$(reclaimed "$out_i")"
+while read -r line; do say "PRUNE image $line"; done < <(grep -E '^(untagged|deleted):' <<<"$out_i")
 say "PRUNE images rc=$rc_i deleted=$(grep -c '^deleted:' <<<"$out_i") reclaimed_bytes=$ri"
 out_b="$(docker builder prune -f --filter "until=$UNTIL" 2>&1)"; rc_b=$?
 rb="$(reclaimed "$out_b")"
@@ -246,6 +307,11 @@ after="$(free_b)"
 freed="?"; [[ "$before" =~ ^[0-9]+$ && "$after" =~ ^[0-9]+$ ]] && freed=$(( after - before ))
 say "RESULT box=$BOX user=$ME disk=${mnt:-?} reclaimed_bytes=$(( ri + rb )) images_bytes=$ri builder_bytes=$rb freed_bytes=$freed free_bytes_before=${before:-?} free_bytes_after=${after:-?}"
 [[ -z "$lost" ]] || { loud FAIL "infra stack image(s) gone after the prune: ${lost% }"; exit 1; }
+lost=""
+for ref in "${!test_img[@]}"; do
+  docker image inspect "${test_img[$ref]}" >/dev/null 2>&1 || lost+="$ref "
+done
+[[ -z "$lost" ]] || { loud FAIL "test image(s) gone after the prune despite the hold: ${lost% }"; exit 1; }
 if (( rc_i || rc_b || rc_c )); then
   loud FAIL "prune failed (image rc=$rc_i: $(tail -1 <<<"$out_i"); builder rc=$rc_b: $(tail -1 <<<"$out_b"); builder cap rc=$rc_c: $(tail -1 <<<"$out_c"))"; exit 1
 fi

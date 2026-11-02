@@ -349,6 +349,10 @@ func TestApplyChannelCopyNotReplayed(t *testing.T) {
 	if len(rows) != 0 {
 		t.Errorf("%d copied post(s) would be replayed", len(rows))
 	}
+	got, err := f.pg.GetEditable(ctx, f.dst, res.IDs[f.human], now)
+	if err != nil || got.CopiedFrom != f.human || got.EnvSig != "" {
+		t.Errorf("GetEditable of a copy: copied from %q sig %q, want %s (%v)", got.CopiedFrom, got.EnvSig, f.human, err)
+	}
 	mvExec(t, f.pg, `UPDATE messages SET copied_from = NULL WHERE tenant_id = $1 AND msg_id = $2::uuid`, f.dst, res.IDs[f.human])
 	rows, err = f.pg.UnsignedWUIPosts(ctx, f.dst, now.Add(-time.Hour), now, 100)
 	if err != nil {
@@ -387,6 +391,7 @@ func TestUnsignedWUIPostsSkipsCopyMemory(t *testing.T) {
 // Out half never pushes without one.
 func TestApplyChannelCopyCalendarSilent(t *testing.T) {
 	f := seedCopy(t)
+	mvExec(t, f.pg, `INSERT INTO calendar_guests (tenant_id, event_id, guest_type, guest_id, invited_by) VALUES ($1, $2, 'agent', 'c-100', $3)`, f.src, f.event, f.both)
 	res := f.apply(t, f.req())
 	ev := res.IDs[f.event]
 	var key string

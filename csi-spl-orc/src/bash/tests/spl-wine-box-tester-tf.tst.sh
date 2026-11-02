@@ -6,7 +6,7 @@
 #      lists, for 061 in dev; the output carries the fingerprint and masks
 #      the key body, its comment and the address (the make stub echoes all).
 #   2. TF_VERB=provision runs do-provision; another verb is refused.
-#   3. no row, two rows, a non-key body or a bad msg id stop it before make.
+#   3. no row, two rows, a non-key body, a copied message or a bad msg id stop it before make.
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -41,6 +41,8 @@ do_spl_db_query() {
     two) echo " KEY $KEY"; echo " KEY $KEY"; echo " MAIL $MAIL" ;;
     nokey) echo " KEY hello there"; echo " MAIL $MAIL" ;;
     none) : ;;
+    # A spec 169 copy: the row answers only a query that does not refuse it.
+    copy) [[ "$SQL" == *"m.copied_from is null"* ]] || { echo " KEY $KEY"; echo " MAIL $MAIL"; } ;;
   esac
   echo "(2 rows)"
 }
@@ -82,6 +84,16 @@ for r in none two nokey; do
   STUB_ROWS=$r KEY_MSG_ID=$MSG do_spl_wine_box_tester_tf >/dev/null 2>&1 && ko "rows '$r' accepted" || ok "rows '$r' are refused"
   [[ -s "$T/make.log" ]] && ko "make ran on rows '$r'" || ok "make does not run on rows '$r'"
 done
+: >"$T/query.log"
+# --- 3b. a copied message is nobody's key, and the control that this can go red -
+: >"$T/make.log"
+STUB_ROWS=copy KEY_MSG_ID=$MSG do_spl_wine_box_tester_tf >/dev/null 2>&1 && ko "a copied message accepted" || ok "a copied message is refused"
+[[ -s "$T/make.log" ]] && ko "make ran on a copied message" || ok "make does not run on a copied message"
+: >"$T/make.log"
+sed 's/ and m\.copied_from is null//' "$FUNC" >"$T/no-filter.func.sh"
+(source "$T/no-filter.func.sh"; STUB_ROWS=copy KEY_MSG_ID=$MSG do_spl_wine_box_tester_tf >/dev/null 2>&1) &&
+  [[ -s "$T/make.log" ]] && ok "CONTROL: without the filter the copy reaches make" || ko "CONTROL: the copy case cannot go red"
+: >"$T/make.log"
 : >"$T/query.log"
 KEY_MSG_ID="x'; drop" do_spl_wine_box_tester_tf >/dev/null 2>&1 && ko "a bad msg id accepted" || ok "a bad msg id is refused"
 [[ -s "$T/query.log" ]] && ko "a bad msg id reached the query" || ok "a bad msg id never reaches the query"

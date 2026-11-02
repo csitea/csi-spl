@@ -41,6 +41,7 @@ D="$T/oo" F="$T/oo/repo-x.jsonl"
 M1=11111111-aaaa-4bbb-8ccc-000000000001 M2=22222222-aaaa-4bbb-8ccc-000000000002
 M3=33333333-aaaa-4bbb-8ccc-000000000003 L1=44444444-aaaa-4bbb-8ccc-000000000004
 TOPIC=55555555-aaaa-4bbb-8ccc-000000000005 L2=66666666-aaaa-4bbb-8ccc-000000000006
+M4=77777777-aaaa-4bbb-8ccc-000000000007
 BODY=$'Poll: x\n> a question\n\ndo not change the contents of the docs, only the file structure'
 B64=$(printf '%s' "$BODY" | base64 -w0)
 L2B64=$(printf 'lift order %s, the docs are done' "${M1:0:8}" | base64 -w0)
@@ -50,6 +51,8 @@ L2B64=$(printf 'lift order %s, the docs are done' "${M1:0:8}" | base64 -w0)
 STUB='do_spl_db_query() {
   echo "INFO proxy up"; echo "   r"; echo "-----"
   case "$SQL" in
+    *"copied_from is null"*'"$M4"'*|*'"$M4"'*"copied_from is null"*) echo "(0 rows)" ;;
+    *'"$M4"'*) echo " OO|HUM-10|'"$TOPIC"'|2026-10-29T15:46:10Z|'"$B64"'"; echo "(1 row)" ;;
     *'"$M2"'*) echo " OO|HUM-10|'"$TOPIC"'|2026-10-29T15:46:10Z|'"$B64"'"; echo "(1 row)" ;;
     *'"$M3"'*) echo " OO|c-001|'"$TOPIC"'|2026-10-29T15:47:00Z|'"$B64"'"; echo "(1 row)" ;;
     *'"$L2"'*) echo " OO|HUM-10|'"$TOPIC"'|2026-10-29T16:00:00Z|'"$L2B64"'"; echo "(1 row)" ;;
@@ -100,6 +103,10 @@ hub ORDER_MSG=$M2
 [[ $RC -eq 0 ]] && jq -e -s --arg m "$M2" --arg b "$BODY" --arg t "$TOPIC" \
   '.[-1] | .order == $m and .text == $b and .source == "hub" and .owner == "HUM-10" and .topic == $t and .ts == "2026-10-29T15:46:10Z"' "$F" >/dev/null &&
   pass "ORDER_FROM_HUB: the whole body, owner, topic and time come from the hub (newlines kept)" || fail "hub add (rc=$RC): $(cat "$T/o")"
+rm -f "$F"
+hub ORDER_MSG=$M4
+[[ $RC -ne 0 && ! -s "$F" ]] && grep -q "not on the prd hub" "$T/o" &&
+  pass "ORDER_FROM_HUB: an owner's post copied from another workspace (spec 169) is not an order" || fail "copied order (rc=$RC): $(cat "$T/o")"
 rm -f "$F"
 hub ORDER_MSG=$M2 ORDER_TEXT='do not change the contents of the docs, only the file structure'
 [[ $RC -eq 0 ]] && jq -e -s '.[-1].text == "do not change the contents of the docs, only the file structure" and .[-1].source == "hub"' "$F" >/dev/null &&

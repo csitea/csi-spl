@@ -427,14 +427,19 @@ snapshot; a sync would be its own spec.
   leaves a copied post out, so replay never re-signs it. Later replies in the
   copy are ordinary posts.
 - A copied post is nobody's word in `<DST>`: a reader that takes a message id as
-  someone's authority refuses a row with `copied_from` set (`approval()`,
-  `_spl_oo_hub`).
+  someone's authority refuses a row with `copied_from` set: `approval()`,
+  `_spl_oo_hub` (and the owner-order gate on it), `channelMoveGoRefusal`,
+  `do_spl_wine_box_tester_tf`, `spl_lane_issue_hub_row` (owner and ACCEPTED
+  evidence). Two readers cannot see the column and wait for a ruling:
+  `spl_issue_owner_go_from` reads `hub-tail`, which does not return it;
+  `spl-review-go`'s `Owner-go:` reads box spool files, which no copy reaches.
 - What a copy carries, beyond the ids above:
-  - new ids through the map: `calendar_events` and, for the guests who are
-    `<DST>` members, `calendar_guests`; `hours_jobs` under a new job id. A copied
-    event reaches nobody: no `remind_at`, no stored reminders, no Google map row,
-    and a `source_key` in the `gcal:` family the Out half never pushes without
-    one, which also makes it read-only in `<DST>`.
+  - new ids through the map: `calendar_events` and, for the people who are
+    `<DST>` members, `calendar_guests` (an agent guest stays behind);
+    `hours_jobs` under a new job id. A copied event reaches nobody: no
+    `remind_at`, no stored reminders, no Google map row, and a `source_key` in
+    the `gcal:` family the Out half never pushes without one, which also makes
+    it read-only in `<DST>`.
   - not carried, per person or per box: `deliveries`, `delivery_live_acks`,
     `fallback_deliveries`, `read_marks`, `channel_subscriptions`,
     `dedicated_agents`, `channel_invites`, `flow_watches`, `flow_events`,

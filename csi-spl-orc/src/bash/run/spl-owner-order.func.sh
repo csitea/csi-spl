@@ -147,10 +147,11 @@ _spl_oo_append() {  # <dir> <repo> <json line>
 }
 
 # _spl_oo_hub <env> <msg uuid>: "<from>\t<task>\t<ts>\t<base64 body>" of the
-# hub's message, read-only. One row or nothing.
+# hub's message, read-only. One row or nothing. A spec 169 copy reads as
+# nothing: it holds an owner's words, but he never wrote it there.
 _spl_oo_hub() {
   local sql out
-  sql="select 'OO|' || from_id || '|' || task_id || '|' || to_char(ts at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') || '|' || translate(encode(convert_to(body, 'UTF8'), 'base64'), chr(10), '') as r from messages where msg_id = '$2'"
+  sql="select 'OO|' || from_id || '|' || task_id || '|' || to_char(ts at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') || '|' || translate(encode(convert_to(body, 'UTF8'), 'base64'), chr(10), '') as r from messages where msg_id = '$2' and copied_from is null"
   out="$(ENV="$1" SQL="$sql" do_spl_db_query 2>&1)" || { do_log "FATAL the $1 hub read failed: $(tail -1 <<<"$out")" >&2; return 1; }
   grep -m1 -oE 'OO\|[^| ]+\|[^| ]+\|[^| ]+\|[A-Za-z0-9+/=]*' <<<"$out" | sed -n 1p | cut -d'|' -f2- | tr '|' '\t' || true
 }

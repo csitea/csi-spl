@@ -773,5 +773,44 @@ run AGENT_ID=c-321 LANE_ISSUE_OP=end LANE_ISSUE_REASON='superseded' DRY_RUN=0
   pass "workspace end: the issue is ended in its workspace" || fail "ws end (rc=$rc): $(cat "$T/o") / $(cat "$T/calls.log.tenant")"
 rm -f "$S/workspace-repos.tsv"
 
+# Spec 153 3.12 (SPL-4620; owner HUM-10, t1 4e9f7153, msg 9a89d1e1): the issue a
+# lane came from, in the placer's words only. RED on 06c1fa804: no origin-issue
+# file and no origin line, so SPL-4420 of "row 3 of SPL-4420" was lost.
+origin_of() { cat "$S/c-123/lifetime/origin-issue" 2>/dev/null; }
+sed '1s/.*/# Brief: make it blue (row 3 of SPL-4420) (one lane)/' "$T/brief.md" >"$T/o-row.md"
+run AGENT_ID=c-123 BRIEF="$T/o-row.md" DESC_COPY="$T/o1.md" LANE_ISSUE_POST=0 DRY_RUN=0
+[[ $rc -eq 0 && "$(origin_of)" == SPL-4420 ]] && [[ "$(sed -n 1,3p "$T/o1.md.create")" == $'## Source\n/t/5ea2e615-ca23-451f-9fea-e1b87c369476\norigin issue: https://wui.invalid/issues?issue=SPL-4420' ]] &&
+  pass "origin: 'row N of KEY' in the heading: lifetime/origin-issue and both links under ## Source" || fail "origin row (rc=$rc): $(origin_of) / $(head -4 "$T/o1.md.create")"
+{ echo 'Origin-Issue: SPL-77'; sed '1s/.*/# Brief: R7 review of SPL-4320/' "$T/brief.md"; } >"$T/o-line.md"
+sed -i '1{h;d};2{G}' "$T/o-line.md"
+run AGENT_ID=c-123 BRIEF="$T/o-line.md" LANE_ISSUE_POST=0 DRY_RUN=0
+[[ "$(origin_of)" == SPL-77 ]] && pass "origin: an Origin-Issue: line beats the heading" || fail "origin line: $(origin_of)"
+sed '1s/.*/# Seat brief: R7 review of SPL-4320, the fix/' "$T/brief.md" >"$T/o-rev.md"
+run AGENT_ID=c-123 BRIEF="$T/o-rev.md" LANE_ISSUE_POST=0 DRY_RUN=0
+[[ "$(origin_of)" == SPL-4320 ]] && pass "origin: 'review of KEY' in the heading" || fail "origin review: $(origin_of)"
+# CONTROL: an epic, a prose key and a key the lane files itself are no origin.
+{ cat "$T/brief.md"; echo; echo 'See SPL-999 for the old shape, row 3 of SPL-998 in the body.'; } >"$T/o-none.md"
+run AGENT_ID=c-123 BRIEF="$T/o-none.md" DESC_COPY="$T/o2.md" LANE_ISSUE_POST=0 DRY_RUN=0
+[[ $rc -eq 0 && -z "$(origin_of)" && ! -e "$S/c-123/lifetime/origin-issue" ]] && [[ "$(sed -n 3p "$T/o2.md.create")" == "" ]] &&
+  pass "origin: none named shows nothing, not a guess (epic, prose keys and the filed key stay out)" || fail "origin none: $(origin_of) / $(head -4 "$T/o2.md.create")"
+# A lane placed on an existing issue came from it; its description gains the
+# missing links under ## Source, keeps the rest, and is not written twice.
+{ echo '# Brief: make it blue (row 3 of SPL-4420)'; echo; echo 'Issue: SPL-55'; echo 'Report on `dispatch-5ea2e615`.'; } >"$T/o-key.md"
+GET='{"result":{"issue":{"key":"SPL-55","description":"## Source\nnone\n\n## Restart\n- key: SPL-55","discussions":[{"task_id":"5ea2e615-ca23-451f-9fea-e1b87c369476"}]}}}'
+run AGENT_ID=c-123 BRIEF="$T/o-key.md" DESC_COPY="$T/o3.md" ISSUE_GET="$GET" DRY_RUN=0
+[[ $rc -eq 0 && "$(origin_of)" == SPL-4420 ]] && [[ "$(cat "$T/o3.md.update")" == $'## Source\n/t/5ea2e615-ca23-451f-9fea-e1b87c369476\norigin issue: https://wui.invalid/issues?issue=SPL-4420\nnone\n\n## Restart\n- key: SPL-55' ]] &&
+  pass "origin: a placed key's description gains the full topic uuid (from dispatch-<topic8>) and the origin" || fail "origin placed (rc=$rc): $(origin_of) / $(cat "$T/o3.md.update" 2>&1)"
+rm -f "$T/o3.md.update"
+GET2='{"result":{"issue":{"key":"SPL-55","description":"## Source\n/t/5ea2e615-ca23-451f-9fea-e1b87c369476\norigin issue: https://wui.invalid/issues?issue=SPL-4420\n","discussions":[]}}}'
+run AGENT_ID=c-123 BRIEF="$T/o-key.md" DESC_COPY="$T/o3.md" ISSUE_GET="$GET2" DRY_RUN=0
+[[ $rc -eq 0 && ! -e "$T/o3.md.update" ]] && pass "origin: links already there write nothing" || fail "origin twice: $(cat "$T/o3.md.update" 2>&1)"
+{ echo '# Brief: make it blue'; echo; echo 'Issue: SPL-55'; } >"$T/o-self.md"
+run AGENT_ID=c-123 BRIEF="$T/o-self.md" DESC_COPY="$T/o3.md" ISSUE_GET="$GET2" DRY_RUN=0
+[[ "$(origin_of)" == SPL-55 ]] && pass "origin: a lane placed on an existing issue came from that issue" || fail "origin self: $(origin_of)"
+# CONTROL: a hub that answers no issue never blanks the description.
+run AGENT_ID=c-123 BRIEF="$T/o-key.md" DESC_COPY="$T/o4.md" ISSUE_GET= DRY_RUN=0
+[[ $rc -eq 0 && ! -e "$T/o4.md.update" ]] && pass "origin: no answer from the hub writes no description" || fail "origin empty get: $(cat "$T/o4.md.update" 2>&1)"
+rm -f "$S/c-123/lifetime/origin-issue"
+
 echo "spl-lane-issue: $fails failure(s)"
 exit "$fails"

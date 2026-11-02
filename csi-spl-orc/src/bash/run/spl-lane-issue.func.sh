@@ -12,7 +12,10 @@
 # @description     7.1 card (`## Source` + `## Restart`, owner Q4A); the key is
 # @description     then posted back in the topic. Writes the key to
 # @description     <spool root>/<id>/lifetime/issue and an `Issue:` line into
-# @description     lifetime/brief.md.
+# @description     lifetime/brief.md. The issue the lane came from
+# @description     (li_origin_from_brief, spec 153 3.12) goes to
+# @description     lifetime/origin-issue, for the lane's row, and next to the
+# @description     topic link under the card's `## Source`.
 # @description     A filed issue needs a spec and an epic (owner HUM-10, t1
 # @description     7a98c2d1 msg 5863d0d6: no issue without an epic and a git
 # @description     spec): the brief's `Spec:` line (else its first
@@ -265,10 +268,12 @@ spl_lane_issue_place() {
   brief="${BRIEF:-$life/brief.md}"
   key="${LANE_ISSUE_KEY:-$(li_key_from_brief "$brief")}"
   topic="${LANE_ISSUE_TOPIC:-$(spl_lane_issue_topic "$brief")}"
+  SLI_ORIGIN="$(li_origin_from_brief "$brief" "$key")"
   if [[ -n "$key" ]]; then
     [[ "$key" =~ ^${LI_KEY_RE}$ ]] || { do_log "FATAL LANE_ISSUE_KEY must be an issue key like SPL-12, got: '$key'"; return 1; }
     spl_lane_issue_assign update --ref "$key" --status wip >/dev/null || return 1
     spl_lane_issue_hub comment --ref "$key" --body "Lane $id placed on $key, status wip.${topic:+ Topic: $(spl_lane_issue_link "$topic")}" >/dev/null || return 1
+    spl_lane_issue_source_links "$key" "$topic"
   else
     [[ -r "$brief" ]] || { do_log "FATAL no issue key and no readable brief to file one from ($brief): pass LANE_ISSUE_KEY=<KEY> or BRIEF=<file>"; return 1; }
     if [[ -n "${SLI_WS:-}" ]]; then
@@ -298,6 +303,8 @@ spl_lane_issue_place() {
   if (( SLI_DRY )); then do_log "OK DRY_RUN $id -> issue $key (wip); nothing written. Re-run with DRY_RUN=0."; return 0; fi
   mkdir -p "$life" && printf '%s\n' "$key" >"$life/issue" || { do_log "FATAL cannot write $life/issue"; return 1; }
   chmod 0664 "$life/issue" 2>/dev/null
+  rm -f "$life/origin-issue"
+  [[ -z "$SLI_ORIGIN" ]] || { printf '%s\n' "$SLI_ORIGIN" >"$life/origin-issue" && chmod 0664 "$life/origin-issue" 2>/dev/null; }
   if [[ -n "${SLI_WS:-}" ]]; then
     printf '%s\t%s\n' "$SLI_WS" "$ENV" >"$life/issue-tenant" || { do_log "FATAL cannot write $life/issue-tenant"; return 1; }
     chmod 0664 "$life/issue-tenant" 2>/dev/null
@@ -423,6 +430,7 @@ spl_lane_issue_discussion() {
   [[ -n "$title" ]] || { do_log "FATAL LANE_ISSUE_TITLE must name the work (an evaluation or an answer counts: LANE_ISSUE_ANSWER=1); acks, chatter and announcements file no issue"; return 1; }
   spl_lane_issue_guard "${LANE_ISSUE_SPEC:-}" "${LANE_ISSUE_EPIC:-}" || return 1
   desc="$(mktemp)"
+  SLI_ORIGIN=""
   { spl_lane_issue_card '<new>' "$topic" '' 'the first answer in the topic'
     [[ -n "${LANE_ISSUE_TEXT:-}" ]] && printf '%s\n\n' "$LANE_ISSUE_TEXT"
     printf -- '- Taken by: %s\n- Topic: %s\n' "$id" "$(spl_lane_issue_link "$topic")"
@@ -778,6 +786,54 @@ spl_lane_issue_link() {
   printf '%s/t/%s' "${SPL_WUI_URL:-}" "$1"
 }
 
+# spl_lane_issue_origin_line KEY: the origin link under the card's `## Source`.
+spl_lane_issue_origin_line() {
+  [[ -n "${SPL_WUI_URL:-}" ]] || do_spl_desk_cnf >/dev/null 2>&1
+  printf 'origin issue: %s/issues?issue=%s' "${SPL_WUI_URL:-}" "$1"
+}
+
+# spl_lane_issue_source_links KEY TOPIC: a lane placed on an existing issue:
+# the issue's `## Source` gains the discussion and the origin issue it lacks
+# (spec 153 3.12). An 8-hex topic goes in only as the full uuid the issue links;
+# the issue's own key is no origin of itself. Best effort: a placement never
+# fails on it.
+spl_lane_issue_source_links() {
+  (( SLI_DRY )) && return 0
+  local line="" desc rc=0
+  [[ -n "$SLI_ORIGIN" && "$SLI_ORIGIN" != "$1" ]] && line="$(spl_lane_issue_origin_line "$SLI_ORIGIN")"
+  desc="$(mktemp)"
+  RUN_STDOUT_IS_DATA=1 spl_lane_issue_hub get --ref "$1" 2>/dev/null | python3 -c '
+import json, re, sys
+topic, line = sys.argv[1], sys.argv[2]
+j = [l for l in sys.stdin.read().splitlines() if l.startswith("{")]
+r = (json.loads(j[-1]).get("result") or {}) if j else {}
+r = r.get("issue", r) if isinstance(r, dict) else {}
+if not isinstance(r, dict) or "description" not in r:
+    sys.exit(4)
+d = r["description"] or ""
+if len(topic) == 8:
+    full = [x.get("task_id", "") for x in r.get("discussions") or [] if x.get("task_id", "").startswith(topic)]
+    topic = full[0] if len(full) == 1 else ""
+add = []
+if topic and "/t/" + topic not in d:
+    add.append("/t/" + topic)
+if line and line not in d:
+    add.append(line)
+if not add:
+    sys.exit(3)
+if re.search(r"^## Source$", d, re.M):
+    print(re.sub(r"^## Source\n", lambda m: m.group(0) + "\n".join(add) + "\n", d, count=1, flags=re.M))
+else:
+    print("## Source\n" + "\n".join(add) + "\n\n" + d)
+' "$2" "$line" >"$desc" || rc=$?
+  if (( rc == 0 )); then
+    RUN_STDOUT_IS_DATA=1 spl_lane_issue_hub update --ref "$1" --description-file "$desc" >/dev/null 2>&1 ||
+      do_log "WARN $1: its description did not take the discussion and origin links" >&2
+  fi
+  rm -f "$desc"
+  return 0
+}
+
 # spl_lane_issue_card KEY TOPIC BRIEF NEXT: the card that starts a filed
 # issue's description (spec 135 section 7.1, owner Q4A: no column, no
 # migration). The lane keeps it current with do_spl_issue_update
@@ -789,7 +845,9 @@ spl_lane_issue_card() {
     spec="${SLI_SPEC:-$(li_spec_from_file "$3")}"
     avoid="$(grep -m1 -iE 'not touch' "$3" | sed -E 's/^[-* ]+//' | cut -c1-200)"
   fi
-  printf '## Source\n%s\n\n## Restart\n' "$([[ -n "$2" ]] && echo "/t/$2" || echo none)"
+  printf '## Source\n%s\n' "$([[ -n "$2" ]] && echo "/t/$2" || echo none)"
+  [[ -z "${SLI_ORIGIN:-}" ]] || printf '%s\n' "$(spl_lane_issue_origin_line "$SLI_ORIGIN")"
+  printf '\n## Restart\n'
   spec="${spec:-${SLI_SPEC:-}}"
   printf -- '- key: %s\n- spec: %s\n- scope: %s\n- must not touch: %s\n' "$1" "${spec:-none}" "$scope" "${avoid:-see the brief}"
   printf -- '- test: see the brief\n- last citing sha: none\n- next: %s\n- open question: none\n- docs: none yet\n\n' "$4"

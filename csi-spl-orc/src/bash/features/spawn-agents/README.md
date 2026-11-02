@@ -413,7 +413,7 @@ hub (rdb `0096_fleet_lanes`, `spool lane`): `<ID>@<box>` (box = the machine's
 
 | when | who | writes |
 |---|---|---|
-| spawn | `spawn-core.inc.sh`, in the background, never blocking the spawn | `live`; scope = `SPAWN_LANE_SCOPE`, else the brief's first heading, else the slug; files = `SPAWN_LANE_FILES`; topic = `SPAWN_LANE_TOPIC` |
+| spawn | `spawn-core.inc.sh`, in the background, never blocking the spawn | `live`; scope = `SPAWN_LANE_SCOPE`, else the brief's first heading, else the slug; files = `SPAWN_LANE_FILES`; topic = `SPAWN_LANE_TOPIC`; origin issue = `lifetime/origin-issue` (spec 153 3.12) |
 | exit-clean | the agent (`/exit-clean`, `/kill-your-self`) | `done`, other fields kept |
 
 The map is shared once the machine has a fleet: `LANE_FLEET`, else

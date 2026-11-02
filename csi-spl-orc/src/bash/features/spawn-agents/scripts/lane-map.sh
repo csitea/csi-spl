@@ -15,7 +15,7 @@
 #       its brief` per live lane, no files, no clean worktree (exit 4, NOT free);
 #       the hub silent 3 tries: `LOCAL-ONLY: ...` first, exit 5 for free
 #       (--agent: the caller, never its own)
-#   lane-map.sh put --agent <ID> [--repo R] [--branch B] [--scope S] [--files P,...] [--topic T] [--issue K]
+#   lane-map.sh put --agent <ID> [--repo R] [--branch B] [--scope S] [--files P,...] [--topic T] [--issue K] [--origin-issue K]
 #       write that agent's row, state live (the spawn path); K is its issue key, e.g. SPL-12
 #   lane-map.sh done --agent <ID>
 #       set it done, keeping its other fields (exit-clean); a role seat
@@ -52,6 +52,7 @@ while [ $# -gt 0 ]; do
     --files)  vars+=("LANE_FILES=${2:-}"); shift 2 ;;
     --topic)  vars+=("LANE_TOPIC=${2:-}"); shift 2 ;;
     --issue)  vars+=("LANE_ISSUE=${2:-}"); shift 2 ;;
+    --origin-issue) vars+=("LANE_ORIGIN_ISSUE=${2:-}"); shift 2 ;;
     --json)   vars+=("LANE_FORMAT=json"); shift ;;
     --all)    vars+=("LANE_ALL=1"); shift ;;
     *) echo "lane-map.sh: unknown argument '$1'" >&2; usage ;;

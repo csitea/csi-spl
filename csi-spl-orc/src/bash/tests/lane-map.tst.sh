@@ -100,17 +100,18 @@ esac
 [ "$1" = box-stats ] && { echo "the lane map posts no box stats: $*" >>"$HUB_DIR/stats.calls"; exit 1; }
 shift
 echo "$*" >>"$HUB_DIR/calls"
-fleet="" agent="" box="" repo="" branch="" scope="" files="" topic="" issue="" state=live
+fleet="" agent="" box="" repo="" branch="" scope="" files="" topic="" issue="" origin="" state=live
+[ "${HUB_NO_ORIGIN_FLAG:-0}" = 1 ] && [[ " $* " == *" --origin-issue "* ]] && { echo "flag provided but not defined: -origin-issue" >&2; exit 2; }
 while [ $# -gt 0 ]; do case "$1" in
   --fleet) fleet="$2";; --agent) agent="$2";; --box) box="$2";; --repo) repo="$2";; --branch) branch="$2";;
-  --scope) scope="$2";; --files) files="$2";; --topic) topic="$2";; --issue) issue="$2";; --state) state="$2";; esac; shift 2; done
+  --scope) scope="$2";; --files) files="$2";; --topic) topic="$2";; --issue) issue="$2";; --origin-issue) origin="$2";; --state) state="$2";; esac; shift 2; done
 f="$HUB_DIR/$fleet.json"; [ -s "$f" ] || echo '{"lanes":[]}' >"$f"
 if [ -n "$agent" ]; then
   [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] || { echo "box must be the agent's desk box id" >&2; exit 1; }
   row="$(jq -n -c --arg a "$agent" --arg b "$box" --arg r "$repo" --arg br "$branch" --arg s "$scope" --arg fl "$files" \
-    --arg t "$topic" --arg i "$issue" --arg st "$state" --arg w "$SPOOL_DESK_BOX" \
+    --arg t "$topic" --arg i "$issue" --arg o "$origin" --arg st "$state" --arg w "$SPOOL_DESK_BOX" \
     '{agent_id:$a, agent_box:$b, repo:$r, branch:$br, scope:$s, files:($fl | split(",") | map(select(length > 0))),
-      topic:$t, issue_key:$i, state:$st, writer_box:$w, age_s:0}')"
+      topic:$t, issue_key:$i, origin_issue:$o, state:$st, writer_box:$w, age_s:0}')"
   jq -c --argjson row "$row" '.lanes = ([.lanes[] | select(.agent_id != $row.agent_id or .agent_box != $row.agent_box)] + [$row])' "$f" >"$f.new" && mv "$f.new" "$f"
   jq -c --arg f "$fleet" --argjson row "$row" '{fleet:$f, lanes:[$row]}' <<<'{}'
 else
@@ -270,6 +271,22 @@ grep -E -- '--agent c-941 .*--issue' <<<"$calls" >/dev/null &&
   fail "a key-less put sent --issue: $(grep -- c-941 <<<"$calls")" || pass "a key-less put sends no --issue"
 grep -E -- '--agent c-940 .*--issue SPL-9 --state done' <<<"$calls" >/dev/null &&
   pass "control: the done of c-940 sent --issue SPL-9 from the hub row" || fail "done args: $(grep -- c-940 <<<"$calls")"
+
+# 5c. spec 153 3.12: LANE_ORIGIN_ISSUE is the row's origin_issue, a done keeps
+# it; none sends no flag; a box binary without the flag still writes the row.
+# RED on 06c1fa804: no such env, so a done or any later put lost the origin.
+on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-942 LANE_ISSUE=SPL-9 LANE_ORIGIN_ISSUE=SPL-8 >/dev/null
+on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-942 LANE_STATE="done" >/dev/null
+row="$(jq -c '.lanes[] | select(.agent_id == "c-942")' "$T/hub/main.json")"
+[[ "$(jq -r .origin_issue <<<"$row")" == SPL-8 && "$(jq -r .issue_key <<<"$row")" == SPL-9 && "$(jq -r .state <<<"$row")" == "done" ]] &&
+  pass "LANE_ORIGIN_ISSUE=SPL-8 is the row's origin_issue next to its own SPL-9, and done keeps it" || fail "origin row: $row"
+grep -E -- '--agent c-941 .*--origin-issue' "$T/hub/calls" >/dev/null &&
+  fail "a put with no origin sent --origin-issue" || pass "a put with no origin sends no --origin-issue"
+out="$(on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-943 LANE_ORIGIN_ISSUE=SPL-8 HUB_NO_ORIGIN_FLAG=1 2>&1)"; rc=$?
+row="$(jq -c '.lanes[] | select(.agent_id == "c-943")' "$T/hub/main.json")"
+[[ $rc -eq 0 && -n "$row" && "$(jq -r .origin_issue <<<"$row")" == "" ]] && grep -q 'takes no --origin-issue' <<<"$out" &&
+  pass "a box binary without the flag still writes the row, and says so" || fail "stale binary (rc=$rc): $out / $row"
+on pc do_spl_lane_put "${F[@]}" LANE_AGENT=c-943 LANE_STATE="done" >/dev/null
 
 # 6. the hub down
 out="$(on pc do_spl_lane_map "${F[@]}" HUB_DOWN=1)"; rc=$?

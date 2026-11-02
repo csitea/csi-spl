@@ -66,7 +66,7 @@ type ChannelMoveApplyRequest struct {
 	failAfter string          // C5: fail once this table's insert has run
 	updateSet string          // C4: this table's rows are moved by UPDATE ... SET tenant_id
 	noGcal    bool            // C18: skip the pre-P4 Google delete
-	keepQueue bool            // C27: skip the expiry of unverifiable deliveries
+	keepQueue bool            // C28: skip the expiry of unverifiable deliveries
 	// betweenPlans runs after the check before the transaction: what lands
 	// between P2 and the lock. noLockStops lets the plan under the lock pass.
 	betweenPlans func()
@@ -82,13 +82,13 @@ type ChannelMoveResult struct {
 	NewKeys map[string]string // old issue key -> new key (F6)
 	Lost    []string          // channel humans who did not come along (Q5)
 	// DeliveriesExpired are the queued or unacked deliveries of agent rows whose
-	// sender pin is missing or differs in <DST> (C27); DeliveriesExpiredNoPin those whose
+	// sender pin is missing or differs in <DST> (C28); DeliveriesExpiredNoPin those whose
 	// to_box has no live pin in <DST>. Nobody receives them: the report says so.
 	DeliveriesExpired      int
 	DeliveriesExpiredNoPin int
 }
 
-// DeliveriesLine is the operator's line on the deliveries P4 expired (C27), with
+// DeliveriesLine is the operator's line on the deliveries P4 expired (C28), with
 // the limit a reader cannot see in the counts. The move report prints it.
 func (r ChannelMoveResult) DeliveriesLine() string {
 	return fmt.Sprintf("deliveries: %d expired (sender pin missing or different in the target), %d expired (addressee box not pinned in the target); "+
@@ -528,7 +528,7 @@ func (m *pgMove) leaveFilter(table string, args *[]any) string {
 	return ""
 }
 
-// mvExpireDeliveries (C27): a moved agent row stays signed with its <SRC> key
+// mvExpireDeliveries (C28): a moved agent row stays signed with its <SRC> key
 // and the addressee's box checks it against the <DST> pin of from_box, so a
 // delivery of a row it cannot verify is refused and lost with nobody told.
 // Expire those and count them. Kept: to_box box-wui (the browser fan-out, no

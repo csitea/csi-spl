@@ -59,7 +59,7 @@ type ChannelMovePlanRequest struct {
 
 	// noSharedCheck drops the shared-item rule: the red control of C7 only.
 	noSharedCheck bool
-	// noPinCheck drops R1: the red control of C22, and C27's sender rows.
+	// noPinCheck drops R1: the red control of C22, and C28's sender rows.
 	noPinCheck bool
 	// noDeskCheck drops W2: the red control of C23 only.
 	noDeskCheck bool

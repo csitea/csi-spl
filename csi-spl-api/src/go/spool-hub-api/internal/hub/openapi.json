@@ -10952,7 +10952,7 @@
         ],
         "responses": {
           "200": {
-            "description": "op plan: {counts, seats, mentions, members_lost, kept, refuse, shared_files}; it changes nothing"
+            "description": "op plan: {counts, seats, mentions, members_lost, kept, refuse, shared_files}, it changes nothing; op journal: {move_id, done, steps, seats, lanes}; op step or mark: {move_id, ...}, P7 adds {proofs, kept, report}"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -10967,7 +10967,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "501": {
-            "description": "not_built: op journal, step or mark, or mode copy"
+            "description": "not_built: mode copy or TO_NAME; unsupported: a store with no journal"
           }
         },
         "summary": "Plan or drive a move of a channel into another workspace (spec 169)",

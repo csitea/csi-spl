@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.16 (2026-11-02). Status: **Draft** (plan only; nothing below is
+Version: v0.17 (2026-11-02). Status: **Draft** (plan only; nothing below is
 built). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -71,6 +71,8 @@ reached by a full move while R1 holds, and stays as a defence.
 
 v0.16 corrects R1, F10 and C22 to what T4c measured (SPL-4599, c-001 msgs
 5b72f83c and c8953637): a pinned box does not make a moved row verify.
+
+v0.17 says what T7's step driver does (SPL-4598): section 8.4.
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -466,6 +468,37 @@ set moved: it replaces the frozen lists, and that is what "frozen" means
 wherever the proofs read it. A stop that re-plan finds and P2 did not clear
 refuses P4; a differing GO refuses it; its step counts record each list's P1
 and moved size; after P4 commits nothing replaces them.
+
+### 8.4 What the hub's steps check (T7)
+
+`op step` runs P1, P2, P3, P4, P6 and P7; `op mark` records the box's P2b and
+P5. Every call carries the owner's GO; after P1 it also carries the journal's
+`move_id` and the journal's GO.
+
+- Each step needs the step before it done (8.2). P2, P2b, P3 and P4 close once
+  P4 commits. A refused step answers 409 with the reason and stays not done.
+- P2 refuses on the plan's stops, a name taken in `<DST>`, an attachment total
+  over `<DST>`'s file quota (Qto pictures are not counted), and no agent with
+  the orchestrator number on `<DST>`'s roster. It does not check that this agent
+  is `MOVE_CALLER`: the hub is not told who that is.
+- The P2b mark needs a stored message per seat, from that agent on the move's
+  topic in `<DST>`. P4 refuses a seat with no probe, so a seat P2 found on a
+  re-run is probed first.
+- P4 reads the lanes on the frozen issue keys before the transaction: afterwards
+  a new key can equal a staying issue's key in `<SRC>`. A lane filed on a moved
+  key after P1 gets no note. `op journal` lists only lanes whose key changed.
+- P6 copies from what P4 moved, then deletes: a post can land between P3 and P4.
+- P7 passes the `fleet_lanes` and `fleet_asks` topic counts as known (5.2). The
+  shell fails on any `.proofs` count that is not 0, so a known hit is answered as
+  count 0 with its count in the name. A failed proof answers 200 with the counts
+  and P7 stays not done.
+- The hub-wide log names the move id and the step, never a channel, a slug or an
+  error text (C13). The reason goes to the operator in the answer.
+
+Not read yet: `detail` on a step, so `Keep`, `KeepEmails`, `LeaveHours` and
+`RuleDoc` have no input: a Q5 or Q8 stop stands until the owner clears it in
+`<DST>`. P4 and P7 answer `.report` and P7 `.kept`, which the shell does not print
+yet.
 
 ## 9. Cases (each lands with its red control)
 

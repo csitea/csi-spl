@@ -211,7 +211,7 @@ func anyStrings(v any) []string {
 }
 
 // C15: a step or a mark needs the owner's GO for THIS channel and target, and is
-// refused before anything happens. The answer that stands reaches not_built
+// refused before anything happens. The answer that stands passes
 // today, which is past the check. Each row below is one way the GO is not it;
 // the row with the right GO is the control that the refusals are not blanket.
 func TestChannelMoveGoC15(t *testing.T) {
@@ -263,7 +263,6 @@ func TestChannelMoveGoC15(t *testing.T) {
 		{"the form is in another topic", answer(op, owner, otherTopic, good), "go_required"},
 		{"a GO for a longer channel id", answer(op, owner, wrongChT, "Poll: "+wrongCh+"\nAnswer: GO — Go"), "go_required"},
 		{"a GO for another target", answer(op, owner, wrongDstT, "Poll: "+wrongDst+"\nAnswer: GO — Go"), "go_required"},
-		{"the owner's GO", answer(op, owner, task, good), "not_built"},
 	} {
 		for _, opName := range []string{"step", "mark"} {
 			_, out := opCall(t, e, src, http.MethodPost, moveURL, "good", chanMoveBody(opName, src, "proj-x", dst, map[string]any{"go_msg_id": c.id, "step": "P1"}))
@@ -271,6 +270,11 @@ func TestChannelMoveGoC15(t *testing.T) {
 				t.Errorf("%s (%s): %v, want %s", c.name, opName, out, c.want)
 			}
 		}
+	}
+	// The control: the owner's GO passes the check, and mark refuses P1 after it.
+	_, out := opCall(t, e, src, http.MethodPost, moveURL, "good", chanMoveBody("mark", src, "proj-x", dst, map[string]any{"go_msg_id": answer(op, owner, task, good), "step": "P1"}))
+	if out["error"] == "go_required" {
+		t.Errorf("the owner's GO: %v", out)
 	}
 	// A copied post has a human author and box-wui, the shape of a member's own
 	// post (T11), so a copy of the owner's GO reads as his GO unless the row says
@@ -287,7 +291,7 @@ func TestChannelMoveGoC15(t *testing.T) {
 	}
 	// A step carrying a new name is refused, never moved under the old one: T5
 	// does not build TO_NAME.
-	_, out := opCall(t, e, src, http.MethodPost, moveURL, "good", chanMoveBody("step", src, "proj-x", dst,
+	_, out = opCall(t, e, src, http.MethodPost, moveURL, "good", chanMoveBody("step", src, "proj-x", dst,
 		map[string]any{"go_msg_id": answer(op, owner, task, good), "step": "P1", "to_name": "proj-y"}))
 	if out["error"] != "not_built" || !strings.Contains(out["detail"].(string), "TO_NAME") {
 		t.Errorf("TO_NAME on a step: %v", out)

@@ -22,8 +22,7 @@ import (
 //	POST /v1/operator/channel-moves {op, env, src, channel, dst, mode, to_name, move_id, go_msg_id, step, detail}
 //
 // The body is the seam of do_spl_channel_workspace_move, one request for each
-// op: plan (reads, changes nothing, C1), journal, step and mark. Only plan is
-// answered so far.
+// op: plan (reads, changes nothing, C1), journal, step and mark (channel_move_steps.go).
 //
 //   - Who: the env service account's Google ID token on the operator
 //     allow-list (operatorAuth), as handleOperatorChannelCreate.
@@ -134,7 +133,7 @@ func (s *Server) handleChannelMove(w http.ResponseWriter, r *http.Request) {
 	case "plan":
 		s.channelMovePlan(w, r, op, q)
 	case "journal":
-		writeErr(w, http.StatusNotImplemented, tokenNotBuilt, "the journal of spec 169 T7 is not built yet")
+		s.channelMoveJournalAnswer(w, r, q)
 	case "step", "mark":
 		if !s.channelMoveGo(w, r, q) {
 			return
@@ -143,7 +142,7 @@ func (s *Server) handleChannelMove(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotImplemented, tokenNotBuilt, "TO_NAME is not built yet: a move keeps the channel's id")
 			return
 		}
-		writeErr(w, http.StatusNotImplemented, tokenNotBuilt, "the steps of spec 169 T7 are not built yet")
+		s.channelMoveDrive(w, r, op, q)
 	default:
 		writeErr(w, http.StatusBadRequest, "bad_op", "op must be plan, journal, step or mark")
 	}
@@ -191,14 +190,17 @@ func channelMoveTables() []store.MoveTable {
 	return out
 }
 
+func channelMovePlanRequest(q channelMoveRequest) store.ChannelMovePlanRequest {
+	return store.ChannelMovePlanRequest{Src: q.Src, Channel: q.Channel, Dst: q.Dst, Tables: channelMoveTables(), BindTypes: channelmove.Binds}
+}
+
 func (s *Server) channelMovePlan(w http.ResponseWriter, r *http.Request, op string, q channelMoveRequest) {
 	pl, ok := s.o.Store.(store.ChannelMovePlanner)
 	if !ok {
 		writeErr(w, http.StatusNotImplemented, "unsupported", "this hub's store cannot plan a channel move")
 		return
 	}
-	plan, err := pl.PlanChannelMove(r.Context(), store.ChannelMovePlanRequest{Src: q.Src, Channel: q.Channel, Dst: q.Dst,
-		Tables: channelMoveTables(), BindTypes: channelmove.Binds})
+	plan, err := pl.PlanChannelMove(r.Context(), channelMovePlanRequest(q))
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		writeErr(w, http.StatusNotFound, "unknown_channel", "no channel "+q.Channel+" in "+q.Src)
@@ -223,33 +225,44 @@ func (s *Server) channelMovePlan(w http.ResponseWriter, r *http.Request, op stri
 // must be free in <DST> (else TO_NAME). Archived rows reserve a name there too.
 func (s *Server) channelMoveRefusals(w http.ResponseWriter, r *http.Request, q channelMoveRequest, plan store.ChannelMovePlan) ([]string, bool) {
 	refuse := append([]string{}, plan.Stops()...)
-	taken := "channel " + q.ToName + " exists in " + q.Dst + ": set TO_NAME"
-	_, err := s.o.Store.Channel(r.Context(), q.Dst, q.ToName)
-	switch {
-	case err == nil:
-		return append(refuse, taken), true
-	case !errors.Is(err, store.ErrNotFound):
-		writeErr(w, http.StatusInternalServerError, "internal", "channel lookup failed")
-		return nil, false
-	}
-	_, found, err := s.o.Store.ArchivedChannel(r.Context(), q.Dst, q.ToName)
+	taken, err := s.channelMoveNameTaken(r.Context(), q.Dst, q.ToName)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "channel lookup failed")
 		return nil, false
 	}
-	if found {
-		refuse = append(refuse, taken)
+	if taken {
+		refuse = append(refuse, channelMoveTakenLine(q))
 	}
 	return refuse, true
 }
 
+func channelMoveTakenLine(q channelMoveRequest) string {
+	return "channel " + q.ToName + " exists in " + q.Dst + ": set TO_NAME"
+}
+
+// channelMoveNameTaken: a live or an archived row holds the name in dst.
+func (s *Server) channelMoveNameTaken(ctx context.Context, dst, name string) (bool, error) {
+	_, err := s.o.Store.Channel(ctx, dst, name)
+	switch {
+	case err == nil:
+		return true, nil
+	case !errors.Is(err, store.ErrNotFound):
+		return false, err
+	}
+	_, found, err := s.o.Store.ArchivedChannel(ctx, dst, name)
+	return found, err
+}
+
 // channelMovePlanOf shapes the plan for the shell. Every list is [], never
-// null. Seats stays empty: T4b's plan holds only the seats with no desk, and
-// those come through Stops.
+// null. Seats is every seat (T4d), with a desk or without one: those without
+// also come through Stops, and only Stops counts as a refusal.
 func channelMovePlanOf(p store.ChannelMovePlan, refuse []string) channelMovePlanAnswer {
 	a := channelMovePlanAnswer{Counts: map[string]int{}, Seats: []channelMoveSeat{},
 		Mentions: make([]channelMoveMention, 0, len(p.Mentions)), MembersLost: []string{},
 		Kept: channelMoveKeptList, Refuse: refuse, SharedFiles: []string{}}
+	for _, seat := range p.Seats {
+		a.Seats = append(a.Seats, channelMoveSeat{Agent: seat.Agent, Box: seat.Box})
+	}
 	for _, c := range p.Counts {
 		a.Counts[c.Table] = c.Set
 		if c.Refs > 0 {

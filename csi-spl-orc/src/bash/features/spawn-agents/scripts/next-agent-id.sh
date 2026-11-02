@@ -32,9 +32,10 @@
 # retire order, oldest first (a tie in walk order), and the one taken is
 # printed as a WARN line with its retire time (SPL-2646: a reap retires every
 # dead id at once, which held a whole line full for 24 h).
-# The claim is still `mkdir` without -p: one syscall both refuses a used id and
-# locks out a concurrent spawn racing for the same one. A full line (every
-# number held by a hard rule) is exit 1; nothing is ever reused silently.
+# The claim is `mkdir` without -p under the claim lock (see _claim): the lock,
+# not mkdir's exit code, is what locks out a concurrent spawn racing for the
+# same id. A full line (every number held by a hard rule) is exit 1; nothing is
+# ever reused silently.
 #
 # Usage:
 #   next-agent-id.sh --kind claude|grok|agy|qwen|mistral # prints e.g. c-004
@@ -129,13 +130,21 @@ _taken() {
   [ -e "${SPOOL_ROOT}/$1" ] || [ -L "${SPOOL_ROOT}/$1" ] && return 0
   compgen -G "${SPOOL_ROOT}/$1@*" >/dev/null
 }
-# _claim ID: create ID's mailbox dir, or fail when it is taken.
+# _claim ID: create ID's mailbox dir, or fail when it is taken. The taken check
+# and the create hold one lock, because mkdir's exit code does not name a
+# winner: uutils mkdir (Ubuntu 26.04's default) exits 0 when it loses the race
+# for an existing dir, and two callers then both held one id (SPL-4671).
 _claim() {
-  _taken "$1" && return 1
-  if [ -z "$QBOX" ]; then mkdir "${SPOOL_ROOT}/$1" 2>/dev/null; return; fi
-  mkdir "${SPOOL_ROOT}/$1@${QBOX}" 2>/dev/null || return 1
-  ln -s "$1@${QBOX}" "${SPOOL_ROOT}/$1" 2>/dev/null && return 0
-  rmdir "${SPOOL_ROOT}/$1@${QBOX}" 2>/dev/null; return 1
+  local lock="${SPOOL_ROOT}/agent-id.claim.lock"
+  (
+    chmod 0664 "$lock" 2>/dev/null || true
+    flock -w 30 8 || exit 1
+    _taken "$1" && exit 1
+    if [ -z "$QBOX" ]; then mkdir "${SPOOL_ROOT}/$1" 2>/dev/null; exit; fi
+    mkdir "${SPOOL_ROOT}/$1@${QBOX}" 2>/dev/null || exit 1
+    ln -s "$1@${QBOX}" "${SPOOL_ROOT}/$1" 2>/dev/null && exit 0
+    rmdir "${SPOOL_ROOT}/$1@${QBOX}" 2>/dev/null; exit 1
+  ) 8>>"$lock"
 }
 
 _mkdirs() {  # ID — the dir itself already exists

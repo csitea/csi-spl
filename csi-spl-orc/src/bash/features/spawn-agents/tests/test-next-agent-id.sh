@@ -136,6 +136,25 @@ SPOOL_ID_ROLE_LETTERS=acgxq bash "$NAI" --kind mistral >/dev/null 2>&1; eq "mist
 wait
 eq "racing claims: one 0 and one 3" "0 3" "$(sort -n "$T_TMP/r1" "$T_TMP/r2" | tr '\n' ' ' | sed 's/ $//')"
 
+# SPL-4671: the same race under a mkdir that exits 0 when it loses it, as uutils
+# mkdir does (Ubuntu 26.04's default, 8 of 300 races under the plain mkdir). The
+# shim waits, so both racers are past the taken check before either creates.
+r lax
+_real_mkdir="$(command -v mkdir)"
+mkdir -p "$T_TMP/lax-bin"
+cat >"$T_TMP/lax-bin/mkdir" <<EOF
+#!/bin/sh
+sleep 1
+exec "$_real_mkdir" -p "\$@"
+EOF
+chmod +x "$T_TMP/lax-bin/mkdir"
+for _q in "" qualified; do
+  ( PATH="$T_TMP/lax-bin:$PATH" SPOOL_DIR_LAYOUT="$_q" SPOOL_DESK_BOX=sat bash "$NAI" --claim "g-50${#_q}" >/dev/null 2>&1; echo $? > "$T_TMP/r1" ) &
+  ( PATH="$T_TMP/lax-bin:$PATH" SPOOL_DIR_LAYOUT="$_q" SPOOL_DESK_BOX=sat bash "$NAI" --claim "g-50${#_q}" >/dev/null 2>&1; echo $? > "$T_TMP/r2" ) &
+  wait
+  eq "racing claims under a mkdir that exits 0 on a lost race (layout '${_q}'): one 0 and one 3" "0 3" "$(sort -n "$T_TMP/r1" "$T_TMP/r2" | tr '\n' ' ' | sed 's/ $//')"
+done
+
 # specs/058 6: the qualified mailbox layout. A claim is the dir <ID>@<box> plus
 # the compat link <ID>; an id held in either shape (or by a half-migrated
 # self-loop link) is taken.

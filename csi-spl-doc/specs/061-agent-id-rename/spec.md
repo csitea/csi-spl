@@ -137,7 +137,7 @@ week one.
   3. `$SPOOL_ROOT/agents/<id>.json` exists (`SPEC-agent-identity-map.md`);
   4. a tmux window carries it;
   5. its retirement is younger than the **quarantine** of 24 h (`SPOOL_ID_QUARANTINE_H`, default 24).
-- The claim is still `mkdir` without `-p` (atomic, races lose).
+- The claim is still `mkdir` without `-p`, under the flock `agent-id.claim.lock`: the lock names the winner, not mkdir's exit code, which is 0 on a lost race under uutils mkdir (Ubuntu 26.04, SPL-4671).
 - A full line (every number `004-999` skipped) is exit 1, as today.
 
 ### 3.6 Retire: what happens to the previous holder

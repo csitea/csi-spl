@@ -102,10 +102,16 @@ type IssueDiscussions interface {
 	// TopicsByPrefix: at most limit topic ids of the tenant that start with
 	// prefix (8 hex digits), for a brief that names a topic by its short id.
 	TopicsByPrefix(ctx context.Context, tenant, prefix string, limit int) ([]string, error)
+	// TopicIDs lists the tenant's topics that are no relay task's hash.
+	TopicIDs(ctx context.Context, tenant string) ([]string, error)
 }
 
 // TopicPrefixRe is a topic's short id: its first 8 hex digits.
 var TopicPrefixRe = regexp.MustCompile(`^[0-9a-f]{8}$`)
+
+// RelayTaskHashRe is a version-5 uuid: the hash spool-fleet-relay.sh makes of
+// a task name (uuid5 "spool-task:<name>"), never a discussion (spec 153 3.11).
+var RelayTaskHashRe = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 var (
 	_ IssueDiscussions = (*Memory)(nil)
@@ -267,6 +273,23 @@ func (s *Memory) TenantsMissingIssueBacklog(_ context.Context) ([]string, error)
 					break found
 				}
 			}
+		}
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+// TopicIDs lists the tenant's topics that are no relay task's hash (not
+// version 5), for the inverse a lane put makes of such a hash (spec 153 3.12).
+func (s *Memory) TopicIDs(_ context.Context, tenant string) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	seen := map[string]bool{}
+	out := []string{}
+	for k, m := range s.messages {
+		if k[0] == tenant && !seen[m.TaskID] && !RelayTaskHashRe.MatchString(m.TaskID) {
+			seen[m.TaskID] = true
+			out = append(out, m.TaskID)
 		}
 	}
 	sort.Strings(out)
@@ -474,6 +497,24 @@ func (s *Postgres) TenantsMissingIssueBacklog(ctx context.Context) ([]string, er
 		out = append(out, id)
 		return nil
 	})
+	return out, err
+}
+
+// TopicIDs on Postgres: one scan of the tenant's messages (prd 2026-11-02:
+// 111 ms, 10589 topics, n = 1), only on a lane put that names a relay hash.
+func (s *Postgres) TopicIDs(ctx context.Context, tenant string) ([]string, error) {
+	out := []string{}
+	err := s.queryTenant(ctx, tenant, `SELECT DISTINCT task_id::text FROM messages
+		WHERE tenant_id = $1 AND substr(task_id::text, 15, 1) <> '5' ORDER BY 1`,
+		[]any{tenant},
+		func(r pgx.Rows) error {
+			var id string
+			if err := r.Scan(&id); err != nil {
+				return err
+			}
+			out = append(out, id)
+			return nil
+		})
 	return out, err
 }
 

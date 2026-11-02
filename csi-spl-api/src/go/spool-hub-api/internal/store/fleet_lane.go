@@ -16,19 +16,21 @@ import (
 // set to state done at exit-clean. Age is how long ago it was last written,
 // on the hub's clock.
 type FleetLane struct {
-	Fleet     string
-	AgentID   string
-	AgentBox  string
-	Repo      string
-	Branch    string
-	Scope     string
-	Files     []string
-	Topic     string
-	IssueKey  string // the lane's own issue, "" for none (rdb 0221, spec 153 3.4)
-	State     string // live | done
-	WriterBox string // the box that last wrote it (from the authenticated hello)
-	UpdatedAt time.Time
-	Age       time.Duration
+	Fleet    string
+	AgentID  string
+	AgentBox string
+	Repo     string
+	Branch   string
+	Scope    string
+	Files    []string
+	Topic    string
+	IssueKey string // the lane's own issue, "" for none (rdb 0221, spec 153 3.4)
+	// OriginIssue is the issue the lane came from, "" for none (rdb 0253, spec 153 3.12)
+	OriginIssue string
+	State       string // live | done
+	WriterBox   string // the box that last wrote it (from the authenticated hello)
+	UpdatedAt   time.Time
+	Age         time.Duration
 }
 
 // LaneDoneTTL is how long a done row stays readable before a write prunes it.
@@ -178,6 +180,8 @@ func CheckFleetLane(l FleetLane) string {
 		return "topic must be a task id ([A-Za-z0-9_-], up to 64)"
 	case !LaneIssueRe.MatchString(l.IssueKey):
 		return "issue_key must be an issue key like SPL-12"
+	case !LaneIssueRe.MatchString(l.OriginIssue):
+		return "origin_issue must be an issue key like SPL-12"
 	case l.State != "live" && l.State != "done":
 		return "state must be live or done"
 	}

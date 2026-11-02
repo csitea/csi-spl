@@ -173,6 +173,7 @@ characters, `issues.go:71`):
 
     ## Source
     /t/<topic uuid>
+    origin issue: <url of the issue the lane came from; spec 153 3.12, absent for none>
 
     ## Restart
     - key: SPL-n

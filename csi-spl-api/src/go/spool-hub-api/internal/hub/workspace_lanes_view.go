@@ -88,7 +88,7 @@ func (s *Server) workspaceLanesView(ctx context.Context, tenant, fleet, reader s
 	onTopic := make([]store.FleetLane, 0, len(active))
 	for _, l := range active {
 		if l.Topic != "" {
-			l.IssueKey = ""
+			l.IssueKey, l.OriginIssue = "", ""
 			onTopic = append(onTopic, l)
 		}
 	}

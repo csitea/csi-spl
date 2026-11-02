@@ -24,6 +24,7 @@ func cmdLane(cfg *config.Config, args []string) int {
 	files := fs.String("files", "", "write: the paths it owns, comma-separated")
 	topic := fs.String("topic", "", "write: its topic (task id)")
 	issue := fs.String("issue", "", "write: its issue key, e.g. SPL-12")
+	origin := fs.String("origin-issue", "", "write: the issue it came from, e.g. SPL-12")
 	state := fs.String("state", "live", "write: live or done")
 	archived := fs.Bool("archived", false, "list the live rows whose topic is archived (with --box: that box's only)")
 	if err := fs.Parse(args); err != nil {
@@ -41,7 +42,7 @@ func cmdLane(cfg *config.Config, args []string) int {
 	ctx, stop := interruptible()
 	defer stop()
 	out, err := action.Lane(ctx, cfg, action.LaneArgs{Fleet: *fleet, Agent: *agent, Box: *agentBox, Repo: *repo,
-		Branch: *branch, Scope: *scope, Files: fl, Topic: *topic, Issue: *issue, State: *state, Archived: *archived})
+		Branch: *branch, Scope: *scope, Files: fl, Topic: *topic, Issue: *issue, OriginIssue: *origin, State: *state, Archived: *archived})
 	if err != nil {
 		return fail(err)
 	}

@@ -11,11 +11,11 @@ import (
 // Postgres side of rdb 0096. Every statement runs in the tenant scope; the
 // prune, the upsert and the read-back are one transaction.
 
-const laneCols = `agent_id, agent_box, repo, branch, scope, files, topic, issue_key, state, writer_box, updated_at`
+const laneCols = `agent_id, agent_box, repo, branch, scope, files, topic, issue_key, origin_issue, state, writer_box, updated_at`
 
 func scanLane(row pgx.Row, fleet string, now time.Time) (FleetLane, error) {
 	l := FleetLane{Fleet: fleet}
-	if err := row.Scan(&l.AgentID, &l.AgentBox, &l.Repo, &l.Branch, &l.Scope, &l.Files, &l.Topic, &l.IssueKey, &l.State, &l.WriterBox, &l.UpdatedAt); err != nil {
+	if err := row.Scan(&l.AgentID, &l.AgentBox, &l.Repo, &l.Branch, &l.Scope, &l.Files, &l.Topic, &l.IssueKey, &l.OriginIssue, &l.State, &l.WriterBox, &l.UpdatedAt); err != nil {
 		return l, err
 	}
 	if l.Files == nil {
@@ -39,14 +39,15 @@ func (s *Postgres) PutFleetLane(ctx context.Context, tenant string, l FleetLane,
 		}
 		var err error
 		out, err = scanLane(tx.QueryRow(ctx, `INSERT INTO fleet_lanes
-			(tenant_id, fleet, agent_id, agent_box, repo, branch, scope, files, topic, issue_key, state, writer_box, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			(tenant_id, fleet, agent_id, agent_box, repo, branch, scope, files, topic, issue_key, origin_issue, state, writer_box, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 			ON CONFLICT (tenant_id, fleet, agent_id, agent_box) DO UPDATE SET
 				repo = EXCLUDED.repo, branch = EXCLUDED.branch,
 				scope = EXCLUDED.scope, files = EXCLUDED.files, topic = EXCLUDED.topic, issue_key = EXCLUDED.issue_key,
+				origin_issue = EXCLUDED.origin_issue,
 				state = EXCLUDED.state, writer_box = EXCLUDED.writer_box, updated_at = EXCLUDED.updated_at
 			RETURNING `+laneCols,
-			tenant, l.Fleet, l.AgentID, l.AgentBox, l.Repo, l.Branch, l.Scope, files, l.Topic, l.IssueKey, l.State, box, now), l.Fleet, now)
+			tenant, l.Fleet, l.AgentID, l.AgentBox, l.Repo, l.Branch, l.Scope, files, l.Topic, l.IssueKey, l.OriginIssue, l.State, box, now), l.Fleet, now)
 		return err
 	})
 	return out, err

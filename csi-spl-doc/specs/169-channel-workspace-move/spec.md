@@ -412,11 +412,11 @@ cd csi-spl-orc && CHANNEL=<SRC>/<CHANNEL> TO=<DST> MOVE_MODE=copy ./run -a do_sp
 
 | step | what | undo |
 |---|---|---|
-| P1 | `plan`, freeze the set in the journal (in `<DST>`) | drop the journal |
+| P1 | `plan`, freeze the set in the journal (in `<DST>`), for the P2 check; P4's re-plan under the lock is the set moved (8.3) | drop the journal |
 | P2 | Check: `<DST>` exists, the caller is allowed, no channel `<CHANNEL>` in `<DST>` (else `TO_NAME=<new id>`), quotas fit, every seat has a `<DST>` desk, `<DST>` has an orchestrator seat (W2, the P2b probe's recipient), shared items resolved (5.5), no unresolved hours rows (5.1a) | nothing changed |
 | P2b | Prove each agent's `<DST>` desk: one probe DM to the `<DST>` orchestrator seat on the probe topic (task id = `move_id`), msg id recorded in the journal (W2). No seat is added here | nothing to undo but the probe DMs, which stay in `<DST>` as part of the journal's record |
 | P3 | Copy blobs and Qto objects to `<DST>` (idempotent) | delete the `<DST>` copies |
-| P4 | **One database transaction**, asOperator: insert every row of the set under `<DST>` (parents first), rewrite `channel_order`, NULL the DM `ref_task_id`s, write the redirect rows (Q2); for a move, delete the set in `<SRC>` (children first, F5); recompute counters; bump change stamps. 3,650 posts (F13) is the largest set today (timing: R3). | the transaction rolls back as a whole |
+| P4 | **One database transaction**, asOperator, with `app.channel_move = 'on'` set transaction-local: the one door through the append-only guards of `usage_events`, `sql_query_audit` and `demo_post_audit`, a DELETE only and only in the operator scope (rdb 0251); insert every row of the set under `<DST>` (parents first), rewrite `channel_order`, NULL the DM `ref_task_id`s, write the redirect rows (Q2); for a move, delete the set in `<SRC>` (children first, F5); recompute counters; bump change stamps. 3,650 posts (F13) is the largest set today (timing: R3). | the transaction rolls back as a whole |
 | P5 | Box steps, at once after P4: rewrite the rule rows' tenant column, lane notes for new keys (W4). The seat rows already moved in P4 | journal-driven: a re-run resumes at the first step not marked done |
 | P6 | Move only: delete `<SRC>` blobs and Qto objects no `<SRC>` row lists | none: by now `<DST>` is the only home |
 | P7 | Run every proof of section 5 and write the results into the journal; print the kept list (5.6) with the date each copy expires | n/a |
@@ -430,6 +430,12 @@ id lists, the owner's GO msg id, one row per step with `started_at`,
 `done_at`, counts and the proof results. It lives in `<DST>` on purpose: it
 is the record that the channel came from somewhere, kept where the channel
 now is.
+
+P1 freezes the set for the check. P4's re-plan under the channel lock is the
+set moved: it replaces the frozen lists, and that is what "frozen" means
+wherever the proofs read it. A stop that re-plan finds and P2 did not clear
+refuses P4; a differing GO refuses it; its step counts record each list's P1
+and moved size; after P4 commits nothing replaces them.
 
 ## 9. Cases (each lands with its red control)
 

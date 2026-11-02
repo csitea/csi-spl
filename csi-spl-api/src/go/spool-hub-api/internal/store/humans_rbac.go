@@ -38,7 +38,9 @@ func (r RBACSource) TenantRoles(ctx context.Context, tenant string) (map[string]
 	return r.H.TenantRoles(ctx, tenant)
 }
 
-// memRoles is Memory's role table: the phase-1 seed (no custom roles).
+// memRoles is Memory's system role table: the phase-1 seed (no custom roles).
+// The last-owner and last-admin guards read it, never a workspace's list
+// (spec 152 3.7).
 func memRoles() map[string]rbac.Role { return rbac.DefaultRoles() }
 
 // isFKViolation reports a foreign_key_violation (SQLSTATE 23503) on constraint.
@@ -47,8 +49,8 @@ func isFKViolation(err error, constraint string) bool {
 	return sqlState(err) == "23503" && errors.As(err, &pe) && pe.ConstraintName == constraint
 }
 
-func (s *Memory) TenantRoles(context.Context, string) (map[string]rbac.Role, error) {
-	return memRoles(), nil
+func (s *Memory) TenantRoles(_ context.Context, tenant string) (map[string]rbac.Role, error) {
+	return s.memTenantRoles(tenant), nil
 }
 
 // setOwner reports whether any role of set is a tenant-owner role.

@@ -66,6 +66,7 @@ type ChannelMoveApplyRequest struct {
 	failAfter string          // C5: fail once this table's insert has run
 	updateSet string          // C4: this table's rows are moved by UPDATE ... SET tenant_id
 	noGcal    bool            // C18: skip the pre-P4 Google delete
+	keepQueue bool            // C27: skip the expiry of unverifiable deliveries
 	// betweenPlans runs after the check before the transaction: what lands
 	// between P2 and the lock. noLockStops lets the plan under the lock pass.
 	betweenPlans func()
@@ -80,6 +81,19 @@ type ChannelMoveResult struct {
 	Deleted map[string]int    // rows deleted in <SRC>, by table
 	NewKeys map[string]string // old issue key -> new key (F6)
 	Lost    []string          // channel humans who did not come along (Q5)
+	// DeliveriesExpired are the queued or unacked deliveries of agent rows whose
+	// sender key differs in <DST> (C27); DeliveriesExpiredNoPin those whose
+	// to_box has no live pin in <DST>. Nobody receives them: the report says so.
+	DeliveriesExpired      int
+	DeliveriesExpiredNoPin int
+}
+
+// DeliveriesLine is the operator's line on the deliveries P4 expired (C27), with
+// the limit a reader cannot see in the counts. The move report prints it.
+func (r ChannelMoveResult) DeliveriesLine() string {
+	return fmt.Sprintf("deliveries: %d expired (sender key differs in the target), %d expired (addressee box not pinned in the target); "+
+		"nobody receives these. Not counted: a row signed before its box re-keyed is refused by the box and lost.",
+		r.DeliveriesExpired, r.DeliveriesExpiredNoPin)
 }
 
 // ErrChannelMoveRefused: plan names a shared item or an hours stop (5.5, 5.1a).
@@ -259,7 +273,7 @@ func init() {
 }
 
 func (m *pgMove) mvRun() error {
-	steps := []func() error{m.mvScope, m.replan, m.checkDst, m.writeJournal, m.prepare, m.copyAll, m.rewriteStaying, m.deleteAll,
+	steps := []func() error{m.mvScope, m.replan, m.checkDst, m.writeJournal, m.prepare, m.copyAll, m.mvExpireDeliveries, m.rewriteStaying, m.deleteAll,
 		m.writeRedirects, m.bumpStamps, m.checkResidue, m.finishJournal}
 	for _, step := range steps {
 		if err := step(); err != nil {
@@ -515,6 +529,37 @@ func (m *pgMove) leaveFilter(table string, args *[]any) string {
 		return ` AND NOT member_id = ANY($` + strconv.Itoa(len(*args)) + `::text[])`
 	}
 	return ""
+}
+
+// mvExpireDeliveries (C27): a moved agent row stays signed with its <SRC> key
+// and the addressee's box checks it against the <DST> pin of from_box, so a
+// delivery of a row it cannot verify is refused and lost with nobody told.
+// Expire those and count them. Kept: to_box box-wui (the browser fan-out, no
+// verify), a person's row from box-wui, and a row whose sender key is the one
+// live in <DST> (its <SRC> pin revoked or not). A to_box with no live <DST> pin
+// can never pull its row, whoever wrote it. Current pins only, not pins_history:
+// a row signed before a re-key is still lost, uncounted (section 7).
+func (m *pgMove) mvExpireDeliveries() error {
+	if m.req.keepQueue {
+		return nil
+	}
+	return m.tx.QueryRow(m.ctx, `WITH x AS (
+			SELECT d.msg_id, d.to_box, tp.box_id IS NULL AS no_pin
+			FROM deliveries d
+			JOIN messages mm ON mm.tenant_id = d.tenant_id AND mm.msg_id = d.msg_id
+			LEFT JOIN pins sp ON sp.tenant_id = $1 AND sp.box_id = mm.from_box
+			LEFT JOIN pins dp ON dp.tenant_id = $2 AND dp.box_id = mm.from_box AND dp.revoked_at IS NULL
+			LEFT JOIN pins tp ON tp.tenant_id = $2 AND tp.box_id = d.to_box AND tp.revoked_at IS NULL
+			WHERE d.tenant_id = $2 AND d.msg_id = ANY($3::uuid[]) AND d.to_box <> 'box-wui'
+			AND (d.state = 'queued' OR (d.state = 'sent' AND d.acked_at IS NULL))
+			AND (tp.box_id IS NULL OR (mm.from_box <> 'box-wui' AND
+				(dp.pubkey IS NULL OR sp.pubkey IS NULL OR dp.pubkey <> sp.pubkey)))
+		), u AS (
+			UPDATE deliveries d SET state = 'expired' FROM x
+			WHERE d.tenant_id = $2 AND d.msg_id = x.msg_id AND d.to_box = x.to_box
+			RETURNING x.no_pin
+		) SELECT count(*) FILTER (WHERE NOT no_pin), count(*) FILTER (WHERE no_pin) FROM u`,
+		m.req.Src, m.req.Dst, mpNonNil(m.b.Msgs)).Scan(&m.res.DeliveriesExpired, &m.res.DeliveriesExpiredNoPin)
 }
 
 func (m *pgMove) copyDefault(t MoveTable) error {
@@ -777,7 +822,8 @@ func (m *pgMove) finishJournal() error {
 		return err
 	}
 	counts, err := json.Marshal(map[string]any{"copied": m.res.Copied, "deleted": m.res.Deleted, "new_keys": m.res.NewKeys,
-		"p1_lists": m.p1Sizes, "moved_lists": moved})
+		"p1_lists": m.p1Sizes, "moved_lists": moved,
+		"deliveries_expired": m.res.DeliveriesExpired, "deliveries_expired_no_pin": m.res.DeliveriesExpiredNoPin})
 	if err != nil {
 		return err
 	}

@@ -26,6 +26,11 @@
 #      bucket's retention, read as the pinned account (project and instance
 #      from the real cnf, gcloud stubbed); a value it cannot read prints as
 #      "not read: <reason>" and the plan keeps its exit code; run reads neither
+#  10. C25, C26 (T9c, W2, F14): the box rule row's desk agent with no <DST> desk
+#      on this box refuses plan and run, exit 3, naming it and the box; an
+#      unreadable map or a malformed row refuses too. No row, no map, a row of
+#      another env and a copy pass; plan says which box and file it read and
+#      names the seats' other boxes; the rule file stays byte-equal
 # Every hub op, probe and send is recorded (CONTROL: an absent call means
 # "not made", not "not recorded").
 #------------------------------------------------------------------------------
@@ -89,6 +94,9 @@ exit 0
 EOF
 # gcloud: every call is recorded; never the real one, in any case of this file.
 mkdir -p "$T/stub" "$T/home"
+# c-101, the desk agent of reset_state's rule row, has its dst1 desk on this box
+DESK="$T/home/.local/share/csi-spl/cloud/prd/desk/dst1/box-desk"
+mkdir -p "$DESK/spool/c-101"
 cat >"$T/stub/gcloud" <<'EOF'
 #!/usr/bin/env bash
 echo "gcloud $*" >>"$STUB_DIR/gcloud.log"
@@ -275,6 +283,57 @@ in_orc do_spl_channel_workspace_move "${G[@]}"; rc=$?
 cp "$T/plan.ok" "$T/plan.json"
 in_orc do_spl_channel_workspace_move "${G[@]}" MOVE_CMD=run; rc=$?
 [[ $rc -eq 0 && ! -s "$T/gcloud.log" ]] && pass "9. C24 run reads neither (plan only)" || fail "9. C24 run: rc=$rc $(cat "$T/gcloud.log")"
+
+# --- 10. C25, C26 the box rule row ------------------------------------------------------
+BX=boxa
+Q=(SPOOL_DESK_BOX="$BX")
+RULES="$T/spool/channel-rules.tsv"
+reset_state; rm -rf "$DESK"; mkdir -p "${DESK%/*}/$BX/spool/c-101"
+in_orc do_spl_channel_workspace_move "${G[@]}" "${Q[@]}"; rc=$?
+[[ $rc -eq 0 ]] && grep -q "PLAN box rule: read $RULES on box $BX" "$T/out" && grep -q 'other boxes are not read' "$T/out" \
+  && grep -q "PLAN box rule: src1/proj desk agent c-101 has its dst1 desk on box $BX" "$T/out" \
+  && pass "10. C26 the desk is there: plan passes and says which box and file it read" || fail "10. C26 read: rc=$rc $(cat "$T/out")"
+grep -q 'PLAN box rule: run this plan on box box-desk too' "$T/out" \
+  && pass "10. C26 the hub's seats on another box are named" || fail "10. C26 other box: $(cat "$T/out")"
+printf '# a comment\nsrc1\tother\t%s\tprd\tc-777\n' "$DOC" >>"$RULES"
+before="$(sha256sum "$RULES")"; rm -rf "${DESK%/*}/$BX/spool/c-101"
+in_orc do_spl_channel_workspace_move "${G[@]}" "${Q[@]}"; rc=$?
+[[ $rc -eq 3 ]] && grep -q "REFUSE box rule: src1/proj desk agent c-101 has no dst1 desk on box $BX" "$T/out" && ! grep -q 'c-777' "$T/out" \
+  && pass "10. C25 no dst1 desk: plan refuses, exit 3, names the agent and the box, only that channel's row" || fail "10. C25: rc=$rc $(cat "$T/out")"
+[[ "$(sha256sum "$RULES")" == "$before" && -z "$(find "$T/spool" -maxdepth 1 -name 'channel-rules.tsv?*')" ]] \
+  && pass "10. C26 read-only: the rule file is byte-equal, no lock or temp file beside it" || fail "10. C26 read-only: $(ls -a "$T/spool")"
+in_orc do_spl_channel_workspace_move "${G[@]}" "${Q[@]}" "${R[@]}"; rc=$?
+[[ $rc -eq 3 && -z "$(ops)" ]] && grep -q 'REFUSE box rule' "$T/out" && pass "10. C25 run: refused before P1, no step" || fail "10. C25 run: rc=$rc '$(ops)' $(cat "$T/out")"
+in_orc do_spl_channel_workspace_move "${G[@]}" "${Q[@]}" MOVE_CMD=run; rc=$?
+[[ $rc -eq 3 ]] && grep -q 'REFUSE box rule' "$T/out" && ! grep -q 'PLAN box rule' "$T/out" && pass "10. C25 a dry run refuses too, without the plan's lines" || fail "10. C25 dry: rc=$rc $(cat "$T/out")"
+in_orc do_spl_channel_workspace_move "${G[@]}" "${Q[@]}" MOVE_MODE=copy; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'PLAN box rule: not checked, a copy moves no seat' "$T/out" && pass "10. C26 copy: the same row does not refuse" || fail "10. C26 copy: rc=$rc $(cat "$T/out")"
+mkdir -p "${DESK%/*}/$BX/spool/c-101"
+in_orc do_spl_channel_workspace_move "${G[@]}" "${Q[@]}"; rc=$?
+[[ $rc -eq 0 ]] && pass "10. C25 seating the desk clears it" || fail "10. C25 seated: rc=$rc $(cat "$T/out")"
+in_orc do_spl_channel_workspace_move "${G[@]}" "${Q[@]}" DESK_BOX=boxb; rc=$?
+[[ $rc -eq 3 ]] && grep -q 'has no dst1 desk on box boxa' "$T/out" && grep -q 'desk id boxb' "$T/out" && pass "10. C25 DESK_BOX picks the desk id looked at, and it is named" || fail "10. C25 DESK_BOX: rc=$rc $(cat "$T/out")"
+in_orc do_spl_channel_workspace_move "${G[@]}" "${Q[@]}" DESK_BOX=box-wui; rc=$?
+[[ $rc -eq 3 ]] && grep -q 'REFUSE box rule: src1/proj' "$T/out" && grep -q 'box-wui' "$T/out" && pass "10. C25 a bad DESK_BOX: refused, cannot tell" || fail "10. C25 bad box: rc=$rc $(cat "$T/out")"
+rm -rf "${DESK%/*}/$BX/spool/c-101"
+printf 'src1\tproj\t%s\tdev\tc-101\n' "$DOC" >"$RULES"
+in_orc do_spl_channel_workspace_move "${G[@]}" "${Q[@]}"; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'PLAN box rule: src1/proj row is for env dev, not prd: not checked' "$T/out" && pass "10. C26 a row of another env is said, not checked" || fail "10. C26 env: rc=$rc $(cat "$T/out")"
+printf 'src1\tother\t%s\tprd\tc-101\n' "$DOC" >"$RULES"
+in_orc do_spl_channel_workspace_move "${G[@]}" "${Q[@]}"; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'PLAN box rule: no row for src1/proj on box boxa' "$T/out" && pass "10. C26 no row: no refusal, said" || fail "10. C26 no row: rc=$rc $(cat "$T/out")"
+rm -f "$RULES"
+in_orc do_spl_channel_workspace_move "${G[@]}" "${Q[@]}"; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'PLAN box rule: no row for src1/proj on box boxa' "$T/out" && [[ ! -e "$RULES" ]] && pass "10. C26 no map: no refusal, none created" || fail "10. C26 no map: rc=$rc $(cat "$T/out")"
+printf 'src1\tproj\tnot-a-uuid\tprd\tc-101\n' >"$RULES"
+in_orc do_spl_channel_workspace_move "${G[@]}" "${Q[@]}"; rc=$?
+[[ $rc -eq 3 ]] && grep -q 'REFUSE box rule: src1/proj cannot tell' "$T/out" && grep -q 'not-a-uuid' "$T/out" && pass "10. C25 a malformed row refuses" || fail "10. C25 malformed: rc=$rc $(cat "$T/out")"
+if [[ "$(id -u)" != 0 ]]; then
+  printf 'src1\tproj\t%s\tprd\tc-101\n' "$DOC" >"$RULES"; chmod 000 "$RULES"
+  in_orc do_spl_channel_workspace_move "${G[@]}" "${Q[@]}"; rc=$?
+  chmod 644 "$RULES"
+  [[ $rc -eq 3 ]] && grep -q "REFUSE box rule: src1/proj cannot tell: $RULES exists but cannot be read" "$T/out" && pass "10. C25 an unreadable map refuses: unread is not no row" || fail "10. C25 unreadable: rc=$rc $(cat "$T/out")"
+fi
 
 echo "spl-channel-workspace-move: $fails failure(s)"
 [[ $fails -eq 0 ]]

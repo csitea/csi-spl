@@ -20,7 +20,10 @@
 # @description prints the Cloud SQL backup retention and each log bucket's
 # @description retention (R4, row T9b), read as the per-env service account; it
 # @description refuses nothing on them, and a value it cannot read prints as
-# @description "not read: <reason>".
+# @description "not read: <reason>". For a move it also reads the channel's row in
+# @description THIS box's channel-rules.tsv (W2's F14 half, row T9c) and refuses
+# @description when that desk agent has no <DST> desk on this box. A box reads
+# @description only its own file: run the plan on every box that works the channel.
 # @description MOVE_CMD=run reads the hub journal and resumes at the first step
 # @description not done; DRY_RUN=1 (default) only prints those steps. P1-P4
 # @description may be re-run until P4 commits; after that MOVE_FROM may not
@@ -53,7 +56,7 @@
 # @param CHANNEL_MOVE_HUB_CMD (optional) - the hub seam above (until T7 is wired)
 # @param CHANNEL_MOVE_STATE (optional) - the box journal dir, default $SPOOL_ROOT/channel-move
 # @param PROBE_AGENT, PROBE_TO, PROBE_MOVE (MOVE_CMD=probe only) - the seat, the recipient <agent id>[@<box>], the move id
-# @param DESK_BOX (optional, MOVE_CMD=probe) - the seat's box id, default box-desk
+# @param DESK_BOX (optional, MOVE_CMD=probe or plan) - the seat's box id, default this box's desk id
 # @param CWM_GCLOUD_TIMEOUT (optional, MOVE_CMD=plan) - seconds per retention read, default 60
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd CHANNEL=<SRC>/<channel> TO=<DST> ./run -a do_spl_channel_workspace_move
@@ -147,7 +150,7 @@ _spl_cwm_hub() {
 
 # _spl_cwm_plan [quiet]: print the plan; 3 when it refuses (C11, Q6).
 _spl_cwm_plan() {
-  local p n
+  local p n rule=0
   p="$(_spl_cwm_hub plan)" || return 1
   if [[ -z "${1:-}" ]]; then
     jq -r '(.counts // {} | to_entries[] | "PLAN count \(.key) \(.value)"),
@@ -157,15 +160,54 @@ _spl_cwm_plan() {
       (.kept // [] | .[] | "PLAN kept \(.store) until \(.gone_by // "?")")' <<<"$p"
     _spl_cwm_plan_retention
   fi
+  _spl_cwm_plan_box_rule "${1:-}" "$p" || rule=1
   jq -r --arg dst "$CWM_DST" '(.missing_desks // [] | .[] | "REFUSE seat \(.agent) on \(.box // "-") has no desk in \($dst)"),
     (.shared // [] | .[] | "REFUSE shared item \(tostring)"), (.refuse // [] | .[] | "REFUSE \(.)")' <<<"$p"
   n="$(jq '[(.missing_desks // []), (.shared // []), (.refuse // [])] | map(length) | add' <<<"$p")"
+  n=$((n + rule))
   if (( n > 0 )); then
     do_log "FATAL the plan for $CWM_SRC/$CWM_CH -> $CWM_DST refuses ($n item(s) above); nothing changed"
     return 3
   fi
   [[ -n "${1:-}" ]] || do_log "OK plan of $CWM_SRC/$CWM_CH -> $CWM_DST ($CWM_MODE): nothing changed. Run it: MOVE_CMD=run"
 }
+
+# _spl_cwm_plan_box_rule <quiet> <plan json> (T9c, W2, F14, C25, C26): the desk
+# agent of this box's rule row needs a <DST> desk on this box; the hub cannot
+# read that file. 1 and a REFUSE line when it has none or this cannot tell; an
+# absent row is no refusal. Read-only, P5 rewrites the file. A subshell: the
+# desk cnf's globals end here. A copy moves no seat (section 7), and a row of
+# another env is not this move's seat. Other boxes are the operator's: the
+# lines say so and name the boxes of the hub's seats.
+_spl_cwm_plan_box_rule() (
+  local say=echo map box desk row rc=0 env agent d log why id="$CWM_SRC/$CWM_CH"
+  [[ -z "$1" ]] || say=:
+  if [[ "$CWM_MODE" == copy ]]; then $say "PLAN box rule: not checked, a copy moves no seat"; return 0; fi
+  declare -F cr_row >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../features/spawn-agents/lib/channel-rules.inc.sh"
+  map="$(cr_map)"; box="$(spl_box_name)"; desk="${DESK_BOX:-$(spl_desk_box_default)}"
+  $say "PLAN box rule: read $map on box $box; other boxes are not read: run this plan on each box that works $id"
+  while read -r d; do
+    [[ -z "$d" || "$d" == "$box" || "$d" == "$desk" ]] || $say "PLAN box rule: run this plan on box $d too (a seat of $id is there)"
+  done < <(jq -r '.seats // [] | map(.box // empty) | unique | .[]' <<<"$2")
+  [[ ! -e "$map" || -r "$map" ]] || { echo "REFUSE box rule: $id cannot tell: $map exists but cannot be read"; return 1; }
+  row="$(cr_row "$CWM_SRC" "$CWM_CH" 2>&1)" || rc=$?
+  if (( rc == 1 )); then $say "PLAN box rule: no row for $id on box $box"; return 0; fi
+  (( rc == 0 )) || { echo "REFUSE box rule: $id cannot tell: $row"; return 1; }
+  read -r _ env agent <<<"$row"
+  if [[ "$env" != "$ENV" ]]; then $say "PLAN box rule: $id row is for env $env, not $ENV: not checked"; return 0; fi
+  why="$(spl_desk_validate "$CWM_DST" "$desk" none 2>&1)" || { echo "REFUSE box rule: $id cannot tell: $(_spl_cwm_last_line <<<"$why")"; return 1; }
+  log="$(mktemp)" || { echo "REFUSE box rule: $id cannot tell: cannot make a temp file"; return 1; }
+  rc=0
+  { do_require_bin yq && TENANT_ID="$CWM_DST" do_spl_desk_cnf; } >"$log" 2>&1 || rc=$?
+  (( rc != 0 )) || { d="$(spl_desk_dir "$CWM_DST" "$desk" 2>"$log")" || [[ $? -eq 1 ]] || rc=3; }
+  why="$(_spl_cwm_last_line <"$log")"; rm -f "$log"
+  (( rc == 0 )) || { echo "REFUSE box rule: $id cannot tell if desk agent $agent has a $CWM_DST desk on box $box: ${why:-the desk cnf did not resolve}"; return 1; }
+  if [[ ! -d "$d/spool/$agent" ]]; then
+    echo "REFUSE box rule: $id desk agent $agent has no $CWM_DST desk on box $box (desk id $desk, looked in $d as $(id -un))"
+    return 1
+  fi
+  $say "PLAN box rule: $id desk agent $agent has its $CWM_DST desk on box $box"
+)
 
 # _spl_cwm_plan_retention (T9b, R4, C24): how long the copies of 5.6 live. It
 # only prints: this is the operator's reading, never a refusal, and a value it

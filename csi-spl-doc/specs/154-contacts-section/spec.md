@@ -587,7 +587,8 @@ inside each; the "in this workspace" filter shows groups 1 and 2.
 - In the 149 settings section `calendar-google`: a **Contacts** switch
   (connect with `want=contacts`; off stops the sync), last sync time and
   status, Sync now. On 409 `contacts_sync_elsewhere` it says that sync is
-  on in another of the person's workspaces.
+  on in another of the person's workspaces. Not built in B9: this switch
+  moves to the row after B7 and B8 (see row B9).
 - **Budget**: `ChannelSidebar.vue` ships on the first screen. The contact
   rows, the filter's list fetch and the contact card are a lazy component
   (`<LazyPeopleContactRows>`, a new `wui/components/PeopleContactRows.vue`)

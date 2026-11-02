@@ -14,7 +14,9 @@
 #          from registry.tsv
 #   identity record agents/<ID>.json
 #       -> agents/retired/<ID>.<spawned-utc>.json; index.json re-hashed
-#   hub lane row -> state done (lane-map.sh done), best effort
+#   hub lane row -> state done (lane-map.sh done). A close the hub did not take
+#                  says why and queues in .reap/lane-close.tsv: the reaper's next
+#                  tick retries it and alerts the dispatch holder (SPL-4650)
 #   pending     -> $SPOOL_ROOT/.retired/.pending.<ID> while --apply runs: the
 #                  generation, the alias row and "registry" once the rows
 #                  moved. A run stopped half-way leaves it, and the re-run
@@ -83,6 +85,8 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 spool_env_resolve
 # shellcheck source=/dev/null
 . "$_here/../../../../../lib/bash/funcs/spl-desk-box.func.sh"
+# shellcheck source=../lib/reap-lane-close.inc.sh
+. "$_here/../lib/reap-lane-close.inc.sh"
 # shellcheck source=../../../../../lib/bash/funcs/spl-desk-agents.func.sh
 . "$_here/../../../../../lib/bash/funcs/spl-desk-agents.func.sh"
 
@@ -291,8 +295,14 @@ lane="${RETIRE_LANE:-}"
 [ -n "$lane" ] || { lane=1; [ "${SPOOL_TEST:-}" = 1 ] && lane=0; }
 if [ "$lane" = 1 ]; then
   step lane "lane-map.sh done --agent ${ID}"
-  [ "$APPLY" = 1 ] && { timeout 60 bash "$_here/lane-map.sh" "done" --agent "$ID" >/dev/null 2>&1 \
-    || echo "agent-id-retire: WARN the hub lane row of ${ID} was not closed (lane-map.sh done)" >&2; }
+  if [ "$APPLY" = 1 ]; then
+    lane_rc=0; lane_out="$(timeout 60 bash "$_here/lane-map.sh" "done" --agent "$ID" 2>&1 </dev/null)" || lane_rc=$?
+    if [ "$lane_rc" != 0 ]; then
+      lane_why="$(rlc_why "$lane_out")"
+      echo "agent-id-retire: WARN the hub lane row of ${ID} was not closed (lane-map.sh done, rc ${lane_rc}): ${lane_why}" >&2
+      rlc_add "$ID" "$lane_why" || echo "agent-id-retire: WARN the close of ${ID} could not be queued in $(rlc_queue): nobody retries it" >&2
+    fi
+  fi
 fi
 # ---- 7..9. the lane's working directories: listed, not removed --------------
 # Owner HUM-10, t1 37349c9b msg ec060ebc (2026-10-16): a finished lane keeps its

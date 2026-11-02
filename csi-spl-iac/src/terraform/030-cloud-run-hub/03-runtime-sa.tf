@@ -16,9 +16,10 @@ resource "google_project_iam_member" "hub_cloudsql_client" {
   member  = "serviceAccount:${google_service_account.hub.email}"
 }
 
-# the GitHub App key's slot is bound in 07, injected or not
+# the GitHub App key's slot is bound in 07, injected or not; the vendor key
+# pepper's in step 057, whose grant check allows that one member
 resource "google_secret_manager_secret_iam_member" "hub_secret_accessor" {
-  for_each = setsubtract(toset(values(var.secret_environment_variables)), [var.github_app_key_secret_id])
+  for_each = setsubtract(toset(values(var.secret_environment_variables)), [var.github_app_key_secret_id, var.vendor_keys_pepper_secret_id])
 
   project   = var.gcp_project
   secret_id = each.value

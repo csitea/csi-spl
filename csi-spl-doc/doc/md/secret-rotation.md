@@ -91,6 +91,7 @@ equal to the secrets pinned in dev and prd.
 | `csi-spl-hub-stripe-secret-key` | 180 | roll at Stripe, then `do_spl_payment_secret_seed` |
 | `csi-spl-hub-stripe-webhook-secret` | 365 | roll the endpoint's secret at Stripe |
 | `spool-hub-github-app-key` | 180 | a new key in the GitHub App, then `do_spl_gh_app_key_put` |
+| `csi-spl-hub-vendor-key-pepper` | 90, the class value | no rotation action exists yet (`do_spl_vendor_key_pepper_put` adds only the first version). A new version changes every stored vendor key fingerprint |
 | `csi-spl-hub-wui-key` | 365, or on a leak | spec 014 `contracts/wui-dispatch.md` section 2.3: the boxes trust its public key, so a box rollout too |
 
 ### 4.1 Why no secret rotates by itself

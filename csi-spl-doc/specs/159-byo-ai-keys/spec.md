@@ -605,9 +605,11 @@ answers; 1 with a planted log line).
 
 Not done here, each its own lane:
 
-- **The hub's environment.** Step 030 does not yet inject the two variables
-  above, so the routes answer 503 on dev and prd until an iac lane adds them
-  from cnf `vendor_keys` (the KMS key name and the pepper secret of step 057).
+- **The hub's environment.** SPL-4623: step 030 renders the two variables
+  above from cnf `vendor_keys` (`inject` "true"; the KMS key name and the
+  pepper secret of step 057, the pepper at its pin in `hub.secret_versions`).
+  The routes answer 503 on an env until its step 030 apply; test
+  `csi-spl-iac/src/bash/tests/hub-vendor-keys-030.tst.sh`.
 - **The key-box list in GET** and the box approval routes: 127 H2.
 - **One path the 127 Q-4 A rule makes slow, as written:** a workspace whose
   only managers the operator invited can set its first key, and then every

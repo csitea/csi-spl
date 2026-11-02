@@ -71,7 +71,7 @@ grep -q 'location = var.gcp_region' "$f07" && ! grep -qE '^\s*labels\s*=' "$f07"
   && pass "07 matches the live slot (user-managed in the region, no labels): a no-op import" || fail "07 replication or labels drift from the live slot"
 grep -q 'secretmanager.secretAccessor' "$f07" && grep -q 'google_service_account.hub.email' "$f07" \
   && pass "07 grants the hub runtime SA read on the slot" || fail "07 lacks the accessor binding"
-grep -q 'setsubtract(toset(values(var.secret_environment_variables)), \[var.github_app_key_secret_id\])' "$TFD/03-runtime-sa.tf" \
+grep -q 'setsubtract(toset(values(var.secret_environment_variables)), \[var.github_app_key_secret_id, ' "$TFD/03-runtime-sa.tf" \
   && pass "03's generic binding skips the slot (bound once, in 07)" || fail "03 would bind the slot twice"
 
 # --- control: inject flips the reference, never the slot ---------------------

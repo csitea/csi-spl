@@ -177,6 +177,16 @@ variable "github_app_key_secret_id" {
   }
 }
 
+variable "vendor_keys_pepper_secret_id" {
+  type        = string
+  description = "Secret Manager id of the vendor key fingerprint pepper (cnf env.vendor_keys.pepper_secret, spec 159). Step 057 owns the slot and the runtime SA's read on it; 03 skips it so the same member is never managed twice."
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_-]+$", var.vendor_keys_pepper_secret_id))
+    error_message = "vendor_keys_pepper_secret_id must be a Secret Manager secret id."
+  }
+}
+
 # SPL-4298: 04 reads the live service to pick the revision name. The data
 # source fails on a service that does not exist, so the very first create of
 # an estate sets this false (TF_VAR_service_exists=false) for that one apply.

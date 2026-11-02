@@ -61,6 +61,12 @@ func (s *Postgres) PutFleetAsk(ctx context.Context, tenant string, a FleetAsk, b
 			return err
 		}
 		created = tag.RowsAffected() == 1
+		if !created && a.Discussion != "" { // spec 150 B10b: the ask predates its discussion; only this column, never overwritten
+			if _, err := tx.Exec(ctx, `UPDATE fleet_asks SET discussion = $4::uuid
+				WHERE tenant_id = $1 AND fleet = $2 AND ask_id = $3 AND discussion IS NULL`, tenant, a.Fleet, a.AskID, a.Discussion); err != nil {
+				return err
+			}
+		}
 		out, err = scanAsk(tx.QueryRow(ctx, `SELECT `+askCols+` FROM fleet_asks
 			WHERE tenant_id = $1 AND fleet = $2 AND ask_id = $3`, tenant, a.Fleet, a.AskID), a.Fleet, now)
 		return err

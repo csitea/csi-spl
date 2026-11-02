@@ -43,7 +43,7 @@ type FleetAsk struct {
 	Kind        string // blocker | task | escalation; role od: route_post | spawn | lane_verify | box_op
 	From        string // <ID> or <ID>@<box>
 	Topic       string
-	Discussion  string // the owner topic (a uuid) it works for, "" = none known (rdb 0241, set once by the hub at put)
+	Discussion  string // the owner topic (a uuid) it works for, "" = none known (rdb 0241): the hub's put sets it, a later put fills it only while "" and never overwrites (spec 150 B10b)
 	Summary     string
 	State       string // open | acked | queued | needs_owner | done | declined | dead
 	DeadlineAt  time.Time
@@ -441,6 +441,10 @@ func (s *Memory) PutFleetAsk(_ context.Context, tenant string, a FleetAsk, box s
 	}
 	k := [3]string{tenant, a.Fleet, a.AskID}
 	if cur, ok := s.asks[k]; ok {
+		if cur.Discussion == "" && a.Discussion != "" {
+			cur.Discussion = a.Discussion
+			s.asks[k] = cur
+		}
 		askTimes(&cur, now)
 		return cur, false, nil
 	}

@@ -68,7 +68,9 @@ type AskArgs struct {
 	// category (spec 143 4.4): a spawn request's brief header; "" = not given
 	WorkKind     string
 	CategoryPath string
-	Hub          *hubclient.Client // nil = hubclient.New(cfg)
+	// put (spec 150 row B10b, rdb 0241): the owner topic uuid it works for; "" = the hub resolves it from Topic
+	Discussion string
+	Hub        *hubclient.Client // nil = hubclient.New(cfg)
 }
 
 // Ask runs one op and returns the hub's answer {fleet, created, asks}. Hub
@@ -150,7 +152,7 @@ func askPutBody(in AskArgs) (map[string]any, error) {
 	if in.Role == "" {
 		in.Role = "orch"
 	}
-	a := store.FleetAsk{Fleet: in.Fleet, AskID: in.AskID, Role: in.Role, Kind: in.Kind, From: in.From, Topic: in.Topic, Summary: in.Summary}
+	a := store.FleetAsk{Fleet: in.Fleet, AskID: in.AskID, Role: in.Role, Kind: in.Kind, From: in.From, Topic: in.Topic, Summary: in.Summary, Discussion: in.Discussion}
 	if why := store.CheckFleetAsk(a); why != "" {
 		return nil, fmt.Errorf("ask: %s", why)
 	}
@@ -159,8 +161,12 @@ func askPutBody(in AskArgs) (map[string]any, error) {
 			return nil, fmt.Errorf("ask: --deadline must be RFC 3339 (e.g. 2026-10-02T06:00:00Z)")
 		}
 	}
-	return map[string]any{"ask_id": a.AskID, "role": a.Role, "kind": a.Kind, "from": a.From, "topic": a.Topic,
-		"summary": a.Summary, "deadline_at": in.Deadline}, nil
+	m := map[string]any{"ask_id": a.AskID, "role": a.Role, "kind": a.Kind, "from": a.From, "topic": a.Topic,
+		"summary": a.Summary, "deadline_at": in.Deadline}
+	if a.Discussion != "" {
+		m["discussion"] = a.Discussion
+	}
+	return m, nil
 }
 
 // askOpBody checks an op on one ask (ack, done, queue, release at gen, ...) and builds its object.

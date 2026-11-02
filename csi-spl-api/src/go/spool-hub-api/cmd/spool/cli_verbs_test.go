@@ -181,6 +181,22 @@ func TestAskVerb(t *testing.T) {
 	}
 }
 
+// TestAskVerbDiscussion: spec 150 row B10b, --discussion rides the put's body.
+func TestAskVerbDiscussion(t *testing.T) {
+	h := newScriptHub(t, echoAnswer(wire.TAsk, func(r *wire.Frame, f wire.Frame) {
+		r.Ask, _ = json.Marshal(map[string]any{"fleet": f.Fleet, "op": f.AskOp, "asks": []any{}})
+	}), nil)
+	cfg := hubCfg(t, h.URL)
+	const id, topic = "0b6f3c1e-3333-4a2b-8c3d-000000000003", "59f725e4-08ca-4e6e-8490-1902a708eba3"
+	runVerbCases(t, func(a []string) int { return cmdAsk(cfg, a) }, []verbCase{
+		{"put --discussion", []string{"put", "--fleet", "csi", "--id", id, "--kind", "task", "--from", "c-007@box-a", "--discussion", topic}, 0, `"op":"put"`},
+	})
+	var put map[string]any
+	if fr := h.Frames(); len(fr) != 1 || json.Unmarshal(fr[0].Ask, &put) != nil || put["discussion"] != topic {
+		t.Fatalf("put frames = %+v", fr)
+	}
+}
+
 // TestAskVerbRefusals: usage errors exit 1 before the hub.
 func TestAskVerbRefusals(t *testing.T) {
 	pastLegacyDeadline(t)

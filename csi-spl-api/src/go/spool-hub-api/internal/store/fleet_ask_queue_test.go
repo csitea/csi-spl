@@ -315,6 +315,46 @@ func TestFleetAskQueuePriority(t *testing.T) {
 	}
 }
 
+// Spec 150 row B10b (SPL-4654, holder c-002 msg e9ef352f): an ask is on the hub
+// before do_spl_spawn_enqueue names its discussion, so a put on an existing row
+// fills discussion while it is NULL and never overwrites one; created stays
+// false and nothing else of the row moves. CONTROLS: DO NOTHING leaves it
+// empty; an unconditional update overwrites the first value. Memory and Postgres.
+func TestFleetAskPutFillsDiscussion(t *testing.T) {
+	ctx := context.Background()
+	t0 := time.Date(2026, 11, 2, 8, 0, 0, 0, time.UTC)
+	const (
+		id     = "b10bb10b-0000-4000-8000-000000000001"
+		first  = "59f725e4-08ca-4e6e-8490-1902a708eba3"
+		second = "59f725e4-08ca-4e6e-8490-1902a708eba4"
+	)
+	for name, st := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			tid := newTenant(t, st)
+			base := FleetAsk{Fleet: "main", AskID: id, Role: "orch", Kind: "task", From: "c-002@box-b", Topic: "spawn-x", Summary: "SPAWN REQUEST"}
+			if got, created, err := st.PutFleetAsk(ctx, tid, base, "box-b", t0); err != nil || !created || got.Discussion != "" {
+				t.Fatalf("first put: %+v created %v: %v", got, created, err)
+			}
+			for _, c := range []struct{ name, disc, want string }{
+				{"no discussion leaves it NULL", "", ""},
+				{"fills NULL", first, first},
+				{"never overwrites", second, first},
+				{"an empty put never clears", "", first},
+			} {
+				a := base
+				a.Discussion, a.Summary = c.disc, "a replay never changes the rest"
+				got, created, err := st.PutFleetAsk(ctx, tid, a, "box-c", t0.Add(time.Hour))
+				if err != nil || created || got.Discussion != c.want {
+					t.Errorf("%s: discussion %q created %v, want %q false: %v", c.name, got.Discussion, created, c.want, err)
+				}
+				if got.Summary != base.Summary || got.WriterBox != "box-b" || !got.UpdatedAt.Equal(t0) {
+					t.Errorf("%s: the put moved the row: %+v", c.name, got)
+				}
+			}
+		})
+	}
+}
+
 func TestCheckFleetAskDiscussion(t *testing.T) {
 	a := FleetAsk{Fleet: "main", AskID: "b9b9b9b9-0000-4000-8000-000000000001", Role: "orch", Kind: "task", From: "c-002", Topic: "dispatch-0344254d"}
 	for _, d := range []string{"", "0344254d-90fa-4341-989e-ec3675da374d"} {

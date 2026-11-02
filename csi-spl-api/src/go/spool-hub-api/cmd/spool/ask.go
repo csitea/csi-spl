@@ -32,6 +32,7 @@ func cmdAsk(cfg *config.Config, args []string) int {
 	topic := fs.String("topic", "", "put|enqueue: the topic (task id)")
 	summary := fs.String("summary", "", "put|enqueue: one line, up to 500 bytes")
 	deadline := fs.String("deadline", "", "put|enqueue: when it is due, RFC 3339 (optional)")
+	discussion := fs.String("discussion", "", "put: the owner topic it works for, a lowercase uuid (default: the hub resolves --topic dispatch-<topic8>)")
 	by := fs.String("by", "", "ack|done|decline|raise|escalate|release|dead|queue|renew|reopen|pool --set: the acting agent, <ID>@<box>")
 	reason := fs.String("reason", "", "done|decline|dead: why (a decline and a dead-letter need one)")
 	placement := fs.String("placement", "", "queue: what the placer launches, <vendor>:<slug> (optional)")
@@ -70,7 +71,7 @@ func cmdAsk(cfg *config.Config, args []string) int {
 	ctx, stop := interruptible()
 	defer stop()
 	out, err := action.Ask(ctx, cfg, action.AskArgs{Fleet: *fleet, Op: op, AskID: *id, Role: *role, Kind: *kind, From: *from,
-		Topic: *topic, Summary: *summary, Deadline: *deadline, By: *by, Reason: *reason, Place: *placement, All: *all,
+		Topic: *topic, Discussion: *discussion, Summary: *summary, Deadline: *deadline, By: *by, Reason: *reason, Place: *placement, All: *all,
 		Class: *class, Flag: *flagF, FlagMsg: *flagMsg,
 		Gen: *gen, Refuse: *refuse, Free: *free, Seat: *seat, Vendor: *vendor, Harness: *harness, Caps: splitList(*caps),
 		IssueKey: *issue, DedupeKey: *dedupe, VendorAllow: *vendorAllow, Needs: *needs, LeaseS: *lease, NeedsOwner: *needsOwner,

@@ -461,10 +461,12 @@ now is.
 | C22 | Pins (R1): a set row whose `from_box` is not pinned in `<DST>` makes `plan` refuse, naming the box; pinning it clears the line | drop the pin check -> the row moves and cannot be re-verified in `<DST>` |
 | C23 | Desks (W2): a seat with no `<DST>` desk on its box makes `plan` refuse, naming the seat and the box | drop the desk check -> `plan` passes and the move stops only at P2b |
 | C24 | Retention (R4): `plan` prints the Cloud SQL backup retention and the hub log bucket's retention, as the per-env service account; a value it cannot read prints as `not read: <reason>`, and the plan finishes with its usual exit code. Shell test with a stubbed `gcloud` | remove the read -> the line is missing |
+| C25 | Box rule (W2, F14): a move whose `<SRC>` rule row on this box names a desk agent with no `<DST>` desk on this box makes `plan` and `MOVE_CMD=run` refuse, exit 3, naming the agent and the box; seating the desk clears it. A map that exists but cannot be read, or a malformed row, also refuses: unread is not "no row". Shell test on a sandboxed `SPOOL_ROOT` | drop the check -> `plan` passes and the move stops only at P2b, or goes on with a row whose agent has no `<DST>` desk |
+| C26 | Box rule, what does not refuse and what is said: no row, no map, a row for another env, and a copy (no seat moves, section 7) each pass; every `plan` prints the box and the file it read and that other boxes are not read, and names the seats' other boxes; `plan` leaves the rule file byte-equal with no lock or temp file beside it. Shell test | refuse on an absent row -> a channel with no rule row can never move; drop the printed box -> a clean `plan` on the wrong box reads as a clean move |
 
 All cases run on PostgreSQL (`PRE_PUSH_TIER=full`), with two test workspaces
-on the hub's test database; none touches dev or prd. C24 is the exception: a
-shell test, no database.
+on the hub's test database; none touches dev or prd. C24, C25 and C26 are the
+exceptions: shell tests, no database.
 
 ## 10. Build rows
 
@@ -485,6 +487,7 @@ Each row is one small task; files named are where it lands.
 | T8 | Proofs P7 and the free-text scan; tests C13, C14 | `api/channelmove/proof.go`, `_test.go` |
 | T9 | Shell action `do_spl_channel_workspace_move` (plan, DRY_RUN, journal resume) and its test C17 | `orc/run/spl-channel-workspace-move.func.sh`, `orc/tests/spl-channel-workspace-move.tst.sh` |
 | T9b | The shell plan path reads and prints the Cloud SQL backup retention and the hub log bucket's retention (R4, 5.6): it only prints and refuses nothing; it prints every log bucket of the project, because the cnf names none; test C24 | `orc/run/spl-channel-workspace-move.func.sh`, `orc/tests/spl-channel-workspace-move.tst.sh` |
+| T9c | The shell plan path does W2's F14 half, which the hub cannot read (T4b checks only `channel_subscriptions` and channel-scope `dedicated_agents`): it reads the channel's row in this box's `channel-rules.tsv` through `channel-rules.inc.sh` and refuses when that desk agent has no `<DST>` desk on this box, naming it and the box. No row is no refusal; a copy checks nothing (no seat moves, section 7); a row of another env is said, not checked. Read-only: P5 rewrites the file, not `plan`. A box reads only its own file, and `plan` prints which box and file it read. The other box is covered by the operator, not by this row: run `plan` on every box that works the channel, and `plan` names the boxes of the hub's seats other than its own; nothing makes `MOVE_CMD=run` wait for that; tests C25, C26 | `orc/run/spl-channel-workspace-move.func.sh`, `orc/tests/spl-channel-workspace-move.tst.sh` |
 | T10 | Box steps: the P2b probe DMs, the P5 rule-row rewrite (no action writes `channel-rules.tsv` today, so it lives here), lane key notes; no re-seat (the seat rows move in P4); tests C11, C12 | `orc/features/spawn-agents/scripts/channel-workspace-move-box.sh`, its test |
 | T11 | Copy mode: new UUIDs, link rewrite, `copied_from`; test C16 | `api/store/channel_copy_apply_postgres.go`, `_test.go` |
 | T12 | Docs: operator page (how to plan, run and read the kept list) | `csi-spl-doc/doc/md/channel-workspace-move.md` |
@@ -492,7 +495,7 @@ Each row is one small task; files named are where it lands.
 
 Order: T1 first (it is the inventory in code); T2 before T5 (the journal);
 T4 before T5; T4 before T4b; T5 before T5b and T5c; T3 before T11; T6 and T8
-before T7; T7 before T9; T9, T10 and T7 before T13; T4b and T9b before T13.
+before T7; T7 before T9; T9, T10 and T7 before T13; T4b, T9b and T9c before T13.
 
 ### 10.1 Lanes
 
@@ -512,6 +515,7 @@ owner's weekend deadline: lanes with no files in common.
 | L9 | T12 |
 | L10 | T4b (queued after T4 lands) |
 | L11 | T9b |
+| L12 | T9c |
 
 L8's stub is the plan-only path of T9 (`MOVE_CMD=plan`, journal resume
 skeleton), so it can land before T7; its wiring to the T7 endpoint and T10

@@ -4,10 +4,14 @@
  * nothing here enters the initial download (C25).
  *
  *   GET    /v1/me/contacts?workspace=&cursor=  a page, {contacts, next}
- *   GET    /v1/me/contacts/{id}                {contact}
- *   POST   /v1/me/contacts                     201 {contact}
- *   PATCH  /v1/me/contacts/{id}                {contact}
+ *   GET    /v1/me/contacts/{id}                the contact, with its member_id
+ *   POST   /v1/me/contacts                     201, the contact
+ *   PATCH  /v1/me/contacts/{id}                the contact, member_id null
  *   DELETE /v1/me/contacts/{id}                204
+ *
+ * The contact is the whole body, no wrapper. A patch keeps a field sent as null
+ * and clears one sent as "". tests/unit/contacts-client.test.mjs holds the
+ * client and the mock to the hub's answers (testdata/contacts_answers.golden.json).
  *
  * Invite is the existing POST /v1/members/invites: the session's workspace
  * and no other (2.4, O4).
@@ -82,12 +86,15 @@ function mockFound(list, id) {
   return hit
 }
 
+/** As the hub: null is not sent, "" clears, and only the list and the card name the member. */
 function mockWrite(values, id) {
   const list = mockRead()
-  const was = id ? mockFound(list, id) : { contact_id: 'mock-' + Date.now().toString(36), google: false, member_id: null }
-  const row = mockChecked({ first_name: '', last_name: '', email: null, phone: null, ...was, ...values })
+  const now = new Date().toISOString()
+  const was = id ? mockFound(list, id) : { contact_id: 'mock-' + Date.now().toString(36), first_name: '', last_name: '', email: null, phone: null, google: false, member_id: null, created_at: now }
+  const next = { ...was, ...Object.fromEntries(Object.entries(values).filter(([, v]) => v !== null)), updated_at: now }
+  const row = mockChecked({ ...next, email: next.email || null, phone: next.phone || null })
   mockKeep(id ? list.map((c) => (c.contact_id === id ? row : c)) : [...list, row])
-  return row
+  return { ...row, member_id: null }
 }
 
 async function readEveryPage(api) {
@@ -142,19 +149,20 @@ export function contactsList(api, owner) {
 /** One contact, with its member_id in this workspace. */
 export async function contactGet(api, id) {
   if (api.mock) return mockFound(mockRead(), id)
-  return (await call(api, 'GET', '/' + encodeURIComponent(id)))?.contact
+  return call(api, 'GET', '/' + encodeURIComponent(id))
 }
 
 /** @param {any} api @param {{ first_name: string, last_name: string, email: string | null, phone: string | null }} values */
 export async function contactCreate(api, values) {
-  const row = api.mock ? mockWrite(values) : (await call(api, 'POST', '', { body: values }))?.contact
+  const row = api.mock ? mockWrite(values) : await call(api, 'POST', '', { body: values })
   changed()
   return row
 }
 
 /** @param {any} api @param {string} id @param {{ first_name: string, last_name: string, email: string | null, phone: string | null }} values */
 export async function contactPatch(api, id, values) {
-  const row = api.mock ? mockWrite(values, id) : (await call(api, 'PATCH', '/' + encodeURIComponent(id), { body: values }))?.contact
+  const body = Object.fromEntries(Object.entries(values).map(([k, v]) => [k, v ?? '']))
+  const row = api.mock ? mockWrite(body, id) : await call(api, 'PATCH', '/' + encodeURIComponent(id), { body })
   changed()
   return row
 }

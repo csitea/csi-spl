@@ -743,9 +743,9 @@ decides the kill switch (2.9), the Message match (O3) and the Invite target
 | route | who | answer |
 |---|---|---|
 | `GET /v1/me/contacts?q=&cursor=` | person | `{contacts:[{contact_id, first_name, last_name, email, phone, google, member_id}], next}`, the caller's own list only (the same in every workspace); `member_id` is the 2.4 match in the session's workspace, else `null` |
-| `GET /v1/me/contacts/{id}` | person | 200 `{contact}` with `member_id`; 404 for another person's id |
-| `POST /v1/me/contacts` | person | 201 `{contact}`; 400 `contact_empty` with none of the four |
-| `PATCH /v1/me/contacts/{id}` | person | 200 `{contact}`; 404 for another person's id |
+| `GET /v1/me/contacts/{id}` | person | 200, the contact as the whole body (no wrapper), with `member_id`; 404 for another person's id |
+| `POST /v1/me/contacts` | person | 201, the contact as the whole body, `member_id` null; 400 `contact_empty` with none of the four |
+| `PATCH /v1/me/contacts/{id}` | person | 200, the contact as the whole body, `member_id` null; a field sent as `""` is cleared, one sent as null or left out is kept; 404 for another person's id |
 | `DELETE /v1/me/contacts/{id}` | person | 204; 404 for another person's id |
 | `DELETE /v1/me/contacts?scope=spool` | person | 204, the person's whole list (every workspace: it is one list) |
 | `GET /v1/me/contacts/export` | person | `text/csv`, own contacts |

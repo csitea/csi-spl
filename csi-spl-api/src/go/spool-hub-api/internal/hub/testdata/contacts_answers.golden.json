@@ -1,0 +1,132 @@
+{
+  "create": {
+    "status": 201,
+    "body": {
+      "contact_id": "\u003ccontact_id\u003e",
+      "created_at": "\u003ctime\u003e",
+      "email": "first.last@example.com",
+      "first_name": "FirstName",
+      "google": false,
+      "last_name": "LastName",
+      "member_id": null,
+      "phone": "+1 555 010 0000",
+      "updated_at": "\u003ctime\u003e"
+    }
+  },
+  "delete": {
+    "status": 204,
+    "body": null
+  },
+  "get": {
+    "status": 200,
+    "body": {
+      "contact_id": "\u003ccontact_id\u003e",
+      "created_at": "\u003ctime\u003e",
+      "email": "first.last@example.com",
+      "first_name": "FirstName",
+      "google": false,
+      "last_name": "LastName",
+      "member_id": null,
+      "phone": "+1 555 010 0000",
+      "updated_at": "\u003ctime\u003e"
+    }
+  },
+  "get_deleted": {
+    "status": 404,
+    "body": {
+      "detail": "no such contact",
+      "error": "not_found"
+    }
+  },
+  "member_create": {
+    "status": 201,
+    "body": {
+      "contact_id": "\u003ccontact_id\u003e",
+      "created_at": "\u003ctime\u003e",
+      "email": "member@example.com",
+      "first_name": "",
+      "google": false,
+      "last_name": "",
+      "member_id": null,
+      "phone": null,
+      "updated_at": "\u003ctime\u003e"
+    }
+  },
+  "member_get": {
+    "status": 200,
+    "body": {
+      "contact_id": "\u003ccontact_id\u003e",
+      "created_at": "\u003ctime\u003e",
+      "email": "member@example.com",
+      "first_name": "",
+      "google": false,
+      "last_name": "",
+      "member_id": "\u003cmember_id\u003e",
+      "phone": null,
+      "updated_at": "\u003ctime\u003e"
+    }
+  },
+  "member_patch": {
+    "status": 200,
+    "body": {
+      "contact_id": "\u003ccontact_id\u003e",
+      "created_at": "\u003ctime\u003e",
+      "email": "member@example.com",
+      "first_name": "FirstName",
+      "google": false,
+      "last_name": "",
+      "member_id": null,
+      "phone": null,
+      "updated_at": "\u003ctime\u003e"
+    }
+  },
+  "patch": {
+    "status": 200,
+    "body": {
+      "contact_id": "\u003ccontact_id\u003e",
+      "created_at": "\u003ctime\u003e",
+      "email": "first.last@example.com",
+      "first_name": "Changed",
+      "google": false,
+      "last_name": "LastName",
+      "member_id": null,
+      "phone": "+1 555 010 0000",
+      "updated_at": "\u003ctime\u003e"
+    }
+  },
+  "patch_email_empty": {
+    "status": 200,
+    "body": {
+      "contact_id": "\u003ccontact_id\u003e",
+      "created_at": "\u003ctime\u003e",
+      "email": null,
+      "first_name": "Changed",
+      "google": false,
+      "last_name": "LastName",
+      "member_id": null,
+      "phone": "+1 555 010 0000",
+      "updated_at": "\u003ctime\u003e"
+    }
+  },
+  "patch_email_null": {
+    "status": 200,
+    "body": {
+      "contact_id": "\u003ccontact_id\u003e",
+      "created_at": "\u003ctime\u003e",
+      "email": "first.last@example.com",
+      "first_name": "Changed",
+      "google": false,
+      "last_name": "LastName",
+      "member_id": null,
+      "phone": "+1 555 010 0000",
+      "updated_at": "\u003ctime\u003e"
+    }
+  },
+  "refused_bad_email": {
+    "status": 400,
+    "body": {
+      "detail": "the email is not an address",
+      "error": "bad_email"
+    }
+  }
+}

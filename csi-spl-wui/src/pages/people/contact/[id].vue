@@ -165,7 +165,9 @@ async function save() {
       const row = await contactCreate(api, values) as Contact
       await navigateTo(localePath('/people/contact/' + encodeURIComponent(row.contact_id)), { replace: true })
     } else {
-      contact.value = await contactPatch(api, id.value, values) as Contact
+      const row = await contactPatch(api, id.value, values)
+      /* a patch's answer names no member, the card's read does; the save stands if the read fails */
+      contact.value = await contactGet(api, id.value).catch(() => row) as Contact
       view.value = 'card'
     }
   } catch (e) {

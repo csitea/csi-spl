@@ -39,6 +39,10 @@
 // CI load (SPL-2817): CPU_THROTTLE=6, or HOLD_CHUNK=<TopicPane chunk>:1000
 // (the generated name: grep -l topic-pane-close .output/public/_nuxt/*.js)
 //
+// One more cell, always run: `detached` (SPL-4624). The node under the finger
+// leaves the DOM mid-swipe, as TopicPaneWait does when TopicPane replaces it:
+// touchend fires on the detached node, and the swipe must still step Back.
+//
 // Cells run CELL_JOBS at a time (default 3), each in its own browser context,
 // so no cell sees another's storage; the lines still print in matrix order.
 // Most of a cell is waiting (the settle reads), not CPU: run alone, the 72
@@ -52,6 +56,7 @@ const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const TASK = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const REPLY = '33333333-3333-4333-8333-333333333333'
 const SIZES = { 360: 780, 390: 844 }
+const SWIPE_Y = 420
 const ALL_ENTRIES = ['tap', 'topic', 'channel', 'deep', 'login', 'notify']
 const ALL_METHODS = ['chevron', 'dock', 'edge', 'mid', 'browser', 'sheet']
 const pick = (env, all) => (env ? env.split(',').filter((x) => all.includes(x)) : all)
@@ -159,10 +164,11 @@ const click = (p, sel) => p.evaluate((q) => {
   return true
 }, sel)
 
-async function swipe(p, x0) {
+async function swipe(p, x0, afterStart = async () => {}) {
   const cdp = await p.target().createCDPSession()
-  const t = (type, x) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y: 420 }] })
+  const t = (type, x) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y: SWIPE_Y }] })
   await t('touchStart', x0)
+  await afterStart()
   for (let i = 1; i <= 6; i++) { await t('touchMove', x0 + i * 25); await sleep(16) }
   await t('touchEnd', x0 + 150)
   await cdp.detach()
@@ -288,6 +294,40 @@ async function cell(browser, base, width, entry, method) {
   return { steps, fails }
 }
 
+/** SPL-4624: remove the touched node after touchstart; the swipe still steps Back. */
+async function detachedCell(browser, base) {
+  const width = 360
+  const ctx = await browser.createBrowserContext()
+  const p = await ctx.newPage()
+  p.setDefaultNavigationTimeout(NAV_TIMEOUT)
+  const steps = []
+  const fails = []
+  try {
+    await p.setViewport({ width, height: SIZES[width], isMobile: true, hasTouch: true })
+    await p.evaluateOnNewDocument(boot, MEMBER)
+    const start = await enter(p, base, 'topic')
+    steps.push(`L${start}`)
+    if (start !== 3) fails.push(`entry opened level ${start}, not 3`)
+    else {
+      await swipe(p, 100, () => p.evaluate((x, y) => {
+        const el = document.elementFromPoint(x, y)
+        el.addEventListener('touchend', () => { window.__endDetached = !el.isConnected })
+        el.remove()
+      }, 100, SWIPE_Y))
+      const s = await until(p, (x) => x.level !== 3)
+      steps.push(`L${s.level}`)
+      /* no touchend on the detached node = this cell proved nothing */
+      if (!(await p.evaluate(() => window.__endDetached))) fails.push('touchend never fired on the detached node')
+      else if (s.level !== 2) fails.push(`a swipe whose node left the DOM went to level ${s.level}, not 2`)
+    }
+  } catch (e) {
+    fails.push(`error: ${e.message}`)
+  } finally {
+    await ctx.close().catch(() => {})
+  }
+  return { steps, fails, width }
+}
+
 const srv = await startServer()
 const browser = await launch()
 const todo = WIDTHS.flatMap((width) => ENTRIES.flatMap((entry) => METHODS.map((method) => ({ width, entry, method }))))
@@ -305,6 +345,8 @@ try {
     }
   }
   await Promise.all(Array.from({ length: Math.min(CELL_JOBS, todo.length) }, worker))
+  const d = await detachedCell(browser, srv.base)
+  cells.push({ entry: 'topic', method: 'detached', verdict: d.fails.length ? 'FAIL' : 'OK', ...d })
   for (const c of cells) {
     console.log(`  ${c.verdict.padEnd(9)} ${c.width} ${c.entry.padEnd(7)} ${c.method.padEnd(7)} ${c.steps.join('>')}${c.fails.length ? '  ' + c.fails.join('; ') : ''}`)
   }
@@ -327,7 +369,7 @@ console.log('red* = known red by design, see KNOWN_RED (deep-link browser Back: 
 const n = (v) => cells.filter((c) => c.verdict === v).length
 const failed = cells.filter((c) => c.verdict === 'FAIL' || c.verdict === 'XPASS')
 console.log(`\nphone-back-matrix: ${n('OK')}/${cells.length} passed, ${n('KNOWN-RED')} known red, ${failed.length} failed`)
-if (!cells.length) {
+if (cells.length === 1) {
   console.log('  FAILED: no cell selected')
   process.exit(1)
 }

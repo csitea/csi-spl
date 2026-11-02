@@ -309,6 +309,13 @@ const toHome = () => { if (isMobile.value) applyLevel(1) }
 let touch: { x: number, y: number } | null = null
 function onTouchStart(e: TouchEvent) {
   touch = mobileSwipeStart(isMobile.value && level.value > 1, e.touches)
+  if (touch) e.target?.addEventListener('touchend', onDetachedTouchEnd as EventListener, { once: true, passive: true })
+}
+/* SPL-4624: touchend fires on the node the finger went down on. When that node
+   left the DOM mid-gesture (TopicPaneWait swapped for TopicPane) the event never
+   bubbles to the shell's @touchend, and the swipe was lost. */
+function onDetachedTouchEnd(e: TouchEvent) {
+  if (!(e.target as Node).isConnected) onTouchEnd(e)
 }
 /* CLE-77906: a card's swipe-to-archive took this gesture - it is not a Back */
 const claimSwipe = () => { touch = null }

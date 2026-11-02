@@ -3403,6 +3403,7 @@
       "table_label": "Aktiivsed rajad",
       "col_box": "Masin",
       "col_scope": "Ulatus",
+      "col_origin_issue": "Lähteprobleem",
       "col_updated": "Uuendatud",
       "min_ago": "{n} min tagasi",
       "col_state": "Olek",

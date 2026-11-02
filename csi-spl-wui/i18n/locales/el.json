@@ -3403,6 +3403,7 @@
       "table_label": "Ενεργές γραμμές",
       "col_box": "Μηχάνημα",
       "col_scope": "Εύρος",
+      "col_origin_issue": "Αρχικό θέμα",
       "col_updated": "Ενημέρωση",
       "min_ago": "πριν από {n} λεπτά",
       "col_state": "Κατάσταση",

@@ -56,6 +56,21 @@ describe('the fleet-lanes body as a view', () => {
     const cells = [...page.matchAll(/v-(?:else-)?if="([^"]*l\.roleSeat[^"]*)"[^>]*data-test="lanes-role-seat">\{\{ t\('monitoring\.lanes\.role_seat'\) \}\}/g)].map((m) => m[1])
     assert.deepEqual(cells, ['l.roleSeat', 'l.issues.length === 0 && l.roleSeat'], 'the topic cell and the issues cell')
   })
+  it('spec 153 3.12 (C57): a row keeps its origin issue; none is null, never a guess', () => {
+    const v = fleetLanesOf({ lanes: [
+      { agent_id: 'c-002', origin_issue: { key: 'SPL-4420', status: 'wip' } },
+      { agent_id: 'c-003', origin_issue: { key: 'OPS-7' } },
+      { agent_id: 'c-004' },
+      { agent_id: 'c-005', origin_issue: { status: 'wip' } },
+      { agent_id: 'c-006', issues: [{ key: 'SPL-1', status: 'wip' }] },
+    ] })
+    assert.deepEqual(v.lanes.map((l) => l.originIssue), [{ key: 'SPL-4420', status: 'wip' }, { key: 'OPS-7', status: '' }, null, null, null])
+    assert.equal(laneIssuePath(v.lanes[0].originIssue), '/issues?issue=SPL-4420', 'an origin of this workspace links')
+    assert.equal(laneIssuePath(v.lanes[1].originIssue), '', 'a key with no status is text')
+    const page = read('src/pages/monitoring/lanes/index.vue')
+    assert.match(page, /laneIssuePath\(l\.originIssue\)/, 'the cell links through the one issue-link rule')
+    assert.match(page, /t\(COLUMN_NAMES|col_origin_issue/, 'the header is a translation key')
+  })
   it('names the agent id@box', () => {
     assert.equal(laneName({ agentId: 'c-002', box: 'box-a' }), 'c-002@box-a')
     assert.equal(laneName({ agentId: 'c-002', box: '' }), 'c-002')

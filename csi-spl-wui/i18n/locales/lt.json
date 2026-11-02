@@ -3403,6 +3403,7 @@
       "table_label": "Aktyvios linijos",
       "col_box": "Mašina",
       "col_scope": "Apimtis",
+      "col_origin_issue": "Pradinė problema",
       "col_updated": "Atnaujinta",
       "min_ago": "prieš {n} min.",
       "col_state": "Būsena",

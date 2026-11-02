@@ -3403,6 +3403,7 @@
       "table_label": "Actieve banen",
       "col_box": "Machine",
       "col_scope": "Reikwijdte",
+      "col_origin_issue": "Bronkwestie",
       "col_updated": "Bijgewerkt",
       "min_ago": "{n} min geleden",
       "col_state": "Status",

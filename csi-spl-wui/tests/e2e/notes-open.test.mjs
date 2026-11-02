@@ -391,6 +391,19 @@ async function oneLine(browser, base, width, touch) {
   check(`${tag}: an untitled note shows its first line and nothing more`, untitled.text === 'Call back about the invoice' && !untitled.previewOrMeta, untitled)
   check(`${tag}: no sideways scroll`, await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
   if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/notes-list-one-line-${width}.png` })
+  if (touch) {
+    /* the smallest font level: only the floor keeps the one line row tappable */
+    const heights = await p.evaluate(() => {
+      const root = document.documentElement
+      const level = root.dataset.fontSize
+      root.dataset.fontSize = '1'
+      const h = [...document.querySelectorAll('[data-test=notes-open]')].map((e) => e.getBoundingClientRect().height)
+      if (level === undefined) delete root.dataset.fontSize
+      else root.dataset.fontSize = level
+      return h
+    })
+    check(`${tag}: every row is 44 px tall or more at the smallest font`, heights.length > 0 && heights.every((h) => h >= 44), heights)
+  }
   if (!touch) {
     const before = await rows(p)
     await p.evaluate(() => {

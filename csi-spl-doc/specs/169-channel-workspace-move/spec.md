@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.17 (2026-11-02). Status: **Draft** (part built: section 8.4's hub
+Version: v0.18 (2026-11-02). Status: **Draft** (part built: section 8.4's hub
 steps are T7, section 10 lists the rows; the shell still reaches them through a seam, T9). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -73,6 +73,12 @@ v0.16 corrects R1, F10 and C22 to what T4c measured (SPL-4599, c-001 msgs
 5b72f83c and c8953637): a pinned box does not make a moved row verify.
 
 v0.17 says what T7's step driver does (SPL-4598): section 8.4.
+
+v0.18 settles section 7's two open points from the T11 lane (c-001,
+2026-11-02, msgs fc977008 and 003d8136): a copied row gets its own envelope,
+because the WUI, the box back-fill and the edit path all read the envelope; and
+the list of what a copy carries. The comment in rdb 0250 ("keeps the original
+env / env_sig") is history, superseded here.
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -408,15 +414,38 @@ snapshot; a sync would be its own spec.
   content address does not change). `<DST>`'s file quota counts it.
 - Members, seats and lanes are NOT copied: the copy starts with the owner as
   its only member, and seats are added in `<DST>` by hand or by spec 158.
-- The signed envelope (F10) holds the OLD msg and task ids, so a copied row
-  keeps the original `env` / `env_sig` as provenance and the hub marks the row
-  `copied_from` (new column, T3); the copied row's own ids are hub metadata,
-  the same way spec 045 keeps a move beside the envelope.
-- What a box sees: a box that receives a copied row must file it under the
-  row's NEW task id, not the envelope's old one, or the copy lands in the
-  source topic on that box. Not checked on master which id the delivery path
-  uses today; T11 reads it and, if it is the envelope's, sends the hub's ids
-  beside the envelope. C16 asserts it on a box spool, not only in hub rows.
+- The signed envelope (F10) holds the OLD msg and task ids, and every reader
+  takes ids and body from the envelope (the WUI: `hub/view.go` `trimEnv`; a box:
+  `hubclient/backfill.go`; an edit: `hub/edit.go` `reEnvelope`). So a copied row
+  gets its own envelope: `env.msg` and `messages.msg` are rewritten with the new
+  ids and links, `env_sig` is `''`, and `copied_from` names the source row. The
+  signed original stays in `<SRC>`, which a copy leaves unchanged. A
+  `ref_task_id`, `mirror_of` or 045 move column that points outside the set is
+  cleared. Supersedes the comment in rdb 0250.
+- What a box sees: a box gets a copied row only with the new ids, or not at all.
+  An unsigned row is not back-filled (`ChannelBackfill`), and `UnsignedWUIPosts`
+  leaves a copied post out, so replay never re-signs it. Later replies in the
+  copy are ordinary posts.
+- A copied post is nobody's word in `<DST>`: a reader that takes a message id as
+  someone's authority refuses a row with `copied_from` set (`approval()`,
+  `_spl_oo_hub`).
+- What a copy carries, beyond the ids above:
+  - new ids through the map: `calendar_events` and, for the guests who are
+    `<DST>` members, `calendar_guests`; `hours_jobs` under a new job id. A copied
+    event reaches nobody: no `remind_at`, no stored reminders, no Google map row,
+    and a `source_key` in the `gcal:` family the Out half never pushes without
+    one, which also makes it read-only in `<DST>`.
+  - not carried, per person or per box: `deliveries`, `delivery_live_acks`,
+    `fallback_deliveries`, `read_marks`, `channel_subscriptions`,
+    `dedicated_agents`, `channel_invites`, `flow_watches`, `flow_events`,
+    `issue_opens`.
+  - not carried, time records: `hours_minutes`, `hours_entries`,
+    `hours_entry_spans`, `hours_adjustments`, `hours_plan`.
+  - not carried, the audit trail: `usage_events`, `token_budgets`,
+    `workspace_events`, `operator_audit`, `demo_post_audit`, `sql_query_audit`.
+    The audit door (rdb 0251) stays shut. `<DST>` gets one `channel.copied` event.
+  - not carried, a link a snapshot must not follow: `spec_sync_map`.
+  - a copied post's claim is done, so no later seat is offered it.
 
 ## 8. The action
 
@@ -521,7 +550,7 @@ yet.
 | C13 | No `<SRC>` audit row and no hub-wide row naming the channel; one `<DST>` audit row. The only `<SRC>` writes besides the deletes of the set are the named NULL / removal updates: M6b `moved_from_*`, M9 `ref_task_id`, the `channel_order` entry, the shared-item resolutions the owner chose (5.5), the topic-head recompute and the counters and change stamps (5.1); a diff of `<SRC>` before and after shows no other changed row | the default audit writer -> a `<SRC>` row names the channel; an extra `<SRC>` UPDATE -> the diff names it |
 | C14 | Free-text scan (5.2) prints 0 for the channel id, name and every UUID, over text, jsonb, uuid and array columns; the one exception is the fleet topic ids of 5.2, reported as known with their count | plant the channel id in a `<SRC>` `workspace_events.message` -> 1; plant a moved task id in a staying post's `moved_from_task` (uuid) -> 1 |
 | C15 | Caller: `DRY_RUN=0` without the owner's GO msg id is refused before any change | run as a lane agent -> refused, exit 3 |
-| C16 | Copy: `<SRC>` row counts unchanged; `<DST>` ids are all new (task, msg, issue number, doc, doc item, doc node; rev log under the new doc id); a link inside a copied post points at the copied topic; a box receiving a copied row files it under the new task id | keep the old `workspace_doc_item.id` -> PK violation; keep the old UUIDs in the links -> the `<DST>` link resolves to nothing |
+| C16 | Copy: `<SRC>` row counts unchanged; `<DST>` ids are all new (task, msg, issue number, doc, doc item, doc node; rev log under the new doc id); a link inside a copied post points at the copied topic; a box gets a copied row only with the new ids, or not at all | keep the old `workspace_doc_item.id` -> PK violation; keep the old UUIDs in the links -> the `<DST>` link resolves to nothing |
 | C17 | Re-run after a crash in P5 resumes at the first undone step and finishes | re-run from P1 -> refused: the journal says P4 committed |
 | C18 | Google Calendar: a moved event mapped in a `<SRC>` member's connection; after the move and one sync cycle of that connection, `<SRC>` has no event with that `source_key` and no map row, and the Google event is gone | skip the pre-P4 Google delete -> the In half imports it back into `<SRC>` |
 | C19 | Hours: a job with plan rows and entries `job:<job>`, `t:<task>`, `ch:<CHANNEL>` moves whole; an entry inside an `approved` `<SRC>` period makes `plan` refuse, naming it (Q8 default) | drop the period check -> the approved period's stored total no longer matches its rows |

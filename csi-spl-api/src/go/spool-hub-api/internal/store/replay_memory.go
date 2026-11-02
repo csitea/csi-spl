@@ -17,7 +17,7 @@ func (s *Memory) UnsignedWUIPosts(_ context.Context, tenant string, since, now t
 	defer s.mu.Unlock()
 	var rows []*Message
 	for k, m := range s.messages {
-		if k[0] != tenant || m.FromBox != "box-wui" || m.EnvSig != "" || m.Channel == "" ||
+		if k[0] != tenant || m.FromBox != "box-wui" || m.EnvSig != "" || m.CopiedFrom != "" || m.Channel == "" ||
 			!strings.HasPrefix(m.FromID, "HUM-") || m.ReceivedAt.Before(since) ||
 			!m.ExpiresAt.After(now) || !m.ArchivedAt.IsZero() {
 			continue

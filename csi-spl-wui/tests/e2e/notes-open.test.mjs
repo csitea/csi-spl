@@ -28,6 +28,12 @@
 // toast says "Note created" and its Open opens the note. Twin: the same line
 // on a page that shows no object (/notes) makes a note with no link.
 //
+// SPL-4651 (owner HUM-10, t1 2a0b4d9e, msg a4c630a8: "only the titles should
+// be visible in the listings"): a row is one line, the title alone, cut with an
+// ellipsis at 1440 px and 390 px; drag, the current-row mark and the archived
+// view still work. CONTROL: with the text and meta spans back in the row, or
+// white-space: nowrap off the title, the checks of oneLine() FAIL.
+//
 // Run:
 //   node tests/e2e/notes-open.test.mjs
 //   BASE_URL=http://127.0.0.1:3000 node tests/e2e/notes-open.test.mjs
@@ -93,6 +99,8 @@ async function openPage(browser, base, width, touch) {
   return p
 }
 const clickRow = (p, id) => p.click(`[data-note-id="${id}"] [data-test=notes-open]`)
+/* what the list holds for a note: since SPL-4651 its row shows the title only */
+const summary = (p, id) => p.evaluate((id) => JSON.stringify(document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('notes').notes.find((n) => n.id === id)), id).then((n) => JSON.parse(n))
 
 async function desktop(browser, base) {
   const tag = '1440px'
@@ -113,8 +121,8 @@ async function desktop(browser, base) {
   await p.type('[data-test=note-item-new]', 'Tag the release')
   await p.click('[data-test=note-item-add]')
   await sleep(600)
-  const meta = await p.$eval('[data-note-id=mock-note-1] .notes-row__meta', (e) => e.textContent)
-  check(`${tag}: a tick and an added line are saved (the row reads 3/6)`, meta.includes('3/6'), meta)
+  const counts = await summary(p, 'mock-note-1')
+  check(`${tag}: a tick and an added line are saved (the list holds 3/6)`, counts.items_done === 3 && counts.items_total === 6, counts)
   await p.keyboard.press('Escape')
   check(`${tag}: Esc closes it`, await waitGone(p))
   await p.goto(`${base}/notes?note=no-such-note`, { waitUntil: 'networkidle2', timeout: NAV })
@@ -167,8 +175,8 @@ async function links(browser, base, width, touch) {
   if (touch) await p.click('[data-test=note-detail] [data-testid=mobile-back]')
   else await p.keyboard.press('Escape')
   await waitGone(p)
-  const meta = await p.$eval('[data-note-id=mock-note-1] .notes-row__meta', (e) => e.textContent).catch(() => '')
-  check(`${tag}: the list row counts 4 links`, meta.includes('Links: 4'), meta)
+  const counted = await summary(p, 'mock-note-1')
+  check(`${tag}: the list counts 4 links`, counted.link_count === 4, counted)
   await clickRow(p, 'mock-note-1')
   await waitDetail(p, 'mock-note-1')
   check(`${tag}: reopened, the note keeps the 4 links`, (await linkRows(p)).length === 4)
@@ -316,8 +324,8 @@ async function phone(browser, base) {
   await sleep(1200)
   await p.click('[data-test=note-detail] [data-testid=mobile-back]')
   check(`${tag}: Back closes it`, await waitGone(p))
-  const text = await p.$eval('[data-note-id=mock-note-2] [data-test=notes-row-text]', (e) => e.textContent.trim()).catch(() => '')
-  check(`${tag}: the edit is saved (the row shows the new text)`, text === 'Edited on a phone', text)
+  const text = (await summary(p, 'mock-note-2')).snippet
+  check(`${tag}: the edit is saved (the list holds the new text)`, text === 'Edited on a phone', text)
   await clickRow(p, 'mock-note-2')
   check(`${tag}: it opens again with the edit`, (await waitDetail(p, 'mock-note-2')) && (await p.$eval('[data-test=note-body]', (e) => e.value)) === 'Edited on a phone')
   await p.click('[data-test=note-archive]')
@@ -348,10 +356,74 @@ async function phone(browser, base) {
   await p.close()
 }
 
+/* SPL-4651: a row is one line, the title alone */
+async function oneLine(browser, base, width, touch) {
+  const tag = `${width}px one line`
+  const p = await openPage(browser, base, width, touch)
+  /* a phone's page slides in: measure the row once it has stopped */
+  if (touch) await p.waitForFunction(() => Math.round(document.querySelector('[data-test=notes-page]').getBoundingClientRect().left) === 0, { timeout: 5000 })
+  const long = 'A very long note title that goes on and on, '.repeat(8).trim()
+  await p.evaluate((id, title) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('notes').patch(id, { title }), 'mock-note-2', long)
+  await p.waitForFunction((id, title) => document.querySelector(`[data-note-id="${id}"]`)?.textContent.trim() === title, { timeout: 5000 }, 'mock-note-2', long).catch(() => {})
+  const shape = (id) => p.$eval(`[data-note-id="${id}"]`, (row) => {
+    const t = row.querySelector('.notes-row__title')
+    const css = getComputedStyle(t)
+    const box = row.getBoundingClientRect()
+    return {
+      text: row.textContent.trim(),
+      title: t.textContent.trim(),
+      spans: row.querySelectorAll('[data-test=notes-open] *').length,
+      previewOrMeta: Boolean(row.querySelector('[data-test=notes-row-text], .notes-row__text, .notes-row__meta')),
+      lines: Math.round(t.getBoundingClientRect().height / parseFloat(css.lineHeight === 'normal' ? parseFloat(css.fontSize) * 1.2 : css.lineHeight)),
+      cut: t.scrollWidth > t.clientWidth,
+      ellipsis: css.textOverflow === 'ellipsis' && css.whiteSpace === 'nowrap',
+      fits: box.right <= window.innerWidth + 1 && box.left >= -1,
+    }
+  })
+  const longRow = await shape('mock-note-2')
+  check(`${tag}: the row holds the title alone`, longRow.text === long && longRow.spans === 1 && !longRow.previewOrMeta, longRow)
+  check(`${tag}: a long title stays on one line`, longRow.lines === 1, longRow.lines)
+  check(`${tag}: it is cut with an ellipsis`, longRow.cut && longRow.ellipsis, longRow)
+  check(`${tag}: inside the screen`, longRow.fits, longRow)
+  const titled = await shape('mock-note-1')
+  check(`${tag}: a note with text, a checklist and links shows only its title`, titled.text === 'Release checklist' && !titled.previewOrMeta, titled)
+  const untitled = await shape('mock-note-3')
+  check(`${tag}: an untitled note shows its first line and nothing more`, untitled.text === 'Call back about the invoice' && !untitled.previewOrMeta, untitled)
+  check(`${tag}: no sideways scroll`, await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/notes-list-one-line-${width}.png` })
+  if (!touch) {
+    const before = await rows(p)
+    await p.evaluate(() => {
+      const row = (id) => document.querySelector(`[data-note-id="${id}"]`)
+      const dataTransfer = new DataTransfer()
+      const fire = (el, type) => el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer }))
+      fire(row('mock-note-3'), 'dragstart')
+      fire(row('mock-note-2'), 'dragover')
+      fire(row('mock-note-2'), 'drop')
+      fire(row('mock-note-3'), 'dragend')
+    })
+    await sleep(300)
+    check(`${tag}: a drag still reorders`, same(await rows(p), ['mock-note-1', 'mock-note-3', 'mock-note-2']), { before, after: await rows(p) })
+  }
+  await clickRow(p, 'mock-note-1')
+  await waitDetail(p, 'mock-note-1')
+  check(`${tag}: the open note's row keeps the current mark`, (await p.$eval('[data-note-id=mock-note-1] [data-test=notes-open]', (e) => e.getAttribute('aria-current'))) === 'true')
+  if (touch) await p.click('[data-test=note-detail] [data-testid=mobile-back]')
+  else await p.keyboard.press('Escape')
+  await waitGone(p)
+  await p.click('[data-test=notes-archived]')
+  await sleep(300)
+  const old = await shape('mock-note-4')
+  check(`${tag}: the archived view has the same one line`, same(await rows(p), ['mock-note-4']) && old.text === 'Old plan' && !old.previewOrMeta, old)
+  await p.close()
+}
+
 const server = await startServer()
 const browser = await launch()
 let code = 0
 try {
+  await oneLine(browser, server.base, 1440, false)
+  await oneLine(browser, server.base, 390, true)
   await desktop(browser, server.base)
   await desktopActions(browser, server.base)
   await phone(browser, server.base)

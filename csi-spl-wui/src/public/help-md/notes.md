@@ -18,9 +18,9 @@ are erased with it.
   what you type.
 - **Archived** switches to the notes you archived; press it again to go back.
 - **Pinned** notes come first, in their own group; the other notes follow.
-- Each row shows the title (or the first line of the text when there is no
-  title), up to two lines of text, the checklist progress such as `3/5`, the
-  number of links and when the note last changed.
+- Each row is one line: the title, or the first line of the text when there
+  is no title. A long title is cut with an ellipsis; open the note to read it
+  all, with its text, checklist and links.
 
 Each note has its own address, `/notes?note=<id>`, so a bookmark or the
 browser's Back button finds it again. The list is read again when you come

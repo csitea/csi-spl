@@ -212,9 +212,10 @@ and ref <= 2 048, <= 2 000 notes per person (`notes_full`).
   (`parseRailOrder`). Default D5: it goes after Calendar in the default
   order for new members.
 - **The list** (`/notes`): "New note" on top, then the filter box, the
-  Pinned group, then the rest. Each row: title (or the first line of the
-  text when there is no title), up to two lines of text, `3/5` when it has
-  checklist lines, a link count, the change date. Order: pinned first,
+  Pinned group, then the rest. Each row is one line, cut with an ellipsis
+  at every width: the title (or the first line of the text when there is no
+  title), nothing more (owner HUM-10, t1 2a0b4d9e, msg a4c630a8, SPL-4651: "only
+  the titles should be visible in the listings"). Order: pinned first,
   each group by the person's own order (drag, or Alt+Up/Down for the
   keyboard); a new note goes on top. A filter "Archived" shows the
   archived ones.

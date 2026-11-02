@@ -2,7 +2,8 @@
      own list (the realm, 2.2: the same list in every workspace). The sidebar
      keeps the icon rail only (ChannelSidebar notesRailOnly); this page is the
      list: New note, the filter box, the Archived switch, the Pinned group,
-     then the rest. A row is /notes?note=<id>; B6 (SPL-4186) opens it:
+     then the rest. A row is one line, the title alone (owner, t1 2a0b4d9e,
+     SPL-4651), and is /notes?note=<id>; B6 (SPL-4186) opens it:
      components/NoteDetail.vue, lazy, a modal above 820 px and the level-3
      full screen on a phone. The order is the person's own: drag a row, or
      Alt+Up / Alt+Down on it (utils/note-order.mjs). Delete (D2) takes the note
@@ -78,12 +79,6 @@
                   @keydown.alt.down.prevent="move(n.id, 1)"
                 >
                   <span class="notes-row__title">{{ rowTitle(n) }}</span>
-                  <span v-if="rowText(n)" class="notes-row__text muted" data-test="notes-row-text">{{ rowText(n) }}</span>
-                  <span class="notes-row__meta muted">
-                    <span v-if="n.items_total" :title="t('notes.items_hint', { done: n.items_done, total: n.items_total })" dir="ltr">{{ t('notes.items', { done: n.items_done, total: n.items_total }) }}</span>
-                    <span v-if="n.link_count">{{ t('notes.links', { n: n.link_count }) }}</span>
-                    <span dir="ltr">{{ t('notes.changed', { when: isoDateTime(n.updated_at) }) }}</span>
-                  </span>
                 </a>
               </li>
             </ul>
@@ -119,7 +114,6 @@
 <script setup lang="ts">
 import { filterNotes, useNotesStore } from '~/stores/notes'
 import type { NoteSummary } from '~/stores/notes'
-import { isoDateTime } from '~/utils/date-iso.mjs'
 import { movePosition, dropPosition } from '~/utils/note-order.mjs'
 import UndoSnackbar from '~/components/UndoSnackbar.vue'
 import { useMobileStack } from '~/composables/useMobileStack'
@@ -216,11 +210,6 @@ function rowTitle(n: NoteSummary) {
   return n.title || n.snippet.split('\n')[0] || t('notes.untitled')
 }
 
-/** up to two lines of text; with no title the first line is the title (2.6), so the text starts at the second */
-function rowText(n: NoteSummary) {
-  return n.title ? n.snippet : n.snippet.split('\n').slice(1).join('\n')
-}
-
 async function newNote() {
   creating.value = true
   createFailed.value = false
@@ -273,8 +262,7 @@ onUnmounted(() => {
 .notes-row { min-width: 0; }
 .notes-row__open {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
   padding: 8px 10px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -284,17 +272,15 @@ onUnmounted(() => {
 }
 .notes-row__open--current { border-color: var(--color-accent); }
 .notes-row--over .notes-row__open { border-top: 2px solid var(--color-accent); }
-.notes-row__title { font-weight: 600; overflow-wrap: anywhere; }
-.notes-row__text {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+.notes-row__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 600;
+  white-space: nowrap;
   overflow: hidden;
-  white-space: pre-line;
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
 }
-.notes-row__meta { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 0.8125rem; min-width: 0; }
 @media (max-width: 820px) {
-  .notes-bar .btn, .notes-bar__filter { min-height: var(--tap, 44px); }
+  .notes-bar .btn, .notes-bar__filter, .notes-row__open { min-height: var(--tap, 44px); }
 }
 </style>

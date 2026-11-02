@@ -2169,9 +2169,9 @@
     "invited": "Kutsu lähetetty osoitteeseen {email}.",
     "not_found": "Tätä yhteystietoa ei ole tai se ei ole saatavilla tässä työtilassa.",
     "in_your_contacts": "Yhteystiedoissasi",
-    "error_contact_empty": "Anna nimi, sähköposti tai puhelin.",
-    "error_bad_email": "Tämä sähköposti ei ole osoite.",
-    "error_bad_phone": "Tämä puhelin ei ole puhelinnumero."
+    "error_contact_empty": "Anna nimi, sähköposti tai puhelinnumero.",
+    "error_bad_email": "Tämä ei ole sähköpostiosoite.",
+    "error_bad_phone": "Tämä ei ole puhelinnumero."
   },
   "activity": {
     "title": "Toimintaloki",

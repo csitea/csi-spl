@@ -2147,11 +2147,11 @@
     "filter_label": "Toon",
     "filter_all": "Alle",
     "filter_workspace": "In deze werkruimte",
-    "add_contact": "Contactpersoon toevoegen",
-    "contact_tag": "contactpersoon"
+    "add_contact": "Contact toevoegen",
+    "contact_tag": "contact"
   },
   "contacts": {
-    "group": "Contactpersonen",
+    "group": "Contacten",
     "load_failed": "Je contacten konden niet worden gelezen.",
     "retry": "Opnieuw proberen",
     "first_name": "Voornaam",
@@ -2169,9 +2169,9 @@
     "invited": "Uitnodiging verstuurd naar {email}.",
     "not_found": "Dit contact bestaat niet of is niet beschikbaar in deze werkruimte.",
     "in_your_contacts": "In je contacten",
-    "error_contact_empty": "Voer een naam, een e-mailadres of een telefoon in.",
-    "error_bad_email": "Die e-mail is geen adres.",
-    "error_bad_phone": "Die telefoon is geen telefoonnummer."
+    "error_contact_empty": "Voer een naam, een e-mailadres of een telefoonnummer in.",
+    "error_bad_email": "Dat is geen e-mailadres.",
+    "error_bad_phone": "Dat is geen telefoonnummer."
   },
   "activity": {
     "title": "Activiteitenlogboek",

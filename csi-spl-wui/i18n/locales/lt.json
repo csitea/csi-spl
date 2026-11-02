@@ -2170,8 +2170,8 @@
     "not_found": "Šio kontakto nėra arba jis nepasiekiamas šioje darbo srityje.",
     "in_your_contacts": "Jūsų kontaktuose",
     "error_contact_empty": "Įveskite vardą, el. paštą arba telefoną.",
-    "error_bad_email": "Šis el. paštas nėra adresas.",
-    "error_bad_phone": "Šis telefonas nėra telefono numeris."
+    "error_bad_email": "Tai nėra el. pašto adresas.",
+    "error_bad_phone": "Tai nėra telefono numeris."
   },
   "activity": {
     "title": "Veiklos žurnalas",

@@ -16,6 +16,24 @@ import type { ReactionUpdate, SpoolMessage } from '~/types/spool'
 
 export type CardMenu = ReturnType<typeof useMessageMenu>
 
+function cardChipNames(people: ReturnType<typeof useHumanNames>, t: ReturnType<typeof useI18n>['t']) {
+  /** A chip's tooltip: who reacted, by the name the row would show. */
+  function chipWho(actors: string[]) {
+    return actors.map((id) => shownPerson(id, '', people.names.value)).join(', ')
+  }
+  /** The short, plain name of a reaction glyph (owner da0c0e98: hover names it). */
+  function emojiLabel(emoji: string) {
+    return emojiName(emoji, t)
+  }
+  /** A chip's title: what the emoji represents, then who reacted ("Fire · Ann"). */
+  function chipTitle(chip: { emoji: string, actors: string[] }) {
+    const who = chipWho(chip.actors)
+    const name = emojiLabel(chip.emoji)
+    return who ? `${name} · ${who}` : name
+  }
+  return { emojiLabel, chipTitle }
+}
+
 export function useCardReactions(
   props: { msg: SpoolMessage },
   emit: (e: 'reacted', update: ReactionUpdate) => void,
@@ -32,20 +50,7 @@ export function useCardReactions(
   const busy = ref(false)
   const reactError = ref('')
   const chips = computed(() => reactionChips(props.msg.reactions, viewerId.value))
-  /** A chip's tooltip: who reacted, by the name the row would show. */
-  function chipWho(actors: string[]) {
-    return actors.map((id) => shownPerson(id, '', people.names.value)).join(', ')
-  }
-  /** The short, plain name of a reaction glyph (owner da0c0e98: hover names it). */
-  function emojiLabel(emoji: string) {
-    return emojiName(emoji, t)
-  }
-  /** A chip's title: what the emoji represents, then who reacted ("Fire · Ann"). */
-  function chipTitle(chip: { emoji: string, actors: string[] }) {
-    const who = chipWho(chip.actors)
-    const name = emojiLabel(chip.emoji)
-    return who ? `${name} · ${who}` : name
-  }
+  const { emojiLabel, chipTitle } = cardChipNames(people, t)
   /* SPL-1007: a phone draws the chips inside Add emoji; its name reads them out */
   const phoneChips = computed(() => mobile.value && chips.value.length > 0)
   const emojiBtnName = computed(() => [t('feed.emoji.add'), ...chips.value.map((c) => (c.mine

@@ -1,7 +1,7 @@
 # 170 Day's tasks: a To-do view in the Calendar, and a signal for what is due today
 
-Version: v1.4 (2026-10-30). Status: **WHAT v1.0 and HOW v1.0, each signed by all four seats**;
-owner Q1, Q2, Q4 answered, Q3 open (plan only; nothing below is built). Issue SPL-4396 · Epic SPL-2396 · Class
+Version: v1.5 (2026-11-02). Status: **WHAT v1.0 and HOW v1.0, each signed by all four seats**;
+owner Q1, Q2, Q3, Q4 answered (plan only; nothing below is built). Issue SPL-4396 · Epic SPL-2396 · Class
 feature · Kind specs_and_docs · Task `dispatch-dfe850d9` · Placement slug
 `c001-dfe850d9-panel-editor` · Editor c-864.
 
@@ -69,6 +69,9 @@ Source: prd csitea topic `dfe850d9-e283-4460-a0ed-223b71d657fa`.
 - Poll `0f351a9b` (Q4), answer **C** (HUM-10, msg
   `e5b92eaa-c70e-41eb-a508-84eb7d26fb63`): "Only the card in the app on your
   first visit of the day". No browser alert at a fixed hour, no email.
+- Poll `e3b1370c` (Q3), answer **A** (HUM-10, msg
+  `446d58a3-0fe7-4d4c-a8cf-cd01bb74f1d2`): "Show them above today's tasks,
+  marked overdue, and count them in the signal".
 
 ### 1.3 Panel defaults
 
@@ -181,7 +184,7 @@ An empty day says so in one line (Day range) or is left out (longer ranges)
 
 4.4 **Overdue on top of today.** When the range holds today, overdue tasks
 are listed above today's, marked overdue, until they are closed or moved
-(default; Q3).
+(owner Q3 = A).
 
 4.5 **A row opens the issue.** Clicking or tapping a row opens that issue in
 Issues, the way the deadline pop-over's "Open issue" already does
@@ -254,8 +257,8 @@ muted channels are per device,
 `csi-spl-wui/src/stores/session.ts` line 196.)
 
 Whatever is chosen, the signal counts exactly what the To-do view's Day range
-on today shows (same task set, same "mine or all" rule, overdue included or
-not by the same Q3 answer), so the number and the list never disagree
+on today shows (same task set, same "mine or all" rule, overdue included,
+Q3 = A), so the number and the list never disagree
 (panel default, 1.3).
 
 ## 6. How it relates to Notes (spec 155)
@@ -292,15 +295,14 @@ what WHAT assumes until the owner answers.
 Posted by c-003 in dfe850d9 at 15:26Z: Q1 msg `9958a8b7`, Q2 msg
 `14caab4c`, Q3 msg `e3b1370c`; Q4 posted by c-002@sat as msg `0f351a9b`
 (three options: card + 08:00 alert, the same plus opt-in email, card only).
-Q1, Q2 and Q4 answered (1.2); Q3 open.
+Q1, Q2, Q3 and Q4 answered (1.2).
 
 - **Q1 the day signal.** ANSWERED: A, the morning reminder (1.2).
 - **Q1b the badge.** Moot (Q1 = A); not asked.
 - **Q2 whose tasks.** ANSWERED: A, mine with a switch to the whole
   workspace (1.2).
-- **Q3 overdue.** OPEN (poll `e3b1370c` unanswered; the default below
-  stands until the owner answers). Show overdue tasks above today's (and count them in the
-  signal), or only tasks due today? Default: list overdue tasks above
+- **Q3 overdue.** ANSWERED: A, the default (1.2). Show overdue tasks above today's (and count them in the
+  signal), or only tasks due today? The default: list overdue tasks above
   today's in the view, marked overdue; the signal names them apart ("2 due
   today · 5 overdue"), so an old overdue pile never hides what is due today.
 - **Q4 the morning reminder's time and channel.** ANSWERED: poll option C,
@@ -352,6 +354,10 @@ Each seat signs a version with its own commit on branch
 | reviewer | c-880 | HOW v0.3 | 262d3309a |
 
 ## 10. Changes
+
+- v1.5: owner Q3 = A folded by the dispatch holder c-002: the default,
+  confirmed, so no behaviour changes and the seats' signatures stand. The
+  owner questions are all answered.
 
 - v1.4: owner Q4 = C folded (poll option C = the card in the app on the first
   visit of the day only): the 08:00 browser alert and the email (11.4, row

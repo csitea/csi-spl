@@ -33,18 +33,20 @@ import (
 
 // LaneRow is one row on the wire, in both directions.
 type LaneRow struct {
-	AgentID   string   `json:"agent_id"`
-	AgentBox  string   `json:"agent_box"`
-	Repo      string   `json:"repo"`
-	Branch    string   `json:"branch"`
-	Scope     string   `json:"scope"`
-	Files     []string `json:"files"`
-	Topic     string   `json:"topic"`
-	IssueKey  string   `json:"issue_key"` // rdb 0221, spec 153 3.4
-	State     string   `json:"state"`
-	WriterBox string   `json:"writer_box,omitempty"`
-	UpdatedAt string   `json:"updated_at,omitempty"`
-	AgeS      int64    `json:"age_s"`
+	AgentID  string   `json:"agent_id"`
+	AgentBox string   `json:"agent_box"`
+	Repo     string   `json:"repo"`
+	Branch   string   `json:"branch"`
+	Scope    string   `json:"scope"`
+	Files    []string `json:"files"`
+	Topic    string   `json:"topic"`
+	IssueKey string   `json:"issue_key"` // rdb 0221, spec 153 3.4
+	// OriginIssue is the issue the lane came from (rdb 0252, spec 153 3.12)
+	OriginIssue string `json:"origin_issue"`
+	State       string `json:"state"`
+	WriterBox   string `json:"writer_box,omitempty"`
+	UpdatedAt   string `json:"updated_at,omitempty"`
+	AgeS        int64  `json:"age_s"`
 	// TopicArchivedAt is set on a lane_op archived answer only (SPL-3983).
 	TopicArchivedAt string `json:"topic_archived_at,omitempty"`
 }
@@ -57,7 +59,7 @@ type laneAnswer struct {
 
 func laneRow(l store.FleetLane) LaneRow {
 	return LaneRow{AgentID: l.AgentID, AgentBox: l.AgentBox, Repo: l.Repo, Branch: l.Branch, Scope: l.Scope,
-		Files: l.Files, Topic: l.Topic, IssueKey: l.IssueKey, State: l.State, WriterBox: l.WriterBox,
+		Files: l.Files, Topic: l.Topic, IssueKey: l.IssueKey, OriginIssue: l.OriginIssue, State: l.State, WriterBox: l.WriterBox,
 		UpdatedAt: l.UpdatedAt.UTC().Format(time.RFC3339), AgeS: int64(l.Age.Seconds())}
 }
 
@@ -131,7 +133,7 @@ func (s *Server) boxLane(ctx context.Context, x *session, f wire.Frame) (laneAns
 			return laneAnswer{}, ae
 		}
 		l := store.FleetLane{Fleet: f.Fleet, AgentID: agent, AgentBox: in.AgentBox, Repo: in.Repo, Branch: in.Branch,
-			Scope: in.Scope, Files: in.Files, Topic: in.Topic, IssueKey: in.IssueKey, State: in.State}
+			Scope: in.Scope, Files: in.Files, Topic: in.Topic, IssueKey: in.IssueKey, OriginIssue: in.OriginIssue, State: in.State}
 		if why := store.CheckFleetLane(l); why != "" {
 			return laneAnswer{}, &issueErr{http.StatusBadRequest, "bad_frame", why}
 		}
@@ -166,8 +168,12 @@ func (s *Server) boxLane(ctx context.Context, x *session, f wire.Frame) (laneAns
 // laneTopic is the topic a put stores: an 8-hex short id becomes the one
 // topic of the tenant it starts, else (a put in the operator workspace) the
 // one topic of any workspace it starts (laneTopicElsewhere); "" for none or
-// two; anything else as sent.
+// two; a relay task's hash becomes the topic it is the hash of, else ""
+// (laneTopicOfRelayHash: it is never stored); anything else as sent.
 func (s *Server) laneTopic(ctx context.Context, tenant, topic string) (string, *issueErr) {
+	if store.RelayTaskHashRe.MatchString(topic) {
+		return s.laneTopicOfRelayHash(ctx, tenant, topic)
+	}
 	if !store.TopicPrefixRe.MatchString(topic) {
 		return topic, nil
 	}

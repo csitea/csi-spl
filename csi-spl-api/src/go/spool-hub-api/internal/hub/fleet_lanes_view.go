@@ -55,9 +55,11 @@ type fleetLaneViewJSON struct {
 	TopicID    string               `json:"topic_id"`
 	TopicTitle string               `json:"topic_title"`
 	Issues     []fleetLaneIssueJSON `json:"issues"`
-	UpdatedAt  string               `json:"updated_at"`
-	AgeS       int64                `json:"age_s"`
-	LastActive string               `json:"last_active"`
+	// spec 153 3.12: the issue the lane came from; absent for none, never a guess
+	OriginIssue *fleetLaneIssueJSON `json:"origin_issue,omitempty"`
+	UpdatedAt   string              `json:"updated_at"`
+	AgeS        int64               `json:"age_s"`
+	LastActive  string              `json:"last_active"`
 	// spec 153 3.11: a role seat names no topic and no issue by design
 	RoleSeat bool `json:"role_seat,omitempty"`
 	// spec 153 v1.3 3.8: live | queued; a queued row's wait reason ("" =
@@ -146,6 +148,7 @@ func (s *Server) fleetLanesView(ctx context.Context, tenant, fleet, reader strin
 			v.TopicTitle, v.TopicChannel = topic.Title, topic.Channel
 		}
 		v.Issues = laneIssues(l.IssueKey, prefix, mine, byTopic[l.Topic], status)
+		v.OriginIssue = laneOriginIssue(l.OriginIssue, prefix, status)
 		place(&v, l.Topic)
 		out.Lanes = append(out.Lanes, v)
 	}
@@ -240,6 +243,9 @@ func (s *Server) fleetLaneLinks(ctx context.Context, tenant, reader string, ls [
 		if n, ok := store.ParseIssueRef(l.IssueKey); ok {
 			numbers = append(numbers, n)
 		}
+		if n, ok := store.ParseIssueRef(l.OriginIssue); ok {
+			numbers = append(numbers, n)
+		}
 	}
 	if is, ok := s.o.Store.(store.Issues); ok {
 		if prefix, err = is.IssuePrefix(ctx, tenant); err != nil {
@@ -301,4 +307,16 @@ func laneIssues(own, prefix string, mine bool, linked []int, status map[int]stri
 		out = append(out, fleetLaneIssueJSON{Key: foreign})
 	}
 	return out
+}
+
+// laneOriginIssue is a lane's origin issue with its status, nil for none; a
+// key of another prefix goes as sent, with no status (as laneIssues).
+func laneOriginIssue(key, prefix string, status map[int]string) *fleetLaneIssueJSON {
+	if key == "" {
+		return nil
+	}
+	if n, ok := store.ParseIssueRef(key); ok && strings.EqualFold(key, store.IssueKey(prefix, n)) {
+		return &fleetLaneIssueJSON{Key: store.IssueKey(prefix, n), Status: status[n]}
+	}
+	return &fleetLaneIssueJSON{Key: key}
 }

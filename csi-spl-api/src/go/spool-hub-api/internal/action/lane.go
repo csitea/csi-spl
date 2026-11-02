@@ -14,17 +14,19 @@ import (
 // (CLE-77920): the verb behind `spool lane`. Agent "" = list; with Agent the
 // rest is the row of <Agent>@<Box> to write (State defaults to live).
 type LaneArgs struct {
-	Fleet  string            `json:"fleet"`
-	Agent  string            `json:"agent_id,omitempty"`
-	Box    string            `json:"agent_box,omitempty"`
-	Repo   string            `json:"repo,omitempty"`
-	Branch string            `json:"branch,omitempty"`
-	Scope  string            `json:"scope,omitempty"`
-	Files  []string          `json:"files,omitempty"`
-	Topic  string            `json:"topic,omitempty"`
-	Issue  string            `json:"issue_key,omitempty"` // the lane's own issue key, "" for none (spec 153 3.4)
-	State  string            `json:"state,omitempty"`
-	Hub    *hubclient.Client `json:"-"` // nil = hubclient.New(cfg)
+	Fleet  string   `json:"fleet"`
+	Agent  string   `json:"agent_id,omitempty"`
+	Box    string   `json:"agent_box,omitempty"`
+	Repo   string   `json:"repo,omitempty"`
+	Branch string   `json:"branch,omitempty"`
+	Scope  string   `json:"scope,omitempty"`
+	Files  []string `json:"files,omitempty"`
+	Topic  string   `json:"topic,omitempty"`
+	Issue  string   `json:"issue_key,omitempty"` // the lane's own issue key, "" for none (spec 153 3.4)
+	// OriginIssue is the issue the lane came from, "" for none (spec 153 3.12)
+	OriginIssue string            `json:"origin_issue,omitempty"`
+	State       string            `json:"state,omitempty"`
+	Hub         *hubclient.Client `json:"-"` // nil = hubclient.New(cfg)
 
 	// Archived reads the live rows whose topic is archived (SPL-3983), Box's
 	// only when Box is set; nothing is written.
@@ -62,12 +64,12 @@ func Lane(ctx context.Context, cfg *config.Config, in LaneArgs) (json.RawMessage
 		in.Files = []string{}
 	}
 	l := store.FleetLane{Fleet: in.Fleet, AgentID: in.Agent, AgentBox: in.Box, Repo: in.Repo, Branch: in.Branch,
-		Scope: in.Scope, Files: in.Files, Topic: in.Topic, IssueKey: in.Issue, State: in.State}
+		Scope: in.Scope, Files: in.Files, Topic: in.Topic, IssueKey: in.Issue, OriginIssue: in.OriginIssue, State: in.State}
 	if why := store.CheckFleetLane(l); why != "" {
 		return nil, fmt.Errorf("lane: %s", why)
 	}
 	row, err := json.Marshal(map[string]any{"agent_id": l.AgentID, "agent_box": l.AgentBox, "repo": l.Repo,
-		"branch": l.Branch, "scope": l.Scope, "files": l.Files, "topic": l.Topic, "issue_key": l.IssueKey,
+		"branch": l.Branch, "scope": l.Scope, "files": l.Files, "topic": l.Topic, "issue_key": l.IssueKey, "origin_issue": l.OriginIssue,
 		"state": l.State})
 	if err != nil {
 		return nil, err

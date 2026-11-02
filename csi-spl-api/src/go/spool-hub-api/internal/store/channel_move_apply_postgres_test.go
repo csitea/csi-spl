@@ -93,6 +93,13 @@ func seedMove(t *testing.T) mvFix {
 	f.stayPost = post(f.tB, "", f.stay, "", "staying", now.Add(3*time.Second))
 	f.dmPost = post(f.dm, "", "", f.tA, "a DM about A", now.Add(4*time.Second))
 	f.seedMessageFamily(t, now)
+	// R1 and W2: the set's box is pinned in <DST> and the seat has its desk there.
+	if err := pg.PutPin(ctx, f.dst, "box-a", pubkey(), false, now, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := pg.SetRoster(ctx, f.dst, "box-a", []string{"c-100"}, now); err != nil {
+		t.Fatal(err)
+	}
 	return f
 }
 
@@ -263,12 +270,21 @@ func TestApplyChannelMoveC3aControl(t *testing.T) {
 	}
 }
 
+// deliveriesReq drops R1: plan and the plan under the lock refuse a from_box with
+// no live <DST> pin, so a full move cannot reach P4's sender branch while R1
+// holds. The branch stays as a defence, and only this way can it run.
+func (f mvFix) deliveriesReq() ChannelMoveApplyRequest {
+	req := f.req()
+	req.noPinCheck = true
+	return req
+}
+
 // C27: after the move no agent row the addressee's box cannot verify stays
 // queued. Run through asOperator with the real pins policies: the spared row is
 // the proof that the <SRC> pin is visible, else this is option (a).
 func TestApplyChannelMoveC27Deliveries(t *testing.T) {
 	f, want := seedMoveDeliveries(t)
-	res := f.apply(t, f.req())
+	res := f.apply(t, f.deliveriesReq())
 	for box, state := range want {
 		if got := f.deliveryState(t, box); got != state {
 			t.Errorf("delivery to %s = %q, want %q", box, got, state)
@@ -293,7 +309,7 @@ func TestApplyChannelMoveC27Deliveries(t *testing.T) {
 // above can see the difference.
 func TestApplyChannelMoveC27Control(t *testing.T) {
 	f, _ := seedMoveDeliveries(t)
-	req := f.req()
+	req := f.deliveriesReq()
 	req.keepQueue = true
 	if res := f.apply(t, req); res.DeliveriesExpired != 0 || res.DeliveriesExpiredNoPin != 0 {
 		t.Fatalf("CONTROL: skipped, yet counted %+v", res)
@@ -319,7 +335,6 @@ func seedMoveDeliveries(t *testing.T) (mvFix, map[string]string) {
 	key := func() []byte { return []byte(pubkey()) }
 	same, gone := key(), key()
 	pin(f.src, "box-a", key(), false)
-	pin(f.dst, "box-a", key(), false)
 	pin(f.src, "box-same", same, true)
 	pin(f.dst, "box-same", same, false)
 	pin(f.src, "box-revoked", gone, false)
@@ -880,6 +895,12 @@ func TestApplyChannelMoveStopUnderLock(t *testing.T) {
 		{"seat", "seat c-777@box-a", func(f mvFix) {
 			mvExec(t, f.pg, `INSERT INTO dedicated_agents (tenant_id, agent_id, box_id, scope_type, scope_id, bound_by) VALUES ($1, 'c-777', 'box-a', 'channel', $2, $3)`, f.src, f.ch, f.both)
 		}},
+		{"pin", "box box-a is not pinned", func(f mvFix) {
+			mvExec(t, f.pg, `UPDATE pins SET revoked_at = now() WHERE tenant_id = $1 AND box_id = 'box-a'`, f.dst)
+		}},
+		{"desk", "seat c-100 on box-a has no desk", func(f mvFix) {
+			mvExec(t, f.pg, `DELETE FROM roster WHERE tenant_id = $1 AND agent_id = 'c-100'`, f.dst)
+		}},
 		{"shared item", "shared epic", func(f mvFix) {
 			x, err := f.pg.CreateIssue(context.Background(), Issue{TenantID: f.src, Title: "epic of both", Kind: IssueKindEpic, TaskID: f.tA, Discussions: []string{f.tA}, CreatedBy: f.both}, time.Now().UTC())
 			if err != nil {
@@ -921,6 +942,13 @@ func TestApplyChannelMoveStopUnderLock(t *testing.T) {
 func TestApplyChannelMoveBackHome(t *testing.T) {
 	f := seedMove(t)
 	f.apply(t, f.req())
+	ctx, now := context.Background(), time.Now().UTC().Truncate(time.Second)
+	if err := f.pg.PutPin(ctx, f.src, "box-a", pubkey(), false, now, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.pg.SetRoster(ctx, f.src, "box-a", []string{"c-100"}, now); err != nil {
+		t.Fatal(err)
+	}
 	back := f
 	back.src, back.dst = f.dst, f.src
 	f.apply(t, back.req())

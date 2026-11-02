@@ -42,31 +42,41 @@ type planDst struct {
 }
 
 func (s *Postgres) planReadDst(ctx context.Context, tenant string) (planDst, error) {
-	dst := planDst{members: map[string]bool{}, pinned: map[string]bool{}, desks: map[MoveSeat]bool{}}
+	var dst planDst
 	err := s.planRead(ctx, tenant, func(tx pgx.Tx) error {
-		sets := []struct {
-			sql string
-			set map[string]bool
-		}{
-			{`SELECT human_id FROM tenant_memberships WHERE tenant_id = $1`, dst.members},
-			{`SELECT box_id FROM pins WHERE tenant_id = $1 AND revoked_at IS NULL`, dst.pinned},
-		}
-		for _, q := range sets {
-			if err := eachRow(ctx, tx, q.sql, []any{tenant}, func(r pgx.Rows) error {
-				var v string
-				err := r.Scan(&v)
-				q.set[v] = true
-				return err
-			}); err != nil {
-				return err
-			}
-		}
-		return eachRow(ctx, tx, `SELECT agent_id, box_id FROM roster WHERE tenant_id = $1`, []any{tenant}, func(r pgx.Rows) error {
-			var seat MoveSeat
-			err := r.Scan(&seat.Agent, &seat.Box)
-			dst.desks[seat] = true
+		var err error
+		dst, err = mpReadDst(ctx, tx, tenant)
+		return err
+	})
+	return dst, err
+}
+
+// mpReadDst reads planDst on tx: plan's own read, and the plan under the lock
+// (T5), whose answer must be read there too or every box and seat reads missing.
+func mpReadDst(ctx context.Context, tx pgx.Tx, tenant string) (planDst, error) {
+	dst := planDst{members: map[string]bool{}, pinned: map[string]bool{}, desks: map[MoveSeat]bool{}}
+	sets := []struct {
+		sql string
+		set map[string]bool
+	}{
+		{`SELECT human_id FROM tenant_memberships WHERE tenant_id = $1`, dst.members},
+		{`SELECT box_id FROM pins WHERE tenant_id = $1 AND revoked_at IS NULL`, dst.pinned},
+	}
+	for _, q := range sets {
+		if err := eachRow(ctx, tx, q.sql, []any{tenant}, func(r pgx.Rows) error {
+			var v string
+			err := r.Scan(&v)
+			q.set[v] = true
 			return err
-		})
+		}); err != nil {
+			return dst, err
+		}
+	}
+	err := eachRow(ctx, tx, `SELECT agent_id, box_id FROM roster WHERE tenant_id = $1`, []any{tenant}, func(r pgx.Rows) error {
+		var seat MoveSeat
+		err := r.Scan(&seat.Agent, &seat.Box)
+		dst.desks[seat] = true
+		return err
 	})
 	return dst, err
 }

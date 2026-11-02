@@ -1,7 +1,7 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.17 (2026-11-02). Status: **Draft** (plan only; nothing below is
-built). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
+Version: v0.17 (2026-11-02). Status: **Draft** (part built: section 8.4's hub
+steps are T7, section 10 lists the rows; the shell still reaches them through a seam, T9). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
 

@@ -472,8 +472,12 @@ func TestChannelMoveScanKnownC14(t *testing.T) {
 	if !moveProofFails(out, "scan workspace_events.message") {
 		t.Fatalf("the plant must fail the scan: %v", out["proofs"])
 	}
-	if s := steps(f.must(t, "journal", "", nil))["P7"]; s != "started" {
+	failed := f.must(t, "journal", "", nil)
+	if s := steps(failed)["P7"]; s != "started" {
 		t.Errorf("a failed P7 is not done: %v", s)
+	}
+	if failed["done"] != false {
+		t.Errorf("a failed P7 must leave the journal open: %v", failed["done"])
 	}
 	moveExec(t, f.e, `DELETE FROM workspace_events WHERE tenant_id = $1 AND actor = 'test'`, f.src)
 	out = f.must(t, "step", "P7", nil)
@@ -482,8 +486,12 @@ func TestChannelMoveScanKnownC14(t *testing.T) {
 			t.Errorf("no %q line, count 0: %v", name, out["proofs"])
 		}
 	}
-	if s := steps(f.must(t, "journal", "", nil))["P7"]; s != "done" {
+	held := f.must(t, "journal", "", nil)
+	if s := steps(held)["P7"]; s != "done" {
 		t.Errorf("P7 after the row left: %v", s)
+	}
+	if held["done"] != true {
+		t.Errorf("a P7 that held closes the journal: %v", held["done"])
 	}
 }
 

@@ -301,7 +301,8 @@ func scanRows(rows pgx.Rows, each func(pgx.Rows) error) error {
 // asOperator runs fn in one transaction that sees every tenant. It is the one
 // cross-tenant path, and only these callers use it: Sweep (retention is
 // global), the payment webhook and the checkout lookups (the tenant is unknown
-// until the checkout row is read), and Migrate. Anything else uses inTenant.
+// until the checkout row is read), ChannelMoveProofRead (P7's read-only proofs
+// span <SRC> and the hub-wide tables), and Migrate. Anything else uses inTenant.
 func (s *Postgres) asOperator(ctx context.Context, fn func(pgx.Tx) error) error {
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, budgeted(ctx, pgScopeOperator)); err != nil {

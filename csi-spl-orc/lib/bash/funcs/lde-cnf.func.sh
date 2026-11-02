@@ -30,6 +30,18 @@
 # @param   lde_compose adds after the four lde ones (overlays)
 # @example do_lde_cnf && echo "$LDE_COMPOSE_PROJECT $LDE_HUB_PORT"
 #------------------------------------------------------------------------------
+# _lde_cnf_wui_image -- the wui image step of do_lde_cnf, which defines _lde_get.
+_lde_cnf_wui_image() {
+  # cnf lde.wui.image when cnf carries one; else the Node LTS the WUI engines allow
+  LDE_WUI_IMAGE="${LDE_WUI_IMAGE:-$(_lde_get .env.lde.wui.image)}"
+  # else the host's Node major: the service runs the host tree's node_modules
+  if [[ -z "$LDE_WUI_IMAGE" ]]; then
+    local node_major
+    node_major="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null)"
+    LDE_WUI_IMAGE="node:${node_major:-20}-bookworm-slim"
+  fi
+}
+
 do_lde_cnf() {
   local proj_base
   proj_base="$(basename "${PROJ_PATH:?PROJ_PATH unset}")"
@@ -65,14 +77,7 @@ do_lde_cnf() {
   LDE_GCS_PORT="${LDE_GCS_PORT:-$(_lde_get .env.lde.gcs.host_port)}"
   LDE_HUB_PORT="${LDE_HUB_PORT:-$(_lde_get .env.lde.hub.host_port)}"
   LDE_WUI_PORT="${LDE_WUI_PORT:-$(_lde_get .env.lde.wui.host_port)}"
-  # cnf lde.wui.image when cnf carries one; else the Node LTS the WUI engines allow
-  LDE_WUI_IMAGE="${LDE_WUI_IMAGE:-$(_lde_get .env.lde.wui.image)}"
-  # else the host's Node major: the service runs the host tree's node_modules
-  if [[ -z "$LDE_WUI_IMAGE" ]]; then
-    local node_major
-    node_major="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null)"
-    LDE_WUI_IMAGE="node:${node_major:-20}-bookworm-slim"
-  fi
+  _lde_cnf_wui_image
   LDE_HUB_CONTAINER_PORT="$(_lde_get .env.hub.cloud_run.port)"
   LDE_SMOKE_TENANT="${LDE_SMOKE_TENANT:-$(_lde_get .env.lde.smoke_tenant)}"
   LDE_WUI_TENANT="${LDE_WUI_TENANT:-$LDE_SMOKE_TENANT}"

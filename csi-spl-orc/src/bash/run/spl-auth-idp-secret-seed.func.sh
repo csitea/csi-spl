@@ -26,6 +26,26 @@
 # @example IDP=linkedin ENV=dev ./run -a do_spl_auth_idp_secret_seed
 # @example IDP=linkedin ENV=dev DRY_RUN=0 ./run -a do_spl_auth_idp_secret_seed
 #------------------------------------------------------------------------------
+# _idp_owner_file_client_id <file> <idp> -- checks the owner file and prints
+# "ID <client_id>" or "ERR <why>"; never the secret.
+_idp_owner_file_client_id() {
+  python3 - "$1" "$2" <<'PY'
+import json, re, sys
+try:
+    d = json.load(open(sys.argv[1]))
+except Exception:
+    d = None
+if not isinstance(d, dict): print("ERR not a JSON object"); sys.exit()
+cid, sec = d.get("client_id"), d.get("client_secret")
+if not isinstance(cid, str) or not cid.strip(): print("ERR no client_id")
+elif not isinstance(sec, str) or not sec.strip(): print("ERR no client_secret")
+elif sec != sec.strip(): print("ERR client_secret has leading/trailing whitespace")
+elif sys.argv[2] == "microsoft" and re.fullmatch(r"[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}", sec):
+    print("ERR client_secret is a bare GUID: that is the Azure Secret ID, paste the secret Value")
+else: print("ID " + cid.strip())
+PY
+}
+
 do_spl_auth_idp_secret_seed() {
   do_require_bin gcloud yq python3 sha256sum || return 1
   local idp="${IDP:-}"
@@ -47,22 +67,7 @@ do_spl_auth_idp_secret_seed() {
   [[ -s "$f" ]] || { do_log "FATAL no owner file $f (0600, {\"client_id\":…,\"client_secret\":…}; spec 019 §4)"; return 1; }
   [[ "$(stat -c %a "$f")" == 600 ]] || { do_log "FATAL $f must be mode 0600"; return 1; }
   local fid
-  fid="$(python3 - "$f" "$idp" <<'PY'
-import json, re, sys
-try:
-    d = json.load(open(sys.argv[1]))
-except Exception:
-    d = None
-if not isinstance(d, dict): print("ERR not a JSON object"); sys.exit()
-cid, sec = d.get("client_id"), d.get("client_secret")
-if not isinstance(cid, str) or not cid.strip(): print("ERR no client_id")
-elif not isinstance(sec, str) or not sec.strip(): print("ERR no client_secret")
-elif sec != sec.strip(): print("ERR client_secret has leading/trailing whitespace")
-elif sys.argv[2] == "microsoft" and re.fullmatch(r"[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}", sec):
-    print("ERR client_secret is a bare GUID: that is the Azure Secret ID, paste the secret Value")
-else: print("ID " + cid.strip())
-PY
-)"
+  fid="$(_idp_owner_file_client_id "$f" "$idp")"
   [[ "$fid" == "ID "* ]] || { do_log "FATAL $f: ${fid#ERR }"; return 1; }
   fid="${fid#ID }"
   if [[ -z "$cid" || "$cid" == null || "$cid" == PLACEHOLDER-* ]]; then

@@ -264,9 +264,11 @@ func TestRLSMarketingMetricsNullifControl(t *testing.T) {
 // TestMarketingMetricsLimitsCountRunes (SPL-4445, R7 W2 on SPL-4250): the
 // object_ref (512) and run_id (128) limits count characters, not bytes, the
 // same as rdb 0244's length() checks. "ä" is 2 bytes, so a byte count
-// refuses the accepted cases. object_ref that is not valid UTF-8 is refused.
+// refuses the accepted cases. object_ref or run_id that is not valid UTF-8 is
+// refused by the store's own check, before the database sees it.
 // CONTROL (run by hand, SPL-4445): with either check on len(), its accepted
-// case fails.
+// case fails. CONTROL (run by hand, SPL-4607): with no utf8.ValidString on
+// run_id, memory stores "r\xff" and postgres answers its raw driver error.
 func TestMarketingMetricsLimitsCountRunes(t *testing.T) {
 	for name, s := range drivers(t) {
 		t.Run(name, func(t *testing.T) {
@@ -285,6 +287,7 @@ func TestMarketingMetricsLimitsCountRunes(t *testing.T) {
 				{"object_ref invalid UTF-8", func(m *MarketingMetricSample) { m.ObjectRef = "urn:\xff" }, false},
 				{"run_id 128 runes, 256 bytes", func(m *MarketingMetricSample) { m.RunID = strings.Repeat("ä", 128) }, true},
 				{"run_id 129 runes", func(m *MarketingMetricSample) { m.RunID = strings.Repeat("ä", 129) }, false},
+				{"run_id invalid UTF-8", func(m *MarketingMetricSample) { m.RunID = "r\xff" }, false},
 			} {
 				m := mktSample("impressions", "1", day)
 				c.set(&m)
@@ -296,6 +299,8 @@ func TestMarketingMetricsLimitsCountRunes(t *testing.T) {
 					t.Errorf("%s: stored %d/%d bytes, want %d/%d", c.name, len(got.ObjectRef), len(got.RunID), len(m.ObjectRef), len(m.RunID))
 				case !c.ok && err == nil:
 					t.Errorf("%s: stored, want refused", c.name)
+				case !c.ok && !strings.HasPrefix(err.Error(), "marketing metric sample: "):
+					t.Errorf("%s: refused by the database, not the store: %v", c.name, err)
 				}
 			}
 		})

@@ -127,8 +127,8 @@ func normMarketingSample(m MarketingMetricSample, now time.Time) (MarketingMetri
 		return m, mktSampleErr("unit must be a lowercase id of at most 16 characters")
 	case m.PeriodStart.IsZero() || m.PeriodEnd.Before(m.PeriodStart):
 		return m, mktSampleErr("the period must start, and end at or after its start")
-	case utf8.RuneCountInString(m.RunID) > 128:
-		return m, mktSampleErr("run_id is longer than 128 characters")
+	case !utf8.ValidString(m.RunID) || utf8.RuneCountInString(m.RunID) > 128:
+		return m, mktSampleErr("run_id is not valid UTF-8 or longer than 128 characters")
 	}
 	return m, nil
 }

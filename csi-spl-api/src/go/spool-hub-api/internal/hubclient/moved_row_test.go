@@ -82,13 +82,19 @@ func TestBackfillSummaryWithheld(t *testing.T) {
 		{wire.Frame{Backfill: "ops", Count: 2, Topics: 1, From: "c-009"},
 			"added to #ops: 2 earlier messages in 1 topic, newest from c-009"},
 		{wire.Frame{Backfill: "ops", Count: 2, Topics: 1, From: "c-009", Withheld: 1, WithheldTask: "t-9"},
-			"added to #ops: 2 earlier messages in 1 topic, newest from c-009; 1 earlier message not sent: signed by a key this workspace does not pin for the sender's box; newest in topic t-9"},
+			"added to #ops: 2 earlier messages in 1 topic, newest from c-009; 1 earlier message not sent: signed by a key this workspace does not pin for the sender's box; newest in topic t-9; spool may not show them here, a person can read them in the browser: ask in the channel"},
 		{wire.Frame{Backfill: "ops", From: "c-009", Withheld: 3, WithheldTask: "t-9"},
-			"added to #ops: 3 earlier messages not sent: signed by a key this workspace does not pin for the sender's box; newest in topic t-9"},
+			"added to #ops: 3 earlier messages not sent: signed by a key this workspace does not pin for the sender's box; newest in topic t-9; spool may not show them here, a person can read them in the browser: ask in the channel"},
 	}
 	for _, tc := range cases {
-		if got := BackfillSummary(tc.f, "c-007").Body; got != tc.want {
+		got := BackfillSummary(tc.f, "c-007").Body
+		if got != tc.want {
 			t.Errorf("body %q, want %q", got, tc.want)
+		}
+		// tail shows a box only rows it sent, was addressed by or had
+		// delivered: the line never sends the agent there for these rows.
+		if strings.Contains(got, "tail") || strings.Contains(strings.ToLower(got), "moved") {
+			t.Errorf("body points at tail or names a move: %q", got)
 		}
 	}
 }

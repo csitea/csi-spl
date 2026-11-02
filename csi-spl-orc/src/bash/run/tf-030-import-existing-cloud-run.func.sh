@@ -17,8 +17,9 @@
 # @example ENV=dev ./run -a do_tf_030_import_existing_cloud_run
 # @example ENV=prd ./run -a do_tf_030_import_existing_cloud_run
 #------------------------------------------------------------------------------
-do_tf_030_import_existing_cloud_run() {
-  local env_name="${ENV:-}"
+# _tf030_check_env <env>: 0 for dev or prd; else 1 with the FATAL.
+_tf030_check_env() {
+  local env_name="$1"
   if [[ -z "$env_name" ]]; then
     do_log "FATAL ENV is required. Usage: ENV=dev ./run -a do_tf_030_import_existing_cloud_run"
     return 1
@@ -34,6 +35,11 @@ do_tf_030_import_existing_cloud_run() {
       return 1
       ;;
   esac
+}
+
+do_tf_030_import_existing_cloud_run() {
+  local env_name="${ENV:-}"
+  _tf030_check_env "$env_name" || return 1
 
   # Resolve from THIS checkout, not docker .env APP_PATH (which may point at
   # the shared tree while we are in a worktree).

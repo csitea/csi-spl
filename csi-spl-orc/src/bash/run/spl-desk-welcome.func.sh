@@ -40,17 +40,34 @@
 # @example ENV=dev DRY_RUN=0 ./run -a do_spl_desk_welcome
 # @example ENV=prd TENANT_ID=e2e ./run -a do_spl_desk_welcome
 #------------------------------------------------------------------------------
+# _spl_desk_welcome_check_args <box> <hours> <tries> <include test>: 0 when all
+# four are well formed; else 1 with the FATAL.
+_spl_desk_welcome_check_args() {
+  local box="$1" age="$2" tries="$3" withtest="$4"
+  [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$box" != box-wui ]] || { do_log "FATAL DESK_BOX '$box' is not a box id (box-wui is reserved)"; return 1; }
+  [[ "$age" =~ ^[1-9][0-9]{0,3}$ ]] || { do_log "FATAL WELCOME_MAX_AGE_H must be 1..9999 hours, got: '$age'"; return 1; }
+  [[ "$tries" =~ ^[1-9]$ ]] || { do_log "FATAL WELCOME_TRIES must be 1..9, got: '$tries'"; return 1; }
+  [[ "$withtest" == 0 || "$withtest" == 1 ]] || { do_log "FATAL WELCOME_INCLUDE_TEST must be 0 or 1, got: '$withtest'"; return 1; }
+}
+
+# _spl_desk_welcome_dry_report <admits> <hours> <tenant names>: the dry run's
+# report. Posts nothing and writes no ledger.
+_spl_desk_welcome_dry_report() {
+  local admits="$1" age="$2" tnames="$3" n
+  n="$(grep -c . <<<"$admits" || true)"
+  do_log "INFO DRY_RUN $n admit(s) younger than ${age}h in ${tnames}; the ledger decides which are new"
+  [[ -n "$admits" ]] && printf '%s\n' "$admits"
+  do_log "OK DRY_RUN nothing was posted and no ledger was written. Re-run with DRY_RUN=0."
+}
+
 do_spl_desk_welcome() {
   do_require_bin python3 yq flock || return 1
   do_spl_cloud_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   local box="${DESK_BOX:-$(spl_desk_box_default)}" age="${WELCOME_MAX_AGE_H:-24}" tries="${WELCOME_TRIES:-3}"
-  [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$box" != box-wui ]] || { do_log "FATAL DESK_BOX '$box' is not a box id (box-wui is reserved)"; return 1; }
-  [[ "$age" =~ ^[1-9][0-9]{0,3}$ ]] || { do_log "FATAL WELCOME_MAX_AGE_H must be 1..9999 hours, got: '$age'"; return 1; }
-  [[ "$tries" =~ ^[1-9]$ ]] || { do_log "FATAL WELCOME_TRIES must be 1..9, got: '$tries'"; return 1; }
   local withtest="${WELCOME_INCLUDE_TEST:-0}"
-  [[ "$withtest" == 0 || "$withtest" == 1 ]] || { do_log "FATAL WELCOME_INCLUDE_TEST must be 0 or 1, got: '$withtest'"; return 1; }
+  _spl_desk_welcome_check_args "$box" "$age" "$tries" "$withtest" || return 1
 
   local -a tenants=() live=() plan=()
   local tlist
@@ -69,14 +86,7 @@ do_spl_desk_welcome() {
   admits="$(spl_desk_welcome_admits "${tenants[*]}" "$age")" || rc=$?
   (( rc == 0 )) || { do_log "FATAL cannot read the new admits of ${tenants[*]} in $ENV"; return 1; }
 
-  if (( dry )); then
-    local n
-    n="$(grep -c . <<<"$admits" || true)"
-    do_log "INFO DRY_RUN $n admit(s) younger than ${age}h in ${tenants[*]}; the ledger decides which are new"
-    [[ -n "$admits" ]] && printf '%s\n' "$admits"
-    do_log "OK DRY_RUN nothing was posted and no ledger was written. Re-run with DRY_RUN=0."
-    return 0
-  fi
+  (( dry )) && { _spl_desk_welcome_dry_report "$admits" "$age" "${tenants[*]}"; return 0; }
 
   mkdir -p "$L" || { do_log "FATAL cannot create $L"; return 1; }
   chmod 700 "$L" 2>/dev/null || true

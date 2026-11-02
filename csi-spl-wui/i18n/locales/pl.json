@@ -3403,6 +3403,7 @@
       "table_label": "Aktywne linie",
       "col_box": "Maszyna",
       "col_scope": "Zakres",
+      "col_origin_issue": "Zgłoszenie źródłowe",
       "col_updated": "Zaktualizowano",
       "min_ago": "{n} min temu",
       "col_state": "Stan",

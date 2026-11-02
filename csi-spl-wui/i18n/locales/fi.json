@@ -3403,6 +3403,7 @@
       "table_label": "Aktiiviset kaistat",
       "col_box": "Kone",
       "col_scope": "Laajuus",
+      "col_origin_issue": "Lähdeasia",
       "col_updated": "Päivitetty",
       "min_ago": "{n} min sitten",
       "col_state": "Tila",

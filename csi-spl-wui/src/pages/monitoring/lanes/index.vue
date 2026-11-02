@@ -82,7 +82,7 @@
                   <option v-for="s in choices.state" :key="s" :value="s">{{ stateLabel(s) }}</option>
                 </select>
               </th>
-              <th colspan="3">
+              <th colspan="4">
                 <input v-model="filters.text" type="search" class="ln-search" data-test="lanes-filter-text" :placeholder="t('monitoring.lanes.filter_text')" :aria-label="t('monitoring.lanes.filter_text')">
               </th>
               <th>
@@ -125,6 +125,12 @@
                 <template v-for="i in l.issues" :key="i.key">
                   <NuxtLink v-if="laneIssuePath(i)" class="ln-issue" :to="localePath(laneIssuePath(i))" :title="i.status" data-test="lanes-issue-link">{{ i.key }}</NuxtLink>
                   <span v-else class="ln-issue" data-test="lanes-issue">{{ i.key }}</span>
+                </template>
+              </td>
+              <td data-test="lanes-origin">
+                <template v-if="l.originIssue">
+                  <NuxtLink v-if="laneIssuePath(l.originIssue)" class="ln-issue" :to="localePath(laneIssuePath(l.originIssue))" :title="l.originIssue.status" data-test="lanes-origin-link">{{ l.originIssue.key }}</NuxtLink>
+                  <span v-else class="ln-issue">{{ l.originIssue.key }}</span>
                 </template>
               </td>
               <td class="num" data-test="lanes-updated">{{ ago(l.updatedAt) }}</td>
@@ -175,6 +181,7 @@ const COLUMN_NAMES: Record<string, { key: string, cls?: string, test?: string }>
   scope: { key: 'monitoring.lanes.col_scope' },
   topic: { key: 'issues.discussion' },
   issues: { key: 'issues.title' },
+  origin: { key: 'monitoring.lanes.col_origin_issue', test: 'lanes-col-origin' },
   updated: { key: 'monitoring.lanes.col_updated', cls: 'num' },
   active: { key: 'monitoring.tokens.col_last', cls: 'num' },
   workspace: { key: 'sidebar.tenant', test: 'lanes-col-workspace' },

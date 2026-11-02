@@ -3403,6 +3403,7 @@
       "table_label": "Aktīvās līnijas",
       "col_box": "Mašīna",
       "col_scope": "Tvērums",
+      "col_origin_issue": "Izcelsmes problēma",
       "col_updated": "Atjaunināts",
       "min_ago": "pirms {n} min",
       "col_state": "Stāvoklis",

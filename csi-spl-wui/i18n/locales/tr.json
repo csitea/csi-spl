@@ -3403,6 +3403,7 @@
       "table_label": "Etkin hatlar",
       "col_box": "Makine",
       "col_scope": "Kapsam",
+      "col_origin_issue": "Kaynak konu",
       "col_updated": "Güncellendi",
       "min_ago": "{n} dk önce",
       "col_state": "Durum",

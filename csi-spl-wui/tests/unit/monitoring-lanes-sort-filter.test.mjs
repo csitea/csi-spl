@@ -28,11 +28,11 @@ const ids = (lanes) => lanes.map((l) => l.agentId).join(',')
 /* hub order: newest write first */
 const VIEW = fleetLanesOf({ as_of: '2026-10-27T12:00:00Z', fleet: 'main', lanes: [
   { agent_id: 'c-10', agent_box: 'box-b', vendor: 'claude', scope: 'Lanes sort', topic_id: 't', topic_title: 'Beta topic',
-    issues: [{ key: 'SPL-20', status: 'wip' }], updated_at: '2026-10-27T11:58:00Z', age_s: 120, last_active: '2026-10-27T11:59:00Z', workspace: 'w1', workspace_name: 'Ops' },
+    issues: [{ key: 'SPL-20', status: 'wip' }], origin_issue: { key: 'SPL-20', status: 'wip' }, updated_at: '2026-10-27T11:58:00Z', age_s: 120, last_active: '2026-10-27T11:59:00Z', workspace: 'w1', workspace_name: 'Ops' },
   { agent_id: 'c-9', agent_box: 'box-a', vendor: 'claude', scope: 'Disk sweep', topic_id: '', topic_title: '',
     issues: [], updated_at: '2026-10-27T09:00:00Z', age_s: 10800, last_active: '', workspace: 'w2', workspace_name: 'Acme' },
   { agent_id: 'a-277', agent_box: 'box-a', vendor: 'agy', scope: 'Review the locale text', topic_id: 'x', topic_title: 'Alpha topic',
-    issues: [{ key: 'SPL-3', status: '' }], updated_at: '2026-10-25T12:00:00Z', age_s: 172800, last_active: '2026-10-26T12:00:00Z', workspace: 'w1', workspace_name: 'Ops' },
+    issues: [{ key: 'SPL-3', status: '' }], origin_issue: { key: 'OPS-7', status: '' }, updated_at: '2026-10-25T12:00:00Z', age_s: 172800, last_active: '2026-10-26T12:00:00Z', workspace: 'w1', workspace_name: 'Ops' },
   { agent_id: 'm-039', agent_box: 'box-b', vendor: 'mistral', scope: 'Queued summary', state: 'queued',
     issues: [], updated_at: '2026-10-27T11:30:00Z', age_s: 1800, last_active: '', workspace: 'w1', workspace_name: 'Ops' },
 ] }).lanes
@@ -65,6 +65,7 @@ describe('the lanes sort by every column', () => {
       scope: ['c-9,c-10,m-039,a-277', 'a-277,m-039,c-10,c-9'],
       topic: ['a-277,c-10,c-9,m-039', 'c-10,a-277,c-9,m-039'],
       issues: ['a-277,c-10,c-9,m-039', 'c-10,a-277,c-9,m-039'],
+      origin: ['a-277,c-10,c-9,m-039', 'c-10,a-277,c-9,m-039'],
       updated: ['a-277,c-9,m-039,c-10', 'c-10,m-039,c-9,a-277'],
       active: ['a-277,c-10,c-9,m-039', 'c-10,a-277,c-9,m-039'],
       workspace: ['c-9,c-10,a-277,m-039', 'c-10,a-277,m-039,c-9'],

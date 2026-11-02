@@ -3403,6 +3403,7 @@
       "table_label": "Aktívne linky",
       "col_box": "Stroj",
       "col_scope": "Rozsah",
+      "col_origin_issue": "Pôvodná úloha",
       "col_updated": "Aktualizované",
       "min_ago": "pred {n} min",
       "col_state": "Stav",

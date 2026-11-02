@@ -3403,6 +3403,7 @@
       "table_label": "Активни линии",
       "col_box": "Машина",
       "col_scope": "Опфат",
+      "col_origin_issue": "Изворен проблем",
       "col_updated": "Ажурирано",
       "min_ago": "пред {n} мин",
       "col_state": "Состојба",

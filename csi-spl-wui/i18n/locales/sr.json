@@ -3403,6 +3403,7 @@
       "table_label": "Активне линије",
       "col_box": "Машина",
       "col_scope": "Обим",
+      "col_origin_issue": "Изворни проблем",
       "col_updated": "Ажурирано",
       "min_ago": "пре {n} мин",
       "col_state": "Стање",

@@ -349,6 +349,10 @@ func TestApplyChannelCopyNotReplayed(t *testing.T) {
 	if len(rows) != 0 {
 		t.Errorf("%d copied post(s) would be replayed", len(rows))
 	}
+	got, err := f.pg.GetEditable(ctx, f.dst, res.IDs[f.human], now)
+	if err != nil || got.CopiedFrom != f.human || got.EnvSig != "" {
+		t.Errorf("GetEditable of a copy: copied from %q sig %q, want %s (%v)", got.CopiedFrom, got.EnvSig, f.human, err)
+	}
 	mvExec(t, f.pg, `UPDATE messages SET copied_from = NULL WHERE tenant_id = $1 AND msg_id = $2::uuid`, f.dst, res.IDs[f.human])
 	rows, err = f.pg.UnsignedWUIPosts(ctx, f.dst, now.Add(-time.Hour), now, 100)
 	if err != nil {

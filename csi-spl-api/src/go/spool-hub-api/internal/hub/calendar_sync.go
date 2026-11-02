@@ -248,6 +248,8 @@ func (s *Server) approval(ctx context.Context, g calendarSyncGoal) (string, erro
 		return "", err
 	case m.FromBox != WUIBox || m.EnvSig != "":
 		return "the approval message was not written in a member session", nil
+	case m.CopiedFrom != "": // spec 169: unsigned, but nobody wrote it here
+		return "the approval message is a copy from another workspace", nil
 	}
 	a, err := s.access(ctx, m.FromID, tenant)
 	if err != nil || !a.HasAny(roadmapApproverRoles...) {

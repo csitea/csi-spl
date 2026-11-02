@@ -31,7 +31,7 @@ func (s *Postgres) GetEditable(ctx context.Context, tenant, msgID string, now ti
 				from_box, from_id, to_box, to_id, kind, body, msg, env_sig, env, ts, received_at,
 				edited_at, edited_by, kind_set_at, kind_set_by,
 				COALESCE((SELECT MAX(revision) FROM message_revisions r
-					WHERE r.tenant_id = m.tenant_id AND r.msg_id = m.msg_id), 0), ` + moveCols("m") + `
+					WHERE r.tenant_id = m.tenant_id AND r.msg_id = m.msg_id), 0), ` + moveCols("m") + `, COALESCE(m.copied_from::text, '')
 			FROM messages m
 			WHERE m.tenant_id = $1 AND m.msg_id = $2 AND m.expires_at > $3`,
 			args: []any{tenant, msgID, now},
@@ -40,7 +40,7 @@ func (s *Postgres) GetEditable(ctx context.Context, tenant, msgID string, now ti
 				return rows.Scan(&m.MsgID, &m.TaskID, &channel, &parent,
 					&m.FromBox, &m.FromID, &m.ToBox, &m.ToID, &m.Kind, &m.Body, &m.Msg, &m.EnvSig, &m.Env,
 					&m.TS, &m.ReceivedAt, &editedAt, &editedBy, &kindSetAt, &kindSetBy, &m.Revision,
-					&mvAt, &mvBy, &mvCh, &mvTask, &mCh, &mTask, &mParent)
+					&mvAt, &mvBy, &mvCh, &mvTask, &mCh, &mTask, &mParent, &m.CopiedFrom)
 			}},
 		tenantRead{sql: `SELECT to_box, state FROM deliveries
 			WHERE tenant_id = $1 AND msg_id = $2 ORDER BY to_box`,

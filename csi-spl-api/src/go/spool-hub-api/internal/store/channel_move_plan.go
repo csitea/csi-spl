@@ -16,9 +16,9 @@ import (
 // refuse (Q6 = A), the mentions outside the set (Q4 = A, listed only), the
 // channel's people who are not <DST> members (W1, Q5), the hours stops, and
 // (row T4b) the set's boxes not pinned in <DST> (R1) and the seated agents
-// with no <DST> desk (W2), and changes nothing (C1). Postgres reads <SRC> in
-// one READ ONLY tenant transaction, so a write anywhere in it is refused by
-// the server.
+// with no <DST> desk (W2), (row T4d) every seat, and changes nothing (C1).
+// Postgres reads <SRC> in one READ ONLY tenant transaction, so a write anywhere
+// in it is refused by the server.
 //
 // The catalogue (channelmove.Catalogue and channelmove.Binds, row T1) comes
 // in the request: channelmove's own tests import this package, so this
@@ -116,9 +116,11 @@ type HoursStop struct {
 	Reason string // "Q5": the member does not come to <DST>; "Q8": inside a frozen or approved sheet
 }
 
-// MoveSeat is one agent seated in the channel, on its box (M5).
+// MoveSeat is one agent seated in the channel, on its box (M5). The tags are
+// the names the shell reads: .seats[].agent, .seats[].box.
 type MoveSeat struct {
-	Agent, Box string
+	Agent string `json:"agent"`
+	Box   string `json:"box"`
 }
 
 // ChannelMovePlan is plan's answer. Refused() says whether the move may go on.
@@ -136,6 +138,12 @@ type ChannelMovePlan struct {
 	// MissingPins are the from_box values of the set's rows with no live pin
 	// in <DST>: the rows could be stored there but not re-verified (R1).
 	MissingPins []string
+	// Seats are every seat of the channel, with a <DST> desk or without one,
+	// sorted and once each (T4d): the boxes T9c names and the desks T7's probes
+	// reach. [] on a channel with none, never null. The same M5 rows as
+	// MissingDesks. plan takes no mode, so a copy lists them too (section 7:
+	// a copy carries no seat; the caller decides).
+	Seats []MoveSeat `json:"seats"`
 	// MissingDesks are the seats with no desk on their box in <DST> (W2). The
 	// seats are M5's rows only: the F14 box rule rows live on the box, and the
 	// hub cannot read them.
@@ -355,15 +363,13 @@ func mpMissingPins(fromBoxes []string, pinned func(string) bool) []string {
 	return out
 }
 
-// mpMissingDesks answers the seats with no desk on their box in <DST> (W2),
-// sorted and once each. A desk is the box's live roster row: agent_seats
-// outlives the roster (rdb 0107), so its row alone says the agent was there,
-// not that the desk still is.
-func mpMissingDesks(seats []MoveSeat, hasDesk func(MoveSeat) bool) []MoveSeat {
+// mpSeats answers the seats sorted and once each, [] when there are none, so
+// the plan marshals .seats as a list.
+func mpSeats(seats []MoveSeat) []MoveSeat {
 	seen := map[MoveSeat]bool{}
-	var out []MoveSeat
+	out := make([]MoveSeat, 0, len(seats))
 	for _, seat := range seats {
-		if !seen[seat] && !hasDesk(seat) {
+		if !seen[seat] {
 			out = append(out, seat)
 		}
 		seen[seat] = true
@@ -374,6 +380,20 @@ func mpMissingDesks(seats []MoveSeat, hasDesk func(MoveSeat) bool) []MoveSeat {
 		}
 		return out[i].Box < out[j].Box
 	})
+	return out
+}
+
+// mpMissingDesks answers the seats with no desk on their box in <DST> (W2),
+// sorted and once each. A desk is the box's live roster row: agent_seats
+// outlives the roster (rdb 0107), so its row alone says the agent was there,
+// not that the desk still is.
+func mpMissingDesks(seats []MoveSeat, hasDesk func(MoveSeat) bool) []MoveSeat {
+	var out []MoveSeat
+	for _, seat := range mpSeats(seats) {
+		if !hasDesk(seat) {
+			out = append(out, seat)
+		}
+	}
 	return out
 }
 

@@ -4,8 +4,10 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -20,7 +22,8 @@ import (
 // (Q6 = A: an issue linked to topics in two channels refuses the move,
 // naming it) runs on both drivers. Each lands with its red control. Row T4b:
 // C22 (R1, a box not pinned in <DST> is listed) and C23 (W2, a seated agent
-// with no <DST> desk refuses, naming it) run on both drivers.
+// with no <DST> desk refuses, naming it) run on both drivers. Row T4d: C27
+// (plan lists every seat, with a desk or without) runs on both drivers.
 
 // movePlanFix is <SRC> with a moving channel and a staying one, and <DST>.
 type movePlanFix struct {
@@ -353,6 +356,151 @@ func TestPlanChannelMoveC23MissingDesk(t *testing.T) {
 				t.Errorf("every seat has its desk now: want no stop, got %q", p.Stops())
 			}
 		})
+	}
+}
+
+// C27 (T4d): plan returns every seat, not only those with no desk. A seat WITH
+// its <DST> desk is listed and refuses nothing; a seat by invite and as a
+// dedicated agent is one seat; the list is sorted, and stays with the desk
+// check removed. A removed seat and a seat of a staying channel are not listed.
+func TestPlanChannelMoveC27Seats(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			f := seedMovePlan(t, s)
+			ctx, now := context.Background(), time.Now().UTC().Truncate(time.Second)
+			must := func(err error) {
+				t.Helper()
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			req := f.req()
+			req.noSharedCheck = true // the shared issue is C7's; here only the seats
+			must(s.InviteChannelAgent(ctx, f.src, f.mv, "box-desk", "c-101", now))
+			must(s.SetRoster(ctx, f.dst, "box-desk", []string{"c-101"}, now))
+			p := planOf(t, s, req)
+			if want := []MoveSeat{{"c-101", "box-desk"}}; !reflect.DeepEqual(p.Seats, want) {
+				t.Fatalf("a seat with its <DST> desk: want seats %v, got %v", want, p.Seats)
+			}
+			if p.Refused() || len(p.MissingDesks) != 0 {
+				t.Fatalf("a seat with its desk must refuse nothing: %q", p.Stops())
+			}
+
+			ds, ok := s.(DedicatedStore)
+			if !ok {
+				t.Fatalf("%T keeps no dedicated agents", s)
+			}
+			for _, a := range []string{"c-101", "c-103"} {
+				_, err := ds.SetDedicatedBinding(ctx, DedicatedBinding{TenantID: f.src, AgentID: a, BoxID: "box-desk",
+					ScopeType: ScopeChannel, ScopeID: f.mv, BoundBy: "HUM-1"})
+				must(err)
+			}
+			must(s.InviteChannelAgent(ctx, f.src, f.mv, "box-other", "c-101", now))
+			must(s.InviteChannelAgent(ctx, f.src, f.mv, "box-desk", "c-102", now))
+			must(s.RemoveChannelAgent(ctx, f.src, f.mv, "box-desk", "c-107", now))
+			must(s.InviteChannelAgent(ctx, f.src, f.stay, "box-desk", "c-108", now))
+			want := []MoveSeat{{"c-101", "box-desk"}, {"c-101", "box-other"}, {"c-102", "box-desk"}, {"c-103", "box-desk"}}
+			missing := []MoveSeat{{"c-101", "box-other"}, {"c-102", "box-desk"}, {"c-103", "box-desk"}}
+			p = planOf(t, s, req)
+			if !reflect.DeepEqual(p.Seats, want) {
+				t.Fatalf("want seats %v, got %v", want, p.Seats)
+			}
+			if !reflect.DeepEqual(p.MissingDesks, missing) {
+				t.Fatalf("want missing desks %v, got %v", missing, p.MissingDesks)
+			}
+			req.noDeskCheck = true
+			if c := planOf(t, s, req); !reflect.DeepEqual(c.Seats, want) || len(c.MissingDesks) != 0 {
+				t.Fatalf("the seats are not the desk check's: seats %v, missing %v", c.Seats, c.MissingDesks)
+			}
+		})
+	}
+}
+
+// C27, an old announce row (W1 of the R7): origin 'announce' on a default channel
+// predates rdb 0036 and grants nothing, so it is no seat; on a created channel it
+// still is one. Postgres only: nothing writes an announce row since 2026-09-25,
+// so raw SQL plants it, and the memory store has no origin to plant.
+func TestPlanChannelMoveC27AnnounceRow(t *testing.T) {
+	pg, ok := drivers(t)["postgres"].(*Postgres)
+	if !ok {
+		t.Skip("needs SPOOL_TEST_PG_DSN: the memory store keeps no origin")
+	}
+	f := seedMovePlan(t, pg)
+	ctx, now := context.Background(), time.Now().UTC().Truncate(time.Second)
+	if err := pg.InviteChannelAgent(ctx, f.src, ChannelLobby, "box-desk", "c-101", now); err != nil {
+		t.Fatal(err)
+	}
+	err := pg.inTenant(ctx, f.src, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO channel_subscriptions (tenant_id, channel_id, agent_id, box_id, subscribed_at, origin)
+			VALUES ($1, $2, 'c-109', 'box-desk', $4, 'announce'), ($1, $3, 'c-110', 'box-desk', $4, 'announce')`,
+			f.src, ChannelLobby, f.mv, now)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := f.req()
+	req.noSharedCheck = true // the shared issue is C7's; here only the seats
+	if p, want := planOf(t, pg, req), []MoveSeat{{"c-110", "box-desk"}}; !reflect.DeepEqual(p.Seats, want) {
+		t.Errorf("an announce row on a created channel: want seats %v, got %v", want, p.Seats)
+	}
+	req.Channel = ChannelLobby
+	if p, want := planOf(t, pg, req), []MoveSeat{{"c-101", "box-desk"}}; !reflect.DeepEqual(p.Seats, want) {
+		t.Errorf("an announce row on a default channel is no seat: want seats %v, got %v", want, p.Seats)
+	}
+}
+
+// C27, the wire: the shell reads .seats[].agent and .seats[].box and
+// .seats // [] (spl-channel-workspace-move.func.sh), and jq's keys are case
+// sensitive, so an untagged field reads as no seat at all.
+func TestPlanChannelMoveC27SeatsJSON(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			f := seedMovePlan(t, s)
+			ctx, now := context.Background(), time.Now().UTC().Truncate(time.Second)
+			if err := s.InviteChannelAgent(ctx, f.src, f.mv, "box-desk", "c-101", now); err != nil {
+				t.Fatal(err)
+			}
+			var got struct {
+				Seats []map[string]any `json:"seats"`
+			}
+			raw, err := json.Marshal(planOf(t, s, f.req()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal(raw, &got); err != nil {
+				t.Fatal(err)
+			}
+			want := []map[string]any{{"agent": "c-101", "box": "box-desk"}}
+			if !reflect.DeepEqual(got.Seats, want) {
+				t.Fatalf("want .seats %v, got %s", want, raw)
+			}
+			empty := f.req()
+			empty.Channel = f.stay // nobody is seated there
+			raw, err = json.Marshal(planOf(t, s, empty))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var bare map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &bare); err != nil {
+				t.Fatal(err)
+			}
+			if string(bare["seats"]) != "[]" {
+				t.Fatalf("a channel with no seat must marshal .seats as [], got %q", bare["seats"])
+			}
+		})
+	}
+}
+
+// C27, copy (section 7: seats are not copied): plan takes no mode, so it lists
+// the seats for MOVE_MODE=copy as for a move. Whoever adds a mode decides here
+// whether a copy still lists them, and whether it still refuses on W2.
+func TestPlanChannelMoveC27NoModeInPlan(t *testing.T) {
+	typ := reflect.TypeOf(ChannelMovePlanRequest{})
+	for i := 0; i < typ.NumField(); i++ {
+		if strings.Contains(strings.ToLower(typ.Field(i).Name), "mode") {
+			t.Fatalf("%s.%s: plan now knows the mode; decide Seats and MissingDesks for a copy, then change this test", typ.Name(), typ.Field(i).Name)
+		}
 	}
 }
 

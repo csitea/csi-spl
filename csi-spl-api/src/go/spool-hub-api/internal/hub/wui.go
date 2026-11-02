@@ -732,7 +732,13 @@ func (s *Server) wuiRoute(ctx context.Context, c *wuiConn, f wuiIn, m *msg.Messa
 	if rf := frameRefusalOf(s.checkTags(ctx, c.tenant, f.Channel, f.ParentTaskID, m.TaskID)); rf != nil {
 		return rt, rf
 	}
-	rt.channel = s.wuiChannel(ctx, c.tenant, f.Channel, m.TaskID, isParent)
+	var rooted bool
+	rt.channel, rooted = s.wuiChannel(ctx, c.tenant, f.Channel, m.TaskID, isParent)
+	if !rooted { // spec 169 C8, channel_move.go
+		if rf := s.browserMovedRefusal(ctx, c.tenant, m.TaskID); rf != nil {
+			return rt, rf
+		}
+	}
 	if agent != "" && s.channelHumansOnly(ctx, c.tenant, rt.channel) { // SPL-2423: an @agent there is a plain post
 		agent, m.To = "", BroadcastID
 	}

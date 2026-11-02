@@ -353,7 +353,8 @@ func baseOptions(hc *config.Hub, log zerolog.Logger, st store.Store, bs blob.Sto
 	cached := blob.NewCached(bs, blobCacheBytes, blobCacheItemBytes, BlobCacheTTL)
 	return hub.Options{
 		Store: st, Blob: cached, Log: log, TenantHostPattern: hc.TenantHostPattern,
-		HelloSkew: hc.HelloSkew, UploadTokenTTL: hc.UploadTokenTTL, JoinTokenTTL: hc.JoinTokenTTL, QueueTTL: hc.QueueTTL,
+		WUIApexTenant: hubWUIApex(hc),
+		HelloSkew:     hc.HelloSkew, UploadTokenTTL: hc.UploadTokenTTL, JoinTokenTTL: hc.JoinTokenTTL, QueueTTL: hc.QueueTTL,
 		QueueMaxPerBox: hc.QueueMaxPerBox, RetentionAlerts: hc.RetentionAlerts,
 		RetentionChannels: hc.RetentionChannels, BackfillWindow: hc.BackfillWindow, BackfillMax: hc.BackfillMax,
 		Fallback:        hc.Fallback,

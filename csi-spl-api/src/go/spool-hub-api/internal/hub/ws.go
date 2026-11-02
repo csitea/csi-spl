@@ -644,6 +644,10 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 		ctx = s.boxDMRef(ctx, x, m.From, f.RefTaskID) // spec 067 3.3, dm_ref.go
 		rf = s.humanPostRefusal(ctx, x, env, m)       // SPL-2584, human_post_guard.go
 	}
+	level := 1
+	if rf == nil {
+		level, rf = s.sendMoved(ctx, x.tenant, m.TaskID) // spec 169 C8, channel_move.go
+	}
 	var undo func()
 	if rf == nil {
 		rf, undo = s.claimAnswer(ctx, x, env, m, f)
@@ -652,7 +656,7 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 		x.fail(ctx, id, rf.token, rf.status, rf.detail)
 		return
 	}
-	r, err := s.commitRowTyped(ctx, x.tenant, env, m, s.boxLevel(ctx, x.tenant, m.TaskID), f.TypedBy)
+	r, err := s.commitRowTyped(ctx, x.tenant, env, m, level, f.TypedBy)
 	if err != nil && undo != nil {
 		undo()
 	}
@@ -1061,6 +1065,9 @@ func (s *Server) Deliver(ctx context.Context, tenant string, env *wire.Envelope)
 	}
 	if s.missingFile(ctx, tenant, m.Files) != "" {
 		return "", fmt.Errorf("missing file")
+	}
+	if _, rf := s.sendMoved(ctx, tenant, m.TaskID); rf != nil { // spec 169 C8: the task id is the request's
+		return "", fmt.Errorf("%s: %s", rf.token, rf.detail)
 	}
 	return s.commit(ctx, tenant, env, m)
 }

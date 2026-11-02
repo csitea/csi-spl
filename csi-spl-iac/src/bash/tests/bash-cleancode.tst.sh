@@ -27,24 +27,17 @@ LONG="
   csi-spl-iac/src/bash/run/spl-secret-unused-list.func.sh spl_secret_unused_table 76
   csi-spl-orc/lib/bash/funcs/lde-cnf.func.sh do_lde_cnf 76
   csi-spl-orc/src/bash/features/spawn-agents/scripts/spawn-core.inc.sh _spawn_worktree 79
-  csi-spl-orc/src/bash/run/export-all-dns-settings.func.sh do_export_all_dns_settings 77
   csi-spl-orc/src/bash/run/spl-agent-identity-restore.func.sh do_spl_agent_identity_restore 80
   csi-spl-orc/src/bash/run/spl-agent-mcp-install.func.sh do_spl_agent_mcp_install 80
   csi-spl-orc/src/bash/run/spl-auth-idp-secret-seed.func.sh do_spl_auth_idp_secret_seed 80
-  csi-spl-orc/src/bash/run/spl-box-ports-loopback.func.sh spl_bpl_edit 78
-  csi-spl-orc/src/bash/run/spl-db-backup-verify.func.sh spl_db_backup_restore_counts 78
   csi-spl-orc/src/bash/run/spl-desk-pin.func.sh do_spl_desk_pin 78
   csi-spl-orc/src/bash/run/spl-desk-reply.func.sh spl_desk_pick 80
-  csi-spl-orc/src/bash/run/spl-desk-up.func.sh spl_desk_sidecar 78
   csi-spl-orc/src/bash/run/spl-desk-welcome.func.sh do_spl_desk_welcome 80
   csi-spl-orc/src/bash/run/spl-dispatch-lease.func.sh spl_fleet_role_tick 78
   csi-spl-orc/src/bash/run/spl-dispatch-rotate.func.sh spl_disp_rotate_auto 78
   csi-spl-orc/src/bash/run/spl-secrets-seed-all.func.sh do_secrets_seed_gcp 77
-  csi-spl-orc/src/bash/run/spl-stripe-webhook-probe.func.sh do_spl_stripe_webhook_probe 78
   csi-spl-orc/src/bash/run/spl-tenant-create.func.sh do_spl_tenant_create 76
   csi-spl-orc/src/bash/run/tf-030-import-existing-cloud-run.func.sh do_tf_030_import_existing_cloud_run 80
-  csi-spl-utl/src/bash/run/box-beat-telemetry.func.sh do_box_beat_telemetry_check 79
-  csi-spl-utl/src/bash/run/box-disk-guard-install.func.sh do_box_disk_guard_install 79
 "
 
 fails=0

@@ -125,6 +125,10 @@ func (c *Client) SendAnswerMessage(ctx context.Context, m *msg.Message, explicit
 		}
 	}
 	f, err := sess.SendAnswer(ctx, env, answers, gen)
+	var he *HubError
+	if errors.As(err, &he) && he.Token == wire.TokenTopicMoved {
+		f, err = c.answerMoved(ctx, env, m, he, answers, gen) // spec 169 T7b
+	}
 	if err != nil {
 		return "", err
 	}
@@ -195,6 +199,12 @@ func (c *Client) sendNow(ctx context.Context, env *wire.Envelope, m *msg.Message
 			return wire.DeliveryPending, nil
 		default:
 			var he *HubError
+			if errors.As(serr, &he) && he.Token == wire.TokenTopicMoved {
+				return c.movedRefused(ctx, env, m, pending, cl, he) // spec 169 T7b
+			}
+			if errors.As(serr, &he) && he.Status >= 500 {
+				return wire.DeliveryPending, nil // as sendPending: retry on the next flush
+			}
 			if errors.As(serr, &he) && he.clientError() {
 				c.reject(pending, serr) // a 4xx will never be accepted, whoever sends it
 			}
@@ -233,6 +243,8 @@ func (s *Session) sendPending(ctx context.Context, env *wire.Envelope, m *msg.Me
 		// A cli session cannot announce. The box session's flush will: it
 		// re-announces and resends, or rejects if the agent is not hosted.
 		return wire.DeliveryPending, nil
+	case errors.As(err, &he) && he.Token == wire.TokenTopicMoved && he.clientError(): // spec 169 T7b
+		return s.c.movedRefused(ctx, env, m, pending, cl, he)
 	case errors.As(err, &he) && he.clientError():
 		s.c.reject(pending, err)
 		return "", err
@@ -252,8 +264,13 @@ const typedBySuffix = ".typed_by"
 // refTaskSuffix is typedBySuffix for the ref_task_id claim (spec 067 3.3).
 const refTaskSuffix = ".ref_task_id"
 
+// reroutedSuffix marks a pending envelope that is already the one re-route of a
+// post to a moved topic (spec 169 T7b): it holds the workspace the post was
+// refused in. Never on the frame: it only stops a second hop.
+const reroutedSuffix = ".rerouted"
+
 // claimSuffixes are the claim files a pending envelope may carry.
-var claimSuffixes = []string{typedBySuffix, refTaskSuffix}
+var claimSuffixes = []string{typedBySuffix, refTaskSuffix, reroutedSuffix}
 
 // removePending drops a delivered pending envelope and its claim files.
 func removePending(pending string) {
@@ -275,7 +292,7 @@ func pendingClaims(pending string) Claims {
 		}
 		return strings.TrimSpace(string(b))
 	}
-	return Claims{TypedBy: read(typedBySuffix), RefTaskID: read(refTaskSuffix)}
+	return Claims{TypedBy: read(typedBySuffix), RefTaskID: read(refTaskSuffix), Rerouted: read(reroutedSuffix)}
 }
 
 func (c *Client) pendingDir() string  { return filepath.Join(c.Cfg.HubDir(), "pending") }
@@ -293,7 +310,7 @@ func (c *Client) writePending(m *msg.Message, env *wire.Envelope, cl Claims) (st
 	}
 	stamp := strings.NewReplacer("-", "", ":", "").Replace(m.TS)
 	p := filepath.Join(c.pendingDir(), stamp+"--"+m.MsgID+".json")
-	for sfx, v := range map[string]string{typedBySuffix: cl.TypedBy, refTaskSuffix: cl.RefTaskID} {
+	for sfx, v := range map[string]string{typedBySuffix: cl.TypedBy, refTaskSuffix: cl.RefTaskID, reroutedSuffix: cl.Rerouted} {
 		if v == "" {
 			continue
 		}

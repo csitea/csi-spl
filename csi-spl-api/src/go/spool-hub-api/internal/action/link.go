@@ -206,6 +206,34 @@ func (d Desks) deskConfig(tenant string) (*config.Config, error) {
 	return sidecarConfig(d.Base, envb)
 }
 
+// MovedDesk resolves this box's desk in a workspace for the re-route of a post
+// to a moved topic (spec 169 T7b): hubclient.Client.MovedDesk. The desks dir is
+// $SPOOL_DESKS, else the one this spool root is a desk of, <dir>/<tenant>/<box>/spool.
+// No such dir resolves no desk, so the post is refused, never sent another way.
+func MovedDesk(cfg *config.Config) func(tenant string) (*config.Config, error) {
+	d := Desks{Dir: os.Getenv("SPOOL_DESKS"), Box: cfg.DeskBox, Base: cfg}
+	if d.Dir == "" || d.Box == "" {
+		d.Dir, d.Box = desksOf(cfg)
+	}
+	return func(tenant string) (*config.Config, error) {
+		if d.Dir == "" {
+			return nil, errors.New("this spool root is not a desk and $SPOOL_DESKS is unset")
+		}
+		return d.deskConfig(tenant)
+	}
+}
+
+// desksOf is the desks dir and the box of a spool root that is one desk.
+func desksOf(cfg *config.Config) (dir, box string) {
+	root := filepath.Clean(cfg.SpoolRoot)
+	boxDir := filepath.Dir(root)
+	tenantDir := filepath.Dir(boxDir)
+	if filepath.Base(root) != "spool" || filepath.Base(boxDir) != cfg.BoxID || filepath.Base(tenantDir) != cfg.TenantID() {
+		return "", ""
+	}
+	return filepath.Dir(tenantDir), cfg.BoxID
+}
+
 // sidecarConfig is base with the spool settings of one sidecar environ.
 func sidecarConfig(base *config.Config, environ []byte) (*config.Config, error) {
 	c := config.Config{MsgVersion: 1, LogLevel: "error"}

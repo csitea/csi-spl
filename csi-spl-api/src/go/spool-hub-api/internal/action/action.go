@@ -323,6 +323,7 @@ func sendHub(ctx context.Context, cfg *config.Config, in SendArgs, atts []msg.At
 	hc := in.Hub
 	if hc == nil {
 		hc = hubclient.New(cfg)
+		hc.MovedDesk = MovedDesk(cfg)
 	}
 	var d string
 	switch {

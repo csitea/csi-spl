@@ -2145,14 +2145,14 @@
     "remove_confirm_title": "Usunąć z przestrzeni roboczej?",
     "remove_confirm": "{name} traci dostęp do tej przestrzeni roboczej. Konto, inne przestrzenie robocze i wiadomości pozostają.",
     "filter_label": "Pokaż",
-    "filter_all": "Wszystkie",
+    "filter_all": "Wszyscy",
     "filter_workspace": "W tej przestrzeni roboczej",
     "add_contact": "Dodaj kontakt",
     "contact_tag": "kontakt"
   },
   "contacts": {
     "group": "Kontakty",
-    "load_failed": "Nie można odczytać twoich kontaktów.",
+    "load_failed": "Nie można odczytać Twoich kontaktów.",
     "retry": "Spróbuj ponownie",
     "first_name": "Imię",
     "last_name": "Nazwisko",
@@ -2163,15 +2163,15 @@
     "edit": "Edytuj",
     "delete": "Usuń",
     "delete_title": "Usunąć ten kontakt?",
-    "delete_confirm": "{name} jest usuwany z twoich kontaktów w każdej przestrzeni roboczej.",
+    "delete_confirm": "{name} jest usuwany z Twoich kontaktów w każdej przestrzeni roboczej.",
     "delete_failed": "Nie udało się usunąć kontaktu.",
     "invite": "Zaproś do tej przestrzeni roboczej",
-    "invited": "Zaproszenie wysłane na {email}.",
+    "invited": "Zaproszenie wysłane na adres {email}.",
     "not_found": "Ten kontakt nie istnieje lub nie jest dostępny w tej przestrzeni roboczej.",
-    "in_your_contacts": "W twoich kontaktach",
+    "in_your_contacts": "W Twoich kontaktach",
     "error_contact_empty": "Podaj imię, e-mail lub telefon.",
-    "error_bad_email": "Ten e-mail nie jest adresem.",
-    "error_bad_phone": "Ten telefon nie jest numerem telefonu."
+    "error_bad_email": "To nie jest adres e-mail.",
+    "error_bad_phone": "To nie jest numer telefonu."
   },
   "activity": {
     "title": "Dziennik aktywności",

@@ -2145,7 +2145,7 @@
     "remove_confirm_title": "Odstrániť z pracovného priestoru?",
     "remove_confirm": "{name} stráca prístup k tomuto pracovnému priestoru. Účet, ostatné pracovné priestory a správy zostávajú.",
     "filter_label": "Zobraziť",
-    "filter_all": "Všetky",
+    "filter_all": "Všetci",
     "filter_workspace": "V tomto pracovnom priestore",
     "add_contact": "Pridať kontakt",
     "contact_tag": "kontakt"
@@ -2170,8 +2170,8 @@
     "not_found": "Tento kontakt neexistuje alebo nie je dostupný v tomto pracovnom priestore.",
     "in_your_contacts": "Vo vašich kontaktoch",
     "error_contact_empty": "Zadajte meno, e-mail alebo telefón.",
-    "error_bad_email": "Tento e-mail nie je adresa.",
-    "error_bad_phone": "Tento telefón nie je telefónne číslo."
+    "error_bad_email": "Toto nie je e-mailová adresa.",
+    "error_bad_phone": "Toto nie je telefónne číslo."
   },
   "activity": {
     "title": "Denník aktivity",

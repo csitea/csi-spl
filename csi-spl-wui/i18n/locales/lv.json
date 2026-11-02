@@ -2170,8 +2170,8 @@
     "not_found": "Šis kontakts nepastāv vai nav pieejams šajā darbvietā.",
     "in_your_contacts": "Jūsu kontaktos",
     "error_contact_empty": "Ievadiet vārdu, e-pastu vai tālruni.",
-    "error_bad_email": "Šis e-pasts nav adrese.",
-    "error_bad_phone": "Šis tālrunis nav tālruņa numurs."
+    "error_bad_email": "Tā nav e-pasta adrese.",
+    "error_bad_phone": "Tas nav tālruņa numurs."
   },
   "activity": {
     "title": "Aktivitāšu žurnāls",

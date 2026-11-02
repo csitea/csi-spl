@@ -96,5 +96,38 @@ read -r rc curls fatal < <(wui_ready_tries 3)
   && pass "wui-up: LDE_WUI_READY_TIMEOUT=3 -> exactly 3 tries, FATAL GET" \
   || fail "wui-up: timeout 3: want rc!=0 / 3 curls / 1 FATAL, got $rc / $curls / $fatal"
 
+# _lde_cnf_wui_image picks the image: the caller's value, else cnf, else the
+# host's Node major, else 20. $1 = caller's value, $2 = cnf's, $3 = what the
+# stub node prints (empty: it prints nothing and fails).
+wui_image() {
+  local bin
+  bin=$(mktemp -d)
+  if [[ -n "$3" ]]; then
+    printf '#!/bin/sh\necho %s\n' "$3" >"$bin/node"
+  else
+    printf '#!/bin/sh\nexit 1\n' >"$bin/node"
+  fi
+  chmod +x "$bin/node"
+  (
+    set -u
+    # shellcheck disable=SC1091
+    source "$PROJ_ROOT/lib/bash/funcs/lde-cnf.func.sh"
+    _lde_get() { echo "$CNF_IMAGE"; }
+    PATH="$bin:$PATH" CNF_IMAGE="$2" LDE_WUI_IMAGE="$1"
+    _lde_cnf_wui_image
+    echo "$LDE_WUI_IMAGE"
+  )
+  rm -rf "$bin"
+}
+check_wui_image() {
+  local got
+  got=$(wui_image "$2" "$3" "$4")
+  [[ "$got" == "$5" ]] && pass "lde wui image: $1 -> $5" || fail "lde wui image: $1: want $5, got $got"
+}
+check_wui_image "the caller's value wins" caller-img cnf-img 99 caller-img
+check_wui_image "cnf wins over node" "" cnf-img 99 cnf-img
+check_wui_image "no cnf: the host's Node major" "" "" 99 node:99-bookworm-slim
+check_wui_image "no cnf, node fails: 20" "" "" "" node:20-bookworm-slim
+
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

@@ -399,7 +399,8 @@ before a row that depends on it starts.
 | B7 (Implemented, 1cb90a7bf) | 3 | `TopicPriorityChooser` in both topic panes, the client call and the mock; C309-C311 | `wui/components/TopicPriorityChooser.vue`, `wui/components/TopicPane.vue`, `wui/components/LiveTopicPane.vue`, `wui/utils/spool-client.mjs`, `wui/utils/spool-client-mock.mjs`, `csi-spl-wui/tests/e2e/topic-priority.test.mjs`; at build also `wui/utils/live-ws.mjs` (the `topic_priority` frame reached no listener, 4be2503fd), `wui/types/mjs-shims.d.ts` (the client's declarations) and `csi-spl-wui/tests/unit/spool-client.test.mjs`. The client keeps one priority per topic from every source (`topicPriorityOf`); `listMessages` `totals[id].priority` carries the hub's value for B6 (holder c-002 msg `b51d924f`) | B3, B4 |
 | B8 | 3 | the card badge; C312 | `wui/components/MessageCard.vue`, `csi-spl-wui/tests/e2e/topic-priority-badge.test.mjs` | B3, B4 |
 | B9 (Implemented, 2ab66feb2) | 4 | `fleet_asks.discussion`, the hub resolve, priority in `askPositions`; C401-C404 | `rdb/0241_fleet_ask_discussion.sql` (planned as 0215), `store/fleet_ask.go` (it also holds the memory store), `store/fleet_ask_postgres.go`, `store/fleet_ask_queue_test.go`, `hub/box_ask.go`, `hub/box_ask_test.go` | B1, Q5 answered |
-| B10 | 4 | ask-put and enqueue pass `ASK_DISCUSSION`, the `PRIO` column, the rules-index row; C405 | `orc/spl-spawn-enqueue.func.sh`, `orc/spl-ask-put.func.sh`, `orc/spl-spawn-queue.func.sh`, `csi-spl-orc/src/bash/tests/spl-spawn-queue.tst.sh`, `csi-spl-doc/doc/md/fleet-rules-index.md` | B9 |
+| B10 (Implemented, 758cd4114, without the `ASK_DISCUSSION` pass-through: B10b) | 4 | the `PRIO` column, the rules-index row; C405 | `orc/spl-spawn-queue.func.sh`, `csi-spl-orc/src/bash/tests/spl-spawn-queue.tst.sh`, `csi-spl-doc/doc/md/fleet-rules-index.md` | B9 |
+| B10b | 4 | `ASK_DISCUSSION` from `do_spl_ask_put` and `do_spl_spawn_enqueue` through the journal and its sync to `spool ask put --discussion` | `api/cmd/spool/ask.go`, `api/internal/action/ask.go`, `csi-spl-orc/src/bash/features/spawn-agents/lib/spool-asks.inc.sh`, `orc/spl-asks-open.func.sh`, `orc/spl-ask-put.func.sh`, `orc/spl-spawn-enqueue.func.sh`, and their tests | B10 |
 | B11 | 2-3 | agy's language review of the 19 locales, the last step before the text ships | `csi-spl-wui/i18n/locales/*.json` (after B4, B6, B7 and B8 have landed) | B6, B7, B8 |
 | B12 (Implemented, store half, bfc006e10) | 4 | unanswered posts by priority; C406 | `store/fallback_postgres.go`, `store/fallback_memory.go`, `store/unanswered_test.go`, `csi-spl-orc/src/bash/tests/unanswered-sweep-pg.tst.sh` | B1 |
 
@@ -419,6 +420,16 @@ before a row that depends on it starts.
   and measure actions. It needs its own row (the `PRIO` column, the delta on
   `topic_priorities.set_at`, the classifier sort, C406 in
   `unanswered-sweep-pg.tst.sh`).
+- B10 as built (dispatch holder c-002 msg `38d0b1fc`): `do_spl_spawn_queue`
+  prints `PRIO`, the hub's priority of each ask (`-` from a hub that sends
+  none), and C405 is section 20 of `spl-spawn-queue.tst.sh`. The
+  `ASK_DISCUSSION` pass-through could not be built in B10's files: the
+  `spool ask` CLI has no `--discussion` flag (`grep -c discussion` on
+  `cmd/spool/ask.go` and `internal/action/ask.go` -> 0 and 0), and the ask
+  reaches the hub through the journal (`spool-asks.inc.sh`) and its sync
+  (`spl-asks-open.func.sh`); it is row B10b. Until then an ask whose topic is
+  `dispatch-<topic8>` already gets its discussion, and so its priority, from
+  the hub's resolve (B9, C404); an ask with any other topic ranks at 3.
 - B3 and B9 ship the hub (run 20); B6, B7, B8 and B11 ship the WUI (run
   30). A row is done when it is served on dev and prd.
 - B4 and B11 both edit the locale files, never at the same time: B11 starts

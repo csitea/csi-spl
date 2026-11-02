@@ -36,7 +36,9 @@
 # @description     epoch in the future) is never touched (SPL-2431);
 # @description   a lane whose vendor is on its usage limit (the watchdog's S2
 # @description     kind=limit, agy's quota banner) is SKIPped, no failure,
-# @description     until its reset (SPL-3779);
+# @description     until its reset (SPL-3779); so is one whose vendor stopped a
+# @description     new session on its limit dialog here, no verdict needed
+# @description     (SPL-4590, lane-rotate/limit.<kind>);
 # @description   a claude seat starts only while the claude login probe (the
 # @description     one do_spl_agent_login_check runs) says ok; else no rotation
 # @description     and ONE note to the dispatch lease holder;
@@ -59,6 +61,7 @@
 # @param ROTATE_LANE_REPORT_AGE (optional) - seconds, default 3900
 # @param ROTATE_LANE_ACK_TIMEOUT / ROTATE_LANE_EXIT_WAIT (optional) - seconds, default 600 / 120
 # @param ROTATE_LANE_TMUX_TIMEOUT (optional) - seconds each tmux call of RETIRE may take, default 15 (0 = no bound)
+# @param ROTATE_LANE_LIMIT_PROOF (optional) - seconds a seat started after a recorded limit dialog must run clean to lift it, default 300
 # @example ./run -a do_spl_lane_rotate
 # @example DRY_RUN=0 ./run -a do_spl_lane_rotate
 # @example ROTATE_CMD=handoff ID=c-123 ./run -a do_spl_lane_rotate
@@ -86,10 +89,10 @@ spl_lane_rotate_conf() {
   : "${ROTATE_LANE:=1}" "${ROTATE_LANE_CAP:=3}" "${ROTATE_LANE_WARN_AGE:=2700}" "${ROTATE_LANE_MAX_AGE:=3600}"
   : "${ROTATE_LANE_SLOT:=300}" "${ROTATE_LANE_RETRY:=900}" "${ROTATE_LANE_REPORT_AGE:=3900}"
   : "${ROTATE_LANE_ACK_TIMEOUT:=600}" "${ROTATE_LANE_EXIT_WAIT:=120}" "${ROTATE_LANE_PROBE_MAX_AGE:=600}" "${ROTATE_LANE_REPORT_GRACE:=900}"
-  : "${ROTATE_LANE_TMUX_TIMEOUT:=15}"
+  : "${ROTATE_LANE_TMUX_TIMEOUT:=15}" "${ROTATE_LANE_LIMIT_PROOF:=300}"
   for k in ROTATE_LANE ROTATE_LANE_CAP ROTATE_LANE_WARN_AGE ROTATE_LANE_MAX_AGE ROTATE_LANE_SLOT ROTATE_LANE_RETRY \
            ROTATE_LANE_REPORT_AGE ROTATE_LANE_ACK_TIMEOUT ROTATE_LANE_EXIT_WAIT ROTATE_LANE_PROBE_MAX_AGE ROTATE_LANE_REPORT_GRACE \
-           ROTATE_LANE_TMUX_TIMEOUT; do
+           ROTATE_LANE_TMUX_TIMEOUT ROTATE_LANE_LIMIT_PROOF; do
     [[ "${!k}" =~ ^[0-9]+$ ]] || { do_log "FATAL $k must be a whole number, got: '${!k}'"; return 1; }
   done
   (( ROTATE_LANE_CAP > 0 )) || { do_log "FATAL ROTATE_LANE_CAP must be at least 1"; return 1; }
@@ -128,6 +131,7 @@ spl_lane_rotate_tick() {
   local scan rows id kind pid age pane n
   local -A LR_LIMIT=()
   scan="$(spl_lane_rotate_scan)"
+  LR_SCAN="$scan"
   LR_ROLE_ROT="$(spl_lane_rotate_role_inflight)"
   LR_ROLES=" $(spl_lane_rotate_role_ids | tr '\n' ' ') " LR_INFLIGHT=" $(spl_lane_rotate_inflight | tr '\n' ' ') "
   LR_SLOTS=$(( ROTATE_LANE_CAP - $(wc -w <<<"$LR_INFLIGHT") )) LR_K=0 LR_STARTED=0 LR_STARTED_IDS=" " LR_DEFER=0 LR_LOGIN="" LR_LOGIN_HELD=""
@@ -196,9 +200,10 @@ spl_lane_rotate_consider() {
 # spl_rotate_claude_out (its limit line only), grok spl_rotate_grok_out, agy
 # spl_spawn_place_agy_out (any a- seat's verdict or quota banner), mistral and
 # qwen lane-mix's _spl_lane_mix_limit. The reset is agy's own when it prints
-# one, else the verdict's time plus that reader's window.
+# one, else the verdict's time plus that reader's window. No reader says so:
+# the limit dialog a SPAWN of this box stopped on (spl_lane_rotate_limit_recorded).
 spl_lane_rotate_limit() {
-  local kind="$2" out fresh at=""
+  local kind="$2" out fresh="${LANE_MIX_LIMIT_FRESH:-21600}" at=""
   case "$kind" in
     claude) out="$(spl_rotate_claude_out)" fresh="${ROTATE_CLAUDE_LIMIT_FRESH:-21600}" ;;
     grok) out="$(spl_rotate_grok_out)" fresh="${ROTATE_GROK_LIMIT_FRESH:-604800}" ;;
@@ -207,19 +212,71 @@ spl_lane_rotate_limit() {
       out="$(spl_spawn_place_agy_out)"
       if [[ "$out" =~ ^agy\ is\ out\ of\ quota\ until\ ([^ ]+)\ \((.*)\)$ ]]; then
         echo "agy is on its limit until ${BASH_REMATCH[1]} (${BASH_REMATCH[2]})"
+        return 0
       fi
-      return 0 ;;
+      out="" ;;
     mistral|qwen)
       declare -F _spl_lane_mix_limit >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-lane-mix.func.sh"
       out="$(_spl_lane_mix_limit "$kind" "$SPOOL_ROOT" "${LANE_MIX_REGISTRY:-$SPOOL_ROOT/registry.tsv}")"
-      [[ -n "$out" ]] && at=$(( ${out%%$'\t'*} + ${LANE_MIX_LIMIT_FRESH:-21600} )) out="${out#*$'\t'}" ;;
+      [[ -n "$out" ]] && at=$(( ${out%%$'\t'*} + fresh )) out="${out#*$'\t'}" ;;
     *) return 0 ;;
   esac
   if [[ -z "$at" && "$out" =~ ^[^\ ]+\ S2\ kind=limit\ ([0-9]+)m\ ago ]]; then
     at=$(( $(date +%s) - BASH_REMATCH[1] * 60 + fresh ))
   fi
-  [[ -n "$at" ]] && echo "$kind is on its limit until $(date -u -d "@$at" +%FT%TZ) ($out)"
+  if [[ -n "$at" ]]; then
+    echo "$kind is on its limit until $(date -u -d "@$at" +%FT%TZ) ($out)"
+    return 0
+  fi
+  spl_lane_rotate_limit_recorded "$kind" "$fresh"
   return 0
+}
+
+# spl_lane_rotate_limit_record KIND ID DIALOG: a SPAWN of ID stopped on KIND's
+# limit dialog: "<epoch> <id> <dialog>" in lane-rotate/limit.<KIND>. SPL-4590,
+# 20261030T0555Z-lane-g-523: no grok seat of that box had an S2 limit verdict
+# (the old session still ran and wrote clean ones), so the readers saw nothing
+# and every ROTATE_LANE_RETRY spawned and failed again until the reset.
+spl_lane_rotate_limit_record() {
+  case "$3" in 'grok weekly limit'|'usage limit') ;; *) return 0 ;; esac
+  echo "$(date +%s) $2 $3" > "$ROTATE_LANE_DIR/limit.$1" 2>/dev/null || true
+  return 0
+}
+
+# spl_lane_rotate_limit_recorded KIND FRESH: the line for a record under FRESH
+# seconds old and not lifted, nothing otherwise; a spent record is removed.
+spl_lane_rotate_limit_recorded() {
+  local f="$ROTATE_LANE_DIR/limit.$1" t="" who="" dialog="" now
+  [[ -s "$f" ]] || return 0
+  read -r t who dialog < "$f" || true
+  now="$(date +%s)"
+  if [[ ! "$t" =~ ^[0-9]+$ ]] || (( now - t > $2 )) || spl_lane_rotate_limit_lifted "$1" "$t"; then
+    [[ "${DRY_RUN:-1}" == 1 ]] || rm -f "$f" 2>/dev/null || true
+    return 0
+  fi
+  echo "$1 is on its limit until $(date -u -d "@$(( t + $2 ))" +%FT%TZ) ($who SPAWN stopped on a '$dialog' dialog $(( (now - t) / 60 ))m ago)"
+  return 0
+}
+
+# spl_lane_rotate_limit_lifted KIND AT: 0 when a live KIND seat of this tick's
+# scan started after AT and its newest verdict, written at least
+# ROTATE_LANE_LIMIT_PROOF after its start, holds no limit. A session older than
+# the record proves nothing: it was running while the dialog stopped a new one.
+spl_lane_rotate_limit_lifted() {
+  local kind="$1" at="$2" wd="${LANE_MIX_WD_DIR:-$SPOOL_ROOT/dispatch/wd}" now id k age start t f best bestf
+  now="$(date +%s)"
+  while read -r id k _ age _; do
+    [[ "$k" == "$kind" && "$age" =~ ^[0-9]+$ ]] || continue
+    start=$(( now - age ))
+    (( start > at )) || continue
+    best=-1 bestf=""
+    while read -r t f; do
+      (( t > best )) && best="$t" bestf="$f"
+    done < <(stat -c '%Y %n' -- "$wd"/ctx*/"$id"/out.s2 2>/dev/null || true)
+    (( best >= start + ROTATE_LANE_LIMIT_PROOF )) || continue
+    grep -qE '^HIT S2 kind=limit( |$)' "$bestf" 2>/dev/null || return 0
+  done <<<"${LR_SCAN:-}"
+  return 1
 }
 
 # spl_lane_rotate_say ID LINE: LINE to stdout and lane-rotate.log when it
@@ -700,6 +757,7 @@ spl_lane_rotate_last() { echo "$(date +%s) $ROTATE_RID $1" > "$ROTATE_STATE_DIR/
 # ack timeout the lane is told where its handoff is. Returns 0.
 spl_lane_rotate_fail() {
   local id="$1" phase="$2" reason="$3"
+  [[ "$phase" == SPAWN ]] && spl_lane_rotate_limit_record "$ROTATE_KIND" "$id" "${ROTATE_NEW_DIALOG:-}"
   spl_rotate_restore "$id" "$ROTATE_OLD_PANE" "$ROTATE_NEW_PANE"
   # the old window was gone before SPAWN renamed it (SPL-2898 fix E): the
   # lane was retired, nothing to tell

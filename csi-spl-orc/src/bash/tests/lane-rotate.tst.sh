@@ -58,6 +58,11 @@
 #  27. SPL-4358: one tick reads each vendor's limit once (a slow fake read,
 #      8 claude lanes = 1 read, the tick under 8 x the read); the wd scan of
 #      300 verdict files runs no awk and one stat, and still finds the limit
+#  28. SPL-4590: a SPAWN stopped on a vendor limit dialog with no S2 verdict on
+#      the box (the old session still writes clean ones): ONE spawn, ONE FAIL,
+#      then SKIP until the window ends or a seat started after the record runs
+#      clean; controls: no limit = rotated, an old clean verdict never lifts it,
+#      another dialog records nothing. Red control (origin/master): two spawns.
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc and M are read inside the check strings (eval)
 set -uo pipefail
@@ -176,7 +181,7 @@ cp "$4" "$T/seed.$2"
 cat "${SPAWN_PROMPT_HEAD_FILE:-/dev/null}" >"$T/prompt.$2" 2>/dev/null
 cp -f "$4" "$SPOOL_ROOT/$2/lifetime/brief.md"
 printf '%%%s\t%s\t$0\t%s@box\n' "$n" "$n" "$2" >>"$T/tmux/panes"
-comm=claude; [ "$1" = mistral ] && comm="Vibe CLI"; [ "$1" = agy ] && comm=agy
+comm=claude; [ "$1" = mistral ] && comm="Vibe CLI"; [ "$1" = agy ] && comm=agy; [ "$1" = grok ] && comm=grok
 "$T/bin/proc" "$n" 0 "$2" "$comm" 1 "$1 --seed"
 # at-spawn.hang <pane>: the old pane hangs from now on; at-spawn.extra
 # "<pid> <pane|NEW>": another session of the same id starts (a hand restore
@@ -582,6 +587,64 @@ check "27. claude scan still finds the newest limit verdict" '[[ "$o27c" == "c-3
 rm -f "$T/cnt/awk" "$T/cnt/stat"; o27g="$(scan27 spl_rotate_grok_out)"; c27a="$(n "$T/cnt/awk")"; c27s="$(n "$T/cnt/stat")"
 check "27. grok scan of 301 files: 0 awk, 1 stat (got awk=$c27a stat=$c27s)" '[ "$c27a" = 0 ] && [ "$c27s" = 1 ]'
 check "27. grok scan still finds its limit verdict" '[[ "$o27g" == "g-400 S2 kind=limit 0m ago: pane: weekly limit" ]]'
+
+# --- 28. SPL-4590: a SPAWN stopped on a limit dialog, no S2 verdict on this box ------------
+# rid 20261030T0555Z-lane-g-523: the new grok session stopped on grok's weekly
+# limit, the reader saw only the old session's clean verdicts, so every
+# ROTATE_LANE_RETRY spawned and failed again until the reset.
+cat >"$T/bin/spawn-dialog" <<'EOF2'
+#!/usr/bin/env bash
+n="$(cat "$T/next")"; echo $((n + 1)) >"$T/next"
+echo "spawn $1 $2 $3" >>"$T/spawn.log"
+printf '%%%s\t%s\t$0\t%s@box\n' "$n" "$n" "$2" >>"$T/tmux/panes"
+comm=claude; [ "$1" = grok ] && comm=grok
+"$T/bin/proc" "$n" 0 "$2" "$comm" 1 "$1 --seed"
+cp "$T/dialog.screen" "$T/tmux/screen.%$n"
+echo "$2 %$n"
+EOF2
+chmod +x "$T/bin/spawn-dialog"
+grok_dialog() { printf '  ┃  You hit your weekly limit.\n  ┃  1 (○) Buy more credits  Purchase credits\n  ┃  2 (○) Try Again\n' >"$T/dialog.screen"; }
+clean28() { mkdir -p "$D/wd/ctx.1/$1"; : >"$D/wd/ctx.1/$1/out.s2"; touch -d "${2:-now}" "$D/wd/ctx.1/$1/out.s2"; }
+reset; lane g-281 70 grok; clean28 g-281; grok_dialog
+ROTATE_LANE_RETRY=0 ROTATE_SPAWN="$T/bin/spawn-dialog" tick
+ROTATE_LANE_RETRY=0 ROTATE_SPAWN="$T/bin/spawn-dialog" tick
+check "28. no S2 verdict, a limit dialog: ONE spawn over two ticks (got $(n "$T/spawn.log"))" '[ "$(n "$T/spawn.log")" = 1 ]'
+check "28. the first SPAWN is the one FAIL, named after the dialog" '[ "$(n "$D/rotate.log" " FAIL FAIL ")" = 1 ] && grep -q "FAIL FAIL SPAWN: .*grok weekly limit" "$D/rotate.log" && [ "$(n "$T/send.log" "dispatch-lane-rotate")" = 1 ]'
+check "28. the next tick SKIPs with the reset, the old session keeps the lane" 'grep -qE "g-281 SKIP g-281: grok is on its limit until [0-9-]+T[0-9:]+Z \(g-281 SPAWN stopped on a .grok weekly limit. dialog" "$T/tick.out" && [ -d "$T/proc/2281" ]'
+ID=g-281 ROTATE_CMD=one LANE_ROTATE_KIND=grok ROTATE_LANE_RETRY=0 DRY_RUN=0 ROTATE_SPAWN="$T/bin/spawn-dialog" "$T/bin/act" >>"$T/tick.out" 2>&1
+check "28. the worker's own gate reads the record too" '[ "$(n "$T/spawn.log")" = 1 ] && grep -q "GATE SKIP grok is on its limit" "$D/rotate.log"'
+# the window: a record past ROTATE_GROK_LIMIT_FRESH is gone, the lane rotates
+echo "$(( $(date +%s) - 100 )) g-281 grok weekly limit" >"$D/lane-rotate/limit.grok"; rm -f "$S/g-281/lifetime/rotate.lane.last"
+ROTATE_GROK_LIMIT_FRESH=60 tick
+check "28. past the window: the record is removed and the lane rotates" '[ ! -e "$D/lane-rotate/limit.grok" ] && grep -q "lane-g-281 DONE OK" "$D/rotate.log"'
+# control: a grok lane with no limit rotates
+reset; lane g-282 70 grok; clean28 g-282
+tick
+check "28. control: a grok lane with no limit rotates" 'grep -q "^spawn grok g-282" "$T/spawn.log" && grep -q "lane-g-282 DONE OK" "$D/rotate.log"'
+# a seat started after the record, past its proof time and clean: the limit is over
+reset; lane g-283 70 grok; lane g-284 10 grok; clean28 g-283; clean28 g-284
+mkdir -p "$D/lane-rotate"; echo "$(( $(date +%s) - 3600 )) g-283 grok weekly limit" >"$D/lane-rotate/limit.grok"
+tick
+check "28. a seat started after the record runs clean: lifted, the lane rotates" '[ ! -e "$D/lane-rotate/limit.grok" ] && grep -q "lane-g-283 DONE OK" "$D/rotate.log"'
+# controls: the same with its verdict from before it started, and with a seat
+# older than the record: neither proves anything
+reset; lane g-285 70 grok; lane g-286 10 grok; clean28 g-285; clean28 g-286 '1 hour ago'
+mkdir -p "$D/lane-rotate"; echo "$(( $(date +%s) - 3600 )) g-285 grok weekly limit" >"$D/lane-rotate/limit.grok"
+tick
+check "28. control: a young seat's verdict from before it started lifts nothing" '[ -s "$D/lane-rotate/limit.grok" ] && [ "$(n "$T/spawn.log")" = 0 ]'
+reset; lane g-287 70 grok; clean28 g-287
+mkdir -p "$D/lane-rotate"; echo "$(( $(date +%s) - 60 )) g-287 grok weekly limit" >"$D/lane-rotate/limit.grok"
+tick
+check "28. control: an old session's clean verdict lifts nothing" '[ -s "$D/lane-rotate/limit.grok" ] && [ "$(n "$T/spawn.log")" = 0 ]'
+# claude's usage limit menu records the same way; another dialog records nothing
+reset; lane c-288 70; printf 'What do you want to do?\n❯ 1. Stop and wait for limit to reset\n  2. Switch to usage credits\n' >"$T/dialog.screen"
+ROTATE_CLAUDE_BIN=/bin/true ROTATE_LANE_RETRY=0 ROTATE_SPAWN="$T/bin/spawn-dialog" tick
+ROTATE_CLAUDE_BIN=/bin/true ROTATE_LANE_RETRY=0 ROTATE_SPAWN="$T/bin/spawn-dialog" tick
+check "28. claude's usage limit menu: one spawn, then SKIP" '[ "$(n "$T/spawn.log")" = 1 ] && grep -q "c-288 SKIP c-288: claude is on its limit until" "$T/tick.out"'
+reset; lane c-289 70; printf '  Settings Warning\n' >"$T/dialog.screen"
+ROTATE_CLAUDE_BIN=/bin/true ROTATE_LANE_RETRY=0 ROTATE_SPAWN="$T/bin/spawn-dialog" tick
+check "28. control: a Settings Warning records no limit" 'grep -q "FAIL FAIL SPAWN: .*Settings Warning" "$D/rotate.log" && [ ! -e "$D/lane-rotate/limit.claude" ]'
+check "28. no stray failing command under the ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
 
 # --- 12. the cron row ----------------------------------------------------------------------------
 M="$PROJ_ROOT/cnf/box-crons/box-crons.manifest"

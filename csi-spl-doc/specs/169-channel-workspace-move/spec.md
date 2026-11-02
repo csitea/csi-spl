@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.9 (2026-10-30). Status: **Draft** (plan only; nothing below is
+Version: v0.10 (2026-11-02). Status: **Draft** (plan only; nothing below is
 built). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -45,6 +45,10 @@ left the spec with v0.8's Q7 row, which cites the owner's msg ids instead.
 The R7 notes on v0.9 by c-073 are folded too: 5.1a quotes the Q5 poll
 option the owner chose, not words he wrote; the Q5 row marks C21 as the
 lead's hours stop; T13 records R3's timing.
+v0.10 gives the two checks no row owned their own rows (c-001, 2026-11-02,
+reply to c-002 msg 8d5be6ce): T4b takes R1 and W2's plan check off T4, and
+T9b prints R4's two retention values from the shell plan path, because the
+store cannot read them and a hub endpoint would need new IAM. Cases C22-C24.
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -319,10 +323,10 @@ A file, Qto doc, issue or epic that the set uses AND something staying in
 |---|---|---|---|
 | daily DB dumps (045) | the whole `<SRC>` database | a dump is one file for every workspace; editing it destroys the backup's integrity | its retention (30 days) |
 | off-project copy (046) | the same dumps | its writer SA may add, never delete (by design, so a stolen key cannot wipe the backups); only the owner by hand can remove an object | its retention (30 / 90 days) |
-| Cloud SQL automated backups | the whole database | managed by Cloud SQL, not per row | their retention (not checked here: open check R4) |
+| Cloud SQL automated backups | the whole database | managed by Cloud SQL, not per row | their retention (`plan` prints it: T9b, R4) |
 | `<SRC>` Qto daily export (052 `backup/`) | `<SRC>`'s docs | one file per day per workspace | 30 days |
 | box-state copy (056) | transcripts, the spool root | one nightly archive per box | 30 days |
-| hub logs (Cloud Logging) | request lines with ids | logs are append-only by design | the log bucket's retention (not checked: open check R4) |
+| hub logs (Cloud Logging) | request lines with ids | logs are append-only by design | the log bucket's retention (`plan` prints it: T9b, R4) |
 | mail and notifications already sent | text sent to people | outside the system | never |
 | git history of this repo | commit subjects, specs and dispatch notes that cite a task id or an issue key | history is forward-only; no force-push (developer guide 4) | never |
 | hours rows the owner said to leave (5.1a) | a member's time record that names the channel | it is the member's signed or kept time sheet, and the owner chose to leave it (Q8 = A, or a member not brought along under Q5) | never, unless the owner deletes it |
@@ -443,9 +447,13 @@ now is.
 | C19 | Hours: a job with plan rows and entries `job:<job>`, `t:<task>`, `ch:<CHANNEL>` moves whole; an entry inside an `approved` `<SRC>` period makes `plan` refuse, naming it (Q8 default) | drop the period check -> the approved period's stored total no longer matches its rows |
 | C20 | Rows whose parent does not move: a channel invite for a kept email moves with its new `<DST>` workspace invite; a channel with an `embed_visitors` row makes `plan` refuse | insert the invite without its `<DST>` parent -> the FK refuses and P4 rolls back |
 | C21 | Hours, Q5 stop: a channel member who is not a `<DST>` member and not added by the owner, with entries `t:<task>` and `ch:<CHANNEL>`, makes `plan` refuse with `hours: <member> 2 rows not coming to <DST> (Q5)`; the same member also inside an `approved` period prints the Q8 line too; adding the member clears only the Q5 line | drop the member check -> the move goes on and the member's rows are moved into a workspace they cannot read |
+| C22 | Pins (R1): a set row whose `from_box` is not pinned in `<DST>` makes `plan` refuse, naming the box; pinning it clears the line | drop the pin check -> the row moves and cannot be re-verified in `<DST>` |
+| C23 | Desks (W2): a seat with no `<DST>` desk on its box makes `plan` refuse, naming the seat and the box | drop the desk check -> `plan` passes and the move stops only at P2b |
+| C24 | Retention (R4): `plan` prints the Cloud SQL backup retention and the hub log bucket's retention, as the per-env service account; a value it cannot read prints as `not read: <reason>`, and the plan finishes with its usual exit code. Shell test with a stubbed `gcloud` | remove the read -> the line is missing |
 
 All cases run on PostgreSQL (`PRE_PUSH_TIER=full`), with two test workspaces
-on the hub's test database; none touches dev or prd.
+on the hub's test database; none touches dev or prd. C24 is the exception: a
+shell test, no database.
 
 ## 10. Build rows
 
@@ -457,6 +465,7 @@ Each row is one small task; files named are where it lands.
 | T2 | Migration: the `<DST>` journal table and the hub-wide redirect table (Q2), with RLS and the tenant isolation test | `csi-spl-rdb/src/sql/postgres/spool-hub/<head+1>_channel_move_journal.sql`, an entry in `api/store/rls_test.go` |
 | T3 | Migration: `messages.copied_from` (nullable, catalog-only) for copies | `csi-spl-rdb/src/sql/postgres/spool-hub/<head+2>_messages_copied_from.sql` |
 | T4 | Store: `PlanChannelMove` (read-only set, shared items, mentions) and its tests C1, C7 | `api/store/channel_move_plan.go` (+ `_postgres`, `_memory`, `_test`) |
+| T4b | Store: `PlanChannelMove` checks each `from_box` is pinned in `<DST>` (R1) and refuses naming the missing desks (W2); tests C22, C23 | `api/store/channel_move_plan*.go` |
 | T5 | Store: `ApplyChannelMove` P4 frame: one transaction, insert-then-delete in catalogue order, counters and stamps, the messages family, hours, calendar and invites (5.1a, 5.1b) with the pre-P4 Google delete; tests C3a, C4, C5, C9, C18, C19, C20, C21 | `api/store/channel_move_apply_postgres.go`, `_test.go` |
 | T5b | Store: the issues part of P4 (renumber, events, discussions, `spec_sync_map`); test C3b | `api/store/channel_move_issues_postgres.go`, `_test.go` |
 | T5c | Store: the Qto part of P4 (doc, item, node, ACL, rev log, re-placed in `<DST>`'s tree); test C3c | `api/store/channel_move_docs_postgres.go`, `_test.go` |
@@ -464,14 +473,15 @@ Each row is one small task; files named are where it lands.
 | T7 | Hub operator endpoint (owner GO msg id required) and the moved-task refusal / redirect; tests C8, C15 | `api/hub/channel_move.go`, `_test.go` |
 | T8 | Proofs P7 and the free-text scan; tests C13, C14 | `api/channelmove/proof.go`, `_test.go` |
 | T9 | Shell action `do_spl_channel_workspace_move` (plan, DRY_RUN, journal resume) and its test C17 | `orc/run/spl-channel-workspace-move.func.sh`, `orc/tests/spl-channel-workspace-move.tst.sh` |
+| T9b | The shell plan path reads and prints the Cloud SQL backup retention and the hub log bucket's retention (R4, 5.6): it only prints and refuses nothing; it prints every log bucket of the project, because the cnf names none; test C24 | `orc/run/spl-channel-workspace-move.func.sh`, `orc/tests/spl-channel-workspace-move.tst.sh` |
 | T10 | Box steps: the P2b probe DMs, the P5 rule-row rewrite (no action writes `channel-rules.tsv` today, so it lives here), lane key notes; no re-seat (the seat rows move in P4); tests C11, C12 | `orc/features/spawn-agents/scripts/channel-workspace-move-box.sh`, its test |
 | T11 | Copy mode: new UUIDs, link rewrite, `copied_from`; test C16 | `api/store/channel_copy_apply_postgres.go`, `_test.go` |
 | T12 | Docs: operator page (how to plan, run and read the kept list) | `csi-spl-doc/doc/md/channel-workspace-move.md` |
 | T13 | Dev rehearsal, the gate before the first prd run: on dev, `plan` then `DRY_RUN=0` of a seeded channel between two dev test workspaces with the owner's GO msg id (C15), P7 prints 0, the journal read back; it also records R3's T5 timing on the 3,650-post seeded channel (12); the record of the run | `csi-spl-doc/specs/169-channel-workspace-move/dev-rehearsal.md` |
 
 Order: T1 first (it is the inventory in code); T2 before T5 (the journal);
-T4 before T5; T5 before T5b and T5c; T3 before T11; T6 and T8 before T7; T7
-before T9; T9, T10 and T7 before T13.
+T4 before T5; T4 before T4b; T5 before T5b and T5c; T3 before T11; T6 and T8
+before T7; T7 before T9; T9, T10 and T7 before T13; T4b and T9b before T13.
 
 ### 10.1 Lanes
 
@@ -489,6 +499,8 @@ owner's weekend deadline: lanes with no files in common.
 | L7 | T7 |
 | L8 | T9, T10, T13 |
 | L9 | T12 |
+| L10 | T4b (queued after T4 lands) |
+| L11 | T9b |
 
 L8's stub is the plan-only path of T9 (`MOVE_CMD=plan`, journal resume
 skeleton), so it can land before T7; its wiring to the T7 endpoint and T10
@@ -561,9 +573,9 @@ Q8 Hours that members logged on the moved channel inside a time sheet already ap
 
 | # | risk / open check | what settles it |
 |---|---|---|
-| R1 | The pins (`pins`, per workspace) hold the box keys that signed and encrypted the posts (F10). A row moved to a workspace where its box is not pinned can be stored but not re-verified. | `plan` checks each `from_box` is pinned in `<DST>` and lists the missing ones (T4) |
+| R1 | The pins (`pins`, per workspace) hold the box keys that signed and encrypted the posts (F10). A row moved to a workspace where its box is not pinned can be stored but not re-verified. | `plan` checks each `from_box` is pinned in `<DST>` and refuses, naming the missing ones (T4b) |
 | R2 | Encrypted posts (`enc`, `for`) are readable only by the boxes named in `for`; a move does not change that. | stated in the operator page (T12) |
 | R3 | A move of the largest channel inside one transaction locks its rows for the length of P4. Not measured. | a T5 timing test on a 3,650-post seeded channel before the first prd run, recorded by T13 (10) |
-| R4 | Not checked here: Cloud SQL backup retention and the hub log bucket's retention (5.6). | `plan` reads both and prints them |
+| R4 | Not checked here: Cloud SQL backup retention and the hub log bucket's retention (5.6). | `plan` reads both and prints them (T9b) |
 | R5 | Spec 167 moves a channel's work between boxes; a move between workspaces that is also a move between boxes runs 167 first, then this. | operator page (T12) |
 | R6 | The free-text scan (5.2) proves absence of exact strings only. | stated; not claimed further |

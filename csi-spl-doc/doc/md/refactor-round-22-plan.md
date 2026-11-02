@@ -40,7 +40,7 @@ certificate URL boundary), and two closing rows raise the coverage floors
 deferred since round 19 and delete the clean-code list lines the split rows
 leave stale.
 
-**Status: v0.1 DRAFT**, for the panel.
+**Status: v0.2 DRAFT**, for the panel (v0.1 `88d36bb62`: g-960 FAIL, folded; section 8).
 
 Editor: **c-952** (claude; agy is out of quota and claude is the
 specs_and_docs backup). Panel reviewer: a cross-vendor grok seat placed by the
@@ -94,7 +94,7 @@ another worktree's `node_modules`, read only.
 
 | source | input | command on `7f3da5f69` | n | row / disposition |
 |---|---|---|---|---|
-| round 21 6 | round 20's 16 + 2 declare-first iac files | the `awk` of round 21 section 2 over `iac:run/`, `orc:run/`, `utl:run/` | **35** (37 on `2acffb02e`): reproduces | **Deferred**: round 21 said "once r46-05 lands". `git log 7f3da5f69 -E --grep='r46-0[345]' --oneline \| wc -l` -> 0, and those rows have no brief and no queue row (section 3.2) |
+| round 21 6 | round 20's 16 + 2 declare-first iac files | the `awk` of round 21 section 2 over `iac:run/`, `orc:run/`, `utl:run/` | **35** (37 on `2acffb02e`): reproduces | **Deferred**: round 21 said "once r46-05 lands". `git log 7f3da5f69 -E --grep='r46-0[345]' --oneline \| wc -l` -> 0. r46-03 is now a live lane (c-963@sat), 04 and 05 follow one at a time (section 3.2) |
 | round 21 6 | the 4 long-example files | `bash iac:t/action-header-tags.tst.sh` | `measured 765 files: 53 missing, 4 long-example`: reproduces | **Deferred**: their fix deletes `[long-example]` lines of `iac:t/action-header-tags-baseline.txt`, which r46-03..05 hold in turn |
 | round 21 6 | the 9 `(required)` header files | `grep -ciE '^# *@param .*\(required\)'` over the 53 `[missing]` lines | **9**: reproduces | **Left out**: a bug-round input, as rounds 20 and 21 said |
 | round 21 6 | floor raises for `marketing`, `wire`, `hubclient`, `payments`, `msg`, `rbac`, `sign`, `keydesk`, `config` | `cd go: && go test -count=1 -coverprofile=c.out ./...` (no DSN); floors from `grep -v '^#' api:src/bash/tests/go-coverage-floor.txt` | all reproduce (table in row 09); `git log 7f3da5f69 --grep='r44-09' --oneline \| wc -l` -> 0; `ls /var/spool-hub/dispatch/briefs \| grep -c r44-09` -> 0 | **Row 09**. Round 21 deferred it because r44-09 held the file; no r44-09 lane, brief or queue row exists, so this row takes r44-09's three lines too (`action`, `billing`, `keyexec`). See P1 |
@@ -130,7 +130,7 @@ another worktree's `node_modules`, read only.
 | 07 `test(r48-07-api-github-parse-key)` | the App key parser's refusals under test | `parseKey` reads the key the hub signs its GitHub JWT with (58.3); its comment promises a bad PEM is never quoted; `APIError.Error` is 0.0; the package sits exactly on its floor 82.9 | `go:internal/github/jwt.go:20` (`parseKey`)<br>`go:internal/github/errors.go:31` (`APIError.Error`)<br>`go:internal/github/parse_key_test.go` (new) | 1 function at 58.3, 1 at 0.0 | Keys generated in the test only (`rsa.GenerateKey`, `ed25519.GenerateKey`), never a PEM literal. PKCS#1 and PKCS#8 RSA -> the same key back; not PEM, PEM of junk, PKCS#8 of an ed25519 key -> `errBadKey`, and the error text holds none of the input. `APIError`: `Status` 0 and 404 -> the two formats. Helper names prefixed `pk`. Tests: `go test -count=1 -race -cover ./internal/github/`; `run-all-tests.sh`. **Red control:** return an error that quotes `pemBytes` -> the no-quote case fails. | either | claude | tests | 1 |
 | 08 `test(r48-08-api-payments-cert-url-boundary)` | the PayPal certificate fetch under test | `paypal-cert-url` arrives from the network and `validatePayPalCertURL` is, in its own comment, "the SSRF boundary"; no test names it (66.7), and `fetchCert` is 0.0 | `go:internal/payments/paypal_signature.go:198` (`validatePayPalCertURL`)<br>`go:internal/payments/paypal_signature.go:213` (`fetchCert`)<br>`go:internal/payments/paypal_cert_url_test.go` (new) | 1 function at 66.7, 1 at 0.0 | Accept: `https://paypal.com/x`, `https://api.paypal.com/x`, upper-case scheme and host. Refuse with `ErrSigBad`: `http://`, `https://notpaypal.com/x`, `https://paypal.com.example.com/x`, `https://paypal.com@example.com/x`, `https://example.com/?h=paypal.com`, a URL that does not parse. `fetchCert` against `httptest.NewServer` only: 200 -> the body; 404 -> `ErrSigBad`; a closed server -> `ErrSigBad`; a body over 1 MiB -> cut at 1 MiB. No real network, no real key. Helper names prefixed `pc`. Tests: `go test -count=1 -race -cover ./internal/payments/`; `run-all-tests.sh`. **Red control:** `paypalCertHostSuffix` without its dot -> the `notpaypal.com` case fails. | either | claude | tests | 1 |
 | 09 `test(r48-09-api-coverage-floors-raise)` | a lane that adds tests raises its package's floor (the floor file's own rule, `:4-5`) | rounds 19-22 added tests without touching the shared file: a package can drop back up to 20 points unnoticed (`marketing` floor 63.6, reads 84.2) | `api:src/bash/tests/go-coverage-floor.txt` (the 14 lines in section 3.3) | 14 lines | Raise each line to the **lowest of n=3** readings of `go test -count=1 -cover ./internal/<pkg>/` on the lane's start sha, with a comment in the file's own format (sha, go version, n, what it read). A line that reads below its floor is reported, never lowered. `hubclient` has timing paths (the comment above its line): n=3 plain and n=3 `-race`, the lowest of the six. Only this file. R9 (a gate's list): `PRE_PUSH_TIER=full` and once with every `PRE_PUSH_*` unset. Tests: `bash api:src/bash/tests/run-all-tests.sh` (coverage part `ok`). **Red control:** on a throwaway copy, one raised line set 2 points above its reading -> the gate fails; restored -> green. | either | claude | tests | 2 (after 05-08) |
-| 10 `test(r48-10-gates-drop-stale-long-lines)` | a clean-code list holds only what is still over the cap | the lists "may only shrink", but a stale line lets a function grow back up to its old ceiling unnoticed; rows 01-04 leave 8 | `iac:t/bash-cleancode.tst.sh:28,31,32,33,35,40`<br>`wui:tests/unit/cleancode.test.mjs:51,57`<br>`wui:tests/unit/cleancode.test.mjs:38` (the count comment) | 0 lines today, up to 8 once rows 01-04 land | Delete exactly the lines whose `NOTE LONG ... no longer over` the gates print on the lane's start sha, no other line; a row of 01-04 not landed yet leaves its lines for the next round. Tests: `bash iac:t/bash-cleancode.tst.sh` and `node wui:tests/unit/cleancode.test.mjs` print no `NOTE LONG ... no longer over` after; `bash iac:t/run-all-tests.sh`; `cd wui: && pnpm run test:unit`. R9: `PRE_PUSH_TIER=full` and once with every `PRE_PUSH_*` unset. **Control:** the NOTE lines before (quoted), none after; FAIL count 0 both times. | either | claude | tests | 2 (after 01-04) |
+| 10 `test(r48-10-gates-drop-stale-long-lines)` | a clean-code list holds only what is still over the cap | the lists "may only shrink", but a stale line lets a function grow back up to its old ceiling unnoticed; rows 01-04 leave 8 | `iac:t/bash-cleancode.tst.sh` (the `LONG` list)<br>`wui:tests/unit/cleancode.test.mjs` (the `LONG` list and its count comment) | 0 lines today, up to 8 once rows 01-04 land | The lines rows 01-04 leave stale, named here, not as sites (as round 21 row 10), lines as of `7f3da5f69`: `bash-cleancode.tst.sh` 28, 31, 32, 33, 35, 40; `cleancode.test.mjs` 51, 57, and its count comment at 38. Delete exactly the lines whose `NOTE LONG ... no longer over` the gates print on the lane's start sha, no other line; a row of 01-04 not landed yet leaves its lines for the next round. Tests: `bash iac:t/bash-cleancode.tst.sh` and `node wui:tests/unit/cleancode.test.mjs` print no `NOTE LONG ... no longer over` after; `bash iac:t/run-all-tests.sh`; `cd wui: && pnpm run test:unit`. R9: `PRE_PUSH_TIER=full` and once with every `PRE_PUSH_*` unset. **Control:** the NOTE lines before (quoted), none after; FAIL count 0 both times. | either | claude | tests | 2 (after 01-04) |
 
 ### 3.1 Lanes and batches
 
@@ -173,10 +173,24 @@ another worktree's `node_modules`, read only.
   `c002-bug-gh-runner-health-token-file`, `c003-s150-b10b`), each only telling
   its lane about the gate, none editing it. 1 brief is not on this box
   (ask 75077182, a DNS bug of the other box, **unchecked**).
-- **Round 20 rows 03-05 are neither landed nor placed.**
-  `ls /var/spool-hub/dispatch/briefs | grep -E 'r46-0[345]'` -> none; no queue
-  row names them. No row here touches their sites, and they would add 3
-  refactor lanes at once: see section 5, P2.
+- **Round 20 rows 03-05: 03 is live, 04 and 05 are neither landed nor placed.**
+  v0.1 said no brief and no queue row; the dispatch holder queued r46-03 at
+  12:46Z, after v0.1's reading (ask 091dfe99), and c-001 placed it at 14:25Z as
+  c-963@sat (`spool tail --task dispatch-r46`). At 14:32Z:
+  `ls /var/spool-hub/dispatch/briefs | grep -E 'r46-0[345]'` -> the r46-03 brief
+  only; `do_spl_spawn_queue | grep -E 'r46'` -> no line;
+  `git log origin/master -E --grep='r46-0[345]' --oneline` -> no line. No row
+  here touches a site of the three (compared over whole rows: 0 shared).
+- **The one shared file is serial, and it is theirs:** r46-03 edits
+  `iac:t/action-header-tags-baseline.txt`, and 04 and 05 hold it in turn. Rows
+  01-03 only run `iac:t/action-header-tags.tst.sh` and must not edit that
+  baseline; a row that finds it must, stops and tells the dispatch holder.
+- **Re-read for v0.2:** the same `--check` at 14:34Z -> **exit 4** (read from
+  the command), no path owned, 10 `unknown:` lanes on the other box: `c-386`,
+  `c-401`, `c-577`, `c-579`, `c-587`, `c-615`, `c-862`, `c-894`, `c-934`,
+  `g-625`. Six of them (`c-401`, `c-587`, `c-615`, `c-862`, `c-934`, `g-625`)
+  have no brief on this box, **unread**, so the holder's check before each spawn
+  still stands.
 
 ### 3.3 Row 09's lines (reading n=1 on `7f3da5f69`; the lane takes its own n=3)
 
@@ -217,18 +231,19 @@ another worktree's `node_modules`, read only.
 - Row reviewers: a cross-vendor seat per row (section 1); lines checked
   with `do_spl_review_line_check`. A row with no reviewer for 15 minutes
   reports a blocker (2.7.3).
-- **P1, for the panel:** row 09 takes r44-09's three lines (`action`, `billing`,
-  `keyexec`), so r44-09 should not be placed once this plan is signed. Round 19's
-  row stays open in its own plan; the editor prefers one floor commit over two
-  lanes on one file.
-- **P2, for the dispatch holder:** round 20 rows 03-05 are signed, unplaced and
-  serial (one shared baseline). Placing them is outside this plan, adds refactor
-  lanes now, and unblocks the deferred inputs of section 6.
-- **P3, for the panel:** rows 05-09 are `test` rows in a refactor round, as in
-  rounds 20 and 21: they guard code a later refactor will move.
-- **P4, for the panel:** the round 21 retro is due (rulebook 2.8) and not written;
+- **P1, closed:** row 09 takes r44-09's three lines (`action`, `billing`,
+  `keyexec`), so r44-09 is not placed once this plan is signed. Round 19's row
+  stays open in its own plan; one floor commit, not two lanes on one file. g-960
+  agrees (not landed, no brief).
+- **P2, ruled by the dispatch holder (msg 078a6e82):** round 20 rows 03-05 run
+  serially on one shared baseline: r46-03 is placed (section 3.2), then 04 and 05
+  one at a time. They unblock the deferred inputs of section 6.
+- **P3, closed:** rows 05-09 stay `test` rows in a refactor round, as in rounds 20
+  and 21: they guard code a later refactor will move. g-960 accepts (rulebook
+  1.1 caps the items and does not require every subject to be refactor).
+- **P4, with the dispatch holder (msg 078a6e82, queued, ask fe825cae):** the round 21 retro is due (rulebook 2.8) and not written;
   rounds 18-20 have none either, none due while rows are open (r43-04/05, r44-09, r46-03..05). This plan goes ahead on measured inputs instead,
-  and the dispatch holder decides when the retro lane runs.
+  and the retro lane runs when the holder's queue places it.
 
 ## 6. Left out, measured
 
@@ -255,15 +270,22 @@ another worktree's `node_modules`, read only.
 | bash functions over 75 | 15 -> 9 after rows 01-03 |
 | WUI functions over 75 | 17 -> 15 after row 04 |
 | stale clean-code list lines | 0 today, 8 after rows 01-04, 0 after row 10 |
-| Go functions taken | 8 at 0.0, 5 under 72 |
+| Go functions taken | 7 at 0.0, 4 under 72 |
 | coverage floor lines raised | 14 |
 | measured on | `7f3da5f69`, n=1 per command unless stated |
 
 ## 8. Changes
 
 - v0.1: first draft (c-952): 10 rows, slug `r48`; no round 21 retro (P4).
+- v0.2 (c-952): folds g-960 FAIL on `88d36bb62` (msg cef83054). W1: row 10's site
+  cell named 9 lines, max 5; it names the two gate files, the lines move to its
+  test cell. W2: section 2 and 3.2 said r46-03..05 had no brief or queue row;
+  r46-03 is live as c-963@sat, and its baseline is serial against rows 01-03. N1:
+  section 7 said 8 at 0.0 and 5 under 72; the row cells give 7 and 4. P1 and P3
+  closed, P2 and P4 as the holder ruled. No row added, dropped or re-batched, and
+  every count stays on `7f3da5f69`; only the times stated in 3.2 are newer.
 
 ## 9. Consensus
 
-- Editor seat: c-952@sat (claude): drafted v0.1.
-- Grok panel reviewer seat: not placed yet.
+- Editor seat: c-952@sat (claude): drafted v0.1, folded v0.2.
+- Grok panel reviewer seat: g-960@sat (grok): FAIL on v0.1 `88d36bb62` (W1, W2; msg cef83054).

@@ -182,6 +182,8 @@ type Message struct {
 	// insert path stores what the writer set; the hub sets them from L4 on.
 	RefTaskID string
 	MirrorOf  string
+	// CopiedFrom is the source msg_id of a spec 169 copy (rdb 0250); "" = not a copy.
+	CopiedFrom string
 }
 
 // parentBit keeps is_parent inside the column check (0 or 1).

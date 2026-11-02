@@ -15,7 +15,7 @@ func (s *Postgres) UnsignedWUIPosts(ctx context.Context, tenant string, since, n
 	}
 	var out []UnsignedPost
 	err := s.queryTenant(ctx, tenant, `SELECT msg_id::text, channel, from_id, env, received_at FROM messages
-		WHERE tenant_id = $1 AND from_box = 'box-wui' AND env_sig = '' AND channel IS NOT NULL
+		WHERE tenant_id = $1 AND from_box = 'box-wui' AND env_sig = '' AND copied_from IS NULL AND channel IS NOT NULL
 		  AND from_id LIKE 'HUM-%' AND received_at >= $2 AND expires_at > $3 AND archived_at IS NULL
 		ORDER BY received_at, msg_id
 		LIMIT $4`, []any{tenant, since, now, limit}, func(rows pgx.Rows) error {

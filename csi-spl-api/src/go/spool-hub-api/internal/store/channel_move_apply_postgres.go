@@ -303,20 +303,16 @@ func (m *pgMove) mvScope() error {
 
 // replan computes the set again on this transaction, and who comes along.
 func (m *pgMove) replan() error {
-	members := map[string]bool{}
-	err := eachRow(m.ctx, m.tx, `SELECT human_id FROM tenant_memberships WHERE tenant_id = $1`, []any{m.req.Dst}, func(r pgx.Rows) error {
-		var h string
-		err := r.Scan(&h)
-		members[h] = true
-		m.kept = append(m.kept, h)
-		return err
-	})
+	dst, err := mpReadDst(m.ctx, m.tx, m.req.Dst)
 	if err != nil {
 		return err
 	}
+	for h := range dst.members {
+		m.kept = append(m.kept, h)
+	}
 	m.kept = append(m.kept, m.req.Keep...)
 	plan := ChannelMovePlan{Src: m.req.Src, Channel: m.req.Channel, Dst: m.req.Dst}
-	m.plan = pgPlan{ctx: m.ctx, tx: m.tx, req: m.req.ChannelMovePlanRequest, plan: &plan, inDst: func(h string) bool { return members[h] }}
+	m.plan = pgPlan{ctx: m.ctx, tx: m.tx, req: m.req.ChannelMovePlanRequest, plan: &plan, dst: dst, inDst: func(h string) bool { return dst.members[h] }}
 	if err := m.plan.mpRun(); err != nil {
 		return err
 	}
@@ -330,8 +326,9 @@ func (m *pgMove) replan() error {
 }
 
 // lockStops: the owner's GO and the 5.5 answers cover what plan showed him. A
-// post that landed since can bring a shared item, an hours row or a seat, and
-// any of those P2 did not clear refuses here, with nothing changed (8.2).
+// post that landed since can bring a shared item, an hours row or a seat, a
+// <DST> pin or desk can go, and any of those P2 did not clear refuses here, with
+// nothing changed (8.2).
 func (m *pgMove) lockStops(plan ChannelMovePlan) error {
 	if m.req.noLockStops {
 		return nil

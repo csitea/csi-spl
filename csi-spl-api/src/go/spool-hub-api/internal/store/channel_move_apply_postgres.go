@@ -82,7 +82,7 @@ type ChannelMoveResult struct {
 	NewKeys map[string]string // old issue key -> new key (F6)
 	Lost    []string          // channel humans who did not come along (Q5)
 	// DeliveriesExpired are the queued or unacked deliveries of agent rows whose
-	// sender key differs in <DST> (C27); DeliveriesExpiredNoPin those whose
+	// sender pin is missing or differs in <DST> (C27); DeliveriesExpiredNoPin those whose
 	// to_box has no live pin in <DST>. Nobody receives them: the report says so.
 	DeliveriesExpired      int
 	DeliveriesExpiredNoPin int
@@ -91,7 +91,7 @@ type ChannelMoveResult struct {
 // DeliveriesLine is the operator's line on the deliveries P4 expired (C27), with
 // the limit a reader cannot see in the counts. The move report prints it.
 func (r ChannelMoveResult) DeliveriesLine() string {
-	return fmt.Sprintf("deliveries: %d expired (sender key differs in the target), %d expired (addressee box not pinned in the target); "+
+	return fmt.Sprintf("deliveries: %d expired (sender pin missing or different in the target), %d expired (addressee box not pinned in the target); "+
 		"nobody receives these. Not counted: a row signed before its box re-keyed is refused by the box and lost.",
 		r.DeliveriesExpired, r.DeliveriesExpiredNoPin)
 }

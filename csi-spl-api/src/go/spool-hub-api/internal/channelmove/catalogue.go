@@ -140,7 +140,7 @@ var rewrittenTables = []Entry{
 
 var recomputedTables = []Entry{
 	{Table: "message_period_counts", Class: Recomputed, Reason: "5.1 aggregate counter (C9)"},
-	{Table: "quota_counts", Class: Recomputed, Reason: "5.1 aggregate counter (C9)"},
+	{Table: "quota_counts", Class: Recomputed, Reason: "5.1 left in <SRC>: per-person rate windows (rdb 0127), names no channel; the class is kept so the proof skips the table"},
 	{Table: "topic_head_tenants", Class: Recomputed, Reason: "5.1 aggregate counter (C9)"},
 	{Table: "tenant_change_stamps", Class: Recomputed, Reason: "5.1 change stamps bumped so cached views refetch"},
 	{Table: "issue_counters", Class: Recomputed, Reason: "F6: <DST>'s counter advances by the renumbered issues"},

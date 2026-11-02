@@ -22,6 +22,10 @@
 #      seat's <TO> desk on this machine, and a seat with no desk here fails;
 #      on a box claimed by the <DST> workspace (spec 108) the desk cnf's guard
 #      gets TENANT_ID=<DST> and the probe uses that workspace's desk
+#   9. C24 (T9b, R4): plan prints the Cloud SQL backup retention and each log
+#      bucket's retention, read as the pinned account (project and instance
+#      from the real cnf, gcloud stubbed); a value it cannot read prints as
+#      "not read: <reason>" and the plan keeps its exit code; run reads neither
 # Every hub op, probe and send is recorded (CONTROL: an absent call means
 # "not made", not "not recorded").
 #------------------------------------------------------------------------------
@@ -44,6 +48,8 @@ cat >"$T/plan.json" <<'EOF'
  "seats":[{"agent":"c-101","box":"box-desk"},{"agent":"c-102","box":"box-desk"}]}
 EOF
 printf '[{"agent":"c-201","topic":"dispatch-11112222","old_key":"SRC-7","new_key":"DST-1"}]\n' >"$T/lanes.json"
+printf '{"settings":{"backupConfiguration":{"enabled":true,"transactionLogRetentionDays":6,"backupRetentionSettings":{"retainedBackups":7,"retentionUnit":"COUNT"}}}}\n' >"$T/sql.json"
+printf '[{"name":"projects/p/locations/global/buckets/_Default","retentionDays":30},{"name":"projects/p/locations/global/buckets/_Required","retentionDays":400}]\n' >"$T/log.json"
 
 # The hub stub: request JSON on stdin, answer JSON on stdout; a journal file.
 cat >"$T/hub" <<'EOF'
@@ -81,7 +87,24 @@ printf 'send' >>"$STUB_LOG"; printf ' [%s]' "$@" >>"$STUB_LOG"; echo >>"$STUB_LO
 [ -e "$STUB_DIR/send-fail" ] && { rm -f "$STUB_DIR/send-fail"; exit 1; }
 exit 0
 EOF
-chmod +x "$T/hub" "$T/probe" "$T/send"
+# gcloud: every call is recorded; never the real one, in any case of this file.
+mkdir -p "$T/stub" "$T/home"
+cat >"$T/stub/gcloud" <<'EOF'
+#!/usr/bin/env bash
+echo "gcloud $*" >>"$STUB_DIR/gcloud.log"
+[ -n "${STUB_GCLOUD_HANG:-}" ] && exec sleep 30
+case "$*" in
+  "sql instances describe "*)
+    [ -n "${STUB_SQL_DENY:-}" ] && { echo "WARNING: first line"; echo "ERROR: (gcloud.sql.instances.describe) HTTPError 403: not authorized"; } >&2 && exit 1
+    echo "WARNING: a line on stderr must not break the JSON" >&2
+    if [ -n "${STUB_SQL_JSON:-}" ]; then echo "$STUB_SQL_JSON"; else cat "$STUB_DIR/sql.json"; fi ;;
+  "logging buckets list "*)
+    [ -n "${STUB_LOG_DENY:-}" ] && { echo "ERROR: (gcloud.logging.buckets.list) PERMISSION_DENIED: logging.buckets.list" >&2; exit 1; }
+    if [ -n "${STUB_LOG_JSON:-}" ]; then echo "$STUB_LOG_JSON"; else cat "$STUB_DIR/log.json"; fi ;;
+  *) echo "ERROR: unexpected gcloud call" >&2; exit 9 ;;
+esac
+EOF
+chmod +x "$T/hub" "$T/probe" "$T/send" "$T/stub/gcloud"
 
 reset_state() {
   rm -rf "$T/journal.json" "$T/state" "$T/spool"; mkdir -p "$T/spool"
@@ -90,8 +113,9 @@ reset_state() {
 
 in_orc() {
   local snip="$1"; shift
-  : >"$T/calls.log"
-  env SPOOL_TEST=1 SPOOL_ROOT="$T/spool" CHANNEL_MOVE_STATE="$T/state" SPOOL_CHANNEL_RULES_MAP="$T/spool/channel-rules.tsv" \
+  : >"$T/calls.log"; : >"$T/gcloud.log"
+  env PATH="$T/stub:$PATH" HOME="$T/home" APP_PATH="$(dirname "$PROJ_ROOT")" SPL_PRIVATE_WARN=0 \
+    GCP_ACCOUNT=pinned@example.com SPOOL_TEST=1 SPOOL_ROOT="$T/spool" CHANNEL_MOVE_STATE="$T/state" SPOOL_CHANNEL_RULES_MAP="$T/spool/channel-rules.tsv" \
     CHANNEL_MOVE_HUB_CMD="$T/hub" CMB_PROBE_CMD="$T/probe" CMB_SEND_CMD="$T/send" \
     STUB_LOG="$T/calls.log" STUB_DIR="$T" STUB_MOVE="$MOVE" PROJ_PATH="$PROJ_ROOT" ENV=prd SNIPPET="$snip" "$@" bash -c '
     set -uo pipefail
@@ -211,6 +235,46 @@ spl_desk_spool() { printf "desk-spool [%s]\n" "$1" >>"$STUB_LOG"; echo "{\"msg_i
 in_orc "$CLAIM_STUBS; do_spl_channel_workspace_move" "${PR[@]}" DRY_RUN=0 SPL_WS_BASE="$T/ws"; rc=$?
 [[ $rc -eq 0 ]] && grep -qx "desk-cnf tenant=dst1" "$T/calls.log" && grep -qx "desk-spool \[$T/ws/dst1/state/prd/desk/dst1/box-desk\]" "$T/calls.log" \
   && pass "8. a box claimed by dst1: the guard gets TENANT_ID=dst1, the probe uses the workspace's desk" || fail "8. claim: rc=$rc $(cat "$T/out" "$T/calls.log")"
+
+# --- 9. C24 the plan prints the two retentions ----------------------------------------
+reset_state
+in_orc do_spl_channel_workspace_move "${G[@]}"; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'PLAN retention Cloud SQL backups: 7 COUNT kept, point-in-time logs 6 days' "$T/out" \
+  && pass "9. C24 plan prints the Cloud SQL backup retention" || fail "9. C24 sql: rc=$rc $(cat "$T/out" "$T/gcloud.log")"
+grep -q 'PLAN retention log bucket _Default: 30 days' "$T/out" && grep -q 'PLAN retention log bucket _Required: 400 days' "$T/out" \
+  && pass "9. C24 plan prints each log bucket's retention" || fail "9. C24 logs: $(cat "$T/out")"
+[[ "$(wc -l <"$T/gcloud.log")" -eq 2 && "$(grep -c -- '--project=csi-spl-prd --account=pinned@example.com' "$T/gcloud.log")" -eq 2 ]] \
+  && grep -q '^gcloud sql instances describe csi-spl-prd' "$T/gcloud.log" && grep -q '^gcloud logging buckets list ' "$T/gcloud.log" \
+  && pass "9. C24 two reads only, project and instance from the cnf, the pinned account on each" || fail "9. C24 calls: $(cat "$T/gcloud.log")"
+in_orc do_spl_channel_workspace_move "${G[@]}" STUB_SQL_DENY=1; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'PLAN retention Cloud SQL backups: not read: ERROR: (gcloud.sql.instances.describe) HTTPError 403' "$T/out" \
+  && grep -q 'log bucket _Default: 30 days' "$T/out" && grep -q 'OK plan of' "$T/out" \
+  && pass "9. C24 Cloud SQL unreadable: not read with the reason, the plan finishes" || fail "9. C24 sql deny: rc=$rc $(cat "$T/out")"
+in_orc do_spl_channel_workspace_move "${G[@]}" STUB_LOG_DENY=1; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'PLAN retention log buckets: not read: ERROR: (gcloud.logging.buckets.list) PERMISSION_DENIED' "$T/out" \
+  && grep -q 'Cloud SQL backups: 7 COUNT' "$T/out" && grep -q 'OK plan of' "$T/out" \
+  && pass "9. C24 log buckets unreadable: not read with the reason, the plan finishes" || fail "9. C24 log deny: rc=$rc $(cat "$T/out")"
+in_orc do_spl_channel_workspace_move "${G[@]}" GCP_ACCOUNT=; rc=$?
+[[ $rc -eq 0 && ! -s "$T/gcloud.log" && "$(grep -c 'not read: .*no gcloud account' "$T/out")" -eq 2 ]] && grep -q 'OK plan of' "$T/out" \
+  && pass "9. C24 no per-env key: both not read, no gcloud call, no owner fallback" || fail "9. C24 no key: rc=$rc $(cat "$T/out" "$T/gcloud.log")"
+in_orc do_spl_channel_workspace_move "${G[@]}" 'STUB_SQL_JSON={"settings":{}}' 'STUB_LOG_JSON=[]'; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'Cloud SQL backups: not read: no backup retention in the answer' "$T/out" \
+  && grep -q 'log buckets: not read: no bucket in the answer' "$T/out" \
+  && pass "9. C24 an answer without the value: not read, nothing guessed" || fail "9. C24 empty: rc=$rc $(cat "$T/out")"
+in_orc do_spl_channel_workspace_move "${G[@]}" 'STUB_SQL_JSON={"settings":{"backupConfiguration":{"enabled":false}}}'; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'PLAN retention Cloud SQL backups: automated backups off' "$T/out" \
+  && pass "9. C24 backups off is said, not read as a retention" || fail "9. C24 off: rc=$rc $(cat "$T/out")"
+s=$SECONDS
+in_orc do_spl_channel_workspace_move "${G[@]}" STUB_GCLOUD_HANG=1 CWM_GCLOUD_TIMEOUT=1; rc=$?
+[[ $rc -eq 0 && $((SECONDS - s)) -lt 25 && "$(grep -c 'not read: gcloud gave no answer in 1 s' "$T/out")" -eq 2 ]] \
+  && pass "9. C24 a hung gcloud: not read after the timeout, the plan finishes" || fail "9. C24 hang: rc=$rc $((SECONDS - s)) s $(cat "$T/out")"
+cp "$T/plan.miss" "$T/plan.json"
+in_orc do_spl_channel_workspace_move "${G[@]}"; rc=$?
+[[ $rc -eq 3 ]] && grep -q 'Cloud SQL backups: 7 COUNT' "$T/out" && grep -q 'c-102' "$T/out" \
+  && pass "9. C24 a refusing plan still prints them and exits 3" || fail "9. C24 refuse: rc=$rc $(cat "$T/out")"
+cp "$T/plan.ok" "$T/plan.json"
+in_orc do_spl_channel_workspace_move "${G[@]}" MOVE_CMD=run; rc=$?
+[[ $rc -eq 0 && ! -s "$T/gcloud.log" ]] && pass "9. C24 run reads neither (plan only)" || fail "9. C24 run: rc=$rc $(cat "$T/gcloud.log")"
 
 echo "spl-channel-workspace-move: $fails failure(s)"
 [[ $fails -eq 0 ]]

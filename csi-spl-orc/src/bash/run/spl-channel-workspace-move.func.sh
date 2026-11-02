@@ -16,7 +16,11 @@
 # @description   P7 the proofs of section 5                   (hub)
 # @description MOVE_CMD=plan (the default) asks the hub for the plan and prints
 # @description it; it changes nothing, and exits 3 when the plan refuses
-# @description (a seat with no <DST> desk, a shared item, a hub refusal).
+# @description (a seat with no <DST> desk, a shared item, a hub refusal). It also
+# @description prints the Cloud SQL backup retention and each log bucket's
+# @description retention (R4, row T9b), read as the per-env service account; it
+# @description refuses nothing on them, and a value it cannot read prints as
+# @description "not read: <reason>".
 # @description MOVE_CMD=run reads the hub journal and resumes at the first step
 # @description not done; DRY_RUN=1 (default) only prints those steps. P1-P4
 # @description may be re-run until P4 commits; after that MOVE_FROM may not
@@ -50,6 +54,7 @@
 # @param CHANNEL_MOVE_STATE (optional) - the box journal dir, default $SPOOL_ROOT/channel-move
 # @param PROBE_AGENT, PROBE_TO, PROBE_MOVE (MOVE_CMD=probe only) - the seat, the recipient <agent id>[@<box>], the move id
 # @param DESK_BOX (optional, MOVE_CMD=probe) - the seat's box id, default box-desk
+# @param CWM_GCLOUD_TIMEOUT (optional, MOVE_CMD=plan) - seconds per retention read, default 60
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=prd CHANNEL=<SRC>/<channel> TO=<DST> ./run -a do_spl_channel_workspace_move
 # @example ENV=prd CHANNEL=<SRC>/<channel> TO=<DST> MOVE_CMD=run ./run -a do_spl_channel_workspace_move
@@ -150,6 +155,7 @@ _spl_cwm_plan() {
       (.mentions // [] | .[] | "PLAN mention outside the set: \(tostring)"),
       (.members_lost // [] | .[] | "PLAN member not in the target: \(tostring)"),
       (.kept // [] | .[] | "PLAN kept \(.store) until \(.gone_by // "?")")' <<<"$p"
+    _spl_cwm_plan_retention
   fi
   jq -r --arg dst "$CWM_DST" '(.missing_desks // [] | .[] | "REFUSE seat \(.agent) on \(.box // "-") has no desk in \($dst)"),
     (.shared // [] | .[] | "REFUSE shared item \(tostring)"), (.refuse // [] | .[] | "REFUSE \(.)")' <<<"$p"
@@ -159,6 +165,67 @@ _spl_cwm_plan() {
     return 3
   fi
   [[ -n "${1:-}" ]] || do_log "OK plan of $CWM_SRC/$CWM_CH -> $CWM_DST ($CWM_MODE): nothing changed. Run it: MOVE_CMD=run"
+}
+
+# _spl_cwm_plan_retention (T9b, R4, C24): how long the copies of 5.6 live. It
+# only prints: this is the operator's reading, never a refusal, and a value it
+# cannot read says so and why. A subshell: the cnf's globals and the pin's
+# private CLOUDSDK_CONFIG (with its EXIT cleanup) end here. The log buckets come
+# from the project, all of them: the cnf names none (no terraform step manages
+# them), and a guessed name would hide the one that holds the lines.
+_spl_cwm_plan_retention() (
+  local log why
+  log="$(mktemp)" || log=/dev/null
+  if ! { do_require_bin gcloud yq && do_spl_cloud_cnf && do_gcp_pin_account "$SPL_CNF"; } >"$log" 2>&1; then
+    why="$(_spl_cwm_last_line <"$log")"
+    echo "PLAN retention Cloud SQL backups: not read: ${why:-the cnf or the account did not resolve}"
+    echo "PLAN retention log buckets: not read: ${why:-the cnf or the account did not resolve}"
+    [[ "$log" == /dev/null ]] || rm -f "$log"
+    return 0
+  fi
+  [[ "$log" == /dev/null ]] || rm -f "$log"
+  _spl_cwm_retention_sql
+  _spl_cwm_retention_logs
+)
+
+# _spl_cwm_last_line: stdin's last non-blank line, at most 200 characters.
+_spl_cwm_last_line() { awk 'NF { l = $0 } END { print substr(l, 1, 200) }'; }
+
+# _spl_cwm_read <cmd...>: runs a read under a timeout, so a hung gcloud cannot
+# hold the plan. Sets CWM_READ to its stdout, or returns 1 with CWM_WHY set.
+_spl_cwm_read() {
+  local e rc=0 t="${CWM_GCLOUD_TIMEOUT:-60}"
+  e="$(mktemp)" || { CWM_WHY="cannot make a temp file"; return 1; }
+  CWM_READ="$(timeout "$t" "$@" 2>"$e")" || rc=$?
+  CWM_WHY="$(_spl_cwm_last_line <"$e")"
+  rm -f "$e"
+  (( rc != 124 )) || CWM_WHY="gcloud gave no answer in $t s"
+  (( rc == 0 ))
+}
+
+_spl_cwm_retention_sql() {
+  local line
+  if ! _spl_cwm_read gcloud sql instances describe "$SPL_SQL_INSTANCE" --project="$SPL_PROJECT" --account="$GCP_ACCOUNT" \
+    --format='json(settings.backupConfiguration)'; then
+    echo "PLAN retention Cloud SQL backups: not read: ${CWM_WHY:-gcloud failed}"
+    return 0
+  fi
+  line="$(jq -r '.settings.backupConfiguration // {} | . as $b | .backupRetentionSettings as $r
+    | if $b.enabled == false then "automated backups off"
+      elif ($r.retainedBackups // null) == null then empty
+      else "\($r.retainedBackups) \($r.retentionUnit // "?") kept, point-in-time logs \($b.transactionLogRetentionDays // "?") days" end' <<<"$CWM_READ" 2>/dev/null)"
+  echo "PLAN retention Cloud SQL backups: ${line:-not read: no backup retention in the answer}"
+}
+
+_spl_cwm_retention_logs() {
+  local lines
+  if ! _spl_cwm_read gcloud logging buckets list --project="$SPL_PROJECT" --account="$GCP_ACCOUNT" --format=json; then
+    echo "PLAN retention log buckets: not read: ${CWM_WHY:-gcloud failed}"
+    return 0
+  fi
+  lines="$(jq -r '.[] | "PLAN retention log bucket \(.name | split("/") | last): " +
+    (if .retentionDays then "\(.retentionDays) days" else "not read: no retention in the answer" end)' <<<"$CWM_READ" 2>/dev/null)"
+  echo "${lines:-PLAN retention log buckets: not read: no bucket in the answer}"
 }
 
 # _spl_cwm_run <dry>: resume at the first step the journal has not done.

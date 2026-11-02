@@ -104,7 +104,7 @@ func (p *pgPlan) mpRun() error {
 		}
 	}
 	p.plan.Binds.mpFinish()
-	steps = []func() error{p.mpCounts, p.mpFiles, p.mpMentions, p.mpHours, p.mpLeaving}
+	steps = []func() error{p.mpCounts, p.mpFiles, p.mpMentions, p.mpHours, p.mpLeaving, p.mpSeats}
 	if !p.req.noSharedCheck {
 		steps = append(steps, p.mpSharedIssues, p.mpSharedSpecSync)
 	}
@@ -467,12 +467,11 @@ func (p *pgPlan) mpMissingPins() error {
 	return err
 }
 
-// missingDesks is W2: M5's agents, by invite (ChannelMembers' rule: a removed
-// row is out, an old announce row on a default channel grants nothing) or as
-// the channel's dedicated agents, checked against <DST>'s roster. M5 only:
-// W2's other source, the F14 box rule rows, lives on the box, out of the hub's
-// reach.
-func (p *pgPlan) mpMissingDesks() error {
+// mpSeats is M5's agents, by invite (ChannelMembers' rule: a removed row is
+// out, an old announce row on a default channel grants nothing) or as the
+// channel's dedicated agents. M5 only: W2's other source, the F14 box rule
+// rows, lives on the box, out of the hub's reach.
+func (p *pgPlan) mpSeats() error {
 	rows, err := p.mpPairs(`SELECT agent_id, box_id FROM channel_subscriptions WHERE tenant_id = $1 AND channel_id = $2
 			AND origin <> 'removed' AND NOT (origin = 'announce' AND channel_id = ANY($3::text[]))
 		UNION SELECT agent_id, box_id FROM dedicated_agents WHERE tenant_id = $1 AND scope_type = $4 AND scope_id = $2`,
@@ -481,6 +480,12 @@ func (p *pgPlan) mpMissingDesks() error {
 	for _, r := range rows {
 		seats = append(seats, MoveSeat{Agent: r[0], Box: r[1]})
 	}
-	p.plan.MissingDesks = mpMissingDesks(seats, func(seat MoveSeat) bool { return p.dst.desks[seat] })
+	p.plan.Seats = mpSeats(seats)
 	return err
+}
+
+// mpMissingDesks is W2: the seats checked against <DST>'s roster.
+func (p *pgPlan) mpMissingDesks() error {
+	p.plan.MissingDesks = mpMissingDesks(p.plan.Seats, func(seat MoveSeat) bool { return p.dst.desks[seat] })
+	return nil
 }

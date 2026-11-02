@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.11 (2026-11-02). Status: **Draft** (plan only; nothing below is
+Version: v0.12 (2026-11-02). Status: **Draft** (plan only; nothing below is
 built). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -53,6 +53,8 @@ v0.11 names the one exception to the free-text scan printing 0 (c-001,
 2026-11-02, msg b42a543c, its decision as orchestrator, on the T8 lane's
 question): the fleet topic ids of 5.1 when `<SRC>` holds the fleet rows
 (5.2, C14).
+v0.12 corrects R1, F10 and C22 to what T4c measured (SPL-4599, c-001 msgs
+5b72f83c and c8953637): a pinned box does not make a moved row verify.
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -131,7 +133,7 @@ has since said which (Q7, 11.1): the csitea channel named like
 | F7 | Qto docs have a hub-wide primary key (`workspace_doc_pkey (id)`) and a per-workspace nested-set tree (`workspace_doc_node`, `lft`/`rgt` unique per tenant). Docs are not tied to a channel by a column; a channel reaches them by links in posts and by the doc id in column 3 of its box rule row (spec 167 T1). | `pg_constraint` |
 | F8 | Attachments are content-addressed blobs at `t/<tenant>/files/<sha256>` in the files bucket (step 050), one copy per workspace however many posts carry it; a post lists them in `messages.files` (jsonb array of `{file_id, sha256, name, bytes, mode}`). An in-flight upload is `tmp/<tenant>/<nonce>`. The hub keeps a small in-memory LRU of blobs by key. | `api/blob/blob.go` `Key`, `TmpKey`; `api/blob/cached.go` |
 | F9 | Search is inside the rows: `messages.search_tsv`, `messages.search_sig` (rdb 0135), `workspace_doc_item.search_tsv`. No separate index table. | `information_schema.columns`; `0135_messages_search_sig.sql` |
-| F10 | A signed envelope (`messages.env`, `env_sig`) carries no tenant: its fields are `v, msg_id, task_id, ts, from, to, kind, body, files, ref_task_id, accepts, sig` (encrypted form: `enc, for, ct`). Moving a row keeps it verifiable by the same box key. | `api/msg/msg.go` struct tags |
+| F10 | A signed envelope (`messages.env`, `env_sig`) carries no tenant: its fields are `v, msg_id, task_id, ts, from, to, kind, body, files, ref_task_id, accepts, sig` (encrypted form: `enc, for, ct`). A moved row keeps the envelope and the signature of its `<SRC>` key, and verifies only against that key. `pins_pubkey_live_unique` (rdb 0154) and `keyLiveElsewhere` stop a key being live in two workspaces, so the same-named box in `<DST>` normally holds ANOTHER key: its pre-move agent rows do not verify there. Same key only if its `<SRC>` pin was revoked first. Human rows pass (box-wui's key is the hub's in every workspace). So after a move: back-fill withholds those rows and counts them in its summary; no box may edit, delete or move them (`boxSignedRow`, `pins_history` does not move); a box reads them by tail only where tail shows them (section 7). `spool_enc` rows: 0 on dev and prd (T4c), none tested. | `api/msg/msg.go` struct tags |
 | F11 | A hard channel delete exists inside one workspace: `DeleteChannel` deletes `messages WHERE channel = <id>` then the `channels` row, in one tenant transaction (`channel_humans`, `channel_subscriptions` cascade). It deletes nothing else by name. | `api/store/channels_postgres.go` `DeleteChannel` |
 | F12 | Copies outside the live database: the daily DB dumps (step 045) and their off-project copy (step 046, writer SA may add, never read or delete; `retention_days: 30`, `max_age_days: 90` in prd cnf), each workspace's daily Qto export under `backup/` of its own docs bucket (step 052, `backup_retention_days: 30`), the nightly box-state copy with transcripts and the spool root (step 056, `retention_days: 30`), bucket soft delete (`soft_delete_retention_seconds` 7 or 30 days). | `csi-spl-cnf/csi-spl/all.env.yaml`, `prd.env.yaml` |
 | F13 | Size: the largest channel on prd holds 3,650 messages; the median is 13.5 (86 channels). | `select max(n), percentile_cont(0.5) ... from (select tenant_id, channel, count(*) n from messages where channel is not null group by 1,2) s` |
@@ -362,6 +364,12 @@ by itself, or kept in sync with the source (Q1)? The plan below is the
 snapshot; a sync would be its own spec.
 
 - Same set (section 4), same order; `<SRC>` is only read.
+- Pre-move and pre-copy agent rows normally fail against the box's `<DST>` pin
+  (F10), so a new seat is not sent them. Tail, unverified as tail is today, is
+  its only box-side way to read them, and tail shows a box only rows it sent,
+  was addressed by or had delivered: a row from ANOTHER box with no delivery
+  to this box reads 0 rows (`TestBackfillWithheldRowByTail`). People read them
+  in the browser.
 - New identities in `<DST>`: new task and msg UUIDs (a map old -> new in the
   journal), so a lane's `--task` can never be ambiguous between the two, and
   links inside the copied posts that point at copied topics are rewritten to
@@ -458,7 +466,7 @@ now is.
 | C19 | Hours: a job with plan rows and entries `job:<job>`, `t:<task>`, `ch:<CHANNEL>` moves whole; an entry inside an `approved` `<SRC>` period makes `plan` refuse, naming it (Q8 default) | drop the period check -> the approved period's stored total no longer matches its rows |
 | C20 | Rows whose parent does not move: a channel invite for a kept email moves with its new `<DST>` workspace invite; a channel with an `embed_visitors` row makes `plan` refuse | insert the invite without its `<DST>` parent -> the FK refuses and P4 rolls back |
 | C21 | Hours, Q5 stop: a channel member who is not a `<DST>` member and not added by the owner, with entries `t:<task>` and `ch:<CHANNEL>`, makes `plan` refuse with `hours: <member> 2 rows not coming to <DST> (Q5)`; the same member also inside an `approved` period prints the Q8 line too; adding the member clears only the Q5 line | drop the member check -> the move goes on and the member's rows are moved into a workspace they cannot read |
-| C22 | Pins (R1): a set row whose `from_box` is not pinned in `<DST>` makes `plan` refuse, naming the box; pinning it clears the line | drop the pin check -> the row moves and cannot be re-verified in `<DST>` |
+| C22 | Pins (R1): a set row whose `from_box` is not pinned in `<DST>` makes `plan` refuse, naming the box; pinning it clears the line | drop the pin check -> `plan` passes a box with no pin in `<DST>`. C22 proves the pin exists, NOT that a row verifies against it (F10) |
 | C23 | Desks (W2): a seat with no `<DST>` desk on its box makes `plan` refuse, naming the seat and the box | drop the desk check -> `plan` passes and the move stops only at P2b |
 | C24 | Retention (R4): `plan` prints the Cloud SQL backup retention and the hub log bucket's retention, as the per-env service account; a value it cannot read prints as `not read: <reason>`, and the plan finishes with its usual exit code. Shell test with a stubbed `gcloud` | remove the read -> the line is missing |
 | C25 | Box rule (W2, F14): a move whose `<SRC>` rule row on this box names a desk agent with no `<DST>` desk on this box makes `plan` and `MOVE_CMD=run` refuse, exit 3, naming the agent and the box; seating the desk clears it. A map that exists but cannot be read, or a malformed row, also refuses: unread is not "no row". Shell test on a sandboxed `SPOOL_ROOT` | drop the check -> `plan` passes and the move stops only at P2b, or goes on with a row whose agent has no `<DST>` desk |
@@ -588,7 +596,7 @@ Q8 Hours that members logged on the moved channel inside a time sheet already ap
 
 | # | risk / open check | what settles it |
 |---|---|---|
-| R1 | The pins (`pins`, per workspace) hold the box keys that signed and encrypted the posts (F10). A row moved to a workspace where its box is not pinned can be stored but not re-verified. | `plan` checks each `from_box` is pinned in `<DST>` and refuses, naming the missing ones (T4b) |
+| R1 | The pins (`pins`, per workspace) hold the box keys that signed and encrypted the posts (F10). A row moved to a workspace can be stored but not verified unless its box's pin there is the key that signed it, which is normally not so (F10), pinned or not. | `plan` checks each `from_box` is pinned in `<DST>` and refuses, naming the missing ones (T4b); that does not make its rows verify. The hub withholds them from a new seat and counts them (T4c) |
 | R2 | Encrypted posts (`enc`, `for`) are readable only by the boxes named in `for`; a move does not change that. | stated in the operator page (T12) |
 | R3 | A move of the largest channel inside one transaction locks its rows for the length of P4. Not measured. | a T5 timing test on a 3,650-post seeded channel before the first prd run, recorded by T13 (10) |
 | R4 | Not checked here: Cloud SQL backup retention and the hub log bucket's retention (5.6). | `plan` reads both and prints them (T9b) |

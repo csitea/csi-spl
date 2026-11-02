@@ -96,8 +96,9 @@ const (
 	TTopicList = "topic_list"
 	// TBackfillEnd closes one back-fill run (SPL-987): Count messages in
 	// Topics topics of channel Backfill were sent for Agents, the newest by
-	// From (TaskID / MsgID name it). Sent only to a box whose hello carried
-	// FeatureBackfill.
+	// From (TaskID / MsgID name it), and Withheld more were not sent because
+	// they fail against the sender box's pin here (spec 169 T4c). Sent only to
+	// a box whose hello carried FeatureBackfill.
 	TBackfillEnd = "backfill_end"
 )
 
@@ -316,6 +317,12 @@ type Frame struct {
 	Backfill string `json:"backfill,omitempty"`
 	Topics   int    `json:"topics,omitempty"`
 	From     string `json:"from,omitempty"`
+	// Withheld (backfill_end, spec 169 T4c): rows of this run the hub did not
+	// send, since their signature fails against the from_box's live pin in
+	// this workspace; WithheldTask is the newest one's topic. A box that does
+	// not know the fields ignores them and rings what it always did.
+	Withheld     int    `json:"withheld,omitempty"`
+	WithheldTask string `json:"withheld_task,omitempty"`
 
 	// recv (SPL-997, specs/038 FR-033): a human post that no agent it was
 	// meant for could hear, handed to ONE fallback agent (Agents). The value

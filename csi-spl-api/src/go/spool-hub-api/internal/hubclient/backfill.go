@@ -84,7 +84,7 @@ func (s *Session) backfillEnd(f wire.Frame) {
 		wrote := s.backfilled[k]
 		delete(s.backfilled, k)
 		s.mu.Unlock()
-		if wrote == 0 || !msg.ValidID(id) {
+		if (wrote == 0 && f.Withheld == 0) || !msg.ValidID(id) {
 			continue
 		}
 		notify.Deliver(s.c.Cfg, BackfillSummary(f, id), id)
@@ -93,18 +93,28 @@ func (s *Session) backfillEnd(f wire.Frame) {
 
 // BackfillSummary is the one poke a back-fill run rings: kind note, from the
 // newest post's author, on the newest post's topic, so the pane's line points
-// at where the conversation is.
+// at where the conversation is. Rows the hub withheld (spec 169 T4c) are named
+// in the same line, also when nothing was written: this is all the agent ever
+// hears of them.
 func BackfillSummary(f wire.Frame, to string) *msg.Message {
 	from := f.From
 	if from == "" {
 		from = "?"
 	}
-	return &msg.Message{
-		V: msg.V1, MsgID: f.MsgID, TaskID: f.TaskID, From: from, To: to, Kind: "note",
-		Body: fmt.Sprintf("added to #%s: %d earlier %s in %d %s, newest from %s",
-			normChannel(f.Backfill), f.Count, plural(f.Count, "message", "messages"),
-			f.Topics, plural(f.Topics, "topic", "topics"), from),
+	ch := normChannel(f.Backfill)
+	body := fmt.Sprintf("added to #%s: ", ch)
+	if f.Count > 0 || f.Withheld == 0 {
+		body += fmt.Sprintf("%d earlier %s in %d %s, newest from %s", f.Count, plural(f.Count, "message", "messages"),
+			f.Topics, plural(f.Topics, "topic", "topics"), from)
 	}
+	if f.Withheld > 0 {
+		if f.Count > 0 {
+			body += "; "
+		}
+		body += fmt.Sprintf("%d earlier %s not sent: signed by a key this workspace does not pin for the sender's box; newest in topic %s",
+			f.Withheld, plural(f.Withheld, "message", "messages"), f.WithheldTask)
+	}
+	return &msg.Message{V: msg.V1, MsgID: f.MsgID, TaskID: f.TaskID, From: from, To: to, Kind: "note", Body: body}
 }
 
 func plural(n int, one, many string) string {

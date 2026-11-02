@@ -414,9 +414,15 @@ snapshot; a sync would be its own spec.
   someone's authority refuses a row with `copied_from` set: `approval()`,
   `_spl_oo_hub` (and the owner-order gate on it), `channelMoveGoRefusal`,
   `do_spl_wine_box_tester_tf`, `spl_lane_issue_hub_row` (owner and ACCEPTED
-  evidence). Two readers cannot see the column and wait for a ruling:
-  `spl_issue_owner_go_from` reads `hub-tail`, which does not return it;
-  `spl-review-go`'s `Owner-go:` reads box spool files, which no copy reaches.
+  evidence). Three more are ruled (c-001 e0203dc0):
+  - `spl_issue_owner_go_from` reads `hub-tail`, which does not return the
+    column: row T11b, not in T11. It must refuse a copy and a reply that does
+    not say. No prd copy before T11b lands.
+  - `spl-review-go`'s `Owner-go:` reads box spool files: a named limit, no code.
+    It is safe only while a copy reaches no box; any change that delivers copies
+    must add the check here.
+  - `ResignMessage` has no `copied_from` condition: a named limit, no code. Its
+    one production caller is fed by the filtered list `UnsignedWUIPosts`.
 - What a copy carries, beyond the ids above:
   - new ids through the map: `calendar_events` and, for the people who are
     `<DST>` members, `calendar_guests` (an agent guest stays behind);
@@ -556,8 +562,9 @@ Each row is one small task; files named are where it lands.
 | T9c | The shell plan path does W2's F14 half, which the hub cannot read (T4b checks only `channel_subscriptions` and channel-scope `dedicated_agents`): it reads the channel's row in this box's `channel-rules.tsv` through `channel-rules.inc.sh` and refuses when that desk agent has no `<DST>` desk on this box, naming it and the box. No row is no refusal; a copy checks nothing (no seat moves, section 7); a row of another env is said, not checked. Read-only: P5 rewrites the file, not `plan`. A box reads only its own file, and `plan` prints which box and file it read. The other box is covered by the operator, not by this row: run `plan` on every box that works the channel, and `plan` names the boxes of the hub's seats other than its own; nothing makes `MOVE_CMD=run` wait for that; tests C25, C26 | `orc/run/spl-channel-workspace-move.func.sh`, `orc/tests/spl-channel-workspace-move.tst.sh` |
 | T10 | Box steps: the P2b probe DMs, the P5 rule-row rewrite (no action writes `channel-rules.tsv` today, so it lives here), lane key notes; no re-seat (the seat rows move in P4); tests C11, C12 | `orc/features/spawn-agents/scripts/channel-workspace-move-box.sh`, its test |
 | T11 | Copy mode: new UUIDs, link rewrite, `copied_from`; test C16 | `api/store/channel_copy_apply_postgres.go`, `_test.go` |
+| T11b | `spl_issue_owner_go_from` refuses a copy and a reply that does not say whether it is one; `hub-tail` does not return `copied_from` today. Control: remove the check -> the test goes red. c-001 writes its brief after T11 lands; no prd copy until T11b lands | `orc/run/` reader file and its test, named by that brief |
 | T12 | Docs: operator page (how to plan, run and read the kept list) | `csi-spl-doc/doc/md/channel-workspace-move.md` |
-| T13 | Dev rehearsal, the gate before the first prd run: on dev, `plan` then `DRY_RUN=0` of a seeded channel between two dev test workspaces with the owner's GO msg id (C15), P7 prints 0, the journal read back; it also records R3's T5 timing on the 3,650-post seeded channel (12), runs P4 under the real runtime role with its real grants, and checks TEMP there; the record of the run | `csi-spl-doc/specs/169-channel-workspace-move/dev-rehearsal.md` |
+| T13 | Dev rehearsal, the gate before the first prd run: on dev, `plan` then `DRY_RUN=0` of a seeded channel between two dev test workspaces with the owner's GO msg id (C15), P7 prints 0, the journal read back; it also records R3's T5 timing on the 3,650-post seeded channel (12), runs P4 under the real runtime role with its real grants, and checks TEMP there; T11b lands before the first prd copy, no prd copy until then; the record of the run | `csi-spl-doc/specs/169-channel-workspace-move/dev-rehearsal.md` |
 
 Order: T1 first (it is the inventory in code); T2 before T5 (the journal);
 T4 before T5; T4 before T4b; T4b before T4d; T4d before T7's seat wiring; T5 before T5b and T5c; T3 before T11; T6 and T8

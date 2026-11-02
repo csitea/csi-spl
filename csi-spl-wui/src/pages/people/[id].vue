@@ -33,6 +33,10 @@
           <dt>{{ t('settings.member_id') }}</dt>
           <dd><code>{{ humanId }}</code></dd>
         </dl>
+        <!-- spec 154 2.7: one line when one of the reader's contacts is this member -->
+        <p v-if="myContactId" class="person-card__contact" data-test="person-in-contacts">
+          <NuxtLink :to="localePath('/people/contact/' + encodeURIComponent(myContactId))">{{ t('contacts.in_your_contacts') }}</NuxtLink>
+        </p>
         <section class="person-card__interests">
           <h3>{{ t('people.interests') }}</h3>
           <p v-if="interests" class="person-card__interestsText" data-test="person-interests">{{ interests }}</p>
@@ -89,6 +93,7 @@ import { userErrorKey } from '~/utils/tenant-users.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import { CHANGE_PASSWORD_PATH, changePasswordOffered } from '~/utils/user-menu'
 import { useSessionStore } from '~/stores/session'
+import { contactsList } from '~/utils/contacts-client.mjs'
 
 const route = useRoute()
 const roster = useRosterStore()
@@ -137,6 +142,16 @@ onMounted(() => {
   void access.load()
 })
 
+/* spec 154 2.7: the matching contact, read only where contacts are on; the
+   panel shares this one read. A failed read only leaves the line out. */
+const myContactId = ref('')
+watch([humanId, () => access.contacts && !access.me?.actAs], async ([member, on]) => {
+  myContactId.value = ''
+  if (!on) return
+  const list = await contactsList(api, String(session.claims?.hum || '')).catch(() => [])
+  if (member === humanId.value) myContactId.value = list.find((c: { member_id?: string | null }) => c.member_id === member)?.contact_id || ''
+}, { immediate: true })
+
 function message() {
   void navigateTo(localePath('/dm/' + encodeURIComponent(humanId.value + '@box-wui')))
 }
@@ -174,6 +189,7 @@ async function removeMember() {
 .person-card__facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; margin: 0; }
 .person-card__facts dt { color: var(--color-muted); font-size: 0.8125rem; }
 .person-card__facts dd { margin: 0; overflow-wrap: anywhere; min-width: 0; }
+.person-card__contact { margin: 0; }
 .person-card__interests h3 { margin: 0 0 6px; font-size: 0.9rem; }
 .person-card__interestsText { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 /* CLE-77799 (owner 6da1d88e): one action row, clear of the pane divider, with

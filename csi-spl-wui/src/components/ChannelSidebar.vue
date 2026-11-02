@@ -506,9 +506,17 @@
           {{ t('sidebar.people') }}
           <span id="sidebar-help-people-tip" class="sidebar-help__tip" role="tooltip">{{ t('sidebar.help.people') }}</span>
         </h2>
+        <!-- spec 154 2.7: the filter and Add contact; outside contacts.workspaces, neither -->
+        <div v-if="contactsOn" class="people-tools" data-testid="people-tools">
+          <div class="people-filter" role="group" :aria-label="t('people.filter_label')">
+            <button type="button" class="people-filter__btn" data-testid="people-filter-all" :aria-pressed="peopleFilter === PEOPLE_FILTER_ALL" @click="setPeopleFilter(PEOPLE_FILTER_ALL)">{{ t('people.filter_all') }}</button>
+            <button type="button" class="people-filter__btn" data-testid="people-filter-workspace" :aria-pressed="peopleFilter === PEOPLE_FILTER_WORKSPACE" @click="setPeopleFilter(PEOPLE_FILTER_WORKSPACE)">{{ t('people.filter_workspace') }}</button>
+          </div>
+          <NuxtLink class="btn ghost people-tools__add" data-testid="people-add-contact" :to="localePath('/people/contact/new')">{{ t('people.add_contact') }}</NuxtLink>
+        </div>
         <div class="sidebar-scroll">
-          <p v-if="memberRows.length === 0" class="muted topic-empty">{{ t('people.none') }}</p>
-          <div v-for="p in memberRows" :key="p.id" class="nav-row">
+          <p v-if="peopleMemberRows.length === 0" class="muted topic-empty">{{ t('people.none') }}</p>
+          <div v-for="p in peopleMemberRows" :key="p.id" class="nav-row">
             <NuxtLink
               class="nav-item"
               :class="{ active: peopleOpen === p.id }"
@@ -526,8 +534,10 @@
               </span>
               <span v-if="p.self" class="muted people-row__tag">{{ t('sidebar.you') }}</span>
               <span v-else-if="p.owner" class="muted people-row__tag">{{ t('people.owner') }}</span>
+              <span v-if="p.contactId" class="muted people-row__tag" data-testid="people-contact-tag">{{ t('people.contact_tag') }}</span>
             </NuxtLink>
           </div>
+          <LazyPeopleContactRows v-if="contactsOn" :rows="peopleGroups.contacts" :show="peopleFilter !== PEOPLE_FILTER_WORKSPACE" @list="contactRows = $event" @refused="contactsRefused = true" />
         </div>
       </div>
     <div class="sidebar-foot">
@@ -657,6 +667,7 @@ import { railLinkSection } from '~/utils/section-strip.mjs'
 import { ARCHIVE_TAB, CALENDAR_TAB, ISSUES_TAB, MONITORING_TAB, NOTES_TAB, PEOPLE_TAB, REPORTING_TAB, USERS_TAB, isSearchPage, tabForPath } from '~/utils/sidebar-tabs.mjs'
 import { setLinkOpenHook } from '~/utils/msg-jump.mjs'
 import { isHumanId } from '~/utils/agent-kind.mjs'
+import { PEOPLE_FILTER_ALL, PEOPLE_FILTER_KEY, PEOPLE_FILTER_WORKSPACE, parsePeopleFilter, peopleOrder } from '~/utils/people-order.mjs'
 import { RAIL_TABS, isRailMovable, railLabelKey, type RailId } from '~/utils/rail-order'
 import { useRailOrder } from '~/composables/useRailOrder'
 import { useDragReorder } from '~/composables/useDragReorder'
@@ -791,7 +802,7 @@ const signedOut = computed(() => isSignedOutVisitor(session.state, api.mock))
 const qtoShown = computed(() => (api.mock ? session.state !== 'out' : session.state === 'in'))
 const notes = useNotificationStore()
 const live = useLive()
-const { t, te } = useI18n({ useScope: 'global' })
+const { t, te, locale } = useI18n({ useScope: 'global' })
 /* CLE-77862: the tooltip / accessible name of the reader's own status dot */
 /* spec 096: the reader's manual status rides the same words, after presence */
 const statusPicker = useStatusPicker()
@@ -919,6 +930,25 @@ const { listHidden, blockedPeers, mutedPeers, pinnedPeers, peers, togglePin, tog
 const memberRows = computed(() => roster.people
   .filter((p) => isHumanId(p.id))
   .map((p) => ({ ...p, owner: roster.owners.includes(p.id) || Boolean(roster.humansDetail[p.id]?.owner) })))
+/* spec 154 2.7: online, then the other members, then the reader's other
+   contacts, A-Z in each. The contact list is the lazy rows' read (C25). */
+const contactRows = shallowRef<Array<{ contact_id: string, member_id?: string | null }>>([])
+const contactsRefused = ref(false)
+const contactsOn = computed(() => access.contacts && !acting.value && !contactsRefused.value && session.state !== 'out')
+const peopleFilter = ref(PEOPLE_FILTER_ALL)
+function setPeopleFilter(v: string) {
+  peopleFilter.value = v
+  try { localStorage.setItem(PEOPLE_FILTER_KEY, v) } catch { /* private mode: this page only */ }
+}
+onMounted(() => {
+  try { peopleFilter.value = parsePeopleFilter(localStorage.getItem(PEOPLE_FILTER_KEY)) } catch { /* the default, All */ }
+})
+const peopleGroups = computed(() => peopleOrder(memberRows.value, contactsOn.value ? contactRows.value : [], {
+  locale: locale.value,
+  nameOf: (p) => shownPerson(p.id, p.box, people.names.value),
+  filter: peopleFilter.value,
+}))
+const peopleMemberRows = computed(() => [...peopleGroups.value.online, ...peopleGroups.value.members])
 /* the open card's key, so its row reads as selected (aria-current) */
 const peopleOpen = computed(() => {
   const m = route.path.match(/\/people\/([^/]+)$/)
@@ -1103,6 +1133,13 @@ const { propertiesOpen, propertiesChannel, isChannelMuted, toggleChannelMute, sh
 /* CLE-77794: the trailing tag on a People row ("you" / "Owner"); it shrinks
    last so the name keeps the width, and the 72px rail hides it like the DM tail. */
 .people-row__tag { margin-inline-start: auto; font-size: 11px; flex-shrink: 0; }
+.people-row__tag + .people-row__tag { margin-inline-start: 6px; }
+.people-tools { display: flex; flex-direction: column; gap: 6px; padding: 0 8px 8px; }
+.people-filter { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--color-border); border-radius: var(--radius-sm, 8px); }
+.people-filter__btn { flex: 1 1 0; min-width: 0; min-height: 32px; padding: 2px 6px; border: 0; border-radius: var(--radius-xs); background: transparent; color: inherit; font: inherit; font-size: 0.8125rem; cursor: pointer; }
+.people-filter__btn[aria-pressed="true"] { background: var(--color-surface-hover); font-weight: 600; }
+.people-tools__add { display: flex; align-items: center; justify-content: center; min-height: 32px; padding: 2px 6px; font-size: 0.8125rem; text-decoration: none; }
+@media (max-width: 820px) { .people-filter__btn, .people-tools__add { min-height: var(--tap, 44px); } }
 /* the reader's own row is a status line, not a destination: no pointer, no
    hover highlight, nothing that reads as "click me" */
 .self-row { cursor: default; }

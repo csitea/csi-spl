@@ -30,6 +30,17 @@ export function calDeskView(v) {
 }
 
 /**
+ * Spec 170 section 11.2: the view kind named by a route query. `?k=todo` is
+ * the To-do view; anything else is the event views, never an error. Its own
+ * key, because an unknown ?v= opens Week (calDeskView).
+ * @param {{ k?: unknown } | null | undefined} query
+ * @returns {'todo' | 'events'}
+ */
+export function calTodoKind(query) {
+  return String(query?.k ?? '') === 'todo' ? 'todo' : 'events'
+}
+
+/**
  * The days a view shows: Day is `iso`, 3 days the day before, `iso` and
  * the day after (owner msg 37951fb6), Week Monday..Sunday of `iso`, Month
  * its 6x7 Monday-first grid. [] when not a day.

@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   CAL_DESK_MIN_HOUR_PX, CAL_DESK_OPEN_MIN, CAL_DESK_VIEWS, CAL_DESK_WINDOW_H,
-  calDeskDays, calDeskHourPx, calDeskRange, calDeskStep, calDeskTitle, calDeskView,
+  calDeskDays, calDeskHourPx, calDeskRange, calDeskStep, calDeskTitle, calDeskView, calTodoKind,
 } from '../../src/utils/calendar-desktop-view.mjs'
 
 const main = readFileSync(new URL('../../src/components/CalendarMainView.vue', import.meta.url), 'utf8')
@@ -19,6 +19,15 @@ describe('calendar desktop views (SPL-4060)', () => {
     assert.equal(calDeskView('3day'), '3day')
     assert.equal(calDeskView(undefined), 'week')
     assert.equal(calDeskView('year'), 'week')
+  })
+  it('?k=todo is the To-do view; any other k is the event views (spec 170)', () => {
+    assert.equal(calTodoKind({ k: 'todo' }), 'todo')
+    assert.equal(calTodoKind({ k: 'TODO' }), 'events')
+    assert.equal(calTodoKind({ k: 'nope', v: 'day' }), 'events')
+    assert.equal(calTodoKind({ v: 'todo' }), 'events')
+    assert.equal(calTodoKind({}), 'events')
+    assert.equal(calTodoKind(undefined), 'events')
+    assert.equal(calTodoKind({ k: ['todo', 'x'] }), 'events')
   })
   it('3 days is the day before, the day and the day after (msg 37951fb6)', () => {
     assert.deepEqual(calDeskDays('3day', '2026-10-28'), ['2026-10-27', '2026-10-28', '2026-10-29'])

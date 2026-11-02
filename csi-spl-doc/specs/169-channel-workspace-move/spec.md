@@ -62,6 +62,11 @@ v0.13 adds T4d (owner HUM-10, t1 537d51e9, msg a36bb9cd): `plan` returns the
 channel's full seat list, the source T9c's "run this plan on box X too" line
 and T7's probes read; it had only the seats with no desk. Case C27.
 
+v0.13 folds the T5 review rulings (c-001, 2026-11-02, msgs e635838b and
+9712f542): the audit door's limit is named in P4, C18's sync-cycle half gets
+its own row T7c, T13 runs P4 under the real runtime role, and `quota_counts`
+stays in `<SRC>`.
+
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
 
@@ -209,7 +214,8 @@ both as "not about spool channels".
 | `issue_labels` | not about channels: a workspace's label catalogue. A moved issue's `labels` values are `label_id`s, so T5b creates each missing `label_id` in `<DST>` (name and colour copied) before the issue insert; `<SRC>`'s catalogue is kept | none (C2 records the class) |
 | DMs with `ref_task_id` in M2 (M9) | the DM stays (it is two people's DM, not the channel's); `ref_task_id` set to NULL in `<SRC>`, so the DM no longer points at the channel | `WHERE tenant_id=<SRC> AND ref_task_id=ANY(<tasks>)` |
 | `fleet_lanes`, `fleet_asks` (M11) | issue keys rewritten to the new keys; topic ids unchanged (they live in the fleet's own workspace, not in `<SRC>`, unless `<SRC>` is that workspace) | `WHERE issue_key=ANY(<old keys>)` |
-| aggregate counters (`message_period_counts`, `quota_counts`, `topic_head_tenants`, `tenant_change_stamps`) | recomputed for `<SRC>` and `<DST>` from the rows after the move; change stamps bumped so every cached view refetches | the recompute equals a fresh count (C9) |
+| aggregate counters (`message_period_counts`, `topic_head_tenants`, `tenant_change_stamps`) | recomputed for `<SRC>` and `<DST>` from the rows after the move; change stamps bumped so every cached view refetches | the recompute equals a fresh count (C9) |
+| `quota_counts` | left in `<SRC>`: per-person rate windows (rdb 0127), it names no channel. The catalogue keeps its class `Recomputed` so the proof skips the table | not in C9 |
 
 #### 5.1a Hours and the Google Calendar map
 
@@ -424,7 +430,7 @@ cd csi-spl-orc && CHANNEL=<SRC>/<CHANNEL> TO=<DST> MOVE_MODE=copy ./run -a do_sp
 | P2 | Check: `<DST>` exists, the caller is allowed, no channel `<CHANNEL>` in `<DST>` (else `TO_NAME=<new id>`), quotas fit, every seat has a `<DST>` desk, `<DST>` has an orchestrator seat (W2, the P2b probe's recipient), shared items resolved (5.5), no unresolved hours rows (5.1a) | nothing changed |
 | P2b | Prove each agent's `<DST>` desk: one probe DM to the `<DST>` orchestrator seat on the probe topic (task id = `move_id`), msg id recorded in the journal (W2). No seat is added here | nothing to undo but the probe DMs, which stay in `<DST>` as part of the journal's record |
 | P3 | Copy blobs and Qto objects to `<DST>` (idempotent) | delete the `<DST>` copies |
-| P4 | **One database transaction**, asOperator, with `app.channel_move = 'on'` set transaction-local: the one door through the append-only guards of `usage_events`, `sql_query_audit` and `demo_post_audit`, a DELETE only and only in the operator scope (rdb 0251); insert every row of the set under `<DST>` (parents first), rewrite `channel_order`, NULL the DM `ref_task_id`s, write the redirect rows (Q2); for a move, delete the set in `<SRC>` (children first, F5); recompute counters; bump change stamps. 3,650 posts (F13) is the largest set today (timing: R3). | the transaction rolls back as a whole |
+| P4 | **One database transaction**, asOperator, with `app.channel_move = 'on'` set transaction-local: the one door through the append-only guards of `usage_events`, `sql_query_audit` and `demo_post_audit`, a DELETE only and only in the operator scope (rdb 0251). The limit of that door: a session on the runtime login can erase rows of those 3 audit tables with no copy and no trace, and nothing detects it; 0251 adds this for `usage_events` and `sql_query_audit`. Insert every row of the set under `<DST>` (parents first), rewrite `channel_order`, NULL the DM `ref_task_id`s, write the redirect rows (Q2); for a move, delete the set in `<SRC>` (children first, F5); recompute counters; bump change stamps. 3,650 posts (F13) is the largest set today (timing: R3). | the transaction rolls back as a whole |
 | P5 | Box steps, at once after P4: rewrite the rule rows' tenant column, lane notes for new keys (W4). The seat rows already moved in P4 | journal-driven: a re-run resumes at the first step not marked done |
 | P6 | Move only: delete `<SRC>` blobs and Qto objects no `<SRC>` row lists | none: by now `<DST>` is the only home |
 | P7 | Run every proof of section 5 and write the results into the journal; print the kept list (5.6) with the date each copy expires | n/a |
@@ -459,7 +465,7 @@ and moved size; after P4 commits nothing replaces them.
 | C6 | Shared file: a blob also attached in a staying channel is copied, not deleted in `<SRC>` | delete it anyway -> the staying post's file 404s |
 | C7 | Shared item rule (Q6): with the default, an issue linked to topics in two channels refuses the move, naming it | remove the check -> the other channel loses its issue link |
 | C8 | Old permalink and a lane post to a moved task at `<SRC>`: never create a `<SRC>` row. Both Q2 variants are tested (redirect on: a box post and a browser post are refused with the destination, no row in `<SRC>` or `<DST>`, and the permalink answers the link; off: 404 and refused), so the case does not wait for Q2; the re-route is T7b's | post to the moved task id at `<SRC>` -> a new `<SRC>` topic appears |
-| C9 | Counters equal a fresh count after the move, in both workspaces | skip the recompute -> `<SRC>` counts still include the channel |
+| C9 | Counters equal a fresh count after the move, in both workspaces (`quota_counts` is left, not recomputed) | skip the recompute -> `<SRC>` counts still include the channel |
 | C10 | A moved file read from `<SRC>` -> 404; from `<DST>` -> the bytes | serve from the LRU without the DB check -> 200 |
 | C11 | Seats: a channel agent without a `<DST>` desk makes `plan` refuse, naming it; a desk whose P2b probe DM fails stops the move before P4, nothing changed; after P4 the seat rows are in `<DST>` and none in `<SRC>` | drop the check -> the agent cannot post after the move (spec 167 W3); skip the probe -> a dead `<DST>` desk passes P2b |
 | C12 | Issue keys: the new issue carries the old key in its first event; a lane gets one note old -> new | skip the note -> the lane's next commit cites a dead key |
@@ -496,12 +502,13 @@ Each row is one small task; files named are where it lands.
 | T4 | Store: `PlanChannelMove` (read-only set, shared items, mentions) and its tests C1, C7 | `api/store/channel_move_plan.go` (+ `_postgres`, `_memory`, `_test`) |
 | T4b | Store: `PlanChannelMove` checks each `from_box` is pinned in `<DST>` (R1) and refuses naming the missing desks (W2); tests C22, C23 | `api/store/channel_move_plan*.go` |
 | T4d | Store: `ChannelMovePlan.Seats` lists every seat `plan` reads, sorted and once each, with a `<DST>` desk or without one; `MissingDesks` and `Refused` do not change. `plan` takes no mode, so it lists them for a copy too (section 7: a copy carries no seat; the caller decides, and T11 decides W2 for a copy). T7 wires the field into `.seats` and `ChannelMoveApplyRequest.Seats`; test C27 | `api/store/channel_move_plan*.go` |
-| T5 | Store: `ApplyChannelMove` P4 frame: one transaction, insert-then-delete in catalogue order, counters and stamps, the messages family, hours, calendar and invites (5.1a, 5.1b) with the pre-P4 Google delete; tests C3a, C4, C5, C9, C18, C19, C20, C21 | `api/store/channel_move_apply_postgres.go`, `_test.go` |
+| T5 | Store: `ApplyChannelMove` P4 frame: one transaction, insert-then-delete in catalogue order, counters and stamps, the messages family, hours, calendar and invites (5.1a, 5.1b) with the pre-P4 Google delete; tests C3a, C4, C5, C9, C18 store half, C19, C20, C21 | `api/store/channel_move_apply_postgres.go`, `_test.go` |
 | T5b | Store: the issues part of P4 (renumber, events, discussions, `spec_sync_map`); test C3b | `api/store/channel_move_issues_postgres.go`, `_test.go` |
 | T5c | Store: the Qto part of P4 (doc, item, node, ACL, rev log, re-placed in `<DST>`'s tree); test C3c | `api/store/channel_move_docs_postgres.go`, `_test.go` |
 | T6 | Blob and Qto object copy/delete P3/P6, the shared-file rule; tests C6, C10 | `api/channelmove/objects.go`, `_test.go` |
 | T7 | Hub operator endpoint (owner GO msg id required) and the moved-task refusal / redirect; tests C8, C15 | `api/hub/channel_move.go`, `_test.go`, `openapi.json`; the refusal lines in `api/hub/channels.go`, `ws.go`, `wui.go`, `view.go`; `api/store/channel_move_journal*.go` and one field in `memory.go`; `api/wire/topic_moved.go` |
 | T7b | Box client: on the `topic_moved` refusal, send the post through the agent's `<DST>` desk key (W2, W3), the re-route of Q2. Every path: `spool send` by dial and by sidecar, a channel post, an answer, a queued post at flush. The desk is `<dir>/<tenant>/<box>`, `<dir>` being `$SPOOL_DESKS` or the desks dir of this spool root, read from its live `hub-run` as `spool_reply` does: a desk of another OS user is unreadable, so it counts as no desk and the post is refused. Nothing is remembered: each post asks `<SRC>` first, so on day 31 it gets the 404 and is refused and reported. A retry is the same envelope, which the hub stores once per `(tenant, msg_id)`. A prerequisite of the first prd move | `internal/hubclient/reroute.go`, `flush.go`, `hubclient.go`; `internal/action/link.go`, `action.go`; `cmd/spool/hub.go`; tests `reroute_test.go`, `moved_desk_test.go`, `internal/hub/channel_move_reroute_test.go` |
+| T7c | Hub: C18's sync-cycle half: after the move and one In-half run on the member's connection, `<SRC>` has no event with that `source_key`, no map row, and the Google event is gone; control: skip the pre-P4 Google delete -> the In half imports it back. T13 and the first prd move wait for T7c; T5 does not | `api/hub/gcal_sync_in.go` test file |
 | T8 | Proofs P7 and the free-text scan; tests C13, C14 | `api/channelmove/proof.go`, `_test.go` |
 | T9 | Shell action `do_spl_channel_workspace_move` (plan, DRY_RUN, journal resume) and its test C17 | `orc/run/spl-channel-workspace-move.func.sh`, `orc/tests/spl-channel-workspace-move.tst.sh` |
 | T9b | The shell plan path reads and prints the Cloud SQL backup retention and the hub log bucket's retention (R4, 5.6): it only prints and refuses nothing; it prints every log bucket of the project, because the cnf names none; test C24 | `orc/run/spl-channel-workspace-move.func.sh`, `orc/tests/spl-channel-workspace-move.tst.sh` |
@@ -509,11 +516,11 @@ Each row is one small task; files named are where it lands.
 | T10 | Box steps: the P2b probe DMs, the P5 rule-row rewrite (no action writes `channel-rules.tsv` today, so it lives here), lane key notes; no re-seat (the seat rows move in P4); tests C11, C12 | `orc/features/spawn-agents/scripts/channel-workspace-move-box.sh`, its test |
 | T11 | Copy mode: new UUIDs, link rewrite, `copied_from`; test C16 | `api/store/channel_copy_apply_postgres.go`, `_test.go` |
 | T12 | Docs: operator page (how to plan, run and read the kept list) | `csi-spl-doc/doc/md/channel-workspace-move.md` |
-| T13 | Dev rehearsal, the gate before the first prd run: on dev, `plan` then `DRY_RUN=0` of a seeded channel between two dev test workspaces with the owner's GO msg id (C15), P7 prints 0, the journal read back; it also records R3's T5 timing on the 3,650-post seeded channel (12); the record of the run | `csi-spl-doc/specs/169-channel-workspace-move/dev-rehearsal.md` |
+| T13 | Dev rehearsal, the gate before the first prd run: on dev, `plan` then `DRY_RUN=0` of a seeded channel between two dev test workspaces with the owner's GO msg id (C15), P7 prints 0, the journal read back; it also records R3's T5 timing on the 3,650-post seeded channel (12), runs P4 under the real runtime role with its real grants, and checks TEMP there; the record of the run | `csi-spl-doc/specs/169-channel-workspace-move/dev-rehearsal.md` |
 
 Order: T1 first (it is the inventory in code); T2 before T5 (the journal);
 T4 before T5; T4 before T4b; T4b before T4d; T4d before T7's seat wiring; T5 before T5b and T5c; T3 before T11; T6 and T8
-before T7; T7 before T9; T9, T10 and T7 before T13; T4b, T4d, T9b and T9c before T13.
+before T7; T7 before T9; T9, T10, T7 and T7c before T13; T5 before T7c; T4b, T4d, T9b and T9c before T13.
 
 ### 10.1 Lanes
 

@@ -272,6 +272,8 @@ try {
       await p.click('[data-test=issues-sort-opt][data-value="key"]')
       await p.waitForFunction(() => !document.querySelector('[data-test=issues-sort-sheet]'), { timeout: 5000 })
       const sorted = await p.$$eval('[data-test=issues-card]', (els) => els.map((e) => e.getAttribute('data-key')))
+      /* SPL-4648: the address follows through router.replace, once the sheet's close has landed */
+      await p.waitForFunction(() => new URL(location.href).searchParams.get('sort') === 'key', { timeout: 8000 }).catch(() => {})
       const q = new URL(p.url()).searchParams
       ok(`10 ${w}: Sort is a menu, each column once; Key orders the cards A-Z and lands in ?sort=&dir=`,
         sortOpts.includes('key') && sortOpts.includes('') && new Set(sortOpts).size === sortOpts.length && sorted.join() === 'SPL-2,SPL-3' && q.get('sort') === 'key' && q.get('dir') === 'asc', { sortOpts, sorted, q: String(q) })

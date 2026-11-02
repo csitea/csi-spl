@@ -159,6 +159,51 @@ try {
       await s.ctx.close()
     }
 
+    /* c-002 (dispatch-e04820a5): two fast sort changes end with the URL on the last one.
+       On a slowed CPU, so a replace is still on its way when the next change comes. */
+    const f = await open(browser, vp, '/issues?view=list&epic=SPL-1')
+    await f.p.emulateCPUThrottling(6)
+    const fastRuns = []
+    const sortNow = () => f.p.evaluate((ph) => (ph
+      ? document.querySelector('[data-test=issues-sorted-by]').getAttribute('data-sort')
+      : `title:${document.querySelector('[data-test=issues-sort-title]').closest('th').getAttribute('aria-sort')}`), phone)
+    if (phone) {
+      const pickInSheet = async (sel) => {
+        await f.p.click('[data-test=issues-sort-open]')
+        await f.p.waitForSelector(sel, { visible: true, timeout: 8000 })
+        await f.p.click(sel)
+        await f.p.waitForFunction(() => !document.querySelector('[data-test=issues-sort-sheet]'), { timeout: 8000 })
+      }
+      await pickInSheet('[data-test=issues-sort-opt][data-value="key"]')
+      await pickInSheet('[data-test=issues-sort-reverse]')
+      await urlHas(f.p, 'dir', 'desc')
+      await new Promise((r) => setTimeout(r, 800))
+      fastRuns.push({ gap: 'sheet', q: await params(f.p), shown: await sortNow(), good: true })
+      const last = fastRuns[0]
+      last.good = last.q.sort === 'key' && last.q.dir === 'desc' && last.shown === 'key:desc'
+    } else {
+      /* a gap in the page itself: a click from outside it lands after the replace has (the planted lost write stayed green) */
+      for (const gap of [0, 1, 3, 10, 30, 100, 300, 'task']) {
+        await f.p.$eval('[data-test=issues-sort-title]', async (el, g) => {
+          el.click()
+          if (g === 'task') await new Promise((r) => setTimeout(r, 0))
+          else for (let i = 0; i < g; i++) await Promise.resolve()
+          el.click()
+        }, gap)
+        await urlHas(f.p, 'dir', 'desc')
+        await new Promise((r) => setTimeout(r, 800))
+        const q = await params(f.p)
+        const shown = await sortNow()
+        fastRuns.push({ gap, q, shown, good: q.sort === 'title' && q.dir === 'desc' && q.epic === 'SPL-1' && shown === 'title:descending' })
+        /* the third click: back to no sort, for the next round */
+        await f.p.click('[data-test=issues-sort-title]')
+        await urlHas(f.p, 'sort', '')
+        await new Promise((r) => setTimeout(r, 300))
+      }
+    }
+    ok(`4c ${tag}: two fast sort changes end with the URL and the list on the last one`, fastRuns.length > 0 && fastRuns.every((r) => r.good), fastRuns.filter((r) => !r.good))
+    await f.ctx.close()
+
     const b = await open(browser, vp, '/issues?status=wip&view=list')
     await settle(b.p, row, 'SPL-2,SPL-4,SPL-5,SPL-6,SPL-7,SPL-8')
     await b.p.evaluate(() => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.push('/issues?status=todo&view=list'))

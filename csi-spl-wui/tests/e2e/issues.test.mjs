@@ -179,11 +179,16 @@ try {
     const u = new URL(location.href)
     return { aria: th.getAttribute('aria-sort'), mark: th.querySelector('.issues-sort-mark').textContent, sort: u.searchParams.get('sort'), dir: u.searchParams.get('dir'), titles, others: [...document.querySelectorAll('.issues-sort-mark')].filter((m) => m.textContent).length }
   })
+  /* SPL-4648: the address follows through router.replace, a moment after the click */
+  const sortInUrl = (dir) => p.waitForFunction((d) => (new URL(location.href).searchParams.get('dir') || '') === d, { timeout: 8000 }, dir).catch(() => {})
   await p.click('[data-test=issues-sort-title]')
+  await sortInUrl('asc')
   const up = await sortState()
   await p.click('[data-test=issues-sort-title]')
+  await sortInUrl('desc')
   const down = await sortState()
   await p.click('[data-test=issues-sort-title]')
+  await sortInUrl('')
   const back = await sortState()
   const byTitle = (l) => [...l].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
   ok('3b a header click sorts ▲ then ▼ then back; only that column shows a triangle; the URL keeps it',

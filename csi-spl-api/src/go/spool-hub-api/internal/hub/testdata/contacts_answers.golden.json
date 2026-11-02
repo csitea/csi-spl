@@ -122,6 +122,55 @@
       "updated_at": "\u003ctime\u003e"
     }
   },
+  "patch_first_empty": {
+    "status": 200,
+    "body": {
+      "contact_id": "\u003ccontact_id\u003e",
+      "created_at": "\u003ctime\u003e",
+      "email": null,
+      "first_name": "",
+      "google": false,
+      "last_name": "LastName",
+      "member_id": null,
+      "phone": null,
+      "updated_at": "\u003ctime\u003e"
+    }
+  },
+  "patch_last_empty": {
+    "status": 200,
+    "body": {
+      "contact_id": "\u003ccontact_id\u003e",
+      "created_at": "\u003ctime\u003e",
+      "email": null,
+      "first_name": "Changed",
+      "google": false,
+      "last_name": "",
+      "member_id": null,
+      "phone": null,
+      "updated_at": "\u003ctime\u003e"
+    }
+  },
+  "patch_phone_empty": {
+    "status": 200,
+    "body": {
+      "contact_id": "\u003ccontact_id\u003e",
+      "created_at": "\u003ctime\u003e",
+      "email": null,
+      "first_name": "Changed",
+      "google": false,
+      "last_name": "LastName",
+      "member_id": null,
+      "phone": null,
+      "updated_at": "\u003ctime\u003e"
+    }
+  },
+  "refused_all_empty": {
+    "status": 400,
+    "body": {
+      "detail": "a contact needs a name, an email or a phone",
+      "error": "contact_empty"
+    }
+  },
   "refused_bad_email": {
     "status": 400,
     "body": {

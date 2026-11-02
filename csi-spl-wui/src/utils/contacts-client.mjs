@@ -167,6 +167,20 @@ export async function contactPatch(api, id, values) {
   return row
 }
 
+/**
+ * The card after a patch: the re-read names the member, a patch's answer does
+ * not. If the read fails the save stands, and the member the card showed stands
+ * with it unless the email changed, which is what the match follows.
+ * @param {any} api @param {string} id @param {any} row the patch's answer @param {any} before the card before the edit
+ */
+export async function contactReread(api, id, row, before) {
+  try {
+    return await contactGet(api, id)
+  } catch {
+    return { ...row, member_id: row.email === before?.email ? before?.member_id ?? null : null }
+  }
+}
+
 /** Erase one contact. */
 export async function contactDelete(api, id) {
   if (api.mock) {

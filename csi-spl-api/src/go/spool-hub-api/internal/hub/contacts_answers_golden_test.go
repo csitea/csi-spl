@@ -40,7 +40,8 @@ func contactsMasked(c *contactsRig, out map[string]any) map[string]any {
 // client. csi-spl-wui/tests/unit/contacts-client.test.mjs feeds this file
 // through contacts-client.mjs, so a client that reads another shape and a hub
 // that changes its shape both go red, without a browser. It is generated from
-// the handlers on the real store, never written by hand:
+// the handlers on the rig's store, never written by hand: memory, or Postgres
+// under SPOOL_TEST_PG_DSN, and both answer this file:
 //
 //	go test ./internal/hub -run TestContactsAnswersGolden -update-contacts-answers
 func TestContactsAnswersGolden(t *testing.T) {
@@ -66,6 +67,10 @@ func TestContactsAnswersGolden(t *testing.T) {
 	ask("patch", http.MethodPatch, one, map[string]any{"first_name": "Changed", "last_name": ctLast, "email": ctEmail, "phone": ctPhone})
 	ask("patch_email_null", http.MethodPatch, one, map[string]any{"email": nil})
 	ask("patch_email_empty", http.MethodPatch, one, map[string]any{"email": ""})
+	ask("patch_phone_empty", http.MethodPatch, one, map[string]any{"phone": ""})
+	ask("patch_first_empty", http.MethodPatch, one, map[string]any{"first_name": ""})
+	ask("patch_last_empty", http.MethodPatch, one, map[string]any{"first_name": "Changed", "last_name": ""})
+	ask("refused_all_empty", http.MethodPatch, one, map[string]any{"first_name": "", "last_name": "", "email": "", "phone": ""})
 	ask("refused_bad_email", http.MethodPost, contactsBase, map[string]any{"email": "no-at-sign"})
 	ask("delete", http.MethodDelete, one, nil)
 	ask("get_deleted", http.MethodGet, one, nil)

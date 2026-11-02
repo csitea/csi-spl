@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { contactCreate, contactDelete, contactErrorKey, contactGet, contactPatch, contactsList } from '../../src/utils/contacts-client.mjs'
+import { contactCreate, contactDelete, contactErrorKey, contactGet, contactPatch, contactReread, contactsList } from '../../src/utils/contacts-client.mjs'
 
 const WUI = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const ANSWERS = JSON.parse(readFileSync(join(WUI, '../csi-spl-api/src/go/spool-hub-api/internal/hub/testdata/contacts_answers.golden.json'), 'utf8'))
@@ -95,10 +95,45 @@ describe('an edit that empties a field clears it', () => {
     assert.equal(ANSWERS.patch_email_empty.body.email, null)
   })
 
+  it('each of the four clears alone, the names to "", email and phone to null', () => {
+    assert.equal(ANSWERS.patch_phone_empty.body.phone, null)
+    assert.equal(ANSWERS.patch_first_empty.body.first_name, '')
+    assert.equal(ANSWERS.patch_last_empty.body.last_name, '')
+  })
+
+  it('clearing all four is refused, and the form says why', () => {
+    const { status, body } = ANSWERS.refused_all_empty
+    assert.equal(status, 400)
+    assert.equal(contactErrorKey({ status, error: body.error }), 'contacts.error_contact_empty')
+  })
+
   it('patch sends the emptied field as ""', async () => {
     hubAnswers('patch_email_empty')
     await contactPatch(HUB, 'k1', VALUES)
     assert.deepEqual(sent[0].body, { first_name: 'FirstName', last_name: 'LastName', email: '', phone: '' })
+  })
+})
+
+describe('a failed re-read after a save', () => {
+  const before = { ...ANSWERS.member_get.body }
+  const row = { ...ANSWERS.member_patch.body }
+  beforeEach(() => {
+    globalThis.fetch = async () => new Response('{}', { status: 500 })
+  })
+
+  it('the card keeps the member it showed, so Message stays and Invite stays away', async () => {
+    assert.equal(row.member_id, null)
+    assert.equal((await contactReread(HUB, 'k1', row, before)).member_id, before.member_id)
+  })
+
+  it('a changed email drops the member: the match follows the email', async () => {
+    const changed = await contactReread(HUB, 'k1', { ...row, email: 'other@example.com' }, before)
+    assert.equal(changed.member_id, null)
+  })
+
+  it('the read that works is the card', async () => {
+    hubAnswers('member_get')
+    assert.equal((await contactReread(HUB, 'k1', row, { member_id: null })).member_id, before.member_id)
   })
 })
 

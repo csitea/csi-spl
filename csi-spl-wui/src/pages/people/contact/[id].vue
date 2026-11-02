@@ -72,7 +72,7 @@ import { useAccessStore } from '~/stores/access'
 import { useRosterStore } from '~/stores/roster'
 import { useSessionStore } from '~/stores/session'
 import { contactHref } from '~/utils/contact-links.mjs'
-import { contactCreate, contactDelete, contactErrorKey, contactGet, contactInvite, contactPatch } from '~/utils/contacts-client.mjs'
+import { contactCreate, contactDelete, contactErrorKey, contactGet, contactInvite, contactPatch, contactReread } from '~/utils/contacts-client.mjs'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { contactName } from '~/utils/people-order.mjs'
 import { userErrorKey } from '~/utils/tenant-users.mjs'
@@ -166,8 +166,7 @@ async function save() {
       await navigateTo(localePath('/people/contact/' + encodeURIComponent(row.contact_id)), { replace: true })
     } else {
       const row = await contactPatch(api, id.value, values)
-      /* a patch's answer names no member, the card's read does; the save stands if the read fails */
-      contact.value = await contactGet(api, id.value).catch(() => row) as Contact
+      contact.value = await contactReread(api, id.value, row, contact.value) as Contact
       view.value = 'card'
     }
   } catch (e) {

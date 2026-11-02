@@ -61,9 +61,44 @@ type do_log &>/dev/null || do_log() { echo "$*"; }
 # spl_box_name: the box name from the config, never the hostname (SPL-4201)
 declare -F spl_box_name >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../../csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh"
 
+# box_beat_classify <now> <ack> <age> <near> <fence> - this run's state and its
+# silence bookkeeping; sets the caller's state, ev, body, open_ack, open_max and
+# open_kind
+box_beat_classify() {
+  local now="$1" ack="$2" age="$3" near="$4" fence="$5" lo hi
+  if ((age >= near)); then
+    state=NEAR
+    ((age >= fence)) && state=FENCE
+    if [[ "$open_ack" != "$ack" ]]; then
+      # an ack between two runs ended the last silence unseen: its note
+      # still goes (queued, sent when the hub answers), and a new one opens
+      if [[ -n "$open_ack" ]]; then
+        hi=$((ack - open_ack))
+        ((hi < open_max)) && hi="$open_max"
+        ev+="$now reconnect $open_ack $hi"$'\n'
+        body="$(box_beat_body "$open_kind" "$open_max" "$hi" "$open_ack" "$ack" "$near" "$fence")"
+      fi
+      open_ack="$ack" open_max=0 open_kind=""
+    fi
+    if [[ -z "$open_kind" ]]; then ev+="$now near $ack $age"$'\n'; open_kind=NEAR; fi
+    if [[ "$state" == FENCE && "$open_kind" != FENCE ]]; then ev+="$now fence $ack $age"$'\n'; open_kind=FENCE; fi
+    ((age > open_max)) && open_max="$age"
+  elif [[ -n "$open_ack" ]]; then
+    state=RECONNECT
+    lo="$open_max" hi=$((ack - open_ack))
+    ((hi < lo)) && hi="$lo"
+    ev+="$now reconnect $open_ack $hi"$'\n'
+    body="$(box_beat_body "$open_kind" "$lo" "$hi" "$open_ack" "$ack" "$near" "$fence")"
+    open_ack="" open_max=0 open_kind=""
+  else
+    state=OK
+  fi
+  return 0
+}
+
 do_box_beat_telemetry_check() {
   local dry="${DRY_RUN:-1}" t0 ms now wd ack="" age=0 step="?" down near fence state wdst=ok
-  local dir last_ack="" open_ack="" open_max=0 open_kind="" ev="" body="" lo hi
+  local dir last_ack="" open_ack="" open_max=0 open_kind="" ev="" body=""
   local near_today=0 fenced_today=0
   t0="$(box_beat_ms)"
   now="${BOX_BEAT_NOW:-${EPOCHSECONDS:-$(date +%s)}}"
@@ -98,33 +133,7 @@ do_box_beat_telemetry_check() {
   [[ "$open_ack" =~ ^[0-9]+$ ]] || open_ack="" open_kind=""
   [[ "$open_max" =~ ^[0-9]+$ ]] || open_max=0
 
-  if ((age >= near)); then
-    state=NEAR
-    ((age >= fence)) && state=FENCE
-    if [[ "$open_ack" != "$ack" ]]; then
-      # an ack between two runs ended the last silence unseen: its note
-      # still goes (queued, sent when the hub answers), and a new one opens
-      if [[ -n "$open_ack" ]]; then
-        hi=$((ack - open_ack))
-        ((hi < open_max)) && hi="$open_max"
-        ev+="$now reconnect $open_ack $hi"$'\n'
-        body="$(box_beat_body "$open_kind" "$open_max" "$hi" "$open_ack" "$ack" "$near" "$fence")"
-      fi
-      open_ack="$ack" open_max=0 open_kind=""
-    fi
-    if [[ -z "$open_kind" ]]; then ev+="$now near $ack $age"$'\n'; open_kind=NEAR; fi
-    if [[ "$state" == FENCE && "$open_kind" != FENCE ]]; then ev+="$now fence $ack $age"$'\n'; open_kind=FENCE; fi
-    ((age > open_max)) && open_max="$age"
-  elif [[ -n "$open_ack" ]]; then
-    state=RECONNECT
-    lo="$open_max" hi=$((ack - open_ack))
-    ((hi < lo)) && hi="$lo"
-    ev+="$now reconnect $open_ack $hi"$'\n'
-    body="$(box_beat_body "$open_kind" "$lo" "$hi" "$open_ack" "$ack" "$near" "$fence")"
-    open_ack="" open_max=0 open_kind=""
-  else
-    state=OK
-  fi
+  box_beat_classify "$now" "$ack" "$age" "$near" "$fence"
 
   read -r near_today fenced_today < <(box_beat_today "$now" "$dir/events.tsv" "$ev")
   [[ -n "$body" ]] && body+=" Near-fences today (UTC): $near_today, fences: $fenced_today."

@@ -49,6 +49,46 @@ disk_guard_lines() {
     "23 3 * * * cd $desk/$app-utl && DRY_RUN=0 ./run -a do_box_disk_inventory >> $var/box-disk-sweep/growth.cron.out 2>&1 # $app:disk-growth"
 }
 
+# disk_guard_compare <crontab> - prints installed / missing / differs per line;
+# reads the caller's want and tags, sets its bad
+disk_guard_compare() {
+  local cur="$1" have i t
+  bad=0
+  for i in "${!want[@]}"; do
+    t="${tags[$i]}"
+    have="$(grep -F -- " # $t" <<<"$cur" | grep -E -- " # ${t//./\\.}\$" | head -n 1 || true)"
+    if [[ -z "$have" ]]; then
+      echo "missing   $t"; bad=$((bad + 1))
+    elif [[ "$have" == "${want[$i]}" ]]; then
+      echo "installed $t"
+    else
+      echo "differs   $t"; echo "  have: $have"; echo "  want: ${want[$i]}"; bad=$((bad + 1))
+    fi
+  done
+  return 0
+}
+
+# disk_guard_next <crontab> <act> - tagged lines replaced in place, missing ones
+# appended; reads the caller's want and tags, sets its next
+disk_guard_next() {
+  local cur="$1" act="$2" seen=() line i
+  next=""
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    for i in "${!tags[@]}"; do
+      if [[ "$line" == *" # ${tags[$i]}" ]]; then
+        [[ "$act" == install && -z "${seen[$i]:-}" ]] && next+="${want[$i]}"$'\n'
+        seen[$i]=1; continue 2
+      fi
+    done
+    next+="$line"$'\n'
+  done <<<"$cur"
+  [[ -z "$cur" ]] && next=""
+  if [[ "$act" == install ]]; then
+    for i in "${!want[@]}"; do [[ -n "${seen[$i]:-}" ]] || next+="${want[$i]}"$'\n'; done
+  fi
+  return 0
+}
+
 do_box_disk_guard_install() {
   local cron="${DISK_GUARD_CRONTAB:-crontab}" act="${DISK_GUARD_ACTION:-install}"
   [[ "${DISK_GUARD_CHECK:-}" == true ]] && act=check
@@ -64,45 +104,21 @@ do_box_disk_guard_install() {
   local trunk="${DESK_CRON_TRUNK:-master}"
   [[ "$trunk" =~ ^[A-Za-z0-9._/-]+$ ]] || { do_log "FATAL DESK_CRON_TRUNK is not a branch name: '$trunk'"; return 1; }
 
-  local cur want=() tags=() l t
+  local cur want=() tags=() l
   cur="$("$cron" -l 2>/dev/null || true)"
   mapfile -t want < <(disk_guard_lines "$app" "$src" "$desk" "$var" "$trunk")
   for l in "${want[@]}"; do tags+=("${l##* # }"); done
 
-  # per line: installed / missing / differs
-  local bad=0 have i
-  for i in "${!want[@]}"; do
-    t="${tags[$i]}"
-    have="$(grep -F -- " # $t" <<<"$cur" | grep -E -- " # ${t//./\\.}\$" | head -n 1 || true)"
-    if [[ -z "$have" ]]; then
-      echo "missing   $t"; bad=$((bad + 1))
-    elif [[ "$have" == "${want[$i]}" ]]; then
-      echo "installed $t"
-    else
-      echo "differs   $t"; echo "  have: $have"; echo "  want: ${want[$i]}"; bad=$((bad + 1))
-    fi
-  done
+  local bad
+  disk_guard_compare "$cur"
   if [[ "$act" == check ]]; then
     (( bad == 0 )) && { do_log "OK the disk guard is installed: ${#want[@]} of ${#want[@]} lines"; return 0; }
     do_log "FAIL the disk guard is not fully installed: $bad of ${#want[@]} lines missing or different"
     return 1
   fi
 
-  # the new crontab: tagged lines replaced in place, missing ones appended
-  local next="" seen=() line
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    for i in "${!tags[@]}"; do
-      if [[ "$line" == *" # ${tags[$i]}" ]]; then
-        [[ "$act" == install && -z "${seen[$i]:-}" ]] && next+="${want[$i]}"$'\n'
-        seen[$i]=1; continue 2
-      fi
-    done
-    next+="$line"$'\n'
-  done <<<"$cur"
-  [[ -z "$cur" ]] && next=""
-  if [[ "$act" == install ]]; then
-    for i in "${!want[@]}"; do [[ -n "${seen[$i]:-}" ]] || next+="${want[$i]}"$'\n'; done
-  fi
+  local next
+  disk_guard_next "$cur" "$act"
 
   if [[ "$next" == "$cur"$'\n' || ( -z "$cur" && -z "$next" ) ]]; then
     do_log "OK nothing to change: the crontab already reads as wanted ($act)"

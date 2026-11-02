@@ -11,8 +11,6 @@ import { holdPanel, stepSelection, useMsgShortcuts } from '~/composables/useMsgS
 import { deleteKeyAction, rowStep } from '~/utils/row-keys.mjs'
 import type { useDeleteUndo } from '~/composables/useDeleteUndo'
 import type { SpoolMessage } from '~/types/spool'
-import { useAddToNote } from '~/composables/useAddToNote'
-import { msgNoteLink } from '~/utils/add-to-note.mjs'
 
 type KeyProps = { msg: SpoolMessage, editable?: boolean, clickable?: boolean }
 type KeyEmit = ((e: 'open-topic', msg: SpoolMessage) => void) & ((e: 'deleted', msg: SpoolMessage) => void)
@@ -60,13 +58,6 @@ function shortcutRunOf(a: CardKeyActions): Record<string, () => unknown> {
     'merge-topic': () => a.openMovePicker('merge'), 'promote-topic': a.onPromote, 'hide-flow': a.onMenuHide,
     'make-task': a.onMakeTask,
   }
-}
-
-/* spec 155 B8 (SPL-4578): Shift + N, Add to note, as MessageMenu's item: a
-   topic card (its menu carries the topic locks) adds its topic, any other
-   line the message */
-function noteRunOf(props: KeyProps, menuLocks: Ref<Flags['locks']>, note: ReturnType<typeof useAddToNote>) {
-  return () => note.open(msgNoteLink(props.msg, { topic: Boolean(menuLocks.value), workspace: note.workspace() }))
 }
 
 /* HUM-10 t1 4c5161e3: Shift + R opens this card's menu at the row, the
@@ -141,8 +132,7 @@ export function useCardKeys(deps: CardKeyDeps) {
     emit('open-topic', props.msg)
   }
 
-  const note = useAddToNote()
-  const shortcutRun: Record<string, () => unknown> = { ...shortcutRunOf(actions), 'add-to-note': noteRunOf(props, menuLocks, note) }
+  const shortcutRun = shortcutRunOf(actions)
   useMsgShortcuts({
     row: rowEl,
     busy: () => editing.value || removing.value,
@@ -153,7 +143,6 @@ export function useCardKeys(deps: CardKeyDeps) {
       topicArchive: showTopicArchive.value, paneArchive: paneArchiveReply.value, topicDelete: showTopicDelete.value, kind: kindSettable.value,
       moveChannel: canMoveTopic.value, mergeTopic: canMoveTopic.value, moveTopic: canMoveMsg.value,
       promoteTopic: canPromoteMsg.value, hide: menuHide.value, locks: menuLocks.value, toTask: canMakeTask.value,
-      note: note.offered.value,
     }),
   })
 

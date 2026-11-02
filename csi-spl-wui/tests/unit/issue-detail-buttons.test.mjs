@@ -18,12 +18,11 @@ const comp = src('src/components/IssueDetailActions.vue')
 const ctxMenu = src('src/composables/useIssueCtxMenu.ts')
 const tmpl = page.slice(0, page.indexOf('<script'))
 
-describe('IssueDetailActions: Copy link, Add to note, Archive, Delete, in that order', () => {
-  it('draws the buttons with the menu labels as tooltip and aria-label (spec 155 B8: Add to note before Archive)', () => {
+describe('IssueDetailActions: Copy link, Archive, Delete, in that order', () => {
+  it('draws the three buttons with the menu labels as tooltip and aria-label', () => {
     const ids = [...comp.matchAll(/\{ id: '(\w+)', icon: '(\w+)', labelKey: '([\w.]+)'/g)].map((m) => [m[1], m[2], m[3]])
     assert.deepEqual(ids, [
       ['copy', 'copy', 'issues_menu.copy_link'],
-      ['note', 'notes', 'issues_menu.add_to_note'],
       ['archive', 'archive', 'issues_menu.archive'],
       ['delete', 'delete', 'issues_menu.delete'],
     ])

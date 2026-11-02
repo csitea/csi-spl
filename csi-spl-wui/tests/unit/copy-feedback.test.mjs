@@ -70,12 +70,7 @@ function compileSfc(file, imports) {
 }
 
 const TAP_IMPORT = { '~/composables/useTapAnim': TAP_URL }
-/* spec 155 B8: Add to note, stubbed on (the issue is not handed in, so it draws no button) */
-const NOTE_IMPORTS = {
-  '~/composables/useAddToNote': stub(`import { ref } from '${VUE_URL}'; export const useAddToNote = () => ({ offered: ref(true), probe() {}, open() {}, workspace: () => 't1' })`),
-  '~/utils/add-to-note.mjs': dataUrl(read('src/utils/add-to-note.mjs')),
-}
-const actions = await compileSfc('src/components/IssueDetailActions.vue', { ...TAP_IMPORT, ...NOTE_IMPORTS })
+const actions = await compileSfc('src/components/IssueDetailActions.vue', TAP_IMPORT)
 const strip = await compileSfc('src/components/MobileStatusStrip.vue', { ...STRIP_IMPORTS, ...TAP_IMPORT })
 
 /* ---------- a DOM-less renderer, with what playTapAnim touches ---------- */

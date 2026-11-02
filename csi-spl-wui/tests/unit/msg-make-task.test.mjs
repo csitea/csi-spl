@@ -69,7 +69,7 @@ describe('Shift + X runs Make it a task', () => {
   })
   it('changes no other key', () => {
     const keys = MSG_SHORTCUTS.map((s) => `${s.key}:${s.items.join(',')}`)
-    assert.deepEqual(keys, ['H:hide-flow', 'R:', 'E:edit', 'A:archive', 'O:open', 'P:parent', 'B:', 'U:', 'L:copy', 'C:copy-text', 'N:add-to-note', 'K:kind', 'X:make-task', 'T:promote-topic', 'M:move-channel,move-topic,merge-topic', 'D:delete-topic,delete'])
+    assert.deepEqual(keys, ['H:hide-flow', 'R:', 'E:edit', 'A:archive', 'O:open', 'P:parent', 'B:', 'U:', 'L:copy', 'C:copy-text', 'K:kind', 'X:make-task', 'T:promote-topic', 'M:move-channel,move-topic,merge-topic', 'D:delete-topic,delete'])
   })
 })
 

@@ -13,15 +13,6 @@ const src = (rel) => readFileSync(join(WUI, rel), 'utf8')
 const pathFor = (p) => '/fi' + p
 
 describe('msgMenuItems', () => {
-  it('spec 155 C26 (B8): Add to note when notes are on, after Copy link, desktop and phone', () => {
-    const want = { id: 'add-to-note', icon: 'notes', labelKey: 'feed.msg_menu.add_to_note' }
-    assert.deepEqual(msgMenuItems({ note: true, editable: true }).map((i) => i.id), ['open', 'copy', 'add-to-note', 'edit', 'delete'])
-    assert.deepEqual(msgMenuItems({ note: true, hide: true }).map((i) => i.id), ['open', 'copy', 'hide-flow', 'add-to-note'])
-    for (const touch of [false, true]) {
-      assert.deepEqual(msgMenuItems({ touch, note: true }).find((i) => i.id === 'add-to-note'), want)
-      assert.equal(msgMenuItems({ touch }).some((i) => i.id === 'add-to-note'), false, 'CONTROL: notes off (or unknown to the caller), no entry')
-    }
-  })
   it('t1 5ea2e615: Make an issue only when makeIssue (an owner, a blocker), desktop and phone', () => {
     for (const touch of [false, true]) {
       const on = msgMenuItems({ touch, makeIssue: true }).find((i) => i.id === 'make-issue')

@@ -727,7 +727,7 @@
            643330e5): Copy link / Archive / Delete are separate buttons there,
            no ☰ menu. Desktop only; the phone header carries its own. -->
       <template v-if="!phone && detail && !creating" #tools>
-        <IssueDetailActions :copied="copiedKey === detail.key" :note="detail" @copy="detailCopy" @archive="detailArchive" @delete="detailDelete" />
+        <IssueDetailActions :copied="copiedKey === detail.key" @copy="detailCopy" @archive="detailArchive" @delete="detailDelete" />
       </template>
       <div v-if="form" class="issues-detail-in" data-test="issues-detail" :data-modal="phone ? 'false' : 'true'">
       <header v-if="phone" class="issues-detail__h">
@@ -735,7 +735,7 @@
         <MobileBack class="issues-mback" data-test="issues-detail-back" />
         <span class="issues-key" data-test="issues-detail-key">{{ creating ? t('issues.new') : form.key }}</span>
         <span class="issues-detail__hgap" />
-        <IssueDetailActions v-if="detail && !creating" tap :copied="copiedKey === detail.key" :note="detail" @copy="detailCopy" @archive="detailArchive" @delete="detailDelete" />
+        <IssueDetailActions v-if="detail && !creating" tap :copied="copiedKey === detail.key" @copy="detailCopy" @archive="detailArchive" @delete="detailDelete" />
       </header>
       <!-- CLE-77806 (owner, topic 260d2cbb): two columns above 820 px - the
            left ~70% holds title + description + subtasks + discussion, the right

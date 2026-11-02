@@ -87,13 +87,6 @@ describe('inTypingOrOverlay', () => {
 })
 
 describe('shortcutItem / offeredItems: the menu decides', () => {
-  it('spec 155 C26 (B8): N is in MSG_SHORTCUTS; Shift + N runs Add to note, only while the menu offers it', () => {
-    assert.deepEqual(MSG_SHORTCUTS.find((s) => s.key === 'N'), { key: 'N', items: ['add-to-note'], labelKey: 'feed.msg_menu.add_to_note' })
-    assert.equal(shortcutItem('N', offeredItems({ note: true })), 'add-to-note')
-    assert.equal(shortcutHint('add-to-note'), '⇧N')
-    assert.equal(shortcutItem('N', offeredItems({})), '', 'CONTROL: notes off, the key does nothing')
-    assert.deepEqual(shortcutFor({ key: 'N', shiftKey: true }), { type: 'action', key: 'N' })
-  })
   it('a key runs its item only when the message offers it', () => {
     assert.equal(shortcutItem('E', new Set(['open', 'copy'])), '')
     assert.equal(shortcutItem('E', new Set(['open', 'edit'])), 'edit')

@@ -31,10 +31,7 @@
      here writes /v1/calendar for it.
 
      Copy link (t1 9dec05c3): a stored event's footer copies the link that
-     opens it (useCalendarEventLink).
-     Spec 155 B8 (SPL-4578): beside it, Add to note opens the note picker
-     with the entry (its id and the day it is on), while the person's notes
-     are on; an issue deadline adds that issue. -->
+     opens it (useCalendarEventLink). -->
 <template>
   <UiDialog :open="open" :title="hours ? t('hours_cal.dialog_title', { day: hours.day }) : event ? t('calendar_event.edit_title') : t('calendar_event.new_title')" size="lg" @update:open="emit('update:open', $event)">
     <div v-if="hours" class="cal-dlg cal-dlg--hours" data-test="calendar-event-form" data-mode="hours" :data-type="HOURS_ENTRY_TYPE" :data-day="hours.day">
@@ -245,13 +242,6 @@
           aria-live="polite"
           @click="copyLink(event)"
         >{{ copied ? t(copied) : t('calendar_event.copy_link') }}</button>
-        <button
-          v-if="event && note.offered.value"
-          type="button"
-          class="btn ghost cal-dlg__note"
-          data-test="calendar-event-add-to-note"
-          @click="addToNote(event)"
-        >{{ t('notes.add_to_note') }}</button>
         <span class="cal-dlg__spacer" />
         <button type="button" class="btn ghost" data-test="calendar-event-cancel" :disabled="busy" @click="emit('update:open', false)">{{ t('common.cancel') }}</button>
         <button type="submit" :form="formId" class="btn" data-test="calendar-event-save" :disabled="busy || !form.title.trim()">{{ busy ? t('calendar_event.saving') : t('calendar_event.save') }}</button>
@@ -278,9 +268,6 @@ import { useRosterStore } from '~/stores/roster'
 import { withSessionRetry } from '~/utils/live-follow.mjs'
 import { HOURS_ENTRY_TYPE } from '~/utils/hours-calendar.mjs'
 import { useCalendarEventLink } from '~/composables/useCalendarEventLink'
-import { useAddToNote } from '~/composables/useAddToNote'
-import { eventNoteLink } from '~/utils/add-to-note.mjs'
-import { calEventDay } from '~/utils/calendar-drag.mjs'
 import type { CalHoursEntry } from '~/composables/useCalendarHours'
 
 const props = defineProps<{
@@ -299,11 +286,6 @@ const props = defineProps<{
 const emit = defineEmits<{ 'update:open': [boolean], saved: [CalendarItem], deleted: [CalendarItem] }>()
 const { t } = useI18n({ useScope: 'global' })
 const { copied, copyLink } = useCalendarEventLink()
-const note = useAddToNote()
-watch(() => props.open && Boolean(props.event), (on) => { if (on) note.probe() }, { immediate: true })
-function addToNote(ev: CalendarItem) {
-  note.open(eventNoteLink(ev, note.workspace(), ev.starts_at ? calEventDay(ev) : ''))
-}
 const api = useSpoolApi()
 const live = useLive()
 const access = useAccessStore()

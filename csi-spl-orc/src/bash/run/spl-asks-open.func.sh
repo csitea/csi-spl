@@ -1,4 +1,5 @@
 #!/bin/bash
+#------------------------------------------------------------------------------
 # @description The open asks to the orchestrator, oldest first (CLE-77929,
 # @description owner bug t1 #spool-hub-bugs 2f7996aa; SPEC-spool-fleet-roles.md
 # @description 4.3). An ask is a blocker or task sent to the orchestrator (or any
@@ -26,6 +27,7 @@
 # @param SPOOL_ROOT (optional) - default /var/spool-hub; the journal is <root>/asks
 # @example ./run -a do_spl_asks_open
 # @example ASKS_ALL=1 ASKS_FORMAT=json ./run -a do_spl_asks_open
+#------------------------------------------------------------------------------
 # spl_role_seat: the role seat ids in their live vendor letter (SPL-1695)
 declare -F spl_role_seat >/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../features/spawn-agents/lib/spool-env.inc.sh"
 

@@ -55,6 +55,8 @@
 #  15. the book's cost: on 300 asks open / ack / close / orch_inbox each run
 #      at most 40 jq (CONTROL: the per-file fallback runs > 300); one changed
 #      hub row mirrors exactly that row
+#  16. the two ask actions' header ends at its closing #--- (r46-02): the
+#      "# spl_role_seat:" comment below it is in no parsed tag line
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -776,6 +778,14 @@ c="$(wc -l <"$T/jq.count")"
   pass "CONTROL: a broken journal file falls back to a jq per file ($c jq, the counter sees per-row forks) and is skipped (300 listed)" ||
   fail "perf control: n=$n jq=$c"
 rm -f "$T/perf/spool/asks/00000000-0000-4000-8000-000000000000.json"
+
+# --- 16. the header closer: without it the comment below joins the last example=
+for f in spl-asks-open spl-asks-tick; do
+  meta="$(source "$PROJ_ROOT/lib/bash/funcs/parse-metadata.func.sh"; do_parse_metadata "$PROJ_ROOT/src/bash/run/$f.func.sh")"
+  [[ $'\n'"$meta" == *$'\n'example=* && "$meta" != *spl_role_seat* ]] &&
+    pass "$f: the parsed header has its example= and no spl_role_seat text" ||
+    fail "$f: no example= or the comment below the closing #--- was read (is the closer gone?): $(grep -m1 spl_role_seat <<<"$meta")"
+done
 
 echo
 if (( fails > 0 )); then echo "asks.tst.sh: $fails FAILED"; exit 1; fi

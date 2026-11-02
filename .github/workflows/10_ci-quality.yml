@@ -118,6 +118,14 @@ on:
           run-e2e-tests.mjs), space-separated; for a runner whose fonts differ.
         type: string
         default: ""
+      private_overlay_optional:
+        description: >-
+          true: the caller holds no secret (wf 11, a branch dispatch included),
+          so the hygiene sweep warns "NOT swept" instead of failing on the
+          missing private overlay. Default false: a caller with
+          `secrets: inherit` (wf 13) stays required, as a run of this file is.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -944,6 +952,23 @@ jobs:
         with:
           path: csi/csi-spl
 
+      # A checkout of any other ref holds no origin/master (fetch-depth 1, its
+      # own ref only), and spl-spawn-place-supply then SKIPs its noon-bytes
+      # comparison, which "Nothing skipped" below fails: every branch dispatch
+      # of wf 10 and 11 was red on 2/3 (runs 41518676090, 41517125175). So the
+      # comparison runs here too; a failed fetch fails the job, never a skip.
+      # A master run already has the ref, at its own sha.
+      - name: origin/master beside a branch checkout (the noon-bytes comparison)
+        if: ${{ github.ref != 'refs/heads/master' }}
+        run: |
+          set -uo pipefail
+          for try in 1 2 3; do
+            git fetch --no-tags --depth=1 origin +refs/heads/master:refs/remotes/origin/master && exit 0
+            sleep "$try"
+          done
+          echo "::error::no origin/master after 3 fetches -- the noon-bytes comparison cannot run"
+          exit 1
+
       # The tests' go builds (100-380 MB go-build work dirs each) and mktemp
       # fixtures go to the job's disk, not the box's shared /tmp tmpfs (see
       # hub-suite).
@@ -1386,7 +1411,7 @@ jobs:
       - name: Sweep
         env:
           SPL_PRIVATE_CNF_YAML: ${{ secrets.SPL_PRIVATE_CNF_YAML }}
-          SPL_PRIVATE_REQUIRED: ${{ github.repository == 'csitea/csi-spl' && github.event_name != 'pull_request' && '1' || '0' }}
+          SPL_PRIVATE_REQUIRED: ${{ github.repository == 'csitea/csi-spl' && github.event_name != 'pull_request' && !inputs.private_overlay_optional && '1' || '0' }}
         run: |
           set -uo pipefail
           excl=(--exclude=CLAUDE.md --exclude=GEMINI.md --exclude=AGENTS.md

@@ -43,3 +43,8 @@ jobs:
       # the self-hosted box it is one. Its other 60+ checks are
       # font-independent and run on every push. (CLE-77915)
       e2e_skip: card-edge-inset.test.mjs
+      # No secret here (see the header), on a branch dispatch as on a pull
+      # request: the hygiene sweep warns "hidden workspaces NOT swept" instead
+      # of failing. 5 of 5 dispatches were red on it (41523871642 ..). A run of
+      # 10 itself and wf 13 hold the secret and stay required.
+      private_overlay_optional: true

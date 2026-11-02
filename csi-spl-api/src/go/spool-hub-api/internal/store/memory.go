@@ -293,6 +293,19 @@ func (s *Memory) GetPin(_ context.Context, tenant, box string) (ed25519.PublicKe
 	return p.pub, nil
 }
 
+// PinHistoryKeys implements Store.
+func (s *Memory) PinHistoryKeys(_ context.Context, tenant, box string) ([]ed25519.PublicKey, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []ed25519.PublicKey
+	for _, h := range s.history {
+		if h.tenant == tenant && h.box == box && !slices.ContainsFunc(out, func(k ed25519.PublicKey) bool { return k.Equal(h.pub) }) {
+			out = append(out, h.pub)
+		}
+	}
+	return out, nil
+}
+
 func (s *Memory) ListPins(_ context.Context, tenant string) ([]Pin, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

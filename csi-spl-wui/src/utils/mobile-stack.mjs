@@ -359,7 +359,7 @@ export function mobileOverlayCloseStep(open, id, current) {
  * the front door and steps back once more. A deliberate visit (typed, a link,
  * a reload) is not a history step, so it still shows the page.
  */
-const MOBILE_LOGIN_PATH = /^(\/[a-z]{2}(-[A-Za-z]{2,4})?)?\/login\/?$/
+export const MOBILE_LOGIN_PATH = /^(\/[a-z]{2}(-[A-Za-z]{2,4})?)?\/login\/?$/
 
 /**
  * True when a history step onto `path` must not paint the sign-in page:

@@ -39,7 +39,9 @@
 // CI load (SPL-2817): CPU_THROTTLE=6, or HOLD_CHUNK=<TopicPane chunk>:1000
 // (the generated name: grep -l topic-pane-close .output/public/_nuxt/*.js)
 //
-// One more cell, always run: `detached` (SPL-4624). The node under the finger
+// Two more cells, always run (SPL-4624). `no-bfcache`: a login cell with bfcache
+// off, as when Chrome evicts a page: Back onto /login reloads it and the card
+// must not paint (stale-login-hide-script.mjs). `detached`: The node under the finger
 // leaves the DOM mid-swipe, as TopicPaneWait does when TopicPane replaces it:
 // touchend fires on the detached node, and the swipe must still step Back.
 //
@@ -120,9 +122,14 @@ async function launch() {
 /* Before any app code, on every document of the tab: a signed-in mock member,
    and a watch that records the sign-in page if it is ever painted. */
 function boot(member) {
-  try { localStorage.setItem('spool.mock.session', JSON.stringify(member)) } catch { /* private mode */ }
+  try {
+    localStorage.setItem('spool.mock.session', JSON.stringify(member))
+    /* the mock session skips what a real sign-in writes (plugins/session-recover.client.ts) */
+    localStorage.setItem('spool.was-signed-in', '1')
+  } catch { /* private mode */ }
   const mark = () => {
-    if (!document.querySelector('.login-landing-card')) return
+    const card = document.querySelector('.login-landing-card')
+    if (!card || getComputedStyle(card).visibility === 'hidden') return
     try { sessionStorage.setItem('e2e.loginPainted', location.pathname) } catch { /* */ }
   }
   new MutationObserver(mark).observe(document, { childList: true, subtree: true })
@@ -139,7 +146,7 @@ const state = (p) => p.evaluate(() => {
   return {
     level: Number(document.querySelector('.spool-shell')?.getAttribute('data-mobile-level') || 0),
     path: location.protocol === 'about:' ? 'about:blank' : location.pathname + location.search,
-    login: /(^|\/)login\/?$/.test(location.pathname) || Boolean(document.querySelector('.login-landing-card')),
+    login: getComputedStyle(document.documentElement).visibility !== 'hidden' && (/(^|\/)login\/?$/.test(location.pathname) || Boolean(document.querySelector('.login-landing-card'))),
     painted,
     menu: vis('[data-test=user-menu-panel]'),
   }
@@ -231,7 +238,7 @@ async function enter(p, base, entry) {
 }
 
 /** One cell: a fresh tab in its own context, the entry, then Back to the start of history. */
-async function cell(browser, base, width, entry, method) {
+async function cell(browser, base, width, entry, method, noBfcache = false) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
   p.setDefaultNavigationTimeout(NAV_TIMEOUT)
@@ -240,6 +247,8 @@ async function cell(browser, base, width, entry, method) {
   try {
     await p.setViewport({ width, height: SIZES[width], isMobile: true, hasTouch: true })
     await p.evaluateOnNewDocument(boot, MEMBER)
+    /* an unload handler keeps a document out of bfcache */
+    if (noBfcache) await p.evaluateOnNewDocument(() => addEventListener('unload', () => {}))
     await slowDown(p)
     const want = entry === 'channel' ? 2 : 3
     const start = await enter(p, base, entry)
@@ -347,6 +356,8 @@ try {
   await Promise.all(Array.from({ length: Math.min(CELL_JOBS, todo.length) }, worker))
   const d = await detachedCell(browser, srv.base)
   cells.push({ entry: 'topic', method: 'detached', verdict: d.fails.length ? 'FAIL' : 'OK', ...d })
+  const nb = await cell(browser, srv.base, 360, 'login', 'chevron', true)
+  cells.push({ width: 360, entry: 'login', method: 'no-bfcache', verdict: nb.fails.length ? 'FAIL' : 'OK', ...nb })
   for (const c of cells) {
     console.log(`  ${c.verdict.padEnd(9)} ${c.width} ${c.entry.padEnd(7)} ${c.method.padEnd(7)} ${c.steps.join('>')}${c.fails.length ? '  ' + c.fails.join('; ') : ''}`)
   }
@@ -369,7 +380,7 @@ console.log('red* = known red by design, see KNOWN_RED (deep-link browser Back: 
 const n = (v) => cells.filter((c) => c.verdict === v).length
 const failed = cells.filter((c) => c.verdict === 'FAIL' || c.verdict === 'XPASS')
 console.log(`\nphone-back-matrix: ${n('OK')}/${cells.length} passed, ${n('KNOWN-RED')} known red, ${failed.length} failed`)
-if (cells.length === 1) {
+if (!todo.length) {
   console.log('  FAILED: no cell selected')
   process.exit(1)
 }

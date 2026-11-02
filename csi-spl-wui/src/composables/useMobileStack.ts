@@ -246,6 +246,8 @@ function guardStaleLogin() {
     if (s === 'loading') return
     stop()
     if (stale()) leaveStaleLogin(window.history.state, true)
+    /* SPL-4624: utils/stale-login-hide-script.mjs hid it on a stale hint */
+    else document.documentElement.style.visibility = ''
   }, { immediate: true })
 }
 

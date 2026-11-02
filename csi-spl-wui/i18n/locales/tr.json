@@ -2148,7 +2148,7 @@
     "filter_all": "Tümü",
     "filter_workspace": "Bu çalışma alanında",
     "add_contact": "Rehbere ekle",
-    "contact_tag": "rehber"
+    "contact_tag": "rehberde"
   },
   "contacts": {
     "group": "Rehber",
@@ -2170,8 +2170,8 @@
     "not_found": "Bu rehber kaydı yok veya bu çalışma alanında kullanılamıyor.",
     "in_your_contacts": "Rehberinizde",
     "error_contact_empty": "Bir ad, bir e-posta veya bir telefon girin.",
-    "error_bad_email": "Bu e-posta bir adres değil.",
-    "error_bad_phone": "Bu telefon bir telefon numarası değil."
+    "error_bad_email": "Bu bir e-posta adresi değil.",
+    "error_bad_phone": "Bu bir telefon numarası değil."
   },
   "activity": {
     "title": "Etkinlik günlüğü",

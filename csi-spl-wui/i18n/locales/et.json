@@ -2170,8 +2170,8 @@
     "not_found": "Seda kontakti pole olemas või see ei ole selles tööruumis saadaval.",
     "in_your_contacts": "Sinu kontaktides",
     "error_contact_empty": "Sisesta nimi, e-post või telefon.",
-    "error_bad_email": "See e-post ei ole aadress.",
-    "error_bad_phone": "See telefon ei ole telefoninumber."
+    "error_bad_email": "See ei ole e-posti aadress.",
+    "error_bad_phone": "See ei ole telefoninumber."
   },
   "activity": {
     "title": "Tegevuslogi",

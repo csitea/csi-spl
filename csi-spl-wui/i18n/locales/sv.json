@@ -2170,8 +2170,8 @@
     "not_found": "Den här kontakten finns inte eller är inte tillgänglig i den här arbetsytan.",
     "in_your_contacts": "I dina kontakter",
     "error_contact_empty": "Ange ett namn, en e-postadress eller ett telefonnummer.",
-    "error_bad_email": "Den e-posten är inte en adress.",
-    "error_bad_phone": "Den telefonen är inte ett telefonnummer."
+    "error_bad_email": "Det är inte en e-postadress.",
+    "error_bad_phone": "Det är inte ett telefonnummer."
   },
   "activity": {
     "title": "Aktivitetslogg",

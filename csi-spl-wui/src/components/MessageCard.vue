@@ -103,6 +103,14 @@
           <AgentBadge :id="recipient.id" :box="recipient.box || undefined" />
         </template>
         <KindBadge :kind="String(msg.kind)" :msg="msg" />
+        <!-- spec 150 B8: the topic's priority when it is not the default 3 -->
+        <span
+          v-if="prioBadge"
+          class="msg-prio"
+          data-testid="topic-priority-badge"
+          :data-priority="priority"
+          :title="t('topic.priority.label')"
+        >{{ t('topic.priority.badge', { n: priority }) }}</span>
         <!-- spec 068 L8: the seat that must deal with it; nothing while nobody is -->
         <span
           v-if="msg.responsible"
@@ -497,6 +505,9 @@ import { useCardMove, useCardMoveFlags } from '~/composables/useCardMove'
 import { useCardTouchLift } from '~/composables/useCardTouchLift'
 import { useCardClick, useCardRowPointer } from '~/composables/useCardPointer'
 import { useCardKeys } from '~/composables/useCardKeys'
+import { useSpoolApi } from '~/composables/useSpoolApi'
+import { useChannelStore } from '~/stores/channel'
+import { TOPIC_PRIORITY_DEFAULT, topicPriority } from '~/utils/topic-list-order.mjs'
 
 import type { FileRef, ReactionUpdate, SpoolMessage } from '~/types/spool'
 
@@ -601,6 +612,21 @@ const counts = computed(() => topicCounts(count.value, Number(props.unread) || 0
 const unreadCount = computed(() => counts.value.unseen)
 const total = computed(() => counts.value.total)
 const edited = computed(() => isEdited(props.msg))
+/* spec 150 B8 (panel D11): a topic's opening card shows its priority as a
+   small badge, never the default 3. The client's last value for the topic
+   (a list or topic read, a set, a live frame: topicPriorityOf, B7) first,
+   else the hub's on the channel's topic totals (channel.priorityFor, B6). */
+const prioApi = useSpoolApi()
+const prioChannel = useChannelStore()
+const prioNoted = ref(0)
+const offPrio = prioApi.onTopicPriority((id) => { if (id === String(props.msg.task_id || '')) prioNoted.value++ })
+onUnmounted(offPrio)
+const priority = computed(() => {
+  void prioNoted.value
+  const id = String(props.msg.task_id || '')
+  return id ? topicPriority(prioApi.topicPriorityOf(id) ?? prioChannel.priorityFor(id)) : TOPIC_PRIORITY_DEFAULT
+})
+const prioBadge = computed(() => props.msg.is_parent !== 0 && priority.value !== TOPIC_PRIORITY_DEFAULT)
 
 /* the template refs: the row, the edit box, and the clip box with its content */
 const rowEl = ref<HTMLElement | null>(null)
@@ -754,6 +780,16 @@ onMounted(() => {
 .avatar--to { align-self: center; }
 /* spec 067: the DM-ref line is the moved line, its link in the same muted ink */
 .msg-dm-ref a { color: inherit; }
+/* spec 150 B8: the priority badge, the same small outlined tag as "via terminal" */
+.msg-prio {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0 4px;
+}
 /* spec 068 L8: the responsible seat gives way like the time (ellipsis, title) */
 .msg-responsible {
   flex: 0 1 auto;

@@ -2,6 +2,8 @@ package hub
 
 import (
 	"context"
+	"crypto/ed25519"
+	"errors"
 	"slices"
 	"time"
 
@@ -38,6 +40,15 @@ import (
 // operator path (do_spl_channel_agent_add_op) wrote straight into the table.
 // A box whose client did not say FeatureBackfill in its hello is skipped and
 // its seats stay pending, so an upgraded client still gets them.
+//
+// What is withheld (spec 169 T4c): a row whose signature fails against its
+// from_box's live pin here. A row moved from another workspace keeps the key
+// that signed it, and rdb 0154 lets a box key be live in one workspace only, so
+// the same-named box here holds another key. The box would refuse the frame,
+// and it sends no commit for a back-fill, so nothing would ever tell the agent.
+// The hub sends the row no further and backfill_end says how many. Box-wui rows
+// are not checked (the hub's own key), and a from_box with no live pin goes to
+// the box as before: the box's own pin decides.
 //
 // A human invite needs none of this: people read the channel itself.
 
@@ -80,15 +91,46 @@ func (s *Server) backfillBox(ctx context.Context, tenant, box string) {
 		return
 	}
 	s.relayDue.backfills.ok(&s.o.Log, "pending back-fills", tenant, box)
+	pins := newBackfillPins(func(from string) (ed25519.PublicKey, error) { return s.o.Store.GetPin(ctx, tenant, from) })
 	for _, seat := range seats {
-		s.backfillSeat(ctx, bf, x, seat)
+		s.backfillSeat(ctx, bf, x, seat, pins)
 	}
+}
+
+// backfillPins answers "does this row fail against its box's pin here" for one
+// backfillBox run, reading each from_box's pin once: this is the one read path
+// where the hub verifies a stored signature.
+type backfillPins struct {
+	get  func(box string) (ed25519.PublicKey, error)
+	keys map[string]ed25519.PublicKey // nil value = no live pin
+}
+
+func newBackfillPins(get func(box string) (ed25519.PublicKey, error)) *backfillPins {
+	return &backfillPins{get: get, keys: map[string]ed25519.PublicKey{}}
+}
+
+// withheld reports whether raw is signed by a key its from_box's live pin
+// proves wrong. An error is a failed pin read: the caller leaves the seat
+// pending, as for a lock read (fail closed).
+func (p *backfillPins) withheld(raw []byte) (bool, error) {
+	e, err := wire.ParseEnvelope(raw)
+	if err != nil || e.FromBox == WUIBox {
+		return false, nil
+	}
+	pub, seen := p.keys[e.FromBox]
+	if !seen {
+		if pub, err = p.get(e.FromBox); err != nil && !errors.Is(err, store.ErrNotFound) {
+			return false, err
+		}
+		p.keys[e.FromBox] = pub
+	}
+	return pub != nil && e.Verify(pub) != nil, nil
 }
 
 // backfillSeat sends one seat's back-fill on x and stamps it. A write that
 // fails leaves the seat pending: the box's next hello runs it again, and the
 // box's inbox keeps a copy it already has (DeliverTo is idempotent per file).
-func (s *Server) backfillSeat(ctx context.Context, bf store.Backfills, x *session, seat store.BackfillSeat) {
+func (s *Server) backfillSeat(ctx context.Context, bf store.Backfills, x *session, seat store.BackfillSeat, pins *backfillPins) {
 	key := [4]string{x.tenant, seat.Channel, seat.Box, seat.Agent}
 	if _, busy := s.backfilling.LoadOrStore(key, struct{}{}); busy {
 		return
@@ -109,9 +151,19 @@ func (s *Server) backfillSeat(ctx context.Context, bf store.Backfills, x *sessio
 		log.Error().Err(err).Msg("back-fill read")
 		return
 	}
-	n, topics, newest := 0, map[string]bool{}, store.BackfillMsg{}
+	n, topics, newest, withheld, newestHeld := 0, map[string]bool{}, store.BackfillMsg{}, 0, store.BackfillMsg{}
 	for _, r := range rows {
 		if !s.backfillable(x, seat, r, lock) {
+			continue
+		}
+		held, err := pins.withheld(r.Env)
+		if err != nil {
+			log.Error().Err(err).Msg("back-fill pin read; the seat stays pending")
+			return
+		}
+		if held {
+			withheld++
+			newestHeld = r
 			continue
 		}
 		f := wire.Frame{Type: wire.TRecv, Env: r.Env, Agents: []string{seat.Agent}, Backfill: seat.Channel}
@@ -123,9 +175,13 @@ func (s *Server) backfillSeat(ctx context.Context, bf store.Backfills, x *sessio
 		topics[r.TaskID] = true
 		newest = r
 	}
-	if n > 0 {
+	if n > 0 || withheld > 0 {
+		if n == 0 { // the summary still needs an author and a topic to point at
+			newest = newestHeld
+		}
 		end := wire.Frame{Type: wire.TBackfillEnd, Backfill: seat.Channel, Agents: []string{seat.Agent},
-			Count: n, Topics: len(topics), From: newest.FromID, TaskID: newest.TaskID, MsgID: newest.MsgID}
+			Count: n, Topics: len(topics), From: newest.FromID, TaskID: newest.TaskID, MsgID: newest.MsgID,
+			Withheld: withheld, WithheldTask: newestHeld.TaskID}
 		if err := x.write(ctx, end); err != nil {
 			log.Warn().Err(err).Int("sent", n).Msg("back-fill end not written; the seat stays pending")
 			return
@@ -135,7 +191,7 @@ func (s *Server) backfillSeat(ctx context.Context, bf store.Backfills, x *sessio
 		log.Error().Err(err).Msg("back-fill not stamped")
 		return
 	}
-	log.Info().Int("messages", n).Int("topics", len(topics)).Msg("channel agent back-filled")
+	log.Info().Int("messages", n).Int("topics", len(topics)).Int("withheld", withheld).Msg("channel agent back-filled")
 }
 
 // backfillable: a row the box will accept and the agent should read - signed,

@@ -4,17 +4,17 @@ import { ISSUE_STATUSES, type EpicSummary, type Issue, type IssueFilter } from '
 import { isNewIssue } from '~/utils/my-issues-count.mjs'
 import { type IssuesView } from '~/utils/view-prefs.mjs'
 import { controlLabel, groupIssues, hubOrder, localInputToDeadline, nextSort, sortDirKey, sortFromQuery, sortSheet } from '~/utils/issues-view.mjs'
-import { currentQuery } from '~/composables/useIssueOpen'
 import type { IssueMenuTarget } from '~/composables/useIssueMenu'
 import { useViewPrefs } from '~/composables/useViewPrefs'
 import { useIssueUnreadOrder } from '~/composables/useIssueUnreadOrder'
+import { useIssueListUrl } from '~/composables/useIssueListUrl'
 
 /**
  * The Issues page's filter and sort state: the filter row, the phone's
- * filter and sort sheets, ?sort=&dir=, ?unread=1 and ?epic=, and the filter
- * the hub reads, and the rows the sheet shows from them (the view, the
- * status groups and their folds). Moved out of pages/issues.vue (r15-01); a
- * change of any filter or of the sort calls `reload`.
+ * filter and sort sheets, ?epic=, and the filter the hub reads, and the rows
+ * the sheet shows from them (the view, the status groups and their folds). The
+ * other parameters: composables/useIssueListUrl. Moved out of pages/issues.vue
+ * (r15-01); a change of any filter or of the sort calls `reload`.
  */
 export type IssueSortState = { col: string, dir: string }
 export type IssueFiltersOpts = {
@@ -24,6 +24,10 @@ export type IssueFiltersOpts = {
   /* the person's per-tenant default sort (issues_sort claim, SPL-1181) */
   storedSort: () => IssueSortState | null | undefined
   people: () => { id: string }[]
+  /* the roster has answered, so an id it does not hold is no one here */
+  peopleKnown: () => boolean
+  /* the list's stored choices are readable (useIssueListUrl) */
+  storedKnown: () => boolean
   person: (id: string) => string
   epics: Ref<EpicSummary[]>
   reload: () => void
@@ -38,29 +42,10 @@ export type IssueFiltersOpts = {
    header click; the sort lives in ?sort=&dir=. With no ?sort= the list opens
    with the person's PER-TENANT default (issues_sort claim, SPL-1181), else the
    product default (priority ascending, applied by sortSheet/hubOrder). */
-function initialSort(o: IssueFiltersOpts): IssueSortState {
-  const q = sortFromQuery(o.route.query as Record<string, unknown>)
-  if (q.col) return q
+function storedSheetSort(o: IssueFiltersOpts): IssueSortState {
   const stored = o.storedSort()
   if (stored && stored.col && stored.dir) return sortFromQuery({ sort: stored.col, dir: stored.dir })
   return { col: '', dir: '' }
-}
-
-/* t1 27b3ab77: ?unread=1, the issues the Issues tab badge counts (a tap on
-   the badge opens the list with it on); the query follows the filter, and
-   the badge's link sets the filter */
-function useUnreadFilter(o: IssueFiltersOpts) {
-  const unreadOn = () => String(o.route.query.unread || '') === '1'
-  const unreadF = ref(unreadOn())
-  watch(() => o.route.query.unread, () => { unreadF.value = unreadOn() })
-  watch(unreadF, (on) => {
-    if (!import.meta.client || on === unreadOn()) return
-    const query = currentQuery()
-    if (on) query.unread = '1'
-    else delete query.unread
-    void o.router.replace({ query })
-  })
-  return unreadF
 }
 
 function useEpicFilter(o: IssueFiltersOpts) {
@@ -87,19 +72,12 @@ function useEpicFilter(o: IssueFiltersOpts) {
   function epicTitleOf(key: string) {
     return o.epics.value.find((x) => x.key === key)?.title || key
   }
-  /* an epic chip is the side panel's epic row: ?epic= on the same entry */
-  function pickEpic(key: string) {
-    const query = currentQuery()
-    if (key) query.epic = key
-    else delete query.epic
-    void o.router.replace({ query })
-  }
-  return { epicF, epicTitle, selectedEpic, epicLabel, epicTitleOf, pickEpic }
+  return { epicF, epicTitle, selectedEpic, epicLabel, epicTitleOf }
 }
 
 function useSheetSort(o: IssueFiltersOpts) {
   const { t } = o
-  const sheetSort = ref<IssueSortState>(initialSort(o))
+  const sheetSort = ref<IssueSortState>({ col: '', dir: '' })
   const sortOpen = ref(false)
   const sheetColumns = computed(() => [
     { col: 'key', name: t('issues_view.col_key'), cls: 'issues-c-key' },
@@ -118,13 +96,6 @@ function useSheetSort(o: IssueFiltersOpts) {
   function toggleSort(col: string) {
     sheetSort.value = nextSort(col, sheetSort.value)
   }
-  watch(sheetSort, (v) => {
-    if (!import.meta.client) return
-    const url = new URL(window.location.href)
-    if (v.col) { url.searchParams.set('sort', v.col); url.searchParams.set('dir', v.dir) }
-    else { url.searchParams.delete('sort'); url.searchParams.delete('dir') }
-    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
-  })
   /* SPL-1596 (owner, t1 27b3ab77): each column once; the direction is said in
      words ("Deadline, oldest first") and flipped by Reverse, never listed twice */
   const sortChoices = computed(() => [
@@ -170,42 +141,45 @@ function useAssigneeChoices(o: IssueFiltersOpts, assigneeF: Ref<string>) {
 
 /* folded status groups: a per-browser convenience (localStorage), not a hub setting */
 const FOLD_KEY = 'spool.issues-folded'
+function storedFolds(): string[] {
+  if (!import.meta.client) return []
+  try {
+    const raw = JSON.parse(localStorage.getItem(FOLD_KEY) || '[]')
+    if (Array.isArray(raw)) return raw.filter((x): x is string => typeof x === 'string' && (ISSUE_STATUSES as readonly string[]).includes(x))
+  } catch { /* none folded */ }
+  return []
+}
 function useFolds() {
   const folded = ref<string[]>([])
   function toggleFold(status: string) {
     folded.value = folded.value.includes(status) ? folded.value.filter((s) => s !== status) : [...folded.value, status]
     try { localStorage.setItem(FOLD_KEY, JSON.stringify(folded.value)) } catch { /* private window: this visit only */ }
   }
-  onMounted(() => {
-    try {
-      const raw = JSON.parse(localStorage.getItem(FOLD_KEY) || '[]')
-      if (Array.isArray(raw)) folded.value = raw.filter((x): x is string => typeof x === 'string' && (ISSUE_STATUSES as readonly string[]).includes(x))
-    } catch { /* none folded */ }
-  })
   return { folded, toggleFold }
 }
 
-/* SPL-1028: the view. Signed in it is the person's (session claim, rdb 0072);
-   signed out (the mock tenant) a click still switches this page. Phones keep
+/* SPL-1028: the view. ?view= says it (SPL-4648); else, signed in, it is the
+   person's (session claim, rdb 0072), which a click also saves. Phones keep
    the card list (SPL-992). */
 function useIssueView(o: IssueFiltersOpts) {
   const viewPrefs = useViewPrefs()
-  const viewLocal = ref<IssuesView | ''>('')
+  const viewNamed = ref<IssuesView | ''>('')
+  const storedView = (): IssuesView => (o.signedIn() ? viewPrefs.issuesView.value : 'list')
   const viewBy = computed<IssuesView>(() => {
     if (o.phone.value) return 'list'
-    return o.signedIn() ? viewPrefs.issuesView.value : (viewLocal.value || 'list')
+    return viewNamed.value || storedView()
   })
   async function pickView(v: IssuesView) {
-    if (o.signedIn()) { await viewPrefs.save('issues_view', v); return }
-    viewLocal.value = v
+    viewNamed.value = v
+    if (o.signedIn()) await viewPrefs.save('issues_view', v)
   }
-  return { viewBy, pickView }
+  return { viewNamed, storedView, viewBy, pickView }
 }
 
 /* the rows the sheet shows: the filters, then the sort, then the view's groups */
 function useIssueRows(o: IssueFiltersOpts, f: { unreadF: Ref<boolean>, sheetSort: Ref<IssueSortState>, serverFilter: () => IssueFilter }) {
   const unreadIssues = useIssueUnreadOrder() /* SPL-2506: unread issues at the edge new posts go to */
-  const { viewBy, pickView } = useIssueView(o)
+  const { viewNamed, storedView, viewBy, pickView } = useIssueView(o)
   const { folded, toggleFold } = useFolds()
   const groups = computed(() => {
     const base = f.unreadF.value ? o.issues.value.filter(isNewIssue) : o.issues.value
@@ -224,14 +198,15 @@ function useIssueRows(o: IssueFiltersOpts, f: { unreadF: Ref<boolean>, sheetSort
   const shownGroups = computed(() => (rowCount.value || viewBy.value === 'status' ? groups.value : []))
   /* J / K walk the rows in the order the sheet shows them */
   const flat = computed(() => groups.value.flatMap((g) => (g.status && folded.value.includes(g.status) ? [] : g.issues)))
-  return { viewBy, pickView, folded, toggleFold, groups, rowCount, shownGroups, flat }
+  return { viewNamed, storedView, viewBy, pickView, folded, toggleFold, groups, rowCount, shownGroups, flat }
 }
 
 export function useIssueFilters(o: IssueFiltersOpts) {
   const sort = useSheetSort(o)
   const epic = useEpicFilter(o)
   const { epicF } = epic
-  const unreadF = useUnreadFilter(o)
+  /* t1 27b3ab77: ?unread=1, the issues the Issues tab badge counts */
+  const unreadF = ref(false)
   const statusF = ref('')
   const statusOpen = ref(false)
   const priorityF = ref('')
@@ -273,9 +248,28 @@ export function useIssueFilters(o: IssueFiltersOpts) {
     labelF.value = ''
     dueF.value = ''
   }
+  const rows = useIssueRows(o, { unreadF, sheetSort: sort.sheetSort, serverFilter })
+  const assignee = useAssigneeChoices(o, assigneeF)
+  /* an epic chip is the side panel's epic row: ?epic= on the same entry */
+  const { setEpic: pickEpic } = useIssueListUrl({
+    route: o.route, router: o.router, known: o.storedKnown, meId: o.meId,
+    state: { view: rows.viewNamed, sort: sort.sheetSort, unread: unreadF, status: statusF, priority: priorityF, level: levelF, assignee: assigneeF, label: labelF, deadline: dueF, folded: rows.folded },
+    stored: { view: rows.storedView, sort: () => storedSheetSort(o), fold: storedFolds },
+  })
+  /* SPL-4648: what the URL names and this workspace does not hold is ignored,
+     as if it was never named (a label id, an epic key, a person) */
+  function forgetUnknown(labelIds: string[]) {
+    if (labelF.value && !labelIds.includes(labelF.value)) labelF.value = ''
+    if (epicF.value && !o.epics.value.some((e) => e.key === epicF.value)) pickEpic('')
+  }
+  watch([o.peopleKnown, assigneeF, o.issues], () => {
+    const v = assigneeF.value
+    if (!v || v === 'me' || v === 'none' || !o.peopleKnown()) return
+    if (!assignee.assigneeOptions.value.some((p) => p.id === v) && !o.issues.value.some((i) => i.assignee === v)) assigneeF.value = ''
+  }, { immediate: true })
   watch([...filterRefs, sort.serverOrderKey], () => { o.reload() })
   return {
-    ...sort, ...epic, ...useAssigneeChoices(o, assigneeF), ...useIssueRows(o, { unreadF, sheetSort: sort.sheetSort, serverFilter }),
+    ...sort, ...epic, ...assignee, ...rows, pickEpic, forgetUnknown,
     unreadF, statusF, statusOpen, priorityF, levelF, assigneeF, labelF, dueF,
     filtersOpen, filterRefs, filtersActive, serverFilter, pickStatus, clearFilters,
   }

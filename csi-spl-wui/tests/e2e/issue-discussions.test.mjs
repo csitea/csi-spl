@@ -125,7 +125,7 @@ try {
     if (gone) await p.click('[data-test=discussion-gone-close]')
     const shut = gone ? await p.waitForSelector('[data-test=discussion-gone]', { hidden: true, timeout: 5000 }).then(() => true).catch(() => false) : false
     ok(`3 ${W}: a click on the deleted discussion opens the "no longer exists" note in place, Close shuts it`,
-      clickedGone && gone && /\/issues\?issue=SPL-1$/.test(where) && shut, { where, shut })
+      clickedGone && gone && /^\/issues\?(.*&)?issue=SPL-1(&|$)/.test(where) && shut, { where, shut })
 
     if (W > 820) {
       await p.goto(server.base + '/issues', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })

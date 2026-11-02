@@ -384,6 +384,11 @@ export const MOCK_ISSUES_NEW_KEY = 'spool.mock.issues-new'
 const MOCK_TEAMMATE = 'HUM-2'
 /** localStorage key (SPL-2120): how many issues an AI agent filed the mock tenant starts with. */
 export const MOCK_ISSUES_AGENT_KEY = 'spool.mock.issues-agent'
+/** localStorage key (SPL-4648): non-empty = the mock tenant starts with SPL-2 matching every list filter, SPL-3..8 each missing one. */
+export const MOCK_ISSUES_SHAPED_KEY = 'spool.mock.issues-shaped'
+/** the rows a list-URL test tells apart: one field of the match changed per row */
+const MOCK_SHAPED_MATCH = { status: 'wip', priority: 2, assignee: 'HUM-1', labels: ['bug'], deadline: '2026-12-01T10:00:00Z', epic: 'SPL-1' }
+const MOCK_SHAPED_OFF = [{}, { status: 'todo' }, { priority: 3 }, { assignee: MOCK_TEAMMATE }, { labels: [] }, { deadline: '2027-06-01T10:00:00Z' }, { epic: '' }]
 /** the agent the mock's agent-filed issues come from */
 const MOCK_AGENT = 'c-007'
 
@@ -424,6 +429,11 @@ function mockSeedIssues(me, now) {
   const byAgent = mockStoredCount(MOCK_ISSUES_AGENT_KEY, 50)
   for (let k = 1; k <= byAgent; k++) {
     issues.push(mockNewIssue({ title: `filed by an agent ${k}`, discussions: [{ task_id: MOCK_DEFAULT_TOPIC }] }, issues.length + 1, MOCK_AGENT, now()))
+  }
+  if (mockStoredCount(MOCK_ISSUES_SHAPED_KEY, 1)) {
+    for (const off of MOCK_SHAPED_OFF) {
+      issues.push(mockNewIssue({ ...MOCK_SHAPED_MATCH, title: `shaped ${issues.length + 1}`, discussions: [{ task_id: MOCK_DEFAULT_TOPIC }], ...off }, issues.length + 1, me, now()))
+    }
   }
   return issues
 }

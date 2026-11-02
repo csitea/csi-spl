@@ -89,10 +89,11 @@ async function settle(p, from) {
   return new URL(p.url())
 }
 
-/** the app is up when its listener answers a hand-over that names the page it is on */
+/** the app is up when its listener answers a hand-over that names the page it is on: the
+    whole address, or it is a real move, and a tap in that move's middleware is dropped (navigateTo) */
 async function appReady(p) {
   for (let i = 0; i < 60; i++) {
-    if (await handOver(p, '', await p.evaluate(() => location.pathname))) return true
+    if (await handOver(p, '', await p.evaluate(() => location.pathname + location.search + location.hash))) return true
     await new Promise((r) => setTimeout(r, 500))
   }
   return false

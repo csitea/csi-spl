@@ -157,6 +157,49 @@ Refined the same morning (binding where it differs from the first request):
   text, `Spec: csi-spl-doc/specs/<NNN-slug>`, opens its `spec.md` on
   `/docs` when the docs store lists it (`utils/doc-paths.mjs`); else text.
 
+- **FR-013** The list's full state is in its URL (SPL-4648, owner HUM-10, t1
+  e04820a5: "the full state of the issues listing should be setable from the
+  URL of it", "point to a certain set of issues by simply copy asting the
+  url"). `utils/issues-list-url.ts` reads and writes it,
+  `composables/useIssueListUrl.ts` keeps the page and the address together;
+  a change uses `router.replace`, so Back and Forward walk the entries the
+  page already had.
+
+  | parameter | values | what it sets |
+  |---|---|---|
+  | `view` | `list`, `status` | List or By status (a phone keeps its card list) |
+  | `sort`, `dir` | a sheet column; `asc`, `desc` | the sheet's sort |
+  | `unread` | `1` | Unread (the viewer's own unread issues) |
+  | `status` | a status | the Status filter |
+  | `priority` | `1`..`5` | the Priority filter |
+  | `level` | `1`..`3` | the Level filter |
+  | `assignee` | a person id, `me`, `none` | the Assignee filter |
+  | `label` | a label id | the Label filter |
+  | `deadline` | `YYYY-MM-DDTHH:MM`, the reader's local time | due on or before that minute |
+  | `epic` | an epic key | the epic the list is narrowed to |
+  | `fold` | statuses, comma separated | the folded status groups |
+  | `issue` | an issue key | the open issue (FR-011) |
+
+  - A URL with `view` is complete: what it does not name is off, and the
+    reader's stored sort and folds do not apply. A URL without it (an older
+    link, the Issues tab) takes the stored choices, and the address is then
+    completed with them, so what is copied always names the whole list.
+  - A parameter beats a stored choice and does not change it; picking a view
+    still saves it as the person's own.
+  - The "me" filter is written as the viewer's id, so a pasted link names the
+    same person for its reader. `unread` stays the reader's own.
+  - A value that cannot be used (a bad value, a label, epic or person this
+    workspace does not hold) is ignored with no error and leaves the address.
+  - A pick that also closes its phone sheet lands too: the sheet's Back
+    cancels the replace, which is sent once more when the route has landed.
+  - No replace starts while a move to another page is on its way: it would
+    cancel that move. If the move is refused, the address then catches up.
+  - Clear filters clears the sort and the filters; `view`, `epic` and `fold`
+    are not filters and stay.
+  - Left out, on purpose: column widths (personal layout, stored per person),
+    how many pages Load more has read, the row selection, the keyboard cursor
+    and an open sheet or picker (they do not decide which rows the list holds).
+
 ## MVP now / next
 
 - **Now**: FR-001..FR-012.

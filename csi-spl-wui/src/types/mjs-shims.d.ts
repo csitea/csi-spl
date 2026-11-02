@@ -1830,6 +1830,7 @@ declare module '~/utils/issues.mjs' {
   export function unopenedCandidate(issue: Partial<Issue> | null | undefined, me: string): boolean
   export const MOCK_ISSUES_NEW_KEY: string
   export const MOCK_ISSUES_AGENT_KEY: string
+  export const MOCK_ISSUES_SHAPED_KEY: string
   export function issueByAgent(issue: { created_by?: string } | null | undefined): boolean
 }
 
@@ -2290,3 +2291,4 @@ declare module '~/utils/topic-list-order.mjs' {
     },
   ): T[]
 }
+

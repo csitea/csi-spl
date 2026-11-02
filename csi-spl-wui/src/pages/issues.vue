@@ -1344,9 +1344,10 @@ const {
   sheetSort, sortOpen, sheetColumns, serverOrder, toggleSort, sortChoices, sortValue, sortWords, pickSort, assigneeOptions, assigneeTitle,
   epicF, epicTitle, selectedEpic, epicLabel, epicTitleOf, pickEpic, viewBy, pickView, folded, toggleFold, rowCount, shownGroups, flat,
   unreadF, statusF, statusOpen, priorityF, levelF, assigneeF, labelF, dueF,
-  filtersOpen, filterRefs, filtersActive, serverFilter, pickStatus, clearFilters,
+  filtersOpen, filterRefs, filtersActive, serverFilter, pickStatus, clearFilters, forgetUnknown,
 } = useIssueFilters({
   route, router, t, storedSort: () => session.claims?.issues_sort, people: () => roster.people, person, epics, reload: () => { void load() },
+  peopleKnown: () => Object.keys(roster.roster).length > 0, storedKnown: () => session.state === 'in',
   issues, phone, signedIn: () => session.state === 'in', meId, labelText,
 })
 /* the issue form's inputs and the new-issue draft: composables/useIssueDetailForm */
@@ -1413,6 +1414,7 @@ async function load() {
     labels.value = (data.labels || []).map((row) => normalizeLabel(row))
     epics.value = data.epics || []
     defaultDiscussion.value = String((data as { default_discussion?: string }).default_discussion || '')
+    forgetUnknown(labels.value.map((l) => l.id))
     if (cursorKey.value && !flat.value.some((i) => i.key === cursorKey.value)) cursorKey.value = flat.value[0]?.key || ''
     void openLinkedIssue()
   } catch (e) {

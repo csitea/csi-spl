@@ -187,6 +187,9 @@ try {
     }
     return req.continue()
   })
+  /* SPL-4648: ?view= beats the claim, and the clicks above wrote it: this is a tab with no ?view= */
+  await p.evaluate(() => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$router.replace({ query: {} }))
+  await sleep(300)
   await p.evaluate(() => {
     const s = document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('session')
     s.adopt({ hum: 'HUM-1', email: 'member@example.com', name: 'FirstName LastName', t: 't1', issues_view: 'status' })

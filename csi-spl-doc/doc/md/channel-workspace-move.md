@@ -43,6 +43,7 @@ channel leaves, `<DST>` the workspace it goes to, `<CHANNEL>` the channel id,
 
 | step | who |
 |---|---|
+| taking out seats that do not move, `DRY_RUN=0` on `prd` (section 2.1) | under the owner's GO for that move, which lists the seats by name |
 | `plan` (the default, changes nothing) | the orchestrator seat or the owner |
 | `MOVE_CMD=run` with `DRY_RUN=1` (the default, prints the steps) | the orchestrator seat or the owner |
 | `MOVE_CMD=run DRY_RUN=0` (the move or copy itself) | the owner only: the run carries, in `MOVE_GO_MSG`, the msg id of the owner's `(GO) Go` poll answer for THAT channel and target, and the journal records it |
@@ -60,7 +61,45 @@ back.
 
 ## 2. Plan
 
-### 2.1 Run the plan
+### 2.1 Before the plan: seats that do not move
+
+A move only. This step depends on nothing unbuilt: the action below is on
+master and works today. `plan` refuses every seat of the channel that has no
+`<DST>` desk on its box (spec W2, case C23; the store's check is
+`mpMissingDesks` in `channel_move_plan_postgres.go`). An agent that is not
+meant to move leaves the channel first, or the plan stops on it.
+
+See the change first (a dry run, it calls no cloud):
+
+```bash
+cd csi-spl-orc && ENV=<ENV> TENANT_ID=<SRC> CHANNEL=<CHANNEL> AGENT_BOX=<box> AGENTS="<agent> <agent>" ./run -a do_spl_channel_agent_remove_op
+```
+
+Then take the seats out:
+
+```bash
+cd csi-spl-orc && ENV=<ENV> TENANT_ID=<SRC> CHANNEL=<CHANNEL> AGENT_BOX=<box> AGENTS="<agent> <agent>" DRY_RUN=0 ./run -a do_spl_channel_agent_remove_op
+```
+
+- **What it does:** the seat's origin becomes `removed`, which the hub reads
+  as not a member and a later announce cannot undo. The agent's desk seat and
+  roster row stay, so DMs and @mentions still reach it.
+- **One box per run:** `AGENT_BOX` defaults to the box's desk id; a seat on
+  another box needs its own run. An agent with no live seat is reported as
+  absent and changes nothing.
+- **Who:** with `DRY_RUN=0` on `prd` this is a prd write. It belongs to the
+  owner's GO for that move, and the question to the owner lists the seats by
+  name.
+- **What it does not clear:** two other sources of the same refusal. A
+  channel-scope `dedicated_agents` binding is counted too; the remove action
+  leaves it, and `DEDICATED_CMD=unbind` of `do_spl_dedicated_bind` removes it.
+  A `REFUSE box rule` line comes from the box's `channel-rules.tsv` (spec
+  case C25); a `<DST>` desk for that agent clears it.
+- **A copy:** a copy moves no seat and leaves `<SRC>` unchanged, so do not take
+  seats out for one. Whether the hub's plan skips this check for a copy is
+  fixed by T7 **[pending T7]**: the store's check has no mode today.
+
+### 2.2 Run the plan
 
 The plan of a move:
 
@@ -80,7 +119,7 @@ C1). The input is checked before the hub is called: `ENV` is `dev` or
 a bad value stops with a `FATAL`, exit 1. **[pending T7: the hub answers
 the plan.]**
 
-### 2.2 Read the plan
+### 2.3 Read the plan
 
 The plan prints one line per item, in this order:
 
@@ -91,7 +130,7 @@ The plan prints one line per item, in this order:
 | `PLAN mention outside the set: ...` | a post in another `<SRC>` channel, another person's DM or a staying Qto doc that links a moved topic or names the channel (spec 5.4). They are left as they are and only listed (owner, Q4 = A) |
 | `PLAN member not in the target: ...` | a person of the channel who is not a member of `<DST>`. They lose access; only the members the owner adds to `<DST>` come along, with their read state, hours rows and calendar guest rows (owner, Q5 = A) |
 | `PLAN kept <store> until <date>` | the kept list (section 4 of this page) |
-| `REFUSE seat <agent> on <box> has no desk in <DST>` | the agent needs a desk in `<DST>` first (spec case C11; seat it with [spec 158](../../specs/158-new-workspace-automatic/spec.md)) |
+| `REFUSE seat <agent> on <box> has no desk in <DST>` | the agent needs a desk in `<DST>` first (spec case C11; seat it with [spec 158](../../specs/158-new-workspace-automatic/spec.md)), or, if it is not meant to move, leaves the channel (section 2.1) |
 | `REFUSE shared item ...` | a file, Qto doc, issue, epic or spec sync row the channel uses that something staying in `<SRC>` also uses (spec 5.5). The move stops; the owner decides each one (owner, Q6 = A) |
 | `REFUSE ...` | any other refusal of the hub, for example a channel with a website-chat visitor (spec 5.1b), hours rows of a member who does not come along or inside a frozen or approved time sheet (spec 5.1a, owner Q8 = A), or a `<DST>` with no orchestrator seat |
 
@@ -100,7 +139,7 @@ With no `REFUSE` line the plan ends with
 With one or more it ends with `FATAL the plan ... refuses (<n> item(s) above); nothing changed`,
 exit 3.
 
-### 2.3 Clear the plan before a run
+### 2.4 Clear the plan before a run
 
 A run is ready when the plan prints no `REFUSE` line and the owner has read
 the members, the mentions and the kept list. For hours rows the owner

@@ -70,6 +70,9 @@ func seedMove(t *testing.T) mvFix {
 	ctx, now := context.Background(), time.Now().UTC().Truncate(time.Second)
 	f := mvFix{pg: pg, src: newTenant(t, pg), dst: newTenant(t, pg), ch: uid("mv-"), stay: uid("st-"),
 		tA: uuid4(), tB: uuid4(), thread: uuid4(), dm: uuid4()}
+	// The store suite shares one database: rows left here shift what ANALYZE
+	// sees, so a later test's plan flips (TestMarkedUnreadBufferBudget 206 > 200).
+	t.Cleanup(func() { f.dropTenants(t) })
 	f.both, f.only = mvHuman(t, pg, f.src, f.dst), mvHuman(t, pg, f.src)
 	for _, ch := range []string{f.ch, f.stay} {
 		if err := pg.CreateChannel(ctx, Channel{TenantID: f.src, ChannelID: ch, Name: ch, CreatedBy: f.both, CreatedAt: now}); err != nil {
@@ -91,6 +94,17 @@ func seedMove(t *testing.T) mvFix {
 	f.dmPost = post(f.dm, "", "", f.tA, "a DM about A", now.Add(4*time.Second))
 	f.seedMessageFamily(t, now)
 	return f
+}
+
+// dropTenants removes both workspaces and all their rows, by the tenant cascade.
+func (f mvFix) dropTenants(t *testing.T) {
+	t.Helper()
+	if err := f.pg.asOperator(context.Background(), func(tx pgx.Tx) error {
+		_, err := tx.Exec(context.Background(), `DELETE FROM tenants WHERE tenant_id = ANY($1)`, []string{f.src, f.dst})
+		return err
+	}); err != nil {
+		t.Errorf("drop the move's workspaces: %v", err)
+	}
 }
 
 // seedMessageFamily: the rows C3a counts, and the move history of M6b.

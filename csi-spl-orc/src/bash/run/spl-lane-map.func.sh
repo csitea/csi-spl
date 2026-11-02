@@ -326,7 +326,7 @@ spl_lane_table_recent() {
 }
 
 # The reserved id of a box's LOAD row in the lane map: one row per box,
-# BOX-0@<box>, scope `mem_kb=<MemAvailable> [ci=<n>] [cli=<kind>,...] [wk=<kind>:<pct>,...] [cordon=<box>:<until>,...] live=<id>,...`: the agents
+# BOX-0@<box>, scope `mem_kb=<MemAvailable> [ci=<n>] [cli=<kind>,...] [wk=<kind>:<pct>[@<reset epoch>],...] [cordon=<box>:<until>,...] live=<id>,...`: the agents
 # with a live tmux pane on that box and its free memory, as that box itself
 # read them. The hub stores it like any lane (no field of its own, no hub
 # change); this action writes it (spl_lane_box_report) and the map never
@@ -465,9 +465,9 @@ spl_lane_box_report() {  # ROWS LIVE_HERE LOAD
   [[ "$age" =~ ^[0-9]+$ ]] && (( age < ${LANE_BOX_ROW_S:-300} )) && [[ "$was" == "$ci" && "$wascordon" == "${cordon:--}" ]] && return 0
   declare -F spl_box_quota_here >/dev/null ||
     source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-box-quota.func.sh"
-  wk="$(spl_box_quota_here)"
+  wk="$(spl_box_quota_known)"
   # ci=<N> only while N > 0, cli=<kinds> ("-" none, left out when unknown)
-  # wk=<kind>:<pct>,... (left out when no pane shows one) and cordon=<box>:<until>,...
+  # wk=<kind>:<pct>[@<reset>],... (left out when never measured) and cordon=<box>:<until>,...
   # (left out when none), before live=: the cut below never drops them
   scope="$(jq -r --arg b "$LANE_BOX" --argjson ids "$2" --arg ci "$ci" --arg wk "$wk" --arg cordon "$cordon" \
     '.[] | select(.box == $b) | "mem_kb=\(.mem_kb // "?")\(if $ci == "0" then "" else " ci=\($ci)" end)\(

@@ -53,12 +53,14 @@
 # @description the CLI's limit entry in the agent user's transcripts (SPL-2196:
 # @description 100 until its reset, a pane shows the banner only on the failed
 # @description turn), another by the wk= of its BOX-0 row
-# @description (lib/bash/funcs/spl-box-quota.func.sh). Its
+# @description (lib/bash/funcs/spl-box-quota.func.sh). The last measured % counts
+# @description until its reset passes (SPL-4608), a banner gone or not. Its
 # @description line says "<kind> weekly N% >= M%: not picked". Every box with
 # @description room over it -> `pick=hold reason=waiting: <kind> weekly >= M%
-# @description on <boxes>` (queued, never a silent fallback). No reading, or a
-# @description row an hour old, is unknown, not 0: the box stays in and an INFO
-# @description line names the picked box's unknown usage.
+# @description on <boxes>` (queued, never a silent fallback). Never measured, a
+# @description reset that passed, or a row an hour old with no reset ahead is
+# @description unknown, not 0: the box stays in and an INFO line names the picked
+# @description box's unknown usage.
 # @description A CORDONED box is never picked (sat alone panel row 01, SPL-2629):
 # @description do_spl_box_cordon's live marker <spool root>/dispatch/cordon/<box>
 # @description (spl-box-cordon.func.sh). Its line says "CORDONED (until <UTC>)";
@@ -140,10 +142,10 @@ do_spl_box_pick() {
 }
 
 # spl_box_pick_quota ROWS KIND -> KIND's weekly usage per box, {"<box>": pct}
-# (spl_box_quota_from_rows; this box read live). KIND "" -> {}.
+# (spl_box_quota_from_rows; this box read live, its kept reading included). KIND "" -> {}.
 spl_box_pick_quota() {
   [[ -n "${2:-}" ]] || { echo '{}'; return 0; }
-  spl_box_quota_from_rows "$1" "$LANE_BOX_ROW_ID" "${LANE_BOX_ROW_MAX_S:-3600}" "$2" "$LANE_BOX" "$(spl_box_quota_here)"
+  spl_box_quota_from_rows "$1" "$LANE_BOX_ROW_ID" "${LANE_BOX_ROW_MAX_S:-3600}" "$2" "$LANE_BOX" "$(spl_box_quota_known)"
 }
 
 # spl_box_pick_nokind ROWS KIND -> the boxes measured without KIND's CLI, as
@@ -224,7 +226,7 @@ spl_box_pick_decide() {
         else "BOX \(.box)  load5 \(.load5)  cpus \(.cpus)  \(.pct | floor)%  \(.state)  band \(.band.low)..\(.band.high)\(if .band.aim < .band.high then " aim \(.band.aim)" else "" end) (\(.band.src))\(if .cord then "  CORDONED (until \(.until | todate))" else "" end)\(if .dfull then "  DISK \(.disk.mount) \(.disk.pct)% >= \($dmax)%: not picked" else "" end)\(if .sick then "  DEGRADED (\(.why))" else "" end)\(if .jobs > 0 then "  ci busy: \(.jobs) jobs, cap \($cc.max_agents) (agents \(.agents // "?"))\(if .capped then ", AT CAP: not picked" else "" end)" else "" end)\(if .nokind then "  no \($kind) CLI: not picked" else "" end)\(
           if $kind == "" or .nokind then "" elif .wk == null then "  \($kind) weekly unknown" elif .wkover then "  \($kind) weekly \(.wk)% >= \($wmax)%: not picked" else "  \($kind) weekly \(.wk)%" end)\(if $pick != null and .box == $pick.box then "  <- pick" else "" end)" end),
       (if ($open | length) > 0 and all($open[]; .sick) then "WARN every box with a load sample is degraded: the pick ignores the beats" else empty end),
-      (if $pick != null and $kind != "" and $pick.wk == null then "INFO \($pick.box): \($kind) weekly usage unknown (no banner read, or its BOX-0 row is an hour old): placed anyway" else empty end),
+      (if $pick != null and $kind != "" and $pick.wk == null then "INFO \($pick.box): \($kind) weekly usage unknown (never measured, its reset passed, or its BOX-0 row is an hour old): placed anyway" else empty end),
       (if $pick == null and ($all | length) > 0 and ($uncord | length) == 0 then
          "pick=hold reason=every box with a sample is CORDONED (\([$all[].box] | join(" "))): queue the lane, spawn nothing"
        elif $pick == null and ($uncord | length) > 0 and ($open | length) == 0 then

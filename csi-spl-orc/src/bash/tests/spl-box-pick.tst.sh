@@ -30,7 +30,8 @@
 #          16e. (SPL-2196) the CLI's "<synthetic>" limit entry in the agent
 #          user's transcripts reads 100 until its reset, with no banner in a
 #          pane; a newer real answer, a passed reset, an entry older than
-#          LANE_QUOTA_LOG_MIN or a quote by a model -> no reading.
+#          LANE_QUOTA_LOG_MIN or a quote by a model -> no reading. SPL-4608: the
+#          last measured % is kept until its reset (16f-16k).
 #          17. a CORDONED box (do_spl_box_cordon, sat alone panel row 01)
 #          is never picked, not by the every-box-degraded fallback either;
 #          every box cordoned -> hold; an expired cordon is none.
@@ -494,6 +495,76 @@ out="$(lq)"
 ent "claude-x" "You've hit your weekly limit · resets $RS" 3600 >"$L/s1.jsonl"
 out="$(lq)"
 [[ "$(pick "$out")" == box-a ]] && pass "16e. CONTROL the text in a real model answer (an agent quoting it) is no reading" || fail "16e. quoted: $out"
+
+# 16f-16k. the last measured reading is kept until its reset (SPL-4608): the
+#     alert measured claude 95 % on a banner, the next pane tail shows none and
+#     the pick read "unknown, placed anyway". The alert's own call records it.
+KEPT="$T/kept.tsv"; rm -f "$KEPT"
+FUT=$(( $(date +%s) + 3 * 86400 )); PAST=$(( $(date +%s) - 60 ))
+wk "box-a::60" "box-b:claude:40:60"
+kq() { run LANES="$T/lanes.json" LANE_BOX=box-a SPOOL_VENDOR_CLIS_CMD="echo $ALL" LANE_QUOTA_STATE="$KEPT" BOX_PICK_KIND=claude BOX_QUOTA_WEEKLY_MAX_PCT=90; }
+# here READING: one read of this box as the alert reads it (BOX_QUOTA_RESET=1)
+here() {
+  BOX_QUOTA_RESET=1 LANE_QUOTA_STATE="$KEPT" LANE_QUOTA_CMD="echo $1" bash -c \
+    'source "'"$PROJ_ROOT"'/lib/bash/funcs/spl-box-quota.func.sh"; spl_box_quota_here'
+}
+# known [VAR=VALUE ...]: the kept answer with no live reading
+known() {
+  env LANE_QUOTA_STATE="$KEPT" LANE_QUOTA_CMD=echo "$@" bash -c \
+    'source "'"$PROJ_ROOT"'/lib/bash/funcs/spl-box-quota.func.sh"; spl_box_quota_known'
+}
+out="$(kq)"
+[[ "$(pick "$out")" == box-a ]] && grep -q '^INFO box-a: claude weekly usage unknown' <<<"$out" &&
+  pass "16f. CONTROL a box never measured stays unknown: placed, with the INFO line" || fail "16f. never: $out"
+[[ "$(here "claude:95@$FUT")" == "claude:95@$FUT" ]] &&
+  pass "16f. the alert's read still prints the live reading" || fail "16f. the alert's read changed"
+out="$(kq)"
+[[ "$(pick "$out")" == box-b ]] && grep -q '^BOX box-a .*  claude weekly 95% >= 90%: not picked$' <<<"$out" &&
+  pass "16f. RED CONTROL (FAILs on c088efd3c) measured 95 % by the alert's read, banner gone -> not picked, pick=box-b" ||
+  fail "16f. kept: $out"
+wk "box-a::60" "box-b:claude:96:60"
+out="$(kq)"
+grep -q '^pick=hold reason=waiting: claude weekly >= 90% on box-a, box-b' <<<"$out" &&
+  pass "16f. both boxes over, this one on its kept reading -> pick=hold" || fail "16f. hold: $out"
+wk "box-a::60" "box-b:claude:40:60"
+out="$(LANE_QUOTA_STATE="$KEPT" LANE_QUOTA_CMD=echo bash -c \
+  'source "'"$PROJ_ROOT"'/lib/bash/funcs/spl-box-quota.func.sh"; spl_box_quota_here')"
+[[ -z "$out" ]] && pass "16f. spl_box_quota_here stays the live read: nothing shows now -> empty" || fail "16f. here: $out"
+[[ "$(known)" == "claude:95@$FUT" ]] && pass "16f. spl_box_quota_known prints the % and its reset" || fail "16f. known: $(known)"
+# 16g. the reset passed: the reading says nothing, the row is gone
+printf 'claude\t95\t%s\t%s\n' "$PAST" "$(date +%s)" >"$KEPT"
+out="$(kq)"
+[[ "$(pick "$out")" == box-a ]] && grep -q '^INFO box-a: claude weekly usage unknown' <<<"$out" && ! grep -q '^claude' "$KEPT" &&
+  pass "16g. RED CONTROL a kept reading whose reset passed -> unknown, placed, row dropped" || fail "16g. past: $out"
+# 16h. within one reset week the % only climbs; another reset is another week
+rm -f "$KEPT"; here "claude:95@$FUT" >/dev/null; here "claude:40@$FUT" >/dev/null
+[[ "$(known)" == "claude:95@$FUT" ]] && pass "16h. a lower reading of the same week (an older CLI cache) does not lower it" || fail "16h. same: $(known)"
+here "claude:40@$(( FUT + 3600 ))" >/dev/null
+[[ "$(known)" == "claude:95@$(( FUT + 3600 ))" ]] && pass "16h. a banner's rounded reset (under a day apart) is the same week" || fail "16h. rounded: $(known)"
+here "claude:3@$(( FUT + 2 * 86400 ))" >/dev/null
+[[ "$(known)" == "claude:3@$(( FUT + 2 * 86400 ))" ]] && pass "16h. RED CONTROL another reset (a new week, another login) replaces it" || fail "16h. new: $(known)"
+# 16i. a reading with no reset (grok prints none): the newest, for LANE_QUOTA_KEEP_S
+rm -f "$KEPT"; here "grok:91" >/dev/null; here "grok:12" >/dev/null
+[[ "$(known)" == "grok:12" ]] && pass "16i. no reset: the newest reading wins" || fail "16i. newest: $(known)"
+here "grok:91" >/dev/null
+[[ "$(known)" == "grok:91" ]] && pass "16i. CONTROL still known inside LANE_QUOTA_KEEP_S" || fail "16i. in: $(known)"
+printf 'grok\t91\t\t%s\n' $(( $(date +%s) - 86401 )) >"$KEPT"
+[[ -z "$(known)" ]] && pass "16i. RED CONTROL no reset, older than a day (default LANE_QUOTA_KEEP_S) -> unknown again" || fail "16i. old: $(known)"
+printf 'grok\t91\t\t%s\n' $(( $(date +%s) - 86401 )) >"$KEPT"
+[[ "$(known LANE_QUOTA_KEEP_S=90000)" == "grok:91" ]] && pass "16i. LANE_QUOTA_KEEP_S overrides the default" || fail "16i. env"
+# 16j. another box's row: wk= carries the reset, an hour-old row keeps a reset ahead
+rm -f "$KEPT"
+wk "box-a:claude:96@$FUT:60" "box-b:claude:40:60"
+[[ "$(pick "$(q BOX_PICK_KIND=claude BOX_QUOTA_WEEKLY_MAX_PCT=90)")" == box-b ]] && pass "16j. RED CONTROL (FAILs on c088efd3c) wk=claude:96@<epoch> reads as 96" || fail "16j. suffix"
+wk "box-a:claude:96@$PAST:60" "box-b:claude:40:60"
+[[ "$(pick "$(q BOX_PICK_KIND=claude BOX_QUOTA_WEEKLY_MAX_PCT=90)")" == box-a ]] && pass "16j. wk= whose reset passed -> unknown, placed" || fail "16j. past"
+wk "box-a:claude:96@$FUT:4000" "box-b:claude:40:60"
+[[ "$(pick "$(q BOX_PICK_KIND=claude BOX_QUOTA_WEEKLY_MAX_PCT=90)")" == box-b ]] && pass "16j. a row over an hour old still counts while its reset is ahead" || fail "16j. old row"
+# 16k. no write access: the live reading still answers, nothing dies
+out="$(BOX_QUOTA_RESET=1 LANE_QUOTA_STATE=/proc/nope/kept.tsv LANE_QUOTA_CMD="echo claude:95@$FUT" bash -c \
+  'source "'"$PROJ_ROOT"'/lib/bash/funcs/spl-box-quota.func.sh"; spl_box_quota_known' 2>&1)"
+[[ "$out" == "claude:95@$FUT" ]] && pass "16k. a state file that cannot be written -> the live reading, no noise" || fail "16k. $out"
+rm -f "$KEPT"
 
 # 17. sat alone panel row 01 (SPL-2629): a CORDONED box (do_spl_box_cordon,
 #     <spool root>/dispatch/cordon/<box> with until=<epoch>) is never picked,

@@ -769,6 +769,20 @@ non-intelligence alert to warn when the weekly limit approaches 90% , 95% and
   less than `LANE_QUOTA_CACHE_MAX_S` ago (default 6 h: the CLI refetches it
   now and then, measured 1.4 and 2 h old) and its reset is still ahead. A kind with no reading (mistral, agy and qwen print
   none today) is listed as `no reading` in the tick's summary, never 0.
+- **The box pick keeps the reading** (SPL-4608; 2026-11-02 the pick read
+  `claude weekly unknown` on every box while the alert had posted 95 %: a banner
+  shows for a moment and the cache goes stale after 6 h, so between readings no
+  box had one and no BOX-0 row had `wk=`). Every `spl_box_quota_here`, the
+  alert's included, records into `$XDG_STATE_HOME/csi-spl/weekly-quota-reading.tsv`
+  of the box user. `spl_box_quota_known` answers from it for the pick and for
+  `wk=<kind>:<pct>[@<reset epoch>]` of the BOX-0 row, until the reset passes;
+  the alert still reads the live value. Inside one reset week (resets under a
+  day apart) the % only climbs, another reset replaces it: a login switched to
+  one with a reset within that day stays high until the reset, delete the file
+  to clear it. A reading with no reset (grok names none) lasts
+  `LANE_QUOTA_KEEP_S`, default 1 day: nothing says when its week ends, and a box
+  held on it would never be measured again. Unknown now means never measured,
+  the reading expired, or a BOX-0 row an hour old with no reset ahead.
 - **One line per crossing**, kind `note` in `#alerts` (as the asks timer
   posts): `**WEEKLY LIMIT** <kind> on <box>: <pct>% of its weekly limit used
   (crossed <threshold>%), resets <UTC time>` (or `reset time unknown`). A jump

@@ -21,7 +21,11 @@
 #     Every box with room over it -> pick=hold "waiting: <kind> weekly >= N%
 #     on <boxes>" (the lane stays queued, no fallback). No reading (no
 #     banner, the probe failed, a BOX-0 row LANE_BOX_ROW_MAX_S = 1 h old or
-#     older) is UNKNOWN, never 0: the box stays in and the pick says so.
+#     older with no reset ahead) is UNKNOWN, never 0: the box stays in and the
+#     pick says so;
+#   - a banner shows only for a moment, so every read is kept (SPL-4608,
+#     spl_box_quota_keep): the pick and wk= answer from the last measured %
+#     until its reset passes (spl_box_quota_known).
 # Settings: cnf env.box.quota.weekly_max_pct, env BOX_QUOTA_WEEKLY_MAX_PCT
 # overrides, default 90.
 #------------------------------------------------------------------------------
@@ -164,13 +168,86 @@ spl_box_quota_cache() {
   ) | spl_box_quota_cache_read "$now"
 }
 
-# spl_box_quota_here: THIS box's weekly usage, "claude:96,grok:4" (the
-# vendors read), "" when nothing shows one; with BOX_QUOTA_RESET=1 a known
-# reset follows its % ("claude:96@1760688000"). Reads the box user's tmux
-# (spl_lane_tm), claude's transcripts (spl_box_quota_log) and claude's cached
-# usage (spl_box_quota_cache): the highest claude reading wins. Seam (tests): LANE_QUOTA_CMD prints the answer; a
-# test that fakes the panes (LANE_PANES_CMD) reads only LANE_QUOTA_LOG_DIR.
+# spl_box_quota_here: THIS box's weekly usage as it shows NOW, "claude:96,grok:4"
+# (the vendors read), "" when nothing shows one; with BOX_QUOTA_RESET=1 a known
+# reset follows its % ("claude:96@1760688000"). Every read is also kept for
+# spl_box_quota_known, so the alert's own call feeds the pick.
 spl_box_quota_here() {
+  local out
+  out="$(BOX_QUOTA_RESET=1 spl_box_quota_live)"
+  spl_box_quota_keep "$out" >/dev/null
+  if [[ "${BOX_QUOTA_RESET:-0}" == 1 ]]; then echo "$out"; else sed -E 's/@[0-9]+//g' <<<"$out"; fi
+}
+
+# spl_box_quota_known: THIS box's last measured weekly usage, always with its
+# reset when one is known ("claude:95@1760688000,grok:91"): a read now, merged
+# with the kept ones (spl_box_quota_keep). "" = never measured, or expired.
+spl_box_quota_known() {
+  spl_box_quota_keep "$(BOX_QUOTA_RESET=1 spl_box_quota_live)"
+}
+
+# spl_box_quota_keep_file: the kept readings' file, one per box user (the pick
+# hops to the desk user, the crons run as it). Seam (tests): LANE_QUOTA_STATE;
+# a test that fakes the reading without it keeps nothing.
+spl_box_quota_keep_file() {
+  if [[ -n "${LANE_QUOTA_STATE:-}" ]]; then echo "$LANE_QUOTA_STATE"; return 0; fi
+  [[ -z "${LANE_QUOTA_CMD:-}${LANE_PANES_CMD:-}" ]] || return 0
+  echo "${XDG_STATE_HOME:-$HOME/.local/state}/csi-spl/weekly-quota-reading.tsv"
+}
+
+# spl_box_quota_keep READING: merge READING into the kept file, print the
+# result as READING's form. Best effort: a file that cannot be written leaves
+# the answer of this call right and the next call starts from the old file.
+spl_box_quota_keep() {
+  local f rows now tmp
+  f="$(spl_box_quota_keep_file)"
+  [[ -n "$f" ]] || { echo "$1"; return 0; }
+  now="$(date +%s)"
+  rows="$(cat "$f" 2>/dev/null | spl_box_quota_merge "$1" "$now" "${LANE_QUOTA_KEEP_S:-86400}" | sort)"
+  tmp="$f.tmp.$$"
+  if mkdir -p "$(dirname "$f")" 2>/dev/null && { [[ -z "$rows" ]] || printf '%s\n' "$rows"; } 2>/dev/null >"$tmp"; then
+    mv -f "$tmp" "$f" 2>/dev/null || rm -f "$tmp" 2>/dev/null
+  fi
+  [[ -n "$rows" ]] || return 0
+  awk -F'\t' '{ printf "%s%s:%s%s", (NR > 1 ? "," : ""), $1, $2, ($3 != "" ? "@" $3 : "") } END { print "" }' <<<"$rows"
+}
+
+# spl_box_quota_merge READING NOW KEEP_S: the kept rows on stdin (kind TAB pct
+# TAB reset epoch or empty TAB read at), the new rows on stdout. A reset that
+# passed drops its row; a row with no reset (grok names none) lasts KEEP_S,
+# since nothing says when its week ends and a box held on it would never be
+# measured again. A new reading replaces a kept one, except inside one reset
+# week (the two resets under a day apart, a banner rounds it): there usage only
+# climbs, so an older CLI cache read after a banner cannot lower it.
+spl_box_quota_merge() {
+  awk -F'\t' -v OFS='\t' -v live="$1" -v now="$2" -v keep="$3" '
+    function gone(k) { return (at[k] != "" ? at[k] <= now : now - seen[k] >= keep) }
+    NF >= 4 && $1 ~ /^[a-z]+$/ && $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]*$/ && $4 ~ /^[0-9]+$/ {
+      pct[$1] = $2; at[$1] = $3; seen[$1] = $4
+    }
+    END {
+      for (k in pct) if (gone(k)) delete pct[k]
+      n = split(live, v, ",")
+      for (i = 1; i <= n; i++) {
+        if (v[i] !~ /^[a-z]+:[0-9]+(@[0-9]+)?$/) continue
+        split(v[i], kv, ":"); k = kv[1]; m = split(kv[2], pa, "@"); p = pa[1]; a = (m > 1 ? pa[2] : "")
+        t = now
+        if (k in pct && at[k] != "") {
+          d = (a == "" ? 0 : a - at[k]); if (d < 0) d = -d
+          if (d < 86400) { if (a == "") a = at[k]; if (pct[k] + 0 > p + 0) { p = pct[k]; t = seen[k] } }
+        }
+        pct[k] = p; at[k] = a; seen[k] = t
+      }
+      for (k in pct) if (!gone(k)) print k, pct[k], at[k], seen[k]
+    }'
+}
+
+# spl_box_quota_live: the read itself, as spl_box_quota_here prints it. Reads
+# the box user's tmux (spl_lane_tm), claude's transcripts (spl_box_quota_log)
+# and claude's cached usage (spl_box_quota_cache): the highest claude reading
+# wins. Seam (tests): LANE_QUOTA_CMD prints the answer; a test that fakes the
+# panes (LANE_PANES_CMD) reads only LANE_QUOTA_LOG_DIR.
+spl_box_quota_live() {
   if [[ -n "${LANE_QUOTA_CMD:-}" ]]; then
     # shellcheck disable=SC2086 # a command line, split on purpose
     $LANE_QUOTA_CMD 2>/dev/null; return 0
@@ -208,18 +285,22 @@ spl_box_quota_max() {
 }
 
 # spl_box_quota_from_rows LANES_JSON ROW_ID MAX_AGE_S KIND [HERE HERE_WK]:
-# KIND's weekly usage per box as {"<box>": pct}, from each box's freshest
-# BOX-0 row (live, younger than MAX_AGE_S) scope field wk=; HERE_WK (this
-# box's spl_box_quota_here) replaces this box's row. A box without a reading
-# is absent: unknown.
+# KIND's weekly usage per box as {"<box>": pct}, from each box's freshest live
+# BOX-0 row, scope field wk=<kind>:<pct>[@<reset epoch>],...; HERE_WK (this
+# box's spl_box_quota_known) replaces this box's row. A box without a reading
+# is absent: unknown. So is a reading whose reset passed, and one with no reset
+# on a row MAX_AGE_S old or older; a reset ahead holds whatever the row's age.
 spl_box_quota_from_rows() {
   jq -c --arg id "$2" --argjson max "$3" --arg k "$4" --arg here "${5:-}" --arg hw "${6:-}" '
-    def pct: split(",") | map(capture("^(?<v>[a-z]+):(?<p>[0-9]{1,3})$")) | map(select(.v == $k))[0].p // null
-      | if . == null then null else tonumber end;
-    [(.lanes // [])[] | select(.agent_id == $id and .state == "live" and (.age_s // -1) >= 0 and .age_s < $max)]
+    def pct($aged): split(",") | map(capture("^(?<v>[a-z]+):(?<p>[0-9]{1,3})(@(?<at>[0-9]+))?$")) | map(select(.v == $k))[0]
+      | if . == null then null
+        elif (.at // "") == "" then (if $aged then null else .p | tonumber end)
+        elif (.at | tonumber) <= now then null
+        else .p | tonumber end;
+    [(.lanes // [])[] | select(.agent_id == $id and .state == "live" and (.age_s // -1) >= 0)]
     | group_by(.agent_box) | map(min_by(.age_s))
-    | map({key: .agent_box, value: ((.scope // "") | [capture("(^| )wk=(?<w>[^ ]*)")][0].w // "" | pct)})
+    | map({key: .agent_box, value: ((.age_s >= $max) as $aged | (.scope // "") | [capture("(^| )wk=(?<w>[^ ]*)")][0].w // "" | pct($aged))})
     | from_entries
-    | if $here != "" then .[$here] = ($hw | pct) else . end
+    | if $here != "" then .[$here] = ($hw | pct(false)) else . end
     | with_entries(select(.value != null))' <<<"${1:-{\}}" 2>/dev/null || echo '{}'
 }

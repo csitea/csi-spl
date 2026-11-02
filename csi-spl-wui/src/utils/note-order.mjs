@@ -3,6 +3,28 @@
 // order by `position`, a number the hub stores (PATCH position). Moving a
 // note writes one new position between its new neighbours, so no other note
 // is rewritten. Pure: the page and the unit test call the same functions.
+//
+// A priority (spec 155 2.9, SPL-4652) orders a group before `position` does,
+// and it is set only in the open note: Move and drag stay among the notes of
+// the same group and the same priority, so a drop on another priority moves
+// nothing and changes no priority.
+
+/** A note nobody set, as the hub reads it (rdb 0253); issues keep 5 too. */
+export const NOTE_PRIORITY_DEFAULT = 5
+
+/** 1..5; anything else (a hub that does not send it yet) is the default. */
+export function notePriority(n) {
+  const p = Number(n?.priority)
+  return Number.isInteger(p) && p >= 1 && p <= 5 ? p : NOTE_PRIORITY_DEFAULT
+}
+
+/** The drawn order: pinned first, then priority (1 first), position, the newest first. */
+export function compareNotes(a, b) {
+  return Number(b.pinned) - Number(a.pinned)
+    || notePriority(a) - notePriority(b)
+    || a.position - b.position
+    || String(b.updated_at).localeCompare(String(a.updated_at))
+}
 
 /** The group a note is drawn in: 'archived', 'pinned' or 'rest'. */
 export function noteGroup(n) {
@@ -10,13 +32,14 @@ export function noteGroup(n) {
   return n.pinned ? 'pinned' : 'rest'
 }
 
-/** The notes of `id`'s group, in drawn order (position, then the newest first). */
+/** The notes of `id`'s group at its priority, in drawn order (position, then the newest first). */
 function groupOf(list, id) {
   const me = list.find((n) => n.id === id)
   if (!me) return null
   const g = noteGroup(me)
+  const p = notePriority(me)
   const rows = list
-    .filter((n) => noteGroup(n) === g)
+    .filter((n) => noteGroup(n) === g && notePriority(n) === p)
     .sort((a, b) => a.position - b.position || String(b.updated_at).localeCompare(String(a.updated_at)))
   return { me, rows }
 }
@@ -31,7 +54,7 @@ export function positionAt(others, k) {
 
 /**
  * Alt+Up / Alt+Down, or Move up / Move down: the new position of `id` one
- * step `dir` (-1 up, +1 down) inside its group; null at the group's edge.
+ * step `dir` (-1 up, +1 down) inside its group and priority; null at the edge.
  */
 export function movePosition(list, id, dir) {
   const g = groupOf(list, id)
@@ -44,8 +67,8 @@ export function movePosition(list, id, dir) {
 
 /**
  * A drag: the new position of `id` dropped on `targetId` (before it, or
- * after it when `after`); null when the target is in another group or it
- * would not move.
+ * after it when `after`); null when the target is in another group or at
+ * another priority, or it would not move.
  */
 export function dropPosition(list, id, targetId, after = false) {
   const g = groupOf(list, id)

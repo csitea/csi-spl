@@ -81,6 +81,9 @@ func (s *Memory) sortedNotes(person string) []*Note {
 		if a.Pinned != b.Pinned {
 			return a.Pinned
 		}
+		if a.Priority != b.Priority {
+			return a.Priority < b.Priority
+		}
 		if a.Position != b.Position {
 			return a.Position < b.Position
 		}
@@ -131,7 +134,7 @@ func (s *Memory) ListNotes(_ context.Context, person string) ([]NoteSummary, err
 	var out []NoteSummary
 	for _, n := range s.sortedNotes(person) {
 		m := NoteSummary{ID: n.ID, Title: n.Title, Snippet: noteSnippet(n.Body), Pinned: n.Pinned,
-			Position: n.Position, ArchivedAt: copyNote(n).ArchivedAt, UpdatedAt: n.UpdatedAt,
+			Priority: n.Priority, Position: n.Position, ArchivedAt: copyNote(n).ArchivedAt, UpdatedAt: n.UpdatedAt,
 			ItemsTotal: len(n.Items), LinkCount: len(n.Links)}
 		for _, it := range n.Items {
 			if it.Done {
@@ -166,7 +169,7 @@ func (s *Memory) CreateNote(_ context.Context, person string, n Note, now time.T
 		top = min(top, h.Position)
 	}
 	now = now.UTC()
-	n.ID, n.Position, n.ArchivedAt, n.CreatedAt, n.UpdatedAt = uuid.New(), top-1, nil, now, now
+	n.ID, n.Priority, n.Position, n.ArchivedAt, n.CreatedAt, n.UpdatedAt = uuid.New(), NotePriorityDefault, top-1, nil, now, now
 	n.Items = mintNoteItems(n.Items)
 	for i := range n.Links {
 		n.Links[i].ID, n.Links[i].CreatedAt = uuid.New(), now
@@ -216,6 +219,9 @@ func (s *Memory) PatchNote(_ context.Context, person, noteID string, p NotePatch
 	}
 	if p.Position != nil {
 		n.Position = *p.Position
+	}
+	if p.Priority != nil {
+		n.Priority = *p.Priority
 	}
 	switch {
 	case p.Archived != nil && !*p.Archived:

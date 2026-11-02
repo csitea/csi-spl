@@ -367,3 +367,95 @@ func TestNotesRefuseBeforeSQL(t *testing.T) {
 		}
 	}
 }
+
+// TestNotesPriority (spec 155 2.9, SPL-4652): a note reads 5 until it is set,
+// also one that predates the column (plant writes no priority); a set reads
+// back and keeps the other fields; outside 1..5 is refused and changes
+// nothing; another person's note is ErrNotFound and stays as it was.
+func TestNotesPriority(t *testing.T) {
+	eachNotesDriver(t, func(t *testing.T, f notesFix) {
+		ctx := context.Background()
+		now := time.Now().UTC().Truncate(time.Second)
+		p1, p2, n := notesPair(t, f, now)
+		if n.Priority != NotePriorityDefault {
+			t.Errorf("a new note reads %d, want %d", n.Priority, NotePriorityDefault)
+		}
+		f.plant(t, p2, 1)
+		if l, err := f.st.ListNotes(ctx, p2); err != nil || len(l) != 1 || l[0].Priority != NotePriorityDefault {
+			t.Errorf("a planted note: %+v, %v; want priority %d", l, err, NotePriorityDefault)
+		}
+		one := 1
+		got, err := f.st.PatchNote(ctx, p1, n.ID, NotePatch{Priority: &one}, []string{"ws-1"}, now)
+		if err != nil || got.Priority != 1 || got.Title != n.Title || got.Body != n.Body {
+			t.Fatalf("set 1: priority %d title %q body %q, %v", got.Priority, got.Title, got.Body, err)
+		}
+		if read, err := f.st.NoteOf(ctx, p1, n.ID); err != nil || read.Priority != 1 {
+			t.Errorf("read back: %d, %v; want 1", read.Priority, err)
+		}
+		for _, bad := range []int{0, 6, -1} {
+			if _, err := f.st.PatchNote(ctx, p1, n.ID, NotePatch{Priority: &bad}, nil, now); !errors.Is(err, ErrRealmBad) {
+				t.Errorf("priority %d: %v, want ErrRealmBad", bad, err)
+			}
+		}
+		three := 3
+		if _, err := f.st.PatchNote(ctx, p2, n.ID, NotePatch{Priority: &three}, nil, now); !errors.Is(err, ErrNotFound) {
+			t.Errorf("P2 sets P1's priority: %v, want ErrNotFound", err)
+		}
+		if read, err := f.st.NoteOf(ctx, p1, n.ID); err != nil || read.Priority != 1 {
+			t.Errorf("after the refusals: %d, %v; want 1", read.Priority, err)
+		}
+		other := "untouched"
+		if got, err := f.st.PatchNote(ctx, p1, n.ID, NotePatch{Title: &other}, []string{"ws-1"}, now); err != nil || got.Priority != 1 {
+			t.Errorf("a patch without priority: %d, %v; want it kept at 1", got.Priority, err)
+		}
+	})
+}
+
+// TestNotesPriorityOrder: within pinned and within the rest, priority 1 comes
+// first, then the person's own position; a pinned 5 still beats an unpinned 1.
+func TestNotesPriorityOrder(t *testing.T) {
+	eachNotesDriver(t, func(t *testing.T, f notesFix) {
+		ctx := context.Background()
+		now := time.Now().UTC().Truncate(time.Second)
+		p1, _ := realmPersons()
+		f.addHuman(t, p1)
+		ids := map[string]string{}
+		// each new note goes on top, so by position alone the two that get a
+		// priority come last in their groups: only the priority lifts them.
+		for _, title := range []string{"urgent", "older", "newer", "pinned-2", "pinned-5"} {
+			n, err := f.st.CreateNote(ctx, p1, Note{Title: title, Pinned: strings.HasPrefix(title, "pinned")}, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ids[title] = n.ID
+		}
+		for title, prio := range map[string]int{"urgent": 1, "pinned-2": 2} {
+			if _, err := f.st.PatchNote(ctx, p1, ids[title], NotePatch{Priority: &prio}, nil, now); err != nil {
+				t.Fatal(err)
+			}
+		}
+		want := "pinned-2 pinned-5 urgent newer older"
+		l, err := f.st.ListNotes(ctx, p1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, m := range l {
+			got = append(got, m.Title)
+		}
+		if strings.Join(got, " ") != want {
+			t.Errorf("ListNotes order %q, want %q", strings.Join(got, " "), want)
+		}
+		ex, err := f.st.ExportNotes(ctx, p1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got = got[:0]
+		for _, m := range ex {
+			got = append(got, m.Title)
+		}
+		if strings.Join(got, " ") != want {
+			t.Errorf("ExportNotes order %q, want %q", strings.Join(got, " "), want)
+		}
+	})
+}

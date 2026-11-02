@@ -19,7 +19,7 @@ import (
 //	DELETE /v1/me/realm/notes                          erase every note
 //	GET    /v1/me/realm/notes/export                   every note whole, as a file
 //	GET    /v1/me/realm/notes/{id}                     one note, items and links
-//	PATCH  /v1/me/realm/notes/{id}                     title, body, pinned, archived, position
+//	PATCH  /v1/me/realm/notes/{id}                     title, body, pinned, archived, position, priority
 //	DELETE /v1/me/realm/notes/{id}                     the note; items and links cascade
 //	PUT    /v1/me/realm/notes/{id}/items               the whole checklist
 //	POST   /v1/me/realm/notes/{id}/links               one more link
@@ -147,6 +147,7 @@ type noteJSON struct {
 	Title      string         `json:"title"`
 	Body       string         `json:"body"`
 	Pinned     bool           `json:"pinned"`
+	Priority   int            `json:"priority"`
 	Position   float64        `json:"position"`
 	Archived   bool           `json:"archived"`
 	ArchivedAt string         `json:"archived_at,omitempty"`
@@ -161,6 +162,7 @@ type noteSummaryJSON struct {
 	Title      string  `json:"title"`
 	Snippet    string  `json:"snippet"`
 	Pinned     bool    `json:"pinned"`
+	Priority   int     `json:"priority"`
 	Position   float64 `json:"position"`
 	Archived   bool    `json:"archived"`
 	ArchivedAt string  `json:"archived_at,omitempty"`
@@ -191,7 +193,7 @@ func (c notesMe) linkOut(l store.NoteLink) noteLinkJSON {
 }
 
 func (c notesMe) noteOut(n store.Note) noteJSON {
-	out := noteJSON{ID: n.ID, Title: n.Title, Body: n.Body, Pinned: n.Pinned, Position: n.Position,
+	out := noteJSON{ID: n.ID, Title: n.Title, Body: n.Body, Pinned: n.Pinned, Priority: n.Priority, Position: n.Position,
 		Archived: n.ArchivedAt != nil, ArchivedAt: notesArchived(n.ArchivedAt),
 		CreatedAt: notesTime(n.CreatedAt), UpdatedAt: notesTime(n.UpdatedAt),
 		Items: make([]noteItemJSON, 0, len(n.Items)), Links: make([]noteLinkJSON, 0, len(n.Links))}
@@ -205,7 +207,7 @@ func (c notesMe) noteOut(n store.Note) noteJSON {
 }
 
 func noteSummaryOut(n store.NoteSummary) noteSummaryJSON {
-	return noteSummaryJSON{ID: n.ID, Title: n.Title, Snippet: n.Snippet, Pinned: n.Pinned, Position: n.Position,
+	return noteSummaryJSON{ID: n.ID, Title: n.Title, Snippet: n.Snippet, Pinned: n.Pinned, Priority: n.Priority, Position: n.Position,
 		Archived: n.ArchivedAt != nil, ArchivedAt: notesArchived(n.ArchivedAt), UpdatedAt: notesTime(n.UpdatedAt),
 		ItemsDone: n.ItemsDone, ItemsTotal: n.ItemsTotal, LinkCount: n.LinkCount}
 }
@@ -349,6 +351,7 @@ type notePatchIn struct {
 	Pinned   *bool    `json:"pinned"`
 	Archived *bool    `json:"archived"`
 	Position *float64 `json:"position"`
+	Priority *int     `json:"priority"`
 }
 
 // PATCH /v1/me/realm/notes/{id}: the fields sent; the others are kept.
@@ -362,7 +365,7 @@ func (s *Server) handlePatchNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
-	p := store.NotePatch{Title: in.Title, Body: in.Body, Pinned: in.Pinned, Archived: in.Archived, Position: in.Position}
+	p := store.NotePatch{Title: in.Title, Body: in.Body, Pinned: in.Pinned, Archived: in.Archived, Position: in.Position, Priority: in.Priority}
 	n, err := c.st.PatchNote(r.Context(), c.person, id, p, c.ws, s.o.Now())
 	if err != nil {
 		s.notesFail(w, "notes_patch", c, id, err)

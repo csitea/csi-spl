@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { HUB_READ_TIMEOUT_MS, HUB_WRITE_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
+import { compareNotes, NOTE_PRIORITY_DEFAULT, notePriority } from '~/utils/note-order.mjs'
 
 /**
  * Spec 155 2.6 (B5, SPL-4123): the person's own notes, from the hub's realm
@@ -9,7 +10,7 @@ import { HUB_READ_TIMEOUT_MS, HUB_WRITE_TIMEOUT_MS } from '~/utils/fetch-timeout
  *   POST /v1/me/realm/notes   a new note
  * and, for the open note (B6, SPL-4186):
  *   GET    /v1/me/realm/notes/{id}        the note with its checklist and links
- *   PATCH  /v1/me/realm/notes/{id}        title, body, pinned, archived, position
+ *   PATCH  /v1/me/realm/notes/{id}        title, body, pinned, archived, position, priority
  *   PUT    /v1/me/realm/notes/{id}/items  the whole checklist, in order
  *   DELETE /v1/me/realm/notes/{id}        sent when the Undo toast ends (D2)
  * A realm route takes the person from the session alone and refuses a
@@ -28,6 +29,7 @@ export type NoteSummary = {
   title: string
   snippet: string
   pinned: boolean
+  priority: number
   position: number
   archived: boolean
   archived_at?: string
@@ -62,6 +64,7 @@ export type Note = {
   title: string
   body: string
   pinned: boolean
+  priority: number
   position: number
   archived: boolean
   archived_at?: string
@@ -72,7 +75,7 @@ export type Note = {
 }
 
 /** The fields PATCH takes; the others are kept. */
-export type NotePatch = Partial<Pick<Note, 'title' | 'body' | 'pinned' | 'archived' | 'position'>>
+export type NotePatch = Partial<Pick<Note, 'title' | 'body' | 'pinned' | 'archived' | 'position' | 'priority'>>
 
 type NotesApi = { base: string, token?: string, credentials?: RequestCredentials, mock?: boolean }
 
@@ -97,16 +100,16 @@ const mockItems = (texts: string[], done: number): NoteItem[] => texts.map((text
 const mockLinks = (n: number): NoteLink[] => Array.from({ length: n }, (_, i) => ({ id: `mock-link-${i + 1}`, kind: 'url', ref: `https://example.com/${i + 1}`, label: '' }))
 
 const MOCK_NOTES: Note[] = [
-  { id: 'mock-note-1', title: 'Release checklist', body: 'Things to check before the next release.', pinned: true, position: 1, archived: false, updated_at: '2026-10-28T09:00:00Z', items: mockItems(['Tests green', 'Docs updated', 'Dev deployed', 'Prd deployed', 'Release note'], 2), links: mockLinks(3) },
-  { id: 'mock-note-2', title: 'Ideas', body: 'A shorter onboarding page.', pinned: false, position: 2, archived: false, updated_at: '2026-10-27T15:30:00Z', items: [], links: mockLinks(1) },
-  { id: 'mock-note-3', title: '', body: 'Call back about the invoice\nand the new address', pinned: false, position: 3, archived: false, updated_at: '2026-10-26T08:10:00Z', items: [], links: [] },
-  { id: 'mock-note-4', title: 'Old plan', body: 'Kept for reference.', pinned: false, position: 4, archived: true, archived_at: '2026-10-20T12:00:00Z', updated_at: '2026-10-20T12:00:00Z', items: mockItems(['Draft'], 1), links: [] },
+  { id: 'mock-note-1', title: 'Release checklist', body: 'Things to check before the next release.', pinned: true, priority: NOTE_PRIORITY_DEFAULT, position: 1, archived: false, updated_at: '2026-10-28T09:00:00Z', items: mockItems(['Tests green', 'Docs updated', 'Dev deployed', 'Prd deployed', 'Release note'], 2), links: mockLinks(3) },
+  { id: 'mock-note-2', title: 'Ideas', body: 'A shorter onboarding page.', pinned: false, priority: NOTE_PRIORITY_DEFAULT, position: 2, archived: false, updated_at: '2026-10-27T15:30:00Z', items: [], links: mockLinks(1) },
+  { id: 'mock-note-3', title: '', body: 'Call back about the invoice\nand the new address', pinned: false, priority: NOTE_PRIORITY_DEFAULT, position: 3, archived: false, updated_at: '2026-10-26T08:10:00Z', items: [], links: [] },
+  { id: 'mock-note-4', title: 'Old plan', body: 'Kept for reference.', pinned: false, priority: NOTE_PRIORITY_DEFAULT, position: 4, archived: true, archived_at: '2026-10-20T12:00:00Z', updated_at: '2026-10-20T12:00:00Z', items: mockItems(['Draft'], 1), links: [] },
 ]
 
 /** The list row of a whole note (the hub's noteSummaryOut). */
 export function summaryOf(n: Note): NoteSummary {
   return {
-    id: n.id, title: n.title || '', snippet: String(n.body || '').slice(0, 200), pinned: Boolean(n.pinned), position: Number(n.position) || 0,
+    id: n.id, title: n.title || '', snippet: String(n.body || '').slice(0, 200), pinned: Boolean(n.pinned), priority: notePriority(n), position: Number(n.position) || 0,
     archived: Boolean(n.archived), archived_at: n.archived_at, updated_at: n.updated_at,
     items_done: (n.items || []).filter((i) => i.done).length, items_total: (n.items || []).length, link_count: (n.links || []).length,
   }
@@ -114,9 +117,9 @@ export function summaryOf(n: Note): NoteSummary {
 
 const copyNote = (n: Note): Note => ({ ...n, items: n.items.map((i) => ({ ...i })), links: n.links.map((l) => ({ ...l })) })
 
-/** Pinned first, each group by the person's own order (position, then newest). */
+/** Pinned first, each group by priority (1 first), then the person's own order (position, then newest). */
 export function sortNotes(list: readonly NoteSummary[]): NoteSummary[] {
-  return [...list].sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.position - b.position || b.updated_at.localeCompare(a.updated_at))
+  return [...list].sort(compareNotes)
 }
 
 /** The rows the filter box and the Archived switch leave, in list order. */
@@ -204,7 +207,7 @@ function mockNotes(): ReturnType<typeof hubNotes> {
     list: async () => all.map(summaryOf),
     async create() {
       const position = Math.min(0, ...all.map((n) => n.position)) - 1
-      const note: Note = { id: `mock-note-${Date.now()}`, title: '', body: '', pinned: false, position, archived: false, updated_at: new Date().toISOString(), items: [], links: [] }
+      const note: Note = { id: `mock-note-${Date.now()}`, title: '', body: '', pinned: false, priority: NOTE_PRIORITY_DEFAULT, position, archived: false, updated_at: new Date().toISOString(), items: [], links: [] }
       all = [note, ...all]
       return copyNote(note)
     },
@@ -331,7 +334,7 @@ export const useNotesStore = defineStore('notes', () => {
 /** A note from the hub, with the arrays always present. */
 function normalNote(n: Partial<Note> & { id: string }): Note {
   return {
-    id: n.id, title: n.title || '', body: n.body || '', pinned: Boolean(n.pinned), position: Number(n.position) || 0, archived: Boolean(n.archived),
+    id: n.id, title: n.title || '', body: n.body || '', pinned: Boolean(n.pinned), priority: notePriority(n), position: Number(n.position) || 0, archived: Boolean(n.archived),
     archived_at: n.archived_at, created_at: n.created_at, updated_at: n.updated_at || '', items: n.items || [], links: n.links || [],
   }
 }

@@ -2,8 +2,9 @@
      open issue (IssueDetailFrame: focus trap, Esc / X / backdrop close); on a
      phone the level-3 full screen with the Back chevron (MobileBack). Owner
      HUM-10 (t1 cb9d7bdc, msg cc1a052f): "I cannot edit notes on mobile."
-     Inside: title, text, the checklist, the links (B7, NoteLinks: each link
-     added or removed is its own POST / DELETE), and Pin, Archive, Move up / down,
+     Inside: title, the priority (NotePriorityChooser, saved at once), text, the
+     checklist, the links (B7, NoteLinks: each link added or removed is its own
+     POST / DELETE), and Pin, Archive, Move up / down,
      Delete. Each field saves 800 ms after the last key and on close; a failed
      save keeps the text and shows "Not saved, retry". Delete is the page's
      (D2: the note goes at once, the DELETE waits for the 10 s Undo).
@@ -60,6 +61,7 @@
           :aria-label="t('notes.title_label')"
           @input="schedule('fields')"
         >
+        <NotePriorityChooser :note-id="note.id" :priority="note.priority" @saved="note = $event" />
         <textarea
           v-model="body"
           class="note-in__body"

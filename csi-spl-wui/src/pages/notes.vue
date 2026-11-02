@@ -3,7 +3,7 @@
      keeps the icon rail only (ChannelSidebar notesRailOnly); this page is the
      list: New note, the filter box, the Archived switch, the Pinned group,
      then the rest. A row is one line, the title alone (owner, t1 2a0b4d9e,
-     SPL-4651), and is /notes?note=<id>; B6 (SPL-4186) opens it:
+     SPL-4651) with its priority beside it (spec 155 2.9, SPL-4652), and is /notes?note=<id>; B6 (SPL-4186) opens it:
      components/NoteDetail.vue, lazy, a modal above 820 px and the level-3
      full screen on a phone. The order is the person's own: drag a row, or
      Alt+Up / Alt+Down on it (utils/note-order.mjs). Delete (D2) takes the note
@@ -79,6 +79,7 @@
                   @keydown.alt.down.prevent="move(n.id, 1)"
                 >
                   <span class="notes-row__title">{{ rowTitle(n) }}</span>
+                  <span class="notes-row__prio" data-test="notes-row-priority">{{ t('topic.priority.badge', { n: notePriority(n) }) }}</span>
                 </a>
               </li>
             </ul>
@@ -114,7 +115,7 @@
 <script setup lang="ts">
 import { filterNotes, useNotesStore } from '~/stores/notes'
 import type { NoteSummary } from '~/stores/notes'
-import { movePosition, dropPosition } from '~/utils/note-order.mjs'
+import { movePosition, dropPosition, notePriority } from '~/utils/note-order.mjs'
 import UndoSnackbar from '~/components/UndoSnackbar.vue'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useNoteOpen } from '~/composables/useNoteOpen'
@@ -279,6 +280,17 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* the same small outlined tag as a message's priority badge (MessageCard .msg-prio) */
+.notes-row__prio {
+  flex: 0 0 auto;
+  margin-left: 8px;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0 4px;
 }
 @media (max-width: 820px) {
   .notes-bar .btn, .notes-bar__filter, .notes-row__open { min-height: var(--tap, 44px); }

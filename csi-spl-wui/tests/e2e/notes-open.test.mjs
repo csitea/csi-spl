@@ -34,6 +34,13 @@
 // view still work. CONTROL: with the text and meta spans back in the row, or
 // white-space: nowrap off the title, the checks of oneLine() FAIL.
 //
+// SPL-4652 (spec 155 2.9, the same owner msg: "notes should have priority"): the
+// row shows the priority beside the title, 5 when nobody set one, and stays one
+// line at 1440 px and 390 px; the chooser in the open note saves at once, and
+// within a group the list orders by priority, 1 first. A drop on another
+// priority moves nothing. CONTROL: with the chip out of the row, or with
+// compareNotes not reading the priority, the checks of notePriorityCase() FAIL.
+//
 // Run:
 //   node tests/e2e/notes-open.test.mjs
 //   BASE_URL=http://127.0.0.1:3000 node tests/e2e/notes-open.test.mjs
@@ -364,14 +371,15 @@ async function oneLine(browser, base, width, touch) {
   if (touch) await p.waitForFunction(() => Math.round(document.querySelector('[data-test=notes-page]').getBoundingClientRect().left) === 0, { timeout: 5000 })
   const long = 'A very long note title that goes on and on, '.repeat(8).trim()
   await p.evaluate((id, title) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('notes').patch(id, { title }), 'mock-note-2', long)
-  await p.waitForFunction((id, title) => document.querySelector(`[data-note-id="${id}"]`)?.textContent.trim() === title, { timeout: 5000 }, 'mock-note-2', long).catch(() => {})
+  await p.waitForFunction((id, title) => document.querySelector(`[data-note-id="${id}"] .notes-row__title`)?.textContent.trim() === title, { timeout: 5000 }, 'mock-note-2', long).catch(() => {})
   const shape = (id) => p.$eval(`[data-note-id="${id}"]`, (row) => {
     const t = row.querySelector('.notes-row__title')
     const css = getComputedStyle(t)
     const box = row.getBoundingClientRect()
     return {
-      text: row.textContent.trim(),
-      title: t.textContent.trim(),
+      text: t.textContent.trim(),
+      prio: row.querySelector('[data-test=notes-row-priority]')?.textContent.trim(),
+      prioInLine: (() => { const c = row.querySelector('[data-test=notes-row-priority]')?.getBoundingClientRect(); return Boolean(c) && c.left >= t.getBoundingClientRect().right && c.right <= window.innerWidth + 1 && c.top < t.getBoundingClientRect().bottom && c.bottom > t.getBoundingClientRect().top })(),
       spans: row.querySelectorAll('[data-test=notes-open] *').length,
       previewOrMeta: Boolean(row.querySelector('[data-test=notes-row-text], .notes-row__text, .notes-row__meta')),
       lines: Math.round(t.getBoundingClientRect().height / parseFloat(css.lineHeight === 'normal' ? parseFloat(css.fontSize) * 1.2 : css.lineHeight)),
@@ -381,7 +389,8 @@ async function oneLine(browser, base, width, touch) {
     }
   })
   const longRow = await shape('mock-note-2')
-  check(`${tag}: the row holds the title alone`, longRow.text === long && longRow.spans === 1 && !longRow.previewOrMeta, longRow)
+  check(`${tag}: the row holds the title and its priority, nothing more`, longRow.text === long && longRow.spans === 2 && longRow.prio === 'P5' && !longRow.previewOrMeta, longRow)
+  check(`${tag}: the priority sits beside the cut title, on the one line`, longRow.prioInLine, longRow)
   check(`${tag}: a long title stays on one line`, longRow.lines === 1, longRow.lines)
   check(`${tag}: it is cut with an ellipsis`, longRow.cut && longRow.ellipsis, longRow)
   check(`${tag}: inside the screen`, longRow.fits, longRow)
@@ -431,12 +440,68 @@ async function oneLine(browser, base, width, touch) {
   await p.close()
 }
 
+/* SPL-4652: the chooser in the open note, the chip on the row and the list order */
+async function notePriorityCase(browser, base, width, touch) {
+  const tag = `${width}px priority`
+  const p = await openPage(browser, base, width, touch)
+  const chip = (id) => p.$eval(`[data-note-id="${id}"] [data-test=notes-row-priority]`, (e) => e.textContent.trim())
+  const closeNote = async () => {
+    if (touch) await p.click('[data-test=note-detail] [data-testid=mobile-back]')
+    else await p.keyboard.press('Escape')
+    await waitGone(p)
+  }
+  const stored = (id) => summary(p, id).then((n) => n.priority)
+  check(`${tag}: a note nobody set reads P5`, (await chip('mock-note-3')) === 'P5' && (await stored('mock-note-3')) === 5)
+  check(`${tag}: same priority, the own order`, same(await rows(p, 'rest'), ['mock-note-2', 'mock-note-3']), await rows(p, 'rest'))
+  await clickRow(p, 'mock-note-3')
+  await waitDetail(p, 'mock-note-3')
+  check(`${tag}: the chooser shows the note's 5`, await p.$eval('[data-test=note-priority-5]', (e) => e.checked))
+  check(`${tag}: it offers 1..5`, same(await p.$$eval('[data-test=note-priority] input[type=radio]', (els) => els.map((e) => e.value)), ['1', '2', '3', '4', '5']))
+  if (touch) {
+    const tap = await p.$eval('[data-test=note-priority-1]', (e) => { const r = e.closest('label').getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)] })
+    check(`${tag}: a level is a 44 px tap target`, tap[0] >= 44 && tap[1] >= 44, tap)
+    check(`${tag}: the open note has no sideways scroll`, await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
+  }
+  await p.click('[data-test=note-priority-1]')
+  await p.waitForFunction(() => document.querySelector('[data-test=note-priority]')?.getAttribute('data-priority') === '1', { timeout: 5000 }).catch(() => {})
+  check(`${tag}: a click checks 1`, await p.$eval('[data-test=note-priority-1]', (e) => e.checked))
+  check(`${tag}: the store holds 1`, (await stored('mock-note-3')) === 1, await stored('mock-note-3'))
+  await closeNote()
+  check(`${tag}: the row follows, P1`, (await chip('mock-note-3')) === 'P1', await chip('mock-note-3'))
+  check(`${tag}: the 1 goes above the 5 in its group`, same(await rows(p, 'rest'), ['mock-note-3', 'mock-note-2']), await rows(p, 'rest'))
+  check(`${tag}: pinned stays first, P5 above the P1`, same(await rows(p), ['mock-note-1', 'mock-note-3', 'mock-note-2']), await rows(p))
+  check(`${tag}: no sideways scroll`, await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/notes-list-priority-${width}.png` })
+  if (!touch) {
+    await p.evaluate(() => {
+      const row = (id) => document.querySelector(`[data-note-id="${id}"]`)
+      const dataTransfer = new DataTransfer()
+      const fire = (el, type) => el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer }))
+      fire(row('mock-note-2'), 'dragstart')
+      fire(row('mock-note-3'), 'dragover')
+      fire(row('mock-note-3'), 'drop')
+      fire(row('mock-note-2'), 'dragend')
+    })
+    await sleep(300)
+    check(`${tag}: a drop on another priority moves nothing`, same(await rows(p, 'rest'), ['mock-note-3', 'mock-note-2']) && (await chip('mock-note-2')) === 'P5', await rows(p, 'rest'))
+    await p.focus('[data-note-id=mock-note-2] [data-test=notes-open]')
+    await p.keyboard.down('Alt')
+    await p.keyboard.press('ArrowUp')
+    await p.keyboard.up('Alt')
+    await sleep(300)
+    check(`${tag}: Alt+Up does not jump above another priority`, same(await rows(p, 'rest'), ['mock-note-3', 'mock-note-2']), await rows(p, 'rest'))
+  }
+  await p.close()
+}
+
 const server = await startServer()
 const browser = await launch()
 let code = 0
 try {
   await oneLine(browser, server.base, 1440, false)
   await oneLine(browser, server.base, 390, true)
+  await notePriorityCase(browser, server.base, 1440, false)
+  await notePriorityCase(browser, server.base, 390, true)
   await desktop(browser, server.base)
   await desktopActions(browser, server.base)
   await phone(browser, server.base)

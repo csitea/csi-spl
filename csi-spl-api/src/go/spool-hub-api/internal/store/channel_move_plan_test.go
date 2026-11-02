@@ -18,7 +18,9 @@ import (
 // Spec 169 row T4: PlanChannelMove. C1 (plan changes nothing: the row count
 // of every tenant table is equal before and after) runs on Postgres; C7
 // (Q6 = A: an issue linked to topics in two channels refuses the move,
-// naming it) runs on both drivers. Each lands with its red control.
+// naming it) runs on both drivers. Each lands with its red control. Row T4b:
+// C22 (R1, a box not pinned in <DST> is listed) and C23 (W2, a seated agent
+// with no <DST> desk refuses, naming it) run on both drivers.
 
 // movePlanFix is <SRC> with a moving channel and a staying one, and <DST>.
 type movePlanFix struct {
@@ -56,6 +58,7 @@ func seedMovePlan(t *testing.T, s Store) movePlanFix {
 		must(s.CreateChannel(ctx, Channel{TenantID: f.src, ChannelID: ch, Name: ch, CreatedBy: "HUM-1", CreatedAt: now}))
 	}
 	must(s.AddChannelHumans(ctx, f.src, f.mv, []string{"HUM-1"}, "HUM-1", now))
+	must(s.PutPin(ctx, f.dst, "box-a", pubkey(), false, now, now)) // msgFor's from_box: only C22 is about pins
 	post := func(task, parent, ch, body string, at time.Time) string {
 		m := msgFor(f.src, task, "box-a", at, at, "env-"+uuid4())
 		m.Channel, m.ParentTaskID, m.Body = ch, parent, body
@@ -211,6 +214,143 @@ func TestPlanChannelMoveRequest(t *testing.T) {
 			req.Channel = uid("gone-")
 			if _, err := pl.PlanChannelMove(ctx, req); !errors.Is(err, ErrNotFound) {
 				t.Errorf("no such channel: want ErrNotFound, got %v", err)
+			}
+		})
+	}
+}
+
+// TestPlanChannelMoveC22UnpinnedBox: R1. Each from_box of the set's rows
+// needs a live pin in <DST>: a box with none, with a revoked one or pinned
+// only in <SRC> is listed and refuses, also for a channel-less thread row the
+// walk found. A box only a staying post names, and a row with no box, are not.
+func TestPlanChannelMoveC22UnpinnedBox(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			f := seedMovePlan(t, s)
+			ctx, now := context.Background(), time.Now().UTC().Truncate(time.Second)
+			post := func(task, parent, ch, box string) {
+				t.Helper()
+				m := msgFor(f.src, task, "box-a", now, now, "env-"+uuid4())
+				m.Channel, m.ParentTaskID, m.FromBox = ch, parent, box
+				if _, err := s.InsertMessage(ctx, m); err != nil {
+					t.Fatal(err)
+				}
+			}
+			pin := func(tenant, box string) {
+				t.Helper()
+				if err := s.PutPin(ctx, tenant, box, pubkey(), false, now, now); err != nil {
+					t.Fatal(err)
+				}
+			}
+			req := f.req()
+			req.noSharedCheck = true // the shared issue is C7's; here only the pins
+			if p := planOf(t, s, req); p.Refused() || len(p.MissingPins) != 0 {
+				t.Fatalf("every box of the set is pinned: want no stop, got %q", p.Stops())
+			}
+			post(f.tA, "", f.mv, "box-none")
+			post(uuid4(), f.tA, "", "box-thread")
+			post(f.tA, "", f.mv, "box-revoked")
+			post(f.tA, "", f.mv, "box-src-only")
+			post(f.tA, "", f.mv, "box-good")
+			post(f.tA, "", f.mv, "")
+			post(f.tB, "", f.stay, "box-staying")
+			pin(f.dst, "box-good")
+			pin(f.dst, "box-revoked")
+			if err := s.RevokePin(ctx, f.dst, "box-revoked", now.Add(time.Second), now); err != nil {
+				t.Fatal(err)
+			}
+			pin(f.src, "box-src-only")
+			pin(f.src, "box-staying")
+			p := planOf(t, s, req)
+			want := []string{"box-none", "box-revoked", "box-src-only", "box-thread"}
+			if strings.Join(p.MissingPins, " ") != strings.Join(want, " ") {
+				t.Fatalf("want missing pins %v, got %v", want, p.MissingPins)
+			}
+			if !p.Refused() {
+				t.Errorf("an unpinned box must refuse the move")
+			}
+			line := "box box-none is not pinned in " + f.dst + " (R1)"
+			if !contains(p.Stops(), line) {
+				t.Errorf("want the stop %q, got %q", line, p.Stops())
+			}
+			for _, b := range []string{"box-none", "box-src-only", "box-thread"} {
+				pin(f.dst, b)
+			}
+			if err := s.PutPin(ctx, f.dst, "box-revoked", pubkey(), true, now.Add(2*time.Second), now); err != nil {
+				t.Fatal(err)
+			}
+			if p := planOf(t, s, req); p.Refused() {
+				t.Errorf("all pinned now: want no stop, got %q", p.Stops())
+			}
+			// CONTROL: without the check the unpinned box passes plan unseen.
+			post(f.tA, "", f.mv, "box-late")
+			req.noPinCheck = true
+			if c := planOf(t, s, req); c.Refused() || len(c.MissingPins) != 0 {
+				t.Fatalf("CONTROL: with the check removed the box is still listed: %v", c.MissingPins)
+			}
+			req.noPinCheck = false
+			if p := planOf(t, s, req); len(p.MissingPins) != 1 || p.MissingPins[0] != "box-late" {
+				t.Fatalf("CONTROL: the same seed with the check must list box-late, got %v", p.MissingPins)
+			}
+		})
+	}
+}
+
+// TestPlanChannelMoveC23MissingDesk: W2. Each agent seated in the channel, by
+// invite or as a channel's dedicated agent, needs a roster row on its box in
+// <DST>; the plan refuses naming the missing ones. A desk on another box, in
+// <SRC> only, or one that left the roster (its agent_seats row outlives it) is
+// no desk. A removed seat and a seat in a staying channel need none.
+func TestPlanChannelMoveC23MissingDesk(t *testing.T) {
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			f := seedMovePlan(t, s)
+			ctx, now := context.Background(), time.Now().UTC().Truncate(time.Second)
+			must := func(err error) {
+				t.Helper()
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			ds, ok := s.(DedicatedStore)
+			if !ok {
+				t.Fatalf("%T keeps no dedicated agents", s)
+			}
+			req := f.req()
+			req.noSharedCheck = true // the shared issue is C7's; here only the desks
+			for _, a := range []string{"c-101", "c-102", "c-103", "c-104", "c-105"} {
+				must(s.InviteChannelAgent(ctx, f.src, f.mv, "box-desk", a, now))
+			}
+			_, err := ds.SetDedicatedBinding(ctx, DedicatedBinding{TenantID: f.src, AgentID: "c-106", BoxID: "box-desk",
+				ScopeType: ScopeChannel, ScopeID: f.mv, BoundBy: "HUM-1"})
+			must(err)
+			must(s.RemoveChannelAgent(ctx, f.src, f.mv, "box-desk", "c-107", now))
+			must(s.InviteChannelAgent(ctx, f.src, f.stay, "box-desk", "c-108", now))
+			must(s.SetRoster(ctx, f.src, "box-desk", []string{"c-101", "c-102", "c-103", "c-104", "c-105", "c-106"}, now))
+			must(s.SetRoster(ctx, f.dst, "box-desk", []string{"c-101", "c-105"}, now))
+			must(s.SetRoster(ctx, f.dst, "box-other", []string{"c-102"}, now))
+			must(s.SetRoster(ctx, f.dst, "box-desk", []string{"c-101"}, now.Add(time.Second))) // c-105 left: only its agent_seats row stays
+			p := planOf(t, s, req)
+			want := []MoveSeat{{"c-102", "box-desk"}, {"c-103", "box-desk"}, {"c-104", "box-desk"}, {"c-105", "box-desk"}, {"c-106", "box-desk"}}
+			if fmt.Sprint(p.MissingDesks) != fmt.Sprint(want) {
+				t.Fatalf("want missing desks %v, got %v", want, p.MissingDesks)
+			}
+			if !p.Refused() {
+				t.Errorf("a seat with no desk must refuse the move")
+			}
+			line := "seat c-106 on box-desk has no desk in " + f.dst + " (W2)"
+			if !contains(p.Stops(), line) {
+				t.Errorf("want the stop %q, got %q", line, p.Stops())
+			}
+			// CONTROL: without the check the same seats pass plan unseen.
+			req.noDeskCheck = true
+			if c := planOf(t, s, req); c.Refused() || len(c.MissingDesks) != 0 {
+				t.Fatalf("CONTROL: with the check removed the desks are still listed: %v", c.MissingDesks)
+			}
+			req.noDeskCheck = false
+			must(s.SetRoster(ctx, f.dst, "box-desk", []string{"c-101", "c-102", "c-103", "c-104", "c-105", "c-106"}, now.Add(2*time.Second)))
+			if p := planOf(t, s, req); p.Refused() {
+				t.Errorf("every seat has its desk now: want no stop, got %q", p.Stops())
 			}
 		})
 	}

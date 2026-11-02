@@ -5,12 +5,14 @@ package store
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 )
 
 // PlanChannelMove on Memory plans what Memory holds: the channel, its posts
 // (M2), its issues (M7, with the shared-issue and epic rules of C7), the
-// mentions in staying posts, and the channel's people who stay behind.
+// mentions in staying posts, the channel's people who stay behind, the set's
+// boxes not pinned in <DST> and the seats with no <DST> desk.
 // Memory has no SQL, so the catalogue counts cover only channels and
 // messages; docs, hours, files and spec links are Postgres's
 // (channel_move_plan_postgres.go), where C1 runs.
@@ -57,7 +59,58 @@ func (s *Memory) PlanChannelMove(_ context.Context, req ChannelMovePlanRequest) 
 		humans = append(humans, h)
 	}
 	plan.Leaving = mpLeavingOf(humans, inDst, req.Keep)
+	if !req.noPinCheck {
+		plan.MissingPins = s.planMissingPinsLocked(req, inMsg)
+	}
+	if !req.noDeskCheck {
+		plan.MissingDesks = mpMissingDesks(s.planSeatsLocked(req), func(seat MoveSeat) bool {
+			return slices.Contains(s.roster[[2]string{req.Dst, seat.Box}], seat.Agent)
+		})
+	}
 	return plan, nil
+}
+
+// planMissingPinsLocked is R1 over the set's rows.
+func (s *Memory) planMissingPinsLocked(req ChannelMovePlanRequest, inMsg map[string]bool) []string {
+	var boxes []string
+	for k, m := range s.messages {
+		if k[0] == req.Src && inMsg[m.MsgID] {
+			boxes = append(boxes, m.FromBox)
+		}
+	}
+	return mpMissingPins(boxes, func(box string) bool {
+		p, ok := s.pins[[2]string{req.Dst, box}]
+		return ok && !p.revoked
+	})
+}
+
+// planSeatsLocked is M5's agents: the channel's members and its dedicated
+// agents (the Postgres seats' rule).
+func (s *Memory) planSeatsLocked(req ChannelMovePlanRequest) []MoveSeat {
+	var out []MoveSeat
+	add := func(box, agent string) {
+		if _, gone := s.ch.removed[[4]string{req.Src, req.Channel, box, agent}]; !gone {
+			out = append(out, MoveSeat{Agent: agent, Box: box})
+		}
+	}
+	for k, bag := range s.ch.subs {
+		if k[0] == req.Src {
+			for _, a := range bag[req.Channel] {
+				add(k[1], a)
+			}
+		}
+	}
+	for k := range s.ch.invited {
+		if k[0] == req.Src && k[1] == req.Channel {
+			add(k[2], k[3])
+		}
+	}
+	for k, b := range s.dedicatedLocked().bindings {
+		if k[0] == req.Src && b.ScopeType == ScopeChannel && b.ScopeID == req.Channel {
+			out = append(out, MoveSeat{Agent: b.AgentID, Box: b.BoxID})
+		}
+	}
+	return out
 }
 
 // planWalkLocked is the M2 walk (the Postgres walk's rule) over s.messages.

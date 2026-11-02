@@ -14,9 +14,11 @@ import (
 // PlanChannelMove is `plan` of spec 169 (row T4, sections 4, 5.4, 5.5, 5.1a):
 // it computes a channel's set in <SRC>, the shared items that make the move
 // refuse (Q6 = A), the mentions outside the set (Q4 = A, listed only), the
-// channel's people who are not <DST> members (W1, Q5) and the hours stops,
-// and changes nothing (C1). Postgres reads <SRC> in one READ ONLY tenant
-// transaction, so a write anywhere in it is refused by the server.
+// channel's people who are not <DST> members (W1, Q5), the hours stops, and
+// (row T4b) the set's boxes not pinned in <DST> (R1) and the seated agents
+// with no <DST> desk (W2), and changes nothing (C1). Postgres reads <SRC> in
+// one READ ONLY tenant transaction, so a write anywhere in it is refused by
+// the server.
 //
 // The catalogue (channelmove.Catalogue and channelmove.Binds, row T1) comes
 // in the request: channelmove's own tests import this package, so this
@@ -57,6 +59,10 @@ type ChannelMovePlanRequest struct {
 
 	// noSharedCheck drops the shared-item rule: the red control of C7 only.
 	noSharedCheck bool
+	// noPinCheck drops R1: the red control of C22 only.
+	noPinCheck bool
+	// noDeskCheck drops W2: the red control of C23 only.
+	noDeskCheck bool
 }
 
 // ChannelMoveBinds are the frozen id lists of the set (channelmove.Binds,
@@ -110,6 +116,11 @@ type HoursStop struct {
 	Reason string // "Q5": the member does not come to <DST>; "Q8": inside a frozen or approved sheet
 }
 
+// MoveSeat is one agent seated in the channel, on its box (M5).
+type MoveSeat struct {
+	Agent, Box string
+}
+
 // ChannelMovePlan is plan's answer. Refused() says whether the move may go on.
 type ChannelMovePlan struct {
 	Src, Channel, Dst string
@@ -122,10 +133,20 @@ type ChannelMovePlan struct {
 	Mentions    []Mention
 	Leaving     []string // channel humans neither <DST> members nor kept (W1, Q5)
 	Hours       []HoursStop
+	// MissingPins are the from_box values of the set's rows with no live pin
+	// in <DST>: the rows could be stored there but not re-verified (R1).
+	MissingPins []string
+	// MissingDesks are the seats with no desk on their box in <DST> (W2). The
+	// seats are M5's rows only: the F14 box rule rows live on the box, and the
+	// hub cannot read them.
+	MissingDesks []MoveSeat
 }
 
-// Refused reports a shared item or an hours stop: the move must not run.
-func (p ChannelMovePlan) Refused() bool { return len(p.Shared) > 0 || len(p.Hours) > 0 }
+// Refused reports anything that stops the move: a shared item, an hours stop,
+// a box not pinned in <DST> or a seat with no <DST> desk.
+func (p ChannelMovePlan) Refused() bool {
+	return len(p.Shared) > 0 || len(p.Hours) > 0 || len(p.MissingPins) > 0 || len(p.MissingDesks) > 0
+}
 
 // Stops are the printable reasons the move refuses, one per line, in the
 // spec's words for hours (5.1a).
@@ -140,6 +161,12 @@ func (p ChannelMovePlan) Stops() []string {
 		} else {
 			out = append(out, fmt.Sprintf("hours: %s %d rows inside a frozen or approved sheet (Q8)", h.Member, h.Rows))
 		}
+	}
+	for _, b := range p.MissingPins {
+		out = append(out, fmt.Sprintf("box %s is not pinned in %s (R1)", b, p.Dst))
+	}
+	for _, d := range p.MissingDesks {
+		out = append(out, fmt.Sprintf("seat %s on %s has no desk in %s (W2)", d.Agent, d.Box, p.Dst))
 	}
 	return out
 }
@@ -310,6 +337,43 @@ func mpHoursStops(total, signed map[string]int, inDst func(string) bool, keep []
 			out = append(out, HoursStop{Member: m, Rows: signed[m], Reason: "Q8"})
 		}
 	}
+	return out
+}
+
+// mpMissingPins answers the set's from_box values with no live pin in <DST>
+// (R1), sorted and once each. A row with no box has no key to re-verify.
+func mpMissingPins(fromBoxes []string, pinned func(string) bool) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, b := range fromBoxes {
+		if b != "" && !seen[b] && !pinned(b) {
+			out = append(out, b)
+		}
+		seen[b] = true
+	}
+	sort.Strings(out)
+	return out
+}
+
+// mpMissingDesks answers the seats with no desk on their box in <DST> (W2),
+// sorted and once each. A desk is the box's live roster row: agent_seats
+// outlives the roster (rdb 0107), so its row alone says the agent was there,
+// not that the desk still is.
+func mpMissingDesks(seats []MoveSeat, hasDesk func(MoveSeat) bool) []MoveSeat {
+	seen := map[MoveSeat]bool{}
+	var out []MoveSeat
+	for _, seat := range seats {
+		if !seen[seat] && !hasDesk(seat) {
+			out = append(out, seat)
+		}
+		seen[seat] = true
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Agent != out[j].Agent {
+			return out[i].Agent < out[j].Agent
+		}
+		return out[i].Box < out[j].Box
+	})
 	return out
 }
 

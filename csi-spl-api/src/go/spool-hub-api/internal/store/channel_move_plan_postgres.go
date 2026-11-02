@@ -12,34 +12,63 @@ import (
 )
 
 // PlanChannelMove computes the plan of spec 169 T4 (channel_move_plan.go)
-// on Postgres: <DST>'s members in one read, then everything else in one
-// READ ONLY transaction scoped to <SRC>. It needs no operator scope: every
-// row it reads is <SRC>'s or <DST>'s.
+// on Postgres: <DST>'s members, live pins and roster in one read, then
+// everything else in one READ ONLY transaction scoped to <SRC>. It needs no
+// operator scope: every row it reads is <SRC>'s or <DST>'s.
 func (s *Postgres) PlanChannelMove(ctx context.Context, req ChannelMovePlanRequest) (ChannelMovePlan, error) {
 	if err := mpCheckRequest(req); err != nil {
 		return ChannelMovePlan{}, err
 	}
-	members := map[string]bool{}
-	err := s.planRead(ctx, req.Dst, func(tx pgx.Tx) error {
-		return eachRow(ctx, tx, `SELECT human_id FROM tenant_memberships WHERE tenant_id = $1`, []any{req.Dst}, func(r pgx.Rows) error {
-			var h string
-			err := r.Scan(&h)
-			members[h] = true
-			return err
-		})
-	})
+	dst, err := s.planReadDst(ctx, req.Dst)
 	if err != nil {
 		return ChannelMovePlan{}, err
 	}
 	plan := ChannelMovePlan{Src: req.Src, Channel: req.Channel, Dst: req.Dst}
 	err = s.planRead(ctx, req.Src, func(tx pgx.Tx) error {
-		p := &pgPlan{ctx: ctx, tx: tx, req: req, plan: &plan, inDst: func(h string) bool { return members[h] }}
+		p := &pgPlan{ctx: ctx, tx: tx, req: req, plan: &plan, dst: dst, inDst: func(h string) bool { return dst.members[h] }}
 		return p.mpRun()
 	})
 	if err != nil {
 		return ChannelMovePlan{}, err
 	}
 	return plan, nil
+}
+
+// planDst is what plan reads of <DST>.
+type planDst struct {
+	members map[string]bool   // tenant_memberships.human_id
+	pinned  map[string]bool   // pins.box_id, not revoked
+	desks   map[MoveSeat]bool // roster
+}
+
+func (s *Postgres) planReadDst(ctx context.Context, tenant string) (planDst, error) {
+	dst := planDst{members: map[string]bool{}, pinned: map[string]bool{}, desks: map[MoveSeat]bool{}}
+	err := s.planRead(ctx, tenant, func(tx pgx.Tx) error {
+		sets := []struct {
+			sql string
+			set map[string]bool
+		}{
+			{`SELECT human_id FROM tenant_memberships WHERE tenant_id = $1`, dst.members},
+			{`SELECT box_id FROM pins WHERE tenant_id = $1 AND revoked_at IS NULL`, dst.pinned},
+		}
+		for _, q := range sets {
+			if err := eachRow(ctx, tx, q.sql, []any{tenant}, func(r pgx.Rows) error {
+				var v string
+				err := r.Scan(&v)
+				q.set[v] = true
+				return err
+			}); err != nil {
+				return err
+			}
+		}
+		return eachRow(ctx, tx, `SELECT agent_id, box_id FROM roster WHERE tenant_id = $1`, []any{tenant}, func(r pgx.Rows) error {
+			var seat MoveSeat
+			err := r.Scan(&seat.Agent, &seat.Box)
+			dst.desks[seat] = true
+			return err
+		})
+	})
+	return dst, err
 }
 
 // planRead runs fn in a tenant transaction the server holds READ ONLY: a
@@ -61,6 +90,7 @@ type pgPlan struct {
 	tx     pgx.Tx
 	req    ChannelMovePlanRequest
 	plan   *ChannelMovePlan
+	dst    planDst
 	inDst  func(string) bool
 	prefix string
 }
@@ -77,6 +107,12 @@ func (p *pgPlan) mpRun() error {
 	steps = []func() error{p.mpCounts, p.mpFiles, p.mpMentions, p.mpHours, p.mpLeaving}
 	if !p.req.noSharedCheck {
 		steps = append(steps, p.mpSharedIssues, p.mpSharedSpecSync)
+	}
+	if !p.req.noPinCheck {
+		steps = append(steps, p.mpMissingPins)
+	}
+	if !p.req.noDeskCheck {
+		steps = append(steps, p.mpMissingDesks)
 	}
 	for _, step := range steps {
 		if err := step(); err != nil {
@@ -419,5 +455,32 @@ func (p *pgPlan) mpLeaving() error {
 	humans, err := p.mpStrings(`SELECT human_id FROM channel_humans WHERE tenant_id = $1 AND channel_id = $2`, p.req.Src, p.req.Channel)
 	sort.Strings(humans)
 	p.plan.Leaving = mpLeavingOf(humans, p.inDst, p.req.Keep)
+	return err
+}
+
+// missingPins is R1: the boxes that signed the set's rows, checked against
+// <DST>'s live pins.
+func (p *pgPlan) mpMissingPins() error {
+	boxes, err := p.mpStrings(`SELECT DISTINCT from_box FROM messages WHERE tenant_id = $1 AND msg_id = ANY($2::uuid[])`,
+		p.req.Src, mpNonNil(p.plan.Binds.Msgs))
+	p.plan.MissingPins = mpMissingPins(boxes, func(box string) bool { return p.dst.pinned[box] })
+	return err
+}
+
+// missingDesks is W2: M5's agents, by invite (ChannelMembers' rule: a removed
+// row is out, an old announce row on a default channel grants nothing) or as
+// the channel's dedicated agents, checked against <DST>'s roster. M5 only:
+// W2's other source, the F14 box rule rows, lives on the box, out of the hub's
+// reach.
+func (p *pgPlan) mpMissingDesks() error {
+	rows, err := p.mpPairs(`SELECT agent_id, box_id FROM channel_subscriptions WHERE tenant_id = $1 AND channel_id = $2
+			AND origin <> 'removed' AND NOT (origin = 'announce' AND channel_id = ANY($3::text[]))
+		UNION SELECT agent_id, box_id FROM dedicated_agents WHERE tenant_id = $1 AND scope_type = $4 AND scope_id = $2`,
+		p.req.Src, p.req.Channel, DefaultChannels, ScopeChannel)
+	seats := make([]MoveSeat, 0, len(rows))
+	for _, r := range rows {
+		seats = append(seats, MoveSeat{Agent: r[0], Box: r[1]})
+	}
+	p.plan.MissingDesks = mpMissingDesks(seats, func(seat MoveSeat) bool { return p.dst.desks[seat] })
 	return err
 }

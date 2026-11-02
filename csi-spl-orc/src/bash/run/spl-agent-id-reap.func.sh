@@ -15,7 +15,12 @@
 # @description session the spool did not start (<ID>/minted), retired once no
 # @description pid that file records runs, with no window and no registry
 # @description row; no 6 h clock (agent-id-reap.sh --minted).
+# @description A hub lane row the retire could not close is retried every tick
+# @description and alerts the dispatch holder; a reaped seat with an owner topic
+# @description is one note to the holder (SPL-4650). REAP_CLOSE_LANES closes the
+# @description rows an old reap left live, through that same retry.
 # @param DRY_RUN (optional) - 1 (default) or 0
+# @param REAP_CLOSE_LANES (optional) - comma-separated retired ids: queue and close their hub lane rows, no reap
 # @param REAP_MINTED (optional) - 1 reaps only the minted ids of ended sessions, default 0
 # @param SPOOL_ID_REAP_H (optional) - hours dead before the retire, default 6
 # @param SPOOL_ID_REAP_GAP_MIN (optional) - a tick gap that restarts the clock, default 60
@@ -24,12 +29,14 @@
 # @example ./run -a do_spl_agent_id_reap
 # @example DRY_RUN=0 ./run -a do_spl_agent_id_reap
 # @example REAP_MINTED=1 ./run -a do_spl_agent_id_reap
+# @example REAP_CLOSE_LANES=c-012,c-034 DRY_RUN=0 ./run -a do_spl_agent_id_reap
 #------------------------------------------------------------------------------
 do_spl_agent_id_reap() {
   local dry="${DRY_RUN:-1}" args=()
   [[ "$dry" == 0 || "$dry" == 1 ]] || { do_log "FATAL DRY_RUN must be 0 or 1, got: '$dry'"; return 1; }
   [[ "${REAP_MINTED:-0}" == 0 || "${REAP_MINTED}" == 1 ]] || { do_log "FATAL REAP_MINTED must be 0 or 1, got: '$REAP_MINTED'"; return 1; }
   [[ "${REAP_MINTED:-0}" == 1 ]] && args+=(--minted)
+  [[ -n "${REAP_CLOSE_LANES:-}" ]] && args+=(--close-lanes "$REAP_CLOSE_LANES")
   [[ "$dry" == 0 ]] && args+=(--apply)
   DRY_RUN="$dry" bash "$PROJ_PATH/src/bash/features/spawn-agents/scripts/agent-id-reap.sh" "${args[@]}"
 }

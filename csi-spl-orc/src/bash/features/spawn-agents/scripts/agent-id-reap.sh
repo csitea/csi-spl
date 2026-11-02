@@ -41,16 +41,32 @@
 # and no registry row. The reaper's clock and stamps are not touched. Each
 # mint of spool-mcp starts it (--apply) in the background.
 #
+# The hub lane row (SPL-4650). A close the retire could not make is queued in
+# .reap/lane-close.tsv; every tick retries the queue, and one that fails again
+# alerts the dispatch lease holder (at most once per REAP_ALERT_GAP_S), so a
+# retired id's row cannot stay live unseen. --close-lanes puts ids on that queue
+# by hand and drains it: rows an old reap left live. A reaped seat whose live row
+# names an owner topic, or whose row the hub would not show, is one note to the
+# holder naming the topic. It keeps no seat alive. lib/reap-lane-close.inc.sh.
+#
+# PATH: cron gives /usr/bin:/bin, and the lane action needs yq from /usr/local/bin.
+# With that PATH every reap on one box logged the row as not closed, 208 of 208 by
+# 2026-11-02, so the script sets it, as the other cron lines do on their own line.
+#
 # Usage:
 #   agent-id-reap.sh [--minted] [--apply]   # without --apply (and DRY_RUN unset/1): PLAN only
+#   agent-id-reap.sh --close-lanes <ID,...> [--apply]
 #
 # Env: SPOOL_ROOT, SPOOL_TMUX_SOCKET, SPOOL_NOW (the clock), SPOOL_ID_REAP_H,
 # SPOOL_ID_REAP_GAP_MIN, DRY_RUN=0|1 (0 = --apply), RETIRE_LANE (passed on;
-# --minted defaults it to 0: a minted id has no hub lane row), AI_PROC_ROOT.
+# --minted defaults it to 0: a minted id has no hub lane row), AI_PROC_ROOT,
+# REAP_ALERT_GAP_S (default 3600), REAP_LANE_RETRY_MAX (closes retried a tick,
+# default 20), REAP_SEND_CMD and REAP_TOPIC_KIND_CMD (tests).
 # One line per decision on stdout: PLAN|REAP / KEEP / SKIP, each with its reason.
 # Exit 0 done (a refused retire is a SKIP line, not a failure), 1 tmux could
 # not be asked or another reap holds the lock, 2 usage.
 set -uo pipefail
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${HOME:-}/.local/bin:$PATH"
 
 _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 # shellcheck source=../lib/spool-env.inc.sh
@@ -58,17 +74,24 @@ _here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 spool_env_resolve
 # shellcheck source=../lib/agent-identity.inc.sh
 . "$_here/../lib/agent-identity.inc.sh"
+# shellcheck source=../lib/spool-fleet.inc.sh
+. "$_here/../lib/spool-fleet.inc.sh"
+# shellcheck source=../lib/reap-lane-close.inc.sh
+. "$_here/../lib/reap-lane-close.inc.sh"
 # shellcheck source=../../../run/spl-rotate-lib.func.sh
 declare -F spl_agent_id_lock >/dev/null || . "$_here/../../../run/spl-rotate-lib.func.sh"
 # shellcheck source=../../../../../lib/bash/funcs/spl-desk-agents.func.sh
 . "$_here/../../../../../lib/bash/funcs/spl-desk-agents.func.sh"
+# shellcheck source=../../../../../lib/bash/funcs/spl-desk-box.func.sh
+. "$_here/../../../../../lib/bash/funcs/spl-desk-box.func.sh"
 
-APPLY=0 MINTED=0
+APPLY=0 MINTED=0 CLOSE_LANES=""
 [ "${DRY_RUN:-1}" = 0 ] && APPLY=1
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --apply) APPLY=1; shift ;;
     --minted) MINTED=1; shift ;;
+    --close-lanes) CLOSE_LANES="${2:-}"; [ -n "$CLOSE_LANES" ] || { echo "agent-id-reap: --close-lanes needs <ID,...>" >&2; exit 2; }; shift 2 ;;
     -h|--help) sed -n '/^# Usage:/,/^# Exit/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
     *) echo "agent-id-reap: unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -133,6 +156,27 @@ reap_minted() {
   say "STOP reap minted (${mode}): ${n} $([ "$APPLY" = 1 ] && echo retired || echo 'would be retired')"
 }
 [ "$MINTED" = 1 ] && { reap_minted; exit 0; }
+
+# ---- the hub lane rows: off under SPOOL_TEST like the retire's own step -------
+lane="${RETIRE_LANE:-}"
+[ -n "$lane" ] || { lane=1; [ "${SPOOL_TEST:-}" = 1 ] && lane=0; }
+if [ -n "$CLOSE_LANES" ]; then
+  say "START lane-close (${mode}): ${CLOSE_LANES}"
+  for id in ${CLOSE_LANES//,/ }; do
+    spl_is_agent_id "$id" && ! spl_is_role_seat "$id" || { say "SKIP ${id}: not an ordinary agent id"; continue; }
+    if [ "$APPLY" = 1 ]; then
+      rlc_add "$id" "queued by --close-lanes"
+    elif has_window "$id" || has_reg_row "$id" || ai_alive_fast "$id" >/dev/null 2>&1; then
+      say "KEEP ${id}: the id is in use, its row is a live lane's"
+    else
+      say "PLAN lane-close ${id}: lane-map.sh done"
+    fi
+  done
+  [ "$APPLY" = 1 ] && rlc_drain
+  left=0; [ -r "$(rlc_queue)" ] && left="$(wc -l <"$(rlc_queue)")"
+  say "STOP lane-close (${mode}): ${left} still queued"
+  exit 0
+fi
 
 # ---- the reaper's own clock: a gap drops every stamp ----------------------------
 STAMPS="$R/.reap/dead-since.tsv"; TICK="$R/.reap/last-tick"
@@ -201,6 +245,7 @@ for id in $(printf '%s\n' "${!cand[@]}" | sort); do
     continue
   fi
   args=(); [ "$APPLY" = 1 ] && args=(--apply)
+  RLC_TOPIC=""; [ "$lane" = 1 ] && rlc_seat_topic "$id"
   out="$(bash "$_here/agent-id-retire.sh" "${args[@]}" "$id" 2>&1)"; rc=$?
   if [ "$rc" = 0 ]; then
     say "${VERB} ${id}: dead $((age / 3600)) h (>= ${REAP_H} h; ${src})"
@@ -208,10 +253,13 @@ for id in $(printf '%s\n' "${!cand[@]}" | sort); do
     nreap=$((nreap + 1))
     [ "$APPLY" = 1 ] && echo "$(date -u +%FT%TZ) $rid DONE OK retired by the reaper: dead $((age / 3600)) h (${src})" 2>/dev/null >>"$R/dispatch/rotate.log"
     [ "$APPLY" = 1 ] && unset "keep[$id]"
+    [ "$lane" = 1 ] && rlc_seat_reaped "$id" "$RLC_TOPIC"
   else
     say "SKIP ${id}: dead $((age / 3600)) h, but agent-id-retire refused (rc ${rc}): $(printf '%s' "$out" | tail -1)"
   fi
 done
+
+[ "$lane" = 1 ] && { rlc_drain; rlc_tell_retry; }
 
 # The stamps: the ids still dead and held, written whole under the lock.
 for id in "${!keep[@]}"; do printf '%s\t%s\n' "$id" "${keep[$id]}"; done | sort >"$STAMPS.tmp" && mv "$STAMPS.tmp" "$STAMPS"

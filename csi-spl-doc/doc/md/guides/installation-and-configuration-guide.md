@@ -414,7 +414,7 @@ One tagged line each in `<OWNER_USER>`'s crontab, matched by the tag at the end 
 |---|---|---|
 | `desk-reconcile`, `desk-reconcile-prd` | keeps every live agent seated; keeps the lease loop alive | `do_spl_desk_install_service` |
 | `unanswered-sweep` | the topics whose last post is a human's, to the lease holder | `do_spl_unanswered_sweep_install_cron` |
-| `agent-id-reap` | frees ids of dead agents (dry run) | `do_spl_agent_id_reap_install_cron` |
+| `agent-id-reap` | frees ids of dead agents; retries hub lane rows the retire could not close and alerts the dispatch holder; tells the holder when a reaped seat held an owner topic | `do_spl_agent_id_reap_install_cron` |
 | `orch-rotate`, `dispatch-rotate` | the hourly role rotations at :05 and :15 | `do_spl_orch_rotate_install_cron`, `do_spl_dispatch_rotate_install_cron` |
 | `agent-identity-reconcile` | the identity map, every minute | `do_spl_agent_identity_install` |
 | `agent-boot-restore` | `@reboot`: brings back the agents a reboot killed, as `<AGENT_USER>` | `do_spl_agent_boot_restore_install_cron` |

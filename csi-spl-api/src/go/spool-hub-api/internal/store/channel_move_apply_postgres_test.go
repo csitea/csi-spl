@@ -263,6 +263,111 @@ func TestApplyChannelMoveC3aControl(t *testing.T) {
 	}
 }
 
+// C27: after the move no agent row the addressee's box cannot verify stays
+// queued. Run through asOperator with the real pins policies: the spared row is
+// the proof that the <SRC> pin is visible, else this is option (a).
+func TestApplyChannelMoveC27Deliveries(t *testing.T) {
+	f, want := seedMoveDeliveries(t)
+	res := f.apply(t, f.req())
+	for box, state := range want {
+		if got := f.deliveryState(t, box); got != state {
+			t.Errorf("delivery to %s = %q, want %q", box, got, state)
+		}
+	}
+	if res.DeliveriesExpired != 4 || res.DeliveriesExpiredNoPin != 2 {
+		t.Fatalf("expired %d, no pin %d; want 4 and 2", res.DeliveriesExpired, res.DeliveriesExpiredNoPin)
+	}
+	if line := res.DeliveriesLine(); !strings.Contains(line, "4 expired") || !strings.Contains(line, "2 expired") || !strings.Contains(line, "re-keyed") {
+		t.Fatalf("operator line: %q", line)
+	}
+	var got string
+	if err := f.pg.asOperator(context.Background(), func(tx pgx.Tx) error {
+		return tx.QueryRow(context.Background(), `SELECT counts->>'deliveries_expired' || '/' || (counts->>'deliveries_expired_no_pin')
+			FROM channel_move_steps WHERE tenant_id = $1 AND step = 'P4'`, f.dst).Scan(&got)
+	}); err != nil || got != "4/2" {
+		t.Fatalf("P4 step counts %q (%v), want 4/2", got, err)
+	}
+}
+
+// CONTROL: with the expiry skipped the same rows stay undelivered, so the case
+// above can see the difference.
+func TestApplyChannelMoveC27Control(t *testing.T) {
+	f, _ := seedMoveDeliveries(t)
+	req := f.req()
+	req.keepQueue = true
+	if res := f.apply(t, req); res.DeliveriesExpired != 0 || res.DeliveriesExpiredNoPin != 0 {
+		t.Fatalf("CONTROL: skipped, yet counted %+v", res)
+	}
+	if got := f.deliveryState(t, "box-diff"); got != "queued" {
+		t.Fatalf("CONTROL: skipped, yet box-diff is %q", got)
+	}
+}
+
+// seedMoveDeliveries plants one delivery per reason, each on its own to_box, and
+// returns the state each must end in. Sender box-a's key differs in the two
+// workspaces; box-same's is the one live in <DST>, its <SRC> pin revoked;
+// box-nowhere has no <DST> pin; box-revoked's <DST> pin is revoked.
+func seedMoveDeliveries(t *testing.T) (mvFix, map[string]string) {
+	t.Helper()
+	f := seedMove(t)
+	ctx, now := context.Background(), time.Now().UTC().Truncate(time.Second)
+	mvExec(t, f.pg, `DELETE FROM deliveries WHERE tenant_id = $1`, f.src)
+	pin := func(tn, box string, pub []byte, revoked bool) {
+		t.Helper()
+		mvExec(t, f.pg, `INSERT INTO pins (tenant_id, box_id, pubkey, revoked_at) VALUES ($1, $2, $3, CASE WHEN $4 THEN now() END)`, tn, box, pub, revoked)
+	}
+	key := func() []byte { return []byte(pubkey()) }
+	same, gone := key(), key()
+	pin(f.src, "box-a", key(), false)
+	pin(f.dst, "box-a", key(), false)
+	pin(f.src, "box-same", same, true)
+	pin(f.dst, "box-same", same, false)
+	pin(f.src, "box-revoked", gone, false)
+	pin(f.dst, "box-revoked", gone, true)
+	want := map[string]string{}
+	deliver := func(fromBox, toBox, state string, acked bool, wantState string) {
+		t.Helper()
+		m := msgFor(f.src, uuid4(), toBox, now, now, "env-"+uuid4())
+		m.FromBox, m.Channel = fromBox, f.ch
+		if fromBox == "box-wui" {
+			m.EnvSig = ""
+		}
+		if _, err := f.pg.InsertMessage(ctx, m); err != nil {
+			t.Fatal(err)
+		}
+		mvExec(t, f.pg, `INSERT INTO deliveries (tenant_id, msg_id, to_box, state, expires_at, sent_at, acked_at)
+			VALUES ($1, $2, $3, $4, $5, $6, CASE WHEN $7 THEN $6::timestamptz END)`, f.src, m.MsgID, toBox, state, now.Add(time.Hour), now, acked)
+		want[toBox] = wantState
+		if toBox != "box-wui" && toBox != "box-gone" && toBox != "box-gone2" {
+			pin(f.dst, toBox, key(), false)
+		}
+	}
+	deliver("box-same", "box-spared", "queued", false, "queued")
+	deliver("box-a", "box-diff", "queued", false, "expired")
+	deliver("box-a", "box-unacked", "sent", false, "expired")
+	deliver("box-a", "box-acked", "sent", true, "sent")
+	deliver("box-nowhere", "box-nosender", "queued", false, "expired")
+	deliver("box-revoked", "box-revsender", "queued", false, "expired")
+	deliver("box-wui", "box-human", "queued", false, "queued")
+	deliver("box-a", "box-wui", "queued", false, "queued")
+	// no <DST> pin on the to_box: expired whatever the key, counted apart
+	deliver("box-wui", "box-gone", "queued", false, "expired")
+	deliver("box-same", "box-gone2", "sent", false, "expired")
+	return f, want
+}
+
+// deliveryState is the state of the one delivery to box in <DST>.
+func (f mvFix) deliveryState(t *testing.T, box string) string {
+	t.Helper()
+	var st string
+	if err := f.pg.asOperator(context.Background(), func(tx pgx.Tx) error {
+		return tx.QueryRow(context.Background(), `SELECT state FROM deliveries WHERE tenant_id = $1 AND to_box = $2`, f.dst, box).Scan(&st)
+	}); err != nil {
+		t.Fatalf("delivery to %s: %v", box, err)
+	}
+	return st
+}
+
 // C4: the move never updates tenant_id on a parent. CONTROL: an UPDATE of the
 // channels row is refused by the FK of its children, and <SRC> is unchanged.
 func TestApplyChannelMoveC4UpdateRefused(t *testing.T) {

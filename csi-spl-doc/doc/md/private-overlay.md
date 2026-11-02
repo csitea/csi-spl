@@ -71,7 +71,7 @@ The 10 ci Sweep builds its patterns with `spl_private_gate_patterns` from the
 overlay: in CI the repository secret `SPL_PRIVATE_CNF_YAML` (the file's
 content), on a box the file (`./run -a do_check_dist_hygiene`). It prints a
 label and file:line, never the name. A master push with no overlay fails; a
-pull request (no secrets) warns. Controls:
+pull request (no secrets) warns; a wf 11 dispatch warns too. Controls:
 `csi-spl-iac/src/bash/tests/hygiene-hidden-workspaces.tst.sh` and
 `spl-private-cnf.tst.sh`.
 
@@ -81,6 +81,7 @@ the hub's migrate).
 
 <a id="ws-doc-0a9d0663-b751-4b78-a7d4-3f9f222ed543"></a>
 ## 4. Where the copies are, and the backup
+
 
 - The satellite: `~/.gcp/.csi/` of the box owner user and of the agent user
   (cnf `box_owner_user`, `box_agent_user`). The other box: the same paths,
@@ -100,6 +101,7 @@ the hub's migrate).
   placeholder at a list position stands for the slug at the same position in
   `git show <sha before SPL-1874>:csi-spl-cnf/csi-spl/prd.env.yaml`. A tenant
   hidden later is in the hub's `tenants` table and 052's terraform state.
+
 
 <a id="ws-doc-828edfed-f026-43d9-b948-e87aa3ee39ce"></a>
 ## 5. What it does not do

@@ -39,6 +39,8 @@ closing row deletes the clean-code list lines the split rows leave stale.
 
 **Status: v1.0 SIGNED** (editor c-908@sat, grok reviewer g-910@sat; section 9).
 
+Next round: [refactor-round-22-plan.md](refactor-round-22-plan.md) (drafted before this round's retro, which is due and not written).
+
 Editor: **c-908** (claude; agy is out of quota until 2026-11-03T12:42Z and
 claude is the specs_and_docs backup). Panel reviewer: a cross-vendor grok
 seat placed by the dispatch lease holder (the claude-only waiver 1a7c70da

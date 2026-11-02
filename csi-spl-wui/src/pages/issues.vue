@@ -1148,8 +1148,8 @@
     <div
       v-if="menu"
       class="issues-menu"
-      :class="{ 'issues-menu--status': menu.kind === 'status', 'issues-menu--label': menu.kind === 'label', 'issues-sheet': phone, 'issues-menu--modal': menuOverModal }"
-      :role="menu.kind === 'assign' ? undefined : 'listbox'"
+      :class="{ 'issues-menu--status': menu.kind === 'status', 'issues-menu--label': menu.kind === 'label', 'issues-menu--parent': parentMenu, 'issues-sheet': phone, 'issues-menu--modal': menuOverModal }"
+      :role="menu.kind === 'assign' || parentMenu ? undefined : 'listbox'"
       data-test="issues-menu"
       :data-kind="menu.kind"
       :style="phone ? undefined : menuStyle"
@@ -1167,6 +1167,22 @@
         :label="t('issues.field_assignee')"
         :model-value="menu.bulk ? '' : (issues.find((i) => i.key === menu?.key)?.assignee ?? activeAssignee)"
         :options="[{ id: '', label: t('issues.no_assignee') }, ...assigneeOptions]"
+        @pick="applyMenu"
+        @close="menu = null"
+      />
+      <!-- SPL-4610: the three parent pickers search the same way, focused on a phone too -->
+      <PersonPicker
+        v-if="parentMenu"
+        :key="menu.kind"
+        mode="list"
+        test="issues-parent-search"
+        option-test="issues-menu-option"
+        :tall="phone"
+        autofocus
+        :label="t('issues.search')"
+        :empty-text="t('search.no_results')"
+        :model-value="parentCurrent"
+        :options="parentOptions"
         @pick="applyMenu"
         @close="menu = null"
       />
@@ -1357,7 +1373,7 @@ const { issueCols, colWidths, onGripDown, onGripKey } = useIssueColumnGrips({
 })
 
 /* the one picker (status, priority, assignee, label, epic, level): composables/useIssuePicker */
-const { menu, menuIndex, menuPos, labelName, menuOptions, menuStyle, openMenu, clampMenuIntoView, onRowLevel, applyMenu, labelSet, onLabelNameBackspace, addLabel } = useIssuePicker({
+const { menu, menuIndex, menuPos, labelName, menuOptions, parentMenu, parentOptions, parentCurrent, menuStyle, openMenu, clampMenuIntoView, onRowLevel, applyMenu, labelSet, onLabelNameBackspace, addLabel } = useIssuePicker({
   api, t, phone, issues, labels, epics, detail, creating, draft, cursorKey, busy, saveError, failKey, save,
   runBulkPatch: (kind, value) => runBulkPatch(kind, value),
 })
@@ -2249,6 +2265,7 @@ select.issues-pctl { appearance: auto; }
   padding: 4px;
   box-shadow: var(--focus-3d);
 }
+.issues-menu--parent { max-width: min(26rem, calc(100% - 16px)); }
 .issues-menu__opt {
   display: block;
   width: 100%;

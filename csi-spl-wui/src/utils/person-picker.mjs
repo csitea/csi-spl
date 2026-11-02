@@ -3,6 +3,12 @@
    case; Up / Down move the highlight; Enter picks it. PersonPicker.vue is the
    one component; these are its pure rules. */
 
+/* SPL-4610: lower case, and the Greek final sigma as a plain sigma: "ΑΣ" lowers
+   to "ας" (it ends the query), which "ΑΣΤΕΡΙ" (lowered "αστερι") does not hold */
+function foldCase(text) {
+  return String(text ?? '').toLowerCase().replace(/ς/g, 'σ')
+}
+
 /**
  * A case-insensitive "contains" on the person's name or id (a HUM id, an
  * agent id). An empty or blank query matches everyone.
@@ -12,9 +18,9 @@
  * @returns {boolean}
  */
 export function personMatches(person, query) {
-  const q = (typeof query === 'string' ? query : '').trim().toLowerCase()
+  const q = foldCase(typeof query === 'string' ? query.trim() : '')
   if (!q) return true
-  return String(person?.label ?? '').toLowerCase().includes(q) || String(person?.id ?? '').toLowerCase().includes(q)
+  return foldCase(person?.label).includes(q) || foldCase(person?.id).includes(q)
 }
 
 /**

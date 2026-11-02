@@ -38,6 +38,9 @@ export function useIssuePicker(o: IssuePickerOpts) {
   const menuPos = ref({ top: 80, left: 80 })
   const labelName = ref('')
   const menuOptions = computed(() => pickerOptions(o, menu.value))
+  const parentMenu = computed(() => PARENT_KINDS.includes(menu.value?.kind || ''))
+  const parentOptions = computed(() => parentRows(o, menu.value))
+  const parentCurrent = computed(() => currentParent(o, menu.value))
   const menuStyle = computed(() => ({ top: `${menuPos.value.top}px`, left: `${menuPos.value.left}px` }))
   function openMenu(kind: string, issue: Issue, ev?: Event) {
     if (issue?.key && issue.key !== 'draft') o.cursorKey.value = issue.key
@@ -69,7 +72,7 @@ export function useIssuePicker(o: IssuePickerOpts) {
   const s = { menu, menuIndex, menuPos, labelName }
   const moves = useLevelMoves(o, openMenu)
   const apply = usePickerApply(o, s, moves.moveLevel)
-  return { ...s, menuOptions, menuStyle, openMenu, clampMenuIntoView, ...moves, ...apply }
+  return { ...s, menuOptions, parentMenu, parentOptions, parentCurrent, menuStyle, openMenu, clampMenuIntoView, ...moves, ...apply }
 }
 
 function pickerOptions(o: IssuePickerOpts, menu: IssuePickerMenu | null) {
@@ -78,12 +81,28 @@ function pickerOptions(o: IssuePickerOpts, menu: IssuePickerMenu | null) {
   if (kind === 'status') return ISSUE_STATUSES.map((s) => ({ value: s, label: statusLabel(s), hint: o.t(statusHintKey(s)) }))
   if (kind === 'priority') return ISSUE_PRIORITIES.map((n) => ({ value: String(n), label: String(n), hint }))
   if (kind === 'label') return o.labels.value.filter((l) => l.id !== 'epic').map((l) => ({ value: l.id, label: l.name, hint }))
-  if (kind === 'epic') return [{ value: '', label: o.t('issues.no_epic'), hint }, ...o.epics.value.map((e) => ({ value: e.key, label: `${e.key} ${e.title}`, hint }))]
   if (kind === 'level') return ISSUE_LEVELS.map((n) => ({ value: String(n), label: `${n} ${o.t(levelKey(n))}`, hint }))
-  /* SPL-972 level moves: to 2 under which epic / feature, to 3 under which issue */
-  if (kind === 'move-epic') return o.epics.value.filter((e) => e.key !== menu?.key).map((e) => ({ value: e.key, label: `${e.key} ${e.title}`, hint }))
-  if (kind === 'move-parent') return levelTwoParents(o.issues.value, menu?.key || '').map((i) => ({ value: i.key, label: `${i.key} ${i.title}`, hint }))
   return []
+}
+
+/* SPL-4610 (HUM-10, topic b52769e4): the three parent pickers are PersonPicker
+   drop boxes, searched by key and title in any case */
+const PARENT_KINDS = ['epic', 'move-epic', 'move-parent']
+
+function parentRows(o: IssuePickerOpts, menu: IssuePickerMenu | null) {
+  const kind = menu?.kind || ''
+  const row = (x: { key: string, title: string }) => ({ id: x.key, label: `${x.key} ${x.title}` })
+  if (kind === 'epic') return [{ id: '', label: o.t('issues.no_epic') }, ...o.epics.value.map(row)]
+  /* SPL-972 level moves: to 2 under which epic / feature, to 3 under which issue */
+  if (kind === 'move-epic') return o.epics.value.filter((e) => e.key !== menu?.key).map(row)
+  if (kind === 'move-parent') return levelTwoParents(o.issues.value, menu?.key || '').map(row)
+  return []
+}
+
+function currentParent(o: IssuePickerOpts, menu: IssuePickerMenu | null) {
+  if (menu?.kind !== 'epic' || menu.bulk) return ''
+  if (o.creating.value) return o.draft.epic
+  return (o.issues.value.find((i) => i.key === menu.key) || o.detail.value)?.epic || ''
 }
 
 /* level-2 issues an issue can go under (SPL-972): same epic first, never itself */
@@ -160,7 +179,13 @@ function usePickerApply(o: IssuePickerOpts, s: PickerState, moveLevel: (issue: I
     if (!issue || !issue.key) return
     /* SPL-992: the phone's level sheet moves like the sheet's level box; a move
        that needs a parent opens the next sheet */
-    if (kind === 'level') { s.menu.value = null; moveLevel(issue, Number(value)); return }
+    if (kind === 'level') {
+      /* SPL-4610: the next sheet replaces this one with no gap; a gap closes the
+         phone's overlay entry, and its Back then closes the new sheet too */
+      moveLevel(issue, Number(value))
+      if (s.menu.value?.kind === 'level') s.menu.value = null
+      return
+    }
     await o.save(issue.key, pickBody(kind, value, issue))
     if (kind !== 'label') s.menu.value = null
   }

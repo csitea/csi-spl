@@ -61,6 +61,7 @@
         @click="pick(p.id)"
       >{{ p.label }}</li>
     </ul>
+    <p v-if="emptyText && open && !rows.length" class="person-picker__empty" role="status" :data-test="test + '-empty'">{{ emptyText }}</p>
   </div>
 </template>
 
@@ -83,7 +84,9 @@ const props = withDefaults(defineProps<{
   tall?: boolean
   autofocus?: boolean
   disabled?: boolean
-}>(), { modelValue: '', mode: 'field', title: '', test: 'person-picker', optionTest: 'person-picker-option', inputClass: '', tall: false, autofocus: false, disabled: false })
+  /** the line shown when the search leaves no row; none: the list just goes empty */
+  emptyText?: string
+}>(), { emptyText: '', modelValue: '', mode: 'field', title: '', test: 'person-picker', optionTest: 'person-picker-option', inputClass: '', tall: false, autofocus: false, disabled: false })
 const emit = defineEmits<{ 'update:modelValue': [string], pick: [string], close: [] }>()
 
 const listId = `person-picker-${useId()}`
@@ -233,5 +236,6 @@ defineExpose({ focus: () => inputEl.value?.focus() })
   text-overflow: ellipsis;
 }
 .person-picker__opt.is-active { background: var(--color-selected); }
+.person-picker__empty { margin: 0; padding: 6px 8px; color: var(--color-muted); }
 .person-picker__opt--tall { min-height: var(--tap, 44px); display: flex; align-items: center; }
 </style>

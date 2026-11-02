@@ -93,6 +93,11 @@ Refined the same morning (binding where it differs from the first request):
   sheet (SPL-1027) the arrows move a cell cursor: Up / Down between rows,
   Left / Right between cells; `Enter` edits the cell (opens the issue on the
   key cell), `Esc` cancels an edit, `Tab` moves on to the next control.
+  The three parent pickers (Parent and the two level moves, SPL-4610) open a
+  focused search box above the list: typing filters by key and title in any
+  case, non-ASCII too; Up / Down, `Enter` and `Esc` work; "No epic" is the
+  first row and can be typed; no match shows a line. The desktop menu and the
+  phone sheet alike; the other pickers stay plain lists.
 - **FR-006** Every change reaches every open tab of the tenant as a live
   `issue` / `issue_label` frame: no reload. A reload shows the same state.
 - **FR-007** Access: every member reads (`topics.read`); a member writes with

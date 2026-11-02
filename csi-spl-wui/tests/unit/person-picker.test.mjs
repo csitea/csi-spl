@@ -12,6 +12,13 @@ const PEOPLE = [
 ]
 
 describe('personMatches', () => {
+  it('folds non-ASCII case: Cyrillic and Greek, the final sigma too (SPL-4610)', () => {
+    assert.equal(personMatches({ id: 'SPL-7', label: 'SPL-7 Отчет за Месеца' }, 'МЕСЕЦ'), true)
+    assert.equal(personMatches({ id: 'SPL-7', label: 'SPL-7 Отчет за Месеца' }, 'отчет'), true)
+    assert.equal(personMatches({ id: 'SPL-8', label: 'SPL-8 ΑΣΤΕΡΙ' }, 'ΑΣ'), true)
+    assert.equal(personMatches({ id: 'SPL-8', label: 'SPL-8 Λόγος' }, 'ΛΌΓΟΣ'), true)
+    assert.equal(personMatches({ id: 'SPL-8', label: 'SPL-8 ΑΣΤΕΡΙ' }, 'ΩΩ'), false)
+  })
   it('matches three letters of the name in any case', () => {
     assert.equal(personMatches(PEOPLE[2], 'lac'), true)
     assert.equal(personMatches(PEOPLE[2], 'LAC'), true)

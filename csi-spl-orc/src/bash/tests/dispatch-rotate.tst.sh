@@ -138,6 +138,8 @@ case "$cmd" in
   display-message) grep -q "^$tgt	" "$P" || exit 1
     case "${args[0]}" in *window_name*) field 4 ;; *session_id*) field 3 ;; *pane_id*) echo "$tgt" ;; esac ;;
   capture-pane) grep -q "^$tgt	" "$P" || exit 1
+    # hook.armed (armed by the lane-mix stub): runs once at the next capture, a verdict filed mid-run
+    if [ -f "$T/tmux/hook.armed" ]; then mv "$T/tmux/hook.armed" "$T/tmux/hook.ran"; . "$T/tmux/hook.ran"; fi
     if [ -f "$T/tmux/screen.$tgt" ]; then cat "$T/tmux/screen.$tgt"; else printf 'routed the t1 post\n❯ \n'; fi
     if [ "$esc" = 1 ]; then printf '────────\n❯ %s\n────────\n' "$(cat "$T/tmux/typed.$tgt" 2>/dev/null)"; fi ;;
   rename-window) awk -F'\t' -v OFS='\t' -v p="$tgt" -v n="${args[0]}" '$1 == p {$4 = n} {print}' "$P" >"$P.new" && mv "$P.new" "$P"
@@ -191,6 +193,7 @@ case "$a" in
   do_spl_ask_put|do_spl_desk_reply|do_spl_fleet_notice) exit 0 ;;
   do_spl_ask_close) exit "$(cat "$T/askclose.rc" 2>/dev/null || echo 0)" ;;
   do_spl_lane_mix) echo "LANE_MIX_KIND=${LANE_MIX_KIND:-} LANE_MIX_SPLIT_KIND=${LANE_MIX_SPLIT_KIND:-}" >>"$T/mix.log"
+    [ -f "$T/tmux/hook" ] && mv "$T/tmux/hook" "$T/tmux/hook.armed"
     # mix.then: the answer of every call after the first (a lane-mix that changes its mind)
     if [[ -e "$T/mix.then" && -e "$T/mix.asked" ]]; then cat "$T/mix.then"; else : >"$T/mix.asked"; cat "$T/mix.out" 2>/dev/null; fi ;;
   *) exit 1 ;;
@@ -889,6 +892,27 @@ rid="$(awk '$3 == "STANDBY" && $4 == "OK" {print $2}' "$D/rotate.log" | sed -n 1
   pass "19. SPL-4507 the swap's vendor (grok) is the one spawned; lane-mix asked once" ||
   fail "19. SPL-4507 rc=$rc mix calls $(grep -c . "$T/mix.log" 2>/dev/null): $(cat "$T/spawn.log" 2>/dev/null) $(cat "$T/o")"
 rm -f "$T/mix.then" "$T/mix.asked"
+# SPL-4728 (box 1 2026-10-24 16:05Z, R7 c-750 N1): the swap decides grok,
+# and grok's limit verdict is filed after the decision (its lane-mix call),
+# at the QUIESCE before the spawn. The run stops before the seat switch,
+# the old seat keeps the role, nothing spawns; control: a clean grok
+# verdict filed then = grok is spawned.
+sb4728() {
+  sbc; rm -f "$T/spawn.log"
+  printf 'mkdir -p "$SPOOL_ROOT/dispatch/wd/ctx.1/g-009"; printf "%%s\\n" "%s" >"$SPOOL_ROOT/dispatch/wd/ctx.1/g-009/out.s2"; touch -d "@$(( $(date +%%s) + 1 ))" "$SPOOL_ROOT/dispatch/wd/ctx.1/g-009/out.s2"\n' "$1" >"$T/tmux/hook"
+  act DRY_RUN=0 "${V18[@]}" ROTATE_ROLE_VENDOR=claude ROTATE_CLAUDE_BIN="$T/bin/claude-cli" >"$T/o" 2>&1; rc=$?
+}
+sb4728 "HIT S2 kind=limit pane: You hit your weekly limit"
+[[ -e "$T/tmux/hook.ran" && ! -e "$T/spawn.log" ]] && grep -qx 'LEASE_MASTER=c-002' "$D/lease.conf" && [[ ! -e "$S/g-002" ]] &&
+  grep -q -- "-master FAIL FAIL SPAWN: the decided vendor grok went on its limit after the decision (g-009 S2 kind=limit 0m ago: pane: You hit your weekly limit): no spawn; the old session (pid 102) keeps the role" "$D/rotate.log" &&
+  [[ "$(grep -c 'LANE_MIX_SPLIT_KIND=claude=0 grok=100' "$T/mix.log")" == 1 ]] && ! grep -q ERRTRAP "$T/o" &&
+  pass "19. SPL-4728 grok's limit filed after the swap decided grok: FAIL SPAWN, no seat switch, no spawn, c-002 keeps the seat" ||
+  fail "19. SPL-4728 stale rc=$rc: $(cat "$T/spawn.log" 2>/dev/null) $(grep -E 'FAIL|SPAWN' "$D/rotate.log" 2>/dev/null) $(cat "$T/o")"
+sb4728 "S2 ok"
+[[ -e "$T/tmux/hook.ran" ]] && grep -q "^spawn grok g-002 " "$T/spawn.log" && grep -qx 'LEASE_MASTER=g-002' "$D/lease.conf" && ! grep -q 'went on its limit' "$D/rotate.log" &&
+  pass "19. SPL-4728 control: a clean grok verdict filed after the decision -> grok g-002 is spawned" ||
+  fail "19. SPL-4728 control rc=$rc: $(cat "$T/spawn.log" 2>/dev/null) $(grep -E 'FAIL|SPAWN' "$D/rotate.log" 2>/dev/null)"
+rm -f "$T/tmux/hook" "$T/tmux/hook.armed" "$T/tmux/hook.ran"
 rm -rf "$S"/[acgmq]-00[23] "$D/briefs/brief-dispatcher-"[acgmq]-00* "$D/wd"
 
 # --- 20. SPL-1837 (1): a run started INSIDE a dispatcher pane re-runs itself detached ------------

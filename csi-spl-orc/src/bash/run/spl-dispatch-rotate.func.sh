@@ -345,6 +345,7 @@ spl_disp_standby_say() {
 spl_disp_standby_one() {
   local rid="$1" role="$2" id="$3" pid="$4" why="$5" was pane new rc=0
   was="$(spl_disp_seat_vendor "$id")"
+  ROTATE_VENDOR_AT="$(date +%s)"
   spl_disp_vendor "$id"
   if [[ "$ROTATE_KIND" == "$was" ]]; then
     spl_disp_standby_say "$rid" "$id ($was) is out ($why), but its successor would be $was too ($ROTATE_VENDOR_WHY): no replacement"
@@ -565,7 +566,16 @@ spl_disp_run() {
   # again a minute later, lane-mix may answer otherwise, and a swap meant to
   # leave a vendor on its limit started that vendor again (SPL-4507)
   [[ "${ROTATE_VENDOR_FIXED:-0}" == 1 ]] || spl_disp_vendor "$id"
-  local new
+  # ... and that decision can go stale before the spawn: a limit verdict of
+  # the decided vendor filed since stops the run, the old session keeps the
+  # role (SPL-4728); no second decision, no fallback to a vendor known out
+  local new stale
+  if [[ "${ROTATE_VENDOR_FIXED:-0}" == 1 ]]; then
+    stale="$(spl_rotate_limit_since "$ROTATE_KIND" "${ROTATE_VENDOR_AT:-0}")"
+    if [[ -n "$stale" ]]; then
+      spl_disp_fail SPAWN "the decided vendor $ROTATE_KIND went on its limit after the decision ($stale): no spawn"; return 1
+    fi
+  fi
   if new="$(spl_rotate_vendor_id "$id")" && [[ -n "$new" ]]; then
     # SPL-1685: the dirs move BEFORE the spawn (it reuses <spool>/<new>);
     # lease.conf follows once the new pid shows (spl_disp_flip)

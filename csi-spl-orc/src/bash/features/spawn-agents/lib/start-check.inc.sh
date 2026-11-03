@@ -59,6 +59,8 @@
 # 6pm") matches none of the texts below, so both rotations logged SPAWN OK
 # over it and failed "no ack within 600s" ten minutes later. Matched on the
 # menu's own words; never answered ("Switch to usage credits" spends money).
+# Only as the menu's numbered option line (SPL-4728): a screen that merely
+# quotes those words (a rotate.log line, a grep) is no dialog.
 
 # The known dialogs, "<name>|<extended regex>"; the first match wins.
 SPOOL_START_DIALOGS=(
@@ -68,7 +70,7 @@ SPOOL_START_DIALOGS=(
   'auto-mode offer|Make auto mode your default permission mode'
   'bypass-permissions confirm|Yes, I accept'
   'auth/login|Not logged in|Select login method|[Pp]lease run /login|Invalid API key|OAuth token (has )?expired'
-  'usage limit|[Uu]sage limit reached|limit reached[[:space:]]*·|limit resets|Stop and wait for limit to reset|Switch to usage credits'
+  'usage limit|[Uu]sage limit reached|limit reached[[:space:]]*·|limit resets|^[[:space:]]*(❯[[:space:]]*)?[0-9]\.[[:space:]]+(Stop and wait for limit to reset|Switch to usage credits)'
   'grok weekly limit|[Yy]ou hit your weekly limit|Buy more credits'
   'session ended|session .+ ended\. Pane kept open'
 )
@@ -81,6 +83,7 @@ spool_start_hint() {
     'auto-mode offer') printf ', permissions.disableAutoMode in ~/.claude/settings.json' ;;
     'trust prompt') printf ', the agent user'"'"'s trust store for its working dir (trust-workdir.sh); grok keys a linked worktree on its main checkout, the dir the prompt names' ;;
     'auth/login') printf ', the agent user'"'"'s claude login' ;;
+    'usage limit') printf ', its vendor'"'"'s login (claude'"'"'s for a claude seat) has no quota until its limit resets (the screen names when): the successor must be another vendor' ;;
     'grok weekly limit') printf ', grok has no quota until its weekly reset: the successor must be claude' ;;
   esac
 }

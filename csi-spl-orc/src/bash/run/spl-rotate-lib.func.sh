@@ -348,6 +348,40 @@ spl_rotate_grok_out() {
   return 0
 }
 
+# spl_rotate_limit_since KIND EPOCH: "<id> S2 kind=<k> <age>m ago: <evidence>"
+# when the newest watchdog verdict written after EPOCH by a KIND seat of this
+# box (registry kind, else the id's letter) says S2 kind=limit (claude: or
+# kind=auth, as spl_rotate_claude_out counts it); nothing otherwise. The
+# standby swap decides its vendor once (C3) and spawns it minutes later:
+# this re-reads that vendor's verdicts, no second lane-mix decision
+# (SPL-4728: box 1 2026-10-24 16:05:03Z "grok replaces it", g-002's limit
+# on file 16:08:53Z, n=1). A tie in the same second counts the limit.
+spl_rotate_limit_since() {
+  local kind="$1" since="$2" wd="${LANE_MIX_WD_DIR:-${SPOOL_ROOT:-/var/spool-hub}/dispatch/wd}" f id k t hit rx best=-1 bestf=""
+  local -A rk=()
+  local -a cand=()
+  rx='^HIT S2 kind=limit( |$)'
+  [[ "$kind" == claude ]] && rx='^HIT S2 kind=(limit|auth)( |$)'
+  _spl_rotate_kinds_load
+  for f in "$wd"/ctx*/*/out.s2; do
+    [[ -f "$f" ]] || continue
+    id="${f%/out.s2}"; id="${id##*/}"
+    k="${rk[$id]:-}"
+    [[ -n "$k" ]] || case "$id" in c-*|CLE-*) k=claude ;; g-*) k=grok ;; a-*) k=agy ;; m-*) k=mistral ;; q-*) k=qwen ;; esac
+    [[ "$k" == "$kind" ]] && cand+=("$f")
+  done
+  while read -r t f; do
+    (( t > since )) || continue
+    if (( t > best )) || { (( t == best )) && grep -qE "$rx" "$f" 2>/dev/null; }; then best="$t" bestf="$f"; fi
+  done < <(_spl_rotate_mtimes "${cand[@]}")
+  [[ -n "$bestf" ]] || return 0
+  hit="$(grep -m1 -E "$rx" "$bestf" 2>/dev/null || true)"
+  [[ -n "$hit" ]] || return 0
+  hit="${hit#HIT S2 }" id="$(basename "$(dirname "$bestf")")"
+  echo "$id S2 ${hit%% *} $(( ($(date +%s) - best) / 60 ))m ago: ${hit#* }"
+  return 0
+}
+
 # spl_rotate_lease_sees KIND: 0 when spl_lease_agent_pid finds a KIND
 # process (a probe in a throwaway proc dir). Since spec 134 P0 it counts
 # claude, grok and vibe; the probe keeps the rotation honest if that changes.

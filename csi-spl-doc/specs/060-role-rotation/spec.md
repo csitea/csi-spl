@@ -691,7 +691,7 @@ runs, median 14..15 s, 90th percentile 18..22 s, max 173 s. The ack window
 | # | run (box) | step | cause | evidence | state |
 |---|---|---|---|---|---|
 | 1 | 20261024T1515Z-master (2) | ACK 600 s | the successor stopped on claude's usage-limit menu, which the start check did not know: it logged SPAWN OK over it | `SPAWN WAIT %3838: no input box within 45s and no known dialog; screen: ❯ 1. Stop and wait for limit to reset\|2. Wait here, then continue automatically at Oct 28, 7pm\|3. Switch to usage credits` | **fixed** (C2) |
-| 2 | 20261024T1601Z-failover (1) | ACK 600 s | the same menu; and the swap spawned claude while both vendors were known out | `SPAWN WAIT %1263: ... ❯ 1. Stop and wait for limit to reset`; `SPAWN OK ... claude cannot act (...), but the grok standby cannot either (...): claude` | **fixed** (C2), the spawn on two out vendors open |
+| 2 | 20261024T1601Z-failover (1) | ACK 600 s | the same menu; and the swap spawned claude while both vendors were known out | `SPAWN WAIT %1263: ... ❯ 1. Stop and wait for limit to reset`; `SPAWN OK ... claude cannot act (...), but the grok standby cannot either (...): claude` | **fixed** (C2); the vendor going out after the decision: C3 + C4; both vendors out at the decision: open |
 | 3 | 20261024T2305Z-orch (2) | ACK 900 s | not proven: the new session (pid 254853) left no transcript in that window | `SPAWN OK new pid 254853`; no `*.jsonl` of the agent user written 23:08..00:30Z | open |
 | 4 | 20261024T2316Z-master (1) | SPAWN | the standby swap decided its vendor twice: `grok replaces it` at 23:19:01Z, then `spl_disp_run` asked lane-mix again (about 70 s) and spawned claude onto the limit the swap was for | `STANDBY OK c-002 ... is out (S2 kind=limit ...): grok replaces it`; no seat switch line; `FAIL SPAWN: ... 'usage limit' dialog` | **fixed** (C3) |
 | 5 | 20261025T0115Z-master (1) | SPAWN | the handback to claude: a clean watchdog verdict newer than the limit one read as "claude can act again" while the login was still on its limit (the reset "2:50am (Europe/Amsterdam)" fell in the night the clocks went back) | `HANDOFF OK seat switch g-002 -> c-002`; `FAIL SPAWN: ... %1501 ... 'usage limit' dialog` | open (10.3) |
@@ -730,14 +730,36 @@ after a switch.
 - **C3 one vendor decision per standby swap** (`spl_disp_standby_one`,
   `spl_disp_run`). The swap's decision is the one spawned
   (`ROTATE_VENDOR_FIXED=1`); lane-mix is asked once. Test:
-  `dispatch-rotate.tst.sh` case 19, SPL-4507.
+  `dispatch-rotate.tst.sh` case 19, SPL-4507. Row #2 is this pattern too:
+  rotate.log 16:05:03Z `STANDBY OK c-003 ... grok replaces it`, and the
+  second decision at 16:08:53Z spawned claude, "but the grok standby cannot
+  either (g-002 S2 kind=limit 0m ago)". With C3 alone that run spawns grok,
+  whose limit was filed about 3 min 50 s after the decision (n=1).
+- **C4 the decided vendor re-checked before the spawn**
+  (`spl_rotate_limit_since`, rotate-lib; `spl_disp_run`). C3 removed the
+  only re-check: the swap notes when it decided (`ROTATE_VENDOR_AT`), and
+  just before the seat switch the decided vendor's watchdog verdicts
+  (`<wd>/ctx*/<id>/out.s2`, the files `spl_rotate_failover_vendor` and
+  `spl_rotate_grok_out` read) are read again, no second lane-mix call. Its
+  newest verdict since the decision saying `S2 kind=limit` (claude: or
+  `kind=auth`) ends the run as `FAIL SPAWN: the decided vendor <v> went on
+  its limit after the decision (<evidence>): no spawn`; the old session
+  keeps the role, and no vendor known out is spawned instead. The start
+  check's `usage limit` dialog now carries its hint (the login has no
+  quota until its reset: the successor must be another vendor), and the
+  menu's words match only as its numbered option line, not quoted in a log.
+  Tests: `dispatch-rotate.tst.sh` case 19, SPL-4728;
+  `spawn-agents/tests/test-start-check.sh`.
 
 Open, not built here (each n=1..2): #5 and #7, claude judged able while its
 login is on a limit. The watchdog's `<id>.limit` reset epoch is no guard: on
 2026-10-31 box 1 held claude seats on a limit until 2026-11-05T09:00Z while
 claude seats worked, so a newer clean verdict must keep clearing it. With C2
 such a start ends in seconds instead of 600 s. #8, the RELEASE wait against
-the lease loop's able refresh of the new pid. The swap that spawns although
-both vendors are out (#2).
+the lease loop's able refresh of the new pid. #2's other half: the swap
+that decides claude although both vendors are already out at the decision
+(`... but the grok standby cannot either (...): claude`); C4 re-checks only
+verdicts filed after the decision, so with C2 that start still fails in
+seconds as SPAWN.
 
 <!-- last-edit: 2026-10-02T04:40:00Z — CLE-77941 -->

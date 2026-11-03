@@ -66,6 +66,10 @@ limit_menu=" You've hit your weekly limit · resets Oct 28, 6pm (Europe/Amsterda
    3. Switch to usage credits
 
  Enter to confirm · Esc to cancel"
+# the menu's words quoted, not drawn: the rotate.log line of that run in a
+# pane (SPL-4728, R7 c-750 N3); control for the numbered-option anchor
+quoted="2026-10-24T16:08:46Z 20261024T1601Z-failover SPAWN WAIT %1263: no input box within 45s and no known dialog; screen: ❯ 1. Stop and wait for limit to reset|2. Wait here|3. Switch to usage credits
+$ grep -n 'Switch to usage credits' start-check.inc.sh"
 plain="$R
 ❯ $(printf '\302\240\033[2m')Try \"refactor this\"$(printf '\033[0m')
 $R
@@ -80,12 +84,13 @@ eq "not logged in (box drawn, login footer) named auth/login" "auth/login" "$(sp
 eq "usage limit named" "usage limit" "$(spool_start_dialog <<<"$limit")"
 eq "usage-limit menu named usage limit (SPL-4507)" "usage limit" "$(spool_start_dialog <<<"$limit_menu")"
 eq "control: the plain input box is no dialog" "" "$(spool_start_dialog <<<"$plain")"
+eq "control: the menu's words quoted in a log line are no dialog (SPL-4728)" "" "$(spool_start_dialog <<<"$quoted")"
 check "control: the plain input box is a box (ghost text cut)" spool_screen_input_box <<<"$plain"
 eq "...and it reads empty" "" "$(spool_screen_input_box <<<"$plain")"
 if spool_screen_input_box <<<"$settings" >/dev/null; then nok "the Settings Warning draws no input box (one rule)"
 else ok "the Settings Warning draws no input box (one rule)"; fi
 has "the Settings Warning hint names both users' settings.json" "box user's ~/.claude/settings.json" "$(spool_start_hint 'Settings Warning')"
-eq "no hint for a usage limit" "" "$(spool_start_hint 'usage limit')"
+has "the usage-limit hint names the login's quota and another vendor (SPL-4728)" "login (claude's for a claude seat) has no quota until its limit resets (the screen names when): the successor must be another vendor" "$(spool_start_hint 'usage limit')"
 
 # spool_start_check with a capture command
 cap_file() { cat "$T_TMP/screen.$1" 2>/dev/null; }

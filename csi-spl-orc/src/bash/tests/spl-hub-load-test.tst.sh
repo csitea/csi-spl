@@ -135,6 +135,8 @@ in_orc ENV=dev SPL_HUB_LOAD_URL="$STUB_URL" >"$T/o" 2>&1 && fail "a 0644 passwor
 chmod 600 "$T/pw"
 
 # --- 6. the Cloud Run read --------------------------------------------------------------
+# a fresh stub: the one from section 2 ends at its timeout, on a loaded box before here
+start_stub ok
 : >"$T/calls.log"
 in_orc ENV=dev SPL_HUB_LOAD_URL="$STUB_URL" LOAD_METRICS=1 >"$T/o" 2>&1 && pass "LOAD_METRICS=1 passes" || fail "metrics run: $(tail -3 "$T/o")"
 grep -qE '^METRICS ENV=dev SINCE=[0-9-]{10}T[0-9:]{8}Z MIN=[0-9]+$' "$T/calls.log" &&

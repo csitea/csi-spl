@@ -899,16 +899,23 @@ t1/sat-rsp (the hub refused them with `bad_sig`), and printed a
 have taken the desk from the agent user's live sidecar.
 
 - **The signal.** `spl_desk_moved_to <ws> <desk id>`
-  (`csi-spl-orc/lib/bash/funcs/spl-desk-moved.func.sh`): another user's
-  root of `spl_desk_roots` holds `desk/<ws>/<desk id>`. A move copies the
-  desk there, and a rollback or `MOVE_CMD=back` sets that copy aside in
-  that user's `desk.moved-*`, so the dir is there only while the desk is
-  that user's. A root the caller cannot enter is read with
-  `sudo -n -u <user> test -d`, the access `do_spl_desk_move` uses. No sudo
-  rule means unknown, and the reconcile behaves as before. The caller's
-  `desk.moved-*` marker is not needed, because the 8.4 step 6 prune
-  removes it and the stub stays. The caller's own copy wins while its
-  sidecar is live.
+  (`csi-spl-orc/lib/bash/funcs/spl-desk-moved.func.sh`) is asymmetric:
+  the desk is moved only when another user's root of `spl_desk_roots`
+  holds a pinned `desk/<ws>/<desk id>` (its `pinned` file) AND the
+  caller's own copy is not pinned (a stub, or absent). `keys/` proves
+  nothing: the box user's reconcile minted keys into the sat stubs. A move
+  copies the desk with its `pinned` file, and a rollback or `MOVE_CMD=back`
+  sets that copy aside in that user's `desk.moved-*`, so a pinned copy is
+  there only while the desk is that user's. A root the caller cannot enter
+  is read with `sudo -n -u <user> test -s`, the access `do_spl_desk_move`
+  uses. With no sudo rule the result is unknown: one WARN line, and the
+  reconcile behaves as before. The `desk.moved-*` marker is not used,
+  because the 8.4 step 6 prune removes it and the stub stays. The
+  caller's own copy also wins while its sidecar is live.
+  - Why asymmetric (R7 review, W1): the agent user runs the reconcile too,
+    including at boot, when no sidecar is up yet. A symmetric "another root
+    holds the dir" check made the agent user skip its own pinned desk
+    because a box-user stub existed, and then nobody served that desk.
 - **The skips.** `do_spl_desk_up_tenants`, `do_spl_desk_up_all` and the
   responder box leg (`_spl_desk_up_all_rsp`) log one INFO line for such a
   desk, `desk <id> of <ws> (<env>) lives under <user>'s state root ...`,
@@ -919,7 +926,8 @@ have taken the desk from the agent user's live sidecar.
 
 Test: `csi-spl-orc/src/bash/tests/desk-moved-skip.tst.sh` (red on
 `35bc30aca`: the moved desk reconciled, a key minted, the pin line
-printed).
+printed; red on the symmetric first version `7a5b6470a`: the agent user's
+pinned desk with its sidecar down was skipped, case 1g).
 
 ### 8.5 Build rows
 

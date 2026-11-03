@@ -3451,7 +3451,53 @@
       "tail": "tail -f",
       "tail_title": "{file} live volgen",
       "last_line": "Laatste regel: {at}",
-      "lines_total": "{n} regel | {n} regels"
+      "lines_total": "{n} regel | {n} regels",
+      "glob": {
+        "title": "Bestandspatronen (glob)",
+        "folders": "Toegestane mappen: {list}",
+        "no_folders": "Deze hostmachine heeft nog geen toegestane mappen gemeld.",
+        "none": "Geen bestandspatronen op deze hostmachine.",
+        "add": "Een bestandspatroon toevoegen",
+        "key": "Sleutel",
+        "key_hint": "Kleine letters, cijfers en koppeltekens, hoogstens 24.",
+        "glob": "Patroon",
+        "glob_hint": "Een absoluut pad of een pad onder $HOME/, met * en ? alleen in de bestandsnaam.",
+        "submit": "Toevoegen",
+        "adding": "Toevoegen…",
+        "cancel": "Annuleren",
+        "remove": "Verwijderen",
+        "keep": "Behouden",
+        "remove_ask": "Het patroon {key} verwijderen? De hostmachine volgt de bestanden ervan dan niet meer.",
+        "matches": "{followed} van {matched} treffers gevolgd",
+        "over_cap": "Niet gevolgd, de streamlimiet van de hostmachine is vol: {n}",
+        "reason": "Reden: {reason}",
+        "unavailable": "De bestandspatronen konden niet worden geladen.",
+        "audit_title": "Wijzigingen in patronen",
+        "audit_none": "Nog geen wijzigingen in patronen.",
+        "state": {
+          "pending": "Opgeslagen, nog niet gevolgd: de hostmachine heeft het nog niet gemeld",
+          "following": "Wordt gevolgd",
+          "partial": "Deels gevolgd",
+          "none": "Nog geen overeenkomend bestand",
+          "refused": "Geweigerd door de hostmachine"
+        },
+        "audit": {
+          "add": "Toegevoegd",
+          "remove": "Verwijderd",
+          "refused": "Geweigerd"
+        },
+        "err": {
+          "bad_glob": "Ongeldig patroon: een absoluut pad of een pad onder $HOME/, * en ? alleen in de bestandsnaam, geen vierkante haken, accolades, ** of delen . en ..",
+          "bad_key": "Ongeldige sleutel: kleine letters, cijfers en koppeltekens, hoogstens 24.",
+          "outside_folders": "De map van het patroon valt onder geen van de toegestane mappen van deze hostmachine.",
+          "glob_key_taken": "Deze hostmachine heeft al een patroon met die sleutel.",
+          "too_many_globs": "Deze hostmachine heeft al het maximale aantal patronen.",
+          "box_locked": "Deze hostmachine is vergrendeld: alleen de eigenaren van de vergrendeling kunnen een patroon toevoegen.",
+          "not_found": "De hostmachine of het patroon bestaat niet meer. Laad de pagina opnieuw.",
+          "forbidden": "Alleen de eigenaar en de beheerders van de werkruimte kunnen bestandspatronen wijzigen.",
+          "other": "De wijziging kon niet worden opgeslagen. Probeer het opnieuw."
+        }
+      }
     }
   },
   "takeover": {

@@ -3451,7 +3451,53 @@
       "tail": "tail -f",
       "tail_title": "Seguir {file} en directo",
       "last_line": "Última línea: {at}",
-      "lines_total": "{n} línea | {n} líneas"
+      "lines_total": "{n} línea | {n} líneas",
+      "glob": {
+        "title": "Patrones de archivo (glob)",
+        "folders": "Carpetas permitidas: {list}",
+        "no_folders": "Este equipo aún no ha anunciado carpetas permitidas.",
+        "none": "Este equipo no tiene patrones de archivo.",
+        "add": "Añadir un patrón de archivo",
+        "key": "Clave",
+        "key_hint": "Letras minúsculas, dígitos y guiones, como máximo 24.",
+        "glob": "Patrón",
+        "glob_hint": "Una ruta absoluta o bajo $HOME/, con * y ? solo en el nombre del archivo.",
+        "submit": "Añadir",
+        "adding": "Añadiendo…",
+        "cancel": "Cancelar",
+        "remove": "Quitar",
+        "keep": "Conservar",
+        "remove_ask": "¿Quitar el patrón {key}? El equipo deja de seguir sus archivos.",
+        "matches": "{followed} de {matched} coincidencias seguidas",
+        "over_cap": "Sin seguir, el límite de flujos del equipo está lleno: {n}",
+        "reason": "Motivo: {reason}",
+        "unavailable": "No se pudieron cargar los patrones de archivo.",
+        "audit_title": "Cambios de patrones",
+        "audit_none": "Aún no hay cambios de patrones.",
+        "state": {
+          "pending": "Guardado, aún sin seguir: el equipo no lo ha notificado",
+          "following": "Siguiendo",
+          "partial": "Seguido en parte",
+          "none": "Aún no coincide ningún archivo",
+          "refused": "Rechazado por el equipo"
+        },
+        "audit": {
+          "add": "Añadido",
+          "remove": "Quitado",
+          "refused": "Rechazado"
+        },
+        "err": {
+          "bad_glob": "Patrón no válido: una ruta absoluta o bajo $HOME/, * y ? solo en el nombre del archivo, sin corchetes, llaves, ** ni partes . o ..",
+          "bad_key": "Clave no válida: letras minúsculas, dígitos y guiones, como máximo 24.",
+          "outside_folders": "La carpeta del patrón no está dentro de ninguna carpeta permitida de este equipo.",
+          "glob_key_taken": "Este equipo ya tiene un patrón con esa clave.",
+          "too_many_globs": "Este equipo ya tiene el máximo de patrones.",
+          "box_locked": "Este equipo está bloqueado: solo los dueños del bloqueo pueden añadir un patrón.",
+          "not_found": "El equipo o el patrón ya no existe. Recarga la página.",
+          "forbidden": "Solo el propietario y los administradores del espacio de trabajo pueden cambiar los patrones de archivo.",
+          "other": "No se pudo guardar el cambio. Inténtalo de nuevo."
+        }
+      }
     }
   },
   "takeover": {

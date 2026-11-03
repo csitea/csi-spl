@@ -3451,7 +3451,53 @@
       "tail": "tail -f",
       "tail_title": "Sekti {file} tiesiogiai",
       "last_line": "Paskutinė eilutė: {at}",
-      "lines_total": "{n} eilutė | Eilučių: {n}"
+      "lines_total": "{n} eilutė | Eilučių: {n}",
+      "glob": {
+        "title": "Failų šablonai (glob)",
+        "folders": "Leidžiami aplankai: {list}",
+        "no_folders": "Ši mašina dar nepaskelbė leidžiamų aplankų.",
+        "none": "Ši mašina neturi failų šablonų.",
+        "add": "Pridėti failų šabloną",
+        "key": "Raktas",
+        "key_hint": "Mažosios raidės, skaitmenys ir brūkšneliai, ne daugiau kaip 24.",
+        "glob": "Šablonas",
+        "glob_hint": "Absoliutus kelias arba kelias po $HOME/, * ir ? tik failo pavadinime.",
+        "submit": "Pridėti",
+        "adding": "Pridedama…",
+        "cancel": "Atšaukti",
+        "remove": "Pašalinti",
+        "keep": "Palikti",
+        "remove_ask": "Pašalinti šabloną {key}? Mašina nustos sekti jo failus.",
+        "matches": "Sekama {followed} iš {matched} atitikmenų",
+        "over_cap": "Nesekama, mašinos srautų riba pilna: {n}",
+        "reason": "Priežastis: {reason}",
+        "unavailable": "Nepavyko įkelti failų šablonų.",
+        "audit_title": "Šablonų pakeitimai",
+        "audit_none": "Šablonų pakeitimų dar nėra.",
+        "state": {
+          "pending": "Išsaugota, dar nesekama: mašina apie jį dar nepranešė",
+          "following": "Sekama",
+          "partial": "Sekama iš dalies",
+          "none": "Atitinkančio failo dar nėra",
+          "refused": "Mašina atmetė"
+        },
+        "audit": {
+          "add": "Pridėta",
+          "remove": "Pašalinta",
+          "refused": "Atmesta"
+        },
+        "err": {
+          "bad_glob": "Netinkamas šablonas: absoliutus kelias arba kelias po $HOME/, * ir ? tik failo pavadinime, be laužtinių ir riestinių skliaustų, ** ar dalių . ir ..",
+          "bad_key": "Netinkamas raktas: mažosios raidės, skaitmenys ir brūkšneliai, ne daugiau kaip 24.",
+          "outside_folders": "Šablono aplankas nėra po jokiu leidžiamu šios mašinos aplanku.",
+          "glob_key_taken": "Ši mašina jau turi šabloną su tokiu raktu.",
+          "too_many_globs": "Ši mašina jau turi didžiausią leidžiamą šablonų skaičių.",
+          "box_locked": "Ši mašina užrakinta: šabloną gali pridėti tik užrakto savininkai.",
+          "not_found": "Mašinos ar šablono nebėra. Įkelkite puslapį iš naujo.",
+          "forbidden": "Failų šablonus gali keisti tik darbo srities savininkas ir administratoriai.",
+          "other": "Nepavyko išsaugoti pakeitimo. Bandykite dar kartą."
+        }
+      }
     }
   },
   "takeover": {

@@ -1877,6 +1877,36 @@ async function getFileStreamLines(ctx, id, q = {}) {
 }
 
 /**
+ * Spec 160 3.8.3 (SPL-4695, row B12): the file globs typed in the page,
+ * behind the read routes' gate (owner or admin of the workspace, else 403).
+ *   'list'                       GET    /v1/view/file-streams/globs
+ *   'add', {boxId, key, glob}    POST   /v1/file-streams/globs {box_id, key, glob}
+ *   'remove', id                 DELETE /v1/file-streams/globs/{id}
+ *   'audit', {before?, limit?}   GET    /v1/view/file-streams/globs/audit
+ * The mock answers from monitoring-file-streams.mjs with the hub's checks.
+ */
+async function fileStreamGlobs(ctx, op, arg) {
+  const { live, mock } = ctx
+  const fs = await import('./monitoring-file-streams.mjs')
+  const a = /** @type {any} */ (arg || {})
+  const body = op === 'add' ? JSON.stringify(fs.fileStreamGlobBody(a.boxId, a.key, a.glob)) : ''
+  const id = op === 'remove' ? encodeURIComponent(String(arg || '')) : ''
+  if (mock) {
+    mockFileStreamsStaff(op === 'audit' ? '/v1/view/file-streams/globs/audit' : '/v1/view/file-streams/globs')
+    if (op === 'list') return fs.mockFileStreamGlobs()
+    if (op === 'add') return fs.mockAddFileStreamGlob(body)
+    if (op === 'remove') return fs.mockRemoveFileStreamGlob(decodeURIComponent(id))
+    if (op === 'audit') return fs.mockFileStreamGlobAudit(a)
+    throw new Error('fileStreamGlobs: unknown op ' + op)
+  }
+  if (op === 'list') return live('/v1/view/file-streams/globs')
+  if (op === 'add') return live('/v1/file-streams/globs', { method: 'POST', headers: { 'content-type': 'application/json' }, body })
+  if (op === 'remove') return live('/v1/file-streams/globs/' + id, { method: 'DELETE' })
+  if (op === 'audit') return live('/v1/view/file-streams/globs/audit' + fs.fileStreamGlobAuditQuery(a))
+  throw new Error('fileStreamGlobs: unknown op ' + op)
+}
+
+/**
  * The mock's gate of 3.4: a mock owner or admin (spool.mock.me), else the hub's 403, recorded for `path` (SPL-4453).
  * @param {string} path
  */
@@ -2180,6 +2210,7 @@ export const lazySpoolMethods = {
   getFleetLanes,
   getFileStreams,
   getFileStreamLines,
+  fileStreamGlobs,
   reportingSql,
   getFxCurrencies,
   fleetPaid,

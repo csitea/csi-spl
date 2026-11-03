@@ -3451,7 +3451,53 @@
       "tail": "tail -f",
       "tail_title": "Jälgi faili {file} reaalajas",
       "last_line": "Viimane rida: {at}",
-      "lines_total": "{n} rida | {n} rida"
+      "lines_total": "{n} rida | {n} rida",
+      "glob": {
+        "title": "Failimustrid (glob)",
+        "folders": "Lubatud kaustad: {list}",
+        "no_folders": "See kast pole veel lubatud kaustu teatanud.",
+        "none": "Sellel kastil pole failimustreid.",
+        "add": "Lisa failimuster",
+        "key": "Võti",
+        "key_hint": "Väikesed tähed, numbrid ja sidekriipsud, kuni 24.",
+        "glob": "Muster",
+        "glob_hint": "Absoluutne tee või tee kausta $HOME/ all, * ja ? ainult failinimes.",
+        "submit": "Lisa",
+        "adding": "Lisamine…",
+        "cancel": "Tühista",
+        "remove": "Eemalda",
+        "keep": "Jäta alles",
+        "remove_ask": "Kas eemaldada muster {key}? Kast lõpetab selle failide jälgimise.",
+        "matches": "Jälgitakse {followed} vastet {matched}-st",
+        "over_cap": "Ei jälgita, kasti voogude piir on täis: {n}",
+        "reason": "Põhjus: {reason}",
+        "unavailable": "Failimustreid ei õnnestunud laadida.",
+        "audit_title": "Mustrite muudatused",
+        "audit_none": "Mustrite muudatusi veel pole.",
+        "state": {
+          "pending": "Salvestatud, veel ei jälgita: kast pole sellest teatanud",
+          "following": "Jälgitakse",
+          "partial": "Osaliselt jälgitud",
+          "none": "Sobivat faili veel pole",
+          "refused": "Kast keeldus"
+        },
+        "audit": {
+          "add": "Lisatud",
+          "remove": "Eemaldatud",
+          "refused": "Keelatud"
+        },
+        "err": {
+          "bad_glob": "Vigane muster: absoluutne tee või tee kausta $HOME/ all, * ja ? ainult failinimes, ilma nurk- ja looksulgude, ** ning osadeta . ja ..",
+          "bad_key": "Vigane võti: väikesed tähed, numbrid ja sidekriipsud, kuni 24.",
+          "outside_folders": "Mustri kaust ei asu ühegi selle kasti lubatud kausta all.",
+          "glob_key_taken": "Sellel kastil on selle võtmega muster juba olemas.",
+          "too_many_globs": "Sellel kastil on juba lubatud arv mustreid.",
+          "box_locked": "See kast on lukus: mustrit saavad lisada ainult luku omanikud.",
+          "not_found": "Kasti või mustrit enam pole. Laadi leht uuesti.",
+          "forbidden": "Failimustreid saavad muuta ainult tööruumi omanik ja administraatorid.",
+          "other": "Muudatust ei õnnestunud salvestada. Proovi uuesti."
+        }
+      }
     }
   },
   "takeover": {

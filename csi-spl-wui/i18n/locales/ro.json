@@ -3451,7 +3451,53 @@
       "tail": "tail -f",
       "tail_title": "Urmărește {file} în timp real",
       "last_line": "Ultimul rând: {at}",
-      "lines_total": "{n} rând | Rânduri: {n}"
+      "lines_total": "{n} rând | Rânduri: {n}",
+      "glob": {
+        "title": "Șabloane de fișiere (glob)",
+        "folders": "Foldere permise: {list}",
+        "no_folders": "Această mașină nu a anunțat încă foldere permise.",
+        "none": "Această mașină nu are șabloane de fișiere.",
+        "add": "Adaugă un șablon de fișiere",
+        "key": "Cheie",
+        "key_hint": "Litere mici, cifre și cratime, cel mult 24.",
+        "glob": "Șablon",
+        "glob_hint": "O cale absolută sau una sub $HOME/, cu * și ? doar în numele fișierului.",
+        "submit": "Adaugă",
+        "adding": "Se adaugă…",
+        "cancel": "Anulează",
+        "remove": "Elimină",
+        "keep": "Păstrează",
+        "remove_ask": "Elimini șablonul {key}? Mașina nu mai urmărește fișierele lui.",
+        "matches": "{followed} din {matched} potriviri urmărite",
+        "over_cap": "Neurmărite, limita de fluxuri a mașinii este plină: {n}",
+        "reason": "Motiv: {reason}",
+        "unavailable": "Șabloanele de fișiere nu au putut fi încărcate.",
+        "audit_title": "Modificări ale șabloanelor",
+        "audit_none": "Încă nu există modificări ale șabloanelor.",
+        "state": {
+          "pending": "Salvat, încă neurmărit: mașina nu l-a raportat",
+          "following": "Urmărit",
+          "partial": "Urmărit parțial",
+          "none": "Încă niciun fișier potrivit",
+          "refused": "Refuzat de mașină"
+        },
+        "audit": {
+          "add": "Adăugat",
+          "remove": "Eliminat",
+          "refused": "Refuzat"
+        },
+        "err": {
+          "bad_glob": "Șablon nevalid: o cale absolută sau sub $HOME/, * și ? doar în numele fișierului, fără paranteze drepte sau acolade, ** ori părți . și ..",
+          "bad_key": "Cheie nevalidă: litere mici, cifre și cratime, cel mult 24.",
+          "outside_folders": "Folderul șablonului nu se află sub niciunul dintre folderele permise ale acestei mașini.",
+          "glob_key_taken": "Această mașină are deja un șablon cu această cheie.",
+          "too_many_globs": "Această mașină are deja numărul maxim de șabloane.",
+          "box_locked": "Această mașină este blocată: doar proprietarii blocării pot adăuga un șablon.",
+          "not_found": "Mașina sau șablonul nu mai există. Reîncarcă pagina.",
+          "forbidden": "Doar proprietarul și administratorii spațiului de lucru pot modifica șabloanele de fișiere.",
+          "other": "Modificarea nu a putut fi salvată. Încearcă din nou."
+        }
+      }
     }
   },
   "takeover": {

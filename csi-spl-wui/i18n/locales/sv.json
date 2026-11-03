@@ -3451,7 +3451,53 @@
       "tail": "tail -f",
       "tail_title": "Följ {file} live",
       "last_line": "Senaste rad: {at}",
-      "lines_total": "{n} rad | {n} rader"
+      "lines_total": "{n} rad | {n} rader",
+      "glob": {
+        "title": "Filmönster (glob)",
+        "folders": "Tillåtna mappar: {list}",
+        "no_folders": "Den här maskinen har inte meddelat några tillåtna mappar än.",
+        "none": "Inga filmönster på den här maskinen.",
+        "add": "Lägg till ett filmönster",
+        "key": "Nyckel",
+        "key_hint": "Små bokstäver, siffror och bindestreck, högst 24.",
+        "glob": "Mönster",
+        "glob_hint": "En absolut sökväg eller en under $HOME/, med * och ? bara i filnamnet.",
+        "submit": "Lägg till",
+        "adding": "Lägger till…",
+        "cancel": "Avbryt",
+        "remove": "Ta bort",
+        "keep": "Behåll",
+        "remove_ask": "Ta bort mönstret {key}? Maskinen slutar följa dess filer.",
+        "matches": "{followed} av {matched} träffar följs",
+        "over_cap": "Följs inte, maskinens gräns för strömmar är nådd: {n}",
+        "reason": "Orsak: {reason}",
+        "unavailable": "Filmönstren kunde inte läsas in.",
+        "audit_title": "Ändringar av mönster",
+        "audit_none": "Inga ändringar av mönster än.",
+        "state": {
+          "pending": "Sparat, följs inte än: maskinen har inte rapporterat det",
+          "following": "Följs",
+          "partial": "Följs delvis",
+          "none": "Ingen matchande fil än",
+          "refused": "Avvisat av maskinen"
+        },
+        "audit": {
+          "add": "Tillagt",
+          "remove": "Borttaget",
+          "refused": "Avvisat"
+        },
+        "err": {
+          "bad_glob": "Ogiltigt mönster: en absolut sökväg eller en under $HOME/, * och ? bara i filnamnet, inga hakparenteser, klammerparenteser, ** eller delar . och ..",
+          "bad_key": "Ogiltig nyckel: små bokstäver, siffror och bindestreck, högst 24.",
+          "outside_folders": "Mönstrets mapp ligger inte under någon av maskinens tillåtna mappar.",
+          "glob_key_taken": "Den här maskinen har redan ett mönster med den nyckeln.",
+          "too_many_globs": "Den här maskinen har redan så många mönster som tillåts.",
+          "box_locked": "Den här maskinen är låst: bara låsets ägare kan lägga till ett mönster.",
+          "not_found": "Maskinen eller mönstret finns inte längre. Läs in sidan igen.",
+          "forbidden": "Bara arbetsytans ägare och administratörer kan ändra filmönster.",
+          "other": "Ändringen kunde inte sparas. Försök igen."
+        }
+      }
     }
   },
   "takeover": {

@@ -3451,7 +3451,53 @@
       "tail": "tail -f",
       "tail_title": "Sekot {file} tiešsaistē",
       "last_line": "Pēdējā rinda: {at}",
-      "lines_total": "{n} rinda | Rindas: {n}"
+      "lines_total": "{n} rinda | Rindas: {n}",
+      "glob": {
+        "title": "Failu šabloni (glob)",
+        "folders": "Atļautās mapes: {list}",
+        "no_folders": "Šī mašīna vēl nav paziņojusi atļautās mapes.",
+        "none": "Šai mašīnai nav failu šablonu.",
+        "add": "Pievienot failu šablonu",
+        "key": "Atslēga",
+        "key_hint": "Mazie burti, cipari un defises, ne vairāk kā 24.",
+        "glob": "Šablons",
+        "glob_hint": "Absolūts ceļš vai ceļš zem $HOME/, ar * un ? tikai faila nosaukumā.",
+        "submit": "Pievienot",
+        "adding": "Pievieno…",
+        "cancel": "Atcelt",
+        "remove": "Noņemt",
+        "keep": "Paturēt",
+        "remove_ask": "Noņemt šablonu {key}? Mašīna pārtrauks sekot tā failiem.",
+        "matches": "Seko {followed} no {matched} atbilstībām",
+        "over_cap": "Neseko, mašīnas plūsmu limits ir pilns: {n}",
+        "reason": "Iemesls: {reason}",
+        "unavailable": "Failu šablonus neizdevās ielādēt.",
+        "audit_title": "Šablonu izmaiņas",
+        "audit_none": "Šablonu izmaiņu vēl nav.",
+        "state": {
+          "pending": "Saglabāts, vēl neseko: mašīna par to vēl nav ziņojusi",
+          "following": "Seko",
+          "partial": "Seko daļēji",
+          "none": "Atbilstoša faila vēl nav",
+          "refused": "Mašīna noraidīja"
+        },
+        "audit": {
+          "add": "Pievienots",
+          "remove": "Noņemts",
+          "refused": "Noraidīts"
+        },
+        "err": {
+          "bad_glob": "Nederīgs šablons: absolūts ceļš vai ceļš zem $HOME/, * un ? tikai faila nosaukumā, bez kvadrātiekavām, figūriekavām, ** vai daļām . un ..",
+          "bad_key": "Nederīga atslēga: mazie burti, cipari un defises, ne vairāk kā 24.",
+          "outside_folders": "Šablona mape nav zem nevienas šīs mašīnas atļautās mapes.",
+          "glob_key_taken": "Šai mašīnai jau ir šablons ar šo atslēgu.",
+          "too_many_globs": "Šai mašīnai jau ir maksimālais šablonu skaits.",
+          "box_locked": "Šī mašīna ir bloķēta: šablonu var pievienot tikai bloķēšanas īpašnieki.",
+          "not_found": "Mašīnas vai šablona vairs nav. Pārlādējiet lapu.",
+          "forbidden": "Failu šablonus var mainīt tikai darbvietas īpašnieks un administratori.",
+          "other": "Izmaiņas neizdevās saglabāt. Mēģiniet vēlreiz."
+        }
+      }
     }
   },
   "takeover": {

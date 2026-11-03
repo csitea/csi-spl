@@ -3451,7 +3451,53 @@
       "tail": "tail -f",
       "tail_title": "Sledovať {file} naživo",
       "last_line": "Posledný riadok: {at}",
-      "lines_total": "{n} riadok | Riadky: {n}"
+      "lines_total": "{n} riadok | Riadky: {n}",
+      "glob": {
+        "title": "Vzory súborov (glob)",
+        "folders": "Povolené priečinky: {list}",
+        "no_folders": "Tento stroj ešte neoznámil povolené priečinky.",
+        "none": "Tento stroj nemá žiadne vzory súborov.",
+        "add": "Pridať vzor súborov",
+        "key": "Kľúč",
+        "key_hint": "Malé písmená, číslice a spojovníky, najviac 24.",
+        "glob": "Vzor",
+        "glob_hint": "Absolútna cesta alebo cesta pod $HOME/, * a ? iba v názve súboru.",
+        "submit": "Pridať",
+        "adding": "Pridáva sa…",
+        "cancel": "Zrušiť",
+        "remove": "Odstrániť",
+        "keep": "Ponechať",
+        "remove_ask": "Odstrániť vzor {key}? Stroj prestane sledovať jeho súbory.",
+        "matches": "Sledované zhody: {followed} z {matched}",
+        "over_cap": "Nesledované, limit tokov stroja je plný: {n}",
+        "reason": "Dôvod: {reason}",
+        "unavailable": "Vzory súborov sa nepodarilo načítať.",
+        "audit_title": "Zmeny vzorov",
+        "audit_none": "Zatiaľ žiadne zmeny vzorov.",
+        "state": {
+          "pending": "Uložený, zatiaľ nesledovaný: stroj ho ešte nenahlásil",
+          "following": "Sleduje sa",
+          "partial": "Sleduje sa čiastočne",
+          "none": "Zatiaľ žiadny zodpovedajúci súbor",
+          "refused": "Odmietnutý strojom"
+        },
+        "audit": {
+          "add": "Pridaný",
+          "remove": "Odstránený",
+          "refused": "Odmietnutý"
+        },
+        "err": {
+          "bad_glob": "Neplatný vzor: absolútna cesta alebo pod $HOME/, * a ? iba v názve súboru, bez hranatých a zložených zátvoriek, ** ani častí . a ..",
+          "bad_key": "Neplatný kľúč: malé písmená, číslice a spojovníky, najviac 24.",
+          "outside_folders": "Priečinok vzoru nie je pod žiadnym z povolených priečinkov tohto stroja.",
+          "glob_key_taken": "Tento stroj už má vzor s týmto kľúčom.",
+          "too_many_globs": "Tento stroj už má najvyšší povolený počet vzorov.",
+          "box_locked": "Tento stroj je zamknutý: vzor môžu pridať iba vlastníci zámku.",
+          "not_found": "Stroj alebo vzor už neexistuje. Znova načítajte stránku.",
+          "forbidden": "Vzory súborov môžu meniť iba vlastník a správcovia pracovného priestoru.",
+          "other": "Zmenu sa nepodarilo uložiť. Skúste to znova."
+        }
+      }
     }
   },
   "takeover": {

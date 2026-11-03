@@ -824,6 +824,28 @@ if command -v yq >/dev/null; then
     pass "hubs: no bare spool call in the action" || fail "hubs: a bare spool call is back"
   v="$(yq -r '.env.box.file_streams.hubs | join(" ")' "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml")"
   [[ "$v" == "dev prd" ]] && pass "cnf: file_streams.hubs is dev and prd (owner: BOTH)" || fail "cnf hubs: '$v'"
+  # spec 160 3.9 (SPL-4693): every shipped allow entry is well formed and
+  # passes the deny list, the two agent-logs files of c-141 among them, one
+  # id per file (CONTROL: the base cnf has no agent-logs entry)
+  al="$(yq -o json -I0 '.env.box.file_streams.allow' "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml")"
+  bad="$(FILE_STREAMS_ALLOW="$al" python3 - "$PY_REAL" <<'EOF'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("follow", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+ctx = m.DenyContext()
+for sid, path, why in m.read_allow():
+    why = why or m.spl_file_stream_denied(path, ctx)
+    if why:
+        print(sid, why)
+EOF
+)"
+  want=0
+  for k in agent-c-141=/var/csi/csi-spl/agent-logs/c-141.log agent-c-141-steps=/var/csi/csi-spl/agent-logs/c-141.steps.log; do
+    jq -e --arg i "${k%%=*}" --arg p "${k#*=}" 'any(.[]; .id == $i and .path == $p)' <<<"$al" >/dev/null && want=$((want + 1))
+  done
+  [[ -z "$bad" && "$want" == 2 ]] && pass "cnf: every allow entry passes the deny list, the agent-logs files among them" ||
+    fail "cnf allow: refused='$bad' agent-logs entries=$want/2"
 else
   fail "hubs: yq is required"
 fi

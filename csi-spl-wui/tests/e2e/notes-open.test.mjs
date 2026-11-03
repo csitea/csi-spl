@@ -45,7 +45,10 @@
 // note's priority"): a P5 note dragged onto a P2 note lands in the P2 run as a
 // P2, and stays so after the list is read again from the hub; Alt+Up past a
 // neighbour of another priority does the same, and the open note's chooser
-// follows a Move. N2: at dir=rtl the chip keeps its gap to the title.
+// follows a Move. Owner msg 1ae7a7f0: dragged up, the number gets smaller;
+// dragged down onto a bigger one, it takes that. Owner msg ada4a8ff: within one
+// priority the dragged order (the stored position) wins and is kept.
+// N2: at dir=rtl the chip keeps its gap to the title.
 // CONTROL: with the D8 rule out of note-order.mjs (a drop on another priority
 // moves nothing), or margin-left back on the chip, the checks of d8Case() FAIL.
 //
@@ -543,6 +546,23 @@ async function d8Case(browser, base) {
   await p.click('[data-test=note-up]')
   await p.waitForFunction(() => document.querySelector('[data-test=note-priority]')?.getAttribute('data-priority') === '1', { timeout: 5000 }).catch(() => {})
   check(`${tag}: Move up in the open note takes the P1, and its chooser shows 1`, (await stored('mock-note-2')) === 1 && (await p.$eval('[data-test=note-priority-1]', (e) => e.checked)), await stored('mock-note-2'))
+  await p.keyboard.press('Escape')
+  await waitGone(p)
+
+  /* owner msg ada4a8ff: within one priority the dragged order wins (position, stored by the hub) */
+  check(`${tag}: two P1 notes, mock-note-3 the lower`, same(await rows(p, 'rest'), ['mock-note-2', 'mock-note-3']) && (await chip('mock-note-3')) === 'P1', await rows(p, 'rest'))
+  await drag('mock-note-3', 'mock-note-2')
+  await sleep(300)
+  await refetch(p)
+  check(`${tag}: the lower P1 dragged to the top stays on top after the list is read again`, same(await rows(p, 'rest'), ['mock-note-3', 'mock-note-2']) && (await chip('mock-note-3')) === 'P1', await rows(p, 'rest'))
+
+  /* owner msg 1ae7a7f0 mirrored: dragged down onto a bigger number, it takes the bigger number */
+  await setPriority('mock-note-2', 4)
+  await sleep(200)
+  await drag('mock-note-3', 'mock-note-2')
+  await sleep(300)
+  await refetch(p)
+  check(`${tag}: a P1 dragged down onto a P4 becomes P4, below it`, (await chip('mock-note-3')) === 'P4' && same(await rows(p, 'rest'), ['mock-note-2', 'mock-note-3']), [await chip('mock-note-3'), await rows(p, 'rest')])
   await p.close()
 }
 

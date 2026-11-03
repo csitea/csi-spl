@@ -301,6 +301,16 @@ default. Every existing note reads 5. The WUI's discussion default is 3
   The groups still never mix: a drop on another group moves nothing. The open
   note's chooser follows a Move made from it. Until v1.3 (default) a drop on
   another priority moved nothing.
+- **Up means a smaller number, and the dragged order wins** (owner HUM-10,
+  msgs `1ae7a7f0-0879-4e1b-b763-5460079ee17d`: "also dragging the notes up
+  should make their priority number smaller", and
+  `ada4a8ff-9900-4b19-b9ce-35c19222ab76`: "if 2 notesa are with prio 1 , but I
+  have dragged the one of them to be on the top , THIS should be the correct
+  order"). Both hold by the rule above, with no new column: a group is drawn
+  priority ascending, so every note above has a number no bigger than the
+  moved one, and the one it lands on gives its number; down mirrors it. Within
+  one priority `position`, stored by the hub per note (PATCH position), orders
+  before any date key, so a dragged order is kept across reloads and devices.
 
 ## 3. Defaults (owner may change)
 

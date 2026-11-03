@@ -1080,15 +1080,17 @@ onMounted(() => {
   .msg-main { display: contents; }
   .msg-main > * { grid-column: 1 / -1; min-width: 0; }
   .msg-main > .msg-meta { grid-column: 2; }
-  .msg-meta { flex-wrap: wrap; gap: 4px; }
-  /* SPL-1000: the header is ONE line at 360 px with Add emoji in it. The row
-     wraps (the reactions take their own line below), and a flex item wraps at
-     its basis before it shrinks - so every name-like item has basis 0 and a
-     small floor: the names give way first, with an ellipsis */
+  /* SPL-1000: the header is ONE line at 360 px with Add emoji in it.
+     SPL-4731 (owner HUM-10, t1 5c657679): it never wraps - a wrapping row
+     broke at the item's basis before anything shrank, so one more chip (a
+     reaction pill) put the menu alone on a second line under the avatar.
+     Every name-like item has basis 0 and a small floor: the names give way
+     first, with an ellipsis, then the time and the optional chips */
+  .msg-meta { flex-wrap: nowrap; gap: 4px; }
   .msg-meta > :deep(.msg-author) { flex: 1 1 0; max-width: max-content; min-width: 1em; }
   /* the name takes the free space first (up to its own width); an auto
-     margin then takes what is left, so the menu still sits at the right edge
-     on either header line (a grow below 1 would hand out only that fraction
+     margin then takes what is left, so the menu sits at the right edge
+     (a grow below 1 would hand out only that fraction
      of the free space and strand the menu mid-row) */
   .msg-meta-spacer { flex: 0 0 0; margin-inline-start: auto; }
   .msg-meta > .msg-via-terminal { flex: 1 1 0; max-width: max-content; min-width: 1em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1128,9 +1130,12 @@ onMounted(() => {
   /* its 44 px target reaches the card's 4 px right padding, and the
      arrow gives back its side bearing: a sender -> recipient header fits one
      line at 360 px (SPL-1000) */
-  .msg-actions .msg-menu-btn { width: var(--tap); height: var(--tap); min-width: var(--tap); min-height: var(--tap); margin-block: -6px; margin-inline-end: -4px; }
+  .msg-actions .msg-menu-btn { width: var(--tap); height: var(--tap); min-width: var(--tap); min-height: var(--tap); margin-block: -6px; margin-inline-end: -4px; flex-shrink: 0; }
   .msg-to-arrow { margin-inline: -2px; }
-  .msg-actions .replies { min-height: var(--tap); margin-block: -6px; padding-inline: 10px; }
+  .msg-actions .replies { min-height: var(--tap); margin-block: -6px; padding-inline: 10px; flex-shrink: 0; }
+  /* SPL-4731: the optional tags give way (ellipsis) before the menu does */
+  .msg-meta > .msg-prio,
+  .msg-meta > .msg-edited { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .msg-meta > .msg-reactions { order: 10; flex: 1 0 100%; margin-inline-start: 0; }
   .msg-reaction { min-height: var(--tap); min-width: var(--tap); justify-content: center; font-size: 1rem; }
   .card-grip { height: var(--tap); margin-top: -16px; }

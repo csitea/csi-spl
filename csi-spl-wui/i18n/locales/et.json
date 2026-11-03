@@ -3529,7 +3529,8 @@
       "marketing": "Turundus",
       "issues": "Probleemid",
       "posts": "Postitused",
-      "lanes": "Rajad"
+      "lanes": "Rajad",
+      "finance": "Rahandus"
     },
     "future": {
       "issues": "Probleemide aruanne tuleb peagi.",
@@ -3657,6 +3658,81 @@
         "revenue": "Tulu",
         "retention": "Hoidmine",
         "content_seo": "Sisu / SEO"
+      }
+    },
+    "finance": {
+      "loading": "Finantsnäitajate laadimine…",
+      "forbidden": "Finantsnäitajaid näeb ainult tööruumi Netvisori omanik.",
+      "error": "Finantsnäitajaid ei õnnestunud laadida.",
+      "no_snapshot": "Netvisori hetktõmmist veel pole. Esimese küsimiseks vajutage „Värskenda kohe“.",
+      "env": {
+        "test": "Netvisori testettevõte",
+        "prd": "Netvisori tootmisettevõte"
+      },
+      "voucher": "Uusim pangadokument: {date}",
+      "voucher_none": "Pangadokumenti veel pole",
+      "as_of": "Näitajad seisuga {date}, laaditud {time}",
+      "refresh": "Värskenda kohe",
+      "refresh_requested": "Värskendust küsiti kell {time}. Järgmine laadimine toob uued näitajad.",
+      "refresh_error": "Värskendust ei õnnestunud küsida.",
+      "forecast": {
+        "title": "Kuu lõpu rahaprognoos",
+        "month_end": "Oodatav raha {date}:",
+        "by_category": "Kategooriate kaupa",
+        "items_label": "Prognoosi read",
+        "col_category": "Kategooria",
+        "col_label": "Kirje",
+        "col_due": "Tähtaeg",
+        "col_status": "Olek",
+        "col_amount": "Summa",
+        "overdue": "Tähtaeg ületatud",
+        "approved": "Kinnitatud",
+        "unapproved": "Kinnitamata",
+        "empty": "Prognoosis pole ridu.",
+        "skipped": "Välja jäetud read, mida ei õnnestunud lugeda: {n}"
+      },
+      "category": {
+        "bank_balance": "Pangasaldo",
+        "receivable": "Nõuded",
+        "payable": "Võlad",
+        "payment": "Maksed pärast saldot",
+        "payroll": "Palgad",
+        "vat": "Käibemaks",
+        "tax": "Maksud",
+        "contract": "Lepingud"
+      },
+      "costs": {
+        "title": "Kaardikulud",
+        "slices_label": "Rühmita kaardikulud",
+        "slice_vendor": "Tarnija",
+        "slice_cost_type": "Kululiik",
+        "slice_cost_centre": "Kulukeskus",
+        "col_month": "Kuu",
+        "col_lines": "Ridu",
+        "col_amount": "Summa",
+        "none": "(puudub)",
+        "empty": "Kaardikulusid pole.",
+        "excluded": "Välja jäetud, juba arvestatud jaotises Kulud: {n} rida, {amount}"
+      },
+      "settings": {
+        "title": "Raamatupidamiskontod",
+        "intro": "Kontonumbrid, mida prognoos loeb. Ainult teie näete ja muudate neid.",
+        "env": "Netvisori ettevõte",
+        "bank": "Pangakonto (raamatupidamiskonto number)",
+        "vat": "Käibemaksukontod",
+        "tax": "Maksukontod",
+        "accounts_hint": "Kontonumbrid 1 kuni 12 numbrit, komadega eraldatud.",
+        "vendors": "Tarnijad, kes on juba arvestatud jaotises Kulud",
+        "vendors_hint": "Üks tarnija nimi rea kohta. Nende kaardikulud jäetakse siin välja.",
+        "save": "Salvesta",
+        "saved": "Salvestatud.",
+        "error": "Seadeid ei õnnestunud salvestada.",
+        "updated": "Viimati muudetud {time}",
+        "invalid_env": "Valige test- või tootmisettevõte.",
+        "invalid_bank_account": "Pangakontol on 1 kuni 12 numbrit.",
+        "invalid_vat_accounts": "Käibemaksukontod: kuni 32 numbrit, igaüks 1 kuni 12 kohta.",
+        "invalid_tax_accounts": "Maksukontod: kuni 32 numbrit, igaüks 1 kuni 12 kohta.",
+        "invalid_vendor_exclusions": "Kuni 200 tarnija nime."
       }
     }
   },

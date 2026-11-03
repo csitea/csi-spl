@@ -58,7 +58,7 @@ describe('T010 the Reporting rail entry', () => {
 
 describe('T011 utils/reporting-tabs.mjs', () => {
   it('the tabs in their order, each its own path; Releases is where /reporting lands', () => {
-    assert.deepEqual(ids(REPORTING_TABS), ['releases', 'sql', 'costs', 'marketing', 'issues', 'posts', 'lanes'])
+    assert.deepEqual(ids(REPORTING_TABS), ['releases', 'sql', 'costs', 'marketing', 'finance', 'issues', 'posts', 'lanes'])
     assert.equal(REPORTING_DEFAULT_PATH, '/reporting/releases')
     for (const t of REPORTING_TABS) {
       assert.equal(t.path, '/reporting/' + t.id)
@@ -68,8 +68,8 @@ describe('T011 utils/reporting-tabs.mjs', () => {
       assert.equal(typeof t.ready, 'boolean')
     }
   })
-  it('Releases, SQL, Costs and Marketing are ready today (SQL since T033, SPL-2789; Costs since S1, SPL-3798; Marketing since spec 163 B1, SPL-4250): a member sees Releases, an admin SQL too', () => {
-    assert.deepEqual(REPORTING_TABS.filter((t) => t.ready).map((t) => t.id), ['releases', 'sql', 'costs', 'marketing'])
+  it('Releases, SQL, Costs, Marketing and Finance are ready today (SQL since T033, SPL-2789; Costs since S1, SPL-3798; Marketing since spec 163 B1, SPL-4250; Finance since spec 125 B7, SPL-4741): a member sees Releases, an admin SQL too', () => {
+    assert.deepEqual(REPORTING_TABS.filter((t) => t.ready).map((t) => t.id), ['releases', 'sql', 'costs', 'marketing', 'finance'])
     for (const who of [undefined, {}, { admin: false }]) {
       assert.deepEqual(ids(visibleReportingTabs(who)), ['releases'], JSON.stringify(who))
     }

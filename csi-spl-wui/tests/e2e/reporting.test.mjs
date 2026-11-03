@@ -18,8 +18,20 @@
 //     overview's order and the Q7 attribution line (last touch, 28 days);
 //     a member's bar has no Marketing tab, and the page opened by its path
 //     shows the hub's refusal and no card.
+//   - spec 125 B7 (SPL-4741, case C-NVS-7, C7): the workspace's Netvisor
+//     owner (the mock reader with no spool.mock.me, an admin of the
+//     operator workspace) sees the Finance tab; /reporting/finance draws the
+//     forecast card and its items, the newest bank voucher date, the card
+//     costs by vendor / cost type / cost centre with the spec-123 vendor
+//     left out, "Refresh now" and the settings form (a bad account number is
+//     refused, a good one saved); an admin of the operator workspace who is
+//     not the owner gets no Finance tab, and the page opened by its path
+//     shows the refusal and no figure.
 // RED CONTROL: a tab, a link or the table missing fails a check, and the
-// file exits 1.
+// file exits 1. For Finance: the tab rule widened to an admin (no
+// netvisorOwner in reporting-tabs.mjs) fails "a non-owner admin's bar has
+// no Finance tab"; a key missing in en.json renders its raw key and fails
+// "no raw i18n key".
 //
 // Run:
 //   BASE_URL=<generated bundle> pnpm run test:e2e reporting
@@ -62,16 +74,18 @@ const at = (p, want) => p.waitForFunction((w) => location.pathname === w, { time
 const waitFor = (p, sel) => p.waitForSelector(sel, { visible: true, timeout: 20000 }).then(() => true, () => false)
 const tabIds = (p) => p.$$eval('[data-test^=reporting-tab-]', (els) => els.map((e) => e.getAttribute('data-test').slice('reporting-tab-'.length)))
 
-/** A fresh signed-in mock page at this size, as `me` (the opt-in mock role). */
-async function reportingPage(browser, base, { width, height, touch }, me) {
+/** A fresh signed-in mock page at this size, as `me` (the opt-in mock role;
+ *  null = none, the unrestricted reader), plus extra localStorage keys. */
+async function reportingPage(browser, base, { width, height, touch }, me, extra = {}) {
   const ctx = await browser.createBrowserContext()
   const p = await ctx.newPage()
   await p.setViewport({ width, height, isMobile: touch, hasTouch: touch })
   await p.goto(base + '/lobby', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-  await p.evaluate((meKey, m) => {
+  await p.evaluate((meKey, m, x) => {
     localStorage.setItem('spool.mock.session', JSON.stringify({ hum: 'HUM-1', name: 'Admin', email: 'admin@example.com', t: 'mock' }))
-    localStorage.setItem(meKey, JSON.stringify(m))
-  }, MOCK_ME_KEY, me)
+    if (m) localStorage.setItem(meKey, JSON.stringify(m))
+    for (const [k, v] of Object.entries(x)) localStorage.setItem(k, v)
+  }, MOCK_ME_KEY, me, extra)
   return { ctx, p }
 }
 
@@ -213,6 +227,81 @@ async function marketing(p, base, tag) {
   if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/reporting-marketing-${tag}.png` })
 }
 
+/* spec 125 B7: an admin of the operator workspace (the one workspace with
+   Netvisor data); with no spool.mock.me the mock plays its Netvisor owner */
+const OPERATOR = { 'spool.mock.operator_admin': '1' }
+const noRawKey = (p) => p.evaluate(() => !/reporting\.(finance|tab)\./.test(document.body.innerText))
+
+async function finance(p, base, tag) {
+  await p.goto(base + '/reporting/releases', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  ok(`${tag}: the Netvisor owner's bar shows the Finance tab`, await waitFor(p, '[data-test=reporting-tab-finance]'), await tabIds(p))
+  await p.$eval('[data-test=reporting-tab-finance]', (e) => e.scrollIntoView({ block: 'center', inline: 'center' }))
+  await p.click('[data-test=reporting-tab-finance]')
+  ok(`${tag}: the Finance tab opens /reporting/finance`, await at(p, '/reporting/finance'), pathOf(p))
+  ok(`${tag}: the forecast card renders`, await waitFor(p, '[data-test=finance-forecast]'))
+  const head = await p.evaluate(() => ({
+    voucher: document.querySelector('[data-test=finance-voucher]')?.getAttribute('data-date') || '',
+    voucherText: document.querySelector('[data-test=finance-voucher]')?.textContent.trim() || '',
+    env: document.querySelector('[data-test=finance-env]')?.textContent.trim() || '',
+    totals: [...document.querySelectorAll('[data-test=finance-total]')].map((e) => e.textContent.trim()),
+    cats: [...document.querySelectorAll('[data-test=finance-category]')].map((e) => e.getAttribute('data-category')),
+    items: document.querySelectorAll('[data-test=finance-item]').length,
+    overdue: document.querySelectorAll('[data-test=finance-item-overdue]').length,
+  }))
+  ok(`${tag}: the newest bank voucher date badge shows its date`, /^\d{4}-\d{2}-\d{2}$/.test(head.voucher) && head.voucherText.includes(head.voucher), head)
+  ok(`${tag}: the env badge names the Netvisor company`, head.env.length > 0, head.env)
+  ok(`${tag}: the month-end sum shows in its currency`, head.totals.length === 1 && /^-?[\d ]+\.\d\d EUR$/.test(head.totals[0]), head.totals)
+  ok(`${tag}: subtotals by category, the item table with an overdue mark`, head.cats.length >= 3 && head.items >= 3 && head.overdue >= 1, head)
+  for (const slice of ['vendor', 'cost_type', 'cost_centre']) {
+    await p.$eval(`[data-test=finance-slice-${slice}]`, (e) => e.scrollIntoView({ block: 'center' }))
+    await p.click(`[data-test=finance-slice-${slice}]`)
+    await p.waitForFunction((s) => document.querySelector('[data-test=finance-costs-table]')?.getAttribute('data-slice') === s, { timeout: 15000 }, slice).catch(() => {})
+    const t = await p.evaluate(() => ({
+      slice: document.querySelector('[data-test=finance-costs-table]')?.getAttribute('data-slice') || '',
+      pressed: document.querySelector('[data-test^=finance-slice-][aria-pressed=true]')?.getAttribute('data-test') || '',
+      groups: [...document.querySelectorAll('[data-test=finance-cost-group]')].map((e) => e.textContent.trim()),
+      excluded: Number(document.querySelector('[data-test=finance-costs-excluded]')?.getAttribute('data-lines') || 0),
+    }))
+    ok(`${tag}: card costs by ${slice}`, t.slice === slice && t.pressed === 'finance-slice-' + slice && t.groups.length > 0, t)
+    if (slice === 'vendor') ok(`${tag}: the spec-123 vendor is left out (Q4) and counted in the note`, t.excluded >= 1 && !t.groups.includes('Example Cloud Ltd'), t)
+  }
+  await p.$eval('[data-test=finance-refresh]', (e) => e.scrollIntoView({ block: 'center' }))
+  await p.click('[data-test=finance-refresh]')
+  ok(`${tag}: Refresh now records the request`, await waitFor(p, '[data-test=finance-refresh-requested]'))
+  const bank = '[data-test=finance-settings-bank]'
+  await p.$eval(bank, (e) => e.scrollIntoView({ block: 'center' }))
+  await p.$eval(bank, (e) => { e.value = ''; e.dispatchEvent(new Event('input', { bubbles: true })) })
+  await p.type(bank, '12ab')
+  /* centre Save first: at 390x844 it can sit under the fixed bottom composer */
+  await p.$eval('[data-test=finance-settings-save]', (e) => e.scrollIntoView({ block: 'center' }))
+  await p.click('[data-test=finance-settings-save]')
+  ok(`${tag}: a bad account number is refused before it is sent`, await p.waitForSelector('[data-test=finance-settings-invalid][data-field=bank_account]', { timeout: 15000 }).then(() => true, () => false))
+  await p.$eval(bank, (e) => { e.value = ''; e.dispatchEvent(new Event('input', { bubbles: true })) })
+  await p.type(bank, '9011')
+  await p.$eval('[data-test=finance-settings-save]', (e) => e.scrollIntoView({ block: 'center' }))
+  await p.click('[data-test=finance-settings-save]')
+  ok(`${tag}: the owner saves the account numbers`, await waitFor(p, '[data-test=finance-settings-saved]'))
+  ok(`${tag}: no raw i18n key on Finance`, await noRawKey(p))
+  ok(`${tag}: no sideways scroll on Finance`, await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/reporting-finance-${tag}.png`, fullPage: true })
+}
+
+async function financeRefused(p, base, tag) {
+  await p.goto(base + '/reporting/releases', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await waitFor(p, '[data-test=reporting-tab-sql]')
+  await new Promise((r) => setTimeout(r, 1000))
+  const tabs = await tabIds(p)
+  ok(`${tag}: a non-owner admin's bar has no Finance tab (C7)`, tabs.includes('sql') && !tabs.includes('finance'), tabs)
+  await p.goto(base + '/reporting/finance', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  ok(`${tag}: a non-owner admin on /reporting/finance gets the refusal line`, await waitFor(p, '[data-test=finance-forbidden]'))
+  const leak = await p.evaluate(() => ({
+    figures: document.querySelectorAll('[data-test=finance-forecast], [data-test=finance-costs], [data-test=finance-settings], [data-test=finance-voucher]').length,
+    labels: /Example (customer|supplier|Software|Cloud)/.test(document.body.innerText),
+  }))
+  ok(`${tag}: and no figure, no label, no settings`, leak.figures === 0 && !leak.labels, leak)
+  ok(`${tag}: no raw i18n key on the refusal`, await noRawKey(p))
+}
+
 const server = await startServer()
 const browser = await launch()
 let code = 0
@@ -228,6 +317,12 @@ try {
     await ctx.close();
     ({ ctx, p } = await reportingPage(browser, server.base, size, MEMBER))
     await nonAdmin(p, server.base, tag)
+    await ctx.close();
+    ({ ctx, p } = await reportingPage(browser, server.base, size, null, OPERATOR))
+    await finance(p, server.base, tag)
+    await ctx.close();
+    ({ ctx, p } = await reportingPage(browser, server.base, size, ADMIN, OPERATOR))
+    await financeRefused(p, server.base, tag)
     await ctx.close()
   }
 } catch (e) {

@@ -3529,7 +3529,8 @@
       "marketing": "Pazarlama",
       "issues": "Konular",
       "posts": "Gönderiler",
-      "lanes": "Hatlar"
+      "lanes": "Hatlar",
+      "finance": "Finans"
     },
     "future": {
       "issues": "Konu raporu yakında geliyor.",
@@ -3657,6 +3658,81 @@
         "revenue": "Gelir",
         "retention": "Elde tutma",
         "content_seo": "İçerik / SEO"
+      }
+    },
+    "finance": {
+      "loading": "Finansal rakamlar yükleniyor…",
+      "forbidden": "Finansal rakamları yalnızca çalışma alanının Netvisor sahibi görür.",
+      "error": "Finansal rakamlar yüklenemedi.",
+      "no_snapshot": "Henüz Netvisor anlık görüntüsü yok. İlkini istemek için Şimdi yenile düğmesine basın.",
+      "env": {
+        "test": "Netvisor test şirketi",
+        "prd": "Netvisor üretim şirketi"
+      },
+      "voucher": "En yeni banka fişi: {date}",
+      "voucher_none": "Henüz banka fişi yok",
+      "as_of": "{date} itibarıyla rakamlar, {time} alındı",
+      "refresh": "Şimdi yenile",
+      "refresh_requested": "Yenileme {time} saatinde istendi. Sonraki alım yeni rakamlar getirir.",
+      "refresh_error": "Yenileme istenemedi.",
+      "forecast": {
+        "title": "Ay sonu nakit tahmini",
+        "month_end": "{date} tarihinde beklenen nakit:",
+        "by_category": "Kategoriye göre",
+        "items_label": "Tahmin kalemleri",
+        "col_category": "Kategori",
+        "col_label": "Kalem",
+        "col_due": "Vade",
+        "col_status": "Durum",
+        "col_amount": "Tutar",
+        "overdue": "Vadesi geçmiş",
+        "approved": "Onaylı",
+        "unapproved": "Onaysız",
+        "empty": "Tahminde kalem yok.",
+        "skipped": "Okunamadığı için dışarıda bırakılan kalemler: {n}"
+      },
+      "category": {
+        "bank_balance": "Banka bakiyesi",
+        "receivable": "Alacaklar",
+        "payable": "Borçlar",
+        "payment": "Bakiyeden sonraki ödemeler",
+        "payroll": "Bordro",
+        "vat": "KDV",
+        "tax": "Vergiler",
+        "contract": "Sözleşmeler"
+      },
+      "costs": {
+        "title": "Kart giderleri",
+        "slices_label": "Kart giderlerini şuna göre grupla",
+        "slice_vendor": "Tedarikçi",
+        "slice_cost_type": "Gider türü",
+        "slice_cost_centre": "Maliyet merkezi",
+        "col_month": "Ay",
+        "col_lines": "Satırlar",
+        "col_amount": "Tutar",
+        "none": "(yok)",
+        "empty": "Kart gideri yok.",
+        "excluded": "Dışarıda bırakıldı, Maliyetler altında zaten sayıldı: {n} satır, {amount}"
+      },
+      "settings": {
+        "title": "Muhasebe hesapları",
+        "intro": "Tahminin okuduğu hesap numaraları. Onları yalnızca siz görür ve değiştirirsiniz.",
+        "env": "Netvisor şirketi",
+        "bank": "Banka hesabı (muhasebe hesap numarası)",
+        "vat": "KDV hesapları",
+        "tax": "Vergi hesapları",
+        "accounts_hint": "1 ile 12 basamak arası hesap numaraları, virgülle ayrılmış.",
+        "vendors": "Maliyetler altında zaten sayılan tedarikçiler",
+        "vendors_hint": "Her satıra bir tedarikçi adı. Kart giderleri burada sayılmaz.",
+        "save": "Kaydet",
+        "saved": "Kaydedildi.",
+        "error": "Ayarlar kaydedilemedi.",
+        "updated": "Son değişiklik {time}",
+        "invalid_env": "Test veya üretim şirketini seçin.",
+        "invalid_bank_account": "Banka hesabı 1 ile 12 basamak arasıdır.",
+        "invalid_vat_accounts": "KDV hesapları: 1 ile 12 basamaklı en çok 32 numara.",
+        "invalid_tax_accounts": "Vergi hesapları: 1 ile 12 basamaklı en çok 32 numara.",
+        "invalid_vendor_exclusions": "En çok 200 tedarikçi adı."
       }
     }
   },

@@ -3529,7 +3529,8 @@
       "marketing": "Marketing",
       "issues": "Incidencias",
       "posts": "Publicaciones",
-      "lanes": "Líneas"
+      "lanes": "Líneas",
+      "finance": "Finanzas"
     },
     "future": {
       "issues": "El informe de incidencias llegará pronto.",
@@ -3657,6 +3658,81 @@
         "revenue": "Ingresos",
         "retention": "Retención",
         "content_seo": "Contenido / SEO"
+      }
+    },
+    "finance": {
+      "loading": "Cargando las cifras financieras…",
+      "forbidden": "Solo el propietario de Netvisor del espacio de trabajo ve las cifras financieras.",
+      "error": "No se pudieron cargar las cifras financieras.",
+      "no_snapshot": "Aún no hay ninguna instantánea de Netvisor. Pulse «Actualizar ahora» para pedir la primera.",
+      "env": {
+        "test": "Empresa de prueba de Netvisor",
+        "prd": "Empresa de producción de Netvisor"
+      },
+      "voucher": "Último comprobante bancario: {date}",
+      "voucher_none": "Aún no hay comprobante bancario",
+      "as_of": "Cifras a {date}, obtenidas {time}",
+      "refresh": "Actualizar ahora",
+      "refresh_requested": "Actualización solicitada a las {time}. La próxima descarga trae cifras nuevas.",
+      "refresh_error": "No se pudo solicitar la actualización.",
+      "forecast": {
+        "title": "Previsión de tesorería a fin de mes",
+        "month_end": "Tesorería prevista el {date}:",
+        "by_category": "Por categoría",
+        "items_label": "Partidas de la previsión",
+        "col_category": "Categoría",
+        "col_label": "Partida",
+        "col_due": "Vencimiento",
+        "col_status": "Estado",
+        "col_amount": "Importe",
+        "overdue": "Vencido",
+        "approved": "Aprobado",
+        "unapproved": "No aprobado",
+        "empty": "No hay partidas en la previsión.",
+        "skipped": "Partidas omitidas porque no se pudieron leer: {n}"
+      },
+      "category": {
+        "bank_balance": "Saldo bancario",
+        "receivable": "Cobros pendientes",
+        "payable": "Pagos pendientes",
+        "payment": "Pagos posteriores al saldo",
+        "payroll": "Nóminas",
+        "vat": "IVA",
+        "tax": "Impuestos",
+        "contract": "Contratos"
+      },
+      "costs": {
+        "title": "Gastos de tarjeta",
+        "slices_label": "Agrupar los gastos de tarjeta por",
+        "slice_vendor": "Proveedor",
+        "slice_cost_type": "Tipo de gasto",
+        "slice_cost_centre": "Centro de coste",
+        "col_month": "Mes",
+        "col_lines": "Líneas",
+        "col_amount": "Importe",
+        "none": "(ninguno)",
+        "empty": "No hay gastos de tarjeta.",
+        "excluded": "Omitidos, ya contados en Costes: {n} líneas, {amount}"
+      },
+      "settings": {
+        "title": "Cuentas contables",
+        "intro": "Los números de cuenta que lee la previsión. Solo usted los ve y los cambia.",
+        "env": "Empresa en Netvisor",
+        "bank": "Cuenta bancaria (número de cuenta contable)",
+        "vat": "Cuentas de IVA",
+        "tax": "Cuentas de impuestos",
+        "accounts_hint": "Números de cuenta de 1 a 12 dígitos, separados por comas.",
+        "vendors": "Proveedores ya contados en Costes",
+        "vendors_hint": "Un nombre de proveedor por línea. Sus gastos de tarjeta no se cuentan aquí.",
+        "save": "Guardar",
+        "saved": "Guardado.",
+        "error": "No se pudo guardar la configuración.",
+        "updated": "Último cambio {time}",
+        "invalid_env": "Elija la empresa de prueba o la de producción.",
+        "invalid_bank_account": "La cuenta bancaria tiene de 1 a 12 dígitos.",
+        "invalid_vat_accounts": "Cuentas de IVA: como máximo 32 números de 1 a 12 dígitos.",
+        "invalid_tax_accounts": "Cuentas de impuestos: como máximo 32 números de 1 a 12 dígitos.",
+        "invalid_vendor_exclusions": "Como máximo 200 nombres de proveedores."
       }
     }
   },

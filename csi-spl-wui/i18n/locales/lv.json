@@ -3529,7 +3529,8 @@
       "marketing": "Mārketings",
       "issues": "Problēmas",
       "posts": "Ieraksti",
-      "lanes": "Līnijas"
+      "lanes": "Līnijas",
+      "finance": "Finanses"
     },
     "future": {
       "issues": "Problēmu pārskats drīzumā.",
@@ -3657,6 +3658,81 @@
         "revenue": "Ieņēmumi",
         "retention": "Noturēšana",
         "content_seo": "Saturs / SEO"
+      }
+    },
+    "finance": {
+      "loading": "Ielādē finanšu datus…",
+      "forbidden": "Finanšu datus redz tikai darbvietas Netvisor īpašnieks.",
+      "error": "Neizdevās ielādēt finanšu datus.",
+      "no_snapshot": "Netvisor momentuzņēmuma vēl nav. Nospiediet “Atjaunot tagad”, lai pieprasītu pirmo.",
+      "env": {
+        "test": "Netvisor testa uzņēmums",
+        "prd": "Netvisor ražošanas uzņēmums"
+      },
+      "voucher": "Jaunākais bankas dokuments: {date}",
+      "voucher_none": "Bankas dokumenta vēl nav",
+      "as_of": "Dati uz {date}, iegūti {time}",
+      "refresh": "Atjaunot tagad",
+      "refresh_requested": "Atjaunošana pieprasīta {time}. Nākamā ielāde atnesīs jaunus datus.",
+      "refresh_error": "Neizdevās pieprasīt atjaunošanu.",
+      "forecast": {
+        "title": "Naudas prognoze mēneša beigās",
+        "month_end": "Gaidāmā nauda {date}:",
+        "by_category": "Pēc kategorijas",
+        "items_label": "Prognozes pozīcijas",
+        "col_category": "Kategorija",
+        "col_label": "Pozīcija",
+        "col_due": "Termiņš",
+        "col_status": "Statuss",
+        "col_amount": "Summa",
+        "overdue": "Kavēts",
+        "approved": "Apstiprināts",
+        "unapproved": "Nav apstiprināts",
+        "empty": "Prognozē nav pozīciju.",
+        "skipped": "Izlaistās pozīcijas, kuras neizdevās nolasīt: {n}"
+      },
+      "category": {
+        "bank_balance": "Bankas atlikums",
+        "receivable": "Debitori",
+        "payable": "Kreditori",
+        "payment": "Maksājumi pēc atlikuma",
+        "payroll": "Algas",
+        "vat": "PVN",
+        "tax": "Nodokļi",
+        "contract": "Līgumi"
+      },
+      "costs": {
+        "title": "Karšu izmaksas",
+        "slices_label": "Grupēt karšu izmaksas pēc",
+        "slice_vendor": "Piegādātājs",
+        "slice_cost_type": "Izmaksu veids",
+        "slice_cost_centre": "Izmaksu centrs",
+        "col_month": "Mēnesis",
+        "col_lines": "Rindas",
+        "col_amount": "Summa",
+        "none": "(nav)",
+        "empty": "Nav karšu izmaksu.",
+        "excluded": "Izlaists, jau ieskaitīts sadaļā Izmaksas: {n} rindas, {amount}"
+      },
+      "settings": {
+        "title": "Grāmatvedības konti",
+        "intro": "Kontu numuri, ko nolasa prognoze. Tikai jūs tos redzat un maināt.",
+        "env": "Netvisor uzņēmums",
+        "bank": "Bankas konts (grāmatvedības konta numurs)",
+        "vat": "PVN konti",
+        "tax": "Nodokļu konti",
+        "accounts_hint": "Kontu numuri no 1 līdz 12 cipariem, atdalīti ar komatiem.",
+        "vendors": "Piegādātāji, kas jau ieskaitīti sadaļā Izmaksas",
+        "vendors_hint": "Viens piegādātāja nosaukums rindā. Viņu karšu izmaksas šeit netiek ieskaitītas.",
+        "save": "Saglabāt",
+        "saved": "Saglabāts.",
+        "error": "Neizdevās saglabāt iestatījumus.",
+        "updated": "Pēdējās izmaiņas {time}",
+        "invalid_env": "Izvēlieties testa vai ražošanas uzņēmumu.",
+        "invalid_bank_account": "Bankas kontā ir no 1 līdz 12 cipariem.",
+        "invalid_vat_accounts": "PVN konti: ne vairāk kā 32 numuri pa 1–12 cipariem.",
+        "invalid_tax_accounts": "Nodokļu konti: ne vairāk kā 32 numuri pa 1–12 cipariem.",
+        "invalid_vendor_exclusions": "Ne vairāk kā 200 piegādātāju nosaukumu."
       }
     }
   },

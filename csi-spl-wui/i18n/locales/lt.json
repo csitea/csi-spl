@@ -3529,7 +3529,8 @@
       "marketing": "Rinkodara",
       "issues": "Problemos",
       "posts": "Įrašai",
-      "lanes": "Linijos"
+      "lanes": "Linijos",
+      "finance": "Finansai"
     },
     "future": {
       "issues": "Problemų ataskaita netrukus.",
@@ -3657,6 +3658,81 @@
         "revenue": "Pajamos",
         "retention": "Išlaikymas",
         "content_seo": "Turinys / SEO"
+      }
+    },
+    "finance": {
+      "loading": "Įkeliami finansiniai duomenys…",
+      "forbidden": "Finansinius duomenis mato tik darbo srities Netvisor savininkas.",
+      "error": "Nepavyko įkelti finansinių duomenų.",
+      "no_snapshot": "Netvisor momentinės kopijos dar nėra. Paspauskite „Atnaujinti dabar“, kad paprašytumėte pirmosios.",
+      "env": {
+        "test": "Netvisor bandomoji įmonė",
+        "prd": "Netvisor gamybinė įmonė"
+      },
+      "voucher": "Naujausias banko dokumentas: {date}",
+      "voucher_none": "Banko dokumento dar nėra",
+      "as_of": "Duomenys {date}, gauti {time}",
+      "refresh": "Atnaujinti dabar",
+      "refresh_requested": "Atnaujinimo paprašyta {time}. Kitas gavimas atneš naujus duomenis.",
+      "refresh_error": "Nepavyko paprašyti atnaujinimo.",
+      "forecast": {
+        "title": "Mėnesio pabaigos pinigų prognozė",
+        "month_end": "Laukiami pinigai {date}:",
+        "by_category": "Pagal kategoriją",
+        "items_label": "Prognozės eilutės",
+        "col_category": "Kategorija",
+        "col_label": "Eilutė",
+        "col_due": "Terminas",
+        "col_status": "Būsena",
+        "col_amount": "Suma",
+        "overdue": "Pradelsta",
+        "approved": "Patvirtinta",
+        "unapproved": "Nepatvirtinta",
+        "empty": "Prognozėje nėra eilučių.",
+        "skipped": "Praleistos eilutės, kurių nepavyko perskaityti: {n}"
+      },
+      "category": {
+        "bank_balance": "Banko likutis",
+        "receivable": "Gautinos sumos",
+        "payable": "Mokėtinos sumos",
+        "payment": "Mokėjimai po likučio",
+        "payroll": "Darbo užmokestis",
+        "vat": "PVM",
+        "tax": "Mokesčiai",
+        "contract": "Sutartys"
+      },
+      "costs": {
+        "title": "Kortelių išlaidos",
+        "slices_label": "Grupuoti kortelių išlaidas pagal",
+        "slice_vendor": "Tiekėjas",
+        "slice_cost_type": "Išlaidų rūšis",
+        "slice_cost_centre": "Išlaidų centras",
+        "col_month": "Mėnuo",
+        "col_lines": "Eilutės",
+        "col_amount": "Suma",
+        "none": "(nėra)",
+        "empty": "Kortelių išlaidų nėra.",
+        "excluded": "Praleista, jau įskaičiuota skiltyje Išlaidos: {n} eil., {amount}"
+      },
+      "settings": {
+        "title": "Buhalterinės sąskaitos",
+        "intro": "Sąskaitų numeriai, kuriuos skaito prognozė. Tik jūs juos matote ir keičiate.",
+        "env": "Netvisor įmonė",
+        "bank": "Banko sąskaita (buhalterinės sąskaitos numeris)",
+        "vat": "PVM sąskaitos",
+        "tax": "Mokesčių sąskaitos",
+        "accounts_hint": "Sąskaitų numeriai nuo 1 iki 12 skaitmenų, atskirti kableliais.",
+        "vendors": "Tiekėjai, jau įskaičiuoti skiltyje Išlaidos",
+        "vendors_hint": "Vienas tiekėjo pavadinimas eilutėje. Jų kortelių išlaidos čia neįskaičiuojamos.",
+        "save": "Išsaugoti",
+        "saved": "Išsaugota.",
+        "error": "Nepavyko išsaugoti nustatymų.",
+        "updated": "Paskutinį kartą pakeista {time}",
+        "invalid_env": "Pasirinkite bandomąją arba gamybinę įmonę.",
+        "invalid_bank_account": "Banko sąskaitą sudaro nuo 1 iki 12 skaitmenų.",
+        "invalid_vat_accounts": "PVM sąskaitos: ne daugiau kaip 32 numeriai po 1–12 skaitmenų.",
+        "invalid_tax_accounts": "Mokesčių sąskaitos: ne daugiau kaip 32 numeriai po 1–12 skaitmenų.",
+        "invalid_vendor_exclusions": "Ne daugiau kaip 200 tiekėjų pavadinimų."
       }
     }
   },

@@ -2,8 +2,8 @@
 
 Spec 125 rows B4 and B5 ([spec](../../specs/125-netvisor-integration/spec.md)
 sections 5.2 and 7, cases C-NVS-4 and C-NVS-5), issues SPL-4721 (schema and
-store) and SPL-4732 (hub routes, section 5). The WUI screen is B7, the
-main-box sync B6.
+store) and SPL-4732 (hub routes, section 5). The WUI screen is B7
+(SPL-4741, section 6), the main-box sync B6.
 
 ## 1. Tables (rdb `0255_netvisor_finance.sql`)
 
@@ -153,3 +153,77 @@ act-as):
   answer, the `400` and `409` refusals, the refresh request from the press to
   the snapshot that clears it.
 - `TestNetvisorSnapshotIn` (any store): the wire dates.
+
+## 6. The owner's screen (B7, Reporting -> Finance)
+
+Spec 125 row B7, case C-NVS-7, issue SPL-4741. The WUI reads the routes of
+section 5.1 from the owner's own browser session; it holds no figure of its
+own and sends no Authorization header (the hub would answer `403
+person_only`).
+
+| piece | file |
+|---|---|
+| the tab, `/reporting/finance`, its own chunk | `csi-spl-wui/src/pages/reporting/finance.vue` |
+| the settings form | `csi-spl-wui/src/components/reporting/finance/FinanceSettings.vue` |
+| the hub calls, the mock, the sums | `csi-spl-wui/src/utils/reporting-finance.mjs` |
+| the tab rule (`netvisorOwner`) | `csi-spl-wui/src/utils/reporting-tabs.mjs` |
+| the strings | `reporting.tab.finance`, `reporting.finance.*` in the 19 `csi-spl-wui/i18n/locales/*.json` |
+
+### 6.1 Who sees the tab
+
+The tab has no role rule. The Reporting bar sends `GET /v1/netvisor/settings`
+once per page load, and only when the reader is an admin of the operator
+workspace (the operator console shows; every other workspace answers
+`404`). The tab is drawn when that read answered 2xx. Any refusal or failure
+hides it. Hiding is not the control: the page opened by its path reads the
+settings first, and on the hub's `403` (`401`, `404`) it shows the refusal
+line and sends no figure read.
+
+An owner who is not an admin of the operator workspace gets no tab, but
+`/reporting/finance` still works for them.
+
+### 6.2 What the screen shows
+
+- **Head**: the Netvisor company (`env`), the newest bank voucher date
+  badge, the snapshot's `as_of` and fetch time, **Refresh now** (`POST
+  /v1/netvisor/refresh`) and the open request's time.
+- **Month-end cash forecast**: the signed sum of the items per currency, a
+  subtotal per category in the hub's category order, and the item table
+  (category, label, due date, overdue, approved, signed amount). An item
+  with an amount the screen cannot read, or a category it has no words for,
+  is left out and counted.
+- **Card costs**: one switch, by vendor, cost type (account number and
+  name) or cost centre (dimension and item). Each row is a month and a
+  group, the newest month first. A line is left out and counted in a note
+  when the sync marked it `excluded` or its vendor is on the settings'
+  vendor exclusion list (owner answer Q4 = EXCL: spec-123 vendors are
+  counted under Reporting -> Costs already).
+- **Bookkeeping accounts** (owner answer Q2): the Netvisor company, the
+  bank, VAT and tax account numbers and the vendor exclusions. The form
+  checks what the hub checks (1-12 digits, at most 32 per list, at most 200
+  vendors) before it sends `PUT /v1/netvisor/settings`, then reads the
+  views again.
+
+Amounts are decimal text. Sums are integer cents, never a float. A figure
+reads `1 234.56 EUR` in every locale.
+
+### 6.3 Tests
+
+- `csi-spl-wui/tests/unit/reporting-finance.test.mjs`: the tab rule (an
+  admin who is not the owner gets no tab), the mock (403 for every
+  `spool.mock.me` role, admin included), the live calls (credentials
+  `include`, no Authorization header), the cents (`1.15` exact), the
+  breakdowns and exclusions, the form's checks, and every key in every
+  locale.
+- `csi-spl-wui/tests/e2e/reporting.test.mjs`, in Chrome at 1440x900 and
+  390x844 against the mock bundle. The owner (no `spool.mock.me`, operator
+  admin) opens the tab and sees the forecast, the voucher date, the three
+  slices with the excluded vendor left out, Refresh now and the settings
+  form (a bad number refused, a good one saved), with no raw key and no
+  sideways scroll. An operator admin who is not the owner gets no tab, and
+  on the page by path gets the refusal with no figure, label or form.
+- Red controls, run for SPL-4741: the tab rule widened to an admin fails
+  "a non-owner admin's bar has no Finance tab" (e2e 114/116); a key removed
+  from one locale fails `i18n-parity.test.mjs`.
+
+The mock's figures, labels and account numbers are invented (C2).

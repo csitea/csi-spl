@@ -3529,7 +3529,8 @@
       "marketing": "Marketing",
       "issues": "Issues",
       "posts": "Posts",
-      "lanes": "Lanes"
+      "lanes": "Lanes",
+      "finance": "Finance"
     },
     "future": {
       "issues": "The Issues report is coming soon.",
@@ -3657,6 +3658,81 @@
         "revenue": "Revenue",
         "retention": "Retention",
         "content_seo": "Content / SEO"
+      }
+    },
+    "finance": {
+      "loading": "Loading the finance figures…",
+      "forbidden": "Only the workspace's Netvisor owner sees the finance figures.",
+      "error": "The finance figures could not be loaded.",
+      "no_snapshot": "No Netvisor snapshot yet. Press Refresh now to ask for the first one.",
+      "env": {
+        "test": "Netvisor test company",
+        "prd": "Netvisor production company"
+      },
+      "voucher": "Newest bank voucher: {date}",
+      "voucher_none": "No bank voucher yet",
+      "as_of": "Figures as of {date}, fetched {time}",
+      "refresh": "Refresh now",
+      "refresh_requested": "Refresh requested at {time}. The next fetch brings new figures.",
+      "refresh_error": "The refresh could not be requested.",
+      "forecast": {
+        "title": "Month-end cash forecast",
+        "month_end": "Expected cash on {date}:",
+        "by_category": "By category",
+        "items_label": "Forecast items",
+        "col_category": "Category",
+        "col_label": "Item",
+        "col_due": "Due",
+        "col_status": "Status",
+        "col_amount": "Amount",
+        "overdue": "Overdue",
+        "approved": "Approved",
+        "unapproved": "Not approved",
+        "empty": "No forecast items.",
+        "skipped": "Items left out because they could not be read: {n}"
+      },
+      "category": {
+        "bank_balance": "Bank balance",
+        "receivable": "Receivables",
+        "payable": "Payables",
+        "payment": "Payments after the balance",
+        "payroll": "Payroll",
+        "vat": "VAT",
+        "tax": "Taxes",
+        "contract": "Contracts"
+      },
+      "costs": {
+        "title": "Card costs",
+        "slices_label": "Group card costs by",
+        "slice_vendor": "Vendor",
+        "slice_cost_type": "Cost type",
+        "slice_cost_centre": "Cost centre",
+        "col_month": "Month",
+        "col_lines": "Lines",
+        "col_amount": "Amount",
+        "none": "(none)",
+        "empty": "No card costs.",
+        "excluded": "Left out, already counted under Costs: {n} lines, {amount}"
+      },
+      "settings": {
+        "title": "Bookkeeping accounts",
+        "intro": "The account numbers the forecast reads. Only you see and change them.",
+        "env": "Netvisor company",
+        "bank": "Bank account (bookkeeping account number)",
+        "vat": "VAT accounts",
+        "tax": "Tax accounts",
+        "accounts_hint": "Account numbers of 1 to 12 digits, separated by commas.",
+        "vendors": "Vendors already counted under Costs",
+        "vendors_hint": "One vendor name per line. Their card costs are left out here.",
+        "save": "Save",
+        "saved": "Saved.",
+        "error": "The settings could not be saved.",
+        "updated": "Last changed {time}",
+        "invalid_env": "Pick the test or the production company.",
+        "invalid_bank_account": "The bank account is 1 to 12 digits.",
+        "invalid_vat_accounts": "VAT accounts: at most 32 numbers of 1 to 12 digits.",
+        "invalid_tax_accounts": "Tax accounts: at most 32 numbers of 1 to 12 digits.",
+        "invalid_vendor_exclusions": "At most 200 vendor names."
       }
     }
   },

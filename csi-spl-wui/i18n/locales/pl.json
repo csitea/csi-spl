@@ -3529,7 +3529,8 @@
       "marketing": "Marketing",
       "issues": "Zgłoszenia",
       "posts": "Posty",
-      "lanes": "Linie"
+      "lanes": "Linie",
+      "finance": "Finanse"
     },
     "future": {
       "issues": "Raport zgłoszeń już wkrótce.",
@@ -3657,6 +3658,81 @@
         "revenue": "Przychody",
         "retention": "Utrzymanie",
         "content_seo": "Treści / SEO"
+      }
+    },
+    "finance": {
+      "loading": "Wczytywanie danych finansowych…",
+      "forbidden": "Dane finansowe widzi tylko właściciel Netvisor w tym obszarze roboczym.",
+      "error": "Nie udało się wczytać danych finansowych.",
+      "no_snapshot": "Brak jeszcze migawki z Netvisor. Naciśnij „Odśwież teraz”, aby poprosić o pierwszą.",
+      "env": {
+        "test": "Firma testowa w Netvisor",
+        "prd": "Firma produkcyjna w Netvisor"
+      },
+      "voucher": "Najnowszy dokument bankowy: {date}",
+      "voucher_none": "Brak jeszcze dokumentu bankowego",
+      "as_of": "Dane na dzień {date}, pobrane {time}",
+      "refresh": "Odśwież teraz",
+      "refresh_requested": "Odświeżenie zlecono o {time}. Następne pobranie przyniesie nowe dane.",
+      "refresh_error": "Nie udało się zlecić odświeżenia.",
+      "forecast": {
+        "title": "Prognoza gotówki na koniec miesiąca",
+        "month_end": "Oczekiwana gotówka na {date}:",
+        "by_category": "Według kategorii",
+        "items_label": "Pozycje prognozy",
+        "col_category": "Kategoria",
+        "col_label": "Pozycja",
+        "col_due": "Termin",
+        "col_status": "Stan",
+        "col_amount": "Kwota",
+        "overdue": "Przeterminowane",
+        "approved": "Zatwierdzone",
+        "unapproved": "Niezatwierdzone",
+        "empty": "Brak pozycji w prognozie.",
+        "skipped": "Pominięte pozycje, których nie dało się odczytać: {n}"
+      },
+      "category": {
+        "bank_balance": "Saldo bankowe",
+        "receivable": "Należności",
+        "payable": "Zobowiązania",
+        "payment": "Płatności po saldzie",
+        "payroll": "Wynagrodzenia",
+        "vat": "Podatek VAT",
+        "tax": "Podatki",
+        "contract": "Umowy"
+      },
+      "costs": {
+        "title": "Koszty kart",
+        "slices_label": "Grupuj koszty kart według",
+        "slice_vendor": "Dostawca",
+        "slice_cost_type": "Rodzaj kosztu",
+        "slice_cost_centre": "Centrum kosztów",
+        "col_month": "Miesiąc",
+        "col_lines": "Wiersze",
+        "col_amount": "Kwota",
+        "none": "(brak)",
+        "empty": "Brak kosztów kart.",
+        "excluded": "Pominięte, już liczone w Kosztach: {n} wierszy, {amount}"
+      },
+      "settings": {
+        "title": "Konta księgowe",
+        "intro": "Numery kont, które czyta prognoza. Tylko Ty je widzisz i zmieniasz.",
+        "env": "Firma w Netvisor",
+        "bank": "Rachunek bankowy (numer konta księgowego)",
+        "vat": "Konta VAT",
+        "tax": "Konta podatkowe",
+        "accounts_hint": "Numery kont od 1 do 12 cyfr, rozdzielone przecinkami.",
+        "vendors": "Dostawcy już liczeni w Kosztach",
+        "vendors_hint": "Jedna nazwa dostawcy w wierszu. Ich koszty kart nie są tu liczone.",
+        "save": "Zapisz",
+        "saved": "Zapisano.",
+        "error": "Nie udało się zapisać ustawień.",
+        "updated": "Ostatnia zmiana {time}",
+        "invalid_env": "Wybierz firmę testową lub produkcyjną.",
+        "invalid_bank_account": "Rachunek bankowy ma od 1 do 12 cyfr.",
+        "invalid_vat_accounts": "Konta VAT: najwyżej 32 numery od 1 do 12 cyfr.",
+        "invalid_tax_accounts": "Konta podatkowe: najwyżej 32 numery od 1 do 12 cyfr.",
+        "invalid_vendor_exclusions": "Najwyżej 200 nazw dostawców."
       }
     }
   },

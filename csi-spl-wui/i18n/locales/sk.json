@@ -3529,7 +3529,8 @@
       "marketing": "Marketing",
       "issues": "Úlohy",
       "posts": "Príspevky",
-      "lanes": "Linky"
+      "lanes": "Linky",
+      "finance": "Financie"
     },
     "future": {
       "issues": "Prehľad úloh už čoskoro.",
@@ -3657,6 +3658,81 @@
         "revenue": "Príjmy",
         "retention": "Udržanie",
         "content_seo": "Obsah / SEO"
+      }
+    },
+    "finance": {
+      "loading": "Načítavajú sa finančné údaje…",
+      "forbidden": "Finančné údaje vidí iba vlastník Netvisor v pracovnom priestore.",
+      "error": "Finančné údaje sa nepodarilo načítať.",
+      "no_snapshot": "Snímka z Netvisor zatiaľ neexistuje. Stlačte „Obnoviť teraz“ a vyžiadajte si prvú.",
+      "env": {
+        "test": "Testovacia firma v Netvisor",
+        "prd": "Produkčná firma v Netvisor"
+      },
+      "voucher": "Najnovší bankový doklad: {date}",
+      "voucher_none": "Bankový doklad zatiaľ nie je",
+      "as_of": "Údaje k {date}, stiahnuté {time}",
+      "refresh": "Obnoviť teraz",
+      "refresh_requested": "Obnovenie vyžiadané o {time}. Ďalšie stiahnutie prinesie nové údaje.",
+      "refresh_error": "Obnovenie sa nepodarilo vyžiadať.",
+      "forecast": {
+        "title": "Prognóza hotovosti ku koncu mesiaca",
+        "month_end": "Očakávaná hotovosť k {date}:",
+        "by_category": "Podľa kategórie",
+        "items_label": "Položky prognózy",
+        "col_category": "Kategória",
+        "col_label": "Položka",
+        "col_due": "Splatnosť",
+        "col_status": "Stav",
+        "col_amount": "Suma",
+        "overdue": "Po splatnosti",
+        "approved": "Schválené",
+        "unapproved": "Neschválené",
+        "empty": "Prognóza nemá položky.",
+        "skipped": "Vynechané položky, ktoré sa nepodarilo prečítať: {n}"
+      },
+      "category": {
+        "bank_balance": "Zostatok na účte",
+        "receivable": "Pohľadávky",
+        "payable": "Záväzky",
+        "payment": "Platby po zostatku",
+        "payroll": "Mzdy",
+        "vat": "DPH",
+        "tax": "Dane",
+        "contract": "Zmluvy"
+      },
+      "costs": {
+        "title": "Výdavky kariet",
+        "slices_label": "Zoskupiť výdavky kariet podľa",
+        "slice_vendor": "Dodávateľ",
+        "slice_cost_type": "Druh nákladu",
+        "slice_cost_centre": "Nákladové stredisko",
+        "col_month": "Mesiac",
+        "col_lines": "Riadky",
+        "col_amount": "Suma",
+        "none": "(žiadne)",
+        "empty": "Žiadne výdavky kariet.",
+        "excluded": "Vynechané, už započítané v Nákladoch: {n} riadkov, {amount}"
+      },
+      "settings": {
+        "title": "Účtovné účty",
+        "intro": "Čísla účtov, ktoré prognóza číta. Vidíte a meníte ich iba vy.",
+        "env": "Firma v Netvisor",
+        "bank": "Bankový účet (číslo účtovného účtu)",
+        "vat": "Účty DPH",
+        "tax": "Daňové účty",
+        "accounts_hint": "Čísla účtov s 1 až 12 číslicami, oddelené čiarkami.",
+        "vendors": "Dodávatelia už započítaní v Nákladoch",
+        "vendors_hint": "Jeden názov dodávateľa na riadok. Ich výdavky kariet sa tu nezapočítavajú.",
+        "save": "Uložiť",
+        "saved": "Uložené.",
+        "error": "Nastavenia sa nepodarilo uložiť.",
+        "updated": "Naposledy zmenené {time}",
+        "invalid_env": "Vyberte testovaciu alebo produkčnú firmu.",
+        "invalid_bank_account": "Bankový účet má 1 až 12 číslic.",
+        "invalid_vat_accounts": "Účty DPH: najviac 32 čísel s 1 až 12 číslicami.",
+        "invalid_tax_accounts": "Daňové účty: najviac 32 čísel s 1 až 12 číslicami.",
+        "invalid_vendor_exclusions": "Najviac 200 názvov dodávateľov."
       }
     }
   },

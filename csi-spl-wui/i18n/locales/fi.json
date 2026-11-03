@@ -3529,7 +3529,8 @@
       "marketing": "Markkinointi",
       "issues": "Asiat",
       "posts": "Viestit",
-      "lanes": "Kaistat"
+      "lanes": "Kaistat",
+      "finance": "Talous"
     },
     "future": {
       "issues": "Asiaraportti on tulossa pian.",
@@ -3657,6 +3658,81 @@
         "revenue": "Tulot",
         "retention": "Asiakaspysyvyys",
         "content_seo": "Sisältö / SEO"
+      }
+    },
+    "finance": {
+      "loading": "Ladataan talouslukuja…",
+      "forbidden": "Vain työtilan Netvisor-omistaja näkee talousluvut.",
+      "error": "Talouslukuja ei voitu ladata.",
+      "no_snapshot": "Netvisor-tilannekuvaa ei vielä ole. Pyydä ensimmäistä painamalla Päivitä nyt.",
+      "env": {
+        "test": "Netvisorin testiyritys",
+        "prd": "Netvisorin tuotantoyritys"
+      },
+      "voucher": "Uusin pankkitosite: {date}",
+      "voucher_none": "Pankkitositetta ei vielä ole",
+      "as_of": "Luvut {date}, haettu {time}",
+      "refresh": "Päivitä nyt",
+      "refresh_requested": "Päivitystä pyydetty klo {time}. Seuraava haku tuo uudet luvut.",
+      "refresh_error": "Päivitystä ei voitu pyytää.",
+      "forecast": {
+        "title": "Kuun lopun kassaennuste",
+        "month_end": "Odotettu kassa {date}:",
+        "by_category": "Luokittain",
+        "items_label": "Ennusteen erät",
+        "col_category": "Luokka",
+        "col_label": "Erä",
+        "col_due": "Eräpäivä",
+        "col_status": "Tila",
+        "col_amount": "Summa",
+        "overdue": "Erääntynyt",
+        "approved": "Hyväksytty",
+        "unapproved": "Hyväksymätön",
+        "empty": "Ennusteessa ei ole eriä.",
+        "skipped": "Pois jätetyt erät, joita ei voitu lukea: {n}"
+      },
+      "category": {
+        "bank_balance": "Pankkitilin saldo",
+        "receivable": "Myyntisaamiset",
+        "payable": "Ostovelat",
+        "payment": "Maksut saldon jälkeen",
+        "payroll": "Palkat",
+        "vat": "ALV",
+        "tax": "Verot",
+        "contract": "Sopimukset"
+      },
+      "costs": {
+        "title": "Korttikulut",
+        "slices_label": "Ryhmittele korttikulut",
+        "slice_vendor": "Toimittaja",
+        "slice_cost_type": "Kululaji",
+        "slice_cost_centre": "Kustannuspaikka",
+        "col_month": "Kuukausi",
+        "col_lines": "Rivejä",
+        "col_amount": "Summa",
+        "none": "(ei mitään)",
+        "empty": "Ei korttikuluja.",
+        "excluded": "Jätetty pois, laskettu jo Kuluissa: {n} riviä, {amount}"
+      },
+      "settings": {
+        "title": "Kirjanpitotilit",
+        "intro": "Tilinumerot, joita ennuste lukee. Vain sinä näet ja muutat niitä.",
+        "env": "Netvisor-yritys",
+        "bank": "Pankkitili (kirjanpitotilin numero)",
+        "vat": "ALV-tilit",
+        "tax": "Verotilit",
+        "accounts_hint": "Tilinumerot, 1–12 numeroa, pilkuilla erotettuina.",
+        "vendors": "Toimittajat, jotka on jo laskettu Kuluissa",
+        "vendors_hint": "Yksi toimittajan nimi riville. Niiden korttikulut jätetään tässä pois.",
+        "save": "Tallenna",
+        "saved": "Tallennettu.",
+        "error": "Asetuksia ei voitu tallentaa.",
+        "updated": "Viimeksi muutettu {time}",
+        "invalid_env": "Valitse testi- tai tuotantoyritys.",
+        "invalid_bank_account": "Pankkitilissä on 1–12 numeroa.",
+        "invalid_vat_accounts": "ALV-tilit: enintään 32 numeroa, kukin 1–12 merkkiä.",
+        "invalid_tax_accounts": "Verotilit: enintään 32 numeroa, kukin 1–12 merkkiä.",
+        "invalid_vendor_exclusions": "Enintään 200 toimittajan nimeä."
       }
     }
   },

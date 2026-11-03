@@ -3529,7 +3529,8 @@
       "marketing": "Marknadsföring",
       "issues": "Ärenden",
       "posts": "Inlägg",
-      "lanes": "Banor"
+      "lanes": "Banor",
+      "finance": "Ekonomi"
     },
     "future": {
       "issues": "Ärenderapporten kommer snart.",
@@ -3657,6 +3658,81 @@
         "revenue": "Intäkter",
         "retention": "Kundlojalitet",
         "content_seo": "Innehåll / SEO"
+      }
+    },
+    "finance": {
+      "loading": "Läser in de ekonomiska siffrorna…",
+      "forbidden": "Bara arbetsytans Netvisor-ägare ser de ekonomiska siffrorna.",
+      "error": "De ekonomiska siffrorna kunde inte läsas in.",
+      "no_snapshot": "Ingen Netvisor-ögonblicksbild än. Tryck på Uppdatera nu för att begära den första.",
+      "env": {
+        "test": "Netvisors testföretag",
+        "prd": "Netvisors produktionsföretag"
+      },
+      "voucher": "Senaste bankverifikation: {date}",
+      "voucher_none": "Ingen bankverifikation än",
+      "as_of": "Siffror per {date}, hämtade {time}",
+      "refresh": "Uppdatera nu",
+      "refresh_requested": "Uppdatering begärd kl. {time}. Nästa hämtning ger nya siffror.",
+      "refresh_error": "Uppdateringen kunde inte begäras.",
+      "forecast": {
+        "title": "Kassaprognos vid månadens slut",
+        "month_end": "Väntad kassa den {date}:",
+        "by_category": "Per kategori",
+        "items_label": "Prognosposter",
+        "col_category": "Kategori",
+        "col_label": "Post",
+        "col_due": "Förfaller",
+        "col_status": "Läge",
+        "col_amount": "Belopp",
+        "overdue": "Förfallen",
+        "approved": "Godkänd",
+        "unapproved": "Inte godkänd",
+        "empty": "Inga prognosposter.",
+        "skipped": "Utelämnade poster som inte kunde läsas: {n}"
+      },
+      "category": {
+        "bank_balance": "Banksaldo",
+        "receivable": "Kundfordringar",
+        "payable": "Leverantörsskulder",
+        "payment": "Betalningar efter saldot",
+        "payroll": "Löner",
+        "vat": "Moms",
+        "tax": "Skatter",
+        "contract": "Avtal"
+      },
+      "costs": {
+        "title": "Kortkostnader",
+        "slices_label": "Gruppera kortkostnader efter",
+        "slice_vendor": "Leverantör",
+        "slice_cost_type": "Kostnadsslag",
+        "slice_cost_centre": "Kostnadsställe",
+        "col_month": "Månad",
+        "col_lines": "Rader",
+        "col_amount": "Belopp",
+        "none": "(ingen)",
+        "empty": "Inga kortkostnader.",
+        "excluded": "Utelämnade, redan räknade under Kostnader: {n} rader, {amount}"
+      },
+      "settings": {
+        "title": "Bokföringskonton",
+        "intro": "Kontonumren som prognosen läser. Bara du ser och ändrar dem.",
+        "env": "Netvisor-företag",
+        "bank": "Bankkonto (bokföringskontots nummer)",
+        "vat": "Momskonton",
+        "tax": "Skattekonton",
+        "accounts_hint": "Kontonummer med 1 till 12 siffror, åtskilda med kommatecken.",
+        "vendors": "Leverantörer som redan räknas under Kostnader",
+        "vendors_hint": "Ett leverantörsnamn per rad. Deras kortkostnader räknas inte här.",
+        "save": "Spara",
+        "saved": "Sparat.",
+        "error": "Inställningarna kunde inte sparas.",
+        "updated": "Senast ändrad {time}",
+        "invalid_env": "Välj test- eller produktionsföretaget.",
+        "invalid_bank_account": "Bankkontot har 1 till 12 siffror.",
+        "invalid_vat_accounts": "Momskonton: högst 32 nummer med 1 till 12 siffror.",
+        "invalid_tax_accounts": "Skattekonton: högst 32 nummer med 1 till 12 siffror.",
+        "invalid_vendor_exclusions": "Högst 200 leverantörsnamn."
       }
     }
   },

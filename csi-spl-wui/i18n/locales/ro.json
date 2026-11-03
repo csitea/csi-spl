@@ -3529,7 +3529,8 @@
       "marketing": "Marketing",
       "issues": "Probleme",
       "posts": "Postări",
-      "lanes": "Linii"
+      "lanes": "Linii",
+      "finance": "Finanțe"
     },
     "future": {
       "issues": "Raportul problemelor vine în curând.",
@@ -3657,6 +3658,81 @@
         "revenue": "Venituri",
         "retention": "Retenție",
         "content_seo": "Conținut / SEO"
+      }
+    },
+    "finance": {
+      "loading": "Se încarcă cifrele financiare…",
+      "forbidden": "Doar proprietarul Netvisor al spațiului de lucru vede cifrele financiare.",
+      "error": "Cifrele financiare nu au putut fi încărcate.",
+      "no_snapshot": "Încă nu există niciun instantaneu Netvisor. Apăsați „Reîmprospătează acum” pentru a cere primul.",
+      "env": {
+        "test": "Firma de test din Netvisor",
+        "prd": "Firma de producție din Netvisor"
+      },
+      "voucher": "Cel mai nou document bancar: {date}",
+      "voucher_none": "Încă nu există document bancar",
+      "as_of": "Cifre la {date}, preluate {time}",
+      "refresh": "Reîmprospătează acum",
+      "refresh_requested": "Reîmprospătare cerută la {time}. Următoarea preluare aduce cifre noi.",
+      "refresh_error": "Reîmprospătarea nu a putut fi cerută.",
+      "forecast": {
+        "title": "Prognoza de numerar la sfârșitul lunii",
+        "month_end": "Numerar așteptat la {date}:",
+        "by_category": "Pe categorii",
+        "items_label": "Pozițiile prognozei",
+        "col_category": "Categorie",
+        "col_label": "Poziție",
+        "col_due": "Scadență",
+        "col_status": "Stare",
+        "col_amount": "Sumă",
+        "overdue": "Restant",
+        "approved": "Aprobat",
+        "unapproved": "Neaprobat",
+        "empty": "Nu există poziții în prognoză.",
+        "skipped": "Poziții omise pentru că nu au putut fi citite: {n}"
+      },
+      "category": {
+        "bank_balance": "Sold bancar",
+        "receivable": "Creanțe",
+        "payable": "Datorii",
+        "payment": "Plăți după sold",
+        "payroll": "Salarii",
+        "vat": "TVA",
+        "tax": "Impozite",
+        "contract": "Contracte"
+      },
+      "costs": {
+        "title": "Cheltuieli cu cardul",
+        "slices_label": "Grupează cheltuielile cu cardul după",
+        "slice_vendor": "Furnizor",
+        "slice_cost_type": "Tip de cheltuială",
+        "slice_cost_centre": "Centru de cost",
+        "col_month": "Lună",
+        "col_lines": "Rânduri",
+        "col_amount": "Sumă",
+        "none": "(niciunul)",
+        "empty": "Nu există cheltuieli cu cardul.",
+        "excluded": "Omise, deja numărate la Costuri: {n} rânduri, {amount}"
+      },
+      "settings": {
+        "title": "Conturi contabile",
+        "intro": "Numerele de cont pe care le citește prognoza. Doar dumneavoastră le vedeți și le schimbați.",
+        "env": "Firma din Netvisor",
+        "bank": "Cont bancar (număr de cont contabil)",
+        "vat": "Conturi de TVA",
+        "tax": "Conturi de impozite",
+        "accounts_hint": "Numere de cont de 1 până la 12 cifre, separate prin virgule.",
+        "vendors": "Furnizori deja numărați la Costuri",
+        "vendors_hint": "Un nume de furnizor pe rând. Cheltuielile lor cu cardul nu sunt numărate aici.",
+        "save": "Salvează",
+        "saved": "Salvat.",
+        "error": "Setările nu au putut fi salvate.",
+        "updated": "Ultima modificare {time}",
+        "invalid_env": "Alegeți firma de test sau pe cea de producție.",
+        "invalid_bank_account": "Contul bancar are de la 1 la 12 cifre.",
+        "invalid_vat_accounts": "Conturi de TVA: cel mult 32 de numere de 1 până la 12 cifre.",
+        "invalid_tax_accounts": "Conturi de impozite: cel mult 32 de numere de 1 până la 12 cifre.",
+        "invalid_vendor_exclusions": "Cel mult 200 de nume de furnizori."
       }
     }
   },

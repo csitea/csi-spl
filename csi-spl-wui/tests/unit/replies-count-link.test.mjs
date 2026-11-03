@@ -68,7 +68,12 @@ describe('SPL-982 the reactions sit in the header, 3px after the Add-emoji icon'
     assert.match(vue, /\.msg-meta \{ align-items: center; flex-wrap: nowrap; \}/)
     assert.match(vue, /@media \(max-width: 820px\) \{[\s\S]*?\.msg-meta \{ flex-wrap: nowrap;/)
     assert.doesNotMatch(vue, /\.msg-meta \{ flex-wrap: wrap;/)
-    assert.match(vue, /\.msg-meta > \.msg-reactions \{ order: 10; flex: 1 0 100%; margin-inline-start: 0; \}/)
+    /* R7 N2: the phone never renders that strip (chips.length && !mobile), so
+       no phone rule for it; a 100% basis under nowrap would overflow */
+    assert.doesNotMatch(vue, /\.msg-meta > \.msg-reactions \{ order: 10;/)
+    /* R7 W1: on a phone the time is two parts that never shrink below the wider */
+    assert.match(vue, /class="msg-time msg-time--split"/)
+    assert.match(vue, /\.msg-meta > \.msg-time--split \{[^}]*min-width: min-content;[^}]*overflow: hidden;/)
     assert.match(vue, /\.msg-meta > \.msg-edited \{ order: 2; \}/)
     assert.match(vue, /\.msg-reactions \{\s*display: inline-flex;\s*flex-wrap: wrap;/)
   })

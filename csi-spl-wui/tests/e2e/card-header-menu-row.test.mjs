@@ -4,16 +4,19 @@
 // the ≡ menu button alone on a second header line, under the avatar.
 //
 // At 390 and 360 px, phone + touch, every card of #lobby (sender -> recipient,
-// "via terminal", replies ">>"), each given two reaction pills, keeps:
+// "via terminal", replies ">>"), each given 0..4 reaction pills, keeps:
 //   1 the menu button on the header's first line (its centre level with the
 //     sender's name), at the card's right edge
 //   2 the replies link ">>" on that same line
 //   3 no sideways scroll
+//   4 the time never cut (R7 W1, c-050: "09-…" at 360 px): no part of it
+//     clipped sideways; a crowded line drops its HH:MM part whole, the day
+//     part always shows, and a card with no recipient shows HH:MM too
 //
 // Run:
 //   pnpm run test:e2e card-header-menu-row
 //   BASE_URL=<generated bundle> pnpm run test:e2e card-header-menu-row   # what CI does
-//   SHOTS=<dir> ... also writes a screenshot per viewport there
+//   SHOTS=<dir> ... also writes a screenshot per viewport and pill count there
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { join } from 'node:path'
@@ -22,6 +25,8 @@ import { CHROME_LAUNCH_ARGS } from './lib/viewport.mjs'
 
 const NAV_TIMEOUT = Number(process.env.NAV_TIMEOUT ?? 60000)
 const SHOTS = process.env.SHOTS || ''
+/* DUMP=1 also prints every header item's width (a probe while tuning) */
+const DUMP = Boolean(process.env.DUMP)
 const PATH = '/channel/lobby'
 const SIZES = [{ width: 390, height: 844 }, { width: 360, height: 740 }]
 /* the menu's 44 px target reaches the card's 4 px padding (SPL-1000) */
@@ -78,7 +83,7 @@ async function react(p, id, n) {
 }
 
 /** Per card: the menu's and the replies link's centre against the sender's name. */
-const headers = (p) => p.evaluate(() => {
+const headers = (p) => p.evaluate((dump) => {
   const mid = (el) => {
     if (!el || !el.getClientRects().length) return null
     const b = el.getBoundingClientRect()
@@ -92,16 +97,32 @@ const headers = (p) => p.evaluate(() => {
       const author = mid(row.querySelector('.msg-meta > .msg-author'))
       const menu = row.querySelector('[data-testid=msg-menu-btn]')
       const replies = row.querySelector('[data-test=topic-replies]')
+      const time = row.querySelector('.msg-meta > .msg-time')
       return {
         id: row.getAttribute('data-msg-id').slice(0, 8),
         chips: row.querySelectorAll('[data-testid=msg-reaction]').length,
         menuDy: author == null || mid(menu) == null ? null : Math.round(mid(menu) - author),
         repliesDy: author == null || mid(replies) == null ? null : Math.round(mid(replies) - author),
         menuRight: menu ? Math.round(r.right - menu.getBoundingClientRect().right) : null,
+        to: Boolean(row.querySelector('.msg-meta > .avatar--to')),
+        text: time ? time.textContent.trim() : null,
+        /* each part of the time: 1 whole in its box, 0 wholly out, else cut */
+        parts: time ? [...(time.children.length ? time.children : [time])].map((el) => {
+          const t = time.getBoundingClientRect()
+          const b = el.getBoundingClientRect()
+          const inside = b.left >= t.left - 0.5 && b.right <= t.right + 0.5 && b.top >= t.top - 0.5 && b.bottom <= t.bottom + 0.5
+          const out = b.top >= t.bottom - 0.5 || b.right <= t.left + 0.5 || b.left >= t.right - 0.5
+          return inside ? 1 : out ? 0 : -1
+        }) : null,
+        timeVis: time ? time.clientWidth : null,
+        timeNeed: time ? time.scrollWidth : null,
+        items: dump ? [...row.querySelectorAll('.msg-meta > *, .msg-meta > .msg-actions > *')]
+          .filter((el) => el.getClientRects().length)
+          .map((el) => `${el.className || el.tagName}:${Math.round(el.getBoundingClientRect().width)}`) : undefined,
       }
     }),
   }
-})
+}, DUMP)
 
 const server = await startServer()
 const browser = await launch()
@@ -117,24 +138,26 @@ try {
     await sleep(600)
 
     const ids = await cardIds(p)
-    for (const id of ids) {
-      await react(p, id, 0)
-      await react(p, id, 1)
-    }
-    await sleep(300)
-    const h = await headers(p)
-    ok(`${tag} 0 three or more cards, each with two reaction pills, one with a replies link`,
-      h.cards.length >= 3 && h.cards.every((c) => c.chips >= 2) && h.cards.some((c) => c.repliesDy != null), h.cards)
+    for (let n = 0; n <= 4; n++) {
+      /* one more pill on every card each round: 0, 1, 2, 3, 4 */
+      if (n > 0) for (const id of ids) await react(p, id, n - 1)
+      await sleep(300)
+      const h = await headers(p)
+      const at = `${tag} ${n} pills`
+      ok(`${at} 0 three or more cards, each with ${n} reaction pills, one with a recipient and a replies link`,
+        h.cards.length >= 3 && h.cards.every((c) => c.chips === n) && h.cards.some((c) => c.to && c.repliesDy != null), h.cards)
 
-    const off = h.cards.filter((c) => c.menuDy == null || Math.abs(c.menuDy) > 4)
-    ok(`${tag} 1 every card: the menu on the header's first line (level with the name)`, h.cards.length > 0 && off.length === 0, off)
-    const edge = h.cards.filter((c) => c.menuRight == null || c.menuRight < 0 || c.menuRight > EDGE)
-    ok(`${tag} 1 every card: the menu at the card's right edge`, edge.length === 0, edge)
-    const rep = h.cards.filter((c) => c.repliesDy != null && Math.abs(c.repliesDy) > 4)
-    ok(`${tag} 2 every card: the replies link ">>" on that line`, rep.length === 0, rep)
-    ok(`${tag} 3 no sideways scroll`, h.scrollW <= h.vw, { scrollW: h.scrollW, vw: h.vw })
-    if (SHOTS) {
-      await p.screenshot({ path: join(SHOTS, `card-header-menu-row-${vp.width}.png`) })
+      const off = h.cards.filter((c) => c.menuDy == null || Math.abs(c.menuDy) > 4)
+      ok(`${at} 1 every card: the menu on the header's first line (level with the name)`, h.cards.length > 0 && off.length === 0, off)
+      const edge = h.cards.filter((c) => c.menuRight == null || c.menuRight < 0 || c.menuRight > EDGE)
+      ok(`${at} 1 every card: the menu at the card's right edge`, edge.length === 0, edge)
+      const rep = h.cards.filter((c) => c.repliesDy != null && Math.abs(c.repliesDy) > 4)
+      ok(`${at} 2 every card: the replies link ">>" on that line`, rep.length === 0, rep)
+      ok(`${at} 3 no sideways scroll`, h.scrollW <= h.vw, { scrollW: h.scrollW, vw: h.vw })
+      const cut = h.cards.filter((c) => c.timeVis == null || c.timeVis < c.timeNeed || c.parts.includes(-1) || c.parts[0] !== 1 || (!c.to && c.parts.includes(0)))
+      ok(`${at} 4 every card: the time never cut (the day always, HH:MM unless crowded)`, cut.length === 0, cut)
+      if (DUMP) console.log(JSON.stringify(h.cards.map(({ items, ...c }) => ({ ...c, items: items?.join(' ') }))))
+      if (SHOTS) await p.screenshot({ path: join(SHOTS, `card-header-menu-row-${vp.width}-${n}.png`) })
     }
     ok(`${tag} no page errors`, errors.length === 0, errors)
     await p.close()

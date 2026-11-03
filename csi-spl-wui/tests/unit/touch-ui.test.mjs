@@ -254,7 +254,7 @@ describe('the phone card rules win (MessageCard.vue)', () => {
     const at = css.indexOf('@media (max-width: 820px)')
     assert.ok(at > 0)
     const after = css.slice(at)
-    for (const sel of ['.card-grip {', '.msg-reaction {', '.msg-meta > .msg-reactions {']) {
+    for (const sel of ['.card-grip {', '.msg-reaction {']) {
       assert.ok(after.includes(sel), sel + ' is overridden inside the phone block')
       assert.ok(css.lastIndexOf(sel) >= at, sel + ' has no later desktop rule')
     }

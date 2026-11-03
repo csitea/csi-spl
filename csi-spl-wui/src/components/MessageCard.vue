@@ -122,6 +122,9 @@
         <!-- bug B (4ecb4b0d): our own row is drawn the moment Send is pressed;
              until the hub's ack it says so, instead of a time that reads "posted" -->
         <span v-if="msg.pending" class="msg-time msg-time--sending" data-test="msg-sending" role="status" :data-waiting="msg.waiting ? 'network' : undefined">{{ msg.waiting ? t('composer.waiting_network') : t('composer.sending') }}</span>
+        <!-- SPL-4731 (R7 W1): on a phone the date and HH:MM are two parts; a
+             crowded line drops HH:MM whole (the title keeps the stamp) -->
+        <span v-else-if="timeParts" class="msg-time msg-time--split" :data-test="sinceMs == null ? 'msg-iso-ts' : undefined" :title="timeTitle"><span class="msg-time__day">{{ timeParts[0] }}</span> <span class="msg-time__hm">{{ timeParts[1] }}</span></span>
         <span v-else class="msg-time" :data-test="sinceMs == null ? 'msg-iso-ts' : undefined" :title="timeTitle">{{ time }}</span>
         <!-- SPL-1994 (owner, t1 72898ea2): no agent has answered yet; SPL-2026: from the
              click on Send, never on a send held for the network -->
@@ -600,6 +603,13 @@ const fullTime = computed(() => (
    time. The hover keeps the whole value. Desktop prints fullTime unchanged. */
 const mobile = useMobileStack().isMobile
 const time = computed(() => (mobile.value ? phoneCardTime(fullTime.value, at.value) : fullTime.value))
+/* SPL-4731 (R7 W1, c-002 send-back): a phone list card's "09-18 13:04" as
+   [day, HH:MM]; today's "13:04" stays one part and never gives way */
+const timeParts = computed(() => {
+  if (!mobile.value || props.sinceMs != null) return null
+  const i = time.value.lastIndexOf(' ')
+  return i > 0 ? [time.value.slice(0, i), time.value.slice(i + 1)] : null
+})
 /* CLE-77840: always titled - the time may be cut short with an ellipsis */
 const timeTitle = computed(() => (props.sinceMs == null ? formatIsoTs(at.value) : (time.value !== fullTime.value ? fullTime.value : time.value)))
 /* SPL-981: a direct message shows only its sender; channel rows keep sender -> recipient */
@@ -1052,7 +1062,7 @@ onMounted(() => {
    the sheet. Every control left is a 44 px target. A long press must not
    select text or pop the iOS callout: Copy text is in the sheet.
    LAST in this sheet on purpose: it overrides same-specificity rules above
-   (.card-grip, .msg-reaction, .msg-meta > .msg-reactions) by order. */
+   (.card-grip, .msg-reaction) by order. */
 @media (max-width: 820px) {
   /* (owner, topics 95adf832 + fd1e5be4): the card's text near
      either screen edge (10 px: 6 was "a bit too much"), "the max amount of the screen area must be
@@ -1132,11 +1142,21 @@ onMounted(() => {
      line at 360 px (SPL-1000) */
   .msg-actions .msg-menu-btn { width: var(--tap); height: var(--tap); min-width: var(--tap); min-height: var(--tap); margin-block: -6px; margin-inline-end: -4px; flex-shrink: 0; }
   .msg-to-arrow { margin-inline: -2px; }
-  .msg-actions .replies { min-height: var(--tap); margin-block: -6px; padding-inline: 10px; flex-shrink: 0; }
+  /* SPL-4731 (R7 W1): 6 px sides, never under a 44 px target, so a
+     sender -> recipient line at 360 px with 4 pills keeps the whole day */
+  .msg-actions .replies { min-height: var(--tap); min-width: var(--tap); margin-block: -6px; padding-inline: 6px; flex-shrink: 0; }
   /* SPL-4731: the optional tags give way (ellipsis) before the menu does */
   .msg-meta > .msg-prio,
   .msg-meta > .msg-edited { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .msg-meta > .msg-reactions { order: 10; flex: 1 0 100%; margin-inline-start: 0; }
+  /* SPL-4731 (R7 W1): the time is never cut. Its two parts wrap inside a
+     one-line box: a crowded header (sender -> recipient, reactions, ">>")
+     pushes HH:MM whole onto the clipped second line, so "09-18" stays and the
+     full stamp is the title. Its floor is the wider part, never less */
+  .msg-meta > .msg-time--split {
+    display: inline-flex; flex-wrap: wrap; column-gap: 0.25em;
+    flex: 0 1 auto; min-width: min-content;
+    line-height: 1.25; height: 1.25em; overflow: hidden; text-overflow: clip;
+  }
   .msg-reaction { min-height: var(--tap); min-width: var(--tap); justify-content: center; font-size: 1rem; }
   .card-grip { height: var(--tap); margin-top: -16px; }
   .card-grip::after { margin-top: 20px; }

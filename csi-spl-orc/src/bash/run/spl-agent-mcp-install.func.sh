@@ -70,6 +70,34 @@
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example AGENT_USER=<agent user> DRY_RUN=0 ./run -a do_spl_agent_mcp_install
 #------------------------------------------------------------------------------
+# _spl_agent_mcp_register_clis <agent home> <agent> <clis> <envs> <seat envs>
+# <spool-mcp bin>: step 3, register spool-<env> in each installed CLI at user
+# scope, for every env not seated per agent. 0 when all hold; else 1 with FAIL.
+_spl_agent_mcp_register_clis() {
+  local ahome="$1" agent="$2" clis="$3" envs="$4" seatenvs="$5" bin="$6" rc=0 have c e
+  for c in $clis; do
+    local cli="$ahome/.local/bin/$c"
+    [[ "$c" == mistral ]] && cli="$ahome/.local/bin/vibe"
+    # asked AS the agent: its CLIs are often links into dirs the box user cannot read
+    as_agent test -x "$cli" || { do_log "INFO $c is not installed for $agent ($cli): skipped"; continue; }
+    for e in $envs; do
+      [[ " $seatenvs " == *" $e "* ]] && continue
+      have="$(spl_agent_mcp_registered "$c" "$cli" "$ahome" "spool-$e" "$bin" "$e")"
+      if [[ "$have" == yes ]]; then do_log "INFO $c: spool-$e already runs $bin $e"; continue; fi
+      case "$c" in
+        claude) as_agent "$cli" mcp add -s user "spool-$e" -- "$bin" "$e" >/dev/null 2>&1 ;;
+        grok)   as_agent "$cli" mcp add -s user "spool-$e" "$bin" -- "$e" >/dev/null 2>&1 ;;
+        agy)    as_agent "$cli" mcp add "spool-$e" "$bin" "$e" >/dev/null 2>&1 ;;
+        qwen)   as_agent "$cli" mcp add -s user --trust --description "spool desk ($e)" "spool-$e" "$bin" "$e" >/dev/null 2>&1 ;;
+        mistral) spl_agent_mcp_vibe add "$ahome/.vibe/config.toml" "spool-$e" "$bin" "$e" >/dev/null 2>&1 ;;
+      esac || { do_log "FAIL $c: could not register spool-$e"; rc=1; continue; }
+      [[ "$(spl_agent_mcp_registered "$c" "$cli" "$ahome" "spool-$e" "$bin" "$e")" == yes ]] &&
+        do_log "INFO $c: registered spool-$e -> $bin $e" || { do_log "FAIL $c: spool-$e is still not registered"; rc=1; }
+    done
+  done
+  return "$rc"
+}
+
 do_spl_agent_mcp_install() {
   do_require_bin python3 getent sudo install || return 1
   local dry=1
@@ -125,27 +153,8 @@ do_spl_agent_mcp_install() {
   do_log "INFO agent side: $bin, $conf"
 
   # 3. registrations
-  local rc=0 have
-  for c in $clis; do
-    local cli="$ahome/.local/bin/$c"
-    [[ "$c" == mistral ]] && cli="$ahome/.local/bin/vibe"
-    # asked AS the agent: its CLIs are often links into dirs the box user cannot read
-    as_agent test -x "$cli" || { do_log "INFO $c is not installed for $agent ($cli): skipped"; continue; }
-    for e in $envs; do
-      [[ " $seatenvs " == *" $e "* ]] && continue
-      have="$(spl_agent_mcp_registered "$c" "$cli" "$ahome" "spool-$e" "$bin" "$e")"
-      if [[ "$have" == yes ]]; then do_log "INFO $c: spool-$e already runs $bin $e"; continue; fi
-      case "$c" in
-        claude) as_agent "$cli" mcp add -s user "spool-$e" -- "$bin" "$e" >/dev/null 2>&1 ;;
-        grok)   as_agent "$cli" mcp add -s user "spool-$e" "$bin" -- "$e" >/dev/null 2>&1 ;;
-        agy)    as_agent "$cli" mcp add "spool-$e" "$bin" "$e" >/dev/null 2>&1 ;;
-        qwen)   as_agent "$cli" mcp add -s user --trust --description "spool desk ($e)" "spool-$e" "$bin" "$e" >/dev/null 2>&1 ;;
-        mistral) spl_agent_mcp_vibe add "$ahome/.vibe/config.toml" "spool-$e" "$bin" "$e" >/dev/null 2>&1 ;;
-      esac || { do_log "FAIL $c: could not register spool-$e"; rc=1; continue; }
-      [[ "$(spl_agent_mcp_registered "$c" "$cli" "$ahome" "spool-$e" "$bin" "$e")" == yes ]] &&
-        do_log "INFO $c: registered spool-$e -> $bin $e" || { do_log "FAIL $c: spool-$e is still not registered"; rc=1; }
-    done
-  done
+  local rc=0
+  _spl_agent_mcp_register_clis "$ahome" "$agent" "$clis" "$envs" "$seatenvs" "$bin" || rc=1
   for e in $seatenvs; do spl_agent_mcp_seat_env "$e" || rc=1; done
   (( rc == 0 )) || return 1
   do_log "OK spool-{${envs// /,}} installed for $agent; a running CLI sees them after a restart"

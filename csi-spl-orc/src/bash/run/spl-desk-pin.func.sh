@@ -46,6 +46,25 @@
 # @example ENV=dev TENANT_ID=t1 DESK_BOX=box-alice BOX_PUBKEY=<b64> ROOT_KEY_JSON=<file> DRY_RUN=0 ./run -a do_spl_desk_pin
 # @example ENV=self SPOOL_HUB_URL=http://localhost:8080 TENANT_ID=main DESK_BOX=box-alice ROOT_KEY_JSON=<file> DRY_RUN=0 ./run -a do_spl_desk_pin
 #------------------------------------------------------------------------------
+# _spl_desk_pin_check_args <tenant> <root key json> <box pubkey> <revoke>: 0
+# when the mode's inputs go together (admin, revoke, join); else 1 with the FATAL.
+_spl_desk_pin_check_args() {
+  local tenant="$1" rkj="$2" other="$3" revoke="$4"
+  if [[ -n "$other" ]]; then
+    [[ "$other" =~ ^[A-Za-z0-9+/]{43}=$ ]] || { do_log "FATAL BOX_PUBKEY is not a base64 ed25519 public key"; return 1; }
+    [[ -n "$rkj" ]] || { do_log "FATAL BOX_PUBKEY (admin mode) needs ROOT_KEY_JSON"; return 1; }
+  fi
+  if (( revoke )); then
+    [[ -z "$other" ]] || { do_log "FATAL PIN_REVOKE=1 takes no BOX_PUBKEY"; return 1; }
+    [[ -n "$rkj" ]] || { do_log "FATAL PIN_REVOKE=1 needs ROOT_KEY_JSON"; return 1; }
+  fi
+  [[ -z "$rkj" || -s "$rkj" ]] || { do_log "FATAL ROOT_KEY_JSON $rkj is missing or empty"; return 1; }
+  if [[ -n "${SPOOL_JOIN_TOKEN:-}" ]]; then
+    [[ -z "$rkj" && -z "$other" ]] || { do_log "FATAL SPOOL_JOIN_TOKEN (join mode) takes no ROOT_KEY_JSON or BOX_PUBKEY"; return 1; }
+    spl_desk_join_token_ok "$tenant" || return 1
+  fi
+}
+
 do_spl_desk_pin() {
   do_require_bin python3 yq || return 1
   spl_box_ws_guard "${TENANT_ID:-}" || return 1
@@ -60,19 +79,7 @@ do_spl_desk_pin() {
   if [[ "$ENV" != self && -n "${SPOOL_HUB_URL:-}" && "${SPOOL_HUB_URL%/}" != "$hub" ]]; then
     do_log "FATAL SPOOL_HUB_URL=$SPOOL_HUB_URL but the $ENV cnf hub is $hub: pick the ENV whose hub that is, or ENV=self for a self-hosted hub"; return 1
   fi
-  if [[ -n "$other" ]]; then
-    [[ "$other" =~ ^[A-Za-z0-9+/]{43}=$ ]] || { do_log "FATAL BOX_PUBKEY is not a base64 ed25519 public key"; return 1; }
-    [[ -n "$rkj" ]] || { do_log "FATAL BOX_PUBKEY (admin mode) needs ROOT_KEY_JSON"; return 1; }
-  fi
-  if (( revoke )); then
-    [[ -z "$other" ]] || { do_log "FATAL PIN_REVOKE=1 takes no BOX_PUBKEY"; return 1; }
-    [[ -n "$rkj" ]] || { do_log "FATAL PIN_REVOKE=1 needs ROOT_KEY_JSON"; return 1; }
-  fi
-  [[ -z "$rkj" || -s "$rkj" ]] || { do_log "FATAL ROOT_KEY_JSON $rkj is missing or empty"; return 1; }
-  if [[ -n "${SPOOL_JOIN_TOKEN:-}" ]]; then
-    [[ -z "$rkj" && -z "$other" ]] || { do_log "FATAL SPOOL_JOIN_TOKEN (join mode) takes no ROOT_KEY_JSON or BOX_PUBKEY"; return 1; }
-    spl_desk_join_token_ok "$tenant" || return 1
-  fi
+  _spl_desk_pin_check_args "$tenant" "$rkj" "$other" "$revoke" || return 1
   d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
   local mode=check
   [[ -n "$rkj" ]] && mode=self

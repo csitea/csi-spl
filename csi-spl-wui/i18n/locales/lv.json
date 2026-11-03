@@ -3667,7 +3667,7 @@
       "no_snapshot": "Netvisor momentuzņēmuma vēl nav. Nospiediet “Atjaunot tagad”, lai pieprasītu pirmo.",
       "env": {
         "test": "Netvisor testa uzņēmums",
-        "prd": "Netvisor ražošanas uzņēmums"
+        "prd": "Netvisor produkcijas uzņēmums"
       },
       "voucher": "Jaunākais bankas dokuments: {date}",
       "voucher_none": "Bankas dokumenta vēl nav",
@@ -3677,7 +3677,7 @@
       "refresh_error": "Neizdevās pieprasīt atjaunošanu.",
       "forecast": {
         "title": "Naudas prognoze mēneša beigās",
-        "month_end": "Gaidāmā nauda {date}:",
+        "month_end": "Sagaidāmais naudas atlikums {date}:",
         "by_category": "Pēc kategorijas",
         "items_label": "Prognozes pozīcijas",
         "col_category": "Kategorija",
@@ -3728,7 +3728,7 @@
         "saved": "Saglabāts.",
         "error": "Neizdevās saglabāt iestatījumus.",
         "updated": "Pēdējās izmaiņas {time}",
-        "invalid_env": "Izvēlieties testa vai ražošanas uzņēmumu.",
+        "invalid_env": "Izvēlieties testa vai produkcijas uzņēmumu.",
         "invalid_bank_account": "Bankas kontā ir no 1 līdz 12 cipariem.",
         "invalid_vat_accounts": "PVN konti: ne vairāk kā 32 numuri pa 1–12 cipariem.",
         "invalid_tax_accounts": "Nodokļu konti: ne vairāk kā 32 numuri pa 1–12 cipariem.",

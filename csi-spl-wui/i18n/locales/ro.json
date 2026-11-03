@@ -3712,7 +3712,7 @@
         "col_amount": "Sumă",
         "none": "(niciunul)",
         "empty": "Nu există cheltuieli cu cardul.",
-        "excluded": "Omise, deja numărate la Costuri: {n} rânduri, {amount}"
+        "excluded": "Omise, deja incluse la Costuri: {n} rânduri, {amount}"
       },
       "settings": {
         "title": "Conturi contabile",
@@ -3722,8 +3722,8 @@
         "vat": "Conturi de TVA",
         "tax": "Conturi de impozite",
         "accounts_hint": "Numere de cont de 1 până la 12 cifre, separate prin virgule.",
-        "vendors": "Furnizori deja numărați la Costuri",
-        "vendors_hint": "Un nume de furnizor pe rând. Cheltuielile lor cu cardul nu sunt numărate aici.",
+        "vendors": "Furnizori deja incluși la Costuri",
+        "vendors_hint": "Un nume de furnizor pe rând. Cheltuielile lor cu cardul nu sunt incluse aici.",
         "save": "Salvează",
         "saved": "Salvat.",
         "error": "Setările nu au putut fi salvate.",

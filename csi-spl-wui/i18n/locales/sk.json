@@ -3702,8 +3702,8 @@
         "contract": "Zmluvy"
       },
       "costs": {
-        "title": "Výdavky kariet",
-        "slices_label": "Zoskupiť výdavky kariet podľa",
+        "title": "Kartové výdavky",
+        "slices_label": "Zoskupiť kartové výdavky podľa",
         "slice_vendor": "Dodávateľ",
         "slice_cost_type": "Druh nákladu",
         "slice_cost_centre": "Nákladové stredisko",
@@ -3711,7 +3711,7 @@
         "col_lines": "Riadky",
         "col_amount": "Suma",
         "none": "(žiadne)",
-        "empty": "Žiadne výdavky kariet.",
+        "empty": "Žiadne kartové výdavky.",
         "excluded": "Vynechané, už započítané v Nákladoch: {n} riadkov, {amount}"
       },
       "settings": {
@@ -3723,7 +3723,7 @@
         "tax": "Daňové účty",
         "accounts_hint": "Čísla účtov s 1 až 12 číslicami, oddelené čiarkami.",
         "vendors": "Dodávatelia už započítaní v Nákladoch",
-        "vendors_hint": "Jeden názov dodávateľa na riadok. Ich výdavky kariet sa tu nezapočítavajú.",
+        "vendors_hint": "Jeden názov dodávateľa na riadok. Ich kartové výdavky sa tu nezapočítavajú.",
         "save": "Uložiť",
         "saved": "Uložené.",
         "error": "Nastavenia sa nepodarilo uložiť.",

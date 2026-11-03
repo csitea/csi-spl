@@ -3712,7 +3712,7 @@
         "col_amount": "Kwota",
         "none": "(brak)",
         "empty": "Brak kosztów kart.",
-        "excluded": "Pominięte, już liczone w Kosztach: {n} wierszy, {amount}"
+        "excluded": "Pominięte, już uwzględnione w Kosztach: {n} wierszy, {amount}"
       },
       "settings": {
         "title": "Konta księgowe",
@@ -3722,8 +3722,8 @@
         "vat": "Konta VAT",
         "tax": "Konta podatkowe",
         "accounts_hint": "Numery kont od 1 do 12 cyfr, rozdzielone przecinkami.",
-        "vendors": "Dostawcy już liczeni w Kosztach",
-        "vendors_hint": "Jedna nazwa dostawcy w wierszu. Ich koszty kart nie są tu liczone.",
+        "vendors": "Dostawcy już uwzględnieni w Kosztach",
+        "vendors_hint": "Jedna nazwa dostawcy w wierszu. Ich koszty kart nie są tu uwzględniane.",
         "save": "Zapisz",
         "saved": "Zapisano.",
         "error": "Nie udało się zapisać ustawień.",

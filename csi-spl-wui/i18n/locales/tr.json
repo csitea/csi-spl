@@ -3667,7 +3667,7 @@
       "no_snapshot": "Henüz Netvisor anlık görüntüsü yok. İlkini istemek için Şimdi yenile düğmesine basın.",
       "env": {
         "test": "Netvisor test şirketi",
-        "prd": "Netvisor üretim şirketi"
+        "prd": "Netvisor canlı şirketi"
       },
       "voucher": "En yeni banka fişi: {date}",
       "voucher_none": "Henüz banka fişi yok",
@@ -3712,7 +3712,7 @@
         "col_amount": "Tutar",
         "none": "(yok)",
         "empty": "Kart gideri yok.",
-        "excluded": "Dışarıda bırakıldı, Maliyetler altında zaten sayıldı: {n} satır, {amount}"
+        "excluded": "Hariç tutuldu, Maliyetler altında zaten dahil edildi: {n} satır, {amount}"
       },
       "settings": {
         "title": "Muhasebe hesapları",
@@ -3722,13 +3722,13 @@
         "vat": "KDV hesapları",
         "tax": "Vergi hesapları",
         "accounts_hint": "1 ile 12 basamak arası hesap numaraları, virgülle ayrılmış.",
-        "vendors": "Maliyetler altında zaten sayılan tedarikçiler",
-        "vendors_hint": "Her satıra bir tedarikçi adı. Kart giderleri burada sayılmaz.",
+        "vendors": "Maliyetler altında zaten dahil edilen tedarikçiler",
+        "vendors_hint": "Her satıra bir tedarikçi adı. Kart giderleri burada dahil edilmez.",
         "save": "Kaydet",
         "saved": "Kaydedildi.",
         "error": "Ayarlar kaydedilemedi.",
         "updated": "Son değişiklik {time}",
-        "invalid_env": "Test veya üretim şirketini seçin.",
+        "invalid_env": "Test şirketini veya canlı şirketi seçin.",
         "invalid_bank_account": "Banka hesabı 1 ile 12 basamak arasıdır.",
         "invalid_vat_accounts": "KDV hesapları: 1 ile 12 basamaklı en çok 32 numara.",
         "invalid_tax_accounts": "Vergi hesapları: 1 ile 12 basamaklı en çok 32 numara.",

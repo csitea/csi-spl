@@ -3677,7 +3677,7 @@
       "refresh_error": "Värskendust ei õnnestunud küsida.",
       "forecast": {
         "title": "Kuu lõpu rahaprognoos",
-        "month_end": "Oodatav raha {date}:",
+        "month_end": "Eeldatav rahajääk {date}:",
         "by_category": "Kategooriate kaupa",
         "items_label": "Prognoosi read",
         "col_category": "Kategooria",
@@ -3694,7 +3694,7 @@
       "category": {
         "bank_balance": "Pangasaldo",
         "receivable": "Nõuded",
-        "payable": "Võlad",
+        "payable": "Kohustised",
         "payment": "Maksed pärast saldot",
         "payroll": "Palgad",
         "vat": "Käibemaks",
@@ -3729,7 +3729,7 @@
         "error": "Seadeid ei õnnestunud salvestada.",
         "updated": "Viimati muudetud {time}",
         "invalid_env": "Valige test- või tootmisettevõte.",
-        "invalid_bank_account": "Pangakontol on 1 kuni 12 numbrit.",
+        "invalid_bank_account": "Pangakonto number on 1 kuni 12 numbrit.",
         "invalid_vat_accounts": "Käibemaksukontod: kuni 32 numbrit, igaüks 1 kuni 12 kohta.",
         "invalid_tax_accounts": "Maksukontod: kuni 32 numbrit, igaüks 1 kuni 12 kohta.",
         "invalid_vendor_exclusions": "Kuni 200 tarnija nime."

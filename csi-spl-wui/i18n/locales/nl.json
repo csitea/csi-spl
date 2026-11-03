@@ -3730,9 +3730,9 @@
         "updated": "Laatst gewijzigd {time}",
         "invalid_env": "Kies het test- of het productiebedrijf.",
         "invalid_bank_account": "De bankrekening heeft 1 tot 12 cijfers.",
-        "invalid_vat_accounts": "Btw-rekeningen: hoogstens 32 nummers van 1 tot 12 cijfers.",
-        "invalid_tax_accounts": "Belastingrekeningen: hoogstens 32 nummers van 1 tot 12 cijfers.",
-        "invalid_vendor_exclusions": "Hoogstens 200 leveranciersnamen."
+        "invalid_vat_accounts": "Btw-rekeningen: maximaal 32 rekeningnummers van 1 tot 12 cijfers.",
+        "invalid_tax_accounts": "Belastingrekeningen: maximaal 32 rekeningnummers van 1 tot 12 cijfers.",
+        "invalid_vendor_exclusions": "Maximaal 200 leveranciersnamen."
       }
     }
   },

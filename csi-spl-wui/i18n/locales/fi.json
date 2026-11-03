@@ -3712,7 +3712,7 @@
         "col_amount": "Summa",
         "none": "(ei mitään)",
         "empty": "Ei korttikuluja.",
-        "excluded": "Jätetty pois, laskettu jo Kuluissa: {n} riviä, {amount}"
+        "excluded": "Jätetty pois, huomioitu jo Kuluissa: {n} riviä, {amount}"
       },
       "settings": {
         "title": "Kirjanpitotilit",
@@ -3722,7 +3722,7 @@
         "vat": "ALV-tilit",
         "tax": "Verotilit",
         "accounts_hint": "Tilinumerot, 1–12 numeroa, pilkuilla erotettuina.",
-        "vendors": "Toimittajat, jotka on jo laskettu Kuluissa",
+        "vendors": "Toimittajat, jotka on jo huomioitu Kuluissa",
         "vendors_hint": "Yksi toimittajan nimi riville. Niiden korttikulut jätetään tässä pois.",
         "save": "Tallenna",
         "saved": "Tallennettu.",
@@ -3730,8 +3730,8 @@
         "updated": "Viimeksi muutettu {time}",
         "invalid_env": "Valitse testi- tai tuotantoyritys.",
         "invalid_bank_account": "Pankkitilissä on 1–12 numeroa.",
-        "invalid_vat_accounts": "ALV-tilit: enintään 32 numeroa, kukin 1–12 merkkiä.",
-        "invalid_tax_accounts": "Verotilit: enintään 32 numeroa, kukin 1–12 merkkiä.",
+        "invalid_vat_accounts": "ALV-tilit: enintään 32 tilinumeroa, kukin 1–12 numeroa.",
+        "invalid_tax_accounts": "Verotilit: enintään 32 tilinumeroa, kukin 1–12 numeroa.",
         "invalid_vendor_exclusions": "Enintään 200 toimittajan nimeä."
       }
     }

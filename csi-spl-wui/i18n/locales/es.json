@@ -3664,7 +3664,7 @@
       "loading": "Cargando las cifras financieras…",
       "forbidden": "Solo el propietario de Netvisor del espacio de trabajo ve las cifras financieras.",
       "error": "No se pudieron cargar las cifras financieras.",
-      "no_snapshot": "Aún no hay ninguna instantánea de Netvisor. Pulse «Actualizar ahora» para pedir la primera.",
+      "no_snapshot": "Aún no hay ninguna instantánea de Netvisor. Pulse «Actualizar ahora» para solicitar la primera.",
       "env": {
         "test": "Empresa de prueba de Netvisor",
         "prd": "Empresa de producción de Netvisor"
@@ -3673,7 +3673,7 @@
       "voucher_none": "Aún no hay comprobante bancario",
       "as_of": "Cifras a {date}, obtenidas {time}",
       "refresh": "Actualizar ahora",
-      "refresh_requested": "Actualización solicitada a las {time}. La próxima descarga trae cifras nuevas.",
+      "refresh_requested": "Actualización solicitada a las {time}. La próxima descarga traerá cifras nuevas.",
       "refresh_error": "No se pudo solicitar la actualización.",
       "forecast": {
         "title": "Previsión de tesorería a fin de mes",
@@ -3712,7 +3712,7 @@
         "col_amount": "Importe",
         "none": "(ninguno)",
         "empty": "No hay gastos de tarjeta.",
-        "excluded": "Omitidos, ya contados en Costes: {n} líneas, {amount}"
+        "excluded": "Omitidos, ya incluidos en Costes: {n} líneas, {amount}"
       },
       "settings": {
         "title": "Cuentas contables",
@@ -3722,8 +3722,8 @@
         "vat": "Cuentas de IVA",
         "tax": "Cuentas de impuestos",
         "accounts_hint": "Números de cuenta de 1 a 12 dígitos, separados por comas.",
-        "vendors": "Proveedores ya contados en Costes",
-        "vendors_hint": "Un nombre de proveedor por línea. Sus gastos de tarjeta no se cuentan aquí.",
+        "vendors": "Proveedores ya incluidos en Costes",
+        "vendors_hint": "Un nombre de proveedor por línea. Sus gastos de tarjeta no se incluyen aquí.",
         "save": "Guardar",
         "saved": "Guardado.",
         "error": "No se pudo guardar la configuración.",

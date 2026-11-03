@@ -31,6 +31,7 @@
 
 <script setup lang="ts">
 import { useSubmitKey } from '~/composables/useSubmitKey'
+import { callOmnibox, OMNIBOX_TEXTAREA } from '~/utils/omnibox-call'
 import { useHumanNames } from '~/composables/useHumanNames'
 import { useChannelStore } from '~/stores/channel'
 import { useLiveFeed } from '~/stores/live'
@@ -168,21 +169,11 @@ const dmEmpty = computed(() => topicFeedReady.value && !channel.loading && chann
    into view, marks it for a moment and says which keys send. */
 const startCalled = ref(false)
 const startHintKey = computed(() => (submitMode.value === 'enter' ? 'settings.submit_key.enter' : 'settings.submit_key.ctrl_enter'))
-let calledTimer: ReturnType<typeof setTimeout> | undefined
 function focusComposer() {
   startCalled.value = true
-  const box = document.querySelector<HTMLTextAreaElement>('form.omnibox--global textarea')
-  if (!box) return
-  const form = box.closest('form')
-  form?.scrollIntoView({ block: 'nearest' })
-  box.focus()
-  if (!form) return
-  form.classList.add('omnibox--called')
-  clearTimeout(calledTimer)
-  calledTimer = setTimeout(() => form.classList.remove('omnibox--called'), 2400)
+  callOmnibox(document.querySelector<HTMLTextAreaElement>(OMNIBOX_TEXTAREA))
 }
 watch(peer, () => { startCalled.value = false })
-onBeforeUnmount(() => clearTimeout(calledTimer))
 
 /* read cursors follow channel.peer in plugins/notify.client.ts */
 onMounted(() => {
@@ -202,10 +193,4 @@ useOmniboxTarget({
 .dm-start { padding: 16px 16px 0; }
 .dm-start .btn { display: inline-flex; align-items: center; gap: 6px; }
 .dm-start__hint { margin: 8px 0 0; font-size: 0.8125rem; color: var(--color-muted); overflow-wrap: anywhere; }
-/* SPL-2699: the Omnibox the Message button opened, marked for a moment */
-:global(form.omnibox--global.omnibox--called) {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-  border-radius: var(--radius);
-}
 </style>

@@ -336,6 +336,7 @@
 <script setup lang="ts">
 import UndoSnackbar from '~/components/UndoSnackbar.vue'
 import { vTapAnim } from '~/composables/useTapAnim'
+import { callOmnibox } from '~/utils/omnibox-call'
 import { useChannelStore } from '~/stores/channel'
 import { isDocsReadingPath, useOmniboxStore } from '~/stores/omnibox'
 import { fenceStateAt } from '~/utils/code-blocks.mjs'
@@ -474,7 +475,8 @@ watch(() => route.path, () => omniboxTargets.closeSearch())
 function onFocusRequest(ev?: Event) {
   const text = (ev as CustomEvent<{ text?: string }> | undefined)?.detail?.text
   if (text && !String(inputEl.value?.value || '').trim()) setText(text)
-  inputEl.value?.focus()
+  /* SPL-4696: and show where the caret went (utils/omnibox-call.ts) */
+  callOmnibox(inputEl.value)
 }
 onMounted(() => {
   emit('ready', { setText })

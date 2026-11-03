@@ -41,15 +41,17 @@
 
 <script setup lang="ts">
 import { playTapAnim } from '~/composables/useTapAnim'
+import { callOmnibox, OMNIBOX_TEXTAREA } from '~/utils/omnibox-call'
 
 defineProps<{ channel: string, search?: string }>()
 const { t, te } = useI18n({ useScope: 'global' })
 /* the second catalogue holds the friendly copy; until it is merged the core line shows */
 const ready = computed(() => te('feed.first_post.title'))
 
-/* the Omnibox is this channel's composer (top bar or docked at the bottom) */
+/* the Omnibox is this channel's composer (top bar or docked at the bottom);
+   SPL-4696: the caret alone read as "nothing happened", so the call is marked */
 function focusComposer() {
-  document.querySelector<HTMLTextAreaElement>('form.omnibox--global textarea')?.focus()
+  callOmnibox(document.querySelector<HTMLTextAreaElement>(OMNIBOX_TEXTAREA))
 }
 
 /* one greeting per mount; animationend takes the classes off, so it rests */

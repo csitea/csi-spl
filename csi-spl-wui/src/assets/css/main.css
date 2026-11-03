@@ -1267,6 +1267,29 @@ html.pane-dragging * {
 .composer.omnibox--global .omnibox-field:has(textarea:focus-visible) {
   border-color: var(--focus-ring);
 }
+/* SPL-2699 / SPL-4696: a button or a Reply that sends the caret here marks
+   the box for a moment (utils/omnibox-call.ts), since the 1px ring above
+   alone read as "nothing happened" (owner HUM-10, csitea 597318eb: "some
+   effect or animation that shows the user to start typing and where the
+   focus is"). One colour, the ring at --focus-ring-w (owner: one colour,
+   <= 3px); it pulses outward twice and the field's white flashes the glow.
+   Reduced motion: no pulse, the ring holds still for the same 2.4 s. */
+form.composer.omnibox--called {
+  outline: var(--focus-ring-w) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
+  border-radius: var(--radius-md);
+  animation: omnibox-called 0.6s ease-out 2;
+}
+form.composer.omnibox--called .omnibox-field { animation: omnibox-called-field 1.2s ease-out; }
+@keyframes omnibox-called {
+  50% { outline-offset: 8px; }
+}
+@keyframes omnibox-called-field {
+  from { background: var(--color-glow); }
+}
+@media (prefers-reduced-motion: reduce) {
+  form.composer.omnibox--called, form.composer.omnibox--called .omnibox-field { animation: none; }
+}
 .composer.omnibox--global .composer-row {
   flex: 0 0 auto;
   align-self: flex-start;

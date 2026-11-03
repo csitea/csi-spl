@@ -29,6 +29,7 @@ const vueUrl = (js) => js.replace(/from ['"]vue['"]/g, `from '${VUE_URL}'`)
 const FILE = 'src/components/FeedEmpty.vue'
 const SFC = read(FILE)
 const TAP_URL = dataUrl(tsToJs(read('src/composables/useTapAnim.ts')))
+const CALL_URL = dataUrl(tsToJs(read('src/utils/omnibox-call.ts')))
 
 /* Nuxt auto-imports: Vue's API and useI18n (the friendly copy merged) */
 const PRELUDE = `import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from '${VUE_URL}';\n`
@@ -39,6 +40,7 @@ function compileSfc() {
   assert.deepEqual(errors, [], `${FILE} parses`)
   const script = compileScript(descriptor, { id: FILE, inlineTemplate: true, isProd: true })
   const js = vueUrl(tsToJs(script.content)).split("'~/composables/useTapAnim'").join(`'${TAP_URL}'`)
+    .split("'~/utils/omnibox-call'").join(`'${CALL_URL}'`)
   return import(dataUrl(PRELUDE + js))
 }
 const feedEmpty = await compileSfc()

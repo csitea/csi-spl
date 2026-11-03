@@ -21,6 +21,14 @@
 //   empty    the feed says whose start it is, once (role=status), with a
 //            button, in view; a filter that matches nothing says how to undo it
 //   focus    the button puts the caret in the Omnibox
+//   marked   SPL-4696 (csitea 597318eb: a member read the caret alone as "the
+//            channel is empty, the discussion does not open"; owner HUM-10
+//            msg 1bfcbc43: "some effect or animation that shows the user to
+//            start typing and where the focus is"): the button, and a Reply's
+//            composer-focus event, mark the Omnibox with the one-colour ring
+//            and its pulse, in view; under reduced motion the ring holds
+//            still. CONTROL: before the fix the button only called focus(),
+//            so the form had no .omnibox--called and no outline
 //   live     the first line sent there takes the empty state away
 //
 //   BASE_URL=<generated bundle> node tests/e2e/dm-start-message.test.mjs
@@ -75,6 +83,24 @@ const startButton = (p) => p.evaluate(() => {
   return { text: b.textContent.trim(), visible: r.width > 0 && r.height > 0 && r.top >= 0 && r.bottom <= innerHeight && r.right <= innerWidth }
 })
 
+/* SPL-2699 / SPL-4696: is the Omnibox marked as called, and in view? */
+const marked = (p) => p.evaluate((sel) => {
+  const ta = document.querySelector(sel)
+  const form = ta ? ta.closest('form') : null
+  if (!form) return null
+  const cs = getComputedStyle(form)
+  const r = form.getBoundingClientRect()
+  return {
+    focused: document.activeElement === ta,
+    called: form.classList.contains('omnibox--called'),
+    outline: cs.outlineStyle,
+    width: parseFloat(cs.outlineWidth) || 0,
+    anim: cs.animationName,
+    inView: r.height > 0 && r.top >= 0 && r.bottom <= innerHeight,
+  }
+}, OMNI)
+const pulsed = (m) => Boolean(m && m.focused && m.called && m.outline === 'solid' && m.width > 0 && m.width <= 3 && m.inView)
+
 /* SPL-2141: the empty channel's start, read where it shows */
 const channelEmpty = (p) => p.evaluate(() => {
   const el = document.querySelector('[data-testid=feed-empty]')
@@ -116,10 +142,31 @@ async function channelStart(p, width, theme) {
   await p.evaluate(() => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('channel').setSearch(''))
   await sleep(600)
   if (!e || !e.button) return
+  /* a mark left by the DM steps clears first, so the one read below is this click's */
+  await p.waitForFunction(() => !document.querySelector('form.omnibox--called'), { timeout: 5000 }).catch(() => {})
   await p.click('[data-testid=feed-empty-start]')
   await sleep(200)
   check(`${tag}: its button puts the caret in the Omnibox`, await p.evaluate((sel) => document.activeElement === document.querySelector(sel), OMNI))
-  if (theme !== 'light') return
+  const m = await marked(p)
+  check(`${tag}: its button marks the Omnibox with a pulsing ring, in view`, pulsed(m) && m.anim === 'omnibox-called', m)
+  /* a Reply (card menu, r shortcut, poll "Chat about this") sends the same event */
+  await p.waitForFunction(() => !document.querySelector('form.omnibox--called'), { timeout: 5000 }).catch(() => {})
+  await p.evaluate(() => { document.activeElement?.blur(); window.dispatchEvent(new CustomEvent('spool:composer-focus')) })
+  await sleep(200)
+  const r = await marked(p)
+  check(`${tag}: a Reply's composer-focus marks the Omnibox too`, pulsed(r) && r.anim === 'omnibox-called', r)
+  if (theme !== 'light') {
+    await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }])
+    await p.click('[data-testid=feed-empty-start]')
+    await sleep(200)
+    const s = await marked(p)
+    await p.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }])
+    /* motion back on restarts the phone's mobile-panel-in slide (translateX
+       24px): let it end, or the next theme's "in view" reads it mid-slide */
+    await p.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running'), { timeout: 5000 }).catch(() => {})
+    check(`${tag}: reduced motion: the ring holds still, no pulse`, pulsed(s) && s.anim === 'none', s)
+    return
+  }
   /* live: the first line takes it away, no reload */
   await p.keyboard.type(`first post in #feedback at ${width}`)
   await p.keyboard.down('Control'); await p.keyboard.press('Enter'); await p.keyboard.up('Control')

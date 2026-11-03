@@ -21,6 +21,7 @@ automated msgs should go to the alerts channel and not t othe ops channel".
 | `do_spl_fleet_notice`: orchestrator failover, ROTATION FAILED, recovered, a hung watchdog | `env.fleet_notices.channel` | `alerts` |
 | `do_spl_deploy_lag_alarm`, `do_spl_deploy_failure_post` / `_poll` (`spl-ops-alarm-cron.sh`) | `env.ops_alarms.channel` | `alerts` |
 | NO-LOCAL-AGENT, box benched / back, weekly limit (`spl_fleet_alert_post`) | none, already `alerts` | `alerts` |
+| weekly full scan, a missed week's blocker (`weekly-full-scan-cron.sh`) | `env.ops_alarms.channel` | `alerts` |
 | weekly full scan summary (`weekly-full-scan-cron.sh`) | `--channel` | `spool-hub-ops`, kept: a weekly report, not an alarm |
 
 Both keys live in `csi-spl-cnf/csi-spl/all.env.yaml`. #alerts keeps a post 7

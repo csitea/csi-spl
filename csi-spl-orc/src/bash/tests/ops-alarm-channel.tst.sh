@@ -13,6 +13,9 @@
 #     5. an explicit DESK_CHANNEL still wins; an unset env.ops_alarms.channel
 #        is a FATAL with nothing posted (no literal default)
 #     6. no literal spool-hub-ops channel default is left in these posters
+#     7. the weekly scan (weekly-full-scan-cron.sh, DRY_RUN=1, scan stubbed by
+#        WEEKLY_SCAN_CMD): a missed week's blocker -> #alerts, the weekly
+#        summary stays on #spool-hub-ops (spec 146 table)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -79,6 +82,16 @@ OPS_ALARM_CNF="$T/empty.yaml" FAIL_RUN_URL=https://x/runs/3 do_spl_deploy_failur
 left="$(grep -n 'spool-hub-ops' "$RUN_DIR"/spl-deploy-{lag-alarm,failure-post,failure-poll}.func.sh \
   "$PROJ_ROOT/src/bash/scripts/spl-ops-alarm-cron.sh" 2>/dev/null)"
 eq "6. no spool-hub-ops literal in the deploy alarm posters" "" "$left"
+
+# 7. the weekly scan: the missed-week blocker is an alarm, the summary a report
+mkdir -p "$T/ws"
+out="$(WEEKLY_SCAN_DIR="$T/ws" DRY_RUN=1 \
+  WEEKLY_SCAN_CMD='echo "week 44 skipped" >"$WEEKLY_SCAN_DIR/$WEEKLY_SCAN_DATE.missed.txt"; echo ok >"$WEEKLY_SCAN_DIR/$WEEKLY_SCAN_DATE.summary.txt"' \
+  bash "$REPO/csi-spl-iac/src/bash/scripts/weekly-full-scan-cron.sh" 2>&1)"
+grep -q '^DRY_RUN would post a blocker to #alerts: week 44 skipped$' <<<"$out" &&
+  pass "7. the weekly scan's missed-week blocker goes to #alerts" || fail "7. missed-week blocker" "$out"
+grep -q 'summary.txt to #spool-hub-ops of t1' <<<"$out" &&
+  pass "7. the weekly scan summary stays on #spool-hub-ops" || fail "7. weekly summary" "$out"
 
 echo "ops-alarm-channel: $fails failure(s)"
 [ "$fails" -eq 0 ]

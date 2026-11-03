@@ -4,7 +4,8 @@
 # time, the night, by spec 166 row B7). It runs
 # do_check_weekly_full_scan (every scanner, whole scope, csi-spl + csi-web) and
 # posts the short summary to #spool-hub-ops as the seated CI ops desk, only so
-# the result is visible: no triage, no issues.
+# the result is visible: no triage, no issues. A skipped week is an alarm: its
+# blocker goes to cnf env.ops_alarms.channel (#alerts, SPL-4700), not --channel.
 #
 #   weekly-full-scan-cron.sh [--tenant t1] [--agent c-685] [--box box-ci]
 #                            [--channel spool-hub-ops]
@@ -19,6 +20,9 @@ ROOT="$(cd "$HERE/../../../.." && pwd)"          # .../csi-spl-iac -> repo root
 # SPL_OPS_AGENT, the CI ops desk's id: its one home.
 # shellcheck source=../../../../csi-spl-orc/lib/bash/funcs/spl-desk-agents.func.sh
 . "$ROOT/csi-spl-orc/lib/bash/funcs/spl-desk-agents.func.sh"
+# spl_ops_alarm_channel: the missed-week blocker's channel (SPL-4700).
+# shellcheck source=../../../../csi-spl-orc/lib/bash/funcs/spl-ops-alarm-channel.func.sh
+. "$ROOT/csi-spl-orc/lib/bash/funcs/spl-ops-alarm-channel.func.sh"
 
 TENANT="t1" AGENT="$SPL_OPS_AGENT" BOX="box-ci" CHANNEL="spool-hub-ops"
 while [ "$#" -gt 0 ]; do
@@ -48,23 +52,27 @@ flock -n 9 || { echo "weekly-full-scan-cron: another scan holds the lock"; exit 
 
 date="$(date +%F)"
 echo "== weekly full scan $(date -Is) DRY_RUN=$DRY_RUN"
-( cd "$ROOT/csi-spl-iac" && DRY_RUN="$DRY_RUN" WEEKLY_SCAN_DIR="$dir" WEEKLY_SCAN_DATE="$date" \
-    ./run -a do_check_weekly_full_scan ) || { echo "weekly-full-scan-cron: the scan failed"; exit 1; }
+# WEEKLY_SCAN_CMD replaces the scan (tests); it runs in csi-spl-iac.
+( cd "$ROOT/csi-spl-iac" && export DRY_RUN WEEKLY_SCAN_DIR="$dir" WEEKLY_SCAN_DATE="$date" \
+    && eval "${WEEKLY_SCAN_CMD:-./run -a do_check_weekly_full_scan}" ) || { echo "weekly-full-scan-cron: the scan failed"; exit 1; }
 
 summary="$dir/$date.summary.txt"
 missed="$dir/$date.missed.txt"
-post() {  # <kind> <body>
-  ( cd "$ROOT/csi-spl-orc" && TENANT_ID="$TENANT" DESK_AGENT="$AGENT" DESK_BOX="$BOX" DESK_CHANNEL="$CHANNEL" \
-      DESK_KIND="$1" DESK_BODY="$2" DRY_RUN=0 ./run -a do_spl_desk_post )
+post() {  # <channel> <kind> <body>
+  ( cd "$ROOT/csi-spl-orc" && TENANT_ID="$TENANT" DESK_AGENT="$AGENT" DESK_BOX="$BOX" DESK_CHANNEL="$1" \
+      DESK_KIND="$2" DESK_BODY="$3" DRY_RUN=0 ./run -a do_spl_desk_post )
 }
+alarm_channel=""
+[ -s "$missed" ] && alarm_channel="$(spl_ops_alarm_channel)"
 if [ "$DRY_RUN" != 0 ]; then
-  [ -s "$missed" ] && echo "DRY_RUN would post a blocker: $(<"$missed")"
+  [ -s "$missed" ] && echo "DRY_RUN would post a blocker to #${alarm_channel:-?}: $(<"$missed")"
   echo "DRY_RUN would post $summary to #$CHANNEL of $TENANT as $AGENT on $BOX"
   exit 0
 fi
-# a skipped week first, as its own one-line blocker
-[ -s "$missed" ] && { post blocker "$(<"$missed")" || echo "weekly-full-scan-cron: the missed-week alert failed"; }
+# a skipped week first, as its own one-line blocker, in the ops alarm channel
+[ -s "$missed" ] && { { [ -n "$alarm_channel" ] && post "$alarm_channel" blocker "$(<"$missed")"; } \
+  || echo "weekly-full-scan-cron: the missed-week alert failed"; }
 [ -s "$summary" ] || { echo "weekly-full-scan-cron: no summary at $summary"; exit 1; }
-post note "$(<"$summary")" \
+post "$CHANNEL" note "$(<"$summary")" \
   || { echo "weekly-full-scan-cron: the post failed (the report is still at ${summary%.summary.txt}.md)"; exit 1; }
 echo "== posted $summary"

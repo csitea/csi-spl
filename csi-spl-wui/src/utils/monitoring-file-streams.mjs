@@ -3,8 +3,8 @@
 // Spec 160 3.5 (SPL-3888, row B5; the list, SPL-4124 row B8): Monitoring ->
 // File streams, every box's followed files as a list, each with its own
 // tail -f button that opens that file live. The page (pages/monitoring/file-streams/index.vue) and the
-// lazy client (spool-client-lazy.mjs getFileStreams / getFileStreamLines)
-// are the only importers: this module never reaches the initial bundle.
+// lazy client (spool-client-lazy.mjs getFileStreams / getFileStreamLines /
+// fileStreamGlobs) are the only importers: this module never reaches the initial bundle.
 // The routes (3.4): GET /v1/view/file-streams and
 // GET /v1/view/file-streams/{id}/lines?after=|before=&limit=, for the
 // workspace's owner or an admin; anyone else gets 403.
@@ -51,9 +51,123 @@ export function fileStreamBoxes(streams) {
   return [...new Set((streams || []).map((s) => s.boxId))]
 }
 
-/** The list (C39): one group per box, in order, its streams by key. */
-export function fileStreamGroupsOf(streams) {
-  return fileStreamBoxes(streams).map((boxId) => ({ boxId, streams: streams.filter((s) => s.boxId === boxId) }))
+/**
+ * The list (C39): one group per box, in order, its streams by key. With the
+ * glob list (3.8, row B12) a box that has only globs or announced folders
+ * is a group too, and each group carries its globs and folders.
+ * @param {ReturnType<typeof fileStreamsOf>} streams
+ * @param {ReturnType<typeof fileStreamGlobsOf>} [globs]
+ */
+export function fileStreamGroupsOf(streams, globs = { globs: [], folders: [] }) {
+  const gl = globs || { globs: [], folders: [] }
+  const boxes = [...new Set([...fileStreamBoxes(streams), ...gl.globs.map((g) => g.boxId), ...gl.folders.map((f) => f.boxId)])].sort()
+  return boxes.map((boxId) => ({
+    boxId,
+    streams: (streams || []).filter((s) => s.boxId === boxId),
+    globs: gl.globs.filter((g) => g.boxId === boxId),
+    folders: gl.folders.filter((f) => f.boxId === boxId),
+  }))
+}
+
+/* ---- file globs typed in the page (spec 160 3.8, row B12, SPL-4695) ---- */
+// The routes (3.8.3, built in row B9): GET /v1/view/file-streams/globs,
+// POST /v1/file-streams/globs {box_id, key, glob}, DELETE
+// /v1/file-streams/globs/{id}, GET /v1/view/file-streams/globs/audit, behind
+// the read routes' gate (owner or admin of the workspace). The hub only
+// checks, stores and audits a glob; the box expands it (row B10). A glob's
+// state comes only from the box's announce: `pending` until the box reports
+// it, so the page never says "following" before the box does (3.8.1).
+
+/** The glob states (3.8.6) and pending (stored, not yet reported by the box). */
+export const FS_GLOB_STATES = Object.freeze(['pending', 'following', 'partial', 'none', 'refused'])
+/** The hub's refusal codes of an add or a remove that have their own sentence (3.8.3, 3.8.8). */
+export const FS_GLOB_ERRORS = Object.freeze(['bad_glob', 'bad_key', 'outside_folders', 'glob_key_taken', 'too_many_globs', 'box_locked', 'not_found', 'forbidden'])
+/** The audit actions (3.8.9). */
+export const FS_GLOB_ACTIONS = Object.freeze(['add', 'remove', 'refused'])
+/** A glob's key (3.8.3): 24 at most, so a match key fits 3.2's 32. */
+const FS_GLOB_KEY_RE = /^[a-z0-9][a-z0-9-]{0,23}$/
+/** The audit rows the page shows (3.8.9: the newest 50). */
+export const FS_GLOB_AUDIT_PAGE = 50
+
+const int0 = (v) => (Number.isSafeInteger(v) && v > 0 ? v : 0)
+const str = (v) => (typeof v === 'string' ? v : '')
+
+/**
+ * GET /v1/view/file-streams/globs -> the live globs (by box, then key) and
+ * the folders each box announced (by box, then path); a row without an id
+ * or a box is dropped. An unknown state reads as pending: never following.
+ * @param {unknown} body
+ */
+export function fileStreamGlobsOf(body) {
+  const b = /** @type {any} */ (body && typeof body === 'object' ? body : {})
+  const globs = (Array.isArray(b.globs) ? b.globs : [])
+    .filter((g) => g && typeof g.id === 'string' && g.id && BOX_RE.test(String(g.box_id || '')))
+    .map((g) => ({
+      id: String(g.id),
+      boxId: String(g.box_id),
+      key: str(g.key),
+      glob: str(g.glob),
+      state: FS_GLOB_STATES.includes(g.state) ? String(g.state) : 'pending',
+      reason: str(g.reason),
+      matched: int0(g.matched),
+      followed: int0(g.followed),
+      overCap: int0(g.over_cap),
+      reportedAt: str(g.reported_at),
+      createdAt: str(g.created_at),
+    }))
+    .sort((x, y) => (x.boxId === y.boxId ? x.key.localeCompare(y.key) : x.boxId.localeCompare(y.boxId)))
+  const folders = (Array.isArray(b.folders) ? b.folders : [])
+    .filter((f) => f && BOX_RE.test(String(f.box_id || '')) && typeof f.path === 'string' && f.path)
+    .map((f) => ({ boxId: String(f.box_id), path: String(f.path), state: f.state === 'allowed' ? 'allowed' : 'refused', reason: str(f.reason) }))
+    .sort((x, y) => (x.boxId === y.boxId ? x.path.localeCompare(y.path) : x.boxId.localeCompare(y.boxId)))
+  return { globs, folders }
+}
+
+/** The text key of a glob's state (3.8.6); pending for anything else. */
+export function fileStreamGlobStateKey(state) {
+  return 'monitoring.file_streams.glob.state.' + (FS_GLOB_STATES.includes(state) ? state : 'pending')
+}
+
+/** Whether a glob row shows "N of M matches followed": only once the box reported matches. */
+export function fileStreamGlobCounted(g) {
+  return Boolean(g) && (g.state === 'following' || g.state === 'partial') && g.matched > 0
+}
+
+/**
+ * The POST body of an add (C55): {box_id, key, glob} and nothing else; the
+ * key trimmed, the glob as typed (the hub and the box check it).
+ */
+export function fileStreamGlobBody(boxId, key, glob) {
+  return { box_id: String(boxId || ''), key: String(key || '').trim(), glob: String(glob ?? '') }
+}
+
+/** The text key of a refused add or remove: its code's sentence, else the generic one. */
+export function fileStreamGlobErrorKey(err) {
+  const e = /** @type {any} */ (err || {})
+  const code = typeof e.token === 'string' && FS_GLOB_ERRORS.includes(e.token) ? e.token : e.status === 403 ? 'forbidden' : e.status === 404 ? 'not_found' : 'other'
+  return 'monitoring.file_streams.glob.err.' + code
+}
+
+/**
+ * GET .../globs/audit -> the rows, newest first, and the next page's before.
+ * @param {unknown} body
+ */
+export function fileStreamGlobAuditOf(body) {
+  const b = /** @type {any} */ (body && typeof body === 'object' ? body : {})
+  const rows = (Array.isArray(b.audit) ? b.audit : [])
+    .filter((a) => a && typeof a.id === 'string' && a.id && FS_GLOB_ACTIONS.includes(a.action))
+    .map((a) => ({ id: String(a.id), globId: str(a.glob_id), boxId: str(a.box_id), action: String(a.action), key: str(a.key), glob: str(a.glob), actor: str(a.actor), reason: str(a.reason), at: str(a.at) }))
+    .sort((x, y) => (x.at < y.at ? 1 : x.at > y.at ? -1 : 0))
+  return { rows, nextBefore: str(b.next_before) }
+}
+
+/** The query of an audit page (?before=&limit=). */
+export function fileStreamGlobAuditQuery(q = {}) {
+  const p = new URLSearchParams()
+  if (q.before) p.set('before', String(q.before))
+  if (q.limit) p.set('limit', String(q.limit))
+  const s = p.toString()
+  return s ? '?' + s : ''
 }
 
 /**
@@ -192,4 +306,144 @@ export function mockFileStreamLines(id, q = {}, now = Date.now()) {
       text: marker ? `[rotated] ${key}.log` : `${s % 7 === 0 ? 'WARN' : 'INFO'} ${key} mock line ${s}` })
   }
   return { lines }
+}
+
+/* ---- the glob mock: the hub's checks of 3.8.3 over an in-page store ---- */
+
+export const FS_MOCK_GLOB_IDS = Object.freeze({ syslog: '1a6b3d2f-7c8e-4f90-8a1b-2c3d4e5f6a70', web: '1a6b3d2f-7c8e-4f90-8a1b-2c3d4e5f6a71' })
+const FS_MOCK_GLOBS_PER_BOX = 8
+let mockGlobs = null
+
+/** The mock's folders (as two boxes would announce them) and two globs: one the box reported, one pending. */
+function mockGlobState(now) {
+  if (mockGlobs) return mockGlobs
+  const at = new Date(now).toISOString()
+  mockGlobs = {
+    seq: 0,
+    folders: [
+      { box_id: 'box-a', path: '/var/csi/csi-spl', state: 'allowed', reason: '', reported_at: at },
+      { box_id: 'box-a', path: '/var/log', state: 'allowed', reason: '', reported_at: at },
+      { box_id: 'box-a', path: '/etc', state: 'refused', reason: 'fewer than two segments', reported_at: at },
+      { box_id: 'box-b', path: '/var/log', state: 'allowed', reason: '', reported_at: at },
+    ],
+    globs: [
+      { id: FS_MOCK_GLOB_IDS.syslog, box_id: 'box-a', key: 'syslog', glob: '/var/log/*.log', created_by: 'HUM-1', created_at: at,
+        state: 'partial', reason: '', matched: 12, followed: 5, over_cap: 7, reported_at: at, removed: false },
+      { id: FS_MOCK_GLOB_IDS.web, box_id: 'box-b', key: 'web-old', glob: '/var/log/web/*.log', created_by: 'HUM-1', created_at: at,
+        state: 'pending', reason: '', matched: 0, followed: 0, over_cap: 0, reported_at: null, removed: false },
+    ],
+    audit: [],
+  }
+  for (const g of mockGlobs.globs) mockAudit(mockGlobs, { glob_id: g.id, box_id: g.box_id, action: 'add', key: g.key, glob: g.glob, reason: '' }, now - 60000)
+  return mockGlobs
+}
+
+function mockAudit(st, row, now) {
+  st.seq += 1
+  st.audit.push({ id: `2b7c4e3a-8d9f-4a01-9b2c-${String(st.seq).padStart(12, '0')}`, actor: 'HUM-1', glob_id: '', ...row, at: new Date(now).toISOString() })
+}
+
+const mockErr = (status, token, detail) => Object.assign(new Error(detail), { status, token, detail })
+
+/** wire.CheckFileStreamGlob (3.8.3) in the mock: '' when the glob passes, else why. */
+export function mockGlobSyntax(g) {
+  const s = String(g ?? '')
+  if (!s || new TextEncoder().encode(s).length > 512) return 'a glob is 1..512 bytes'
+  if (/\p{Cc}/u.test(s)) return 'a glob is one line with no control character'
+  if (/[[{]/.test(s)) return "'[' and '{' are not glob syntax here"
+  if (s.includes('**')) return "'**' is refused"
+  const rest = s.startsWith('$HOME/') ? s.slice(6) : s.startsWith('/') ? s.slice(1) : null
+  if (rest === null) return 'a glob is absolute or starts $HOME/'
+  const segs = rest.split('/')
+  for (let i = 0; i < segs.length; i++) {
+    if (segs[i] === '' || segs[i] === '.' || segs[i] === '..') return "no empty, '.' or '..' segment"
+    if (i < segs.length - 1 && /[*?]/.test(segs[i])) return "'*' and '?' only in the last segment"
+  }
+  return ''
+}
+
+/** wire.FileStreamGlobUnder: the glob's literal directory is the folder or under it. */
+function mockGlobUnder(g, folder) {
+  const i = g.lastIndexOf('/')
+  const dir = i <= 0 ? '/' : g.slice(0, i)
+  const f = folder.replace(/\/+$/, '')
+  return Boolean(f) && (dir === f || dir.startsWith(f + '/'))
+}
+
+/** The mock's GET /v1/view/file-streams/globs. */
+export function mockFileStreamGlobs(now = Date.now()) {
+  const st = mockGlobState(now)
+  return {
+    globs: st.globs.filter((g) => !g.removed).map(({ removed: _removed, ...g }) => g),
+    folders: st.folders.map((f) => ({ ...f })),
+  }
+}
+
+/** The hub's refusal of an add, in its order (3.8.3, 5.10), or null. */
+function mockGlobRefusal(st, b) {
+  const box = String(b.box_id || '')
+  const live = st.globs.filter((g) => !g.removed && g.box_id === box)
+  const allowed = st.folders.filter((f) => f.box_id === box && f.state === 'allowed').map((f) => f.path)
+  const syntax = mockGlobSyntax(b.glob)
+  if (syntax) return [400, 'bad_glob', syntax]
+  if (!FS_GLOB_KEY_RE.test(String(b.key || ''))) return [400, 'bad_key', 'key must match ' + FS_GLOB_KEY_RE.source]
+  if (!allowed.some((f) => mockGlobUnder(String(b.glob), f))) return [400, 'outside_folders', `the glob's directory is under none of the box's allowed folders (${allowed.join(', ') || 'none'})`]
+  if (live.some((g) => g.key === b.key)) return [409, 'glob_key_taken', 'a live glob of this box has that key']
+  if (live.length >= FS_MOCK_GLOBS_PER_BOX) return [409, 'too_many_globs', `the box holds ${FS_MOCK_GLOBS_PER_BOX} live globs, its cap`]
+  return null
+}
+
+/**
+ * The mock's POST /v1/file-streams/globs: the body exactly {box_id, key,
+ * glob} (the hub's strict decoder), a box of the mock, then the checks.
+ * Every refusal but bad_key is an audit row. `json` is the body as sent.
+ * @param {string} json
+ */
+export function mockAddFileStreamGlob(json, now = Date.now()) {
+  const st = mockGlobState(now)
+  /* the bodies as sent, for the e2e (C55: {box_id, key, glob} only) */
+  const rec = /** @type {{ SPOOL_MOCK_FS_GLOB_POSTS?: string[] }} */ (globalThis)
+  rec.SPOOL_MOCK_FS_GLOB_POSTS = [...(rec.SPOOL_MOCK_FS_GLOB_POSTS || []), String(json)]
+  let b = null
+  try { b = JSON.parse(String(json)) } catch { /* below */ }
+  if (!b || typeof b !== 'object' || Object.keys(b).some((k) => !['box_id', 'key', 'glob'].includes(k))) {
+    throw mockErr(400, 'bad_request', 'invalid JSON body (expected {"box_id", "key", "glob"})')
+  }
+  const box = String(b.box_id || '')
+  if (!st.folders.some((f) => f.box_id === box)) throw mockErr(404, 'not_found', 'no such box among this workspace\'s file streams')
+  const why = mockGlobRefusal(st, b)
+  if (why) {
+    if (why[1] !== 'bad_key') mockAudit(st, { box_id: box, action: 'refused', key: String(b.key || ''), glob: String(b.glob || ''), reason: why[1] }, now)
+    throw mockErr(why[0], why[1], why[2])
+  }
+  st.seq += 1
+  const g = { id: `1a6b3d2f-7c8e-4f90-8a1b-${String(st.seq).padStart(12, '0')}`, box_id: box, key: String(b.key), glob: String(b.glob), created_by: 'HUM-1',
+    created_at: new Date(now).toISOString(), state: 'pending', reason: '', matched: 0, followed: 0, over_cap: 0, reported_at: null, removed: false }
+  st.globs.push(g)
+  mockAudit(st, { glob_id: g.id, box_id: box, action: 'add', key: g.key, glob: g.glob, reason: '' }, now)
+  const { removed: _removed, ...out } = g
+  return out
+}
+
+/** The mock's DELETE /v1/file-streams/globs/{id}: 404 for a glob not live, with no audit row (3.8.8). */
+export function mockRemoveFileStreamGlob(id, now = Date.now()) {
+  const st = mockGlobState(now)
+  const g = st.globs.find((x) => x.id === String(id) && !x.removed)
+  if (!g) throw mockErr(404, 'not_found', 'no such file glob')
+  g.removed = true
+  mockAudit(st, { glob_id: g.id, box_id: g.box_id, action: 'remove', key: g.key, glob: g.glob, reason: '' }, now)
+  return null
+}
+
+/** The mock's GET .../globs/audit: newest first, limit (default 50), before. */
+export function mockFileStreamGlobAudit(q = {}, now = Date.now()) {
+  const st = mockGlobState(now)
+  const limit = Math.min(Math.max(Number(q.limit) || FS_GLOB_AUDIT_PAGE, 1), 500)
+  const page = [...st.audit].reverse().filter((a) => !q.before || a.at < q.before).slice(0, limit)
+  return { audit: page, ...(page.length === limit ? { next_before: page[limit - 1].at } : {}) }
+}
+
+/** Forget the mock's globs (a unit test's fresh start). */
+export function mockFileStreamGlobsReset() {
+  mockGlobs = null
 }

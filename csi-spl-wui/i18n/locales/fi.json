@@ -3451,7 +3451,53 @@
       "tail": "tail -f",
       "tail_title": "Seuraa tiedostoa {file} reaaliajassa",
       "last_line": "Viimeisin rivi: {at}",
-      "lines_total": "{n} rivi | {n} riviä"
+      "lines_total": "{n} rivi | {n} riviä",
+      "glob": {
+        "title": "Tiedostomallit (glob)",
+        "folders": "Sallitut kansiot: {list}",
+        "no_folders": "Tämä kone ei ole vielä ilmoittanut sallittuja kansioita.",
+        "none": "Tällä koneella ei ole tiedostomalleja.",
+        "add": "Lisää tiedostomalli",
+        "key": "Avain",
+        "key_hint": "Pieniä kirjaimia, numeroita ja yhdysmerkkejä, enintään 24.",
+        "glob": "Malli",
+        "glob_hint": "Absoluuttinen polku tai polku $HOME/-kansion alla, * ja ? vain tiedostonimessä.",
+        "submit": "Lisää",
+        "adding": "Lisätään…",
+        "cancel": "Peruuta",
+        "remove": "Poista",
+        "keep": "Säilytä",
+        "remove_ask": "Poistetaanko malli {key}? Kone lopettaa sen tiedostojen seuraamisen.",
+        "matches": "{followed}/{matched} osumaa seurannassa",
+        "over_cap": "Ei seurata, koneen virtaraja on täynnä: {n}",
+        "reason": "Syy: {reason}",
+        "unavailable": "Tiedostomalleja ei voitu ladata.",
+        "audit_title": "Mallien muutokset",
+        "audit_none": "Malleihin ei ole vielä tehty muutoksia.",
+        "state": {
+          "pending": "Tallennettu, ei vielä seurannassa: kone ei ole ilmoittanut siitä",
+          "following": "Seurannassa",
+          "partial": "Osittain seurannassa",
+          "none": "Ei vielä osuvaa tiedostoa",
+          "refused": "Kone hylkäsi"
+        },
+        "audit": {
+          "add": "Lisätty",
+          "remove": "Poistettu",
+          "refused": "Hylätty"
+        },
+        "err": {
+          "bad_glob": "Virheellinen malli: absoluuttinen polku tai polku $HOME/-kansion alla, * ja ? vain tiedostonimessä, ei hakasulkeita, aaltosulkeita, ** eikä osia . tai ..",
+          "bad_key": "Virheellinen avain: pieniä kirjaimia, numeroita ja yhdysmerkkejä, enintään 24.",
+          "outside_folders": "Mallin kansio ei ole minkään tämän koneen sallitun kansion alla.",
+          "glob_key_taken": "Tällä koneella on jo malli tällä avaimella.",
+          "too_many_globs": "Tällä koneella on jo suurin sallittu määrä malleja.",
+          "box_locked": "Tämä kone on lukittu: vain lukituksen omistajat voivat lisätä mallin.",
+          "not_found": "Konetta tai mallia ei enää ole. Lataa sivu uudelleen.",
+          "forbidden": "Vain työtilan omistaja ja ylläpitäjät voivat muuttaa tiedostomalleja.",
+          "other": "Muutosta ei voitu tallentaa. Yritä uudelleen."
+        }
+      }
     }
   },
   "takeover": {

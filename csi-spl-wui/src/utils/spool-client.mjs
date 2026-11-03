@@ -74,6 +74,7 @@ const LAZY_METHODS = [
   'getFleetLanes',
   'getFileStreams',
   'getFileStreamLines',
+  'fileStreamGlobs',
   'reportingSql',
   'getFxCurrencies',
   'fleetPaid',

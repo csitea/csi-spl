@@ -1288,7 +1288,7 @@ Monitoring help page and B4 the syntax to the search help
 
 ### 5.9 Rows for answer B: web globs and the security files
 
-B9 is built (5.10), B11 is built (5.11), B10 is built (5.12); B12 planned, not built yet. The format of the rounds rulebook
+B9 is built (5.10), B11 is built (5.11), B10 is built (5.12), B12 is built (5.13). The format of the rounds rulebook
 (`csi-spl-doc/doc/md/rounds-rulebook.md` 3.1). Every site was read on
 origin/master `bf6991ecf`. Vendor: the data rule (a stream carries box
 logs: claude, grok or mistral, never agy or qwen) and the owner's rule of
@@ -1308,7 +1308,8 @@ the Monitoring help page (`csi-spl-doc/doc/help/`); each row ticks its
 status line here.
 
 Status: B9 built (SPL-4294, section 5.10). B11 built (SPL-4321, section
-5.11). B10 built (SPL-4694, section 5.12). B12 planned.
+5.11). B10 built (SPL-4694, section 5.12). B12 built
+(SPL-4695, section 5.13).
 
 ### 5.10 Row B9 as built (SPL-4294)
 
@@ -1425,6 +1426,37 @@ Status: B9 built (SPL-4294, section 5.10). B11 built (SPL-4321, section
   C54 (`no-folder-check`); each red on its planted defect, and each red on
   origin/master's follower, which pulls no glob. C49 uses the spool root
   rather than another home: a test cannot create a second user's home.
+
+### 5.13 Row B12 as built (SPL-4695)
+
+- `wui/utils/monitoring-file-streams.mjs`: `fileStreamGlobsOf` (the globs
+  by box then key, the folders by box then path; a state it does not know
+  reads `pending`, never `following`), `fileStreamGroupsOf` (a box with only
+  globs or announced folders is a group too), `fileStreamGlobBody` (the add
+  body, `{box_id, key, glob}` and nothing else), `fileStreamGlobErrorKey`
+  (a hub code's sentence, else the generic one), `fileStreamGlobAuditOf`.
+  The mock runs the hub's checks of 3.8.3 in the hub's order over an
+  in-page store (two boxes' folders, one glob the box reported `partial`
+  5 of 12, one `pending`), so the e2e meets real refusals.
+- `wui/utils/spool-client-lazy.mjs`: one method `fileStreamGlobs(op, arg)`
+  for the four routes (`list`, `add`, `remove`, `audit`), named once in
+  `spool-client.mjs` `LAZY_METHODS` (the row's sites did not name that file;
+  the lazy stub needs the name).
+- `wui/pages/monitoring/file-streams/index.vue`: under each box its globs,
+  each with the box's state, "N of M matches followed" once the box
+  reported matches, the over-cap count and the reason; Remove asks inline
+  (Remove / Keep) before the DELETE; the box's allowed folders; "Add a file
+  glob" (key, glob), a refusal shown as its code's sentence with the form
+  kept. Below the boxes, the newest 50 audit rows. Drawn only once the
+  globs route answered (the routes' gate, owner or admin), never on
+  operator status. A glob reads `pending` until its box reports it (B10, 5.12).
+- Text: 38 keys under `monitoring.file_streams.glob`, en and every locale;
+  the help page's tab table gains the File streams row with the glob form
+  (`csi-spl-doc/doc/help/monitoring.md`).
+- Tests: C55 in `tests/e2e/monitoring-file-streams.test.mjs` (mock bundle);
+  C56 in `tests/unit/monitoring-file-streams.test.mjs` (every key in every
+  locale, not English) beside `i18n-parity.test.mjs`. Each case's planted
+  defect and its red run are in the commit body.
 
 ## 6. Decisions (this draft; the reviewer may challenge each)
 

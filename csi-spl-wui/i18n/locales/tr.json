@@ -3451,7 +3451,53 @@
       "tail": "tail -f",
       "tail_title": "{file} dosyasını canlı izle",
       "last_line": "Son satır: {at}",
-      "lines_total": "{n} satır | {n} satır"
+      "lines_total": "{n} satır | {n} satır",
+      "glob": {
+        "title": "Dosya desenleri (glob)",
+        "folders": "İzin verilen klasörler: {list}",
+        "no_folders": "Bu kutu henüz izin verilen klasör bildirmedi.",
+        "none": "Bu kutuda dosya deseni yok.",
+        "add": "Dosya deseni ekle",
+        "key": "Anahtar",
+        "key_hint": "Küçük harfler, rakamlar ve kısa çizgiler, en fazla 24.",
+        "glob": "Desen",
+        "glob_hint": "Mutlak bir yol veya $HOME/ altında bir yol; * ve ? yalnızca dosya adında.",
+        "submit": "Ekle",
+        "adding": "Ekleniyor…",
+        "cancel": "İptal",
+        "remove": "Kaldır",
+        "keep": "Tut",
+        "remove_ask": "{key} deseni kaldırılsın mı? Kutu, dosyalarını izlemeyi bırakır.",
+        "matches": "{matched} eşleşmeden {followed} tanesi izleniyor",
+        "over_cap": "İzlenmiyor, kutunun akış sınırı dolu: {n}",
+        "reason": "Neden: {reason}",
+        "unavailable": "Dosya desenleri yüklenemedi.",
+        "audit_title": "Desen değişiklikleri",
+        "audit_none": "Henüz desen değişikliği yok.",
+        "state": {
+          "pending": "Kaydedildi, henüz izlenmiyor: kutu henüz bildirmedi",
+          "following": "İzleniyor",
+          "partial": "Kısmen izleniyor",
+          "none": "Henüz eşleşen dosya yok",
+          "refused": "Kutu tarafından reddedildi"
+        },
+        "audit": {
+          "add": "Eklendi",
+          "remove": "Kaldırıldı",
+          "refused": "Reddedildi"
+        },
+        "err": {
+          "bad_glob": "Geçersiz desen: mutlak bir yol veya $HOME/ altında bir yol; * ve ? yalnızca dosya adında; köşeli ve süslü parantez, ** veya . ve .. bölümleri yok.",
+          "bad_key": "Geçersiz anahtar: küçük harfler, rakamlar ve kısa çizgiler, en fazla 24.",
+          "outside_folders": "Desenin klasörü bu kutunun izin verilen klasörlerinin hiçbirinin altında değil.",
+          "glob_key_taken": "Bu kutuda bu anahtarla bir desen zaten var.",
+          "too_many_globs": "Bu kutu izin verilen en fazla desen sayısına ulaştı.",
+          "box_locked": "Bu kutu kilitli: yalnızca kilidin sahipleri desen ekleyebilir.",
+          "not_found": "Kutu veya desen artık yok. Sayfayı yeniden yükleyin.",
+          "forbidden": "Dosya desenlerini yalnızca çalışma alanının sahibi ve yöneticileri değiştirebilir.",
+          "other": "Değişiklik kaydedilemedi. Yeniden deneyin."
+        }
+      }
     }
   },
   "takeover": {

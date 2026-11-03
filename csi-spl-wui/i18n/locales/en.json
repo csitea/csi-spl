@@ -3451,7 +3451,53 @@
       "tail": "tail -f",
       "tail_title": "Follow {file} live",
       "last_line": "Last line: {at}",
-      "lines_total": "{n} line | {n} lines"
+      "lines_total": "{n} line | {n} lines",
+      "glob": {
+        "title": "File globs",
+        "folders": "Allowed folders: {list}",
+        "no_folders": "This box has announced no allowed folders yet.",
+        "none": "No file globs on this box.",
+        "add": "Add a file glob",
+        "key": "Key",
+        "key_hint": "Lower-case letters, digits and hyphens, at most 24.",
+        "glob": "Glob",
+        "glob_hint": "An absolute path or one under $HOME/, with * and ? in the file name only.",
+        "submit": "Add",
+        "adding": "Adding…",
+        "cancel": "Cancel",
+        "remove": "Remove",
+        "keep": "Keep",
+        "remove_ask": "Remove the glob {key}? The box stops following its files.",
+        "matches": "{followed} of {matched} matches followed",
+        "over_cap": "Not followed, the box's stream cap is full: {n}",
+        "reason": "Reason: {reason}",
+        "unavailable": "The file globs could not be loaded.",
+        "audit_title": "Glob changes",
+        "audit_none": "No glob changes yet.",
+        "state": {
+          "pending": "Stored, not followed yet: the box has not reported it",
+          "following": "Following",
+          "partial": "Partly followed",
+          "none": "No matching file yet",
+          "refused": "Refused by the box"
+        },
+        "audit": {
+          "add": "Added",
+          "remove": "Removed",
+          "refused": "Refused"
+        },
+        "err": {
+          "bad_glob": "Not a valid glob: an absolute path or one under $HOME/, * and ? in the file name only, no brackets, braces, ** or . and .. parts.",
+          "bad_key": "Not a valid key: lower-case letters, digits and hyphens, at most 24.",
+          "outside_folders": "The glob's folder is not under one of this box's allowed folders.",
+          "glob_key_taken": "This box already has a glob with that key.",
+          "too_many_globs": "This box already holds as many globs as it may.",
+          "box_locked": "This box is locked: only its lock owners can add a glob.",
+          "not_found": "The box or the glob is no longer there. Reload the page.",
+          "forbidden": "Only the workspace owner and admins can change file globs.",
+          "other": "The change could not be saved. Try again."
+        }
+      }
     }
   },
   "takeover": {

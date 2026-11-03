@@ -3451,7 +3451,53 @@
       "tail": "tail -f",
       "tail_title": "Śledź {file} na żywo",
       "last_line": "Ostatni wiersz: {at}",
-      "lines_total": "{n} wiersz | Wiersze: {n}"
+      "lines_total": "{n} wiersz | Wiersze: {n}",
+      "glob": {
+        "title": "Wzorce plików (glob)",
+        "folders": "Dozwolone foldery: {list}",
+        "no_folders": "Ta maszyna nie ogłosiła jeszcze dozwolonych folderów.",
+        "none": "Ta maszyna nie ma wzorców plików.",
+        "add": "Dodaj wzorzec plików",
+        "key": "Klucz",
+        "key_hint": "Małe litery, cyfry i łączniki, najwyżej 24.",
+        "glob": "Wzorzec",
+        "glob_hint": "Ścieżka bezwzględna lub ścieżka pod $HOME/, z * i ? tylko w nazwie pliku.",
+        "submit": "Dodaj",
+        "adding": "Dodawanie…",
+        "cancel": "Anuluj",
+        "remove": "Usuń",
+        "keep": "Zachowaj",
+        "remove_ask": "Usunąć wzorzec {key}? Maszyna przestanie śledzić jego pliki.",
+        "matches": "Śledzone dopasowania: {followed} z {matched}",
+        "over_cap": "Nieśledzone, limit strumieni maszyny jest pełny: {n}",
+        "reason": "Powód: {reason}",
+        "unavailable": "Nie udało się wczytać wzorców plików.",
+        "audit_title": "Zmiany wzorców",
+        "audit_none": "Nie ma jeszcze zmian wzorców.",
+        "state": {
+          "pending": "Zapisany, jeszcze nieśledzony: maszyna go nie zgłosiła",
+          "following": "Śledzony",
+          "partial": "Śledzony częściowo",
+          "none": "Brak pasującego pliku",
+          "refused": "Odrzucony przez maszynę"
+        },
+        "audit": {
+          "add": "Dodany",
+          "remove": "Usunięty",
+          "refused": "Odrzucony"
+        },
+        "err": {
+          "bad_glob": "Nieprawidłowy wzorzec: ścieżka bezwzględna lub pod $HOME/, * i ? tylko w nazwie pliku, bez nawiasów kwadratowych i klamrowych, ** ani części . i ..",
+          "bad_key": "Nieprawidłowy klucz: małe litery, cyfry i łączniki, najwyżej 24.",
+          "outside_folders": "Folder wzorca nie leży w żadnym z dozwolonych folderów tej maszyny.",
+          "glob_key_taken": "Ta maszyna ma już wzorzec z tym kluczem.",
+          "too_many_globs": "Ta maszyna ma już największą dozwoloną liczbę wzorców.",
+          "box_locked": "Ta maszyna jest zablokowana: wzorzec mogą dodać tylko właściciele blokady.",
+          "not_found": "Maszyny lub wzorca już nie ma. Odśwież stronę.",
+          "forbidden": "Wzorce plików mogą zmieniać tylko właściciel i administratorzy obszaru roboczego.",
+          "other": "Nie udało się zapisać zmiany. Spróbuj ponownie."
+        }
+      }
     }
   },
   "takeover": {

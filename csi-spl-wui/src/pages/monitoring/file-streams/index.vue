@@ -16,7 +16,15 @@
      (?seq=, spec 160 3.6) opens the view at that line with Follow off. The
      routes answer the workspace's owner or an admin only (3.4); anyone else
      reaching the URL sees the 403 as a sentence. The poll: every FS_POLL_MS
-     while the tab is visible, a file is open and not paused (decision D3). -->
+     while the tab is visible, a file is open and not paused (decision D3).
+     File globs (3.8, row B12, SPL-4695, owner answer B, poll 376e9435): under
+     each box its typed globs, each with the state only the box reports
+     (pending until it does: never "following" before the box says so) and
+     "N of M matches followed", a Remove that asks first, the folders the
+     box announced, and "Add a file glob" (key and glob; the hub's refusal
+     shown as its code's sentence). Below the boxes, the newest 50 glob
+     changes. Drawn for the workspace's owner or an admin only (the routes'
+     gate), never on operator status. -->
 <template>
   <div class="monitoring-file-streams" data-test="fs-page">
     <p v-if="state === 'loading'" class="muted" data-test="fs-loading">{{ t('monitoring.file_streams.loading') }}</p>
@@ -25,12 +33,14 @@
       {{ t('monitoring.file_streams.error') }}
       <button type="button" class="btn" data-test="fs-retry" @click="loadStreams()">{{ t('monitoring.tokens.retry') }}</button>
     </p>
-    <p v-else-if="streams.length === 0" class="muted" data-test="fs-none">{{ t('monitoring.file_streams.none') }}</p>
+    <p v-else-if="groups.length === 0" class="muted" data-test="fs-none">{{ t('monitoring.file_streams.none') }}</p>
 
     <template v-else>
+      <p v-if="streams.length === 0" class="muted" data-test="fs-none">{{ t('monitoring.file_streams.none') }}</p>
+      <p v-if="globsState === 'error'" class="fs-error" data-test="fs-globs-error">{{ t('monitoring.file_streams.glob.unavailable') }}</p>
       <section v-for="g in groups" :key="g.boxId" class="fs-group" :data-box="g.boxId" data-test="fs-group">
         <h3 class="fs-box-name">{{ g.boxId }}</h3>
-        <ul class="fs-rows">
+        <ul v-if="g.streams.length" class="fs-rows">
           <li v-for="s in g.streams" :key="s.id" class="fs-row" :class="{ 'fs-row-open': s.id === pick.id }" :data-stream="s.streamKey" data-test="fs-row">
             <div class="fs-row-head">
               <div class="fs-name">
@@ -72,6 +82,72 @@
             </div>
           </li>
         </ul>
+
+        <div v-if="canGlob" class="fs-globs" data-test="fs-globs">
+          <h4 class="fs-globs-title">{{ t('monitoring.file_streams.glob.title') }}</h4>
+          <p class="muted fs-folders" data-test="fs-glob-folders">
+            {{ allowedOf(g.folders).length ? t('monitoring.file_streams.glob.folders', { list: allowedOf(g.folders).join(', ') }) : t('monitoring.file_streams.glob.no_folders') }}
+          </p>
+          <ul v-if="g.globs.length" class="fs-rows">
+            <li v-for="x in g.globs" :key="x.id" class="fs-row fs-glob" :data-glob="x.key" data-test="fs-glob">
+              <div class="fs-row-head">
+                <div class="fs-name">
+                  <span class="fs-key">{{ x.key }}</span>
+                  <code class="fs-path" data-test="fs-glob-text">{{ x.glob }}</code>
+                </div>
+                <span class="fs-state" :class="{ 'fs-state-off': x.state !== 'following' }" :data-state="x.state" data-test="fs-glob-state">{{ t(fileStreamGlobStateKey(x.state)) }}</span>
+                <span v-if="fileStreamGlobCounted(x)" class="fs-meta muted" data-test="fs-glob-matches">
+                  {{ t('monitoring.file_streams.glob.matches', { followed: x.followed, matched: x.matched }) }}
+                </span>
+                <span v-if="fileStreamGlobCounted(x) && x.overCap" class="fs-meta muted" data-test="fs-glob-over-cap">{{ t('monitoring.file_streams.glob.over_cap', { n: x.overCap }) }}</span>
+                <span v-if="x.reason" class="fs-meta muted" data-test="fs-glob-reason">{{ t('monitoring.file_streams.glob.reason', { reason: x.reason }) }}</span>
+                <button v-if="asking !== x.id" type="button" class="btn" data-test="fs-glob-remove" @click="askRemove(x.id)">{{ t('monitoring.file_streams.glob.remove') }}</button>
+              </div>
+              <div v-if="asking === x.id" class="fs-ask" role="alertdialog" :aria-label="t('monitoring.file_streams.glob.remove_ask', { key: x.key })" data-test="fs-glob-confirm">
+                <span>{{ t('monitoring.file_streams.glob.remove_ask', { key: x.key }) }}</span>
+                <button type="button" class="btn" :disabled="busy" data-test="fs-glob-remove-yes" @click="removeGlob(x.id)">{{ t('monitoring.file_streams.glob.remove') }}</button>
+                <button type="button" class="btn" data-test="fs-glob-remove-no" @click="asking = ''">{{ t('monitoring.file_streams.glob.keep') }}</button>
+              </div>
+              <p v-if="rowErr.id === x.id" class="fs-error" :data-code="rowErr.code" data-test="fs-glob-row-error">{{ t(rowErr.key) }}</p>
+            </li>
+          </ul>
+          <p v-else class="muted" data-test="fs-glob-none">{{ t('monitoring.file_streams.glob.none') }}</p>
+
+          <button v-if="adding !== g.boxId" type="button" class="btn fs-glob-add" data-test="fs-glob-add" @click="openAdd(g.boxId)">{{ t('monitoring.file_streams.glob.add') }}</button>
+          <form v-else class="fs-glob-form" :aria-label="t('monitoring.file_streams.glob.add')" data-test="fs-glob-form" @submit.prevent="addGlob(g.boxId)">
+            <label class="fs-field">
+              <span>{{ t('monitoring.file_streams.glob.key') }}</span>
+              <input v-model="form.key" type="text" maxlength="24" autocomplete="off" spellcheck="false" required data-test="fs-glob-key">
+              <small class="muted">{{ t('monitoring.file_streams.glob.key_hint') }}</small>
+            </label>
+            <label class="fs-field fs-glob-field">
+              <span>{{ t('monitoring.file_streams.glob.glob') }}</span>
+              <input v-model="form.glob" type="text" maxlength="512" autocomplete="off" spellcheck="false" required data-test="fs-glob-glob">
+              <small class="muted">{{ t('monitoring.file_streams.glob.glob_hint') }}</small>
+            </label>
+            <div class="fs-bar">
+              <button type="submit" class="btn" :disabled="busy" data-test="fs-glob-submit">{{ busy ? t('monitoring.file_streams.glob.adding') : t('monitoring.file_streams.glob.submit') }}</button>
+              <button type="button" class="btn" data-test="fs-glob-cancel" @click="adding = ''">{{ t('monitoring.file_streams.glob.cancel') }}</button>
+            </div>
+            <p v-if="formErr.key" class="fs-error" role="alert" :data-code="formErr.code" data-test="fs-glob-error">{{ t(formErr.key) }}</p>
+          </form>
+        </div>
+      </section>
+
+      <section v-if="canGlob" class="fs-audit" data-test="fs-audit">
+        <h3 class="fs-box-name">{{ t('monitoring.file_streams.glob.audit_title') }}</h3>
+        <p v-if="audit.length === 0" class="muted" data-test="fs-audit-none">{{ t('monitoring.file_streams.glob.audit_none') }}</p>
+        <ul v-else class="fs-audit-rows">
+          <li v-for="a in audit" :key="a.id" class="fs-audit-row" :data-action="a.action" data-test="fs-audit-row">
+            <span class="muted" :title="a.at">{{ isoDateTime(a.at) }}</span>
+            <span>{{ a.boxId }}</span>
+            <span class="fs-audit-action">{{ t('monitoring.file_streams.glob.audit.' + a.action) }}</span>
+            <span class="fs-key">{{ a.key }}</span>
+            <code class="fs-path">{{ a.glob }}</code>
+            <span class="muted">{{ a.actor }}</span>
+            <code v-if="a.reason" class="fs-state" data-test="fs-audit-reason">{{ a.reason }}</code>
+          </li>
+        </ul>
       </section>
     </template>
   </div>
@@ -83,16 +159,21 @@ import { useAccessStore } from '~/stores/access'
 import { gateMe, staffReadable } from '~/utils/read-gates.mjs'
 import { isoDateTime } from '~/utils/date-iso.mjs'
 import {
-  FS_FIRST, FS_PAGE, atBottom, fileStreamGroupsOf, fileStreamLinesOf, fileStreamOpenOf, fileStreamQuery, fileStreamsOf,
+  FS_FIRST, FS_GLOB_AUDIT_PAGE, FS_PAGE, atBottom, fileStreamGlobAuditOf, fileStreamGlobCounted, fileStreamGlobErrorKey, fileStreamGlobStateKey,
+  fileStreamGlobsOf, fileStreamGroupsOf, fileStreamLinesOf, fileStreamOpenOf, fileStreamQuery, fileStreamsOf,
   filterFileStreamLines, lastSeqOf, mergeFileStreamLines, startFileStreamPoll,
 } from '~/utils/monitoring-file-streams.mjs'
 
 type FsApi = {
   getFileStreams: () => Promise<unknown>
   getFileStreamLines: (id: string, q?: { after?: number, before?: number, limit?: number }) => Promise<unknown>
+  fileStreamGlobs: (op: 'list' | 'add' | 'remove' | 'audit', arg?: unknown) => Promise<unknown>
 }
 type Stream = ReturnType<typeof fileStreamsOf>[number]
 type Line = ReturnType<typeof fileStreamLinesOf>[number]
+type Globs = ReturnType<typeof fileStreamGlobsOf>
+type Folder = Globs['folders'][number]
+type AuditRow = ReturnType<typeof fileStreamGlobAuditOf>['rows'][number]
 
 const { t } = useI18n({ useScope: 'global' })
 const route = useRoute()
@@ -112,7 +193,18 @@ const hitSeq = ref(0)
 const viewRefs = ref<HTMLElement[] | HTMLElement | null>(null)
 const viewEl = computed<HTMLElement | null>(() => (Array.isArray(viewRefs.value) ? viewRefs.value[0] || null : viewRefs.value))
 
-const groups = computed(() => fileStreamGroupsOf(streams.value))
+const globs = ref<Globs>({ globs: [], folders: [] })
+const globsState = ref<'off' | 'ok' | 'error'>('off')
+const audit = ref<AuditRow[]>([])
+const adding = ref('')
+const asking = ref('')
+const busy = ref(false)
+const form = ref({ key: '', glob: '' })
+const formErr = ref({ key: '', code: '' })
+const rowErr = ref({ id: '', key: '', code: '' })
+/* the glob form: only once the globs route answered this owner or admin (3.8.3's gate), never on operator status (C55) */
+const canGlob = computed(() => state.value === 'ok' && globsState.value === 'ok')
+const groups = computed(() => fileStreamGroupsOf(streams.value, globs.value))
 const shown = computed(() => filterFileStreamLines(lines.value, find.value))
 
 /* a stale answer (the pick changed meanwhile) is dropped */
@@ -131,11 +223,72 @@ async function loadStreams() {
       return
     }
     streams.value = fileStreamsOf(await api().getFileStreams())
+    await loadGlobs()
     state.value = 'ok'
     await openPick(fileStreamOpenOf(route.query, streams.value))
   } catch (e) {
     failed(e)
   }
+}
+
+/** The globs, the boxes' folders and the newest audit rows; a failure hides the form and says so, the streams stay. */
+async function loadGlobs() {
+  try {
+    const [list, rows] = await Promise.all([api().fileStreamGlobs('list'), api().fileStreamGlobs('audit', { limit: FS_GLOB_AUDIT_PAGE })])
+    globs.value = fileStreamGlobsOf(list)
+    audit.value = fileStreamGlobAuditOf(rows).rows
+    globsState.value = 'ok'
+  } catch {
+    globsState.value = 'error'
+  }
+}
+
+function allowedOf(folders: Folder[]) {
+  return folders.filter((f) => f.state === 'allowed').map((f) => f.path)
+}
+
+function openAdd(boxId: string) {
+  adding.value = boxId
+  form.value = { key: '', glob: '' }
+  formErr.value = { key: '', code: '' }
+}
+
+const codeOf = (e: unknown) => String((e as { token?: string })?.token || (e as { status?: number })?.status || '')
+
+/** Add a glob (C55): the body is {box_id, key, glob}; a refusal shows its code's sentence, the form stays. */
+async function addGlob(boxId: string) {
+  if (busy.value) return
+  busy.value = true
+  formErr.value = { key: '', code: '' }
+  try {
+    await api().fileStreamGlobs('add', { boxId, key: form.value.key, glob: form.value.glob })
+    adding.value = ''
+  } catch (e) {
+    formErr.value = { key: fileStreamGlobErrorKey(e), code: codeOf(e) }
+  } finally {
+    busy.value = false
+  }
+  await loadGlobs()
+}
+
+function askRemove(id: string) {
+  asking.value = id
+  rowErr.value = { id: '', key: '', code: '' }
+}
+
+/** Remove a glob after the reader said yes: DELETE, then the list again. */
+async function removeGlob(id: string) {
+  if (busy.value) return
+  busy.value = true
+  try {
+    await api().fileStreamGlobs('remove', id)
+    asking.value = ''
+  } catch (e) {
+    rowErr.value = { id, key: fileStreamGlobErrorKey(e), code: codeOf(e) }
+  } finally {
+    busy.value = false
+  }
+  await loadGlobs()
 }
 
 /** Open a file: the newest lines, or (a search hit) the lines up to and after seq with Follow off. */
@@ -283,6 +436,19 @@ onBeforeUnmount(() => {
 .fs-marker { color: var(--color-muted); font-style: italic; }
 .fs-hit { background: var(--color-highlight, rgba(255, 213, 0, 0.25)); }
 .fs-older { margin-bottom: 6px; }
+/* the globs under a box, and the audit list */
+.fs-globs { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; min-width: 0; }
+.fs-globs-title { margin: 0; font-size: 0.875rem; }
+.fs-folders { margin: 0; font-size: 0.875rem; overflow-wrap: anywhere; }
+.fs-glob-add { align-self: flex-start; }
+.fs-glob-form { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 16px; min-width: 0; }
+.fs-glob-field { flex: 1 1 16rem; }
+.fs-glob-form .fs-error { flex-basis: 100%; margin: 0; }
+.fs-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
+.fs-audit { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fs-audit-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.fs-audit-row { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.875rem; min-width: 0; overflow-wrap: anywhere; }
+.fs-audit-action { font-weight: 600; }
 /* a phone: a row's facts and button wrap under its name */
 @media (max-width: 600px) {
   .fs-row-head { flex-direction: column; align-items: stretch; }

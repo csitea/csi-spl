@@ -10,9 +10,16 @@
 //   C20 scrolling up turns Follow off; "Jump to latest" turns it on;
 //   C21 a search hit (?seq=) opens the view at that line, Follow off;
 //   C18 a developer reaching the URL sees one line, no view.
+// Spec 160 3.8 (SPL-4695, row B12), the file globs:
+//   C55 an owner sees "Add a file glob" under each box, an operator who is
+//       neither owner nor admin does not; the form sends {box_id, key,
+//       glob} only; a hub 400 shows its code's sentence; a glob row shows
+//       its state (pending until the box reports it) and "N of M matches
+//       followed"; Remove asks first, then calls DELETE.
 //
 // Run:
 //   BASE_URL=<generated bundle> pnpm run test:e2e monitoring-file-streams
+import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { startServer } from './lib/server.mjs'
@@ -42,6 +49,8 @@ async function launch() {
 
 const BIZ = { role: 'biz_owner', permissions: ['members.invite', 'members.roles', 'tenant.settings'] }
 const DEV = { role: 'developer', permissions: ['topics.read', 'notes.send'] }
+const EN = JSON.parse(readFileSync(new URL('../../i18n/locales/en.json', import.meta.url), 'utf8')).monitoring.file_streams.glob
+const text = (p, sel) => p.$eval(sel, (x) => (x.textContent || '').trim()).catch(() => '')
 const lastSeq = (p) => p.$$eval('[data-test=fs-line]', (xs) => (xs.length ? Number(xs[xs.length - 1].getAttribute('data-seq')) : 0))
 const checked = (p) => p.$eval('[data-test=fs-follow]', (x) => x.checked)
 
@@ -140,12 +149,80 @@ try {
   })
   ok('C21 a hit opens at that line, marked, Follow off', Boolean(hit && hit.inView && hit.hit) && !(await checked(p)), hit)
 
+  // C55 the globs: "Add a file glob" under each box; a reported glob's state and counts, a pending one never "following"
+  await p.goto(server.base + '/monitoring/file-streams', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=fs-glob]', { visible: true, timeout: 20000 }).catch(() => null)
+  const perBox = await p.evaluate(() => [...document.querySelectorAll('[data-test=fs-group]')].map((g) => [g.getAttribute('data-box'), g.querySelectorAll('[data-test=fs-glob-add]').length]))
+  ok('C55 an owner sees "Add a file glob" under each box', perBox.length === 2 && perBox.every(([, n]) => n === 1) && (await text(p, '[data-test=fs-glob-add]')) === EN.add, perBox)
+  const rowOf = (key) => p.evaluate((k) => {
+    const r = document.querySelector(`[data-test=fs-glob][data-glob="${k}"]`)
+    if (!r) return null
+    const q = (s) => (r.querySelector(`[data-test=${s}]`)?.textContent || '').trim()
+    return { state: r.querySelector('[data-test=fs-glob-state]')?.getAttribute('data-state'), stateText: q('fs-glob-state'), matches: q('fs-glob-matches'), box: r.closest('[data-test=fs-group]')?.getAttribute('data-box') }
+  }, key)
+  const sys = await rowOf('syslog')
+  ok('C55 a reported glob shows its state and "N of M matches followed"', Boolean(sys && sys.box === 'box-a' && sys.state === 'partial' && sys.stateText === EN.state.partial && sys.matches === '5 of 12 matches followed'), sys)
+  const web = await rowOf('web-old')
+  ok('C55 a glob the box has not reported is pending, with no count and never "following"', Boolean(web && web.state === 'pending' && web.stateText === EN.state.pending && web.matches === '' && web.stateText !== EN.state.following), web)
+
+  // C55 the form: a hub 400 shows its code's sentence and the form stays; a good glob is added, pending
+  await p.click('[data-test=fs-group][data-box=box-a] [data-test=fs-glob-add]')
+  await p.waitForSelector('[data-test=fs-glob-form]', { visible: true, timeout: 10000 }).catch(() => null)
+  const fill = async (key, glob) => {
+    /* clear as a person does, with the input event v-model listens to */
+    for (const f of ['fs-glob-key', 'fs-glob-glob']) await p.$eval(`[data-test=${f}]`, (x) => { x.value = ''; x.dispatchEvent(new Event('input', { bubbles: true })) })
+    await p.type('[data-test=fs-glob-key]', key)
+    await p.type('[data-test=fs-glob-glob]', glob)
+    await p.click('[data-test=fs-glob-submit]')
+  }
+  const refusal = async () => {
+    await p.waitForSelector('[data-test=fs-glob-error]', { visible: true, timeout: 10000 }).catch(() => null)
+    return p.$eval('[data-test=fs-glob-error]', (x) => ({ code: x.getAttribute('data-code'), text: (x.textContent || '').trim() })).catch(() => null)
+  }
+  await fill('ssh', '/etc/ssh/*')
+  const outside = await refusal()
+  ok('C55 a hub 400 outside_folders shows its sentence', Boolean(outside && outside.code === 'outside_folders' && outside.text === EN.err.outside_folders), outside)
+  await fill('bad', 'var/log/*.log')
+  await p.waitForFunction(() => document.querySelector('[data-test=fs-glob-error]')?.getAttribute('data-code') === 'bad_glob', { timeout: 10000 }).catch(() => null)
+  const bad = await refusal()
+  ok('C55 a hub 400 bad_glob shows its sentence, the form stays', Boolean(bad && bad.code === 'bad_glob' && bad.text === EN.err.bad_glob) && Boolean(await p.$('[data-test=fs-glob-form]')), bad)
+  await fill('app-logs', '/var/csi/csi-spl/*.log')
+  await p.waitForSelector('[data-test=fs-glob][data-glob=app-logs]', { visible: true, timeout: 10000 }).catch(() => null)
+  const added = await rowOf('app-logs')
+  ok('C55 a good glob is added under its box, pending, the form closed', Boolean(added && added.box === 'box-a' && added.state === 'pending' && added.stateText === EN.state.pending) && !(await p.$('[data-test=fs-glob-form]')), added)
+  const posts = await p.evaluate(() => (globalThis.SPOOL_MOCK_FS_GLOB_POSTS || []).map((s) => JSON.parse(s)))
+  const shapeOk = posts.length === 3 && posts.every((b) => Object.keys(b).sort().join() === 'box_id,glob,key' && b.box_id === 'box-a')
+  ok('C55 the form sends {box_id, key, glob} only', shapeOk && posts[2].key === 'app-logs' && posts[2].glob === '/var/csi/csi-spl/*.log', posts)
+
+  // C55 Remove asks first (Keep leaves it), then Remove calls DELETE: the row goes, the audit's newest row is the remove
+  const sel = '[data-test=fs-glob][data-glob=app-logs]'
+  await p.click(`${sel} [data-test=fs-glob-remove]`).catch(() => null)
+  await p.waitForSelector(`${sel} [data-test=fs-glob-confirm]`, { visible: true, timeout: 10000 }).catch(() => null)
+  const asked = Boolean(await p.$(`${sel} [data-test=fs-glob-confirm]`)) && Boolean(await p.$(sel))
+  await p.click(`${sel} [data-test=fs-glob-remove-no]`).catch(() => null)
+  await sleep(300)
+  const kept = Boolean(await p.$(sel)) && !(await p.$(`${sel} [data-test=fs-glob-confirm]`))
+  await p.click(`${sel} [data-test=fs-glob-remove]`).catch(() => null)
+  await p.waitForSelector(`${sel} [data-test=fs-glob-remove-yes]`, { visible: true, timeout: 10000 }).catch(() => null)
+  await p.click(`${sel} [data-test=fs-glob-remove-yes]`).catch(() => null)
+  await p.waitForFunction((s) => !document.querySelector(s), { timeout: 10000 }, sel).catch(() => null)
+  const gone = !(await p.$(sel))
+  const top = await p.$eval('[data-test=fs-audit-row]', (x) => ({ action: x.getAttribute('data-action'), text: x.textContent || '' })).catch(() => null)
+  ok('C55 Remove asks first, Keep keeps it; Remove then deletes it, audited', asked && kept && gone && Boolean(top && top.action === 'remove' && top.text.includes('app-logs')), { asked, kept, gone, top })
+
   // C18 a developer reaching the URL: one line, no view
   await p.evaluate((dev) => localStorage.setItem('spool.mock.me', JSON.stringify(dev)), DEV)
   await p.goto(server.base + '/monitoring/file-streams', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
   await p.waitForSelector('[data-test=fs-forbidden]', { timeout: 15000 }).catch(() => null)
   ok('C18 a developer sees one line and no view', Boolean(await p.$('[data-test=fs-forbidden]')) && !(await p.$('[data-test=fs-view]')))
-  await p.evaluate(() => localStorage.removeItem('spool.mock.me'))
+
+  // C55 an operator who is neither owner nor admin of the workspace: no glob form
+  await p.evaluate(() => localStorage.setItem('spool.mock.fleet_operator', '1'))
+  await p.goto(server.base + '/monitoring/file-streams', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=fs-forbidden]', { timeout: 15000 }).catch(() => null)
+  await sleep(500)
+  ok('C55 an operator who is neither owner nor admin sees no glob form', Boolean(await p.$('[data-test=fs-forbidden]')) && (await p.$$('[data-test=fs-glob-add], [data-test=fs-glob-form], [data-test=fs-globs]')).length === 0)
+  await p.evaluate(() => { localStorage.removeItem('spool.mock.me'); localStorage.removeItem('spool.mock.fleet_operator') })
 
   ok('no page errors', errors.length === 0, errors)
 } finally {

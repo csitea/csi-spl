@@ -933,15 +933,21 @@ class Follower:
                 )
             listed.append((g, why, found))
         keep = {}
+        cnf_used = sum(1 for _, _, why in allow if why != "over the stream limit")
+        free = max(0, self.max_streams - cnf_used)
         for g, why, found in listed:
-            leaves = set() if why else {leaf for _, leaf in found}
+            by_leaf = {}
             for k, i in self.gstreams.items():
                 status = self.state["streams"].get(k, {}).get("status")
-                if i["gid"] == g["id"] and i["leaf"] in leaves and status != "refused":
-                    keep[k] = i  # ctl:keep-slot
-        used = len(keep) + sum(
-            1 for _, _, why in allow if why != "over the stream limit"
-        )
+                if i["gid"] == g["id"] and status != "refused":
+                    by_leaf[i["leaf"]] = k
+            # the oldest glob first, its newest match first: when the slots
+            # shrink (more cnf entries) the newest glob's oldest match goes
+            for _, leaf in [] if why else found:
+                k = by_leaf.get(leaf)
+                if k is not None and len(keep) < free:  # ctl:keep-cap
+                    keep[k] = self.gstreams[k]  # ctl:keep-slot
+        used = len(keep) + cnf_used
         new, cnf_ids = dict(keep), {sid for sid, _, _ in allow}
         for g, why, found in listed:
             used = self.place_matches(g, why, found, keep, new, cnf_ids, used)

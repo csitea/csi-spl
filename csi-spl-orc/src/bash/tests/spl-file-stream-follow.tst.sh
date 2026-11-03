@@ -36,7 +36,8 @@
 #   C48 a dir or a match that is a symlink out of its folder: refused
 #   C49 glob matches pass open_checked (C8, C31-C36 for a match)
 #   C50 the 8 slots: cnf first, then the newest matches; a followed match
-#       keeps its slot
+#       keeps its slot; more cnf entries in a run: the followed matches are
+#       trimmed to the slots left, the newest glob's oldest match first
 #   C51 a removed glob leaves the announce; a stale list stops web globs only
 #   C52 a scan reads at most 10 000 entries; a compressed name is skipped
 #   C54 a folder `/`, of one segment or denied is refused, no glob under it
@@ -687,6 +688,46 @@ c50() {
   [[ "$(texts "$d" | grep -xcE 'c1|c2')" == 2 ]] || { echo "  C50: the cnf entries lost their slots"; return 1; }
 }
 
+# c50cap: one process, FILE_STREAMS_MAX=4; 1 cnf entry, then 3: the 3
+# followed matches are trimmed to the 1 slot left, the newest glob first.
+c50cap() {
+  local d r
+  d="$(newcase)"; gcase "$d"
+  mkdir -p "$d/a"
+  echo c1 >"$d/logs/c1.log"; echo c2 >"$d/logs/c2.log"; echo c3 >"$d/logs/c3.log"
+  allow "$d" c1 "$d/logs/c1.log"
+  cp "$d/allow" "$d/allow1"
+  allow "$d" c1 "$d/logs/c1.log" c2 "$d/logs/c2.log" c3 "$d/logs/c3.log"
+  mv "$d/allow" "$d/allow3"; mv "$d/allow1" "$d/allow"
+  echo a1 >"$d/a/a1.log"; touch -d @1700000060 "$d/a/a1.log"
+  echo a2 >"$d/a/a2.log"; touch -d @1700000120 "$d/a/a2.log"
+  echo b1 >"$d/a/b1.log"; touch -d @1700000180 "$d/a/b1.log"
+  folders "$d" "$d/a"
+  globs "$d" ga "$d/a/a*.log" gb "$d/a/b*.log"
+  gfs "$1" "$d" 1 FILE_STREAMS_MAX=4
+  [[ "$(gpaths "$d")" == "$d/a/a1.log $d/a/a2.log $d/a/b1.log" ]] || { echo "  C50: before '$(gpaths "$d")'"; return 1; }
+  : >"$d/pushed"
+  env HOME="$d/home" SPOOL_ROOT="$d/spool" FILE_STREAMS_STATE_DIR="$d/state" FILE_STREAMS_PUSH_CMD="$d/gpush" \
+    PUSH_LOG="$d/pushed" PUSH_FAIL_FILE="$d/push.fail" GLOBS_FILE="$d/globs.json" GLOBS_N="$d/globs.n" \
+    FILE_STREAMS_ALLOW="$(cat "$d/allow")" FILE_STREAMS_FOLDERS="$(cat "$d/folders")" FILE_STREAMS_GLOBS_S=0 \
+    FILE_STREAMS_GLOB_SCAN_S=0 FILE_STREAMS_MAX=4 timeout 60 python3 -I -c '
+import importlib.util, os, sys
+sp = importlib.util.spec_from_file_location("fsf", sys.argv[1])
+m = importlib.util.module_from_spec(sp)
+sp.loader.exec_module(m)
+f = m.Follower()
+f.tick()
+with open(sys.argv[2], encoding="utf-8") as a:
+    os.environ["FILE_STREAMS_ALLOW"] = a.read()
+f.tick()' "$1" "$d/allow3" >>"$d/out" 2>&1 || { echo "  C50: the run failed: $(tail -n 3 "$d/out")"; return 1; }
+  [[ "$(gpaths "$d")" == "$d/a/a2.log" ]] || { echo "  C50: after 3 cnf entries '$(gpaths "$d")', want a2 only"; return 1; }
+  [[ "$(lastann "$d" | jq '.streams | length')" == 4 ]] || { echo "  C50: $(lastann "$d" | jq '.streams | length') streams announced, cap 4"; return 1; }
+  r="$(grep1 "$d" 1)"
+  [[ "$r" == '{"state":"partial","matched":2,"followed":1,"over_cap":1,"reason":null}' ]] || { echo "  C50: ga $r"; return 1; }
+  r="$(grep1 "$d" 2)"
+  [[ "$r" == '{"state":"partial","matched":1,"followed":0,"over_cap":1,"reason":null}' ]] || { echo "  C50: gb $r"; return 1; }
+}
+
 c51() {
   local d ann
   # removed on the hub: its streams leave the next announce
@@ -821,7 +862,9 @@ check C49 "glob matches pass open_checked: link, hardlink, fifo, device, .env, s
 def _open_checked(name, ctx, roots=None, info=None):'
 check C50 "the cap: cnf first, then the newest matches; a followed one keeps its slot" c50 \
   no-cap 'if used >= self.max_streams:  # ctl:cap' 'if False:' \
-  no-kept-slot 'keep[k] = i  # ctl:keep-slot' 'pass'
+  no-kept-slot 'keep[k] = self.gstreams[k]  # ctl:keep-slot' 'pass'
+check C50 "more cnf entries in a run: the followed matches trimmed to the slots left" c50cap \
+  no-keep-cap 'if k is not None and len(keep) < free:  # ctl:keep-cap' 'if k is not None:'
 check C51 "a removed glob leaves the announce; a stale list stops web globs only" c51 \
   keep-the-list 'globs = globs[:GLOBS_MAX]' 'globs = globs[:GLOBS_MAX] or self.globs' \
   never-stale 'self.go_stale()  # ctl:stale' 'pass'

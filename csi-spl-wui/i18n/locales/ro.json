@@ -3676,9 +3676,9 @@
         "issued": "Emisă",
         "due": "Scadență",
         "hours": "Ore",
-        "net": "Valoare netă",
+        "net": "Net",
         "vat": "TVA",
-        "total": "Total general"
+        "total": "Total"
       }
     },
     "finance": {

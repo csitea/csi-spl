@@ -1,9 +1,12 @@
 # Reporting
 
+> Generated from qto doc `d29362c7-6679-4644-b941-08a687260dd7`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 The **Reporting** section in the left rail (the bar-chart icon, beside
 Monitoring) is where the workspace's reports live. It opens on its
 **Releases** tab.
 
+<a id="ws-doc-1ca16b36-7cda-472f-b772-ca042e5e8cfb"></a>
 ## The tabs
 
 A row of tabs sits at the top of the page. Each tab has its own address, so a
@@ -19,6 +22,7 @@ the tabs you opened. Opening `/reporting` on its own goes to the Releases tab.
 More tabs come later: **Issues**, **Posts** and **Lanes** (admins of the
 operator workspace). A tab is drawn only once its page exists.
 
+<a id="ws-doc-d2049805-1b4a-44be-b785-d5f8841d0dea"></a>
 ## Costs: one month, one currency, four pages
 
 The **Costs** tab opens on its **Spend** page. A bar under the tab names its
@@ -59,11 +63,13 @@ Old links land here and keep their query: `/monitoring/costs` opens Spend,
 `/reporting/tokens` opens Tokens, and `/reporting/costs` opens Spend. The
 fleet's live token burn stays at Monitoring -> Tokens (`/monitoring/tokens`).
 
+<a id="ws-doc-721fc8b4-45aa-48e3-be56-7abe9573d522"></a>
 ## Left panel order
 
 Reporting reorders and collapses like the other rail sections, and ends before
 Archive by default.
 
+<a id="ws-doc-073f2958-6e12-4c4d-b27f-a570d002b51b"></a>
 ## On a phone
 
 Reporting is one entry in the section strip at the top. Its tabs sit under the

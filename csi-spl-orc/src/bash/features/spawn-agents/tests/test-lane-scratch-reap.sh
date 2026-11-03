@@ -129,7 +129,8 @@ if [ "$(id -u)" = 0 ]; then echo "skip - 7: root reads every dir"; else
   check "7. ...printing the reaper's WARN as a scratch step" grep -qE "^DO scratch +WARN unreadable $B " "$T_TMP/o"
   chmod 755 "$B"
   out="$(bash "$T_SCRIPTS/lane-scratch-reap.sh" "$WT6" 2>&1)"; eq "7. CONTROL: once readable, exit 0" 0 "$?"
-  has "7. ...and its scratch is found" "PLAN remove 0KB owner=$(id -un) $B/$(slug c-206)" "$out"
+  # an empty dir is 0KB on a tmpfs, 4KB on a disk (the CI sandbox): ask du
+  has "7. ...and its scratch is found" "PLAN remove $(du -sk "$B/$(slug c-206)" | cut -f1)KB owner=$(id -un) $B/$(slug c-206)" "$out"
   rm -rf "$B"
   out="$(bash "$T_SCRIPTS/lane-scratch-reap.sh" "$WT6" 2>&1)"
   has "7. CONTROL: no root holds it, readable: OK no scratch" "OK no scratch of $WT6" "$out"

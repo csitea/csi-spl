@@ -709,6 +709,7 @@ the sender's machine.
   `spawn-agents/tests/test-fleet-send.sh` (two simulated roots, the relay
   script against a fake `/proc`).
 
+<a id="ws-doc-d38644ce-5148-42ba-a6cd-f7ca79f19342"></a>
 #### 4.2.1 Only a seat sends as a seat (SPL-3654)
 
 `spool-send.sh --from <id>` where `<id>` is a role seat (001-003 in any vendor

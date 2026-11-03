@@ -191,6 +191,9 @@ func (s *Server) activeFleetLanes(ctx context.Context, tenant, fleet string) (
 	if err := s.laneTopicsFromIssues(ctx, tenant, active); err != nil {
 		return out, nil, nil, err
 	}
+	if err := s.laneDispatchTopics(ctx, tenant, active); err != nil {
+		return out, nil, nil, err
+	}
 	return out, active, burn, nil
 }
 

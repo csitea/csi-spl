@@ -85,6 +85,26 @@ func (s *Server) askTopic(ctx context.Context, op, topic string, seen map[string
 	return got, nil
 }
 
+// laneDispatchTopics resolves, in place, each lane topic that is a task id
+// dispatch-<topic8> to the hub topic it names, as an ask's (askTopic): the
+// operator's topic first, else the one topic of another workspace, else ""
+// (none, or a prefix two topics share: never a guess). SPL-4705: such a lane
+// named no workspace but the operator's.
+func (s *Server) laneDispatchTopics(ctx context.Context, tenant string, ls []store.FleetLane) error {
+	seen := map[string]string{}
+	for i, l := range ls {
+		if !askDispatchRe.MatchString(l.Topic) {
+			continue
+		}
+		topic, err := s.askTopic(ctx, tenant, l.Topic, seen)
+		if err != nil {
+			return err
+		}
+		ls[i].Topic = topic
+	}
+	return nil
+}
+
 // laneWorkspaces is every workspace's name by id (the id when it has no
 // name), and for each of topics the one other workspace than op (archived
 // ones aside) that holds it, read in that workspace's own scope. A store

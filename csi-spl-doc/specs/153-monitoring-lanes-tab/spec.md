@@ -1,5 +1,11 @@
 # 153 Monitoring: the tab row beside the heading, and a live Lanes tab
 
+Addendum (2026-11-03, SPL-4705): section 3.13 (a lane on a
+`dispatch-<topic8>` task names the workspace of that topic), cases
+C58-C59. Owner HUM-10, t1 topic
+`0ea86216`, msg `aa56f0b5`. Placed by the dispatch holder as one lane
+brief, not a panel version.
+
 Addendum (2026-11-02, SPL-4620): section 3.12 (a lane row names the issue
 it came from, a dispatch task and its relay hash resolve to the discussion),
 cases C54-C57. Owner HUM-10, t1 topic `4e9f7153`, msg `9a89d1e1`. Placed by
@@ -850,6 +856,43 @@ Cases:
   `csi-spl-orc/src/bash/tests/spl-lane-issue.tst.sh`; the put, done keeping it,
   and a box binary without the flag: `lane-map.tst.sh`; the ask's topic:
   `spl-spawn-queue.tst.sh`; the hash as last source: `test-spawn-dry-run.sh` C52d.
+
+### 3.13 The workspace a lane works for, in sight (SPL-4705)
+
+The owner, verbatim (HUM-10, t1 `0ea86216`, msg `aa56f0b5`, 2026-11-03
+12:02Z): "we must have the workspace attribute in the lanes listing for hte
+spool-hub https://spool-hub.ai/monitoring/lanes".
+
+The column existed (3.8), last. Two gaps kept it out of sight or wrong:
+
+- **A live lane on a `dispatch-<topic8>` task.** A put stores a bare 8-hex
+  short id as the full uuid (3.7), but a topic sent as the task id
+  `dispatch-<topic8>` is stored as sent; `laneWorkspaces` reads full uuids
+  only, so the row fell back to the operator workspace. The view now
+  resolves such a topic as a queued ask's (`askTopic` -> `laneTopic`): the
+  operator's topic first, else the one topic of another non-archived
+  workspace, else none (two topics with that prefix: none, never a guess).
+  The row's `topic_id` becomes that uuid; another workspace's title stays
+  withheld (3.3), only its workspace name shows
+  (`laneDispatchTopics`, `hub/lanes_queued.go`). Queued asks already
+  resolved this way (C40). Measured on prd 2026-11-03
+  (`lane-map.sh list --all --json`, n = 1179 rows): of the live rows 34
+  have a full uuid, 227 none and 1 a `dispatch-<8 hex>-build` topic (not
+  this form): no live row on prd was in this form that day; this closes
+  the gap for a put that sends the task id.
+- **The column stays last.** The brief for this message moved it after
+  Box; the dispatch holder dropped that (msg `e7b7da32`): the owner's own
+  words in 3.8 (msg `67c63b8d`, "as their last right most column") stand,
+  and `aa56f0b5` says nothing on position.
+
+Cases:
+
+- **C58** a live lane and a queued ask on `dispatch-<8 hex of a csitea
+  topic>`: the operator route names workspace csitea and its name, the
+  topic's uuid, no title. **C59** the 8 hex starts a topic in two other
+  workspaces: the operator workspace, no topic. (`hub/lanes_workspace_resolve_test.go`,
+  memory and Postgres; red on master `3da4fa390`: the live lane names the
+  operator workspace.)
 
 ## 4. Cases
 

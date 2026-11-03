@@ -500,6 +500,17 @@ for cls in bug Refactor alert; do
   grep -q "^label|--name|$lc|" "$T/calls.log" && grep -q "^create|--title|fix the runner|.*|--status|wip|--labels|$lc|--epic|SPL-1|" "$T/calls.log" &&
     pass "Class: $cls: the label $lc exists, the issue carries it" || fail "class $cls (rc=$rc): $(cat "$T/calls.log")"
 done
+# Text after the class word (174 of 749 briefs on a box, R7 W1) still labels.
+for line in 'Class: bug. Kind: fix' 'Class: refactor (owner bands)' 'Class: alert  '; do
+  lc="$(printf '%s' "$line" | sed -E 's/^Class: ([a-z]+).*/\1/')"
+  printf '# Brief: fix the runner\n\n%s\n%s\n' "$line" "$ES" >"$T/class.md"
+  run AGENT_ID=c-126 BRIEF="$T/class.md" DRY_RUN=0
+  grep -q "^create|--title|fix the runner|.*|--labels|$lc|--epic|SPL-1|" "$T/calls.log" &&
+    pass "'$line': the issue carries $lc" || fail "trailing text '$line' (rc=$rc): $(cat "$T/calls.log")"
+done
+printf '# Brief: fix the runner\n\nClass: bugfix\n%s\n' "$ES" >"$T/class.md"
+run AGENT_ID=c-127 BRIEF="$T/class.md" DRY_RUN=0
+[[ $rc -eq 0 ]] && ! grep -q -- '--labels' "$T/calls.log" && pass "control: Class: bugfix is not bug, no label" || fail "bugfix control (rc=$rc): $(cat "$T/calls.log")"
 for cls in feature ci; do
   printf '# Brief: fix the runner\n\nClass: %s\n%s\n' "$cls" "$ES" >"$T/class.md"
   run AGENT_ID=c-127 BRIEF="$T/class.md" DRY_RUN=0

@@ -363,10 +363,12 @@ print(r.get("key", "") + "\t" + (ds[0] if ds else ""))' 2>/dev/null)" || rc=$?
 # spl_lane_issue_class BRIEF -> the brief's `Class:` when it is one the hub's
 # prio default knows (bug and alert prio 1, refactor 2; owner HUM-10, t1
 # 6c9aa54b msg c1a3ab4b, t1 3aac280f msg 1ee85284), lower case; nothing for
-# ci, feature, none or no brief. The label carries it to the hub (SPL-4725).
+# ci, feature, none or no brief. Text after the class word is allowed
+# ("Class: bug. Kind: ...", the \b of spl_spawn_share_briefs). The label
+# carries it to the hub (SPL-4725).
 spl_lane_issue_class() {
   [[ -r "${1:-}" ]] || return 0
-  grep -m1 -oiE '^Class:[[:space:]]*(bug|refactor|alert)[[:space:]]*$' "$1" | sed -E 's/^[^:]*:[[:space:]]*//; s/[[:space:]]*$//' | tr '[:upper:]' '[:lower:]'
+  grep -m1 -oiE '^Class:[[:space:]]*(bug|refactor|alert)\b' "$1" | sed -E 's/^[^:]*:[[:space:]]*//' | tr '[:upper:]' '[:lower:]'
   return 0
 }
 

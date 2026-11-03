@@ -115,6 +115,8 @@
 <script setup lang="ts">
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useOperatorPane } from '~/stores/operator-pane'
+import { useAccessStore } from '~/stores/access'
+import { gateMe, lanesReadPlan } from '~/utils/read-gates.mjs'
 import { lagSeconds } from '~/utils/monitoring-tokens.mjs'
 import { LANE_AGES, fleetLanesOf, laneDeepLink, laneIssuePath, laneTopicPath, lanesStaleLevel, minutesAgo, readLanes, startLanesPoll } from '~/utils/monitoring-lanes.mjs'
 import { TOPIC_COLUMNS, TOPICS_NO_FILTER, filterTopics, sortTopics, topicFilterChoices, topicsOf } from '~/utils/monitoring-topics.mjs'
@@ -174,12 +176,22 @@ function ago(at: string) {
   return m === null ? DASH : t('monitoring.lanes.min_ago', { n: m })
 }
 
+const access = useAccessStore()
 let seq = 0
 async function load() {
   const mine = ++seq
   busy.value = true
   try {
     lanesRead.operatorVisible = operator.visible
+    /* SPL-4724: /v1/view/me picks the read, as the Lanes page (SPL-4453); a member sends none and gets the line */
+    const plan = lanesReadPlan(await gateMe(access))
+    if (mine !== seq) return
+    if (plan === 'none') {
+      view.value = null
+      state.value = 'forbidden'
+      return
+    }
+    if (plan === 'own') lanesRead.own = true
     const body = await readLanes(useSpoolApi() as unknown as LanesApi, lanesRead)
     if (mine !== seq) return
     view.value = fleetLanesOf(body)

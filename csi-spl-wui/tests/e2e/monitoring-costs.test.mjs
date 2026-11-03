@@ -642,6 +642,7 @@ async function memberGates(browser, base, size) {
     ['/monitoring/tokens', 'tokens-forbidden'],
     ['/monitoring/file-streams', 'fs-forbidden'],
     ['/monitoring/agents/CLE-07@box-a', 'agent-lanes-forbidden'],
+    ['/monitoring/topics', 'topics-forbidden'],
   ]) {
     await open(p, base, path)
     const shown = await waitFor(p, `[data-test=${line}]`)

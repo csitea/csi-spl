@@ -31,12 +31,17 @@ do_spl_desk_up_tenants() {
   do_spl_cloud_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
-  local box="${DESK_BOX:-$(spl_desk_box_default)}" skip=" ${DESK_SKIP_TENANTS:-} " t dir rc=0 n=0
+  local box="${DESK_BOX:-$(spl_desk_box_default)}" skip=" ${DESK_SKIP_TENANTS:-} " t dir rc=0 n=0 mv
   [[ "$box" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && "$box" != box-wui ]] || { do_log "FATAL DESK_BOX '$box' is not a box id (box-wui is reserved)"; return 1; }
   while IFS= read -r -u 9 dir; do
     dir="${dir%"$box"/spool}"; t="${dir%/}"; t="${t##*/}"
     [[ "$t" =~ ^[a-z0-9][a-z0-9-]{0,31}$ && -d "$dir$box/spool" ]] || continue
     [[ "$skip" == *" $t "* ]] && continue
+    # SPL-4699: a desk do_spl_desk_move gave to another user is that user's
+    # (a stub under this root must not be seated, keyed or offered a pin)
+    if mv="$(spl_desk_moved_to "$t" "$box")"; then
+      spl_desk_moved_note "$t" "$box" "${mv%%$'\t'*}" "${mv#*$'\t'}"; continue
+    fi
     n=$((n + 1))
     if ( TENANT_ID="$t" DESK_BOX="$box" DESK_SEATED_ONLY=1 DESK_RETIRE=0 DESK_HUB_CHECK=0 \
          DRY_RUN="$( ((dry)) && echo 1 || echo 0)" do_spl_desk_up_all ); then

@@ -96,6 +96,10 @@ do_spl_desk_up_all() {
 
   local d
   d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
+  local mv
+  if mv="$(spl_desk_moved_to "$tenant" "$box")"; then
+    spl_desk_moved_note "$tenant" "$box" "${mv%%$'\t'*}" "${mv#*$'\t'}"; return 0
+  fi
   local -a live=() seat=() seated=() failed=() retired=()
   mapfile -t live < <(spl_desk_live_agents)
   if [[ ${#live[@]} -eq 0 ]]; then
@@ -186,10 +190,13 @@ _spl_desk_up_all_seat() {
 # admin command; it does not fail the desk reconcile, the sweep reports the RSP
 # desk itself. The default box-rsp (no box config line) is never minted.
 _spl_desk_up_all_rsp() {
-  local tenant="$1" box="$2" rsp dr
+  local tenant="$1" box="$2" rsp dr mv
   declare -F spl_rsp_box_default >/dev/null || return 0
   rsp="$(spl_rsp_box_default)"
   [[ "$rsp" != box-rsp && "$rsp" != "$box" ]] || return 0
+  if mv="$(spl_desk_moved_to "$tenant" "$rsp")"; then
+    spl_desk_moved_note "$tenant" "$rsp" "${mv%%$'\t'*}" "${mv#*$'\t'}"; return 0
+  fi
   dr="$(spl_desk_dir "$tenant" "$rsp")" || [[ $? -eq 1 ]] || return 0
   [[ -s "$dr/pinned" ]] && return 0
   do_spl_desk_cnf && spl_host_spool || return 0

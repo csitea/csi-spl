@@ -257,8 +257,15 @@ spl_desk_key_stdin() {
 # have pinned it from another box (BOX_PUBKEY mode), which writes no file here.
 # Pinned: write <state>/pinned, print the key, 0. Not pinned or not reachable:
 # one line with the admin command, 3. Logs go to stderr, as in spl_desk_pin.
+# A desk do_spl_desk_move gave to another user (spl_desk_moved_to, SPL-4699):
+# no key, no admin command (a pin of this user's key takes the desk from that
+# user's live sidecar), 1.
 spl_desk_pin_check() {
-  local d="$1" box="$2" tenant="$3" hub="$4" pub out
+  local d="$1" box="$2" tenant="$3" hub="$4" pub out mv
+  if mv="$(spl_desk_moved_to "$tenant" "$box")"; then
+    do_log "FAIL desk $box of $tenant ($ENV) lives under ${mv%%$'\t'*}'s state root (do_spl_desk_move): no key minted as $(id -un) and no do_spl_desk_pin offered, a pin of this user's key would take the desk from ${mv%%$'\t'*}'s live sidecar; run the action as ${mv%%$'\t'*}" >&2
+    return 1
+  fi
   mkdir -p "$d/keys" && chmod go-rwx "$d" "$d/keys" || { do_log "FATAL cannot create $d/keys" >&2; return 1; }
   pub="$(spl_desk_box_pub "$d" "$box" "$tenant" "$hub")" || { do_log "$pub" >&2; return 1; }
   if out="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- hub-sync 2>&1)"; then

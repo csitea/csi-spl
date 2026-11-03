@@ -887,6 +887,40 @@ rollback's rename; red on d91a4ebea), `internal/quiesce/quiesce_test.go`,
 `features/spawn-agents/tests/test-spool-poke-queue.sh` (the daemon in the
 window; red on origin/master's daemon).
 
+#### 8.4.2 A reconcile never takes a moved desk back (SPL-4699)
+
+Measured on sat prd 2026-11-03, after the reconcile was unpaused at
+10:03Z: the box user's prd reconcile (still the box user's, since
+prd/t1/sat stays there) found stub dirs `desk/<ws>/sat/spool/<agent>`
+under its own root, left by a writer during the 2026-10-31 moves. It
+seated them, minted new box keys for two workspaces' `sat` desks and
+t1/sat-rsp (the hub refused them with `bad_sig`), and printed a
+`do_spl_desk_pin` line with that key every 5 min. Running that line would
+have taken the desk from the agent user's live sidecar.
+
+- **The signal.** `spl_desk_moved_to <ws> <desk id>`
+  (`csi-spl-orc/lib/bash/funcs/spl-desk-moved.func.sh`): another user's
+  root of `spl_desk_roots` holds `desk/<ws>/<desk id>`. A move copies the
+  desk there, and a rollback or `MOVE_CMD=back` sets that copy aside in
+  that user's `desk.moved-*`, so the dir is there only while the desk is
+  that user's. A root the caller cannot enter is read with
+  `sudo -n -u <user> test -d`, the access `do_spl_desk_move` uses. No sudo
+  rule means unknown, and the reconcile behaves as before. The caller's
+  `desk.moved-*` marker is not needed, because the 8.4 step 6 prune
+  removes it and the stub stays. The caller's own copy wins while its
+  sidecar is live.
+- **The skips.** `do_spl_desk_up_tenants`, `do_spl_desk_up_all` and the
+  responder box leg (`_spl_desk_up_all_rsp`) log one INFO line for such a
+  desk, `desk <id> of <ws> (<env>) lives under <user>'s state root ...`,
+  and seat nothing, mint no key and log no FAIL. `spl_desk_pin_check`
+  refuses it (rc 1) without a key or a `do_spl_desk_pin` line.
+- **Stray dirs** the old reconcile made under the caller's root are left
+  in place; the dispatcher decides whether to remove them.
+
+Test: `csi-spl-orc/src/bash/tests/desk-moved-skip.tst.sh` (red on
+`35bc30aca`: the moved desk reconciled, a key minted, the pin line
+printed).
+
 ### 8.5 Build rows
 
 Rounds-rulebook rows. Disjoint files; batch 1 lands first, batch 2 rows in

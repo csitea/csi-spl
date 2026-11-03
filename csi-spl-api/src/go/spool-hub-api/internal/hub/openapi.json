@@ -10666,6 +10666,153 @@
         ]
       }
     },
+    "/v1/netvisor/refresh": {
+      "post": {
+        "description": "Spec 125 B5 (C7): the browser session of the workspace's Netvisor owner ONLY (netvisor_settings.owner_human_id). 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone and an agent seat; 403 forbidden for every other member, admins included; 404 not_found in every workspace but the operator workspace. No MCP tool (C8).",
+        "operationId": "postNetvisorRefresh",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted: {refresh_requested_at}, the open request (a second press keeps the first time). Contract: csi-spl-api/src/go/spool-hub-api/internal/wire/netvisor.go; doc csi-spl-doc/doc/md/netvisor-finance-store.md section 5."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "memberSession": []
+          }
+        ],
+        "summary": "Request a Netvisor refresh now: the Netvisor owner only",
+        "tags": [
+          "netvisor"
+        ]
+      }
+    },
+    "/v1/netvisor/settings": {
+      "get": {
+        "description": "Spec 125 B5 (C7): the browser session of the workspace's Netvisor owner ONLY (netvisor_settings.owner_human_id). 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone and an agent seat; 403 forbidden for every other member, admins included; 404 not_found in every workspace but the operator workspace. No MCP tool (C8).",
+        "operationId": "getNetvisorSettings",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {owner_human_id, env, bank_account, vat_accounts, tax_accounts, vendor_exclusions, updated_by, updated_at, refresh_requested_at}. Contract: csi-spl-api/src/go/spool-hub-api/internal/wire/netvisor.go; doc csi-spl-doc/doc/md/netvisor-finance-store.md section 5."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "memberSession": []
+          }
+        ],
+        "summary": "Read the Netvisor settings: the Netvisor owner only",
+        "tags": [
+          "netvisor"
+        ]
+      },
+      "put": {
+        "description": "Spec 125 B5 (C7): the browser session of the workspace's Netvisor owner ONLY (netvisor_settings.owner_human_id). 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone and an agent seat; 403 forbidden for every other member, admins included; 404 not_found in every workspace but the operator workspace. No MCP tool (C8).",
+        "operationId": "putNetvisorSettings",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "bank_account": {
+                    "type": "string"
+                  },
+                  "env": {
+                    "enum": [
+                      "test",
+                      "prd"
+                    ],
+                    "type": "string"
+                  },
+                  "tax_accounts": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "vat_accounts": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "vendor_exclusions": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "env"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "{env, bank_account, vat_accounts, tax_accounts, vendor_exclusions}: bookkeeping account numbers (digits), never a bank account number",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: the settings as stored. Contract: csi-spl-api/src/go/spool-hub-api/internal/wire/netvisor.go; doc csi-spl-doc/doc/md/netvisor-finance-store.md section 5."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "memberSession": []
+          }
+        ],
+        "summary": "Write the Netvisor settings: the Netvisor owner only",
+        "tags": [
+          "netvisor"
+        ]
+      }
+    },
     "/v1/openapi.json": {
       "get": {
         "description": "This OpenAPI 3.0.3 document, embedded in the hub, with info.version set to the running hub version (/version). A signed-in member session (spec 104 §4.2).",
@@ -12313,6 +12460,203 @@
           }
         },
         "summary": "Update operator members",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/netvisor/owner": {
+      "put": {
+        "description": "Spec 125 B5: the main-box Netvisor sync (B6) as the env's operator service account (Bearer id token), in the operator workspace only (403 operator_workspace_only when the Host or X-Spool-Tenant names another). Answers carry counts and times, never a figure (C2, C8).",
+        "operationId": "putOperatorNetvisorOwner",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "human_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "human_id"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "{human_id}",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: {workspace, human_id}. Contract: csi-spl-api/src/go/spool-hub-api/internal/wire/netvisor.go; doc csi-spl-doc/doc/md/netvisor-finance-store.md section 5."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Conflict: not_member, the human is not a person seated in the operator workspace."
+          }
+        },
+        "security": [
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Name the workspace's Netvisor owner (the one human who reads the data)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/netvisor/refresh": {
+      "get": {
+        "description": "Spec 125 B5: the main-box Netvisor sync (B6) as the env's operator service account (Bearer id token), in the operator workspace only (403 operator_workspace_only when the Host or X-Spool-Tenant names another). Answers carry counts and times, never a figure (C2, C8).",
+        "operationId": "getOperatorNetvisorRefresh",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {refresh_requested_at}, null when none is open. Contract: csi-spl-api/src/go/spool-hub-api/internal/wire/netvisor.go; doc csi-spl-doc/doc/md/netvisor-finance-store.md section 5."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Conflict: no_owner."
+          }
+        },
+        "security": [
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "Read the open Netvisor refresh request (the main-box poller)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/netvisor/snapshots": {
+      "post": {
+        "description": "Spec 125 B5: the main-box Netvisor sync (B6) as the env's operator service account (Bearer id token), in the operator workspace only (403 operator_workspace_only when the Host or X-Spool-Tenant names another). Answers carry counts and times, never a figure (C2, C8).",
+        "operationId": "postOperatorNetvisorSnapshot",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "as_of": {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  "card_lines": {
+                    "items": {
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "env": {
+                    "enum": [
+                      "",
+                      "test",
+                      "prd"
+                    ],
+                    "type": "string"
+                  },
+                  "fetched_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "items": {
+                    "items": {
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "month_end": {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  "newest_bank_voucher_date": {
+                    "type": "string"
+                  },
+                  "snapshot_id": {
+                    "format": "uuid",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "snapshot_id",
+                  "as_of",
+                  "month_end",
+                  "fetched_at"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "one snapshot: dates YYYY-MM-DD, amounts decimal text",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: {snapshot_id, env, items, card_lines}, counts only. Contract: csi-spl-api/src/go/spool-hub-api/internal/wire/netvisor.go; doc csi-spl-doc/doc/md/netvisor-finance-store.md section 5."
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Conflict: no_owner (no Netvisor owner named yet), env_mismatch (another Netvisor company than the settings')."
+          }
+        },
+        "security": [
+          {
+            "bearerToken": []
+          }
+        ],
+        "summary": "File one Netvisor fetch under the workspace's Netvisor owner",
         "tags": [
           "operator"
         ],
@@ -16962,6 +17306,74 @@
         "summary": "Read view messages topic",
         "tags": [
           "view"
+        ]
+      }
+    },
+    "/v1/view/netvisor/card-costs": {
+      "get": {
+        "description": "Spec 125 B5 (C7): the browser session of the workspace's Netvisor owner ONLY (netvisor_settings.owner_human_id). 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone and an agent seat; 403 forbidden for every other member, admins included; 404 not_found in every workspace but the operator workspace. No MCP tool (C8).",
+        "operationId": "getNetvisorCardCosts",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {env, snapshot (null before the first fetch), lines, refresh_requested_at}. Contract: csi-spl-api/src/go/spool-hub-api/internal/wire/netvisor.go; doc csi-spl-doc/doc/md/netvisor-finance-store.md section 5."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "memberSession": []
+          }
+        ],
+        "summary": "Read the card cost lines: the Netvisor owner only",
+        "tags": [
+          "netvisor"
+        ]
+      }
+    },
+    "/v1/view/netvisor/forecast": {
+      "get": {
+        "description": "Spec 125 B5 (C7): the browser session of the workspace's Netvisor owner ONLY (netvisor_settings.owner_human_id). 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone and an agent seat; 403 forbidden for every other member, admins included; 404 not_found in every workspace but the operator workspace. No MCP tool (C8).",
+        "operationId": "getNetvisorForecast",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {env, snapshot (null before the first fetch), items, refresh_requested_at}. Contract: csi-spl-api/src/go/spool-hub-api/internal/wire/netvisor.go; doc csi-spl-doc/doc/md/netvisor-finance-store.md section 5."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "security": [
+          {
+            "memberSession": []
+          }
+        ],
+        "summary": "Read the month-end cash forecast: the Netvisor owner only",
+        "tags": [
+          "netvisor"
         ]
       }
     },

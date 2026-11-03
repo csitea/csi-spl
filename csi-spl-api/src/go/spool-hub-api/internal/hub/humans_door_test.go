@@ -86,7 +86,9 @@ func newDoorRig(t *testing.T, mut ...func(*hub.Options)) *doorRig {
 		// reads in production (the round-trip budget counts those reads).
 		ao := auth.Options{Registrar: hooks, Membership: hooks, Preferences: hooks,
 			HTTP:       &http.Client{Transport: tr, Timeout: 5 * time.Second},
-			PageTenant: func(r *http.Request) string { return ot.Request(r) }}
+			PageTenant: func(r *http.Request) string { return ot.Request(r) },
+			// specs/054 act-as as cmd/spool wires it; nil (routes off) under the memory store.
+			Impersonation: hub.NewActAs(o.Store, 0, nil)}
 		o.Auth = auth.New(cfg, zerolog.Nop(), ao)
 		o.ViewDoor = hub.ViewDoorSession
 		o.ViewCORSOrigins = []string{wuiOrigin}

@@ -259,3 +259,48 @@ func TestNetvisorHumanScopeCallers(t *testing.T) {
 		t.Fatal("control: netvisor_postgres.go does not name app.human_id - the scan reads the wrong files")
 	}
 }
+
+// TestNetvisorStoreRefresh (rdb 0257, B5): only the owner opens a "Refresh
+// now"; a second press keeps the first time; the ingest scope reads it; a
+// snapshot fetched before the request leaves it open, one fetched at or
+// after it clears it. Another human, and a workspace with no owner, are
+// refused.
+func TestNetvisorStoreRefresh(t *testing.T) {
+	pg := rlsStore(t)
+	ctx := context.Background()
+	a, none := newTenant(t, pg), newTenant(t, pg)
+	nvsSeed(t, pg, a, nvsOwner)
+	if at, err := pg.NetvisorRefreshRequested(ctx, a); err != nil || at != nil {
+		t.Fatalf("before any press: %v %v, want none", at, err)
+	}
+	if _, err := pg.NetvisorRefreshRequested(ctx, none); !errors.Is(err, ErrNetvisorNoOwner) {
+		t.Fatalf("no owner: %v, want ErrNetvisorNoOwner", err)
+	}
+	if _, err := pg.NetvisorRequestRefresh(ctx, a, nvsOther, time.Now()); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("another human pressed: %v, want ErrNotFound", err)
+	}
+	press := time.Now().UTC().Truncate(time.Microsecond)
+	got, err := pg.NetvisorRequestRefresh(ctx, a, nvsOwner, press)
+	if err != nil || !got.Equal(press) {
+		t.Fatalf("owner's press: %v %v", got, err)
+	}
+	if again, err := pg.NetvisorRequestRefresh(ctx, a, nvsOwner, press.Add(time.Minute)); err != nil || !again.Equal(press) {
+		t.Fatalf("second press moved the request: %v %v, want %v", again, err, press)
+	}
+	if st, err := pg.NetvisorSettings(ctx, a, nvsOwner); err != nil || st.RefreshRequestedAt == nil || !st.RefreshRequestedAt.Equal(press) {
+		t.Fatalf("settings read: %+v %v", st, err)
+	}
+	early := nvsSnap(press.Add(-time.Hour))
+	if _, err := pg.NetvisorIngest(ctx, a, early); err != nil {
+		t.Fatal(err)
+	}
+	if at, err := pg.NetvisorRefreshRequested(ctx, a); err != nil || at == nil || !at.Equal(press) {
+		t.Fatalf("an older fetch cleared the request: %v %v", at, err)
+	}
+	if _, err := pg.NetvisorIngest(ctx, a, nvsSnap(press.Add(time.Second))); err != nil {
+		t.Fatal(err)
+	}
+	if at, err := pg.NetvisorRefreshRequested(ctx, a); err != nil || at != nil {
+		t.Fatalf("the answering fetch left the request open: %v %v", at, err)
+	}
+}

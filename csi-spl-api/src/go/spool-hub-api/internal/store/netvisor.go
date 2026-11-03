@@ -65,6 +65,9 @@ type NetvisorSettings struct {
 	VendorExclusions []string  `json:"vendor_exclusions"`
 	UpdatedBy        string    `json:"updated_by"`
 	UpdatedAt        time.Time `json:"updated_at"`
+	// RefreshRequestedAt is the owner's open "Refresh now" (rdb 0257), nil
+	// when none is open; NetvisorIngest clears it.
+	RefreshRequestedAt *time.Time `json:"refresh_requested_at"`
 }
 
 // NetvisorForecastItem is one term of the month-end sum. Amount is decimal
@@ -131,6 +134,12 @@ type Netvisor interface {
 	// NetvisorLatest reads human's newest snapshot of env: ErrNotFound
 	// when there is none human may read.
 	NetvisorLatest(ctx context.Context, tenant, human, env string) (NetvisorSnapshot, error)
+	// NetvisorRequestRefresh opens human's "Refresh now" (rdb 0257) and
+	// answers its time: ErrNotFound unless human is the owner.
+	NetvisorRequestRefresh(ctx context.Context, tenant, human string, now time.Time) (time.Time, error)
+	// NetvisorRefreshRequested is the open request in the ingest scope (the
+	// B6 poller's read): nil when none, ErrNetvisorNoOwner with no settings.
+	NetvisorRefreshRequested(ctx context.Context, tenant string) (*time.Time, error)
 }
 
 var (

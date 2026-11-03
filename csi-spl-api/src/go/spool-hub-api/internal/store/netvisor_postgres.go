@@ -59,12 +59,12 @@ func (s *Postgres) inNetvisorIngest(ctx context.Context, tenant string, fn func(
 }
 
 const nvsSettingsCols = `owner_human_id, env, COALESCE(bank_account, ''), vat_accounts, tax_accounts, vendor_exclusions,
-	updated_by, updated_at`
+	updated_by, updated_at, refresh_requested_at`
 
 func scanNetvisorSettings(row pgx.Row, tenant string) (NetvisorSettings, error) {
 	st := NetvisorSettings{Tenant: tenant}
 	err := row.Scan(&st.OwnerHumanID, &st.Env, &st.BankAccount, &st.VATAccounts, &st.TaxAccounts,
-		&st.VendorExclusions, &st.UpdatedBy, &st.UpdatedAt)
+		&st.VendorExclusions, &st.UpdatedBy, &st.UpdatedAt, &st.RefreshRequestedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return st, ErrNotFound
 	}
@@ -143,6 +143,12 @@ func (s *Postgres) NetvisorIngest(ctx context.Context, tenant string, snap Netvi
 		if snap.Env != env {
 			return ErrNetvisorEnv
 		}
+		// The snapshot answers an open "Refresh now" made before it was
+		// fetched (rdb 0257); a later request stays open.
+		if _, err := tx.Exec(ctx, `UPDATE netvisor_settings SET refresh_requested_at = NULL
+			WHERE tenant_id = $1 AND refresh_requested_at <= $2`, tenant, snap.FetchedAt); err != nil {
+			return err
+		}
 		if _, err := tx.Exec(ctx, pgNetvisorIngestAsOwner, snap.OwnerHumanID); err != nil {
 			return err
 		}
@@ -152,6 +158,34 @@ func (s *Postgres) NetvisorIngest(ctx context.Context, tenant string, snap Netvi
 		return NetvisorSnapshot{}, err
 	}
 	return snap, nil
+}
+
+// NetvisorRequestRefresh is Netvisor.NetvisorRequestRefresh: an open
+// request keeps its first time, so a second press does not push it back.
+func (s *Postgres) NetvisorRequestRefresh(ctx context.Context, tenant, human string, now time.Time) (time.Time, error) {
+	var at time.Time
+	err := s.inNetvisorOwner(ctx, tenant, human, func(tx pgx.Tx) error {
+		err := tx.QueryRow(ctx, `UPDATE netvisor_settings SET refresh_requested_at = COALESCE(refresh_requested_at, $2)
+			WHERE tenant_id = $1 RETURNING refresh_requested_at`, tenant, now).Scan(&at)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
+	})
+	return at, err
+}
+
+// NetvisorRefreshRequested is Netvisor.NetvisorRefreshRequested.
+func (s *Postgres) NetvisorRefreshRequested(ctx context.Context, tenant string) (*time.Time, error) {
+	var at *time.Time
+	err := s.inNetvisorIngest(ctx, tenant, func(tx pgx.Tx) error {
+		err := tx.QueryRow(ctx, `SELECT refresh_requested_at FROM netvisor_settings WHERE tenant_id = $1`, tenant).Scan(&at)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNetvisorNoOwner
+		}
+		return err
+	})
+	return at, err
 }
 
 // nvsInsertSnapshot writes snap and its rows; the caller holds the owner's

@@ -40,6 +40,7 @@ type allowList struct {
 	path   string
 	tables []string            // in file order
 	public map[string][]string // table -> public columns
+	filter map[string][]string // table -> filter columns (spec 5.1: WHERE only)
 	never  []string
 }
 
@@ -68,11 +69,13 @@ var (
 	alTable      = regexp.MustCompile(`^  ([a-z_][a-z0-9_]*):\s*$`)
 	alPublicLine = regexp.MustCompile(`^    public:\s*\[(.*)\]\s*$`)
 	alPublicHead = regexp.MustCompile(`^    public:\s*$`)
+	alFilterLine = regexp.MustCompile(`^    filter:\s*\[(.*)\]\s*$`)
 	alItem6      = regexp.MustCompile(`^      - ([a-z_][a-z0-9_]*)\s*$`)
 	alItem2      = regexp.MustCompile(`^  - ([a-z_][a-z0-9_]*)\s*$`)
 )
 
-// parseAllowList reads the tables' public columns and the never list. It is a
+// parseAllowList reads the tables' public and filter columns (the filter
+// list in its one-line form only) and the never list. It is a
 // line reader for the file's own layout (no YAML library in this module); a
 // file it reads nothing from fails the test, so a layout change cannot make
 // the comparison vacuous.
@@ -83,7 +86,7 @@ func parseAllowList(t *testing.T, path string) allowList {
 		t.Fatal(err)
 	}
 	defer fh.Close()
-	al := allowList{path: path, public: map[string][]string{}}
+	al := allowList{path: path, public: map[string][]string{}, filter: map[string][]string{}}
 	section, table, inPublic := "", "", false
 	sc := bufio.NewScanner(fh)
 	for sc.Scan() {
@@ -105,6 +108,13 @@ func parseAllowList(t *testing.T, path string) allowList {
 			if m := alPublicLine.FindStringSubmatch(line); m != nil {
 				for _, c := range strings.Split(m[1], ",") {
 					al.public[table] = append(al.public[table], strings.TrimSpace(c))
+				}
+				inPublic = false
+				continue
+			}
+			if m := alFilterLine.FindStringSubmatch(line); m != nil {
+				for _, c := range strings.Split(m[1], ",") {
+					al.filter[table] = append(al.filter[table], strings.TrimSpace(c))
 				}
 				inPublic = false
 				continue
@@ -149,6 +159,17 @@ func (al allowList) columnSet() map[string]bool {
 	return out
 }
 
+// grantSet is columnSet plus every filter column: what the login is granted.
+func (al allowList) grantSet() map[string]bool {
+	out := al.columnSet()
+	for tb, cols := range al.filter {
+		for _, c := range cols {
+			out[tb+"."+c] = true
+		}
+	}
+	return out
+}
+
 func grantsFile(t *testing.T) string {
 	t.Helper()
 	return filepath.Join(repoRoot(t), "csi-spl-rdb", "src", "sql", "postgres", "spool-hub-roles", "public-export-grants.sql")
@@ -157,7 +178,7 @@ func grantsFile(t *testing.T) string {
 var grantLine = regexp.MustCompile(`(?m)^GRANT SELECT \(([^)]*)\) ON ([a-z_][a-z0-9_]*) TO ` + publicExportRole + `;$`)
 
 // TestPublicExportGrantsEqualAllowList: the committed grants file names
-// exactly the allow-list's public columns, table by table in file order, and
+// exactly the allow-list's public and filter columns, table by table in file order, and
 // records the sha256 of the allow-list it was generated from (an allow-list
 // edit without a regenerated grants file fails here). Every statement in it
 // is one the generator writes.
@@ -190,15 +211,15 @@ func TestPublicExportGrantsEqualAllowList(t *testing.T) {
 	if strings.Join(order, ",") != strings.Join(al.tables, ",") {
 		t.Errorf("grants file tables %v, allow-list tables %v", order, al.tables)
 	}
-	want := al.columnSet()
+	want := al.grantSet()
 	for c := range want {
 		if !got[c] {
-			t.Errorf("allow-list public column %s has no grant", c)
+			t.Errorf("allow-list public or filter column %s has no grant", c)
 		}
 	}
 	for c := range got {
 		if !want[c] {
-			t.Errorf("grant on %s, which the allow-list does not make public", c)
+			t.Errorf("grant on %s, which the allow-list neither makes public nor lists as a filter column", c)
 		}
 	}
 	allowed := regexp.MustCompile(`^(REVOKE ALL ON ALL (TABLES|SEQUENCES) IN SCHEMA public FROM ` + publicExportRole +
@@ -302,10 +323,11 @@ func liveColumnGrants(t *testing.T, pg *Postgres, role string) (cols, other []st
 }
 
 // TestPublicExportGrantsLive: on the database the role files were applied
-// to, spool_public_export holds SELECT on exactly the allow-list columns plus
-// public_export_workspace; as that login, every public column reads, a
-// withheld column (messages.msg, humans.email) and every §4.2 table that
-// exists are refused by Postgres.
+// to, spool_public_export holds SELECT on exactly the allow-list's public and
+// filter columns plus public_export_workspace; as that login, every public
+// and every filter column reads, every OTHER live column of an allow-list
+// table (one query each) and every §4.2 table that exists are refused by
+// Postgres.
 func TestPublicExportGrantsLive(t *testing.T) {
 	c := loginConn(t, "SPOOL_TEST_PG_PUBLIC_EXPORT_DSN")
 	pg := rlsStore(t)
@@ -313,7 +335,7 @@ func TestPublicExportGrantsLive(t *testing.T) {
 
 	cols, other := liveColumnGrants(t, pg, publicExportRole)
 	var want []string
-	for col := range al.columnSet() {
+	for col := range al.grantSet() {
 		want = append(want, col)
 	}
 	sort.Strings(want)
@@ -330,6 +352,16 @@ func TestPublicExportGrantsLive(t *testing.T) {
 			t.Errorf("%s cannot read its public columns: %s", publicExportRole, q)
 		}
 	}
+	for tb, fc := range al.filter {
+		q := "SELECT " + strings.Join(fc, ", ") + " FROM " + pgx.Identifier{tb}.Sanitize() + " LIMIT 1"
+		if denied(t, c, q) {
+			t.Errorf("%s cannot read its filter columns: %s", publicExportRole, q)
+		}
+	}
+	if len(al.filter) == 0 {
+		t.Error("control is void: the allow-list lists no filter column")
+	}
+	exportDeniesUngranted(t, pg, c, al)
 	for _, q := range []string{
 		"SELECT msg FROM messages LIMIT 1",
 		"SELECT email FROM humans LIMIT 1",
@@ -357,6 +389,44 @@ func TestPublicExportGrantsLive(t *testing.T) {
 	}
 	if n == 0 {
 		t.Error("control is void: no never-exported table exists in the test database")
+	}
+}
+
+// exportDeniesUngranted: every live column of an allow-list table that is
+// neither public nor a filter column is refused to the export login, one
+// query per column (spec 5.1: the filter grants open nothing else).
+func exportDeniesUngranted(t *testing.T, pg *Postgres, c *pgx.Conn, al allowList) {
+	t.Helper()
+	granted := al.grantSet()
+	rows, err := pg.pool.Query(context.Background(), `
+		SELECT c.relname, a.attname FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid
+		  JOIN pg_namespace n ON n.oid = c.relnamespace
+		 WHERE n.nspname = 'public' AND a.attnum > 0 AND NOT a.attisdropped AND c.relname = ANY ($1)
+		 ORDER BY 1, 2`, al.tables)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var qs []string
+	for rows.Next() {
+		var tb, col string
+		if err := rows.Scan(&tb, &col); err != nil {
+			t.Fatal(err)
+		}
+		if !granted[tb+"."+col] {
+			qs = append(qs, "SELECT "+pgx.Identifier{col}.Sanitize()+" FROM "+pgx.Identifier{tb}.Sanitize()+" LIMIT 1")
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if len(qs) < 50 {
+		t.Fatalf("control is void: only %d ungranted live column(s) of the allow-list tables", len(qs))
+	}
+	for _, q := range qs {
+		if !denied(t, c, q) {
+			t.Errorf("%s read a column that is neither public nor a filter column: %s", publicExportRole, q)
+		}
 	}
 }
 

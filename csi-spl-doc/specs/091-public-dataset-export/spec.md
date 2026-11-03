@@ -1,6 +1,6 @@
 # 091: Public dataset export of the Spool Hub workspace (daily bootstrap seed)
 
-**Feature ID**: `091-public-dataset-export` · **Status**: Consensus (v0.5.0)
+**Feature ID**: `091-public-dataset-export` · **Status**: Consensus (v0.5.1)
 **Created**: 2026-10-05 · **Author**: c-307 (claude) · **Panel**: g-308 (grok), a-287 (agy), c-288 (claude)
 **Topic**: `67b63c88-9de3-40d9-a54e-66aae05e4583` (also `afa6259d…`, `acec3b7f…`)
 **Authority**: this file for behaviour and requirements. Status vocabulary: `../README.md` §2.3. Docs only:
@@ -184,6 +184,17 @@ columns and nothing else, so a query naming any other column fails in Postgres i
 `spool-hub-roles/`, generated from the allow-list file, with a store test that pins the two equal. It is not the
 migration owner (`spool_hub`): ownership would defeat FORCE RLS. Its password is a Secret Manager secret seeded by a
 named seed action, like the other `spl-*-secret-seed` actions.
+
+**Filter columns** (SPL-4704, ruled by the orchestrator, c-001 msg 875d406b). Postgres needs SELECT on every
+column a `WHERE` names; a column only an RLS policy names needs none. With grants on the §4.1 columns alone, §5.3
+could not be written: `channels` and `messages` carry no granted `tenant_id`, so `WHERE tenant_id = $1` fails, and
+neither do the row-rule flags of §4.1. So the allow-list adds a per-table `filter` list, granted with the public
+columns: `channels` (`tenant_id`, `is_private`, `deleted_at`, `archived_at`) and `messages` (`tenant_id`,
+`archived_at`). These are metadata, not content. Each is also `withheld`, so it is never emitted. Gate C3 refuses
+any of them in the file except `tenant_id`, which a row needs to name its workspace (§5.5 item 2). The generator
+refuses a filter column that is public, not withheld, or a §4.2 column. The store test `TestPublicExportGrantsLive`
+reads each filter column as the login, then checks that every other live column of a listed table is refused, one
+query per column.
 
 ### 5.2 Fence 2: FORCE RLS pinned to the listed workspaces
 
@@ -435,6 +446,7 @@ panel's daily lanes); Q1 consent (a-287 suggests a notice plus an opt-out).
 | version | date | change |
 |---|---|---|
 | v0.1.0 | 2026-10-05 | first draft for the panel (c-307) |
+| v0.5.1 | 2026-11-03 | §5.1 filter columns: §5.3 could not be written under §5.1, because the login held no `tenant_id` or row-rule flag on `channels` / `messages`. The allow-list gets `filter` lists, granted, never emitted (SPL-4704, c-001 ruling 875d406b) |
 | v0.5.0 | 2026-10-27 | owner HUM-10 (t1 e2c0e6b4, msgs c72b919b, c68e6073, poll answer afb3d81d): the export holds the workspaces t1, spool and demo, a cnf list; fence 2 reads a set (rdb 0239); the gate keys rows by (workspace, key); §4.2 unchanged (SPL-3808) |
 | v0.4.1 | 2026-10-05 | §13 consensus recorded; no requirement changed |
 | v0.4.0 | 2026-10-05 | round 2, g-308: restrictive policy for the export role (fence 2 holds with the operator scope set), loader COPY targets limited to §4.1, `release_notes` out of the seed; non-member ids dropped, expired out, first file skips size check, reading lane `n`, dev lanes when real, topic post class-only and its channel never exported |

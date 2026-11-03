@@ -3,9 +3,13 @@
 # @description Generate spool-hub-roles/public-export-grants.sql from the public
 # @description dataset allow-list (spec 091 T004, fence 1, spec 5.1): REVOKE ALL
 # @description from the export login, then one column-level GRANT SELECT
-# @description (<public cols>) ON <table> per allow-list table, in file order,
-# @description plus SELECT on public_export_workspace (rdb 0126). Nothing else:
-# @description a query naming any other column fails in Postgres itself.
+# @description (<public cols>, <filter cols>) ON <table> per allow-list table,
+# @description in file order, plus SELECT on public_export_workspace (rdb
+# @description 0126). Nothing else: a query naming any other column fails in
+# @description Postgres itself. The filter columns (spec 5.1, SPL-4704) are
+# @description withheld columns the export may name in a WHERE (fence 3 and
+# @description the row rules) and never emits; each must be withheld and none
+# @description a section 4.2 column, else the render refuses.
 # @description The file is committed; the store test and the bash test pin it
 # @description equal to this output, and do_spl_public_export_role refuses a
 # @description stale one. No cloud, no database: a pure render.
@@ -60,8 +64,9 @@ spl_public_export_grants_sql() {
   ver="$(yq -r '.version // ""' "$list")" || return 1
   [[ "$(basename "$list")" == "allow-list.v$ver.yaml" ]] ||
     { do_log "FATAL $list says version '$ver'" >&2; return 1; }
-  rows="$(yq -r '.tables | to_entries[] | .key + " " + (.value.public | join(","))' "$list")" || return 1
+  rows="$(yq -r '.tables | to_entries[] | .key + " " + ((.value.public + (.value.filter // [])) | join(","))' "$list")" || return 1
   [[ -n "$rows" ]] || { do_log "FATAL $list lists no table" >&2; return 1; }
+  spl_public_export_filter_check "$list" || return 1
   grep -qvE '^[a-z_][a-z0-9_]* [a-z_][a-z0-9_]*(,[a-z_][a-z0-9_]*)*$' <<<"$rows" &&
     { do_log "FATAL $list has a table without public columns or a name that is not [a-z0-9_]" >&2; return 1; }
   sum="$(sha256sum <"$list" | cut -d' ' -f1)"
@@ -75,9 +80,10 @@ spl_public_export_grants_sql() {
 -- do_spl_public_export_role, after public-export-role.sql. Idempotent.
 --
 -- The export login holds column-level SELECT on exactly the public columns
--- of spec 4.1 and SELECT on public_export_workspace (fence 2, rdb 0126), so a
--- query naming any other column or table fails in Postgres itself. REVOKE ALL
--- on a table also revokes its column privileges.
+-- of spec 4.1, the allow-list's filter columns (spec 5.1: named in a WHERE,
+-- never emitted) and SELECT on public_export_workspace (fence 2, rdb 0126),
+-- so a query naming any other column or table fails in Postgres itself.
+-- REVOKE ALL on a table also revokes its column privileges.
 
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM spool_public_export;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM spool_public_export;
@@ -89,4 +95,21 @@ EOF_SQL
     printf 'GRANT SELECT (%s) ON %s TO spool_public_export;\n' "${cols//,/, }" "$t"
   done <<<"$rows"
   printf 'GRANT SELECT ON public_export_workspace TO spool_public_export;\n'
+}
+
+# spl_public_export_filter_check <allow-list>: every filter column is a
+# withheld column of its table, not a public one, and none is a section 4.2
+# column (a filter column is granted, so it must never be one of those).
+spl_public_export_filter_check() {
+  local t c wh pub bad=""
+  for t in $(yq -r '.tables | keys | .[]' "$1"); do
+    wh=" $(yq -r ".tables.$t.withheld // [] | join(\" \")" "$1") "
+    pub=" $(yq -r ".tables.$t.public // [] | join(\" \")" "$1") "
+    for c in $(yq -r ".tables.$t.filter // [] | .[]" "$1"); do
+      [[ "$wh" == *" $c "* && "$pub" != *" $c "* &&
+         " email msg env env_sig files typed_by ref_task_id mirror_of root_pubkey " != *" $c "* ]] || bad+=" $t.$c"
+    done
+  done
+  [[ -z "$bad" ]] ||
+    { do_log "FATAL $1: filter column(s) not withheld, public, or a section 4.2 column:$bad" >&2; return 1; }
 }

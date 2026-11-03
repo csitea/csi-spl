@@ -5,7 +5,9 @@
 #          `version` agree, no column is both `public` and `withheld`, no
 #          section 4.2 table or column is `public`, every `public` column is one
 #          section 4.1 names, every constant / forced key is a column of the
-#          right list, and every column it names exists in the migrations. The
+#          right list, every `filter` column (spec 5.1: named in a WHERE,
+#          never emitted) is withheld and no section 4.2 column, and every
+#          column it names exists in the migrations. The
 #          cnf carries the kill switch off on every env and points at this
 #          version. Gate C3 (T005) checks the LIVE catalog; this is the file.
 #------------------------------------------------------------------------------
@@ -67,6 +69,10 @@ check_file() {  # <file>: every structural rule on one allow-list
     for c in $(yq -r ".tables.$t.constants // {} | keys | .[]" "$f"); do
       grep -qx "$c" <<<"$wh" || fail "$b $t: constant for $c, which is not withheld"
     done
+    for c in $(yq -r ".tables.$t.filter // [] | .[]" "$f"); do
+      grep -qx "$c" <<<"$wh" || fail "$b $t: filter column $c is not withheld"
+      [[ " $NEVER_COLS " != *" $c "* ]] || fail "$b $t.$c is a section 4.2 column and a filter column"
+    done
     for c in $(yq -r ".tables.$t.forced // {} | keys | .[]" "$f"); do
       grep -qx "$c" <<<"$pub" || fail "$b $t: forced value for $c, which is not public"
     done
@@ -103,6 +109,14 @@ yq -i '.tables.humans.public += ["email"] | .tables.humans.withheld -= ["email"]
 before=$fails
 check_file "$T/allow-list.v1.yaml" >/dev/null
 (( fails > before )) && { fails=$before; pass "control: a public humans.email fails"; } || fail "control: a public humans.email passed"
+yq '.tables.messages.filter += ["msg"]' "$DIR/allow-list.v1.yaml" >"$T/allow-list.v1.yaml"
+before=$fails
+check_file "$T/allow-list.v1.yaml" >/dev/null
+(( fails > before )) && { fails=$before; pass "control: a filter messages.msg fails"; } || fail "control: a filter messages.msg passed"
+yq '.tables.channels.filter += ["name"]' "$DIR/allow-list.v1.yaml" >"$T/allow-list.v1.yaml"
+before=$fails
+check_file "$T/allow-list.v1.yaml" >/dev/null
+(( fails > before )) && { fails=$before; pass "control: a public column as a filter column fails"; } || fail "control: a public filter column passed"
 yq '.["version"] = 2' "$DIR/allow-list.v1.yaml" >"$T/allow-list.v1.yaml"
 before=$fails
 check_file "$T/allow-list.v1.yaml" >/dev/null

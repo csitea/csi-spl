@@ -4,10 +4,17 @@
 # then this file as allow-list.v<N+1>.yaml.
 #
 # Every LIVE column of every listed table is either `public` (exported, section
-# 4.1) or `withheld` (never read by the export, section 4.4). The columns were
+# 4.1) or `withheld` (never emitted by the export, section 4.4). The columns were
 # measured from the migrations applied in order to an empty Postgres (multi-line
 # ADD COLUMN included), read back from information_schema.columns. Gate C3 reads
 # the live catalog: a column in neither list fails the export and its test.
+#
+# `filter` (spec 5.1, SPL-4704) lists the withheld columns the export login may
+# NAME IN A WHERE and never emit: tenant_id (fence 3, `WHERE tenant_id = $1`)
+# and the flags of the section 4.1 row rules. Postgres needs SELECT on every
+# column a WHERE names, so without these grants fence 3 and the row rules
+# could not be written. Each is also `withheld`; gate C3 refuses one in the
+# file (tenant_id excepted: a row names its workspace, section 5.5 item 2).
 #
 # `rows` names the row rule of section 4.1; the export's projection query for
 # that table implements it. `constants` are the values the projection EMITS for
@@ -56,6 +63,7 @@ tables:
   channels:
     rows: public_not_deleted_not_archived
     public: [channel_id, name, description, created_by, created_at]
+    filter: [tenant_id, is_private, deleted_at, archived_at]
     withheld:
       - tenant_id
       - is_private
@@ -81,6 +89,7 @@ tables:
       - is_parent
       - received_at
       - expires_at
+    filter: [tenant_id, archived_at]
     withheld:
       - tenant_id
       - from_box

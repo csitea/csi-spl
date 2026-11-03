@@ -11,7 +11,9 @@
 #        (also as a channel key), each FATAL, nothing cleaned
 #     3. C4 body: each pattern class drops its message and counts it; the
 #        second scan is clean; whole words only; 1 % dropped passes, 2 % fails
-#     4. C3: an extra column, a never-exported table, a non-COPY line, an
+#     4. C3: an extra column, every allow-list `filter` column but tenant_id
+#        (spec 5.1, SPL-4704: named in a WHERE, never emitted), a
+#        never-exported table, a non-COPY line, an
 #        unclassified live column, a constant that is not constant (msg, env),
 #        an allow-list table with no COPY block
 #     5. C1 / MEMBER / C2: an extra workspace row, a foreign tenant_id, a real
@@ -231,6 +233,12 @@ fatal "3. 2 of 100 bodies hit (2 %, above the 1 % cap) fails the day" two 'FATAL
 # --- 4. C3 shape -------------------------------------------------------------------------
 mk xcol 'col:messages:files:[]'; gate xcol
 fatal "4. an extra column (messages.files) in the file is FATAL" xcol 'FATAL C3 messages column files is not a public column'
+nf=0
+while read -r ft fc; do
+  nf=$((nf + 1)); mk "fcol-$ft-$fc" "col:$ft:$fc:\\N"; gate "fcol-$ft-$fc"
+  fatal "4. filter column $ft.$fc in the file is FATAL" "fcol-$ft-$fc" "FATAL C3 $ft column $fc is not a public column"
+done < <(yq -r '.tables | to_entries[] | .key as $t | (.value.filter // [])[] | select(. != "tenant_id") | $t + " " + .' "$ALLOW_YAML")
+(( nf > 0 )) && pass "4. $nf filter column(s) planted" || fail "4. control is void: the allow-list has no filter column but tenant_id"
 mk never 'line:COPY password_credentials (subject) FROM stdin;' 'line:x' 'line:\.'; gate never
 fatal "4. a COPY into a never-exported table is FATAL" never 'FATAL C3 password_credentials a never-exported table'
 mk setl 'line:SET search_path = plantschema;'; gate setl

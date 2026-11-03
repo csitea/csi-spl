@@ -72,6 +72,38 @@ func TestTopicPrioritySetRead(t *testing.T) {
 	}
 }
 
+// TestSetTopicPriorities (SPL-4725): only the topics someone set, a set 3
+// too, under the asked id in any case; an unset topic, a no-uuid id and
+// another workspace's row are absent, never the default 3.
+// RED CONTROL: answer TopicPriorities instead and the unset topic reads 3.
+func TestSetTopicPriorities(t *testing.T) {
+	ctx := context.Background()
+	at := time.Now().UTC()
+	for name, s := range drivers(t) {
+		t.Run(name, func(t *testing.T) {
+			ps := s.(TopicPriorityStore)
+			tid, other := newTenant(t, s), newTenant(t, s)
+			four, three, unset := uuid4(), uuid4(), uuid4()
+			for task, p := range map[string]int{four: 4, three: 3} {
+				if _, err := ps.SetTopicPriority(ctx, tid, task, p, "HUM-1", at); err != nil {
+					t.Fatal(err)
+				}
+			}
+			upper := strings.ToUpper(four)
+			got, err := ps.SetTopicPriorities(ctx, tid, []string{upper, three, unset, "not-a-uuid"})
+			if err != nil || len(got) != 2 || got[upper] != 4 || got[three] != 3 {
+				t.Fatalf("read %v %v, want %s=4 and %s=3 only", got, err, upper, three)
+			}
+			if got, err = ps.SetTopicPriorities(ctx, other, []string{four}); err != nil || len(got) != 0 {
+				t.Fatalf("another workspace read %v %v, want none", got, err)
+			}
+			if got, err = ps.SetTopicPriorities(ctx, tid, nil); err != nil || len(got) != 0 {
+				t.Fatalf("no ids: %v %v", got, err)
+			}
+		})
+	}
+}
+
 // TestTopicPriorityBounds is C302: 0 and 6 are refused before any write, 1
 // and 5 are accepted; a task id that is no uuid is refused.
 // RED CONTROL: widen the bounds in checkTopicPriority and 0 / 6 are written.

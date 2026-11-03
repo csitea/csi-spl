@@ -315,18 +315,22 @@ spl_lane_issue_place() {
 
 # spl_lane_issue_file STATUS TITLE DESC_FILE [BRIEF] -> "<key>\t<topic>" ("<new>"
 # in a dry run): created with the lane ($id of the caller) assigned, labelled
-# `answer` when LANE_ISSUE_ANSWER=1. <topic> is the discussion the hub linked
+# `answer` when LANE_ISSUE_ANSWER=1, and with the brief's class when its
+# `Class:` is bug, refactor or alert (spl_lane_issue_class): the hub's prio
+# default reads it (SPL-4725, hub/issue_prio_default.go). <topic> is the discussion the hub linked
 # (SPL-1593) from the card's Source line. When the hub resolves none (no such
 # topic in the tenant, an ambiguous short id), one WARN line names the brief
 # and the create runs once more on the tenant's default discussion: a
 # placement never fails on the link (c-002, dispatch-fcf09921 msg c5c7d032).
 spl_lane_issue_file() {
   local out key rc=0 def err
-  local -a lab=() ep=()
-  if [[ "${LANE_ISSUE_ANSWER:-0}" == 1 ]]; then
-    spl_lane_issue_label answer || return 1
-    lab+=(--labels answer)
-  fi
+  local -a lab=() ep=() names=()
+  local n cls
+  [[ "${LANE_ISSUE_ANSWER:-0}" == 1 ]] && names+=(answer)
+  cls="$(spl_lane_issue_class "${4:-}")"
+  [[ -n "$cls" ]] && names+=("$cls")
+  for n in "${names[@]}"; do spl_lane_issue_label "$n" || return 1; done
+  if (( ${#names[@]} )); then lab+=(--labels "$(IFS=,; printf '%s' "${names[*]}")"); fi
   # A workspace issue may stand alone (no epic in that workspace yet).
   [[ -n "${SLI_EPIC:-}" || -z "${SLI_WS:-}" ]] && ep=(--epic "${SLI_EPIC:-}")
   err="$(mktemp)"
@@ -354,6 +358,16 @@ ds = [d.get("task_id", "") for d in r.get("discussions") or [] if isinstance(d, 
 print(r.get("key", "") + "\t" + (ds[0] if ds else ""))' 2>/dev/null)" || rc=$?
   [[ $rc -eq 0 && "${key%%$'\t'*}" =~ ^${LI_KEY_RE}$ ]] || { do_log "FATAL the hub filed no key for $id: $out" >&2; return 1; }
   printf '%s\n' "$key"
+}
+
+# spl_lane_issue_class BRIEF -> the brief's `Class:` when it is one the hub's
+# prio default knows (bug and alert prio 1, refactor 2; owner HUM-10, t1
+# 6c9aa54b msg c1a3ab4b, t1 3aac280f msg 1ee85284), lower case; nothing for
+# ci, feature, none or no brief. The label carries it to the hub (SPL-4725).
+spl_lane_issue_class() {
+  [[ -r "${1:-}" ]] || return 0
+  grep -m1 -oiE '^Class:[[:space:]]*(bug|refactor|alert)[[:space:]]*$' "$1" | sed -E 's/^[^:]*:[[:space:]]*//; s/[[:space:]]*$//' | tr '[:upper:]' '[:lower:]'
+  return 0
 }
 
 # spl_lane_issue_guard SPEC EPIC: no issue without an epic and a git spec

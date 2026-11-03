@@ -303,7 +303,11 @@ holds (panel.md section 1, one row per claim with its command).
    home stays `csi-spl-doc/doc/md/fleet-rules-index.md`, updated in the
    same commit.
 4. **An issue keeps its own priority** (panel D4): the queue reads the
-   discussion's through `fleet_asks.discussion`; nothing copies it.
+   discussion's through `fleet_asks.discussion`; nothing copies it. Except
+   once, at its create (owner HUM-10, t1 3aac280f msg b364e9d5, SPL-4725):
+   a new issue that names no priority takes the highest one SET on its
+   linked discussions (lane-issue-and-docs.md section 1.1b); later changes
+   to either are not copied.
 
 ### 3.5 i18n
 

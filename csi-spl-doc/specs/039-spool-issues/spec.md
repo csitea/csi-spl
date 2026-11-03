@@ -68,7 +68,7 @@ Refined the same morning (binding where it differs from the first request):
 | title | 1..255 characters | required |
 | description | markdown, <= 20000 characters | the issue dialog only (was the right pane) |
 | status | 01-eval, 02-todo, 03-wip, 03-diss, 05-blocked, 06-onhold, 07-qas, 09-done (ids `eval todo wip diss blocked onhold qas done`; a hover gives the long name) | the owner's set, 2026-09-26 (rdb 0055, 0061 SPL-966; old names normalize); default eval |
-| prio | the number 1..5 | the owner's scale, 2026-09-26 (rdb 0054 + 0055); default 5, old 0 became 5 |
+| prio | the number 1..5 | the owner's scale, 2026-09-26 (rdb 0054 + 0055); old 0 became 5. A new issue's prio when its create names none: [lane issue and docs](../../doc/md/lane-issue-and-docs.md) section 1.1b (SPL-4725) |
 | level | 1 epic / feature, 2 issue, 3 subtask | the row's place in the tree, derived by the hub (owner 2026-09-26, SPL-949, rdb 0056); was a 0..5 t-shirt estimate |
 | assignee | a member `HUM-*` or a roster agent, or nobody | an id nobody in the tenant can act on is refused |
 | labels | the tenant's label catalogue (name + colour), <= 20 per issue | |

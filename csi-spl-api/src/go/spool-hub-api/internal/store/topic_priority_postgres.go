@@ -38,10 +38,34 @@ func (s *Postgres) TopicPriorities(ctx context.Context, tenant string, taskIDs [
 		return nil, err
 	}
 	out, keys := defaultTopicPriorities(taskIDs)
-	if len(keys) == 0 {
-		return out, nil
+	stored, err := s.storedTopicPriorities(ctx, tenant, keys)
+	if err != nil {
+		return nil, err
 	}
+	return foldTopicPriorities(out, stored), nil
+}
+
+// SetTopicPriorities implements TopicPriorityStore: the same one probe,
+// only the rows found.
+func (s *Postgres) SetTopicPriorities(ctx context.Context, tenant string, taskIDs []string) (map[string]int, error) {
+	if err := checkTenant(tenant); err != nil {
+		return nil, err
+	}
+	_, keys := defaultTopicPriorities(taskIDs)
+	stored, err := s.storedTopicPriorities(ctx, tenant, keys)
+	if err != nil {
+		return nil, err
+	}
+	return setOnly(taskIDs, stored), nil
+}
+
+// storedTopicPriorities is key -> priority for the keys with a row; no
+// query when there is no key.
+func (s *Postgres) storedTopicPriorities(ctx context.Context, tenant string, keys []string) (map[string]int, error) {
 	stored := map[string]int{}
+	if len(keys) == 0 {
+		return stored, nil
+	}
 	err := s.queryTenant(ctx, tenant, `SELECT task_id::text, priority FROM topic_priorities
 		WHERE tenant_id = $1 AND task_id = ANY ($2::uuid[])`, []any{tenant, keys},
 		func(r pgx.Rows) error {
@@ -54,5 +78,5 @@ func (s *Postgres) TopicPriorities(ctx context.Context, tenant string, taskIDs [
 	if err != nil {
 		return nil, err
 	}
-	return foldTopicPriorities(out, stored), nil
+	return stored, nil
 }

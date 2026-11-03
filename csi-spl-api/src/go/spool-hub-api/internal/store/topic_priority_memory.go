@@ -32,6 +32,20 @@ func (s *Memory) TopicPriorities(_ context.Context, tenant string, taskIDs []str
 		return nil, err
 	}
 	out, keys := defaultTopicPriorities(taskIDs)
+	return foldTopicPriorities(out, s.storedTopicPriorities(tenant, keys)), nil
+}
+
+// SetTopicPriorities implements TopicPriorityStore.
+func (s *Memory) SetTopicPriorities(_ context.Context, tenant string, taskIDs []string) (map[string]int, error) {
+	if err := checkTenant(tenant); err != nil {
+		return nil, err
+	}
+	_, keys := defaultTopicPriorities(taskIDs)
+	return setOnly(taskIDs, s.storedTopicPriorities(tenant, keys)), nil
+}
+
+// storedTopicPriorities is key -> priority for the keys with a row.
+func (s *Memory) storedTopicPriorities(tenant string, keys []string) map[string]int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	stored := map[string]int{}
@@ -40,5 +54,5 @@ func (s *Memory) TopicPriorities(_ context.Context, tenant string, taskIDs []str
 			stored[k] = p.Priority
 		}
 	}
-	return foldTopicPriorities(out, stored), nil
+	return stored
 }

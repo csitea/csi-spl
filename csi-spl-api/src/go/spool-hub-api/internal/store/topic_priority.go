@@ -49,6 +49,10 @@ type TopicPriorityStore interface {
 	// TopicPriorityDefault when nobody set it (or the id is no uuid). It
 	// reads the asked ids only, on the primary key.
 	TopicPriorities(ctx context.Context, tenant string, taskIDs []string) (map[string]int, error)
+	// SetTopicPriorities answers only the asked ids someone set (a stored
+	// row, a set 3 too), keyed by the asked id: an unset topic is absent,
+	// never the default. A new issue inherits from it (SPL-4725).
+	SetTopicPriorities(ctx context.Context, tenant string, taskIDs []string) (map[string]int, error)
 }
 
 var (
@@ -85,6 +89,18 @@ func defaultTopicPriorities(taskIDs []string) (map[string]int, []string) {
 		}
 	}
 	return out, keys
+}
+
+// setOnly keeps the asked ids whose key has a stored row, at that row's
+// priority.
+func setOnly(taskIDs []string, stored map[string]int) map[string]int {
+	out := map[string]int{}
+	for _, id := range taskIDs {
+		if p, ok := stored[strings.ToLower(id)]; ok {
+			out[id] = p
+		}
+	}
+	return out
 }
 
 // foldTopicPriorities writes the stored rows (key -> priority) into out under

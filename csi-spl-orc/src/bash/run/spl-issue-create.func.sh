@@ -31,7 +31,7 @@
 # @param ISSUE_DESCRIPTION (required for a level-2 issue: it names the spec, `Spec: csi-spl-doc/specs/NNN-<slug>`) - markdown, no fence needed (csi-spl-doc/doc/help/how-to-post.md); or ISSUE_DESCRIPTION_FILE
 # @param ISSUE_STATUS (optional) - eval (default) | todo | wip | diss | blocked | onhold | qas | done  (01-eval, 02-todo, 03-wip, 03-diss, 05-blocked, 06-onhold, 07-qas, 09-done)
 # @param ISSUE_QAS_ASKED_BY (optional) - required with ISSUE_STATUS=qas: the human (HUM-n) or the msg id that asked for the review (spec 135 Q7)
-# @param ISSUE_PRIORITY (optional) - prio 1 (highest) .. 5 (lowest, the default)
+# @param ISSUE_PRIORITY (optional) - prio 1 (highest) .. 5 (lowest); unset: the highest prio set on a linked discussion, else the class label (bug/alert 1, refactor 2), else 5 (SPL-4725)
 # @param ISSUE_LEVEL (optional) - 1 epic / feature, 2 issue, 3 subtask: the hub derives it from the tree and refuses any other
 # @param ISSUE_ASSIGNEE (optional) - a member HUM-* or an agent id
 # @param ISSUE_LABELS (optional) - label ids, comma separated

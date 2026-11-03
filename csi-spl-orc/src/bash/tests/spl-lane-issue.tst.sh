@@ -489,6 +489,27 @@ grep -q '^label|--name|answer|' "$T/calls.log" && grep -q '^create|--title|evalu
 run AGENT_ID=c-125 BRIEF="$T/brief.md" DRY_RUN=0
 ! grep -q -- '--labels' "$T/calls.log" && pass "control: no Kind: answer, no label" || fail "label control: $(cat "$T/calls.log")"
 
+# SPL-4725: the brief's Class: bug / refactor / alert labels the issue (the
+# label made first), so the hub's prio default (hub/issue_prio_default.go)
+# gives it 1 / 2 / 1 when no linked discussion has a prio set. ci and feature
+# add no label. Red control: drop bug from spl_lane_issue_class's list.
+for cls in bug Refactor alert; do
+  lc="$(printf '%s' "$cls" | tr '[:upper:]' '[:lower:]')"
+  printf '# Brief: fix the runner\n\nClass: %s\n%s\n' "$cls" "$ES" >"$T/class.md"
+  run AGENT_ID=c-126 BRIEF="$T/class.md" DRY_RUN=0
+  grep -q "^label|--name|$lc|" "$T/calls.log" && grep -q "^create|--title|fix the runner|.*|--status|wip|--labels|$lc|--epic|SPL-1|" "$T/calls.log" &&
+    pass "Class: $cls: the label $lc exists, the issue carries it" || fail "class $cls (rc=$rc): $(cat "$T/calls.log")"
+done
+for cls in feature ci; do
+  printf '# Brief: fix the runner\n\nClass: %s\n%s\n' "$cls" "$ES" >"$T/class.md"
+  run AGENT_ID=c-127 BRIEF="$T/class.md" DRY_RUN=0
+  [[ $rc -eq 0 ]] && ! grep -q -- '--labels' "$T/calls.log" && pass "control: Class: $cls adds no label" || fail "class $cls control (rc=$rc): $(cat "$T/calls.log")"
+done
+printf '# Brief: evaluate the bug\n\nKind: answer\nClass: bug\n%s\n' "$ES" >"$T/class.md"
+run AGENT_ID=c-128 BRIEF="$T/class.md" DRY_RUN=0
+grep -q '^create|--title|evaluate the bug|.*|--labels|answer,bug|' "$T/calls.log" &&
+  pass "Kind: answer + Class: bug: both labels, one --labels" || fail "answer + class (rc=$rc): $(cat "$T/calls.log")"
+
 # discussion: the first answer files the discussion's issue (owner Q1A).
 run AGENT_ID=c-002 LANE_ISSUE_OP=discussion LANE_ISSUE_TOPIC=5ea2e615-ca23-451f-9fea-e1b87c369476 LANE_ISSUE_TITLE='Evaluate the runner' LANE_ISSUE_TEXT='"is the VM dead?"' LANE_ISSUE_ANSWER=1 LANE_ISSUE_SPEC=csi-spl-doc/specs/135-work-process LANE_ISSUE_EPIC=SPL-1 DESC_COPY="$T/d2.md" DRY_RUN=0
 [[ $rc -eq 0 ]] && grep -q '^create|--title|Evaluate the runner|.*|--status|eval|--labels|answer|--epic|SPL-1|--assignee|c-002|' "$T/calls.log" &&

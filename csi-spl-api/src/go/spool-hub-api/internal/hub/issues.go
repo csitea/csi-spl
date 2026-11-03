@@ -389,6 +389,16 @@ func (s *Server) createIssueOn(ctx context.Context, tenant, actor, task string, 
 		return store.Issue{}, ie
 	}
 	in.Discussions = ds
+	if q.Priority == nil {
+		p, err := s.defaultIssuePriority(ctx, tenant, ds, in.Labels)
+		if ie := storeIssueErr(err); ie != nil {
+			s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("issue create: default priority")
+			return store.Issue{}, ie
+		}
+		if p > 0 {
+			in.Priority = p
+		}
+	}
 	out, err := is.CreateIssue(ctx, in, s.o.Now())
 	if ie := storeIssueErr(err); ie != nil {
 		if ie.status == http.StatusInternalServerError {

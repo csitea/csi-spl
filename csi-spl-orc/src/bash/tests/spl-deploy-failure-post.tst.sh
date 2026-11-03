@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
-# Purpose: do_spl_deploy_failure_post (SPL-1255) builds one #spool-hub-ops
+# Purpose: do_spl_deploy_failure_post (SPL-1255) builds one #alerts (SPL-4700)
 #          blocker from a failed 20/30 run's fields, naming the run, the failing
 #          step, the breaking commit and the agent that landed it. The poster is
 #          injected (OPS_POST_FN); nothing real is sent.
@@ -22,6 +22,8 @@ eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "want '$2' got '$3'"; }
 has() { case "$2" in *"$3"*) pass "$1" ;; *) fail "$1" "'$3' not in: $2" ;; esac; }
 
 do_log() { :; }
+# shellcheck source=../../../lib/bash/funcs/spl-ops-alarm-channel.func.sh
+. "$PROJ_ROOT/lib/bash/funcs/spl-ops-alarm-channel.func.sh"
 # shellcheck source=../run/spl-deploy-failure-post.func.sh
 . "$FUNC"
 
@@ -42,7 +44,7 @@ has "2. body carries the run link" "$body" "https://github.com/o/r/actions/runs/
 has "2. body names the failing step" "$body" "run-all-tests.sh"
 has "2. body carries the short sha" "$body" "abcd1234"
 has "3. agent parsed from the commit tag" "$body" "From: **CLE-77790**"
-eq "5. it is a blocker on the ops channel" "spool-hub-ops|blocker" "$(cut -d'|' -f1,2 "$CAP")"
+eq "5. it is a blocker on the ops channel" "alerts|blocker" "$(cut -d'|' -f1,2 "$CAP")"
 
 # 3b. an SPL- issue tag is also recognised, case-insensitively
 FAIL_RUN_URL="https://x/runs/9" FAIL_COMMIT_SUBJECT="feat(iac, spl-1251): pre-push gate" \

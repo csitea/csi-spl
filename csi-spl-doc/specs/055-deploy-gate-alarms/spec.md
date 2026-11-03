@@ -11,6 +11,15 @@ product, not Slack). Posting is `do_spl_desk_post` — it signs a `spool send
 --channel` envelope with an on-disk **desk** identity. There is no CI posting
 identity yet; provisioning one is the single owner-go blocker (§4).
 
+**Channel moved (SPL-4700, owner HUM-10, t1 3a18a0b5 msg 6a43f1a2, 2026-11-03):**
+both alarms now post to **#alerts**, read from cnf `env.ops_alarms.channel`
+(`csi-spl-cnf/csi-spl/all.env.yaml`, helper
+`csi-spl-orc/lib/bash/funcs/spl-ops-alarm-channel.func.sh`); an explicit
+`DESK_CHANNEL` still wins, an unset key is a FATAL and nothing is sent. #alerts
+keeps a post 7 days (`SPOOL_HUB_RETENTION_ALERTS`), not 30. The posting desk
+must be a member of #alerts (channel -> Agents). The #spool-hub-ops text
+below is the history of this spec.
+
 ## 1. SPL-1254 — deploy-lag alarm every 10 min
 
 **Signal.** `do_check_deploy_lag` (csi-spl-orc) reads what each env publishes

@@ -10,3 +10,19 @@ The reliability round establishes 12 permanent software and monitoring solutions
 ## Requirements
 
 The requirements, measured baseline facts across fleet layers, inventory of existing detectors, row specifications, and owner approval records are defined in the signed plan document: [reliability-round-plan.md](../../doc/md/reliability-round-plan.md). The plan document is the requirement by pointer; this specification anchors the round and its 12 execution tasks.
+
+## Where the automatic notices go (SPL-4700)
+
+Owner HUM-10, t1 3a18a0b5 msg 6a43f1a2 (2026-11-03): "the failover flips and
+automated msgs should go to the alerts channel and not t othe ops channel".
+
+| poster | cnf key | channel |
+|---|---|---|
+| `do_spl_fleet_notice`: orchestrator failover, ROTATION FAILED, recovered, a hung watchdog | `env.fleet_notices.channel` | `alerts` |
+| `do_spl_deploy_lag_alarm`, `do_spl_deploy_failure_post` / `_poll` (`spl-ops-alarm-cron.sh`) | `env.ops_alarms.channel` | `alerts` |
+| NO-LOCAL-AGENT, box benched / back, weekly limit (`spl_fleet_alert_post`) | none, already `alerts` | `alerts` |
+| weekly full scan summary (`weekly-full-scan-cron.sh`) | `--channel` | `spool-hub-ops`, kept: a weekly report, not an alarm |
+
+Both keys live in `csi-spl-cnf/csi-spl/all.env.yaml`. #alerts keeps a post 7
+days (`SPOOL_HUB_RETENTION_ALERTS`), other channels 30. Test:
+`csi-spl-orc/src/bash/tests/ops-alarm-channel.tst.sh`.

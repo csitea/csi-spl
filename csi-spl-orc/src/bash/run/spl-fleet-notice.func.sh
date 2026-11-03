@@ -1,9 +1,10 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
 # @description Post one automatic fleet notice (an orchestrator failover, a
-# @description failed or recovered rotation) as a new topic in the fleet's ops
-# @description channel, never as a DM to a person (SPL-2584, owner HUM-10 t1
-# @description 4b49e47d msgs 6c089b4a, 8b351386; how-to-post.md rule 18).
+# @description failed or recovered rotation) as a new topic in #alerts (SPL-4700,
+# @description t1 3a18a0b5; it was #spool-hub-ops), never as a DM to a person
+# @description (SPL-2584, owner HUM-10 t1 4b49e47d msgs 6c089b4a, 8b351386;
+# @description how-to-post.md rule 18).
 # @description The channel is cnf env.fleet_notices.channel, read through
 # @description do_spl_desk_cnf; an unset key is a FATAL, never a fallback DM.
 # @description The post itself is do_spl_desk_post (its go-ask and **Live**

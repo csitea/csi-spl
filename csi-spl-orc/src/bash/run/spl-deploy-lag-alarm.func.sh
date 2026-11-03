@@ -1,7 +1,7 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
 # @description SPL-1254: the deploy-lag alarm. Run do_check_deploy_lag for an
-# @description env, and post to #spool-hub-ops ONLY on a verdict EDGE, so the
+# @description env, and post to #alerts ONLY on a verdict EDGE, so the
 # @description channel gets one alarm per lag episode and one recovery, never a
 # @description post every 10 minutes while it stays lagging. Per env+component
 # @description (hub, wui) the served-vs-trunk verdict is folded to ok
@@ -17,7 +17,8 @@
 # @param TENANT_ID - required to actually post: the tenant the ops desk is in
 # @param DESK_AGENT - required to actually post: the CI ops agent id
 # @param DESK_BOX (optional) - default box-desk; the seated ops box
-# @param DESK_CHANNEL (optional) - default spool-hub-ops
+# @param DESK_CHANNEL (optional) - default cnf env.ops_alarms.channel (alerts,
+# @param   SPL-4700; spl_ops_alarm_channel); an unset key is a FATAL
 # @param GRACE_MINUTES (optional) - passed to do_check_deploy_lag (default 45)
 # @param OPS_STATE_FILE (optional) - the per-key verdict state (default
 # @param   $XDG_CACHE_HOME/csi-spl/deploy-lag-alarm.state)
@@ -33,7 +34,8 @@ do_spl_deploy_lag_alarm() {
   local env="${ENV:-}"
   [[ -n "$env" ]] || { do_log "FATAL ENV is required (dev or prd)"; return 2; }
   local state="${OPS_STATE_FILE:-${XDG_CACHE_HOME:-$HOME/.cache}/csi-spl/deploy-lag-alarm.state}"
-  local chan="${DESK_CHANNEL:-spool-hub-ops}"
+  local chan
+  chan="$(spl_ops_alarm_channel)" || { do_log "FATAL ops-alarm: no channel (cnf env.ops_alarms.channel), nothing posted"; return 1; }
   local post_fn="${OPS_POST_FN:-do_spl_desk_post}"
   mkdir -p "$(dirname "$state")" 2>/dev/null || true
   [[ -f "$state" ]] || : >"$state"

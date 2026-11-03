@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
-# Purpose: do_spl_deploy_lag_alarm (SPL-1254) posts to #spool-hub-ops only on a
+# Purpose: do_spl_deploy_lag_alarm (SPL-1254) posts to #alerts (SPL-4700) only on a
 #          verdict EDGE, per env+component, so a lag episode is one alarm + one
 #          recovery, never a post every run. The lag-check and the poster are
 #          injected (OPS_LAG_CMD, OPS_POST_FN); nothing real is called.
@@ -23,6 +23,8 @@ fail() { echo "FAIL: $1 -- ${2:-}"; fails=$((fails + 1)); }
 eq() { [ "$2" = "$3" ] && pass "$1" || fail "$1" "want '$2' got '$3'"; }
 
 do_log() { :; }
+# shellcheck source=../../../lib/bash/funcs/spl-ops-alarm-channel.func.sh
+. "$PROJ_ROOT/lib/bash/funcs/spl-ops-alarm-channel.func.sh"
 # shellcheck source=../run/spl-deploy-lag-alarm.func.sh
 . "$FUNC"
 
@@ -40,7 +42,7 @@ last_post() { tail -1 "$POSTS"; }
 set_lag "dev hub lagging served=aaaa sha=bbbb n=3 age=50m grace=45m url=https://x/version"
 run_alarm dev
 eq "1. first lagging posts once" 1 "$(nposts)"
-eq "1. ... a blocker on the ops channel" "spool-hub-ops|blocker" "$(last_post | cut -d'|' -f1,2)"
+eq "1. ... a blocker on the ops channel" "alerts|blocker" "$(last_post | cut -d'|' -f1,2)"
 
 # 2. still lagging -> silent
 run_alarm dev
@@ -50,7 +52,7 @@ eq "2. still lagging is silent" 1 "$(nposts)"
 set_lag "dev hub current served=bbbb sha=bbbb n=0"
 run_alarm dev
 eq "3. recovery posts once" 2 "$(nposts)"
-eq "3. ... a note" "spool-hub-ops|note" "$(last_post | cut -d'|' -f1,2)"
+eq "3. ... a note" "alerts|note" "$(last_post | cut -d'|' -f1,2)"
 
 # 4. still current -> silent
 run_alarm dev
@@ -66,7 +68,7 @@ eq "5. ... state stays ok for dev/hub" "dev/hub=ok" "$(grep '^dev/hub=' "$STATE"
 set_lag "dev hub lagging served=cccc sha=dddd n=1 age=90m grace=45m" "dev wui current served=dddd sha=dddd n=0"
 run_alarm dev
 eq "6. only the flipped key (hub) posts" 3 "$(nposts)"
-eq "6. ... and it is the hub blocker" "spool-hub-ops|blocker" "$(last_post | cut -d'|' -f1,2)"
+eq "6. ... and it is the hub blocker" "alerts|blocker" "$(last_post | cut -d'|' -f1,2)"
 # wui stayed at its default ok, so it correctly triggers no post and needs no
 # state row (an absent key is read as ok; only edges are recorded).
 eq "6. wui (ok, no edge) posts nothing" 0 "$(grep -c 'wui' "$POSTS")"

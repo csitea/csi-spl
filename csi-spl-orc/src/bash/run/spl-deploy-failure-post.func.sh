@@ -1,7 +1,7 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
 # @description SPL-1255: on a workflow 20/30 failure, post one blocker to
-# @description #spool-hub-ops naming the run, the failing step, the breaking
+# @description #alerts (cnf env.ops_alarms.channel, SPL-4700) naming the run, the failing step, the breaking
 # @description commit and the AGENT that landed it. A workflow_run-triggered
 # @description job passes the run's fields in; this action builds the post and
 # @description sends it through do_spl_desk_post (so it is DRY_RUN=1 and inert
@@ -17,7 +17,8 @@
 # @param FAIL_STEP (optional) - the failing job/step name
 # @param FAIL_AUTHOR (optional) - the commit author, the fallback "from"
 # @param TENANT_ID / DESK_AGENT / DESK_BOX - required to actually post
-# @param DESK_CHANNEL (optional) - default spool-hub-ops
+# @param DESK_CHANNEL (optional) - default cnf env.ops_alarms.channel (alerts;
+# @param   spl_ops_alarm_channel); an unset key is a FATAL
 # @param OPS_POST_FN (optional, testing) - the poster; default do_spl_desk_post
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example FAIL_RUN_URL=https://github.com/o/r/actions/runs/1 FAIL_SHA=abcd1234 FAIL_COMMIT_SUBJECT='fix(hub, CLE-42): x' DRY_RUN=0 ./run -a do_spl_deploy_failure_post
@@ -44,7 +45,9 @@ do_spl_deploy_failure_post() {
   body+="${subj:+: ${subj}}."
   body+=" From: **${agent}**."
 
-  do_log "INFO deploy-failure: posting a blocker to #${DESK_CHANNEL:-spool-hub-ops} (from ${agent})"
-  DESK_CHANNEL="${DESK_CHANNEL:-spool-hub-ops}" DESK_KIND=blocker DESK_BODY="$body" \
+  local chan
+  chan="$(spl_ops_alarm_channel)" || { do_log "FATAL deploy-failure: no channel (cnf env.ops_alarms.channel), nothing posted"; return 1; }
+  do_log "INFO deploy-failure: posting a blocker to #${chan} (from ${agent})"
+  DESK_CHANNEL="$chan" DESK_KIND=blocker DESK_BODY="$body" \
     "${OPS_POST_FN:-do_spl_desk_post}"
 }

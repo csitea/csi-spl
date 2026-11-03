@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # spl-ops-alarm-cron.sh (SPL-1254 + SPL-1255) — the box cron that posts deploy
-# alarms to #spool-hub-ops, every 10 min, as the seated CI ops desk. The owner
+# alarms to #alerts (cnf env.ops_alarms.channel, SPL-4700), every 10 min, as the seated CI ops desk. The owner
 # chose a box cron over GitHub workflows (the ops desk on box-ci in t1, key on the box;
 # no repo secret), 2026-09-30.
 #
@@ -76,12 +76,12 @@ rc=0
 IFS=',' read -r -a env_list <<<"$ENVS"
 for e in "${env_list[@]}"; do
   [ -n "$e" ] || continue
-  ENV="$e" TENANT_ID="$TENANT" DESK_AGENT="$AGENT" DESK_BOX="$BOX" DESK_CHANNEL=spool-hub-ops \
+  ENV="$e" TENANT_ID="$TENANT" DESK_AGENT="$AGENT" DESK_BOX="$BOX" \
     "$RUN" -a do_spl_deploy_lag_alarm || { echo "spl-ops-alarm-cron: lag alarm FAILED for $e"; rc=1; }
 done
 
 # SPL-1255: failed 20/30 run poll.
-TENANT_ID="$TENANT" DESK_AGENT="$AGENT" DESK_BOX="$BOX" DESK_CHANNEL=spool-hub-ops \
+TENANT_ID="$TENANT" DESK_AGENT="$AGENT" DESK_BOX="$BOX" \
   "$RUN" -a do_spl_deploy_failure_poll || { echo "spl-ops-alarm-cron: failure poll FAILED"; rc=1; }
 
 echo "== spl-ops-alarm-cron done rc=$rc =="

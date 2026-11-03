@@ -1,7 +1,7 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
 # @description SPL-1255 (box-cron form): poll GitHub for FAILED runs of the
-# @description deploy workflows (20 hub, 30 wui) and post one #spool-hub-ops
+# @description deploy workflows (20 hub, 30 wui) and post one #alerts
 # @description blocker per NEW failure, via do_spl_deploy_failure_post. The
 # @description owner chose a box cron over a workflow_run trigger, so this is the
 # @description poller the cron calls every 10 min. Edge-dedup: each run id is
@@ -10,7 +10,8 @@
 # @description OPS_POST_FN) so the routing is testable without gh or the hub;
 # @description the real path uses gh and is DRY_RUN=1 until a seated ops desk.
 # @param TENANT_ID / DESK_AGENT / DESK_BOX - the ops desk that posts (do_spl_desk_post)
-# @param DESK_CHANNEL (optional) - default spool-hub-ops
+# @param DESK_CHANNEL (optional) - default cnf env.ops_alarms.channel (alerts,
+# @param   SPL-4700), read by do_spl_deploy_failure_post
 # @param FAIL_POLL_STATE (optional) - dedup file (default cache dir)
 # @param FAIL_POLL_LIST_CMD (optional, testing) - prints TSV rows
 # @param   "<run_id>\t<workflow>\t<url>\t<sha>\t<subject>\t<step>"; default uses gh

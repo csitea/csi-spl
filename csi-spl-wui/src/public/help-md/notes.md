@@ -61,9 +61,9 @@ or the phone's Back) takes you back to the list.
   **Archived**, open it and press **Unarchive**.
 - **Move up** / **Move down** change the note's place in its group. In the
   list, **Alt+Up** / **Alt+Down** on a row does the same, and on a wide screen
-  you can drag a row. A move stays among the notes of the same priority: a
-  drop on a note of another priority moves nothing. To change a note's
-  priority, use **Priority** in the open note.
+  you can drag a row. A note moved onto a note of another priority takes that
+  note's priority: drag a P5 note onto a P2 note and it becomes P2, in its
+  place among the P2 notes. **Priority** in the open note changes it too.
 - **Delete** removes the note at once and shows **Note deleted** with
   **Undo** for 10 seconds. Undo brings it back as it was. When the message
   goes away, the note is deleted for good; there is no trash.

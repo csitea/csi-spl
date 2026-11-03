@@ -115,7 +115,7 @@
 <script setup lang="ts">
 import { filterNotes, useNotesStore } from '~/stores/notes'
 import type { NoteSummary } from '~/stores/notes'
-import { movePosition, dropPosition, notePriority } from '~/utils/note-order.mjs'
+import { movePlacement, dropPlacement, drawnAbove, notePriority } from '~/utils/note-order.mjs'
 import UndoSnackbar from '~/components/UndoSnackbar.vue'
 import { useMobileStack } from '~/composables/useMobileStack'
 import { useNoteOpen } from '~/composables/useNoteOpen'
@@ -149,17 +149,20 @@ const groups = computed(() => {
 })
 const emptyKey = computed(() => (query.value.trim() ? 'notes.empty_filter' : archived.value ? 'notes.empty_archived' : 'notes.empty'))
 
-/* the order (B6): one PATCH position; the row moves at once, a refusal reloads the list */
+/* the order (B6): one PATCH position, with the priority when D8 changes it;
+   the row moves at once, a refusal reloads the list */
 function move(id: string, dir: number) {
-  place(id, movePosition(store.notes, id, dir))
+  place(id, movePlacement(store.notes, id, dir))
 }
 function canMove(id: string, dir: number) {
-  return movePosition(store.notes, id, dir) !== null
+  return movePlacement(store.notes, id, dir) !== null
 }
-function place(id: string, position: number | null) {
-  if (position === null) return
-  store.notes = store.notes.map((n) => (n.id === id ? { ...n, position } : n))
-  store.patch(id, { position }).catch(() => store.load())
+function place(id: string, to: { position: number, priority: number } | null) {
+  const was = store.notes.find((n) => n.id === id)
+  if (!to || !was) return
+  const fields = notePriority(was) === to.priority ? { position: to.position } : to
+  store.notes = store.notes.map((n) => (n.id === id ? { ...n, ...fields } : n))
+  store.patch(id, fields).catch(() => store.load())
 }
 const dragId = ref('')
 const dragOver = ref('')
@@ -172,8 +175,7 @@ function onDrop(target: string) {
   dragId.value = dragOver.value = ''
   if (!id) return
   /* dragged down: it lands after the row it is dropped on; dragged up: before it */
-  const pos = (x: string) => store.notes.find((n) => n.id === x)?.position ?? 0
-  place(id, dropPosition(store.notes, id, target, pos(id) < pos(target)))
+  place(id, dropPlacement(store.notes, id, target, drawnAbove(store.notes, id, target)))
 }
 
 /* D2: the note leaves the list at once; Undo puts it back, nothing sent */
@@ -284,7 +286,7 @@ onUnmounted(() => {
 /* the same small outlined tag as a message's priority badge (MessageCard .msg-prio) */
 .notes-row__prio {
   flex: 0 0 auto;
-  margin-left: 8px;
+  margin-inline-start: 8px;
   color: var(--color-muted);
   font-size: 0.75rem;
   white-space: nowrap;

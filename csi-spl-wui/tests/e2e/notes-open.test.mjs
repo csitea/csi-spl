@@ -37,9 +37,17 @@
 // SPL-4652 (spec 155 2.9, the same owner msg: "notes should have priority"): the
 // row shows the priority beside the title, 5 when nobody set one, and stays one
 // line at 1440 px and 390 px; the chooser in the open note saves at once, and
-// within a group the list orders by priority, 1 first. A drop on another
-// priority moves nothing. CONTROL: with the chip out of the row, or with
-// compareNotes not reading the priority, the checks of notePriorityCase() FAIL.
+// within a group the list orders by priority, 1 first. CONTROL: with the chip
+// out of the row, or with compareNotes not reading the priority, the checks of
+// notePriorityCase() FAIL.
+//
+// SPL-4701, D8 (owner HUM-10, msg 63fe839e: "Move it there and take that
+// note's priority"): a P5 note dragged onto a P2 note lands in the P2 run as a
+// P2, and stays so after the list is read again from the hub; Alt+Up past a
+// neighbour of another priority does the same, and the open note's chooser
+// follows a Move. N2: at dir=rtl the chip keeps its gap to the title.
+// CONTROL: with the D8 rule out of note-order.mjs (a drop on another priority
+// moves nothing), or margin-left back on the chip, the checks of d8Case() FAIL.
 //
 // Run:
 //   node tests/e2e/notes-open.test.mjs
@@ -472,25 +480,69 @@ async function notePriorityCase(browser, base, width, touch) {
   check(`${tag}: pinned stays first, P5 above the P1`, same(await rows(p), ['mock-note-1', 'mock-note-3', 'mock-note-2']), await rows(p))
   check(`${tag}: no sideways scroll`, await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
   if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/notes-list-priority-${width}.png` })
-  if (!touch) {
-    await p.evaluate(() => {
-      const row = (id) => document.querySelector(`[data-note-id="${id}"]`)
-      const dataTransfer = new DataTransfer()
-      const fire = (el, type) => el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer }))
-      fire(row('mock-note-2'), 'dragstart')
-      fire(row('mock-note-3'), 'dragover')
-      fire(row('mock-note-3'), 'drop')
-      fire(row('mock-note-2'), 'dragend')
-    })
-    await sleep(300)
-    check(`${tag}: a drop on another priority moves nothing`, same(await rows(p, 'rest'), ['mock-note-3', 'mock-note-2']) && (await chip('mock-note-2')) === 'P5', await rows(p, 'rest'))
-    await p.focus('[data-note-id=mock-note-2] [data-test=notes-open]')
+  await p.close()
+}
+
+/* D8 (SPL-4701): a drag or Move onto another priority takes that priority; N2 the chip gap at dir=rtl */
+async function d8Case(browser, base) {
+  const tag = '1440px D8'
+  const p = await openPage(browser, base, 1440, false)
+  const chip = (id) => p.$eval(`[data-note-id="${id}"] [data-test=notes-row-priority]`, (e) => e.textContent.trim())
+  const stored = (id) => summary(p, id).then((n) => n.priority)
+  const setPriority = (id, priority) => p.evaluate((id, priority) => document.querySelector('#__nuxt').__vue_app__.config.globalProperties.$pinia._s.get('notes').patch(id, { priority }), id, priority)
+  const drag = (from, to) => p.evaluate((from, to) => {
+    const row = (id) => document.querySelector(`[data-note-id="${id}"]`)
+    const dataTransfer = new DataTransfer()
+    const fire = (el, type) => el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer }))
+    fire(row(from), 'dragstart')
+    fire(row(to), 'dragover')
+    fire(row(to), 'drop')
+    fire(row(from), 'dragend')
+  }, from, to)
+  const altUp = async (id) => {
+    await p.focus(`[data-note-id="${id}"] [data-test=notes-open]`)
     await p.keyboard.down('Alt')
     await p.keyboard.press('ArrowUp')
     await p.keyboard.up('Alt')
     await sleep(300)
-    check(`${tag}: Alt+Up does not jump above another priority`, same(await rows(p, 'rest'), ['mock-note-3', 'mock-note-2']), await rows(p, 'rest'))
   }
+  const gap = () => p.$eval('[data-note-id=mock-note-2]', (row) => {
+    const t = row.querySelector('.notes-row__title').getBoundingClientRect()
+    const c = row.querySelector('[data-test=notes-row-priority]').getBoundingClientRect()
+    return Math.round(document.documentElement.dir === 'rtl' ? t.left - c.right : c.left - t.right)
+  })
+
+  check(`${tag} N2: ltr, 8 px between the title and its chip`, (await gap()) === 8, await gap())
+  await p.evaluate(() => { document.documentElement.dir = 'rtl' })
+  await sleep(100)
+  check(`${tag} N2: rtl, the same 8 px`, (await gap()) === 8, await gap())
+  await p.evaluate(() => { document.documentElement.dir = 'ltr' })
+
+  await setPriority('mock-note-3', 2)
+  await sleep(200)
+  check(`${tag}: the P2 note is drawn above the P5`, same(await rows(p, 'rest'), ['mock-note-3', 'mock-note-2']) && (await chip('mock-note-2')) === 'P5', await rows(p, 'rest'))
+  await drag('mock-note-2', 'mock-note-3')
+  await sleep(300)
+  check(`${tag}: a P5 dropped on a P2 becomes P2`, (await chip('mock-note-2')) === 'P2' && (await stored('mock-note-2')) === 2, await chip('mock-note-2'))
+  check(`${tag}: it lands in the P2 run, before the note it was dropped on`, same(await rows(p, 'rest'), ['mock-note-2', 'mock-note-3']), await rows(p, 'rest'))
+  await refetch(p)
+  check(`${tag}: after the list is read again, still P2 in the P2 run`, (await chip('mock-note-2')) === 'P2' && same(await rows(p, 'rest'), ['mock-note-2', 'mock-note-3']), [await chip('mock-note-2'), await rows(p, 'rest')])
+
+  await setPriority('mock-note-2', 5)
+  await sleep(200)
+  check(`${tag}: twin, back to P5 below the P2`, same(await rows(p, 'rest'), ['mock-note-3', 'mock-note-2']), await rows(p, 'rest'))
+  await altUp('mock-note-2')
+  check(`${tag}: Alt+Up past the P2 makes it a P2 above it`, (await chip('mock-note-2')) === 'P2' && same(await rows(p, 'rest'), ['mock-note-2', 'mock-note-3']), [await chip('mock-note-2'), await rows(p, 'rest')])
+  await refetch(p)
+  check(`${tag}: Alt+Up kept after the list is read again`, (await stored('mock-note-2')) === 2 && same(await rows(p, 'rest'), ['mock-note-2', 'mock-note-3']), await rows(p, 'rest'))
+
+  await setPriority('mock-note-3', 1)
+  await sleep(200)
+  await clickRow(p, 'mock-note-2')
+  await waitDetail(p, 'mock-note-2')
+  await p.click('[data-test=note-up]')
+  await p.waitForFunction(() => document.querySelector('[data-test=note-priority]')?.getAttribute('data-priority') === '1', { timeout: 5000 }).catch(() => {})
+  check(`${tag}: Move up in the open note takes the P1, and its chooser shows 1`, (await stored('mock-note-2')) === 1 && (await p.$eval('[data-test=note-priority-1]', (e) => e.checked)), await stored('mock-note-2'))
   await p.close()
 }
 
@@ -502,6 +554,7 @@ try {
   await oneLine(browser, server.base, 390, true)
   await notePriorityCase(browser, server.base, 1440, false)
   await notePriorityCase(browser, server.base, 390, true)
+  await d8Case(browser, server.base)
   await desktop(browser, server.base)
   await desktopActions(browser, server.base)
   await phone(browser, server.base)

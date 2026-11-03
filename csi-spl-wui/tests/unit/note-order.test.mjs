@@ -3,7 +3,11 @@
 // the pinned ones only (2.6).
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { compareNotes, dropPosition, moveChecklistLine, movePosition, noteGroup, notePriority, positionAt } from '../../src/utils/note-order.mjs'
+import { compareNotes, drawnAbove, dropPlacement, moveChecklistLine, movePlacement, noteGroup, notePriority, positionAt } from '../../src/utils/note-order.mjs'
+
+/* the position of a placement, null when there is none */
+const movePosition = (list, id, dir) => movePlacement(list, id, dir)?.position ?? null
+const dropPosition = (list, id, target, after) => dropPlacement(list, id, target, after)?.position ?? null
 
 const n = (id, position, extra = {}) => ({ id, position, pinned: false, archived: false, updated_at: '2026-10-29T00:00:00Z', ...extra })
 const LIST = [n('p1', 1, { pinned: true }), n('p2', 2, { pinned: true }), n('a', 3), n('b', 4), n('c', 6), n('x', 5, { archived: true })]
@@ -66,17 +70,29 @@ describe('note-order: priority (spec 155 2.9, SPL-4652)', () => {
   it('a pinned 5 stays above an unpinned 1', () => {
     assert.deepEqual(drawn([n('x', 1, { priority: 1 }), n('y', 2, { pinned: true, priority: 5 })]), ['y', 'x'])
   })
-  it('Move stays among the notes of the same priority', () => {
-    assert.equal(movePosition(P, 'c', -1), null, 'the first at 2 does not jump above the 1')
-    assert.equal(movePosition(P, 'd', 1), null, 'the last at 2 does not fall into the 5s')
-    assert.equal(movePosition(P, 'u', 1), null, 'alone at 1')
-    assert.equal(movePosition(P, 'd', -1), 2, 'd goes above c')
+  /* the list once `id` takes placement `to`, in drawn order, with each priority */
+  const after = (list, id, to) => drawn(list.map((r) => (r.id === id ? { ...r, ...to } : r)))
+  it('D8: Move past a neighbour of another priority takes its priority', () => {
+    assert.deepEqual(movePlacement(P, 'c', -1), { position: 8, priority: 1 }, 'the first at 2 goes above the 1 and becomes a 1')
+    assert.deepEqual(after(P, 'c', movePlacement(P, 'c', -1)), ['pin', 'c', 'u', 'd', 'a', 'b'])
+    assert.deepEqual(movePlacement(P, 'd', 1), { position: 1.5, priority: 5 }, 'the last at 2 goes below the first 5 and becomes a 5')
+    assert.deepEqual(after(P, 'd', movePlacement(P, 'd', 1)), ['pin', 'u', 'c', 'a', 'd', 'b'])
+    assert.deepEqual(movePlacement(P, 'd', -1), { position: 2, priority: 2 }, 'twin: the same priority keeps it')
+    assert.equal(movePlacement(P, 'u', -1), null, 'the first of the rest does not jump into Pinned')
+    assert.equal(movePlacement(P, 'b', 1), null, 'the last of the rest')
   })
-  it('a drop on another priority moves nothing', () => {
-    assert.equal(dropPosition(P, 'a', 'u'), null)
-    assert.equal(dropPosition(P, 'u', 'a'), null)
-    assert.equal(dropPosition(P, 'd', 'b', true), null)
-    assert.equal(dropPosition(P, 'd', 'c'), 2, 'twin: the same priority still moves')
+  it('D8: a drop on another priority moves it there and takes that priority', () => {
+    assert.deepEqual(dropPlacement(P, 'b', 'c'), { position: 2, priority: 2 }, 'a 5 dropped on a 2 lands before it, a 2')
+    assert.deepEqual(after(P, 'b', dropPlacement(P, 'b', 'c')), ['pin', 'u', 'b', 'c', 'd', 'a'])
+    assert.deepEqual(dropPlacement(P, 'u', 'a', true), { position: 1.5, priority: 5 }, 'a 1 dropped below a 5 becomes a 5')
+    assert.deepEqual(dropPlacement(P, 'd', 'c'), { position: 2, priority: 2 }, 'twin: the same priority still moves')
+    assert.equal(dropPlacement(P, 'u', 'pin'), null, 'another group: nothing, whatever the priority')
+    assert.equal(dropPlacement(P, 'c', 'd'), null, 'c is already before d')
+  })
+  it('drawnAbove follows the drawn order, priority first', () => {
+    assert.equal(drawnAbove(P, 'u', 'a'), true, 'a 1 at position 9 is above a 5 at 1')
+    assert.equal(drawnAbove(P, 'b', 'c'), false)
+    assert.equal(drawnAbove(P, 'u', 'nope'), false)
   })
 })
 

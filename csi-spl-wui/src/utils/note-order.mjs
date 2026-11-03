@@ -4,10 +4,10 @@
 // note writes one new position between its new neighbours, so no other note
 // is rewritten. Pure: the page and the unit test call the same functions.
 //
-// A priority (spec 155 2.9, SPL-4652) orders a group before `position` does,
-// and it is set only in the open note: Move and drag stay among the notes of
-// the same group and the same priority, so a drop on another priority moves
-// nothing and changes no priority.
+// A priority (spec 155 2.9, SPL-4652) orders a group before `position` does.
+// D8 (owner HUM-10, msg 63fe839e, SPL-4701): a drag or Move onto a note of
+// another priority moves the note there and gives it that note's priority;
+// both go in one PATCH. Groups still never mix.
 
 /** A note nobody set, as the hub reads it (rdb 0254); issues keep 5 too. */
 export const NOTE_PRIORITY_DEFAULT = 5
@@ -32,19 +32,10 @@ export function noteGroup(n) {
   return n.pinned ? 'pinned' : 'rest'
 }
 
-/** The notes of `id`'s group at its priority, in drawn order (position, then the newest first). */
-function groupOf(list, id) {
-  const me = list.find((n) => n.id === id)
-  if (!me) return null
-  const g = noteGroup(me)
-  const p = notePriority(me)
-  const rows = list
-    .filter((n) => noteGroup(n) === g && notePriority(n) === p)
-    .sort((a, b) => a.position - b.position || String(b.updated_at).localeCompare(String(a.updated_at)))
-  return { me, rows }
-}
+/** The person's own order inside one run: position, then the last changed first. */
+const ownOrder = (a, b) => a.position - b.position || String(b.updated_at).localeCompare(String(a.updated_at))
 
-/** The position that puts a note at index `k` of `others` (the group without it). */
+/** The position that puts a note at index `k` of `others` (the run without it). */
 export function positionAt(others, k) {
   if (!others.length) return 0
   if (k <= 0) return others[0].position - 1
@@ -52,33 +43,42 @@ export function positionAt(others, k) {
   return (others[k - 1].position + others[k].position) / 2
 }
 
-/**
- * Alt+Up / Alt+Down, or Move up / Move down: the new position of `id` one
- * step `dir` (-1 up, +1 down) inside its group and priority; null at the edge.
- */
-export function movePosition(list, id, dir) {
-  const g = groupOf(list, id)
-  if (!g) return null
-  const i = g.rows.findIndex((n) => n.id === id)
-  const k = i + Math.sign(dir)
-  if (!dir || k < 0 || k >= g.rows.length) return null
-  return positionAt(g.rows.filter((n) => n.id !== id), k)
+/** True when `id` is drawn above `targetId`: a drag from there goes down. */
+export function drawnAbove(list, id, targetId) {
+  const a = list.find((n) => n.id === id)
+  const b = list.find((n) => n.id === targetId)
+  return Boolean(a && b) && compareNotes(a, b) < 0
 }
 
 /**
- * A drag: the new position of `id` dropped on `targetId` (before it, or
- * after it when `after`); null when the target is in another group or at
- * another priority, or it would not move.
+ * A drag: where `id` lands dropped on `targetId` (before it, or after it
+ * when `after`), as { position, priority }: the target's priority, so a drop
+ * on another priority also changes it (D8). null when the target is in
+ * another group, is the note itself, or nothing would change.
  */
-export function dropPosition(list, id, targetId, after = false) {
-  const g = groupOf(list, id)
-  if (!g || id === targetId) return null
-  const others = g.rows.filter((n) => n.id !== id)
-  const t = others.findIndex((n) => n.id === targetId)
-  if (t < 0) return null
-  const k = after ? t + 1 : t
-  if (k === g.rows.indexOf(g.me)) return null
-  return positionAt(others, k)
+export function dropPlacement(list, id, targetId, after = false) {
+  const me = list.find((n) => n.id === id)
+  const target = list.find((n) => n.id === targetId)
+  if (!me || !target || id === targetId || noteGroup(me) !== noteGroup(target)) return null
+  const priority = notePriority(target)
+  const run = list.filter((n) => noteGroup(n) === noteGroup(me) && notePriority(n) === priority).sort(ownOrder)
+  const others = run.filter((n) => n.id !== id)
+  const k = others.indexOf(target) + (after ? 1 : 0)
+  if (k === run.indexOf(me)) return null
+  return { position: positionAt(others, k), priority }
+}
+
+/**
+ * Alt+Up / Alt+Down, or Move up / Move down: `id` one step `dir` (-1 up,
+ * +1 down) inside its group, past its neighbour; a neighbour of another
+ * priority gives it that priority (D8). null at the group's edge.
+ */
+export function movePlacement(list, id, dir) {
+  const me = list.find((n) => n.id === id)
+  if (!me || !dir) return null
+  const rows = list.filter((n) => noteGroup(n) === noteGroup(me)).sort(compareNotes)
+  const next = rows[rows.indexOf(me) + Math.sign(dir)]
+  return next ? dropPlacement(list, id, next.id, dir > 0) : null
 }
 
 /** A checklist line moved one step `dir`; the new array, or null at an edge. */

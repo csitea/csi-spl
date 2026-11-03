@@ -218,6 +218,10 @@ watch(() => props.id, () => {
   void flush()
   void load()
 })
+/* D8: a Move onto another priority changes it from the page; the chooser follows the row */
+watch(() => store.notes.find((n) => n.id === props.id)?.priority, (p) => {
+  if (note.value && p && p !== note.value.priority) note.value = { ...note.value, priority: p }
+})
 onMounted(() => { void load() })
 /* the page closed it (Back, another note): what is typed still goes */
 onBeforeUnmount(() => { void flush() })

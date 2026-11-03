@@ -1211,7 +1211,7 @@ Monitoring help page and B4 the syntax to the search help
 
 ### 5.9 Rows for answer B: web globs and the security files
 
-B9 is built (5.10), B11 is built (5.11); the rest planned, not built yet. The format of the rounds rulebook
+B9 is built (5.10), B11 is built (5.11), B10 is built (5.12); B12 planned, not built yet. The format of the rounds rulebook
 (`csi-spl-doc/doc/md/rounds-rulebook.md` 3.1). Every site was read on
 origin/master `bf6991ecf`. Vendor: the data rule (a stream carries box
 logs: claude, grok or mistral, never agy or qwen) and the owner's rule of
@@ -1231,7 +1231,7 @@ the Monitoring help page (`csi-spl-doc/doc/help/`); each row ticks its
 status line here.
 
 Status: B9 built (SPL-4294, section 5.10). B11 built (SPL-4321, section
-5.11). B10, B12 planned.
+5.11). B10 built (SPL-4694, section 5.12). B12 planned.
 
 ### 5.10 Row B9 as built (SPL-4294)
 
@@ -1301,6 +1301,53 @@ Status: B9 built (SPL-4294, section 5.10). B11 built (SPL-4321, section
   denied by name. The opened fd's real path was still refused, so nothing was
   followed. The check now folds leading slashes to one. C53 adds `//`, `///`,
   `.` and `..` spellings; control `keep-leading-slashes`: red.
+
+### 5.12 Row B10 as built (SPL-4694)
+
+- `orc/scripts/file-stream-follow.py`: the follower pulls the box's live
+  globs through its push command (`{type: lane, lane_op:
+  file_streams_globs}`) at start and every `globs_s`, keeps the list in
+  memory only, and re-checks each glob (`glob_problem`, 3.8.3's syntax, and
+  the key) before it expands it. Folders (`folder_check`): refused `too
+  wide` (`/`, one segment), `glob in folder`, `bad path` (a `.` or `..`
+  segment), `denied path` (the name or the `O_PATH | O_DIRECTORY` fd's real
+  path), and `missing` or `not a directory` (so the hub's
+  `outside_folders` check refuses a glob under a folder the box does not
+  have). Matches (`list_matches`): the directory through an fd whose real
+  path is under a folder's real path and not denied, at most
+  `glob_scan_max` entries read, `*` / `?` never on a leading `.`, a
+  compressed name skipped and not counted, a name with a control character
+  or not UTF-8 skipped (the announce could not carry it). Each match opens
+  through `open_checked` with the folder roots, on the scan and on every
+  tick.
+- Slots (`scan_globs`, `place_matches`): the cnf entries, then every
+  followed match that still exists and is not refused, then the free slots
+  to the globs oldest first (the hub's pull order, `created_at`), the newest
+  mtime first. A refused match takes no slot and is not announced: it counts
+  in `matched`, and the glob's `reason` reads `<n> refused: <first reason>`.
+- Stale: past `globs_stale_s` with no good pull, each web-glob stream gets
+  one `-- glob list stale --` marker and stays announced `refused`, the
+  glob reports `refused` / `glob list stale`; the next good pull rescans and
+  the streams go on from their saved offsets. A glob missing from a good
+  pull leaves the announce at once (its keys turn `gone` on the hub).
+- The announce carries `folders`, `globs` and each match's `glob_id`;
+  `cmd/spool/file_streams.go` passes them on and takes the pull op
+  (`TestFileStreamsVerbGlobs`; control: the B2 verb answers `lane_op must
+  be file_streams_announce or file_streams_push`).
+- cnf `env.box.file_streams`: `folders` (`/var/csi/csi-spl`, `/var/log`,
+  Q5 B), `globs_s` 30, `globs_stale_s` 600, `glob_scan_s` 10,
+  `glob_scan_max` 10000. box.env `FILE_STREAMS_FOLDERS` (space separated)
+  replaces the list (`spl_file_stream_folders`).
+- Tests in `orc/tests/spl-file-stream-follow.tst.sh`, a stub hub that
+  answers the pull from a file call by call: C47 (control
+  `trust-the-hub`), C48 (`dir-by-text`, `match-by-text`), C49 (a symlink
+  into `$HOME/.ssh`, a hardlink to a key, a fifo, `/dev/zero`, a symlink
+  into the spool root, `.env`; control `plain-open`), C50 (`no-cap`,
+  `no-kept-slot`), C51 (`keep-the-list`, `never-stale`), C52 (`no-scan-cap`,
+  `gz-as-text`; the tick is timed at most 1.5 s for the whole process),
+  C54 (`no-folder-check`); each red on its planted defect, and each red on
+  origin/master's follower, which pulls no glob. C49 uses the spool root
+  rather than another home: a test cannot create a second user's home.
 
 ## 6. Decisions (this draft; the reviewer may challenge each)
 

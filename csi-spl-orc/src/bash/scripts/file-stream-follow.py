@@ -53,6 +53,23 @@ Env (all set by do_spl_file_stream_follow from the cnf):
   SPOOL_ROOT                the box spool root, default /var/spool-hub:
                             denied, and the follower does not start when it
                             is not a directory
+  FILE_STREAMS_FOLDERS      JSON list of the folders a web glob may reach
+                            (cnf env.box.file_streams.folders, box.env
+                            narrows it); default []: no glob is followed
+  FILE_STREAMS_GLOBS_S      seconds between two pulls of the web globs (30)
+  FILE_STREAMS_GLOBS_STALE_S  a failed pull keeps the last list this long,
+                            then every web-glob stream stops (600)
+  FILE_STREAMS_GLOB_SCAN_S  seconds between two expansions of the globs (10)
+  FILE_STREAMS_GLOB_SCAN_MAX  directory entries read a scan, per glob (10000)
+
+Web globs (spec 160 3.8, row B10): a workspace owner or admin types a glob
+for this box in the web page; the follower pulls the live ones through the
+push command (lane op file_streams_globs) at start and every GLOBS_S, never
+saves them, and expands each under the allowed folders only. Every match is
+its own stream, `<key>-<6 hex of sha256(real path)>`, opened through
+open_checked like a cnf entry plus a folder check on the fd's real path.
+Slots (FILE_STREAMS_MAX): the cnf entries, then the globs oldest first, the
+newest match first; a followed match keeps its slot while it exists.
 """
 
 import fcntl
@@ -63,9 +80,11 @@ import os
 import pwd
 import re
 import stat
+import hashlib
 import subprocess
 import sys
 import time
+import unicodedata
 
 sys.path.insert(
     0,
@@ -136,6 +155,13 @@ SECURITY_ROOTS = (
     "/etc/cron.d",
     "/var/spool/cron",
 )
+GLOB_KEY_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,23}$")
+UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+GLOB_MAX_BYTES = 512
+GLOBS_MAX = 32  # the announce carries at most 32 glob reports (hub decoder)
+FOLDERS_MAX = 32
+COMPRESSED = (".gz", ".xz", ".zst", ".bz2", ".lz4", ".zip", ".Z")
+STALE = "glob list stale"
 # matched against the first segment under /var/log (a file or a dir)
 SECURITY_LOGS = (
     "auth.log*",
@@ -325,10 +351,12 @@ class Missing(Exception):
     pass
 
 
-def open_checked(name, ctx):
+def open_checked(name, ctx, roots=None, info=None):
     """Open first, then check the opened file (spec 160 3.2, W2 + N3):
     -> (read fd, its stat). Raises Missing or Refused(<reason>); a refusal
-    closes every fd before any byte is read."""
+    closes every fd before any byte is read. With `roots` (a web-glob match,
+    3.8.6 step 4) the fd's real path must also be under one of them; `info`
+    gets the real path."""
     try:
         pfd = os.open(name, os.O_PATH | os.O_CLOEXEC)  # ctl:o-path
     except (FileNotFoundError, NotADirectoryError):
@@ -340,6 +368,10 @@ def open_checked(name, ctx):
         why = spl_file_stream_denied(real, ctx)  # ctl:deny-on-fd
         if why or spl_file_stream_denied(name, ctx):
             raise Refused("denied path")
+        if roots is not None and not any(under(real, r) for r in roots):
+            raise Refused("outside allowed folders")  # ctl:match-folder
+        if info is not None:
+            info["real"] = real
         st = os.fstat(pfd)
         if not stat.S_ISREG(st.st_mode):  # ctl:regular
             raise Refused("not a regular file")
@@ -359,6 +391,179 @@ def open_checked(name, ctx):
         return rfd, st2
     finally:
         os.close(pfd)
+
+
+# ---------------------------------------------------------------- web globs
+
+
+def expand_home(p):
+    if p == "$HOME":
+        return agent_home()
+    if p.startswith("$HOME/"):
+        return os.path.join(agent_home(), p[len("$HOME/") :])
+    return p
+
+
+def glob_problem(g):
+    """The syntax of spec 160 3.8.3, re-checked here (3.8.6 step 1: the box
+    never trusts the hub's check): "" or "bad glob"."""
+    try:
+        if not isinstance(g, str) or not 0 < len(g.encode("utf-8")) <= GLOB_MAX_BYTES:
+            return "bad glob"
+    except UnicodeEncodeError:
+        return "bad glob"
+    if any(unicodedata.category(c) == "Cc" for c in g):
+        return "bad glob"
+    if "[" in g or "{" in g or "**" in g:
+        return "bad glob"
+    if g.startswith("$HOME/"):
+        rest = g[len("$HOME/") :]
+    elif g.startswith("/"):
+        rest = g[1:]
+    else:
+        return "bad glob"
+    segs = rest.split("/")
+    for i, seg in enumerate(segs):
+        if seg in ("", ".", ".."):
+            return "bad glob"
+        if i < len(segs) - 1 and ("*" in seg or "?" in seg):  # ctl:glob-syntax
+            return "bad glob"
+    return ""
+
+
+def wide(path):
+    """`/` or a single segment (`/etc`, `/var`): too wide for a folder."""
+    return len([x for x in path.split("/") if x]) < 2
+
+
+def folder_check(path, ctx):
+    """One folder entry of 3.8.2 -> (reason, its real path). Refused: `/` or
+    one segment, a glob, a `.` / `..` segment, a denied path or one under a
+    denied root, by its name and by its real path, resolved through an
+    O_PATH | O_DIRECTORY fd (a folder that is a symlink counts as where it
+    points)."""
+    if any(c in path for c in "*?[{"):
+        return "glob in folder", ""
+    name = expand_home(path)
+    segs = name.split("/")
+    if not name.startswith("/") or any(x in (".", "..") for x in segs):
+        return "bad path", ""
+    if wide(name):  # ctl:folder-wide
+        return "too wide", ""
+    if spl_file_stream_denied(name, ctx):  # ctl:folder-denied
+        return "denied path", ""
+    try:
+        fd = os.open(name, os.O_PATH | os.O_DIRECTORY | os.O_CLOEXEC)
+    except FileNotFoundError:
+        return "missing", ""
+    except NotADirectoryError:
+        return "not a directory", ""
+    except OSError:
+        return "unreadable", ""
+    try:
+        real = os.readlink(f"/proc/self/fd/{fd}")
+    finally:
+        os.close(fd)
+    if wide(real):
+        return "too wide", ""
+    if spl_file_stream_denied(real, ctx):
+        return "denied path", ""
+    return "", real
+
+
+def read_folders():
+    """-> the folder entries of FILE_STREAMS_FOLDERS, each once, in order;
+    one the hub's announce decoder would refuse (not absolute or $HOME/, a
+    control character, over 1024 bytes) is dropped with a line."""
+    try:
+        raw = json.loads(os.environ.get("FILE_STREAMS_FOLDERS") or "[]")
+    except ValueError:
+        say("refused the folders: not JSON")
+        return []
+    out = []
+    for f in raw if isinstance(raw, list) else []:
+        ok = isinstance(f, str) and (f.startswith("/") or f.startswith("$HOME/"))
+        if (
+            not ok
+            or len(f.encode("utf-8", "replace")) > 1024
+            or "\n" in f
+            or any(unicodedata.category(c) == "Cc" for c in f)
+        ):
+            say(f"dropped the folder entry {str(f)[:80]!r}: not a path")
+        elif f not in out:
+            out.append(f)
+    return out[:FOLDERS_MAX]
+
+
+def printable(name):
+    """A name the announce can carry: UTF-8, no control character."""
+    try:
+        name.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return not any(unicodedata.category(c) == "Cc" for c in name)
+
+
+def glob_dir(g):
+    """-> (the glob's literal directory as typed, its last segment)."""
+    i = g.rfind("/")
+    return (g[:i] or "/"), g[i + 1 :]
+
+
+def list_matches(g, roots, ctx, scan_max):
+    """3.8.6 steps 2 and 3 for one glob -> (reason, matches, compressed):
+    matches [(mtime_ns, name)] newest first. The directory is opened through
+    an fd whose real path must be under a folder root and not denied; at
+    most scan_max entries are read; `*` and `?` never match a leading `.`;
+    a compressed name is skipped."""
+    shown, pat = glob_dir(g)
+    try:
+        pfd = os.open(expand_home(shown), os.O_PATH | os.O_DIRECTORY | os.O_CLOEXEC)
+    except (FileNotFoundError, NotADirectoryError):
+        return "", [], 0
+    except OSError:
+        return "unreadable", [], 0
+    try:
+        real = os.readlink(f"/proc/self/fd/{pfd}")
+        if not any(under(real, r) for r in roots):  # ctl:dir-folder
+            return "outside allowed folders", [], 0
+        if spl_file_stream_denied(real, ctx):
+            return "denied path", [], 0
+        try:
+            rfd = os.open(
+                f"/proc/self/fd/{pfd}", os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC
+            )
+        except OSError:
+            return "unreadable", [], 0
+    finally:
+        os.close(pfd)
+    out, packed = [], 0
+    try:
+        with os.scandir(rfd) as it:
+            for n, e in enumerate(it):
+                if n >= scan_max:  # ctl:scan-max
+                    break
+                if e.name.startswith(".") and not pat.startswith("."):
+                    continue
+                if not printable(e.name):
+                    continue
+                if not fnmatch.fnmatchcase(e.name, pat):
+                    continue
+                if e.name.endswith(COMPRESSED):  # ctl:compressed
+                    packed += 1
+                    continue
+                try:
+                    out.append((e.stat(follow_symlinks=False).st_mtime_ns, e.name))
+                except OSError:
+                    continue
+    finally:
+        os.close(rfd)
+    out.sort(key=lambda m: (-m[0], m[1]))
+    return "", out, packed
+
+
+def match_key(key, real):
+    return f"{key}-{hashlib.sha256(real.encode('utf-8', 'surrogateescape')).hexdigest()[:6]}"
 
 
 # ---------------------------------------------------------------- masking
@@ -420,6 +625,22 @@ class Follower:
         self.push_rc = 0
         self.ticks = 0
         self.last_line = ""
+        # web globs (3.8): the pulled list lives in memory only (3.8.5)
+        self.max_streams = env_int("FILE_STREAMS_MAX", 8)
+        self.globs_s = env_int("FILE_STREAMS_GLOBS_S", 30)
+        self.stale_s = env_int("FILE_STREAMS_GLOBS_STALE_S", 600)
+        self.scan_s = env_int("FILE_STREAMS_GLOB_SCAN_S", 10)
+        self.scan_max = env_int("FILE_STREAMS_GLOB_SCAN_MAX", 10000)
+        self.globs = []
+        self.globs_ok_at = None
+        self.stale = False
+        self.next_pull = 0.0
+        self.next_scan = 0.0
+        self.roots = []  # the allowed folders' real paths, from the last scan
+        self.folder_rep = []
+        self.glob_rep = {}  # glob id -> its report (3.8.5)
+        self.gstreams = {}  # stream key -> {gid, leaf, name, path}
+        self.report_seen = None
 
     # -- the state dir
     @staticmethod
@@ -537,13 +758,15 @@ class Follower:
         for raw in chunk.split(b"\n")[:-1]:
             mask_line(st, raw.decode("utf-8", "replace").rstrip("\r"), self.pem_max)
 
-    def follow(self, sid, path, minute):
+    def follow(self, sid, path, minute, roots=None):
+        """One stream's tick; a web-glob match comes with its folder roots
+        and its literal name (no `*` expansion: a file name may hold one)."""
         st = self.state["streams"].setdefault(sid, {})
-        name = resolve_name(path)
+        name = resolve_name(path) if roots is None else path
         if name is None:
             return self.went_missing(sid, st)
         try:
-            fd, fst = open_checked(name, self.ctx)
+            fd, fst = open_checked(name, self.ctx, roots)
         except Missing:
             return self.went_missing(sid, st)
         except Refused as r:
@@ -604,8 +827,12 @@ class Follower:
 
     # -- the wire (spec 160 3.3)
     def send(self, frame):
+        return self.send_ack(frame) is not None
+
+    def send_ack(self, frame):
+        """-> the hub's ack (a dict), or None."""
         if not self.push_cmd:
-            return False
+            return None
         try:
             p = subprocess.run(
                 ["/bin/sh", "-c", self.push_cmd],
@@ -616,17 +843,179 @@ class Follower:
             )
         except (OSError, subprocess.TimeoutExpired):
             self.push_rc = 124
-            return False
+            return None
         self.push_rc = p.returncode
         if p.returncode != 0:
-            return False
+            return None
         for ln in p.stdout.splitlines():
             try:
-                if json.loads(ln).get("type") == "ack":
-                    return True
+                a = json.loads(ln)
+                if a.get("type") == "ack":
+                    return a
             except (ValueError, AttributeError):
                 continue
-        return False
+        return None
+
+    # -- web globs (spec 160 3.8.5 .. 3.8.7)
+    def pull_globs(self, now):
+        """Pull the box's live globs when due. A good pull replaces the list
+        (a removed glob's streams leave at once); a failed one keeps it."""
+        if not self.push_cmd or now < self.next_pull:
+            return
+        self.next_pull = now + self.globs_s
+        ack = self.send_ack({"type": "lane", "lane_op": "file_streams_globs"})
+        self.push_rc = 0
+        got = ack.get("globs") if ack else None
+        if not isinstance(got, list):
+            say("the globs pull failed: the last list is kept")
+            return
+        globs, ids = [], set()
+        for g in got:
+            if (
+                isinstance(g, dict)
+                and UUID_RE.match(str(g.get("id", "")))
+                and g["id"] not in ids
+            ):
+                ids.add(g["id"])
+                globs.append(
+                    {"id": g["id"], "key": str(g.get("key", "")), "glob": g.get("glob")}
+                )
+        globs = globs[:GLOBS_MAX]
+        if globs != self.globs or self.stale:
+            self.next_scan = 0.0
+        self.globs, self.globs_ok_at, self.stale = globs, now, False
+        for k in [k for k, i in self.gstreams.items() if i["gid"] not in ids]:
+            del self.gstreams[k]
+            self.announce_pending = True
+        self.glob_rep = {i: r for i, r in self.glob_rep.items() if i in ids}
+
+    def go_stale(self):
+        """Past globs_stale_s with no good pull: every web-glob stream stops,
+        with one marker each; the cnf streams go on (3.8.5, fail closed)."""
+        self.stale = True
+        say(f"{STALE}: every web-glob stream stops until a good pull")
+        for sid in self.gstreams:
+            st = self.state["streams"].setdefault(sid, {})
+            if self.set_status(st, "refused", STALE):
+                self.enqueue(sid, st, f"-- {STALE} --", True, {})
+        for r in self.glob_rep.values():
+            r.update(state="refused", followed=0, over_cap=0, reason=STALE)
+
+    def scan_folders(self):
+        self.folder_rep, self.roots = [], []
+        for f in read_folders():
+            why, real = folder_check(f, self.ctx)
+            r = {"path": f, "state": "refused" if why else "allowed"}
+            if why:
+                r["reason"] = why
+            self.folder_rep.append(r)
+            if real and real not in self.roots:
+                self.roots.append(real)
+
+    def scan_globs(self, allow):
+        """3.8.6 and 3.8.7: expand every glob, then give the slots: the cnf
+        entries, then the followed matches that still exist, then the free
+        slots to the globs oldest first, the newest match first."""
+        self.next_scan = time.time() + self.scan_s
+        self.scan_folders()
+        listed, keys = [], set()
+        for g in self.globs:
+            why = glob_problem(g["glob"]) or (
+                "" if GLOB_KEY_RE.match(g["key"]) else "bad glob"
+            )
+            if not why and g["key"] in keys:
+                why = "key taken"
+            keys.add(g["key"])
+            found = []
+            if not why:
+                why, found, _ = list_matches(
+                    g["glob"], self.roots, self.ctx, self.scan_max
+                )
+            listed.append((g, why, found))
+        keep = {}
+        for g, why, found in listed:
+            leaves = set() if why else {leaf for _, leaf in found}
+            for k, i in self.gstreams.items():
+                status = self.state["streams"].get(k, {}).get("status")
+                if i["gid"] == g["id"] and i["leaf"] in leaves and status != "refused":
+                    keep[k] = i  # ctl:keep-slot
+        used = len(keep) + sum(
+            1 for _, _, why in allow if why != "over the stream limit"
+        )
+        new, cnf_ids = dict(keep), {sid for sid, _, _ in allow}
+        for g, why, found in listed:
+            used = self.place_matches(g, why, found, keep, new, cnf_ids, used)
+        if set(new) != set(self.gstreams):
+            self.announce_pending = True
+        self.gstreams = new
+
+    def place_matches(self, g, why, found, keep, new, cnf_ids, used):
+        """One glob's matches into the free slots; sets its report."""
+        rep = {
+            "id": g["id"],
+            "state": "refused",
+            "matched": 0,
+            "followed": 0,
+            "over_cap": 0,
+        }
+        self.glob_rep[g["id"]] = rep
+        if why:
+            rep["reason"] = why
+            return used
+        kept = {i["leaf"] for i in keep.values() if i["gid"] == g["id"]}
+        shown = glob_dir(g["glob"])[0].rstrip("/")
+        refused = []
+        for _, leaf in found:
+            if leaf in kept:
+                rep["followed"] += 1
+                continue
+            if used >= self.max_streams:  # ctl:cap
+                rep["over_cap"] += 1
+                continue
+            name, info = os.path.join(expand_home(shown or "/"), leaf), {}
+            try:
+                fd, _ = open_checked(name, self.ctx, self.roots, info)  # ctl:match-open
+                os.close(fd)
+            except Missing:
+                refused.append("missing")
+                continue
+            except Refused as r:
+                refused.append(str(r))
+                continue
+            key = match_key(g["key"], info["real"])
+            if key in cnf_ids or key in new:
+                refused.append("key taken")
+                continue
+            new[key] = {
+                "gid": g["id"],
+                "leaf": leaf,
+                "name": name,
+                "path": f"{shown}/{leaf}",
+            }
+            used += 1
+            rep["followed"] += 1
+        rep["matched"] = len(found)
+        if not found:
+            rep["state"] = "none"
+        else:
+            rep["state"] = "following" if rep["followed"] == len(found) else "partial"
+        if refused:
+            rep["reason"] = f"{len(refused)} refused: {refused[0]}"
+        return used
+
+    def globs_tick(self, allow, now):
+        self.pull_globs(now)
+        if (
+            not self.stale
+            and self.globs_ok_at is not None
+            and now - self.globs_ok_at > self.stale_s
+        ):
+            self.go_stale()  # ctl:stale
+        if not self.stale and now >= self.next_scan:
+            self.scan_globs(allow)
+        seen = json.dumps([self.folder_rep, self.glob_rep], sort_keys=True)
+        if seen != self.report_seen:
+            self.report_seen, self.announce_pending = seen, True
 
     def announce(self, allow):
         if not self.announce_pending:
@@ -639,9 +1028,25 @@ class Follower:
             }
             for sid, path, _ in allow
         ]
-        if self.send(
-            {"type": "lane", "lane_op": "file_streams_announce", "streams": streams}
-        ):
+        streams += [
+            {
+                "stream_key": k,
+                "path": i["path"],
+                "state": self.state["streams"].get(k, {}).get("status", "refused"),
+                "glob_id": i["gid"],
+            }
+            for k, i in self.gstreams.items()
+        ]
+        frame = {
+            "type": "lane",
+            "lane_op": "file_streams_announce",
+            "streams": streams,
+            "folders": self.folder_rep,
+            "globs": [
+                self.glob_rep[g["id"]] for g in self.globs if g["id"] in self.glob_rep
+            ],
+        }
+        if self.send(frame):
             self.announce_pending = False
 
     def frame(self, sid):
@@ -691,13 +1096,17 @@ class Follower:
 
     def tick(self):
         allow = read_allow()
-        minute = int(time.time()) // 60
+        now = time.time()
+        minute = int(now) // 60
         self.pushed, self.push_rc = 0, 0
+        self.globs_tick(allow, now)
         for sid, path, why in allow:
             if why:
                 self.refuse(sid, self.state["streams"].setdefault(sid, {}), why)
             else:
                 self.follow(sid, path, minute)
+        for sid, i in [] if self.stale else list(self.gstreams.items()):
+            self.follow(sid, i["name"], minute, self.roots)
         self.end_tick()
         self.save()
         self.announce(allow)
@@ -709,6 +1118,7 @@ class Follower:
         line = (
             f"tick streams={len(allow)} following={n['following']} missing={n['missing']} "
             f"refused={n['refused']} queued={len(self.queue)} pushed={self.pushed} push_rc={self.push_rc}"
+            f" globs={len(self.globs)} glob_streams={len(self.gstreams)}{' stale' if self.stale else ''}"
         )
         # One line a change, else one every 300 ticks: the cron log of a
         # 2 s loop stays small.

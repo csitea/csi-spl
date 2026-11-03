@@ -31,14 +31,14 @@ type fleetTokensRig struct {
 	offset             atomic.Int64
 }
 
-func newFleetTokensRig(t *testing.T) *fleetTokensRig {
+func newFleetTokensRig(t *testing.T, mut ...func(*hub.Options)) *fleetTokensRig {
 	t.Helper()
 	r := &fleetTokensRig{op: newTenantID("op"), other: newTenantID("ot")}
-	r.e = rbacEnv(t, func(o *hub.Options) {
+	r.e = rbacEnv(t, append([]func(*hub.Options){func(o *hub.Options) {
 		o.OperatorTenant = r.op
 		o.Now = func() time.Time { return time.Now().Add(time.Duration(r.offset.Load())) }
 		o.HelloSkew = 24 * time.Hour // the surge test walks the hub's clock hours back
-	})
+	}}, mut...)...)
 	for _, id := range []string{r.op, r.other} {
 		pub, _, _ := ed25519.GenerateKey(nil)
 		if err := r.e.st.CreateTenant(context.Background(), store.Tenant{ID: id, RootPubKey: pub}); err != nil {

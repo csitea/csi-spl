@@ -78,17 +78,17 @@ func (s *Postgres) ListFleetLanes(ctx context.Context, tenant, fleet string, now
 // fleetLaneIssuesSQL: $1 tenant, $2 the topics (uuid[]), $3 the own numbers
 // (int[]). The first half is one issue_discussions_task range per topic;
 // the second the issues primary key. A row's task is "" for an own number.
-const fleetLaneIssuesSQL = `SELECT d.task_id::text, i.number, i.status
+const fleetLaneIssuesSQL = `SELECT d.task_id::text, i.number, i.status, i.priority
 	FROM issue_discussions d JOIN issues i ON i.tenant_id = d.tenant_id AND i.number = d.number
 	WHERE d.tenant_id = $1 AND d.task_id = ANY($2::uuid[]) AND i.deleted_at IS NULL AND i.archived_at IS NULL
 	UNION ALL
-	SELECT '', number, status FROM issues
+	SELECT '', number, status, priority FROM issues
 	WHERE tenant_id = $1 AND number = ANY($3::int[]) AND deleted_at IS NULL AND archived_at IS NULL
 	ORDER BY 2`
 
 // FleetLaneIssues reads the lanes view's issue links in one tenant read (on Postgres).
-func (s *Postgres) FleetLaneIssues(ctx context.Context, tenant string, topics []string, numbers []int) (map[string][]int, map[int]string, error) {
-	byTopic, status := map[string][]int{}, map[int]string{}
+func (s *Postgres) FleetLaneIssues(ctx context.Context, tenant string, topics []string, numbers []int) (map[string][]int, map[int]FleetLaneIssue, error) {
+	byTopic, status := map[string][]int{}, map[int]FleetLaneIssue{}
 	ids := []string{}
 	for _, t := range topics {
 		if canonUUIDRe.MatchString(t) { // the column is uuid: a cast of anything else throws 22P02
@@ -100,11 +100,11 @@ func (s *Postgres) FleetLaneIssues(ctx context.Context, tenant string, topics []
 	}
 	err := s.queryTenant(ctx, tenant, fleetLaneIssuesSQL, []any{tenant, ids, numbers}, func(r pgx.Rows) error {
 		var task, st string
-		var n int
-		if err := r.Scan(&task, &n, &st); err != nil {
+		var n, prio int
+		if err := r.Scan(&task, &n, &st, &prio); err != nil {
 			return err
 		}
-		status[n] = st
+		status[n] = FleetLaneIssue{Status: st, Priority: laneIssuePrio(prio)}
 		if task != "" && !slices.Contains(byTopic[task], n) {
 			byTopic[task] = append(byTopic[task], n)
 		}

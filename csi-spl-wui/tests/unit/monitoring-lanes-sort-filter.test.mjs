@@ -28,11 +28,11 @@ const ids = (lanes) => lanes.map((l) => l.agentId).join(',')
 /* hub order: newest write first */
 const VIEW = fleetLanesOf({ as_of: '2026-10-27T12:00:00Z', fleet: 'main', lanes: [
   { agent_id: 'c-10', agent_box: 'box-b', vendor: 'claude', scope: 'Lanes sort', topic_id: 't', topic_title: 'Beta topic',
-    issues: [{ key: 'SPL-20', status: 'wip' }], origin_issue: { key: 'SPL-20', status: 'wip' }, updated_at: '2026-10-27T11:58:00Z', age_s: 120, last_active: '2026-10-27T11:59:00Z', workspace: 'w1', workspace_name: 'Ops' },
+    issues: [{ key: 'SPL-20', status: 'wip', priority: 3 }], priority: 3, origin_issue: { key: 'SPL-20', status: 'wip' }, updated_at: '2026-10-27T11:58:00Z', age_s: 120, last_active: '2026-10-27T11:59:00Z', workspace: 'w1', workspace_name: 'Ops' },
   { agent_id: 'c-9', agent_box: 'box-a', vendor: 'claude', scope: 'Disk sweep', topic_id: '', topic_title: '',
     issues: [], updated_at: '2026-10-27T09:00:00Z', age_s: 10800, last_active: '', workspace: 'w2', workspace_name: 'Acme' },
   { agent_id: 'a-277', agent_box: 'box-a', vendor: 'agy', scope: 'Review the locale text', topic_id: 'x', topic_title: 'Alpha topic',
-    issues: [{ key: 'SPL-3', status: '' }], origin_issue: { key: 'OPS-7', status: '' }, updated_at: '2026-10-25T12:00:00Z', age_s: 172800, last_active: '2026-10-26T12:00:00Z', workspace: 'w1', workspace_name: 'Ops' },
+    issues: [{ key: 'SPL-3', status: '', priority: 1 }], priority: 1, origin_issue: { key: 'OPS-7', status: '' }, updated_at: '2026-10-25T12:00:00Z', age_s: 172800, last_active: '2026-10-26T12:00:00Z', workspace: 'w1', workspace_name: 'Ops' },
   { agent_id: 'm-039', agent_box: 'box-b', vendor: 'mistral', scope: 'Queued summary', state: 'queued',
     issues: [], updated_at: '2026-10-27T11:30:00Z', age_s: 1800, last_active: '', workspace: 'w1', workspace_name: 'Ops' },
 ] }).lanes
@@ -60,6 +60,7 @@ describe('the lanes sort by every column', () => {
     const want = {
       agent: ['a-277,c-9,c-10,m-039', 'm-039,c-10,c-9,a-277'],
       box: ['c-9,a-277,c-10,m-039', 'c-10,m-039,c-9,a-277'],
+      priority: ['a-277,c-10,c-9,m-039', 'c-10,a-277,c-9,m-039'],
       vendor: ['a-277,c-10,c-9,m-039', 'm-039,c-10,c-9,a-277'],
       state: ['c-10,c-9,a-277,m-039', 'm-039,c-10,c-9,a-277'],
       scope: ['c-9,c-10,m-039,a-277', 'a-277,m-039,c-10,c-9'],
@@ -147,7 +148,7 @@ describe('one control, not a copy', () => {
 describe('the Box column', () => {
   const lanes = read('src/pages/monitoring/lanes/index.vue')
   it('is the second column of the sheet', () => {
-    assert.deepEqual(LANE_COLUMNS.slice(0, 3), ['agent', 'box', 'vendor'])
+    assert.deepEqual(LANE_COLUMNS.slice(0, 2), ['agent', 'box'])
   })
   it('a lane with no box sorts last both ways, ties keep the hub order', () => {
     const noBox = fleetLanesOf({ as_of: '2026-10-27T12:00:00Z', fleet: 'main', lanes: [
@@ -208,5 +209,38 @@ describe('the Workspace filter', () => {
     assert.match(cells[cells.length - 1], /data-test="lanes-filter-workspace"/, 'the last filter cell')
     assert.match(cells[cells.length - 1], /:aria-label="t\('sidebar\.tenant'\)"/)
     assert.match(cells[cells.length - 1], /v-for="w in choices\.workspace" :key="w\.id" :value="w\.id"/)
+  })
+})
+
+/* SPL-4727, spec 153 3.14 C63 (owner HUM-10, t1 0d0bc34c, msgs 136f2e49
+   and c78812f2: "the lanes must have their prio attributes in the lanes
+   hilisting and it should be possible to sort them by prio", "the prio
+   shoud be the 3rd attribute"). The hub sends the lane's prio, the highest
+   among its issues; the sheet shows it 3rd and sorts by it, 1 first. */
+describe('the Prio column', () => {
+  const lanes = read('src/pages/monitoring/lanes/index.vue')
+  it('is the 3rd column of the sheet', () => {
+    assert.deepEqual(LANE_COLUMNS.slice(0, 3), ['agent', 'box', 'priority'])
+  })
+  it('keeps the hub\'s prio of the lane and of each issue; junk is none', () => {
+    const v = fleetLanesOf({ lanes: [
+      { agent_id: 'c-1', priority: 2, issues: [{ key: 'SPL-1', status: 'wip', priority: 2 }, { key: 'SPL-2', status: 'eval', priority: 4 }] },
+      { agent_id: 'c-2' }, { agent_id: 'c-3', priority: 9 }, { agent_id: 'c-4', priority: '1' }, { agent_id: 'c-5', priority: -1 }] }).lanes
+    assert.deepEqual(v.map((l) => l.priority), [2, 0, 0, 1, 0])
+    assert.deepEqual(v[0].issues.map((i) => i.priority), [2, 4])
+  })
+  it('sorts prio 1 first; a lane with no prio is last both ways, ties keep the hub order', () => {
+    const v = fleetLanesOf({ lanes: [{ agent_id: 'c-1', priority: 3 }, { agent_id: 'c-2' }, { agent_id: 'c-3', priority: 1 },
+      { agent_id: 'c-4', priority: 3 }, { agent_id: 'c-5' }] }).lanes
+    assert.equal(ids(sortLanes(v, { col: 'priority', dir: 'asc' })), 'c-3,c-1,c-4,c-2,c-5')
+    assert.equal(ids(sortLanes(v, { col: 'priority', dir: 'desc' })), 'c-1,c-4,c-3,c-2,c-5')
+    assert.equal(ids(sortLanes(v, { col: '', dir: '' })), 'c-1,c-2,c-3,c-4,c-5', 'the default order is unchanged')
+  })
+  it('the page renders the prio as the 3rd cell, a dash for none, under the Issues sheet\'s word', () => {
+    const row = lanes.slice(lanes.indexOf('data-test="lanes-row"'))
+    assert.match(row, /data-test="lanes-agent"[^\n]*\n\s*<td class="ln-box"[^\n]*\n\s*<td class="num" data-test="lanes-priority"/)
+    assert.match(lanes, /priority: \{ key: 'issues\.field_priority'/)
+    const frow = lanes.slice(lanes.indexOf('data-test="lanes-filters"'))
+    assert.match(frow, /^data-test="lanes-filters">\s*<th \/>\s*<th>\s*<select v-model="filters\.box"[\s\S]*?<\/th>\s*<th \/>\s*<th>\s*<select v-model="filters\.vendor"/)
   })
 })

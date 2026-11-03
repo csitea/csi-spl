@@ -73,7 +73,24 @@ type FleetLanes interface {
 	// number, served by issue_discussions_task), and the status of every
 	// such issue and of each of numbers (the lanes' own keys). A topic or
 	// number with no live issue is absent; a topic that is not a uuid too.
-	FleetLaneIssues(ctx context.Context, tenantID string, topics []string, numbers []int) (map[string][]int, map[int]string, error)
+	// Each issue comes with its prio (spec 153 3.14), in the same read.
+	FleetLaneIssues(ctx context.Context, tenantID string, topics []string, numbers []int) (map[string][]int, map[int]FleetLaneIssue, error)
+}
+
+// FleetLaneIssue is what the lanes view shows of one linked issue: its
+// status and its prio (1 highest .. 5; a row from before rdb 0055 reads as
+// IssuePriorityDefault).
+type FleetLaneIssue struct {
+	Status   string
+	Priority int
+}
+
+// laneIssuePrio is a stored prio as the view shows it: 0 (unset) is the default.
+func laneIssuePrio(p int) int {
+	if p == 0 {
+		return IssuePriorityDefault
+	}
+	return p
 }
 
 // sortLanes is the list order both drivers share.
@@ -110,11 +127,11 @@ func (s *Memory) PutFleetLane(_ context.Context, tenant string, l FleetLane, box
 }
 
 // FleetLaneIssues reads the lanes view's issue links (on the Memory store).
-func (s *Memory) FleetLaneIssues(_ context.Context, tenant string, topics []string, numbers []int) (map[string][]int, map[int]string, error) {
+func (s *Memory) FleetLaneIssues(_ context.Context, tenant string, topics []string, numbers []int) (map[string][]int, map[int]FleetLaneIssue, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.iss.init()
-	byTopic, status := map[string][]int{}, map[int]string{}
+	byTopic, status := map[string][]int{}, map[int]FleetLaneIssue{}
 	want := map[string]bool{}
 	for _, t := range topics {
 		want[t] = canonUUIDRe.MatchString(t)
@@ -128,7 +145,7 @@ func (s *Memory) FleetLaneIssues(_ context.Context, tenant string, topics []stri
 		for _, l := range ls {
 			if want[l.TaskID] && !slices.Contains(byTopic[l.TaskID], n) {
 				byTopic[l.TaskID] = append(byTopic[l.TaskID], n)
-				status[n] = r.Status
+				status[n] = FleetLaneIssue{Status: r.Status, Priority: laneIssuePrio(r.Priority)}
 			}
 		}
 	}
@@ -137,7 +154,7 @@ func (s *Memory) FleetLaneIssues(_ context.Context, tenant string, topics []stri
 	}
 	for _, n := range numbers {
 		if r, live := rows[n]; live {
-			status[n] = r.Status
+			status[n] = FleetLaneIssue{Status: r.Status, Priority: laneIssuePrio(r.Priority)}
 		}
 	}
 	return byTopic, status, nil

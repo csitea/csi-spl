@@ -40,7 +40,7 @@ describe('the fleet-lanes body as a view', () => {
     ] })
     assert.equal(v.asOf, '2026-10-24T10:00:00Z')
     assert.deepEqual(v.lanes.map((l) => l.agentId), ['c-002', 'c-001'], 'the hub order (newest write first), never re-sorted')
-    assert.deepEqual(v.lanes[0].issues, [{ key: 'SPL-1', status: 'wip' }])
+    assert.deepEqual(v.lanes[0].issues, [{ key: 'SPL-1', status: 'wip', priority: 0 }], 'no prio sent: 0, none')
     assert.equal(v.lanes[1].ageS, 0, 'a junk age is 0, never negative')
     assert.deepEqual(v.lanes[1].issues, [])
     assert.deepEqual(fleetLanesOf(null), { asOf: '', fleet: '', lanes: [] })

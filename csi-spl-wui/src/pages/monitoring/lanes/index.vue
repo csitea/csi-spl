@@ -23,6 +23,10 @@
      Box (SPL-4458; owner HUM-10, t1 0acd4eaa, msg 97453531): the box a lane
      works on is its own column after the agent, sortable, its select under
      it; the workspace route sends no box, so the cell is a dash there.
+     Prio (3.14, SPL-4727; owner HUM-10, t1 0d0bc34c, msgs 136f2e49 and
+     c78812f2): the lane's prio, the highest among its issues (1 highest),
+     is the 3rd column, sortable like the others; a lane with no issue
+     shows a dash and sorts last.
      Workspace filter (SPL-4705; owner HUM-10, t1 0ea86216, msg c50a260f):
      a select under the Workspace column, which stays last, offering the
      answer's workspaces by name and matching on the row's id.
@@ -73,6 +77,7 @@
                   <option v-for="b in choices.box" :key="b" :value="b">{{ b }}</option>
                 </select>
               </th>
+              <th />
               <th>
                 <select v-model="filters.vendor" data-test="lanes-filter-vendor" :aria-label="t('monitoring.lanes.filter_vendor')">
                   <option value="">{{ t('issues.filter_all') }}</option>
@@ -119,6 +124,10 @@
             >
               <th scope="row" class="ln-id" data-test="lanes-agent">{{ laneName(l) }}</th>
               <td class="ln-box" data-test="lanes-box">{{ l.box || DASH }}</td>
+              <td class="num" data-test="lanes-priority" :data-priority="l.priority || undefined">
+                <span v-if="l.priority" class="ln-prio" :class="'ln-prio--' + l.priority">{{ l.priority }}</span>
+                <span v-else class="muted">{{ DASH }}</span>
+              </td>
               <td data-test="lanes-vendor">{{ l.vendor || DASH }}</td>
               <td data-test="lanes-state" :data-state="l.state">{{ stateLabel(l.state) }}</td>
               <td class="ln-cut" :title="l.scope || undefined" data-test="lanes-scope">{{ l.scope || DASH }}</td>
@@ -185,6 +194,7 @@ const stale = computed(() => lanesStaleLevel(lag.value))
 const COLUMN_NAMES: Record<string, { key: string, cls?: string, test?: string }> = {
   agent: { key: 'monitoring.tokens.col_agent' },
   box: { key: 'monitoring.lanes.col_box', test: 'lanes-col-box' },
+  priority: { key: 'issues.field_priority', cls: 'num', test: 'lanes-col-priority' },
   vendor: { key: 'monitoring.tokens.col_vendor' },
   state: { key: 'monitoring.lanes.col_state' },
   scope: { key: 'monitoring.lanes.col_scope' },
@@ -325,6 +335,12 @@ onBeforeUnmount(() => {
 /* the filter row under the names, as the Issues sheet's (SPL-3887) */
 .ln-frow th { font-weight: normal; padding-top: 2px; }
 .ln-frow select, .ln-search { width: 100%; min-width: 5rem; max-width: 16rem; font: inherit; }
+/* the prio, coloured as on the Issues sheet (3.14) */
+.ln-prio { font-weight: 600; font-variant-numeric: tabular-nums; }
+.ln-prio--1 { color: var(--color-danger); }
+.ln-prio--2 { color: var(--color-warn); }
+.ln-prio--3 { color: var(--color-accent); }
+.ln-prio--4, .ln-prio--5 { color: var(--color-muted); }
 /* the workspace, the last column (3.8): it may wrap, never dropped (phone too) */
 .ln-ws { min-width: 6rem; overflow-wrap: anywhere; }
 </style>

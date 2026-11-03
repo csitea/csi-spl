@@ -117,6 +117,7 @@ func (s *Server) workspaceLanesView(ctx context.Context, tenant, fleet, reader s
 		v.TopicChannel = topic.Channel
 		v.TopicTitle, v.Workspace, v.WorkspaceName = topic.Title, tenant, cmp.Or(names[tenant], tenant)
 		v.Issues = laneIssues("", prefix, true, byTopic[v.TopicID], status)
+		v.Priority = lanePrio(v.Issues)
 		out.Lanes = append(out.Lanes, v)
 	}
 	return out, nil

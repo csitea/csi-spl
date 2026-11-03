@@ -8,9 +8,14 @@
 #      last jsonl line waits for its newline; a newer session starts over
 #      after one `session` line
 #   3. redaction: a token in a prompt or a command is masked; a tool
-#      result's content never reaches the log
+#      result's content never reaches the log; a multi-line private key and
+#      a token across the 200-char cut are redacted BEFORE the cut (RED
+#      controls: the cut-then-redact order leaks both)
 #   4. refusals: no session file (rc 3), an unreadable one (rc 4), a bad or
 #      missing AGENT_ID (rc 1)
+#   4b. the user split: the jsonl is read as the agent user (sudo -n -u),
+#      the log dir is made, tested and written as the caller, so a dir only
+#      the box user can write works
 #   5. the session is the newest top-level jsonl of the agent's worktree
 #      slug (-wt-<id>); a subagent's jsonl and another id's slug are not
 #   6. the id list: box.env AGENT_STEPS_LOG_AGENTS wins over the cnf; the
@@ -76,6 +81,31 @@ want="${want//\\\"/\"}"
 bad="$(grep -oE "${TOK}|FILE-CONTENT|THOUGHT-NEVER|SIDECHAIN-NEVER|meta</command|not json|second line" "$L/c-141.steps.log" | sort -u | tr '\n' ' ')"
 [[ -z "$bad" ]] && pass "3. no token, no tool result content, no thinking or sidechain text" || fail "3. leaked: $bad"
 
+# a PEM key in a prompt, a token straddling the 200-char cut; pieces
+# assembled so the secret scanners read no literal key
+PEMB="MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7""$(printf 'Q%.0s' {1..40})"
+PEM="-----BEGIN ""PRIVATE KEY-----\n${PEMB}\n${PEMB}\n-----END ""PRIVATE KEY-----"
+PAD="$(printf 'w%.0s' {1..185})"
+mkdir -p "$P/-opt-x-wt-c-144"
+{ rec user 2026-11-03T09:00:00.000Z '"here is the key: '"$PEM"' thanks"'
+  rec user 2026-11-03T09:00:01.000Z '"'"$PAD"' '"$TOK"'"'
+} >"$P/-opt-x-wt-c-144/k.jsonl"
+act AGENT_ID=c-144 AGENT_STEPS_LOG_PROJECTS="$P" AGENT_STEPS_LOG_DIR="$L" >/dev/null 2>&1
+grep -q '<redacted:private-key> thanks' "$L/c-144.steps.log" && ! grep -qE 'MIIEvQ|QQQQ' "$L/c-144.steps.log" &&
+  pass "3. a multi-line private key is redacted whole, its body never written" ||
+  fail "3. PEM leaked: $(grep -E 'MIIEvQ|key' "$L/c-144.steps.log")"
+! grep -q 'ghp_' "$L/c-144.steps.log" && grep -q '^.\{0,40\}prompt.*wwww' "$L/c-144.steps.log" &&
+  pass "3. a token across the 200-char cut leaves no prefix" || fail "3. cut token: $(grep 'www' "$L/c-144.steps.log")"
+# RED control: the old order (cut, then redact) does leak both
+red="$(PYTHONPATH="$PROJ_ROOT/src/bash/features/spawn-agents/lib" python3 -c '
+import re, sys
+from spool_redact import redact
+cut = lambda t, n: re.sub(r"\s+", " ", t).strip()[: n - 1]
+pem, pad, tok = sys.argv[1:]
+print(redact(cut(pem, 200))[0]); print(redact(cut(pad + " " + tok, 200))[0])' "$(printf '%b' "$PEM")" "$PAD" "$TOK")"
+grep -q 'MIIEvQ' <<<"$red" && grep -q 'ghp_' <<<"$red" &&
+  pass "3. RED control: cut-then-redact leaks the key body and the token prefix" || fail "3. RED control did not leak: $red"
+
 # --- 2. offset resume ------------------------------------------------------------
 n1="$(wc -l <"$L/c-141.steps.log")"
 act AGENT_ID=c-141 AGENT_STEPS_LOG_PROJECTS="$P" AGENT_STEPS_LOG_DIR="$L" >/dev/null 2>&1
@@ -126,6 +156,22 @@ for id in "" "c-14" "x-141" "c-141;id"; do
   [[ "$rc" == 1 && "$out" == FATAL* ]] || { fail "4. AGENT_ID='$id' (rc $rc: $out)"; continue; }
 done
 pass "4. a missing or malformed AGENT_ID: rc 1"
+
+# --- 4b. the user split ----------------------------------------------------------
+# a fake sudo records its calls and runs the command as the caller; the
+# agent user is a name that is not the caller's
+B="$T/bin"; mkdir -p "$B"
+printf '#!/bin/bash\n[[ "$1" == -n && "$2" == -u ]] || exit 9\nu="$3"; shift 3; [[ "$1" == -- ]] && shift\necho "$u $*" >>"%s"\nexec "$@"\n' "$T/sudo.calls" >"$B/sudo"
+chmod +x "$B/sudo"
+D="$T/boxonly"; mkdir -m 0700 "$D"
+out="$(PATH="$B:$PATH" act AGENT_ID=c-141 AGENT_STEPS_LOG_USER=agentx AGENT_STEPS_LOG_PROJECTS="$P" AGENT_STEPS_LOG_DIR="$D" 2>&1)"; rc=$?
+calls="$(cut -d' ' -f1-2 "$T/sudo.calls" 2>/dev/null | sort -u | tr '\n' ' ')"
+[[ "$rc" == 0 && -s "$D/c-141.steps.log" && "$(stat -c %U "$D/c-141.steps.log")" == "$(id -un)" ]] &&
+  pass "4b. a dir only the caller can write: the log is written, owned by the caller" ||
+  fail "4b. box-only dir (rc $rc: $out)"
+[[ "$calls" == "agentx find agentx sh agentx stat " ]] &&
+  pass "4b. ...only find, stat and the read run as the agent user (no mkdir, test or python)" ||
+  fail "4b. sudo calls: '$calls'"
 
 # --- 6. the id list --------------------------------------------------------------
 printf 'env:\n  box:\n    agent_steps_log:\n      agents: [c-001, c-002]\n' >"$T/cnf.yaml"

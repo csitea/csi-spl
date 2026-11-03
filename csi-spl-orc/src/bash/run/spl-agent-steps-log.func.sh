@@ -8,8 +8,10 @@
 # @description line redacted, never the content a tool read. Incremental: the
 # @description byte offset is kept in <dir>/.<id>.steps.state.json, so a re-run
 # @description appends only new steps. Runs src/bash/scripts/agent-steps-log.py
-# @description as the agent user (the jsonl is 0600); the log is 0644, read by
-# @description the box file follower (cnf env.box.file_streams.allow). The
+# @description as the caller (the box user, who owns the log dir), reading the
+# @description jsonl as the agent user (it is 0600; --read-as, sudo -n); the
+# @description log is 0644, read by the box file follower (cnf
+# @description env.box.file_streams.allow). The
 # @description minute cron row agent-steps-log runs it for the ids of
 # @description spl_agent_steps_log_ids (box.env AGENT_STEPS_LOG_AGENTS, else
 # @description cnf env.box.agent_steps_log.agents; empty = nothing runs).
@@ -45,8 +47,8 @@ do_spl_agent_steps_log() {
   user="${AGENT_STEPS_LOG_USER:-$(spl_cost_agent_users "${SPOOL_ROOT:-/var/spool-hub}" | sed -n 1p)}"
   [[ "$user" =~ ^[a-z_][a-z0-9_-]*$ && "$user" != root ]] || { echo "FATAL agent-steps-log: bad agent user '$user'"; return 1; }
   dir="${AGENT_STEPS_LOG_DIR:-/var/csi/csi-spl/agent-logs}"
-  spl_cost_as "$user" mkdir -p -m 0755 "$dir" 2>/dev/null
-  spl_cost_as "$user" test -w "$dir" || { echo "FATAL agent-steps-log: $user cannot write $dir"; return 1; }
+  [[ -d "$dir" ]] || { mkdir -p "${dir%/*}" && mkdir -m 0755 "$dir"; } 2>/dev/null
+  [[ -w "$dir" ]] || { echo "FATAL agent-steps-log: $(id -un) cannot write $dir"; return 1; }
   for id in $ids; do
     spl_agent_steps_log_one "$user" "$py" "$dir" "$id"; r=$?
     [[ "$r" == 0 ]] || rc="$r"
@@ -59,7 +61,7 @@ spl_agent_steps_log_one() {
   local user="$1" py="$2" dir="$3" id="$4" s
   s="${AGENT_STEPS_LOG_SESSION:-$(spl_agent_steps_log_session "$user" "$id")}"
   [[ -n "$s" ]] || { echo "FATAL agent-steps-log: $id: no claude session jsonl under $(spl_agent_steps_log_projects "$user")/*-wt*-$id/"; return 3; }
-  spl_cost_as "$user" python3 "$py" --session "$s" --out "$dir/$id.steps.log" \
+  python3 "$py" --session "$s" --read-as "$user" --out "$dir/$id.steps.log" \
     --state "$dir/.$id.steps.state.json" | sed -u "s/^/$id /"
   return "${PIPESTATUS[0]}"
 }

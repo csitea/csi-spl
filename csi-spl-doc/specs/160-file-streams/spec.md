@@ -851,9 +851,12 @@ A steps line is `<UTC second> <kind> <detail>`:
 | `result` | `ok` or `error`, and the tool it answers. The result's content is never copied: a file a tool read is named by its path on its `tool` line only |
 | `text` | the first ~200 chars of the agent's own text |
 
-Thinking, sidechain and meta records give no line. Every line passes
-`spool_redact.redact()` before it is written (2.3), and the follower masks it
-again (3.1).
+Thinking, sidechain and meta records give no line. Every text passes
+`spool_redact.redact()` (2.3) on its full value BEFORE it is cut to its
+~120 or ~200 chars: cut first, a private key loses its newlines and only its
+header matches, and a token cut short falls under the patterns' length
+floor (review W1, c-256 on `d8bd9788d`). Each line is redacted once more
+before it is written, and the follower masks it again (3.1).
 
 The action (`src/bash/run/spl-agent-steps-log.func.sh`, its parser
 `src/bash/scripts/agent-steps-log.py`):
@@ -861,8 +864,14 @@ The action (`src/bash/run/spl-agent-steps-log.func.sh`, its parser
 - **The session**: the newest top-level `*.jsonl` of the agent's claude
   project dir, the one whose slug ends in `-wt[N]-<id>` (its worktree).
   `AGENT_STEPS_LOG_SESSION` names one by hand.
-- **The user**: it runs as the box's agent user (the jsonl is 0600). The log
-  is 0644, so the follower's user (the same agent user) reads it.
+- **The users**: it runs as the caller, the box user whose crontab runs it
+  and who owns the log dir (mode 0750, the box user's, where the pipe-pane set-up
+  made it). Only the reads of the jsonl (0600) run as the agent user,
+  through `sudo -n -u <agent user>` (`--read-as`): its `stat` and a
+  `tail -c +<offset> | head -c` (review W2). The log is 0644, so the
+  follower reads it.
+- **A jsonl line over 16 MiB** (`READ_MAX_BYTES`) is skipped, so the offset
+  never sticks on it.
 - **Incremental**: the byte offset after the last complete jsonl line read
   is kept in `<dir>/.<id>.steps.state.json`, so a re-run appends only new
   steps. A half-written last line waits for its newline. A newer session

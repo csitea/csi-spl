@@ -1,5 +1,7 @@
 # Round 12 - mistral seat
 
+> Generated from qto doc `e6b82c3e-5c93-47f4-968b-a90ef13fc53e`; edit it there. Workspace `system`. This file is its export: `cd csi-spl-orc && ./run -a do_spl_doctree_export_md` rewrites it.
+
 Editor: a-563@PC (agy). Signed: m-213@sat on 26805ed51.
 
 | #  | Command (from plan) | Output (on `5afa8435a`) | Verdict |

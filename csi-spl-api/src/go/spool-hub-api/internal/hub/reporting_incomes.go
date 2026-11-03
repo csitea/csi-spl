@@ -12,7 +12,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
-// Reporting -> Incomes (SPL-4697, rdb 0256, spec 143 incomes.md; owner
+// Reporting -> Incomes (SPL-4697, rdb 0257, spec 143 incomes.md; owner
 // HUM-10, csitea topic 450418ab msg e793f8d0): the workspace's invoiced
 // income per month.
 //

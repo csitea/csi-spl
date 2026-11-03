@@ -43,6 +43,28 @@ export function staffReadable(me) {
 }
 
 /**
+ * SPL-4697: an owner-only route (GET /v1/reporting/incomes): the hub's
+ * TenantOwner alone, no admin. Not known yet = readable; the hub's 403 is
+ * the control.
+ * @param {GateMe} me
+ */
+export function ownerReadable(me) {
+  if (!meKnown(me)) return true
+  return reportingOwner(me)
+}
+
+/**
+ * Whether the reader is the workspace's owner: tenant_owner on
+ * /v1/view/me, or the biz_owner role (hub rbac.go, BizOwner TenantOwner:
+ * true; the mock names the role only). Not known yet (null): no.
+ * @param {{ tenantOwner?: boolean, role?: string | null, roles?: string[] } | null | undefined} me
+ */
+export function reportingOwner(me) {
+  if (!me) return false
+  return me.tenantOwner === true || me.role === 'biz_owner' || (Array.isArray(me.roles) && me.roles.includes('biz_owner'))
+}
+
+/**
  * A route the hub gates on one permission (GET /v1/tenant/box-stats: audit.read).
  * @param {GateMe} me
  * @param {string} perm

@@ -3481,6 +3481,7 @@
       "sql": "SQL",
       "costs": "Maliyetler",
       "marketing": "Pazarlama",
+      "incomes": "Gelirler",
       "issues": "Konular",
       "posts": "Gönderiler",
       "lanes": "Hatlar"
@@ -3611,6 +3612,26 @@
         "revenue": "Gelir",
         "retention": "Elde tutma",
         "content_seo": "İçerik / SEO"
+      }
+    },
+    "incomes": {
+      "loading": "Gelirler yükleniyor…",
+      "forbidden": "Gelirleri yalnızca çalışma alanının sahibi görür.",
+      "error": "Gelirler yüklenemedi.",
+      "empty": "{year} için kayıtlı gelir yok.",
+      "year": "Yıl",
+      "table_label": "Aylara göre gelirler, {year}",
+      "no_invoice": "Bu ay fatura yok",
+      "year_total": "Toplam {year}",
+      "col": {
+        "month": "Ay",
+        "invoice": "Fatura",
+        "issued": "Düzenlendi",
+        "due": "Vade",
+        "hours": "Saat",
+        "net": "Net tutar",
+        "vat": "KDV",
+        "total": "Toplam"
       }
     }
   },

@@ -26,6 +26,10 @@ export const REPORTING_TABS = Object.freeze([
      449350b3, Q8 B): the workspace's owner and its admins only (`staff`,
      the hub's TenantOwner || Has(rbac.Admin) on GET /v1/reporting/marketing) */
   Object.freeze({ id: 'marketing', path: '/reporting/marketing', labelKey: 'reporting.tab.marketing', adminOnly: false, operatorsOnly: false, staff: true, ready: true }),
+  /* SPL-4697 (spec 143 incomes.md 3; owner HUM-10, csitea 450418ab, msg
+     e793f8d0): the workspace's OWNER only (`owner`, the hub's TenantOwner on
+     GET /v1/reporting/incomes); an admin does not see it */
+  Object.freeze({ id: 'incomes', path: '/reporting/incomes', labelKey: 'reporting.tab.incomes', adminOnly: false, operatorsOnly: false, owner: true, ready: true }),
   Object.freeze({ id: 'issues', path: '/reporting/issues', labelKey: 'reporting.tab.issues', adminOnly: false, operatorsOnly: false, ready: false }),
   Object.freeze({ id: 'posts', path: '/reporting/posts', labelKey: 'reporting.tab.posts', adminOnly: false, operatorsOnly: false, ready: false }),
   /* spec 143 tasks T053: the fleet's lanes, operator admins only */
@@ -40,10 +44,11 @@ export const REPORTING_DEFAULT_PATH = REPORTING_TABS[0].path
  * for a workspace admin (an operator admin is one); an operator-only one for
  * an admin of the operator workspace only (`who.operator`), never for a
  * workspace admin as such; a `staff` one for the workspace's owner or an
- * admin (`who.staff`, monitoring-tabs.mjs monitoringStaff); a tab naming a
- * `perm` only when `who.can` grants it. Not known yet = hidden; the hub's
- * 403 is the control.
- * @param {{ admin?: boolean, operator?: boolean, staff?: boolean, can?: (perm: string) => boolean }} [who]
+ * admin (`who.staff`, monitoring-tabs.mjs monitoringStaff); an `owner` one
+ * for the workspace's owner only (`who.owner`, read-gates.mjs
+ * reportingOwner); a tab naming a `perm` only when `who.can` grants it. Not
+ * known yet = hidden; the hub's 403 is the control.
+ * @param {{ admin?: boolean, operator?: boolean, staff?: boolean, owner?: boolean, can?: (perm: string) => boolean }} [who]
  */
 export function visibleReportingTabs(who = {}) {
   return REPORTING_TABS.filter((tab) => reportingTabShows(tab, who))
@@ -52,14 +57,15 @@ export function visibleReportingTabs(who = {}) {
 /**
  * visibleReportingTabs' rule for one tab (the tests run it on a reserved tab
  * with `ready` forced on).
- * @param {{ ready: boolean, adminOnly?: boolean, operatorsOnly?: boolean, staff?: boolean, perm?: string }} tab
- * @param {{ admin?: boolean, operator?: boolean, staff?: boolean, can?: (perm: string) => boolean }} who
+ * @param {{ ready: boolean, adminOnly?: boolean, operatorsOnly?: boolean, staff?: boolean, owner?: boolean, perm?: string }} tab
+ * @param {{ admin?: boolean, operator?: boolean, staff?: boolean, owner?: boolean, can?: (perm: string) => boolean }} who
  */
 export function reportingTabShows(tab, who) {
   return tab.ready
     && (!tab.operatorsOnly || who.operator === true)
     && (!tab.adminOnly || who.admin === true || who.operator === true)
     && (!tab.staff || who.staff === true)
+    && (!tab.owner || who.owner === true)
     && (!tab.perm || (typeof who.can === 'function' && who.can(tab.perm) === true))
 }
 

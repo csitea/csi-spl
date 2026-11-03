@@ -3481,6 +3481,7 @@
       "sql": "SQL",
       "costs": "Koszty",
       "marketing": "Marketing",
+      "incomes": "Przychody",
       "issues": "Zgłoszenia",
       "posts": "Posty",
       "lanes": "Linie"
@@ -3611,6 +3612,26 @@
         "revenue": "Przychody",
         "retention": "Utrzymanie",
         "content_seo": "Treści / SEO"
+      }
+    },
+    "incomes": {
+      "loading": "Wczytywanie przychodów…",
+      "forbidden": "Przychody widzi tylko właściciel przestrzeni roboczej.",
+      "error": "Nie udało się wczytać przychodów.",
+      "empty": "Brak zarejestrowanych przychodów za {year}.",
+      "year": "Rok",
+      "table_label": "Przychody według miesięcy, {year}",
+      "no_invoice": "Brak faktury w tym miesiącu",
+      "year_total": "Razem {year}",
+      "col": {
+        "month": "Miesiąc",
+        "invoice": "Faktura",
+        "issued": "Wystawiona",
+        "due": "Termin płatności",
+        "hours": "Godziny",
+        "net": "Netto",
+        "vat": "Podatek VAT",
+        "total": "Razem"
       }
     }
   },

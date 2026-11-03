@@ -32,6 +32,7 @@
 import { useOperatorPane } from '~/stores/operator-pane'
 import { useAccessStore } from '~/stores/access'
 import { monitoringStaff } from '~/utils/monitoring-tabs.mjs'
+import { reportingOwner } from '~/utils/read-gates.mjs'
 import { REPORTING_DEFAULT_PATH, reportingTabFor, visibleReportingTabs } from '~/utils/reporting-tabs.mjs'
 import { productPath } from '~/utils/signed-out-redirect.mjs'
 
@@ -43,13 +44,15 @@ const access = useAccessStore()
 /* an admin-only tab shows once /v1/view/me answered with role admin; an
    operator-only one (Lanes) only to an operator admin; a permission one
    (Costs: costs.read) once me answered and grants it; a staff one
-   (Marketing, spec 163 Q8) to the workspace's owner or an admin. Hiding
+   (Marketing, spec 163 Q8) to the workspace's owner or an admin; an owner
+   one (Incomes, SPL-4697) to the workspace's owner alone. Hiding
    only: the hub's 403 is the control. */
 const meRead = ref(false)
 const tabs = computed(() => visibleReportingTabs({
   operator: operator.visible,
   admin: meRead.value && access.me?.role === 'admin',
   staff: meRead.value && monitoringStaff(access.me),
+  owner: meRead.value && reportingOwner(access.me),
   can: meRead.value ? access.can : undefined,
 }))
 const active = computed(() => reportingTabFor(route.path))

@@ -11,14 +11,20 @@
      Refresh, stale marker, sort buttons and filter row as the Lanes page. -->
 <template>
   <div class="monitoring-topics" data-test="topics-page">
-    <div class="tp-head">
-      <button type="button" class="btn tp-refresh" :aria-busy="busy ? 'true' : 'false'" :disabled="busy" data-test="topics-refresh" @click="refresh()">
-        {{ t('monitoring.tokens.refresh') }}
-      </button>
-      <span v-if="view" class="tp-age" :data-stale="stale" data-test="topics-age">{{ t('monitoring.tokens.updated', { n: lag }) }}</span>
-      <span v-if="view && stale === 'red'" class="tp-stale" role="status" data-test="topics-stale-red">{{ t('monitoring.lanes.stale_red') }}</span>
-      <span v-if="view && filtered" class="tp-age" role="status" data-test="topics-shown">{{ t('monitoring.topics.shown', { n: rows.length, total: topics.length }) }}</span>
-      <button v-if="topics.length" type="button" class="btn ghost" :disabled="!filtered" data-test="topics-filter-clear" @click="clearFilters()">{{ t('issues.filter_clear') }}</button>
+    <!-- 3.16 (SPL-4730): Refresh, its age and Clear filters on the tabs'
+         row, on the right, as on Lanes -->
+    <ClientOnly>
+      <Teleport to="#monitoring-head-actions" defer>
+        <button type="button" class="btn tp-refresh" :aria-busy="busy ? 'true' : 'false'" :disabled="busy" data-test="topics-refresh" @click="refresh()">
+          <UiIcon name="refresh" class="mh-icon" /><span class="mh-label">{{ t('monitoring.tokens.refresh') }}</span>
+        </button>
+        <span v-if="view" class="tp-age" :data-stale="stale" data-test="topics-age">{{ t('monitoring.tokens.updated', { n: lag }) }}</span>
+        <button v-if="topics.length" type="button" class="btn ghost" :disabled="!filtered" data-test="topics-filter-clear" @click="clearFilters()"><UiIcon name="filter-x" class="mh-icon" /><span class="mh-label">{{ t('issues.filter_clear') }}</span></button>
+      </Teleport>
+    </ClientOnly>
+    <div v-if="view && (stale === 'red' || filtered)" class="tp-head">
+      <span v-if="stale === 'red'" class="tp-stale" role="status" data-test="topics-stale-red">{{ t('monitoring.lanes.stale_red') }}</span>
+      <span v-if="filtered" class="tp-age" role="status" data-test="topics-shown">{{ t('monitoring.topics.shown', { n: rows.length, total: topics.length }) }}</span>
     </div>
 
     <p v-if="state === 'loading' && !view" class="muted" data-test="topics-loading">{{ t('monitoring.topics.loading') }}</p>

@@ -1051,7 +1051,13 @@ html.pane-dragging * {
   .topic header > .topic-close { display: none; }
   .topic header { padding: 4px 8px 4px 4px; }
   .feed-header { padding: 4px 12px 4px 4px; gap: 6px; min-height: calc(var(--tap) + 8px); }
-  .spool-shell[data-mobile-section-page="1"] .monitoring-tabs { flex: none; margin: 0; padding: 4px 16px 0; box-shadow: inset 0 -1px 0 var(--color-border); } /* spec 153 (SPL-3157): the header dissolves here (CLE-77886 above, no heading), so the bar is its own row again, its own bottom line under the underline */
+  .spool-shell[data-mobile-section-page="1"] .monitoring-tabrow { display: flex; align-items: flex-end; gap: 4px; min-width: 0; padding: 0 16px; box-shadow: inset 0 -1px 0 var(--color-border); } /* spec 153 (SPL-3157): the header dissolves here (CLE-77886 above, no heading), so the bar is its own row again, its own bottom line under the underline; 3.16 (SPL-4730): a tab's actions at its right end */
+  .spool-shell[data-mobile-section-page="1"] .monitoring-tabs { flex: 1 1 auto; margin: 0; padding: 4px 0 0; }
+  .spool-shell[data-mobile-section-page="1"] .monitoring-head-actions { gap: 4px; align-self: center; }
+  .spool-shell[data-mobile-section-page="1"] .monitoring-head-actions .btn:has(> .mh-icon) { display: inline-flex; align-items: center; justify-content: center; width: var(--tap); padding: 0; }
+  .spool-shell[data-mobile-section-page="1"] .monitoring-head-actions .mh-icon { display: block; }
+  .spool-shell[data-mobile-section-page="1"] .monitoring-head-actions .mh-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .spool-shell[data-mobile-section-page="1"] .monitoring-head-actions [data-test$="-age"] { max-width: 3.75rem; font-size: 0.75rem; line-height: 1.2; text-align: center; }
   .feed-header__who--status { flex-direction: column; align-items: flex-start; gap: 0; line-height: 1.25; }
   .feed-header__who--status .feed-header__title,
   .feed-header__who--status .feed-header__status { max-width: 100%; }
@@ -1670,6 +1676,11 @@ form.composer.omnibox--called .omnibox-field { animation: omnibox-called-field 1
 .monitoring-tabs::-webkit-scrollbar { display: none; }
 .monitoring-head-actions { display: flex; align-items: center; gap: 0.5rem; flex: none; } /* SPL-3250: a tab's header actions (Events: Clear log) */
 .monitoring-head-actions:empty { display: none; }
+/* spec 153 3.16 (SPL-4730): the bar and the actions share the header's row
+   (the wrapper is no box on a desktop); a phone shows Refresh and Clear
+   filters as icon buttons, their words kept as the accessible name (below) */
+.monitoring-tabrow { display: contents; }
+.monitoring-head-actions .mh-icon { display: none; }
 /* SPL-3397 (owner HUM-10, t1 1b4b6250 msg 97fd74b3: "tabs with a 3 D effect
    the selected tab should look like above the other ones"): folder tabs, as
    the issue's Discussion | History (SPL-2655). Each tab is bordered with

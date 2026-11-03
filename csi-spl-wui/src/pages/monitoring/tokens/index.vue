@@ -19,13 +19,19 @@
           <option v-for="w in TOKENS_WINDOWS" :key="w" :value="w">{{ t('monitoring.tokens.window_' + w) }}</option>
         </select>
       </label>
-      <button type="button" class="btn tk-refresh" :aria-busy="busy ? 'true' : 'false'" :disabled="busy" data-test="tokens-refresh" @click="load()">
-        <span v-if="busy" class="tk-spin" aria-hidden="true" />{{ t('monitoring.tokens.refresh') }}
-      </button>
-      <span v-if="view" class="tk-age" :data-stale="stale" data-test="tokens-age">
-        <span v-if="stale === 'amber'" class="tk-dot" aria-hidden="true" data-test="tokens-stale-amber" />
-        {{ t('monitoring.tokens.updated', { n: lag }) }}
-      </span>
+      <!-- 3.16 (SPL-4730): Refresh and its age on the tabs' row, on the
+           right, as on Lanes; the window pick and the red badge stay here -->
+      <ClientOnly>
+        <Teleport to="#monitoring-head-actions" defer>
+          <button type="button" class="btn tk-refresh" :aria-busy="busy ? 'true' : 'false'" :disabled="busy" data-test="tokens-refresh" @click="load()">
+            <span v-if="busy" class="tk-spin" aria-hidden="true" /><UiIcon v-else name="refresh" class="mh-icon" /><span class="mh-label">{{ t('monitoring.tokens.refresh') }}</span>
+          </button>
+          <span v-if="view" class="tk-age" :data-stale="stale" data-test="tokens-age">
+            <span v-if="stale === 'amber'" class="tk-dot" aria-hidden="true" data-test="tokens-stale-amber" />
+            {{ t('monitoring.tokens.updated', { n: lag }) }}
+          </span>
+        </Teleport>
+      </ClientOnly>
       <span v-if="view && stale === 'red'" class="tk-stale" role="status" data-test="tokens-stale-red">{{ t('monitoring.tokens.stale_red') }}</span>
     </div>
 

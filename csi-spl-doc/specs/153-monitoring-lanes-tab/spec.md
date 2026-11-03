@@ -1,5 +1,10 @@
 # 153 Monitoring: the tab row beside the heading, and a live Lanes tab
 
+Addendum (2026-11-03, SPL-4730): section 3.16 (Refresh, its age and Clear
+filters on the tabs' row, on the right, on Lanes, Topics and Tokens), cases
+C61-C63. Owner HUM-10, t1 topic `3238db2c`, msg `2dd25d62`. Placed by the
+dispatch holder as one lane brief, not a panel version.
+
 Addendum (2026-11-03, SPL-4705): section 3.13 (a lane on a
 `dispatch-<topic8>` task names the workspace of that topic; a Workspace
 filter), cases C58-C60. Owner HUM-10, t1 topic
@@ -908,6 +913,53 @@ Cases:
   (`tests/unit/monitoring-lanes-sort-filter.test.mjs` "the Workspace
   filter", red on master: 5 fail; `tests/e2e/monitoring-costs.test.mjs`
   `lanesSortFilter` on the mock fleet's two workspaces.)
+
+### 3.16 Refresh and Clear filters on the tabs' row (SPL-4730)
+
+The owner, verbatim (HUM-10, t1 `3238db2c`, msg `2dd25d62`, 2026-11-03):
+"the refresh and clear filters buttons shoud be on the ame row as the tabs
+, but on the right side", with a screenshot of `/monitoring/lanes` on a
+wide screen where `Refresh`, `Updated 25 s ago` and `Clear filters` had a
+row of their own under the tabs.
+
+Read by the dispatch holder as: those controls move up to the tabs' row,
+right-aligned, on Lanes and on the other tabs with this Refresh (Topics,
+Tokens), so the tabs do not differ.
+
+- **Where they go.** Into the header row's slot `#monitoring-head-actions`
+  (`pages/monitoring.vue`, SPL-3250), after the tab bar and before the end
+  close X, by a client-only `<Teleport defer>`, as Events' Clear log. Lanes
+  and Topics: Refresh, its age, Clear filters. Tokens: Refresh and its age.
+  The data-test names, the behaviour and when each is enabled or shown do
+  not change; leaving the tab unmounts them with it.
+- **What stays above the table.** Lanes and Topics: the red "Data stale"
+  badge and "shown n of total", in `.ln-head` / `.tp-head`, which renders
+  only while one of them shows, so no empty row is left. Tokens: the window
+  pick and the red badge stay in `.tk-head`.
+- **Phone.** The header dissolves on a section page (`display: contents`,
+  the tab bar its own row with its bottom line); the slot and the bar then
+  share that row, the bar scrolling inside itself as before and the slot at
+  its right end. Refresh and Clear filters become 44 x 44 icon buttons
+  whose words stay their accessible name, and the open tab is scrolled
+  into the bar (whole pixels, so the last tab may overrun by < 1 px).
+- Not moved: Events' Clear log is already in the slot (desktop) and at the
+  bottom on a phone (SPL-2093); no other tab has a control of this shape.
+
+Cases:
+
+- **C61** Lanes, Topics, Tokens at 1440, 390 and 320 px: each control is in
+  `#monitoring-head-actions`; its vertical middle lies in the tab bar's
+  box; the controls start right of the bar and end at the row's right side
+  (the header's content edge, or the close X after them); no page scroll;
+  on a touch screen each button is >= 44 px tall. Red control (the three
+  pages from master `53846f26e`): 90/135, the controls under the tabs.
+- **C62** Refresh reads again (the age back to 0..2 s); Clear filters is
+  disabled with no filter, a box filter enables it, a click brings every
+  row back. Moving to the next tab leaves none of the controls behind.
+- **C63** the states without a list: an empty answer (Refresh and the age,
+  no Clear filters, no `.ln-head` row), forbidden (the sentence and Refresh
+  only), first load (Refresh before the answer, the age only with it).
+  (`tests/e2e/monitoring-head-actions-row.test.mjs` for C61-C63.)
 
 ## 4. Cases
 

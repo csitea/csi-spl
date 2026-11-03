@@ -60,6 +60,20 @@ async function readOperators(): Promise<SearchOperator[]> {
   return ensureSearchOperators(await withSessionRetry(api, () => api.searchOperators()))
 }
 
+/** search-v1 §6 once per session; the built-in catalogue until (or unless) it answers. */
+function operatorsLoader(operators: Ref<SearchOperator[]>) {
+  let opsLoaded = false
+  return async function loadOperators() {
+    if (opsLoaded) return
+    opsLoaded = true
+    try {
+      operators.value = await readOperators()
+    } catch {
+      /* route not deployed yet / door closed: keep the built-in catalogue */
+    }
+  }
+}
+
 /**
  * 022 global search (search-v1.md). One query at a time: a newer run drops the
  * answer of an older one. Per-group "load more" follows that group's cursor.
@@ -82,7 +96,6 @@ export const useSearchStore = defineStore('search', () => {
   /* > 0 while the left list's own open navigates (ChannelSidebar keeps the list) */
   const opening = ref(0)
   let seq = 0
-  let opsLoaded = false
 
   async function run(query: string) {
     const mine = ++seq
@@ -127,16 +140,7 @@ export const useSearchStore = defineStore('search', () => {
     }
   }
 
-  /** search-v1 §6 once per session; the built-in catalogue until (or unless) it answers. */
-  async function loadOperators() {
-    if (opsLoaded) return
-    opsLoaded = true
-    try {
-      operators.value = await readOperators()
-    } catch {
-      /* route not deployed yet / door closed: keep the built-in catalogue */
-    }
-  }
+  const loadOperators = operatorsLoader(operators)
 
   return { q, result, activeKey, scrollTop, opening, loading, loadingMore, error, operators, run, more, loadOperators }
 })

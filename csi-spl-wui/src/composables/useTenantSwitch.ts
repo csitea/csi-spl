@@ -15,6 +15,27 @@ function mockSwitchLoads(): boolean {
   try { return Boolean(localStorage.getItem('spool.mock.tenant-switch-loads')) } catch { return false }
 }
 
+/* SPL-2418 (owner HUM-10 789b9e6c, "still doesn't work"): the tab is back
+   on this page without having left it - Back restored it from the
+   bfcache (pageshow persisted), or the navigation took the tab away and
+   brought it back (visible again). The switch is over: `switching` left
+   true keeps every row disabled for good (prd 30b3c3e0a, 390 px touch,
+   n=1: switch, Back -> all rows disabled, a tap did nothing). */
+function endSwitchOnReturn(switching: { value: boolean }) {
+  const back = (e: Event) => {
+    if (!switching.value) return
+    if (e.type === 'pageshow' ? (e as PageTransitionEvent).persisted : document.visibilityState === 'visible') switching.value = false
+  }
+  window.addEventListener('pageshow', back)
+  document.addEventListener('visibilitychange', back)
+  if (getCurrentScope()) {
+    onScopeDispose(() => {
+      window.removeEventListener('pageshow', back)
+      document.removeEventListener('visibilitychange', back)
+    })
+  }
+}
+
 export function useTenantSwitch() {
   const session = useSessionStore()
   const api = useSpoolApi()
@@ -30,26 +51,7 @@ export function useTenantSwitch() {
   })
   const switching = ref(false)
   const failed = ref(false)
-  /* SPL-2418 (owner HUM-10 789b9e6c, "still doesn't work"): the tab is back
-     on this page without having left it - Back restored it from the
-     bfcache (pageshow persisted), or the navigation took the tab away and
-     brought it back (visible again). The switch is over: `switching` left
-     true keeps every row disabled for good (prd 30b3c3e0a, 390 px touch,
-     n=1: switch, Back -> all rows disabled, a tap did nothing). */
-  if (import.meta.client) {
-    const back = (e: Event) => {
-      if (!switching.value) return
-      if (e.type === 'pageshow' ? (e as PageTransitionEvent).persisted : document.visibilityState === 'visible') switching.value = false
-    }
-    window.addEventListener('pageshow', back)
-    document.addEventListener('visibilitychange', back)
-    if (getCurrentScope()) {
-      onScopeDispose(() => {
-        window.removeEventListener('pageshow', back)
-        document.removeEventListener('visibilitychange', back)
-      })
-    }
-  }
+  if (import.meta.client) endSwitchOnReturn(switching)
 
   /** false when nothing switched (the caller shows the old tenant again) */
   async function switchTo(want: string): Promise<boolean> {

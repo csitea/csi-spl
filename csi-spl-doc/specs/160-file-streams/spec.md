@@ -823,6 +823,65 @@ box, not for every box of the workspace (D6); any owner or admin of W may
 remove any glob of W, not only its author (D7); the box pulls its globs
 (3.8.5) instead of a new hub-to-box channel (D1 stands).
 
+### 3.9 An agent's progress as a file (SPL-4693)
+
+Owner HUM-10, topic `385c9a00`, msg `b6d118ef`: "I would like to see
+the advancement of the work via the file streams in the monitoring section".
+On poll `78311346` the owner answered "C - Both" (msg `3427213e`). So an
+agent being watched has two files under `/var/csi/csi-spl/agent-logs/`,
+outside every home and every spool root (3.2):
+
+| file | what | written by |
+|---|---|---|
+| `<id>.log` | the raw tmux screen of the agent's pane | `tmux pipe-pane`, set up by hand on the agent's box |
+| `<id>.steps.log` | the agent's claude session, one line per step | `do_spl_agent_steps_log` (csi-spl-orc) |
+
+Each file is its own allow entry (`agent-<id>` and `agent-<id>-steps` in
+`env.box.file_streams.allow`), not one `agent-logs/*.log` glob: a `*`
+follows only its newest match (`resolve_name`, 3.1), so one glob would flip
+between the two files. Today the cnf has the two entries for c-141.
+
+A steps line is `<UTC second> <kind> <detail>`:
+
+| kind | detail |
+|---|---|
+| `session` | the session jsonl's name, when a new session starts |
+| `prompt` | the first ~200 chars of a prompt the agent was given |
+| `tool` | the tool's name and a short argument: a command's first line, a file's path, a pattern (~120 chars at most) |
+| `result` | `ok` or `error`, and the tool it answers. The result's content is never copied: a file a tool read is named by its path on its `tool` line only |
+| `text` | the first ~200 chars of the agent's own text |
+
+Thinking, sidechain and meta records give no line. Every line passes
+`spool_redact.redact()` before it is written (2.3), and the follower masks it
+again (3.1).
+
+The action (`src/bash/run/spl-agent-steps-log.func.sh`, its parser
+`src/bash/scripts/agent-steps-log.py`):
+
+- **The session**: the newest top-level `*.jsonl` of the agent's claude
+  project dir, the one whose slug ends in `-wt[N]-<id>` (its worktree).
+  `AGENT_STEPS_LOG_SESSION` names one by hand.
+- **The user**: it runs as the box's agent user (the jsonl is 0600). The log
+  is 0644, so the follower's user (the same agent user) reads it.
+- **Incremental**: the byte offset after the last complete jsonl line read
+  is kept in `<dir>/.<id>.steps.state.json`, so a re-run appends only new
+  steps. A half-written last line waits for its newline. A newer session
+  starts at its first byte.
+- **Refusals**: no session (exit 3), an unreadable one (exit 4), a bad
+  `AGENT_ID` (exit 1).
+
+The cron row `agent-steps-log` (every minute, `cnf/box-crons/box-crons.manifest`)
+runs it for the ids of box.env `AGENT_STEPS_LOG_AGENTS`, else of cnf
+`env.box.agent_steps_log.agents` (default `[]`). The list is per box: the
+box that hosts the agent names it in its own box.env, and the shared cnf
+names none, so on every other box the row is a no-op that logs nothing.
+
+When it shows: the follower reads the allow list from the cnf of the box's
+shared checkout when it starts, and exits after `run_s` (1 h); the minute
+cron starts it again. A new allow entry is followed once that checkout holds
+the commit, and the running follower has exited (at most `run_s`) or was
+stopped by its pid.
+
 ## 4. Cases
 
 Every case is planned; none is built. Each red control is what FAILS on
@@ -1466,3 +1525,4 @@ v0.3, by c-319, folds c-317's N1-N4 on v0.2 (line numbers are v0.3's):
 | v0.4 | 2026-10-29 | c-601 | 3.8: web-typed file globs under allowed folders (owner answer B, poll `376e9435`, msg `d925f9a3`) and the `security file` deny class (owner msg `7f673aef`); 3.1, 3.2, 3.5 and section 9 say what changed; cases C41-C56; rows B9-B12 (5.9); D6, D7; owner questions Q5-Q7 (3.8.11) |
 | v0.5 | 2026-10-29 | c-601 | review of v0.4 (grok g-746 FAIL on `7814f50a4`): W1 3.8.5 and row B9 cite the announce frame at `wire/file_streams.go:71-73` (`folders`, `globs`), the stream entry at `:64-68` (`glob_id`), the strict decoder at `:132` / `:122-126`; W2 section 1's asks-list sentence points at 3.8; W3 the 32-character key bound is 3.2's, not 3.3's; note: 3.8.7 and C50 say they hold only if Q6 = A |
 | v0.6 | 2026-10-30 | c-563 | folds the owner's answers to Q5..Q7 (poll `900699dd`, msg `369e7bfa`, 7.1): 3.8.2 sets the default folders, `/var/csi/csi-spl` and `/var/log` minus the 3.8.10 security files (Q5 B); 3.8.7 and C50 drop the "if Q6 = A" condition (Q6 A); 3.8.10 states Q7 A; 3.8.11 answered |
+| v0.7 | 2026-11-03 | c-016 | 3.9: an agent's progress as two file streams, the tmux screen and the steps of its claude session (`do_spl_agent_steps_log`, SPL-4693; owner msg `b6d118ef`, poll `78311346` answer C) |

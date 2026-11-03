@@ -66,3 +66,5 @@ rel-clock-sync      | */5 * * * *        | src/bash/scripts/rel-clock-sync-cron.
 rel-cron-snitch     | */5 * * * *        | src/bash/scripts/rel-cron-snitch-cron.sh | rel/cron-snitch.log |
 rel-box-beat        | * * * * *          | src/bash/scripts/rel-box-beat-cron.sh | rel/box-beat.log |
 vendor-terms-check | 17 4 1 * *         | src/bash/scripts/vendor-terms-check-cron.sh | vendor-terms-check/cron.log | | desk
+# spec 160 3.9 (SPL-4693): the steps files of the agents box.env AGENT_STEPS_LOG_AGENTS names (none = a no-op)
+agent-steps-log    | * * * * *          | src/bash/scripts/agent-steps-log-cron.sh | agent-steps-log/cron.log |

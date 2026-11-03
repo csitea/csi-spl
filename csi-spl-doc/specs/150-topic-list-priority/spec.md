@@ -441,6 +441,20 @@ before a row that depends on it starts.
   `TestFleetAskPutFillsDiscussion` (Memory and Postgres), `TestAsk`,
   `TestAskVerbDiscussion`, section 17 of `asks.tst.sh`, section 21 of
   `spl-spawn-queue.tst.sh`.
+  Since the fill does not move `updated_at`, a discussion filled after
+  another machine mirrored the ask reaches it only through the mirror's change
+  key, which carries `discussion` (section 17 of `asks.tst.sh` fills one after
+  the mirror). The hub's `dispatch-<topic8>` resolve runs on every put, so a
+  re-put of a row whose discussion is still NULL (the sync puts each ask
+  before it replays its ops) now stores the resolve too: an ask whose topic
+  becomes resolvable after its first put gets its discussion, and its
+  priority, then. The header of rdb `0241_fleet_ask_discussion.sql` ("the hub
+  sets it once, when it writes the ask") predates this; the migration is
+  forward-only, so this note is the record. Deploy order: the hub and the box
+  spool binary ship before an orc that passes `ASK_DISCUSSION`. A spool binary
+  without `--discussion` refuses the flag on every tick, so that ask stays
+  `synced:false` and its later ops do not replay. An enqueue whose hub answer
+  has no discussion logs "the hub did not store the discussion".
 - B3 and B9 ship the hub (run 20); B6, B7, B8 and B11 ship the WUI (run
   30). A row is done when it is served on dev and prd.
 - B4 and B11 both edit the locale files, never at the same time: B11 starts

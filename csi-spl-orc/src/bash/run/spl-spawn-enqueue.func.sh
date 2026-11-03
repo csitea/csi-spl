@@ -70,7 +70,11 @@ spl_spawn_q_discussion() {  # ID
   [[ -n "$row" ]] || { do_log "WARN the hub's put answer of ask ${1:0:8} has no row" >&2; return 0; }
   spl_asks_mirror "[$row]" >&2
   got="$(jq -r '.discussion // ""' <<<"$row")"
-  [[ "$got" == "$ASK_DISCUSSION" ]] || do_log "WARN ask ${1:0:8} keeps its discussion ${got:0:8}: a set one is never overwritten" >&2
+  if [[ -z "$got" ]]; then
+    do_log "WARN the hub did not store the discussion of ask ${1:0:8} (an older hub?)" >&2
+  elif [[ "$got" != "$ASK_DISCUSSION" ]]; then
+    do_log "WARN ask ${1:0:8} keeps its discussion ${got:0:8}: a set one is never overwritten" >&2
+  fi
   return 0
 }
 

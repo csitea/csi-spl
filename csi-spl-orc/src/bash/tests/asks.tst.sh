@@ -827,6 +827,14 @@ on dn do_spl_asks_open >/dev/null 2>&1
 [[ "$(jrn dn "$Q1" | jq -r .discussion)" == "$DISC" && "$(jrn dn "$Q2" | jq -r .discussion)" == "" ]] &&
   pass "17. another machine's mirror keeps the hub's discussion" || fail "17. mirror: $(jrn dn "$Q1")"
 
+# the hub's fill moves no updated_at: only the mirror key carries it to dn
+jq --arg i "$Q2" --arg d "$DISC" 'map(if .ask_id == $i then .discussion = $d else . end)' "$T/hub/disc.json" >"$T/hub/disc.json.new" &&
+  mv "$T/hub/disc.json.new" "$T/hub/disc.json"
+on dn do_spl_asks_open >/dev/null 2>&1
+[[ "$(jrn dn "$Q2" | jq -r .discussion)" == "$DISC" ]] &&
+  pass "17. a discussion filled on the hub after dn mirrored the ask reaches dn's journal" ||
+  fail "17. mirror fill: dn $(jrn dn "$Q2") hub $(disc_row "$Q2")"
+
 echo
 if (( fails > 0 )); then echo "asks.tst.sh: $fails FAILED"; exit 1; fi
 echo "asks.tst.sh: all passed"

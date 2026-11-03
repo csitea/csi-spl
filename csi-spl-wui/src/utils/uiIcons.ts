@@ -358,6 +358,10 @@ export const UI_ICON_PATHS = {
   // SPL-1596: the phone's Issues bar - Sort (lucide arrow-up-down) and Filter (lucide funnel)
   sort: ["m21 16-4 4-4-4", "M17 20V4", "m3 8 4-4 4 4", "M7 4v16"],
   filter: ["M22 3H2l8 9.46V19l4 2v-8.54L22 3z"],
+  // Spec 153 3.16 (SPL-4730): Monitoring's Refresh (lucide rotate-cw) and
+  // Clear filters (lucide funnel-x) as the phone's icon buttons
+  refresh: ["M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8", "M21 3v5h-5"],
+  "filter-x": ["M13.013 3H2l8 9.46V19l4 2v-8.54l.9-1.055", "m22 3-5 5", "m17 3 5 5"],
   "chevron-up": ["m18 15-6-6-6 6"],
   "chevron-down": ["m6 9 6 6 6-6"],
   // Back one level on the phone top bar (SPL-990); rtl mirrors it in CSS.

@@ -44,14 +44,23 @@
      empty list. -->
 <template>
   <div class="monitoring-lanes" data-test="lanes-page">
-    <div class="ln-head">
-      <button type="button" class="btn ln-refresh" :aria-busy="busy ? 'true' : 'false'" :disabled="busy" data-test="lanes-refresh" @click="refresh()">
-        {{ t('monitoring.tokens.refresh') }}
-      </button>
-      <span v-if="view" class="ln-age" :data-stale="stale" data-test="lanes-age">{{ t('monitoring.tokens.updated', { n: lag }) }}</span>
-      <span v-if="view && stale === 'red'" class="ln-stale" role="status" data-test="lanes-stale-red">{{ t('monitoring.lanes.stale_red') }}</span>
-      <span v-if="view && filtered" class="ln-age" role="status" data-test="lanes-shown">{{ t('monitoring.lanes.shown', { n: rows.length, total: view.lanes.length }) }}</span>
-      <button v-if="view && view.lanes.length" type="button" class="btn ghost" :disabled="!filtered" data-test="lanes-filter-clear" @click="clearFilters()">{{ t('issues.filter_clear') }}</button>
+    <!-- 3.16 (SPL-4730; owner HUM-10, t1 3238db2c, msg 2dd25d62): Refresh,
+         its age and Clear filters sit on the tabs' row, on the right
+         (monitoring.vue #monitoring-head-actions); client only, as Events'
+         Clear log: the prerendered tab has no answer yet -->
+    <ClientOnly>
+      <Teleport to="#monitoring-head-actions" defer>
+        <button type="button" class="btn ln-refresh" :aria-busy="busy ? 'true' : 'false'" :disabled="busy" data-test="lanes-refresh" @click="refresh()">
+          <UiIcon name="refresh" class="mh-icon" /><span class="mh-label">{{ t('monitoring.tokens.refresh') }}</span>
+        </button>
+        <span v-if="view" class="ln-age" :data-stale="stale" data-test="lanes-age">{{ t('monitoring.tokens.updated', { n: lag }) }}</span>
+        <button v-if="view && view.lanes.length" type="button" class="btn ghost" :disabled="!filtered" data-test="lanes-filter-clear" @click="clearFilters()"><UiIcon name="filter-x" class="mh-icon" /><span class="mh-label">{{ t('issues.filter_clear') }}</span></button>
+      </Teleport>
+    </ClientOnly>
+    <!-- the red stale line and "shown n of total" stay above the table, a row only while one shows -->
+    <div v-if="view && (stale === 'red' || filtered)" class="ln-head">
+      <span v-if="stale === 'red'" class="ln-stale" role="status" data-test="lanes-stale-red">{{ t('monitoring.lanes.stale_red') }}</span>
+      <span v-if="filtered" class="ln-age" role="status" data-test="lanes-shown">{{ t('monitoring.lanes.shown', { n: rows.length, total: view.lanes.length }) }}</span>
     </div>
 
     <p v-if="state === 'loading' && !view" class="muted" data-test="lanes-loading">{{ t('monitoring.lanes.loading') }}</p>

@@ -6,7 +6,9 @@
 # exits 0 at once and logs nothing. Installed by do_install_box_crons as the
 # row agent-steps-log of cnf/box-crons/box-crons.manifest
 # (`# csi-spl:box-cron:agent-steps-log`). A cron job reads no profile: the
-# PATH is set here.
+# PATH is set here. First it re-attaches the full-output log pipe of every
+# agent whose <id>.log is a cnf file stream (do_spl_agent_log_pipe, SPL-4718):
+# a rotation starts a new pane without one.
 #
 # The installed line runs it under cron-no-stack.sh (one run at a time).
 #
@@ -26,6 +28,10 @@ esac
 
 # shellcheck source=../run/spl-agent-steps-log.func.sh
 source "$ORC/src/bash/run/spl-agent-steps-log.func.sh"
+pout="$(cd "$ORC" && timeout 20 ./run -a do_spl_agent_log_pipe 2>&1)"; prc=$?
+grep -E 'OK agent-log-pipe|FATAL|ERROR' <<<"$pout" | while IFS= read -r l; do say "$l"; done
+[ "$prc" = 0 ] || say "WARN do_spl_agent_log_pipe rc=$prc"
+
 ids="$(spl_agent_steps_log_ids)"
 [ -n "${ids// /}" ] || exit 0
 

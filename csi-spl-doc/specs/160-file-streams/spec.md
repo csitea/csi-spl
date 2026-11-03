@@ -833,8 +833,17 @@ outside every home and every spool root (3.2):
 
 | file | what | written by |
 |---|---|---|
-| `<id>.log` | the raw tmux screen of the agent's pane | `tmux pipe-pane`, set up by hand on the agent's box |
+| `<id>.log` | the raw tmux screen of the agent's pane, its escapes stripped | `tmux pipe-pane` through `src/bash/scripts/agent-log-strip-ansi.pl`, attached by `do_spl_agent_log_pipe` (csi-spl-orc, SPL-4718) |
 | `<id>.steps.log` | the agent's claude session, one line per step | `do_spl_agent_steps_log` (csi-spl-orc) |
+
+A rotation starts the agent in a new pane, and a new pane has no pipe. So
+the minute cron row `agent-steps-log` first runs `do_spl_agent_log_pipe`:
+for each allow path ending in `/<id>.log` it takes the agent's current pane
+(the newest `registry.tsv` row of the id whose pane is live in a window named
+for the id, never its pokes side pane `spool-notice-pane`) and, only when its
+`#{pane_pipe}` is 0, attaches `tmux pipe-pane -o` appending (`>>`) to that
+path. A piped pane is left alone, so the log grows again within one tick of a
+rotation and never gets a second pipe (test `spl-agent-log-pipe.tst.sh`).
 
 Each file is its own allow entry (`agent-<id>` and `agent-<id>-steps` in
 `env.box.file_streams.allow`), not one `agent-logs/*.log` glob: a `*`

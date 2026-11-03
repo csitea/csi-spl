@@ -4,9 +4,12 @@
 # (sessions started in a subdir), <slug> being the lane's worktree path with
 # every character but [A-Za-z0-9] turned into '-' (Claude Code's project
 # slug: /opt/x/c-236 -> -opt-x-c-236). agent-id-retire.sh (step 8) runs it
-# with --list once the lane's window is gone and lists each dir in the box's
-# workdir table (workdir-register.sh): the disk sweep removes it after 24 h
-# (owner, t1 37349c9b msg ec060ebc). --apply still removes at once, by hand.
+# with --apply once the lane's window is gone, then --list, and lists each
+# dir that stayed (one a process holds) in the box's workdir table
+# (workdir-register.sh): the disk sweep removes it after 24 h (owner, t1
+# 37349c9b msg ec060ebc). Why at once: retired lanes' scratch filled /tmp,
+# 13 dirs held 12.85 GB and their removal took /tmp inodes from 80% to 36%
+# (2026-10-31, n=1); it regrew about 10 points an hour.
 # Why: on sat, 2026-10-15, the closed c-232's scratch held 20 GB (434 test
 # harness dirs + a Postgres data dir) and /tmp reached 93%; the hourly
 # do_tmp_scratch_sweep waits 24 h of idleness, closing a lane removed nothing.
@@ -24,7 +27,20 @@
 #   user's processes are read and only its dirs removed; tests),
 #   LANE_SCRATCH_LOG (default $XDG_STATE_HOME or ~/.local/state, then
 #   <org>-<app>/lane-scratch-reap.log; "" = no log file)
-# Exit 0 done (kept dirs included); 2 usage.
+# A /tmp/claude-<uid> root is 0700, its user's: one this user cannot read is
+# read as its owner (sudo -n -u; LANE_SCRATCH_SUDO=0: never), and one it still
+# cannot read gets a WARN line naming it and exit 3, never "OK no scratch".
+# Why: as the box user (its reaper cron, a hand retire under sudo -u) every
+# root of the agent user read empty, and 13 dirs of 12.85 GB were reported
+# "OK no scratch" (2026-10-31, n=1 run per box).
+#
+# The worktree's last component must be a lane id (c-201, CLE-07): <slug>-*
+# makes a short path a prefix of every lane's slug, and a registry row naming
+# /opt or /tmp planned the removal of every live lane's idle scratch on the
+# box (R7 W1, SPL-4680). Anything else exits 2 and touches nothing.
+#
+# Exit 0 done (kept dirs included); 2 usage or not a lane worktree; 3 a root
+# left unread.
 set -uo pipefail
 PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
 
@@ -40,6 +56,10 @@ done
 [ "$APPLY$LIST" != 11 ] || { echo "lane-scratch-reap: --apply or --list, not both" >&2; exit 2; }
 [[ "$WT" == /?* ]] || { echo "lane-scratch-reap: needs an absolute worktree path, got '${WT}'" >&2; exit 2; }
 WT="${WT%/}"
+# shellcheck source=../lib/spool-env.inc.sh
+. "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../lib/spool-env.inc.sh"
+[[ "${WT##*/}" =~ ^${SPOOL_AGENT_ID_RX}$ ]] \
+  || { echo "lane-scratch-reap: refused: '${WT}' does not end in a lane id; its slug is a prefix of other lanes' scratch" >&2; exit 2; }
 slug="${WT//[^A-Za-z0-9]/-}"
 tmp="${LANE_SCRATCH_TMP:-/tmp}"
 use_sudo="${LANE_SCRATCH_SUDO:-1}"
@@ -56,26 +76,49 @@ say() {
 }
 as_root() { if [[ "$use_sudo" == 1 && "$(id -u)" != 0 ]]; then sudo -n -- "$@"; else "$@"; fi; }
 
-dirs=()
-for d in "$tmp"/claude-*/"$slug" "$tmp"/claude-*/"$slug"-*; do
-  [ -e "$d" ] || [ -L "$d" ] || continue
-  dirs+=("$d")
+readable() { [ -r "$1" ] && [ -x "$1" ]; }
+in_root() {  # ROOT CMD...: CMD as a user that can read ROOT (its owner, else this one)
+  local r="$1"; shift
+  if readable "$r"; then "$@"; else sudo -n -u "$(stat -c %U -- "$r")" -- "$@"; fi
+}
+dirs=() blind=()
+for r in "$tmp"/claude-*; do
+  [ -d "$r" ] && [ ! -L "$r" ] || continue
+  if ! readable "$r" && { [ "$use_sudo" != 1 ] || ! in_root "$r" test -x "$r" 2>/dev/null; }; then
+    blind+=("$r"); continue
+  fi
+  while IFS= read -r d; do [ -n "$d" ] && dirs+=("$d"); done \
+    < <(in_root "$r" find "$r" -mindepth 1 -maxdepth 1 \( -name "$slug" -o -name "$slug-*" \) -print 2>/dev/null | sort)
 done
+blind_warn() {  # to stderr under --list (its stdout is paths only)
+  local r
+  for r in "${blind[@]}"; do
+    if [ "$LIST" = 1 ]; then
+      printf 'lane-scratch-reap: WARN unreadable %s (owner %s, mode %s): its scratch of %s is unknown\n' "$r" "$(stat -c %U -- "$r")" "$(stat -c %a -- "$r")" "$WT" >&2
+    else
+      say "WARN unreadable $r (owner $(stat -c %U -- "$r"), mode $(stat -c %a -- "$r")): its scratch of $WT is unknown"
+    fi
+  done
+}
+rc=0; [ "${#blind[@]}" -eq 0 ] || rc=3
 if [ "$LIST" = 1 ]; then
-  for d in "${dirs[@]}"; do [ -d "$d" ] && [ ! -L "$d" ] && printf '%s\n' "$d"; done
-  exit 0
+  for d in "${dirs[@]}"; do in_root "${d%/*}" test -d "$d" -a ! -L "$d" && printf '%s\n' "$d"; done
+  blind_warn; exit "$rc"
 fi
-[ "${#dirs[@]}" -gt 0 ] || { say "OK no scratch of $WT under $tmp/claude-*/$slug"; exit 0; }
+if [ "${#dirs[@]}" -eq 0 ]; then
+  if [ "$rc" = 0 ]; then say "OK no scratch of $WT under $tmp/claude-*/$slug"; else blind_warn; fi
+  exit "$rc"
+fi
 
 if [[ "$use_sudo" == 1 && "$(id -u)" != 0 ]] && ! sudo -n true 2>/dev/null; then
   for d in "${dirs[@]}"; do say "KEEP unreadable-procs $d (no sudo -n: cannot prove no process holds it)"; done
-  exit 0
+  blind_warn; exit "$rc"
 fi
 held="$(as_root find /proc -mindepth 2 -maxdepth 3 \( -path '/proc/[0-9]*/cwd' -o -path '/proc/[0-9]*/fd/*' \) -printf '%l\n' 2>/dev/null | sort -u)"
 
 for d in "${dirs[@]}"; do
-  if [ -L "$d" ] || [ ! -d "$d" ]; then say "KEEP not-a-dir $d"; continue; fi
-  owner="$(stat -c %U -- "$d" 2>/dev/null)" || { say "KEEP unreadable $d"; continue; }
+  if in_root "${d%/*}" test -L "$d" -o ! -d "$d"; then say "KEEP not-a-dir $d"; continue; fi
+  owner="$(in_root "${d%/*}" stat -c %U -- "$d" 2>/dev/null)" || { say "KEEP unreadable $d"; continue; }
   if [[ "$use_sudo" == 0 && "$owner" != "$(id -un)" ]]; then say "KEEP not-ours $d (owner $owner)"; continue; fi
   if grep -qxF -e "$d" <<<"$held" || grep -qF -e "$d/" <<<"$held"; then
     say "KEEP in-use $d (a process has its cwd or an open file under it)"; continue
@@ -84,8 +127,9 @@ for d in "${dirs[@]}"; do
   if [ "$APPLY" = 1 ]; then
     if [[ "$owner" == "$(id -un)" ]]; then chmod -R u+w -- "$d" 2>/dev/null; rm -rf -- "$d"
     else sudo -n -u "$owner" chmod -R u+w -- "$d" 2>/dev/null; sudo -n -u "$owner" rm -rf -- "$d"; fi
-    [ -e "$d" ] && { say "WARN could not remove $d (owner $owner)"; continue; }
+    in_root "${d%/*}" test -e "$d" && { say "WARN could not remove $d (owner $owner)"; continue; }
   fi
   say "$VERB remove ${kb}KB owner=$owner $d"
 done
-exit 0
+blind_warn
+exit "$rc"

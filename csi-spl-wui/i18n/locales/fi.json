@@ -3626,7 +3626,7 @@
       "col": {
         "month": "Kuukausi",
         "invoice": "Lasku",
-        "issued": "Laadittu",
+        "issued": "Päiväys",
         "due": "Eräpäivä",
         "hours": "Tunnit",
         "net": "Netto",

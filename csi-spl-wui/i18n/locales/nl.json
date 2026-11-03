@@ -3626,7 +3626,7 @@
       "col": {
         "month": "Maand",
         "invoice": "Factuur",
-        "issued": "Uitgegeven",
+        "issued": "Factuurdatum",
         "due": "Vervaldatum",
         "hours": "Uren",
         "net": "Netto",

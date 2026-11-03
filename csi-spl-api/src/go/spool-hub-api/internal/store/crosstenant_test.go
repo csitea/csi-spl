@@ -551,6 +551,12 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if _, err := pg.AddMarketingMetricDefinition(ctx, s.tenant, MarketingMetricDefinition{Metric: "ctr", Formula: s.marker}, now); err != nil {
 		t.Fatal(err)
 	}
+	// income_invoices (rdb 0255, SPL-4697): one invoice, through the store API.
+	inc := IncomeInvoice{InvoiceNo: s.marker, Payer: "ACME", Period: "2026-01", IssueDate: "2026-01-31", DueDate: "2026-01-31",
+		Hours: 1, UnitPrice: 1, Net: 1, VatPct: 0, Vat: 0, Total: 1, Currency: "EUR"}
+	if _, _, err := pg.UpsertIncomeInvoices(ctx, s.tenant, []IncomeInvoice{inc}); err != nil {
+		t.Fatal(err)
+	}
 	// channel_move_journal, channel_move_steps (rdb 0249, spec 169 T2,
 	// SPL-4580): one journal row and its P1 step. No store API yet (T5),
 	// so raw rows under inTenant.

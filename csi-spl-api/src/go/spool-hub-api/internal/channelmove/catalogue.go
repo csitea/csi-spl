@@ -181,6 +181,7 @@ var notChannelTables = concat(
 	notChannel("repo-doc edits name a git path and ref; T8's free-text scan (5.2) reads target_ref",
 		"repo_doc_author_notices", "repo_doc_authors", "repo_doc_edits"),
 	notChannel("browser timing samples keyed by session", "wui_perf_samples"),
+	notChannel("the workspace's invoiced income, keyed by invoice number (rdb 0255)", "income_invoices"),
 )
 
 // notChannel returns NotChannel entries that share one reason.

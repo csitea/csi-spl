@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
 // SPL-4697: Reporting -> Incomes. Memory, and Postgres under
@@ -74,8 +75,38 @@ func TestReportingIncomesRoutes(t *testing.T) {
 	if code, got := call(t, e, other, http.MethodGet, incomesReportPath, "", nil); code != http.StatusForbidden {
 		t.Errorf("anonymous: %d %v, want 403", code, got)
 	}
+	for _, role := range []string{rbac.BizOwner, rbac.Admin} {
+		if code, got := call(t, e, other, http.MethodGet, incomesReportPath+"?year=2025", who[role], nil); code != http.StatusForbidden {
+			t.Errorf("the operator's %s on another workspace's host: %d %v, want 403", role, code, got)
+		}
+	}
 	code, got := call(t, e, op, http.MethodGet, incomesReportPath+"?year=2025", who[rbac.BizOwner], nil)
 	if inv, _ := got["invoices"].([]any); code != http.StatusOK || len(inv) != 0 {
 		t.Errorf("another workspace's owner: %d %v, want none of these rows", code, got)
+	}
+}
+
+// TestReportingIncomesNotInSQLTab (Postgres only: the memory store has no
+// SQL executor): the workspace's admin, refused the owner's read, is also
+// refused the rows through the Reporting SQL tab (forbidden_relation).
+// RED CONTROL (a6b728201, c-357 W1): the SQL tab answered 200 with the row.
+func TestReportingIncomesNotInSQLTab(t *testing.T) {
+	e, op, other, who, whoOther := operatorEnv(t, func(op, _ string) string { return op })
+	if _, ok := e.st.(*store.Postgres); !ok {
+		t.Skip("Postgres only (hub-pg.tst.sh): the memory store has no SQL executor")
+	}
+	batch := map[string]any{"tenant": other, "invoices": []any{incomeJSON("INV-0001", "2025-02")}}
+	if code, got := call(t, e, op, http.MethodPut, incomesImportPath, who[rbac.Admin], batch); code != http.StatusOK {
+		t.Fatalf("import: %d %v", code, got)
+	}
+	if code, got := call(t, e, other, http.MethodGet, incomesReportPath+"?year=2025", whoOther[rbac.Admin], nil); code != http.StatusForbidden {
+		t.Errorf("admin's owner read: %d %v, want 403", code, got)
+	}
+	q := map[string]any{"query": "SELECT invoice_no, payer, total FROM income_invoices"}
+	if code, got := call(t, e, other, http.MethodPost, sqlPath, whoOther[rbac.Admin], q); code != http.StatusBadRequest || got["error"] != "forbidden_relation" {
+		t.Errorf("admin's SQL-tab read of income_invoices: %d %v, want 400 forbidden_relation", code, got)
+	}
+	if code, got := call(t, e, other, http.MethodPost, sqlPath, whoOther[rbac.Admin], map[string]any{"query": "SELECT 1"}); code != http.StatusOK {
+		t.Errorf("CONTROL admin's SQL tab: %d %v, want 200", code, got)
 	}
 }

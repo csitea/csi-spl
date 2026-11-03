@@ -69,8 +69,8 @@ fixture, a log line or a commit message. Tests use synthetic rows
 ## 3. Who may see it: the workspace's owners only
 
 `TenantOwner` in the workspace, the gate of `embed_admin.go` and
-`marketing_posts.go`. An admin, a biz_owner, any other member and the operator
-are answered 403 `tenant.owner`; the tab is not drawn for them (a new
+`marketing_posts.go` (`biz_owner` is the owner role). An admin, any other
+member and the operator are answered 403 `tenant.owner`; the tab is not drawn for them (a new
 `ownerOnly` flag in `reporting-tabs.mjs`, read from `who.owner`). The hub's
 403 is the control; the hidden tab is only a courtesy.
 
@@ -79,9 +79,15 @@ are answered 403 `tenant.owner`; the tab is not drawn for them (a new
 | route | caller | answer |
 |---|---|---|
 | `GET /v1/reporting/incomes?year=YYYY` | the workspace owner (member session) | `{year, years, invoices}`; `years` = the years that have rows, newest first; no `year` = the newest of them (else this year); a bad year is 400 |
-| `PUT /v1/operator/incomes` `{tenant, invoices: [...]}` | the operator service account | upsert by (`tenant`, `invoice_no`), `{inserted, updated}`; one bad row refuses the whole batch, 400 `bad_income_invoice` with its index |
+| `PUT /v1/operator/incomes` `{tenant, invoices: [...]}` | the operator service account (a Bearer id token) or the operator workspace's admin (a member session): `fleetLoadCaller`, the gate of the other operator doors | upsert by (`tenant`, `invoice_no`), `{inserted, updated}`; one bad row refuses the whole batch, 400 `bad_income_invoice` with its index |
 
-The operator route is how rows get in; the owner's route only reads. Code:
+The operator route is how rows get in; the owner's route only reads.
+The admin's Reporting SQL tab (`POST /v1/reporting/sql`) does not open
+`income_invoices`: it is on the store's owner-only list
+(`reportingSQLOwnerOnly`, `internal/store/reporting_sql.go`), so an admin's
+query naming it is 400 `forbidden_relation`. Without that list every
+FORCE-RLS workspace table is open to the tab, and an admin would read the
+rows the owner's route refuses them. Code:
 `internal/store/income_invoices.go` (Memory), `income_invoices_postgres.go`,
 `internal/hub/reporting_incomes.go`, `internal/hub/openapi.json`.
 

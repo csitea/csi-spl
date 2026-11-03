@@ -55,14 +55,20 @@ const pgScopeReportingSQL = `SELECT set_config('app.tenant_id', $1, true), set_c
 // secret's derivative: a table holding one stays out of the SQL tab whole.
 const reportingSQLSecretColumn = `(hash|cipher|secret|passw|sealed|private_key)`
 
+// reportingSQLOwnerOnly names the tables only the workspace's owner reads,
+// each through its own route: the SQL tab is an admin's, so they stay out of
+// it whole (SPL-4697: income_invoices, read by GET /v1/reporting/incomes).
+var reportingSQLOwnerOnly = []string{"income_invoices"}
+
 // pgReportingSQLRelations lists the relations the tab may read: FORCE-RLS
 // tables of the hub's schema with a tenant_id, minus those holding a secret
-// column and those with a per-member, per-person or per-human policy (rdb
-// 0176's hours tables read every member's rows when no member is set; rdb
-// 0255's Netvisor tables belong to one human, C7).
+// column, the owner-only ones ($2) and those with a per-member, per-person
+// or per-human policy (rdb 0176's hours tables read every member's rows when
+// no member is set; rdb 0255's Netvisor tables belong to one human, C7).
 const pgReportingSQLRelations = `SELECT c.relname FROM pg_class c
 	JOIN pg_namespace n ON n.oid = c.relnamespace
 	WHERE n.nspname = current_schema() AND c.relkind IN ('r', 'p') AND c.relrowsecurity AND c.relforcerowsecurity
+	  AND NOT c.relname = ANY($2::text[])
 	  AND EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND a.attname = 'tenant_id' AND NOT a.attisdropped)
 	  AND NOT EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped AND a.attname ~* $1)
 	  AND NOT EXISTS (SELECT 1 FROM pg_policy p WHERE p.polrelid = c.oid
@@ -211,7 +217,7 @@ func reportingSQLPlanCheck(ctx context.Context, tx pgx.Tx, query string) error {
 // from the catalogue in the query's own transaction.
 func reportingSQLRelations(ctx context.Context, tx pgx.Tx) (map[string]bool, error) {
 	open := map[string]bool{}
-	err := eachRow(ctx, tx, pgReportingSQLRelations, []any{reportingSQLSecretColumn}, func(r pgx.Rows) error {
+	err := eachRow(ctx, tx, pgReportingSQLRelations, []any{reportingSQLSecretColumn, reportingSQLOwnerOnly}, func(r pgx.Rows) error {
 		var name string
 		if err := r.Scan(&name); err != nil {
 			return err

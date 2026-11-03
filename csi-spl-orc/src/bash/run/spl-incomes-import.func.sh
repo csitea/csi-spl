@@ -10,7 +10,9 @@
 # @description account: an upsert by invoice number, all rows or none, so a
 # @description second run changes nothing. A wrong row is fixed at the source
 # @description and imported again. Never prints a figure: the log names the
-# @description row count, the period span and the hub's counts only.
+# @description row count, the period span and the hub's counts only. The batch
+# @description never rides argv: curl reads it from the 0700 temp dir
+# @description (--data @file), so ps and /proc/<pid>/cmdline show no row.
 # @description DRY_RUN=1 (default): check and summarise, send nothing.
 # @param ENV - required: dev or prd, the hub written
 # @param INCOMES_TENANT - required: the workspace id the rows belong to
@@ -38,7 +40,7 @@ do_spl_incomes_import() {
     rm -rf "$tmp"
     return 0
   fi
-  if spl_cost_hub_login && spl_hub_operator_call PUT /v1/operator/incomes "$(cat "$tmp/body.json")"; then
+  if spl_cost_hub_login && spl_hub_operator_call PUT /v1/operator/incomes "@$tmp/body.json"; then
     if [[ "$SPL_HUB_OP_STATUS" == 200 ]]; then
       do_log "OK the $ENV hub took them: $(jq -r '"\(.inserted) new, \(.updated) replaced"' <<<"$SPL_HUB_OP_BODY")"
     else

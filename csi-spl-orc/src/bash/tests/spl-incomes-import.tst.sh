@@ -12,6 +12,9 @@
 #      naming its line
 #   4. the hub's 400 is reported with its index, the run fails
 #   5. CONTROL: ENV, INCOMES_TENANT and INCOMES_FILE are required
+#   6. the batch never rides curl's argv (c-357 W2): the real
+#      spl_hub_operator_call, curl stubbed, gets "--data @<file>" and reads the
+#      rows from that file; no invoice number, payer or amount is an argument
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -40,6 +43,7 @@ runa() {
     spl_cost_hub_login() { echo login >>"$T/calls"; }
     spl_hub_operator_call() {
       printf "%s %s %s\n" "$1" "$2" "$3" >>"$T/calls"
+      [[ "$3" == @* ]] && cat "${3#@}" >"$T/sent"
       SPL_HUB_OP_STATUS="${STUB_CODE:-200}"
       SPL_HUB_OP_BODY="${STUB_BODY:-{\"inserted\":2,\"updated\":0\}}"
     }
@@ -54,13 +58,16 @@ runa ENV=dev INCOMES_TENANT=ta INCOMES_FILE="$T/good.tsv"; rc=$?
 
 # 2. the import -------------------------------------------------------------
 runa ENV=dev INCOMES_TENANT=ta INCOMES_FILE="$T/good.tsv" DRY_RUN=0; rc=$?
-body=$(grep '^PUT /v1/operator/incomes ' "$T/calls" | cut -d' ' -f3-)
+body=$(cat "$T/sent" 2>/dev/null)
 [[ $rc == 0 && "$(head -1 "$T/calls")" == login ]] &&
   jq -e '.tenant == "ta" and (.invoices | length) == 2 and .invoices[0].invoice_no == "INV-0001"
     and .invoices[0].hours == 28.5 and .invoices[0].total == 356.25 and .invoices[1].unit_price == 10
     and .invoices[1].period == "2025-03" and .invoices[1].due_date == "2025-05-01"' <<<"$body" >/dev/null &&
   grep -q "OK the dev hub took them: 2 new, 0 replaced" "$T/e" &&
   pass "2. DRY_RUN=0: one PUT {tenant, invoices}, numbers as numbers; the hub's counts logged" || fail "2. rc=$rc $body $(cat "$T/e")"
+
+[[ "$(grep '^PUT ' "$T/calls" | cut -d' ' -f3-)" == @* ]] && ! grep -qE 'INV-|ACME|356' "$T/calls" &&
+  pass "2. the action hands spl_hub_operator_call a file (@path), never the rows" || fail "2. argv: $(cat "$T/calls")"
 
 # 3. bad rows ---------------------------------------------------------------
 bad_case() { # <name> <want> <row...>
@@ -92,6 +99,33 @@ for c in "ENV=stg INCOMES_TENANT=ta INCOMES_FILE=$T/good.tsv" "ENV=dev INCOMES_F
   runa $c; rc=$?
   [[ $rc != 0 && ! -s "$T/calls" ]] && pass "5. refused: $c" || fail "5. $c: rc=$rc"
 done
+
+# 6. the real spl_hub_operator_call: the batch is never a curl argument -------
+: >"$T/argv"
+env -u DRY_RUN -u INCOMES_TENANT -u INCOMES_FILE FUNC="$FUNC" T="$T" PROJ_PATH="$PROJ_ROOT" ENV=dev INCOMES_TENANT=ta \
+  INCOMES_FILE="$T/good.tsv" DRY_RUN=0 SPL_HUB_URL=https://hub.invalid GCP_ACCOUNT=sa@invalid SPL_STATE_DIR="$T" bash -c '
+  set -uo pipefail
+  do_log() { echo "$*" >&2; }
+  do_require_bin() { return 0; }
+  spl_require_cloud_env() { return 0; }
+  source "$PROJ_PATH/lib/bash/funcs/spl-hub-operator.func.sh"
+  source "$FUNC"
+  spl_cost_hub_login() { return 0; }
+  gcloud() { echo tok; }
+  curl() {
+    local a out=""
+    printf "%s\n" "$@" >>"$T/argv"
+    while (( $# )); do
+      case "$1" in -o) out="$2"; shift ;; --data|--data-binary) [[ "$2" == @* ]] && cat "${2#@}" >"$T/curl-read" ;; esac
+      shift
+    done
+    echo "{\"inserted\":2,\"updated\":0}" >"$out"; printf 200
+  }
+  do_spl_incomes_import' >"$T/o" 2>"$T/e"; rc=$?
+[[ $rc == 0 ]] && grep -qx -- '--data' "$T/argv" && grep -q '^@' "$T/argv" && ! grep -qE 'INV-|ACME|356' "$T/argv" &&
+  jq -e '(.invoices | length) == 2 and .invoices[0].invoice_no == "INV-0001"' "$T/curl-read" >/dev/null &&
+  pass "6. curl reads the batch from a file; no invoice number, payer or amount on its argv" ||
+  fail "6. rc=$rc argv: $(tr '\n' ' ' <"$T/argv") $(cat "$T/e")"
 
 echo "---"
 (( fails == 0 )) && echo "ALL PASS" || echo "$fails FAILED"

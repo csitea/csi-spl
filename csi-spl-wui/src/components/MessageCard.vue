@@ -123,12 +123,13 @@
              until the hub's ack it says so, instead of a time that reads "posted" -->
         <span v-if="msg.pending" class="msg-time msg-time--sending" data-test="msg-sending" role="status" :data-waiting="msg.waiting ? 'network' : undefined">{{ msg.waiting ? t('composer.waiting_network') : t('composer.sending') }}</span>
         <!-- SPL-4731 (R7 W1): on a phone the date and HH:MM are two parts; a
-             crowded line drops HH:MM whole (the title keeps the stamp) -->
-        <span v-else-if="timeParts" class="msg-time msg-time--split" :data-test="sinceMs == null ? 'msg-iso-ts' : undefined" :title="timeTitle"><span class="msg-time__day">{{ timeParts[0] }}</span> <span class="msg-time__hm">{{ timeParts[1] }}</span></span>
+             crowded line drops HH:MM whole (the title keeps the stamp). R7 W2:
+             the hourglass is the last part, so it gives way whole first -->
+        <span v-else-if="timeParts" class="msg-time msg-time--split" :data-test="sinceMs == null ? 'msg-iso-ts' : undefined" :title="timeTitle"><template v-if="timeParts.length > 1"><span class="msg-time__day">{{ timeParts[0] }}</span> <span class="msg-time__hm">{{ timeParts[1] }}</span></template><span v-else class="msg-time__hm">{{ timeParts[0] }}</span><LazyAwaitReply v-if="awaiting && !msg.waiting" :state="awaiting" /></span>
         <span v-else class="msg-time" :data-test="sinceMs == null ? 'msg-iso-ts' : undefined" :title="timeTitle">{{ time }}</span>
         <!-- SPL-1994 (owner, t1 72898ea2): no agent has answered yet; SPL-2026: from the
              click on Send, never on a send held for the network -->
-        <LazyAwaitReply v-if="awaiting && !msg.waiting" :state="awaiting" />
+        <LazyAwaitReply v-if="awaiting && !msg.waiting && !timeParts" :state="awaiting" />
         <span
           v-if="edited"
           class="msg-edited"
@@ -604,11 +605,12 @@ const fullTime = computed(() => (
 const mobile = useMobileStack().isMobile
 const time = computed(() => (mobile.value ? phoneCardTime(fullTime.value, at.value) : fullTime.value))
 /* SPL-4731 (R7 W1, c-002 send-back): a phone list card's "09-18 13:04" as
-   [day, HH:MM]; today's "13:04" stays one part and never gives way */
+   [day, HH:MM]; R7 W2: today's "13:04" is the one part [HH:MM], with the
+   same never-cut floor */
 const timeParts = computed(() => {
-  if (!mobile.value || props.sinceMs != null) return null
+  if (!mobile.value || props.sinceMs != null || !time.value) return null
   const i = time.value.lastIndexOf(' ')
-  return i > 0 ? [time.value.slice(0, i), time.value.slice(i + 1)] : null
+  return i > 0 ? [time.value.slice(0, i), time.value.slice(i + 1)] : [time.value]
 })
 /* CLE-77840: always titled - the time may be cut short with an ellipsis */
 const timeTitle = computed(() => (props.sinceMs == null ? formatIsoTs(at.value) : (time.value !== fullTime.value ? fullTime.value : time.value)))
@@ -1151,12 +1153,17 @@ onMounted(() => {
   /* SPL-4731 (R7 W1): the time is never cut. Its two parts wrap inside a
      one-line box: a crowded header (sender -> recipient, reactions, ">>")
      pushes HH:MM whole onto the clipped second line, so "09-18" stays and the
-     full stamp is the title. Its floor is the wider part, never less */
+     full stamp is the title. Its floor is the wider part, never less.
+     R7 W2: today's lone HH:MM has that floor too, and the await-reply
+     hourglass after it is the part that wraps away first. The box is the
+     hourglass's 20 px drawing tall, and the hourglass keeps its 16 px box
+     with room after it for the drawing's 2 px spill, so it is never clipped */
   .msg-meta > .msg-time--split {
-    display: inline-flex; flex-wrap: wrap; column-gap: 0.25em;
+    display: inline-flex; flex-wrap: wrap; align-items: center; column-gap: 0.25em;
     flex: 0 1 auto; min-width: min-content;
-    line-height: 1.25; height: 1.25em; overflow: hidden; text-overflow: clip;
+    line-height: 21px; height: 21px; overflow: hidden; text-overflow: clip;
   }
+  .msg-time--split > .await-reply { margin-inline: 0 3px; }
   .msg-reaction { min-height: var(--tap); min-width: var(--tap); justify-content: center; font-size: 1rem; }
   .card-grip { height: var(--tap); margin-top: -16px; }
   .card-grip::after { margin-top: 20px; }

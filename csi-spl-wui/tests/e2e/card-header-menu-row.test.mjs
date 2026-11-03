@@ -12,6 +12,10 @@
 //   4 the time never cut (R7 W1, c-050: "09-…" at 360 px): no part of it
 //     clipped sideways; a crowded line drops its HH:MM part whole, the day
 //     part always shows, and a card with no recipient shows HH:MM too
+//   5 the same with the page clock on the mock's day (R7 W2, c-050): every
+//     card is from "today", so its time is the single HH:MM part, and a card
+//     not answered yet carries the await-reply hourglass. HH:MM is never cut;
+//     on a crowded line the hourglass gives way whole
 //
 // Run:
 //   pnpm run test:e2e card-header-menu-row
@@ -29,6 +33,9 @@ const SHOTS = process.env.SHOTS || ''
 const DUMP = Boolean(process.env.DUMP)
 const PATH = '/channel/lobby'
 const SIZES = [{ width: 390, height: 844 }, { width: 360, height: 740 }]
+/* the mock's cards are from 2026-09-18 (utils/mock-data.mjs T0): '' = the
+   real clock (older days: "09-18 13:04"), else the page clock starts there */
+const CLOCKS = ['', '2026-09-18T12:00:00Z']
 /* the menu's 44 px target reaches the card's 4 px padding (SPL-1000) */
 const EDGE = 24
 
@@ -98,6 +105,7 @@ const headers = (p) => p.evaluate((dump) => {
       const menu = row.querySelector('[data-testid=msg-menu-btn]')
       const replies = row.querySelector('[data-test=topic-replies]')
       const time = row.querySelector('.msg-meta > .msg-time')
+      const hour = row.querySelector('.msg-meta [data-test=await-reply]')
       return {
         id: row.getAttribute('data-msg-id').slice(0, 8),
         chips: row.querySelectorAll('[data-testid=msg-reaction]').length,
@@ -107,7 +115,9 @@ const headers = (p) => p.evaluate((dump) => {
         to: Boolean(row.querySelector('.msg-meta > .avatar--to')),
         text: time ? time.textContent.trim() : null,
         /* each part of the time: 1 whole in its box, 0 wholly out, else cut */
-        parts: time ? [...(time.children.length ? time.children : [time])].map((el) => {
+        /* the hourglass: 1 on the header line, 0 given way (or none drawn) */
+        await: hour ? (hour.getClientRects().length && time && hour.getBoundingClientRect().top < time.getBoundingClientRect().bottom - 0.5 ? 1 : 0) : null,
+        parts: time ? [...(time.querySelector('.msg-time__day, .msg-time__hm') ? time.querySelectorAll('.msg-time__day, .msg-time__hm') : [time])].map((el) => {
           const t = time.getBoundingClientRect()
           const b = el.getBoundingClientRect()
           const inside = b.left >= t.left - 0.5 && b.right <= t.right + 0.5 && b.top >= t.top - 0.5 && b.bottom <= t.bottom + 0.5
@@ -127,11 +137,21 @@ const headers = (p) => p.evaluate((dump) => {
 const server = await startServer()
 const browser = await launch()
 try {
-  for (const vp of SIZES) {
-    const tag = `${vp.width}px`
+  for (const clock of CLOCKS) for (const vp of SIZES) {
+    const tag = `${vp.width}px${clock ? ' today' : ''}`
     const p = await browser.newPage()
     const errors = []
     p.on('pageerror', (e) => errors.push(String(e).slice(0, 200)))
+    /* the clock keeps running, from that instant */
+    if (clock) await p.evaluateOnNewDocument((iso) => {
+      const D = Date
+      const off = D.parse(iso) - D.now()
+      class Shifted extends D {
+        constructor(...a) { super(...(a.length ? a : [D.now() + off])) }
+        static now() { return D.now() + off }
+      }
+      globalThis.Date = Shifted
+    }, clock)
     await p.setViewport({ ...vp, isMobile: true, hasTouch: true, deviceScaleFactor: 2 })
     await p.goto(server.base + PATH, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
     await p.waitForSelector('.spool-main article.msg[data-msg-id] [data-testid=msg-menu-btn]', { timeout: NAV_TIMEOUT })
@@ -156,8 +176,13 @@ try {
       ok(`${at} 3 no sideways scroll`, h.scrollW <= h.vw, { scrollW: h.scrollW, vw: h.vw })
       const cut = h.cards.filter((c) => c.timeVis == null || c.timeVis < c.timeNeed || c.parts.includes(-1) || c.parts[0] !== 1 || (!c.to && c.parts.includes(0)))
       ok(`${at} 4 every card: the time never cut (the day always, HH:MM unless crowded)`, cut.length === 0, cut)
+      if (clock) {
+        const long = h.cards.filter((c) => c.text == null || c.text.includes(' '))
+        ok(`${at} 5 every card from today: its time is HH:MM alone`, long.length === 0, long)
+        if (n === 0) ok(`${at} 5 a card from today waits for its reply (the hourglass)`, h.cards.some((c) => c.await != null), h.cards)
+      }
       if (DUMP) console.log(JSON.stringify(h.cards.map(({ items, ...c }) => ({ ...c, items: items?.join(' ') }))))
-      if (SHOTS) await p.screenshot({ path: join(SHOTS, `card-header-menu-row-${vp.width}-${n}.png`) })
+      if (SHOTS) await p.screenshot({ path: join(SHOTS, `card-header-menu-row-${vp.width}${clock ? '-today' : ''}-${n}.png`) })
     }
     ok(`${tag} no page errors`, errors.length === 0, errors)
     await p.close()

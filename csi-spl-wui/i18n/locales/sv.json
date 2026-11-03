@@ -3527,6 +3527,7 @@
       "sql": "SQL",
       "costs": "Kostnader",
       "marketing": "Marknadsföring",
+      "incomes": "Intäkter",
       "issues": "Ärenden",
       "posts": "Inlägg",
       "lanes": "Banor",
@@ -3658,6 +3659,26 @@
         "revenue": "Intäkter",
         "retention": "Kundlojalitet",
         "content_seo": "Innehåll / SEO"
+      }
+    },
+    "incomes": {
+      "loading": "Läser in intäkterna…",
+      "forbidden": "Bara arbetsytans ägare ser intäkterna.",
+      "error": "Intäkterna kunde inte läsas in.",
+      "empty": "Inga intäkter registrerade för {year}.",
+      "year": "År",
+      "table_label": "Intäkter per månad, {year}",
+      "no_invoice": "Ingen faktura den här månaden",
+      "year_total": "Totalt {year}",
+      "col": {
+        "month": "Månad",
+        "invoice": "Faktura",
+        "issued": "Utfärdad",
+        "due": "Förfaller",
+        "hours": "Timmar",
+        "net": "Netto",
+        "vat": "Moms",
+        "total": "Totalt"
       }
     },
     "finance": {

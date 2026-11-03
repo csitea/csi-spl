@@ -3527,6 +3527,7 @@
       "sql": "SQL",
       "costs": "Costuri",
       "marketing": "Marketing",
+      "incomes": "Venituri",
       "issues": "Probleme",
       "posts": "Postări",
       "lanes": "Linii",
@@ -3658,6 +3659,26 @@
         "revenue": "Venituri",
         "retention": "Retenție",
         "content_seo": "Conținut / SEO"
+      }
+    },
+    "incomes": {
+      "loading": "Se încarcă veniturile…",
+      "forbidden": "Doar proprietarul spațiului de lucru vede veniturile.",
+      "error": "Veniturile nu au putut fi încărcate.",
+      "empty": "Niciun venit înregistrat pentru {year}.",
+      "year": "An",
+      "table_label": "Venituri pe lună, {year}",
+      "no_invoice": "Nicio factură luna aceasta",
+      "year_total": "Totalul pe {year}",
+      "col": {
+        "month": "Luna",
+        "invoice": "Factură",
+        "issued": "Emisă",
+        "due": "Scadență",
+        "hours": "Ore",
+        "net": "Valoare netă",
+        "vat": "TVA",
+        "total": "Total general"
       }
     },
     "finance": {

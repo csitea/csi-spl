@@ -27,6 +27,11 @@
 //     refused, a good one saved); an admin of the operator workspace who is
 //     not the owner gets no Finance tab, and the page opened by its path
 //     shows the refusal and no figure.
+//   - SPL-4697 (spec 143 incomes.md): the workspace owner's bar shows the
+//     Incomes tab; /reporting/incomes draws twelve month rows, a dash for a
+//     month with no invoice and the year total row; an admin's and a
+//     member's bar have no Incomes tab, and the member who opens it by its
+//     path gets the refusal line, no table and no refused read.
 // RED CONTROL: a tab, a link or the table missing fails a check, and the
 // file exits 1. For Finance: the tab rule widened to an admin (no
 // netvisorOwner in reporting-tabs.mjs) fails "a non-owner admin's bar has
@@ -69,6 +74,7 @@ async function launch() {
 const MOCK_ME_KEY = 'spool.mock.me'
 const ADMIN = { role: 'admin', permissions: [] }
 const MEMBER = { role: 'member', permissions: [] }
+const OWNER = { role: 'biz_owner', permissions: [] }
 const pathOf = (p) => new URL(p.url()).pathname
 const at = (p, want) => p.waitForFunction((w) => location.pathname === w, { timeout: 15000 }, want).then(() => true, () => false)
 const waitFor = (p, sel) => p.waitForSelector(sel, { visible: true, timeout: 20000 }).then(() => true, () => false)
@@ -302,6 +308,39 @@ async function financeRefused(p, base, tag) {
   ok(`${tag}: no raw i18n key on the refusal`, await noRawKey(p))
 }
 
+async function incomes(p, base, tag) {
+  await p.goto(base + '/reporting/releases', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  ok(`${tag}: the owner's bar shows the Incomes tab`, await waitFor(p, '[data-test=reporting-tab-incomes]'), await tabIds(p))
+  await p.$eval('[data-test=reporting-tab-incomes]', (e) => e.scrollIntoView({ block: 'center', inline: 'center' }))
+  await p.click('[data-test=reporting-tab-incomes]')
+  ok(`${tag}: the Incomes tab opens /reporting/incomes`, await at(p, '/reporting/incomes'), pathOf(p))
+  ok(`${tag}: the month table renders`, await waitFor(p, '[data-test=reporting-incomes-table]'))
+  const t = await p.$eval('[data-test=reporting-incomes-table]', (tb) => ({
+    months: [...tb.querySelectorAll('tbody tr')].map((r) => r.getAttribute('data-test')),
+    march: tb.querySelector('[data-test=reporting-incomes-month-2025-03] td')?.textContent.trim() || '',
+    jan: [...(tb.querySelector('[data-test=reporting-incomes-month-2025-01]')?.querySelectorAll('td') || [])].map((c) => c.textContent.trim()),
+    total: [...(tb.querySelector('[data-test=reporting-incomes-total-EUR]')?.querySelectorAll('td') || [])].map((c) => c.textContent.trim()).filter(Boolean),
+    totalVisible: tb.querySelector('[data-test=reporting-incomes-total-EUR] td:last-child')?.getBoundingClientRect().right <= window.innerWidth,
+  })).catch(() => ({ months: [], march: '', jan: [], total: [], totalVisible: false }))
+  ok(`${tag}: twelve month rows, January first`, t.months.length === 12 && t.months[0] === 'reporting-incomes-month-2025-01' && t.months[11] === 'reporting-incomes-month-2025-12', t.months)
+  ok(`${tag}: a month with no invoice shows a dash, never a zero`, t.march === '–', t.march)
+  ok(`${tag}: January shows its invoice, hours and total`, t.jan[0] === 'INV-0001' && t.jan[3] === '100' && /15,625\.00/.test(t.jan[6]), t.jan)
+  ok(`${tag}: the year total sums the invoices (180 h, 28,125.00)`, t.total[0] === '180' && /28,125\.00/.test(t.total[t.total.length - 1]), t.total)
+  ok(`${tag}: the year's total amount is on screen without scrolling`, t.totalVisible === true)
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/reporting-incomes-${tag}.png` })
+  ok(`${tag}: the year picker lists the years`, JSON.stringify(await p.$$eval('[data-test=reporting-incomes-year] option', (os) => os.map((o) => o.value))) === JSON.stringify(['2025', '2024']))
+  await p.select('[data-test=reporting-incomes-year]', '2024')
+  ok(`${tag}: an empty year shows its line and no table`, await waitFor(p, '[data-test=reporting-incomes-empty]') && !(await p.$('[data-test=reporting-incomes-table]')))
+  ok(`${tag}: no sideways scroll on Incomes`, await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
+}
+
+async function noIncomes(p, base, tag, who) {
+  await p.goto(base + '/reporting/releases', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await waitFor(p, '[data-test=reporting-tab-releases]')
+  await new Promise((r) => setTimeout(r, 500))
+  ok(`${tag}: ${who}'s bar has no Incomes tab (owner only)`, !(await tabIds(p)).includes('incomes'), await tabIds(p))
+}
+
 const server = await startServer()
 const browser = await launch()
 let code = 0
@@ -313,10 +352,19 @@ try {
     await cloud(p, server.base, tag)
     await sql(p, server.base, tag)
     await marketing(p, server.base, tag)
+    await noIncomes(p, server.base, tag, 'an admin')
     if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/reporting-sql-${size.width}.png` })
     await ctx.close();
     ({ ctx, p } = await reportingPage(browser, server.base, size, MEMBER))
     await nonAdmin(p, server.base, tag)
+    await noIncomes(p, server.base, tag, 'a member')
+    await p.goto(server.base + '/reporting/incomes', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    ok(`${tag}: a member on /reporting/incomes gets the refusal line`, await waitFor(p, '[data-test=reporting-incomes-forbidden]'))
+    ok(`${tag}: and no table`, !(await p.$('[data-test=reporting-incomes-table]')))
+    ok(`${tag}: a member on /reporting/incomes sends 0 refused reads`, (await p.evaluate(() => globalThis.SPOOL_MOCK_403 || [])).length === 0)
+    await ctx.close();
+    ({ ctx, p } = await reportingPage(browser, server.base, size, OWNER))
+    await incomes(p, server.base, tag)
     await ctx.close();
     ({ ctx, p } = await reportingPage(browser, server.base, size, null, OPERATOR))
     await finance(p, server.base, tag)

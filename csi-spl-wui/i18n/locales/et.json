@@ -3527,6 +3527,7 @@
       "sql": "SQL",
       "costs": "Kulud",
       "marketing": "Turundus",
+      "incomes": "Tulud",
       "issues": "Probleemid",
       "posts": "Postitused",
       "lanes": "Rajad",
@@ -3658,6 +3659,26 @@
         "revenue": "Tulu",
         "retention": "Hoidmine",
         "content_seo": "Sisu / SEO"
+      }
+    },
+    "incomes": {
+      "loading": "Tulude laadimine…",
+      "forbidden": "Tulusid näeb ainult tööruumi omanik.",
+      "error": "Tulusid ei õnnestunud laadida.",
+      "empty": "Aastal {year} pole tulusid kirjas.",
+      "year": "Aasta",
+      "table_label": "Tulud kuude kaupa, {year}",
+      "no_invoice": "Sel kuul arvet pole",
+      "year_total": "Kokku {year}",
+      "col": {
+        "month": "Kuu",
+        "invoice": "Arve",
+        "issued": "Väljastatud",
+        "due": "Tähtaeg",
+        "hours": "Tunnid",
+        "net": "Neto",
+        "vat": "Käibemaks",
+        "total": "Kokku"
       }
     },
     "finance": {

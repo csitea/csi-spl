@@ -3527,6 +3527,7 @@
       "sql": "SQL",
       "costs": "Izmaksas",
       "marketing": "Mārketings",
+      "incomes": "Ienākumi",
       "issues": "Problēmas",
       "posts": "Ieraksti",
       "lanes": "Līnijas",
@@ -3658,6 +3659,26 @@
         "revenue": "Ieņēmumi",
         "retention": "Noturēšana",
         "content_seo": "Saturs / SEO"
+      }
+    },
+    "incomes": {
+      "loading": "Ielādē ienākumus…",
+      "forbidden": "Ienākumus redz tikai darbvietas īpašnieks.",
+      "error": "Ienākumus neizdevās ielādēt.",
+      "empty": "{year}. gadā nav reģistrētu ienākumu.",
+      "year": "Gads",
+      "table_label": "Ienākumi pa mēnešiem, {year}",
+      "no_invoice": "Šomēnes rēķina nav",
+      "year_total": "Kopā {year}",
+      "col": {
+        "month": "Mēnesis",
+        "invoice": "Rēķins",
+        "issued": "Izrakstīts",
+        "due": "Termiņš",
+        "hours": "Stundas",
+        "net": "Neto",
+        "vat": "PVN",
+        "total": "Kopā"
       }
     },
     "finance": {

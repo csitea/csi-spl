@@ -3527,6 +3527,7 @@
       "sql": "SQL",
       "costs": "Kulut",
       "marketing": "Markkinointi",
+      "incomes": "Tulot",
       "issues": "Asiat",
       "posts": "Viestit",
       "lanes": "Kaistat",
@@ -3658,6 +3659,26 @@
         "revenue": "Tulot",
         "retention": "Asiakaspysyvyys",
         "content_seo": "Sisältö / SEO"
+      }
+    },
+    "incomes": {
+      "loading": "Ladataan tuloja…",
+      "forbidden": "Vain työtilan omistaja näkee tulot.",
+      "error": "Tuloja ei voitu ladata.",
+      "empty": "Vuodelle {year} ei ole kirjattu tuloja.",
+      "year": "Vuosi",
+      "table_label": "Tulot kuukausittain, {year}",
+      "no_invoice": "Ei laskua tässä kuussa",
+      "year_total": "Yhteensä {year}",
+      "col": {
+        "month": "Kuukausi",
+        "invoice": "Lasku",
+        "issued": "Laadittu",
+        "due": "Eräpäivä",
+        "hours": "Tunnit",
+        "net": "Netto",
+        "vat": "ALV",
+        "total": "Yhteensä"
       }
     },
     "finance": {

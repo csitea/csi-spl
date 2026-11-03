@@ -3527,6 +3527,7 @@
       "sql": "SQL",
       "costs": "Náklady",
       "marketing": "Marketing",
+      "incomes": "Príjmy",
       "issues": "Úlohy",
       "posts": "Príspevky",
       "lanes": "Linky",
@@ -3658,6 +3659,26 @@
         "revenue": "Príjmy",
         "retention": "Udržanie",
         "content_seo": "Obsah / SEO"
+      }
+    },
+    "incomes": {
+      "loading": "Načítavajú sa príjmy…",
+      "forbidden": "Príjmy vidí iba vlastník pracovného priestoru.",
+      "error": "Príjmy sa nepodarilo načítať.",
+      "empty": "Za rok {year} nie sú zaznamenané žiadne príjmy.",
+      "year": "Rok",
+      "table_label": "Príjmy po mesiacoch, {year}",
+      "no_invoice": "Tento mesiac bez faktúry",
+      "year_total": "Spolu {year}",
+      "col": {
+        "month": "Mesiac",
+        "invoice": "Faktúra",
+        "issued": "Vystavená",
+        "due": "Splatnosť",
+        "hours": "Hodiny",
+        "net": "Netto",
+        "vat": "DPH",
+        "total": "Spolu"
       }
     },
     "finance": {

@@ -3527,6 +3527,7 @@
       "sql": "SQL",
       "costs": "Costes",
       "marketing": "Marketing",
+      "incomes": "Ingresos",
       "issues": "Incidencias",
       "posts": "Publicaciones",
       "lanes": "Líneas",
@@ -3658,6 +3659,26 @@
         "revenue": "Ingresos",
         "retention": "Retención",
         "content_seo": "Contenido / SEO"
+      }
+    },
+    "incomes": {
+      "loading": "Cargando los ingresos…",
+      "forbidden": "Solo el propietario del espacio de trabajo ve los ingresos.",
+      "error": "No se pudieron cargar los ingresos.",
+      "empty": "No hay ingresos registrados en {year}.",
+      "year": "Año",
+      "table_label": "Ingresos por mes, {year}",
+      "no_invoice": "Ninguna factura este mes",
+      "year_total": "Total de {year}",
+      "col": {
+        "month": "Mes",
+        "invoice": "Factura",
+        "issued": "Emitida",
+        "due": "Vencimiento",
+        "hours": "Horas",
+        "net": "Neto",
+        "vat": "IVA",
+        "total": "Importe total"
       }
     },
     "finance": {

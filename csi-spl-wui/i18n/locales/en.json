@@ -3527,6 +3527,7 @@
       "sql": "SQL",
       "costs": "Costs",
       "marketing": "Marketing",
+      "incomes": "Incomes",
       "issues": "Issues",
       "posts": "Posts",
       "lanes": "Lanes",
@@ -3658,6 +3659,26 @@
         "revenue": "Revenue",
         "retention": "Retention",
         "content_seo": "Content / SEO"
+      }
+    },
+    "incomes": {
+      "loading": "Loading the incomes…",
+      "forbidden": "Only the workspace owner sees the incomes.",
+      "error": "The incomes could not be loaded.",
+      "empty": "No income recorded for {year}.",
+      "year": "Year",
+      "table_label": "Incomes per month, {year}",
+      "no_invoice": "No invoice this month",
+      "year_total": "Total {year}",
+      "col": {
+        "month": "Month",
+        "invoice": "Invoice",
+        "issued": "Issued",
+        "due": "Due",
+        "hours": "Hours",
+        "net": "Net",
+        "vat": "VAT",
+        "total": "Total"
       }
     },
     "finance": {

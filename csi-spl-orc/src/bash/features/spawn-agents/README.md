@@ -98,7 +98,7 @@ environment always wins over it.
 | `SPOOL_DESK_BOX` | `box-desk`. This machine's desk box id: every `DESK_BOX` / `AGENT_BOX` default of the desk actions and scripts reads it (`csi-spl-orc/lib/bash/funcs/spl-desk-box.func.sh`), so two machines of one fleet never seat the same box (the hub keeps one socket per box id; the last hello evicts the other). Set it in the box config |
 | `SPOOL_BIN` | `csi-spl-api/src/go/spool-hub-api/bin/spool`, else `spool` on `PATH` |
 | `SPOOL_NOTIFY_CMD` | the notifier the spool binary runs after it writes a message into a local inbox. `spool-harness` sets it to `scripts/spool-notify.sh`; `off` disables it; unset = no terminal leg |
-| `SPOOL_NOTIFY_BODY_MAX` `SPOOL_NOTIFY_LINE_MAX` | `600` / `1200` — the bounds on the pane line (`specs/028/contracts/poke-line.md`) |
+| `SPOOL_NOTIFY_BODY_MAX` `SPOOL_NOTIFY_LINE_MAX` `SPOOL_NOTIFY_PASTE_MAX` | `600` / `780` / `700` — the bounds on the pane line, and the longest human body pasted verbatim (a longer one is rung as the poke line, SPL-4737; `specs/028/contracts/poke-line.md`) |
 | `CLAUDE_BIN` `GROK_BIN` `AGY_BIN` `QWEN_BIN` | `<agent home>/.local/bin/<cli>`, else the bare name |
 
 ## 3. Use

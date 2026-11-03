@@ -44,6 +44,16 @@ has "a long body is cut" ' …' "$L"
 check "…to the configured bound" test "${#L}" -lt 300
 case "$L" in *"'") ok "a cut line is still closed" ;; *) nok "a cut line is still closed" ;; esac
 
+# SPL-4737: Claude Code 2.1.292 shows a paste or a typed burst of over 800
+# characters as "[Pasted text #N]" (measured 2026-11-03: 800 shown, 801
+# collapsed). A placeholder left unsent reads as typed text, so every later
+# poke is refused (rc 6) and the seat stalls. A typed line stays under it, and
+# the cut takes the body, never the `spool recv` tail that reads it in full.
+L0U="dispatch-$(printf 'f%.0s' {1..55})"
+spool_notify_render L c-003 blocker "HUM-$(printf 'h%.0s' {1..60})" "$L0U" "$L0U" "$long"
+check "SPL-4737: the default poke line stays under the 800-char collapse" test "${#L}" -le 800
+has "SPL-4737: …and keeps the spool recv tail" ":: run: spool recv --as c-003'" "$L"
+
 # ---- the doorbell, against a private tmux server --------------------------
 t_tmux
 P91="$(t_window CLE-91 'sleep 600')"
@@ -325,6 +335,24 @@ check "a line never typed (SPOOL_POKE=0) leaves no trigger" test ! -e "$TR"
 mkdir -p "$SPOOL_ROOT/CLE-83/inbox"
 bash "$SN" --to CLE-83 --from HUM-9 --kind note --task "$DMT" --msg-id aaaaaaaa-x --body 'no window zz97' >/dev/null
 eq "no live window (rc 5): nothing typed, so no trigger record (a CLI or test subprocess)" "" "$(ls -A "$SPOOL_ROOT/CLE-83/.mirror/trigger" 2>/dev/null)"
+
+# Live, SPL-4737: a 13 KB human channel post (HUM-10, prd 2026-11-03) is not
+# pasted verbatim - Claude would fold it into "[Pasted text #N]" - but rung as
+# the poke line: under the collapse, shell-inert, and exempt from the unsent
+# check if its Enter is ever lost. CONTROL: a short one is still verbatim.
+LP="$(head -c 13176 /dev/zero | tr '\0' 'w')"
+bash "$SN" --to CLE-81 --from HUM-9 --kind msg --task "$DMT" --msg-id bbbbbbbb-x --body "$LP" >"$T_TMP/long.out"
+eq "SPL-4737: a long post is poked (exit 0)" 0 "$?"
+rec="$(cat "$TR/"* 2>/dev/null)"; rm -rf "$TR"
+has "SPL-4737: …as the poke line" '"line":": '"'"'SPOOL CLE-81: msg from HUM-9' "$rec"
+has "SPL-4737: …that says how to read it in full" "run: spool recv --as CLE-81'" "$rec"
+TL="${rec#*\"line\":\"}"; TL="${TL%\"\}}"
+check "SPL-4737: …and the typed line stays under the 800-char collapse (${#TL})" test "${#TL}" -le 800
+has "SPL-4737: …and the poke says why" "long post" "$(cat "$T_TMP/long.out")"
+sleep 0.6
+bash "$SN" --to CLE-81 --from HUM-9 --kind msg --task "$DMT" --msg-id bbbbbbbb-x --body 'short words zz98' >/dev/null
+rec="$(cat "$TR/"* 2>/dev/null)"; rm -rf "$TR"
+has "SPL-4737: CONTROL: a short post is still typed verbatim" '"line":"[channel post from HUM-9, topic '"$DMT"', msg bbbbbbbb-x] short words zz98"' "$rec"
 rm -f "$DESK/mirror-to" "$DESK/operator"
 
 # ---- usage ----------------------------------------------------------------

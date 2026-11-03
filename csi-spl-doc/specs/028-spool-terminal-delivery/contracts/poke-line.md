@@ -65,6 +65,18 @@ Enter cannot land on an empty composer and leave the body sitting as unsent
 text. The §1 poke line still uses `send-keys -l` and
 `${SPOOL_NOTIFY_ENTER_DELAY:-0.3}`.
 
+**A long body is rung as the §1 line, never pasted** (SPL-4737). Claude Code
+2.1.292 shows a paste or a typed burst of over 800 characters as
+`[Pasted text #N]` (measured 2026-11-03 in a test pane: 800 shown, 801
+folded; characters, not bytes). §3's unsent check cannot tell that
+placeholder from a person's draft, so one lost Enter left it in the composer
+and every later poke was refused (code 6): a role seat stalled for hours. A
+framed prompt longer than `SPOOL_NOTIFY_PASTE_MAX` (default 700) therefore
+keeps the §1 line: it stays under the fold, it is exempt from the unsent check
+if its Enter is lost, and its `spool recv` tail reads the whole body, which
+the paste used to cut at 4000. The poke says so: `poke: <pane> (<TO>) - long
+post (<n> chars): the poke line, read in full with spool recv`.
+
 The body is still made single-line-safe (§2 steps 1, 2, 4 and a
 `SPOOL_NOTIFY_PROMPT_MAX` bound, default 4000). Step 3 — `'` becomes `"` —
 is **not** applied: it exists to keep the body inside a single-quoted shell
@@ -89,8 +101,11 @@ Applied to the body, and to every interpolated field, in this order:
    single quotes is an ordinary character.
 4. **Whitespace collapsed** — runs of spaces become one; ends trimmed.
 5. **Bounded** — the excerpt is cut to `SPOOL_NOTIFY_BODY_MAX` characters
-   (default 600) and gains a trailing ` …` when it was cut. The whole line is
-   then cut to `SPOOL_NOTIFY_LINE_MAX` (default 1200) as a backstop.
+   (default 600), or less when the other fields leave less room, and gains a
+   trailing ` …` when it was cut. The whole line stays within
+   `SPOOL_NOTIFY_LINE_MAX` (default 780, under the 800-character paste fold
+   of §1.1): the excerpt gives way first, so the `run: spool recv` tail is
+   never cut.
 
 A body that survives all five unchanged is shown verbatim, which is the common
 case for the one- and two-line messages agents actually send.

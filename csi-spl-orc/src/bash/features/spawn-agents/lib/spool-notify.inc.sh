@@ -10,7 +10,9 @@
 # it uses spool_pane_of, spool_tmux_argv and $SPOOL_ROOT.
 #
 #   SPOOL_NOTIFY_BODY_MAX   body excerpt cut, in characters   default 600
-#   SPOOL_NOTIFY_LINE_MAX   whole-line backstop cut           default 1200
+#   SPOOL_NOTIFY_LINE_MAX   whole-line cut; the body excerpt gives way first,
+#                           so the `spool recv` tail stays    default 780
+#                           (under the 800-char paste fold, SPL-4737)
 #   SPOOL_NOTIFY_ENTER_DELAY  seconds between typing the line and Enter,
 #                           the TUI's paste debounce             default 0.3
 #   SPOOL_POKE_STYLE        auto (default) | body | line. What a TUI prompt is
@@ -20,6 +22,10 @@
 #                           poke line; `auto` = body from a HUMAN sender
 #                           (HUM-*/GST-*), line from an agent
 #   SPOOL_NOTIFY_PROMPT_MAX verbatim body cut, in characters    default 4000
+#   SPOOL_NOTIFY_PASTE_MAX  longest prompt pasted verbatim; a longer one is
+#                           rung as the poke line instead      default 700
+#                           (SPL-4737: Claude Code folds over 800 characters
+#                           into "[Pasted text #N]")
 #   SPOOL_TRACE             latency trace file (CLE-3435); the spool binary
 #                           sets it, with SPOOL_TRACE_MSG_ID / _TO. Unset = off
 
@@ -330,7 +336,7 @@ spool_notify_enc_on() { [ "${SPOOL_NOTIFY_ENC:-}" = 1 ]; }
 # a hostile `from` would otherwise be the way out of the quoted argument.
 # A sealed message names the envelope only (spec 136 section 3.3).
 spool_notify_render() {  # VAR TO KIND FROM TASK MSGID BODY
-  local __var="$1" to kind from task msgid body line
+  local __var="$1" to kind from task msgid body line head tail max room
   to="$(spool_notify_clean "${2:-}")"
   kind="$(spool_notify_clean "${3:-}")"; kind="${kind:-ping}"
   from="$(spool_notify_clean "${4:-}")"; from="${from:-?}"
@@ -340,13 +346,20 @@ spool_notify_render() {  # VAR TO KIND FROM TASK MSGID BODY
     line=": 'SPOOL ${to}: ${kind} from ${from}${task:+ task ${task}}${msgid:+ msg ${msgid}}"
     line="${line} :: encrypted :: run: spool recv --encrypted --as ${to}'"
   else
+    # The excerpt gets what the line cap leaves (SPL-4737): long ids must not
+    # push the line past the paste fold, nor cut the tail that reads it all.
+    head=": 'SPOOL ${to}: ${kind} from ${from}${task:+ task ${task}}${msgid:+ msg ${msgid}} :: "
+    tail=" :: run: spool recv --as ${to}'"
+    max="${SPOOL_NOTIFY_BODY_MAX:-600}"
+    room=$(( ${SPOOL_NOTIFY_LINE_MAX:-780} - ${#head} - ${#tail} - 2 ))
+    [ "$room" -lt "$max" ] && max="$room"
+    [ "$max" -lt 40 ] && max=40
     body="$(spool_notify_clean "${7:-}")"
-    body="$(spool_notify_cut "$body" "${SPOOL_NOTIFY_BODY_MAX:-600}")"
+    body="$(spool_notify_cut "$body" "$max")"
     [ -n "$body" ] || body='(no body)'
-    line=": 'SPOOL ${to}: ${kind} from ${from}${task:+ task ${task}}${msgid:+ msg ${msgid}}"
-    line="${line} :: ${body} :: run: spool recv --as ${to}'"
+    line="${head}${body}${tail}"
   fi
-  line="$(spool_notify_cut "$line" "${SPOOL_NOTIFY_LINE_MAX:-1200}")"
+  line="$(spool_notify_cut "$line" "${SPOOL_NOTIFY_LINE_MAX:-780}")"
   # The cut may have dropped the closing quote; a line that is not inert is
   # worse than a shorter one, so close it again.
   case "$line" in *"'") ;; *) line="${line}'" ;; esac
@@ -463,7 +476,7 @@ spool_notify_pane_dead() {  # TO PANE
 # The poke's step 2: set VAR (and SPOOL_POKE_LINE) to the rendered prompt when
 # the body goes in verbatim; VAR keeps the doorbell line otherwise.
 spool_notify_pick_line() {  # VAR PANE BODY FROM
-  local __var="$1" pane="$2" body="$3" from="$4" alt prompt
+  local __var="$1" pane="$2" body="$3" from="$4" alt prompt=""
   # A sealed body is never pasted into the prompt (spec 136 S2). The doorbell
   # line already names the envelope.
   if spool_notify_enc_on; then
@@ -485,6 +498,17 @@ spool_notify_pick_line() {  # VAR PANE BODY FROM
     body) spool_notify_render_prompt prompt "$body" ;;
     *)    spool_notify_is_human "$from" && spool_notify_render_prompt prompt "$body" ;;
   esac
+  # A long post keeps the poke line (SPL-4737). Claude Code 2.1.292 shows a
+  # paste of over 800 characters as "[Pasted text #N]" (measured 2026-11-03:
+  # 800 shown, 801 folded, characters not bytes), so the composer check below
+  # cannot tell our own paste from a person's: one lost Enter left it unsent
+  # and every later poke was refused (rc 6) for hours. The poke line is short,
+  # exempt from that check, and its `spool recv` tail reads the full body,
+  # where the verbatim paste was cut at SPOOL_NOTIFY_PROMPT_MAX.
+  if [ "${#prompt}" -gt "${SPOOL_NOTIFY_PASTE_MAX:-700}" ]; then
+    SPOOL_POKE_LONG="${#body}"
+    prompt=""
+  fi
   if [ -n "${prompt:-}" ]; then
     alt="$("${SPOOL_TM[@]}" display-message -p -t "$pane" '#{alternate_on}' 2>/dev/null)"
     [ "$alt" = 1 ] && printf -v "$__var" '%s' "$prompt" && SPOOL_POKE_LINE="$prompt"
@@ -518,6 +542,7 @@ spool_notify_poke() {  # TO LINE [BODY] [FROM]
   local to="$1" line="$2" body="${3:-}" from="${4:-}"
   local pane seat esc=$'\033'
   SPOOL_POKE_LINE="$line"
+  SPOOL_POKE_LONG=""
 
   # _var, not $( ): the subshell would fork and would lose SPOOL_PANE_TTY.
   spool_pane_of_var pane "$to"
@@ -567,7 +592,7 @@ spool_notify_poke() {  # TO LINE [BODY] [FROM]
       && sleep "${SPOOL_NOTIFY_ENTER_DELAY:-0.3}" \
       && "${SPOOL_TM[@]}" send-keys -t "$pane" Enter
   fi
-  echo "poke: ${pane} (${to})"
+  echo "poke: ${pane} (${to})${SPOOL_POKE_LONG:+ - long post (${SPOOL_POKE_LONG} chars): the poke line, read in full with spool recv}"
   return 0
 }
 

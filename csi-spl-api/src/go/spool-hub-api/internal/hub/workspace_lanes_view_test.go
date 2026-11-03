@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/uid"
@@ -33,9 +34,9 @@ type wsLanesRig struct {
 	t1, t2, opTopic, privTopic, privMember string
 }
 
-func newWSLanesRig(t *testing.T) *wsLanesRig {
+func newWSLanesRig(t *testing.T, mut ...func(*hub.Options)) *wsLanesRig {
 	t.Helper()
-	r := &wsLanesRig{fleetTokensRig: newFleetTokensRig(t), w1: newTenantID("w1"), w2: newTenantID("w2")}
+	r := &wsLanesRig{fleetTokensRig: newFleetTokensRig(t, mut...), w1: newTenantID("w1"), w2: newTenantID("w2")}
 	for _, id := range []string{r.w1, r.w2} {
 		pub, _, _ := ed25519.GenerateKey(nil)
 		if err := r.e.st.CreateTenant(context.Background(), store.Tenant{ID: id, RootPubKey: pub}); err != nil {

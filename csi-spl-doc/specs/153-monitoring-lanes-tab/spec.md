@@ -5,6 +5,12 @@ filters live in its URL, so the link can be shared), cases C64-C67. Owner
 HUM-10, t1 topic `0a730c21`, msg `ea87c5c1`. Placed by the dispatch holder
 as one lane brief, not a panel version.
 
+Addendum (2026-11-03, SPL-4727): section 3.14 (every lane row carries its
+prio, the highest among its issues, as the 3rd column, sortable), cases
+C61-C63. Owner HUM-10, t1 topic `0d0bc34c`, msgs `136f2e49` and
+`c78812f2`. Placed by the dispatch holder as one lane brief, not a panel
+version.
+
 Addendum (2026-11-03, SPL-4705): section 3.13 (a lane on a
 `dispatch-<topic8>` task names the workspace of that topic; a Workspace
 filter), cases C58-C60. Owner HUM-10, t1 topic
@@ -913,6 +919,62 @@ Cases:
   (`tests/unit/monitoring-lanes-sort-filter.test.mjs` "the Workspace
   filter", red on master: 5 fail; `tests/e2e/monitoring-costs.test.mjs`
   `lanesSortFilter` on the mock fleet's two workspaces.)
+
+### 3.14 Every lane shows its prio, 3rd, and sorts by it (SPL-4727)
+
+The owner, verbatim (HUM-10, t1 `0d0bc34c`, msg `136f2e49`): "also the
+lanes must have their prio attributes in the lanes hilisting and it should
+be possible to sort them by prio"; msg `c78812f2`: "the prio shoud be the
+3rd attribute".
+
+The rule (the dispatch holder's reading, the lane brief):
+
+- **A lane's prio is the prio of its issue.** A lane lists several issues
+  (its own key and every issue its topic links, 3.3; a spec 169 lane lists
+  7 or more): it shows the highest among them, prio 1 the highest. The
+  origin issue (3.12) is where the lane came from, not its work: it does
+  not count. A key of another prefix has no issue the hub can read, so no
+  prio. A lane with no issue, or with none that has a prio, shows a dash.
+  A role seat (3.11) names no issue, so it shows a dash, as today.
+- **The hub sends it, in the read it already makes.** `FleetLaneIssues`
+  (`store/fleet_lane.go`, both drivers) returns each issue's status AND
+  `priority` (rdb 0055: 1..5, 0 read as the default 5) from the same one
+  query; both routes (`GET /v1/operator/fleet-lanes`, `GET /v1/view/lanes`)
+  send `priority` on every issue and on the row (`lanePrio`,
+  `hub/fleet_lanes_view.go`), omitted when none. One issue read per GET
+  whatever the row count (C62).
+- **The table.** The columns read Agent, Box, Prio, then the rest
+  (`LANE_COLUMNS`); the filter row gets an empty cell under Prio. The cell
+  is the number in the Issues sheet's colours, a dash for none; the name is
+  the Issues sheet's word (`issues.field_priority`), so no new text key and
+  no language review. The phone keeps the column (the table scrolls inside
+  itself, 3.2).
+- **The sort.** The name is the sheet's sort button (`cycleSort`,
+  `sortLanes`, sort key `priority`): ascending = prio 1 first, descending =
+  5 first, a lane with no prio last both ways, ties in the hub's order. No
+  sort is still the hub's order (newest write first): the default is
+  unchanged. The page keeps no stored sort choice today; the URL state of
+  the sort is SPL-4729's, which carries this key like the others.
+- **Not** a placement rule: the queue and the placer do not read it.
+
+Cases:
+
+- **C61** the operator route: a lane whose topic links prio 3 and 4 and
+  whose own key is prio 1 sends `priority` 1 and each issue's prio; the
+  same topic without the own key sends 3; no issue, or a key of another
+  prefix only, sends none. **C61b** the workspace route sends the prio of
+  the workspace's own issues on the topic. (`hub/lanes_prio_test.go`,
+  memory and Postgres; red with the prio left out of `laneIssues`: every
+  value 0.)
+- **C62** each GET of either route makes one `FleetLaneIssues` call, for
+  2 lanes and for 12 (a counting store over memory and Postgres). Red
+  control: a planted per-row call counts 3 and 13.
+- **C63** the Prio column is 3rd, its cells read 2, 1, dash, dash on the
+  mock fleet's `topics` answer; a name click sorts prio 1 first and no
+  prio last, a second click descending, a third the hub order; no sideways
+  page scroll, at 1440 and 390 px (`tests/e2e/monitoring-costs.test.mjs`
+  `lanesPrioSort`; unit `monitoring-lanes-sort-filter.test.mjs` "the Prio
+  column"; red on master: no column).
 
 ### 3.15 The list's sort and filters, in its URL (SPL-4729)
 

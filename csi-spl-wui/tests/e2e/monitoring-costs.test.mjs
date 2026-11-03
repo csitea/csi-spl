@@ -436,7 +436,7 @@ async function lanesSortFilter(browser, base, size) {
   const until = (want) => p.waitForFunction((w) => [...document.querySelectorAll('[data-test=lanes-row]')].map((e) => e.getAttribute('data-agent')).join(',') === w, { timeout: 5000 }, want).then(() => true, () => false)
   ok('3887 lanes: three rows in the hub order', await until('c-085,a-277,m-039'), await order())
   const names = await p.$$eval('[data-test=lanes-table] thead tr:first-child th', (els) => els.map((th) => (th.querySelector('button.issues-sort-h') ? 'b' : '-')).join(''))
-  ok('3887 lanes: every column name is the Issues sheet\'s sort button', names === 'bbbbbbbbbbb', names)
+  ok('3887 lanes: every column name is the Issues sheet\'s sort button', names === 'bbbbbbbbbbbb', names)
   const aria = () => p.$eval('[data-test=lanes-sort-agent]', (b) => b.closest('th').getAttribute('aria-sort') + ':' + b.querySelector('.issues-sort-mark').textContent)
   await p.click('[data-test=lanes-sort-agent]')
   ok('3887 lanes: a name click sorts ascending, ▲', (await until('a-277,c-085,m-039')) && (await aria()) === 'ascending:▲', [await order(), await aria()])
@@ -487,6 +487,32 @@ async function lanesSortFilter(browser, base, size) {
   const wide = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
   ok('3887 lanes: the filter row adds no sideways page scroll', wide <= 0, wide)
   if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-lanes-sort-filter-${size.width}.png`, fullPage: true })
+  await ctx.close()
+}
+
+/** Spec 153 3.14 C63 (SPL-4727; owner HUM-10, t1 0d0bc34c, msgs 136f2e49 and c78812f2): each lane shows its prio, the highest among its issues, as the 3rd column, and a name click sorts by it, prio 1 first; a lane with no issue shows a dash and sorts last both ways. The mock fleet with c-733 (prio 1) and c-085 (prio 2). CONTROL: on master there is no Prio column, so every check here FAILS there. */
+async function lanesPrioSort(browser, base, size) {
+  const { ctx, p } = await costsPage(browser, base, size, { operator: true })
+  await p.evaluate(() => localStorage.setItem('spool.mock.fleet_lanes', 'topics'))
+  await open(p, base, '/monitoring/lanes')
+  const order = () => p.$$eval('[data-test=lanes-row]', (els) => els.map((e) => e.getAttribute('data-agent')).join(','))
+  const until = (want) => p.waitForFunction((w) => [...document.querySelectorAll('[data-test=lanes-row]')].map((e) => e.getAttribute('data-agent')).join(',') === w, { timeout: 5000 }, want).then(() => true, () => false)
+  ok('C63 lanes: four rows in the hub order', await until('c-085,c-733,a-277,m-039'), await order())
+  const third = await p.$eval('[data-test=lanes-table] thead tr:first-child th:nth-child(3)', (th) => th.getAttribute('data-test') + ':' + th.textContent.trim()).catch(() => '')
+  ok('C63 lanes: Prio is the 3rd column name, after Agent and Box', third.startsWith('lanes-col-priority:'), third)
+  const cells = () => p.$$eval('[data-test=lanes-row]', (rs) => rs.map((r) => (r.children[2] && r.children[2].getAttribute('data-test') === 'lanes-priority' ? r.children[2].textContent.trim() : '?')).join(','))
+  ok('C63 lanes: each row\'s 3rd cell is its prio, a dash for none', (await cells()) === '2,1,—,—', await cells())
+  const shown = await p.$eval('[data-test=lanes-col-priority]', (th) => th.getBoundingClientRect().width > 0).catch(() => false)
+  ok('C63 lanes: the Prio column is shown at this width', shown)
+  await p.click('[data-test=lanes-sort-priority]')
+  ok('C63 lanes: Prio ascending = prio 1 first, no prio last', await until('c-733,c-085,a-277,m-039'), await order())
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/monitoring-lanes-prio-${size.width}.png`, fullPage: true })
+  await p.click('[data-test=lanes-sort-priority]')
+  ok('C63 lanes: Prio descending, no prio still last', await until('c-085,c-733,a-277,m-039'), await order())
+  await p.click('[data-test=lanes-sort-priority]')
+  ok('C63 lanes: a third click is the hub order again', await until('c-085,c-733,a-277,m-039'), await order())
+  const wide = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  ok('C63 lanes: the Prio column adds no sideways page scroll', wide <= 0, wide)
   await ctx.close()
 }
 
@@ -571,7 +597,7 @@ async function lanesTab(browser, base, size) {
     ok('C57 control: an origin of another prefix is text, not a link', (await row('a-277', '[data-test=lanes-origin-link]')).length === 0
       && (await text(p, '[data-test=lanes-row][data-agent="a-277"] [data-test=lanes-origin]')) === 'OPS-7')
     ok('C57 control: no origin issue shows nothing, not a guess', (await text(p, '[data-test=lanes-row][data-agent="m-039"] [data-test=lanes-origin]')) === '')
-    ok('C57 lanes: the Origin column sits right after Issues', (await p.$$eval('[data-test=lanes-table] thead tr:first-child th', (els) => els.map((e) => e.getAttribute('data-test') || '').indexOf('lanes-col-origin'))) === 7)
+    ok('C57 lanes: the Origin column sits right after Issues', (await p.$$eval('[data-test=lanes-table] thead tr:first-child th', (els) => els.map((e) => e.getAttribute('data-test') || '').indexOf('lanes-col-origin'))) === 8) // after Prio (3.14) moved it one right
     ok('C17 lanes: the agent shows as id@box', (await text(p, '[data-test=lanes-row][data-agent="c-085"] [data-test=lanes-agent]')) === 'c-085@box-a')
     /* SPL-4458: the box is its own column, after the agent */
     ok('lanes: the Box column shows each row\'s box', (await p.$$eval('[data-test=lanes-row] [data-test=lanes-box]', (els) => els.map((e) => e.textContent.trim()).join(','))) === 'box-a,box-b,box-b'
@@ -683,6 +709,11 @@ try {
 
   console.log('-- spec 153 tab row')
   await tabRow(browser, server.base)
+
+  for (const size of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+    console.log(`-- lanes prio ${size.width}x${size.height}`)
+    await lanesPrioSort(browser, server.base, size)
+  }
 
   for (const [label, size] of [['desktop', { width: 1400, height: 900 }], ['phone', { width: 390, height: 844 }]]) {
     console.log(`-- ${label} ${size.width}x${size.height}`)

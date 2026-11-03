@@ -30,6 +30,8 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const KEY_RE = /^[A-Z][A-Z0-9]{1,9}-[1-9][0-9]{0,8}$/
 const str = (v) => (typeof v === 'string' ? v : '')
 const int = (v) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Math.trunc(Number(v)) : 0)
+/** An issue prio, 1 (highest) .. 5; 0 = none (spec 153 3.14). */
+const prio = (v) => { const n = int(v); return n >= 1 && n <= 5 ? n : 0 }
 
 /**
  * The hub's answer as the page's view, in the hub's order. A row without an
@@ -52,7 +54,9 @@ export function fleetLanesOf(body) {
     /* SPL-4421: the topic's channel, for Monitoring -> Topics; '' until the hub sends it */
     topicChannel: str(l.topic_channel),
     issues: (Array.isArray(l.issues) ? l.issues : []).filter((i) => i && typeof i === 'object' && str(i.key))
-      .map((i) => ({ key: str(i.key), status: str(i.status) })),
+      .map((i) => ({ key: str(i.key), status: str(i.status), priority: prio(i.priority) })),
+    /* spec 153 3.14: the highest prio among the issues (1 highest); 0 = none */
+    priority: prio(l.priority),
     /* spec 153 3.12: the issue the lane came from; null for none, never a guess */
     originIssue: l.origin_issue && typeof l.origin_issue === 'object' && str(l.origin_issue.key)
       ? { key: str(l.origin_issue.key), status: str(l.origin_issue.status) } : null,
@@ -112,7 +116,7 @@ export function lanesStaleLevel(lagS) {
    cycle utils/sheet-sort.mjs); no sort = the hub's order, newest write first. */
 
 /** The sortable columns, in the table's order. */
-export const LANE_COLUMNS = ['agent', 'box', 'vendor', 'state', 'scope', 'topic', 'issues', 'origin', 'updated', 'active', 'workspace']
+export const LANE_COLUMNS = ['agent', 'box', 'priority', 'vendor', 'state', 'scope', 'topic', 'issues', 'origin', 'updated', 'active', 'workspace']
 
 /** The age filter: written within 1 h, within 24 h, or longer ago. */
 export const LANE_AGES = ['1h', '24h', 'older']
@@ -136,6 +140,7 @@ function sortValue(lane, col) {
   switch (col) {
     case 'agent': return laneName(lane)
     case 'state': return laneState(lane)
+    case 'priority': return lane.priority || null
     case 'topic': return lane.topicTitle || lane.topicId || null
     case 'issues': return lane.issues.length ? lane.issues[0].key : null
     case 'origin': return lane.originIssue ? lane.originIssue.key : null
@@ -368,7 +373,7 @@ export function mockFleetLanes(store = mockStore(), now = new Date()) {
   out.lanes = [
     { agent_id: 'c-085', agent_box: 'box-a', vendor: 'claude', scope: 'Spec 153 build row B4: the Lanes tab of Monitoring, its page, its poll and its locale keys',
       topic_id: LANES_MOCK_TOPIC, topic_title: LANES_MOCK_TOPIC_TITLE, topic_channel: 'monitoring',
-      issues: [{ key: 'SPL-3075', status: 'wip' }, { key: 'SPL-3215', status: 'wip' }], origin_issue: { key: 'SPL-3158', status: 'done' }, updated_at: ago(240), age_s: 240, last_active: ago(60),
+      issues: [{ key: 'SPL-3075', status: 'wip', priority: 2 }, { key: 'SPL-3215', status: 'wip', priority: 3 }], priority: 2, origin_issue: { key: 'SPL-3158', status: 'done' }, updated_at: ago(240), age_s: 240, last_active: ago(60),
       workspace: 'mock', workspace_name: LANES_MOCK_WORKSPACE },
     { agent_id: 'a-277', agent_box: 'box-b', vendor: 'agy', scope: 'Review the locale text',
       topic_id: '0b0c0d0e-1111-4222-8333-444455556666', topic_title: '',
@@ -380,7 +385,7 @@ export function mockFleetLanes(store = mockStore(), now = new Date()) {
   if (get(LANES_MOCK_KEY) === 'topics') {
     out.lanes.splice(1, 0, { agent_id: 'c-733', agent_box: 'box-a', vendor: 'claude', scope: 'Monitoring -> Topics',
       topic_id: LANES_MOCK_TOPIC, topic_title: LANES_MOCK_TOPIC_TITLE, topic_channel: 'monitoring',
-      issues: [{ key: 'SPL-3215', status: 'wip' }, { key: 'SPL-4421', status: 'eval' }], updated_at: ago(600), age_s: 600, last_active: '',
+      issues: [{ key: 'SPL-3215', status: 'wip', priority: 3 }, { key: 'SPL-4421', status: 'eval', priority: 1 }], priority: 1, updated_at: ago(600), age_s: 600, last_active: '',
       workspace: 'mock', workspace_name: LANES_MOCK_WORKSPACE })
   }
   return out

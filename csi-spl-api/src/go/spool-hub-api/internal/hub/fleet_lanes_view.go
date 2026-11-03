@@ -45,6 +45,9 @@ var laneIDRe = regexp.MustCompile(`^[acgmq]-[0-9]{3}$`)
 type fleetLaneIssueJSON struct {
 	Key    string `json:"key"`
 	Status string `json:"status"`
+	// spec 153 3.14: the issue's prio, 1 highest .. 5; absent for a key
+	// the hub found no issue for (another prefix)
+	Priority int `json:"priority,omitempty"`
 }
 
 type fleetLaneViewJSON struct {
@@ -57,9 +60,12 @@ type fleetLaneViewJSON struct {
 	Issues     []fleetLaneIssueJSON `json:"issues"`
 	// spec 153 3.12: the issue the lane came from; absent for none, never a guess
 	OriginIssue *fleetLaneIssueJSON `json:"origin_issue,omitempty"`
-	UpdatedAt   string              `json:"updated_at"`
-	AgeS        int64               `json:"age_s"`
-	LastActive  string              `json:"last_active"`
+	// spec 153 3.14: the highest prio (the lowest number) among Issues;
+	// absent when none of them has one
+	Priority   int    `json:"priority,omitempty"`
+	UpdatedAt  string `json:"updated_at"`
+	AgeS       int64  `json:"age_s"`
+	LastActive string `json:"last_active"`
 	// spec 153 3.11: a role seat names no topic and no issue by design
 	RoleSeat bool `json:"role_seat,omitempty"`
 	// spec 153 v1.3 3.8: live | queued; a queued row's wait reason ("" =
@@ -149,6 +155,7 @@ func (s *Server) fleetLanesView(ctx context.Context, tenant, fleet, reader strin
 		}
 		v.Issues = laneIssues(l.IssueKey, prefix, mine, byTopic[l.Topic], status)
 		v.OriginIssue = laneOriginIssue(l.OriginIssue, prefix, status)
+		v.Priority = lanePrio(v.Issues)
 		place(&v, l.Topic)
 		out.Lanes = append(out.Lanes, v)
 	}
@@ -157,6 +164,7 @@ func (s *Server) fleetLanesView(ctx context.Context, tenant, fleet, reader strin
 		if topic, mine := titles[q.topic]; mine {
 			v.TopicTitle, v.TopicChannel = topic.Title, topic.Channel
 			v.Issues = laneIssues("", prefix, true, byTopic[q.topic], status)
+			v.Priority = lanePrio(v.Issues)
 		}
 		place(&v, q.topic)
 		out.Lanes = append(out.Lanes, v)
@@ -236,8 +244,8 @@ func (s *Server) fleetLaneBurn(ctx context.Context, now time.Time) (map[[2]strin
 // or closed to the reader), the issues each such topic links, every issue's status
 // and the tenant's issue key prefix.
 func (s *Server) fleetLaneLinks(ctx context.Context, tenant, reader string, ls []store.FleetLane) (
-	titles map[string]store.DiscussionState, byTopic map[string][]int, status map[int]string, prefix string, err error) {
-	titles, byTopic, status = map[string]store.DiscussionState{}, map[string][]int{}, map[int]string{}
+	titles map[string]store.DiscussionState, byTopic map[string][]int, status map[int]store.FleetLaneIssue, prefix string, err error) {
+	titles, byTopic, status = map[string]store.DiscussionState{}, map[string][]int{}, map[int]store.FleetLaneIssue{}
 	topics, numbers := []string{}, []int{}
 	for _, l := range ls {
 		if l.Topic != "" && !slices.Contains(topics, l.Topic) {
@@ -286,7 +294,7 @@ func (s *Server) fleetLaneLinks(ctx context.Context, tenant, reader string, ls [
 // laneIssues is a lane's issues: those its topic links (when the topic is
 // the tenant's) and its own key, each once, ascending. An own key of another
 // prefix is listed as sent, with no status.
-func laneIssues(own, prefix string, mine bool, linked []int, status map[int]string) []fleetLaneIssueJSON {
+func laneIssues(own, prefix string, mine bool, linked []int, status map[int]store.FleetLaneIssue) []fleetLaneIssueJSON {
 	out := []fleetLaneIssueJSON{}
 	nums := []int{}
 	if mine {
@@ -304,7 +312,7 @@ func laneIssues(own, prefix string, mine bool, linked []int, status map[int]stri
 	}
 	slices.Sort(nums)
 	for _, n := range nums {
-		out = append(out, fleetLaneIssueJSON{Key: store.IssueKey(prefix, n), Status: status[n]})
+		out = append(out, fleetLaneIssueJSON{Key: store.IssueKey(prefix, n), Status: status[n].Status, Priority: status[n].Priority})
 	}
 	if foreign != "" {
 		out = append(out, fleetLaneIssueJSON{Key: foreign})
@@ -314,12 +322,25 @@ func laneIssues(own, prefix string, mine bool, linked []int, status map[int]stri
 
 // laneOriginIssue is a lane's origin issue with its status, nil for none; a
 // key of another prefix goes as sent, with no status (as laneIssues).
-func laneOriginIssue(key, prefix string, status map[int]string) *fleetLaneIssueJSON {
+func laneOriginIssue(key, prefix string, status map[int]store.FleetLaneIssue) *fleetLaneIssueJSON {
 	if key == "" {
 		return nil
 	}
 	if n, ok := store.ParseIssueRef(key); ok && strings.EqualFold(key, store.IssueKey(prefix, n)) {
-		return &fleetLaneIssueJSON{Key: store.IssueKey(prefix, n), Status: status[n]}
+		return &fleetLaneIssueJSON{Key: store.IssueKey(prefix, n), Status: status[n].Status, Priority: status[n].Priority}
 	}
 	return &fleetLaneIssueJSON{Key: key}
+}
+
+// lanePrio is a lane's prio (spec 153 3.14): the highest among its issues,
+// prio 1 the highest; 0 (absent) when none has one. The origin issue is
+// where the lane came from, not its work, so it does not count.
+func lanePrio(issues []fleetLaneIssueJSON) int {
+	best := 0
+	for _, i := range issues {
+		if i.Priority > 0 && (best == 0 || i.Priority < best) {
+			best = i.Priority
+		}
+	}
+	return best
 }

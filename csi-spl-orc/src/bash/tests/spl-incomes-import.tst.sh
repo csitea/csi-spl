@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
-# Purpose: do_spl_incomes_import (SPL-4697, rdb 0258) checks a TSV of income
+# Purpose: do_spl_incomes_import (SPL-4697, rdb 0259) checks a TSV of income
 #          invoices and sends it to PUT /v1/operator/incomes. The hub is
 #          stubbed; every row is synthetic (csi-spl is public).
 #   1. DRY_RUN=1 (default): checks, prints the count and the period span,

@@ -12,7 +12,7 @@ import (
 )
 
 // The workspace's invoiced income, read by Reporting -> Incomes (SPL-4697,
-// rdb 0258 income_invoices, spec 143 incomes.md; owner HUM-10, csitea topic
+// rdb 0259 income_invoices, spec 143 incomes.md; owner HUM-10, csitea topic
 // 450418ab msg e793f8d0). One row is one invoice, keyed by its number within
 // the workspace. Rows come in only through the operator's import
 // (PUT /v1/operator/incomes); the workspace owner reads them.
@@ -52,7 +52,7 @@ func incomeAmount(v float64) bool {
 }
 
 // CheckIncomeInvoice names the first thing it may not carry ("" = fine): the
-// Go side of rdb 0258's CHECKs.
+// Go side of rdb 0259's CHECKs.
 func CheckIncomeInvoice(in IncomeInvoice) string {
 	switch {
 	case strings.TrimSpace(in.InvoiceNo) == "" || len(in.InvoiceNo) > 64:
@@ -101,7 +101,7 @@ func CheckIncomeInvoices(rows []IncomeInvoice) (int, string) {
 	return -1, ""
 }
 
-// IncomeInvoiceStore is the store half of rdb 0258. Optional: the routes
+// IncomeInvoiceStore is the store half of rdb 0259. Optional: the routes
 // answer unsupported on a store without it.
 type IncomeInvoiceStore interface {
 	// ListIncomeInvoices is tenant's invoices of year (by period), period

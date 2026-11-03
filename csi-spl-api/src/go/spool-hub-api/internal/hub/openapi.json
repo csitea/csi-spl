@@ -12360,7 +12360,7 @@
                 "properties": {
                   "invoices": {
                     "items": {
-                      "description": "One invoice (SPL-4697, rdb 0258). Checked by the hub: net + vat = total, amounts with at most 2 decimals.",
+                      "description": "One invoice (SPL-4697, rdb 0259). Checked by the hub: net + vat = total, amounts with at most 2 decimals.",
                       "properties": {
                         "currency": {
                           "description": "an ISO 4217 code such as EUR",

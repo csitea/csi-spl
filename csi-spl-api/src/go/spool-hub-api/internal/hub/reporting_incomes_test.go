@@ -9,7 +9,7 @@ import (
 )
 
 // SPL-4697: Reporting -> Incomes. Memory, and Postgres under
-// SPOOL_TEST_PG_DSN (rdb 0258's RLS). RED CONTROL (base): neither route
+// SPOOL_TEST_PG_DSN (rdb 0259's RLS). RED CONTROL (base): neither route
 // existed, every call answered 404.
 
 const (

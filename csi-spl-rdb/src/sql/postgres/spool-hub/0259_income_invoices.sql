@@ -1,4 +1,4 @@
--- 0258_income_invoices.sql - the workspace's invoiced income, one row per
+-- 0259_income_invoices.sql - the workspace's invoiced income, one row per
 -- invoice, read by Reporting -> Incomes (SPL-4697, spec 143 incomes.md;
 -- owner HUM-10, csitea topic 450418ab msg e793f8d0: "we will add a new tab
 -- i nthe reporting called incomes"). Forward-only.

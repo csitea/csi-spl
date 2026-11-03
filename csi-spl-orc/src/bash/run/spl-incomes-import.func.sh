@@ -1,7 +1,7 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
 # @description Imports a workspace's income invoices into the ENV hub for
-# @description Reporting -> Incomes (SPL-4697, rdb 0258, spec 143 incomes.md):
+# @description Reporting -> Incomes (SPL-4697, rdb 0259, spec 143 incomes.md):
 # @description reads INCOMES_FILE, a TSV kept OUTSIDE git (one header line
 # @description naming invoice_no payer period issue_date due_date hours
 # @description unit_price net vat_pct vat total currency), checks every row

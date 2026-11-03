@@ -7,7 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Postgres side of rdb 0258. Every statement runs in the workspace's scope
+// Postgres side of rdb 0259. Every statement runs in the workspace's scope
 // (inTenant): a query cannot see or write another workspace's invoices.
 
 const incomeInvoiceCols = `invoice_no, payer, to_char(period, 'YYYY-MM'), to_char(issue_date, 'YYYY-MM-DD'),

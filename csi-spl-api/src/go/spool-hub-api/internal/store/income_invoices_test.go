@@ -15,7 +15,7 @@ func incomeRow(no, month string, hours float64) IncomeInvoice {
 		Hours: hours, UnitPrice: 10, Net: hours * 10, VatPct: 25, Vat: hours * 2.5, Total: hours * 12.5, Currency: "EUR"}
 }
 
-// SPL-4697, rdb 0258: an import inserts, the same import again only updates;
+// SPL-4697, rdb 0259: an import inserts, the same import again only updates;
 // the list is the year's rows in period order; years are newest first; a bad
 // row refuses the whole batch; another workspace reads none. Memory and
 // Postgres. RED CONTROL (base): the store kept no income invoices.
@@ -75,7 +75,7 @@ func TestIncomeInvoiceStore(t *testing.T) {
 	}
 }
 
-// SPL-4697, rdb 0258: no scope and another workspace read no invoice and may
+// SPL-4697, rdb 0259: no scope and another workspace read no invoice and may
 // not insert one for this workspace; CONTROL: the workspace reads its own.
 func TestIncomeInvoiceRLS(t *testing.T) {
 	pg := rlsStore(t)

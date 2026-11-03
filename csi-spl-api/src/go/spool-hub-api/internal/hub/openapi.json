@@ -7736,7 +7736,7 @@
                     },
                     "notes": {
                       "items": {
-                        "description": "id, title, body, pinned, position, archived, archived_at, created_at, updated_at, items, links (a link: id, kind, workspace_id, ref, day, label, left, position, created_at; left true = a workspace the person left, label empty)",
+                        "description": "id, title, body, pinned, priority, position, archived, archived_at, created_at, updated_at, items, links (a link: id, kind, workspace_id, ref, day, label, left, position, created_at; left true = a workspace the person left, label empty)",
                         "type": "object"
                       },
                       "type": "array"

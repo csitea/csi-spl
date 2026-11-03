@@ -1,7 +1,10 @@
 # 155 Notes section, with quick links to anything
 
-Version v1.2, 2026-11-02, by c-705 (claude): adds section 2.9, a note's
-priority (SPL-4652), with its lines in sections 4 and 5. v1.1, 2026-10-24, by
+Version v1.3, 2026-11-03, by c-212 (claude): D8 is the owner's CHANGE, a
+drag or Move onto another priority takes that priority (2.9, SPL-4701), and
+the tie order is one key everywhere. v1.2, 2026-11-02, by c-705 (claude): adds
+section 2.9, a note's priority (SPL-4652), with its lines in sections 4 and 5.
+v1.1, 2026-10-24, by
 c-005@sat (claude). v1.0 (`471c55f24`) was
 reviewed by the agy seat a-089: NOT SIGNED, four defects W1-W4
 (`fafbb86d0`, `seat-agy.md`). v1.1 folds all four (section 9); it waits
@@ -282,12 +285,22 @@ default. Every existing note reads 5. The WUI's discussion default is 3
   badge, `topic.priority.badge`), for every note, 5 too. The row stays one line;
   the title gives way, the chip does not.
 - **Order**: within each group (Pinned, the rest, Archived), priority ascending,
-  then `position`. A pinned 5 stays above an unpinned 1, as pinning already wins.
-- **Drag and Move across priorities**, chosen here and the owner has not decided
-  it (default D8): Move and drag stay within the same group and the same
-  priority. A drop on a note of another priority moves nothing and changes no
-  priority; the priority changes only in the chooser. A drag that also rewrote
-  the priority would change a value the person did not point at.
+  then `position`, then `updated_at` descending on a tie. A pinned 5 stays above
+  an unpinned 1, as pinning already wins. The tie key is `updated_at` in the
+  hub's list and export (Postgres and memory) and in `note-order.mjs` (SPL-4701,
+  review note N3): the list wire carries `updated_at` and not `created_at`, so it
+  is the one key the WUI can draw by; until v1.3 the hub broke a tie by
+  `created_at`. Positions are distinct on create, so a tie is rare.
+- **Drag and Move across priorities**, the owner's CHANGE of D8 (HUM-10, msg
+  `63fe839e-7c88-4623-b6ed-6e84bf0644cf`, 2026-11-03: "Move it there and take
+  that note's priority"; SPL-4701): a drop on a note of another priority moves
+  the note there, before or after it as any drop, and sets its priority to that
+  note's. Move up / Move down (and Alt+Up / Alt+Down) step past the neighbour in
+  the group; a neighbour of another priority gives its priority the same way.
+  Position and priority go in one PATCH, and a refused PATCH reloads the list.
+  The groups still never mix: a drop on another group moves nothing. The open
+  note's chooser follows a Move made from it. Until v1.3 (default) a drop on
+  another priority moved nothing.
 
 ## 3. Defaults (owner may change)
 
@@ -317,8 +330,11 @@ named.
   how-to-post rule 11, extended with the kinds `issue`, `event`, `doc`,
   `channel` and `url` (2.3). Rule 11 itself is not changed by this spec.
   Changes B2, B7.
-- **D8.** Default (owner may change): Move and drag stay within the same group
-  and the same priority (2.9). Changes `utils/note-order.mjs`.
+- **D8.** Owner's CHANGE (HUM-10, msg `63fe839e-7c88-4623-b6ed-6e84bf0644cf`,
+  2026-11-03, "Move it there and take that note's priority"): a drag or Move
+  onto a note of another priority moves it there and takes that note's
+  priority; the groups never mix (2.9, SPL-4701). Was: Move and drag stay
+  within the same priority. Changes `utils/note-order.mjs`, `pages/notes.vue`.
 
 ## 4. Data
 

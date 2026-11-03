@@ -110,6 +110,8 @@ func sameNote(got, want Note) string {
 	switch {
 	case got.Title != want.Title || got.Body != want.Body || got.Pinned != want.Pinned:
 		return "title, body or pinned"
+	case got.Priority != want.Priority:
+		return "priority"
 	case !got.UpdatedAt.Equal(want.UpdatedAt):
 		return "updated_at " + got.UpdatedAt.String() + " want " + want.UpdatedAt.String()
 	case len(got.Items) != len(want.Items) || len(got.Links) != len(want.Links):
@@ -456,6 +458,54 @@ func TestNotesPriorityOrder(t *testing.T) {
 		}
 		if strings.Join(got, " ") != want {
 			t.Errorf("ExportNotes order %q, want %q", strings.Join(got, " "), want)
+		}
+	})
+}
+
+// TestNotesOrderTie (SPL-4701, review note N3): two notes at the same
+// position order by updated_at, the last changed first, in ListNotes and
+// ExportNotes, as the WUI's compareNotes does. Older is created first and
+// changed last: by created_at it would come second. CONTROL: with
+// created_at DESC back as the last key, both checks FAIL.
+func TestNotesOrderTie(t *testing.T) {
+	eachNotesDriver(t, func(t *testing.T, f notesFix) {
+		ctx := context.Background()
+		now := time.Now().UTC().Truncate(time.Second)
+		p1, _ := realmPersons()
+		f.addHuman(t, p1)
+		older, err := f.st.CreateNote(ctx, p1, Note{Title: "older"}, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		newer, err := f.st.CreateNote(ctx, p1, Note{Title: "newer"}, now.Add(time.Second))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.st.PatchNote(ctx, p1, older.ID, NotePatch{Position: &newer.Position}, nil, now.Add(2*time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		want := "older newer"
+		l, err := f.st.ListNotes(ctx, p1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, m := range l {
+			got = append(got, m.Title)
+		}
+		if strings.Join(got, " ") != want {
+			t.Errorf("ListNotes tie %q, want %q", strings.Join(got, " "), want)
+		}
+		ex, err := f.st.ExportNotes(ctx, p1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got = got[:0]
+		for _, m := range ex {
+			got = append(got, m.Title)
+		}
+		if strings.Join(got, " ") != want {
+			t.Errorf("ExportNotes tie %q, want %q", strings.Join(got, " "), want)
 		}
 	})
 }

@@ -145,8 +145,8 @@ type NoteLinkPatch struct {
 // note (or link) of this person. ws is the person's current workspaces (D4).
 type Notes interface {
 	// ListNotes is every note of the person, archived ones too: pinned
-	// first, then by priority (1 first), then by position, the newest first
-	// on a tie.
+	// first, then by priority (1 first), then by position, the last changed
+	// (updated_at) first on a tie, as the WUI draws it (note-order.mjs).
 	ListNotes(ctx context.Context, person string) ([]NoteSummary, error)
 	// CreateNote adds n (title, body, pinned, items, links) on top of the
 	// person's order, at the default priority. ErrNotesFull at NotesPerPerson; ErrNotFound: no such
@@ -496,7 +496,7 @@ func (s *Postgres) ListNotes(ctx context.Context, person string) ([]NoteSummary,
 			       (SELECT count(*) FROM personal.note_items i WHERE i.person_id = n.person_id AND i.note_id = n.note_id),
 			       (SELECT count(*) FROM personal.note_links l WHERE l.person_id = n.person_id AND l.note_id = n.note_id)
 			FROM personal.notes n WHERE n.person_id = $1
-			ORDER BY n.pinned DESC, n.priority, n.position, n.created_at DESC`, []any{person, NoteSnippetChars}, func(r pgx.Rows) error {
+			ORDER BY n.pinned DESC, n.priority, n.position, n.updated_at DESC`, []any{person, NoteSnippetChars}, func(r pgx.Rows) error {
 			var m NoteSummary
 			err := r.Scan(&m.ID, &m.Title, &m.Snippet, &m.Pinned, &m.Priority, &m.Position, &m.ArchivedAt, &m.UpdatedAt,
 				&m.ItemsDone, &m.ItemsTotal, &m.LinkCount)
@@ -742,7 +742,7 @@ func (s *Postgres) ExportNotes(ctx context.Context, person string) ([]Note, erro
 	err := s.inPerson(ctx, person, func(tx pgx.Tx) error {
 		out = nil
 		err := eachRow(ctx, tx, `SELECT `+noteCols+` FROM personal.notes WHERE person_id = $1
-			ORDER BY pinned DESC, priority, position, created_at DESC`, []any{person}, func(r pgx.Rows) error {
+			ORDER BY pinned DESC, priority, position, updated_at DESC`, []any{person}, func(r pgx.Rows) error {
 			n, err := scanNote(r)
 			out = append(out, n)
 			return err

@@ -87,7 +87,7 @@ func (s *Memory) sortedNotes(person string) []*Note {
 		if a.Position != b.Position {
 			return a.Position < b.Position
 		}
-		return a.CreatedAt.After(b.CreatedAt)
+		return a.UpdatedAt.After(b.UpdatedAt)
 	})
 	return out
 }

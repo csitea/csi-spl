@@ -23,6 +23,9 @@
      Box (SPL-4458; owner HUM-10, t1 0acd4eaa, msg 97453531): the box a lane
      works on is its own column after the agent, sortable, its select under
      it; the workspace route sends no box, so the cell is a dash there.
+     Workspace filter (SPL-4705; owner HUM-10, t1 0ea86216, msg c50a260f):
+     a select under the Workspace column, which stays last, offering the
+     answer's workspaces by name and matching on the row's id.
      Deep link (3.9, SPL-4206; owner HUM-10, t1 fb9b6e4b, msg 470ae116): a
      lane on the agent card opens this page at ?lane=<id@box>; that row is
      marked selected and scrolled into view once it is in the answer. -->
@@ -91,7 +94,13 @@
                   <option v-for="a in LANE_AGES" :key="a" :value="a">{{ ageLabel(a) }}</option>
                 </select>
               </th>
-              <th colspan="2" />
+              <th />
+              <th>
+                <select v-model="filters.workspace" data-test="lanes-filter-workspace" :aria-label="t('sidebar.tenant')">
+                  <option value="">{{ t('issues.filter_all') }}</option>
+                  <option v-for="w in choices.workspace" :key="w.id" :value="w.id">{{ w.name }}</option>
+                </select>
+              </th>
             </tr>
           </thead>
           <tbody>

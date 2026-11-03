@@ -115,7 +115,8 @@ describe('the lanes filter by box, vendor, state, age and text', () => {
     assert.equal(lanesFiltered({ ...LANES_NO_FILTER, text: 'x' }), true)
   })
   it('the selects offer the answer\'s distinct values; a lane with no state is live', () => {
-    assert.deepEqual(laneFilterChoices(VIEW), { box: ['box-a', 'box-b'], vendor: ['agy', 'claude', 'mistral'], state: ['live', 'queued'] })
+    assert.deepEqual(laneFilterChoices(VIEW), { box: ['box-a', 'box-b'], vendor: ['agy', 'claude', 'mistral'], state: ['live', 'queued'],
+      workspace: [{ id: 'w2', name: 'Acme' }, { id: 'w1', name: 'Ops' }] })
     assert.equal(laneState({}), 'live')
     assert.equal(VIEW[0].state, 'live')
     assert.equal(VIEW[3].state, 'queued')
@@ -136,7 +137,7 @@ describe('one control, not a copy', () => {
   it('the lanes page sorts through the shared cycle and binds aria-sort on each name', () => {
     assert.match(lanes, /cycleSort\(col, sort\.value, LANE_COLUMNS\)/)
     assert.match(lanes, /:aria-sort=/)
-    for (const f of ['box', 'vendor', 'state', 'age', 'text']) assert.match(lanes, new RegExp(`data-test="lanes-filter-${f}"`), f)
+    for (const f of ['box', 'vendor', 'state', 'age', 'text', 'workspace']) assert.match(lanes, new RegExp(`data-test="lanes-filter-${f}"`), f)
   })
 })
 
@@ -174,5 +175,38 @@ describe('the Box column', () => {
       assert.equal(typeof word, 'string', loc)
       assert.ok(word.length > 0 && word.length <= 12, loc + ': ' + word)
     }
+  })
+})
+
+/* SPL-4705, spec 153 3.13 C60 (owner HUM-10, t1 0ea86216, poll 33a36dde,
+   msg c50a260f: "C — I want to filter the list by workspace"): a select
+   under the Workspace column, which stays last (msg 67c63b8d). It offers
+   the workspaces in the answer by name and matches on the row's id. */
+describe('the Workspace filter', () => {
+  const lanes = read('src/pages/monitoring/lanes/index.vue')
+  it('keeps the lanes of one workspace, matched on its id', () => {
+    assert.equal(LANES_NO_FILTER.workspace, '')
+    assert.equal(ids(filterLanes(VIEW, { ...LANES_NO_FILTER, workspace: 'w1' })), 'c-10,a-277,m-039')
+    assert.equal(ids(filterLanes(VIEW, { ...LANES_NO_FILTER, workspace: 'w2' })), 'c-9')
+    assert.equal(ids(filterLanes(VIEW, { ...LANES_NO_FILTER, workspace: 'Ops' })), '', 'a name is no id')
+    assert.equal(ids(filterLanes(VIEW, { ...LANES_NO_FILTER, workspace: 'w1', vendor: 'claude' })), 'c-10', 'it combines')
+    assert.equal(lanesFiltered({ ...LANES_NO_FILTER, workspace: 'w2' }), true)
+  })
+  it('offers each workspace once, by name (the id when it has none), sorted by name', () => {
+    const v = fleetLanesOf({ lanes: [
+      { agent_id: 'c-1', workspace: 'w9', workspace_name: 'zeta' }, { agent_id: 'c-2', workspace: 'w3' },
+      { agent_id: 'c-3', workspace: 'w9', workspace_name: 'zeta' }, { agent_id: 'c-4', workspace: '' },
+      { agent_id: 'c-5', workspace: 'w4', workspace_name: 'Alpha' }] }).lanes
+    assert.deepEqual(laneFilterChoices(v).workspace, [{ id: 'w4', name: 'Alpha' }, { id: 'w3', name: 'w3' }, { id: 'w9', name: 'zeta' }])
+  })
+  it('the page has its select under the last column, labelled by the column name, the Workspace column still last', () => {
+    assert.equal(LANE_COLUMNS[LANE_COLUMNS.length - 1], 'workspace')
+    const row = lanes.slice(lanes.indexOf('data-test="lanes-filters"'), lanes.indexOf('</thead>'))
+    const cells = row.split(/<th(?=[\s/>])/).slice(1)
+    const spans = cells.map((c) => Number((/^\s+colspan="(\d+)"/.exec(c) || [])[1] || 1))
+    assert.equal(spans.reduce((a, b) => a + b, 0), LANE_COLUMNS.length, 'one filter cell per column')
+    assert.match(cells[cells.length - 1], /data-test="lanes-filter-workspace"/, 'the last filter cell')
+    assert.match(cells[cells.length - 1], /:aria-label="t\('sidebar\.tenant'\)"/)
+    assert.match(cells[cells.length - 1], /v-for="w in choices\.workspace" :key="w\.id" :value="w\.id"/)
   })
 })

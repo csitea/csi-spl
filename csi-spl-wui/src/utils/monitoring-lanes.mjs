@@ -119,7 +119,7 @@ export const LANE_AGES = ['1h', '24h', 'older']
 const AGE_S = { '1h': 3600, '24h': 86400 }
 
 /** No filter: every lane shows. */
-export const LANES_NO_FILTER = Object.freeze({ text: '', box: '', vendor: '', state: '', age: '' })
+export const LANES_NO_FILTER = Object.freeze({ text: '', box: '', vendor: '', state: '', age: '', workspace: '' })
 
 /** A lane's state; a hub without the field sends live lanes only. */
 export function laneState(lane) {
@@ -198,10 +198,10 @@ export function ageMatches(lane, age) {
 
 /**
  * The lanes the filter row keeps: every word of `text` in the lane's words,
- * and box, vendor, state and age each '' (any) or equal.
+ * and box, vendor, state, age and workspace (its id) each '' (any) or equal.
  * @template T
  * @param {T[]} lanes
- * @param {{ text?: string, box?: string, vendor?: string, state?: string, age?: string }} f
+ * @param {{ text?: string, box?: string, vendor?: string, state?: string, age?: string, workspace?: string }} f
  * @returns {T[]}
  */
 export function filterLanes(lanes, f) {
@@ -209,13 +209,14 @@ export function filterLanes(lanes, f) {
   return lanes.filter((l) => (!f.box || l.box === f.box)
     && (!f.vendor || l.vendor === f.vendor)
     && (!f.state || laneState(l) === f.state)
+    && (!f.workspace || l.workspace === f.workspace)
     && ageMatches(l, str(f.age))
     && (words.length === 0 || words.every((w) => laneWords(l).includes(w))))
 }
 
 /** True when any filter is set. */
 export function lanesFiltered(f) {
-  return Boolean(str(f.text).trim() || f.box || f.vendor || f.state || f.age)
+  return Boolean(str(f.text).trim() || f.box || f.vendor || f.state || f.age || f.workspace)
 }
 
 /** The distinct non-empty values, sorted as words with numbers. */
@@ -223,10 +224,18 @@ export function uniqSorted(vals) {
   return [...new Set(vals.filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
 }
 
+/** The workspaces in the answer, each once by id, shown by name (else the id), sorted by name (SPL-4705). */
+function laneWorkspaceChoices(lanes) {
+  const byId = new Map()
+  for (const l of lanes) if (l.workspace && !byId.has(l.workspace)) byId.set(l.workspace, l.workspaceName || l.workspace)
+  return [...byId].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+}
+
 /** Each select's choices: the distinct non-empty values in the answer, sorted. */
 export function laneFilterChoices(lanes) {
   const uniq = uniqSorted
-  return { box: uniq(lanes.map((l) => l.box)), vendor: uniq(lanes.map((l) => l.vendor)), state: uniq(lanes.map(laneState)) }
+  return { box: uniq(lanes.map((l) => l.box)), vendor: uniq(lanes.map((l) => l.vendor)), state: uniq(lanes.map(laneState)),
+    workspace: laneWorkspaceChoices(lanes) }
 }
 
 /**

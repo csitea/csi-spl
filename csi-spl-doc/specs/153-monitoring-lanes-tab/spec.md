@@ -1,8 +1,8 @@
 # 153 Monitoring: the tab row beside the heading, and a live Lanes tab
 
 Addendum (2026-11-03, SPL-4705): section 3.13 (a lane on a
-`dispatch-<topic8>` task names the workspace of that topic), cases
-C58-C59. Owner HUM-10, t1 topic
+`dispatch-<topic8>` task names the workspace of that topic; a Workspace
+filter), cases C58-C60. Owner HUM-10, t1 topic
 `0ea86216`, msg `aa56f0b5`. Placed by the dispatch holder as one lane
 brief, not a panel version.
 
@@ -884,6 +884,15 @@ The column existed (3.8), last. Two gaps kept it out of sight or wrong:
   Box; the dispatch holder dropped that (msg `e7b7da32`): the owner's own
   words in 3.8 (msg `67c63b8d`, "as their last right most column") stand,
   and `aa56f0b5` says nothing on position.
+- **A Workspace filter** (owner HUM-10, t1 `0ea86216`, poll `33a36dde`,
+  msg `c50a260f`: "C — I want to filter the list by workspace"). A select
+  in the filter row under the Workspace column, beside box, vendor, state
+  and age: "All", then each workspace of the answer once, by name (the id
+  when it has none), sorted by name; it matches the row's workspace id, so
+  two workspaces of one name stay apart. It combines with the other
+  filters and Clear filters resets it (`LANES_NO_FILTER.workspace`,
+  `laneFilterChoices().workspace`, `filterLanes`). No new text key: it is
+  labelled by the column's name, as the box select is.
 
 Cases:
 
@@ -893,6 +902,12 @@ Cases:
   workspaces: the operator workspace, no topic. (`hub/lanes_workspace_resolve_test.go`,
   memory and Postgres; red on master `3da4fa390`: the live lane names the
   operator workspace.)
+- **C60** the Workspace filter: one workspace's lanes by id (a name
+  matches nothing), combined with vendor; the choices once each, by name,
+  sorted; the select is the last filter cell and the column stays last.
+  (`tests/unit/monitoring-lanes-sort-filter.test.mjs` "the Workspace
+  filter", red on master: 5 fail; `tests/e2e/monitoring-costs.test.mjs`
+  `lanesSortFilter` on the mock fleet's two workspaces.)
 
 ## 4. Cases
 

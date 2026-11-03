@@ -433,6 +433,12 @@ type Hub struct {
 	// then. "" = the apex workspace (WUIApexTenant); both "" and no row
 	// flagged = the routes are off (404).
 	OperatorTenant string `env:"SPOOL_HUB_OPERATOR_TENANT"`
+	// NetvisorWorkspace is the one workspace whose Netvisor finance data the
+	// hub keeps (spec 125 B5, SPL-4742; cnf hub env, csitea in dev and prd):
+	// the only workspace the /v1/operator/netvisor/* ingest files into and
+	// the owner's /v1/view/netvisor/* and /v1/netvisor/* routes serve. Not
+	// the operator workspace. "" = every Netvisor route is off (404).
+	NetvisorWorkspace string `env:"SPOOL_HUB_NETVISOR_WORKSPACE"`
 	// DemoEnabled turns on demo users (specs/077): a demo_user acts in
 	// DemoWorkspace only. OFF by default in dev and prd; on only by the
 	// owner's go, dev first (Q8).
@@ -799,6 +805,9 @@ func (h *Hub) checkViews() error {
 	}
 	if h.OperatorTenant != "" && !tenantIDRe.MatchString(h.OperatorTenant) {
 		return fmt.Errorf("SPOOL_HUB_OPERATOR_TENANT %q must be a tenant id", h.OperatorTenant)
+	}
+	if h.NetvisorWorkspace != "" && !tenantIDRe.MatchString(h.NetvisorWorkspace) {
+		return fmt.Errorf("SPOOL_HUB_NETVISOR_WORKSPACE %q must be a tenant id", h.NetvisorWorkspace)
 	}
 	if h.DemoEnabled && !tenantIDRe.MatchString(h.DemoWorkspace) {
 		return fmt.Errorf("SPOOL_HUB_DEMO_WORKSPACE %q must be a tenant id", h.DemoWorkspace)

@@ -10668,7 +10668,7 @@
     },
     "/v1/netvisor/refresh": {
       "post": {
-        "description": "Spec 125 B5 (C7): the browser session of the workspace's Netvisor owner ONLY (netvisor_settings.owner_human_id). 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone and an agent seat; 403 forbidden for every other member, admins included; 404 not_found in every workspace but the operator workspace. No MCP tool (C8).",
+        "description": "Spec 125 B5 (C7): the browser session of the workspace's Netvisor owner ONLY (netvisor_settings.owner_human_id). 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone and an agent seat; 403 forbidden for every other member, admins included; 404 not_found in every workspace but the Netvisor workspace (cnf SPOOL_HUB_NETVISOR_WORKSPACE: csitea), the operator workspace included. No MCP tool (C8).",
         "operationId": "postNetvisorRefresh",
         "parameters": [
           {
@@ -10702,7 +10702,7 @@
     },
     "/v1/netvisor/settings": {
       "get": {
-        "description": "Spec 125 B5 (C7): the browser session of the workspace's Netvisor owner ONLY (netvisor_settings.owner_human_id). 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone and an agent seat; 403 forbidden for every other member, admins included; 404 not_found in every workspace but the operator workspace. No MCP tool (C8).",
+        "description": "Spec 125 B5 (C7): the browser session of the workspace's Netvisor owner ONLY (netvisor_settings.owner_human_id). 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone and an agent seat; 403 forbidden for every other member, admins included; 404 not_found in every workspace but the Netvisor workspace (cnf SPOOL_HUB_NETVISOR_WORKSPACE: csitea), the operator workspace included. No MCP tool (C8).",
         "operationId": "getNetvisorSettings",
         "parameters": [
           {
@@ -10734,7 +10734,7 @@
         ]
       },
       "put": {
-        "description": "Spec 125 B5 (C7): the browser session of the workspace's Netvisor owner ONLY (netvisor_settings.owner_human_id). 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone and an agent seat; 403 forbidden for every other member, admins included; 404 not_found in every workspace but the operator workspace. No MCP tool (C8).",
+        "description": "Spec 125 B5 (C7): the browser session of the workspace's Netvisor owner ONLY (netvisor_settings.owner_human_id). 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone and an agent seat; 403 forbidden for every other member, admins included; 404 not_found in every workspace but the Netvisor workspace (cnf SPOOL_HUB_NETVISOR_WORKSPACE: csitea), the operator workspace included. No MCP tool (C8).",
         "operationId": "putNetvisorSettings",
         "parameters": [
           {
@@ -12468,7 +12468,7 @@
     },
     "/v1/operator/netvisor/owner": {
       "put": {
-        "description": "Spec 125 B5: the main-box Netvisor sync (B6) as the env's operator service account (Bearer id token), in the operator workspace only (403 operator_workspace_only when the Host or X-Spool-Tenant names another). Answers carry counts and times, never a figure (C2, C8).",
+        "description": "Spec 125 B5: the main-box Netvisor sync (B6) as the env's operator service account (Bearer id token), into the Netvisor workspace only (cnf SPOOL_HUB_NETVISOR_WORKSPACE: csitea; 403 netvisor_workspace_only when the Host or X-Spool-Tenant names another, the operator workspace included; 404 when the hub names none). Answers carry counts and times, never a figure (C2, C8).",
         "operationId": "putOperatorNetvisorOwner",
         "parameters": [
           {
@@ -12528,7 +12528,7 @@
     },
     "/v1/operator/netvisor/refresh": {
       "get": {
-        "description": "Spec 125 B5: the main-box Netvisor sync (B6) as the env's operator service account (Bearer id token), in the operator workspace only (403 operator_workspace_only when the Host or X-Spool-Tenant names another). Answers carry counts and times, never a figure (C2, C8).",
+        "description": "Spec 125 B5: the main-box Netvisor sync (B6) as the env's operator service account (Bearer id token), into the Netvisor workspace only (cnf SPOOL_HUB_NETVISOR_WORKSPACE: csitea; 403 netvisor_workspace_only when the Host or X-Spool-Tenant names another, the operator workspace included; 404 when the hub names none). Answers carry counts and times, never a figure (C2, C8).",
         "operationId": "getOperatorNetvisorRefresh",
         "parameters": [
           {
@@ -12566,7 +12566,7 @@
     },
     "/v1/operator/netvisor/snapshots": {
       "post": {
-        "description": "Spec 125 B5: the main-box Netvisor sync (B6) as the env's operator service account (Bearer id token), in the operator workspace only (403 operator_workspace_only when the Host or X-Spool-Tenant names another). Answers carry counts and times, never a figure (C2, C8).",
+        "description": "Spec 125 B5: the main-box Netvisor sync (B6) as the env's operator service account (Bearer id token), into the Netvisor workspace only (cnf SPOOL_HUB_NETVISOR_WORKSPACE: csitea; 403 netvisor_workspace_only when the Host or X-Spool-Tenant names another, the operator workspace included; 404 when the hub names none). Answers carry counts and times, never a figure (C2, C8).",
         "operationId": "postOperatorNetvisorSnapshot",
         "parameters": [
           {
@@ -12628,7 +12628,7 @@
               }
             }
           },
-          "description": "one snapshot: dates YYYY-MM-DD, amounts decimal text",
+          "description": "one snapshot: dates YYYY-MM-DD, amounts decimal text; a card line's account_number is 1-12 digits or \"\" (none, e.g. a credit_einvoice line)",
           "required": true
         },
         "responses": {
@@ -17311,7 +17311,7 @@
     },
     "/v1/view/netvisor/card-costs": {
       "get": {
-        "description": "Spec 125 B5 (C7): the browser session of the workspace's Netvisor owner ONLY (netvisor_settings.owner_human_id). 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone and an agent seat; 403 forbidden for every other member, admins included; 404 not_found in every workspace but the operator workspace. No MCP tool (C8).",
+        "description": "Spec 125 B5 (C7): the browser session of the workspace's Netvisor owner ONLY (netvisor_settings.owner_human_id). 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone and an agent seat; 403 forbidden for every other member, admins included; 404 not_found in every workspace but the Netvisor workspace (cnf SPOOL_HUB_NETVISOR_WORKSPACE: csitea), the operator workspace included. No MCP tool (C8).",
         "operationId": "getNetvisorCardCosts",
         "parameters": [
           {
@@ -17345,7 +17345,7 @@
     },
     "/v1/view/netvisor/forecast": {
       "get": {
-        "description": "Spec 125 B5 (C7): the browser session of the workspace's Netvisor owner ONLY (netvisor_settings.owner_human_id). 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone and an agent seat; 403 forbidden for every other member, admins included; 404 not_found in every workspace but the operator workspace. No MCP tool (C8).",
+        "description": "Spec 125 B5 (C7): the browser session of the workspace's Netvisor owner ONLY (netvisor_settings.owner_human_id). 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone and an agent seat; 403 forbidden for every other member, admins included; 404 not_found in every workspace but the Netvisor workspace (cnf SPOOL_HUB_NETVISOR_WORKSPACE: csitea), the operator workspace included. No MCP tool (C8).",
         "operationId": "getNetvisorForecast",
         "parameters": [
           {

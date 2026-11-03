@@ -255,7 +255,7 @@ func normNetvisorCardLine(l *NetvisorCardCostLine) error {
 		return nvsBad("card line")
 	case l.Month.IsZero() || l.Month.Day() != 1:
 		return nvsBad("card month")
-	case !nvsAccountRe.MatchString(l.AccountNumber):
+	case l.AccountNumber != "" && !nvsAccountRe.MatchString(l.AccountNumber):
 		return nvsBad("card account")
 	case !nvsAmountRe.MatchString(l.Amount) || !nvsCurrencyRe.MatchString(l.Currency):
 		return nvsBad("card amount")

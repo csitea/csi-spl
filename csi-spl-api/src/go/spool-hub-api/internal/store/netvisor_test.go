@@ -304,3 +304,45 @@ func TestNetvisorStoreRefresh(t *testing.T) {
 		t.Fatalf("the answering fetch left the request open: %v %v", at, err)
 	}
 }
+
+// TestNetvisorStoreCardLineNoAccount (B5 fix, SPL-4742, rdb 0258): a card
+// line with no bookkeeping account (a credit-card e-invoice line) is filed
+// and read back with account_number ""; a value given is still 1-12 digits,
+// in the store and in the table's CHECK.
+func TestNetvisorStoreCardLineNoAccount(t *testing.T) {
+	pg := rlsStore(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	a := newTenant(t, pg)
+	nvsSeed(t, pg, a, nvsOwner)
+	snap := nvsSnap(now.Add(time.Second))
+	snap.CardLines = append(snap.CardLines, NetvisorCardCostLine{LineNo: 1, Month: snap.CardLines[0].Month,
+		Route: "credit_einvoice", Vendor: "vendor-z", Amount: "7.00"})
+	filed, err := pg.NetvisorIngest(ctx, a, snap)
+	if err != nil {
+		t.Fatalf("ingest of a line without an account = %v", err)
+	}
+	got, err := pg.NetvisorLatest(ctx, a, nvsOwner, "test")
+	if err != nil || got.SnapshotID != filed.SnapshotID || len(got.CardLines) != 2 {
+		t.Fatalf("latest = %+v %v, want the two lines of %s", got, err, filed.SnapshotID)
+	}
+	if l := got.CardLines[1]; l.AccountNumber != "" || l.Route != "credit_einvoice" || l.Amount != "7.00" {
+		t.Errorf("the line without an account read back as %+v", l)
+	}
+	if got.CardLines[0].AccountNumber != "4000" {
+		t.Errorf("the line with an account read back as %+v", got.CardLines[0])
+	}
+	bad := nvsSnap(now.Add(2 * time.Second))
+	bad.CardLines[0].AccountNumber = "40x0"
+	if _, err := pg.NetvisorIngest(ctx, a, bad); !errors.Is(err, ErrBadNetvisor) {
+		t.Errorf("ingest of account 40x0 = %v, want ErrBadNetvisor", err)
+	}
+	var def string
+	if err := pg.pool.QueryRow(ctx, `SELECT pg_get_constraintdef(oid) FROM pg_constraint
+		WHERE conname = 'netvisor_card_cost_lines_account_number_check'`).Scan(&def); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(def, `^([0-9]{1,12})?$`) {
+		t.Errorf("account_number CHECK = %s, want rdb 0258's", def)
+	}
+}

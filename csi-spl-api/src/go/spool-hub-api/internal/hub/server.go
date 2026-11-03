@@ -216,6 +216,10 @@ type Options struct {
 	// value claimed at start and used while no row is flagged. "" with no
 	// flag = those routes are off.
 	OperatorTenant string
+	// NetvisorWorkspace is the one workspace that keeps Netvisor finance data
+	// (spec 125 B5, netvisor.go; cnf SPOOL_HUB_NETVISOR_WORKSPACE): every
+	// Netvisor route serves it only. "" = those routes are off (404).
+	NetvisorWorkspace string
 	// DemoWorkspace is the one workspace a demo_user may act in (specs/077,
 	// demo.go); "" = the demo is off (SPOOL_HUB_DEMO_ENABLED false, the
 	// default): a demo_user membership grants nothing and GET /v1/demo is 404.

@@ -297,5 +297,5 @@ func (s *Server) routeOperator(mux *http.ServeMux) {
 	s.routeChannelMove(mux)         // spec 169 T7: a channel into another workspace, channel_move.go
 	s.routeCostIngest(mux)          // spec 123 lane 4: the box feed of cost lines, cost_ingest.go
 	s.routeOperatorHumanEmails(mux) // HUM-10 1ee61a2b: a pending sign-in email, human_email_operator.go
-	s.routeOperatorNetvisor(mux)    // spec 125 B5: the main-box Netvisor sync, operator workspace only, netvisor.go
+	s.routeOperatorNetvisor(mux)    // spec 125 B5: the main-box Netvisor sync, Netvisor workspace only, netvisor.go
 }

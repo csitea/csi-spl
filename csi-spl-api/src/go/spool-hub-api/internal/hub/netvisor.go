@@ -31,13 +31,15 @@ import (
 // an act-as clone, a session that is not a person (realmRefuses) and every
 // member who is not netvisor_settings.owner_human_id, admins included: the
 // check is the session's human id against the owner the STORE holds (data,
-// never a literal), not a role. 404 in every workspace but the operator
-// workspace (csitea): no other workspace has Netvisor data. Behind the door
+// never a literal), not a role. 404 in every workspace but the Netvisor
+// workspace (Options.NetvisorWorkspace, cnf: csitea), the operator workspace
+// included: no other workspace has Netvisor data. Behind the door
 // rdb 0255's RLS is the second wall: the store reads as that human, so a
 // wrong door would still read 0 rows.
 //
 // The operator's routes, the main-box sync (B6) as the env's service account
-// (operatorAuth), in the operator workspace only:
+// (operatorAuth), into the Netvisor workspace only (never the operator
+// workspace unless cnf names it):
 //
 //	PUT  /v1/operator/netvisor/owner      names the owner (C7)
 //	POST /v1/operator/netvisor/snapshots  files one fetch: counts back
@@ -75,7 +77,7 @@ func (s *Server) routeOperatorNetvisor(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/operator/netvisor/refresh", s.handleOperatorNetvisorRefresh)
 }
 
-// nvsOwner is the caller of an owner route: the operator workspace, its
+// nvsOwner is the caller of an owner route: the Netvisor workspace, its
 // Netvisor owner (the session's human) and that owner's settings.
 type nvsOwner struct {
 	tenant, hum string
@@ -104,10 +106,7 @@ func (s *Server) netvisorOwner(w http.ResponseWriter, r *http.Request) (nvsOwner
 	if !s.netvisorPerson(w, r, t.ID, hum) {
 		return nvsOwner{}, false
 	}
-	if op, err := s.operatorTenant(r.Context()); err != nil {
-		writeErr(w, http.StatusServiceUnavailable, "unavailable", "the operator workspace was not read")
-		return nvsOwner{}, false
-	} else if op == "" || t.ID != op {
+	if nw := s.o.NetvisorWorkspace; nw == "" || t.ID != nw {
 		writeErr(w, http.StatusNotFound, "not_found", "this workspace keeps no Netvisor data")
 		return nvsOwner{}, false
 	}
@@ -289,25 +288,23 @@ func (s *Server) handleNetvisorSettingsPut(w http.ResponseWriter, r *http.Reques
 }
 
 // netvisorOperator is the operator routes' door: the env's service account,
-// on the operator workspace; a request that names another workspace (its
-// Host or X-Spool-Tenant) is 403. false = answered.
+// on the Netvisor workspace (Options.NetvisorWorkspace); a request that
+// names another workspace (its Host or X-Spool-Tenant), the operator
+// workspace included, is 403, and one that names none files into the
+// Netvisor workspace. false = answered.
 func (s *Server) netvisorOperator(w http.ResponseWriter, r *http.Request) (string, string, store.Netvisor, bool) {
 	email, ok := s.operatorAuth(w, r)
 	if !ok {
 		return "", "", nil, false
 	}
-	op, err := s.operatorTenant(r.Context())
-	if err != nil {
-		writeErr(w, http.StatusServiceUnavailable, "unavailable", "the operator workspace was not read")
-		return "", "", nil, false
-	}
+	op := s.o.NetvisorWorkspace
 	if op == "" {
-		writeErr(w, http.StatusNotFound, "not_found", "this hub names no operator workspace")
+		writeErr(w, http.StatusNotFound, "not_found", "this hub names no Netvisor workspace")
 		return "", "", nil, false
 	}
 	host, named := s.hostTenantID(r), strings.ToLower(strings.TrimSpace(r.Header.Get(TenantHeader)))
 	if (host != "" && host != op) || (named != "" && named != op) {
-		writeErr(w, http.StatusForbidden, "operator_workspace_only", "Netvisor data is kept in the operator workspace only")
+		writeErr(w, http.StatusForbidden, "netvisor_workspace_only", "Netvisor data is kept in the Netvisor workspace only")
 		return "", "", nil, false
 	}
 	nv, has := s.o.Store.(store.Netvisor)
@@ -319,7 +316,7 @@ func (s *Server) netvisorOperator(w http.ResponseWriter, r *http.Request) (strin
 }
 
 // PUT /v1/operator/netvisor/owner: {human_id}, a person seated in the
-// operator workspace (not an act-as clone).
+// Netvisor workspace (not an act-as clone).
 func (s *Server) handleOperatorNetvisorOwner(w http.ResponseWriter, r *http.Request) {
 	op, by, nv, ok := s.netvisorOperator(w, r)
 	if !ok {
@@ -333,7 +330,7 @@ func (s *Server) handleOperatorNetvisorOwner(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if _, err := s.access(r.Context(), in.HumanID, op); err != nil || s.readerIsActAsClone(r.Context(), op, in.HumanID) {
-		writeErr(w, http.StatusConflict, "not_member", "the owner must be a person seated in the operator workspace")
+		writeErr(w, http.StatusConflict, "not_member", "the owner must be a person seated in the Netvisor workspace")
 		return
 	}
 	if err := nv.NetvisorSetOwner(r.Context(), op, in.HumanID, by, s.o.Now().UTC()); err != nil {

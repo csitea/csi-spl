@@ -43,25 +43,45 @@ var nvsOwnerRoutes = []struct {
 		"vat_accounts": []string{"2939"}, "tax_accounts": []string{"2930"}, "vendor_exclusions": []string{"vendor-y"}}, http.StatusOK},
 }
 
-// nvsRig: op is the operator workspace with the owner (a developer, so an
-// admin may act as them: the act-as ceiling) and one snapshot; other is
-// another workspace.
+// nvsRig: fin is the Netvisor workspace (cnf SPOOL_HUB_NETVISOR_WORKSPACE,
+// csitea on dev and prd) with the owner (a developer, so an admin may act
+// as them: the act-as ceiling) and one snapshot; apex is the hub's operator
+// workspace (t1 on dev), which keeps no Netvisor data; other is a third
+// workspace.
 type nvsRig struct {
-	r         *doorRig
-	op, other string
-	owner     string
-	email     string // the owner's sign-in email
-	ownerB    *http.Client
+	r                *doorRig
+	fin, apex, other string
+	owner            string
+	email            string // the owner's sign-in email
+	ownerB           *http.Client
 }
 
 func newNvsRig(t *testing.T) *nvsRig {
 	t.Helper()
+	n := newNvsRigBare(t)
+	n.email = freshEmail()
+	n.owner = join(t, n.r.e, n.email, n.fin) // a developer
+	n.ownerB = n.signIn(t, n.email, n.fin)
+	if code, out := opCall(t, n.r.e, n.fin, http.MethodPut, "/v1/operator/netvisor/owner", "good", map[string]any{"human_id": n.owner}); code != http.StatusOK {
+		t.Fatalf("set owner: %d %v", code, out)
+	}
+	if code, out := opCall(t, n.r.e, n.fin, http.MethodPost, "/v1/operator/netvisor/snapshots", "good", nvsBody(time.Now())); code != http.StatusOK {
+		t.Fatalf("ingest: %d %v", code, out)
+	}
+	return n
+}
+
+// newNvsRigBare is the rig's three workspaces and the hub, with no
+// Netvisor owner yet.
+func newNvsRigBare(t *testing.T) *nvsRig {
+	t.Helper()
 	if os.Getenv("SPOOL_TEST_PG_DSN") == "" {
 		t.Skip("the Netvisor store needs Postgres (SPOOL_TEST_PG_DSN)")
 	}
-	n := &nvsRig{op: newTenantID("nv"), other: newTenantID("nw")}
+	n := &nvsRig{fin: newTenantID("nv"), apex: newTenantID("na"), other: newTenantID("nw")}
 	n.r = newDoorRig(t, func(o *hub.Options) {
-		o.OperatorTenant = n.op
+		o.OperatorTenant = n.apex
+		o.NetvisorWorkspace = n.fin
 		o.OperatorEmails = []string{operatorSA}
 		o.OperatorAudience = "https://api.dev.example"
 		o.OperatorVerify = func(_ context.Context, token, _ string) (string, error) {
@@ -74,20 +94,11 @@ func newNvsRig(t *testing.T) *nvsRig {
 			return "", errors.New("token rejected")
 		}
 	})
-	for _, id := range []string{n.op, n.other} {
+	for _, id := range []string{n.fin, n.apex, n.other} {
 		pub, _, _ := ed25519.GenerateKey(nil)
 		if err := n.r.e.st.CreateTenant(context.Background(), store.Tenant{ID: id, RootPubKey: pub}); err != nil {
 			t.Fatal(err)
 		}
-	}
-	n.email = freshEmail()
-	n.owner = join(t, n.r.e, n.email, n.op) // a developer
-	n.ownerB = n.signIn(t, n.email, n.op)
-	if code, out := opCall(t, n.r.e, n.op, http.MethodPut, "/v1/operator/netvisor/owner", "good", map[string]any{"human_id": n.owner}); code != http.StatusOK {
-		t.Fatalf("set owner: %d %v", code, out)
-	}
-	if code, out := opCall(t, n.r.e, n.op, http.MethodPost, "/v1/operator/netvisor/snapshots", "good", nvsBody(time.Now())); code != http.StatusOK {
-		t.Fatalf("ingest: %d %v", code, out)
 	}
 	return n
 }
@@ -188,13 +199,13 @@ func TestNetvisorHubRBAC(t *testing.T) {
 			t.Errorf("CONTROL: owner %s %s carries no figure: %s", rt.method, rt.path, body)
 		}
 	}
-	adminB, admin := n.as(t, n.op, rbac.Admin)
-	cloneB, _ := n.as(t, n.op, rbac.Admin)
+	adminB, admin := n.as(t, n.fin, rbac.Admin)
+	cloneB, _ := n.as(t, n.fin, rbac.Admin)
 	n.actAs(t, cloneB, n.owner)
-	agentB, _ := n.as(t, n.op, rbac.PureAgent)
-	desk := n.r.e.box(n.op, "box-nv1", "c-101")
-	n.r.e.pin(n.op, desk)
-	deskTok := n.r.e.uploadToken(n.op, desk)
+	agentB, _ := n.as(t, n.fin, rbac.PureAgent)
+	desk := n.r.e.box(n.fin, "box-nv1", "c-101")
+	n.r.e.pin(n.fin, desk)
+	deskTok := n.r.e.uploadToken(n.fin, desk)
 	callers := []struct {
 		name   string
 		b      *http.Client
@@ -242,7 +253,7 @@ func TestNetvisorCrossTenant(t *testing.T) {
 		}
 	}
 	for _, path := range []string{"/v1/operator/netvisor/refresh"} {
-		req, _ := http.NewRequest(http.MethodGet, n.r.e.url(n.op)+path, nil)
+		req, _ := http.NewRequest(http.MethodGet, n.r.e.url(n.fin)+path, nil)
 		req.Header.Set("Authorization", "Bearer good")
 		req.Header.Set(hub.TenantHeader, n.other)
 		resp, err := n.r.e.client.Do(req)
@@ -272,11 +283,11 @@ func TestNetvisorOperatorIngest(t *testing.T) {
 		token string
 		want  int
 	}{{"", http.StatusUnauthorized}, {"forged", http.StatusUnauthorized}, {"stranger", http.StatusForbidden}} {
-		if code, out := opCall(t, n.r.e, n.op, http.MethodPost, ingest, c.token, nvsBody(time.Now())); code != c.want {
+		if code, out := opCall(t, n.r.e, n.fin, http.MethodPost, ingest, c.token, nvsBody(time.Now())); code != c.want {
 			t.Errorf("token %q: %d %v, want %d", c.token, code, out, c.want)
 		}
 	}
-	code, out := opCall(t, n.r.e, n.op, http.MethodPost, ingest, "good", nvsBody(time.Now()))
+	code, out := opCall(t, n.r.e, n.fin, http.MethodPost, ingest, "good", nvsBody(time.Now()))
 	if code != http.StatusOK || out["items"] != float64(2) || out["card_lines"] != float64(1) || out["env"] != "test" {
 		t.Fatalf("CONTROL: ingest %d %v", code, out)
 	}
@@ -288,22 +299,22 @@ func TestNetvisorOperatorIngest(t *testing.T) {
 	for name, mut := range map[string]func(map[string]any){
 		"bad date":      func(b map[string]any) { b["as_of"] = "03.11.2026" },
 		"float amount":  func(b map[string]any) { b["items"].([]map[string]any)[0]["amount"] = "1.234" },
-		"unknown field": func(b map[string]any) { b["tenant_id"] = n.op },
+		"unknown field": func(b map[string]any) { b["tenant_id"] = n.fin },
 		"bad category":  func(b map[string]any) { b["items"].([]map[string]any)[0]["category"] = "salary" },
 	} {
 		b := nvsBody(time.Now())
 		mut(b)
-		if code, out := opCall(t, n.r.e, n.op, http.MethodPost, ingest, "good", b); code != http.StatusBadRequest {
+		if code, out := opCall(t, n.r.e, n.fin, http.MethodPost, ingest, "good", b); code != http.StatusBadRequest {
 			t.Errorf("%s: %d %v, want 400", name, code, out)
 		}
 	}
 	prd := nvsBody(time.Now())
 	prd["env"] = "prd"
-	if code, out := opCall(t, n.r.e, n.op, http.MethodPost, ingest, "good", prd); code != http.StatusConflict || out["error"] != "env_mismatch" {
+	if code, out := opCall(t, n.r.e, n.fin, http.MethodPost, ingest, "good", prd); code != http.StatusConflict || out["error"] != "env_mismatch" {
 		t.Errorf("prd snapshot under test settings: %d %v, want 409 env_mismatch", code, out)
 	}
 	_, outsider := n.as(t, n.other, rbac.Admin)
-	if code, out := opCall(t, n.r.e, n.op, http.MethodPut, "/v1/operator/netvisor/owner", "good", map[string]any{"human_id": outsider}); code != http.StatusConflict {
+	if code, out := opCall(t, n.r.e, n.fin, http.MethodPut, "/v1/operator/netvisor/owner", "good", map[string]any{"human_id": outsider}); code != http.StatusConflict {
 		t.Errorf("owner from another workspace: %d %v, want 409", code, out)
 	}
 	nvsRefreshFlow(t, n)
@@ -314,7 +325,7 @@ func TestNetvisorOperatorIngest(t *testing.T) {
 func nvsRefreshFlow(t *testing.T, n *nvsRig) {
 	t.Helper()
 	poll := func() any {
-		code, out := opCall(t, n.r.e, n.op, http.MethodGet, "/v1/operator/netvisor/refresh", "good", nil)
+		code, out := opCall(t, n.r.e, n.fin, http.MethodGet, "/v1/operator/netvisor/refresh", "good", nil)
 		if code != http.StatusOK {
 			t.Fatalf("poll: %d %v", code, out)
 		}
@@ -331,10 +342,113 @@ func nvsRefreshFlow(t *testing.T, n *nvsRig) {
 	if _, again := n.nvsDo(t, n.ownerB, http.MethodPost, "/v1/netvisor/refresh", "", nil); !strings.Contains(again, at.(string)) {
 		t.Errorf("a second press moved the request: %s, want %v", again, at)
 	}
-	if code, out := opCall(t, n.r.e, n.op, http.MethodPost, "/v1/operator/netvisor/snapshots", "good", nvsBody(time.Now().Add(time.Second))); code != http.StatusOK {
+	if code, out := opCall(t, n.r.e, n.fin, http.MethodPost, "/v1/operator/netvisor/snapshots", "good", nvsBody(time.Now().Add(time.Second))); code != http.StatusOK {
 		t.Fatalf("answering ingest: %d %v", code, out)
 	}
 	if at := poll(); at != nil {
 		t.Errorf("the snapshot did not clear the request: %v", at)
+	}
+}
+
+// nvsOpRefresh is GET /v1/operator/netvisor/refresh as the operator service
+// account on host's workspace, naming named in X-Spool-Tenant ("" = none).
+func nvsOpRefresh(t *testing.T, n *nvsRig, host, named string) (int, string) {
+	t.Helper()
+	req, _ := http.NewRequest(http.MethodGet, n.r.e.url(host)+"/v1/operator/netvisor/refresh", nil)
+	req.Header.Set("Authorization", "Bearer good")
+	if named != "" {
+		req.Header.Set(hub.TenantHeader, named)
+	}
+	resp, err := n.r.e.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, string(raw)
+}
+
+// TestNetvisorFinanceWorkspaceOnly (B5 fix, SPL-4742): the operator routes
+// serve the Netvisor workspace (csitea) only: 409 no_owner before the owner
+// is named, then 200; the operator workspace (t1, the apex) and a third
+// workspace get 403 netvisor_workspace_only, by Host or by X-Spool-Tenant,
+// and write nothing. The owner seated in the operator workspace gets 404 on
+// the owner routes there. RED CONTROL: point netvisorOperator back at
+// operatorTenant and the Netvisor workspace's 409 / 200 turn 403.
+func TestNetvisorFinanceWorkspaceOnly(t *testing.T) {
+	n := newNvsRigBare(t)
+	if code, body := nvsOpRefresh(t, n, n.fin, n.fin); code != http.StatusConflict || !strings.Contains(body, "no_owner") {
+		t.Fatalf("Netvisor workspace, no owner yet = %d %s, want 409 no_owner", code, body)
+	}
+	if code, out := opCall(t, n.r.e, n.fin, http.MethodPost, "/v1/operator/netvisor/snapshots", "good", nvsBody(time.Now())); code != http.StatusConflict || out["error"] != "no_owner" {
+		t.Fatalf("ingest before the owner = %d %v, want 409 no_owner", code, out)
+	}
+	n.email = freshEmail()
+	n.owner = join(t, n.r.e, n.email, n.fin)
+	for _, tid := range []string{n.apex, n.other} {
+		if code, out := opCall(t, n.r.e, tid, http.MethodPut, "/v1/operator/netvisor/owner", "good", map[string]any{"human_id": n.owner}); code != http.StatusForbidden || out["error"] != "netvisor_workspace_only" {
+			t.Errorf("set owner on %s's host = %d %v, want 403 netvisor_workspace_only", tid, code, out)
+		}
+	}
+	if code, out := opCall(t, n.r.e, n.fin, http.MethodPut, "/v1/operator/netvisor/owner", "good", map[string]any{"human_id": n.owner}); code != http.StatusOK || out["workspace"] != n.fin {
+		t.Fatalf("set owner on the Netvisor workspace = %d %v", code, out)
+	}
+	if code, body := nvsOpRefresh(t, n, n.fin, ""); code != http.StatusOK {
+		t.Errorf("Netvisor workspace poll = %d %s, want 200", code, body)
+	}
+	for _, c := range []struct{ host, named string }{{n.apex, ""}, {n.other, ""}, {n.fin, n.apex}, {n.fin, n.other}} {
+		if code, body := nvsOpRefresh(t, n, c.host, c.named); code != http.StatusForbidden || !strings.Contains(body, "netvisor_workspace_only") {
+			t.Errorf("poll host %s naming %q = %d %s, want 403", c.host, c.named, code, body)
+		}
+	}
+	for _, tid := range []string{n.apex, n.other} {
+		if code, out := opCall(t, n.r.e, tid, http.MethodPost, "/v1/operator/netvisor/snapshots", "good", nvsBody(time.Now())); code != http.StatusForbidden {
+			t.Errorf("ingest on %s's host = %d %v, want 403", tid, code, out)
+		}
+	}
+	if hum := join(t, n.r.e, n.email, n.apex); hum != n.owner {
+		t.Fatalf("join apex seated %s, want the owner %s", hum, n.owner)
+	}
+	atApex := n.signIn(t, n.email, n.apex)
+	for _, rt := range nvsOwnerRoutes {
+		if code, body := n.nvsDo(t, atApex, rt.method, rt.path, "", rt.body); code != http.StatusNotFound {
+			t.Errorf("the owner in the operator workspace: %s %s = %d %s, want 404", rt.method, rt.path, code, body)
+		}
+	}
+}
+
+// TestNetvisorCardLineNoAccount (B5 fix, SPL-4742, rdb 0258): a card line
+// with no account_number (a credit-card e-invoice line) ingests, and the
+// owner reads it back with account_number ""; a non-digit account is 400.
+func TestNetvisorCardLineNoAccount(t *testing.T) {
+	n := newNvsRig(t)
+	b := nvsBody(time.Now().Add(time.Second))
+	month := b["card_lines"].([]map[string]any)[0]["month"]
+	b["card_lines"] = append(b["card_lines"].([]map[string]any),
+		map[string]any{"line_no": 1, "month": month, "route": "credit_einvoice", "vendor": "vendor-z", "amount": "7.00"})
+	if code, out := opCall(t, n.r.e, n.fin, http.MethodPost, "/v1/operator/netvisor/snapshots", "good", b); code != http.StatusOK || out["card_lines"] != float64(2) {
+		t.Fatalf("ingest of a line without an account = %d %v, want 200 and 2 lines", code, out)
+	}
+	code, body := n.nvsDo(t, n.ownerB, http.MethodGet, "/v1/view/netvisor/card-costs", "", nil)
+	var got struct {
+		Lines []struct {
+			Route         string `json:"route"`
+			AccountNumber string `json:"account_number"`
+			Amount        string `json:"amount"`
+		} `json:"lines"`
+	}
+	if err := json.Unmarshal([]byte(body), &got); code != http.StatusOK || err != nil || len(got.Lines) != 2 {
+		t.Fatalf("card-costs = %d %s (%v), want 2 lines", code, body, err)
+	}
+	if l := got.Lines[1]; l.Route != "credit_einvoice" || l.AccountNumber != "" || l.Amount != "7.00" {
+		t.Errorf("the line without an account read back as %+v", l)
+	}
+	if got.Lines[0].AccountNumber != "4000" {
+		t.Errorf("the line with an account read back as %+v", got.Lines[0])
+	}
+	bad := nvsBody(time.Now().Add(2 * time.Second))
+	bad["card_lines"].([]map[string]any)[0]["account_number"] = "40x0"
+	if code, out := opCall(t, n.r.e, n.fin, http.MethodPost, "/v1/operator/netvisor/snapshots", "good", bad); code != http.StatusBadRequest {
+		t.Errorf("ingest of account 40x0 = %d %v, want 400", code, out)
 	}
 }

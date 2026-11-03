@@ -2,8 +2,9 @@
 
 Spec 125 rows B4 and B5 ([spec](../../specs/125-netvisor-integration/spec.md)
 sections 5.2 and 7, cases C-NVS-4 and C-NVS-5), issues SPL-4721 (schema and
-store) and SPL-4732 (hub routes, section 5). The WUI screen is B7
-(SPL-4741, section 6), the main-box sync B6.
+store) and SPL-4732 (hub routes, section 5); SPL-4742 moved the routes to
+the Netvisor workspace and made a card line's account optional (rdb
+`0258`). The WUI screen is B7 (SPL-4741, section 6), the main-box sync B6.
 
 ## 1. Tables (rdb `0255_netvisor_finance.sql`)
 
@@ -12,7 +13,7 @@ store) and SPL-4732 (hub routes, section 5). The WUI screen is B7
 | `netvisor_settings` | workspace | `owner_human_id` (the ONE human who reads the data, C7), `env` (`test` or `prd`), the bank, VAT and tax bookkeeping account numbers, the spec-123 vendor exclusion list, `refresh_requested_at` (the open "Refresh now", rdb `0257`) |
 | `netvisor_snapshots` | fetch | `owner_human_id`, `env`, `as_of`, `month_end`, `newest_bank_voucher_date`, `fetched_at` |
 | `netvisor_forecast_items` | month-end term | category, sign, amount (`numeric(18,2)`), currency, due date, overdue, approved, label |
-| `netvisor_card_cost_lines` | card cost line | month, route, vendor, account number and name, dimension and item, amount, VAT code, excluded |
+| `netvisor_card_cost_lines` | card cost line | month, route, vendor, account number (1-12 digits, or `''` for none, rdb `0258`: a credit-card e-invoice line names no account) and name, dimension and item, amount, VAT code, excluded |
 
 Items and lines carry their snapshot's `owner_human_id` under a composite FK,
 so a row can never be filed under another human than its snapshot. A
@@ -85,6 +86,9 @@ In `csi-spl-api/src/go/spool-hub-api/internal/store`, on Postgres
   snapshots.
 - `TestNetvisorStoreRefresh`: only the owner opens a refresh; a second press
   keeps the first time; an older fetch leaves it open, a newer one clears it.
+- `TestNetvisorStoreCardLineNoAccount`: a line with no account files and
+  reads back with `account_number` `''`; `40x0` is refused; the table's CHECK
+  is rdb `0258`'s.
 - `TestRLSCoversEveryTenantTable`, `TestRLSPoliciesFailClosed` and
   `TestCrossTenantEveryTable` cover the four tables;
   `TestSQLExecutorRefusesRelations` covers the Reporting SQL refusal.
@@ -94,6 +98,13 @@ In `csi-spl-api/src/go/spool-hub-api/internal/store`, on Postgres
 Bodies: `internal/wire/netvisor.go`; operations: `internal/hub/openapi.json`
 (tag `netvisor`, and `operator`). No MCP tool, no `spool` CLI read and no
 spool message carries a figure (C8).
+
+Every route serves ONE workspace, the Netvisor workspace: cnf
+`env.hub.env.SPOOL_HUB_NETVISOR_WORKSPACE` in `csi-spl-cnf/csi-spl/all.env.yaml`
+(`csitea` on dev and prd; spec 125 B5 "csitea tenant only"), read into
+`Options.NetvisorWorkspace`, never a code literal. It is not the hub's
+operator workspace (`t1`, the apex on dev): that one is refused like any
+other. Unset, every Netvisor route is `404`.
 
 ### 5.1 The owner's routes
 
@@ -113,7 +124,7 @@ One door (`netvisorOwner`) for all five:
 | any request with an `Authorization` header: a box or agent desk token, a CLI token, the operator service account | `403 person_only` |
 | an act-as clone (of the owner too), an agent seat (`realmRefuses`) | `403 person_only` |
 | every other member, admins included | `403 forbidden` (`netvisor.owner`) |
-| a member of another workspace, the owner signed in to another workspace | `404 not_found` |
+| a member of another workspace (the operator workspace too), the owner signed in to another workspace | `404 not_found` |
 | no session | `401` |
 
 The owner check is the session's human id against the `owner_human_id`
@@ -124,14 +135,16 @@ another admin gets `200` but `snapshot: null`, no row.
 
 ### 5.2 The operator's routes (the main-box sync, B6)
 
-The env's operator service account (`operatorAuth`, a Bearer id token), in
-the operator workspace only; a request whose Host or `X-Spool-Tenant` names
-another workspace is `403 operator_workspace_only`.
+The env's operator service account (`operatorAuth`, a Bearer id token),
+into the Netvisor workspace only; a request whose Host or `X-Spool-Tenant`
+names another workspace, the operator workspace included, is
+`403 netvisor_workspace_only` and writes nothing. One that names none (the
+api host, no header) files into the Netvisor workspace.
 
 | route | answer |
 |---|---|
-| `PUT /v1/operator/netvisor/owner` | `{human_id}` names the owner; `409 not_member` unless a person seated in the operator workspace |
-| `POST /v1/operator/netvisor/snapshots` | one snapshot (dates `YYYY-MM-DD`, amounts decimal text); `200 {snapshot_id, env, items, card_lines}`, counts only; `409 no_owner`, `409 env_mismatch`, `400 bad_snapshot` |
+| `PUT /v1/operator/netvisor/owner` | `{human_id}` names the owner; `409 not_member` unless a person seated in the Netvisor workspace |
+| `POST /v1/operator/netvisor/snapshots` | one snapshot (dates `YYYY-MM-DD`, amounts decimal text, a card line's `account_number` 1-12 digits or `""`/absent for none); `200 {snapshot_id, env, items, card_lines}`, counts only; `409 no_owner`, `409 env_mismatch`, `400 bad_snapshot` |
 | `GET /v1/operator/netvisor/refresh` | `{refresh_requested_at}`, null when none is open (the B6 poller) |
 
 Logs carry the workspace, ids, counts and outcomes, never an amount, an
@@ -149,6 +162,15 @@ act-as):
 - `TestNetvisorCrossTenant`: an admin of another workspace and the owner
   signed in to another workspace get `404`; the operator routes refuse
   another workspace (`403`).
+- `TestNetvisorFinanceWorkspaceOnly`: the Netvisor workspace answers the
+  operator routes `409 no_owner` before the owner is named, then `200`; the
+  operator workspace and a third workspace get `403 netvisor_workspace_only`
+  by Host or `X-Spool-Tenant`; the owner seated in the operator workspace
+  gets `404` on the owner routes there. Red control: `netvisorOperator`
+  pointed back at `operatorTenant` turns the Netvisor workspace's `409` into
+  `403`.
+- `TestNetvisorCardLineNoAccount`: a card line without `account_number`
+  ingests and the owner reads it back with `""`; `40x0` is `400`.
 - `TestNetvisorOperatorIngest`: operator auth (`401`, `403`), counts-only
   answer, the `400` and `409` refusals, the refresh request from the press to
   the snapshot that clears it.

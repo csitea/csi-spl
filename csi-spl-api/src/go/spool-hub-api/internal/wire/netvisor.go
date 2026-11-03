@@ -4,7 +4,7 @@ package wire
 // build row B5, SPL-4732; owner HUM-10, topic fc0119cd). Two callers:
 //
 //   - the main-box sync (B6), as the env's operator service account, in the
-//     operator workspace only:
+//     Netvisor workspace only (cnf SPOOL_HUB_NETVISOR_WORKSPACE):
 //     PUT  /v1/operator/netvisor/owner      NetvisorOwnerBody -> NetvisorOwnerResponse
 //     POST /v1/operator/netvisor/snapshots  NetvisorSnapshotIn -> NetvisorIngestResponse
 //     GET  /v1/operator/netvisor/refresh    -> NetvisorRefreshResponse

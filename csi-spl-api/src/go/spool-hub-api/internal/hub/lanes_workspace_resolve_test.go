@@ -53,8 +53,15 @@ func TestLanesWorkspaceOfDispatchTopic(t *testing.T) {
 	for i, l := range v.Lanes {
 		row[l.AgentID+"|"+l.Scope] = i
 	}
+	at := func(k string) int {
+		i, ok := row[k]
+		if !ok {
+			t.Fatalf("no row %q in %v", k, scopes(v))
+		}
+		return i
+	}
 	for _, k := range []string{"c-531|scope of c-531", "|QUEUE csitea lane"} { // C58
-		l := v.Lanes[row[k]]
+		l := v.Lanes[at(k)]
 		if l.Workspace != cs || l.WorkspaceName != "Csitea" || l.TopicID != csTopic {
 			t.Errorf("C58 %s: workspace %q %q topic %q, want %s Csitea %s", k, l.Workspace, l.WorkspaceName, l.TopicID, cs, csTopic)
 		}
@@ -63,7 +70,7 @@ func TestLanesWorkspaceOfDispatchTopic(t *testing.T) {
 		}
 	}
 	for _, k := range []string{"c-532|scope of c-532", "|QUEUE twin lane"} { // C59
-		if l := v.Lanes[row[k]]; l.Workspace != r.op || l.TopicID != "" || l.TopicTitle != "" {
+		if l := v.Lanes[at(k)]; l.Workspace != r.op || l.TopicID != "" || l.TopicTitle != "" {
 			t.Errorf("C59 %s: workspace %q topic %q title %q, want the operator's, no topic", k, l.Workspace, l.TopicID, l.TopicTitle)
 		}
 	}

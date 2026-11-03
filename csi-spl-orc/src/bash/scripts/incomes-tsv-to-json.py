@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """incomes-tsv-to-json.py TENANT TSV: the body of PUT /v1/operator/incomes
-(SPL-4697, rdb 0257) from a TSV of invoices, checked with the table's rules.
+(SPL-4697, rdb 0258) from a TSV of invoices, checked with the table's rules.
 
 The TSV has one header line naming these columns, in any order:
 invoice_no payer period issue_date due_date hours unit_price net vat_pct vat

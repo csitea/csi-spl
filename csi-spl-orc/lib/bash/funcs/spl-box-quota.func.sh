@@ -113,17 +113,54 @@ spl_box_quota_log_scan() {
 spl_box_quota_log() {
   local now="${1:-$(date +%s)}" min="${LANE_QUOTA_LOG_MIN:-1440}"
   [[ "$min" =~ ^[0-9]+$ ]] || min=1440
-  if [[ -n "${LANE_QUOTA_LOG_DIR:-}" ]]; then
-    spl_box_quota_log_scan "$LANE_QUOTA_LOG_DIR" "$min" | spl_box_quota_parse claude "$now"; return 0
-  fi
-  [[ -z "${LANE_PANES_CMD:-}" ]] || return 0
+  spl_box_quota_agent_scan spl_box_quota_log_scan "$min" | spl_box_quota_parse claude "$now"
+}
+
+# spl_box_quota_agent_scan FUNC ARG: FUNC <claude projects dir> ARG, run as the
+# agent user (whose transcripts they are). Seam (tests): LANE_QUOTA_LOG_DIR
+# runs it on that dir as this user; a test that fakes the panes
+# (LANE_PANES_CMD) or the reading (LANE_QUOTA_CMD) without it runs nothing.
+spl_box_quota_agent_scan() {
+  if [[ -n "${LANE_QUOTA_LOG_DIR:-}" ]]; then "$1" "$LANE_QUOTA_LOG_DIR" "$2"; return; fi
+  [[ -z "${LANE_PANES_CMD:-}${LANE_QUOTA_CMD:-}" ]] || return 1
   declare -F spool_agent_exec >/dev/null ||
     source "$(dirname "${BASH_SOURCE[0]}")/../../../src/bash/features/spawn-agents/lib/spool-env.inc.sh"
   (
     [ -n "${SPOOL_AGENT_USER:-}" ] || SPOOL_ENV_NO_BINS=1 spool_env_resolve >/dev/null 2>&1
     SPOOL_RUN_AS_AGENT="${SPOOL_RUN_AS_AGENT:-su-dash}"
-    spool_agent_exec "$(declare -f spl_box_quota_log_scan); spl_box_quota_log_scan \"\$HOME/.claude/projects\" $min" </dev/null 2>/dev/null
-  ) | spl_box_quota_parse claude "$now"
+    spool_agent_exec "$(declare -f "$1"); $1 \"\$HOME/.claude/projects\" $(printf '%q' "$2")" </dev/null 2>/dev/null
+  )
+}
+
+# spl_box_quota_turn_scan DIR SINCE: exit 0 when DIR's transcripts hold a
+# real model answer (an assistant entry not "<synthetic>") newer than the
+# epoch SINCE: the login answered after that moment, so it was not at its
+# limit then (SPL-4702).
+spl_box_quota_turn_scan() {
+  local d="$1" since="$2" iso
+  [ -d "$d" ] || return 1
+  iso="$(date -u -d "@$since" +%Y-%m-%dT%H:%M:%S)" || return 1
+  find "$d" -name '*.jsonl' -newermt "@$since" -print0 2>/dev/null | xargs -0 -r grep -h -F '"type":"assistant"' 2>/dev/null |
+    grep -v -F '"model":"<synthetic>"' | grep -oE '"timestamp":"[^"]+"' | cut -d'"' -f4 |
+    awk -v t="$iso" '$0 > t { f = 1 } END { exit !f }'
+}
+
+# spl_box_quota_lifted SINCE: exit 0 when claude was measured WITH quota after
+# the epoch SINCE (SPL-4702: the login was swapped at 08:56Z, sat kept its
+# 07:57Z 100 % until the reset four days later). Either the login probe of
+# do_spl_agent_login_check ("<epoch> ok ...", LANE_QUOTA_PROBE_FILE, default
+# <LOGIN_STATE_DIR>/probe) said ok after SINCE, or a real answer in the agent
+# user's transcripts is newer than SINCE. A probe that says limited, or no
+# answer since, lifts nothing: a real limit holds until its reset.
+spl_box_quota_lifted() {
+  local since="$1" pf at verdict
+  [[ "$since" =~ ^[0-9]+$ ]] || return 1
+  pf="${LANE_QUOTA_PROBE_FILE:-${LOGIN_STATE_DIR:-/var/csi/csi-spl/agent-login-check}/probe}"
+  if [[ -z "${LANE_QUOTA_CMD:-}${LANE_PANES_CMD:-}" || -n "${LANE_QUOTA_PROBE_FILE:-}" ]] && read -r at verdict _ 2>/dev/null <"$pf" &&
+    [[ "$at" =~ ^[0-9]+$ && "$verdict" == ok ]] && (( at > since )); then
+    return 0
+  fi
+  spl_box_quota_agent_scan spl_box_quota_turn_scan "$since"
 }
 
 # spl_box_quota_cache_read [NOW]: the claude CLI's own cached usage (SPL-3849
@@ -199,11 +236,13 @@ spl_box_quota_keep_file() {
 # result as READING's form. Best effort: a file that cannot be written leaves
 # the answer of this call right and the next call starts from the old file.
 spl_box_quota_keep() {
-  local f rows now tmp
+  local f rows now tmp seen lifted=""
   f="$(spl_box_quota_keep_file)"
   [[ -n "$f" ]] || { echo "$1"; return 0; }
   now="$(date +%s)"
-  rows="$(cat "$f" 2>/dev/null | spl_box_quota_merge "$1" "$now" "${LANE_QUOTA_KEEP_S:-86400}" | sort)"
+  seen="$(awk -F'\t' '$1 == "claude" && $2 >= 100 && $4 ~ /^[0-9]+$/ { print $4; exit }' "$f" 2>/dev/null)"
+  [[ -n "$seen" ]] && spl_box_quota_lifted "$seen" && lifted=claude
+  rows="$(cat "$f" 2>/dev/null | spl_box_quota_merge "$1" "$now" "${LANE_QUOTA_KEEP_S:-86400}" "$lifted" | sort)"
   tmp="$f.tmp.$$"
   if mkdir -p "$(dirname "$f")" 2>/dev/null && { [[ -z "$rows" ]] || printf '%s\n' "$rows"; } 2>/dev/null >"$tmp"; then
     mv -f "$tmp" "$f" 2>/dev/null || rm -f "$tmp" 2>/dev/null
@@ -212,21 +251,23 @@ spl_box_quota_keep() {
   awk -F'\t' '{ printf "%s%s:%s%s", (NR > 1 ? "," : ""), $1, $2, ($3 != "" ? "@" $3 : "") } END { print "" }' <<<"$rows"
 }
 
-# spl_box_quota_merge READING NOW KEEP_S: the kept rows on stdin (kind TAB pct
+# spl_box_quota_merge READING NOW KEEP_S [LIFTED]: the kept rows on stdin (kind TAB pct
 # TAB reset epoch or empty TAB read at), the new rows on stdout. A reset that
 # passed drops its row; a row with no reset (grok names none) lasts KEEP_S,
 # since nothing says when its week ends and a box held on it would never be
 # measured again. A new reading replaces a kept one, except inside one reset
 # week (the two resets under a day apart, a banner rounds it): there usage only
-# climbs, so an older CLI cache read after a banner cannot lower it.
+# climbs, so an older CLI cache read after a banner cannot lower it. LIFTED
+# (kinds, comma-separated; spl_box_quota_lifted) drops those kept rows first:
+# the login had quota after they were read, so the new reading stands alone.
 spl_box_quota_merge() {
-  awk -F'\t' -v OFS='\t' -v live="$1" -v now="$2" -v keep="$3" '
+  awk -F'\t' -v OFS='\t' -v live="$1" -v now="$2" -v keep="$3" -v lifted="${4:-}" '
     function gone(k) { return (at[k] != "" ? at[k] <= now : now - seen[k] >= keep) }
     NF >= 4 && $1 ~ /^[a-z]+$/ && $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]*$/ && $4 ~ /^[0-9]+$/ {
       pct[$1] = $2; at[$1] = $3; seen[$1] = $4
     }
     END {
-      for (k in pct) if (gone(k)) delete pct[k]
+      for (k in pct) if (gone(k) || index("," lifted ",", "," k ",")) delete pct[k]
       n = split(live, v, ",")
       for (i = 1; i <= n; i++) {
         if (v[i] !~ /^[a-z]+:[0-9]+(@[0-9]+)?$/) continue

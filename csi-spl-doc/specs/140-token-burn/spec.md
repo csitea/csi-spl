@@ -777,9 +777,14 @@ non-intelligence alert to warn when the weekly limit approaches 90% , 95% and
   of the box user. `spl_box_quota_known` answers from it for the pick and for
   `wk=<kind>:<pct>[@<reset epoch>]` of the BOX-0 row, until the reset passes;
   the alert still reads the live value. Inside one reset week (resets under a
-  day apart) the % only climbs, another reset replaces it: a login switched to
-  one with a reset within that day stays high until the reset, delete the file
-  to clear it. A reading with no reset (grok names none) lasts
+  day apart) the % only climbs, another reset replaces it. A kept claude 100 %
+  drops once the login is measured with quota after it was read (SPL-4702;
+  2026-11-03 the login was swapped at 08:56Z and sat held claude lanes on its
+  07:57Z 100 % until the Nov 7 reset): the login probe of
+  `do_spl_agent_login_check` (`<state>/probe`) said `ok` after it, or a real
+  model answer in the agent user's transcripts is newer than it. A probe that
+  says `limited`, or no answer since, keeps it: a real limit holds until its
+  reset. A reading with no reset (grok names none) lasts
   `LANE_QUOTA_KEEP_S`, default 1 day: nothing says when its week ends, and a box
   held on it would never be measured again. Unknown now means never measured,
   the reading expired, or a BOX-0 row an hour old with no reset ahead.

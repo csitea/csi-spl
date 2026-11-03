@@ -31,7 +31,8 @@
 #          user's transcripts reads 100 until its reset, with no banner in a
 #          pane; a newer real answer, a passed reset, an entry older than
 #          LANE_QUOTA_LOG_MIN or a quote by a model -> no reading. SPL-4608: the
-#          last measured % is kept until its reset (16f-16k).
+#          last measured % is kept until its reset (16f-16k); a kept 100 drops
+#          once the login answers or probes ok after it (SPL-4702, 16l).
 #          17. a CORDONED box (do_spl_box_cordon, sat alone panel row 01)
 #          is never picked, not by the every-box-degraded fallback either;
 #          every box cordoned -> hold; an expired cordon is none.
@@ -564,6 +565,39 @@ wk "box-a:claude:96@$FUT:4000" "box-b:claude:40:60"
 out="$(BOX_QUOTA_RESET=1 LANE_QUOTA_STATE=/proc/nope/kept.tsv LANE_QUOTA_CMD="echo claude:95@$FUT" bash -c \
   'source "'"$PROJ_ROOT"'/lib/bash/funcs/spl-box-quota.func.sh"; spl_box_quota_known' 2>&1)"
 [[ "$out" == "claude:95@$FUT" ]] && pass "16k. a state file that cannot be written -> the live reading, no noise" || fail "16k. $out"
+# 16l. a kept 100 % drops once the login is measured with quota after it
+#     (SPL-4702): 2026-11-03 the login was swapped at 08:56Z, sat held claude
+#     lanes on its 07:57Z 100 % until the Nov 7 reset. A real answer newer
+#     than the kept read, or the login probe's "ok" after it, lifts it; a real
+#     limit (no answer since, the probe says limited) still holds. this box =
+#     box-a, the kept read 2 h ago, the new login's reset 2 h after the old one.
+L="$T/projects/-opt-x"; rm -rf "$T/projects"; mkdir -p "$L"
+NOW=$(date +%s); RS2=$(( FUT + 7200 ))
+kept100() { printf 'claude\t100\t%s\t%s\n' "$FUT" $(( NOW - ${1:-7200} )) >"$KEPT"; }
+lk() { known LANE_QUOTA_LOG_DIR="$T/projects" LANE_QUOTA_PROBE_FILE="$T/probe" "$@"; }
+LIMIT="You've hit your weekly limit · resets $(date -u -d "@$FUT" '+%b %-d, %-l%P') (UTC)"
+ent "<synthetic>" "$LIMIT" 7300 >"$L/s1.jsonl"; ent "claude-x" "done" 600 >"$L/r1.jsonl"
+kept100; [[ "$(lk LANE_QUOTA_CMD="echo claude:5@$RS2")" == "claude:5@$RS2" ]] &&
+  pass "16l. RED CONTROL (FAILs on 35bc30aca: claude:100) a swap: the new login's 5 % (its reset under a day from the kept one), a real answer after the kept read -> 5 %" ||
+  fail "16l. swap: $(kept100; lk LANE_QUOTA_CMD="echo claude:5@$RS2")"
+kept100; [[ -z "$(lk)" ]] && ! grep -q '^claude' "$KEPT" &&
+  pass "16l. RED CONTROL (FAILs on 35bc30aca) a real answer after the kept 100, no reading now -> unknown, row dropped" || fail "16l. no reading: $(kept100; lk)"
+kept100; out="$(run LANES="$T/lanes.json" LANE_BOX=box-a SPOOL_VENDOR_CLIS_CMD="echo $ALL" LANE_QUOTA_STATE="$KEPT" BOX_PICK_KIND=claude \
+  BOX_QUOTA_WEEKLY_MAX_PCT=90 LANE_QUOTA_LOG_DIR="$T/projects" LANE_QUOTA_PROBE_FILE="$T/probe")"
+[[ "$(pick "$out")" == box-a ]] && grep -q '^INFO box-a: claude weekly usage unknown' <<<"$out" &&
+  pass "16l. the pick: box-a placed again (unknown), not held on the old 100" || fail "16l. pick: $out"
+rm -f "$L/r1.jsonl"; printf '%s ok ok\n' $(( NOW - 60 )) >"$T/probe"
+kept100; [[ -z "$(lk)" ]] && pass "16l. RED CONTROL (FAILs on 35bc30aca) the login probe said ok after the kept read, no transcripts -> unknown" || fail "16l. probe ok: $(kept100; lk)"
+printf '%s ok ok\n' $(( NOW - 7300 )) >"$T/probe"
+kept100; [[ "$(lk)" == "claude:100@$FUT" ]] && pass "16l. CONTROL a probe ok OLDER than the kept read lifts nothing -> 100" || fail "16l. old probe: $(kept100; lk)"
+printf '%s limited You have hit your weekly limit\n' $(( NOW - 60 )) >"$T/probe"
+kept100; [[ "$(lk)" == "claude:100@$FUT" ]] && pass "16l. CONTROL the probe says limited after the kept read -> 100 holds" || fail "16l. limited: $(kept100; lk)"
+ent "claude-x" "earlier" 7400 >"$L/r1.jsonl"; ent "<synthetic>" "$LIMIT" 180 >"$L/s1.jsonl"
+kept100 120; [[ "$(lk)" == "claude:100@$FUT" ]] && pass "16l. CONTROL a real limit: kept 2 min ago, the limit entry 3 min ago, no answer since -> 100 holds" || fail "16l. real: $(kept100 120; lk)"
+printf 'claude\t95\t%s\t%s\n' "$FUT" $(( NOW - 7200 )) >"$KEPT"; ent "claude-x" "done" 600 >"$L/r1.jsonl"
+[[ "$(lk LANE_QUOTA_CMD="echo claude:40@$FUT")" == "claude:95@$FUT" ]] &&
+  pass "16l. CONTROL a kept 95 is no limit: an answer since does not lower it (16h holds)" || fail "16l. 95: $(lk)"
+rm -rf "$T/projects" "$T/probe"
 rm -f "$KEPT"
 
 # 17. sat alone panel row 01 (SPL-2629): a CORDONED box (do_spl_box_cordon,

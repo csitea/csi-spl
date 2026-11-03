@@ -48,7 +48,7 @@ The only limit is **{{AGENT_CEILING}} concurrent agent windows**. This box is si
 load. Count before spawning:
 
 ```bash
-sudo -u {{BOX_USER}} tmux -S {{TMUX_SOCKET}} list-windows -a -F '#{window_name}' | grep -cE '^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgmq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)'
+sudo -u {{BOX_USER}} tmux -S {{TMUX_SOCKET}} list-windows -a -F '#{window_name}' | grep -cE '^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgmoqu]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)'
 ```
 
 The optional `<tag>: ` group is the box tag (`$BOX_TAG`, e.g. `{{BOX_TAG}}`) that

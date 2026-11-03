@@ -130,7 +130,7 @@ The only limit is **40 concurrent agent windows**. This box is sized for that
 load. Count before spawning:
 
 ```bash
-sudo -u box-user tmux -S /tmp/tmux-box/default list-windows -a -F '#{window_name}' | grep -cE '^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgmq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)'
+sudo -u box-user tmux -S /tmp/tmux-box/default list-windows -a -F '#{window_name}' | grep -cE '^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgmoqu]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)'
 ```
 
 The optional `<tag>: ` group is the box tag (`$BOX_TAG`, e.g. `box1`) that

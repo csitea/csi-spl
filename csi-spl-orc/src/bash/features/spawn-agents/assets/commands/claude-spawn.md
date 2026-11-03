@@ -28,7 +28,7 @@ The ceiling is {{AGENT_CEILING}} agent windows. At or above it, finish the work
 yourself or close a finished agent first, and say which you did.
 
 ```bash
-tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u)/default}" list-windows -a -F '#{window_name}' | grep -cE '^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgmq]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)'
+tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(id -u)/default}" list-windows -a -F '#{window_name}' | grep -cE '^([A-Za-z0-9][A-Za-z0-9._-]*: )?([acgmoqu]-[0-9]{3}|(CLE|GRK|AGY|QWN)-[0-9]+)'
 ```
 
 <a id="ws-doc-ce968707-9902-4fc3-b2b2-64e83591f350"></a>

@@ -39,7 +39,7 @@
 # and the environment always wins over the file. Write it with
 # scripts/box-config.sh.
 #
-# Agent ids follow specs/061 §2: c-004 (^[acgmq]-[0-9]{3}$, m = mistral since
+# Agent ids follow specs/061 §2: c-004 (^[acgmoqu]-[0-9]{3}$, m = mistral since
 # spec 110), and until
 # SPOOL_LEGACY_ID_UNTIL the legacy CLE-07 form too. Unique per box, and BOX is
 # never an agent prefix. The helpers below are the ONE place that grammar lives.
@@ -120,7 +120,7 @@ SPOOL_LEGACY_ID_UNTIL='2026-10-03T20:59:59Z'
 # take both forms whatever the clock: history keeps legacy ids for good
 # (FR-006). SPOOL_AGENT_ID_RX and SPOOL_PARTICIPANT_RX each open exactly ONE
 # capture group (the id), so BASH_REMATCH / sed \N indices stay countable.
-SPOOL_AGENT_ID_NEW_RX='[acgmq]-[0-9]{3}'
+SPOOL_AGENT_ID_NEW_RX='[acgmoqu]-[0-9]{3}'
 # shellcheck disable=SC2034  # read by the scripts that source this file
 SPOOL_AGENT_ID_RX="(${SPOOL_AGENT_ID_NEW_RX}|CLE-[0-9]+|GRK-[0-9]+|AGY-[0-9]+|QWN-[0-9]+)"
 # The legacy half is the pre-061 participant grammar, so HUM-17 and test ids
@@ -218,7 +218,7 @@ spl_kind_of_agent_id() {  # ID -> KIND
 # failover dispatchers) in the letter of the vendor that runs them (SPL-1685,
 # owner t1 ee1e58d5: c-001 run by Grok is g-001). The ONE list: awk, jq and
 # grep callers take SPL_ROLE_SEAT_RX, bash callers spl_is_role_seat.
-SPL_ROLE_SEAT_RX='[acgmq]-00[1-3]'
+SPL_ROLE_SEAT_RX='[acgmoqu]-00[1-3]'
 
 # 0 when ID (an "@<box>" allowed) is a role seat in any vendor letter, or its
 # legacy form (CLE-001, specs/061) that queued mail and old journals still carry.

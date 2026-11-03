@@ -91,7 +91,7 @@ else fail "2: the copied tree is not green"; sed 's/^/    /' "$T/out"; fi
 plant() { rm -rf "$T/p"; cp -a "$T/base" "$T/p"; }
 
 # 3. id-letters: a doc counts the old letters.
-plant; sed -i 's/\[acgmq\]-\[0-9\]{3}/[acgq]-[0-9]{3}/' "$T/p/csi-spl-doc/doc/md/SPEC-spool-fleet-roles.md"
+plant; sed -i 's/\[acgmoqu\]-\[0-9\]{3}/[acgq]-[0-9]{3}/' "$T/p/csi-spl-doc/doc/md/SPEC-spool-fleet-roles.md"
 run "$T/p"; rc=$?; control "3 id-letters" "id-letters: csi-spl-doc/doc/md/SPEC-spool-fleet-roles.md has \[acgq\]"
 
 # 4. ceiling-count: one launcher's count regex differs from the home.
@@ -141,7 +141,7 @@ H="$T/home"; mkdir -p "$H/.claude/commands"
 cat "$T/base/$FRAG"/*.md >"$H/.claude/CLAUDE.md"; cp "$T/base/$CMDS"/*-spawn.md "$H/.claude/commands/"
 run "$T/base" "$H"; rc=$?
 [[ $rc -eq 0 ]] && pass "10: installed copies that match the sources are green" || { fail "10: a current install is red"; sed 's/^/    /' "$T/out"; }
-sed -i 's/\[acgmq\]-\[0-9\]{3}/[acgq]-[0-9]{3}/' "$H/.claude/commands/qwen-spawn.md"
+sed -i 's/\[acgmoqu\]-\[0-9\]{3}/[acgq]-[0-9]{3}/' "$H/.claude/commands/qwen-spawn.md"
 run "$T/base" "$H"; rc=$?; control "10 installed launcher" "id-letters: $H/.claude/commands/qwen-spawn.md has \[acgq\]"
 cat "$T/base/$FRAG"/*.md | sed '/fleet-pin data-rule-vendors/d' >"$H/.claude/CLAUDE.md"; cp "$T/base/$CMDS"/qwen-spawn.md "$H/.claude/commands/"
 run "$T/base" "$H"; rc=$?; control "10 installed CLAUDE.md predates the pin" "data-rule: $H/.claude/CLAUDE.md has no data-rule-vendors pin"

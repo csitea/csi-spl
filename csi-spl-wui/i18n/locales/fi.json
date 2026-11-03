@@ -3469,7 +3469,7 @@
         "keep": "Säilytä",
         "remove_ask": "Poistetaanko malli {key}? Kone lopettaa sen tiedostojen seuraamisen.",
         "matches": "{followed}/{matched} osumaa seurannassa",
-        "over_cap": "Ei seurata, koneen virtaraja on täynnä: {n}",
+        "over_cap": "Ei seurata, koneen virtojen raja on täynnä: {n}",
         "reason": "Syy: {reason}",
         "unavailable": "Tiedostomalleja ei voitu ladata.",
         "audit_title": "Mallien muutokset",

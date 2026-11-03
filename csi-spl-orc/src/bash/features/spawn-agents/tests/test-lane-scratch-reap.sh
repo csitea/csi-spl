@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# agent-id-retire.sh step 8 (lane-scratch-reap.sh --list): once a lane's
-# window is closed and its id retired, its Claude Code scratch on the /tmp
-# tmpfs (/tmp/claude-<uid>/<worktree slug>[-*]/) is listed in the box's
-# workdir table (SPL-2110: kept 24 h after the finish), and the disk sweep
-# (csi-spl-utl workdir-sweep.sh) removes it then, ONLY when no process holds
-# it. Defect (n=1): the closed c-232 left 20 GB in its scratch and /tmp
-# reached 93% (sat, 2026-10-15).
+# agent-id-retire.sh step 8 (lane-scratch-reap.sh --apply, then --list): once
+# a lane's window is closed and its id retired, its Claude Code scratch on the
+# /tmp tmpfs (/tmp/claude-<uid>/<worktree slug>[-*]/) is removed at once when
+# no process holds it; a held dir is listed in the box's workdir table
+# (SPL-2110: kept 24 h after the finish), and the disk sweep (csi-spl-utl
+# workdir-sweep.sh) removes it then, ONLY when no process holds it. Defects:
+# the closed c-232 left 20 GB in its scratch and /tmp reached 93% (sat,
+# 2026-10-15); retired lanes' scratch held 12.85 GB of a full /tmp, and the
+# reaper run as another user than the scratch owner printed "OK no scratch"
+# for every dir of a 0700 root it could not read (2026-10-31, SPL-4680).
 # A sandbox tmp root, spool and registry; the real /tmp is never touched.
 set -uo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.inc.sh"
@@ -31,45 +34,61 @@ sweep_at() {
 }
 TB="$R/workdirs.tsv"
 
-# 1. the dry run plans the listing of both dirs and writes nothing.
+# 1. the dry run plans the removal of both free dirs and writes nothing.
 lane c-201
 out="$(bash "$RET" c-201 2>&1)"
-has "1. the dry run plans the slug dir" "PLAN scratch   list $S/$(slug c-201) " "$out"
-has "1. ...and the subdir session's" "PLAN scratch   list $S/$(slug c-201)-csi-orc " "$out"
+check "1. the dry run plans the slug dir's removal" grep -qE "^PLAN scratch +remove [0-9]+KB owner=.* $S/$(slug c-201)\$" <<<"$out"
+check "1. ...and the subdir session's" grep -qE "^PLAN scratch +remove [0-9]+KB owner=.* $S/$(slug c-201)-csi-orc\$" <<<"$out"
+hasnt "1. ...and lists neither (a free dir is not kept)" "PLAN scratch   list" "$out"
 check "1. ...and removes nothing" test -f "$S/$(slug c-201)/sess-1/f"
 check "1. ...and writes no table" test ! -e "$TB"
 
-# 2. the retire lists both, removes none; 25 h later the sweep keeps the held
-#    one and removes the free one.
+# 2. CONTROL (cwd): the retire removes the free dir at once and keeps the one
+#    a process has its cwd in; that one is listed, and 25 h later the sweep
+#    keeps it while it is still held.
 ( cd "$S/$(slug c-201)/sess-1" && exec sleep 600 ) >/dev/null 2>&1 & hold=$!
 for _ in $(seq 300); do [ "$(readlink "/proc/$hold/cwd")" = "$S/$(slug c-201)/sess-1" ] && break; sleep 0.1; done
 bash "$RET" --apply c-201 >"$T_TMP/o" 2>&1; eq "2. retire exits 0" 0 "$?"
-check "2. both dirs are listed as scratch" test "$(grep -cP "^\Q$S/$(slug c-201)\E(-csi-orc)?\tscratch\tc-201\t" "$TB")" = 2
-check "2. ...and both stay after the retire" test -f "$S/$(slug c-201)-csi-orc/sess-2/f"
+check "2. the free subdir session's dir is gone at once" test ! -e "$S/$(slug c-201)-csi-orc"
+check "2. ...a DO scratch remove line names it" grep -qE "^DO scratch +remove [0-9]+KB owner=.* $S/$(slug c-201)-csi-orc\$" "$T_TMP/o"
+check "2. the held dir stays" test -f "$S/$(slug c-201)/sess-1/f"
+check "2. ...a KEEP in-use line names it" grep -qF "KEEP in-use $S/$(slug c-201) " "$T_TMP/o"
+eq "2. ...and only it is listed as scratch" "$S/$(slug c-201)" "$(awk -F'\t' '$2 == "scratch" && $3 == "c-201" { print $1 }' "$TB")"
 out="$(sweep_at 25)"
 has "2. 25 h later a held scratch is KEEP in-use" "KEEP in-use (a process has its cwd or an open file under it) scratch $S/$(slug c-201) " "$out"
 check "2. ...and stays" test -f "$S/$(slug c-201)/sess-1/f"
-check "2. ...the free one goes, a REMOVE line names it" grep -qE "REMOVE [0-9]+KB scratch $S/$(slug c-201)-csi-orc " <<<"$out"
-check "2. ...it is gone" test ! -e "$S/$(slug c-201)-csi-orc"
 kill "$hold" 2>/dev/null; wait "$hold" 2>/dev/null
 
-# 3. nobody holds it: the sweep removes it after 24 h, a neighbour lane's
-#    (c-2011) is never listed nor touched.
+# 3. nobody holds it: the retire removes it at once and lists nothing; a
+#    neighbour lane's (c-2011) is never listed nor touched.
 lane c-202
 bash "$RET" --apply c-202 >"$T_TMP/o" 2>&1; eq "3. retire exits 0" 0 "$?"
-check "3. 1 h later it is still there" bash -c "$(declare -f sweep_at); SWEEP='$SWEEP' TR='$TR' SPOOL_NOW='$SPOOL_NOW' sweep_at 1 >/dev/null; test -d '$S/$(slug c-202)'"
-out="$(sweep_at 25)"
-check "3. 25 h later the unheld scratch is gone" test ! -e "$S/$(slug c-202)"
-has "3. the REMOVE line names its size" "REMOVE 10" "$out"
+check "3. the idle scratch is gone right after the retire" test ! -e "$S/$(slug c-202)"
+check "3. ...its subdir session's too" test ! -e "$S/$(slug c-202)-csi-orc"
+check "3. ...the DO line names its size" grep -qE "^DO scratch +remove 10[0-9]{2}KB owner=.* $S/$(slug c-202)\$" "$T_TMP/o"
+eq "3. ...and no scratch row is written for it" 0 "$(awk -F'\t' '$2 == "scratch" && $3 == "c-202"' "$TB" | wc -l)"
 check "3. a lane whose id only starts the same (c-2011) is untouched" test -f "$S/$(slug c-2011)/f"
 check "3. ...and was never listed" bash -c "! grep -qF -e '$S/$(slug c-2011)' '$TB'"
 
-# 4. RED CONTROL: without step 8 (RETIRE_SCRATCH=0) nothing is listed, so the
-#    sweep never finds it.
+# 3b. CONTROL (open fd): a dir a process has a file open under is kept and
+#     listed, and the sweep keeps it while held.
+lane c-205
+( exec 3<"$S/$(slug c-205)/sess-1/f"; exec sleep 600 ) >/dev/null 2>&1 & hold=$!
+for _ in $(seq 300); do [ "$(readlink "/proc/$hold/fd/3" 2>/dev/null)" = "$S/$(slug c-205)/sess-1/f" ] && break; sleep 0.1; done
+bash "$RET" --apply c-205 >"$T_TMP/o" 2>&1; eq "3b. retire exits 0" 0 "$?"
+check "3b. the dir with an open file stays" test -f "$S/$(slug c-205)/sess-1/f"
+eq "3b. ...and is listed as scratch" "$S/$(slug c-205)" "$(awk -F'\t' '$2 == "scratch" && $3 == "c-205" { print $1 }' "$TB")"
+check "3b. ...the free subdir session's dir is gone" test ! -e "$S/$(slug c-205)-csi-orc"
+has "3b. 25 h later the sweep keeps it" "KEEP in-use (a process has its cwd or an open file under it) scratch $S/$(slug c-205) " "$(sweep_at 25)"
+kill "$hold" 2>/dev/null; wait "$hold" 2>/dev/null
+
+# 4. RED CONTROL: without step 8 (RETIRE_SCRATCH=0) nothing is removed nor
+#    listed, so the sweep never finds it.
 lane c-203
 RETIRE_SCRATCH=0 bash "$RET" --apply c-203 >/dev/null 2>&1
+check "4. CONTROL: RETIRE_SCRATCH=0 leaves the scratch (red)" test -f "$S/$(slug c-203)/sess-1/f"
 sweep_at 25 >/dev/null
-check "4. CONTROL: RETIRE_SCRATCH=0 lists nothing and the scratch stays (red)" test -f "$S/$(slug c-203)/sess-1/f"
+check "4. ...and lists nothing, so the sweep leaves it too" test -f "$S/$(slug c-203)/sess-1/f"
 
 # 5. by hand, lane-scratch-reap.sh --apply still removes at once and logs it.
 bash "$T_SCRIPTS/lane-scratch-reap.sh" --apply "$T_TMP/wt/c-203" >"$T_TMP/o" 2>&1; eq "5. --apply exits 0" 0 "$?"
@@ -89,5 +108,31 @@ eq "6. exactly the two leftovers of c-204 are listed" "$VT/c-204-base $VT/c204-g
 WORKDIR_SWEEP_VARTMP_ROOT="$VT" sweep_at 25 >/dev/null
 check "6. 25 h later the sweep removed both" bash -c "test ! -e '$VT/c-204-base' && test ! -e '$VT/c204-gocache'"
 check "6. ...another id's, the dot entry and the symlink's target stay" bash -c "test -d '$VT/c-2041-x' && test -e '$VT/.c-204' && test -d '$VT/elsewhere'"
+
+# 7. a /tmp/claude-* root this user cannot read (0700, another user's; here a
+#    0000 one of ours, LANE_SCRATCH_SUDO=0: no sudo to its owner) is never
+#    an all-clear: a WARN names it and the exit is 3, in every mode.
+if [ "$(id -u)" = 0 ]; then echo "skip - 7: root reads every dir"; else
+  B="$TR/claude-other"; mkdir -p "$B/$(slug c-206)"; chmod 000 "$B"
+  WT6="$T_TMP/wt/c-206"
+  out="$(bash "$T_SCRIPTS/lane-scratch-reap.sh" "$WT6" 2>&1)"; eq "7. an unreadable root: exit 3" 3 "$?"
+  hasnt "7. ...no OK no scratch line" "OK no scratch" "$out"
+  has "7. ...a WARN names the unreadable root" "WARN unreadable $B (owner $(id -un), mode 0)" "$out"
+  out="$(bash "$T_SCRIPTS/lane-scratch-reap.sh" --apply "$WT6" 2>&1)"; eq "7. --apply: exit 3" 3 "$?"
+  hasnt "7. ...no OK no scratch line" "OK no scratch" "$out"
+  lst="$(bash "$T_SCRIPTS/lane-scratch-reap.sh" --list "$WT6" 2>"$T_TMP/e")"; eq "7. --list: exit 3" 3 "$?"
+  eq "7. ...stdout holds no path" "" "$lst"
+  check "7. ...the WARN goes to stderr" grep -qF "WARN unreadable $B" "$T_TMP/e"
+  printf '%s\tclaude\t%%1\t%s\t20261002T080000Z\n' c-206 "$WT6" >>"$R/registry.tsv"; mkdir -p "$R/c-206/inbox"
+  bash "$RET" --apply c-206 >"$T_TMP/o" 2>&1; eq "7. a retire still exits 0" 0 "$?"
+  check "7. ...and warns that the scratch was not all read" grep -qF "agent-id-retire: WARN the /tmp scratch of $WT6 was not all read" "$T_TMP/o"
+  check "7. ...printing the reaper's WARN as a scratch step" grep -qE "^DO scratch +WARN unreadable $B " "$T_TMP/o"
+  chmod 755 "$B"
+  out="$(bash "$T_SCRIPTS/lane-scratch-reap.sh" "$WT6" 2>&1)"; eq "7. CONTROL: once readable, exit 0" 0 "$?"
+  has "7. ...and its scratch is found" "PLAN remove 0KB owner=$(id -un) $B/$(slug c-206)" "$out"
+  rm -rf "$B"
+  out="$(bash "$T_SCRIPTS/lane-scratch-reap.sh" "$WT6" 2>&1)"
+  has "7. CONTROL: no root holds it, readable: OK no scratch" "OK no scratch of $WT6" "$out"
+fi
 
 t_done

@@ -396,6 +396,22 @@ after the agent is done.
   bin) are build output. On by default since the dispatcher accepted the
   live run (SPL-2550); `WT_SALVAGE=0` turns it off. Test: `wt-dirty-salvage.tst.sh` (origin's ref
   count unchanged; a corrupt bundle refuses the removal).
+- **A retired lane's /tmp scratch is removed at retire** (SPL-4680,
+  2026-11-03): its Claude Code scratch (`/tmp/claude-<uid>/<worktree
+  slug>[-*]/`) is a session cache, not the lane's work, and only listing it
+  for the 24 h sweep filled the /tmp tmpfs: on 2026-10-31 the 13 biggest dirs
+  of retired lanes held 12.85 GB and removing them took /tmp inodes from 80%
+  to 36% (n=1 per box). `agent-id-retire.sh` step 8 now runs
+  `lane-scratch-reap.sh --apply` once the window is gone, and lists for the
+  sweep only a dir a process still holds (its cwd or an open file): the
+  reaper's process check is the guard. The `/tmp/claude-<uid>` root is 0700,
+  the agent user's; run as the box user (the reaper cron, a hand retire
+  under `sudo -u`), the old reaper read it empty and printed `OK no scratch`
+  for every dir (the reaper cron listed 11 lane worktrees and 0 scratch dirs
+  on each box). The reaper now reads such a root as its owner
+  (`sudo -n -u`); one it still cannot read is a `WARN unreadable` line and
+  exit 3, never an all-clear. Test: `test-lane-scratch-reap.sh` (cases 2,
+  3, 3b, 7).
 
 ## 6. Limits (W3, R4, R12)
 

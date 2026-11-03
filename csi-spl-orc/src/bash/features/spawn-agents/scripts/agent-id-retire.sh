@@ -44,9 +44,12 @@
 #                  --force; the branch only by `branch -d`. A main checkout or
 #                  a dir not named for the id is never listed
 #   scratch     -> the lane's Claude Code scratch on the /tmp tmpfs
-#                  (/tmp/claude-<uid>/<worktree slug>[-*]/, lane-scratch-reap.sh
-#                  --list): listed the same way (c-232 left 20 GB there, sat
-#                  2026-10-15: the sweep removes it once unheld and 24 h old)
+#                  (/tmp/claude-<uid>/<worktree slug>[-*]/): removed at once
+#                  (lane-scratch-reap.sh --apply) when no process holds it, as
+#                  its owner; a held dir is listed the same way (--list), and
+#                  the sweep removes it once unheld and 24 h old (c-232 left
+#                  20 GB there, sat 2026-10-15; retired lanes' scratch held
+#                  12.85 GB of a full /tmp, 2026-10-31)
 #   var-tmp     -> top-level /var/tmp entries whose name carries the id
 #                  (c-272-base, c272-gocache): listed the same way
 #
@@ -345,10 +348,23 @@ on() { local v="${1:-}"; [ -n "$v" ] || { v=1; [ "${SPOOL_TEST:-}" = 1 ] && v=0;
 # ---- 7. the lane's worktree + branch ----------------------------------------
 on "${RETIRE_WORKTREE:-}" && wt_list
 # ---- 8. the lane's /tmp scratch ---------------------------------------------
+# Removed now, not after 24 h: it is a session cache, not the lane's work, and
+# retired lanes' scratch filled the /tmp tmpfs (2026-10-31). The reaper's
+# process check is the guard: a dir a process holds stays and is listed.
 if on "${RETIRE_SCRATCH:-}" && [ -n "$WT" ]; then
-  while IFS= read -r d; do [ -n "$d" ] && listed scratch "$d"; done \
+  REAP=(bash "$_here/lane-scratch-reap.sh"); [ "$APPLY" = 1 ] && REAP+=(--apply)
+  reaped="$("${REAP[@]}" "$WT" 2>&1)" \
+    || echo "agent-id-retire: WARN the /tmp scratch of ${WT} was not all read (lane-scratch-reap.sh rc $?)" >&2
+  gone=""
+  while IFS= read -r l; do
+    [ -n "$l" ] || continue
+    l="${l#* lane-scratch-reap: }"
+    step scratch "${l#"$VERB "}"
+    if [[ "$l" == "$VERB remove "* ]]; then gone+="${l##* }"$'\n'; fi
+  done <<<"$reaped"
+  while IFS= read -r d; do [ -n "$d" ] && ! grep -qxF -e "$d" <<<"$gone" && listed scratch "$d"; done \
     < <(bash "$_here/lane-scratch-reap.sh" --list "$WT" \
-      || echo "agent-id-retire: WARN the /tmp scratch of ${WT} was not read (lane-scratch-reap.sh --list)" >&2)
+      || echo "agent-id-retire: WARN the /tmp scratch of ${WT} was not all read (lane-scratch-reap.sh --list)" >&2)
 fi
 # ---- 9. the lane's /var/tmp leftovers ---------------------------------------
 # A top-level entry whose name carries the id (c-272-base, c272-gocache), not

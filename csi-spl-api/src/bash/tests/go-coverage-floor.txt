@@ -21,10 +21,16 @@
 # -cover ./cmd/spool/, go1.26.9, tree f007a54d6, n=3 read 74.3 each (r9-02's
 # cli_inspect_test.go took it 63.6 -> 68.5, r9-01's cli_fs_test.go 60.7 -> 63.6).
 cmd/spool 77.8
+# r48-09 (refactor round 22, SPL-4749): fourteen floors raised to the lowest
+# of n=3 readings, go test -count=1 -cover ./internal/<pkg>/, go1.26.10, on
+# 6bce8cfb1 each read: action 90.8, billing 100.0, config 90.9, github 86.7,
+# hubclient 85.9, keydesk 88.7, keyexec 81.7, mail 91.2, marketing 84.2,
+# msg 90.8, payments 83.6, rbac 98.9, sign 86.2, wire 90.1. The comments
+# below that name an older floor are its history.
 # internal/action: 80.8 with r15-06's edit_test.go and issue_test.go (edit.go
 # and issue.go 0 -> 100%), 75.6 without on ef6adfcf3; go test -count=1 -cover
 # ./internal/action/, go1.26.9, n=3 read 80.8 each.
-internal/action 80.8
+internal/action 90.8
 internal/agentid 97.0
 # r01-04 (test round 1, SPL-2052): five packages ratcheted off 0.0 to about one
 # point under what they read; go test -count=1 -cover, go1.26.9, n=3 read
@@ -36,7 +42,7 @@ internal/auth/cmd/auth-demo 70.0
 # go1.26.9, no DSN, n=3 read 89.1 each; the gate unions it with fakeidp's own
 # profile (3.5) and reads 89.6.
 internal/auth/fakeidp 80.0 coverpkg=internal/auth
-internal/billing 80.8
+internal/billing 100.0
 # internal/blob: 66.9 with TestAvatarKey (r12-08), 66.2 without; go test -count=1
 # -cover ./internal/blob/, go1.26.9, n=3 read 66.9 each.
 internal/blob 71.9
@@ -58,13 +64,13 @@ internal/cloud 95.8
 # internal/config: 89.7 with r15-10's config_test.go table tests (getters,
 # env overrides, dir resolvers), 78.1 without on a60bb00c8; go test -count=1
 # -cover ./internal/config/, go1.26.9, n=3 read 89.7 each.
-internal/config 89.7
+internal/config 90.9
 internal/edge 98.9
 internal/enc 83.6
 internal/files 82.9
 internal/gcal 85.8
 internal/gcpalerts 91.8
-internal/github 82.9
+internal/github 86.7
 internal/github/githubtest 20.0
 internal/hours 98.0
 # hubclient: 83.0, measured, deterministic. Its retry and redial paths ran or
@@ -72,7 +78,8 @@ internal/hours 98.0
 # timing_paths_test.go now reaches each one on its own: go test -count=1
 # -cover ./internal/hubclient, go1.26.9, load 14..38, plain and -race, n=10
 # read 82.2 every run; without that file n=5 read 81.5..81.7, which fails.
-internal/hubclient 83.0
+# r48-09: 85.9, n=3 plain and n=3 -race on 6bce8cfb1 read 85.9 all six.
+internal/hubclient 85.9
 internal/hygiene 90.0
 internal/i18n 97.2
 internal/invitemail 85.3
@@ -85,30 +92,30 @@ internal/keyd 82.2
 # cancelled context, DefaultPeerOK on this process and another uid, procGroups,
 # ParseStatusGroups edges, IdentityPath), 79.1 without on 8160bf9ec; go test
 # -count=1 -cover ./internal/keydesk/, go1.26.10, n=3 read 88.1 each.
-internal/keydesk 88.1
-internal/keyexec 79.7
+internal/keydesk 88.7
+internal/keyexec 81.7
 # internal/lockkey: 78.7 with r43-06's lockkey_test.go (HolderAlive, readPID,
 # pidAlive on each pid file; writeFile errors), 76.7 without on e8e02f87e;
 # go test -count=1 -cover ./internal/lockkey/, go1.26.10, n=3 read 78.7 each.
 # Before: 76.4 on its first commit (spec 025 row B4, SPL-2956); n=3 read 76.4.
 internal/lockkey 78.7
 internal/logging 99.0
-internal/mail 85.0
-internal/marketing 63.6
+internal/mail 91.2
+internal/marketing 84.2
 internal/mcp 88.7
-internal/msg 84.9
+internal/msg 90.8
 internal/notify 94.8
 # internal/payments: 80.9 with stripe_refund_test.go (r16-04, 712/880), 78.6
 # without; paypal_payments_test.go (r14-06) took it 72.4 -> 78.6 (637 -> 692
 # of 880); go test -count=1 -cover ./internal/payments/, go1.26.10, n=3 read
 # 80.9 each.
-internal/payments 80.9
+internal/payments 83.6
 internal/pollform 100.0
 internal/quiesce 96.8
-internal/rbac 89.3
+internal/rbac 98.9
 internal/search 95.6
 internal/secretfile 100.0
-internal/sign 82.9
+internal/sign 86.2
 internal/spool 86.4
 internal/testkit 77.0
 # fakehub: 84.5, deterministic since New's cleanup waits for its handlers
@@ -119,7 +126,7 @@ internal/testkit/fakehub 83.5
 internal/trace 95.0
 internal/uid 100.0
 internal/vendorkey 82.4
-internal/wire 81.7
+internal/wire 90.1
 internal/xlsx 91.2
 internal/auth 82.9 pg
 internal/hub 82.2 pg

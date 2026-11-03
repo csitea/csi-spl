@@ -57,7 +57,9 @@ func mentionAt(s string, i int) (string, int, bool) {
 	return s[p:end], boxEnd(s, end), true
 }
 
-// agentIDAt: [acgmq]-[0-9]{3} at p, not followed by a digit.
+// agentIDAt: [acgmq]-[0-9]{3} at p, not followed by a digit. It follows
+// mention-grammar.json, not agentid: u- and o- (spec 161) join when row B8
+// widens the contract, until then @u-004 names no one.
 func agentIDAt(s string, p int) (int, bool) {
 	if p+5 > len(s) || !strings.ContainsRune("acgmq", rune(s[p])) || s[p+1] != '-' {
 		return 0, false
@@ -125,7 +127,7 @@ func IsFlowMember(id string) bool { return flowMemberRe.MatchString(id) }
 
 // flowAgentSQL is IsFlowAgent in SQL, for a member_id column: an agent id
 // in either grammar (agentid.IsAgent) with its box.
-const flowAgentSQL = `~ '^([acgmq]-(00[1-9]|0[1-9][0-9]|[1-9][0-9]{2})|(CLE|AGY|GRK|QWN)-[0-9]+)@[a-z0-9][a-z0-9-]{0,31}$'`
+const flowAgentSQL = `~ '^([acgmoqu]-(00[1-9]|0[1-9][0-9]|[1-9][0-9]{2})|(CLE|AGY|GRK|QWN)-[0-9]+)@[a-z0-9][a-z0-9-]{0,31}$'`
 
 // IsFlowAgent: key is an agent's flow member key <id>@<box> (spec 130
 // section 5): one id runs on several boxes, so a bare id would mix two

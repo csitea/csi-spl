@@ -39,6 +39,10 @@ func TestGrammar(t *testing.T) {
 		{"q-010", true, false, true, true, "qwen"},
 		{"m-004", true, false, true, true, "mistral"},
 		{"m-000", false, false, false, false, ""},
+		{"u-004", true, false, true, true, "cursor"}, // spec 161 section 3.1
+		{"o-004", true, false, true, true, "codex"},  // owner msg 4ae81b56: o, not d
+		{"u-000", false, false, false, false, ""},
+		{"d-004", false, false, false, false, ""}, // spec 161 v1.0's letter, never joined
 		{"M-04", false, false, false, false, ""},
 		{"MST-1", false, false, false, true, ""},
 		{"c-000", false, false, false, false, ""},
@@ -83,6 +87,7 @@ func TestNormalize(t *testing.T) {
 	for in, want := range map[string]string{
 		"C-004": "c-004", " c-004 ": "c-004", "Q-123@box-a": "q-123@box-a",
 		"CLE-7": "CLE-7", "HUM-17": "HUM-17",
+		"U-004": "u-004", "O-004@sat": "o-004@sat", "D-004": "D-004", "X-004": "X-004",
 	} {
 		if got := Normalize(in); got != want {
 			t.Errorf("Normalize(%q) = %q, want %q", in, got, want)
@@ -234,5 +239,22 @@ func TestRoleSeat(t *testing.T) {
 		if got := RoleSeatID(c.kind, c.n); got != "" {
 			t.Errorf("RoleSeatID(%q, %d) = %q, want empty", c.kind, c.n, got)
 		}
+	}
+}
+
+// TestCursorCodexSeats: u- and o- (spec 161) carry role seats like every
+// vendor letter (section 3.1), and RoleSeatID names them.
+func TestCursorCodexSeats(t *testing.T) {
+	for kind, want := range map[string]string{"cursor": "u-001", "codex": "o-003"} {
+		n := 1
+		if kind == "codex" {
+			n = 3
+		}
+		if got := RoleSeatID(kind, n); got != want || !IsRoleSeat(want+"@sat") {
+			t.Errorf("RoleSeatID(%q, %d) = %q, IsRoleSeat(%q) = %v; want %q, true", kind, n, got, want, IsRoleSeat(want), want)
+		}
+	}
+	if IsRoleSeat("x-001") || IsRoleSeat("d-002") {
+		t.Errorf("x-001 / d-002 are no role seats: no such letter")
 	}
 }

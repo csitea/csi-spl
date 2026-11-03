@@ -316,8 +316,8 @@ func (s *Store) deliverTo(m *msg.Message, id string, ring bool) (bool, error) {
 }
 
 // roleSeatLetters are the vendor letters a role seat id can carry (agentid's
-// new grammar, [acgmq]-NNN).
-const roleSeatLetters = "acgmq"
+// new grammar, [acgmoqu]-NNN).
+const roleSeatLetters = "acgmoqu"
 
 // liveRoleSeat is the id whose mailbox under root holds role seat id's mail
 // (SPL-1716). A role seat's id follows the vendor that runs it (SPL-1685:

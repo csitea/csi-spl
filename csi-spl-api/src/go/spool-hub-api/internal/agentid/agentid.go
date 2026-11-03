@@ -4,7 +4,7 @@
 // a write path. Every validation site calls it; no other file carries an id
 // regex.
 //
-//	agent id          ^[acgmq]-[0-9]{3}$       c-004 (000 is never an id)
+//	agent id          ^[acgmoqu]-[0-9]{3}$     c-004 (000 is never an id)
 //	legacy agent id   ^(CLE|AGY|GRK|QWN)-[0-9]+$ until LegacyUntil
 //	participant       an agent id, or ^[A-Z]{2,4}-[0-9]+$ (HUM-, GST-, BOX-,
 //	                  and every stored legacy id: history keeps them, FR-006)
@@ -50,17 +50,19 @@ func defaultNow() time.Time {
 }
 
 var (
-	newRe         = regexp.MustCompile(`^[acgmq]-[0-9]{3}$`)
-	newAnyCaseRe  = regexp.MustCompile(`^[ACGMQacgmq]-[0-9]{3}$`)
+	newRe         = regexp.MustCompile(`^[acgmoqu]-[0-9]{3}$`)
+	newAnyCaseRe  = regexp.MustCompile(`^[ACGMOQUacgmoqu]-[0-9]{3}$`)
 	legacyRe      = regexp.MustCompile(`^(CLE|AGY|GRK|QWN)-[0-9]+$`)
 	participantRe = regexp.MustCompile(`^[A-Z]{2,4}-[0-9]+$`)
 	boxRe         = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
 )
 
 // kinds is the one letter-to-kind map; legacyKinds is its legacy twin. 'm'
-// (spec 110) has no legacy twin: legacy ids ended before mistral joined.
+// (spec 110), 'u' cursor and 'o' codex (spec 161 section 3.1, owner msg
+// 4ae81b56) have no legacy twin: legacy ids ended before they joined.
 var (
-	kinds       = map[byte]string{'a': "agy", 'c': "claude", 'g': "grok", 'm': "mistral", 'q': "qwen"}
+	kinds = map[byte]string{'a': "agy", 'c': "claude", 'g': "grok", 'm': "mistral", 'o': "codex", 'q': "qwen",
+		'u': "cursor"}
 	legacyKinds = map[string]string{"AGY": "agy", "CLE": "claude", "GRK": "grok", "QWN": "qwen"}
 )
 
@@ -97,8 +99,8 @@ func IsAtBox(s string) bool {
 	return strings.Contains(s, "@") && IsParticipant(id) && boxRe.MatchString(box)
 }
 
-// Kind is the agent kind of an id in either grammar: agy, claude, grok,
-// qwen; "" for anything else.
+// Kind is the agent kind of an id in either grammar: agy, claude, codex,
+// cursor, grok, mistral, qwen; "" for anything else.
 func Kind(s string) string {
 	id, _ := SplitAtBox(s)
 	if IsNew(id) {

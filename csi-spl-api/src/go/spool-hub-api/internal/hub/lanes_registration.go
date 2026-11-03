@@ -30,7 +30,7 @@ import (
 // <id> (rotation <rid>)` (csi-spl-orc spl-rotate-lib.func.sh,
 // spl_rotate_spawn); a lane whose brief heading merely starts with "role "
 // is no seat (R7 c-287 W2).
-var laneRoleScope = regexp.MustCompile(`^role [acgmq]-[0-9]{3} \(rotation `)
+var laneRoleScope = regexp.MustCompile(`^role [acgmoqu]-[0-9]{3} \(rotation `)
 
 // laneIsRoleSeat is a role seat's row: no discussion and no issue by design.
 func laneIsRoleSeat(l store.FleetLane) bool {

@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -200,5 +201,24 @@ func TestFlowMentions(t *testing.T) {
 	got := flowMentions("@HUM-1 @c-001 @HUM-2 @HUM-1 @GST-3 @HUM-9", "HUM-9")
 	if want := []string{"HUM-1", "HUM-2", "GST-3"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("flowMentions = %v, want %v", got, want)
+	}
+}
+
+// TestFlowAgentCursorCodex: u- and o- (spec 161 row B2) are flow agents, in
+// Go (IsFlowAgent) and in the SQL twin (flowAgentSQL, run through Go's
+// regexp: the pattern is plain POSIX). x- and d- stay refused. The mention
+// scan is not widened here: it follows mention-grammar.json, row B8.
+func TestFlowAgentCursorCodex(t *testing.T) {
+	sqlRe := regexp.MustCompile(strings.TrimSuffix(strings.TrimPrefix(flowAgentSQL, "~ '"), "'"))
+	for key, want := range map[string]bool{
+		"u-004@sat": true, "o-004@box-a": true, "c-004@sat": true, "m-004@sat": true,
+		"x-004@sat": false, "d-004@sat": false, "u-000@sat": false, "u-004": false, "U-004@sat": false,
+	} {
+		if IsFlowAgent(key) != want || sqlRe.MatchString(key) != want {
+			t.Errorf("%q: IsFlowAgent %v, flowAgentSQL %v; want %v", key, IsFlowAgent(key), sqlRe.MatchString(key), want)
+		}
+	}
+	if got := MentionedIDs("@u-004 @o-004"); got != nil {
+		t.Errorf("MentionedIDs(@u-004 @o-004) = %v: the mention scan joins with mention-grammar.json (B8)", got)
 	}
 }

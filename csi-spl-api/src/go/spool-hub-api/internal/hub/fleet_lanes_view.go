@@ -26,7 +26,7 @@ import (
 // tenant's; a lane whose topic is not one of its topics shows no title and
 // only its own issue.
 //
-// Active (decision P1) = state live AND a lane id (^[acgmq]-[0-9]{3}$) AND
+// Active (decision P1) = state live AND a lane id (^[acgmoqu]-[0-9]{3}$) AND
 // (token burn of agent_id under box_tag = agent_box within
 // fleetLaneBurnFresh OR updated_at within fleetLaneWriteFresh).
 
@@ -40,7 +40,7 @@ const (
 
 // laneIDRe is a lane's agent id (rdb 0155): the box row BOX-0 and the old
 // upper-case ids are no lanes.
-var laneIDRe = regexp.MustCompile(`^[acgmq]-[0-9]{3}$`)
+var laneIDRe = regexp.MustCompile(`^[acgmoqu]-[0-9]{3}$`)
 
 type fleetLaneIssueJSON struct {
 	Key    string `json:"key"`

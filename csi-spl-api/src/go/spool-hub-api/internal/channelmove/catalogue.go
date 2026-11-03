@@ -181,6 +181,8 @@ var notChannelTables = concat(
 	notChannel("repo-doc edits name a git path and ref; T8's free-text scan (5.2) reads target_ref",
 		"repo_doc_author_notices", "repo_doc_authors", "repo_doc_edits"),
 	notChannel("browser timing samples keyed by session", "wui_perf_samples"),
+	notChannel("Netvisor finance data of the workspace's owner human (spec 125 B4), names no channel",
+		"netvisor_card_cost_lines", "netvisor_forecast_items", "netvisor_settings", "netvisor_snapshots"),
 )
 
 // notChannel returns NotChannel entries that share one reason.

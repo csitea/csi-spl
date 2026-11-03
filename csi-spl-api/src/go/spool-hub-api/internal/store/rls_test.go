@@ -74,6 +74,8 @@ var rlsTables = []string{
 	"marketing_metric_samples", "marketing_metric_definitions",
 	// rdb 0249, spec 169 T2
 	"channel_move_journal", "channel_move_steps",
+	// rdb 0255, spec 125 B4: owner human only (netvisor_test.go)
+	"netvisor_settings", "netvisor_snapshots", "netvisor_forecast_items", "netvisor_card_cost_lines",
 }
 
 // TestRLSCoversEveryTenantTable: a table that gains a tenant_id column must

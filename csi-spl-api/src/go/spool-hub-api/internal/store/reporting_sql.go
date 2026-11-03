@@ -57,15 +57,16 @@ const reportingSQLSecretColumn = `(hash|cipher|secret|passw|sealed|private_key)`
 
 // pgReportingSQLRelations lists the relations the tab may read: FORCE-RLS
 // tables of the hub's schema with a tenant_id, minus those holding a secret
-// column and those with a per-member or per-person policy (rdb 0176's hours
-// tables read every member's rows when no member is set).
+// column and those with a per-member, per-person or per-human policy (rdb
+// 0176's hours tables read every member's rows when no member is set; rdb
+// 0255's Netvisor tables belong to one human, C7).
 const pgReportingSQLRelations = `SELECT c.relname FROM pg_class c
 	JOIN pg_namespace n ON n.oid = c.relnamespace
 	WHERE n.nspname = current_schema() AND c.relkind IN ('r', 'p') AND c.relrowsecurity AND c.relforcerowsecurity
 	  AND EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND a.attname = 'tenant_id' AND NOT a.attisdropped)
 	  AND NOT EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped AND a.attname ~* $1)
 	  AND NOT EXISTS (SELECT 1 FROM pg_policy p WHERE p.polrelid = c.oid
-	        AND coalesce(pg_get_expr(p.polqual, p.polrelid), '') || coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '') ~ 'app\.(member_id|person_id)')`
+	        AND coalesce(pg_get_expr(p.polqual, p.polrelid), '') || coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '') ~ 'app\.(member_id|person_id|human_id)')`
 
 // The SQL tab's refusals, each one a 4xx the admin reads.
 var (

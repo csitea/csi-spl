@@ -557,6 +557,17 @@ func seedTenantAll(t *testing.T, pg *Postgres) crossSeed {
 	if err := seedChannelMove(ctx, pg, s.tenant, s.channelID, s.marker); err != nil {
 		t.Fatal(err)
 	}
+	// netvisor_settings, _snapshots, _forecast_items, _card_cost_lines (rdb
+	// 0255, spec 125 B4, SPL-4721): the seeded member owns the workspace's
+	// Netvisor data and one snapshot, through the store API.
+	if err := pg.NetvisorSetOwner(ctx, s.tenant, hum, "operator", now); err != nil {
+		t.Fatal(err)
+	}
+	snap := nvsSnap(now)
+	snap.Items[0].Label = s.marker
+	if _, err := pg.NetvisorIngest(ctx, s.tenant, snap); err != nil {
+		t.Fatal(err)
+	}
 	return s
 }
 
@@ -688,14 +699,40 @@ func tenantTables(t *testing.T, pg *Postgres) []string {
 // 0 of their rows (rdb 0174 workspace_vendor_keys, spec 127 4.2).
 var operatorBlindTables = map[string]bool{"workspace_vendor_keys": true}
 
+// ownerScopedTables show their rows to the workspace's Netvisor owner human
+// alone (rdb 0255, spec 125 B4): the operator and the tenant alone read 0.
+var ownerScopedTables = map[string]bool{"netvisor_settings": true, "netvisor_snapshots": true,
+	"netvisor_forecast_items": true, "netvisor_card_cost_lines": true}
+
+// nvsOwnerOf is tenant's Netvisor owner, read in the ingest scope.
+func nvsOwnerOf(ctx context.Context, pg *Postgres, tenant string) (owner string, err error) {
+	err = pg.inNetvisorIngest(ctx, tenant, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT owner_human_id FROM netvisor_settings`).Scan(&owner)
+	})
+	return owner, err
+}
+
+// crossScope runs fn in tenant's scope for table tb: the owner's scope for
+// an owner-scoped table, else inTenant.
+func crossScope(ctx context.Context, pg *Postgres, tb, tenant string, fn func(pgx.Tx) error) error {
+	if !ownerScopedTables[tb] {
+		return pg.inTenant(ctx, tenant, fn)
+	}
+	owner, err := nvsOwnerOf(ctx, pg, tenant)
+	if err != nil {
+		return err
+	}
+	return pg.inNetvisorOwner(ctx, tenant, owner, fn)
+}
+
 // countOf counts tenant's rows in tb as the operator (the ground truth), or
 // in the tenant's own scope for a table the operator cannot read.
 func countOf(t *testing.T, pg *Postgres, tb, tenant string) int {
 	t.Helper()
 	var n int
 	run := pg.asOperator
-	if operatorBlindTables[tb] {
-		run = func(ctx context.Context, fn func(pgx.Tx) error) error { return pg.inTenant(ctx, tenant, fn) }
+	if operatorBlindTables[tb] || ownerScopedTables[tb] {
+		run = func(ctx context.Context, fn func(pgx.Tx) error) error { return crossScope(ctx, pg, tb, tenant, fn) }
 	}
 	if err := run(context.Background(), func(tx pgx.Tx) error {
 		return tx.QueryRow(context.Background(), `SELECT count(*) FROM `+pgx.Identifier{tb}.Sanitize()+` WHERE tenant_id = $1`, tenant).Scan(&n)
@@ -751,7 +788,7 @@ func TestCrossTenantEveryTable(t *testing.T) {
 	}
 	for _, tb := range tables {
 		id := pgx.Identifier{tb}.Sanitize()
-		err := pg.inTenant(ctx, a.tenant, func(tx pgx.Tx) error {
+		err := crossScope(ctx, pg, tb, a.tenant, func(tx pgx.Tx) error {
 			var other, own int
 			if err := tx.QueryRow(ctx, `SELECT count(*) FILTER (WHERE tenant_id <> $1 AND NOT ($2 AND tenant_id = $3)),
 				count(*) FILTER (WHERE tenant_id = $1) FROM `+id, a.tenant, systemReadTables[tb], SystemTenant).Scan(&other, &own); err != nil {
@@ -777,7 +814,7 @@ func TestCrossTenantEveryTable(t *testing.T) {
 		} {
 			var reached, foreign int
 			rolledBack := errors.New("rollback")
-			err := pg.inTenant(ctx, a.tenant, func(tx pgx.Tx) error {
+			err := crossScope(ctx, pg, tb, a.tenant, func(tx pgx.Tx) error {
 				if err := tx.QueryRow(ctx, `WITH w AS (`+w+`) SELECT count(*), count(*) FILTER (WHERE tenant_id IS DISTINCT FROM $1) FROM w`, a.tenant).Scan(&reached, &foreign); err != nil {
 					return err
 				}
@@ -808,7 +845,7 @@ func TestCrossTenantEveryTable(t *testing.T) {
 		}
 		// A B-stamped row from A's scope: refused by WITH CHECK.
 		var restamped int64
-		err = pg.inTenant(ctx, a.tenant, func(tx pgx.Tx) error {
+		err = crossScope(ctx, pg, tb, a.tenant, func(tx pgx.Tx) error {
 			tag, err := tx.Exec(ctx, `UPDATE `+id+` SET tenant_id = $1 WHERE tenant_id = $2`, b.tenant, a.tenant)
 			restamped = tag.RowsAffected()
 			return err
@@ -836,6 +873,15 @@ func TestCrossTenantStoreAPI(t *testing.T) {
 	}
 	if ok, err := pg.HasMessage(ctx, a.tenant, b.msgID); err != nil || ok {
 		t.Errorf("HasMessage(A, B's msg) = %v %v", ok, err)
+	}
+	if _, err := pg.NetvisorLatest(ctx, b.tenant, b.humanID, "test"); err != nil {
+		t.Errorf("control: NetvisorLatest(B, B's owner) = %v", err)
+	}
+	if _, err := pg.NetvisorLatest(ctx, a.tenant, b.humanID, "test"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("NetvisorLatest(A, B's owner) = %v, want ErrNotFound", err)
+	}
+	if _, err := pg.NetvisorLatest(ctx, b.tenant, a.humanID, "test"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("NetvisorLatest(B, A's owner) = %v, want ErrNotFound", err)
 	}
 	if env, err := pg.TaskEnvelopes(ctx, a.tenant, b.taskID); err != nil || len(env) != 0 {
 		t.Errorf("TaskEnvelopes(A, B's task) = %d %v", len(env), err)

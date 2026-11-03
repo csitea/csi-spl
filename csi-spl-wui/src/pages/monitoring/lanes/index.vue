@@ -28,7 +28,16 @@
      answer's workspaces by name and matching on the row's id.
      Deep link (3.9, SPL-4206; owner HUM-10, t1 fb9b6e4b, msg 470ae116): a
      lane on the agent card opens this page at ?lane=<id@box>; that row is
-     marked selected and scrolled into view once it is in the answer. -->
+     marked selected and scrolled into view once it is in the answer.
+     Shareable list (3.15, SPL-4729; owner HUM-10, t1 0a730c21, msg
+     ea87c5c1): the sort and the filter row live in the address
+     (utils/monitoring-lanes-url.mjs), so a copied URL opens the same list.
+     A change replaces the address, never adds a history entry; a default
+     writes no parameter; Clear filters drops them; ?lane= stays. The first
+     answer sets back to All a box, vendor, state or workspace it does not
+     offer: a member reads the workspace route, which sends no box, so an
+     operator's link with a box shows the member's lanes, never a false
+     empty list. -->
 <template>
   <div class="monitoring-lanes" data-test="lanes-page">
     <div class="ln-head">
@@ -160,6 +169,7 @@ import { useAccessStore } from '~/stores/access'
 import { gateMe, lanesReadPlan } from '~/utils/read-gates.mjs'
 import { lagSeconds } from '~/utils/monitoring-tokens.mjs'
 import { LANE_AGES, LANE_COLUMNS, LANE_QUERY, LANES_NO_FILTER, filterLanes, fleetLanesOf, laneFilterChoices, laneIssuePath, laneName, laneTopicPath, lanesFiltered, lanesStaleLevel, minutesAgo, readLanes, sortLanes, startLanesPoll } from '~/utils/monitoring-lanes.mjs'
+import { lanesFiltersOffered, lanesStateFromQuery, lanesStateQuery, plainQuery, sameLanesQuery } from '~/utils/monitoring-lanes-url.mjs'
 import { cycleSort } from '~/utils/sheet-sort.mjs'
 
 type LanesApi = { getFleetLanes: (own?: boolean) => Promise<unknown> }
@@ -207,6 +217,39 @@ function clearFilters() {
 }
 const choices = computed(() => laneFilterChoices(view.value ? view.value.lanes : []))
 const rows = computed(() => (view.value ? sortLanes(filterLanes(view.value.lanes, filters), sort.value) : []))
+
+/* the sort and the filters follow the address and back (3.15, SPL-4729) */
+const router = useRouter()
+const listPath = route.path
+/* replaces on their way: the route still names the state before them */
+let writing = 0
+/** the address's sort and filters, each value the answer does not offer set back to All */
+function readUrl() {
+  const q = lanesStateFromQuery(route.query)
+  if (q.sort.col !== sort.value.col || q.sort.dir !== sort.value.dir) sort.value = q.sort
+  const f = view.value ? lanesFiltersOffered(q.filters, choices.value) : q.filters
+  const now: Record<string, string> = filters
+  if (Object.entries(f).some(([k, v]) => now[k] !== v)) Object.assign(filters, f)
+}
+function writeUrl() {
+  if (!import.meta.client || router.currentRoute.value.path !== listPath) return
+  const base = plainQuery(route.query)
+  const next = lanesStateQuery({ sort: sort.value, filters }, base)
+  if (sameLanesQuery(next, base)) return
+  writing++
+  const done = () => { writing-- }
+  router.replace({ query: next }).then(done, done)
+}
+readUrl()
+watch(() => route.query, () => { if (!writing) readUrl() })
+watch([sort, filters], writeUrl, { deep: true })
+/* the first answer checks the link's values against what it offers */
+let offeredChecked = false
+watch(view, (v) => {
+  if (!v || offeredChecked) return
+  offeredChecked = true
+  Object.assign(filters, lanesFiltersOffered({ ...filters }, choices.value))
+})
 /** the age filter's choices in words */
 function ageLabel(a: string) {
   if (a === '1h') return t('monitoring.lanes.age_1h')

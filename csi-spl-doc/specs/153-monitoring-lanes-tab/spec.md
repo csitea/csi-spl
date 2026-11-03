@@ -1,5 +1,10 @@
 # 153 Monitoring: the tab row beside the heading, and a live Lanes tab
 
+Addendum (2026-11-03, SPL-4729): section 3.15 (the Lanes list's sort and
+filters live in its URL, so the link can be shared), cases C64-C67. Owner
+HUM-10, t1 topic `0a730c21`, msg `ea87c5c1`. Placed by the dispatch holder
+as one lane brief, not a panel version.
+
 Addendum (2026-11-03, SPL-4705): section 3.13 (a lane on a
 `dispatch-<topic8>` task names the workspace of that topic; a Workspace
 filter), cases C58-C60. Owner HUM-10, t1 topic
@@ -908,6 +913,68 @@ Cases:
   (`tests/unit/monitoring-lanes-sort-filter.test.mjs` "the Workspace
   filter", red on master: 5 fail; `tests/e2e/monitoring-costs.test.mjs`
   `lanesSortFilter` on the mock fleet's two workspaces.)
+
+### 3.15 The list's sort and filters, in its URL (SPL-4729)
+
+The owner, verbatim (HUM-10, t1 `0a730c21`, msg `ea87c5c1`, 2026-11-03):
+"the full state of the lanes listing must be shareable via a link - aka
+once the lanes have been sorted and filtered - the same link should be
+possible to be shared from the url to another person or" (the post ends
+there).
+
+The list's state, and where it lives:
+
+| state | decides | where | URL parameter |
+|---|---|---|---|
+| sort column and direction (3.2, SPL-3887) | the row order | `sort` ref of the page | `sort=<column>&dir=asc\|desc`, a column of `LANE_COLUMNS` |
+| box, vendor, state, workspace selects | which rows | `filters` of the page (`LANES_NO_FILTER`) | `box=`, `vendor=`, `state=`, `workspace=` (the workspace id) |
+| age select | which rows | `filters.age` | `age=1h\|24h\|older` |
+| text filter | which rows | `filters.text` | `text=`, as typed (spaces kept), at most 200 characters |
+| the selected lane (3.9) | which row is marked | the route | `lane=<id@box>`, unchanged |
+| the read: fleet or workspace route (3.6) | which lanes the hub sends | `lanesRead.own` | none: it is who the reader is, not a choice |
+| the answer, its age, the stale marker | n/a | `view`, `fetchedAt` | none: live data |
+
+How it behaves (`utils/monitoring-lanes-url.mjs`, the page's
+`readUrl` / `writeUrl`; the Issues list's twin is SPL-4648):
+
+- A sort or filter change replaces the address (`router.replace`), never
+  adds a history entry, also while typing; a default (no sort, All, no
+  text) writes no parameter. Clear filters drops the filter parameters,
+  the sort stays. The minute's refresh and a reload keep them. Every other
+  parameter, `lane` among them, passes through.
+- A value the page cannot use (a column it does not sort, a direction
+  other than `asc`/`desc`, an age outside the three, a box or vendor that
+  is not a plain id, a text over 200 characters) reads as not named: no
+  error, the list shows, the address drops it.
+- **Another person.** The first answer sets back to All each box, vendor,
+  state or workspace it does not offer, and the address drops it. A
+  member (3.6) reads the workspace route, which sends no box: an
+  operator's link with `box=` shows that member's lanes under the other
+  filters, never a false empty list. The same holds for a workspace the
+  reader does not see. A later refresh does not re-check, so a lane that
+  ends mid-session leaves the filter as the reader set it.
+- No new column, filter, text key or hub change.
+
+Cases:
+
+- **C64** a URL naming every parameter, as an operator admin at 1440 and
+  390: the selects, the text and the sort mark show them, only the
+  matching row lists, the address keeps every parameter; reload and
+  Refresh keep it.
+- **C65** a filter change, the third sort click and typing rewrite the
+  address with no new history entry; Clear filters drops the filter
+  parameters.
+- **C66** bad values (`sort=zzz&dir=up&age=2h&box=<x>&vendor=nope&workspace=w9&state=gone`)
+  beside `lane=c-085@box-a`: every lane lists, no page error, the address
+  keeps `lane` only and c-085 is selected; `lane=` with `box=` and a sort
+  selects that lane in the filtered list.
+- **C67** `box=box-a&vendor=claude&workspace=mock&sort=agent&dir=asc`
+  opened by a workspace admin (the workspace route, no box): c-085 lists,
+  the box select is All, the address keeps the rest.
+
+(`tests/e2e/monitoring-lanes-url.test.mjs` on the mock bundle, 32 checks;
+`tests/unit/monitoring-lanes-url.test.mjs`. Red control: a bundle whose
+reader drops `?vendor=` and skips the offered check fails C64 and C67.)
 
 ## 4. Cases
 

@@ -3484,10 +3484,10 @@
         "audit": {
           "add": "Lisatud",
           "remove": "Eemaldatud",
-          "refused": "Keelatud"
+          "refused": "Keeldutud"
         },
         "err": {
-          "bad_glob": "Vigane muster: absoluutne tee või tee kausta $HOME/ all, * ja ? ainult failinimes, ilma nurk- ja looksulgude, ** ning osadeta . ja ..",
+          "bad_glob": "Vigane muster: absoluutne tee või tee kausta $HOME/ all, * ja ? ainult failinimes, ilma nurk- ja looksulgudeta, ** ning osadeta . ja ..",
           "bad_key": "Vigane võti: väikesed tähed, numbrid ja sidekriipsud, kuni 24.",
           "outside_folders": "Mustri kaust ei asu ühegi selle kasti lubatud kausta all.",
           "glob_key_taken": "Sellel kastil on selle võtmega muster juba olemas.",

@@ -23,8 +23,10 @@ const fileStreamsReadMax = 2 << 20
 //	file-streams push --json <file|->   a follower frame -> the hub's ack, one JSON line {type: ack, ...}
 //
 // The frame is {type, lane_op, ...}: lane_op file_streams_announce carries
-// streams, file_streams_push carries stream_key, lines, dropped and
-// redactions. Only the payload is sent, checked here first by the hub's own
+// streams and, from row B10, folders and globs (spec 160 3.8.5);
+// file_streams_push carries stream_key, lines, dropped and redactions;
+// file_streams_globs (the pull of the box's web globs) carries nothing and
+// its ack lists them. Only the payload is sent, checked here first by the hub's own
 // decoders. The hub's socket reads at most 512 KiB a frame, so a push is
 // split into parts of at most wire.FileStreamPushMaxBytes and 1000 lines,
 // sent in seq order; the ack is printed only when every part is acked (a
@@ -83,13 +85,21 @@ func fileStreamsParts(raw []byte) (string, []json.RawMessage, error) {
 		Lines      json.RawMessage `json:"lines"`
 		Dropped    json.RawMessage `json:"dropped"`
 		Redactions json.RawMessage `json:"redactions"`
+		Folders    json.RawMessage `json:"folders"`
+		Globs      json.RawMessage `json:"globs"`
 	}
 	if err := json.Unmarshal(raw, &in); err != nil {
 		return "", nil, fmt.Errorf("not a follower frame object: %w", err)
 	}
 	switch in.LaneOp {
 	case wire.FileStreamsAnnounceOp:
-		row, err := json.Marshal(map[string]json.RawMessage{"streams": in.Streams})
+		ann := map[string]json.RawMessage{"streams": in.Streams}
+		for k, v := range map[string]json.RawMessage{"folders": in.Folders, "globs": in.Globs} {
+			if len(v) > 0 && string(v) != "null" {
+				ann[k] = v
+			}
+		}
+		row, err := json.Marshal(ann)
 		if err == nil {
 			_, err = wire.DecodeFileStreamsAnnounce(row)
 		}
@@ -106,8 +116,11 @@ func fileStreamsParts(raw []byte) (string, []json.RawMessage, error) {
 		}
 		parts, err := fileStreamsSplit(p)
 		return in.LaneOp, parts, err
+	case wire.FileStreamsGlobsOp:
+		row := json.RawMessage(`{}`)
+		return in.LaneOp, []json.RawMessage{row}, wire.DecodeFileStreamsGlobsPull(row)
 	}
-	return "", nil, fmt.Errorf("lane_op must be %s or %s", wire.FileStreamsAnnounceOp, wire.FileStreamsPushOp)
+	return "", nil, fmt.Errorf("lane_op must be %s, %s or %s", wire.FileStreamsAnnounceOp, wire.FileStreamsPushOp, wire.FileStreamsGlobsOp)
 }
 
 func orJSON(v json.RawMessage, def string) json.RawMessage {

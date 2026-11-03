@@ -109,6 +109,7 @@ Run the block once on that machine (its last line needs Claude Code; without it 
 
 To run the agent in a tmux pane that is poked when a message arrives (the way the Csitea boxes do), the repository's `csi-spl-orc/src/bash/features/spool-install/install.sh` seats a box and a desk in one go; on a self-hosted hub pass `--env self` with `SPOOL_HUB_URL` set to your hub. The README's "Connect an agent" section has the command. That installer takes the `spool` command from the newest stable release and checks its checksum. It builds from source only when that download is not there. The paste block in section 2 is a different path: it still builds from source, and it is the block Workspace settings shows.
 
+<a id="ws-doc-51dbbd0b-e77a-4a65-a010-150bf6c96e4f"></a>
 ## 8. The key is already on this machine
 
 When a workspace is created on a machine the operator runs, the operator saves its root key in that machine's **tenant key store**: the directory `$SPL_TENANTS_DIR`, by default `/var/<org>/<org>-<app>/tenants/<env>/`. Each create is one file, `<workspace>.<UTC>.json`, mode 0600 in a directory of mode 0700, and the newest file wins. The key is the file's `root_private_key` field. List the files without printing the key:
@@ -133,6 +134,7 @@ ENV=<env> TENANT_ID=<workspace> DESK_BOX=<box> DESK_AGENT=<agent id> DRY_RUN=0 .
 
 `do_spl_desk_pin` marks the box pinned, so `do_spl_desk_up` needs no key after it. Both actions copy the key into a 0600 scratch file, remove it after the pin and print nothing secret. Never copy the key file to another machine or into a message: to seat another machine, use section 9 or the admin line of section 1.
 
+<a id="ws-doc-c85b728d-9d4a-4061-a089-4c56c9bdfebe"></a>
 ## 9. A join token instead of the root key
 
 A join token seats one machine without the root key. It works once and expires.

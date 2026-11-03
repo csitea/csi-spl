@@ -39,6 +39,11 @@
 # @param FILE_STREAMS_AGENT_USER (optional) - default the first
 # @param   spl_cost_agent_users user
 # @param FILE_STREAMS_CNF (optional) - default csi-spl-cnf/csi-spl/all.env.yaml
+# @param FILE_STREAMS_FOLDERS (optional) - the folders a web glob may reach
+# @param   (spec 160 3.8.2), a JSON list; default box.env FILE_STREAMS_FOLDERS
+# @param   (paths, space separated: the box narrows or replaces the list),
+# @param   else the cnf env.box.file_streams.folders. The globs themselves are
+# @param   pulled from each hub by its follower (3.8.5), every cnf globs_s
 # @param FILE_STREAMS_STATE_DIR (optional) - default the agent user's
 # @param   $HOME/.local/state/csi-spl/file-streams, or .../csi-spl-file-streams
 # @param   when that user cannot write the csi-spl dir (plus /<env> per hub)
@@ -181,12 +186,29 @@ spl_file_stream_cnf() {
   printf '%s' "${v:-$3}"
 }
 
+# spl_file_stream_folders <cnf>: the allowed folders of web globs (spec 160
+# 3.8.2) as a JSON list: env FILE_STREAMS_FOLDERS (JSON), else box.env
+# FILE_STREAMS_FOLDERS (space separated; the box's own file, never written
+# from the hub), else the cnf. The follower checks every entry itself.
+spl_file_stream_folders() {
+  local v
+  if [[ -n "${FILE_STREAMS_FOLDERS:-}" ]]; then printf '%s' "$FILE_STREAMS_FOLDERS"; return 0; fi
+  v="$(spl_file_stream_boxenv FILE_STREAMS_FOLDERS)"
+  if [[ -n "${v// /}" ]]; then
+    printf '%s' "$v" | jq -R -c 'split(" ") | map(select(length > 0))'
+    return 0
+  fi
+  v="$(yq -o json -I0 '.env.box.file_streams.folders // []' "$1" 2>/dev/null)"
+  printf '%s' "${v:-[]}"
+}
+
 # spl_file_stream_env <cnf>: fill the caller's envs array, the follower's
 # FILE_STREAMS_* settings from the cnf (an env var of the same name wins).
 spl_file_stream_env() {
   local cnf="$1" k v allow extra="" r
   local -A keys=([START_LINES]=start_lines [TICK_S]=tick_s [RUN_S]=run_s [PEM_MAX_LINES]=pem_max_lines
-    [LINE_BYTES]=line_bytes [RATE_PER_MIN]=rate_per_min [QUEUE_MAX]=queue_max [MAX]=max_streams)
+    [LINE_BYTES]=line_bytes [RATE_PER_MIN]=rate_per_min [QUEUE_MAX]=queue_max [MAX]=max_streams
+    [GLOBS_S]=globs_s [GLOBS_STALE_S]=globs_stale_s [GLOB_SCAN_S]=glob_scan_s [GLOB_SCAN_MAX]=glob_scan_max)
   for k in "${!keys[@]}"; do
     v="FILE_STREAMS_$k"; v="${!v:-$(spl_file_stream_cnf "$cnf" "${keys[$k]}" "")}"
     [[ -z "$v" ]] && continue
@@ -195,6 +217,7 @@ spl_file_stream_env() {
   done
   allow="${FILE_STREAMS_ALLOW:-$(yq -o json -I0 '.env.box.file_streams.allow // []' "$cnf" 2>/dev/null)}"
   envs+=("FILE_STREAMS_ALLOW=${allow:-[]}")
+  envs+=("FILE_STREAMS_FOLDERS=$(spl_file_stream_folders "$cnf")")
   # The deny list's extra roots: the cnf spool root and workspace bases,
   # and the desk dir of SPL_STATE_DIR (spec 160 3.2).
   for k in spool_root workspace_base fleet_workspace_base; do

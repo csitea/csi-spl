@@ -32,6 +32,14 @@
 #   C36 a symlink to a fifo or a device: refused, the tick not blocked, only
 #       an O_PATH open of it (strace, when the box allows it)
 #   C37 a whole key on one line: masked, the next lines followed unchanged
+#   C47 a web glob outside the allowed folders is refused by the box itself
+#   C48 a dir or a match that is a symlink out of its folder: refused
+#   C49 glob matches pass open_checked (C8, C31-C36 for a match)
+#   C50 the 8 slots: cnf first, then the newest matches; a followed match
+#       keeps its slot
+#   C51 a removed glob leaves the announce; a stale list stops web globs only
+#   C52 a scan reads at most 10 000 entries; a compressed name is skipped
+#   C54 a folder `/`, of one segment or denied is refused, no glob under it
 #   C53 every row of 3.8.10's table (and each /var/log security file) is a
 #       `security file`; /etc/passwd and /etc/group as cnf entries: refused;
 #       /var/log/syslog and the token-burn cron log: not denied; a symlink
@@ -548,6 +556,200 @@ c37() {
   [[ "$got" == "p1 p2 p3" ]] || { echo "  C37: after the key line: '$got'"; return 1; }
 }
 
+# ------------------------------------------------------------------ web globs (row B10)
+# gcase <dir>: a stub hub for web globs in case dir <dir>: the follower's
+# pull (lane op file_streams_globs) is answered from <dir>/globs.json, as
+# GLOBS_PLAN says call by call (ok | empty | fail; the last word repeats);
+# GLOBS_ON2 runs before the 2nd answer. Every other frame as newcase's stub.
+gcase() {
+  local d="$1"
+  cat >"$d/gpush" <<'EOF'
+#!/bin/sh
+f="$(cat)"
+case "$f" in
+*'"file_streams_globs"'*)
+  n=$(($(cat "$GLOBS_N" 2>/dev/null || echo 0) + 1)); echo "$n" >"$GLOBS_N"
+  [ "$n" = 2 ] && [ -n "${GLOBS_ON2:-}" ] && sh -c "$GLOBS_ON2"
+  p="$(echo "${GLOBS_PLAN:-ok}" | awk -v n="$n" '{ print (n <= NF) ? $n : $NF }')"
+  case "$p" in
+  fail) exit 1 ;;
+  empty) echo '{"type":"ack","lane_op":"file_streams_globs","globs":[]}' ;;
+  *) printf '{"type":"ack","lane_op":"file_streams_globs","globs":%s}\n' "$(cat "$GLOBS_FILE")" ;;
+  esac
+  exit 0 ;;
+esac
+[ -e "$PUSH_FAIL_FILE" ] && exit 1
+printf '%s\n' "$f" >>"$PUSH_LOG"
+echo '{"type":"ack","lane_op":"x"}'
+EOF
+  chmod +x "$d/gpush"
+  echo "[]" >"$d/globs.json"
+  echo "[]" >"$d/folders"
+}
+
+# globs <dir> <key> <glob> [<key> <glob>]...: the stub hub's live globs, ids
+# ...0001, ...0002 in that order (the hub's order: oldest first).
+globs() {
+  local d="$1"; shift
+  python3 -c 'import json, sys; a = sys.argv[1:]; print(json.dumps([{"id": "00000000-0000-4000-8000-%012d" % (i // 2 + 1), "key": a[i], "glob": a[i + 1]} for i in range(0, len(a), 2)]))' "$@" >"$d/globs.json"
+}
+folders() { local d="$1"; shift; python3 -c 'import json, sys; print(json.dumps(sys.argv[1:]))' "$@" >"$d/folders"; }
+
+# gfs <py> <dir> <ticks> [VAR=value]...: <ticks> ticks of follower <py>, one
+# process, a pull and a scan every tick.
+gfs() {
+  local py="$1" d="$2" n="$3"; shift 3
+  env HOME="$d/home" SPOOL_ROOT="$d/spool" FILE_STREAMS_STATE_DIR="$d/state" FILE_STREAMS_PUSH_CMD="$d/gpush" \
+    PUSH_LOG="$d/pushed" PUSH_FAIL_FILE="$d/push.fail" GLOBS_FILE="$d/globs.json" GLOBS_N="$d/globs.n" \
+    FILE_STREAMS_ALLOW="$(cat "$d/allow")" FILE_STREAMS_FOLDERS="$(cat "$d/folders")" FILE_STREAMS_GLOBS_S=0 \
+    FILE_STREAMS_GLOB_SCAN_S=0 FILE_STREAMS_TICK_S=0.2 "$@" \
+    timeout 60 python3 "$py" --ticks "$n" >>"$d/out" 2>&1
+}
+
+lastann() { jq -c 'select(.lane_op == "file_streams_announce")' "$1/pushed" | tail -n 1; }
+# grep1 <dir> <glob n>: that glob's report in the last announce
+grep1() { lastann "$1" | jq -c --arg id "00000000-0000-4000-8000-$(printf %012d "$2")" '.globs[] | select(.id == $id) | {state, matched, followed, over_cap, reason}'; }
+gpaths() { lastann "$1" | jq -r '[.streams[] | select(.glob_id) | .path] | sort | join(" ")'; }
+
+c47() {
+  local d r1 r2
+  d="$(newcase)"; gcase "$d"
+  mkdir -p "$d/a" "$d/b"
+  echo in-a >"$d/a/x.log"; echo in-b >"$d/b/x.log"
+  folders "$d" "$d/a"
+  globs "$d" ga "$d/a/*.log" gb "$d/b/*.log"
+  gfs "$1" "$d" 1
+  r1="$(grep1 "$d" 1)" r2="$(grep1 "$d" 2)"
+  texts "$d" | grep -x in-a >/dev/null || { echo "  C47: a/x.log was not followed: $r1"; return 1; }
+  texts "$d" | grep -x in-b >/dev/null && { echo "  C47: b/x.log was followed"; return 1; }
+  [[ "$r2" == '{"state":"refused","matched":0,"followed":0,"over_cap":0,"reason":"outside allowed folders"}' ]] ||
+    { echo "  C47: the b glob: $r2"; return 1; }
+  [[ "$(gpaths "$d")" == "$d/a/x.log" ]] || { echo "  C47: glob streams '$(gpaths "$d")'"; return 1; }
+}
+
+c48() {
+  local d r1 r2
+  d="$(newcase)"; gcase "$d"
+  mkdir -p "$d/a" "$d/b"
+  echo out-dir >"$d/b/z.log"; echo out-link >"$d/b/y.log"
+  ln -s "$d/b" "$d/a/out"
+  ln -s "$d/b/y.log" "$d/a/y.log"
+  folders "$d" "$d/a"
+  globs "$d" gd "$d/a/out/*.log" gm "$d/a/*.log"
+  gfs "$1" "$d" 1
+  r1="$(grep1 "$d" 1)" r2="$(grep1 "$d" 2)"
+  [[ "$r1" == *'"state":"refused"'*'"reason":"outside allowed folders"'* ]] || { echo "  C48: a dir out of the folder: $r1"; return 1; }
+  [[ "$r2" == '{"state":"partial","matched":1,"followed":0,"over_cap":0,"reason":"1 refused: outside allowed folders"}' ]] ||
+    { echo "  C48: a match out of the folder: $r2"; return 1; }
+  nolines "$d" out-dir out-link
+}
+
+c49() {
+  local d s r
+  d="$(newcase)"; gcase "$d"
+  s="$(cat "$d/home/.ssh/id_x")"
+  mkdir -p "$d/a"
+  echo "$s" >"$d/spool/m.log"; echo "$s" >"$d/a/.env"
+  ln -s "$d/home/.ssh/id_x" "$d/a/k1.log"
+  ln "$d/home/.ssh/id_x" "$d/a/k2.log"
+  mkfifo "$d/a/k3.log"
+  ln -s /dev/zero "$d/a/k4.log"
+  ln -s "$d/spool/m.log" "$d/a/k5.log"
+  folders "$d" "$d/a"
+  globs "$d" gk "$d/a/k*.log" ge "$d/a/.env"
+  gfs "$1" "$d" 2 || { echo "  C49: the tick did not end"; return 1; }
+  r="$(grep1 "$d" 1)"
+  [[ "$r" == '{"state":"partial","matched":5,"followed":0,"over_cap":0,"reason":"5 refused: '* ]] || { echo "  C49: the k glob: $r"; return 1; }
+  r="$(grep1 "$d" 2)"
+  [[ "$r" == '{"state":"partial","matched":1,"followed":0,"over_cap":0,"reason":"1 refused: denied path"}' ]] || { echo "  C49: .env: $r"; return 1; }
+  [[ -z "$(gpaths "$d")" ]] || { echo "  C49: followed '$(gpaths "$d")'"; return 1; }
+  nolines "$d" "$s"
+}
+
+c50() {
+  local d i r first
+  d="$(newcase)"; gcase "$d"
+  mkdir -p "$d/a"
+  echo c1 >"$d/logs/c1.log"; echo c2 >"$d/logs/c2.log"
+  allow "$d" c1 "$d/logs/c1.log" c2 "$d/logs/c2.log"
+  for i in $(seq -w 1 12); do echo "m$i" >"$d/a/m$i.log"; touch -d "@$((1700000000 + 10#$i * 60))" "$d/a/m$i.log"; done
+  folders "$d" "$d/a"
+  globs "$d" gm "$d/a/m*.log"
+  # before the 2nd tick the oldest file becomes the newest
+  gfs "$1" "$d" 2 GLOBS_ON2="touch '$d/a/m01.log'"
+  r="$(grep1 "$d" 1)"
+  [[ "$r" == '{"state":"partial","matched":12,"followed":6,"over_cap":6,"reason":null}' ]] || { echo "  C50: $r"; return 1; }
+  first="$(jq -c 'select(.lane_op == "file_streams_announce")' "$d/pushed" | sed -n 1p | jq -r '[.streams[] | select(.glob_id) | .path] | sort | join(" ")')"
+  [[ "$first" == "$(for i in 07 08 09 10 11 12; do printf '%s ' "$d/a/m$i.log"; done | sed 's/ $//')" ]] ||
+    { echo "  C50: followed first '$first'"; return 1; }
+  [[ "$(gpaths "$d")" == "$first" ]] || { echo "  C50: after the touch '$(gpaths "$d")'"; return 1; }
+  texts "$d" | grep -x m01 >/dev/null && { echo "  C50: the touched older file took a slot"; return 1; }
+  [[ "$(texts "$d" | grep -xcE 'c1|c2')" == 2 ]] || { echo "  C50: the cnf entries lost their slots"; return 1; }
+}
+
+c51() {
+  local d ann
+  # removed on the hub: its streams leave the next announce
+  d="$(newcase)"; gcase "$d"
+  mkdir -p "$d/a"; echo g1 >"$d/a/x.log"
+  folders "$d" "$d/a"; globs "$d" gx "$d/a/*.log"
+  gfs "$1" "$d" 2 GLOBS_PLAN="ok empty"
+  ann="$(jq -c 'select(.lane_op == "file_streams_announce") | [.streams[] | select(.glob_id)] | length' "$d/pushed" | paste -sd' ')"
+  [[ "$ann" == "1 0" ]] || { echo "  C51: glob streams per announce '$ann', want '1 0'"; return 1; }
+  # the hub down past globs_stale_s: the glob stream stops with one marker,
+  # the cnf stream goes on
+  d="$(newcase)"; gcase "$d"
+  mkdir -p "$d/a"; echo g1 >"$d/a/x.log"; echo c1 >"$d/logs/c.log"
+  allow "$d" c "$d/logs/c.log"
+  folders "$d" "$d/a"; globs "$d" gx "$d/a/*.log"
+  gfs "$1" "$d" 3 GLOBS_PLAN="ok fail" FILE_STREAMS_GLOBS_STALE_S=0 \
+    GLOBS_ON2="echo g2 >>'$d/a/x.log'; echo c2 >>'$d/logs/c.log'"
+  [[ "$(texts "$d" | grep -cx -- '-- glob list stale --')" == 1 ]] || { echo "  C51: stale markers: $(texts "$d" | paste -sd'|')"; return 1; }
+  texts "$d" | grep -x c2 >/dev/null || { echo "  C51: the cnf stream stopped"; return 1; }
+  texts "$d" | grep -x g2 >/dev/null && { echo "  C51: the glob stream went on while stale"; return 1; }
+  [[ "$(grep1 "$d" 1)" == *'"state":"refused"'*'"reason":"glob list stale"'* ]] || { echo "  C51: report $(grep1 "$d" 1)"; return 1; }
+}
+
+c52() {
+  local d r t0 ms
+  d="$(newcase)"; gcase "$d"
+  mkdir -p "$d/a/big" "$d/a/rot"
+  python3 -c 'import os, sys
+for i in range(50000):
+    open(os.path.join(sys.argv[1], "n%05d.log" % i), "w").close()' "$d/a/big"
+  echo r1 >"$d/a/rot/x.log"; echo zipped >"$d/a/rot/x.log.2.gz"
+  folders "$d" "$d/a"
+  globs "$d" gb "$d/a/big/*.log*" gr "$d/a/rot/*.log*"
+  t0="$(date +%s%N)"
+  gfs "$1" "$d" 1
+  ms=$((($(date +%s%N) - t0) / 1000000))
+  r="$(grep1 "$d" 1)"
+  [[ "$r" == '{"state":"partial","matched":10000,"followed":8,"over_cap":9992,"reason":null}' ]] || { echo "  C52: big: $r"; return 1; }
+  ((ms <= 1500)) || { echo "  C52: the tick took ${ms} ms"; return 1; }
+  [[ "$(grep1 "$d" 2)" == '{"state":"partial","matched":1,"followed":0,"over_cap":1,"reason":null}' ]] ||
+    { echo "  C52: rot: $(grep1 "$d" 2)"; return 1; }
+  # with a free slot the plain file is followed, the .gz never
+  globs "$d" gr "$d/a/rot/*.log*"; : >"$d/pushed"
+  gfs "$1" "$d" 1
+  [[ "$(grep1 "$d" 1)" == '{"state":"following","matched":1,"followed":1,"over_cap":0,"reason":null}' ]] ||
+    { echo "  C52: rot alone: $(grep1 "$d" 1)"; return 1; }
+  nolines "$d" zipped
+}
+
+c54() {
+  local d bad
+  d="$(newcase)"; gcase "$d"
+  mkdir -p "$d/home/.config"; echo cfg-line >"$d/home/.config/a.log"
+  folders "$d" / /etc /etc/ssh '$HOME/.config' /proc/x
+  globs "$d" gs '/etc/ssh/*' gc '$HOME/.config/*.log'
+  gfs "$1" "$d" 1
+  bad="$(lastann "$d" | jq -r '[.folders[] | select(.state != "refused") | .path] | join(" ")')"
+  [[ -z "$bad" && "$(lastann "$d" | jq '.folders | length')" == 5 ]] || { echo "  C54: folders not refused: '$bad'"; return 1; }
+  [[ "$(grep1 "$d" 1)" == *'"followed":0'*'"outside allowed folders"'* && "$(grep1 "$d" 2)" == *'"followed":0'*'"outside allowed folders"'* ]] ||
+    { echo "  C54: globs $(grep1 "$d" 1) $(grep1 "$d" 2)"; return 1; }
+  nolines "$d" cfg-line
+}
+
 check C1 "first sight pushes the last 200 lines" c1 \
   start-at-0 'st["offset"] = self.tail_start(fd, fst.st_size)' 'st["offset"] = 0'
 check C2 "3 appended lines: exactly those, seq +1 each" c2 \
@@ -601,6 +803,33 @@ check C36 "a fifo or a device behind a symlink: refused, the tick not blocked" c
   plain-open 'os.open(name, os.O_PATH | os.O_CLOEXEC)' 'os.open(name, os.O_RDONLY | os.O_CLOEXEC)'
 check C37 "a whole key on one line opens no block" c37 \
   block-on-any-begin 'if m and not PEM_END_RE.search(text, m.end()):' 'if m:'
+check C47 "a web glob outside the allowed folders is refused on the box" c47 \
+  trust-the-hub '                self.roots.append(real)' '                self.roots.append(os.path.dirname(real))'
+check C48 "a dir or a match that is a symlink out of the folder is refused" c48 \
+  dir-by-text 'if not any(under(real, r) for r in roots):  # ctl:dir-folder' 'if not any(under(os.path.normpath(expand_home(shown)), r) for r in roots):' \
+  match-by-text 'if roots is not None and not any(under(real, r) for r in roots):' 'if roots is not None and not any(under(os.path.abspath(name), r) for r in roots):'
+check C49 "glob matches pass open_checked: link, hardlink, fifo, device, .env, spool root" c49 \
+  plain-open 'def open_checked(name, ctx, roots=None, info=None):' 'def open_checked(name, ctx, roots=None, info=None):
+    if roots is not None:
+        fd = os.open(name, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
+        if info is not None:
+            info["real"] = name
+        return fd, os.fstat(fd)
+    return _open_checked(name, ctx)
+
+
+def _open_checked(name, ctx, roots=None, info=None):'
+check C50 "the cap: cnf first, then the newest matches; a followed one keeps its slot" c50 \
+  no-cap 'if used >= self.max_streams:  # ctl:cap' 'if False:' \
+  no-kept-slot 'keep[k] = i  # ctl:keep-slot' 'pass'
+check C51 "a removed glob leaves the announce; a stale list stops web globs only" c51 \
+  keep-the-list 'globs = globs[:GLOBS_MAX]' 'globs = globs[:GLOBS_MAX] or self.globs' \
+  never-stale 'self.go_stale()  # ctl:stale' 'pass'
+check C52 "a scan reads at most 10 000 entries; a compressed name is skipped" c52 \
+  no-scan-cap 'if n >= scan_max:  # ctl:scan-max' 'if False:' \
+  gz-as-text 'if e.name.endswith(COMPRESSED):  # ctl:compressed' 'if False:'
+check C54 "a folder that is /, one segment, or denied is refused, no glob under it" c54 \
+  no-folder-check 'why, real = folder_check(f, self.ctx)' 'why, real = "", os.path.realpath(expand_home(f))'
 
 # ------------------------------------------------------------------ limits
 d="$(newcase)"
@@ -653,6 +882,15 @@ if command -v yq >/dev/null; then
     [[ ! -d /var/spool-hub && "$out" == *"FATAL the spool root /var/spool-hub is not a directory"* ]]; } &&
     pass "action: on with no SPOOL_ROOT (cron) reaches the follower" ||
     fail "action no SPOOL_ROOT: rc=$rc out='$out'"
+  # spec 160 3.8.2 (row B10): the allowed folders reach the follower from the
+  # cnf (Q5 B: the box log folder and /var/log); box.env replaces them
+  folders_got() { env SPOOL_TEST=1 FILE_STREAMS_FOLDERS= "$@" bash -c 'source "$1"; spl_file_stream_folders "$2"' _ \
+    "$PROJ_ROOT/src/bash/run/spl-file-stream-follow.func.sh" "$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml"; }
+  printf 'FILE_STREAMS_FOLDERS="/var/log /srv/app"\n' >"$d/box.env"
+  [[ "$(folders_got)" == '["/var/csi/csi-spl","/var/log"]' && "$(folders_got SPOOL_BOX_ENV="$d/box.env")" == '["/var/log","/srv/app"]' &&
+     "$(folders_got FILE_STREAMS_FOLDERS='["/x/y"]')" == '["/x/y"]' ]] &&
+    pass "action: the folders come from the cnf (Q5 B), box.env replaces them, an env value wins" ||
+    fail "action folders: cnf='$(folders_got)' box.env='$(folders_got SPOOL_BOX_ENV="$d/box.env")'"
 else
   fail "action on: yq is required"
 fi

@@ -38,9 +38,11 @@ func StatementTimeout(ctx context.Context) time.Duration {
 }
 
 // budgeted is scope (a `SELECT set_config(...)` list) plus ctx's statement
-// budget, or scope itself when ctx carries none. The milliseconds are an
-// integer formatted here, never caller text.
+// budget and ctx's reader human (humanScope, spec 125 B8), or scope itself
+// when ctx carries neither. The milliseconds are an integer formatted here,
+// never caller text.
 func budgeted(ctx context.Context, scope string) string {
+	scope += humanScope(ctx)
 	d := StatementTimeout(ctx)
 	if d <= 0 {
 		return scope

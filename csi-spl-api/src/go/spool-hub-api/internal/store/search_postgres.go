@@ -319,9 +319,9 @@ func (s *Postgres) search(ctx context.Context, tenant string, q SearchQuery, sql
 		budget = d // the request's budget (statement_budget.go) when tighter
 	}
 	if budget > 0 {
-		b.Queue(pgScopeTenantBudget, tenant, strconv.FormatInt(max(budget.Milliseconds(), 1), 10))
+		b.Queue(pgScopeTenantBudget+humanScope(ctx), tenant, strconv.FormatInt(max(budget.Milliseconds(), 1), 10))
 	} else {
-		b.Queue(pgScopeTenant, tenant)
+		b.Queue(pgScopeTenant+humanScope(ctx), tenant)
 	}
 	b.Queue(sql, args...)
 	br := s.pool.SendBatch(ctx, b)

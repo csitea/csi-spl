@@ -306,17 +306,39 @@ func (s *Postgres) DocCreate(ctx context.Context, tenant, title, description, ac
 // same transaction, the workspace lock taken first (workspace_doc_nodes.go).
 // On a database without rdb 0165 a root create writes no node, as before.
 func (s *Postgres) DocCreateIn(ctx context.Context, tenant, folder, title, description, actor string) (string, string, error) {
+	return s.docCreate(ctx, tenant, folder, title, description, actor, nil)
+}
+
+// DocCreateRestricted is DocCreateIn for a document only the context's human
+// (WithHuman) can read (spec 125 B8, rdb 0256): the lock is written in the
+// create's own statement, so no other reader ever sees the document, not even
+// empty. No human on the context is ErrNoPerson.
+func (s *Postgres) DocCreateRestricted(ctx context.Context, tenant, folder, title, description, actor string) (string, string, error) {
+	hum := HumanOf(ctx)
+	if hum == "" {
+		return "", "", ErrNoPerson
+	}
+	return s.docCreate(ctx, tenant, folder, title, description, actor, hum)
+}
+
+// docCreate is the one create; lockTo is nil (the workspace's) or the human.
+func (s *Postgres) docCreate(ctx context.Context, tenant, folder, title, description, actor string, lockTo any) (string, string, error) {
 	var doc, root string
 	err := s.inTenant(ctx, tenant, func(tx pgx.Tx) error {
 		place, err := docCreatePlace(ctx, tx, tenant, folder)
 		if err != nil {
 			return err
 		}
-		err = tx.QueryRow(ctx, `WITH d AS (
-			INSERT INTO workspace_doc (tenant_id, title, description, rev, created_by) VALUES ($1, $2, $4, 0, $3) RETURNING tenant_id, id),
-			r AS (INSERT INTO workspace_doc_item (tenant_id, doc_id, parent_id, ord)
-				SELECT tenant_id, id, NULL, 1 FROM d RETURNING id)
-			SELECT d.id::text, r.id::text FROM d, r`, tenant, title, actor, description).Scan(&doc, &root)
+		// Two statements, not one CTE: the root's RETURNING must pass rdb
+		// 0256's human_lock, which reads the document, and a statement does
+		// not see a row its own CTE inserted.
+		err = tx.QueryRow(ctx, `INSERT INTO workspace_doc (tenant_id, title, description, rev, created_by, restricted_to_human)
+			VALUES ($1, $2, $4, 0, $3, $5) RETURNING id::text`, tenant, title, actor, description, lockTo).Scan(&doc)
+		if err != nil {
+			return err
+		}
+		err = tx.QueryRow(ctx, `INSERT INTO workspace_doc_item (tenant_id, doc_id, parent_id, ord)
+			VALUES ($1, $2, NULL, 1) RETURNING id::text`, tenant, doc).Scan(&root)
 		if err != nil {
 			return err
 		}

@@ -18892,6 +18892,49 @@
         ]
       }
     },
+    "/v1/workspace/doctree/{doc}/lock": {
+      "put": {
+        "operationId": "putWorkspaceDoctreeLock",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "description": "the document id",
+            "in": "path",
+            "name": "doc",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "description": "stale rev: the document (or the item, on a text edit) changed since it was read"
+          }
+        },
+        "summary": "Lock the document to the caller alone, or lift the lock (spec 125 B8)",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
     "/v1/workspace/doctree/{doc}/subtree": {
       "get": {
         "operationId": "getWorkspaceDoctreeSubtree",

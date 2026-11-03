@@ -243,13 +243,17 @@ func (s *Postgres) DocFolderCreate(ctx context.Context, tenant string, f DocFold
 // documents (the file system view, spec 5 "order"), each in the folder's
 // own order, its bounds (the re-order of DocNodeMoveAt, owner t1 1a9a14b6
 // msg 32d5ea87); a document an older hub made without a node goes last,
-// by title.
+// by title. A document node whose document the reader cannot see (rdb
+// 0256's human_lock: another human's restricted document) is not listed and
+// not counted: the node table has no such policy (its nested set needs every
+// row), so the join to workspace_doc, which has, decides.
 const docNodeSelect = `SELECT n.id::text, n.kind, n.name, n.title, n.description, coalesce(n.doc_id::text, ''),
 		coalesce(d.title, ''), coalesce(d.description, ''),
-		(SELECT count(*) FROM workspace_doc_node c WHERE c.tenant_id = n.tenant_id AND c.parent_id = n.id)::integer,
+		(SELECT count(*) FROM workspace_doc_node c WHERE c.tenant_id = n.tenant_id AND c.parent_id = n.id
+			AND (c.doc_id IS NULL OR c.doc_id IN (SELECT v.id FROM workspace_doc v)))::integer,
 		n.lft
 	FROM workspace_doc_node n LEFT JOIN workspace_doc d ON d.id = n.doc_id
-	WHERE n.tenant_id = $1 AND n.parent_id = $2
+	WHERE n.tenant_id = $1 AND n.parent_id = $2 AND (n.doc_id IS NULL OR d.id IS NOT NULL)
 	UNION ALL
 	SELECT '', 'doc', '', '', '', d.id::text, d.title, d.description, 0, NULL
 	FROM workspace_doc d

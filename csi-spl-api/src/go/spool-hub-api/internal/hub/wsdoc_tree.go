@@ -23,7 +23,7 @@ import (
 // every structural write is one of T002's ops, so no route can break the tree.
 //
 //	GET    /v1/workspace/doctree                  the documents (?topic= linked to one topic)
-//	POST   /v1/workspace/doctree                  create {title, description, parent}
+//	POST   /v1/workspace/doctree                  create {title, description, parent, restricted}
 //	GET    /v1/workspace/doctree/nodes            ?parent= (none = root): one folder's children
 //	POST   /v1/workspace/doctree/folders          create {parent, name, title, description}
 //	PATCH  /v1/workspace/doctree/folders/{folder} edit any of {name, title, description}
@@ -40,6 +40,7 @@ import (
 //	DELETE /v1/workspace/doctree/{doc}/items/{item}        ?rev= : delete the subtree
 //	PATCH  /v1/workspace/doctree/{doc}/items/{item}        {field, value, rev}: a text edit
 //	PUT    /v1/workspace/doctree/{doc}/topic      {topic_id} ("" unlinks): the discussion topic
+//	PUT    /v1/workspace/doctree/{doc}/lock       {restricted, rev}: only the caller reads it (wsdoc_lock.go)
 //	POST   /v1/workspace/doctree/{doc}/images     an image's bytes: its img_http_path (wsdoc_media.go)
 //	GET    /v1/workspace/doctree/{doc}/images/{name}  one uploaded image
 //
@@ -96,6 +97,8 @@ const (
 // docTreeStore is the store side: T002's ops plus the reads of wsdoc_hub.go.
 type docTreeStore interface {
 	DocCreateIn(ctx context.Context, tenant, folder, title, description, actor string) (string, string, error)
+	DocCreateRestricted(ctx context.Context, tenant, folder, title, description, actor string) (string, string, error)
+	DocLock(ctx context.Context, tenant, doc string, rev int64, on bool, actor string) (store.DocOpResult, error)
 	DocFolderCreate(ctx context.Context, tenant string, f store.DocFolder) (string, error)
 	DocNodes(ctx context.Context, tenant, parent string) (string, []store.DocNode, error)
 	DocNodeMove(ctx context.Context, tenant, node, parent string) error
@@ -136,6 +139,7 @@ func (s *Server) routeDocTree(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /v1/workspace/doctree/{doc}/items/{item}", s.handleDocTreeDelete)
 	mux.HandleFunc("PATCH /v1/workspace/doctree/{doc}/items/{item}", s.handleDocTreeEdit)
 	mux.HandleFunc("PUT /v1/workspace/doctree/{doc}/topic", s.handleDocTreeTopic)
+	mux.HandleFunc("PUT /v1/workspace/doctree/{doc}/lock", s.handleDocTreeLock)
 	mux.HandleFunc("POST /v1/workspace/doctree/{doc}/images", s.handleDocTreeImagePut)
 	mux.HandleFunc("GET /v1/workspace/doctree/{doc}/images/{name}", s.handleDocTreeImageGet)
 	mux.HandleFunc("PUT /v1/workspace/doctree/{doc}/assets/{path...}", s.handleDocTreeAssetPut)
@@ -154,11 +158,14 @@ func (s *Server) docTreePreflight(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// docTreeCall is one resolved caller: tenant, who (member or box id) and
-// the store.
+// docTreeCall is one resolved caller: tenant, who (member or box id), the
+// store, and human: who when it is a signed-in member who is not an act-as
+// clone, the only caller a restricted document opens to (spec 125 B8,
+// wsdoc_lock.go), else "".
 type docTreeCall struct {
 	tenant string
 	who    string
+	human  string
 	st     docTreeStore
 }
 
@@ -176,6 +183,7 @@ func (s *Server) docTreeCaller(w http.ResponseWriter, r *http.Request, perm stri
 	if !ok {
 		return docTreeCall{}, false
 	}
+	human := s.docTreeHuman(r, tenant, who, agent)
 	st, on := s.o.Store.(docTreeStore)
 	if !on {
 		writeErr(w, http.StatusNotFound, "workspace_doc_tree_off", "this hub's store has no workspace documents")
@@ -190,7 +198,7 @@ func (s *Server) docTreeCaller(w http.ResponseWriter, r *http.Request, perm stri
 		}
 		tenant = store.SystemTenant
 	}
-	return docTreeCall{tenant: tenant, who: who, st: st}, true
+	return docTreeCall{tenant: tenant, who: who, human: human, st: st}, true
 }
 
 // repoDocsWriter reports whether the caller may write the repo docs (spec
@@ -291,11 +299,14 @@ type docTreeHead struct {
 	Root      string `json:"root"`
 	TopicID   string `json:"topic_id"`
 	UpdatedAt string `json:"updated_at"`
+	// Restricted is the one human who reads it (spec 125 B8), "" = the
+	// workspace's. Only that human ever receives a non-empty value.
+	Restricted string `json:"restricted_to_human"`
 }
 
 func docTreeHeadOf(h store.DocHead) docTreeHead {
 	return docTreeHead{ID: h.ID, Title: h.Title, Desc: h.Desc, Rev: h.Rev, Items: max(h.Items-1, 0), Root: h.RootID,
-		TopicID: h.TopicID, UpdatedAt: h.UpdatedAt.UTC().Format("2006-01-02T15:04:05.000Z")}
+		TopicID: h.TopicID, UpdatedAt: h.UpdatedAt.UTC().Format("2006-01-02T15:04:05.000Z"), Restricted: h.Restricted}
 }
 
 var docTreeUUIDRe = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
@@ -331,9 +342,17 @@ func (s *Server) handleDocTreeCreate(w http.ResponseWriter, r *http.Request) {
 		Title       string `json:"title"`
 		Description string `json:"description"`
 		Parent      string `json:"parent"`
+		Restricted  bool   `json:"restricted"`
 	}
-	if !readJSONStrict(w, r, &in, docTreeMaxBody, "invalid JSON body (only title, description, parent)") {
+	if !readJSONStrict(w, r, &in, docTreeMaxBody, "invalid JSON body (only title, description, parent, restricted)") {
 		return
+	}
+	create := c.st.DocCreateIn
+	if in.Restricted {
+		if !docTreeLockable(w, c) {
+			return
+		}
+		create = c.st.DocCreateRestricted
 	}
 	in.Title = store.DocTitle(in.Title)
 	in.Description = strings.TrimSpace(in.Description)
@@ -341,7 +360,7 @@ func (s *Server) handleDocTreeCreate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_request", "title is at most 500 characters, description at most 1000")
 		return
 	}
-	doc, root, err := c.st.DocCreateIn(r.Context(), c.tenant, in.Parent, in.Title, in.Description, c.who)
+	doc, root, err := create(r.Context(), c.tenant, in.Parent, in.Title, in.Description, c.who)
 	if err != nil {
 		docTreeFail(w, err)
 		return

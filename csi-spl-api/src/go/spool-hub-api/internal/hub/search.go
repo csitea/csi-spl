@@ -405,6 +405,11 @@ func (s *Server) docSection(ctx context.Context, tenant string, q *search.Query,
 	if !ok || sq.Viewer == "" || !s.allowed(ctx, sq.Viewer, tenant, rbac.DocsRead) {
 		return out, nil
 	}
+	// spec 125 B8: the viewer's own restricted docs (wsdoc_lock.go). No clone
+	// lookup here (a DB round trip, roundtrips_perf_test budget): an act-as
+	// clone reads as its own CloneHum, which never owns a lock (docTreeHuman
+	// refuses a clone), so it still sees no restricted doc.
+	ctx = store.WithHuman(ctx, sq.Viewer)
 	rows, err := ds.SearchDocs(ctx, tenant, sq)
 	if err != nil {
 		return out, err

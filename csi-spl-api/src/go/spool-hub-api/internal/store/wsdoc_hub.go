@@ -27,6 +27,9 @@ type DocHead struct {
 	RootID    string
 	RootRev   int64
 	RootAttrs json.RawMessage
+	// Restricted is the one human who may read it (rdb 0256,
+	// workspace_doc_lock.go), "" = the workspace's.
+	Restricted string
 }
 
 // DocHit is one search match.
@@ -41,7 +44,8 @@ type DocHit struct {
 // id or NULL, $3 = the limit, $4 = the tenant (RLS also lets every tenant
 // read the system tenant's docs, rdb 0191: a workspace lists only its own).
 const wsDocHeadSQL = `SELECT d.id::text, d.title, d.description, d.rev, coalesce(r.attrs->>'topic_id', ''), d.updated_at,
-		(SELECT count(*) FROM workspace_doc_item i WHERE i.doc_id = d.id), r.id::text, r.rev, r.attrs
+		(SELECT count(*) FROM workspace_doc_item i WHERE i.doc_id = d.id), r.id::text, r.rev, r.attrs,
+		coalesce(d.restricted_to_human, '')
 	FROM workspace_doc d JOIN workspace_doc_item r ON r.doc_id = d.id AND r.parent_id IS NULL
 	WHERE d.tenant_id = $4 AND ($1::uuid IS NULL OR d.id = $1) AND ($2::text IS NULL OR r.attrs->>'topic_id' = $2)
 	ORDER BY d.updated_at DESC, d.id LIMIT $3`
@@ -51,7 +55,7 @@ func (s *Postgres) docHeads(ctx context.Context, tenant string, doc, topic any, 
 	err := s.queryTenantBatch(ctx, tenant, tenantRead{sql: wsDocHeadSQL, args: []any{doc, topic, limit, tenant},
 		each: func(r pgx.Rows) error {
 			var h DocHead
-			err := r.Scan(&h.ID, &h.Title, &h.Desc, &h.Rev, &h.TopicID, &h.UpdatedAt, &h.Items, &h.RootID, &h.RootRev, &h.RootAttrs)
+			err := r.Scan(&h.ID, &h.Title, &h.Desc, &h.Rev, &h.TopicID, &h.UpdatedAt, &h.Items, &h.RootID, &h.RootRev, &h.RootAttrs, &h.Restricted)
 			out = append(out, h)
 			return err
 		}})

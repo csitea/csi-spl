@@ -74,6 +74,39 @@ func checkPerson(person string) error {
 	return nil
 }
 
+// humanKey carries the reader's human id on a context (WithHuman).
+type humanKey struct{}
+
+// WithHuman marks ctx as read by hum, a signed-in member who is not an
+// act-as clone (spec 125 B8). Every scope statement of the store then also
+// sets app.doc_human_id (humanScope), the one setting rdb 0256's human_lock
+// opens a restricted document to. Only the hub calls it, from the verified
+// session, never from a path, query, header or body; anything not
+// HUM-<digits> leaves ctx unmarked, so the lock stays shut.
+func WithHuman(ctx context.Context, hum string) context.Context {
+	if checkPerson(hum) != nil {
+		return ctx
+	}
+	return context.WithValue(ctx, humanKey{}, hum)
+}
+
+// HumanOf is the human WithHuman put on ctx, "" when none.
+func HumanOf(ctx context.Context) string {
+	hum, _ := ctx.Value(humanKey{}).(string)
+	return hum
+}
+
+// humanScope is the set_config term that carries HumanOf(ctx) into a scope
+// statement, "" when ctx has no human. The id is a literal: it matched
+// personIDRe in WithHuman, so it holds only "HUM-" and digits.
+func humanScope(ctx context.Context) string {
+	hum := HumanOf(ctx)
+	if hum == "" {
+		return ""
+	}
+	return ", set_config('app.doc_human_id', '" + hum + "', true)"
+}
+
 // inPerson runs fn in one transaction scoped to person's realm (specs/119
 // 7.2), the twin of inTenant. It never sets app.tenant_id, and it never nests
 // with inTenant: rdb 0168's policy reads 0 realm rows while a tenant is set.

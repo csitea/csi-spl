@@ -184,6 +184,11 @@ var pvSteps = []pvStep{
 	{"PUT /v1/workspace/doctree/{doc}/topic", false, func(w *pvWalk) {
 		mustCall(w.t, w.e, w.tid, http.MethodPut, docTreeAPI+"/"+w.doc+"/topic", w.as, map[string]any{"topic_id": uuidV4()}, 200)
 	}},
+	{"PUT /v1/workspace/doctree/{doc}/lock", false, func(w *pvWalk) {
+		for _, on := range []bool{true, false} {
+			mustCall(w.t, w.e, w.tid, http.MethodPut, docTreeAPI+"/"+w.doc+"/lock", w.as, map[string]any{"restricted": on, "rev": w.docRev()}, 200)
+		}
+	}},
 	{"POST /v1/workspace/doctree/{doc}/images", true, func(w *pvWalk) {
 		if code, out, _ := rawCall(w.t, w.e, w.tid, http.MethodPost, docTreeAPI+"/"+w.doc+"/images", w.as, "image/png", w.png); code != 200 {
 			w.t.Fatalf("image post: %d %s", code, out)

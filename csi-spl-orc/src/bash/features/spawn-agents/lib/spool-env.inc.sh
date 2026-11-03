@@ -30,6 +30,7 @@
 #   CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN   default <agent home>/.local/bin/<cli> when it
 #                       exists, else the bare name
 #   MISTRAL_BIN         the same, for the binary vibe (spec 110)
+#   CODEX_BIN           the same, for the binary codex (spec 161 2.2)
 #
 # The box config, $SPOOL_BOX_ENV (default $SPOOL_ROOT/box.env), is where a box
 # says once what every spawn on it should default to, so a bare
@@ -210,6 +211,7 @@ spl_kind_of_agent_id() {  # ID -> KIND
     a-*|AGY-*) printf 'agy' ;;
     q-*|QWN-*) printf 'qwen' ;;
     m-*)       printf 'mistral' ;;
+    o-*)       printf 'codex' ;;
     *) return 1 ;;
   esac
 }
@@ -314,7 +316,7 @@ spool_valid_id() {  # ID
 # read no profile, so the tag lives here too, or they name windows bare.
 # SPOOL_DESK_USER (spec 069 section 8.3): the OS user whose home holds the
 # desks and who runs their sidecars; unset = SPOOL_BOX_USER, as before.
-SPOOL_BOX_ENV_KEYS="SPOOL_AGENT_USER SPOOL_RUN_AS_AGENT CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN MISTRAL_BIN SPOOL_AGENT_ID_RANGE SPOOL_DESK_BOX SPOOL_FLEET_ENV SPOOL_FLEET_TENANT SPOOL_DIR_LAYOUT SPOOL_BOX_TAG SPOOL_LOGIN_PEERS SPOOL_DESK_USER"
+SPOOL_BOX_ENV_KEYS="SPOOL_AGENT_USER SPOOL_RUN_AS_AGENT CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN MISTRAL_BIN CODEX_BIN SPOOL_AGENT_ID_RANGE SPOOL_DESK_BOX SPOOL_FLEET_ENV SPOOL_FLEET_TENANT SPOOL_DIR_LAYOUT SPOOL_BOX_TAG SPOOL_LOGIN_PEERS SPOOL_DESK_USER"
 
 # Fill each unset SPOOL_BOX_ENV_KEYS variable from the box config.
 _spool_box_env_load() {
@@ -478,14 +480,14 @@ spool_env_resolve() {
   export SPOOL_ROOT
 }
 
-# CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN MISTRAL_BIN, each unless already set:
+# CLAUDE_BIN GROK_BIN AGY_BIN QWEN_BIN MISTRAL_BIN CODEX_BIN, each unless already set:
 # <agent home>/.local/bin/<cli> when it exists, else the bare name (resolved on
 # the agent user's PATH when spool-harness.sh runs it). Needs SPOOL_AGENT_USER.
 spool_resolve_bins() {
   SPOOL_AGENT_HOME="$(_spool_home_of "$SPOOL_AGENT_USER")"
   local cli var
   # mistral's binary is vibe (spec 110 2.1); the variable keeps the kind's name.
-  for cli in claude grok agy qwen vibe; do
+  for cli in claude grok agy qwen vibe codex; do
     var="$(printf '%s' "$cli" | tr '[:lower:]' '[:upper:]')_BIN"
     [ "$cli" = vibe ] && var=MISTRAL_BIN
     if [ -z "${!var:-}" ]; then
@@ -498,8 +500,25 @@ spool_resolve_bins() {
   done
 }
 
+# The Codex login marker, relative to the agent user's home (spec 161 2.2):
+# SPOOL_CODEX_AUTH_MARKER, else the cnf env.box.agent_split.auth_marker.codex
+# of this checkout, else .codex/auth.json (the subscription login the Codex
+# CLI writes with cli_auth_credentials_store = "file"). Codex is off on a box
+# until that file exists: no lane is placed there and spawn-codex.sh refuses.
+spool_codex_auth_marker() {
+  local cnf m
+  if [ -n "${SPOOL_CODEX_AUTH_MARKER:-}" ]; then printf '%s' "$SPOOL_CODEX_AUTH_MARKER"; return 0; fi
+  cnf="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../../../../../csi-spl-cnf/csi-spl/all.env.yaml"
+  [ -r "$cnf" ] && m="$(awk '
+    /^[[:space:]]*auth_marker:[[:space:]]*$/ { match($0, /^[[:space:]]*/); ind = RLENGTH; on = 1; next }
+    on { match($0, /^[[:space:]]*/); if (RLENGTH <= ind && $0 ~ /[^[:space:]]/) exit }
+    on && /^[[:space:]]*codex:/ { sub(/^[[:space:]]*codex:[[:space:]]*/, ""); sub(/[[:space:]]*(#.*)?$/, ""); gsub(/["'\'']/, ""); print; exit }
+  ' "$cnf")"
+  printf '%s' "${m:-.codex/auth.json}"
+}
+
 # The vendor kinds THIS box can start (SPL-1649): one comma-separated line of
-# claude grok agy qwen mistral, each whose *_BIN `command -v` finds as the
+# claude grok agy qwen mistral codex, each whose *_BIN `command -v` finds as the
 # agent user in its login shell - the way spool-harness.sh execs it, so a CLI
 # only the box user has does not count. "" = measured, none. Exit 1 = the hop
 # to the agent user failed: unknown, never "none". Before it, a lane placed on
@@ -517,14 +536,30 @@ spool_vendor_clis() {
     SPOOL_RUN_AS_AGENT="${SPOOL_RUN_AS_AGENT:-su-dash}"
     spool_resolve_bins
     probe=""
-    for kind in claude grok agy qwen mistral; do
+    for kind in claude grok agy qwen mistral codex; do
       var="$(printf '%s' "$kind" | tr '[:lower:]' '[:upper:]')_BIN"
-      probe+="command -v $(printf '%q' "${!var}") >/dev/null 2>&1 && echo $kind; "
+      probe+="command -v $(printf '%q' "${!var}") >/dev/null 2>&1 "
+      # codex counts only with its subscription login (spool_codex_auth_marker).
+      [ "$kind" != codex ] || probe+="&& test -f \"\$HOME\"/$(printf '%q' "$(spool_codex_auth_marker)") "
+      probe+="&& echo $kind; "
     done
     out="$(spool_agent_exec "${probe}echo spool-clis-end" </dev/null 2>/dev/null)" || true
     [[ "$out" == *spool-clis-end* ]] || exit 1
-    grep -xE 'claude|grok|agy|qwen|mistral' <<<"$out" | paste -sd, -
+    grep -xE 'claude|grok|agy|qwen|mistral|codex' <<<"$out" | paste -sd, -
   )
+}
+
+# 0 when THIS box can start a codex lane: the agent user finds CODEX_BIN and
+# has the login marker (spool_vendor_clis lists codex). Else 1, with the one
+# refusal line on stderr: codex stays off until the owner's subscription
+# login is on the box (owner HUM-10 msg 9c70e4f7, 2026-11-03; spec 161).
+# spawn-window.sh asks it before any claim or window, spawn-codex.sh and
+# restore-codex.sh before any launch.
+spool_codex_ready() {  # [ID]
+  local clis
+  clis="$(spool_vendor_clis 2>/dev/null)" && [[ ",${clis}," == *",codex,"* ]] && return 0
+  echo "REFUSED ${1:-codex}: codex is off on this box: the agent user ${SPOOL_AGENT_USER:-?} has no codex CLI (${CODEX_BIN:-codex}) or no login (~/$(spool_codex_auth_marker)); it stays off until the owner's subscription login is on the box (spec 161). Nothing was started." >&2
+  return 1
 }
 
 # The tmux command, hopping to the socket owner when this is someone else.
@@ -622,13 +657,16 @@ spool_agent_cmd_text() { spool_agent_argv --tty >/dev/null 2>&1 || return 0; pri
 # --dangerously-skip-permissions (bypass, the fleet's only mode); grok: that
 # name plus the explicit mode, so a spawn does not depend on its config.toml
 # (measured grok 1.0.41: the pair parses); qwen: --yolo; mistral (vibe):
-# --auto-approve (spec 110 3.3).
+# --auto-approve (spec 110 3.3); codex: --dangerously-bypass-approvals-and-sandbox
+# (spec 161 2.2, the Codex CLI reference: "Run every command without approvals
+# or sandboxing"; its alias --yolo is not used).
 spool_claude_perm_flags() {  # [KIND]   default claude
   case "${1:-claude}" in
     claude|agy) printf '%s' '--dangerously-skip-permissions' ;;
     grok)       printf '%s' '--dangerously-skip-permissions --permission-mode bypassPermissions' ;;
     qwen)       printf '%s' '--yolo' ;;
     mistral)    printf '%s' '--auto-approve' ;;
+    codex)      printf '%s' '--dangerously-bypass-approvals-and-sandbox' ;;
     *) echo "spool-env: no permission flags for harness '${1}'" >&2; return 2 ;;
   esac
 }

@@ -2,7 +2,7 @@
 # spawn-window.sh — create an agent's tmux window DETACHED in the box user's
 # session and start its launcher in it.
 #
-# Usage: spawn-window.sh <claude|grok|agy|qwen|mistral> <TITLE|auto> <WORKDIR> [BRIEF_FILE] [SLUG]
+# Usage: spawn-window.sh <claude|grok|agy|qwen|mistral|codex> <TITLE|auto> <WORKDIR> [BRIEF_FILE] [SLUG]
 #   TITLE "auto" allocates (and claims) the next free id with next-agent-id.sh;
 #   an explicit TITLE is validated and claimed as-is (exit 3 when taken, unless
 #   SPAWN_REUSE_ID=1, which respawns an id whose spool dir already exists).
@@ -46,7 +46,8 @@
 # load target's high mark (LOAD TARGET below), so queue the lane, 11 the
 # new session is stopped on a dialog (START CHECK above), 12 the lane has
 # no issue (LANE ISSUE below), 13 the box has no <kind> CLI (VENDOR CLI
-# below), 14 this box cannot resolve the hub API host (HUB DNS below),
+# below; codex: or no login, CODEX OFF), 14 this box cannot resolve the hub
+# API host (HUB DNS below),
 # 15 the owner-order ledger refused, or the brief its orders go into is not
 # writable (OWNER ORDERS below).
 # Only c-001, c-002 and c-003 (any box), or a
@@ -161,7 +162,7 @@ spool_env_resolve
 usage() { sed -n '5p' "${BASH_SOURCE[0]}" | sed 's/^# *//' >&2; exit 2; }
 
 KIND="${1:-}"; TITLE="${2:-}"
-case "$KIND" in claude|grok|agy|qwen|mistral) ;; *) usage ;; esac
+case "$KIND" in claude|grok|agy|qwen|mistral|codex) ;; *) usage ;; esac
 [ -n "$TITLE" ] && [ -n "${3:-}" ] || usage
 LAUNCHER="$HERE/spawn-$KIND.sh"
 [ -r "$LAUNCHER" ] || { echo "spawn-window: no launcher $LAUNCHER" >&2; exit 2; }
@@ -400,6 +401,10 @@ if [ -n "$TARGET" ]; then
   ! sw_cordoned "$(spool_fleet_box)" || { sw_hold_cordon "$(spool_fleet_box)" "the spawn on ${TARGET} did not start (spawn-remote exit ${rc})"; exit 10; }
   echo "spawn-window: WARN the spawn on ${TARGET} did not start (spawn-remote exit ${rc}: 3 not sent, 4 refused, 5 no answer within ${SPAWN_REMOTE_WAIT:-300}s): starting here instead" >&2
 fi
+# CODEX OFF (spec 161, owner HUM-10 msg 9c70e4f7): a codex lane starts here
+# only when the agent user has the codex CLI and its login (spool_codex_ready);
+# else one REFUSED line and exit 13, before any claim or window.
+[ "$KIND" != codex ] || spool_codex_ready "${TITLE/#auto/a new codex lane}" || exit 13
 if [ -f "${SPOOL_ROOT}/peer/seats" ]; then
   gate_dry=0; [ "${SPAWN_DRY_RUN:-0}" = 1 ] && gate_dry=1
   PEER_GATE_ROLE=spawn PEER_GATE_DRY="$gate_dry" SPOOL_ROOT="$SPOOL_ROOT" \
@@ -599,7 +604,7 @@ fi
 # (a role seat under ROTATE_ROLE_VENDOR failed live without it, SPL-1605).
 envs=()
 for v in SPOOL_ROOT SPOOL_BOX_USER SPOOL_DESK_USER SPOOL_AGENT_USER SPOOL_RUN_AS_AGENT SPOOL_TMUX_SOCKET \
-         SPOOL_BOX_TAG SPOOL_ORCHESTRATOR_ID SPOOL_BIN CLAUDE_BIN SPAWN_CLAUDE_CONFIG_DIR GROK_BIN AGY_BIN QWEN_BIN MISTRAL_BIN SPOOL_MISTRAL_MAX_PRICE SPAWN_GIT_IDENTITY \
+         SPOOL_BOX_TAG SPOOL_ORCHESTRATOR_ID SPOOL_BIN CLAUDE_BIN SPAWN_CLAUDE_CONFIG_DIR GROK_BIN AGY_BIN QWEN_BIN MISTRAL_BIN CODEX_BIN SPOOL_MISTRAL_MAX_PRICE SPAWN_GIT_IDENTITY \
          SPAWN_REUSE_ID SPAWN_REQUESTER SPAWN_LANE_SCOPE SPAWN_LANE_FILES SPAWN_LANE_TOPIC SPAWN_PROMPT_HEAD_FILE LANE_FLEET LANE_ENV LANE_TENANT LANE_DESK_BOX; do
   [ -n "${!v:-}" ] && envs+=("$v=${!v}")
 done

@@ -3683,9 +3683,10 @@
     },
     "finance": {
       "loading": "Läser in de ekonomiska siffrorna…",
-      "forbidden": "Bara arbetsytans Netvisor-ägare ser de ekonomiska siffrorna.",
+      "forbidden": "Bara personerna i Netvisor-arbetsytan ser de ekonomiska siffrorna.",
       "error": "De ekonomiska siffrorna kunde inte läsas in.",
       "no_snapshot": "Ingen Netvisor-ögonblicksbild än. Tryck på Uppdatera nu för att begära den första.",
+      "no_snapshot_member": "Ingen Netvisor-ögonblicksbild än. Netvisor-ägaren kan begära den första.",
       "env": {
         "test": "Testföretag i Netvisor",
         "prd": "Produktionsföretag i Netvisor"

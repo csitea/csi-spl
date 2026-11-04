@@ -3683,9 +3683,10 @@
     },
     "finance": {
       "loading": "Načítavajú sa finančné údaje…",
-      "forbidden": "Finančné údaje vidí iba vlastník Netvisor v pracovnom priestore.",
+      "forbidden": "Finančné údaje vidia iba ľudia z pracovného priestoru Netvisor.",
       "error": "Finančné údaje sa nepodarilo načítať.",
       "no_snapshot": "Snímka z Netvisor zatiaľ neexistuje. Stlačte „Obnoviť teraz“ a vyžiadajte si prvú.",
+      "no_snapshot_member": "Snímka z Netvisor zatiaľ neexistuje. Vlastník Netvisor si môže vyžiadať prvú.",
       "env": {
         "test": "Testovacia firma v Netvisor",
         "prd": "Produkčná firma v Netvisor"

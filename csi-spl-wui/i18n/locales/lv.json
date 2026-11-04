@@ -3683,9 +3683,10 @@
     },
     "finance": {
       "loading": "Ielādē finanšu datus…",
-      "forbidden": "Finanšu datus redz tikai darbvietas Netvisor īpašnieks.",
+      "forbidden": "Finanšu datus redz tikai Netvisor darbvietas cilvēki.",
       "error": "Neizdevās ielādēt finanšu datus.",
       "no_snapshot": "Netvisor momentuzņēmuma vēl nav. Nospiediet “Atjaunot tagad”, lai pieprasītu pirmo.",
+      "no_snapshot_member": "Netvisor momentuzņēmuma vēl nav. Pirmo var pieprasīt Netvisor īpašnieks.",
       "env": {
         "test": "Netvisor testa uzņēmums",
         "prd": "Netvisor produkcijas uzņēmums"

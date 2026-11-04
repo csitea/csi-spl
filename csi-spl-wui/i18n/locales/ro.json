@@ -3683,9 +3683,10 @@
     },
     "finance": {
       "loading": "Se încarcă cifrele financiare…",
-      "forbidden": "Doar proprietarul Netvisor al spațiului de lucru vede cifrele financiare.",
+      "forbidden": "Doar persoanele din spațiul de lucru Netvisor văd cifrele financiare.",
       "error": "Cifrele financiare nu au putut fi încărcate.",
       "no_snapshot": "Încă nu există niciun instantaneu Netvisor. Apăsați „Reîmprospătează acum” pentru a cere primul.",
+      "no_snapshot_member": "Încă nu există niciun instantaneu Netvisor. Proprietarul Netvisor îl poate cere pe primul.",
       "env": {
         "test": "Firma de test din Netvisor",
         "prd": "Firma de producție din Netvisor"

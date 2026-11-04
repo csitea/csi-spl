@@ -3683,9 +3683,10 @@
     },
     "finance": {
       "loading": "Finansal rakamlar yükleniyor…",
-      "forbidden": "Finansal rakamları yalnızca çalışma alanının Netvisor sahibi görür.",
+      "forbidden": "Finansal rakamları yalnızca Netvisor çalışma alanındaki kişiler görür.",
       "error": "Finansal rakamlar yüklenemedi.",
       "no_snapshot": "Henüz Netvisor anlık görüntüsü yok. İlkini istemek için Şimdi yenile düğmesine basın.",
+      "no_snapshot_member": "Henüz Netvisor anlık görüntüsü yok. İlkini Netvisor sahibi isteyebilir.",
       "env": {
         "test": "Netvisor test şirketi",
         "prd": "Netvisor canlı şirketi"

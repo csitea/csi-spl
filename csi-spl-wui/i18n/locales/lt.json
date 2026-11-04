@@ -3683,9 +3683,10 @@
     },
     "finance": {
       "loading": "Įkeliami finansiniai duomenys…",
-      "forbidden": "Finansinius duomenis mato tik darbo srities Netvisor savininkas.",
+      "forbidden": "Finansinius duomenis mato tik Netvisor darbo srities žmonės.",
       "error": "Nepavyko įkelti finansinių duomenų.",
       "no_snapshot": "Netvisor momentinės kopijos dar nėra. Paspauskite „Atnaujinti dabar“, kad paprašytumėte pirmosios.",
+      "no_snapshot_member": "Netvisor momentinės kopijos dar nėra. Pirmosios gali paprašyti Netvisor savininkas.",
       "env": {
         "test": "Netvisor bandomoji įmonė",
         "prd": "Netvisor gamybinė įmonė"

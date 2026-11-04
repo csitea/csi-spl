@@ -1,19 +1,21 @@
 // csi-spl-wui/src/utils/reporting-finance.mjs
 //
 // Spec 125 row B7 (SPL-4741, case C-NVS-7; owner HUM-10, topic fc0119cd):
-// the Reporting Finance tab of the workspace's Netvisor owner. The hub routes
+// the Reporting Finance tab of the Netvisor workspace. The hub routes
 // (B5, csi-spl-doc/doc/md/netvisor-finance-store.md section 5.1):
-//   GET  /v1/view/netvisor/forecast    {env, snapshot, items, refresh_requested_at}
-//   GET  /v1/view/netvisor/card-costs  {env, snapshot, lines, refresh_requested_at}
+//   GET  /v1/view/netvisor/forecast    {env, snapshot, items, refresh_requested_at, reader_is_owner}
+//   GET  /v1/view/netvisor/card-costs  {env, snapshot, lines, vendor_exclusions, refresh_requested_at, reader_is_owner}
 //   POST /v1/netvisor/refresh          202 {refresh_requested_at}
 //   GET  /v1/netvisor/settings         the settings
 //   PUT  /v1/netvisor/settings         {env, bank_account, vat_accounts, tax_accounts, vendor_exclusions}
-// The hub answers them to the owner's own browser session only (C7): 403 to
-// any other member, admins included, to an act-as clone and to any request
-// carrying an Authorization header, so these calls never send the view token.
-// The tab is drawn only after the settings read answered 2xx; the hub's 403
-// is the control. Amounts are decimal text: sums are integer cents, never a
-// float. The mock's figures are invented (C2).
+// The hub answers the two view routes to every person seated in the
+// Netvisor workspace (C7 as rewritten, SPL-4792; owner msg cfa78746), the
+// other three to the Netvisor owner alone; 403 to an agent seat, an act-as
+// clone and any request carrying an Authorization header, so these calls
+// never send the view token. The tab is drawn only after the forecast read
+// answered 2xx; the hub's 403 / 404 is the control. Amounts are decimal
+// text: sums are integer cents, never a float. The mock's figures are
+// invented (C2).
 
 import { mockMeGet, mockRefused } from './act-as-mock.mjs'
 import { HUB_READ_TIMEOUT_MS, HUB_WRITE_TIMEOUT_MS } from './fetch-timeouts.mjs'
@@ -34,8 +36,11 @@ const FINANCE_ACCOUNT_RE = /^[0-9]{1,12}$/
 
 // ---------------------------------------------------------------------------
 // the mock hub: invented figures. The owner is the reader with no
-// spool.mock.me (every mock page plays the unrestricted reader); any
-// spool.mock.me role, admin included, plays another member and gets 403.
+// spool.mock.me (every mock page plays the unrestricted reader); a
+// spool.mock.me role, admin included, plays another person of the workspace:
+// the view routes answer it (reader_is_owner false), the owner routes 403.
+// A seat that is not a person's (an agent's, a time accountant's, a channel
+// guest's) gets 403 on every route, as the hub's netvisorPersonSeat.
 
 const mockState = { settings: null, refreshAt: null }
 
@@ -46,9 +51,15 @@ function mockSettings() {
   return mockState.settings
 }
 
+const MOCK_NOT_PERSON = new Set(['pure_agent', 'time_accountant', 'channel_guest'])
+
+/* true = the reader is the owner; a member on a view route passes as false */
 function mockGate(method, path, store) {
-  if (!mockMeGet(store)) return
-  const err = Object.assign(new Error('only the workspace\'s Netvisor owner sees the Netvisor data'), { status: 403, error: 'forbidden' })
+  const me = mockMeGet(store)
+  if (!me) return true
+  const view = method === 'GET' && (path === NETVISOR_FORECAST_PATH || path === NETVISOR_CARD_COSTS_PATH)
+  if (view && !MOCK_NOT_PERSON.has(me.role)) return false
+  const err = Object.assign(new Error('only the workspace\'s Netvisor owner refreshes or sets up the Netvisor data'), { status: 403, error: view ? 'person_only' : 'forbidden' })
   throw method === 'GET' ? mockRefused(path, err) : err
 }
 
@@ -80,7 +91,7 @@ const MOCK_ITEMS = [
 function mockForecast(now) {
   const due = (off) => (off ? isoDay(now + Number(off) * 86400000) : '')
   const items = MOCK_ITEMS.map(([category, sign, amount, off, overdue, approved, label], i) => ({ item_no: i + 1, category, sign, amount, currency: 'EUR', due_date: due(off), overdue, approved, label }))
-  return { env: mockSettings().env, snapshot: mockHead(now), items, refresh_requested_at: mockState.refreshAt }
+  return { env: mockSettings().env, snapshot: mockHead(now), items, refresh_requested_at: mockState.refreshAt, reader_is_owner: true }
 }
 
 /* months back, route, vendor, account number, account name, dimension, item, amount, excluded */
@@ -97,7 +108,7 @@ function mockCardCosts(now) {
     line_no: i + 1, month: mockMonth(now, back), route, vendor, account_number: accountNumber, account_name: accountName,
     dimension, dimension_item: dimensionItem, amount, currency: 'EUR', vat_code: '', excluded,
   }))
-  return { env: mockSettings().env, snapshot: mockHead(now), lines, refresh_requested_at: mockState.refreshAt }
+  return { env: mockSettings().env, snapshot: mockHead(now), lines, vendor_exclusions: [...mockSettings().vendor_exclusions], refresh_requested_at: mockState.refreshAt, reader_is_owner: true }
 }
 
 function mockPutSettings(body, now) {
@@ -118,9 +129,9 @@ function mockPutSettings(body, now) {
  * @param {Storage} [store]
  */
 export function mockNetvisorCall(method, path, body, now = Date.now(), store) {
-  mockGate(method, path, store)
-  if (method === 'GET' && path === NETVISOR_FORECAST_PATH) return mockForecast(now)
-  if (method === 'GET' && path === NETVISOR_CARD_COSTS_PATH) return mockCardCosts(now)
+  const owner = mockGate(method, path, store)
+  if (method === 'GET' && path === NETVISOR_FORECAST_PATH) return { ...mockForecast(now), reader_is_owner: owner }
+  if (method === 'GET' && path === NETVISOR_CARD_COSTS_PATH) return { ...mockCardCosts(now), reader_is_owner: owner }
   if (method === 'GET' && path === NETVISOR_SETTINGS_PATH) return mockSettings()
   if (method === 'PUT' && path === NETVISOR_SETTINGS_PATH) return mockPutSettings(body, now)
   if (method === 'POST' && path === NETVISOR_REFRESH_PATH) {
@@ -141,7 +152,7 @@ export function mockNetvisorReset() {
 // the hub calls
 
 /**
- * One call to a Netvisor owner route, from the browser session alone: no
+ * One call to a Netvisor route, from the browser session alone: no
  * Authorization header ever (the hub answers 403 person_only to one). Throws
  * { status, error } on a non-2xx answer, { status: 0 } off the network.
  * @param {{ mock?: boolean, base?: string }} api
@@ -157,7 +168,7 @@ export async function netvisorCall(api, method, path, body) {
   try {
     res = await fetch(`${String(api.base).replace(/\/+$/, '')}${path}`, {
       method,
-      /* the owner's session cookie whatever the view door is */
+      /* the reader's session cookie whatever the view door is */
       credentials: 'include',
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -171,22 +182,26 @@ export async function netvisorCall(api, method, path, body) {
   return out
 }
 
-let ownerAnswer = null
+/* the probe's answer per hub base: a workspace switch asks again */
+const readerAnswer = new Map()
 
 /**
- * Is this reader the workspace's Netvisor owner? The settings read answered
- * 2xx; any refusal or failure is false. Asked once per page load.
+ * Does this reader see the workspace's Netvisor figures? The forecast read
+ * answered 2xx (every person of the Netvisor workspace); any refusal (403,
+ * the 404 of every other workspace) or failure is false. Asked once per
+ * page load and hub base.
  * @param {{ mock?: boolean, base?: string }} api
  * @returns {Promise<boolean>}
  */
-export function netvisorOwnerProbe(api) {
-  if (!ownerAnswer) ownerAnswer = netvisorCall(api, 'GET', NETVISOR_SETTINGS_PATH).then(() => true, () => false)
-  return ownerAnswer
+export function netvisorReaderProbe(api) {
+  const key = api.mock ? 'mock' : String(api.base)
+  if (!readerAnswer.has(key)) readerAnswer.set(key, netvisorCall(api, 'GET', NETVISOR_FORECAST_PATH).then(() => true, () => false))
+  return readerAnswer.get(key)
 }
 
-/** Forget the probe's answer (the tests). */
-export function netvisorOwnerProbeReset() {
-  ownerAnswer = null
+/** Forget the probe's answers (the tests). */
+export function netvisorReaderProbeReset() {
+  readerAnswer.clear()
 }
 
 // ---------------------------------------------------------------------------

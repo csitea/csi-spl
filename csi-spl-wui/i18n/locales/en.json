@@ -3683,9 +3683,10 @@
     },
     "finance": {
       "loading": "Loading the finance figures…",
-      "forbidden": "Only the workspace's Netvisor owner sees the finance figures.",
+      "forbidden": "Only the people of the Netvisor workspace see the finance figures.",
       "error": "The finance figures could not be loaded.",
       "no_snapshot": "No Netvisor snapshot yet. Press Refresh now to ask for the first one.",
+      "no_snapshot_member": "No Netvisor snapshot yet. The Netvisor owner can ask for the first one.",
       "env": {
         "test": "Netvisor test company",
         "prd": "Netvisor production company"

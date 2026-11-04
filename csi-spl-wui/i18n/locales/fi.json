@@ -3683,9 +3683,10 @@
     },
     "finance": {
       "loading": "Ladataan talouslukuja…",
-      "forbidden": "Vain työtilan Netvisor-omistaja näkee talousluvut.",
+      "forbidden": "Vain Netvisor-työtilan ihmiset näkevät talousluvut.",
       "error": "Talouslukuja ei voitu ladata.",
       "no_snapshot": "Netvisor-tilannekuvaa ei vielä ole. Pyydä ensimmäistä painamalla Päivitä nyt.",
+      "no_snapshot_member": "Netvisor-tilannekuvaa ei vielä ole. Netvisor-omistaja voi pyytää ensimmäisen.",
       "env": {
         "test": "Netvisorin testiyritys",
         "prd": "Netvisorin tuotantoyritys"

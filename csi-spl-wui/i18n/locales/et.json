@@ -3683,9 +3683,10 @@
     },
     "finance": {
       "loading": "Finantsnäitajate laadimine…",
-      "forbidden": "Finantsnäitajaid näeb ainult tööruumi Netvisori omanik.",
+      "forbidden": "Finantsnäitajaid näevad ainult Netvisori tööruumi inimesed.",
       "error": "Finantsnäitajaid ei õnnestunud laadida.",
       "no_snapshot": "Netvisori hetktõmmist veel pole. Esimese küsimiseks vajutage „Värskenda kohe“.",
+      "no_snapshot_member": "Netvisori hetktõmmist veel pole. Esimese saab küsida Netvisori omanik.",
       "env": {
         "test": "Netvisori testettevõte",
         "prd": "Netvisori tootmisettevõte"

@@ -3683,9 +3683,10 @@
     },
     "finance": {
       "loading": "Wczytywanie danych finansowych…",
-      "forbidden": "Dane finansowe widzi tylko właściciel Netvisor w tym obszarze roboczym.",
+      "forbidden": "Dane finansowe widzą tylko osoby z obszaru roboczego Netvisor.",
       "error": "Nie udało się wczytać danych finansowych.",
       "no_snapshot": "Brak jeszcze migawki z Netvisor. Naciśnij „Odśwież teraz”, aby poprosić o pierwszą.",
+      "no_snapshot_member": "Brak jeszcze migawki z Netvisor. Właściciel Netvisor może poprosić o pierwszą.",
       "env": {
         "test": "Firma testowa w Netvisor",
         "prd": "Firma produkcyjna w Netvisor"

@@ -3683,9 +3683,10 @@
     },
     "finance": {
       "loading": "De financiële cijfers worden geladen…",
-      "forbidden": "Alleen de Netvisor-eigenaar van de werkruimte ziet de financiële cijfers.",
+      "forbidden": "Alleen de mensen van de Netvisor-werkruimte zien de financiële cijfers.",
       "error": "De financiële cijfers konden niet worden geladen.",
       "no_snapshot": "Nog geen Netvisor-momentopname. Druk op Nu vernieuwen om de eerste aan te vragen.",
+      "no_snapshot_member": "Nog geen Netvisor-momentopname. De Netvisor-eigenaar kan de eerste aanvragen.",
       "env": {
         "test": "Netvisor-testbedrijf",
         "prd": "Netvisor-productiebedrijf"

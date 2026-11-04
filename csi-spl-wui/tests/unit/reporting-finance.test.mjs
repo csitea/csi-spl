@@ -1,12 +1,14 @@
 // Spec 125 row B7 (SPL-4741, case C-NVS-7; owner HUM-10, topic fc0119cd,
-// C2, C7, C8): the Reporting Finance tab of the workspace's Netvisor owner.
-// The tab rule (reporting-tabs.mjs `netvisorOwner`), the hub calls and their
+// C2, C7, C8; C7 as rewritten, SPL-4792, owner msg cfa78746): the Reporting
+// Finance tab of every person of the Netvisor workspace, with Refresh now
+// and the settings the Netvisor owner's alone.
+// The tab rule (reporting-tabs.mjs `netvisorReader`), the hub calls and their
 // mock, the sums in cents (reporting-finance.mjs), the settings form's checks,
 // the page and its strings in every locale. Every figure here is invented.
 //
-// RED CONTROLS (each seen red, then green, in SPL-4741):
-//   - widen the tab rule to an admin (drop `netvisorOwner`): "an admin who is
-//     not the owner sees no Finance tab" fails;
+// RED CONTROLS (each seen red, then green, in SPL-4741; the first in SPL-4792):
+//   - widen the tab rule to every role (drop `netvisorReader`): "a role alone
+//     draws no Finance tab" fails;
 //   - send the view token on a Netvisor call: "never an Authorization header"
 //     fails;
 //   - read amounts as floats: "cents, never a float" fails on 1.15.
@@ -33,8 +35,8 @@ import {
   mockNetvisorCall,
   mockNetvisorReset,
   netvisorCall,
-  netvisorOwnerProbe,
-  netvisorOwnerProbeReset,
+  netvisorReaderProbe,
+  netvisorReaderProbeReset,
   netvisorSettingsError,
   settingsBody,
   settingsForm,
@@ -50,19 +52,19 @@ const storeAs = (role) => {
   return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }
 }
 
-describe('the Finance tab: the Netvisor owner alone (C7)', () => {
+describe('the Finance tab: every person of the Netvisor workspace (C7 as rewritten)', () => {
   const tab = REPORTING_TABS.find((t) => t.id === 'finance')
   it('is ready, its own path, and no role opens it', () => {
-    assert.deepEqual({ path: tab.path, labelKey: tab.labelKey, adminOnly: tab.adminOnly, operatorsOnly: tab.operatorsOnly, netvisorOwner: tab.netvisorOwner, ready: tab.ready },
-      { path: '/reporting/finance', labelKey: 'reporting.tab.finance', adminOnly: false, operatorsOnly: false, netvisorOwner: true, ready: true })
+    assert.deepEqual({ path: tab.path, labelKey: tab.labelKey, adminOnly: tab.adminOnly, operatorsOnly: tab.operatorsOnly, netvisorReader: tab.netvisorReader, ready: tab.ready },
+      { path: '/reporting/finance', labelKey: 'reporting.tab.finance', adminOnly: false, operatorsOnly: false, netvisorReader: true, ready: true })
     assert.equal(tab.staff, undefined)
     assert.equal(tab.perm, undefined)
   })
-  it('an admin who is not the owner sees no Finance tab; the owner does', () => {
+  it('a role alone draws no Finance tab; the hub\'s forecast answer does, for any reader', () => {
     const everyRole = { admin: true, operator: true, staff: true, can: () => true }
     assert.ok(!ids(visibleReportingTabs(everyRole)).includes('finance'))
-    assert.ok(!ids(visibleReportingTabs({ ...everyRole, netvisorOwner: false })).includes('finance'))
-    assert.ok(ids(visibleReportingTabs({ netvisorOwner: true })).includes('finance'))
+    assert.ok(!ids(visibleReportingTabs({ ...everyRole, netvisorReader: false })).includes('finance'))
+    assert.ok(ids(visibleReportingTabs({ netvisorReader: true })).includes('finance'))
   })
 })
 
@@ -84,8 +86,26 @@ describe('the mock hub', () => {
     const put = mockNetvisorCall('PUT', NETVISOR_SETTINGS_PATH, { env: 'prd', bank_account: '9', vat_accounts: [], tax_accounts: [], vendor_exclusions: [] }, now, owner)
     assert.equal(put.env, 'prd')
   })
-  it('refuses every other member, an admin too, with 403 and no figure', () => {
+  it('the owner\'s views say reader_is_owner and carry the vendor exclusions', () => {
+    const owner = storeAs(null)
+    assert.equal(mockNetvisorCall('GET', NETVISOR_FORECAST_PATH, undefined, now, owner).reader_is_owner, true)
+    const c = mockNetvisorCall('GET', NETVISOR_CARD_COSTS_PATH, undefined, now, owner)
+    assert.equal(c.reader_is_owner, true)
+    assert.deepEqual(c.vendor_exclusions, ['Example Cloud Ltd'])
+  })
+  it('another person, an admin too, reads the views (reader_is_owner false) and gets 403 on the owner routes', () => {
     for (const role of ['admin', 'member', 'biz_owner']) {
+      const f = mockNetvisorCall('GET', NETVISOR_FORECAST_PATH, undefined, now, storeAs(role))
+      assert.ok(f.items.length > 0 && f.reader_is_owner === false, role)
+      const c = mockNetvisorCall('GET', NETVISOR_CARD_COSTS_PATH, undefined, now, storeAs(role))
+      assert.ok(c.lines.length > 0 && c.reader_is_owner === false && c.vendor_exclusions.length === 1, role)
+      for (const [m, p] of [['GET', NETVISOR_SETTINGS_PATH], ['POST', NETVISOR_REFRESH_PATH], ['PUT', NETVISOR_SETTINGS_PATH]]) {
+        assert.throws(() => mockNetvisorCall(m, p, {}, now, storeAs(role)), (e) => e.status === 403, `${role} ${m} ${p}`)
+      }
+    }
+  })
+  it('a seat that is not a person\'s gets 403 on every route and no figure', () => {
+    for (const role of ['pure_agent', 'time_accountant', 'channel_guest']) {
       for (const [m, p] of [['GET', NETVISOR_FORECAST_PATH], ['GET', NETVISOR_CARD_COSTS_PATH], ['GET', NETVISOR_SETTINGS_PATH], ['POST', NETVISOR_REFRESH_PATH], ['PUT', NETVISOR_SETTINGS_PATH]]) {
         assert.throws(() => mockNetvisorCall(m, p, {}, now, storeAs(role)), (e) => e.status === 403, `${role} ${m} ${p}`)
       }
@@ -101,9 +121,11 @@ describe('the live calls: the owner\'s session cookie, never a token (hub 403 pe
   let calls
   beforeEach(() => {
     calls = []
-    netvisorOwnerProbeReset()
+    netvisorReaderProbeReset()
     globalThis.fetch = async (url, init) => {
       calls.push({ url, init })
+      if (String(url).endsWith(NETVISOR_FORECAST_PATH) && String(url).includes('other.example.com')) return new Response(JSON.stringify({ error: 'not_found' }), { status: 404 })
+      if (String(url).endsWith(NETVISOR_FORECAST_PATH)) return new Response(JSON.stringify({ items: [], reader_is_owner: false }), { status: 200 })
       if (String(url).endsWith(NETVISOR_SETTINGS_PATH) && init.method === 'GET') return new Response(JSON.stringify({ error: 'forbidden' }), { status: 403 })
       return new Response(JSON.stringify({ refresh_requested_at: '2026-05-14T09:30:00Z' }), { status: 202 })
     }
@@ -118,12 +140,16 @@ describe('the live calls: the owner\'s session cookie, never a token (hub 403 pe
     assert.equal(init.credentials, 'include')
     assert.ok(!Object.keys(init.headers).some((h) => h.toLowerCase() === 'authorization'), JSON.stringify(init.headers))
   })
-  it('a 403 throws its status; the probe reads false, once', async () => {
+  it('a 403 throws its status; the probe reads the forecast, once per hub base', async () => {
     await assert.rejects(netvisorCall(api, 'GET', NETVISOR_SETTINGS_PATH), (e) => e.status === 403 && e.error === 'forbidden')
     calls = []
-    assert.equal(await netvisorOwnerProbe(api), false)
-    assert.equal(await netvisorOwnerProbe(api), false)
+    assert.equal(await netvisorReaderProbe(api), true)
+    assert.equal(await netvisorReaderProbe(api), true)
     assert.equal(calls.length, 1)
+    assert.ok(String(calls[0].url).endsWith(NETVISOR_FORECAST_PATH))
+    const other = { ...api, base: 'https://other.example.com' }
+    assert.equal(await netvisorReaderProbe(other), false, 'another workspace answers 404')
+    assert.equal(calls.length, 2)
   })
   it('off the network is status 0', async () => {
     globalThis.fetch = async () => { throw new TypeError('offline') }
@@ -230,20 +256,24 @@ describe('the settings form (owner answer Q2)', () => {
 describe('the page and its strings', () => {
   const page = read('src/pages/reporting/finance.vue')
   const form = read('src/components/reporting/finance/FinanceSettings.vue')
-  it('the page reads the settings first (its 403 is the door), then the figures', () => {
+  it('the page reads the views first (their 403 / 404 is the door), the settings only for the owner', () => {
     const load = page.slice(page.indexOf('async function load()'))
-    assert.ok(load.indexOf('NETVISOR_SETTINGS_PATH') < load.indexOf('NETVISOR_FORECAST_PATH'))
+    assert.ok(load.indexOf('NETVISOR_FORECAST_PATH') < load.indexOf('NETVISOR_SETTINGS_PATH'))
+    assert.match(load, /reader_is_owner === true \? await netvisorCall\(api, 'GET', NETVISOR_SETTINGS_PATH\)/)
     assert.match(page, /status === 403[^\n]*'forbidden'/)
+    assert.match(page, /v-if="isOwner"[^>]*data-test="finance-refresh"/)
+    assert.match(page, /<FinanceSettings v-if="isOwner && settings"/)
   })
-  it('the reporting bar probes the owner only for an operator-workspace admin, its module loaded on demand', () => {
+  it('the reporting bar probes the reader in any workspace, its module loaded on demand', () => {
     const bar = read('src/pages/reporting.vue')
-    assert.match(bar, /watch\(\(\) => operator\.visible[\s\S]{0,120}if \(!v/)
-    assert.match(bar, /await import\('~\/utils\/reporting-finance\.mjs'\)/)
+    assert.match(bar, /import\('~\/utils\/reporting-finance\.mjs'\)[\s\S]{0,80}netvisorReaderProbe\(api\)/)
+    assert.doesNotMatch(bar, /operator\.visible[\s\S]{0,80}netvisor/)
     assert.doesNotMatch(bar, /^import .*reporting-finance/m)
   })
   it('every key the screen names is in every locale, never an English copy outside brand words', () => {
     const keys = new Set()
     for (const src of [page, form]) for (const m of src.matchAll(/t\('(reporting\.finance\.[a-z_.]*[a-z])'/g)) keys.add(m[1])
+    for (const k of ['no_snapshot', 'no_snapshot_member']) keys.add('reporting.finance.' + k)
     for (const c of FINANCE_CATEGORIES) keys.add('reporting.finance.category.' + c)
     for (const s of FINANCE_SLICES) keys.add('reporting.finance.costs.slice_' + s)
     for (const e of ['test', 'prd']) keys.add('reporting.finance.env.' + e)

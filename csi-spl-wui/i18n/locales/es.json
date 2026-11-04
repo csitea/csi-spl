@@ -3683,9 +3683,10 @@
     },
     "finance": {
       "loading": "Cargando las cifras financieras…",
-      "forbidden": "Solo el propietario de Netvisor del espacio de trabajo ve las cifras financieras.",
+      "forbidden": "Solo las personas del espacio de trabajo de Netvisor ven las cifras financieras.",
       "error": "No se pudieron cargar las cifras financieras.",
       "no_snapshot": "Aún no hay ninguna instantánea de Netvisor. Pulse «Actualizar ahora» para solicitar la primera.",
+      "no_snapshot_member": "Aún no hay ninguna instantánea de Netvisor. El propietario de Netvisor puede solicitar la primera.",
       "env": {
         "test": "Empresa de prueba de Netvisor",
         "prd": "Empresa de producción de Netvisor"

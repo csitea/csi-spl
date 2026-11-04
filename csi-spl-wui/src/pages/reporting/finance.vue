@@ -1,13 +1,15 @@
 <!-- Spec 125 row B7 (SPL-4741, case C-NVS-7; owner HUM-10, topic fc0119cd,
-     constraints C2, C7, C8): Reporting -> Finance, the workspace's Netvisor
-     owner's screen. The newest Netvisor snapshot as the hub keeps it (B5):
+     constraints C2, C7, C8): Reporting -> Finance, the screen of every
+     person of the Netvisor workspace (C7 as rewritten, SPL-4792; owner msg
+     cfa78746). The Netvisor owner's newest snapshot as the hub keeps it (B5):
      the month-end cash forecast card and its items, the newest bank voucher
      date, "Refresh now" (asks the main-box sync for a new fetch), the card
      costs by vendor, cost type or cost centre (spec-123 vendors left out,
      owner answer Q4 = EXCL) and the bookkeeping-account settings form (Q2:
-     the owner types the account numbers here). The hub answers every route
-     to the owner's own browser session alone, 403 to every other member,
-     admins included: this page then shows that line and no figure. -->
+     the owner types the account numbers here). "Refresh now" and the form
+     are the owner's alone (the views' reader_is_owner); the hub answers the
+     views 403 to an agent seat or an act-as clone and 404 in every other
+     workspace: this page then shows that line and no figure. -->
 <template>
   <div class="reporting-finance" data-test="reporting-finance">
     <p v-if="state === 'loading'" class="muted" role="status" data-test="finance-loading">{{ t('reporting.finance.loading') }}</p>
@@ -20,12 +22,12 @@
           {{ snapshot.newest_bank_voucher_date ? t('reporting.finance.voucher', { date: snapshot.newest_bank_voucher_date }) : t('reporting.finance.voucher_none') }}
         </span>
         <span v-if="snapshot" class="muted" data-test="finance-as-of">{{ t('reporting.finance.as_of', { date: snapshot.as_of, time: isoDateTime(snapshot.fetched_at) }) }}</span>
-        <button type="button" class="btn" :disabled="refreshing" data-test="finance-refresh" @click="refresh">{{ t('reporting.finance.refresh') }}</button>
+        <button v-if="isOwner" type="button" class="btn" :disabled="refreshing" data-test="finance-refresh" @click="refresh">{{ t('reporting.finance.refresh') }}</button>
         <span v-if="refreshAt" class="muted" role="status" data-test="finance-refresh-requested">{{ t('reporting.finance.refresh_requested', { time: isoDateTime(refreshAt) }) }}</span>
         <span v-if="refreshFailed" class="fin-error" role="alert" data-test="finance-refresh-error">{{ t('reporting.finance.refresh_error') }}</span>
       </div>
 
-      <p v-if="!snapshot" class="muted" data-test="finance-no-snapshot">{{ t('reporting.finance.no_snapshot') }}</p>
+      <p v-if="!snapshot" class="muted" data-test="finance-no-snapshot">{{ t(isOwner ? 'reporting.finance.no_snapshot' : 'reporting.finance.no_snapshot_member') }}</p>
       <template v-else>
         <section class="fin-card" :aria-label="t('reporting.finance.forecast.title')" data-test="finance-forecast">
           <h3 class="fin-title">{{ t('reporting.finance.forecast.title') }}</h3>
@@ -109,7 +111,7 @@
         </section>
       </template>
 
-      <FinanceSettings v-if="settings" :settings="settings" :api="api" @saved="onSaved" />
+      <FinanceSettings v-if="isOwner && settings" :settings="settings" :api="api" @saved="onSaved" />
     </template>
   </div>
 </template>
@@ -133,7 +135,7 @@ import {
 type Api = { mock?: boolean, base?: string }
 type Snapshot = { as_of: string, month_end: string, newest_bank_voucher_date: string, fetched_at: string }
 type Settings = { env?: string, vendor_exclusions?: string[] } & Record<string, unknown>
-type View = { env?: string, snapshot?: Snapshot | null, items?: unknown[], lines?: unknown[], refresh_requested_at?: string | null }
+type View = { env?: string, snapshot?: Snapshot | null, items?: unknown[], lines?: unknown[], vendor_exclusions?: string[], refresh_requested_at?: string | null, reader_is_owner?: boolean }
 
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi() as unknown as Api
@@ -147,19 +149,22 @@ const refreshAt = ref<string | null>(null)
 const refreshing = ref(false)
 const refreshFailed = ref(false)
 
+const isOwner = computed(() => forecastView.value?.reader_is_owner === true)
 const env = computed(() => forecastView.value?.env || settings.value?.env || 'test')
 const snapshot = computed(() => forecastView.value?.snapshot || null)
 const forecast = computed(() => forecastSummary(forecastView.value))
-const costs = computed(() => cardCostBreakdown(costsView.value, slice.value, settings.value?.vendor_exclusions || []))
+const costs = computed(() => cardCostBreakdown(costsView.value, slice.value, settings.value?.vendor_exclusions || costsView.value?.vendor_exclusions || []))
 const money = (cents: number, currency: string) => (currency ? `${formatCents(cents)} ${currency}` : formatCents(cents))
 
 async function load() {
-  /* settings first: its 403 is the door, so a non-owner sends no figure read */
-  settings.value = await netvisorCall(api, 'GET', NETVISOR_SETTINGS_PATH) as Settings
+  /* the views first: their 403 / 404 is the door; the settings (the vendor
+     exclusions and the form) only for the owner, so a member sends no read
+     the hub refuses */
   const [f, c] = await Promise.all([
     netvisorCall(api, 'GET', NETVISOR_FORECAST_PATH) as Promise<View>,
     netvisorCall(api, 'GET', NETVISOR_CARD_COSTS_PATH) as Promise<View>,
   ])
+  settings.value = f?.reader_is_owner === true ? await netvisorCall(api, 'GET', NETVISOR_SETTINGS_PATH) as Settings : null
   forecastView.value = f
   costsView.value = c
   refreshAt.value = f?.refresh_requested_at || null

@@ -18,25 +18,28 @@
 //     overview's order and the Q7 attribution line (last touch, 28 days);
 //     a member's bar has no Marketing tab, and the page opened by its path
 //     shows the hub's refusal and no card.
-//   - spec 125 B7 (SPL-4741, case C-NVS-7, C7): the workspace's Netvisor
-//     owner (the mock reader with no spool.mock.me, an admin of the
-//     operator workspace) sees the Finance tab; /reporting/finance draws the
+//   - spec 125 B7 (SPL-4741, case C-NVS-7; C7 as rewritten, SPL-4792, owner
+//     msg cfa78746): the workspace's Netvisor owner (the mock reader with no
+//     spool.mock.me) sees the Finance tab; /reporting/finance draws the
 //     forecast card and its items, the newest bank voucher date, the card
 //     costs by vendor / cost type / cost centre with the spec-123 vendor
 //     left out, "Refresh now" and the settings form (a bad account number is
-//     refused, a good one saved); an admin of the operator workspace who is
-//     not the owner gets no Finance tab, and the page opened by its path
-//     shows the refusal and no figure.
+//     refused, a good one saved); another person of the workspace (an admin
+//     who is not the owner) sees the tab and the same figures with the same
+//     vendor left out, but no Refresh now and no settings form, and sends no
+//     read the hub refuses; an agent seat gets no Finance tab, and the page
+//     opened by its path shows the refusal and no figure.
 //   - SPL-4697 (spec 143 incomes.md): the workspace owner's bar shows the
 //     Incomes tab; /reporting/incomes draws twelve month rows, a dash for a
 //     month with no invoice and the year total row; an admin's and a
 //     member's bar have no Incomes tab, and the member who opens it by its
 //     path gets the refusal line, no table and no refused read.
 // RED CONTROL: a tab, a link or the table missing fails a check, and the
-// file exits 1. For Finance: the tab rule widened to an admin (no
-// netvisorOwner in reporting-tabs.mjs) fails "a non-owner admin's bar has
-// no Finance tab"; a key missing in en.json renders its raw key and fails
-// "no raw i18n key".
+// file exits 1. For Finance: the page reading the settings for every reader
+// (SPL-4741's load) fails "a member sends 0 refused reads"; the tab rule
+// widened to every role (no netvisorReader in reporting-tabs.mjs) fails "an
+// agent seat's bar has no Finance tab"; a key missing in en.json renders its
+// raw key and fails "no raw i18n key".
 //
 // Run:
 //   BASE_URL=<generated bundle> pnpm run test:e2e reporting
@@ -233,9 +236,11 @@ async function marketing(p, base, tag) {
   if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/reporting-marketing-${tag}.png` })
 }
 
-/* spec 125 B7: an admin of the operator workspace (the one workspace with
-   Netvisor data); with no spool.mock.me the mock plays its Netvisor owner */
+/* spec 125 B7: an admin of the operator workspace; with no spool.mock.me
+   the mock plays the Netvisor owner, with a role another person of the
+   Netvisor workspace (SPL-4792) */
 const OPERATOR = { 'spool.mock.operator_admin': '1' }
+const AGENT = { role: 'pure_agent', permissions: [] }
 const noRawKey = (p) => p.evaluate(() => !/reporting\.(finance|tab)\./.test(document.body.innerText))
 
 async function finance(p, base, tag) {
@@ -292,14 +297,36 @@ async function finance(p, base, tag) {
   if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/reporting-finance-${tag}.png`, fullPage: true })
 }
 
+async function financeMember(p, base, tag) {
+  await p.goto(base + '/reporting/releases', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  ok(`${tag}: a member's bar shows the Finance tab (WS)`, await waitFor(p, '[data-test=reporting-tab-finance]'), await tabIds(p))
+  await p.goto(base + '/reporting/finance', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  ok(`${tag}: a member sees the forecast card`, await waitFor(p, '[data-test=finance-forecast]'))
+  await waitFor(p, '[data-test=finance-costs-table]')
+  const v = await p.evaluate(() => ({
+    items: document.querySelectorAll('[data-test=finance-item]').length,
+    groups: [...document.querySelectorAll('[data-test=finance-cost-group]')].map((e) => e.textContent.trim()),
+    excluded: Number(document.querySelector('[data-test=finance-costs-excluded]')?.getAttribute('data-lines') || 0),
+    refresh: document.querySelectorAll('[data-test=finance-refresh]').length,
+    settings: document.querySelectorAll('[data-test=finance-settings]').length,
+  }))
+  ok(`${tag}: a member reads the items and the card costs, the spec-123 vendor left out`, v.items > 0 && v.groups.length > 0 && !v.groups.includes('Example Cloud Ltd') && v.excluded > 0, v)
+  ok(`${tag}: a member has no Refresh now and no settings form (the owner's)`, v.refresh === 0 && v.settings === 0, v)
+  const refused = await p.evaluate(() => globalThis.SPOOL_MOCK_403 || [])
+  ok(`${tag}: a member sends 0 refused reads`, refused.length === 0, refused)
+  ok(`${tag}: no raw i18n key for a member`, await noRawKey(p))
+  ok(`${tag}: no sideways scroll on a member's Finance`, await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1))
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/reporting-finance-member-${tag}.png`, fullPage: true })
+}
+
 async function financeRefused(p, base, tag) {
   await p.goto(base + '/reporting/releases', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-  await waitFor(p, '[data-test=reporting-tab-sql]')
+  await waitFor(p, '[data-test=reporting-tab-releases]')
   await new Promise((r) => setTimeout(r, 1000))
   const tabs = await tabIds(p)
-  ok(`${tag}: a non-owner admin's bar has no Finance tab (C7)`, tabs.includes('sql') && !tabs.includes('finance'), tabs)
+  ok(`${tag}: an agent seat's bar has no Finance tab (agents never see the figures)`, tabs.includes('releases') && !tabs.includes('finance'), tabs)
   await p.goto(base + '/reporting/finance', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
-  ok(`${tag}: a non-owner admin on /reporting/finance gets the refusal line`, await waitFor(p, '[data-test=finance-forbidden]'))
+  ok(`${tag}: an agent seat on /reporting/finance gets the refusal line`, await waitFor(p, '[data-test=finance-forbidden]'))
   const leak = await p.evaluate(() => ({
     figures: document.querySelectorAll('[data-test=finance-forecast], [data-test=finance-costs], [data-test=finance-settings], [data-test=finance-voucher]').length,
     labels: /Example (customer|supplier|Software|Cloud)/.test(document.body.innerText),
@@ -370,6 +397,9 @@ try {
     await finance(p, server.base, tag)
     await ctx.close();
     ({ ctx, p } = await reportingPage(browser, server.base, size, ADMIN, OPERATOR))
+    await financeMember(p, server.base, tag)
+    await ctx.close();
+    ({ ctx, p } = await reportingPage(browser, server.base, size, AGENT))
     await financeRefused(p, server.base, tag)
     await ctx.close()
   }

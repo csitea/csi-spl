@@ -48,11 +48,12 @@ const access = useAccessStore()
    (Marketing, spec 163 Q8) to the workspace's owner or an admin; an owner
    one (Incomes, SPL-4697) to the workspace's owner alone. Hiding
    only: the hub's 403 is the control. The Finance tab (spec 125 B7) shows
-   to the workspace's Netvisor owner alone (C7): its settings read is sent
-   only in the operator workspace (the one workspace with Netvisor data), by
-   an admin there, and the tab shows when it answered 2xx. */
+   to every person of the Netvisor workspace (C7 as rewritten, SPL-4792):
+   one forecast read per page load, in any workspace (the hub alone knows
+   which one keeps Netvisor data and answers 404 in the others), and the tab
+   shows when it answered 2xx. */
 const meRead = ref(false)
-const netvisorOwner = ref(false)
+const netvisorReader = ref(false)
 const api = useSpoolApi() as unknown as { mock?: boolean, base?: string }
 const tabs = computed(() => visibleReportingTabs({
   operator: operator.visible,
@@ -60,7 +61,7 @@ const tabs = computed(() => visibleReportingTabs({
   staff: meRead.value && monitoringStaff(access.me),
   owner: meRead.value && reportingOwner(access.me),
   can: meRead.value ? access.can : undefined,
-  netvisorOwner: netvisorOwner.value,
+  netvisorReader: netvisorReader.value,
 }))
 const active = computed(() => reportingTabFor(route.path))
 
@@ -68,11 +69,9 @@ const active = computed(() => reportingTabFor(route.path))
    browser only, so the prerendered page is the bar, never a redirect. */
 onMounted(() => {
   void access.load().finally(() => { meRead.value = true })
-  watch(() => operator.visible, async (v) => {
-    if (!v || netvisorOwner.value) return
-    const { netvisorOwnerProbe } = await import('~/utils/reporting-finance.mjs')
-    netvisorOwner.value = await netvisorOwnerProbe(api)
-  }, { immediate: true })
+  void import('~/utils/reporting-finance.mjs')
+    .then(({ netvisorReaderProbe }) => netvisorReaderProbe(api))
+    .then((yes) => { netvisorReader.value = yes }, () => { netvisorReader.value = false })
   watch(() => route.path, (p) => {
     if (productPath(p) === '/reporting') void navigateTo(localePath(REPORTING_DEFAULT_PATH), { replace: true })
   }, { immediate: true })

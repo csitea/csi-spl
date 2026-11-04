@@ -87,7 +87,7 @@ func TestWorkspaceOwnLanes(t *testing.T) {
 			continue
 		}
 		mine = append(mine, l.AgentID)
-		if l.Workspace != r.w1 || l.TopicTitle != "" || len(l.Issues) != 0 {
+		if l.Workspace != r.w1 || l.TopicTitle != "" || len(l.Issues) != 0 || l.Scope != "" {
 			t.Errorf("C79 operator row of w1's own lane: %+v", l)
 		}
 		if l.AgentID == "c-701" && l.TopicID != r.t1 {
@@ -97,7 +97,7 @@ func TestWorkspaceOwnLanes(t *testing.T) {
 	if !slices.Equal(mine, []string{"c-703", "c-702", "c-701"}) {
 		t.Errorf("C79 operator view, w1's own lanes %v, want [c-703 c-702 c-701]", mine)
 	}
-	for _, leak := range []string{"W1 build", "row B6", "W2 secret", "c-704", "c-705"} {
+	for _, leak := range []string{"W1 build", "row B6", "W2 secret", "c-704", "c-705", "scope of c-70"} { // R7 W1: no w1 scope text
 		if strings.Contains(string(opRaw), leak) {
 			t.Errorf("C79: %q in the operator view: %s", leak, opRaw)
 		}
@@ -186,5 +186,43 @@ func TestWorkspaceOwnRosterLanes(t *testing.T) {
 		if strings.Contains(string(opRaw), leak) {
 			t.Errorf("C80: %q in the operator view: %s", leak, opRaw)
 		}
+	}
+}
+
+// C81 (R7 N1): a box pinned in two workspaces announces its agents in each;
+// the operator view lists such an agent once, and not at all beside a lane
+// row of it in either workspace. Each workspace's own view is unchanged.
+// RED CONTROL (451145f8f): c-709 twice (w1 and w2), c-711 as its w2 lane
+// row and again as a w1 roster row.
+func TestOperatorLanesAnnouncedAgentOnce(t *testing.T) {
+	r := newWSLanesRig(t)
+	ctx, now := context.Background(), time.Now()
+	mac := r.e.box(r.w1, "mbp-"+newTenantID(""))
+	r.e.pin(r.w1, mac)
+	w2Pub, _, _ := ed25519.GenerateKey(nil)
+	r.e.pinKey(r.w2, mac.id, w2Pub) // the same box id, its own key in w2
+	for _, w := range []string{r.w1, r.w2} {
+		if err := r.e.st.SetRoster(ctx, w, mac.id, []string{"c-709", "c-711"}, now); err != nil {
+			t.Fatal(err)
+		}
+		if err := r.e.st.TouchBox(ctx, w, mac.id, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	lane := store.FleetLane{Fleet: "main", AgentID: "c-711", AgentBox: mac.id, Scope: "w2 work", State: "live", Files: []string{}}
+	if _, err := r.e.st.PutFleetLane(ctx, r.w2, lane, mac.id, now.Add(-time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	count := map[string]int{}
+	for _, l := range getLanes(t, r.fleetTokensRig).Lanes {
+		if l.AgentBox == mac.id {
+			count[l.AgentID]++
+		}
+	}
+	if count["c-709"] != 1 || count["c-711"] != 1 || len(count) != 2 {
+		t.Errorf("C81 operator rows of the shared box %v, want c-709 and c-711 once each", count)
+	}
+	if v, _ := wsLanes(t, r, r.w1, r.w1Admin, http.StatusOK); !slices.Contains(laneKeys(v), "c-709") || !slices.Contains(laneKeys(v), "c-711") {
+		t.Errorf("C81 w1's own view %v, want its announced c-709 and c-711", laneKeys(v))
 	}
 }

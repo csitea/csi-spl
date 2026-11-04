@@ -58,18 +58,19 @@ func countLaneIssueReads(c *laneIssueReads) func(*hub.Options) {
 }
 
 type prioLane struct {
-	AgentID  string `json:"agent_id"`
-	Priority int    `json:"priority"`
-	Issues   []struct {
+	AgentID   string `json:"agent_id"`
+	Workspace string `json:"workspace"`
+	Priority  int    `json:"priority"`
+	Issues    []struct {
 		Key      string `json:"key"`
 		Priority int    `json:"priority"`
 	} `json:"issues"`
 }
 
-// prioLanes is one GET of path in tid as hum: each lane by agent id, the
-// first row of an id (the caller's own rows come first; on a shared Postgres
-// the operator view also lists other tests' workspaces, 3.17).
-func prioLanes(t *testing.T, e *env, tid, path, hum string) map[string]prioLane {
+// prioLanes is one GET of path in tid as hum: each lane of the rig's own
+// workspaces (ws) by agent id (on a shared Postgres the operator view also
+// lists other tests' workspaces, 3.17).
+func prioLanes(t *testing.T, e *env, ws map[string]bool, tid, path, hum string) map[string]prioLane {
 	t.Helper()
 	code, body := call(t, e, tid, http.MethodGet, path, hum, nil)
 	if code != http.StatusOK {
@@ -82,7 +83,7 @@ func prioLanes(t *testing.T, e *env, tid, path, hum string) map[string]prioLane 
 	}
 	out := map[string]prioLane{}
 	for _, l := range rows {
-		if _, seen := out[l.AgentID]; !seen {
+		if ws[l.Workspace] {
 			out[l.AgentID] = l
 		}
 	}
@@ -133,7 +134,7 @@ func TestFleetLanesPrio(t *testing.T) {
 	laneAt(t, r, "c-613", box, "", "", now.Add(-3*time.Minute))   // no issue
 	laneAt(t, r, "c-614", box, "", "OPS-7", now.Add(-4*time.Minute))
 
-	ls := prioLanes(t, r.e, r.op, fleetLanesPath, r.admin)
+	ls := prioLanes(t, r.e, r.ws, r.op, fleetLanesPath, r.admin)
 	if p, is := prioOf(t, ls, "c-611"); p != 1 || is != k1+" 3,"+k2+" 1,"+k3+" 4" {
 		t.Errorf("C61 c-611: prio %d, issues %q; want 1 and %s 3,%s 1,%s 4", p, is, k1, k2, k3)
 	}
@@ -155,7 +156,7 @@ func TestWorkspaceLanesPrio(t *testing.T) {
 	k := issueWithPrio(t, r.e, r.w1, r.w1Admin, "two", r.t1, 2)
 	issueWithPrio(t, r.e, r.w1, r.w1Admin, "five", r.t1, 5)
 	laneAt(t, r.fleetTokensRig, "c-621", r.opBox.id, r.t1, "", time.Now().Add(-time.Minute))
-	ls := prioLanes(t, r.e, r.w1, workspaceLanesPath, r.w1Admin)
+	ls := prioLanes(t, r.e, r.ws, r.w1, workspaceLanesPath, r.w1Admin)
 	if p, is := prioOf(t, ls, "c-621"); p != 2 || !strings.HasPrefix(is, k+" 2,") {
 		t.Errorf("C61b w1 lane: prio %d, issues %q; want 2 from %s", p, is, k)
 	}
@@ -177,7 +178,7 @@ func TestLanesPrioOneIssueRead(t *testing.T) {
 		}
 		for _, g := range []struct{ tid, path, hum string }{{r.op, fleetLanesPath, r.admin}, {r.w1, workspaceLanesPath, r.w1Admin}} {
 			reads.n.Store(0)
-			if ls := prioLanes(t, r.e, g.tid, g.path, g.hum); len(ls) < n {
+			if ls := prioLanes(t, r.e, r.ws, g.tid, g.path, g.hum); len(ls) < n {
 				t.Fatalf("%s: %d lanes, want %d", g.path, len(ls), n)
 			}
 			if got := reads.n.Load(); got != 1 {

@@ -90,7 +90,10 @@ func (s *Server) ownLanesOf(ctx context.Context, tenant, fleet string, fleetBoxe
 // own lanes and announced agents of every other non-archived workspace,
 // each named by its workspace (names, else its display name, else its id).
 // 3.3's rule for another workspace's topic holds: its id as text, no title,
-// no issue and no origin issue (its keys number that workspace's issues).
+// no issue and no origin issue (its keys number that workspace's issues),
+// and no scope (that workspace's text; R7 W1). An announced agent shows once:
+// a box pinned in two workspaces announces it in each, and a lane row of it
+// in any workspace stands for it (R7 N1).
 func (s *Server) otherWorkspacesOwnLanes(ctx context.Context, op, fleet string,
 	burn map[[2]string]store.FleetTokenBucket, names map[string]string) ([]fleetLaneViewJSON, error) {
 	out := []fleetLaneViewJSON{}
@@ -106,6 +109,11 @@ func (s *Server) otherWorkspacesOwnLanes(ctx context.Context, op, fleet string,
 	if err != nil {
 		return nil, err
 	}
+	type named struct {
+		w   store.Workspace
+		own ownLanes
+	}
+	owns, shown := []named{}, map[string]bool{} // shown: <agent>@<box> of a lane row
 	for _, w := range all {
 		if w.ID == op || !w.ArchivedAt.IsZero() {
 			continue
@@ -114,13 +122,25 @@ func (s *Server) otherWorkspacesOwnLanes(ctx context.Context, op, fleet string,
 		if err != nil {
 			return nil, err
 		}
+		for _, l := range own.lanes {
+			shown[l.AgentID+"@"+l.AgentBox] = true
+		}
+		owns = append(owns, named{w, own})
+	}
+	for _, n := range owns {
 		rows := []fleetLaneViewJSON{}
-		for _, l := range own.lanes { // newest write first, then the announced agents
+		for _, l := range n.own.lanes { // newest write first, then the announced agents
 			rows = append(rows, fleetLaneRow(l, burn))
 		}
-		rows = append(rows, own.roster...)
+		for _, a := range n.own.roster {
+			if k := a.AgentID + "@" + a.AgentBox; !shown[k] {
+				shown[k] = true
+				rows = append(rows, a)
+			}
+		}
 		for _, v := range rows {
-			v.Workspace, v.WorkspaceName = w.ID, cmp.Or(names[w.ID], w.DisplayName, w.ID)
+			v.Scope = ""
+			v.Workspace, v.WorkspaceName = n.w.ID, cmp.Or(names[n.w.ID], n.w.DisplayName, n.w.ID)
 			out = append(out, v)
 		}
 	}

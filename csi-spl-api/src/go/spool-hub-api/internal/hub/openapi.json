@@ -5911,6 +5911,59 @@
         ]
       }
     },
+    "/v1/marketing/posts/{id}/manual-publish": {
+      "post": {
+        "operationId": "postMarketingPostsByIdManualPublish",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "channel",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: {post, channel, status: published, platform_post_id: manual, published_at}; the live blog post is recorded as posted by hand on that connected channel (event post_handed_over); nothing is sent to the platform and it does not count against the channel's daily cap (spec 090 T036)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "the post is already published, or being sent, on that channel"
+          },
+          "502": {
+            "description": "the live blog index is unavailable"
+          },
+          "503": {
+            "description": "the blog is not configured on this hub"
+          }
+        },
+        "summary": "Record a blog post posted by hand on a connected channel (the member who connected it, or tenant.settings; marketing on)",
+        "tags": [
+          "marketing"
+        ]
+      }
+    },
     "/v1/marketing/posts/{id}/publish": {
       "post": {
         "operationId": "postMarketingPostsByIdPublish",

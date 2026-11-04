@@ -193,8 +193,9 @@ func (s *Server) routeMarketing(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/marketing/settings", s.handleMarketingSwitch)
 	mux.HandleFunc("PATCH /v1/marketing/settings", s.handlePatchMarketingSwitch)
 	mux.HandleFunc("OPTIONS /v1/marketing/settings", s.marketingPreflight)
-	s.routeMarketingChannels(mux) // spec 090 T006 (SPL-1634): connect LinkedIn
-	s.routeMarketingMeta(mux)     // spec 090 T033 (SPL-4254): connect Facebook Pages + Instagram
-	s.routeMarketingShare(mux)    // SPL-40: the owner publishes a blog post on LinkedIn
-	s.routeMarketingPosts(mux)    // SPL-1698: the owner's unshared posts, for the WUI
+	s.routeMarketingChannels(mux)      // spec 090 T006 (SPL-1634): connect LinkedIn
+	s.routeMarketingMeta(mux)          // spec 090 T033 (SPL-4254): connect Facebook Pages + Instagram
+	s.routeMarketingShare(mux)         // SPL-40: the owner publishes a blog post on LinkedIn
+	s.routeMarketingPosts(mux)         // SPL-1698: the owner's unshared posts, for the WUI
+	s.routeMarketingManualPublish(mux) // spec 090 T036: a post the member made by hand
 }

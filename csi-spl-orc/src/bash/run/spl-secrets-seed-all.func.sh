@@ -37,6 +37,21 @@ do_spl_secrets_seed_all() {
   do_spl_cloud_dispatch secrets seed "$@"
 }
 
+# spl_secrets_seed_gcp_session - the session key step of do_secrets_seed_gcp
+# (reads its dry and session_slot; adds a failure to its failed): 48 random
+# bytes, base64, piped to --data-file=- so the value never touches argv.
+spl_secrets_seed_gcp_session() {
+  [[ -n "$session_slot" ]] || return 0
+  if (( dry )); then
+    do_log "INFO DRY_RUN would add a version to $session_slot (48 random bytes, base64)"
+  elif head -c 48 /dev/urandom | base64 -w0 |
+      gcloud secrets versions add "$session_slot" --project="$SPL_PROJECT" --account="$GCP_ACCOUNT" --data-file=- >/dev/null 2>&1; then
+    do_log "INFO $session_slot: version added (value not logged)"
+  else
+    do_log "ERROR could not add a version to $session_slot"; failed+=("$session_slot")
+  fi
+}
+
 # do_secrets_seed_gcp - the Secret Manager seed (the body of
 # do_spl_secrets_seed_all before spec 076, unchanged).
 do_secrets_seed_gcp() {
@@ -77,16 +92,7 @@ do_secrets_seed_gcp() {
     cmds+=("$seed")
   done <<<"$rows"
 
-  if [[ -n "$session_slot" ]]; then
-    if (( dry )); then
-      do_log "INFO DRY_RUN would add a version to $session_slot (48 random bytes, base64)"
-    elif head -c 48 /dev/urandom | base64 -w0 |
-        gcloud secrets versions add "$session_slot" --project="$SPL_PROJECT" --account="$GCP_ACCOUNT" --data-file=- >/dev/null 2>&1; then
-      do_log "INFO $session_slot: version added (value not logged)"
-    else
-      do_log "ERROR could not add a version to $session_slot"; failed+=("$session_slot")
-    fi
-  fi
+  spl_secrets_seed_gcp_session
 
   local pre act
   for c in "${cmds[@]}"; do

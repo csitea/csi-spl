@@ -106,8 +106,21 @@ spl_dispatch_rotate_on() {
   return 0
 }
 
+# The boot and young gates of spl_disp_rotate_auto (ROTATE_FORCE=1 skips
+# both): 1 = GATE SKIP logged for rotation $1, no rotation this run.
+spl_disp_rotate_age_gates() {
+  local rid="$1" last
+  if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( $(spl_rotate_uptime) < ROTATE_BOOT_GRACE )); then
+    spl_rotate_log "$rid" GATE SKIP "boot ($(spl_rotate_uptime)s < ${ROTATE_BOOT_GRACE}s)"; return 1
+  fi
+  last="$(cat "$LEASE_DIR/rotate.dispatch.last" 2>/dev/null || true)"; [[ "$last" =~ ^[0-9]+$ ]] || last=0
+  if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( $(date +%s) - last < ROTATE_MIN_AGE )); then
+    spl_rotate_log "$rid" GATE SKIP "young: the last rotation was $(( $(date +%s) - last ))s ago"; return 1
+  fi
+}
+
 spl_disp_rotate_auto() {
-  local m="$LEASE_MASTER" f="$LEASE_FAILOVER" rid last mpid fpid age pane why
+  local m="$LEASE_MASTER" f="$LEASE_FAILOVER" rid mpid fpid age pane why
   rid="$(spl_rotate_new_rid master)"
   exec 7>> "$LEASE_DIR/rotate.dispatch.lock"
   flock -n 7 || { spl_rotate_log "$rid" GATE SKIP "locked"; return 0; }
@@ -122,13 +135,7 @@ spl_disp_rotate_auto() {
     (( src == 3 )) || return "$src"
     spl_rotate_log "$rid" GATE SKIP "standby (dispatch lease: $LH)"; return 0
   fi
-  if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( $(spl_rotate_uptime) < ROTATE_BOOT_GRACE )); then
-    spl_rotate_log "$rid" GATE SKIP "boot ($(spl_rotate_uptime)s < ${ROTATE_BOOT_GRACE}s)"; return 0
-  fi
-  last="$(cat "$LEASE_DIR/rotate.dispatch.last" 2>/dev/null || true)"; [[ "$last" =~ ^[0-9]+$ ]] || last=0
-  if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( $(date +%s) - last < ROTATE_MIN_AGE )); then
-    spl_rotate_log "$rid" GATE SKIP "young: the last rotation was $(( $(date +%s) - last ))s ago"; return 0
-  fi
+  spl_disp_rotate_age_gates "$rid" || return 0
   spl_disp_wait_orch "$rid" || return 0
 
   local -a mp fp

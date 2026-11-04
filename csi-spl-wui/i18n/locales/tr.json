@@ -3616,7 +3616,7 @@
       "open_version": "{version} sürümünün notlarını aç",
       "load_more": "Daha fazla yükle",
       "shown": "{total} commit'ten {shown} tanesi gösteriliyor",
-      "links_label": "Kayıtlar ve tartışmalar",
+      "links_label": "İşler ve tartışmalar",
       "links_unknown": "bilinmiyor",
       "links_unknown_title": "Bu commit için kayıtlı bir iş veya tartışma yok: bağlantı kuralından daha eski",
       "links_issue_title": "{key} işini {ws} içinde aç",

@@ -3618,9 +3618,9 @@
       "shown": "{shown}/{total} committia näytetty",
       "links_label": "Tiketit ja keskustelut",
       "links_unknown": "tuntematon",
-      "links_unknown_title": "Tälle muutokselle ei ole kirjattu tikettiä eikä keskustelua: se on vanhempi kuin linkkisääntö",
+      "links_unknown_title": "Tälle commitille ei ole kirjattu tikettiä eikä keskustelua: se on vanhempi kuin linkkisääntö",
       "links_issue_title": "Avaa tiketti {key} työtilassa {ws}",
-      "links_issue_missing": "{key}: tikettiä ei ole työtilassa {ws}",
+      "links_issue_missing": "{key}: tällaista tikettiä ei ole työtilassa {ws}",
       "links_discussion": "keskustelu",
       "links_discussion_locked": "keskustelu, vain työtilan {ws} jäsenille"
     },

@@ -3618,9 +3618,9 @@
       "shown": "Parādīti {shown} no {total} commitiem",
       "links_label": "Uzdevumi un diskusijas",
       "links_unknown": "nezināms",
-      "links_unknown_title": "Šim komitam nav reģistrēts ne uzdevums, ne diskusija: tas ir vecāks par saišu noteikumu",
-      "links_issue_title": "Atvērt uzdevumu {key} vietā {ws}",
-      "links_issue_missing": "{key}: šāda uzdevuma vietā {ws} nav",
+      "links_unknown_title": "Šim commitam nav reģistrēts ne uzdevums, ne diskusija: tas ir vecāks par saišu noteikumu",
+      "links_issue_title": "Atvērt uzdevumu {key} darbvietā {ws}",
+      "links_issue_missing": "{key}: šāda uzdevuma darbvietā {ws} nav",
       "links_discussion": "diskusija",
       "links_discussion_locked": "diskusija, tikai {ws} dalībniekiem"
     },

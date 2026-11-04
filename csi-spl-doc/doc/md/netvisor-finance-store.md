@@ -1,16 +1,20 @@
-# Netvisor finance store: hub tables readable by the owner human only
+# Netvisor finance store: hub tables the workspace's people read, the owner writes
 
 Spec 125 rows B4 and B5 ([spec](../../specs/125-netvisor-integration/spec.md)
 sections 5.2 and 7, cases C-NVS-4 and C-NVS-5), issues SPL-4721 (schema and
 store) and SPL-4732 (hub routes, section 5); SPL-4742 moved the routes to
 the Netvisor workspace and made a card line's account optional (rdb
-`0258`). The WUI screen is B7 (SPL-4741, section 6), the main-box sync B6.
+`0258`). SPL-4792 (rdb `0260`) opened READING to every person seated in the
+Netvisor workspace: C7 as rewritten, owner HUM-10, csitea topic 67c25538,
+poll 2a767008, answer msg cfa78746 ("WS - Every member of the csitea
+workspace"); msg 91a1bc9a: agents never see the figures. The WUI screen is
+B7 (SPL-4741, section 6), the main-box sync B6.
 
 ## 1. Tables (rdb `0255_netvisor_finance.sql`)
 
 | table | one row per | holds |
 |---|---|---|
-| `netvisor_settings` | workspace | `owner_human_id` (the ONE human who reads the data, C7), `env` (`test` or `prd`), the bank, VAT and tax bookkeeping account numbers, the spec-123 vendor exclusion list, `refresh_requested_at` (the open "Refresh now", rdb `0257`) |
+| `netvisor_settings` | workspace | `owner_human_id` (the ONE human the data is filed under and who alone writes the settings and the refresh request, C7), `env` (`test` or `prd`), the bank, VAT and tax bookkeeping account numbers, the spec-123 vendor exclusion list, `refresh_requested_at` (the open "Refresh now", rdb `0257`) |
 | `netvisor_snapshots` | fetch | `owner_human_id`, `env`, `as_of`, `month_end`, `newest_bank_voucher_date`, `fetched_at` |
 | `netvisor_forecast_items` | month-end term | category, sign, amount (`numeric(18,2)`), currency, due date, overdue, approved, label |
 | `netvisor_card_cost_lines` | card cost line | month, route, vendor, account number (1-12 digits, or `''` for none, rdb `0258`: a credit-card e-invoice line names no account) and name, dimension and item, amount, VAT code, excluded |
@@ -24,12 +28,26 @@ No figure, account number or id is in git; tests use invented values.
 
 ## 2. Who reads what (RLS)
 
-All four tables have `FORCE ROW LEVEL SECURITY`, the usual `tenant_scope`,
-and a RESTRICTIVE `owner_scope`:
+All four tables have `FORCE ROW LEVEL SECURITY` and the usual
+`tenant_scope`. rdb `0255`'s RESTRICTIVE `owner_scope` (all commands) is
+split by rdb `0260` into RESTRICTIVE policies per command:
 
-- A data row passes only when its `owner_human_id` equals the
-  transaction-local `app.human_id` AND that human is the workspace's owner
-  in `netvisor_settings` now.
+- `owner_insert`, `owner_update`, `owner_delete`: 0255's owner rule. A data
+  row is written only when its `owner_human_id` equals the transaction-local
+  `app.human_id` AND that human is the workspace's owner in
+  `netvisor_settings` now; the settings row only by the owner or the ingest
+  scope.
+- `member_read` (SELECT): the owner rule OR a person seat: a live
+  membership of `app.human_id` in the transaction's workspace (not
+  disabled, not past `access_until`, its human not disabled and not
+  `technical`, i.e. no act-as clone, not a `channel_guest`, and with at least
+  one role that is neither `pure_agent` nor `time_accountant`). A data row
+  still passes only when it is filed under the CURRENT owner, so nobody
+  reads a former owner's snapshots. The person test is the SQL function
+  `netvisor_person_seat()` (the rdb `0219` `spool_agent_scope_ok` pattern):
+  an inline policy subquery would pin `tenant_memberships.access_until`
+  as a dependency and refuse the column drop that
+  `TestMemberAccessUntilBeforeMigration` plays.
 - No `operator_scope` policy: the operator scope, the ops psql and
   `pg_dump` under it read 0 rows. The Reporting SQL tab refuses the tables
   (`forbidden_relation`), as it refuses every table with a per-human policy.
@@ -38,14 +56,15 @@ and a RESTRICTIVE `owner_scope`:
 | caller (scope) | settings | snapshots, items, lines |
 |---|---|---|
 | owner human (`inNetvisorOwner`) | read, update | read, write |
-| another human, an admin, an agent (`inNetvisorOwner` with its id) | 0 rows | 0 rows, insert refused |
+| a person seated in the workspace, admins included (`inNetvisorOwner` with its id) | read; update 0 rows | the current owner's rows; insert refused |
+| an agent seat, a time accountant, an act-as clone, a suspended seat, a human seated elsewhere | 0 rows | 0 rows, insert refused |
 | the tenant alone (`inTenant`) | 0 rows | 0 rows |
 | operator (`asOperator`) | 0 rows | 0 rows |
 | operator ingest (`inNetvisorIngest`) | read, set owner | 0 rows |
 | the owner's id in another workspace | 0 rows | 0 rows |
 
-When the operator moves the owner, the old owner reads nothing and the new
-owner does not read the old owner's snapshots.
+When the operator moves the owner, nobody reads the old owner's snapshots;
+the old owner, if still seated, reads the new owner's like any member.
 
 ## 3. Store API (`internal/store/netvisor.go`)
 
@@ -55,10 +74,10 @@ assertion.
 | method | scope | errors |
 |---|---|---|
 | `NetvisorSetOwner(tenant, human, by)` | ingest | `ErrNoHuman`, `ErrNotFound` (no workspace) |
-| `NetvisorSettings(tenant, human)` | owner | `ErrNotFound` unless human is the owner |
+| `NetvisorSettings(tenant, human)` | human's | `ErrNotFound` unless human is the owner or a person seated in the workspace |
 | `NetvisorPutSettings(tenant, human, s)` | owner; never moves the owner | `ErrNotFound`, `ErrBadNetvisor` |
 | `NetvisorIngest(tenant, snap)` | ingest, then the owner's | `ErrNetvisorNoOwner`, `ErrNetvisorEnv`, `ErrBadNetvisor` |
-| `NetvisorLatest(tenant, human, env)` | owner | `ErrNotFound` |
+| `NetvisorLatest(tenant, human, env)` | human's: the current owner's newest snapshot | `ErrNotFound` |
 | `NetvisorRequestRefresh(tenant, human)` | owner; an open request keeps its first time | `ErrNotFound` unless human is the owner |
 | `NetvisorRefreshRequested(tenant)` | ingest | `ErrNetvisorNoOwner` |
 
@@ -79,8 +98,16 @@ In `csi-spl-api/src/go/spool-hub-api/internal/store`, on Postgres
 - `TestNetvisorStoreRLS`: the owner reads its snapshot. The tenant alone,
   another human, an empty human, the operator, the ingest scope (data
   tables) and the owner's id in another workspace read 0 rows.
-- `TestNetvisorStoreRLSControl`: with `owner_scope` dropped, another human
+- `TestNetvisorStoreRLSControl`: with `member_read` dropped, another human
   and the tenant alone read the owner's rows.
+- `TestNetvisorStoreMemberRead` (rdb `0260`): a person seated in the
+  workspace reads the owner's settings and newest snapshot, and cannot put
+  the settings, request a refresh or insert a snapshot (42501); an agent
+  seat, a time accountant, a technical human (act-as clone), a suspended
+  seat and a person of another workspace read 0 rows; after an owner move
+  the former owner reads the new owner's snapshot only. Red control, run for
+  SPL-4792: 0255's `owner_scope` put back in place of 0260's policies turns
+  the member's read into `ErrNotFound`.
 - `TestNetvisorStoreWrites`: only the owner writes. Another human cannot
   file a snapshot even under its own id (42501). An owner move hides the old
   snapshots.
@@ -106,32 +133,38 @@ Every route serves ONE workspace, the Netvisor workspace: cnf
 operator workspace (`t1`, the apex on dev): that one is refused like any
 other. Unset, every Netvisor route is `404`.
 
-### 5.1 The owner's routes
+### 5.1 The browser routes
 
-| route | answer |
-|---|---|
-| `GET /v1/view/netvisor/forecast` | `{env, snapshot, items, refresh_requested_at}`: the newest snapshot of the settings' env; `snapshot` is null before the first fetch |
-| `GET /v1/view/netvisor/card-costs` | `{env, snapshot, lines, refresh_requested_at}` |
-| `POST /v1/netvisor/refresh` | `202 {refresh_requested_at}`: "Refresh now"; a second press keeps the first time |
-| `GET /v1/netvisor/settings` | the settings |
-| `PUT /v1/netvisor/settings` | `{env, bank_account, vat_accounts, tax_accounts, vendor_exclusions}` replaced; the owner is never written here |
+| route | who | answer |
+|---|---|---|
+| `GET /v1/view/netvisor/forecast` | every person of the workspace | `{env, snapshot, items, refresh_requested_at, reader_is_owner}`: the owner's newest snapshot of the settings' env; `snapshot` is null before the first fetch |
+| `GET /v1/view/netvisor/card-costs` | every person of the workspace | `{env, snapshot, lines, vendor_exclusions, refresh_requested_at, reader_is_owner}`: `vendor_exclusions` is the settings' spec-123 vendor list, so a member's screen leaves out the same lines as the owner's |
+| `POST /v1/netvisor/refresh` | the owner | `202 {refresh_requested_at}`: "Refresh now"; a second press keeps the first time |
+| `GET /v1/netvisor/settings` | the owner | the settings |
+| `PUT /v1/netvisor/settings` | the owner | `{env, bank_account, vat_accounts, tax_accounts, vendor_exclusions}` replaced; the owner is never written here |
 
-One door (`netvisorOwner`) for all five:
+`reader_is_owner` tells the screen whether to show Refresh now and the
+settings form. Two doors: `netvisorReader` for the view routes,
+`netvisorOwner` (the reader door plus the owner check) for the other three.
 
-| caller | status |
-|---|---|
-| the workspace's Netvisor owner, own browser session | 2xx |
-| any request with an `Authorization` header: a box or agent desk token, a CLI token, the operator service account | `403 person_only` |
-| an act-as clone (of the owner too), an agent seat (`realmRefuses`) | `403 person_only` |
-| every other member, admins included | `403 forbidden` (`netvisor.owner`) |
-| a member of another workspace (the operator workspace too), the owner signed in to another workspace | `404 not_found` |
-| no session | `401` |
+| caller | view routes | owner routes |
+|---|---|---|
+| the workspace's Netvisor owner, own browser session | 2xx | 2xx |
+| another person seated in the workspace, admins included | `200` | `403 forbidden` (`netvisor.owner`) |
+| any request with an `Authorization` header: a box or agent desk token, a CLI token, the operator service account | `403 person_only` | `403 person_only` |
+| an act-as clone (of the owner too), a session that is not a person (`realmRefuses`), a seat in the workspace that is not a person's (agent, time accountant, channel guest: `netvisorPersonSeat`) | `403 person_only` | `403 person_only` |
+| a member of another workspace (the operator workspace too), the owner signed in to another workspace | `404 not_found` | `404 not_found` |
+| no session | `401` | `401` |
 
 The owner check is the session's human id against the `owner_human_id`
-the store answers to that same human: data, never a code literal or a role.
-Behind the door the store reads as that human, so rdb `0255`'s RLS is a
-second wall: with the door widened to `Has(rbac.Admin)` (the red control)
-another admin gets `200` but `snapshot: null`, no row.
+the store answers: data, never a code literal or a role. Behind the door the
+store reads as that human, so rdb `0260`'s RLS is a second wall: a seat the
+door let through by mistake that is not a person's reads 0 rows.
+
+Why the settings and Refresh now stay the owner's (SPL-4792): opening
+"Refresh now" to members would widen the UPDATE policy on the row that also
+holds the account numbers, which RLS cannot narrow to one column; the brief
+kept both as they were unless trivial, and this was not.
 
 ### 5.2 The operator's routes (the main-box sync, B6)
 
@@ -156,9 +189,12 @@ In `internal/hub`, on Postgres (real browser sessions: fake IdP, cookies,
 act-as):
 
 - `TestNetvisorHubRBAC`: the owner gets 2xx on all five routes and reads
-  the figures; another admin, an act-as clone of the owner, an agent seat,
-  the operator service account, a box (agent desk) token and the owner's
-  cookie plus a box token get `403` and no figure; no session `401`.
+  the figures (`reader_is_owner` true); a developer and an admin of the
+  workspace read the figures on the view routes (`reader_is_owner` false) and
+  get `403` with no figure or account on the owner routes; an act-as clone of
+  the owner, an agent seat, the operator service account, a box (agent desk)
+  token and the owner's cookie plus a box token get `403` and no figure; no
+  session `401`.
 - `TestNetvisorCrossTenant`: an admin of another workspace and the owner
   signed in to another workspace get `404`; the operator routes refuse
   another workspace (`403`).

@@ -10668,7 +10668,7 @@
     },
     "/v1/netvisor/refresh": {
       "post": {
-        "description": "Spec 125 B5 (C7): the browser session of the workspace's Netvisor owner ONLY (netvisor_settings.owner_human_id). 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone and an agent seat; 403 forbidden for every other member, admins included; 404 not_found in every workspace but the Netvisor workspace (cnf SPOOL_HUB_NETVISOR_WORKSPACE: csitea), the operator workspace included. No MCP tool (C8).",
+        "description": "Spec 125 B5 (C7): the browser session of the workspace's Netvisor owner ONLY (netvisor_settings.owner_human_id). 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone and a seat that is not a person's; 403 forbidden for every other member, admins included (they read the view routes only, SPL-4792); 404 not_found in every workspace but the Netvisor workspace (cnf SPOOL_HUB_NETVISOR_WORKSPACE: csitea), the operator workspace included. No MCP tool (C8).",
         "operationId": "postNetvisorRefresh",
         "parameters": [
           {
@@ -10702,7 +10702,7 @@
     },
     "/v1/netvisor/settings": {
       "get": {
-        "description": "Spec 125 B5 (C7): the browser session of the workspace's Netvisor owner ONLY (netvisor_settings.owner_human_id). 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone and an agent seat; 403 forbidden for every other member, admins included; 404 not_found in every workspace but the Netvisor workspace (cnf SPOOL_HUB_NETVISOR_WORKSPACE: csitea), the operator workspace included. No MCP tool (C8).",
+        "description": "Spec 125 B5 (C7): the browser session of the workspace's Netvisor owner ONLY (netvisor_settings.owner_human_id). 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone and a seat that is not a person's; 403 forbidden for every other member, admins included (they read the view routes only, SPL-4792); 404 not_found in every workspace but the Netvisor workspace (cnf SPOOL_HUB_NETVISOR_WORKSPACE: csitea), the operator workspace included. No MCP tool (C8).",
         "operationId": "getNetvisorSettings",
         "parameters": [
           {
@@ -10734,7 +10734,7 @@
         ]
       },
       "put": {
-        "description": "Spec 125 B5 (C7): the browser session of the workspace's Netvisor owner ONLY (netvisor_settings.owner_human_id). 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone and an agent seat; 403 forbidden for every other member, admins included; 404 not_found in every workspace but the Netvisor workspace (cnf SPOOL_HUB_NETVISOR_WORKSPACE: csitea), the operator workspace included. No MCP tool (C8).",
+        "description": "Spec 125 B5 (C7): the browser session of the workspace's Netvisor owner ONLY (netvisor_settings.owner_human_id). 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone and a seat that is not a person's; 403 forbidden for every other member, admins included (they read the view routes only, SPL-4792); 404 not_found in every workspace but the Netvisor workspace (cnf SPOOL_HUB_NETVISOR_WORKSPACE: csitea), the operator workspace included. No MCP tool (C8).",
         "operationId": "putNetvisorSettings",
         "parameters": [
           {
@@ -17479,7 +17479,7 @@
     },
     "/v1/view/netvisor/card-costs": {
       "get": {
-        "description": "Spec 125 B5 (C7): the browser session of the workspace's Netvisor owner ONLY (netvisor_settings.owner_human_id). 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone and an agent seat; 403 forbidden for every other member, admins included; 404 not_found in every workspace but the Netvisor workspace (cnf SPOOL_HUB_NETVISOR_WORKSPACE: csitea), the operator workspace included. No MCP tool (C8).",
+        "description": "Spec 125 B5, C7 as rewritten (SPL-4792; owner msg cfa78746): the browser session of any PERSON seated in the Netvisor workspace, the owner included; the figures are the Netvisor owner's newest snapshot. 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone, and a seat that is not a person's (agent, time accountant, channel guest); 404 not_found in every workspace but the Netvisor workspace (cnf SPOOL_HUB_NETVISOR_WORKSPACE: csitea), the operator workspace included. No MCP tool (C8).",
         "operationId": "getNetvisorCardCosts",
         "parameters": [
           {
@@ -17488,7 +17488,7 @@
         ],
         "responses": {
           "200": {
-            "description": "OK: {env, snapshot (null before the first fetch), lines, refresh_requested_at}. Contract: csi-spl-api/src/go/spool-hub-api/internal/wire/netvisor.go; doc csi-spl-doc/doc/md/netvisor-finance-store.md section 5."
+            "description": "OK: {env, snapshot (null before the first fetch), lines, vendor_exclusions (the settings' spec-123 vendors the screen leaves out), refresh_requested_at, reader_is_owner (the reader is the Netvisor owner, who alone has Refresh now and the settings)}. Contract: csi-spl-api/src/go/spool-hub-api/internal/wire/netvisor.go; doc csi-spl-doc/doc/md/netvisor-finance-store.md section 5."
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -17513,7 +17513,7 @@
     },
     "/v1/view/netvisor/forecast": {
       "get": {
-        "description": "Spec 125 B5 (C7): the browser session of the workspace's Netvisor owner ONLY (netvisor_settings.owner_human_id). 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone and an agent seat; 403 forbidden for every other member, admins included; 404 not_found in every workspace but the Netvisor workspace (cnf SPOOL_HUB_NETVISOR_WORKSPACE: csitea), the operator workspace included. No MCP tool (C8).",
+        "description": "Spec 125 B5, C7 as rewritten (SPL-4792; owner msg cfa78746): the browser session of any PERSON seated in the Netvisor workspace, the owner included; the figures are the Netvisor owner's newest snapshot. 403 person_only for any Authorization header (box, agent desk or CLI token, operator service account), an act-as clone, and a seat that is not a person's (agent, time accountant, channel guest); 404 not_found in every workspace but the Netvisor workspace (cnf SPOOL_HUB_NETVISOR_WORKSPACE: csitea), the operator workspace included. No MCP tool (C8).",
         "operationId": "getNetvisorForecast",
         "parameters": [
           {
@@ -17522,7 +17522,7 @@
         ],
         "responses": {
           "200": {
-            "description": "OK: {env, snapshot (null before the first fetch), items, refresh_requested_at}. Contract: csi-spl-api/src/go/spool-hub-api/internal/wire/netvisor.go; doc csi-spl-doc/doc/md/netvisor-finance-store.md section 5."
+            "description": "OK: {env, snapshot (null before the first fetch), items, refresh_requested_at, reader_is_owner (the reader is the Netvisor owner, who alone has Refresh now and the settings)}. Contract: csi-spl-api/src/go/spool-hub-api/internal/wire/netvisor.go; doc csi-spl-doc/doc/md/netvisor-finance-store.md section 5."
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"

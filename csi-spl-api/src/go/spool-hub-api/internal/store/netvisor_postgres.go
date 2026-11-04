@@ -26,9 +26,11 @@ const pgScopeNetvisorIngest = `SELECT set_config('app.tenant_id', $1, true), set
 // the ingest transaction.
 const pgNetvisorIngestAsOwner = `SELECT set_config('app.rls_scope', '', true), set_config('app.human_id', $1, true)`
 
-// inNetvisorOwner runs fn in one transaction scoped to tenant AND its
-// Netvisor owner human. A statement in fn reads and writes only the rows
-// filed under human: for anyone but the owner, none.
+// inNetvisorOwner runs fn in one transaction scoped to tenant AND human. A
+// statement in fn writes only when human is the Netvisor owner (rdb 0260's
+// owner_insert / owner_update / owner_delete) and reads the owner's rows
+// only when human is the owner or a person seated in tenant (member_read):
+// for anyone else, none.
 func (s *Postgres) inNetvisorOwner(ctx context.Context, tenant, human string, fn func(pgx.Tx) error) error {
 	if err := checkTenant(tenant); err != nil {
 		return err
@@ -260,7 +262,10 @@ func nvsInsertCardLines(ctx context.Context, tx pgx.Tx, snap NetvisorSnapshot) e
 	return err
 }
 
-// NetvisorLatest is Netvisor.NetvisorLatest.
+// NetvisorLatest is Netvisor.NetvisorLatest: the newest snapshot of the
+// workspace's current owner, read in human's scope, where rdb 0260's
+// member_read shows it to the owner and to a person seated in the
+// workspace, and 0 rows to anyone else.
 func (s *Postgres) NetvisorLatest(ctx context.Context, tenant, human, env string) (NetvisorSnapshot, error) {
 	if !nvsOneOf(env, NetvisorEnvs) {
 		return NetvisorSnapshot{}, nvsBad("env")
@@ -269,8 +274,9 @@ func (s *Postgres) NetvisorLatest(ctx context.Context, tenant, human, env string
 	err := s.inNetvisorOwner(ctx, tenant, human, func(tx pgx.Tx) error {
 		var voucher *time.Time
 		err := tx.QueryRow(ctx, `SELECT snapshot_id::text, owner_human_id, env, as_of, month_end, newest_bank_voucher_date, fetched_at
-			FROM netvisor_snapshots WHERE tenant_id = $1 AND owner_human_id = $2 AND env = $3
-			ORDER BY fetched_at DESC, created_at DESC LIMIT 1`, tenant, human, env).Scan(
+			FROM netvisor_snapshots WHERE tenant_id = $1 AND env = $2
+				AND owner_human_id = (SELECT st.owner_human_id FROM netvisor_settings st WHERE st.tenant_id = $1)
+			ORDER BY fetched_at DESC, created_at DESC LIMIT 1`, tenant, env).Scan(
 			&snap.SnapshotID, &snap.OwnerHumanID, &snap.Env, &snap.AsOf, &snap.MonthEnd, &voucher, &snap.FetchedAt)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound

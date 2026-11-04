@@ -8,10 +8,13 @@ package wire
 //     PUT  /v1/operator/netvisor/owner      NetvisorOwnerBody -> NetvisorOwnerResponse
 //     POST /v1/operator/netvisor/snapshots  NetvisorSnapshotIn -> NetvisorIngestResponse
 //     GET  /v1/operator/netvisor/refresh    -> NetvisorRefreshResponse
-//   - the workspace's Netvisor owner human (C7), from the browser session:
+//   - every person seated in the Netvisor workspace (C7 as rewritten,
+//     SPL-4792; owner msg cfa78746), from the browser session:
 //     GET  /v1/view/netvisor/forecast       -> NetvisorForecastResponse
 //     GET  /v1/view/netvisor/card-costs     -> NetvisorCardCostsResponse
+//   - the workspace's Netvisor owner human alone, from the browser session:
 //     POST /v1/netvisor/refresh             -> NetvisorRefreshResponse
+//     GET  /v1/netvisor/settings            -> NetvisorSettingsBody
 //     PUT  /v1/netvisor/settings            NetvisorSettingsBody -> NetvisorSettingsBody
 //
 // Dates are "YYYY-MM-DD" ("" when absent), times RFC 3339 UTC, amounts
@@ -97,22 +100,29 @@ type NetvisorSnapshotHead struct {
 	FetchedAt             string `json:"fetched_at"`
 }
 
-// NetvisorForecastResponse is the owner's month-end cash forecast. Snapshot
-// is null (and Items empty) until the first snapshot of Env is filed.
+// NetvisorForecastResponse is the workspace's month-end cash forecast, from
+// the Netvisor owner's newest snapshot. Snapshot is null (and Items empty)
+// until the first snapshot of Env is filed. ReaderIsOwner: the reader is
+// the Netvisor owner, who alone has "Refresh now" and the settings.
 type NetvisorForecastResponse struct {
 	Env                string                 `json:"env"`
 	Snapshot           *NetvisorSnapshotHead  `json:"snapshot"`
 	Items              []NetvisorForecastItem `json:"items"`
 	RefreshRequestedAt *string                `json:"refresh_requested_at"`
+	ReaderIsOwner      bool                   `json:"reader_is_owner"`
 }
 
-// NetvisorCardCostsResponse is the owner's card cost lines; the breakdowns
-// (by cost type, vendor, cost centre) are the screen's (B7).
+// NetvisorCardCostsResponse is the workspace's card cost lines; the
+// breakdowns (by cost type, vendor, cost centre) are the screen's (B7).
+// VendorExclusions is the settings' spec-123 vendor list the screen leaves
+// out (Q4 = EXCL), so a member who reads no settings leaves out the same.
 type NetvisorCardCostsResponse struct {
 	Env                string                 `json:"env"`
 	Snapshot           *NetvisorSnapshotHead  `json:"snapshot"`
 	Lines              []NetvisorCardCostLine `json:"lines"`
+	VendorExclusions   []string               `json:"vendor_exclusions"`
 	RefreshRequestedAt *string                `json:"refresh_requested_at"`
+	ReaderIsOwner      bool                   `json:"reader_is_owner"`
 }
 
 // NetvisorRefreshResponse is the open "Refresh now" request: null when none.

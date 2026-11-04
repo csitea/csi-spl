@@ -29,18 +29,22 @@ import (
 // carries it carries a figure.
 const nvsMarker = "4321.09"
 
-// nvsOwnerRoutes are the owner's routes; want is the owner's status.
-var nvsOwnerRoutes = []struct {
+// nvsRoutes are the Netvisor routes of a browser session; want is the
+// owner's status; view marks a view route, which every person seated in the
+// Netvisor workspace reads (C7 as rewritten, SPL-4792); the others are the
+// owner's alone.
+var nvsRoutes = []struct {
 	method, path string
 	body         any
 	want         int
+	view         bool
 }{
-	{http.MethodGet, "/v1/view/netvisor/forecast", nil, http.StatusOK},
-	{http.MethodGet, "/v1/view/netvisor/card-costs", nil, http.StatusOK},
-	{http.MethodPost, "/v1/netvisor/refresh", nil, http.StatusAccepted},
-	{http.MethodGet, "/v1/netvisor/settings", nil, http.StatusOK},
+	{http.MethodGet, "/v1/view/netvisor/forecast", nil, http.StatusOK, true},
+	{http.MethodGet, "/v1/view/netvisor/card-costs", nil, http.StatusOK, true},
+	{http.MethodPost, "/v1/netvisor/refresh", nil, http.StatusAccepted, false},
+	{http.MethodGet, "/v1/netvisor/settings", nil, http.StatusOK, false},
 	{http.MethodPut, "/v1/netvisor/settings", map[string]any{"env": "test", "bank_account": "1910",
-		"vat_accounts": []string{"2939"}, "tax_accounts": []string{"2930"}, "vendor_exclusions": []string{"vendor-y"}}, http.StatusOK},
+		"vat_accounts": []string{"2939"}, "tax_accounts": []string{"2930"}, "vendor_exclusions": []string{"vendor-y"}}, http.StatusOK, false},
 }
 
 // nvsRig: fin is the Netvisor workspace (cnf SPOOL_HUB_NETVISOR_WORKSPACE,
@@ -182,37 +186,53 @@ func (n *nvsRig) actAs(t *testing.T, b *http.Client, target string) {
 	}
 }
 
-// TestNetvisorHubRBAC is C-NVS-5: the owner gets 2xx on every owner route
-// and reads the figures; another admin of the workspace, an act-as clone of
-// the owner, the operator service account, a box session, an agent seat
-// and an agent's desk (a box carrying an agent) all get 403 with no figure;
-// no session is 401. CONTROL: the owner's own answers carry the marker, so
-// each refusal is the door's, not an empty store.
+// TestNetvisorHubRBAC is C-NVS-5 under C7 as rewritten (SPL-4792; owner
+// msg cfa78746): the owner gets 2xx on every route and reads the figures; a
+// developer and an admin seated in the workspace who are not the owner read
+// the figures on the view routes (reader_is_owner false) and get 403 with no
+// figure or account on the owner routes; an act-as clone of the owner, an
+// agent seat, the operator service account, a box session and an agent's
+// desk get 403 everywhere with no figure; no session is 401. CONTROL: the
+// owner's own answers carry the marker, so each refusal is the door's, not
+// an empty store.
 func TestNetvisorHubRBAC(t *testing.T) {
 	n := newNvsRig(t)
-	for _, rt := range nvsOwnerRoutes {
+	for _, rt := range nvsRoutes {
 		code, body := n.nvsDo(t, n.ownerB, rt.method, rt.path, "", rt.body)
 		if code != rt.want {
 			t.Errorf("CONTROL: owner %s %s = %d %s, want %d", rt.method, rt.path, code, body, rt.want)
 		}
-		if strings.Contains(rt.path, "/view/") && !strings.Contains(body, nvsMarker) {
-			t.Errorf("CONTROL: owner %s %s carries no figure: %s", rt.method, rt.path, body)
+		if rt.view && (!strings.Contains(body, nvsMarker) || !strings.Contains(body, `"reader_is_owner":true`)) {
+			t.Errorf("CONTROL: owner %s %s carries no figure or no reader_is_owner true: %s", rt.method, rt.path, body)
 		}
 	}
 	adminB, admin := n.as(t, n.fin, rbac.Admin)
+	devB, dev := n.as(t, n.fin, rbac.Developer)
 	cloneB, _ := n.as(t, n.fin, rbac.Admin)
 	n.actAs(t, cloneB, n.owner)
 	agentB, _ := n.as(t, n.fin, rbac.PureAgent)
 	desk := n.r.e.box(n.fin, "box-nv1", "c-101")
 	n.r.e.pin(n.fin, desk)
 	deskTok := n.r.e.uploadToken(n.fin, desk)
+	for name, b := range map[string]*http.Client{"a developer " + dev: devB, "an admin " + admin: adminB} {
+		for _, rt := range nvsRoutes {
+			code, body := n.nvsDo(t, b, rt.method, rt.path, "", rt.body)
+			switch {
+			case rt.view && (code != http.StatusOK || !strings.Contains(body, nvsMarker) || !strings.Contains(body, `"reader_is_owner":false`)):
+				t.Errorf("member %s: %s %s = %d %s, want 200, the figures and reader_is_owner false", name, rt.method, rt.path, code, body)
+			case !rt.view && (code != http.StatusForbidden || strings.Contains(body, "1910") || strings.Contains(body, nvsMarker)):
+				t.Errorf("member %s: owner route %s %s = %d %s, want 403 and no account or figure", name, rt.method, rt.path, code, body)
+			case strings.HasSuffix(rt.path, "/card-costs") && !strings.Contains(body, `"vendor_exclusions":["vendor-y"]`):
+				t.Errorf("member %s: card costs carry not the owner's vendor exclusions (put above): %s", name, body)
+			}
+		}
+	}
 	callers := []struct {
 		name   string
 		b      *http.Client
 		bearer string
 		want   int
 	}{
-		{"another admin " + admin, adminB, "", http.StatusForbidden},
 		{"act-as clone of the owner", cloneB, "", http.StatusForbidden},
 		{"agent seat", agentB, "", http.StatusForbidden},
 		{"operator service account", nil, "good", http.StatusForbidden},
@@ -221,7 +241,7 @@ func TestNetvisorHubRBAC(t *testing.T) {
 		{"no session", nil, "", http.StatusUnauthorized},
 	}
 	for _, c := range callers {
-		for _, rt := range nvsOwnerRoutes {
+		for _, rt := range nvsRoutes {
 			code, body := n.nvsDo(t, c.b, rt.method, rt.path, c.bearer, rt.body)
 			if code != c.want {
 				t.Errorf("%s: %s %s = %d %s, want %d", c.name, rt.method, rt.path, code, body, c.want)
@@ -245,7 +265,7 @@ func TestNetvisorCrossTenant(t *testing.T) {
 	}
 	ownerElsewhere := n.signIn(t, n.email, n.other)
 	for name, b := range map[string]*http.Client{"an admin of another workspace": strangerB, "the owner in another workspace": ownerElsewhere} {
-		for _, rt := range nvsOwnerRoutes {
+		for _, rt := range nvsRoutes {
 			code, body := n.nvsDo(t, b, rt.method, rt.path, "", rt.body)
 			if code != http.StatusNotFound || strings.Contains(body, nvsMarker) {
 				t.Errorf("%s: %s %s = %d %s, want 404 and no figure", name, rt.method, rt.path, code, body)
@@ -410,7 +430,7 @@ func TestNetvisorFinanceWorkspaceOnly(t *testing.T) {
 		t.Fatalf("join apex seated %s, want the owner %s", hum, n.owner)
 	}
 	atApex := n.signIn(t, n.email, n.apex)
-	for _, rt := range nvsOwnerRoutes {
+	for _, rt := range nvsRoutes {
 		if code, body := n.nvsDo(t, atApex, rt.method, rt.path, "", rt.body); code != http.StatusNotFound {
 			t.Errorf("the owner in the operator workspace: %s %s = %d %s, want 404", rt.method, rt.path, code, body)
 		}

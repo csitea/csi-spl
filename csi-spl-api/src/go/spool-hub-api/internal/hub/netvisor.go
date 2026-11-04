@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
@@ -16,26 +17,35 @@ import (
 // B5, SPL-4732, case C-NVS-5; owner HUM-10, topic fc0119cd). Bodies:
 // internal/wire/netvisor.go. Store: store.Netvisor (B4, rdb 0255, 0257).
 //
-// The owner's routes, from the browser session of the workspace's Netvisor
-// owner ONLY (C7):
+// The view routes, from the browser session of any PERSON seated in the
+// Netvisor workspace (C7 as rewritten, SPL-4792; owner HUM-10, csitea topic
+// 67c25538, poll 2a767008, msg cfa78746: "WS - Every member of the csitea
+// workspace"; msg 91a1bc9a: agents never see the figures):
 //
 //	GET  /v1/view/netvisor/forecast    the month-end cash forecast
 //	GET  /v1/view/netvisor/card-costs  the card cost lines
+//
+// The owner's routes, from the browser session of the workspace's Netvisor
+// owner ONLY:
+//
 //	POST /v1/netvisor/refresh          "Refresh now": 202, the open request
 //	GET  /v1/netvisor/settings         env, accounts, vendor exclusions
 //	PUT  /v1/netvisor/settings         the same, written
 //
-// netvisorOwner is their one door. 403 for any Authorization header (a box,
-// an agent desk or CLI token, the operator service account: the data is read
-// from the owner's own browser, never by a credential a machine holds), for
-// an act-as clone, a session that is not a person (realmRefuses) and every
-// member who is not netvisor_settings.owner_human_id, admins included: the
+// netvisorReader is the view routes' door, netvisorOwner (the reader door
+// plus the owner check) the owner routes'. 403 for any Authorization header
+// (a box, an agent desk or CLI token, the operator service account: the data
+// is read from a person's own browser, never by a credential a machine
+// holds), for an act-as clone, a session that is not a person (realmRefuses)
+// and a seat in the workspace that is not a person's (an agent's, a time
+// accountant's, a channel guest's). On an owner route also 403 for every
+// reader who is not netvisor_settings.owner_human_id, admins included: the
 // check is the session's human id against the owner the STORE holds (data,
 // never a literal), not a role. 404 in every workspace but the Netvisor
 // workspace (Options.NetvisorWorkspace, cnf: csitea), the operator workspace
-// included: no other workspace has Netvisor data. Behind the door
-// rdb 0255's RLS is the second wall: the store reads as that human, so a
-// wrong door would still read 0 rows.
+// included: no other workspace has Netvisor data. Behind the doors
+// rdb 0255 / 0260's RLS is the second wall: the store reads as that human,
+// so a wrong door would still read 0 rows.
 //
 // The operator's routes, the main-box sync (B6) as the env's service account
 // (operatorAuth), into the Netvisor workspace only (never the operator
@@ -77,55 +87,95 @@ func (s *Server) routeOperatorNetvisor(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/operator/netvisor/refresh", s.handleOperatorNetvisorRefresh)
 }
 
-// nvsOwner is the caller of an owner route: the Netvisor workspace, its
-// Netvisor owner (the session's human) and that owner's settings.
-type nvsOwner struct {
+// nvsCaller is the caller of a Netvisor route: the Netvisor workspace, the
+// session's human, the workspace's settings and whether that human is the
+// Netvisor owner.
+type nvsCaller struct {
 	tenant, hum string
 	nv          store.Netvisor
 	settings    store.NetvisorSettings
+	isOwner     bool
 }
 
 func writeNetvisorNotPerson(w http.ResponseWriter) {
 	writeErr(w, http.StatusForbidden, "person_only",
-		"the Netvisor data is read only from its owner's own browser session: no token, act-as or agent seat")
+		"the Netvisor data is read only from a member's own browser session: no token, act-as or agent seat")
 }
 
 // netvisorOwner is the owner routes' door (see the file comment); false =
 // answered.
-func (s *Server) netvisorOwner(w http.ResponseWriter, r *http.Request) (nvsOwner, bool) {
+func (s *Server) netvisorOwner(w http.ResponseWriter, r *http.Request) (nvsCaller, bool) {
+	c, ok := s.netvisorReader(w, r)
+	if ok && !c.isOwner {
+		writeForbidden(w, permNetvisor, "only the workspace's Netvisor owner refreshes or sets up the Netvisor data")
+		return nvsCaller{}, false
+	}
+	return c, ok
+}
+
+// netvisorReader is the view routes' door (see the file comment); false =
+// answered.
+func (s *Server) netvisorReader(w http.ResponseWriter, r *http.Request) (nvsCaller, bool) {
 	s.allowOrigin(w, r)
 	w.Header().Set("Cache-Control", "no-store")
 	if strings.TrimSpace(r.Header.Get("Authorization")) != "" {
 		writeNetvisorNotPerson(w)
-		return nvsOwner{}, false
+		return nvsCaller{}, false
 	}
 	t, hum, ok := s.humanTenant(w, r)
 	if !ok {
-		return nvsOwner{}, false
+		return nvsCaller{}, false
 	}
 	if !s.netvisorPerson(w, r, t.ID, hum) {
-		return nvsOwner{}, false
+		return nvsCaller{}, false
 	}
 	if nw := s.o.NetvisorWorkspace; nw == "" || t.ID != nw {
 		writeErr(w, http.StatusNotFound, "not_found", "this workspace keeps no Netvisor data")
-		return nvsOwner{}, false
+		return nvsCaller{}, false
+	}
+	if !s.netvisorPersonSeat(w, r, t.ID, hum) {
+		return nvsCaller{}, false
 	}
 	nv, has := s.o.Store.(store.Netvisor)
 	if !has {
 		writeErr(w, http.StatusNotImplemented, "unsupported", "this hub's store keeps no Netvisor data")
-		return nvsOwner{}, false
+		return nvsCaller{}, false
 	}
-	st, isOwner, err := s.netvisorIsOwner(r.Context(), nv, t.ID, hum)
+	st, readable, err := s.netvisorReadSettings(r.Context(), nv, t.ID, hum)
 	if err != nil {
-		s.o.Log.Error().Err(err).Str("tenant", t.ID).Msg("netvisor.owner_read_failed")
+		s.o.Log.Error().Err(err).Str("tenant", t.ID).Msg("netvisor.settings_read_failed")
 		writeErr(w, http.StatusServiceUnavailable, "unavailable", "the Netvisor settings were not read")
-		return nvsOwner{}, false
+		return nvsCaller{}, false
 	}
-	if !isOwner {
-		writeForbidden(w, permNetvisor, "only the workspace's Netvisor owner sees the Netvisor data")
-		return nvsOwner{}, false
+	if !readable {
+		writeForbidden(w, permNetvisor, "only the people of the Netvisor workspace see the Netvisor data")
+		return nvsCaller{}, false
 	}
-	return nvsOwner{tenant: t.ID, hum: hum, nv: nv, settings: st}, true
+	return nvsCaller{tenant: t.ID, hum: hum, nv: nv, settings: st,
+		isOwner: st.OwnerHumanID != "" && st.OwnerHumanID == hum}, true
+}
+
+// netvisorPersonSeat answers whether hum's seat in tenant is a person's: at
+// least one role of its set is neither an agent's nor a time accountant's
+// (realmNotPerson), and it is not a channel guest's. rdb 0260's member_read
+// holds the same rule in the database. false = answered 403.
+func (s *Server) netvisorPersonSeat(w http.ResponseWriter, r *http.Request, tenant, hum string) bool {
+	a, err := s.access(r.Context(), hum, tenant)
+	if err != nil {
+		writeNetvisorNotPerson(w)
+		return false
+	}
+	roles := a.Roles
+	if len(roles) == 0 {
+		roles = []string{a.Role}
+	}
+	for _, role := range roles {
+		if role != "" && role != rbac.ChannelGuest && !realmNotPerson[role] {
+			return true
+		}
+	}
+	writeNetvisorNotPerson(w)
+	return false
 }
 
 // netvisorPerson answers whether the session is a person's own browser
@@ -154,11 +204,12 @@ func (s *Server) netvisorPerson(w http.ResponseWriter, r *http.Request, tenant, 
 	return true
 }
 
-// netvisorIsOwner is the C7 check: hum is the owner the store holds for
-// tenant. The store answers the settings only to the owner itself
-// (ErrNotFound otherwise, also with no settings row), and the id must match
-// what it answers. Never a role: an admin who is not the owner is refused.
-func (s *Server) netvisorIsOwner(ctx context.Context, nv store.Netvisor, tenant, hum string) (store.NetvisorSettings, bool, error) {
+// netvisorReadSettings reads tenant's settings as hum. The store answers
+// them only to the owner and a person seated in tenant (rdb 0260;
+// ErrNotFound otherwise, also with no settings row): false then. Whether
+// hum is the owner is the caller's check of the id the store answers, never
+// a role: an admin who is not the owner gets no owner route.
+func (s *Server) netvisorReadSettings(ctx context.Context, nv store.Netvisor, tenant, hum string) (store.NetvisorSettings, bool, error) {
 	st, err := nv.NetvisorSettings(ctx, tenant, hum)
 	switch {
 	case errors.Is(err, store.ErrNotFound) || errors.Is(err, store.ErrNoHuman):
@@ -166,12 +217,12 @@ func (s *Server) netvisorIsOwner(ctx context.Context, nv store.Netvisor, tenant,
 	case err != nil:
 		return store.NetvisorSettings{}, false, err
 	}
-	return st, st.OwnerHumanID != "" && st.OwnerHumanID == hum, nil
+	return st, true, nil
 }
 
-// netvisorLatest is the owner's newest snapshot of the settings' env; nil
-// with no snapshot yet; false = answered.
-func (s *Server) netvisorLatest(w http.ResponseWriter, r *http.Request, c nvsOwner) (*store.NetvisorSnapshot, bool) {
+// netvisorLatest is the owner's newest snapshot of the settings' env, read
+// as the caller; nil with no snapshot yet; false = answered.
+func (s *Server) netvisorLatest(w http.ResponseWriter, r *http.Request, c nvsCaller) (*store.NetvisorSnapshot, bool) {
 	snap, err := c.nv.NetvisorLatest(r.Context(), c.tenant, c.hum, c.settings.Env)
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, true
@@ -186,7 +237,7 @@ func (s *Server) netvisorLatest(w http.ResponseWriter, r *http.Request, c nvsOwn
 
 // GET /v1/view/netvisor/forecast
 func (s *Server) handleNetvisorForecast(w http.ResponseWriter, r *http.Request) {
-	c, ok := s.netvisorOwner(w, r)
+	c, ok := s.netvisorReader(w, r)
 	if !ok {
 		return
 	}
@@ -195,7 +246,7 @@ func (s *Server) handleNetvisorForecast(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	out := wire.NetvisorForecastResponse{Env: c.settings.Env, Items: []wire.NetvisorForecastItem{},
-		RefreshRequestedAt: nvsTimeOut(c.settings.RefreshRequestedAt)}
+		RefreshRequestedAt: nvsTimeOut(c.settings.RefreshRequestedAt), ReaderIsOwner: c.isOwner}
 	if snap != nil {
 		out.Snapshot = nvsHeadOut(*snap)
 		for _, it := range snap.Items {
@@ -207,7 +258,7 @@ func (s *Server) handleNetvisorForecast(w http.ResponseWriter, r *http.Request) 
 
 // GET /v1/view/netvisor/card-costs
 func (s *Server) handleNetvisorCardCosts(w http.ResponseWriter, r *http.Request) {
-	c, ok := s.netvisorOwner(w, r)
+	c, ok := s.netvisorReader(w, r)
 	if !ok {
 		return
 	}
@@ -216,7 +267,7 @@ func (s *Server) handleNetvisorCardCosts(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	out := wire.NetvisorCardCostsResponse{Env: c.settings.Env, Lines: []wire.NetvisorCardCostLine{},
-		RefreshRequestedAt: nvsTimeOut(c.settings.RefreshRequestedAt)}
+		VendorExclusions: append([]string{}, c.settings.VendorExclusions...), RefreshRequestedAt: nvsTimeOut(c.settings.RefreshRequestedAt), ReaderIsOwner: c.isOwner}
 	if snap != nil {
 		out.Snapshot = nvsHeadOut(*snap)
 		for _, l := range snap.CardLines {

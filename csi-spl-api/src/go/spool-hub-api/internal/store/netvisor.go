@@ -8,12 +8,15 @@ import (
 )
 
 // The Netvisor finance store (spec 125 v0.1 sections 3, 4, 5.2, build row
-// B4, SPL-4721; rdb 0255_netvisor_finance.sql). A workspace's Netvisor data
-// belongs to ONE human, netvisor_settings.owner_human_id (C7: data, never a
-// code literal). Every read and every owner write runs in that human's
-// scope (inNetvisorOwner: the tenant plus that human id), where rdb 0255's
-// restrictive owner_scope shows only the rows filed under that human:
-// another member, an admin, an agent and the operator scope read 0 rows.
+// B4, SPL-4721; rdb 0255_netvisor_finance.sql, 0260). A workspace's Netvisor
+// data is filed under ONE human, netvisor_settings.owner_human_id (C7: data,
+// never a code literal), who alone writes the settings and the refresh
+// request. Since rdb 0260 (C7 as rewritten, SPL-4792; owner msg cfa78746:
+// every member of the workspace) a person seated in the workspace READS the
+// owner's rows too. Every read and write runs in the caller's scope
+// (inNetvisorOwner: the tenant plus that human id); an agent seat, an act-as
+// clone, a channel guest, another workspace, the tenant alone and the
+// operator scope read 0 rows.
 // The operator ingest (B5) runs in inNetvisorIngest, which reaches
 // netvisor_settings alone, learns the owner there and then writes the
 // snapshot in that owner's scope. The hub (B5) passes as human only the id
@@ -124,15 +127,16 @@ type Netvisor interface {
 	// Netvisor data (the operator's call; it creates the settings row).
 	NetvisorSetOwner(ctx context.Context, tenant, human, by string, now time.Time) error
 	// NetvisorSettings reads the settings as human: ErrNotFound unless
-	// human is the owner.
+	// human is the owner or a person seated in tenant (rdb 0260); the hub
+	// answers the settings route to the owner alone.
 	NetvisorSettings(ctx context.Context, tenant, human string) (NetvisorSettings, error)
 	// NetvisorPutSettings writes env, accounts and exclusions as human
 	// (never the owner): ErrNotFound unless human is the owner.
 	NetvisorPutSettings(ctx context.Context, tenant, human string, s NetvisorSettings, now time.Time) (NetvisorSettings, error)
 	// NetvisorIngest files one snapshot under the workspace's owner.
 	NetvisorIngest(ctx context.Context, tenant string, snap NetvisorSnapshot) (NetvisorSnapshot, error)
-	// NetvisorLatest reads human's newest snapshot of env: ErrNotFound
-	// when there is none human may read.
+	// NetvisorLatest reads the current owner's newest snapshot of env as
+	// human: ErrNotFound when there is none human may read.
 	NetvisorLatest(ctx context.Context, tenant, human, env string) (NetvisorSnapshot, error)
 	// NetvisorRequestRefresh opens human's "Refresh now" (rdb 0257) and
 	// answers its time: ErrNotFound unless human is the owner.

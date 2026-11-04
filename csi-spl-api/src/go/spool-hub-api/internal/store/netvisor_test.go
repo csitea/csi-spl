@@ -21,7 +21,7 @@ var nvsTables = []string{"netvisor_settings", "netvisor_snapshots", "netvisor_fo
 
 const (
 	nvsOwner = "HUM-9001" // invented
-	nvsOther = "HUM-9002" // invented: another member, an admin, anyone
+	nvsOther = "HUM-9002" // invented: a human seated nowhere
 )
 
 // nvsSnap is one invented snapshot with two items and one card line.
@@ -153,31 +153,131 @@ func TestNetvisorStoreRLS(t *testing.T) {
 	}
 }
 
-// TestNetvisorStoreRLSControl is the red control the brief names: with the
-// owner_scope policy dropped (in a rolled-back transaction) another human
-// and the tenant alone read the owner's rows; with it, none.
+// TestNetvisorStoreRLSControl is the red control the brief names: with
+// rdb 0260's member_read policy dropped (in a rolled-back transaction)
+// another human and the tenant alone read the owner's rows; with it, none.
 func TestNetvisorStoreRLSControl(t *testing.T) {
 	pg := rlsStore(t)
 	a := newTenant(t, pg)
 	nvsSeed(t, pg, a, nvsOwner)
 	var drop strings.Builder
 	for _, tb := range nvsTables {
-		drop.WriteString(`DROP POLICY owner_scope ON ` + tb + `; `)
+		drop.WriteString(`DROP POLICY member_read ON ` + tb + `; `)
 	}
 	for name, args := range map[string][]any{"another human": {a, nvsOther}} {
 		leaked := nvsCounts(t, pg, drop.String(), pgScopeNetvisorOwner, args...)
 		held := nvsCounts(t, pg, "", pgScopeNetvisorOwner, args...)
 		for _, tb := range nvsTables {
 			if leaked[tb] == 0 {
-				t.Errorf("control is void: %s: without owner_scope %s should read the owner's rows", tb, name)
+				t.Errorf("control is void: %s: without member_read %s should read the owner's rows", tb, name)
 			}
 			if held[tb] != 0 {
-				t.Errorf("%s: %s reads %d row(s) with owner_scope, want 0", tb, name, held[tb])
+				t.Errorf("%s: %s reads %d row(s) with member_read, want 0", tb, name, held[tb])
 			}
 		}
 	}
 	if leaked := nvsCounts(t, pg, drop.String(), pgScopeTenant, a); leaked["netvisor_forecast_items"] == 0 {
-		t.Error("control is void: without owner_scope the tenant alone should read the forecast items")
+		t.Error("control is void: without member_read the tenant alone should read the forecast items")
+	}
+}
+
+// nvsSeatTechnical seats a fresh technical human (the act-as clone's
+// shape, rdb 0088) in tenant with role.
+func nvsSeatTechnical(t *testing.T, pg *Postgres, tenant, role string) string {
+	t.Helper()
+	ctx := context.Background()
+	var hum string
+	if err := pg.pool.QueryRow(ctx, `INSERT INTO humans (display_name, technical) VALUES ('clone', true) RETURNING human_id`).Scan(&hum); err != nil {
+		t.Fatal(err)
+	}
+	if err := pg.inTenant(ctx, tenant, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO tenant_memberships (tenant_id, human_id, role, admitted_by)
+			VALUES ($1, $2, $3, 'operator')`, tenant, hum, role)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return hum
+}
+
+// TestNetvisorStoreMemberRead (rdb 0260, C7 as rewritten, SPL-4792): a
+// person seated in the workspace reads the owner's settings and newest
+// snapshot but writes nothing; an agent seat, a time accountant, a
+// technical (act-as clone) human, a suspended seat and a person of another
+// workspace read 0 rows. After an owner move the former owner, still
+// seated, reads the new owner's figures only. CONTROL: the red control
+// TestNetvisorStoreRLSControl drops member_read; reverting 0260 to 0255's
+// owner_scope turns the member's reads here to ErrNotFound.
+func TestNetvisorStoreMemberRead(t *testing.T) {
+	pg := rlsStore(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	a, b := newTenant(t, pg), newTenant(t, pg)
+	owner := seatMember(t, pg, a, "developer")
+	want := nvsSeed(t, pg, a, owner)
+	member := seatMember(t, pg, a, "developer")
+
+	got, err := pg.NetvisorLatest(ctx, a, member, "test")
+	if err != nil || got.SnapshotID != want.SnapshotID || len(got.Items) != 2 || len(got.CardLines) != 1 {
+		t.Fatalf("member's latest = %+v %v, want the owner's %s", got, err, want.SnapshotID)
+	}
+	if st, err := pg.NetvisorSettings(ctx, a, member); err != nil || st.OwnerHumanID != owner {
+		t.Fatalf("member's settings = %+v %v, want owner %s", st, err, owner)
+	}
+	if n := nvsCounts(t, pg, "", pgScopeNetvisorOwner, a, member); n["netvisor_forecast_items"] != 2 || n["netvisor_card_cost_lines"] != 1 {
+		t.Errorf("member counts = %v, want the owner's rows", n)
+	}
+	if _, err := pg.NetvisorPutSettings(ctx, a, member, NetvisorSettings{Env: "test"}, now); !errors.Is(err, ErrNotFound) {
+		t.Errorf("PutSettings(member) = %v, want ErrNotFound", err)
+	}
+	if _, err := pg.NetvisorRequestRefresh(ctx, a, member, now); !errors.Is(err, ErrNotFound) {
+		t.Errorf("RequestRefresh(member) = %v, want ErrNotFound", err)
+	}
+	var pe *pgconn.PgError
+	err = pg.inNetvisorOwner(ctx, a, member, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO netvisor_snapshots (tenant_id, snapshot_id, owner_human_id, env, as_of, month_end, fetched_at)
+			VALUES ($1, $2::uuid, $3, 'test', current_date, current_date, now())`, a, uuid4(), owner)
+		return err
+	})
+	if !errors.As(err, &pe) || pe.Code != "42501" {
+		t.Errorf("member's snapshot insert under the owner's id = %v, want 42501", err)
+	}
+
+	suspended := seatMember(t, pg, a, "developer")
+	if err := pg.inTenant(ctx, a, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `UPDATE tenant_memberships SET disabled_at = now() WHERE tenant_id = $1 AND human_id = $2`, a, suspended)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	blind := map[string]string{
+		"agent seat":                     seatMember(t, pg, a, "pure_agent"),
+		"time accountant":                seatMember(t, pg, a, "time_accountant"),
+		"technical human (act-as clone)": nvsSeatTechnical(t, pg, a, "developer"),
+		"suspended seat":                 suspended,
+		"person of another workspace":    seatMember(t, pg, b, "admin"),
+	}
+	for name, hum := range blind {
+		if n := nvsCounts(t, pg, "", pgScopeNetvisorOwner, a, hum); n["netvisor_settings"]+n["netvisor_snapshots"]+n["netvisor_forecast_items"]+n["netvisor_card_cost_lines"] != 0 {
+			t.Errorf("%s reads %v, want 0 rows", name, n)
+		}
+		if _, err := pg.NetvisorLatest(ctx, a, hum, "test"); !errors.Is(err, ErrNotFound) {
+			t.Errorf("NetvisorLatest(%s) = %v, want ErrNotFound", name, err)
+		}
+	}
+
+	if err := pg.NetvisorSetOwner(ctx, a, member, "operator", now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pg.NetvisorLatest(ctx, a, owner, "test"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("former owner before the new owner's first snapshot = %v, want ErrNotFound (never a former owner's rows)", err)
+	}
+	next, err := pg.NetvisorIngest(ctx, a, nvsSnap(now))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := pg.NetvisorLatest(ctx, a, owner, "test"); err != nil || got.SnapshotID != next.SnapshotID {
+		t.Errorf("former owner, still seated = %+v %v, want the new owner's %s", got, err, next.SnapshotID)
 	}
 }
 

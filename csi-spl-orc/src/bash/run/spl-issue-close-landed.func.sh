@@ -20,6 +20,12 @@
 # @description     key, sha, moved | noop) and never
 # @description     acts again: an issue the owner reopens is not closed again by
 # @description     the same sha (a newer commit naming it may close it)
+# @description   - a channel move renumbers its issues in <DST> (spec 169 W4,
+# @description     row T7g): for the 30 days of its redirect a commit citing
+# @description     the old key closes the new one there (the desk acts in
+# @description     <DST>), read from `spool issue moved`; after that the old
+# @description     key closes nothing. A map or <DST> list that was not read
+# @description     is a retry (reported failed, no ledger row, cursor stays)
 # @description Reads the commits after the cursor (the master sha of the last
 # @description complete run) up to ISSUE_CLOSE_REF; the first run needs
 # @description ISSUE_CLOSE_SINCE=all (the back-fill: master's whole history) or
@@ -105,7 +111,7 @@ do_spl_issue_close_landed() {
     [[ -r "$ISSUE_CLOSE_EVIDENCE" ]] || { do_log "FATAL ISSUE_CLOSE_EVIDENCE is not a readable file: '$ISSUE_CLOSE_EVIDENCE'"; rm -f "$list" "$plan"; return 1; }
     ev=("$ISSUE_CLOSE_EVIDENCE")
   fi
-  python3 "$PROJ_PATH/src/bash/scripts/issue-close-landed.py" "$list" "$ICL_REPO" "$rng" "$dir/closed.tsv" "${ev[@]}" >"$plan" ||
+  spl_icl_plan "$list" "$rng" "$dir" "${ev[@]}" >"$plan" ||
     { do_log "FATAL issue-close-landed.py failed"; rm -f "$list" "$plan"; return 1; }
   rm -f "$list"
   local rc=0
@@ -117,6 +123,40 @@ do_spl_issue_close_landed() {
   elif (( rc != 0 )); then
     do_log "WARN the cursor stays: the next run retries the range (the ledger keeps the moves that landed)"
   fi
+  return $rc
+}
+
+# spl_icl_plan LIST RANGE DIR [EVIDENCE] -> the plan rows (spec 169 row T7g).
+# The workspace's moved issue keys (`spool issue moved`) map an old key a
+# commit cites to its new key in <DST> while the redirect lives; after that the
+# old key closes nothing. A map that was not read is passed as "-": each key
+# not open here is then a retry row, never a no-op on a guess. A retry row
+# that names a <DST> asks for that workspace's open list: fetched (as the same
+# desk, TENANT_ID=<DST>), then the plan runs once more with it.
+spl_icl_plan() {
+  local list="$1" rng="$2" dir="$3" moved out rc=0 t f
+  shift 3
+  local -a ev=("$@") mv=(--moves -) dst=() tmp=()
+  moved="$(mktemp)"; out="$(mktemp)"; tmp=("$moved" "$out")
+  if spl_desk_issue_run moved >"$moved"; then
+    mv=(--moves "$moved")
+  else
+    do_log "WARN issue-close-landed: the moved issue key map of $TENANT_ID was not read: a key not open here is retried, not judged" >&2
+  fi
+  python3 "$PROJ_PATH/src/bash/scripts/issue-close-landed.py" "$list" "$ICL_REPO" "$rng" "$dir/closed.tsv" "${ev[@]}" "${mv[@]}" >"$out" || rc=1
+  while (( rc == 0 )) && read -r t; do
+    f="$(mktemp)"; tmp+=("$f")
+    if TENANT_ID="$t" spl_issue_list_fetch --status eval,todo,wip,blocked,onhold,qas --limit 500 >"$f"; then
+      dst+=(--dst "$t=$f")
+    else
+      do_log "WARN issue-close-landed: the open list of $t (a move's <DST>) was not read: its moved keys are retried" >&2
+    fi
+  done < <(awk -F'\t' '$2 == "retry" && $5 != "" { print $5 }' "$out" | sort -u)
+  if (( rc == 0 && ${#dst[@]} )); then
+    python3 "$PROJ_PATH/src/bash/scripts/issue-close-landed.py" "$list" "$ICL_REPO" "$rng" "$dir/closed.tsv" "${ev[@]}" "${mv[@]}" "${dst[@]}" >"$out" || rc=1
+  fi
+  (( rc == 0 )) && cat "$out"
+  rm -f "${tmp[@]}"
   return $rc
 }
 
@@ -359,19 +399,21 @@ spl_icl_wui_url() {
 # spl_icl_apply PLAN DRY DIR WUI: act on each row, print the report. A failed
 # move is reported, the others still run, and the return is 1.
 spl_icl_apply() {
-  local plan="$1" dry="$2" dir="$3" wui="$4" key verdict shas detail moved=0 noop=0 skip=0 failed=0 s
-  while IFS=$'\t' read -r key verdict shas detail; do
+  local plan="$1" dry="$2" dir="$3" wui="$4" key verdict shas detail tenant moved=0 noop=0 skip=0 failed=0 s
+  while IFS=$'\t' read -r key verdict shas detail tenant; do
     [[ -n "$key" ]] || continue
     case "$verdict" in
       close)
         if (( dry )); then
           printf '%s\twould-move\t%s\t%s\n' "$key" "$shas" "$detail"; moved=$((moved + 1))
-        elif spl_icl_move "$key" "$shas" "$detail" "$wui"; then
+        elif TENANT_ID="${tenant:-$TENANT_ID}" spl_icl_move "$key" "$shas" "$detail" "$wui"; then
           for s in ${shas//,/ }; do printf '%s\t%s\tmoved\n' "$key" "$s" >>"$dir/closed.tsv"; done
           printf '%s\tmoved\t%s\t%s\n' "$key" "$shas" "$detail"; moved=$((moved + 1))
         else
           printf '%s\tfailed\t%s\tthe comment or the move failed (see the log)\n' "$key" "$shas"; failed=$((failed + 1))
         fi ;;
+      retry)
+        printf '%s\tfailed\t%s\t%s\n' "$key" "$shas" "$detail"; failed=$((failed + 1)) ;;
       noop)
         (( dry )) || for s in ${shas//,/ }; do printf '%s\t%s\tnoop\n' "$key" "$s" >>"$dir/closed.tsv"; done
         printf '%s\tnoop\t%s\t%s\n' "$key" "$shas" "$detail"; noop=$((noop + 1)) ;;

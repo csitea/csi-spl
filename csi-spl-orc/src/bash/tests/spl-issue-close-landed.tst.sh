@@ -60,8 +60,20 @@ issue() { printf '{"key":"%s","status":"%s","kind":"%s","created_at":"%s"}' "$1"
 } >"$T/list.json"
 python3 -m json.tool "$T/list.json" >/dev/null || { echo "FAIL: the fixture list is not JSON"; exit 1; }
 
-STUBS='spl_issue_list_fetch() { echo "list $*" >>"$STUB_LOG"; cat "$LIST"; }
+STUBS='spl_issue_list_fetch() {
+  if [[ "$TENANT_ID" != t1 ]]; then
+    echo "dst-list $TENANT_ID" >>"$STUB_LOG"; [[ -z "${DST_LIST_FAIL:-}" ]] || return 1; cat "$DST_LIST"; return
+  fi
+  echo "list $*" >>"$STUB_LOG"; cat "$LIST"
+}
 spl_desk_issue_run() {
+  [[ "$TENANT_ID" == t1 ]] || echo "in-tenant $TENANT_ID $1 ${3:-}" >>"$STUB_LOG"
+  if [[ "$1" == moved ]]; then
+    echo "map moved $TENANT_ID" >>"$STUB_LOG"
+    [[ -z "${MOVED_FAIL:-}" ]] || return 1
+    if [[ -n "${MOVED:-}" ]]; then cat "$MOVED"; else echo "{\"result\":{\"moved\":[]}}"; fi
+    return 0
+  fi
   echo "hub $1 $3 ${5:-}" >>"$STUB_LOG"
   [[ "$1 $3" == "update ${HUB_FAIL:-none}" ]] && return 1
   [[ "$1 $3" == "update SPL-30" ]] && echo "{\"result\":{\"issue\":{\"key\":\"SPL-30\"},\"epic_closed\":{\"key\":\"SPL-31\",\"status\":\"done\",\"archived\":true}}}"
@@ -438,5 +450,47 @@ tick21 env ANNOUNCED=""
   grep -q "WARN 1 red ticks in a row and no id this box announces could send the blocker to the orchestrator (tried c-002 c-001 c-003 g-002): spool-fleet-relay: g-002 is neither seated" "$T/o21" &&
   pass "21. this box announces none of them: ONE clear WARN naming the ids tried and the relay's reason, nothing sent" ||
   fail "21. none announced: $(cat "$T/send.log") // $(cat "$T/o21")"
+
+# 22. Spec 169 row T7g (W4; owner Q2 = A, msg 333aea7b): a channel move took
+# SPL-40 and SPL-41 to the workspace acme as ACME-7 and ACME-8. For the 30
+# days of its redirect a commit citing the old key closes the new one, in acme
+# (the new issue is younger than the commit: no reused-key skip); after that an
+# old key closes nothing. A map or a <DST> list that was not read never makes
+# a no-op on a guess: the key is retried, nothing goes to the ledger, the
+# cursor stays. RED on the old closer: SPL-40 was a no-op, ledgered, so the
+# moved issue was never closed.
+HEAD22=$(g rev-parse HEAD)
+S40=$(commit "fix(orc, SPL-40): a fix for an issue a channel move took")
+S41=$(commit "fix(orc, SPL-41): a fix for an issue moved more than 30 days ago")
+S42=$(commit "fix(orc, SPL-42): no map row: done here")
+cat >"$T/moved.json" <<'EOF22'
+{"env":"dev","result":{"moved":[
+ {"old_key":"SPL-40","dst":"acme","new_key":"ACME-7","expires_at":"2099-01-01T00:00:00Z","live":true},
+ {"old_key":"SPL-41","dst":"acme","new_key":"ACME-8","expires_at":"2020-01-01T00:00:00Z","live":false}]}}
+EOF22
+printf '{"env":"dev","result":{"next_cursor":"","issues":[%s,%s]}}\n' "$(issue ACME-7 wip issue 2099-01-01T00:00:00Z)" "$(issue ACME-8 todo issue)" >"$T/acme.json"
+run22() { rm -rf "$T/s22"; run ISSUE_CLOSE_SINCE="$HEAD22" ISSUE_CLOSE_STATE_DIR="$T/s22" DRY_RUN=0 MOVED="$T/moved.json" DST_LIST="$T/acme.json" "$@"; }
+run22; rc=$?
+[ "$rc" = 0 ] && [ "$(row ACME-7)" = moved ] && grep -q "^ACME-7	moved	$S40	.*(moved from SPL-40)" "$T/o" &&
+  grep -q '^in-tenant acme comment ACME-7' "$T/calls.log" && grep -q '^in-tenant acme update ACME-7' "$T/calls.log" &&
+  grep -qx "ACME-7	$S40	moved" "$T/s22/closed.tsv" && [ "$(grep -c '^dst-list acme' "$T/calls.log")" = 1 ] &&
+  [ "$(cat "$T/s22/cursor")" = "$S42" ] &&
+  pass "22. a live redirect: the old key SPL-40 closes ACME-7 in acme (the desk acts there), ledgered under the new key" ||
+  fail "22. live map (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+[ "$(row SPL-41)" = noop ] && grep -q '^SPL-41	noop	.*redirect expired 2020-01-01T00:00:00Z: an old key closes nothing' "$T/o" &&
+  ! grep -q 'ACME-8' "$T/calls.log" && grep -qx "SPL-41	$S41	noop" "$T/s22/closed.tsv" && [ "$(row SPL-42)" = noop ] &&
+  pass "22. an expired redirect: the old key SPL-41 closes nothing (ACME-8 is open in acme and stays so); a key no row maps is the old no-op" ||
+  fail "22. expired map (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+run22 MOVED_FAIL=1; rc=$?
+[ "$rc" -ne 0 ] && [ "$(row SPL-40)" = failed ] && [ "$(row SPL-41)" = failed ] && [ "$(row SPL-42)" = failed ] &&
+  grep -q '^SPL-40	failed	.*map was not read' "$T/o" && ! grep -q '^hub\|^in-tenant\|^dst-list' "$T/calls.log" &&
+  [ ! -s "$T/s22/closed.tsv" ] && [ ! -e "$T/s22/cursor" ] &&
+  pass "22. the map was not read: every key not open here is retried, none a no-op on a guess, no ledger row, the cursor stays" ||
+  fail "22. map not read (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+run22 DST_LIST_FAIL=1; rc=$?
+[ "$rc" -ne 0 ] && [ "$(row SPL-40)" = failed ] && grep -q '^SPL-40	failed	.*the open list of acme was not read' "$T/o" &&
+  [ "$(row SPL-41)" = noop ] && ! grep -q '^in-tenant acme' "$T/calls.log" && ! grep -q '^SPL-40\|^ACME-7' "$T/s22/closed.tsv" && [ ! -e "$T/s22/cursor" ] &&
+  pass "22. the <DST> list was not read: the live key is retried (cursor stays), the expired one is still a no-op" ||
+  fail "22. dst list not read (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
 
 [ "$fails" = 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

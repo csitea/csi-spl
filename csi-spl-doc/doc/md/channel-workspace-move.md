@@ -13,8 +13,8 @@ whole channel from one workspace into another.
 > - **Copy:** every `op` of a copy answers 501 `not_built` (T11).
 > - **The owner's exceptions:** a step reads no `detail`, so "leave these hours
 >   rows" and "keep this invite" have no input (section 2.4).
-> - **Gaps no row owns:** no proof of the bucket objects (section 5.1), the old
->   issue key map and the web app's redirect (section 5.2).
+> - **Gaps no row owns:** no proof of the bucket objects (section 5.1) and the
+>   web app's redirect (section 5.2).
 >
 > Every part below that waits says **[pending <row>]**, or says no row owns it.
 
@@ -412,10 +412,17 @@ and this page does not claim it (spec R6).
   note: `Channel move <move id>: your issue key changed, <old> -> <new>`.
   Cite the new key from then on. A lane filed on a moved key after P1 gets no
   note. A moved issue whose number was free keeps its key.
-- **The old key map:** P4 writes the 30-day map (owner, Q2 = A), but nothing reads
-  it yet: `grep -c channel_move_redirects csi-spl-orc/src/bash/scripts/issue-close-landed.py`
-  -> 0. So an old key closes nothing from the day of the move **[pending: no row
-  owns it yet]**.
+- **The old key map** (spec row T7g): P4 writes the 30-day map (owner, Q2 = A),
+  and the closer `do_spl_issue_close_landed` reads it every run through
+  `spool issue moved` (old key, `<DST>`, new key, expiry, live). For those 30
+  days a commit that cites the old key closes the new one in `<DST>`. The desk
+  acts there, so it needs a desk in `<DST>` on its box; without one the close
+  is refused and reported `failed`. After the 30 days the old key closes
+  nothing (a no-op, with the new key in its reason). When the map or the
+  `<DST>` open list cannot be read, the key is reported `failed` and retried
+  on the next run: no no-op on a guess, no ledger row, and the cursor stays.
+  P4 rewrites the key in `fleet_lanes.issue_key`, `fleet_lanes.origin_issue`
+  and `fleet_asks.issue_key` of `<SRC>` (M11).
 - **Links**: a moved topic's link is `https://<DST_HOST>/t/<uuid>`. For 30
   days the hub answers a read of the topic at `<SRC>` with 404 `topic_moved`
   and the new link in `moved_to`; then 404 `topic_moved` with no link (owner, Q2 =

@@ -884,10 +884,10 @@ sudo systemsetup -settimezone Europe/Helsinki
 <a id="ws-doc-b3c5828a-9b76-4787-9783-f81a16edd327"></a>
 ### 17.2.1 Create the agent user (`sysadminctl` / `dscl`)
 
-Create `<AGENT_USER>` as a local macOS account with home `/Users/<AGENT_USER>` and shell `/opt/homebrew/bin/bash` (use `/usr/local/bin/bash` on an Intel Mac) via `sysadminctl`, and populate its home directory with `createhomedir`. Passing `-admin` already adds `<AGENT_USER>` to the `admin` group; `<AGENT_USER>` is a non-interactive service/agent account entered through `sudo -n -u <AGENT_USER>` / `sudo -i -u <AGENT_USER>` (lock an interactive GUI password with `dscl . -passwd /Users/<AGENT_USER> "*"` so the account cannot be used for password login; **not tested on macOS**):
+Create `<AGENT_USER>` as a local macOS account with home `/Users/<AGENT_USER>` and shell `/opt/homebrew/bin/bash` (use `/usr/local/bin/bash` on an Intel Mac) via `sysadminctl`, remove its password login (delete `AuthenticationAuthority`, set the `Password` attribute to `*`, and set `IsHidden 1` to hide it from the login window) so the account is entered only through `sudo -u <AGENT_USER>`, and populate its home directory with `createhomedir` (passing `-admin` already adds `<AGENT_USER>` to the `admin` group; **not tested on macOS**):
 
 ```bash
-sudo sysadminctl -addUser <AGENT_USER> -fullName "Spool Agent" -shell /opt/homebrew/bin/bash -home /Users/<AGENT_USER> -admin && sudo dscl . -passwd /Users/<AGENT_USER> "*" && sudo createhomedir -c -u <AGENT_USER>
+sudo sysadminctl -addUser <AGENT_USER> -fullName "Spool Agent" -shell /opt/homebrew/bin/bash -home /Users/<AGENT_USER> -admin && sudo dscl . -delete /Users/<AGENT_USER> AuthenticationAuthority && sudo dscl . -create /Users/<AGENT_USER> Password "*" && sudo dscl . -create /Users/<AGENT_USER> IsHidden 1 && sudo createhomedir -c -u <AGENT_USER>
 ```
 
 If `<AGENT_USER>` already exists with `/bin/zsh` or `/bin/bash`, set its login shell to Homebrew's Bash 5+ with `dscl` and verify the record (**not tested on macOS**):
@@ -922,10 +922,10 @@ dseditgroup -o checkmember -m <AGENT_USER> spool-agents && dseditgroup -o checkm
 <a id="ws-doc-437ca758-8920-4232-a12e-7b53cf6fe37e"></a>
 ### 17.2.3 NOPASSWD sudo both ways (`/etc/sudoers.d/`, `visudo -c`)
 
-Write a temporary candidate file `/tmp/90-spool-users`, validate its syntax with `visudo -cf` first (on macOS a broken `/etc/sudoers.d/` file breaks every subsequent `sudo` invocation, including the `visudo` needed to repair it), and only after validation succeeds install it to `/etc/sudoers.d/90-spool-users` (`root:wheel`, mode `0440`) so `<OWNER_USER>` can hop to `<AGENT_USER>` (`sudo -n -u <AGENT_USER>`) and `<AGENT_USER>` can hop to `<OWNER_USER>` or `root` without a password prompt (**not tested on macOS**):
+Write a candidate file via `mktemp`, validate its syntax with `visudo -cf` first (on macOS a broken `/etc/sudoers.d/` file breaks every subsequent `sudo` invocation, including the `visudo` needed to repair it), and only after validation succeeds install it to `/etc/sudoers.d/90-spool-users` (`root:wheel`, mode `0440`) so `<OWNER_USER>` can hop to `<AGENT_USER>` (`sudo -n -u <AGENT_USER>`) and `<AGENT_USER>` can hop to `<OWNER_USER>` or `root` without a password prompt (**not tested on macOS**):
 
 ```bash
-printf '%s ALL=(ALL) NOPASSWD:ALL\n%s ALL=(ALL) NOPASSWD:ALL\n' '<OWNER_USER>' '<AGENT_USER>' > /tmp/90-spool-users && sudo visudo -cf /tmp/90-spool-users && sudo install -o root -g wheel -m 0440 /tmp/90-spool-users /etc/sudoers.d/90-spool-users && rm -f /tmp/90-spool-users
+t="$(mktemp)" && printf '%s ALL=(ALL) NOPASSWD:ALL\n%s ALL=(ALL) NOPASSWD:ALL\n' '<OWNER_USER>' '<AGENT_USER>' > "$t" && sudo visudo -cf "$t" && sudo install -o root -g wheel -m 0440 "$t" /etc/sudoers.d/90-spool-users && rm -f "$t"
 ```
 
 Check NOPASSWD sudo in both directions (**not tested on macOS**):

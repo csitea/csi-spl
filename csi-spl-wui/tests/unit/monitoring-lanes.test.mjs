@@ -14,9 +14,9 @@ import {
   LANES_MOCK_TOPIC,
   LANES_POLL_MS,
   fleetLanesOf,
-  laneIssuePath,
+  laneIssueRef,
   laneName,
-  laneTopicPath,
+  laneTopicRef,
   lanesShouldFetch,
   lanesStaleLevel,
   minutesAgo,
@@ -65,10 +65,10 @@ describe('the fleet-lanes body as a view', () => {
       { agent_id: 'c-006', issues: [{ key: 'SPL-1', status: 'wip' }] },
     ] })
     assert.deepEqual(v.lanes.map((l) => l.originIssue), [{ key: 'SPL-4420', status: 'wip' }, { key: 'OPS-7', status: '' }, null, null, null])
-    assert.equal(laneIssuePath(v.lanes[0].originIssue), '/issues?issue=SPL-4420', 'an origin of this workspace links')
-    assert.equal(laneIssuePath(v.lanes[1].originIssue), '', 'a key with no status is text')
+    assert.deepEqual(laneIssueRef(v.lanes[0].originIssue, v.lanes[0], 't1'), { kind: 'issue', workspace_id: 't1', ref: 'SPL-4420' }, 'an origin of this workspace links')
+    assert.equal(laneIssueRef(v.lanes[1].originIssue, v.lanes[1], 't1'), null, 'a key with no status is text')
     const page = read('src/pages/monitoring/lanes/index.vue')
-    assert.match(page, /laneIssuePath\(l\.originIssue\)/, 'the cell links through the one issue-link rule')
+    assert.match(page, /issueTo\(l\.originIssue, l\)/, 'the cell links through the one issue-link rule (laneIssueRef, SPL-4798)')
     assert.match(page, /t\(COLUMN_NAMES|col_origin_issue/, 'the header is a translation key')
   })
   it('names the agent id@box', () => {
@@ -78,18 +78,18 @@ describe('the fleet-lanes body as a view', () => {
 })
 
 describe('the row links (C17, 3.3)', () => {
-  it('a titled topic of this workspace links /t/<uuid>', () => {
-    assert.equal(laneTopicPath({ topicId: UUID, topicTitle: 'T' }), '/t/' + UUID)
+  it('a titled topic of this workspace links /t/<uuid> (laneTopicRef, SPL-4798)', () => {
+    assert.deepEqual(laneTopicRef({ topicId: UUID, topicTitle: 'T' }, 't1'), { kind: 'topic', workspace_id: 't1', ref: UUID })
   })
-  it('CONTROL: an untitled topic (another workspace), an 8-hex short id or none links nothing', () => {
-    assert.equal(laneTopicPath({ topicId: UUID, topicTitle: '' }), '')
-    assert.equal(laneTopicPath({ topicId: '5e7b15c9', topicTitle: 'T' }), '')
-    assert.equal(laneTopicPath({ topicId: '', topicTitle: '' }), '')
+  it('CONTROL: an untitled topic of this workspace, an 8-hex short id or none links nothing', () => {
+    assert.equal(laneTopicRef({ topicId: UUID, topicTitle: '' }, 't1'), null)
+    assert.equal(laneTopicRef({ topicId: '5e7b15c9', topicTitle: 'T' }, 't1'), null)
+    assert.equal(laneTopicRef({ topicId: '', topicTitle: '' }, 't1'), null)
   })
-  it('an issue with a status links /issues?issue=<KEY>; one without (a foreign key) does not', () => {
-    assert.equal(laneIssuePath({ key: 'SPL-3215', status: 'wip' }), '/issues?issue=SPL-3215')
-    assert.equal(laneIssuePath({ key: 'ACME-7', status: '' }), '')
-    assert.equal(laneIssuePath({ key: 'spl 1', status: 'wip' }), '')
+  it('an issue with a status links in this workspace; one without (a foreign key, same workspace) or a bad key does not', () => {
+    assert.deepEqual(laneIssueRef({ key: 'SPL-3215', status: 'wip' }, {}, 't1'), { kind: 'issue', workspace_id: 't1', ref: 'SPL-3215' })
+    assert.equal(laneIssueRef({ key: 'ACME-7', status: '' }, {}, 't1'), null)
+    assert.equal(laneIssueRef({ key: 'spl 1', status: 'wip' }, {}, 't1'), null)
   })
   it('minutes ago against the answer time; none is null', () => {
     assert.equal(minutesAgo('2026-10-24T09:55:30Z', '2026-10-24T10:00:00Z'), 4)
@@ -186,8 +186,8 @@ describe('the mock', () => {
     const v = fleetLanesOf(mockFleetLanes(store(OP), new Date('2026-10-24T10:00:00Z')))
     assert.equal(v.lanes.length, 3)
     assert.ok(v.lanes.every((l) => l.workspaceName), 'every mock row names its workspace')
-    assert.equal(laneTopicPath(v.lanes[0]), '/t/' + LANES_MOCK_TOPIC)
-    assert.equal(laneTopicPath(v.lanes[1]), '')
+    assert.deepEqual(laneTopicRef(v.lanes[0], 'mock'), { kind: 'topic', workspace_id: 'mock', ref: LANES_MOCK_TOPIC })
+    assert.deepEqual(laneTopicRef(v.lanes[1], 'mock'), { kind: 'topic', workspace_id: 'w2', ref: v.lanes[1].topicId }, 'a foreign topic names its own workspace (3.19)')
     assert.equal(v.lanes[2].topicId, '')
     assert.deepEqual(fleetLanesOf(mockFleetLanes(store({ ...OP, [LANES_MOCK_KEY]: 'empty' }))).lanes, [])
   })

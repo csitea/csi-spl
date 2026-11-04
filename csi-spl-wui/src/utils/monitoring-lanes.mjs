@@ -21,7 +21,9 @@ export const LANES_POLL_MS = 60000
 const LANES_STALE_AMBER_S = 90
 const LANES_STALE_RED_S = 180
 /** e2e opt-in (mock only): '' = three lanes, 'empty' = none active, 'topics' =
- *  the three plus a fourth on c-085's topic (Monitoring -> Topics, SPL-4421). */
+ *  the three plus a fourth on c-085's topic (Monitoring -> Topics, SPL-4421),
+ *  'links' = the three plus the ids an agent writes (SPL-4798): a
+ *  dispatch-<topic8> task, SPL-4791 + DVN-3 keys and lane (c)'s `unknown`. */
 export const LANES_MOCK_KEY = 'spool.mock.fleet_lanes'
 /** The mock's operator admin is the Tokens tab's (the same key shows both tabs). */
 export const LANES_MOCK_OPERATOR_KEY = TOKENS_MOCK_OPERATOR_KEY
@@ -75,21 +77,53 @@ export function laneName(lane) {
   return lane.box ? lane.agentId + '@' + lane.box : lane.agentId
 }
 
+/** lane (c)'s value for an old row's discussion or issue: stays text (SPL-4798). */
+export const LANE_UNKNOWN = 'unknown'
+/* a spool dispatch task, dispatch-<topic8> (the hub stores it as sent) */
+const TASK_RE = /^dispatch-[0-9a-f]{8}$/i
+
 /**
- * The discussion link, /t/<uuid> (C17), or '' when the topic is no topic of
- * this workspace (the hub sends no title, 3.3) or not a full uuid: the cell
- * then shows the id as text, never a link that leads nowhere.
+ * SPL-4798 (owner HUM-10, t1 0c2d08a2, msg ea369ab0: "a renderer on the
+ * page ... which continas those to links"): the typed ref (utils/note-links.mjs,
+ * the one renderer of `type:id` objects) a lane's discussion names, or null
+ * (it stays text). A topic uuid opens on the lane's workspace host; a uuid
+ * the hub found in no workspace and sent no title for (workspace = the page's
+ * own) names nothing, so it stays text. `dispatch-<topic8>` is a spool task
+ * of the page's workspace. The trigger is render time, not the row write:
+ * every row already written, by any writer, links the same way, and the host
+ * comes from the env at render (no host is stored in a row).
+ * @param {{ topicId: string, topicTitle?: string, workspace?: string }} lane
+ * @param {string} pageTenant the workspace that answered the read
+ * @returns {{ kind: 'topic', workspace_id: string, ref: string } | null}
  */
-export function laneTopicPath(lane) {
-  return lane.topicTitle && UUID_RE.test(lane.topicId) ? '/t/' + lane.topicId : ''
+export function laneTopicRef(lane, pageTenant) {
+  const id = str(lane && lane.topicId).trim()
+  const page = str(pageTenant)
+  const ws = str(lane && lane.workspace) || page
+  if (!id || id.toLowerCase() === LANE_UNKNOWN || !ws) return null
+  if (TASK_RE.test(id)) return { kind: 'topic', workspace_id: page || ws, ref: id.toLowerCase() }
+  if (!UUID_RE.test(id)) return null
+  if (!str(lane.topicTitle) && ws === page) return null
+  return { kind: 'topic', workspace_id: ws, ref: id.toLowerCase() }
 }
 
 /**
- * An issue's link, /issues?issue=<KEY>, or '' for a key the hub found no
- * status for (another workspace's prefix: listed as sent, 3.3).
+ * The typed ref a lane's issue key names, or null (text). A key the hub sent
+ * a status for is the page's workspace's; a key with none is another
+ * prefix: it opens in the lane's workspace when that is not the page's (the
+ * hub placed the lane there), else it stays text. `unknown` stays text.
+ * @param {{ key: string, status?: string }} issue
+ * @param {{ workspace?: string }} lane
+ * @param {string} pageTenant
+ * @returns {{ kind: 'issue', workspace_id: string, ref: string } | null}
  */
-export function laneIssuePath(issue) {
-  return issue.status && KEY_RE.test(issue.key) ? '/issues?issue=' + encodeURIComponent(issue.key) : ''
+export function laneIssueRef(issue, lane, pageTenant) {
+  const key = str(issue && issue.key).trim()
+  const page = str(pageTenant)
+  if (!KEY_RE.test(key)) return null
+  if (str(issue.status)) return page ? { kind: 'issue', workspace_id: page, ref: key } : null
+  const ws = str(lane && lane.workspace)
+  return ws && ws !== page ? { kind: 'issue', workspace_id: ws, ref: key } : null
 }
 
 /** Whole minutes from an ISO time to the answer's as_of; null when either is missing. */
@@ -382,6 +416,14 @@ export function mockFleetLanes(store = mockStore(), now = new Date()) {
     { agent_id: 'm-039', agent_box: 'box-b', vendor: 'mistral', scope: '', topic_id: '', topic_title: '',
       issues: [], updated_at: ago(3000), age_s: 3000, last_active: '', workspace: 'mock', workspace_name: LANES_MOCK_WORKSPACE },
   ]
+  if (get(LANES_MOCK_KEY) === 'links') {
+    out.lanes.push(
+      { agent_id: 'c-791', agent_box: 'box-a', vendor: 'claude', scope: 'Lane ids as links', topic_id: 'dispatch-' + LANES_MOCK_TOPIC.slice(0, 8), topic_title: '',
+        issues: [{ key: 'SPL-4791', status: 'wip', priority: 2 }, { key: 'DVN-3', status: '' }], priority: 2, updated_at: ago(3300), age_s: 3300, last_active: '',
+        workspace: 'mock', workspace_name: LANES_MOCK_WORKSPACE },
+      { agent_id: 'c-792', agent_box: 'box-a', vendor: 'claude', scope: 'An old row', topic_id: LANE_UNKNOWN, topic_title: '',
+        issues: [{ key: LANE_UNKNOWN, status: '' }], updated_at: ago(3400), age_s: 3400, last_active: '', workspace: 'mock', workspace_name: LANES_MOCK_WORKSPACE })
+  }
   if (get(LANES_MOCK_KEY) === 'topics') {
     out.lanes.splice(1, 0, { agent_id: 'c-733', agent_box: 'box-a', vendor: 'claude', scope: 'Monitoring -> Topics',
       topic_id: LANES_MOCK_TOPIC, topic_title: LANES_MOCK_TOPIC_TITLE, topic_channel: 'monitoring',

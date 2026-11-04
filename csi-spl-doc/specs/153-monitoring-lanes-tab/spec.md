@@ -1,5 +1,11 @@
 # 153 Monitoring: the tab row beside the heading, and a live Lanes tab
 
+Addendum (2026-11-04, SPL-4798): section 3.19 (a lane row's discussion,
+issue and `dispatch-<topic8>` task render as links on their workspace's
+host, through the one `type:id` renderer), cases C88-C89. Owner HUM-10, t1
+topic `0c2d08a2`, msgs `e7009f10` and `ea369ab0`. Placed by the dispatch
+holder as one lane brief, not a panel version.
+
 Addendum (2026-11-04, SPL-4778): section 3.17 (a workspace's own boxes,
 such as a box joined to it, show their lanes and their announced agents on
 the workspace's Lanes tab and in the operator's, keyed by agent@box),
@@ -1266,6 +1272,65 @@ Cases (`tests/e2e/monitoring-boxes-align.test.mjs` on the mock bundle,
   Message, and the list keeps its row selected; an unknown `ws` shows one
   line.
 - **C87** a non-operator sees no other workspace; no page errors.
+
+### 3.19 Every id in a lane row renders as a link (SPL-4798)
+
+The owner, verbatim (HUM-10, t1 `0c2d08a2`, 2026-11-04): "there are still
+lanes created without a proper link to their discusions" (msg `e7009f10`,
+a screenshot of Monitoring -> Topics: the discussions of the other
+workspaces shown as bare
+uuids), and "whenever an agent adds those , there should be some kind of
+mechanical code base trigger which conerts those ( or a renderer on the
+page ) , which continas those to links" (msg `ea369ab0`). Placed by the
+dispatch holder as lane (b) of three (c-001 `b06ce20d`): (a) the writers
+and the 15-min check, (c) the NOT NULL migration that writes `unknown` into
+old rows, (b) this renderer.
+
+- **One renderer.** Lanes and Topics hand each id to
+  `utils/note-links.mjs` `noteLinkHref`, the WUI's renderer of `type:id`
+  objects (how-to-post.md rule 11), through
+  `composables/useLaneLinks.ts`. The row gives the typed ref
+  (`utils/monitoring-lanes.mjs` `laneTopicRef`, `laneIssueRef`); the page
+  builds no host itself.
+- **Discussion.** A topic uuid opens `/t/<uuid>` on the host of the
+  workspace the hub placed the lane in (3.8, `workspace`): another
+  workspace's topic now links on its own host, where that page's own access
+  check applies; this replaces 3.3's and 3.17's "its id as text" for the id
+  (owner HUM-10, t1 `0c2d08a2`, msg `ea369ab0`). The title, scope and issue
+  of another workspace stay hidden. `dispatch-<topic8>` (a spool task, stored as sent, C7b)
+  opens `/t/dispatch-<topic8>` on the page's workspace; `noteLinkPath`
+  accepts that one task form beside a uuid. The link text is the title,
+  else the id.
+- **Issue.** A key the hub sent a status for is the page's workspace's and
+  opens there. A key with none is another prefix: it opens in the lane's
+  workspace when that is not the page's (e.g. `DVN-3` on a w2
+  lane), else it stays text.
+- **Text, never a guess.** `unknown` (lane (c)'s value), an 8-hex short id,
+  a uuid the hub found in no workspace (no title, the page's own workspace)
+  and any id whose workspace has no known host (tenant hosts off: every
+  workspace but the page's) stay plain text.
+- **Trigger: render time, not the row write.** Every row already written,
+  by any writer and before lane (c) ran, links the same way; the host comes
+  from the env when the page renders (`siteUrl`, the apex tenant), so no row
+  stores an address that a host change would break. Lane (a) checks that
+  each row names an id; this section only shows it.
+
+Cases:
+
+- **C88** unit (`tests/unit/monitoring-lane-links.test.mjs`): a w2
+  topic uuid read on the spool-hub page links
+  `https://w2.<site>/t/<uuid>`; the apex tenant's on the apex;
+  `dispatch-0c2d08a2` links `/t/dispatch-0c2d08a2` on the page's
+  workspace; `SPL-4791` (wip) on the page's workspace, `DVN-3` (no status)
+  on the lane's. Controls: `unknown`, a short id, an untitled uuid of the
+  page's workspace, and tenant hosts off for another workspace stay text;
+  both pages call `laneTopicRef` / `laneIssueRef` and no longer
+  `laneTopicPath` / `laneIssuePath` (red on master).
+- **C89** e2e on the mock bundle (`tests/e2e/monitoring-lane-id-links.test.mjs`,
+  mock `spool.mock.fleet_lanes=links`), 1440 and 390 px, Lanes and Topics:
+  `dispatch-5e7b15c9` links the task, `SPL-4791` its issue; controls:
+  `DVN-3` of the page's own workspace and `unknown` stay text. Red control:
+  the pages from master print the task as text.
 
 ## 4. Cases
 

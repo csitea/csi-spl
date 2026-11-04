@@ -16,7 +16,10 @@
 # @description no rebox, no keygen, no pin. A live sidecar, a desk retired by
 # @description do_spl_desk_rebox, a desk moved to another user, a desk that is
 # @description not pinned and a sidecar that died AFTER the boot are left
-# @description alone, one line each. Dry run unless DRY_RUN=0.
+# @description alone, one line each. A moved desk's dir belongs to its new user,
+# @description so the owner check leaves it to that user (no spl_desk_moved_to
+# @description call: on the caller's own pinned copy it never names a move).
+# @description Dry run unless DRY_RUN=0.
 # @param ENV - required: dev or prd
 # @param DESK_BOOT_TIME (optional) - the boot time, epoch seconds; default
 # @param   btime of /proc/stat
@@ -28,7 +31,7 @@ do_spl_desk_reseat_dead() {
   do_spl_cloud_cnf || return 1
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
-  local e t b u d me mv agent boot rc=0 n=0 r=0
+  local e t b u d me agent boot rc=0 n=0 r=0
   me="$(id -un)"
   boot="$(spl_desk_boot_epoch)" || { do_log "FATAL no boot time (DESK_BOOT_TIME or btime of /proc/stat)"; return 1; }
   while IFS=$'\t' read -r e t b u d; do
@@ -38,7 +41,6 @@ do_spl_desk_reseat_dead() {
     fi
     [[ "$u" == "$me" ]] || { do_log "INFO dead desk $b of $t ($e) belongs to $u: re-seated by $u's tick, not as $me"; continue; }
     [[ -s "$d/pinned" ]] || { do_log "WARN dead desk $b of $t ($e, $u) is not pinned: no re-seat while paused (no keygen, no pin)"; continue; }
-    if mv="$(spl_desk_moved_to "$t" "$b" "$e")"; then spl_desk_moved_note "$t" "$b" "${mv%%$'\t'*}" "${mv#*$'\t'}"; continue; fi
     agent="$(spl_desk_box_agents "$d" | sed -n 1p)"
     [[ -n "$agent" ]] || { do_log "INFO dead desk $b of $t ($e, $u) has no agent dir: its sidecar would announce nobody"; continue; }
     if (( dry )); then

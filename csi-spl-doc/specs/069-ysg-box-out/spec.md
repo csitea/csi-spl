@@ -949,15 +949,19 @@ re-seated by hand between 02:42Z and 02:45Z.
   first agent, through `spl_desk_box_restart`) only when the caller owns
   the desk dir and the desk is pinned there. Then the run has no root key,
   no join token, no keygen, no pin, no move and no rebox. A desk owned by
-  another user is left to that user's tick. A desk that moved
-  (`spl_desk_moved_to`, 8.4.2), a desk retired by a rebox, an unpinned desk
+  another user is left to that user's tick; a desk that moved (8.4.2) is
+  one of those, since its dir belongs to its new user. A desk retired by a
+  rebox, an unpinned desk
   and a sidecar that died after the boot are left alone, one line each.
   Live sidecars are never touched. `DESK_PAUSE_RESEAT=0` turns the step off.
 - **The after-check.** After its desk pass, `do_spl_box_restart_after` names
   every desk of `BOX_RESTART_DESK_ENVS` (default `dev prd`) whose sidecar is
   still dead. Each one gets an `ERROR dead desk after the restart: env=..
   tenant=.. box=.. user=..` line and a `dead_desk` row in `<utc>.after`, and
-  the final ERROR line lists them.
+  the final ERROR line lists them. This is a new way for a restart to end
+  rc 1: a desk that was already dead before the boot and was never stopped
+  through `do_spl_desk_down` (a stale `hub-run.pid`) fails every box
+  restart until it is re-seated or taken down with `do_spl_desk_down`.
 
 Test: `csi-spl-orc/src/bash/tests/desk-reseat-dead.tst.sh`, cases (a) to (d).
 

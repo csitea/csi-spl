@@ -13,7 +13,8 @@
 #      (a) a dead sidecar whose pid file predates the boot is re-seated as
 #      the current user, with no root key and no join token;
 #      (b) a live sidecar gets no action; a sidecar that died after the boot,
-#      a desk that is not pinned and a rebox-retired desk get none either
+#      a desk that is not pinned, a rebox-retired desk and a desk owned by
+#      another user than the caller get none either
 #   3. (d) box-restart's after-check names the dead desk (env, tenant, box,
 #      user) in its log, its record and its final line; none dead: OK
 # RESEAT_ORC=<orc tree> runs it against another tree (the red control on
@@ -83,6 +84,10 @@ mv "$D/pinned.x" "$D/pinned"; mkdir -p "$D/rebox-retired"
 out="$(reseat)"
 [[ "$out" != *"CALL up"* ]] && pass "2b. a rebox-retired desk: no action" || fail "2b. rebox-retired: $out"
 rmdir "$D/rebox-retired"
+out="$(SNIPPET="$STUB; id() { [[ \"\$*\" == -un ]] && echo other-user || command id \"\$@\"; }; do_spl_desk_reseat_dead" in_orc SPL_STATE_DIR="$S" \
+  SPOOL_BOX_USER="$ME" DESK_BOOT_TIME="$((NOW - 300))" DRY_RUN=0 2>&1)"
+[[ "$out" != *"CALL up"* && "$out" == *"belongs to $ME: re-seated by $ME's tick, not as other-user"* ]] &&
+  pass "2b. a desk owned by another user than the caller: no re-seat, left to its owner's tick" || fail "2b. other owner: $out"
 out="$(reseat DRY_RUN=1)"
 [[ "$out" != *"CALL up"* && "$out" == *"DRY_RUN would: re-seat dead desk box-desk of t1 (dev) as $ME"* ]] &&
   pass "2. the dry run names the re-seat and makes none" || fail "2. dry run: $out"

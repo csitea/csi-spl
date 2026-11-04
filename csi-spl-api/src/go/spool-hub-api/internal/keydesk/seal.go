@@ -32,6 +32,9 @@ func (p Payload) String() string {
 	return fmt.Sprintf("{kind:%s box:%s key_id:%s key:<VENDOR_KEY>}", p.Kind, p.Box, p.KeyID)
 }
 
+// GoString never prints the key either (%#v skips String).
+func (p Payload) GoString() string { return p.String() }
+
 // maxSealed caps a sealed answer: an agy service-account JSON is the largest.
 const maxSealed = 64 << 10
 

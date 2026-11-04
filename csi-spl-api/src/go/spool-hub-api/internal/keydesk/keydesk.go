@@ -107,13 +107,15 @@ type Peer struct {
 	UID, GID uint32
 }
 
-// held is one lease in the desk's memory. String never prints the key.
+// held is one lease in the desk's memory. String and GoString never print the key.
 type held struct {
 	key, baseURL string
 	until        time.Time
 }
 
 func (held) String() string { return "<VENDOR_KEY>" }
+
+func (h held) GoString() string { return h.String() }
 
 // Server is the desk key socket.
 type Server struct {

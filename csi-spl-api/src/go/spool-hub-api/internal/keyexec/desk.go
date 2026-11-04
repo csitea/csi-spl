@@ -46,14 +46,17 @@ type Reply struct {
 	Error   string `json:"error,omitempty"`
 }
 
-// Lease is a key handed to one seat. String never prints the key.
+// Lease is a key handed to one seat. String and GoString never print the key.
 type Lease struct {
 	Key     string
 	BaseURL string
 }
 
-// String hides the key from every %v and log line.
+// String hides the key from every %v, %+v, %s and log line.
 func (Lease) String() string { return "<VENDOR_KEY>" }
+
+// GoString hides it from %#v, which fmt formats without String.
+func (Lease) GoString() string { return "<VENDOR_KEY>" }
 
 // RefusedError is a lease the desk refused; Token is its error token.
 type RefusedError struct{ Token string }

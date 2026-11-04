@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -149,5 +150,17 @@ func TestVendorKeyMeteredFallback(t *testing.T) {
 				t.Fatalf("no tenant: %v, want ErrNotFound", err)
 			}
 		})
+	}
+}
+
+// TestVendorKeyLeaseRowNeverPrintsSealedBytes: %v, %+v, %s and %#v show the
+// key id and last4 only, never the ciphertext or the wrapped DEK.
+func TestVendorKeyLeaseRowNeverPrintsSealedBytes(t *testing.T) {
+	r := VendorKeyLeaseRow{KeyID: "k1", Ciphertext: []byte("sealed-ct"), WrappedDEK: []byte("wrapped-dek"), Last4: "0000"}
+	want := "{key_id:k1 last4:0000}"
+	for _, verb := range []string{"%v", "%+v", "%s", "%#v"} {
+		if got := fmt.Sprintf(verb, r); got != want {
+			t.Errorf("%s printed %q, want %q", verb, got, want)
+		}
 	}
 }

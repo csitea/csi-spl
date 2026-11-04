@@ -213,11 +213,11 @@ func TestSockDeskExhaustedTask(t *testing.T) {
 
 func TestLeaseStringHidesKey(t *testing.T) {
 	l := Lease{Key: fakeKey, BaseURL: "https://example.com"}
-	out := fmt.Sprintf("%v %+v %s", l, l, l)
+	out := fmt.Sprintf("%v %+v %s %#v", l, l, l, l)
 	if strings.Contains(out, fakeKey) {
 		t.Fatalf("Lease printed its key: %q", out)
 	}
-	if want := "<VENDOR_KEY> <VENDOR_KEY> <VENDOR_KEY>"; out != want {
+	if want := "<VENDOR_KEY> <VENDOR_KEY> <VENDOR_KEY> <VENDOR_KEY>"; out != want {
 		t.Fatalf("Lease printed %q, want %q", out, want)
 	}
 }

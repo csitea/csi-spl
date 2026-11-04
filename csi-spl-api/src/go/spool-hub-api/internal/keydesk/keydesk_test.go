@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -408,7 +409,8 @@ func TestIdentityFile(t *testing.T) {
 }
 
 func TestPayloadNeverPrintsKey(t *testing.T) {
-	for _, s := range []string{Payload{Key: fakeKey}.String(), held{key: fakeKey}.String()} {
+	p, h := Payload{Key: fakeKey}, held{key: fakeKey}
+	for _, s := range []string{p.String(), h.String(), fmt.Sprintf("%#v", p), fmt.Sprintf("%#v", h)} {
 		if strings.Contains(s, fakeKey) {
 			t.Fatalf("printed the key: %s", s)
 		}

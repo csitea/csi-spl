@@ -48,6 +48,9 @@ type VendorKeyLeaseRow struct {
 // String never prints the ciphertext.
 func (r VendorKeyLeaseRow) String() string { return "{key_id:" + r.KeyID + " last4:" + r.Last4 + "}" }
 
+// GoString never prints it either (%#v skips String).
+func (r VendorKeyLeaseRow) GoString() string { return r.String() }
+
 // VendorKeyLeases is implemented by Memory and Postgres.
 type VendorKeyLeases interface {
 	// ApproveVendorKeyBox approves box for tenant's keys with its

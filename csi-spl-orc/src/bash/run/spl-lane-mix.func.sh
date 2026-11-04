@@ -187,8 +187,8 @@ _spl_lane_mix_target() {
 
 # _spl_lane_mix_row_check -> _LM_MAIN, or a FATAL for a row that breaks the
 # spec 115 section 2 rules: whole numbers summing to 100, one strict maximum
-# (the main), a known backup other than the main, agy 0 and never the backup
-# in a coding kind, only claude, grok or mistral in secret and orchestration
+# (the main), a known backup other than the main, only claude, grok or
+# mistral in secret and orchestration (agy may code: owner msg dc673043)
 _spl_lane_mix_row_check() {
   local v sum=0 top=-1 ties=0 at="agent_split_by_kind.$_LM_KIND ($_LM_ROW)"
   _LM_MAIN=""
@@ -203,9 +203,6 @@ _spl_lane_mix_row_check() {
   [[ " ${LANE_MIX_VENDORS[*]} " == *" $_LM_BACKUP "* && "$_LM_BACKUP" != "$_LM_MAIN" ]] || {
     do_log "FATAL $at backup must be a vendor other than the main $_LM_MAIN, got '$_LM_BACKUP'"; return 1; }
   case "$_LM_KIND" in
-    tests|simple_coding|complex_coding)
-      (( _LM_TGT[agy] == 0 )) && [[ "$_LM_BACKUP" != agy ]] || {
-        do_log "FATAL $at: agy writes no code (spec 115 G2), agy=${_LM_TGT[agy]} backup=$_LM_BACKUP"; return 1; } ;;
     secret|orchestration)
       (( _LM_TGT[agy] + _LM_TGT[qwen] == 0 )) && [[ "$_LM_BACKUP" =~ ^(claude|grok|mistral)$ ]] || {
         do_log "FATAL $at: the data rule allows claude, grok or mistral only, agy=${_LM_TGT[agy]} qwen=${_LM_TGT[qwen]} backup=$_LM_BACKUP"; return 1; } ;;

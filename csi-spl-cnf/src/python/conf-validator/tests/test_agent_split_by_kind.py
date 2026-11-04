@@ -14,12 +14,14 @@ ALL_ENV = Path(__file__).resolve().parents[4] / "csi-spl" / "all.env.yaml"
 
 # spec 115 section 2: kind -> (main, backup). Owner HUM-10 msg 91bf8278
 # (2026-10-17, "Docs and reviews only, no coding"): mistral is out of every
-# coding kind; claude is their main, so grok (off) is the legal backup.
+# coding kind; claude is their main. Owner msg dc673043 (2026-11-04): agy
+# takes grok's share and the backup in the coding kinds; the secret-class
+# kinds keep grok (off) as the legal backup.
 SPEC_MAIN_BACKUP = {
     "specs_and_docs": ("agy", "claude"),
-    "tests": ("claude", "grok"),
-    "simple_coding": ("claude", "grok"),
-    "complex_coding": ("claude", "grok"),
+    "tests": ("claude", "agy"),
+    "simple_coding": ("claude", "agy"),
+    "complex_coding": ("claude", "agy"),
     "i18n": ("agy", "claude"),
     "secret": ("claude", "grok"),
     "orchestration": ("claude", "grok"),
@@ -27,12 +29,12 @@ SPEC_MAIN_BACKUP = {
 
 ROWS = {
     "specs_and_docs": {"agy": 80, "mistral": 15, "claude": 5, "backup": "claude"},
-    "tests": {"claude": 85, "grok": 15, "backup": "grok"},
-    "simple_coding": {"claude": 59, "grok": 41, "backup": "grok"},
-    "complex_coding": {"claude": 90, "grok": 10, "backup": "grok"},
+    "tests": {"claude": 85, "agy": 15, "backup": "agy"},
+    "simple_coding": {"claude": 59, "agy": 41, "backup": "agy"},
+    "complex_coding": {"claude": 90, "agy": 10, "backup": "agy"},
     "i18n": {"agy": 100, "backup": "claude"},
     "secret": {"claude": 100, "backup": "grok"},
-    "orchestration": {"claude": 65, "grok": 35, "backup": "grok"},
+    "orchestration": {"claude": 100, "backup": "grok"},
 }
 # the coding kinds of the owner order: mistral 0 and never the backup
 NO_MISTRAL_KINDS = (
@@ -88,7 +90,7 @@ class AgentSplitByKindTest(unittest.TestCase):
 
     def test_a_tied_main_is_red(self):
         rows = copy.deepcopy(ROWS)
-        rows["tests"].update(claude=50, grok=0, mistral=50)
+        rows["tests"].update(claude=50, agy=50)
         self.assertRed(rows, "tie")
 
     def test_backup_equal_to_main_is_red(self):
@@ -101,13 +103,12 @@ class AgentSplitByKindTest(unittest.TestCase):
         rows["i18n"].update(agy=110, claude=-10)
         self.assertRed(rows, "i18n")
 
-    def test_agy_in_a_coding_kind_is_red(self):
+    def test_agy_in_a_coding_kind_is_green(self):
+        # owner msg dc673043 lifted "agy writes no code"
         rows = copy.deepcopy(ROWS)
-        rows["complex_coding"].update(claude=80, agy=10)
-        self.assertRed(rows, "agy writes no code")
-        rows = copy.deepcopy(ROWS)
-        rows["tests"]["backup"] = "agy"
-        self.assertRed(rows, "agy writes no code")
+        rows["complex_coding"] = {"claude": 80, "agy": 20, "backup": "agy"}
+        rows["tests"] = {"agy": 60, "claude": 40, "backup": "claude"}
+        self.assertGreen(rows)
 
     def test_secret_outside_claude_grok_and_mistral_is_red(self):
         rows = copy.deepcopy(ROWS)
@@ -130,10 +131,10 @@ class AgentSplitByKindTest(unittest.TestCase):
 
     def test_orchestration_outside_claude_grok_and_mistral_is_red(self):
         rows = copy.deepcopy(ROWS)
-        rows["orchestration"].update(claude=55, agy=10)
+        rows["orchestration"].update(claude=90, agy=10)
         self.assertRed(rows, "orchestration")
         rows = copy.deepcopy(ROWS)
-        rows["orchestration"].update(claude=55, qwen=10)
+        rows["orchestration"].update(claude=90, qwen=10)
         self.assertRed(rows, "orchestration")
         rows = copy.deepcopy(ROWS)
         rows["orchestration"]["backup"] = "agy"

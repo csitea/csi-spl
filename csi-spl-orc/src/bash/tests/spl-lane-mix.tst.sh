@@ -324,6 +324,15 @@ for k in tests simple_coding complex_coding; do
   [[ "$(pick)" == hold ]] || fail "6. $k with claude and mistral off picked $(pick), not hold: $(cat "$T/out")"
 done
 pass "6. a coding kind with claude and mistral off holds, never agy or grok"
+# owner HUM-10 msg dc673043 (2026-11-04) lifted "agy writes no code": a coding
+# row with agy in it is accepted, and with claude off its backup agy takes it
+hub '["claude"]'
+for k in tests simple_coding complex_coding; do
+  hmix LANE_MIX_KIND=$k LANE_MIX_SPLIT_KIND='claude=90 grok=0 agy=10 qwen=0 mistral=0 backup=agy'
+  [[ "$(pick)" == agy ]] && ! grep -q FATAL "$T/out" \
+    || fail "6. $k row with agy 10, backup agy, claude off picked $(pick), not agy: $(cat "$T/out")"
+done
+pass "6. a coding row with agy is accepted; claude off: its backup agy takes the lane"
 hub '[]' '{"mistral":{"until":"2099-01-01T00:00:00Z","reason":"S2 kind=limit on m-1","box":"box-t"}}'
 hmix LANE_MIX_KIND=simple_coding
 [[ "$(pick)" == claude ]] && grep -q 'skip (mistral paused in instance settings until 2099-01-01T00:00:00Z: S2 kind=limit on m-1 (box box-t))' "$T/out" \
@@ -478,24 +487,23 @@ mix LANE_MIX_KIND=complex_coding LANE_MIX_SPLIT='claude=70 grok=30 agy=0 qwen=0'
   && pass "9. the old 4-number LANE_MIX_SPLIT is read as mistral=0, with the cnf backup" || fail "9. 4-number: $(cat "$T/out")"
 for c in 'claude=50 grok=0 agy=0 qwen=0 mistral=60 backup=claude|sums to 110, not 100' \
          'claude=50 grok=0 agy=0 qwen=0 mistral=50 backup=grok|tied main at 50' \
-         'claude=80 grok=0 agy=10 qwen=0 mistral=10 backup=mistral|agy writes no code' \
-         'claude=80 grok=0 agy=0 qwen=0 mistral=20 backup=agy|agy writes no code' \
          'claude=80 grok=0 agy=0 qwen=0 mistral=20 backup=claude|backup must be a vendor other than the main' \
          'claude=80 grok=0 agy=0 qwen=0 vibe=20|must read'; do
   mix LANE_MIX_KIND=simple_coding LANE_MIX_SPLIT_KIND="${c%%|*}"; rc=$?
   [[ $rc -ne 0 ]] && ! grep -q '^pick=' "$T/out" && grep -q "${c#*|}" "$T/out" \
     || fail "9. row '${c%%|*}' not refused with '${c#*|}': rc=$rc $(cat "$T/out")"
 done
-pass "9. a row off 100, a tied main, agy in a coding kind, a backup = main and an unknown name are refused"
+pass "9. a row off 100, a tied main, a backup = main and an unknown name are refused"
 rm "$T/registry.tsv"
 mix; rc=$?
 [[ $rc -eq 0 ]] && grep -q ' n=0 ' "$T/out" && [[ "$(pick)" == mistral ]] \
   && pass "9. no registry yet: n=0, the main" || fail "9. no registry: rc=$rc $(cat "$T/out")"
 
-# --- 11. T1: 1,000 simulated picks per coding kind, never agy -----------------
-# T1 runs on the REAL cnf rows (simple_coding claude 59 / grok 41, mistral 0
-# in every coding kind since owner msg 91bf8278), not the pinned ones: the band must hold for the rows
-# the fleet spawns by.
+# --- 11. T1: 1,000 simulated picks per coding kind, each within its band ------
+# T1 runs on the REAL cnf rows (simple_coding claude 59 / agy 41, mistral 0
+# in every coding kind since owner msg 91bf8278, agy in them since owner msg
+# dc673043 lifted "agy writes no code"), not the pinned ones: the band must
+# hold for the rows the fleet spawns by.
 # simulate <n>: do_spl_lane_mix once (row, instance setting, availability),
 # then <n> picks of the one rule in the same process, each appended to a
 # registry that keeps the last `window` rows (all the nudge reads). Prints
@@ -521,15 +529,14 @@ simulate() {
 }
 got() { sed -n "s/^$1=//p" "$T/out"; }
 eff() { sed -n "s/^eff $1=//p" "$T/out"; }
-# t1_check <off-json>: agy 0 of 1,000, and every vendor's share of the picks
+# t1_check <off-json>: every vendor's share of the picks
 # within the band of its effective weight (out of the weights left: an out
 # claude that is its own backup leaves its 20 of simple_coding to nobody), or
 # all 1,000 hold when nothing is left (claude and mistral out of a row with
-# no other vendor, as complex_coding without grok). The band is the
+# no other vendor). The band is the
 # tolerance, 5 points (spec 115 section 2.1).
 t1_check() {
   local v share want sum=0 band=5 bad=""
-  [[ "$(got agy)" == 0 ]] || bad+=" agy=$(got agy)"
   for v in claude grok agy qwen mistral; do sum=$(( sum + $(eff "$v") )); done
   if (( sum == 0 )); then
     [[ "$(got hold)" == 1000 ]] || bad+=" hold=$(got hold)"
@@ -558,19 +565,10 @@ for k in tests simple_coding complex_coding; do
 done
 wait "${pids[@]}"
 bad="$(cat "$T"/t1-*/bad)"; rm -rf "$T"/t1-*
-[[ -z "$bad" ]] && pass "11. T1: 1,000 picks of tests, simple_coding and complex_coding under each of the 4 claude/mistral in/out sets: agy 0, every share within the band of its weight" \
+[[ -z "$bad" ]] && pass "11. T1: 1,000 picks of tests, simple_coding and complex_coding under each of the 4 claude/mistral in/out sets: every share within the band of its weight" \
   || fail "11. T1:$bad"
-# CONTROL: agy 10 in simple_coding, on a copy of the picker whose row check
-# lets it through (the validator refuses it, section 13), must pick agy
-CTL="$T/ctl/csi-spl-orc"; mkdir -p "$CTL/src/bash/run"; ln -s "$PROJ_ROOT/lib" "$CTL/lib"; ln -s "$PROJ_ROOT/src/bash/features" "$CTL/src/bash/features"
-cp "$PROJ_ROOT"/src/bash/run/spl-lane-mix*.func.sh "$CTL/src/bash/run/"
-sed -i 's/^\( *\)(( _LM_TGT\[agy\] == 0 )) && \[\[ "\$_LM_BACKUP" != agy \]\] || {$/\1true || {/' "$CTL/src/bash/run/spl-lane-mix.func.sh"
+CTL="$T/ctl/csi-spl-orc"
 hub '[]'
-MIX_PROJ="$CTL" simulate 1000 LANE_MIX_KIND=simple_coding LANE_MIX_SPLIT_KIND='claude=20 grok=0 agy=10 qwen=0 mistral=70 backup=claude'
-(( $(got agy) > 0 )) \
-  && pass "11. control: agy 10 in simple_coding (row check removed) gives agy $(got agy) of 1,000 picks (T1 would be red)" \
-  || fail "11. control: agy 10 did not reach a pick: $(cat "$T/out")"
-rm -rf "$T/ctl"
 # CONTROL: the nudge gated on the band again (a deficit past the tolerance
 # only, as before c-851) on the three-vendor simple_coding row of 2026-10-11
 # (the real row has two since owner msg 91bf8278) must break the band
@@ -626,8 +624,6 @@ t8() {  # t8 <picker-proj>: the section 8 T8 rows that are NOT refused
            'complex_coding|claude=30 grok=0 agy=0 qwen=0 mistral=60 backup=claude|sums to 90, not 100' \
            'tests|claude=50 grok=0 agy=0 qwen=0 mistral=50 backup=grok|tied main at 50' \
            'specs_and_docs|claude=40 grok=0 agy=40 qwen=0 mistral=20 backup=claude|tied main at 40' \
-           'tests|claude=80 grok=0 agy=10 qwen=0 mistral=10 backup=mistral|agy writes no code' \
-           'complex_coding|claude=80 grok=0 agy=0 qwen=0 mistral=20 backup=agy|agy writes no code' \
            'secret|claude=100 grok=0 agy=0 qwen=0 mistral=0 backup=agy|data rule allows claude, grok or mistral only' \
            'secret|claude=100 grok=0 agy=0 qwen=0 mistral=0 backup=qwen|data rule allows claude, grok or mistral only'; do
     k="${c%%|*}" row="${c#*|}"; why="${row#*|}" row="${row%%|*}"
@@ -637,7 +633,7 @@ t8() {  # t8 <picker-proj>: the section 8 T8 rows that are NOT refused
   echo "$b"
 }
 bad="$(t8 "$PROJ_ROOT")"
-[[ -z "$bad" ]] && pass "13. T8: a row off 100, a tied main, agy in a coding kind and a secret backup agy or qwen are refused" \
+[[ -z "$bad" ]] && pass "13. T8: a row off 100, a tied main and a secret backup agy or qwen are refused" \
   || fail "13. T8: not refused:$bad"
 bad=""
 for v in $SECRET_SET; do

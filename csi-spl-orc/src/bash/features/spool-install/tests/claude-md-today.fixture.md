@@ -93,9 +93,9 @@ kind and let the per-kind main and backup vendors decide:
 | task kind               | main    | backup  |
 |-------------------------|---------|---------|
 | specs, docs, plans, spec reviews and code reviews (`specs_and_docs`) | agy     | claude  |
-| writing tests (`tests`) | claude  | grok    |
-| simple and routine coding (`simple_coding`) | claude  | grok    |
-| hard coding, architecture, hi-fi work (`complex_coding`) | claude  | grok    |
+| writing tests (`tests`) | claude  | agy     |
+| simple and routine coding (`simple_coding`) | claude  | agy     |
+| hard coding, architecture, hi-fi work (`complex_coding`) | claude  | agy     |
 | translations, language reviews (`i18n`) | agy     | claude  |
 | secrets, personal data (`secret`) | claude  | grok    |
 | dispatching and orchestrating (`orchestration`) | claude  | grok    |

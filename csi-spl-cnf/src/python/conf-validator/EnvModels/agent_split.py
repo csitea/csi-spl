@@ -15,6 +15,8 @@ KINDS = (
     "secret",
     "orchestration",
 )
+# agy may write code in these (owner HUM-10, t1 71b557a8, msg dc673043,
+# 2026-11-04: lift "agy writes no code"); the data rule below still holds
 CODING_KINDS = ("tests", "simple_coding", "complex_coding")
 # the data rule, owner msgs 803c3b38, 26117740, 474f32a0: the secret-class
 # kinds (orchestration: owner msgs a1e5c678, ff1baf01) take only these
@@ -86,12 +88,6 @@ class Box(BaseModel, extra=Extra.allow):
         missing = [k for k in KINDS if k not in rows]
         if unknown or missing:
             raise ValueError(f"kinds unknown: {unknown}, missing: {missing}")
-        for kind in CODING_KINDS:
-            row = rows[kind]
-            if row.agy != 0 or row.backup == "agy":
-                raise ValueError(
-                    f"{kind}: agy writes no code (weight 0, never the backup)"
-                )
         for kind in SECRET_KINDS:
             row = rows[kind]
             others = [

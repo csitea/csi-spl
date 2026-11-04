@@ -133,14 +133,14 @@ in_orc 'do_spl_agent_split_show --kind simple_coding' TENANT_ID=t1 STUB_PSQL_OUT
   && pass "4. --kind prints the workspace's row and its backup, kind as -v" \
   || fail "4. kind: rc=$rc $(cat "$T/out") --- $(cat "$T/calls.log")"
 in_orc 'do_spl_agent_split_show --kind hard' TENANT_ID=t1 STUB_PSQL_OUT=''; rc=$?
-[[ $rc -eq 0 ]] && grep -qx 'claude=90 grok=10 agy=0 qwen=0 mistral=0 backup=grok' "$T/out" \
+[[ $rc -eq 0 ]] && grep -qx 'claude=90 grok=0 agy=10 qwen=0 mistral=0 backup=agy' "$T/out" \
   && grep -q '\[kind=complex_coding\]' "$T/calls.log" && grep -q 'source=cnf' "$T/out" \
   && pass "4. an unset kind (alias hard) prints the cnf row" || fail "4. cnf: rc=$rc $(cat "$T/out")"
 in_orc 'do_spl_agent_split_show --kind i18n' TENANT_ID=t1 STUB_PSQL_OUT=''; rc=$?
 [[ $rc -eq 0 ]] && grep -qx 'claude=0 grok=0 agy=100 qwen=0 mistral=0 backup=claude' "$T/out" \
   && pass "4. a cnf backup with no weight is printed as the backup" || fail "4. cnf backup: rc=$rc $(cat "$T/out")"
 in_orc 'do_spl_agent_split_show --kind orchestration' TENANT_ID=t1 STUB_PSQL_OUT=''; rc=$?
-[[ $rc -eq 0 ]] && grep -qx 'claude=65 grok=35 agy=0 qwen=0 mistral=0 backup=grok' "$T/out" \
+[[ $rc -eq 0 ]] && grep -qx 'claude=100 grok=0 agy=0 qwen=0 mistral=0 backup=grok' "$T/out" \
   && grep -q '\[kind=orchestration\]' "$T/calls.log" \
   && pass "4. the orchestration kind (rdb 0178), unset, prints the cnf row" || fail "4. orchestration: rc=$rc $(cat "$T/out")"
 in_orc 'do_spl_agent_split_show --kind specs_and_docs' TENANT_ID=t1 STUB_PSQL_OUT=''; rc=$?

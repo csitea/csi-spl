@@ -41,7 +41,7 @@ below is what exists on master at 5b49a31a9.
 | id | goal | measured by |
 |---|---|---|
 | G1 | Each task kind has its own vendor weights, out of 100. The main vendor is the one with the highest weight. | `do_spl_lane_mix` prints the kind's row and its main |
-| G2 | agy writes no code: its weight is 0 in every coding kind, and no fallback path reaches it for one | counting test T1 (section 8) |
+| G2 | ~~agy writes no code~~ lifted 2026-11-04 (owner HUM-10, t1 71b557a8, msg dc673043: "To agy for tests and coding (lift 'agy writes no code'); orchestration stays with claude"): agy may hold a weight and be the backup in every coding kind; the data rule still keeps it out of `secret` and `orchestration` | counting test T1 (section 8): each vendor's share within its band |
 | G3 | The backup takes over after 2 failed tries of the main on the same task | journal rows (section 6) and test T4 |
 | G4 | A vendor that is out (quota, sign-in, dead key, switched off) is skipped at once, with no 2-try wait | test T5 |
 | G5 | The data rule holds under every combination of vendors that are out | test T2 |
@@ -59,16 +59,22 @@ ff1baf01: "Claude will do 65% and Grok will do 35%"), secret-class like
 `secret` (rdb 0178). On 2026-10-13 the owner set `specs_and_docs` to agy 80 /
 mistral 15 / claude 5 (HUM-10, t1 ee1e58d5, msgs 9466b9aa and cb1b623e): agy
 does 80% of the documentation, the spec reviews and the code reviews.
+On 2026-10-17 mistral left every coding kind (owner msg 91bf8278: "Docs and
+reviews only, no coding") and its share went to claude. On 2026-11-04, with
+grok off (t1 476aff8f msg 6c969b3c), the owner moved grok's coding share and
+backup to agy and lifted G2 (t1 71b557a8, msg dc673043); grok's 35 of
+`orchestration` went to claude, and grok stays the backup of the secret-class
+kinds, the only legal one there.
 
 | kind | covers | agy | mistral | claude | grok | qwen | main | backup |
 |---|---|---|---|---|---|---|---|---|
 | `specs_and_docs` | specs, docs, plans, reviews of those, and code reviews | 80 | 15 | 5 | 0 | 0 | agy | claude |
-| `tests` | writing tests | 0 | 15 | 70 | 15 | 0 | claude | mistral |
-| `simple_coding` | running tests, simple and routine coding | 0 | 39 | 20 | 41 | 0 | grok | claude |
-| `complex_coding` | hard coding, architecture, hi-fi work | 0 | 10 | 80 | 10 | 0 | claude | mistral |
+| `tests` | writing tests | 15 | 0 | 85 | 0 | 0 | claude | agy |
+| `simple_coding` | running tests, simple and routine coding | 41 | 0 | 59 | 0 | 0 | claude | agy |
+| `complex_coding` | hard coding, architecture, hi-fi work | 10 | 0 | 90 | 0 | 0 | claude | agy |
 | `i18n` | translations, the language review of multilingual text | 100 | 0 | 0 | 0 | 0 | agy | claude, then an agy review |
-| `secret` | secrets, personal data (`LANE_MIX_SENSITIVE=1` with any kind) | 0 | 0 | 100 | 0 | 0 | claude | mistral |
-| `orchestration` | dispatching and orchestrating | 0 | 0 | 65 | 35 | 0 | claude | grok |
+| `secret` | secrets, personal data (`LANE_MIX_SENSITIVE=1` with any kind) | 0 | 0 | 100 | 0 | 0 | claude | grok |
+| `orchestration` | dispatching and orchestrating | 0 | 0 | 100 | 0 | 0 | claude | grok |
 
 Rules on the table, enforced by the cnf validator and the hub PATCH:
 
@@ -76,7 +82,11 @@ Rules on the table, enforced by the cnf validator and the hub PATCH:
   maximum, so main is never a tie.
 - `backup` is a vendor other than main. With weight 0 it may still serve as
   the backup: the secret row's mistral is the backup and is never in the mix.
-- In `simple_coding`, `complex_coding` and `tests`, agy is 0 and is never the backup.
+- ~~In `simple_coding`, `complex_coding` and `tests`, agy is 0 and is never
+  the backup.~~ Lifted 2026-11-04 (G2) in the cnf validator and
+  `do_spl_lane_mix`. The hub PATCH (`internal/store/agent_split_kind.go`) and
+  the rdb CHECK `tenant_agent_split_kind_no_agy_coding` (0163) still refuse
+  it until their own change lands.
 - In the secret-class kinds, `secret` and `orchestration`, only claude, grok
   and mistral may be non-zero or the backup (the data rule; grok added
   2026-10-11, owner msgs 26117740, 474f32a0).
@@ -123,12 +133,12 @@ env:
   box:
     agent_split_by_kind:
       specs_and_docs: { agy: 80, mistral: 15, claude: 5, backup: claude }
-      tests:          { claude: 70, grok: 15, mistral: 15, backup: mistral }
-      simple_coding:  { grok: 41, mistral: 39, claude: 20, backup: claude }
-      complex_coding: { claude: 80, grok: 10, mistral: 10, backup: mistral }
+      tests:          { claude: 85, agy: 15, backup: agy }
+      simple_coding:  { claude: 59, agy: 41, backup: agy }
+      complex_coding: { claude: 90, agy: 10, backup: agy }
       i18n:           { agy: 100, backup: claude }
-      secret:         { claude: 100, backup: mistral }
-      orchestration:  { claude: 65, grok: 35, backup: grok }
+      secret:         { claude: 100, backup: grok }
+      orchestration:  { claude: 100, backup: grok }
 ```
 
 A vendor left out of a row is 0. `tolerance`, `window` and `auth_marker`
@@ -284,14 +294,14 @@ These are coded checks with tests, never an agent's judgement (owner
 
 | id | test | control (must turn it red) |
 |---|---|---|
-| T1 | 1,000 simulated picks per coding kind (`tests`, `simple_coding`, `complex_coding`), under every combination of mistral and claude being out: agy count is 0 | set agy 10 in `simple_coding` |
+| T1 | 1,000 simulated picks per coding kind (`tests`, `simple_coding`, `complex_coding`), under every combination of mistral and claude being out: each vendor's share within the band of its weight (agy count 0 until G2 was lifted, 2026-11-04) | the nudge gated on the band |
 | T2 | `secret` (and `LANE_MIX_SENSITIVE=1` with every kind) under all 2^5 combinations of vendors out: the pick is in {claude, mistral, hold} | make the backup agy |
 | T3 | per-kind nudge: with `simple_coding` actuals at 100% mistral over the window, the next pick is claude | weights ignored, so the pick is always main |
 | T4 | 2 journal rows `fail:F2` for mistral on task X, so the pick for X is claude; with 1 row it is mistral | threshold at 3 |
 | T5 | an S2 `kind=limit` verdict on a mistral lane gives an immediate backup and no journal `fail` | count S2 as F2 |
 | T6 | `i18n` with agy out gives claude plus `needs_agy_review` | drop the flag |
 | T7 | aliases `spec`, `hard` and `default` give the same pick as the new names | remove an alias |
-| T8 | the validator refuses a row that does not sum to 100, a tied main, agy > 0 in a coding kind, or a secret backup outside {claude, mistral} | accept a tie |
+| T8 | the validator refuses a row that does not sum to 100, a tied main, or a secret backup outside {claude, mistral} | accept a tie |
 | T9 | `i18n` combined with `secret`: agy receives no unmasked personal data | send unmasked personal data |
 
 ## 9. Panel

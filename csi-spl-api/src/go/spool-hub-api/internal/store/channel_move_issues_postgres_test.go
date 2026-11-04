@@ -44,6 +44,9 @@ func seedMoveIssues(t *testing.T, f mvFix) mvIssues {
 	mvExec(t, pg, `INSERT INTO spec_sync_map (tenant_id, spec_path, spec_task_id, issue_number) VALUES ($1, 'csi-spl-doc/specs/001-x/tasks.md', 'T001', $2)`, f.src, x.child.Number)
 	mvExec(t, pg, `INSERT INTO fleet_lanes (tenant_id, fleet, agent_id, agent_box, writer_box, state, issue_key) VALUES ($1, 'f', 'c-100', 'box-a', 'box-a', 'live', $2)`,
 		f.src, planIssueKey(x.child.Prefix, x.child.Number))
+	// SPL-4620: a lane placed from the epic names it in origin_issue (row T7g).
+	mvExec(t, pg, `INSERT INTO fleet_lanes (tenant_id, fleet, agent_id, agent_box, writer_box, state, issue_key, origin_issue) VALUES ($1, 'f', 'c-101', 'box-a', 'box-a', 'live', $2, $3)`,
+		f.src, planIssueKey(x.stay.Prefix, x.stay.Number), planIssueKey(x.epic.Prefix, x.epic.Number))
 	return x
 }
 
@@ -99,6 +102,8 @@ func (f mvFix) checkIssueChildren(t *testing.T, x mvIssues, oldChild string) {
 		{"the staying issue", `SELECT count(*) FROM issues WHERE tenant_id = $1 AND number = $2`, []any{f.src, x.stay.Number}, 1},
 		{"fleet lane old key", `SELECT count(*) FROM fleet_lanes WHERE tenant_id = $1 AND issue_key = $2`, []any{f.src, oldChild}, 0},
 		{"fleet lane new key", `SELECT count(*) FROM fleet_lanes WHERE tenant_id = $1 AND issue_key = 'DST-102'`, []any{f.src}, 1},
+		{"fleet lane origin, new key", `SELECT count(*) FROM fleet_lanes WHERE tenant_id = $1 AND agent_id = 'c-101' AND origin_issue = 'DST-101'`, []any{f.src}, 1},
+		{"fleet lane of a staying issue", `SELECT count(*) FROM fleet_lanes WHERE tenant_id = $1 AND agent_id = 'c-101' AND issue_key = $2`, []any{f.src, planIssueKey(x.stay.Prefix, x.stay.Number)}, 1},
 		{"redirect", `SELECT count(*) FROM channel_move_redirects WHERE src_tenant_id = $1 AND kind = 'issue' AND old_ref = $2 AND new_ref = 'DST-102'`, []any{f.src, oldChild}, 1},
 		{"<DST> counter", `SELECT last_number FROM issue_counters WHERE tenant_id = $1`, []any{f.dst}, 102},
 	} {

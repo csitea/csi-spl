@@ -18,6 +18,9 @@
 # @description upserts by sha, so every deploy re-sends its window.
 # @description A missing note never fails it (the row is state=missing); a
 # @description row the hub rejects is a WARN; only no HTTP 200 is FATAL.
+# @description Every batch names the workspace whose issues the messages
+# @description cite (issue_tenant, SPL-4789): the hub stores each note's keys
+# @description of its issue prefix, and Reporting -> Releases links them.
 # @description Authenticated as the env's project service account (operator
 # @description id token, spl_hub_operator_call), never the owner account.
 # @param ENV - required: dev or prd
@@ -26,6 +29,7 @@
 # @param RELEASE_NOTE_DEPTH (optional) - how many first-parent commits back, default 500
 # @param RELEASE_NOTE_BATCH (optional) - rows per request, default 100 (hub max 500)
 # @param RELEASE_REMOTE (optional) - the remote holding the tags and notes, default origin
+# @param RELEASE_ISSUE_TENANT (optional) - the workspace whose issues the messages cite (SPL-4789), default cnf env.hub.commit_issue_tenant
 # @param GCP_ACCOUNT (optional) - pinned via do_gcp_pin_account
 # @example ENV=dev DRY_RUN=0 ./run -a do_release_note_ingest
 # @example ENV=prd RELEASE_SHA=9f175b2e RELEASE_NOTE_DEPTH=50 ./run -a do_release_note_ingest
@@ -53,7 +57,11 @@ do_release_note_ingest() {
   local n
   n="$(grep -c . "$d/rows.jsonl")"
   ((n > 0)) || { do_log "FATAL no commits read from ${head:0:8}"; return 1; }
-  jq -c -s --argjson b "$batch" '. as $r | range(0; length; $b) | {notes: $r[.:. + $b]}' "$d/rows.jsonl" >"$d/bodies.jsonl" || return 1
+  local itn
+  itn="$(spl_release_issue_tenant)"
+  [[ -n "$itn" ]] || do_log "WARN no cnf env.hub.commit_issue_tenant: the notes carry no issue keys" >&2
+  jq -c -s --argjson b "$batch" --arg t "$itn" '. as $r | range(0; length; $b) | {notes: $r[.:. + $b]}
+    + (if $t == "" then {} else {issue_tenant: $t} end)' "$d/rows.jsonl" >"$d/bodies.jsonl" || return 1
 
   if [[ "$dry" != 0 ]]; then
     cat "$d/bodies.jsonl"
@@ -81,6 +89,17 @@ do_release_note_ingest() {
   printf '{"env":"%s","hub":"%s","from":"%s","commits":%d,"stored":%d,"redacted":%d,"rejected":%d}\n' \
     "$ENV" "$SPL_HUB_URL" "${head:0:8}" "$n" "$stored" "$redacted" "$rejected"
   do_log "OK $stored of $n release note row(s) stored on $SPL_HUB_URL (from ${head:0:8})"
+}
+
+# spl_release_issue_tenant -> RELEASE_ISSUE_TENANT, else the env's rendered
+# cnf env.hub.commit_issue_tenant, else "" (SPL-4789).
+spl_release_issue_tenant() {
+  if [[ -n "${RELEASE_ISSUE_TENANT:-}" ]]; then
+    printf '%s\n' "$RELEASE_ISSUE_TENANT"
+    return 0
+  fi
+  local f="$APP_PATH/csi-spl-cnf/csi-spl/$ENV.env.json"
+  [[ -r "$f" ]] && jq -r '.env.hub.commit_issue_tenant // ""' "$f" 2>/dev/null || true
 }
 
 # spl_release_note_rows <head-sha> <depth> -> one ingest row (JSON) per

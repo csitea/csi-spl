@@ -159,5 +159,19 @@ out=$(act_backfill ENV=dev RELEASE_SHA="${C2:0:10}"); rc=$?
 out=$(act_backfill ENV=dev RELEASE_SHA=0123456789abcdef0123456789abcdef01234567); rc=$?
 [[ $rc == 1 && -z "$out" ]] && pass "backfill of an unknown RELEASE_SHA -> rc 1" || fail "backfill bad sha: rc $rc out '$out'"
 
+# --- 10. the issue workspace rides every batch (SPL-4789) ----------------------
+out=$(act ENV=dev RELEASE_ISSUE_TENANT=t1 RELEASE_NOTE_BATCH=2); rc=$?
+[[ $rc == 0 && "$(jq -r '.issue_tenant' <<<"$out" | sort | uniq -c | awk '{print $2 "x" ($1 > 1)}')" == t1x1 ]] &&
+  pass "RELEASE_ISSUE_TENANT=t1 -> every batch carries issue_tenant t1" || fail "issue_tenant: rc $rc out '$out'"
+mkdir -p "$REPO/csi-spl-cnf/csi-spl" && echo '{"env":{"hub":{"commit_issue_tenant":"ws-x"}}}' >"$REPO/csi-spl-cnf/csi-spl/dev.env.json"
+out=$(act ENV=dev); rc=$?
+[[ $rc == 0 && "$(jq -r '.issue_tenant' <<<"$out")" == ws-x ]] &&
+  pass "no RELEASE_ISSUE_TENANT -> the env's cnf env.hub.commit_issue_tenant" || fail "cnf issue_tenant: rc $rc out '$out'"
+rm -f "$REPO/csi-spl-cnf/csi-spl/dev.env.json"
+# CONTROL: no cnf key -> no issue_tenant field (an older hub refuses unknown fields) and a WARN
+out=$(act ENV=dev); rc=$?
+[[ $rc == 0 && "$(jq -r 'has("issue_tenant")' <<<"$out")" == false ]] && grep -q 'WARN no cnf env.hub.commit_issue_tenant' "$T/err" &&
+  pass "no cnf key -> the batch has no issue_tenant, WARN" || fail "no cnf: rc $rc out '$out' err '$(cat "$T/err")'"
+
 echo "release-note-ingest: $fails failure(s)"
 ((fails == 0))

@@ -73,6 +73,9 @@ var (
 	ErrReportingSQLTimeout  = errors.New("query exceeded the 10 s statement budget")
 	ErrReportingSQLReadOnly = errors.New("the SQL tab is read only")
 	ErrReportingSQLTooLarge = errors.New("the result is larger than 8 MiB")
+	// ErrReportingSQLTempSpace is a query Postgres ended for its temp files
+	// (SPL-4757): over temp_file_limit, or the disk filled.
+	ErrReportingSQLTempSpace = errors.New("query used too much temp space: narrow it or add a LIMIT")
 )
 
 // ReportingSQLRefusal is a query the plan check refused: Code is the
@@ -174,6 +177,8 @@ func reportingSQLErr(err error) error {
 		return ErrReportingSQLTimeout
 	case pe.Code == "25006": // read_only_sql_transaction
 		return ErrReportingSQLReadOnly
+	case pe.Code == "53400" || pe.Code == "53100": // configuration_limit_exceeded (temp_file_limit), disk_full
+		return ErrReportingSQLTempSpace
 	case pe.Code == "42601" || pe.Code == "42P01" || pe.Code == "42703" || pe.Code == "42883":
 		return &ReportingSQLQueryError{Code: "syntax_error", SQLState: pe.Code, Message: pe.Message}
 	case pe.Code == "42P02": // undefined_parameter: $1 in the text

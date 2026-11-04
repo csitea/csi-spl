@@ -407,6 +407,8 @@ func reportingSQLError(err error) (int, string, string) {
 		return http.StatusBadRequest, "read_only_violation", err.Error()
 	case errors.Is(err, store.ErrReportingSQLTooLarge):
 		return http.StatusBadRequest, "result_too_large", err.Error()
+	case errors.Is(err, store.ErrReportingSQLTempSpace):
+		return http.StatusBadRequest, "temp_space_exceeded", err.Error()
 	case errors.Is(err, store.ErrReportingSQLTimeout):
 		return http.StatusRequestTimeout, "query_timeout", err.Error()
 	}

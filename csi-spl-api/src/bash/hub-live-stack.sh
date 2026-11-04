@@ -86,6 +86,8 @@ own_sql() { # <file> [psql -v args]: a roles file run AS THE OWNER
 # 2. The cloud shape: a non-superuser owner migrates, the hub runs as a
 # DML-only runtime role (017 FR-SEC-013/014, T029).
 psql_su spool_hub -c "CREATE ROLE $APP_ROLE LOGIN PASSWORD '$APP_ROLE' NOSUPERUSER NOBYPASSRLS CREATEROLE" >/dev/null || down "create role"
+# SPL-4757: as hub-pg.tst.sh, so the SQL tab's temp-space tests run here too.
+psql_su spool_hub -c "GRANT SET ON PARAMETER temp_file_limit TO $APP_ROLE" >/dev/null || down "grant temp_file_limit"
 psql_su spool_hub -c "CREATE DATABASE spool_hub_live OWNER $APP_ROLE" >/dev/null || down "create database"
 
 BIN="${HUB_LIVE_BIN:-}"

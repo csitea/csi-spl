@@ -82,6 +82,10 @@ su_sql() {
 # CREATEROLE like the Cloud SQL API user that owns the schema there (017
 # T029): the owner creates the runtime role below.
 su_sql "CREATE ROLE $APP_ROLE LOGIN PASSWORD '$APP_ROLE' NOSUPERUSER NOBYPASSRLS CREATEROLE" >/dev/null
+# SPL-4757: temp_file_limit is superuser-only; the grant lets a store test
+# open its own pool with a low limit (a DSN runtime parameter) and prove the
+# SQL tab's temp-space answer. Nothing else sets it.
+su_sql "GRANT SET ON PARAMETER temp_file_limit TO $APP_ROLE" >/dev/null
 app_dsn() { # <db>
   if [ -n "$PG_CTR" ]; then echo "postgres://$APP_ROLE:$APP_ROLE@127.0.0.1:$PGPORT/$1?sslmode=disable"
   else echo "postgres://$APP_ROLE@/$1?host=$WORK&port=$PGPORT&sslmode=disable"; fi

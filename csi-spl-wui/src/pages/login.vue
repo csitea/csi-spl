@@ -101,12 +101,12 @@
     <!-- spec 148 B7 (SPL-4750): the local dev toolbar, its one-click Dev
          login and the Mailpit link. Its chunk is fetched only once the
          served config names local dev (read after mount, so no prerendered
-         page carries it) and its strings are merged (second catalogue); the
-         component itself also asks for a loopback host. Teleported to the
+         page carries it); the component itself waits for its strings (second
+         catalogue) and asks for a loopback host. Teleported to the
          body: inside the layout's scrolling body its fixed bar sat under the
          footer, where no click reached it. -->
     <Teleport v-if="localDev" to="body">
-      <LazyDevToolbar v-if="te('dev_toolbar.login')" />
+      <LazyDevToolbar />
     </Teleport>
   </div>
 </template>

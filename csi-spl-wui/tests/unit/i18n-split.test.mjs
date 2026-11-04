@@ -71,6 +71,9 @@ describe('split', () => {
       assert.ok(c.every((k) => keep.has(k)) && m.every((k) => !keep.has(k)), f)
     }
   })
+  it('keeps the local dev toolbar out of core: a deployed page never downloads its text (spec 148 B7)', () => {
+    assert.ok(![...keep].some((k) => k.startsWith('dev_toolbar.')), [...keep].filter((k) => k.startsWith('dev_toolbar.')).join(' '))
+  })
   it('writes the rest as compiled messages (runtime-only vue-i18n has no compiler)', () => {
     const code = compiledModule({ x: { y: 'Hello', z: 'Hi {name}' } }, 'x.mjs')
     assert.match(code, /"z": \{"t":0,"b":\{"t":2/)
@@ -107,8 +110,8 @@ describe('loader gates', () => {
     assert.match(read('src/components/PollBody.vue'), /te\('poll\.chat'\) \? splitPolls/)
     /* spec 116 T3: the sign-in page mounts the demo intro only once its strings are merged */
     assert.match(read('src/pages/login.vue'), /<LazyDemoIntro v-if="[^"]*&& te\('demo\.intro\.title'\)"/)
-    /* spec 148 B7: the sign-in page mounts the local dev toolbar only once its strings are merged */
-    assert.match(read('src/pages/login.vue'), /<LazyDevToolbar v-if="te\('dev_toolbar\.login'\)"/)
+    /* spec 148 B7: the local dev toolbar renders only once its strings are merged */
+    assert.match(read('src/components/DevToolbar.vue'), /const visible = computed\(\(\) => te\('dev_toolbar\.login'\) && devToolbarVisible\(/)
     /* SPL-1560: a file card mounts its remove X only once its strings are merged */
     assert.match(read('src/components/FileAttachment.vue'), /removable = computed\(\(\) => [^\n]*te\('feed\.file_remove\.label'\)\)/)
     /* the one place that renders it: a second mount without the gate would leave it keyless */

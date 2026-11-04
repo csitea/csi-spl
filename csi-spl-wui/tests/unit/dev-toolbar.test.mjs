@@ -34,12 +34,12 @@ const tsToJs = (src) => ts.transpileModule(src, { compilerOptions: { module: ts.
 const en = JSON.parse(read('i18n/locales/en.json'))
 const tr = (key) => key.split('.').reduce((o, k) => o?.[k], en)
 
-/* Nuxt auto-imports: Vue's API, useI18n (en.json), useRuntimeConfig (per test) */
+/* Nuxt auto-imports: Vue's API, useI18n (en.json; te() = merged, per test), useRuntimeConfig (per test) */
 const PRELUDE = `import { ref, computed, onMounted } from '${VUE_URL}';\n`
-  + 'const useI18n = () => ({ t: globalThis.__dt.t });\n'
+  + 'const useI18n = () => ({ t: globalThis.__dt.t, te: (k) => globalThis.__dt.merged && globalThis.__dt.t(k) !== undefined });\n'
   + 'const useRuntimeConfig = () => ({ public: globalThis.__dt.pub });\n'
 
-globalThis.__dt = { t: tr, pub: {} }
+globalThis.__dt = { t: tr, pub: {}, merged: true }
 
 async function compileSfc() {
   const { descriptor, errors } = parse(read(FILE), { filename: FILE })
@@ -97,10 +97,11 @@ const flush = () => new Promise((r) => setTimeout(r, 0))
  * Mount the toolbar in a fake browser on `hostname` with config `pub`.
  * `answer` is the fetch's response (or an Error to throw).
  */
-async function mount({ hostname, pub, answer = { ok: true, status: 204 }, search = '' }) {
+async function mount({ hostname, pub, answer = { ok: true, status: 204 }, search = '', merged = true }) {
   const calls = []
   const assigned = []
   globalThis.__dt.pub = pub
+  globalThis.__dt.merged = merged
   globalThis.window = {
     location: { hostname, search, assign: (u) => assigned.push(u) },
     fetch: async (url, init) => {
@@ -205,6 +206,14 @@ describe('mounted', () => {
       } finally { m.unmount() }
     })
   }
+
+  it('hidden: local dev on localhost before its strings are merged (second catalogue)', async () => {
+    const m = await mount({ hostname: 'localhost', pub: { envName: 'lde', authBase: '' }, merged: false })
+    try {
+      assert.equal(byTestId(m.root, 'dev-toolbar'), null)
+      assert.equal(m.calls.length, 0, 'no request')
+    } finally { m.unmount() }
+  })
 
   it('Dev login: POSTs the endpoint, then loads the app (the safe redirect)', async () => {
     const m = await mount({ hostname: '127.0.0.1', pub: { envName: 'lde', authBase: '' }, search: '?redirect=%2Fissues' })

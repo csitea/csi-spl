@@ -15,6 +15,8 @@
           SPOOL_ENV_NAME, and every deployed env names something else;
        2. the page is served from a loopback host (localhost, 127.x, ::1):
           local dev publishes on 127.0.0.1 only (spec 2.4).
+     It also waits for its own strings (te(), second catalogue: this file is
+     ON_DEMAND, so no key it names reaches the core catalogue).
      The gate is a v-if, never CSS. The hub refuses the endpoint itself
      outside local dev (404, spec 3.2); this gate only keeps the button
      from being offered where it cannot work.
@@ -109,7 +111,7 @@ export async function postDevLogin(fetchFn: typeof fetch, authBase: unknown): Pr
 <script setup lang="ts">
 import { safeRedirect } from '~/utils/auth-client.mjs'
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 const config = useRuntimeConfig()
 
 const host = ref('')
@@ -120,7 +122,8 @@ onMounted(() => {
   host.value = window.location.hostname
 })
 
-const visible = computed(() => devToolbarVisible(config.public.envName, host.value))
+/* the second catalogue holds the copy; nothing shows until it is merged */
+const visible = computed(() => te('dev_toolbar.login') && devToolbarVisible(config.public.envName, host.value))
 const mailHref = computed(() => mailpitHref(host.value))
 
 async function signIn() {

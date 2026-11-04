@@ -62,8 +62,9 @@ export const ON_DEMAND_COMPONENTS = {
   // (te()); app.vue mounts it only offline, so first paint is unchanged
   "components/OfflineBanner.vue": "idle",
   // spec 148 B7 (SPL-4750): the sign-in page mounts the local dev toolbar
-  // only on local dev mode AND once te('dev_toolbar.login') holds, so a
-  // deployed page's first download is unchanged
+  // only on local dev mode; the toolbar renders once its own strings are
+  // merged (te()), so a deployed page's first download is unchanged. Never
+  // name its keys in a first-screen file: the split would keep them in core
   "components/DevToolbar.vue": "idle",
 }
 

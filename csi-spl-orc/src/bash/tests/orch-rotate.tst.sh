@@ -86,6 +86,12 @@
 #  23. SPL-2898 (E): the old window gone before SPAWN renames it = SPAWN
 #      SKIP retired with tmux's reason, no ask, no notice, ctx ABORT, a note to
 #      the dispatch lease holder; control: a live old window rotates
+#  24. spec 060 R8 (SPL-4807): a standby box's orch seat 7201 s old is
+#      refreshed in place by the auto run (plan, then DONE; the fleet orch
+#      lease and LEASE_ORCH unchanged); 7199 s = SKIP standby with its age;
+#      the threshold from rotate.conf; the holder's box keeps ROTATE_MIN_AGE;
+#      boot, no-pane, duplicate and stall gates still apply; no ack = the old
+#      seat keeps the role
 #------------------------------------------------------------------------------
 set -uo pipefail
 # hermetic: the verdict never depends on the caller's shell. Agent shells export
@@ -335,7 +341,8 @@ gate() {  # <want> <label> [env...]
 }
 world; gate "disabled" "ROTATE=0: SKIP disabled" ROTATE=0
 echo 'ROTATE_ORCH=0' >"$D/rotate.conf"; gate "disabled" "rotate.conf ROTATE_ORCH=0: SKIP disabled"; rm -f "$D/rotate.conf"
-echo "c-900@sat $(date +%s)" >"$D/lease.orch"; gate "standby (orch lease: c-900@sat)" "another machine holds the orch lease: SKIP standby" LEASE_FLEET=main
+# the seat is 7200 s old: below the standby refresh age it stays (spec 060 R8, case 24)
+echo "c-900@sat $(date +%s)" >"$D/lease.orch"; gate "standby (orch lease: c-900@sat)" "another machine holds the orch lease: SKIP standby" LEASE_FLEET=main ROTATE_ORCH_STANDBY_MAX_AGE=7201
 echo "c-900@box-desk $(date +%s)" >"$D/lease.orch"; act LEASE_FLEET=main >"$T/o" 2>&1
 grep -q ' GATE PLAN pass' "$T/o" && pass "2. this machine holds the orch lease: passes" || fail "2. holder: $(cat "$T/o")"; rm -f "$D/lease.orch"
 world; rm -rf "$T/proc/1001"; gate "absent" "no process: SKIP absent"
@@ -1011,7 +1018,7 @@ sb_world() {  # the standby box: g-001 (grok, pid 1001) the real seat dir, c-001
 }
 SBV=(LEASE_FLEET=main ROTATE_ROLE_VENDOR=claude ROTATE_CLAUDE_BIN="$T/bin/claude-cli")
 sb_world
-act DRY_RUN=0 "${SBV[@]}" >"$T/o" 2>&1; rc=$?
+act DRY_RUN=0 "${SBV[@]}" ROTATE_ORCH_STANDBY_MAX_AGE=86400 >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 && ! -e "$T/spawn.log" ]] && grep -q ' GATE SKIP standby (orch lease: c-001@box-b)' "$T/o" && grep -qx 'LEASE_ORCH=g-001' "$D/lease.conf" &&
   pass "21. RED CONTROL (today's path): the auto rotation skips the standby box, g-001 (grok, on its limit) stays" || fail "21. control rc=$rc $(cat "$T/o")"
 act ROTATE_CMD=standby "${SBV[@]}" >"$T/o" 2>&1; rc=$?
@@ -1098,6 +1105,70 @@ grep -q ' SPAWN OK new pid 2001' "$T/o" && ! grep -q 'SKIP retired' "$T/o" &&
   pass "23. control: the old window still there = rotated as before" || fail "23. control: $(grep -E 'SPAWN|FAIL' "$T/o")"
 ! grep -q ERRTRAP "$T/o" && pass "23. no stray failing command under the ERR trap" || fail "23. ERRTRAP: $(grep ERRTRAP "$T/o")"
 rm -f "$D/lease"
+
+# --- 24. spec 060 R8 (SPL-4807): the standby orch seat is refreshed at least every 2 h -----------
+# 2026-11-04: the standby seat c-001 was ~1822 min old, the hourly run logged
+# GATE SKIP standby 30 times. Now: ROTATE_ORCH_STANDBY_MAX_AGE (7200 s).
+sbr() {  # <age-s>: the standby box, c-900 that old, the orch lease on c-900@sat
+  world; rm -rf "$T/proc/1001"; "$T/bin/proc" 1001 "$1"; echo "c-900@sat $(date +%s)" >"$D/lease.orch"
+}
+SBR=(LEASE_FLEET=main)
+gate24() {  # <want> <label> [env...]: case 2's gate(), numbered 24
+  local want="$1" label="$2"; shift 2
+  act DRY_RUN=0 "$@" >"$T/o" 2>&1
+  grep -q -- " GATE SKIP $want" "$T/o" && [[ ! -e "$T/spawn.log" ]] && pass "24. $label" || fail "24. $label: $(cat "$T/o")"
+}
+sbr 7201; act "${SBR[@]}" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -e "$T/spawn.log" ]] &&
+  grep -q " GATE OK standby (orch lease: c-900@sat), but c-900 is 7201s old (>= 7200): refreshing this machine's session" "$T/o" &&
+  grep -q ' GATE PLAN pass: c-900 pid 1001, 7201s old' "$T/o" && grep -q ' SPAWN PLAN ' "$T/o" &&
+  pass "24. (a) 7201 s on a standby box: GATE OK standby refresh, the rotation planned (dry run), nothing spawned" || fail "24. (a) plan rc=$rc $(grep GATE "$T/o")"
+act DRY_RUN=0 "${SBR[@]}" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE && ! -d "$T/proc/1001" ]] && grep -q '^spawn claude c-900 ' "$T/spawn.log" &&
+  grep -q ' DONE OK c-900@box-desk is pid 2001' "$T/o" &&
+  pass "24. (a) DRY_RUN=0: a fresh c-900 session (same id, claude), acked, the old pid retired" || fail "24. (a) done rc=$rc $(grep -E 'GATE|SPAWN|ACK|FAIL|DONE' "$T/o")"
+[[ "$(cut -d' ' -f1 "$D/lease.orch")" == c-900@sat ]] && grep -qx 'LEASE_ORCH=c-900' "$D/lease.conf" &&
+  grep -q ' CLOSE OK ' "$T/o" && ! grep -q 'lease-moved' "$T/o" &&
+  pass "24. (a) ... the fleet orch lease stays c-900@sat, LEASE_ORCH=c-900, CLOSE OK (no lease-moved)" || fail "24. (a) lease: $(cat "$D/lease.orch") $(grep LEASE_ORCH "$D/lease.conf") $(grep CLOSE "$T/o")"
+act DRY_RUN=0 "${SBR[@]}" >"$T/o" 2>&1
+grep -q ' GATE SKIP standby (orch lease: c-900@sat), c-900 is 0s old (< 7200)' "$T/o" &&
+  pass "24. (a) the next hourly run: the fresh seat is skipped with its age" || fail "24. (a) rerun: $(grep GATE "$T/o")"
+sbr 7199; act DRY_RUN=0 "${SBR[@]}" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -e "$T/spawn.log" && -d "$T/proc/1001" ]] && grep -q ' GATE SKIP standby (orch lease: c-900@sat), c-900 is 7199s old (< 7200)' "$T/o" &&
+  pass "24. (b) 7199 s: GATE SKIP standby, as before, with the age" || fail "24. (b) rc=$rc $(grep GATE "$T/o")"
+sbr 7201; echo 'ROTATE_ORCH_STANDBY_MAX_AGE=8000' >"$D/rotate.conf"; act DRY_RUN=0 "${SBR[@]}" >"$T/o" 2>&1; rm -f "$D/rotate.conf"
+[[ ! -e "$T/spawn.log" ]] && grep -q ' GATE SKIP standby (orch lease: c-900@sat), c-900 is 7201s old (< 8000)' "$T/o" &&
+  pass "24. rotate.conf ROTATE_ORCH_STANDBY_MAX_AGE=8000 is read" || fail "24. rotate.conf: $(grep GATE "$T/o")"
+act DRY_RUN=0 "${SBR[@]}" ROTATE_ORCH_STANDBY_MAX_AGE=2h >"$T/o" 2>&1; rc=$?
+[[ $rc -ne 0 && ! -e "$T/spawn.log" ]] && grep -q 'FATAL ROTATE_ORCH_STANDBY_MAX_AGE must be a whole number' "$T/o" &&
+  pass "24. a non-number ROTATE_ORCH_STANDBY_MAX_AGE: FATAL, nothing done" || fail "24. bad value rc=$rc $(cat "$T/o")"
+# (c) the holder's box: the age gate is still ROTATE_MIN_AGE (3300)
+sbr 3400; echo "c-900@box-desk $(date +%s)" >"$D/lease.orch"; act "${SBR[@]}" >"$T/o" 2>&1
+grep -q ' GATE PLAN pass: c-900 pid 1001, 3400s old' "$T/o" && ! grep -q 'refreshing' "$T/o" &&
+  pass "24. (c) the holder's box, 3400 s: passes on ROTATE_MIN_AGE, no standby refresh" || fail "24. (c) 3400: $(grep GATE "$T/o")"
+sbr 3200; echo "c-900@box-desk $(date +%s)" >"$D/lease.orch"; gate24 "young: pid 1001 is 3200s old (< 3300)" "(c) the holder's box, 3200 s: SKIP young (< ROTATE_MIN_AGE)" "${SBR[@]}"
+# (d) the later gates still apply to a standby refresh
+sbr 7201; gate24 "boot (" "(d) a standby refresh in the boot grace: SKIP boot" "${SBR[@]}" ROTATE_BOOT_GRACE=200000
+grep -q "refreshing this machine's session" "$T/o" && pass "24. (d) ... reached past the standby gate (GATE OK refresh first)" || fail "24. (d) no GATE OK refresh: $(grep GATE "$T/o")"
+sbr 7201; printf '%%2	9999	$0	c-900@box sometitle
+' >"$T/tmux/panes"
+gate24 "absent: pid 1001 is in no tmux pane" "(d) a standby refresh of a pid in no pane: SKIP absent" "${SBR[@]}"
+grep -q "refreshing this machine's session" "$T/o" && pass "24. (d) ... reached past the standby gate (GATE OK refresh first)" || fail "24. (d) no GATE OK refresh: $(grep GATE "$T/o")"
+sbr 7201; rm -rf "$T/proc/"[0-9]*; gate24 "standby (orch lease: c-900@sat)" "(d) no live process: SKIP standby, nothing refreshed" "${SBR[@]}"
+sbr 7201; "$T/bin/proc" 1002 7300; gate24 "duplicate: 2 live processes carry c-900 (pids 1001 1002)" "(d) a standby refresh with two processes: SKIP duplicate" "${SBR[@]}"
+grep -q "refreshing this machine's session" "$T/o" && pass "24. (d) ... reached past the standby gate (GATE OK refresh first)" || fail "24. (d) no GATE OK refresh: $(grep GATE "$T/o")"
+sbr 7201; printf 'idle\n❯ \nUsage limit reached · resets 7:20am\n' >"$T/tmux/screen.%2"
+gate24 "stalled Usage limit reached" "(d) a standby refresh of a stalled pane: SKIP stalled" "${SBR[@]}"
+grep -q "refreshing this machine's session" "$T/o" && pass "24. (d) ... reached past the standby gate (GATE OK refresh first)" || fail "24. (d) no GATE OK refresh: $(grep GATE "$T/o")"
+# (e) the successor never acks: rolled back as the auto path, the old seat stays
+sbr 7201; echo no >"$T/ack.mode"
+act DRY_RUN=0 ROTATE_ACK_TIMEOUT=3 "${SBR[@]}" >"$T/o" 2>&1; rc=$?
+[[ $rc -ne 0 && "$(ctx ROTATE_PHASE)" == FAIL && -d "$T/proc/1001" && ! -d "$T/proc/2001" ]] && grep -q ' FAIL FAIL ACK: no ack within 3s' "$T/o" &&
+  grep -q $'^%2\t1001\t$0\tc-900@box sometitle$' "$T/tmux/panes" &&
+  [[ "$(cut -d' ' -f1 "$D/lease.orch")" == c-900@sat ]] && grep -qx 'LEASE_ORCH=c-900' "$D/lease.conf" &&
+  pass "24. (e) no ack: FAIL ACK, the old pid 1001 keeps the seat and its name, the leases untouched" || fail "24. (e) rc=$rc $(grep -E 'GATE|ACK|FAIL' "$T/o")"
+! grep -q ERRTRAP "$T/o" && pass "24. no stray failing command under the ERR trap" || fail "24. ERRTRAP: $(grep ERRTRAP "$T/o")"
+rm -f "$D/lease.orch" "$T/ack.mode"
 echo
 (( fails == 0 )) && { echo "orch-rotate: all passed"; exit 0; }
 echo "orch-rotate: $fails failure(s)"; exit 1

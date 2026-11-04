@@ -70,6 +70,68 @@ type Shared = {
   dismissNotice: () => void
 }
 
+/** openConflict() and resolve() of editLists, on its `conflict`. */
+function conflictSteps(api: Api, sh: Shared, conflict: Ref<RepoEditConflict | null>) {
+  /** Read the conflict of edit `id` (theirs / mine) into `conflict`. */
+  async function openConflict(id: string): Promise<boolean> {
+    conflict.value = null
+    sh.error.value = null
+    const a = await settle(getConflict(api, id))
+    const c = isOk(a) ? conflictOf(a.body) : null
+    if (!c) {
+      sh.error.value = editActionErrorOf(a.status, a.body)
+      return false
+    }
+    conflict.value = c
+    return true
+  }
+
+  /** Save the resolved text of the open conflict with base = master's head (spec §8). */
+  const resolve = async (text: string) => {
+    const c = conflict.value
+    if (!c) return null
+    const saved = await sh.save(c.path, text, c.head_blob)
+    if (saved) conflict.value = null
+    return saved
+  }
+
+  return { openConflict, resolve }
+}
+
+/**
+ * reviewIdentity() of editLists: show the notice for the identity a save
+ * would publish, without a save: a consent POST with no identity answers
+ * 409 author_changed naming it.
+ */
+function identityReview(api: Api, sh: Shared, confirmed: Ref<boolean>) {
+  return () => sh.step(async () => {
+    confirmed.value = false
+    const a = await settle(postNotice(api, { git_name: '-', git_email: '-', author_source: '' }))
+    const who = a.status === 409 ? noticeIdentity(a.body) : null
+    if (!who) {
+      sh.error.value = saveErrorOf(a.status, a.body)
+      return null
+    }
+    sh.dismissNotice()
+    sh.notice.value = who
+    return null
+  })
+}
+
+/** Runs one step with busy set and the last error cleared; a second click while busy is dropped. */
+function busyStep(busy: Ref<boolean>, error: Ref<SaveError | null>): Step {
+  return async (run) => {
+    if (busy.value) return null
+    busy.value = true
+    error.value = null
+    try {
+      return await run()
+    } finally {
+      busy.value = false
+    }
+  }
+}
+
 /**
  * T12: the edits lists, retry, the conflict view and the identity review,
  * on the store's notice, error and busy step. `byPath` (the doc header's
@@ -115,45 +177,8 @@ function editLists(api: Api, sh: Shared) {
     return null
   })
 
-  /** Read the conflict of edit `id` (theirs / mine) into `conflict`. */
-  async function openConflict(id: string): Promise<boolean> {
-    conflict.value = null
-    sh.error.value = null
-    const a = await settle(getConflict(api, id))
-    const c = isOk(a) ? conflictOf(a.body) : null
-    if (!c) {
-      sh.error.value = editActionErrorOf(a.status, a.body)
-      return false
-    }
-    conflict.value = c
-    return true
-  }
-
-  /** Save the resolved text of the open conflict with base = master's head (spec §8). */
-  const resolve = async (text: string) => {
-    const c = conflict.value
-    if (!c) return null
-    const saved = await sh.save(c.path, text, c.head_blob)
-    if (saved) conflict.value = null
-    return saved
-  }
-
-  /**
-   * Show the notice for the identity a save would publish, without a save:
-   * a consent POST with no identity answers 409 author_changed naming it.
-   */
-  const reviewIdentity = () => sh.step(async () => {
-    confirmed.value = false
-    const a = await settle(postNotice(api, { git_name: '-', git_email: '-', author_source: '' }))
-    const who = a.status === 409 ? noticeIdentity(a.body) : null
-    if (!who) {
-      sh.error.value = saveErrorOf(a.status, a.body)
-      return null
-    }
-    sh.dismissNotice()
-    sh.notice.value = who
-    return null
-  })
+  const { openConflict, resolve } = conflictSteps(api, sh, conflict)
+  const reviewIdentity = identityReview(api, sh, confirmed)
 
   return { byPath, mine, conflict, confirmed, loadPath, loadMine, retry, openConflict, resolve, reviewIdentity }
 }
@@ -194,17 +219,8 @@ export const useRepoEditStore = defineStore('repoEdit', () => {
     return saved
   }
 
-  /** Runs one step with busy set and the last error cleared; a second click while busy is dropped. */
-  async function step(run: () => Promise<RepoEditSaved | null>): Promise<RepoEditSaved | null> {
-    if (busy.value) return null
-    busy.value = true
-    error.value = null
-    try {
-      return await run()
-    } finally {
-      busy.value = false
-    }
-  }
+  /** One step with busy set and the last error cleared (busyStep). */
+  const step = busyStep(busy, error)
 
   /** Save `text` as `path`, opened at blob `base`. */
   const save = (path: string, text: string, base: string) => step(() => attempt({ path, text, base }))

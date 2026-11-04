@@ -9,7 +9,7 @@
 #          (T-NO-MODEL), ./run, spool-send, kill and the identity map are
 #          stubs. The action runs under ./run's `set -E` + ERR trap.
 #   1. dry run: PLAN lines, nothing written, held, renamed or spawned
-#   2. gates: disabled (env, rotate.conf), standby (FR-044), young, stalled
+#   2. gates: disabled (env, rotate.conf), standby with young seats (FR-044), young, stalled
 #      (FR-022), duplicate, locked, orch rotation in flight (FR-051)
 #   3. T-DISP-HAPPY: HOLD (the lease names F while every M process is held,
 #      T-DISP-ONE-HOLDER), the fresh M seeded + an inbox task (FR-026), ack =
@@ -28,8 +28,9 @@
 #   9. resume (FR-003) and abort (FR-091); SPL-1837: a GATE left by a gone
 #      run = ABORT STALE, hold removed, no FAIL/alert, a new rotation;
 #      control: its run alive = SKIP
-#  10. T-CRON: :15, idempotent, check, CRON_REMOVE=1; the heal line every 3 min
-#      off the rotation's minute, the cron script's --heal
+#  10. T-CRON: :15 and :45 (SPL-4795; ROTATE_CRON_EVERY=60 = :15 only),
+#      idempotent, check, CRON_REMOVE=1; the heal line every 3 min off both
+#      rotation minutes, the cron script's --heal (then ROTATE_CMD=age)
 #  11. ROTATE_CMD=heal: dead -> healed (rotate.log, no rotation), alive or on
 #      a usage-limit pane -> untouched, back within the confirm window ->
 #      untouched, two at once -> one heal, gates (in flight, ROTATE_HEAL=0)
@@ -58,6 +59,16 @@
 #      no grok CLI (lane-mix) or a lease that counts only claude = claude, the
 #      reason named; grok M and F ack from their first prompt and hold the
 #      seats; a grok M with no ack: the old claude M keeps the role and lease
+#  27. SPL-4795 (owner 2026-11-04, the 30-min rule): a standby box refreshes
+#      each seat at least ROTATE_DISPATCH_MIN_AGE old under its own id and
+#      vendor: no hold, no lease write, lease.conf and handoff.d/next.md kept;
+#      a busy seat is rotated after the grace (QUIESCE WAIT busy-rotated).
+#      Controls: a dry run plans both and moves nothing; young seats = GATE
+#      SKIP standby ... no seat due
+#  28. SPL-4795: ROTATE_CMD=age prints one SEAT line per seat; past 30 min +
+#      grace = OLD, rc 3, ONE note per stale set (not a flood); young = OK,
+#      rc 0, marks cleared; a dead seat = DOWN. Controls: the dry run sends no
+#      note; a rotation in flight = AGE WAIT, no note
 #  26. SPL-3395: ROTATE_ROLE_VENDOR=agy = agy in the SPAWN plan of the master
 #      and the failover (lane-mix asked with an agy=100 specs_and_docs row);
 #      agy on its limit (lane-mix) or a lease that counts only claude = claude,
@@ -307,7 +318,8 @@ gate() {  # <want> <label> [env...]
 world; gate "disabled" "ROTATE=0: SKIP disabled" ROTATE=0
 echo 'ROTATE_DISPATCH=0' >"$D/rotate.conf"; gate "disabled" "rotate.conf ROTATE_DISPATCH=0: SKIP disabled (FR-090)"; rm -f "$D/rotate.conf"
 world; echo 'LEASE_FLEET=main' >>"$D/lease.conf"; echo "c-902@sat $(date +%s)" >"$D/lease"
-gate "standby (dispatch lease: c-902@sat)" "another machine holds the dispatch lease: SKIP standby (FR-044)"
+rm -rf "$T/proc/102" "$T/proc/103"; "$T/bin/proc" 102 c-902 600; "$T/bin/proc" 103 c-903 600
+gate "standby (dispatch lease: c-902@sat): no seat due (c-902 600s c-903 600s; < 1200s)" "another machine holds the dispatch lease, seats young: SKIP standby (FR-044)"
 world; rm -rf "$T/proc/102"; "$T/bin/proc" 102 c-902 600; gate "young: c-902 pid 102 is 600s old" "a young master: SKIP young (FR-008)"
 world; date +%s >"$D/rotate.dispatch.last"; gate "young: the last rotation" "a rotation less than ROTATE_MIN_AGE ago: SKIP young"
 world; printf 'idle\n❯ \nUsage limit reached · resets 7:20am\n' >"$T/tmux/screen.%2"; gate "stalled Usage limit reached" "a stalled master: SKIP stalled (FR-022)"
@@ -526,12 +538,12 @@ cron() {
 }
 before="$(md5sum <"$T/crontab")"
 cron >"$T/o" 2>&1; rc=$?
-[[ $rc -eq 0 && "$(md5sum <"$T/crontab")" == "$before" ]] && grep -q '^    +15 \* \* \* \* .*dispatch-rotate-cron.sh >> .*/cron.out 2>&1 # csi-spl:dispatch-rotate$' "$T/o" &&
+[[ $rc -eq 0 && "$(md5sum <"$T/crontab")" == "$before" ]] && grep -q '^    +15,45 \* \* \* \* .*dispatch-rotate-cron.sh >> .*/cron.out 2>&1 # csi-spl:dispatch-rotate$' "$T/o" &&
   pass "10. dry run: the diff, nothing written" || fail "10. dry: rc=$rc $(cat "$T/o")"
 cron DRY_RUN=0 >"$T/o" 2>&1; rc=$?
-want="15 * * * * $SRC/csi-spl-orc/src/bash/scripts/dispatch-rotate-cron.sh >> $T/log/cron.out 2>&1 # csi-spl:dispatch-rotate"
+want="15,45 * * * * $SRC/csi-spl-orc/src/bash/scripts/dispatch-rotate-cron.sh >> $T/log/cron.out 2>&1 # csi-spl:dispatch-rotate"
 [[ $rc -eq 0 ]] && grep -qxF "$want" "$T/crontab" && grep -q 'orch-rotate' "$T/crontab" &&
-  pass "10. DRY_RUN=0: one exact line at :15, the orch line kept" || fail "10. install rc=$rc: $(cat "$T/crontab") $(cat "$T/o")"
+  pass "10. DRY_RUN=0: one exact line at :15 and :45, the orch line kept" || fail "10. install rc=$rc: $(cat "$T/crontab") $(cat "$T/o")"
 cron DRY_RUN=0 >/dev/null 2>&1
 [[ "$(grep -c '# csi-spl:dispatch-rotate$' "$T/crontab")" == 1 ]] && pass "10. idempotent" || fail "10. lines: $(cat "$T/crontab")"
 cron ROTATE_CRON_ACTION=check >"$T/o" 2>&1 && pass "10. check passes once installed" || fail "10. check: $(cat "$T/o")"
@@ -540,10 +552,17 @@ cron CRON_REMOVE=1 DRY_RUN=0 >/dev/null 2>&1
 cron DRY_RUN=0 >/dev/null 2>&1
 hwant="1-59/3 * * * * $SRC/csi-spl-orc/src/bash/scripts/cron-no-stack.sh $T/log/heal.lock $SRC/csi-spl-orc/src/bash/scripts/dispatch-rotate-cron.sh --heal >> $T/log/heal.out 2>&1 # csi-spl:dispatch-heal"
 grep -qxF "$hwant" "$T/crontab" && [[ "$(grep -c '# csi-spl:dispatch-heal$' "$T/crontab")" == 1 ]] &&
-  pass "10. the heal line: every 3 min, never at :15 (one lock), idempotent" || fail "10. heal line: $(cat "$T/crontab")"
+  pass "10. the heal line: every 3 min, never at :15 or :45 (one lock), idempotent" || fail "10. heal line: $(cat "$T/crontab")"
 cron DRY_RUN=0 ROTATE_CRON_MINUTE=0 ROTATE_HEAL_CRON_EVERY=5 >/dev/null 2>&1
 grep -q '^1-59/5 .* --heal >> .* # csi-spl:dispatch-heal$' "$T/crontab" && [[ "$(grep -c '# csi-spl:dispatch-heal$' "$T/crontab")" == 1 ]] &&
   pass "10. ROTATE_HEAL_CRON_EVERY=5 at :00 -> 1-59/5, replaced in place" || fail "10. every 5: $(cat "$T/crontab")"
+cron DRY_RUN=0 ROTATE_HEAL_CRON_EVERY=2 >/dev/null 2>&1
+grep -q '^0-59/2 .* --heal >> .* # csi-spl:dispatch-heal$' "$T/crontab" &&
+  pass "10. ROTATE_HEAL_CRON_EVERY=2 at :15/:45 -> 0-59/2, off both rotation minutes" || fail "10. every 2: $(cat "$T/crontab")"
+cron DRY_RUN=0 ROTATE_CRON_EVERY=60 >/dev/null 2>&1
+grep -q '^15 \* \* \* \* .*dispatch-rotate-cron.sh >> .* # csi-spl:dispatch-rotate$' "$T/crontab" &&
+  pass "10. ROTATE_CRON_EVERY=60: once an hour at :15" || fail "10. every 60: $(cat "$T/crontab")"
+cron DRY_RUN=0 ROTATE_CRON_EVERY=45 >"$T/o" 2>&1 && fail "10. ROTATE_CRON_EVERY=45 accepted" || pass "10. ROTATE_CRON_EVERY=45 refused"
 cron DRY_RUN=0 ROTATE_HEAL_CRON_EVERY=0 >/dev/null 2>&1
 ! grep -q 'dispatch-heal' "$T/crontab" && grep -q '# csi-spl:dispatch-rotate$' "$T/crontab" &&
   pass "10. ROTATE_HEAL_CRON_EVERY=0 drops only the heal line" || fail "10. every 0: $(cat "$T/crontab")"
@@ -553,9 +572,10 @@ cron DRY_RUN=0 >/dev/null 2>&1; cron CRON_REMOVE=1 DRY_RUN=0 >/dev/null 2>&1
 printf '#!/usr/bin/env bash\necho "run $* ROTATE_CMD=$ROTATE_CMD DRY_RUN=$DRY_RUN"\n' >"$SRC/csi-spl-orc/run"; chmod +x "$SRC/csi-spl-orc/run"
 bash "$SRC/csi-spl-orc/src/bash/scripts/dispatch-rotate-cron.sh" --heal >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 ]] && grep -q 'run -a do_spl_dispatch_rotate ROTATE_CMD=heal DRY_RUN=0' "$T/o" && grep -q 'START dispatcher heal' "$T/o" &&
-  pass "10. the cron script --heal runs ROTATE_CMD=heal DRY_RUN=0" || fail "10. --heal: rc=$rc $(cat "$T/o")"
+  grep -A2 'ROTATE_CMD=heal' "$T/o" | grep 'run -a do_spl_dispatch_rotate ROTATE_CMD=age DRY_RUN=0' >/dev/null &&
+  pass "10. the cron script --heal runs ROTATE_CMD=heal DRY_RUN=0, then ROTATE_CMD=age" || fail "10. --heal: rc=$rc $(cat "$T/o")"
 bash "$SRC/csi-spl-orc/src/bash/scripts/dispatch-rotate-cron.sh" >"$T/o" 2>&1
-grep -q 'ROTATE_CMD=auto DRY_RUN=0' "$T/o" && pass "10. ... and without it the rotation (ROTATE_CMD=auto)" || fail "10. auto: $(cat "$T/o")"
+grep -q 'ROTATE_CMD=auto DRY_RUN=0' "$T/o" && ! grep -q 'ROTATE_CMD=age' "$T/o" && pass "10. ... and without it the rotation (ROTATE_CMD=auto)" || fail "10. auto: $(cat "$T/o")"
 ROTATE_CRON_TOOLS=no-such-tool-x bash "$SRC/csi-spl-orc/src/bash/scripts/dispatch-rotate-cron.sh" --check-tools >"$T/o" 2>&1
 [[ $? -eq 3 ]] && grep -q 'no-such-tool-x' "$T/o" && pass "10. the cron script names a missing tool (exit 3)" || fail "10. tools: $(cat "$T/o")"
 
@@ -624,7 +644,7 @@ act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
   pass "12. the fleet lease on another machine: RELEASE SKIP standby, the ctx ends DONE" || fail "12. standby rc=$rc phase=$(ctx ROTATE_PHASE) $(cat "$T/o")"
 ! grep -qE '^do_spl_(ask_put|desk_reply) ' "$T/run.log" 2>/dev/null && ! grep -q 'ALERT' "$T/o" && ! grep -q 'ROTATION DONE' "$T/send.log" 2>/dev/null &&
   ! grep -q REFRESH "$T/o" && pass "12. ... no ask, no owner DM, no refresh, no DONE note" || fail "12. alerted: $(cat "$T/run.log" "$T/o" 2>&1)"
-act DRY_RUN=0 >"$T/o" 2>&1
+act DRY_RUN=0 ROTATE_DISPATCH_MIN_AGE=99999 >"$T/o" 2>&1
 ! grep -q RESUME "$T/o" && ! grep -q ALERT "$T/o" && pass "12. ... and the next run does not RESUME or alert again" || fail "12. resumed: $(cat "$T/o")"
 # control: the lease on THIS machine with the wrong holder still FAILs, and
 # the alert names the new pid, never "old session kept" for a retired one
@@ -853,14 +873,14 @@ act DRY_RUN=0 "${V18[@]}" ROTATE_ROLE_VENDOR=grok ROTATE_GROK_LIMIT_FRESH=-1 >"$
   pass "19. control: the guard picks grok again -> no replacement, the reason in rotate.log" || fail "19. same vendor rc=$rc: $(cat "$T/o")"
 # control: a verdict older than the seat's process (pid 102 is 2 h old)
 sb; touch -d '3 hours ago' "$D/wd/ctx.1/g-002/out.s2"
-act DRY_RUN=0 "${V18[@]}" ROTATE_ROLE_VENDOR= >"$T/o" 2>&1
+act DRY_RUN=0 "${V18[@]}" ROTATE_ROLE_VENDOR= ROTATE_DISPATCH_MIN_AGE=99999 >"$T/o" 2>&1
 grep -q ' GATE SKIP standby (dispatch lease: g-002@sat)' "$T/o" && [[ ! -e "$T/spawn.log" ]] && grep -qx 'LEASE_MASTER=g-002' "$D/lease.conf" &&
   pass "19. control: a verdict older than the seat's process -> GATE SKIP standby" || fail "19. stale: $(cat "$T/o")"
 # control: healthy seats on the standby box
 sb; : >"$D/wd/ctx.1/g-002/out.s2"
-act DRY_RUN=0 "${V18[@]}" ROTATE_ROLE_VENDOR= >"$T/o" 2>&1
+act DRY_RUN=0 "${V18[@]}" ROTATE_ROLE_VENDOR= ROTATE_DISPATCH_MIN_AGE=99999 >"$T/o" 2>&1
 grep -q ' GATE SKIP standby (dispatch lease: g-002@sat)' "$T/o" && [[ ! -e "$T/spawn.log" ]] && ! grep -q STANDBY "$T/o" &&
-  pass "19. control: healthy standby seats -> GATE SKIP standby (FR-044)" || fail "19. healthy: $(cat "$T/o")"
+  pass "19. control: healthy standby seats under ROTATE_DISPATCH_MIN_AGE -> GATE SKIP standby (FR-044)" || fail "19. healthy: $(cat "$T/o")"
 # SPL-1869 (owner t1 e799211c, answer A): claude seats under
 # ROTATE_ROLE_VENDOR=claude, c-002 on its limit, grok able: the grok standby
 # replaces it; control: ROTATE_GROK_STANDBY=0 = claude again, no replacement
@@ -1009,7 +1029,7 @@ kill "$mover" 2>/dev/null; wait "$mover" 2>/dev/null
   pass "23. (B) the lease on another box during HOLD: HOLD SKIP standby, no hold left, nothing spawned" || fail "23. (B) rc=$rc $(cat "$T/o")"
 ! grep -q '^do_spl_ask_put\|^do_spl_fleet_notice' "$T/run.log" 2>/dev/null &&
   pass "23. (B) ... no ask, no ops notice" || fail "23. (B) alerted: $(cat "$T/run.log" 2>&1)"
-act DRY_RUN=0 >"$T/o" 2>&1
+act DRY_RUN=0 ROTATE_DISPATCH_MIN_AGE=99999 >"$T/o" 2>&1
 ! grep -qE ' (RESUME|FAIL) ' "$T/o" && grep -q ' GATE SKIP standby (dispatch lease: c-902@box-main)' "$T/o" &&
   pass "23. (B) ... the next run gates afresh (no RESUME of the skipped hold)" || fail "23. (B) next run: $(cat "$T/o")"
 # CONTROL: the lease never moves (stays on this box) = FAIL HOLD + ask, as before
@@ -1112,6 +1132,66 @@ act ROTATE_ROLE_VENDOR= >"$T/o" 2>&1
 grep -q " SPAWN PLAN rename %2 .*; $T/bin/spawn claude c-902 " "$T/o" && [[ ! -e "$T/mix.log" ]] &&
   pass "26. no ROTATE_ROLE_VENDOR: claude stays the dispatcher, lane-mix not asked" || fail "26. default: $(grep 'SPAWN PLAN' "$T/o")"
 ! grep -q ERRTRAP "$T/o" && pass "26. no stray failing command under the ERR trap" || fail "26. ERRTRAP: $(grep ERRTRAP "$T/o")"
+
+# --- 27. SPL-4795: the 30-min rule refreshes the seats of a standby box ---------------------------
+sbr() {
+  world; echo 'LEASE_FLEET=main' >>"$D/lease.conf"; echo "c-902@sat $(date +%s)" >"$D/lease"
+  cp "$D/lease" "$T/lease.before"; cp "$D/lease.conf" "$T/conf.before"
+  mkdir -p "$S/c-903/handoff.d"; echo 'next: finish the t1 relay' >"$S/c-903/handoff.d/next.md"
+}
+sbr; act >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -e "$T/spawn.log" && ! -e "$D/rotate.log" && -d "$T/proc/102" && -d "$T/proc/103" ]] &&
+  grep -q -- '-master STANDBY PLAN refresh c-902 (claude, pid 102, 7200s old >= 1200s, pane %2): a fresh claude session as c-902; the dispatch lease stays c-902@sat' "$T/o" &&
+  grep -q -- '-failover STANDBY PLAN refresh c-903 (claude, pid 103, 7200s old >= 1200s, pane %3)' "$T/o" &&
+  pass "27. dry run: both standby seats planned, nothing spawned or logged" || fail "27. dry rc=$rc: $(cat "$T/o")"
+sbr; printf 'working on the t1 relay\n✻ Cogitating (12s · esc to interrupt)\n' >"$T/tmux/screen.%3"
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+mrid="$(awk '$3 == "STANDBY" && $4 == "OK" && $2 ~ /-master$/ {print $2}' "$D/rotate.log" | sed -n 1p)"; frid="${mrid%-master}-failover"
+[[ $rc -eq 0 && -n "$mrid" ]] && grep -q "^spawn claude c-902 " "$T/spawn.log" && grep -q "^spawn claude c-903 " "$T/spawn.log" &&
+  [[ -d "$T/proc/2902" && -d "$T/proc/2903" && ! -d "$T/proc/102" && ! -d "$T/proc/103" ]] &&
+  grep -q " $mrid DONE OK standby master seat refreshed: c-902 pid 102 -> 2902; the dispatch lease stays c-902@sat" "$D/rotate.log" &&
+  grep -q " $frid DONE OK standby failover seat refreshed: c-903 pid 103 -> 2903; the dispatch lease stays c-902@sat" "$D/rotate.log" &&
+  [[ "$(ctx ROTATE_PHASE)" == DONE ]] &&
+  pass "27. lease on sat, seats 2 h old: c-902 and c-903 get fresh sessions under their own ids ($mrid)" ||
+  fail "27. refresh rc=$rc: $(cat "$T/o") $(cat "$T/ack.out" 2>/dev/null)"
+grep -q " $frid QUIESCE WAIT busy-rotated" "$D/rotate.log" &&
+  pass "27. a busy seat is rotated after the grace, and that is logged (QUIESCE WAIT busy-rotated)" || fail "27. busy: $(grep QUIESCE "$D/rotate.log")"
+cmp -s "$D/lease" "$T/lease.before" && cmp -s "$D/lease.conf" "$T/conf.before" && [[ ! -e "$D/rotate.hold" ]] &&
+  ! grep -q 'dispatch-lease' "$T/send.log" && ! grep -qE " (HOLD|RELEASE OK|REFRESH|SWITCH) " "$D/rotate.log" &&
+  [[ "$(cat "$S/c-903/handoff.d/next.md")" == 'next: finish the t1 relay' ]] &&
+  pass "27. the lease and lease.conf unchanged, no hold, no lease note, no seat switch, handoff.d/next.md kept" ||
+  fail "27. lease: $(cat "$D/lease") conf: $(diff "$T/conf.before" "$D/lease.conf"); $(grep -E 'HOLD|RELEASE|REFRESH|SWITCH' "$D/rotate.log")"
+act DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 ]] && grep -q ' GATE SKIP standby (dispatch lease: c-902@sat): no seat due (c-902 [0-9]*s c-903 [0-9]*s; < 1200s)' "$T/o" &&
+  [[ "$(grep -c '^spawn ' "$T/spawn.log")" == 2 ]] &&
+  pass "27. control: the next run with fresh seats -> GATE SKIP standby, no seat due" || fail "27. young rc=$rc: $(cat "$T/o")"
+! grep -q ERRTRAP "$T/o" "$T/ack.out" && pass "27. no stray failing command under the ERR trap" || fail "27. ERRTRAP: $(grep ERRTRAP "$T/o" "$T/ack.out")"
+
+# --- 28. SPL-4795: ROTATE_CMD=age reports a dispatcher past 30 min + grace, once ------------------
+nage() { local n; n="$(grep -c 'DISPATCHER AGE' "$T/send.log" 2>/dev/null)"; echo "${n:-0}"; }
+world; act ROTATE_CMD=age >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 3 && "$(nage)" == 0 ]] && grep -qx 'SEAT c-902@box-desk master pid 102 7200s OLD' "$T/o" && grep -qx 'SEAT c-903@box-desk failover pid 103 7200s OLD' "$T/o" &&
+  pass "28. dry run: one SEAT line per seat, OLD past 2700s, rc 3, no note" || fail "28. dry rc=$rc: $(cat "$T/o")"
+act ROTATE_CMD=age DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+act ROTATE_CMD=age DRY_RUN=0 >/dev/null 2>&1
+[[ $rc -eq 3 && "$(nage)" == 1 ]] && grep -q 'send c-900 -> c-900 note dispatch-rotate .*DISPATCHER AGE on box-desk: older than 2700s (30 min + grace, SPL-4795): c-902 pid 102 120 min c-903 pid 103 120 min' "$T/send.log" &&
+  pass "28. two runs past the limit: ONE note to the orchestrator naming both seats" || fail "28. note rc=$rc n=$(nage): $(cat "$T/send.log" 2>/dev/null)"
+rm -rf "$T/proc/102" "$T/proc/103"; "$T/bin/proc" 102 c-902 600; "$T/bin/proc" 103 c-903 1700
+act ROTATE_CMD=age DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && "$(nage)" == 1 ]] && grep -qx 'SEAT c-902@box-desk master pid 102 600s OK' "$T/o" && grep -qx 'SEAT c-903@box-desk failover pid 103 1700s OK' "$T/o" &&
+  ! ls "$D"/rotate.dispatch.age.told.* >/dev/null 2>&1 &&
+  pass "28. seats under the limit: OK, rc 0, the mark cleared" || fail "28. young rc=$rc: $(cat "$T/o")"
+rm -rf "$T/proc/103"; act ROTATE_CMD=age DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 ]] && grep -qx 'SEAT c-903@box-desk failover pid - -s DOWN' "$T/o" &&
+  pass "28. a seat with no process: DOWN (the heal's to start)" || fail "28. down rc=$rc: $(cat "$T/o")"
+world; printf 'ROTATE_RID=20261104T1145Z-master\nROTATE_PHASE=ACK\n' >"$D/rotate.dispatch.ctx"
+act ROTATE_CMD=age DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 3 && "$(nage)" == 0 ]] && grep -q '^AGE WAIT rotation 20261104T1145Z-master in flight at ACK: no note' "$T/o" &&
+  pass "28. control: a rotation in flight -> AGE WAIT, no note" || fail "28. in flight rc=$rc n=$(nage): $(cat "$T/o")"
+act ROTATE_CMD=age ROTATE_DISPATCH_MAX_AGE=x >"$T/o" 2>&1; rc=$?
+[[ $rc -ne 0 ]] && grep -q 'FATAL ROTATE_DISPATCH_MAX_AGE must be a whole number' "$T/o" &&
+  pass "28. ROTATE_DISPATCH_MAX_AGE=x refused" || fail "28. knob rc=$rc: $(cat "$T/o")"
+! grep -q ERRTRAP "$T/o" && pass "28. no stray failing command under the ERR trap" || fail "28. ERRTRAP: $(grep ERRTRAP "$T/o")"
 
 echo
 (( fails == 0 )) && { echo "dispatch-rotate: all passed"; exit 0; }

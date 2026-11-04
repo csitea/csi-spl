@@ -20,6 +20,7 @@ master gives up its lease).
 | R4 | "the new instances should be started with auto mode on and dangerously skip permissions" | FR-060..FR-063 |
 | R5 | "this should be scripted as much as possible - it should be mechanical - and not strong decision making requiring tokens" | FR-001, FR-005, FR-040, FR-070..FR-074 |
 | R6 | standing rules: agents run as the agent user only (`SPOOL_AGENT_USER`); one agent = one small task; `<ID>@<box>` naming, CLE-001/002/003 reserved per box (058); a multi-machine fleet (the home box + `sat`) under ONE fleet lease (orch + dispatch roles, CLE-77911) | FR-006, FR-007, FR-044, FR-045, section 7 |
+| R7 | "I need not only you to restart, but to make sure that no dispatcher would run longer than 30 min without restart" (HUM-10, 2026-11-04 ~11:20Z, SPL-4795) | FR-044, FR-046, FR-050 |
 
 The owner answered four design questions through CLE-001 (2026-10-02
 ~04:30Z, msg `db90b283`). These answers are binding:
@@ -266,8 +267,11 @@ is never rewritten to swap `LEASE_MASTER` and `LEASE_FAILOVER`:
 - **FR-020** PRECHECK. Each failure is a `SKIP`, exit 0:
   - the switch is on;
   - `lease.conf` names both ids;
-  - this machine holds the dispatch lease (FR-044);
-  - `rotate.dispatch.last` is older than `ROTATE_MIN_AGE`.
+  - this machine holds the dispatch lease (FR-044; a standby machine
+    refreshes its seats in place instead, FR-046);
+  - `rotate.dispatch.last` is older than half `ROTATE_DISPATCH_MIN_AGE`
+    (1200 s), and the master's process at least `ROTATE_DISPATCH_MIN_AGE`
+    old (FR-046; the orch rotation keeps `ROTATE_MIN_AGE`, 3300 s).
 
   If an orch rotation of this machine is between SPAWN and DONE, the run
   waits up to `ROTATE_SEQ_WAIT` (600 s) for it, then logs `SKIP orch-busy`
@@ -395,19 +399,51 @@ is never rewritten to swap `LEASE_MASTER` and `LEASE_FAILOVER`:
 
 ### 4.5 Two machines
 
-- **FR-044** Each machine rotates only its OWN trio, and only a role whose
-  fleet lease this machine holds. A standby machine's sessions do almost no
-  work, so they are not rotated (`SKIP standby`). A role whose lease returns
-  to this machine is rotated at its next slot, if it is old enough.
-  One exception (SPL-1777): on a standby machine, the dispatch rotation and its
+- **FR-044** Each machine rotates only its OWN trio. Only the machine that
+  holds a role's fleet lease rotates it THROUGH the lease (HOLD, RELEASE,
+  REFRESH). A standby machine's orchestrator is not rotated (`SKIP standby`).
+  A standby machine's dispatch seats ARE restarted, in place and without the
+  lease (FR-046, owner 2026-11-04): until then every standby run logged
+  `GATE SKIP standby` and the standby seats on box 1 ran 16 and 21 hours
+  (n=6 runs, 06:15Z..11:15Z). A role whose lease returns to this machine is
+  rotated at its next slot, if it is old enough.
+  The vendor swap (SPL-1777): on a standby machine, the dispatch rotation and its
   heal cron replace a dispatch seat whose vendor is out. That means the seat's
   newest watchdog verdict is `S2 kind=limit` or `kind=auth`, and the verdict is
   newer than the seat's process. The replacement is the guard's vendor
   (`spl_rotate_role_vendor`). It goes through the rotation's own QUIESCE ..
   CLOSE and seat switch, with no hold, release or lease note: a standby machine
-  never writes the lease file. A healthy seat still reads `GATE SKIP standby`.
+  never writes the lease file. A healthy seat is left to FR-046.
   If the guard picks the same dead vendor, nothing is replaced and the log says
   why.
+- **FR-046** The 30-min rule (owner HUM-10, 2026-11-04, SPL-4795: "I need
+  not only you to restart, but to make sure that no dispatcher would run
+  longer than 30 min without restart"). No dispatch seat, lease holder or
+  standby, on any machine, runs longer than 30 min without a fresh session:
+  - the dispatch rotation runs at `:15` and `:45` (FR-050), and a seat is
+    due once its process is `ROTATE_DISPATCH_MIN_AGE` (1200 s) old, so a
+    seat rotated at `:17` is due again at `:45`;
+  - on a standby machine (`spl_disp_standby_refresh`), each due seat gets a
+    fresh session of its OWN vendor under its OWN id: the rotation's
+    QUIESCE .. CLOSE, no HOLD, RELEASE, REFRESH or seat switch, never a write
+    of the lease file or `lease.conf`. The seat's spool dir, so its
+    `handoff.d/next.md`, stays. Log: `STANDBY OK refresh <id>`, then
+    `DONE OK standby <role> seat refreshed: <id> pid <old> -> <new>`;
+    nothing due = `GATE SKIP standby (dispatch lease: <holder>): no seat due`;
+  - a seat busy at the trigger is interrupted after `ROTATE_IDLE_GRACE` +
+    `ROTATE_ESC_WAIT` and rotated anyway (owner D1), logged
+    `QUIESCE WAIT busy-rotated`; a seat stalled on a limit or login screen
+    is left to the swap (FR-044) and named in the skip line;
+  - the check: `ROTATE_CMD=age ./run -a do_spl_dispatch_rotate` prints one
+    `SEAT <id>@<box> <role> pid <pid> <age>s OK|OLD|DOWN` line per seat. A
+    seat older than `ROTATE_DISPATCH_MAX_AGE` (1800 s) +
+    `ROTATE_DISPATCH_AGE_GRACE` (900 s, a rotation's own run time) is `OLD`
+    (rc 3) and raises ONE note to the orchestrator per set of stale pids,
+    not one per run; a rotation in flight gives `AGE WAIT`, no note. The
+    heal cron (every 3 min, every machine) runs it after the heal.
+
+  Test: `dispatch-rotate.tst.sh` cases 2, 10, 27 and 28 (red control: the
+  same cases on the code before SPL-4795 fail: standby seats untouched).
 - **FR-045** Rotation never writes the fleet row across machines. The HOLD
   moves the holder only between `<M>@<box>` and `<F>@<box>` of one machine.
   If the fleet loop flips a role to the other machine mid-rotation, the
@@ -422,7 +458,7 @@ is never rewritten to swap `LEASE_MASTER` and `LEASE_FAILOVER`:
   | schedule | action | tag |
   |---|---|---|
   | `5 * * * *` | `do_spl_orch_rotate DRY_RUN=0` | `# csi-spl:orch-rotate` |
-  | `15 * * * *` | `do_spl_dispatch_rotate DRY_RUN=0` | `# csi-spl:dispatch-rotate` |
+  | `15,45 * * * *` | `do_spl_dispatch_rotate DRY_RUN=0` (FR-046; `ROTATE_CRON_EVERY=60` = `15` only) | `# csi-spl:dispatch-rotate` |
 
   The installers are `do_spl_orch_rotate_install_cron` and
   `do_spl_dispatch_rotate_install_cron`: `DRY_RUN=1` prints the crontab
@@ -435,7 +471,8 @@ is never rewritten to swap `LEASE_MASTER` and `LEASE_FAILOVER`:
 - **FR-052** No rotation within `ROTATE_BOOT_GRACE` (900 s) of boot, or of a
   session restore (the restore marker), while the panes are still churning.
 - **FR-053** The cron lines are installed on every machine. FR-044 turns a
-  standby machine's runs into no-ops.
+  standby machine's orch runs into no-ops; its dispatch runs refresh its
+  seats in place (FR-046).
 
 ### 4.7 Launch flags (owner R4)
 

@@ -14,7 +14,7 @@
 # @description   GATE     switch, lease.conf, this
 # @description            machine holds the dispatch lease (FR-044; a standby box only replaces a
 # @description            seat whose vendor is out, watchdog S2 limit/auth: SPL-1777), boot grace, the last rotation and
-# @description            the master at least ROTATE_MIN_AGE old, no orch
+# @description            the master at least ROTATE_DISPATCH_MIN_AGE old, no orch
 # @description            rotation in flight (FR-051), not stalled (FR-022), the failover
 # @description            able to take the lease (SPL-1890: no fresh watchdog HIT, no stall),
 # @description            the hub reachable (no fleet.dispatch.hub-down younger than
@@ -47,7 +47,17 @@
 # @description ROTATE_CMD=heal runs the HEAL step alone, no rotation, every few
 # @description minutes from cron (dispatch-rotate-cron.sh --heal): a dispatcher
 # @description dead at :23 is back in minutes, not at the next :15.
-# @param ROTATE_CMD (optional) - auto (default), heal (HEAL only), ack (the new session's ack, with ROTATE_ID), abort (FR-091), handoff (preview)
+# @description The 30-min rule (owner 2026-11-04, SPL-4795): the cron runs at :15
+# @description and :45, and on a STANDBY box (another machine holds the lease)
+# @description each seat at least ROTATE_DISPATCH_MIN_AGE old gets a fresh
+# @description session of its own vendor under its own id, QUIESCE .. CLOSE, no
+# @description hold and no lease write (spl_disp_standby_refresh). ROTATE_CMD=age
+# @description prints one line per seat and sends one note per stale set when a
+# @description seat is older than ROTATE_DISPATCH_MAX_AGE + ROTATE_DISPATCH_AGE_GRACE.
+# @param ROTATE_CMD (optional) - auto (default), heal (HEAL only), age (the seat age check), ack (the new session's ack, with ROTATE_ID), abort (FR-091), handoff (preview)
+# @param ROTATE_DISPATCH_MIN_AGE (optional) - s a dispatcher seat runs before a rotation replaces it, default 1200 (the :15/:45 cron keeps seats under 30 min)
+# @param ROTATE_DISPATCH_MAX_AGE (optional) - s, the owner's 30 min: ROTATE_CMD=age reports a seat older than this + the grace, default 1800
+# @param ROTATE_DISPATCH_AGE_GRACE (optional) - s on top of the max age (a rotation's own run time), default 900
 # @param ROTATE_HEAL (optional) - 0 turns ROTATE_CMD=heal off (env > rotate.conf), default 1
 # @param ROTATE_HEAL_CONFIRM (optional) - s a dispatcher must stay dead before ROTATE_CMD=heal spawns it, default 20
 # @param ROTATE_ID (optional) - with ROTATE_CMD=ack: the rotation id from the seed
@@ -69,6 +79,7 @@
 # @example DRY_RUN=0 ./run -a do_spl_dispatch_rotate
 # @example ROTATE_CMD=abort DRY_RUN=0 ./run -a do_spl_dispatch_rotate
 # @example ROTATE_CMD=heal DRY_RUN=0 ./run -a do_spl_dispatch_rotate
+# @example ROTATE_CMD=age ./run -a do_spl_dispatch_rotate
 #------------------------------------------------------------------------------
 declare -F spl_rotate_conf >/dev/null ||
   source "$(dirname "${BASH_SOURCE[0]}")/spl-rotate-lib.func.sh"
@@ -81,16 +92,22 @@ do_spl_dispatch_rotate() {
   # the old and the new session may be different vendors (ROTATE_ROLE_VENDOR)
   ROTATE_CLI_KINDS="${ROTATE_CLI_KINDS:-claude grok mistral agy}"
   : "${ROTATE_PROMOTE_WAIT:=240}" "${ROTATE_SETTLE:=120}" "${ROTATE_SEQ_WAIT:=600}"
+  : "${ROTATE_DISPATCH_MIN_AGE:=1200}" "${ROTATE_DISPATCH_MAX_AGE:=1800}" "${ROTATE_DISPATCH_AGE_GRACE:=900}"
+  local k
+  for k in ROTATE_DISPATCH_MIN_AGE ROTATE_DISPATCH_MAX_AGE ROTATE_DISPATCH_AGE_GRACE; do
+    [[ "${!k}" =~ ^[0-9]+$ ]] || { do_log "FATAL $k must be a whole number, got: '${!k}'"; return 1; }
+  done
   spl_is_agent_id "${LEASE_MASTER:-}" && spl_is_agent_id "${LEASE_FAILOVER:-}" &&
      [[ "$LEASE_MASTER" != "$LEASE_FAILOVER" ]] ||
     { spl_rotate_log - GATE SKIP "no master + failover pair in $LEASE_CONF"; return 0; }
   case "${ROTATE_CMD:-auto}" in
     auto)    spl_disp_rotate_auto ;;
     heal)    spl_disp_heal_only ;;
+    age)     spl_disp_age_check ;;
     ack)     spl_rotate_ack_send "${ROTATE_ID##*-}" "$(spl_rotate_role_id "${ROTATE_ID##*-}")" ;;
     abort)   spl_disp_rotate_abort ;;
     handoff) ROTATE_QUIESCE="not run (preview)" spl_rotate_handoff master "$LEASE_MASTER" preview - ;;
-    *) do_log "FATAL ROTATE_CMD must be auto, heal, ack, abort or handoff, got: '${ROTATE_CMD:-}'"; return 1 ;;
+    *) do_log "FATAL ROTATE_CMD must be auto, heal, age, ack, abort or handoff, got: '${ROTATE_CMD:-}'"; return 1 ;;
   esac
 }
 
@@ -107,14 +124,16 @@ spl_dispatch_rotate_on() {
 }
 
 # The boot and young gates of spl_disp_rotate_auto (ROTATE_FORCE=1 skips
-# both): 1 = GATE SKIP logged for rotation $1, no rotation this run.
+# both): 1 = GATE SKIP logged for rotation $1, no rotation this run. The
+# last rotation counts as young for half ROTATE_DISPATCH_MIN_AGE only: a
+# rotation that ended late (a long ack) must not skip the next :15/:45 run.
 spl_disp_rotate_age_gates() {
   local rid="$1" last
   if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( $(spl_rotate_uptime) < ROTATE_BOOT_GRACE )); then
     spl_rotate_log "$rid" GATE SKIP "boot ($(spl_rotate_uptime)s < ${ROTATE_BOOT_GRACE}s)"; return 1
   fi
   last="$(cat "$LEASE_DIR/rotate.dispatch.last" 2>/dev/null || true)"; [[ "$last" =~ ^[0-9]+$ ]] || last=0
-  if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( $(date +%s) - last < ROTATE_MIN_AGE )); then
+  if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( $(date +%s) - last < ROTATE_DISPATCH_MIN_AGE / 2 )); then
     spl_rotate_log "$rid" GATE SKIP "young: the last rotation was $(( $(date +%s) - last ))s ago"; return 1
   fi
 }
@@ -127,13 +146,14 @@ spl_disp_rotate_auto() {
   spl_disp_rotate_left "$rid" || return $?
   [[ "$ROTATE_GO" == 1 ]] || return 0
   spl_dispatch_rotate_on || { spl_rotate_log "$rid" GATE SKIP "disabled (ROTATE=$ROTATE ROTATE_DISPATCH=$ROTATE_DISPATCH)"; return 0; }
-  # FR-044: only the machine that holds the dispatch lease rotates its pair;
-  # a standby seat whose vendor is out is replaced (SPL-1777)
+  # FR-044: only the machine that holds the dispatch lease rotates its pair
+  # through the lease; a standby seat whose vendor is out is replaced
+  # (SPL-1777), any other standby seat is refreshed in place (SPL-4795)
   spl_lease_read
   if spl_lease_remote; then
     local src=0; spl_disp_standby_swap "$rid" || src=$?
     (( src == 3 )) || return "$src"
-    spl_rotate_log "$rid" GATE SKIP "standby (dispatch lease: $LH)"; return 0
+    spl_disp_standby_refresh "$rid"; return $?
   fi
   spl_disp_rotate_age_gates "$rid" || return 0
   spl_disp_wait_orch "$rid" || return 0
@@ -151,8 +171,8 @@ spl_disp_rotate_auto() {
   fi
   mpid="${mp[0]}"; fpid="${fp[0]}"
   age="$(spl_rotate_age "$mpid")"; age="${age:-0}"
-  if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( age < ROTATE_MIN_AGE )); then
-    spl_rotate_log "$rid" GATE SKIP "young: $m pid $mpid is ${age}s old (< $ROTATE_MIN_AGE)"; return 0
+  if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( age < ROTATE_DISPATCH_MIN_AGE )); then
+    spl_rotate_log "$rid" GATE SKIP "young: $m pid $mpid is ${age}s old (< $ROTATE_DISPATCH_MIN_AGE)"; return 0
   fi
   pane="$(spl_rotate_pane_of_pid "$mpid")"
   [[ -n "$pane" ]] || { spl_rotate_log "$rid" GATE SKIP "absent: $m pid $mpid is in no tmux pane"; return 0; }
@@ -381,6 +401,92 @@ spl_disp_standby_one() {
   fi
   spl_agent_id_unlock "$id"
   return "$rc"
+}
+
+# ---- the standby refresh and the age check (SPL-4795) ----------------------------
+
+# spl_disp_standby_refresh RID: the 30-min rule on a standby box (owner
+# 2026-11-04: "no dispatcher would run longer than 30 min without restart";
+# the standby seats on box 1 ran 16 and 21 h, every run GATE SKIP standby). Each
+# seat at least ROTATE_DISPATCH_MIN_AGE old gets a fresh session of its own
+# vendor under its own id (no seat switch, so its spool dir and
+# handoff.d/ stay), through the rotation's QUIESCE .. CLOSE: a busy seat is
+# interrupted after the grace and rotated anyway, QUIESCE WAIT busy-rotated.
+# No HOLD, RELEASE, REFRESH or lease write. Nothing due = GATE SKIP standby.
+spl_disp_standby_refresh() {
+  local base="${1%-master}" role id pid age pane why due=0 young="" rc=0
+  if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( $(spl_rotate_uptime) < ROTATE_BOOT_GRACE )); then
+    spl_rotate_log "$1" GATE SKIP "standby (dispatch lease: $LH): boot ($(spl_rotate_uptime)s < ${ROTATE_BOOT_GRACE}s)"; return 0
+  fi
+  spl_disp_wait_orch "$1" || return 0
+  for role in master failover; do
+    id="$(spl_rotate_role_id "$role")"
+    pid="$(spl_rotate_pids "$id" | sed -n 1p)"
+    [[ -n "$pid" ]] || { young+=" $id down (the heal starts it)"; continue; }
+    age="$(spl_rotate_age "$pid")"; age="${age:-0}"
+    if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( age < ROTATE_DISPATCH_MIN_AGE )); then young+=" $id ${age}s"; continue; fi
+    pane="$(spl_rotate_pane_of_pid "$pid")"
+    [[ -n "$pane" ]] || { young+=" $id absent from tmux"; continue; }
+    why="$(spl_rotate_stalled "$pane")"
+    [[ -z "$why" ]] || { young+=" $id stalled ($why)"; continue; }
+    due=$((due + 1))
+    spl_disp_standby_refresh_one "$base-$role" "$role" "$id" "$pid" "$pane" "$age" || rc=$?
+  done
+  (( due )) || spl_rotate_log "$1" GATE SKIP "standby (dispatch lease: $LH): no seat due (${young# }; < ${ROTATE_DISPATCH_MIN_AGE}s)"
+  return "$rc"
+}
+
+# spl_disp_standby_refresh_one RID ROLE ID PID PANE AGE: one seat, its own
+# vendor, its own id (spl_disp_run with ROTATE_VENDOR_FIXED=1).
+spl_disp_standby_refresh_one() {
+  local rid="$1" role="$2" id="$3" pid="$4" pane="$5" age="$6" rc=0
+  ROTATE_KIND="$(spl_disp_seat_vendor "$id")" ROTATE_VENDOR_WHY="standby refresh: the seat's own vendor"
+  ROTATE_VENDOR_AT="$(date +%s)"
+  if [[ "${DRY_RUN:-1}" == 1 ]]; then
+    spl_rotate_log "$rid" STANDBY PLAN "refresh $id ($ROTATE_KIND, pid $pid, ${age}s old >= ${ROTATE_DISPATCH_MIN_AGE}s, pane $pane): a fresh $ROTATE_KIND session as $id; the dispatch lease stays $LH"
+    return 0
+  fi
+  spl_disp_id_lock "$id" "$rid" || { spl_rotate_log "$rid" STANDBY SKIP "id lock: $SPL_ID_LOCK_WHY"; return "$DISP_IDL"; }
+  spl_disp_begin "$role" "$rid" "$pid" "$pane"
+  spl_disp_step STANDBY OK "refresh $id ($ROTATE_KIND, pid $pid, ${age}s old, pane $pane); the dispatch lease is $LH: no hold"
+  if ROTATE_ROLE_ID_FOLLOWS_VENDOR=0 ROTATE_VENDOR_FIXED=1 spl_disp_run; then
+    spl_disp_step DONE OK "standby $role seat refreshed: $id pid $pid -> $ROTATE_NEW_PID; the dispatch lease stays $LH"
+  else
+    rc=1
+  fi
+  spl_agent_id_unlock "$id"
+  return "$rc"
+}
+
+# spl_disp_age_check (ROTATE_CMD=age): one line per dispatcher seat of this
+# box, "SEAT <id>@<box> <role> pid <pid> <age>s OK|OLD|DOWN", and, when a
+# seat is older than ROTATE_DISPATCH_MAX_AGE + ROTATE_DISPATCH_AGE_GRACE, ONE
+# note to the orchestrator per stale set of pids (a mark under the lease
+# dir; the marks go once every seat is young again). rc 3 = a seat is OLD.
+spl_disp_age_check() {
+  local role id pid age lim=$(( ROTATE_DISPATCH_MAX_AGE + ROTATE_DISPATCH_AGE_GRACE )) old="" key="" st
+  for role in master failover; do
+    id="$(spl_rotate_role_id "$role")"
+    pid="$(spl_rotate_pids "$id" | sed -n 1p)"
+    if [[ -z "$pid" ]]; then printf 'SEAT %s@%s %s pid - -s DOWN
+' "$id" "$ROTATE_BOX" "$role"; continue; fi
+    age="$(spl_rotate_age "$pid")"; age="${age:-0}"; st=OK
+    if (( age > lim )); then st=OLD; old+=" $id pid $pid $(( age / 60 )) min"; key+="${key:+_}$id.$pid"; fi
+    printf 'SEAT %s@%s %s pid %s %ss %s
+' "$id" "$ROTATE_BOX" "$role" "$pid" "$age" "$st"
+  done
+  if [[ -z "$old" ]]; then rm -f "$LEASE_DIR"/rotate.dispatch.age.told.* 2>/dev/null || true; return 0; fi
+  # a rotation in flight is replacing a seat right now: no note for it
+  if spl_rotate_ctx_load dispatch && spl_disp_in_flight "$ROTATE_PHASE"; then
+    echo "AGE WAIT rotation $ROTATE_RID in flight at $ROTATE_PHASE: no note"; return 3
+  fi
+  local mark="$LEASE_DIR/rotate.dispatch.age.told.$key"
+  if [[ ! -e "$mark" && "${DRY_RUN:-1}" == 0 ]]; then
+    rm -f "$LEASE_DIR"/rotate.dispatch.age.told.* 2>/dev/null || true
+    touch "$mark"
+    spl_rotate_note "$LEASE_ORCH" dispatch-rotate       "DISPATCHER AGE on $ROTATE_BOX: older than ${lim}s (30 min + grace, SPL-4795):$old. The :15/:45 rotation did not refresh it; read $LEASE_DIR/rotate.log"
+  fi
+  return 3
 }
 
 # spl_disp_id_lock ID RID: the id lock of spec 102 4.2 on the ONE dispatcher
@@ -847,7 +953,7 @@ spl_disp_refresh() {
   fpid="$(spl_rotate_pids "$f" | sed -n 1p)"
   [[ -n "$fpid" ]] || { spl_rotate_log "$rid" REFRESH SKIP "$f has no live process: the next run heals it"; return 0; }
   age="$(spl_rotate_age "$fpid")"; age="${age:-0}"
-  if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( age < ROTATE_MIN_AGE )); then
+  if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( age < ROTATE_DISPATCH_MIN_AGE )); then
     spl_rotate_log "$rid" REFRESH SKIP "young: $f pid $fpid is ${age}s old"; return 0
   fi
   pane="$(spl_rotate_pane_of_pid "$fpid")"

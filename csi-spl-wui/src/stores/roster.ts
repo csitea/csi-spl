@@ -63,14 +63,7 @@ export const useRosterStore = defineStore('roster', () => {
     if (data.idle) idle.value = data.idle.slice()
     if (data.me) me.value = data.me
     if (Array.isArray(data.owners)) owners.value = data.owners
-    if (Array.isArray(data.humans)) {
-      const byId: Record<string, HumanDetail> = {}
-      for (const h of data.humans) {
-        const id = String(h?.human_id || '')
-        if (id) byId[id] = { owner: Boolean(h.owner), interests: String(h.interests || ''), last_seen: String(h.last_seen || '') }
-      }
-      humansDetail.value = byId
-    }
+    if (Array.isArray(data.humans)) humansDetail.value = humanDetails(data.humans)
     if (Array.isArray(data.boxes)) boxes.value = boxDetails(data.boxes)
   }
 
@@ -88,6 +81,16 @@ export const useRosterStore = defineStore('roster', () => {
 function idleLabel(idle: string[], online: string[], id: string, box?: string) {
   const label = `${id}@${box}`
   return Boolean(box) && !online.includes(label) && idle.includes(label)
+}
+
+/** view-v1 §4.1 humans[] keyed HUM-*, as the People card reads it (CLE-77794). */
+function humanDetails(list: Array<HumanDetail & { human_id?: string }>): Record<string, HumanDetail> {
+  const byId: Record<string, HumanDetail> = {}
+  for (const h of list) {
+    const id = String(h?.human_id || '')
+    if (id) byId[id] = { owner: Boolean(h.owner), interests: String(h.interests || ''), last_seen: String(h.last_seen || '') }
+  }
+  return byId
 }
 
 const BOX_FACT_KEYS = ['os', 'runtimes', 'system', 'network', 'agent_presence'] as const

@@ -38,21 +38,21 @@ export function useSpoolEvents() {
   let offReconnect: (() => unknown) | null = null
   let offSession: (() => void) | null = null
 
+  /** Drops the four socket frame handlers, in the order they were wired. */
+  function releaseLive() {
+    off = release(off)
+    offEdited = release(offEdited)
+    offReaction = release(offReaction)
+    offReconnect = release(offReconnect)
+  }
+
   function stop() {
     if (timer) {
       clearInterval(timer)
       timer = null
     }
-    if (off) off()
-    off = null
-    if (offEdited) offEdited()
-    offEdited = null
-    if (offReaction) offReaction()
-    offReaction = null
-    if (offReconnect) offReconnect()
-    offReconnect = null
-    if (offSession) offSession()
-    offSession = null
+    releaseLive()
+    offSession = release(offSession)
   }
 
   function start() {
@@ -82,14 +82,7 @@ export function useSpoolEvents() {
       })
     }
     function detach() {
-      if (off) off()
-      off = null
-      if (offEdited) offEdited()
-      offEdited = null
-      if (offReaction) offReaction()
-      offReaction = null
-      if (offReconnect) offReconnect()
-      offReconnect = null
+      releaseLive()
       stopHubSocket(live)
     }
     offSession = watch(() => session.state, (st) => {
@@ -100,4 +93,10 @@ export function useSpoolEvents() {
 
   onUnmounted(stop)
   return { start, stop }
+}
+
+/** Calls an unsubscribe once, if one is held; the caller stores the null back. */
+function release(fn: (() => unknown) | null): null {
+  if (fn) fn()
+  return null
 }

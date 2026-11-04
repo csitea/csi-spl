@@ -68,7 +68,7 @@ describe('the fleet-lanes body as a view', () => {
     assert.equal(laneIssuePath(v.lanes[0].originIssue), '/issues?issue=SPL-4420', 'an origin of this workspace links')
     assert.equal(laneIssuePath(v.lanes[1].originIssue), '', 'a key with no status is text')
     const page = read('src/pages/monitoring/lanes/index.vue')
-    assert.match(page, /laneIssuePath\(l\.originIssue\)/, 'the cell links through the one issue-link rule')
+    assert.match(page, /issueTo\(l\.originIssue, l\)/, 'the cell links through the one issue-link rule (laneIssueRef, SPL-4798)')
     assert.match(page, /t\(COLUMN_NAMES|col_origin_issue/, 'the header is a translation key')
   })
   it('names the agent id@box', () => {

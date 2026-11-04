@@ -3,6 +3,7 @@
  * stored page address: { kind, workspace_id, ref, day, label }.
  *
  *   msg / topic   uuid           <origin>/m/<id>, <origin>/t/<id>
+ *   topic         dispatch-<8hex> <origin>/t/<task>, a spool task (SPL-4798)
  *   issue         key, SPL-12    <origin>/issues?issue=<KEY>
  *   event         id + day       <origin>/calendar?d=<day>&event=<id>
  *   doc           path           <origin>/docs/<path>
@@ -29,6 +30,8 @@ export const NOTE_LINK_KINDS = Object.freeze(['msg', 'topic', 'issue', 'event', 
 const UUID = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
 const TYPED_RE = new RegExp(`^(msg|topic):(${UUID})$`, 'i')
 const UUID_RE = new RegExp(`^${UUID}$`, 'i')
+/* a spool dispatch task, dispatch-<topic8>: a topic of its own (SPL-4798) */
+const TASK_RE = /^dispatch-[0-9a-f]{8}$/i
 const KEY_RE = /^[A-Z][A-Z0-9]{0,9}-[1-9][0-9]{0,8}$/
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
 const CHANNEL_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/
@@ -141,7 +144,7 @@ export function noteLinkPath(link) {
   const e = encodeURIComponent
   switch (link?.kind) {
     case 'msg': return UUID_RE.test(ref) ? `/m/${ref}` : ''
-    case 'topic': return UUID_RE.test(ref) ? `/t/${ref}` : ''
+    case 'topic': return UUID_RE.test(ref) || TASK_RE.test(ref) ? `/t/${ref}` : ''
     case 'issue': return ref ? `/issues?issue=${e(ref)}` : ''
     case 'event': return ref && DAY_RE.test(String(link.day || '')) ? `/calendar?d=${e(String(link.day))}&event=${e(ref)}` : ''
     case 'doc': return validDocsPath(ref) ? '/docs/' + ref.split('/').map(e).join('/') : ''

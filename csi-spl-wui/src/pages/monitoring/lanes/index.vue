@@ -41,7 +41,13 @@
      answer sets back to All a box, vendor, state or workspace it does not
      offer: a member reads the workspace route, which sends no box, so an
      operator's link with a box shows the member's lanes, never a false
-     empty list. -->
+     empty list.
+     Id links (SPL-4798; owner HUM-10, t1 0c2d08a2, msg ea369ab0): the
+     discussion (a topic uuid, a dispatch-<topic8> task), the issue keys and
+     the origin issue link through the one `type:id` renderer
+     (composables/useLaneLinks.ts -> utils/note-links.mjs), on the workspace
+     host they belong to, at render time; `unknown` and an id with no known
+     host stay text. -->
 <template>
   <div class="monitoring-lanes" data-test="lanes-page">
     <!-- 3.16 (SPL-4730; owner HUM-10, t1 3238db2c, msg 2dd25d62): Refresh,
@@ -150,7 +156,7 @@
               <td data-test="lanes-state" :data-state="l.state">{{ stateLabel(l.state) }}</td>
               <td class="ln-cut" :title="l.scope || undefined" data-test="lanes-scope">{{ l.scope || DASH }}</td>
               <td class="ln-cut" :title="l.topicTitle || l.topicId || undefined" data-test="lanes-topic">
-                <NuxtLink v-if="laneTopicPath(l)" :to="localePath(laneTopicPath(l))" data-test="lanes-topic-link">{{ l.topicTitle }}</NuxtLink>
+                <NuxtLink v-if="topicTo(l).href" :to="toOf(topicTo(l))" data-test="lanes-topic-link">{{ l.topicTitle || l.topicId }}</NuxtLink>
                 <span v-else-if="l.topicId" class="ln-mono">{{ l.topicId }}</span>
                 <span v-else-if="l.roleSeat" class="muted" data-test="lanes-role-seat">{{ t('monitoring.lanes.role_seat') }}</span>
                 <span v-else class="muted">{{ DASH }}</span>
@@ -159,13 +165,13 @@
                 <span v-if="l.issues.length === 0 && l.roleSeat" class="muted" data-test="lanes-role-seat">{{ t('monitoring.lanes.role_seat') }}</span>
                 <span v-else-if="l.issues.length === 0" class="muted">{{ DASH }}</span>
                 <template v-for="i in l.issues" :key="i.key">
-                  <NuxtLink v-if="laneIssuePath(i)" class="ln-issue" :to="localePath(laneIssuePath(i))" :title="i.status" data-test="lanes-issue-link">{{ i.key }}</NuxtLink>
+                  <NuxtLink v-if="issueTo(i, l).href" class="ln-issue" :to="toOf(issueTo(i, l))" :title="i.status || undefined" data-test="lanes-issue-link">{{ i.key }}</NuxtLink>
                   <span v-else class="ln-issue" data-test="lanes-issue">{{ i.key }}</span>
                 </template>
               </td>
               <td data-test="lanes-origin">
                 <template v-if="l.originIssue">
-                  <NuxtLink v-if="laneIssuePath(l.originIssue)" class="ln-issue" :to="localePath(laneIssuePath(l.originIssue))" :title="l.originIssue.status" data-test="lanes-origin-link">{{ l.originIssue.key }}</NuxtLink>
+                  <NuxtLink v-if="issueTo(l.originIssue, l).href" class="ln-issue" :to="toOf(issueTo(l.originIssue, l))" :title="l.originIssue.status || undefined" data-test="lanes-origin-link">{{ l.originIssue.key }}</NuxtLink>
                   <span v-else class="ln-issue">{{ l.originIssue.key }}</span>
                 </template>
               </td>
@@ -186,18 +192,24 @@ import { useOperatorPane } from '~/stores/operator-pane'
 import { useAccessStore } from '~/stores/access'
 import { gateMe, lanesReadPlan } from '~/utils/read-gates.mjs'
 import { lagSeconds } from '~/utils/monitoring-tokens.mjs'
-import { LANE_AGES, LANE_COLUMNS, LANE_QUERY, LANES_NO_FILTER, filterLanes, fleetLanesOf, laneFilterChoices, laneIssuePath, laneName, laneTopicPath, lanesFiltered, lanesStaleLevel, minutesAgo, readLanes, sortLanes, startLanesPoll } from '~/utils/monitoring-lanes.mjs'
+import { LANE_AGES, LANE_COLUMNS, LANE_QUERY, LANES_NO_FILTER, filterLanes, fleetLanesOf, laneFilterChoices, laneIssueRef, laneName, laneTopicRef, lanesFiltered, lanesStaleLevel, minutesAgo, readLanes, sortLanes, startLanesPoll } from '~/utils/monitoring-lanes.mjs'
 import { lanesFiltersOffered, lanesStateFromQuery, lanesStateQuery, plainQuery, sameLanesQuery } from '~/utils/monitoring-lanes-url.mjs'
 import { cycleSort } from '~/utils/sheet-sort.mjs'
+import { useLaneLinks, type LaneLink } from '~/composables/useLaneLinks'
 
 type LanesApi = { getFleetLanes: (own?: boolean) => Promise<unknown> }
 type LanesView = ReturnType<typeof fleetLanesOf>
 
 const DASH = '—'
 const { t } = useI18n({ useScope: 'global' })
-const localePath = useLocalePath()
 const operator = useOperatorPane()
 const route = useRoute()
+/* SPL-4798: a row's ids as links, on the host of the workspace they belong to */
+const { pageTenant, linkOf } = useLaneLinks()
+const topicTo = (l: LanesView['lanes'][number]) => linkOf(laneTopicRef(l, pageTenant.value))
+const issueTo = (i: { key: string, status: string }, l: LanesView['lanes'][number]) => linkOf(laneIssueRef(i, l, pageTenant.value))
+/** this host: the router's path; another workspace's host: the whole address */
+const toOf = (to: LaneLink) => (to.here ? to.path : to.href)
 /* the fleet route refused this reader (403, s.own): read the workspace's own lanes */
 const lanesRead = { own: false, operatorVisible: false }
 const view = ref<LanesView | null>(null)

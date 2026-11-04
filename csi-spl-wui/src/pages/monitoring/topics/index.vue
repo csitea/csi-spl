@@ -8,7 +8,10 @@
      with its state) and its issues (SPL-n chips, linked, with their status),
      newest activity first. The rows are the Lanes answer grouped by topic
      (utils/monitoring-topics.mjs): the same routes, readers, minute poll,
-     Refresh, stale marker, sort buttons and filter row as the Lanes page. -->
+     Refresh, stale marker, sort buttons and filter row as the Lanes page.
+     Id links (SPL-4798): the discussion and the issue keys link through the
+     one `type:id` renderer (composables/useLaneLinks.ts ->
+     utils/note-links.mjs) on their workspace's host, as on Lanes. -->
 <template>
   <div class="monitoring-topics" data-test="topics-page">
     <!-- 3.16 (SPL-4730): Refresh, its age and Clear filters on the tabs'
@@ -85,7 +88,7 @@
             </tr>
             <tr v-for="r in rows" :key="r.topicId || '-'" class="tp-row" data-test="topics-row" :data-topic="r.topicId">
               <th scope="row" class="tp-cut" :title="r.topicTitle || r.topicId || undefined" data-test="topics-topic">
-                <NuxtLink v-if="laneTopicPath(r)" :to="localePath(laneTopicPath(r))" data-test="topics-topic-link">{{ r.topicTitle }}</NuxtLink>
+                <NuxtLink v-if="topicTo(r).href" :to="toOf(topicTo(r))" data-test="topics-topic-link">{{ r.topicTitle || r.topicId }}</NuxtLink>
                 <span v-else-if="r.topicId" class="tp-mono">{{ r.topicId }}</span>
                 <span v-else class="muted" data-test="topics-none">{{ t('monitoring.topics.no_topic') }}</span>
               </th>
@@ -106,7 +109,7 @@
               <td data-test="topics-issues">
                 <span v-if="r.issues.length === 0" class="muted">{{ DASH }}</span>
                 <template v-for="i in r.issues" :key="i.key">
-                  <NuxtLink v-if="laneIssuePath(i)" class="tp-chip" :to="localePath(laneIssuePath(i))" :data-status="i.status" data-test="topics-issue-link">{{ i.key }}<span class="tp-chip-state">{{ i.status }}</span></NuxtLink>
+                  <NuxtLink v-if="issueTo(i, r).href" class="tp-chip" :to="toOf(issueTo(i, r))" :data-status="i.status" data-test="topics-issue-link">{{ i.key }}<span class="tp-chip-state">{{ i.status }}</span></NuxtLink>
                   <span v-else class="tp-chip" data-test="topics-issue">{{ i.key }}</span>
                 </template>
               </td>
@@ -124,9 +127,10 @@ import { useOperatorPane } from '~/stores/operator-pane'
 import { useAccessStore } from '~/stores/access'
 import { gateMe, lanesReadPlan } from '~/utils/read-gates.mjs'
 import { lagSeconds } from '~/utils/monitoring-tokens.mjs'
-import { LANE_AGES, fleetLanesOf, laneDeepLink, laneIssuePath, laneTopicPath, lanesStaleLevel, minutesAgo, readLanes, startLanesPoll } from '~/utils/monitoring-lanes.mjs'
+import { LANE_AGES, fleetLanesOf, laneDeepLink, laneIssueRef, laneTopicRef, lanesStaleLevel, minutesAgo, readLanes, startLanesPoll } from '~/utils/monitoring-lanes.mjs'
 import { TOPIC_COLUMNS, TOPICS_NO_FILTER, filterTopics, sortTopics, topicFilterChoices, topicsOf } from '~/utils/monitoring-topics.mjs'
 import { cycleSort } from '~/utils/sheet-sort.mjs'
+import { useLaneLinks, type LaneLink } from '~/composables/useLaneLinks'
 
 type LanesApi = { getFleetLanes: (own?: boolean) => Promise<unknown> }
 type LanesView = ReturnType<typeof fleetLanesOf>
@@ -135,6 +139,13 @@ const DASH = '—'
 const { t } = useI18n({ useScope: 'global' })
 const localePath = useLocalePath()
 const operator = useOperatorPane()
+/* SPL-4798: a row's ids as links, on the host of the workspace they belong to */
+const { pageTenant, linkOf } = useLaneLinks()
+type TopicRow = ReturnType<typeof topicsOf>[number]
+const topicTo = (r: TopicRow) => linkOf(laneTopicRef(r, pageTenant.value))
+const issueTo = (i: { key: string, status: string }, r: TopicRow) => linkOf(laneIssueRef(i, r, pageTenant.value))
+/** this host: the router's path; another workspace's host: the whole address */
+const toOf = (to: LaneLink) => (to.here ? to.path : to.href)
 /* the fleet route refused this reader (403): read the workspace's own lanes, as the Lanes page */
 const lanesRead = { own: false, operatorVisible: false }
 const view = ref<LanesView | null>(null)

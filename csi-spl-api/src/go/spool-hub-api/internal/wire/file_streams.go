@@ -112,15 +112,17 @@ type FileStreamAckState struct {
 // and not written twice) and the highest seq it acked; a globs pull's ack
 // is the box's live globs (always a list, [] for none).
 type FileStreamsAckFrame struct {
-	Type      string                `json:"type"`
-	LaneOp    string                `json:"lane_op"`
-	Streams   []FileStreamAckState  `json:"streams,omitempty"`
-	Globs     *[]FileStreamGlobLive `json:"globs,omitempty"`
-	StreamKey string                `json:"stream_key,omitempty"`
-	Inserted  int                   `json:"inserted"`
-	AckedSeq  int64                 `json:"acked_seq,omitempty"`
-	Pruned    int                   `json:"pruned,omitempty"`
-	At        string                `json:"at"`
+	Type    string                `json:"type"`
+	LaneOp  string                `json:"lane_op"`
+	Streams []FileStreamAckState  `json:"streams,omitempty"`
+	Globs   *[]FileStreamGlobLive `json:"globs,omitempty"`
+	// Agents answers a console demands pull (lane_console.go, spec 153 3.18)
+	Agents    *[]string `json:"agents,omitempty"`
+	StreamKey string    `json:"stream_key,omitempty"`
+	Inserted  int       `json:"inserted"`
+	AckedSeq  int64     `json:"acked_seq,omitempty"`
+	Pruned    int       `json:"pruned,omitempty"`
+	At        string    `json:"at"`
 }
 
 // ErrBadFileStream wraps every refusal of the two decoders.

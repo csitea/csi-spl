@@ -140,3 +140,32 @@ func TestFileStreamsVerbGlobs(t *testing.T) {
 		t.Fatalf("sent announce %s: %+v %v", fr[0].Lane, a, err)
 	}
 }
+
+// Spec 153 3.18 (SPL-4810): the console's two ops ride the same verb. The
+// demands pull sends {} and prints the agents; the push sends the masked
+// screen with lines_n as "lines"; a bad agent id is refused before the hub.
+func TestFileStreamsVerbConsole(t *testing.T) {
+	h := newScriptHub(t, laneAnswer(map[string]string{
+		wire.FileStreamsConsoleDemandsOp: `{"type":"ack","lane_op":"file_streams_console_demands","agents":["c-128"],"inserted":0,"at":"x"}`,
+		wire.FileStreamsConsolePushOp:    `{"type":"ack","lane_op":"file_streams_console_push","inserted":1,"at":"x"}`,
+	}), nil)
+	cfg := hubCfg(t, h.URL)
+	run := func(in string) (int, string) {
+		rc, out, _ := capture(t, in, func() int { return cmdFileStreams(cfg, []string{"push", "--json", "-"}) })
+		return rc, out
+	}
+	if rc, out := run(`{"type":"lane","lane_op":"file_streams_console_demands"}`); rc != 0 || !strings.Contains(out, `"agents":["c-128"]`) {
+		t.Fatalf("demands: rc %d out %q", rc, out)
+	}
+	push := `{"type":"lane","lane_op":"file_streams_console_push","agent_id":"c-128","screen":"$ ok","lines_n":1,"redactions":{"github-token":1}}`
+	if rc, out := run(push); rc != 0 || !strings.Contains(out, `"inserted":1`) {
+		t.Fatalf("push: rc %d out %q", rc, out)
+	}
+	fr := h.Frames()
+	if last := string(fr[len(fr)-1].Lane); !strings.Contains(last, `"lines":1`) || !strings.Contains(last, `"screen":"$ ok"`) {
+		t.Errorf("the push's lane %s, want the screen and lines 1", last)
+	}
+	if rc, _ := run(`{"lane_op":"file_streams_console_push","agent_id":"../x","screen":"","lines_n":0}`); rc == 0 {
+		t.Error("a path as agent id was sent")
+	}
+}

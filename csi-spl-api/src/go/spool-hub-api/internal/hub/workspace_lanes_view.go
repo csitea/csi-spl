@@ -38,6 +38,7 @@ const permWorkspaceLanes = "workspace.lanes"
 
 func (s *Server) routeLanesView(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/view/lanes", s.viewHandler(s.handleWorkspaceLanesView))
+	s.routeLaneConsole(mux) // spec 153 3.18: a lane's live console, lane_console.go
 }
 
 // GET /v1/view/lanes?fleet=

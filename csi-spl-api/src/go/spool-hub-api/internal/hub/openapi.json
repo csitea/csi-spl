@@ -5507,6 +5507,121 @@
         ]
       }
     },
+    "/v1/lanes/console": {
+      "get": {
+        "operationId": "getLanesConsole",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "query",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z][A-Za-z0-9-]{0,31}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "the lane's box as the Lanes tab shows it (empty on the workspace door)",
+            "in": "query",
+            "name": "agent_box",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fleet",
+            "required": false,
+            "schema": {
+              "default": "main",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: the lane's last console capture (spec 153 3.18, SPL-4810): agent_id, agent_box, state (waiting: no capture yet | live | stale: older than 15 s), screen (the tmux screen plus up to 200 lines of scrollback, masked on the box by spool_redact and the PEM pass; the hub never unmasks), lines, redactions (kind -> count), captured_at, age_s and demand_until. The lane must be a live row of the same Lanes view this door reads, else 404"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Read a lane's live console (workspace owner or admin)",
+        "tags": [
+          "view"
+        ]
+      },
+      "post": {
+        "operationId": "postLanesConsole",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "the lane to watch, as its Lanes tab row names it",
+                "properties": {
+                  "agent_box": {
+                    "description": "the row's agent_box (empty on the workspace door)",
+                    "type": "string"
+                  },
+                  "agent_id": {
+                    "type": "string"
+                  },
+                  "fleet": {
+                    "description": "default main",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "agent_id"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: the watch demand is set for 60 s (the page re-posts every 20 s while the feed shows; the lane's box captures only while a demand is on), then the console as on GET: agent_id, agent_box, state (waiting: no capture yet | live | stale: older than 15 s), screen (the tmux screen plus up to 200 lines of scrollback, masked on the box by spool_redact and the PEM pass; the hub never unmasks), lines, redactions (kind -> count), captured_at, age_s and demand_until. The lane must be a live row of the same Lanes view this door reads, else 404"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Watch a lane's live console (workspace owner or admin)",
+        "tags": [
+          "view"
+        ]
+      }
+    },
     "/v1/marketing": {
       "get": {
         "operationId": "getMarketing",
@@ -12661,6 +12776,123 @@
           }
         },
         "summary": "Create or act on operator invites mail",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
+    "/v1/operator/lane-console": {
+      "get": {
+        "operationId": "getOperatorLaneConsole",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          },
+          {
+            "in": "query",
+            "name": "agent_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z][A-Za-z0-9-]{0,31}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "the lane's box as the Lanes tab shows it (empty on the workspace door)",
+            "in": "query",
+            "name": "agent_box",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fleet",
+            "required": false,
+            "schema": {
+              "default": "main",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: the lane's last console capture (spec 153 3.18, SPL-4810): agent_id, agent_box, state (waiting: no capture yet | live | stale: older than 15 s), screen (the tmux screen plus up to 200 lines of scrollback, masked on the box by spool_redact and the PEM pass; the hub never unmasks), lines, redactions (kind -> count), captured_at, age_s and demand_until. The lane must be a live row of the same Lanes view this door reads, else 404"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Read a lane's live console (operator workspace admin)",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      },
+      "post": {
+        "operationId": "postOperatorLaneConsole",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "the lane to watch, as its Lanes tab row names it",
+                "properties": {
+                  "agent_box": {
+                    "description": "the row's agent_box (empty on the workspace door)",
+                    "type": "string"
+                  },
+                  "agent_id": {
+                    "type": "string"
+                  },
+                  "fleet": {
+                    "description": "default main",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "agent_id"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK: the watch demand is set for 60 s (the page re-posts every 20 s while the feed shows; the lane's box captures only while a demand is on), then the console as on GET: agent_id, agent_box, state (waiting: no capture yet | live | stale: older than 15 s), screen (the tmux screen plus up to 200 lines of scrollback, masked on the box by spool_redact and the PEM pass; the hub never unmasks), lines, redactions (kind -> count), captured_at, age_s and demand_until. The lane must be a live row of the same Lanes view this door reads, else 404"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Watch a lane's live console (operator workspace admin)",
         "tags": [
           "operator"
         ],

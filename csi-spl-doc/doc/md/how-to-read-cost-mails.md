@@ -9,7 +9,7 @@ mailbox address or name ever goes into git.
 
 ## 1. Rules before the first call
 
-1. **Read only.** The mailbox is reached through the claude.ai Gmail
+1. **Read only.** The mailbox is reached through the Claude Gmail
    connector. Never send, reply, forward, label, move, trash, draft or mark a
    mail.
 2. **Finance data is a secret-class lane**: claude only, on the box the brief
@@ -124,7 +124,9 @@ with the reason, and what could not be read.
 
 A cost entry is `type`, `label` (the supplier), `amount`, `currency`,
 `period` (`YYYY-MM`) and an optional `note`
-(`POST /v1/operator/cost-entries`). Propose the rows to the dispatcher, run
+(`POST /v1/operator/cost-entries`). `amount` is the work table's `net`,
+net of VAT (owner, poll 68d7f768); where a bill gives only a gross total,
+work the net back from the supplier's VAT rate and say so in the note. Propose the rows to the dispatcher, run
 the action with DRY_RUN=1, write only after its go, then read the entries
 back and compare the count and the sum per month with the work table. AI
 vendor plans may already sit in the paid AI items of the Expenses AI tab

@@ -84,7 +84,8 @@ v0.19 ticks T9 and T10 (L8 wiring, SPL-4771; c-001 rulings 12c58d30 and
 8bd363e5): the action's default seam calls the T7 endpoint, and it prints the
 plan's `.shared_files`, P4's and P7's `.report` and P7's `.kept`. P2 names
 `TO_NAME` as a limit of the first move, and T13 measures P4 and P7 against
-Cloud Run's 300 s.
+the box's 30 s client cap (`curl -m 30` in `spl_hub_operator_call`); the hub's
+Cloud Run request timeout is 600 s.
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -548,8 +549,7 @@ P5. Every call carries the owner's GO; after P1 it also carries the journal's
 
 Not read yet: `detail` on a step, so `Keep`, `KeepEmails`, `LeaveHours` and
 `RuleDoc` have no input: a Q5 or Q8 stop stands until the owner clears it in
-`<DST>`. P4 and P7 answer `.report` and P7 `.kept`, which the shell does not print
-yet.
+`<DST>`.
 
 ## 9. Cases (each lands with its red control)
 
@@ -617,7 +617,7 @@ Each row is one small task; files named are where it lands.
 | T11 | Copy mode: new UUIDs, link rewrite, `copied_from`; test C16 | `api/store/channel_copy_apply_postgres.go`, `_test.go` |
 | T11b | `spl_issue_owner_go_from` refuses a copy and a reply that does not say whether it is one; `hub-tail` does not return `copied_from` today. Control: remove the check -> the test goes red. c-001 writes its brief after T11 lands; no prd copy until T11b lands | `orc/run/` reader file and its test, named by that brief |
 | T12 | Docs: operator page (how to plan, run and read the kept list) | `csi-spl-doc/doc/md/channel-workspace-move.md` |
-| T13 | Dev rehearsal, the gate before the first prd run: on dev, `plan` then `DRY_RUN=0` of a seeded channel between two dev test workspaces with the owner's GO msg id (C15), P7 prints 0, the journal read back; it also records R3's T5 timing on the 3,650-post seeded channel (12), runs P4 under the real runtime role with its real grants, and checks TEMP there; T11b lands before the first prd copy, no prd copy until then; measure P4 and P7 against the 300 s Cloud Run limit on the seeded 3,650-post channel; over the limit means a bug row before the first prd move; the record of the run | `csi-spl-doc/specs/169-channel-workspace-move/dev-rehearsal.md` |
+| T13 | Dev rehearsal, the gate before the first prd run: on dev, `plan` then `DRY_RUN=0` of a seeded channel between two dev test workspaces with the owner's GO msg id (C15), P7 prints 0, the journal read back; it also records R3's T5 timing on the 3,650-post seeded channel (12), runs P4 under the real runtime role with its real grants, and checks TEMP there; T11b lands before the first prd copy, no prd copy until then; measure P4 and P7 on the seeded 3,650-post channel against the box's 30 s client cap (`curl -m 30`, `spl_hub_operator_call`; the hub's Cloud Run request timeout is 600 s); over 30 s means a bug row before the first prd move; the record of the run | `csi-spl-doc/specs/169-channel-workspace-move/dev-rehearsal.md` |
 
 Order: T1 first (it is the inventory in code); T2 before T5 (the journal);
 T4 before T5; T4 before T4b; T4b before T4d; T4d before T7's seat wiring; T5 before T5b and T5c; T3 before T11; T6 and T8

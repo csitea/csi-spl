@@ -2,6 +2,7 @@
 
 Status: **specified** (2026-10-02, CLE-77941). Being built in two lanes:
 orchestrator rotation CLE-77939, dispatcher rotation CLE-77940.
+Version: 1.1 (change log: section 11).
 Plan: [plan.md](plan.md). Tasks: [tasks.md](tasks.md).
 Related: [SPEC-spool-fleet-roles.md](../../doc/md/SPEC-spool-fleet-roles.md)
 (the roles, the leases, the ask book), [058 the fleet on many machines](../058-multi-machine-fleet/spec.md)
@@ -21,6 +22,7 @@ master gives up its lease).
 | R5 | "this should be scripted as much as possible - it should be mechanical - and not strong decision making requiring tokens" | FR-001, FR-005, FR-040, FR-070..FR-074 |
 | R6 | standing rules: agents run as the agent user only (`SPOOL_AGENT_USER`); one agent = one small task; `<ID>@<box>` naming, CLE-001/002/003 reserved per box (058); a multi-machine fleet (the home box + `sat`) under ONE fleet lease (orch + dispatch roles, CLE-77911) | FR-006, FR-007, FR-044, FR-045, section 7 |
 | R7 | "I need not only you to restart, but to make sure that no dispatcher would run longer than 30 min without restart" (HUM-10, 2026-11-04 ~11:20Z, SPL-4795) | FR-044, FR-046, FR-050 |
+| R8 | "ok , but we should have also the stand-by orchestrator switch at least on 2h basis"; "is it the case that the current spool daemon serice does not enforce that" (HUM-10, 2026-11-04 ~16:3xZ, SPL-4807) | FR-010, FR-044, FR-047, FR-053 |
 
 The owner answered four design questions through CLE-001 (2026-10-02
 ~04:30Z, msg `db90b283`). These answers are binding:
@@ -158,7 +160,8 @@ it cannot act during the overlap.
   1. the switch is on (FR-090);
   2. `lease.conf` names `LEASE_ORCH`;
   3. this machine holds the orch lease (FR-044): `lease.orch` names
-     `<LEASE_ORCH>@<this box>` and is fresh;
+     `<LEASE_ORCH>@<this box>` and is fresh; on a standby machine the seat
+     passes only when it is `ROTATE_ORCH_STANDBY_MAX_AGE` old (FR-047);
   4. exactly ONE live claude process carries `SPOOL_AGENT_ID=<LEASE_ORCH>`.
      None = `SKIP absent`. Two or more = `SKIP duplicate`: a rotation is in
      flight or a stray is running, so the orchestrator gets a note;
@@ -401,7 +404,8 @@ is never rewritten to swap `LEASE_MASTER` and `LEASE_FAILOVER`:
 
 - **FR-044** Each machine rotates only its OWN trio. Only the machine that
   holds a role's fleet lease rotates it THROUGH the lease (HOLD, RELEASE,
-  REFRESH). A standby machine's orchestrator is not rotated (`SKIP standby`).
+  REFRESH). A standby machine's orchestrator is refreshed in place once it
+  is 2 h old, without the lease (FR-047, owner 2026-11-04).
   A standby machine's dispatch seats ARE restarted, in place, or by the vendor
   swap when the guard names another vendor, and without the lease (FR-046, owner 2026-11-04): until then every standby run logged
   `GATE SKIP standby` and the standby seats on box 1 ran 16 and 21 hours
@@ -452,6 +456,26 @@ is never rewritten to swap `LEASE_MASTER` and `LEASE_FAILOVER`:
 
   Test: `dispatch-rotate.tst.sh` cases 2, 10, 27 and 28 (red control: the
   same cases on the code before SPL-4795 fail: standby seats untouched).
+- **FR-047** The standby orchestrator's 2-h rule (owner HUM-10, 2026-11-04,
+  SPL-4807, R8). Until then the standby seat ran ~1822 min and the hourly
+  run logged `GATE SKIP standby` 30 times (n=1 box, 2026-11-03T10:06Z ..
+  2026-11-04T16:31Z). On a standby machine the hourly `:05` run
+  (`ROTATE_CMD=auto`) refreshes an orch seat whose oldest live process is
+  `ROTATE_ORCH_STANDBY_MAX_AGE` (7200 s; env or `rotate.conf`) old or more:
+  - the gate logs `GATE OK standby (orch lease: <holder>), but <id> is
+    <age>s old (>= <max>): refreshing this machine's session`; a younger
+    seat logs `GATE SKIP standby (orch lease: <holder>), <id> is <age>s old
+    (< <max>)`;
+  - a fresh session of the SAME id under the same vendor rule as the
+    holder's rotation (FR-040 seed, QUIESCE .. CLOSE, handoff and ack, the
+    old session retired); the boot, absent, duplicate and stall gates of
+    FR-010 still apply, and a failure rolls back as FR-010 (the old session
+    keeps the seat);
+  - the fleet orch lease is never taken or moved (CLOSE does not count it as
+    `lease-moved`); the holder's machine keeps `ROTATE_MIN_AGE`.
+
+  Test: `orch-rotate.tst.sh` case 24 (red controls: the code before SPL-4807
+  fails 16 of its checks).
 - **FR-045** Rotation never writes the fleet row across machines. The HOLD
   moves the holder only between `<M>@<box>` and `<F>@<box>` of one machine.
   If the fleet loop flips a role to the other machine mid-rotation, the
@@ -478,9 +502,9 @@ is never rewritten to swap `LEASE_MASTER` and `LEASE_FAILOVER`:
   orchestrator.
 - **FR-052** No rotation within `ROTATE_BOOT_GRACE` (900 s) of boot, or of a
   session restore (the restore marker), while the panes are still churning.
-- **FR-053** The cron lines are installed on every machine. FR-044 turns a
-  standby machine's orch runs into no-ops; its dispatch runs refresh its
-  seats in place (FR-046).
+- **FR-053** The cron lines are installed on every machine. On a standby
+  machine the orch runs refresh its seat in place once it is 2 h old
+  (FR-047); its dispatch runs refresh its seats in place (FR-046).
 
 ### 4.7 Launch flags (owner R4)
 
@@ -806,5 +830,11 @@ that decides claude although both vendors are already out at the decision
 (`... but the grok standby cannot either (...): claude`); C4 re-checks only
 verdicts filed after the decision, so with C2 that start still fails in
 seconds as SPAWN.
+
+## 11. Change log
+
+| version | date | change |
+|---|---|---|
+| 1.1 | 2026-11-04 | R8, FR-047 (SPL-4807): a standby machine's orchestrator is refreshed in place once it is 2 h old; FR-010 gate 3, FR-044 and FR-053 follow |
 
 <!-- last-edit: 2026-10-02T04:40:00Z — CLE-77941 -->

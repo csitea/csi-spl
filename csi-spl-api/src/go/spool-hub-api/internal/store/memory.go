@@ -85,6 +85,8 @@ type Memory struct {
 	fileStreams *memFileStreams
 	// file_stream_globs_memory.go (rdb 0242, spec 160 B9, SPL-4294), guarded by mu
 	fileStreamGlobs *memFileStreamGlobs
+	// lane_console.go (rdb 0261, spec 153 3.18, SPL-4810), guarded by mu
+	laneConsole map[laneConsoleKey]*LaneConsole
 	// log_events_memory.go (rdb 0240, spec 162 B3, SPL-4167), guarded by mu
 	logEvents *memLogEvents
 	// marketing_metrics_memory.go (rdb 0244, spec 163 B1, SPL-4250), guarded by mu

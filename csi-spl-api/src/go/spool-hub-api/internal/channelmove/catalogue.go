@@ -166,6 +166,7 @@ var notChannelTables = concat(
 	notChannel("DM agents: a DM is two parties', not a channel's (M9)", "dm_agents"),
 	notChannel("box file streams, keyed by box and path", "file_stream_folders", "file_stream_glob_audit",
 		"file_stream_globs", "file_stream_lines", "file_streams"),
+	notChannel("a lane's live console, keyed by box and agent (spec 153 3.18)", "lane_console"),
 	notChannel("fleet state keyed by fleet, agent and box; lanes and asks are rewritten above",
 		"fleet_leases", "od_pool", "agent_lifecycle_events", "shared_memory_lessons"),
 	notChannel("costs keyed by agent, model and day", "cost_lines"),

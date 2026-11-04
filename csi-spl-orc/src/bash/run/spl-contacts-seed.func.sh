@@ -30,29 +30,37 @@ do_spl_contacts_seed() {
   [[ "$person" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL CONTACTS_PERSON must be a person id HUM-<n>, got: '$person'"; return 1; }
   [[ -n "$file" && -f "$file" && -r "$file" ]] || { do_log "FATAL CONTACTS_FILE is not a readable file: '$file'"; return 1; }
   do_require_bin python3 yq psql || return 1
-  sql="$(mktemp)" || return 1
-  chmod 600 "$sql"
+  # The SQL file holds the values: one 0700 dir, removed on every return and
+  # on INT / TERM (_spl_contacts_seed_clean clears the traps again).
+  _SPL_CS_TMP="$(mktemp -d)" || return 1
+  trap _spl_contacts_seed_clean RETURN
+  trap '_spl_contacts_seed_clean; exit 130' INT
+  trap '_spl_contacts_seed_clean; exit 143' TERM
+  sql="$_SPL_CS_TMP/seed.sql" out="$_SPL_CS_TMP/out"
   if ! _spl_contacts_seed_rows "$file" "$person" | _spl_contacts_seed_sql "$dry" >"$sql"; then
-    rm -f "$sql"; do_log "FATAL $file refused, nothing was added"; return 1
+    do_log "FATAL $file refused, nothing was added"; return 1
   fi
-  do_spl_cloud_cnf || { rm -f "$sql"; return 1; }
-  do_gcp_pin_account "$SPL_CNF" || { rm -f "$sql"; return 1; }
-  do_gcp_require_live_account "$GCP_ACCOUNT" || { rm -f "$sql"; return 1; }
-  out="$(mktemp)" || { rm -f "$sql"; return 1; }
+  do_spl_cloud_cnf || return 1
+  do_gcp_pin_account "$SPL_CNF" || return 1
+  do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
   CONTACTS_PERSON="$person" spl_via_proxy _spl_contacts_seed_run "$sql" "$out" || rc=$?
-  rm -f "$sql"
   if (( rc != 0 )); then
     do_log "FATAL the contacts seed of $person in $ENV failed, nothing was committed: $(grep -m 1 -oE 'ERROR: +[0-9A-Z]{5}' "$out")"
-    rm -f "$out"; return 1
+    return 1
   fi
-  _spl_contacts_seed_summary "$person" "$dry" <"$out"; rc=$?
-  rm -f "$out"
-  (( rc == 0 )) || return 1
+  _spl_contacts_seed_summary "$person" "$dry" <"$out" || return 1
   if (( dry )); then
     do_log "OK DRY_RUN counted the contacts to add to $person in $ENV, added nothing. Re-run with DRY_RUN=0 to add them."
   else
     do_log "OK added the new contacts to $person in $ENV"
   fi
+}
+
+# _spl_contacts_seed_clean: removes the action's temp dir and clears its traps.
+_spl_contacts_seed_clean() {
+  [[ -n "${_SPL_CS_TMP:-}" ]] && rm -rf "$_SPL_CS_TMP"
+  _SPL_CS_TMP=""
+  trap - RETURN INT TERM
 }
 
 # _spl_contacts_seed_rows <file> <person> -> the file's rows on stdout as one
@@ -80,7 +88,7 @@ except (OSError, UnicodeDecodeError, csv.Error):
 if not rows or [h.strip() for h in rows[0]] != HEADER:
     print("refused: the header is not " + ",".join(HEADER), file=sys.stderr)
     sys.exit(1)
-out, seen = [], set()
+out, seen, dups = [], set(), 0
 for n, r in enumerate(rows[1:], start=1):
     if not any(c.strip() for c in r):
         continue
@@ -102,6 +110,7 @@ for n, r in enumerate(rows[1:], start=1):
         bad.append(f"row {n}: phone is not a phone number")
     key = ("e", email) if email else ("n", first, last)
     if key in seen:
+        dups += 1
         continue
     seen.add(key)
     out.append({"n": n, "first_name": first, "last_name": last, "email": email or None, "phone": phone or None})
@@ -111,7 +120,7 @@ if bad:
 if not out:
     print("refused: the file has no rows", file=sys.stderr)
     sys.exit(1)
-print(json.dumps(out, ensure_ascii=False))
+print(json.dumps({"dups": dups, "rows": out}, ensure_ascii=False))
 PY
 }
 
@@ -120,12 +129,14 @@ PY
 # Exits 1 on empty input, so a refused file never reaches psql.
 _spl_contacts_seed_sql() {
   python3 - "$@" 3<&0 <<'PY'
-import os, secrets, sys
+import json, os, secrets, sys
 
 dry = sys.argv[1] == "1"
-doc = os.fdopen(3, encoding="utf-8").read().strip()
-if not doc:
+raw = os.fdopen(3, encoding="utf-8").read().strip()
+if not raw:
     sys.exit(1)
+got = json.loads(raw)
+doc = json.dumps(got["rows"], ensure_ascii=False)
 tag = "seed_" + secrets.token_hex(8)
 while tag in doc:
     tag = "seed_" + secrets.token_hex(8)
@@ -136,6 +147,7 @@ there = ("EXISTS (SELECT 1 FROM personal.contacts c WHERE c.person_id = :'person
          " AND c.first_name = s.first_name AND c.last_name = s.last_name)))")
 print("\\set VERBOSITY sqlstate")
 print("BEGIN READ ONLY;" if dry else "BEGIN;")
+print(f"SELECT 'dups {int(got['dups'])}';")
 print("SELECT set_config('app.person_id', :'person', true) \\g /dev/null")
 if not dry:
     print("SELECT pg_advisory_xact_lock(hashtext('spl-contacts-seed:' || :'person')) \\g /dev/null")
@@ -169,13 +181,14 @@ for line in sys.stdin:
     k, _, v = line.strip().partition(" ")
     if k == "added":
         ids.append(v)
-    elif k in ("rows", "already", "would_add", "live"):
+    elif k in ("dups", "rows", "already", "would_add", "live"):
         got[k] = int(v)
-need = ["rows", "already", "live"] + (["would_add"] if dry else [])
+need = ["dups", "rows", "already", "live"] + (["would_add"] if dry else [])
 if any(k not in got for k in need):
     print("FATAL the run printed no counts", file=sys.stderr)
     sys.exit(1)
-out = {"env": env, "person": person, "dry_run": dry, "rows": got["rows"], "already": got["already"]}
+out = {"env": env, "person": person, "dry_run": dry, "rows": got["rows"], "file_duplicates": got["dups"],
+       "already": got["already"]}
 if dry:
     out["would_add"] = got["would_add"]
 else:

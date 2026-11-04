@@ -20,6 +20,12 @@
 #       new row in the same file is the only one added
 #   B4. a person with no humans row: refused by the FK, SQLSTATE only, the
 #       transaction rolled back
+#   B5. CONTROL: a row holding ' " \ $ $$ ; :'person' \! $seed_ and an
+#       embedded newline round-trips byte-exact (a quoted literal in place
+#       of the dollar-quoted one fails here)
+#   T.  the temp dir holding the SQL (it carries the values) is gone after
+#       every run: refused (A3), stubbed (A2), committed (B2), failed (B4);
+#       file_duplicates counts the dropped in-file repeats (1 in good.csv)
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -32,20 +38,23 @@ fail() { echo "FAIL: $1"; fails=$((fails + 1)); }
 T=$(mktemp -d)
 cleanup() { [[ -n "${PG_CTR:-}" ]] && docker rm -fv "$PG_CTR" >/dev/null 2>&1; rm -rf "$T"; }
 trap cleanup EXIT
+mkdir "$T/tmp"
+# tmpgone: the action's TMPDIR ($T/tmp) holds nothing after a run
+tmpgone() { [[ -z "$(ls -A "$T/tmp")" ]]; }
 
 HDR='person_id,first_name,last_name,email,phone'
 # csvf <name> <row>...: a CSV file under $T with the header
 csvf() { local f="$T/$1"; shift; { echo "$HDR"; printf '%s\n' "$@"; } >"$f"; echo "$f"; }
-GOOD="$(csvf good.csv 'HUM-1,Alfa,Testone,alfa@example.com,' 'HUM-1,Bravo,Testtwo,BRAVO@example.com,+358 40 000 0000' \
+GOOD="$(csvf good.csv 'HUM-1,Alfa,Testone,alfa@example.com,' 'HUM-1,Bravo,Testtwo,BRAVO@example.com,+358 40 999 9999' \
   'HUM-1,Charlie,,,' 'HUM-1,Alfa,Testone,alfa@example.com,')"
 # no output may carry a made-up value
-leaks() { grep -lE 'Alfa|Bravo|Charlie|Delta|example\.com|358' "$@" 2>/dev/null; }
+leaks() { grep -lE 'Alfa|Bravo|Charlie|Delta|example\.com|999 9999' "$@" 2>/dev/null; }
 
 # A ---------------------------------------------------------------------------
 # runa [VAR=val ...]: the action with the cloud stubbed
 runa() {
   : >"$T/calls"
-  env -u DRY_RUN -u CONTACTS_PERSON -u CONTACTS_FILE FUNC="$FUNC" T="$T" "$@" bash -c '
+  env -u DRY_RUN -u CONTACTS_PERSON -u CONTACTS_FILE FUNC="$FUNC" T="$T" TMPDIR="$T/tmp" "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*" >&2; }
     source "${FUNC%/src/bash/run/*}/lib/bash/funcs/spl-cloud-cnf.func.sh"
@@ -55,7 +64,8 @@ runa() {
     do_gcp_require_live_account() { return 0; }
     source "$FUNC"
     spl_via_proxy() { echo "proxy person=$CONTACTS_PERSON $1" >>"$T/calls"; head -n 2 "$2" | tail -n 1 >>"$T/calls"
-      printf "rows 3\nalready 0\nwould_add 3\nadded 00000000-0000-0000-0000-000000000001\nlive 3\n" >"$3"; }
+      [[ "$2" == "$TMPDIR"/* && -s "$2" ]] && echo "sql in TMPDIR" >>"$T/calls"
+      printf "dups 1\nrows 3\nalready 0\nwould_add 3\nadded 00000000-0000-0000-0000-000000000001\nlive 3\n" >"$3"; }
     do_spl_contacts_seed' >"$T/o" 2>"$T/e"
 }
 nocall() { [[ ! -s "$T/calls" ]]; }
@@ -79,21 +89,24 @@ runa ENV=prd CONTACTS_PERSON=HUM-1 CONTACTS_FILE="$GOOD" DRY_RUN=0; rc=$?
 [[ $rc -eq 0 ]] && grep -qx 'BEGIN;' "$T/calls" && grep -q '"env": "prd"' "$T/o" &&
   grep -q '"contact_ids": \["00000000-0000-0000-0000-000000000001"\]' "$T/o" &&
   pass "A2. DRY_RUN=0 is the committing path, ids printed" || fail "A2. commit rc=$rc $(cat "$T/calls" "$T/o" "$T/e")"
+grep -qx 'sql in TMPDIR' "$T/calls" && tmpgone && grep -q '"file_duplicates": 1' "$T/o" &&
+  pass "T. the SQL file was in TMPDIR during the run and is gone after it" || fail "T. stub $(cat "$T/calls"; ls -A "$T/tmp")"
 
 f="$(csvf other.csv 'HUM-1,Alfa,Testone,alfa@example.com,' 'HUM-2,Delta,Testfour,delta@example.com,')"
 runa ENV=dev CONTACTS_PERSON=HUM-1 CONTACTS_FILE="$f" DRY_RUN=0; rc=$?
 [[ $rc -ne 0 ]] && nocall && grep -q 'row 2: person_id is not CONTACTS_PERSON' "$T/e" && [[ -z "$(leaks "$T/o" "$T/e")" ]] &&
   pass "A3. CONTROL: a row of another person refuses the whole file, no DB call, no value" ||
   fail "A3. rc=$rc $(cat "$T/calls" "$T/e")"
+tmpgone && pass "T. after the refused run the temp dir is gone" || fail "T. refused: $(ls -A "$T/tmp")"
 
-f="$(csvf noname.csv 'HUM-1,Alfa,Testone,alfa@example.com,' 'HUM-1,,,delta@example.com,+358 1')"
+f="$(csvf noname.csv 'HUM-1,Alfa,Testone,alfa@example.com,' 'HUM-1,,,delta@example.com,+358 999 9999')"
 runa ENV=dev CONTACTS_PERSON=HUM-1 CONTACTS_FILE="$f" DRY_RUN=0; rc=$?
 [[ $rc -ne 0 ]] && nocall && grep -q 'row 2: no name' "$T/e" && [[ -z "$(leaks "$T/o" "$T/e")" ]] &&
   pass "A4. CONTROL: a row with no name refuses the whole file, no DB call, no value" ||
   fail "A4. rc=$rc $(cat "$T/calls" "$T/e")"
 
 for c in 'bademail|HUM-1,Delta,Testfour,delta.example.com,|row 1: email is not an address' \
-         'badphone|HUM-1,Delta,Testfour,,358-abc|row 1: phone is not a phone number' \
+         'badphone|HUM-1,Delta,Testfour,,999 9999x|row 1: phone is not a phone number' \
          'fields|HUM-1,Delta|row 1: 2 fields, not 5'; do
   IFS='|' read -r name row want <<<"$c"
   f="$(csvf "$name.csv" "$row")"
@@ -139,7 +152,7 @@ ids() { q "SELECT coalesce(string_agg(contact_id::text, ',' ORDER BY contact_id)
 
 # runp <person> <file> <dry>: the action through the real DB as the runtime login
 runp() {
-  env -u DRY_RUN FUNC="$FUNC" T="$T" ENV=dev CONTACTS_PERSON="$1" CONTACTS_FILE="$2" DRY_RUN="$3" RT_DSN="$RT_DSN" bash -c '
+  env -u DRY_RUN FUNC="$FUNC" T="$T" TMPDIR="$T/tmp" ENV=dev CONTACTS_PERSON="$1" CONTACTS_FILE="$2" DRY_RUN="$3" RT_DSN="$RT_DSN" bash -c '
     set -uo pipefail
     do_log() { echo "$*" >&2; }
     source "${FUNC%/src/bash/run/*}/lib/bash/funcs/spl-cloud-cnf.func.sh"
@@ -162,7 +175,7 @@ runp HUM-1 "$GOOD" 0; rc=$?
 want="Alfa/alfa@example.com,Bravo/bravo@example.com,Charlie/-"
 got_ids="$(python3 -c 'import json,sys; print(",".join(sorted(json.loads(open(sys.argv[1]).readline())["contact_ids"])))' "$T/o" 2>/dev/null)"
 [[ $rc -eq 0 && "$(js added)" == 3 && "$(js live)" == 3 && "$(list HUM-1)" == "$want" && "$got_ids" == "$(ids HUM-1)" &&
-   "$(list HUM-2)" == "$h2" && -z "$(leaks "$T/o" "$T/e")" ]] &&
+   "$(list HUM-2)" == "$h2" && "$(js file_duplicates)" == 1 && -z "$(leaks "$T/o" "$T/e")" ]] && tmpgone &&
   pass "B2. added 3 to HUM-1 only, the 3 ids printed, no value; HUM-2 untouched" ||
   fail "B2. rc=$rc $(cat "$T/o" "$T/e") / $(list HUM-1) / $(list HUM-2)"
 
@@ -178,7 +191,25 @@ runp HUM-1 "$T/more.csv" 0; rc=$?
 f="$(csvf ghost.csv 'HUM-9,Echo,Testfive,echo@example.com,')"
 runp HUM-9 "$f" 0; rc=$?
 [[ $rc -ne 0 && "$(q "SELECT count(*) FROM personal.contacts WHERE person_id = 'HUM-9'")" == 0 ]] &&
-  grep -q 'ERROR: *23503' "$T/e" && [[ -z "$(leaks "$T/o" "$T/e")" ]] &&
+  grep -q 'ERROR: *23503' "$T/e" && [[ -z "$(leaks "$T/o" "$T/e")" ]] && tmpgone &&
   pass "B4. a person with no humans row: refused (23503), rolled back, no value" || fail "B4. rc=$rc $(cat "$T/o" "$T/e")"
+
+# B5: the nasty row, written by python so the CSV quoting is exact; its
+# expected first|last bytes in hex
+python3 - "$T/nasty.csv" "$T/nasty.hex" <<'EOF_NASTY'
+import csv, sys
+first = "O'Br\"ien \\ $ $$ ; :'person' \\! $seed_00$"
+last = "Line one\nLine two"
+with open(sys.argv[1], "w", newline="", encoding="utf-8") as f:
+    w = csv.writer(f)
+    w.writerow(["person_id", "first_name", "last_name", "email", "phone"])
+    w.writerow(["HUM-1", first, last, "nasty@example.com", ""])
+open(sys.argv[2], "w").write((first + "|" + last).encode().hex())
+EOF_NASTY
+runp HUM-1 "$T/nasty.csv" 0; rc=$?
+got="$(q "SELECT encode(convert_to(first_name || '|' || last_name, 'UTF8'), 'hex') FROM personal.contacts WHERE person_id = 'HUM-1' AND email = 'nasty@example.com'")"
+[[ $rc -eq 0 && "$(js added)" == 1 && "$got" == "$(cat "$T/nasty.hex")" && "$(list HUM-2)" == "$h2" && -z "$(leaks "$T/o" "$T/e")" ]] && tmpgone &&
+  pass "B5. CONTROL: quotes, backslashes, dollars, psql meta-commands and a newline round-trip byte-exact" ||
+  fail "B5. rc=$rc $(cat "$T/o" "$T/e") / got=$got"
 
 (( fails == 0 )) && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

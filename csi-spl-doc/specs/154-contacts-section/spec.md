@@ -630,9 +630,14 @@ person's list, in that person's RLS scope (`app.person_id`, as the store's
 run unless `DRY_RUN=0`, refuses the whole file on a row of another person,
 a row with no name or a value rdb 0226 would refuse, adds nothing twice (a
 live contact with the same email, or with no email the same name, is
-already there) and prints counts and contact ids only, psql errors as their
-SQLSTATE (C12). Test: `csi-spl-orc/src/bash/tests/spl-contacts-seed.tst.sh`.
-Its use is the owner's call per list; it is no import route.
+already there; a repeat inside the file is dropped and counted as
+`file_duplicates`) and prints counts and contact ids only, psql errors as
+their SQLSTATE (C12). The SQL file, which holds the values, lives in a temp
+dir removed on every return and on INT / TERM. Test:
+`csi-spl-orc/src/bash/tests/spl-contacts-seed.tst.sh`.
+Its use is the owner's call per list; it is no import route. Accepted for a
+one-shot (R7 notes N1, N4): the name-only match is case-sensitive, and the
+advisory lock serialises seed runs only, not a WUI insert at the same moment.
 
 ## 3. Data
 

@@ -33,8 +33,16 @@ RUN set -eu; v="$SPOOL_VERSION"; \
     [ -n "$v" ] || v="$(tr -d ' \n' </meta/.version)-dev"; \
     printf 'v%s' "${v#v}" >/meta/version.txt; echo "WUI version $(cat /meta/version.txt)"
 ARG SPOOL_DEFAULT_LOCALE=en
+# SPL-4782: node sizes its default heap from the container's memory, so a
+# Docker host with 8 GiB or less (a Docker Desktop VM) gets ~2 GB and the
+# generate died with "JavaScript heap out of memory". Unset, the generate
+# script's own default applies (package.json, SPL-4793: 6144 MiB, since 710
+# routes reached 4 GB); an empty NODE_OPTIONS counts as unset there. A host
+# that needs another limit: docker build --build-arg WUI_BUILD_HEAP_MB=<MiB>.
+ARG WUI_BUILD_HEAP_MB=
 # No NUXT_PUBLIC_API_BASE / TENANT / LOBBY: one bundle for every origin.
-RUN NUXT_PUBLIC_APP_VERSION="$(cat /meta/version.txt)" \
+RUN NODE_OPTIONS="${WUI_BUILD_HEAP_MB:+--max-old-space-size=$WUI_BUILD_HEAP_MB}" \
+    NUXT_PUBLIC_APP_VERSION="$(cat /meta/version.txt)" \
     NUXT_PUBLIC_DEFAULT_LOCALE="$SPOOL_DEFAULT_LOCALE" \
     NUXT_PUBLIC_USE_MOCK=0 \
     pnpm run generate

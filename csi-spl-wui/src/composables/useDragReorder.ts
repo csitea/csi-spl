@@ -22,6 +22,28 @@ function swallowClick() {
   setTimeout(() => window.removeEventListener('click', stop, { capture: true }), SWALLOW_CLICK_MS)
 }
 
+/* the items' midpoints along the list's axis, and how to read a pointer on it */
+function measureAxis(items: HTMLElement[]) {
+  const rects = items.map((el) => el.getBoundingClientRect())
+  const { axis, sign } = dragAxis(rects)
+  const along = axis === 'x' ? (e: PointerEvent) => sign * e.clientX : (e: PointerEvent) => e.clientY
+  const mids = rects.map((r) => (axis === 'x' ? sign * (r.left + r.width / 2) : r.top + r.height / 2))
+  return { along, mids }
+}
+
+/* one press's window listeners; abort() on the returned controller removes them all */
+function listenPress(on: {
+  move: (ev: PointerEvent) => void, up: (ev: PointerEvent) => void, cancel: (ev: PointerEvent) => void, touchMove: (ev: TouchEvent) => void
+}, touchHold: boolean) {
+  const listeners = new AbortController()
+  const { signal } = listeners
+  window.addEventListener('pointermove', on.move, { passive: false, signal })
+  window.addEventListener('pointerup', on.up, { signal })
+  window.addEventListener('pointercancel', on.cancel, { signal })
+  if (touchHold) window.addEventListener('touchmove', on.touchMove, { passive: false, signal })
+  return listeners
+}
+
 export function useDragReorder<T extends string>(opts: {
   order: () => readonly T[]
   /** the item elements, in the current order, each with data-reorder-id */
@@ -49,11 +71,8 @@ export function useDragReorder<T extends string>(opts: {
       if (!isDrag(ev.clientX - start.x, ev.clientY - start.y, DRAG_THRESHOLD_PX)) return
       /* moved before the hold ran out: a scroll, not a drag */
       if (!start.held) { finish(ev, false); return }
+      ({ along, mids } = measureAxis(opts.items()))
       base = [...opts.order()]
-      const rects = opts.items().map((el) => el.getBoundingClientRect())
-      const { axis, sign } = dragAxis(rects)
-      along = axis === 'x' ? (e) => sign * e.clientX : (e) => e.clientY
-      mids = rects.map((r) => (axis === 'x' ? sign * (r.left + r.width / 2) : r.top + r.height / 2))
       draggingId.value = start.id
       try { start.el.setPointerCapture(ev.pointerId) } catch { /* released already */ }
     }
@@ -92,11 +111,7 @@ export function useDragReorder<T extends string>(opts: {
     const s = { x: ev.clientX, y: ev.clientY, id, pointerId: ev.pointerId, el: ev.currentTarget as HTMLElement, held: wait <= 0 }
     start = s
     if (!s.held) hold = setTimeout(() => { s.held = true }, wait)
-    const { signal } = (listeners = new AbortController())
-    window.addEventListener('pointermove', onMove, { passive: false, signal })
-    window.addEventListener('pointerup', onUp, { signal })
-    window.addEventListener('pointercancel', onCancel, { signal })
-    if (wait > 0) window.addEventListener('touchmove', onTouchMove, { passive: false, signal })
+    listeners = listenPress({ move: onMove, up: onUp, cancel: onCancel, touchMove: onTouchMove }, wait > 0)
   }
   onBeforeUnmount(unlisten)
 

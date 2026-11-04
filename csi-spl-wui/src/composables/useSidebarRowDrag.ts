@@ -5,6 +5,20 @@
 import { ref, type Ref } from 'vue'
 import { dropIndex, moveKey } from '~/utils/sidebar-row-menu.mjs'
 
+/* the rows of one sidebar list panel, in the order drawn */
+function navRows(panelId: string) {
+  const panel = document.getElementById(panelId)
+  return panel ? [...panel.querySelectorAll<HTMLElement>('.nav-row')] : []
+}
+
+/* each row's vertical span, as dropIndex reads it */
+function rowSpans(els: HTMLElement[]) {
+  return els.map((el) => {
+    const r = el.getBoundingClientRect()
+    return { top: r.top, bottom: r.bottom }
+  })
+}
+
 export function useSidebarRowDrag(pinnedPeers: Ref<string[]>, channelOrder: Ref<string[]>, setChannelOrder: (next: string[]) => unknown) {
   type DragList = 'peers' | 'channels'
   const drag = ref<{ list: DragList, key: string, overIndex: number, active: boolean } | null>(null)
@@ -40,21 +54,12 @@ export function useSidebarRowDrag(pinnedPeers: Ref<string[]>, channelOrder: Ref<
     let active = false
     let overIndex = 0
     const panelId = dragPanel[list]
-    const keysNow = () => {
-      const panel = document.getElementById(panelId)
-      return panel ? [...panel.querySelectorAll<HTMLElement>('.nav-row')].map((el) => el.dataset.order || '') : []
-    }
+    const keysNow = () => navRows(panelId).map((el) => el.dataset.order || '')
     const move = (ev: PointerEvent) => {
       if (ev.pointerId !== pointerId) return
       if (!active && Math.abs(ev.clientY - startY) < 6) return
       active = true
-      const panel = document.getElementById(panelId)
-      const els = panel ? [...panel.querySelectorAll<HTMLElement>('.nav-row')] : []
-      const rects = els.map((el) => {
-        const r = el.getBoundingClientRect()
-        return { top: r.top, bottom: r.bottom }
-      })
-      overIndex = dropIndex(rects, ev.clientY)
+      overIndex = dropIndex(rowSpans(navRows(panelId)), ev.clientY)
       drag.value = { list, key, overIndex, active: true }
     }
     const up = () => {

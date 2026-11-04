@@ -789,13 +789,15 @@ Once this guide is exported to the repo (`csi-spl-doc/doc/md/guides/installation
 | `isg/*.ISG.md` | nothing moves: each stays the one home of its vendor's setup; this guide links them |
 | `box-state-backup.md` section 5 | stays; this guide links it |
 
+<a id="ws-doc-2e08704b-00d3-4bcc-b798-724232c4d125"></a>
 # 17 macOS box
 
-Sections 3, 6.1–6.2, 9 and 12 target Debian 13 (`apt-get`, `useradd`/`usermod`/`getent`, `setfacl`/`getfacl`, `systemd`/`loginctl enable-linger`, GNU `su --pty`, GNU `stat -c`). This section gives the macOS (`Darwin`, Apple silicon `arm64` or Intel `x86_64`) equivalents for each step of sections 3.x, 6.3 and 7.x that a joined Mac box needs so that `<OWNER_USER>` owns the box session and `/opt/csi`, while every AI CLI agent runs as the dedicated `<AGENT_USER>` account (spec 108 section 3.8).
+Sections 3, 6.1–6.2, 9 and 12 target Debian 13 (`apt-get`, `useradd`/`usermod`/`getent`, `setfacl`/`getfacl`, `systemd`/`loginctl enable-linger`, GNU `su --pty`, GNU `stat -c`). This section gives the macOS (`Darwin`, Apple silicon `arm64` or Intel `x86_64`) equivalents for each step of sections 3.x, 6.3 and 7.x that a joined Mac box needs so that `<OWNER_USER>` owns the box session and `/opt/csi`, while every AI CLI agent runs as the dedicated `<AGENT_USER>` account (spec 108 section 3.8). Section 4 (4.1–4.3: cloning `/opt/csi/csi-spl`, `tpl-gen` at its pin and the pre-push hook) runs unchanged on macOS once `/opt/csi` exists (section 17.4).
 
-Placeholders: `<OWNER_USER>` is the primary macOS administrator account on the Mac, `<AGENT_USER>` is the dedicated agent OS user (never `<OWNER_USER>`), `<WORKSPACE>` is the workspace slug the Mac box joins, and `<BOX>` is this Mac's box id. Every command below that could not be executed on a Mac from the Linux fleet is marked **not tested on macOS**.
+Placeholders: `<OWNER_USER>` is the primary macOS administrator account on the Mac, `<AGENT_USER>` is the dedicated agent OS user (never `<OWNER_USER>`), `<WORKSPACE>` is the workspace slug the Mac box joins, `<BOX>` is this Mac's box id, `<HUB_URL>` is the hub address shown in the WUI help (Connect an agent, section 2), and `<JOIN_TOKEN>` is the one-use join token from **Workspace settings -> Agents -> Join tokens**. Every command below that could not be executed on a Mac from the Linux fleet is marked **not tested on macOS**.
 
-## 17.1 Homebrew packages and base tools (macOS equivalent of 3.1, 3.2, 3.3)
+<a id="ws-doc-7c771d32-22ba-4012-b394-fa84cec3142d"></a>
+## 17.1 Homebrew packages and base tools (macOS equivalent of 3.1, 3.2, 3.3, 3.5)
 
 macOS ships `/bin/bash` 3.2, while `csi-spl-orc/src/bash/features/spool-install/install.sh` requires Bash 4 or newer (`BASH_VERSINFO[0] >= 4`) plus `git`, `python3` (3.12+ for Mistral Vibe), `tar`, `perl`, `curl`, `flock` and `setsid`. Install Homebrew's `bash` (5.x), `tmux`, `git`, `curl`, `jq`, `python@3.12`, `gh`, `go`, `yq`, `node`, `pnpm`, `coreutils` (GNU `stat`, `sha256sum`, `readlink`) and `flock` as `<OWNER_USER>` (**not tested on macOS**):
 
@@ -803,20 +805,22 @@ macOS ships `/bin/bash` 3.2, while `csi-spl-orc/src/bash/features/spool-install/
 brew install bash tmux git curl jq python@3.12 gh go yq node pnpm coreutils flock
 ```
 
+<a id="ws-doc-3455c290-285a-4d84-80e7-0da0b4938c7f"></a>
 ### 17.1.1 Google Cloud CLI and Docker Desktop (macOS equivalent of 3.1 docker group and 3.2)
 
-macOS has no Linux `docker` kernel group: Docker runs inside Docker Desktop's lightweight VM (`/Applications/Docker.app`). Install the Google Cloud SDK and Docker Desktop casks as `<OWNER_USER>` (**not tested on macOS**):
+macOS has no Linux `docker` kernel group: Docker runs inside Docker Desktop's lightweight VM (`/Applications/Docker.app`). Check the current Homebrew cask names (`gcloud-cli` / `google-cloud-sdk` and `docker` / `docker-desktop`) with `brew info --cask`, then install the Google Cloud CLI and Docker Desktop casks as `<OWNER_USER>` (**not tested on macOS**):
 
 ```bash
-brew install --cask google-cloud-sdk docker
+brew info --cask gcloud-cli docker && brew install --cask gcloud-cli docker
 ```
 
-Start Docker Desktop once from `<OWNER_USER>`'s GUI session so it creates `/Users/<OWNER_USER>/.docker/run/docker.sock`, then grant `<AGENT_USER>` read/write ACL access to that socket so `<AGENT_USER>` can run `docker` commands without a separate GUI login (**not tested on macOS**):
+Start Docker Desktop once from `<OWNER_USER>`'s GUI session so it creates `/Users/<OWNER_USER>/.docker/run/docker.sock`, then grant `<AGENT_USER>` a `file_inherit,directory_inherit` ACL on `/Users/<OWNER_USER>/.docker/run` and read/write ACL access on `docker.sock` so `<AGENT_USER>` can run `docker` commands without a separate GUI login (if Docker Desktop recreates `docker.sock` on restart without inheriting the ACE, re-run the `chmod +a` on `docker.sock` after each Docker Desktop restart; **not tested on macOS**):
 
 ```bash
-open -a Docker && chmod +a "user:<AGENT_USER> allow list,search,readattr,readextattr,readsecurity" /Users/<OWNER_USER> /Users/<OWNER_USER>/.docker /Users/<OWNER_USER>/.docker/run && chmod +a "user:<AGENT_USER> allow read,write,append,readattr,writeattr,readextattr,writeextattr,readsecurity" /Users/<OWNER_USER>/.docker/run/docker.sock
+open -a Docker && chmod +a "user:<AGENT_USER> allow list,search,readattr,readextattr,readsecurity" /Users/<OWNER_USER> /Users/<OWNER_USER>/.docker && chmod +a "user:<AGENT_USER> allow list,search,read,write,append,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit" /Users/<OWNER_USER>/.docker/run && chmod +a "user:<AGENT_USER> allow read,write,append,readattr,writeattr,readextattr,writeextattr,readsecurity" /Users/<OWNER_USER>/.docker/run/docker.sock
 ```
 
+<a id="ws-doc-5ed17372-6c08-47d6-95b9-eaa306a549be"></a>
 ### 17.1.2 `getent` and `setsid` shims for macOS
 
 `box-config.sh` and `spool-env.inc.sh` (`_spool_home_of`) call `getent passwd <user>`, and `install.sh` and `do_spl_desk_up` require `setsid` on `PATH` (neither ships in macOS base). Install both shims in `/usr/local/bin` (mode `0755`, owned by `root:wheel`) and register `/opt/homebrew/bin/bash` in `/etc/shells` so `su` / `sudo -i` accept it (**not tested on macOS**):
@@ -865,14 +869,25 @@ exec @ARGV or die "exec: $!\n";
 EOF
 ```
 
-## 17.2 The two users, groups and sudo on macOS (macOS equivalent of 3.4)
+<a id="ws-doc-d8a3038e-a35e-4f2b-bc0f-18e395109258"></a>
+### 17.1.3 Timezone (macOS equivalent of 3.5)
 
-### 17.2.1 Create the agent user (`sysadminctl` / `dscl`)
-
-Create `<AGENT_USER>` as a local macOS account with home `/Users/<AGENT_USER>` and shell `/opt/homebrew/bin/bash` (use `/usr/local/bin/bash` on an Intel Mac) via `sysadminctl`, and populate its home directory with `createhomedir` (**not tested on macOS**):
+Set the system timezone to `Europe/Helsinki` with `systemsetup` (**not tested on macOS**):
 
 ```bash
-sudo sysadminctl -addUser <AGENT_USER> -fullName "Spool Agent" -shell /opt/homebrew/bin/bash -home /Users/<AGENT_USER> -admin && sudo createhomedir -c -u <AGENT_USER>
+sudo systemsetup -settimezone Europe/Helsinki
+```
+
+<a id="ws-doc-b71f1987-4cac-4656-b73a-e6eeb150ed9d"></a>
+## 17.2 The two users, groups and sudo on macOS (macOS equivalent of 3.4)
+
+<a id="ws-doc-b3c5828a-9b76-4787-9783-f81a16edd327"></a>
+### 17.2.1 Create the agent user (`sysadminctl` / `dscl`)
+
+Create `<AGENT_USER>` as a local macOS account with home `/Users/<AGENT_USER>` and shell `/opt/homebrew/bin/bash` (use `/usr/local/bin/bash` on an Intel Mac) via `sysadminctl`, and populate its home directory with `createhomedir`. Passing `-admin` already adds `<AGENT_USER>` to the `admin` group; `<AGENT_USER>` is a non-interactive service/agent account entered through `sudo -n -u <AGENT_USER>` / `sudo -i -u <AGENT_USER>` (lock an interactive GUI password with `dscl . -passwd /Users/<AGENT_USER> "*"` so the account cannot be used for password login; **not tested on macOS**):
+
+```bash
+sudo sysadminctl -addUser <AGENT_USER> -fullName "Spool Agent" -shell /opt/homebrew/bin/bash -home /Users/<AGENT_USER> -admin && sudo dscl . -passwd /Users/<AGENT_USER> "*" && sudo createhomedir -c -u <AGENT_USER>
 ```
 
 If `<AGENT_USER>` already exists with `/bin/zsh` or `/bin/bash`, set its login shell to Homebrew's Bash 5+ with `dscl` and verify the record (**not tested on macOS**):
@@ -889,29 +904,28 @@ export PATH="$HOME/.local/bin:/opt/homebrew/opt/coreutils/libexec/gnubin:/opt/ho
 EOF
 ```
 
+<a id="ws-doc-3556ccc6-f92e-4789-a9a8-ff8261d50c4d"></a>
 ### 17.2.2 Groups (`dseditgroup`)
 
-macOS manages groups through Directory Service (`dseditgroup`) rather than `groupadd`/`usermod`. Create the `spool-agents` group and add both `<OWNER_USER>` and `<AGENT_USER>` to `spool-agents`, `staff` and `admin` (**not tested on macOS**):
+macOS manages groups through Directory Service (`dseditgroup`) rather than `groupadd`/`usermod`. Create the `spool-agents` group and add both `<OWNER_USER>` and `<AGENT_USER>` to `spool-agents` and `staff` (`sysadminctl -admin` in 17.2.1 already placed `<AGENT_USER>` in `admin`) (**not tested on macOS**):
 
 ```bash
-sudo dseditgroup -o create -r "Spool Agents" spool-agents && sudo dseditgroup -o edit -a <OWNER_USER> -t user spool-agents && sudo dseditgroup -o edit -a <AGENT_USER> -t user spool-agents && sudo dseditgroup -o edit -a <AGENT_USER> -t user staff && sudo dseditgroup -o edit -a <AGENT_USER> -t user admin
+sudo dseditgroup -o create -r "Spool Agents" spool-agents && sudo dseditgroup -o edit -a <OWNER_USER> -t user spool-agents && sudo dseditgroup -o edit -a <AGENT_USER> -t user spool-agents && sudo dseditgroup -o edit -a <AGENT_USER> -t user staff
 ```
 
-Verify that both accounts belong to `spool-agents` and `admin` (**not tested on macOS**):
+Verify that both accounts belong to `spool-agents` and `<AGENT_USER>` belongs to `admin` (**not tested on macOS**):
 
 ```bash
 dseditgroup -o checkmember -m <AGENT_USER> spool-agents && dseditgroup -o checkmember -m <OWNER_USER> spool-agents && dseditgroup -o checkmember -m <AGENT_USER> admin
 ```
 
+<a id="ws-doc-437ca758-8920-4232-a12e-7b53cf6fe37e"></a>
 ### 17.2.3 NOPASSWD sudo both ways (`/etc/sudoers.d/`, `visudo -c`)
 
-Write `/etc/sudoers.d/90-spool-users` (`root:wheel`, mode `0440`) and validate its syntax with `visudo -cf` before trusting it so `<OWNER_USER>` can hop to `<AGENT_USER>` (`sudo -n -u <AGENT_USER>`) and `<AGENT_USER>` can hop to `<OWNER_USER>` or `root` without a password prompt (**not tested on macOS**):
+Write a temporary candidate file `/tmp/90-spool-users`, validate its syntax with `visudo -cf` first (on macOS a broken `/etc/sudoers.d/` file breaks every subsequent `sudo` invocation, including the `visudo` needed to repair it), and only after validation succeeds install it to `/etc/sudoers.d/90-spool-users` (`root:wheel`, mode `0440`) so `<OWNER_USER>` can hop to `<AGENT_USER>` (`sudo -n -u <AGENT_USER>`) and `<AGENT_USER>` can hop to `<OWNER_USER>` or `root` without a password prompt (**not tested on macOS**):
 
 ```bash
-sudo tee /etc/sudoers.d/90-spool-users >/dev/null <<'EOF' && sudo chown root:wheel /etc/sudoers.d/90-spool-users && sudo chmod 0440 /etc/sudoers.d/90-spool-users && sudo visudo -cf /etc/sudoers.d/90-spool-users
-<OWNER_USER> ALL=(ALL) NOPASSWD:ALL
-<AGENT_USER> ALL=(ALL) NOPASSWD:ALL
-EOF
+printf '%s ALL=(ALL) NOPASSWD:ALL\n%s ALL=(ALL) NOPASSWD:ALL\n' '<OWNER_USER>' '<AGENT_USER>' > /tmp/90-spool-users && sudo visudo -cf /tmp/90-spool-users && sudo install -o root -g wheel -m 0440 /tmp/90-spool-users /etc/sudoers.d/90-spool-users && rm -f /tmp/90-spool-users
 ```
 
 Check NOPASSWD sudo in both directions (**not tested on macOS**):
@@ -920,63 +934,71 @@ Check NOPASSWD sudo in both directions (**not tested on macOS**):
 sudo -n -u <AGENT_USER> sudo -n -u <OWNER_USER> true && echo ok
 ```
 
+<a id="ws-doc-1143c224-b48a-4f9a-a900-9671e7d818a1"></a>
 ## 17.3 What "full visibility on the whole box" means on macOS
 
 On Linux, membership in `sudo`, `<OWNER_USER>`'s group, `docker` and `spool-agents` plus `NOPASSWD:ALL` gives `<AGENT_USER>` unrestricted access to the whole filesystem. On macOS, two separate layers govern access:
 
-1. **UNIX / Darwin ACL layer (`admin` + `NOPASSWD:ALL` + `chmod +a`)**: putting `<AGENT_USER>` in `admin`, `staff` and `spool-agents` (17.2.2), granting `NOPASSWD:ALL` (17.2.3), and adding an inherited read/traverse ACL for `<AGENT_USER>` on `/Users/<OWNER_USER>` gives `<AGENT_USER>` visibility over `/opt/csi`, `/var/spool-hub`, `/var/spool-ws`, `/Library`, `/Applications` and `<OWNER_USER>`'s non-TCC workspace directories, plus root execution through `sudo -n`.
+1. **UNIX / Darwin ACL layer (`admin` + `NOPASSWD:ALL` + `chmod +a`)**: putting `<AGENT_USER>` in `admin`, `staff` and `spool-agents` (17.2.2), granting `NOPASSWD:ALL` (17.2.3), and adding an inherited read/traverse ACL for `<AGENT_USER>` on `/Users/<OWNER_USER>` gives `<AGENT_USER>` visibility over `/opt/csi`, `/var/spool-ws`, `/Library`, `/Applications` and `<OWNER_USER>`'s workspace directories, plus root execution through `sudo -n`.
 2. **macOS TCC (Transparency, Consent, and Control) and SIP limits that `sudo` cannot lift**: even `root` (`sudo`) is denied (`Operation not permitted`, `EPERM`) when reading TCC-protected folders (`~/Desktop`, `~/Documents`, `~/Downloads`, `~/Library/Mail`, `~/Library/Messages`, `~/Library/Safari`, `/Library/Application Support/com.apple.TCC/TCC.db`) unless the responsible binary (`Terminal.app`, `iTerm.app`, `/opt/homebrew/bin/tmux`, `/opt/homebrew/bin/bash`, and `/usr/sbin/sshd-keygen-wrapper` for SSH sessions) has been granted **Full Disk Access** by a human in System Settings. When System Integrity Protection (SIP) is enabled, no CLI command (`sudo`, `tccutil`, or writing `TCC.db`) can grant Full Disk Access programmatically; a human must toggle it once in the GUI.
 
-Grant `<AGENT_USER>` inherited Darwin ACL visibility across `/Users/<OWNER_USER>`'s non-TCC trees (**not tested on macOS**):
-
-```bash
-sudo chmod -R +a "user:<AGENT_USER> allow list,search,read,execute,readattr,readextattr,readsecurity,file_inherit,directory_inherit" /Users/<OWNER_USER>
-```
-
-Open **System Settings -> Privacy & Security -> Full Disk Access** on the Mac so the operator can toggle Full Disk Access on for the terminal application, `/opt/homebrew/bin/tmux`, `/opt/homebrew/bin/bash` and `/usr/sbin/sshd-keygen-wrapper` (**not tested on macOS**):
+First, open **System Settings -> Privacy & Security -> Full Disk Access** on the Mac, toggle Full Disk Access on for the terminal application, `/opt/homebrew/bin/tmux`, `/opt/homebrew/bin/bash` and `/usr/sbin/sshd-keygen-wrapper`, and open a new terminal window so the session runs with Full Disk Access (**not tested on macOS**):
 
 ```bash
 open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"
 ```
 
-Verify whether the current session's responsible binary has Full Disk Access as `<AGENT_USER>` (prints `fda-ok` when granted, `Operation not permitted` when TCC still blocks it) (**not tested on macOS**):
+Next, from the new terminal with Full Disk Access active, grant `<AGENT_USER>` inherited Darwin ACL visibility across `/Users/<OWNER_USER>` (if `chmod -R +a` was run before Full Disk Access was toggled on, re-run it now after enabling Full Disk Access; without Full Disk Access, `chmod -R +a` gets `EPERM` on `Desktop`, `Documents`, `Downloads` and parts of `Library`, leaving those mode-`0700` directories without the ACE) (**not tested on macOS**):
+
+```bash
+sudo chmod -R +a "user:<AGENT_USER> allow list,search,read,execute,readattr,readextattr,readsecurity,file_inherit,directory_inherit" /Users/<OWNER_USER>
+```
+
+Verify whether the current session's responsible binary has Full Disk Access and the Darwin ACE on `/Users/<OWNER_USER>/Desktop` as `<AGENT_USER>` (prints `fda-ok` when granted; note that running this in an interactive terminal tests the Full Disk Access of the terminal application you typed it in, not of the `launchd` daemon or the `tmux` server that runs the agents — run the same check inside a `tmux` pane as `<AGENT_USER>` to confirm `tmux`'s Full Disk Access) (**not tested on macOS**):
 
 ```bash
 sudo -n -u <AGENT_USER> ls /Users/<OWNER_USER>/Desktop >/dev/null && echo fda-ok
 ```
 
+<a id="ws-doc-25e5c50b-7784-4d5a-a1fc-310b339291c7"></a>
 ## 17.4 Shared directories, ACLs (`chmod +a`), spool root and `box.env` (macOS equivalent of 3.4, 6.1, 6.2, 6.3)
 
-macOS uses Darwin extended ACLs (`chmod +a`, `ls -le`) instead of Linux POSIX ACLs (`setfacl`/`getfacl`), so `do_repair_spool_root` and `do_provision_spool_root` cannot run on Darwin. Create `/opt/csi`, `/var/csi/csi-spl` and `/var/spool-hub` with group `spool-agents`, mode `2770` (`2775` on `/opt/csi`) and inherited Darwin ACLs granting `spool-agents` full read/write/execute inheritance (**not tested on macOS**):
+macOS uses Darwin extended ACLs (`chmod +a`, `ls -le`) instead of Linux POSIX ACLs (`setfacl`/`getfacl`), so `do_repair_spool_root` and `do_provision_spool_root` cannot run on Darwin. On BSD/Darwin, new files and directories automatically inherit their parent directory's group (`spool-agents`) without needing a Linux setgid bit. A dedicated joined Mac box keeps its spool root at `/var/spool-ws/<WORKSPACE>/spool` (section 17.4.1) rather than `/var/spool-hub`. Create `/opt/csi` and `/var/csi/csi-spl` with group `spool-agents`, mode `0775` and inherited Darwin ACLs granting `spool-agents` full read/write/execute inheritance (**not tested on macOS**):
 
 ```bash
-sudo mkdir -p /opt/csi /var/csi/csi-spl /var/spool-hub && sudo chown -R <OWNER_USER>:spool-agents /opt/csi /var/csi /var/spool-hub && sudo chmod 2775 /opt/csi /var/csi/csi-spl && sudo chmod 2770 /var/spool-hub && sudo chmod +a "group:spool-agents allow list,add_file,search,delete,add_subdirectory,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit" /opt/csi /var/csi/csi-spl /var/spool-hub
+sudo mkdir -p /opt/csi /var/csi/csi-spl && sudo chown -R <OWNER_USER>:spool-agents /opt/csi /var/csi && sudo chmod 0775 /opt/csi /var/csi/csi-spl && sudo chmod +a "group:spool-agents allow list,add_file,search,delete,add_subdirectory,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit" /opt/csi /var/csi/csi-spl
 ```
 
-Verify the Darwin ACLs and permissions on `/opt/csi` and `/var/spool-hub` (**not tested on macOS**):
+Verify the Darwin ACLs and permissions on `/opt/csi` and `/var/csi/csi-spl` (**not tested on macOS**):
 
 ```bash
-ls -lde /opt/csi /var/spool-hub
+ls -lde /opt/csi /var/csi/csi-spl
 ```
 
+Once `/opt/csi` is in place, run section 4 (4.1–4.3) unchanged on macOS to clone `/opt/csi/csi-spl`, check out `tpl-gen` at its pin and enable the pre-push hook.
+
+<a id="ws-doc-83b52dae-8c68-4c51-825f-98dfdbacc8ba"></a>
 ### 17.4.1 Dedicated workspace claim on a joined Mac box (spec 108 section 3.8)
 
 When a workspace has `box_join_enabled = true`, the hub accepts `spool join` only from a box whose `/var/spool-ws/claim` (`$SPL_WS_BASE/claim`) names `<WORKSPACE>` (`box_mode = dedicated`, spec 108 section 3.8; a missing claim joins as `shared` and is refused with `403 box_mode_shared`). Because `do_spl_box_workspace_setup` calls Linux `useradd --system` and `chown root:root` (on macOS root's group is `wheel`), create the dedicated workspace directory `/var/spool-ws/<WORKSPACE>` owned by `<AGENT_USER>` (mode `0700`) and the root-owned `/var/spool-ws/claim` (mode `0644`) directly (**not tested on macOS**):
 
 ```bash
-sudo mkdir -p /var/spool-ws/<WORKSPACE>/spool /var/spool-ws/<WORKSPACE>/state && sudo chown root:wheel /var/spool-ws && sudo chmod 0755 /var/spool-ws && printf 'SPOOL_AGENT_USER=%s\nSPOOL_RUN_AS_AGENT=sudo-i\nSPOOL_FLEET_TENANT=%s\n' '<AGENT_USER>' '<WORKSPACE>' | sudo tee /var/spool-ws/<WORKSPACE>/spool/box.env >/dev/null && sudo chown -R <AGENT_USER>:staff /var/spool-ws/<WORKSPACE> && sudo chmod 0700 /var/spool-ws/<WORKSPACE> /var/spool-ws/<WORKSPACE>/spool /var/spool-ws/<WORKSPACE>/state && printf '%s\n' '<WORKSPACE>' | sudo tee /var/spool-ws/claim >/dev/null && sudo chown root:wheel /var/spool-ws/claim && sudo chmod 0644 /var/spool-ws/claim
+sudo mkdir -p /var/spool-ws/<WORKSPACE>/spool /var/spool-ws/<WORKSPACE>/state && sudo chown root:wheel /var/spool-ws && sudo chmod 0755 /var/spool-ws && sudo chown -R <AGENT_USER>:staff /var/spool-ws/<WORKSPACE> && sudo chmod 0700 /var/spool-ws/<WORKSPACE> /var/spool-ws/<WORKSPACE>/spool /var/spool-ws/<WORKSPACE>/state && printf '%s\n' '<WORKSPACE>' | sudo tee /var/spool-ws/claim >/dev/null && sudo chown root:wheel /var/spool-ws/claim && sudo chmod 0644 /var/spool-ws/claim
 ```
 
+<a id="ws-doc-498d7ae0-8570-46da-8240-f74e2854bbe5"></a>
 ### 17.4.2 `box.env` (macOS equivalent of 6.3)
 
-macOS BSD `su` does not support `--pty`, so `box.env` sets `SPOOL_RUN_AS_AGENT=sudo-i` alongside `SPOOL_AGENT_USER=<AGENT_USER>`. Write `/var/spool-hub/box.env` with `box-config.sh` (**not tested on macOS**):
+macOS BSD `su` does not support `--pty`, so `box.env` sets `SPOOL_RUN_AS_AGENT=sudo-i` alongside `SPOOL_AGENT_USER=<AGENT_USER>`. Because `/var/spool-ws/<WORKSPACE>/spool` is mode `0700` owned by `<AGENT_USER>`, run `box-config.sh` as `<AGENT_USER>` with `SPOOL_ROOT=/var/spool-ws/<WORKSPACE>/spool` so `SPOOL_DESK_BOX`, `SPOOL_BOX_TAG`, `SPOOL_FLEET_ENV` and `SPOOL_FLEET_TENANT` are written to `/var/spool-ws/<WORKSPACE>/spool/box.env` (**not tested on macOS**):
 
 ```bash
-/opt/homebrew/bin/bash /opt/csi/csi-spl/csi-spl-orc/src/bash/features/spawn-agents/scripts/box-config.sh SPOOL_AGENT_USER=<AGENT_USER> SPOOL_RUN_AS_AGENT=sudo-i SPOOL_DESK_BOX=<BOX> SPOOL_BOX_TAG=<BOX> SPOOL_FLEET_ENV=prd SPOOL_FLEET_TENANT=<WORKSPACE>
+sudo -i -u <AGENT_USER> env SPOOL_ROOT=/var/spool-ws/<WORKSPACE>/spool /opt/homebrew/bin/bash /opt/csi/csi-spl/csi-spl-orc/src/bash/features/spawn-agents/scripts/box-config.sh SPOOL_AGENT_USER=<AGENT_USER> SPOOL_RUN_AS_AGENT=sudo-i SPOOL_DESK_BOX=<BOX> SPOOL_BOX_TAG=<BOX> SPOOL_FLEET_ENV=prd SPOOL_FLEET_TENANT=<WORKSPACE>
 ```
 
-## 17.5 The agent harness, join token and Claude login as `<AGENT_USER>` (macOS equivalent of 7.2, 7.3, 7.5)
+<a id="ws-doc-d9db30ce-3a50-4530-b63a-edeadc7f0612"></a>
+## 17.5 The agent harness, join token and Claude login as `<AGENT_USER>` (macOS equivalent of 7.2, 7.3, 7.5, 7.8)
 
+<a id="ws-doc-3e5a9d7c-6f24-4a2f-9580-f5ab00373ca9"></a>
 ### 17.5.1 Install the harness as `<AGENT_USER>` (macOS equivalent of 7.2)
 
 Because macOS `su` has no `--pty` flag, run `install.sh` as `<AGENT_USER>` through `sudo -i -u <AGENT_USER>` with `/opt/homebrew/bin/bash` (**not tested on macOS**):
@@ -985,6 +1007,7 @@ Because macOS `su` has no `--pty` flag, run `install.sh` as `<AGENT_USER>` throu
 sudo -i -u <AGENT_USER> /opt/homebrew/bin/bash -lc 'cd /opt/csi/csi-spl && bash csi-spl-orc/src/bash/features/spool-install/install.sh --cli claude,grok,agy,mistral --no-seat --fleet'
 ```
 
+<a id="ws-doc-d766cd99-d9fb-45db-bfe9-6241dc02b76a"></a>
 ### 17.5.2 Install `spool` and `spool-agent` as `<OWNER_USER>` (macOS equivalent of 7.3)
 
 Run the no-CLI harness install as `<OWNER_USER>` (**not tested on macOS**):
@@ -993,22 +1016,24 @@ Run the no-CLI harness install as `<OWNER_USER>` (**not tested on macOS**):
 cd /opt/csi/csi-spl && /opt/homebrew/bin/bash csi-spl-orc/src/bash/features/spool-install/install.sh --cli none --no-seat --fleet
 ```
 
+<a id="ws-doc-6a6d2028-2021-4817-9918-f495c5625681"></a>
 ### 17.5.3 Enrol the Mac box with a workspace join token (`spool join`)
 
-As `<AGENT_USER>`, write `~/.spool/env`, create the first agent mailbox (`c-001`), redeem the one-use join token from **Workspace settings -> Agents -> Join tokens** (`SPOOL_JOIN_TOKEN`), and register the `spool` MCP server in `<AGENT_USER>`'s Claude Code configuration (**not tested on macOS**):
+As `<AGENT_USER>`, write `~/.spool/env` (setting `<HUB_URL>` to the hub address shown in the WUI help under **Connect an agent**, section 2, or derived at write time with `awk '/^ *BASE_DOMAIN:/{print "https://api."$2; exit}' /opt/csi/csi-spl/csi-spl-cnf/csi-spl/all.env.yaml`), create the first agent mailbox (`c-001`), redeem the one-use join token from **Workspace settings -> Agents -> Join tokens** (`SPOOL_JOIN_TOKEN`), and register the `spool` MCP server in `<AGENT_USER>`'s Claude Code configuration (**not tested on macOS**):
 
 ```bash
 sudo -i -u <AGENT_USER> /opt/homebrew/bin/bash -lc 'mkdir -p ~/.spool /var/spool-ws/<WORKSPACE>/spool/c-001 && cat > ~/.spool/env <<EOF
-export SPOOL_HUB_URL="https://\$(awk -F\" "/BASE_DOMAIN:/{print \"api.\"\$2; exit}" /opt/csi/csi-spl/csi-spl-cnf/csi-spl/all.env.yaml)"
+export SPOOL_HUB_URL="<HUB_URL>"
 export SPOOL_TENANT="<WORKSPACE>"
 export SPOOL_BOX_ID="<BOX>"
 export SPOOL_ROOT="/var/spool-ws/<WORKSPACE>/spool"
 export SPL_WS_BASE="/var/spool-ws"
-export PATH="\$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:\$PATH"
+export PATH="\$HOME/.local/bin:/opt/homebrew/opt/coreutils/libexec/gnubin:/opt/homebrew/bin:/usr/local/bin:\$PATH"
 EOF
 . ~/.spool/env && SPOOL_JOIN_TOKEN="<JOIN_TOKEN>" spool join "\$SPOOL_HUB_URL" && claude mcp add spool -- /opt/homebrew/bin/bash -c ". ~/.spool/env && exec spool mcp --as c-001"'
 ```
 
+<a id="ws-doc-a0261b9b-6efe-4e18-a93f-422b7f0e2699"></a>
 ### 17.5.4 Interactive Claude Code login as `<AGENT_USER>` (macOS equivalent of 7.5)
 
 Log in to Claude Code interactively as `<AGENT_USER>` (never copy `<OWNER_USER>`'s `~/.claude` credentials) (**not tested on macOS**):
@@ -1023,6 +1048,16 @@ Verify that `<AGENT_USER>` is logged in (`"loggedIn": true`) (**not tested on ma
 sudo -i -u <AGENT_USER> claude auth status
 ```
 
+<a id="ws-doc-f50e0379-9922-4eaa-8588-e1470dfe2cac"></a>
+### 17.5.5 Check the harness as `<AGENT_USER>` (macOS equivalent of 7.8)
+
+Verify that `spool`, `spool-agent`, `claude`, `~/.claude/CLAUDE.md` and the `spool` MCP entry are in place for `<AGENT_USER>` (**not tested on macOS**):
+
+```bash
+sudo -i -u <AGENT_USER> /opt/homebrew/bin/bash -lc 'command -v spool spool-agent claude && test -s ~/.claude/CLAUDE.md && claude mcp list'
+```
+
+<a id="ws-doc-a9d5c951-6d9c-4812-861d-70f324ce75c4"></a>
 ## 17.6 Keep-alive with `launchd` instead of `loginctl enable-linger` and systemd (macOS equivalent of 3.4 linger, 9, 10.1)
 
 macOS has neither `systemd` nor `loginctl enable-linger`. A `~/Library/LaunchAgents` plist only runs while that user is logged in to the macOS GUI; a system `LaunchDaemon` in `/Library/LaunchDaemons/net.csitea.spool.hub-run.plist` with `<key>UserName</key><string><AGENT_USER></string>`, `<key>RunAtLoad</key><true/>` and `<key>KeepAlive</key><true/>` starts `spool hub-run` at boot as `<AGENT_USER>` and restarts it if it exits, even when no GUI session is open.
@@ -1033,7 +1068,7 @@ Disable idle system sleep on the Mac box so macOS does not suspend the network i
 sudo pmset -a sleep 0 disksleep 0 displaysleep 15
 ```
 
-Write `/Library/LaunchDaemons/net.csitea.spool.hub-run.plist` (`root:wheel`, mode `0644`) and validate it with `plutil -lint` (**not tested on macOS**):
+Write `/Library/LaunchDaemons/net.csitea.spool.hub-run.plist` (`root:wheel`, mode `0644`), sourcing the absolute path `/Users/<AGENT_USER>/.spool/env`, and validate it with `plutil -lint` (**not tested on macOS**):
 
 ```bash
 sudo tee /Library/LaunchDaemons/net.csitea.spool.hub-run.plist >/dev/null <<'EOF' && sudo chown root:wheel /Library/LaunchDaemons/net.csitea.spool.hub-run.plist && sudo chmod 0644 /Library/LaunchDaemons/net.csitea.spool.hub-run.plist && sudo plutil -lint /Library/LaunchDaemons/net.csitea.spool.hub-run.plist
@@ -1053,7 +1088,7 @@ sudo tee /Library/LaunchDaemons/net.csitea.spool.hub-run.plist >/dev/null <<'EOF
   <array>
     <string>/opt/homebrew/bin/bash</string>
     <string>-lc</string>
-    <string>. "$HOME/.spool/env" &amp;&amp; exec spool hub-run</string>
+    <string>. "/Users/<AGENT_USER>/.spool/env" &amp;&amp; exec spool hub-run</string>
   </array>
   <key>RunAtLoad</key>
   <true/>
@@ -1070,10 +1105,10 @@ sudo tee /Library/LaunchDaemons/net.csitea.spool.hub-run.plist >/dev/null <<'EOF
 EOF
 ```
 
-Load and start the daemon in the `system` domain with `launchctl bootstrap` (**not tested on macOS**):
+Unload any previous instance with `launchctl bootout` and wait briefly before bootstrapping (`launchctl bootout` is asynchronous on macOS and an immediate `bootstrap` can fail with `5: Input/output error`), then load and start the daemon in the `system` domain (**not tested on macOS**):
 
 ```bash
-sudo launchctl bootout system/net.csitea.spool.hub-run 2>/dev/null || true; sudo launchctl bootstrap system /Library/LaunchDaemons/net.csitea.spool.hub-run.plist && sudo launchctl kickstart -k system/net.csitea.spool.hub-run
+sudo launchctl bootout system/net.csitea.spool.hub-run 2>/dev/null || true; sleep 2 && sudo launchctl bootstrap system /Library/LaunchDaemons/net.csitea.spool.hub-run.plist && sudo launchctl kickstart -k system/net.csitea.spool.hub-run
 ```
 
 Verify that `net.csitea.spool.hub-run` is running as `<AGENT_USER>` and connected to the hub (**not tested on macOS**):

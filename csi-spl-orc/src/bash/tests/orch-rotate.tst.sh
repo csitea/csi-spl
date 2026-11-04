@@ -1111,6 +1111,7 @@ rm -f "$D/lease"
 # GATE SKIP standby 30 times. Now: ROTATE_ORCH_STANDBY_MAX_AGE (7200 s).
 sbr() {  # <age-s>: the standby box, c-900 that old, the orch lease on c-900@sat
   world; rm -rf "$T/proc/1001"; "$T/bin/proc" 1001 "$1"; echo "c-900@sat $(date +%s)" >"$D/lease.orch"
+  LB="$(sha256sum <"$D/lease.orch")"
 }
 SBR=(LEASE_FLEET=main)
 gate24() {  # <want> <label> [env...]: case 2's gate(), numbered 24
@@ -1127,9 +1128,9 @@ act DRY_RUN=0 "${SBR[@]}" >"$T/o" 2>&1; rc=$?
 [[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE && ! -d "$T/proc/1001" ]] && grep -q '^spawn claude c-900 ' "$T/spawn.log" &&
   grep -q ' DONE OK c-900@box-desk is pid 2001' "$T/o" &&
   pass "24. (a) DRY_RUN=0: a fresh c-900 session (same id, claude), acked, the old pid retired" || fail "24. (a) done rc=$rc $(grep -E 'GATE|SPAWN|ACK|FAIL|DONE' "$T/o")"
-[[ "$(cut -d' ' -f1 "$D/lease.orch")" == c-900@sat ]] && grep -qx 'LEASE_ORCH=c-900' "$D/lease.conf" &&
+[[ "$(sha256sum <"$D/lease.orch")" == "$LB" ]] && grep -qx 'LEASE_ORCH=c-900' "$D/lease.conf" &&
   grep -q ' CLOSE OK ' "$T/o" && ! grep -q 'lease-moved' "$T/o" &&
-  pass "24. (a) ... the fleet orch lease stays c-900@sat, LEASE_ORCH=c-900, CLOSE OK (no lease-moved)" || fail "24. (a) lease: $(cat "$D/lease.orch") $(grep LEASE_ORCH "$D/lease.conf") $(grep CLOSE "$T/o")"
+  pass "24. (a) ... the fleet orch lease byte-identical (c-900@sat), LEASE_ORCH=c-900, CLOSE OK (no lease-moved)" || fail "24. (a) lease: $(cat "$D/lease.orch") $(grep LEASE_ORCH "$D/lease.conf") $(grep CLOSE "$T/o")"
 act DRY_RUN=0 "${SBR[@]}" >"$T/o" 2>&1
 grep -q ' GATE SKIP standby (orch lease: c-900@sat), c-900 is 0s old (< 7200)' "$T/o" &&
   pass "24. (a) the next hourly run: the fresh seat is skipped with its age" || fail "24. (a) rerun: $(grep GATE "$T/o")"
@@ -1142,6 +1143,11 @@ sbr 7201; echo 'ROTATE_ORCH_STANDBY_MAX_AGE=8000' >"$D/rotate.conf"; act DRY_RUN
 act DRY_RUN=0 "${SBR[@]}" ROTATE_ORCH_STANDBY_MAX_AGE=2h >"$T/o" 2>&1; rc=$?
 [[ $rc -ne 0 && ! -e "$T/spawn.log" ]] && grep -q 'FATAL ROTATE_ORCH_STANDBY_MAX_AGE must be a whole number' "$T/o" &&
   pass "24. a non-number ROTATE_ORCH_STANDBY_MAX_AGE: FATAL, nothing done" || fail "24. bad value rc=$rc $(cat "$T/o")"
+# a missing orch lease mirror (holder "none") counts as standby: refreshed at the same age
+sbr 7201; rm -f "$D/lease.orch"; act "${SBR[@]}" >"$T/o" 2>&1
+grep -q " GATE OK standby (orch lease: none), but c-900 is 7201s old (>= 7200): refreshing this machine's session" "$T/o" && [[ ! -e "$D/lease.orch" ]] &&
+  pass "24. no orch lease mirror, 7201 s: GATE OK standby refresh (holder none), no lease written" || fail "24. no mirror: $(grep GATE "$T/o")"
+sbr 7199; rm -f "$D/lease.orch"; gate24 "standby (orch lease: none), c-900 is 7199s old (< 7200)" "no orch lease mirror, 7199 s: SKIP standby with the age" "${SBR[@]}"
 # (c) the holder's box: the age gate is still ROTATE_MIN_AGE (3300)
 sbr 3400; echo "c-900@box-desk $(date +%s)" >"$D/lease.orch"; act "${SBR[@]}" >"$T/o" 2>&1
 grep -q ' GATE PLAN pass: c-900 pid 1001, 3400s old' "$T/o" && ! grep -q 'refreshing' "$T/o" &&
@@ -1165,8 +1171,8 @@ sbr 7201; echo no >"$T/ack.mode"
 act DRY_RUN=0 ROTATE_ACK_TIMEOUT=3 "${SBR[@]}" >"$T/o" 2>&1; rc=$?
 [[ $rc -ne 0 && "$(ctx ROTATE_PHASE)" == FAIL && -d "$T/proc/1001" && ! -d "$T/proc/2001" ]] && grep -q ' FAIL FAIL ACK: no ack within 3s' "$T/o" &&
   grep -q $'^%2\t1001\t$0\tc-900@box sometitle$' "$T/tmux/panes" &&
-  [[ "$(cut -d' ' -f1 "$D/lease.orch")" == c-900@sat ]] && grep -qx 'LEASE_ORCH=c-900' "$D/lease.conf" &&
-  pass "24. (e) no ack: FAIL ACK, the old pid 1001 keeps the seat and its name, the leases untouched" || fail "24. (e) rc=$rc $(grep -E 'GATE|ACK|FAIL' "$T/o")"
+  [[ "$(sha256sum <"$D/lease.orch")" == "$LB" ]] && grep -qx 'LEASE_ORCH=c-900' "$D/lease.conf" &&
+  pass "24. (e) no ack: FAIL ACK, the old pid 1001 keeps the seat and its name, the fleet orch lease byte-identical, LEASE_ORCH kept" || fail "24. (e) rc=$rc $(grep -E 'GATE|ACK|FAIL' "$T/o")"
 ! grep -q ERRTRAP "$T/o" && pass "24. no stray failing command under the ERR trap" || fail "24. ERRTRAP: $(grep ERRTRAP "$T/o")"
 rm -f "$D/lease.orch" "$T/ack.mode"
 echo

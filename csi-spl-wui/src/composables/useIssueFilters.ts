@@ -1,7 +1,7 @@
 import type { ComputedRef, Ref } from 'vue'
 import type { Router, RouteLocationNormalizedLoaded } from 'vue-router'
 import { ISSUE_STATUSES, type EpicSummary, type Issue, type IssueFilter } from '~/utils/issues.mjs'
-import { isNewIssue } from '~/utils/my-issues-count.mjs'
+import { NEW_ISSUE_KINDS, isNewIssue } from '~/utils/my-issues-count.mjs'
 import { type IssuesView } from '~/utils/view-prefs.mjs'
 import { controlLabel, groupIssues, hubOrder, localInputToDeadline, nextSort, sortDirKey, sortFromQuery, sortSheet } from '~/utils/issues-view.mjs'
 import type { IssueMenuTarget } from '~/composables/useIssueMenu'
@@ -219,7 +219,8 @@ export function useIssueFilters(o: IssueFiltersOpts) {
   const filterRefs = [unreadF, statusF, priorityF, levelF, assigneeF, labelF, dueF, epicF]
   const filtersActive = computed(() => Boolean(unreadF.value || statusF.value || priorityF.value || levelF.value || assigneeF.value || labelF.value || dueF.value))
   function serverFilter(): IssueFilter {
-    const f: IssueFilter = { kind: 'issue' }
+    /* SPL-4800: Unread lists every row the badge counts, a subtask too */
+    const f: IssueFilter = { kind: unreadF.value ? NEW_ISSUE_KINDS : 'issue' }
     if (epicF.value) f.epic = [epicF.value]
     if (statusF.value) f.status = [statusF.value]
     if (priorityF.value !== '') f.priority = [Number(priorityF.value)]

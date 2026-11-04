@@ -38,6 +38,15 @@ export function isNewIssue(i) {
   return Boolean(i) && i.unopened === true && openIssueCount([i]) === 1
 }
 
+/**
+ * SPL-4800: the kinds the Issues list asks the hub for while Unread is on.
+ * The count above takes every task, a subtask too (issues-v1 2.1: "not a
+ * level-1 row"), so the Unread list must read subtasks as well: with the
+ * sheet's default `kind=issue` an unopened subtask kept the badge at 1 over
+ * an empty list (csitea HUM-24, 2026-11-03/04).
+ */
+export const NEW_ISSUE_KINDS = 'issue,subtask'
+
 /** The window event the Issues page fires once it marked an issue opened. */
 export const ISSUE_OPENED_EVENT = 'spool:issue-opened'
 

@@ -98,6 +98,10 @@ the rest of the issues."
 - The WUI marks an unopened row with the unread row's dot and bold title
   (`.unread-dot`, as in the Flow list), clears it when the issue opens, and
   the Issues tab counts exactly those rows.
+- A subtask is not a level-1 row, so it is marked and counted too. The
+  Issues list's **Unread** filter therefore reads `kind=issue,subtask`, not
+  the sheet's default `kind=issue` (SPL-4800: an unopened subtask kept the
+  badge at 1 over an empty Unread list).
 
 ### 2.2 `discussions`: every issue links to one or more (SPL-1593, rdb 0194)
 

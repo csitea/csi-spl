@@ -12,6 +12,7 @@ declare module '~/utils/my-issues-count.mjs' {
   export function openIssueCount(issues: unknown): number
   export function newIssueCount(issues: unknown): number
   export function isNewIssue(issue: unknown): boolean
+  export const NEW_ISSUE_KINDS: string
   export const ISSUE_OPENED_EVENT: string
   export function startMyIssuesCount(opts: {
     api: { listIssues: (opts?: { filter?: Record<string, unknown> }) => Promise<unknown> },

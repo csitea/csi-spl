@@ -5,7 +5,7 @@
 // assigned issues.
 // Run: node tests/unit/blocker-issue.test.mjs
 import { BLOCKER_KEY_MINUTES, BLOCKER_MINUTES_DEFAULT, BLOCKER_MINUTES_RANGE, blockerMinutesOf, blockerMinutesPatch, blockerMinutesValid } from '../../src/utils/blocker-settings.mjs'
-import { ISSUE_OPENED_EVENT, OPEN_ISSUE_STATUSES, isNewIssue, newIssueCount, openIssueCount, startMyIssuesCount } from '../../src/utils/my-issues-count.mjs'
+import { ISSUE_OPENED_EVENT, NEW_ISSUE_KINDS, OPEN_ISSUE_STATUSES, isNewIssue, newIssueCount, openIssueCount, startMyIssuesCount } from '../../src/utils/my-issues-count.mjs'
 import { createMockTenant } from '../../src/utils/tenant-settings-mock.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 
@@ -61,6 +61,11 @@ ok('SPL-1595: Unread lists the open, unopened tasks only', same(unread, ['SPL-1'
 ok('SPL-1595: the filtered list is as long as the badge', unread.length === newIssueCount(rows))
 ok('SPL-1595 CONTROL: done, diss, an epic, an opened row and nothing are not unread',
   [rows[2], rows[3], rows[4], rows[5], null, undefined].every((r) => !isNewIssue(r)))
+// SPL-4800 (csitea HUM-24): an unopened subtask is counted, so the Unread
+// list's hub read (kind=) must take every kind the count takes
+const counted = ['epic', 'feature', 'issue', 'subtask'].filter((kind) => isNewIssue({ status: 'todo', kind, unopened: true }))
+ok('SPL-4800: an unopened subtask is counted', counted.includes('subtask'), JSON.stringify(counted))
+ok('SPL-4800: Unread reads every kind the badge counts', same(String(NEW_ISSUE_KINDS || '').split(',').sort(), counted.sort()), String(NEW_ISSUE_KINDS))
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let list = rows.slice(0, 1)

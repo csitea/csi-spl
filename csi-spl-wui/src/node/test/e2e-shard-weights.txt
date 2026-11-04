@@ -129,6 +129,7 @@ tests/e2e/issues-mobile.test.mjs 12
 tests/e2e/issues-open-description.test.mjs 20
 tests/e2e/issues-unopened.test.mjs 4
 tests/e2e/issues-unread-filter.test.mjs 6
+tests/e2e/issues-unread-subtask.test.mjs 4
 tests/e2e/issues-views.test.mjs 5
 tests/e2e/issues.test.mjs 16
 tests/e2e/kb-inset.test.mjs 2

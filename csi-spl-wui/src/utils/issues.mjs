@@ -380,6 +380,8 @@ function mockHistoryOf(i, log) {
 export const MOCK_ISSUES_SEED_KEY = 'spool.mock.issues-seed'
 /** localStorage key (SPL-1559): how many issues a teammate assigned to me the mock tenant starts with, none opened. */
 export const MOCK_ISSUES_NEW_KEY = 'spool.mock.issues-new'
+/** localStorage key (SPL-4800): how many subtasks a teammate assigned to me, none opened, under the first new issue (or a new one). */
+const MOCK_ISSUES_NEW_SUB_KEY = 'spool.mock.issues-new-sub'
 /** the teammate the mock's new issues come from */
 const MOCK_TEAMMATE = 'HUM-2'
 /** localStorage key (SPL-2120): how many issues an AI agent filed the mock tenant starts with. */
@@ -424,6 +426,13 @@ function mockSeedIssues(me, now) {
   const fresh = mockStoredCount(MOCK_ISSUES_NEW_KEY, 50)
   for (let k = 1; k <= fresh; k++) {
     issues.push(mockNewIssue({ title: `new for me ${k}`, assignee: me, status: 'todo', discussions: [{ task_id: MOCK_DEFAULT_TOPIC }] }, issues.length + 1, MOCK_TEAMMATE, now()))
+  }
+  /* SPL-4800: `spool.mock.issues-new-sub` = N subtasks a teammate assigned to me,
+     none opened, under the first new-for-me issue (level 3, kind subtask) */
+  const subs = mockStoredCount(MOCK_ISSUES_NEW_SUB_KEY, 50)
+  const parent = issues.find((i) => i.title === 'new for me 1')
+  for (let k = 1; parent && k <= subs; k++) {
+    issues.push(mockNewIssue({ title: `new subtask for me ${k}`, assignee: me, status: 'todo', parent: parent.key, discussions: [{ task_id: MOCK_DEFAULT_TOPIC }] }, issues.length + 1, MOCK_TEAMMATE, now()))
   }
   /* SPL-2120: `spool.mock.issues-agent` = N issues an agent filed */
   const byAgent = mockStoredCount(MOCK_ISSUES_AGENT_KEY, 50)

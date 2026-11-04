@@ -66,8 +66,8 @@
                 <span v-if="p.hand" class="costs-hand" data-test="costs-hand">{{ t('monitoring.costs.hand') }}</span>
                 <span class="costs-kind muted">{{ p.kind }}<template v-if="units(p)"> · {{ units(p) }}</template><template v-if="p.origin === 'estimate'"> · {{ t('monitoring.costs.estimate') }}</template></span>
               </td>
-              <td class="num" data-label="USD">{{ money(p.usdMicros, 'USD') }}</td>
-              <td class="num" data-label="EUR">{{ money(p.eurMicros, 'EUR') }}</td>
+              <td class="num" data-label="USD" data-test="costs-usd" :data-none="p.unpriced ? '1' : '0'" :title="p.unpriced ? t('monitoring.costs.unpriced', { currency: p.entryCurrency }) : undefined">{{ p.unpriced ? '—' : money(p.usdMicros, 'USD') }}</td>
+              <td class="num" data-label="EUR" :title="p.unpriced && p.entryCurrency !== 'EUR' ? t('monitoring.costs.unpriced', { currency: p.entryCurrency }) : undefined">{{ p.unpriced && p.entryCurrency !== 'EUR' ? '—' : money(p.eurMicros, 'EUR') }}</td>
               <td class="num" :data-label="secondHead" data-test="costs-second" :data-none="second(p).none ? '1' : '0'" :title="second(p).title">{{ second(p).text }}</td>
               <td class="num" :data-label="t('monitoring.costs.col_pct')">{{ p.pct === null ? '' : p.pct + ' %' }}</td>
               <td class="num" :data-label="t('monitoring.costs.col_list')">{{ p.listValueMicros ? money(p.listValueMicros, 'USD') : '' }}</td>
@@ -83,7 +83,7 @@
           <tfoot>
             <tr class="costs-total" data-test="costs-total">
               <th scope="row">{{ t('monitoring.costs.total') }}</th>
-              <td class="num" data-label="USD" data-test="costs-total-usd">{{ money(view.total.usdMicros, 'USD') }}</td>
+              <td class="num" data-label="USD" data-test="costs-total-usd" :title="unpricedRows ? t('monitoring.costs.total_unpriced', { n: unpricedRows }) : undefined">{{ money(view.total.usdMicros, 'USD') }}</td>
               <td class="num" data-label="EUR" data-test="costs-total-eur">{{ money(view.total.eurMicros, 'EUR') }}</td>
               <td class="num" :data-label="secondHead" data-test="costs-total-second" :title="second(view.total).title">{{ second(view.total).text }}</td>
               <td class="num" :data-label="t('monitoring.costs.col_pct')">{{ view.total.usdMicros > 0 ? '100 %' : '' }}</td>
@@ -178,6 +178,8 @@ const partLabel = (p: CostPart) => `${sourceLabel(p.source)} · ${p.projectOrVen
 
 const shareNote = computed(() => (view.value ? costAIShareNote(view.value) : null))
 const empties = computed(() => (view.value ? costEmptySources(view.value) : []))
+/* SPL-4824: hand-entered costs no rate turned into USD; the USD total leaves them out and says so */
+const unpricedRows = computed(() => (view.value ? view.value.parts.filter((p: CostPart) => p.unpriced).length : 0))
 const listTotal = computed(() => (view.value ? costListTotal(view.value.parts) : 0))
 const coverage = computed(() => (view.value ? costCoverageRows(view.value) : []))
 const slices = computed(() => (view.value ? costPieSlices(view.value.parts) : []).map((s, i) => ({

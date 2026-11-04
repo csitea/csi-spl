@@ -79,6 +79,9 @@
 //     the crumbs and the back button walk up; anyone else opening Cloud
 //     gets the operators-only line. AI tokens lists the month's token
 //     parts; Human says "not tracked yet" naming spec 107 T071..T077.
+//   - SPL-4824: Cloud level 1 also lists the month's hand-entered cloud
+//     costs (mock scenario 'entries'), no drill; an unpriced one is a dash
+//     with its "no rate" title, the total names how many it leaves out.
 //
 // Run:
 //   BASE_URL=<generated bundle> pnpm run test:e2e monitoring-costs
@@ -257,6 +260,34 @@ async function costsSections(browser, base, size) {
     await p.click('[data-test=costs-page-human]')
     ok('Human: "not tracked yet", naming spec 107 T071..T077', await waitFor(p, '[data-test=costs-human-not-tracked]')
       && (await text(p, '[data-test=costs-human-not-tracked]')).includes('T071..T077'), await text(p, '[data-test=costs-human-not-tracked]'))
+    await ctx.close()
+  }
+  {
+    /* SPL-4824: the month's hand-entered cloud costs are level 1 rows beside the projects, no drill;
+       one with no rate (CHF in the mock) is a dash saying so, the total says what it leaves out.
+       CONTROL: before SPL-4824 the page lists the GCP projects only, so every check here FAILS. */
+    const { ctx, p } = await costsPage(browser, base, size, { operator: true, scenario: 'entries' })
+    await open(p, base, '/reporting/costs/cloud?month=2026-09')
+    await p.waitForSelector('[data-test=cloud-row]', { visible: true, timeout: 20000 }).catch(() => null)
+    const rows = await p.$$eval('[data-test=cloud-row]', (els) => els.map((e) => ({
+      key: e.getAttribute('data-key'), unpriced: e.getAttribute('data-unpriced'), drill: !!e.querySelector('[data-test=cloud-drill]'),
+      text: e.querySelector('[data-test=cloud-amount]')?.textContent.trim(), title: e.querySelector('[data-test=cloud-amount]')?.getAttribute('title') || '',
+      sub: e.querySelector('.cloud-sub')?.textContent.trim() })))
+    const suite = rows.find((r) => r.key === 'entry:Workspace suite:0')
+    const chf = rows.find((r) => r.key === 'entry:Domain suite:1')
+    ok('entries: the projects first, then the two entries', rows.map((r) => r.key).join(',') === 'project-prd,project-all,project-dev,entry:Workspace suite:0,entry:Domain suite:1', rows)
+    ok('entries: a priced entry shows its USD and its own amount, no drill', suite && !suite.drill && /^\$70\.43$/.test(suite.text) && suite.sub === 'Entered by hand: €64.80', suite)
+    ok('entries: an unpriced entry is a dash saying no rate, never $0', chf && chf.unpriced === '1' && chf.text === '\u2014' && /^No CHF rate for this month/.test(chf.title), chf)
+    const tot = await p.$eval('[data-test=cloud-total-amount]', (e) => ({ left: e.getAttribute('data-left'), title: e.getAttribute('title') || '' })).catch(() => ({}))
+    ok('entries: the total says it leaves the unpriced one out', tot.left === '1' && tot.title === 'Entered costs with no exchange rate left out: 1', tot)
+    if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/reporting-costs-cloud-entries-${size.width}.png`, fullPage: true })
+    await open(p, base, '/reporting/costs/spend?month=2026-09')
+    await p.waitForSelector('[data-test=costs-row][data-source=cost_entry]', { visible: true, timeout: 20000 }).catch(() => null)
+    const usd = await titles(p, '[data-test=costs-row][data-source=cost_entry] [data-test=costs-usd]')
+    ok('entries: Spend lists both; the unpriced one a dash with its "no rate" title', usd.length === 2 && usd.filter((c) => c.none === '1').length === 1
+      && usd.some((c) => c.text === '\u2014' && /^No CHF rate/.test(c.title)) && usd.some((c) => c.text === '$70.43'), usd)
+    const totUsd = await p.$eval('[data-test=costs-total-usd]', (e) => e.getAttribute('title') || '').catch(() => '')
+    ok('entries: the Spend USD total says what it leaves out', totUsd === 'Entered costs with no exchange rate left out: 1', totUsd)
     await ctx.close()
   }
   {

@@ -89,6 +89,10 @@ function costPartOf(p) {
     listValueMicros: list > 0 ? list : null,
     days: int(r.days),
     hand: r.hand === true,
+    /* SPL-4824: a hand-entered cost (source cost_entry) in its own currency; unpriced = no rate made it USD */
+    entryMicros: int(r.entry_micros),
+    entryCurrency: str(r.entry_currency),
+    unpriced: r.unpriced === true,
     pct: typeof r.pct === 'number' && Number.isFinite(r.pct) ? r.pct : null,
     ...costSecondOf(r),
   }
@@ -337,6 +341,20 @@ const MOCK_EUR_PER_USD = 0.92
 /** The mock's rates (units per USD), the currencies its picker lists (dev holds 28 real ones). */
 export const MOCK_FX_RATES = Object.freeze({ EUR: MOCK_EUR_PER_USD, GBP: 0.79, SEK: 10.5, BGN: 1.8, JPY: 150 })
 
+/* SPL-4824: a hand-entered cloud cost of the mock month (source cost_entry);
+   a currency the mock holds no rate of is unpriced: USD 0, the row says so */
+function mockEntryPart(label, amount, currency) {
+  const rate = MOCK_FX_RATES[currency]
+  const usd = rate ? amount / rate : 0
+  return {
+    ...mockPart('cost_entry', label, 'cloud', 'hand', usd),
+    eur_micros: currency === 'EUR' ? toMicros(amount) : toMicros(usd * MOCK_EUR_PER_USD),
+    entry_micros: toMicros(amount),
+    entry_currency: currency,
+    unpriced: !rate,
+  }
+}
+
 function mockPart(source, pov, kind, origin, usd, extra = {}) {
   return {
     estate: true,
@@ -360,7 +378,12 @@ function mockSecond(parts, cur, w, scenario) {
   const last = w.ended > 0 ? new Date(Date.UTC(+w.from.slice(0, 4), +w.from.slice(5, 7) - 1, w.ended)).toISOString().slice(0, 10) : w.from
   let total = 0
   for (const p of parts) {
-    const none = !rate || (scenario === 'norate' && p.origin === 'invoice')
+    if (p.entry_currency === cur) {
+      Object.assign(p, { second_micros: p.entry_micros, fx_rate: 1, fx_rate_day: w.from, fx_rate_first_day: w.from })
+      total = total === null ? null : total + p.second_micros
+      continue
+    }
+    const none = !rate || p.unpriced || (scenario === 'norate' && p.origin === 'invoice')
     p.second_micros = none ? null : Math.round(p.usd_micros * rate)
     p.fx_rate = none ? null : rate
     p.fx_rate_day = none ? null : last
@@ -372,7 +395,9 @@ function mockSecond(parts, cur, w, scenario) {
 
 /**
  * The mock month: a full estate month, ('empty') today's prd shape, counts
- * only and no GCP, or ('norate') the full month with a rate-less invoice.
+ * only and no GCP, ('norate') the full month with a rate-less invoice, or
+ * ('entries') the full month plus two hand-entered cloud costs, one in a
+ * currency with no rate (SPL-4824).
  * `currency` is the reader's second currency (the hub reads it from the
  * session; the mock is handed it).
  */
@@ -397,6 +422,7 @@ export function mockTenantCostsBody(month = '', scenario = '', now = new Date(),
         mockPart('fleet_tokens', 'llm-vendor', 'tokens', 'transcript', 0, { units: 2.6e9, list: 1200, days: n }),
         mockPart('agent_hours', 'fleet', 'agent_seconds', 'agent_run', 0, { units: 9.1e5, days: n }),
       ]
+  if (scenario === 'entries') parts.push(mockEntryPart('Workspace suite', 64.8, 'EUR'), mockEntryPart('Domain suite', 11.5, 'CHF'))
   const usd = parts.reduce((s, p) => s + p.usd_micros, 0)
   const eur = parts.reduce((s, p) => s + p.eur_micros, 0)
   for (const p of parts) {

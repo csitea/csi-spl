@@ -4,13 +4,16 @@
 // 156c8939, 8c7f4962): Reporting -> Costs gets three sections of their own,
 // Cloud, AI tokens and Human. Cloud: level 1 one row per GCP project of the
 // month read's gcp parts, level 2 a project's services (the line kind),
-// level 3 a service per day from GET /v1/tenant/costs/cloud. AI tokens: the
+// level 3 a service per day from GET /v1/tenant/costs/cloud; level 1 also
+// lists the month's hand-entered cloud costs (SPL-4824). AI tokens: the
 // month read's token parts. Human: not tracked yet (spec 107 T071..T077).
 // Pure parts, loaded by those pages only; the money is formatted by
 // utils/tenant-costs.mjs.
 
 /** The source the GCP reader writes (spec 123 4.2). */
 export const CLOUD_SOURCE = 'gcp'
+/** The source of the hand-entered costs (SPL-4824, rdb 0245 cost_entries). */
+export const ENTRY_SOURCE = 'cost_entry'
 /** The month read's AI token sources (spec 140 3.10, spec 143 3.3.1). */
 const TOKEN_SOURCES = Object.freeze(['fleet_tokens', 'ai_paid', 'ai_share'])
 /** The spec 107 rows that build the human costs (section 21). */
@@ -29,15 +32,18 @@ export function cloudProjectOf(pov) {
   return i < 0 ? { project: s, box: '' } : { project: s.slice(0, i), box: s.slice(i + 5) }
 }
 
-/** A row's amount in the header's currency: USD, else the second currency (null = no rate, never a guess). */
+/** A row's amount in the header's currency: USD, else the second currency (null = no rate, never a guess; an unpriced entry has no USD). */
 export function sectionAmount(r, currency) {
   if (!r) return null
-  return currency === 'USD' ? r.usdMicros : r.secondMicros
+  if (currency === 'USD') return r.unpriced ? null : r.usdMicros
+  return r.secondMicros
 }
 
-const zero = () => ({ usdMicros: 0, eurMicros: 0, secondMicros: 0 })
+/* unpriced: how many summed rows had no USD (a total leaves them out and says so) */
+const zero = () => ({ usdMicros: 0, eurMicros: 0, secondMicros: 0, unpricedRows: 0 })
 function add(acc, r) {
   acc.usdMicros += r.usdMicros
+  acc.unpricedRows = (acc.unpricedRows || 0) + (r.unpriced ? 1 : 0)
   acc.eurMicros += r.eurMicros
   acc.secondMicros = acc.secondMicros === null || r.secondMicros === null || r.secondMicros === undefined ? null : acc.secondMicros + r.secondMicros
   return acc
@@ -58,6 +64,21 @@ export function cloudProjects(parts) {
     row.kinds.add(p.kind)
   }
   return [...m.values()].map(({ kinds, ...r }) => ({ ...r, services: kinds.size })).sort(byUsd)
+}
+
+/**
+ * Level 1, beside the projects (SPL-4824): the month's hand-entered cloud
+ * costs, one row per entry, never drilled; the most expensive first.
+ * @param {Array<any>} parts the costMonthOf parts
+ */
+export function cloudEntries(parts) {
+  return (Array.isArray(parts) ? parts : [])
+    .filter((p) => p && p.estate && p.source === ENTRY_SOURCE && p.kind === 'cloud')
+    .map((p, i) => ({
+      key: 'entry:' + p.projectOrVendor + ':' + i, label: p.projectOrVendor, usdMicros: p.usdMicros, eurMicros: p.eurMicros,
+      secondMicros: p.secondMicros, entryMicros: p.entryMicros, entryCurrency: p.entryCurrency, unpriced: p.unpriced === true,
+    }))
+    .sort(byUsd)
 }
 
 /** Level 2: one project's services (kind), the most expensive first. */

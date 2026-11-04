@@ -3308,10 +3308,13 @@
         "agent_hours": "Agenttien tunnit",
         "hand": "Laskut",
         "ai_paid": "AI-tilaukset",
-        "ai_share": "AI-tilaukset (osuutesi)"
+        "ai_share": "AI-tilaukset (osuutesi)",
+        "cost_entry": "Syötetyt kulut"
       },
       "ai_share_from": "Osuutesi AI-tilauksista lasketaan jokaiselta päättyneeltä päivältä alkaen {day}: agenttityypeittäin agenttiesi tokenit osana kaikkia päivän tokeneita.",
-      "ai_share_none": "AI-tilauksista ei ole vielä osuutta: se lasketaan jokaiselta päättyneeltä päivältä, jolloin agenttisi käyttivät tokeneita, joten tämän päivän tokenit näkyvät huomenna."
+      "ai_share_none": "AI-tilauksista ei ole vielä osuutta: se lasketaan jokaiselta päättyneeltä päivältä, jolloin agenttisi käyttivät tokeneita, joten tämän päivän tokenit näkyvät huomenna.",
+      "unpriced": "Tälle kuukaudelle ei ole {currency}-kurssia, joten USD-summaa ei ole: se ei sisälly USD-kokonaissummaan",
+      "total_unpriced": "Pois jätetyt syötetyt kulut ilman valuuttakurssia: {n}"
     },
     "tokens": {
       "window": "Aikaväli",
@@ -3588,7 +3591,8 @@
         "box": "box {box}",
         "services": "Palveluja: {n}",
         "days": "Päiviä, joilla kuluja: {n}",
-        "empty": "Tältä kuukaudelta ei ole vielä pilvikulurivejä. Laskutusvienti luetaan kerran päivässä."
+        "empty": "Tältä kuukaudelta ei ole vielä pilvikulurivejä. Laskutusvienti luetaan kerran päivässä.",
+        "entry": "Syötetty käsin: {amount}"
       },
       "tokens": {
         "title": "Tekoälytokenien kulut",

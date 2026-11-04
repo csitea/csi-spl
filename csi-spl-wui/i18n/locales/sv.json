@@ -3308,10 +3308,13 @@
         "agent_hours": "Agenttimmar",
         "hand": "Fakturor",
         "ai_paid": "AI-abonnemang",
-        "ai_share": "AI-abonnemang (din andel)"
+        "ai_share": "AI-abonnemang (din andel)",
+        "cost_entry": "Inmatade kostnader"
       },
       "ai_share_from": "Din andel av AI-abonnemangen räknas för varje avslutad dag från {day}: per agenttyp, dina agenters tokens som en del av alla tokens den dagen.",
-      "ai_share_none": "Ingen andel av AI-abonnemangen ännu: den räknas för varje avslutad dag då dina agenter använde tokens, så dagens tokens syns i morgon."
+      "ai_share_none": "Ingen andel av AI-abonnemangen ännu: den räknas för varje avslutad dag då dina agenter använde tokens, så dagens tokens syns i morgon.",
+      "unpriced": "Ingen {currency}-kurs för den här månaden, så inget belopp i USD: det ingår inte i USD-summan",
+      "total_unpriced": "Utelämnade inmatade kostnader utan växelkurs: {n}"
     },
     "tokens": {
       "window": "Period",
@@ -3588,7 +3591,8 @@
         "box": "box {box}",
         "services": "Tjänster: {n}",
         "days": "Dagar med kostnad: {n}",
-        "empty": "Ingen rad med molnkostnad ännu den här månaden. Faktureringsexporten läses en gång om dagen."
+        "empty": "Ingen rad med molnkostnad ännu den här månaden. Faktureringsexporten läses en gång om dagen.",
+        "entry": "Inmatat för hand: {amount}"
       },
       "tokens": {
         "title": "Kostnader för AI-token",

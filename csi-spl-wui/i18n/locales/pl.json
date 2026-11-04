@@ -3308,10 +3308,13 @@
         "agent_hours": "Godziny agentów",
         "hand": "Faktury",
         "ai_paid": "Subskrypcje AI",
-        "ai_share": "Subskrypcje AI (twój udział)"
+        "ai_share": "Subskrypcje AI (twój udział)",
+        "cost_entry": "Wprowadzone koszty"
       },
       "ai_share_from": "Twój udział w subskrypcjach AI liczy się za każdy zakończony dzień od {day}: według typu agenta, tokeny twoich agentów jako część wszystkich tokenów tego dnia.",
-      "ai_share_none": "Brak jeszcze udziału w subskrypcjach AI: liczy się każdy zakończony dzień, w którym twoi agenci użyli tokenów, więc dzisiejsze tokeny pojawią się jutro."
+      "ai_share_none": "Brak jeszcze udziału w subskrypcjach AI: liczy się każdy zakończony dzień, w którym twoi agenci użyli tokenów, więc dzisiejsze tokeny pojawią się jutro.",
+      "unpriced": "Brak kursu {currency} dla tego miesiąca, więc brak kwoty w USD: nie wlicza się do sumy w USD",
+      "total_unpriced": "Pominięte wprowadzone koszty bez kursu wymiany: {n}"
     },
     "tokens": {
       "window": "Okres",
@@ -3588,7 +3591,8 @@
         "box": "box {box}",
         "services": "Usługi: {n}",
         "days": "Dni z kosztem: {n}",
-        "empty": "W tym miesiącu nie ma jeszcze żadnej pozycji kosztów chmury. Eksport rozliczeń jest odczytywany raz dziennie."
+        "empty": "W tym miesiącu nie ma jeszcze żadnej pozycji kosztów chmury. Eksport rozliczeń jest odczytywany raz dziennie.",
+        "entry": "Wprowadzono ręcznie: {amount}"
       },
       "tokens": {
         "title": "Koszty tokenów AI",

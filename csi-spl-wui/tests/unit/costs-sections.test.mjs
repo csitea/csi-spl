@@ -11,7 +11,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  CLOUD_SOURCE, HUMAN_ROWS, cloudDaysOf, cloudDaysQuery, cloudProjectOf, cloudProjects, cloudServiceDays, cloudServices,
+  CLOUD_SOURCE, ENTRY_SOURCE, HUMAN_ROWS, cloudDaysOf, cloudEntries, cloudDaysQuery, cloudProjectOf, cloudProjects, cloudServiceDays, cloudServices,
   cloudTotal, mockCloudDays, sectionAmount, tokenParts,
 } from '../../src/utils/costs-sections.mjs'
 import { costMonthOf, mockTenantCostsBody } from '../../src/utils/tenant-costs.mjs'
@@ -57,6 +57,37 @@ describe('Cloud level 1: per GCP project', () => {
   it('cloudProjectOf splits the reader\'s "<project>/box=<label>"', () => {
     assert.deepEqual(cloudProjectOf('csi-spl-dev/box=wine-box'), { project: 'csi-spl-dev', box: 'wine-box' })
     assert.deepEqual(cloudProjectOf('csi-spl-dev'), { project: 'csi-spl-dev', box: '' })
+  })
+})
+
+/* SPL-4824: the hand-entered costs of the month (source cost_entry) */
+const entry = (label, usd, extra = {}) => ({
+  ...part(ENTRY_SOURCE, label, 'cloud', usd), origin: 'hand', entryMicros: 64_800_000, entryCurrency: 'EUR', unpriced: false, ...extra,
+})
+
+describe('Cloud level 1: the hand-entered cloud costs (SPL-4824)', () => {
+  it('one row per cloud entry, the most expensive first; hr entries and workspace parts left out', () => {
+    const rows = cloudEntries([...PARTS, entry('suite a', 70_000_000), entry('suite b', 12_000_000), entry('payroll', 9, { kind: 'hr' }),
+      entry('own', 1, { estate: false })])
+    assert.deepEqual(rows.map((r) => r.label), ['suite a', 'suite b'])
+    assert.equal(rows[0].entryMicros, 64_800_000)
+    assert.equal(rows[0].entryCurrency, 'EUR')
+  })
+  it('an unpriced entry has no USD (a dash, never a free 0); the total keeps the rest and counts what it left out', () => {
+    const [r] = cloudEntries([entry('suite', 0, { unpriced: true, secondMicros: 64_800_000 })])
+    assert.equal(sectionAmount(r, 'USD'), null)
+    assert.equal(sectionAmount(r, 'EUR'), 64_800_000)
+    const tot = cloudTotal([...cloudProjects(PARTS), r])
+    assert.equal(tot.unpricedRows, 1)
+    assert.equal(sectionAmount(tot, 'USD'), 109_870_000)
+  })
+  it('the mock month (scenario entries): a EUR entry priced at the mock rate and a CHF one unpriced', () => {
+    const m = costMonthOf(mockTenantCostsBody('2026-09', 'entries', new Date(Date.UTC(2026, 9, 15)), 'EUR'))
+    const rows = cloudEntries(m.parts)
+    assert.deepEqual(rows.map((r) => [r.label, r.unpriced, r.entryCurrency]), [['Workspace suite', false, 'EUR'], ['Domain suite', true, 'CHF']])
+    assert.equal(rows[0].secondMicros, 64_800_000)
+    assert.equal(rows[1].secondMicros, null)
+    assert.equal(rows[1].usdMicros, 0)
   })
 })
 
@@ -119,7 +150,7 @@ describe('chunks and strings', () => {
   it('every new string is in every locale, and differs from English (no untranslated copy)', () => {
     const en = JSON.parse(read('i18n/locales/en.json')).reporting.costs
     const keys = ['page.cloud', 'page.human', 'page.tokens', ...['cloud', 'tokens', 'human'].flatMap((g) => Object.keys(en[g]).map((k) => g + '.' + k))]
-    assert.equal(keys.length, 18)
+    assert.equal(keys.length, 19)
     /* a key the allow-list keeps in English (with its reason) may equal en */
     const keepEnglish = new Set(Object.keys(JSON.parse(read('i18n/i18n-keep-english.json')).keys))
     const dir = join(WUI, 'i18n/locales')

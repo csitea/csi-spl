@@ -3308,10 +3308,13 @@
         "agent_hours": "Aģentu stundas",
         "hand": "Rēķini",
         "ai_paid": "MI abonementi",
-        "ai_share": "MI abonementi (jūsu daļa)"
+        "ai_share": "MI abonementi (jūsu daļa)",
+        "cost_entry": "Ievadītās izmaksas"
       },
       "ai_share_from": "Jūsu daļa no MI abonementiem tiek skaitīta par katru beigušos dienu no {day}: pa aģentu veidiem, jūsu aģentu tokeni kā daļa no visiem tās dienas tokeniem.",
-      "ai_share_none": "MI abonementu daļas vēl nav: tā tiek skaitīta par katru beigušos dienu, kad jūsu aģenti izmantoja tokenus, tāpēc šodienas tokeni būs redzami rīt."
+      "ai_share_none": "MI abonementu daļas vēl nav: tā tiek skaitīta par katru beigušos dienu, kad jūsu aģenti izmantoja tokenus, tāpēc šodienas tokeni būs redzami rīt.",
+      "unpriced": "Šim mēnesim nav {currency} kursa, tāpēc summas USD nav: tā nav iekļauta USD kopsummā",
+      "total_unpriced": "Izlaistās ievadītās izmaksas bez valūtas kursa: {n}"
     },
     "tokens": {
       "window": "Periods",
@@ -3588,7 +3591,8 @@
         "box": "box {box}",
         "services": "Pakalpojumi: {n}",
         "days": "Dienas ar izmaksām: {n}",
-        "empty": "Šajā mēnesī vēl nav nevienas mākoņa izmaksu rindas. Norēķinu eksports tiek nolasīts reizi dienā."
+        "empty": "Šajā mēnesī vēl nav nevienas mākoņa izmaksu rindas. Norēķinu eksports tiek nolasīts reizi dienā.",
+        "entry": "Ievadīts manuāli: {amount}"
       },
       "tokens": {
         "title": "MI tokenu izmaksas",

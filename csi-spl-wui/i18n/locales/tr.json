@@ -3308,10 +3308,13 @@
         "agent_hours": "Ajan saatleri",
         "hand": "Faturalar",
         "ai_paid": "Yapay zekâ abonelikleri",
-        "ai_share": "Yapay zekâ abonelikleri (payınız)"
+        "ai_share": "Yapay zekâ abonelikleri (payınız)",
+        "cost_entry": "Girilen maliyetler"
       },
       "ai_share_from": "Yapay zekâ aboneliklerindeki payınız {day} tarihinden itibaren biten her gün için sayılır: ajan türüne göre, ajanlarınızın belirteçleri o günün tüm belirteçlerinin bir parçası olarak.",
-      "ai_share_none": "Henüz yapay zekâ aboneliklerinden payınız yok: ajanlarınızın belirteç kullandığı her biten gün sayılır, bu yüzden bugünün belirteçleri yarın görünür."
+      "ai_share_none": "Henüz yapay zekâ aboneliklerinden payınız yok: ajanlarınızın belirteç kullandığı her biten gün sayılır, bu yüzden bugünün belirteçleri yarın görünür.",
+      "unpriced": "Bu ay için {currency} kuru yok, bu yüzden USD tutarı yok: USD toplamına dahil değil",
+      "total_unpriced": "Döviz kuru olmayan ve dışarıda bırakılan girilen maliyetler: {n}"
     },
     "tokens": {
       "window": "Aralık",
@@ -3588,7 +3591,8 @@
         "box": "box {box}",
         "services": "Hizmet sayısı: {n}",
         "days": "Maliyet oluşan gün sayısı: {n}",
-        "empty": "Bu ay henüz bulut maliyeti satırı yok. Faturalama dışa aktarımı günde bir kez okunur."
+        "empty": "Bu ay henüz bulut maliyeti satırı yok. Faturalama dışa aktarımı günde bir kez okunur.",
+        "entry": "Elle girildi: {amount}"
       },
       "tokens": {
         "title": "Yapay zekâ belirteci maliyetleri",

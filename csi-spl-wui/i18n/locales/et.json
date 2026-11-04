@@ -3308,10 +3308,13 @@
         "agent_hours": "Agentide tunnid",
         "hand": "Arved",
         "ai_paid": "AI tellimused",
-        "ai_share": "AI tellimused (teie osa)"
+        "ai_share": "AI tellimused (teie osa)",
+        "cost_entry": "Sisestatud kulud"
       },
       "ai_share_from": "Teie osa AI tellimustest arvestatakse iga lõppenud päeva kohta alates {day}: agenditüübi kaupa teie agentide tokenid osana kõigist selle päeva tokenitest.",
-      "ai_share_none": "AI tellimuste osa veel pole: arvestatakse iga lõppenud päeva, mil teie agendid tokeneid kasutasid, seega tänased tokenid on näha homme."
+      "ai_share_none": "AI tellimuste osa veel pole: arvestatakse iga lõppenud päeva, mil teie agendid tokeneid kasutasid, seega tänased tokenid on näha homme.",
+      "unpriced": "Selle kuu kohta pole {currency} kurssi, seega summat USD-s pole: see ei ole USD kogusummas",
+      "total_unpriced": "Välja jäetud sisestatud kulud ilma vahetuskursita: {n}"
     },
     "tokens": {
       "window": "Periood",
@@ -3588,7 +3591,8 @@
         "box": "box {box}",
         "services": "Teenuseid: {n}",
         "days": "Kuluga päevi: {n}",
-        "empty": "Selle kuu kohta pole veel ühtegi pilvekulu rida. Arvelduse eksporti loetakse kord päevas."
+        "empty": "Selle kuu kohta pole veel ühtegi pilvekulu rida. Arvelduse eksporti loetakse kord päevas.",
+        "entry": "Käsitsi sisestatud: {amount}"
       },
       "tokens": {
         "title": "AI-tokenite kulud",

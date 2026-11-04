@@ -3308,10 +3308,13 @@
         "agent_hours": "Ore ale agenților",
         "hand": "Facturi",
         "ai_paid": "Abonamente AI",
-        "ai_share": "Abonamente AI (cota dumneavoastră)"
+        "ai_share": "Abonamente AI (cota dumneavoastră)",
+        "cost_entry": "Costuri introduse"
       },
       "ai_share_from": "Cota dumneavoastră din abonamentele AI se calculează pentru fiecare zi încheiată de la {day}: pe tip de agent, tokenii agenților dumneavoastră ca parte din toți tokenii acelei zile.",
-      "ai_share_none": "Încă nu există o cotă din abonamentele AI: se calculează pentru fiecare zi încheiată în care agenții dumneavoastră au folosit tokeni, deci tokenii de azi apar mâine."
+      "ai_share_none": "Încă nu există o cotă din abonamentele AI: se calculează pentru fiecare zi încheiată în care agenții dumneavoastră au folosit tokeni, deci tokenii de azi apar mâine.",
+      "unpriced": "Niciun curs {currency} pentru această lună, deci nicio sumă în USD: nu este inclusă în totalul în USD",
+      "total_unpriced": "Costuri introduse fără curs de schimb, omise: {n}"
     },
     "tokens": {
       "window": "Interval",
@@ -3588,7 +3591,8 @@
         "box": "box {box}",
         "services": "Servicii: {n}",
         "days": "Zile cu cost: {n}",
-        "empty": "Încă nu există nicio linie de cost cloud luna aceasta. Exportul de facturare este citit o dată pe zi."
+        "empty": "Încă nu există nicio linie de cost cloud luna aceasta. Exportul de facturare este citit o dată pe zi.",
+        "entry": "Introdus manual: {amount}"
       },
       "tokens": {
         "title": "Costuri cu tokeni AI",

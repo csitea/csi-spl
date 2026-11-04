@@ -3308,10 +3308,13 @@
         "agent_hours": "Agent hours",
         "hand": "Invoices",
         "ai_paid": "AI subscriptions",
-        "ai_share": "AI subscriptions (your share)"
+        "ai_share": "AI subscriptions (your share)",
+        "cost_entry": "Entered costs"
       },
       "ai_share_from": "Your share of the AI subscriptions counts each ended day from {day}: per agent type, your agents' tokens as a part of all tokens that day.",
-      "ai_share_none": "No share of the AI subscriptions yet: it counts each ended day on which your agents used tokens, so today's tokens show tomorrow."
+      "ai_share_none": "No share of the AI subscriptions yet: it counts each ended day on which your agents used tokens, so today's tokens show tomorrow.",
+      "unpriced": "No {currency} rate for this month, so no USD amount: it is not in the USD total",
+      "total_unpriced": "Entered costs with no exchange rate left out: {n}"
     },
     "tokens": {
       "window": "Window",
@@ -3588,7 +3591,8 @@
         "box": "box {box}",
         "services": "Services: {n}",
         "days": "Days with cost: {n}",
-        "empty": "No cloud cost line in this month yet. The billing export is read once a day."
+        "empty": "No cloud cost line in this month yet. The billing export is read once a day.",
+        "entry": "Entered by hand: {amount}"
       },
       "tokens": {
         "title": "AI token costs",

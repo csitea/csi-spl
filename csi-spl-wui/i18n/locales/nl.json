@@ -3308,10 +3308,13 @@
         "agent_hours": "Agent-uren",
         "hand": "Facturen",
         "ai_paid": "AI-abonnementen",
-        "ai_share": "AI-abonnementen (jouw aandeel)"
+        "ai_share": "AI-abonnementen (jouw aandeel)",
+        "cost_entry": "Ingevoerde kosten"
       },
       "ai_share_from": "Jouw aandeel in de AI-abonnementen telt elke afgelopen dag vanaf {day}: per agenttype de tokens van jouw agents als deel van alle tokens van die dag.",
-      "ai_share_none": "Nog geen aandeel in de AI-abonnementen: het telt elke afgelopen dag waarop jouw agents tokens gebruikten, dus de tokens van vandaag verschijnen morgen."
+      "ai_share_none": "Nog geen aandeel in de AI-abonnementen: het telt elke afgelopen dag waarop jouw agents tokens gebruikten, dus de tokens van vandaag verschijnen morgen.",
+      "unpriced": "Geen {currency}-koers voor deze maand, dus geen bedrag in USD: het telt niet mee in het USD-totaal",
+      "total_unpriced": "Weggelaten ingevoerde kosten zonder wisselkoers: {n}"
     },
     "tokens": {
       "window": "Periode",
@@ -3588,7 +3591,8 @@
         "box": "box {box}",
         "services": "Diensten: {n}",
         "days": "Dagen met kosten: {n}",
-        "empty": "Nog geen regel met cloudkosten in deze maand. De facturatie-export wordt eenmaal per dag gelezen."
+        "empty": "Nog geen regel met cloudkosten in deze maand. De facturatie-export wordt eenmaal per dag gelezen.",
+        "entry": "Met de hand ingevoerd: {amount}"
       },
       "tokens": {
         "title": "Kosten van AI-tokens",

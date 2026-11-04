@@ -8,7 +8,11 @@
      query (?project=, &kind=) beside the header's month and currency, so
      the back button walks up. Money in the header's currency; a day with no
      rate is a dash saying so, never a guess. The estate's: drawn for an
-     operator admin only (hiding only, the hub's 403 is the control). -->
+     operator admin only (hiding only, the hub's 403 is the control).
+     SPL-4824 (owner csitea f7bba506 msg f987e4d5): level 1 also lists the
+     month's hand-entered cloud costs (source cost_entry, e.g. the Google
+     Workspace invoices), no drill; one with no rate to USD is a dash saying
+     so, and the total says how many it leaves out. -->
 <template>
   <section class="costs-cloud" data-test="costs-cloud" :data-level="level">
     <h3>{{ t('reporting.costs.cloud.title') }}</h3>
@@ -43,7 +47,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="r in rows" :key="r.key" data-test="cloud-row" :data-key="r.key">
+              <tr v-for="r in rows" :key="r.key" data-test="cloud-row" :data-key="r.key" :data-unpriced="r.unpriced ? '1' : undefined">
                 <td>
                   <NuxtLink v-if="r.to" :to="r.to" class="cloud-name" data-test="cloud-drill">{{ r.label }}</NuxtLink>
                   <span v-else class="cloud-name">{{ r.label }}</span>
@@ -60,7 +64,7 @@
             <tfoot v-if="rows.length">
               <tr data-test="cloud-total">
                 <th scope="row">{{ t('monitoring.costs.total') }}</th>
-                <td class="num" data-test="cloud-total-amount" :title="total.title">{{ total.text }}</td>
+                <td class="num" data-test="cloud-total-amount" :data-left="sum.unpricedRows || 0" :title="total.title">{{ total.text }}</td>
                 <td class="num">100 %</td>
               </tr>
             </tfoot>
@@ -78,13 +82,13 @@ import { useSessionStore } from '~/stores/session'
 import { useOperatorPane } from '~/stores/operator-pane'
 import { costsCurrency, costsCurrencyOptions, costsMonth, costsMonthOptions } from '~/utils/reporting-costs.mjs'
 import { costMoney, costMonthOf } from '~/utils/tenant-costs.mjs'
-import { CLOUD_SOURCE, cloudDaysOf, cloudProjects, cloudServiceDays, cloudServices, cloudTotal, sectionAmount } from '~/utils/costs-sections.mjs'
+import { CLOUD_SOURCE, cloudDaysOf, cloudEntries, cloudProjects, cloudServiceDays, cloudServices, cloudTotal, sectionAmount } from '~/utils/costs-sections.mjs'
 
 type CloudApi = {
   getTenantCosts: (month?: string, secondCurrency?: string) => Promise<unknown>
   getCloudCostDays: (month?: string, project?: string, secondCurrency?: string) => Promise<unknown>
 }
-type Money = { usdMicros: number, eurMicros: number, secondMicros: number | null }
+type Money = { usdMicros: number, eurMicros: number, secondMicros: number | null, unpriced?: boolean, entryCurrency?: string, unpricedRows?: number }
 type Row = Money & { key: string, label: string, box?: string, sub?: string, to?: { query: LocationQueryRaw } }
 
 const { t, locale } = useI18n({ useScope: 'global' })
@@ -116,14 +120,20 @@ function levelTo(p: string, k: string) {
 }
 function cell(m: Money) {
   const v = sectionAmount(m, currency.value)
-  if (v === null || v === undefined) return { text: '—', title: t('monitoring.costs.second_none', { currency: currency.value }) }
-  return { text: costMoney(v, currency.value, locale.value), title: undefined }
+  if (v === null || v === undefined) {
+    const title = m.unpriced ? t('monitoring.costs.unpriced', { currency: m.entryCurrency }) : t('monitoring.costs.second_none', { currency: currency.value })
+    return { text: '—', title }
+  }
+  const left = currency.value === 'USD' && m.unpricedRows ? t('monitoring.costs.total_unpriced', { n: m.unpricedRows }) : undefined
+  return { text: costMoney(v, currency.value, locale.value), title: left }
 }
 
 const base = computed<Row[]>(() => {
   const parts = view.value?.parts || []
   if (level.value === 'project') {
-    return cloudProjects(parts).map((r) => ({ ...r, label: r.project, sub: t('reporting.costs.cloud.services', { n: r.services }), to: levelTo(r.pov, '') }))
+    const projects = cloudProjects(parts).map((r) => ({ ...r, label: r.project, sub: t('reporting.costs.cloud.services', { n: r.services }), to: levelTo(r.pov, '') }))
+    const entries = cloudEntries(parts).map((r) => ({ ...r, sub: t('reporting.costs.cloud.entry', { amount: costMoney(r.entryMicros, r.entryCurrency, locale.value) }) }))
+    return [...projects, ...entries]
   }
   if (level.value === 'service') {
     return cloudServices(parts, project.value).map((r) => ({ ...r, label: r.kind, sub: t('reporting.costs.cloud.days', { n: r.days }), to: levelTo(project.value, r.kind) }))
@@ -134,7 +144,7 @@ const sum = computed(() => cloudTotal(base.value))
 const rows = computed(() => base.value.map((r) => ({
   ...r,
   amount: cell(r),
-  pct: sum.value.usdMicros > 0 ? Math.round((r.usdMicros * 1000) / sum.value.usdMicros) / 10 + ' %' : '',
+  pct: sum.value.usdMicros > 0 && !r.unpriced ? Math.round((r.usdMicros * 1000) / sum.value.usdMicros) / 10 + ' %' : '',
 })))
 const total = computed(() => cell(sum.value))
 const coverage = computed(() => view.value?.coverage.find((c: { source: string }) => c.source === CLOUD_SOURCE) || null)

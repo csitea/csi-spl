@@ -3308,10 +3308,13 @@
         "agent_hours": "Agentų valandos",
         "hand": "Sąskaitos",
         "ai_paid": "DI prenumeratos",
-        "ai_share": "DI prenumeratos (jūsų dalis)"
+        "ai_share": "DI prenumeratos (jūsų dalis)",
+        "cost_entry": "Įvestos išlaidos"
       },
       "ai_share_from": "Jūsų DI prenumeratų dalis skaičiuojama už kiekvieną pasibaigusią dieną nuo {day}: pagal agento tipą, jūsų agentų žetonai kaip visų tos dienos žetonų dalis.",
-      "ai_share_none": "DI prenumeratų dalies dar nėra: ji skaičiuojama už kiekvieną pasibaigusią dieną, kai jūsų agentai naudojo žetonus, todėl šiandienos žetonai bus matomi rytoj."
+      "ai_share_none": "DI prenumeratų dalies dar nėra: ji skaičiuojama už kiekvieną pasibaigusią dieną, kai jūsų agentai naudojo žetonus, todėl šiandienos žetonai bus matomi rytoj.",
+      "unpriced": "Šiam mėnesiui nėra {currency} kurso, todėl sumos USD nėra: ji neįtraukta į bendrą sumą USD",
+      "total_unpriced": "Neįtrauktos įvestos išlaidos be valiutos kurso: {n}"
     },
     "tokens": {
       "window": "Laikotarpis",
@@ -3588,7 +3591,8 @@
         "box": "box {box}",
         "services": "Paslaugų: {n}",
         "days": "Dienų su išlaidomis: {n}",
-        "empty": "Šį mėnesį dar nėra debesijos išlaidų eilutės. Atsiskaitymų eksportas nuskaitomas kartą per dieną."
+        "empty": "Šį mėnesį dar nėra debesijos išlaidų eilutės. Atsiskaitymų eksportas nuskaitomas kartą per dieną.",
+        "entry": "Įvesta ranka: {amount}"
       },
       "tokens": {
         "title": "DI žetonų išlaidos",

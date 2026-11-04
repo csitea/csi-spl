@@ -90,4 +90,25 @@ Code: `csi-spl-orc/src/bash/run/spl-hub-cost-entries.func.sh`; test
 `csi-spl-orc/src/bash/tests/spl-hub-cost-entries.tst.sh` (red control: the
 dry-run guard dropped, case 2 fails).
 
-<!-- version: 0.3.0 · updated: 2026-11-04 -->
+## 6. Web UI: Reporting -> Costs (SPL-4824)
+
+- **Cloud** (`csi-spl-wui/src/pages/reporting/costs/cloud.vue`), level 1:
+  after the GCP projects, one row per `cloud` entry of the month, labelled
+  with the entry and "Entered by hand: <amount in its own currency>", no
+  drill. They count in the level's total.
+- **No rate**: an `unpriced` entry shows a dash in USD whose title says
+  "No <currency> rate for this month, so no USD amount: it is not in the USD
+  total", and the total's title names how many it leaves out
+  (`data-left`). Never a silent $0.
+- **Spend** (`spend.vue`): the entry is a row of source "Entered costs"
+  with the by-hand mark; an unpriced one shows the same dash in USD (and in
+  EUR unless it is a EUR entry), and the USD total's title names what it
+  leaves out.
+- Pure parts: `cloudEntries`, `sectionAmount` and `cloudTotal`
+  (`unpricedRows`) in `src/utils/costs-sections.mjs`; the mock month's
+  scenario `entries` (`src/utils/tenant-costs.mjs`). Tests:
+  `tests/unit/costs-sections.test.mjs` (red control: `sectionAmount`
+  returning the unpriced 0), `tests/e2e/monitoring-costs.test.mjs` (the
+  `entries` block).
+
+<!-- version: 0.4.0 · updated: 2026-11-04 -->

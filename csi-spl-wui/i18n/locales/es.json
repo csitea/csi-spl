@@ -3308,10 +3308,13 @@
         "agent_hours": "Horas de agentes",
         "hand": "Facturas",
         "ai_paid": "Suscripciones de IA",
-        "ai_share": "Suscripciones de IA (tu parte)"
+        "ai_share": "Suscripciones de IA (tu parte)",
+        "cost_entry": "Costes introducidos"
       },
       "ai_share_from": "Tu parte de las suscripciones de IA cuenta cada día terminado desde {day}: por tipo de agente, los tokens de tus agentes como parte de todos los tokens de ese día.",
-      "ai_share_none": "Aún no hay parte de las suscripciones de IA: cuenta cada día terminado en que tus agentes usaron tokens, así que los tokens de hoy se verán mañana."
+      "ai_share_none": "Aún no hay parte de las suscripciones de IA: cuenta cada día terminado en que tus agentes usaron tokens, así que los tokens de hoy se verán mañana.",
+      "unpriced": "No hay tipo de {currency} para este mes, así que no hay importe en USD: no está en el total en USD",
+      "total_unpriced": "Costes introducidos sin tipo de cambio que se omiten: {n}"
     },
     "tokens": {
       "window": "Periodo",
@@ -3588,7 +3591,8 @@
         "box": "equipo {box}",
         "services": "Servicios: {n}",
         "days": "Días con coste: {n}",
-        "empty": "Aún no hay ninguna línea de coste de la nube este mes. La exportación de facturación se lee una vez al día."
+        "empty": "Aún no hay ninguna línea de coste de la nube este mes. La exportación de facturación se lee una vez al día.",
+        "entry": "Introducido a mano: {amount}"
       },
       "tokens": {
         "title": "Costes de tokens de IA",

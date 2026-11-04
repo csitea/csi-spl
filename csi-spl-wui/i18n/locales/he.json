@@ -1978,7 +1978,32 @@
         "bad_base_url": "Qwen צריך כתובת URL בסיסית שמתחילה ב-https://.",
         "generic": "המפתח לא שונה. נסו שוב."
       }
-    }
+    },
+    "marketing_handover_open": "פרסום ידני",
+    "marketing_handover_title": "פרסמו בעצמכם",
+    "marketing_handover_hint": "בחרו את התמונות, העתיקו את הטקסט, ואז פתחו את האפליקציה ופרסמו. שום דבר לא מתפרסם בשמכם.",
+    "marketing_handover_badges_label": "פורמטים",
+    "marketing_handover_load_failed": "קישורי השיתוף אינם זמינים כרגע. נסו שוב מאוחר יותר.",
+    "marketing_handover_photos": "תמונות: {count} נבחרו, עד {max}",
+    "marketing_handover_photos_empty": "לפוסט הזה אין תמונות.",
+    "marketing_handover_photo_alt": "תמונה {n} של {title}",
+    "marketing_handover_download": "הורדת התמונות שנבחרו",
+    "marketing_handover_download_failed": "לא ניתן היה לארוז את התמונות לקובץ אחד, ולכן כל אחת יורדת בנפרד.",
+    "marketing_handover_hashtags_label": "האשטגים",
+    "marketing_handover_hashtags_placeholder": "#מחנה #ילדים",
+    "marketing_handover_copy": "העתקת הכיתוב וההאשטגים",
+    "marketing_handover_copied": "הכיתוב הועתק!",
+    "marketing_handover_copy_failed": "ההעתקה נכשלה. סמנו את הטקסט והעתיקו אותו ידנית.",
+    "marketing_handover_viber_title": "גרסה קצרה ל-Viber: {count} / {max} תווים",
+    "marketing_handover_instagram_note": "באינסטגרם אין שיתוף מהאינטרנט: העתיקו את הכיתוב, הורידו את התמונות ופרסמו אותן באפליקציה.",
+    "marketing_handover_open_instagram": "פתיחת Instagram (אינטרנט / אפליקציה)",
+    "marketing_handover_open_facebook": "פתיחת עורך הפוסטים של Facebook",
+    "marketing_handover_open_whatsapp": "פתיחת WhatsApp (אינטרנט / אפליקציה)",
+    "marketing_handover_open_viber": "פתיחת Viber (מחשב / אפליקציה)",
+    "marketing_handover_mark": "סימון כפורסם ידנית",
+    "marketing_handover_marked": "נרשם כפורסם ידנית.",
+    "marketing_handover_mark_conflict": "הפוסט הזה כבר פורסם בחשבון הזה.",
+    "marketing_handover_mark_failed": "לא ניתן היה לרשום. נסו שוב מאוחר יותר."
   },
   "help": {
     "title": "עזרה",

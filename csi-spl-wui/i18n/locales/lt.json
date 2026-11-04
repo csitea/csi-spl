@@ -1978,7 +1978,32 @@
         "bad_base_url": "Qwen reikia bazinio URL, prasidedančio https://.",
         "generic": "Raktas nepakeistas. Bandykite dar kartą."
       }
-    }
+    },
+    "marketing_handover_open": "Paskelbti rankiniu būdu",
+    "marketing_handover_title": "Paskelbkite patys",
+    "marketing_handover_hint": "Pasirinkite nuotraukas, nukopijuokite tekstą, atidarykite programėlę ir paskelbkite. Niekas nepaskelbiama už jus.",
+    "marketing_handover_badges_label": "Formatai",
+    "marketing_handover_load_failed": "Bendrinimo nuorodos šiuo metu nepasiekiamos. Bandykite vėliau.",
+    "marketing_handover_photos": "Nuotraukos: pasirinkta {count}, iki {max}",
+    "marketing_handover_photos_empty": "Šis įrašas neturi paveikslėlių.",
+    "marketing_handover_photo_alt": "Nuotrauka {n}: {title}",
+    "marketing_handover_download": "Atsisiųsti pasirinktas nuotraukas",
+    "marketing_handover_download_failed": "Nuotraukų nepavyko supakuoti į vieną failą, todėl kiekviena atsisiunčiama atskirai.",
+    "marketing_handover_hashtags_label": "Grotažymės",
+    "marketing_handover_hashtags_placeholder": "#stovykla #vaikai",
+    "marketing_handover_copy": "Kopijuoti tekstą ir grotažymes",
+    "marketing_handover_copied": "Tekstas nukopijuotas!",
+    "marketing_handover_copy_failed": "Nukopijuoti nepavyko. Pažymėkite tekstą ir nukopijuokite jį rankiniu būdu.",
+    "marketing_handover_viber_title": "Trumpa Viber versija: {count} / {max} simbolių",
+    "marketing_handover_instagram_note": "Instagram neturi bendrinimo iš žiniatinklio: nukopijuokite tekstą, atsisiųskite nuotraukas ir paskelbkite jas programėlėje.",
+    "marketing_handover_open_instagram": "Atidaryti Instagram (žiniatinklis / programėlė)",
+    "marketing_handover_open_facebook": "Atidaryti Facebook įrašų kūrimo langą",
+    "marketing_handover_open_whatsapp": "Atidaryti WhatsApp (žiniatinklis / programėlė)",
+    "marketing_handover_open_viber": "Atidaryti Viber (kompiuteris / programėlė)",
+    "marketing_handover_mark": "Pažymėti kaip paskelbtą rankiniu būdu",
+    "marketing_handover_marked": "Užregistruota kaip paskelbta rankiniu būdu.",
+    "marketing_handover_mark_conflict": "Šis įrašas šioje paskyroje jau paskelbtas.",
+    "marketing_handover_mark_failed": "Nepavyko užregistruoti. Bandykite vėliau."
   },
   "help": {
     "title": "Pagalba",

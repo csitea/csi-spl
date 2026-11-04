@@ -1978,7 +1978,32 @@
         "bad_base_url": "Qwen needs a base URL that starts with https://.",
         "generic": "The key was not changed. Try again."
       }
-    }
+    },
+    "marketing_handover_open": "Post by hand",
+    "marketing_handover_title": "Post it yourself",
+    "marketing_handover_hint": "Pick the photos, copy the text, then open the app and post it. Nothing is posted for you.",
+    "marketing_handover_badges_label": "Formats",
+    "marketing_handover_load_failed": "The share links are unavailable right now. Try again later.",
+    "marketing_handover_photos": "Photos: {count} selected, up to {max}",
+    "marketing_handover_photos_empty": "This post has no pictures.",
+    "marketing_handover_photo_alt": "Photo {n} of {title}",
+    "marketing_handover_download": "Download selected photos",
+    "marketing_handover_download_failed": "The photos could not be packed into one file, so each one is downloaded on its own.",
+    "marketing_handover_hashtags_label": "Hashtags",
+    "marketing_handover_hashtags_placeholder": "#camp #kids",
+    "marketing_handover_copy": "Copy caption & hashtags",
+    "marketing_handover_copied": "Caption copied!",
+    "marketing_handover_copy_failed": "The copy failed. Select the text and copy it by hand.",
+    "marketing_handover_viber_title": "Viber short version: {count} / {max} characters",
+    "marketing_handover_instagram_note": "Instagram has no web share: copy the caption, download the photos, then post them in the app.",
+    "marketing_handover_open_instagram": "Open Instagram Web / App",
+    "marketing_handover_open_facebook": "Open Facebook Composer",
+    "marketing_handover_open_whatsapp": "Open WhatsApp Web / App",
+    "marketing_handover_open_viber": "Open Viber Desktop / App",
+    "marketing_handover_mark": "Mark as posted by hand",
+    "marketing_handover_marked": "Recorded as posted by hand.",
+    "marketing_handover_mark_conflict": "This post is already published on this account.",
+    "marketing_handover_mark_failed": "It could not be recorded. Try again later."
   },
   "help": {
     "title": "Help",

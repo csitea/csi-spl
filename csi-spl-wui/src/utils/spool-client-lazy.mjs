@@ -736,6 +736,32 @@ async function publishMarketingPost(ctx, postId, channel) {
 }
 
 /**
+ * GET /v1/marketing/posts/{id}/share-links (spec 090 T037): the live blog
+ * post's one-click links, { post_id, url, facebook, viber, whatsapp,
+ * instagram: { caption, images, open } }; any member, marketing on.
+ */
+async function getMarketingShareLinks(ctx, postId) {
+  const { live, mock, tenantMock } = ctx
+  const id = String(postId || '')
+  if (mock) return (await tenantMock()).marketingShareLinks(id)
+  return live(`/v1/marketing/posts/${encodeURIComponent(id)}/share-links`)
+}
+
+/**
+ * POST /v1/marketing/posts/{id}/manual-publish?channel=<id> (spec 090 T036):
+ * the member posted the blog post by hand on that connected channel,
+ * { post, channel, status: 'published', platform_post_id: 'manual',
+ * published_at }; 403 for a member who may not, 409 once it is published.
+ */
+async function manualPublishMarketingPost(ctx, postId, channel) {
+  const { live, mock, tenantMock } = ctx
+  const id = String(postId || '')
+  const ch = String(channel || '')
+  if (mock) return (await tenantMock()).manualPublishMarketingPost(id, ch)
+  return live(`/v1/marketing/posts/${encodeURIComponent(id)}/manual-publish?channel=${encodeURIComponent(ch)}`, { method: 'POST' })
+}
+
+/**
  * GET /v1/marketing/facebook/pages (spec 090 T033): the workspace's connected
  * Facebook Pages, each with its Instagram account, { pages: [{ channel_id,
  * page_id, name, status, instagram: { channel_id, username, status } | null }] }.
@@ -2198,6 +2224,8 @@ export const lazySpoolMethods = {
   patchMarketingSwitch,
   listMarketingPosts,
   publishMarketingPost,
+  getMarketingShareLinks,
+  manualPublishMarketingPost,
   listMetaPages,
   listMarketingChannels,
   connectFacebook,

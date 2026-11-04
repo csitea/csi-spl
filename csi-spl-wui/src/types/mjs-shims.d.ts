@@ -121,6 +121,8 @@ declare module '~/utils/spool-client.mjs' {
     patchMarketingSwitch(enabled: boolean): Promise<{ tenant_id?: string, enabled?: boolean }>
     listMarketingPosts(channel?: string): Promise<{ posts?: Array<{ id: string, title?: string, summary?: string, image?: string }> }>
     publishMarketingPost(postId: string, channel?: string): Promise<{ post?: string, scheduled?: number, published?: number, retried?: number, failed?: number, deferred?: number }>
+    getMarketingShareLinks(postId: string): Promise<{ post_id?: string, url?: string, facebook?: string, viber?: string, whatsapp?: string, instagram?: { caption?: string, images?: string[], open?: string } }>
+    manualPublishMarketingPost(postId: string, channel: string): Promise<{ post?: string, channel?: string, status?: string, platform_post_id?: string, published_at?: string }>
     /* spec 090 T035: Facebook Pages + Instagram accounts */
     listMetaPages(): Promise<{ pages?: Array<{ channel_id: string, page_id?: string, name?: string, status?: string, instagram?: { channel_id: string, ig_user_id?: string, username?: string, status?: string } | null }> }>
     listMarketingChannels(): Promise<{ channels?: Array<{ channel_id: string, platform?: string, metadata?: Record<string, unknown> }> }>

@@ -11,7 +11,10 @@
      Instagram account, from MarketingAccounts.vue) the same list publishes
      there (?channel=<id>, T034), each post with its picture, the length of
      the text the hub sends against the platform's cap (63,206 Facebook,
-     2,200 Instagram) and, on Instagram, the JPEG rule. -->
+     2,200 Instagram) and, on Instagram, the JPEG rule.
+     spec 090 T036 (SPL-4804): "Post by hand" opens the draft hand-over for
+     that post (MarketingDraftHandover.vue, its own lazy chunk); a post marked
+     as posted by hand leaves the list like a published one. -->
 <template>
   <div v-if="why" class="mp" data-test="tenant-marketing-publish-unavailable">
     <h4 class="mp-title">{{ title }}</h4>
@@ -45,6 +48,8 @@
           data-test="tenant-marketing-publish-button"
           @click="publish(p.id)"
         >{{ t(channel ? 'tenant_settings.marketing_meta_publish_button' : 'tenant_settings.marketing_publish_button') }}</button>
+        <button type="button" class="btn ghost" :aria-expanded="handover === p.id" data-test="marketing-handover-open" @click="handover = handover === p.id ? '' : p.id">{{ t('tenant_settings.marketing_handover_open') }}</button>
+        <MarketingDraftHandover v-if="handover === p.id" class="mp-handover" :post="p" :channel="channel?.id" @handed-over="handedOver" />
       </li>
     </ul>
     <p v-if="notice" class="mp-notice" role="status" data-test="tenant-marketing-publish-notice">{{ notice }}</p>
@@ -61,6 +66,9 @@ type Post = { id: string, title?: string, summary?: string, image?: string }
 type MetaChannel = { id: string, platform: string, name: string }
 type PublishResult = { published?: number, retried?: number, deferred?: number }
 
+// spec 090 T036: the hand-over card is loaded only when a member opens it
+const MarketingDraftHandover = defineAsyncComponent(() => import('~/components/MarketingDraftHandover.vue'))
+
 const props = defineProps<{ channel?: MetaChannel }>()
 const { t } = useI18n({ useScope: 'global' })
 const api = useSpoolApi()
@@ -70,6 +78,8 @@ const shown = ref(false)
 const why = ref(false)
 const posts = ref<Post[]>([])
 const busy = ref('')
+// the post whose hand-over card is open, '' for none
+const handover = ref('')
 const notice = ref('')
 const error = ref('')
 // a preview whose picture failed to load shows the empty frame instead
@@ -118,6 +128,11 @@ async function publish(id: string) {
   }
 }
 
+// spec 090 T036: a post recorded as posted by hand is done on this account
+function handedOver(id: string) {
+  setTimeout(() => { posts.value = posts.value.filter((p) => p.id !== id) }, 1500)
+}
+
 onMounted(async () => {
   try {
     const r = await api.listMarketingPosts(props.channel?.id)
@@ -135,7 +150,8 @@ onMounted(async () => {
 .mp-title { margin: 0 0 4px; font-size: 0.875rem; }
 .mp-why { margin: 0; }
 .mp-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.mp-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: var(--tap, 44px); }
+.mp-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; min-height: var(--tap, 44px); }
+.mp-handover { flex-basis: 100%; }
 .mp-main { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
 .mp-name { overflow-wrap: anywhere; }
 .mp-row .btn:disabled { opacity: 0.55; cursor: not-allowed; }

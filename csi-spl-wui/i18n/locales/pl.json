@@ -1978,7 +1978,32 @@
         "bad_base_url": "Qwen wymaga bazowego adresu URL zaczynającego się od https://.",
         "generic": "Klucz nie został zmieniony. Spróbuj ponownie."
       }
-    }
+    },
+    "marketing_handover_open": "Opublikuj ręcznie",
+    "marketing_handover_title": "Opublikuj samodzielnie",
+    "marketing_handover_hint": "Wybierz zdjęcia, skopiuj tekst, a potem otwórz aplikację i opublikuj. Nic nie jest publikowane za Ciebie.",
+    "marketing_handover_badges_label": "Formaty",
+    "marketing_handover_load_failed": "Linki do udostępniania są teraz niedostępne. Spróbuj ponownie później.",
+    "marketing_handover_photos": "Zdjęcia: wybrane {count}, maksymalnie {max}",
+    "marketing_handover_photos_empty": "Ten wpis nie ma obrazów.",
+    "marketing_handover_photo_alt": "Zdjęcie {n} z {title}",
+    "marketing_handover_download": "Pobierz wybrane zdjęcia",
+    "marketing_handover_download_failed": "Nie udało się spakować zdjęć do jednego pliku, więc każde jest pobierane osobno.",
+    "marketing_handover_hashtags_label": "Hashtagi",
+    "marketing_handover_hashtags_placeholder": "#obóz #dzieci",
+    "marketing_handover_copy": "Kopiuj tekst i hashtagi",
+    "marketing_handover_copied": "Tekst skopiowany!",
+    "marketing_handover_copy_failed": "Kopiowanie nie powiodło się. Zaznacz tekst i skopiuj go ręcznie.",
+    "marketing_handover_viber_title": "Krótka wersja do Vibera: {count} / {max} znaków",
+    "marketing_handover_instagram_note": "Instagram nie udostępnia z poziomu przeglądarki: skopiuj tekst, pobierz zdjęcia i opublikuj je w aplikacji.",
+    "marketing_handover_open_instagram": "Otwórz Instagram (przeglądarka / aplikacja)",
+    "marketing_handover_open_facebook": "Otwórz edytor wpisów Facebooka",
+    "marketing_handover_open_whatsapp": "Otwórz WhatsApp (przeglądarka / aplikacja)",
+    "marketing_handover_open_viber": "Otwórz Viber (komputer / aplikacja)",
+    "marketing_handover_mark": "Oznacz jako opublikowane ręcznie",
+    "marketing_handover_marked": "Zapisano jako opublikowane ręcznie.",
+    "marketing_handover_mark_conflict": "Ten wpis jest już opublikowany na tym koncie.",
+    "marketing_handover_mark_failed": "Nie udało się zapisać. Spróbuj ponownie później."
   },
   "help": {
     "title": "Pomoc",

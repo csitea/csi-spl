@@ -1978,7 +1978,32 @@
         "bad_base_url": "Qwen нужен базовый URL, начинающийся с https://.",
         "generic": "Ключ не изменён. Попробуйте ещё раз."
       }
-    }
+    },
+    "marketing_handover_open": "Опубликовать вручную",
+    "marketing_handover_title": "Опубликуйте сами",
+    "marketing_handover_hint": "Выберите фото, скопируйте текст, затем откройте приложение и опубликуйте. Ничего не публикуется за вас.",
+    "marketing_handover_badges_label": "Форматы",
+    "marketing_handover_load_failed": "Ссылки для публикации сейчас недоступны. Попробуйте позже.",
+    "marketing_handover_photos": "Фото: выбрано {count}, до {max}",
+    "marketing_handover_photos_empty": "В этой записи нет изображений.",
+    "marketing_handover_photo_alt": "Фото {n} к {title}",
+    "marketing_handover_download": "Скачать выбранные фото",
+    "marketing_handover_download_failed": "Не удалось упаковать фото в один файл, поэтому каждое скачивается отдельно.",
+    "marketing_handover_hashtags_label": "Хештеги",
+    "marketing_handover_hashtags_placeholder": "#лагерь #дети",
+    "marketing_handover_copy": "Копировать текст и хештеги",
+    "marketing_handover_copied": "Текст скопирован!",
+    "marketing_handover_copy_failed": "Не удалось скопировать. Выделите текст и скопируйте его вручную.",
+    "marketing_handover_viber_title": "Короткая версия для Viber: {count} / {max} символов",
+    "marketing_handover_instagram_note": "В Instagram нельзя поделиться из браузера: скопируйте текст, скачайте фото и опубликуйте их в приложении.",
+    "marketing_handover_open_instagram": "Открыть Instagram (веб / приложение)",
+    "marketing_handover_open_facebook": "Открыть редактор публикаций Facebook",
+    "marketing_handover_open_whatsapp": "Открыть WhatsApp (веб / приложение)",
+    "marketing_handover_open_viber": "Открыть Viber (компьютер / приложение)",
+    "marketing_handover_mark": "Отметить как опубликованное вручную",
+    "marketing_handover_marked": "Записано как опубликованное вручную.",
+    "marketing_handover_mark_conflict": "Эта запись уже опубликована в этом аккаунте.",
+    "marketing_handover_mark_failed": "Не удалось записать. Попробуйте позже."
   },
   "help": {
     "title": "Справка",

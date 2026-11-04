@@ -1978,7 +1978,32 @@
         "bad_base_url": "Qwen vajab baas-URL-i, mis algab https://.",
         "generic": "Võtit ei muudetud. Proovige uuesti."
       }
-    }
+    },
+    "marketing_handover_open": "Postita käsitsi",
+    "marketing_handover_title": "Postita ise",
+    "marketing_handover_hint": "Vali fotod, kopeeri tekst, ava rakendus ja postita. Sinu eest ei postitata midagi.",
+    "marketing_handover_badges_label": "Vormingud",
+    "marketing_handover_load_failed": "Jagamislingid pole praegu saadaval. Proovi hiljem uuesti.",
+    "marketing_handover_photos": "Fotod: valitud {count}, kuni {max}",
+    "marketing_handover_photos_empty": "Sellel postitusel pole pilte.",
+    "marketing_handover_photo_alt": "Foto {n}: {title}",
+    "marketing_handover_download": "Laadi valitud fotod alla",
+    "marketing_handover_download_failed": "Fotosid ei õnnestunud üheks failiks pakkida, seega laaditakse igaüks eraldi alla.",
+    "marketing_handover_hashtags_label": "Teemaviited",
+    "marketing_handover_hashtags_placeholder": "#laager #lapsed",
+    "marketing_handover_copy": "Kopeeri tekst ja teemaviited",
+    "marketing_handover_copied": "Tekst kopeeritud!",
+    "marketing_handover_copy_failed": "Kopeerimine ebaõnnestus. Vali tekst ja kopeeri see käsitsi.",
+    "marketing_handover_viber_title": "Viberi lühiversioon: {count} / {max} märki",
+    "marketing_handover_instagram_note": "Instagramil pole veebijagamist: kopeeri tekst, laadi fotod alla ja postita need rakenduses.",
+    "marketing_handover_open_instagram": "Ava Instagram (veeb / rakendus)",
+    "marketing_handover_open_facebook": "Ava Facebooki postituse koostaja",
+    "marketing_handover_open_whatsapp": "Ava WhatsApp (veeb / rakendus)",
+    "marketing_handover_open_viber": "Ava Viber (arvuti / rakendus)",
+    "marketing_handover_mark": "Märgi käsitsi postitatuks",
+    "marketing_handover_marked": "Salvestatud käsitsi postitatuna.",
+    "marketing_handover_mark_conflict": "See postitus on sellel kontol juba avaldatud.",
+    "marketing_handover_mark_failed": "Salvestamine ebaõnnestus. Proovi hiljem uuesti."
   },
   "help": {
     "title": "Abi",

@@ -1978,7 +1978,32 @@
         "bad_base_url": "Qwen necesita una URL base que empiece por https://.",
         "generic": "La clave no se cambió. Inténtalo de nuevo."
       }
-    }
+    },
+    "marketing_handover_open": "Publicar a mano",
+    "marketing_handover_title": "Publícalo tú",
+    "marketing_handover_hint": "Elige las fotos, copia el texto, abre la aplicación y publícalo. No se publica nada por ti.",
+    "marketing_handover_badges_label": "Formatos",
+    "marketing_handover_load_failed": "Los enlaces para compartir no están disponibles ahora. Inténtalo más tarde.",
+    "marketing_handover_photos": "Fotos: {count} seleccionadas, hasta {max}",
+    "marketing_handover_photos_empty": "Esta publicación no tiene imágenes.",
+    "marketing_handover_photo_alt": "Foto {n} de {title}",
+    "marketing_handover_download": "Descargar las fotos seleccionadas",
+    "marketing_handover_download_failed": "No se pudieron reunir las fotos en un archivo, así que se descargan una a una.",
+    "marketing_handover_hashtags_label": "Etiquetas",
+    "marketing_handover_hashtags_placeholder": "#campamento #niños",
+    "marketing_handover_copy": "Copiar texto y hashtags",
+    "marketing_handover_copied": "¡Texto copiado!",
+    "marketing_handover_copy_failed": "No se pudo copiar. Selecciona el texto y cópialo a mano.",
+    "marketing_handover_viber_title": "Versión corta para Viber: {count} / {max} caracteres",
+    "marketing_handover_instagram_note": "Instagram no permite compartir desde la web: copia el texto, descarga las fotos y publícalas en la aplicación.",
+    "marketing_handover_open_instagram": "Abrir Instagram (web / app)",
+    "marketing_handover_open_facebook": "Abrir el editor de Facebook",
+    "marketing_handover_open_whatsapp": "Abrir WhatsApp (web / app)",
+    "marketing_handover_open_viber": "Abrir Viber (escritorio / app)",
+    "marketing_handover_mark": "Marcar como publicado a mano",
+    "marketing_handover_marked": "Registrado como publicado a mano.",
+    "marketing_handover_mark_conflict": "Esta publicación ya está publicada en esta cuenta.",
+    "marketing_handover_mark_failed": "No se pudo registrar. Inténtalo más tarde."
   },
   "help": {
     "title": "Ayuda",

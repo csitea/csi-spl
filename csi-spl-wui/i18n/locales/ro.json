@@ -1978,7 +1978,32 @@
         "bad_base_url": "Qwen are nevoie de un URL de bază care începe cu https://.",
         "generic": "Cheia nu a fost schimbată. Încercați din nou."
       }
-    }
+    },
+    "marketing_handover_open": "Postează manual",
+    "marketing_handover_title": "Postează-l tu",
+    "marketing_handover_hint": "Alege fotografiile, copiază textul, apoi deschide aplicația și postează. Nimic nu se postează în locul tău.",
+    "marketing_handover_badges_label": "Formate",
+    "marketing_handover_load_failed": "Linkurile de partajare nu sunt disponibile acum. Încearcă din nou mai târziu.",
+    "marketing_handover_photos": "Fotografii: {count} selectate, până la {max}",
+    "marketing_handover_photos_empty": "Această postare nu are imagini.",
+    "marketing_handover_photo_alt": "Fotografia {n} din {title}",
+    "marketing_handover_download": "Descarcă fotografiile selectate",
+    "marketing_handover_download_failed": "Fotografiile nu au putut fi puse într-un singur fișier, așa că fiecare se descarcă separat.",
+    "marketing_handover_hashtags_label": "Hashtaguri",
+    "marketing_handover_hashtags_placeholder": "#tabără #copii",
+    "marketing_handover_copy": "Copiază textul și hashtagurile",
+    "marketing_handover_copied": "Text copiat!",
+    "marketing_handover_copy_failed": "Copierea a eșuat. Selectează textul și copiază-l manual.",
+    "marketing_handover_viber_title": "Versiune scurtă pentru Viber: {count} / {max} caractere",
+    "marketing_handover_instagram_note": "Instagram nu permite partajarea de pe web: copiază textul, descarcă fotografiile și postează-le în aplicație.",
+    "marketing_handover_open_instagram": "Deschide Instagram (web / aplicație)",
+    "marketing_handover_open_facebook": "Deschide editorul de postări Facebook",
+    "marketing_handover_open_whatsapp": "Deschide WhatsApp (web / aplicație)",
+    "marketing_handover_open_viber": "Deschide Viber (desktop / aplicație)",
+    "marketing_handover_mark": "Marchează ca postat manual",
+    "marketing_handover_marked": "Înregistrat ca postat manual.",
+    "marketing_handover_mark_conflict": "Această postare este deja publicată pe acest cont.",
+    "marketing_handover_mark_failed": "Nu s-a putut înregistra. Încearcă din nou mai târziu."
   },
   "help": {
     "title": "Ajutor",

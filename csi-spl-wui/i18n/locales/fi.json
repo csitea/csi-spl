@@ -1978,7 +1978,32 @@
         "bad_base_url": "Qwen tarvitsee perus-URL:n, joka alkaa https://.",
         "generic": "Avainta ei muutettu. Yritä uudelleen."
       }
-    }
+    },
+    "marketing_handover_open": "Julkaise itse",
+    "marketing_handover_title": "Julkaise se itse",
+    "marketing_handover_hint": "Valitse kuvat, kopioi teksti, avaa sovellus ja julkaise. Mitään ei julkaista puolestasi.",
+    "marketing_handover_badges_label": "Muodot",
+    "marketing_handover_load_failed": "Jakolinkit eivät ole juuri nyt saatavilla. Yritä myöhemmin uudelleen.",
+    "marketing_handover_photos": "Kuvat: {count} valittu, enintään {max}",
+    "marketing_handover_photos_empty": "Tässä julkaisussa ei ole kuvia.",
+    "marketing_handover_photo_alt": "Kuva {n}: {title}",
+    "marketing_handover_download": "Lataa valitut kuvat",
+    "marketing_handover_download_failed": "Kuvia ei voitu pakata yhteen tiedostoon, joten jokainen ladataan erikseen.",
+    "marketing_handover_hashtags_label": "Aihetunnisteet",
+    "marketing_handover_hashtags_placeholder": "#leiri #lapset",
+    "marketing_handover_copy": "Kopioi teksti ja aihetunnisteet",
+    "marketing_handover_copied": "Teksti kopioitu!",
+    "marketing_handover_copy_failed": "Kopiointi epäonnistui. Valitse teksti ja kopioi se käsin.",
+    "marketing_handover_viber_title": "Viberin lyhyt versio: {count} / {max} merkkiä",
+    "marketing_handover_instagram_note": "Instagramissa ei ole verkkojakoa: kopioi teksti, lataa kuvat ja julkaise ne sovelluksessa.",
+    "marketing_handover_open_instagram": "Avaa Instagram (verkko / sovellus)",
+    "marketing_handover_open_facebook": "Avaa Facebookin julkaisueditori",
+    "marketing_handover_open_whatsapp": "Avaa WhatsApp (verkko / sovellus)",
+    "marketing_handover_open_viber": "Avaa Viber (tietokone / sovellus)",
+    "marketing_handover_mark": "Merkitse itse julkaistuksi",
+    "marketing_handover_marked": "Tallennettu itse julkaistuksi.",
+    "marketing_handover_mark_conflict": "Tämä julkaisu on jo julkaistu tällä tilillä.",
+    "marketing_handover_mark_failed": "Tallennus epäonnistui. Yritä myöhemmin uudelleen."
   },
   "help": {
     "title": "Ohje",

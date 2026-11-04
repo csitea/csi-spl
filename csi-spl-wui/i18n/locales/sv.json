@@ -1978,7 +1978,32 @@
         "bad_base_url": "Qwen behöver en bas-URL som börjar med https://.",
         "generic": "Nyckeln ändrades inte. Försök igen."
       }
-    }
+    },
+    "marketing_handover_open": "Publicera själv",
+    "marketing_handover_title": "Publicera det själv",
+    "marketing_handover_hint": "Välj bilderna, kopiera texten, öppna sedan appen och publicera. Inget publiceras åt dig.",
+    "marketing_handover_badges_label": "Format",
+    "marketing_handover_load_failed": "Delningslänkarna är inte tillgängliga just nu. Försök igen senare.",
+    "marketing_handover_photos": "Bilder: {count} valda, högst {max}",
+    "marketing_handover_photos_empty": "Det här inlägget har inga bilder.",
+    "marketing_handover_photo_alt": "Bild {n} till {title}",
+    "marketing_handover_download": "Ladda ned valda bilder",
+    "marketing_handover_download_failed": "Bilderna kunde inte packas i en fil, så varje bild laddas ned för sig.",
+    "marketing_handover_hashtags_label": "Hashtaggar",
+    "marketing_handover_hashtags_placeholder": "#läger #barn",
+    "marketing_handover_copy": "Kopiera text och hashtaggar",
+    "marketing_handover_copied": "Texten kopierad!",
+    "marketing_handover_copy_failed": "Kopieringen misslyckades. Markera texten och kopiera den själv.",
+    "marketing_handover_viber_title": "Kort version för Viber: {count} / {max} tecken",
+    "marketing_handover_instagram_note": "Instagram kan inte dela från webben: kopiera texten, ladda ned bilderna och publicera dem i appen.",
+    "marketing_handover_open_instagram": "Öppna Instagram (webb / app)",
+    "marketing_handover_open_facebook": "Öppna Facebooks inläggsredigerare",
+    "marketing_handover_open_whatsapp": "Öppna WhatsApp (webb / app)",
+    "marketing_handover_open_viber": "Öppna Viber (dator / app)",
+    "marketing_handover_mark": "Markera som publicerat själv",
+    "marketing_handover_marked": "Registrerat som publicerat själv.",
+    "marketing_handover_mark_conflict": "Det här inlägget är redan publicerat på det här kontot.",
+    "marketing_handover_mark_failed": "Det gick inte att registrera. Försök igen senare."
   },
   "help": {
     "title": "Hjälp",

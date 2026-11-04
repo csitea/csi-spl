@@ -1978,7 +1978,32 @@
         "bad_base_url": "Qwen nepieciešams bāzes URL, kas sākas ar https://.",
         "generic": "Atslēga netika mainīta. Mēģiniet vēlreiz."
       }
-    }
+    },
+    "marketing_handover_open": "Publicēt manuāli",
+    "marketing_handover_title": "Publicējiet paši",
+    "marketing_handover_hint": "Izvēlieties fotoattēlus, nokopējiet tekstu, atveriet lietotni un publicējiet. Nekas netiek publicēts jūsu vietā.",
+    "marketing_handover_badges_label": "Formāti",
+    "marketing_handover_load_failed": "Kopīgošanas saites šobrīd nav pieejamas. Mēģiniet vēlāk vēlreiz.",
+    "marketing_handover_photos": "Fotoattēli: atlasīti {count}, līdz {max}",
+    "marketing_handover_photos_empty": "Šim ierakstam nav attēlu.",
+    "marketing_handover_photo_alt": "Fotoattēls {n}: {title}",
+    "marketing_handover_download": "Lejupielādēt atlasītos fotoattēlus",
+    "marketing_handover_download_failed": "Fotoattēlus neizdevās apvienot vienā failā, tāpēc katrs tiek lejupielādēts atsevišķi.",
+    "marketing_handover_hashtags_label": "Tēmturi",
+    "marketing_handover_hashtags_placeholder": "#nometne #bērni",
+    "marketing_handover_copy": "Kopēt tekstu un tēmturus",
+    "marketing_handover_copied": "Teksts nokopēts!",
+    "marketing_handover_copy_failed": "Kopēšana neizdevās. Atlasiet tekstu un nokopējiet to manuāli.",
+    "marketing_handover_viber_title": "Viber īsā versija: {count} / {max} rakstzīmes",
+    "marketing_handover_instagram_note": "Instagram nav kopīgošanas no tīmekļa: nokopējiet tekstu, lejupielādējiet fotoattēlus un publicējiet tos lietotnē.",
+    "marketing_handover_open_instagram": "Atvērt Instagram (tīmeklis / lietotne)",
+    "marketing_handover_open_facebook": "Atvērt Facebook ierakstu redaktoru",
+    "marketing_handover_open_whatsapp": "Atvērt WhatsApp (tīmeklis / lietotne)",
+    "marketing_handover_open_viber": "Atvērt Viber (dators / lietotne)",
+    "marketing_handover_mark": "Atzīmēt kā publicētu manuāli",
+    "marketing_handover_marked": "Reģistrēts kā publicēts manuāli.",
+    "marketing_handover_mark_conflict": "Šis ieraksts šajā kontā jau ir publicēts.",
+    "marketing_handover_mark_failed": "Neizdevās reģistrēt. Mēģiniet vēlāk vēlreiz."
   },
   "help": {
     "title": "Palīdzība",

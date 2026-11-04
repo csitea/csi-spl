@@ -1978,7 +1978,32 @@
         "bad_base_url": "Το Qwen χρειάζεται βασική διεύθυνση URL που ξεκινά με https://.",
         "generic": "Το κλειδί δεν άλλαξε. Δοκιμάστε ξανά."
       }
-    }
+    },
+    "marketing_handover_open": "Ανάρτηση με το χέρι",
+    "marketing_handover_title": "Αναρτήστε το μόνοι σας",
+    "marketing_handover_hint": "Διαλέξτε τις φωτογραφίες, αντιγράψτε το κείμενο, ανοίξτε την εφαρμογή και αναρτήστε. Τίποτα δεν αναρτάται για εσάς.",
+    "marketing_handover_badges_label": "Μορφές",
+    "marketing_handover_load_failed": "Οι σύνδεσμοι κοινοποίησης δεν είναι διαθέσιμοι τώρα. Δοκιμάστε ξανά αργότερα.",
+    "marketing_handover_photos": "Φωτογραφίες: {count} επιλεγμένες, έως {max}",
+    "marketing_handover_photos_empty": "Αυτή η ανάρτηση δεν έχει εικόνες.",
+    "marketing_handover_photo_alt": "Φωτογραφία {n} του {title}",
+    "marketing_handover_download": "Λήψη επιλεγμένων φωτογραφιών",
+    "marketing_handover_download_failed": "Οι φωτογραφίες δεν χώρεσαν σε ένα αρχείο, οπότε κατεβαίνει η καθεμία χωριστά.",
+    "marketing_handover_hashtags_label": "Ετικέτες",
+    "marketing_handover_hashtags_placeholder": "#κατασκήνωση #παιδιά",
+    "marketing_handover_copy": "Αντιγραφή λεζάντας και hashtags",
+    "marketing_handover_copied": "Η λεζάντα αντιγράφηκε!",
+    "marketing_handover_copy_failed": "Η αντιγραφή απέτυχε. Επιλέξτε το κείμενο και αντιγράψτε το με το χέρι.",
+    "marketing_handover_viber_title": "Σύντομη έκδοση Viber: {count} / {max} χαρακτήρες",
+    "marketing_handover_instagram_note": "Το Instagram δεν έχει κοινοποίηση από τον ιστό: αντιγράψτε τη λεζάντα, κατεβάστε τις φωτογραφίες και αναρτήστε τες στην εφαρμογή.",
+    "marketing_handover_open_instagram": "Άνοιγμα Instagram (ιστός / εφαρμογή)",
+    "marketing_handover_open_facebook": "Άνοιγμα επεξεργαστή Facebook",
+    "marketing_handover_open_whatsapp": "Άνοιγμα WhatsApp (ιστός / εφαρμογή)",
+    "marketing_handover_open_viber": "Άνοιγμα Viber (υπολογιστής / εφαρμογή)",
+    "marketing_handover_mark": "Σήμανση ως αναρτημένο με το χέρι",
+    "marketing_handover_marked": "Καταγράφηκε ως αναρτημένο με το χέρι.",
+    "marketing_handover_mark_conflict": "Αυτή η ανάρτηση έχει ήδη δημοσιευτεί σε αυτόν τον λογαριασμό.",
+    "marketing_handover_mark_failed": "Δεν ήταν δυνατή η καταγραφή. Δοκιμάστε ξανά αργότερα."
   },
   "help": {
     "title": "Βοήθεια",

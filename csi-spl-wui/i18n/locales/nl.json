@@ -1978,7 +1978,32 @@
         "bad_base_url": "Qwen heeft een basis-URL nodig die met https:// begint.",
         "generic": "De sleutel is niet gewijzigd. Probeer het opnieuw."
       }
-    }
+    },
+    "marketing_handover_open": "Zelf plaatsen",
+    "marketing_handover_title": "Plaats het zelf",
+    "marketing_handover_hint": "Kies de foto's, kopieer de tekst, open dan de app en plaats het. Er wordt niets voor je geplaatst.",
+    "marketing_handover_badges_label": "Formaten",
+    "marketing_handover_load_failed": "De deellinks zijn nu niet beschikbaar. Probeer het later opnieuw.",
+    "marketing_handover_photos": "Foto's: {count} gekozen, maximaal {max}",
+    "marketing_handover_photos_empty": "Dit bericht heeft geen afbeeldingen.",
+    "marketing_handover_photo_alt": "Foto {n} van {title}",
+    "marketing_handover_download": "Gekozen foto's downloaden",
+    "marketing_handover_download_failed": "De foto's konden niet in één bestand worden verpakt, dus elke foto wordt apart gedownload.",
+    "marketing_handover_hashtags_label": "Trefwoorden",
+    "marketing_handover_hashtags_placeholder": "#kamp #kinderen",
+    "marketing_handover_copy": "Tekst en hashtags kopiëren",
+    "marketing_handover_copied": "Tekst gekopieerd!",
+    "marketing_handover_copy_failed": "Kopiëren is mislukt. Selecteer de tekst en kopieer hem zelf.",
+    "marketing_handover_viber_title": "Korte versie voor Viber: {count} / {max} tekens",
+    "marketing_handover_instagram_note": "Instagram kan niet vanaf het web delen: kopieer de tekst, download de foto's en plaats ze in de app.",
+    "marketing_handover_open_instagram": "Instagram openen (web / app)",
+    "marketing_handover_open_facebook": "Facebook-berichteditor openen",
+    "marketing_handover_open_whatsapp": "WhatsApp openen (web / app)",
+    "marketing_handover_open_viber": "Viber openen (desktop / app)",
+    "marketing_handover_mark": "Markeren als zelf geplaatst",
+    "marketing_handover_marked": "Vastgelegd als zelf geplaatst.",
+    "marketing_handover_mark_conflict": "Dit bericht is al geplaatst op dit account.",
+    "marketing_handover_mark_failed": "Vastleggen is mislukt. Probeer het later opnieuw."
   },
   "help": {
     "title": "Hulp",

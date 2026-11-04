@@ -1978,7 +1978,32 @@
         "bad_base_url": "Qwen бара основна URL адреса што почнува со https://.",
         "generic": "Клучот не беше променет. Обидете се повторно."
       }
-    }
+    },
+    "marketing_handover_open": "Објави рачно",
+    "marketing_handover_title": "Објавете го сами",
+    "marketing_handover_hint": "Изберете ги фотографиите, копирајте го текстот, отворете ја апликацијата и објавете. Ништо не се објавува наместо вас.",
+    "marketing_handover_badges_label": "Формати",
+    "marketing_handover_load_failed": "Врските за споделување моментално не се достапни. Обидете се повторно подоцна.",
+    "marketing_handover_photos": "Фотографии: избрани {count}, до {max}",
+    "marketing_handover_photos_empty": "Оваа објава нема слики.",
+    "marketing_handover_photo_alt": "Фотографија {n} од {title}",
+    "marketing_handover_download": "Преземи ги избраните фотографии",
+    "marketing_handover_download_failed": "Фотографиите не можеа да се спакуваат во една датотека, па секоја се презема посебно.",
+    "marketing_handover_hashtags_label": "Хаштагови",
+    "marketing_handover_hashtags_placeholder": "#камп #деца",
+    "marketing_handover_copy": "Копирај го текстот и хаштаговите",
+    "marketing_handover_copied": "Текстот е копиран!",
+    "marketing_handover_copy_failed": "Копирањето не успеа. Означете го текстот и копирајте го рачно.",
+    "marketing_handover_viber_title": "Кратка верзија за Viber: {count} / {max} знаци",
+    "marketing_handover_instagram_note": "Instagram нема споделување од веб: копирајте го текстот, преземете ги фотографиите и објавете ги во апликацијата.",
+    "marketing_handover_open_instagram": "Отвори Instagram (веб / апликација)",
+    "marketing_handover_open_facebook": "Отвори го уредникот на Facebook",
+    "marketing_handover_open_whatsapp": "Отвори WhatsApp (веб / апликација)",
+    "marketing_handover_open_viber": "Отвори Viber (компјутер / апликација)",
+    "marketing_handover_mark": "Означи како рачно објавено",
+    "marketing_handover_marked": "Запишано како рачно објавено.",
+    "marketing_handover_mark_conflict": "Оваа објава е веќе објавена на оваа сметка.",
+    "marketing_handover_mark_failed": "Не можеше да се запише. Обидете се повторно подоцна."
   },
   "help": {
     "title": "Помош",

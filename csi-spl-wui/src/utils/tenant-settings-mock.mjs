@@ -4,6 +4,7 @@
  * initial chunk stays inside the 027 budget.
  */
 import { AGENT_SPLIT_KINDS, DEFAULT_SPLIT_KINDS, issuePrefixOf, SPLIT_TASK_KINDS, splitKindRule, splitMainOf, TOPIC_ARCHIVE_POLICY_OPTIONS, validResponderId } from './tenant-settings.mjs'
+import { marketingShareLinks } from './marketing-share-links.mjs'
 import { HOURS_DEFAULTS, HOURS_KEY_GRACE, HOURS_KEY_IDLE, HOURS_KEY_PERIOD, HOURS_KEY_TZ, hoursSettingValid } from './hours-settings.mjs'
 
 
@@ -142,6 +143,36 @@ function mockMarketingMeta(unshared) {
       done[channel] = [...(done[channel] || []), id]
       return { post: id, scheduled: 1, published: 1, retried: 0, failed: 0, deferred: 0 }
     },
+    // spec 090 T036: posted by hand; it leaves that channel's list like a publish
+    handOver(id, channel) {
+      if (!find(channel) || !unshared.some((x) => x.id === id)) throw mockErr(404, 'not_found')
+      if ((done[channel] || []).includes(id)) throw mockErr(409, 'already_recorded')
+      done[channel] = [...(done[channel] || []), id]
+      return { post: id, channel, status: 'published', platform_post_id: 'manual', published_at: new Date().toISOString() }
+    },
+  }
+}
+
+/**
+ * spec 090 T036/T037: the share links (built by the hub's twin module, with
+ * three same-origin pictures so the hand-over's photo picker has a choice)
+ * and the hand-over of a post posted by hand.
+ */
+function mockMarketingHandOver(unshared, meta, on, publishFlag) {
+  return {
+    marketingShareLinks(id) {
+      const p = on() && unshared.find((x) => x.id === id)
+      if (!p) throw mockErr(404, 'not_found')
+      const origin = globalThis.location?.origin || 'https://app.example.com'
+      const url = `${origin}/blog/${p.id}`
+      const images = [p.image, '/login-wallpaper.webp', '/spool-hub-emblem-560.webp'].map((x) => new URL(x, origin).href)
+      return { post_id: p.id, url, ...marketingShareLinks({ url, title: p.title, summary: p.summary, images }) }
+    },
+    manualPublishMarketingPost(id, channel) {
+      if (!on()) throw mockErr(404, 'not_found')
+      if (publishFlag() === 'forbidden') throw mockErr(403, 'forbidden')
+      return meta.handOver(id, channel)
+    },
   }
 }
 
@@ -202,6 +233,7 @@ function mockMarketing() {
       if (channel) return meta.posts(channel)
       return { posts: unshared.map((p) => ({ ...p })) }
     },
+    ...mockMarketingHandOver(unshared, meta, () => mktListed() && mkt.enabled, mktPublish),
     publishMarketingPost(id, channel) {
       if (!mktListed() || !mkt.enabled) throw mockErr(404, 'not_found')
       if (mktPublish() === 'forbidden') throw mockErr(403, 'forbidden')

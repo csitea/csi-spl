@@ -50,6 +50,8 @@ const LAZY_METHODS = [
   'patchMarketingSwitch',
   'listMarketingPosts',
   'publishMarketingPost',
+  'getMarketingShareLinks',
+  'manualPublishMarketingPost',
   'listMetaPages',
   'listMarketingChannels',
   'connectFacebook',

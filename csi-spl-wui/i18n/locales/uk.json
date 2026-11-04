@@ -1978,7 +1978,32 @@
         "bad_base_url": "Qwen потрібна базова URL-адреса, що починається з https://.",
         "generic": "Ключ не змінено. Спробуйте ще раз."
       }
-    }
+    },
+    "marketing_handover_open": "Опублікувати вручну",
+    "marketing_handover_title": "Опублікуйте самі",
+    "marketing_handover_hint": "Виберіть фото, скопіюйте текст, потім відкрийте застосунок і опублікуйте. Нічого не публікується за вас.",
+    "marketing_handover_badges_label": "Формати",
+    "marketing_handover_load_failed": "Посилання для поширення зараз недоступні. Спробуйте пізніше.",
+    "marketing_handover_photos": "Фото: вибрано {count}, до {max}",
+    "marketing_handover_photos_empty": "У цьому дописі немає зображень.",
+    "marketing_handover_photo_alt": "Фото {n} до {title}",
+    "marketing_handover_download": "Завантажити вибрані фото",
+    "marketing_handover_download_failed": "Не вдалося запакувати фото в один файл, тому кожне завантажується окремо.",
+    "marketing_handover_hashtags_label": "Хештеги",
+    "marketing_handover_hashtags_placeholder": "#табір #діти",
+    "marketing_handover_copy": "Копіювати текст і хештеги",
+    "marketing_handover_copied": "Текст скопійовано!",
+    "marketing_handover_copy_failed": "Не вдалося скопіювати. Виділіть текст і скопіюйте його вручну.",
+    "marketing_handover_viber_title": "Коротка версія для Viber: {count} / {max} символів",
+    "marketing_handover_instagram_note": "В Instagram не можна поширити з браузера: скопіюйте текст, завантажте фото й опублікуйте їх у застосунку.",
+    "marketing_handover_open_instagram": "Відкрити Instagram (веб / застосунок)",
+    "marketing_handover_open_facebook": "Відкрити редактор дописів Facebook",
+    "marketing_handover_open_whatsapp": "Відкрити WhatsApp (веб / застосунок)",
+    "marketing_handover_open_viber": "Відкрити Viber (комп'ютер / застосунок)",
+    "marketing_handover_mark": "Позначити як опубліковане вручну",
+    "marketing_handover_marked": "Записано як опубліковане вручну.",
+    "marketing_handover_mark_conflict": "Цей допис уже опубліковано в цьому акаунті.",
+    "marketing_handover_mark_failed": "Не вдалося записати. Спробуйте пізніше."
   },
   "help": {
     "title": "Довідка",

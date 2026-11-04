@@ -1978,7 +1978,32 @@
         "bad_base_url": "Qwen изисква базов URL адрес, който започва с https://.",
         "generic": "Ключът не беше променен. Опитайте отново."
       }
-    }
+    },
+    "marketing_handover_open": "Публикувай ръчно",
+    "marketing_handover_title": "Публикувайте го сами",
+    "marketing_handover_hint": "Изберете снимките, копирайте текста, после отворете приложението и публикувайте. Нищо не се публикува вместо вас.",
+    "marketing_handover_badges_label": "Формати",
+    "marketing_handover_load_failed": "Връзките за споделяне не са налични в момента. Опитайте отново по-късно.",
+    "marketing_handover_photos": "Снимки: избрани {count}, до {max}",
+    "marketing_handover_photos_empty": "Тази публикация няма снимки.",
+    "marketing_handover_photo_alt": "Снимка {n} към {title}",
+    "marketing_handover_download": "Изтегли избраните снимки",
+    "marketing_handover_download_failed": "Снимките не можаха да се съберат в един файл, затова всяка се изтегля поотделно.",
+    "marketing_handover_hashtags_label": "Хаштагове",
+    "marketing_handover_hashtags_placeholder": "#лагер #деца",
+    "marketing_handover_copy": "Копирай текста и хаштаговете",
+    "marketing_handover_copied": "Текстът е копиран!",
+    "marketing_handover_copy_failed": "Копирането не успя. Маркирайте текста и го копирайте ръчно.",
+    "marketing_handover_viber_title": "Кратка версия за Viber: {count} / {max} знака",
+    "marketing_handover_instagram_note": "Instagram няма споделяне от уеб: копирайте текста, изтеглете снимките и ги публикувайте в приложението.",
+    "marketing_handover_open_instagram": "Отвори Instagram (уеб / приложение)",
+    "marketing_handover_open_facebook": "Отвори редактора на Facebook",
+    "marketing_handover_open_whatsapp": "Отвори WhatsApp (уеб / приложение)",
+    "marketing_handover_open_viber": "Отвори Viber (десктоп / приложение)",
+    "marketing_handover_mark": "Отбележи като публикувано ръчно",
+    "marketing_handover_marked": "Записано като публикувано ръчно.",
+    "marketing_handover_mark_conflict": "Тази публикация вече е публикувана в този профил.",
+    "marketing_handover_mark_failed": "Не можа да се запише. Опитайте отново по-късно."
   },
   "help": {
     "title": "Помощ",

@@ -133,8 +133,9 @@ onBeforeUnmount(() => {
   right: 0;
   margin-inline: auto;
   /* CLE-77871: above the phone's composer dock + keyboard (0 on a desktop)
-     and the home-indicator inset */
-  bottom: calc(1rem + max(calc(var(--composer-dock-h, 0px) + var(--kb-inset, 0px)), env(safe-area-inset-bottom, 0px)));
+     and the home-indicator inset. A max() argument is a sum on its own: an
+     inner calc() here made postcss-calc warn "Lexical error" (SPL-4782) */
+  bottom: calc(1rem + max(var(--composer-dock-h, 0px) + var(--kb-inset, 0px), env(safe-area-inset-bottom, 0px)));
   z-index: var(--z-snackbar);
   display: flex;
   align-items: center;

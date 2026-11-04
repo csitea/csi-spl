@@ -2,12 +2,17 @@
 
 package store
 
-import "context"
+import (
+	"context"
+	"sort"
+)
 
 // channelMoveMemory is Memory's rows of a move: rdb 0249 channel_move_redirects,
-// kind task, by (src tenant, task), and the messages with copied_from set (0250).
+// kind task, by (src tenant, task), kind issue by src tenant, and the messages
+// with copied_from set (0250).
 type channelMoveMemory struct {
 	redirects map[[2]string]ChannelMoveRedirect
+	issues    map[string][]IssueMove
 	copied    map[[2]string]bool
 }
 
@@ -40,6 +45,25 @@ func (s *Memory) PutChannelMoveRedirect(tenant, taskID string, r ChannelMoveRedi
 		s.chMove.redirects = map[[2]string]ChannelMoveRedirect{}
 	}
 	s.chMove.redirects[[2]string{tenant, taskID}] = r
+}
+
+// IssueMoves on Memory: see Postgres.
+func (s *Memory) IssueMoves(_ context.Context, tenant string) ([]IssueMove, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := append([]IssueMove{}, s.chMove.issues[tenant]...)
+	sort.Slice(out, func(i, j int) bool { return out[i].OldKey < out[j].OldKey })
+	return out, nil
+}
+
+// PutIssueMove holds one kind issue row on Memory, which has no P4 to write it.
+func (s *Memory) PutIssueMove(tenant string, m IssueMove) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.chMove.issues == nil {
+		s.chMove.issues = map[string][]IssueMove{}
+	}
+	s.chMove.issues[tenant] = append(s.chMove.issues[tenant], m)
 }
 
 // MessageCopied on Memory: see Postgres.

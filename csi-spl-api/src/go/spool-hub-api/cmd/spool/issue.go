@@ -14,10 +14,11 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/config"
 )
 
-const issueUsage = `usage: spool issue <list|get|create|update|comment|label|delete|archive|unarchive|link|unlink> --as <AGENT> [flags]
+const issueUsage = `usage: spool issue <list|get|moved|create|update|comment|label|delete|archive|unarchive|link|unlink> --as <AGENT> [flags]
   list      [--epic SPL-1,..] [--kind epic|issue] [--status s,..] [--priority n,..] [--level n,..] [--assignee id|me|none,..] [--label l,..]
             [--deadline-before T] [--deadline-after T] [--sort priority|level|deadline|updated|created] [--limit N] [--cursor C]
   get       --ref SPL-3
+  moved     the issue keys a channel move took from this workspace: old_key, dst, new_key, expires_at, live
   create    --title T  --discussions <topic id or /t/ link>,..  --epic SPL-1 | --parent SPL-3 (subtask) | --kind epic|feature
             [--description D | --description-file F] [--status S]
             [--priority 1-5] [--level 1-3] [--assignee ID] [--labels a,b] [--deadline 2026-10-01T15:00:00Z]

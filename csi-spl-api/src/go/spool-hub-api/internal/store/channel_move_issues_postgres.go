@@ -154,13 +154,14 @@ func (m *pgMove) oldNewKeys() ([]string, []string) {
 }
 
 // rewriteIssueRefs: the rows that name a moved issue by key. M11: fleet_lanes
-// and fleet_asks in <SRC> (W4). A moved event's issue_keys go with it.
+// (its issue_key and, SPL-4620, the origin_issue a lane was placed from) and
+// fleet_asks in <SRC> (W4). A moved event's issue_keys go with it.
 func (m *pgMove) rewriteIssueRefs() error {
 	olds, news := m.oldNewKeys()
-	for _, t := range []string{"fleet_lanes", "fleet_asks"} {
-		if _, err := m.exec(`UPDATE `+t+` x SET issue_key = k.n FROM unnest($2::text[], $3::text[]) AS k (o, n)
-			WHERE x.tenant_id = $1 AND x.issue_key = k.o`, m.req.Src, olds, news); err != nil {
-			return fmt.Errorf("%s: %w", t, err)
+	for _, c := range [][2]string{{"fleet_lanes", "issue_key"}, {"fleet_lanes", "origin_issue"}, {"fleet_asks", "issue_key"}} {
+		if _, err := m.exec(`UPDATE `+c[0]+` x SET `+c[1]+` = k.n FROM unnest($2::text[], $3::text[]) AS k (o, n)
+			WHERE x.tenant_id = $1 AND x.`+c[1]+` = k.o`, m.req.Src, olds, news); err != nil {
+			return fmt.Errorf("%s.%s: %w", c[0], c[1], err)
 		}
 	}
 	_, err := m.exec(`UPDATE calendar_events e SET issue_keys = (

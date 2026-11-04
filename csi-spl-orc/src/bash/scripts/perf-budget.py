@@ -555,7 +555,12 @@ def route_chunks(pub):
         ]
         total = sum(gzip_len(bodies[n]) for n in names)
         raw = sum(len(bodies[n]) for n in names)
-        out[key] = {"chunks": len(names), "gzip_kb": kb_of(total), "raw_kb": kb_of(raw), "files": names}
+        out[key] = {
+            "chunks": len(names),
+            "gzip_kb": kb_of(total),
+            "raw_kb": kb_of(raw),
+            "files": names,
+        }
     return out
 
 
@@ -607,7 +612,9 @@ def cmd_bundle(args):
     for doc, row in sorted(report["documents"].items()):
         print(f"DOC {doc} {row['chunks']} chunk(s) gzip {row['gzip_kb']:g} KB")
     for key, row in sorted(report["routes"].items()):
-        print(f"ROUTE {key} {row['chunks']} chunk(s) gzip {row['gzip_kb']:g} KB raw {row['raw_kb']:g} KB")
+        print(
+            f"ROUTE {key} {row['chunks']} chunk(s) gzip {row['gzip_kb']:g} KB raw {row['raw_kb']:g} KB"
+        )
     return finish(report, ceilings, "ci", args.out)
 
 

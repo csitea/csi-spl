@@ -142,7 +142,8 @@ mkdir -p "$T/specs/csi-spl-doc/specs/135-work-process" && echo '# Spec 135' >"$T
 git -C "$T/specs" add -A && git -C "$T/specs" -c user.name='FirstName LastName' -c user.email=dev@example.com commit -q -m s &&
   git -C "$T/specs" remote add origin "$T/specs.git" && git -C "$T/specs" push -q origin master 2>/dev/null
 export LI_SPEC_REPO="$T/specs"
-ES=$'Spec: csi-spl-doc/specs/135-work-process\nEpic: SPL-1'
+# Every placed brief names its discussion too (spec 153 3.20, SPL-4797): case 16c.
+ES=$'Spec: csi-spl-doc/specs/135-work-process\nEpic: SPL-1\nTopic: 7c0de153-0000-4000-8000-000000003170'
 
 # The hub stub: rdb 0097 + 0099 + 0180 rows in one JSON file, epoch times.
 cat >"$T/bin/hub" <<'STUB'
@@ -1209,10 +1210,10 @@ esac
 STUB
 chmod +x "$T/bin/istatus"
 printf 'SPL-7\tgone\nSPL-8\twip\nSPL-9\tdone\n' >"$T/epics.tsv"
-printf 'Kind: complex_coding\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-7\n' >"$T/briefs/tokens-tab.md"
-printf 'Kind: complex_coding\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-9\n' >"$T/briefs/done-epic.md"
-printf 'Kind: complex_coding\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-8\n' >"$T/briefs/open-epic.md"
-printf 'Kind: complex_coding\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-6\n' >"$T/briefs/no-answer.md"
+printf 'Kind: complex_coding\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-7\nTopic: 7c0de153-0000-4000-8000-000000003170\n' >"$T/briefs/tokens-tab.md"
+printf 'Kind: complex_coding\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-9\nTopic: 7c0de153-0000-4000-8000-000000003170\n' >"$T/briefs/done-epic.md"
+printf 'Kind: complex_coding\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-8\nTopic: 7c0de153-0000-4000-8000-000000003170\n' >"$T/briefs/open-epic.md"
+printf 'Kind: complex_coding\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-6\nTopic: 7c0de153-0000-4000-8000-000000003170\n' >"$T/briefs/no-answer.md"
 EH=(LI_HUB_STATUS_CMD="$T/bin/istatus" EPICS="$T/epics.tsv")
 put "$E1" c-002@box-desk dispatch-c002sat-e "SPAWN REQUEST tokens tab"
 out="$(on pc do_spl_spawn_enqueue "${EH[@]}" ASK_ID="$E1" SPAWN_CLASS=feature SPAWN_PLACE=claude:tokens-tab 2>&1)"; rc=$?
@@ -1247,6 +1248,41 @@ rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"
 out="$(on pc do_spl_spawn_place "${EH[@]}" LAUNCH_ID=c-508 2>&1)"
 [[ "$(jq -r .reason <<<"$(hubrow "$E3")")" == "placed: c-508@box-desk" ]] && grep -q "^claude auto $T $T/briefs/open-epic.md open-epic$" "$T/launch.log" &&
   pass "16. control: the same brief with its epic open (wip) is launched" || fail "16. placer open epic: $out | $(cat "$T/launch.log") | $(hubrow "$E3")"
+
+# 16c. C93, C94: spec 153 3.20 (SPL-4797; owner HUM-10, t1 f94e07bf msg 33f8eecb, t1
+# 0c2d08a2 msg 08ac07da): the placer launches no lane that names no
+# discussion or no issue. A row whose ask topic is no hub topic and whose brief
+# names none is handed to the holder with "no discussion", nothing launched
+# (CONTROL: the same brief on dispatch-<topic8> launches); a brief that lost
+# its Epic:/Spec: pair after the enqueue is handed off with "no issue".
+# RED on master 022055fe6: both rows were launched.
+E10=31700010-0000-4000-8000-000000000010; E11=31700011-0000-4000-8000-000000000011; E12=31700012-0000-4000-8000-000000000012
+printf 'Kind: complex_coding\nReport on task dispatch-s169-rows.\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-8\n' >"$T/briefs/no-disc.md"
+printf 'SPL-8\twip\n' >"$T/epics.tsv"
+q16c() {  # ASK_ID ASK_TOPIC SLUG: the only queued row
+  jq '(.[] | select(.state == "queued" or .state == "acked")) |= (.state = "dead")' "$T/hub/main.json" >"$T/hub/main.json.new" && mv "$T/hub/main.json.new" "$T/hub/main.json"
+  put "$1" c-002@box-desk "$2" "SPAWN REQUEST links"
+  on pc do_spl_spawn_enqueue "${EH[@]}" ASK_ID="$1" SPAWN_CLASS=feature SPAWN_PLACE="claude:$3" >/dev/null 2>&1
+  rm -f "$T/pc/spool/asks/.place.last"; : >"$T/launch.log"; : >"$T/send.log"
+}
+q16c "$E10" dispatch-s169-rows no-disc
+out="$(on pc do_spl_spawn_place "${EH[@]}" LAUNCH_ID=c-517 2>&1)"
+[[ ! -s "$T/launch.log" && "$(jq -r .state <<<"$(hubrow "$E10")")" == acked ]] &&
+  grep -qF "It needs you: lane refused, no discussion: the ask's topic 'dispatch-s169-rows' names no hub topic and brief $T/briefs/no-disc.md names none (add a 'Topic: <uuid>' line" "$T/send.log" &&
+  pass "16c. placer: a row naming no discussion (ask topic dispatch-s169-rows, brief names none) is handed to the holder, nothing launched" ||
+  fail "16c. no discussion: $out | $(cat "$T/launch.log") | $(sends) | $(hubrow "$E10")"
+q16c "$E11" dispatch-1a2b3c4d no-disc
+out="$(on pc do_spl_spawn_place "${EH[@]}" LAUNCH_ID=c-518 2>&1)"
+[[ "$(jq -r .reason <<<"$(hubrow "$E11")")" == "placed: c-518@box-desk" ]] && grep -q "^claude auto $T $T/briefs/no-disc.md no-disc$" "$T/launch.log" &&
+  pass "16c. control: the same brief on ask topic dispatch-<topic8> is launched" || fail "16c. control: $out | $(cat "$T/launch.log") | $(hubrow "$E11")"
+q16c "$E12" dispatch-1a2b3c4d no-disc
+printf 'Kind: complex_coding\nReport on task dispatch-1a2b3c4d.\n' >"$T/briefs/no-disc.md"
+out="$(on pc do_spl_spawn_place "${EH[@]}" LAUNCH_ID=c-519 2>&1)"
+[[ ! -s "$T/launch.log" && "$(jq -r .state <<<"$(hubrow "$E12")")" == acked ]] &&
+  grep -qF "lane refused, no issue: brief $T/briefs/no-disc.md has no 'Issue: <KEY>' line and no 'Epic: SPL-<n>' + 'Spec: <folder>' pair" "$T/send.log" &&
+  pass "16c. placer: a brief with no Issue: key and no Epic:/Spec: pair is handed off with 'no issue', nothing launched" ||
+  fail "16c. no issue: $out | $(cat "$T/launch.log") | $(sends) | $(hubrow "$E12")"
+jq '(.[] | select(.state == "queued" or .state == "acked")) |= (.state = "dead")' "$T/hub/main.json" >"$T/hub/main.json.new" && mv "$T/hub/main.json.new" "$T/hub/main.json"
 
 # 17. SPL-2558: the placer reopens an epic the SPL-1729 close archived ------------------
 # The closer on box A reopens only for a brief on A; this row's brief is on the
@@ -1328,9 +1364,9 @@ jq '(.[] | select(.state == "queued" or .state == "acked")) |= (.state = "dead")
 
 # 18. spec 143 4.4 (SPL-2790): the brief's category on the request ----------------------
 G1=21430001-0000-4000-8000-000000000001; G2=21430002-0000-4000-8000-000000000002; G3=21430003-0000-4000-8000-000000000003
-printf 'Kind: complex_coding\nCategory: coding/hard\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-8\n' >"$T/briefs/cat-hard.md"
-printf 'No kind, no category.\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-8\n' >"$T/briefs/cat-none.md"
-printf 'Kind: tests\nCategory: coding/no_such_node\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-8\n' >"$T/briefs/cat-bad.md"
+printf 'Kind: complex_coding\nCategory: coding/hard\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-8\nTopic: 7c0de153-0000-4000-8000-000000003170\n' >"$T/briefs/cat-hard.md"
+printf 'No kind, no category.\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-8\nTopic: 7c0de153-0000-4000-8000-000000003170\n' >"$T/briefs/cat-none.md"
+printf 'Kind: tests\nCategory: coding/no_such_node\nSpec: csi-spl-doc/specs/135-work-process\nEpic: SPL-8\nTopic: 7c0de153-0000-4000-8000-000000003170\n' >"$T/briefs/cat-bad.md"
 catq() {  # ASK_ID SLUG LAUNCH_ID: queue SLUG's brief alone, place it
   jq '(.[] | select(.state == "queued" or .state == "acked")) |= (.state = "dead")' "$T/hub/main.json" >"$T/hub/main.json.new" && mv "$T/hub/main.json.new" "$T/hub/main.json"
   put "$1" c-002@box-desk "dispatch-c002sat-${1:7:1}" "SPAWN REQUEST $2"

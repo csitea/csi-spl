@@ -143,9 +143,10 @@ printf '#!/usr/bin/env bash\necho "{\\"result\\": {\\"issues\\": []}}"\n' >"$T/b
 chmod +x "$T/bin/"*
 # Each brief names the issue its row closes: the enqueue refuses a brief with
 # no Issue: line and no Spec:/Epic: (SPL-2355), and the placer reads the key.
+# It also names its discussion: the placer launches no lane without one (SPL-4797).
 for s in one:2152 two:2153 three:2154 four:2155 solo:4000 solo2:4001 w1a:4101 w1b:4102 f1:5001 f2:5002 \
          feat:6001 bugfix:6002 d1:7001 d2:7002 s1:8001 s2:8002 s3:8003 full:8101; do
-  printf 'brief of g-%s\nIssue: SPL-%s\n' "${s%%:*}" "${s#*:}" >"$T/briefs/g-${s%%:*}.md"
+  printf 'brief of g-%s\nIssue: SPL-%s\nTopic: 7c0de153-0000-4000-8000-000000002370\n' "${s%%:*}" "${s#*:}" >"$T/briefs/g-${s%%:*}.md"
 done
 
 # Each machine M: its own spool root and lane map; the hub dir is HUB_M

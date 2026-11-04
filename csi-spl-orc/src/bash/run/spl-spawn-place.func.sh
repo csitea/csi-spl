@@ -562,6 +562,7 @@ spl_spawn_place_take() {  # HOLDER HEAD
   brief="$(spl_spawn_place_brief "${place#*:}")"
   [[ -z "$place" || -z "$brief" ]] || closed="$(spl_spawn_place_epic_closed "$brief")"
   [[ "$closed" != *$'\t'auto-closed ]] || closed="$(spl_spawn_place_reopen "$brief" "${place#*:}" "${closed%$'\t'auto-closed}")"
+  [[ -n "$closed" || -z "$place" || -z "$brief" ]] || closed="$(spl_spawn_place_no_links "$2" "$brief")"
   spl_spawn_q_op ack "$id" "$holder" >/dev/null || return 0
   if [[ -n "$place" && -n "$brief" && -z "$closed" ]] && ! vendor="$(spl_spawn_place_vendor "${place%%:*}" "$brief" "$id")"; then
     spl_spawn_place_hand "$holder" "$2" "$vendor"
@@ -613,6 +614,32 @@ spl_spawn_place_epic_closed() {  # BRIEF
   declare -F li_brief_epic_closed >/dev/null ||
     . "$PROJ_PATH/src/bash/features/spawn-agents/lib/lane-issue.inc.sh" >&2 || return 0
   li_brief_epic_closed "$1"
+}
+
+# Every lane names its discussion and its issue (spec 153 3.20, SPL-4797;
+# owner HUM-10, t1 f94e07bf msg 33f8eecb: "each lane must have at least 1
+# link to an issue WHAT It is doing and at least 1 link to a discusion from
+# where did it originated", t1 0c2d08a2 msg 08ac07da: "the links must be
+# enforced"). Prints why a row may not launch, nothing when it may: no
+# discussion = the ask's topic is neither a hub uuid nor dispatch-<topic8>,
+# the ask carries no discussion and the brief names none
+# (li_discussion_from_brief); no issue = the brief has no `Issue:` key and no
+# Epic:/Spec: pair the placer files one under (li_brief_epic_spec). The row
+# goes to the holder (spl_spawn_place_hand) with the line to add.
+spl_spawn_place_no_links() {  # ROW BRIEF
+  local topic disc why=""
+  declare -F li_discussion_from_brief >/dev/null ||
+    . "$PROJ_PATH/src/bash/features/spawn-agents/lib/lane-issue.inc.sh" >&2 || return 0
+  topic="$(jq -r '.topic // ""' <<<"$1")"
+  disc="$(jq -r '.discussion // ""' <<<"$1")"
+  if [[ ! "$topic" =~ ^([0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}|dispatch-[0-9a-f]{8})$ && -z "$disc" ]] &&
+    ! li_discussion_from_brief "$2" >/dev/null; then
+    why="no discussion: the ask's topic '${topic}' names no hub topic and brief $2 names none (add a 'Topic: <uuid>' line, or report on dispatch-<topic8>)"
+  fi
+  if ! li_brief_epic_spec "$2" >/dev/null 2>&1; then
+    why="${why:+$why; }no issue: brief $2 has no 'Issue: <KEY>' line and no 'Epic: SPL-<n>' + 'Spec: <folder>' pair to file one under"
+  fi
+  [[ -z "$why" ]] || printf 'lane refused, %s\n' "$why"
 }
 
 # Reopen the auto-closed epic BRIEF names (li_epic_reopen) as the lease's desk

@@ -38,6 +38,21 @@ li_key_from_brief() {
   sed -nE "s/^[-*_ >]*Issue[*_ ]*:[*_\` ]*(${LI_KEY_RE})([^0-9].*)?\$/\1/p" "$1" | sed -n 1p | grep . || return 1
 }
 
+# li_discussion_from_brief FILE -> the discussion the brief names (spec 153
+# 3.20, SPL-4797; owner HUM-10, t1 0c2d08a2 msg e7009f10): a `topic <id>`,
+# `Topic: <id>`, `Discussion: <id>` or `/t/<id>` (a full uuid or its 8 hex),
+# else the 8 hex of its first `dispatch-<topic8>` task. The same reading as
+# the spawn's lane row (_spawn_lane_topic), minus its last resort, a report
+# task's bare uuid, which may be a relay task's. Nothing = no discussion.
+li_discussion_from_brief() {
+  [ -r "${1:-}" ] || return 1
+  local t
+  t="$(grep -oE '([Tt]opic[*_: ]+`?|[Dd]iscussion[*_: ]+`?|/t/)[0-9a-f]{8}(-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?([^0-9A-Za-z-]|$)' "$1" |
+    head -1 | grep -oE '[0-9a-f]{8}(-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?' | head -1)"
+  [ -n "$t" ] || t="$(grep -oE '(^|[^0-9A-Za-z-])dispatch-[0-9a-f]{8}([^0-9A-Za-z-]|$)' "$1" | head -1 | grep -oE '[0-9a-f]{8}' | head -1)"
+  [ -n "$t" ] && printf '%s\n' "$t"
+}
+
 # li_key_of_agent SPOOL_ROOT ID -> the lane's key: lifetime/issue, else its
 # recorded brief's Issue: line. Nothing = a lane placed before this rule.
 li_key_of_agent() {

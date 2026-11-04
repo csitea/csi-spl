@@ -1979,9 +1979,9 @@
         "generic": "Kľúč sa nezmenil. Skúste to znova."
       }
     },
-    "marketing_handover_open": "Uverejniť ručne",
-    "marketing_handover_title": "Uverejnite to sami",
-    "marketing_handover_hint": "Vyberte fotky, skopírujte text, potom otvorte aplikáciu a uverejnite. Nič sa neuverejní za vás.",
+    "marketing_handover_open": "Zverejniť ručne",
+    "marketing_handover_title": "Zverejnite to sami",
+    "marketing_handover_hint": "Vyberte fotky, skopírujte text, potom otvorte aplikáciu a zverejnite. Nič sa nezverejní za vás.",
     "marketing_handover_badges_label": "Formáty",
     "marketing_handover_load_failed": "Odkazy na zdieľanie teraz nie sú dostupné. Skúste to neskôr.",
     "marketing_handover_photos": "Fotky: vybrané {count}, najviac {max}",
@@ -1995,14 +1995,14 @@
     "marketing_handover_copied": "Text skopírovaný!",
     "marketing_handover_copy_failed": "Kopírovanie zlyhalo. Označte text a skopírujte ho ručne.",
     "marketing_handover_viber_title": "Krátka verzia pre Viber: {count} / {max} znakov",
-    "marketing_handover_instagram_note": "Instagram nemá zdieľanie z webu: skopírujte text, stiahnite fotky a uverejnite ich v aplikácii.",
+    "marketing_handover_instagram_note": "Instagram nemá zdieľanie z webu: skopírujte text, stiahnite fotky a zverejnite ich v aplikácii.",
     "marketing_handover_open_instagram": "Otvoriť Instagram (web / aplikácia)",
     "marketing_handover_open_facebook": "Otvoriť editor príspevkov Facebooku",
     "marketing_handover_open_whatsapp": "Otvoriť WhatsApp (web / aplikácia)",
     "marketing_handover_open_viber": "Otvoriť Viber (počítač / aplikácia)",
-    "marketing_handover_mark": "Označiť ako uverejnené ručne",
-    "marketing_handover_marked": "Zaznamenané ako uverejnené ručne.",
-    "marketing_handover_mark_conflict": "Tento príspevok je už na tomto účte uverejnený.",
+    "marketing_handover_mark": "Označiť ako zverejnené ručne",
+    "marketing_handover_marked": "Zaznamenané ako zverejnené ručne.",
+    "marketing_handover_mark_conflict": "Tento príspevok je na tomto účte už zverejnený.",
     "marketing_handover_mark_failed": "Nepodarilo sa zaznamenať. Skúste to neskôr."
   },
   "help": {

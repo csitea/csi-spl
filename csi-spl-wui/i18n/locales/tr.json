@@ -1985,7 +1985,7 @@
     "marketing_handover_badges_label": "Biçimler",
     "marketing_handover_load_failed": "Paylaşım bağlantıları şu anda kullanılamıyor. Daha sonra tekrar deneyin.",
     "marketing_handover_photos": "Fotoğraflar: {count} seçildi, en fazla {max}",
-    "marketing_handover_photos_empty": "Bu gönderide görsel yok.",
+    "marketing_handover_photos_empty": "Bu yazıda görsel yok.",
     "marketing_handover_photo_alt": "{title} için fotoğraf {n}",
     "marketing_handover_download": "Seçili fotoğrafları indir",
     "marketing_handover_download_failed": "Fotoğraflar tek bir dosyada toplanamadı, bu yüzden her biri ayrı indiriliyor.",
@@ -2002,7 +2002,7 @@
     "marketing_handover_open_viber": "Viber'ı aç (masaüstü / uygulama)",
     "marketing_handover_mark": "Elle paylaşıldı olarak işaretle",
     "marketing_handover_marked": "Elle paylaşıldı olarak kaydedildi.",
-    "marketing_handover_mark_conflict": "Bu gönderi bu hesapta zaten yayınlandı.",
+    "marketing_handover_mark_conflict": "Bu yazı bu hesapta zaten yayınlandı.",
     "marketing_handover_mark_failed": "Kaydedilemedi. Daha sonra tekrar deneyin."
   },
   "help": {

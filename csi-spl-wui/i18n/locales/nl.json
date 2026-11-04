@@ -1989,7 +1989,7 @@
     "marketing_handover_photo_alt": "Foto {n} van {title}",
     "marketing_handover_download": "Gekozen foto's downloaden",
     "marketing_handover_download_failed": "De foto's konden niet in één bestand worden verpakt, dus elke foto wordt apart gedownload.",
-    "marketing_handover_hashtags_label": "Trefwoorden",
+    "marketing_handover_hashtags_label": "Hashtags",
     "marketing_handover_hashtags_placeholder": "#kamp #kinderen",
     "marketing_handover_copy": "Tekst en hashtags kopiëren",
     "marketing_handover_copied": "Tekst gekopieerd!",
@@ -2002,7 +2002,7 @@
     "marketing_handover_open_viber": "Viber openen (desktop / app)",
     "marketing_handover_mark": "Markeren als zelf geplaatst",
     "marketing_handover_marked": "Vastgelegd als zelf geplaatst.",
-    "marketing_handover_mark_conflict": "Dit bericht is al geplaatst op dit account.",
+    "marketing_handover_mark_conflict": "Dit bericht is al op dit account gepubliceerd.",
     "marketing_handover_mark_failed": "Vastleggen is mislukt. Probeer het later opnieuw."
   },
   "help": {

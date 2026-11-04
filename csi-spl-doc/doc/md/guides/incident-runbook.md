@@ -265,8 +265,12 @@ nothing in it changed for `TMP_STALE_LANE_AGE_H` hours (default 24). Without
 the registry or the tmux window list a lane dir is kept (`KEEP
 no-live-guard`). A name with no agent id, such as `c256-tmp`, is not a lane
 dir. A lane dir that is a linked git worktree (a top-level `.git` file) is
-kept (`KEEP worktree`): `do_wt_dead_sweep` (4.3.6) removes it after its clean
-and landed checks. Any candidate whose age scan cannot read the whole tree is
+kept (`KEEP worktree`), never removed with `rm -rf`. No sweep removes such a
+`/tmp` lane worktree unless it is listed in `$SPOOL_ROOT/workdirs.tsv`
+(`do_sweep_workdirs`); `do_wt_dead_sweep` (4.3.6) takes only worktrees under
+its `WT_ROOT` (`<repo>-wt`). Remove one by hand with `git -C <repo> worktree
+remove <dir>` after checking that it is clean and its commits are on master.
+Any candidate whose age scan cannot read the whole tree is
 kept (`KEEP unreadable`), since a fresh file in an unreadable subdir would go
 unseen.
 

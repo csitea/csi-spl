@@ -15,8 +15,10 @@
 # it changed in TMP_STALE_LANE_AGE_H hours, whatever TMP_STALE_AGE_H is. With
 # no live-lane guard (registry unreadable, tmux server unlistable) a lane dir
 # is kept as `no-live-guard`; the other shapes are still swept. A lane dir
-# that is a linked git worktree (a top-level .git FILE) is kept as `worktree`:
-# do_wt_dead_sweep removes those, after its clean and landed checks.
+# that is a linked git worktree (a top-level .git FILE) is kept as `worktree`,
+# never rm -rf: no sweep removes a /tmp lane worktree unless it is listed in
+# $SPOOL_ROOT/workdirs.tsv (do_sweep_workdirs; do_wt_dead_sweep takes only
+# worktrees under its WT_ROOT); remove it by hand with git worktree remove.
 # It is removed only when ALL hold:
 #   - it is no symlink and not owned by root;
 #   - nothing under it changed in the last TMP_STALE_AGE_H hours, and that

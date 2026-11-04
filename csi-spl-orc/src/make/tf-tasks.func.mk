@@ -1,6 +1,6 @@
 .PHONY: tf-new-step ## @-> 03.00 generates framework for terraform new step
 tf-new-step: demand_var-STEP
-	./run -a do_tf_new_step
+	cd ../csi-spl-iac && STEP=$(STEP) ./run -a do_tf_new_step
 
 .PHONY: tf-remove-step ## @-> 03.00 removes framework for terraform step
 tf-remove-step: demand_var-STEP

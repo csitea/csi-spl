@@ -41,6 +41,7 @@ _PPX_MAP=(
   "satellite-steps.tst.sh csi-spl-orc/src/make/tf-tasks.func.mk"
   "env-order-gate.tst.sh csi-spl-orc/src/make/tf-tasks.func.mk"
   "gcp-alert-snooze.tst.sh csi-spl-orc/src/make/tf-tasks.func.mk csi-spl-orc/Makefile csi-spl-orc/lib/make"
+  "tf-new-step.tst.sh csi-spl-orc/src/make/tf-tasks.func.mk csi-spl-orc/Makefile csi-spl-orc/lib/make"
   "tenant-host-workflow-40.tst.sh csi-spl-orc/src/bash/run/spl-tenant-host-reconcile.func.sh"
   "cnf-tenant-host-entry.tst.sh csi-spl-orc/src/bash/run/spl-tenant-host-reconcile.func.sh"
   "provision-052-entry-check.tst.sh csi-spl-orc/src/bash/run/spl-tenant-host-reconcile.func.sh csi-spl-orc/src/bash/run/tf-sweep-steps.func.sh csi-spl-orc/src/bash/run/spl-tenant-host-provision.func.sh csi-spl-orc/src/make/tf-tasks.func.mk"

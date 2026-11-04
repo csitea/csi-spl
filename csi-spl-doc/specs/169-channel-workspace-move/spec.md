@@ -1,7 +1,7 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.18 (2026-11-02). Status: **Draft** (part built: section 8.4's hub
-steps are T7, section 10 lists the rows; the shell still reaches them through a seam, T9). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
+Version: v0.19 (2026-11-04). Status: **Draft** (part built: section 8.4's hub
+steps are T7, section 10 lists the rows; the shell calls them, T9). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
 
@@ -79,6 +79,12 @@ v0.18 settles section 7's two open points from the T11 lane (c-001,
 because the WUI, the box back-fill and the edit path all read the envelope; and
 the list of what a copy carries. The comment in rdb 0250 ("keeps the original
 env / env_sig") is history, superseded here.
+
+v0.19 ticks T9 and T10 (L8 wiring, SPL-4771; c-001 rulings 12c58d30 and
+8bd363e5): the action's default seam calls the T7 endpoint, and it prints the
+plan's `.shared_files`, P4's and P7's `.report` and P7's `.kept`. P2 names
+`TO_NAME` as a limit of the first move, and T13 measures P4 and P7 against
+Cloud Run's 300 s.
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -490,7 +496,7 @@ cd csi-spl-orc && CHANNEL=<SRC>/<CHANNEL> TO=<DST> MOVE_MODE=copy ./run -a do_sp
 | step | what | undo |
 |---|---|---|
 | P1 | `plan`, freeze the set in the journal (in `<DST>`), for the P2 check; P4's re-plan under the lock is the set moved (8.3) | drop the journal |
-| P2 | Check: `<DST>` exists, the caller is allowed, no channel `<CHANNEL>` in `<DST>` (else `TO_NAME=<new id>`), quotas fit, every seat has a `<DST>` desk, `<DST>` has an orchestrator seat (W2, the P2b probe's recipient), shared items resolved (5.5), no unresolved hours rows (5.1a) | nothing changed |
+| P2 | Check: `<DST>` exists, the caller is allowed, no channel `<CHANNEL>` in `<DST>` (else `TO_NAME=<new id>`; a named limit for the first move: a step or mark with a `TO_NAME` other than the channel's id answers 501 `not_built`, `api/hub/channel_move.go`, so the name must be free in `<DST>`), quotas fit, every seat has a `<DST>` desk, `<DST>` has an orchestrator seat (W2, the P2b probe's recipient), shared items resolved (5.5), no unresolved hours rows (5.1a) | nothing changed |
 | P2b | Prove each agent's `<DST>` desk: one probe DM to the `<DST>` orchestrator seat on the probe topic (task id = `move_id`), msg id recorded in the journal (W2). No seat is added here | nothing to undo but the probe DMs, which stay in `<DST>` as part of the journal's record |
 | P3 | Copy blobs and Qto objects to `<DST>` (idempotent) | delete the `<DST>` copies |
 | P4 | **One database transaction**, asOperator, with `app.channel_move = 'on'` set transaction-local: the one door through the append-only guards of `usage_events`, `sql_query_audit` and `demo_post_audit`, a DELETE only and only in the operator scope (rdb 0251). The limit of that door: a session on the runtime login can erase rows of those 3 audit tables with no copy and no trace, and nothing detects it; 0251 adds this for `usage_events` and `sql_query_audit`. Insert every row of the set under `<DST>` (parents first), rewrite `channel_order`, NULL the DM `ref_task_id`s, write the redirect rows (Q2); for a move, delete the set in `<SRC>` (children first, F5); recompute counters; bump change stamps. 3,650 posts (F13) is the largest set today (timing: R3). | the transaction rolls back as a whole |
@@ -604,14 +610,14 @@ Each row is one small task; files named are where it lands.
 | T7b | Box client: on the `topic_moved` refusal, send the post through the agent's `<DST>` desk key (W2, W3), the re-route of Q2. Every path: `spool send` by dial and by sidecar, a channel post, an answer, a queued post at flush. The desk is `<dir>/<tenant>/<box>`, `<dir>` being `$SPOOL_DESKS` or the desks dir of this spool root, read from its live `hub-run` as `spool_reply` does: a desk of another OS user is unreadable, so it counts as no desk and the post is refused. Nothing is remembered: each post asks `<SRC>` first, so on day 31 it gets the 404 and is refused and reported. A retry is the same envelope, which the hub stores once per `(tenant, msg_id)`. A prerequisite of the first prd move | `internal/hubclient/reroute.go`, `flush.go`, `hubclient.go`; `internal/action/link.go`, `action.go`; `cmd/spool/hub.go`; tests `reroute_test.go`, `moved_desk_test.go`, `internal/hub/channel_move_reroute_test.go` |
 | T7c | Hub: C18's sync-cycle half: after the move and one In-half run on the member's connection, `<SRC>` has no event with that `source_key`, no map row, and the Google event is gone; control: skip the pre-P4 Google delete -> the In half imports it back. T13 and the first prd move wait for T7c; T5 does not | built (SPL-4609): `internal/hub/channel_move_gcal_test.go`, the move through the step endpoint and one sync cycle on fakegcal; the control drops the pre-P4 `events.delete` in the test's transport to the fake, so neither store nor hub has a door for it |
 | T8 | Proofs P7 and the free-text scan; tests C13, C14 | `api/channelmove/proof.go`, `_test.go` |
-| T9 | Shell action `do_spl_channel_workspace_move` (plan, DRY_RUN, journal resume) and its test C17 | `orc/run/spl-channel-workspace-move.func.sh`, `orc/tests/spl-channel-workspace-move.tst.sh` |
+| T9 | Shell action `do_spl_channel_workspace_move` (plan, DRY_RUN, journal resume) and its test C17. With no `CHANNEL_MOVE_HUB_CMD` (now a test seam) it calls the T7 endpoint, `POST /v1/operator/channel-moves` on the env's hub as the per-env service account (`spl_hub_operator_call`), any code but 200 a refusal; C24 is proved through it too. It prints the plan's `.shared_files` as `PLAN` lines, P4's `.report`, and P7's `.report` and `.kept`; none of them refuses | built (SPL-4404 the action, SPL-4771 the wiring): `orc/run/spl-channel-workspace-move.func.sh`, `orc/tests/spl-channel-workspace-move.tst.sh` |
 | T9b | The shell plan path reads and prints the Cloud SQL backup retention and the hub log bucket's retention (R4, 5.6): it only prints and refuses nothing; it prints every log bucket of the project, because the cnf names none; test C24 | `orc/run/spl-channel-workspace-move.func.sh`, `orc/tests/spl-channel-workspace-move.tst.sh` |
 | T9c | The shell plan path does W2's F14 half, which the hub cannot read (T4b checks only `channel_subscriptions` and channel-scope `dedicated_agents`): it reads the channel's row in this box's `channel-rules.tsv` through `channel-rules.inc.sh` and refuses when that desk agent has no `<DST>` desk on this box, naming it and the box. No row is no refusal; a copy checks nothing (no seat moves, section 7); a row of another env is said, not checked. Read-only: P5 rewrites the file, not `plan`. A box reads only its own file, and `plan` prints which box and file it read. The other box is covered by the operator, not by this row: run `plan` on every box that works the channel, and `plan` names the boxes of the hub's seats other than its own; nothing makes `MOVE_CMD=run` wait for that; tests C25, C26 | `orc/run/spl-channel-workspace-move.func.sh`, `orc/tests/spl-channel-workspace-move.tst.sh` |
-| T10 | Box steps: the P2b probe DMs, the P5 rule-row rewrite (no action writes `channel-rules.tsv` today, so it lives here), lane key notes; no re-seat (the seat rows move in P4); tests C11, C12 | `orc/features/spawn-agents/scripts/channel-workspace-move-box.sh`, its test |
+| T10 | Box steps: the P2b probe DMs, the P5 rule-row rewrite (no action writes `channel-rules.tsv` today, so it lives here), lane key notes; no re-seat (the seat rows move in P4); tests C11, C12 | built (SPL-4404, ticked by SPL-4771): `orc/features/spawn-agents/scripts/channel-workspace-move-box.sh`, its test |
 | T11 | Copy mode: new UUIDs, link rewrite, `copied_from`; test C16 | `api/store/channel_copy_apply_postgres.go`, `_test.go` |
 | T11b | `spl_issue_owner_go_from` refuses a copy and a reply that does not say whether it is one; `hub-tail` does not return `copied_from` today. Control: remove the check -> the test goes red. c-001 writes its brief after T11 lands; no prd copy until T11b lands | `orc/run/` reader file and its test, named by that brief |
 | T12 | Docs: operator page (how to plan, run and read the kept list) | `csi-spl-doc/doc/md/channel-workspace-move.md` |
-| T13 | Dev rehearsal, the gate before the first prd run: on dev, `plan` then `DRY_RUN=0` of a seeded channel between two dev test workspaces with the owner's GO msg id (C15), P7 prints 0, the journal read back; it also records R3's T5 timing on the 3,650-post seeded channel (12), runs P4 under the real runtime role with its real grants, and checks TEMP there; T11b lands before the first prd copy, no prd copy until then; the record of the run | `csi-spl-doc/specs/169-channel-workspace-move/dev-rehearsal.md` |
+| T13 | Dev rehearsal, the gate before the first prd run: on dev, `plan` then `DRY_RUN=0` of a seeded channel between two dev test workspaces with the owner's GO msg id (C15), P7 prints 0, the journal read back; it also records R3's T5 timing on the 3,650-post seeded channel (12), runs P4 under the real runtime role with its real grants, and checks TEMP there; T11b lands before the first prd copy, no prd copy until then; measure P4 and P7 against the 300 s Cloud Run limit on the seeded 3,650-post channel; over the limit means a bug row before the first prd move; the record of the run | `csi-spl-doc/specs/169-channel-workspace-move/dev-rehearsal.md` |
 
 Order: T1 first (it is the inventory in code); T2 before T5 (the journal);
 T4 before T5; T4 before T4b; T4b before T4d; T4d before T7's seat wiring; T5 before T5b and T5c; T3 before T11; T6 and T8

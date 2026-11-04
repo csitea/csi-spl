@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 #------------------------------------------------------------------------------
 # do_spl_channel_workspace_move (spec 169 T9, cases C11, C12, C17), against a
-# STUBBED hub endpoint (T7 is not built: CHANNEL_MOVE_HUB_CMD is the seam; the
-# stub keeps the journal of section 8.3 in a JSON file):
-#   1. bad input is refused before any hub call; no seam = FATAL naming T7
+# STUBBED hub endpoint (CHANNEL_MOVE_HUB_CMD, the tests' seam; the stub keeps
+# the journal of section 8.3 in a JSON file; section 12 goes through the real
+# default seam, the T7 call, with only spl_hub_operator_call stubbed):
+#   1. bad input is refused before any hub call
 #   2. plan (the default) asks the hub for the plan only and changes nothing;
-#      a seat with no <DST> desk makes it refuse, exit 3, naming it (C11)
+#      a seat with no <DST> desk makes it refuse, exit 3, naming it (C11);
+#      the shared files print as PLAN lines and refuse nothing
 #   3. run, DRY_RUN=1: reads the plan and the journal, prints the steps it
 #      would run, makes no step call; DRY_RUN=0 without the owner's GO msg
 #      id is refused, exit 3, before any hub call
@@ -33,6 +35,10 @@
 #      names the seats' other boxes; the rule file stays byte-equal
 #  11. a hub refusal prints its reason (the FATAL is not captured with the
 #      answer): plan, a refused step of run, an answer that is not JSON
+#  12. the default seam (no CHANNEL_MOVE_HUB_CMD): POST /v1/operator/channel-moves
+#      on the cnf's hub URL as the pinned account; the plan and its retention
+#      lines (C24) through it; a whole move; a non-200 is a refusal with the
+#      code and the answer; no per-env key = FATAL before any call
 # Every hub op, probe and send is recorded (CONTROL: an absent call means
 # "not made", not "not recorded").
 #------------------------------------------------------------------------------
@@ -52,6 +58,7 @@ DOC=11111111-2222-4333-8444-555555555555
 cat >"$T/plan.json" <<'EOF'
 {"counts":{"messages":42,"issues":2},"shared":[],"mentions":[],"missing_desks":[],
  "members_lost":[],"kept":[{"store":"daily DB dumps","gone_by":"2026-11-29"}],"refuse":[],
+ "shared_files":["f-shared-1"],
  "seats":[{"agent":"c-101","box":"box-desk"},{"agent":"c-102","box":"box-desk"}]}
 EOF
 printf '[{"agent":"c-201","topic":"dispatch-11112222","old_key":"SRC-7","new_key":"DST-1"}]\n' >"$T/lanes.json"
@@ -75,7 +82,8 @@ case "$op" in
     fi
     [ "$step" = P4 ] && jq --slurpfile l "$STUB_DIR/lanes.json" '.lanes = $l[0]' "$J" >"$J.n" && mv "$J.n" "$J"
     mark "$step"
-    if [ "$step" = P7 ]; then echo '{"ok":true,"proofs":[{"name":"messages","count":0},{"name":"channels","count":0}]}'
+    if [ "$step" = P7 ]; then echo '{"ok":true,"proofs":[{"name":"messages","count":0},{"name":"channels","count":0}],"report":["deliveries: 2 expired"],"kept":[{"store":"git history","gone_by":"never"}]}'
+    elif [ "$step" = P4 ]; then jq -c '{ok:true, move_id, lost:[], new_keys:{}, report:["deliveries: 2 expired"]}' "$J"
     else jq -c '{ok:true, move_id}' "$J"; fi ;;
   mark) mark "$step"; jq -c '{ok:true, move_id}' "$J" ;;
   *) echo '{"error":"unknown op"}'; exit 1 ;;
@@ -145,13 +153,13 @@ for bad in 'CHANNEL=proj' 'CHANNEL=SRC/proj' "CHANNEL=src1/proj' or '1" 'TO=src1
   in_orc do_spl_channel_workspace_move "${G[@]}" "$bad"; rc=$?
   [[ $rc -ne 0 && ! -s "$T/calls.log" ]] && pass "1. $bad refused before any call" || fail "1. $bad: rc=$rc $(cat "$T/out")"
 done
-in_orc do_spl_channel_workspace_move "${G[@]}" CHANNEL_MOVE_HUB_CMD=; rc=$?
-[[ $rc -ne 0 && ! -s "$T/calls.log" ]] && grep -q 'T7' "$T/out" && pass "1. no hub seam: FATAL naming the T7 endpoint" || fail "1. no seam: rc=$rc $(cat "$T/out")"
 
 # --- 2. plan --------------------------------------------------------------------------
 in_orc do_spl_channel_workspace_move "${G[@]}"; rc=$?
 [[ $rc -eq 0 && "$(cat "$T/calls.log")" == "hub plan go=" && ! -e "$T/journal.json" ]] && grep -q 'messages 42' "$T/out" \
   && grep -q 'daily DB dumps' "$T/out" && pass "2. plan: one read-only plan call, counts and the kept list" || fail "2. plan: rc=$rc $(cat "$T/out" "$T/calls.log")"
+[[ $rc -eq 0 ]] && grep -q '^PLAN shared file f-shared-1: a staying post lists it too, copied, not deleted in <SRC>$' "$T/out" \
+  && pass "2. plan prints .shared_files as PLAN lines, no refusal" || fail "2. shared files: rc=$rc $(cat "$T/out")"
 jq '.missing_desks = [{"agent":"c-102","box":"box-desk"}]' "$T/plan.json" >"$T/plan.miss"
 cp "$T/plan.json" "$T/plan.ok"; cp "$T/plan.miss" "$T/plan.json"
 in_orc do_spl_channel_workspace_move "${G[@]}"; rc=$?
@@ -185,6 +193,9 @@ grep -q "^dst1	proj	$DOC	" "$T/spool/channel-rules.tsv" && pass "4. P5 rewrote t
 [[ "$(grep -c '^send' "$T/calls.log")" -eq 1 ]] && grep -q 'SRC-7 -> DST-1' "$T/calls.log" \
   && pass "4. C12 the lane gets one note old -> new" || fail "4. notes: $(cat "$T/calls.log")"
 grep -q 'proof messages 0' "$T/out" && pass "4. P7 prints the proofs" || fail "4. proofs: $(cat "$T/out")"
+grep -qx 'REPORT P4 deliveries: 2 expired' "$T/out" && grep -qx 'REPORT P7 deliveries: 2 expired' "$T/out" \
+  && grep -qx 'KEPT git history until never' "$T/out" && [[ "$(grep -c '^KEPT' "$T/out")" -eq 1 ]] \
+  && pass "4. P4's and P7's .report and P7's .kept are printed" || fail "4. report: $(cat "$T/out")"
 
 # --- 5. C11 a failed probe ------------------------------------------------------------
 reset_state
@@ -349,6 +360,32 @@ in_orc do_spl_channel_workspace_move "${G[@]}" 'CHANNEL_MOVE_HUB_CMD=echo not js
 in_orc do_spl_channel_workspace_move "${G[@]}" "${R[@]}" STUB_FAIL_STEP=P3; rc=$?
 [[ $rc -ne 0 && "$(ops)" == "P1 P2 P2b P3" ]] && grep -q 'FATAL the hub refused step P3 .*injected' "$T/out" \
   && pass "11. a refused step of run: its FATAL and the hub's answer, no later step" || fail "11. step: rc=$rc '$(ops)' $(cat "$T/out")"
+
+# --- 12. the default seam: the T7 endpoint ------------------------------------------------
+# spl_hub_operator_call is the only stub: it records the call and hands the body
+# to the hub stub; STUB_HTTP sets the code it answers with.
+OPS='spl_hub_operator_call() { echo "op $1 $2 url=$SPL_HUB_URL as=$GCP_ACCOUNT" >>"$STUB_LOG"
+  SPL_HUB_OP_BODY="$("$STUB_DIR/hub" <<<"$3")"; SPL_HUB_OP_STATUS="${STUB_HTTP:-200}"; }'
+reset_state; rm -f "$RULES"
+in_orc "$OPS; do_spl_channel_workspace_move" "${G[@]}" CHANNEL_MOVE_HUB_CMD=; rc=$?
+[[ $rc -eq 0 && "$(grep -c '^op ' "$T/calls.log")" -eq 1 ]] && grep -qE '^op POST /v1/operator/channel-moves url=https://[a-z0-9.-]+ as=pinned@example.com$' "$T/calls.log" \
+  && grep -q '^hub plan go=$' "$T/calls.log" && grep -q 'messages 42' "$T/out" \
+  && pass "12. no CHANNEL_MOVE_HUB_CMD: plan is one POST to the T7 endpoint on the cnf's hub, as the pinned account" || fail "12. default plan: rc=$rc $(cat "$T/out" "$T/calls.log")"
+grep -q 'PLAN retention Cloud SQL backups: 7 COUNT kept, point-in-time logs 6 days' "$T/out" && grep -q 'PLAN retention log bucket _Default: 30 days' "$T/out" \
+  && [[ "$(grep -c -- '--account=pinned@example.com' "$T/gcloud.log")" -eq 2 ]] \
+  && pass "12. C24 through the default seam: both retention lines, read as the pinned account" || fail "12. C24 default: $(cat "$T/out" "$T/gcloud.log")"
+in_orc "$OPS; do_spl_channel_workspace_move" "${G[@]}" CHANNEL_MOVE_HUB_CMD= STUB_SQL_DENY=1; rc=$?
+[[ $rc -eq 0 ]] && grep -q 'PLAN retention Cloud SQL backups: not read: ERROR: (gcloud.sql.instances.describe) HTTPError 403' "$T/out" && grep -q 'OK plan of' "$T/out" \
+  && pass "12. C24 through the default seam: a value it cannot read prints not read, the plan finishes" || fail "12. C24 default deny: rc=$rc $(cat "$T/out")"
+in_orc "$OPS; do_spl_channel_workspace_move" "${G[@]}" "${R[@]}" CHANNEL_MOVE_HUB_CMD=; rc=$?
+[[ $rc -eq 0 && "$(ops)" == "P1 P2 P2b P3 P4 P5 P6 P7" && "$(grep -c '^op POST /v1/operator/channel-moves ' "$T/calls.log")" -eq "$(grep -c '^hub ' "$T/calls.log")" ]] \
+  && grep -qx 'REPORT P4 deliveries: 2 expired' "$T/out" && pass "12. a whole move through the default seam, every hub op a POST" || fail "12. default run: rc=$rc '$(ops)' $(cat "$T/out")"
+in_orc "$OPS; do_spl_channel_workspace_move" "${G[@]}" CHANNEL_MOVE_HUB_CMD= STUB_HTTP=409; rc=$?
+[[ $rc -eq 1 ]] && grep -q 'answered HTTP 409' "$T/out" && grep -q 'FATAL the hub refused plan for src1/proj -> dst1 (exit 1): {"counts"' "$T/out" \
+  && pass "12. a non-200 answer is a refusal: the code and the answer, exit 1" || fail "12. 409: rc=$rc $(cat "$T/out")"
+in_orc "$OPS; do_spl_channel_workspace_move" "${G[@]}" CHANNEL_MOVE_HUB_CMD= GCP_ACCOUNT=; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls.log" ]] && grep -q 'no gcloud account' "$T/out" \
+  && pass "12. no per-env key: FATAL before any hub call, no owner fallback" || fail "12. no key: rc=$rc $(cat "$T/out" "$T/calls.log")"
 
 echo "spl-channel-workspace-move: $fails failure(s)"
 [[ $fails -eq 0 ]]

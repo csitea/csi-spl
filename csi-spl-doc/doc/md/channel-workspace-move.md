@@ -10,14 +10,9 @@ whole channel from one workspace into another.
 > a moved topic (T7), and a box re-routes that post (T7b). The spec folder holds
 > no dev rehearsal record yet (T13). What still waits:
 >
-> - **The action's seam:** the action reaches the hub only through
->   `CHANNEL_MOVE_HUB_CMD`, and nothing on master sets it for a real hub (section
->   2.2, T9).
 > - **Copy:** every `op` of a copy answers 501 `not_built` (T11).
 > - **The owner's exceptions:** a step reads no `detail`, so "leave these hours
 >   rows" and "keep this invite" have no input (section 2.4).
-> - **What the action prints:** not P4's or P7's report, nor P7's kept list
->   (section 3.4).
 > - **Gaps no row owns:** no proof of the bucket objects (section 5.1), the old
 >   issue key map and the web app's redirect (section 5.2).
 >
@@ -148,13 +143,13 @@ C1). The input is checked before the hub is called: `ENV` is `dev` or
 a bad value stops with a `FATAL`, exit 1. The hub also refuses, with 400
 `bad_channel`, a default channel: it never moves.
 
-Both commands also need `CHANNEL_MOVE_HUB_CMD`, or they stop with `FATAL the
-hub's channel move endpoint (spec 169 T7) is not wired yet: set
-CHANNEL_MOVE_HUB_CMD`, exit 2. It is a command that reads one request JSON on
-stdin, sends it as `POST /v1/operator/channel-moves` with a Bearer Google ID
-token of an account on the hub's operator allow-list, prints the answer JSON,
-and exits non-zero on a refusal. Nothing on master sets it for a real hub: only
-the tests do. **[pending T9: its wiring to the endpoint]**
+Both commands call the hub's endpoint, `POST /v1/operator/channel-moves` on
+`https://<env.dns.api_fqdn>`, as the env's service account (its key
+`$HOME/.gcp/.csi/key-csi-spl-<env>.json`) with a Google ID token; the account
+must be on the hub's operator allow-list. With no key the action stops with a
+`FATAL` before any call; it never falls back to the owner account. Any answer
+but HTTP 200 is a refusal. `CHANNEL_MOVE_HUB_CMD` replaces the call in the
+tests only.
 
 The action prints a refusal of the hub as `FATAL the hub refused <op> ...` with
 the hub's answer, exit 1. The plan of a copy ends there today **[pending
@@ -170,6 +165,7 @@ The plan prints one line per item, in this order:
 | `PLAN seat <agent> on <box>` | an agent seated in the channel and the box of its seat, with a `<DST>` desk or without one (case C27). P2b probes these seats |
 | `PLAN mention outside the set: ...` | one JSON object per post in another `<SRC>` channel, another person's DM or a staying Qto doc that links a moved topic or names the channel (spec 5.4). They are left as they are and only listed (owner, Q4 = A) |
 | `PLAN member not in the target: ...` | a person of the channel who is not a member of `<DST>`. They lose access; only the members the owner adds to `<DST>` come along, with their read state, hours rows and calendar guest rows (owner, Q5 = A) |
+| `PLAN shared file <file id>: ...` | a file a staying post in `<SRC>` also lists: copied, not deleted in `<SRC>` (spec case C6). It does not refuse the move |
 | `PLAN kept <store> until <what ends it>` | the kept list (section 4 of this page) |
 | `PLAN retention Cloud SQL backups: ...`, `PLAN retention log bucket <name>: ...` | how long those two copies live, read as the per-env service account (spec R4). A value it cannot read prints as `not read: <reason>`; it never refuses |
 | `PLAN box rule: ...` | a move only: what this box's `channel-rules.tsv` says about the channel. A box reads only its own file: **run the plan on every box that works the channel**. It names each other box that holds a seat: `run this plan on box <box> too` |
@@ -179,10 +175,6 @@ The plan prints one line per item, in this order:
 | `REFUSE shared <kind> <id>: <why>` | a Qto doc, issue, epic or spec sync row the channel uses that something staying in `<SRC>` also uses (spec 5.5). The move stops; the owner decides each one (owner, Q6 = A). Kind `table` is a row the move cannot carry: `embed_visitors` is a channel with a website-chat visitor (spec 5.1b) |
 | `REFUSE hours: <member> <n> rows ...` | hours rows of a member who does not come along (Q5), or inside a frozen or approved time sheet (spec 5.1a, owner Q8 = A) |
 | `REFUSE channel <name> exists in <DST>: set TO_NAME` | the name is taken in `<DST>`, an archived channel included (section 2.4) |
-
-The plan does not print files shared with a staying post. The hub sends them in
-`.shared_files` and they do not refuse the move: they are copied and not deleted
-in `<SRC>` (spec case C6), but the action reads no such field.
 
 A clean plan can still stop at P2. Two of its checks are not in the plan's answer:
 an agent with the orchestrator number on `<DST>`'s roster, and the channel's
@@ -280,10 +272,11 @@ A refusal prints as `FATAL the hub refused step <step> ...` with the hub's answe
 exit 1. Each step done prints `OK <step> of move <move id> done`; the run ends with
 `OK move <move id> of <SRC>/<CHANNEL> -> <DST> (move) done`.
 
-The hub answers more than the action prints **[pending T9]**: P4's `.lost`,
-`.new_keys` and `.report` (the deliveries line, section 5.2), P6's `.counts` and
-`.kept_objects`, P7's `.kept` and `.report`. Until then the step counts are in
-`channel_move_steps` in `<DST>`, readable with `do_spl_db_query`.
+P4 and P7 print each line of their `.report` (the deliveries line, section 5.2)
+as `REPORT <step> <line>`, and P7 prints its kept list as `KEPT <store> until
+<what ends it>`; neither refuses. The hub answers more than the action prints:
+P4's `.lost` and `.new_keys`, P6's `.counts` and `.kept_objects`. Those step
+counts are in `channel_move_steps` in `<DST>`, readable with `do_spl_db_query`.
 
 ### 3.5 Resume after a stop
 
@@ -352,8 +345,8 @@ hold the channel and cannot be edited row by row; the move does not touch
 them. The plan prints most of them as `PLAN kept <store> until <what ends it>`.
 Two rows of the table below print no such line: the soft-deleted bucket objects,
 and the hours rows, which the plan lists as stops (section 2.3). P7's answer carries
-the same list in `.kept`, still in words, and the action does not print it **[pending
-T9]**. The date each copy expires, which spec 8.2 asks of P7, is not built **[pending:
+the same list in `.kept`, still in words, and the action prints it as `KEPT` lines
+(section 3.4). The date each copy expires, which spec 8.2 asks of P7, is not built **[pending:
 no row owns it yet]**. They are kept until they expire on their own (owner, Q3 = A).
 
 | copy | holds | why it stays | gone by |

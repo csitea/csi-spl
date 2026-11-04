@@ -37,12 +37,14 @@
 # @description another machine fails its probe, and the move stops before P3:
 # @description run the move on the machine of its seats' desks (spec 167
 # @description first, R5). DRY_RUN=1 checks the arguments only.
-# @description NOT WIRED YET: the T7 endpoint does not exist. The hub is
-# @description reached only through the seam CHANNEL_MOVE_HUB_CMD, a command
-# @description that reads one request JSON on stdin ({op, env, src, channel,
-# @description dst, mode, to_name, move_id, go_msg_id, step, detail}; op is
-# @description plan, journal, step or mark) and prints the answer JSON (exit
-# @description non-zero = refused). Without it the action stops with a FATAL.
+# @description The hub is the T7 endpoint, POST /v1/operator/channel-moves on
+# @description the ENV hub (https://<env.dns.api_fqdn>), called as the per-env
+# @description service account with a Google ID token (spl_hub_operator_call):
+# @description one request JSON ({op, env, src, channel, dst, mode, to_name,
+# @description move_id, go_msg_id, step, detail}; op is plan, journal, step or
+# @description mark), the answer JSON back, any HTTP code but 200 = refused.
+# @description It prints the plan's shared files, P4's and P7's .report and
+# @description P7's .kept; none of them refuses.
 # @param ENV - required: dev or prd
 # @param CHANNEL - required: <SRC>/<channel id>, the workspace and channel to move
 # @param TO - required: the <DST> workspace slug
@@ -53,7 +55,7 @@
 # @param MOVE_GO_MSG - required for run with DRY_RUN=0: the owner's GO poll answer msg id
 # @param MOVE_CALLER - required for a move with DRY_RUN=0: the <DST> orchestrator seat, <agent id>[@<box>], the probe DMs go to
 # @param AGENT_ID - required for a move with DRY_RUN=0: the agent id the lane key notes come from
-# @param CHANNEL_MOVE_HUB_CMD (optional) - the hub seam above (until T7 is wired)
+# @param CHANNEL_MOVE_HUB_CMD (optional, tests) - a command in place of the T7 call: the request JSON on stdin, the answer JSON on stdout, non-zero = refused
 # @param CHANNEL_MOVE_STATE (optional) - the box journal dir, default $SPOOL_ROOT/channel-move
 # @param PROBE_AGENT, PROBE_TO, PROBE_MOVE (MOVE_CMD=probe only) - the seat, the recipient <agent id>[@<box>], the move id
 # @param DESK_BOX (optional, MOVE_CMD=probe or plan) - the seat's box id, default this box's desk id
@@ -69,10 +71,7 @@ do_spl_channel_workspace_move() {
   local dry=1
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
   if [[ "$CWM_CMD" == run && $dry -eq 0 ]]; then _spl_cwm_args_live || return $?; fi
-  [[ -n "${CHANNEL_MOVE_HUB_CMD:-}" ]] || {
-    do_log "FATAL the hub's channel move endpoint (spec 169 T7) is not wired yet: set CHANNEL_MOVE_HUB_CMD"
-    return 2
-  }
+  _spl_cwm_hub_wire || return 1
   if [[ "$CWM_CMD" == plan ]]; then _spl_cwm_plan; return $?; fi
   if (( dry )); then _spl_cwm_run 1; return $?; fi
   local lockd="${CHANNEL_MOVE_STATE:-${SPOOL_ROOT:-/var/spool-hub}/channel-move}"
@@ -130,6 +129,24 @@ _spl_cwm_steps() {
   if [[ "${CWM_MODE:-move}" == copy ]]; then echo "P1 P2 P3 P4 P7"; else echo "P1 P2 P2b P3 P4 P5 P6 P7"; fi
 }
 
+# _spl_cwm_hub_wire: the T7 endpoint's URL and the per-env service account,
+# once per run; never the owner account. CHANNEL_MOVE_HUB_CMD (tests) needs none.
+_spl_cwm_hub_wire() {
+  [[ -z "${CHANNEL_MOVE_HUB_CMD:-}" ]] || return 0
+  do_require_bin yq curl gcloud || return 1
+  do_spl_cloud_cnf || return 1
+  spl_hub_operator_url || return 1
+  do_gcp_pin_account "$SPL_CNF" || return 1
+}
+
+# _spl_cwm_hub_post: the default seam, POST /v1/operator/channel-moves with the
+# request on stdin. The answer on stdout; any code but 200 is a refusal.
+_spl_cwm_hub_post() {
+  spl_hub_operator_call POST /v1/operator/channel-moves "$(cat)" || return 1
+  printf '%s\n' "$SPL_HUB_OP_BODY"
+  [[ "$SPL_HUB_OP_STATUS" == 200 ]] || { do_log "FATAL POST /v1/operator/channel-moves answered HTTP $SPL_HUB_OP_STATUS" >&2; return 1; }
+}
+
 # _spl_cwm_hub <op> [step] [detail json]: one call through the seam; the
 # answer JSON on stdout. A refusal: FATAL with the hub's answer on stderr (every
 # caller captures stdout), 1.
@@ -141,7 +158,8 @@ _spl_cwm_hub() {
     '{op:$op, env:$env, src:$src, channel:$ch, dst:$dst, mode:$mode, to_name:$name,
       move_id:($move | if . == "" then null else . end), go_msg_id:($go | if . == "" then null else . end),
       step:($step | if . == "" then null else . end), detail:$detail}')" || return 1
-  out="$(bash -c "$CHANNEL_MOVE_HUB_CMD" <<<"$req")" || rc=$?
+  if [[ -n "${CHANNEL_MOVE_HUB_CMD:-}" ]]; then out="$(bash -c "$CHANNEL_MOVE_HUB_CMD" <<<"$req")" || rc=$?
+  else out="$(_spl_cwm_hub_post <<<"$req")" || rc=$?; fi
   if (( rc != 0 )) || ! jq -e 'type == "object"' >/dev/null 2>&1 <<<"$out"; then
     do_log "FATAL the hub refused $1${2:+ $2} for $CWM_SRC/$CWM_CH -> $CWM_DST (exit $rc): $out" >&2
     return 1
@@ -158,6 +176,7 @@ _spl_cwm_plan() {
       (.seats // [] | .[] | "PLAN seat \(.agent) on \(.box // "-")"),
       (.mentions // [] | .[] | "PLAN mention outside the set: \(tostring)"),
       (.members_lost // [] | .[] | "PLAN member not in the target: \(tostring)"),
+      (.shared_files // [] | .[] | "PLAN shared file \(.): a staying post lists it too, copied, not deleted in <SRC>"),
       (.kept // [] | .[] | "PLAN kept \(.store) until \(.gone_by // "?")")' <<<"$p"
     _spl_cwm_plan_retention
   fi
@@ -310,9 +329,17 @@ _spl_cwm_step() {
       out="$(_spl_cwm_hub step "$1")" || return 1
       [[ "$1" != P1 ]] || CWM_MOVE="$(jq -r '.move_id // empty' <<<"$out")"
       [[ -n "$CWM_MOVE" ]] || { do_log "FATAL P1 returned no move id"; return 1; }
+      _spl_cwm_report "$1" "$out"
       [[ "$1" != P7 ]] || _spl_cwm_proofs "$out" || return 1 ;;
   esac
   do_log "OK $1 of move $CWM_MOVE done"
+}
+
+# _spl_cwm_report <step> <answer>: P4's and P7's .report lines and P7's .kept
+# list (section 8.4); they only print, a proof is what fails P7.
+_spl_cwm_report() {
+  jq -r --arg s "$1" '(.report // [] | .[] | "REPORT \($s) \(.)"),
+    (.kept // [] | .[] | "KEPT \(.store) until \(.gone_by // "?")")' <<<"$2"
 }
 
 _spl_cwm_proofs() {

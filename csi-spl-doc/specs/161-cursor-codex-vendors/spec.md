@@ -126,6 +126,16 @@ This spec designs the addition of **Cursor** (Cursor Agent CLI) and **Codex** (O
 - **Process Isolation**: Launcher runs `env -u OPENAI_API_KEY codex ...`.
 - **Auth Marker**: `env.box.agent_split.auth_marker.codex: .codex/.env`. Missing marker causes the box to be skipped for Codex tasks.
 
+#### 2.2.6 As built (row B3, Codex half, SPL-4745, 2026-11-03)
+The owner overrides 2.2.5 on the login (msg `aca6a7c5`, "I will purchase their max 20 bucks plans"): Codex logs in with a **subscription**, so the auth marker is the CLI's own login file, not an API-key `.env`. Source for every CLI fact below: the Codex docs (`learn.chatgpt.com/docs/auth`, `/docs/config-file/config-reference`, `/docs/cli/reference`, read 2026-11-03).
+- **Install**: `cd csi-spl-orc && ./run -a do_install_openai_codex` runs `install.sh --cli codex --cli-only` as the agent user. It is a dry run unless `DRY_RUN=0`. Pin: cnf `env.box.openai_codex.version` (`0.166.0`, the npm `latest` of 2026-10-29); `latest` or an empty pin is exit 2. npm installs `@openai/codex@<pin>` into the agent's `~/.local`.
+- **Flag contract**: `codex --help` must name `exec`, `resume`, `--ask-for-approval` and `--dangerously-bypass-approvals-and-sandbox`, else exit 4. `--full-auto` / `--yes` of 2.2.1 are not in the current CLI reference, so the contract does not ask for them.
+- **Telemetry**: `[analytics] enabled = false` in `~/.codex/config.toml` (the documented switch for the built-in Statsig exporter). `OPENAI_TELEMETRY_DISABLED` of 2.2.1 is not a documented variable.
+- **Login**: the owner runs `codex login --device-auth` as the agent user. The CLI writes `~/.codex/auth.json`, a file because the install writes `cli_auth_credentials_store = "file"` (with a keyring the marker would never appear). Auth marker: `env.box.agent_split.auth_marker.codex: .codex/auth.json`. The install reads only its mode and owner.
+- **Key path, optional**: the CLI also takes an API key on stdin (`codex login --with-api-key`). So `do_set_codex_key` stays in: it pipes the key into that command, the CLI writes `auth.json`, and the action never writes the file itself. Using it replaces a subscription login.
+- **Off by default**: codex has no weight in `agent_split` or any `agent_split_by_kind` row (tested), so lane-mix never places it until the owner's login is on a box and the routing row (B7) gives it a share.
+- Tests: `csi-spl-orc/src/bash/tests/install-openai-codex.tst.sh`, `set-codex-key.tst.sh`.
+
 ---
 
 ## 3. Agent IDs: Prefix Letters, Tmux Windows, Mailbox Shapes

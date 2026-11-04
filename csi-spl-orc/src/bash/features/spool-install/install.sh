@@ -20,7 +20,14 @@
 #      ~/.vibe/config.toml (written when absent; one set by hand is kept and
 #      named), ask_user_question in its top-level disabled_tools (a TUI
 #      dialog no seat answers; other entries kept, never duplicated), and the
-#      login file's mode and owner (never its content)
+#      login file's mode and owner (never its content).
+#      codex (spec 161 2.2) is pinned the same way: EXACTLY the cnf pin
+#      env.box.openai_codex.version of the npm package @openai/codex, into
+#      <prefix> (npm, like qwen); then the flag contract (codex --help names
+#      exec, resume, --ask-for-approval and
+#      --dangerously-bypass-approvals-and-sandbox), analytics off and
+#      cli_auth_credentials_store = "file" in ~/.codex/config.toml, and the
+#      subscription login ~/.codex/auth.json by mode and owner (never read)
 #   2. the toolchain the harness runs on: yq (v4) into <data>/tools, and the
 #      `spool` binary, linked as <prefix>/bin/spool (a real file there is left
 #      alone). spool is DOWNLOADED (spec 072 A4b): spool-<os>-<arch> of the
@@ -93,9 +100,10 @@
 # Re-running it is safe: every step checks before it changes anything.
 #
 # Options:
-#   --cli <list>      comma list of claude,grok,agy,qwen,mistral, or none (default claude)
+#   --cli <list>      comma list of claude,grok,agy,qwen,mistral,codex, or none (default claude)
 #   --cli-only        ONLY step 2, the CLIs of --cli: no toolchain, config,
-#                     shim, hooks, skills or seat (do_install_mistral_vibe)
+#                     shim, hooks, skills or seat (do_install_mistral_vibe,
+#                     do_install_openai_codex)
 #   --env dev|prd|self  the hub environment (default $SPOOL_ENV, else self when
 #                     SPOOL_HUB_URL is set, else dev);
 #                     self = your own hub at SPOOL_HUB_URL, any host - e.g. the
@@ -160,6 +168,9 @@
 #      (default the cnf env.box.mistral_vibe.model, else mistral-vibe-cli-latest)
 #      SPOOL_INSTALL_UV / SPOOL_INSTALL_PIPX / SPOOL_INSTALL_PYTHON - the uv,
 #      pipx and python3 commands (mistral needs python 3.12+, else exit 2)
+#      SPOOL_INSTALL_CODEX_VERSION - the @openai/codex pin, X.Y.Z (default
+#      the cnf env.box.openai_codex.version of this checkout; latest or an
+#      empty pin is exit 2)
 #      SPOOL_ROOT / SPOOL_AGENT_CEILING / SPOOL_ORCHESTRATOR_ID - rendered into
 #      the skills (defaults $XDG_STATE_HOME/spool-hub - ~/.local/state/spool-hub
 #      without it, /var/spool-hub with --fleet -, 40 and the role orchestrator)
@@ -250,7 +261,7 @@ CLI_MODE="${SPOOL_INSTALL_CLI:-auto}"
 [ "$CLIS" = none ] && CLIS=""
 IFS=, read -r -a CLI_LIST <<<"$CLIS"
 for c in "${CLI_LIST[@]}"; do
-  case "$c" in claude|grok|agy|qwen|mistral) ;; *) die 2 "--cli takes claude,grok,agy,qwen,mistral or none, got '$c'" ;; esac
+  case "$c" in claude|grok|agy|qwen|mistral|codex) ;; *) die 2 "--cli takes claude,grok,agy,qwen,mistral,codex or none, got '$c'" ;; esac
 done
 if [ -z "$BOX" ]; then
   BOX="$(printf 'box-%s-%s' "$(id -un)" "$(hostname -s 2>/dev/null || echo host)" | tr '[:upper:]_.' '[:lower:]--' |
@@ -296,21 +307,22 @@ _main="${_main:-$ROOT}" _app="$(basename "${_main:-$ROOT}")"
 # qwen installs through npm (specs/048 §3.3): named up front, like a base tool.
 NPM="${SPOOL_INSTALL_NPM:-npm}"
 for c in "${CLI_LIST[@]}"; do
-  [ "$c" = qwen ] || continue
-  command -v "$NPM" >/dev/null 2>&1 || die 3 "--cli qwen needs npm (Node 20+) - install Node.js first (this needs root, so it is yours to run), e.g.: sudo apt-get install -y nodejs npm"
+  [ "$c" = qwen ] || [ "$c" = codex ] || continue
+  command -v "$NPM" >/dev/null 2>&1 || die 3 "--cli $c needs npm (Node 20+) - install Node.js first (this needs root, so it is yours to run), e.g.: sudo apt-get install -y nodejs npm"
 done
 # mistral (spec 110 2.2): the pin, a python 3.12+ and uv or pipx, up front.
 UV="${SPOOL_INSTALL_UV:-uv}" PIPX="${SPOOL_INSTALL_PIPX:-pipx}" PY="${SPOOL_INSTALL_PYTHON:-python3}"
-# cnf_mistral <key>: env.box.mistral_vibe.<key> of this checkout's cnf, read
+# cnf_box <block> <key>: env.box.<block>.<key> of this checkout's cnf, read
 # without yq (step 3 installs yq; this runs before it).
-cnf_mistral() {
+cnf_box() {
   local app; app="$(basename "$ORC" | sed 's/-orc$//')"
-  awk -v k="$1" '
-    /^[[:space:]]*mistral_vibe:[[:space:]]*$/ { match($0, /^[[:space:]]*/); ind = RLENGTH; on = 1; next }
+  awk -v b="$1" -v k="$2" '
+    $0 ~ "^[[:space:]]*" b ":[[:space:]]*$" { match($0, /^[[:space:]]*/); ind = RLENGTH; on = 1; next }
     on { match($0, /^[[:space:]]*/); if ($0 !~ /^[[:space:]]*(#|$)/ && RLENGTH <= ind) on = 0 }
     on && $1 == k ":" { v = $2; gsub(/["\047]/, "", v); print v; exit }
   ' "$ROOT/$app-cnf/$app/all.env.yaml" 2>/dev/null
 }
+cnf_mistral() { cnf_box mistral_vibe "$1"; }
 # a bare uv / pipx off PATH: the user-local one (their installers' default
 # dir, which a `sudo -u <agent>` PATH lacks)
 command -v "$UV" >/dev/null 2>&1 || [ ! -x "$HOME/.local/bin/$UV" ] || UV="$HOME/.local/bin/$UV"
@@ -328,6 +340,13 @@ for c in "${CLI_LIST[@]}"; do
     die 2 "--cli mistral needs python 3.12 or newer (mistral-vibe requires_python >=3.12), $PY is ${pyv:-missing} - install python3.12+ (this needs root, so it is yours to run), or set SPOOL_INSTALL_PYTHON"
   command -v "$UV" >/dev/null 2>&1 || command -v "$PIPX" >/dev/null 2>&1 ||
     die 3 "--cli mistral needs uv or pipx - install one first (this needs root, so it is yours to run), e.g.: sudo apt-get install -y pipx"
+done
+# codex (spec 161 2.2): one pinned @openai/codex, never latest, up front.
+for c in "${CLI_LIST[@]}"; do
+  [ "$c" = codex ] || continue
+  CODEX_PIN="${SPOOL_INSTALL_CODEX_VERSION-$(cnf_box openai_codex version)}"
+  [[ "$CODEX_PIN" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+    die 2 "--cli codex installs one pinned version X.Y.Z (cnf env.box.openai_codex.version or SPOOL_INSTALL_CODEX_VERSION), got '${CODEX_PIN}': never latest"
 done
 command -v tmux >/dev/null 2>&1 || say "WARN tmux is missing: spool-agent seats an agent only inside tmux (sudo apt-get install -y tmux)"
 
@@ -467,6 +486,69 @@ mistral_install() {
   fi
   say "mistral: $have (vibe $cur)"
 }
+# codex (spec 161 2.2): the cnf pin of @openai/codex through npm into the
+# user prefix. Every codex call runs with OPENAI_API_KEY and CODEX_API_KEY
+# unset: the fleet logs in with a subscription (~/.codex/auth.json), and
+# nothing here needs a key.
+codex_run() { env -u OPENAI_API_KEY -u CODEX_API_KEY "$@"; }
+codex_version() { codex_run "$1" --version 2>/dev/null | sed -n '1s/^[^0-9]*\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'; }
+# codex_config <cfg>: analytics off (the Statsig exporter) and the login in
+# a file (cli_auth_credentials_store = "file": auth.json is the lane-mix
+# auth marker, a keyring would hide it). A value set by hand is kept and named.
+codex_config() {
+  local cfg="$1" tmp v
+  tmp="$(mktemp "$(dirname "$cfg")/.config.toml.XXXXXX")" || { cli_fail codex "no temp file for $cfg"; return 1; }
+  [ -f "$cfg" ] && cat "$cfg" >"$tmp"
+  v="$(sed -n 's/^cli_auth_credentials_store[[:space:]]*=[[:space:]]*"\{0,1\}\([^"]*\)"\{0,1\}[[:space:]]*$/\1/p' "$tmp" | sed -n 1p)"
+  if [ -z "$v" ]; then
+    { printf 'cli_auth_credentials_store = "file"\n'; cat "$tmp"; } >"$tmp.n" && mv -f "$tmp.n" "$tmp"
+    say "codex: cli_auth_credentials_store = \"file\" written to $cfg"
+  elif [ "$v" != file ]; then say "WARN codex: $cfg keeps cli_auth_credentials_store = \"$v\", set by hand: the auth marker ~/.codex/auth.json may never appear"
+  fi
+  if ! grep -q '^[[:space:]]*\[analytics\]' "$tmp"; then
+    printf '\n[analytics]\nenabled = false\n' >>"$tmp"; say "codex: [analytics] enabled = false written to $cfg (telemetry off)"
+  elif ! awk '/^[[:space:]]*\[/ { on = ($0 ~ /^[[:space:]]*\[analytics\]/) } on && /^[[:space:]]*enabled[[:space:]]*=[[:space:]]*false/ { f = 1 } END { exit !f }' "$tmp"; then
+    say "WARN codex: $cfg has an [analytics] table without enabled = false, set by hand: telemetry may be on"
+  fi
+  if cmp -s "$tmp" "$cfg"; then rm -f "$tmp"; return 0; fi
+  chmod 600 "$tmp" && mv -f "$tmp" "$cfg" || { rm -f "$tmp"; cli_fail codex "cannot write $cfg"; return 1; }
+}
+codex_install() {
+  local have="$1" cur="" cmd miss="" f help d m
+  cmd=("$NPM" install --prefix "$PREFIX" -g "@openai/codex@$CODEX_PIN")
+  [ -n "$have" ] && cur="$(codex_version "$have")"
+  if [ -n "$cur" ] && [ "$cur" = "$CODEX_PIN" ]; then say "codex: $have is at the pin $CODEX_PIN: not reinstalled"
+  elif [ "$DRY" = 1 ]; then plan "${cmd[*]}${cur:+ (have $cur)}"
+  else
+    say "installing @openai/codex $CODEX_PIN (${cmd[*]})${cur:+, replacing $cur}"
+    codex_run "${cmd[@]}" >&2 || { cli_fail codex "${cmd[*]} failed"; return 0; }
+  fi
+  [ -n "${OPENAI_API_KEY+x}${CODEX_API_KEY+x}" ] && say "WARN codex: an OpenAI key is set in this environment; every codex call here runs without it"
+  d="$HOME/.codex"
+  if [ "$DRY" = 1 ]; then
+    plan "check codex --version = $CODEX_PIN and the flag contract (exec resume --ask-for-approval --dangerously-bypass-approvals-and-sandbox), write cli_auth_credentials_store = \"file\" and [analytics] enabled = false in $d/config.toml when absent"
+    return 0
+  fi
+  have="$(cli_path codex)"; [ -n "$have" ] || { cli_fail codex "no codex binary on PATH or in $BIN after the install"; return 0; }
+  cur="$(codex_version "$have")"
+  [ "$cur" = "$CODEX_PIN" ] || { cli_fail codex "$have is ${cur:-unknown}, the pin is $CODEX_PIN"; return 0; }
+  help="$(codex_run "$have" --help 2>&1)"
+  for f in exec resume --ask-for-approval --dangerously-bypass-approvals-and-sandbox; do
+    grep -qE -- "(^|[[:space:],[])$f([],=[:space:]]|\$)" <<<"$help" || miss="$miss $f"
+  done
+  [ -z "$miss" ] || { cli_fail codex "codex $cur lacks the flag contract:$miss - the pin $CODEX_PIN is refused (spec 161 2.2)"; return 0; }
+  say "codex: flag contract ok (exec resume --ask-for-approval --dangerously-bypass-approvals-and-sandbox)"
+  mkdir -p "$d" && chmod 700 "$d" || { cli_fail codex "cannot create $d"; return 0; }
+  codex_config "$d/config.toml" || return 0
+  # the subscription login: its mode and owner only, never its content
+  if [ -f "$d/auth.json" ]; then
+    m="$(stat -c '%a %U' "$d/auth.json" 2>/dev/null)"
+    [ "${m%% *}" = 600 ] && say "codex: login $d/auth.json mode ${m% *} owner ${m#* }" ||
+      say "WARN codex: login $d/auth.json is mode ${m% *} (owner ${m#* }), want 600: chmod 600 it"
+  else say "codex: no login yet ($d/auth.json): the owner runs 'codex login --device-auth' as this user; until then lane-mix skips codex on this box"
+  fi
+  say "codex: $have (codex $cur)"
+}
 # agy with a pin (SPOOL_INSTALL_AGY_VERSION, X.Y.Z; do_install_agy_cli passes
 # the cnf one). The vendor serves only its latest and agy updates itself in
 # the background, so the pin is a FLOOR: an agy at or above it is kept as it
@@ -506,6 +588,7 @@ agy_pinned() {
 }
 for c in "${CLI_LIST[@]}"; do
   [ "$c" = mistral ] && { mistral_install "$(cli_path vibe)"; continue; }
+  [ "$c" = codex ] && { codex_install "$(cli_path codex)"; continue; }
   url="$(cli_url "$c")"; have="$(cli_path "$c")"
   [ "$c" = qwen ] && { qwen_install "$have"; continue; }
   # agy with a pin (do_install_agy_cli): the pin is a floor, see agy_pinned.

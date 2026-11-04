@@ -1073,6 +1073,14 @@ func (s *Memory) IssuePrefix(_ context.Context, tenant string) (string, error) {
 	return s.iss.prefixOf(tenant), nil
 }
 
+// IssueLastNumber is the highest number the tenant handed out, 0 for none.
+func (s *Memory) IssueLastNumber(_ context.Context, tenant string) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.iss.init()
+	return s.iss.last[tenant], nil
+}
+
 // CheckIssuePrefix upper-cases p and checks it (the rdb 0047 CHECK).
 func CheckIssuePrefix(p string) (string, error) {
 	p = strings.ToUpper(strings.TrimSpace(p))

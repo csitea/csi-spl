@@ -543,6 +543,29 @@ type issueSheetStore interface {
 	ListIssueSheet(ctx context.Context, tenant string) ([]store.Issue, error)
 }
 
+// issueCounterStore reads the highest number the tenant handed out
+// (issue_counters.last_number). SPL-4788: the WUI links a key only up to it,
+// so another workspace's key of the same prefix is not a dead link.
+type issueCounterStore interface {
+	IssueLastNumber(ctx context.Context, tenant string) (int, error)
+}
+
+// withLastNumber adds last_number to a list answer when the store has it; a
+// failed read leaves it out (the WUI then links every key, as before).
+func (s *Server) withLastNumber(ctx context.Context, is store.Issues, tenant string, out map[string]any) map[string]any {
+	cs, ok := is.(issueCounterStore)
+	if !ok {
+		return out
+	}
+	n, err := cs.IssueLastNumber(ctx, tenant)
+	if err != nil {
+		s.o.Log.Warn().Err(err).Str("tenant", tenant).Msg("issue last number")
+		return out
+	}
+	out["last_number"] = n
+	return out
+}
+
 func csvSet(v string) map[string]bool {
 	out := map[string]bool{}
 	for _, p := range strings.Split(v, ",") {
@@ -749,11 +772,11 @@ func (s *Server) listIssues(ctx context.Context, tenant string, f issueFilter) (
 	for k, l := range labels {
 		lj[k] = toLabelJSON(l)
 	}
-	return map[string]any{"prefix": prefix, "statuses": store.IssueStatuses, "counts": counts, "epics": epicSummaries(all),
+	return s.withLastNumber(ctx, is, tenant, map[string]any{"prefix": prefix, "statuses": store.IssueStatuses, "counts": counts, "epics": epicSummaries(all),
 		"issues": out, "labels": lj, "channel": IssueChannel,
 		"total": len(kept), "next_cursor": next,
 		// SPL-1593: the workspace's default discussion; a new issue starts linked to it
-		"default_discussion": store.IssueDiscussionDefault(tenant)}, nil
+		"default_discussion": store.IssueDiscussionDefault(tenant)}), nil
 }
 
 func writeIssueErr(w http.ResponseWriter, ie *issueErr) {

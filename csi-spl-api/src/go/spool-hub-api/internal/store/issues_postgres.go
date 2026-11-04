@@ -735,6 +735,16 @@ func (s *Postgres) IssuePrefix(ctx context.Context, tenant string) (string, erro
 	return p, err
 }
 
+// IssueLastNumber is issue_counters.last_number, 0 when the tenant has no row.
+func (s *Postgres) IssueLastNumber(ctx context.Context, tenant string) (int, error) {
+	n := 0
+	err := s.queryRowTenant(ctx, tenant, `SELECT last_number FROM issue_counters WHERE tenant_id = $1`, []any{tenant}, &n)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, nil
+	}
+	return n, err
+}
+
 func (s *Postgres) SetIssuePrefix(ctx context.Context, tenant, prefix string) (string, error) {
 	p, err := CheckIssuePrefix(prefix)
 	if err != nil {

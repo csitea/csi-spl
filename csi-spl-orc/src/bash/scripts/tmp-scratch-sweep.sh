@@ -23,6 +23,9 @@
 # percent after the age pass, the dead dirs (same claim check) idle at least
 # SCRATCH_PRESSURE_AGE_M minutes go too, oldest first, until the free inodes
 # (projected: those freed by each dir, du --inodes) reach the threshold.
+# A dir whose du --inodes fails or prints no number stops that pass (one
+# PRESSURE WARN line): a count of 0 would plan every candidate. A df row
+# whose inode total or IFree is not a number reads as "0 0": no guard.
 #
 # Installed by do_tmp_scratch_sweep_install_cron as ONE line tagged
 # `# csi-spl:tmp-scratch-sweep`; one PLAN|REMOVE / KEEP line per session dir.
@@ -34,6 +37,7 @@
 #   SCRATCH_INODE_MIN_FREE_PCT  default 10 (0 = no inode guard)
 #   SCRATCH_PRESSURE_AGE_M      default 30
 #   SCRATCH_DF                  default df (tests pass a fake)
+#   SCRATCH_DU                  default du (tests pass a fake)
 #
 # Exit: 0 done; 2 usage or a refusal (nothing removed).
 set -uo pipefail
@@ -46,13 +50,26 @@ age_h="${SCRATCH_SWEEP_AGE_H:-2}"
 min_pct="${SCRATCH_INODE_MIN_FREE_PCT:-10}"
 p_age_m="${SCRATCH_PRESSURE_AGE_M:-30}"
 df_cmd="${SCRATCH_DF:-df}"
+du_cmd="${SCRATCH_DU:-du}"
 uuid_ere='[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 
 say() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
 refuse() { say "REFUSE $*: nothing removed"; exit 2; }
 used() { "$df_cmd" -P "$root" | awk 'NR==2{print $5}'; }
-# "<inodes> <free>" of the root's filesystem; "0 0" when it reports none.
-inodes() { "$df_cmd" -iP "$root" 2>/dev/null | awk 'NR==2{print $2+0, $4+0; f=1} END{if(!f) print 0, 0}'; }
+# "<inodes> <free>" of the root's filesystem; "0 0" when it reports none or
+# either field is not a number (a numeric total with IFree "-" is no count).
+inodes() {
+  "$df_cmd" -iP "$root" 2>/dev/null \
+    | awk 'NR==2 && $2 ~ /^[0-9]+$/ && $4 ~ /^[0-9]+$/ {print $2, $4; f=1} END{if(!f) print 0, 0}'
+}
+# inode_count <dir>: the inodes under <dir>; fails when du fails or prints no number.
+inode_count() {
+  local out
+  out="$("$du_cmd" -s --inodes -- "$1" 2>/dev/null)" || return 1
+  out="${out%%[[:space:]]*}"
+  [[ "$out" =~ ^[0-9]+$ ]] || return 1
+  printf '%s\n' "$out"
+}
 
 [[ "$dry" == 0 || "$dry" == 1 ]] || refuse "DRY_RUN must be 0 or 1, got '$dry'"
 [[ "$age_h" =~ ^[0-9]+$ ]] && (( age_h >= 1 )) || refuse "SCRATCH_SWEEP_AGE_H must be a whole number >= 1, got '$age_h'"
@@ -81,13 +98,13 @@ for c in /proc/[0-9]*/cmdline; do
   done < <(tr '\0' '\n' <"$c" 2>/dev/null | grep -oE "$uuid_ere")
 done
 
-# remove_dir <dir> <why>: PLAN in a dry run, else REMOVE (and an emptied
-# project dir); counts it. Returns 1 when the removal failed.
+# remove_dir <dir> <why> [<inodes>]: PLAN in a dry run, else REMOVE (and an
+# emptied project dir); counts it. Returns 1 when the removal failed.
 n_rm=0 kb_rm=0 n_keep=0 in_rm=0
 remove_dir() {
-  local d="$1" why="$2" kb in
-  kb="$(du -sk -- "$d" 2>/dev/null | cut -f1)"; kb="${kb:-0}"
-  in="$(du -s --inodes -- "$d" 2>/dev/null | cut -f1)"; in="${in:-0}"
+  local d="$1" why="$2" kb in="${3:-}"
+  kb="$("$du_cmd" -sk -- "$d" 2>/dev/null | cut -f1)"; kb="${kb:-0}"
+  [[ -n "$in" ]] || in="$(inode_count "$d")" || in=0
   if [[ "$dry" == 1 ]]; then
     say "PLAN remove ${kb}KB $d${why}"
   else
@@ -115,15 +132,20 @@ want=$(( i_total * min_pct / 100 ))
 if (( min_pct > 0 && i_total > 0 && i_free + in_rm < want )); then
   say "PRESSURE ifree=$((i_free + in_rm)) of $i_total want=$want: dead dirs idle >= ${p_age_m}m go, oldest first"
   # "<newest mtime> <dir>" of each candidate idle long enough, oldest first.
+  p_stop=0
   while IFS= read -r line; do
     d="${line#* }"
     (( i_free + in_rm >= want )) && break
-    remove_dir "$d" " (inode pressure)" && n_keep=$((n_keep - 1))
+    if ! d_in="$(inode_count "$d")"; then
+      say "PRESSURE WARN cannot count the inodes of $d: no more removal by pressure"; p_stop=1; break
+    fi
+    remove_dir "$d" " (inode pressure)" "$d_in" && n_keep=$((n_keep - 1))
   done < <(for d in "${recent[@]}"; do
       [[ -n "$(find "$d" -newermt "-${p_age_m} minutes" -print -quit 2>/dev/null)" ]] && continue
       printf '%s %s\n' "$(find "$d" -printf '%T@\n' 2>/dev/null | sort -n | tail -1)" "$d"
     done | sort -n)
-  if (( i_free + in_rm >= want )); then say "PRESSURE OK ifree=$((i_free + in_rm)) >= $want"
+  if (( p_stop )); then :
+  elif (( i_free + in_rm >= want )); then say "PRESSURE OK ifree=$((i_free + in_rm)) >= $want"
   else say "PRESSURE WARN ifree=$((i_free + in_rm)) < $want: no more dead dirs idle >= ${p_age_m}m"; fi
 fi
 say "DONE $([[ "$dry" == 1 ]] && echo would-remove || echo removed)=$n_rm ($((kb_rm / 1024)) MB, $in_rm inodes) kept=$n_keep used=$(used) ifree~$(( i_free + in_rm ))/$i_total"

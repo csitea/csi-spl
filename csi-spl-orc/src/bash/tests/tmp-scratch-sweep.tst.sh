@@ -12,6 +12,9 @@
 #      removes the dead dirs idle past SCRATCH_PRESSURE_AGE_M, oldest first,
 #      and stops once the projected free inodes reach the threshold; a live
 #      or freshly written dir is kept; the dry run removes nothing
+#   3b. a failed du --inodes stops the pressure pass (WARN, nothing more
+#      removed; CONTROL: a working du plans two); a df row with a non-numeric
+#      IFree or total is no count, no false pressure
 #   2. the install: the dry run prints the diff and changes nothing; DRY_RUN=0
 #      adds ONE tagged line, DRY_RUN=0 inside it, every other line kept; a
 #      second install is a no-op; remove restores the crontab byte for byte
@@ -119,6 +122,34 @@ out="$(psweep DRY_RUN=0 SCRATCH_INODE_MIN_FREE_PCT=0)"
 [ -d "$P/-opt-p/$p_new" ] && ! grep -q PRESSURE <<<"$out" && pass "3. SCRATCH_INODE_MIN_FREE_PCT=0 turns the guard off" || fail "3. guard off ($out)"
 out="$(psweep SCRATCH_PRESSURE_AGE_M=x)"; rc=$?
 [ "$rc" = 2 ] && grep -q 'SCRATCH_PRESSURE_AGE_M must be' <<<"$out" && pass "3. the knobs are checked" || fail "3. bad knob (rc $rc: $out)"
+
+# 3b. a count the pressure pass cannot trust stops it (SPL-4761, review of
+# SPL-4538). Fresh dirs: three dead ones idle 60..100 min, under pressure.
+Q="$T/pressure-b"
+q_old=$(uuid) q_mid=$(uuid) q_new=$(uuid)
+for u in "$q_old" "$q_mid" "$q_new"; do
+  mkdir -p "$Q/-opt-q/$u/scratchpad"; for i in $(seq 14); do echo x >"$Q/-opt-q/$u/scratchpad/f$i"; done
+done
+find "$Q/-opt-q/$q_old" -exec touch -h -d '100 minutes ago' {} +; find "$Q/-opt-q/$q_mid" -exec touch -h -d '80 minutes ago' {} +
+find "$Q/-opt-q/$q_new" -exec touch -h -d '60 minutes ago' {} +
+# A du whose --inodes count fails (no output, exit 1); the size count works.
+printf '#!/bin/sh\ncase "$*" in *--inodes*) exit 1 ;; *) exec du "$@" ;; esac\n' >"$T/fake-du"; chmod +x "$T/fake-du"
+qsweep() { SNIPPET='do_tmp_scratch_sweep' in_orc SCRATCH_ROOT="$Q" SCRATCH_SESSIONS="$S" SCRATCH_DF="$T/fake-df" "$@" 2>&1; }
+out="$(qsweep)"
+[ "$(grep -c 'PLAN remove.*(inode pressure)' <<<"$out")" = 2 ] && pass "3b. CONTROL: with a working du, the dirs below plan two" || fail "3b. control ($out)"
+out="$(qsweep SCRATCH_DU="$T/fake-du" DRY_RUN=0)"; rc=$?
+[ "$rc" = 0 ] && ! grep -q '(inode pressure)' <<<"$out" && [ -d "$Q/-opt-q/$q_old" ] && [ -d "$Q/-opt-q/$q_mid" ] && [ -d "$Q/-opt-q/$q_new" ] \
+  && grep -q "PRESSURE WARN cannot count the inodes of $Q/-opt-q/$q_old: no more removal by pressure" <<<"$out" \
+  && pass "3b. a failed du --inodes stops the pressure pass: WARN, nothing removed" || fail "3b. failed du (rc $rc: $out)"
+# A df line with a numeric total but a non-numeric IFree (or the reverse) is
+# no count: "0 0", the guard is skipped, not a false pressure.
+for row in 'tmpfs 1000 920 - 92% /tmp' 'tmpfs - 920 80 92% /tmp'; do
+  printf '#!/bin/sh\ncase "$*" in *-i*) printf "%%s\\n" "Filesystem Inodes IUsed IFree IUse%% Mounted" "%s" ;; *) exec "%s" "$@" ;; esac\n' "$row" "$T/fake-df" >"$T/fake-df-bad"
+  chmod +x "$T/fake-df-bad"
+  out="$(qsweep SCRATCH_DF="$T/fake-df-bad")"; rc=$?
+  [ "$rc" = 0 ] && ! grep -q PRESSURE <<<"$out" && ! grep -q 'PLAN remove' <<<"$out" && grep -q 'ifree~0/0$' <<<"$out" \
+    && pass "3b. a df row '$row' reads as no count: no pressure" || fail "3b. bad df '$row' (rc $rc: $out)"
+done
 
 CT="$T/crontab"
 printf '%s\n' '*/5 * * * * bash /x/a.sh # csi-spl:desk-reconcile-prd' '* * * * * bash /x/b.sh # csi-spl:tmp-scratch-sweep-other' '@reboot /usr/bin/true' >"$CT"

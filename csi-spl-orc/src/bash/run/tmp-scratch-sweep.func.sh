@@ -10,7 +10,9 @@
 # @description guard: below SCRATCH_INODE_MIN_FREE_PCT free inodes, the dead
 # @description dirs idle SCRATCH_PRESSURE_AGE_M minutes go too, oldest first,
 # @description until the projected free inodes reach the threshold (PRESSURE
-# @description lines). One PLAN|REMOVE / KEEP line per dir.
+# @description lines). A dir whose du --inodes count fails stops that pass
+# @description (PRESSURE WARN); a df row with a non-numeric inode total or
+# @description IFree skips the guard. One PLAN|REMOVE / KEEP line per dir.
 # @description Dry run unless DRY_RUN=0. The cron line is
 # @description do_tmp_scratch_sweep_install_cron.
 # @param DRY_RUN (optional) - 1 (default) or 0

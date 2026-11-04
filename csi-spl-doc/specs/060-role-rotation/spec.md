@@ -466,16 +466,23 @@ is never rewritten to swap `LEASE_MASTER` and `LEASE_FAILOVER`:
     <age>s old (>= <max>): refreshing this machine's session`; a younger
     seat logs `GATE SKIP standby (orch lease: <holder>), <id> is <age>s old
     (< <max>)`;
-  - a fresh session of the SAME id under the same vendor rule as the
-    holder's rotation (FR-040 seed, QUIESCE .. CLOSE, handoff and ack, the
+  - a fresh session of the same id, or its vendor's id when the guard
+    names another vendor (seat switch; `lease.conf` follows, the fleet
+    lease file stays), under the same vendor rule as the holder's rotation
+    (FR-040 seed, QUIESCE .. CLOSE, handoff and ack, the
     old session retired); the boot, absent, duplicate and stall gates of
     FR-010 still apply, and a failure rolls back as FR-010 (the old session
     keeps the seat);
-  - the fleet orch lease is never taken or moved (CLOSE does not count it as
-    `lease-moved`); the holder's machine keeps `ROTATE_MIN_AGE`.
+  - a stale or missing orch lease mirror (holder `none`) counts as standby:
+    the seat is refreshed at the same age;
+  - the fleet orch lease is never taken or moved, the lease file stays
+    byte-identical (CLOSE of the run that started the refresh does not
+    count it as `lease-moved`; a resumed one logs `CLOSE WAIT lease-moved`,
+    log only, as a resumed `ROTATE_CMD=standby` run already did); the
+    holder's machine keeps `ROTATE_MIN_AGE`.
 
-  Test: `orch-rotate.tst.sh` case 24 (red controls: the code before SPL-4807
-  fails 16 of its checks).
+  Test: `orch-rotate.tst.sh` case 24 (red control: with only the age branch
+  of `spl_orch_rotate_standby_gate` removed, 17 of its checks fail).
 - **FR-045** Rotation never writes the fleet row across machines. The HOLD
   moves the holder only between `<M>@<box>` and `<F>@<box>` of one machine.
   If the fleet loop flips a role to the other machine mid-rotation, the

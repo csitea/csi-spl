@@ -20,7 +20,9 @@ import (
 //  3. else the class, read from the issue's labels: bug or alert 1,
 //     refactor 2 (the placer labels a lane issue from its brief's Class:);
 //  4. else store.IssuePriorityDefault (5), as before.
-// It applies at create only: an existing issue is never re-prioritised.
+// It applies at create. After it, an open issue follows the priority SET on
+// its discussions (topic_priority_follow.go, spec 150 v1.2, SPL-4813); an
+// issue with no set discussion keeps its own.
 
 // issueClassPriority is step 3: label id -> default priority.
 var issueClassPriority = map[string]int{"bug": 1, "alert": 1, "refactor": 2}

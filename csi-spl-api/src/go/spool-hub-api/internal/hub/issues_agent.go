@@ -64,6 +64,8 @@ func (s *Server) agentIssueOp(ctx context.Context, x *session, f wire.Frame) (an
 		return s.agentGetIssue(ctx, x.tenant, f.IssueRef)
 	case "moved": // spec 169 row T7g: the closer's old key map
 		return s.agentIssueMoves(ctx, x.tenant)
+	case "prio-sync": // spec 150 3.4 item 4: issues follow their discussions' priority
+		return s.agentPrioSync(ctx, x.tenant, f.As, f.Query)
 	case "create":
 		return s.agentCreateIssue(ctx, x.tenant, f.As, f.Issue)
 	case "update":
@@ -79,7 +81,7 @@ func (s *Server) agentIssueOp(ctx context.Context, x *session, f wire.Frame) (an
 	case "link", "unlink": // SPL-1593: body is the discussion (topic id or /t/<id> link)
 		return s.agentLinkDiscussion(ctx, x.tenant, f.As, f.IssueRef, f.Body, f.IssueOp == "link")
 	}
-	return nil, &issueErr{http.StatusBadRequest, "bad_frame", "issue_op must be create, update, get, list, moved, label, comment, delete, archive, unarchive, link or unlink"}
+	return nil, &issueErr{http.StatusBadRequest, "bad_frame", "issue_op must be create, update, get, list, moved, prio-sync, label, comment, delete, archive, unarchive, link or unlink"}
 }
 
 // issueWriteAllowed refuses a write while the tenant's billing is unpaid.

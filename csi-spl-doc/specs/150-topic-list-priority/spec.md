@@ -1,6 +1,11 @@
 # 150 Topic-list controls and discussion priority
 
-Version v1.1 (2026-10-30): a topic nobody set has priority 3, not 5 (the
+Version v1.2 (2026-11-04): the discussion's priority is the source; an
+issue follows the priority set on its discussions and a lane follows its
+issues (section 3.4 item 4; the owner, csitea b0f50875 msgs `ee3d6efc` and
+`f061e485`, SPL-4813). This replaces panel D4.
+
+v1.1 (2026-10-30): a topic nobody set has priority 3, not 5 (the
 owner, msg `f5ed1396`, section 1; SPL-4367); issues keep their default 5.
 v1.0 (2026-10-23) is step 2 of the owner rule for a big change
 (HUM-10, quoted in the spec 099 header: "1. The written spec and the run
@@ -302,12 +307,50 @@ holds (panel.md section 1, one row per claim with its command).
    unchanged except that "the queue's order" now includes priority. Its one
    home stays `csi-spl-doc/doc/md/fleet-rules-index.md`, updated in the
    same commit.
-4. **An issue keeps its own priority** (panel D4): the queue reads the
-   discussion's through `fleet_asks.discussion`; nothing copies it. Except
-   once, at its create (owner HUM-10, t1 3aac280f msg b364e9d5, SPL-4725):
-   a new issue that names no priority takes the highest one SET on its
-   linked discussions (lane-issue-and-docs.md section 1.1b); later changes
-   to either are not copied.
+4. **The discussion's priority is the source** (v1.2, SPL-4813; owner
+   HUM-10, csitea b0f50875, 2026-11-04: msg `ee3d6efc` "the lanes of the
+   discussions and the issues and the lanes must be the same", msg
+   `f061e485` "a cron check every 5 min that the prio is applied from the
+   discussions to the born by them issues and than to the lanes, because I
+   want as the user to be able to triage mostly based on discussions").
+   It replaces panel D4 ("an issue keeps its own priority"), which let a
+   priority 1 discussion show its lane at 5: a lane's prio is the highest
+   of its issues (`hub/fleet_lanes_view.go` `lanePrio`, spec 153 3.14), and
+   an issue kept the 5 it was created with.
+   - **The rule.** An open issue (not `done` or `diss`) takes the highest
+     (lowest number) priority SET on its linked discussions
+     (`issue_discussions`): a stored `topic_priorities` row, a set 3 too.
+     The workspace's default discussion (`issue_discussion_default`, rdb
+     0194) does not count: an issue linked there was not born of it. An
+     issue with no set discussion keeps its own priority, and its create
+     rule stays SPL-4725's (lane-issue-and-docs.md section 1.1b).
+   - **Across workspaces.** A topic lives in one workspace, but the fleet
+     files every lane's issue in the operator workspace, linking the owner's
+     topic of his own workspace (prd 2026-11-04: csitea's `269d405d`, set to
+     1, is linked by t1's SPL-4637 at 5; t1 holds 2 relay posts of that task,
+     so the link is accepted). So the operator workspace's issues also read
+     the priority set in the other workspaces; every other workspace reads
+     its own only.
+   - **The lane** shows the highest of its issues, so it follows with them;
+     nothing is stored on the lane row. A lane with no issue shows none. A
+     **queued ask** already reads its discussion's priority at every read
+     (`askPositions`, item 1), so the spawn queue's `PRIO` follows too.
+   - **At once**: `PUT /v1/topics/{task_id}/priority` applies it to the
+     issues linking that topic, after the set (`hub/topic_priority_follow.go`
+     `followTopicPriority`), in the setter's workspace and in the operator
+     workspace; each change is an issue update by the setter (its
+     history names who) and an `issue` frame to the open tabs. A failed apply
+     is logged, never the PUT's error.
+   - **Every 5 minutes, the safety net**: the agent issue op `prio-sync`
+     (`spool issue prio-sync [--apply]`, a dry run without `--apply`) applies
+     it to every issue of the caller's workspace, and from the operator
+     workspace to every workspace of the hub: each takes only its own
+     discussions' priorities. `cd csi-spl-orc && ./run -a do_spl_topic_prio_sync`
+     calls it as the dispatch lease holder's desk, on that holder's box only,
+     dry run unless `DRY_RUN=0`, one log line per issue (workspace, key,
+     old -> new, topic) and the count of open issues with no set discussion.
+     The box cron row `topic-prio-sync` (`csi-spl-orc/cnf/box-crons/box-crons.manifest`)
+     runs it with `DRY_RUN=0` every 5 minutes.
 
 ### 3.5 i18n
 
@@ -385,6 +428,8 @@ language rule, global CLAUDE.md "Spawn an agent"): build row B11.
 | C404 | 4 | discussion resolve | `dispatch-<topic8>` with one match sets `discussion`; two matches leave it NULL | take the first match | `hub/box_ask_test.go` |
 | C405 | 4 | queue table | the `PRIO` column shows 1..5 | the column dropped | `csi-spl-orc/src/bash/tests/spl-spawn-queue.tst.sh` |
 | C406 | 4 | unanswered posts | a priority 1 post comes before an older priority 5 post | ORDER BY received_at only | `store/unanswered_test.go`, `csi-spl-orc/src/bash/tests/unanswered-sweep-pg.tst.sh` |
+| C407 | 4 | lane follows its discussion (v1.2) | a priority set to 1 after the lane and its issue exist: the issue and the lane show 1; a later 3 follows; an issue on the default discussion only keeps 5 | the lane stays at 5 (master 77463637a) | `hub/topic_priority_follow_test.go` `TestTopicPriorityFollowsToIssuesAndLanes` (Memory + Postgres) |
+| C408 | 4 | the 5-min sweep (v1.2) | `prio-sync` dry run lists the change and writes nothing; `--apply` writes it, counts the unset issues, walks every workspace from the operator one; a second run changes nothing | the op does not exist | `hub/topic_priority_follow_test.go` `TestTopicPrioritySyncOp`, `csi-spl-orc/src/bash/tests/spl-topic-prio-sync.tst.sh` |
 
 ## 5. Build rows
 
@@ -407,6 +452,7 @@ before a row that depends on it starts.
 | B10b | 4 | `ASK_DISCUSSION` from `do_spl_ask_put` and `do_spl_spawn_enqueue` through the journal and its sync to `spool ask put --discussion` | `api/cmd/spool/ask.go`, `api/internal/action/ask.go`, `csi-spl-orc/src/bash/features/spawn-agents/lib/spool-asks.inc.sh`, `orc/spl-asks-open.func.sh`, `orc/spl-ask-put.func.sh`, `orc/spl-spawn-enqueue.func.sh`, and their tests; widened by the dispatch holder (c-002 msg `e9ef352f`) so enqueue reaches an ask already on the hub: `store/fleet_ask.go`, `store/fleet_ask_postgres.go`, `store/fleet_ask_queue_test.go`. A put on an existing row fills `discussion` only while it is NULL, never overwrites, `created` stays false | B10 |
 | B11 | 2-3 | agy's language review of the 19 locales, the last step before the text ships | `csi-spl-wui/i18n/locales/*.json` (after B4, B6, B7 and B8 have landed) | B6, B7, B8 |
 | B12 (Implemented, store half, bfc006e10) | 4 | unanswered posts by priority; C406 | `store/fallback_postgres.go`, `store/fallback_memory.go`, `store/unanswered_test.go`, `csi-spl-orc/src/bash/tests/unanswered-sweep-pg.tst.sh` | B1 |
+| B13 (v1.2, SPL-4813) | 4 | issues and lanes follow the discussion's priority: at the PUT and by the 5-min `prio-sync` sweep; C407, C408 | `hub/topic_priority_follow.go`, `hub/topic_priority.go`, `hub/issues_agent.go`, `api/cmd/spool/issue.go`, `api/internal/action/issue.go`, `orc/spl-topic-prio-sync.func.sh`, `csi-spl-orc/src/bash/scripts/topic-prio-sync-cron.sh`, `csi-spl-orc/cnf/box-crons/box-crons.manifest`, and their tests | B1, B9 |
 
 - Every row runs the module gate of the repo CLAUDE.md before its push.
 - The default 3 (v1.1, SPL-4367) is one constant per side:
@@ -485,7 +531,7 @@ is in panel.md section 3.
 | D1 (P1) | server sort or client sort | client sort and filter over the loaded pages for v1, with the "N topics loaded" line; no `sort=` on the API now | `topic_heads` has one index, `(tenant_id, last_at DESC, task_id DESC)` (`rdb/0144:78`); a sort by count or priority would read every topic of the channel, the walk spec 099 removed. A server sort is a later spec that starts with a measurement |
 | D2 (P2) | where priority is stored | own table `topic_priorities` (0214), read for the page's task ids only | only the head trigger writes `topic_heads` (spec 099 4.1); a page read on the primary key costs one index probe per page |
 | D3 (P3) | how an ask links its discussion | explicit `fleet_asks.discussion` (rdb 0241, planned as 0215), set by the hub at write | a read-time prefix lookup would run per queued row on every queue read; `TopicsByPrefix` (`store/issue_discussions.go:102-104`) already does the one lookup at write |
-| D4 (P4) | issue priority vs discussion priority | separate; nothing copies | two copies of one value drift; the queue reads the discussion's through D3 |
+| D4 (P4) | issue priority vs discussion priority | separate; nothing copies (replaced in v1.2 by the owner, msgs `ee3d6efc`, `f061e485`: the issue follows its discussion, section 3.4 item 4) | two copies of one value drift; the queue reads the discussion's through D3 |
 | D5 (Q1) | what "new" means in the filter | a topic with unread messages | the WUI's existing "new" is unread: `cardNew.unseen` / `openerNew` (`LiveFeed.vue:91-92, 295`) |
 | D6 (Q6) | where the filter / sort choice is kept | per browser | the card-clip control beside it is kept per browser (`CardClipControl.vue:5`); no API, no migration |
 | D7 (Q3) | a discussion nobody set | priority 3; no "None", no clear (v1.1; v1.0 had 5, as an issue) | the owner, msg `f5ed1396` (2026-10-29): "radio buttons whith default 3" (section 1). Issues keep 5 (`store/issues.go:63-65`, owner 2026-09-26) |

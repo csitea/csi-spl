@@ -9,11 +9,12 @@ declare module '~/utils/issue-link-hook.mjs' {
 
 declare module '~/utils/issue-key-links.mjs' {
   export function issueKeyPrefix(prefix: unknown): string
+  export function issueLastNumber(v: unknown): number | null
   export function isIssueKey(prefix: unknown, text: unknown): boolean
-  export function issueHref(prefix: unknown, key: unknown, pathFor?: (p: string) => string): string
-  export function linkifyIssueText(text: unknown, prefix: unknown, pathFor?: (p: string) => string): { type: string, text: string, href?: string }[]
-  export function linkifyIssueMarkdown(src: unknown, prefix: unknown, pathFor?: (p: string) => string): string
-  export function inlineIssueHref(prefix: unknown, text: unknown, pathFor?: (p: string) => string): string
-  export function linkifyIssueBlocks<T>(blocks: T, prefix: unknown, pathFor?: (p: string) => string): T
-  export function issueLinker(prefix: unknown, pathFor?: (p: string) => string): { blocks: (blocks: unknown[]) => unknown[], markdown: (src: string) => string, inline: (text: string) => string } | null
+  export function issueHref(prefix: unknown, key: unknown, pathFor?: (p: string) => string, last?: unknown): string
+  export function linkifyIssueText(text: unknown, prefix: unknown, pathFor?: (p: string) => string, last?: unknown): { type: string, text: string, href?: string }[]
+  export function linkifyIssueMarkdown(src: unknown, prefix: unknown, pathFor?: (p: string) => string, last?: unknown): string
+  export function inlineIssueHref(prefix: unknown, text: unknown, pathFor?: (p: string) => string, last?: unknown): string
+  export function linkifyIssueBlocks<T>(blocks: T, prefix: unknown, pathFor?: (p: string) => string, last?: unknown): T
+  export function issueLinker(prefix: unknown, pathFor?: (p: string) => string, last?: unknown): { blocks: (blocks: unknown[]) => unknown[], markdown: (src: string) => string, inline: (text: string) => string } | null
 }

@@ -550,7 +550,7 @@ export function createMockIssues({ me = 'HUM-1', now = () => new Date().toISOStr
       /* P5-06: like the hub's sheet read, a listed row carries no description;
          the open issue is get(ref) */
       return { prefix: 'SPL', statuses: ISSUE_STATUSES.slice(), counts, issues: rows.map((i) => ({ ...i, description: '' })), labels: labels.slice(), channel: ISSUE_CHANNEL, epics: mockSummaries(issues),
-        total: matched.length, next_cursor: next, default_discussion: MOCK_DEFAULT_TOPIC }
+        total: matched.length, next_cursor: next, default_discussion: MOCK_DEFAULT_TOPIC, last_number: last }
     },
     get(ref) {
       const i = find(ref)

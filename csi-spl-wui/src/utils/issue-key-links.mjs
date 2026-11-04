@@ -10,6 +10,13 @@
  * written. An inline code span that holds only the key links too, shown as
  * code. Another workspace's prefix stays text.
  *
+ * A key past the workspace's last issue number stays text too (HUM-10,
+ * topic d60646d9 msg 9030e104: a t1 key cited in another workspace of
+ * the same prefix opened an issue that is not there). The hub's issue list
+ * reports last_number, the highest number this workspace ever handed out;
+ * numbers are never reused, so a key above it cannot be one of its issues.
+ * No last_number (a hub older than SPL-4788) = no bound, as before.
+ *
  * Loaded lazily (plugins/issue-links.client.ts) and reached through
  * utils/issue-link-hook.mjs, so the initial chunk does not grow. Pure: node
  * tests import this file directly.
@@ -30,15 +37,24 @@ function keyRe(prefix) {
   return new RegExp(`(?<![0-9A-Za-z_\\-/.#@])${prefix}-[1-9][0-9]{0,8}(?![0-9A-Za-z_\\-/@]|\\.[0-9A-Za-z])`, 'g')
 }
 
+/** The hub's last_number as a bound, or null when it sent none. */
+export function issueLastNumber(v) {
+  if (v === null || v === undefined || v === '') return null
+  const n = Number(v)
+  return Number.isInteger(n) && n >= 0 ? n : null
+}
+
 /** Is the text exactly one key of this prefix? */
 export function isIssueKey(prefix, text) {
   const p = issueKeyPrefix(prefix)
   return Boolean(p) && new RegExp(`^${p}-[1-9][0-9]{0,8}$`).test(String(text ?? ''))
 }
 
-/** /issues?issue=<KEY> through pathFor (the locale prefix), or '' when not a key. */
-export function issueHref(prefix, key, pathFor) {
+/** /issues?issue=<KEY> through pathFor (the locale prefix), or '' when not a key or past last. */
+export function issueHref(prefix, key, pathFor, last) {
   if (!isIssueKey(prefix, key)) return ''
+  const bound = issueLastNumber(last)
+  if (bound !== null && Number(String(key).slice(String(key).lastIndexOf('-') + 1)) > bound) return ''
   const path = '/issues?issue=' + encodeURIComponent(String(key))
   const out = typeof pathFor === 'function' ? pathFor(path) : path
   return String(out || path)
@@ -53,50 +69,52 @@ function protectRanges(s) {
 }
 
 /** Text parts and link parts; '' prefix = unchanged. */
-export function linkifyIssueText(text, prefix, pathFor) {
+export function linkifyIssueText(text, prefix, pathFor, last) {
   const s = String(text ?? '')
   const p = issueKeyPrefix(prefix)
   if (!p || !s.includes(p + '-')) return [{ type: 'text', text: s }]
   const ranges = protectRanges(s)
   const parts = []
-  let last = 0
+  let at = 0
   for (const m of s.matchAll(keyRe(p))) {
     const start = m.index
     const end = start + m[0].length
     if (ranges.some(([a, z]) => start >= a && end <= z)) continue
-    if (start > last) parts.push({ type: 'text', text: s.slice(last, start) })
-    parts.push({ type: 'link', text: m[0], href: issueHref(p, m[0], pathFor) })
-    last = end
+    const href = issueHref(p, m[0], pathFor, last)
+    if (!href) continue
+    if (start > at) parts.push({ type: 'text', text: s.slice(at, start) })
+    parts.push({ type: 'link', text: m[0], href })
+    at = end
   }
   if (!parts.length) return [{ type: 'text', text: s }]
-  if (last < s.length) parts.push({ type: 'text', text: s.slice(last) })
+  if (at < s.length) parts.push({ type: 'text', text: s.slice(at) })
   return parts
 }
 
 /** The same markdown, a key written as a link; code and links untouched. */
-export function linkifyIssueMarkdown(src, prefix, pathFor) {
+export function linkifyIssueMarkdown(src, prefix, pathFor, last) {
   const s = String(src ?? '')
-  const parts = linkifyIssueText(s, prefix, pathFor)
+  const parts = linkifyIssueText(s, prefix, pathFor, last)
   if (parts.length === 1 && parts[0].type === 'text') return s
   return parts.map((x) => (x.type === 'link' ? '[' + x.text + '](' + x.href + ')' : x.text)).join('')
 }
 
 /** An inline code span that is only a key: its href, or ''. */
-export function inlineIssueHref(prefix, text, pathFor) {
+export function inlineIssueHref(prefix, text, pathFor, last) {
   const s = String(text ?? '').trim()
-  return issueHref(prefix, s, pathFor)
+  return issueHref(prefix, s, pathFor, last)
 }
 
-function linkifyParts(parts, prefix, pathFor) {
+function linkifyParts(parts, prefix, pathFor, last) {
   const out = []
   for (const p of parts || []) {
     if (p && p.type === 'inline') {
-      const href = inlineIssueHref(prefix, p.text, pathFor)
+      const href = inlineIssueHref(prefix, p.text, pathFor, last)
       out.push(href ? { type: 'link', text: String(p.text).trim(), href, code: true } : p)
       continue
     }
     if (p && (p.type === 'text' || p.type === 'strong' || p.type === 'em') && typeof p.text === 'string') {
-      const bits = linkifyIssueText(p.text, prefix, pathFor)
+      const bits = linkifyIssueText(p.text, prefix, pathFor, last)
       if (bits.length === 1 && bits[0].type === 'text') out.push(p)
       else for (const x of bits) out.push(x.type === 'link' ? x : { ...p, text: x.text })
       continue
@@ -107,30 +125,31 @@ function linkifyParts(parts, prefix, pathFor) {
 }
 
 /** A parseBody tree with keys linked; fences and links left alone. */
-export function linkifyIssueBlocks(blocks, prefix, pathFor) {
+export function linkifyIssueBlocks(blocks, prefix, pathFor, last) {
   if (!issueKeyPrefix(prefix) || !Array.isArray(blocks)) return blocks
   return blocks.map((b) => {
     if (!b) return b
     if (b.type === 'code') {
       if (!MD_LANG.test(String(b.lang || ''))) return b
-      const text = linkifyIssueMarkdown(b.text, prefix, pathFor)
+      const text = linkifyIssueMarkdown(b.text, prefix, pathFor, last)
       return text === b.text ? b : { ...b, text }
     }
-    if (Array.isArray(b.parts)) return { ...b, parts: linkifyParts(b.parts, prefix, pathFor) }
+    if (Array.isArray(b.parts)) return { ...b, parts: linkifyParts(b.parts, prefix, pathFor, last) }
     if (Array.isArray(b.items)) {
-      return { ...b, items: b.items.map((it) => ({ ...it, parts: linkifyParts(it.parts, prefix, pathFor) })) }
+      return { ...b, items: b.items.map((it) => ({ ...it, parts: linkifyParts(it.parts, prefix, pathFor, last) })) }
     }
     return b
   })
 }
 
-/** The linker utils/issue-link-hook.mjs holds: null when the prefix is unset. */
-export function issueLinker(prefix, pathFor) {
+/** The linker utils/issue-link-hook.mjs holds: null when the prefix is unset. last: the hub's last_number. */
+export function issueLinker(prefix, pathFor, last) {
   const p = issueKeyPrefix(prefix)
   if (!p) return null
+  const n = issueLastNumber(last)
   return {
-    blocks: (blocks) => linkifyIssueBlocks(blocks, p, pathFor),
-    markdown: (src) => linkifyIssueMarkdown(src, p, pathFor),
-    inline: (text) => inlineIssueHref(p, text, pathFor),
+    blocks: (blocks) => linkifyIssueBlocks(blocks, p, pathFor, n),
+    markdown: (src) => linkifyIssueMarkdown(src, p, pathFor, n),
+    inline: (text) => inlineIssueHref(p, text, pathFor, n),
   }
 }

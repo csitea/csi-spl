@@ -264,6 +264,17 @@ opening it.
   Owner, same message: *"all of the errors should get saved into a personal per user event-log
   entry in the db, which sould be accessible from event log, button after the flow icon on the
   left most pane"*.
+- **FR-018** — Implemented (SPL-4788): an issue key in a message (`<PREFIX>-<n>`, the
+  workspace's own prefix) links to `/issues?issue=<KEY>` only when `n` is at most the
+  workspace's `last_number`, the highest number it ever handed out
+  (`issue_counters.last_number`, read once with the prefix from `GET /v1/view/issues`;
+  numbers are never reused). A higher key, e.g. another workspace's `SPL-4778` cited in a
+  workspace with 14 issues, stays plain text, never a dead link. A hub that sends no
+  `last_number` leaves every key linked, as before. Owner HUM-10, topic d60646d9,
+  msgs 9030e104 and 929648b8 ("a bug lane makes unknown keys plain text"). Check:
+  `node tests/unit/issue-key-links.test.mjs`, `tests/e2e/commit-links.test.mjs`,
+  `go test ./internal/hub -run TestIssueListLastNumber`,
+  `go test ./internal/store -run TestIssueLastNumber`.
 
 ## 3. Success criteria
 
@@ -337,4 +348,4 @@ Named here, not specified.
   `localStorage` (aligns with 003 OQ-CH2 (a) client-held); **(b)** hub-synced
   per-human cursors (needs HUMANS 0006; later).
 
-<!-- version: 1.12.0 · updated: 2026-10-31 · last-edit: 2026-10-31T17:30:00Z -->
+<!-- version: 1.13.0 · updated: 2026-11-04 · last-edit: 2026-11-04T12:00:00Z -->

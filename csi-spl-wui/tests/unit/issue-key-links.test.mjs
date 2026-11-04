@@ -6,7 +6,7 @@
 //
 // Run: node tests/unit/issue-key-links.test.mjs
 import {
-  inlineIssueHref, isIssueKey, issueHref, issueKeyPrefix, issueLinker, linkifyIssueBlocks, linkifyIssueMarkdown, linkifyIssueText,
+  inlineIssueHref, isIssueKey, issueHref, issueKeyPrefix, issueLastNumber, issueLinker, linkifyIssueBlocks, linkifyIssueMarkdown, linkifyIssueText,
 } from '../../src/utils/issue-key-links.mjs'
 import { activeIssueLinker, setIssueLinkProvider } from '../../src/utils/issue-link-hook.mjs'
 import { importTs } from './lib/load-ts.mjs'
@@ -54,6 +54,24 @@ ok('blocks: a longer code span stays code', out[0].parts[3].type === 'inline')
 ok('blocks: a fence stays code', out[1] === blocks[1])
 ok('blocks: list items link', out[2].items[0].parts[0].type === 'link')
 ok('blocks: no prefix returns the same tree', linkifyIssueBlocks(blocks, '') === blocks)
+
+console.log('a key past the last issue number (SPL-4788)')
+/* topic d60646d9 msg 9030e104: a t1 key cited in a workspace of the same
+   prefix opened an issue that is not there. last_number bounds the link. */
+ok('last_number: an integer >= 0, else no bound', issueLastNumber(14) === 14 && issueLastNumber('14') === 14 && issueLastNumber(0) === 0 &&
+  issueLastNumber(undefined) === null && issueLastNumber(null) === null && issueLastNumber('') === null && issueLastNumber(-1) === null && issueLastNumber(1.5) === null)
+ok('href: a key at or under last links, past it is empty', issueHref(PFX, 'ACME-14', at, 14) === '/fi/issues?issue=ACME-14' && issueHref(PFX, 'ACME-15', at, 14) === '' && issueHref(PFX, 'ACME-1', at, 0) === '')
+ok('href: no last = every key links (a hub older than SPL-4788)', issueHref(PFX, 'ACME-4778', at) === '/fi/issues?issue=ACME-4778')
+const bt = (s) => linkifyIssueText(s, PFX, at, 14)
+ok('text: a key past last stays text, its neighbours still link', texts(bt('ACME-3, ACME-4778 and ACME-14')).join() === 'ACME-3,ACME-14' &&
+  bt('ACME-3, ACME-4778 and ACME-14').filter((x) => x.type === 'text').map((x) => x.text).join('|') === ', ACME-4778 and ')
+ok('text: only keys past last = the text unchanged', JSON.stringify(bt('see ACME-4778.')) === JSON.stringify([{ type: 'text', text: 'see ACME-4778.' }]))
+ok('markdown: a key past last is not a link', linkifyIssueMarkdown('ACME-4778 ACME-2', PFX, at, 14) === 'ACME-4778 [ACME-2](/fi/issues?issue=ACME-2)')
+ok('code span: a key past last has no href', inlineIssueHref(PFX, 'ACME-4778', at, 14) === '')
+const bl = issueLinker(PFX, at, 14)
+const bb = bl.blocks([{ type: 'para', parts: [{ type: 'text', text: 'ACME-4778 ACME-2' }, { type: 'inline', text: 'ACME-15' }] }])
+ok('linker: blocks bound by last', texts(bb[0].parts).join() === 'ACME-2' && bb[0].parts.at(-1).type === 'inline' && bl.inline('ACME-15') === '' && bl.markdown('ACME-15') === 'ACME-15')
+ok('linker: a bad last is no bound', issueLinker(PFX, at, 'x').inline('ACME-4778') === '/fi/issues?issue=ACME-4778')
 
 console.log('commit hash in a code span')
 const WEB = 'https://git.example.org/acme/spool'

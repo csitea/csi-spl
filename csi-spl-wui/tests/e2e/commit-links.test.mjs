@@ -7,6 +7,8 @@
 // t1 0f2ed820: a hash alone in inline code links too (shown as code), and an
 // issue key of this workspace (the mock tenant's prefix, SPL) links to
 // /issues?issue=<KEY> in this tab; another prefix and a key in a fence stay text.
+// SPL-4788 (topic d60646d9 msg 9030e104): a key of this prefix past the
+// workspace's last issue number (the mock tenant has SPL-1 only) stays text.
 //
 // Run: node tests/e2e/commit-links.test.mjs
 // (starts `nuxi dev` with the mock tenant when BASE_URL is unset; export the
@@ -21,9 +23,10 @@ const HASH = '785470e9c'
 const CODED = 'c90606372'
 const UUID = '00000000-0000-4000-8000-0000000000aa'
 const FENCED = 'c90606373'
-const KEY = 'SPL-12'
-const CODED_KEY = 'SPL-13'
-const BODY = `landed in ${HASH} on master for ${KEY}\nnot a commit ${UUID} or 20261004, not ours OTHER-12\ncode \`${CODED}\` and \`${CODED_KEY}\`\n\`\`\`\nSPL-14 ${FENCED}\n\`\`\``
+const KEY = 'SPL-1'
+const CODED_KEY = 'SPL-1'
+const PAST = 'SPL-4778'
+const BODY = `landed in ${HASH} on master for ${KEY}\nnot a commit ${UUID} or 20261004, not ours OTHER-12, not here ${PAST}\ncode \`${CODED}\` and \`${CODED_KEY}\`\n\`\`\`\nSPL-14 ${FENCED}\n\`\`\``
 
 const results = []
 const ok = (name, pass, ev) => {
@@ -94,7 +97,7 @@ try {
   const s = await p.evaluate((id, uuid, coded, fenced) => {
     const row = document.querySelector(`article.msg[data-msg-id="${id}"]`)
     const links = [...(row ? row.querySelectorAll('a.msg-link') : [])].map((a) => ({
-      text: a.textContent || '', href: a.getAttribute('href') || '', target: a.getAttribute('target') || '',
+      text: a.textContent || '', href: a.getAttribute('href') || '', target: a.getAttribute('target') || '', code: !!a.querySelector('code'),
     }))
     return {
       links,
@@ -111,14 +114,15 @@ try {
   const codedLink = s.links.find((a) => a.text === CODED)
   ok('a hash alone in inline code links to the commit, shown as code', codedLink && codedLink.href === want.replace(HASH, CODED) && s.codedInLink, s)
   ok('a hash and a key in a fence stay text', !s.fencedLinked, s)
-  const keyLink = s.links.find((a) => a.text === KEY)
-  const codedKeyLink = s.links.find((a) => a.text === CODED_KEY)
-  ok('an issue key links to /issues?issue=<KEY> in this tab', keyLink && /\/issues\?issue=SPL-12$/.test(keyLink.href) && !keyLink.target, s.links)
-  ok('an issue key alone in inline code links too', codedKeyLink && /\/issues\?issue=SPL-13$/.test(codedKeyLink.href), s.links)
+  const keyLink = s.links.find((a) => a.text === KEY && !a.code)
+  const codedKeyLink = s.links.find((a) => a.text === CODED_KEY && a.code)
+  ok('an issue key links to /issues?issue=<KEY> in this tab', keyLink && /\/issues\?issue=SPL-1$/.test(keyLink.href) && !keyLink.target, s.links)
+  ok('an issue key alone in inline code links too', codedKeyLink && /\/issues\?issue=SPL-1$/.test(codedKeyLink.href), s.links)
   ok('another prefix stays text', !s.links.some((a) => a.text === 'OTHER-12'), s.links)
+  ok('a key past the last issue number stays text (SPL-4788)', !s.links.some((a) => a.text === PAST), s.links)
   if (keyLink) {
     await p.click(`article.msg[data-msg-id="${carrier.msg_id}"] a.msg-link[href$="issue=${KEY}"]`)
-    const moved = await p.waitForFunction(() => location.pathname.endsWith('/issues') && location.search.includes('issue=SPL-12'), { timeout: 15000 }).then(() => true, () => false)
+    const moved = await p.waitForFunction(() => location.pathname.endsWith('/issues') && /[?&]issue=SPL-1(&|$)/.test(location.search), { timeout: 15000 }).then(() => true, () => false)
     ok('a click on the key opens the Issues page on that issue', moved, await p.evaluate(() => location.href))
   }
   ok('no page error', errors.length === 0, errors)

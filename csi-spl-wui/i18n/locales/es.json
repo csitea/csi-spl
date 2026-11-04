@@ -3449,7 +3449,25 @@
       "age_24h": "Menos de 24 h",
       "age_older": "Más de 24 h",
       "no_match": "Ninguna línea coincide con los filtros",
-      "shown": "{n} de {total} líneas"
+      "shown": "{n} de {total} líneas",
+      "console": {
+        "open_title": "Abrir esta línea",
+        "show": "Consola",
+        "hide": "Ocultar consola",
+        "not_live": "Una línea en cola aún no tiene consola.",
+        "waiting": "Esperando a que la caja de la línea envíe su pantalla…",
+        "live": "Capturada hace {n} s",
+        "stale": "Última captura hace {n} s: la caja no envió una más reciente",
+        "redacted": "{n} secreto ocultado en la caja | {n} secretos ocultados en la caja",
+        "follow": "Seguir",
+        "pause": "Pausar",
+        "resume": "Reanudar",
+        "save": "Guardar en archivo",
+        "label": "Consola de {lane}",
+        "forbidden": "Solo un administrador ve la consola de una línea.",
+        "gone": "Esta línea ya no está activa.",
+        "error": "No se pudo cargar la consola."
+      }
     },
     "topics": {
       "loading": "Cargando los temas…",

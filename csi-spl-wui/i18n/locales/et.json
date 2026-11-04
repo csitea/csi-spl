@@ -3449,7 +3449,25 @@
       "age_24h": "Kuni 24 h",
       "age_older": "Üle 24 h",
       "no_match": "Ükski rada ei vasta filtritele",
-      "shown": "{n}/{total} rada"
+      "shown": "{n}/{total} rada",
+      "console": {
+        "open_title": "Ava see rada",
+        "show": "Konsool",
+        "hide": "Peida konsool",
+        "not_live": "Järjekorras oleval rajal pole veel konsooli.",
+        "waiting": "Ootan, et raja kast saadaks oma ekraani…",
+        "live": "Salvestatud {n} s tagasi",
+        "stale": "Viimane salvestus {n} s tagasi: kast pole uuemat saatnud",
+        "redacted": "Kastis maskeeriti {n} saladus | Kastis maskeeriti {n} saladust",
+        "follow": "Jälgi",
+        "pause": "Peata",
+        "resume": "Jätka",
+        "save": "Salvesta faili",
+        "label": "Raja {lane} konsool",
+        "forbidden": "Raja konsooli näeb ainult administraator.",
+        "gone": "See rada pole enam aktiivne.",
+        "error": "Konsooli laadimine ebaõnnestus."
+      }
     },
     "topics": {
       "loading": "Laadin teemasid…",

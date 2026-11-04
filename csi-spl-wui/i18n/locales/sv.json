@@ -3449,7 +3449,25 @@
       "age_24h": "Inom 24 h",
       "age_older": "Över 24 h",
       "no_match": "Ingen bana matchar filtren",
-      "shown": "{n} av {total} banor"
+      "shown": "{n} av {total} banor",
+      "console": {
+        "open_title": "Öppna den här banan",
+        "show": "Konsol",
+        "hide": "Dölj konsolen",
+        "not_live": "En köad bana har ingen konsol än.",
+        "waiting": "Väntar på att banans box skickar sin skärm…",
+        "live": "Fångad för {n} s sedan",
+        "stale": "Senaste fångst för {n} s sedan: boxen har inte skickat någon nyare",
+        "redacted": "{n} hemlighet maskerad på boxen | {n} hemligheter maskerade på boxen",
+        "follow": "Följ",
+        "pause": "Pausa",
+        "resume": "Fortsätt",
+        "save": "Spara till fil",
+        "label": "Konsol för {lane}",
+        "forbidden": "Endast en administratör ser en banas konsol.",
+        "gone": "Den här banan är inte längre aktiv.",
+        "error": "Det gick inte att läsa in konsolen."
+      }
     },
     "topics": {
       "loading": "Läser in ämnena…",

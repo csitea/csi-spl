@@ -3449,7 +3449,25 @@
       "age_24h": "Alle 24 h",
       "age_older": "Yli 24 h",
       "no_match": "Mikään kaista ei vastaa suodattimia",
-      "shown": "{n}/{total} kaistaa"
+      "shown": "{n}/{total} kaistaa",
+      "console": {
+        "open_title": "Avaa tämä kaista",
+        "show": "Konsoli",
+        "hide": "Piilota konsoli",
+        "not_live": "Jonossa olevalla kaistalla ei vielä ole konsolia.",
+        "waiting": "Odotetaan, että kaistan laatikko lähettää näyttönsä…",
+        "live": "Kaapattu {n} s sitten",
+        "stale": "Viimeisin kaappaus {n} s sitten: laatikko ei ole lähettänyt uudempaa",
+        "redacted": "{n} salaisuus peitetty laatikolla | {n} salaisuutta peitetty laatikolla",
+        "follow": "Seuraa",
+        "pause": "Tauko",
+        "resume": "Jatka",
+        "save": "Tallenna tiedostoon",
+        "label": "Kaistan {lane} konsoli",
+        "forbidden": "Vain ylläpitäjä näkee kaistan konsolin.",
+        "gone": "Tämä kaista ei ole enää käynnissä.",
+        "error": "Konsolin lataus epäonnistui."
+      }
     },
     "topics": {
       "loading": "Ladataan aiheita…",

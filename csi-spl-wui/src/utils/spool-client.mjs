@@ -75,6 +75,7 @@ const LAZY_METHODS = [
   'getFleetTokens',
   'getFleetLanes',
   'getFleetRoster',
+  'laneConsole',
   'getFileStreams',
   'getFileStreamLines',
   'fileStreamGlobs',

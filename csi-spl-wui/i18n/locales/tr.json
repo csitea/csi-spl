@@ -3449,7 +3449,25 @@
       "age_24h": "24 sa içinde",
       "age_older": "24 sa üstü",
       "no_match": "Filtrelere uyan hat yok",
-      "shown": "{n}/{total} hat"
+      "shown": "{n}/{total} hat",
+      "console": {
+        "open_title": "Bu şeridi aç",
+        "show": "Konsol",
+        "hide": "Konsolu gizle",
+        "not_live": "Kuyruktaki bir şeridin henüz konsolu yok.",
+        "waiting": "Şeridin kutusunun ekranını göndermesi bekleniyor…",
+        "live": "{n} sn önce yakalandı",
+        "stale": "Son yakalama {n} sn önce: kutu daha yenisini göndermedi",
+        "redacted": "Kutuda {n} gizli bilgi maskelendi | Kutuda {n} gizli bilgi maskelendi",
+        "follow": "Takip et",
+        "pause": "Duraklat",
+        "resume": "Sürdür",
+        "save": "Dosyaya kaydet",
+        "label": "{lane} konsolu",
+        "forbidden": "Bir şeridin konsolunu yalnızca yönetici görür.",
+        "gone": "Bu şerit artık etkin değil.",
+        "error": "Konsol yüklenemedi."
+      }
     },
     "topics": {
       "loading": "Tartışmalar yükleniyor…",

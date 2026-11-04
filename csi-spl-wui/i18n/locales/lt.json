@@ -3449,7 +3449,25 @@
       "age_24h": "Iki 24 val.",
       "age_older": "Daugiau nei 24 val.",
       "no_match": "Jokia linija neatitinka filtrų",
-      "shown": "{n} iš {total} linijų"
+      "shown": "{n} iš {total} linijų",
+      "console": {
+        "open_title": "Atidaryti šią juostą",
+        "show": "Konsolė",
+        "hide": "Slėpti konsolę",
+        "not_live": "Eilėje laukiančiai juostai konsolės dar nėra.",
+        "waiting": "Laukiama, kol juostos dėžė atsiųs savo ekraną…",
+        "live": "Užfiksuota prieš {n} s",
+        "stale": "Paskutinis fiksavimas prieš {n} s: dėžė neatsiuntė naujesnio",
+        "redacted": "Dėžėje užmaskuota paslapčių: {n} | Dėžėje užmaskuota paslapčių: {n}",
+        "follow": "Sekti",
+        "pause": "Pristabdyti",
+        "resume": "Tęsti",
+        "save": "Įrašyti į failą",
+        "label": "Juostos {lane} konsolė",
+        "forbidden": "Juostos konsolę mato tik administratorius.",
+        "gone": "Ši juosta nebeaktyvi.",
+        "error": "Nepavyko įkelti konsolės."
+      }
     },
     "topics": {
       "loading": "Įkeliamos temos…",

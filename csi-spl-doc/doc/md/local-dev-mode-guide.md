@@ -66,7 +66,8 @@ container's https side) and is checked as free.
 
 ### 2.1 The one-click dev login
 
-On a fresh stack, open the app and press **Dev login** in the dev toolbar.
+On a fresh stack, open the app and press **Dev login** in the dev toolbar,
+at the bottom left of the sign-in page (`http://localhost:8080/login`).
 It signs you in as `dev-owner@spool.local`, the owner of workspace `main`
 (`POST /api/v1/auth/dev-login`). It works only while the dev owner is the
 first person to sign in: on a stack where someone else already claimed
@@ -171,7 +172,7 @@ cd csi-spl-orc && DEV_MODE_CMD=status ./run -a do_dev_mode_ctl
 | `FATAL docker compose up failed` | `docker compose logs hub` (or `hub-init`, `web`) from the repository root names the cause |
 | `dev_login_not_owner` | someone else signed in first: section 4.2 |
 | no mail in Mailpit | `docker compose logs hub` shows the mail send; the hub starts only once its mail check reaches Mailpit |
-| no Dev login button | the button shows only on a localhost address and on a stack started by `do_dev_mode_up` |
+| no Dev login button | the button shows only on a localhost address and on a stack started by `do_dev_mode_up` (its `/config.json` says `"envName": "lde"`), on the sign-in page |
 
 The code: `csi-spl-orc/src/bash/run/dev-mode-ctl.func.sh` (with
 `dev-mode-up.func.sh` and `dev-mode-down.func.sh`), tested by

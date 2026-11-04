@@ -98,6 +98,16 @@
     <footer class="login-front__powered" data-test="login-powered-by">
       <PoweredBy />
     </footer>
+    <!-- spec 148 B7 (SPL-4750): the local dev toolbar, its one-click Dev
+         login and the Mailpit link. Its chunk is fetched only once the
+         served config names local dev (read after mount, so no prerendered
+         page carries it) and its strings are merged (second catalogue); the
+         component itself also asks for a loopback host. Teleported to the
+         body: inside the layout's scrolling body its fixed bar sat under the
+         footer, where no click reached it. -->
+    <Teleport v-if="localDev" to="body">
+      <LazyDevToolbar v-if="te('dev_toolbar.login')" />
+    </Teleport>
   </div>
 </template>
 
@@ -194,7 +204,10 @@ watch(authError.value, (code) => {
    intro. The mock tenant has no hub: it asks its own origin, which never
    answers a demo (e2e answers it in the browser). */
 const demo = ref<{ workspace: string, maxLive: number } | null>(null)
+/* spec 148 B7: config.json names the hub's local dev env "lde" (compose only) */
+const localDev = ref(false)
 onMounted(() => {
+  localDev.value = String(useRuntimeConfig().public.envName || '').trim().toLowerCase() === 'lde'
   void session.probe()
   const api = useSpoolApi()
   void loadDemo(api.mock ? '' : api.base).then((d) => { demo.value = d })

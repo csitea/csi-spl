@@ -61,6 +61,10 @@ export const ON_DEMAND_COMPONENTS = {
   // SPL-2149: the offline strip renders once its own strings are merged
   // (te()); app.vue mounts it only offline, so first paint is unchanged
   "components/OfflineBanner.vue": "idle",
+  // spec 148 B7 (SPL-4750): the sign-in page mounts the local dev toolbar
+  // only on local dev mode AND once te('dev_toolbar.login') holds, so a
+  // deployed page's first download is unchanged
+  "components/DevToolbar.vue": "idle",
 }
 
 /** True when the route renders a first-screen page (its strings are all in core). */

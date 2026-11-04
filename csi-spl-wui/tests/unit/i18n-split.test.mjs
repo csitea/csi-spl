@@ -88,7 +88,7 @@ describe('loader gates', () => {
     assert.ok(!isFirstScreenRoute({ name: undefined }))
   })
   it('the Settings modal is mounted only on ?settings=, which the loader awaits', () => {
-    assert.deepEqual(Object.keys(ON_DEMAND_COMPONENTS), ['components/SettingsDialog.vue', 'components/StatusPicker.vue', 'components/ComposerStatusLine.vue', 'components/DemoIntro.vue', 'components/AttachmentRemoveX.vue', 'components/PollBody.vue', 'components/PollForm.vue', 'components/SearchErrorNotice.vue', 'components/PlainErrorNotice.vue', 'components/AwaitReply.vue', 'components/FeedEmpty.vue', 'components/ComposerDraftState.vue', 'components/TabletStrip.vue', 'components/OfflineBanner.vue'])
+    assert.deepEqual(Object.keys(ON_DEMAND_COMPONENTS), ['components/SettingsDialog.vue', 'components/StatusPicker.vue', 'components/ComposerStatusLine.vue', 'components/DemoIntro.vue', 'components/AttachmentRemoveX.vue', 'components/PollBody.vue', 'components/PollForm.vue', 'components/SearchErrorNotice.vue', 'components/PlainErrorNotice.vue', 'components/AwaitReply.vue', 'components/FeedEmpty.vue', 'components/ComposerDraftState.vue', 'components/TabletStrip.vue', 'components/OfflineBanner.vue', 'components/DevToolbar.vue'])
     /* SPL-2149: the offline strip renders only once its strings are merged */
     assert.match(read('src/components/OfflineBanner.vue'), /const ready = computed\(\(\) => te\('offline\.banner\.title'\)\)/)
     /* SPL-2145: the tablet strip's expand button says the core "Channels" until its own string is merged */
@@ -107,6 +107,8 @@ describe('loader gates', () => {
     assert.match(read('src/components/PollBody.vue'), /te\('poll\.chat'\) \? splitPolls/)
     /* spec 116 T3: the sign-in page mounts the demo intro only once its strings are merged */
     assert.match(read('src/pages/login.vue'), /<LazyDemoIntro v-if="[^"]*&& te\('demo\.intro\.title'\)"/)
+    /* spec 148 B7: the sign-in page mounts the local dev toolbar only once its strings are merged */
+    assert.match(read('src/pages/login.vue'), /<LazyDevToolbar v-if="te\('dev_toolbar\.login'\)"/)
     /* SPL-1560: a file card mounts its remove X only once its strings are merged */
     assert.match(read('src/components/FileAttachment.vue'), /removable = computed\(\(\) => [^\n]*te\('feed\.file_remove\.label'\)\)/)
     /* the one place that renders it: a second mount without the gate would leave it keyless */

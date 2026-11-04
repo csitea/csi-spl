@@ -58,6 +58,13 @@ itself is a dry run unless `DRY_RUN` is exactly `0` (test 1b: empty,
 deleted it too (the store held 8.7 GB, over the 8 GB limit). Test 7 now
 pins the expression.
 
+The disk-red control (`c946-ctl-disk-red`, `CI_DISK_NEED_GB` 500, wf 10
+run 41835605336) failed all 13 guarded jobs at the guard with `disk full
+before tests: 109.2G < 500G (/)`. In hub-pg it also showed a second red:
+the cap step still ran (`!cancelled()`) with an empty Go cache dir and
+exited 2 (usage). The cap step now also needs
+`steps.gocache.outputs.dir != ''` (`ci-disk-guard.tst.sh` 11).
+
 A skipped save or a pruned cache costs the next run a cold build (~350 s on
 hub-pg, spec 133 r29), never a red. A disk guard red names the disk, so it
 does not read as a test failure.

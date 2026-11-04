@@ -18,6 +18,9 @@
 #        comes before it
 #    10. CI_GO_CACHE_SAVE_MAX_MB sits above the normal trimmed save (2.1 G
 #        uncompressed on run 41813241775, so > 2200 MB), or every run skips it
+#    11. hub-pg's cap step runs only once the Go cache dir is known: a job
+#        that failed before it (the disk guard, run 41835605336) must not add
+#        a second red, the cap's usage exit 2 on an empty dir
 #   CONTROLS: the stub df reports what it is given; a save step without the
 #             cap condition is caught by the check of 9.
 #------------------------------------------------------------------------------
@@ -118,6 +121,16 @@ need=$(sed -nE 's/^  CI_DISK_NEED_GB: *"?([0-9]+)"?.*/\1/p' "$WF")
 [[ "$cap" =~ ^[0-9]+$ && $cap -gt 2200 && "$need" =~ ^[0-9]+$ ]] \
   && pass "10. wf 10 env: CI_GO_CACHE_SAVE_MAX_MB=$cap (> 2200, the normal save), CI_DISK_NEED_GB=$need" \
   || fail "10. wf 10 env: CI_GO_CACHE_SAVE_MAX_MB='$cap' CI_DISK_NEED_GB='$need'"
+
+# 11: the cap step's `if:` needs the Go cache dir
+cap_gated() {  # <job body> -> 0 when the cap step is gated on a known cache dir
+  awk '/^      - name:/ {if (blk ~ /ci-cache-save-cap\.sh/) print blk; blk = ""} {blk = blk "\n" $0}
+       END {if (blk ~ /ci-cache-save-cap\.sh/) print blk}' <<<"$1" | grep -F "steps.gocache.outputs.dir != ''" >/dev/null
+}
+cap_gated "$pg" && pass "11. hub-pg runs the cache cap only with a known Go cache dir" \
+  || fail "11. hub-pg cap step runs on an empty Go cache dir (exit 2 after an earlier failure)"
+ctl=$(printf '      - name: Cap\n        if: ${{ !cancelled() }}\n        run: bash x/ci-cache-save-cap.sh "$D"\n')
+cap_gated "$ctl" && fail "CONTROL: an ungated cap step passed check 11" || pass "CONTROL: an ungated cap step is caught by check 11"
 
 # CONTROL
 env FAKE_AVAIL_KB=4242 "$T/df" -Pk / | grep ' 4242 ' >/dev/null && pass "CONTROL: the df stub reports what it is given" \

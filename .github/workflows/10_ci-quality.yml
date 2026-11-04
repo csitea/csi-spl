@@ -464,7 +464,7 @@ jobs:
       # stays green), so the store never again holds a 6 GB race cache.
       - name: Cap the Go build cache save (CI_GO_CACHE_SAVE_MAX_MB)
         id: gocache-cap
-        if: ${{ !cancelled() && steps.gocache-restore.outputs.cache-hit != 'true' && github.event_name != 'pull_request' && github.event_name != 'pull_request_target' }}
+        if: ${{ !cancelled() && steps.gocache.outputs.dir != '' && steps.gocache-restore.outputs.cache-hit != 'true' && github.event_name != 'pull_request' && github.event_name != 'pull_request_target' }}
         env:
           CI_CACHE_SAVE_MAX_MB: ${{ env.CI_GO_CACHE_SAVE_MAX_MB }}
           GOCACHE_DIR: ${{ steps.gocache.outputs.dir }}

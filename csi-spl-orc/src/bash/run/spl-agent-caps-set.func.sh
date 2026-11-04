@@ -9,6 +9,10 @@
 # @description rows the hub's store.SetAgentCaps writes: the cap and one
 # @description operator_audit row (set_agent_caps / delete_agent_cap) per
 # @description workspace whose cap changes; an unchanged cap writes nothing.
+# @description Each use is recorded with the acting agent (actor_hum and the
+# @description cap's updated_by) and the owner's message (detail.owner_msg,
+# @description detail.ordered_by): owner HUM-10 t1 476aff8f msg d131a690,
+# @description "each use is recorded with the agent and your message".
 # @description One transaction; it prints "<ws> | <before> -> <after>" per
 # @description workspace, then reads every one back. DRY_RUN=1 (default) runs
 # @description the same writes and rolls them back.
@@ -17,14 +21,17 @@
 # @param ALL (optional) - 1: every workspace of the env
 # @param CAPS_VENDOR - required: claude, grok, mistral, agy or qwen
 # @param CAPS_MAX_LIVE - required: a whole number >= 0 (0 forbids the vendor), or none (uncapped)
-# @param ORDERED_BY (DRY_RUN=0 only) - the HUM-n who ordered it: the audit row's actor_hum
+# @param AGENT_ID (DRY_RUN=0 only) - the acting agent (c-080, c-080@sat): the audit row's actor_hum
+# @param ORDERED_BY (DRY_RUN=0 only) - the HUM-n who ordered it
+# @param OWNER_MSG_ID (DRY_RUN=0 only) - the uuid of the owner's message that ordered it
 # @param DRY_RUN (optional) - 1 (default) or 0
-# @example ENV=prd ALL=1 CAPS_VENDOR=grok CAPS_MAX_LIVE=0 ORDERED_BY=HUM-10 DRY_RUN=0 ./run -a do_spl_agent_caps_set
+# @example ENV=prd ALL=1 CAPS_VENDOR=grok CAPS_MAX_LIVE=0 DRY_RUN=0 AGENT_ID=c-080 ORDERED_BY=HUM-10 OWNER_MSG_ID=<uuid> ./run -a do_spl_agent_caps_set
 #------------------------------------------------------------------------------
 do_spl_agent_caps_set() {
   do_require_bin yq psql || return 1
   do_spl_cloud_cnf || return 1
-  local tenant="${TENANT_ID:-}" all="${ALL:-0}" vendor="${CAPS_VENDOR:-}" n="${CAPS_MAX_LIVE:-}" by="${ORDERED_BY:-}" dry=1
+  local tenant="${TENANT_ID:-}" all="${ALL:-0}" vendor="${CAPS_VENDOR:-}" n="${CAPS_MAX_LIVE:-}" dry=1
+  local agent="${AGENT_ID:-}" by="${ORDERED_BY:-}" omsg="${OWNER_MSG_ID:-}"
   case "$all" in
     1) [[ -z "$tenant" ]] || { do_log "FATAL set TENANT_ID or ALL=1, not both"; return 1; } ;;
     0) spl_require_tenant_slug "$tenant" || return 1 ;;
@@ -35,13 +42,22 @@ do_spl_agent_caps_set() {
   [[ "$n" =~ ^(0|[1-9][0-9]{0,3}|none)$ ]] ||
     { do_log "FATAL CAPS_MAX_LIVE must be a whole number 0..9999 or none, got: '$n'"; return 1; }
   if spl_dry_run; then :; else local drc=$?; [[ $drc -eq 1 ]] || return 1; dry=0; fi
-  if (( ! dry )); then
-    [[ "$by" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL DRY_RUN=0 needs ORDERED_BY=<HUM-n> (the audit actor), got: '$by'"; return 1; }
-  fi
+  (( dry )) || _spl_agent_caps_set_who "$agent" "$by" "$omsg" || return 1
   do_gcp_pin_account "$SPL_CNF" || return 1
   do_gcp_require_live_account "$GCP_ACCOUNT" || return 1
-  SPL_AC_TENANT="$tenant" SPL_AC_VENDOR="$vendor" SPL_AC_N="$n" SPL_AC_BY="${by:-HUM-0}" SPL_AC_DRY="$dry" \
+  SPL_AC_TENANT="$tenant" SPL_AC_VENDOR="$vendor" SPL_AC_N="$n" SPL_AC_DRY="$dry" \
+    SPL_AC_AGENT="${agent:-dry-run}" SPL_AC_BY="${by:-HUM-0}" SPL_AC_MSG="$omsg" \
     spl_via_proxy _spl_agent_caps_set_run
+}
+
+# _spl_agent_caps_set_who <agent> <ordered_by> <owner msg id>: a write names
+# who carried it (an agent id, never a HUM-, never -000) and the owner's order.
+_spl_agent_caps_set_who() {
+  [[ "$1" =~ ^[acgmoqu]-[0-9]{3}(@[a-z0-9-]{1,32})?$ && "$1" != ?-000* ]] ||
+    { do_log "FATAL DRY_RUN=0 needs AGENT_ID=<the acting agent, e.g. c-080>, got: '$1'"; return 1; }
+  [[ "$2" =~ ^HUM-[0-9]+$ ]] || { do_log "FATAL DRY_RUN=0 needs ORDERED_BY=<HUM-n>, got: '$2'"; return 1; }
+  [[ "$3" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] ||
+    { do_log "FATAL DRY_RUN=0 needs OWNER_MSG_ID=<the owner message uuid>, got: '$3'"; return 1; }
 }
 
 # The caps write, its audit rows and the read back: ONE transaction under the
@@ -52,7 +68,8 @@ _spl_agent_caps_set_run() {
   local out want="$SPL_AC_N"
   [[ "$want" == none ]] && want=""
   out="$(spl_pg_env "$SPL_PROXY_DSN" psql -X -q -At -v ON_ERROR_STOP=1 \
-    -v tenant="$SPL_AC_TENANT" -v vendor="$SPL_AC_VENDOR" -v want="$want" -v by="$SPL_AC_BY" -v dry="$SPL_AC_DRY" <<'SQL'
+    -v tenant="$SPL_AC_TENANT" -v vendor="$SPL_AC_VENDOR" -v want="$want" -v dry="$SPL_AC_DRY" \
+    -v agent="$SPL_AC_AGENT" -v by="$SPL_AC_BY" -v omsg="$SPL_AC_MSG" <<'SQL'
 BEGIN;
 SET LOCAL app.rls_scope = 'operator';
 CREATE TEMP TABLE ac_plan ON COMMIT DROP AS
@@ -75,13 +92,14 @@ SELECT * FROM ac_plan WHERE before IS DISTINCT FROM after;
 DELETE FROM tenant_agent_caps c USING ac_change a
  WHERE a.after IS NULL AND c.tenant_id = a.tenant_id AND c.vendor = :'vendor';
 INSERT INTO tenant_agent_caps (tenant_id, vendor, max_live, created_at, updated_at, updated_by)
-SELECT tenant_id, :'vendor', after, now(), now(), :'by' FROM ac_change WHERE after IS NOT NULL
+SELECT tenant_id, :'vendor', after, now(), now(), :'agent' FROM ac_change WHERE after IS NOT NULL
 ON CONFLICT (tenant_id, vendor) DO UPDATE SET max_live = EXCLUDED.max_live,
   updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
 INSERT INTO operator_audit (at, tenant_id, actor_tenant, actor_hum, action, detail)
-SELECT now(), a.tenant_id, coalesce((SELECT tenant_id FROM tenants WHERE is_operator), ''), :'by',
+SELECT now(), a.tenant_id, coalesce((SELECT tenant_id FROM tenants WHERE is_operator), ''), :'agent',
        CASE WHEN a.after IS NULL THEN 'delete_agent_cap' ELSE 'set_agent_caps' END,
-       jsonb_build_object('vendor', :'vendor', 'max_live', a.after, 'previous', a.before, 'via', 'do_spl_agent_caps_set')
+       jsonb_build_object('vendor', :'vendor', 'max_live', a.after, 'previous', a.before, 'via', 'do_spl_agent_caps_set',
+                          'agent', :'agent', 'ordered_by', :'by', 'owner_msg', :'omsg')
   FROM ac_change a;
 SELECT count(*) AS written FROM ac_change \gset
 SELECT format('%s = %s', p.tenant_id, coalesce(c.max_live::text, 'uncapped'))
@@ -109,8 +127,8 @@ SQL
   [[ -n "$ws" && "$ws" == "$m" ]] ||
     { do_log "FATAL read back of $SPL_AC_VENDOR=$SPL_AC_N in $ENV does not match: $line"; return 1; }
   if (( SPL_AC_DRY )); then
-    do_log "OK DRY_RUN rolled back: $SPL_AC_VENDOR cap $SPL_AC_N in $ENV, $line. Re-run with DRY_RUN=0 ORDERED_BY=<HUM-n>."
+    do_log "OK DRY_RUN rolled back: $SPL_AC_VENDOR cap $SPL_AC_N in $ENV, $line. Re-run with DRY_RUN=0 AGENT_ID=<you> ORDERED_BY=<HUM-n> OWNER_MSG_ID=<uuid>."
   else
-    do_log "OK $SPL_AC_VENDOR cap $SPL_AC_N in $ENV ($GCP_ACCOUNT, ordered_by=$SPL_AC_BY): $line"
+    do_log "OK $SPL_AC_VENDOR cap $SPL_AC_N in $ENV ($GCP_ACCOUNT, agent=$SPL_AC_AGENT, ordered_by=$SPL_AC_BY, owner_msg=$SPL_AC_MSG): $line"
   fi
 }

@@ -5,7 +5,8 @@
 #
 # The controls are the point:
 #   - DRY_RUN=1 runs the same writes and rolls them back: no cap, no audit row
-#   - DRY_RUN=0 without ORDERED_BY=<HUM-n> is refused before any cloud call
+#   - DRY_RUN=0 without AGENT_ID, ORDERED_BY and OWNER_MSG_ID is refused
+#     before any cloud call; the audit row names the agent and the owner msg
 #   - ALL=1 caps the one vendor in every workspace and NOTHING of another vendor
 #   - a re-run writes nothing (an unchanged cap is no audit row)
 set -uo pipefail
@@ -23,7 +24,7 @@ grep -q "SET LOCAL app.rls_scope = 'operator'" "$FUNC" && pass "the write runs i
 
 # --- the argument guards, sourced like the other orc tests (no ./run) ---------
 act() {
-  env -u CLOUDSDK_CONFIG -u ACCOUNT -u GCP_ACCOUNT -u TENANT_ID -u ALL -u CAPS_VENDOR -u CAPS_MAX_LIVE -u ORDERED_BY -u DRY_RUN \
+  env -u CLOUDSDK_CONFIG -u ACCOUNT -u GCP_ACCOUNT -u TENANT_ID -u ALL -u CAPS_VENDOR -u CAPS_MAX_LIVE -u ORDERED_BY -u AGENT_ID -u OWNER_MSG_ID -u DRY_RUN \
     HOME="$T/home" PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state" ENV=dev "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
@@ -48,12 +49,19 @@ guard "a missing max_live"          "CAPS_MAX_LIVE must be"           ALL=1 CAPS
 guard "a negative max_live"         "CAPS_MAX_LIVE must be"           ALL=1 CAPS_VENDOR=grok CAPS_MAX_LIVE=-1
 guard "a padded max_live"           "CAPS_MAX_LIVE must be"           ALL=1 CAPS_VENDOR=grok CAPS_MAX_LIVE=01
 guard "a bad DRY_RUN"               "DRY_RUN must be 0 or 1"          "${OK[@]}" ALL=1 DRY_RUN=yes
-guard "DRY_RUN=0 without ORDERED_BY" "needs ORDERED_BY=<HUM-n>"       "${OK[@]}" ALL=1 DRY_RUN=0
-guard "an agent as ORDERED_BY"      "needs ORDERED_BY=<HUM-n>"        "${OK[@]}" ALL=1 DRY_RUN=0 ORDERED_BY=c-080
+MSG=d131a690-2c55-4ff7-8863-f24e0c0a9276
+WHO=(AGENT_ID=c-080 ORDERED_BY=HUM-10 "OWNER_MSG_ID=$MSG")
+guard "DRY_RUN=0 without AGENT_ID"   "needs AGENT_ID=<the acting agent" "${OK[@]}" ALL=1 DRY_RUN=0 ORDERED_BY=HUM-10 OWNER_MSG_ID=$MSG
+guard "a HUM- as AGENT_ID"           "needs AGENT_ID=<the acting agent" "${OK[@]}" ALL=1 DRY_RUN=0 "${WHO[@]}" AGENT_ID=HUM-10
+guard "the -000 seat as AGENT_ID"    "needs AGENT_ID=<the acting agent" "${OK[@]}" ALL=1 DRY_RUN=0 "${WHO[@]}" AGENT_ID=c-000
+guard "DRY_RUN=0 without ORDERED_BY" "needs ORDERED_BY=<HUM-n>"         "${OK[@]}" ALL=1 DRY_RUN=0 AGENT_ID=c-080 OWNER_MSG_ID=$MSG
+guard "an agent as ORDERED_BY"       "needs ORDERED_BY=<HUM-n>"         "${OK[@]}" ALL=1 DRY_RUN=0 "${WHO[@]}" ORDERED_BY=c-080
+guard "DRY_RUN=0 without OWNER_MSG_ID" "needs OWNER_MSG_ID=<the owner"  "${OK[@]}" ALL=1 DRY_RUN=0 AGENT_ID=c-080 ORDERED_BY=HUM-10
+guard "a short OWNER_MSG_ID"         "needs OWNER_MSG_ID=<the owner"    "${OK[@]}" ALL=1 DRY_RUN=0 "${WHO[@]}" OWNER_MSG_ID=d131a690
 act "${OK[@]}" ALL=1
-grep -q REACHED-CLOUD "$T/out" && pass "CONTROL: a DRY_RUN with ALL=1 passes the guards (no ORDERED_BY needed)" || fail "dry ALL=1 refused: $(cat "$T/out")"
-act "${OK[@]}" TENANT_ID=t1 DRY_RUN=0 ORDERED_BY=HUM-10
-grep -q REACHED-CLOUD "$T/out" && pass "CONTROL: DRY_RUN=0 with ORDERED_BY passes the guards" || fail "real refused: $(cat "$T/out")"
+grep -q REACHED-CLOUD "$T/out" && pass "CONTROL: a DRY_RUN with ALL=1 passes the guards (no AGENT_ID / ORDERED_BY / OWNER_MSG_ID needed)" || fail "dry ALL=1 refused: $(cat "$T/out")"
+act "${OK[@]}" TENANT_ID=t1 DRY_RUN=0 "${WHO[@]}" AGENT_ID=c-080@sat
+grep -q REACHED-CLOUD "$T/out" && pass "CONTROL: DRY_RUN=0 with AGENT_ID (c-080@sat), ORDERED_BY and OWNER_MSG_ID passes the guards" || fail "real refused: $(cat "$T/out")"
 
 # --- the write against a real Postgres ---------------------------------------
 PG_IMAGE="${SPOOL_TEST_PG_IMAGE:-postgres:16-alpine}"
@@ -93,7 +101,7 @@ audits() { psql_owner -c "SELECT count(*) FROM operator_audit WHERE action IN ('
 
 set_run() { # <dry> <tenant|''> <vendor> <n>
   env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" ENV=dev GCP_ACCOUNT=test@example.com SPL_PROXY_DSN="$RT_DSN" \
-    SPL_AC_DRY="$1" SPL_AC_TENANT="$2" SPL_AC_VENDOR="$3" SPL_AC_N="$4" SPL_AC_BY=HUM-10 bash -c '
+    SPL_AC_DRY="$1" SPL_AC_TENANT="$2" SPL_AC_VENDOR="$3" SPL_AC_N="$4" SPL_AC_AGENT=c-080 SPL_AC_BY=HUM-10 SPL_AC_MSG="$MSG" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
     source "$PROJ_PATH/lib/bash/funcs/spl-cloud-cnf.func.sh"
@@ -112,9 +120,13 @@ set_run 0 "" grok 0; rc=$?
   && [[ "$(caps)" == "ops:grok=0,system:grok=0,wa:grok=0,wb:claude=3,wb:grok=0" ]] \
   && pass "ALL=1 grok=0 caps every workspace, reads back 4 of 4 (the migrations seed system)" || fail "all: rc=$rc $(cat "$T/out") caps=$(caps)"
 [[ "$(caps)" == *"wb:claude=3"* ]] && pass "CONTROL: the claude cap of wb is untouched" || fail "claude touched: $(caps)"
-a="$(psql_owner -c "SELECT actor_tenant||' '||actor_hum||' '||(detail->>'previous') FROM operator_audit WHERE tenant_id='wb' AND action='set_agent_caps'")"
-[[ "$(audits)" == 4 && "$a" == "ops HUM-10 2" ]] && pass "one audit row per changed workspace (actor ops HUM-10, previous 2)" \
+a="$(psql_owner -c "SELECT concat_ws(' ', actor_tenant, actor_hum, detail->>'previous', detail->>'agent', detail->>'ordered_by', detail->>'owner_msg') FROM operator_audit WHERE tenant_id='wb' AND action='set_agent_caps'")"
+[[ "$(audits)" == 4 && "$a" == "ops c-080 2 c-080 HUM-10 $MSG" ]] \
+  && pass "one audit row per changed workspace: actor the agent c-080, ordered_by HUM-10, owner_msg, previous 2" \
   || fail "audit: n=$(audits) wb=$a"
+
+u="$(psql_owner -c "SELECT string_agg(DISTINCT updated_by, ',') FROM tenant_agent_caps WHERE vendor='grok'")"
+[[ "$u" == c-080 ]] && pass "the caps' updated_by is the acting agent" || fail "updated_by: $u"
 
 set_run 0 "" grok 0; rc=$?
 [[ $rc -eq 0 ]] && grep -q "written=0 readback_match=4 committed=t" "$T/out" && [[ "$(audits)" == 4 ]] \

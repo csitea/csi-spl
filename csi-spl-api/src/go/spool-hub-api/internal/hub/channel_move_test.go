@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"github.com/jackc/pgx/v5"
 
@@ -460,13 +462,14 @@ func TestChannelMovePostC8(t *testing.T) {
 }
 
 // C8, the browser's post and the old permalink. A browser post is signed as a
-// <SRC> member and cannot go on under <DST>: it is refused, with the link only.
+// <SRC> member and cannot go on under <DST>: it is refused, with the link only
+// to a <DST> member (a non-member: TestChannelMoveNonMemberNoDestination).
 // CONTROLS: a brand-new task posts; an unknown task reads as before.
 func TestChannelMoveBrowserAndPermalinkC8(t *testing.T) {
 	e := chanMoveEnv(t)
 	src, _ := e.tenant()
 	dst, _ := e.tenant()
-	hum := seat(t, e, src, rbac.Admin)
+	hum := seatTwice(t, e, src, dst)
 	moveChannel(t, e, src, "proj-x", hum)
 	c := dialMember(t, e, src, "", hum)
 
@@ -505,6 +508,46 @@ func TestChannelMoveBrowserAndPermalinkC8(t *testing.T) {
 	}
 	if code, out = call(t, e, src, http.MethodGet, "/v1/view/topics/"+uuid4(), hum, nil); out["error"] == "topic_moved" {
 		t.Fatalf("control, an unknown task: %d %v", code, out)
+	}
+}
+
+// W1, Q5, 11.1: a <SRC> reader who is not a <DST> member was dropped by the move
+// (or never had the channel), and <DST> may be a hidden workspace: the permalink
+// and the browser post answer that reader the bare 404 / refusal, never <DST>'s
+// id or link. CONTROL: the same reads by a <DST> member name the destination.
+func TestChannelMoveNonMemberNoDestination(t *testing.T) {
+	e := chanMoveEnv(t)
+	src, _ := e.tenant()
+	dst, _ := e.tenant()
+	member := seatTwice(t, e, src, dst)
+	dropped := seat(t, e, src, rbac.Admin)
+	moveChannel(t, e, src, "proj-x", dropped)
+	live := uuid4()
+	moveRedirect(t, e, src, live, dst, time.Hour, 30*24*time.Hour)
+
+	code, out := call(t, e, src, http.MethodGet, "/v1/view/topics/"+live, member, nil)
+	if link, _ := out["moved_to"].(string); code != http.StatusNotFound || out["error"] != "topic_moved" || !strings.HasSuffix(link, "/t/"+live) || out["moved_to_tenant"] != dst {
+		t.Fatalf("control, a <DST> member: %d %v", code, out)
+	}
+	code, out = call(t, e, src, http.MethodGet, "/v1/view/topics/"+live, dropped, nil)
+	_, hasLink := out["moved_to"]
+	_, hasTenant := out["moved_to_tenant"]
+	if code != http.StatusNotFound || out["error"] != "topic_moved" || hasLink || hasTenant || strings.Contains(fmt.Sprint(out), dst) {
+		t.Fatalf("permalink, not a <DST> member: %d %v", code, out)
+	}
+
+	send := func(c *websocket.Conn) map[string]any {
+		wsjson.Write(context.Background(), c, map[string]any{"type": "send", "msg_id": uuid4(), "task_id": live, "kind": "note", "body": "hello", "channel": "proj-x"}) //nolint:errcheck
+		return readType(t, c, "ack")
+	}
+	if f := send(dialMember(t, e, src, "", member)); f["error"] != "topic_moved" || !strings.Contains(f["detail"].(string), dst) {
+		t.Fatalf("control, a <DST> member's post: %v", f)
+	}
+	if f := send(dialMember(t, e, src, "", dropped)); f["error"] != "topic_moved" || strings.Contains(fmt.Sprint(f), dst) {
+		t.Fatalf("post, not a <DST> member: %v", f)
+	}
+	if s, d := taskRows(t, e, src, live), taskRows(t, e, dst, live); s != 0 || d != 0 {
+		t.Fatalf("%d rows in <SRC>, %d in <DST>", s, d)
 	}
 }
 

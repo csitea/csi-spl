@@ -397,12 +397,32 @@ func (s *Server) topicLink(r *store.ChannelMoveRedirect) string {
 	return GcalWorkspaceURL(s.o.TenantHostPattern, s.o.WUIApexTenant, "")(r.Dst) + "/t/" + r.NewRef
 }
 
-// movedRefusal is the refusal of a post to a moved task.
-func (s *Server) movedRefusal(red *store.ChannelMoveRedirect) *frameRefusal {
-	if !red.Live(s.o.Now()) {
-		return &frameRefusal{wire.TokenTopicMoved, http.StatusNotFound, "this topic is gone from this workspace"}
+// movedGone is the bare answer about a moved task: no destination.
+const movedGone = "this topic is gone from this workspace"
+
+// movedRefusal is the refusal of a post to a moved task; named = the sender may
+// learn the destination (a box post, T7b's re-route; a browser post: dstMember).
+func (s *Server) movedRefusal(red *store.ChannelMoveRedirect, named bool) *frameRefusal {
+	if !named || !red.Live(s.o.Now()) {
+		return &frameRefusal{wire.TokenTopicMoved, http.StatusNotFound, movedGone}
 	}
 	return &frameRefusal{wire.TokenTopicMoved, http.StatusConflict, wire.MovedDetail(red.Dst, s.topicLink(red))}
+}
+
+// dstMember reports whether the human hum may be named a move's destination:
+// only a <DST> member (W1, Q5). <DST> may be a hidden workspace (11.1), so a
+// <SRC> member the move dropped, a reader with no HUM-* and a failed read get
+// the bare answer.
+func (s *Server) dstMember(ctx context.Context, red *store.ChannelMoveRedirect, hum string) bool {
+	h, ok := s.o.Store.(store.Humans)
+	if !ok || hum == "" {
+		return false
+	}
+	_, err := h.MemberRole(ctx, hum, red.Dst)
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		s.o.Log.Error().Err(err).Msg("moved destination member check")
+	}
+	return err == nil
 }
 
 // movedCheckFailed is the refusal of a post whose redirect was not read.
@@ -421,9 +441,10 @@ func (s *Server) taskFirstOrMoved(ctx context.Context, tenant, taskID string) (s
 	return st.FirstChannel, st.Moved(), err
 }
 
-// browserMovedRefusal: a browser post with no root found (wuiChannel). The
-// lobby task is the hub's own, and a non-uuid id is no task (rdb 0249).
-func (s *Server) browserMovedRefusal(ctx context.Context, tenant, taskID string) *frameRefusal {
+// browserMovedRefusal: a browser post by member hum with no root found
+// (wuiChannel). The lobby task is the hub's own, and a non-uuid id is no task
+// (rdb 0249).
+func (s *Server) browserMovedRefusal(ctx context.Context, tenant, taskID, hum string) *frameRefusal {
 	if !msg.IsUUID(taskID) || (s.o.LobbyTaskID != "" && taskID == s.o.LobbyTaskID) {
 		return nil
 	}
@@ -433,7 +454,7 @@ func (s *Server) browserMovedRefusal(ctx context.Context, tenant, taskID string)
 		s.o.Log.Error().Err(err).Str("task_id", taskID).Msg("moved check")
 		return movedCheckFailed()
 	case red != nil:
-		return s.movedRefusal(red)
+		return s.movedRefusal(red, s.dstMember(ctx, red, hum))
 	}
 	return nil
 }
@@ -445,14 +466,15 @@ func (s *Server) sendMoved(ctx context.Context, tenant, taskID string) (int, *fr
 	case t.err != nil:
 		return t.level, movedCheckFailed()
 	case t.moved != nil:
-		return t.level, s.movedRefusal(t.moved)
+		return t.level, s.movedRefusal(t.moved, true)
 	}
 	return t.level, nil
 }
 
-// topicMovedAnswer is the read of a task with no rows, about to answer 404: true
-// has answered a moved one (W5). Only an empty first page costs this read.
-func (s *Server) topicMovedAnswer(w http.ResponseWriter, r *http.Request, tenant, task string) bool {
+// topicMovedAnswer is hum's read of a task with no rows, about to answer 404:
+// true has answered a moved one (W5), naming the destination to a <DST> member
+// only (dstMember). Only an empty first page costs this read.
+func (s *Server) topicMovedAnswer(w http.ResponseWriter, r *http.Request, tenant, task, hum string) bool {
 	_, red, err := s.taskFirstOrMoved(r.Context(), tenant, task)
 	switch {
 	case err != nil:
@@ -461,8 +483,8 @@ func (s *Server) topicMovedAnswer(w http.ResponseWriter, r *http.Request, tenant
 		return true
 	case red == nil:
 		return false
-	case !red.Live(s.o.Now()):
-		writeErr(w, http.StatusNotFound, wire.TokenTopicMoved, "this topic is gone from this workspace")
+	case !red.Live(s.o.Now()) || !s.dstMember(r.Context(), red, hum):
+		writeErr(w, http.StatusNotFound, wire.TokenTopicMoved, movedGone)
 		return true
 	}
 	writeJSON(w, http.StatusNotFound, map[string]any{"error": wire.TokenTopicMoved, "detail": wire.MovedDetail(red.Dst, s.topicLink(red)),

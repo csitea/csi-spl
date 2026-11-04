@@ -1256,7 +1256,7 @@ func (s *Server) topicPage(w http.ResponseWriter, r *http.Request, tenant, task,
 	}
 	if len(rows) == 0 && sq.AfterAt.IsZero() && sq.BeforeAt.IsZero() && task != s.o.LobbyTaskID {
 		// the lobby exists before its first post (wui-live-ws.md §1)
-		if !s.topicMovedAnswer(w, r, tenant, task) { // spec 169 W5, channel_move.go
+		if !s.topicMovedAnswer(w, r, tenant, task, hum) { // spec 169 W5, channel_move.go
 			writeErr(w, http.StatusNotFound, "not_found", "no such topic")
 		}
 		return nil, nil, 0, false

@@ -735,7 +735,7 @@ func (s *Server) wuiRoute(ctx context.Context, c *wuiConn, f wuiIn, m *msg.Messa
 	var rooted bool
 	rt.channel, rooted = s.wuiChannel(ctx, c.tenant, f.Channel, m.TaskID, isParent)
 	if !rooted { // spec 169 C8, channel_move.go
-		if rf := s.browserMovedRefusal(ctx, c.tenant, m.TaskID); rf != nil {
+		if rf := s.browserMovedRefusal(ctx, c.tenant, m.TaskID, c.member); rf != nil {
 			return rt, rf
 		}
 	}

@@ -929,6 +929,38 @@ Test: `csi-spl-orc/src/bash/tests/desk-moved-skip.tst.sh` (red on
 printed; red on the symmetric first version `7a5b6470a`: the agent user's
 pinned desk with its sidecar down was skipped, case 1g).
 
+#### 8.4.3 A pause holds moves, not a boot (SPL-4772)
+
+Measured on sat 2026-11-01: the box rebooted at 02:39:12Z while a desk-move
+pause (step 1) was fresh. Every desk-reconcile tick skipped every seat step
+("no seat step", cron.out 02:42:07Z), so 11 of 12 prd sidecars stayed dead
+for ~5 min. The relay from sat to the other box refused sends with rc 3, every sat workspace
+seat was deaf, and box-restart pass 2 reported only `rc 1`. The desks were
+re-seated by hand between 02:42Z and 02:45Z.
+
+- **The paused tick.** While `.desk-reconcile.<env>.pause` is fresh,
+  `desk-reconcile-cron.sh` still runs `do_spl_desk_reseat_dead`
+  (`csi-spl-orc/src/bash/run/spl-desk-reseat-dead.func.sh`). Its scope:
+  every desk of that env whose `hub-run.pid` was written before the current
+  boot and names no live `hub-run`. Such a sidecar died with the box. A move
+  stops a sidecar with `do_spl_desk_down`, which removes the pid file, so a
+  sidecar stopped by a move is never in this set.
+- **As its current user.** A desk is re-seated (`do_spl_desk_up` for its
+  first agent, through `spl_desk_box_restart`) only when the caller owns
+  the desk dir and the desk is pinned there. Then the run has no root key,
+  no join token, no keygen, no pin, no move and no rebox. A desk owned by
+  another user is left to that user's tick. A desk that moved
+  (`spl_desk_moved_to`, 8.4.2), a desk retired by a rebox, an unpinned desk
+  and a sidecar that died after the boot are left alone, one line each.
+  Live sidecars are never touched. `DESK_PAUSE_RESEAT=0` turns the step off.
+- **The after-check.** After its desk pass, `do_spl_box_restart_after` names
+  every desk of `BOX_RESTART_DESK_ENVS` (default `dev prd`) whose sidecar is
+  still dead. Each one gets an `ERROR dead desk after the restart: env=..
+  tenant=.. box=.. user=..` line and a `dead_desk` row in `<utc>.after`, and
+  the final ERROR line lists them.
+
+Test: `csi-spl-orc/src/bash/tests/desk-reseat-dead.tst.sh`, cases (a) to (d).
+
 ### 8.5 Build rows
 
 Rounds-rulebook rows. Disjoint files; batch 1 lands first, batch 2 rows in

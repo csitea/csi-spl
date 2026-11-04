@@ -10,7 +10,9 @@
 # @description <dir>/<utc>.rerun; once the first agent window is up, ONE pass
 # @description of every desk-reconcile line of this crontab (drill 2: the
 # @description hub-run sidecar has no boot hook; its own safety refusal
-# @description stays); then do_spl_box_restart_check.
+# @description stays); every desk whose sidecar is still dead named (env,
+# @description tenant, box, user; SPL-4772); then do_spl_box_restart_check.
+# @param BOX_RESTART_DESK_ENVS (optional) - the envs whose desks are checked, default "dev prd"
 # @param BOX_RESTART_AGENT_WAIT (optional) - after-boot seconds to wait for an agent window, default 900
 # @param BOX_RESTART_RUNNER_WAIT (optional) - after-boot seconds to wait for the runners online, default 300
 # @example ./run -a do_spl_box_restart_after
@@ -35,12 +37,38 @@ do_spl_box_restart_after() {
   spl_brx_after_runners "$(spl_brx_pending_get "$p" drained)" "$dir" || rc=1
   spl_brx_after_rerun "$(spl_brx_pending_get "$p" since)" "$dir/$utc.rerun" || rc=1
   spl_brx_after_desk || rc=1
+  spl_brx_after_dead_desks "$p" || rc=1
   BOX_RESTART_BEFORE="$(spl_brx_pending_get "$p" snapshot)" do_spl_box_restart_check || rc=1
   printf 'after\t%s\trc\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$rc" >> "$p"
   mv "$p" "$dir/$utc.after"
   if (( rc == 0 )); then do_log "OK the restart $utc is done: runners, re-runs, desk and agents"
-  else do_log "ERROR the restart $utc: a step above failed ($dir/$utc.after)"; fi
+  else do_log "ERROR the restart $utc: a step above failed ($dir/$utc.after)$(spl_brx_dead_desk_names "$dir/$utc.after")"; fi
   return "$rc"
+}
+
+# SPL-4772: after the desk pass, every desk of BOX_RESTART_DESK_ENVS (default
+# "dev prd") whose sidecar should run and is dead (spl_desk_dead_list), named:
+# one ERROR line and one "dead_desk <env> <tenant> <box> <user>" row in the
+# pending file each. Before, pass 2 of 2026-11-01 read only "rc 1".
+spl_brx_after_dead_desks() {
+  local p="$1" e t b u d n=0
+  declare -F spl_desk_dead_list >/dev/null ||
+    source "$(dirname "${BASH_SOURCE[0]}")/spl-desk-reseat-dead.func.sh"
+  for e in ${BOX_RESTART_DESK_ENVS:-dev prd}; do
+    while IFS=$'\t' read -r e t b u d; do
+      n=$((n + 1))
+      printf 'dead_desk\t%s\t%s\t%s\t%s\n' "$e" "$t" "$b" "$u" >> "$p"
+      do_log "ERROR dead desk after the restart: env=$e tenant=$t box=$b user=$u (no live hub-run; pid file $d/spool/.hub/hub-run.pid)"
+    done < <(spl_desk_dead_list "$e")
+  done
+  (( n == 0 )) && { do_log "OK no dead desk sidecar in ${BOX_RESTART_DESK_ENVS:-dev prd}"; return 0; }
+  return 1
+}
+
+# spl_brx_dead_desk_names <record>: " - dead desks: <env>/<tenant>/<box> (<user>) ..."
+# from its dead_desk rows, or nothing.
+spl_brx_dead_desk_names() {
+  awk -F'\t' '$1 == "dead_desk" { s = s sprintf(" %s/%s/%s (%s)", $2, $3, $4, $5) } END { if (s != "") printf " - dead desks:%s", s }' "$1" 2>/dev/null
 }
 
 # The units the drain stopped started again unless the CPU budget parked

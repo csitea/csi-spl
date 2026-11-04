@@ -435,18 +435,31 @@ fi
 # the seat steps are skipped (the lease and dispatch steps still run). A pause
 # older than DESK_PAUSE_MAX_SECS (default 1800) is ignored with a WARN, so a
 # window left open by mistake cannot keep the desks down for good.
+# A PAUSE HOLDS MOVES, NOT A BOOT (SPL-4772): sat rebooted at 2026-11-01
+# 02:39:12Z under a fresh desk-move pause, and 11 of 12 prd sidecars stayed
+# dead until a hand re-seat. So a paused tick still runs
+# do_spl_desk_reseat_dead: a desk whose sidecar died with the box is started
+# again as its current user, with no move, no rebox and no keygen; a live
+# sidecar is left alone. DESK_PAUSE_RESEAT=0 turns it off.
 pause="${SPOOL_ROOT:-/var/spool-hub}/.desk-reconcile.$ENV_NAME.pause"
 paused=0
 if [ -e "$pause" ]; then
   age=$(( $(date +%s) - $(stat -c %Y "$pause" 2>/dev/null || date +%s) ))
   if [ "$age" -le "${DESK_PAUSE_MAX_SECS:-1800}" ]; then
-    paused=1; say "INFO desks PAUSED by $pause (${age}s old: $(head -c 200 "$pause" 2>/dev/null)): no seat step this tick"
+    paused=1; say "INFO desks PAUSED by $pause (${age}s old: $(head -c 200 "$pause" 2>/dev/null)): no seat step this tick but the re-seat of sidecars dead since the boot"
   else
     say "WARN $pause is ${age}s old (> ${DESK_PAUSE_MAX_SECS:-1800}s): ignored, the desks are reconciled"
   fi
 fi
 
-if [ "$paused" = 1 ]; then rc=0; else
+if [ "$paused" = 1 ]; then
+  rc=0
+  if [ "${DESK_PAUSE_RESEAT:-1}" != 0 ]; then
+    ( cd "$ORC" && env -u TENANT_ID ENV="$ENV_NAME" DRY_RUN=0 ./run -a do_spl_desk_reseat_dead )
+    rc=$?
+    say "INFO do_spl_desk_reseat_dead exit $rc (paused: only sidecars that died with the box)"
+  fi
+else
 say "INFO reconciling desks: env=$ENV_NAME tenant=$TENANT orc=$ORC"
 # DESK_MUTE travels from the crontab line through to the action. Without it a
 # tick would UNDO a deliberate mute - DESK_POKE defaults to 1, so the reconcile

@@ -18,7 +18,7 @@ import (
 // `spool lane`, the put lands in the workspace of the box's pin, and the
 // workspace's owners and admins see them on GET /v1/view/lanes beside the
 // operator lanes on their topics. Memory, and Postgres under
-// SPOOL_TEST_PG_DSN (RLS). C71-C74.
+// SPOOL_TEST_PG_DSN (RLS). C71-C74, C79.
 // RED CONTROL (master af48d0fcb): C71 fails, w1's admin gets [c-501] only:
 // the route read the operator workspace's rows alone.
 func TestWorkspaceOwnLanes(t *testing.T) {
@@ -68,25 +68,46 @@ func TestWorkspaceOwnLanes(t *testing.T) {
 		}
 	}
 
-	// C74: no other workspace sees w1's own lanes or its box: w2's admin,
-	// the operator workspace's admin on this route, and (until the owner's
-	// F2 choice) the operator view.
+	// C74: no other workspace sees w1's own lanes or its box: w2's admin and
+	// the operator workspace's admin on this route.
 	if v, raw := wsLanes(t, r, r.w2, r.w2Admin, http.StatusOK); len(v.Lanes) != 0 || strings.Contains(raw, mac.id) {
 		t.Errorf("C74 w2 admin: %s, want no lane", raw)
 	}
 	if v, raw := wsLanes(t, r, r.op, r.admin, http.StatusOK); strings.Contains(raw, mac.id) || slices.Contains(laneKeys(v), "c-701") {
 		t.Errorf("C74 operator admin on %s: %s", workspaceLanesPath, raw)
 	}
-	opView, _ := json.Marshal(getLanes(t, r.fleetTokensRig))
-	if strings.Contains(string(opView), mac.id) {
-		t.Errorf("C74 the operator view lists w1's own lanes: %s", opView)
+
+	// C79 (owner F2 = A): the operator view lists w1's own lanes, named by
+	// w1, with the topic id as text and no w1 title, text or issue.
+	op := getLanes(t, r.fleetTokensRig)
+	opRaw, _ := json.Marshal(op)
+	mine := []string{}
+	for _, l := range op.Lanes {
+		if l.AgentBox != mac.id {
+			continue
+		}
+		mine = append(mine, l.AgentID)
+		if l.Workspace != r.w1 || l.TopicTitle != "" || len(l.Issues) != 0 {
+			t.Errorf("C79 operator row of w1's own lane: %+v", l)
+		}
+		if l.AgentID == "c-701" && l.TopicID != r.t1 {
+			t.Errorf("C79 c-701 topic id %q, want %s as text", l.TopicID, r.t1)
+		}
+	}
+	if !slices.Equal(mine, []string{"c-703", "c-702", "c-701"}) {
+		t.Errorf("C79 operator view, w1's own lanes %v, want [c-703 c-702 c-701]", mine)
+	}
+	for _, leak := range []string{"W1 build", "row B6", "W2 secret", "c-704", "c-705"} {
+		if strings.Contains(string(opRaw), leak) {
+			t.Errorf("C79: %q in the operator view: %s", leak, opRaw)
+		}
 	}
 }
 
 // Spec 153 section 3.17 (SPL-4778), the roster rows: a joined box's
 // `spool hub-run` announces its agents, and W's lanes view lists each one
 // that may run (running true or unreported) and has no lane row, keyed by
-// <agent>@<box>. C75-C78. RED CONTROL (master af48d0fcb, and this tree before
+// <agent>@<box>. C75-C78, C80. RED CONTROL (master af48d0fcb, and this tree before
 // rosterLanes): C75 fails, w1's admin reads [c-001@] only.
 func TestWorkspaceOwnRosterLanes(t *testing.T) {
 	r := newWSLanesRig(t)
@@ -146,5 +167,24 @@ func TestWorkspaceOwnRosterLanes(t *testing.T) {
 	}
 	if v, raw := wsLanes(t, r, r.w2, r.w2Admin, http.StatusOK); len(v.Lanes) != 0 || strings.Contains(raw, mac.id) {
 		t.Errorf("C74 twin w2 admin: %s, want no lane", raw)
+	}
+
+	// C80 (owner F2 = A): the operator view holds the fleet's c-001 and the
+	// joined box's c-001 as two rows, both of w1, and c-707; never c-706,
+	// c-708 or the fleet box's roster agent c-002 announced in w1.
+	op := getLanes(t, r.fleetTokensRig)
+	opGot := []string{}
+	for _, l := range op.Lanes {
+		opGot = append(opGot, l.AgentID+"@"+l.AgentBox+" "+l.Workspace)
+	}
+	opWant := []string{"c-001@" + r.opBox.id + " " + r.w1, "c-701@" + mac.id + " " + r.w1, "c-001@" + mac.id + " " + r.w1, "c-707@" + mac.id + " " + r.w1}
+	if !slices.Equal(opGot, opWant) {
+		t.Errorf("C80 operator view %v, want %v", opGot, opWant)
+	}
+	opRaw, _ := json.Marshal(op)
+	for _, leak := range []string{"c-706", "c-708", "c-002", away.id} {
+		if strings.Contains(string(opRaw), leak) {
+			t.Errorf("C80: %q in the operator view: %s", leak, opRaw)
+		}
 	}
 }

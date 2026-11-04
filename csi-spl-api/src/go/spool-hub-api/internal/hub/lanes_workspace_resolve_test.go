@@ -23,6 +23,7 @@ func TestLanesWorkspaceOfDispatchTopic(t *testing.T) {
 	r := newFleetTokensRig(t)
 	ctx, now, box := context.Background(), time.Now(), r.opBox.id
 	cs, other := newTenantID("cs"), newTenantID("other")
+	r.ws[cs], r.ws[other] = true, true
 	for _, id := range []string{cs, other} {
 		pub, _, _ := ed25519.GenerateKey(nil)
 		if err := r.e.st.CreateTenant(ctx, store.Tenant{ID: id, RootPubKey: pub}); err != nil {

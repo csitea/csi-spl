@@ -29,11 +29,16 @@ type fleetTokensRig struct {
 	admin, dev, otherA string
 	opBox, otherBox    *box
 	offset             atomic.Int64
+	// ws is every workspace this rig made (getLanes keeps their rows only:
+	// on the shared Postgres the operator view, spec 153 3.17, also lists
+	// the own lanes of every other test's workspaces)
+	ws map[string]bool
 }
 
 func newFleetTokensRig(t *testing.T, mut ...func(*hub.Options)) *fleetTokensRig {
 	t.Helper()
 	r := &fleetTokensRig{op: newTenantID("op"), other: newTenantID("ot")}
+	r.ws = map[string]bool{r.op: true, r.other: true}
 	r.e = rbacEnv(t, append([]func(*hub.Options){func(o *hub.Options) {
 		o.OperatorTenant = r.op
 		o.Now = func() time.Time { return time.Now().Add(time.Duration(r.offset.Load())) }

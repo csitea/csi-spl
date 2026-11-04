@@ -159,7 +159,12 @@ func (s *Server) fleetLanesView(ctx context.Context, tenant, fleet, reader strin
 		place(&v, l.Topic)
 		out.Lanes = append(out.Lanes, v)
 	}
-	for _, q := range queued { // the queue's order, after the lanes
+	others, err := s.otherWorkspacesOwnLanes(ctx, tenant, fleet, burn, names)
+	if err != nil {
+		return out, err
+	}
+	out.Lanes = append(out.Lanes, others...) // 3.17: every workspace's own lanes
+	for _, q := range queued {               // the queue's order, after the lanes
 		v := q.row
 		if topic, mine := titles[q.topic]; mine {
 			v.TopicTitle, v.TopicChannel = topic.Title, topic.Channel
@@ -180,13 +185,21 @@ func (s *Server) activeFleetLanes(ctx context.Context, tenant, fleet string) (
 	fleetLanesViewJSON, []store.FleetLane, map[[2]string]store.FleetTokenBucket, error) {
 	now := s.o.Now()
 	out := fleetLanesViewJSON{AsOf: now.UTC().Format(time.RFC3339), Fleet: fleet, Lanes: []fleetLaneViewJSON{}}
-	ls, err := s.o.Store.ListFleetLanes(ctx, tenant, fleet, now)
-	if err != nil {
-		return out, nil, nil, err
-	}
 	burn, err := s.fleetLaneBurn(ctx, now)
 	if err != nil {
 		return out, nil, nil, err
+	}
+	active, err := s.activeLanesBurnt(ctx, tenant, fleet, burn)
+	return out, active, burn, err
+}
+
+// activeLanesBurnt is tenant's active lanes of fleet by the rule above, on a
+// token burn already read (one read serves every workspace, 3.17).
+func (s *Server) activeLanesBurnt(ctx context.Context, tenant, fleet string, burn map[[2]string]store.FleetTokenBucket) ([]store.FleetLane, error) {
+	now := s.o.Now()
+	ls, err := s.o.Store.ListFleetLanes(ctx, tenant, fleet, now)
+	if err != nil {
+		return nil, err
 	}
 	active := []store.FleetLane{}
 	for _, l := range ls {
@@ -197,12 +210,12 @@ func (s *Server) activeFleetLanes(ctx context.Context, tenant, fleet string) (
 		}
 	}
 	if err := s.laneTopicsFromIssues(ctx, tenant, active); err != nil {
-		return out, nil, nil, err
+		return nil, err
 	}
 	if err := s.laneDispatchTopics(ctx, tenant, active); err != nil {
-		return out, nil, nil, err
+		return nil, err
 	}
-	return out, active, burn, nil
+	return active, nil
 }
 
 // fleetLaneRow is one active lane's row before its links: no title, no issues.

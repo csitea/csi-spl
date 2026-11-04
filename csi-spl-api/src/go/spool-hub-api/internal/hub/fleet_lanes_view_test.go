@@ -84,6 +84,13 @@ func getLanes(t *testing.T, r *fleetTokensRig) lanesView {
 	if err := json.Unmarshal(raw, &v); err != nil {
 		t.Fatal(err)
 	}
+	kept := v.Lanes[:0]
+	for _, l := range v.Lanes {
+		if r.ws[l.Workspace] {
+			kept = append(kept, l)
+		}
+	}
+	v.Lanes = kept
 	return v
 }
 

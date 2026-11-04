@@ -66,7 +66,9 @@ type prioLane struct {
 	} `json:"issues"`
 }
 
-// prioLanes is one GET of path in tid as hum: each lane by agent id.
+// prioLanes is one GET of path in tid as hum: each lane by agent id, the
+// first row of an id (the caller's own rows come first; on a shared Postgres
+// the operator view also lists other tests' workspaces, 3.17).
 func prioLanes(t *testing.T, e *env, tid, path, hum string) map[string]prioLane {
 	t.Helper()
 	code, body := call(t, e, tid, http.MethodGet, path, hum, nil)
@@ -80,7 +82,9 @@ func prioLanes(t *testing.T, e *env, tid, path, hum string) map[string]prioLane 
 	}
 	out := map[string]prioLane{}
 	for _, l := range rows {
-		out[l.AgentID] = l
+		if _, seen := out[l.AgentID]; !seen {
+			out[l.AgentID] = l
+		}
 	}
 	return out
 }

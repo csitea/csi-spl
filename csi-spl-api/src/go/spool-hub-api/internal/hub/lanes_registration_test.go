@@ -19,6 +19,7 @@ import (
 // laneRegRow is the part of a view row these cases read.
 type laneRegRow struct {
 	AgentID    string `json:"agent_id"`
+	Workspace  string `json:"workspace"`
 	TopicID    string `json:"topic_id"`
 	TopicTitle string `json:"topic_title"`
 	RoleSeat   bool   `json:"role_seat"`
@@ -40,7 +41,9 @@ func laneRegRows(t *testing.T, r *fleetTokensRig) map[string]laneRegRow {
 	}
 	out := map[string]laneRegRow{}
 	for _, l := range rows {
-		out[l.AgentID] = l
+		if r.ws[l.Workspace] { // the rig's own workspaces: a shared Postgres holds other tests' tenants
+			out[l.AgentID] = l
+		}
 	}
 	return out
 }

@@ -2,7 +2,8 @@
 
 Addendum (2026-11-04, SPL-4778): section 3.17 (a workspace's own boxes,
 such as a box joined to it, show their lanes and their announced agents on
-the workspace's Lanes tab, keyed by agent@box), cases C71-C78. Owner
+the workspace's Lanes tab and in the operator's, keyed by agent@box),
+cases C71-C80. Owner
 HUM-10, t1 topic `dc2d6c40`. Placed by the dispatch holder as one lane
 brief, not a panel version.
 
@@ -1146,6 +1147,17 @@ workspace W other than the operator's:
   write first), the announced agents (box, then agent), the queued asks.
 - Isolation: nothing of another workspace is read; the operator
   workspace's own route (3.6 in the operator workspace) is unchanged.
+- **The operator view** (3.3, `GET /v1/operator/fleet-lanes`; owner
+  HUM-10 on the choice, read as A by the dispatch holder: "it must be seen
+  too .. as part of the cluster") lists, after the operator's lanes, every
+  other non-archived workspace's own lanes and announced agents, by the
+  rules above, each named by its workspace. 3.3's rule for another
+  workspace's topic holds: its id as text, no title, no issue and no origin
+  issue. The token burn and the operator's pins are read once per call;
+  per workspace one `fleet_lanes` read and one roster read (19 workspaces
+  on prd). This widens 3.3's "One tenant only" for these rows alone. The
+  operator's Agents and Boxes tabs still read the session's workspace
+  (`GET /v1/view/roster`); their cross-workspace view is another lane.
 
 A topic or scope for a joined box's lane needs a put on that box:
 `spool lane --fleet main --agent <ID> --box <box> --scope "<one line>"
@@ -1159,15 +1171,20 @@ Cases (`hub/workspace_own_lanes_test.go`, memory and Postgres):
   topic too). **C72** an own row naming another workspace's topic shows no
   title and no text of it. **C73** a done row and a row written 3 h ago:
   absent. **C74** w2's admin, the operator admin on this route and the
-  operator view (3.3, before F2) do not show W's own lanes or box.
+  operator workspace's admin on this route do not show W's own lanes or
+  box. **C79** the operator view lists W's own lanes, named by W, the topic
+  id as text, no W title, text or issue.
 - **C75** the joined box's announced `c-001` and the fleet's `c-001` are
   two rows; an agent with a lane row shows once; an unreported agent
   shows. **C76** an agent reported not running: absent. **C77** an
   announced agent of an offline own box: absent. **C78** the agents of a
-  fleet box pinned in W: absent, its box id never in W's answer.
+  fleet box pinned in W: absent, its box id never in W's answer. **C80**
+  the operator view holds the fleet's `c-001` and the joined box's `c-001`
+  as two rows of W, never C76-C78's agents.
 - Red controls: C71 on master `af48d0fcb` (W's admin read `[c-501]`
   only); C75 with `rosterLanes` returning none (the joined box's `c-001`
-  and the unreported `c-707` absent).
+  and the unreported `c-707` absent); C79 and C80 on the tree before the
+  operator part (the operator view read W's own lanes as `[]`).
 
 ## 4. Cases
 

@@ -59,6 +59,7 @@ func TestFleetLanesOriginIssue(t *testing.T) {
 	raw, _ := json.Marshal(body["lanes"])
 	var rows []struct {
 		AgentID     string `json:"agent_id"`
+		Workspace   string `json:"workspace"`
 		OriginIssue *struct {
 			Key    string `json:"key"`
 			Status string `json:"status"`
@@ -69,6 +70,9 @@ func TestFleetLanesOriginIssue(t *testing.T) {
 	}
 	seen := 0
 	for _, l := range rows {
+		if !r.ws[l.Workspace] { // another test's workspace on a shared Postgres (3.17)
+			continue
+		}
 		switch l.AgentID {
 		case "c-471":
 			seen++

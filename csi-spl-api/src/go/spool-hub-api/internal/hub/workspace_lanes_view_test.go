@@ -37,6 +37,7 @@ type wsLanesRig struct {
 func newWSLanesRig(t *testing.T, mut ...func(*hub.Options)) *wsLanesRig {
 	t.Helper()
 	r := &wsLanesRig{fleetTokensRig: newFleetTokensRig(t, mut...), w1: newTenantID("w1"), w2: newTenantID("w2")}
+	r.ws[r.w1], r.ws[r.w2] = true, true
 	for _, id := range []string{r.w1, r.w2} {
 		pub, _, _ := ed25519.GenerateKey(nil)
 		if err := r.e.st.CreateTenant(context.Background(), store.Tenant{ID: id, RootPubKey: pub}); err != nil {

@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"cmp"
 	"context"
 	"slices"
 	"time"
@@ -30,6 +31,11 @@ import (
 //
 // A row is keyed by <agent>@<box>, never by the agent id alone: a W box's
 // c-001 and the fleet's c-001 are two lanes.
+//
+// The operator view (3.3, GET /v1/operator/fleet-lanes; owner HUM-10 on
+// F2: "it must be seen too .. as part of the cluster") lists every other
+// workspace's own lanes and announced agents too, named by workspace,
+// without that workspace's topic title or issues.
 
 // ownLanes is W's own active lanes, with the burn their rule read, and the
 // roster agents that have no lane row (rows ready but for the workspace).
@@ -49,7 +55,18 @@ func (s *Server) ownWorkspaceLanes(ctx context.Context, tenant, op, fleet string
 	if err != nil {
 		return ownLanes{}, err
 	}
-	_, active, burn, err := s.activeFleetLanes(ctx, tenant, fleet)
+	burn, err := s.fleetLaneBurn(ctx, s.o.Now())
+	if err != nil {
+		return ownLanes{}, err
+	}
+	return s.ownLanesOf(ctx, tenant, fleet, fleetBoxes, burn)
+}
+
+// ownLanesOf is tenant's own lanes and announced agents, the fleet's boxes
+// (fleetBoxes) left out, on a token burn already read.
+func (s *Server) ownLanesOf(ctx context.Context, tenant, fleet string, fleetBoxes map[string]bool,
+	burn map[[2]string]store.FleetTokenBucket) (ownLanes, error) {
+	active, err := s.activeLanesBurnt(ctx, tenant, fleet, burn)
 	if err != nil {
 		return ownLanes{}, err
 	}
@@ -66,6 +83,47 @@ func (s *Server) ownWorkspaceLanes(ctx context.Context, tenant, op, fleet string
 		return ownLanes{}, err
 	}
 	out.roster = s.rosterLanes(tenant, boxes, fleetBoxes, have)
+	return out, nil
+}
+
+// otherWorkspacesOwnLanes is, for the operator view (3.3, owner F2 = A), the
+// own lanes and announced agents of every other non-archived workspace,
+// each named by its workspace (names, else its display name, else its id).
+// 3.3's rule for another workspace's topic holds: its id as text, no title,
+// no issue and no origin issue (its keys number that workspace's issues).
+func (s *Server) otherWorkspacesOwnLanes(ctx context.Context, op, fleet string,
+	burn map[[2]string]store.FleetTokenBucket, names map[string]string) ([]fleetLaneViewJSON, error) {
+	out := []fleetLaneViewJSON{}
+	ws, listed := s.o.Store.(store.OperatorWorkspaces)
+	if !listed {
+		return out, nil
+	}
+	all, err := ws.ListWorkspaces(ctx)
+	if err != nil {
+		return nil, err
+	}
+	fleetBoxes, err := s.pinnedBoxes(ctx, op)
+	if err != nil {
+		return nil, err
+	}
+	for _, w := range all {
+		if w.ID == op || !w.ArchivedAt.IsZero() {
+			continue
+		}
+		own, err := s.ownLanesOf(ctx, w.ID, fleet, fleetBoxes, burn)
+		if err != nil {
+			return nil, err
+		}
+		rows := []fleetLaneViewJSON{}
+		for _, l := range own.lanes { // newest write first, then the announced agents
+			rows = append(rows, fleetLaneRow(l, burn))
+		}
+		rows = append(rows, own.roster...)
+		for _, v := range rows {
+			v.Workspace, v.WorkspaceName = w.ID, cmp.Or(names[w.ID], w.DisplayName, w.ID)
+			out = append(out, v)
+		}
+	}
 	return out, nil
 }
 

@@ -619,6 +619,21 @@ C6b). The person's list itself is untouched and shows again in any
 workspace inside the switch. Turning it on in an env is an owner go (S4).
 The Google part also needs `gcal.workspaces`.
 
+### 2.10 One-off seed of a person's list by an operator (SPL-4635)
+
+The routes stay person-only. For the owner's one exception (HUM-10, poll
+2102c889: an agent adds his own list, once), `cd csi-spl-orc && ENV=<env>
+CONTACTS_PERSON=HUM-<n> CONTACTS_FILE=<csv> ./run -a do_spl_contacts_seed`
+adds a CSV file (`person_id,first_name,last_name,email,phone`) to that one
+person's list, in that person's RLS scope (`app.person_id`, as the store's
+`inPerson`), through the Cloud SQL proxy as the runtime login. It is a dry
+run unless `DRY_RUN=0`, refuses the whole file on a row of another person,
+a row with no name or a value rdb 0226 would refuse, adds nothing twice (a
+live contact with the same email, or with no email the same name, is
+already there) and prints counts and contact ids only, psql errors as their
+SQLSTATE (C12). Test: `csi-spl-orc/src/bash/tests/spl-contacts-seed.tst.sh`.
+Its use is the owner's call per list; it is no import route.
+
 ## 3. Data
 
 One additive migration, `rdb/<next>_contacts.sql` (`<next>` = 0223 on

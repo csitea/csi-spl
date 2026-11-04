@@ -64,6 +64,11 @@
 #      clean; controls: no limit = rotated, an old clean verdict never lifts it,
 #      another dialog records nothing, a claude record leaves a grok lane alone.
 #      Red control (origin/master): two spawns.
+#  29. SPL-4820: a pre-push / push gate under the lane is never cut at the
+#      deadline: DEFER gate at 58 and at 70 min, one line naming the gate;
+#      the gate gone = rotated on the next tick; a gate older than
+#      ROTATE_LANE_GATE_MAX_AGE = rotated anyway, the handoff naming it.
+#      Red control (origin/master 599a1d393 + this case): rotated mid-gate.
 #------------------------------------------------------------------------------
 # shellcheck disable=SC2034 # rc and M are read inside the check strings (eval)
 set -uo pipefail
@@ -309,12 +314,12 @@ reset; lane c-962 70; echo "c-001@box-b $(date +%s)" >"$D/lease.orch"
 ROTATE_LANE_PROBE_CMD="echo expired x" tick
 check "6. a holder on another box is told as <id>@<box>" '[ "$(n "$T/send.log" "-> c-001@box-b note dispatch-lane-rotate")" = 1 ]'
 
-# --- 7. the deadline ---------------------------------------------------------------
+# --- 7. the deadline (a test, not a gate: case 29 has the gates) ------------------
 reset; lane c-971 58
-"$T/bin/proc" 4971 1 c-971 git 2971 "git push origin HEAD:master"
+"$T/bin/proc" 4971 1 c-971 go 2971 "go test ./..."
 tick
 check "7. busy at 58 min: rotated anyway" 'grep -q "lane-c-971 DONE OK" "$D/rotate.log"'
-check "7. the handoff names what was in flight" 'grep -q "deadline while: running .git push" "$D/handoff/"*-lane-c-971.md'
+check "7. the handoff names what was in flight" 'grep -q "deadline while: running .go test" "$D/handoff/"*-lane-c-971.md'
 
 # --- 8. role seats, accepted lanes -----------------------------------------------------
 reset; lane c-900 70; lane c-902 70; lane c-982 70
@@ -651,6 +656,25 @@ reset; lane c-289 70; printf '  Settings Warning\n' >"$T/dialog.screen"
 ROTATE_CLAUDE_BIN=/bin/true ROTATE_LANE_RETRY=0 ROTATE_SPAWN="$T/bin/spawn-dialog" tick
 check "28. control: a Settings Warning records no limit" 'grep -q "FAIL FAIL SPAWN: .*Settings Warning" "$D/rotate.log" && [ ! -e "$D/lane-rotate/limit.claude" ]'
 check "28. no stray failing command under the ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
+
+# --- 29. a pre-push / push gate is never cut at the deadline (SPL-4820) -----------
+# c-850 lost two PRE_PUSH_TIER=full runs, ~60 min in with 0 FAIL, to the
+# deadline's "rotated anyway" (10:56Z and 11:58Z on 2026-11-04)
+reset; lane c-291 58; lane c-292 70
+"$T/bin/proc" 4291 3000 c-291 bash 2291 "bash ./run -a do_check_pre_push"
+"$T/bin/proc" 4292 600 c-292 git 2292 "git push origin HEAD:review/x"
+tick; tick
+check "29. a gate at 58 and at 70 min: 0 spawns, 0 stops" '[ "$(n "$T/spawn.log")" = 0 ] && [ "$(n "$T/kill.log")" = 0 ] && [ "$(n "$T/tmux/log" submit)" = 0 ]'
+check "29. DEFER gate names the gate and its age, once per lane" '[ "$(n "$T/tick.out" "c-291 DEFER gate: running .bash ./run -a do_check_pre_push . for 50 min (never cut")" = 1 ] && [ "$(n "$T/tick.out" "c-292 DEFER gate: running .git push")" = 1 ]'
+rm -rf "$T/proc/4291"
+tick
+check "29. the gate gone: rotated on the next tick" 'grep -q "lane-c-291 DONE OK" "$D/rotate.log" && ! grep -q "lane-c-292 " "$D/rotate.log"'
+reset; lane c-293 70
+"$T/bin/proc" 4293 7300 c-293 bash 2293 "bash ./run -a do_check_pre_push"
+tick
+check "29. a gate past ROTATE_LANE_GATE_MAX_AGE (7200 s): rotated anyway" 'grep -q "lane-c-293 DONE OK" "$D/rotate.log"'
+check "29. the handoff names the gate it cut" 'grep -q "deadline while: running .bash ./run -a do_check_pre_push" "$D/handoff/"*-lane-c-293.md'
+check "29. no ERR trap" '! grep -q ERRTRAP "$T/tick.out"'
 
 # --- 12. the cron row ----------------------------------------------------------------------------
 M="$PROJ_ROOT/cnf/box-crons/box-crons.manifest"

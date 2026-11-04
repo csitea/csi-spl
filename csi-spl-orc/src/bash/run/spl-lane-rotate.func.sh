@@ -27,6 +27,10 @@
 # @description     was in flight. The deadline is ROTATE_LANE_MAX_AGE (60 min)
 # @description     less ROTATE_LANE_SLOT (5 min) per stagger round ahead of it,
 # @description     so the cap never pushes a session past 60 min;
+# @description   except mid-gate (SPL-4820): a pre-push or push gate under it
+# @description     (ROTATE_LANE_GATE_RE) is never cut, DEFER gate each tick,
+# @description     and it is rotated on the first tick after the gate ends, or
+# @description     once the gate itself is ROTATE_LANE_GATE_MAX_AGE (2 h) old;
 # @description   at most ROTATE_LANE_CAP (3) rotations run at once on a box,
 # @description     each in its own worker, each seat stopped and restored on
 # @description     its own; a seat rotated < 1 h ago (or failed < RETRY ago)
@@ -62,6 +66,8 @@
 # @param ROTATE_LANE_ACK_TIMEOUT / ROTATE_LANE_EXIT_WAIT (optional) - seconds, default 600 / 120
 # @param ROTATE_LANE_TMUX_TIMEOUT (optional) - seconds each tmux call of RETIRE may take, default 15 (0 = no bound)
 # @param ROTATE_LANE_LIMIT_PROOF (optional) - seconds a seat started after a recorded limit dialog must run clean to lift it, default 300
+# @param ROTATE_LANE_GATE_MAX_AGE (optional) - seconds a gate may run before the deadline cuts it anyway, default 7200
+# @param ROTATE_LANE_GATE_RE (optional) - the gate commands the deadline waits for, default do_check_pre_push and git push
 # @example ./run -a do_spl_lane_rotate
 # @example DRY_RUN=0 ./run -a do_spl_lane_rotate
 # @example ROTATE_CMD=handoff ID=c-123 ./run -a do_spl_lane_rotate
@@ -89,14 +95,16 @@ spl_lane_rotate_conf() {
   : "${ROTATE_LANE:=1}" "${ROTATE_LANE_CAP:=3}" "${ROTATE_LANE_WARN_AGE:=2700}" "${ROTATE_LANE_MAX_AGE:=3600}"
   : "${ROTATE_LANE_SLOT:=300}" "${ROTATE_LANE_RETRY:=900}" "${ROTATE_LANE_REPORT_AGE:=3900}"
   : "${ROTATE_LANE_ACK_TIMEOUT:=600}" "${ROTATE_LANE_EXIT_WAIT:=120}" "${ROTATE_LANE_PROBE_MAX_AGE:=600}" "${ROTATE_LANE_REPORT_GRACE:=900}"
-  : "${ROTATE_LANE_TMUX_TIMEOUT:=15}" "${ROTATE_LANE_LIMIT_PROOF:=300}"
+  : "${ROTATE_LANE_TMUX_TIMEOUT:=15}" "${ROTATE_LANE_LIMIT_PROOF:=300}" "${ROTATE_LANE_GATE_MAX_AGE:=7200}"
   for k in ROTATE_LANE ROTATE_LANE_CAP ROTATE_LANE_WARN_AGE ROTATE_LANE_MAX_AGE ROTATE_LANE_SLOT ROTATE_LANE_RETRY \
            ROTATE_LANE_REPORT_AGE ROTATE_LANE_ACK_TIMEOUT ROTATE_LANE_EXIT_WAIT ROTATE_LANE_PROBE_MAX_AGE ROTATE_LANE_REPORT_GRACE \
-           ROTATE_LANE_TMUX_TIMEOUT ROTATE_LANE_LIMIT_PROOF; do
+           ROTATE_LANE_TMUX_TIMEOUT ROTATE_LANE_LIMIT_PROOF ROTATE_LANE_GATE_MAX_AGE; do
     [[ "${!k}" =~ ^[0-9]+$ ]] || { do_log "FATAL $k must be a whole number, got: '${!k}'"; return 1; }
   done
   (( ROTATE_LANE_CAP > 0 )) || { do_log "FATAL ROTATE_LANE_CAP must be at least 1"; return 1; }
   : "${ROTATE_LANE_BUSY_RE:=git (push|rebase|commit|fetch|pull)|terraform|tf-(plan|apply)|do[_-]provision|do_check_pre_push|run-all-tests|\.tst\.sh|go test|playwright|pnpm|npm (run|test)|pytest|docker (build|compose)|gh run watch|make do-}"
+  # a subset of ROTATE_LANE_BUSY_RE: the runs the deadline never cuts (SPL-4820)
+  : "${ROTATE_LANE_GATE_RE:=do_check_pre_push|git push}"
   ROTATE_LANE_DIR="$LEASE_DIR/lane-rotate"
   mkdir -p "$ROTATE_LANE_DIR" 2>/dev/null || { do_log "FATAL cannot create $ROTATE_LANE_DIR"; return 1; }
   ROTATE_LANE_LOG="$ROTATE_LANE_DIR/lane-rotate.log"
@@ -150,7 +158,7 @@ spl_lane_rotate_tick() {
 
 # spl_lane_rotate_consider ID KIND PID AGE PANE N: one agent's decision.
 spl_lane_rotate_consider() {
-  local id="$1" kind="$2" pid="$3" age="$4" pane="$5" n="$6" why forced=0 at
+  local id="$1" kind="$2" pid="$3" age="$4" pane="$5" n="$6" why forced=0 at gate
   why="$(awk -v i="$id" '$1 == i {print $2; exit}' <<<"$LR_ROLE_ROT")"
   [[ -z "$why" ]] || { spl_lane_rotate_say "$id" "SKIP role seat: the role rotation $why acts on $id"; return 0; }
   [[ "$LR_ROLES" == *" $id "* || "$LR_INFLIGHT" == *" $id "* ]] && return 0
@@ -184,6 +192,8 @@ spl_lane_rotate_consider() {
   why="$(spl_lane_rotate_busy "$pid" "$pane" "$(spl_lane_rotate_workdir "$id" "$pid")")"
   if [[ -n "$why" ]]; then
     (( age >= at )) || { spl_lane_rotate_say "$id" "DEFER not quiet: $why (rotated anyway from $((at / 60)) min)"; return 0; }
+    gate="$(spl_lane_rotate_gate "$pid")"
+    [[ -z "$gate" ]] || { spl_lane_rotate_say "$id" "DEFER gate: $gate"; return 0; }
     forced=1
   fi
   if [[ "$kind" == claude ]] && ! spl_lane_rotate_login_ok; then
@@ -449,8 +459,32 @@ spl_lane_rotate_busy() {
   return 0
 }
 
+# spl_lane_rotate_gate PID: why the deadline waits, nothing when it does not.
+# A pre-push or push gate (ROTATE_LANE_GATE_RE) under PID is never cut while
+# it is younger than ROTATE_LANE_GATE_MAX_AGE: c-850 lost two
+# PRE_PUSH_TIER=full runs on 2026-11-04, ~60 min in with 0 FAIL, to the
+# deadline. The full tier's wall on the home box, pre-push.log 2026-10-28..11-04:
+# p50 1320 s, p90 3272 s, max 4815 s (n=196 runs of 35 parts, no FAIL).
+spl_lane_rotate_gate() {
+  local m a
+  m="$(spl_lane_rotate_child_match "$1" "$ROTATE_LANE_GATE_RE")"
+  [[ -n "$m" ]] || return 0
+  a="$(spl_rotate_age "${m%% *}")"; a="${a:-0}"
+  (( a < ROTATE_LANE_GATE_MAX_AGE )) || return 0
+  echo "running '${m#* }' for $((a / 60)) min (never cut: rotated when it ends, or at $((ROTATE_LANE_GATE_MAX_AGE / 60)) min of it)"
+}
+
 # The first descendant of PID whose command line matches ROTATE_LANE_BUSY_RE.
 spl_lane_rotate_busy_child() {
+  local m
+  m="$(spl_lane_rotate_child_match "$1" "$ROTATE_LANE_BUSY_RE")"
+  [[ -z "$m" ]] || echo "${m#* }"
+  return 0
+}
+
+# spl_lane_rotate_child_match PID RE: "<pid> <command line>" of the first
+# descendant of PID whose command line matches RE, the line cut to 120.
+spl_lane_rotate_child_match() {
   local root="${LEASE_PROC_ROOT:-/proc}" d p pp cl
   local -A kids=()
   # one awk over every stat file ("<pid> <ppid>"), not a fork per process
@@ -465,7 +499,7 @@ spl_lane_rotate_busy_child() {
       # NULs and line breaks to spaces: a multi-line command (a heredoc, a bash -c
       # script) stays one rotate.log line (SPL-2841)
       cl="$(tr '\0\n\r' '   ' < "$root/$d/cmdline" 2>/dev/null || true)"
-      grep -qE -- "$ROTATE_LANE_BUSY_RE" <<<"$cl" && { cut -c1-120 <<<"$cl"; return 0; }
+      grep -qE -- "$2" <<<"$cl" && { echo "$d $(cut -c1-120 <<<"$cl")"; return 0; }
       q+=("$d")
     done
   done

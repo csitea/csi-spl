@@ -3451,11 +3451,11 @@
       "no_match": "Neviena līnija neatbilst filtriem",
       "shown": "{n} no {total} līnijām",
       "console": {
-        "open_title": "Atvērt šo joslu",
+        "open_title": "Atvērt šo līniju",
         "show": "Konsole",
         "hide": "Paslēpt konsoli",
-        "not_live": "Rindā esošai joslai vēl nav konsoles.",
-        "waiting": "Gaida, kamēr joslas kaste nosūtīs savu ekrānu…",
+        "not_live": "Rindā esošai līnijai vēl nav konsoles.",
+        "waiting": "Gaida, kamēr līnijas kaste nosūtīs savu ekrānu…",
         "live": "Uzņemts pirms {n} s",
         "stale": "Pēdējais uzņēmums pirms {n} s: kaste nav nosūtījusi jaunāku",
         "redacted": "Kastē maskēts {n} noslēpums | Kastē maskēti {n} noslēpumi",
@@ -3463,9 +3463,9 @@
         "pause": "Pauze",
         "resume": "Turpināt",
         "save": "Saglabāt failā",
-        "label": "Joslas {lane} konsole",
-        "forbidden": "Joslas konsoli redz tikai administrators.",
-        "gone": "Šī josla vairs nav aktīva.",
+        "label": "Līnijas {lane} konsole",
+        "forbidden": "Līnijas konsoli redz tikai administrators.",
+        "gone": "Šī līnija vairs nav aktīva.",
         "error": "Neizdevās ielādēt konsoli."
       }
     },

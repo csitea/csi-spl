@@ -3451,11 +3451,11 @@
       "no_match": "Filtrelere uyan hat yok",
       "shown": "{n}/{total} hat",
       "console": {
-        "open_title": "Bu şeridi aç",
+        "open_title": "Bu hattı aç",
         "show": "Konsol",
         "hide": "Konsolu gizle",
-        "not_live": "Kuyruktaki bir şeridin henüz konsolu yok.",
-        "waiting": "Şeridin kutusunun ekranını göndermesi bekleniyor…",
+        "not_live": "Kuyruktaki bir hattın henüz konsolu yok.",
+        "waiting": "Hattın kutusunun ekranını göndermesi bekleniyor…",
         "live": "{n} sn önce yakalandı",
         "stale": "Son yakalama {n} sn önce: kutu daha yenisini göndermedi",
         "redacted": "Kutuda {n} gizli bilgi maskelendi | Kutuda {n} gizli bilgi maskelendi",
@@ -3464,8 +3464,8 @@
         "resume": "Sürdür",
         "save": "Dosyaya kaydet",
         "label": "{lane} konsolu",
-        "forbidden": "Bir şeridin konsolunu yalnızca yönetici görür.",
-        "gone": "Bu şerit artık etkin değil.",
+        "forbidden": "Bir hattın konsolunu yalnızca yönetici görür.",
+        "gone": "Bu hat artık etkin değil.",
         "error": "Konsol yüklenemedi."
       }
     },

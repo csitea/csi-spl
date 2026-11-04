@@ -1,0 +1,342 @@
+#!/bin/bash
+#------------------------------------------------------------------------------
+# @description A new alert gets its prio 1 issue and ONE read-only investigator
+# @description lane; its repeats fold into the open issue (SPL-4828, spec 146
+# @description "An alert files its issue"; owner HUM-10, t1 6c9aa54b msg 84726fdc "BUILD" on
+# @description the c-002 proposal f520f8bb). Code, no model. Each tick reads
+# @description three sources since the last tick: the #alerts topics (`spool
+# @description topics --channel alerts`, as the orch holder through this
+# @description box's desk), do_gcp_list_alert_incidents (csi-spl-iac) and the
+# @description disk notes (task disk-headroom of the local spool). The fold
+# @description (src/bash/scripts/alert-issue-fold.py) gives each alert a
+# @description fingerprint: its text with digits, times, ids and the severity
+# @description word stripped, plus the box (a disk note: box + mount + blocks
+# @description or inodes; a GCP incident: env + policy), so the WARN and the
+# @description CRITICAL of one mount are one fingerprint. Then, per fingerprint:
+# @description   - its issue is open: ONE comment with the count, no lane
+# @description   - no issue: file it prio 1 (do_spl_issue_create, the epic and
+# @description     spec below) and enqueue ONE lane (do_spl_ask_put, then
+# @description     do_spl_spawn_enqueue SPAWN_CLASS=bug SPAWN_PLACE=claude:<slug>)
+# @description     with a generated read-only brief in <spool root>/dispatch/briefs/
+# @description   - its issue is done: reopened (todo + a comment + a lane) only
+# @description     for an alert newer than the fix (the committer time of the
+# @description     newest origin/master commit that closes the key, by the
+# @description     closer's own rule, issue-close-landed.py --keys), else held
+# @description   - at most one lane per fingerprint per 24 h and 3 a day; over
+# @description     a cap the issue is still filed, with no lane
+# @description Runs only on the machine whose agent holds the orch role
+# @description (<spool root>/dispatch/lease.orch), so the fleet files once.
+# @description The state is ONE file, <spool root>/dispatch/alert-issue/state.json
+# @description (a dry run keeps its own state.dry.json): `jq . <file>` reads it.
+# @description A dry run (the default) reads the sources and prints one PLAN
+# @description line per action; it files, comments and enqueues nothing.
+# @param DRY_RUN (optional) - 1 (default) or 0
+# @param ALERT_ISSUE (optional) - 0 turns the tick off, default 1 (also lease.conf)
+# @param ALERT_ISSUE_EVERY_S (optional) - at most one tick per this many seconds, default 300
+# @param ALERT_ISSUE_LANES_PER_DAY (optional) - lanes in any 24 h, fleet-wide, default 3
+# @param ALERT_ISSUE_LANE_GAP_S (optional) - seconds between two lanes of one fingerprint, default 86400
+# @param ALERT_ISSUE_FIRST_SINCE_S (optional) - how far a first tick reads back, default 5400
+# @param ALERT_ISSUE_EPIC (optional) - the epic of a filed issue, default SPL-2364 (also lease.conf)
+# @param ALERT_ISSUE_SPEC (optional) - the spec of a filed issue, default csi-spl-doc/specs/146-reliability-round
+# @param ALERT_ISSUE_DISCUSSION (required when DRY_RUN=0) - the topic (a lowercase UUID) a disk or GCP alert's issue links; an #alerts alert links its own topic (also lease.conf)
+# @param ALERT_ISSUE_GCP (optional) - 0 skips the GCP incident read, default 1
+# @param ALERT_ISSUE_HOLDER (optional) - the orch holder <ID>@<box> (the asks tick passes it); default lease.orch
+# @param ALERT_ISSUE_BOX (optional) - this machine's box id, default spl_desk_box_default
+# @param ALERT_ISSUE_ALERTS_CMD ALERT_ISSUE_DISK_CMD ALERT_ISSUE_GCP_CMD (optional, tests) - replace a source read: print its raw output
+# @param ALERT_ISSUE_RUN (optional, tests) - replaces ./run for the issue, ask and enqueue actions
+# @param ALERT_ISSUE_GIT_DIR (optional) - the checkout whose origin/master proves a fix, default the repo of this tree
+# @param ALERT_ISSUE_NOW (optional, tests) - epoch seconds
+# @param SPOOL_ROOT (optional) - default /var/spool-hub
+# @example ./run -a do_spl_alert_issue_tick
+# @example ALERT_ISSUE_DISCUSSION=6c9aa54b-f876-4ff5-951a-a74f17166904 DRY_RUN=0 ./run -a do_spl_alert_issue_tick
+# @example jq . /var/spool-hub/dispatch/alert-issue/state.json
+#------------------------------------------------------------------------------
+do_spl_alert_issue_tick() {
+  local root dir now st src plan rc=0
+  root="${SPOOL_ROOT:-/var/spool-hub}"; dir="$root/dispatch/alert-issue"
+  spl_ai_conf "$root"
+  [[ "${ALERT_ISSUE:-1}" == 1 ]] || { do_log "INFO alert issue tick off (ALERT_ISSUE=0)"; return 0; }
+  AI_DRY="${DRY_RUN:-1}"
+  if [[ "$AI_DRY" == 0 && ! "${ALERT_ISSUE_DISCUSSION:-}" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+    do_log "FATAL ALERT_ISSUE_DISCUSSION must be a topic id (a lowercase UUID) for a live run: the issue of a disk or GCP alert links it"
+    return 1
+  fi
+  spl_ai_holder_here || return 0
+  mkdir -p "$dir" || return 1
+  exec 6>>"$dir/.lock"
+  flock -n 6 || { exec 6>&-; return 0; }
+  now="${ALERT_ISSUE_NOW:-$(date +%s)}"
+  st="$dir/state.json"; [[ "$AI_DRY" == 0 ]] || st="$dir/state.dry.json"
+  if ! spl_ai_due "$st" "$now"; then exec 6>&-; return 0; fi
+  src="$(mktemp -d)" || return 1
+  spl_ai_read_sources "$src" "$st" "$now"
+  # the desk the hub reads and writes go through; a dry run reads without one
+  AI_DESK=1; spl_ai_desk || AI_DESK=0
+  if [[ "$AI_DRY" == 0 && "$AI_DESK" == 0 ]]; then rm -rf "$src"; exec 6>&-; return 1; fi
+  spl_ai_issues "$src" "$st" >"$src/issues.json"
+  plan="$(python3 "$PROJ_PATH/src/bash/scripts/alert-issue-fold.py" plan "$src" "$st" "$now" "$src/issues.json")" ||
+    { do_log "ERROR the alert fold failed: nothing filed"; rm -rf "$src"; exec 6>&-; return 1; }
+  jq -c '.state' <<<"$plan" >"$src/state.json"
+  spl_ai_apply "$src" "$plan" || rc=1
+  # a failed action's alerts must be read again: the window does not move
+  if (( rc != 0 )); then
+    jq -c --argjson w "$(( $(cat "$src/since") + 900 ))" '.window_from = $w' "$src/state.json" >"$src/state.json.new" &&
+      mv "$src/state.json.new" "$src/state.json"
+  fi
+  mv "$src/state.json" "$st" || rc=1
+  spl_ai_summary "$plan"
+  rm -rf "$src"; exec 6>&-
+  return "$rc"
+}
+
+# ALERT_ISSUE* from the lease.conf for the keys not already set. Read, never sourced.
+spl_ai_conf() {
+  local f="$1/dispatch/lease.conf" k v
+  [[ -f "$f" ]] || return 0
+  while IFS='=' read -r k v; do
+    [[ -z "${!k:-}" ]] && printf -v "$k" '%s' "$v"
+  done < <(grep -E '^ALERT_ISSUE(_DISCUSSION|_EPIC|_DRY_RUN|_LANES_PER_DAY)?=[A-Za-z0-9-]+$' "$f")
+  return 0
+}
+
+# 0 when this machine's agent holds the orch role. AI_HOLDER = <ID>@<box>.
+spl_ai_holder_here() {
+  local h="${ALERT_ISSUE_HOLDER:-}" box
+  [[ -n "$h" || ! -r "$root/dispatch/lease.orch" ]] || read -r h _ <"$root/dispatch/lease.orch"
+  box="${ALERT_ISSUE_BOX:-$(spl_desk_box_default 2>/dev/null)}"
+  case "$h" in
+    ''|none@*|unknown:*) do_log "INFO no orchestrator holds the orch role: no alert is filed"; return 1 ;;
+  esac
+  if [[ "${h##*@}" != "$box" ]]; then
+    do_log "INFO the orch role is held on ${h##*@} ($h): its machine files the alerts"
+    return 1
+  fi
+  AI_HOLDER="$h"
+}
+
+# 0 when ALERT_ISSUE_EVERY_S passed since the state's last tick.
+spl_ai_due() {
+  local last
+  last="$(jq -r '.last_tick // 0' "$1" 2>/dev/null)" || last=0
+  (( $2 - ${last:-0} >= ${ALERT_ISSUE_EVERY_S:-300} ))
+}
+
+# The three sources, each into its file; a failed read is a WARN, never a stop.
+spl_ai_read_sources() {
+  local src="$1" last since_m
+  last="$(jq -r '.window_from // .last_tick // 0' "$2" 2>/dev/null)" || last=0
+  (( ${last:-0} > 0 )) || last=$(( $3 - ${ALERT_ISSUE_FIRST_SINCE_S:-5400} ))
+  since_m=$(( ($3 - last) / 60 + 15 ))
+  (( since_m <= 1440 )) || since_m=1440
+  # a 15 min overlap for a post the hub synced late; the seen refs dedupe it
+  printf '%s\n' "$(( last - 900 ))" >"$src/since"
+  spl_ai_src alerts "$src/alerts.json" "${ALERT_ISSUE_ALERTS_CMD:-spl_ai_read_alerts}"
+  spl_ai_src disk "$src/disk.ndjson" "${ALERT_ISSUE_DISK_CMD:-spl_ai_read_disk}"
+  [[ "${ALERT_ISSUE_GCP:-1}" == 1 ]] &&
+    AI_SINCE="${since_m}m" spl_ai_src gcp "$src/gcp.txt" "${ALERT_ISSUE_GCP_CMD:-spl_ai_read_gcp}"
+  return 0
+}
+
+spl_ai_src() {  # NAME FILE CMD...
+  # shellcheck disable=SC2086 # a command line, split on purpose
+  ${3} >"$2" 2>"$2.err" || do_log "WARN the $1 source did not answer: $(tr '\n' ' ' <"$2.err" | cut -c1-200)"
+}
+
+spl_ai_read_alerts() {
+  declare -F spl_asks_init >/dev/null || return 1
+  ( spl_asks_init >/dev/null 2>&1 && [[ "$LANE_MODE" == hub ]] &&
+      spl_lane_spool topics --as "${AI_HOLDER%@*}" --channel alerts --limit 100 --json )
+}
+
+spl_ai_read_disk() {
+  SPOOL_ROOT="$root" timeout 30 "${SPL_SPOOL:-spool}" tail --task disk-headroom --json
+}
+
+spl_ai_read_gcp() {
+  ( cd "${APP_PATH:-$PROJ_PATH/..}/csi-spl-iac" && ORG="${ORG:-csi}" APP="${APP:-spl}" SINCE="$AI_SINCE" \
+      timeout 180 ./run -a do_gcp_list_alert_incidents )
+}
+
+# {"<key>": {status, fixed_at}, "hub_open": {hash: key}} for what the plan needs.
+spl_ai_issues() {
+  local src="$1" st="$2" out='{}' k s f
+  while read -r what k; do
+    case "$what" in
+      key)
+        s="$(spl_ai_run ISSUE_REF="$k" -- do_spl_issue_status | awk -F'\t' '$1 == "issue-status" { print $3 }' | tail -1)"
+        f="$(spl_ai_fixed_at "$k")"
+        out="$(jq -c --arg k "$k" --arg s "$s" --arg f "$f" '.[$k] = {status: $s, fixed_at: ($f | tonumber? // null)}' <<<"$out")" ;;
+      hub) out="$(jq -c --argjson h "$(spl_ai_hub_open)" '.hub_open = $h' <<<"$out")" ;;
+    esac
+  done < <(python3 "$PROJ_PATH/src/bash/scripts/alert-issue-fold.py" keys "$src" "$st" 2>/dev/null)
+  printf '%s\n' "$out"
+}
+
+# The committer time of the newest origin/master commit that closes KEY by the
+# closer's rule (issue-close-landed.py --keys), or nothing.
+spl_ai_fixed_at() {
+  local g="${ALERT_ISSUE_GIT_DIR:-$PROJ_PATH/..}" sha ct
+  while read -r sha ct; do
+    python3 "$PROJ_PATH/src/bash/scripts/issue-close-landed.py" --keys "$g" "$sha" 2>/dev/null | grep -x "$1" >/dev/null &&
+      { printf '%s\n' "$ct"; return 0; }
+  done < <(git -C "$g" log origin/master -E --grep="\\b$1\\b" --format='%H %ct' -n 20 2>/dev/null)
+}
+
+# {hash: key} of the hub's open prio 1 issues titled "... [fp:<hash>]".
+spl_ai_hub_open() {
+  [[ "$AI_DESK" == 1 ]] || { echo '{}'; return 0; }
+  spl_ai_run ISSUE_ASSIGNEE= ISSUE_PRIORITY=1 ISSUE_LIMIT=500 ENV="$ENV" TENANT_ID="$TENANT_ID" DESK_AGENT="$DESK_AGENT" \
+    -- do_spl_issue_list 2>/dev/null |
+    jq -c -s '[.[] | (.result.issues // .issues // [])[] | select(.title | test("\\[fp:[0-9a-f]{8}\\]"))
+      | {key: ((.title | capture("\\[fp:(?<h>[0-9a-f]{8})\\]")).h), value: .key}] | from_entries' 2>/dev/null || echo '{}'
+}
+
+# VAR=value... -- ACTION: one orc action with the lease's desk, its output on
+# stdout. A read runs live in a dry run too; a write only with DRY_RUN=0.
+spl_ai_run() {
+  local -a vars=()
+  while [[ $# -gt 0 && "$1" != -- ]]; do vars+=("$1"); shift; done
+  shift
+  env "${vars[@]}" DRY_RUN=0 SPOOL_ROOT="$root" timeout "${ALERT_ISSUE_TIMEOUT:-120}" \
+    "${ALERT_ISSUE_RUN:-$PROJ_PATH/run}" -a "$1" </dev/null 2>&1 7>&- 8>&-
+}
+
+# Every action of the plan; a failed one is taken out of the state, so the
+# next tick sees its alerts again. 1 = one or more failed.
+spl_ai_apply() {
+  local src="$1" plan="$2" a op rc=0
+  while IFS= read -r a; do
+    op="$(jq -r '.op' <<<"$a")"
+    if [[ "$AI_DRY" != 0 ]]; then
+      jq -r '"PLAN \(.op) fp:\(.hash) \(.key // "" | if . == "" then "(new)" else . end) n=\(.n) count=\(.count)"
+        + (if .lane then " +lane" else "" end) + (if (.why | length) > 0 then " (\(.why | join("; ")))" else "" end)
+        + ": \(.text[0:160])"' <<<"$a"
+      continue
+    fi
+    case "$op" in
+      comment) spl_ai_comment "$a" ;;
+      file) spl_ai_file "$src" "$a" ;;
+      reopen) spl_ai_reopen "$src" "$a" ;;
+      hold) jq -r '"INFO held fp:\(.hash) \(.key): \(.why | join("; "))"' <<<"$a"; true ;;
+    esac || { rc=1; spl_ai_rollback "$src/state.json" "$a"; }
+  done < <(jq -c '.actions[]' <<<"$plan")
+  return "$rc"
+}
+
+# ENV, TENANT_ID and DESK_AGENT of the lease's desk (do_spl_lane_issue's).
+spl_ai_desk() {
+  declare -F spl_lane_issue_desk >/dev/null || { do_log "FATAL spl_lane_issue_desk is not loaded"; return 1; }
+  spl_lane_issue_desk "$root" 0 || { do_log "WARN no seated desk for the alert issues: the hub is not read, nothing is filed"; return 1; }
+}
+
+spl_ai_comment() {
+  local a="$1" key body
+  key="$(jq -r '.key' <<<"$a")"
+  body="$(jq -r '"Alert fired again: \(.n) time(s) since the last tick, \(.count) in all (fingerprint `fp:\(.hash)`, source \(.src)). Latest: \(.text[0:300])"' <<<"$a")"
+  spl_ai_run ISSUE_REF="$key" ISSUE_BODY="$body" ENV="$ENV" TENANT_ID="$TENANT_ID" DESK_AGENT="$DESK_AGENT" -- do_spl_issue_comment >/dev/null ||
+    { do_log "WARN the comment on $key did not land"; return 1; }
+  do_log "OK commented $key (fp:$(jq -r .hash <<<"$a"), count $(jq -r .count <<<"$a"))"
+}
+
+spl_ai_file() {
+  local src="$1" a="$2" h title out key disc
+  h="$(jq -r '.hash' <<<"$a")"
+  title="$(jq -r '"Alert: \(.text | gsub("[*`\n]"; " ") | .[0:100]) [fp:\(.hash)]"' <<<"$a")"
+  disc="$(jq -r '.topic' <<<"$a")"; [[ "$disc" =~ ^[0-9a-f-]{36}$ ]] || disc="$ALERT_ISSUE_DISCUSSION"
+  spl_ai_description "$a" "$disc" >"$src/desc.$h.md"
+  out="$(spl_ai_run ISSUE_TITLE="$title" ISSUE_DESCRIPTION_FILE="$src/desc.$h.md" ISSUE_DISCUSSIONS="$disc" ISSUE_PRIORITY=1 \
+    ISSUE_STATUS=todo ISSUE_EPIC="${ALERT_ISSUE_EPIC:-SPL-2364}" ENV="$ENV" TENANT_ID="$TENANT_ID" DESK_AGENT="$DESK_AGENT" -- do_spl_issue_create)"
+  key="$(printf '%s\n' "$out" | jq -R -r 'fromjson? | (.result.issue.key // .result.key // empty)' 2>/dev/null | tail -1)"
+  [[ "$key" =~ ^[A-Z]+-[0-9]+$ ]] || { do_log "WARN the issue of fp:$h was not filed: $(tail -3 <<<"$out" | tr '\n' ' ' | cut -c1-300)"; return 1; }
+  jq -c --arg h "$h" --arg k "$key" '.fps[$h].key = $k' "$src/state.json" >"$src/state.json.new" && mv "$src/state.json.new" "$src/state.json"
+  do_log "OK filed $key prio 1 for fp:$h"
+  [[ "$(jq -r '.lane' <<<"$a")" == true ]] && spl_ai_lane "$a" "$key"
+  return 0
+}
+
+spl_ai_reopen() {
+  local src="$1" a="$2" key
+  key="$(jq -r '.key' <<<"$a")"
+  spl_ai_run ISSUE_REF="$key" ISSUE_STATUS=todo ENV="$ENV" TENANT_ID="$TENANT_ID" DESK_AGENT="$DESK_AGENT" -- do_spl_issue_update >/dev/null ||
+    { do_log "WARN $key was not reopened"; return 1; }
+  spl_ai_run ISSUE_REF="$key" ENV="$ENV" TENANT_ID="$TENANT_ID" DESK_AGENT="$DESK_AGENT" \
+    ISSUE_BODY="$(jq -r '"Reopened: the alert fired again after the fix landed (\(.n) time(s), fingerprint `fp:\(.hash)`). Latest: \(.text[0:300])"' <<<"$a")" \
+    -- do_spl_issue_comment >/dev/null || do_log "WARN $key was reopened, its comment did not land"
+  do_log "OK reopened $key (fp:$(jq -r .hash <<<"$a"))"
+  [[ "$(jq -r '.lane' <<<"$a")" == true ]] && spl_ai_lane "$a" "$key"
+  return 0
+}
+
+# The issue's description: the source link and the restart card (spec 135 Q4).
+spl_ai_description() {
+  jq -r --arg d "$2" --arg spec "${ALERT_ISSUE_SPEC:-csi-spl-doc/specs/146-reliability-round}" '
+    "Source: /t/\($d)\n\nSpec: \($spec)\n\nFiled by `do_spl_alert_issue_tick` (SPL-4828): a new alert fingerprint.\n\n"
+    + "- fingerprint: `fp:\(.hash)` = `\(.fp)`\n- source: \(.src)\n- alerts this tick: \(.n)\n- refs: \(.refs | join(", "))\n\n"
+    + "Latest alert:\n\n> \(.text[0:600])\n\nRepeats are comments here; a lane is placed at most once per fingerprint per day."' <<<"$1"
+}
+
+# ONE read-only investigator lane: the brief, the ask, the queue row. A failed
+# enqueue keeps the issue and the lane counters (no lane storm on a retry).
+spl_ai_lane() {
+  local a="$1" key="$2" h slug brief id out
+  h="$(jq -r '.hash' <<<"$a")"
+  slug="alert-$h-$(date -u -d "@$now" +%Y%m%d%H%M 2>/dev/null || date -u +%Y%m%d%H%M)"
+  brief="${ALERT_ISSUE_BRIEF_DIR:-$root/dispatch/briefs}/$slug.md"
+  if ! spl_ai_brief "$a" "$key" "$slug" >"$brief" || [[ ! -s "$brief" ]]; then
+    do_log "WARN the brief $brief was not written: no lane for $key"; return 0
+  fi
+  id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
+  out="$(spl_ai_run ASK_ID="$id" ASK_KIND=task ASK_FROM="$AI_HOLDER" ASK_TOPIC="alert-$h" \
+    ASK_SUMMARY="alert investigation $key: $(jq -r '.text[0:120]' <<<"$a")" ASK_DISCUSSION="$ALERT_ISSUE_DISCUSSION" -- do_spl_ask_put)" ||
+    { do_log "WARN the ask for $key was not recorded: no lane ($(tail -1 <<<"$out" | cut -c1-200))"; return 0; }
+  out="$(spl_ai_run ASK_ID="$id" SPAWN_CLASS=bug SPAWN_PLACE="claude:$slug" ASK_BY="$AI_HOLDER" \
+    ASK_DISCUSSION="$ALERT_ISSUE_DISCUSSION" -- do_spl_spawn_enqueue)" ||
+    { do_log "WARN the lane for $key was not enqueued ($(tail -1 <<<"$out" | cut -c1-200))"; return 0; }
+  do_log "OK enqueued lane $slug for $key (ask ${id:0:8})"
+}
+
+spl_ai_brief() {
+  jq -r --arg key "$2" --arg slug "$3" --arg epic "${ALERT_ISSUE_EPIC:-SPL-2364}" \
+    --arg spec "${ALERT_ISSUE_SPEC:-csi-spl-doc/specs/146-reliability-round}" '
+"# Lane brief: investigate alert \($key), read-only (one small task, claude)
+
+Issue: \($key)
+Epic: \($epic)
+Spec: \($spec)
+Class: bug
+Kind: complex_coding
+
+Placement slug `\($slug)`, filed by do_spl_alert_issue_tick (SPL-4828). Report to the CURRENT dispatch lease holder (`cd csi-spl-orc && SPOOL_ROOT=/var/spool-hub LEASE_CMD=show ./run -a do_spl_dispatch_lease`), kind result, and comment your findings on \($key).
+
+## The alert
+- text: \(.text[0:600])
+- source: \(.src)
+- fingerprint: `fp:\(.hash)` = `\(.fp)`
+- refs: \(.refs | join(", "))
+
+## Do (READ-ONLY)
+1. Find the cause: read the code on origin/master, the logs and the state the alert names. Re-measure; say n and the tree for every number.
+2. Comment on \($key): the cause, the evidence (command + output), the file and test a fix needs, and its kind. Stop there.
+
+## Do NOT
+Edit any file, commit or push; write anything on prd or dev (no apply, no restart, no issue status change); install anything; spawn agents. A fix is a new lane the holder places.
+"' <<<"$1"
+}
+
+# Take a failed action back out of the state: its alerts unseen, its count
+# and, for a file, the fingerprint itself.
+spl_ai_rollback() {
+  local f="$1" a="$2"
+  jq -c --argjson a "$a" '
+    reduce $a.refs[] as $r (.; del(.seen[$r]))
+    | if $a.op == "file" then del(.fps[$a.hash]) | (if $a.lane then .lanes |= .[:-1] else . end)
+      else .fps[$a.hash].count -= $a.n end' "$f" >"$f.new" && mv "$f.new" "$f"
+}
+
+spl_ai_summary() {
+  jq -r --arg dry "$AI_DRY" '"alert issue tick\(if $dry != "0" then " (dry run)" else "" end): \(.actions | length) fingerprint(s): "
+    + "\([.actions[] | select(.op == "file")] | length) new, \([.actions[] | select(.op == "comment")] | length) repeat, "
+    + "\([.actions[] | select(.op == "reopen")] | length) reopen, \([.actions[] | select(.op == "hold")] | length) held, "
+    + "\([.actions[] | select(.lane)] | length) lane(s); \(.state.lanes | length) lane(s) in 24 h"' <<<"$1" |
+    while IFS= read -r l; do do_log "INFO $l"; done
+}

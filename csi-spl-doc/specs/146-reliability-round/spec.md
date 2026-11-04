@@ -27,3 +27,55 @@ automated msgs should go to the alerts channel and not t othe ops channel".
 Both keys live in `csi-spl-cnf/csi-spl/all.env.yaml`. #alerts keeps a post 7
 days (`SPOOL_HUB_RETENTION_ALERTS`), other channels 30. Test:
 `csi-spl-orc/src/bash/tests/ops-alarm-channel.tst.sh`.
+
+## An alert files its issue and one lane (SPL-4828)
+
+Owner HUM-10, t1 6c9aa54b msg 84726fdc (2026-11-04): "BUILD — Yes, build it
+as proposed", on the c-002 proposal f520f8bb (from the SPL-4622 triage).
+
+`cd csi-spl-orc && ./run -a do_spl_alert_issue_tick` (code, no model) reads,
+since its last tick, the #alerts topics, `do_gcp_list_alert_incidents` and
+the disk notes (task `disk-headroom`), and folds them by fingerprint
+(`csi-spl-orc/src/bash/scripts/alert-issue-fold.py`):
+
+- **Fingerprint**: the text with digits, times, ids, the severity word and
+  any `(bracketed detail)` stripped, plus the box; a disk note is box +
+  mount + blocks or inodes, a GCP incident env + policy. The WARN and the
+  CRITICAL of one mount are one fingerprint. A filed issue's title ends
+  `[fp:<8 hex>]`. A recovery notice ("back after", "recovered", "cleared",
+  `ALERT_ISSUE_IGNORE_RX`) is not an alert and files nothing.
+- **Open issue**: one comment with the count; no lane.
+- **No issue**: filed prio 1 (`todo`, epic SPL-2364, this spec), then ONE
+  read-only investigator lane: `do_spl_ask_put` + `do_spl_spawn_enqueue
+  SPAWN_CLASS=bug SPAWN_PLACE=claude:alert-<hash>-<time>`, with a generated
+  brief in `<spool root>/dispatch/briefs/` (no edits, no prd writes, no
+  installs; it names the alert text, source, fingerprint and issue).
+- **Done issue**: reopened (`todo`, a comment, a lane) only for an alert newer
+  than the fix: the committer time of the newest origin/master commit that
+  closes the key by the closer's rule (`issue-close-landed.py --keys`). An
+  older alert is held.
+- **Caps**: one lane per fingerprint per 24 h (`ALERT_ISSUE_LANE_GAP_S`), 3
+  lanes in any 24 h fleet-wide (`ALERT_ISSUE_LANES_PER_DAY`); over a cap the
+  issue is still filed or reopened, with no lane. The 11-02 replay (8 alerts,
+  4 fingerprints) therefore files 4 issues and places 3 lanes at the default
+  cap, 4 at `ALERT_ISSUE_LANES_PER_DAY=4`.
+- **Who runs it**: `do_spl_asks_tick` starts it on the machine whose agent
+  holds the orch role (`dispatch/lease.orch`) only, so the fleet files once;
+  at most one tick per `ALERT_ISSUE_EVERY_S` (300 s). Its log:
+  `<spool root>/dispatch/alert-issue/tick.out`.
+- **Dry run by default**: it prints one `PLAN` line per fingerprint and files
+  nothing. Live needs `ALERT_ISSUE_DRY_RUN=0` and `ALERT_ISSUE_DISCUSSION=<topic
+  uuid>` (the discussion a disk or GCP alert's issue links) in
+  `dispatch/lease.conf`, set on the dispatch holder's go.
+- **Off switch**: `ALERT_ISSUE=0` in `dispatch/lease.conf` (or the env).
+- **State**: one file, `jq . /var/spool-hub/dispatch/alert-issue/state.json`
+  (a dry run keeps `state.dry.json`): per fingerprint its key, count, first
+  and last alert, last lane; the lanes of the last 24 h; the alert refs seen
+  (7 days). A holder that moves to another box starts with an empty file
+  there, and finds an open issue by its `[fp:<hash>]` title on the hub before
+  it files a second one. A failed write leaves its alerts unseen and the
+  read window unmoved, so the next tick retries.
+- **Limit**: it sees only the alerts that get posted (the all-boxes-silent
+  gap is SPL-4632).
+
+Test: `csi-spl-orc/src/bash/tests/alert-issue-tick.tst.sh`.

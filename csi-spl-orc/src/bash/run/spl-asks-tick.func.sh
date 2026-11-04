@@ -89,6 +89,7 @@ do_spl_asks_tick() {
     do_log "INFO the orch role is held on ${holder##*@} ($holder): its machine raises the asks"
     return 0
   fi
+  spl_asks_alert_issue "$holder"
   local rows seats
   spl_asks_load || return 1
   rows="$(jq -c --argjson l "$(( ${ASKS_LOCK_MIN:-60} * 60 ))" '[.[] | select(.state == "open" or .state == "acked")
@@ -99,6 +100,23 @@ do_spl_asks_tick() {
   spl_asks_handover "$holder" "$rows" || spl_asks_reraise "$holder" "$rows" "$seats"
   spl_asks_fallback "$holder" "$rows" "$(spl_asks_fallback_seats "$holder" "$seats")"
   spl_asks_fallback_alert "$holder" "$rows" "$(spl_asks_fallback_seats "$holder" "$seats")"
+  return 0
+}
+
+# The alert -> issue tick (SPL-4828, do_spl_alert_issue_tick) on the orch
+# holder's machine: its own process, rate-limited by itself. A dry run unless
+# lease.conf (or the env) sets ALERT_ISSUE_DRY_RUN=0; the caller's DRY_RUN is
+# never passed on. Off with ALERT_ISSUE=0, and under SPOOL_TEST=1 unless
+# ALERT_ISSUE_IN_TESTS=1.
+spl_asks_alert_issue() {
+  local dry="${ALERT_ISSUE_DRY_RUN:-}" f="$SPOOL_ROOT/dispatch/lease.conf"
+  [[ "${SPOOL_TEST:-0}" != 1 || "${ALERT_ISSUE_IN_TESTS:-0}" == 1 ]] || return 0
+  [[ "${ALERT_ISSUE:-1}" == 1 ]] || return 0
+  [[ -n "$dry" ]] || dry="$(sed -n 's/^ALERT_ISSUE_DRY_RUN=\([01]\)$/\1/p' "$f" 2>/dev/null | tail -1)"
+  mkdir -p "$SPOOL_ROOT/dispatch/alert-issue" 2>/dev/null || return 0
+  ( ALERT_ISSUE_HOLDER="$1" ALERT_ISSUE_BOX="$ASKS_BOX" DRY_RUN="${dry:-1}" timeout "${ALERT_ISSUE_TICK_TIMEOUT:-600}" \
+      "${ALERT_ISSUE_TICK_RUN:-$PROJ_PATH/run}" -a do_spl_alert_issue_tick \
+      >>"$SPOOL_ROOT/dispatch/alert-issue/tick.out" 2>&1 7>&- 8>&- & ) 2>/dev/null
   return 0
 }
 

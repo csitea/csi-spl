@@ -11871,6 +11871,32 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/fleet-roster": {
+      "get": {
+        "operationId": "getOperatorFleetRoster",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: the boxes and agents the other non-archived workspaces have on their own (spec 153 3.18, SPL-4786): boxes, by workspace id then box id, each workspace, workspace_name, box_id, revoked, last_hello_at, online, agents and agent_presence (no key, no host facts, no topic, issue or message); a box locked to someone in its workspace is left out. A box the operator workspace has (pinned there, or a fleet desk box) is no row: also_seated maps its box_id to the other workspaces it is seated in (workspace, workspace_name)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "summary": "Read every workspace's own boxes and agents",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/fleet-tokens": {
       "get": {
         "operationId": "getOperatorFleetTokens",

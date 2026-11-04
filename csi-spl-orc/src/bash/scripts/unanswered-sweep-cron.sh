@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # unanswered-sweep-cron.sh — run do_spl_unanswered_sweep DELIVER=1, then the
-# 0-seat alarm do_spl_workspace_seat_alarm DRY_RUN=0 (spec 158 B), from the
+# 0-seat alarm do_spl_workspace_seat_alarm DRY_RUN=0 (spec 158 B), then, every
+# LINKS_CHECK_EVERY_MIN (default 15) minutes, the lane links check
+# do_spl_lane_links_check DELIVER=1 (spec 153 3.20, SPL-4797), from the
 # box user's crontab (SPEC-spool-fleet-roles.md 3.2). Installed by
 # do_spl_unanswered_sweep_install_cron as ONE line tagged
 # `# csi-spl:unanswered-sweep` (prd) / `# csi-spl:unanswered-sweep-<env>`.
@@ -58,4 +60,17 @@ say "STOP unanswered sweep rc=$rc"
 say "START seat alarm ENV=${ENV:-prd}"
 ( cd "$ORC" && env ENV="${ENV:-prd}" DRY_RUN=0 ./run -a do_spl_workspace_seat_alarm ); arc=$?
 say "STOP seat alarm rc=$arc"
-[ "$rc" = 0 ] && [ "$arc" = 0 ] || exit 1
+# spec 153 3.20 (SPL-4797): the live lanes without a discussion or an issue,
+# to the lease holder, every LINKS_CHECK_EVERY_MIN; its stamp is written when
+# it ran, so a minute cron runs it once per window. Exit 3 (lanes named, not
+# delivered) never happens with DELIVER=1; a failure is logged and fails the run
+lrc=0
+LINKS_STAMP="${SPOOL_ROOT:-/var/spool-hub}/dispatch/lane-links-check.ran"
+links_now="$(date +%s)"; lran="$(cat "$LINKS_STAMP" 2>/dev/null)"; [[ "$lran" =~ ^[0-9]+$ ]] || lran=0
+if (( links_now - lran >= ${LINKS_CHECK_EVERY_MIN:-15} * 60 )); then
+  say "START lane links check ENV=${ENV:-prd}"
+  ( cd "$ORC" && env ENV="${ENV:-prd}" DELIVER=1 ./run -a do_spl_lane_links_check ); lrc=$?
+  say "STOP lane links check rc=$lrc"
+  printf '%s\n' "$links_now" >"$LINKS_STAMP" 2>/dev/null || say "WARN cannot write $LINKS_STAMP: the links check runs every minute"
+fi
+[ "$rc" = 0 ] && [ "$arc" = 0 ] && [ "$lrc" = 0 ] || exit 1

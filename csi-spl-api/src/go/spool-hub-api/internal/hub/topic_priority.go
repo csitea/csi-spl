@@ -80,6 +80,7 @@ func (s *Server) handleTopicPriority(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.o.Log.Info().Str("tenant", q.t.ID).Str("task", q.task).Str("by", q.from).Int("priority", row.Priority).Msg("topic priority")
+	s.followTopicPriority(r.Context(), q.t.ID, q.task, q.from) // spec 150 3.4 item 4: its issues, then their lanes
 	out := map[string]any{"task_id": q.task, "priority": row.Priority, "set_by": row.SetBy, "set_at": rfc(row.SetAt)}
 	s.fanoutTopic(r.Context(), q.t.ID, q.card, withType(topicPriorityFrame, q.card, out))
 	writeJSON(w, http.StatusOK, out)

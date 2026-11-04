@@ -37,6 +37,8 @@ uplink-probe      | * * * * *       | src/bash/scripts/uplink-probe-cron.sh     
 qas-ci-accept     | 23 * * * *      | src/bash/scripts/qas-ci-accept-cron.sh                  | qas-ci-accept/cron.log | | desk
 owner-digest      | 7 * * * *       | src/bash/scripts/owner-digest-cron.sh                   | owner-digest/cron.log | | desk
 issue-close-landed | */5 * * * *     | src/bash/scripts/issue-close-landed-cron.sh             | issue-close-landed/cron.log | | desk:rsp
+# spec 150 3.4 item 4 (SPL-4813): the discussions' priorities reach their issues and lanes; acts on the dispatch holder's box
+topic-prio-sync   | */5 * * * *     | src/bash/scripts/topic-prio-sync-cron.sh                | topic-prio-sync/cron.log | | desk
 done-claim-check  | */5 * * * *     | src/bash/scripts/done-claim-check-cron.sh               | done-claim-check/cron.log |
 archived-seats-free | */5 * * * *   | src/bash/scripts/archived-seats-free-cron.sh            | archived-seats-free/cron.log | | desk
 issue-key-rate    | 53 6 * * 1      | src/bash/scripts/issue-key-rate-cron.sh                 | issue-key-rate/cron.log |

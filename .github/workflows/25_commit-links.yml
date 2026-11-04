@@ -1,0 +1,104 @@
+# 25 gate: every pushed commit cites an issue that links a discussion (SPL-4789).
+#
+# Owner HUM-10, t1 ef94396b (msg 61bf7791): a commit "must add at least 1
+# link for an issue , which was used to justify the work of the commit and at
+# least 1 discussion where this issue originated from"; msg dd164168: once
+# this lands "the usage of the unknown hsould be forbidden". The pre-push
+# part commit-links checks it before a push; this workflow holds it when the
+# hook did not run (a push from a box without the hook, or without a prd SA
+# key, where the hook checks the form only).
+#
+# The action is csi-spl-orc do_spl_commit_links_check on the pushed range
+# (event.before..sha): one POST /v1/operator/commit-links to the prd hub,
+# where the issues of cnf env.hub.commit_issue_tenant live. Read-only.
+#
+# Auth: ONLY the prd project key secret GCP_KEY_CSI_SPL_PRD (iac 120), as
+# 45..48; without it the job is SKIPPED with a notice. A red run names each
+# refused commit, the missing link and the fix.
+#
+# Local equivalent:
+#   COMMIT_LINKS_RANGE=<before>..<sha> ./csi-spl-orc/run -a do_spl_commit_links_check
+
+name: "25 gate: commit links"
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      range:
+        description: 'Commit range to check (default: the last commit)'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: commit-links-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: "commit links (prd hub)"
+    # Estate guard (spec 072 A34): it reads OUR live hub, so it runs only
+    # where SPOOL_ESTATE is 'true' (or on the origin repo); a fork skips it.
+    if: vars.SPOOL_ESTATE == 'true' || github.repository == 'csitea/csi-spl'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      HAS_PRD: ${{ secrets.GCP_KEY_CSI_SPL_PRD != '' }}
+      BEFORE: ${{ github.event.before }}
+      SHA: ${{ github.sha }}
+      RANGE_IN: ${{ github.event.inputs.range }}
+    defaults:
+      run:
+        working-directory: csi/csi-spl/csi-spl-orc
+    steps:
+      - name: Selected?
+        id: sel
+        working-directory: .
+        run: |
+          if [[ "$HAS_PRD" == true ]]; then echo "go=1" >>"$GITHUB_OUTPUT"
+          else echo "go=0" >>"$GITHUB_OUTPUT"; echo "::notice::skipped: no secret GCP_KEY_CSI_SPL_PRD (iac 120)"; fi
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: steps.sel.outputs.go == '1'
+        with:
+          path: csi/csi-spl
+          fetch-depth: 0
+          persist-credentials: false
+
+      # no auth here: the action activates the env key in its own private
+      # CLOUDSDK_CONFIG and pins --account on every call
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+        if: steps.sel.outputs.go == '1'
+
+      - name: SA key to the path the action resolves
+        if: steps.sel.outputs.go == '1'
+        working-directory: .
+        env:
+          KEY_PRD: ${{ secrets.GCP_KEY_CSI_SPL_PRD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.gcp/.csi"
+          printf '%s' "$KEY_PRD" >"$HOME/.gcp/.csi/key-csi-spl-prd.json"
+          jq -e .client_email "$HOME/.gcp/.csi/key-csi-spl-prd.json" >/dev/null
+
+      - name: Check the pushed commits
+        if: steps.sel.outputs.go == '1'
+        run: |
+          set -euo pipefail
+          range="$RANGE_IN"
+          if [[ -z "$range" ]]; then
+            if [[ -n "$BEFORE" && ! "$BEFORE" =~ ^0+$ ]] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then range="$BEFORE..$SHA"
+            else range="$SHA~1..$SHA"; fi
+          fi
+          echo "range: $range"
+          COMMIT_LINKS_HUB=prd COMMIT_LINKS_RANGE="$range" ./run -a do_spl_commit_links_check
+
+      - name: Drop the key
+        if: always()
+        working-directory: .
+        run: rm -rf "$HOME/.gcp"

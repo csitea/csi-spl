@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.20 (2026-11-04). Status: **Draft** (part built: section 8.4's hub
+Version: v0.21 (2026-11-04). Status: **Draft** (part built: section 8.4's hub
 steps are T7, section 10 lists the rows; the shell calls them, T9). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -89,6 +89,9 @@ Cloud Run request timeout is 600 s.
 v0.20 adds row T7d (c-001 ruling 12c58d30, c-894 items 4 and 5, msg
 4b6b98a1): a plan or a step reads the owner's keep, keep_emails, leave_hours,
 the box rule's doc and MOVE_CALLER from its `detail`, section 8.4.
+v0.21 adds and ticks row T7h (c-894 item 2, msg 4b6b98a1; Q2 `333aea7b`,
+W5): the web app's `/t/<uuid>` page follows the hub's `moved_to` to
+`https://<DST_HOST>/t/<uuid>`; an expired redirect (no link) stays put.
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -620,6 +623,7 @@ Each row is one small task; files named are where it lands.
 | T7b | Box client: on the `topic_moved` refusal, send the post through the agent's `<DST>` desk key (W2, W3), the re-route of Q2. Every path: `spool send` by dial and by sidecar, a channel post, an answer, a queued post at flush. The desk is `<dir>/<tenant>/<box>`, `<dir>` being `$SPOOL_DESKS` or the desks dir of this spool root, read from its live `hub-run` as `spool_reply` does: a desk of another OS user is unreadable, so it counts as no desk and the post is refused. Nothing is remembered: each post asks `<SRC>` first, so on day 31 it gets the 404 and is refused and reported. A retry is the same envelope, which the hub stores once per `(tenant, msg_id)`. A prerequisite of the first prd move | `internal/hubclient/reroute.go`, `flush.go`, `hubclient.go`; `internal/action/link.go`, `action.go`; `cmd/spool/hub.go`; tests `reroute_test.go`, `moved_desk_test.go`, `internal/hub/channel_move_reroute_test.go` |
 | T7c | Hub: C18's sync-cycle half: after the move and one In-half run on the member's connection, `<SRC>` has no event with that `source_key`, no map row, and the Google event is gone; control: skip the pre-P4 Google delete -> the In half imports it back. T13 and the first prd move wait for T7c; T5 does not | built (SPL-4609): `internal/hub/channel_move_gcal_test.go`, the move through the step endpoint and one sync cycle on fakegcal; the control drops the pre-P4 `events.delete` in the test's transport to the fake, so neither store nor hub has a door for it |
 | T7d | Hub: a step reads Keep, KeepEmails, LeaveHours and RuleDoc from its detail, and MOVE_CALLER so P2 checks that seat; the plan request passes RuleDoc | built (SPL-4773): `api/hub/channel_move*.go`, `_test.go` (`channel_move_inputs.go`, `channel_move_inputs_test.go`) |
+| T7h | WUI: an old /t/<uuid> link at <SRC> takes the reader to the hub's moved_to; test it in a browser | built (SPL-4781): csi-spl-wui, its e2e test: `src/pages/t/[task_id].vue` follows only a `/t/<uuid>` link over https or on its own origin (`src/utils/topic-moved.mjs`), `src/utils/spool-client.mjs` keeps `moved_to` on the 404; `tests/e2e/topic-moved-link.test.mjs`, `tests/unit/topic-moved.test.mjs` |
 | T8 | Proofs P7 and the free-text scan; tests C13, C14 | `api/channelmove/proof.go`, `_test.go` |
 | T9 | Shell action `do_spl_channel_workspace_move` (plan, DRY_RUN, journal resume) and its test C17. With no `CHANNEL_MOVE_HUB_CMD` (now a test seam) it calls the T7 endpoint, `POST /v1/operator/channel-moves` on the env's hub as the per-env service account (`spl_hub_operator_call`), any code but 200 a refusal; C24 is proved through it too. It prints the plan's `.shared_files` as `PLAN` lines, P4's `.report`, and P7's `.report` and `.kept`; none of them refuses | built (SPL-4404 the action, SPL-4771 the wiring): `orc/run/spl-channel-workspace-move.func.sh`, `orc/tests/spl-channel-workspace-move.tst.sh` |
 | T9b | The shell plan path reads and prints the Cloud SQL backup retention and the hub log bucket's retention (R4, 5.6): it only prints and refuses nothing; it prints every log bucket of the project, because the cnf names none; test C24 | `orc/run/spl-channel-workspace-move.func.sh`, `orc/tests/spl-channel-workspace-move.tst.sh` |

@@ -34,6 +34,7 @@ import { isParentFlag, omniboxReplyTaskId, startsNewTopic, topicPageOpen } from 
 import { openingCardId } from '~/utils/topic-archive.mjs'
 import { dmPeerOf } from '~/utils/channel-feed.mjs'
 import { isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
+import { movedTopicTarget } from '~/utils/topic-moved.mjs'
 import type { SpoolMessage } from '~/types/spool'
 
 const route = useRoute()
@@ -87,19 +88,34 @@ async function cardOf(id: string): Promise<SpoolMessage | null> {
 
 /* TopicPane's mock path reads the channel store, not its own fetch.
    Seed that store from the same read before opening, or the thread is empty. */
-async function seedMockThread(id: string) {
+async function seedMockThread(id: string): Promise<TopicRead | undefined> {
   if (!api.mock) return
-  const data = await api.getTopic(id, { order: 'desc', limit: 50 }) as { messages?: { msg_id?: string }[] }
+  const data = await api.getTopic(id, { order: 'desc', limit: 50 }) as TopicRead
   const rows = data.messages || []
   const have = new Set(channel.messages.map((m) => String(m.msg_id || '')))
   const add = rows.filter((m) => m && m.msg_id && !have.has(String(m.msg_id)))
   if (add.length) channel.messages = [...channel.messages, ...(add as typeof channel.messages)]
+  return data
+}
+
+type TopicRead = { messages?: { msg_id?: string }[], moved_to?: string }
+
+/* spec 169 T7h: the topic's channel moved to another workspace, and the hub
+   answered its new link (moved_to): the reader goes there, the page is
+   replaced. A link back to this very page is not followed (no loop). */
+function followMoved(read: TopicRead | undefined): boolean {
+  const to = movedTopicTarget(read?.moved_to, window.location.origin)
+  if (!to || (to.sameOrigin && to.path === window.location.pathname)) return false
+  if (to.sameOrigin) void navigateTo(to.path, { replace: true })
+  else window.location.replace(to.href)
+  return true
 }
 
 async function showTopic(id: string) {
+  let read: TopicRead | undefined
   try {
-    if (api.mock) await seedMockThread(id)
-    else await withSessionRetry(api, () => api.getTopic(id, { limit: 1 }))
+    if (api.mock) read = await seedMockThread(id)
+    else read = await withSessionRetry(api, () => api.getTopic(id, { limit: 1 })) as TopicRead
   } catch (e) {
     /* any other failure is the pane's to show, as before */
     if (taskId.value === id && isDoor(e)) {
@@ -107,7 +123,7 @@ async function showTopic(id: string) {
       return
     }
   }
-  if (taskId.value !== id) return
+  if (taskId.value !== id || followMoved(read)) return
   door.value = null
   topic.openTopic(id)
 }

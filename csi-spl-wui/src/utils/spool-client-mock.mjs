@@ -40,6 +40,10 @@ export function mockGetTopic(state, id, { limit = 200, after, order, before, vie
      401 view_door until a view token is set */
   const door = storageGetJson('spool.mock.view-door', null)
   if (door && !viewToken) throw Object.assign(new Error('spool 401 view_door'), { status: 401, token: 'view_door', detail: String(door.detail || '') })
+  /* e2e hook (topic-moved-link): `spool.mock.moved-topics` = { <task_id>: <link> }
+     stands in for the hub's 404 topic_moved of a moved channel's topic (spec 169 W5) */
+  const moved = storageGetJson('spool.mock.moved-topics', null)
+  if (moved && typeof moved[id] === 'string') return { task_id: id, messages: [], next: null, moved_to: moved[id] }
   /* t1 404cd808: the hub's topic read keeps the topic's own archived
      card (only the lobby feed hides archived rows), so the mock does too */
   const all = topicMessages([...state.messages, ...(state.archived || [])], id)

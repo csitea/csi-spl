@@ -217,6 +217,7 @@ async function hubError(res, path) {
   let permission = ''
   let pos
   let bad = ''
+  let movedTo = ''
   try {
     const body = await res.json()
     token = (body && body.error) || ''
@@ -225,6 +226,8 @@ async function hubError(res, path) {
     // search-v1 §5.1: bad_query points at the offending token
     if (body && Number.isInteger(body.pos)) pos = body.pos
     if (body && typeof body.token === 'string') bad = body.token
+    // spec 169 W5: a moved topic's read names its new link (topic-moved.mjs)
+    if (body && typeof body.moved_to === 'string') movedTo = body.moved_to
   } catch {
     /* not json */
   }
@@ -235,6 +238,7 @@ async function hubError(res, path) {
   if (permission) err.permission = permission
   if (pos !== undefined) err.pos = pos
   if (bad) err.badToken = bad
+  if (movedTo) err.movedTo = movedTo
   if (res.status === 429) err.retryAfter = Number(res.headers.get('retry-after')) || 0
   return err
 }
@@ -654,8 +658,9 @@ function topicReads(mock, mk, conn, live, notePriority) {
         // rdb 0028: a topic you may not read answers 404, exactly as one
         // that does not exist does - the hub will not tell a non-member
         // which of the two it is. An empty topic is the honest rendering;
-        // an error toast would leak that something IS there.
-        if (e && e.status === 404) return { task_id: id, messages: [], next: null }
+        // an error toast would leak that something IS there. Spec 169 T7h:
+        // a topic whose channel moved away keeps its new link (moved_to).
+        if (e && e.status === 404) return { task_id: id, messages: [], next: null, ...(e.movedTo ? { moved_to: e.movedTo } : {}) }
         throw e
       }
       const rows = (data && data.messages) || []

@@ -1,5 +1,13 @@
 # 125 Netvisor integration: test company first, then production
 
+Version v0.3 (2026-11-04, `SPL-4812`): every answer of `msg:91a1bc9a` as a
+decision with its msg id (section 1.5); what each card type gives (section
+4.3); the spec-123 check names where each workspace records a cost (section
+4.2 item 3); the Qto visibility gap per workspace and row B11 (section 5.3);
+section 8 answered; the owner's steps in order (section 10); the questions
+for the accountants ([accountant-questions.md](accountant-questions.md)); the
+build plan ([plan.md](plan.md)) and task rows ([tasks.md](tasks.md)).
+
 Version v0.2 (2026-11-04): C7 rewritten for READING: every person of the
 `csitea` workspace reads the figures, agents never (section 1.4, `SPL-4792`);
 several credit cards plus debit cards (section 4); the spec-123 check looks
@@ -100,6 +108,27 @@ In `topic:fc0119cd-f4ea-4b9f-ada8-4c65d41a82cd` (`HUM-10`, `msg:7c8e6ced`,
   invoice lists (section 7, row B10).
 - **Bookkeeping accounts**: the questions for the accountants go with the
   production step (section 9, step P5).
+
+### 1.5 Every answer of 2026-11-04 as a decision (`msg:91a1bc9a`, poll answer `msg:cfa78746`)
+
+The owner answered the questions of [research.md](research.md) inline in
+`msg:91a1bc9a` (`csitea` topic `67c25538`). Each answer is a decision:
+
+| # | decision | owner's words | source | where in this spec |
+|---|---|---|---|---|
+| D1 | **Design B**: a job on the main box alone fetches the Netvisor data into the hub database; agents never see the figures | "agents never see the figures" | `msg:91a1bc9a` | 5.1, 5.2 |
+| D2 | The screen (cash today, cash at month end, card costs by vendor and type) is read by **every person of the `csitea` workspace**, "for now" | "this is ok to be visible only for the csitea workspace, no need to restrict it for me only for now" | `msg:91a1bc9a`; poll `2a767008`, answer `msg:cfa78746` ("WS — Every member of the csitea workspace") | 1.2 C7, 5.2 |
+| D3 | **Design D**: the balance sheet and the P&L are written by code as a Qto document tree after each fetch, read by every person of `csitea`, no agent | the same sentence, given again under the Qto gap | `msg:91a1bc9a`, `msg:cfa78746` | 5.3, B9, B11 |
+| D4 | Build order: 1 month-end cash forecast, 2 card costs, 3 monthly P&L, 4 balance sheet, 5 open invoice lists | "this one first", "this one second", "3rd", "4th", "5th" | `msg:91a1bc9a` | 7, [tasks.md](tasks.md) |
+| D5 | **Read-only** (`GET` resources only) | "for now read-oly" | `msg:91a1bc9a` | 1.3, 9 P3 |
+| D6 | Freshness: one nightly fetch plus a "Refresh now" button | "Nightly + reresh now if needed" | `msg:91a1bc9a` | 1.3, B6, B7 |
+| D7 | Bills are paid on their due date; the forecast assumes the due date | "Yes. ALWAYS." and "YES" | `msg:91a1bc9a` | 3.1 |
+| D8 | The keys go to the owner on the main box (the main-box file), never into a chat | "Keys to me on the [main] box" | `msg:91a1bc9a` | 5.2 item 1, 10 |
+| D9 | Netvisor package: unknown; the owner buys `Professional` if the API needs it | "IDK. If needed I will purchase the Professional one" | `msg:91a1bc9a` | 8 Q1, 9 P1, [accountant-questions.md](accountant-questions.md) |
+| D10 | Bank, VAT and tax-account bookkeeping accounts: unknown; found by asking the accountants | "WE CAN FIND OUT by asking the Accountants the right questions" | `msg:91a1bc9a` | 8 Q2, 9 P5, [accountant-questions.md](accountant-questions.md) |
+| D11 | Several debit cards AND several credit cards | "We have both debig cards , and credit cards ( several of them )" | `msg:91a1bc9a` | 4, 4.3 |
+| D12 | Before a Netvisor cost is added, the integration knows whether spec 123 already recorded it in the `csitea` workspace or in the `spool-hub` workspace | "you have to be able to identify wheather a cost was added to the csitea workspace or to the spool-hub workspace before adding one from the NetVisor integration" | `msg:91a1bc9a` | 4.2 item 3 |
+| D13 | Card costs: the ledger's breakdown by account and cost centre, and the vendor named by e-invoices, are accepted as the sources | "ok", "ok" | `msg:91a1bc9a` | 4.1 |
 
 ---
 
@@ -243,10 +272,63 @@ booked voucher date so the user knows the cutoff.
      Before a cost from Netvisor is added, the integration checks whether
      spec 123 already recorded that cost, in the `csitea` workspace OR in the
      `spool-hub` workspace, and leaves it out (marked, never silently
-     dropped) when it did. The match key (vendor, month, amount and currency,
-     within a tolerance the build row fixes with the owner) is a design item
-     of the build row that implements it; the vendor list stays as the
-     fallback. No figure of either workspace leaves the hub for the check.
+     dropped) when it did. The vendor list stays as the fallback. No figure
+     of either workspace leaves the hub for the check.
+   - **Where spec 123 records a cost, per workspace** (read 2026-11-04 on
+     `origin/master` `504cafd15`; prd `tenants`: `t1` is the workspace named
+     `spool-hub`, the operator workspace; `csitea` is `csitea`):
+
+     | the cost is in | table (rdb) | rows that count | read under |
+     |---|---|---|---|
+     | `csitea` | `cost_lines` (`0166`) | `tenant_id = 'csitea'`, live (`superseded_by IS NULL`) | the `csitea` tenant scope |
+     | `spool-hub` | `cost_lines` (`0166`) | `tenant_id = 't1'`, and the estate rows `tenant_id IS NULL` (GCP projects, fleet tokens), live | the operator scope |
+     | `spool-hub` | `cost_entries` (`0245`) | `type` `cloud` or `hr`, the month `period` | the operator scope |
+     | `spool-hub` | `fleet_token_paid_items` (`0205`) | AI vendor subscriptions and top-ups whose `period_start..period_end` covers the month | the operator scope |
+
+   - **The check (row B3b, [tasks.md](tasks.md) T5)**: the hub runs it at
+     ingest, for each Netvisor card or purchase cost line, through one
+     `SECURITY DEFINER` SQL function that returns only a label, never an
+     amount: `csitea`, `spool-hub` or none. A line matches a spec-123 record
+     when all three agree: (a) the vendor, through a vendor map in
+     `netvisor_settings` (a Netvisor vendor or merchant text -> a spec-123
+     `project_or_vendor` / `vendor` / `label`; a vendor with no map entry
+     never matches); (b) the calendar month; (c) the amount and currency,
+     equal within a tolerance kept in `netvisor_settings` (default 0, exact).
+     A matched line is stored with `excluded = true` and a new
+     `recorded_in` column (`csitea` | `spool-hub`), shown on the screen as
+     "already in Costs (`<workspace>`)" and left out of the totals. A line
+     whose vendor is mapped but whose amount does not match is kept and
+     shown as "check: vendor also in Costs" so a person decides.
+   - The check reads the other workspace's rows only inside that function;
+     a person of `csitea` sees the label `spool-hub`, never the `spool-hub`
+     figure.
+
+### 4.3 What each card type gives (D11)
+
+Netvisor sees a card purchase only once it is booked. What it can show
+depends on the card type and on how the purchase is booked:
+
+| card type | what reaches Netvisor | vendor per purchase | cost type per purchase | what the screen can show |
+|---|---|---|---|---|
+| **Debit card** (on the bank account) | each purchase is its own bank statement line; once matched it is its own ledger voucher line | only as the merchant free text of the line | yes, the account the line is booked to | every purchase, with its merchant text and account; nothing before the line is booked |
+| **Credit card, settlement bill only** | ONE purchase invoice per card per month from the card issuer: the monthly settlement | no: the vendor is the card issuer | one line, usually one account | one total per card per month; no breakdown by vendor |
+| **Credit card, booked per line** | the same monthly bill, but its rows (from the issuer's e-invoice with receipts, or split by the bookkeeper) are booked line by line | yes, from the e-invoice rows or the line text | yes, per booked line | every purchase, like a debit card |
+| **Expense report** (a card receipt filed by a person) | an expense voucher once accepted | the line text | yes | every accepted receipt |
+
+Consequences:
+- Whether a credit card is booked per line or as one settlement total is
+  a question for the accountants
+  ([accountant-questions.md](accountant-questions.md) Q4). Until it is
+  answered, B3 reads both: a settlement-only card shows as one line
+  "card issuer, settlement" per month.
+- A per-line-booked credit card must never ALSO count its settlement
+  payment as a cost: the settlement is a payment of the card debt, not a
+  new cost. B3 leaves out the settlement purchase invoice of a card whose
+  lines are booked (its account is the card liability account, accountant
+  question Q4), and the cash forecast (section 3) still counts the open
+  settlement bill as an outgoing payment on its due date.
+- Debit card purchases not yet matched to a voucher are invisible
+  (section 4.1); the screen shows the newest booked voucher date.
 
 ---
 
@@ -329,10 +411,30 @@ Per C9 (`msg:adc2981c`) and [research.md](research.md) section 6.1:
   the hierarchical P&L and balance sheet into a Qto document of the `csitea`
   workspace. Since 2026-11-04 (section 1.4, C7 as rewritten) these documents
   are for every person of the workspace, so B9 no longer needs
-  `restricted_to_human`; agents still never read them, so the documents sit
-  where no agent seat reads (the build row names how). B8's
+  `restricted_to_human`; agents still never read them. B8's
   `restricted_to_human` stays as a feature for documents that are one
   person's alone.
+
+**Qto visibility per workspace: the gap (D3)**. Read 2026-11-04 on
+`origin/master` `504cafd15`:
+
+| who may read a Qto document | built? | where |
+|---|---|---|
+| every seat of the workspace with `docs.read`, **agent seats included** | yes, the default | rdb `0157`, `0165`; `pure_agent` holds `DocsRead` (`csi-spl-api/src/go/spool-hub-api/internal/rbac/rbac.go:247`) |
+| one person only (no other member, no agent, no act-as clone) | yes, B8 (`SPL-4723`) | rdb `0256_workspace_doc_restricted_to_human.sql` |
+| a grant per user, agent or role on a node | table only | rdb `0192_workspace_doc_acl.sql`; no read path calls `workspace_doc_acl_effect` (`grep -rn workspace_doc_acl_effect csi-spl-api/src/go --include=*.go` outside tests -> 0 lines) |
+| **every person of the workspace, no agent** | **no** | the gap |
+
+D3 needs the last line: the balance sheet and the P&L for every person of
+`csitea`, never an agent. **Row B11** closes it: a document-level mode
+`restricted_to = 'persons'` beside B8's one-person lock, enforced by a
+RESTRICTIVE policy that reuses rdb `0260`'s `netvisor_person_seat()` test
+(a live seat that is neither `pure_agent` nor `time_accountant`, not an
+act-as clone, not a channel guest) on `workspace_doc`, `workspace_doc_item`,
+`workspace_doc_node`, `workspace_doc_rev_log` and the search path. B9 writes
+only into a document in that mode and refuses any other. The mode is per
+workspace by construction (the tenant scope still applies), so the same
+document type in another workspace reads only that workspace's persons.
 
 ---
 
@@ -347,12 +449,14 @@ fails when the gate or logic is defective.
 | C-NVS-2 | B2 | `do_nvs_cash_forecast --env test` computes the route-C month-end sum from fixture and test-company XML: subtracts a post-balance `paymentlist.nv` item once and drops its invoice from open payables; splits overdue receivables and unapproved payables; reports `newest_bank_voucher_date` | disable `paymentlist.nv` deduplication: the paid invoice is subtracted twice and the unit/fixture test fails |
 | C-NVS-3 | B3 | `do_nvs_card_costs --env test` groups credit-card e-invoice purchase invoices by vendor and booked debit/credit card ledger lines by `AccountNumber` cost type and dimension cost centre, and skips/marks vendors on the spec-123 exclusion list | clear the exclusion list in the control run: excluded vendor lines enter the net card-cost total and fail the assertion |
 | C-NVS-4 | B4 | Every `netvisor_*` table in `csi-spl-rdb` has `FORCE ROW LEVEL SECURITY` (`TestRLSCoversEveryTenantTable`); a query with `app.tenant_id` set to `csitea` but `app.human_id` unset or set to another human reads `0` rows | run with `app.human_id` policy clause removed in the control test: non-owner read returns rows and fails |
-| C-NVS-5 | B5 | On all `/v1/view/netvisor/*` and `/v1/netvisor/*` routes: `HUM-10` gets `200`; another `csitea` admin (`HUM-20`), an act-as clone of `HUM-10`, the operator service account, a box session, and an agent desk session all get `403`; a caller in another workspace gets `404` | replace the `HUM-10` human-id check with a workspace `admin` role check: `HUM-20` gets `200` and the test fails |
+| C-NVS-5 | B5 | (the view routes: superseded by C-NVS-5b since D2; still holds for the owner routes) On all `/v1/view/netvisor/*` and `/v1/netvisor/*` routes: `HUM-10` gets `200`; another `csitea` admin (`HUM-20`), an act-as clone of `HUM-10`, the operator service account, a box session, and an agent desk session all get `403`; a caller in another workspace gets `404` | replace the `HUM-10` human-id check with a workspace `admin` role check: `HUM-20` gets `200` and the test fails |
 | C-NVS-6 | B6 | `do_nvs_sync --env test` on the main box fetches the test-company forecast and card costs and ingests them into `dev` hub; a modes check refuses a credentials file whose mode is not `0600` | `chmod 0644` on a temporary test credentials file: `do_nvs_sync` refuses with exit non-zero before any HTTP call |
 | C-NVS-7 | B7 | WUI e2e in Chrome: `HUM-10` opens the Finance screen, sees the forecast breakdown, newest voucher date, card costs by vendor/type/cost centre, and triggers "Refresh now"; a non-`HUM-10` admin sees `403` / no figures; all i18n keys pass `i18n-parity` and `i18n-no-raw-text` | omit a key in one non-English locale or render a raw label: `i18n-parity.test.mjs` / `i18n-no-raw-text.test.mjs` fails |
 | C-NVS-5b | B5 (SPL-4792) | a person seated in `csitea` who is not `HUM-10` reads the view routes `200` with the figures; an agent seat, an act-as clone, a token and another workspace get `403` / `404`; the owner routes stay `403` for that person (`TestNetvisorHubRBAC`, `TestNetvisorStoreMemberRead`) | rdb `0255`'s `owner_scope` put back in place of `0260`'s policies: the member's read is empty and the test fails |
 | C-NVS-8 | B8 | A `workspace_doc` row with `restricted_to_human = 'HUM-10'` is readable (`200`) by `HUM-10` and invisible (`403` / `0` rows in list, tree, node read and global `/s` search) to another `csitea` admin, an act-as clone of `HUM-10`, and any agent session | drop the `restricted_to_human` predicate in the control: the other admin or agent sees the document in list/search |
-| C-NVS-9 | B9 | The balance-sheet & P&L generator creates/updates the hierarchical Qto doc from test-company `accountbalance.nv` (`intervaltype=3`) + `accountlist.nv` only after setting `restricted_to_human = 'HUM-10'`; refuses to write if the document lock is absent | stub the lock check to return unlocked: generator aborts with fatal error and writes no node |
+| C-NVS-9 | B9 | The balance-sheet & P&L generator creates/updates the hierarchical Qto doc from test-company `accountbalance.nv` (`intervaltype=3`) + `accountlist.nv` only into a document in B11's `persons` mode (v0.3; was `restricted_to_human = 'HUM-10'` before D2/D3); refuses to write into any other document | stub the mode check to return "workspace": generator aborts with fatal error and writes no node |
+| C-NVS-11 | B11 | A `workspace_doc` in `persons` mode is readable by every person seated in `csitea` (admins and non-admins) and invisible (`403` / `0` rows in list, tree, node read, rev log and `/s` search) to an agent seat, a time accountant, an act-as clone, a channel guest and another workspace | drop the persons predicate from one read path (search): the agent seat finds the document and the test fails |
+| C-NVS-12 | B3b | a Netvisor line whose mapped vendor, month and amount match a live `cost_lines` row of `csitea` is stored `excluded`, `recorded_in = 'csitea'`; one matching a `spool-hub` row (`cost_lines` `t1` / estate, `cost_entries`, `fleet_token_paid_items`) gets `recorded_in = 'spool-hub'`; an unmapped vendor is kept; the function returns no amount | make the function look in `csitea` only: the `spool-hub` match is kept in the totals and the test fails |
 
 ---
 
@@ -375,42 +479,41 @@ company (`--env test`)** before any production access is requested or configured
 | **B8** | `csitea/csi-spl` | Add per-person, no-agent Qto document lock (`restricted_to_human` column on `workspace_doc` in `csi-spl-rdb` and enforcement across `workspace_doc*` store/hub read, tree and search routes in `csi-spl-api`, section 5.3). | `PRE_PUSH_TIER=full ./run -a do_check_pre_push` green; `TestWorkspaceDocRestrictedToHuman` proves `HUM-10` reads `200` while another `csitea` admin, act-as clone and agent session get `403` / `0` rows in doc read and `/s` search (case C-NVS-8). | Bypass the `restricted_to_human` filter on doc tree or search: non-`HUM-10` admin or agent session sees the locked doc and the test fails. |
 | **B9** | `csitea/csi-int-nvs` + `csitea/csi-spl` | Build Option D (C9): `do_nvs_balance_sheet_qto --env test` in `csitea/csi-int-nvs` reads monthly `accountbalance.nv` (`intervaltype=3`) and `accountlist.nv` from the test company and pushes a hierarchical P&L and balance sheet tree into a Qto document of the `csitea` workspace via `csi-spl-api` (workspace scope, section 5.3: every person reads it, no agent). | Proven against `--env test` on `dev`: a person of `csitea` opens the generated hierarchical Qto P&L and balance sheet; agents see `0` rows (case C-NVS-9). | Generate into a document an agent seat can read: the ingest handler refuses with `400` and writes nothing. |
 | **B10** | `csitea/csi-int-nvs` + `csitea/csi-spl` | The open invoice lists (open sales invoices and open purchase invoices, with due dates and the overdue split) and the report order of the Finance screen (owner, 2026-11-04, section 1.4): cash forecast, card costs, P&L, balance sheet, open invoice lists. Workspace scope like B9. | The Finance screen shows the five reports in that order on `dev` against the test company; agents see `0` rows. | Reorder or drop a report: the e2e order check fails. |
+| **B3b** | `csitea/csi-spl` | The spec-123 check of section 4.2 item 3 (D12): rdb migration adds `recorded_in` to `netvisor_card_cost_lines` and the vendor map + tolerance to `netvisor_settings`; one `SECURITY DEFINER` function returns `csitea`, `spool-hub` or none for a line; the ingest (B5) calls it per line. | `PRE_PUSH_TIER=full ./run -a do_check_pre_push` green on PostgreSQL; case C-NVS-12. | Make the function look in `csitea` only: a `spool-hub` match stays in the totals and the test fails. |
+| **B11** | `csitea/csi-spl` | Qto `persons` mode (section 5.3, D3): a document every person of the workspace reads and no agent seat does; RESTRICTIVE policies on `workspace_doc*` and the search path, reusing `netvisor_person_seat()`. B9's prerequisite. | `PRE_PUSH_TIER=full` green; case C-NVS-11. | Drop the predicate from the search path: the agent seat finds the document. |
 
 **Batching**:
 - Batch 1 (parallel): **B1** (`csitea/csi-int-nvs`) and **B4** (`csitea/csi-spl`), plus **B8** (`csitea/csi-spl`, independent `workspace_doc` lock).
 - Batch 2 (parallel, after Batch 1): **B2** and **B3** (`csitea/csi-int-nvs`, after B1), and **B5** (`csitea/csi-spl`, after B4).
 - Batch 3 (parallel, after Batch 2): **B6** (`csitea/csi-int-nvs`, after B2, B3, B5) and **B7** (`csitea/csi-spl`, after B5).
-- Batch 4 (after B6): **B9** (`csitea/csi-int-nvs` + `csitea/csi-spl`; B8 is no longer a prerequisite since 2026-11-04).
-- Batch 5 (after B9): **B10**.
+- Batch 4 (after B6): **B3b** (after B3 and B5) and **B11** (`csitea/csi-spl`, independent).
+- Batch 5 (after B6 and B11): **B9** (`csitea/csi-int-nvs` + `csitea/csi-spl`; B8 is no longer a prerequisite since 2026-11-04, B11 is).
+- Batch 6 (after B9): **B10**.
+- The owner's order (D4) is the order the reports SHIP in: 1 cash forecast (B1, B2, B4..B7), 2 card costs (B3, B3b), 3 P&L and 4 balance sheet (B11, B9), 5 open invoice lists (B10). [tasks.md](tasks.md) lists them as T rows in that order; [plan.md](plan.md) says what is already on `master`.
 
 ---
 
-## 8. Open questions for the owner
+## 8. Questions for the owner: answered on 2026-11-04
 
-Only the choices left open by [research.md](research.md) section 8.2 and the
-build order above (test-company rows `B1..B9` do not wait on `Q1` or `Q2`,
-which use the test company's chart of accounts first):
+[research.md](research.md) section 8.2 left four choices open; `msg:91a1bc9a`
+answered or redirected each:
 
-1. **Q1 — Production Netvisor package (`research.md` 8.2 item 5)**: Which
-   Netvisor package does the production company run (`Professional`, `Premium`,
-   `Palkat`, or `Core` requiring a package upgrade before production API access
-   is enabled in section 9)?
-2. **Q2 — Production bookkeeping account numbers (`research.md` 8.2 item 6)**:
-   How would you like to supply the production bookkeeping account numbers for
-   (a) the bank account, (b) VAT payable, and (c) employer / tax-account
-   liabilities — by typing them into the `HUM-10`-only settings form on the WUI
-   screen (row `B7`), or by placing them into the mode-`0600` settings file on
-   the main box? (Per C2/C7, they are never committed to git or specs.)
-3. **Q3 — When to request production credentials from Netvisor partner
-   support**: Should we request production validation from Netvisor partner
-   support as soon as the month-end cash forecast works end-to-end against the
-   test company (`B1`, `B2`, `B4..B7`), or wait until card costs (`B3`) and the
-   Qto balance sheet (`B8`, `B9`) are also verified against the test company?
-4. **Q4 — Deduplicating cloud and AI vendor bills with spec 123 (`research.md`
-   5.3)**: On the card-cost and supplier-cost view (`B3`, `B7`), how should
-   vendors already tracked by spec 123 (cloud and AI providers) be handled —
-   excluded automatically via the vendor-exclusion list, or shown with an
-   "already in Costs (spec 123)" badge and excluded from combined totals?
+1. **Q1 — Production Netvisor package**: unknown; the owner buys
+   `Professional` if the API needs it (D9). Asked of the accountants
+   ([accountant-questions.md](accountant-questions.md) Q6) before P1.
+2. **Q2 — Production bookkeeping account numbers**: unknown; asked of the
+   accountants (D10, [accountant-questions.md](accountant-questions.md)
+   Q1..Q3). The numbers go into the main-box `0600` settings file with the
+   keys (D8) or the owner's settings form (B7); never into git, a spec or a
+   chat (C2).
+3. **Q3 — When to ask Netvisor partner support for production**: still
+   open; the default, unless the owner says otherwise, is after the first
+   report (the cash forecast: B1, B2, B4..B7) works against the test
+   company, because the owner put it first (D4).
+4. **Q4 — Spec-123 vendor bills**: decided by D12 (section 4.2 item 3):
+   matched by vendor map, month and amount in both workspaces; a matched
+   line is marked "already in Costs (`<workspace>`)" and left out of the
+   totals.
 
 ---
 
@@ -427,3 +530,26 @@ are verified green against `--env test` and the owner gives the go.
 | **P4** | In the **production** Netvisor company, under a dedicated integration user, open **Company menu > Api identifiers > Create new api identifier** to mint the production `CustomerId` and `CustomerKey` ([research.md](research.md) 1.2 step 6, 1.3). | Company admin in production Netvisor | **Yes (owner / company admin)** |
 | **P5** | Place the production credentials and production bookkeeping account numbers into the main-box mode-`0600` production credentials/settings file (or the `HUM-10` settings form for account numbers, Q2); never in git, chat or logs (C2, C6). The questions for the accountants about the bookkeeping accounts (which accounts hold the bank, VAT, tax and card costs) are asked here, with the production step (owner, 2026-11-04, section 1.4). | Owner / main-box operator, with the accountants | **Yes (owner)** |
 | **P6** | Verify the production read path from the main box with `./run -a do_nvs_api_call --resource accountlist.nv --env prd` and `./run -a do_nvs_sync --env prd` (checking `ResponseStatus` `Status` = `OK` and comparing the resulting month-end forecast on `HUM-10`'s `prd` screen against Netvisor's production cash-flow forecast screen), then enable the nightly `--env prd` schedule on the main box. | Main-box lane (after owner go) + `HUM-10` verification on screen | **Yes (owner go before running `--env prd`, and owner visual check on screen)** |
+
+---
+
+## 10. What the owner does, in order
+
+Each line is one step for `HUM-10`; the dispatcher turns them into forms.
+Nothing here is done by an agent, and no key, number or file path is
+written into a chat.
+
+1. Forward [accountant-questions.md](accountant-questions.md) to the
+   accountants and keep their answers off chat (they go into the main-box
+   file in step 5).
+2. Confirm the production company's Netvisor package; buy `Professional` if
+   the API needs it (D9, P1).
+3. Name the contact person for the Netvisor partner registration (the
+   person partner support writes to for the production partner keys, P2).
+4. In production Netvisor, create a dedicated integration user and, under
+   it, the API identifier (customer keys), with only the read resources of
+   P3 switched on (P3, P4).
+5. Put the partner keys, the customer keys and the accountants' account
+   numbers into the `0600` file on the main box yourself (D8, P5).
+6. Give the go for the first `--env prd` run and check its month-end figure
+   against Netvisor's own cash-flow screen (P6).

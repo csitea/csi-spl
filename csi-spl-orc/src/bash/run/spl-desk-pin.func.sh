@@ -25,6 +25,15 @@
 # @description key goes through a 0600 scratch file, removed).
 # @description On a box enrolled into one workspace (spec 108 3.5) any other
 # @description TENANT_ID is refused, in every mode.
+# @description A desk do_spl_desk_move gave to another user (spl_desk_moved_to)
+# @description is refused in self, join, check and repin mode, before any dir
+# @description or key (SPL-4744): that user's sidecar serves it with the pinned key.
+# @description   repin  - DESK_REPIN=1 + ROOT_KEY_JSON (SPL-4744): the hub pins
+# @description            the box to a key this box no longer has (pin_conflict
+# @description            / bad_sig): FORCE-pin the box's EXISTING local key
+# @description            (`spool hub-pin --force`). It mints nothing; every
+# @description            other copy of the old key stops being accepted. The
+# @description            live run needs DRY_RUN=0 AND DESK_REPIN_OWNER_MSG
 # @description Dry run unless DRY_RUN=0.
 # @param ENV - required: dev or prd; or self - a self-hosted hub at
 # @param   SPOOL_HUB_URL, any host, no cnf (specs/047 W4, do_spl_desk_cnf)
@@ -41,8 +50,13 @@
 # @param   hub (https://<env.dns.api_fqdn>): a mismatch is refused, because the
 # @param   desk would run against the cnf hub anyway. ENV=self: the hub itself
 # @param   (required on the first run, saved for later ones)
+# @param DESK_REPIN (optional) - 1: repin mode (needs ROOT_KEY_JSON; no
+# @param   BOX_PUBKEY, PIN_REVOKE or SPOOL_JOIN_TOKEN). Default 0
+# @param DESK_REPIN_OWNER_MSG (optional) - repin mode, required with DRY_RUN=0:
+# @param   the owner's message id (8 hex or a full uuid) that approved this re-pin
 # @param DRY_RUN (optional) - 1 (default) or 0
 # @example ENV=dev TENANT_ID=t1 DESK_BOX=box-alice DRY_RUN=0 ./run -a do_spl_desk_pin
+# @example ENV=prd TENANT_ID=t1 DESK_BOX=box-alice ROOT_KEY_JSON=<file> DESK_REPIN=1 ./run -a do_spl_desk_pin
 # @example ENV=dev TENANT_ID=t1 DESK_BOX=box-alice BOX_PUBKEY=<b64> ROOT_KEY_JSON=<file> DRY_RUN=0 ./run -a do_spl_desk_pin
 # @example ENV=self SPOOL_HUB_URL=http://localhost:8080 TENANT_ID=main DESK_BOX=box-alice ROOT_KEY_JSON=<file> DRY_RUN=0 ./run -a do_spl_desk_pin
 #------------------------------------------------------------------------------
@@ -86,6 +100,12 @@ do_spl_desk_pin() {
   [[ -n "${SPOOL_JOIN_TOKEN:-}" ]] && mode='join'
   [[ -n "$other" ]] && mode='admin'
   (( revoke )) && mode=revoke
+  spl_desk_repin_mode "$rkj" "$other" "$revoke" || return 1
+  [[ "${DESK_REPIN:-0}" == 1 ]] && mode=repin
+  if [[ "$mode" != admin && "$mode" != revoke ]]; then
+    spl_desk_moved_refuse "$tenant" "$box" do_spl_desk_pin && return 1
+  fi
+  [[ "$mode" == repin ]] && { spl_desk_repin "$dry" "$d" "$box" "$tenant" "$hub" "$rkj"; return $?; }
   if (( dry )); then spl_desk_pin_dry "$mode" "$box" "$tenant" "$hub" "$d"; return 0; fi
   spl_host_spool || return 1
   if [[ "$mode" == admin || "$mode" == revoke ]]; then
@@ -161,19 +181,21 @@ spl_desk_box_pub() {
   printf '%s\n' "$pub"
 }
 
-# spl_desk_pin_hub <spool dir> <box> <tenant> <hub> <pubkey> <root key json>:
-# POST /v1/pins signed with the root key, which only ever sits in a 0600
-# scratch file. An EMPTY pubkey revokes the pin (DELETE /v1/pins/<box>).
+# spl_desk_pin_hub <spool dir> <box> <tenant> <hub> <pubkey> <root key json>
+# [force]: POST /v1/pins signed with the root key, which only ever sits in a
+# 0600 scratch file. An EMPTY pubkey revokes the pin (DELETE /v1/pins/<box>).
+# force 1 (repin mode only) replaces a different pinned key.
 spl_desk_pin_hub() {
-  local d="$1" box="$2" tenant="$3" hub="$4" pub="$5" rkj="$6" key out rc=0
+  local d="$1" box="$2" tenant="$3" hub="$4" pub="$5" rkj="$6" force="${7:-0}" key out rc=0
   [[ "$(stat -c %a "$rkj")" == 600 ]] || { do_log "FATAL $rkj must be mode 0600"; return 1; }
   key="$(umask 077 && mktemp)" || return 1
   spl_root_key_to_file "$rkj" "$key" ||
     { rm -f "$key"; do_log "FATAL $rkj holds no tenant root key (a create JSON with root_private_key, or a bare base64 key)"; return 1; }
   local -a what=(--pubkey "$pub"); [[ -n "$pub" ]] || what=(--revoke)
+  [[ "$force" == 1 ]] && what+=(--force)
   out="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- hub-pin --box "$box" "${what[@]}" --root-key "$key" 2>&1)" || rc=$?
   rm -f "$key"
-  (( rc == 0 )) || { do_log "FATAL hub-pin $box under $tenant: $out"; return 1; }
+  (( rc == 0 )) || { do_log "FATAL hub-pin $box under $tenant: $out"; spl_desk_repin_hint "$box" "$tenant" "$out"; return 1; }
   [[ -z "$pub" ]] || do_log "INFO pinned $box ($pub) under $tenant at $hub"
 }
 
@@ -205,4 +227,46 @@ print(json.dumps({"env": env, "tenant": tenant, "hub": hub, "box": box, "box_pub
                   "state_dir": state or None, "pinned": pinned == "1", "admin_cmd": admin or None},
                  sort_keys=True))
 EOF_PY
+}
+
+# spl_desk_repin_mode <root key json> <box pubkey> <revoke>: 0 when DESK_REPIN
+# is unset, 0, or 1 with the inputs repin mode takes; else 1 with the FATAL.
+spl_desk_repin_mode() {
+  local r="${DESK_REPIN:-0}"
+  [[ "$r" == 0 || "$r" == 1 ]] || { do_log "FATAL DESK_REPIN must be 0 or 1, got: '$r'"; return 1; }
+  [[ "$r" == 1 ]] || return 0
+  [[ -n "$1" ]] || { do_log "FATAL DESK_REPIN=1 needs ROOT_KEY_JSON (the tenant root key signs the forced pin)"; return 1; }
+  [[ -z "$2" && "$3" == 0 && -z "${SPOOL_JOIN_TOKEN:-}" ]] ||
+    { do_log "FATAL DESK_REPIN=1 takes no BOX_PUBKEY, PIN_REVOKE or SPOOL_JOIN_TOKEN: it re-pins this box's own key"; return 1; }
+}
+
+# spl_desk_repin <dry> <state dir> <box> <tenant> <hub> <root key json>: repin
+# mode (SPL-4744). Force-pins the box key ALREADY in <state>/keys; a desk with
+# no key is refused (it would mint one: that is self mode). The live run needs
+# DESK_REPIN_OWNER_MSG, logged with the result; the dry run names what it needs.
+spl_desk_repin() {
+  local dry="$1" d="$2" box="$3" tenant="$4" hub="$5" rkj="$6" pub
+  local msg="${DESK_REPIN_OWNER_MSG:-}"
+  [[ -s "$d/keys/box-$box.key" ]] ||
+    { do_log "FATAL DESK_REPIN=1: $box has no key in $d/keys to re-pin, and repin mode mints none: seat it with self mode (no DESK_REPIN) instead"; return 1; }
+  pub="$(spl_desk_box_pub "$d" "$box" "$tenant" "$hub")" || return 1
+  if (( dry )); then
+    do_log "INFO DRY_RUN would: FORCE hub-pin $box to its local key ($pub, $d/keys) under $tenant at $hub, replacing the key the hub pins now: any other copy of $box's old key stops being accepted (bad_sig)"
+    do_log "OK DRY_RUN nothing was touched. Re-run with DRY_RUN=0 DESK_REPIN_OWNER_MSG=<the owner's msg id approving this re-pin>."
+    return 0
+  fi
+  [[ "$msg" =~ ^[0-9a-f]{8}(-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$ ]] ||
+    { do_log "FATAL DESK_REPIN=1 DRY_RUN=0 needs DESK_REPIN_OWNER_MSG=<the owner's msg id> (8 hex or a uuid), got: '$msg'"; return 1; }
+  spl_host_spool || return 1
+  spl_desk_pin_hub "$d" "$box" "$tenant" "$hub" "$pub" "$rkj" 1 || return 1
+  printf '%s\n' "$pub" >"$d/pinned"
+  spl_desk_pin_json "$ENV" "$tenant" "$hub" "$box" "$pub" "$d" 1 ""
+  do_log "OK re-pinned $box ($pub) under $tenant at $hub, forced, on the owner's go $msg"
+}
+
+# spl_desk_repin_hint <box> <tenant> <hub-pin output>: after a pin_conflict,
+# the one INFO line that names the two ways out (SPL-4744), on stderr.
+spl_desk_repin_hint() {
+  [[ "$3" == *pin_conflict* ]] || return 0
+  do_log "INFO the hub pins $1 under $2 to another key. A desk do_spl_desk_move gave to another user: run the action as that user. This box's key is the right one and the pinned one is lost: re-pin it, dry run first: ENV=${ENV:-<env>} TENANT_ID=$2 DESK_BOX=$1 ROOT_KEY_JSON=<the tenant create JSON> DESK_REPIN=1 ./run -a do_spl_desk_pin (live: DRY_RUN=0 DESK_REPIN_OWNER_MSG=<owner msg id>)" >&2
 }

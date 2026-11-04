@@ -487,6 +487,16 @@ Pin another user's box (the admin line a pending box prints):
 cd <CHECKOUT>/csi-spl-orc && ENV=<ENV> TENANT_ID=<WORKSPACE> DESK_BOX=<BOX> BOX_PUBKEY=<BOX_PUBKEY> ROOT_KEY_JSON=<KEY_FILE> DRY_RUN=0 ./run -a do_spl_desk_pin
 ```
 
+A desk that `do_spl_desk_move` gave to another user is that user's. As anyone else, `do_spl_desk_up` and the self, check, join and repin modes of `do_spl_desk_pin` refuse it before any dir or key, and name the user to run as (SPL-4744). Its sidecar serves it with the pinned key. A pin of another copy's key would take the desk from that sidecar.
+
+Re-pin a box whose pinned key is lost, when the hub refuses its own key with `pin_conflict` or `bad_sig` and the desk is not moved. This force-pins the key already in `<state dir>/desk/<WORKSPACE>/<BOX>/keys` (`spool hub-pin --force`) and mints none. Every other copy of the old key stops working. Run the dry run first:
+
+```bash
+cd <CHECKOUT>/csi-spl-orc && ENV=<ENV> TENANT_ID=<WORKSPACE> DESK_BOX=<BOX> ROOT_KEY_JSON=<KEY_FILE> DESK_REPIN=1 ./run -a do_spl_desk_pin
+```
+
+The live run adds `DRY_RUN=0 DESK_REPIN_OWNER_MSG=<OWNER_MSG_ID>`, the owner's message that approved this re-pin; without it the action refuses.
+
 Pin `box-wui`, when the create did not (its exit 4) or after a `box-wui` key rotation (`FORCE=1`):
 
 ```bash

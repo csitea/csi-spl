@@ -62,3 +62,19 @@ spl_desk_moved_to() {
 spl_desk_moved_note() {
   do_log "INFO desk $2 of $1 (${ENV:-?}) lives under $3's state root (do_spl_desk_move, spec 069 8.4; read by $4): skipped as $(id -un), no key minted, no pin offered - $3's reconcile and sidecar serve it"
 }
+
+# spl_desk_moved_refuse <workspace> <desk id> <action>: 0 (and one FAIL line on
+# stderr) when the desk moved to another user, so <action> must stop before it
+# makes a dir, mints or reuses a key, or pins. 1 when the desk is the caller's.
+# Why (SPL-4744): on sat 2026-11-03 the owner's go to seat c-002 in a workspace ran
+# do_spl_desk_up as the box user with ROOT_KEY_JSON. Only the no-key path
+# checked spl_desk_moved_to, so it took the stub key the box user's reconcile
+# had minted at 10:06Z and asked the hub to pin it: pin_conflict, while the
+# agent user's sidecar served the desk, and c-002 on it, with the pinned key.
+spl_desk_moved_refuse() {
+  local mv u
+  mv="$(spl_desk_moved_to "$1" "$2")" || return 1
+  u="${mv%%$'\t'*}"
+  do_log "FAIL desk $2 of $1 (${ENV:-?}) lives under $u's state root (do_spl_desk_move): $3 as $(id -un) makes no desk dir and mints or pins no key (a pin of this user's key takes the desk from $u's live sidecar). Run it as $u: sudo -u $u -H bash -c 'cd <checkout>/<org>-<app>-orc && <the same env> ./run -a $3'" >&2
+  return 0
+}

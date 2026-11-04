@@ -23,6 +23,13 @@
 #   9b. do_spl_desk_up's first run (spl_desk_pin) takes the join token in
 #      place of ROOT_KEY_JSON and prints only the pubkey. CONTROL: with
 #      neither it is refused and names both
+#   10. SPL-4744 repin mode (DESK_REPIN=1): the dry run names the forced pin
+#      and calls no hub-pin; DRY_RUN=0 without DESK_REPIN_OWNER_MSG is
+#      refused; with it, hub-pin --force of the box's EXISTING key, pinned
+#      rewritten, the owner msg id logged; no keygen. Refused: no root key, a
+#      BOX_PUBKEY, a bad DESK_REPIN, a desk with no key (it would mint one).
+#      CONTROL: self and admin mode never pass --force. A pin_conflict (self
+#      mode, and do_spl_desk_up's spl_desk_pin) prints the DESK_REPIN line
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -49,14 +56,17 @@ case "$1" in
   join) [ "${STUB_JOIN_FAIL:-0}" = 1 ] && { echo 'join: box_join_disabled (403)' >&2; exit 1; }
         [ -s "$SPOOL_KEYS_DIR/box-$SPOOL_BOX_ID.key" ] || exit 9
         printf '%s\n' "${SPOOL_JOIN_TOKEN:-}" >"$T_TOKSEEN"; echo "seated $SPOOL_BOX_ID on $SPOOL_TENANT" ;;
-  hub-pin) prev=""; for a in "$@"; do [ "$prev" = --root-key ] && { stat -c %a "$a" >>"$STUB_LOG"; cat "$a" >>"$T_ROOTSEEN"; }; prev="$a"; done
+  hub-pin) case " $* " in *" --force "*) ;; *) [ "${STUB_PIN_CONFLICT:-0}" = 1 ] && { echo 'spool: hub refused: pin_conflict (box_id is pinned to a different key or revoked (use force))' >&2; exit 1; } ;; esac
+           prev=""; for a in "$@"; do [ "$prev" = --root-key ] && { stat -c %a "$a" >>"$STUB_LOG"; cat "$a" >>"$T_ROOTSEEN"; }; prev="$a"; done
            touch "$STUB_PINNED"; echo '{"pinned":true}' ;;
 esac
 EOF
 chmod +x "$T/stub/"*
+: >"$T/box.env"
 
 in_orc() {
-  env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/dev" STUB_LOG="$T/calls.log" \
+  env -u SPOOL_DESK_USER -u SPOOL_AGENT_USER SPOOL_BOX_ENV="$T/box.env" SPOOL_BOX_USER="$(id -un)" \
+    PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" SPL_STATE_DIR="$T/state/dev" STUB_LOG="$T/calls.log" \
     STUB_PINNED="$T/pinned-at-hub" T_ROOTSEEN="$T/rootseen" T_TOKSEEN="$T/tokseen" PATH="$T/stub:$PATH" ENV=dev "$@" bash -c '
     set -uo pipefail
     do_log() { echo "$*"; }
@@ -223,5 +233,45 @@ up_pin SPOOL_JOIN_TOKEN="$TOK" >"$T/o" 2>"$T/e"; rc=$?
   fail "9b. desk up join: rc $rc $(cat "$T/o" "$T/e")"
 rm -rf "$T/up"; up_pin >"$T/o" 2>&1 && fail "9b. CONTROL: a first run with no key and no token was accepted" ||
   { grep -q 'ROOT_KEY_JSON .* or SPOOL_JOIN_TOKEN' "$T/o" && pass "9b. CONTROL: no key and no token is refused, both named" || fail "9b. control: $(cat "$T/o")"; }
+
+# --- 10. repin mode (SPL-4744) ------------------------------------------------------------------
+grep -qE '^spool hub-pin .*--force' "$T/calls.log" && fail "10. CONTROL: a mode before repin passed --force" ||
+  pass "10. CONTROL: self / admin / revoke mode never passed --force"
+OWNPUB="$(cat "$OWN/pinned")"; : >"$T/calls.log"
+in_orc TENANT_ID=t1 DESK_BOX=box-own ROOT_KEY_JSON="$T/root.json" DESK_REPIN=1 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 ]] && grep -q "DRY_RUN would: FORCE hub-pin box-own to its local key ($OWNPUB" "$T/o" && ! grep -q '^spool ' "$T/calls.log" &&
+  pass "10. the repin dry run names the forced pin of the local key and calls no spool" || fail "10. dry: rc $rc $(cat "$T/o" "$T/calls.log")"
+in_orc TENANT_ID=t1 DESK_BOX=box-own ROOT_KEY_JSON="$T/root.json" DESK_REPIN=1 DRY_RUN=0 >"$T/o" 2>&1; rc=$?
+[[ $rc -ne 0 ]] && grep -q 'needs DESK_REPIN_OWNER_MSG' "$T/o" && ! grep -q '^spool hub-pin' "$T/calls.log" &&
+  pass "10. DRY_RUN=0 without an owner msg id is refused, no hub-pin" || fail "10. no msg: rc $rc $(cat "$T/o" "$T/calls.log")"
+in_orc TENANT_ID=t1 DESK_BOX=box-own ROOT_KEY_JSON="$T/root.json" DESK_REPIN=1 DRY_RUN=0 DESK_REPIN_OWNER_MSG=nope >"$T/o" 2>&1 &&
+  fail "10. a malformed owner msg id was accepted" || pass "10. a malformed owner msg id is refused"
+rm -f "$OWN/pinned"
+in_orc TENANT_ID=t1 DESK_BOX=box-own ROOT_KEY_JSON="$T/root.json" DESK_REPIN=1 DRY_RUN=0 DESK_REPIN_OWNER_MSG=9d4a3bd1 STUB_PIN_CONFLICT=1 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && "$(cat "$OWN/pinned")" == "$OWNPUB" ]] && grep -q "^spool hub-pin --box box-own --pubkey $OWNPUB --force --root-key " "$T/calls.log" &&
+  ! grep -q '^spool keygen' "$T/calls.log" && grep -q "forced, on the owner's go 9d4a3bd1" "$T/o" &&
+  pass "10. repin force-pins the EXISTING key over a conflict, rewrites pinned, logs the owner msg" || fail "10. live: rc $rc $(cat "$T/o" "$T/calls.log")"
+grep -qF "$ROOTK" "$T/o" "$T/calls.log" && fail "10. the root key leaked" || pass "10. the root key is in neither output nor argv"
+for bad in "DESK_REPIN=2 ROOT_KEY_JSON=$T/root.json" "DESK_REPIN=1" "DESK_REPIN=1 ROOT_KEY_JSON=$T/root.json BOX_PUBKEY=$PUB" "DESK_REPIN=1 ROOT_KEY_JSON=$T/root.json PIN_REVOKE=1"; do
+  : >"$T/calls.log"
+  # shellcheck disable=SC2086
+  in_orc TENANT_ID=t1 DESK_BOX=box-own DRY_RUN=0 DESK_REPIN_OWNER_MSG=9d4a3bd1 $bad >"$T/o" 2>&1 && fail "10. '$bad' was accepted" ||
+    { [[ ! -s "$T/calls.log" ]] && pass "10. '${bad%% ROOT*}...' is refused before any call" || fail "10. '$bad' called spool"; }
+done
+: >"$T/calls.log"
+in_orc TENANT_ID=t1 DESK_BOX=box-nokey ROOT_KEY_JSON="$T/root.json" DESK_REPIN=1 DRY_RUN=0 DESK_REPIN_OWNER_MSG=9d4a3bd1 >"$T/o" 2>&1; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls.log" ]] && grep -q 'has no key .* repin mode mints none' "$T/o" &&
+  pass "10. a desk with no key is refused: repin mints nothing" || fail "10. no key: rc $rc $(cat "$T/o" "$T/calls.log")"
+: >"$T/calls.log"
+in_orc TENANT_ID=t1 DESK_BOX=box-cf DRY_RUN=0 ROOT_KEY_JSON="$T/root.json" STUB_PIN_CONFLICT=1 >"$T/o" 2>&1; rc=$?
+[[ $rc -ne 0 && ! -e "$T/state/dev/desk/t1/box-cf/pinned" ]] && grep -q 'pin_conflict' "$T/o" && grep -q 'DESK_BOX=box-cf .*DESK_REPIN=1 ./run -a do_spl_desk_pin' "$T/o" &&
+  pass "10. self mode on a pin_conflict: no pinned, the DESK_REPIN line is printed" || fail "10. conflict hint: rc $rc $(cat "$T/o")"
+mkdir -p "$T/up/keys" "$T/up/spool"
+env PROJ_PATH="$PROJ_ROOT" APP_PATH="$APP_ROOT" STUB_LOG="$T/calls.log" PATH="$T/stub:$PATH" ENV=dev STUB_PIN_CONFLICT=1 bash -c '
+  do_log() { echo "$*"; }
+  for f in "$PROJ_PATH"/lib/bash/funcs/*.func.sh "$PROJ_PATH"/src/bash/run/*.func.sh; do source "$f"; done
+  SPL_SPOOL="$(command -v spool)"; spl_desk_pin "$1" box-up t1 https://hub.test "$2"' _ "$T/up" "$T/root.json" >"$T/o" 2>"$T/e"; rc=$?
+[[ $rc -ne 0 && ! -s "$T/o" && ! -e "$T/up/pinned" ]] && grep -q 'DESK_BOX=box-up .*DESK_REPIN=1' "$T/e" &&
+  pass "10. do_spl_desk_up's pin on a pin_conflict: the DESK_REPIN line on stderr, stdout empty" || fail "10. up conflict: rc $rc $(cat "$T/o" "$T/e")"
 
 [[ $fails -eq 0 ]] && echo "OK desk-pin: all passed" || { echo "FAILED desk-pin: $fails"; exit 1; }

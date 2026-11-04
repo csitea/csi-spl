@@ -76,9 +76,9 @@ do_spl_desk_up() {
   spl_desk_validate "$tenant" "$box" "$agent" || return 1
   [[ "$wait" =~ ^[0-9]+$ ]] || { do_log "FATAL DESK_WAIT_SECS must be a whole number, got: '$wait'"; return 1; }
 
-  local hub d
-  hub="$SPL_HUB_URL"
+  local hub="$SPL_HUB_URL" d
   d="$(spl_desk_dir "$tenant" "$box")" || [[ $? -eq 1 ]] || return 1
+  spl_desk_moved_refuse "$tenant" "$box" do_spl_desk_up && return 1
   local notify="${DESK_NOTIFY_CMD-$APP_PATH/$SPL_ORG_APP-orc/src/bash/features/spawn-agents/scripts/spool-notify.sh}"
   [[ "$notify" == off || -x "$notify" ]] || { do_log "FATAL DESK_NOTIFY_CMD '$notify' is not executable (use 'off' for no terminal leg)"; return 1; }
   local poke="${DESK_POKE:-1}" boxpoke="${DESK_BOX_POKE:-1}"
@@ -235,7 +235,7 @@ spl_desk_pin() {
     { rm -f "$key"; do_log "FATAL $rkj holds no tenant root key (a create JSON with root_private_key, or a bare base64 key)" >&2; return 1; }
   out="$(spl_desk_spool "$d" "$box" "$tenant" "$hub" -- hub-pin --box "$box" --pubkey "$pub" --root-key "$key" 2>&1)" || rc=$?
   rm -f "$key"
-  (( rc == 0 )) || { do_log "FATAL hub-pin $box under $tenant: $out" >&2; return 1; }
+  (( rc == 0 )) || { do_log "FATAL hub-pin $box under $tenant: $out" >&2; spl_desk_repin_hint "$box" "$tenant" "$out" >&2; return 1; }
   printf '%s\n' "$pub" >"$d/pinned"
   do_log "INFO pinned $box ($pub) under $tenant at $hub" >&2
   cat "$d/pinned"

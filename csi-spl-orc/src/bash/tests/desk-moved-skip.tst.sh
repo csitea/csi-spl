@@ -21,6 +21,11 @@
 #   4. spl_desk_pin_check on a moved desk: no key minted, no do_spl_desk_pin
 #      line, rc 1. CONTROL: an unmoved unpinned desk still gets the admin line
 #   5. _spl_desk_up_all_rsp: a moved responder box gets no pin check
+#   6. SPL-4744 (sat 2026-11-03, owner go 9d4a3bd1): do_spl_desk_up
+#      WITH ROOT_KEY_JSON on a moved desk is refused before any dir, key or
+#      hub-pin, and names B; so are do_spl_desk_pin's self, check and repin
+#      modes. CONTROLS: admin mode (hub only) is not refused; an unmoved desk
+#      dry-runs as before
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -138,6 +143,39 @@ fresh; desk "$RA" t1 sat-rsp c-684; real "$RB" t1 sat-rsp c-684
 out="$(in_orc 'spl_rsp_box_default() { echo sat-rsp; }; spl_desk_pin_check() { echo "PINCHECK" >>"$STUB_LOG"; return 3; }; _spl_desk_up_all_rsp t1 sat; echo "rc=$?"')"
 hasnt "5. moved responder box: no pin check (RED on base: a key and an offer for t1/sat-rsp)" "PINCHECK" "$(cat "$STUB_LOG")"
 has "5. one INFO line" "desk sat-rsp of t1 (prd) lives under $AU's state root" "$out"
+
+# --- 6. a root key on a moved desk (SPL-4744) -------------------------------------
+( umask 077; echo '{"root_private_key":"x"}' >"$T/root.json" )
+up6() {
+  in_orc 'SPL_HUB_URL=https://hub.invalid SPL_WUI_URL=https://wui.invalid
+    spl_desk_spool() { echo "SPOOL $*" >>"$STUB_LOG"; echo PUBKEY; }
+    spl_desk_box_pub() { echo "minted" >>"$STUB_LOG"; echo PUBKEY; }
+    spl_desk_up_caller_ok() { return 0; }; spl_desk_cap_check() { return 0; }
+    '"$1"'; echo "rc=$?"'
+}
+fresh; desk "$RA" wsb sat c-003; real "$RB" wsb sat c-003
+out="$(up6 'TENANT_ID=wsb DESK_BOX=sat DESK_AGENT=c-002 DESK_NOTIFY_CMD=off ROOT_KEY_JSON='"$T/root.json"' DRY_RUN=0 do_spl_desk_up')"
+has "6a. do_spl_desk_up + ROOT_KEY_JSON on a moved desk: rc 1" "rc=1" "$out"
+has "6a. names B and the run-as line" "desk sat of wsb (prd) lives under $AU's state root (do_spl_desk_move): do_spl_desk_up as $ME" "$out"
+hasnt "6a. no hub-pin, no key reuse (RED on base: SPOOL hub-pin)" "SPOOL" "$(cat "$STUB_LOG")"
+[[ ! -e "$RA/desk/wsb/sat/spool/c-002" && "$(cat "$RA/desk/wsb/sat/keys/box-sat.key")" == k ]] &&
+  pass "6a. no seat dir for c-002 under A, A's stub key untouched (RED on base)" || fail "6a. A's stub changed: $(ls -R "$RA/desk/wsb/sat")"
+out="$(up6 'TENANT_ID=wsb DESK_BOX=sat DESK_AGENT=c-002 DESK_NOTIFY_CMD=off ROOT_KEY_JSON='"$T/root.json"' do_spl_desk_up')"
+has "6b. the dry run says it too (rc 1)" "rc=1" "$out"
+for m in "ROOT_KEY_JSON=$T/root.json" "" "ROOT_KEY_JSON=$T/root.json DESK_REPIN=1"; do
+  : >"$STUB_LOG"
+  out="$(up6 "TENANT_ID=wsb DESK_BOX=sat $m DRY_RUN=0 do_spl_desk_pin")"
+  has "6c. do_spl_desk_pin '${m:-check mode}' on a moved desk: rc 1 (RED on base)" "rc=1" "$out"
+  has "6c. '${m:-check}': names B" "lives under $AU's state root (do_spl_desk_move): do_spl_desk_pin as $ME" "$out"
+  hasnt "6c. '${m:-check}': no key, no hub call" "SPOOL" "$(cat "$STUB_LOG")$(grep -c minted "$STUB_LOG" | sed 's/^0$//')"
+done
+: >"$STUB_LOG"
+out="$(up6 "TENANT_ID=wsb DESK_BOX=sat ROOT_KEY_JSON=$T/root.json BOX_PUBKEY=$(printf 'A%.0s' {1..43})= do_spl_desk_pin")"
+has "6d. CONTROL admin mode (hub only, no local state) is not refused" "DRY_RUN would: hub-pin sat to the given key" "$out"
+fresh; desk "$RA" demo sat c-003
+out="$(up6 "TENANT_ID=demo DESK_BOX=sat ROOT_KEY_JSON=$T/root.json do_spl_desk_pin")"
+has "6e. CONTROL an unmoved desk: the self-mode dry run as before" "DRY_RUN would: mint or reuse the key of sat" "$out"
+has "6e. rc 0" "rc=0" "$out"
 
 [[ $fails -eq 0 ]] && echo "ALL PASS" || echo "$fails FAILED"
 exit $((fails > 0))

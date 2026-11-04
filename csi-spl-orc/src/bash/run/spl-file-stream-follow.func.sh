@@ -47,6 +47,11 @@
 # @param   (paths, space separated: the box narrows or replaces the list),
 # @param   else the cnf env.box.file_streams.folders. The globs themselves are
 # @param   pulled from each hub by its follower (3.8.5), every cnf globs_s
+# @param FILE_STREAMS_CONSOLE_TMUX (optional) - the JSON argv of tmux for a
+# @param   lane's console (spec 153 3.18); default the box user's server
+# @param   (box.env SPOOL_BOX_USER, else the spool root's owner), through
+# @param   sudo -n -u when the agent user differs
+# @param FILE_STREAMS_CONSOLE_SOCKET (optional) - default /tmp/tmux-<uid>/default
 # @param FILE_STREAMS_STATE_DIR (optional) - default the agent user's
 # @param   $HOME/.local/state/csi-spl/file-streams, or .../csi-spl-file-streams
 # @param   when that user cannot write the csi-spl dir (plus /<env> per hub)
@@ -75,6 +80,7 @@ do_spl_file_stream_follow() {
   user="${FILE_STREAMS_AGENT_USER:-$(spl_cost_agent_users "${SPOOL_ROOT:-/var/spool-hub}" | sed -n 1p)}"
   [[ "$user" =~ ^[a-z_][a-z0-9_-]*$ ]] || { echo "FATAL file-streams: bad agent user '$user'"; return 1; }
   [[ "$user" != root ]] || { echo "FATAL file-streams: the agent user is root: refused"; return 1; }
+  envs+=("FILE_STREAMS_CONSOLE_TMUX=$(spl_file_stream_console_tmux "$user")")
   local args=()
   [[ -n "${FILE_STREAMS_TICKS:-}" ]] && args=(--ticks "$FILE_STREAMS_TICKS")
   if [[ "${FILE_STREAMS_PUSH:-1}" == 0 || -n "${FILE_STREAMS_PUSH_CMD:-}" ]]; then
@@ -195,6 +201,26 @@ spl_file_stream_hub_cmd() {
   fi
   printf '%senv SPOOL_ROOT=%q SPOOL_KEYS_DIR=%q SPOOL_BOX_ID=%q SPOOL_HUB_URL=%q SPOOL_TENANT=%q timeout 20 %q file-streams push --json -' \
     "$as" "$d/spool" "$d/keys" "$box" "https://$fqdn" "$tenant" "$bin"
+}
+
+# spl_file_stream_console_tmux <agent user>: the JSON argv that runs tmux on
+# the agents' server for a lane's console (spec 153 3.18, lane_console.py):
+# env FILE_STREAMS_CONSOLE_TMUX wins; else the box user's (box.env
+# SPOOL_BOX_USER, else the owner of the spool root, as spool-env.inc.sh)
+# socket /tmp/tmux-<uid>/default, through `sudo -n -u <box user>` when the
+# follower runs as another user.
+spl_file_stream_console_tmux() {
+  local au="$1" bu sock
+  if [[ -n "${FILE_STREAMS_CONSOLE_TMUX:-}" ]]; then printf '%s' "$FILE_STREAMS_CONSOLE_TMUX"; return 0; fi
+  bu="$(spl_file_stream_boxenv SPOOL_BOX_USER)"
+  bu="${bu:-$(stat -c %U "${SPOOL_ROOT:-/var/spool-hub}" 2>/dev/null)}"
+  [[ "$bu" =~ ^[a-z_][a-z0-9_-]*$ && "$bu" != root ]] || bu="$au"
+  sock="${FILE_STREAMS_CONSOLE_SOCKET:-/tmp/tmux-$(id -u "$bu" 2>/dev/null || id -u)/default}"
+  if [[ "$bu" == "$au" ]]; then
+    jq -n -c --arg s "$sock" '["tmux", "-S", $s]'
+  else
+    jq -n -c --arg u "$bu" --arg s "$sock" '["sudo", "-n", "-u", $u, "tmux", "-S", $s]'
+  fi
 }
 
 # spl_file_stream_cnf <cnf> <key> <default>: one scalar of env.box.file_streams.

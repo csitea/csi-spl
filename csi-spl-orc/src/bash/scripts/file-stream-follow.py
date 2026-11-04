@@ -62,6 +62,11 @@ Env (all set by do_spl_file_stream_follow from the cnf):
   FILE_STREAMS_GLOB_SCAN_S  seconds between two expansions of the globs (10)
   FILE_STREAMS_GLOB_SCAN_MAX  directory entries read a scan, per glob (10000)
 
+Lane consoles (spec 153 3.18, SPL-4810): lane_console.py beside spool_redact,
+on each tick through the same push command: the agents of this box a
+reader watches, their tmux screen masked by the same mask_line() (redact()
+plus the PEM state) before it is sent. Env FILE_STREAMS_CONSOLE_* there.
+
 Web globs (spec 160 3.8, row B10): a workspace owner or admin types a glob
 for this box in the web page; the follower pulls the live ones through the
 push command (lane op file_streams_globs) at start and every GLOBS_S, never
@@ -97,6 +102,7 @@ sys.path.insert(
     ),
 )
 from spool_redact import redact  # noqa: E402  (the one redaction list)
+from lane_console import LaneConsole  # noqa: E402  (spec 153 3.18, beside spool_redact)
 
 DEFAULT_SPOOL_ROOT = "/var/spool-hub"
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,31}$")
@@ -641,6 +647,14 @@ class Follower:
         self.glob_rep = {}  # glob id -> its report (3.8.5)
         self.gstreams = {}  # stream key -> {gid, leaf, name, path}
         self.report_seen = None
+        # a lane's live console (spec 153 3.18, lane_console.py): captured
+        # and masked only while a reader watches it
+        self.console = LaneConsole(
+            self.send_ack,
+            lambda st, text: mask_line(st, text, self.pem_max),
+            self.line_bytes,
+            say,
+        )
 
     # -- the state dir
     @staticmethod
@@ -1118,6 +1132,8 @@ class Follower:
         self.announce(allow)
         self.push()
         self.save()
+        if self.push_cmd:
+            self.console.tick(now)
         n = {"following": 0, "missing": 0, "refused": 0}
         for sid, _, _ in allow:
             n[self.state["streams"].get(sid, {}).get("status", "refused")] += 1
@@ -1125,6 +1141,7 @@ class Follower:
             f"tick streams={len(allow)} following={n['following']} missing={n['missing']} "
             f"refused={n['refused']} queued={len(self.queue)} pushed={self.pushed} push_rc={self.push_rc}"
             f" globs={len(self.globs)} glob_streams={len(self.gstreams)}{' stale' if self.stale else ''}"
+            f" consoles={len(self.console.agents)}"
         )
         # One line a change, else one every 300 ticks: the cron log of a
         # 2 s loop stays small.

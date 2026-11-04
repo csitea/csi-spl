@@ -52,7 +52,9 @@ jobs:
           GH_CACHE_PRUNE_REPO: ${{ github.repository }}
           CACHE_PRUNE_DAYS: "7"
           CACHE_PRUNE_MAX_GB: "8"
-          DRY_RUN: ${{ (github.event_name == 'schedule' || inputs.dry_run == false) && '0' || '1' }}
+          # Only the schedule, or a dispatch with dry_run false, deletes: on any
+          # other event inputs.dry_run is null, and null == false is true.
+          DRY_RUN: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false)) && '0' || '1' }}
         run: |
           set -euo pipefail
           out="$(./run -a do_gh_prune_actions_caches 2>&1)" || rc=$?

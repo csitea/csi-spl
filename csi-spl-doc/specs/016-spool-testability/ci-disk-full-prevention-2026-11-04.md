@@ -43,6 +43,15 @@ c-002, msg 3e8c0c69).
 | disk guard (item 4) | wf 10 hub-suite, hub-pg (after the free-up, before the restore), wui-e2e, orc-suite: `csi-spl-orc/src/bash/scripts/ci-disk-guard.sh` | `CI_DISK_NEED_GB` = 10 (wf 10 `env:`) on `/` and `$RUNNER_TEMP` | 3 G free against a need of 10 G exits 1 with `disk full before tests: 3.0G < 10G (/)` (test 2), and on a throwaway branch a need of 500 G fails those four jobs with that line |
 | weekly prune (item 5) | `14_ci-cache-prune.yml`, Mon 02:19Z, runs `do_gh_prune_actions_caches` (csi-spl-iac) with DRY_RUN=0; a dispatch is a dry run by default | caches unused for 7 days, then the least recently used, until the store holds at most 8 GB | `gh-prune-actions-caches.tst.sh` (fake gh): what it deletes and in which order, a failed delete, the repo; without wf 14 its static check 7 is red |
 
+wf 14 deletes only on its schedule or on a dispatch with `dry_run` false.
+Any other event is a dry run. The first version keyed this on
+`inputs.dry_run == false` alone, and on a push `inputs.dry_run` is null,
+which equals false. So the 13:09Z push of the throwaway branch
+`c946-ctl-cap` (run 41835578803) really deleted the old v1 race cache
+(6420 MB). wf 10 no longer restores that key, and the schedule would have
+deleted it too (the store held 8.7 GB, over the 8 GB limit). Test 7 now
+pins the expression.
+
 A skipped save or a pruned cache costs the next run a cold build (~350 s on
 hub-pg, spec 133 r29), never a red. A disk guard red names the disk, so it
 does not read as a test failure.

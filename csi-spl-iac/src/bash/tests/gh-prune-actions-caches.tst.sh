@@ -15,7 +15,9 @@
 #   5. the repo comes from the origin remote, else refused (no default)
 #   6. a lower limit (6 GB) deletes least recently used first: 4, 3, then 2
 #   7. static, 14_ci-cache-prune.yml: a weekly schedule runs the action and
-#      deletes (DRY_RUN=0); a dispatch is a dry run by default; actions: write
+#      deletes (DRY_RUN=0); a dispatch is a dry run by default; any other
+#      event (a push, where inputs.dry_run is null and null == false) is a
+#      dry run too; actions: write
 #   CONTROL: the stub serves both pages (a lost page would hide a cache).
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -109,14 +111,14 @@ act DRY_RUN=0 GH_CACHE_PRUNE_REPO=o/app CACHE_PRUNE_MAX_GB=6; rc=$?
 # 7
 WF14="$APP_ROOT/.github/workflows/14_ci-cache-prune.yml"
 wf=$(grep -vE '^\s*#' "$WF14" 2>/dev/null)
-want_dry="DRY_RUN: \${{ (github.event_name == 'schedule' || inputs.dry_run == false) && '0' || '1' }}"
+want_dry="DRY_RUN: \${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false)) && '0' || '1' }}"
 miss=""
 grep -qE '^\s+- cron: "[0-9]+ [0-9]+ \* \* [0-6]"' <<<"$wf" || miss+=" weekly-cron"
 grep -qF './run -a do_gh_prune_actions_caches' <<<"$wf" || miss+=" action"
 grep -qF "$want_dry" <<<"$wf" || miss+=" DRY_RUN-expression"
 grep -A3 -E '^\s+dry_run:' <<<"$wf" | grep -E 'default: true' >/dev/null || miss+=" dispatch-default-dry"
 grep -qE '^\s+actions: write' <<<"$wf" || miss+=" actions-write"
-[[ -z "$miss" ]] && pass "7. wf 14: weekly cron runs the action with DRY_RUN=0, dispatch dry by default, actions: write" \
+[[ -z "$miss" ]] && pass "7. wf 14: weekly cron runs the action with DRY_RUN=0, dispatch dry by default, other events dry, actions: write" \
   || fail "7. wf 14 lacks:$miss"
 
 # CONTROL

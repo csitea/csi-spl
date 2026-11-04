@@ -60,6 +60,11 @@ func parseChannelMoveInputs(raw json.RawMessage) (channelMoveInputs, string) {
 			return in, "detail must be {keep, keep_emails, leave_hours, rule_doc, caller}"
 		}
 	}
+	// keep_emails in tenant_invites' form, or P4's email = ANY misses a
+	// capitalised one and deletes the invite it was told to keep.
+	for i, e := range in.KeepEmails {
+		in.KeepEmails[i] = store.NormalizeInviteEmail(e)
+	}
 	in.Keep, in.LeaveHours, in.KeepEmails = channelMoveSet(in.Keep), channelMoveSet(in.LeaveHours), channelMoveSet(in.KeepEmails)
 	in.RuleDoc, in.Caller = strings.ToLower(strings.TrimSpace(in.RuleDoc)), strings.TrimSpace(in.Caller)
 	for _, h := range append(slices.Clone(in.Keep), in.LeaveHours...) {

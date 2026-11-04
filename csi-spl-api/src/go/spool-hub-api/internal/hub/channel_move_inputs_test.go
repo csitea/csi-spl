@@ -69,7 +69,9 @@ func TestChannelMoveLeaveHoursT7d(t *testing.T) {
 }
 
 // Q5 and 5.1b: keep takes a person off the leaving list, keep_emails moves that
-// channel invite with its workspace invite; the other invite is deleted.
+// channel invite with its workspace invite, in any letter case (the invites are
+// stored lower-cased); the other invite is deleted. A P4 whose keep_emails or
+// rule_doc is not P2's is refused.
 // CONTROL: plan without keep lists the person as leaving.
 func TestChannelMoveKeepT7d(t *testing.T) {
 	f := moveFixture(t, true)
@@ -80,7 +82,7 @@ func TestChannelMoveKeepT7d(t *testing.T) {
 	if lost := anyStrings(f.must(t, "plan", "", nil)["members_lost"]); !slices.Contains(lost, f.admin) {
 		t.Fatalf("CONTROL: without keep %s leaves: %v", f.admin, lost)
 	}
-	keep := moveDetail(map[string]any{"keep": []string{f.admin}, "keep_emails": []string{"kept@example.com"}})
+	keep := moveDetail(map[string]any{"keep": []string{f.admin}, "keep_emails": []string{" Kept@Example.com"}})
 	if lost := f.must(t, "plan", "", keep)["members_lost"]; listLen(lost) != 0 {
 		t.Fatalf("keep takes %s off the leaving list: %v", f.admin, lost)
 	}
@@ -88,6 +90,12 @@ func TestChannelMoveKeepT7d(t *testing.T) {
 	f.must(t, "step", "P2", keep)
 	f.must(t, "mark", "P2b", f.probes(f.probe(t)))
 	f.must(t, "step", "P3", keep)
+	for _, d := range []map[string]any{
+		{"keep": []string{f.admin}, "keep_emails": []string{"gone@example.com"}},
+		{"keep": []string{f.admin}, "keep_emails": []string{"kept@example.com"}, "rule_doc": "0b6f7c1e-4a3d-4f55-9e2a-6d1c8b9a0f11"},
+	} {
+		f.refused(t, "step", "P4", "not the one P2 checked", moveDetail(d))
+	}
 	f.must(t, "step", "P4", keep)
 	inv := `SELECT count(*) FROM channel_invites WHERE tenant_id = $1 AND email = $2`
 	if n := moveCount(t, f.e, inv, f.dst, "kept@example.com"); n != 1 {

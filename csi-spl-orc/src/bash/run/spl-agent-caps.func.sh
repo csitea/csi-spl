@@ -4,8 +4,9 @@
 # @description each (spec 147 6.2, SPL-2675), as the hub answers this
 # @description machine's desk box: {workspace_id, caps, live, can_edit}, caps
 # @description null = uncapped. Read-only. The caps are set by the spool-hub
-# @description admin only (PUT /v1/operator/workspaces/{id}/agent-caps, the
-# @description operator console); a workspace reads them here or in its
+# @description admin (PUT /v1/operator/workspaces/{id}/agent-caps, the
+# @description operator console, or do_spl_agent_caps_set through the DB as
+# @description the env SA); a workspace reads them here or in its
 # @description settings. The hub refuses a seat over a cap on every path
 # @description (SetRoster); do_spl_desk_up also checks first (spl_desk_cap_check).
 # @param ENV - required: dev or prd, or self for a self-hosted hub

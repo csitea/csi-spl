@@ -11,6 +11,9 @@
 #      it, the agent is not live and it is older than TMP_STALE_LANE_AGE_H
 #      (24); kept when held, live or young; c256-tmp is no agent id; with no
 #      live-lane guard (no registry, or tmux unlistable) a lane dir is kept
+#   1c. a lane dir is kept when the age scan cannot read all of it (a 000
+#      subdir holding a fresh file: `unreadable`) or when it is a linked git
+#      worktree (a top-level .git file: `worktree`, do_wt_dead_sweep's)
 #   2. do_wt_dead_sweep: DRY_RUN=0 removes ONLY the dead, clean, landed, idle
 #      worktree (and its merged branch); keeps a role seat, an alive record, a
 #      dirty one, one off the trunk, a recent one and one a process works in
@@ -119,6 +122,22 @@ out="$(DRY_RUN=0 lsw)"
 [ ! -e "$N/c-801-wt-dead" ] && grep -q "REMOVE [0-9]*KB owner=.* $N/c-801-wt-dead\$" <<<"$out" && [ -f "$N/c-802-held/f" ] && [ -f "$N/c-803-live/f" ] \
   && [ -f "$N/c-804-young/f" ] && [ -f "$N/c256-tmp/f" ] && pass "1b. DRY_RUN=0 removes only the dead lane dir (and the idle go-build)" || fail "1b. live run ($out)"
 kill "$busy_pid" 2>/dev/null; wait "$busy_pid" 2>/dev/null
+
+# ---- 1c. unreadable or worktree lane dirs are kept (SPL-4761 review N1, N3) ----
+# A find that cannot read a subtree misses a fresh file there; a lane dir that
+# is a linked worktree belongs to do_wt_dead_sweep (clean + landed checks).
+U="$T/tmp-lanes-c"
+mkdir -p "$U/c-807-unreadable/locked" "$U/c-808-wt" "$U/c-809-dead"
+echo x >"$U/c-807-unreadable/locked/fresh"; echo x >"$U/c-809-dead/f"
+printf 'gitdir: /nowhere/.git/worktrees/c-808-wt\n' >"$U/c-808-wt/.git"
+old "$U"; touch "$U/c-807-unreadable/locked/fresh"; touch -d '3 days ago' "$U/c-807-unreadable/locked"
+chmod 000 "$U/c-807-unreadable/locked"
+out="$(TMP_STALE_ROOT="$U" TMP_STALE_SUDO=0 TMP_STALE_LIVE_IDS="c-001" bash "$PROJ_ROOT/src/bash/scripts/tmp-stale-sweep.sh" 2>&1)"; rc=$?
+if [ "$(id -u)" = 0 ]; then pass "1c. unreadable: skipped as root (root reads every subdir)"
+else grep -q "KEEP unreadable $U/c-807-unreadable\$" <<<"$out" && pass "1c. a lane dir the age scan cannot read in full is kept" || fail "1c. unreadable (rc $rc: $out)"; fi
+grep -q "KEEP worktree $U/c-808-wt\$" <<<"$out" && pass "1c. a lane dir that is a linked worktree is kept" || fail "1c. worktree (rc $rc: $out)"
+[ "$rc" = 0 ] && grep -q "PLAN remove .* $U/c-809-dead\$" <<<"$out" && pass "1c. CONTROL: a readable, non-worktree dead lane dir is still planned" || fail "1c. control (rc $rc: $out)"
+chmod 700 "$U/c-807-unreadable/locked"
 
 # ---- 2. dead worktrees -------------------------------------------------------
 G="$T/repo" W="$T/repo-wt" SP="$T/spool"

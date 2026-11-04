@@ -14,10 +14,14 @@
 # registry.tsv and no tmux window on this box (`live-lane`), and nothing under
 # it changed in TMP_STALE_LANE_AGE_H hours, whatever TMP_STALE_AGE_H is. With
 # no live-lane guard (registry unreadable, tmux server unlistable) a lane dir
-# is kept as `no-live-guard`; the other shapes are still swept.
+# is kept as `no-live-guard`; the other shapes are still swept. A lane dir
+# that is a linked git worktree (a top-level .git FILE) is kept as `worktree`:
+# do_wt_dead_sweep removes those, after its clean and landed checks.
 # It is removed only when ALL hold:
 #   - it is no symlink and not owned by root;
-#   - nothing under it changed in the last TMP_STALE_AGE_H hours;
+#   - nothing under it changed in the last TMP_STALE_AGE_H hours, and that
+#     scan read the whole tree (a find error, such as an unreadable subdir,
+#     keeps it as `unreadable`: a fresh file there is never seen);
 #   - no process uses it: no /proc/<pid>/cwd and no open fd lies under it
 #     (read for every process via sudo -n; a scan that cannot read them all
 #     decides nothing, exit 2).
@@ -132,8 +136,11 @@ while IFS= read -r -d '' p; do
   elif [[ "$use_sudo" == 0 && "$owner" != "$(id -un)" ]]; then why="not-ours"
   elif [[ "$lane" == 1 && "$live_ok" != 1 ]]; then why="no-live-guard"
   elif [[ ( "$any" == 1 || "$lane" == 1 ) && -n "$lid" && -n "${live[$lid]:-}" ]]; then why="live-lane"
+  elif [[ "$lane" == 1 ]] && as_root test -f "$p/.git"; then why="worktree"
   elif grep -qxF -e "$p" "$held" || grep -qF -e "$p/" "$held"; then why="in-use"
-  elif [[ -n "$(as_root find "$p" -newermt "-${age} hours" -print -quit 2>/dev/null)" ]]; then why="recent"
+  else
+    young="$(as_root find "$p" -newermt "-${age} hours" -print -quit 2>/dev/null)"; frc=$?
+    if [[ -n "$young" ]]; then why="recent"; elif (( frc != 0 )); then why="unreadable"; fi
   fi
   if [[ -n "$why" ]]; then say "KEEP $why $p"; n_keep=$((n_keep + 1)); continue; fi
   kb="$(as_root du -sk -- "$p" 2>/dev/null | cut -f1)"; kb="${kb:-0}"

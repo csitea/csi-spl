@@ -3424,7 +3424,25 @@
       "age_24h": "Do 24 h",
       "age_older": "Viac ako 24 h",
       "no_match": "Filtrom nezodpovedá žiadna linka",
-      "shown": "{n} z {total} liniek"
+      "shown": "{n} z {total} liniek",
+      "console": {
+        "open_title": "Otvoriť túto dráhu",
+        "show": "Konzola",
+        "hide": "Skryť konzolu",
+        "not_live": "Dráha vo fronte ešte nemá konzolu.",
+        "waiting": "Čaká sa, kým box dráhy pošle svoju obrazovku…",
+        "live": "Zachytené pred {n} s",
+        "stale": "Posledné zachytenie pred {n} s: box neposlal novšie",
+        "redacted": "Na boxe zamaskované tajomstvá: {n} | Na boxe zamaskované tajomstvá: {n}",
+        "follow": "Sledovať",
+        "pause": "Pozastaviť",
+        "resume": "Pokračovať",
+        "save": "Uložiť do súboru",
+        "label": "Konzola {lane}",
+        "forbidden": "Konzolu dráhy vidí iba správca.",
+        "gone": "Táto dráha už nie je aktívna.",
+        "error": "Konzolu sa nepodarilo načítať."
+      }
     },
     "topics": {
       "loading": "Načítavajú sa témy…",

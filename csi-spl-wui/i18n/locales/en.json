@@ -3424,7 +3424,25 @@
       "age_24h": "Within 24 h",
       "age_older": "Over 24 h",
       "no_match": "No lane matches the filters",
-      "shown": "{n} of {total} lanes"
+      "shown": "{n} of {total} lanes",
+      "console": {
+        "open_title": "Open this lane",
+        "show": "Console",
+        "hide": "Hide console",
+        "not_live": "A queued lane has no console yet.",
+        "waiting": "Waiting for the lane's box to send its screen…",
+        "live": "Captured {n} s ago",
+        "stale": "Last capture {n} s ago: the box sent no newer one",
+        "redacted": "{n} secret masked on the box | {n} secrets masked on the box",
+        "follow": "Follow",
+        "pause": "Pause",
+        "resume": "Resume",
+        "save": "Save to file",
+        "label": "Console of {lane}",
+        "forbidden": "Only an admin sees a lane's console.",
+        "gone": "This lane is no longer live.",
+        "error": "Could not load the console."
+      }
     },
     "topics": {
       "loading": "Loading the topics…",

@@ -140,7 +140,8 @@
               :data-selected="laneName(l) === selectedLane ? '1' : undefined"
               :aria-current="laneName(l) === selectedLane ? 'true' : undefined"
             >
-              <th scope="row" class="ln-id" data-test="lanes-agent">{{ laneName(l) }}</th>
+              <!-- 3.18 (SPL-4810): the lane opens in a dialog, its console at the end -->
+              <th scope="row" class="ln-id" data-test="lanes-agent"><button type="button" class="ln-open" :title="t('monitoring.lanes.console.open_title')" data-test="lanes-open" @click="openLane(l)">{{ laneName(l) }}</button></th>
               <td class="ln-box" data-test="lanes-box">{{ l.box || DASH }}</td>
               <td class="num" data-test="lanes-priority" :data-priority="l.priority || undefined">
                 <span v-if="l.priority" class="ln-prio" :class="'ln-prio--' + l.priority">{{ l.priority }}</span>
@@ -177,6 +178,17 @@
         </table>
       </div>
     </template>
+    <LaneDialog
+      v-if="opened"
+      :open="!!opened"
+      :title="laneName(opened)"
+      :agent-id="opened.agentId"
+      :agent-box="opened.box"
+      :live="opened.state === 'live'"
+      :own="openedOwn"
+      :fields="openedFields"
+      @close="opened = null"
+    />
   </div>
 </template>
 
@@ -349,6 +361,41 @@ function onVisibility() {
   if (poll) poll.wake()
 }
 
+/* 3.18 (SPL-4810; owner HUM-10, t1 27162335): a row opens its lane in a
+   dialog (lazy: never in the first chunk), the way an issue opens from the
+   Issues sheet; the console is inside it. The minute's refresh updates it. */
+const LaneDialog = defineAsyncComponent(() => import('~/components/monitoring/LaneDialog.vue'))
+type Lane = LanesView['lanes'][number]
+const opened = ref<Lane | null>(null)
+const openedOwn = ref(false)
+function openLane(l: Lane) {
+  openedOwn.value = lanesRead.own
+  opened.value = l
+}
+watch(view, (v) => {
+  const o = opened.value
+  const now = o && v ? v.lanes.find((l) => laneName(l) === laneName(o)) : null
+  if (now) opened.value = now
+})
+const openedFields = computed(() => {
+  const l = opened.value
+  if (!l) return []
+  const topic = l.topicTitle || l.topicId || DASH
+  return [
+    { test: 'box', label: t('monitoring.lanes.col_box'), value: l.box || DASH },
+    { test: 'priority', label: t('issues.field_priority'), value: l.priority ? String(l.priority) : DASH },
+    { test: 'vendor', label: t('monitoring.tokens.col_vendor'), value: l.vendor || DASH },
+    { test: 'state', label: t('monitoring.lanes.col_state'), value: stateLabel(l.state) },
+    { test: 'scope', label: t('monitoring.lanes.col_scope'), value: l.scope || DASH },
+    { test: 'topic', label: t('issues.discussion'), value: topic },
+    { test: 'issues', label: t('issues.title'), value: l.issues.map((i: { key: string }) => i.key).join(', ') || DASH },
+    { test: 'origin', label: t('monitoring.lanes.col_origin_issue'), value: l.originIssue ? l.originIssue.key : DASH },
+    { test: 'updated', label: t('monitoring.lanes.col_updated'), value: ago(l.updatedAt) },
+    { test: 'active', label: t('monitoring.tokens.col_last'), value: ago(l.lastActive) },
+    { test: 'workspace', label: t('sidebar.tenant'), value: l.workspaceName || DASH },
+  ]
+})
+
 onMounted(() => {
   poll = startLanesPoll({ load: () => { void load() }, visibility: () => document.visibilityState, forbidden: () => state.value === 'forbidden' })
   clock = setInterval(() => {
@@ -378,6 +425,9 @@ onBeforeUnmount(() => {
 .ln-table .num { text-align: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ln-row[data-selected="1"] > * { background: var(--color-selected); }
 .ln-id { font-family: var(--font-mono); font-weight: 600; white-space: nowrap; }
+/* the agent opens its lane's dialog (3.18): a link-like button, the cell's text kept */
+.ln-open { padding: 0; border: 0; background: none; font: inherit; color: var(--color-accent); cursor: pointer; text-align: start; }
+.ln-open:hover { text-decoration: underline; }
 .ln-mono { font-family: var(--font-mono); }
 /* the box name is short: one line, never dropped (phone too) */
 .ln-box { font-family: var(--font-mono); white-space: nowrap; }

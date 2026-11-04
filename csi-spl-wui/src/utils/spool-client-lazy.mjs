@@ -1855,6 +1855,25 @@ async function getFleetRoster(ctx) {
 }
 
 /**
+ * Spec 153 3.18 (SPL-4810): a lane's live console. `watch` is the POST that
+ * asks the lane's box to capture (the dialog re-sends it every 20 s), else the
+ * GET of the last capture. `own` picks the workspace door (/v1/lanes/console)
+ * over the operator's (/v1/operator/lane-console), as getFleetLanes. The mock
+ * answers from monitoring-lane-console.mjs, which loads only here and in the
+ * lane dialog.
+ * @param {{ own: boolean, watch: boolean, agentId: string, agentBox: string }} q
+ */
+async function laneConsole(ctx, q) {
+  const { live, mock } = ctx
+  const lc = await import('./monitoring-lane-console.mjs')
+  if (mock) return lc.mockLaneConsole(q)
+  const path = lc.laneConsolePath(q.own)
+  if (!q.watch) return live(path + lc.laneConsoleQuery(q.agentId, q.agentBox))
+  const body = JSON.stringify({ agent_id: q.agentId, agent_box: q.agentBox || '' })
+  return live(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body })
+}
+
+/**
  * Spec 160 3.4 (SPL-3888, row B5): GET /v1/view/file-streams, the
  * workspace's box file streams, for its owner or an admin (403 for anyone
  * else). The mock answers from monitoring-file-streams.mjs, which loads
@@ -2222,6 +2241,7 @@ export const lazySpoolMethods = {
   getFleetTokens,
   getFleetLanes,
   getFleetRoster,
+  laneConsole,
   getFileStreams,
   getFileStreamLines,
   fileStreamGlobs,

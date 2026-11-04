@@ -3424,7 +3424,25 @@
       "age_24h": "Sub 24 h",
       "age_older": "Peste 24 h",
       "no_match": "Nicio linie nu corespunde filtrelor",
-      "shown": "{n} din {total} linii"
+      "shown": "{n} din {total} linii",
+      "console": {
+        "open_title": "Deschide această bandă",
+        "show": "Consolă",
+        "hide": "Ascunde consola",
+        "not_live": "O bandă în coadă nu are încă o consolă.",
+        "waiting": "Se așteaptă ca cutia benzii să-și trimită ecranul…",
+        "live": "Capturat acum {n} s",
+        "stale": "Ultima captură acum {n} s: cutia nu a trimis una mai nouă",
+        "redacted": "{n} secret mascat pe cutie | {n} secrete mascate pe cutie",
+        "follow": "Urmărește",
+        "pause": "Pauză",
+        "resume": "Reia",
+        "save": "Salvează în fișier",
+        "label": "Consola {lane}",
+        "forbidden": "Doar un administrator vede consola unei benzi.",
+        "gone": "Această bandă nu mai este activă.",
+        "error": "Consola nu a putut fi încărcată."
+      }
     },
     "topics": {
       "loading": "Se încarcă subiectele…",

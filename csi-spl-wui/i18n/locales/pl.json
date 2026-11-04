@@ -3424,7 +3424,25 @@
       "age_24h": "Do 24 godz.",
       "age_older": "Ponad 24 godz.",
       "no_match": "Żadna linia nie pasuje do filtrów",
-      "shown": "{n} z {total} linii"
+      "shown": "{n} z {total} linii",
+      "console": {
+        "open_title": "Otwórz ten tor",
+        "show": "Konsola",
+        "hide": "Ukryj konsolę",
+        "not_live": "Tor w kolejce nie ma jeszcze konsoli.",
+        "waiting": "Czekam, aż skrzynka toru wyśle swój ekran…",
+        "live": "Przechwycono {n} s temu",
+        "stale": "Ostatnie przechwycenie {n} s temu: skrzynka nie wysłała nowszego",
+        "redacted": "Zamaskowane sekrety na skrzynce: {n} | Zamaskowane sekrety na skrzynce: {n}",
+        "follow": "Śledź",
+        "pause": "Wstrzymaj",
+        "resume": "Wznów",
+        "save": "Zapisz do pliku",
+        "label": "Konsola {lane}",
+        "forbidden": "Konsolę toru widzi tylko administrator.",
+        "gone": "Ten tor nie jest już aktywny.",
+        "error": "Nie udało się wczytać konsoli."
+      }
     },
     "topics": {
       "loading": "Wczytywanie tematów…",

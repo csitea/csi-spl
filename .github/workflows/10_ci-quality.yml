@@ -350,6 +350,20 @@ jobs:
           go-version-file: csi-spl-api/src/go/spool-hub-api/go.mod
           cache: false
 
+      # SPL-4777: on a hosted runner (SPOOL_CI_RUNNER '"ubuntu-latest"' since
+      # 2026-10-30) this job died 3x on 2026-11-04 with "No space left on
+      # device" while restoring the race cache below (6.2 GB compressed, run
+      # 41794536858). Drop the preinstalled toolchains this job never uses
+      # (.NET, Android, GHC, CodeQL; Go comes from setup-go, Postgres from
+      # /usr/lib/postgresql). Hosted only: the self-hosted box is ours.
+      - name: Free disk on a hosted runner (toolchains this job does not use)
+        if: ${{ runner.environment == 'github-hosted' }}
+        run: |
+          set -euo pipefail
+          df -h / "$RUNNER_TEMP"
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h / "$RUNNER_TEMP"
+
       # A hosted VM starts with an empty GOCACHE, so the gate spent ~350 s
       # compiling the spool binary and the -race test binaries before its first
       # test (spec 133 r29: 3 s + 31 s inside the old hub job, 64 s + 323 s
@@ -361,15 +375,31 @@ jobs:
         id: gocache
         run: echo "dir=$(go env GOCACHE)" >>"$GITHUB_OUTPUT"
 
+      # SPL-4777: each exact miss restored the nearest older entry and saved
+      # it back with this run's builds on top, so the entry only grew (6.2 GB
+      # compressed on 2026-11-04). The trim step before the save now keeps only
+      # what this run used; "v2" drops the grown entries.
       - name: Restore the Go build cache (race + cover builds of the hub)
         id: gocache-restore
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ steps.gocache.outputs.dir }}
-          key: go-race-pg-${{ runner.os }}-${{ steps.setup-go.outputs.go-version }}-${{ hashFiles('csi-spl-api/src/go/spool-hub-api/go.sum') }}-${{ hashFiles('csi-spl-api/src/go/**/*.go') }}
+          key: go-race-pg-v2-${{ runner.os }}-${{ steps.setup-go.outputs.go-version }}-${{ hashFiles('csi-spl-api/src/go/spool-hub-api/go.sum') }}-${{ hashFiles('csi-spl-api/src/go/**/*.go') }}
           restore-keys: |
-            go-race-pg-${{ runner.os }}-${{ steps.setup-go.outputs.go-version }}-${{ hashFiles('csi-spl-api/src/go/spool-hub-api/go.sum') }}-
-            go-race-pg-${{ runner.os }}-${{ steps.setup-go.outputs.go-version }}-
+            go-race-pg-v2-${{ runner.os }}-${{ steps.setup-go.outputs.go-version }}-${{ hashFiles('csi-spl-api/src/go/spool-hub-api/go.sum') }}-
+            go-race-pg-v2-${{ runner.os }}-${{ steps.setup-go.outputs.go-version }}-
+
+      # Go refreshes an entry's mtime on use only when it is over an hour old,
+      # so the mark sits 61 min before the restore: whatever is still older
+      # than it before the save went unused in this run.
+      - name: Mark the restore time (for the cache trim)
+        env:
+          GOCACHE_DIR: ${{ steps.gocache.outputs.dir }}
+        run: |
+          set -euo pipefail
+          touch -d '61 minutes ago' "$RUNNER_TEMP/gocache.mark"
+          du -sh "$GOCACHE_DIR" 2>/dev/null || true
+          df -h / "$RUNNER_TEMP"
 
       - name: Download Go modules
         working-directory: csi-spl-api/src/go/spool-hub-api
@@ -388,6 +418,21 @@ jobs:
           set -euo pipefail
           bash csi-spl-orc/src/bash/scripts/gate-fail-fast.sh \
             bash csi-spl-api/src/bash/tests/run-all-tests.sh 2>&1 | tee "$RUNNER_TEMP/hub-suite.log"
+
+      # Before the save, so the saved entry holds this run's builds only and
+      # cannot grow from run to run (SPL-4777). Hosted only: a self-hosted
+      # runner's GOCACHE is shared with its other jobs.
+      - name: Trim the Go build cache to the entries this run used
+        if: ${{ !cancelled() && runner.environment == 'github-hosted' && steps.gocache-restore.outputs.cache-hit != 'true' && github.event_name != 'pull_request' && github.event_name != 'pull_request_target' }}
+        env:
+          GOCACHE_DIR: ${{ steps.gocache.outputs.dir }}
+        run: |
+          set -euo pipefail
+          [ -f "$RUNNER_TEMP/gocache.mark" ] || { echo "no restore mark: nothing trimmed"; exit 0; }
+          du -sh "$GOCACHE_DIR"
+          find "$GOCACHE_DIR" -mindepth 2 -type f ! -newer "$RUNNER_TEMP/gocache.mark" -delete
+          du -sh "$GOCACHE_DIR"
+          df -h / "$RUNNER_TEMP"
 
       # Only on an exact miss (Go code changed), and never from a pull
       # request: a fork's build must not seed the cache master restores.

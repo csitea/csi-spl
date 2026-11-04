@@ -69,6 +69,11 @@
 #      grace = OLD, rc 3, ONE note per stale set (not a flood); young = OK,
 #      rc 0, marks cleared; a dead seat = DOWN. Controls: the dry run sends no
 #      note; a rotation in flight = AGE WAIT, no note
+#  29. SPL-4795: a standby refresh asks the guard (spl_disp_vendor): grok seats
+#      due and the guard says claude = c-002 / c-003 via the standby swap's
+#      seat switch, the lease file unchanged (box 1 2026-11-04 13:46Z: g-002
+#      respawned as grok onto its weekly limit). Control: the guard gives grok =
+#      g-002 refreshed in place
 #  26. SPL-3395: ROTATE_ROLE_VENDOR=agy = agy in the SPAWN plan of the master
 #      and the failover (lane-mix asked with an agy=100 specs_and_docs row);
 #      agy on its limit (lane-mix) or a lease that counts only claude = claude,
@@ -1192,6 +1197,33 @@ act ROTATE_CMD=age ROTATE_DISPATCH_MAX_AGE=x >"$T/o" 2>&1; rc=$?
 [[ $rc -ne 0 ]] && grep -q 'FATAL ROTATE_DISPATCH_MAX_AGE must be a whole number' "$T/o" &&
   pass "28. ROTATE_DISPATCH_MAX_AGE=x refused" || fail "28. knob rc=$rc: $(cat "$T/o")"
 ! grep -q ERRTRAP "$T/o" && pass "28. no stray failing command under the ERR trap" || fail "28. ERRTRAP: $(grep ERRTRAP "$T/o")"
+
+# --- 29. SPL-4795: a standby refresh asks the guard, it does not keep a vendor the guard drops ------
+# box 1 2026-11-04 13:46:27Z: g-002 refreshed as grok (the id's letter) while the
+# guard (ROTATE_ROLE_VENDOR=claude) said claude: FAIL SPAWN on grok's weekly limit
+sbg() {
+  w18 g; rm -rf "$D/wd" "$T/mix.out"
+  echo 'LEASE_FLEET=main' >>"$D/lease.conf"; echo "c-002@sat $(date +%s)" >"$D/lease"; cp "$D/lease" "$T/lease.before"
+  mkdir -p "$D/wd/ctx.1/g-002" "$D/wd/ctx.1/g-003"; : >"$D/wd/ctx.1/g-002/out.s2"; : >"$D/wd/ctx.1/g-003/out.s2"
+}
+sbg; act DRY_RUN=0 "${V18[@]}" ROTATE_ROLE_VENDOR= >"$T/o" 2>&1; rc=$?
+mrid="$(awk '$3 == "STANDBY" && $4 == "OK" && $2 ~ /-master$/ {print $2}' "$D/rotate.log" | sed -n 1p)"
+[[ $rc -eq 0 && -n "$mrid" ]] && grep -q "^spawn claude c-002 " "$T/spawn.log" && grep -q "^spawn claude c-003 " "$T/spawn.log" &&
+  ! grep -q '^spawn grok ' "$T/spawn.log" && grep -qx 'LEASE_MASTER=c-002' "$D/lease.conf" && grep -qx 'LEASE_FAILOVER=c-003' "$D/lease.conf" &&
+  grep -q " $mrid STANDBY OK g-002 (grok, pid 102, pane %2) is out (due at 7200s, and the guard gives claude, not grok (dispatch seats: claude))" "$D/rotate.log" &&
+  grep -q " $mrid DONE OK standby master seat: c-002 (claude, pid 2002) replaces g-002; the dispatch lease stays c-002@sat" "$D/rotate.log" &&
+  pass "29. standby grok seats due, guard says claude: refreshed as c-002 / c-003 (claude), not respawned as grok ($mrid)" ||
+  fail "29. handback rc=$rc: $(cat "$T/o") $(cat "$T/spawn.log" 2>/dev/null); conf: $(cat "$D/lease.conf")"
+cmp -s "$D/lease" "$T/lease.before" && [[ ! -e "$D/rotate.hold" ]] && ! grep -qE " $mrid (HOLD|RELEASE OK|REFRESH)" "$D/rotate.log" &&
+  pass "29. the lease file unchanged, no hold, no release, no refresh" || fail "29. lease: $(cat "$D/lease") / $(cat "$T/lease.before")"
+# control: the guard names the seat's own vendor (grok, lane-mix picks it, no limit on file) -> refreshed in place as g-002
+sbg; echo 'pick=grok reason=grok is the main' >"$T/mix.out"
+act DRY_RUN=0 "${V18[@]}" ROTATE_ROLE_VENDOR=grok >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 ]] && grep -q "^spawn grok g-002 " "$T/spawn.log" && ! grep -q '^spawn claude ' "$T/spawn.log" && grep -qx 'LEASE_MASTER=g-002' "$D/lease.conf" &&
+  grep -q -- "-master DONE OK standby master seat refreshed: g-002 pid 102 -> " "$D/rotate.log" &&
+  pass "29. control: the guard gives grok -> g-002 refreshed in place under its own id" || fail "29. same-vendor rc=$rc: $(cat "$T/o")"
+! grep -q ERRTRAP "$T/o" "$T/ack.out" && pass "29. no stray failing command under the ERR trap" || fail "29. ERRTRAP: $(grep ERRTRAP "$T/o" "$T/ack.out")"
+rm -rf "$S"/[acgmq]-00[23] "$D/briefs/brief-dispatcher-"[acgmq]-00*
 
 echo
 (( fails == 0 )) && { echo "dispatch-rotate: all passed"; exit 0; }

@@ -50,8 +50,9 @@
 # @description The 30-min rule (owner 2026-11-04, SPL-4795): the cron runs at :15
 # @description and :45, and on a STANDBY box (another machine holds the lease)
 # @description each seat at least ROTATE_DISPATCH_MIN_AGE old gets a fresh
-# @description session of its own vendor under its own id, QUIESCE .. CLOSE, no
-# @description hold and no lease write (spl_disp_standby_refresh). ROTATE_CMD=age
+# @description session under its own id, QUIESCE .. CLOSE, no hold and no lease
+# @description write (spl_disp_standby_refresh); a guard vendor other than the
+# @description seat's own = the standby swap (seat switch). ROTATE_CMD=age
 # @description prints one line per seat and sends one note per stale set when a
 # @description seat is older than ROTATE_DISPATCH_MAX_AGE + ROTATE_DISPATCH_AGE_GRACE.
 # @param ROTATE_CMD (optional) - auto (default), heal (HEAL only), age (the seat age check), ack (the new session's ack, with ROTATE_ID), abort (FR-091), handoff (preview)
@@ -367,13 +368,16 @@ spl_disp_standby_say() {
   else spl_rotate_log "$1" STANDBY SKIP "$2"; fi
 }
 
-# spl_disp_standby_one RID ROLE ID PID WHY: one out seat replaced; the guard
-# picking the same dead vendor = no replacement, the reason logged.
+# spl_disp_standby_one RID ROLE ID PID WHY [DECIDED]: one out seat replaced;
+# the guard picking the same dead vendor = no replacement, the reason logged.
+# DECIDED=1: the caller asked the guard already (ROTATE_KIND, ROTATE_VENDOR_AT).
 spl_disp_standby_one() {
   local rid="$1" role="$2" id="$3" pid="$4" why="$5" was pane new rc=0
   was="$(spl_disp_seat_vendor "$id")"
-  ROTATE_VENDOR_AT="$(date +%s)"
-  spl_disp_vendor "$id"
+  if [[ "${6:-0}" != 1 ]]; then
+    ROTATE_VENDOR_AT="$(date +%s)"
+    spl_disp_vendor "$id"
+  fi
   if [[ "$ROTATE_KIND" == "$was" ]]; then
     spl_disp_standby_say "$rid" "$id ($was) is out ($why), but its successor would be $was too ($ROTATE_VENDOR_WHY): no replacement"
     return 0
@@ -436,12 +440,21 @@ spl_disp_standby_refresh() {
   return "$rc"
 }
 
-# spl_disp_standby_refresh_one RID ROLE ID PID PANE AGE: one seat, its own
-# vendor, its own id (spl_disp_run with ROTATE_VENDOR_FIXED=1).
+# spl_disp_standby_refresh_one RID ROLE ID PID PANE AGE: one seat, its own id
+# (spl_disp_run with ROTATE_VENDOR_FIXED=1) when the guard (spl_disp_vendor)
+# names its own vendor; another vendor = the standby swap (spl_disp_standby_one,
+# its seat switch). Its own vendor unasked restarted g-002 on grok's weekly
+# limit while the guard said claude (box 1 2026-11-04 13:46:27Z FAIL SPAWN).
 spl_disp_standby_refresh_one() {
-  local rid="$1" role="$2" id="$3" pid="$4" pane="$5" age="$6" rc=0
-  ROTATE_KIND="$(spl_disp_seat_vendor "$id")" ROTATE_VENDOR_WHY="standby refresh: the seat's own vendor"
+  local rid="$1" role="$2" id="$3" pid="$4" pane="$5" age="$6" rc=0 was
+  was="$(spl_disp_seat_vendor "$id")"
   ROTATE_VENDOR_AT="$(date +%s)"
+  spl_disp_vendor "$id"
+  if [[ "$ROTATE_KIND" != "$was" ]]; then
+    spl_disp_standby_one "$rid" "$role" "$id" "$pid" "due at ${age}s, and the guard gives $ROTATE_KIND, not $was ($ROTATE_VENDOR_WHY)" 1
+    return $?
+  fi
+  ROTATE_VENDOR_WHY="standby refresh: the seat's own vendor ($ROTATE_VENDOR_WHY)"
   if [[ "${DRY_RUN:-1}" == 1 ]]; then
     spl_rotate_log "$rid" STANDBY PLAN "refresh $id ($ROTATE_KIND, pid $pid, ${age}s old >= ${ROTATE_DISPATCH_MIN_AGE}s, pane $pane): a fresh $ROTATE_KIND session as $id; the dispatch lease stays $LH"
     return 0

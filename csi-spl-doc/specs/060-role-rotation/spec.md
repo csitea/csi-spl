@@ -423,13 +423,21 @@ is never rewritten to swap `LEASE_MASTER` and `LEASE_FAILOVER`:
   - the dispatch rotation runs at `:15` and `:45` (FR-050), and a seat is
     due once its process is `ROTATE_DISPATCH_MIN_AGE` (1200 s) old, so a
     seat rotated at `:17` is due again at `:45`;
-  - on a standby machine (`spl_disp_standby_refresh`), each due seat gets a
-    fresh session of its OWN vendor under its OWN id: the rotation's
-    QUIESCE .. CLOSE, no HOLD, RELEASE, REFRESH or seat switch, never a write
-    of the lease file or `lease.conf`. The seat's spool dir, so its
-    `handoff.d/next.md`, stays. Log: `STANDBY OK refresh <id>`, then
+  - on a standby machine (`spl_disp_standby_refresh`), each due seat first
+    asks the guard (`spl_disp_vendor`, as every rotation does). The guard
+    names the seat's own vendor: a fresh session under its OWN id, the
+    rotation's QUIESCE .. CLOSE, no HOLD, RELEASE, REFRESH or seat switch,
+    never a write of the lease file or `lease.conf`. The seat's spool dir,
+    so its `handoff.d/next.md`, stays. Log: `STANDBY OK refresh <id>`, then
     `DONE OK standby <role> seat refreshed: <id> pid <old> -> <new>`;
     nothing due = `GATE SKIP standby (dispatch lease: <holder>): no seat due`;
+  - the guard names another vendor: the seat goes through the vendor swap
+    (FR-044) with its seat switch (`lease.conf` follows the new id, the
+    lease file stays), logged `STANDBY OK <id> (<vendor>, ...) is out (due
+    at <age>s, and the guard gives <new vendor>, not <vendor> (...))`. The
+    seat's own vendor, unasked, respawned g-002 as grok onto its weekly
+    limit while the guard said claude (box 1, 2026-11-04 13:46:27Z,
+    `FAIL SPAWN`, the old session kept the seat at 67 301 s);
   - a seat busy at the trigger is interrupted after `ROTATE_IDLE_GRACE` +
     `ROTATE_ESC_WAIT` and rotated anyway (owner D1), logged
     `QUIESCE WAIT busy-rotated`; a seat stalled on a limit or login screen

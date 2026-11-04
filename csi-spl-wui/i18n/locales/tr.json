@@ -2220,7 +2220,7 @@
     "lanes_none": "Bu ajan hiçbir etkin hatta çalışmıyor.",
     "workspace_group": "Çalışma alanı: {name}",
     "workspace": "Çalışma alanı",
-    "foreign_note": "Bu ajan {name} çalışma alanında çalışıyor. Şeritleri, konuları ve mesajları o çalışma alanında kalır.",
+    "foreign_note": "Bu ajan {name} çalışma alanında çalışıyor. Hatları, konuları ve mesajları o çalışma alanında kalır.",
     "foreign_missing": "{ws} çalışma alanında böyle bir ajan yok."
   },
   "boxes": {

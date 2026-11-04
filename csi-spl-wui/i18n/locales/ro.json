@@ -2220,7 +2220,7 @@
     "lanes_none": "Acest agent nu lucrează pe nicio linie activă.",
     "workspace_group": "Spațiu de lucru: {name}",
     "workspace": "Spațiu de lucru",
-    "foreign_note": "Acest agent rulează în spațiul de lucru {name}. Culoarele, subiectele și mesajele sale rămân în acel spațiu de lucru.",
+    "foreign_note": "Acest agent rulează în spațiul de lucru {name}. Liniile, subiectele și mesajele sale rămân în acel spațiu de lucru.",
     "foreign_missing": "Niciun astfel de agent în spațiul de lucru {ws}."
   },
   "boxes": {

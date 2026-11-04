@@ -2220,7 +2220,7 @@
     "lanes_none": "Ten agent nie pracuje w żadnej aktywnej linii.",
     "workspace_group": "Obszar roboczy: {name}",
     "workspace": "Obszar roboczy",
-    "foreign_note": "Ten agent działa w obszarze roboczym {name}. Jego ścieżki, tematy i wiadomości pozostają w tym obszarze roboczym.",
+    "foreign_note": "Ten agent działa w obszarze roboczym {name}. Jego linie, tematy i wiadomości pozostają w tym obszarze roboczym.",
     "foreign_missing": "Brak takiego agenta w obszarze roboczym {ws}."
   },
   "boxes": {

@@ -14,7 +14,8 @@ import (
 // pool, not in a tenant or operator scope.
 
 const releaseNoteCols = `sha, coalesce(version, ''), committed_at, kind, area, subject,
-	lay_what, lay_how, lay_why, tech_what, tech_how, tech_why, state, coalesce(reverts, ''), link, ingested_at`
+	lay_what, lay_how, lay_why, tech_what, tech_how, tech_why, state, coalesce(reverts, ''), link, ingested_at,
+	coalesce(issue_tenant, ''), issue_keys`
 
 // releaseKeySQL is a version column or parameter as int[] {cycle, X, Y, Z}
 // (v1.0.1-c2 > v9.9.9 > v7.10.0 > v7.9.0), releaseVersionKey in SQL and the
@@ -36,12 +37,16 @@ func releaseNumberedSQL() string {
 func scanReleaseNote(row pgx.Row, withSeq bool) (ReleaseNote, error) {
 	var n ReleaseNote
 	dest := []any{&n.SHA, &n.Version, &n.CommittedAt, &n.Kind, &n.Area, &n.Subject,
-		&n.LayWhat, &n.LayHow, &n.LayWhy, &n.TechWhat, &n.TechHow, &n.TechWhy, &n.State, &n.Reverts, &n.Link, &n.IngestedAt}
+		&n.LayWhat, &n.LayHow, &n.LayWhy, &n.TechWhat, &n.TechHow, &n.TechWhy, &n.State, &n.Reverts, &n.Link, &n.IngestedAt,
+		&n.IssueTenant, &n.IssueKeys}
 	if withSeq {
 		dest = append(dest, &n.Seq)
 	}
 	err := row.Scan(dest...)
 	n.CommittedAt, n.IngestedAt = n.CommittedAt.UTC(), n.IngestedAt.UTC()
+	if n.IssueKeys == nil {
+		n.IssueKeys = []string{}
+	}
 	return n, err
 }
 
@@ -73,7 +78,7 @@ func (s *Postgres) PutReleaseNotes(ctx context.Context, batch []ReleaseNote, now
 	if len(batch) > ReleaseBatchMax {
 		return fmt.Errorf("release note batch of %d rows, max %d", len(batch), ReleaseBatchMax)
 	}
-	const cols = 17
+	const cols = 19
 	nullable := func(v string) any {
 		if v == "" {
 			return nil
@@ -105,10 +110,11 @@ func (s *Postgres) PutReleaseNotes(ctx context.Context, batch []ReleaseNote, now
 		sb.WriteString(")")
 		args = append(args, n.SHA, nullable(n.Version), n.CommittedAt.UTC(), n.Kind, n.Area, n.Subject,
 			n.LayWhat, n.LayHow, n.LayWhy, n.TechWhat, n.TechHow, n.TechWhy, n.State, nullable(n.Reverts), n.Link, now.UTC(),
-			releasedAt(n.Version, now))
+			releasedAt(n.Version, now), nullable(n.IssueTenant), issueKeysArg(n.IssueKeys))
 	}
 	_, err := s.pool.Exec(ctx, `INSERT INTO release_notes (sha, version, committed_at, kind, area, subject,
-		lay_what, lay_how, lay_why, tech_what, tech_how, tech_why, state, reverts, link, ingested_at, released_at)
+		lay_what, lay_how, lay_why, tech_what, tech_how, tech_why, state, reverts, link, ingested_at, released_at,
+		issue_tenant, issue_keys)
 		VALUES `+sb.String()+`
 		ON CONFLICT (sha) DO UPDATE SET
 			version = coalesce(release_notes.version, EXCLUDED.version),
@@ -117,8 +123,18 @@ func (s *Postgres) PutReleaseNotes(ctx context.Context, batch []ReleaseNote, now
 			subject = EXCLUDED.subject, lay_what = EXCLUDED.lay_what, lay_how = EXCLUDED.lay_how,
 			lay_why = EXCLUDED.lay_why, tech_what = EXCLUDED.tech_what, tech_how = EXCLUDED.tech_how,
 			tech_why = EXCLUDED.tech_why, state = EXCLUDED.state, reverts = EXCLUDED.reverts,
-			link = EXCLUDED.link, ingested_at = EXCLUDED.ingested_at`, args...)
+			link = EXCLUDED.link, ingested_at = EXCLUDED.ingested_at,
+			issue_tenant = coalesce(EXCLUDED.issue_tenant, release_notes.issue_tenant),
+			issue_keys = CASE WHEN EXCLUDED.issue_tenant IS NULL THEN release_notes.issue_keys ELSE EXCLUDED.issue_keys END`, args...)
 	return err
+}
+
+// issueKeysArg is a row's keys as a text[] parameter, never NULL.
+func issueKeysArg(keys []string) []string {
+	if keys == nil {
+		return []string{}
+	}
+	return keys
 }
 
 // releasedAt is the released_at of a row upserted at now: now when it

@@ -11211,6 +11211,38 @@
         "x-role": "operator"
       }
     },
+    "/v1/operator/commit-links": {
+      "post": {
+        "operationId": "postOperatorCommitLinks",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (body schema to be filled from the contract, spec 104 T004)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "summary": "Check that commit issue keys exist and link a discussion",
+        "tags": [
+          "operator"
+        ],
+        "x-role": "operator"
+      }
+    },
     "/v1/operator/cost-entries": {
       "get": {
         "operationId": "getOperatorCostEntries",

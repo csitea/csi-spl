@@ -12,16 +12,21 @@
 # wrapper only: <command> runs with that fd closed, so a daemon it leaves
 # behind never holds the lock, and the lock goes when <command> returns.
 #
-# A holder older than CRON_NO_STACK_MAX_S is stuck: the start writes a STUCK
-# line, exits 3 and sends one spool note per stuck holder, so a hung job never
-# reads as a quiet, healthy line (review W1).
+# A holder older than its max is stuck: the start writes a STUCK line, exits 3
+# and sends one spool note per stuck holder, so a hung job never reads as a
+# quiet, healthy line (review W1). The max is the holder's own `max=` when its
+# record carries one, else CRON_NO_STACK_MAX_S: a job that runs long by design
+# (the file follower, its run_s) declares its own with
+# spl_cron_no_stack_declare_max, which rewrites the record of the lock this
+# wrapper names to the job in CRON_NO_STACK_LOCK (SPL-4768).
 #
 # Why: on 2026-10-31 a slow box stacked 111 copies of the every-minute runner
 # CPU budget line, 75 seat alarms, 25 box stats and 13 lane rotations (load
 # 467 on 16 cores): a job that lasts longer than its period piles up.
 #
 # Env:
-#   CRON_NO_STACK_MAX_S: holder age that counts as stuck (default 1800).
+#   CRON_NO_STACK_MAX_S: holder age that counts as stuck (default 1800), for
+#     a holder whose record carries no max= of its own.
 #   CRON_NO_STACK_ALERT_TO: spool recipient (default "orchestrator").
 #   CRON_NO_STACK_ALERT_FROM: spool sender, an agent id (default $SPOOL_AGENT_ID,
 #     else LEASE_ORCH of $SPOOL_ROOT/dispatch/lease.conf).
@@ -87,7 +92,8 @@ if ! flock -n 9; then
   hpid="$(sed -n 's/.*pid=\([0-9]*\).*/\1/p' <<<"$rec")"
   hstart="$(sed -n 's/.*start=\([0-9]*\).*/\1/p' <<<"$rec")"
   hjob="$(sed -n 's/.*job=\([^ ]*\).*/\1/p' <<<"$rec")"
-  max="${CRON_NO_STACK_MAX_S:-1800}"
+  max="$(sed -n 's/.* max=\([0-9][0-9]*\).*/\1/p' <<<"$rec")"
+  max="${max:-${CRON_NO_STACK_MAX_S:-1800}}"
   if [[ "$hstart" =~ ^[0-9]+$ && "$max" =~ ^[0-9]+$ ]]; then
     age=$(( $(date +%s) - hstart ))
     if [ "$age" -gt "$max" ]; then
@@ -102,4 +108,4 @@ if ! flock -n 9; then
 fi
 rm -f "$lock.stuck"
 printf 'pid=%s start=%s job=%s\n' "$$" "$(date +%s)" "$(basename "$1")" >"$lock"
-"$@" 9>&-
+CRON_NO_STACK_LOCK="$lock" "$@" 9>&-

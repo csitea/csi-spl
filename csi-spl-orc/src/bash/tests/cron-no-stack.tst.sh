@@ -18,6 +18,12 @@
 #   8. with no sender set, as on a real cron line, the note goes from the
 #      box's orchestrator seat (LEASE_ORCH), an id spool-send.sh's own check
 #      (spool_valid_id) takes; no LEASE_ORCH -> one WARN, no note
+#   9. a job that runs long by design declares its own max (SPL-4768): the
+#      wrapper names its lock to the job (CRON_NO_STACK_LOCK); the file
+#      follower's max is run_s + 600 of the shipped cnf, larger than run_s;
+#      red control: a holder aged between 1800 s and run_s with no max of its
+#      own is STUCK (every start on one box, 2475 lines by 2026-11-04); with the
+#      declared max it is a SKIP; past run_s + margin it is STUCK again
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -108,12 +114,12 @@ out="$("$W" "$T/d.lock" echo ran 2>&1)"; rc=$?
 out="$(inst)"; rc=$?
 [[ $rc -eq 0 && "$(grep -cxF "$line" "$T/crontab")" -eq 1 && "$(grep -c 'csi-spl:box-cron:' "$T/crontab")" -eq 1 ]] &&
   pass "5. a re-install keeps the locked line" || fail "5. reinstall rc=$rc: $(cat "$T/crontab")"
-# hold_lock <lock> <age s> <job>: a fake holder of <lock>, started <age> s ago,
-# for 5 s; its pid in $holder
+# hold_lock <lock> <age s> <job> [<hold s>]: a fake holder of <lock>, started
+# <age> s ago, for <hold s> (default 5); its pid in $holder
 hold_lock() {
   ( exec 9>>"$1"; flock 9
     printf 'pid=%s start=%s job=%s\n' "$BASHPID" "$(( $(date +%s) - $2 ))" "$3" >"$1"
-    : >"$1.held"; sleep 5 ) & holder=$!
+    : >"$1.held"; sleep "${4:-5}" ) & holder=$!
   local n=0; while [ ! -e "$1.held" ] && [ "$n" -lt 50 ]; do sleep 0.1; n=$((n + 1)); done
 }
 printf '#!/bin/sh\necho "$*" >>%q\n' "$T/alerts" >"$T/fake-send"
@@ -165,6 +171,46 @@ out="$(env -u SPOOL_AGENT_ID -u CRON_NO_STACK_ALERT_FROM CRON_NO_STACK_ALERT_SEN
 [[ $rc -eq 3 && ! -s "$T/sent" && "$out" == *"WARN no agent id to send the stuck alert from"* ]] &&
   pass "8. no LEASE_ORCH either: one WARN naming the gap, no note" || fail "8. no orch: rc=$rc sent=$(cat "$T/sent") out=$out"
 kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null
+
+# 9. the file follower's own max. fs_declare <lock>: what its cron job does
+# under the wrapper: the follower's env from the shipped cnf, then
+# spl_file_stream_stuck_max on CRON_NO_STACK_LOCK
+FS_FUNC="$PROJ_ROOT/src/bash/run/spl-file-stream-follow.func.sh"
+CNF="$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml"
+fs_declare() {
+  env -u FILE_STREAMS_RUN_S -u FILE_STREAMS_STUCK_MARGIN_S CRON_NO_STACK_LOCK="$1" bash -c '
+    source "$1" >/dev/null 2>&1; envs=(); spl_file_stream_env "$2" >/dev/null 2>&1 && spl_file_stream_stuck_max' _ "$FS_FUNC" "$CNF"
+}
+run_s="$(yq -r '.env.box.file_streams.run_s' "$CNF")"
+out="$("$W" "$T/n.lock" sh -c 'printf %s "$CRON_NO_STACK_LOCK"' 2>&1)"
+[[ "$out" == "$T/n.lock" ]] && pass "9. the wrapper names its lock to the job (CRON_NO_STACK_LOCK)" || fail "9. CRON_NO_STACK_LOCK=$out"
+unset CRON_NO_STACK_MAX_S; : >"$T/alerts"
+hold_lock "$T/fs.lock" 2500 bash 10
+out="$("$W" "$T/fs.lock" true 2>&1)"; rc=$?
+[[ $rc -eq 3 && "$out" == *"STUCK bash held 250"?" s by pid $holder"*"(max 1800 s)"* ]] &&
+  pass "9. red control: a 2500 s holder with no max of its own is STUCK (max 1800 s)" || fail "9. red control: rc=$rc out=$out"
+rm -f "$T/fs.lock.stuck"; : >"$T/alerts"
+fs_declare "$T/fs.lock"; drc=$?
+max="$(sed -n 's/.* max=\([0-9]*\)$/\1/p' "$T/fs.lock")"
+[[ $drc -eq 0 && "$run_s" =~ ^[0-9]+$ && "$max" =~ ^[0-9]+$ && "$max" -gt "$run_s" && "$max" -eq $(( run_s + 600 )) ]] &&
+  pass "9. the file follower declares max $max s, larger than its run_s $run_s (shipped cnf)" || fail "9. declare rc=$drc max='$max' run_s='$run_s': $(cat "$T/fs.lock")"
+out="$("$W" "$T/fs.lock" true 2>&1)"; rc=$?
+[[ $rc -eq 0 && "$out" == *"SKIP an earlier run of bash (pid $holder)"* && ! -s "$T/alerts" ]] &&
+  pass "9. the same 2500 s holder under its declared max: SKIP, rc 0, no alert" || fail "9. declared: rc=$rc out=$out alerts=$(cat "$T/alerts")"
+fs_declare "$T/fs.lock"
+[[ "$(grep -o ' max=' "$T/fs.lock" | wc -l)" -eq 1 && "$(wc -l <"$T/fs.lock")" -eq 1 ]] &&
+  pass "9. a second declare keeps one max= on one record line" || fail "9. record: $(cat "$T/fs.lock")"
+kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null
+hold_lock "$T/fh.lock" $(( run_s + 600 + 300 )) bash 10
+fs_declare "$T/fh.lock"
+out="$("$W" "$T/fh.lock" true 2>&1)"; rc=$?
+[[ $rc -eq 3 && "$out" == *"STUCK bash held"*"(max $(( run_s + 600 )) s)"* && -s "$T/alerts" ]] &&
+  pass "9. a holder past run_s + margin is still STUCK, one note" || fail "9. hang: rc=$rc out=$out"
+kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null
+printf 'not a holder record\n' >"$T/hand.lock"
+fs_declare "$T/hand.lock"; rc=$?
+[[ $rc -eq 0 && "$(cat "$T/hand.lock")" == "not a holder record" ]] &&
+  pass "9. a lock with no holder record is left as it is" || fail "9. no record: rc=$rc $(cat "$T/hand.lock")"
 
 echo
 if [ "$fails" -eq 0 ]; then echo "cron-no-stack: all passed"; exit 0; fi

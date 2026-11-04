@@ -66,3 +66,27 @@ spl_cron_no_stack_pre() {
     { echo "FATAL spl_cron_no_stack_pre: the lock must be an absolute path with no blank or quote, got: '$lock'" >&2; return 1; }
   printf '%s/src/bash/scripts/cron-no-stack.sh %s ' "$orc" "$lock"
 }
+
+#------------------------------------------------------------------------------
+# @description Declare the stuck threshold of the cron-no-stack.sh line this
+# @description job runs under (SPL-4768): append max=<s> to the holder record
+# @description of the lock the wrapper names in CRON_NO_STACK_LOCK, so the next
+# @description starts call this holder stuck only past <s>, not past the
+# @description wrapper's 1800 s default. For a job that runs long by design
+# @description (the file follower runs run_s); a hang past <s> still alerts.
+# @description The record is rewritten in place (the same inode: flock holds).
+# @description No CRON_NO_STACK_LOCK (a by-hand run) or no holder record there:
+# @description nothing written.
+# @param s (required) - the threshold in seconds, a whole number
+# @return 0 declared or nothing to declare, 1 not a whole number
+# @example spl_cron_no_stack_declare_max $(( run_s + 600 ))
+#------------------------------------------------------------------------------
+spl_cron_no_stack_declare_max() {
+  local s="$1" lock="${CRON_NO_STACK_LOCK:-}" rec
+  [[ "$s" =~ ^[0-9]+$ ]] || { echo "FATAL spl_cron_no_stack_declare_max: not a whole number: '$s'" >&2; return 1; }
+  [[ -n "$lock" && -f "$lock" && -w "$lock" ]] || return 0
+  IFS= read -r rec <"$lock" || true
+  [[ "$rec" == pid=*" start="*" job="* ]] || return 0
+  rec="${rec%% max=*}"
+  printf '%s max=%s\n' "$rec" "$s" >"$lock"
+}

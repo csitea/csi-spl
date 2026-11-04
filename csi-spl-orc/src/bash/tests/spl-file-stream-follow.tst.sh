@@ -1012,7 +1012,7 @@ if command -v yq >/dev/null; then
     mkdir -p "$co/src/bash/run" "$co/src/bash/scripts" "$co/lib/bash/funcs"
     cp "$PROJ_ROOT/src/bash/run/spl-cost-tokens-read.func.sh" "$co/src/bash/run/"
     cp "$PROJ_ROOT/src/bash/scripts/file-stream-follow.py" "$co/src/bash/scripts/"
-    cp "$PROJ_ROOT/lib/bash/funcs/spl-desk-box.func.sh" "$co/lib/bash/funcs/"
+    cp "$PROJ_ROOT/lib/bash/funcs/spl-desk-box.func.sh" "$PROJ_ROOT/lib/bash/funcs/spl-desk-cron-lock.func.sh" "$co/lib/bash/funcs/"
     ln -sfn "$PROJ_ROOT/src/bash/features" "$co/src/bash/features"
   }
   hd="$(newcase)"; hubcase "$hd"; ctree "$hd"
@@ -1134,7 +1134,7 @@ fi
 # ------------------------------------------------------------------ cron
 W="$T/x-wt/c-1/csi-spl-orc/src/bash"
 mkdir -p "$W/scripts" "$W/run" "$W/../../lib/bash/funcs"
-cp "$PROJ_ROOT/lib/bash/funcs/spl-desk-box.func.sh" "$W/../../lib/bash/funcs/"
+cp "$PROJ_ROOT/lib/bash/funcs/spl-desk-box.func.sh" "$PROJ_ROOT/lib/bash/funcs/spl-desk-cron-lock.func.sh" "$W/../../lib/bash/funcs/"
 cp "$PROJ_ROOT/src/bash/scripts/file-stream-follow-cron.sh" "$W/scripts/"
 cp "$PROJ_ROOT/src/bash/run/spl-file-stream-follow.func.sh" "$PROJ_ROOT/src/bash/run/spl-cost-tokens-read.func.sh" "$W/run/"
 out="$(bash "$W/scripts/file-stream-follow-cron.sh" 2>&1)"

@@ -37,6 +37,19 @@ its own:
   that gets the lock clears it. Why: a SKIP line keeps the log fresh, so the
   cron heartbeat snitch (log age) would read a hung job as healthy. The
   wrapper kills nothing: the box owner decides about the stuck pid.
+- A job that runs longer than 1800 s by design declares its own max
+  (SPL-4768): the wrapper gives the job `CRON_NO_STACK_LOCK=<lock>`, and the
+  job's `spl_cron_no_stack_declare_max <s>`
+  (`csi-spl-orc/lib/bash/funcs/spl-desk-cron-lock.func.sh`) appends
+  `max=<s>` to the holder record, rewritten in place so the flock holds. A
+  start judges the holder against that `max=`, else `CRON_NO_STACK_MAX_S`.
+  The box file follower (row `file-streams`) runs `run_s` (cnf
+  `env.box.file_streams.run_s`, 3600 s) and declares `run_s` +
+  `FILE_STREAMS_STUCK_MARGIN_S` (default 600), from the same value it hands
+  the follower (`spl_file_stream_stuck_max`). Before it, every start past
+  1800 s of a healthy run wrote STUCK: 2475 lines in one box's
+  `file-streams/cron.log` by 2026-11-04. A follower still held past
+  `run_s` + margin is STUCK as before.
 - The job runs with the lock's fd closed, so a daemon it leaves behind never
   holds the lock; the lock goes when the job returns.
 - The installer writes the wrapper, so a re-install keeps it. Never add it by

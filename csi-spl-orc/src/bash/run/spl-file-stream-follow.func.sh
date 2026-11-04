@@ -38,6 +38,9 @@
 # @param FILE_STREAMS_TENANT (optional) - default box.env SPOOL_FLEET_TENANT, else t1
 # @param FILE_STREAMS_AGENT_USER (optional) - default the first
 # @param   spl_cost_agent_users user
+# @param FILE_STREAMS_STUCK_MARGIN_S (optional) - seconds past run_s before
+# @param   the cron row's cron-no-stack.sh lock calls the follower stuck;
+# @param   default 600 (spl_file_stream_stuck_max)
 # @param FILE_STREAMS_CNF (optional) - default csi-spl-cnf/csi-spl/all.env.yaml
 # @param FILE_STREAMS_FOLDERS (optional) - the folders a web glob may reach
 # @param   (spec 160 3.8.2), a JSON list; default box.env FILE_STREAMS_FOLDERS
@@ -53,6 +56,7 @@
 
 declare -F spl_cost_agent_users >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/spl-cost-tokens-read.func.sh"
 declare -F spl_desk_box_default >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-box.func.sh"
+declare -F spl_cron_no_stack_declare_max >/dev/null || source "$(dirname "${BASH_SOURCE[0]}")/../../../lib/bash/funcs/spl-desk-cron-lock.func.sh"
 
 do_spl_file_stream_follow() {
   local orc cnf on user py
@@ -67,6 +71,7 @@ do_spl_file_stream_follow() {
   fi
   [[ -f "$py" ]] || { echo "FATAL file-streams: no follower at $py"; return 1; }
   spl_file_stream_env "$cnf" || return 1
+  spl_file_stream_stuck_max || return 1
   user="${FILE_STREAMS_AGENT_USER:-$(spl_cost_agent_users "${SPOOL_ROOT:-/var/spool-hub}" | sed -n 1p)}"
   [[ "$user" =~ ^[a-z_][a-z0-9_-]*$ ]] || { echo "FATAL file-streams: bad agent user '$user'"; return 1; }
   [[ "$user" != root ]] || { echo "FATAL file-streams: the agent user is root: refused"; return 1; }
@@ -79,6 +84,19 @@ do_spl_file_stream_follow() {
     return
   fi
   spl_file_stream_hubs "$cnf" "$user" "$py" "${args[@]}"
+}
+
+# spl_file_stream_stuck_max: the cron row's stuck threshold follows the run
+# length the follower gets (SPL-4768): its FILE_STREAMS_RUN_S from envs (the
+# env, else the cnf run_s; the follower's own default 3600 when neither) plus
+# FILE_STREAMS_STUCK_MARGIN_S (default 600), declared on the cron-no-stack.sh
+# lock. Without it every start after 1800 s of a healthy 3600 s run wrote a
+# STUCK line (2475 on one box by 2026-11-04).
+spl_file_stream_stuck_max() {
+  local e run_s=3600 margin="${FILE_STREAMS_STUCK_MARGIN_S:-600}"
+  for e in "${envs[@]}"; do [[ "$e" == FILE_STREAMS_RUN_S=* ]] && run_s="${e#*=}"; done
+  [[ "$margin" =~ ^[0-9]+$ ]] || { echo "FATAL file-streams: FILE_STREAMS_STUCK_MARGIN_S must be a whole number, got: '$margin'"; return 1; }
+  spl_cron_no_stack_declare_max "$(( run_s + margin ))"
 }
 
 # spl_file_stream_hubs <cnf> <user> <py> [args]: one follower per hub env,

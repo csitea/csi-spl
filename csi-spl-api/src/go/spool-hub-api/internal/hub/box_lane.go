@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
@@ -168,11 +169,17 @@ func (s *Server) boxLane(ctx context.Context, x *session, f wire.Frame) (laneAns
 // laneTopic is the topic a put stores: an 8-hex short id becomes the one
 // topic of the tenant it starts, else (a put in the operator workspace) the
 // one topic of any workspace it starts (laneTopicElsewhere); "" for none or
-// two; a relay task's hash becomes the topic it is the hash of, else ""
-// (laneTopicOfRelayHash: it is never stored); anything else as sent.
+// two; a relay task's hash becomes the topic it is the hash of, else the
+// version-5 uuid itself when it is a topic of another workspace (3.18:
+// a customer workspace's topic ids can be version 5), else "" (laneTopicOfRelayHash: a
+// hash is never stored); anything else as sent.
 func (s *Server) laneTopic(ctx context.Context, tenant, topic string) (string, *issueErr) {
 	if store.RelayTaskHashRe.MatchString(topic) {
-		return s.laneTopicOfRelayHash(ctx, tenant, topic)
+		got, ae := s.laneTopicOfRelayHash(ctx, tenant, topic)
+		if ae != nil || got != "" {
+			return got, ae
+		}
+		return s.laneTopicIsElsewhere(ctx, tenant, topic)
 	}
 	if !store.TopicPrefixRe.MatchString(topic) {
 		return topic, nil
@@ -194,6 +201,37 @@ func (s *Server) laneTopic(ctx context.Context, tenant, topic string) (string, *
 	}
 	return ids[0], nil
 }
+
+// laneTopicIsElsewhere is topic when it is a topic of another non-archived
+// workspace, each read in its own scope; "" otherwise, and always "" unless
+// tenant is the operator workspace (as laneTopicElsewhere).
+func (s *Server) laneTopicIsElsewhere(ctx context.Context, tenant, topic string) (string, *issueErr) {
+	d, ok := s.issueDiscussionStore()
+	op, err := s.operatorTenant(ctx)
+	ws, listed := s.o.Store.(store.OperatorWorkspaces)
+	if !ok || err != nil || op == "" || op != tenant || !listed {
+		return "", nil
+	}
+	all, err := ws.ListWorkspaces(ctx)
+	for _, w := range all {
+		if err != nil || w.ID == op || !w.ArchivedAt.IsZero() {
+			continue
+		}
+		var ids []string
+		if ids, err = d.TopicsByPrefix(ctx, w.ID, topic[:8], laneTopicPrefixScan); slices.Contains(ids, topic) {
+			return topic, nil
+		}
+	}
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Msg("fleet lane topic elsewhere")
+		return "", &issueErr{http.StatusInternalServerError, "internal", "lane map unavailable"}
+	}
+	return "", nil
+}
+
+// laneTopicPrefixScan caps the topics one 8-hex prefix lists per workspace
+// when a full uuid is looked up (a prefix two topics share is rare).
+const laneTopicPrefixScan = 16
 
 // laneTopicElsewhere is up to two topics of the other workspaces (archived
 // ones aside) that start with prefix, each read in its own workspace's

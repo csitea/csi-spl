@@ -13,6 +13,13 @@ cases C71-C81. Owner
 HUM-10, t1 topic `dc2d6c40`. Placed by the dispatch holder as one lane
 brief, not a panel version.
 
+Addendum (2026-11-04, SPL-4797): section 3.20 (every new lane is written
+with its discussion and its issue, the placer refuses one that names
+neither, a 15-minute check reports the gaps; `unknown` is plain text),
+cases C90-C96. Owner HUM-10, t1 topic `0c2d08a2`, msgs `e7009f10`,
+`08ac07da`, `937e89a4`. Placed by the dispatch holder as lane (a) of three:
+(b) the renderer, (c) the NOT NULL migration.
+
 Addendum (2026-11-03, SPL-4729): section 3.15 (the Lanes list's sort and
 filters live in its URL, so the link can be shared), cases C64-C67. Owner
 HUM-10, t1 topic `0a730c21`, msg `ea87c5c1`. Placed by the dispatch holder
@@ -1352,6 +1359,92 @@ Cases:
   `dispatch-5e7b15c9` links the task, `SPL-4791` its issue; controls:
   `DVN-3` of the page's own workspace and `unknown` stay text. Red control:
   the pages from master print the task as text.
+
+### 3.20 No new lane without its discussion and its issue; a 15-minute check (SPL-4797)
+
+The owner's words, verbatim (HUM-10, t1 `0c2d08a2`): "there are still lanes
+created without a proper link to their discusions" (msg `e7009f10`), "the
+links must be enforced , by even some kind of dispatcher , cron scheduled
+work to check them" (msg `08ac07da`), "for the already nulls , do not use
+resources to search what they were related to -, use the unknown string"
+(msg `937e89a4`). The standing rule (t1 `f94e07bf`, msg `33f8eecb`): "each
+lane must have at least 1 link to an issue WHAT It is doing and at least 1
+link to a discusion from where did it originated".
+
+Measured on prd 2026-11-04 ~13:30Z, tree `022055fe6`, n = 1 read:
+`ENV=prd SQL="select agent_id, agent_box, topic, issue_key, ... from
+fleet_lanes where state='live'" ./run -a do_spl_db_query` (csi-spl-orc) ->
+182 live rows, 147 with no topic, 144 with no issue, 135 with neither; all
+but 13 of the 147 are rows of October lanes never marked done. The rows of
+lanes placed on 2026-11-04 with no topic, each brief read in
+`/var/spool-hub/dispatch/briefs/`:
+
+| lane | what the brief names | why the row has no topic |
+|---|---|---|
+| c-089 | `topic ebb24c8d-b371-50bc-...`, a customer workspace's topic | the hub took the version-5 uuid for a relay hash and stored nothing (fixed below) |
+| c-850, c-927 (other box) | only the task `dispatch-s169-rows` | no discussion named: refused from now on |
+| c-084, c-092 | only the task `820ea59e-79ef-588b-...`, a relay hash of a name (t1, no channel) | no discussion named: refused from now on |
+| a-924 (other box) | no task, no topic | no discussion named: refused from now on |
+| c-001, c-002, c-003 (both boxes), g-00N | role seats | by design (below) |
+
+What changes:
+
+- **The hub keeps another workspace's topic.** A put whose topic is a
+  version-5 uuid that is no relay hash of the tenant's `dispatch-<topic8>`
+  stores it when it is a topic of another non-archived workspace
+  (`laneTopicIsElsewhere`, `internal/hub/box_lane.go`; operator workspace
+  only, as `laneTopicElsewhere`). a customer workspace's topic ids can be version 5.
+- **The placer refuses a lane with no discussion or no issue**
+  (`spl_spawn_place_no_links`, `spl-spawn-place.func.sh`): no discussion = the
+  ask's topic is neither a hub uuid nor `dispatch-<topic8>`, the ask has no
+  `discussion` and the brief names none (`li_discussion_from_brief`,
+  `lane-issue.inc.sh`: `Topic:` / `topic <id>` / `Discussion:` / `/t/<id>`,
+  else a `dispatch-<topic8>` task); no issue = no `Issue:` key and no
+  `Epic:` + `Spec:` pair the placer files one under. The row goes to the
+  holder as a SPAWN QUEUE blocker naming the line to add; nothing launches.
+- **Role seats** (001-003 of any vendor, or a row the role rotation wrote,
+  scope `role <id> (rotation ...)`): their defined value is the hub's
+  `role_seat` mark (3.11), which the pages show as "role seat" in both cells.
+  They get no topic and no issue key; the check below leaves them out.
+- **`unknown`** is the value lane (c) writes into the old empty rows, without
+  a search. The pages show it as plain text: a non-uuid topic is never a
+  link (`laneTopicPath`) and a non-empty one is never "No discussion"; an
+  issue key with no status is never a link (`laneIssuePath`). The check
+  counts `unknown` as a value.
+- **The 15-minute check** `cd csi-spl-orc && DELIVER=1 ./run -a
+  do_spl_lane_links_check` lists every live lane row (role seats, legacy ids
+  and rows older than `LINKS_CHECK_MAX_AGE_H`, default 24 h, aside) with no
+  topic or no issue, one line each, and sends them in one note to the
+  dispatch lease holder on task `lane-links-check`; it fills nothing and
+  searches nothing. The same list is sent again only after
+  `LINKS_CHECK_RESEND_MIN` (120); a lease on another machine sends from
+  there. `unanswered-sweep-cron.sh` (the minute cron of
+  `do_spl_unanswered_sweep`) runs it every `LINKS_CHECK_EVERY_MIN` (15).
+
+Not built here: the Topics tab shows another workspace's topic as its bare
+uuid with no channel. Its title and channel are filled in
+`internal/hub/fleet_lanes_view.go`, which deliberately sends no other
+workspace's title to the operator (case C58, SPL-4705); showing it is a
+change of that rule, left to the dispatch holder (that file is lane
+SPL-4778's). The link is lane (b)'s renderer.
+
+Cases:
+
+- **C90** a put of another workspace's version-5 topic uuid stores it;
+  **C91** its `dispatch-<topic8>` 8 hex resolves to it; **C92** a version-5
+  uuid that is no topic anywhere stores nothing.
+  (`hub/lanes_topic_elsewhere_test.go`; RED on `022055fe6`: C90 stored "")
+- **C93** a row whose ask topic is `dispatch-s169-rows` and whose brief names
+  no discussion is handed to the holder, nothing launched (control: the same
+  brief on `dispatch-<topic8>` launches); **C94** a brief with no `Issue:` key
+  and no `Epic:`/`Spec:` pair is handed off with "no issue".
+  (`csi-spl-orc/src/bash/tests/spl-spawn-queue.tst.sh` case 16c)
+- **C95** the check names the gaps and leaves out role seats, legacy ids,
+  done, complete, `unknown` and day-old rows; DELIVER=1 sends one note to the
+  holder, not again within the resend window; the minute cron runs it once
+  per 15 min. (`csi-spl-orc/src/bash/tests/lane-links-check.tst.sh`)
+- **C96** `unknown` is no link and keeps its own Topics row, apart from "No
+  discussion". (`csi-spl-wui/tests/unit/monitoring-lanes-unknown.test.mjs`)
 
 ## 4. Cases
 

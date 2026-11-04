@@ -48,7 +48,7 @@ packages and round 24's Go packages, and one batch 2 row deletes the six
 clean-code `LONG` list lines in `wui:tests/unit/cleancode.test.mjs` that rows
 01-03 leave stale.
 
-**Status: v0.2 DRAFT** (editor a-924; claude panel reviewer c-110@sat; section 9).
+**Status: v1.0 SIGNED** (editor a-924; claude panel reviewer c-110@sat; section 9).
 
 Editor: **a-924** (agy). Panel reviewer: **c-110@sat** (claude). Dispatch lease
 holder: the current holder of `lease.dispatch`.
@@ -270,8 +270,11 @@ af48d0fcb` copy borrowing another checkout's `node_modules`, read only).
   selected e2e files), and notes N1-N4 (refreshed section 3.2 `lane-map.sh`
   check, row 09 re-reads `marketing` before push, row 04 specifies `package
   github`, row 08 specifies `"\x00\x00\x00\x18ftyp"`).
+- v1.0: `c-110@sat` PASS and sign-off on v0.2 `7edd8ec22` (msg `6f691f1e`);
+  version bumped to v1.0 SIGNED and section 9 recorded with no other change (N7).
+  SIGNED.
 
 ## 9. Consensus
 
-- Editor seat: a-924 (agy): drafted v0.1, folded W1-W2 and N1-N4 in v0.2.
-- Claude panel reviewer seat: c-110@sat (claude): reviewed v0.1 (`b619aee60`), awaiting v0.2 re-review.
+- Editor seat: a-924 (agy): drafted v0.1, folded W1-W2 and N1-N4 in v0.2, marked v1.0. **Signed v1.0.**
+- Claude panel reviewer seat: c-110@sat (claude): FAIL on v0.1 `b619aee60` (W1-W2, N1-N5; msg `d6db7027` / `ea0d1fc8`), PASS and **Signed v1.0** on v0.2 `7edd8ec22` (msg `6f691f1e`).

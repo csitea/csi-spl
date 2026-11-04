@@ -137,11 +137,11 @@ func (s *Server) handleReleasesDaily(w http.ResponseWriter, r *http.Request) {
 
 // releaseCommitsBody is one page of commits.
 type releaseCommitsBody struct {
-	Off    bool                `json:"off,omitempty"`
-	Total  int                 `json:"total"`
-	Limit  int                 `json:"limit"`
-	Offset int                 `json:"offset"`
-	Notes  []store.ReleaseNote `json:"notes"`
+	Off    bool                   `json:"off,omitempty"`
+	Total  int                    `json:"total"`
+	Limit  int                    `json:"limit"`
+	Offset int                    `json:"offset"`
+	Notes  []releaseNoteLinksJSON `json:"notes"`
 }
 
 func (s *Server) handleReleasesCommits(w http.ResponseWriter, r *http.Request) {
@@ -158,17 +158,18 @@ func (s *Server) handleReleasesCommits(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_query", err.Error())
 		return
 	}
-	body := releaseCommitsBody{Limit: f.Limit, Offset: f.Offset, Notes: []store.ReleaseNote{}}
+	body := releaseCommitsBody{Limit: f.Limit, Offset: f.Offset, Notes: []releaseNoteLinksJSON{}}
 	if rr == nil {
 		body.Off = true
 		writeJSON(w, http.StatusOK, body)
 		return
 	}
-	body.Notes, body.Total, err = rr.ReleaseCommits(r.Context(), f)
+	notes, total, err := rr.ReleaseCommits(r.Context(), f)
 	if err != nil {
 		writeErrCause(w, http.StatusServiceUnavailable, "internal", "the releases report is not available", err)
 		return
 	}
+	body.Notes, body.Total = s.withReleaseLinks(r, notes), total
 	writeJSON(w, http.StatusOK, body)
 }
 

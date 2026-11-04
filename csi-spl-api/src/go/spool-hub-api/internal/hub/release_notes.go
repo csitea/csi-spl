@@ -2,6 +2,7 @@ package hub
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -64,6 +65,7 @@ func (s *Server) routeReleaseNotes(mux *http.ServeMux) {
 		s.o.Log.Error().Err(err).Int("pattern_len", len(p)).Msg("release note ban pattern skipped")
 	})}
 	mux.HandleFunc("POST /v1/operator/release-notes", rn.handleIngest)
+	mux.HandleFunc("POST /v1/operator/commit-links", s.handleCommitLinks)
 	mux.HandleFunc("GET /v1/release-notes", rn.handleList)
 	mux.HandleFunc("GET /v1/release-notes/{ref}", rn.handleGet)
 	mux.HandleFunc("OPTIONS /v1/release-notes", s.preflight)
@@ -73,6 +75,9 @@ func (s *Server) routeReleaseNotes(mux *http.ServeMux) {
 // releaseIngestBody is the ingest request: at most store.ReleaseBatchMax rows.
 type releaseIngestBody struct {
 	Notes []releaseNoteIn `json:"notes"`
+	// IssueTenant is the workspace whose issues the messages cite (cnf
+	// hub.commit_issue_tenant, SPL-4789); "" keeps the rows' stored keys.
+	IssueTenant string `json:"issue_tenant,omitempty"`
 }
 
 // releaseRejected names one row the ingest did not store, and why.
@@ -115,7 +120,12 @@ func (rn *releaseNotes) handleIngest(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_json", "at most "+strconv.Itoa(store.ReleaseBatchMax)+" notes per request")
 		return
 	}
-	rows, res := rn.buildRows(body.Notes)
+	prefix, err := rn.issuePrefix(r.Context(), body.IssueTenant)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "bad_json", err.Error())
+		return
+	}
+	rows, res := rn.buildRows(body.Notes, body.IssueTenant, prefix)
 	if err := rs.PutReleaseNotes(r.Context(), rows, rn.s.o.Now()); err != nil {
 		rn.s.o.Log.Error().Err(err).Int("rows", len(rows)).Msg("release notes ingest")
 		writeErr(w, http.StatusServiceUnavailable, "internal", "release notes not stored")
@@ -125,12 +135,36 @@ func (rn *releaseNotes) handleIngest(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, res)
 }
 
-// buildRows turns the wire rows into checked, filtered store rows.
-func (rn *releaseNotes) buildRows(in []releaseNoteIn) ([]store.ReleaseNote, releaseIngestResult) {
+// issuePrefix is the issue key prefix of tenant ("" for no tenant); an
+// unknown tenant is an error, so a cnf typo never stores keys for nobody.
+func (rn *releaseNotes) issuePrefix(ctx context.Context, tenant string) (string, error) {
+	if tenant == "" {
+		return "", nil
+	}
+	if _, err := rn.s.o.Store.GetTenant(ctx, tenant); err != nil {
+		return "", errors.New("issue_tenant names no workspace of this hub")
+	}
+	is, ok := rn.s.o.Store.(store.Issues)
+	if !ok {
+		return "", nil
+	}
+	p, err := is.IssuePrefix(ctx, tenant)
+	if err != nil {
+		return "", errors.New("issue_tenant: its issue prefix cannot be read")
+	}
+	return p, nil
+}
+
+// buildRows turns the wire rows into checked, filtered store rows, each
+// naming the issues of tenant (key prefix prefix) its message cites.
+func (rn *releaseNotes) buildRows(in []releaseNoteIn, tenant, prefix string) ([]store.ReleaseNote, releaseIngestResult) {
 	res := releaseIngestResult{States: map[string]int{}, Rejected: []releaseRejected{}}
 	rows := make([]store.ReleaseNote, 0, len(in))
 	for _, wn := range in {
 		n := wn.row()
+		if tenant != "" {
+			n.IssueTenant, n.IssueKeys = tenant, store.ReleaseIssueKeys(prefix, wn.Message)
+		}
 		if rn.filter.apply(&n) {
 			res.Redacted++
 		}
@@ -250,7 +284,7 @@ func (rn *releaseNotes) handleGet(w http.ResponseWriter, r *http.Request) {
 		case len(rows) == 0:
 			writeErr(w, http.StatusNotFound, "not_found", "no release notes for "+ref)
 		default:
-			writeJSON(w, http.StatusOK, releaseVersion{Version: ref, Display: store.ReleaseDisplay(ref), Notes: rows})
+			writeJSON(w, http.StatusOK, releaseVersionLinks{Version: ref, Display: store.ReleaseDisplay(ref), Notes: rn.s.withReleaseLinks(r, rows)})
 		}
 		return
 	}
@@ -263,6 +297,6 @@ func (rn *releaseNotes) handleGet(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		writeErr(w, http.StatusBadRequest, "bad_ref", err.Error())
 	default:
-		writeJSON(w, http.StatusOK, map[string]store.ReleaseNote{"note": n})
+		writeJSON(w, http.StatusOK, map[string]releaseNoteLinksJSON{"note": rn.s.withReleaseLinks(r, []store.ReleaseNote{n})[0]})
 	}
 }

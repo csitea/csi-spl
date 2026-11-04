@@ -26,21 +26,23 @@ var ReleaseNoteStates = []string{"ok", "missing", "skip", "revert", "backfill"}
 
 // The shapes rdb 0108's CHECKs enforce, so a refusal is a 400, not a 500.
 var (
-	releaseSHARe     = regexp.MustCompile(`^[0-9a-f]{40}$`)
-	releaseRefRe     = regexp.MustCompile(`^[0-9a-f]{7,40}$`)
-	releaseVersionRe = regexp.MustCompile(`^v([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,6})(?:-c([2-9]|[1-9][0-9]{1,3}))?$`)
-	releaseKindRe    = regexp.MustCompile(`^[a-z]{0,16}$`)
-	releaseLinkRe    = regexp.MustCompile(`^https://\S+$`)
+	releaseSHARe      = regexp.MustCompile(`^[0-9a-f]{40}$`)
+	releaseRefRe      = regexp.MustCompile(`^[0-9a-f]{7,40}$`)
+	releaseVersionRe  = regexp.MustCompile(`^v([0-9]{1,6})\.([0-9]{1,6})\.([0-9]{1,6})(?:-c([2-9]|[1-9][0-9]{1,3}))?$`)
+	releaseKindRe     = regexp.MustCompile(`^[a-z]{0,16}$`)
+	releaseLinkRe     = regexp.MustCompile(`^https://\S+$`)
+	releaseIssueKeyRe = regexp.MustCompile(`^[A-Z][A-Z0-9]{0,9}-[0-9]{1,9}$`)
 )
 
 // Release note limits (rdb 0108).
 const (
-	ReleaseSubjectMax  = 300
-	ReleaseAreaMax     = 64
-	ReleaseTrailerMax  = 500 // one Lay-* / Tech-* line; the rule asks ~200
-	ReleaseLinkMax     = 300
-	ReleaseBatchMax    = 500 // rows one put takes at most
-	ReleaseVersionsMax = 50  // versions one list page carries at most (spec 7.1 item 4)
+	ReleaseSubjectMax   = 300
+	ReleaseAreaMax      = 64
+	ReleaseTrailerMax   = 500 // one Lay-* / Tech-* line; the rule asks ~200
+	ReleaseLinkMax      = 300
+	ReleaseBatchMax     = 500 // rows one put takes at most
+	ReleaseVersionsMax  = 50  // versions one list page carries at most (spec 7.1 item 4)
+	ReleaseIssueKeysMax = 20  // issue keys one row names at most (rdb 0261)
 )
 
 // ErrAmbiguousRef: a sha prefix matches more than one release note.
@@ -73,6 +75,11 @@ type ReleaseNote struct {
 	Link        string    `json:"link"`
 	IngestedAt  time.Time `json:"ingested_at"`
 	Seq         int       `json:"seq,omitempty"`
+	// IssueTenant is the workspace whose issues IssueKeys are (rdb 0261,
+	// SPL-4789); "" until an ingest names it. IssueKeys are the keys of its
+	// issue prefix the message cites, subject first (ReleaseIssueKeys).
+	IssueTenant string   `json:"-"`
+	IssueKeys   []string `json:"issue_keys"`
 }
 
 // ReleaseNotes is the store half of spec 065. Optional: the hub's routes
@@ -124,8 +131,38 @@ func CheckReleaseNote(n ReleaseNote) string {
 		return "reverts must be a full sha, on a revert row only"
 	case n.Link != "" && (len(n.Link) > ReleaseLinkMax || !releaseLinkRe.MatchString(n.Link)):
 		return "link must be an https URL"
+	case len(n.IssueTenant) > 64:
+		return "issue_tenant must be up to 64 bytes"
+	case len(n.IssueKeys) > ReleaseIssueKeysMax || slices.ContainsFunc(n.IssueKeys, func(k string) bool { return !releaseIssueKeyRe.MatchString(k) }):
+		return "issue_keys must be up to 20 keys <PREFIX>-<n>"
 	}
 	return ""
+}
+
+// ReleaseIssueKeys is every <prefix>-<n> key a commit message cites, in the
+// order it first appears (the subject comes first in a message), at most
+// ReleaseIssueKeysMax, never nil. A key is a whole word: SPL-12 in
+// "xSPL-12" or "SPL-12a" is not one. prefix "" finds none.
+func ReleaseIssueKeys(prefix, message string) []string {
+	out := []string{}
+	if prefix == "" {
+		return out
+	}
+	re := regexp.MustCompile(`(?:^|[^A-Za-z0-9_-])(` + regexp.QuoteMeta(prefix) + `-[1-9][0-9]{0,8})(?:$|[^A-Za-z0-9_])`)
+	seen := map[string]bool{}
+	for i := 0; i < len(message) && len(out) < ReleaseIssueKeysMax; {
+		m := re.FindStringSubmatchIndex(message[i:])
+		if m == nil {
+			break
+		}
+		k := message[i+m[2] : i+m[3]]
+		if !seen[k] {
+			seen[k] = true
+			out = append(out, k)
+		}
+		i += m[3]
+	}
+	return out
 }
 
 // CheckReleaseRef is a sha or sha prefix as ReleaseNote takes it, lowercased.
@@ -244,6 +281,12 @@ func (s *Memory) PutReleaseNotes(_ context.Context, batch []ReleaseNote, now tim
 		}
 		if old, ok := r[n.SHA]; ok && old.Version != "" {
 			n.Version = old.Version
+		}
+		if old, ok := r[n.SHA]; ok && n.IssueTenant == "" {
+			n.IssueTenant, n.IssueKeys = old.IssueTenant, old.IssueKeys
+		}
+		if n.IssueKeys == nil {
+			n.IssueKeys = []string{}
 		}
 		if rel := memReleased[s]; n.Version != "" && rel[n.SHA].IsZero() {
 			if rel == nil {

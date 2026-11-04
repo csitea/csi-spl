@@ -1,6 +1,6 @@
 # Spec 171: Per-Workspace Git Repository for Reporting, Commits, Release Notes, and Commit Analysis
 
-- **Status:** Draft — awaiting owner sign-off on §5 open questions before build lanes open
+- **Status:** Draft — Q2..Q5 decided by owner (`HUM-10`, 2026-11-04, topic `f38888e7-27eb-4aad-b2fe-1736ffbb2f0e`); Q1 (`4b5869d5`, repos per workspace) awaiting owner answer
 - **Date:** 2026-11-04
 - **Track:** `SPL-4808` (epic `SPL-2400`)
 - **Depends on:**
@@ -312,16 +312,27 @@ CREATE POLICY workspace_repos_tenant_scope ON workspace_repos
        );
    ```
 
-#### 3.3.3 `commit_token_burn` (`SPL-3893`, Spec 143 §8.7)
+#### 3.3.3 `commit_token_burn` (`SPL-3893`, Spec 143 §8.7) — Owner Decision Q5 (`msg 331b339b`, poll `a98c41db`)
 
 - Add `tenant_id text NOT NULL DEFAULT 't1'` and foreign key `FOREIGN KEY (tenant_id, sha) REFERENCES release_notes (tenant_id, sha) ON DELETE CASCADE`.
 - The slicer attributes a lane's token and currency burn to `( lane.workspace_tenant_id, commit.sha )`, so work run on `<WORKSPACE>`'s repo lands under `<WORKSPACE>`.
+- **Visibility & RLS (Decided in Q5, `HUM-10` msg `331b339b`, 2026-11-04T21:53:42Z, poll `a98c41db` — *"C — Every signed-in member of the workspace"*):**
+  - Instead of Spec 143 §8.7's operator-only RLS policy (`current_setting('app.rls_scope', true) = 'operator'`), `commit_token_burn` uses the tenant-scoped RLS policy so every signed-in member of `<WORKSPACE>` can read `<WORKSPACE>`'s per-commit token and EUR cost:
+    ```sql
+    ALTER TABLE commit_token_burn ENABLE ROW LEVEL SECURITY;
+    CREATE POLICY commit_token_burn_tenant_scope ON commit_token_burn
+        USING (
+            current_setting('app.rls_scope', true) = 'operator'
+            OR tenant_id = current_setting('app.tenant_id', true)
+        );
+    ```
+  - `GET /v1/reporting/releases/daily` and `GET /v1/reporting/releases/commits` return the AI token count and EUR cost per commit and per Kind/Area pill to **every signed-in human member of the workspace** (no operator-only or `costs.read` gate on `/reporting/releases`).
 
 ### 3.4 Ingestion & GitHub Authentication / Secret Custody
 
-#### 3.4.1 How the hub ingests a workspace's commits, tags, and releases
+#### 3.4.1 How the hub ingests a workspace's commits, tags, and releases — Owner Decision Q2 (`msg bbad7ba3`, poll `0636da66`)
 
-We support **two complementary paths writing to the same idempotent store `PutReleaseNotes(ctx, tenantID, repoSlug, notes)`**:
+Per owner decision Q2 (`HUM-10` msg `bbad7ba3`, 2026-11-04T21:54:13Z, poll `0636da66` — *"A — Recommended: both: the hub polls the repo on GitHub every 5 min (plus webhook and a \"Sync now\" button), and a box can push them too"*), we support **both complementary paths writing to the same idempotent store `PutReleaseNotes(ctx, tenantID, repoSlug, notes)`**:
 
 1. **Hub-native GitHub sync (primary — zero CI setup required in the target repo)**:
    - The hub already has a pure-Go GitHub REST client in `csi-spl-api/src/go/spool-hub-api/internal/github/{client.go,jwt.go,repo.go,commits.go}` that authenticates as the fleet GitHub App (`SPOOL_GITHUB_APP_ID` / `SPOOL_GITHUB_INSTALLATION_ID` / `SPOOL_GITHUB_APP_KEY`).
@@ -335,7 +346,9 @@ We support **two complementary paths writing to the same idempotent store `PutRe
    - `csi-spl-orc/src/bash/run/release-note-ingest.func.sh` gains `RELEASE_NOTE_TENANT` (default `t1`) and `RELEASE_NOTE_REPO_PATH` (default `$APP_PATH`, or the `<clone>` column from `$SPOOL_ROOT/workspace-repos.tsv`).
    - Desk cron (`do_spl_issue_close_landed` in `workspace-repo.inc.sh`) already runs `git -C "$clone" fetch --quiet origin "$trunk"` on the desk box for every row in `$SPOOL_ROOT/workspace-repos.tsv`; chaining `do_release_note_ingest` for each workspace repo ingests the full git log directly from the local clone as an immediate fallback even before any GitHub API change.
 
-#### 3.4.2 How GitHub credentials are held (Secret Manager & KMS envelope per Spec 127 / Spec 159 — never in git)
+#### 3.4.2 How GitHub credentials are held (Secret Manager & KMS envelope per Spec 127 / Spec 159 — never in git) — Owner Decision Q3 (`msg d5b1366a`, poll `c21fd9b7`)
+
+Per owner decision Q3 (`HUM-10` msg `d5b1366a`, 2026-11-04T21:54:03Z, poll `c21fd9b7` — *"A — Recommended: the existing fleet GitHub App for csitea repos (no new secret), plus an optional read-only token per workspace, encrypted with Cloud KMS, for repos in other GitHub orgs"*):
 
 - **Case 1 — Repository in the `csitea` GitHub organization (e.g. `csitea/<REPO>`)**:
   - The hub's existing GitHub App (`SPOOL_GITHUB_APP_ID`, `SPOOL_GITHUB_INSTALLATION_ID`, private key held in GCP Secret Manager `spool-hub-github-app-key` mounted via `csi-spl-iac/src/terraform/030-cloud-run-hub/07-github-app-key.tf`) already belongs to the `csitea` org.
@@ -380,54 +393,58 @@ In the `spool-hub` workspace (`t1`), commit history powers six distinct analysis
 | # | Analysis capability in `t1` (`spool-hub`) today | Code & Spec today | How it works for `<WORKSPACE>`'s own repo (`<ORG>/<REPO>`) |
 |---|---|---|---|
 | **1** | **Velocity KPIs & Daily Activity Timeline** (`Releases`, `Commits`, `Commits / day`, `Deploys dev / prd`, per-day commit stream, version grouping) | Spec 143 §2.2, `store/reporting_releases.go:211-271`, `ReportingReleasesSummary.vue`, `ReleasesDailyList.vue` | Computed strictly over `release_notes WHERE tenant_id = '<WORKSPACE>'` and `estate_deploys WHERE tenant_id = '<WORKSPACE>'`. Commits without a version tag group under `unreleased` / their date bucket; when the repo uses git tags or GitHub Releases, `version` and `released_at` populate automatically. |
-| **2** | **Conventional-commit `Kind` & `Area` Label Clouds** (`feat`, `fix`, `docs`, `chore`, `perf`, `refactor`, `ci`, `test` + scope pills with counts and multi-select filtering) | Spec 143 §2.2.1 (`SPL-3796`), `ReleasesFilterBar.vue:23-81`, `store/reporting_releases.go:64-93` | **Carries over per workspace with dynamic Area discovery**: the parser extracts `kind(area): subject` from each commit subject; if a commit has no `(area)` in its subject, the ingester derives `area` from the top-level directory of changed files (e.g. `web`, `src`, `supabase`, `docs`) and strips `workspace_repos.area_strip_prefix` (only `'csi-spl-'` in `t1`). The WUI renders the workspace's own top areas instead of hardcoded `orc/api/wui/...`. |
-| **3** | **Lay / Tech Structured Release Notes** (`Lay-What/How/Why`, `Tech-What/How/Why` trailers, completeness `state` badge: `complete`, `partial`, `missing`, `revert`, `merge`) | Spec 065, `0108_release_note.sql`, `release-note-ingest.func.sh` | **Carries over cleanly**: commits created by fleet agents in `<WORKSPACE>` (per `lane-issue-and-docs.md` §5) can include `Lay-*` / `Tech-*` trailers; existing or human commits without those trailers ingest with `state = 'missing'` and display their commit subject, body summary, author timestamp, kind/area badges, and GitHub diff link cleanly without error. |
+| **2** | **Conventional-commit `Kind` & `Area` Label Clouds** (`feat`, `fix`, `docs`, `chore`, `perf`, `refactor`, `ci`, `test` + scope pills with counts and multi-select filtering) | Spec 143 §2.2.1 (`SPL-3796`), `ReleasesFilterBar.vue:23-81`, `store/reporting_releases.go:64-93` | **Decided (Q4, `msg ab74f79d`, poll `9d1a183a`) — carries over per workspace with dynamic Area discovery**: the parser extracts `kind(area): subject` from each commit subject; if a commit has no `(area)` in its subject, the ingester derives `area` from the top-level directory of changed files (e.g. `web`, `src`, `supabase`, `docs`) and strips `workspace_repos.area_strip_prefix` (only `'csi-spl-'` in `t1`). The WUI renders the workspace's own top areas instead of hardcoded `orc/api/wui/...`. |
+| **3** | **Lay / Tech Structured Release Notes** (`Lay-What/How/Why`, `Tech-What/How/Why` trailers, completeness `state` badge: `complete`, `partial`, `missing`, `revert`, `merge`) | Spec 065, `0108_release_note.sql`, `release-note-ingest.func.sh` | **Decided (Q4, `msg ab74f79d`, poll `9d1a183a`) — carries over cleanly**: commits created by fleet agents in `<WORKSPACE>` (per `lane-issue-and-docs.md` §5) can include `Lay-*` / `Tech-*` trailers; commits without those trailers show their commit subject and body summary cleanly without error. |
 | **4** | **Bidirectional Commit ↔ Issue ↔ Discussion Links** (`SPL-4789`: commit row shows linked `<PREFIX>-<n>` issue chip + discussion thread link; issue drawer and discussion header list every commit that cites `<PREFIX>-<n>`) | `SPL-4789` (`origin/review/c-944-commit-links`, `8f1834b21..12f302fd9`), `0261_release_note_issue_keys.sql`, `commit-links.md` | **Carries over per workspace**: when ingesting commits for `<WORKSPACE>`, the ingester looks up `<WORKSPACE>`'s `tenants.issue_key_prefix` (e.g. `<PREFIX>`, or any `<PREFIX>-<n>` cited in the commit subject/body), sets `release_notes.tenant_id = '<WORKSPACE>'` and `release_notes.issue_tenant = '<WORKSPACE>'`, and populates `issue_keys`. Clicking an issue chip on `/reporting/releases` in `<WORKSPACE>` opens `<WORKSPACE>`'s own issue `<PREFIX>-<n>` and its linked `#development` discussion thread. |
 | **5** | **Automated Issue Closure on Commit Landing & Spec 170 To-Do Deadlines** (`do_spl_issue_close_landed` scans trunk commits for `<PREFIX>-<n>` and transitions open `wip` issues to `done`, clearing them from active To-Do reminders) | `workspace-repo.inc.sh:1-74`, `issue-close-landed.func.sh`, [Spec 170](../170-day-tasks-reminder/spec.md) | **Already works on box clones via `workspace-repos.tsv` (`SPL-3528`/`SPL-3794`) and now unifies with the hub**: when the hub syncs new trunk commits for `<WORKSPACE>`, it can both insert `release_notes` rows (linking the closing commit SHA to `<PREFIX>-<n>`) and transition `<PREFIX>-<n>` to `done` with the landing commit SHA recorded on the issue closure event. |
-| **6** | **Per-Commit & Per-Label Token and Currency Cost Attribution** (`SPL-3893`, Spec 143 §8: `commit_token_burn` attributes agent lane token burn and EUR cost across commits and displays `tokens · €cost` on each Kind/Area pill and commit row) | Spec 143 §8 (`spec.md:835-963`), `SPL-3893` | **Carries over per workspace**: when an agent lane runs with `Workspace: <WORKSPACE>` (targeting `<ORG>/<REPO>` and issue `<PREFIX>-<n>`), `do_commit_token_burn_slice` joins `usage_events` for that lane's `agent_id` and time window to the commits landed in `release_notes WHERE tenant_id = '<WORKSPACE>'` citing `<PREFIX>-<n>`. |
+| **6** | **Per-Commit & Per-Label Token and Currency Cost Attribution** (`SPL-3893`, Spec 143 §8: `commit_token_burn` attributes agent lane token burn and EUR cost across commits and displays `tokens · €cost` on each Kind/Area pill and commit row) | Spec 143 §8 (`spec.md:835-963`), `SPL-3893` | **Decided (Q5, `msg 331b339b`, poll `a98c41db`) — carries over per workspace and visible to every signed-in member of `<WORKSPACE>`**: when an agent lane runs with `Workspace: <WORKSPACE>` (targeting `<ORG>/<REPO>` and issue `<PREFIX>-<n>`), `do_commit_token_burn_slice` joins `usage_events` for that lane's `agent_id` and time window to the commits landed in `release_notes WHERE tenant_id = '<WORKSPACE>'` citing `<PREFIX>-<n>`, and every signed-in workspace member sees the AI token and EUR cost per commit and per Kind/Area pill on `/reporting/releases`. |
 | **7** | **Live Deploy Tracking & Drift Reconciliation** (`estate_deploys`: dev/prd deploy counts and live version probe) | Spec 143 §2.2, `0202_estate_deploys.sql`, `hub/operator_deploys.go` | **Carries over per workspace**: `<WORKSPACE>` records deploys via `POST /v1/operator/deploys?tenant=<WORKSPACE>` (from its deploy script/workflow) or via periodic probe of `workspace_repos.live_url` (e.g. `/build.json` or `/version` when present). If `<WORKSPACE>` does not emit deploy events yet, the Deploys KPI card shows `0` (or `—`) for `<WORKSPACE>`, never `csi-spl`'s `hub`/`wui` deploy counts. |
 
 ---
 
-## 5. Open Questions for the Owner (A/B/C Options)
+## 5. Owner Decisions & Open Questions (A/B/C Options)
 
-Each question below has one-line A/B/C options and our recommendation so the owner can reply with shorthand (e.g. `1A 2A 3A 4A 5A`).
+On 2026-11-04 (`HUM-10`, topic `f38888e7-27eb-4aad-b2fe-1736ffbb2f0e`), the owner answered **Q2, Q3, Q4, and Q5**. **Q1** (poll in msg `4b5869d5`) remains open.
 
-### Q1 — Repository cardinality per workspace (`workspace_repos`)
+### Q1 — Repository cardinality per workspace (`workspace_repos`) — **OPEN (poll in msg `4b5869d5`, awaiting owner answer)**
 - **A (Recommended):** Allow multiple repos in the schema (`PRIMARY KEY (tenant_id, repo_slug)` with one `is_primary = true`), UI/Reporting defaults to the primary repo with an optional repo switcher when `count > 1`.
 - **B:** Strictly one git repository per workspace (`PRIMARY KEY (tenant_id)` on `workspace_repos`).
 - **C:** Store a single `repo_url` string inside `tenants.settings` JSONB with no relational table.
 
-### Q2 — How the hub ingests a workspace's git commits and tags
-- **A (Recommended):** Both: the hub's GitHub App client (`internal/github`) polls `<ORG>/<REPO>` every 5 min (plus optional GitHub webhook + manual "Sync now"), AND box-side `do_release_note_ingest --workspace <WORKSPACE>` can push from the local clone in `workspace-repos.tsv`.
+### Q2 — How the hub ingests a workspace's git commits and tags — **DECIDED: A (`HUM-10` msg `bbad7ba3`, 2026-11-04T21:54:13Z, poll `0636da66`)**
+- **Decision verbatim:** *"A — Recommended: both: the hub polls the repo on GitHub every 5 min (plus webhook and a \"Sync now\" button), and a box can push them too"*
+- **A (Selected):** Both: the hub's GitHub App client (`internal/github`) polls `<ORG>/<REPO>` every 5 min (plus optional GitHub webhook + manual "Sync now"), AND box-side `do_release_note_ingest --workspace <WORKSPACE>` can push from the local clone in `workspace-repos.tsv`.
 - **B:** Hub-side GitHub API polling + webhook only (no box-side git clone ingest).
 - **C:** Box-side cron (`workspace-repos.tsv` local clone + `do_release_note_ingest`) only.
 
-### Q3 — How private workspace repositories authenticate with GitHub
-- **A (Recommended):** Use the existing fleet GitHub App (`spool-hub-github-app-key` in GCP Secret Manager) for orgs where the App is installed (such as `csitea/*`), plus optional per-workspace fine-grained PAT encrypted with GCP Cloud KMS (`057-gcp-kms-vendor-keys`) for external orgs.
+### Q3 — How private workspace repositories authenticate with GitHub — **DECIDED: A (`HUM-10` msg `d5b1366a`, 2026-11-04T21:54:03Z, poll `c21fd9b7`)**
+- **Decision verbatim:** *"A — Recommended: the existing fleet GitHub App for csitea repos (no new secret), plus an optional read-only token per workspace, encrypted with Cloud KMS, for repos in other GitHub orgs"*
+- **A (Selected):** Use the existing fleet GitHub App (`spool-hub-github-app-key` in GCP Secret Manager) for orgs where the App is installed (such as `csitea/*`), plus optional per-workspace fine-grained PAT encrypted with GCP Cloud KMS (`057-gcp-kms-vendor-keys`) for external orgs.
 - **B:** GitHub App installations only (every workspace repo must install the Spool GitHub App).
 - **C:** Per-workspace PAT in GCP KMS / Secret Manager for every workspace repo.
 
-### Q4 — How `Area` pills and commits without `Lay-*` / `Tech-*` trailers behave in workspace repos
-- **A (Recommended):** Derive `Area` dynamically from the commit's conventional scope `kind(area):` (falling back to the top-level changed directory when scope is omitted), and render commits without `Lay-*`/`Tech-*` trailers cleanly using their commit subject and body.
+### Q4 — How `Area` pills and commits without `Lay-*` / `Tech-*` trailers behave in workspace repos — **DECIDED: A (`HUM-10` msg `ab74f79d`, 2026-11-04T21:53:53Z, poll `9d1a183a`)**
+- **Decision verbatim:** *"A — Recommended: Area from the commit scope kind(area):, else the top folder changed; commits without trailers show their subject and body"*
+- **A (Selected):** Derive `Area` dynamically from the commit's conventional scope `kind(area):` (falling back to the top-level changed directory when scope is omitted), and render commits without `Lay-*`/`Tech-*` trailers cleanly using their commit subject and body.
 - **B:** Derive `Area` only from explicit `kind(area):` conventional scopes (leave `area` empty if omitted) and show subject/body when trailers are absent.
 - **C:** Require `Lay-*`/`Tech-*` trailers on all workspace repos and flag non-trailer commits as incomplete warnings.
 
-### Q5 — Visibility of per-commit / per-label AI token & EUR cost attribution (`SPL-3893`) on `/reporting/releases`
-- **A (Recommended):** Show token burn and EUR cost on `/reporting/releases` to operators (`t1` staff) and to workspace owners/admins who hold `costs.read` in `<WORKSPACE>`, hidden from regular workspace members.
+### Q5 — Visibility of per-commit / per-label AI token & EUR cost attribution (`SPL-3893`) on `/reporting/releases` — **DECIDED: C (`HUM-10` msg `331b339b`, 2026-11-04T21:53:42Z, poll `a98c41db`)**
+- **Decision verbatim:** *"C — Every signed-in member of the workspace"* (overrides initial recommendation A: AI token and EUR cost per commit is visible to every signed-in member of the workspace).
+- **A (Initial recommendation, not selected):** Show token burn and EUR cost on `/reporting/releases` to operators (`t1` staff) and to workspace owners/admins who hold `costs.read` in `<WORKSPACE>`, hidden from regular workspace members.
 - **B:** Operator-only (`t1` staff) in all workspaces, matching Spec 143 §8's initial operator gate.
-- **C:** Visible to all signed-in human members of `<WORKSPACE>` who can open `/reporting/releases`.
+- **C (Selected):** Visible to all signed-in human members of `<WORKSPACE>` who can open `/reporting/releases`.
 
 ---
 
-## 6. Phased Implementation Plan (Gated on Owner Sign-Off)
+## 6. Phased Implementation Plan (Q2..Q5 Decided; Q1 `4b5869d5` Open)
 
-No implementation lane opens until the owner answers §5. Once approved, the work splits into five small, file-disjoint lanes:
+Q2..Q5 are decided (`bbad7ba3`, `d5b1366a`, `ab74f79d`, `331b339b`); only Q1 (`4b5869d5`, repos per workspace cardinality on `workspace_repos`) remains open. Once Q1 is answered, the work splits into five small, file-disjoint lanes:
 
 | Phase | Scope | Files touched | Verification |
 |---|---|---|---|
-| **Lane 1 — RDB migrations (`0262`–`0264`)** | Create `workspace_repos`; add `tenant_id` + `repo_slug` + tenant RLS to `release_notes` and `estate_deploys`; relax `release_notes.version` check for standard semver/tags; seed `t1 -> csitea/csi-spl`. | `csi-spl-rdb/src/sql/postgres/spool-hub/0262_workspace_repos.sql`, `0263_release_notes_tenant_scope.sql`, `0264_estate_deploys_tenant_scope.sql` | Migration apply + pgTAP / Go store tests verifying tenant isolation (`t2` sees 0 rows of `t1`'s `release_notes` and `estate_deploys`, including via `/reporting/sql`). |
-| **Lane 2 — Hub Store & API scoping + Workspace Repo API** | Thread `tenant` into `ReleaseReportStore`, `ReleaseNoteStore`, and `OperatorDeployStore`; return `repo` metadata + dynamic `available_areas`; expose `repo_web_url` and `repo_commit_path` on `/v1/tenant/public`; add operator/admin workspace repo registration endpoint. | `csi-spl-api/src/go/spool-hub-api/internal/store/{reporting_releases.go,release_note_postgres.go,operator_deploys.go}`, `internal/hub/{reporting_releases.go,release_notes.go,tenant_settings.go}` | `go test ./internal/store/... ./internal/hub/...` covering `t1` (`csitea/csi-spl`), a configured workspace (`<ORG>/<REPO>`), and an unconfigured workspace (`configured: false`, 0 rows). |
-| **Lane 3 — Hub GitHub Sync & Box Ingest (`do_release_note_ingest`)** | Extend `internal/github` + background sync worker to ingest commits, tags, and `<PREFIX>-<n>` issue keys per `workspace_repos` row; add `--workspace <WORKSPACE>` support to `release-note-ingest.func.sh` and `workspace-repo.inc.sh`. | `csi-spl-api/src/go/spool-hub-api/internal/github/...`, `csi-spl-orc/src/bash/run/release-note-ingest.func.sh`, `csi-spl-orc/src/bash/features/spawn-agents/lib/workspace-repo.inc.sh` | Unit + integration test ingesting a non-`t1` workspace repo and verifying `release_notes.tenant_id`, `issue_tenant`, `issue_keys`, and dynamic `area`. |
-| **Lane 4 — WUI dynamic areas, workspace commit links, and unconfigured empty state** | Replace hardcoded `RELEASE_AREAS` with `available_areas` from the API; bind `ReleaseNotesDialog.vue`, `ReleasesDailyList.vue`, and `commit-links.client.ts` to the active workspace's `repo_web_url`; render the unconfigured-repo empty state. | `csi-spl-wui/src/utils/reporting-releases.ts`, `src/components/reporting/{ReleasesFilterBar.vue,ReleasesDailyList.vue}`, `src/pages/reporting/releases.vue`, `src/components/ReleaseNotesDialog.vue`, `src/plugins/commit-links.client.ts` | Vitest unit tests + Playwright check on a non-`t1` workspace. |
+| **Lane 1 — RDB migrations (`0262`–`0264`)** | Create `workspace_repos` (cardinality per Q1); add `tenant_id` + `repo_slug` + tenant RLS to `release_notes`, `estate_deploys`, and `commit_token_burn` (readable by every signed-in member of the workspace per Q5 `331b339b`); relax `release_notes.version` check for standard semver/tags; seed `t1 -> csitea/csi-spl`. | `csi-spl-rdb/src/sql/postgres/spool-hub/0262_workspace_repos.sql`, `0263_release_notes_tenant_scope.sql`, `0264_estate_deploys_tenant_scope.sql` | Migration apply + pgTAP / Go store tests verifying tenant isolation (`t2` sees 0 rows of `t1`'s `release_notes` and `estate_deploys`, including via `/reporting/sql`, and every signed-in `t2` member reads `t2`'s `commit_token_burn`). |
+| **Lane 2 — Hub Store & API scoping + Workspace Repo API** | Thread `tenant` into `ReleaseReportStore`, `ReleaseNoteStore`, and `OperatorDeployStore`; return `repo` metadata + dynamic `available_areas` (Q4 `ab74f79d`) + per-commit/per-pill AI token & EUR cost to every signed-in workspace member (Q5 `331b339b`); expose `repo_web_url` and `repo_commit_path` on `/v1/tenant/public`; add operator/admin workspace repo registration + KMS-encrypted PAT storage (Q3 `d5b1366a`). | `csi-spl-api/src/go/spool-hub-api/internal/store/{reporting_releases.go,release_note_postgres.go,operator_deploys.go}`, `internal/hub/{reporting_releases.go,release_notes.go,tenant_settings.go}` | `go test ./internal/store/... ./internal/hub/...` covering `t1` (`csitea/csi-spl`), a configured workspace (`<ORG>/<REPO>`), an unconfigured workspace (`configured: false`, 0 rows), and member-visible commit cost figures. |
+| **Lane 3 — Hub GitHub Sync & Box Ingest (`do_release_note_ingest`)** | Extend `internal/github` (fleet GitHub App for `csitea/*` + KMS PAT for external orgs per Q3 `d5b1366a`) + 5-min background sync worker + webhook + "Sync now" button AND box-side `--workspace <WORKSPACE>` push in `release-note-ingest.func.sh` / `workspace-repo.inc.sh` (per Q2 `bbad7ba3`); derive `Area` from `kind(area):` else top changed folder, and ingest trailer-free commits cleanly with subject + body (per Q4 `ab74f79d`). | `csi-spl-api/src/go/spool-hub-api/internal/github/...`, `csi-spl-orc/src/bash/run/release-note-ingest.func.sh`, `csi-spl-orc/src/bash/features/spawn-agents/lib/workspace-repo.inc.sh` | Unit + integration test ingesting a non-`t1` workspace repo and verifying `release_notes.tenant_id`, `issue_tenant`, `issue_keys`, dynamic `area` fallback from top folder, and trailer-free subject/body display. |
+| **Lane 4 — WUI dynamic areas, workspace commit links, member-visible commit cost, and unconfigured empty state** | Replace hardcoded `RELEASE_AREAS` with `available_areas` from the API; render trailer-free commits with subject + body (Q4 `ab74f79d`); show per-commit and per-pill AI token & EUR cost to every signed-in workspace member (Q5 `331b339b`); bind `ReleaseNotesDialog.vue`, `ReleasesDailyList.vue`, and `commit-links.client.ts` to the active workspace's `repo_web_url`; render the unconfigured-repo empty state. | `csi-spl-wui/src/utils/reporting-releases.ts`, `src/components/reporting/{ReleasesFilterBar.vue,ReleasesDailyList.vue}`, `src/pages/reporting/releases.vue`, `src/components/ReleaseNotesDialog.vue`, `src/plugins/commit-links.client.ts` | Vitest unit tests + Playwright check on a non-`t1` workspace. |
 | **Lane 5 — Onboard the first two production workspaces** | Register the two customer/product workspace repositories in `workspace_repos` and `workspace-repos.tsv`, run initial commit + tag backfill, and verify `/reporting/releases`, commit links, and `<PREFIX>-<n>` issue links live on both workspaces. | Ops / `workspace-repos.tsv` / hub operator API | Live curl + browser verification on both workspaces showing their own commits, tags, areas, and issue links with zero `csi-spl` rows. |

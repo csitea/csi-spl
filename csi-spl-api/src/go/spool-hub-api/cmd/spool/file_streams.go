@@ -26,7 +26,10 @@ const fileStreamsReadMax = 2 << 20
 // streams and, from row B10, folders and globs (spec 160 3.8.5);
 // file_streams_push carries stream_key, lines, dropped and redactions;
 // file_streams_globs (the pull of the box's web globs) carries nothing and
-// its ack lists them. Only the payload is sent, checked here first by the hub's own
+// its ack lists them; file_streams_console_demands (spec 153 3.18) carries
+// nothing and its ack lists the agents watched; file_streams_console_push
+// carries agent_id, screen, lines_n (the line count: "lines" is the file
+// push's list) and redactions. Only the payload is sent, checked here first by the hub's own
 // decoders. The hub's socket reads at most 512 KiB a frame, so a push is
 // split into parts of at most wire.FileStreamPushMaxBytes and 1000 lines,
 // sent in seq order; the ack is printed only when every part is acked (a
@@ -87,6 +90,10 @@ func fileStreamsParts(raw []byte) (string, []json.RawMessage, error) {
 		Redactions json.RawMessage `json:"redactions"`
 		Folders    json.RawMessage `json:"folders"`
 		Globs      json.RawMessage `json:"globs"`
+		// the console push (spec 153 3.18, wire/lane_console.go)
+		AgentID json.RawMessage `json:"agent_id"`
+		Screen  json.RawMessage `json:"screen"`
+		NLines  json.RawMessage `json:"lines_n"`
 	}
 	if err := json.Unmarshal(raw, &in); err != nil {
 		return "", nil, fmt.Errorf("not a follower frame object: %w", err)
@@ -116,11 +123,19 @@ func fileStreamsParts(raw []byte) (string, []json.RawMessage, error) {
 		}
 		parts, err := fileStreamsSplit(p)
 		return in.LaneOp, parts, err
-	case wire.FileStreamsGlobsOp:
+	case wire.FileStreamsGlobsOp, wire.FileStreamsConsoleDemandsOp:
 		row := json.RawMessage(`{}`)
 		return in.LaneOp, []json.RawMessage{row}, wire.DecodeFileStreamsGlobsPull(row)
+	case wire.FileStreamsConsolePushOp:
+		row, err := json.Marshal(map[string]json.RawMessage{"agent_id": in.AgentID, "screen": in.Screen,
+			"lines": orJSON(in.NLines, "0"), "redactions": orJSON(in.Redactions, "{}")})
+		if err == nil {
+			_, err = wire.DecodeLaneConsolePush(row)
+		}
+		return in.LaneOp, []json.RawMessage{row}, err
 	}
-	return "", nil, fmt.Errorf("lane_op must be %s, %s or %s", wire.FileStreamsAnnounceOp, wire.FileStreamsPushOp, wire.FileStreamsGlobsOp)
+	return "", nil, fmt.Errorf("lane_op must be %s, %s, %s, %s or %s", wire.FileStreamsAnnounceOp, wire.FileStreamsPushOp,
+		wire.FileStreamsGlobsOp, wire.FileStreamsConsoleDemandsOp, wire.FileStreamsConsolePushOp)
 }
 
 func orJSON(v json.RawMessage, def string) json.RawMessage {

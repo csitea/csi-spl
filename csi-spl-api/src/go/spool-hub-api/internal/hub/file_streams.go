@@ -69,9 +69,12 @@ func (s *Server) fileStreamsLane(ctx context.Context, x *session, f wire.Frame) 
 		return s.fileStreamsPush(ctx, fs, x, f, now)
 	case wire.FileStreamsGlobsOp:
 		return s.fileStreamsGlobsPull(ctx, x, f, now) // file_stream_globs.go
+	case wire.FileStreamsConsoleDemandsOp, wire.FileStreamsConsolePushOp:
+		return s.laneConsoleLane(ctx, x, f, now) // lane_console.go, spec 153 3.18
 	}
 	return nil, &issueErr{http.StatusBadRequest, "bad_frame", "lane_op must be " + wire.FileStreamsAnnounceOp + ", " +
-		wire.FileStreamsPushOp + " or " + wire.FileStreamsGlobsOp}
+		wire.FileStreamsPushOp + ", " + wire.FileStreamsGlobsOp + ", " + wire.FileStreamsConsoleDemandsOp + " or " +
+		wire.FileStreamsConsolePushOp}
 }
 
 func (s *Server) fileStreamsAnnounce(ctx context.Context, fs store.FileStreamStore, x *session, f wire.Frame, now time.Time) (*wire.FileStreamsAckFrame, *issueErr) {

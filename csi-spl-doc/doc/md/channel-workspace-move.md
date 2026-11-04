@@ -420,7 +420,8 @@ and this page does not claim it (spec R6).
   days the hub answers a read of the topic at `<SRC>` with 404 `topic_moved`
   and the new link in `moved_to`; then 404 `topic_moved` with no link (owner, Q2 =
   A). The web app follows it (spec row T7h): an old link opens the topic at
-  its new workspace; after the 30 days the old link shows no topic, so
+  its new workspace. It follows only a link to a workspace of this site, and
+  only once: the page it opens does not follow a link again. After the 30 days the old link shows no topic, so
   someone opening it then has to be given the new one.
 - **Posts**: for those 30 days a post to a moved topic at `<SRC>` is refused
   with the new workspace and link, and the box client sends it on through the `<DST>`

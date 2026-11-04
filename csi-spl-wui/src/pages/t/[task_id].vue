@@ -34,7 +34,7 @@ import { isParentFlag, omniboxReplyTaskId, startsNewTopic, topicPageOpen } from 
 import { openingCardId } from '~/utils/topic-archive.mjs'
 import { dmPeerOf } from '~/utils/channel-feed.mjs'
 import { isDoor, withSessionRetry } from '~/utils/live-follow.mjs'
-import { movedTopicTarget } from '~/utils/topic-moved.mjs'
+import { MOVED_HOP, movedTopicTarget } from '~/utils/topic-moved.mjs'
 import type { SpoolMessage } from '~/types/spool'
 
 const route = useRoute()
@@ -102,11 +102,16 @@ type TopicRead = { messages?: { msg_id?: string }[], moved_to?: string }
 
 /* spec 169 T7h: the topic's channel moved to another workspace, and the hub
    answered its new link (moved_to): the reader goes there, the page is
-   replaced. A link back to this very page is not followed (no loop). */
+   replaced. A link back to this very page is not followed (no loop), nor is
+   one on a page a move already opened (MOVED_HOP: one hop per navigation). */
 function followMoved(read: TopicRead | undefined): boolean {
-  const to = movedTopicTarget(read?.moved_to, window.location.origin)
+  if (window.location.hash === MOVED_HOP) {
+    history.replaceState(history.state, '', window.location.pathname + window.location.search)
+    return false
+  }
+  const to = movedTopicTarget(read?.moved_to, window.location.origin, String(useRuntimeConfig().public.siteUrl || ''))
   if (!to || (to.sameOrigin && to.path === window.location.pathname)) return false
-  if (to.sameOrigin) void navigateTo(to.path, { replace: true })
+  if (to.sameOrigin) void navigateTo(to.path + MOVED_HOP, { replace: true })
   else window.location.replace(to.href)
   return true
 }

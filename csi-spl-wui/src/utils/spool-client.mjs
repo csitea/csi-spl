@@ -660,7 +660,7 @@ function topicReads(mock, mk, conn, live, notePriority) {
         // which of the two it is. An empty topic is the honest rendering;
         // an error toast would leak that something IS there. Spec 169 T7h:
         // a topic whose channel moved away keeps its new link (moved_to).
-        if (e && e.status === 404) return { task_id: id, messages: [], next: null, ...(e.movedTo ? { moved_to: e.movedTo } : {}) }
+        if (e && e.status === 404) return { task_id: id, messages: [], next: null, ...(e.movedTo && e.token === 'topic_moved' ? { moved_to: e.movedTo } : {}) }
         throw e
       }
       const rows = (data && data.messages) || []

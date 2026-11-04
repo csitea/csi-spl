@@ -59,6 +59,8 @@ type channelMoveRequest struct {
 	GoMsgID *string         `json:"go_msg_id"`
 	Step    *string         `json:"step"`
 	Detail  json.RawMessage `json:"detail"`
+
+	in channelMoveInputs // Detail, read for plan and step (T7d)
 }
 
 // channelMoveSeat is one row of .seats.
@@ -126,7 +128,7 @@ func (s *Server) handleChannelMove(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad_json", "body must be {op, env, src, channel, dst, mode, to_name, move_id, go_msg_id, step, detail}")
 		return
 	}
-	if !s.channelMoveValid(w, r, &q) {
+	if !s.channelMoveValid(w, r, &q) || !channelMoveReadInputs(w, &q) {
 		return
 	}
 	switch q.Op {
@@ -190,8 +192,11 @@ func channelMoveTables() []store.MoveTable {
 	return out
 }
 
+// channelMovePlanRequest carries the owner's keep list and the box rule's doc
+// (T7d): the set, the leaving list and the Q5 stops depend on them.
 func channelMovePlanRequest(q channelMoveRequest) store.ChannelMovePlanRequest {
-	return store.ChannelMovePlanRequest{Src: q.Src, Channel: q.Channel, Dst: q.Dst, Tables: channelMoveTables(), BindTypes: channelmove.Binds}
+	return store.ChannelMovePlanRequest{Src: q.Src, Channel: q.Channel, Dst: q.Dst, RuleDoc: q.in.RuleDoc, Keep: q.in.Keep,
+		Tables: channelMoveTables(), BindTypes: channelmove.Binds}
 }
 
 func (s *Server) channelMovePlan(w http.ResponseWriter, r *http.Request, op string, q channelMoveRequest) {
@@ -224,7 +229,7 @@ func (s *Server) channelMovePlan(w http.ResponseWriter, r *http.Request, op stri
 // channelMoveRefusals are plan's stops plus P2's name check: the channel's id
 // must be free in <DST> (else TO_NAME). Archived rows reserve a name there too.
 func (s *Server) channelMoveRefusals(w http.ResponseWriter, r *http.Request, q channelMoveRequest, plan store.ChannelMovePlan) ([]string, bool) {
-	refuse := append([]string{}, plan.Stops()...)
+	refuse := append([]string{}, channelMoveStops(plan, q.in)...)
 	taken, err := s.channelMoveNameTaken(r.Context(), q.Dst, q.ToName)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "internal", "channel lookup failed")

@@ -3,7 +3,8 @@
 (owner HUM-10, t1 dee4081d msg ea519baa: "Done should be the automatic
 target"). Reads only: the open-issue list document, the ledger and local git.
 
-  issue-close-landed.py LIST GIT_DIR RANGE LEDGER [EVIDENCE]
+  issue-close-landed.py LIST GIT_DIR RANGE LEDGER [EVIDENCE] [--moves MOVED]
+                       [--dst TENANT=LIST ...]
   issue-close-landed.py --keys GIT_DIR SHA...   (the exit gate: the keys those
                                                 commits close, one per line)
 
@@ -38,6 +39,24 @@ Prints one TSV row per key the range names, its commits newest first:
                         and these shas never act on it again
   <key>\\tskip\\t<shas>\\t<why>
 A close or noop row's shas all go to the ledger once acted on.
+
+Moved issue keys (spec 169 W4, row T7g; owner Q2 = A, msg 333aea7b: 30 days of
+redirect and old issue key map, then nothing):
+MOVED   the `spool issue moved` answer of this workspace (old_key, dst,
+        new_key, expires_at, live), or "-" when it could not be read
+TENANT=LIST  the open-issue list of a workspace a live row moved keys to
+  - a key in LIST closes as above, whatever the map says
+  - a key not in LIST that a live row maps closes its new key in that row's
+    workspace, judged on the --dst list of it: the row carries a fifth
+    column, the tenant. The reused-key check does not apply (the new issue
+    was created by the move, after the commits that cite the old key)
+  - a key an expired row maps is a noop: an old key then closes nothing
+  - a map that was not read ("-"), or a live row whose workspace has no
+    --dst list, makes a "retry" row for each key not in LIST: never a noop on
+    a guess, never in the ledger; the run fails, so its cursor stays. A
+    retry row for a missing --dst list names that tenant in column five, so
+    the caller fetches that list and plans again
+  With no --moves at all no key is mapped (the old rule).
 """
 
 import json
@@ -120,8 +139,9 @@ def iso_epoch(s):
         return 0
 
 
-def verdict(k, cs, issue, done):
-    """One key's row from the commits naming it (newest first)."""
+def verdict(k, cs, issue, done, moved=False):
+    """One key's row from the commits naming it (newest first). A moved key's
+    issue was created by the move, so its created_at says nothing."""
     shas = ",".join(c[0] for c in cs)
     if issue is None:
         return (k, "noop", shas, "already done or diss (or no such issue)")
@@ -149,7 +169,7 @@ def verdict(k, cs, issue, done):
             "%s %s closes with its children, not by one commit"
             % ("an" if kind == "epic" else "a", kind),
         )
-    created = iso_epoch(issue.get("created_at"))
+    created = 0 if moved else iso_epoch(issue.get("created_at"))
     fresh = [c for c in fresh if not created or c[1] < 0 or c[1] >= created]
     if not fresh:
         return (
@@ -207,7 +227,62 @@ def cited(gdir, tip, path):
     return out, bad
 
 
-def plan(issues, done, rows, extra=None):
+def moved_keys(path):
+    """old key -> its moved row, from the `spool issue moved` answer; None when
+    the map was not read ("-", no file, not JSON, no moved list)."""
+    if path == "-":
+        return None
+    try:
+        text = open(path, encoding="utf-8").read().strip()
+    except OSError:
+        return None
+    doc = None
+    for cand in (text, text.splitlines()[-1] if text else ""):
+        try:
+            doc = json.loads(cand)
+            break
+        except ValueError:
+            continue
+    res = doc.get("result", doc) if isinstance(doc, dict) else None
+    rows = res.get("moved") if isinstance(res, dict) else None
+    if not isinstance(rows, list):
+        return None
+    return {
+        m["old_key"]: m
+        for m in rows
+        if isinstance(m, dict) and m.get("old_key") and m.get("new_key") and m.get("dst")
+    }
+
+
+def moved_verdict(k, cs, moves, dsts, done):
+    """The row of a key that is not open here: mapped, expired or a retry."""
+    shas = ",".join(c[0] for c in cs)
+    if moves is None:
+        return (
+            k,
+            "retry",
+            shas,
+            "the moved issue key map was not read: not judged on a guess, the next run retries",
+        )
+    m = moves.get(k)
+    if m is None:
+        return None
+    new, dst = m["new_key"], m["dst"]
+    if m.get("live") is not True:
+        return (
+            k,
+            "noop",
+            shas,
+            "moved to %s in %s; its redirect expired %s: an old key closes nothing"
+            % (new, dst, m.get("expires_at") or "?"),
+        )
+    if dst not in dsts:
+        return (k, "retry", shas, "moved to %s: the open list of %s was not read" % (new, dst), dst)
+    row = verdict(new, cs, dsts[dst].get(new), done, moved=True)
+    return row[:3] + ("%s (moved from %s)" % (row[3], k), dst)
+
+
+def plan(issues, done, rows, extra=None, moves=None, dsts=None, mapped=False):
     named = {}
     for sha, ct, subject, closes in rows:
         for k in commit_keys(subject, closes):
@@ -215,7 +290,32 @@ def plan(issues, done, rows, extra=None):
     for k, cs in (extra or {}).items():
         have = {c[0] for c in named.get(k, [])}
         named.setdefault(k, []).extend(c for c in cs if c[0] not in have)
-    return [verdict(k, cs, issues.get(k), done) for k, cs in named.items()]
+    out = []
+    for k, cs in named.items():
+        row = None
+        if mapped and k not in issues:
+            row = moved_verdict(k, cs, moves, dsts or {}, done)
+        out.append(row or verdict(k, cs, issues.get(k), done))
+    return out
+
+
+def options(argv):
+    """argv without --moves / --dst, the map path (None: not given) and the
+    tenant -> list path of each --dst."""
+    rest, moves, dsts, i = [], None, {}, 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("--moves", "--dst") and i + 1 < len(argv):
+            if a == "--moves":
+                moves = argv[i + 1]
+            else:
+                t, _, p = argv[i + 1].partition("=")
+                dsts[t] = p
+            i += 2
+            continue
+        rest.append(a)
+        i += 1
+    return rest, moves, dsts
 
 
 def keys_of(gdir, shas):
@@ -243,6 +343,7 @@ def main(argv):
         for k in keys_of(argv[2], argv[3:]):
             print(k)
         return 0
+    argv, mpath, dpaths = options(argv)
     if len(argv) not in (5, 6):
         print(__doc__, file=sys.stderr)
         return 2
@@ -250,7 +351,10 @@ def main(argv):
     done = ledger_pairs(argv[4])
     tip = argv[3].split("..")[-1]
     extra, bad = cited(argv[2], tip, argv[5] if len(argv) == 6 else "")
-    for row in plan(issues, done, commits(argv[2], argv[3]), extra) + bad:
+    moves = moved_keys(mpath) if mpath is not None else None
+    dsts = {t: open_issues(p) for t, p in dpaths.items()}
+    rows = plan(issues, done, commits(argv[2], argv[3]), extra, moves, dsts, mpath is not None)
+    for row in rows + bad:
         print("\t".join(x.replace("\t", " ") for x in row))
     return 0
 

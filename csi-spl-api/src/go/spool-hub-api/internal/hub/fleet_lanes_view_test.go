@@ -233,8 +233,17 @@ func TestFleetLanesViewActiveAndDoor(t *testing.T) {
 	if code, _ := call(t, r.e, r.op, http.MethodGet, fleetLanesPath+"?fleet=Main", r.admin, nil); code != http.StatusBadRequest {
 		t.Errorf("fleet=Main: %d, want 400", code)
 	}
-	if code, body := call(t, r.e, r.op, http.MethodGet, fleetLanesPath+"?fleet=other", r.admin, nil); code != http.StatusOK || len(body["lanes"].([]any)) != 0 {
-		t.Errorf("fleet=other: %d %v, want 200 and no lanes", code, body)
+	// Only the rig's own workspaces count: on the shared Postgres another
+	// rig's tenants are other workspaces whose roster agents the view lists.
+	code, body := call(t, r.e, r.op, http.MethodGet, fleetLanesPath+"?fleet=other", r.admin, nil)
+	own := 0
+	for _, l := range body["lanes"].([]any) {
+		if ws, _ := l.(map[string]any)["workspace"].(string); r.ws[ws] {
+			own++
+		}
+	}
+	if code != http.StatusOK || own != 0 {
+		t.Errorf("fleet=other: %d %v, want 200 and no lanes of this rig", code, body)
 	}
 }
 

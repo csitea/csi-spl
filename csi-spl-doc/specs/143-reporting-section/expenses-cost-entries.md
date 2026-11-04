@@ -76,4 +76,18 @@ control: P3 without `Unpriced`), `TestCostEntryPartsPostgresRates`,
 developer and another workspace's admin do not; red control: the append
 removed).
 
-<!-- version: 0.2.0 · updated: 2026-11-04 -->
+## 5. Box action: `do_spl_hub_cost_entries` (SPL-4824)
+
+Entries are written and read through the hub as the env's project service
+account (never the owner account, never a direct DB write), modelled on
+`do_spl_hub_fleet_paid`; create and delete are a dry run unless `DRY_RUN=0`:
+
+- `cd csi-spl-orc && ENV=<env> COST_TYPE=cloud COST_MONTH=2026-01 ./run -a do_spl_hub_cost_entries`
+- `ENV=<env> COST_CMD=create COST_TYPE=cloud COST_LABEL='<label>' COST_AMOUNT=64.80 COST_CURRENCY=EUR COST_PERIOD=2026-01 DRY_RUN=0 ./run -a do_spl_hub_cost_entries`
+- `ENV=<env> COST_CMD=delete COST_ID=<uuid> DRY_RUN=0 ./run -a do_spl_hub_cost_entries`
+
+Code: `csi-spl-orc/src/bash/run/spl-hub-cost-entries.func.sh`; test
+`csi-spl-orc/src/bash/tests/spl-hub-cost-entries.tst.sh` (red control: the
+dry-run guard dropped, case 2 fails).
+
+<!-- version: 0.3.0 · updated: 2026-11-04 -->

@@ -31,19 +31,21 @@ const LoopPanicMsg = "hub loop panicked; restarting"
 // a panic is done: a loop that is off (an interval <= 0) returns at once and
 // is not restarted. It returns the number of restarts.
 func Supervise(ctx context.Context, log zerolog.Logger, name string, run func(context.Context)) int {
-	return supervise(ctx, log, name, run, loopBackoffMin, loopBackoffMax)
+	return supervise(ctx, log, name, run, loopBackoffMin, loopBackoffMax, time.Now)
 }
 
-func supervise(ctx context.Context, log zerolog.Logger, name string, run func(context.Context), lo, hi time.Duration) int {
+// supervise is Supervise with its bounds and its clock as parameters: now
+// times a run for the reset rule, so a test decides how long a run lasted.
+func supervise(ctx context.Context, log zerolog.Logger, name string, run func(context.Context), lo, hi time.Duration, now func() time.Time) int {
 	restarts := 0
 	backoff := lo
 	for ctx.Err() == nil {
-		start := time.Now()
+		start := now()
 		rec, stack := runOnce(ctx, run)
 		if rec == nil || ctx.Err() != nil {
 			return restarts
 		}
-		if time.Since(start) > hi {
+		if now().Sub(start) > hi {
 			backoff = lo
 		}
 		restarts++

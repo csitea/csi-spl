@@ -27,6 +27,15 @@
 #  18. GH_RUNNER_HEALTH_UNIT_CHECK=1 runs the unit check: its FAIL is an alert,
 #      its OK is not
 #  19. LIVE GUARD: no call reached a gh other than the stub, nor spool-send.sh
+#  20. gh auth status fails, GH_TOKEN unset, the token file is present -> the
+#      API calls see its token (the stub 401s without one), exit 0
+#  21. the same with no token file -> auth status was tried, the old 401
+#      gh-api ERROR path runs, exit 1
+#  22. GH_TOKEN already set -> kept: no auth status call, the file's token
+#      never reaches the API calls
+#  23. the token values never appear in the output of 20..22
+# The token file is always a fake one under the temp dir
+# (GH_RUNNER_HEALTH_TOKEN_FILE is always set); no real token file is read.
 #------------------------------------------------------------------------------
 set -uo pipefail
 
@@ -44,15 +53,21 @@ T=$(mktemp -d /tmp/ghrh.XXXXXX)
 trap 'rm -rf "$T"' EXIT
 BIN="$T/bin" FIX="$T/fix" STATE="$T/state" CPU="$T/cpu"
 CALLS="$T/gh-calls.log" SENT="$T/sent.log" LIVE_LOG="$T/live.log"
+AUTH_LOG="$T/gh-auth.log" TOK_LOG="$T/gh-token.log"
 mkdir -p "$BIN" "$FIX" "$STATE" "$CPU"
-: >"$CALLS"; : >"$SENT"; : >"$LIVE_LOG"
-unset SPOOL_AGENT_ID GH_RUNNER_HEALTH_ALERT_FROM GH_RUNNER_HEALTH_UNIT_CHECK DRY_RUN
+: >"$CALLS"; : >"$SENT"; : >"$LIVE_LOG"; : >"$AUTH_LOG"; : >"$TOK_LOG"
+unset SPOOL_AGENT_ID GH_RUNNER_HEALTH_ALERT_FROM GH_RUNNER_HEALTH_UNIT_CHECK DRY_RUN GH_TOKEN GH_ENTERPRISE_TOKEN
 
-# the stub gh: `gh api --paginate <path>` -> a fixture file, missing = HTTP 404
+# the stub gh: `gh api --paginate <path>` -> a fixture file, missing = HTTP 404;
+# `gh auth status` fails unless GH_STUB_AUTH=ok; GH_STUB_NEED_TOKEN=1 answers
+# HTTP 401 to an API call without GH_TOKEN (a locked keyring login)
 cat >"$BIN/gh-stub" <<EOF
 #!/bin/bash
+if [[ "\$1" == auth ]]; then printf '%s\n' "\$*" >>"$AUTH_LOG"; [[ "\${GH_STUB_AUTH:-}" == ok ]]; exit; fi
 p="\$3"
 printf '%s\n' "\$p" >>"$CALLS"
+printf '%s\n' "\${GH_TOKEN:-<unset>}" >>"$TOK_LOG"
+[[ "\${GH_STUB_NEED_TOKEN:-}" == 1 && -z "\${GH_TOKEN:-}" ]] && { echo "gh: Bad credentials (HTTP 401)" >&2; exit 1; }
 [[ -n "\${GH_STUB_SLEEP:-}" ]] && sleep "\$GH_STUB_SLEEP"
 case "\$p" in
   repos/*/actions/runners*) f=repo-runners ;;
@@ -96,6 +111,9 @@ export GH_RUNNER_HEALTH_NOW="$NOW" GH_RUNNER_HEALTH_STATE_DIR="$STATE"
 export GH_RUNNER_HEALTH_SEND_CMD="$BIN/send-stub" CPU_BUDGET_STATE_DIR="$CPU"
 export GH_RUNNER_HEALTH_UNITS="actions.runner.acme.box-01.service actions.runner.acme.box-02.service"
 export PROJ_PATH="$UTL_ROOT"
+export GH_RUNNER_HEALTH_TOKEN_FILE="$T/tok/no-token-file"
+mkdir -p "$T/tok"
+FILE_TOKEN="fake-c817-file-token-$$" ENV_TOKEN="fake-c817-env-token-$$"
 STAMP="$STATE/last-alert.stamp"
 
 # runner <id> <name> <status> [label...] - one runner JSON object
@@ -292,6 +310,32 @@ default_sh="$(sed -n 's/.*GH_RUNNER_HEALTH_UNIT_CHECK_SH:-\${PROJ_PATH:-\.}\/\(\
 if [[ -n "$default_sh" && -f "$UTL_ROOT/$default_sh" ]] && grep -q '^do_check_gh_runner()' "$UTL_ROOT/$default_sh"; then
   pass "18b. the default unit check path ($default_sh) is csi-spl-orc's do_check_gh_runner"
 else fail "18b. default unit check path '$default_sh' does not hold do_check_gh_runner"; fi
+
+# ---- 20..23. the token file fallback -----------------------------------------
+reset_fix
+runners org-runners "$(runner 1 box-01 online)"
+printf '%s\n' "$FILE_TOKEN" >"$T/tok/token"
+: >"$AUTH_LOG"; : >"$TOK_LOG"
+out20="$(GH_STUB_NEED_TOKEN=1 GH_RUNNER_HEALTH_TOKEN_FILE="$T/tok/token" check)"; rc=$?
+if ((rc == 0)) && grep -q 'CHECK gh-runner-health OK' <<<"$out20" && [[ "$(wc -l <"$AUTH_LOG")" == 1 ]] &&
+  [[ -s "$TOK_LOG" && "$(sort -u "$TOK_LOG")" == "$FILE_TOKEN" ]]; then
+  pass "20. auth status fails, token file present -> the API calls carry its GH_TOKEN, exit 0"
+else fail "20. token file (rc=$rc auth=$(wc -l <"$AUTH_LOG") tokens=$(sort -u "$TOK_LOG" | sed "s/$FILE_TOKEN/<file>/" | tr '\n' ' ')): $out20"; fi
+: >"$AUTH_LOG"; : >"$TOK_LOG"
+out21="$(GH_STUB_NEED_TOKEN=1 check)"; rc=$?
+if ((rc == 1)) && [[ "$(wc -l <"$AUTH_LOG")" == 1 ]] &&
+  grep -q '^gh-api ERROR orgs/acme/actions/runners?per_page=100 (gh: Bad credentials (HTTP 401))' <<<"$out21" &&
+  [[ "$(sort -u "$TOK_LOG")" == "<unset>" ]] && ! grep -q 'CHECK.* OK' <<<"$out21"; then
+  pass "21. no token file -> auth status tried, the 401 is a gh-api ERROR, exit 1"
+else fail "21. no token file (rc=$rc auth=$(wc -l <"$AUTH_LOG")): $out21"; fi
+: >"$AUTH_LOG"; : >"$TOK_LOG"
+out22="$(GH_TOKEN="$ENV_TOKEN" GH_STUB_NEED_TOKEN=1 GH_RUNNER_HEALTH_TOKEN_FILE="$T/tok/token" check)"; rc=$?
+if ((rc == 0)) && [[ ! -s "$AUTH_LOG" && -s "$TOK_LOG" && "$(sort -u "$TOK_LOG")" == "$ENV_TOKEN" ]]; then
+  pass "22. GH_TOKEN already set -> kept, no auth status call, the file is not used"
+else fail "22. preset GH_TOKEN (rc=$rc auth=$(wc -l <"$AUTH_LOG") tokens=$(sort -u "$TOK_LOG" | sed -e "s/$FILE_TOKEN/<file>/" -e "s/$ENV_TOKEN/<env>/" | tr '\n' ' '))"; fi
+if ! grep -qF -e "$FILE_TOKEN" -e "$ENV_TOKEN" <<<"$out20$out21$out22"; then
+  pass "23. no token value in the output of 20..22"
+else fail "23. a token value is in the output"; fi
 
 # ---- 19. live guard -----------------------------------------------------------------
 if [[ ! -s "$LIVE_LOG" ]]; then pass "19. LIVE GUARD: no real gh, no spool-send.sh outside the temp dir"

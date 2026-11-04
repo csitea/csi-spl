@@ -41,6 +41,9 @@
 # @param GH_RUNNER_HEALTH_ORG (optional) - default the repo owner; "-" skips the org runners
 # @param GH_RUNNER_HEALTH_JOB_MAX_MIN (optional) - default 45
 # @param GH_RUNNER_HEALTH_GH (optional) - the gh binary, default gh (tests stub it)
+# @param GH_RUNNER_HEALTH_TOKEN_FILE (optional) - default $HOME/.github/token: read
+# @param   into GH_TOKEN (never printed) when GH_TOKEN is unset and gh auth status
+# @param   fails (after an unattended reboot the keyring login is locked)
 # @param GH_RUNNER_HEALTH_UNITS (optional) - this box's runner units, space separated,
 # @param   instead of systemctl list-units 'actions.runner.*.service' (tests)
 # @param GH_RUNNER_HEALTH_NOW (optional) - epoch seconds for "now" (tests)
@@ -79,6 +82,7 @@ do_gh_runner_health_check() {
   [[ "$now" =~ ^[0-9]+$ ]] || { do_log "FATAL GH_RUNNER_HEALTH_NOW must be epoch seconds, got: '$now'"; return 2; }
   t0="$(ghrh_ms)"
   tmp="$(mktemp -d "${TMPDIR:-/tmp}/gh-runner-health.XXXXXX")" || { do_log "FATAL mktemp failed"; return 2; }
+  ghrh_gh_auth
   ghrh_fetch "$tmp" "$repo" "$org" "$now"
   ghrh_runners "$tmp" "$org" "$parked"
   ghrh_jobs "$tmp" "$max"
@@ -107,6 +111,19 @@ ghrh_repo() {
   if [[ -n "${GH_RUNNER_HEALTH_REPO:-}" ]]; then printf '%s\n' "$GH_RUNNER_HEALTH_REPO"; return 0; fi
   local url; url="$(git -C "${PROJ_PATH:-.}" remote get-url origin 2>/dev/null)" || return 0
   sed -nE 's#^.*github\.com[:/]([^/]+/[^/]+)$#\1#p' <<<"${url%.git}"
+}
+
+# ghrh_gh_auth - a local copy of spl_brx_gh_auth (csi-spl-orc/src/bash/run/
+# spl-box-restart-run.func.sh): keep GH_TOKEN if set, else the gh login if
+# gh auth status passes, else read the box user's token file into GH_TOKEN
+# (never printed). A missing or unreadable file leaves the gh calls as they
+# were, so their 401 is reported as a gh-api ERROR.
+ghrh_gh_auth() {
+  local f="${GH_RUNNER_HEALTH_TOKEN_FILE:-$HOME/.github/token}"
+  [[ -n "${GH_TOKEN:-}" ]] && return 0
+  "${GH_RUNNER_HEALTH_GH:-gh}" auth status >/dev/null 2>&1 && return 0
+  [[ -r "$f" ]] && { GH_TOKEN="$(<"$f")"; export GH_TOKEN; }
+  return 0
 }
 
 # ghrh_api <out> <path> - one paginated gh api call into <out>; a failure

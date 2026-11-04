@@ -55,6 +55,12 @@ import (
 // carries a workspace. The operator workspace's other members get neither.
 // Each source's coverage counts a day read when every item paying for it has
 // a rate.
+//
+// The hand-entered costs (SPL-4824, owner csitea f7bba506 msg f987e4d5): the
+// estate answer adds source cost_entry, one part per cost_entries row of the
+// month (store/cost_entry_parts.go), entry_micros + entry_currency its own
+// amount, unpriced when no rate turned it into USD. No coverage row: a month
+// holds what was entered.
 
 // costMonthWindow is one month's days, as of now.
 type costMonthWindow struct {
@@ -181,6 +187,10 @@ func (s *Server) handleCostRead(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		ai, err = s.aiCostParts(r.Context(), op, estate, t.ID, win, cur)
 	}
+	var hand []store.CostPart
+	if err == nil && estate {
+		hand, err = s.costEntryMonthParts(r.Context(), win.Month, cur)
+	}
 	if err != nil {
 		s.o.Log.Error().Err(err).Str("tenant", t.ID).Str("month", win.Month).Msg("cost.read_failed")
 		writeErr(w, http.StatusInternalServerError, "internal", "cost report unavailable")
@@ -192,6 +202,7 @@ func (s *Server) handleCostRead(w http.ResponseWriter, r *http.Request) {
 	if ai != nil {
 		cm.Parts, cm.Coverage = append(cm.Parts, ai.Parts...), append(cm.Coverage, ai.Coverage)
 	}
+	cm.Parts = append(cm.Parts, hand...)
 	b := costMonthAnswer(win, estate, cur, cm)
 	if ai != nil && !estate {
 		b.AIShareFrom = ai.ShareFrom
@@ -209,6 +220,25 @@ func costBurnOf(estate bool, tenant string) string {
 		return ""
 	}
 	return tenant
+}
+
+// costEntryMonthParts is the month's hand-entered costs (SPL-4824,
+// store/cost_entry_parts.go), the estate's only; none on a store without
+// the entries. The rates are the paid items' (FleetPaidFXRate).
+func (s *Server) costEntryMonthParts(ctx context.Context, month, cur string) ([]store.CostPart, error) {
+	ce, ok := s.o.Store.(store.CostEntryStore)
+	if !ok {
+		return nil, nil
+	}
+	entries, err := ce.ListCostEntries(ctx, "", month)
+	if err != nil || len(entries) == 0 {
+		return nil, err
+	}
+	rate := func(context.Context, string, string) (float64, string, bool, error) { return 0, "", false, nil }
+	if fx, ok := s.o.Store.(store.FleetPaidStore); ok {
+		rate = fx.FleetPaidFXRate
+	}
+	return store.CostEntryParts(ctx, entries, cur, rate)
 }
 
 // aiCostParts reads the month's AI parts: the estate's ai_paid, a customer

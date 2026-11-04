@@ -50,4 +50,30 @@ operations in `internal/hub/openapi.json`.
   and may not insert one; the operator scope reads it (control).
 - `TestCostEntryRoutes`: the 403s, then the admin's create, filters, delete.
 
-<!-- version: 0.1.0 · updated: 2026-10-30 -->
+## 4. Read: the month answer counts them (SPL-4824)
+
+Owner csitea f7bba506 (msg f987e4d5): the Google Workspace invoices "should be
+added to the cloud costs of the costs tab in the reporting section".
+`GET /v1/tenant/costs?month=YYYY-MM` adds, to the ESTATE answer only (the
+operator workspace's admin; the rows are operator scope), one part per entry
+of that month:
+
+| field | value |
+|---|---|
+| `source` | `cost_entry` |
+| `project_or_vendor`, `kind`, `origin` | the label, the type (`cloud` or `hr`), `hand` (so `hand: true`) |
+| `entry_micros`, `entry_currency` | the amount in its own currency |
+| `usd_micros` | the amount at the currency's rate of the month's 1st day (the paid items' rule: that day, else the last before it, else the first after it) |
+| `eur_micros` | the amount when it is EUR, else the USD at the EUR rate |
+| `second_micros`, `fx_rate`, `fx_rate_day` | the amount itself at rate 1 when the second currency is the entry's, else the USD at the second currency's rate |
+| `unpriced` | `true` when no rate turned the amount into USD: `usd_micros` 0 is then unknown, never free; nothing is guessed |
+
+No coverage row: a month holds what was entered. Code:
+`internal/store/cost_entry_parts.go`, `costEntryMonthParts` in
+`internal/hub/cost_read.go`. Tests: `TestCostEntryParts` (the money, red
+control: P3 without `Unpriced`), `TestCostEntryPartsPostgresRates`,
+`TestCostReadAddsCostEntries` (the estate reads them, the operator's
+developer and another workspace's admin do not; red control: the append
+removed).
+
+<!-- version: 0.2.0 · updated: 2026-11-04 -->

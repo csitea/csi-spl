@@ -59,6 +59,12 @@ type CostPart struct {
 	FXRate          *float64 `json:"fx_rate"`
 	FXRateDay       *string  `json:"fx_rate_day"`
 	FXRateFirstDay  *string  `json:"fx_rate_first_day"`
+	// A hand-entered cost (source cost_entry, cost_entry_parts.go) also says
+	// its amount in its own currency, and Unpriced when no rate turned it
+	// into USD (its USD 0 is then unknown, never free).
+	EntryMicros   int64  `json:"entry_micros,omitempty"`
+	EntryCurrency string `json:"entry_currency,omitempty"`
+	Unpriced      bool   `json:"unpriced,omitempty"`
 }
 
 // CostSourceDays is one source's cost_coverage rows in the month, per state.

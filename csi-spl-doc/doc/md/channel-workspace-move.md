@@ -417,7 +417,13 @@ and this page does not claim it (spec R6).
   `spool issue moved` (old key, `<DST>`, new key, expiry, live). For those 30
   days a commit that cites the old key closes the new one in `<DST>`. The desk
   acts there, so it needs a desk in `<DST>` on its box; without one the close
-  is refused and reported `failed`. After the 30 days the old key closes
+  is refused and reported `failed`, and since a failed run keeps its cursor,
+  the closer re-reads that range and stays red on every run until a `<DST>`
+  desk is seated or the 30 days end: seat it before the move. A commit the
+  ledger already holds under the old key (it closed the issue in `<SRC>`,
+  the owner reopened it, then it moved) does not close the new one. When the
+  new key is not open in `<DST>` (done, diss, or moved on by a second move,
+  which is not followed) the old key is a no-op that says so. After the 30 days the old key closes
   nothing (a no-op, with the new key in its reason). When the map or the
   `<DST>` open list cannot be read, the key is reported `failed` and retried
   on the next run: no no-op on a guess, no ledger row, and the cursor stays.

@@ -279,6 +279,15 @@ def moved_verdict(k, cs, moves, dsts, done):
             "moved to %s in %s; its redirect expired %s: an old key closes nothing"
             % (new, dst, m.get("expires_at") or "?"),
         )
+    cs = [c for c in cs if (k, c[0]) not in done]
+    if not cs:
+        return (
+            k,
+            "skip",
+            shas,
+            "moved to %s in %s: every commit naming %s acted once already (reopened by hand: stays open)"
+            % (new, dst, k),
+        )
     if dst not in dsts:
         return (
             k,
@@ -286,6 +295,14 @@ def moved_verdict(k, cs, moves, dsts, done):
             shas,
             "moved to %s: the open list of %s was not read" % (new, dst),
             dst,
+        )
+    if dsts[dst].get(new) is None:
+        return (
+            k,
+            "noop",
+            shas,
+            "moved to %s in %s, not open there: done, diss or moved on (a second move is not followed)"
+            % (new, dst),
         )
     row = verdict(new, cs, dsts[dst].get(new), done, moved=True)
     return row[:3] + ("%s (moved from %s)" % (row[3], k), dst)

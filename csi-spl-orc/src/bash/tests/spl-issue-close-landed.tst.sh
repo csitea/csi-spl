@@ -493,4 +493,21 @@ run22 DST_LIST_FAIL=1; rc=$?
   pass "22. the <DST> list was not read: the live key is retried (cursor stays), the expired one is still a no-op" ||
   fail "22. dst list not read (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
 
+# W1 (R7 c-084): the ledger is read under the OLD key too. SPL-40 was closed
+# by S40 in t1 before the move; the owner reopened it and the move took it to
+# ACME-7: S40 does not close ACME-7. RED on 16c884232: ACME-7 close S40.
+rm -rf "$T/s22"; mkdir -p "$T/s22"; printf 'SPL-40\t%s\tmoved\n' "$S40" >"$T/s22/closed.tsv"
+run ISSUE_CLOSE_SINCE="$HEAD22" ISSUE_CLOSE_STATE_DIR="$T/s22" DRY_RUN=0 MOVED="$T/moved.json" DST_LIST="$T/acme.json"; rc=$?
+[ "$rc" = 0 ] && [ "$(row SPL-40)" = skip ] && grep -q '^SPL-40	skip	.*moved to ACME-7 in acme: every commit naming SPL-40 acted once already' "$T/o" &&
+  [ -z "$(row ACME-7)" ] && ! grep -q 'ACME-7' "$T/calls.log" && ! grep -q '^ACME-7' "$T/s22/closed.tsv" &&
+  pass "22. a commit that acted on the old key SPL-40 before the move does not close ACME-7 (reopened by hand: stays open)" ||
+  fail "22. old-key ledger (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
+# N2 (R7 c-084): ACME-7 is not open in acme (done, diss or moved on by a
+# second move): a no-op that says so, not "already done or diss".
+printf '{"env":"dev","result":{"next_cursor":"","issues":[%s]}}\n' "$(issue ACME-8 todo issue)" >"$T/acme2.json"
+run22 DST_LIST="$T/acme2.json"; rc=$?
+[ "$rc" = 0 ] && [ "$(row SPL-40)" = noop ] && grep -q '^SPL-40	noop	.*moved to ACME-7 in acme, not open there: done, diss or moved on (a second move is not followed)' "$T/o" &&
+  ! grep -q '^in-tenant acme' "$T/calls.log" && grep -qx "SPL-40	$S40	noop" "$T/s22/closed.tsv" &&
+  pass "22. the new key is not open in acme: a no-op naming the move, nothing called there" ||
+  fail "22. new key not open (rc $rc): $(cat "$T/o") // $(cat "$T/calls.log")"
 [ "$fails" = 0 ] && echo "ALL PASS" || { echo "$fails FAILED"; exit 1; }

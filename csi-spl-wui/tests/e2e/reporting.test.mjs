@@ -34,6 +34,16 @@
 //     month with no invoice and the year total row; an admin's and a
 //     member's bar have no Incomes tab, and the member who opens it by its
 //     path gets the refusal line, no table and no refused read.
+//   - SPL-4811 (owner HUM-10, t1 c7c44497, msgs 416d130f and 60441a88), on
+//     /reporting/releases and /monitoring/agents: "<title>  >>  <tabs>" on
+//     one row inside the header (T1, T2), the title bold and exactly 1 px
+//     bigger than the tabs, the tabs at their size before (18 px on a
+//     desktop, 14.4 px on a phone, T3), the separator's text "  >>  " kept,
+//     hidden from screen readers (T4), no page scroll; on a phone no title
+//     and no separator (CLE-77886), the tabs one row at 390 and 320 (T5);
+//     each of the 4 Releases cards one line, "<value>  -  <label>" (T6).
+//     CONTROL: origin/master 504cafd15 (bar below the header, cards on two
+//     lines) fails T1, T2, T4 and T6.
 // RED CONTROL: a tab, a link or the table missing fails a check, and the
 // file exits 1. For Finance: the page reading the settings for every reader
 // (SPL-4741's load) fails "a member sends 0 refused reads"; the tab rule
@@ -368,6 +378,97 @@ async function noIncomes(p, base, tag, who) {
   ok(`${tag}: ${who}'s bar has no Incomes tab (owner only)`, !(await tabIds(p)).includes('incomes'), await tabIds(p))
 }
 
+/** SPL-4811: where the title, the separator and the tabs are drawn. Text
+ *  edges come from a Range over the text, not the boxes. */
+const titleRowGeometry = (p, page) => p.evaluate((page) => {
+  const header = document.querySelector(`[data-test=${page}-page] > header`)
+  const h2 = document.querySelector(`[data-test=${page}-heading]`)
+  const sep = document.querySelector(`[data-test=${page}-title-sep]`)
+  const nav = document.querySelector(`[data-test=${page}-tabs]`)
+  const first = nav?.querySelector('a')
+  if (!header || !h2 || !nav || !first) return null
+  const text = (el) => { const r = document.createRange(); r.selectNodeContents(el); return r.getBoundingClientRect() }
+  const r1 = (n) => Math.round(n * 10) / 10
+  const head = text(h2), mark = sep ? text(sep) : null, label = text(first)
+  const tabs = [...nav.querySelectorAll('a')].map((a) => a.getBoundingClientRect())
+  const fs = (el) => parseFloat(getComputedStyle(el).fontSize)
+  /* a text's baseline: the bottom of an empty inline-block at its end */
+  const baseline = (el) => {
+    const probe = document.createElement('span')
+    probe.style.cssText = 'display:inline-block;width:0;height:0'
+    el.appendChild(probe)
+    const y = probe.getBoundingClientRect().bottom
+    probe.remove()
+    return y
+  }
+  return {
+    inHeader: nav.closest('header') === header && sep?.parentElement === header,
+    order: mark ? r1(mark.left - head.right) >= -1 && r1(label.left - mark.right) >= -1 : false,
+    rowDiff: mark ? r1(Math.max(Math.abs(baseline(h2) - baseline(first)), Math.abs(baseline(sep) - baseline(first)))) : null,
+    h2Fs: fs(h2), tabFs: fs(first), fsDiff: r1(fs(h2) - fs(first)),
+    h2Weight: Number(getComputedStyle(h2).fontWeight),
+    sepText: sep ? JSON.stringify(sep.textContent) : null,
+    sepHidden: sep?.getAttribute('aria-hidden') === 'true',
+    sepPre: sep ? getComputedStyle(sep).whiteSpace : null,
+    h2Shown: getComputedStyle(h2).display !== 'none',
+    sepShown: Boolean(sep && getComputedStyle(sep).display !== 'none'),
+    tabBottoms: r1(Math.max(...tabs.map((r) => r.bottom)) - Math.min(...tabs.map((r) => r.bottom))),
+    pageWide: document.documentElement.scrollWidth - window.innerWidth,
+  }
+}, page)
+
+/** SPL-4811 T1-T5 on one page at this size; a phone checks 320 too. */
+async function titleRow(p, base, tag, size, page, path) {
+  await p.goto(base + path, { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await waitFor(p, `[data-test^=${page}-tab-]`)
+  const g = await titleRowGeometry(p, page)
+  const t = `${tag} ${page}`
+  ok(`T3 ${t}: the tabs keep their size (${size.touch ? 14.4 : 18} px)`, g?.tabFs === (size.touch ? 14.4 : 18), g && g.tabFs)
+  ok(`T3 ${t}: the title is exactly 1 px bigger than the tabs`, g?.fsDiff === 1, g && [g.h2Fs, g.tabFs])
+  ok(`T3 ${t}: the title is bold`, (g?.h2Weight || 0) >= 700, g && g.h2Weight)
+  ok(`T4 ${t}: the separator reads "  >>  ", spaces kept, hidden from screen readers`, g?.sepText === '"  >>  "' && g.sepPre === 'pre' && g.sepHidden, g && [g.sepText, g.sepPre, g.sepHidden])
+  ok(`T1 ${t}: the title, the separator and the tabs are in the header`, Boolean(g?.inHeader), g)
+  if (!size.touch) {
+    ok(`T2 ${t}: title, separator, first tab in that order`, Boolean(g?.order), g)
+    ok(`T2 ${t}: on one line (baselines within 1 px)`, g?.rowDiff !== null && g?.rowDiff <= 1, g && g.rowDiff)
+    ok(`T2 ${t}: no sideways page scroll`, g !== null && g.pageWide <= 0, g && g.pageWide)
+  }
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/title-row-${page}-${size.width}.png` })
+  if (!size.touch) return
+  ok(`T5 ${t}: no title and no separator on a phone (CLE-77886)`, g !== null && !g.h2Shown && !g.sepShown, g)
+  for (const width of [size.width, 320]) {
+    await p.setViewport({ ...size, width, isMobile: true, hasTouch: true })
+    const w = await titleRowGeometry(p, page)
+    ok(`T5 ${page} ${width}px: the tabs on one row, no page scroll`, w !== null && w.tabBottoms <= 1 && w.pageWide <= 0, w && [w.tabBottoms, w.pageWide])
+  }
+  await p.setViewport({ ...size, isMobile: true, hasTouch: true })
+}
+
+/** SPL-4811 T6: each Releases card is one line, "<value>  -  <label>". */
+async function cardRows(p, base, tag) {
+  await p.goto(base + '/reporting/releases', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await waitFor(p, '[data-test=releases-commit]')
+  const cards = await p.$$eval('[data-test=releases-kpis] > section', (els) => els.map((c) => {
+    const v = c.querySelector('.rr-kpi-value'), s = c.querySelector('.rr-kpi-sep'), h = c.querySelector('h3')
+    if (!v || !s || !h) return { id: c.getAttribute('data-test'), parts: false }
+    const [a, b, d] = [v, s, h].map((e) => { const r = document.createRange(); r.selectNodeContents(e); return r.getBoundingClientRect() })
+    const lh = parseFloat(getComputedStyle(h).lineHeight) || 0
+    return {
+      id: c.getAttribute('data-test'),
+      text: v.textContent.trim() + s.textContent + h.textContent.trim(),
+      sep: s.textContent, sepHidden: s.getAttribute('aria-hidden') === 'true',
+      valueFirst: a.right <= b.left + 1 && b.right <= d.left + 1,
+      oneLine: [a, b, d].every((r) => r.height <= Math.max(lh, a.height) + 1) && Math.abs(a.bottom - d.bottom) <= 6,
+    }
+  }))
+  ok(`T6 ${tag}: four cards`, cards.length === 4, cards.map((c) => c.id))
+  for (const c of cards) {
+    ok(`T6 ${tag} ${c.id}: "<value>  -  <label>", the dash hidden from screen readers`, c.sep === '  -  ' && c.sepHidden, c.text)
+    ok(`T6 ${tag} ${c.id}: value first, on one line`, Boolean(c.valueFirst && c.oneLine), c)
+  }
+  if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/releases-cards-${tag}.png` })
+}
+
 const server = await startServer()
 const browser = await launch()
 let code = 0
@@ -375,6 +476,9 @@ try {
   for (const size of [{ width: 1440, height: 900, touch: false }, { width: 390, height: 844, touch: true }]) {
     const tag = `${size.width}px`
     let { ctx, p } = await reportingPage(browser, server.base, size, ADMIN)
+    await titleRow(p, server.base, tag, size, 'reporting', '/reporting/releases')
+    await titleRow(p, server.base, tag, size, 'monitoring', '/monitoring/agents')
+    await cardRows(p, server.base, tag)
     await releases(p, server.base, tag)
     await cloud(p, server.base, tag)
     await sql(p, server.base, tag)

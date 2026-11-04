@@ -1,6 +1,6 @@
 # 169 Channel Workspace Move: move or copy a whole channel into another workspace
 
-Version: v0.18 (2026-11-02). Status: **Draft** (part built: section 8.4's hub
+Version: v0.19 (2026-11-04). Status: **Draft** (part built: section 8.4's hub
 steps are T7, section 10 lists the rows; the shell still reaches them through a seam, T9). Issue SPL-4393 · Epic SPL-2398 · Class feature · Kind
 specs_and_docs · Placement slug `c002-channel-workspace-move-spec` · Lead
 c-848.
@@ -79,6 +79,10 @@ v0.18 settles section 7's two open points from the T11 lane (c-001,
 because the WUI, the box back-fill and the edit path all read the envelope; and
 the list of what a copy carries. The comment in rdb 0250 ("keeps the original
 env / env_sig") is history, superseded here.
+
+v0.19 adds row T7d (c-001 ruling 12c58d30, c-894 items 4 and 5, msg
+4b6b98a1): a plan or a step reads the owner's keep, keep_emails, leave_hours,
+the box rule's doc and MOVE_CALLER from its `detail`, section 8.4.
 
 Number: the brief asked for 168; `git ls-tree origin/master csi-spl-doc/specs/`
 showed `168-owner-order-ledger` already on master, so this is 169.
@@ -524,8 +528,8 @@ P5. Every call carries the owner's GO; after P1 it also carries the journal's
   P4 commits. A refused step answers 409 with the reason and stays not done.
 - P2 refuses on the plan's stops, a name taken in `<DST>`, an attachment total
   over `<DST>`'s file quota (Qto pictures are not counted), and no agent with
-  the orchestrator number on `<DST>`'s roster. It does not check that this agent
-  is `MOVE_CALLER`: the hub is not told who that is.
+  the orchestrator number on `<DST>`'s roster; when the detail names the
+  `caller` (`MOVE_CALLER`), that agent, on that box when it names one (T7d).
 - The P2b mark needs a stored message per seat, from that agent on the move's
   topic in `<DST>`. P4 refuses a seat with no probe, so a seat P2 found on a
   re-run is probed first.
@@ -540,9 +544,16 @@ P5. Every call carries the owner's GO; after P1 it also carries the journal's
 - The hub-wide log names the move id and the step, never a channel, a slug or an
   error text (C13). The reason goes to the operator in the answer.
 
-Not read yet: `detail` on a step, so `Keep`, `KeepEmails`, `LeaveHours` and
-`RuleDoc` have no input: a Q5 or Q8 stop stands until the owner clears it in
-`<DST>`. P4 and P7 answer `.report` and P7 `.kept`, which the shell does not print
+The `detail` of a plan or a step (T7d) is
+`{keep, keep_emails, leave_hours, rule_doc, caller}`, every field optional: the
+HUM ids the owner adds to `<DST>` (Q5), the channel invites' emails that move
+(5.1b), the HUM ids whose hours rows stay in `<SRC>` (Q5, Q8: it clears their
+hours stops in plan, P2 and P4), the Qto doc of column 3 of the box rule row
+(F14) and the `MOVE_CALLER` seat. An unknown field or a malformed value answers
+400 `bad_detail`. An absent value is the safe side: nobody kept, every invite
+deleted, every hours stop stands. P2 records the detail in its step, and P4
+refuses a detail that is not the one P2 checked. A mark's `detail` stays its own
+(the probes). The shell does not send this detail yet. P4 and P7 answer `.report` and P7 `.kept`, which the shell does not print
 yet.
 
 ## 9. Cases (each lands with its red control)
@@ -603,6 +614,7 @@ Each row is one small task; files named are where it lands.
 | T7 | Hub operator endpoint (owner GO msg id required) and the moved-task refusal / redirect; tests C8, C15 | `api/hub/channel_move.go`, `_test.go`, `openapi.json`; the refusal lines in `api/hub/channels.go`, `ws.go`, `wui.go`, `view.go`; `api/store/channel_move_journal*.go` and one field in `memory.go`; `api/wire/topic_moved.go` |
 | T7b | Box client: on the `topic_moved` refusal, send the post through the agent's `<DST>` desk key (W2, W3), the re-route of Q2. Every path: `spool send` by dial and by sidecar, a channel post, an answer, a queued post at flush. The desk is `<dir>/<tenant>/<box>`, `<dir>` being `$SPOOL_DESKS` or the desks dir of this spool root, read from its live `hub-run` as `spool_reply` does: a desk of another OS user is unreadable, so it counts as no desk and the post is refused. Nothing is remembered: each post asks `<SRC>` first, so on day 31 it gets the 404 and is refused and reported. A retry is the same envelope, which the hub stores once per `(tenant, msg_id)`. A prerequisite of the first prd move | `internal/hubclient/reroute.go`, `flush.go`, `hubclient.go`; `internal/action/link.go`, `action.go`; `cmd/spool/hub.go`; tests `reroute_test.go`, `moved_desk_test.go`, `internal/hub/channel_move_reroute_test.go` |
 | T7c | Hub: C18's sync-cycle half: after the move and one In-half run on the member's connection, `<SRC>` has no event with that `source_key`, no map row, and the Google event is gone; control: skip the pre-P4 Google delete -> the In half imports it back. T13 and the first prd move wait for T7c; T5 does not | built (SPL-4609): `internal/hub/channel_move_gcal_test.go`, the move through the step endpoint and one sync cycle on fakegcal; the control drops the pre-P4 `events.delete` in the test's transport to the fake, so neither store nor hub has a door for it |
+| T7d | Hub: a step reads Keep, KeepEmails, LeaveHours and RuleDoc from its detail, and MOVE_CALLER so P2 checks that seat; the plan request passes RuleDoc | built (SPL-4773): `api/hub/channel_move*.go`, `_test.go` (`channel_move_inputs.go`, `channel_move_inputs_test.go`) |
 | T8 | Proofs P7 and the free-text scan; tests C13, C14 | `api/channelmove/proof.go`, `_test.go` |
 | T9 | Shell action `do_spl_channel_workspace_move` (plan, DRY_RUN, journal resume) and its test C17 | `orc/run/spl-channel-workspace-move.func.sh`, `orc/tests/spl-channel-workspace-move.tst.sh` |
 | T9b | The shell plan path reads and prints the Cloud SQL backup retention and the hub log bucket's retention (R4, 5.6): it only prints and refuses nothing; it prints every log bucket of the project, because the cnf names none; test C24 | `orc/run/spl-channel-workspace-move.func.sh`, `orc/tests/spl-channel-workspace-move.tst.sh` |
@@ -615,7 +627,7 @@ Each row is one small task; files named are where it lands.
 
 Order: T1 first (it is the inventory in code); T2 before T5 (the journal);
 T4 before T5; T4 before T4b; T4b before T4d; T4d before T7's seat wiring; T5 before T5b and T5c; T3 before T11; T6 and T8
-before T7; T7 before T9; T9, T10, T7 and T7c before T13; T5 before T7c; T4b, T4d, T9b and T9c before T13.
+before T7; T7 before T9; T9, T10, T7, T7c and T7d before T13; T5 before T7c; T4b, T4d, T9b and T9c before T13.
 
 ### 10.1 Lanes
 

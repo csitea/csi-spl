@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -243,8 +244,9 @@ func channelMoveBy(op string) string {
 }
 
 // p2 refuses on every stop of the plan, on a name taken in <DST>, on a file quota
-// <DST> cannot hold, and with no orchestrator seat (W2's probe recipient). What it
-// lists in .seats is what P2b probes and P4 clears.
+// <DST> cannot hold, and with no orchestrator seat (W2's probe recipient): the
+// caller's, when the detail names it. What it lists in .seats is what P2b probes
+// and P4 clears; .inputs is the detail P4 has to carry again (T7d).
 func (run *channelMoveRun) p2(ctx context.Context) (map[string]any, store.ChannelMoveStepDone, error) {
 	var none store.ChannelMoveStepDone
 	plan, err := run.planNow(ctx)
@@ -259,7 +261,10 @@ func (run *channelMoveRun) p2(ctx context.Context) (map[string]any, store.Channe
 	if err != nil {
 		return nil, none, err
 	}
-	if !seat {
+	switch {
+	case !seat && run.q.in.Caller != "":
+		refuse = append(refuse, "caller "+run.q.in.Caller+" is no orchestrator seat on the roster of "+run.q.Dst+", the probe's recipient (W2)")
+	case !seat:
 		refuse = append(refuse, run.q.Dst+" has no orchestrator seat, the probe's recipient (W2)")
 	}
 	objects, err := run.jr.ChannelMoveObjectLists(ctx, run.q.Src, plan.Binds.Msgs, plan.Binds.Docs)
@@ -276,12 +281,12 @@ func (run *channelMoveRun) p2(ctx context.Context) (map[string]any, store.Channe
 	if len(refuse) > 0 {
 		return nil, none, moveConflict(strings.Join(refuse, "; "))
 	}
-	return map[string]any{"seats": plan.Seats}, store.ChannelMoveStepDone{Detail: map[string]any{"seats": plan.Seats}}, nil
+	return map[string]any{"seats": plan.Seats}, store.ChannelMoveStepDone{Detail: map[string]any{"seats": plan.Seats, "inputs": run.q.in}}, nil
 }
 
 // nameAndStops is plan's refusals as the plan path reads them.
 func (run *channelMoveRun) nameAndStops(ctx context.Context, plan store.ChannelMovePlan) ([]string, error) {
-	refuse := append([]string{}, plan.Stops()...)
+	refuse := append([]string{}, channelMoveStops(plan, run.q.in)...)
 	taken, err := run.s.channelMoveNameTaken(ctx, run.q.Dst, run.q.ToName)
 	if err != nil {
 		return nil, err
@@ -292,18 +297,21 @@ func (run *channelMoveRun) nameAndStops(ctx context.Context, plan store.ChannelM
 	return refuse, nil
 }
 
-// dstHasOrchestrator: an agent with the orch role's number on <DST>'s roster.
+// dstHasOrchestrator: an agent with the orch role's number on <DST>'s roster;
+// with a caller, that agent (on that box, when it names one).
 func (run *channelMoveRun) dstHasOrchestrator(ctx context.Context) (bool, error) {
 	roster, err := run.s.o.Store.Roster(ctx, run.q.Dst)
 	if err != nil {
 		return false, err
 	}
-	for _, agents := range roster {
+	caller, box := channelMoveCallerAgent(run.q.in.Caller), channelMoveCallerBox(run.q.in.Caller)
+	for b, agents := range roster {
 		for _, a := range agents {
-			for _, n := range roleNumbers["orch"] {
-				if agentid.IsAgent(a) && agentid.Number(a) == n {
-					return true, nil
-				}
+			if caller != "" && (a != caller || (box != "" && b != box)) {
+				continue
+			}
+			if agentid.IsAgent(a) && slices.Contains(roleNumbers["orch"], agentid.Number(a)) {
+				return true, nil
 			}
 		}
 	}
@@ -368,6 +376,21 @@ func (run *channelMoveRun) p3(ctx context.Context) (map[string]any, store.Channe
 	return map[string]any{"counts": counts}, store.ChannelMoveStepDone{Counts: counts}, nil
 }
 
+// checkedInputs refuses a P4 whose detail is not the one P2 checked (T7d): a
+// keep or a leave P2 did not see would apply what no check passed.
+func (run *channelMoveRun) checkedInputs() error {
+	var d struct {
+		Inputs channelMoveInputs `json:"inputs"`
+	}
+	if err := json.Unmarshal(run.j.Steps["P2"].Detail, &d); err != nil {
+		return err
+	}
+	if !run.q.in.sameDecisions(d.Inputs) {
+		return moveConflict("P4's detail (keep, keep_emails, leave_hours, rule_doc) is not the one P2 checked: run P2 again with it")
+	}
+	return nil
+}
+
 // clearedSeats are the seats P2 listed; each needs its stored probe (W2).
 func (run *channelMoveRun) clearedSeats() ([]store.MoveSeat, error) {
 	var d struct {
@@ -401,6 +424,9 @@ func (run *channelMoveRun) p4(ctx context.Context) (map[string]any, store.Channe
 	if !ok {
 		return nil, none, channelMoveRefused{http.StatusNotImplemented, "unsupported", "this hub's store cannot apply a channel move"}
 	}
+	if err := run.checkedInputs(); err != nil {
+		return nil, none, err
+	}
 	seats, err := run.clearedSeats()
 	if err != nil {
 		return nil, none, err
@@ -410,7 +436,8 @@ func (run *channelMoveRun) p4(ctx context.Context) (map[string]any, store.Channe
 		cleared = append(cleared, seat.Agent+"@"+seat.Box)
 	}
 	res, err := ap.ApplyChannelMove(ctx, store.ChannelMoveApplyRequest{ChannelMovePlanRequest: channelMovePlanRequest(run.q),
-		MoveID: run.j.MoveID, GoMsgID: run.j.GoMsgID, StartedBy: channelMoveBy(run.op), Seats: cleared, GcalDelete: run.s.channelMoveGcalDelete()})
+		MoveID: run.j.MoveID, GoMsgID: run.j.GoMsgID, StartedBy: channelMoveBy(run.op), Seats: cleared, GcalDelete: run.s.channelMoveGcalDelete(),
+		KeepEmails: run.q.in.KeepEmails, LeaveHours: run.q.in.LeaveHours})
 	if err != nil {
 		return nil, none, err
 	}

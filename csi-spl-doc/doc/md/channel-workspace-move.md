@@ -200,15 +200,19 @@ the members, the mentions and the kept list.
 
 - **Hours rows:** adding the member to `<DST>` clears the Q5 line and the rows
   move. Reopening the time sheet clears the Q8 line. Each line clears on its own.
-- **Leaving hours rows in `<SRC>`:** the store can do it (the rows become a kept
-  item), but a step reads no `detail`, so the owner's "leave them" has no input
-  and the stop stands **[pending: no row owns it yet]**.
-- **Channel invites:** the same gap. Nothing can name an email to keep, so P4
-  deletes every invite of the channel; invite the people to `<DST>` afterwards
-  **[pending: no row owns it yet]**.
-- **The doc of the box rule row:** the hub's plan is not told column 3 of the rule
-  row, so a Qto doc reached only through it is not in the set and stays in `<SRC>`
-  **[pending: no row owns it yet]**.
+- **Leaving hours rows in `<SRC>`:** the hub reads the owner's "leave them" from
+  the `leave_hours` of a plan's or a step's `detail` (spec row T7d): the rows
+  become a kept item and the stop clears. The shell does not send that detail
+  yet, so from this action the stop stands **[pending: no row owns the shell
+  half yet]**.
+- **Channel invites:** the hub moves the invites named in `keep_emails` (T7d)
+  and P4 deletes the others. The shell sends none yet, so P4 deletes every invite
+  of the channel; invite the people to `<DST>` afterwards **[pending: no row owns
+  the shell half yet]**.
+- **The doc of the box rule row:** the hub's plan puts the `rule_doc` of the
+  detail in the set (T7d). The shell does not send column 3 of the rule row yet,
+  so a Qto doc reached only through it stays in `<SRC>` **[pending: no row owns
+  the shell half yet]**.
 - **The name:** a channel named `<CHANNEL>` that already exists in `<DST>`,
   archived or not, blocks the run. `TO_NAME=<new id>` makes the plan check that
   name instead, but a step carrying it is refused with 501 `not_built`, so a move
@@ -246,8 +250,11 @@ Run it on the machine that holds the desks of the channel's seats: P2b
 probes only the desks on the machine that runs the move, and a seat whose
 `<DST>` desk is elsewhere fails its probe, which stops the move before P3.
 
-The hub is not told who `MOVE_CALLER` is. P2 only checks that `<DST>`'s roster has
-an agent with the orchestrator number, so naming the right seat is yours.
+P2 checks `MOVE_CALLER`'s seat on `<DST>`'s roster when the step's `detail`
+carries it as `caller` (spec row T7d), but the shell does not send it yet: P2
+then only checks that `<DST>`'s roster has an agent with the orchestrator
+number, so naming the right seat is yours **[pending: no row owns the shell
+half yet]**.
 
 ### 3.3 The owner's run of a copy
 

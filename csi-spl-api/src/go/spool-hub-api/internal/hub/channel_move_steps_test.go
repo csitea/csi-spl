@@ -29,6 +29,7 @@ type moveFix struct {
 	task, blobID, seat string
 	moveID, op, owner  string
 	form, formTask     string
+	admin              string // the channel's human in <SRC>, no <DST> member
 }
 
 // moveFixture skips on Memory: P4 and the journal are Postgres only.
@@ -48,7 +49,8 @@ func moveFixture(t *testing.T, orchestrator bool, mut ...func(*hub.Options)) *mo
 	f.src, _ = e.tenant()
 	f.dst, _ = e.tenant()
 	owner := seat(t, e, op, rbac.BizOwner)
-	f.task = moveChannel(t, e, f.src, f.ch, seat(t, e, f.src, rbac.Admin))
+	f.admin = seat(t, e, f.src, rbac.Admin)
+	f.task = moveChannel(t, e, f.src, f.ch, f.admin)
 	movePinBox(t, e, f.dst)
 	agents := []string{f.seat}
 	if orchestrator {

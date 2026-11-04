@@ -1,5 +1,11 @@
 # 153 Monitoring: the tab row beside the heading, and a live Lanes tab
 
+Addendum (2026-11-04, SPL-4778): section 3.17 (a workspace's own boxes,
+such as a box joined to it, show their lanes and their announced agents on
+the workspace's Lanes tab, keyed by agent@box), cases C71-C78. Owner
+HUM-10, t1 topic `dc2d6c40`. Placed by the dispatch holder as one lane
+brief, not a panel version.
+
 Addendum (2026-11-03, SPL-4729): section 3.15 (the Lanes list's sort and
 filters live in its URL, so the link can be shared), cases C64-C67. Owner
 HUM-10, t1 topic `0a730c21`, msg `ea87c5c1`. Placed by the dispatch holder
@@ -1089,6 +1095,79 @@ Cases:
   no Clear filters, no `.ln-head` row), forbidden (the sentence and Refresh
   only), first load (Refresh before the answer, the age only with it).
   (`tests/e2e/monitoring-head-actions-row.test.mjs` for C68-C70.)
+
+### 3.17 A workspace's own boxes show their lanes (SPL-4778)
+
+The owner (HUM-10, t1 `dc2d6c40`, 2026-11-04), with the workspace and the
+box owner's name replaced by placeholders: "why the lanes in the <W> do not
+show the newest added box on the <FirstName>'s mac" / "the whole <W>
+workspace is not visible in the lanes"; on the poll that followed, "A — Yes,
+an agent is working there".
+
+Measured on master `af48d0fcb` (code), and on prd by the dispatch holder
+(`do_spl_db_query`, 2026-11-04 09:2x-09:4xZ, n = 1 read each):
+
+- A put (`spool lane`, lane_op put) is stored in the tenant of the writing
+  box's verified pin (`hub/box_lane.go:126-143`, `x.tenant`). Any pinned
+  box may put, a box joined to a workspace (spec 108) too. Only the
+  fleet's spawn tooling calls it (`_spawn_lane_put`); a joined box running
+  only `spool hub-run` never does: prd held no `fleet_lanes` row written by
+  the joined box.
+- Both views read the operator workspace's rows only:
+  `activeFleetLanes(ctx, op, ...)` in 3.3 and in 3.6. A workspace's own
+  rows were read by nobody.
+- The joined box's `spool hub-run` announces its agent: prd `roster`
+  (W, the joined box) held `c-001`, `running` NULL (a client too
+  old to report it). The same workspace's roster also holds the fleet
+  boxes' agents (their desks are pinned there: `c-001`, `c-002`, ... on
+  the fleet boxes, running true).
+
+The design (`hub/workspace_own_lanes.go`), on `GET /v1/view/lanes` in a
+workspace W other than the operator's:
+
+- **W's own box** = a box pinned in W that is not also pinned in the
+  operator workspace. The fleet's boxes are pinned in many workspaces;
+  their lanes stay the operator's (3.6: on W's topics only, without the
+  box).
+- **W's own lanes**: W's `fleet_lanes` rows written by an own box, by 3.3's
+  active rule, read in W's own scope. Each row keeps its box (W's own), W's
+  topic title when the caller may open it (else none, as 3.3), and its own
+  issue key (a W issue, read in W).
+- **Announced agents**: each roster agent of W's online own boxes
+  (`boxOnlineLocked`, the presence stamp) whose box does not report it as
+  not running (true, or unreported = NULL), with a lane id
+  (`^[acgmoqu]-[0-9]{3}$`) and no own lane row of the same
+  `<agent>@<box>`. It shows as live with its box, vendor and workspace, no
+  topic, scope or issue (the roster carries none), and `updated_at` = the
+  box's last presence stamp.
+- **Keyed by `<agent>@<box>`**, never by the id alone: W's own `c-001` and
+  the fleet's `c-001` on a W topic are two rows.
+- The order: the operator's lanes on W's topics, W's own lanes (newest
+  write first), the announced agents (box, then agent), the queued asks.
+- Isolation: nothing of another workspace is read; the operator
+  workspace's own route (3.6 in the operator workspace) is unchanged.
+
+A topic or scope for a joined box's lane needs a put on that box:
+`spool lane --fleet main --agent <ID> --box <box> --scope "<one line>"
+--topic <uuid> --state live`, renewed within 60 min (3.3's active rule;
+such a box pushes no token burn), `--state done` at the end.
+
+Cases (`hub/workspace_own_lanes_test.go`, memory and Postgres):
+
+- **C71** W's admin reads the operator's lane on its topic (no box) and
+  its own box's lanes (with the box, its title on a W topic, without a
+  topic too). **C72** an own row naming another workspace's topic shows no
+  title and no text of it. **C73** a done row and a row written 3 h ago:
+  absent. **C74** w2's admin, the operator admin on this route and the
+  operator view (3.3, before F2) do not show W's own lanes or box.
+- **C75** the joined box's announced `c-001` and the fleet's `c-001` are
+  two rows; an agent with a lane row shows once; an unreported agent
+  shows. **C76** an agent reported not running: absent. **C77** an
+  announced agent of an offline own box: absent. **C78** the agents of a
+  fleet box pinned in W: absent, its box id never in W's answer.
+- Red controls: C71 on master `af48d0fcb` (W's admin read `[c-501]`
+  only); C75 with `rosterLanes` returning none (the joined box's `c-001`
+  and the unreported `c-707` absent).
 
 ## 4. Cases
 

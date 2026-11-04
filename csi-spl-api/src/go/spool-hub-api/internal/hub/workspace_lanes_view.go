@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
@@ -28,6 +29,10 @@ import (
 // operator's) and issues = W's issues that issue_discussions links to the
 // topic, with their status; the lane's own key is an operator workspace issue
 // and is left out.
+//
+// W's own lanes follow (spec 153 3.17, SPL-4778, workspace_own_lanes.go):
+// with their box (W's own), W's topic title when the caller may open it,
+// and their own issue key (a W issue). Never another workspace's rows.
 
 const permWorkspaceLanes = "workspace.lanes"
 
@@ -65,34 +70,39 @@ func (s *Server) handleWorkspaceLanesView(w http.ResponseWriter, r *http.Request
 }
 
 // workspaceLanesView is the operator workspace's active lanes and queued
-// asks (3.8) on topics of tenant that reader may open, each naming tenant
-// as its workspace. No operator workspace: no lanes.
+// asks (3.8) on topics of tenant that reader may open, then tenant's own
+// active lanes (3.17: the lanes its own boxes publish, such as a joined
+// dedicated box), each naming tenant as its workspace. No operator
+// workspace: the own lanes only.
 func (s *Server) workspaceLanesView(ctx context.Context, tenant, fleet, reader string) (fleetLanesViewJSON, error) {
 	op, err := s.operatorTenant(ctx)
 	if err != nil {
 		return fleetLanesViewJSON{}, err
 	}
-	if op == "" {
-		return fleetLanesViewJSON{AsOf: s.o.Now().UTC().Format(time.RFC3339), Fleet: fleet, Lanes: []fleetLaneViewJSON{}}, nil
-	}
-	out, active, burn, err := s.activeFleetLanes(ctx, op, fleet)
-	if err != nil {
-		return out, err
-	}
-	queued, err := s.queuedLanes(ctx, op, fleet)
-	if err != nil {
-		return out, err
-	}
-	// The links are read in tenant: the own keys stay out (they number
-	// operator issues, and the same number in tenant is another issue).
-	onTopic := make([]store.FleetLane, 0, len(active))
-	for _, l := range active {
-		if l.Topic != "" {
-			l.IssueKey, l.OriginIssue = "", ""
-			onTopic = append(onTopic, l)
+	out := fleetLanesViewJSON{AsOf: s.o.Now().UTC().Format(time.RFC3339), Fleet: fleet, Lanes: []fleetLaneViewJSON{}}
+	onTopic, queued, burn := []store.FleetLane{}, []queuedLane{}, map[[2]string]store.FleetTokenBucket{}
+	if op != "" {
+		var active []store.FleetLane
+		if out, active, burn, err = s.activeFleetLanes(ctx, op, fleet); err != nil {
+			return out, err
+		}
+		if queued, err = s.queuedLanes(ctx, op, fleet); err != nil {
+			return out, err
+		}
+		// The links are read in tenant: the own keys stay out (they number
+		// operator issues, and the same number in tenant is another issue).
+		for _, l := range active {
+			if l.Topic != "" {
+				l.IssueKey, l.OriginIssue = "", ""
+				onTopic = append(onTopic, l)
+			}
 		}
 	}
-	titles, byTopic, status, prefix, err := s.fleetLaneLinks(ctx, tenant, reader, laneLinkRows(onTopic, queued))
+	own, err := s.ownWorkspaceLanes(ctx, tenant, op, fleet)
+	if err != nil {
+		return out, err
+	}
+	titles, byTopic, status, prefix, err := s.fleetLaneLinks(ctx, tenant, reader, laneLinkRows(append(slices.Clone(onTopic), own.lanes...), queued))
 	if err != nil {
 		return out, err
 	}
@@ -100,25 +110,41 @@ func (s *Server) workspaceLanesView(ctx context.Context, tenant, fleet, reader s
 	if err != nil {
 		return out, err
 	}
-	rows := []fleetLaneViewJSON{}
-	for _, l := range onTopic { // ListFleetLanes order: newest write first
-		v := fleetLaneRow(l, burn)
-		v.AgentBox, v.TopicID = "", l.Topic
-		rows = append(rows, v)
-	}
-	for _, q := range queued { // the queue's order, after the lanes
-		rows = append(rows, q.row)
-	}
-	for _, v := range rows {
+	wsName := cmp.Or(names[tenant], tenant)
+	keep := func(v fleetLaneViewJSON) {
 		topic, mine := titles[v.TopicID]
 		if !mine {
-			continue
+			return
 		}
 		v.TopicChannel = topic.Channel
-		v.TopicTitle, v.Workspace, v.WorkspaceName = topic.Title, tenant, cmp.Or(names[tenant], tenant)
+		v.TopicTitle, v.Workspace, v.WorkspaceName = topic.Title, tenant, wsName
 		v.Issues = laneIssues("", prefix, true, byTopic[v.TopicID], status)
 		v.Priority = lanePrio(v.Issues)
 		out.Lanes = append(out.Lanes, v)
+	}
+	for _, l := range onTopic { // ListFleetLanes order: newest write first
+		v := fleetLaneRow(l, burn)
+		v.AgentBox, v.TopicID = "", l.Topic
+		keep(v)
+	}
+	for _, l := range own.lanes { // 3.17: shown with or without a topic of tenant
+		v := fleetLaneRow(l, own.burn)
+		topic, mine := titles[l.Topic]
+		if mine {
+			v.TopicTitle, v.TopicChannel = topic.Title, topic.Channel
+		}
+		v.Issues = laneIssues(l.IssueKey, prefix, mine, byTopic[l.Topic], status)
+		v.OriginIssue = laneOriginIssue(l.OriginIssue, prefix, status)
+		v.Priority = lanePrio(v.Issues)
+		v.Workspace, v.WorkspaceName = tenant, wsName
+		out.Lanes = append(out.Lanes, v)
+	}
+	for _, v := range own.roster { // 3.17: an announced agent with no lane row
+		v.Workspace, v.WorkspaceName = tenant, wsName
+		out.Lanes = append(out.Lanes, v)
+	}
+	for _, q := range queued { // the queue's order, after the lanes
+		keep(q.row)
 	}
 	return out, nil
 }

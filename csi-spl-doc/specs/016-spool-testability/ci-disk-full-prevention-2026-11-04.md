@@ -47,8 +47,14 @@ wf 14 deletes only on its schedule or on a dispatch with `dry_run` false.
 Any other event is a dry run. The first version keyed this on
 `inputs.dry_run == false` alone, and on a push `inputs.dry_run` is null,
 which equals false. So the 13:09Z push of the throwaway branch
-`c946-ctl-cap` (run 41835578803) really deleted the old v1 race cache
-(6420 MB). wf 10 no longer restores that key, and the schedule would have
+`c946-ctl-cap` (run 41835578803) really deleted the old v1 race cache:
+id 9991311195, key `go-race-pg-Linux-1.26.10-0ff36b3f…-5ebd78a6…`, 6420 MB,
+last used 2026-11-04T10:13:04Z on master. The control branch armed it: it
+added a `push:` trigger to wf 14. From now on a control never runs a
+deleting action against shared state; a wf 14 control pins `DRY_RUN: "1"`
+in the control branch itself (dispatch c-002, msg 861ab1d9). The action
+itself is a dry run unless `DRY_RUN` is exactly `0` (test 1b: empty,
+`false`, `no`, `00`). wf 10 no longer restores that key, and the schedule would have
 deleted it too (the store held 8.7 GB, over the 8 GB limit). Test 7 now
 pins the expression.
 

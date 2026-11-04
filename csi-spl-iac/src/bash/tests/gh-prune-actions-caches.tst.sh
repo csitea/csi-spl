@@ -9,6 +9,7 @@
 #   4 go-race-pg-v2    2560 MB  last 2026-11-03T09:00
 #   1. DRY_RUN default: "would delete" 1 (unused 7d) and 4 (total over 8 GB,
 #      the least recently used), no DELETE call, the summary line
+#  1b. DRY_RUN empty, "false", "no" or "00": still a dry run (only 0 deletes)
 #   2. DRY_RUN=0: exactly two DELETEs, 1 then 4; the rest fit under 8 GB
 #   3. nothing old, the store under the limit: 0 deleted, no DELETE
 #   4. a DELETE that fails: exit 1 and the ERROR line, the others still go
@@ -73,6 +74,14 @@ act; rc=$?
   && grep -qF 'OK o/app: DRY_RUN would delete 2 caches (2660 MB); kept 2 caches (6760 MB, limit 8 GB, unused limit 7d)' "$T/out" \
   && pass "1. DRY_RUN default: would delete 1 (unused) and 4 (LRU over 8 GB), no DELETE" \
   || fail "1. rc=$rc deletes=[$(deletes)] $(cat "$T/out")"
+
+# 1b
+for v in "" false no 00; do
+  act DRY_RUN="$v"; rc=$?
+  [[ $rc == 0 && ! -s "$T/log" ]] && grep -qF 'OK o/app: DRY_RUN would delete 2 caches' "$T/out" \
+    && pass "1b. DRY_RUN='$v': a dry run, no DELETE (only the exact 0 deletes)" \
+    || fail "1b. DRY_RUN='$v' rc=$rc deletes=[$(deletes)] $(cat "$T/out")"
+done
 
 # 2
 act DRY_RUN=0; rc=$?

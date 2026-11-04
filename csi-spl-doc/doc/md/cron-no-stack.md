@@ -41,8 +41,11 @@ its own:
   (SPL-4768): the wrapper gives the job `CRON_NO_STACK_LOCK=<lock>`, and the
   job's `spl_cron_no_stack_declare_max <s>`
   (`csi-spl-orc/lib/bash/funcs/spl-desk-cron-lock.func.sh`) appends
-  `max=<s>` to the holder record, rewritten in place so the flock holds. A
-  start judges the holder against that `max=`, else `CRON_NO_STACK_MAX_S`.
+  `max=<s>` to the holder record, rewritten in place so the flock holds. It
+  refuses (rc 1) an `<s>` that is not a whole number of 1..6 digits. A start
+  judges the holder against that `max=`, else `CRON_NO_STACK_MAX_S`, else
+  1800: a max it cannot compare (not digits, over 9 digits) falls back, so a
+  hung holder always alerts.
   The box file follower (row `file-streams`) runs `run_s` (cnf
   `env.box.file_streams.run_s`, 3600 s) and declares `run_s` +
   `FILE_STREAMS_STUCK_MARGIN_S` (default 600), from the same value it hands

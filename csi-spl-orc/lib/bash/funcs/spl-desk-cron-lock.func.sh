@@ -77,13 +77,15 @@ spl_cron_no_stack_pre() {
 # @description The record is rewritten in place (the same inode: flock holds).
 # @description No CRON_NO_STACK_LOCK (a by-hand run) or no holder record there:
 # @description nothing written.
-# @param s (required) - the threshold in seconds, a whole number
-# @return 0 declared or nothing to declare, 1 not a whole number
+# @param s (required) - the threshold in seconds, a whole number of 1..6
+# @param s digits (11.5 days at most): a longer one test(1) cannot compare
+# @return 0 declared or nothing to declare, 1 not a whole number of 1..6 digits
 # @example spl_cron_no_stack_declare_max $(( run_s + 600 ))
 #------------------------------------------------------------------------------
 spl_cron_no_stack_declare_max() {
   local s="$1" lock="${CRON_NO_STACK_LOCK:-}" rec
-  [[ "$s" =~ ^[0-9]+$ ]] || { echo "FATAL spl_cron_no_stack_declare_max: not a whole number: '$s'" >&2; return 1; }
+  [[ "$s" =~ ^[0-9]{1,6}$ ]] || { echo "FATAL spl_cron_no_stack_declare_max: not a whole number of 1..6 digits: '$s'" >&2; return 1; }
+  s=$(( 10#$s ))
   [[ -n "$lock" && -f "$lock" && -w "$lock" ]] || return 0
   IFS= read -r rec <"$lock" || true
   [[ "$rec" == pid=*" start="*" job="* ]] || return 0

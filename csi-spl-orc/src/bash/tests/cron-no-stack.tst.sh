@@ -23,7 +23,9 @@
 #      follower's max is run_s + 600 of the shipped cnf, larger than run_s;
 #      red control: a holder aged between 1800 s and run_s with no max of its
 #      own is STUCK (every start on one box, 2475 lines by 2026-11-04); with the
-#      declared max it is a SKIP; past run_s + margin it is STUCK again
+#      declared max it is a SKIP; past run_s + margin it is STUCK again;
+#      a max test(1) cannot compare (20 digits) is STUCK at the default; the
+#      declare refuses a max that is not 1..6 digits; a run_s of 0900 is 900
 #------------------------------------------------------------------------------
 set -uo pipefail
 TEST_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -174,11 +176,15 @@ kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null
 
 # 9. the file follower's own max. fs_declare <lock>: what its cron job does
 # under the wrapper: the follower's env from the shipped cnf, then
-# spl_file_stream_stuck_max on CRON_NO_STACK_LOCK
+# spl_file_stream_stuck_max on CRON_NO_STACK_LOCK; [VAR=value ...] the env it
+# runs with. raw_declare <lock> <s>: spl_cron_no_stack_declare_max <s> itself
 FS_FUNC="$PROJ_ROOT/src/bash/run/spl-file-stream-follow.func.sh"
 CNF="$APP_ROOT/csi-spl-cnf/csi-spl/all.env.yaml"
+raw_declare() {
+  CRON_NO_STACK_LOCK="$1" bash -c 'source "$1" >/dev/null 2>&1; spl_cron_no_stack_declare_max "$2"' _ "$FS_FUNC" "$2" 2>/dev/null
+}
 fs_declare() {
-  env -u FILE_STREAMS_RUN_S -u FILE_STREAMS_STUCK_MARGIN_S CRON_NO_STACK_LOCK="$1" bash -c '
+  env -u FILE_STREAMS_RUN_S -u FILE_STREAMS_STUCK_MARGIN_S "${@:2}" CRON_NO_STACK_LOCK="$1" bash -c '
     source "$1" >/dev/null 2>&1; envs=(); spl_file_stream_env "$2" >/dev/null 2>&1 && spl_file_stream_stuck_max' _ "$FS_FUNC" "$CNF"
 }
 run_s="$(yq -r '.env.box.file_streams.run_s' "$CNF")"
@@ -211,6 +217,26 @@ printf 'not a holder record\n' >"$T/hand.lock"
 fs_declare "$T/hand.lock"; rc=$?
 [[ $rc -eq 0 && "$(cat "$T/hand.lock")" == "not a holder record" ]] &&
   pass "9. a lock with no holder record is left as it is" || fail "9. no record: rc=$rc $(cat "$T/hand.lock")"
+: >"$T/alerts"
+hold_lock "$T/big.lock" 2500 bash 10
+rec="$(cat "$T/big.lock")"; printf '%s max=99999999999999999999\n' "$rec" >"$T/big.lock"
+out="$("$W" "$T/big.lock" true 2>&1)"; rc=$?
+[[ $rc -eq 3 && "$out" == *"STUCK bash held"*"(max 1800 s)"* && "$out" != *"integer expression"* && -s "$T/alerts" ]] &&
+  pass "9. a 20-digit max in the record is STUCK at the default 1800 s, one note" || fail "9. 20-digit max: rc=$rc out=$out"
+rec="$(cat "$T/big.lock")"
+raw_declare "$T/big.lock" 99999999999999999999; rc=$?
+[[ $rc -eq 1 && "$(cat "$T/big.lock")" == "$rec" ]] &&
+  pass "9. the declare refuses a 20-digit max, rc 1, the record unchanged" || fail "9. 20-digit declare: rc=$rc $(cat "$T/big.lock")"
+raw_declare "$T/big.lock" abc; rc=$?
+[[ $rc -eq 1 && "$(cat "$T/big.lock")" == "$rec" ]] &&
+  pass "9. the declare refuses a non-numeric max, rc 1, the record unchanged" || fail "9. abc declare: rc=$rc $(cat "$T/big.lock")"
+kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null
+hold_lock "$T/oct.lock" 60 bash 10
+fs_declare "$T/oct.lock" FILE_STREAMS_RUN_S=0900; rc=$?
+max="$(sed -n 's/.* max=\([0-9]*\)$/\1/p' "$T/oct.lock")"
+[[ $rc -eq 0 && "$max" == 1500 ]] &&
+  pass "9. FILE_STREAMS_RUN_S=0900 declares max 1500 (decimal, not octal)" || fail "9. 0900: rc=$rc $(cat "$T/oct.lock")"
+kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null
 
 echo
 if [ "$fails" -eq 0 ]; then echo "cron-no-stack: all passed"; exit 0; fi

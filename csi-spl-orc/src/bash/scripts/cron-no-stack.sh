@@ -93,8 +93,12 @@ if ! flock -n 9; then
   hstart="$(sed -n 's/.*start=\([0-9]*\).*/\1/p' <<<"$rec")"
   hjob="$(sed -n 's/.*job=\([^ ]*\).*/\1/p' <<<"$rec")"
   max="$(sed -n 's/.* max=\([0-9][0-9]*\).*/\1/p' <<<"$rec")"
-  max="${max:-${CRON_NO_STACK_MAX_S:-1800}}"
-  if [[ "$hstart" =~ ^[0-9]+$ && "$max" =~ ^[0-9]+$ ]]; then
+  # a max test(1) cannot compare (empty, not digits, over 9 digits) falls back
+  # to the default, a bad default to 1800: a hung holder always alerts
+  [[ "$max" =~ ^[0-9]{1,9}$ ]] || max="${CRON_NO_STACK_MAX_S:-1800}"
+  [[ "$max" =~ ^[0-9]{1,9}$ ]] || max=1800
+  max=$(( 10#$max ))
+  if [[ "$hstart" =~ ^[0-9]+$ ]]; then
     age=$(( $(date +%s) - hstart ))
     if [ "$age" -gt "$max" ]; then
       msg="STUCK ${hjob:-?} held $age s by pid ${hpid:-?} on $(box) (max $max s): $lock; this start of $(basename "$1") exits 3"

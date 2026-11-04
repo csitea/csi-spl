@@ -96,7 +96,7 @@ spl_file_stream_stuck_max() {
   local e run_s=3600 margin="${FILE_STREAMS_STUCK_MARGIN_S:-600}"
   for e in "${envs[@]}"; do [[ "$e" == FILE_STREAMS_RUN_S=* ]] && run_s="${e#*=}"; done
   [[ "$margin" =~ ^[0-9]+$ ]] || { echo "FATAL file-streams: FILE_STREAMS_STUCK_MARGIN_S must be a whole number, got: '$margin'"; return 1; }
-  spl_cron_no_stack_declare_max "$(( run_s + margin ))"
+  spl_cron_no_stack_declare_max "$(( 10#$run_s + 10#$margin ))"
 }
 
 # spl_file_stream_hubs <cnf> <user> <py> [args]: one follower per hub env,

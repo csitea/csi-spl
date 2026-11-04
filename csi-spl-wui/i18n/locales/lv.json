@@ -2217,7 +2217,11 @@
     "tabs_label": "Aģenta kartīte",
     "tab_lanes": "Līnijas",
     "tab_details": "Detaļas",
-    "lanes_none": "Šis aģents nestrādā nevienā aktīvā līnijā."
+    "lanes_none": "Šis aģents nestrādā nevienā aktīvā līnijā.",
+    "workspace_group": "Darbvieta: {name}",
+    "workspace": "Darbvieta",
+    "foreign_note": "Šis aģents darbojas darbvietā {name}. Tā joslas, tēmas un ziņojumi paliek šajā darbvietā.",
+    "foreign_missing": "Darbvietā {ws} šāda aģenta nav."
   },
   "boxes": {
     "none": "Vēl nav neviena box.",
@@ -2303,7 +2307,8 @@
     "band_now": "Slodze tagad: {pct} % no kodoliem (load5).",
     "band_reset": "Atjaunot flotes joslu",
     "band_cpu": "Runner CPU griesti: {n} % no kodoliem, šīs mašīnas pašas. Atiestatot uz flotes joslu, tie arī tiek notīrīti.",
-    "band_who": "Mainīt var tikai operatora darbvietas administrators."
+    "band_who": "Mainīt var tikai operatora darbvietas administrators.",
+    "also_seated": "Izvietots arī vēl {count} darbvietās"
   },
   "act_as": {
     "acting_as": "Darbojaties kā {name}",

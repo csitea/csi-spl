@@ -72,6 +72,7 @@ const LAZY_METHODS = [
   'getCloudCostDays',
   'getFleetTokens',
   'getFleetLanes',
+  'getFleetRoster',
   'getFileStreams',
   'getFileStreamLines',
   'fileStreamGlobs',

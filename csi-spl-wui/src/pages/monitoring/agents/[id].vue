@@ -26,6 +26,35 @@
       <UiIcon name="bot" :size="22" />
       <span>{{ agentId }}</span>
     </h3>
+    <div v-if="ws" class="agent-card" data-test="agent-foreign" :data-workspace="ws">
+      <p v-if="!foreignRow && (fleetRoster.state === 'idle' || fleetRoster.state === 'loading')" class="muted">{{ t('monitoring.lanes.loading') }}</p>
+      <p v-else-if="!foreignRow" class="muted" data-test="agent-foreign-missing">{{ t('agents.foreign_missing', { ws }) }}</p>
+      <template v-else>
+        <div class="agent-card__hero">
+          <span class="agent-card__glyph" aria-hidden="true"><UiIcon name="bot" :size="34" /></span>
+          <div class="agent-card__heroText">
+            <p class="agent-card__name">{{ agentId }}</p>
+            <p class="agent-card__kind" data-test="agent-kind">{{ t(kindKey) }}</p>
+            <p class="agent-card__status" data-test="agent-status">
+              <span class="status-dot" :class="{ on: foreignRow.online, 'dot--idle': foreignRow.state === 'not_running' }" aria-hidden="true" />
+              {{ foreignRow.online ? t('people.online') : foreignRow.state === 'not_running' ? t('people.not_running') : t('people.offline') }}
+            </p>
+          </div>
+        </div>
+        <dl class="agent-card__facts">
+          <dt>{{ t('agents.kind') }}</dt>
+          <dd>{{ t(kindKey) }}</dd>
+          <dt>{{ t('agents.workspace') }}</dt>
+          <dd data-test="agent-workspace">{{ foreignRow.workspaceName }}</dd>
+          <dt>{{ t('agents.box') }}</dt>
+          <dd data-test="agent-box"><code>{{ box }}</code></dd>
+          <dt>{{ t('people.last_seen') }}</dt>
+          <dd data-test="agent-last-seen">{{ foreignRow.lastHello ? isoDateTime(foreignRow.lastHello) : t('people.never_seen') }}</dd>
+        </dl>
+        <p class="muted" data-test="agent-foreign-note">{{ t('agents.foreign_note', { name: foreignRow.workspaceName }) }}</p>
+      </template>
+    </div>
+    <template v-else>
     <div class="agent-tabs" role="tablist" :aria-label="t('agents.tabs_label')" data-test="agent-tabs" @keydown="onTabKey">
       <button
         v-for="k in AGENT_CARD_TABS"
@@ -81,6 +110,7 @@
         </div>
       </div>
     </div>
+    </template>
   </div>
 </template>
 
@@ -91,6 +121,8 @@ import { isoDateTime } from '~/utils/date-iso.mjs'
 import { useSpoolApi } from '~/composables/useSpoolApi'
 import { useOperatorPane } from '~/stores/operator-pane'
 import { useAccessStore } from '~/stores/access'
+import { useFleetRosterStore } from '~/stores/fleet-roster'
+import { foreignAgent } from '~/utils/fleet-roster.mjs'
 import { gateMe, lanesReadPlan } from '~/utils/read-gates.mjs'
 import { AGENT_CARD_TABS, agentCardTab, agentCardTabQuery } from '~/utils/agent-card-tabs.mjs'
 import { agentLanes, fleetLanesOf, laneDeepLink, laneName, readLanes } from '~/utils/monitoring-lanes.mjs'
@@ -158,7 +190,19 @@ async function loadLanes() {
   }
 }
 
+/* spec 153 3.17 (SPL-4786): ?ws=<workspace> opens another workspace's own
+   agent, from the operator's fleet roster: what the operator may see of it
+   (kind, workspace, box, liveness, last hello) and a line that says so; no
+   lanes, no Message, no box card (they are that workspace's) */
+const fleetRoster = useFleetRosterStore()
+const ws = computed(() => String(route.query.ws || ''))
+const foreignRow = computed(() => (ws.value ? foreignAgent(fleetRoster.boxes, label.value, ws.value) : null))
+
 onMounted(() => {
+  if (ws.value) {
+    void fleetRoster.load()
+    return
+  }
   if (!roster.boxes[box.value]) void roster.refresh()
   void loadLanes()
 })

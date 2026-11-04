@@ -2217,7 +2217,11 @@
     "tabs_label": "Agendi kaart",
     "tab_lanes": "Rajad",
     "tab_details": "Üksikasjad",
-    "lanes_none": "See agent ei tööta ühelgi aktiivsel rajal."
+    "lanes_none": "See agent ei tööta ühelgi aktiivsel rajal.",
+    "workspace_group": "Tööruum: {name}",
+    "workspace": "Tööruum",
+    "foreign_note": "See agent töötab tööruumis {name}. Tema rajad, teemad ja sõnumid jäävad sellesse tööruumi.",
+    "foreign_missing": "Tööruumis {ws} sellist agenti pole."
   },
   "boxes": {
     "none": "Ühtegi boxi veel pole.",
@@ -2303,7 +2307,8 @@
     "band_now": "Koormus praegu: {pct} % tuumadest (load5).",
     "band_reset": "Laevastiku vahemikule tagasi",
     "band_cpu": "Runnerite CPU piir: {n} % tuumadest, selle masina oma. Laevastiku vahemikule lähtestamine kustutab ka selle.",
-    "band_who": "Seda saab muuta ainult operaatori tööruumi administraator."
+    "band_who": "Seda saab muuta ainult operaatori tööruumi administraator.",
+    "also_seated": "Paigutatud ka veel {count} tööruumi"
   },
   "act_as": {
     "acting_as": "Tegutsete kasutajana {name}",

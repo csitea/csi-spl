@@ -2217,7 +2217,11 @@
     "tabs_label": "Karta agenta",
     "tab_lanes": "Linie",
     "tab_details": "Szczegóły",
-    "lanes_none": "Ten agent nie pracuje w żadnej aktywnej linii."
+    "lanes_none": "Ten agent nie pracuje w żadnej aktywnej linii.",
+    "workspace_group": "Obszar roboczy: {name}",
+    "workspace": "Obszar roboczy",
+    "foreign_note": "Ten agent działa w obszarze roboczym {name}. Jego ścieżki, tematy i wiadomości pozostają w tym obszarze roboczym.",
+    "foreign_missing": "Brak takiego agenta w obszarze roboczym {ws}."
   },
   "boxes": {
     "none": "Brak boxów.",
@@ -2303,7 +2307,8 @@
     "band_now": "Obciążenie teraz: {pct} % rdzeni (load5).",
     "band_reset": "Przywróć pasmo floty",
     "band_cpu": "Limit CPU dla runnerów: {n} % rdzeni, własny dla tej maszyny. Powrót do pasma floty też go usuwa.",
-    "band_who": "Zmienić je może tylko administrator przestrzeni roboczej operatora."
+    "band_who": "Zmienić je może tylko administrator przestrzeni roboczej operatora.",
+    "also_seated": "Osadzony także w {count} innych obszarach roboczych"
   },
   "act_as": {
     "acting_as": "Działasz jako {name}",

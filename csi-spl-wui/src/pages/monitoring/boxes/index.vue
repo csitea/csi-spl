@@ -22,8 +22,8 @@
 <template>
   <div ref="listEl" class="monitoring-list" data-test="monitoring-boxes">
     <MonitoringAllocation v-if="fleet" :view="fleet" :split="split" />
-    <p v-if="rows.length === 0" class="muted monitoring-empty" data-test="monitoring-boxes-empty">{{ t('boxes.none') }}</p>
-    <template v-else>
+    <p v-if="rows.length === 0 && fleetRoster.boxes.length === 0" class="muted monitoring-empty" data-test="monitoring-boxes-empty">{{ t('boxes.none') }}</p>
+    <template v-if="rows.length + fleetRoster.boxes.length > 0">
       <input
         v-model="filter"
         class="boxes-filter"
@@ -32,8 +32,8 @@
         :placeholder="t('boxes.filter')"
         :aria-label="t('boxes.filter')"
       >
-      <p class="muted boxes-count" data-test="boxes-count">{{ t('boxes.count', { count: shown.length }) }}</p>
-      <p v-if="shown.length === 0" class="muted monitoring-empty" data-test="boxes-no-match">{{ t('boxes.no_match') }}</p>
+      <p class="muted boxes-count" data-test="boxes-count">{{ t('boxes.count', { count: shown.length + foreignShown.length }) }}</p>
+      <p v-if="shown.length + foreignShown.length === 0" class="muted monitoring-empty" data-test="boxes-no-match">{{ t('boxes.no_match') }}</p>
     </template>
     <template v-for="g in groups" :key="g.key">
       <div v-if="g.rows.length" class="boxes-group" :data-test="'boxes-group-' + g.key">
@@ -61,17 +61,38 @@
             </NuxtLink>
             <LazyBoxSeatCounts :box="b" />
           </div>
+          <p
+            v-if="fleetRoster.alsoSeated[b.id]"
+            class="muted boxes-seated"
+            data-test="boxes-also-seated"
+            :title="seatNames(b.id)"
+          >{{ t('boxes.also_seated', { count: fleetRoster.alsoSeated[b.id].length }) }}</p>
           <MonitoringBoxFacts :box="b.id" :detail="roster.boxes[b.id] || null" :stat="latestBoxStat(stats, b.id)" :view="fleet" />
         </div>
       </div>
     </template>
+    <div v-for="g in foreign" :key="'ws-' + g.workspace" class="boxes-group" data-test="boxes-group-workspace" :data-workspace="g.workspace">
+      <p class="boxes-group__head muted">{{ t('agents.workspace_group', { name: g.name }) }} <span class="boxes-group__n">{{ g.rows.length }}</span></p>
+      <div v-for="b in g.rows" :key="g.workspace + '/' + b.id" class="monitoring-box" data-test="monitoring-box" :data-box="b.id" :data-workspace="b.workspace">
+        <div class="nav-row">
+          <span class="nav-item" :data-key="b.id" :data-online="b.online ? '1' : '0'">
+            <UiIcon name="server" :size="20" />
+            <span class="dot" :class="{ on: b.online }" />
+            <span class="label">{{ boxTag(b.id) }}</span>
+          </span>
+        </div>
+        <p class="muted boxes-seated" data-test="boxes-foreign-agents">{{ b.agents.map((a) => a.id).join(', ') }}</p>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useRosterStore } from '~/stores/roster'
 import { useAccessStore } from '~/stores/access'
-import { boxRows, filterBoxes } from '~/utils/box-rows.mjs'
+import { useFleetRosterStore } from '~/stores/fleet-roster'
+import { boxRows, boxTag, filterBoxes } from '~/utils/box-rows.mjs'
+import { byWorkspace, filterForeignBoxes } from '~/utils/fleet-roster.mjs'
 import { boxStatsOf, latestBoxStat } from '~/utils/box-resources.mjs'
 import type { BoxStat } from '~/utils/box-resources.mjs'
 import { fleetLoadReadable, normalizeFleetLoad } from '~/utils/fleet-load.mjs'
@@ -94,6 +115,14 @@ const roster = useRosterStore()
 const rows = computed(() => boxRows(roster.people, roster.boxes))
 const filter = ref('')
 const shown = computed(() => filterBoxes(rows.value, filter.value))
+/* spec 153 3.17 (SPL-4786): the operator's list also holds the boxes the
+   other workspaces have on their own, one group per workspace after its own
+   (no card: the box card reads this workspace); its own box seated in other
+   workspaces too says in how many (their names on hover) */
+const fleetRoster = useFleetRosterStore()
+const foreignShown = computed(() => filterForeignBoxes(fleetRoster.boxes, filter.value))
+const foreign = computed(() => byWorkspace(foreignShown.value))
+const seatNames = (id: string) => (fleetRoster.alsoSeated[id] || []).map((w) => w.workspaceName).join(', ')
 const groups = computed(() => [
   { key: 'online', label: t('people.online'), rows: shown.value.filter((b) => b.online) },
   { key: 'offline', label: t('people.offline'), rows: shown.value.filter((b) => !b.online) },
@@ -147,6 +176,7 @@ const stats = ref<BoxStat[]>([])
    only its part (the hub's 403 is the gate, as on the settings pages) */
 onMounted(() => {
   const api = useSpoolApi() as unknown as MonitoringApi
+  void fleetRoster.load()
   /* SPL-4451: only a reader /v1/view/me may name the operator admin */
   void access.ensure().then(async (me) => {
     if (!fleetLoadReadable(me)) return
@@ -191,4 +221,5 @@ onMounted(() => {
 .boxes-group { display: flex; flex-direction: column; gap: 8px; }
 .boxes-group__head { margin: 6px 0 0; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.04em; }
 .boxes-group__n { opacity: 0.7; }
+.boxes-seated { margin: 0 0 6px; padding: 0 8px 0 36px; font-size: 0.6875rem; overflow-wrap: anywhere; }
 </style>

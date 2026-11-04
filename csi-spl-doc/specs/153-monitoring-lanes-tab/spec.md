@@ -1130,6 +1130,38 @@ Cases (`internal/hub/operator_roster_view_test.go`, memory and Postgres):
 - **C73** a developer of the operator workspace and an admin of another
   one read 403.
 
+The WUI (`stores/fleet-roster.ts`, `utils/fleet-roster.mjs`), read once
+per page load and only for a reader `/v1/view/me` may name the operator
+admin; a 403 or a hub without the route shows nothing more:
+
+- **Agents.** After the workspace's own agents, one group per other
+  workspace ("Workspace: <name>", its count), each row `id@box` with
+  `data-workspace`. Its card is `/monitoring/agents/<id@box>?ws=<id>`.
+- **The foreign card.** Kind, workspace, box (no link: the box card is
+  this workspace's), online / not running / offline, last hello, and the
+  line "This agent runs in the workspace <name>. Its lanes, topics and
+  messages stay in that workspace." No tabs, no Message. A `ws` the
+  roster does not hold shows one line, never an error.
+- **Boxes.** An own box seated in other workspaces carries "Also seated in
+  <n> other workspace(s)", their names on hover. After the own groups,
+  one group per other workspace, each box with its agents (no card). The
+  filter also matches the workspace's name or id; the count holds both.
+- New text: `agents.workspace_group`, `agents.workspace`,
+  `agents.foreign_note`, `agents.foreign_missing`, `boxes.also_seated`, in
+  every locale, reviewed by agy before it lands (the language rule).
+
+Cases (`tests/e2e/monitoring-boxes-align.test.mjs` on the mock bundle,
+`tests/unit/fleet-roster.test.mjs`):
+
+- **C74** Agents: `CLE-07@box-a` and `CLE-07@mac-01` are two rows, the
+  second under Customer Space; Boxes: `mac-01` once under it, `box-a` once
+  with its also-seated line; the filter `customer` leaves `mac-01`. Red
+  control: the three pages from master (no foreign row).
+- **C75** the foreign card names its workspace, has no tabs and no
+  Message, and the list keeps its row selected; an unknown `ws` shows one
+  line.
+- **C76** a non-operator sees no other workspace; no page errors.
+
 ## 4. Cases
 
 Every case is **planned**: none is built. "Master today" was read on

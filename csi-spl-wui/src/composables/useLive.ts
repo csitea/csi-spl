@@ -200,8 +200,10 @@ export function useLive() {
    * looks fresh to us but the process now answering REST never minted it (a hub
    * redeploy). Returns '' when no token can be got (signed out / socket gone),
    * which the upload retry turns into the "session expired" prompt.
+   * Signed out it is '' at once: the closed socket is never re-dialled (SPL-4775).
    */
   async function freshUploadToken(force = false): Promise<string> {
+    if (session.state === 'out') return ''
     const client = ensure()
     if (!client) return ''
     if (!force && uploadToken.value && !tokenStale(uploadTokenExpiresAt.value)) return uploadToken.value

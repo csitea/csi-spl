@@ -23,8 +23,12 @@ const STUBS = {
     export function createLiveClient(opts) {
       const client = {
         state: 'idle', connectCalls: 0, closeCalls: 0,
+        redialCalls: 0,
         connect() { this.connectCalls++; this.state = 'open'; opts.onState('open') },
         close() { this.closeCalls++; this.state = 'closed'; opts.onState('closed') },
+        // the real redialForToken connect()s a closed client (live-ws.mjs)
+        async redialForToken() { this.redialCalls++; this.connect(); return { upload_token: 'up-new' } },
+        async requestToken() { return { upload_token: 'up-new' } },
       }
       globalThis.__liveTest.clients.push(client)
       return client
@@ -109,5 +113,30 @@ describe('useLive: a sign-out closes the hub socket (SPL-4513 W1)', () => {
     assert.equal(live.state.value, 'signed_out')
     stopHubSocket(live)
     assert.equal(t.clients.length, 0, 'the close path makes no client either')
+  })
+})
+
+// SPL-4775 (R7 c-804 N1 on SPL-4513): an upload that started signed in and
+// gets a 401 'door' after the sign-out asks freshUploadToken(true); that must
+// not re-dial the closed socket, so spec 005's "never re-dialled" holds.
+describe('useLive: freshUploadToken while signed out (SPL-4775)', () => {
+  it('a signed-out force refresh re-dials nothing and returns empty', async () => {
+    const t = harness('in')
+    const live = (await freshUseLive())()
+    const client = live.ensure()
+    t.session.state = 'out'
+    stopHubSocket(live)
+    assert.equal(await live.freshUploadToken(true), '')
+    assert.equal(client.redialCalls, 0, 'no redialForToken while out')
+    assert.equal(client.connectCalls, 1, 'the closed socket is never re-dialled')
+  })
+
+  it('a signed-in force refresh still re-dials for a fresh token (control)', async () => {
+    harness('in')
+    const live = (await freshUseLive())()
+    const client = live.ensure()
+    assert.equal(await live.freshUploadToken(true), 'up-new')
+    assert.equal(client.redialCalls, 1)
+    assert.equal(client.connectCalls, 2, 'the redial dials again')
   })
 })

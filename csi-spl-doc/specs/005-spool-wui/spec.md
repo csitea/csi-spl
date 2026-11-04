@@ -111,9 +111,13 @@ archive, workspace/docs, agents, boxes and events; the early head script
 `/roadmap`, `/public-calendar`, `/m/<id>`. While the session is `'out'`,
 `access.load()` reads no `/v1/view/me` and `useLive` opens no hub socket;
 a socket a member opened before signing out is still handed back by
-`ensure()` (never re-dialled), so the sign-out closes it.
+`ensure()` (never re-dialled), so the sign-out closes it. While `'out'`,
+`freshUploadToken` returns `''` before it reaches the client, so an upload
+answered 401 'door' after the sign-out ends at "session expired" with no
+token redial (SPL-4775).
 Tests: `tests/unit/signed-out-member-pages.test.mjs`,
-`tests/unit/signed-out-socket-close.test.mjs` (the sign-out close path),
+`tests/unit/signed-out-socket-close.test.mjs` (the sign-out close path,
+and no upload-token redial while out),
 `tests/e2e/signed-out-member-pages.test.mjs` (0 `view/me`, 0
 `webSocketCreated` on /monitoring and /issues).
 

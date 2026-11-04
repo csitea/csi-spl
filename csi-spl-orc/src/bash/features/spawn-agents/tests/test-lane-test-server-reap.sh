@@ -97,7 +97,7 @@ p4b="$(serve "$(wt c-803)" "$(wt c-803)/csi-spl-wui/tests/e2e/lib/serve-hosting-
 out="$(bash "$REAP" --apply c-803 2>&1)"
 check "4b. a lane a tmux window carries keeps its server" alive "$p4b"
 has "4b. ...KEEP live-lane names the window" "KEEP live-lane c-803 (a tmux window" "$out"
-tmux -S "$SPOOL_TMUX_SOCKET" kill-server 2>/dev/null
+tmux -S "$SPOOL_TMUX_SOCKET" kill-server 2>/dev/null; rm -f "$SPOOL_TMUX_SOCKET"
 
 # 4c. CONTROL (never retired): no row in either registry: not proven retired.
 mkdir -p "$(wt c-804)"
@@ -130,15 +130,64 @@ check "7. a SIGTERM-deaf server is stopped" gone "$p7"
 has "7. ...by TERM then KILL" "DO stop pid=$p7 lane=c-805 user=$(id -un) signal=TERM+KILL" "$out"
 check "7. (and 6's server, a non-agent user's then, goes now)" gone "$p6"
 
-# 8. a lane whose slug is a prefix of another's (c-80 vs c-801..) or whose
-#    worktree is not named for it reaches nobody else's server.
-retired c-80
+# 8. a lane whose id, worktree and slug are a prefix of another's (CLE-8 vs
+#    CLE-80, both valid ids) reaches nobody else's server; nor does a lane
+#    whose worktree is not named for it.
+retired CLE-8
+mkdir -p "$S/$(slug CLE-80)/sess-1"
+p8a="$(serve "$(wt CLE-80)" "$(wt CLE-80)/serve-generated.mjs")"
+p8b="$(serve "$S/$(slug CLE-80)/sess-1" "$T_TMP/y/serve-generated.mjs")"
+p8c="$(serve "$S/$(slug CLE-80)-csi-spl-wui" "$T_TMP/z/serve-generated.mjs")"
+out="$(bash "$REAP" --apply CLE-8 2>&1)"; rc=$?
+eq "8. CLE-8's reap exits 0 (it ran)" 0 "$rc"
+check "8. ...and leaves a server under CLE-80's worktree" alive "$p8a"
+check "8. ...one in CLE-80's scratch" alive "$p8b"
+check "8. ...and one in CLE-80's subdir session scratch" alive "$p8c"
+hasnt "8. ...nothing is stopped" "DO stop" "$out"
 p8="$(serve "$(wt c-806)" "$(wt c-806)/serve-generated.mjs")"
-out="$(bash "$REAP" --apply c-80 2>&1)"
-check "8. c-80's reap leaves a server under c-806's worktree" alive "$p8"
 bash "$REAP" --apply --worktree "$T_TMP/wt" c-806 >"$T_TMP/o" 2>&1; rc=$?
 eq "8. a worktree not named for the id is refused (exit 2)" 2 "$rc"
 check "8. ...and the server keeps running" alive "$p8"
+
+# 8b. W1 (reused pid): a pid whose start time is not the one the scan read
+#     is a different process: it is never signalled.
+retired c-810
+p8r="$(serve "$(wt c-810)" "$(wt c-810)/serve-generated.mjs")"
+out="$(LANE_TEST_SERVER_START_OVERRIDE=1 bash "$REAP" --apply c-810 2>&1)"
+check "8b. a pid whose start time changed is not signalled" alive "$p8r"
+has "8b. ...KEEP gone-or-reused names it" "KEEP gone-or-reused pid=$p8r lane=c-810" "$out"
+hasnt "8b. ...and no DO stop" "DO stop" "$out"
+
+# 8c. W3 (fail closed): an unreadable registry.tsv refuses the run; c-811's
+#     live row is in it, and its server lives.
+live c-811
+p8u="$(serve "$(wt c-811)" "$(wt c-811)/serve-generated.mjs")"
+chmod 000 "$R/registry.tsv"
+out="$(bash "$REAP" --apply c-811 2>&1)"; rc=$?
+chmod 644 "$R/registry.tsv"
+eq "8c. an unreadable registry.tsv refuses (exit 4)" 4 "$rc"
+has "8c. ...naming it" "registry.tsv exists but cannot be read" "$out"
+check "8c. ...and the live lane's server keeps running" alive "$p8u"
+out="$(bash "$REAP" --retired 2>&1)"; rc=$?
+eq "8c. (readable again: the run goes on)" 0 "$rc"
+
+# 8d. W3: a tmux socket path that does not answer (a regular file, a dead
+#     server) refuses the run: a window it would list is unknown.
+: >"$SPOOL_TMUX_SOCKET"
+out="$(bash "$REAP" --apply c-810 2>&1)"; rc=$?
+rm -f "$SPOOL_TMUX_SOCKET"
+eq "8d. an unread tmux window list refuses (exit 4)" 4 "$rc"
+has "8d. ...naming it" "the tmux window list was not read" "$out"
+check "8d. ...and the server keeps running" alive "$p8r"
+
+# 8e. N1: a server whose --root names a retired lane's scratch but whose cwd
+#     is under a LIVE lane's worktree is kept.
+p8l="$(serve "$(wt c-811)/csi-spl-wui" "$(wt c-811)/csi-spl-wui/src/node/test/serve-generated.mjs" \
+  --root "$S/$(slug c-810)/sess-1/scratchpad/bundle-head")"
+out="$(bash "$REAP" --apply c-810 2>&1)"
+check "8e. a server working in a live lane's worktree keeps running" alive "$p8l"
+has "8e. ...KEEP cwd-in-live-lane names it" "KEEP cwd-in-live-lane pid=$p8l lane=c-810" "$out"
+check "8e. (c-810's own server goes)" gone "$p8r"
 
 # 9. --retired: every retired lane of the box in one dry run; a known test
 #    server under no retired lane is named KEEP, a live lane's too.
@@ -148,6 +197,7 @@ out="$(bash "$REAP" --retired 2>&1)"; rc=$?
 eq "9. the --retired dry run exits 0" 0 "$rc"
 has "9. it plans c-807's server (held by a subdir session's scratch)" "PLAN stop pid=$p9 lane=c-807 " "$out"
 has "9. it keeps the live c-802's" "KEEP live-lane c-802" "$out"
+hasnt "9. ...and never reaches CLE-80's servers" "pid=$p8a lane=" "$out"
 has "9. a server under no retired lane is KEEP no-retired-lane" "KEEP no-retired-lane pid=$p8 " "$out"
 check "9. ...and nothing was signalled" alive "$p9"
 check "9. ...nor the live lane's" alive "$p4"

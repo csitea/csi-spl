@@ -434,6 +434,11 @@ after the agent is done.
   never a name alone), and it runs as the agent user. SIGTERM, then SIGKILL
   after 5 s, as its owner and only while its start time is unchanged; each
   stop is logged with pid, lane, args and cwd. A dry run signals nothing.
+  It fails closed (R7 c-792): a registry that exists but cannot be read, or
+  a tmux window list that cannot be read (any error but a socket path that
+  does not exist), refuses the run (exit 4) and stops nothing; a server whose
+  cwd is under a LIVE lane's worktree is kept even when an argument names a
+  retired lane's scratch.
   `lane-test-server-reap.sh --retired` dry-runs every retired lane of the box
   (5 s on 2687 retired ids). `RETIRE_SERVERS=0` turns the step off. Test:
   `test-lane-test-server-reap.sh` (case 11 is the red control: without the

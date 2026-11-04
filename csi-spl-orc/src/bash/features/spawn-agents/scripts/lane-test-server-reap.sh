@@ -40,8 +40,12 @@
 #   LANE_TEST_SERVER_SUDO=1|0 (0: only this user's processes; tests),
 #   LANE_TEST_SERVER_LOG (default $XDG_STATE_HOME or ~/.local/state, then
 #   <app>/lane-test-server-reap.log; "" = no log file)
+#   LANE_TEST_SERVER_START_OVERRIDE (tests only: the start time compared, as
+#   a reused pid would show it)
+# A server whose cwd is under a LIVE lane's worktree is kept. A tmux window
+# list or a registry that cannot be read refuses the run (exit 4).
 # Exit 0 done (kept servers included); 2 usage or a worktree not named for
-# its id; 3 a server did not stop.
+# its id; 3 a server did not stop; 4 refused, a read failed.
 set -uo pipefail
 PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
 
@@ -66,6 +70,7 @@ spool_env_resolve
 [ -z "$ID" ] || [[ "$ID" =~ ^${SPOOL_AGENT_ID_RX}$ ]] || { echo "lane-test-server-reap: '${ID}' is not an agent id" >&2; exit 2; }
 
 R="$SPOOL_ROOT"
+_tmuxerr="$(mktemp)"; trap 'rm -f "$_tmuxerr"' EXIT
 tmp="${LANE_SCRATCH_TMP:-/tmp}"
 users=" ${LANE_TEST_SERVER_USERS:-$SPOOL_AGENT_USER} "
 scripts=" ${LANE_TEST_SERVER_SCRIPTS:-serve-generated.mjs serve-hosting-h2.mjs wui-e2e-mock-api.py} "
@@ -92,13 +97,30 @@ as_owner() {
 }
 
 # ---- the lanes in scope -----------------------------------------------------
+# A read that fails refuses the run (exit 4): an unread window list or
+# registry would look like "no live lane" and fail open (R7 W3, c-792). The one
+# failure read as "no windows" is a socket path that does not exist.
+refuse() { echo "lane-test-server-reap: refused, nothing stopped: $*" >&2; exit 4; }
 spool_tmux_argv
-WINDOWS="$("${SPOOL_TM[@]}" list-windows -a -F '#{window_name}' 2>/dev/null || true)"
+if ! WINDOWS="$("${SPOOL_TM[@]}" list-windows -a -F '#{window_name}' 2>"$_tmuxerr")"; then
+  grep -qE '^error connecting to .*\(No such file or directory\)$' "$_tmuxerr" \
+    || refuse "the tmux window list was not read ($(head -1 "$_tmuxerr"))"
+  WINDOWS=""
+fi
+for f in "$R/registry.tsv" "$R/registry.retired.tsv"; do
+  [ ! -e "$f" ] || [ -r "$f" ] || refuse "$f exists but cannot be read"
+done
 # The registries, read once (registry.retired.tsv: 16252 rows, 2687 ids on
 # one box, 2026-11-04): LIVE[id] = 1 per registry.tsv row, RET[id] = the
 # worktree of its last retired row ("" when that row names none).
+# LIVE_WT: the live rows' worktrees named for their id (c-001's /opt is not)
 declare -A LIVE=() RET=()
-while IFS=$'\t' read -r k _ _ w _; do [ -n "$k" ] && LIVE["${k%%@*}"]=1; done \
+LIVE_WT=()
+while IFS=$'\t' read -r k _ _ w _; do
+  [ -n "$k" ] || continue
+  LIVE["${k%%@*}"]=1
+  w="${w%/}"; [[ "$w" == /?* && "${w##*/}" == "${k%%@*}" ]] && LIVE_WT+=("$w")
+done \
   < <([ -r "$R/registry.tsv" ] && cat "$R/registry.tsv")
 while IFS=$'\t' read -r k _ _ w _; do
   if [ -z "$k" ] || [[ "$k" == \#* ]]; then continue; fi
@@ -150,6 +172,12 @@ is_test_server() {
   done
   return 1
 }
+# in_live_wt PATH: under a live lane's worktree (R7 N1: such a cwd keeps it)
+in_live_wt() {
+  local w
+  for w in "${LIVE_WT[@]}"; do [[ "$1" == "$w" || "$1" == "$w"/* ]] && return 0; done
+  return 1
+}
 # lane_of PATH... -> the index of the lane whose worktree or scratch holds one
 lane_of() {
   local p i rest top
@@ -176,7 +204,7 @@ running() {  # PID START: the same process, not a zombie
 # stop PID OWNER START -> TERM or TERM+KILL; 1 when it still runs
 stop() {
   local pid="$1" u="$2" start="$3" n
-  running "$pid" "$start" || { echo gone; return 0; }
+  running "$pid" "$start" || { echo gone; return 2; }
   as_owner "$u" kill -s TERM "$pid" 2>/dev/null
   for ((n = 0; n < grace * 10; n++)); do running "$pid" "$start" || { echo TERM; return 0; }; sleep 0.1; done
   running "$pid" "$start" && as_owner "$u" kill -s KILL "$pid" 2>/dev/null
@@ -192,6 +220,8 @@ scan_one() {
   [ "$pid" != "$$" ] || return 0
   u="$(stat -c %U "/proc/$pid" 2>/dev/null)" || return 0
   st="$(stat_of "$pid")" || return 0
+  # test only: the start time a reused pid would show (R7 W1)
+  [ -z "${LANE_TEST_SERVER_START_OVERRIDE:-}" ] || st="${st%% *} $LANE_TEST_SERVER_START_OVERRIDE"
   cwd="$(as_owner "$u" readlink "/proc/$pid/cwd" 2>/dev/null || true)"
   # a swept worktree still places the process: its cwd reads "<dir> (deleted)"
   paths=("${cwd% (deleted)}" "${argv[@]}" "${argv[@]#*=}")
@@ -201,16 +231,20 @@ scan_one() {
     return 0
   fi
   what="pid=$pid lane=${L_ID[$i]} user=$u"
+  if [ -n "$cwd" ] && in_live_wt "${cwd% (deleted)}"; then
+    say "KEEP cwd-in-live-lane $what cwd=$cwd args=$args"; return 0
+  fi
   case "$users" in *" $u "*) ;; *) say "KEEP not-agent-user $what (agent users:${users% }) cwd=${cwd:--} args=$args"; return 0 ;; esac
   if [ "$APPLY" = 0 ]; then say "PLAN stop $what cwd=${cwd:--} args=$args"; return 0; fi
   if [ "$u" != "$me" ] && [ "$(id -u)" != 0 ] && { [ "$use_sudo" != 1 ] || ! sudo -n -u "$u" true 2>/dev/null; }; then
     say "KEEP no-sudo $what (cannot signal as $u) cwd=${cwd:--} args=$args"; return 0
   fi
-  if sig="$(stop "$pid" "$u" "${st#* }")"; then
-    say "DO stop $what signal=$sig cwd=${cwd:--} args=$args"
-  else
-    say "WARN could not stop $what cwd=${cwd:--} args=$args"; rc=3
-  fi
+  local src=0; sig="$(stop "$pid" "$u" "${st#* }")" || src=$?
+  case "$src" in
+    0) say "DO stop $what signal=$sig cwd=${cwd:--} args=$args" ;;
+    2) say "KEEP gone-or-reused $what (exited, or its pid now names another process: not signalled) cwd=${cwd:--} args=$args" ;;
+    *) say "WARN could not stop $what cwd=${cwd:--} args=$args"; rc=3 ;;
+  esac
 }
 
 rc=0

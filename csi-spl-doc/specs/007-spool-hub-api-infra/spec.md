@@ -203,6 +203,44 @@ in cloud. Table semantics belong to `003` / `006` / `025` / `026`.
 
 ---
 
+## 4. Cloud SQL temp space: the per-backend cap (SPL-4758, measured 2026-11-04)
+
+Question (c-943 SPL-4535): can an admin's SQL-tab query (spec 143 B8, 10 s
+budget) spill so much temp space that `disk_autoresize` grows the `040` disk,
+which Cloud SQL never shrinks? Answer: one query is already capped at about
+1 GB, by Cloud SQL's own default. `040` sets no database flag, on purpose.
+
+**The cap, dev, read through `do_spl_db_query` as the per-env SA, login
+`spool_hub_rt` (the SQL tab's):**
+
+| setting | value | source |
+|---|---|---|
+| `temp_file_limit` | `1021877` kB (~998 MB) per backend | `configuration file`: Cloud SQL's default, "10% of the initial disk size" (Google's flag table); not re-verified after a resize |
+| `log_temp_files` | `0` (every temp file is logged) | Cloud SQL default |
+| `work_mem` | `4096` kB | default |
+| `temp_file_limit` context | `superuser`; `spool_hub_rt` has `rolsuper = f` | so the hub cannot `SET LOCAL` a lower cap per transaction (read from `pg_settings`, not tried) |
+
+**Spill rate, n=3** (`row_number() over (order by repeat(md5(g::text),30))`
+over 600k rows, `pg_stat_database.temp_bytes` before and after): 590,400,640
+bytes (~563 MiB) each run, in 9.17 s, 8.12 s and 7.91 s, so ~65-75 MB/s, a
+third of local postgres:16-alpine (1.8 GB at 8 s). A query inside the 10 s
+budget writes well under the cap.
+
+**The cap bites, n=1** (same query, 1.2M rows): `ERROR: temporary file size
+exceeds temp_file_limit (1021877kB)` (SQLSTATE `53400`) after
+1,046,395,136 temp bytes. Postgres deletes a query's temp files when it ends,
+so the space is transient; the hub's HTTP answer for `53400` is spec 143's.
+
+**Why no flag in `040`:** Google allows `temp_file_limit` only in
+`1048576`..`2147483647` kB (floor 1 GiB, "Restart Required? No"), so the
+lowest settable value is ~26 MB above today's default: an apply that needs the
+owner's go and gains nothing (dispatch ruling, task 7cd02631, option B).
+A lower cap would come from the hub (budget, `work_mem`), not from `040`.
+
+Re-measure: `cd csi-spl-orc && ENV=dev SQL="select name, setting, unit, source from pg_settings where name = 'temp_file_limit'" ./run -a do_spl_db_query`.
+
+---
+
 ## 5. Infra provisioning requirements (owner, 2026-09-19)
 
 Every apply of this estate follows R1–R9

@@ -2220,8 +2220,8 @@
     "lanes_none": "Deze agent werkt aan geen actieve baan.",
     "workspace_group": "Werkruimte: {name}",
     "workspace": "Werkruimte",
-    "foreign_note": "Deze agent draait in de werkruimte {name}. Zijn lanes, onderwerpen en berichten blijven in die werkruimte.",
-    "foreign_missing": "Geen zulke agent in de werkruimte {ws}."
+    "foreign_note": "Deze agent draait in de werkruimte {name}. Zijn banen, onderwerpen en berichten blijven in die werkruimte.",
+    "foreign_missing": "Geen dergelijke agent in de werkruimte {ws}."
   },
   "boxes": {
     "none": "Nog geen boxes.",

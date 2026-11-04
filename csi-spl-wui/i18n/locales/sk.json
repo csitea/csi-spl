@@ -2220,7 +2220,7 @@
     "lanes_none": "Tento agent nepracuje na žiadnej aktívnej linke.",
     "workspace_group": "Pracovný priestor: {name}",
     "workspace": "Pracovný priestor",
-    "foreign_note": "Tento agent beží v pracovnom priestore {name}. Jeho dráhy, témy a správy zostávajú v tom pracovnom priestore.",
+    "foreign_note": "Tento agent beží v pracovnom priestore {name}. Jeho linky, témy a správy zostávajú v tom pracovnom priestore.",
     "foreign_missing": "V pracovnom priestore {ws} taký agent nie je."
   },
   "boxes": {

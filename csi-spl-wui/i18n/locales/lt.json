@@ -2220,7 +2220,7 @@
     "lanes_none": "Šis agentas nedirba jokioje aktyvioje linijoje.",
     "workspace_group": "Darbo sritis: {name}",
     "workspace": "Darbo sritis",
-    "foreign_note": "Šis agentas veikia darbo srityje {name}. Jo juostos, temos ir žinutės lieka toje darbo srityje.",
+    "foreign_note": "Šis agentas veikia darbo srityje {name}. Jo linijos, temos ir žinutės lieka toje darbo srityje.",
     "foreign_missing": "Darbo srityje {ws} tokio agento nėra."
   },
   "boxes": {

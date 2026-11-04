@@ -2220,7 +2220,7 @@
     "lanes_none": "Šis aģents nestrādā nevienā aktīvā līnijā.",
     "workspace_group": "Darbvieta: {name}",
     "workspace": "Darbvieta",
-    "foreign_note": "Šis aģents darbojas darbvietā {name}. Tā joslas, tēmas un ziņojumi paliek šajā darbvietā.",
+    "foreign_note": "Šis aģents darbojas darbvietā {name}. Tā līnijas, tēmas un ziņojumi paliek šajā darbvietā.",
     "foreign_missing": "Darbvietā {ws} šāda aģenta nav."
   },
   "boxes": {

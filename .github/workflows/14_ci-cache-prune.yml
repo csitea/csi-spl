@@ -1,0 +1,62 @@
+# ci: weekly prune of this repo's GitHub Actions caches (SPL-4790)
+#
+# Owner HUM-10, t1 4b50446f (poll 57648404): "A weekly prune of old Actions
+# caches". On 2026-11-04 one Go race cache of wf 10 held 6.26 GiB of the
+# repo's 10 GB cache store, and its restore filled a hosted runner's disk
+# (run 41794536858, "No space left on device"). This deletes the caches not
+# used for CACHE_PRUNE_DAYS, then the least recently used until the store
+# holds at most CACHE_PRUNE_MAX_GB, and logs each one. A deleted cache
+# regenerates on the next run that misses it: one cold build, never a red.
+#
+# The schedule deletes (DRY_RUN=0, dispatch holder c-002 on the owner's
+# weekly-prune answer); a hand dispatch is a dry run unless `dry_run` is
+# false. The decision is a named action with its own test (fake gh):
+# csi-spl-iac/src/bash/run/gh-prune-actions-caches.func.sh,
+# csi-spl-iac/src/bash/tests/gh-prune-actions-caches.tst.sh.
+#
+# Local equivalent (dry run): cd csi-spl-iac && ./run -a do_gh_prune_actions_caches
+name: "14 ci: weekly Actions cache prune"
+on:
+  # Monday 02:19 UTC: an odd minute, clear of the other schedules here.
+  schedule:
+    - cron: "19 2 * * 1"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "true: list what would go, delete nothing"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-cache-prune
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    name: Prune old and oversize Actions caches
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write   # DELETE /repos/{repo}/actions/caches/{id}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: do_gh_prune_actions_caches
+        working-directory: csi-spl-iac
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_CACHE_PRUNE_REPO: ${{ github.repository }}
+          CACHE_PRUNE_DAYS: "7"
+          CACHE_PRUNE_MAX_GB: "8"
+          DRY_RUN: ${{ (github.event_name == 'schedule' || inputs.dry_run == false) && '0' || '1' }}
+        run: |
+          set -euo pipefail
+          out="$(./run -a do_gh_prune_actions_caches 2>&1)" || rc=$?
+          echo "$out"
+          { echo "## Actions cache prune (DRY_RUN=$DRY_RUN)"; echo
+            echo '```'; grep -E 'delete|deleted|kept|ERROR|FATAL' <<<"$out" || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "${rc:-0}"

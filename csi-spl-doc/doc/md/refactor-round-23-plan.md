@@ -289,4 +289,4 @@ checkout's `node_modules`, read only).
 ## 9. Consensus
 
 - Editor seat: a-622 (agy): drafted v0.1, folded v0.2, marked v1.0. **Signed v1.0.**
-- Claude panel reviewer seat: c-646 (claude): FAIL on v0.1 `2b64b0f46` (W1-W5, N1-N5; msg `6db28cdc` / `eecbc70c`), PASS on v0.2 `e6a6933e6` (msg `0d3a791b` / `cb6757d0`). **Signed v1.0** on `e6a6933e6`.
+- Claude panel reviewer seat: c-646 (claude): FAIL on v0.1 `2b64b0f46` (W1-W5, N1-N5; msg `6db28cdc` / `eecbc70c`), PASS on v0.2 `e6a6933e6` (msg `0d3a791b` / `cb6757d0`), **Signed v1.0** on `2d442092a` (msg `fcae6fbd` / `4bd71d01`).

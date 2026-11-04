@@ -9,9 +9,7 @@ mailbox address or name ever goes into git.
 
 ## 1. Rules before the first call
 
-1. **Read only.** The mailbox is reached through the claude.ai Gmail
-   connector. Never send, reply, forward, label, move, trash, draft or mark a
-   mail.
+1. **Read only.** The mailbox is reached through the Claude Gmail connector. Never send, reply, forward, label, move, trash, draft or mark a mail.
 2. **Finance data is a secret-class lane**: claude only, on the box the brief
    names. Work files live in one private work dir outside git
    (`/var/spool-hub/dispatch/work/<slug>/`, dirs 0700, files 0600), never in
@@ -90,6 +88,11 @@ content.
    to disk (0600) and run `pdftotext -layout` on it. Keep the decoder in a dir
    of its own and run it with `python3 -I`, never from the dir that holds the
    mail data.
+
+   ```
+   pdftotext -layout /var/spool-hub/dispatch/work/<slug>/<part>.pdf -
+   ```
+
 3. Read the text with `grep`; never paste a whole invoice into a chat.
 
 ### 3.3 Where the amount sits
@@ -122,7 +125,8 @@ with the reason, and what could not be read.
 
 ## 5. Registering
 
-A cost entry is `type`, `label` (the supplier), `amount`, `currency`,
+A cost entry is `type`, `label` (the supplier), `amount` (net from the work
+table: the owner chose net of VAT, poll 68d7f768 msg 4eb41f4c), `currency`,
 `period` (`YYYY-MM`) and an optional `note`
 (`POST /v1/operator/cost-entries`). Propose the rows to the dispatcher, run
 the action with DRY_RUN=1, write only after its go, then read the entries

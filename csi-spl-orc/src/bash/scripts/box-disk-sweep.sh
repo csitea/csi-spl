@@ -5,7 +5,8 @@
 # Each step is its own action with its own guards; this only runs them in
 # order and prints the free space before and after:
 #   sessions   spl-session-prune.sh   old transcripts of dead, unrestorable sessions
-#   tmp        tmp-stale-sweep.sh     idle go-build / tmp.X / Test* / *-gocache in /tmp
+#   tmp        tmp-stale-sweep.sh     idle go-build / tmp.X / Test* / *-gocache in /tmp,
+#                                     and dead lanes' <agent-id>-* dirs (unheld, 24 h)
 #   worktrees  wt-dead-sweep.sh       clean, landed worktrees of agents that are gone
 #   workdirs   csi-spl-utl do_sweep_workdirs  the finished lanes' worktrees, /tmp
 #                                       scratch and /var/tmp leftovers the retire

@@ -8,6 +8,13 @@
 # Only a TOP-LEVEL entry of the root whose name matches one of these shapes is
 # a candidate:
 #   go-build<digits>   tmp.<10 alnum>   Test<word><digits>   <word>-gocache
+# A top-level dead-lane DIR <agent-id>-<rest> (agent id [acgmq]-NNN, spec 061
+# section 0: g-598-s162-master, c-441-wui-land; not c256-tmp) is one too, and
+# never by name alone: besides the rules below, the agent holds no lane in
+# registry.tsv and no tmux window on this box (`live-lane`), and nothing under
+# it changed in TMP_STALE_LANE_AGE_H hours, whatever TMP_STALE_AGE_H is. With
+# no live-lane guard (registry unreadable, tmux server unlistable) a lane dir
+# is kept as `no-live-guard`; the other shapes are still swept.
 # It is removed only when ALL hold:
 #   - it is no symlink and not owned by root;
 #   - nothing under it changed in the last TMP_STALE_AGE_H hours;
@@ -31,8 +38,10 @@
 #   DRY_RUN=1 (default) | 0
 #   TMP_STALE_ROOT     default /tmp
 #   TMP_STALE_AGE_H    default 24
+#   TMP_STALE_LANE_AGE_H  default 24: idle hours before a dead-lane dir goes
 #   TMP_STALE_ANY      0 (default) | 1: any name (see above)
-#   TMP_STALE_LIVE_IDS the live lane ids for TMP_STALE_ANY (tests); default
+#   TMP_STALE_LIVE_IDS the live lane ids for TMP_STALE_ANY and the dead-lane
+#                      dirs (tests); default
 #                      $SPOOL_ROOT/registry.tsv + the window names of the tmux
 #                      server of the registry's owner (the box user)
 #   TMP_STALE_SUDO     1 (default): read /proc and remove other users' entries
@@ -48,6 +57,8 @@ root="${TMP_STALE_ROOT:-/tmp}"
 age_h="${TMP_STALE_AGE_H:-24}"
 use_sudo="${TMP_STALE_SUDO:-1}"
 any="${TMP_STALE_ANY:-0}"
+lane_age_h="${TMP_STALE_LANE_AGE_H:-24}"
+lane_ere='^[acgmq]-[0-9]{3}-[A-Za-z0-9._-]+$'
 shape_ere='^(go-build[0-9]+|tmp\.[A-Za-z0-9]{10}|Test[A-Za-z0-9_]*[0-9]+|[A-Za-z0-9_.]+-gocache)$'
 
 say() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
@@ -59,6 +70,7 @@ as_root() { if [[ "$use_sudo" == 1 && "$(id -u)" != 0 ]]; then sudo -n -- "$@"; 
 [[ "$any" == 0 || "$any" == 1 ]] || refuse "TMP_STALE_ANY must be 0 or 1, got '$any'"
 [[ "$use_sudo" == 0 || "$use_sudo" == 1 ]] || refuse "TMP_STALE_SUDO must be 0 or 1, got '$use_sudo'"
 [[ "$age_h" =~ ^[0-9]+$ ]] && (( age_h >= 1 )) || refuse "TMP_STALE_AGE_H must be a whole number >= 1, got '$age_h'"
+[[ "$lane_age_h" =~ ^[0-9]+$ ]] && (( lane_age_h >= 1 )) || refuse "TMP_STALE_LANE_AGE_H must be a whole number >= 1, got '$lane_age_h'"
 [[ -d "$root" && ! -L "$root" ]] || refuse "no root dir $root"
 root="$(readlink -f "$root")"
 
@@ -83,26 +95,34 @@ owners_of() { as_root find "$1" -printf '%u\n' 2>/dev/null | sort -u; }
 lane_id() {
   [[ "${1,,}" =~ (^|[^a-z0-9])([acgmq])-?([0-9]{3})([^0-9]|$) ]] && printf '%s-%s' "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}"
 }
+# The live lane ids: TMP_STALE_LIVE_IDS, else registry.tsv + the tmux window
+# names. live_ok=1 only when both were read (the dead-lane dirs need it);
+# TMP_STALE_ANY=1 refuses without the registry, as before.
 declare -A live=()
-if [[ "$any" == 1 ]]; then
-  if [[ -n "${TMP_STALE_LIVE_IDS+set}" ]]; then ids="$TMP_STALE_LIVE_IDS"
+live_ok=1
+if [[ -n "${TMP_STALE_LIVE_IDS+set}" ]]; then ids="$TMP_STALE_LIVE_IDS"
+else
+  reg="${SPOOL_ROOT:-/var/spool-hub}/registry.tsv"
+  if [[ -r "$reg" ]]; then
+    wins="$(tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(stat -c %u "$reg")/default}" \
+      list-windows -a -F '#{window_name}' 2>/dev/null)" || live_ok=0
+    ids="$(cut -f1 "$reg") $(tr -c 'A-Za-z0-9@\n-' ' ' <<<"$wins")"
   else
-    reg="${SPOOL_ROOT:-/var/spool-hub}/registry.tsv"
-    [[ -r "$reg" ]] || refuse "TMP_STALE_ANY=1 cannot read the lane registry $reg: no live-lane guard"
-    ids="$(cut -f1 "$reg") $(tmux -S "${SPOOL_TMUX_SOCKET:-/tmp/tmux-$(stat -c %u "$reg")/default}" \
-      list-windows -a -F '#{window_name}' 2>/dev/null | tr -c 'A-Za-z0-9@\n-' ' ')"
+    [[ "$any" == 1 ]] && refuse "TMP_STALE_ANY=1 cannot read the lane registry $reg: no live-lane guard"
+    ids="" live_ok=0
   fi
-  for w in $ids; do w="$(lane_id "${w%%@*}")"; [[ -n "$w" ]] && live["$w"]=1; done
 fi
+for w in $ids; do w="$(lane_id "${w%%@*}")"; [[ -n "$w" ]] && live["$w"]=1; done
 
-say "START root=$root dry_run=$dry any=$any live_ids=${#live[@]} age_h=$age_h held_paths=$(wc -l <"$held") used=$(used)"
+say "START root=$root dry_run=$dry any=$any live_ids=${#live[@]} live_guard=$live_ok age_h=$age_h lane_age_h=$lane_age_h held_paths=$(wc -l <"$held") used=$(used)"
 n_rm=0 kb_rm=0 n_keep=0 n_skip=0
 while IFS= read -r -d '' p; do
-  name="${p##*/}"
+  name="${p##*/}" lane=0 age="$age_h"
   if [[ "$any" == 1 ]]; then
     [[ "$name" == .* || "$name" == systemd-private-* || "$name" == claude-* ]] && continue
-  else
-    [[ "$name" =~ $shape_ere ]] || continue
+  elif [[ ! "$name" =~ $shape_ere ]]; then
+    [[ "$name" =~ $lane_ere && -d "$p" ]] || continue
+    lane=1 age="$lane_age_h"
   fi
   lid="$(lane_id "$name")"
   owner="$(stat -c %U -- "$p" 2>/dev/null)" || continue
@@ -110,9 +130,10 @@ while IFS= read -r -d '' p; do
   if [[ -L "$p" ]]; then why="symlink"
   elif [[ "$owner" == root ]]; then why="root-owned"
   elif [[ "$use_sudo" == 0 && "$owner" != "$(id -un)" ]]; then why="not-ours"
-  elif [[ "$any" == 1 && -n "$lid" && -n "${live[$lid]:-}" ]]; then why="live-lane"
+  elif [[ "$lane" == 1 && "$live_ok" != 1 ]]; then why="no-live-guard"
+  elif [[ ( "$any" == 1 || "$lane" == 1 ) && -n "$lid" && -n "${live[$lid]:-}" ]]; then why="live-lane"
   elif grep -qxF -e "$p" "$held" || grep -qF -e "$p/" "$held"; then why="in-use"
-  elif [[ -n "$(as_root find "$p" -newermt "-${age_h} hours" -print -quit 2>/dev/null)" ]]; then why="recent"
+  elif [[ -n "$(as_root find "$p" -newermt "-${age} hours" -print -quit 2>/dev/null)" ]]; then why="recent"
   fi
   if [[ -n "$why" ]]; then say "KEEP $why $p"; n_keep=$((n_keep + 1)); continue; fi
   kb="$(as_root du -sk -- "$p" 2>/dev/null | cut -f1)"; kb="${kb:-0}"

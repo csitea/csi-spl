@@ -243,6 +243,10 @@ line claims it) once it has been idle 2 hours (`SCRATCH_SWEEP_AGE_H`). When
 met; its `PRESSURE` lines say so. A live session's dir is never removed.
 Why 2 hours: on 2026-10-31 a day of hourly-rotating lanes left dead dirs of
 up to 100k inodes each, and `/tmp` ran out of inodes at 54 % bytes used.
+A count it cannot trust removes nothing by pressure (SPL-4761): when
+`du --inodes` fails for a dir, the pass stops with one `PRESSURE WARN cannot
+count the inodes` line, and a `df -i` row whose total or free count is not a
+number skips the guard.
 
 #### 4.3.5 Clean stale temporary directories
 
@@ -251,6 +255,16 @@ cd csi-spl-orc && DRY_RUN=0 ./run -a do_tmp_stale_sweep
 ```
 
 Action file: `csi-spl-orc/src/bash/run/tmp-stale-sweep.func.sh`
+
+It removes the idle `go-build<N>`, `tmp.<X>`, `Test<Name><N>` and
+`<word>-gocache` entries, and a dead lane's top-level dir
+`/tmp/<agent-id>-<rest>` (`g-598-s162-master`; SPL-4761), never by name
+alone: no process has its cwd or an open fd under it, the agent holds no row
+in `registry.tsv` and no tmux window on this box (`KEEP live-lane`), and
+nothing in it changed for `TMP_STALE_LANE_AGE_H` hours (default 24). Without
+the registry or the tmux window list a lane dir is kept (`KEEP
+no-live-guard`). A name with no agent id, such as `c256-tmp`, is not a lane
+dir.
 
 #### 4.3.6 Prune dead or retired worktrees
 

@@ -7,6 +7,10 @@
 #      Test* / *-gocache entries, never a recent
 #      one, one a process works in, a symlink (or its target) or a name of
 #      another shape
+#   1b. dead-lane dirs /tmp/<agent-id>-*: planned only when no process holds
+#      it, the agent is not live and it is older than TMP_STALE_LANE_AGE_H
+#      (24); kept when held, live or young; c256-tmp is no agent id; with no
+#      live-lane guard (no registry, or tmux unlistable) a lane dir is kept
 #   2. do_wt_dead_sweep: DRY_RUN=0 removes ONLY the dead, clean, landed, idle
 #      worktree (and its merged branch); keeps a role seat, an alive record, a
 #      dirty one, one off the trunk, a recent one and one a process works in
@@ -77,6 +81,43 @@ grep -q "KEEP recent $M/go-build456\$" <<<"$out" && pass "1. a recent leftover i
 grep -q "KEEP in-use $M/go-build789\$" <<<"$out" && [ -f "$M/go-build789/f" ] && pass "1. a dir a process works in is kept" || fail "1. in-use ($out)"
 grep -q "KEEP symlink $M/go-build321\$" <<<"$out" && [ -f "$OUT/precious/f" ] && pass "1. a symlink and its target are kept" || fail "1. symlink ($out)"
 [ -f "$M/tmp.short/f" ] && [ -f "$M/claude-1234/x/f" ] && [ -f "$M/other/f" ] && pass "1. names of another shape are untouched" || fail "1. touched another shape"
+kill "$busy_pid" 2>/dev/null; wait "$busy_pid" 2>/dev/null
+
+# ---- 1b. dead-lane dirs /tmp/<agent-id>-* (SPL-4761) ---------------------------
+# sat, 2026-11: /tmp/g-598-s162-master and /tmp/c-441-wui-land held ~45k
+# inodes each, idle, their lanes gone. Never by name alone: dead AND unheld AND
+# old. TMP_STALE_AGE_H=2 (a crit tick) does not shorten the lane age (24 h).
+N="$T/tmp-lanes"
+mkdir -p "$N/c-801-wt-dead/x" "$N/c-802-held" "$N/c-803-live" "$N/c-804-young" "$N/c256-tmp" "$N/c-805"
+for d in c-801-wt-dead/x c-802-held c-803-live c-804-young c256-tmp c-805; do echo x >"$N/$d/f"; done
+echo x >"$N/c-806-body.md"
+old "$N"; find "$N/c-804-young" -exec touch -h -d '5 hours ago' {} +
+busy_in "$N/c-802-held"
+lsw() { TMP_STALE_ROOT="$N" TMP_STALE_SUDO=0 TMP_STALE_AGE_H=2 TMP_STALE_LIVE_IDS="c-803@sat c-001" bash "$PROJ_ROOT/src/bash/scripts/tmp-stale-sweep.sh" 2>&1; }
+out="$(lsw)"; rc=$?
+[ "$rc" = 0 ] && grep -qE "PLAN remove [0-9]+KB owner=[^ ]+ $N/c-801-wt-dead\$" <<<"$out" && [ "$(grep -c 'PLAN remove' <<<"$out")" = 1 ] \
+  && pass "1b. a dead, unheld, old lane dir is planned (and only it)" || fail "1b. dead lane (rc $rc: $out)"
+grep -q "KEEP in-use $N/c-802-held\$" <<<"$out" && pass "1b. kept when a process holds it" || fail "1b. held ($out)"
+grep -q "KEEP live-lane $N/c-803-live\$" <<<"$out" && pass "1b. kept when the agent is live" || fail "1b. live ($out)"
+grep -q "KEEP recent $N/c-804-young\$" <<<"$out" && pass "1b. kept when younger than the lane age, whatever TMP_STALE_AGE_H" || fail "1b. young ($out)"
+! grep -qE "$N/(c256-tmp|c-805|c-806-body.md)\$" <<<"$out" && pass "1b. c256-tmp (no agent id), a bare id and a lane FILE are not lane dirs" || fail "1b. other names ($out)"
+out="$(TMP_STALE_LANE_AGE_H=4 lsw)"
+grep -q "PLAN remove .* $N/c-804-young\$" <<<"$out" && pass "1b. TMP_STALE_LANE_AGE_H sets the lane age" || fail "1b. lane age knob ($out)"
+out="$(TMP_STALE_LANE_AGE_H=0 lsw)"; rc=$?
+[ "$rc" = 2 ] && grep -q 'TMP_STALE_LANE_AGE_H must be' <<<"$out" && pass "1b. the lane age knob is checked" || fail "1b. bad knob (rc $rc: $out)"
+# No live-lane guard (no registry, no ids; or a tmux server it cannot list):
+# a lane dir is kept, the rest of the sweep runs (the go-build one goes).
+mkdir -p "$N/go-build42" "$T/spool-nl"; echo x >"$N/go-build42/f"; old "$N/go-build42"
+printf 'c-001\tx\n' >"$T/spool-nl/registry.tsv"
+for case in "SPOOL_ROOT=$T/nope" "SPOOL_ROOT=$T/spool-nl SPOOL_TMUX_SOCKET=$T/no-tmux.sock"; do
+  read -ra kv <<<"$case"
+  out="$(env -u TMP_STALE_LIVE_IDS "${kv[@]}" TMP_STALE_ROOT="$N" TMP_STALE_SUDO=0 bash "$PROJ_ROOT/src/bash/scripts/tmp-stale-sweep.sh" 2>&1)"; rc=$?
+  [ "$rc" = 0 ] && grep -q "KEEP no-live-guard $N/c-801-wt-dead\$" <<<"$out" && grep -q "PLAN remove .* $N/go-build42\$" <<<"$out" \
+    && pass "1b. no live-lane guard ($case): the lane dir is kept, the sweep goes on" || fail "1b. no guard $case (rc $rc: $out)"
+done
+out="$(DRY_RUN=0 lsw)"
+[ ! -e "$N/c-801-wt-dead" ] && grep -q "REMOVE [0-9]*KB owner=.* $N/c-801-wt-dead\$" <<<"$out" && [ -f "$N/c-802-held/f" ] && [ -f "$N/c-803-live/f" ] \
+  && [ -f "$N/c-804-young/f" ] && [ -f "$N/c256-tmp/f" ] && pass "1b. DRY_RUN=0 removes only the dead lane dir (and the idle go-build)" || fail "1b. live run ($out)"
 kill "$busy_pid" 2>/dev/null; wait "$busy_pid" 2>/dev/null
 
 # ---- 2. dead worktrees -------------------------------------------------------

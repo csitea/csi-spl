@@ -13,6 +13,10 @@
 # @description             held = exit 4; switch, LEASE_ORCH, this machine
 # @description             holds the orch lease, boot grace, exactly ONE live
 # @description             process, older than ROTATE_MIN_AGE, not stalled),
+# @description             on a STANDBY box (another machine holds the orch
+# @description             fleet lease) only a seat older than
+# @description             ROTATE_ORCH_STANDBY_MAX_AGE is rotated: a fresh
+# @description             session in place, the lease never moved (spec 060 R8),
 # @description             then QUIESCE (idle grace, Escape: a busy session is
 # @description             rotated anyway, owner D1) -> HANDOFF -> SPAWN (old
 # @description             window -> <ID>-<hhmm>Z-retiring, the map adopts the
@@ -48,6 +52,7 @@
 # @param ROTATE_ID (ack) - the rotation id named in the new session's seed
 # @param ROTATE / ROTATE_ORCH (optional) - 0 turns rotation off (also <spool root>/dispatch/rotate.conf, FR-090)
 # @param ROTATE_MIN_AGE (optional) - seconds, default 3300 (FR-008)
+# @param ROTATE_ORCH_STANDBY_MAX_AGE (optional) - seconds, default 7200: on a standby box the auto run refreshes an orch seat this old in place (spec 060 R8; also rotate.conf)
 # @param ROTATE_FORCE (optional) - 1 skips the age and boot gates (never the one-process, lease or stall gates)
 # @param ROTATE_IDLE_GRACE / ROTATE_ESC_WAIT / ROTATE_START_WAIT / ROTATE_ACK_TIMEOUT / ROTATE_EXIT_WAIT / ROTATE_TERM_WAIT (optional) - seconds, default 60 / 30 / 120 / 900 / 300 / 30
 # @param ROTATE_HANDOFF_DIR (optional) - default <spool root>/dispatch/handoff
@@ -75,6 +80,8 @@ declare -F spl_rotate_conf >/dev/null ||
 
 do_spl_orch_rotate() {
   spl_rotate_conf || return 1
+  : "${ROTATE_ORCH_STANDBY_MAX_AGE:=7200}"
+  [[ "$ROTATE_ORCH_STANDBY_MAX_AGE" =~ ^[0-9]+$ ]] || { do_log "FATAL ROTATE_ORCH_STANDBY_MAX_AGE must be a whole number, got: '$ROTATE_ORCH_STANDBY_MAX_AGE'"; return 1; }
   spl_rotate_live_seats
   spl_is_agent_id "${LEASE_ORCH:-}" || { spl_rotate_log - GATE SKIP "no LEASE_ORCH in $LEASE_CONF"; return 0; }
   # the old and the new session may be different vendors (spl_orch_rotate_vendor)
@@ -91,7 +98,8 @@ do_spl_orch_rotate() {
 }
 
 spl_orch_rotate_auto() {
-  local id="$LEASE_ORCH" rid pid age pane why holder new
+  local id="$LEASE_ORCH" rid pid age pane why holder new min
+  ROTATE_STANDBY_REFRESH=""
   # spec 061 L6 (owner 2026-10-02 21:37Z: the role switch is the rotation's,
   # not a command for him): LEASE_ORCH still a legacy id with a row in the
   # alias table = this rotation switches it (spl_orch_rotate_switch).
@@ -123,8 +131,10 @@ spl_orch_rotate_auto() {
   fi
   pid="${pids[0]}"
   age="$(spl_rotate_age "$pid")"; age="${age:-0}"
-  if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( age < ROTATE_MIN_AGE )); then
-    spl_rotate_log "$rid" GATE SKIP "young: pid $pid is ${age}s old (< $ROTATE_MIN_AGE)"; return 0
+  # a standby refresh (spec 060 R8) is aged by its own threshold
+  min="${ROTATE_STANDBY_REFRESH:+$ROTATE_ORCH_STANDBY_MAX_AGE}"; min="${min:-$ROTATE_MIN_AGE}"
+  if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( age < min )); then
+    spl_rotate_log "$rid" GATE SKIP "young: pid $pid is ${age}s old (< $min)"; return 0
   fi
   pane="$(spl_rotate_pane_of_pid "$pid")"
   [[ -n "$pane" ]] || { spl_rotate_log "$rid" GATE SKIP "absent: pid $pid is in no tmux pane"; return 0; }
@@ -175,9 +185,13 @@ spl_orch_rotate_go() {
 # holder under the NEW id once the alias exists (c-001@box-desk while
 # lease.conf says CLE-001: every rotation skipped); a standby with a switch
 # pending switches too, so both boxes move; a failover seat (SPL-2544) of a
-# standby box is handed back once claude can act.
+# standby box is handed back once claude can act. Spec 060 R8 (owner HUM-10,
+# 2026-11-04: "the stand-by orchestrator switch at least on 2h basis"): a
+# seat ROTATE_ORCH_STANDBY_MAX_AGE old or more is refreshed in place
+# (ROTATE_STANDBY_REFRESH = the holder; the lease stays there); the boot,
+# absent, duplicate and stall gates after this one still apply.
 spl_orch_rotate_standby_gate() {
-  local rid="$1" id="$2" new="$3" holder
+  local rid="$1" id="$2" new="$3" holder age
   [[ -n "${LEASE_FLEET:-}" ]] || return 0
   holder="$(spl_orch_rotate_holder)"
   [[ "$holder" != "$id@$ROTATE_BOX" && ( -z "$new" || "$holder" != "$new@$ROTATE_BOX" ) ]] || return 0
@@ -185,9 +199,24 @@ spl_orch_rotate_standby_gate() {
     spl_rotate_log "$rid" GATE OK "standby (orch lease: ${holder:-none}), but $id -> $new is pending: switching this machine's session"
   elif spl_rotate_failover_due "$id"; then
     spl_rotate_log "$rid" GATE OK "standby (orch lease: ${holder:-none}), but $id is a failover seat and claude can act again: handing it back"
+  elif age="$(spl_orch_rotate_seat_age "$id")" && [[ -n "$age" ]] && (( age >= ROTATE_ORCH_STANDBY_MAX_AGE )); then
+    ROTATE_STANDBY_REFRESH="${holder:-none}"
+    spl_rotate_log "$rid" GATE OK "standby (orch lease: ${holder:-none}), but $id is ${age}s old (>= $ROTATE_ORCH_STANDBY_MAX_AGE): refreshing this machine's session"
   else
-    spl_rotate_log "$rid" GATE SKIP "standby (orch lease: ${holder:-none})"; return 1
+    spl_rotate_log "$rid" GATE SKIP "standby (orch lease: ${holder:-none})${age:+, $id is ${age}s old (< $ROTATE_ORCH_STANDBY_MAX_AGE)}"; return 1
   fi
+}
+
+# spl_orch_rotate_seat_age ID: the age in seconds of the oldest live process
+# carrying ID, nothing when none does.
+spl_orch_rotate_seat_age() {
+  local p a max=""
+  while read -r p; do
+    [[ -n "$p" ]] || continue
+    a="$(spl_rotate_age "$p")"
+    [[ -n "$a" ]] && (( ${max:--1} < a )) && max="$a"
+  done < <(spl_rotate_pids "$1")
+  echo "$max"
 }
 
 # ---- ROTATE_CMD=standby (SPL-2774) --------------------------------------------
@@ -472,8 +501,9 @@ spl_orch_rotate_close() {
   [[ "$n" == 1 ]] || warn+=" processes=$n"
   lp="$(spl_lease_agent_pid "$id")"
   [[ "$lp" == "$ROTATE_NEW_PID" ]] || warn+=" lease-pid=${lp:-none}"
-  # a standby re-seat (ROTATE_CMD=standby) leaves the lease on the holder's box
-  if [[ -n "${LEASE_FLEET:-}" && -z "${ROTATE_STANDBY:-}" ]]; then
+  # a standby re-seat (ROTATE_CMD=standby) or refresh (spec 060 R8) leaves
+  # the lease on the holder's box
+  if [[ -n "${LEASE_FLEET:-}" && -z "${ROTATE_STANDBY:-}${ROTATE_STANDBY_REFRESH:-}" ]]; then
     holder="$(spl_orch_rotate_holder)"
     [[ "$holder" == "$id@$ROTATE_BOX" ]] || warn+=" lease-moved(${holder:-none})"
   fi

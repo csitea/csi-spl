@@ -1090,6 +1090,46 @@ Cases:
   only), first load (Refresh before the answer, the age only with it).
   (`tests/e2e/monitoring-head-actions-row.test.mjs` for C68-C70.)
 
+### 3.17 Every workspace's own boxes and agents, in the operator's Agents and Boxes (SPL-4786)
+
+The owner, verbatim (HUM-10, a customer workspace, topic `d60646d9`): "but why the newly
+registered agent cannot be seen" (msg `34c50576`), "it must be seen too ..
+as part of the cluster" (msg `0443824f`), "ok, fix this bug" (msg
+`4103e959`); t1 `dc2d6c40` the same for Lanes. A box pinned only in a
+customer workspace (a Mac with `c-001`) was in no list of
+the operator workspace: Agents and Boxes read `GET /v1/view/roster`, the
+session's workspace only. The Lanes part is SPL-4778's.
+
+- **The hub route.** `GET /v1/operator/fleet-roster`
+  (`internal/hub/operator_roster_view.go`), behind the fleet-lanes doors
+  (the operator workspace's admin or the operator service account; 403 for
+  anyone else). It reads every non-archived workspace other than the
+  operator one in its own tenant scope (`ViewBoxes`), leaves out a box
+  locked to someone in that workspace, and answers
+  `{boxes: [{workspace, workspace_name, box_id, revoked, last_hello_at,
+  online, agents, agent_presence}], also_seated: {<box_id>: [{workspace,
+  workspace_name}]}}`. A row carries no key, no host facts and no topic,
+  issue or message of its workspace.
+- **One row per box** (dispatch c-002, msg `a3d9b5c9`). A box the
+  operator workspace has (pinned there, or a fleet desk box, spec 158) is
+  no row of another workspace: it stays in the operator's own list, and
+  `also_seated` names the workspaces it is also seated in. Only a box
+  pinned in a customer workspace and not in the operator one is a row,
+  under that workspace. Agents follow their box: `c-001@sat` and
+  `c-001@<customer-box>` are two rows, `c-001@sat` once.
+
+Cases (`internal/hub/operator_roster_view_test.go`, memory and Postgres):
+
+- **C71** a customer-only box is one row under its workspace, named, with
+  its agent and presence and no key or facts; the operator's box also
+  seated there is no customer row and is in `also_seated`. Red controls:
+  the loop limited to the operator workspace (the customer box absent);
+  the own-box skip dropped (the shared box a customer row).
+- **C72** an archived workspace's box and a locked box are absent. Red
+  controls: the archived skip dropped; the lock filter dropped.
+- **C73** a developer of the operator workspace and an admin of another
+  one read 403.
+
 ## 4. Cases
 
 Every case is **planned**: none is built. "Master today" was read on

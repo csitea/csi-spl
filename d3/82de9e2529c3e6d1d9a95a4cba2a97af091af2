@@ -1,0 +1,6 @@
+Lay-What: A workspace's Lanes tab now shows the agents working on the computers that joined that workspace.
+Lay-How: The page now also lists the work those computers report, and each agent they announce while online.
+Lay-Why: A computer added to a customer workspace was invisible on its Lanes tab, so its work could not be followed.
+Tech-What: GET /v1/view/lanes adds the workspace's own fleet_lanes rows and roster agents of its own online boxes (spec 153 3.17).
+Tech-How: Own box = pinned in the workspace, not in the operator one; rows keyed agent@box; roster agents not reported stopped count as running.
+Tech-Why: Both Lanes views read only the operator workspace's fleet_lanes; a joined dedicated box writes rows under its own tenant or none.

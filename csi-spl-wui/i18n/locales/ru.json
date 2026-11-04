@@ -3615,7 +3615,14 @@
       "open_commit": "Открыть заметку о релизе {sha}",
       "open_version": "Открыть заметки о релизе {version}",
       "load_more": "Загрузить ещё",
-      "shown": "Показано {shown} из {total} коммитов"
+      "shown": "Показано {shown} из {total} коммитов",
+      "links_label": "Задачи и обсуждения",
+      "links_unknown": "неизвестно",
+      "links_unknown_title": "Для этого коммита не записаны ни задача, ни обсуждение: он старше правила ссылок",
+      "links_issue_title": "Открыть задачу {key} в {ws}",
+      "links_issue_missing": "{key}: такой задачи нет в {ws}",
+      "links_discussion": "обсуждение",
+      "links_discussion_locked": "обсуждение, только для участников {ws}"
     },
     "sql": {
       "query_label": "Запрос",

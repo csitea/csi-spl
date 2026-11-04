@@ -3615,7 +3615,14 @@
       "open_commit": "Atidaryti {sha} laidos pastabą",
       "open_version": "Atidaryti versijos {version} pastabas",
       "load_more": "Įkelti daugiau",
-      "shown": "Rodoma {shown} iš {total} fiksavimų"
+      "shown": "Rodoma {shown} iš {total} fiksavimų",
+      "links_label": "Užduotys ir diskusijos",
+      "links_unknown": "nežinoma",
+      "links_unknown_title": "Šiam pakeitimui neužregistruota nei užduotis, nei diskusija: jis senesnis už nuorodų taisyklę",
+      "links_issue_title": "Atidaryti užduotį {key} erdvėje {ws}",
+      "links_issue_missing": "{key}: tokios užduoties erdvėje {ws} nėra",
+      "links_discussion": "diskusija",
+      "links_discussion_locked": "diskusija, tik {ws} nariams"
     },
     "sql": {
       "query_label": "Užklausa",

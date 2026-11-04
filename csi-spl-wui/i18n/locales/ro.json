@@ -3615,7 +3615,14 @@
       "open_commit": "Deschide nota de lansare a {sha}",
       "open_version": "Deschide notele versiunii {version}",
       "load_more": "Încarcă mai multe",
-      "shown": "{shown} din {total} commituri afișate"
+      "shown": "{shown} din {total} commituri afișate",
+      "links_label": "Sarcini și discuții",
+      "links_unknown": "necunoscut",
+      "links_unknown_title": "Pentru acest commit nu este înregistrată nicio sarcină sau discuție: este mai vechi decât regula legăturilor",
+      "links_issue_title": "Deschide sarcina {key} în {ws}",
+      "links_issue_missing": "{key}: nu există această sarcină în {ws}",
+      "links_discussion": "discuție",
+      "links_discussion_locked": "discuție, doar pentru membrii {ws}"
     },
     "sql": {
       "query_label": "Interogare",

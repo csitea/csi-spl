@@ -3615,7 +3615,14 @@
       "open_commit": "Open the release note of {sha}",
       "open_version": "Open the release notes of {version}",
       "load_more": "Load more",
-      "shown": "{shown} of {total} commits shown"
+      "shown": "{shown} of {total} commits shown",
+      "links_label": "Issues and discussions",
+      "links_unknown": "unknown",
+      "links_unknown_title": "No issue or discussion is recorded for this commit: it is older than the commit-links rule",
+      "links_issue_title": "Open issue {key} in {ws}",
+      "links_issue_missing": "{key}: no such issue in {ws}",
+      "links_discussion": "discussion",
+      "links_discussion_locked": "discussion, {ws} members only"
     },
     "sql": {
       "query_label": "Query",

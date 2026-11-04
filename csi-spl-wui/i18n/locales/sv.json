@@ -3615,7 +3615,14 @@
       "open_commit": "Öppna versionsanteckningen för {sha}",
       "open_version": "Öppna versionsanteckningarna för {version}",
       "load_more": "Läs in fler",
-      "shown": "{shown} av {total} ändringar visas"
+      "shown": "{shown} av {total} ändringar visas",
+      "links_label": "Ärenden och diskussioner",
+      "links_unknown": "okänt",
+      "links_unknown_title": "Inget ärende eller diskussion är registrerat för den här committen: den är äldre än länkregeln",
+      "links_issue_title": "Öppna ärende {key} i {ws}",
+      "links_issue_missing": "{key}: inget sådant ärende i {ws}",
+      "links_discussion": "diskussion",
+      "links_discussion_locked": "diskussion, endast för medlemmar i {ws}"
     },
     "sql": {
       "query_label": "Fråga",

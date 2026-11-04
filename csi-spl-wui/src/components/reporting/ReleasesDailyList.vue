@@ -6,7 +6,9 @@
      first: the commit time (HH:MM UTC, the git committer time: the hub
      records no push time), the short sha and the version link to /releases/<ref> (the
      release notes dialog), the area and kind chips, the subject, and a
-     toggle that shows the Lay and Tech What/How/Why lines. -->
+     toggle that shows the Lay and Tech What/How/Why lines. SPL-4789: after
+     the subject, the issues the commit cites and their discussions, as
+     links into the workspace that owns them, or "unknown". -->
 <template>
   <ol class="rd-days" data-test="releases-days">
     <li v-for="g in groups" :key="g.day.date" class="rd-day" :data-date="g.day.date" data-test="releases-day">
@@ -51,6 +53,7 @@
             <span v-if="areaOf(n.area)" class="rd-chip" data-test="releases-commit-area">{{ areaOf(n.area) }}</span>
             <span v-if="n.kind" class="rd-chip rd-chip--kind" data-test="releases-commit-kind">{{ n.kind }}</span>
             <span class="rd-subject" data-test="releases-commit-subject">{{ n.subject }}</span>
+            <ReleaseIssueLinks v-if="Array.isArray(n.issues)" :issues="n.issues" />
             <button
               v-if="hasTrailers(n)"
               type="button"
@@ -83,6 +86,7 @@
 </template>
 
 <script setup lang="ts">
+import ReleaseIssueLinks from '~/components/reporting/ReleaseIssueLinks.vue'
 import { deployChips, displayVersion, hasTrailers, kindBreakdown, utcTime, type ReleaseCommit, type ReleaseDay } from '~/utils/reporting-releases'
 
 defineProps<{ groups: { day: ReleaseDay, notes: ReleaseCommit[] }[] }>()

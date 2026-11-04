@@ -3615,7 +3615,14 @@
       "open_commit": "Отвори белешку о издању {sha}",
       "open_version": "Отвори белешке верзије {version}",
       "load_more": "Учитај још",
-      "shown": "Приказано {shown} од {total} комита"
+      "shown": "Приказано {shown} од {total} комита",
+      "links_label": "Задаци и дискусије",
+      "links_unknown": "непознато",
+      "links_unknown_title": "За овај комит није забележен ни задатак ни дискусија: старији је од правила веза",
+      "links_issue_title": "Отвори задатак {key} у {ws}",
+      "links_issue_missing": "{key}: нема таквог задатка у {ws}",
+      "links_discussion": "дискусија",
+      "links_discussion_locked": "дискусија, само за чланове {ws}"
     },
     "sql": {
       "query_label": "Упит",

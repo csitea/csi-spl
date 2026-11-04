@@ -6,6 +6,8 @@
 //   T023 ReleasesFilterBar: pill clicks and typing emit update events
 //   T024 ReleasesDailyList: days and commits newest first, /releases/<ref>
 //        links, the notes toggle, "not recorded" without a deploy
+//   SPL-4789 ReleaseIssueLinks in a row: the issue and discussion links,
+//        "unknown" for an older commit, a locked discussion says so
 //
 // Run: node tests/unit/reporting-releases.test.mjs
 import { describe, it } from 'node:test'
@@ -38,14 +40,23 @@ globalThis.__rr_t = (key, params = {}) => String(key.split('.').reduce((o, k) =>
 const PRELUDE = `import { ref, computed, watch, onMounted, onBeforeUnmount } from '${VUE_URL}';\n`
   + `const useI18n = () => ({ t: globalThis.__rr_t, locale: ref('en') });\n`
   + 'const useLocalePath = () => (p) => p;\n'
+  + 'const useRouter = () => ({ push: (p) => { globalThis.__rr_pushed = p } });\n'
+  + `const useRuntimeConfig = () => ({ public: { tenantHosts: '1', siteUrl: 'https://spool.example.com', tenant: 't1' } });\n`
+/* the page is on t1's host (SPL-4789 links resolve against it) */
+const API_STUB = dataUrl("export const hostTenant = () => 't1'; export const useSpoolApi = () => ({ tenant: 't1' });")
 
-function compileSfc(file) {
+/* a component as a module URL, its ~/ imports linked (subs: extra specifier -> URL) */
+function sfcUrl(file, subs = {}) {
   const { descriptor, errors } = parse(read(file), { filename: file })
   assert.deepEqual(errors, [], `${file} parses`)
   const script = compileScript(descriptor, { id: file, inlineTemplate: true, isProd: true })
-  const js = linkSrc(tsToJs(script.content).split("'~/utils/reporting-releases'").join(`'${UTIL_URL}'`))
-  return import(dataUrl(PRELUDE + js))
+  let js = tsToJs(script.content).split("'~/utils/reporting-releases'").join(`'${UTIL_URL}'`)
+    .split("'~/composables/useSpoolApi'").join(`'${API_STUB}'`)
+  for (const [from, to] of Object.entries(subs)) js = js.split(`'${from}'`).join(`'${to}'`)
+  return dataUrl(PRELUDE + linkSrc(js))
 }
+const LINKS_URL = sfcUrl('src/components/reporting/ReleaseIssueLinks.vue')
+const compileSfc = (file) => import(sfcUrl(file, { '~/components/reporting/ReleaseIssueLinks.vue': LINKS_URL }))
 
 const summaryC = await compileSfc('src/components/reporting/ReportingReleasesSummary.vue')
 const filterC = await compileSfc('src/components/reporting/ReleasesFilterBar.vue')
@@ -377,6 +388,59 @@ describe('T024 ReleasesDailyList', () => {
     assert.equal(byTest(root, 'releases-commit-notes').length, 0)
     /* a commit with no trailer text has nothing to open */
     assert.equal(byTest(byTest(root, 'releases-commit')[2], 'releases-commit-toggle').length, 0)
+    app.unmount()
+  })
+})
+
+describe('SPL-4789 ReleaseIssueLinks in a Releases row', () => {
+  const T = 'ef94396b-ea67-445b-a9d5-9f6070177e08'
+  const row = (sha, issues) => ({ sha: sha.repeat(40), committed_at: '2026-11-04T10:00:00Z', kind: 'feat', area: 'orc, SPL-4789', subject: 'feat(orc, SPL-4789): x',
+    lay_what: '', lay_how: '', lay_why: '', tech_what: '', tech_how: '', tech_why: '', state: 'ok', issues })
+  const groups = R.releaseDayGroups([], [
+    row('a', [{ key: 'SPL-4789', tenant: 't1', found: true, member: true, discussions: [{ task_id: T, title: 'enforce the linking', state: 'live', can_open: true }] },
+      { key: 'SPL-99999', tenant: 't1', found: false, member: true, discussions: [] }]),
+    row('b', []),
+    row('c', [{ key: 'SPL-7', tenant: 'ws-b', found: true, member: false, discussions: [{ can_open: false }] }]),
+    row('d', undefined),
+  ])
+
+  it('each issue and discussion is a link; a missing key is not; an older commit reads unknown', async () => {
+    const { root, errors, app } = await mount(listC, { groups })
+    assert.deepEqual(errors, [])
+    const rows = Object.fromEntries(byTest(root, 'releases-commit').map((r) => [r.props['data-sha'][0], r]))
+    const issue = byTest(rows.a, 'release-links-issue')[0]
+    assert.equal(issue.props.href, '/issues?issue=SPL-4789')
+    assert.equal(textOf(issue), 'SPL-4789')
+    const topic = byTest(rows.a, 'release-links-discussion')[0]
+    assert.equal(topic.props.href, '/t/' + T)
+    assert.equal(textOf(topic), 'enforce the linking')
+    assert.equal(textOf(byTest(rows.a, 'release-links-issue-missing')[0]), 'SPL-99999')
+    assert.equal(byTest(rows.a, 'release-links-unknown').length, 0)
+    assert.equal(textOf(byTest(rows.b, 'release-links-unknown')[0]), 'unknown')
+    // another workspace's issue opens on its host; its discussion the viewer cannot open says so, with no id
+    const far = byTest(rows.c, 'release-links-issue')[0]
+    assert.equal(far.props.href, 'https://ws-b.spool.example.com/issues?issue=SPL-7')
+    assert.equal(far.props.target, '_blank')
+    assert.equal(textOf(byTest(rows.c, 'release-links-discussion-locked')[0]), 'discussion, ws-b members only')
+    assert.equal(byTest(rows.c, 'release-links-discussion').length, 0)
+    // CONTROL: a hub that sends no issues field (older revision) shows nothing, not "unknown"
+    assert.equal(byTest(rows.d, 'release-links').length, 0)
+    app.unmount()
+  })
+
+  it('an in-app link opens through the router; a modified click stays a link', async () => {
+    const { root, app } = await mount(listC, { groups })
+    const issue = byTest(root, 'release-links-issue')[0]
+    let prevented = false
+    globalThis.__rr_pushed = ''
+    issue.props.onClick({ button: 0, preventDefault: () => { prevented = true } })
+    assert.equal(prevented, true)
+    assert.equal(globalThis.__rr_pushed, '/issues?issue=SPL-4789')
+    prevented = false
+    globalThis.__rr_pushed = ''
+    issue.props.onClick({ button: 0, metaKey: true, preventDefault: () => { prevented = true } })
+    assert.equal(prevented, false)
+    assert.equal(globalThis.__rr_pushed, '')
     app.unmount()
   })
 })

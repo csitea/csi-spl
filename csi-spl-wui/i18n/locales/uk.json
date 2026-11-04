@@ -3615,7 +3615,14 @@
       "open_commit": "Відкрити примітку до релізу {sha}",
       "open_version": "Відкрити примітки до релізу {version}",
       "load_more": "Завантажити ще",
-      "shown": "Показано {shown} з {total} комітів"
+      "shown": "Показано {shown} з {total} комітів",
+      "links_label": "Завдання та обговорення",
+      "links_unknown": "невідомо",
+      "links_unknown_title": "Для цього коміту не записано ні завдання, ні обговорення: він старший за правило посилань",
+      "links_issue_title": "Відкрити завдання {key} у {ws}",
+      "links_issue_missing": "{key}: такого завдання немає у {ws}",
+      "links_discussion": "обговорення",
+      "links_discussion_locked": "обговорення, лише для учасників {ws}"
     },
     "sql": {
       "query_label": "Запит",

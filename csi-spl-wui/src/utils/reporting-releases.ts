@@ -24,6 +24,12 @@ export type ReleaseCommit = {
   sha: string, version?: string, committed_at: string, kind: string, area: string, subject: string,
   lay_what: string, lay_how: string, lay_why: string, tech_what: string, tech_how: string, tech_why: string,
   state: string, link?: string,
+  /* SPL-4789: the issues the message cites, in the workspace that owns them (release-issue-links.mjs) */
+  issues?: ReleaseCommitIssue[],
+}
+export type ReleaseCommitIssue = {
+  key: string, tenant: string, found: boolean, member?: boolean,
+  discussions: { task_id?: string, title?: string, state?: string, can_open: boolean }[],
 }
 export type ReleaseCommits = { total: number, limit: number, offset: number, notes: ReleaseCommit[] }
 export type ReleaseSummary = { releases: number | null, commits: number | null, perDay: number | null, dev: number | null, prd: number | null }
@@ -276,9 +282,22 @@ function mockCommits(now: number): ReleaseCommit[] {
       tech_why: bare ? '' : 'The old path skipped the check.',
       state: bare ? 'missing' : 'ok',
       link: '',
+      issues: mockIssues(j, `SPL-${2000 + (j % 700)}`),
     })
   }
   return out
+}
+
+/**
+ * The mock commit's issues (SPL-4789), tenant '' = this workspace: every
+ * 7th commit is an older one with none ("unknown"), every 11th cites a key
+ * with no issue beside its real one, the rest one issue and its discussion.
+ */
+function mockIssues(j: number, key: string): ReleaseCommitIssue[] {
+  if (j % 7 === 3) return []
+  const one: ReleaseCommitIssue = { key, tenant: '', found: true, member: true,
+    discussions: [{ task_id: `0000${(j % 700).toString(16).padStart(4, '0')}-0000-4000-8000-000000000000`, title: `Mock discussion of ${key}`, state: 'live', can_open: true }] }
+  return j % 11 === 5 ? [one, { key: 'SPL-99999', tenant: '', found: false, member: true, discussions: [] }] : [one]
 }
 
 /** A dev deploy, then prd 13 minutes later, at 14:00 UTC of every even day. */

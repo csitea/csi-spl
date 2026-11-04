@@ -3615,7 +3615,14 @@
       "open_commit": "Avaa commitin {sha} julkaisutiedote",
       "open_version": "Avaa version {version} julkaisutiedotteet",
       "load_more": "Lataa lisää",
-      "shown": "{shown}/{total} committia näytetty"
+      "shown": "{shown}/{total} committia näytetty",
+      "links_label": "Tiketit ja keskustelut",
+      "links_unknown": "tuntematon",
+      "links_unknown_title": "Tälle muutokselle ei ole kirjattu tikettiä eikä keskustelua: se on vanhempi kuin linkkisääntö",
+      "links_issue_title": "Avaa tiketti {key} työtilassa {ws}",
+      "links_issue_missing": "{key}: tikettiä ei ole työtilassa {ws}",
+      "links_discussion": "keskustelu",
+      "links_discussion_locked": "keskustelu, vain työtilan {ws} jäsenille"
     },
     "sql": {
       "query_label": "Kysely",

@@ -3615,7 +3615,14 @@
       "open_commit": "Отвори ја белешката за изданието за {sha}",
       "open_version": "Отвори ги белешките за {version}",
       "load_more": "Вчитај уште",
-      "shown": "Прикажани {shown} од {total} комити"
+      "shown": "Прикажани {shown} од {total} комити",
+      "links_label": "Задачи и дискусии",
+      "links_unknown": "непознато",
+      "links_unknown_title": "За овој комит нема запишана задача или дискусија: постар е од правилото за врски",
+      "links_issue_title": "Отвори ја задачата {key} во {ws}",
+      "links_issue_missing": "{key}: нема таква задача во {ws}",
+      "links_discussion": "дискусија",
+      "links_discussion_locked": "дискусија, само за членови на {ws}"
     },
     "sql": {
       "query_label": "Барање",

@@ -3615,7 +3615,14 @@
       "open_commit": "Abrir la nota de versión de {sha}",
       "open_version": "Abrir las notas de {version}",
       "load_more": "Cargar más",
-      "shown": "{shown} de {total} confirmaciones mostradas"
+      "shown": "{shown} de {total} confirmaciones mostradas",
+      "links_label": "Incidencias y debates",
+      "links_unknown": "desconocido",
+      "links_unknown_title": "No hay incidencia ni debate registrado para este commit: es anterior a la regla de enlaces",
+      "links_issue_title": "Abrir la incidencia {key} en {ws}",
+      "links_issue_missing": "{key}: no existe esa incidencia en {ws}",
+      "links_discussion": "debate",
+      "links_discussion_locked": "debate, solo miembros de {ws}"
     },
     "sql": {
       "query_label": "Consulta",

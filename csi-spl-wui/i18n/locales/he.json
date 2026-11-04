@@ -3615,7 +3615,14 @@
       "open_commit": "פתח את הערת הגרסה של {sha}",
       "open_version": "פתח את הערות הגרסה {version}",
       "load_more": "טען עוד",
-      "shown": "מוצגים {shown} מתוך {total} קומיטים"
+      "shown": "מוצגים {shown} מתוך {total} קומיטים",
+      "links_label": "משימות ודיונים",
+      "links_unknown": "לא ידוע",
+      "links_unknown_title": "לא נרשמו משימה או דיון עבור השינוי הזה: הוא ישן יותר מכלל הקישורים",
+      "links_issue_title": "פתח את המשימה {key} ב-{ws}",
+      "links_issue_missing": "{key}: אין משימה כזו ב-{ws}",
+      "links_discussion": "דיון",
+      "links_discussion_locked": "דיון, לחברי {ws} בלבד"
     },
     "sql": {
       "query_label": "שאילתה",

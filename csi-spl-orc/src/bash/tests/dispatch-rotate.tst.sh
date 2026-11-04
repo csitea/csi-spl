@@ -1200,7 +1200,7 @@ act ROTATE_CMD=age ROTATE_DISPATCH_MAX_AGE=x >"$T/o" 2>&1; rc=$?
 
 # --- 29. SPL-4795: a standby refresh asks the guard, it does not keep a vendor the guard drops ------
 # box 1 2026-11-04 13:46:27Z: g-002 refreshed as grok (the id's letter) while the
-# guard (ROTATE_ROLE_VENDOR=claude) said claude: FAIL SPAWN on grok's weekly limit
+# guard (no ROTATE_ROLE_VENDOR: dispatch seats: claude) said claude: FAIL SPAWN on grok's weekly limit
 sbg() {
   w18 g; rm -rf "$D/wd" "$T/mix.out"
   echo 'LEASE_FLEET=main' >>"$D/lease.conf"; echo "c-002@sat $(date +%s)" >"$D/lease"; cp "$D/lease" "$T/lease.before"

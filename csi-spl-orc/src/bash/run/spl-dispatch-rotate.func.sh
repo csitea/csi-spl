@@ -412,9 +412,10 @@ spl_disp_standby_one() {
 # spl_disp_standby_refresh RID: the 30-min rule on a standby box (owner
 # 2026-11-04: "no dispatcher would run longer than 30 min without restart";
 # the standby seats on box 1 ran 16 and 21 h, every run GATE SKIP standby). Each
-# seat at least ROTATE_DISPATCH_MIN_AGE old gets a fresh session of its own
-# vendor under its own id (no seat switch, so its spool dir and
-# handoff.d/ stay), through the rotation's QUIESCE .. CLOSE: a busy seat is
+# seat at least ROTATE_DISPATCH_MIN_AGE old gets a fresh session under its own
+# id when the guard (spl_disp_vendor) names its own vendor (no seat switch, so
+# its spool dir and handoff.d/ stay), else the standby swap with its seat
+# switch (spl_disp_standby_one), through the rotation's QUIESCE .. CLOSE: a busy seat is
 # interrupted after the grace and rotated anyway, QUIESCE WAIT busy-rotated.
 # No HOLD, RELEASE, REFRESH or lease write. Nothing due = GATE SKIP standby.
 spl_disp_standby_refresh() {

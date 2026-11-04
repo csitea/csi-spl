@@ -402,8 +402,8 @@ is never rewritten to swap `LEASE_MASTER` and `LEASE_FAILOVER`:
 - **FR-044** Each machine rotates only its OWN trio. Only the machine that
   holds a role's fleet lease rotates it THROUGH the lease (HOLD, RELEASE,
   REFRESH). A standby machine's orchestrator is not rotated (`SKIP standby`).
-  A standby machine's dispatch seats ARE restarted, in place and without the
-  lease (FR-046, owner 2026-11-04): until then every standby run logged
+  A standby machine's dispatch seats ARE restarted, in place, or by the vendor
+  swap when the guard names another vendor, and without the lease (FR-046, owner 2026-11-04): until then every standby run logged
   `GATE SKIP standby` and the standby seats on box 1 ran 16 and 21 hours
   (n=6 runs, 06:15Z..11:15Z). A role whose lease returns to this machine is
   rotated at its next slot, if it is old enough.

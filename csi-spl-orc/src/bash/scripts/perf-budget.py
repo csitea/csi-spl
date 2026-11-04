@@ -87,7 +87,13 @@ ROUTE_CHUNKS = (
     # spec 123 5 (SPL-2056): Monitoring -> Costs, its page, its pie and
     # tenant-costs.mjs (the mock key is a literal only that module carries)
     ("ci_costs_route_gzip_kb", ('"costs-page"', '"costs-pie"', '"spool.mock.costs"')),
+    # spec 090 T036 (SPL-4804): the draft hand-over card, its own lazy chunk
+    # (MarketingDraftHandover.vue with utils/marketing-handover.mjs)
+    ("ci_marketing_handover_gzip_kb", ('"marketing-draft-handover"',)),
 )
+# Route budgets that also cap the uncompressed size: raw key -> its route's
+# gzip key. Same chunks, summed before gzip.
+ROUTE_RAW = (("ci_marketing_handover_raw_kb", "ci_marketing_handover_gzip_kb"),)
 # first_load_p95_ms is recorded and not gated: it is a new connection per
 # chunk on this box, and that tail is the resolver (T124), not the bundle.
 LIVE_KEYS = (
@@ -512,6 +518,7 @@ def finish(report, ceilings, require, out_path):
     required = required_for(require)
     if require == "ci":
         required += tuple(key for key, _markers in ROUTE_CHUNKS if key in ceilings)
+        required += tuple(raw for raw, _route in ROUTE_RAW if raw in ceilings)
     ok, lines = check(report.get("metrics") or {}, ceilings, required)
     report["ok"] = ok
     report["lines"] = lines
@@ -530,8 +537,9 @@ def finish(report, ceilings, require, out_path):
 
 
 def route_chunks(pub):
-    """{key: {chunks, gzip_kb}} for each ROUTE_CHUNKS entry: the _nuxt/*.js
-    files holding one of its markers, gzipped and summed."""
+    """{key: {chunks, gzip_kb, raw_kb}} for each ROUTE_CHUNKS entry: the
+    _nuxt/*.js files holding one of its markers, gzipped and summed (raw_kb:
+    the same files before gzip)."""
     nuxt = os.path.join(pub, "_nuxt")
     bodies = {}
     for name in sorted(os.listdir(nuxt)):
@@ -546,7 +554,8 @@ def route_chunks(pub):
             if any(mk.encode() in body for mk in markers)
         ]
         total = sum(gzip_len(bodies[n]) for n in names)
-        out[key] = {"chunks": len(names), "gzip_kb": kb_of(total), "files": names}
+        raw = sum(len(bodies[n]) for n in names)
+        out[key] = {"chunks": len(names), "gzip_kb": kb_of(total), "raw_kb": kb_of(raw), "files": names}
     return out
 
 
@@ -573,6 +582,9 @@ def bundle_report(pub):
     for key, row in routes.items():
         if row["chunks"]:
             metrics[key] = row["gzip_kb"]
+    for raw, route in ROUTE_RAW:
+        if routes.get(route, {}).get("chunks"):
+            metrics[raw] = routes[route]["raw_kb"]
     report = {
         "kind": "bundle",
         "n": 1,
@@ -595,7 +607,7 @@ def cmd_bundle(args):
     for doc, row in sorted(report["documents"].items()):
         print(f"DOC {doc} {row['chunks']} chunk(s) gzip {row['gzip_kb']:g} KB")
     for key, row in sorted(report["routes"].items()):
-        print(f"ROUTE {key} {row['chunks']} chunk(s) gzip {row['gzip_kb']:g} KB")
+        print(f"ROUTE {key} {row['chunks']} chunk(s) gzip {row['gzip_kb']:g} KB raw {row['raw_kb']:g} KB")
     return finish(report, ceilings, "ci", args.out)
 
 

@@ -11,6 +11,8 @@
 #   2c. a route chunk budget (spec 112 9): the roadmap's marked chunks are
 #      summed against ci_roadmap_route_gzip_kb when the budgets carry it.
 #      CONTROLS: over the ceiling exits 1; no marked chunk = not measured
+#   2e. the hand-over card (spec 090 T036): its chunk against a gzip AND a raw
+#      ceiling (ci_marketing_handover_gzip_kb, _raw_kb).
 #   2d. the costs route (spec 123 5, SPL-2056): ci_costs_route_gzip_kb sums
 #      its own marked chunk, beside the roadmap's. Same two CONTROLS
 #   3. the ceiling check FAILS when a number is over, when a required number
@@ -196,6 +198,25 @@ python3 "$PY" bundle --pub "$T/route" --budgets "$T/costs.json" >"$T/bout" 2>&1
 rc=$?
 [[ $rc -eq 1 ]] && grep -q 'ci_costs_route_gzip_kb was not measured' "$T/bout" \
   && pass "CONTROL: a costs budget whose chunks are missing fails, never passes unmeasured" || fail "CONTROL costs missing: rc=$rc $(cat "$T/bout")"
+
+# --- 2e. the hand-over card (spec 090 T036, SPL-4804): gzip AND raw ceilings -----
+python3 -c 'import os,sys; open(sys.argv[1]+"/_nuxt/handover.js","wb").write(b"h={\"data-test\":\"marketing-draft-handover\"};"+b"a"*12000+os.urandom(2000))' "$T/route"
+printf '%s\n' '{"ceilings":{"ci_initial_gzip_kb":99999,"ci_home_gzip_kb":99999,"ci_roadmap_route_gzip_kb":25,"ci_marketing_handover_gzip_kb":5,"ci_marketing_handover_raw_kb":15}}' >"$T/ho.json"
+printf '%s\n' '{"ceilings":{"ci_initial_gzip_kb":99999,"ci_home_gzip_kb":99999,"ci_roadmap_route_gzip_kb":25,"ci_marketing_handover_gzip_kb":5,"ci_marketing_handover_raw_kb":10}}' >"$T/horaw.json"
+python3 "$PY" bundle --pub "$T/route" --budgets "$T/ho.json" >"$T/bout" 2>&1
+rc=$?
+[[ $rc -eq 0 ]] && grep -qE '^ROUTE ci_marketing_handover_gzip_kb 1 chunk\(s\) gzip [23](\.[0-9])? KB raw 13\.[0-9] KB' "$T/bout" \
+  && grep -q '^PASS ci_marketing_handover_raw_kb ' "$T/bout" && grep -q '^PASS ci_marketing_handover_gzip_kb ' "$T/bout" \
+  && pass "the hand-over chunk is measured gzip and raw and passes 5 KB / 15 KB" || fail "handover: rc=$rc $(cat "$T/bout")"
+python3 "$PY" bundle --pub "$T/route" --budgets "$T/horaw.json" >"$T/bout" 2>&1
+rc=$?
+[[ $rc -eq 1 ]] && grep -q '^FAIL ci_marketing_handover_raw_kb ' "$T/bout" && grep -q '^PASS ci_marketing_handover_gzip_kb ' "$T/bout" \
+  && pass "CONTROL: the hand-over chunk under its gzip ceiling but over its raw one exits 1" || fail "CONTROL handover raw: rc=$rc $(cat "$T/bout")"
+rm "$T/route/_nuxt/handover.js"
+python3 "$PY" bundle --pub "$T/route" --budgets "$T/ho.json" >"$T/bout" 2>&1
+rc=$?
+[[ $rc -eq 1 ]] && grep -q 'ci_marketing_handover_raw_kb was not measured' "$T/bout" \
+  && pass "CONTROL: a hand-over budget whose chunk is missing fails, never passes unmeasured" || fail "CONTROL handover missing: rc=$rc $(cat "$T/bout")"
 
 mkdir -p "$T/empty/_nuxt"
 printf 'console.log("orphan")\n' >"$T/empty/_nuxt/orphan.js"

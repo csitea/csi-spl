@@ -9,10 +9,8 @@
 #      recovery notice ("back after", "recovered") files nothing
 #   2. the dry run (default) prints 4 PLAN lines and files, comments and
 #      enqueues nothing; the live state file is not written
-#   3. live, ALERT_ISSUE_LANES_PER_DAY=4: 4 issues prio 1, 4 asks, 4 enqueues
-#      with a read-only brief each
-#   4. live, the default cap of 3 lanes a day: 4 issues, 3 enqueues, the 4th
-#      fingerprint issue only
+#   3. live, the cap of 3 lanes a day: 4 issues prio 1, and 3 asks + 3
+#      enqueues with a read-only brief each; the 4th fingerprint issue only
 #   5. a repeat of an open issue's alert: 1 comment, 0 issues, 0 enqueues;
 #      the same alert read again (its ref seen): nothing
 #   5b. an empty state (a holder on another box): the hub's open issue with
@@ -114,29 +112,26 @@ fo="$(python3 "$PROJ_ROOT/src/bash/scripts/alert-issue-fold.py" plan "$F" "$F/no
   pass "1b. two NO-LOCAL-AGENT alerts with other (detail): one fingerprint, n=2; the 'back after' notice files nothing" ||
   fail "1b. fold: $(jq -c '[.actions[] | {fp, n}]' <<<"$fo")"
 
-# 3: live, 4 lanes allowed
-reset; out="$(tick DRY_RUN=0 ALERT_ISSUE_LANES_PER_DAY=4)"
+# 3: live, the default cap of 3 lanes a day
+reset; out="$(tick DRY_RUN=0)"
 c="$(count do_spl_issue_create)" q="$(count do_spl_spawn_enqueue)" k="$(count do_spl_ask_put)"
-[[ "$c" == 4 && "$q" == 4 && "$k" == 4 ]] && pass "3. live: 4 issues, 4 asks, 4 enqueues" || fail "3. want 4/4/4, got create $c ask $k enqueue $q: $out"
+[[ "$c" == 4 && "$q" == 3 && "$k" == 3 ]] && grep -q 'INFO alert issue tick: 4 fingerprint(s): 4 new, .* 3 lane(s)' <<<"$out" &&
+  pass "3. live: 4 issues, 3 asks, 3 enqueues: the 4th fingerprint on a 3-lane day is issue only" ||
+  fail "3. want 4 issues 3 asks 3 enqueues, got create $c ask $k enqueue $q: $out"
 grep -q "^do_spl_issue_create .* prio=1 epic=SPL-2364 disc=0b9e4c1a-1111-4aaa-8bbb-000000000001 " "$T/calls.log" &&
   grep -q "^do_spl_issue_create .* prio=1 .* disc=$DISC " "$T/calls.log" &&
   pass "3. prio 1, the epic, an #alerts issue links its topic, a disk/GCP one the discussion" || fail "3. issue fields: $(grep create "$T/calls.log")"
 grep -q '^do_spl_spawn_enqueue .* class=bug place=claude:alert-[0-9a-f]\{8\}-202611021200 by=c-001@sat' "$T/calls.log" &&
   pass "3. enqueue: SPAWN_CLASS=bug, SPAWN_PLACE=claude:<slug>, ASK_BY the holder" || fail "3. enqueue: $(grep enqueue "$T/calls.log")"
 b="$(find "$SP/dispatch/briefs" -name "*.md" -printf "%f\n" | sort | sed -n 1p)"
-if [[ "$(ls "$SP/dispatch/briefs" | wc -l)" == 4 ]] && grep -q '^Issue: SPL-10[1-4]$' "$SP/dispatch/briefs/$b" &&
+if [[ "$(ls "$SP/dispatch/briefs" | wc -l)" == 3 ]] && grep -q '^Issue: SPL-10[1-4]$' "$SP/dispatch/briefs/$b" &&
    grep -q '^Epic: SPL-2364$' "$SP/dispatch/briefs/$b" && grep -q '^Spec: csi-spl-doc/specs/146' "$SP/dispatch/briefs/$b" &&
    grep -q 'Edit any file, commit or push' "$SP/dispatch/briefs/$b" && grep -q 'fingerprint: `fp:' "$SP/dispatch/briefs/$b"; then
-  pass "3. 4 briefs: issue, epic, spec, fingerprint, read-only"
+  pass "3. 3 briefs: issue, epic, spec, fingerprint, read-only"
 else fail "3. briefs: $(ls "$SP/dispatch/briefs"); $(head -12 "$SP/dispatch/briefs/$b" 2>/dev/null)"; fi
 [[ "$(jq '[.fps[] | select(.key | test("^SPL-"))] | length' "$ST")" == 4 ]] && pass "3. the state maps 4 fingerprints to their keys" ||
   fail "3. state: $(jq -c .fps "$ST")"
 
-# 4: the default cap
-reset; out="$(tick DRY_RUN=0)"
-c="$(count do_spl_issue_create)" q="$(count do_spl_spawn_enqueue)"
-[[ "$c" == 4 && "$q" == 3 ]] && grep -q 'INFO alert issue tick: 4 fingerprint(s): 4 new, .* 3 lane(s)' <<<"$out" &&
-  pass "4. a 4th new fingerprint on a 3-lane day: issue only (4 issues, 3 enqueues)" || fail "4. want 4 issues 3 enqueues, got $c / $q: $out"
 
 # 5: a repeat folds into the open issue
 cp "$S/alerts.json" "$T/alerts.keep"

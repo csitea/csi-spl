@@ -57,8 +57,8 @@ the disk notes (task `disk-headroom`), and folds them by fingerprint
 - **Caps**: one lane per fingerprint per 24 h (`ALERT_ISSUE_LANE_GAP_S`), 3
   lanes in any 24 h fleet-wide (`ALERT_ISSUE_LANES_PER_DAY`); over a cap the
   issue is still filed or reopened, with no lane. The 11-02 replay (8 alerts,
-  4 fingerprints) therefore files 4 issues and places 3 lanes at the default
-  cap, 4 at `ALERT_ISSUE_LANES_PER_DAY=4`.
+  4 fingerprints) therefore files 4 issues and places 3 lanes; the 4th
+  fingerprint gets its issue only (dispatch holder ruling, SPL-4828).
 - **Who runs it**: `do_spl_asks_tick` starts it on the machine whose agent
   holds the orch role (`dispatch/lease.orch`) only, so the fleet files once;
   at most one tick per `ALERT_ISSUE_EVERY_S` (300 s). Its log:

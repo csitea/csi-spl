@@ -416,6 +416,28 @@ after the agent is done.
   `/opt` or `/tmp` (rows that exist for c-001 and retired ids) made the slug a
   prefix of every lane's and planned the removal of every live lane's idle
   scratch (R7 W1). Test: `test-lane-scratch-reap.sh` (cases 2, 3, 3b, 7, 8).
+- **A retired lane's leftover e2e test server is stopped at retire**
+  (SPL-4762, 2026-11-04): on sat the retired c-810 left
+  `node src/node/test/serve-generated.mjs --root /tmp/claude-<uid>/<slug>/<session>/scratchpad/bundle-head`
+  running ~4 h; its scratch held 57136 /tmp inodes, and the scratch reap and
+  every sweep kept it in-use. The agent had started it in the background by
+  hand, so no harness trap stopped it (`wui-e2e-mock-serve.sh` and
+  `measure-wui-perf.mjs` stop their own), and the orphan reaper
+  (`csi-spl-utl` `orphan-process-reap.func.sh`) is report-only and reads
+  `AGENT_ID`, which an agent's processes do not carry (`SPOOL_AGENT_ID`).
+  `agent-id-retire.sh` step 8 now runs `lane-test-server-reap.sh` before the
+  scratch reap. It stops a process only when all hold: the lane is proven
+  retired (no tmux window carries the id, no `registry.tsv` row, a
+  `registry.retired.tsv` row), its cwd or an argument is under the lane's
+  worktree or scratch, it is an interpreter running a known test server
+  (`serve-generated.mjs`, `serve-hosting-h2.mjs`, `wui-e2e-mock-api.py`;
+  never a name alone), and it runs as the agent user. SIGTERM, then SIGKILL
+  after 5 s, as its owner and only while its start time is unchanged; each
+  stop is logged with pid, lane, args and cwd. A dry run signals nothing.
+  `lane-test-server-reap.sh --retired` dry-runs every retired lane of the box
+  (5 s on 2687 retired ids). `RETIRE_SERVERS=0` turns the step off. Test:
+  `test-lane-test-server-reap.sh` (case 11 is the red control: without the
+  step the scratch stays in-use).
 
 ## 6. Limits (W3, R4, R12)
 

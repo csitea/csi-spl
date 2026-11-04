@@ -43,6 +43,11 @@
 #                  do_sweep_workdirs) removes it after 24 h when clean, never
 #                  --force; the branch only by `branch -d`. A main checkout or
 #                  a dir not named for the id is never listed
+#   servers     -> a known e2e test server (serve-generated.mjs, ...) the lane
+#                  left running under its worktree or scratch, as an agent
+#                  user: stopped (SIGTERM, SIGKILL after a grace) before the
+#                  scratch reap, which kept a dir it held (lane-test-server-
+#                  reap.sh; c-810 on sat, SPL-4762)
 #   scratch     -> the lane's Claude Code scratch on the /tmp tmpfs
 #                  (/tmp/claude-<uid>/<worktree slug>[-*]/): removed at once
 #                  (lane-scratch-reap.sh --apply) when no process holds it, as
@@ -73,7 +78,8 @@
 # set), DESK_STATE_ROOT / DESK_ENVS (desk-seat-drop.sh's; the root defaults
 # to the desk user's, spool_desk_state; SPOOL_BOX_HOME names that home instead),
 # RETIRE_WORKTREE=0|1 (default 1; 0 under SPOOL_TEST=1),
-# RETIRE_SCRATCH=0|1, RETIRE_VARTMP=0|1 (default 1; 0 under SPOOL_TEST=1),
+# RETIRE_SCRATCH=0|1, RETIRE_SERVERS=0|1, RETIRE_VARTMP=0|1 (default 1; 0
+# under SPOOL_TEST=1), LANE_TEST_SERVER_* (lane-test-server-reap.sh's),
 # RETIRE_VARTMP_ROOT (default /var/tmp), LANE_SCRATCH_* (its), WORKDIR_TABLE
 # (workdir-register.sh's).
 # Exit 0 retired (or planned), 2 usage / not an agent id / a role id / a desk
@@ -347,7 +353,23 @@ wt_list() {
 on() { local v="${1:-}"; [ -n "$v" ] || { v=1; [ "${SPOOL_TEST:-}" = 1 ] && v=0; }; [ "$v" = 1 ]; }
 # ---- 7. the lane's worktree + branch ----------------------------------------
 on "${RETIRE_WORKTREE:-}" && wt_list
-# ---- 8. the lane's /tmp scratch ---------------------------------------------
+# ---- 8. the lane's leftover e2e test servers, then its /tmp scratch ---------
+# A test server the lane started and left (serve-generated.mjs on sat, c-810,
+# SPL-4762) held its scratch, and the reap below kept it in-use, as did every
+# sweep after. lane-test-server-reap.sh stops only a known test server under
+# this lane's worktree or scratch, run as an agent user; a dry run plans it
+# (--retiring: the rows are not moved yet).
+if on "${RETIRE_SERVERS:-}" && [ -n "$WT" ] && [ "${WT##*/}" = "$ID" ]; then
+  SRV=(bash "$_here/lane-test-server-reap.sh" --worktree "$WT")
+  if [ "$APPLY" = 1 ]; then SRV+=(--apply); else SRV+=(--retiring); fi
+  stopped="$("${SRV[@]}" "$ID" 2>&1)" \
+    || echo "agent-id-retire: WARN a test server of ${ID} was not stopped (lane-test-server-reap.sh rc $?)" >&2
+  while IFS= read -r l; do
+    [ -n "$l" ] || continue
+    l="${l#* lane-test-server-reap: }"
+    step servers "${l#"$VERB "}"
+  done <<<"$stopped"
+fi
 # Removed now, not after 24 h: it is a session cache, not the lane's work, and
 # retired lanes' scratch filled the /tmp tmpfs (2026-10-31). The reaper's
 # process check is the guard: a dir a process holds stays and is listed.

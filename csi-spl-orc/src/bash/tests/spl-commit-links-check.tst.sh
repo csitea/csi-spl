@@ -13,7 +13,8 @@
 #      count; a merge commit is skipped
 #   4. no hub key on the box (hub none): only the form, the summary says
 #      NOT hub-checked; a missing key still fails
-#   5. a failed hub read -> rc 1; a hub revision without the route (plain
+#   5. a failed hub read -> rc 1 (CI, COMMIT_LINKS_HARD default 1); with
+#      COMMIT_LINKS_HARD=0 (the hook) a WARN and the form only; a hub revision without the route (plain
 #      404) -> the form only with a WARN; bad inputs -> rc 1
 #------------------------------------------------------------------------------
 set -uo pipefail
@@ -111,6 +112,12 @@ out=$(act COMMIT_LINKS_HUB=none COMMIT_LINKS_RANGE="$NOKEY^..$BACK"); rc=$?
 out=$(act COMMIT_LINKS_HUB=prd STUB_CODE=503 COMMIT_LINKS_RANGE="$BASE..$GOOD"); rc=$?
 [[ $rc == 1 ]] && grep -q 'commit-links on prd answered HTTP 503' "$T/err" && pass "hub 503 -> rc 1, never a pass" ||
   fail "503: rc $rc out '$out' err '$(cat "$T/err")'"
+out=$(act COMMIT_LINKS_HUB=prd COMMIT_LINKS_HARD=1 STUB_CODE=503 COMMIT_LINKS_RANGE="$BASE..$GOOD"); rc=$?
+[[ $rc == 1 ]] && pass "hub down, COMMIT_LINKS_HARD=1 (CI) -> rc 1" || fail "hard 503: rc $rc out '$out' err '$(cat "$T/err")'"
+out=$(act COMMIT_LINKS_HUB=prd COMMIT_LINKS_HARD=0 STUB_CODE=503 COMMIT_LINKS_RANGE="$TRAIL..$BACK"); rc=$?
+[[ $rc == 3 && "$out" == *"hub=none"*"ok=2 fail=1 (NOT hub-checked"* ]] && grep -q 'prd hub did not answer' "$T/err" &&
+  pass "hub down, COMMIT_LINKS_HARD=0 (the hook) -> WARN, the form only, a missing key still fails" ||
+  fail "soft 503: rc $rc out '$out' err '$(cat "$T/err")'"
 out=$(act COMMIT_LINKS_HUB=prd STUB_CODE=404 COMMIT_LINKS_RANGE="$TRAIL..$BACK"); rc=$?
 [[ $rc == 3 && "$out" == *"hub=none"*"ok=2 fail=1 (NOT hub-checked"* ]] && grep -q 'no /v1/operator/commit-links yet' "$T/err" &&
   pass "a hub without the route (plain 404) -> WARN, the form only" || fail "old hub: rc $rc out '$out' err '$(cat "$T/err")'"

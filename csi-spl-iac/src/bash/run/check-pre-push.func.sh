@@ -793,13 +793,15 @@ _pp_part_owner_orders() {  # <tree>
 # The commit-links part (SPL-4789): the commits this push carries,
 # PRE_PUSH_BASE..HEAD, through the tree's do_spl_commit_links_check. A tree
 # without that action passes and says so; CI (workflow 25) holds it too.
+# A hub that does not answer only WARNs here (COMMIT_LINKS_HARD=0): CI is the
+# hard gate for the links.
 _pp_part_commit_links() {  # <tree>
   local tree="$1" base="${PRE_PUSH_BASE:-origin/master}"
   [[ -r "$tree/csi-spl-orc/src/bash/run/spl-commit-links-check.func.sh" ]] ||
     { echo "commit-links: PASS no gate in this tree"; return 0; }
   git -C "$tree" rev-parse -q --verify "$base^{commit}" >/dev/null 2>&1 ||
     { echo "commit-links: WARN unknown base '$base' -- no outgoing commits to check"; return 0; }
-  ( cd "$tree/csi-spl-orc" && COMMIT_LINKS_REPO="$tree" COMMIT_LINKS_RANGE="$base..HEAD" ./run -a do_spl_commit_links_check )
+  ( cd "$tree/csi-spl-orc" && COMMIT_LINKS_HARD=0 COMMIT_LINKS_REPO="$tree" COMMIT_LINKS_RANGE="$base..HEAD" ./run -a do_spl_commit_links_check )
 }
 
 # stale-tree, owner-orders and commit-links have no _pp_paths: they read the outgoing

@@ -96,7 +96,7 @@ jobs:
             else range="$SHA~1..$SHA"; fi
           fi
           echo "range: $range"
-          COMMIT_LINKS_HUB=prd COMMIT_LINKS_RANGE="$range" ./run -a do_spl_commit_links_check
+          COMMIT_LINKS_HARD=1 COMMIT_LINKS_HUB=prd COMMIT_LINKS_RANGE="$range" ./run -a do_spl_commit_links_check
 
       - name: Drop the key
         if: always()

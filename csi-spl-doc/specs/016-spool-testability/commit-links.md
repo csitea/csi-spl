@@ -42,7 +42,10 @@ key `~/.gcp/.csi/key-csi-spl-prd.json`. A box without that key checks the
 form only: a key must be named. The summary then says `NOT hub-checked`,
 and workflow 25 checks the links. A hub revision without the route (a plain
 404) also falls back to the form only, with a WARN. Any other failed read
-fails the check; it never passes it.
+(the hub down, a 5xx) fails the check in CI and when the action is run by
+hand (`COMMIT_LINKS_HARD=1`, the default). The pre-push hook passes
+`COMMIT_LINKS_HARD=0`: there a hub that does not answer is a WARN and the
+form only, and workflow 25 is the hard gate for the links.
 
 ## 3. A refused commit: the fixes
 

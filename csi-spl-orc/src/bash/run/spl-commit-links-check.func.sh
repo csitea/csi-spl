@@ -18,6 +18,9 @@
 # @description on this box, or from a hub revision without the route, only the
 # @description form is checked (a key is named) and the
 # @description summary says NOT hub-checked: CI (workflow 25) is the hard gate.
+# @description A hub that does not answer fails the check, except with
+# @description COMMIT_LINKS_HARD=0 (the pre-push hook): there it WARNs and
+# @description checks the form only, and CI checks the links.
 # @description Merge commits are skipped (trunk is linear). Prints one line:
 # @description   COMMIT_LINKS_CHECK hub=<env|none> range=<a..b> commits=<n> ok=<n> fail=<n>
 # @description Exit: 0 every commit passes, 3 one or more refused (each FATAL
@@ -28,6 +31,7 @@
 # @param COMMIT_LINKS_HUB (optional) - dev, prd or none; default prd when this box holds its SA key, else none
 # @param COMMIT_LINKS_TENANT (optional) - the issue workspace, default cnf env.hub.commit_issue_tenant
 # @param COMMIT_LINKS_PREFIX (optional) - its key prefix, default cnf env.hub.commit_issue_prefix
+# @param COMMIT_LINKS_HARD (optional) - 1 (default) a failed hub read fails the check; 0 it WARNs and checks the form only
 # @example ./run -a do_spl_commit_links_check
 # @example COMMIT_LINKS_RANGE=HEAD~5..HEAD COMMIT_LINKS_HUB=none ./run -a do_spl_commit_links_check
 #------------------------------------------------------------------------------
@@ -57,7 +61,8 @@ do_spl_commit_links_check() {
     case "$rc" in
       0) ;;
       4) do_log "WARN the $hub hub has no /v1/operator/commit-links yet (older revision): the form only"; hub=none links='{}' ;;
-      *) return 1 ;;
+      *) [[ "${COMMIT_LINKS_HARD:-1}" == 0 ]] || return 1
+         do_log "WARN the $hub hub did not answer (rc $rc): the form only, CI checks the links"; hub=none links='{}' ;;
     esac
   fi
   _spl_cl_verdicts "$repo" "$hub" "$tenant" "$prefix" "$range" "$links" "${shas[@]}"
@@ -78,7 +83,7 @@ _spl_cl_verdicts() {
     fi
   done
   local nh=""
-  [[ "$hub" == none ]] && nh=" (NOT hub-checked: no prd SA key on this box, COMMIT_LINKS_HUB=none or an older hub; CI checks the links)"
+  [[ "$hub" == none ]] && nh=" (NOT hub-checked: no prd SA key on this box, COMMIT_LINKS_HUB=none, an older hub or no hub answer; CI checks the links)"
   echo "COMMIT_LINKS_CHECK hub=$hub range=$range commits=$# ok=$ok fail=$bad$nh"
   ((bad == 0)) && return 0
   do_log "INFO the rule and the fixes: csi-spl-doc/specs/016-spool-testability/commit-links.md section 3"

@@ -72,6 +72,12 @@ const bl = issueLinker(PFX, at, 14)
 const bb = bl.blocks([{ type: 'para', parts: [{ type: 'text', text: 'ACME-4778 ACME-2' }, { type: 'inline', text: 'ACME-15' }] }])
 ok('linker: blocks bound by last', texts(bb[0].parts).join() === 'ACME-2' && bb[0].parts.at(-1).type === 'inline' && bl.inline('ACME-15') === '' && bl.markdown('ACME-15') === 'ACME-15')
 ok('linker: a bad last is no bound', issueLinker(PFX, at, 'x').inline('ACME-4778') === '/fi/issues?issue=ACME-4778')
+/* R7 W2: an issue filed after sign-in is past the bound read then; onPast lets the caller re-read it */
+const past = []
+const pl = issueLinker(PFX, at, 14, (k) => past.push(k))
+pl.blocks([{ type: 'para', parts: [{ type: 'text', text: 'ACME-15 ACME-2' }] }])
+ok('linker: a key past last calls onPast, one under it does not', pl.inline('ACME-16') === '' && pl.markdown('ACME-14') === '[ACME-14](/fi/issues?issue=ACME-14)' && past.join() === 'ACME-15,ACME-16')
+ok('linker: no last = onPast never called', (() => { const q = []; issueLinker(PFX, at, undefined, (k) => q.push(k)).inline('ACME-4778'); return q.length === 0 })())
 
 console.log('commit hash in a code span')
 const WEB = 'https://git.example.org/acme/spool'

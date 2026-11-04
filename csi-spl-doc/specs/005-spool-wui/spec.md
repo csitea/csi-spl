@@ -269,7 +269,12 @@ opening it.
   workspace's `last_number`, the highest number it ever handed out
   (`issue_counters.last_number`, read once with the prefix from `GET /v1/view/issues`;
   numbers are never reused). A higher key, e.g. another workspace's `SPL-4778` cited in a
-  workspace with 14 issues, stays plain text, never a dead link. A hub that sends no
+  workspace with 14 issues, stays plain text, never a dead link. Limit: a key of the same
+  prefix from another workspace with `n` at most `last_number` (e.g. t1's `SPL-3` cited in
+  a workspace with 14 issues) still links to this workspace's own #3; nothing in the text
+  tells them apart. A distinct prefix per workspace (SPL-4788 part 2) removes it. A key
+  past the bound re-reads `last_number`, at most once a minute, so an issue filed after
+  sign-in links without a reload. A hub that sends no
   `last_number` leaves every key linked, as before. Owner HUM-10, topic d60646d9,
   msgs 9030e104 and 929648b8 ("a bug lane makes unknown keys plain text"). Check:
   `node tests/unit/issue-key-links.test.mjs`, `tests/e2e/commit-links.test.mjs`,

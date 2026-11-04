@@ -3,6 +3,8 @@
 // text) come from the hub's issue list (one row asked)
 // once the session is in; a workspace with no issues, or a refused read,
 // leaves keys as text. Sign-out clears the linker; the next sign-in asks again.
+// A key past last_number asks again, at most once a minute (R7 W2): an issue
+// filed after sign-in then links, and still no request per key.
 import { watch, type ShallowRef } from 'vue'
 import type { IssueLinker } from '~/utils/issue-link-hook.mjs'
 import { issueLinker } from '~/utils/issue-key-links.mjs'
@@ -29,11 +31,16 @@ export function installIssueLinks(linker: ShallowRef<IssueLinker | null>) {
   } catch { /* an unprefixed path still opens on the default locale */ }
   const api = useSpoolApi()
   let asked = false
+  let readAt = 0
+  const onPast = () => {
+    if (Date.now() - readAt > 60_000) { asked = false; load() }
+  }
   const load = () => {
     if (asked) return
     asked = true
+    readAt = Date.now()
     void prefixRead(api)
-      .then((data) => { linker.value = issueLinker(data?.prefix, pathFor, data?.last_number) })
+      .then((data) => { linker.value = issueLinker(data?.prefix, pathFor, data?.last_number, onPast) })
       .catch(() => { asked = false })
   }
   if (api.mock) { load(); return }

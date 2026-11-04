@@ -16,5 +16,5 @@ declare module '~/utils/issue-key-links.mjs' {
   export function linkifyIssueMarkdown(src: unknown, prefix: unknown, pathFor?: (p: string) => string, last?: unknown): string
   export function inlineIssueHref(prefix: unknown, text: unknown, pathFor?: (p: string) => string, last?: unknown): string
   export function linkifyIssueBlocks<T>(blocks: T, prefix: unknown, pathFor?: (p: string) => string, last?: unknown): T
-  export function issueLinker(prefix: unknown, pathFor?: (p: string) => string, last?: unknown): { blocks: (blocks: unknown[]) => unknown[], markdown: (src: string) => string, inline: (text: string) => string } | null
+  export function issueLinker(prefix: unknown, pathFor?: (p: string) => string, last?: unknown, onPast?: (key: string) => void): { blocks: (blocks: unknown[]) => unknown[], markdown: (src: string) => string, inline: (text: string) => string } | null
 }

@@ -16,6 +16,8 @@
  * reports last_number, the highest number this workspace ever handed out;
  * numbers are never reused, so a key above it cannot be one of its issues.
  * No last_number (a hub older than SPL-4788) = no bound, as before.
+ * The linker's onPast hears of a key past the bound, so the caller can
+ * re-read last_number: an issue filed after sign-in then links (R7 W2).
  *
  * Loaded lazily (plugins/issue-links.client.ts) and reached through
  * utils/issue-link-hook.mjs, so the initial chunk does not grow. Pure: node
@@ -44,6 +46,11 @@ export function issueLastNumber(v) {
   return Number.isInteger(n) && n >= 0 ? n : null
 }
 
+/* last: the hub's last_number, or the linker's { n, onPast } */
+function boundOf(last) {
+  return last && typeof last === 'object' ? last : { n: issueLastNumber(last) }
+}
+
 /** Is the text exactly one key of this prefix? */
 export function isIssueKey(prefix, text) {
   const p = issueKeyPrefix(prefix)
@@ -53,8 +60,11 @@ export function isIssueKey(prefix, text) {
 /** /issues?issue=<KEY> through pathFor (the locale prefix), or '' when not a key or past last. */
 export function issueHref(prefix, key, pathFor, last) {
   if (!isIssueKey(prefix, key)) return ''
-  const bound = issueLastNumber(last)
-  if (bound !== null && Number(String(key).slice(String(key).lastIndexOf('-') + 1)) > bound) return ''
+  const bound = boundOf(last)
+  if (bound.n != null && Number(String(key).slice(String(key).lastIndexOf('-') + 1)) > bound.n) {
+    if (typeof bound.onPast === 'function') bound.onPast(String(key))
+    return ''
+  }
   const path = '/issues?issue=' + encodeURIComponent(String(key))
   const out = typeof pathFor === 'function' ? pathFor(path) : path
   return String(out || path)
@@ -142,11 +152,11 @@ export function linkifyIssueBlocks(blocks, prefix, pathFor, last) {
   })
 }
 
-/** The linker utils/issue-link-hook.mjs holds: null when the prefix is unset. last: the hub's last_number. */
-export function issueLinker(prefix, pathFor, last) {
+/** The linker utils/issue-link-hook.mjs holds: null when the prefix is unset. last: the hub's last_number; onPast(key): a key past it. */
+export function issueLinker(prefix, pathFor, last, onPast) {
   const p = issueKeyPrefix(prefix)
   if (!p) return null
-  const n = issueLastNumber(last)
+  const n = { n: issueLastNumber(last), onPast }
   return {
     blocks: (blocks) => linkifyIssueBlocks(blocks, p, pathFor, n),
     markdown: (src) => linkifyIssueMarkdown(src, p, pathFor, n),

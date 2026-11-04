@@ -1,0 +1,6 @@
+Lay-What: The operator's Lanes page now also shows the work of agents in every other workspace, labelled by workspace.
+Lay-How: After the operator's own work, the page lists each workspace's own agents and their work, with that workspace's name.
+Lay-Why: Agents on computers that joined a customer workspace belong to the same team and must be seen with the rest of it.
+Tech-What: GET /v1/operator/fleet-lanes appends each non-archived workspace's own lanes and roster agents (spec 153 3.17, C79, C80).
+Tech-How: Token burn and operator pins read once per call; per workspace one fleet_lanes and one roster read; topic id only, no title or issues.
+Tech-Why: The operator view read only the operator tenant's fleet_lanes, so a joined box's agents never appeared in the cluster view.

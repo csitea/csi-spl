@@ -3610,7 +3610,14 @@
       "open_commit": "Otvoriť poznámku k vydaniu {sha}",
       "open_version": "Otvoriť poznámky verzie {version}",
       "load_more": "Načítať viac",
-      "shown": "Zobrazených {shown} z {total} commitov"
+      "shown": "Zobrazených {shown} z {total} commitov",
+      "links_label": "Úlohy a diskusie",
+      "links_unknown": "neznáme",
+      "links_unknown_title": "K tomuto commitu nie je zaznamenaná žiadna úloha ani diskusia: je starší ako pravidlo prepojení",
+      "links_issue_title": "Otvoriť úlohu {key} v {ws}",
+      "links_issue_missing": "{key}: taká úloha v {ws} neexistuje",
+      "links_discussion": "diskusia",
+      "links_discussion_locked": "diskusia, len pre členov {ws}"
     },
     "sql": {
       "query_label": "Dopyt",

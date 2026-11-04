@@ -3610,7 +3610,14 @@
       "open_commit": "Otwórz informację o wydaniu {sha}",
       "open_version": "Otwórz notatki wersji {version}",
       "load_more": "Wczytaj więcej",
-      "shown": "Pokazano {shown} z {total} commitów"
+      "shown": "Pokazano {shown} z {total} commitów",
+      "links_label": "Zgłoszenia i dyskusje",
+      "links_unknown": "nieznane",
+      "links_unknown_title": "Dla tego commita nie zapisano zgłoszenia ani dyskusji: jest starszy niż reguła powiązań",
+      "links_issue_title": "Otwórz zgłoszenie {key} w {ws}",
+      "links_issue_missing": "{key}: brak takiego zgłoszenia w {ws}",
+      "links_discussion": "dyskusja",
+      "links_discussion_locked": "dyskusja, tylko dla członków {ws}"
     },
     "sql": {
       "query_label": "Zapytanie",

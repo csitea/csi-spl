@@ -89,9 +89,26 @@ when the viewer's session is a member of the owning workspace and may open
 the topic (`can_open: true`). Anyone else gets the key and the count, never
 a topic id or title of another workspace.
 
-The Releases row shows each issue and each discussion as a link to the
-owning workspace's host. A commit with no stored key, or none that resolves,
-shows **unknown**: that is the older commits, from before this feature.
+The Releases row, after the subject, and the release-note dialog
+(`/releases/<sha>`), under the note's meta line, show the same links. The
+component is `csi-spl-wui/src/components/reporting/ReleaseIssueLinks.vue`
+and the pure builder `csi-spl-wui/src/utils/release-issue-links.mjs`:
+
+- each issue is a link to `/issues?issue=<key>`, and each discussion a link
+  to `/t/<id>` titled with its first line. In the page's own workspace the
+  link is in-app; in another workspace it opens that workspace's host in a
+  new tab.
+- a key with no issue is shown struck through, not linked.
+- a discussion the viewer may not open reads "discussion, <workspace>
+  members only", with no link.
+- a commit with no stored key, or none that resolves to a discussion, shows
+  **unknown**: these are the older commits, from before this feature.
+- a hub revision that sends no `issues` field shows nothing.
+
+Tests: `csi-spl-wui/tests/unit/release-issue-links.test.mjs`, the SPL-4789
+block of `tests/unit/reporting-releases.test.mjs` (mounted row), and the
+SPL-4789 checks of `tests/e2e/reporting.test.mjs` on the mock bundle (every
+seventh mock commit has no issue and reads unknown).
 
 Backfill of the older commits: once the hub with rdb 0261 is on prd, one
 `ENV=prd DRY_RUN=0 ./run -a do_release_note_backfill` (csi-spl-orc) re-sends

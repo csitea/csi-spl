@@ -3610,7 +3610,14 @@
       "open_commit": "Ava {sha} väljalaskemärge",
       "open_version": "Ava versiooni {version} märkmed",
       "load_more": "Laadi veel",
-      "shown": "Näidatud {shown} commitit {total}-st"
+      "shown": "Näidatud {shown} commitit {total}-st",
+      "links_label": "Probleemid ja arutelud",
+      "links_unknown": "teadmata",
+      "links_unknown_title": "Selle commit'i juurde pole probleemi ega arutelu salvestatud: see on vanem kui linkide reegel",
+      "links_issue_title": "Ava probleem {key} tööruumis {ws}",
+      "links_issue_missing": "{key}: sellist probleemi pole tööruumis {ws}",
+      "links_discussion": "arutelu",
+      "links_discussion_locked": "arutelu, ainult {ws} liikmetele"
     },
     "sql": {
       "query_label": "Päring",

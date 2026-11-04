@@ -3610,7 +3610,14 @@
       "open_commit": "Отвори бележката към изданието за {sha}",
       "open_version": "Отвори бележките за {version}",
       "load_more": "Зареди още",
-      "shown": "Показани {shown} от {total} комита"
+      "shown": "Показани {shown} от {total} комита",
+      "links_label": "Задачи и дискусии",
+      "links_unknown": "неизвестно",
+      "links_unknown_title": "За този къмит няма записана задача или дискусия: той е по-стар от правилото за връзките",
+      "links_issue_title": "Отвори задача {key} в {ws}",
+      "links_issue_missing": "{key}: няма такава задача в {ws}",
+      "links_discussion": "дискусия",
+      "links_discussion_locked": "дискусия, само за членове на {ws}"
     },
     "sql": {
       "query_label": "Заявка",

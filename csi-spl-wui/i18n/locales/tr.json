@@ -3610,7 +3610,14 @@
       "open_commit": "{sha} sürüm notunu aç",
       "open_version": "{version} sürümünün notlarını aç",
       "load_more": "Daha fazla yükle",
-      "shown": "{total} commit'ten {shown} tanesi gösteriliyor"
+      "shown": "{total} commit'ten {shown} tanesi gösteriliyor",
+      "links_label": "Kayıtlar ve tartışmalar",
+      "links_unknown": "bilinmiyor",
+      "links_unknown_title": "Bu commit için kayıtlı bir iş veya tartışma yok: bağlantı kuralından daha eski",
+      "links_issue_title": "{key} işini {ws} içinde aç",
+      "links_issue_missing": "{key}: {ws} içinde böyle bir iş yok",
+      "links_discussion": "tartışma",
+      "links_discussion_locked": "tartışma, yalnızca {ws} üyeleri"
     },
     "sql": {
       "query_label": "Sorgu",

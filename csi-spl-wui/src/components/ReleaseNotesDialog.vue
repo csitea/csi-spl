@@ -73,6 +73,7 @@
               <span v-if="note.area" class="rn-chip">{{ note.area }}</span>
               <time v-if="note.committed_at" class="rn-note__time" :datetime="note.committed_at" :title="fullTime(note.committed_at)" data-test="release-note-time">{{ t('release_notes.col_time') }} {{ isoDateTime(note.committed_at) }}</time>
             </p>
+            <p v-if="Array.isArray(note.issues)" class="rn-note__issues" data-test="release-note-issues"><ReleaseIssueLinks :issues="note.issues" /></p>
             <p v-if="stateText(note.state)" class="rn-note__state" :class="'is-' + note.state" data-test="release-note-state">{{ stateText(note.state) }}</p>
           </header>
           <!-- plain words first, technical beside it (below it on a narrow screen) -->
@@ -232,6 +233,7 @@ import { shortcutsOn } from '~/utils/msg-shortcuts.mjs'
 import { commitPrefix, linkifyCommitText, shaHref } from '~/utils/commit-links'
 import { shortHash, shortHashLabel } from '~/utils/hash-label.mjs'
 import { useSessionStore } from '~/stores/session'
+import ReleaseIssueLinks from '~/components/reporting/ReleaseIssueLinks.vue'
 import { useReleaseNotesPages, type ReleaseNote, type ReleaseVersion } from '~/composables/useReleaseNotesPages'
 import { useReleaseVersionKeys } from '~/composables/useReleaseVersionKeys'
 
@@ -477,6 +479,7 @@ watch(() => props.initialRef, (r, old) => {
 .rn-row__badge.is-missing, .rn-note__state.is-missing { color: var(--color-warn); font-style: normal; }
 
 /* the note: a card with a head, the two halves, a foot */
+.rn-note__issues { margin: 6px 0 0; }
 .rn-note { display: flex; flex-direction: column; overflow: clip; }
 .rn-note__head { display: flex; flex-direction: column; gap: 0.5rem; padding: 1rem 1.25rem; border-bottom: 1px solid var(--color-border); }
 .rn-note__subject { margin: 0; font-size: 1.125rem; line-height: 1.35; color: var(--color-heading); overflow-wrap: anywhere; }

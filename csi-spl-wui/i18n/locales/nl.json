@@ -3610,7 +3610,14 @@
       "open_commit": "Open de releasenotitie van {sha}",
       "open_version": "Open de releasenotities van {version}",
       "load_more": "Meer laden",
-      "shown": "{shown} van {total} wijzigingen getoond"
+      "shown": "{shown} van {total} wijzigingen getoond",
+      "links_label": "Issues en discussies",
+      "links_unknown": "onbekend",
+      "links_unknown_title": "Voor deze commit is geen issue of discussie vastgelegd: hij is ouder dan de koppelingsregel",
+      "links_issue_title": "Issue {key} openen in {ws}",
+      "links_issue_missing": "{key}: dit issue bestaat niet in {ws}",
+      "links_discussion": "discussie",
+      "links_discussion_locked": "discussie, alleen voor leden van {ws}"
     },
     "sql": {
       "query_label": "SQL-query",

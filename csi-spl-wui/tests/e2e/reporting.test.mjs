@@ -32,6 +32,10 @@
 //     month with no invoice and the year total row; an admin's and a
 //     member's bar have no Incomes tab, and the member who opens it by its
 //     path gets the refusal line, no table and no refused read.
+//   - SPL-4789 (owner HUM-10, t1 ef94396b): a commit row shows its issue
+//     links (/issues?issue=<key>) and discussion links (/t/<id>), or
+//     "unknown" for a commit with neither; the links do not widen the page
+//     past the viewport, and a click on an issue opens it.
 // RED CONTROL: a tab, a link or the table missing fails a check, and the
 // file exits 1. For Finance: the tab rule widened to an admin (no
 // netvisorOwner in reporting-tabs.mjs) fails "a non-owner admin's bar has
@@ -118,8 +122,19 @@ async function releases(p, base, tag) {
     versionHref: e.querySelector('[data-test=releases-commit-version]')?.getAttribute('href') || '',
     time: e.querySelector('[data-test=releases-commit-time]')?.textContent.trim() || '',
     datetime: e.querySelector('[data-test=releases-commit-time]')?.getAttribute('datetime') || '',
+    issues: [...e.querySelectorAll('[data-test=release-links-issue]')].map((a) => [a.textContent.trim(), a.getAttribute('href') || '']),
+    topics: [...e.querySelectorAll('[data-test=release-links-discussion]')].map((a) => a.getAttribute('href') || ''),
+    unknown: e.querySelector('[data-test=release-links-unknown]')?.textContent.trim() || '',
   })))
   ok(`${tag}: there are commit rows`, rows.length > 0, { rows: rows.length })
+  // SPL-4789: an issue link per cited issue, a discussion link per topic, else "unknown"
+  const linked = rows.filter((r) => r.issues.length)
+  const badI = linked.filter((r) => r.issues.some(([k, h]) => !/^SPL-\d+$/.test(k) || !h.endsWith('/issues?issue=' + k)) || !r.topics.length || r.topics.some((h) => !/\/t\/[0-9a-f-]{36}$/.test(h)))
+  ok(`${tag}: a commit's issues link to /issues?issue=<key>, its discussions to /t/<id>`, linked.length > 0 && badI.length === 0, { linked: linked.length, bad: badI.slice(0, 2) })
+  const unknown = rows.filter((r) => !r.issues.length)
+  ok(`${tag}: a commit with no issue reads "unknown"`, unknown.length > 0 && unknown.every((r) => r.unknown === 'unknown'), { unknown: unknown.length, bad: unknown.filter((r) => r.unknown !== 'unknown').slice(0, 2) })
+  const wide = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+  ok(`${tag}: the links keep the page within the viewport`, wide <= 1, { overflow: wide })
   // SPL-4417 (owner, t1 6c689c19): every row shows its time, HH:MM UTC of its datetime
   const badT = rows.filter((r) => !/^\d\d:\d\d UTC$/.test(r.time) || new Date(r.datetime).toISOString().slice(11, 16) + ' UTC' !== r.time)
   ok(`${tag}: every commit row carries its HH:MM UTC time`, rows.length > 0 && badT.length === 0, badT.slice(0, 2))
@@ -138,6 +153,15 @@ async function releases(p, base, tag) {
     await p.$eval(sha, (e) => e.scrollIntoView({ block: 'center' }))
     await p.click(sha)
     ok(`${tag}: a click on the sha opens /releases/<sha>`, await at(p, '/releases/' + rows[0].sha), pathOf(p))
+  }
+  if (linked.length) {
+    await p.goto(base + '/reporting/releases', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+    await waitFor(p, '[data-test=release-links-issue]')
+    const first = '[data-test=release-links-issue]'
+    const key = await p.$eval(first, (e) => { e.scrollIntoView({ block: 'center' }); return e.textContent.trim() })
+    await p.click(first)
+    ok(`${tag}: a click on an issue link opens it in Issues`, await at(p, '/issues'), pathOf(p))
+    ok(`${tag}: ... with ?issue=<key>`, await p.evaluate(() => new URL(location.href).searchParams.get('issue')) === key, { key })
   }
 }
 

@@ -3610,7 +3610,14 @@
       "open_commit": "Άνοιγμα της σημείωσης έκδοσης του {sha}",
       "open_version": "Άνοιγμα των σημειώσεων της {version}",
       "load_more": "Φόρτωση περισσότερων",
-      "shown": "Εμφανίζονται {shown} από {total} υποβολές"
+      "shown": "Εμφανίζονται {shown} από {total} υποβολές",
+      "links_label": "Θέματα και συζητήσεις",
+      "links_unknown": "άγνωστο",
+      "links_unknown_title": "Δεν έχει καταγραφεί θέμα ή συζήτηση για αυτό το commit: είναι παλαιότερο από τον κανόνα συνδέσμων",
+      "links_issue_title": "Άνοιγμα θέματος {key} στο {ws}",
+      "links_issue_missing": "{key}: δεν υπάρχει τέτοιο θέμα στο {ws}",
+      "links_discussion": "συζήτηση",
+      "links_discussion_locked": "συζήτηση, μόνο για μέλη του {ws}"
     },
     "sql": {
       "query_label": "Ερώτημα",

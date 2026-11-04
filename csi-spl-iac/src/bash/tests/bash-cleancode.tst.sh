@@ -29,8 +29,6 @@ LONG="
   csi-spl-orc/src/bash/run/spl-agent-identity-restore.func.sh do_spl_agent_identity_restore 80
   csi-spl-orc/src/bash/run/spl-desk-reply.func.sh spl_desk_pick 80
   csi-spl-orc/src/bash/run/spl-dispatch-lease.func.sh spl_fleet_role_tick 78
-  csi-spl-orc/src/bash/run/spl-dispatch-rotate.func.sh spl_disp_rotate_auto 78
-  csi-spl-orc/src/bash/run/spl-secrets-seed-all.func.sh do_secrets_seed_gcp 77
   csi-spl-orc/src/bash/run/spl-tenant-create.func.sh do_spl_tenant_create 76
 "
 

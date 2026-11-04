@@ -86,9 +86,15 @@ account (never the owner account, never a direct DB write), modelled on
 - `ENV=<env> COST_CMD=create COST_TYPE=cloud COST_LABEL='<label>' COST_AMOUNT=64.80 COST_CURRENCY=EUR COST_PERIOD=2026-01 DRY_RUN=0 ./run -a do_spl_hub_cost_entries`
 - `ENV=<env> COST_CMD=delete COST_ID=<uuid> DRY_RUN=0 ./run -a do_spl_hub_cost_entries`
 
+**Amounts are net of VAT** (owner HUM-10, poll 68d7f768 answer 4 NET, msg
+4eb41f4c): `COST_AMOUNT` is the net. The table keeps one amount, so an
+invoice's gross, when given as `COST_GROSS` (never below the net), is kept
+in the note as `gross <amount> <currency>`.
+
 Code: `csi-spl-orc/src/bash/run/spl-hub-cost-entries.func.sh`; test
 `csi-spl-orc/src/bash/tests/spl-hub-cost-entries.tst.sh` (red control: the
-dry-run guard dropped, case 2 fails).
+dry-run guard dropped, case 2 fails; the gross-below-net check dropped,
+case 6 fails).
 
 ## 6. Web UI: Reporting -> Costs (SPL-4824)
 
@@ -111,4 +117,4 @@ dry-run guard dropped, case 2 fails).
   returning the unpriced 0), `tests/e2e/monitoring-costs.test.mjs` (the
   `entries` block).
 
-<!-- version: 0.4.0 · updated: 2026-11-04 -->
+<!-- version: 0.5.0 · updated: 2026-11-04 -->

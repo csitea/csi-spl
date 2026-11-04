@@ -14,12 +14,16 @@
 # @param COST_TYPE (optional) - list filter, or create: cloud | hr
 # @param COST_MONTH (optional) - list filter: YYYY-MM
 # @param COST_LABEL COST_AMOUNT COST_CURRENCY COST_PERIOD - create: the label
-#   (1..100 chars), the amount above 0, the ISO 4217 code, the month YYYY-MM
-# @param COST_NOTE (optional) - create: at most 2000 characters
+#   (1..100 chars), the amount NET of VAT above 0 (owner poll 68d7f768
+#   answer 4 NET, msg 4eb41f4c), the ISO 4217 code, the month YYYY-MM
+# @param COST_GROSS (optional) - create: the invoice's gross (with VAT), not
+#   below the net; the table keeps one amount, so it rides the note as
+#   "gross <amount> <currency>"
+# @param COST_NOTE (optional) - create: at most 2000 characters with the gross
 # @param COST_ID - delete: the entry's uuid
 # @param DRY_RUN (optional) - 1 (default) or 0, create and delete only
 # @example ENV=dev COST_TYPE=cloud COST_MONTH=2026-01 ./run -a do_spl_hub_cost_entries
-# @example ENV=dev COST_CMD=create COST_TYPE=cloud COST_LABEL=fixture COST_AMOUNT=1 COST_CURRENCY=EUR COST_PERIOD=2020-01 ./run -a do_spl_hub_cost_entries
+# @example ENV=dev COST_CMD=create COST_TYPE=cloud COST_LABEL=fixture COST_AMOUNT=1 COST_GROSS=1.24 COST_CURRENCY=EUR COST_PERIOD=2020-01 ./run -a do_spl_hub_cost_entries
 # @example ENV=dev COST_CMD=delete COST_ID=<uuid> DRY_RUN=0 ./run -a do_spl_hub_cost_entries
 #------------------------------------------------------------------------------
 do_spl_hub_cost_entries() {
@@ -53,7 +57,7 @@ _spl_hub_cost_entries_field() {
   case "$1" in
     COST_TYPE) [[ "$v" =~ ^(cloud|hr)$ ]] || { do_log "FATAL COST_TYPE must be cloud or hr, got: '$v'" >&2; return 1; } ;;
     COST_LABEL) [[ -n "${v// /}" && ${#v} -le 100 ]] || { do_log "FATAL COST_LABEL must be 1..100 characters" >&2; return 1; } ;;
-    COST_AMOUNT) [[ "$v" =~ ^[0-9]+(\.[0-9]{1,4})?$ && ! "$v" =~ ^0+(\.0+)?$ ]] || { do_log "FATAL COST_AMOUNT must be a number above 0, got: '$v'" >&2; return 1; } ;;
+    COST_AMOUNT|COST_GROSS) [[ "$v" =~ ^[0-9]+(\.[0-9]{1,4})?$ && ! "$v" =~ ^0+(\.0+)?$ ]] || { do_log "FATAL $1 must be a number above 0, got: '$v'" >&2; return 1; } ;;
     COST_CURRENCY) [[ "$v" =~ ^[A-Z]{3}$ ]] || { do_log "FATAL COST_CURRENCY must be an ISO 4217 code such as EUR, got: '$v'" >&2; return 1; } ;;
     COST_PERIOD|COST_MONTH) [[ "$v" =~ ^[0-9]{4}-(0[1-9]|1[0-2])$ ]] || { do_log "FATAL $1 must be a month YYYY-MM, got: '$v'" >&2; return 1; } ;;
     COST_NOTE) [[ ${#v} -le 2000 ]] || { do_log "FATAL COST_NOTE must be at most 2000 characters" >&2; return 1; } ;;
@@ -77,15 +81,30 @@ _spl_hub_cost_entries_id() {
   do_log "FATAL COST_ID must be a cost entry's uuid, got: '${COST_ID:-}'"; return 1
 }
 
+# _spl_hub_cost_entries_note -> COST_NOTE with COST_GROSS kept in it (the
+# amount is the net), else FATAL: a gross below the net, a note too long
+_spl_hub_cost_entries_note() {
+  local note="${COST_NOTE:-}"
+  if [[ -n "${COST_GROSS:-}" ]]; then
+    _spl_hub_cost_entries_field COST_GROSS || return 1
+    jq -en --argjson g "$COST_GROSS" --argjson n "$COST_AMOUNT" '$g >= $n' >/dev/null ||
+      { do_log "FATAL COST_GROSS ($COST_GROSS) is below the net COST_AMOUNT ($COST_AMOUNT)" >&2; return 1; }
+    note="gross $COST_GROSS $COST_CURRENCY${note:+; $note}"
+  fi
+  [[ ${#note} -le 2000 ]] || { do_log "FATAL COST_NOTE with the gross must be at most 2000 characters" >&2; return 1; }
+  echo "$note"
+}
+
 # _spl_hub_cost_entries_body -> the create body from the env, checked first;
 # the amount as a number (+ 0: jq 1.7 would keep 64.80's literal)
 _spl_hub_cost_entries_body() {
-  local f
-  for f in COST_TYPE COST_LABEL COST_AMOUNT COST_CURRENCY COST_PERIOD COST_NOTE; do
+  local f note
+  for f in COST_TYPE COST_LABEL COST_AMOUNT COST_CURRENCY COST_PERIOD; do
     _spl_hub_cost_entries_field "$f" || return 1
   done
+  note="$(_spl_hub_cost_entries_note)" || return 1
   jq -cn --arg t "$COST_TYPE" --arg l "$COST_LABEL" --argjson a "$COST_AMOUNT" --arg c "$COST_CURRENCY" \
-    --arg p "$COST_PERIOD" --arg n "${COST_NOTE:-}" \
+    --arg p "$COST_PERIOD" --arg n "$note" \
     '{type: $t, label: $l, amount: ($a + 0), currency: $c, period: $p, note: $n}'
 }
 

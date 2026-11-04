@@ -8,6 +8,9 @@
 #   3. bad input is refused before any call
 #   4. DRY_RUN=0 create POSTs the exact body; delete DELETEs the id
 #   5. hub refusals (400, 403) fail
+#   6. the amount is the NET (owner poll 68d7f768, answer 4): COST_GROSS
+#      rides the note as "gross <x> <cur>"; a gross below the net, or a
+#      note too long with it, is refused before any call
 # RED CONTROL: case 2 fails when the dry-run guard is dropped (the call file
 # then holds the POST).
 #------------------------------------------------------------------------------
@@ -80,6 +83,19 @@ run STUB_CODE=403 STUB_BODY='{"error":"forbidden"}'; rc=$?
 [[ $rc -eq 1 ]] && grep -q 'SPOOL_HUB_OPERATOR_EMAILS' "$T/o" && pass "5. 403 names the operator allowlist" || fail "5. 403: rc=$rc $(cat "$T/o")"
 run COST_CMD=delete COST_ID=$ID DRY_RUN=0 STUB_CODE=404 STUB_BODY='{"error":"not_found"}'; rc=$?
 [[ $rc -eq 1 ]] && grep -q 'answered 404' "$T/o" && pass "5. a 404 on delete fails" || fail "5. 404: rc=$rc $(cat "$T/o")"
+
+# --- 6. net amount, gross kept in the note -----------------------------------------
+run "${CREATE[@]}" COST_GROSS=80.35 DRY_RUN=0 STUB_CODE=201 STUB_BODY="$ENTRY"; rc=$?
+[[ $rc -eq 0 ]] && grep -qF '"amount":64.8,"currency":"EUR","period":"2020-01","note":"gross 80.35 EUR"}' "$T/calls" \
+  && pass "6. the net is the amount, the gross rides the note" || fail "6. gross: rc=$rc $(cat "$T/calls" "$T/o")"
+run "${CREATE[@]}" COST_GROSS=64.80 "COST_NOTE=invoice 1" DRY_RUN=0 STUB_CODE=201 STUB_BODY="$ENTRY"; rc=$?
+grep -qF '"note":"gross 64.80 EUR; invoice 1"' "$T/calls" && pass "6. a gross equal to the net (VAT 0 %) and a note: both kept" || fail "6. gross+note: $(cat "$T/calls")"
+for bad in COST_GROSS=64.79 COST_GROSS=0 COST_GROSS=abc; do
+  run "${CREATE[@]}" DRY_RUN=0 "$bad"; rc=$?
+  [[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q FATAL "$T/o" && pass "6. $bad refused, no call" || fail "6. $bad: rc=$rc $(cat "$T/calls" "$T/o")"
+done
+run "${CREATE[@]}" COST_GROSS=64.80 "COST_NOTE=$(printf 'x%.0s' {1..1995})" DRY_RUN=0; rc=$?
+[[ $rc -ne 0 && ! -s "$T/calls" ]] && grep -q 'FATAL COST_NOTE with the gross' "$T/o" && pass "6. a note too long once the gross is in it: refused, no call" || fail "6. long note: rc=$rc $(cat "$T/o")"
 
 [[ "$fails" -eq 0 ]] && { echo "PASS: all $(basename "$0") assertions"; exit 0; }
 echo "FAIL: $fails assertion(s) in $(basename "$0")"; exit 1

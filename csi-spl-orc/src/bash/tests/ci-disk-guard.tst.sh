@@ -66,13 +66,15 @@ guard CI_DISK_NEED_GB=10 FAKE_DF_FAIL=1; rc=$?
 env -u CI_DISK_NEED_GB CI_DISK_DF="$T/df" FAKE_AVAIL_KB=1 bash "$G" / >"$T/out" 2>&1; rc=$?
 [[ $rc -eq 2 ]] && pass "4. no CI_DISK_NEED_GB: usage, exit 2" || fail "4. rc=$rc $(cat "$T/out")"
 
-# 5-7: a real directory, measured by du
+# 5-7: a real directory, measured by du. du -sm rounds up and counts the
+# directory's own block: 3 MiB reads 3 on tmpfs, 4 on ext4 (hosted runners,
+# run 41835611128 job 126593721957), so 5 takes either
 mkdir -p "$T/cache"
 head -c $((3 * 1048576)) /dev/zero >"$T/cache/small"
 : >"$T/gho"
 env CI_CACHE_SAVE_MAX_MB=10 GITHUB_OUTPUT="$T/gho" bash "$C" "$T/cache" >"$T/out" 2>&1; rc=$?
-[[ $rc -eq 0 ]] && grep -qx 'save=true' "$T/gho" && grep -qx 'mb=3' "$T/gho" \
-  && pass "5. 3 MB under a 10 MB cap: save=true, mb=3 in GITHUB_OUTPUT" || fail "5. rc=$rc $(cat "$T/out" "$T/gho")"
+[[ $rc -eq 0 ]] && grep -qx 'save=true' "$T/gho" && grep -qxE 'mb=[34]' "$T/gho" \
+  && pass "5. 3 MB under a 10 MB cap: save=true, mb=3 (4 on ext4) in GITHUB_OUTPUT" || fail "5. rc=$rc $(cat "$T/out" "$T/gho")"
 
 head -c $((12 * 1048576)) /dev/zero >"$T/cache/planted-oversize"
 : >"$T/gho"

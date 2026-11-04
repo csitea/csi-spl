@@ -36,6 +36,22 @@ func (s *Postgres) TaskMoveState(ctx context.Context, tenant, taskID string) (Ta
 	return out, nil
 }
 
+// IssueMoves implements IssueMoves: one read in <SRC>'s scope.
+func (s *Postgres) IssueMoves(ctx context.Context, tenant string) ([]IssueMove, error) {
+	out := []IssueMove{}
+	err := s.queryTenant(ctx, tenant, `SELECT old_ref, dst_tenant_id, new_ref, expires_at FROM channel_move_redirects
+		WHERE src_tenant_id = $1 AND kind = 'issue' ORDER BY old_ref`, []any{tenant}, func(r pgx.Rows) error {
+		var m IssueMove
+		if err := r.Scan(&m.OldKey, &m.Dst, &m.NewKey, &m.ExpiresAt); err != nil {
+			return err
+		}
+		m.ExpiresAt = m.ExpiresAt.UTC()
+		out = append(out, m)
+		return nil
+	})
+	return out, err
+}
+
 // MessageCopied reads messages.copied_from; a row not there is not a copy.
 func (s *Postgres) MessageCopied(ctx context.Context, tenant, msgID string) (bool, error) {
 	var copied bool

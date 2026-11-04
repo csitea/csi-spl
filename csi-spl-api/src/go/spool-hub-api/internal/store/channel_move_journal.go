@@ -53,6 +53,28 @@ var (
 	_ ChannelMoveRedirects = (*Memory)(nil)
 )
 
+// IssueMove is one kind issue row of channel_move_redirects (W4, Q2 = A): an
+// old key of <SRC>, the workspace it went to and its new key there. Past
+// ExpiresAt it maps nothing: an old key then closes nothing.
+type IssueMove struct {
+	OldKey, Dst, NewKey string
+	ExpiresAt           time.Time
+}
+
+// Live says the row still maps its old key.
+func (m IssueMove) Live(now time.Time) bool { return now.Before(m.ExpiresAt) }
+
+// IssueMoves reads <SRC>'s moved issue keys in its own scope (src_read), live
+// and expired, sorted by old key: the closer's map (spec 169 row T7g).
+type IssueMoves interface {
+	IssueMoves(ctx context.Context, tenant string) ([]IssueMove, error)
+}
+
+var (
+	_ IssueMoves = (*Postgres)(nil)
+	_ IssueMoves = (*Memory)(nil)
+)
+
 // ChannelMoveJournals is the journal of a move (rdb 0249, spec 169 section 8.3),
 // the hub's step driver reads and writes through it (T7). Every row lives in
 // <DST>. Only Postgres has it: P4 does too, so a Memory hub answers 501.

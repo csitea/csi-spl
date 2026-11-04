@@ -2217,7 +2217,11 @@
     "tabs_label": "Ajan kartı",
     "tab_lanes": "Hatlar",
     "tab_details": "Ayrıntılar",
-    "lanes_none": "Bu ajan hiçbir etkin hatta çalışmıyor."
+    "lanes_none": "Bu ajan hiçbir etkin hatta çalışmıyor.",
+    "workspace_group": "Çalışma alanı: {name}",
+    "workspace": "Çalışma alanı",
+    "foreign_note": "Bu ajan {name} çalışma alanında çalışıyor. Şeritleri, konuları ve mesajları o çalışma alanında kalır.",
+    "foreign_missing": "{ws} çalışma alanında böyle bir ajan yok."
   },
   "boxes": {
     "none": "Henüz box yok.",
@@ -2303,7 +2307,8 @@
     "band_now": "Şu anki yük: çekirdeklerin yüzde {pct} kadarı (load5).",
     "band_reset": "Filo bandına dön",
     "band_cpu": "Runner CPU sınırı: çekirdeklerin % {n} kadarı, bu makinenin kendi sınırı. Filo bandına sıfırlamak onu da siler.",
-    "band_who": "Yalnızca operatör çalışma alanının yöneticisi değiştirebilir."
+    "band_who": "Yalnızca operatör çalışma alanının yöneticisi değiştirebilir.",
+    "also_seated": "Ayrıca {count} başka çalışma alanında yerleşik"
   },
   "act_as": {
     "acting_as": "{name} olarak hareket ediyorsunuz",

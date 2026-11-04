@@ -2217,7 +2217,11 @@
     "tabs_label": "Ficha del agente",
     "tab_lanes": "Líneas",
     "tab_details": "Detalles",
-    "lanes_none": "Este agente no trabaja en ninguna línea activa."
+    "lanes_none": "Este agente no trabaja en ninguna línea activa.",
+    "workspace_group": "Espacio de trabajo: {name}",
+    "workspace": "Espacio de trabajo",
+    "foreign_note": "Este agente se ejecuta en el espacio de trabajo {name}. Sus carriles, temas y mensajes permanecen en ese espacio de trabajo.",
+    "foreign_missing": "No existe ese agente en el espacio de trabajo {ws}."
   },
   "boxes": {
     "none": "Aún no hay equipos.",
@@ -2303,7 +2307,8 @@
     "band_now": "Carga ahora: {pct} % de los núcleos (load5).",
     "band_reset": "Volver a la banda de la flota",
     "band_cpu": "Límite de CPU para runners: {n} % de los núcleos, propio de esta máquina. Volver a la banda de la flota también lo borra.",
-    "band_who": "Solo un administrador del espacio de trabajo del operador puede cambiarla."
+    "band_who": "Solo un administrador del espacio de trabajo del operador puede cambiarla.",
+    "also_seated": "También asignado en {count} espacio(s) de trabajo más"
   },
   "act_as": {
     "acting_as": "Actuando como {name}",

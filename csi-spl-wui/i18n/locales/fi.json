@@ -2217,7 +2217,11 @@
     "tabs_label": "Agentin kortti",
     "tab_lanes": "Kaistat",
     "tab_details": "Tiedot",
-    "lanes_none": "Tämä agentti ei työskentele millään aktiivisella kaistalla."
+    "lanes_none": "Tämä agentti ei työskentele millään aktiivisella kaistalla.",
+    "workspace_group": "Työtila: {name}",
+    "workspace": "Työtila",
+    "foreign_note": "Tämä agentti toimii työtilassa {name}. Sen kaistat, aiheet ja viestit pysyvät siinä työtilassa.",
+    "foreign_missing": "Työtilassa {ws} ei ole tällaista agenttia."
   },
   "boxes": {
     "none": "Ei vielä boxeja.",
@@ -2303,7 +2307,8 @@
     "band_now": "Kuorma nyt: {pct} % ytimistä (load5).",
     "band_reset": "Palauta laivueen alueeseen",
     "band_cpu": "Runnereiden CPU-katto: {n} % ytimistä, tämän koneen oma. Palautus laivueen alueeseen poistaa myös sen.",
-    "band_who": "Vain operaattorityötilan ylläpitäjä voi muuttaa sitä."
+    "band_who": "Vain operaattorityötilan ylläpitäjä voi muuttaa sitä.",
+    "also_seated": "Sijoitettu myös {count} muuhun työtilaan"
   },
   "act_as": {
     "acting_as": "Toimit käyttäjänä {name}",

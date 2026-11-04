@@ -2217,7 +2217,11 @@
     "tabs_label": "Agent card",
     "tab_lanes": "Lanes",
     "tab_details": "Details",
-    "lanes_none": "This agent works on no active lane."
+    "lanes_none": "This agent works on no active lane.",
+    "workspace_group": "Workspace: {name}",
+    "workspace": "Workspace",
+    "foreign_note": "This agent runs in the workspace {name}. Its lanes, topics and messages stay in that workspace.",
+    "foreign_missing": "No such agent in the workspace {ws}."
   },
   "boxes": {
     "none": "No boxes yet.",
@@ -2303,7 +2307,8 @@
     "band_now": "Load now: {pct} % of cores (load5).",
     "band_reset": "Reset to the fleet band",
     "band_cpu": "Runner CPU cap: {n} % of cores, this box's own. Reset to the fleet band clears it too.",
-    "band_who": "Only an admin of the operator workspace can change it."
+    "band_who": "Only an admin of the operator workspace can change it.",
+    "also_seated": "Also seated in {count} other workspace(s)"
   },
   "act_as": {
     "acting_as": "Acting as {name}",

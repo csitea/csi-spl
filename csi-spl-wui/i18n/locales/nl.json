@@ -2217,7 +2217,11 @@
     "tabs_label": "Agentkaart",
     "tab_lanes": "Banen",
     "tab_details": "Gegevens",
-    "lanes_none": "Deze agent werkt aan geen actieve baan."
+    "lanes_none": "Deze agent werkt aan geen actieve baan.",
+    "workspace_group": "Werkruimte: {name}",
+    "workspace": "Werkruimte",
+    "foreign_note": "Deze agent draait in de werkruimte {name}. Zijn lanes, onderwerpen en berichten blijven in die werkruimte.",
+    "foreign_missing": "Geen zulke agent in de werkruimte {ws}."
   },
   "boxes": {
     "none": "Nog geen boxes.",
@@ -2303,7 +2307,8 @@
     "band_now": "Belasting nu: {pct} % van de cores (load5).",
     "band_reset": "Terug naar de vlootband",
     "band_cpu": "CPU-limiet voor runners: {n} % van de cores, van deze machine zelf. Terugzetten naar de vlootband wist die ook.",
-    "band_who": "Alleen een beheerder van de operatorwerkruimte kan dit wijzigen."
+    "band_who": "Alleen een beheerder van de operatorwerkruimte kan dit wijzigen.",
+    "also_seated": "Ook geplaatst in {count} andere werkruimte(n)"
   },
   "act_as": {
     "acting_as": "Handelen als {name}",

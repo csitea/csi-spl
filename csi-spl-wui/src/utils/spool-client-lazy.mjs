@@ -1842,6 +1842,19 @@ async function getFleetLanes(ctx, own = false) {
 }
 
 /**
+ * Spec 153 3.18 (SPL-4786): GET /v1/operator/fleet-roster, the boxes and
+ * agents the other workspaces have on their own (403 operator.workspaces for
+ * anyone but an admin of the operator workspace, as getFleetLoad). The mock
+ * answers from fleet-roster.mjs when the e2e opted into the operator
+ * (spool.mock.fleet_operator), else 403.
+ */
+async function getFleetRoster(ctx) {
+  const { live, mock } = ctx
+  if (mock) return (await import('./fleet-roster.mjs')).mockFleetRoster()
+  return live('/v1/operator/fleet-roster')
+}
+
+/**
  * Spec 160 3.4 (SPL-3888, row B5): GET /v1/view/file-streams, the
  * workspace's box file streams, for its owner or an admin (403 for anyone
  * else). The mock answers from monitoring-file-streams.mjs, which loads
@@ -2208,6 +2221,7 @@ export const lazySpoolMethods = {
   getCloudCostDays,
   getFleetTokens,
   getFleetLanes,
+  getFleetRoster,
   getFileStreams,
   getFileStreamLines,
   fileStreamGlobs,

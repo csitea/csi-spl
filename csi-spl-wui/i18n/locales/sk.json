@@ -2217,7 +2217,11 @@
     "tabs_label": "Karta agenta",
     "tab_lanes": "Linky",
     "tab_details": "Podrobnosti",
-    "lanes_none": "Tento agent nepracuje na žiadnej aktívnej linke."
+    "lanes_none": "Tento agent nepracuje na žiadnej aktívnej linke.",
+    "workspace_group": "Pracovný priestor: {name}",
+    "workspace": "Pracovný priestor",
+    "foreign_note": "Tento agent beží v pracovnom priestore {name}. Jeho dráhy, témy a správy zostávajú v tom pracovnom priestore.",
+    "foreign_missing": "V pracovnom priestore {ws} taký agent nie je."
   },
   "boxes": {
     "none": "Zatiaľ žiadne boxy.",
@@ -2303,7 +2307,8 @@
     "band_now": "Záťaž teraz: {pct} % jadier (load5).",
     "band_reset": "Späť na pásmo flotily",
     "band_cpu": "Strop CPU pre runnery: {n} % jadier, vlastný pre tento stroj. Návrat na pásmo flotily ho tiež vymaže.",
-    "band_who": "Zmeniť ho môže iba správca pracovného priestoru operátora."
+    "band_who": "Zmeniť ho môže iba správca pracovného priestoru operátora.",
+    "also_seated": "Umiestnený aj v ďalších {count} pracovných priestoroch"
   },
   "act_as": {
     "acting_as": "Konáte ako {name}",

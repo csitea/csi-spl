@@ -7,6 +7,13 @@
 // store, so a centred row shows as an icon x apart from the others, and the
 // longest name must stay inside its row (wraps, never pushes the icon out).
 //
+// Spec 153 3.18 (SPL-4786, C85-C87): the operator's Agents and Boxes also
+// list the boxes and agents the other workspaces have on their own (the
+// mock's Customer Space, box mac-01 with CLE-07), one group per workspace;
+// CLE-07@box-a and CLE-07@mac-01 are two rows, box-a once with its "also
+// seated in" line; the foreign agent's card names its workspace and offers
+// no lanes and no Message; a non-operator sees none of it.
+//
 // Run:
 //   BASE_URL=<generated bundle> pnpm run test:e2e monitoring-boxes-align
 import { createRequire } from 'node:module'
@@ -87,6 +94,58 @@ async function shot(p, name) {
   await p.screenshot({ path: join(SHOT_DIR, name + '.png') })
 }
 
+/** Spec 153 3.18: the operator's cross-workspace rows (C85-C87), desktop. */
+async function crossWorkspace() {
+  console.log('-- 1440x900 operator: other workspaces\' own boxes and agents')
+  const p = await browser.newPage()
+  const errors = []
+  p.on('pageerror', (e) => errors.push(String(e && e.message || e)))
+  await setPageViewport(p, { width: 1440, height: 900 })
+  await p.goto(server.base + '/monitoring/agents', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.evaluate(() => localStorage.setItem('spool.mock.fleet_operator', '1'))
+  await p.goto(server.base + '/monitoring/agents', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=monitoring-agents-workspace]', { timeout: 15000 }).catch(() => null)
+  const agents = await p.evaluate(() => Array.from(document.querySelectorAll('[data-test=monitoring-agents] a.nav-item')).map((a) => (a.getAttribute('data-key') || '') + '|' + (a.getAttribute('data-workspace') || '')))
+  const head = await p.$eval('[data-test=monitoring-agents-workspace] .agents-ws__head', (x) => x.textContent || '').catch(() => '')
+  ok('C85 Agents: CLE-07@box-a and CLE-07@mac-01 are two rows, the second under Customer Space',
+    agents.filter((k) => k === 'CLE-07@box-a|').length === 1 && agents.filter((k) => k === 'CLE-07@mac-01|tcust01').length === 1 && head.includes('Customer Space'), { agents, head })
+
+  await p.click('[data-test=monitoring-agents-workspace] a.nav-item[data-key="CLE-07@mac-01"]')
+  await p.waitForSelector('[data-test=agent-foreign-note]', { timeout: 15000 }).catch(() => null)
+  const card = await p.evaluate(() => ({
+    url: location.pathname + location.search,
+    ws: document.querySelector('[data-test=agent-workspace]')?.textContent || '',
+    note: document.querySelector('[data-test=agent-foreign-note]')?.textContent || '',
+    tabs: Boolean(document.querySelector('[data-test=agent-tabs]')),
+    message: Boolean(document.querySelector('[data-test=agent-message]')),
+    selected: document.querySelector('[data-test=monitoring-agents] a.nav-item.active')?.getAttribute('data-workspace') || '',
+  }))
+  ok('C86 the foreign card names its workspace, says so, no tabs, no Message',
+    card.url.includes('ws=tcust01') && card.ws === 'Customer Space' && card.note.includes('Customer Space') && !card.tabs && !card.message && card.selected === 'tcust01', card)
+  await p.goto(server.base + '/monitoring/agents/' + encodeURIComponent('CLE-07@mac-01') + '?ws=tnosuch', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=agent-foreign-missing]', { timeout: 15000 }).catch(() => null)
+  ok('C86 an unknown workspace: one line, no card', Boolean(await p.$('[data-test=agent-foreign-missing]')) && !(await p.$('[data-test=agent-foreign-note]')))
+
+  await p.goto(server.base + '/monitoring/boxes', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=boxes-group-workspace]', { timeout: 15000 }).catch(() => null)
+  const boxes = await p.evaluate(() => Array.from(document.querySelectorAll('[data-test=monitoring-box]')).map((b) => (b.getAttribute('data-box') || '') + '|' + (b.getAttribute('data-workspace') || '')))
+  const seated = await p.$eval('[data-box="box-a"] [data-test=boxes-also-seated]', (x) => ({ text: x.textContent || '', title: x.getAttribute('title') || '' })).catch(() => null)
+  ok('C85 Boxes: mac-01 once under Customer Space, box-a once with its also-seated line',
+    boxes.filter((k) => k === 'mac-01|tcust01').length === 1 && boxes.filter((k) => k.startsWith('box-a|')).length === 1 && Boolean(seated && seated.text.includes('1') && seated.title === 'Customer Space'), { boxes, seated })
+  await p.type('[data-test=boxes-filter]', 'customer')
+  await sleep(300)
+  const filtered = await p.evaluate(() => Array.from(document.querySelectorAll('[data-test=monitoring-box]')).map((b) => b.getAttribute('data-box')))
+  ok('C85 the Boxes filter matches the workspace name', filtered.length === 1 && filtered[0] === 'mac-01', { filtered })
+
+  await p.evaluate(() => localStorage.removeItem('spool.mock.fleet_operator'))
+  await p.goto(server.base + '/monitoring/agents', { waitUntil: 'networkidle2', timeout: NAV_TIMEOUT })
+  await p.waitForSelector('[data-test=monitoring-agents] a.nav-item', { timeout: 15000 }).catch(() => null)
+  await sleep(500)
+  ok('C87 a non-operator sees no other workspace', !(await p.$('[data-test=monitoring-agents-workspace]')))
+  ok('C85-C87 no page errors', errors.length === 0, errors)
+  await p.close()
+}
+
 const server = await startServer()
 const browser = await launch()
 try {
@@ -124,6 +183,7 @@ try {
     await shot(p, `monitoring-boxes-align-412-${theme}`)
     await p.close()
   }
+  await crossWorkspace()
 } finally {
   await browser.close()
   await server.stop()

@@ -2217,7 +2217,11 @@
     "tabs_label": "Fișa agentului",
     "tab_lanes": "Linii",
     "tab_details": "Detalii",
-    "lanes_none": "Acest agent nu lucrează pe nicio linie activă."
+    "lanes_none": "Acest agent nu lucrează pe nicio linie activă.",
+    "workspace_group": "Spațiu de lucru: {name}",
+    "workspace": "Spațiu de lucru",
+    "foreign_note": "Acest agent rulează în spațiul de lucru {name}. Culoarele, subiectele și mesajele sale rămân în acel spațiu de lucru.",
+    "foreign_missing": "Niciun astfel de agent în spațiul de lucru {ws}."
   },
   "boxes": {
     "none": "Încă niciun box.",
@@ -2303,7 +2307,8 @@
     "band_now": "Încărcare acum: {pct} % din nuclee (load5).",
     "band_reset": "Înapoi la banda flotei",
     "band_cpu": "Limita CPU pentru runneri: {n} % din nuclee, proprie acestei mașini. Revenirea la banda flotei o șterge și pe ea.",
-    "band_who": "Doar un administrator al spațiului de lucru al operatorului o poate schimba."
+    "band_who": "Doar un administrator al spațiului de lucru al operatorului o poate schimba.",
+    "also_seated": "Plasat și în alte {count} spații de lucru"
   },
   "act_as": {
     "acting_as": "Acționezi ca {name}",

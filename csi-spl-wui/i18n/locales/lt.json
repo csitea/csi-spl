@@ -2217,7 +2217,11 @@
     "tabs_label": "Agento kortelė",
     "tab_lanes": "Linijos",
     "tab_details": "Išsami informacija",
-    "lanes_none": "Šis agentas nedirba jokioje aktyvioje linijoje."
+    "lanes_none": "Šis agentas nedirba jokioje aktyvioje linijoje.",
+    "workspace_group": "Darbo sritis: {name}",
+    "workspace": "Darbo sritis",
+    "foreign_note": "Šis agentas veikia darbo srityje {name}. Jo juostos, temos ir žinutės lieka toje darbo srityje.",
+    "foreign_missing": "Darbo srityje {ws} tokio agento nėra."
   },
   "boxes": {
     "none": "Kol kas nėra boxų.",
@@ -2303,7 +2307,8 @@
     "band_now": "Apkrova dabar: {pct} % branduolių (load5).",
     "band_reset": "Grąžinti parko juostą",
     "band_cpu": "Runner'ių CPU riba: {n} % branduolių, šios mašinos. Grąžinus parko juostą, ji taip pat išvaloma.",
-    "band_who": "Pakeisti gali tik operatoriaus darbo srities administratorius."
+    "band_who": "Pakeisti gali tik operatoriaus darbo srities administratorius.",
+    "also_seated": "Taip pat priskirtas dar {count} darbo sritims"
   },
   "act_as": {
     "acting_as": "Veikiate kaip {name}",

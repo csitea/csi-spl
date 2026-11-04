@@ -2217,7 +2217,11 @@
     "tabs_label": "Agentkort",
     "tab_lanes": "Banor",
     "tab_details": "Detaljer",
-    "lanes_none": "Den här agenten arbetar inte på någon aktiv bana."
+    "lanes_none": "Den här agenten arbetar inte på någon aktiv bana.",
+    "workspace_group": "Arbetsyta: {name}",
+    "workspace": "Arbetsyta",
+    "foreign_note": "Den här agenten körs i arbetsytan {name}. Dess banor, ämnen och meddelanden stannar i den arbetsytan.",
+    "foreign_missing": "Ingen sådan agent i arbetsytan {ws}."
   },
   "boxes": {
     "none": "Inga boxes ännu.",
@@ -2303,7 +2307,8 @@
     "band_now": "Last nu: {pct} % av kärnorna (load5).",
     "band_reset": "Tillbaka till flottans band",
     "band_cpu": "CPU-tak för runners: {n} % av kärnorna, maskinens eget. Återställning till flottans band rensar det också.",
-    "band_who": "Bara en administratör för operatörens arbetsyta kan ändra det."
+    "band_who": "Bara en administratör för operatörens arbetsyta kan ändra det.",
+    "also_seated": "Placerad även i {count} andra arbetsytor"
   },
   "act_as": {
     "acting_as": "Agerar som {name}",

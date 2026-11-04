@@ -42,7 +42,7 @@ export const MSG_SHORTCUTS = Object.freeze([
   { key: 'H', items: ['hide-flow'], labelKey: 'feed.msg_menu.hide_flow' },
   { key: 'R', items: [], labelKey: 'feed.shortcuts.open_menu' },
   { key: 'E', items: ['edit'], labelKey: 'feed.msg_menu.edit' },
-  { key: 'A', items: ['archive'], labelKey: 'feed.shortcuts.archive' },
+  { key: 'A', items: ['archive'], labelKey: 'feed.msg_menu.archive' },
   { key: 'O', items: ['open'], labelKey: 'feed.msg_menu.open' },
   { key: 'P', items: ['parent'], labelKey: 'feed.msg_menu.open_parent' },
   { key: 'B', items: [], labelKey: 'feed.shortcuts.to_parent' },

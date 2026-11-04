@@ -33,7 +33,7 @@ export function wantsPanelCard(hit, hasCard) {
 }
 
 /**
- * @typedef {{ do: 'help' } | { do: 'step', step: number } | { do: 'undo' } | { do: 'menu' }
+ * @typedef {{ do: 'help' } | { do: 'step', step: number } | { do: 'menu' }
  *   | { do: 'row-menu' } | { do: 'row-back' } | { do: 'jump', key: 'U' | 'B' } | { do: 'run', id: string }} KeyAction
  */
 
@@ -41,22 +41,23 @@ export function wantsPanelCard(hit, hasCard) {
  * The action a matched shortcut takes, in this order:
  *   help      Shift + ?  the list of keys
  *   step      j / k      move the selection, from a card only
- *   undo      Shift + A  while "Archived · Undo" is up (and not busy): bring it back
  *   menu      Shift + R  the card's right-click menu (card not busy)
  *   row-menu  Shift + R  a focused topic-list row with no card: that row's menu
  *   row-back  Shift + U  a focused topic-list row with no card: back to the reply
  *   jump      Shift + U / B on a card: parent and reply jumps
  *   run       Shift + letter: the menu item the card offers for it, else nothing
  * A card being edited (`busy`) takes none of the card keys.
+ * SPL-4829 (owner HUM-10, t1 5b49e16c): Shift + A only ever archives. It
+ * was also the Undo while "Archived · Undo" was up, so pressing it down a
+ * list unarchived every other card; Undo is the snackbar's button only.
  * @param {{ type: 'help' } | { type: 'step', step: number } | { type: 'action', key: string } | null} hit shortcutFor's answer
- * @param {{ hasCard: boolean, hasEntry: boolean, busy: boolean, undoUp: boolean, onTopicRow: boolean, offered: () => Set<string> | string[] }} s
+ * @param {{ hasCard: boolean, hasEntry: boolean, busy: boolean, onTopicRow: boolean, offered: () => Set<string> | string[] }} s
  * @returns {KeyAction | null}
  */
 export function shortcutAction(hit, s) {
   if (!hit) return null
   if (hit.type === 'help') return { do: 'help' }
   if (hit.type === 'step') return s.hasCard ? { do: 'step', step: hit.step } : null
-  if (hit.key === 'A' && s.undoUp) return { do: 'undo' }
   if (hit.key === 'R') {
     if (s.hasEntry) return s.busy ? null : { do: 'menu' }
     return s.onTopicRow ? { do: 'row-menu' } : null

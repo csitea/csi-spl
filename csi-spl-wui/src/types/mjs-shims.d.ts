@@ -2164,11 +2164,11 @@ declare module '~/utils/msg-shortcuts-dispatch.mjs' {
     s: { on: boolean, overlayOpen: boolean, isCard: boolean, inTopicPane: boolean, inMain: boolean, busy: boolean },
   ): 'composer' | 'into-pane' | null
   export function wantsPanelCard(hit: { type: string, key?: string } | null, hasCard: boolean): boolean
-  export type KeyAction = { do: 'help' } | { do: 'step', step: number } | { do: 'undo' } | { do: 'menu' }
+  export type KeyAction = { do: 'help' } | { do: 'step', step: number } | { do: 'menu' }
     | { do: 'row-menu' } | { do: 'row-back' } | { do: 'jump', key: 'U' | 'B' } | { do: 'run', id: string }
   export function shortcutAction(
     hit: { type: 'help' } | { type: 'step', step: number } | { type: 'action', key: string } | null,
-    s: { hasCard: boolean, hasEntry: boolean, busy: boolean, undoUp: boolean, onTopicRow: boolean, offered: () => Set<string> | string[] },
+    s: { hasCard: boolean, hasEntry: boolean, busy: boolean, onTopicRow: boolean, offered: () => Set<string> | string[] },
   ): KeyAction | null
 }
 

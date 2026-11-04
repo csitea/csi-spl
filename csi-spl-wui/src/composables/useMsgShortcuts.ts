@@ -19,7 +19,6 @@
 import { useSessionStore } from '~/stores/session'
 import { useTopicStore } from '~/stores/topic'
 import { usePhone } from '~/composables/useTouchUi'
-import { useArchiveUndo } from '~/composables/useArchiveUndo'
 import { offeredItems, shortcutFor, shortcutsOn } from '~/utils/msg-shortcuts.mjs'
 import { cardEnterAction, shortcutAction, wantsPanelCard } from '~/utils/msg-shortcuts-dispatch.mjs'
 import { OVERLAY_OPEN, PANEL, TOPIC_PANE, backToPane, holdPanelFocus, intoPane, jumpInTopic, stepFeedSelection } from '~/utils/msg-shortcuts-dom.mjs'
@@ -29,10 +28,9 @@ import type { Ref } from 'vue'
 export { holdPanelFocus as holdPanel, stepFeedSelection as stepSelection }
 
 type CardEntry = {
-  /* each card's own switch and undo: the listener reads a live card's, so a
+  /* each card's own switch: the listener reads a live card's, so a
      card unmounted (its computed stopped) never leaves it reading a stale one */
   on: Ref<boolean>
-  archiveUndo: ReturnType<typeof useArchiveUndo>
   flags: () => Parameters<typeof offeredItems>[0]
   run: (itemId: string) => unknown
   /** Shift + R: open this card's right-click menu, anchored on the row */
@@ -141,12 +139,10 @@ function onKeydown(ev: KeyboardEvent) {
      heading rather than the card. */
   if (wantsPanelCard(hit, Boolean(card))) card = kindCardInPanel()
   const entry = card ? cards.get(card) : undefined
-  /* the card just archived is gone; while its "Archived · Undo" is up, Shift + A again brings it back */
-  const toast = live.archiveUndo.toast.value
   const topicRow = entry ? null : active?.closest?.<HTMLElement>('a.topic-row') || null
   const act = shortcutAction(hit, {
     hasCard: Boolean(card), hasEntry: Boolean(entry), busy: Boolean(entry?.busy()),
-    undoUp: Boolean(toast && !toast.busy), onTopicRow: Boolean(topicRow),
+    onTopicRow: Boolean(topicRow),
     offered: () => offeredItems(entry!.flags()),
   })
   if (!act) return
@@ -161,9 +157,6 @@ function onKeydown(ev: KeyboardEvent) {
   if (act.do === 'help') {
     holdPanelFocus(active)
     helpOpen.value = true
-  } else if (act.do === 'undo') {
-    holdPanelFocus(card || active)
-    void live.archiveUndo.undo()
   } else if (act.do === 'menu') entry!.openMenu()
   else if (act.do === 'row-menu') openRowMenu(topicRow!)
   else {
@@ -184,12 +177,11 @@ function install() {
  */
 export function useMsgShortcuts(opts: Pick<CardEntry, 'flags' | 'run' | 'busy' | 'openMenu'> & { row: Ref<HTMLElement | null> }) {
   const on = useMsgShortcutsOn()
-  const archiveUndo = useArchiveUndo()
   let el: HTMLElement | null = null
   onMounted(() => {
     el = opts.row.value
     if (!el) return
-    cards.set(el, { on, archiveUndo, flags: opts.flags, run: opts.run, busy: opts.busy, openMenu: opts.openMenu })
+    cards.set(el, { on, flags: opts.flags, run: opts.run, busy: opts.busy, openMenu: opts.openMenu })
     if (!listening) install()
   })
   onBeforeUnmount(() => {

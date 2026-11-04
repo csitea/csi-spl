@@ -66,9 +66,14 @@ describe('shortcutAction: a matched shortcut -> what the listener does', () => {
     assert.deepEqual(shortcutAction({ type: 'step', step: -1 }, state()), { do: 'step', step: -1 })
     assert.equal(shortcutAction({ type: 'step', step: 1 }, state({ hasCard: false, hasEntry: false })), null)
   })
-  it('Shift + A undoes the archive while its toast is up, even with no card', () => {
-    assert.deepEqual(shortcutAction(act('A'), state({ undoUp: true })), { do: 'undo' })
-    assert.deepEqual(shortcutAction(act('A'), state({ undoUp: true, hasCard: false, hasEntry: false })), { do: 'undo' })
+  /* SPL-4829 (owner HUM-10, t1 5b49e16c: "something is unarchiving them"):
+     on prd 45 of 51 unarchives in 7 days were the owner's own browser, 0.2 to
+     1 s after its archive of the same card, while "Archived · Undo" was up.
+     Shift + A pressed down a list undid every other card. The archive key
+     archives; only the snackbar's Undo button brings a card back. */
+  it('Shift + A archives the selected card while an Undo toast is up; it never undoes', () => {
+    assert.deepEqual(shortcutAction(act('A'), state({ undoUp: true })), { do: 'run', id: 'archive' })
+    assert.equal(shortcutAction(act('A'), state({ undoUp: true, hasCard: false, hasEntry: false })), null)
   })
   it('Shift + A with no toast runs the archive item', () => {
     assert.equal(shortcutAction(act('A'), state()).do, 'run')

@@ -93,7 +93,7 @@ These keys act on the **selected message**. They work on a desktop. Turn them of
 | **`Shift + H`** | Selected message, desktop | Hide from flow |
 | **`Shift + R`** | Selected message, desktop | Open menu |
 | **`Shift + E`** | Selected message, desktop | Edit |
-| **`Shift + A`** | Selected message, desktop | Archive / Unarchive |
+| **`Shift + A`** | Selected message, desktop | Archive |
 | **`Shift + O`** | Selected message, desktop | Open |
 | **`Shift + P`** | Selected message, desktop | Open parent section |
 | **`Shift + B`** | Selected message, desktop | Go to the topic's first message in the list |

@@ -47,6 +47,11 @@ doing, opens a task in their own words. See
 ## The change itself
 
 - Keep it small and on one topic; explain the why in the commit message.
+- Run it locally first. Local dev mode, from the root of your clone:
+  `./run -a do_dev_mode_up` checks the prerequisites (a missing tool is named
+  with its install command), then starts the hub, the web UI, Postgres, S3
+  and a mail catcher on your machine
+  ([local dev mode guide](csi-spl-doc/doc/md/local-dev-mode-guide.md)).
 - Run the tests for what you touched:
   - `bash csi-spl-api/src/bash/tests/run-all-tests.sh` for `csi-spl-api`
   - `pnpm run typecheck` and `pnpm run test:unit` in `csi-spl-wui`

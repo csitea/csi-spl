@@ -363,10 +363,13 @@ func ValidateProductionSecrets(env string, activeSecrets map[string]string, devL
 Owner HUM-10 instructed that "a person not knowing anything of the system would be able to just run the one liner and get some kind of error msg if he is missing some binaries etc. and just get it work" (msg `6b8bf9c3`).
 
 ### 4.1 The Command
-From a fresh clone of the repository:
+From the root of a fresh clone of the repository:
 ```bash
 ./run -a do_dev_mode_up
 ```
+The root `run` is a symbolic link to `csi-spl-orc/run` (SPL-4756), so this is
+the same action as `cd csi-spl-orc && ./run -a do_dev_mode_up`. Test:
+`csi-spl-orc/src/bash/tests/dev-mode-root-one-liner.tst.sh`.
 Under the hood, the action executes preflight checks, then starts the stack:
 ```bash
 docker compose --profile dev up -d
@@ -506,10 +509,14 @@ Every scenario below was measured directly from the repository code. Each scenar
 
 ```
 1. PREFLIGHT & BOOTSTRAP
-   ./run -a do_dev_mode_up
+   ./run -a do_dev_mode_up            (from the clone root)
    -> Validates 7 prerequisites (OS, Git, Docker, Compose v2, Disk, RAM, Ports).
    -> Starts root compose: docker compose --profile dev up -d
-   -> Containers start: pg (5432), s3 (9000), mail (1025/8025), hub-init, hub (8080), web (8080).
+   -> Containers start: pg, s3, mail, hub-init, hub, web.
+   -> Host ports, as the root docker-compose.yml publishes them on 127.0.0.1:
+      web 8080 (http) and 8443 (https), mail 1025 (SMTP) and 8025 (Mailpit UI).
+      pg (5432), s3 (9000) and hub (8080) publish no host port: they answer
+      only on the compose network `spool`.
    -> hub-init runs DDL migrations, seeds tenant 'main', exits 0.
 
 2. ONE-CLICK DEV LOGIN

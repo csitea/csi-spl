@@ -12,11 +12,14 @@ Self-hosting spool for real users is a different path:
 
 ### 1.1 The one command
 
-From a clone of the repository:
+From the root of a clone of the repository:
 
 ```bash
-cd csi-spl-orc && ./run -a do_dev_mode_up
+./run -a do_dev_mode_up
 ```
+
+The root `run` is a link to `csi-spl-orc/run`, so
+`cd csi-spl-orc && ./run -a do_dev_mode_up` is the same command.
 
 It runs in this order and stops at the first problem:
 

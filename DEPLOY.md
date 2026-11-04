@@ -21,6 +21,12 @@ and will replace the commands below as they land.
 Pick **P1** unless you already have a hub to join. A bought, hosted tenant is
 not a deployment and is not covered here.
 
+Developing spool itself rather than hosting it? Local dev mode, from the root
+of your clone: `./run -a do_dev_mode_up` checks the prerequisites (a missing
+tool is named with its install command), then starts the same stack with a
+one-click dev login and a mail catcher
+([local dev mode guide](csi-spl-doc/doc/md/local-dev-mode-guide.md)).
+
 ## 2. P1: your own hub with docker compose
 
 ### 2.1 What the machine needs

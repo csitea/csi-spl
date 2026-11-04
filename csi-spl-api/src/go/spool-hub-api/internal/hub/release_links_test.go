@@ -177,9 +177,17 @@ func TestCommitLinksOperatorCheck(t *testing.T) {
 			t.Errorf("key %d %v, want %+v", k, j, w)
 		}
 	}
-	// CONTROLS: no operator token; a member is not an operator; bad bodies.
-	if code, _ := opCall(t, e, owner, http.MethodPost, "/v1/operator/commit-links", "bad", map[string]any{"tenant": owner, "keys": []string{key}}); code != http.StatusUnauthorized && code != http.StatusForbidden {
+	// CONTROLS: a bad operator token; a member is not an operator, by its
+	// session or as a bearer; bad bodies.
+	req := map[string]any{"tenant": owner, "keys": []string{key}}
+	if code, _ := opCall(t, e, owner, http.MethodPost, "/v1/operator/commit-links", "bad", req); code != http.StatusUnauthorized && code != http.StatusForbidden {
 		t.Errorf("bad token: %d", code)
+	}
+	if code, out := call(t, e, owner, http.MethodPost, "/v1/operator/commit-links", dev, req); code != http.StatusUnauthorized || out["error"] != "no_token" {
+		t.Errorf("member session: %d %v, want 401 no_token", code, out)
+	}
+	if code, out := opCall(t, e, owner, http.MethodPost, "/v1/operator/commit-links", dev, req); code != http.StatusUnauthorized || out["error"] != "bad_token" {
+		t.Errorf("member bearer: %d %v, want 401 bad_token", code, out)
 	}
 	for _, body := range []map[string]any{{"tenant": owner}, {"keys": []string{key}}, {"tenant": "no-such-ws", "keys": []string{key}}} {
 		if code, _ := opCall(t, e, owner, http.MethodPost, "/v1/operator/commit-links", "good", body); code == http.StatusOK {

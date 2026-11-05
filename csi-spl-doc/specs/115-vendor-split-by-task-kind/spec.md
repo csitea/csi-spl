@@ -81,7 +81,8 @@ Rules on the table, enforced by the cnf validator and the hub PATCH:
 - Each row sums to 100, every cell 0..100, and one vendor holds the strict
   maximum, so main is never a tie.
 - `backup` is a vendor other than main. With weight 0 it may still serve as
-  the backup: the secret row's mistral is the backup and is never in the mix.
+  the backup: grok is the backup of `secret` and `orchestration` and is never
+  in their mix.
 - ~~In `simple_coding`, `complex_coding` and `tests`, agy is 0 and is never
   the backup.~~ Lifted 2026-11-04 (G2) in the cnf validator and
   `do_spl_lane_mix`. The hub PATCH (`internal/store/agent_split_kind.go`) and
@@ -295,13 +296,13 @@ These are coded checks with tests, never an agent's judgement (owner
 | id | test | control (must turn it red) |
 |---|---|---|
 | T1 | 1,000 simulated picks per coding kind (`tests`, `simple_coding`, `complex_coding`), under every combination of mistral and claude being out: each vendor's share within the band of its weight (agy count 0 until G2 was lifted, 2026-11-04) | the nudge gated on the band |
-| T2 | `secret` (and `LANE_MIX_SENSITIVE=1` with every kind) under all 2^5 combinations of vendors out: the pick is in {claude, mistral, hold} | make the backup agy |
+| T2 | `secret` (and `LANE_MIX_SENSITIVE=1` with every kind) under all 2^5 combinations of vendors out: the pick is in {claude, grok, mistral, hold} | make the backup agy |
 | T3 | per-kind nudge: with `simple_coding` actuals at 100% mistral over the window, the next pick is claude | weights ignored, so the pick is always main |
 | T4 | 2 journal rows `fail:F2` for mistral on task X, so the pick for X is claude; with 1 row it is mistral | threshold at 3 |
 | T5 | an S2 `kind=limit` verdict on a mistral lane gives an immediate backup and no journal `fail` | count S2 as F2 |
 | T6 | `i18n` with agy out gives claude plus `needs_agy_review` | drop the flag |
 | T7 | aliases `spec`, `hard` and `default` give the same pick as the new names | remove an alias |
-| T8 | the validator refuses a row that does not sum to 100, a tied main, or a secret backup outside {claude, mistral} | accept a tie |
+| T8 | the validator refuses a row that does not sum to 100, a tied main, or a secret backup outside {claude, grok, mistral} | accept a tie |
 | T9 | `i18n` combined with `secret`: agy receives no unmasked personal data | send unmasked personal data |
 
 ## 9. Panel

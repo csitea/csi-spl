@@ -323,7 +323,7 @@ for k in tests simple_coding complex_coding; do
   hmix LANE_MIX_KIND=$k
   [[ "$(pick)" == hold ]] || fail "6. $k with claude and mistral off picked $(pick), not hold: $(cat "$T/out")"
 done
-pass "6. a coding kind with claude and mistral off holds, never agy or grok"
+pass "6. a coding kind of the pinned rows (no agy) with claude and mistral off holds"
 # owner HUM-10 msg dc673043 (2026-11-04) lifted "agy writes no code": a coding
 # row with agy in it is accepted, and with claude off its backup agy takes it
 hub '["claude"]'

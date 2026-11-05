@@ -119,7 +119,7 @@ const error = ref('')
 const confirming = ref('')
 
 const confirmWith = computed(() => signInEmailConfirmProviders(enabled.value))
-/* the providers named in the explanation: the enabled ones, else all four */
+/* the providers named in the explanation: the enabled ones, else all three */
 const confirmNames = computed(() => {
   const list = confirmWith.value.length ? confirmWith.value : SIGN_IN_EMAIL_PROVIDERS
   return listOf(list.map(signInEmailProviderName), 'disjunction')

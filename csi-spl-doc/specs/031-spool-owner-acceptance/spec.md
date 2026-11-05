@@ -331,6 +331,8 @@ check is the binary, not the restart:
 
 ### OA-37 — a real human Google / Microsoft / LinkedIn sign-in
 
+**Scope (2026-11-04).** Microsoft is out of scope: Microsoft sign-in will not be supported (owner decision, prd t1 msg bfbf3893; spec 018 is Not planned). OA-37 covers Google and LinkedIn.
+
 **Why this cannot be automated.** The IdP consent screens are served by
 Google, Microsoft and LinkedIn, behind bot detection, and a scripted sign-in
 to them would be both fragile and against those providers' terms. What the

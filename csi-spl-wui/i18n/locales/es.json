@@ -38,7 +38,6 @@
   "social_auth": {
     "continue_google": "Continuar con Google",
     "continue_facebook": "Continuar con Facebook",
-    "continue_microsoft": "Iniciar sesión con Microsoft",
     "continue_linkedin": "Continuar con LinkedIn",
     "continue_generic": "Continuar con {provider}",
     "not_available": "El inicio de sesión aún no está disponible."
@@ -322,7 +321,6 @@
       "continue": "Continuar a los temas",
       "invited_as": "Te han invitado como {email}.",
       "invited_use_google": "Continuar con Google usando esa dirección de Gmail.",
-      "invited_use_microsoft": "Continuar con Microsoft usando esa dirección.",
       "invited_use_any": "Inicia sesión con esa misma dirección: Google o Microsoft si es una cuenta de trabajo allí, de lo contrario, correo y contraseña.",
       "links": {
         "blog": "Artículos del blog",

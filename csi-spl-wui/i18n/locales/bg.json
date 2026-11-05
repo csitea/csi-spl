@@ -38,7 +38,6 @@
   "social_auth": {
     "continue_google": "Продължи с Google",
     "continue_facebook": "Продължи с Facebook",
-    "continue_microsoft": "Влез с Microsoft",
     "continue_linkedin": "Продължи с LinkedIn",
     "continue_generic": "Продължи с {provider}",
     "not_available": "Входът все още не е наличен."
@@ -322,7 +321,6 @@
       "continue": "Към темите",
       "invited_as": "Поканени сте като {email}.",
       "invited_use_google": "Продължете с Google, използвайки този Gmail адрес.",
-      "invited_use_microsoft": "Продължете с Microsoft, използвайки този адрес.",
       "invited_use_any": "Влезте със същия адрес: с Google или Microsoft, ако е служебен акаунт там, или с имейл и парола.",
       "links": {
         "blog": "Блог",

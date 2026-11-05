@@ -38,7 +38,6 @@
   "social_auth": {
     "continue_google": "Continue with Google",
     "continue_facebook": "Continue with Facebook",
-    "continue_microsoft": "Sign in with Microsoft",
     "continue_linkedin": "Continue with LinkedIn",
     "continue_generic": "Continue with {provider}",
     "not_available": "Sign-in is not available yet."
@@ -322,8 +321,7 @@
       "continue": "Continue to topics",
       "invited_as": "You were invited as {email}.",
       "invited_use_google": "Continue with Google using that Gmail address.",
-      "invited_use_microsoft": "Continue with Microsoft using that address.",
-      "invited_use_any": "Sign in with that same address: Google or Microsoft if it is a work account there, otherwise email and password.",
+      "invited_use_any": "Sign in with that same address: Google if it is a Google account, otherwise email and password.",
       "links": {
         "blog": "Blog",
         "calendar": "Calendar",

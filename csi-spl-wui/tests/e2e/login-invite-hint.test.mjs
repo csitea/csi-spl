@@ -1,7 +1,7 @@
 // SPL-1231: an invitee arriving from the invite link (/login?...&login_hint=<the
 // invited address>) is told which address was invited and which sign-in owns
 // it, the matching provider button is drawn emphasised and carries the hint to
-// /start (it pre-selects that account at Google / Microsoft), and the email +
+// /start (it pre-selects that account at Google), and the email +
 // password form is pre-filled. Without login_hint the page is unchanged.
 // HUM-10 (topic 3e5b850b): where the email link lands, Chrome's install event
 // shows an "Install app" strip; Install calls its prompt(), "Not now" is
@@ -52,7 +52,7 @@ try {
   await p.setRequestInterception(true)
   p.on('request', (req) => {
     if (new URL(req.url()).pathname.endsWith('/api/v1/auth/providers')) {
-      return req.respond({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers: ['google', 'facebook', 'microsoft'], native: true }) })
+      return req.respond({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers: ['google', 'facebook', 'linkedin'], native: true }) })
     }
     return req.continue()
   })

@@ -38,7 +38,6 @@
   "social_auth": {
     "continue_google": "Настави са Google",
     "continue_facebook": "Настави са Facebook",
-    "continue_microsoft": "Пријави се са Microsoft",
     "continue_linkedin": "Настави са LinkedIn",
     "continue_generic": "Настави са {provider}",
     "not_available": "Пријава још није доступна."
@@ -322,7 +321,6 @@
       "continue": "Настави на теме",
       "invited_as": "Позвани сте као {email}.",
       "invited_use_google": "Наставите са Google-ом користећи ту Gmail адресу.",
-      "invited_use_microsoft": "Наставите са Microsoft-ом користећи ту адресу.",
       "invited_use_any": "Пријавите се са том истом адресом: преко Google-а или Microsoft-а ако је тамо пословни налог, или имејлом и лозинком.",
       "links": {
         "blog": "Блог",

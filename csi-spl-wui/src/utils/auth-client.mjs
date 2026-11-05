@@ -50,7 +50,7 @@ const NATIVE_ERRORS = {
   network: 'The hub did not answer — try again.',
 }
 
-const NAMES = { google: 'Google', facebook: 'Facebook', microsoft: 'Microsoft', linkedin: 'LinkedIn', xai: 'xAI' }
+const NAMES = { google: 'Google', facebook: 'Facebook', linkedin: 'LinkedIn', xai: 'xAI' }
 
 /** §2 copy; unknown codes get a generic line. Empty code → ''. */
 export function authErrorMessage(code) {
@@ -151,8 +151,8 @@ export function startHref(provider, redirect, tenant, base = '', hint = '') {
   const q = new URLSearchParams({ redirect: safeRedirect(redirect) })
   const t = String(tenant || '')
   if (/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(t)) q.set('tenant', t)
-  // SPL-1231: the invited address pre-selects that account at Google /
-  // Microsoft (the hub forwards it only there). Never a credential.
+  // SPL-1231: the invited address pre-selects that account at Google (the
+  // hub forwards it only there). Never a credential.
   const h = loginHintOf(hint)
   if (h) q.set('login_hint', h)
   return `${authOrigin(base)}${AUTH_PREFIX}/${encodeURIComponent(String(provider))}/start?${q}`
@@ -166,12 +166,12 @@ export function loginHintOf(v) {
 
 /**
  * SPL-1231: the sign-in an invited address most likely owns — 'google' for
- * Gmail, 'microsoft' for the Outlook family — or '' when it could be anything
- * (a work address may be Google Workspace, Microsoft 365 or a password).
+ * Gmail — or '' when it could be anything (a work address may be Google
+ * Workspace or a password). Microsoft sign-in is not supported (owner msg
+ * bfbf3893, 2026-11-04), so an Outlook-family address gets no suggestion.
  */
 export function hintedProvider(email) {
   const d = loginHintOf(email).split('@')[1] || ''
   if (d === 'gmail.com' || d === 'googlemail.com') return 'google'
-  if (/^(outlook|hotmail|live|msn)\.[a-z.]+$/.test(d)) return 'microsoft'
   return ''
 }

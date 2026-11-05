@@ -38,7 +38,6 @@
   "social_auth": {
     "continue_google": "Turpināt ar Google",
     "continue_facebook": "Turpināt ar Facebook",
-    "continue_microsoft": "Pierakstīties ar Microsoft",
     "continue_linkedin": "Turpināt ar LinkedIn",
     "continue_generic": "Turpināt ar {provider}",
     "not_available": "Pieteikšanās vēl nav pieejama."
@@ -322,7 +321,6 @@
       "continue": "Turpināt uz tēmām",
       "invited_as": "Jūs tikāt uzaicināts(-a) kā {email}.",
       "invited_use_google": "Turpināt ar Google, izmantojot šo Gmail adresi.",
-      "invited_use_microsoft": "Turpināt ar Microsoft, izmantojot šo adresi.",
       "invited_use_any": "Pierakstieties ar to pašu adresi: Google vai Microsoft, ja tas ir darba konts, pretējā gadījumā ar e-pastu un paroli.",
       "links": {
         "blog": "Blogs",

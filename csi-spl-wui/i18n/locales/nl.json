@@ -38,7 +38,6 @@
   "social_auth": {
     "continue_google": "Doorgaan met Google",
     "continue_facebook": "Doorgaan met Facebook",
-    "continue_microsoft": "Aanmelden met Microsoft",
     "continue_linkedin": "Doorgaan met LinkedIn",
     "continue_generic": "Doorgaan met {provider}",
     "not_available": "Inloggen is nog niet beschikbaar."
@@ -322,7 +321,6 @@
       "continue": "Verder naar de onderwerpen",
       "invited_as": "Je bent uitgenodigd als {email}.",
       "invited_use_google": "Doorgaan met Google via dat Gmail-adres.",
-      "invited_use_microsoft": "Doorgaan met Microsoft via dat adres.",
       "invited_use_any": "Meld je aan met hetzelfde adres: Google of Microsoft als het daar een werkaccount is, anders e-mail en wachtwoord.",
       "links": {
         "blog": "Blogartikelen",

@@ -38,7 +38,6 @@
   "social_auth": {
     "continue_google": "Continuă cu Google",
     "continue_facebook": "Continuă cu Facebook",
-    "continue_microsoft": "Conectează-te cu Microsoft",
     "continue_linkedin": "Continuă cu LinkedIn",
     "continue_generic": "Continuă cu {provider}",
     "not_available": "Autentificarea nu este încă disponibilă."
@@ -322,7 +321,6 @@
       "continue": "Continuă la teme",
       "invited_as": "Ați fost invitat(ă) ca {email}.",
       "invited_use_google": "Continuați cu Google folosind acea adresă Gmail.",
-      "invited_use_microsoft": "Continuați cu Microsoft folosind acea adresă.",
       "invited_use_any": "Conectați-vă cu aceeași adresă: Google sau Microsoft dacă este un cont de serviciu acolo, altfel cu e-mail și parolă.",
       "links": {
         "blog": "Blog",

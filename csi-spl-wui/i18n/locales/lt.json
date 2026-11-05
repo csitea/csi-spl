@@ -38,7 +38,6 @@
   "social_auth": {
     "continue_google": "Tęsti su Google",
     "continue_facebook": "Tęsti su Facebook",
-    "continue_microsoft": "Prisijungti su Microsoft",
     "continue_linkedin": "Tęsti su LinkedIn",
     "continue_generic": "Tęsti su {provider}",
     "not_available": "Prisijungimas dar neprieinamas."
@@ -322,7 +321,6 @@
       "continue": "Tęsti į temas",
       "invited_as": "Buvote pakviestas(-a) kaip {email}.",
       "invited_use_google": "Tęskite su „Google“, naudodami tą „Gmail“ adresą.",
-      "invited_use_microsoft": "Tęskite su „Microsoft“, naudodami tą adresą.",
       "invited_use_any": "Prisijunkite tuo pačiu adresu: per „Google“ arba „Microsoft“, jei tai darbo paskyra, kitu atveju – el. paštu ir slaptažodžiu.",
       "links": {
         "blog": "Tinklaraštis",

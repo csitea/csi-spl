@@ -18,9 +18,9 @@ import { startHref } from './auth-client.mjs'
 import { HUB_READ_TIMEOUT_MS, HUB_WRITE_TIMEOUT_MS } from './fetch-timeouts.mjs'
 
 /** The identity providers a pending address can be confirmed with, in button order. */
-export const SIGN_IN_EMAIL_PROVIDERS = ['google', 'facebook', 'linkedin', 'microsoft']
+export const SIGN_IN_EMAIL_PROVIDERS = ['google', 'facebook', 'linkedin']
 
-const PROVIDER_NAME = { google: 'Google', facebook: 'Facebook', linkedin: 'LinkedIn', microsoft: 'Microsoft' }
+const PROVIDER_NAME = { google: 'Google', facebook: 'Facebook', linkedin: 'LinkedIn' }
 
 /** A provider slug as its brand name; '' for password (the catalogue words that one). */
 export function signInEmailProviderName(p) {
@@ -63,8 +63,8 @@ export function signInEmailConfirmProviders(enabled) {
 
 /**
  * The link sign-in that proves a pending address: the provider's start with
- * link=1, the address as the login hint (Google and Microsoft pre-select
- * it), and the WUI path to land on afterwards.
+ * link=1, the address as the login hint (Google pre-selects it), and the
+ * WUI path to land on afterwards.
  */
 export function signInEmailConfirmHref(provider, email, redirect, tenant = '', base = '') {
   return `${startHref(provider, redirect, tenant, base, email)}&link=1`

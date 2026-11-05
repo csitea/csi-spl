@@ -38,7 +38,6 @@
   "social_auth": {
     "continue_google": "Jätka Google'iga",
     "continue_facebook": "Jätka Facebookiga",
-    "continue_microsoft": "Logi sisse Microsoftiga",
     "continue_linkedin": "Jätka LinkedIniga",
     "continue_generic": "Jätka teenusega {provider}",
     "not_available": "Sisselogimine pole veel saadaval."
@@ -322,7 +321,6 @@
       "continue": "Jätka teemade juurde",
       "invited_as": "Sind kutsuti aadressiga {email}.",
       "invited_use_google": "Jätka Googlega, kasutades seda Gmaili aadressi.",
-      "invited_use_microsoft": "Jätka Microsoftiga, kasutades seda aadressi.",
       "invited_use_any": "Logi sisse sama aadressiga: Google või Microsoft, kui see on töökonto, muidu e-post ja parool.",
       "links": {
         "blog": "Blogi",

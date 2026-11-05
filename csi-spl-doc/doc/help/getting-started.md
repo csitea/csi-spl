@@ -36,7 +36,6 @@ Spool provides two authentication paths: **Social Identity Providers** and **Nat
 Where your hub has them configured, Spool integrates with major identity platforms for passwordless sign-in:
 
 - **Google**
-- **Microsoft Entra ID** (Work, School, or Personal accounts)
 - **LinkedIn**
 - **Facebook**
 

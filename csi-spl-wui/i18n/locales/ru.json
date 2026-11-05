@@ -38,7 +38,6 @@
   "social_auth": {
     "continue_google": "Продолжить с Google",
     "continue_facebook": "Продолжить с Facebook",
-    "continue_microsoft": "Войти через Microsoft",
     "continue_linkedin": "Продолжить с LinkedIn",
     "continue_generic": "Продолжить с {provider}",
     "not_available": "Вход пока недоступен."
@@ -322,7 +321,6 @@
       "continue": "Перейти к темам",
       "invited_as": "Вы были приглашены как {email}.",
       "invited_use_google": "Продолжить с Google, используя этот адрес Gmail.",
-      "invited_use_microsoft": "Продолжить с Microsoft, используя этот адрес.",
       "invited_use_any": "Войдите с этим же адресом: через Google или Microsoft, если это рабочий аккаунт, либо с помощью эл. почты и пароля.",
       "links": {
         "blog": "Блог",

@@ -71,10 +71,12 @@ describe('signInEmailRows', () => {
 
 describe('the confirm buttons', () => {
   it('only providers the hub enables, in button order; password is never one', () => {
-    assert.deepEqual(signInEmailConfirmProviders(['microsoft', 'password', 'google']), ['google', 'microsoft'])
+    assert.deepEqual(signInEmailConfirmProviders(['linkedin', 'password', 'google']), ['google', 'linkedin'])
+    // Microsoft sign-in is not supported (owner msg bfbf3893): never a confirm button.
+    assert.deepEqual(signInEmailConfirmProviders(['microsoft', 'google']), ['google'])
     assert.deepEqual(signInEmailConfirmProviders([]), [])
     assert.deepEqual(signInEmailConfirmProviders(null), [])
-    assert.deepEqual(SIGN_IN_EMAIL_PROVIDERS, ['google', 'facebook', 'linkedin', 'microsoft'])
+    assert.deepEqual(SIGN_IN_EMAIL_PROVIDERS, ['google', 'facebook', 'linkedin'])
   })
   it('the href is a link sign-in: link=1, the redirect, the address as hint, the tenant', () => {
     const href = signInEmailConfirmHref('google', 'w@example.com', '/channel/general?settings=security', 't1', 'https://api.example.com')

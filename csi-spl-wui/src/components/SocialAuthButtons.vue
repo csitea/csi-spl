@@ -65,18 +65,6 @@
           <path fill="currentColor" d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12c0 4.84 3.44 8.87 8 9.8V15H8v-3h2V9.5C10 7.57 11.57 6 13.5 6H16v3h-2c-.55 0-1 .45-1 1v2h3v3h-3v6.95c5.05-.5 9-4.76 9-9.95z" />
         </svg>
         <svg
-          v-else-if="p === 'microsoft'"
-          class="social-auth__logo"
-          viewBox="0 0 21 21"
-          data-test="social-logo-microsoft"
-        >
-          <!-- Official MS-SymbolLockup (identity platform branding). -->
-          <rect x="1" y="1" width="9" height="9" fill="#f25022" />
-          <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
-          <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
-          <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
-        </svg>
-        <svg
           v-else-if="p === 'linkedin'"
           class="social-auth__logo"
           viewBox="0 0 72 72"
@@ -163,7 +151,7 @@ onMounted(async () => {
 // Bespoke copy for the providers we ship marks for; any other IdP gets the
 // generic "Continue with <Name>" — never a raw key.
 function label(p: string): string {
-  if (p === 'google' || p === 'facebook' || p === 'microsoft' || p === 'linkedin') return t(`social_auth.continue_${p}`)
+  if (p === 'google' || p === 'facebook' || p === 'linkedin') return t(`social_auth.continue_${p}`)
   return t('social_auth.continue_generic', { provider: providerName(p) })
 }
 </script>
@@ -220,15 +208,6 @@ function label(p: string): string {
 }
 .social-auth__btn--facebook:hover {
   background: #166fe0;
-}
-.social-auth__btn--microsoft {
-  /* Microsoft identity platform light theme (FR-011): white, 1px #8C8C8C, text #5E5E5E. */
-  border: 1px solid #8C8C8C;
-  background: #fff;
-  color: #5E5E5E;
-}
-.social-auth__btn--microsoft:hover {
-  background: #f3f2f1;
 }
 .social-auth__btn--linkedin {
   /* LinkedIn brand: [in] mark in LinkedIn Blue #0A66C2 on white. */

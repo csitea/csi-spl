@@ -38,7 +38,6 @@
   "social_auth": {
     "continue_google": "Jatka Googlella",
     "continue_facebook": "Jatka Facebookilla",
-    "continue_microsoft": "Kirjaudu Microsoftilla",
     "continue_linkedin": "Jatka LinkedInillä",
     "continue_generic": "Jatka palvelulla {provider}",
     "not_available": "Kirjautuminen ei ole vielä käytettävissä."
@@ -322,7 +321,6 @@
       "continue": "Jatka aiheisiin",
       "invited_as": "Sinut kutsuttiin osoitteella {email}.",
       "invited_use_google": "Jatka Googlella käyttäen tätä Gmail-osoitetta.",
-      "invited_use_microsoft": "Jatka Microsoftilla käyttäen tätä osoitetta.",
       "invited_use_any": "Kirjaudu sisään samalla osoitteella: Google tai Microsoft, jos se on työtili, muuten sähköposti ja salasana.",
       "links": {
         "blog": "Blogi",

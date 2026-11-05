@@ -38,7 +38,6 @@
   "social_auth": {
     "continue_google": "המשך עם Google",
     "continue_facebook": "המשך עם Facebook",
-    "continue_microsoft": "התחבר עם Microsoft",
     "continue_linkedin": "המשך עם LinkedIn",
     "continue_generic": "המשך עם {provider}",
     "not_available": "ההתחברות עדיין לא זמינה."
@@ -322,7 +321,6 @@
       "continue": "המשך לנושאים",
       "invited_as": "הוזמנתם בתור {email}.",
       "invited_use_google": "המשיכו עם Google באמצעות כתובת Gmail זו.",
-      "invited_use_microsoft": "המשיכו עם Microsoft באמצעות כתובת זו.",
       "invited_use_any": "התחברו עם אותה הכתובת: Google או Microsoft אם זה חשבון עבודה שם, אחרת באימייל ובסיסמה.",
       "links": {
         "blog": "בלוג",

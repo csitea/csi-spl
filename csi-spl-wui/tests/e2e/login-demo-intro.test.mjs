@@ -60,7 +60,7 @@ try {
     p.on('request', (req) => {
       const path = new URL(req.url()).pathname
       if (path.endsWith('/api/v1/auth/providers')) {
-        return req.respond({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers: ['google', 'facebook', 'microsoft'], native: true }) })
+        return req.respond({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers: ['google', 'facebook', 'xai'], native: true }) })
       }
       if (path.endsWith('/v1/demo')) {
         demoAsked++

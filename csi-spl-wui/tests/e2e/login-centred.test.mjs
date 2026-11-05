@@ -262,7 +262,7 @@ async function lookAPage(browser, vp, theme, reduce, prefix = '') {
   p.on('request', (req) => {
     const path = new URL(req.url()).pathname
     if (path.endsWith('/api/v1/auth/providers')) {
-      return req.respond({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers: ['google', 'facebook', 'microsoft'], native: true }) })
+      return req.respond({ status: 200, contentType: 'application/json', body: JSON.stringify({ providers: ['google', 'facebook', 'linkedin'], native: true }) })
     }
     if (path.endsWith('/v1/demo')) {
       return req.respond({ status: 200, contentType: 'application/json', body: JSON.stringify({ workspace: 'demo', max_live: 9, max_stay: '3h' }) })

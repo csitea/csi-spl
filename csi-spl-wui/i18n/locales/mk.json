@@ -38,7 +38,6 @@
   "social_auth": {
     "continue_google": "Продолжи со Google",
     "continue_facebook": "Продолжи со Facebook",
-    "continue_microsoft": "Најави се со Microsoft",
     "continue_linkedin": "Продолжи со LinkedIn",
     "continue_generic": "Продолжи со {provider}",
     "not_available": "Најавата сè уште не е достапна."
@@ -322,7 +321,6 @@
       "continue": "Продолжи кон темите",
       "invited_as": "Поканети сте како {email}.",
       "invited_use_google": "Продолжете со Google користејќи ја таа Gmail адреса.",
-      "invited_use_microsoft": "Продолжете со Microsoft користејќи ја таа адреса.",
       "invited_use_any": "Најавете се со истата адреса: со Google или Microsoft ако е службена сметка таму, инаку со е-пошта и лозинка.",
       "links": {
         "blog": "Блог",

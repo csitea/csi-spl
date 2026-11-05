@@ -38,7 +38,6 @@
   "social_auth": {
     "continue_google": "Pokračovať cez Google",
     "continue_facebook": "Pokračovať cez Facebook",
-    "continue_microsoft": "Prihlásiť sa cez Microsoft",
     "continue_linkedin": "Pokračovať cez LinkedIn",
     "continue_generic": "Pokračovať cez {provider}",
     "not_available": "Prihlásenie zatiaľ nie je k dispozícii."
@@ -322,7 +321,6 @@
       "continue": "Pokračovať na témy",
       "invited_as": "Boli ste pozvaný(-á) ako {email}.",
       "invited_use_google": "Pokračujte cez Google pomocou tejto adresy Gmail.",
-      "invited_use_microsoft": "Pokračujte cez Microsoft pomocou tejto adresy.",
       "invited_use_any": "Prihláste sa pomocou tej istej adresy: cez Google alebo Microsoft, ak tam máte pracovný účet, inak e-mailom a heslom.",
       "links": {
         "blog": "Blog",

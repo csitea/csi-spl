@@ -38,7 +38,6 @@
   "social_auth": {
     "continue_google": "Συνέχεια με Google",
     "continue_facebook": "Συνέχεια με Facebook",
-    "continue_microsoft": "Σύνδεση με Microsoft",
     "continue_linkedin": "Συνέχεια με LinkedIn",
     "continue_generic": "Συνέχεια με {provider}",
     "not_available": "Η σύνδεση δεν είναι ακόμη διαθέσιμη."
@@ -322,7 +321,6 @@
       "continue": "Συνέχεια στα θέματα",
       "invited_as": "Έχετε προσκληθεί ως {email}.",
       "invited_use_google": "Συνεχίστε με το Google χρησιμοποιώντας αυτήν τη διεύθυνση Gmail.",
-      "invited_use_microsoft": "Συνεχίστε με τη Microsoft χρησιμοποιώντας αυτήν τη διεύθυνση.",
       "invited_use_any": "Συνδεθείτε με την ίδια διεύθυνση: Google ή Microsoft εάν πρόκειται για επαγγελματικό λογαριασμό εκεί, διαφορετικά με email και κωδικό πρόσβασης.",
       "links": {
         "blog": "Ιστολόγιο",

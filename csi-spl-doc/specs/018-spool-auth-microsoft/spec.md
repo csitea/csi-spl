@@ -1,5 +1,7 @@
 # Feature Specification: Spool sign-in with Microsoft (Entra ID / Microsoft identity platform)
 
+> **2026-11-04: Not planned.** Microsoft sign-in will not be supported (owner decision, prd t1 msg bfbf3893). The provider stays off on dev and prd; the WUI button, its catalogue keys and the help/privacy/terms mentions were removed under SPL-4834. The hub code below is unchanged.
+
 **Feature ID**: `018-spool-auth-microsoft` · **Milestone**: M3 (WUI login) · **Status**: Partial (code Implemented; live after the owner's Azure registration)
 **Created**: 2026-09-19 · **Lane**: CLE-3386 · **Parent**: `../010-spool-social-auth` (FR-012, OQ-I1)
 **Donor**: csi-rel `csi-rel-api/src/internal/auth/oidc_idp.go` + `social_providers.go` (Microsoft on the generic OIDC client, `common` authority)

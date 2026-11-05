@@ -50,7 +50,7 @@ export function createSignInEmailsMock() {
       return null
     },
     providers() {
-      return ['google', 'microsoft']
+      return ['google', 'linkedin']
     },
   }
 }

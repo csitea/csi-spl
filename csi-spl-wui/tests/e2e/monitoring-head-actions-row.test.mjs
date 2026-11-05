@@ -4,7 +4,7 @@
 // age and (Lanes, Topics) Clear filters sit in #monitoring-head-actions, on
 // the tabs' row, after the last tab and at the row's right end.
 //
-// The mock bundle as an operator admin, at 1440x900, 390x844 and 320x640
+// The mock bundle as an operator admin, at 1440x900, 390x844, 360x800 and 320x640
 // (touch below 800), for each tab:
 //   1 the controls are inside #monitoring-head-actions
 //   2 they and the tab bar share a row: each control's vertical middle lies
@@ -16,11 +16,20 @@
 //   5 Refresh still works (the age goes back to 0..2 s); Clear filters is
 //     disabled with no filter, a filter enables it, a click clears it
 //   6 moving to the next tab leaves none of the controls behind
+//   7 (SPL-4842; owner HUM-10, t1 2b0b6fbe, msg 36c3e4a5: "The refresh button
+//     seems to be off on mobile on the lanes.") on a touch screen Refresh is
+//     whole in the viewport, overlaps neither the tab bar nor its age, takes
+//     a tap at its middle, and clears the row's top edge and bottom line by
+//     ROW_GAP px (it filled the row: flush on the line above the tabs and
+//     standing over them); the age keeps "<n> s" on one line, also in a
+//     narrower font (the owner's phone wrapped "Updated 3 | s ago")
 // Plus the states without a list: first load (Refresh, no age, no Clear
 // filters), an empty answer (no Clear filters), forbidden (Refresh only), and
 // no empty row left where .ln-head was.
 // Control: the bundle with the controls back in .ln-head / .tp-head /
-// .tk-head (origin/master dd281db78) FAILS 1, 2 and 3 on every tab and size.
+// .tk-head (origin/master dd281db78) FAILS 1, 2 and 3 on every tab and size;
+// the bundle of origin/master c7b791726 (before SPL-4842) FAILS 7's row gap
+// and narrow-font age on every tab at every phone size.
 //
 // Run:
 //   BASE_URL=<generated bundle> pnpm run test:e2e monitoring-head-actions-row
@@ -61,8 +70,10 @@ async function launch() {
   throw new Error('puppeteer-core not resolvable: set PUPPETEER_CORE')
 }
 
-const SIZES = [{ width: 1440, height: 900 }, { width: 390, height: 844 }, { width: 320, height: 640 }]
+const SIZES = [{ width: 1440, height: 900 }, { width: 390, height: 844 }, { width: 360, height: 800 }, { width: 320, height: 640 }]
 const TAP = 44
+/* 7: the least space between a phone's actions and the tab row's edges */
+const ROW_GAP = 4
 /* the tab bar's least width on a phone: one tab and the start of the next
    (Agents is 70 px); the bar scrolls inside itself, the open tab in view */
 const TABS_MIN = 110
@@ -151,6 +162,47 @@ function checkRow(tag, g, touch) {
   }
 }
 
+/** 7: on a touch screen, Refresh in the row: whole, apart, tappable, off the row's edges; "<n> s" unbroken. */
+async function checkPhone(p, tag, tab) {
+  const g = await p.evaluate((rid, aid) => {
+    const box = (e) => { if (!e) return null; const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom } }
+    const btn = document.querySelector(`[data-test=${rid}]`)
+    const b = box(btn)
+    const hit = b ? document.elementFromPoint((b.l + b.r) / 2, (b.t + b.b) / 2) : null
+    return {
+      vw: document.documentElement.clientWidth,
+      btn: b,
+      row: box(document.querySelector('[data-test=monitoring-tabrow]')),
+      nav: box(document.querySelector('[data-test=monitoring-tabs]')),
+      age: box(document.querySelector(`[data-test=${aid}]`)),
+      hit: Boolean(hit && btn.contains(hit)),
+    }
+  }, `${tab.id}-refresh`, `${tab.id}-age`)
+  const apart = (a, b) => !a || !b || a.r <= b.l + 0.5 || b.r <= a.l + 0.5 || a.b <= b.t + 0.5 || b.b <= a.t + 0.5
+  const b = g.btn
+  ok(`${tag}: 7 Refresh is whole in the viewport`, b && b.l >= 0 && b.r <= g.vw && b.t >= 0, { btn: b && [Math.round(b.l), Math.round(b.r)], vw: g.vw })
+  ok(`${tag}: 7 Refresh overlaps neither the tab bar nor its age`, b && apart(b, g.nav) && apart(b, g.age), { btn: b && [Math.round(b.l), Math.round(b.r)], nav: g.nav && Math.round(g.nav.r), age: g.age && Math.round(g.age.l) })
+  ok(`${tag}: 7 a tap at Refresh's middle reaches it`, g.hit)
+  ok(`${tag}: 7 Refresh clears the row's top edge and bottom line by >= ${ROW_GAP} px`, b && g.row && b.t - g.row.t >= ROW_GAP - 0.5 && g.row.b - b.b >= ROW_GAP - 0.5, { top: b && g.row && Math.round(b.t - g.row.t), bottom: b && g.row && Math.round(g.row.b - b.b) })
+  /* the age's lines; "narrow" stands in for the owner's phone font (Roboto), narrower than the pinned DejaVu Sans */
+  for (const narrow of [false, true]) {
+    const lines = await p.$eval(`[data-test=${tab.id}-age]`, (e, n) => {
+      e.style.letterSpacing = n ? '-0.04em' : ''
+      const tn = [...e.childNodes].find((x) => x.nodeType === 3 && /\d/.test(x.textContent))
+      const by = {}
+      const r = document.createRange()
+      for (let i = 0; tn && i < tn.length; i++) {
+        r.setStart(tn, i); r.setEnd(tn, i + 1)
+        const rc = r.getClientRects()[0]
+        if (rc) by[Math.round(rc.top)] = (by[Math.round(rc.top)] || '') + tn.textContent[i]
+      }
+      e.style.letterSpacing = ''
+      return Object.values(by).map((x) => x.trim())
+    }, narrow).catch(() => [])
+    ok(`${tag}: 7 the age keeps "<n> s" on one line${narrow ? ' (narrower font)' : ''}`, lines.some((l) => /\d+ s\b/.test(l)), lines)
+  }
+}
+
 /** 5: Refresh resets the age; Clear filters off, on with a filter, clears it. */
 async function checkWorks(p, tag, tab) {
   await sleep(3200)
@@ -191,6 +243,7 @@ async function oneTab(browser, base, size, tab) {
     ok(`${tag}: the tab renders its rows`, await waitFor(p, `[data-test=${tab.ready}]`))
     await waitFor(p, `[data-test=${tab.id}-age]`)
     checkRow(tag, await geometry(p, tab.controls), touch)
+    if (touch) await checkPhone(p, tag, tab)
     const head = { lanes: '.ln-head', topics: '.tp-head', tokens: '.tk-head' }[tab.id]
     const empty = await p.$$eval(head, (els) => els.filter((e) => e.children.length === 0 || e.getBoundingClientRect().height === 0).length).catch(() => -1)
     ok(`${tag}: no empty row is left where the controls were`, empty === 0, empty)

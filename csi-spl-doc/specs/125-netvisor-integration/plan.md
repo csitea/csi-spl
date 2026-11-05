@@ -4,6 +4,10 @@
 rows under epic SPL-2380 · **Base**: `origin/master` `504cafd15`
 (2026-11-04)
 
+SPL-2380 is the hub's epic "Spec 125 - Netvisor integration" (status
+`done`); SPL-4812 itself is filed under SPL-2400 ("Area: other work"), read
+from the prd `issues` table on 2026-11-05.
+
 Plan only: nothing here is built by this lane.
 
 ---
@@ -47,11 +51,25 @@ parallel with phase 1; they SHIP to the owner in this order.
 1. rdb `<next>_netvisor_cost_dedup.sql`: `netvisor_card_cost_lines.recorded_in
    text NULL CHECK (recorded_in IN ('csitea', 'spool-hub'))`;
    `netvisor_settings.vendor_map jsonb` and `dedup_tolerance numeric NOT
-   NULL DEFAULT 0`.
+   NULL DEFAULT 0` (absolute EUR). B3 also needs the card liability
+   account(s) (spec 4.3, accountant Q4) as a setting: the main-box file or
+   a `netvisor_settings` column; no row stores them today (`0255` holds the
+   bank, VAT and tax accounts only).
 2. `netvisor_cost_recorded_in(tenant, vendor_key, month, amount, currency)
-   RETURNS text`, `SECURITY DEFINER`, owner the migration role, `search_path`
-   pinned; reads `cost_lines` (`csitea`, `t1`, estate), `cost_entries` and
-   `fleet_token_paid_items`; returns only the label.
+   RETURNS text`, `SECURITY DEFINER`, owned by a `NOLOGIN NOBYPASSRLS`
+   role (the rdb `0168` / `0143` precedent: the migrator is a member `WITH
+   INHERIT FALSE, SET TRUE`). That role holds column `SELECT` on the match
+   columns and its own `SELECT` policy `TO` that role on `cost_lines`
+   (`csitea`, `t1`, estate), `cost_entries` and `fleet_token_paid_items`.
+   Not the migration role: `FORCE ROW LEVEL SECURITY` binds the table owner
+   (`0014`), and the ingest transaction carries `app.tenant_id = csitea`
+   and `app.rls_scope = netvisor_ingest` (`0260`), so the owner would read
+   only `csitea` rows and never return `spool-hub`. `search_path` pinned;
+   it refuses (`42501`) unless `app.rls_scope = 'netvisor_ingest'` and
+   `app.tenant_id` is the Netvisor workspace; `EXECUTE` is revoked from
+   `PUBLIC` and granted to the runtime login in
+   `csi-spl-rdb/src/sql/postgres/spool-hub-roles/runtime-grants.sql`; it
+   returns only the label, never an amount.
 3. Hub ingest (`internal/hub/netvisor.go`): calls it per line, sets
    `excluded` and `recorded_in`; the forecast is not touched (a payment is
    still a payment).
@@ -73,11 +91,13 @@ parallel with phase 1; they SHIP to the owner in this order.
 ## 4. Risks
 
 - The vendor map is data the owner (or a person of `csitea`) keeps; an
-  unmapped vendor is never matched, so a missing entry double-counts. The
-  screen lists unmapped vendors that share a month and amount with a
-  spec-123 row as "check".
+  unmapped vendor is never matched and never compared, so a missing map
+  entry double-counts; the screen lists the month's unmapped Netvisor
+  vendors so a person can add a map entry.
 - A credit card booked only as a monthly settlement gives one line per card
   (spec 4.3); the per-vendor slice is empty for it until the accountants
-  book per line.
+  book per line. That line names the card issuer, so the vendor map never
+  matches a cloud or AI charge paid on such a card: that spend
+  double-counts against spec 123 until the card is booked per line.
 - B9 before B11 would put the figures where agent seats read: B9's gate
   refuses any document not in `persons` mode.

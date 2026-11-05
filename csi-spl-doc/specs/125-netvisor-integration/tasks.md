@@ -1,6 +1,6 @@
 # Spec 125 tasks: Netvisor integration, in the owner's order
 
-Issue SPL-4812 (this list), epic SPL-2380; [spec.md](spec.md) v0.3,
+Issue SPL-4812 (this list), epic SPL-2380 ([plan.md](plan.md) header); [spec.md](spec.md) v0.3,
 [plan.md](plan.md). Each row is one lane and one commit series, tests red
 first, proven on the Netvisor test company. Rows in `csitea/csi-spl` land on
 `master` and are done when served on dev AND prd; store rows run
@@ -20,7 +20,7 @@ first, proven on the Netvisor test company. Rows in `csitea/csi-spl` land on
 
 | row | spec row | what | repo | test |
 |---|---|---|---|---|
-| T4 | B3 | `do_nvs_card_costs --env test`: debit lines, credit-card e-invoice rows, settlement-only cards as one line, settlement bill of a per-line card left out (spec 4.3) | `csi-int-nvs` | C-NVS-3 |
+| T4 | B3 | `do_nvs_card_costs --env test`: debit lines, credit-card e-invoice rows, settlement-only cards as one line, settlement bill of a per-line card left out by its card liability account, a setting (main-box file or a `netvisor_settings` column; spec 4.3, accountant Q4) | `csi-int-nvs` | C-NVS-3 |
 | T5 | B3b | the spec-123 check in both workspaces (spec 4.2 item 3, [plan.md](plan.md) 3.1) | `csi-spl` | C-NVS-12 |
 
 ## 3. Reports 3 and 4: P&L, then balance sheet (Qto)

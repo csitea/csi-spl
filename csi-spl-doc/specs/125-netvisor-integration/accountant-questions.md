@@ -1,9 +1,9 @@
 # Questions for the accountants (spec 125)
 
 For the owner to forward as they are (spec [125](spec.md) D9, D10, D11,
-section 10 step 1). Please send the answers to the owner only, not to a
-chat; account numbers go into the company's own settings, never into a
-message.
+section 10 step 1). Please send the answers to the owner directly, not to a
+shared chat; the owner enters the account numbers into the company's own
+settings.
 
 ## Bookkeeping accounts
 

@@ -96,7 +96,7 @@ may change the workspace settings (an admin or the business owner).
 | Message | Meaning |
 |---|---|
 | Recorded as posted by hand. | Done. |
-| This post is already published on this account. | It was published or recorded before. Nothing changed. |
+| This post is already published on this account. | It was published or recorded before, it is being sent, or sending it failed. Nothing changed. A post that failed on this account cannot be marked as posted by hand. |
 | It could not be recorded. Try again later. | Nothing was recorded. Try again later. |
 
 ## 8. For developers
@@ -105,7 +105,8 @@ may change the workspace settings (an admin or the business owner).
   `{id}` the blog post. It answers 200 with
   `{post, channel, status: "published", platform_post_id: "manual", published_at}`;
   403 for a member who may not, 404 while marketing is off, for an unknown
-  channel or a post not on the blog, 409 once the post is published or being
-  sent on that channel. Audit event: `post_handed_over`.
+  channel or a post not on the blog, 409 once the post is published, being
+  sent or failed on that channel (a failed post is never handed over).
+  Audit event: `post_handed_over`.
 - The links come from `GET /v1/marketing/posts/{id}/share-links`.
 - Spec: `csi-spl-doc/specs/090-marketing-automation` (section 17, task T036).

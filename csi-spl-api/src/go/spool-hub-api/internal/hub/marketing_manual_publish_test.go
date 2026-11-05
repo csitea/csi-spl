@@ -2,9 +2,11 @@ package hub_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"testing"
 
+	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/rbac"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
@@ -93,5 +95,30 @@ func TestMarketingManualPublishGates(t *testing.T) {
 	if _, err := e.st.(store.MarketingMetaDispatch).MarketingPostByRef(context.Background(), e.tid, e.page.ID,
 		store.MarketingSourceBlog, "2026-10-30-hello"); err == nil {
 		t.Fatal("a refused hand-over recorded the post")
+	}
+}
+
+// RED CONTROL across workspaces (R7 N1): an admin of workspace B can never
+// hand over on A's channel, neither through B's own host (the channel is no
+// account of B: 404) nor through A's (B's admin is not A's member), and A
+// records nothing.
+func TestMarketingManualPublishOtherWorkspace(t *testing.T) {
+	other := mktIDs(1)[0]
+	a := newMetaPubEnv(t, func(o *hub.Options) { o.MarketingWorkspaces = append(o.MarketingWorkspaces, other) })
+	if err := a.st.CreateTenant(context.Background(), store.Tenant{ID: other, RootPubKey: mktPub()}); err != nil {
+		t.Fatal(err)
+	}
+	adminB := seat(t, a.env, other, rbac.Admin)
+	mktOn(t, a.env, other, adminB)
+	path := "/v1/marketing/posts/2026-10-30-hello/manual-publish?channel=" + a.ig.ID
+	if code, body := call(t, a.env, other, http.MethodPost, path, adminB, nil); code != http.StatusNotFound {
+		t.Errorf("B's admin, B's host, A's channel: %d %v, want 404", code, body)
+	}
+	if code, body := call(t, a.env, a.tid, http.MethodPost, path, adminB, nil); code < 400 || code == http.StatusConflict {
+		t.Errorf("B's admin, A's host, A's channel: %d %v, want refused", code, body)
+	}
+	if _, err := a.st.(store.MarketingMetaDispatch).MarketingPostByRef(context.Background(), a.tid, a.ig.ID,
+		store.MarketingSourceBlog, "2026-10-30-hello"); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("a cross-workspace hand-over recorded A's post: %v", err)
 	}
 }

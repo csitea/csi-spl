@@ -155,8 +155,10 @@ function mockMarketingMeta(unshared) {
 
 /**
  * spec 090 T036/T037: the share links (built by the hub's twin module, with
- * three same-origin pictures so the hand-over's photo picker has a choice)
- * and the hand-over of a post posted by hand.
+ * three same-origin pictures so the hand-over's photo picker has a choice,
+ * and a fourth on another origin under /blog/img/ as the hub builds it on
+ * the apex: the card shows it on this host's own path) and the hand-over of
+ * a post posted by hand.
  */
 function mockMarketingHandOver(unshared, meta, on, publishFlag) {
   return {
@@ -166,6 +168,7 @@ function mockMarketingHandOver(unshared, meta, on, publishFlag) {
       const origin = globalThis.location?.origin || 'https://app.example.com'
       const url = `${origin}/blog/${p.id}`
       const images = [p.image, '/login-wallpaper.webp', '/spool-hub-emblem-560.webp'].map((x) => new URL(x, origin).href)
+      images.push('https://other.example/blog/img/mock-foreign.webp')
       return { post_id: p.id, url, ...marketingShareLinks({ url, title: p.title, summary: p.summary, images }) }
     },
     manualPublishMarketingPost(id, channel) {

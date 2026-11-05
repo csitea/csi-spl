@@ -27,8 +27,8 @@ import (
 //
 // Who: the member who connected the channel or one holding tenant.settings
 // (metaApprover). 404 while marketing is off, for an unknown channel or a
-// post not in the live index; 409 once the post is published or being sent
-// on that channel.
+// post not in the live index; 409 once the post is published, being sent or
+// failed on that channel (a failed post is never handed over).
 
 // ErrMarketingNoHandOverChannel: the channel is not an active one of the workspace.
 var ErrMarketingNoHandOverChannel = errors.New("the channel is no connected account of this workspace")

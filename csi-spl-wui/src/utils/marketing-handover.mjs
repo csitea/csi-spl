@@ -135,6 +135,25 @@ export function handoverZip(files) {
 }
 
 /**
+ * A blog photo on this page's own origin. The hub builds each photo on the
+ * apex (`<app url>/blog/img/<file>`), but a tenant host's CSP allows
+ * `img-src 'self'` and no apex in `connect-src`, so the gallery and the ZIP
+ * fetch would be blocked there. Every host serves `/blog/img/*`, so such a
+ * photo becomes its same-origin path; any other URL is left as it is.
+ * @param {string} u
+ * @param {string} [here] the page's URL (default: location.href)
+ * @returns {string}
+ */
+export function handoverSameOrigin(u, here) {
+  try {
+    const x = new URL(u, here || globalThis.location?.href)
+    return x.pathname.startsWith('/blog/img/') ? x.pathname : u
+  } catch {
+    return u
+  }
+}
+
+/**
  * How the selected photos are downloaded: one photo is a direct download,
  * more are one ZIP. Returns { kind: 'none' | 'single' | 'zip', urls }.
  * @param {string[]} picked

@@ -129,9 +129,12 @@ async function publish(id: string) {
 }
 
 // spec 090 T036: a post recorded as posted by hand is done on this account
+const leaveTimers = new Set<ReturnType<typeof setTimeout>>()
 function handedOver(id: string) {
-  setTimeout(() => { posts.value = posts.value.filter((p) => p.id !== id) }, 1500)
+  const h = setTimeout(() => { leaveTimers.delete(h); posts.value = posts.value.filter((p) => p.id !== id) }, 1500)
+  leaveTimers.add(h)
 }
+onBeforeUnmount(() => { leaveTimers.forEach((h) => clearTimeout(h)) })
 
 onMounted(async () => {
   try {

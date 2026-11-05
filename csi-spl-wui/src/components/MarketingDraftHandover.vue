@@ -62,7 +62,7 @@ import { useSpoolApi } from '~/composables/useSpoolApi'
 import { writeClipboard } from '~/utils/clipboard.mjs'
 import { DOC_READ_TIMEOUT_MS } from '~/utils/fetch-timeouts.mjs'
 import { VIBER_MAX_TEXT, viberText } from '~/utils/marketing-share-links.mjs'
-import { HANDOVER_MAX_PHOTOS, handoverCopyText, handoverDownloadPlan, handoverFileName, handoverPicked, handoverZip } from '~/utils/marketing-handover.mjs'
+import { HANDOVER_MAX_PHOTOS, handoverCopyText, handoverDownloadPlan, handoverFileName, handoverPicked, handoverSameOrigin, handoverZip } from '~/utils/marketing-handover.mjs'
 
 type Post = { id: string, title?: string, summary?: string, image?: string }
 type Links = { url?: string, facebook?: string, viber?: string, whatsapp?: string, instagram?: { caption?: string, images?: string[], open?: string } }
@@ -91,7 +91,8 @@ const lastPack = ref<string[]>([])
 const markChannel = ref(props.channel || '')
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 
-const images = computed(() => (links.value?.instagram?.images || []).slice(0, 20))
+// the hub's photos are apex URLs: this host's own /blog/img/ path (its CSP is img-src 'self')
+const images = computed(() => (links.value?.instagram?.images || []).slice(0, 20).map((u) => handoverSameOrigin(u)))
 const picked = computed(() => handoverPicked(images.value, checked))
 const copyText = computed(() => handoverCopyText(links.value?.instagram?.caption || '', hashtags.value))
 const viberShort = computed(() => viberText(props.post.title || '', links.value?.url || ''))

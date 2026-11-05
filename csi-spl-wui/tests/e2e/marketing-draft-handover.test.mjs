@@ -1,13 +1,18 @@
 // Spec 090 T036 (SPL-4804): the customer's draft hand-over
 // (MarketingDraftHandover.vue), proved in a REAL browser against the mock
 // bundle (tenant-settings-mock.mjs: the post "Mock post two" with three
-// same-origin pictures; the Page "Mock Studio", channel mch-fb-1). At 1440
-// and at 390:
+// same-origin pictures and a fourth the hub built on another origin; the
+// Page "Mock Studio", channel mch-fb-1). At 1440 and at 390:
 //   1. "Post by hand" on the Page's list opens the card with the five
-//      platform badges and the post's own picture picked (1 of 3);
+//      platform badges and the post's own picture picked (1 of 4); the
+//      other-origin photo is shown on this host's own /blog/img/ path (a
+//      tenant host's CSP is img-src 'self');
 //   2. RED CONTROL photo toggle: pick photo 3, un-pick photo 1, pick photo 2;
 //      Download makes ONE ZIP holding photos 2 and 3 only (read back from
 //      the downloaded file), the un-picked photo is not in it;
+//   2b. one photo picked is downloaded directly, not as a ZIP;
+//   2c. a photo whose fetch is blocked: the ZIP falls back to one download
+//      per photo and says so;
 //   3. RED CONTROL clipboard: hashtags typed, "Copy caption & hashtags"
 //      shows the toast and the clipboard holds the full string (title,
 //      summary, link, hashtags);
@@ -108,7 +113,8 @@ async function openCard(p, list, w) {
   await p.waitForSelector(`${list} ${CARD} [data-test=handover-photo]`, { visible: true, timeout: 8000 }).catch(() => null)
   const badges = await p.$$eval(`${list} ${CARD} [data-test=handover-badge]`, (es) => es.map((e) => e.getAttribute('data-platform')))
   const photos = await p.$$eval(`${list} ${CARD} [data-test=handover-photo-check]`, (es) => es.map((e) => e.checked))
-  return { badges, photos, w }
+  const srcs = await p.$$eval(`${list} ${CARD} [data-test=handover-photo] img`, (es) => es.map((e) => e.getAttribute('src')))
+  return { badges, photos, srcs, w }
 }
 
 async function photoSteps(p, w, dir) {
@@ -123,6 +129,39 @@ async function photoSteps(p, w, dir) {
   const names = zip ? zipNames(zip) : []
   ok(`2 ${w}px: RED CONTROL the ZIP holds the picked photos 2 and 3, never the un-picked one`, count === '2' &&
     names.join() === 'login-wallpaper.webp,spool-hub-emblem-560.webp', { count, names, zip: Boolean(zip) })
+}
+
+// after photoSteps photos 2 and 3 are picked: un-pick 3, one photo is a direct download
+async function singleSteps(p, w, dir) {
+  const card = `${PAGE_PUB} ${CARD}`
+  await tap(p, `${card} [data-test=handover-photo]:nth-of-type(3) [data-test=handover-photo-check]`)
+  const count = await attr(p, `${card} [data-test=handover-photo-count]`, 'data-count')
+  await tap(p, `${card} [data-test=handover-download]`)
+  const file = await waitFile(dir, 'login-wallpaper.webp', 8000)
+  const pack = await attr(p, card, 'data-pack')
+  ok(`2b ${w}px: one photo picked is downloaded directly, not as a ZIP`, count === '1' && Boolean(file) && pack === 'login-wallpaper.webp', { count, file: Boolean(file), pack })
+}
+
+// photos 1 and 4 picked, photo 4's fetch blocked (as a CSP would): each photo on its own, and an error
+async function fallbackSteps(p, w, dir) {
+  const card = `${PAGE_PUB} ${CARD}`
+  const check = (i) => `${card} [data-test=handover-photo]:nth-of-type(${i}) [data-test=handover-photo-check]`
+  await p.evaluate(() => {
+    const real = globalThis.fetch.bind(globalThis)
+    globalThis.fetch = (u, o) => (String(u).includes('mock-foreign') ? Promise.reject(new TypeError('Failed to fetch')) : real(u, o))
+  })
+  await tap(p, check(2))
+  await tap(p, check(1))
+  await tap(p, check(4))
+  await tap(p, `${card} [data-test=handover-download]`)
+  const file = await waitFile(dir, 'logo.webp', 8000)
+  const pack = await attr(p, card, 'data-pack')
+  const err = await text(p, `${card} [data-test=handover-error]`)
+  const zip = readdirSync(dir).filter((f) => f.endsWith('.zip')).length
+  ok(`2c ${w}px: a blocked photo fetch falls back to one download per photo and says so`, Boolean(file) && pack === 'logo.webp,mock-foreign.webp' &&
+    err !== '' && zip === 1, { file: Boolean(file), pack, err, zip })
+  await tap(p, check(1))
+  await tap(p, check(4))
 }
 
 async function copySteps(p, w, base) {
@@ -161,7 +200,7 @@ async function linkedInSteps(p, w) {
   const r = await openCard(p, LI_PUB, w)
   await sleep(500)
   const mark = Boolean(await p.$(`${LI_PUB} ${CARD} [data-test=handover-mark-posted]`))
-  ok(`6 ${w}px: on the LinkedIn list (no LinkedIn account) the card opens without Mark`, r.photos.length === 3 && !mark, { ...r, mark })
+  ok(`6 ${w}px: on the LinkedIn list (no LinkedIn account) the card opens without Mark`, r.photos.length === 4 && !mark, { ...r, mark })
 }
 
 async function run(browser, base, w) {
@@ -188,8 +227,11 @@ async function run(browser, base, w) {
   await p.waitForSelector(`${PAGE_PUB} [data-test=tenant-marketing-publish-row]`, { visible: true, timeout: 5000 }).catch(() => null)
   const r = await openCard(p, PAGE_PUB, w)
   ok(`1 ${w}px: the card shows the five badges and the post's own picture picked`, r.badges.join() === 'facebook,instagram,linkedin,viber,whatsapp' &&
-    r.photos.join() === 'true,false,false', r)
+    r.photos.join() === 'true,false,false,false', r)
+  ok(`1b ${w}px: the other-origin photo is shown on this host's own /blog/img/ path`, r.srcs[3] === '/blog/img/mock-foreign.webp', r.srcs)
   await photoSteps(p, w, dir)
+  await singleSteps(p, w, dir)
+  await fallbackSteps(p, w, dir)
   await copySteps(p, w, base)
   await linkSteps(p, w, base)
   if (SHOT_DIR) {

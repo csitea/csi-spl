@@ -8,7 +8,7 @@
 import zlib from 'node:zlib'
 import {
   HANDOVER_MAX_HASHTAGS, HANDOVER_MAX_PHOTOS, crc32, handoverCopyText, handoverDownloadPlan,
-  handoverFileName, handoverHashtags, handoverPicked, handoverZip,
+  handoverFileName, handoverHashtags, handoverPicked, handoverSameOrigin, handoverZip,
 } from '../../src/utils/marketing-handover.mjs'
 import { runsInUnitSuite } from './lib/in-suite.mjs'
 
@@ -80,6 +80,13 @@ try { entries = readZip(handoverZip(files)) } catch (e) { entries = [{ name: Str
 ok('the ZIP holds exactly the picked files, byte for byte, with their CRC', entries.length === 2 &&
   entries.every((e, i) => e.name === files[i].name && e.crc === crc32(files[i].bytes) &&
     Buffer.compare(Buffer.from(e.bytes), Buffer.from(files[i].bytes)) === 0), JSON.stringify(entries.map((e) => e.name)))
+
+// --- an apex photo becomes this host's own path (R7 W1: tenant CSP img-src 'self')
+const here = 'https://t1.example.com/tenant-settings/general'
+ok('an apex /blog/img/ photo becomes the same-origin path', handoverSameOrigin('https://example.com/blog/img/a%20b.webp', here) === '/blog/img/a%20b.webp')
+ok('a same-origin /blog/img/ photo keeps its path', handoverSameOrigin('https://t1.example.com/blog/img/a.jpg', here) === '/blog/img/a.jpg')
+ok('a photo outside /blog/img/ is left as it is', handoverSameOrigin('https://cdn.example.net/x/a.jpg', here) === 'https://cdn.example.net/x/a.jpg')
+ok('a URL that does not parse is left as it is', handoverSameOrigin('http://[bad', here) === 'http://[bad')
 
 const suite = runsInUnitSuite(import.meta.url)
 ok('pnpm test runs marketing-handover.test.mjs', suite.ok, suite.why)

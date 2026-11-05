@@ -180,10 +180,9 @@ function followSteps(s: ChannelState) {
   return { follow, key, noteLive }
 }
 
-/** The sidebar's channel list and the DM order. */
-function sidebarSteps(s: ChannelState, d: { selectChannel: (name: string) => Promise<void> }) {
-  const { api, i18n, channels, dmAt, dmSeed } = s
-  const { selectChannel } = d
+/** The sidebar's channel rows: a live frame, delete, archive and unarchive. */
+function channelRowSteps(s: ChannelState) {
+  const { api, channels } = s
   /** a channel created anywhere in the tenant (hub `channel` frame). */
   /** A live `channel` or `channel_deleted` frame (applyChannelFrame). */
   function addChannel(frame: Record<string, unknown>) {
@@ -209,6 +208,15 @@ function sidebarSteps(s: ChannelState, d: { selectChannel: (name: string) => Pro
       addChannel({ type: 'channel', ...row })
     }
   }
+
+  return { addChannel, deleteChannel, archiveChannel, unarchiveChannel }
+}
+
+/** The sidebar's channel list and the DM order. */
+function sidebarSteps(s: ChannelState, d: { selectChannel: (name: string) => Promise<void> }) {
+  const { api, i18n, channels, dmAt, dmSeed } = s
+  const { selectChannel } = d
+  const channelRows = channelRowSteps(s)
 
   /**
    * the last DM per peer, so the DM list is ordered by activity on
@@ -258,7 +266,7 @@ function sidebarSteps(s: ChannelState, d: { selectChannel: (name: string) => Pro
     return { ...row, channel_id: id }
   }
 
-  return { addChannel, deleteChannel, archiveChannel, unarchiveChannel, loadDmActivity, loadChannels, createChannel }
+  return { ...channelRows, loadDmActivity, loadChannels, createChannel }
 }
 
 /** The Msgs window: search, and Load more over the held rows and older pages. */
@@ -584,6 +592,36 @@ function sendSteps(s: ChannelState, d: Pick<Outbox, 'holdForNetwork' | 'toFileRe
   return { send }
 }
 
+/** sendLive's arguments, as one object for the frame step. */
+type LiveSendArgs = { text: string, parentTaskId?: string, files?: unknown[], channelId?: string, isParent?: number, dmPeer?: string }
+
+/** The hub frame sendLive sends: who it goes to, on which box, in which channel. */
+async function liveSendFrame(s: ChannelState, a: LiveSendArgs, toFileRefs: Outbox['toFileRefs']) {
+  const { active, peer } = s
+  const { text, parentTaskId, files, channelId, isParent, dmPeer } = a
+  const dmTo = peer.value || dmPeer || ''
+  const [peerId, peerBox] = dmTo.split('@')
+  const parsed = parseMention(text)
+  const asDm = !channelId && Boolean(dmTo)
+  const parentBit: 0 | 1 = isParent === 0 ? 0 : 1
+  const frame: SendFrame = {
+    task_id: parentTaskId || newId(),
+    kind: 'note' /* owner 2026-09-26 (topic 1a9a8a84): a person's post is a note; re-type it from the card's kind badge */,
+    body: asDm ? text : parsed.body,
+    files: await toFileRefs(files),
+    to: asDm ? peerId : (parsed.to === '@channel' ? undefined : parsed.to),
+    is_parent: parentBit,
+  }
+  /* specs/058 (CLE-77932): the DM peer's box, or the box a leading
+     `@CLE-001@sat` named - without it the hub refuses an id that two boxes
+     announce (ambiguous_to_box) */
+  const toBox = asDm ? peerBox : parsed.toBox
+  if (frame.to && toBox) frame.to_box = toBox
+  const channelNow = channelId || active.value
+  if (channelNow) frame.channel = channelNow
+  return { frame, asDm, peerId, channelNow, parentBit }
+}
+
 /**
  * Live send over the hub WUI socket (wui-live-ws §4); the echo frame lands via ingestLive.
  * `channelId` is the channel an `in:` clause named. It is a channel post even
@@ -591,32 +629,13 @@ function sendSteps(s: ChannelState, d: Pick<Outbox, 'holdForNetwork' | 'toFileRe
  * channel is not the one on screen.
  */
 function liveSendSteps(s: ChannelState, d: Pick<Outbox, 'toFileRefs'> & Pick<Counts, 'repliesFor'> & Landing) {
-  const { api, active, peer, messages } = s
+  const { api, active, messages } = s
   const { toFileRefs, repliesFor, waitForNetwork, landed } = d
   async function sendLive(text: string, parentTaskId?: string, files?: unknown[], channelId?: string, isParent?: number, dmPeer?: string) {
     const live = useLive()
     const client = live.ensure()
     if (!client) throw new Error(`live socket unavailable (${api.configError || 'no base'})`)
-    const dmTo = peer.value || dmPeer || ''
-    const [peerId, peerBox] = dmTo.split('@')
-    const parsed = parseMention(text)
-    const asDm = !channelId && Boolean(dmTo)
-    const parentBit: 0 | 1 = isParent === 0 ? 0 : 1
-    const frame: SendFrame = {
-      task_id: parentTaskId || newId(),
-      kind: 'note' /* owner 2026-09-26 (topic 1a9a8a84): a person's post is a note; re-type it from the card's kind badge */,
-      body: asDm ? text : parsed.body,
-      files: await toFileRefs(files),
-      to: asDm ? peerId : (parsed.to === '@channel' ? undefined : parsed.to),
-      is_parent: parentBit,
-    }
-    /* specs/058 (CLE-77932): the DM peer's box, or the box a leading
-       `@CLE-001@sat` named - without it the hub refuses an id that two boxes
-       announce (ambiguous_to_box) */
-    const toBox = asDm ? peerBox : parsed.toBox
-    if (frame.to && toBox) frame.to_box = toBox
-    const channelNow = channelId || active.value
-    if (channelNow) frame.channel = channelNow
+    const { frame, asDm, peerId, channelNow, parentBit } = await liveSendFrame(s, { text, parentTaskId, files, channelId, isParent, dmPeer }, toFileRefs)
     /* The last point that knows the real payload: an empty box with no files
        is refused here, where parseMention has already run, because an empty
        row reads exactly like a lost one. A bare `@CLE-00` is NOT empty - it

@@ -23,7 +23,7 @@ blocker was. A plain `--kind note` to the orchestrator journals no ask.
 | sender | to | now |
 |---|---|---|
 | watchdog S2 login, S2 limit, held out (`spl-watchdog.func.sh`, `spl_wd_send ... alarm`) | orchestrator | note + `--ask blocker` |
-| watchdog S2 auth (`spl-watchdog.func.sh`), orchestrator outcome (`spl-wd-orch-outcome.func.sh`) | dispatch holder, else orchestrator | note; + `--ask blocker` only on the orchestrator fallback |
+| watchdog S2 auth (`spl-watchdog.func.sh`), orchestrator outcome (`spl-wd-orch-outcome.func.sh`) | dispatch holder, else orchestrator | note; + `--ask blocker` only on the orchestrator fallback; no ask when one seat holds both leases (below) |
 | restart report (`spl-agent-restart.func.sh`, `spl_ars_send ... alarm`, its resend queue too) | orchestrator | note + `--ask blocker` |
 | takeover job (`spl-wd-takeover.func.sh`), peer watchdog (`spl-wd-peers.func.sh`, `wd-box-*`), watchdog keeper (`spl-wd-ensure.func.sh`, `wd-keeper-*`) | orchestrator | note + `--ask blocker` |
 | issue closer red (`scripts/issue-close-landed-cron.sh`) | orchestrator | note + `--ask blocker` |
@@ -34,6 +34,12 @@ blocker was. A plain `--kind note` to the orchestrator journals no ask.
 
 `alarm` is a kind only `spl_wd_send` and `spl_ars_send` take: they send it as
 `--kind note`, adding `--ask blocker` when the recipient is `orchestrator`.
+
+On the dispatch-holder row (watchdog S2 auth, orchestrator outcome) the ask is
+lost when one seat holds both the dispatch and the orch lease:
+`spl_wd_dispatcher` (`spl-watchdog.func.sh`) then returns that seat's id, not
+`orchestrator`, so `spl_wd_send` adds no `--ask blocker`. The alarm still
+reaches the seat as a note, but no ask is journaled and nothing re-raises it.
 
 ## 3. What stays a blocker
 
@@ -46,6 +52,12 @@ RCA's list):
   `spl-workspace-delivery-probe.func.sh`, `spl-archived-seats-free.func.sh`,
   `spl-hub-member-access-schedule-check.func.sh`: each asks a person or a
   seat to act on one case; whether it is an alarm is a separate decision.
+- `box-link-watch.py:427` (`scripts/`, SPL-4816): the "LINK STUCK" alert,
+  one per box incident, to the seat of the topic that owns the box (else
+  `GW_FALLBACK`); its clear goes as a note.
+- `spl-reply-count-probe.func.sh:115` (SPL-1008 live seed): the probe
+  member's blocker reply in a test tenant's probe channel, one of the reply
+  shapes the WUI must count; a fixture, not an alarm.
 - `DESK_KIND=blocker` posts (`spl-asks-tick.func.sh` owner fallback,
   `spl-deploy-failure-post.func.sh`, `spl-deploy-lag-alarm.func.sh`): desk
   channel posts, not spool messages to a seat.

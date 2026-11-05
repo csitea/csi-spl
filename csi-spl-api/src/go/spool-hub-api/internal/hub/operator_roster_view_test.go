@@ -4,11 +4,16 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"slices"
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog"
+
+	"github.com/csitea/csi-spl/spool-hub-api/internal/auth"
+	"github.com/csitea/csi-spl/spool-hub-api/internal/hub"
 	"github.com/csitea/csi-spl/spool-hub-api/internal/store"
 )
 
@@ -145,5 +150,47 @@ func TestFleetRosterDoors(t *testing.T) {
 		if code, body := call(t, r.e, who[0], http.MethodGet, fleetRosterPath, who[1], nil); code != http.StatusForbidden {
 			t.Errorf("R4 %s of %s: %d %v, want 403", who[1], who[0], code, body)
 		}
+	}
+}
+
+// R4, the two branches of fleetLoadCaller (SPL-4870), on a hub with the
+// session door and auth mounted as on prd (cnf SPOOL_HUB_VIEW_DOOR session):
+// no Authorization header and no session cookie goes the operatorActor
+// branch -> 401 view_door; the operator service account's Bearer goes
+// operatorAuth -> 200 with the other workspace's box row. On the rig's
+// door-off hub the same no-credential call is 403 (operatorActor's hum ""),
+// not 401. RED CONTROL (commit body): the no-session refusal let through ->
+// not 401; the SA branch refused -> not 200.
+func TestFleetRosterCallerBranches(t *testing.T) {
+	ac, err := auth.LoadFrom("lde", map[string]string{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := newFleetTokensRig(t, func(o *hub.Options) {
+		o.ViewDoor = hub.ViewDoorSession
+		o.Auth = auth.New(ac, zerolog.Nop(), auth.Options{})
+		o.OperatorEmails = []string{operatorSA}
+		o.OperatorAudience = "https://api.dev.example"
+		o.OperatorVerify = func(_ context.Context, token, _ string) (string, error) {
+			if token == "good" {
+				return operatorSA, nil
+			}
+			return "", errors.New("token rejected")
+		}
+	})
+	if code, body := call(t, r.e, r.op, http.MethodGet, fleetRosterPath, "", nil); code != http.StatusUnauthorized || body["error"] != "view_door" {
+		t.Errorf("R4 no credentials: %d %v, want 401 view_door", code, body)
+	}
+	code, body := opCall(t, r.e, r.op, http.MethodGet, fleetRosterPath, "good", nil)
+	if code != http.StatusOK {
+		t.Fatalf("R4 operator SA bearer: %d %v, want 200", code, body)
+	}
+	raw, _ := json.Marshal(body)
+	var v rosterView
+	if err := json.Unmarshal(raw, &v); err != nil {
+		t.Fatal(err)
+	}
+	if n := rowsOf(v, r.otherBox.id); len(n) != 1 || n[0].Workspace != r.other {
+		t.Errorf("R4 the SA's view of the other workspace's box %+v, want one row under %s", n, r.other)
 	}
 }

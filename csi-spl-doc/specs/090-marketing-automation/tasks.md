@@ -197,7 +197,8 @@ The serial spine is T003 -> T004 -> T008 -> T009 -> T010 -> T012 -> T013. T002, 
   - **Needs from the owner**: nothing.
   - **Deploy + prove**: `build.json` on dev and prd.
 
-- [x] T013 **help** (a-107, SPL-4806) `doc/doc/help/marketing.md`.
+- [ ] T013 **help** (a-107, c-201, SPL-4806) `doc/doc/help/marketing.md`.
+  - **Open**: the page is written; the link in `doc/doc/help/index.md` is not there yet. That file is a qto export (`do_spl_doctree_export_md`), so its row is added in qto by the dispatcher, then exported.
   - **Content**: what it does and what it never does (no passwords, no filler, at most one post a day per channel), connecting and disconnecting LinkedIn, re-consent every ~60 days, the review queue, and who may approve.
   - Add its link in `doc/doc/help/index.md`. Then run `node src/node/help/sync-help.mjs` and commit the public copy under `wui/src/public/help-md/` separately.
   - **Owns**: those files.

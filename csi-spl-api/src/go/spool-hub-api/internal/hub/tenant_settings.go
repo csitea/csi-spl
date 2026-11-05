@@ -320,6 +320,9 @@ type tenantChannelRow struct {
 	CreatedAt   *string `json:"created_at"`
 	LastTS      *string `json:"last_ts"`
 	Archivable  bool    `json:"archivable"`
+	// BoxPins is the boxes the channel is pinned to (spec 164 4.2.3); []
+	// = unpinned, any box of the workspace.
+	BoxPins []string `json:"box_pins"`
 }
 
 // GET /v1/tenant/channels: every channel, the private ones the caller is
@@ -339,11 +342,19 @@ func (s *Server) handleTenantChannels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	set := s.channelSettings(r.Context(), t.ID, rows, fb)
+	pins, err := s.o.Store.ListChannelBoxPins(r.Context(), t.ID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "internal", "channel box pins unavailable")
+		return
+	}
 	out := []tenantChannelRow{}
 	for _, c := range rows {
 		v := tenantChannelRow{Channel: c.ChannelID, Name: c.Name, Description: c.Description, Visibility: "members",
 			Agents: c.Agents, Messages: c.Count, CreatedBy: c.CreatedBy, Archivable: !store.ChannelPublic(c.ChannelID),
-			Members: set[c.ChannelID].Humans, NoFallback: set[c.ChannelID].NoFallback}
+			Members: set[c.ChannelID].Humans, NoFallback: set[c.ChannelID].NoFallback, BoxPins: pins[c.ChannelID]}
+		if v.BoxPins == nil {
+			v.BoxPins = []string{}
+		}
 		if store.ChannelPublic(c.ChannelID) {
 			v.Visibility = "default"
 			v.Members = 0

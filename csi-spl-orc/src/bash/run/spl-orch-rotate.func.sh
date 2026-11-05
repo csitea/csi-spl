@@ -99,7 +99,6 @@ do_spl_orch_rotate() {
 
 spl_orch_rotate_auto() {
   local id="$LEASE_ORCH" rid pid age pane why holder new min
-  ROTATE_STANDBY_REFRESH=""
   # spec 061 L6 (owner 2026-10-02 21:37Z: the role switch is the rotation's,
   # not a command for him): LEASE_ORCH still a legacy id with a row in the
   # alias table = this rotation switches it (spl_orch_rotate_switch).
@@ -116,6 +115,9 @@ spl_orch_rotate_auto() {
   # a rotation left mid-way is resumed or failed first (FR-003)
   spl_orch_rotate_left "$rid" || return 1
   [[ "$ROTATE_GO" == 1 ]] || return 0
+  # a new run: a finished re-seat or refresh in the loaded ctx is not this
+  # one's (a resumed run kept them, spl_rotate_ctx_load, and returned above)
+  ROTATE_STANDBY="" ROTATE_STANDBY_REFRESH=""
   [[ "$ROTATE" != 0 && "$ROTATE_ORCH" != 0 ]] || { spl_rotate_log "$rid" GATE SKIP "disabled (ROTATE=$ROTATE ROTATE_ORCH=$ROTATE_ORCH)"; return 0; }
   spl_orch_rotate_standby_gate "$rid" "$id" "$new" || return 0
   if [[ "${ROTATE_FORCE:-0}" != 1 ]] && (( $(spl_rotate_uptime) < ROTATE_BOOT_GRACE )); then
@@ -240,6 +242,9 @@ spl_orch_rotate_standby() {
   (( idl == 0 )) || { spl_rotate_log "$rid" STANDBY SKIP "id lock: $SPL_ID_LOCK_WHY"; return "$idl"; }
   spl_orch_rotate_left "$rid" || return 1
   [[ "$ROTATE_GO" == 1 ]] || return 0
+  # a finished re-seat or refresh in the loaded ctx is not this run's; a
+  # guard only: the re-seat below sets ROTATE_STANDBY again for its go
+  ROTATE_STANDBY="" ROTATE_STANDBY_REFRESH=""
   [[ "$ROTATE" != 0 && "$ROTATE_ORCH" != 0 ]] || { spl_rotate_log "$rid" STANDBY SKIP "disabled (ROTATE=$ROTATE ROTATE_ORCH=$ROTATE_ORCH)"; return 0; }
   holder="$(spl_orch_rotate_holder)"
   local sb=0

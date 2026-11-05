@@ -35,7 +35,8 @@
 #
 # The globals a rotation sets and these read: ROTATE_RID, ROTATE_OLD_PID,
 # ROTATE_OLD_PANE, ROTATE_OLD_NAME, ROTATE_NEW_PID, ROTATE_NEW_PANE,
-# ROTATE_QUIESCE, ROTATE_HANDOFF (spl_rotate_ctx_save / _load keep them for a
+# ROTATE_QUIESCE, ROTATE_HANDOFF and, for orch, ROTATE_STANDBY and
+# ROTATE_STANDBY_REFRESH (spl_rotate_ctx_save / _load keep them for a
 # resume). The outside world is replaceable for the tests: ROTATE_TMUX (tmux),
 # ROTATE_SPAWN (spawn-window.sh), ROTATE_RUN (./run), ROTATE_SEND
 # (spool-send.sh), ROTATE_KILL (kill), ROTATE_AI (the identity-map calls),
@@ -606,16 +607,27 @@ spl_agent_id_unlock() {
 # The resume context: rotate.<family>.ctx, KEY=value, read, never sourced.
 # ROTATE_RUN_PID / ROTATE_RUN_START: the run that writes it (spl_rotate_run_mark).
 ROTATE_CTX_KEYS=(ROTATE_RID ROTATE_PHASE ROTATE_OLD_PID ROTATE_OLD_PANE ROTATE_OLD_NAME ROTATE_NEW_PID ROTATE_NEW_PANE ROTATE_QUIESCE ROTATE_HANDOFF ROTATE_SWITCH_FROM ROTATE_SWITCH_TO ROTATE_RUN_PID ROTATE_RUN_START)
+# the orch family also keeps whether the run is a standby re-seat or refresh
+# (spec 060 R8), so a resumed CLOSE reads it; the dispatch family keeps its
+# own ROTATE_STANDBY in the run only (spl_disp_run_all), never in its ctx
+ROTATE_CTX_KEYS_ORCH=(ROTATE_STANDBY ROTATE_STANDBY_REFRESH)
+spl_rotate_ctx_keys() {  # FAMILY -> ROTATE_CTX_KEYS_OF
+  ROTATE_CTX_KEYS_OF=("${ROTATE_CTX_KEYS[@]}")
+  [[ "$1" == orch ]] && ROTATE_CTX_KEYS_OF+=("${ROTATE_CTX_KEYS_ORCH[@]}")
+  return 0
+}
 spl_rotate_ctx_save() {  # FAMILY
   local k f="${ROTATE_STATE_DIR:-$LEASE_DIR}/rotate.$1.ctx"
-  { for k in "${ROTATE_CTX_KEYS[@]}"; do printf '%s=%s\n' "$k" "${!k:-}"; done; } > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
+  spl_rotate_ctx_keys "$1"
+  { for k in "${ROTATE_CTX_KEYS_OF[@]}"; do printf '%s=%s\n' "$k" "${!k:-}"; done; } > "$f.tmp.$$" && mv -f "$f.tmp.$$" "$f"
 }
 spl_rotate_ctx_load() {  # FAMILY -> non-zero when there is none
   local k v f="${ROTATE_STATE_DIR:-$LEASE_DIR}/rotate.$1.ctx"
-  for k in "${ROTATE_CTX_KEYS[@]}"; do printf -v "$k" '%s' ""; done
+  spl_rotate_ctx_keys "$1"
+  for k in "${ROTATE_CTX_KEYS_OF[@]}"; do printf -v "$k" '%s' ""; done
   [[ -f "$f" ]] || return 1
   while IFS='=' read -r k v; do
-    [[ " ${ROTATE_CTX_KEYS[*]} " == *" $k "* ]] && printf -v "$k" '%s' "$v"
+    [[ " ${ROTATE_CTX_KEYS_OF[*]} " == *" $k "* ]] && printf -v "$k" '%s' "$v"
   done < "$f"
   return 0
 }

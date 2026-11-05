@@ -92,6 +92,11 @@
 #      the threshold from rotate.conf; the holder's box keeps ROTATE_MIN_AGE;
 #      boot, no-pane, duplicate and stall gates still apply; no ack = the old
 #      seat keeps the role
+#  25. SPL-4878 (SPL-4807 R7 N1, N4): a failover seat on a standby box,
+#      claude able again, passes the standby gate before the age branch
+#      (seat 7200 s old, max age 86400); a refresh resumed at ACK keeps
+#      ROTATE_STANDBY_REFRESH from the ctx (CLOSE OK, no lease-moved); a
+#      DONE refresh or re-seat in the ctx does not leak into the next run
 #------------------------------------------------------------------------------
 set -uo pipefail
 # hermetic: the verdict never depends on the caller's shell. Agent shells export
@@ -1175,6 +1180,53 @@ act DRY_RUN=0 ROTATE_ACK_TIMEOUT=3 "${SBR[@]}" >"$T/o" 2>&1; rc=$?
   pass "24. (e) no ack: FAIL ACK, the old pid 1001 keeps the seat and its name, the fleet orch lease byte-identical, LEASE_ORCH kept" || fail "24. (e) rc=$rc $(grep -E 'GATE|ACK|FAIL' "$T/o")"
 ! grep -q ERRTRAP "$T/o" && pass "24. no stray failing command under the ERR trap" || fail "24. ERRTRAP: $(grep ERRTRAP "$T/o")"
 rm -f "$D/lease.orch" "$T/ack.mode"
+
+# --- 25. SPL-4878: the failover branch of the standby gate; the standby keys survive a resume ----
+# (a) N4: spl_orch_rotate_standby_gate's failover elif, ahead of the age one.
+# g-001 (grok) holds seat 001 by a failover from c-001, claude can act again;
+# the seat is 7200 s old, far under the max age, so only that branch passes it.
+export OLD_ID=g-001; sb_world; rm -rf "$D/wd"
+mkdir -p "$D/role-failover"; echo "c-001 g-001 grok 20261104T2200Z-failover-orch 1001" >"$D/role-failover/seat.001"
+printf 'idle\n❯ \n' >"$T/tmux/screen.%2"  # g-001 acts as the failover: no limit menu, so no stall gate
+act "${SBV[@]}" ROTATE_ORCH_STANDBY_MAX_AGE=86400 >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && ! -e "$T/spawn.log" ]] &&
+  grep -q ' GATE OK standby (orch lease: c-001@box-b), but g-001 is a failover seat and claude can act again: handing it back' "$T/o" &&
+  grep -q ' GATE PLAN pass: g-001 pid 1001, 7200s old' "$T/o" && ! grep -q 'refreshing' "$T/o" &&
+  pass "25. (a) a standby failover seat, claude able: GATE OK hand back (not the age branch), the rotation planned" || fail "25. (a) rc=$rc $(grep GATE "$T/o")"
+# control: no failover record = the same seat is skipped with its age
+rm -f "$D/role-failover/seat.001"; act "${SBV[@]}" ROTATE_ORCH_STANDBY_MAX_AGE=86400 >"$T/o" 2>&1
+grep -q ' GATE SKIP standby (orch lease: c-001@box-b), g-001 is 7200s old (< 86400)' "$T/o" &&
+  pass "25. (a) control: no failover record, the same seat: GATE SKIP standby" || fail "25. (a) control: $(grep GATE "$T/o")"
+rm -rf "$D/role-failover"
+export OLD_ID=c-900; unset DESK_STATE_ROOT
+printf 'LEASE_ORCH=c-900\nLEASE_ENV=prd\nLEASE_TENANT=t1\nASKS_OWNER=HUM-10\n' >"$D/lease.conf"
+# (b) N1: a refresh left at ACK (built as case 8) resumes with its standby
+# key from the ctx: CLOSE OK, no lease-moved, the fleet orch lease untouched
+sbr 7201; echo no >"$T/ack.mode"
+act DRY_RUN=0 ROTATE_ACK_TIMEOUT=1 "${SBR[@]}" >/dev/null 2>&1
+rm -f "$T/ack.mode"; "$T/bin/proc" 2001 0; printf '%%20\t2001\t$0\tc-900@box\n' >>"$T/tmux/panes"
+awk -F'\t' -v OFS='\t' '$1 == "%2" {$4 = "c-900-0405Z-retiring"} {print}' "$T/tmux/panes" >"$T/p" && mv "$T/p" "$T/tmux/panes"
+rid="$(ctx ROTATE_RID)"
+sed -i 's/^ROTATE_PHASE=.*/ROTATE_PHASE=ACK/; s/^ROTATE_NEW_PID=.*/ROTATE_NEW_PID=2001/; s/^ROTATE_NEW_PANE=.*/ROTATE_NEW_PANE=%20/' "$D/rotate.orch.ctx"
+[[ "$(ctx ROTATE_STANDBY_REFRESH)" == c-900@sat ]] && pass "25. (b) the refresh's ctx records ROTATE_STANDBY_REFRESH=c-900@sat" || fail "25. (b) ctx: $(cat "$D/rotate.orch.ctx")"
+"$T/bin/send" --from c-900 --to c-900 --kind result --task "orch-rotate-$rid" --body ack
+act DRY_RUN=0 "${SBR[@]}" >"$T/o" 2>&1; rc=$?
+# (the hand-built new pane has no identity-map row, so CLOSE also says map=none)
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE ]] && grep -q " RESUME OK from ACK" "$T/o" && grep -q ' CLOSE [A-Z]* old window closed' "$T/o" && ! grep -q 'lease-moved' "$T/o" &&
+  [[ "$(sha256sum <"$D/lease.orch")" == "$LB" ]] &&
+  pass "25. (b) resumed at ACK: CLOSE checks no lease-moved, DONE, the fleet orch lease byte-identical" || fail "25. (b) rc=$rc $(grep -E 'RESUME|CLOSE|FAIL' "$T/o")"
+# (c) the DONE refresh above stays in the ctx; the next run on the holder's box
+# is no refresh: its own ctx carries neither key
+"$T/bin/proc" 1001 3400; rm -rf "$T/proc/2001"; printf '%%2\t1001\t$0\tc-900@box sometitle\n' >"$T/tmux/panes"; rm -f "$T/spawn.log"
+echo "c-900@box-desk $(date +%s)" >"$D/lease.orch"
+sed -i 's/^ROTATE_STANDBY=.*/ROTATE_STANDBY=c-001@box-b/' "$D/rotate.orch.ctx"
+[[ "$(ctx ROTATE_STANDBY_REFRESH)" == c-900@sat && "$(ctx ROTATE_STANDBY)" == c-001@box-b ]] || fail "25. (c) setup: $(cat "$D/rotate.orch.ctx")"
+act DRY_RUN=0 "${SBR[@]}" >"$T/o" 2>&1; rc=$?
+[[ $rc -eq 0 && "$(ctx ROTATE_PHASE)" == DONE && -z "$(ctx ROTATE_STANDBY_REFRESH)" && -z "$(ctx ROTATE_STANDBY)" ]] &&
+  grep -q ' GATE OK pid 1001, 3400s old' "$T/o" && ! grep -q 'refreshing' "$T/o" &&
+  pass "25. (c) after a DONE refresh/re-seat ctx, the holder's next run records neither key" || fail "25. (c) rc=$rc $(grep -E 'GATE|CLOSE|FAIL' "$T/o"; grep STANDBY "$D/rotate.orch.ctx")"
+! grep -q ERRTRAP "$T/o" && pass "25. no stray failing command under the ERR trap" || fail "25. ERRTRAP: $(grep ERRTRAP "$T/o")"
+rm -f "$D/lease.orch"
 echo
 (( fails == 0 )) && { echo "orch-rotate: all passed"; exit 0; }
 echo "orch-rotate: $fails failure(s)"; exit 1

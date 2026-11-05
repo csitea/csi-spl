@@ -17,7 +17,6 @@ are erased with it.
   notes of that priority.
 - The **filter box** narrows the list to the notes whose title or text holds
   what you type.
-- **Archived** switches to the notes you archived; press it again to go back.
 - **Pinned** notes come first, in their own group; the other notes follow.
 - Each row is one line: the title, or the first line of the text when there
   is no title, with the note's priority beside it (**P1** to **P5**). A long
@@ -57,9 +56,9 @@ or the phone's Back) takes you back to the list.
 - **Priority**: pick 1 to 5 in the open note; 1 is the highest and a new note
   has 5. It is saved at once and the note moves to its place in the list.
 - **Pin** puts the note in the Pinned group; **Unpin** takes it out.
-- **Archive** hides the note from the list and closes it. Find it again with
-  **Archived**, or in the **Archive** section (the left rail), under
-  **Notes**: open it there, or press **Unarchive** on its row.
+- **Archive** hides the note from the list and closes it. Find it again in
+  the **Archive** section (the left rail), under **Notes**: open it there, or
+  press **Unarchive** on its row, and it is back in your list.
 - **Move up** / **Move down** change the note's place in its group. In the
   list, **Alt+Up** / **Alt+Down** on a row does the same, and on a wide screen
   you can drag a row. A note moved onto a note of another priority takes that

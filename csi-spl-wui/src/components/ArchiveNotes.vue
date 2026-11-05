@@ -10,7 +10,7 @@
      first-load JS. A switched-off Notes section (notes_off) shows nothing. -->
 <template>
   <section v-if="store.state !== 'off'" class="archive-notes" data-test="archive-notes">
-    <h3 class="archive-part__head">{{ t('archive.notes') }}</h3>
+    <h3 class="archive-part__head">{{ t('sidebar.notes') }}</h3>
     <p v-if="store.state === 'failed'" class="archive-error" role="alert" data-test="archive-notes-error">
       {{ t('notes.load_failed') }}
       <button type="button" class="btn ghost" data-test="archive-notes-retry" @click="store.load()">{{ t('notes.retry') }}</button>

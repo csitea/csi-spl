@@ -21,7 +21,7 @@
       <SectionClose side="end" />
     </header>
     <div class="feed-body">
-      <h3 class="archive-part__head">{{ t('archive.topics') }}</h3>
+      <h3 class="archive-part__head">{{ t('nav.topics') }}</h3>
       <p class="muted archive-hint">{{ t('archive.hint') }}</p>
       <p v-if="loadError" class="archive-error" role="alert" data-test="archive-error">{{ t(loadError) }}</p>
       <p v-else-if="loading" class="muted" data-test="archive-loading">{{ t('common.loading') }}</p>

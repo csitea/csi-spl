@@ -147,13 +147,20 @@ real_run ok DRY_RUN=0 STUB_CODE=201 STUB_BODY="$NEW_ROW"; rc=$?
 real_run refused DRY_RUN=0 STUB_CODE=400 STUB_BODY="$REFUSED"; rc=$?
 [[ $rc -ne 0 ]] && grep -qF 'the hub refused it (400) (bad_cost_entry)' "$T/fs/refused/stdout" \
   && pass "7. ./run create 400: the HTTP code and the hub's error code" || fail "7. 400: rc=$rc $(cat "$T/fs/refused/stdout" "$T/fs/refused/stderr")"
+real_run r403 DRY_RUN=0 STUB_CODE=403 STUB_BODY="$REFUSED"; rc4=$?
+real_run r404 DRY_RUN=0 STUB_CODE=404 STUB_BODY="$REFUSED"; rc5=$?
+real_run r500 DRY_RUN=0 STUB_CODE=500 STUB_BODY="$REFUSED"; rc6=$?
+[[ $rc4 -ne 0 && $rc5 -ne 0 && $rc6 -ne 0 ]] && grep -qF '(403) (bad_cost_entry)' "$T/fs/r403/stdout" \
+  && grep -qF 'answered 404 (bad_cost_entry)' "$T/fs/r404/stdout" && grep -qF 'answered 500 (bad_cost_entry)' "$T/fs/r500/stdout" \
+  && pass "7. ./run 403, 404, 500: the HTTP code and the hub's error code" || fail "7. 403/404/500: rc=$rc4/$rc5/$rc6"
 real_run badamount DRY_RUN=0 COST_AMOUNT=98765.43210; rc=$?
 real_run badcur DRY_RUN=0 COST_CURRENCY=XTSX; rc2=$?
 real_run grossbelow DRY_RUN=0 COST_GROSS=1; rc3=$?
-[[ $rc -ne 0 && $rc2 -ne 0 && $rc3 -ne 0 ]] && grep -q 'FATAL COST_AMOUNT' "$T/fs/badamount/stdout" "$T/fs/badamount/stderr" \
+real_run swapped DRY_RUN=0 COST_PERIOD=98765.4321; rc7=$?
+[[ $rc -ne 0 && $rc2 -ne 0 && $rc3 -ne 0 && $rc7 -ne 0 ]] && grep -q 'FATAL COST_AMOUNT' "$T/fs/badamount/stdout" "$T/fs/badamount/stderr" \
   && grep -q 'FATAL COST_GROSS is below' "$T/fs/grossbelow/stdout" "$T/fs/grossbelow/stderr" \
-  && pass "7. ./run input refusals (amount, currency, gross below net) fail" || fail "7. input refusals: rc=$rc/$rc2/$rc3"
-for r in dry ok refused badamount badcur grossbelow; do
+  && pass "7. ./run input refusals (amount, currency, gross below net, a figure as the period) fail" || fail "7. input refusals: rc=$rc/$rc2/$rc3/$rc7"
+for r in dry ok refused r403 r404 r500 badamount badcur grossbelow swapped; do
   n=$(find "$T/fs/$r" -type f | wc -l)
   l="$(leaks "$r" | tr "\n" " ")"
   [[ -z "$l" && $n -gt 2 ]] && pass "7. $r: no amount, currency or note in stdout, stderr or the $((n - 2)) file(s) the run wrote" \

@@ -12,7 +12,8 @@
 # @description create, delete and their DRY_RUN lines are figure-free
 # @description (SPL-4877, the SPL-4843 ruling): only the id, period, type and
 # @description label, never the amount, currency or note, also not on a
-# @description refusal (its HTTP code and the hub's error code only). ./run
+# @description refusal (its HTTP code and the hub's error code only) or a bad
+# @description input (its name and rule, never the value given). ./run
 # @description tees every line into ~/var/log/<proj>/run.sh.<ts>.{out,err}.log.
 # @description A dry create prints: OK DRY_RUN would POST
 # @description /v1/operator/cost-entries period=<p> type=<t> label=<l> to <hub> ...
@@ -64,11 +65,11 @@ do_spl_hub_cost_entries() {
 _spl_hub_cost_entries_field() {
   local v="${!1-}"
   case "$1" in
-    COST_TYPE) [[ "$v" =~ ^(cloud|hr)$ ]] || { do_log "FATAL COST_TYPE must be cloud or hr, got: '$v'" >&2; return 1; } ;;
+    COST_TYPE) [[ "$v" =~ ^(cloud|hr)$ ]] || { do_log "FATAL COST_TYPE must be cloud or hr (the value is not printed)" >&2; return 1; } ;;
     COST_LABEL) [[ -n "${v// /}" && ${#v} -le 100 ]] || { do_log "FATAL COST_LABEL must be 1..100 characters" >&2; return 1; } ;;
     COST_AMOUNT|COST_GROSS) [[ "$v" =~ ^[0-9]+(\.[0-9]{1,4})?$ && ! "$v" =~ ^0+(\.0+)?$ ]] || { do_log "FATAL $1 must be a number above 0 with at most 4 decimals (the value is not printed)" >&2; return 1; } ;;
     COST_CURRENCY) [[ "$v" =~ ^[A-Z]{3}$ ]] || { do_log "FATAL COST_CURRENCY must be an ISO 4217 code such as EUR (the value is not printed)" >&2; return 1; } ;;
-    COST_PERIOD|COST_MONTH) [[ "$v" =~ ^[0-9]{4}-(0[1-9]|1[0-2])$ ]] || { do_log "FATAL $1 must be a month YYYY-MM, got: '$v'" >&2; return 1; } ;;
+    COST_PERIOD|COST_MONTH) [[ "$v" =~ ^[0-9]{4}-(0[1-9]|1[0-2])$ ]] || { do_log "FATAL $1 must be a month YYYY-MM (the value is not printed)" >&2; return 1; } ;;
     COST_NOTE) [[ ${#v} -le 2000 ]] || { do_log "FATAL COST_NOTE must be at most 2000 characters" >&2; return 1; } ;;
   esac
 }
@@ -87,7 +88,7 @@ _spl_hub_cost_entries_list_path() {
 # _spl_hub_cost_entries_id -> COST_ID is an entry's uuid, else FATAL
 _spl_hub_cost_entries_id() {
   [[ "${COST_ID:-}" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] && return 0
-  do_log "FATAL COST_ID must be a cost entry's uuid, got: '${COST_ID:-}'"; return 1
+  do_log "FATAL COST_ID must be a cost entry's uuid (the value is not printed)"; return 1
 }
 
 # _spl_hub_cost_entries_note -> COST_NOTE with COST_GROSS kept in it (the

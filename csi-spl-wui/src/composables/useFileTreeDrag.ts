@@ -28,29 +28,37 @@ type FileTreeDragOpts = {
   emit: TreeDragEmit
 }
 
+type TreeDropAt = { key: string, where: FileTreeDrop }
+
+/** may the dragged row land on target at where: the caller's rule, else anywhere but into */
+function dropAllowed(o: FileTreeDragOpts, dragged: string, target: string, where: FileTreeDrop): boolean {
+  const t = o.rows().find((r) => r.key === target)
+  if (!t || target === dragged || (where === 'into' && !t.into)) return false
+  const rule = o.canDrop()
+  return rule ? rule(dragged, target, where) : where !== 'into'
+}
+
+/** the row under the pointer and the place on it */
+function dropUnder(o: FileTreeDragOpts, dragged: string, x: number, y: number): TreeDropAt | null {
+  const el = document.elementFromPoint(x, y)?.closest('[data-test=file-tree-row]')
+  const key = el instanceof HTMLElement ? el.dataset.key || '' : ''
+  if (!key || !el || o.els.get(key) !== el) return null
+  const where = dropWhere(y, el.getBoundingClientRect(), {
+    before: dropAllowed(o, dragged, key, 'before'),
+    after: dropAllowed(o, dragged, key, 'after'),
+    into: dropAllowed(o, dragged, key, 'into'),
+  })
+  return where ? { key, where } : null
+}
+
 export function useFileTreeDrag(o: FileTreeDragOpts) {
   let pressAt = -1
   let pressPointer = -1
   const dragKey = ref('')
-  const dropAt = ref<{ key: string, where: FileTreeDrop } | null>(null)
+  const dropAt = ref<TreeDropAt | null>(null)
 
-  function canDrop(target: string, where: FileTreeDrop): boolean {
-    const t = o.rows().find((r) => r.key === target)
-    if (!t || target === dragKey.value || (where === 'into' && !t.into)) return false
-    const rule = o.canDrop()
-    return rule ? rule(dragKey.value, target, where) : where !== 'into'
-  }
-
-  /** the row under the pointer and the place on it */
   function track(x: number, y: number) {
-    const el = document.elementFromPoint(x, y)?.closest('[data-test=file-tree-row]')
-    const key = el instanceof HTMLElement ? el.dataset.key || '' : ''
-    if (!key || !el || o.els.get(key) !== el) {
-      dropAt.value = null
-      return
-    }
-    const where = dropWhere(y, el.getBoundingClientRect(), { before: canDrop(key, 'before'), after: canDrop(key, 'after'), into: canDrop(key, 'into') })
-    dropAt.value = where ? { key, where } : null
+    dropAt.value = dropUnder(o, dragKey.value, x, y)
   }
 
   function endDrag() {

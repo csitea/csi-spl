@@ -14,6 +14,21 @@ interface GripSizeOpts {
   menuOpen: Ref<boolean>
 }
 
+/** What a share is of: the px under the top bar above the keyboard, or the screen width. */
+function sizeRoom(pos: string): number {
+  if (pos === 'right') return window.innerWidth
+  const kb = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb-inset')) || 0
+  const bar = document.querySelector('[data-test=top-bar]')?.getBoundingClientRect().bottom ?? 0
+  return window.innerHeight - kb - bar
+}
+
+/** The largest height share: up to the top button section where the dock
+    measured it (owner, t1 8de4c254: --dock-field-max), else half. */
+function sizeMax(pos: string, room: number): number {
+  const px = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dock-field-max'))
+  return pos === 'bottom' && px > 0 && room > 0 ? px / room : HEIGHT_MAX
+}
+
 export function useOmniboxGripSize(o: GripSizeOpts) {
   const { sizeEl, menuOpen } = o
   const { pos, size, setSize } = useOmniboxPhonePos()
@@ -21,21 +36,6 @@ export function useOmniboxGripSize(o: GripSizeOpts) {
   /* the size handle: the field's height (bottom, top) or the box's width (right) */
   let sizing: { x: number, y: number, id: number, start: number, room: number, max: number, moved: boolean } | null = null
   let swallowSizeClick = false
-
-  /** What a share is of: the px under the top bar above the keyboard, or the screen width. */
-  function sizeRoom(): number {
-    if (pos.value === 'right') return window.innerWidth
-    const kb = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--kb-inset')) || 0
-    const bar = document.querySelector('[data-test=top-bar]')?.getBoundingClientRect().bottom ?? 0
-    return window.innerHeight - kb - bar
-  }
-
-  /** The largest height share: up to the top button section where the dock
-      measured it (owner, t1 8de4c254: --dock-field-max), else half. */
-  function sizeMax(room: number): number {
-    const px = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dock-field-max'))
-    return pos.value === 'bottom' && px > 0 && room > 0 ? px / room : HEIGHT_MAX
-  }
 
   function onSizeMove(e: PointerEvent) {
     if (!sizing || e.pointerId !== sizing.id) return
@@ -71,8 +71,8 @@ export function useOmniboxGripSize(o: GripSizeOpts) {
     if (e.button !== 0 || !sizeEl.value || !box) return
     const field = box.querySelector('textarea')
     const start = pos.value === 'right' ? box.getBoundingClientRect().width : (field?.getBoundingClientRect().height ?? 44)
-    const room = sizeRoom()
-    sizing = { x: e.clientX, y: e.clientY, id: e.pointerId, start, room, max: sizeMax(room), moved: false }
+    const room = sizeRoom(pos.value)
+    sizing = { x: e.clientX, y: e.clientY, id: e.pointerId, start, room, max: sizeMax(pos.value, room), moved: false }
     swallowSizeClick = false
     try { sizeEl.value.setPointerCapture(e.pointerId) } catch { /* a synthetic event has no capture */ }
     sizeListeners?.abort()

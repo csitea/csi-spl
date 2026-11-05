@@ -36,7 +36,7 @@ Owner HUM-10, t1 topic `27162335-08ea-4a9b-8a27-aad17a920eef`:
 
 1. **Watch.** Console sends `POST` (below) and repeats it every 20 s while
    the feed shows. The hub sets that lane's `demand_until = now + 60 s` in
-   `lane_console` (rdb `0262_lane_console.sql`), in the BOX's workspace.
+   `lane_console` (rdb `0263_lane_console.sql`), in the BOX's workspace.
 2. **Box.** The box file follower (`csi-spl-orc/src/bash/scripts/file-stream-follow.py`,
    spec 160) runs `features/spawn-agents/lib/lane_console.py` on every tick.
    Every 5 s it pulls the agents of its own box with a demand on (lane op

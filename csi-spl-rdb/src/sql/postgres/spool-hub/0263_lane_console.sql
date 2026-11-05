@@ -1,4 +1,4 @@
--- 0262_lane_console.sql - a lane's live console (spec 153 section 3.20,
+-- 0263_lane_console.sql - a lane's live console (spec 153 section 3.20,
 -- SPL-4810; owner HUM-10, t1 27162335, msgs 038fa412, 8dd53bd9 and
 -- 3b2ba6f3): an admin opens a lane from the Lanes table, clicks Console and
 -- sees that lane's tmux screen, refreshed while the dialog stays open.

@@ -12,7 +12,7 @@ import (
 	"github.com/csitea/csi-spl/spool-hub-api/internal/wire"
 )
 
-// A lane's live console (spec 153 section 3.20, SPL-4810, rdb 0262; owner
+// A lane's live console (spec 153 section 3.20, SPL-4810, rdb 0263; owner
 // HUM-10, t1 27162335, msgs 038fa412, 8dd53bd9 and 3b2ba6f3): the lane's
 // tmux screen, on demand, for the readers of the Lanes tab who may see it.
 //

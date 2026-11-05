@@ -27,7 +27,7 @@ const (
 	FileStreamsConsoleDemandsOp = "file_streams_console_demands"
 	// FileStreamsConsolePushOp sends one agent's masked screen.
 	FileStreamsConsolePushOp = "file_streams_console_push"
-	// LaneConsoleScreenMax is the screen's byte cap (rdb 0262).
+	// LaneConsoleScreenMax is the screen's byte cap (rdb 0263).
 	LaneConsoleScreenMax = 128 << 10
 	// LaneConsoleLinesMax caps the line count a box reports.
 	LaneConsoleLinesMax = 5000

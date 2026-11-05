@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// The Postgres lane console (lane_console.go, rdb 0262). Every statement
+// The Postgres lane console (lane_console.go, rdb 0263). Every statement
 // runs in the tenant's scope and names tenant_id in its WHERE.
 
 const laneConsoleCols = `tenant_id, agent_box, agent_id, demand_until, demanded_by, screen, lines, redactions, captured_at`

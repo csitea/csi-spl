@@ -86,6 +86,23 @@ function resolveInto(imgUrl: Record<string, string>, s: DocSession, docs: DocIte
   }
 }
 
+/** a picture's token: the file's stem as its caption, else the default caption */
+function picTokenOf(file: File, path: string, fallback: string) {
+  const stem = file.name.replace(/\.[^.]+$/, '').trim()
+  return picToken(stem && stem !== 'image' ? stem : fallback, path)
+}
+
+/** after the insert renders: the paragraph shows its new text, its caption selected to type over */
+async function selectCaption(editor: Editor, it: DocItem, at: number, token: string) {
+  await nextTick()
+  const el = editor.textOf(it.id)
+  if (!el) return
+  el.value = it.body
+  editor.grow(el)
+  el.focus()
+  el.setSelectionRange(at + 2, at + token.indexOf(']('))
+}
+
 export function useDocPictures(v: PicView) {
   const { t } = useI18n({ useScope: 'global' })
   /* an image's hub path -> the URL the <img> shows (an object URL of the bytes) */
@@ -134,19 +151,12 @@ export function useDocPictures(v: PicView) {
     const path = await upload(v.props.session, v.busy, file)
     if (!path) return
     await saving
-    const stem = file.name.replace(/\.[^.]+$/, '').trim()
-    const token = picToken(stem && stem !== 'image' ? stem : t('ws_doctree.picture_caption'), path)
+    const token = picTokenOf(file, path, t('ws_doctree.picture_caption'))
     const { next, at } = withToken(value, start, end, token)
     v.editor.paraEditing.add(it.id)
     await v.commit(it, 'body', next)
     resolveImages()
-    await nextTick()
-    const el = v.editor.textOf(it.id)
-    if (!el) return
-    el.value = it.body
-    v.editor.grow(el)
-    el.focus()
-    el.setSelectionRange(at + 2, at + token.indexOf(']('))
+    await selectCaption(v.editor, it, at, token)
   }
 
   /** a figure's caption edited in place: the k-th picture's token rewritten */

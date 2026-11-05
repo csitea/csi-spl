@@ -87,6 +87,35 @@ function docImages(api: SpoolApi, mock: () => Promise<Mock>) {
 
 type DocCall = <T>(method: string, path: string, body?: Record<string, unknown>) => Promise<T>
 
+/** one hub call, or the mock tenant's answer: the body as off the wire, a non-2xx thrown as DocTreeError */
+function docCall(api: SpoolApi, mock: () => Promise<Mock>): DocCall {
+  return async function call<T>(method: string, path: string, body?: Record<string, unknown>): Promise<T> {
+    let status: number
+    let out: unknown
+    if (api.mock) {
+      const r = (await mock()).mockDocTree(method, path, body)
+      status = r.status
+      out = JSON.parse(JSON.stringify(r.body)) /* a copy, as off the wire */
+    } else {
+      const headers: Record<string, string> = {}
+      if (api.token) headers.authorization = `Bearer ${api.token}`
+      if (body) headers['content-type'] = 'application/json'
+      const r = await fetch(`${api.base}/v1/workspace/doctree${path}`, {
+        method, headers, credentials: api.credentials, cache: 'no-cache',
+        body: body ? JSON.stringify(body) : undefined,
+        signal: AbortSignal.timeout(docFetchTimeoutMs(method)),
+      })
+      status = r.status
+      out = await r.json().catch(() => ({}))
+    }
+    if (status < 200 || status > 299) {
+      const e = (out || {}) as { error?: string, message?: string }
+      throw new DocTreeError(status, e.error || 'error', e.message || `doctree ${status}`, e as Record<string, unknown>)
+    }
+    return out as T
+  }
+}
+
 /** the tree half of the client (spec 120 section 7): the Qto tree's levels, a new document in a folder, the + New folder, a folder's rename and delete */
 function docFolders(call: DocCall) {
   const enc = encodeURIComponent
@@ -114,32 +143,7 @@ export function useDocTree() {
     mockMod = null /* a chunk that failed to load (a deploy in between) is asked again next time */
     throw e
   }))
-
-  async function call<T>(method: string, path: string, body?: Record<string, unknown>): Promise<T> {
-    let status: number
-    let out: unknown
-    if (api.mock) {
-      const r = (await mock()).mockDocTree(method, path, body)
-      status = r.status
-      out = JSON.parse(JSON.stringify(r.body)) /* a copy, as off the wire */
-    } else {
-      const headers: Record<string, string> = {}
-      if (api.token) headers.authorization = `Bearer ${api.token}`
-      if (body) headers['content-type'] = 'application/json'
-      const r = await fetch(`${api.base}/v1/workspace/doctree${path}`, {
-        method, headers, credentials: api.credentials, cache: 'no-cache',
-        body: body ? JSON.stringify(body) : undefined,
-        signal: AbortSignal.timeout(docFetchTimeoutMs(method)),
-      })
-      status = r.status
-      out = await r.json().catch(() => ({}))
-    }
-    if (status < 200 || status > 299) {
-      const e = (out || {}) as { error?: string, message?: string }
-      throw new DocTreeError(status, e.error || 'error', e.message || `doctree ${status}`, e as Record<string, unknown>)
-    }
-    return out as T
-  }
+  const call = docCall(api, mock)
 
   const { imageSrc, uploadImage } = docImages(api, mock)
 

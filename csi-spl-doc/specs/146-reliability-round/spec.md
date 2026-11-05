@@ -70,8 +70,11 @@ the disk notes (task `disk-headroom`), and folds them by fingerprint
   the reads (minutes: GCP 180 s, each hub read 120 s), so a live tick reads
   `lease.orch` again after them and before every issue it files or
   reopens: moved, it files nothing more, and the alerts of the writes it
-  skipped stay unseen for the new holder. This narrows the race to one
-  write; only a hub-side lock would close it.
+  skipped stay unseen for the new holder. This narrows the race, it does
+  not close it: the re-check reads this box's mirror of the hub lease
+  (`lease.orch`), which the lease loop refreshes once every `LEASE_PERIOD`
+  (60 s), so a move can go unseen here for up to one `LEASE_PERIOD` plus
+  the write in flight; only a hub-side lock would close it.
 - **Dry run by default**: it prints one `PLAN` line per fingerprint and files
   nothing. Live needs `ALERT_ISSUE_DRY_RUN=0` and `ALERT_ISSUE_DISCUSSION=<topic
   uuid>` (the discussion a disk or GCP alert's issue links) in

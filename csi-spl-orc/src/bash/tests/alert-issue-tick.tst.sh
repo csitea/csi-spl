@@ -26,10 +26,13 @@
 #      next tick files it
 #   7b. a reopen with a lane whose update fails: the lane is taken back out
 #      of the day count and the fingerprint's last_lane_at (N1)
-#   3b. no action the tick runs inherits its lock fd 6 (round-2 N2)
+#   3b. no action the tick runs, and no source read, inherits its lock
+#       fd 6 (round-2 N2, round-3 N3)
 #   10. the orch role moves during the reads: nothing filed, no state
 #      written; it moves between two writes: the first stays, the rest are
 #      rolled back (round-2 W1)
+#   10c. it moves after a create and before a reopen: the reopen is held
+#      (round-3 N2)
 #   8. ALERT_ISSUE=0 does nothing; the orch role on another box does nothing;
 #      a live run without ALERT_ISSUE_DISCUSSION is refused
 #   9. do_spl_asks_tick starts the alert tick only on the holder's machine
@@ -160,6 +163,11 @@ u='[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}'
   fail "3. state: $(jq -c .fps "$ST")"
 
 [[ ! -e "$T/fd6.log" ]] && pass "3b. no issue, ask or enqueue action inherits the tick's lock fd 6" || fail "3b. fd 6 leaked into: $(sort -u "$T/fd6.log" | tr '\n' ' ')"
+# ... nor a source read (spl_ai_src's 6>&-, round-3 N3): a dry tick, a disk source that logs fd 6
+printf '#!/bin/sh\n[ -e /proc/self/fd/6 ] && echo disk >>"%s"\ncat "%s"\n' "$T/fd6src.log" "$S/disk.ndjson" >"$T/fd6-src"; chmod +x "$T/fd6-src"
+rm -f "$SP/dispatch/alert-issue/state.dry.json"; out="$(tick ALERT_ISSUE_DISK_CMD="$T/fd6-src")"
+[[ ! -e "$T/fd6src.log" ]] && grep -q 'PLAN ' <<<"$out" && pass "3b. no source read inherits the tick's lock fd 6" ||
+  fail "3b. fd 6 leaked into a source read: $(cat "$T/fd6src.log" 2>/dev/null) $out"
 
 # 5: a repeat folds into the open issue
 cp "$S/alerts.json" "$T/alerts.keep"
@@ -259,6 +267,19 @@ rm -f "$T/update.fail"
   [[ "$(jq --arg h "$kh" '.fps[$h] | has("last_lane_at")' "$ST")" == false ]] &&
   pass "7b. a failed reopen with a lane: no enqueue, the day count keeps its $lanes0 lane(s), the fingerprint's last_lane_at is taken back" ||
   fail "7b. rollback: lanes $lanes0 -> $(jq '.lanes | length' "$ST"), fp $(jq -c --arg h "$kh" '.fps[$h]' "$ST"); $out"
+
+# 10c (round-3 N2): the role moves after a create and before a reopen: the
+# reopen's own re-check holds it (a new alert at 14:00 files first, the
+# done issue's post-fix alert at 14:10 would reopen it)
+cat >"$S/alerts.json" <<'EOF'
+{"topics":[{"task_id":"0b9e4c1a-1111-4aaa-8bbb-000000000005","subject":"**ALERT** spool queue on sat: 40 asks wait longer than 30 min","last_ts":"2026-11-02T14:00:00Z"}]}
+EOF
+gcp_at 2026-11-02T14:10Z; : >"$T/calls.log"; echo "c-001@sat 1" >"$SP/dispatch/lease.orch"; touch "$T/move.after.create"
+out="$(AT=$((NOW + 8400)) GITD="$GITD" tick DRY_RUN=0 ALERT_ISSUE_LANE_GAP_S=600 ALERT_ISSUE_LANES_PER_DAY=9)"
+rm -f "$SP/dispatch/lease.orch" "$T/move.after.create"; : >"$S/alerts.json"
+[[ "$(count do_spl_issue_create)" == 1 && "$(count do_spl_issue_update)" == 0 ]] && grep -q 'held on box-b' <<<"$out" &&
+  pass "10c. the role moves after a create: the reopen that follows re-reads lease.orch and is held (no update)" ||
+  fail "10c. move before reopen: create $(count do_spl_issue_create) update $(count do_spl_issue_update) $out"
 
 # 7: a failed create is filed on the next tick
 reset; cp "$T/alerts.keep" "$S/alerts.json"; : >"$S/gcp.txt"; : >"$S/disk.ndjson"

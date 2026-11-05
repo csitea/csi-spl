@@ -35,18 +35,12 @@ const WIDE_CAP = 6
 // property name, or `<anon>`; a repeat in one file gets #2, #3). The ceiling is
 // its length when listed (r5-06): a listed function may not grow past it.
 // Now: the functions over 75 lines when r28-02 lowered MAX_LINES 80 -> 75 (28
-// on fba652a18, 9 left after r49-10). The list may only shrink: split a
+// on fba652a18, 3 left after r50-10). The list may only shrink: split a
 // function into named steps and delete its line; a NEW long one fails.
 const LONG = new Map([
-  ['src/components/workspace-docs/-doctree-api.ts useDocTree', 79],
   ['src/composables/useCalendarDeepLinks.ts useCalendarDeepLinks', 78],
   ['src/composables/useCardMove.ts useCardMove', 80],
   ['src/composables/useCardTopicActions.ts useCardMessageActions', 80],
-  ['src/composables/useDocPictures.ts useDocPictures', 79],
-  ['src/composables/useFileTreeDrag.ts useFileTreeDrag', 80],
-  ['src/composables/useOmniboxGripSize.ts useOmniboxGripSize', 79],
-  ['src/stores/channel.ts liveSendSteps', 77],
-  ['src/stores/channel.ts sidebarSteps', 79],
 ])
 
 // `<file> <name>` keyed as LONG. The functions at 6 parameters when r26-02

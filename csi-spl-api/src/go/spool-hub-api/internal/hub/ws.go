@@ -648,6 +648,9 @@ func (s *Server) onSend(ctx context.Context, x *session, f wire.Frame) {
 	if rf == nil {
 		level, rf = s.sendMoved(ctx, x.tenant, m.TaskID) // spec 169 C8, channel_move.go
 	}
+	if rf == nil { // spec 164 5.1: after the moved check (it reads the topic first), before anything is claimed, stored or queued
+		rf = s.sendChannelBoxRefusal(ctx, x, env, m)
+	}
 	var undo func()
 	if rf == nil {
 		rf, undo = s.claimAnswer(ctx, x, env, m, f)
@@ -727,6 +730,23 @@ func (s *Server) sendRouteRefusal(ctx context.Context, x *session, env *wire.Env
 		return &frameRefusal{"unpinned_box", http.StatusNotFound, "to_box is not pinned in this tenant"}
 	}
 	return nil
+}
+
+// sendChannelBoxRefusal: on a pinned channel the to_box, and every box an
+// @<id>@<box> mention names, is one of the channel's boxes (spec 164 5.1,
+// channels.go channelBoxRefusal). The channel is the one the envelope signs;
+// an untagged reply into a channel topic still goes to its to_box, so a
+// direct leg to another box takes the topic's channel (an unreadable topic
+// refuses, fail closed).
+func (s *Server) sendChannelBoxRefusal(ctx context.Context, x *session, env *wire.Envelope, m *msg.Message) *frameRefusal {
+	channel := s.tagChannel(env.Channel, m.TaskID)
+	if channel == "" && env.ToBox != WUIBox && env.ToBox != x.box {
+		var err error
+		if channel, err = s.o.Store.TopicChannel(ctx, x.tenant, m.TaskID); err != nil {
+			return &frameRefusal{CodeChannelPinsUnavailable, http.StatusServiceUnavailable, "the topic's channel is unavailable; nothing was sent"}
+		}
+	}
+	return s.channelBoxRefusal(ctx, x.tenant, channel, env.ToBox, m.Body)
 }
 
 // sendTenantRefusal: the tenant pays and is within its message quota.

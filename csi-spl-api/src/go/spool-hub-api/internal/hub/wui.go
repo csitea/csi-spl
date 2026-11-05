@@ -747,7 +747,7 @@ func (s *Server) wuiRoute(ctx context.Context, c *wuiConn, f wuiIn, m *msg.Messa
 	}
 	if agent != "" {
 		want := dispatchBox(f)
-		box, pin, tok, status, detail := s.dispatchCheck(ctx, c, m, want)
+		box, pin, tok, status, detail := s.dispatchCheckIn(ctx, c, m, want, rt.channel)
 		if tok == "unknown_agent" { // a reply to a retired seat (retired_reply.go)
 			if box, pin, rt.fallback = s.rerouteReply(ctx, c, m, want); rt.fallback != nil {
 				tok = ""

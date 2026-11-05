@@ -158,12 +158,25 @@ func (s *Server) fallback(ctx context.Context, tenant, channel string, env *wire
 	s.fallbackPost(ctx, tenant, channel, env, m, escalation{})
 }
 
+// pinnedFallbackBoxes is boxes minus those a pinned channel does not list
+// (spec 164 5.1: the fallback stays inside the list); pins nil = all of them.
+func pinnedFallbackBoxes(boxes []fallbackBox, pins []string) []fallbackBox {
+	out := boxes[:0:0]
+	for _, b := range boxes {
+		if pinsAllow(pins, b.box) {
+			out = append(out, b)
+		}
+	}
+	return out
+}
+
 // recipientOnline reports whether any agent the post was meant for is online:
-// the DM's addressee, or a member agent of the channel. A members read error
+// the DM's addressee, or a member agent of the channel on a box its pins list
+// (an unlisted member never gets the post, so it hears nothing). A members read error
 // counts as online, so the caller HOLDS the ordinary fallback on a transient
 // store error rather than sending a duplicate. Extracted from fallbackPost so
 // it reads as one gate (SPL-1036).
-func (s *Server) recipientOnline(ctx context.Context, tenant, channel string, env *wire.Envelope, m *msg.Message, roster map[string][]string) bool {
+func (s *Server) recipientOnline(ctx context.Context, tenant, channel string, env *wire.Envelope, m *msg.Message, roster map[string][]string, pins []string) bool {
 	if env.ToBox != WUIBox && s.agentOnline(tenant, env.ToBox, m.To, roster) {
 		return true
 	}
@@ -176,6 +189,9 @@ func (s *Server) recipientOnline(ctx context.Context, tenant, channel string, en
 		return true
 	}
 	for box, agents := range members {
+		if !pinsAllow(pins, box) {
+			continue
+		}
 		for _, a := range agents {
 			if s.agentOnline(tenant, box, a, roster) {
 				return true
@@ -224,11 +240,16 @@ func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *
 	if channel == "" && !isAgent(m.To) { // a DM to a person, or nothing to route
 		return
 	}
-	boxes := s.fallbackBoxes(tenant)
-	if len(boxes) == 0 { // nobody who could take it: nothing to read
+	log := s.o.Log.With().Str("tenant", tenant).Str("msg_id", m.MsgID).Str("channel", channel).Logger()
+	pins, err := s.channelBoxPins(ctx, tenant, channel)
+	if err != nil { // spec 164 5.1: fail closed, no fallback
+		log.Error().Err(err).Msg("channel box pins lookup failed; no fallback")
 		return
 	}
-	log := s.o.Log.With().Str("tenant", tenant).Str("msg_id", m.MsgID).Str("channel", channel).Logger()
+	boxes := pinnedFallbackBoxes(s.fallbackBoxes(tenant), pins)
+	if len(boxes) == 0 { // nobody who could take it (on a pinned channel: no listed box online)
+		return
+	}
 	if env.Sig == "" {
 		log.Warn().Msg("fallback_unsigned: no agent box can take an unsigned post; it stays browser-only (FR-038)")
 		return
@@ -247,7 +268,7 @@ func (s *Server) fallbackPost(ctx context.Context, tenant, channel string, env *
 		log.Error().Err(err).Msg("fallback roster")
 		return
 	}
-	if !esc.escalate && s.recipientOnline(ctx, tenant, channel, env, m, roster) {
+	if !esc.escalate && s.recipientOnline(ctx, tenant, channel, env, m, roster, pins) {
 		return
 	}
 	canon, err := s.fallbackCanon(ctx, tenant, env, m, esc.taskID)
@@ -379,7 +400,8 @@ func (s *Server) fallbackInfo(ctx context.Context, tenant, channel string, agent
 			break
 		}
 	}
-	if boxes := s.fallbackBoxes(tenant); len(boxes) > 0 {
+	pins, err := s.channelBoxPins(ctx, tenant, channel)
+	if boxes := pinnedFallbackBoxes(s.fallbackBoxes(tenant), pins); err == nil && len(boxes) > 0 {
 		if roster, err := s.o.Store.Roster(ctx, tenant); err == nil {
 			if b, id, ok := s.fallbackPick(ctx, tenant, roster, boxes, 0, "", ""); ok {
 				out.ID, out.Box = id, b.box

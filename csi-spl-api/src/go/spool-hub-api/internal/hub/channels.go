@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -235,7 +237,84 @@ func (s *Server) agentInChannel(ctx context.Context, tenant, channel, box, agent
 	if err != nil {
 		return false, err
 	}
-	return contains(members[box], agent), nil
+	if !contains(members[box], agent) {
+		return false, nil
+	}
+	return s.channelBoxAllowed(ctx, tenant, channel, box) // spec 164 5.3: a member on an unlisted box posts nothing
+}
+
+// Channel box pins (spec 164 section 5, row B3; the table is rdb 0246, the
+// routes B2): a pinned channel runs only on its listed boxes - its fan-out,
+// its direct legs, its fallback, what a box receives and who posts. No rows
+// = every pinned box of the workspace, the default (owner HUM-10, t1 021d4921
+// msg 6b6d092c). A failed lookup is "pinned to nobody", never "unpinned"
+// (3.3, fail closed). box-wui is a person's door, not a machine: never
+// filtered (5.1).
+
+// The direct-leg refusals of both doors (spec 164 5.1). Not named Token*:
+// gosec G101 reads a Token const as a credential.
+const (
+	CodeChannelBoxMismatch     = "channel_box_mismatch"
+	CodeChannelPinsUnavailable = "channel_pins_unavailable"
+)
+
+// channelBoxPins is channel's pin list, sorted; nil = unpinned (or no channel).
+func (s *Server) channelBoxPins(ctx context.Context, tenant, channel string) ([]string, error) {
+	if channel == "" {
+		return nil, nil
+	}
+	return s.o.Store.GetChannelBoxPins(ctx, tenant, store.NormalizeChannel(channel))
+}
+
+// pinsAllow reports whether box may carry a channel pinned to pins (nil =
+// unpinned).
+func pinsAllow(pins []string, box string) bool {
+	return len(pins) == 0 || box == WUIBox || slices.Contains(pins, box)
+}
+
+// channelBoxAllowed reports whether box may receive or post in channel;
+// false with the error when the pins are unreadable.
+func (s *Server) channelBoxAllowed(ctx context.Context, tenant, channel, box string) (bool, error) {
+	if channel == "" || box == WUIBox {
+		return true, nil
+	}
+	pins, err := s.channelBoxPins(ctx, tenant, channel)
+	if err != nil {
+		return false, err
+	}
+	return pinsAllow(pins, box), nil
+}
+
+// boxMentionRe finds a cross-box mention, @<id>@<box>; group 1 is the box.
+var boxMentionRe = regexp.MustCompile(`(?:^|[^A-Za-z0-9_.@-])@[A-Za-z]{1,4}-[0-9]+@([a-z0-9][a-z0-9-]{0,31})`)
+
+// mentionedBoxes is every box body names in an @<id>@<box> mention.
+func mentionedBoxes(body string) []string {
+	var out []string
+	for _, g := range boxMentionRe.FindAllStringSubmatch(body, -1) {
+		out = append(out, g[1])
+	}
+	return out
+}
+
+// channelBoxRefusal is the direct-leg check of both doors (spec 164 5.1,
+// onSend and dispatchCheck): on a pinned channel a to_box, or a box named in
+// an @<id>@<box> mention, outside the list is 403 channel_box_mismatch, so
+// it fails before anything is stored or queued; unreadable pins are 503
+// channel_pins_unavailable. nil = no channel, unpinned, or every box listed.
+func (s *Server) channelBoxRefusal(ctx context.Context, tenant, channel, toBox, body string) *frameRefusal {
+	pins, err := s.channelBoxPins(ctx, tenant, channel)
+	if err != nil {
+		s.o.Log.Error().Err(err).Str("tenant", tenant).Str("channel", channel).Msg("channel box pins lookup failed; send refused")
+		return &frameRefusal{CodeChannelPinsUnavailable, http.StatusServiceUnavailable, "the box pins of #" + channel + " are unavailable; nothing was sent"}
+	}
+	for _, b := range append([]string{toBox}, mentionedBoxes(body)...) {
+		if !pinsAllow(pins, b) {
+			return &frameRefusal{CodeChannelBoxMismatch, http.StatusForbidden,
+				"#" + channel + " runs only on " + strings.Join(pins, ", ") + "; box " + b + " is not one of them"}
+		}
+	}
+	return nil
 }
 
 // withoutAgent is agents minus id (a fresh slice; the input is not touched).
@@ -281,12 +360,17 @@ func (s *Server) routeChannel(ctx context.Context, tenant, channel string, env *
 		s.o.Log.Error().Err(err).Str("msg_id", m.MsgID).Msg("channel members")
 		return
 	}
+	pins, err := s.channelBoxPins(ctx, tenant, channel)
+	if err != nil { // spec 164 5.1: fail closed, no box gets it; the message stays stored
+		s.o.Log.Error().Err(err).Str("msg_id", m.MsgID).Str("channel", channel).Msg("channel box pins lookup failed; fan-out dropped")
+		return
+	}
 	fromBrowser := env.FromBox == WUIBox
 	agentPost := !fromBrowser && env.Channel != ""
 	seats := s.roleSeats(ctx, tenant).seated(members)
 	now := s.o.Now()
 	for box, agents := range members {
-		if box == WUIBox || (!fromBrowser && box == env.ToBox) {
+		if box == WUIBox || (!fromBrowser && box == env.ToBox) || !pinsAllow(pins, box) { // spec 164 5.1: a listed box only
 			continue
 		}
 		if box == env.FromBox {
@@ -326,6 +410,15 @@ func (s *Server) recvAgents(ctx context.Context, x *session, raw []byte) ([]stri
 		return nil, true
 	}
 	own := e.ToBox == x.box
+	// spec 164 5.1: a pinned channel's row on an unlisted box is dropped, its
+	// own to_box leg too (queued before the pin, or a leg a refusal missed);
+	// unreadable pins drop it as well.
+	if ok, err := s.channelBoxAllowed(ctx, x.tenant, store.NormalizeChannel(e.Channel), x.box); !ok {
+		if err != nil {
+			s.o.Log.Error().Err(err).Str("tenant", x.tenant).Str("box", x.box).Msg("channel box pins lookup failed; delivery dropped")
+		}
+		return nil, false
+	}
 	if !s.channelAgentsHear(ctx, x.tenant, store.NormalizeChannel(e.Channel)) { // SPL-1684 / SPL-2423: a row queued before the switch
 		return nil, own
 	}
